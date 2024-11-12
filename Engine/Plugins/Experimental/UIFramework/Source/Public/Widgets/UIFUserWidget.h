@@ -68,63 +68,6 @@ struct TStructOpsTypeTraits<FUIFrameworkUserWidgetNamedSlotList> : public TStruc
 };
 
 /**
-*
-*/
-USTRUCT()
-struct UIFRAMEWORK_API FUIFrameworkUserWidgetViewmodel : public FFastArraySerializerItem
-{
-	GENERATED_BODY()
-
-	FUIFrameworkUserWidgetViewmodel() = default;
-
-public:
-	UPROPERTY()
-	FName Name;
-
-	UPROPERTY()
-	TObjectPtr<UObject> Instance;
-};
-
-/**
-*
-*/
-USTRUCT()
-struct UIFRAMEWORK_API FUIFrameworkUserWidgetViewmodelList : public FFastArraySerializer
-{
-	GENERATED_BODY()
-
-	FUIFrameworkUserWidgetViewmodelList() = default;
-	FUIFrameworkUserWidgetViewmodelList(UUIFrameworkUserWidget* InOwner)
-		: Owner(InOwner)
-	{}
-
-public:
-	//~ Begin of FFastArraySerializer
-	void PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize);
-	//~ End of FFastArraySerializer
-
-	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms);
-
-	void AuthorityAddEntry(FUIFrameworkUserWidgetViewmodel Entry);
-	const FUIFrameworkUserWidgetViewmodel* AuthorityFindEntry(FName ViewmodelName) const;
-	void AttachViewmodels();
-
-private:
-	UPROPERTY()
-	TArray<FUIFrameworkUserWidgetViewmodel> Viewmodels;
-
-	UPROPERTY(NotReplicated, Transient)
-	TObjectPtr<UUIFrameworkUserWidget> Owner;
-};
-
-
-template<>
-struct TStructOpsTypeTraits<FUIFrameworkUserWidgetViewmodelList> : public TStructOpsTypeTraitsBase2<FUIFrameworkUserWidgetViewmodelList>
-{
-	enum { WithNetDeltaSerializer = true };
-};
-
-/**
  *
  */
 UCLASS(DisplayName = "UserWidget UIFramework")
@@ -136,7 +79,6 @@ public:
 	UUIFrameworkUserWidget();
 
 public:
-
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "UI Framework")
 	void SetWidgetClass(TSoftClassPtr<UWidget> Value);
 
@@ -146,15 +88,8 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "UI Framework")
 	UUIFrameworkWidget* GetNamedSlot(FName SlotName) const;
 
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "UI Framework")
-	void SetViewmodel(FName ViewmodelName, TScriptInterface<INotifyFieldValueChanged> Viewmodel);
-
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "UI Framework")
-	TScriptInterface<INotifyFieldValueChanged> GetViewmodel(FName ViewmodelName) const;
-
 public:
-	void LocalOnUMGWidgetCreated() override;
-	virtual bool LocalIsReplicationReady() const;
+	virtual bool LocalIsReplicationReady() const override;
 
 	virtual void AuthorityForEachChildren(const TFunctionRef<void(UUIFrameworkWidget*)>& Func) override;
 	virtual void AuthorityRemoveChild(UUIFrameworkWidget* Widget) override;
@@ -163,7 +98,4 @@ public:
 private:
 	UPROPERTY(Replicated)
 	FUIFrameworkUserWidgetNamedSlotList ReplicatedNamedSlotList;
-
-	UPROPERTY(Replicated)
-	FUIFrameworkUserWidgetViewmodelList ReplicatedViewmodelList;
 };

@@ -64,7 +64,8 @@ void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context,
 					BlendStackNodePtr->bUseInertialBlend,
 					BlendParameters,
 					WantedPlayRate,
-					ActivationDelay);
+					ActivationDelay,
+					BlendStackNodePtr->GetGroupName(), BlendStackNodePtr->GetGroupRole(), BlendStackNodePtr->GetGroupMethod());
 			}
 			else
 			{
@@ -76,6 +77,98 @@ void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context,
 			UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid type."));
 		}
 	}
+}
+
+void UBlendStackAnimNodeLibrary::BlendToWithSettings(const FAnimUpdateContext& Context,
+													const FBlendStackAnimNodeReference& BlendStackNode, 
+													UAnimationAsset* AnimationAsset /*= nullptr*/, 
+													float AnimationTime /*= 0.f*/, 
+													bool bLoop /*= false*/, 
+													bool bMirrored /*= false*/, 
+													float BlendTime /*= 0.2f*/, 
+													UBlendProfile* BlendProfile /*= nullptr*/, 
+													EAlphaBlendOption BlendOption /*= EAlphaBlendOption::HermiteCubic*/,
+													bool bInertialBlend /*= false*/, 
+													FVector BlendParameters /*= FVector::ZeroVector*/, 
+													float WantedPlayRate /*= 1.f*/, 
+													float ActivationDelay /*= 0.f*/)
+{
+	if (AnimationAsset != nullptr)
+	{
+		if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
+		{
+			if (const FAnimationUpdateContext* AnimationUpdateContext = Context.GetContext())
+			{
+				BlendStackNodePtr->BlendTo(
+					*AnimationUpdateContext,
+					AnimationAsset,
+					AnimationTime,
+					bLoop,
+					bMirrored,
+					BlendStackNodePtr->MirrorDataTable,
+					BlendTime,
+					BlendProfile,
+					BlendOption,
+					bInertialBlend,
+					BlendParameters,
+					WantedPlayRate,
+					ActivationDelay,
+					BlendStackNodePtr->GetGroupName(), BlendStackNodePtr->GetGroupRole(), BlendStackNodePtr->GetGroupMethod());
+			}
+			else
+			{
+				UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendToWithSettings called with an invalid context."));
+			}
+		}
+		else
+		{
+			UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendToWithSettings called with an invalid type."));
+		}
+	}
+}
+
+UAnimationAsset* UBlendStackAnimNodeLibrary::GetCurrentAsset(const FBlendStackAnimNodeReference& BlendStackNode)
+{
+	if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
+	{
+		return BlendStackNodePtr->GetAnimAsset();
+	}
+
+	UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::GetCurrentAsset called with an invalid type."));
+	return nullptr;
+}
+
+float UBlendStackAnimNodeLibrary::GetCurrentAssetTime(const FBlendStackAnimNodeReference& BlendStackNode)
+{
+	if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
+	{
+		return BlendStackNodePtr->GetCurrentAssetTime();
+	}
+
+	UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::GetCurrentAssetTime called with an invalid type."));
+	return 0.0f;
+}
+
+float UBlendStackAnimNodeLibrary::GetCurrentAssetTimeRemaining(const FBlendStackAnimNodeReference& BlendStackNode)
+{
+	if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
+	{
+		return BlendStackNodePtr->GetCurrentAssetLength() - BlendStackNodePtr->GetCurrentAssetTimePlayRateAdjusted();
+	}
+
+	UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::GetCurrentAssetTimeRemaining called with an invalid type."));
+	return 0.0f;
+}
+
+bool UBlendStackAnimNodeLibrary::IsCurrentAssetLooping(const FBlendStackAnimNodeReference& BlendStackNode)
+{
+	if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
+	{
+		return BlendStackNodePtr->IsLooping();
+	}
+
+	UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::IsCurrentAssetLooping called with an invalid type."));
+	return false;
 }
 
 void UBlendStackAnimNodeLibrary::ForceBlendNextUpdate(const FBlendStackAnimNodeReference& BlendStackNode)

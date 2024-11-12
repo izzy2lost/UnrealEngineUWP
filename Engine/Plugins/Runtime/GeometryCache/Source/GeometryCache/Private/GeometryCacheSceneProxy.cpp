@@ -21,6 +21,27 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
 
+#if INTEL_ISPC
+#include "GeometryCacheSceneProxy.ispc.generated.h"
+#endif
+
+#if INTEL_ISPC
+static_assert(sizeof(uint32) == sizeof(FPackedNormal), "sizeof(uint32) != sizeof(FPackedNormal)");
+static_assert(sizeof(ispc::FVector2f) == sizeof(FVector2f), "sizeof(ispc::FVector2f) != sizeof(FVector2f)");
+static_assert(sizeof(ispc::FVector3f) == sizeof(FVector3f), "sizeof(ispc::FVector3f) != sizeof(FVector3f)");
+
+#if !UE_BUILD_SHIPPING
+bool GGeometryCacheSceneProxyUseIspc = GEOMETRY_CACHE_SCENE_PROXY_ISPC_ENABLED_DEFAULT;
+static FAutoConsoleVariableRef CVarGeometryCacheSceneProxyUseIspc(
+	TEXT("r.GeometryCacheSceneProxy.ISPC"),
+	GGeometryCacheSceneProxyUseIspc,
+	TEXT("When enabled GeometryCacheSceneProxy will use ISPC if appropriate."),
+	ECVF_Default
+);
+#endif
+
+#endif
+
 DECLARE_CYCLE_STAT(TEXT("Gather Mesh Elements"), STAT_GeometryCacheSceneProxy_GetMeshElements, STATGROUP_GeometryCache);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Triangle Count"), STAT_GeometryCacheSceneProxy_TriangleCount, STATGROUP_GeometryCache);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Batch Count"), STAT_GeometryCacheSceneProxy_MeshBatchCount, STATGROUP_GeometryCache);
@@ -28,6 +49,11 @@ DECLARE_CYCLE_STAT(TEXT("Vertex Buffer Update"), STAT_VertexBufferUpdate, STATGR
 DECLARE_CYCLE_STAT(TEXT("Index Buffer Update"), STAT_IndexBufferUpdate, STATGROUP_GeometryCache);
 DECLARE_CYCLE_STAT(TEXT("Buffer Update Task"), STAT_BufferUpdateTask, STATGROUP_GeometryCache);
 DECLARE_CYCLE_STAT(TEXT("InterpolateFrames"), STAT_InterpolateFrames, STATGROUP_GeometryCache);
+DECLARE_CYCLE_STAT(TEXT("InterpolateFramesSIMDPositions"), STAT_InterpolateFramesSIMDPositions, STATGROUP_GeometryCache);
+DECLARE_CYCLE_STAT(TEXT("InterpolateFramesSIMDMotionVectors"), STAT_InterpolateFramesSIMDMotionVectors, STATGROUP_GeometryCache);
+DECLARE_CYCLE_STAT(TEXT("InterpolateFramesSIMDTangents"), STAT_InterpolateFramesSIMDTangents, STATGROUP_GeometryCache);
+DECLARE_CYCLE_STAT(TEXT("InterpolateFramesSIMDUVs"), STAT_InterpolateFramesSIMDUVs, STATGROUP_GeometryCache);
+DECLARE_CYCLE_STAT(TEXT("InterpolateFramesSIMDColors"), STAT_InterpolateFramesSIMDColors, STATGROUP_GeometryCache);
 
 static TAutoConsoleVariable<int32> CVarOffloadUpdate(
 	TEXT("GeometryCache.OffloadUpdate"),
@@ -494,7 +520,7 @@ void FGeometryCacheSceneProxy::GetDynamicMeshElements(const TArray<const FSceneV
 }
 
 #if RHI_RAYTRACING
-void FGeometryCacheSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FGeometryCacheSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!CVarRayTracingGeometryCache.GetValueOnRenderThread())
 	{
@@ -521,21 +547,21 @@ void FGeometryCacheSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterial
 			const FGeometryCacheMeshBatchInfo& BatchInfo = MeshData->BatchesInfo[SegmentIndex];
 			FMeshBatch MeshBatch;
 
-			FGeometryCacheVertexFactoryUserDataWrapper& UserDataWrapper = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FGeometryCacheVertexFactoryUserDataWrapper>();
-			FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+			FGeometryCacheVertexFactoryUserDataWrapper& UserDataWrapper = Collector.AllocateOneFrameResource<FGeometryCacheVertexFactoryUserDataWrapper>();
+			FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
 			CreateMeshBatch(RHICmdList, TrackProxy, BatchInfo, UserDataWrapper, DynamicPrimitiveUniformBuffer, MeshBatch);
 
 			const int32 MaterialIndex = TrackProxy->Materials.IsValidIndex(BatchInfo.MaterialIndex) ? BatchInfo.MaterialIndex : SegmentIndex;
 			MeshBatch.MaterialRenderProxy = TrackProxy->Materials[MaterialIndex]->GetRenderProxy();
-			MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
-			MeshBatch.SegmentIndex = static_cast<uint8>(SegmentIndex);
-
+			MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
+			MeshBatch.SegmentIndex = SegmentIndex;
+			MeshBatch.ReverseCulling = false; // RayTracing does not want the transform orientation baked in
 			RayTracingInstance.Materials.Add(MeshBatch);
 		}
 
 		if (RayTracingInstance.Materials.Num() > 0)
 		{
-			OutRayTracingInstances.Add(RayTracingInstance);
+			Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 		}
 	}
 }
@@ -652,21 +678,18 @@ void FGeometryCacheSceneProxy::UpdateAnimation(FRHICommandListBase& RHICmdList, 
 				Section->RayTracingGeometry.Initializer.IndexBuffer = Section->IndexBuffer.IndexBufferRHI;
 				Section->RayTracingGeometry.Initializer.TotalPrimitiveCount = TotalPrimitiveCount;
 
-				if (Segments.Num() > 0)
+				if (bRequireRecreate)
 				{
-					if (bRequireRecreate)
-					{
-						Section->RayTracingGeometry.UpdateRHI(RHICmdList);
-					}
-					else
-					{
-						// Request full build on same geometry because data might have changed to much for update call?
-						FRayTracingGeometryBuildParams BuildParams;
-						BuildParams.Geometry = Section->RayTracingGeometry.RayTracingGeometryRHI;
-						BuildParams.BuildMode = EAccelerationStructureBuildMode::Build;
-						BuildParams.Segments = Section->RayTracingGeometry.Initializer.Segments;
-						FRHIComputeCommandList::Get(RHICmdList).BuildAccelerationStructures(MakeArrayView(&BuildParams, 1));
-					}
+					Section->RayTracingGeometry.UpdateRHI(RHICmdList);
+				}
+				else if(Section->RayTracingGeometry.IsValid() && !Section->RayTracingGeometry.IsEvicted())
+				{
+					// Request full build on same geometry because data might have changed to much for update call?
+					FRayTracingGeometryBuildParams BuildParams;
+					BuildParams.Geometry = Section->RayTracingGeometry.GetRHI();
+					BuildParams.BuildMode = EAccelerationStructureBuildMode::Build;
+					BuildParams.Segments = Section->RayTracingGeometry.Initializer.Segments;
+					FRHIComputeCommandList::Get(RHICmdList).BuildAccelerationStructures(MakeArrayView(&BuildParams, 1));
 				}
 			}
 		}
@@ -818,6 +841,7 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 
 				#define VALIDATE 0
 				{
+
 					check(TrackProxy->MeshData->Positions.Num() >= NumVerts);
 					check(TrackProxy->NextFrameMeshData->Positions.Num() >= NumVerts);
 					check(Scratch.InterpolatedPositions.Num() >= NumVerts);
@@ -825,7 +849,22 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 					const FVector3f* PositionBPtr = TrackProxy->NextFrameMeshData->Positions.GetData();
 					FVector3f* InterpolatedPositionsPtr = Scratch.InterpolatedPositions.GetData();
 
+					SCOPE_CYCLE_COUNTER(STAT_InterpolateFramesSIMDPositions);
+
 					// Unroll 4 times so we can do 4 wide SIMD
+#if INTEL_ISPC
+					if (GGeometryCacheSceneProxyUseIspc)
+					{
+						ispc::InterpolatePositions(
+							(ispc::FVector3f*)PositionAPtr,
+							(ispc::FVector3f*)PositionBPtr,
+							(ispc::FVector3f*)InterpolatedPositionsPtr,
+							NumVerts,
+							OneMinusInterp,
+							InterpolationFactor);
+					}
+					else
+#endif
 					{
 						const FVector4f* PositionAPtr4 = (const FVector4f*)PositionAPtr;
 						const FVector4f* PositionBPtr4 = (const FVector4f*)PositionBPtr;
@@ -875,55 +914,75 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 					FPackedNormal* InterpolatedTangentXPtr = Scratch.InterpolatedTangentX.GetData();
 					FPackedNormal* InterpolatedTangentZPtr = Scratch.InterpolatedTangentZ.GetData();
 
-					const uint32 SignMask = 0x80808080u;
-					for (int32 Index = 0; Index < NumVerts; ++Index)
+					SCOPE_CYCLE_COUNTER(STAT_InterpolateFramesSIMDTangents);
+
+#if INTEL_ISPC
+					if (GGeometryCacheSceneProxyUseIspc)
 					{
-						// VectorLoadSignedByte4 on all inputs is significantly more expensive than VectorLoadByte4, so lets just use unsigned.
-						// Interpolating signed values as unsigned is not correct, but if we flip the signs first it is!
-						// Flipping the sign maps the signed range [-128, 127] to the unsigned range [0, 255]
-						// Unsigned value with flip			Signed value
-						// 0								-128
-						// 1								-127
-						// ..								..
-						// 127								-1
-						// 128								0
-						// 129								1
-						// 255								127
-
-						uint32 TangentXA = TangentXAPtr[Index].Vector.Packed ^ SignMask;
-						uint32 TangentXB = TangentXBPtr[Index].Vector.Packed ^ SignMask;
-						VectorRegister4Float InterpolatedTangentX =	VectorMultiplyAdd(	VectorLoadByte4(&TangentXA), WeightA, 
-																VectorMultiplyAdd(	VectorLoadByte4(&TangentXB), WeightB, Half));	// +0.5f so truncation becomes round to nearest.
-						uint32 PackedInterpolatedTangentX;
-						VectorStoreByte4(InterpolatedTangentX, &PackedInterpolatedTangentX);
-						InterpolatedTangentXPtr[Index].Vector.Packed = PackedInterpolatedTangentX ^ SignMask;	// Convert back to signed
-
-						uint32 TangentZA = TangentZAPtr[Index].Vector.Packed ^ SignMask;
-						uint32 TangentZB = TangentZBPtr[Index].Vector.Packed ^ SignMask;
-						VectorRegister4Float InterpolatedTangentZ =	VectorMultiplyAdd(	VectorLoadByte4(&TangentZA), WeightA, 
-																VectorMultiplyAdd(	VectorLoadByte4(&TangentZB), WeightB, Half));	// +0.5f so truncation becomes round to nearest.
-						uint32 PackedInterpolatedTangentZ;
-						VectorStoreByte4(InterpolatedTangentZ, &PackedInterpolatedTangentZ);
-						InterpolatedTangentZPtr[Index].Vector.Packed = PackedInterpolatedTangentZ ^ SignMask;	// Convert back to signed
+						ispc::InterpolateTangents(
+							(uint8*)TangentXAPtr,
+							(uint8*)TangentXBPtr,
+							(uint8*)TangentZAPtr,
+							(uint8*)TangentZBPtr,
+							(uint8*)InterpolatedTangentXPtr,
+							(uint8*)InterpolatedTangentZPtr,
+							NumVerts * sizeof(uint32),
+							OneMinusInterp,
+							InterpolationFactor);
 					}
-					VectorResetFloatRegisters();	//TODO: is this actually needed on any platform?
+					else
+#endif
+					{
+						const uint32 SignMask = 0x80808080u;
+						for (int32 Index = 0; Index < NumVerts; ++Index)
+						{
+							// VectorLoadSignedByte4 on all inputs is significantly more expensive than VectorLoadByte4, so lets just use unsigned.
+							// Interpolating signed values as unsigned is not correct, but if we flip the signs first it is!
+							// Flipping the sign maps the signed range [-128, 127] to the unsigned range [0, 255]
+							// Unsigned value with flip			Signed value
+							// 0								-128
+							// 1								-127
+							// ..								..
+							// 127								-1
+							// 128								0
+							// 129								1
+							// 255								127
+
+							uint32 TangentXA = TangentXAPtr[Index].Vector.Packed ^ SignMask;
+							uint32 TangentXB = TangentXBPtr[Index].Vector.Packed ^ SignMask;
+							VectorRegister4Float InterpolatedTangentX = VectorMultiplyAdd(VectorLoadByte4(&TangentXA), WeightA,
+								VectorMultiplyAdd(VectorLoadByte4(&TangentXB), WeightB, Half));	// +0.5f so truncation becomes round to nearest.
+							uint32 PackedInterpolatedTangentX;
+							VectorStoreByte4(InterpolatedTangentX, &PackedInterpolatedTangentX);
+							InterpolatedTangentXPtr[Index].Vector.Packed = PackedInterpolatedTangentX ^ SignMask;	// Convert back to signed
+
+							uint32 TangentZA = TangentZAPtr[Index].Vector.Packed ^ SignMask;
+							uint32 TangentZB = TangentZBPtr[Index].Vector.Packed ^ SignMask;
+							VectorRegister4Float InterpolatedTangentZ = VectorMultiplyAdd(VectorLoadByte4(&TangentZA), WeightA,
+								VectorMultiplyAdd(VectorLoadByte4(&TangentZB), WeightB, Half));	// +0.5f so truncation becomes round to nearest.
+							uint32 PackedInterpolatedTangentZ;
+							VectorStoreByte4(InterpolatedTangentZ, &PackedInterpolatedTangentZ);
+							InterpolatedTangentZPtr[Index].Vector.Packed = PackedInterpolatedTangentZ ^ SignMask;	// Convert back to signed
+						}
+						VectorResetFloatRegisters();	//TODO: is this actually needed on any platform?
 
 #if VALIDATE
-					for (int32 Index = 0; Index < NumVerts; ++Index)
-					{
-						FPackedNormal ResultX = InterpolatePackedNormal(TangentXAPtr[Index], TangentXBPtr[Index], InterpFixed, OneMinusInterpFixed);
-						FPackedNormal ResultZ = InterpolatePackedNormal(TangentZAPtr[Index], TangentZBPtr[Index], InterpFixed, OneMinusInterpFixed);
-						check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.X - ResultX.Vector.X) <= 2);
-						check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.Y - ResultX.Vector.Y) <= 2);
-						check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.Z - ResultX.Vector.Z) <= 2);
-						check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.W - ResultX.Vector.W) <= 2);
+						for (int32 Index = 0; Index < NumVerts; ++Index)
+						{
+							FPackedNormal ResultX = InterpolatePackedNormal(TangentXAPtr[Index], TangentXBPtr[Index], InterpFixed, OneMinusInterpFixed);
+							FPackedNormal ResultZ = InterpolatePackedNormal(TangentZAPtr[Index], TangentZBPtr[Index], InterpFixed, OneMinusInterpFixed);
+							check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.X - ResultX.Vector.X) <= 2);
+							check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.Y - ResultX.Vector.Y) <= 2);
+							check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.Z - ResultX.Vector.Z) <= 2);
+							check(FMath::Abs(InterpolatedTangentXPtr[Index].Vector.W - ResultX.Vector.W) <= 2);
 
-						check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.X - ResultZ.Vector.X) <= 2);
-						check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.Y - ResultZ.Vector.Y) <= 2);
-						check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.Z - ResultZ.Vector.Z) <= 2);
-						check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.W - ResultZ.Vector.W) <= 2);
-					}
+							check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.X - ResultZ.Vector.X) <= 2);
+							check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.Y - ResultZ.Vector.Y) <= 2);
+							check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.Z - ResultZ.Vector.Z) <= 2);
+							check(FMath::Abs(InterpolatedTangentZPtr[Index].Vector.W - ResultZ.Vector.W) <= 2);
+						}
 #endif
+					}
 				}
 
 				if (TrackProxy->MeshData->VertexInfo.bHasColor0)
@@ -935,11 +994,27 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 					const FColor* ColorBPtr = TrackProxy->NextFrameMeshData->Colors.GetData();
 					FColor* InterpolatedColorsPtr = Scratch.InterpolatedColors.GetData();
 
-					for( int32 Index = 0; Index < NumVerts; ++Index )
+					SCOPE_CYCLE_COUNTER(STAT_InterpolateFramesSIMDColors);
+#if INTEL_ISPC
+					if (GGeometryCacheSceneProxyUseIspc)
 					{
-						VectorRegister4Float InterpolatedColor =		VectorMultiplyAdd( VectorLoadByte4( &ColorAPtr[Index] ), WeightA,
-																VectorMultiplyAdd( VectorLoadByte4( &ColorBPtr[Index] ), WeightB, Half ) );	// +0.5f so truncation becomes round to nearest.
-						VectorStoreByte4(InterpolatedColor, &InterpolatedColorsPtr[Index]);
+						ispc::InterpolateColors(
+							(uint8*)ColorAPtr,
+							(uint8*)ColorBPtr,
+							(uint8*)InterpolatedColorsPtr,
+							NumVerts * sizeof(uint32),
+							OneMinusInterp,
+							InterpolationFactor);
+					}
+					else
+#endif
+					{
+						for (int32 Index = 0; Index < NumVerts; ++Index)
+						{
+							VectorRegister4Float InterpolatedColor = VectorMultiplyAdd(VectorLoadByte4(&ColorAPtr[Index]), WeightA,
+								VectorMultiplyAdd(VectorLoadByte4(&ColorBPtr[Index]), WeightB, Half));	// +0.5f so truncation becomes round to nearest.
+							VectorStoreByte4(InterpolatedColor, &InterpolatedColorsPtr[Index]);
+						}
 					}
 #if VALIDATE
 					for(int32 Index = 0; Index < NumVerts; ++Index)
@@ -964,31 +1039,48 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 					const FVector2f* UVBPtr = TrackProxy->NextFrameMeshData->TextureCoordinates.GetData();
 					FVector2f* InterpolatedUVsPtr = Scratch.InterpolatedUVs.GetData();
 
-					// Unroll 2x so we can use 4 wide ops. OOP will hopefully take care of the rest.
+					SCOPE_CYCLE_COUNTER(STAT_InterpolateFramesSIMDUVs);
+
+#if INTEL_ISPC
+					if (GGeometryCacheSceneProxyUseIspc)
 					{
-						int32 Index = 0;
-						for (; Index + 1 < NumVerts; Index += 2)
+						ispc::InterpolateUVs(
+							(ispc::FVector2f*)UVAPtr,
+							(ispc::FVector2f*)UVBPtr,
+							(ispc::FVector2f*)InterpolatedUVsPtr,
+							NumVerts,
+							OneMinusInterp,
+							InterpolationFactor);
+					}
+					else
+#endif
+					{
+						// Unroll 2x so we can use 4 wide ops. OOP will hopefully take care of the rest.
 						{
-							VectorRegister4Float InterpolatedUVx2 = VectorMultiplyAdd(	VectorLoad(&UVAPtr[Index].X),
-																						WeightA,
-																						VectorMultiply(VectorLoad(&UVBPtr[Index].X), WeightB));
-							VectorStore(InterpolatedUVx2, &(InterpolatedUVsPtr[Index].X));
+							int32 Index = 0;
+							for (; Index + 1 < NumVerts; Index += 2)
+							{
+								VectorRegister4Float InterpolatedUVx2 = VectorMultiplyAdd(VectorLoad(&UVAPtr[Index].X),
+									WeightA,
+									VectorMultiply(VectorLoad(&UVBPtr[Index].X), WeightB));
+								VectorStore(InterpolatedUVx2, &(InterpolatedUVsPtr[Index].X));
+							}
+
+							if (Index < NumVerts)
+							{
+								InterpolatedUVsPtr[Index] = UVAPtr[Index] * OneMinusInterp + UVBPtr[Index] * InterpolationFactor;
+							}
 						}
 
-						if(Index < NumVerts)
-						{
-							InterpolatedUVsPtr[Index] = UVAPtr[Index] * OneMinusInterp + UVBPtr[Index] * InterpolationFactor;
-						}
-					}
-						
 #if VALIDATE
-					for (int32 Index = 0; Index < NumVerts; ++Index)
-					{
-						FVector2D Result = UVAPtr[Index] * OneMinusInterp + UVBPtr[Index] * InterpolationFactor;
-						check(FMath::Abs(InterpolatedUVsPtr[Index].X - Result.X) < 0.01f);
-						check(FMath::Abs(InterpolatedUVsPtr[Index].Y - Result.Y) < 0.01f);
-					}
+						for (int32 Index = 0; Index < NumVerts; ++Index)
+						{
+							FVector2D Result = UVAPtr[Index] * OneMinusInterp + UVBPtr[Index] * InterpolationFactor;
+							check(FMath::Abs(InterpolatedUVsPtr[Index].X - Result.X) < 0.01f);
+							check(FMath::Abs(InterpolatedUVsPtr[Index].Y - Result.Y) < 0.01f);
+						}
 #endif
+					}
 				}
 
 				if (bHasMotionVectors)
@@ -1007,6 +1099,23 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 					DeltaInterpolationFactor += static_cast<float>(TrackProxy->FrameIndex - TrackProxy->PreviousFrameIndex);
 					DeltaInterpolationFactor = FMath::Clamp(FMath::Abs(DeltaInterpolationFactor), 0.0f, 1.0f); // the Abs accounts for playing backwards
 					TrackProxy->SubframeInterpolationFactor = FMath::IsNearlyEqual(DeltaInterpolationFactor, 1.0f, KINDA_SMALL_NUMBER) ? 1.0f : DeltaInterpolationFactor;
+
+					SCOPE_CYCLE_COUNTER(STAT_InterpolateFramesSIMDMotionVectors);
+
+#if INTEL_ISPC
+					if (GGeometryCacheSceneProxyUseIspc)
+					{
+						ispc::InterpolateMotionVectors(
+							(ispc::FVector3f*)MotionVectorsAPtr,
+							(ispc::FVector3f*)MotionVectorsBPtr,
+							(ispc::FVector3f*)InterpolatedMotionVectorsPtr,
+							NumVerts,
+							OneMinusInterp,
+							InterpolationFactor,
+							MotionVectorScale);
+					}
+					else
+#endif
 
 					// Unroll 4 times so we can do 4 wide SIMD
 					{

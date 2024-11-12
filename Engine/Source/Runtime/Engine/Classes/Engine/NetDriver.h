@@ -15,11 +15,8 @@
 #include "UObject/Object.h"
 #include "Misc/NetworkGuid.h"
 #include "UObject/CoreNet.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "GameFramework/WorldSettings.h"
-#include "PacketHandler.h"
-#endif
 #include "Channel.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/Misc/DDoSDetection.h"
 #include "IPAddress.h"
 #include "Net/NetAnalyticsTypes.h"
@@ -359,6 +356,8 @@ namespace UE::Net
 
 namespace UE::Net
 {
+	class FNetTokenStore;
+
 	class FScopedIgnoreStaticActorDestruction
 	{
 	public:
@@ -372,6 +371,9 @@ namespace UE::Net
 	};
 
 	bool ShouldIgnoreStaticActorDestruction();
+
+	/** Utility function that counts the number of replicated subobjects owned by a given actor. Be aware that this function is not cheap because it needs to iterate and count all replicated components and their subobjects too. */
+	ENGINE_API uint32 CountReplicatedSubObjectsOfActor(AActor* ReplicatedActor);
 }
 
 using FConnectionMap = TMap<TSharedRef<const FInternetAddr>, TObjectPtr<UNetConnection>, FDefaultSetAllocator, FInternetAddrConstKeyMapFuncs<TObjectPtr<UNetConnection>>>;
@@ -556,6 +558,18 @@ struct FPacketSimulationSettings
 	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	int32	PktJitter = 0;
 
+	/**
+	 * Delays sending packets for a specific number of ticks
+	 */
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	int32	PktFrameDelay = 0;
+
+	/**
+	 * Delays processing received packets for a specific number of ticks
+	 */
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	int32	PktIncomingFrameDelay = 0;
+
 	/** reads in settings from the .ini file 
 	 * @note: overwrites all previous settings
 	 */
@@ -633,25 +647,25 @@ struct FNetDriverReplicationSystemConfig
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Override the max object count when running as a client. If 0 use the default system value. */
+	/** Override the max object count. If 0 use the default system value. */
 	UPROPERTY()
-	uint32 MaxReplicatedObjectClientCount = 0;
+	uint32 MaxReplicatedObjectCount = 0;
 
-	/** Override the max object count when running as a server. If 0 use the default system value. */
+	/** Override the preallocated size of net object lists. If 0 use the default value. */
 	UPROPERTY()
-	uint32 MaxReplicatedObjectServerCount = 0;
+	uint32 InitialNetObjectListCount = 0;
 
-	/** Override the number of pre-allocated objects when running as a client. */
+	/** Override the amount to grow every net object list by when they hit the preallocated count. If 0 use the default system value. */
 	UPROPERTY()
-	uint32 PreAllocatedReplicatedObjectClientCount = 0;
+	uint32 NetObjectListGrowCount = 0;
 
-	/** Override the number of pre-allocated objects when running as a server. */
+	/** Override the number of pre-allocated memory buffers that can hold up to the specified number of objects before they have to grow. */
 	UPROPERTY()
-	uint32 PreAllocatedReplicatedObjectServerCount = 0;
+	uint32 PreAllocatedMemoryBuffersObjectCount = 0;
 
-	/** Override the number of pre-allocated objects in FReplicationWriter on the client. */
+	/** Override the number of pre-allocated objects in FReplicationWriter. */
 	UPROPERTY()
-	uint32 MaxReplicatedWriterObjectClientCount = 0;
+	uint32 MaxReplicationWriterObjectCount = 0;
 	
 	/** Override the max compressed object count. If 0 use the default system value. */
 	UPROPERTY()
@@ -824,9 +838,13 @@ public:
 	UPROPERTY(Config)
 	FString ReplicationBridgeClassName;
 	
-	/** Can be used to configure settings for the ReplicationSystem */
+	/** Can be used to configure Server settings for the ReplicationSystem */
 	UPROPERTY(Config)
-	FNetDriverReplicationSystemConfig ReplicationSystemConfig;
+	FNetDriverReplicationSystemConfig ReplicationSystemConfigServer;
+
+	/** Can be used to configure Client settings for the ReplicationSystem */
+	UPROPERTY(Config)
+	FNetDriverReplicationSystemConfig ReplicationSystemConfigClient;
 
 	/** @todo document */
 	UPROPERTY(Config)
@@ -854,6 +872,9 @@ public:
 
 	/** Override the configured server tick rate. Value is in ticks per second. */
 	ENGINE_API void SetNetServerMaxTickRate(int32 InServerMaxTickRate);
+
+	/** Change the netdriver to have runtime features compatible with the remote connection. */
+	void TryUpgradeNetworkFeatures(EEngineNetworkRuntimeFeatures RemoteFeatures);
 
 	/** 
 	* Delegate triggered when SetNetServerMaxTickRate is called and causes a change to the current max tick rate.
@@ -903,6 +924,13 @@ public:
 	 */
 	UPROPERTY(Config)
 	float ConnectionTimeout;
+
+	/** 
+	 * Amount of time to wait for a graceful close/bPendingDestroy to complete before considering the connection timed out.  
+	 * This is the time used to allow any existing, pending reliable data to be acknowledged.
+	 */
+	UPROPERTY(Config)
+	float GracefulCloseConnectionTimeout = 2.0f;
 
 	/**
 	* A multiplier that is applied to the above values when we are running with unoptimized builds (debug)
@@ -1031,6 +1059,14 @@ private:
 	void ResetNetworkMetrics();
 
 public:
+	/** Delegate that will notify when an actors NetUpdateFrequency UPROPERTY has changed. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNetUpdateFrequencyChanged, const AActor* Actor);
+	FOnNetUpdateFrequencyChanged& GetOnNetUpdateFrequencyChanged() { return OnNetUpdateFrequencyChanged; };
+
+private:
+	FOnNetUpdateFrequencyChanged OnNetUpdateFrequencyChanged;
+
+public:
 	/** Get the value of MaxChannelsOverride cached from the net driver definition */
 	int32 GetMaxChannelsOverride() const { return MaxChannelsOverride; }
 
@@ -1050,8 +1086,10 @@ public:
 	FName GetNetDriverDefinition() const { return NetDriverDefinition; }
 
 	/** Callback after the engine created the NetDriver and set our name for the first time */
-	void PostCreation(bool bInitializeWithIris);
+	ENGINE_API void PostCreation(bool bInitializeWithIris);
 
+	/** Reset some NetDriver settings after destroying and recreating a replication system or replication driver */
+	ENGINE_API void ReinitBase();
 
 	void InitPacketSimulationSettings();
 
@@ -1143,12 +1181,16 @@ public:
 	uint32						NetGUIDOutBytes;
 	/** Incoming rate of NetGUID Bunches */
 	uint32						NetGUIDInBytes;
-	/** todo document */
+	/** The number of packets per second that have been received. */
 	uint32						InPackets;
+	/** The number of packets that were received in the previous frame. */
+	uint32 						PrevInPackets;
 	/** Total packets received since the net driver's creation  */
 	uint32						InTotalPackets;
-	/** todo document */
+	/** The number of packets per second that have been sent. */
 	uint32						OutPackets;
+	/** The number of packets that were sent in the previous frame. */
+	uint32 						PrevOutPackets;
 	/** Total packets sent since the net driver's creation  */
 	uint32						OutTotalPackets;
 	/** todo document */
@@ -1163,12 +1205,16 @@ public:
 	uint32						OutTotalReliableBunches;
 	/** Total number of incoming reliable bunches */
 	uint32						InTotalReliableBunches;
-	/** todo document */
+	/** The percentage of incoming packets that have been found to be lost. */
 	uint32						InPacketsLost;
+	/** The number of incoming packets that were found to be lost in the previous frame. */
+	uint32 						PrevInPacketsLost;
 	/** Total packets lost that have been sent by clients since the net driver's creation  */
 	uint32						InTotalPacketsLost;
-	/** todo document */
+	/** The percentage of outgoing packets that have been found to be lost. */
 	uint32						OutPacketsLost;
+	/** The number of outgoing packets that were found to be lost in the previous frame.  */
+	uint32 						PrevOutPacketsLost;
 	/** Total packets lost that have been sent by the server since the net driver's creation  */
 	uint32						OutTotalPacketsLost;
 	/** Tracks the total number of voice packets sent */
@@ -1258,36 +1304,6 @@ public:
 	 *  always map from current name to original name
 	 */
 	TMap<FName, FName>	RenamedStartupActors;
-
-	class UE_DEPRECATED(5.1, "No longer used.") FRepChangedPropertyTrackerWrapper
-	{
-	public:
-		FRepChangedPropertyTrackerWrapper(UObject* Obj, const TSharedPtr<FRepChangedPropertyTracker>& InRepChangedPropertyTracker) : RepChangedPropertyTracker(InRepChangedPropertyTracker), WeakObjectPtr(Obj) {}
-
-		const FRepChangedPropertyTracker* operator->() const { return RepChangedPropertyTracker.Get(); }
-		FRepChangedPropertyTracker* operator->() { return RepChangedPropertyTracker.Get(); }
-		
-		const FRepChangedPropertyTracker* Get() const { return RepChangedPropertyTracker.Get(); }
-		FRepChangedPropertyTracker* Get() { return RepChangedPropertyTracker.Get(); }
-
-		bool IsValid() const { return RepChangedPropertyTracker.IsValid(); }
-		bool IsObjectValid() const { return WeakObjectPtr.IsValid(); }
-
-		TWeakObjectPtr<UObject> GetWeakObjectPtr() const { return WeakObjectPtr; }
-
-		TSharedPtr<FRepChangedPropertyTracker> RepChangedPropertyTracker;
-
-		void CountBytes(FArchive& Ar) const;
-
-	private:
-		TWeakObjectPtr<UObject> WeakObjectPtr;
-	};
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	/** Maps FRepChangedPropertyTracker to active objects that are replicating properties */
-	UE_DEPRECATED(5.1, "Property trackers have been moved to the NetCore module")
-	TMap<UObject*, FRepChangedPropertyTrackerWrapper>	RepChangedPropertyTrackerMap;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Used to invalidate properties marked "unchanged" in FRepChangedPropertyTracker's */
 	uint32 ReplicationFrame;
@@ -1380,7 +1396,7 @@ public:
 	 */
 	ENGINE_API void SetPacketSimulationSettings(const FPacketSimulationSettings& NewSettings);
 
-	void OnPacketSimulationSettingsChanged();
+	ENGINE_API void OnPacketSimulationSettingsChanged();
 #endif
 
 	// Constructors.
@@ -1659,7 +1675,7 @@ public:
 	bool HandlePropertyConditionsMemCommand(const TCHAR* Cmd, FOutputDevice& Ar);
 #endif
 
-	void HandlePacketLossBurstCommand( int32 DurationInMilliseconds );
+	ENGINE_API void HandlePacketLossBurstCommand( int32 DurationInMilliseconds );
 
 	// ---------------------------------------------------------------
 	//	Game code API for updating server Actor Replication State
@@ -1878,20 +1894,20 @@ public:
 
 	/** Returns the bitflag telling which network features are activated for this NetDriver. */
 	ENGINE_API EEngineNetworkRuntimeFeatures GetNetworkRuntimeFeatures() const;
-	
+
 #if UE_WITH_IRIS
-	/** Remove references to the Iris bridge and system without deleting it */
-	ENGINE_API void ClearIrisSystem();
-
-	/** Set a previously initialized IrisSystem into this NetDriver */
-	ENGINE_API void RestoreIrisSystem(UReplicationSystem* InReplicationSystem);
-
 	/**
-	 * Destroy and recreate the iris replication system for an active netdrive.
+	 * Destroy and recreate the iris replication system for an active netdriver.
 	 * This will re-add all existing replicated actors back in the system.
 	 * Useful if you need to reapply hotfix configs downloaded post-initialization.
 	 */
 	ENGINE_API void RestartIrisSystem();
+
+	/** Destroy the Iris replication system before it gets recreated. */
+	ENGINE_API void DestroyIrisSystem();
+
+	/** Create the Iris replication system after it got destroyed. */
+	ENGINE_API void RecreateIrisSystem();
 #endif // UE_WITH_IRIS
 
 	template<class T>
@@ -1902,7 +1918,16 @@ public:
 	inline UReplicationSystem* GetReplicationSystem() const { return ReplicationSystem; }
 
 	void UpdateGroupFilterStatusForLevel(const ULevel* Level, UE::Net::FNetObjectGroupHandle LevelGroupHandle);
+
+	/** Returns NetTokenStore that is required to create and serialize NetTokens */
+	const UE::Net::FNetTokenStore* GetNetTokenStore() const { return NetTokenStore.Get(); }
+	UE::Net::FNetTokenStore* GetNetTokenStore() { return NetTokenStore.Get(); }
+#else
+	/** Returns NetTokenStore that is required to create and serialize NetTokens */
+	const UE::Net::FNetTokenStore* GetNetTokenStore() const { return nullptr; }
+	UE::Net::FNetTokenStore* GetNetTokenStore() { return nullptr; }
 #endif // UE_WITH_IRIS
+
 
 	ENGINE_API void RemoveClientConnection(UNetConnection* ClientConnectionToRemove);
 
@@ -1963,8 +1988,12 @@ public:
 	inline uint32 AllocateConnectionId() { return ConnectionIdHandler.Allocate(); }
 	inline void FreeConnectionId(uint32 Id) { return ConnectionIdHandler.Free(Id); };
 
-	/** Returns the NetConnection associated with the ConnectionId. Slow. */
-	ENGINE_API UNetConnection* GetConnectionById(uint32 ConnectionId) const;
+	/** Returns the NetConnection associated with the ParentConnectionId. Slow. */
+	UE_DEPRECATED(5.6, "Use GetConnectionByHandle()")
+	ENGINE_API UNetConnection* GetConnectionById(uint32 ParentConnectionId) const;
+
+	/** Returns the NetConnection associated with the ConnectionHandle. Slow as it iterates over all connections to find one with matching handle. */
+	ENGINE_API UNetConnection* GetConnectionByHandle(UE::Net::FConnectionHandle ConnectionHandle) const;
 
 	/** Returns identifier used for NetTrace */
 	inline uint32 GetNetTraceId() const { return NetTraceId; }
@@ -2263,6 +2292,8 @@ private:
 	TObjectPtr<UReplicationDriver> ReplicationDriver;
 
 #if UE_WITH_IRIS
+	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
+
 	UReplicationSystem* ReplicationSystem = nullptr;
 
 	/** When set this will skip registering all the network relevant actors when setting the World */

@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_AccelerationForce.generated.h"
 
+// Apply acceleration which accumulates per frame
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Acceleration Force"))
 class UNiagaraStatelessModule_AccelerationForce : public UNiagaraStatelessModule
 {
@@ -18,7 +19,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Acceleration", DisableUniformDistribution, DisableBindingDistribution))
 	FNiagaraDistributionRangeVector3 AccelerationDistribution = FNiagaraDistributionRangeVector3(FVector3f::ZeroVector);
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (SegmentedDisplay))
+	ENiagaraCoordinateSpace CoordinateSpace = ENiagaraCoordinateSpace::Local;
+
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		if (!IsModuleEnabled())
 		{
@@ -28,6 +32,7 @@ public:
 		const FNiagaraStatelessRangeVector3 AccelerationRange = AccelerationDistribution.CalculateRange(FVector3f::ZeroVector);
 
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
+		PhysicsBuildData.AccelerationCoordinateSpace = CoordinateSpace;
 		PhysicsBuildData.AccelerationRange.Min += AccelerationRange.Min;
 		PhysicsBuildData.AccelerationRange.Max += AccelerationRange.Max;
 	}

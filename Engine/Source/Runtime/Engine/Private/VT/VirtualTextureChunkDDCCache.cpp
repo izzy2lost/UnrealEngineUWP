@@ -252,7 +252,7 @@ void FVirtualTextureChunkDDCCache::UpdateRequests()
 		{
 			Task->EnsureCompletion();
 			delete Task;
-			ActiveTasks.RemoveAtSwap(TaskIndex--, 1, EAllowShrinking::No);
+			ActiveTasks.RemoveAtSwap(TaskIndex--, EAllowShrinking::No);
 		}
 	}
 }

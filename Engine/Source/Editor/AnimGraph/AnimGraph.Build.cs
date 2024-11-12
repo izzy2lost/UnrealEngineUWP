@@ -37,6 +37,7 @@ public class AnimGraph : ModuleRules
 				"EditorWidgets",
 				"ToolWidgets",
 				"AnimationEditMode",
+				"DeveloperSettings"
 			}
 		);
 

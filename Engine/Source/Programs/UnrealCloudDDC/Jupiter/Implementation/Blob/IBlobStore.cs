@@ -27,10 +27,13 @@ namespace Jupiter.Implementation
 		// Delete a object
 		Task DeleteObjectAsync(NamespaceId ns, BlobId blob);
 
+		// Delete a object from multiple namespaces at once
+		Task DeleteObjectAsync(IEnumerable<NamespaceId> ns, BlobId blob);
+
 		// delete the whole namespace
 		Task DeleteNamespaceAsync(NamespaceId ns);
 
-		IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns);
+		IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns);
 		Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 		Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId blob);
 		Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId);

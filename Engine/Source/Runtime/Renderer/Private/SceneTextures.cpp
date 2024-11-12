@@ -17,10 +17,12 @@
 #include "PostProcess/PostProcessCompositeEditorPrimitives.h"
 #include "ShaderCompiler.h"
 #include "SystemTextures.h"
+#include "PostProcess/PostProcessing.h"
 #include "PostProcess/PostProcessAmbientOcclusionMobile.h"
 #include "PostProcess/PostProcessPixelProjectedReflectionMobile.h"
 #include "IHeadMountedDisplayModule.h"
 #include "Substrate/Substrate.h"
+#include "VisualizeTexture.h"
 
 static TAutoConsoleVariable<int32> CVarSceneTargetsResizeMethod(
 	TEXT("r.SceneRenderTargetResizeMethod"),
@@ -98,27 +100,6 @@ EPixelFormat FSceneTextures::GetGBufferFFormatAndCreateFlags(ETextureCreateFlags
 	return NormalGBufferFormat;
 }
 
-inline EPixelFormat GetMobileSceneDepthAuxPixelFormat(EShaderPlatform ShaderPlatform, bool bPreciseFormat)
-{
-	if (IsMobileDeferredShadingEnabled(ShaderPlatform) || bPreciseFormat)
-	{
-		return PF_R32_FLOAT;
-	}
-
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SceneDepthAux"));
-	EPixelFormat Format = PF_R16F;
-	switch (CVar->GetValueOnAnyThread())
-	{
-	case 1:
-		Format =  PF_R16F;
-		break;
-	case 2:
-		Format = PF_R32_FLOAT;
-		break;
-	}
-	return Format;
-}
-
 static IStereoRenderTargetManager* FindStereoRenderTargetManager()
 {
 	if (!GEngine->StereoRenderingDevice.IsValid() || !GEngine->StereoRenderingDevice->IsStereoEnabled())
@@ -129,14 +110,13 @@ static IStereoRenderTargetManager* FindStereoRenderTargetManager()
 	return GEngine->StereoRenderingDevice->GetRenderTargetManager();
 }
 
-static TRefCountPtr<FRHITexture2D> FindStereoDepthTexture(uint32 bSupportsXRDepth, FIntPoint TextureExtent, ETextureCreateFlags RequestedCreateFlags)
+static TRefCountPtr<FRHITexture> FindStereoDepthTexture(uint32 bSupportsXRDepth, FIntPoint TextureExtent, ETextureCreateFlags RequestedCreateFlags, uint8 NumSamples)
 {
 	if (bSupportsXRDepth == 1)
 	{
 		if (IStereoRenderTargetManager* StereoRenderTargetManager = FindStereoRenderTargetManager())
 		{
-			TRefCountPtr<FRHITexture2D> DepthTex, SRTex;
-			constexpr uint32 NumSamples = 1;
+			TRefCountPtr<FRHITexture> DepthTex, SRTex;
 			StereoRenderTargetManager->AllocateDepthTexture(0, TextureExtent.X, TextureExtent.Y, PF_DepthStencil, 1, RequestedCreateFlags, TexCreate_DepthStencilTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead, DepthTex, SRTex, NumSamples);
 			return MoveTemp(SRTex);
 		}
@@ -392,22 +372,32 @@ void ResetSceneTextureExtentHistory()
 
 ENUM_CLASS_FLAGS(FSceneTextureExtentState::ERenderTargetHistory);
 
-void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily)
+void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily, FIntPoint ExtentOverride)
 {
-	FIntPoint Extent = FSceneTextureExtentState::Get().Compute(ViewFamily);
+	FIntPoint Extent;
+	if (ExtentOverride.X > 0)
+	{
+#if DO_CHECK
+		for (const FSceneView* View : ViewFamily.Views)
+		{
+			check(View->UnscaledViewRect.Max.X <= ExtentOverride.X && View->UnscaledViewRect.Max.Y <= ExtentOverride.Y);
+		}
+#endif
+		Extent = ExtentOverride;
+	}
+	else
+	{
+		Extent = FSceneTextureExtentState::Get().Compute(ViewFamily);
+	}
 	EShadingPath ShadingPath = GetFeatureLevelShadingPath(ViewFamily.GetFeatureLevel());
 
-	bool bRequiresAlphaChannel = ShadingPath == EShadingPath::Mobile ? IsMobilePropagateAlphaEnabled(ViewFamily.GetShaderPlatform()) : false;
+	bool bRequiresAlphaChannel = ShadingPath == EShadingPath::Mobile ? IsMobilePropagateAlphaEnabled(ViewFamily.GetShaderPlatform()) : IsPostProcessingWithAlphaChannelSupported();
 	int32 NumberOfViewsWithMultiviewEnabled = 0;
-	for (int32 ViewIndex = 0; ViewIndex < ViewFamily.AllViews.Num(); ViewIndex++)
+	
+	for (const FSceneView* View : ViewFamily.AllViews)
 	{
-		// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
-		if (ViewFamily.AllViews[ViewIndex]->bIsPlanarReflection || ViewFamily.AllViews[ViewIndex]->bIsSceneCapture)
-		{
-			bRequiresAlphaChannel = true;
-		}
-
-		NumberOfViewsWithMultiviewEnabled += (ViewFamily.AllViews[ViewIndex]->bIsMobileMultiViewEnabled) ? 1 : 0;
+		bRequiresAlphaChannel|= SceneCaptureRequiresAlphaChannel(*View);
+		NumberOfViewsWithMultiviewEnabled += (View->bIsMobileMultiViewEnabled) ? 1 : 0;
 	}
 
 	ensureMsgf(NumberOfViewsWithMultiviewEnabled == 0 || NumberOfViewsWithMultiviewEnabled == ViewFamily.AllViews.Num(),
@@ -431,10 +421,18 @@ void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneVie
 	Config.Init(SceneTexturesConfigInitSettings);
 }
 
+static bool UseMSAAStereoDepthTextureDirectly()
+{
+	static int Mode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.XRMSAAMode"))->GetValueOnAnyThread();
+	return Mode == 2;
+}
+
 void FMinimalSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily)
 {
+	checkf(ViewFamily.SceneTextures->Owner == &ViewFamily, TEXT("Scene Textures should only be initialized by their owning view family -- possible duplicate initialization"));
+
 	const FSceneTexturesConfig& Config = ViewFamily.SceneTexturesConfig;
-	FSceneTextures& SceneTextures = ViewFamily.SceneTextures;
+	FSceneTextures& SceneTextures = *ViewFamily.SceneTextures;
 
 	checkf(Config.IsValid(), TEXT("Attempted to create scene textures with an empty config."));
 
@@ -443,8 +441,10 @@ void FMinimalSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FVie
 	// Scene Depth
 
 	// If not using MSAA, we need to make sure to grab the stereo depth texture if appropriate.
-	FTexture2DRHIRef StereoDepthRHI;
-	if (Config.NumSamples == 1 && (StereoDepthRHI = FindStereoDepthTexture(Config.bSupportsXRTargetManagerDepthAlloc, Config.Extent, ETextureCreateFlags::None)) != nullptr)
+	FTextureRHIRef StereoDepthRHI;
+	bool bUseDepthTextureDirectly = Config.NumSamples == 1 || UseMSAAStereoDepthTextureDirectly();
+	if (bUseDepthTextureDirectly && (StereoDepthRHI = FindStereoDepthTexture(Config.bSupportsXRTargetManagerDepthAlloc, Config.Extent, ETextureCreateFlags::None, Config.NumSamples)) != nullptr)
+
 	{
 		SceneTextures.Depth = RegisterExternalTexture(GraphBuilder, StereoDepthRHI, TEXT("SceneDepthZ"));
 		SceneTextures.Stencil = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateWithPixelFormat(SceneTextures.Depth.Target, PF_X24_G8));
@@ -462,13 +462,13 @@ void FMinimalSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FVie
 		{
 			Desc.NumSamples = 1;
 
-			if ((StereoDepthRHI = FindStereoDepthTexture(Config.bSupportsXRTargetManagerDepthAlloc, Config.Extent, ETextureCreateFlags::DepthStencilResolveTarget)) != nullptr)
+			if ((StereoDepthRHI = FindStereoDepthTexture(Config.bSupportsXRTargetManagerDepthAlloc, Config.Extent, ETextureCreateFlags::DepthStencilResolveTarget, Desc.NumSamples)) != nullptr)
 			{
 				ensureMsgf(Desc.ArraySize == StereoDepthRHI->GetDesc().ArraySize, TEXT("Resolve texture does not agree in dimensionality with Target (Resolve.ArraySize=%d, Target.ArraySize=%d)"),
 					Desc.ArraySize, StereoDepthRHI->GetDesc().ArraySize);
 				SceneTextures.Depth.Resolve = RegisterExternalTexture(GraphBuilder, StereoDepthRHI, TEXT("SceneDepthZ"));
 			}
-			else
+			else if (Config.bKeepDepthContent)
 			{
 				SceneTextures.Depth.Resolve = GraphBuilder.CreateTexture(Desc, TEXT("SceneDepthZ"));
 			}
@@ -492,9 +492,9 @@ void FMinimalSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FVie
 	}
 
 	// Custom Depth
-	SceneTextures.CustomDepth = FCustomDepthTextures::Create(GraphBuilder, Config.Extent, Config.ShaderPlatform);
+	SceneTextures.CustomDepth = FCustomDepthTextures::Create(GraphBuilder, Config.Extent, Config.ShaderPlatform, Config.bRequireMultiView);
 
-	ViewFamily.bIsSceneTexturesInitialized = true;
+	SceneTextures.bIsSceneTexturesInitialized = true;
 }
 
 FSceneTextureShaderParameters FMinimalSceneTextures::GetSceneTextureShaderParameters(ERHIFeatureLevel::Type FeatureLevel) const
@@ -511,17 +511,166 @@ FSceneTextureShaderParameters FMinimalSceneTextures::GetSceneTextureShaderParame
 	return OutSceneTextureShaderParameters;
 }
 
-void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily)
+FRDGTextureRef FMinimalSceneTextures::FindOrAddUserSceneTexture(FRDGBuilder& GraphBuilder, int32 ViewIndex, FName Name, FIntPoint ResolutionDivisor, bool& bOutFirstRender, const UMaterialInterface* MaterialInterface, const FIntRect& OutputRect) const
+{
+	check(ResolutionDivisor.X >= 1 && ResolutionDivisor.Y >= 1);
+
+	bool bFound = false;
+
+	TArray<FTransientUserSceneTexture>* TransientTextures = UserSceneTextures.Find(Name);
+	if (TransientTextures)
+	{
+		if ((*TransientTextures)[0].ResolutionDivisor == ResolutionDivisor)
+		{
+			bFound = true;
+		}
+
+		for (int32 TextureIndex = 1; TextureIndex < TransientTextures->Num(); ++TextureIndex)
+		{
+			if ((*TransientTextures)[TextureIndex].ResolutionDivisor == ResolutionDivisor)
+			{
+				// Swap found item to front of array and return it -- next material render should use the most recently written item
+				TransientTextures->Swap(0, TextureIndex);
+				bFound = true;
+				break;
+			}
+		}
+	}
+	else
+	{
+		TransientTextures = &UserSceneTextures.Add(Name);
+	}
+
+	if (!bFound)
+	{
+		// We didn't find an existing item, need to allocate a new one
+		FTransientUserSceneTexture TransientUserTexture;
+		TransientUserTexture.ResolutionDivisor = ResolutionDivisor;
+		TransientUserTexture.AllocationOrder = TransientTextures->Num();
+		TransientUserTexture.bUsed = false;
+		TransientUserTexture.ViewMask = 0;
+	
+		FIntPoint Extent = FIntPoint::DivideAndRoundUp(Config.Extent, ResolutionDivisor);
+
+		FRDGTextureDesc Desc(Config.bRequireMultiView ?
+			FRDGTextureDesc::Create2DArray(Extent, Config.ColorFormat, Config.ColorClearValue, Config.ColorCreateFlags, 2) :
+			FRDGTextureDesc::Create2D(Extent, Config.ColorFormat, Config.ColorClearValue, Config.ColorCreateFlags));
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		// Generate a heap allocated debug name for the resource, required to make UserSceneTextures accessible in VisualizeTexture,
+		// GPU captures, and GPU dumps, as otherwise every texture will end up with the same debug name.
+		FString DebugName = TransientUserTexture.AllocationOrder == 0 ?
+			FString::Printf(TEXT("UST.%s"), *Name.ToString()) :
+			FString::Printf(TEXT("UST.%s[%d]"), *Name.ToString(), TransientUserTexture.AllocationOrder);
+		TCHAR* HeapDebugName = new TCHAR[DebugName.Len() + 1];
+		FCString::Strcpy(HeapDebugName, DebugName.Len() + 1, *DebugName);
+
+		TransientUserTexture.Texture = GraphBuilder.CreateTexture(Desc, HeapDebugName);
+		TransientUserTexture.Texture->SetDebugNameIsHeapAllocated();
+#else
+		TransientUserTexture.Texture = GraphBuilder.CreateTexture(Desc, TEXT("TransientUserTexture"));
+#endif
+
+		TransientTextures->Add(TransientUserTexture);
+
+		// Swap newly allocated item to front of array if it's not the only item
+		if (TransientTextures->Num() > 1)
+		{
+			TransientTextures->Swap(0, TransientTextures->Num() - 1);
+		}
+	}
+
+#if !(UE_BUILD_SHIPPING)
+	UserSceneTextureEvents.Add({ EUserSceneTextureEvent::Output, Name, (*TransientTextures)[0].AllocationOrder, (uint16)ViewIndex, MaterialInterface, OutputRect.Size() });
+#endif
+
+	// If out of mask range, treat it as the first render.  This may result in certain transparent post process materials writing to UserSceneTextures
+	// rendering incorrectly if there are more than 32 views, but we don't expect to see any real world situation with that number of views anyway
+	// (and transparent post process materials themselves aren't common to begin with).
+	if (ViewIndex > 31)
+	{
+		bOutFirstRender = true;
+	}
+	else
+	{
+		bOutFirstRender = ((*TransientTextures)[0].ViewMask & (1u << ViewIndex)) == 0;
+		(*TransientTextures)[0].ViewMask |= (1u << ViewIndex);
+	}
+
+	return (*TransientTextures)[0].Texture;
+}
+
+FScreenPassTextureSlice FMinimalSceneTextures::GetUserSceneTexture(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FName Name, const UMaterialInterface* MaterialInterface) const
+{
+	TArray<FTransientUserSceneTexture>* TransientTextures = UserSceneTextures.Find(Name);
+	if (TransientTextures)
+	{
+		FScreenPassTextureSlice TransientTextureSlice(
+			GraphBuilder.CreateSRV(FRDGTextureSRVDesc((*TransientTextures)[0].Texture)),
+			GetDownscaledViewRect(View.UnconstrainedViewRect, View.GetFamilyViewRect().Max, (*TransientTextures)[0].ResolutionDivisor));
+
+#if !(UE_BUILD_SHIPPING)
+		(*TransientTextures)[0].bUsed = true;
+		UserSceneTextureEvents.Add({ EUserSceneTextureEvent::FoundInput, Name, (*TransientTextures)[0].AllocationOrder, (uint16)ViewIndex, MaterialInterface });
+#endif
+
+		return TransientTextureSlice;
+	}
+	else
+	{
+#if !(UE_BUILD_SHIPPING)
+		UserSceneTextureEvents.Add({ EUserSceneTextureEvent::MissingInput, Name, 0, (uint16)ViewIndex, MaterialInterface });
+#endif
+
+		return FScreenPassTextureSlice();
+	}
+}
+
+FIntPoint FMinimalSceneTextures::GetUserSceneTextureDivisor(FName Name) const
+{
+	TArray<FTransientUserSceneTexture>* TransientTextures = UserSceneTextures.Find(Name);
+	if (TransientTextures)
+	{
+		return (*TransientTextures)[0].ResolutionDivisor;
+	}
+	else
+	{
+		return FIntPoint(1, 1);
+	}
+}
+
+#if !(UE_BUILD_SHIPPING)
+const FTransientUserSceneTexture* FMinimalSceneTextures::FindUserSceneTextureByEvent(const FUserSceneTextureEventData& Event) const
+{
+	const TArray<FTransientUserSceneTexture>* TransientTextures = UserSceneTextures.Find(Event.Name);
+	if (!TransientTextures)
+	{
+		return nullptr;
+	}
+
+	for (const FTransientUserSceneTexture& TransientTexture : *TransientTextures)
+	{
+		if (TransientTexture.AllocationOrder == Event.AllocationOrder)
+		{
+			return &TransientTexture;
+		}
+	}
+
+	return nullptr;
+}
+#endif
+
+void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily, FIntPoint FamilySize)
 {
 	const FSceneTexturesConfig& Config = ViewFamily.SceneTexturesConfig;
-	FSceneTextures& SceneTextures = ViewFamily.SceneTextures;
+	FSceneTextures& SceneTextures = *ViewFamily.SceneTextures;
 
 	FMinimalSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily);
 
 	if (Config.ShadingPath == EShadingPath::Deferred)
 	{
 		// Screen Space Ambient Occlusion
-		SceneTextures.ScreenSpaceAO = CreateScreenSpaceAOTexture(GraphBuilder, Config.Extent);
+		SceneTextures.ScreenSpaceAO = CreateScreenSpaceAOTexture(GraphBuilder, ViewFamily.GetFeatureLevel(), Config.Extent);
 
 		// Small Depth
 		const FIntPoint SmallDepthExtent = GetDownscaledExtent(Config.Extent, Config.SmallDepthDownsampleFactor);
@@ -540,7 +689,7 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 	}
 
 	// Velocity
-	SceneTextures.Velocity = GraphBuilder.CreateTexture(FVelocityRendering::GetRenderTargetDesc(Config.ShaderPlatform, Config.Extent), TEXT("SceneVelocity"));
+	SceneTextures.Velocity = GraphBuilder.CreateTexture(FVelocityRendering::GetRenderTargetDesc(Config.ShaderPlatform, Config.Extent, Config.bRequireMultiView), TEXT("SceneVelocity"));
 
 	if (Config.bIsUsingGBuffers)
 	{
@@ -549,31 +698,41 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 
 		if (Bindings.GBufferA.Index >= 0)
 		{
-			const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferA.Format, FClearValueBinding::Transparent, Bindings.GBufferA.Flags | FlagsToAdd | GFastVRamConfig.GBufferA));
+			const FRDGTextureDesc Desc(Config.bRequireMultiView ?
+				FRDGTextureDesc::Create2DArray(Config.Extent, Bindings.GBufferA.Format, FClearValueBinding::Transparent, Bindings.GBufferA.Flags | FlagsToAdd | GFastVRamConfig.GBufferA, 2) :
+				FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferA.Format, FClearValueBinding::Transparent, Bindings.GBufferA.Flags | FlagsToAdd | GFastVRamConfig.GBufferA));
 			SceneTextures.GBufferA = GraphBuilder.CreateTexture(Desc, TEXT("GBufferA"));
 		}
 
 		if (Bindings.GBufferB.Index >= 0)
 		{
-			const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferB.Format, FClearValueBinding::Transparent, Bindings.GBufferB.Flags | FlagsToAdd | GFastVRamConfig.GBufferB));
+			const FRDGTextureDesc Desc(Config.bRequireMultiView ?
+				FRDGTextureDesc::Create2DArray(Config.Extent, Bindings.GBufferB.Format, FClearValueBinding::Transparent, Bindings.GBufferB.Flags | FlagsToAdd | GFastVRamConfig.GBufferB, 2) :
+				FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferB.Format, FClearValueBinding::Transparent, Bindings.GBufferB.Flags | FlagsToAdd | GFastVRamConfig.GBufferB));
 			SceneTextures.GBufferB = GraphBuilder.CreateTexture(Desc, TEXT("GBufferB"));
 		}
 
 		if (Bindings.GBufferC.Index >= 0)
 		{
-			const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferC.Format, FClearValueBinding::Transparent, Bindings.GBufferC.Flags | FlagsToAdd | GFastVRamConfig.GBufferC));
+			const FRDGTextureDesc Desc(Config.bRequireMultiView ?
+				FRDGTextureDesc::Create2DArray(Config.Extent, Bindings.GBufferC.Format, FClearValueBinding::Transparent, Bindings.GBufferC.Flags | FlagsToAdd | GFastVRamConfig.GBufferC, 2) :
+				FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferC.Format, FClearValueBinding::Transparent, Bindings.GBufferC.Flags | FlagsToAdd | GFastVRamConfig.GBufferC));
 			SceneTextures.GBufferC = GraphBuilder.CreateTexture(Desc, TEXT("GBufferC"));
 		}
 
 		if (Bindings.GBufferD.Index >= 0)
 		{
-			const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferD.Format, FClearValueBinding::Transparent, Bindings.GBufferD.Flags | FlagsToAdd | GFastVRamConfig.GBufferD));
+			const FRDGTextureDesc Desc(Config.bRequireMultiView ?
+				FRDGTextureDesc::Create2DArray(Config.Extent, Bindings.GBufferD.Format, FClearValueBinding::Transparent, Bindings.GBufferD.Flags | FlagsToAdd | GFastVRamConfig.GBufferD, 2) :
+				FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferD.Format, FClearValueBinding::Transparent, Bindings.GBufferD.Flags | FlagsToAdd | GFastVRamConfig.GBufferD));
 			SceneTextures.GBufferD = GraphBuilder.CreateTexture(Desc, TEXT("GBufferD"));
 		}
 
 		if (Bindings.GBufferE.Index >= 0)
 		{
-			const FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferE.Format, FClearValueBinding::Transparent, Bindings.GBufferE.Flags | FlagsToAdd | GFastVRamConfig.GBufferE));
+			const FRDGTextureDesc Desc(Config.bRequireMultiView ?
+				FRDGTextureDesc::Create2DArray(Config.Extent, Bindings.GBufferE.Format, FClearValueBinding::Transparent, Bindings.GBufferE.Flags | FlagsToAdd | GFastVRamConfig.GBufferE, 2) :
+				FRDGTextureDesc::Create2D(Config.Extent, Bindings.GBufferE.Format, FClearValueBinding::Transparent, Bindings.GBufferE.Flags | FlagsToAdd | GFastVRamConfig.GBufferE));
 			SceneTextures.GBufferE = GraphBuilder.CreateTexture(Desc, TEXT("GBufferE"));
 		}
 
@@ -582,7 +741,9 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 		{
 			ETextureCreateFlags GBufferFCreateFlags;
 			EPixelFormat GBufferFPixelFormat = GetGBufferFFormatAndCreateFlags(GBufferFCreateFlags);
-			const FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(Config.Extent, GBufferFPixelFormat, FClearValueBinding({ 0.5f, 0.5f, 0.5f, 0.5f }), GBufferFCreateFlags | FlagsToAdd);
+			const FRDGTextureDesc Desc(Config.bRequireMultiView ?
+				FRDGTextureDesc::Create2DArray(Config.Extent, GBufferFPixelFormat, FClearValueBinding({ 0.5f, 0.5f, 0.5f, 0.5f }), GBufferFCreateFlags | FlagsToAdd, 2) :
+				FRDGTextureDesc::Create2D(Config.Extent, GBufferFPixelFormat, FClearValueBinding({ 0.5f, 0.5f, 0.5f, 0.5f }), GBufferFCreateFlags | FlagsToAdd));
 			SceneTextures.GBufferF = GraphBuilder.CreateTexture(Desc, TEXT("GBufferF"));
 		}
 	}
@@ -600,7 +761,7 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 		#endif
 		}
 
-		EPixelFormat DepthAuxFormat = GetMobileSceneDepthAuxPixelFormat(Config.ShaderPlatform, Config.bPreciseDepthAux);
+		EPixelFormat DepthAuxFormat = Config.bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F;
 		FRDGTextureDesc Desc = Config.bRequireMultiView ? 
 			FRDGTextureDesc::Create2DArray(Config.Extent, DepthAuxFormat, FClearValueBinding(FarDepthColor), TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead | MemorylessFlag, 2) :
 			FRDGTextureDesc::Create2D(Config.Extent, DepthAuxFormat, FClearValueBinding(FarDepthColor), TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead| MemorylessFlag);
@@ -636,6 +797,20 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 
 		const FRDGTextureDesc QuadOverdrawDesc(FRDGTextureDesc::Create2D(QuadOverdrawExtent, PF_R32_UINT, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV));
 		SceneTextures.QuadOverdraw = GraphBuilder.CreateTexture(QuadOverdrawDesc, TEXT("QuadOverdrawTexture"));
+	}
+#endif
+
+#if SUPPORTS_VISUALIZE_TEXTURE
+	if (GVisualizeTexture.IsRequestedView())
+	{
+		TArray<FIntRect> FamilyViewRects;
+		FamilyViewRects.SetNumUninitialized(ViewFamily.Views.Num());
+		for (int32 ViewIndex = 0; ViewIndex < ViewFamily.Views.Num(); ViewIndex++)
+		{
+			FamilyViewRects[ViewIndex] = ViewFamily.Views[ViewIndex]->UnconstrainedViewRect;
+		}
+
+		GVisualizeTexture.SetSceneTextures(SceneTextures.EnumerateSceneTextures(), FamilySize, FamilyViewRects);
 	}
 #endif
 }
@@ -706,6 +881,53 @@ uint32 FSceneTextures::GetGBufferRenderTargets(
 		RenderTargetBindingSlots[Index] = FRenderTargetBinding(RenderTargets[Index].Texture, LoadAction);
 	}
 	return RenderTargetCount;
+}
+
+static void AddTextureIfNonNull(FRDGTextureRef Texture, TArray<FRDGTextureRef>& OutTextures)
+{
+	if (Texture)
+	{
+		OutTextures.Add(Texture);
+	}
+}
+
+static void AddTextureIfNonNull(const FRDGTextureMSAA& Texture, TArray<FRDGTextureRef>& OutTextures)
+{
+	if (Texture.Target)
+	{
+		OutTextures.Add(Texture.Target);
+	}
+}
+
+TArray<FRDGTextureRef> FSceneTextures::EnumerateSceneTextures() const
+{
+	TArray<FRDGTextureRef> Results;
+	Results.Reserve(20);
+
+	AddTextureIfNonNull(Color, Results);
+	AddTextureIfNonNull(Depth, Results);
+	AddTextureIfNonNull(PartialDepth, Results);
+	AddTextureIfNonNull(CustomDepth.Depth, Results);
+	AddTextureIfNonNull(SmallDepth, Results);
+	AddTextureIfNonNull(GBufferA, Results);
+	AddTextureIfNonNull(GBufferB, Results);
+	AddTextureIfNonNull(GBufferC, Results);
+	AddTextureIfNonNull(GBufferD, Results);
+	AddTextureIfNonNull(GBufferE, Results);
+	AddTextureIfNonNull(GBufferF, Results);
+	AddTextureIfNonNull(DepthAux, Results);
+	AddTextureIfNonNull(Velocity, Results);
+	AddTextureIfNonNull(MobileLocalLightTextureA, Results);
+	AddTextureIfNonNull(MobileLocalLightTextureB, Results);
+	AddTextureIfNonNull(ScreenSpaceAO, Results);
+	AddTextureIfNonNull(QuadOverdraw, Results);
+	AddTextureIfNonNull(PixelProjectedReflection, Results);
+#if WITH_EDITOR
+	AddTextureIfNonNull(EditorPrimitiveColor, Results);
+	AddTextureIfNonNull(EditorPrimitiveDepth, Results);
+#endif
+
+	return Results;
 }
 
 void FSceneTextureExtracts::QueueExtractions(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
@@ -951,8 +1173,10 @@ void SetupMobileSceneTextureUniformParameters(
 	SceneTextureParameters.ScenePartialDepthTextureSampler = TStaticSamplerState<>::GetRHI();
 	// CustomDepthTexture is a color texture on mobile, with DeviceZ values
 	SceneTextureParameters.CustomDepthTexture = SystemTextures.Black;
+	SceneTextureParameters.CustomDepthTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, PF_DepthStencil, FClearValueBinding::Black);
 	SceneTextureParameters.CustomDepthTextureSampler = TStaticSamplerState<>::GetRHI();
 	SceneTextureParameters.CustomStencilTexture = SystemTextures.StencilDummySRV;
+	SceneTextureParameters.CustomStencilTextureArray = SystemTextures.StencilDummySRV;
 	SceneTextureParameters.SceneVelocityTexture = SystemTextures.Black;
 	SceneTextureParameters.SceneVelocityTextureSampler = TStaticSamplerState<>::GetRHI();
 	SceneTextureParameters.GBufferATexture = SystemTextures.Black;
@@ -1040,7 +1264,9 @@ void SetupMobileSceneTextureUniformParameters(
 
 			bool bCustomDepthProduced = HasBeenProduced(CustomDepthTextures.Depth);
 			SceneTextureParameters.CustomDepthTexture = bCustomDepthProduced ? CustomDepthTextures.Depth : SystemTextures.DepthDummy;
+			SceneTextureParameters.CustomDepthTextureArray = bCustomDepthProduced ? CustomDepthTextures.Depth : SystemTextures.DepthDummy;
 			SceneTextureParameters.CustomStencilTexture = bCustomDepthProduced ? CustomDepthTextures.Stencil : SystemTextures.StencilDummySRV;
+			SceneTextureParameters.CustomStencilTextureArray = bCustomDepthProduced ? CustomDepthTextures.Stencil : SystemTextures.StencilDummySRV;
 		}
 
 		if (EnumHasAnyFlags(SetupMode, EMobileSceneTextureSetupMode::SceneVelocity))

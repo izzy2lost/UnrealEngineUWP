@@ -1422,7 +1422,7 @@ void UK2Node::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins, TArray<UEd
 							UEdGraphPin* SubPin = OldPin->SubPins[SubPinIndex];
 							if (!SubPin->bOrphanedPin)
 							{
-								OldPin->SubPins.RemoveAt(SubPinIndex, 1, EAllowShrinking::No);
+								OldPin->SubPins.RemoveAt(SubPinIndex, EAllowShrinking::No);
 								SubPin->MarkAsGarbage();
 							}
 						}
@@ -1440,7 +1440,7 @@ void UK2Node::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins, TArray<UEd
 					OldPin->bOrphanedPin = true;
 					OldPin->bNotConnectable = true;
 					OrphanedOldPins.Add(OldPin);
-					InOldPins.RemoveAt(OldPinIndex, 1, EAllowShrinking::No);
+					InOldPins.RemoveAt(OldPinIndex, EAllowShrinking::No);
 				}
 			}
 		}
@@ -1691,7 +1691,7 @@ ERenamePinResult UK2Node::RenameUserDefinedPinImpl(const FName OldName, const FN
 				FString NewNameStr = NewName.ToString();
 
 				PinToRename->PinName = *(NewNameStr + PinToRename->PinName.ToString().RightChop(OldNameLength));
-				PinToRename->PinFriendlyName = FText::FromString(MoveTemp(NewNameStr) + PinToRename->PinFriendlyName.ToString().RightChop(OldNameLength));
+				PinToRename->PinFriendlyName = FText::AsCultureInvariant(MoveTemp(NewNameStr) + PinToRename->PinFriendlyName.ToString().RightChop(OldNameLength));
 			}
 		}
 	}
@@ -1839,7 +1839,7 @@ void FOptionalPinManager::CreateVisiblePins(TArray<FOptionalPinFromProperty>& Pr
 							const FName PinName = *FString::Printf(TEXT("%s_%d"), *PropertyEntry.PropertyName.ToString(), Index);
 
 							FFormatNamedArguments Args;
-							Args.Add(TEXT("PinName"), FText::FromString(PropertyEntry.PropertyFriendlyName.IsEmpty() ? PinName.ToString() : PropertyEntry.PropertyFriendlyName));
+							Args.Add(TEXT("PinName"), FText::AsCultureInvariant(PropertyEntry.PropertyFriendlyName.IsEmpty() ? PinName.ToString() : PropertyEntry.PropertyFriendlyName));
 							Args.Add(TEXT("Index"), Index);
 							const FText PinFriendlyName = FText::Format(LOCTEXT("PinFriendlyNameWithIndex", "{PinName} {Index}"), Args);
 
@@ -1890,7 +1890,7 @@ void FOptionalPinManager::CreateVisiblePins(TArray<FOptionalPinFromProperty>& Pr
 					{
 						const FName PinName = PropertyEntry.PropertyName;
 						NewPin = TargetNode->CreatePin(Direction, PinType, PinName);
-						NewPin->PinFriendlyName = FText::FromString(PropertyEntry.PropertyFriendlyName.IsEmpty() ? PinName.ToString() : PropertyEntry.PropertyFriendlyName);
+						NewPin->PinFriendlyName = FText::AsCultureInvariant(PropertyEntry.PropertyFriendlyName.IsEmpty() ? PinName.ToString() : PropertyEntry.PropertyFriendlyName);
 						NewPin->bNotConnectable = !PropertyEntry.bIsSetValuePinVisible;
 						NewPin->bDefaultValueIsIgnored = !PropertyEntry.bIsSetValuePinVisible;
 						Schema->ConstructBasicPinTooltip(*NewPin, PropertyEntry.PropertyTooltip, NewPin->PinToolTip);

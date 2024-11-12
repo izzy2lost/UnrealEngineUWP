@@ -14,6 +14,7 @@ public class zlib : ModuleRules
 		Type = ModuleType.External;
 
 		PublicSystemIncludePaths.Add(Path.Combine(VersionPath, "include"));
+		PublicSystemIncludePaths.Add(Path.Combine(VersionPath, "include", "minizip"));
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{

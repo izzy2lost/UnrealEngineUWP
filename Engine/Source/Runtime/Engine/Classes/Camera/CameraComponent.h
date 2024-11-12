@@ -6,12 +6,23 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ScriptInterface.h"
 #include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/BlendableInterface.h"
 #include "Engine/Scene.h"
 #include "Camera/CameraTypes.h"
 #include "CameraComponent.generated.h"
 
 class UStaticMesh;
+
+/** Allows a custom SceneProxy to interact with camera specific show flags. */
+UCLASS(MinimalAPI)
+class UCameraProxyMeshComponent : public UStaticMeshComponent
+{
+	GENERATED_BODY()
+
+public:
+	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
+};
 
 /**
   * Represents a camera viewpoint and settings, such as projection type, field of view, and post-process overrides.
@@ -33,6 +44,22 @@ class UCameraComponent : public USceneComponent
 	float FieldOfView;
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	virtual void SetFieldOfView(float InFieldOfView) { FieldOfView = InFieldOfView; }
+
+	/**
+	 * The horizontal field of view (in degrees) used for primitives tagged as "IsFirstPerson".
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraSettings, meta = (UIMin = "5.0", UIMax = "170", ClampMin = "0.001", ClampMax = "360.0", Units = deg, EditCondition = "bEnableFirstPersonFieldOfView"))
+	float FirstPersonFieldOfView;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	virtual void SetFirstPersonFieldOfView(float InFirstPersonFieldOfView) { FirstPersonFieldOfView = InFirstPersonFieldOfView; }
+
+	/**
+	 * The scale to apply to primitives tagged as "IsFirstPerson". This is used to scale down primitives towards the camera such that they are small enough not to intersect with the scene.
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraSettings, meta = (UIMin = "0.001", UIMax = "1.0", ClampMin = "0.001", ClampMax = "1.0", EditCondition = "bEnableFirstPersonScale"))
+	float FirstPersonScale;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	virtual void SetFirstPersonScale(float InFirstPersonScale) { FirstPersonScale = InFirstPersonScale; }
 
 	/** The desired width (in world units) of the orthographic view (ignored in Perspective mode) */
 	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraSettings)
@@ -83,7 +110,7 @@ class UCameraComponent : public USceneComponent
 	void SetAspectRatio(float InAspectRatio) { AspectRatio = InAspectRatio; }
 
 	/** Override for the default aspect ratio axis constraint defined on the local player */
-	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions, meta = (EditCondition = "bOverrideAspectRatioAxisConstraint"))
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions, meta = (EditCondition = "!bConstrainAspectRatio && bOverrideAspectRatioAxisConstraint"))
 	TEnumAsByte<EAspectRatioAxisConstraint> AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV;
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	void SetAspectRatioAxisConstraint(EAspectRatioAxisConstraint InAspectRatioAxisConstraint) { AspectRatioAxisConstraint = InAspectRatioAxisConstraint; }
@@ -103,6 +130,42 @@ class UCameraComponent : public USceneComponent
 	uint8 bUseFieldOfViewForLOD : 1;
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	void SetUseFieldOfViewForLOD(bool bInUseFieldOfViewForLOD) { bUseFieldOfViewForLOD = bInUseFieldOfViewForLOD; }
+	
+	/** Amount to increase the view frustum by, from 0.0 for no increase to 1.0 for 100% increase */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions, meta = (UIMin="0.0", ClampMin="0.0", UIMax="1.0", ClampMax="1.0"))
+	float Overscan;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetOverscan(float InOverscan) { Overscan = InOverscan; }
+	
+	/**
+	 * Indicates that the resolution should be scaled by the overscan amount so that the original view frustum remains the same resolution.
+	 * Note that when enabled, increasing overscan will result in increased rendering workload, potentially decreasing performance as resolution increases
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	bool bScaleResolutionWithOverscan;
+
+	/**
+	 * Sets whether to scale the resolution by the amount of overscan so that the original view frustum remains the same resolution.
+	 * Note that when enabled, increasing overscan will result in increased rendering workload, potentially decreasing performance as resolution increases
+	 */
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetScaleResolutionWithOverscan(bool bInScaleResolutionWithOverscan) { bScaleResolutionWithOverscan = bInScaleResolutionWithOverscan; }
+
+	/**
+	 * Indicates that the overscanned pixels should be cropped at the end of the rendering pipeline, allowing the overscanned pixels to be used in post process effects
+	 * that need extra pixels beyond the view frustum (e.g. lens distortion) without having to render those pixels to the screen. When bScaleResolutionWithOverscan is enabled,
+	 * the cropped image will have the same resolution as the original non-overscanned image, but when disabled, the cropped image will be a lower resolution.
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	bool bCropOverscan;
+
+	/**
+	 * Sets whether to crop the overscanned pixels at the end of the rendering pipeline, allowing the overscanned pixels to be used in post process effects
+	 * that need extra pixels beyond the view frustum (e.g. lens distortion) without having to render those pixels to the screen. When bScaleResolutionWithOverscan is enabled,
+	 * the cropped image will have the same resolution as the original non-overscanned image, but when disabled, the cropped image will be a lower resolution.
+	 */
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetCropOverscan(bool bInCropOverscan) { bCropOverscan = bInCropOverscan; }
 
 #if WITH_EDITOR
 	// Returns the filmback text used for burnins on preview viewports
@@ -130,6 +193,18 @@ class UCameraComponent : public USceneComponent
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
 	uint8 bUsePawnControlRotation : 1;
+
+	/** True if the first person field of view should be used for primitives tagged as "IsFirstPerson". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	uint8 bEnableFirstPersonFieldOfView : 1;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetEnableFirstPersonFieldOfView(bool bInEnableFirstPersonFieldOfView) { bEnableFirstPersonFieldOfView = bInEnableFirstPersonFieldOfView; }
+
+	/** True if the first person scale should be used for primitives tagged as "IsFirstPerson". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	uint8 bEnableFirstPersonScale : 1;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetEnableFirstPersonScale(bool bInEnableFirstPersonScale) { bEnableFirstPersonScale = bInEnableFirstPersonScale; }
 
 protected:
 	/** True to enable the additive view offset, for adjusting the view without moving the component. */
@@ -172,7 +247,7 @@ public:
 
 protected:
 	ENGINE_API bool IsXRHeadTrackedCamera() const;
-	ENGINE_API virtual void HandleXRCamera();
+	ENGINE_API virtual void HandleXRCamera(float DeltaTime);
 
 public:
 	/**

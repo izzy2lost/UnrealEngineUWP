@@ -220,7 +220,7 @@ void SetDebugLightmapSample(TArray<UActorComponent*>* Components, UModel* Model,
 				if (bUseTextureMap)
 				{
 					double ClosestPlaneDistance = std::numeric_limits<double>::max();
-					FVector ClosestPlaneBaryCentricWeights;
+					FVector ClosestPlaneBaryCentricWeights = FVector::ZeroVector;
 					int32 ClosestPlaneTriangleIndex = -1;
 
 					// Search through the static mesh's triangles for the one that was hit (since we can't get triangle index from a line check)

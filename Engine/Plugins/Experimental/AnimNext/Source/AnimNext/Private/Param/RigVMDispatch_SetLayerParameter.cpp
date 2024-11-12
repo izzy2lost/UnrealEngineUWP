@@ -3,10 +3,6 @@
 #include "Param/RigVMDispatch_SetLayerParameter.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMCore/RigVM.h"
-#include "Param/AnimNextParameterExecuteContext.h"
-#include "Param/ParamId.h"
-#include "Param/ParamTypeHandle.h"
-#include "Param/ParamStackLayerHandle.h"
 
 const FName FRigVMDispatch_SetLayerParameter::ExecuteContextName = TEXT("ExecuteContext");
 const FName FRigVMDispatch_SetLayerParameter::ValueName = TEXT("Value");
@@ -87,32 +83,6 @@ FRigVMTemplateTypeMap FRigVMDispatch_SetLayerParameter::OnNewArgumentType(const 
 
 void FRigVMDispatch_SetLayerParameter::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
-	using namespace UE::AnimNext;
-
-	const FName Parameter = *(FName*)Handles[0].GetData();
-	const FProperty* ValueProperty = Handles[1].GetResolvedProperty();
-	check(ValueProperty);
-	const uint8* SourceData =  Handles[1].GetData();
-
-	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
-	if (ParameterHash == 0 && Parameter != NAME_None)
-	{
-		ParameterHash = GetTypeHash(Parameter);
-	}
-
-	uint32& RawTypeHandle = *(uint32*)Handles[3].GetData();
-	if (RawTypeHandle == 0)
-	{
-		RawTypeHandle = FParamTypeHandle::FromProperty(ValueProperty).ToRaw();
-	}
-
-	FParamId ParameterId(Parameter, ParameterHash);
-	FParamTypeHandle TypeHandle = FParamTypeHandle::FromRaw(RawTypeHandle);
-	if(ParameterId.IsValid() && TypeHandle.IsValid())
-	{
-		FAnimNextParameterExecuteContext& ParamContext = InContext.GetPublicData<FAnimNextParameterExecuteContext>();
-		TConstArrayView<uint8> SourceDataView(SourceData, ValueProperty->GetSize());
-		ParamContext.GetLayerHandle().SetValueRaw(ParameterId, TypeHandle, SourceDataView);
-	}
+	// Deprecated stub
 }
 

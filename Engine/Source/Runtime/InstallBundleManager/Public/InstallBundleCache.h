@@ -41,13 +41,13 @@ enum class EInstallBundleCacheReserveResult : int8
 
 struct FInstallBundleCacheReserveResult
 {
-	TMap<FName, TArray<EInstallBundleSourceType>> BundlesToEvict;
+	TMap<FName, TArray<FInstallBundleSourceType>> BundlesToEvict;
 	EInstallBundleCacheReserveResult Result = EInstallBundleCacheReserveResult::Success;
 };
 
 struct FInstallBundleCacheFlushResult
 {
-	TMap<FName, TArray<EInstallBundleSourceType>> BundlesToEvict;
+	TMap<FName, TArray<FInstallBundleSourceType>> BundlesToEvict;
 };
 
 class FInstallBundleCache : public TSharedFromThis<FInstallBundleCache>
@@ -60,12 +60,12 @@ public:
 	FName GetName() const { return CacheName; }
 
 	// Add a bundle to the cache.  
-	INSTALLBUNDLEMANAGER_API void AddOrUpdateBundle(EInstallBundleSourceType Source, const FInstallBundleCacheBundleInfo& AddInfo);
+	INSTALLBUNDLEMANAGER_API void AddOrUpdateBundle(FInstallBundleSourceType Source, const FInstallBundleCacheBundleInfo& AddInfo);
 
-	INSTALLBUNDLEMANAGER_API void RemoveBundle(EInstallBundleSourceType Source, FName BundleName);
+	INSTALLBUNDLEMANAGER_API void RemoveBundle(FInstallBundleSourceType Source, FName BundleName);
 
 	INSTALLBUNDLEMANAGER_API TOptional<FInstallBundleCacheBundleInfo> GetBundleInfo(FName BundleName) const;
-	INSTALLBUNDLEMANAGER_API TOptional<FInstallBundleCacheBundleInfo> GetBundleInfo(EInstallBundleSourceType Source, FName BundleName) const;	
+	INSTALLBUNDLEMANAGER_API TOptional<FInstallBundleCacheBundleInfo> GetBundleInfo(FInstallBundleSourceType Source, FName BundleName) const;	
 
 	// Return the total size of the cache
 	INSTALLBUNDLEMANAGER_API uint64 GetSize() const;
@@ -79,10 +79,10 @@ public:
 	INSTALLBUNDLEMANAGER_API FInstallBundleCacheReserveResult Reserve(FName BundleName);
 
 	// Called from bundle manager, returns all bundles that can be evicted
-	INSTALLBUNDLEMANAGER_API FInstallBundleCacheFlushResult Flush(EInstallBundleSourceType* Source = nullptr);
+	INSTALLBUNDLEMANAGER_API FInstallBundleCacheFlushResult Flush(FInstallBundleSourceType* Source = nullptr);
 
 	INSTALLBUNDLEMANAGER_API bool Contains(FName BundleName) const;
-	INSTALLBUNDLEMANAGER_API bool Contains(EInstallBundleSourceType Source, FName BundleName) const;
+	INSTALLBUNDLEMANAGER_API bool Contains(FInstallBundleSourceType Source, FName BundleName) const;
 
 	INSTALLBUNDLEMANAGER_API bool IsReserved(FName BundleName) const;
 
@@ -172,7 +172,7 @@ private:
 
 private:
 
-	TMap<FName, TMap<EInstallBundleSourceType, FPerSourceBundleCacheInfo>> PerSourceCacheInfo;
+	TMap<FName, TMap<FInstallBundleSourceType, FPerSourceBundleCacheInfo>> PerSourceCacheInfo;
 
 	// mutable to allow sorting in const contexts
 	mutable TMap<FName, FBundleCacheInfo> CacheInfo;

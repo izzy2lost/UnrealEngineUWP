@@ -193,5 +193,5 @@ namespace UE::NNEHlslShaders::Internal
 		return EGemmAlgorithm::MultiWrite1x32;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TGemmCS, "/NNE/NNEHlslShadersGemm.usf", "Gemm", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TGemmCS, "/NNEHlslShaders/NNEHlslShadersGemm.usf", "Gemm", SF_Compute);
 } // UE::NNEHlslShaders::Internal

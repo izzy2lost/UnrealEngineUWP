@@ -1,20 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
-using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -27,25 +21,25 @@ namespace AutomationTool.Tasks
 		/// List of file specifications separated by semicolons (for example, *.cpp;Engine/.../*.bat), or the name of a tag set
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// List of directory names
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Directories;
+		public string Directories { get; set; }
 
 		/// <summary>
 		/// Whether to delete empty directories after deleting the files. Defaults to true.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool DeleteEmptyDirectories = true;
+		public bool DeleteEmptyDirectories { get; set; } = true;
 
 		/// <summary>
 		/// Whether or not to use verbose logging.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Verbose = false;
+		public bool Verbose { get; set; } = false;
 	}
 
 	/// <summary>
@@ -54,60 +48,57 @@ namespace AutomationTool.Tasks
 	[TaskElement("Delete", typeof(DeleteTaskParameters))]
 	public class DeleteTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		DeleteTaskParameters Parameters;
+		readonly DeleteTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public DeleteTask(DeleteTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public DeleteTask(DeleteTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			if (Parameters.Files != null)
+			if (_parameters.Files != null)
 			{
 				// Find all the referenced files and delete them
-				HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
-				foreach (FileReference File in Files)
+				HashSet<FileReference> files = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
+				foreach (FileReference file in files)
 				{
-					if (Parameters.Verbose)
+					if (_parameters.Verbose)
 					{
-						Logger.LogInformation("Deleting {File}", File.FullName);
+						Logger.LogInformation("Deleting {File}", file.FullName);
 					}
-					if (!InternalUtils.SafeDeleteFile(File.FullName))
+					if (!InternalUtils.SafeDeleteFile(file.FullName))
 					{
-						Logger.LogWarning("Couldn't delete file {Arg0}", File.FullName);
+						Logger.LogWarning("Couldn't delete file {Arg0}", file.FullName);
 					}
 				}
 
 				// Try to delete all the parent directories. Keep track of the directories we've already deleted to avoid hitting the disk.
-				if (Parameters.DeleteEmptyDirectories)
+				if (_parameters.DeleteEmptyDirectories)
 				{
 					// Find all the directories that we're touching
-					HashSet<DirectoryReference> ParentDirectories = new HashSet<DirectoryReference>();
-					foreach (FileReference File in Files)
+					HashSet<DirectoryReference> parentDirectories = new HashSet<DirectoryReference>();
+					foreach (FileReference file in files)
 					{
-						ParentDirectories.Add(File.Directory);
+						parentDirectories.Add(file.Directory);
 					}
 
 					// Recurse back up from each of those directories to the root folder
-					foreach (DirectoryReference ParentDirectory in ParentDirectories)
+					foreach (DirectoryReference parentDirectory in parentDirectories)
 					{
-						for (DirectoryReference CurrentDirectory = ParentDirectory; CurrentDirectory != Unreal.RootDirectory; CurrentDirectory = CurrentDirectory.ParentDirectory)
+						for (DirectoryReference currentDirectory = parentDirectory; currentDirectory != Unreal.RootDirectory; currentDirectory = currentDirectory.ParentDirectory)
 						{
-							if (!TryDeleteEmptyDirectory(CurrentDirectory))
+							if (!TryDeleteEmptyDirectory(currentDirectory))
 							{
 								break;
 							}
@@ -115,20 +106,20 @@ namespace AutomationTool.Tasks
 					}
 				}
 			}
-			if (Parameters.Directories != null)
+			if (_parameters.Directories != null)
 			{
-				foreach (string Directory in Parameters.Directories.Split(';'))
+				foreach (string directory in _parameters.Directories.Split(';'))
 				{
-					if (!String.IsNullOrEmpty(Directory))
+					if (!String.IsNullOrEmpty(directory))
 					{
-						if (Parameters.Verbose)
+						if (_parameters.Verbose)
 						{
-							Logger.LogInformation("Deleting {Directory}", Directory);
+							Logger.LogInformation("Deleting {Directory}", directory);
 						}
-						DirectoryReference FullDir = new DirectoryReference(Directory);
-						if (DirectoryReference.Exists(FullDir))
+						DirectoryReference fullDir = new DirectoryReference(directory);
+						if (DirectoryReference.Exists(fullDir))
 						{
-							FileUtils.ForceDeleteDirectory(FullDir);
+							FileUtils.ForceDeleteDirectory(fullDir);
 						}
 					}
 				}
@@ -139,18 +130,18 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Deletes a directory, if it's empty
 		/// </summary>
-		/// <param name="CandidateDirectory">The directory to check</param>
+		/// <param name="candidateDirectory">The directory to check</param>
 		/// <returns>True if the directory was deleted, false if not</returns>
-		static bool TryDeleteEmptyDirectory(DirectoryReference CandidateDirectory)
+		static bool TryDeleteEmptyDirectory(DirectoryReference candidateDirectory)
 		{
 			// Make sure the directory exists
-			if(!DirectoryReference.Exists(CandidateDirectory))
+			if (!DirectoryReference.Exists(candidateDirectory))
 			{
 				return false;
 			}
 
 			// Check if there are any files in it. If there are, don't bother trying to delete it.
-			if(Directory.EnumerateFiles(CandidateDirectory.FullName).Any() || Directory.EnumerateDirectories(CandidateDirectory.FullName).Any())
+			if (Directory.EnumerateFiles(candidateDirectory.FullName).Any() || Directory.EnumerateDirectories(candidateDirectory.FullName).Any())
 			{
 				return false;
 			}
@@ -158,12 +149,12 @@ namespace AutomationTool.Tasks
 			// Try to delete the directory.
 			try
 			{
-				Directory.Delete(CandidateDirectory.FullName);
+				Directory.Delete(candidateDirectory.FullName);
 				return true;
 			}
-			catch(Exception Ex)
+			catch (Exception ex)
 			{
-				Logger.LogWarning("Couldn't delete directory {Arg0} ({Arg1})", CandidateDirectory.FullName, Ex.Message);
+				Logger.LogWarning("Couldn't delete directory {Arg0} ({Arg1})", candidateDirectory.FullName, ex.Message);
 				return false;
 			}
 		}
@@ -171,9 +162,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -182,7 +173,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>

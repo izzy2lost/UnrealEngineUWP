@@ -100,15 +100,17 @@ BufferedPacket::~BufferedPacket()
 
 PacketHandler::PacketHandler(FDDoSDetection* InDDoS/*=nullptr*/)
 	: Mode(UE::Handler::Mode::Client)
+	, State(UE::Handler::State::Uninitialized)
+	, bRawSend(false)
+	, bBeganHandshaking(false)
 	, bConnectionlessHandler(false)
+	, MaxPacketBits(0)
 	, DDoS(InDDoS)
 	, LowLevelSendDel()
 	, HandshakeCompleteDel()
 	, OutgoingPacket(MAX_PACKET_SIZE * 8)
 	, IncomingPacket()
 	, HandlerComponents()
-	, MaxPacketBits(0)
-	, State(UE::Handler::State::Uninitialized)
 	, BufferedPackets()
 	, QueuedPackets()
 	, QueuedRawPackets()
@@ -116,10 +118,8 @@ PacketHandler::PacketHandler(FDDoSDetection* InDDoS/*=nullptr*/)
 	, BufferedConnectionlessPackets()
 	, QueuedConnectionlessPackets()
 	, ReliabilityComponent(nullptr)
-	, bRawSend(false)
 	, Provider()
 	, Aggregator()
-	, bBeganHandshaking(false)
 {
 	OutgoingPacket.SetAllowResize(true);
 	OutgoingPacket.AllowAppend(true);
@@ -1244,6 +1244,9 @@ HandlerComponent::HandlerComponent(FName InName)
 	, Name(InName)
 {
 }
+
+HandlerComponent::~HandlerComponent() = default;
+
 
 bool HandlerComponent::IsActive() const
 {

@@ -16,6 +16,7 @@
 #include "LandscapeSplinesComponent.h"
 #include "LandscapeEdit.h"
 #include "LandscapeDataAccess.h"
+#include "LandscapeEditLayer.h"
 #include "LandscapeSubsystem.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 
@@ -379,12 +380,19 @@ void FLandscapeConfigHelper::CopyRegionToComponent(ULandscapeInfo* InLandscapeIn
 		}
 		InComponent->InitHeightmapData(HeightInitData, false);
 
-		for (const FLandscapeLayer& LandscapeLayer : InLandscapeInfo->LandscapeActor->LandscapeLayers)
+		for (const FLandscapeLayer& LandscapeLayer : InLandscapeInfo->LandscapeActor->GetLayers())
 		{		
+			check(LandscapeLayer.EditLayer != nullptr);
+			if (!LandscapeLayer.EditLayer->NeedsPersistentTextures())
+			{
+				continue;
+			}
+
 			TMap<UTexture2D*, UTexture2D*> CreatedTextures;
 			InComponent->AddDefaultLayerData(LandscapeLayer.Guid, { InComponent }, CreatedTextures);
 
-			if (LandscapeLayer.Guid == InLandscapeInfo->LandscapeActor->LandscapeSplinesTargetLayerGuid)
+			// No need to copy the persistent textures if they are not manually edited (e.g. fully procedural layers with persistent textures : e.g. the splines layer) :
+			if (!LandscapeLayer.EditLayer->SupportsEditingTools())
 			{
 				continue;
 			}
@@ -565,11 +573,11 @@ ULandscapeInfo* FLandscapeConfigHelper::ChangeConfiguration(ULandscapeInfo* InLa
 	if (OldLandscape->HasLayersContent())
 	{
 		NewLandscape->bCanHaveLayersContent = true;
-		OldLandscape->ForEachLayer([NewLandscape](FLandscapeLayer& Layer)
+		for (const FLandscapeLayer& OldLayer : OldLandscape->GetLayers())
 		{
-			NewLandscape->LandscapeLayers.Add(Layer);
-		});
-		NewLandscape->LandscapeSplinesTargetLayerGuid = OldLandscape->LandscapeSplinesTargetLayerGuid;
+			const FLandscapeLayer* NewLayer = NewLandscape->DuplicateLayerAndMoveBrushes(OldLayer);
+			check((NewLayer == nullptr) || (NewLayer->EditLayer != nullptr)); // it's possible DuplicateLayerAndMoveBrushes fails (e.g. max number of layers reached), but if not, we should always have an EditLayer
+		}
 	}
 		
 	ULandscapeInfo* NewLandscapeInfo = NewLandscape->CreateLandscapeInfo();

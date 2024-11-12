@@ -13,6 +13,7 @@
 #include "Physics/PhysicsInterfaceDeclares.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "Chaos/PhysicsObject.h"
+#include "Chaos/ParticleDirtyFlags.h"
 #include "Chaos/SimCallbackObject.h"
 #include "Physics/PhysicsInterfaceUtils.h"
 #include "Physics/NetworkPhysicsSettingsComponent.h"
@@ -45,9 +46,6 @@ namespace PhysicsReplicationCVars
 }
 #endif
 
-class FPhysScene_PhysX;
-
-
 #pragma region FPhysicsReplicationAsync
 
 struct FPhysicsRepErrorCorrectionData
@@ -67,7 +65,7 @@ struct FPhysicsRepAsyncInputData
 	TOptional<FPhysicsRepErrorCorrectionData> ErrorCorrection;
 	EPhysicsReplicationMode RepMode;
 	int32 ServerFrame;
-	int32 FrameOffset;
+	TOptional<int32> FrameOffset;
 	float LatencyOneWay;
 
 	FPhysicsRepAsyncInputData(Chaos::FConstPhysicsObjectHandle POHandle)
@@ -224,8 +222,11 @@ private:
 	TMap<Chaos::FConstPhysicsObjectHandle, FReplicatedPhysicsTargetAsync> ObjectToTarget;
 	TMap<Chaos::FConstPhysicsObjectHandle, FNetworkPhysicsSettingsAsync> ObjectToSettings;
 	TArray<int32> ParticlesInResimIslands;
+	TArray<Chaos::FParticleID> ReplicatedParticleIDs;
 
 private:
+	FReplicatedPhysicsTargetAsync* AddObjectToReplication(Chaos::FConstPhysicsObjectHandle PhysicsObject);
+	void RemoveObjectFromReplication(Chaos::FConstPhysicsObjectHandle PhysicsObject);
 	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input, Chaos::FPBDRigidsSolver* RigidsSolver);
 	void UpdateRewindDataTarget(const FPhysicsRepAsyncInputData& Input);
 	void CacheResimInteractions();
@@ -332,6 +333,8 @@ private:
 	TMap<TWeakObjectPtr<UPrimitiveComponent>, FReplicatedPhysicsTarget> ComponentToTargets_DEPRECATED; // This collection is keeping the legacy flow working until fully deprecated in a future release
 	TArray<FReplicatedPhysicsTarget> ReplicatedTargetsQueue;
 	FPhysScene* PhysScene;
+	TWeakObjectPtr<UNetworkPhysicsSettingsComponent> SettingsCurrent;
+
 
 	FPhysicsReplicationAsync* PhysicsReplicationAsync;
 	FPhysicsReplicationAsyncInput* AsyncInput;	//async data being written into before we push into callback

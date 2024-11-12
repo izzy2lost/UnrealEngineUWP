@@ -53,7 +53,7 @@ struct FPackedView
 	FVector3f	PrevPreViewTranslationHigh;
 	float		ViewOriginHighY;
 	FVector3f	PrevPreViewTranslationLow;
-	float		MinBoundsRadiusSq;
+	float		CullingViewMinRadiusTestFactorSq;
 	FVector3f	ViewOriginLow;
 	float		ViewOriginHighZ;
 	FVector3f	CullingViewOriginTranslatedWorld;
@@ -74,8 +74,11 @@ struct FPackedView
 
 	FIntVector4	HZBTestViewRect;	// In full resolution
 
-	FVector3f	Padding1;
-	uint32		LightingChannelMask;
+	FUintVector4	FirstPersonTransformRowsExceptRow2Z; // Packed into half floats
+	uint32			FirstPersonTransformRow2Z;
+	uint32			LightingChannelMask;
+	uint32			Padding0;
+	uint32			Padding1;
 	
 
 	
@@ -167,6 +170,7 @@ struct FPackedViewParams
 	bool bUseCullingViewOverrides = false;
 	FVector CullingViewOrigin = FVector::ZeroVector;
 	float CullingViewScreenMultiple = -1.0f;
+	float CullingViewMinRadiusTestFactorSq = 0.0f;  // not used unless the flag NANITE_VIEW_MIN_SCREEN_RADIUS_CULL is set and support is compiled into the culling shader
 
 	FPlane GlobalClippingPlane = {0.0f, 0.0f, 0.0f, 0.0f};
 
@@ -174,6 +178,7 @@ struct FPackedViewParams
 	// Visibility mask buffer may be used if this is non-zero.
 	uint32 InstanceOcclusionQueryMask = 0;
 	uint32 LightingChannelMask = 0b111; // All channels are visible by default
+	bool bUseLightingChannelMask = false;
 };
 
 // Helper function to setup the overrides for a culling view. 
@@ -291,27 +296,19 @@ extern TGlobalResource< FGlobalResources > GGlobalResources;
 
 } // namespace Nanite
 
-BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
-	SHADER_PARAMETER(FIntVector4,					PageConstants)
-	SHADER_PARAMETER(FIntVector4,					MaterialConfig) // .x mode, .yz grid size, .w tile remap count
-	SHADER_PARAMETER(uint32,						MaxNodes)
-	SHADER_PARAMETER(uint32,						MaxVisibleClusters)
-	SHADER_PARAMETER(uint32,						RenderFlags)
-	SHADER_PARAMETER(float,							RayTracingCutError)
-	SHADER_PARAMETER(FVector4f,						RectScaleOffset) // xy: scale, zw: offset
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteShadingUniformParameters, )
+	SHADER_PARAMETER(float,			RayTracingCutError)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		ClusterPageData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		VisibleClustersSWHW)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		HierarchyBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, MaterialTileRemap)
-	SHADER_PARAMETER_SRV           (ByteAddressBuffer,		MaterialDepthTable)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>,			ShadingMask)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>,		VisBuffer64)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>,		DbgBuffer64)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>,			DbgBuffer32)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, RayTracingDataBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,  ShadingBinData)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,		ShadingBinData)
 
 	// Multi view
 	SHADER_PARAMETER(uint32,												MultiViewEnabled)
@@ -320,7 +317,21 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPackedNaniteView>,	InViews)
 END_SHADER_PARAMETER_STRUCT()
 
-extern TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FRDGBuilder& GraphBuilder, uint32 InstanceSceneDataSOAStride);
+extern TRDGUniformBufferRef<FNaniteShadingUniformParameters> CreateDebugNaniteShadingUniformBuffer(FRDGBuilder& GraphBuilder);
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteRasterUniformParameters, )
+	SHADER_PARAMETER(FIntVector4,	PageConstants)
+	SHADER_PARAMETER(uint32,		MaxNodes)
+	SHADER_PARAMETER(uint32,		MaxVisibleClusters)
+	SHADER_PARAMETER(uint32,		MaxCandidatePatches)
+	SHADER_PARAMETER(uint32,		MaxPatchesPerGroup)
+	SHADER_PARAMETER(uint32,		MeshPass)
+	SHADER_PARAMETER(float,			InvDiceRate)
+	SHADER_PARAMETER(uint32,		RenderFlags)
+	SHADER_PARAMETER(uint32,		DebugFlags)
+END_SHADER_PARAMETER_STRUCT()
+
+extern TRDGUniformBufferRef<FNaniteRasterUniformParameters> CreateDebugNaniteRasterUniformBuffer(FRDGBuilder& GraphBuilder, uint32 InstanceSceneDataSOAStride);
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteRayTracingUniformParameters, )
 	SHADER_PARAMETER(FIntVector4,	PageConstants)
@@ -374,10 +385,12 @@ public:
 	{
 	}
 
-	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters)
+	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters, bool bHWRasterShader)
 	{
-		return MaterialParameters.bHasVertexPositionOffsetConnected ||
-			(NaniteTessellationSupported() && MaterialParameters.bIsTessellationEnabled);
+		const bool bPixelProgrammable = IsPixelProgrammable(MaterialParameters);
+		const bool bHasVertexUVs = bPixelProgrammable && (MaterialParameters.bHasVertexInterpolator || MaterialParameters.NumCustomizedUVs > 0);
+		const bool bHasTessellation = (!bHWRasterShader && MaterialParameters.bIsTessellationEnabled);
+		return MaterialParameters.bHasVertexPositionOffsetConnected || bHasVertexUVs || bHasTessellation;
 	}
 
 	static bool IsVertexProgrammable(uint32 MaterialBitFlags)
@@ -395,7 +408,11 @@ public:
 		return (MaterialBitFlags & NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS);
 	}
 
-	static bool ShouldCompileProgrammablePermutation(const FMaterialShaderParameters& MaterialParameters, bool bPermutationVertexProgrammable, bool bPermutationPixelProgrammable)
+	static bool ShouldCompileProgrammablePermutation(
+		const FMaterialShaderParameters& MaterialParameters,
+		bool bPermutationVertexProgrammable,
+		bool bPermutationPixelProgrammable,
+		bool bHWRasterShader)
 	{
 		if (MaterialParameters.bIsDefaultMaterial)
 		{
@@ -407,10 +424,9 @@ public:
 		// switches' values, and therefore when true could represent the set of materials that both enable them and do not. We could
 		// isolate a narrower set of required shaders if FMaterialShaderParameters reflected the status after static switches are
 		// applied.
-		// TODO #2: Tessellation enabled is currently causing FHWRasterizeVS programmable permutations to compile unnecessarily.
-		//return IsVertexProgrammable(MaterialParameters, bPermutationPrimitiveShader) == bPermutationVertexProgrammable &&	
+		//return IsVertexProgrammable(MaterialParameters, bHWRasterShader) == bPermutationVertexProgrammable &&	
 		//		IsPixelProgrammable(MaterialParameters) == bPermutationPixelProgrammable;
-		return	(IsVertexProgrammable(MaterialParameters) || !bPermutationVertexProgrammable) &&
+		return	(IsVertexProgrammable(MaterialParameters, bHWRasterShader) || !bPermutationVertexProgrammable) &&
 				(IsPixelProgrammable(MaterialParameters) || !bPermutationPixelProgrammable) &&
 				(bPermutationVertexProgrammable || bPermutationPixelProgrammable);
 	}
@@ -439,7 +455,9 @@ public:
 		bool bValidMaterial = Parameters.MaterialParameters.bIsDefaultMaterial;
 
 		// Compile this vertex shader if it requires programmable raster
-		if (Parameters.MaterialParameters.bIsUsedWithNanite && FNaniteMaterialShader::IsVertexProgrammable(Parameters.MaterialParameters))
+		static const bool bHWRasterShader = true; // all vertex permutations are HWRaster
+		if (Parameters.MaterialParameters.bIsUsedWithNanite &&
+			FNaniteMaterialShader::IsVertexProgrammable(Parameters.MaterialParameters, bHWRasterShader))
 		{
 			bValidMaterial = true;
 		}
@@ -456,7 +474,9 @@ public:
 		bool bValidMaterial = Parameters.MaterialParameters.bIsDefaultMaterial;
 
 		// Compile this compute shader if it requires programmable raster
-		if (Parameters.MaterialParameters.bIsUsedWithNanite && (IsVertexProgrammable(Parameters.MaterialParameters) || IsPixelProgrammable(Parameters.MaterialParameters)))
+		static const bool bHWRasterShader = false; // all compute permutations are SWRaster
+		if (Parameters.MaterialParameters.bIsUsedWithNanite &&
+			(IsVertexProgrammable(Parameters.MaterialParameters, bHWRasterShader) || IsPixelProgrammable(Parameters.MaterialParameters)))
 		{
 			bValidMaterial = true;
 		}
@@ -474,6 +494,8 @@ public:
 		// Force shader model 6.0+
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
+		OutEnvironment.CompilerFlags.Add(CFLAG_ShaderBundle);
+		OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
 
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
 		OutEnvironment.SetDefine(TEXT("NANITE_MATERIAL_SHADER"), 1);
@@ -481,7 +503,8 @@ public:
 		OutEnvironment.SetDefine(TEXT("IS_NANITE_RASTER_PASS"), 1);
 		OutEnvironment.SetDefine(TEXT("IS_NANITE_PASS"), 1);
 
-		OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), 0);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_SHADING_UNIFORM_BUFFER"), 0);
+		OutEnvironment.SetDefine(TEXT("NANITE_USE_RASTER_UNIFORM_BUFFER"), 1);
 		OutEnvironment.SetDefine(TEXT("NANITE_USE_VIEW_UNIFORM_BUFFER"), 0);
 
 		// Force definitions of GetObjectWorldPosition(), etc..
@@ -507,70 +530,25 @@ struct FNaniteRasterPipeline
 	const FMaterialRenderProxy* RasterMaterial = nullptr;
 
 	FDisplacementScaling DisplacementScaling;
+	FDisplacementFadeRange DisplacementFadeRange;
 
-	bool bIsTwoSided = false;
-	bool bPerPixelEval = false;
-	bool bForceDisableWPO = false;
-	bool bWPODisableDistance = false;
-	bool bSplineMesh = false;
+	bool bIsTwoSided : 1 = false;
+	bool bWPOEnabled : 1 = false;
+	bool bDisplacementEnabled : 1 = false;
+	bool bPerPixelEval : 1 = false;
+	bool bSplineMesh : 1 = false;
+	bool bSkinnedMesh : 1 = false;
+	bool bHasWPODistance : 1 = false;
+	bool bHasPixelDistance : 1 = false;
+	bool bHasDisplacementFadeOut : 1 = false;
+	bool bFixedDisplacementFallback : 1 = false;
+	bool bCastShadow : 1 = false;
+	bool bVertexUVs : 1 = false;
 
-	static FNaniteRasterPipeline GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh);
+	static FNaniteRasterPipeline GetFixedFunctionPipeline(uint8 BinMask);
 
-	inline uint32 GetPipelineHash() const
-	{
-		struct FHashKey
-		{
-			uint32 MaterialFlags;
-			uint32 MaterialHash;
-
-			FDisplacementScaling DisplacementScaling;
-
-			static inline uint32 PointerHash(const void* Key)
-			{
-			#if PLATFORM_64BITS
-				// Ignoring the lower 4 bits since they are likely zero anyway.
-				// Higher bits are more significant in 64 bit builds.
-				return reinterpret_cast<UPTRINT>(Key) >> 4;
-			#else
-				return reinterpret_cast<UPTRINT>(Key);
-			#endif
-			};
-
-		} HashKey;
-
-		HashKey.MaterialFlags  = 0;
-		HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
-		HashKey.MaterialFlags |= bForceDisableWPO ? 0x2u : 0x0u;
-		HashKey.MaterialFlags |= bSplineMesh ? 0x4u : 0x0u;
-		HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
-
-		HashKey.DisplacementScaling = DisplacementScaling;
-
-		const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
-		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
-	}
-
-	inline bool GetSecondaryPipeline(FNaniteRasterPipeline& OutSecondary) const
-	{
-		if (bWPODisableDistance)
-		{
-			if (bPerPixelEval)
-			{
-				// The secondary bin must still be a programmable bin, but with WPO force disabled.
-				OutSecondary = *this;
-				OutSecondary.bWPODisableDistance = false;
-				OutSecondary.bForceDisableWPO = true;
-			}
-			else
-			{
-				// The secondary bin can be a non-programmable, fixed-function bin
-				OutSecondary = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh);
-			}
-			return true;
-		}
-
-		return false;
-	}
+	uint32 GetPipelineHash() const;
+	bool GetFallbackPipeline(FNaniteRasterPipeline& OutFallback) const;
 
 	FORCENOINLINE friend uint32 GetTypeHash(const FNaniteRasterPipeline& Other)
 	{
@@ -605,19 +583,25 @@ struct FNaniteRasterMaterialCacheKey
 	{
 		struct
 		{
-			uint16 FeatureLevel				: 6;
-			uint16 bForceDisableWPO			: 1;
-			uint16 bUseMeshShader			: 1;
-			uint16 bUsePrimitiveShader		: 1;
-			uint16 bUseDisplacement			: 1;
-			uint16 bVisualizeActive			: 1;
-			uint16 bHasVirtualShadowMap		: 1;
-			uint16 bIsDepthOnly				: 1;
-			uint16 bIsTwoSided				: 1;
-			uint16 bSplineMesh				: 1;
+			uint32 FeatureLevel					: 3;
+			uint32 bWPOEnabled					: 1;
+			uint32 bPerPixelEval				: 1;
+			uint32 bUseMeshShader				: 1;
+			uint32 bUsePrimitiveShader			: 1;
+			uint32 bDisplacementEnabled			: 1;
+			uint32 bVisualizeActive				: 1;
+			uint32 bHasVirtualShadowMap			: 1;
+			uint32 bIsDepthOnly					: 1;
+			uint32 bIsTwoSided					: 1;
+			uint32 bCastShadow					: 1;
+			uint32 bSplineMesh					: 1;
+			uint32 bSkinnedMesh					: 1;
+			uint32 bFixedDisplacementFallback	: 1;
+			uint32 bUseWorkGraph				: 1;
+			uint32 Unused						: 15;
 		};
 
-		uint16 Packed = 0;
+		uint32 Packed = 0;
 	};
 
 	bool operator < (FNaniteRasterMaterialCacheKey Other) const
@@ -636,7 +620,8 @@ struct FNaniteRasterMaterialCacheKey
 	}
 };
 
-static_assert(sizeof(FNaniteRasterMaterialCacheKey) == sizeof(uint16));
+static_assert((int32)ERHIFeatureLevel::Num <= 8);
+static_assert(sizeof(FNaniteRasterMaterialCacheKey) == sizeof(uint32));
 
 inline uint32 GetTypeHash(const FNaniteRasterMaterialCacheKey& Key)
 {
@@ -660,6 +645,7 @@ struct FNaniteRasterMaterialCache
 
 	TOptional<uint32> MaterialBitFlags;
 	TOptional<FDisplacementScaling> DisplacementScaling;
+	TOptional<FDisplacementFadeRange> DisplacementFadeRange;
 
 	bool bFinalized = false;
 };
@@ -671,7 +657,6 @@ struct FNaniteRasterEntry
 	FNaniteRasterPipeline RasterPipeline{};
 	uint32 ReferenceCount = 0;
 	uint16 BinIndex = 0xFFFFu;
-	bool bForceDisableWPO = false;
 };
 
 struct FNaniteRasterEntryKeyFuncs : TDefaultMapHashableKeyFuncs<FNaniteRasterPipeline, FNaniteRasterEntry, false>
@@ -767,11 +752,10 @@ private:
 	struct FFixedFunctionBin
 	{
 		FNaniteRasterBin RasterBin;
-		uint8 TwoSided : 1;
-		uint8 Spline   : 1;
+		uint8 BinMask;
 	};
 
-	TArray<FFixedFunctionBin, TInlineAllocator<4u>> FixedFunctionBins;
+	TArray<FFixedFunctionBin, TInlineAllocator<6u>> FixedFunctionBins;
 };
 
 struct FNaniteShadingBin
@@ -808,6 +792,12 @@ struct FNaniteShadingPipeline
 	const FMaterialRenderProxy* MaterialProxy = nullptr;
 	const FMaterial* Material = nullptr;
 	FRHIComputeShader* ComputeShader = nullptr;
+	FRHIWorkGraphShader* WorkGraphShader = nullptr;
+
+#if WITH_DEBUG_VIEW_MODES
+	uint32 InstructionCount = 0;
+	uint32 LWCComplexity = 0;
+#endif
 
 	uint32 BoundTargetMask = 0u;
 	uint32 ShaderBindingsHash = 0u;
@@ -902,9 +892,16 @@ public:
 
 	FPrimitiveViewRelevance CombinedRelevance;
 
+	void BuildIdList();
+	const TConstArrayView<const FShadingId> GetIdList() const;
+
+	void ComputeRelevance(ERHIFeatureLevel::Type InFeatureLevel);
+
 private:
 	TBitArray<> PipelineBins;
 	FNaniteShadingPipelineMap PipelineMap;
+	TArray<FShadingId> ShadingIdList;
+	bool bBuildIdList = true;
 };
 
 struct FNaniteShadingCommand
@@ -927,6 +924,7 @@ struct FNaniteShadingCommands
 	uint32 BoundTargetMask = 0x0u;
 	FShaderBundleRHIRef ShaderBundle;
 	TArray<FNaniteShadingCommand> Commands;
+	TArray<int32> CommandLookup;
 	FMetaBufferArray MetaBufferData;
 
 	UE::Tasks::FTask SetupTask;

@@ -17,6 +17,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Styling/SlateTypes.h"
 
 
@@ -82,7 +83,15 @@ void UDMXControlConsoleFaderGroupController::UnPossess(UDMXControlConsoleFaderGr
 		return;
 	}
 	
-	const TArray<UDMXControlConsoleElementController*> Controllers = GetAllElementControllersFromFaderGroup(InFaderGroup);
+	TArray<UDMXControlConsoleElementController*> Controllers = GetAllElementControllersFromFaderGroup(InFaderGroup);
+	// Ensure that matrix cell controllers are destroyed after their element controllers
+	Algo::StableSortBy(Controllers, 
+		[](const UDMXControlConsoleElementController* ElementController)
+		{
+			const bool bIsMatrixCellController = IsValid(Cast<UDMXControlConsoleMatrixCellController>(ElementController));
+			return bIsMatrixCellController;
+		});
+
 	for (UDMXControlConsoleElementController* Controller : Controllers)
 	{
 		if (Controller)
@@ -155,9 +164,15 @@ void UDMXControlConsoleFaderGroupController::Group()
 		}
 	}
 
+	const float NumSteps = AttributeNameToElementsMap.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GroupFaderGroupControllerSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+
 	// Create a single element controller for each attribute name
 	for (const TTuple<FName, TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>>& AttributeNameToElements : AttributeNameToElementsMap)
 	{
+		Task.EnterProgressFrame();
+
 		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = AttributeNameToElements.Value;
 		if (Elements.IsEmpty())
 		{
@@ -557,9 +572,16 @@ void UDMXControlConsoleFaderGroupController::GenerateElementControllers(UDMXCont
 	}
 
 	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = FaderGroup->GetElements();
+
+	const float NumSteps = Elements.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GenerateElementControllerSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+
 	// Create element controllers for elements with no controller
 	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 	{
+		Task.EnterProgressFrame();
+
 		if (!Element)
 		{
 			continue;
@@ -623,7 +645,7 @@ void UDMXControlConsoleFaderGroupController::OnFaderGroupFixturePatchChanged(UDM
 		return;
 	}
 
-	GenerateElementControllers(FaderGroup);
+	GenerateElementControllers();
 	SyncControllerEditorColor();
 	if (FaderGroups.Num() > 1)
 	{

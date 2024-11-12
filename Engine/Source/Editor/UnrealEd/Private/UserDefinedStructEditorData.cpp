@@ -5,7 +5,7 @@
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UnrealType.h"
 #include "UObject/ObjectSaveContext.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Blueprint/BlueprintSupport.h"
@@ -13,6 +13,11 @@
 #include "EdGraphSchema_K2.h"
 
 #define LOCTEXT_NAMESPACE "UserDefinedStructEditorData"
+
+const FName FStructVariableMetaData::ClampMin("ClampMin");
+const FName FStructVariableMetaData::ClampMax("ClampMax");
+const FName FStructVariableMetaData::UIMin("UIMin");
+const FName FStructVariableMetaData::UIMax("UIMax");
 
 void FStructVariableDescription::PostSerialize(const FArchive& Ar)
 {
@@ -72,7 +77,7 @@ FEdGraphPinType FStructVariableDescription::ToPinType() const
 }
 
 UUserDefinedStructEditorData::UUserDefinedStructEditorData(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+	: Super(ObjectInitializer), UniqueNameId(0), CachedStructureChange()
 {
 }
 
@@ -301,6 +306,27 @@ void UUserDefinedStructEditorData::RefreshValuesFromDefaultInstance()
 			}
 		}
 	}
+}
+
+FProperty* UUserDefinedStructEditorData::FindProperty(const UUserDefinedStruct* Struct, const FName Name) const
+{
+	const FGuid PropertyGuid = FStructureEditorUtils::GetGuidFromPropertyName(Name);
+	FProperty* EditorProperty = PropertyGuid.IsValid()
+		? FStructureEditorUtils::GetPropertyByGuid(Struct, PropertyGuid)
+		: FStructureEditorUtils::GetPropertyByFriendlyName(Struct, Name.ToString());
+
+	ensure(!EditorProperty || !PropertyGuid.IsValid() || PropertyGuid == FStructureEditorUtils::GetGuidForProperty(EditorProperty));
+	return EditorProperty;
+}
+
+FString UUserDefinedStructEditorData::GetFriendlyNameForProperty(const UUserDefinedStruct* Struct, const FProperty* Property) const
+{
+	return FStructureEditorUtils::GetVariableFriendlyNameForProperty(Struct, Property);
+}
+
+FString UUserDefinedStructEditorData::GetTooltip() const
+{
+	return ToolTip;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -1,17 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml;
-using AutomationTool;
-using UnrealBuildBase;
-using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Xml;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -24,79 +22,85 @@ namespace AutomationTool.Tasks
 		/// Base directory for the build
 		/// </summary>
 		[TaskParameter]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 
 		/// <summary>
 		/// Files to be staged before building the image
 		/// </summary>
 		[TaskParameter]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Path to the Dockerfile. Uses the root of basedir if not specified.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DockerFile;
+		public string DockerFile { get; set; }
 
 		/// <summary>
 		/// Path to a .dockerignore. Will be copied to basedir if specified.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DockerIgnoreFile;
+		public string DockerIgnoreFile { get; set; }
 
 		/// <summary>
 		/// Use BuildKit in Docker
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool UseBuildKit;
+		public bool UseBuildKit { get; set; }
+		
+		/// <summary>
+		/// Set ulimit in build
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string Ulimit { get; set; } = "nofile=100000:100000";
 
 		/// <summary>
 		/// Type of progress output (--progress)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ProgressOutput;
+		public string ProgressOutput { get; set; }
 
 		/// <summary>
 		/// Tag for the image
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Tag;
+		public string Tag { get; set; }
 
 		/// <summary>
 		/// Set the target build stage to build (--target)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Target;
+		public string Target { get; set; }
 
 		/// <summary>
 		/// Custom output exporter. Requires BuildKit (--output)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Output;
+		public string Output { get; set; }
 
 		/// <summary>
 		/// Optional arguments
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// List of additional directories to overlay into the staged input files. Allows credentials to be staged, etc...
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OverlayDirs;
+		public string OverlayDirs { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 	}
 
 	/// <summary>
@@ -105,114 +109,115 @@ namespace AutomationTool.Tasks
 	[TaskElement("Docker-Build", typeof(DockerBuildTaskParameters))]
 	public class DockerBuildTask : SpawnTaskBase
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		DockerBuildTaskParameters Parameters;
+		readonly DockerBuildTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Docker task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public DockerBuildTask(DockerBuildTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public DockerBuildTask(DockerBuildTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			Logger.LogInformation("Building Docker image");
-			using (LogIndentScope Scope = new LogIndentScope("  "))
+			using (LogIndentScope scope = new LogIndentScope("  "))
 			{
-				DirectoryReference BaseDir = ResolveDirectory(Parameters.BaseDir);
-				List<FileReference> SourceFiles = ResolveFilespec(BaseDir, Parameters.Files, TagNameToFileSet).ToList();
-				bool isStagingEnabled = SourceFiles.Count > 0;
+				DirectoryReference baseDir = ResolveDirectory(_parameters.BaseDir);
+				List<FileReference> sourceFiles = ResolveFilespec(baseDir, _parameters.Files, tagNameToFileSet).ToList();
+				bool isStagingEnabled = sourceFiles.Count > 0;
 
-				DirectoryReference StagingDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Intermediate", "Docker");
-				FileUtils.ForceDeleteDirectoryContents(StagingDir);
+				DirectoryReference stagingDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Intermediate", "Docker");
+				FileUtils.ForceDeleteDirectoryContents(stagingDir);
 
-				List<FileReference> TargetFiles = SourceFiles.ConvertAll(x => FileReference.Combine(StagingDir, x.MakeRelativeTo(BaseDir)));
-				CommandUtils.ThreadedCopyFiles(SourceFiles, BaseDir, StagingDir);
+				List<FileReference> targetFiles = sourceFiles.ConvertAll(x => FileReference.Combine(stagingDir, x.MakeRelativeTo(baseDir)));
+				CommandUtils.ThreadedCopyFiles(sourceFiles, baseDir, stagingDir);
 
-				FileReference DockerIgnoreFileInBaseDir = FileReference.Combine(BaseDir, ".dockerignore");
-				FileReference.Delete(DockerIgnoreFileInBaseDir);
+				FileReference dockerIgnoreFileInBaseDir = FileReference.Combine(baseDir, ".dockerignore");
+				FileReference.Delete(dockerIgnoreFileInBaseDir);
 
-				if (!String.IsNullOrEmpty(Parameters.OverlayDirs))
+				if (!String.IsNullOrEmpty(_parameters.OverlayDirs))
 				{
-					foreach (string OverlayDir in Parameters.OverlayDirs.Split(';'))
+					foreach (string overlayDir in _parameters.OverlayDirs.Split(';'))
 					{
-						CommandUtils.ThreadedCopyFiles(ResolveDirectory(OverlayDir), StagingDir);
+						CommandUtils.ThreadedCopyFiles(ResolveDirectory(overlayDir), stagingDir);
 					}
 				}
 
-				StringBuilder Arguments = new StringBuilder("build .");
-				if (Parameters.Tag != null)
+				StringBuilder arguments = new StringBuilder("build .");
+				if (_parameters.Tag != null)
 				{
-					Arguments.Append($" -t {Parameters.Tag}");
+					arguments.Append($" -t {_parameters.Tag}");
 				}
-				if (Parameters.Target != null)
+				if (_parameters.Target != null)
 				{
-					Arguments.Append($" --target {Parameters.Target}");
+					arguments.Append($" --target {_parameters.Target}");
 				}
-				if (Parameters.Output != null)
+				if (_parameters.Output != null)
 				{
-					if (!Parameters.UseBuildKit)
+					if (!_parameters.UseBuildKit)
 					{
-						throw new AutomationException($"{nameof(Parameters.UseBuildKit)} must be enabled to use '{nameof(Parameters.Output)}' parameter");
+						throw new AutomationException($"{nameof(_parameters.UseBuildKit)} must be enabled to use '{nameof(_parameters.Output)}' parameter");
 					}
-					Arguments.Append($" --output {Parameters.Output}");
+					arguments.Append($" --output {_parameters.Output}");
 				}
-				if (Parameters.DockerFile != null)
+				if (_parameters.DockerFile != null)
 				{
-					FileReference DockerFile = ResolveFile(Parameters.DockerFile);
-					if (!DockerFile.IsUnderDirectory(BaseDir))
+					FileReference dockerFile = ResolveFile(_parameters.DockerFile);
+					if (!dockerFile.IsUnderDirectory(baseDir))
 					{
-						throw new AutomationException($"Dockerfile '{DockerFile}' is not under base directory ({BaseDir})");
+						throw new AutomationException($"Dockerfile '{dockerFile}' is not under base directory ({baseDir})");
 					}
-					Arguments.Append($" -f {DockerFile.MakeRelativeTo(BaseDir).QuoteArgument()}");
+					arguments.Append($" -f {dockerFile.MakeRelativeTo(baseDir).QuoteArgument()}");
 				}
-				if (Parameters.DockerIgnoreFile != null)
+				if (_parameters.DockerIgnoreFile != null)
 				{
-					FileReference DockerIgnoreFile = ResolveFile(Parameters.DockerIgnoreFile);
-					FileReference.Copy(DockerIgnoreFile, DockerIgnoreFileInBaseDir);
+					FileReference dockerIgnoreFile = ResolveFile(_parameters.DockerIgnoreFile);
+					FileReference.Copy(dockerIgnoreFile, dockerIgnoreFileInBaseDir);
 				}
-				if (Parameters.ProgressOutput != null)
+				if (_parameters.ProgressOutput != null)
 				{
-					Arguments.Append($" --progress={Parameters.ProgressOutput}");
+					arguments.Append($" --progress={_parameters.ProgressOutput}");
 				}
-				if (Parameters.Arguments != null)
+				if (_parameters.Ulimit != null && _parameters.Ulimit.Length > 1)
 				{
-					Arguments.Append($" {Parameters.Arguments}");
+					arguments.Append($" --ulimit={_parameters.Ulimit}");
+				}
+				if (_parameters.Arguments != null)
+				{
+					arguments.Append($" {_parameters.Arguments}");
 				}
 
-				Dictionary<string, string> EnvVars = ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile);
-				if (Parameters.UseBuildKit)
+				Dictionary<string, string> envVars = ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile);
+				if (_parameters.UseBuildKit)
 				{
-					EnvVars["DOCKER_BUILDKIT"] = "1";
+					envVars["DOCKER_BUILDKIT"] = "1";
 				}
-				
-				string WorkingDir = isStagingEnabled ? StagingDir.FullName : BaseDir.FullName;
-				string Exe = DockerTask.GetDockerExecutablePath();
-				await SpawnTaskBase.ExecuteAsync(Exe, Arguments.ToString(), EnvVars: EnvVars, WorkingDir: WorkingDir, SpewFilterCallback: FilterOutput);
+
+				string workingDir = isStagingEnabled ? stagingDir.FullName : baseDir.FullName;
+				string exe = DockerTask.GetDockerExecutablePath();
+				await SpawnTaskBase.ExecuteAsync(exe, arguments.ToString(), envVars: envVars, workingDir: workingDir, spewFilterCallback: FilterOutput);
 			}
 		}
 
-		static Regex FilterOutputPattern = new Regex(@"^#\d+ (?:\d+\.\d+ )?");
+		static readonly Regex s_filterOutputPattern = new Regex(@"^#\d+ (?:\d+\.\d+ )?");
 
-		static string FilterOutput(string Line) => FilterOutputPattern.Replace(Line, "");
+		static string FilterOutput(string line) => s_filterOutputPattern.Replace(line, "");
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -221,10 +226,10 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			List<string> TagNames = new List<string>();
-			TagNames.AddRange(FindTagNamesFromFilespec(Parameters.DockerFile));
-			TagNames.AddRange(FindTagNamesFromFilespec(Parameters.Files));
-			return TagNames;
+			List<string> tagNames = new List<string>();
+			tagNames.AddRange(FindTagNamesFromFilespec(_parameters.DockerFile));
+			tagNames.AddRange(FindTagNamesFromFilespec(_parameters.Files));
+			return tagNames;
 		}
 
 		/// <summary>

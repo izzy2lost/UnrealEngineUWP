@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "AssetRegistry/AssetData.h"
 #include "CompactBinaryTCP.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
+#include "Containers/Map.h"
 #include "Containers/RingBuffer.h"
 #include "Containers/Set.h"
 #include "Cooker/CookPackageData.h"
@@ -12,7 +14,9 @@
 #include "Cooker/CookTypes.h"
 #include "Cooker/MPCollector.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
+#include "CookPackageSplitter.h"
 #include "HAL/CriticalSection.h"
+#include "IO/IoHash.h"
 #include "Logging/LogVerbosity.h"
 #include "Misc/Guid.h"
 #include "Misc/OutputDevice.h"
@@ -21,10 +25,12 @@
 class FSocket;
 class ITargetPlatform;
 struct FProcHandle;
+namespace UE { class FLogTemplate; }
 namespace UE::CompactBinaryTCP { struct FMarshalledMessage; }
 namespace UE::Cook { class FCookDirector; }
 namespace UE::Cook { struct FDiscoveredPackageReplication; }
 namespace UE::Cook { enum class ECookDirectorThread : uint8; };
+namespace UE::Cook { struct FGeneratorEventMessage; }
 namespace UE::Cook { struct FPackageData; }
 namespace UE::Cook { struct FPackageResultsMessage; }
 namespace UE::Cook { struct FWorkerConnectMessage; }
@@ -38,6 +44,16 @@ enum class ENotifyRemote
 	LocalOnly,
 };
 
+/**
+ * Extra non-threadsafe data about an FPackageData that we save from the scheduler thread for reading on the
+ * communication thread when we send the assignment of the PackageData out to the CookWorker.
+ */
+struct FAssignPackageExtraData
+{
+	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> PerPackageCollectorMessages;
+};
+
 /** Class in a Director process that communicates over a Socket with FCookWorkerClient in a CookWorker process. */
 class FCookWorkerServer : public FThreadSafeRefCountedObject
 {
@@ -49,7 +65,9 @@ public:
 	FWorkerId GetWorkerId() const { return WorkerId; }
 
 	/** Add the given assignments for the CookWorker. They will be sent during Tick */
-	void AppendAssignments(TArrayView<FPackageData*> Assignments, ECookDirectorThread TickThread);
+	void AppendAssignments(TArrayView<FPackageData*> Assignments,
+		TMap<FPackageData*, FAssignPackageExtraData>&& ExtraDatas, TArrayView<FPackageData*> InfoPackages,
+		ECookDirectorThread TickThread);
 	/** Remove assignment of the package from local state and optionally from the connected Client. */
 	void AbortAssignment(FPackageData& PackageData, ECookDirectorThread TickThread,
 		ENotifyRemote NotifyRemote = ENotifyRemote::NotifyRemote);
@@ -61,19 +79,25 @@ public:
 	 * Report all packages that were removed.
 	 */
 	void AbortAllAssignments(TSet<FPackageData*>& OutPendingPackages, ECookDirectorThread TickThread);
-	/** AbortAllAssignments and tell the connected Client to gracefully terminate. Report all packages that were unassigned. */
+	/** AbortAllAssignments and tell the Client to gracefully terminate. Report all packages that were unassigned. */
 	void AbortWorker(TSet<FPackageData*>& OutPendingPackages, ECookDirectorThread TickThread);
 	/** Take over the Socket for a CookWorker that has just connected. */
-	bool TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread);
+	bool TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket,
+		TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread);
 
 	/** Send the message immediately to the Socket. If cannot complete immediately, it will be finished during Tick. */
 	void SendMessage(const IMPCollectorMessage& Message, ECookDirectorThread TickThread);
+	/**
+	 * Queue the given message for sending; it will be sent during tick. Only needed for messages that have to be sent
+	 * after queued package assignments or other appended messages.
+	 */
+	void AppendMessage(const IMPCollectorMessage& Message, ECookDirectorThread TickThread);
 
 	/** Periodic Tick function to send and receive messages to the Client. */
 	void TickCommunication(ECookDirectorThread TickThread);
 	/** Called when the COTFS wants to send a heartbeat message to the Client. */
 	void SignalHeartbeat(ECookDirectorThread TickThread, int32 HeartbeatNumber);
-	/** Called when the COTFS Server has detected all packages are complete. Tell the CookWorker to flush messages and exit. */
+	/** Called when the Server detects all packages are complete. Tell the CookWorker to flush messages and exit. */
 	void SignalCookComplete(ECookDirectorThread TickThread);
 	/**
 	 * Execute the respond for all messages that have been received and that can be executed from the given thread. 
@@ -85,7 +109,7 @@ public:
 	bool IsConnected() const;
 	/** Is this either shutting down or completed shutdown of its remote Client? */
 	bool IsShuttingDown() const;
-	/** Is this executing the portion of graceful shutdown where it waits for the CookWorker to transfer remaining messages? */
+	/** Is this executing graceful shutdown and is waiting for the CookWorker to transfer remaining messages? */
 	bool IsFlushingBeforeShutdown() const;
 	/** Is this not yet or no longer connected to a remote Client? */
 	bool IsShutdownComplete() const;
@@ -96,7 +120,10 @@ public:
 
 	/** Get the LastReceivedHeartbeatNumber. */
 	int32 GetLastReceivedHeartbeatNumber() const;
-	/** Set the LastReceivedHeartbeatNumber. Assumes lock is already entered; can only be called from with a HandleReceivedMessages callback */
+	/**
+	 * Set the LastReceivedHeartbeatNumber. Assumes lock is already entered; can only be called from with a
+	 * HandleReceivedMessages callback.
+	 */
 	void SetLastReceivedHeartbeatNumberInLock(int32 InHeartbeatNumber);
 
 	int32 GetPackagesAssignedFenceMarker() const;
@@ -111,6 +138,13 @@ private:
 		PumpingCookComplete,
 		WaitForDisconnect,
 		LostConnection,
+	};
+	enum class EWorkerDetachType
+	{
+		Dismissed,
+		StillRunning,
+		ForceTerminated,
+		Crashed,
 	};
 	enum class ETickAction
 	{
@@ -147,7 +181,9 @@ private:
 	void TickWaitForDisconnect();
 	/** Helper for Tick, pump send messages to a connected Client. */
 	void PumpSendMessages();
-	/** Helper for PumpSendMessages; send a message for any PackagesToAssign we have. */
+	/** Helper for PumpSendMessages; send messages that were queued up for sending during tick. */
+	void SendPendingMessages();
+	/** Helper for SendPendingMessages; send a message for any PackagesToAssign we have. */
 	void SendPendingPackages();
 	/** Helper for Tick, pump receive messages from a connected Client. */
 	void PumpReceiveMessages();
@@ -158,7 +194,7 @@ private:
 	/** Send this into the given state. Update any state-dependent variables. */
 	void SendToState(EConnectStatus TargetStatus);
 	/** Close the connection and connection resources to the remote process. Does not kill the process. */
-	void DetachFromRemoteProcess();
+	void DetachFromRemoteProcess(EWorkerDetachType DetachType);
 	/** Report from the log of the crashed CookWorker. */
 	void SendCrashDiagnostics();
 	/** Kill the Client process (non-graceful termination), and close the connection resources. */
@@ -166,23 +202,28 @@ private:
 	/** The main implementation of HandleReceiveMessages, only callable from inside the lock. */
 	void HandleReceiveMessagesInternal();
 	/** Helper for PumpReceiveMessages: dispatch the messages received from the socket. */
-	void HandleReceivedPackagePlatformMessages(FPackageData& PackageData, const ITargetPlatform* TargetPlatform, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages);
+	void HandleReceivedPackagePlatformMessages(FPackageData& PackageData, const ITargetPlatform* TargetPlatform,
+		TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages);
 	/** Add results from the client to the local CookOnTheFlyServer. */
 	void RecordResults(FPackageResultsMessage& Message);
 	void LogInvalidMessage(const TCHAR* MessageTypeName);
 	void QueueDiscoveredPackage(FDiscoveredPackageReplication&& DiscoveredPackage);
+	void HandleGeneratorMessage(FGeneratorEventMessage& GeneratorMessage);
 
 	// Lock guarding access to all data on *this
 	mutable FCriticalSection CommunicationLock;
 
 	// All data can only be read or written while the CommunicationLock is entered.
 	TArray<FPackageData*> PackagesToAssign;
+	TSet<FPackageData*> PackagesToAssignInfoPackages;
+	TMap<FPackageData*, FAssignPackageExtraData> PackagesToAssignExtraDatas;
 	TSet<FPackageData*> PendingPackages;
 	TArray<ITargetPlatform*> OrderedSessionPlatforms;
 	TArray<ITargetPlatform*> OrderedSessionAndSpecialPlatforms;
 	UE::CompactBinaryTCP::FSendBuffer SendBuffer;
 	UE::CompactBinaryTCP::FReceiveBuffer ReceiveBuffer;
 	TRingBuffer<UE::CompactBinaryTCP::FMarshalledMessage> ReceiveMessages;
+	TRingBuffer<UE::CompactBinaryTCP::FMarshalledMessage> QueuedMessagesToSendAfterPackagesToAssign;
 	FString CrashDiagnosticsError;
 	FCookDirector& Director;
 	UCookOnTheFlyServer& COTFS;
@@ -204,27 +245,69 @@ private:
 
 UE::CompactBinaryTCP::FMarshalledMessage MarshalToCompactBinaryTCP(const IMPCollectorMessage& Message);
 
-/** Information about a PackageData the director sends to cookworkers. */
+FCbWriter& operator<<(FCbWriter& Writer, const FInstigator& Instigator);
+bool LoadFromCompactBinary(FCbFieldView Field, FInstigator& Instigator);
+
+/** Information about a PackageData assigned to a CookWorker from the director. */
 struct FAssignPackageData
 {
 	FConstructPackageData ConstructData;
+	FName ParentGenerator;
 	FInstigator Instigator;
+	EUrgency Urgency;
 	FDiscoveredPlatformSet NeedCookPlatforms;
+	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> PerPackageCollectorMessages;
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator
+		= ICookPackageSplitter::EGeneratedRequiresGenerator::None;
+
+private:
+	void Write(FCbWriter& Writer, TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms) const;
+	bool TryRead(FCbFieldView Field, TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms);
+
+	friend FCbWriter& WriteToCompactBinary(FCbWriter& Writer, const FAssignPackageData& AssignData,
+		TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms)
+	{
+		AssignData.Write(Writer, OrderedSessionPlatforms);
+		return Writer;
+	}
+	friend bool LoadFromCompactBinary(FCbFieldView Field, FAssignPackageData& AssignData,
+		TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms)
+	{
+		return AssignData.TryRead(Field, OrderedSessionPlatforms);
+	}
 };
 
-void WriteToCompactBinary(FCbWriter& Writer, const FAssignPackageData& AssignData,
-	TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms);
-bool LoadFromCompactBinary(FCbFieldView Field, FAssignPackageData& AssignData, 
-	TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms);
-FCbWriter& operator<<(FCbWriter& Writer, const FInstigator& Instigator);
-bool LoadFromCompactBinary(FCbFieldView Field, FInstigator& Instigator);
+/**
+ * Information about a PackageData sent from the director that needs to be queryable on a CookWorker to support other
+ * assigned packages but is not being assigned to the CookWorker.
+ */
+struct FPackageDataExistenceInfo
+{
+	FConstructPackageData ConstructData;
+	FName ParentGenerator;
+private:
+	void Write(FCbWriter& Writer) const;
+	bool TryRead(FCbFieldView Field);
+
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageDataExistenceInfo& ExistenceInfo)
+	{
+		ExistenceInfo.Write(Writer);
+		return Writer;
+	}
+	friend bool LoadFromCompactBinary(FCbFieldView Field, FPackageDataExistenceInfo& ExistenceInfo)
+	{
+		return ExistenceInfo.TryRead(Field);
+	}
+};
 
 /** Message from Server to Client to cook the given packages. */
 struct FAssignPackagesMessage : public IMPCollectorMessage
 {
 public:
 	FAssignPackagesMessage() = default;
-	FAssignPackagesMessage(TArray<FAssignPackageData>&& InPackageDatas);
+	FAssignPackagesMessage(TArray<FAssignPackageData>&& InPackageDatas,
+		TArray<FPackageDataExistenceInfo>&& InExistenceInfos);
 
 	virtual void Write(FCbWriter& Writer) const override;
 	virtual bool TryRead(FCbObjectView Object) override;
@@ -233,6 +316,7 @@ public:
 
 public:
 	TArray<FAssignPackageData> PackageDatas;
+	TArray<FPackageDataExistenceInfo> ExistenceInfos;
 	TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms;
 	static FGuid MessageType;
 };
@@ -288,9 +372,10 @@ public:
 	virtual FGuid GetMessageType() const override { return MessageType; }
 	virtual const TCHAR* GetDebugName() const override { return TEXT("InitialConfigMessage"); }
 
-	void ReadFromLocal(const UCookOnTheFlyServer& COTFS, const TArray<ITargetPlatform*>& InOrderedSessionPlatforms,
+	void ReadFromLocal(const UCookOnTheFlyServer& COTFS, const TConstArrayView<const ITargetPlatform*>& InOrderedSessionPlatforms,
 		const FCookByTheBookOptions& InCookByTheBookOptions, const FCookOnTheFlyOptions& InCookOnTheFlyOptions,
 		const FBeginCookContextForWorker& InBeginContext);
+	void AddMessage(UE::CompactBinaryTCP::FMarshalledMessage&& InMarshalledMessage) { MPCollectorMessages.Add(MoveTemp(InMarshalledMessage)); }
 
 	ECookMode::Type GetDirectorCookMode() const { return DirectorCookMode; }
 	ECookInitializationFlags GetCookInitializationFlags() const { return CookInitializationFlags; }
@@ -298,6 +383,8 @@ public:
 	FBeginCookConfigSettings&& ConsumeBeginCookConfigSettings() { return MoveTemp(BeginCookSettings); }
 	FCookByTheBookOptions&& ConsumeCookByTheBookOptions() { return MoveTemp(CookByTheBookOptions); }
 	FCookOnTheFlyOptions&& ConsumeCookOnTheFlyOptions() { return MoveTemp(CookOnTheFlyOptions); }
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& ConsumeCollectorMessages() { return MoveTemp(MPCollectorMessages); }
+
 	const FBeginCookContextForWorker& GetBeginCookContext() const { return BeginCookContext; }
 	const TArray<ITargetPlatform*>& GetOrderedSessionPlatforms() const { return OrderedSessionPlatforms; }
 	bool IsZenStore() const { return bZenStore; }
@@ -311,6 +398,7 @@ private:
 	FCookByTheBookOptions CookByTheBookOptions;
 	FCookOnTheFlyOptions CookOnTheFlyOptions;
 	TArray<ITargetPlatform*> OrderedSessionPlatforms;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> MPCollectorMessages;
 	ECookMode::Type DirectorCookMode = ECookMode::CookByTheBook;
 	ECookInitializationFlags CookInitializationFlags = ECookInitializationFlags::None;
 	bool bZenStore = false;
@@ -321,14 +409,29 @@ struct FDiscoveredPackageReplication
 {
 	FName PackageName;
 	FName NormalizedFileName;
+	FName ParentGenerator;
+	FIoHash GeneratedPackageHash;
 	FInstigator Instigator;
 	FDiscoveredPlatformSet Platforms;
-};
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator =
+		ICookPackageSplitter::EGeneratedRequiresGenerator::None;
+	EUrgency Urgency = EUrgency::Normal;
 
-void WriteToCompactBinary(FCbWriter& Writer, const FDiscoveredPackageReplication& Package,
-	TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms);
-bool LoadFromCompactBinary(FCbFieldView Field, FDiscoveredPackageReplication& OutPackage,
-	TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms);
+private:
+	void Write(FCbWriter& Writer, TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms) const;
+	bool TryRead(FCbFieldView Field, TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms);
+
+	friend void WriteToCompactBinary(FCbWriter& Writer, const FDiscoveredPackageReplication& Package,
+		TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms)
+	{
+		Package.Write(Writer, OrderedSessionAndSpecialPlatforms);
+	}
+	friend bool LoadFromCompactBinary(FCbFieldView Field, FDiscoveredPackageReplication& OutPackage,
+		TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms)
+	{
+		return OutPackage.TryRead(Field, OrderedSessionAndSpecialPlatforms);
+	}
+};
 
 /**
  * Message from CookWorker to Director that reports dependency packages discovered during load/save of
@@ -348,15 +451,49 @@ public:
 	static FGuid MessageType;
 };
 
+/**
+ * Events on a PackageGenerator that occur on the Director or a CookWorker and need to be replicated to the other
+ * process(es).
+ */
+enum class EGeneratorEvent
+{
+	Invalid,
+	QueuedGeneratedPackages,
+	QueuedGeneratedPackagesFencePassed,
+	AllSavesCompleted,
+	Num,
+};
+
+/** A message reporting an EGeneratorEvent that occurred on the Director or a CookWorker. */
+struct FGeneratorEventMessage : public IMPCollectorMessage
+{
+	FGeneratorEventMessage() = default;
+	FGeneratorEventMessage(EGeneratorEvent InEvent, FName InPackageName);
+
+	virtual void Write(FCbWriter& Writer) const override;
+	virtual bool TryRead(FCbObjectView Object) override;
+	virtual FGuid GetMessageType() const override { return MessageType; }
+	virtual const TCHAR* GetDebugName() const override { return TEXT("GeneratorEventMessage"); }
+
+public:
+	FName PackageName;
+	EGeneratorEvent Event = EGeneratorEvent::Invalid;
+	static FGuid MessageType;
+};
+
 /** Stores the data passed into FOutputDevice::Serialize, for replication to the CookDirector. */
 struct FReplicatedLogData
 {
-	FString Message;
-	FName Category;
-	ELogVerbosity::Type Verbosity;
+	struct FUnstructuredLogData
+	{
+		FString Message;
+		FName Category;
+		ELogVerbosity::Type Verbosity;
+	};
+	TVariant<FUnstructuredLogData, FCbObject> LogDataVariant;
 };
-FCbWriter& operator<<(FCbWriter& Writer, const FReplicatedLogData& Package);
-bool LoadFromCompactBinary(FCbFieldView Field, FReplicatedLogData& OutPackage);
+FCbWriter& operator<<(FCbWriter& Writer, const FReplicatedLogData& LogData);
+bool LoadFromCompactBinary(FCbFieldView Field, FReplicatedLogData& OutLogData);
 
 /**
  * Send log messages from CookWorkers to the CookDirector, which marks them up with the CookWorkerId and
@@ -376,11 +513,34 @@ public:
 
 	// FOutputDevice
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category) override;
-	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category, const double Time) override;
+	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category,
+		const double Time) override;
+	virtual void SerializeRecord(const FLogRecord& Record) override;
 	virtual bool CanBeUsedOnAnyThread() const override { return true; }
 	virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
 
 private:
+	class FLogRecordSerializationContext
+	{
+	public:
+		~FLogRecordSerializationContext()
+		{
+			Flush();
+		}
+
+		static FCbWriter& Serialize(FCbWriter& Writer, const FLogRecord& LogRecord);
+		bool Deserialize(FCbFieldView Field, FLogRecord& OutLogRecord, int32 ProfileId);
+
+		void ConditionalFlush(int32 TableSize);
+		void Flush();
+	private:
+		TArray<FString> StringTable;
+		TArray<FAnsiString> AnsiStringTable;
+		TArray<FLogTemplate*> TemplateTable;
+	};
+
+	FLogRecordSerializationContext LogRecordSerializationContext;
+
 	FCriticalSection QueueLock;
 	TArray<FReplicatedLogData> QueuedLogs;
 	TArray<FReplicatedLogData> QueuedLogsBackBuffer;
@@ -390,10 +550,10 @@ private:
 };
 
 /**
- * Message from Director to CookWorker or CookWorker to Director that reports a heartbeat number, in addition to reporting the
- * machine is still alive just by the presence of the message.
- * The Director intiates a heartbeat message; the CookWorker always responds to a heartbeat message with its own heartbeat message
- * in reply, with the same number.
+ * Message from Director to CookWorker or CookWorker to Director that reports a heartbeat number, in addition to
+ * reporting the machine is still alive just by the presence of the message.
+ * The Director intiates a heartbeat message; the CookWorker always responds to a heartbeat message with its own
+ * heartbeat message in reply, with the same number.
  */
 struct FHeartbeatMessage : public IMPCollectorMessage
 {

@@ -22,7 +22,6 @@ void SSourceControlFileDialog::Construct(const FArguments& InArgs)
 	SetFiles(InArgs._Files);
 
 	FileTreeView =	SNew(STreeView<FChangelistTreeItemPtr>)
-					.ItemHeight(24.0f)
 					.TreeItemsSource(&FileTreeNodes)
 					.OnGenerateRow(this, &SSourceControlFileDialog::OnGenerateRow)
 					.OnGetChildren(this, &SSourceControlFileDialog::OnGetFileChildren)

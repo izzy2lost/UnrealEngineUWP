@@ -7,8 +7,9 @@
 #pragma once
 
 #include "BoundShaderStateCache.h"
+#include "ShaderCore.h"
+#include "Windows/D3D11ThirdParty.h"
 
-interface ID3D11DeviceContext;
 typedef ID3D11DeviceContext FD3D11DeviceContext;
 
 template <>
@@ -39,8 +40,6 @@ public:
 
 struct FD3D11ShaderData
 {
-	FShaderResourceTable				ShaderResourceTable;
-	TArray<FUniformBufferStaticSlot>	StaticSlots;
 	TArray<FShaderCodeVendorExtension>	VendorExtensions;
 	bool								bShaderNeedsGlobalConstantBuffer;
 	bool								bIsSm6Shader;
@@ -306,32 +305,54 @@ private:
 	uint8 bAlias : 1;
 };
 
-
-/** D3D11 render query */
-class FD3D11RenderQuery : public FRHIRenderQuery
+class FD3D11RenderQuery
 {
-public:
-
-	/** The query resource. */
+private:
 	TRefCountPtr<ID3D11Query> Resource;
 
-	/** The cached query result. */
-	uint64 Result;
+	// Location the result is written to.
+	uint64* Target = nullptr;
 
-	/** true if the query's result is cached. */
-	bool bResultIsCached : 1;
+	// Linked list pointers. Used to build a list of "active" queries, i.e. queries that need data to be polled from the GPU.
+	FD3D11RenderQuery** Prev = nullptr;
+	FD3D11RenderQuery* Next = nullptr;
 
-	// todo: memory optimize
-	ERenderQueryType QueryType;
+public:
+	uint8 TOPCounter = 0;
+	uint8 BOPCounter = 0;
+	std::atomic<uint8> LastCachedBOPCounter = 0;
 
-	/** Initialization constructor. */
-	FD3D11RenderQuery(ID3D11Query* InResource, ERenderQueryType InQueryType):
-		Resource(InResource),
-		Result(0),
-		bResultIsCached(false),
-		QueryType(InQueryType)
+	enum class EType : uint8
+	{
+		Timestamp,
+		Occlusion,
+		Profiler
+	} const Type;
+
+	FD3D11RenderQuery(EType Type);
+	~FD3D11RenderQuery();
+
+	bool CacheResult(class FD3D11DynamicRHI& RHI, bool bWait);
+
+	void Begin(ID3D11DeviceContext* Context);
+	void End(ID3D11DeviceContext* Context, uint64* Target);
+
+	bool IsLinked() const { return Prev != nullptr; }
+
+private:
+	void Link();
+	void Unlink();
+};
+
+/** D3D11 render query */
+class FD3D11RenderQuery_RHI : public FRHIRenderQuery, public FD3D11RenderQuery
+{
+public:
+	uint64 Result = 0;
+
+	FD3D11RenderQuery_RHI(EType Type)
+		: FD3D11RenderQuery(Type)
 	{}
-
 };
 
 /** Forward declare the constants ring buffer. */
@@ -522,7 +543,7 @@ struct TD3D11ResourceTraits<FRHIBoundShaderState>
 template<>
 struct TD3D11ResourceTraits<FRHIRenderQuery>
 {
-	typedef FD3D11RenderQuery TConcreteType;
+	typedef FD3D11RenderQuery_RHI TConcreteType;
 };
 template<>
 struct TD3D11ResourceTraits<FRHIUniformBuffer>
@@ -554,26 +575,5 @@ template<>
 struct TD3D11ResourceTraits<FRHIUnorderedAccessView>
 {
 	typedef FD3D11UnorderedAccessView TConcreteType;
-};
-
-template<>
-struct TD3D11ResourceTraits<FRHISamplerState>
-{
-	typedef FD3D11SamplerState TConcreteType;
-};
-template<>
-struct TD3D11ResourceTraits<FRHIRasterizerState>
-{
-	typedef FD3D11RasterizerState TConcreteType;
-};
-template<>
-struct TD3D11ResourceTraits<FRHIDepthStencilState>
-{
-	typedef FD3D11DepthStencilState TConcreteType;
-};
-template<>
-struct TD3D11ResourceTraits<FRHIBlendState>
-{
-	typedef FD3D11BlendState TConcreteType;
 };
 

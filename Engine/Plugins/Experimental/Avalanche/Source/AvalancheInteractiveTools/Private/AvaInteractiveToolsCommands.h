@@ -13,11 +13,15 @@ public:
 	virtual void RegisterCommands() override;
 	//~ End TCommands
 
+	void RegisterEdModeCommands();
 	void RegisterCategoryCommands();
 	void Register2DCommands();
 	void Register3DCommands();
 	void RegisterActorCommands();
 	void RegisterLayoutCommands();
+
+	// Ed Mode
+	TSharedPtr<FUICommandInfo> CancelActiveTool;
 
 	// Categories
 	TSharedPtr<FUICommandInfo> Category_2D;

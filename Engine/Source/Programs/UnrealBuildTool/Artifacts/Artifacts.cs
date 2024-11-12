@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -13,7 +15,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <summary>
 	/// Artifacts can exist in different directory roots.
 	/// </summary>
-	public enum ArtifactDirectoryTree : byte
+	public enum ArtifactDirectoryTree
 	{
 
 		/// <summary>
@@ -38,7 +40,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <param name="Tree">Directory tree containing the artifact</param>
 	/// <param name="Name">Name of the artifact</param>
 	/// <param name="ContentHash">Hash of the artifact contents</param>
-	public record struct ArtifactFile(ArtifactDirectoryTree Tree, Utf8String Name, IoHash ContentHash)
+	public readonly record struct ArtifactFile(ArtifactDirectoryTree Tree, Utf8String Name, IoHash ContentHash)
 	{
 		/// <summary>
 		/// The full path of the artifact
@@ -75,7 +77,7 @@ namespace UnrealBuildTool.Artifacts
 		public IArtifactDirectoryMapping? DirectoryMapping { get; set; } = null;
 
 		/// <inheritdoc/>
-		public override int GetHashCode()
+		public readonly override int GetHashCode()
 		{
 			return HashCode.Combine(Key.GetHashCode(), ActionKey.GetHashCode(), Inputs.GetHashCode(), Outputs.GetHashCode());
 		}
@@ -229,6 +231,13 @@ namespace UnrealBuildTool.Artifacts
 	}
 
 	/// <summary>
+	/// Struct containing results from artifact fetch
+	/// </summary>
+	/// <param name="Success">Is set to true if succeeded in fetching artifacts</param>
+	/// <param name="LogLines">Contains log lines if any</param>
+	public readonly record struct ActionArtifactResult(bool Success, List<string> LogLines);
+
+	/// <summary>
 	/// Interface for action specific support of artifacts.
 	/// </summary>
 	interface IActionArtifactCache
@@ -271,7 +280,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="action">Action to be completed</param>
 		/// <param name="cancellationToken">Token to be used to cancel operations</param>
 		/// <returns>True if it has been completed, false if not</returns>
-		public Task<bool> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken);
+		public Task<ActionArtifactResult> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Save the output for a completed action

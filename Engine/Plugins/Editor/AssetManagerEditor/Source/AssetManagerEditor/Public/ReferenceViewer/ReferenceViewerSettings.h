@@ -32,6 +32,15 @@ struct FilterState
 	bool bIsEnabled;
 };
 
+/** @see tooltips in FAssetManagerEditorCommands::RegisterCommands. */
+UENUM()
+enum class EEditorOnlyReferenceFilterType
+{
+	Game,
+	Propagation,
+	EditorOnly,
+};
+
 UCLASS(config=EditorPerProjectUserSettings)
 class UReferenceViewerSettings : public UObject
 {
@@ -53,8 +62,11 @@ public:
 	int32 GetSearchDependencyDepthLimit() const;
 	void SetSearchDependencyDepthLimit(int32 NewDepthLimit, bool bSaveConfig = true);
 
-	bool IsSearchBreadthLimited() const;
-	void SetSearchBreadthLimitEnabled(bool bNewEnabled);
+	UE_DEPRECATED(5.5, "Search breadth is always limited. Will always return true.")
+	bool IsSearchBreadthLimited() const { return true; }
+
+	UE_DEPRECATED(5.5, "Search breadth is always limited.")
+	void SetSearchBreadthLimitEnabled(bool bNewEnabled) {}
 
 	int32 GetSearchBreadthLimit() const;
 	void SetSearchBreadthLimit(int32 NewBreadthLimit);
@@ -71,8 +83,13 @@ public:
 	bool IsShowHardReferences() const;
 	void SetShowHardReferencesEnabled(bool bNewEnabled);
 
-	bool IsShowEditorOnlyReferences() const;
-	void SetShowEditorOnlyReferencesEnabled(bool bNewEnabled);
+	UE_DEPRECATED(5.5, "Use GetEditorOnlyReferenceFilterType.")
+	bool IsShowEditorOnlyReferences() const { return true; }
+	UE_DEPRECATED(5.5, "Use SetEditorOnlyReferenceFilterType.")
+	void SetShowEditorOnlyReferencesEnabled(bool bNewEnabled) {}
+
+	EEditorOnlyReferenceFilterType GetEditorOnlyReferenceFilterType() const;
+	void SetEditorOnlyReferenceFilterType(EEditorOnlyReferenceFilterType Value);
 
 	bool IsShowManagementReferences() const;
 	void SetShowManagementReferencesEnabled(bool bNewEnabled);
@@ -132,8 +149,9 @@ private:
 	int32 MaxSearchDependencyDepth; 
 	
 	/* Whether or not to limit how many siblings can appear */
-	UPROPERTY(config)
-	bool bLimitSearchBreadth;
+	UE_DEPRECATED(5.5, "bLimitSearchBreadth has been deprecated.")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Search breadth is always limited."))
+	bool bLimitSearchBreadth_DEPRECATED;
 	
 	/* The max number of siblings that can appear from a node */
 	UPROPERTY(config)
@@ -155,10 +173,13 @@ private:
 	UPROPERTY(config)
 	bool bIsShowHardReferences;
 	
-	/* Show/Hide EditorOnly References */
-	UPROPERTY(config)
+	UE_DEPRECATED(5.5, "Use EditorOnlyReferenceFilterType.")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Use EditorOnlyReferenceFilterType."))
 	bool bIsShowEditorOnlyReferences;
-	
+
+	UPROPERTY(config)
+	EEditorOnlyReferenceFilterType EditorOnlyReferenceFilterType;
+
 	/* Show/Hide Management Assets (i.e. PrimaryAssetIds) */
 	UPROPERTY(config)
 	bool bIsShowManagementReferences;

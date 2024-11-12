@@ -8,7 +8,9 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
+#include "DeviceProfiles/DeviceProfileMatching.h"
 
+class UDeviceProfile;
 
 /**
  * Device Profile Selector module
@@ -24,6 +26,33 @@ public:
 	 * @return The name of the device profile to use for this session
 	 */
 	virtual const FString GetRuntimeDeviceProfileName() = 0;
+
+#if WITH_EDITOR
+	/**
+	 * Save Device Jsons to the location provided
+	 * @param FolderLocation Folder where to store the Jsons
+	 */
+	virtual void ExportDeviceParametersToJson(FString& FolderLocation){}
+	
+	/**
+	 * Can we export device parameters to Jsons
+	 *  @return Wheter we can export device parameters to Jsonsn
+	 */
+	virtual bool CanExportDeviceParametersToJson() { return false; }
+
+	/**
+	 * Get the Device Parameters from the Json
+	* @Param JsonLocation Json location
+	* @Param OutDeviceParameters the device parameters read from Json
+	 */
+	virtual void GetDeviceParametersFromJson(FString& JsonLocation, TMap<FName, FString>& OutDeviceParameters) {}
+	
+	/**
+	 * Can we get device parameters from Json
+	 *  @return Wheter we can get device parameters from Json
+	 */
+	virtual bool CanGetDeviceParametersFromJson() { return false; }
+#endif
 
 	/**
 	* Run the logic to choose an appropriate device profile for this session.

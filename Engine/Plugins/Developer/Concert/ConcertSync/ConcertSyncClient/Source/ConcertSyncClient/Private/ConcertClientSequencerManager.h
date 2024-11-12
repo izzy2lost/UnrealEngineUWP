@@ -8,6 +8,7 @@
 #include "IConcertClientSequencerManager.h"
 #include "ConcertSequencerMessages.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Templates/PimplPtr.h"
 
 struct FConcertSessionContext;
 class IConcertSyncClient;
@@ -21,6 +22,7 @@ class FConcertClientSequencePreloader;
 class FConcertClientWorkspace;
 struct FSequencerInitParams;
 class ULevelSequence;
+class FConcertClientSequencerStateEventPacer;
 
 /**
  * Sequencer manager that is held by the client sync module that keeps track of open sequencer UIs, regardless of whether a session is open or not
@@ -89,6 +91,16 @@ public:
 	virtual bool IsSequencerRemoteCloseEnabled() const override;
 
 	/**
+	 * @return true if the sequencer pacer is enabled.
+	 */
+	virtual bool IsSequencerPacingEnabled() const override;
+
+	/**
+	 * @return the current duration for the sequencer pacer.
+	 */
+	virtual float SequencerPacingDuration() const override;
+
+	/**
 	 * Checks the CVar to see if we are allowed to forcefully close the player on game instances.
 	 *
 	 * @return true if we should always close a sequence player on a -game instance.
@@ -110,6 +122,30 @@ public:
 	 * @param bEnable The value to set for the remote close option
 	 */
 	virtual void SetSequencerRemoteClose(bool bEnable) override;
+
+	/**
+	 * Specifies the sequencer pacing behavior while in a session.  This will set Concert.SequencerStatePacingEnabled console variable.
+	 *
+	 * @param bValue The value to be set for the sequencer pacing option
+	 */
+	virtual void SetSequencerPacingEnabled(bool bEnable) override;
+
+	/**
+	 * Sets the sequencer pacing duration if pacing is enabled. This will set Concert.SequencerStatePacingDuration console variable.
+	 *
+	 * @param Duration The spacing between state event messages.  The default value is 1.0
+	 */
+	virtual void SetSequencerPacingDuration(float Duration) override;
+
+	/**
+	 * Temporarily suspend sequencer pacing on this client.
+	 */
+	virtual void SuspendSequencerPacing() override;
+
+	/**
+	 * Resume sequencer pacing on this client if the console variable is enabled.
+	 */
+	virtual void ResumeSequencerPacing() override;
 
 	/** Assign the current active workspace to this sequencer. */
 	void SetActiveWorkspace(TSharedPtr<FConcertClientWorkspace> Workspace);
@@ -140,6 +176,9 @@ private:
 
 		/** Delegate handle to the Close event for the sequencer, if locally opened. */
 		FDelegateHandle OnCloseEventHandle;
+
+		/** Pointer event pacer for state events. This class will pace state events so that we do not overwhelm the connection with too many. */
+		TPimplPtr<FConcertClientSequencerStateEventPacer> StateEventPacer;
 	};
 
 private:
@@ -370,6 +409,8 @@ private:
 
 	/** Weak pointer to the active workspace. */
 	TWeakPtr<FConcertClientWorkspace> Workspace;
+
+	friend class FConcertClientSequencerStateEventPacer;
 };
 
 #endif // WITH_EDITOR

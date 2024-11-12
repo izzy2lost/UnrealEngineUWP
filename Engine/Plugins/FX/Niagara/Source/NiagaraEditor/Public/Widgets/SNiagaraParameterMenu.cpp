@@ -2,6 +2,7 @@
 
 #include "SNiagaraParameterMenu.h"
 
+#include "EdGraphSchema_Niagara.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraph/EdGraphSchema.h"
@@ -27,8 +28,47 @@
 #include "ViewModels/TNiagaraViewModelManager.h"
 #include "Widgets/SNiagaraActionMenuExpander.h"
 
-#define LOCTEXT_NAMESPACE "SNiagaraParameterMenu"
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Layout/SScaleBox.h"
+#include "NiagaraEditorStyle.h"
+#include "Widgets/SNiagaraPinTypeSelector.h"
 
+
+#include "NiagaraDataChannel.h"
+
+#define LOCTEXT_NAMESPACE "SNiagaraParameterMenu"
+namespace UE::Private
+{
+	template<typename... Strings>
+	FText ConcatinateCategoriesIfNotEmpty(Strings... InCategories);
+	FText ConcatinateCategoriesIfNotEmptyImpl(TConstArrayView<FStringView> Paths);
+}
+
+template<typename... Strings>
+FText UE::Private::ConcatinateCategoriesIfNotEmpty(Strings... InCategories)
+{
+	return ConcatinateCategoriesIfNotEmptyImpl({ FStringView(InCategories)... });
+}
+
+FText UE::Private::ConcatinateCategoriesIfNotEmptyImpl(TConstArrayView<FStringView> Paths)
+{
+	FString Result;
+	bool bIsFirst = true;
+	for (FStringView String : Paths)
+	{
+		if (!String.IsEmpty())
+		{
+			if (!bIsFirst)
+			{
+				Result.Append(TEXT("|"));
+			}
+			Result.Append(String);
+			bIsFirst = false;
+		}
+	}
+	return FText::FromString(MoveTemp(Result));
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// Base Parameter Menu														///
 ///////////////////////////////////////////////////////////////////////////////
@@ -204,8 +244,7 @@ void SNiagaraAddParameterFromPanelMenu::AddParameterGroup(
 	TArray<FNiagaraVariable>& Variables,
 	const FGuid& InNamespaceId /*= FGuid()*/,
 	const FText& Category /*= FText::GetEmpty()*/,
-	int32 SortOrder /*= 0*/,
-	const FString& RootCategory /*= FString()*/)
+	int32 SortOrder /*= 0*/)
 {
 	for (const FNiagaraVariable& Variable : Variables)
 	{
@@ -239,12 +278,16 @@ void SNiagaraAddParameterFromPanelMenu::AddParameterGroup(
 			}
 		}
 
-		Collector.AddAction(Action, SortOrder, RootCategory);
+		Collector.AddAction(Action, SortOrder);
 	}
 }
 
-void SNiagaraAddParameterFromPanelMenu::AddMakeNewGroup(FNiagaraMenuActionCollector& Collector,
-	TArray<FNiagaraTypeDefinition>& TypeDefinitions, const FGuid& InNamespaceId, const FText& Category, int32 SortOrder,
+void SNiagaraAddParameterFromPanelMenu::AddMakeNewGroup(
+	FNiagaraMenuActionCollector& Collector,
+	TArray<FNiagaraTypeDefinition>& TypeDefinitions, 
+	const FGuid& InNamespaceId, 
+	const FText& Category, 
+	int32 SortOrder,
 	const FString& RootCategory)
 {
 	for (const FNiagaraTypeDefinition& TypeDefinition : TypeDefinitions)
@@ -252,14 +295,13 @@ void SNiagaraAddParameterFromPanelMenu::AddMakeNewGroup(FNiagaraMenuActionCollec
 		const FText DisplayName = TypeDefinition.GetNameText();
 		FText Tooltip = FText::GetEmpty();
 
-
 		if (const UStruct* VariableStruct = TypeDefinition.GetStruct())
 		{
 			Tooltip = VariableStruct->GetToolTipText(true);
 		}
 
 		FText SubCategory = FNiagaraEditorUtilities::GetTypeDefinitionCategory(TypeDefinition);
-		FText FullCategory = SubCategory.IsEmpty() ? Category : FText::Format(FText::FromString("{0}|{1}"), Category, SubCategory);
+		FText FullCategory = UE::Private::ConcatinateCategoriesIfNotEmpty(RootCategory, Category.ToString(), SubCategory.ToString() );
 		TSharedPtr<FNiagaraMenuAction> Action(new FNiagaraMenuAction(FullCategory, DisplayName, Tooltip, 0, FText(),
 			FNiagaraMenuAction::FOnExecuteStackAction::CreateSP(this, &SNiagaraAddParameterFromPanelMenu::NewParameterSelected, TypeDefinition, InNamespaceId)));
 
@@ -271,7 +313,7 @@ void SNiagaraAddParameterFromPanelMenu::AddMakeNewGroup(FNiagaraMenuActionCollec
 			}
 		}
 
-		Collector.AddAction(Action, SortOrder, RootCategory);
+		Collector.AddAction(Action, SortOrder);
 	}
 }
 
@@ -283,7 +325,7 @@ void SNiagaraAddParameterFromPanelMenu::CollectParameterCollectionsActions(FNiag
 	FNiagaraEditorUtilities::GetAvailableParameterCollections(AvailableParameterCollections);
 	for (UNiagaraParameterCollection* Collection : AvailableParameterCollections)
 	{
-		AddParameterGroup(Collector, Collection->GetParameters(), FNiagaraEditorGuids::ParameterCollectionNamespaceMetaDataGuid, Category, 10, FString());
+		AddParameterGroup(Collector, Collection->GetParameters(), FNiagaraEditorGuids::ParameterCollectionNamespaceMetaDataGuid, Category, 10);
 	}
 }
 
@@ -294,28 +336,24 @@ void SNiagaraAddParameterFromPanelMenu::CollectAllActions(FGraphActionListBuilde
 		const FNiagaraNamespaceMetadata NamespaceMetaData = FNiagaraEditorUtilities::GetNamespaceMetaDataForId(FNiagaraEditorGuids::EngineNamespaceMetaDataGuid);
 		TArray<FNiagaraVariable> Variables = FNiagaraConstants::GetEngineConstants();
 		const FText CategoryText = bShowNamespaceCategory ? GetNamespaceCategoryText(NamespaceMetaData) : LOCTEXT("EngineConstantNamespaceCategory", "Add Engine Constant");
-		const FString RootCategoryStr = FString();
 		AddParameterGroup(
 			Collector,
 			Variables,
 			FNiagaraEditorGuids::EngineNamespaceMetaDataGuid,
 			CategoryText,
-			4,
-			RootCategoryStr
+			4
 		);
 	};
 	auto CollectEmitterNamespaceParameterActions = [this, &Collector]() {
 		const FNiagaraNamespaceMetadata NamespaceMetaData = FNiagaraEditorUtilities::GetNamespaceMetaDataForId(FNiagaraEditorGuids::EmitterNamespaceMetaDataGuid);
 		TArray<FNiagaraVariable> Variables = FNiagaraConstants::GetEngineConstants().FilterByPredicate([](const FNiagaraVariable& Var) { return Var.IsInNameSpace(FNiagaraConstants::EmitterNamespaceString); });
 		const FText CategoryText = bShowNamespaceCategory ? GetNamespaceCategoryText(NamespaceMetaData) : LOCTEXT("EmitterConstantNamespaceCategory", "Add Emitter Constant");
-		const FString RootCategoryStr = FString();
 		AddParameterGroup(
 			Collector,
 			Variables,
 			FNiagaraEditorGuids::EngineNamespaceMetaDataGuid,
 			CategoryText,
-			4,
-			RootCategoryStr
+			4
 		);
 	};
 
@@ -401,7 +439,7 @@ void SNiagaraAddParameterFromPanelMenu::CollectAllActions(FGraphActionListBuilde
 	{
 		TArray<FNiagaraVariable> Variables;
 		Variables.Add(SYS_PARAM_INSTANCE_ALIVE);
-		AddParameterGroup(Collector, Variables, FNiagaraEditorGuids::DataInstanceNamespaceMetaDataGuid, FText(), 3, FString());
+		AddParameterGroup(Collector, Variables, FNiagaraEditorGuids::DataInstanceNamespaceMetaDataGuid, FText(), 3);
 	}
 	// No NamespaceId set but still collecting engine namespace parameters (e.g. map get/set node menu.)
 	else if (NamespaceId.IsValid() == false && bForceCollectEngineNamespaceParameterActions)
@@ -412,7 +450,7 @@ void SNiagaraAddParameterFromPanelMenu::CollectAllActions(FGraphActionListBuilde
 		// Special case; collect DataInstance.Alive so that it is an option if we are selecting a parameter from a map node in a script.
 		TArray<FNiagaraVariable> Variables;
 		Variables.Add(SYS_PARAM_INSTANCE_ALIVE);
-		AddParameterGroup(Collector, Variables, FNiagaraEditorGuids::DataInstanceNamespaceMetaDataGuid, FText(), 3, FString());
+		AddParameterGroup(Collector, Variables, FNiagaraEditorGuids::DataInstanceNamespaceMetaDataGuid, FText(), 3);
 	}
 
 	// Any other "unreserved" namespace
@@ -493,8 +531,7 @@ void SNiagaraAddParameterFromPanelMenu::CollectAllActions(FGraphActionListBuilde
 	for (UNiagaraParameterDefinitions* ParameterDefinitions : AvailableParameterDefinitions)
 	{
 		bool bTopLevelCategory = ParameterDefinitions->GetIsPromotedToTopInAddMenus();
-		const FText TopLevelCategory = FText::FromString(*ParameterDefinitions->GetName());
-		const FText Category = bTopLevelCategory ? FText() : TopLevelCategory;
+		const FText Category = bTopLevelCategory ? FText::FromString(*ParameterDefinitions->GetName()) : FText();
 		for (const UNiagaraScriptVariable* ScriptVar : ParameterDefinitions->GetParametersConst())
 		{
 			// Only add parameters in the same namespace as the target namespace id if bOnlyShowParametersInNamespaceId is set.
@@ -523,7 +560,7 @@ void SNiagaraAddParameterFromPanelMenu::CollectAllActions(FGraphActionListBuilde
 			
 			if (bTopLevelCategory)
 			{
-				Collector.AddAction(Action, ParameterDefinitions->GetMenuSortOrder(), TopLevelCategory.ToString());
+				Collector.AddAction(Action, ParameterDefinitions->GetMenuSortOrder());
 			}
 			else
 			{ 
@@ -901,6 +938,227 @@ void SNiagaraChangePinTypeMenu::CollectAllActions(FGraphActionListBuilderBase& O
 	}
 
 	Collector.AddAllActionsTo(OutAllActions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Change Pin Type Menu													///
+///////////////////////////////////////////////////////////////////////////////
+
+void SNiagaraFunctionSpecifierNDCVariablesMenu::Construct(const FArguments& InArgs)
+{
+	checkf(InArgs._Owner != nullptr, TEXT("Tried to construct NDC Variable menu without an owner."));
+	Owner = InArgs._Owner;
+	AllowedTypes = InArgs._AllowedTypes;
+
+	SNiagaraParameterMenu::FArguments SuperArgs;
+	SuperArgs._AutoExpandMenu = InArgs._AutoExpandMenu;
+	SNiagaraParameterMenu::Construct(SuperArgs);
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesMenu::OnSelectionChanged(FNiagaraVariableBase Var)
+{
+	check(Owner);
+	Owner->OnMenuSelectionChanged(Var);
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesMenu::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
+{
+	FNiagaraMenuActionCollector Collector;
+
+	UNiagaraDataChannel::ForEachDataChannel([&](UNiagaraDataChannel* DataChannel)
+	{
+		const UNiagaraDataChannelAsset* NDCAsset = DataChannel->GetAsset();
+		if(NDCAsset)
+		{
+			for (const FNiagaraDataChannelVariable& NDCVar : DataChannel->GetVariables())
+			{
+				FText Category = FText::FromString(NDCAsset->GetName());
+				const FText DisplayName = FText::FromName(NDCVar.GetName());
+				const FText Tooltip = FText::Format(LOCTEXT("SNiagaraFunctionSpecifierNDCVariablesMenu_TooltipFmt", "Variable {0} from Data Channel {1}"), DisplayName, Category);
+
+				if(AllowedTypes.Num() > 0 && !AllowedTypes.Contains(NDCVar.GetType()))
+				{
+					continue;//This type is not on the allowed list.
+				}
+
+				TSharedPtr<FNiagaraMenuAction> Action(new FNiagaraMenuAction(
+					Category, DisplayName, Tooltip, 0, FText::GetEmpty(),
+					FNiagaraMenuAction::FOnExecuteStackAction::CreateRaw(this, &SNiagaraFunctionSpecifierNDCVariablesMenu::OnSelectionChanged, FNiagaraVariableBase(NDCVar))));
+
+				//TODO: The base niagara action widget will store this parameter and display this regardless of a change in the NDC variable.
+				//Need to subclass this and have it refresh it's parameter on construction from the NDCVar that matches it's guid.
+				Action->SetParameterVariable(NDCVar);
+				Collector.AddAction(Action, 0);
+			}
+		}
+	});
+
+	Collector.AddAllActionsTo(OutAllActions);
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+
+const static FName VarNameSpecifierKey(TEXT("VarName"));
+const static FName VarTypeSpecifierKey(TEXT("VarType"));
+
+//Encode a Niagara Variable as a function specifier value.
+void EncodeVariableAsSpecifiers(const FNiagaraVariableBase& Var, UNiagaraNodeFunctionCall* TargetNode)
+{
+	if(TargetNode)
+	{
+		FString TypeStr;
+		UScriptStruct* TypeStruct = FNiagaraTypeDefinition::StaticStruct();
+		FNiagaraTypeDefinition TypeDef = Var.GetType();
+		TypeStruct->ExportText(TypeStr, &TypeDef, nullptr, nullptr, PPF_None, nullptr);
+
+		TargetNode->SetFunctionSpecifier(VarNameSpecifierKey, Var.GetName());
+		TargetNode->SetFunctionSpecifier(VarTypeSpecifierKey, *TypeStr);
+	}
+}
+
+FNiagaraVariableBase DecodeVariableAsSpecifiers(UNiagaraNodeFunctionCall* Node)
+{
+	if(Node)
+	{
+		const FName* FuncSpecVarName = Node->FunctionSpecifiers.Find(VarNameSpecifierKey);
+		const FName* FuncSpecVarType = Node->FunctionSpecifiers.Find(VarTypeSpecifierKey);
+		if (FuncSpecVarName && FuncSpecVarType)
+		{
+			FStringOutputDevice ErrorOut;
+			UScriptStruct* TypeStruct = FNiagaraTypeDefinition::StaticStruct();
+			FNiagaraTypeDefinition TypeDef;
+			if (TypeStruct->ImportText(*FuncSpecVarType->ToString(), &TypeDef, nullptr, PPF_None, &ErrorOut, TypeStruct->GetName(), true))
+			{
+				return FNiagaraVariableBase(TypeDef, *FuncSpecVarName);
+			}
+		}
+	}
+	return FNiagaraVariableBase();
+}
+
+
+void SNiagaraFunctionSpecifierNDCVariablesSelector::Construct(const FArguments& InArgs)
+{
+	checkf(InArgs._WeakNodeToModify != nullptr, TEXT("Tried to construct change pin type menu without valid pin ptr!"));
+	this->WeakNodeToModify = InArgs._WeakNodeToModify;
+	this->AllowedTypes = InArgs._AllowedTypes;
+
+	GenerateButtonWidget();
+
+	SelectorButton = SNew(SComboButton)
+		.ContentPadding(3)
+		.MenuPlacement(MenuPlacement_BelowAnchor)
+		.HasDownArrow(true)
+		.ButtonStyle(FAppStyle::Get(), "Button")
+		.ToolTipText(GetTooltipText())
+		.OnGetMenuContent(this, &SNiagaraFunctionSpecifierNDCVariablesSelector::GetMenuContent)
+		.ButtonContent()
+		[
+			ButtonContent.ToSharedRef()
+		];
+
+	ChildSlot
+		.VAlign(VAlign_Fill)
+		.HAlign(HAlign_Fill)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(5)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromName(TEXT("NDC Variable")))
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(5)
+			[
+				SelectorButton.ToSharedRef()
+			]
+		];
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesSelector::OnMenuSelectionChanged(const FNiagaraVariableBase& Var)
+{
+	if (UNiagaraNodeFunctionCall* NodeToModify = WeakNodeToModify.Get())
+	{
+		EncodeVariableAsSpecifiers(Var, NodeToModify);
+		GenerateButtonWidget();
+	}
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesSelector::GenerateButtonWidget()
+{
+	if (UNiagaraNodeFunctionCall* NodeToModify = WeakNodeToModify.Get())
+	{
+		FNiagaraVariableBase FuncSpecVariable = DecodeVariableAsSpecifiers(NodeToModify);
+		FText			   IconToolTip = FuncSpecVariable.GetType().GetNameText();
+		FSlateBrush const* IconBrush = FuncSpecVariable.GetType().IsStatic() ? FNiagaraEditorStyle::Get().GetBrush(TEXT("NiagaraEditor.StaticIcon")) : FAppStyle::GetBrush(TEXT("Kismet.AllClasses.VariableIcon"));
+		const FLinearColor TypeColor = UEdGraphSchema_Niagara::GetTypeColor(FuncSpecVariable.GetType());
+		FSlateColor        IconColor = FSlateColor(TypeColor);
+		FString			   IconDocLink, IconDocExcerpt;
+		FSlateBrush const* SecondaryIconBrush = FAppStyle::GetBrush(TEXT("NoBrush"));
+		FSlateColor        SecondaryIconColor = IconColor;
+		TSharedRef<SWidget> IconWidget = SNew(SScaleBox)
+			[
+				SNew(SNiagaraIconWidget)
+				.IconToolTip(IconToolTip)
+			.IconBrush(IconBrush)
+			.IconColor(IconColor)
+			.DocLink(IconDocLink)
+			.DocExcerpt(IconDocExcerpt)
+			.SecondaryIconBrush(SecondaryIconBrush)
+			.SecondaryIconColor(SecondaryIconColor)
+			];
+
+		ButtonContent = SNew(SBox)
+			.MinDesiredWidth(150.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(0)
+			[
+				IconWidget
+			]
+		+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(0)
+			[
+				SNew(STextBlock).Text(FText::FromName(FuncSpecVariable.GetName()))
+			]
+			];
+
+		return;
+	}
+
+	ButtonContent = SNew(STextBlock).Text(LOCTEXT("NDCVarButtonError","Error"));
+}
+
+TSharedRef<SWidget> SNiagaraFunctionSpecifierNDCVariablesSelector::GetMenuContent()
+{
+	TSharedRef<SNiagaraFunctionSpecifierNDCVariablesMenu> MenuWidget = SNew(SNiagaraFunctionSpecifierNDCVariablesMenu)
+			.Owner(StaticCastSharedRef<SNiagaraFunctionSpecifierNDCVariablesSelector>(AsShared()).ToSharedPtr())
+			.AutoExpandMenu(false)
+			.AllowedTypes(AllowedTypes);
+
+	SelectorButton->SetMenuContentWidgetToFocus(MenuWidget->GetSearchBox());
+	return SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+		.Padding(1)
+		[
+			MenuWidget
+		];
+}
+
+FText SNiagaraFunctionSpecifierNDCVariablesSelector::GetTooltipText() const
+{
+	return LOCTEXT("FunctionSpecifierNDCVariableSelectorTooltip", "Select an NDC Variable to use.");
 }
 
 #undef LOCTEXT_NAMESPACE /*"SNiagaraParameterMenu"*/

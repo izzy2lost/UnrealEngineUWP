@@ -101,6 +101,13 @@ public:
 	FRDGBufferRef InstanceOcclusionQueryBuffer = {};
 	EPixelFormat InstanceOcclusionQueryBufferFormat = PF_Unknown;
 
+	TArray<TRefCountPtr<IPooledRenderTarget>> ViewPrevHZBs;
+
+	// to support merging of multiple contexts with different HZBs, we use separate bins (LoadBalancers) in the InstanceCullingDeferredContext
+	// bin 0 is reserved for UnCulled batches. Bins >= 1 are for the different HZBs.
+
+	int32 GetBinIndex(EBatchProcessingMode Mode, const TRefCountPtr<IPooledRenderTarget>& HZB);
+
 private:
 
 	friend class FInstanceCullingContext;

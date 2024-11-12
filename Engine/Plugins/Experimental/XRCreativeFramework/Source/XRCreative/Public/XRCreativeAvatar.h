@@ -48,6 +48,7 @@ public:
 	virtual void BeginDestroy() override;
 	virtual void Tick(float InDeltaSeconds) override;
 	virtual void BeginPlay() override;
+	virtual void GetActorEyesViewPoint(FVector& Location, FRotator& Rotation) const override;
 
 	void ConfigureToolset(UXRCreativeToolset* InToolset);
 	const UXRCreativeToolset* GetToolset() const { return Toolset; }

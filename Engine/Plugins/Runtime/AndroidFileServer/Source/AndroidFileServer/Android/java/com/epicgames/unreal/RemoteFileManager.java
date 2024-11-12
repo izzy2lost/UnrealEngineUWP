@@ -168,7 +168,7 @@ public class RemoteFileManager implements Runnable
 		replacements.put("^mainobb", mainobb);
 		replacements.put("^patchobb", patchobb);
 
-		for (int overflowIndex=1; overflowIndex < MAX_OVERFLOW_FILES; overflowIndex++)
+		for (int overflowIndex=1; overflowIndex <= MAX_OVERFLOW_FILES; overflowIndex++)
 		{
 			String overflowobb = obbPackageDir + "overflow" + overflowIndex + "." + versionString + "." + packageName + ".obb";
 			replacements.put("^overflow" + overflowIndex + "obb", overflowobb);
@@ -963,6 +963,7 @@ public class RemoteFileManager implements Runnable
 				if (!DirCreateRecursive(path.subpath(0, lastIndex - 1).toString()))
 				{
 					IgnoreData(dataRemaining);
+					//Log.d(TAG, "FileWrite failed (NoSuchFileException): " + path.toString(), fe);
 //					SendResponse("false");
 					return;
 				}
@@ -970,6 +971,7 @@ public class RemoteFileManager implements Runnable
 			catch (Exception e)
 			{
 				IgnoreData(dataRemaining);
+				Log.d(TAG, "FileWrite failed: " + path.toString(), e);
 //				SendResponse("false");
 				return;
 			}

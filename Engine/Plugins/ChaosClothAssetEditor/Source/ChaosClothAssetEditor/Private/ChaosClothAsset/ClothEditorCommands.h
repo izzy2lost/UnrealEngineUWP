@@ -30,6 +30,8 @@ public:
 
 	TSharedPtr<FUICommandInfo> OpenClothEditor;
 
+	TSharedPtr<FUICommandInfo> OpenClothAssetInDataflowEditor;
+
 	const static FString BeginRemeshToolIdentifier;
 	TSharedPtr<FUICommandInfo> BeginRemeshTool;
 
@@ -63,6 +65,9 @@ public:
 
 	TSharedPtr<FUICommandInfo> TogglePatternColor;
 	TSharedPtr<FUICommandInfo> ToggleMeshStats;
+
+	const static FString ToggleConstructionViewSurfaceNormalsIdentifier;
+	TSharedPtr<FUICommandInfo> ToggleConstructionViewSurfaceNormals;
 
 	TSharedPtr<FUICommandInfo> SetConstructionMode2D;
 	TSharedPtr<FUICommandInfo> SetConstructionMode3D;

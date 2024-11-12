@@ -21,10 +21,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// Construct an instance of this generator object
 		/// </summary>
 		/// <param name="codeGenerator">The base code generator</param>
-		/// <param name="package">Package being generated</param>
 		/// <param name="headerFile">Header file being generated</param>
-		public UhtHeaderCodeGeneratorHFile(UhtCodeGenerator codeGenerator, UhtPackage package, UhtHeaderFile headerFile)
-			: base(codeGenerator, package, headerFile)
+		public UhtHeaderCodeGeneratorHFile(UhtCodeGenerator codeGenerator, UhtHeaderFile headerFile)
+			: base(codeGenerator, headerFile)
 		{
 		}
 
@@ -66,11 +65,15 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					builder.Append("#include \"UObject/VerseTypes.h\"\r\n");
 				}
+				if (headerInfo.NeedsVerseInterop)
+				{
+					builder.Append("#include \"VerseInteropMacros.h\"\r\n");
+				}
 				builder.Append("\r\n");
 				builder.Append(DisableDeprecationWarnings).Append("\r\n");
 
 				string strippedName = Path.GetFileNameWithoutExtension(HeaderFile.FilePath);
-				string defineName = $"{Package.ShortName.ToString().ToUpper()}_{strippedName}_generated_h";
+				string defineName = $"{Module.ShortName.ToUpper()}_{strippedName}_generated_h".Replace('.', '_');
 
 				if (HeaderFile.References.ForwardDeclarations.Count > 0)
 				{
@@ -181,7 +184,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.Append('\t');
 					if (!scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.RequiredAPI))
 					{
-						builder.Append(PackageApi);
+						builder.Append(Module.Api);
 					}
 					builder.Append("static class UScriptStruct* StaticStruct(); \\\r\n");
 
@@ -411,15 +414,22 @@ namespace EpicGames.UHT.Exporters.CodeGen
 							.Append(", ");
 						if (!scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.RequiredAPI))
 						{
-							builder.Append(PackageApi);
+							builder.Append(Module.Api);
 						}
 						builder.Append("); \\\r\n");
 					}
 				}
 
 				// Forward declare the StaticStruct specialization in the header
-				builder.Append("template<> ").Append(PackageApi).Append("UScriptStruct* StaticStruct<struct ").Append(scriptStruct.SourceName).Append(">();\r\n");
+				builder.Append("template<> ").Append(Module.Api).Append("UScriptStruct* StaticStruct<struct ").Append(scriptStruct.SourceName).Append(">();\r\n");
 				builder.Append("\r\n");
+
+				// Verse declarations
+				if (scriptStruct.IsVerseField)
+				{
+					builder.Append("VUHT_DECLARE_STRUCT_RUNTIME_TRAITS(struct ").Append(scriptStruct.SourceName).Append(")\r\n");
+					builder.Append("\r\n");
+				}
 			}
 			return builder;
 		}
@@ -471,7 +481,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			if (enumObj.CppForm == UhtEnumCppForm.EnumClass || enumObj.UnderlyingType != UhtEnumUnderlyingType.Unspecified)
 			{	
 				// Forward declare the StaticEnum<> specialization for enum classes
-				builder.Append("template<> ").Append(PackageApi).Append("UEnum* StaticEnum<").Append(enumObj.CppType).Append(">();\r\n");
+				builder.Append("template<> ").Append(Module.Api).Append("UEnum* StaticEnum<").Append(enumObj.CppType).Append(">();\r\n");
 				builder.Append("\r\n");
 			}
 
@@ -504,7 +514,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				if (addAPI)
 				{
-					builder.Append(PackageApi);
+					builder.Append(Module.Api);
 				}
 
 				AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.EventFunctionArgOrRetVal, true, exportFunctionName, extraParameter, UhtFunctionExportFlags.None, 0, "; \\\r\n");
@@ -514,7 +524,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 		private StringBuilder AppendClass(StringBuilder builder, UhtClass classObj)
 		{
-			string api = classObj.ClassFlags.HasAnyFlags(EClassFlags.MinimalAPI) ? PackageApi : "NO_API ";
+			string api = classObj.ClassFlags.HasAnyFlags(EClassFlags.MinimalAPI) ? Module.Api : "NO_API ";
 			bool usesLegacy = classObj.ClassExportFlags.HasAnyFlags(UhtClassExportFlags.UsesGeneratedBodyLegacy);
 			UhtClass? nativeInterface = ObjectInfos[classObj.ObjectTypeIndex].NativeInterface;
 			if (classObj.ClassFlags.HasAnyFlags(EClassFlags.Interface) && nativeInterface == null)
@@ -640,7 +650,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			}
 
 			// Forward declare the StaticClass specialization in the header
-			builder.Append("template<> ").Append(PackageApi).Append("UClass* StaticClass<class ").Append(classObj.SourceName).Append(">();\r\n");
+			builder.Append("template<> ").Append(Module.Api).Append("UClass* StaticClass<class ").Append(classObj.SourceName).Append(">();\r\n");
 			builder.Append("\r\n");
 			return builder;
 		}
@@ -668,7 +678,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder.AppendSingleMacro(notifyTypes, UhtDefineScopeNames.Standard, this, classObj, FieldNotifyMacroSuffix,
 				(builder, filteredTypes) =>
 				{
-					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_BEGIN(").Append(PackageApi).Append(") \\\r\n");
+					builder.Append("\tUE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_BEGIN(").Append(Module.Api).Append(") \\\r\n");
 
 					// UE_FIELD_NOTIFICATION_DECLARE_FIELD
 					foreach (UhtType notifyType in filteredTypes)
@@ -774,7 +784,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			using (UhtMacroCreator macro = new(builder, this, classObj, SparseDataMacroSuffix))
 			{
-				string api = classObj.ClassFlags.HasAnyFlags(EClassFlags.MinimalAPI) ? PackageApi : "";
+				string api = classObj.ClassFlags.HasAnyFlags(EClassFlags.MinimalAPI) ? Module.Api : "";
 
 				foreach (UhtScriptStruct sparseScriptStruct in sparseScriptStructs)
 				{
@@ -815,18 +825,16 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			if (getterSetterProperties.Any())
 			{
-				using (UhtMacroCreator macro = new(builder, this, classObj, AccessorsMacroSuffix))
+				using UhtMacroCreator macro = new(builder, this, classObj, AccessorsMacroSuffix);
+				foreach (UhtProperty property in getterSetterProperties)
 				{
-					foreach (UhtProperty property in getterSetterProperties)
+					if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterFound))
 					{
-						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterFound))
-						{
-							builder.Append("static void ").AppendPropertyGetterWrapperName(property).Append("(const void* Object, void* OutValue); \\\r\n");
-						}
-						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterFound))
-						{
-							builder.Append("static void ").AppendPropertySetterWrapperName(property).Append("(void* Object, const void* InValue); \\\r\n");
-						}
+						builder.Append("static void ").AppendPropertyGetterWrapperName(property).Append("(const void* Object, void* OutValue); \\\r\n");
+					}
+					if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterFound))
+					{
+						builder.Append("static void ").AppendPropertySetterWrapperName(property).Append("(void* Object, const void* InValue); \\\r\n");
 					}
 				}
 			}
@@ -875,7 +883,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				if (!classObj.ClassFlags.HasAnyFlags(EClassFlags.RequiredAPI) && function.FunctionFlags.HasAnyFlags(EFunctionFlags.RequiredAPI))
 				{
-					builder.Append(PackageApi);
+					builder.Append(Module.Api);
 				}
 
 				if (!function.FunctionFlags.HasAnyFlags(EFunctionFlags.Static) && !function.FunctionExportFlags.HasAnyFlags(UhtFunctionExportFlags.Final))
@@ -1184,7 +1192,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				builder.Append("CASTCLASS_None");
 			}
-			builder.Append(", TEXT(\"").Append(Package.SourceName).Append("\"), ").Append(api[0..^1]).Append(") \\\r\n");
+			builder.Append(", TEXT(\"").Append(classObj.Package.SourceName).Append("\"), ").Append(api[0..^1]).Append(") \\\r\n");
 
 			builder.Append("\tDECLARE_SERIALIZER(").Append(classObj.SourceName).Append(") \\\r\n");
 

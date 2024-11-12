@@ -74,17 +74,6 @@ FBlobHandleWithHash FChunkNode::Write(FBlobWriter& Writer, const TArrayView<cons
 
 // ----------------------------------------------------------------------
 
-struct FChunkNodeReader::FStackEntry
-{
-	FBlob Blob;
-	size_t Position;
-
-	FStackEntry(FBlob InBlob)
-		: Blob(MoveTemp(InBlob))
-		, Position(0)
-	{ }
-};
-
 FChunkNodeReader::FChunkNodeReader(FBlob Blob)
 {
 	Stack.Add(FStackEntry(MoveTemp(Blob)));

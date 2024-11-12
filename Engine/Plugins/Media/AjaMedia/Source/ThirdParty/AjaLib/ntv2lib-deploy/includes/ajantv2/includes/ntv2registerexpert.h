@@ -2,7 +2,7 @@
 /**
 	@file		ntv2registerexpert.h
 	@brief		Declares the CNTV2RegisterExpert class.
-	@copyright	(C) 2016-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2016-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef NTV2REGEXPERT_H
@@ -35,25 +35,10 @@
 
 //	Register classifier keys
 #define kRegClass_NULL		std::string ()
-#define kRegClass_Audio		std::string ("kRegClass_Audio")
-#define kRegClass_Video		std::string ("kRegClass_Video")
-#define kRegClass_Anc		std::string ("kRegClass_Anc")
-#define kRegClass_DMA		std::string ("kRegClass_DMA")
-#define kRegClass_Mixer		std::string ("kRegClass_Mixer")
-#define kRegClass_Serial	std::string ("kRegClass_Serial")
-#define kRegClass_Timecode	std::string ("kRegClass_Timecode")
-#define kRegClass_Routing	std::string ("kRegClass_Routing")
-#define kRegClass_Input		std::string ("kRegClass_Input")
-#define kRegClass_Output	std::string ("kRegClass_Output")
-#define kRegClass_CSC		std::string ("kRegClass_CSC")
-#define kRegClass_LUT		std::string ("kRegClass_LUT")
-#define kRegClass_Analog	std::string ("kRegClass_Analog")
 #define kRegClass_AES		std::string ("kRegClass_AES")
-#define kRegClass_HDMI		std::string ("kRegClass_HDMI")
-#define kRegClass_HDR		std::string ("kRegClass_HDR")
-#define kRegClass_VPID		std::string ("kRegClass_VPID")
-#define kRegClass_SDIError	std::string ("kRegClass_SDIError")
-#define kRegClass_Timing	std::string ("kRegClass_Timing")
+#define kRegClass_Analog	std::string ("kRegClass_Analog")
+#define kRegClass_Anc		std::string ("kRegClass_Anc")
+#define kRegClass_Audio		std::string ("kRegClass_Audio")
 #define kRegClass_Channel1	std::string ("kRegClass_Channel1")
 #define kRegClass_Channel2	std::string ("kRegClass_Channel2")
 #define kRegClass_Channel3	std::string ("kRegClass_Channel3")
@@ -62,10 +47,33 @@
 #define kRegClass_Channel6	std::string ("kRegClass_Channel6")
 #define kRegClass_Channel7	std::string ("kRegClass_Channel7")
 #define kRegClass_Channel8	std::string ("kRegClass_Channel8")
+#define kRegClass_CSC		std::string ("kRegClass_CSC")
+#define kRegClass_DMA		std::string ("kRegClass_DMA")
+#define kRegClass_HDMI		std::string ("kRegClass_HDMI")
+#define kRegClass_HDR		std::string ("kRegClass_HDR")
+#define kRegClass_Input		std::string ("kRegClass_Input")
+#define kRegClass_Info		std::string ("kRegClass_Info")
+#define kRegClass_Interrupt	std::string ("kRegClass_Interrupt")
+#define kRegClass_IP		std::string ("kRegClass_IP")
+#define kRegClass_LUT		std::string ("kRegClass_LUT")
+#define kRegClass_Mixer		std::string ("kRegClass_Mixer")
+#define kRegClass_Output	std::string ("kRegClass_Output")
 #define kRegClass_ReadOnly	std::string ("kRegClass_ReadOnly")
-#define kRegClass_WriteOnly std::string ("kRegClass_WriteOnly")
+#define kRegClass_Routing	std::string ("kRegClass_Routing")
+#define kRegClass_SDIError	std::string ("kRegClass_SDIError")
+#define kRegClass_Serial	std::string ("kRegClass_Serial")
+#define kRegClass_Timecode	std::string ("kRegClass_Timecode")
+#define kRegClass_Timing	std::string ("kRegClass_Timing")
+#define kRegClass_Video		std::string ("kRegClass_Video")
 #define kRegClass_Virtual	std::string ("kRegClass_Virtual")
-#define kRegClass_Interrupt std::string ("kRegClass_Interrupt")
+#define kRegClass_VPID		std::string ("kRegClass_VPID")
+#define kRegClass_WriteOnly std::string ("kRegClass_WriteOnly")
+#define kRegClass_XptROM	std::string ("kRegClass_XptROM")
+
+
+#define	kIncludeOtherRegs_None		0
+#define	kIncludeOtherRegs_VRegs		1		//	Also include virtual regs
+#define	kIncludeOtherRegs_XptROM	2		//	Also include crosspoint ROM regs
 
 
 /**
@@ -118,7 +126,7 @@ class AJAExport CNTV2RegisterExpert
 		/**
 			@return		A set of strings containing the names of all register classes the given register belongs to.
 		**/
-		static NTV2StringSet	GetRegisterClasses (const uint32_t inRegNum);
+		static NTV2StringSet	GetRegisterClasses (const uint32_t inRegNum, const bool inRemovePrefix = false);
 
 		/**
 			@param[in]	inClassName Specifies the register class.
@@ -134,13 +142,14 @@ class AJAExport CNTV2RegisterExpert
 		static NTV2RegNumSet	GetRegistersForChannel	(const NTV2Channel inChannel);
 
 		/**
-			@param[in]	inDeviceID			Specifies a valid NTV2DeviceID.
-			@param[in]	inIncludeVirtuals	Specify true to include virtual registers;	otherwise virtual registers
-											will be excluded (the default).
+			@param[in]	inDeviceID				Specifies a valid NTV2DeviceID.
+			@param[in]	inOtherRegsToInclude	A bit mask of other registers to include (or zero, the default, for no others).
+												Specify kIncludeOtherRegs_VRegs to include virtual regs;
+												Specify kIncludeOtherRegs_XptMap to include crosspoint mapping regs.
 			@return		A set of register numbers that are legal for the device having the given NTV2DeviceID.
 						Will be empty if an invalid NTV2DeviceID is specified.
 		**/
-		static NTV2RegNumSet	GetRegistersForDevice (const NTV2DeviceID inDeviceID, const bool inIncludeVirtuals = false);
+		static NTV2RegNumSet	GetRegistersForDevice (const NTV2DeviceID inDeviceID, const int inOtherRegsToInclude = kIncludeOtherRegs_None);
 
 		/**
 			@param[in]	inName			Specifies a non-empty string that contains all or part of a register name.

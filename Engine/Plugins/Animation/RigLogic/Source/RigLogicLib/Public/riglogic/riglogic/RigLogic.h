@@ -4,7 +4,6 @@
 
 #include "riglogic/Defs.h"
 #include "riglogic/riglogic/Configuration.h"
-#include "riglogic/transformation/Transformation.h"
 #include "riglogic/types/Aliases.h"
 
 #include <cstdint>
@@ -43,7 +42,7 @@ class RLAPI RigLogic {
                 User is responsible for releasing the returned pointer by calling destroy.
             @see destroy
         */
-        static RigLogic* create(const dna::Reader* reader, Configuration config = {}, MemoryResource* memRes = nullptr);
+        static RigLogic* create(const dna::Reader* reader, const Configuration& config = {}, MemoryResource* memRes = nullptr);
         /**
             @brief Method for freeing RigLogic.
             @param instance
@@ -88,16 +87,7 @@ class RLAPI RigLogic {
                 These is just a primitive array of floats, providing access to all the values of all transformations.
             @return View over the array of values.
         */
-        virtual ConstArrayView<float> getRawNeutralJointValues() const = 0;
-        /**
-            @brief Neutral values for joint transformations.
-            @note
-                A more user-friendly representation that groups values belonging to separate transformations into
-                single units, while providing accessors to the actual values they represent.
-            @return View over the array of transformations.
-            @see Transformation
-        */
-        virtual TransformationArrayView getNeutralJointValues() const = 0;
+        virtual ConstArrayView<float> getNeutralJointValues() const = 0;
         /**
             @brief All joint output indices concatenated into a single chunk per each LOD.
         */
@@ -112,6 +102,11 @@ class RLAPI RigLogic {
             @see calculateMachineLearnedBehavior
         */
         virtual std::uint16_t getNeuralNetworkCount() const = 0;
+        /**
+            @brief Number of RBF solvers for driving RBF behavior.
+            @see calculateRBFBehavior
+        */
+        virtual std::uint16_t getRBFSolverCount() const = 0;
         /**
             @brief Number of meshes.
         */
@@ -173,6 +168,28 @@ class RLAPI RigLogic {
             @see calculate
         */
         virtual void calculateMachineLearnedBehaviorControls(RigInstance* instance, std::uint16_t neuralNetIndex) const = 0;
+        /**
+            @brief Calculate controls driving the RBF behavior of the of the rig.
+            @note
+                This is considered as an advanced usage use case.
+            @param instance
+                The rig instance whose controls for driving machine learned behavior are to be calculated.
+            @see calculate
+        */
+        virtual void calculateRBFControls(RigInstance* instance) const = 0;
+        /**
+            @brief Calculate controls driving the RBF behavior of the rig.
+            @note
+                This is considered as an advanced usage use case.
+            @param instance
+                The rig instance whose controls for RBF behavior are to be calculated.
+            @param solverIndex
+                The RBF solver whose outputs need to be calculated.
+            @warning
+                The index must be less than the value returned by getRBFSolverCount.
+            @see calculate
+        */
+        virtual void calculateRBFControls(RigInstance* instance, std::uint16_t solverIndex) const = 0;
         /**
             @brief Calculate only the joint outputs of the rig.
             @note

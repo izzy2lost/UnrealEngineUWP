@@ -35,7 +35,7 @@ struct FViewportSurfaceReader
 	 * @param	BackBuffer		The backbuffer to resolve
 	 * @param	Callback 		Callback to call with the locked texture data. This will be called on an undefined thread.
 	 */
-	MOVIESCENECAPTURE_API void ResolveRenderTarget(FViewportSurfaceReader* RenderToReadback, const FTexture2DRHIRef& BackBuffer, TFunction<void(FColor*, int32, int32)> Callback);
+	MOVIESCENECAPTURE_API void ResolveRenderTarget(FViewportSurfaceReader* RenderToReadback, const FTextureRHIRef& BackBuffer, TFunction<void(FColor*, int32, int32)> Callback);
 
 	/** Get the current size of the texture */
 	MOVIESCENECAPTURE_API FIntPoint GetCurrentSize() const;
@@ -60,7 +60,7 @@ protected:
 	FEvent* AvailableEvent;
 
 	/** Texture used to store the resolved render target */
-	FTexture2DRHIRef ReadbackTexture;
+	FTextureRHIRef ReadbackTexture;
 
 	/** The rectangle to read from the surface */
 	FIntRect CaptureRect;
@@ -165,7 +165,7 @@ public:
 protected:
 	
 	/** Callback for when a backbuffer is ready for reading (called on render thread) */
-	MOVIESCENECAPTURE_API void OnBackBufferReadyToPresentCallback(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
+	MOVIESCENECAPTURE_API void OnBackBufferReadyToPresentCallback(SWindow& SlateWindow, const FTextureRHIRef& BackBuffer);
 
 	/** Called when the specified surface index has been locked for reading with the render target data (called on render thread)  */
 	MOVIESCENECAPTURE_API void OnFrameReady(int32 SurfaceIndex, FColor* ColorBuffer, int32 Width, int32 Height);

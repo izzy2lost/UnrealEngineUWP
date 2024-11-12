@@ -36,6 +36,8 @@ public:
 	virtual ~FIOSWebAuth();
 
 private:
+	/** Delegate handle to get auth response from external browser */
+	FDelegateHandle OpenUrlHandle;
 	/** Delegate that will get called once an authentication session completes or for an error condition */
 	FWebAuthSessionCompleteDelegate AuthSessionCompleteDelegate;
 };

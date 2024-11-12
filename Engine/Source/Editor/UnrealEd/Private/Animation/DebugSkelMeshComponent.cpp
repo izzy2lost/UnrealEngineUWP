@@ -24,26 +24,12 @@
 #include "ClothingSimulation.h"
 #include "Utils/ClothingMeshUtils.h"
 #include "DynamicMeshBuilder.h"
+#include "SkeletalDebugRendering.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Preferences/PersonaOptions.h"
 
 //////////////////////////////////////////////////////////////////////////
 // UDebugSkelMeshComponent
-
-namespace UE::Anim::Private
-{
-	FTransform CalculateInitialTransformFromAssetAndTime(const UDebugSkelMeshComponent& InDebugSkelMeshComponent, const UAnimationAsset* InAnimAsset, const float InTime)
-	{
-		const FTransform InitialRootBoneTransform = InDebugSkelMeshComponent.GetReferenceSkeleton().GetRefBonePose()[0];
-		FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(InAnimAsset, InTime);
-		if (InAnimAsset->IsValidAdditive())
-		{
-			// Additive animations have zero scale as "no scaling" value.
-			// This function is used to set the initial transform, we explicitly set the scale to start at 1.
-			InitialTransform.SetScale3D(FVector::OneVector);
-		}
-		return InitialRootBoneTransform.Inverse() * InitialTransform;
-	}
-}
 
 UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -55,6 +41,10 @@ UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& Objec
 
 	bMeshSocketsVisible = true;
 	bSkeletonSocketsVisible = true;
+
+	bShowNotificationVisualizations = true;
+	VisualizeRootMotionMode = EVisualizeRootMotionMode::Trajectory;
+	bShowAssetUserDataVisualizations = true;
 
 	TurnTableSpeedScaling = 1.f;
 	TurnTableMode = EPersonaTurnTableMode::Stopped;
@@ -73,6 +63,27 @@ UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& Objec
 	RequestedProcessRootMotionMode = EProcessRootMotionMode::LoopAndReset;
 	ProcessRootMotionMode = EProcessRootMotionMode::Ignore;
 	ConsumeRootMotionPreviousPlaybackTime = 0.f;
+}
+
+FLinearColor UDebugSkelMeshComponent::GetBoneColor(int32 InBoneIndex) const
+{
+	// this returns the normal unmodified color of the bone, calling code must account
+	// for any editor specific states that might affect the final bone color (like selection)
+	
+	// skeleton greyed out
+	if (SkeletonDrawMode == ESkeletonDrawMode::GreyedOut)
+	{
+		return GetDefault<UPersonaOptions>()->DisabledBoneColor;
+	}
+
+	// using default color for all bones
+	if (!GetDefault<UPersonaOptions>()->bShowBoneColors)
+	{
+		return GetDefault<UPersonaOptions>()->DefaultBoneColor;
+	}
+	
+	// uses deterministic, semi-random desaturated color unique to the bone index
+	return SkeletalDebugRendering::GetSemiRandomColorForBone(InBoneIndex);
 }
 
 void UDebugSkelMeshComponent::SetDebugForcedLOD(int32 InNewForcedLOD)
@@ -313,7 +324,7 @@ void UDebugSkelMeshComponent::ConsumeRootMotion(const FVector& FloorMin, const F
 				{
 					if (bLooped)
 					{
-						const FTransform InitialTransform = UE::Anim::Private::CalculateInitialTransformFromAssetAndTime(*this, PreviewInstance->CurrentAsset, SectionStartPosition);
+						const FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, SectionStartPosition);
 						const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
 						const FTransform RootMotionTransform = RootMotionDelta * InitialTransform;
 
@@ -333,15 +344,6 @@ void UDebugSkelMeshComponent::ConsumeRootMotion(const FVector& FloorMin, const F
 			{
 				const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), PreviousTime, CurrentTime);
 				AddLocalTransform(RootMotionDelta);
-			}
-		}
-		else
-		{
-			// No root motion, reset to identity for consistency.
-			const FTransform RootMotionTransform = GetRelativeTransform();
-			if (!RootMotionTransform.Equals(FTransform::Identity))
-			{
-				SetRelativeTransform(FTransform::Identity);
 			}
 		}
 	}
@@ -448,37 +450,41 @@ void UDebugSkelMeshComponent::SetProcessRootMotionModeInternal(EProcessRootMotio
 {
 	ProcessRootMotionMode = Mode;
 
-	if (!DoesCurrentAssetHaveRootMotion())
-	{
-		return;
-	}
-
 	FTransform RootMotionTransform = FTransform::Identity;
-	
-	if (ProcessRootMotionMode == EProcessRootMotionMode::LoopAndReset || ProcessRootMotionMode == EProcessRootMotionMode::Loop)
+
+	if (DoesCurrentAssetHaveRootMotion())
 	{
-		// Reset transform
-		const float CurrentTime = PreviewInstance->GetCurrentTime();
-		float SectionStartPosition = 0.0f;
-		if (const UAnimMontage* Montage = Cast<UAnimMontage>(PreviewInstance->CurrentAsset))
+		if (ProcessRootMotionMode == EProcessRootMotionMode::LoopAndReset || ProcessRootMotionMode == EProcessRootMotionMode::Loop)
 		{
-			const int32 PreviewStartSectionIdx = Montage->CompositeSections.IsValidIndex(PreviewInstance->MontagePreviewStartSectionIdx) ? PreviewInstance->MontagePreviewStartSectionIdx : Montage->GetSectionIndexFromPosition(CurrentTime);
-			const int32 FirstSectionIdx = PreviewInstance->MontagePreview_FindFirstSectionAsInMontage(PreviewStartSectionIdx);
-			const int32 LastSectionIdx = PreviewInstance->MontagePreview_FindLastSection(FirstSectionIdx);
-			float StartTime = 0.0f, EndTime = 0.0f;
-			Montage->GetSectionStartAndEndTime(LastSectionIdx, StartTime, EndTime);
-			SectionStartPosition = StartTime;
-		}
-	
-		const FTransform InitialTransform = UE::Anim::Private::CalculateInitialTransformFromAssetAndTime(*this, PreviewInstance->CurrentAsset, SectionStartPosition);
-		const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
-		RootMotionTransform = RootMotionDelta * InitialTransform;
+			// Reset transform
+			const float CurrentTime = PreviewInstance->GetCurrentTime();
+			float SectionStartPosition = 0.0f;
+			if (const UAnimMontage* Montage = Cast<UAnimMontage>(PreviewInstance->CurrentAsset))
+			{
+				const int32 PreviewStartSectionIdx = Montage->CompositeSections.IsValidIndex(PreviewInstance->MontagePreviewStartSectionIdx) ? PreviewInstance->MontagePreviewStartSectionIdx : Montage->GetSectionIndexFromPosition(CurrentTime);
+				const int32 FirstSectionIdx = PreviewInstance->MontagePreview_FindFirstSectionAsInMontage(PreviewStartSectionIdx);
+				const int32 LastSectionIdx = PreviewInstance->MontagePreview_FindLastSection(FirstSectionIdx);
+				float StartTime = 0.0f, EndTime = 0.0f;
+				Montage->GetSectionStartAndEndTime(LastSectionIdx, StartTime, EndTime);
+				SectionStartPosition = StartTime;
+			}
 		
-		// Reference transform is always relative to the beginning of the animation sequence. 
-		RootMotionReferenceTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, 0.0f);
+			const FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, SectionStartPosition);
+			const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
+			RootMotionTransform = RootMotionDelta * InitialTransform;
+			
+			// Reference transform is always relative to the beginning of the animation sequence. 
+			RootMotionReferenceTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, 0.0f);
+		}
+		else if (ProcessRootMotionMode == EProcessRootMotionMode::Ignore)
+		{
+			RootMotionTransform = FTransform::Identity;
+			RootMotionReferenceTransform = FTransform::Identity;
+		}
 	}
-	else if (ProcessRootMotionMode == EProcessRootMotionMode::Ignore)
+	else
 	{
+		// No root motion in animation, reset transform. 
 		RootMotionTransform = FTransform::Identity;
 		RootMotionReferenceTransform = FTransform::Identity;
 	}
@@ -606,12 +612,6 @@ void UDebugSkelMeshComponent::InitAnim(bool bForceReinit)
 	}
 }
 
-void UDebugSkelMeshComponent::SetAnimClass(class UClass* NewClass)
-{
-	// Override this to do nothing and warn the user
-	UE_LOG(LogAnimation, Warning, TEXT("Attempting to destroy an animation preview actor, skipping."));
-}
-
 void UDebugSkelMeshComponent::OnClearAnimScriptInstance()
 {
 	// call to super not strictly necessary (since it is empty)
@@ -675,7 +675,8 @@ void UDebugSkelMeshComponent::EnablePreview(bool bEnable, UAnimationAsset* Previ
 		    // restore previous state
 		    bDisableClothSimulation = bPrevDisableClothSimulation;
     
-			PreviewInstance->SetAnimationAsset(PreviewAsset); 
+			const bool bWasLooping = PreviewInstance->IsLooping();
+			PreviewInstance->SetAnimationAsset(PreviewAsset, bWasLooping);
 			
 			// Reset to previous animation asset's root motion playback time to prevent this from influencing the new animation asset previewing during root motion consumption.
 			ConsumeRootMotionPreviousPlaybackTime = 0.0f;
@@ -704,6 +705,10 @@ bool UDebugSkelMeshComponent::ShouldCPUSkin()
 	return 	GetCPUSkinningEnabled() || bDrawBoneInfluences || bDrawNormals || bDrawTangents || bDrawBinormals || bDrawMorphTargetVerts;
 }
 
+bool UDebugSkelMeshComponent::ShouldNaniteSkin()
+{
+	return false;
+}
 
 void UDebugSkelMeshComponent::PostInitMeshObject(FSkeletalMeshObject* InMeshObject)
 {
@@ -744,7 +749,7 @@ void UDebugSkelMeshComponent::OnMirrorDataTableChanged()
 			SectionStartPosition = StartTime;
 		}
 
-		const FTransform InitialTransform = UE::Anim::Private::CalculateInitialTransformFromAssetAndTime(*this, PreviewInstance->CurrentAsset, SectionStartPosition);
+		const FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, SectionStartPosition);
 		const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
 		const FTransform RootMotionTransform = RootMotionDelta * InitialTransform;
 
@@ -1199,6 +1204,21 @@ void UDebugSkelMeshComponent::CheckClothTeleport()
 	// do nothing to avoid clothing reset while modifying properties
 	// modifying values can cause frame delay and clothes will be reset by a large delta time (low fps)
 	// doesn't need cloth teleport while previewing
+}
+
+void UDebugSkelMeshComponent::SetTurnTableMode(EPersonaTurnTableMode::Type NewMode)
+{
+	if (TurnTableMode == NewMode)
+	{
+		return;
+	}
+	TurnTableMode = NewMode;
+	
+	if (TurnTableMode == EPersonaTurnTableMode::Stopped)
+	{
+		// Use SetProcessRootMotionModeInternal with current value to reset the root motion preview state.
+		SetProcessRootMotionModeInternal(ProcessRootMotionMode);
+	}
 }
 
 void UDebugSkelMeshComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)

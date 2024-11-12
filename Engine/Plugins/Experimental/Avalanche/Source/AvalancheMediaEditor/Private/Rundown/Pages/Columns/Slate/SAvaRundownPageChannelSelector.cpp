@@ -59,7 +59,7 @@ FText SAvaRundownPageChannelSelector::GetCurrentChannelName() const
 	{
 		return FText::FromName(PageView->GetChannelName());
 	}
-	return FText();
+	return FText::GetEmpty();
 }
 
 void SAvaRundownPageChannelSelector::OnComboBoxOpening()

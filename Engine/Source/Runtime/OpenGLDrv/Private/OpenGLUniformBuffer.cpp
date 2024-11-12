@@ -217,6 +217,7 @@ static TArray<FPooledGLUniformBuffer> SafeGLEmulatedUniformBufferPools[NUM_SAFE_
 // Delete the uniform buffer's GL resource
 static void ReleaseUniformBuffer(bool bEmulatedBufferData, GLuint Resource, uint32 AllocatedSize)
 {
+	VERIFY_GL_SCOPE();
 	if (bEmulatedBufferData)
 	{
 		UniformBufferDataFactory.Destroy(Resource);
@@ -224,14 +225,8 @@ static void ReleaseUniformBuffer(bool bEmulatedBufferData, GLuint Resource, uint
 	else
 	{
 		check(Resource);
-		auto DeleteGLBuffer = [=]() 
-		{
-			VERIFY_GL_SCOPE();
-			FOpenGL::DeleteBuffers(1, &Resource);
-			check(Resource != 0);
-		};
-
-		RunOnGLRenderContextThread(MoveTemp(DeleteGLBuffer));
+		FOpenGL::DeleteBuffers(1, &Resource);
+		check(Resource != 0);
 	}
 	OpenGLBufferStats::UpdateUniformBufferStats(AllocatedSize, false);
 }
@@ -419,7 +414,7 @@ FOpenGLUniformBuffer::FOpenGLUniformBuffer(const FRHIUniformBufferLayout* InLayo
 	, bStreamDraw(false)
 	, bOwnsResource(true)
 {
-	bIsEmulatedUniformBuffer = GUseEmulatedUniformBuffers && !(InLayout->bNoEmulatedUniformBuffer || InLayout->bUniformView);
+	bIsEmulatedUniformBuffer = GUseEmulatedUniformBuffers && !EnumHasAnyFlags(InLayout->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer|ERHIUniformBufferFlags::UniformView);
 	RangeSize = InLayout->ConstantBufferSize;
 }
 
@@ -462,7 +457,7 @@ FOpenGLUniformBuffer::~FOpenGLUniformBuffer()
 
 			FScopeLock Lock(&GGLUniformBufferPoolCS);
 			
-			if (GUseEmulatedUniformBuffers && !GetLayout().bNoEmulatedUniformBuffer)
+			if (GUseEmulatedUniformBuffers && !EnumHasAnyFlags(GetLayout().Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer))
 			{
 				SafeGLEmulatedUniformBufferPools[SafeFrameIndex][BucketIndex][StreamedIndex].Add(NewEntry);
 			}
@@ -556,10 +551,9 @@ static FUniformBufferRHIRef CreateUniformBuffer(const void* Contents, const FRHI
 	// PersistentlyMappedBuffer initializes via IsSuballocatingUBOs path which will flush RHI commands. safe to use on RT thread.
 	uint8* PersistentlyMappedBuffer = NULL;
 
-	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !Layout->bNoEmulatedUniformBuffer;
+	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !EnumHasAnyFlags(Layout->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
 
-	check(IsInRenderingThread());
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	{
 		const bool bStreamDraw = (Usage == UniformBuffer_SingleDraw || Usage == UniformBuffer_SingleFrame);
@@ -629,7 +623,7 @@ static FOpenGLUniformBuffer* CreateUniformBufferView(FRHICommandListImmediate& R
 {
 	FOpenGLUniformBuffer* UniformBufferView = nullptr;
 	
-	if (Layout->bUniformView)
+	if (EnumHasAnyFlags(Layout->Flags, ERHIUniformBufferFlags::UniformView))
 	{
 		UniformBufferView = new FOpenGLUniformBuffer(Layout);
 		UniformBufferView->SetLayoutTable(Contents, EUniformBufferValidation::None);
@@ -673,8 +667,7 @@ static FOpenGLUniformBuffer* CreateUniformBufferView(FRHICommandListImmediate& R
 
 FUniformBufferRHIRef FOpenGLDynamicRHI::RHICreateUniformBuffer(const void* Contents, const FRHIUniformBufferLayout* Layout, EUniformBufferUsage Usage, EUniformBufferValidation Validation)
 {
-	check(IsInRenderingThread());
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	// This should really be synchronized, if there's a chance it'll be used from more than one buffer. Luckily, uniform buffers
 	// are only used for drawing/shader usage, not for loading resources or framebuffer blitting, so no synchronization primitives for now.
@@ -694,7 +687,7 @@ FUniformBufferRHIRef FOpenGLDynamicRHI::RHICreateUniformBuffer(const void* Conte
 		return UniformBufferView;
 	}
 
-	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !Layout->bNoEmulatedUniformBuffer;
+	bool bUseEmulatedUBs = GUseEmulatedUniformBuffers && !EnumHasAnyFlags(Layout->Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
 
 	bool bStreamDraw = (Usage == UniformBuffer_SingleDraw || Usage == UniformBuffer_SingleFrame);
 	GLuint AllocatedResource = 0;

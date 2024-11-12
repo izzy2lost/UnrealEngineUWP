@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
 using EpicGames.Core;
@@ -17,7 +18,7 @@ namespace Jupiter.Implementation
 	[TypeConverter(typeof(BlobIdentifierTypeConverter))]
 	[JsonConverter(typeof(BlobIdentifierJsonConverter))]
 	[CbConverter(typeof(BlobIdentifierCbConverter))]
-	public class BlobId : ContentHash,  IEquatable<BlobId>
+	public class BlobId : ContentHash, IEquatable<BlobId>
 	{
 		// multi thread the hashing for blobs larger then this size
 		private const int MultiThreadedSize = 1_000_000;
@@ -65,7 +66,7 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			return Equals((BlobId) obj);
+			return Equals((BlobId)obj);
 		}
 
 		public override string ToString()
@@ -93,7 +94,7 @@ namespace Jupiter.Implementation
 				hasher.UpdateWithJoin(blobMemory);
 				blake3Hash = hasher.Finalize();
 			}
-			
+
 			// we only keep the first 20 bytes of the Blake3 hash
 			Span<byte> hash = blake3Hash.AsSpan().Slice(0, 20);
 			return new BlobId(hash.ToArray());
@@ -125,7 +126,7 @@ namespace Jupiter.Implementation
 			return new BlobId(testObjectHash.HashData);
 		}
 
-		public static async Task<BlobId> FromStreamAsync(Stream stream)
+		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken = default)
 		{
 			using Hasher hasher = Hasher.New();
 
@@ -134,11 +135,11 @@ namespace Jupiter.Implementation
 
 			try
 			{
-				int read = await stream.ReadAsync(buffer, 0, buffer.Length);
+				int read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
 				while (read > 0)
 				{
 					hasher.UpdateWithJoin(new ReadOnlySpan<byte>(buffer, 0, read));
-					read = await stream.ReadAsync(buffer, 0, buffer.Length);
+					read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
 				}
 				Hash blake3Hash = hasher.Finalize();
 
@@ -166,22 +167,22 @@ namespace Jupiter.Implementation
 	public class BlobIdentifierTypeConverter : TypeConverter
 	{
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
-		{  
-			if (sourceType == typeof(string))  
-			{  
+		{
+			if (sourceType == typeof(string))
+			{
 				return true;
-			}  
+			}
 			return base.CanConvertFrom(context, sourceType);
-		}  
-  
-		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)  
+		}
+
+		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
 		{
 			if (value is string s)
 			{
 				return new BlobId(s);
 			}
 
-			return base.ConvertFrom(context, culture, value);  
+			return base.ConvertFrom(context, culture, value);
 		}
 
 		public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)

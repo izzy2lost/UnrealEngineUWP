@@ -9,7 +9,7 @@
  * A material expression that rotates a vector2 value about the origin in 2D.
  */
 UCLASS(collapsecategories, hidecategories = Object, MinimalAPI, meta = (Private))
-class UMaterialExpressionMaterialXRotate2D : public UMaterialExpression
+class UE_DEPRECATED(5.5, "UMaterialExpressionMaterialXRotate2D is now deprecated, please use UMaterialExpressionRotator") UMaterialExpressionMaterialXRotate2D : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
 

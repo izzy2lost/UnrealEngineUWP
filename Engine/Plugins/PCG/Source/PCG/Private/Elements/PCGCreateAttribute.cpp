@@ -297,7 +297,7 @@ bool FPCGAddAttributeElement::ExecuteInternal(FPCGContext* Context) const
 				continue;
 			}
 
-			UPCGData* OutputData = InData->DuplicateData();
+			UPCGData* OutputData = InData->DuplicateData(Context);
 			check(OutputData);
 			UPCGMetadata* OutputMetadata = OutputData->MutableMetadata();
 			if (!PCGCreateAttribute::ClearOrCreateAttribute(Settings->AttributeTypes, OutputMetadata, OutputAttributeName))
@@ -342,7 +342,7 @@ bool FPCGAddAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGData* TargetData = InputData->DuplicateData();
+		UPCGData* TargetData = InputData->DuplicateData(Context);
 		FPCGTaggedData& Output = Context->OutputData.TaggedData.Add_GetRef(Inputs[i]);
 
 		bool bSuccess = true;
@@ -389,7 +389,7 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 
 	FName OutputAttributeName = Settings->OutputTarget.GetName();
 
-	UPCGParamData* OutputData = NewObject<UPCGParamData>();
+	UPCGParamData* OutputData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	check(OutputData && OutputData->Metadata);
 	OutputData->Metadata->AddEntry();
 

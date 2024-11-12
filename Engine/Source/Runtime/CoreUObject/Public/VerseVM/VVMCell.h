@@ -56,7 +56,7 @@ struct VCell
 
 	COREUOBJECT_API VCell(FAccessContext, const VEmergentType* EmergentType);
 
-	const VEmergentType* GetEmergentType() const;
+	VEmergentType* GetEmergentType() const;
 	const VCppClassInfo* GetCppClassInfo() const;
 
 	// FIXME: In the future maybe these will take a FRunningContext or FAccessContext rather than
@@ -69,10 +69,11 @@ struct VCell
 	void VisitReferences(FAbstractVisitor& Visitor);
 	COREUOBJECT_API void ConductCensus();
 	COREUOBJECT_API void RunDestructor();
-	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
-	COREUOBJECT_API FOpResult Melt(FRunningContext Context);
-	COREUOBJECT_API FOpResult Freeze(FRunningContext Context);
-	bool IsDeeplyMutable() { return Misc2 & DeeplyMutableTag; }
+	COREUOBJECT_API bool Equal(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API VValue Melt(FAllocationContext Context);
+	COREUOBJECT_API VValue Freeze(FAllocationContext Context);
+	COREUOBJECT_API bool Subsumes(FAllocationContext Context, VValue);
+	bool IsDeeplyMutable() const { return Misc2 & DeeplyMutableTag; }
 	bool SetIsDeeplyMutable() { return Misc2 |= DeeplyMutableTag; }
 
 private:
@@ -114,11 +115,7 @@ protected:
 	COREUOBJECT_API void ConductCensusImpl();
 
 	// Override this if your cell requries deep comparison (simple comparisons should be inlined in VValue::Equal).
-	//
-	// Note: Using this override may invoke a TLS lookup to acquire the FRunningContext which is expensive.
-	// Deep comparisons typically will require a FRunningContext anyways but it is worth checking this is
-	// the case each time this is implemented.
-	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API bool EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
 	// Override this if your cell requires deep copying.
 	//
@@ -126,10 +123,12 @@ protected:
 	// We can ignore the possibility that the skipped 'freeze' could error on placeholders
 	// as the mutable data we are operating on requires all values be concrete on creation
 	// or we would've suspended.
-	COREUOBJECT_API FOpResult MeltImpl(FRunningContext Context);
+	COREUOBJECT_API VValue MeltImpl(FAllocationContext Context);
 
 	// Override this if your cell is a mutable representation and requires deep copying.
-	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
+	COREUOBJECT_API VValue FreezeImpl(FAllocationContext Context);
+
+	COREUOBJECT_API bool SubsumesImpl(FAllocationContext, VValue);
 
 	// Override this if your cell subtype requires a deep hash.
 	COREUOBJECT_API uint32 GetTypeHashImpl();

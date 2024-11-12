@@ -105,7 +105,9 @@ namespace PerfSummaries
 			CsvStatAverage,
 			CsvMetadata,
 			SummaryTableMetric,
-			ToolMetadata
+			ToolMetadata,
+			COUNT,
+			ANY=COUNT				
 		};
 
 		public enum Flags
@@ -521,7 +523,6 @@ namespace PerfSummaries
 
 		public SummaryTableRowData(Dictionary<string, dynamic> jsonDict)
 		{
-			var DataTypes = Enum.GetValues(typeof(SummaryTableElement.Type));
 			foreach (string dataTypeStr in jsonDict.Keys)
 			{
 				if ( Enum.TryParse(dataTypeStr, out SummaryTableElement.Type dataType) )
@@ -550,7 +551,10 @@ namespace PerfSummaries
 				var DataTypes = Enum.GetValues(typeof(SummaryTableElement.Type));
 				foreach (SummaryTableElement.Type dataType in DataTypes)
 				{
-					DictOut[dataType.ToString()] = new Dictionary<string, dynamic>();
+					if (dataType != SummaryTableElement.Type.COUNT)
+					{
+						DictOut[dataType.ToString()] = new Dictionary<string, dynamic>();
+					}
 				}
 			}
 

@@ -11,6 +11,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"CoreUObject",
+					"ApplicationCore",
 					"Engine",
 					"AssetTools",
 					"UnrealEd",
@@ -18,6 +19,7 @@ namespace UnrealBuildTool.Rules
 					"AnimNextUncookedOnly",
 					"UnrealEd",
 					"SlateCore",
+					"AnimationCore",
 					"Slate",
 					"InputCore",
 					"PropertyEditor",
@@ -33,7 +35,6 @@ namespace UnrealBuildTool.Rules
 					"AssetDefinition",
 					"SourceControl", 
 					"KismetWidgets",
-					"StructUtils",
 					"StructUtilsEditor",
 					"BlueprintGraph",	// For K2 Schema
 					"DesktopWidgets",
@@ -41,6 +42,13 @@ namespace UnrealBuildTool.Rules
 					"SubobjectEditor",
 					"Settings",
 					"EditorWidgets",
+					"WorkspaceEditor",
+					"ContentBrowser",
+					"UniversalObjectLocator",
+					"UniversalObjectLocatorEditor",
+					"Kismet",
+					"AdvancedWidgets", 
+					"SceneOutliner",
 				}
 			);
 		}

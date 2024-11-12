@@ -235,6 +235,13 @@ public:
 	static void OnShowMaterialInContentBrowser(const FAssetData InMaterial);
 	static void OnShowFunctionInContentBrowser(const FAssetData InFunction);
 
+	/**
+	 * Triggers a refresh or redraw for post process preview materials and material instances.  A refresh is useful when a material generating a UserSceneTexture
+	 * output is loaded or unloaded.  Other loaded materials that have UserSceneTexture inputs may include the material in question in their preview, which
+	 * necessitates a refresh.  A redraw is useful when debug settings change that may affect post process material viewports.
+	 */
+	static void RefreshPostProcessPreviewMaterials(UMaterialInterface* ExcludeMaterialInterface, bool bRedrawOnly = false);
+
 private:
 
 	static void OpenSelectedParentEditor(UMaterialFunctionInterface* InMaterialFunction);

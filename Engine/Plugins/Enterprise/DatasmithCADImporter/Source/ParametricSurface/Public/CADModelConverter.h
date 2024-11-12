@@ -31,6 +31,10 @@ struct FMeshParameters;
  *
  * In a second step, the saved file is associated to its UStaticMesh with AddSurfaceDataForMesh function
  */
+struct FCADModelGeometry
+{
+	int32 Type = -1;
+};
 
 class ICADModelConverter
 {
@@ -40,7 +44,7 @@ public:
 	virtual void InitializeProcess() = 0;
 
 	virtual bool RepairTopology() = 0;
-	virtual bool SaveModel(const TCHAR* OutputPath, TSharedRef<IDatasmithMeshElement>& MeshElement) = 0;
+	virtual bool SaveModel(const TCHAR* OutputPath, TSharedPtr<IDatasmithMeshElement> MeshElement) = 0;
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) = 0;
 
 	/**
@@ -54,6 +58,7 @@ public:
 	 */
 	virtual void SetImportParameters(double ChordTolerance, double MaxEdgeLength, double NormalTolerance, CADLibrary::EStitchingTechnique StitchingTechnique) = 0;
 
+	virtual bool AddGeometry(const FCADModelGeometry& Geometry) = 0;
 	virtual bool IsSessionValid() = 0;
 
 	virtual void AddSurfaceDataForMesh(const TCHAR* InFilePath, const FMeshParameters& InMeshParameters, const FDatasmithTessellationOptions& InTessellationOptions, FDatasmithMeshElementPayload& OutMeshPayload) const = 0;

@@ -23,6 +23,8 @@
 #include "Scene/InterchangeActorFactory.h"
 #include "Scene/InterchangeCameraActorFactory.h"
 #include "Scene/InterchangeSceneImportAssetFactory.h"
+#include "Scene/InterchangeLevelFactory.h"
+#include "Scene/InterchangeLevelInstanceActorFactory.h"
 #include "Scene/InterchangeLightActorFactory.h"
 #include "Scene/InterchangeSceneVariantSetsFactory.h"
 #include "Scene/InterchangeStaticMeshActorFactory.h"
@@ -33,9 +35,9 @@
 #include "Texture/InterchangeIESTranslator.h"
 #include "Texture/InterchangeJPGTranslator.h"
 #include "Texture/InterchangeUEJPEGTranslator.h"
-#include "Texture/InterchangePCXTranslator.h"
 #include "Texture/InterchangePSDTranslator.h"
 #include "Texture/InterchangeTextureFactory.h"
+#include "Usd/InterchangeUsdTranslator.h"
 
 DEFINE_LOG_CATEGORY(LogInterchangeImport);
 
@@ -81,6 +83,7 @@ void FInterchangeImportModule::StartupModule()
 		UInterchangeFbxTranslator::CleanUpTemporaryFolder();
 		InterchangeManager.RegisterTranslator(UInterchangeFbxTranslator::StaticClass());
 #endif
+		InterchangeManager.RegisterTranslator(UInterchangeUSDTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeGLTFTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeOBJTranslator::StaticClass());
 
@@ -92,7 +95,6 @@ void FInterchangeImportModule::StartupModule()
 		InterchangeManager.RegisterTranslator(UInterchangeDDSTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeUEJPEGTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeJPGTranslator::StaticClass());
-		InterchangeManager.RegisterTranslator(UInterchangePCXTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangePSDTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeIESTranslator::StaticClass());
 
@@ -105,6 +107,8 @@ void FInterchangeImportModule::StartupModule()
 		InterchangeManager.RegisterFactory(UInterchangeStaticMeshFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangePhysicsAssetFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeActorFactory::StaticClass());
+		InterchangeManager.RegisterFactory(UInterchangeLevelFactory::StaticClass());
+		InterchangeManager.RegisterFactory(UInterchangeLevelInstanceActorFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeLevelSequenceFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeAnimSequenceFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeCineCameraActorFactory::StaticClass());

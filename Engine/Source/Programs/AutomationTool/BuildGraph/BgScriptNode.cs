@@ -1,26 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Xml;
-using System.Xml.Schema;
-using AutomationTool.Tasks;
-using EpicGames.BuildGraph;
-using EpicGames.BuildGraph.Expressions;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
-using OpenTracing;
-using OpenTracing.Util;
-
 #nullable enable
 
 namespace AutomationTool

@@ -26,15 +26,6 @@ namespace Audio
 	{
 		// Set the base-class NumChannels to wave's NumChannels
 		NumChannels = InWave->NumChannels;
-
-		if (InBufferType != EBufferType::PCMRealTime && (InWave->DecompressionType == EDecompressionType::DTYPE_Native || InWave->DecompressionType == EDecompressionType::DTYPE_Preview))
-		{
-			check(!InWave->RawPCMData || InWave->RawPCMDataSize);
-			Data = InWave->RawPCMData;
-			DataSize = InWave->RawPCMDataSize;
-			NumFrames = DataSize / (sizeof(int16) * NumChannels);
- 			InWave->RawPCMData = nullptr;
-		}
 	}
 
 	FMixerBuffer::~FMixerBuffer()
@@ -46,11 +37,6 @@ namespace Audio
 
 		if (DecompressionState)
 		{
-			if (BufferType == EBufferType::Streaming)
-			{
-				IStreamingManager::Get().GetAudioStreamingManager().RemoveDecoder(DecompressionState);
-			}
-
 			delete DecompressionState;
 			DecompressionState = nullptr;
 		}
@@ -220,33 +206,7 @@ namespace Audio
 				Buffer = Init(InAudioDevice, InWave, bForceRealtime);
 			}
 			break;
-
-			case DTYPE_Preview:
-			{
-				// Find any existing buffers
-				if (InWave->ResourceID)
-				{
-					Buffer = (FMixerBuffer*)AudioDeviceManager->GetSoundBufferForResourceID(InWave->ResourceID);
-				}
-
-				// Override with any new PCM data even if the buffer already exists
-				if (InWave->RawPCMData)
-				{
-					// If we already have a buffer for this wave resource, free it
-					if (Buffer)
-					{
-						AudioDeviceManager->FreeBufferResource(Buffer);
-					}
-
-					// Create a new preview buffer
-					Buffer = FMixerBuffer::CreatePreviewBuffer(InAudioDevice, InWave);
-
-					// Track the new created buffer
-					AudioDeviceManager->TrackResource(InWave, Buffer);
-				}
-			}
-			break;
-
+		
 			case DTYPE_Procedural:
 			{
 				// Always create a new buffer for procedural or bus buffers
@@ -260,25 +220,7 @@ namespace Audio
 				Buffer = FMixerBuffer::CreateRealTimeBuffer(InAudioDevice, InWave);
 			}
 			break;
-
-			case DTYPE_Native:
-			{
-				if (InWave->ResourceID)
-				{
-					Buffer = (FMixerBuffer*)AudioDeviceManager->GetSoundBufferForResourceID(InWave->ResourceID);
-				}
-
-				if (Buffer == nullptr)
-				{
-					Buffer = FMixerBuffer::CreateNativeBuffer(InAudioDevice, InWave);
-
-					// Track the resource with the audio device manager
-					AudioDeviceManager->TrackResource(InWave, Buffer);
-					InWave->RemoveAudioResource();
-				}
-			}
-			break;
-
+			
 			case DTYPE_Streaming:
 			{
 				Buffer = FMixerBuffer::CreateStreamingBuffer(InAudioDevice, InWave);

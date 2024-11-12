@@ -4,7 +4,7 @@
 
 #include "EngineDefines.h"
 #include "Engine/EngineTypes.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "Misc/Guid.h"
 #include "PropertyBindingPath.generated.h"
 

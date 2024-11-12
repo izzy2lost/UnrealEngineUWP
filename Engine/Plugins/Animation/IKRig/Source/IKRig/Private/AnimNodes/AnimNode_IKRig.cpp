@@ -30,13 +30,13 @@ void FAnimNode_IKRig::Evaluate_AnyThread(FPoseContext& Output)
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 	ANIM_MT_SCOPE_CYCLE_COUNTER_VERBOSE(IKRig, !IsInGameThread());
 
-	if (Source.GetLinkNode() && !bStartFromRefPose)
-	{
-		Source.Evaluate(Output);
-	}
-	else
+	if (bStartFromRefPose)
 	{
 		Output.ResetToRefPose();
+	}
+	else if (Source.GetLinkNode())
+	{
+		Source.Evaluate(Output);
 	}
 
 	if (!(RigDefinitionAsset && IKRigProcessor))

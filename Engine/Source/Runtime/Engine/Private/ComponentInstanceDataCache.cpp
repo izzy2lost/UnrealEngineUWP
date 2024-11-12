@@ -544,9 +544,9 @@ void FActorComponentInstanceData::ApplyToComponent(UActorComponent* Component, c
 			{
 				if (UObject* OtherObject = StaticFindObjectFast(nullptr, Component, DuplicatedObjectData.DuplicatedObject->GetFName()))
 				{
-					OtherObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+					OtherObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 				}
-				DuplicatedObjectData.DuplicatedObject->Rename(nullptr, Component, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+				DuplicatedObjectData.DuplicatedObject->Rename(nullptr, Component, REN_DontCreateRedirectors);
 			}
 		}
 

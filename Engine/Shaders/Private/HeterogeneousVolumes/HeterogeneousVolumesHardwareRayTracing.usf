@@ -193,6 +193,10 @@ RAY_TRACING_ENTRY_MISS(SparseVoxelsMissShader,
 	Payload.SetMiss();
 }
 
+// These variables are only used by the ray gen shaders below
+// Investigate why MipLevel isn't dead stripped when building the shaders above (see UE-218402).
+#if RAYGENSHADER
+
 // Scene
 RaytracingAccelerationStructure TLAS;
 
@@ -338,7 +342,7 @@ RAY_TRACING_ENTRY_RAYGEN(SparseVoxelsRayGenerationShader1)
 
 	// Intersect ray with bounding volume
 	// TODO: LWC integration..
-	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
+	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(PixelCoord + 0.5), PrimaryView.PreViewTranslation));
 	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + 0.5, DeviceZ, 1)));
 	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 	float WorldRayLength = length(WorldRayDirection); // SceneDepth
@@ -400,6 +404,11 @@ float3 ComputeTransmittanceHardwareRayTracing(
 	FSparseVoxelPayload Payload = CreateSparseVoxelPayload();
 	TraceVolumeShadowRay(ShadowRay, Payload);
 	return Payload.GetTransmittance();
+}
+
+float EvalAmbientOcclusion(float3 WorldPosition)
+{
+	return 1.0;
 }
 
 #define HARDWARE_RAY_TRACING 1
@@ -504,7 +513,7 @@ RAY_TRACING_ENTRY_RAYGEN(RenderSingleScatteringWithPreshadingRGS)
 
 	// Intersect ray with bounding volume
 	// TODO: LWC integration..
-	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
+	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(PixelCoord + 0.5), PrimaryView.PreViewTranslation));
 	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + 0.5, DeviceZ, 1)));
 	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 	float WorldRayLength = length(WorldRayDirection);
@@ -592,6 +601,7 @@ RAY_TRACING_ENTRY_RAYGEN(RenderSingleScatteringWithPreshadingRGS)
 	}
 
 	// Output..
-	float3 Opacity = bApplyEmissionAndTransmittance ? 1.0 - Transmittance : 0.0;
-	RWLightingTexture[PixelCoord] += float4(Radiance * View.PreExposure, Luminance(Opacity));
+	RWLightingTexture[PixelCoord] += float4(Radiance * View.PreExposure, Luminance(Transmittance));
 }
+
+#endif  // RAYGENSHADER

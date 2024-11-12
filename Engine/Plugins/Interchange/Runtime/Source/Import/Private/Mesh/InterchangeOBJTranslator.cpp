@@ -30,6 +30,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeOBJTranslator)
 
+#define LOCTEXT_NAMESPACE "InterchangeOBJTranslator"
+
 static bool GInterchangeEnableOBJImport = true;
 static FAutoConsoleVariableRef CCvarInterchangeEnableOBJImport(
 	TEXT("Interchange.FeatureFlags.Import.OBJ"),
@@ -1313,7 +1315,7 @@ bool UInterchangeOBJTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 		{
 			UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
 			ErrorResult->SourceAssetName = FPaths::GetBaseFilename(Filename);
-			ErrorResult->Text = NSLOCTEXT("InterchangeOBJTranslator", "EmptyFileError", "The OBJ file appears to be empty.");
+			ErrorResult->Text = LOCTEXT("EmptyFileError", "The OBJ file appears to be empty.");
 
 			return false;
 		}
@@ -1579,25 +1581,20 @@ bool UInterchangeOBJTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 }
 
 
-TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeOBJTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional<UE::Interchange::FMeshPayloadData> UInterchangeOBJTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
-	return Async(EAsyncExecution::TaskGraph, [this, PayLoadKey, MeshGlobalTransform]
-		{
-			using namespace UE::Interchange;
+	using namespace UE::Interchange;
 
-			FMeshPayloadData Payload;
-			Payload.MeshDescription = ObjDataPtr->MakeMeshDescriptionForGroup(PayLoadKey.UniqueId, MeshGlobalTransform);
+	FMeshPayloadData Payload;
+	Payload.MeshDescription = ObjDataPtr->MakeMeshDescriptionForGroup(PayLoadKey.UniqueId, MeshGlobalTransform);
 
-			if (!FStaticMeshOperations::ValidateAndFixData(Payload.MeshDescription, PayLoadKey.UniqueId))
-			{
-				UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
-				ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
-				ErrorResult->Text = NSLOCTEXT("UInterchangeOBJTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
-			}
-
-			return TOptional<FMeshPayloadData>(Payload);
-		}
-	);
+	if (!FStaticMeshOperations::ValidateAndFixData(Payload.MeshDescription, PayLoadKey.UniqueId))
+	{
+		UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+		ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+		ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
+	}
+	return Payload;
 }
 
 
@@ -1619,4 +1616,4 @@ TOptional<UE::Interchange::FImportImage> UInterchangeOBJTranslator::GetTexturePa
 	return TextureTranslator->GetTexturePayloadData(PayLoadKey, AlternateTexturePath);
 }
 
-
+#undef LOCTEXT_NAMESPACE

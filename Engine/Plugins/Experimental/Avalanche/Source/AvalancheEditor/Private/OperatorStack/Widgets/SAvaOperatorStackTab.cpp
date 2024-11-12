@@ -3,8 +3,10 @@
 #include "SAvaOperatorStackTab.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "Components/PropertyAnimatorCoreComponent.h"
 #include "Contexts/OperatorStackEditorContext.h"
 #include "DetailView/IAvaDetailsProvider.h"
+#include "Editor.h"
 #include "EditorModeManager.h"
 #include "Items/OperatorStackEditorItem.h"
 #include "Items/OperatorStackEditorObjectItem.h"
@@ -20,7 +22,7 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 	, const TSharedPtr<IAvaDetailsProvider>& InProvider)
 {
 	DetailsProviderWeak = InProvider;
-	
+
 	UOperatorStackEditorSubsystem* OperatorStackSubsystem = UOperatorStackEditorSubsystem::Get();
 
 	check(InProvider.IsValid() && OperatorStackSubsystem);
@@ -28,21 +30,22 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 	USelection::SelectionChangedEvent.AddSP(this, &SAvaOperatorStackTab::RefreshSelection);
 
 	// Modifiers delegates
-	UActorModifierCoreStack::OnModifierAddedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
-	UActorModifierCoreStack::OnModifierMovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierAdded().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierMoved().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierRemoved().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierReplaced().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
 
 	// Property controllers delegates
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.AddSP(this, &SAvaOperatorStackTab::OnControllerUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnControllerUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.AddSP(this, &SAvaOperatorStackTab::OnControllerUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().AddSP(this, &SAvaOperatorStackTab::OnAnimatorRemoved);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
 
 	const TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InProvider->GetDetailsKeyframeHandler();
-	
+
 	OperatorStack = OperatorStackSubsystem->GenerateWidget();
 	OperatorStack->SetKeyframeHandler(KeyframeHandler);
 	OperatorStack->SetPanelTag(SAvaOperatorStackTab::PanelTag);
-	
+
 	ChildSlot
 	[
 		OperatorStack.ToSharedRef()
@@ -54,14 +57,15 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 SAvaOperatorStackTab::~SAvaOperatorStackTab()
 {
 	USelection::SelectionChangedEvent.RemoveAll(this);
-	
-	UActorModifierCoreStack::OnModifierAddedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierMovedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.RemoveAll(this);
-	
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.RemoveAll(this);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.RemoveAll(this);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.RemoveAll(this);
+
+	UActorModifierCoreStack::OnModifierAdded().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierMoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierRemoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierReplaced().RemoveAll(this);
+
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().RemoveAll(this);
 }
 
 void SAvaOperatorStackTab::RefreshSelection(UObject* InSelectionObject) const
@@ -71,7 +75,7 @@ void SAvaOperatorStackTab::RefreshSelection(UObject* InSelectionObject) const
 	{
 		return;
 	}
-	
+
 	FEditorModeTools* ModeTools = DetailsProvider->GetDetailsModeTools();
 	if (!ModeTools)
 	{
@@ -98,12 +102,43 @@ void SAvaOperatorStackTab::RefreshSelection(UObject* InSelectionObject) const
 
 void SAvaOperatorStackTab::OnModifierUpdated(UActorModifierCoreBase* InUpdatedItem) const
 {
-	RefreshCurrentSelection(InUpdatedItem);
+	if (InUpdatedItem)
+	{
+		RefreshCurrentSelection(InUpdatedItem->GetRootModifierStack());
+	}
 }
 
-void SAvaOperatorStackTab::OnControllerUpdated(UPropertyAnimatorCoreBase* InController) const
+void SAvaOperatorStackTab::OnAnimatorUpdated(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InUpdatedItem) const
 {
-	RefreshCurrentSelection(InController);
+	if (InComponent)
+	{
+		RefreshCurrentSelection(InComponent);
+	}
+}
+
+void SAvaOperatorStackTab::OnAnimatorRemoved(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InRemovedItem) const
+{
+	if (!GEditor)
+	{
+		return;
+	}
+
+	if (USelection* SelectionSet = GEditor->GetSelectedObjects())
+	{
+		if (SelectionSet->CountSelections(UPropertyAnimatorCoreComponent::StaticClass())
+			|| SelectionSet->CountSelections(UPropertyAnimatorCoreBase::StaticClass()))
+		{
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this, SelectionSet](float)
+			{
+				RefreshSelection(SelectionSet);
+				return false;
+			}));
+		}
+		else
+		{
+			OnAnimatorUpdated(InComponent, InRemovedItem);
+		}
+	}
 }
 
 void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) const
@@ -113,14 +148,14 @@ void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) cons
 	{
 		return;
 	}
-	
+
 	FEditorModeTools* ModeTools = DetailsProvider->GetDetailsModeTools();
 	if (!InObject || !OperatorStack.IsValid() || !ModeTools)
 	{
 		return;
 	}
 
-	const AActor* OwningActor = InObject->GetTypedOuter<AActor>();
+	AActor* OwningActor = InObject->GetTypedOuter<AActor>();
 	if (!OwningActor)
 	{
 		return;
@@ -138,8 +173,8 @@ void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) cons
 		return;
 	}
 
-	const TArray<AActor*> SelectedActors = EditorSelection.GetSelectedObjects<AActor, EAvaSelectionSource::All>();
-	if (!SelectedActors.Contains(OwningActor))
+	const TArray<UObject*> SelectedObjects = EditorSelection.GetSelectedObjects<UObject, EAvaSelectionSource::All>();
+	if (!SelectedObjects.Contains(OwningActor) && !SelectedObjects.Contains(InObject))
 	{
 		return;
 	}

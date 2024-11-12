@@ -8,6 +8,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/Paths.h"
+#include "SVGActor.h"
 #include "SVGImporterUtils.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -148,6 +149,8 @@ void UJoinedSVGDynamicMeshComponent::LoadStoredMesh()
 	{
 		StoreCurrentMesh();
 	}
+
+	MarkSVGMeshUpdated();
 }
 
 void UJoinedSVGDynamicMeshComponent::PostLoad()
@@ -226,7 +229,7 @@ void UJoinedSVGDynamicMeshComponent::LoadMaterialSetParameters()
 
 		if (const TObjectPtr<UMaterialInstanceDynamic>& Material = ShapesMaterials[MaterialID])
 		{
-			FLinearColor ColorToApply;
+			FLinearColor ColorToApply = FLinearColor::Black;
 
 			switch (Coloring)
 			{
@@ -273,7 +276,7 @@ void UJoinedSVGDynamicMeshComponent::UpdateMaterials(bool bInRefreshInstances)
 		{
 			UMaterialInstanceDynamic* NewMaterial = CreateAndSetMaterialInstanceDynamicFromMaterial(MaterialID, CurrentMaterial);
 
-			FLinearColor ColorToApply;
+			FLinearColor ColorToApply = FLinearColor::Black;
 
 			switch (Coloring)
 			{

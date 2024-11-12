@@ -16,19 +16,20 @@
 	template<> \
 	struct DLL_API ::Metasound::TEnvironmentVariableTypeInfo<VarType> \
 	{ \
-		typedef VarType Type; \
-		static const FMetasoundEnvironmentVariableTypeId TypeId; \
-		\
 	private: \
 		\
-		static const VarType* const TypePtr; \
+		static VarType* TypePtr; \
+	public: \
+		typedef VarType Type; \
+		static FMetasoundEnvironmentVariableTypeId GetTypeId(); \
 	};
 
 #define DEFINE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(VarType) \
-	const VarType* const ::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr = nullptr; \
-	const void* const ::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypeId = static_cast<const FMetasoundEnvironmentVariableTypeId>(&::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr);
+	VarType* ::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr = nullptr; \
+	void const* const ::Metasound::TEnvironmentVariableTypeInfo<VarType>::GetTypeId() { return static_cast<FMetasoundEnvironmentVariableTypeId>(&::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr); }
+
 	
-using FMetasoundEnvironmentVariableTypeId = void const*;
+using FMetasoundEnvironmentVariableTypeId = void const* const;
 
 namespace Metasound
 {
@@ -62,7 +63,7 @@ namespace Metasound
 	{
 		using FTypeInfo = TEnvironmentVariableTypeInfo< std::decay_t<Type> >;
 
-		return FTypeInfo::TypeId;
+		return FTypeInfo::GetTypeId();
 	}
 
 	/** Interface for a metasound environment variable which supports
@@ -251,9 +252,42 @@ namespace Metasound
 			Variables.Add(InVariableName, MakeUnique<TMetasoundEnvironmentVariable<VarType>>(InVariableName, InValue));
 		}
 
+		/** Sets the environment variable data from a given environment variable
+		 * 
+		 * @param InValue - Environment variable to set.
+		 */
+		void SetValue(TUniquePtr<IMetasoundEnvironmentVariable> InValue)
+		{
+			Variables.Add(InValue->GetName(), MoveTemp(InValue));
+		}
+
+		using FRangedForConstIteratorType = TSortedMap<FName, TUniquePtr<IMetasoundEnvironmentVariable>, FDefaultAllocator, FNameFastLess>::RangedForConstIteratorType;
+		FRangedForConstIteratorType begin() const
+		{
+			return Variables.begin();
+		}
+
+		FRangedForConstIteratorType end() const
+		{
+			return Variables.end();
+		}
+
 	private:
 		TSortedMap<FName, TUniquePtr<IMetasoundEnvironmentVariable>, FDefaultAllocator, FNameFastLess> Variables;
 	};
+
+	namespace CoreInterface
+	{
+		namespace Environment
+		{
+			// The InstanceID acts as an external ID for communicating and in and out of MetaSounds. Each MetaSound
+			// has a unique InstanceID
+			METASOUNDGRAPHCORE_API const extern FLazyName InstanceID;
+
+			// An array representing the graph hierarchy.
+			METASOUNDGRAPHCORE_API const extern FLazyName GraphHierarchy;
+		}
+	}
 }
 
 /** Declare basic set of variable types. */
@@ -271,4 +305,4 @@ DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, float);
 DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, double);
 DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, FString);
 DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, FName);
-
+DECLARE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(METASOUNDGRAPHCORE_API, TArray<FGuid>);

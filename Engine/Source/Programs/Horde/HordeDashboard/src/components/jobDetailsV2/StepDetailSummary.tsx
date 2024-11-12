@@ -1,5 +1,5 @@
 
-import { Stack, Text } from '@fluentui/react';
+import { Label, Stack, Text } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import { JobStepError, JobStepOutcome, JobStepState, ReportPlacement } from '../../backend/Api';
@@ -72,8 +72,7 @@ const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string): strin
 
       batchIncluded = true;
 
-      const group = jobDetails.groups[batch!.groupIdx];
-      const agentType = group?.agentType;
+      const agentType = batch?.agentType;
       const agentPool = jobDetails.stream?.agentTypes[agentType!]?.pool;
       return getBatchText({ batch: batch, agentType: agentType, agentPool: agentPool });
 
@@ -113,7 +112,7 @@ const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string): strin
          aborted = "The job was canceled";
          aborted += ` by ${jobData?.abortedByUserInfo.name}.`;
       } else {
-         aborted = "The step was canceled";
+         aborted = "This step was canceled by Horde";
 
          if (step.error === JobStepError.TimedOut) {
             aborted = "The step was canceled due to reaching the maximum run time limit";
@@ -228,6 +227,8 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
       }
    }
 
+   const step = jobDetails.stepById(stepId)!
+
    const reportData = jobDetails.getReportData(ReportPlacement.Summary, stepId);
 
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 0, paddingRight: 12 } }}>
@@ -242,6 +243,11 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
                <Stack style={{ color: modeColors.text }}>
                   <Markdown>{getStepSummaryMarkdown(jobDetails, stepId)}</Markdown>
                </Stack>
+               {!!step?.cancellationReason && <Stack style={{ color: modeColors.text, paddingTop: 12, paddingBottom: 12 }} tokens={{ childrenGap: 8 }}>
+                  <Label>Cancellation Reason</Label>
+                  <Markdown>{step.cancellationReason}</Markdown>
+               </Stack>
+               }
                {!!reportData && <Stack style={{ paddingTop: 8 }}> <Markdown>{reportData}</Markdown> </Stack>}
                {!!priceText && <Stack style={{ paddingTop: 8 }}>
                   <Text>{priceText}</Text>

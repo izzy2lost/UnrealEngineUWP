@@ -8,7 +8,7 @@ class UWidgetTree;
 class UUserWidget;
 class IDetailPropertyRow;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Just inlines the TMap (since the keys cannot be changed). */
 	class FVCamViewportLockerTypeCustomization : public IPropertyTypeCustomization

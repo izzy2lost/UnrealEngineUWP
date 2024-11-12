@@ -5,7 +5,7 @@
 #include "D3D12Resources.h"
 #include "RHICoreTransientResourceAllocator.h"
 
-extern D3D12_RESOURCE_STATES GetInitialResourceState(const D3D12_RESOURCE_DESC& InDesc);
+extern D3D12_RESOURCE_STATES GetInitialResourceState(const D3D12_RESOURCE_DESC& InDesc, ED3D12QueueType QueueType);
 
 class FD3D12TransientHeap final
 	: public FRHITransientHeap
@@ -27,15 +27,13 @@ class FD3D12TransientHeapCache final
 	, public FD3D12AdapterChild
 {
 public:
-	static TUniquePtr<FD3D12TransientHeapCache> Create(FD3D12Adapter* ParentAdapter, FRHIGPUMask VisibleNodeMask);
+	static TUniquePtr<FD3D12TransientHeapCache> Create(FD3D12Adapter* ParentAdapter);
 
 	//! FRHITransientResourceSystem Overrides
 	FRHITransientHeap* CreateHeap(const FRHITransientHeap::FInitializer& Initializer) override;
 
 private:
-	FD3D12TransientHeapCache(const FInitializer& Initializer, FD3D12Adapter* ParentAdapter, FRHIGPUMask VisibleNodeMask);
-
-	FRHIGPUMask VisibleNodeMask;
+	FD3D12TransientHeapCache(const FInitializer& Initializer, FD3D12Adapter* ParentAdapter);
 };
 
 class FD3D12TransientResourceHeapAllocator final
@@ -55,8 +53,9 @@ public:
 		default: checkNoEntry(); return false;
 		}
 	}
-	FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override;
-	FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override;
+
+	FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& CreateInfo, const TCHAR* Name, const FRHITransientAllocationFences& Fences) override;
+	FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& CreateInfo, const TCHAR* Name, const FRHITransientAllocationFences& Fences) override;
 
 private:
 

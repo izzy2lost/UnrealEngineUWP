@@ -166,7 +166,7 @@ UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraCompo
 	return CameraId.IsEmpty() ? nullptr : RootActor->GetDefaultCamera();
 }
 
-bool FDisplayClusterViewport::SetupViewPoint(FMinimalViewInfo& InOutViewInfo)
+bool FDisplayClusterViewport::SetupViewPoint(const uint32 InContextNum, FMinimalViewInfo& InOutViewInfo)
 {
 	if (UDisplayClusterCameraComponent* SceneCameraComponent = GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene))
 	{
@@ -176,10 +176,30 @@ bool FDisplayClusterViewport::SetupViewPoint(FMinimalViewInfo& InOutViewInfo)
 		// The projection policy can override these ViewPoint data.
 		if (ProjectionPolicy.IsValid())
 		{
-			if (ADisplayClusterRootActor* SceneRootActor = Configuration->GetRootActor(EDisplayClusterRootActorType::Scene))
+			ProjectionPolicy->SetupProjectionViewPoint(this, Configuration->GetRootActorWorldDeltaSeconds(), InOutViewInfo, &CustomNearClippingPlane);
+		}
+
+		// Save additional data at this point:
+		if (Contexts.IsValidIndex(InContextNum))
+		{
+			FDisplayClusterViewport_Context& DestContext = Contexts[InContextNum];
+
+			// DoF FocalLength
+			if (InOutViewInfo.PostProcessSettings.DepthOfFieldFstop > 0.0f && InOutViewInfo.PostProcessSettings.DepthOfFieldFocalDistance > 0.0f)
 			{
-				const float DeltaTime = SceneRootActor->GetWorldDeltaSeconds();
-				ProjectionPolicy->SetupProjectionViewPoint(this, DeltaTime, InOutViewInfo, &CustomNearClippingPlane);
+				// Convert FOV to focal length,
+				// 
+				// fov = 2 * atan(d/(2*f))
+				// where,
+				//   d = sensor dimension (APS-C 24.576 mm)
+				//   f = focal length
+				// 
+				// f = 0.5 * d * (1/tan(fov/2))
+				const FMatrix ProjectionMatrix = InOutViewInfo.CalculateProjectionMatrix();
+				DestContext.DepthOfField.SensorFocalLength = 0.5f * InOutViewInfo.PostProcessSettings.DepthOfFieldSensorWidth * ProjectionMatrix.M[0][0];
+
+				// Save actual squeeze factor value
+				DestContext.DepthOfField.SqueezeFactor = FMath::Clamp(InOutViewInfo.PostProcessSettings.DepthOfFieldSqueezeFactor, 1.0f, 2.0f);
 			}
 		}
 
@@ -201,7 +221,9 @@ float FDisplayClusterViewport::GetStereoEyeOffsetDistance(const uint32 InContext
 		const float EyeOffsetValues[] = { -EyeOffset, 0.f, EyeOffset };
 
 		// Decode current eye type
-		const EDisplayClusterEyeType EyeType = (Contexts.Num() == 1)
+		// This function should work correctly even if the viewport context data is not currently initialized.
+		const int32 ViewPerViewportAmount = Configuration->GetRenderFrameSettings().GetViewPerViewportAmount();
+		const EDisplayClusterEyeType EyeType = (ViewPerViewportAmount < 2)
 			? EDisplayClusterEyeType::Mono
 			: (InContextNum == 0) ? EDisplayClusterEyeType::StereoLeft : EDisplayClusterEyeType::StereoRight;
 

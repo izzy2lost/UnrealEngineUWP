@@ -134,6 +134,7 @@ public:
 	 * @param InNeedsCPUAccess	True if resource array data should be accessible by the CPU.
 	 */
 	ENGINE_API FRawStaticIndexBuffer(bool InNeedsCPUAccess=false);
+	ENGINE_API virtual ~FRawStaticIndexBuffer();
 
 	/**
 	 * Copy everything, keeping reference to the same RHI resources.
@@ -278,16 +279,11 @@ public:
 	/** Create an RHI index buffer with CPU data. CPU data may be discarded after creation (see TResourceArray::Discard) */
 	FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Take over ownership of IntermediateBuffer */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher);
 
 	/** Release any GPU resource owned by the RHI object */
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	/**
 	 * Serialization.
@@ -336,6 +332,8 @@ public:
 
 	virtual void SerializeMetaData(FArchive& Ar) = 0;
 
+	virtual void SetMetaData(int32 InCachedNumIndices) = 0;
+
 	/**
 	 * The following methods are basically just accessors that allow us
 	 * to hide the implementation of FRawStaticIndexBuffer16or32 by making
@@ -362,8 +360,8 @@ protected:
 	ENGINE_API bool IsSRVNeeded(bool bAllowCPUAccess) const;
 
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, size_t IndexSize, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, size_t IndexSize, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	static ENGINE_API FBufferRHIRef CreateRHIIndexBufferInternal(
 		FRHICommandListBase& RHICmdList,
@@ -430,6 +428,11 @@ public:
 	virtual void SerializeMetaData(FArchive& Ar) override
 	{
 		Ar << CachedNumIndices;
+	}
+
+	virtual void SetMetaData(int32 InCachedNumIndices) override
+	{
+		CachedNumIndices = InCachedNumIndices;
 	}
 
 	/**
@@ -519,18 +522,13 @@ public:
 		return nullptr;
 	}
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 	{
 		FRawStaticIndexBuffer16or32Interface::InitRHIForStreaming(IntermediateBuffer, sizeof(INDEX_TYPE), Batcher);
 	}
 
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 	{
 		FRawStaticIndexBuffer16or32Interface::ReleaseRHIForStreaming(Batcher);
 	}

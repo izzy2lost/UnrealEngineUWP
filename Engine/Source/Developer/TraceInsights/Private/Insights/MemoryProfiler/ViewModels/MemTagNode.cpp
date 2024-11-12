@@ -2,10 +2,13 @@
 
 #include "MemTagNode.h"
 
-// Insights
+// TraceInsights
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 
-#define LOCTEXT_NAMESPACE "FMemTagNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemTagNode"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 INSIGHTS_IMPLEMENT_RTTI(FMemTagNode)
 
@@ -16,8 +19,8 @@ FText FMemTagNode::GetTrackerText() const
 	FMemorySharedState* SharedState = FMemoryProfilerManager::Get()->GetSharedState();
 	if (SharedState)
 	{
-		Insights::FMemoryTrackerId TrackerId = GetMemTrackerId();
-		const Insights::FMemoryTracker* Tracker = SharedState->GetTrackerById(TrackerId);
+		FMemoryTrackerId TrackerId = GetMemTrackerId();
+		const FMemoryTracker* Tracker = SharedState->GetTrackerById(TrackerId);
 		if (Tracker)
 		{
 			return FText::FromString(Tracker->GetName());
@@ -42,5 +45,7 @@ void FMemTagNode::SetAggregatedStats(const TraceServices::FMemoryProfilerAggrega
 }
 */
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

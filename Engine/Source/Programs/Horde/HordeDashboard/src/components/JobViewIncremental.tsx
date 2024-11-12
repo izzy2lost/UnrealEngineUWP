@@ -6,7 +6,7 @@ import moment from 'moment-timezone';
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useBackend } from '../backend';
-import { GetChangeSummaryResponse, GetJobsTabLabelColumnResponse, GetJobsTabParameterColumnResponse, JobData, JobsTabColumnType, JobsTabData, JobState, LabelData, LabelOutcome, LabelState, StreamData } from '../backend/Api';
+import { GetChangeSummaryResponse, GetJobsTabLabelColumnResponse, GetJobsTabParameterColumnResponse, GetLabelStateResponse, JobData, JobsTabColumnType, JobsTabData, JobState, LabelOutcome, LabelState, StreamData } from '../backend/Api';
 import { CommitCache } from '../backend/CommitCache';
 import dashboard from '../backend/Dashboard';
 import { JobHandler } from '../backend/JobHandler';
@@ -45,23 +45,27 @@ type JobGroup = {
 
 const commitCache = new CommitCache();
 
+ 
 const buildColumns = (jobTab: JobsTabData, streamId: string): IColumn[] => {
+
+   const startedByName = jobTab.showNames ? "Started By" : "Change";
 
    const fixedWidths: Record<string, number | undefined> = {
       "Status": 16, // note this doesn't have header text, and need to match the status dot width of 20 after sizing
-      "Time": 60,
-      "Author": 180,
+      "Time": 60,      
    };
+
+   fixedWidths[startedByName] = jobTab.showNames ? 180 : 32;
 
    const minWidths: Record<string, number | undefined> = {};
 
-   let cnames = ["Status", "Author"];
+   let cnames = ["Status", startedByName];
 
    if (jobTab.columns) {
 
       let total = 0;
       jobTab.columns.forEach(c => total += c.relativeWidth ?? 1);
-      const w = (940) / total;
+      const w = (jobTab.showNames ? 940 : 940 + 144) / total;
 
       jobTab.columns.forEach(c => { minWidths[c.heading] = w * (c.relativeWidth ?? 1); cnames.push(c.heading); });
    } else {
@@ -220,6 +224,8 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
       return <div />;
    }
 
+   const startedByName = jobTab.showNames ? "Started By" : "Change";
+
    const templateNames: Set<string> = new Set();
    jobTab.templates?.forEach(name => {
       templateNames.add(name);
@@ -340,7 +346,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
    const filterLabels = (job: JobData, category: string | undefined) => {
 
-      const labels = job.graphRef?.labels;
+      const labels = job.labels;
 
       if (!labels || !labels.length) {
          return [];
@@ -354,31 +360,30 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          return job.labels[idx].state !== LabelState.Unspecified;
       });
 
-      const unassigned: LabelData[] = [];
+      const unassigned: GetLabelStateResponse[] = [];
 
       view.forEach(label => {
-         if (!label.category || !jobTab?.columns?.find(c => { return ((c as GetJobsTabLabelColumnResponse).category === label.category) })) {
+         if (!label.dashboardCategory || !jobTab?.columns?.find(c => { return ((c as GetJobsTabLabelColumnResponse).category === label.dashboardCategory) })) {
             unassigned.push(label);
          }
       });
 
-      return view.filter(label => (label.name && ((label.category === category) || ((category === "Other" || !category) && unassigned.indexOf(label) !== -1)))).sort((a, b) => a.name! < b.name! ? -1 : 1);
-
+      return view.filter(label => (label.dashboardName && ((label.dashboardCategory === category) || ((category === "Other" || !category) && unassigned.indexOf(label) !== -1)))).sort((a, b) => a.dashboardName! < b.dashboardName! ? -1 : 1);
    };
 
 
-   const JobLabel: React.FC<{ item: JobItem; column: GetJobsTabLabelColumnResponse; label: LabelData }> = ({ item, column, label }) => {
+   const JobLabel: React.FC<{ item: JobItem; column: GetJobsTabLabelColumnResponse; label: GetLabelStateResponse }> = ({ item, column, label }) => {
 
-      if (label.defaultLabel && column.category !== "Other" && column.heading !== "Other") {
+      const defaultLabel = item.job.defaultLabel;
+
+      if (label === defaultLabel && column.category !== "Other" && column.heading !== "Other") {
          return <div />;
       }
 
-
-
-      const aggregates = item.job.graphRef?.labels;
+      const aggregates = item.job.labels;
 
       // note details may not be loaded here, as only initialized on callout for optimization (details.getLabelIndex(label.Name, label.Category);)
-      const jlabel = aggregates?.find((l, idx) => l.category === label.category && l.name === label.name && item.job.labels![idx]?.state !== LabelState.Unspecified);
+      const jlabel = aggregates?.find((l, idx) => l.dashboardCategory === label.dashboardCategory && l.dashboardName === label.dashboardName && item.job.labels![idx]?.state !== LabelState.Unspecified);
       let labelIdx = -1;
       if (jlabel) {
          labelIdx = aggregates?.indexOf(jlabel)!;
@@ -386,9 +391,9 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
       let state: LabelState | undefined;
       let outcome: LabelOutcome | undefined;
-      if (label.defaultLabel) {
-         state = label.defaultLabel.state;
-         outcome = label.defaultLabel.outcome;
+      if (label === defaultLabel) {
+         state = defaultLabel.state;
+         outcome = defaultLabel.outcome;
       } else {
          state = item.job.labels![labelIdx]?.state;
          outcome = item.job.labels![labelIdx]?.outcome;
@@ -402,11 +407,11 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          url = `/job/${item.job.id}?label=${labelIdx}`;
       }
 
-      const target = `label_${item.job.id}_${label.name}_${label.category}`.replace(/[^A-Za-z0-9]/g, "");
+      const target = `label_${item.job.id}_${label.dashboardName}_${label.dashboardCategory}`.replace(/[^A-Za-z0-9]/g, "");
 
       return <Stack>
          <div id={target} className="horde-no-darktheme">
-            <Link to={url}><Stack className={hordeClasses.badgeNoIcon}><DefaultButton key={label.name} style={{ backgroundColor: color.primaryColor }} text={label.name}
+            <Link to={url}><Stack className={hordeClasses.badgeNoIcon}><DefaultButton key={label.dashboardName} style={{ backgroundColor: color.primaryColor }} text={label.dashboardName}
                onMouseOver={(ev) => {
                   ev.stopPropagation();
                   controller.setState({ target: `#${target}`, label: label, jobId: item.job.id })
@@ -432,7 +437,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
    };
 
-   const renderLabels = (item: JobItem, labels: LabelData[], jobColumn: GetJobsTabLabelColumnResponse, column?: IColumn): JSX.Element => {
+   const renderLabels = (item: JobItem, labels: GetLabelStateResponse[], jobColumn: GetJobsTabLabelColumnResponse, column?: IColumn): JSX.Element => {
 
       const defaultLabel = item.job.defaultLabel;
 
@@ -440,23 +445,16 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          return <div />;
       }
 
-      if (defaultLabel?.nodes?.length && (!jobColumn.category || jobColumn.category === "Other")) {
-
-         const otherLabel = {
-            category: "",
-            name: "Other",
-            requiredNodes: [],
-            includedNodes: defaultLabel!.nodes,
-            defaultLabel: item.job.defaultLabel
-         };
-
-         labels.push(otherLabel);
+      if (defaultLabel && (!jobColumn.category || jobColumn.category === "Other")) {
+         defaultLabel.dashboardCategory = "";
+         defaultLabel.dashboardName = "Other";
+         labels.push(defaultLabel);
       }
 
       let key = 0;
 
       const buttons = labels.map(label => {
-         return <JobLabel key={`label_${item.job.id}_${jobColumn.category}_${label.name}_${key++}`} item={item} column={jobColumn} label={label} />;
+         return <JobLabel key={`label_${item.job.id}_${jobColumn.category}_${label.dashboardName}_${key++}`} item={item} column={jobColumn} label={label} />;
       });
 
       return (
@@ -507,11 +505,16 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
       const commit = commitCache.getCommit(streamId!, item.job!.change!);
 
-      if (column!.key === "Author") {
+      if (column!.key === startedByName) {
 
-         let authorName = commit?.authorInfo?.name;
-         if (item.job.preflightChange) {
-            authorName = item.job.startedByUserInfo?.name;
+         let authorName = item.job.startedByUserInfo?.name;
+
+         if (!authorName) {
+            authorName = commit?.authorInfo?.name;
+         }
+
+         if (!authorName) {
+            authorName = "Scheduler";
          }
 
          let change = item.job?.change?.toString() ?? "Latest";
@@ -545,7 +548,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
                <Stack verticalAlign="center" verticalFill={true} horizontalAlign="start"> <div style={{ paddingBottom: "1px" }}>
                   <span style={{ padding: "2px 6px 2px 6px", height: "18px", cursor: "pointer", color: "#FFFFFF", backgroundColor: item.job.startedByUserInfo ? "#0288ee" : "#035ca1" }} className={item.job.startedByUserInfo ? "cl-callout-button-user" : "cl-callout-button"} >{change}</span>
                </div></Stack>
-               < Text variant="small">{authorName}</Text>
+               {!!jobTab.showNames &&  <Text variant="small">{authorName}</Text>}
             </Stack>
          </Stack>;
       }
@@ -565,7 +568,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
    function onRenderItemColumn(item: JobItem, index?: number, column?: IColumn) {
 
-      if (column?.key === "Author") {
+      if (column?.key === startedByName) {
          return onRenderItemColumnInner(item, index, column);
       }
 

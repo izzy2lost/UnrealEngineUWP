@@ -82,7 +82,7 @@ struct FLayerBarHotspot
 	}
 	void HandleMouseSelection(FHotspotSelectionManager& SelectionManager) override
 	{
-		SelectionManager.SelectModelExclusive(LayerBar);
+		SelectionManager.DefaultModelSelection(LayerBar);
 	}
 
 	TSharedPtr<FLayerBarModel> LayerBar;

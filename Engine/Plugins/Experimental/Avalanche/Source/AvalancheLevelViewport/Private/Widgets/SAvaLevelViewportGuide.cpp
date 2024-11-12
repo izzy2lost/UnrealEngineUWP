@@ -179,7 +179,7 @@ namespace UE::AvaViewport::Private
 			return;
 		}
 
-		const FAvaLevelViewportCommands& ViewportCommands = FAvaLevelViewportCommands::Get();
+		const FAvaLevelViewportCommands& ViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 		FToolMenuSection& Section = InToolMenu->AddSection("Guide", LOCTEXT("GuideOptions", "Guide Options"));
 		Section.AddMenuEntryWithCommandList(ViewportCommands.ToggleGuideEnabled, Guide->GetGetCommandList());
@@ -502,7 +502,6 @@ bool SAvaLevelViewportGuide::DragUpdate()
 	}
 
 	FVector2f MousePosition = FrameAndClient.ViewportClient->GetConstrainedZoomedViewportMousePosition();
-	FVector2f Offset = FrameAndClient.ViewportClient->GetCachedViewportOffset();
 	FVector2f NewSlotPosition = FVector2f::ZeroVector;
 
 	if (TSharedPtr<FAvaSnapOperation> SnapOperation = FrameAndClient.ViewportClient->GetSnapOperation())
@@ -840,7 +839,7 @@ void SAvaLevelViewportGuide::OpenRightClickMenu()
 
 void SAvaLevelViewportGuide::BindCommands()
 {
-	const FAvaLevelViewportCommands& ViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& ViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	CommandList = MakeShared<FUICommandList>();
 

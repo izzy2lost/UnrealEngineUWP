@@ -15,16 +15,16 @@ class IPlatformChunkInstall;
 #if PLATFORM_CPU_X86_FAMILY
 namespace ECPUFeatureBits_X86
 {
-	constexpr uint32 SSE2 = 1U << 2;
-	constexpr uint32 SSSE3 = 1U << 3;
-	constexpr uint32 SSE42 = 1U << 4;
-	constexpr uint32 AVX = 1U << 5;
-	constexpr uint32 BMI1 = 1U << 6; // Bit Manipulation Instructions - 1
-	constexpr uint32 BMI2 = 1U << 7; // Bit Manipulation Instructions - 2
-	constexpr uint32 AVX2 = 1U << 8;
-	constexpr uint32 F16C = 1U << 9; // Float16 conversion instructions
-	constexpr uint32 AVX512 = 1U << 10; // Skylake feature set : AVXF512{ F,VL,BW,DQ}.
-	constexpr uint32 AVX512_NOCAVEATS = 1U << 11; // Set when we have AVX512 without caveats like throttling.
+	inline constexpr uint32 SSE2 = 1U << 2;
+	inline constexpr uint32 SSSE3 = 1U << 3;
+	inline constexpr uint32 SSE42 = 1U << 4;
+	inline constexpr uint32 AVX = 1U << 5;
+	inline constexpr uint32 BMI1 = 1U << 6; // Bit Manipulation Instructions - 1
+	inline constexpr uint32 BMI2 = 1U << 7; // Bit Manipulation Instructions - 2
+	inline constexpr uint32 AVX2 = 1U << 8;
+	inline constexpr uint32 F16C = 1U << 9; // Float16 conversion instructions
+	inline constexpr uint32 AVX512 = 1U << 10; // Skylake feature set : AVXF512{ F,VL,BW,DQ}.
+	inline constexpr uint32 AVX512_NOCAVEATS = 1U << 11; // Set when we have AVX512 without caveats like throttling.
 }
 #endif
 
@@ -216,7 +216,7 @@ struct FWindowsPlatformMisc
 	 *
 	 * @return	Returns true if the current runtime environment is Wine
 	 */
-	static bool IsWine();
+	static CORE_API bool IsWine();
 
 #if !UE_BUILD_SHIPPING
 	static CORE_API void PromptForRemoteDebugging(bool bIsEnsure);

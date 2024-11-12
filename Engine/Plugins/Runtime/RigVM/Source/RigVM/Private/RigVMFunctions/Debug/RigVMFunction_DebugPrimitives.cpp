@@ -81,3 +81,16 @@ FRigVMFunction_DebugArcNoSpace_Execute()
 
 	ExecuteContext.GetDrawInterface()->DrawArc(WorldOffset, Transform, Radius, FMath::DegreesToRadians(MinimumDegrees), FMath::DegreesToRadians(MaximumDegrees), Color, Thickness, Detail);
 }
+
+FRigVMFunction_DebugBoxNoSpace_Execute()
+{
+	if (ExecuteContext.GetDrawInterface() == nullptr || !bEnabled || !Box.IsValid)
+	{
+		return;
+	}
+
+	FTransform Transform = FTransform::Identity;
+	Transform.SetTranslation(Box.GetCenter());
+	Transform.SetScale3D(Box.GetSize());
+	ExecuteContext.GetDrawInterface()->DrawBox(WorldOffset, Transform, Color, Thickness);
+}

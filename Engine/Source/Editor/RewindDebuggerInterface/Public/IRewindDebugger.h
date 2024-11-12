@@ -90,6 +90,9 @@ public:
 	// returns true if recording is active
 	virtual bool IsRecording() const = 0;
 
+	// returns true if we have loaded a trace file from disk
+	virtual bool IsTraceFileLoaded() const = 0;
+
 	// returns true if PIE is running and not paused
 	virtual bool IsPIESimulating() const = 0;
 
@@ -98,6 +101,10 @@ public:
 
 	// opens the Rewind Debugger details panel tab
 	virtual void OpenDetailsPanel() = 0;
+	
+	virtual const struct FObjectInfo* FindOwningActorInfo(const class IGameplayProvider* GameplayProvider, uint64 ObjectId) const = 0;
+
+	virtual bool ShouldDisplayWorld(uint64 WorldId) = 0;
 
 	// get the current IRewindDebugger instance
 	static IRewindDebugger* Instance();

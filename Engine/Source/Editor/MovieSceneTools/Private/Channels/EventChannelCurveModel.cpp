@@ -121,7 +121,7 @@ void FEventChannelCurveModel::DrawCurve(const FCurveEditor& CurveEditor, const F
 	// Event Channels don't draw any lines so there's no need to fill out the Interpolating Points array.
 }
 
-void FEventChannelCurveModel::GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+void FEventChannelCurveModel::GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
 {
 	FMovieSceneEventChannel* Channel = ChannelHandle.Get();
 	UMovieSceneSection*      Section = WeakSection.Get();

@@ -64,7 +64,7 @@ const UStruct* FCanKeyPropertyParams::FindPropertyOwner(const FProperty* ForProp
 	bool bFoundProperty = false;
 	for (int32 Index = PropertyPath.GetNumProperties() - 1; Index >= 0; --Index)
 	{
-		FProperty* Property = PropertyPath.GetPropertyInfo(Index).Property.Get();
+		const FProperty* Property = PropertyPath.GetPropertyInfo(Index).Property.Get();
 		if (!bFoundProperty)
 		{
 			bFoundProperty = Property == ForProperty;
@@ -88,7 +88,7 @@ const UStruct* FCanKeyPropertyParams::FindPropertyContainer(const FProperty* For
 	bool bFoundProperty = false;
 	for (int32 Index = PropertyPath.GetNumProperties() - 1; Index >= 0; --Index)
 	{
-		FProperty* Property = PropertyPath.GetPropertyInfo(Index).Property.Get();
+		const FProperty* Property = PropertyPath.GetPropertyInfo(Index).Property.Get();
 		if (!bFoundProperty)
 		{
 			bFoundProperty = Property == ForProperty;

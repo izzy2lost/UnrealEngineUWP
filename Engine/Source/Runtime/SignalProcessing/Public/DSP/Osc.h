@@ -53,6 +53,7 @@ namespace Audio
 	{
 	public:
 		SIGNALPROCESSING_API IOscBase();
+		SIGNALPROCESSING_API IOscBase(const IOscBase&);
 		SIGNALPROCESSING_API virtual ~IOscBase();
 
 		// Initializes the oscillator

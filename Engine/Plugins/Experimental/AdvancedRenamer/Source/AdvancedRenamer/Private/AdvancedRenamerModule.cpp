@@ -1,7 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AdvancedRenamerModule.h"
+
+#include "AdvancedRenamer.h"
 #include "AdvancedRenamerCommands.h"
+#include "AdvancedRenamerSections/AdvancedRenamerAddPrefixSuffixSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerChangeCaseSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerNumberingSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerRemovePrefixSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerRemoveSuffixSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerSearchAndReplaceSection.h"
 #include "AdvancedRenamerStyle.h"
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
@@ -20,12 +28,17 @@ namespace UE::AdvancedRenamer::Private
 {
 	TSharedRef<SWindow> CreateAdvancedRenamerWindow()
 	{
+		// Workaround to make the AppScale and OS Zoom work at the same time, this will eventually be changed to add constraint to the window size
+		const float AppScale = FSlateApplication::Get().GetApplicationScale();
+		constexpr float MinWindowHeight = 589.f;
+		constexpr float MinWindowWidth = 730.f;
+		constexpr float TitleHeightOffset = 38.f;
+		constexpr float ContentWidthOffset = 6.f;
 		return SNew(SWindow)
-			.Title(LOCTEXT("AdvancedRenameWindow", "Rename Actors"))
-			.ClientSize(FVector2D(600.0f, 500.0f))
-			.SizingRule(ESizingRule::FixedSize)
-			.SupportsMaximize(false)
-			.SupportsMinimize(false);
+			.Title(LOCTEXT("AdvancedRenameWindow", "Batch Renamer"))
+			.ClientSize(FVector2D((MinWindowWidth + ContentWidthOffset) * AppScale, (MinWindowHeight + TitleHeightOffset) * AppScale))
+			.MinHeight((MinWindowHeight + TitleHeightOffset) * AppScale)
+			.MinWidth((MinWindowWidth + ContentWidthOffset) * AppScale);
 	}
 }
 
@@ -35,31 +48,30 @@ void FAdvancedRenamerModule::StartupModule()
 	FAdvancedRenamerCommands::Register();
 	FAdvancedRenamerContentBrowserIntegration::Initialize();
 	FAdvancedRenamerLevelEditorIntegration::Initialize();
+	RegisterDefaultSections();
 }
 
 void FAdvancedRenamerModule::ShutdownModule()
 {
-	FAdvancedRenamerCommands::Unregister();
 	FAdvancedRenamerStyle::Shutdown();
+	FAdvancedRenamerCommands::Unregister();
 	FAdvancedRenamerContentBrowserIntegration::Shutdown();
 	FAdvancedRenamerLevelEditorIntegration::Shutdown();
 }
 
+TSharedRef<IAdvancedRenamer> FAdvancedRenamerModule::CreateAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider)
+{
+	return MakeShared<FAdvancedRenamer>(InRenameProvider);
+}
+
 void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider, const TSharedPtr<SWidget>& InParentWidget)
 {
-	TSharedRef<SWindow> AdvancedRenameWindow = UE::AdvancedRenamer::Private::CreateAdvancedRenamerWindow();
-	AdvancedRenameWindow->SetContent(SNew(SAdvancedRenamerPanel).SharedProvider(InRenameProvider));
-
-	TSharedPtr<SWidget> ParentWindow = FSlateApplication::Get().FindBestParentWindowForDialogs(InParentWidget);
-	FSlateApplication::Get().AddModalWindow(AdvancedRenameWindow, ParentWindow);
+	return OpenAdvancedRenamer(CreateAdvancedRenamer(InRenameProvider), InParentWidget);
 }
 
 void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider, const TSharedPtr<IToolkitHost>& InToolkitHost)
 {
-	if (InToolkitHost.IsValid())
-	{
-		OpenAdvancedRenamer(InRenameProvider, InToolkitHost->GetParentWidget());
-	}
+	return OpenAdvancedRenamer(CreateAdvancedRenamer(InRenameProvider), InToolkitHost);
 }
 
 void FAdvancedRenamerModule::OpenAdvancedRenamerForActors(const TArray<AActor*>& InActors, const TSharedPtr<SWidget>& InParentWidget)
@@ -89,6 +101,23 @@ void FAdvancedRenamerModule::OpenAdvancedRenamerForActors(const TArray<AActor*>&
 	{
 		OpenAdvancedRenamerForActors(InActors, InToolkitHost->GetParentWidget());
 	}
+}
+
+void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamer>& InRenamer, const TSharedPtr<IToolkitHost>& InToolkitHost)
+{
+	if (InToolkitHost.IsValid())
+	{
+		OpenAdvancedRenamer(InRenamer, InToolkitHost->GetParentWidget());
+	}
+}
+
+void FAdvancedRenamerModule::OpenAdvancedRenamer(const TSharedRef<IAdvancedRenamer>& InRenamer, const TSharedPtr<SWidget>& InParentWidget)
+{
+	TSharedRef<SWindow> AdvancedRenameWindow = UE::AdvancedRenamer::Private::CreateAdvancedRenamerWindow();
+	AdvancedRenameWindow->SetContent(SNew(SAdvancedRenamerPanel, InRenamer));
+
+	TSharedPtr<SWidget> ParentWindow = FSlateApplication::Get().FindBestParentWindowForDialogs(InParentWidget);
+	FSlateApplication::Get().AddModalWindow(AdvancedRenameWindow, ParentWindow);
 }
 
 TArray<AActor*> FAdvancedRenamerModule::GetActorsSharingClassesInWorld(const TArray<AActor*>& InActors)
@@ -183,6 +212,16 @@ TArray<AActor*> FAdvancedRenamerModule::GetActorsSharingClassesInWorld(const TAr
 	}
 
 	return AllActors;
+}
+
+void FAdvancedRenamerModule::RegisterDefaultSections()
+{
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerSearchAndReplaceSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerRemovePrefixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerRemoveSuffixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerAddPrefixSuffixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerNumberingSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerChangeCaseSection>());
 }
 
 IMPLEMENT_MODULE(FAdvancedRenamerModule, AdvancedRenamer)

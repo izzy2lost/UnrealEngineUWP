@@ -50,6 +50,8 @@ struct FKSphereElem : public FKShapeElem
 
 	}
 
+	ENGINE_API virtual ~FKSphereElem();
+
 #if WITH_EDITORONLY_DATA
 	void FixupDeprecated( FArchive& Ar );
 #endif

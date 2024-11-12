@@ -189,7 +189,7 @@ int32 FLiveLinkTimedDataInput::GetDataBufferSize() const
 
 void FLiveLinkTimedDataInput::SetDataBufferSize(int32 BufferSize)
 {
-	int32 NewSize = FMath::Clamp(BufferSize, LiveLinkTimedDataInput::CVarLiveLinkMinBufferSize.GetValueOnGameThread(), LiveLinkTimedDataInput::CVarLiveLinkMaxBufferSize.GetValueOnGameThread());
+	const int32 NewSize = FMath::Clamp(BufferSize, LiveLinkTimedDataInput::CVarLiveLinkMinBufferSize.GetValueOnAnyThread(), LiveLinkTimedDataInput::CVarLiveLinkMaxBufferSize.GetValueOnAnyThread());
 	if (ULiveLinkSourceSettings* Settings = LiveLinkClient->GetSourceSettings(Source))
 	{
 		Settings->BufferSettings.MaxNumberOfFrameToBuffered = NewSize;
@@ -205,7 +205,7 @@ const FSlateBrush* FLiveLinkTimedDataInput::GetDisplayIcon() const
 
 void FLiveLinkTimedDataInput::ProcessNewFrameTimingInfo(FLiveLinkBaseFrameData& NewFrameData)
 {
-	bool bUpdateContinuousClockOffset = LiveLinkTimedDataInput::CVarLiveLinkUpdateContinuousClockOffset.GetValueOnGameThread();
+	const bool bUpdateContinuousClockOffset = LiveLinkTimedDataInput::CVarLiveLinkUpdateContinuousClockOffset.GetValueOnAnyThread();
 
 	//Update both clock offsets for each frame received for our subjects
 	//We mark the last source/frame time that we used to update our offset to only update once per source frame
@@ -257,7 +257,7 @@ void FLiveLinkTimedDataInput::UpdateSmoothEngineTimeOffset(const FLiveLinkBaseFr
 	if (ULiveLinkSourceSettings* Settings = LiveLinkClient->GetSourceSettings(Source))
 	{
 		//Early-out if no frame offset is needed
-		const float NumFramesForSmoothOffset = LiveLinkTimedDataInput::CVarLiveLinkNumFramesForSmoothOffset.GetValueOnGameThread();
+		const float NumFramesForSmoothOffset = LiveLinkTimedDataInput::CVarLiveLinkNumFramesForSmoothOffset.GetValueOnAnyThread();
 
 		if (NumFramesForSmoothOffset <= 0)
 		{

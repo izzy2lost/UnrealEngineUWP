@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "ParametricSurfaceData.h"
+#include "DatasmithParametricSurfaceData.h"
 #include "DatasmithAdditionalData.h"
 #include "DatasmithCustomAction.h"
 #include "DatasmithImportOptions.h"
@@ -13,7 +13,7 @@
 #include "CADKernelSurfaceExtension.generated.h"
 
 UCLASS(meta = (DisplayName = "CADKernel Parametric Surface Data"))
-class CADKERNELSURFACE_API UCADKernelParametricSurfaceData : public UParametricSurfaceData
+class CADKERNELSURFACE_API UCADKernelParametricSurfaceData : public UDatasmithParametricSurfaceData
 {
 	GENERATED_BODY()
 

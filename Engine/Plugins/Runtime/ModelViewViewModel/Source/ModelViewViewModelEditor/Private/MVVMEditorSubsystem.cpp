@@ -8,7 +8,9 @@
 #include "BlueprintActionDatabase.h"
 #include "BlueprintActionFilter.h"
 #include "BlueprintNodeSpawner.h"
+#include "Editor.h"
 #include "Engine/Engine.h"
+#include "Framework/MVVMConversionFunctionLibrary.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "K2Node_BreakStruct.h"
@@ -20,6 +22,7 @@
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -87,6 +90,32 @@ namespace UE::MVVM::Private
 		Event->PostEditChangeChainProperty(ChainEvent);
 	}
 
+	void OnConditionPreEditChange(UMVVMBlueprintViewCondition* Condition, FName PropertyName)
+	{
+		FProperty* ChangedProperty = UMVVMBlueprintViewCondition::StaticClass()->FindPropertyByName(PropertyName);
+		check(ChangedProperty != nullptr);
+
+		FEditPropertyChain EditChain;
+		EditChain.AddTail(ChangedProperty);
+		EditChain.SetActivePropertyNode(ChangedProperty);
+
+		Condition->PreEditChange(EditChain);
+	}
+
+	void OnConditionPostEditChange(UMVVMBlueprintViewCondition* Condition, FName PropertyName)
+	{
+		FProperty* ChangedProperty = UMVVMBlueprintViewCondition::StaticClass()->FindPropertyByName(PropertyName);
+		check(ChangedProperty != nullptr);
+
+		FEditPropertyChain EditChain;
+		EditChain.AddTail(ChangedProperty);
+		EditChain.SetActivePropertyNode(ChangedProperty);
+
+		FPropertyChangedEvent ChangeEvent(ChangedProperty, EPropertyChangeType::ValueSet);
+		FPropertyChangedChainEvent ChainEvent(EditChain, ChangeEvent);
+		Condition->PostEditChangeChainProperty(ChainEvent);
+	}
+
 	UK2Node_FunctionResult* FindFunctionResult(UEdGraph* Graph)
 	{
 		for (UEdGraphNode* Node : Graph->Nodes)
@@ -134,6 +163,8 @@ namespace UE::MVVM::Private
 UMVVMBlueprintView* UMVVMEditorSubsystem::RequestView(UWidgetBlueprint* WidgetBlueprint) const
 {
 	UMVVMWidgetBlueprintExtension_View* Extension = UMVVMWidgetBlueprintExtension_View::RequestExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint);
+	Extension->SetFlags(RF_Transactional);
+
 	if (Extension->GetBlueprintView() == nullptr)
 	{
 		Extension->CreateBlueprintViewInstance();
@@ -180,6 +211,8 @@ FGuid UMVVMEditorSubsystem::AddViewModel(UWidgetBlueprint* WidgetBlueprint, cons
 			FMVVMBlueprintViewModelContext Context = FMVVMBlueprintViewModelContext(ViewModelClass, *ViewModelName);
 			if (Context.IsValid())
 			{
+				Context.Resolver = Context.CreateDefaultResolver(WidgetBlueprint->GetPackage());
+
 				const FScopedTransaction Transaction(LOCTEXT("AddViewModel", "Add viewmodel"));
 				View->Modify();
 				View->AddViewModel(Context);
@@ -334,6 +367,25 @@ void UMVVMEditorSubsystem::RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMB
 	}
 }
 
+UMVVMBlueprintViewCondition* UMVVMEditorSubsystem::AddCondition(UWidgetBlueprint* WidgetBlueprint)
+{
+	if (!GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConditionBinding)
+	{
+		return nullptr;
+	}
+	UMVVMBlueprintView* View = RequestView(WidgetBlueprint);
+	return View->AddDefaultCondition();
+}
+
+void UMVVMEditorSubsystem::RemoveCondition(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewCondition* Condition)
+{
+	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
+	{
+		View->RemoveCondition(Condition);
+	}
+}
+
+
 UFunction* UMVVMEditorSubsystem::GetConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const
 {
 	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination))
@@ -401,8 +453,13 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 			{
 				Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
 				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+
+				// Set Destination Path in case this is an async conversion function which will handle destination update in graph
+				Binding.Conversion.SourceToDestinationConversion->SetDestinationPath(Binding.DestinationPath);
 				Binding.Conversion.SourceToDestinationConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
+
+			GenerateBindToDestinationPathsForBinding(WidgetBlueprint, Binding);
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
 			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
@@ -455,6 +512,9 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 			{
 				Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
 				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+
+				// Set Destination Path in case this is an async conversion function which will handle destination update in graph
+				Binding.Conversion.DestinationToSourceConversion->SetDestinationPath(Binding.DestinationPath);
 				Binding.Conversion.DestinationToSourceConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
 
@@ -464,12 +524,12 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 	}
 }
 
-void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath PropertyPath)
+void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath PropertyPath, bool bAllowEventConversion)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
 		bool bHasConversion = Binding.Conversion.DestinationToSourceConversion != nullptr;
-		bool bEventSupported = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
+		bool bEventSupported = bAllowEventConversion && UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
 
 		if (bEventSupported || bHasConversion || Binding.DestinationPath != PropertyPath)
 		{
@@ -497,6 +557,8 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 				}
 				Binding.DestinationPath = PropertyPath;
 			}
+
+			GenerateBindToDestinationPathsForBinding(WidgetBlueprint, Binding);
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
 			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
@@ -619,7 +681,41 @@ void UMVVMEditorSubsystem::SetCompileForBinding(UWidgetBlueprint* WidgetBlueprin
 	}
 }
 
-void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath)
+void UMVVMEditorSubsystem::GenerateBindToDestinationPathsForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding)
+{
+	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(UE::MVVM::IsForwardBinding(Binding.BindingType)))
+	{
+		if (const UFunction* Function = ConversionFunction->GetConversionFunction().GetFunction(WidgetBlueprint))
+		{
+			static const FName NAME_MVVMBindToDestination(TEXT("MVVMBindToDestination"));
+			const FString& MVVMBindToDestinationString = Function->GetMetaData(NAME_MVVMBindToDestination);
+			if (!MVVMBindToDestinationString.IsEmpty())
+			{
+				auto GetPinId = [&](const FString& InParamName)
+				{
+					for (const FMVVMBlueprintPin& Pin : Binding.Conversion.SourceToDestinationConversion->GetPins())
+					{
+						if (Pin.GetId().GetNames().Contains(InParamName))
+						{
+							return Pin.GetId();
+						}
+					}
+
+					return FMVVMBlueprintPinId();
+				};
+
+				FMVVMBlueprintPinId MVVMBindToDestinationPinId = GetPinId(MVVMBindToDestinationString);
+				if (MVVMBindToDestinationPinId.IsValid())
+				{
+					const UMVVMEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+					Subsystem->SetPathForConversionFunctionArgument(WidgetBlueprint, Binding, MVVMBindToDestinationPinId, Binding.DestinationPath, true);
+				}
+			}
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion)
 {
 	UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
 	if (View)
@@ -633,15 +729,19 @@ void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlu
 
 		bool bSupports = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
 
+		if (bRequestBindingConversion || !bSupports)
+		{
+			FMVVMBlueprintViewBinding& Binding = AddBinding(WidgetBlueprint);
+			SetDestinationPathForBinding(WidgetBlueprint, Binding, PropertyPath, false);
+			View->RemoveEvent(Event);
+		}
 		if (bSupports)
 		{
 			Event->SetEventPath(PropertyPath);
 		}
 		else
 		{
-			FMVVMBlueprintViewBinding& Binding = AddBinding(WidgetBlueprint);
-			SetDestinationPathForBinding(WidgetBlueprint, Binding, PropertyPath);
-			View->RemoveEvent(Event);
+			Event->SetEventPath(FMVVMBlueprintPropertyPath());
 		}
 
 		UE::MVVM::Private::OnEventPostEditChange(Event, EventPath);
@@ -715,7 +815,179 @@ void UMVVMEditorSubsystem::SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bo
 	}
 }
 
+void UMVVMEditorSubsystem::SetConditionPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionPath", "Set Condition Path"));
+
+		FName ConditionPath = "ConditionPath";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ConditionPath);
+
+		Condition->SetConditionPath(PropertyPath);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ConditionPath);
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionDestinationPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionDestinationPath", "Set Condition Destination Path"));
+
+		FName DestinationPath = "DestinationPath";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, DestinationPath);
+
+		Condition->SetDestinationPath(PropertyPath);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, DestinationPath);
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionArgumentPath(UMVVMBlueprintViewCondition* Condition, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& PropertyPath) const
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionParameterPath", "Set Condition Parameter Path"));
+
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, "SavedPins");
+
+		Condition->SetPinPath(PinId, PropertyPath);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, "SavedPins");
+	}
+
+}
+
+void UMVVMEditorSubsystem::SetEnabledForCondition(UMVVMBlueprintViewCondition* Condition, bool bEnabled)
+{
+	if (Condition->bEnabled != bEnabled)
+	{
+		const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+		if (View)
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetBindingEnabled", "Set Binding Enabled"));
+
+			UE::MVVM::Private::OnConditionPreEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bEnabled));
+
+			Condition->bEnabled = bEnabled;
+
+			UE::MVVM::Private::OnConditionPostEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bEnabled));
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetCompileForCondition(UMVVMBlueprintViewCondition* Condition, bool bCompile)
+{
+	if (Condition->bCompile != bCompile)
+	{
+		const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+		if (View)
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetBindingCompiled", "Set Binding Compiled"));
+
+			UE::MVVM::Private::OnConditionPreEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bCompile));
+
+			Condition->bCompile = bCompile;
+
+			UE::MVVM::Private::OnConditionPostEditChange(Condition, GET_MEMBER_NAME_CHECKED(UMVVMBlueprintViewCondition, bCompile));
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionOperation(UMVVMBlueprintViewCondition* Condition, EMVVMConditionOperation Operation)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionOperation", "Set Condition Operation"));
+
+		FName ConditionOperation = "ConditionOperation";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ConditionOperation);
+
+		Condition->SetOperation(Operation);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ConditionOperation);
+	}
+
+}
+
+void UMVVMEditorSubsystem::SetConditionOperationValue(UMVVMBlueprintViewCondition* Condition, float Value)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionOperationValue", "Set Condition Operation Value"));
+
+		FName ValueName = "Value";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ValueName);
+
+		Condition->SetOperationValue(Value);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ValueName);
+	}
+}
+
+void UMVVMEditorSubsystem::SetConditionOperationMaxValue(UMVVMBlueprintViewCondition* Condition, float MaxValue)
+{
+	const UMVVMBlueprintView* View = Condition ? Condition->GetOuterUMVVMBlueprintView() : nullptr;
+	if (View)
+	{
+		FScopedTransaction Transaction(LOCTEXT("SetConditionOperationMaxValue", "Set Condition Operation Maximum Value"));
+
+		FName ValueName = "MaxValue";
+		UE::MVVM::Private::OnConditionPreEditChange(Condition, ValueName);
+
+		Condition->SetOperationMaxValue(MaxValue);
+
+		UE::MVVM::Private::OnConditionPostEditChange(Condition, ValueName);
+	}
+}
+
+
+namespace UE::MVVM::Private
+{
+UClass* GetCallingContext(const UWidgetBlueprint* WidgetBlueprint)
+{
+	return WidgetBlueprint->GeneratedClass ? WidgetBlueprint->GeneratedClass :
+		WidgetBlueprint->SkeletonGeneratedClass ? WidgetBlueprint->SkeletonGeneratedClass : WidgetBlueprint->ParentClass;
+}
+}
+
 bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const
+{
+	if (WidgetBlueprint == nullptr || Function == nullptr)
+	{
+		return false;
+	}
+
+	UClass* CallingContext = UE::MVVM::Private::GetCallingContext(WidgetBlueprint);
+
+	const FProperty* SourceProperty = nullptr;
+	TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(CallingContext);
+	if (SourceFields.Num() > 0)
+	{
+		SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+	}
+
+	const FProperty* DestinationProperty = nullptr;
+	TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(CallingContext);
+	if (DestFields.Num() > 0)
+	{
+		if (!DestFields.Last().IsEmpty())
+		{
+			DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
+		}
+	}
+
+	return IsValidConversionFunction(WidgetBlueprint, Function, SourceProperty, DestinationProperty);
+}
+
+bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const
 {
 	if (WidgetBlueprint == nullptr || Function == nullptr)
 	{
@@ -727,59 +999,39 @@ bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* Wid
 		return false;
 	}
 
+
+	// check that at least one source -> argument binding is compatible
+	if (ExpectedArgumentType)
 	{
-		const FProperty* SourceProperty = nullptr;
-		TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
-		if (SourceFields.Num() > 0)
+		TValueOrError<TArray<const FProperty*>, FText> ArgumentsResult = UE::MVVM::BindingHelper::TryGetArgumentsForConversionFunction(Function);
+		check(ArgumentsResult.HasValue());
+
+		bool bAnyCompatible = false;
+
+		const TArray<const FProperty*>& ConversionArgProperties = ArgumentsResult.GetValue();
+		for (const FProperty* ArgumentProperty : ConversionArgProperties)
 		{
-			SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+			if (UE::MVVM::BindingHelper::ArePropertiesCompatible(ExpectedArgumentType, ArgumentProperty))
+			{
+				bAnyCompatible = true;
+				break;
+			}
 		}
-
-		// check that at least one source -> argument binding is compatible
-		if (SourceProperty)
+		if (!bAnyCompatible)
 		{
-			TValueOrError<TArray<const FProperty*>, FText> ArgumentsResult = UE::MVVM::BindingHelper::TryGetArgumentsForConversionFunction(Function);
-			check(ArgumentsResult.HasValue());
-
-			bool bAnyCompatible = false;
-
-			const TArray<const FProperty*>& ConversionArgProperties = ArgumentsResult.GetValue();
-			for (const FProperty* ArgumentProperty : ConversionArgProperties)
-			{
-				if (UE::MVVM::BindingHelper::ArePropertiesCompatible(SourceProperty, ArgumentProperty))
-				{
-					bAnyCompatible = true;
-					break;
-				}
-			}
-			if (!bAnyCompatible)
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
+	if (ExptectedReturnType)
 	{
-		const FProperty* DestinationProperty = nullptr;
-		TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
-		if (DestFields.Num() > 0)
-		{
-			if (!DestFields.Last().IsEmpty())
-			{
-				DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
-			}
-		}
+		TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
+		check(ReturnResult.HasValue());
 
-		if (DestinationProperty)
+		// check that the return -> dest is valid
+		if (!UE::MVVM::BindingHelper::ArePropertiesCompatible(ReturnResult.GetValue(), ExptectedReturnType))
 		{
-			TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
-			check(ReturnResult.HasValue());
-
-			// check that the return -> dest is valid
-			if (!UE::MVVM::BindingHelper::ArePropertiesCompatible(ReturnResult.GetValue(), DestinationProperty))
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
@@ -793,92 +1045,114 @@ bool UMVVMEditorSubsystem::IsValidConversionNode(const UWidgetBlueprint* WidgetB
 		return false;
 	}
 
+	UClass* CallingContext = UE::MVVM::Private::GetCallingContext(WidgetBlueprint);
+
+	const FProperty* SourceProperty = nullptr;
+	TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(CallingContext);
+	if (SourceFields.Num() > 0)
+	{
+		SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+	}
+
+	const FProperty* DestinationProperty = nullptr;
+	TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(CallingContext);
+	if (DestFields.Num() > 0)
+	{
+		if (!DestFields.Last().IsEmpty())
+		{
+			DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
+		}
+	}
+
+	return IsValidConversionNode(WidgetBlueprint, Function, SourceProperty, DestinationProperty);
+}
+
+bool UMVVMEditorSubsystem::IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const
+{
+	if (WidgetBlueprint == nullptr || Function.Get() == nullptr)
+	{
+		return false;
+	}
+
 	if (!UMVVMBlueprintViewConversionFunction::IsValidConversionNode(WidgetBlueprint, Function))
 	{
 		return false;
 	}
 
-	UClass* CallingContext = WidgetBlueprint->GeneratedClass ? WidgetBlueprint->GeneratedClass : WidgetBlueprint->ParentClass;
+	UClass* CallingContext = UE::MVVM::Private::GetCallingContext(WidgetBlueprint);
+
+	// check that at least one source -> argument binding is compatible
+	if (ExpectedArgumentType)
 	{
-		const FProperty* SourceProperty = nullptr;
-		TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(CallingContext);
-		if (SourceFields.Num() > 0)
+		FEdGraphPinType SourcePinType;
+		if (!GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(ExpectedArgumentType, SourcePinType))
 		{
-			SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+			return false;
 		}
 
-		// check that at least one source -> argument binding is compatible
-		if (SourceProperty)
+		TArray<UEdGraphPin*> InputPins = UE::MVVM::ConversionFunctionHelper::FindInputPins(Function.GetDefaultObject());
+		if (InputPins.Num() == 0)
 		{
-			FEdGraphPinType SourcePinType;
-			if (!GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(SourceProperty, SourcePinType))
-			{
-				return false;
-			}
+			return false;
+		}
 
-			TArray<UEdGraphPin*> InputPins = UE::MVVM::ConversionFunctionHelper::FindInputPins(Function.GetDefaultObject());
-			if (InputPins.Num() == 0)
+		bool bAnyCompatible = false;
+		for (const UEdGraphPin* ArgumentPin : InputPins)
+		{
+			bool bIgnoreArray = true;
+			const bool bTypesMatch = GetDefault<UEdGraphSchema_K2>()->ArePinTypesCompatible(SourcePinType, ArgumentPin->PinType, CallingContext, bIgnoreArray);
+			if (bTypesMatch)
 			{
-				return false;
+				bAnyCompatible = true;
+				break;
 			}
-
-			bool bAnyCompatible = false;
-			for (const UEdGraphPin* ArgumentPin : InputPins)
-			{
-				bool bIgnoreArray = true;
-				const bool bTypesMatch = GetDefault<UEdGraphSchema_K2>()->ArePinTypesCompatible(SourcePinType, ArgumentPin->PinType, CallingContext, bIgnoreArray);
-				if (bTypesMatch)
-				{
-					bAnyCompatible = true;
-					break;
-				}
-			}
-			if (!bAnyCompatible)
-			{
-				return false;
-			}
+		}
+		if (!bAnyCompatible)
+		{
+			return false;
 		}
 	}
 
+	if (ExptectedReturnType)
 	{
-		const FProperty* DestinationProperty = nullptr;
-		TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(CallingContext);
-		if (DestFields.Num() > 0)
+		FEdGraphPinType DestinationPinType;
+		if (!GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(ExptectedReturnType, DestinationPinType))
 		{
-			if (!DestFields.Last().IsEmpty())
-			{
-				DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
-			}
+			return false;
 		}
 
-		if (DestinationProperty)
+		UEdGraphPin* ReturnPin = UE::MVVM::ConversionFunctionHelper::FindOutputPin(Function.GetDefaultObject());
+		if (ReturnPin == nullptr)
 		{
-			FEdGraphPinType DestinationPinType;
-			if (!GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(DestinationProperty, DestinationPinType))
-			{
-				return false;
-			}
+			return false;
+		}
 
-			UEdGraphPin* ReturnPin = UE::MVVM::ConversionFunctionHelper::FindOutputPin(Function.GetDefaultObject());
-			if (ReturnPin == nullptr)
-			{
-				return false;
-			}
-
-			// check that the return -> dest is valid
-			bool bIgnoreArray = true;
-			const bool bTypesMatch = GetDefault<UEdGraphSchema_K2>()->ArePinTypesCompatible(ReturnPin->PinType, DestinationPinType, CallingContext, bIgnoreArray);
-			if (!bTypesMatch)
-			{
-				return false;
-			}
+		// check that the return -> dest is valid
+		bool bIgnoreArray = true;
+		const bool bTypesMatch = GetDefault<UEdGraphSchema_K2>()->ArePinTypesCompatible(ReturnPin->PinType, DestinationPinType, CallingContext, bIgnoreArray);
+		if (!bTypesMatch)
+		{
+			return false;
 		}
 	}
 
 	return true;
 }
 
-bool UMVVMEditorSubsystem::IsSimpleConversionFunctionA(const UFunction* Function) const
+bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, UE::MVVM::FConversionFunctionValue Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const
+{
+	if (Function.IsFunction())
+	{
+		return IsValidConversionFunction(WidgetBlueprint, Function.GetFunction(), ExpectedArgumentType, ExptectedReturnType);
+	}
+	else if (Function.IsNode())
+	{
+		return IsValidConversionNode(WidgetBlueprint, Function.GetNode(), ExpectedArgumentType, ExptectedReturnType);
+	}
+	return false;
+}
+
+bool UMVVMEditorSubsystem::IsSimpleConversionFunction(const UFunction* Function) const
 {
 	TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
 	if (ReturnResult.HasError())
@@ -917,19 +1191,60 @@ UK2Node_CallFunction* UMVVMEditorSubsystem::GetConversionFunctionNode(const UWid
 
 TArray<UFunction*> UMVVMEditorSubsystem::GetAvailableConversionFunctions(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const
 {
-	TArray<UFunction*> ConversionFunctions;
-
-	auto AddFunction = [this, &Source, &Destination, WidgetBlueprint, &ConversionFunctions](const UFunction* Function)
+	if (WidgetBlueprint == nullptr)
 	{
-		if (IsValidConversionFunction(WidgetBlueprint, Function, Source, Destination))
-		{
-			ConversionFunctions.Add(const_cast<UFunction*>(Function));
-		}
-	};
+		return TArray<UFunction*>();
+	}
 
+	UClass* CallingContext = UE::MVVM::Private::GetCallingContext(WidgetBlueprint);
+
+	const FProperty* SourceProperty = nullptr;
+	TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(CallingContext);
+	if (SourceFields.Num() > 0)
+	{
+		SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+	}
+
+	const FProperty* DestinationProperty = nullptr;
+	TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(CallingContext);
+	if (DestFields.Num() > 0)
+	{
+		if (!DestFields.Last().IsEmpty())
+		{
+			DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
+		}
+	}
+
+	TArray<UE::MVVM::FConversionFunctionValue> NewResult = GetConversionFunctions(WidgetBlueprint, SourceProperty, DestinationProperty);
+	TArray<UFunction*> ConversionFunctions;
+	ConversionFunctions.Reserve(NewResult.Num());
+
+	Algo::TransformIf(NewResult, ConversionFunctions
+		, [](const UE::MVVM::FConversionFunctionValue& Other)->bool{ return Other.IsFunction(); }
+		, [](const UE::MVVM::FConversionFunctionValue& Other)->UFunction*{ return const_cast<UFunction*>(Other.GetFunction()); });
+
+	ConversionFunctions.Sort([](const UFunction& A, const UFunction& B) -> bool
+		{
+			return A.GetFName().LexicalLess(B.GetFName());
+		});
+	return ConversionFunctions;
+}
+
+TArray<UE::MVVM::FConversionFunctionValue> UMVVMEditorSubsystem::GetConversionFunctions(const UWidgetBlueprint* WidgetBlueprint, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const
+{
 	EMVVMDeveloperConversionFunctionFilterType FilterType = GetDefault<UMVVMDeveloperProjectSettings>()->GetConversionFunctionFilter();
 	if (FilterType == EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry)
 	{
+		TArray<UE::MVVM::FConversionFunctionValue> ConversionFunctions;
+
+		auto AddFunction = [this, &ExptectedReturnType, &ExpectedArgumentType, WidgetBlueprint, &ConversionFunctions](const UFunction* Function)
+		{
+			if (IsValidConversionFunction(WidgetBlueprint, UE::MVVM::FConversionFunctionValue(Function), ExpectedArgumentType, ExptectedReturnType))
+			{
+				ConversionFunctions.Add(UE::MVVM::FConversionFunctionValue(Function));
+			}
+		};
+
 		const FBlueprintActionDatabase::FActionRegistry& ActionRegistry = FBlueprintActionDatabase::Get().GetAllActions();
 		for (auto It = ActionRegistry.CreateConstIterator(); It; ++It)
 		{
@@ -946,59 +1261,18 @@ TArray<UFunction*> UMVVMEditorSubsystem::GetAvailableConversionFunctions(const U
 				}
 			}
 		}
+		return ConversionFunctions;
 	}
 	else if (FilterType == EMVVMDeveloperConversionFunctionFilterType::AllowedList)
 	{
-		auto IsInheritedBlueprintFunction = [](const UFunction* Function)
+		if (!ConversionFunctionCollection.IsValid())
 		{
-			bool bIsBpInheritedFunc = false;
-			if (UClass* FuncClass = Function->GetOwnerClass())
-			{
-				if (UBlueprint* BpOwner = Cast<UBlueprint>(FuncClass->ClassGeneratedBy))
-				{
-					FName FuncName = Function->GetFName();
-					if (UClass* ParentClass = BpOwner->ParentClass)
-					{
-						bIsBpInheritedFunc = (ParentClass->FindFunctionByName(FuncName, EIncludeSuperFlag::IncludeSuper) != nullptr);
-					}
-				}
-			}
-			return bIsBpInheritedFunc;
-		};
-
-		TArray<const UClass*> Classes = GetDefault<UMVVMDeveloperProjectSettings>()->GetAllowedConversionFunctionClasses();
-		Classes.Add(WidgetBlueprint->GeneratedClass);
-		for (const UClass* Class : Classes)
-		{
-			if (Class->IsChildOf(UK2Node::StaticClass()))
-			{
-
-			}
-			else
-			{
-				for (TFieldIterator<UFunction> FunctionIt(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIt; ++FunctionIt)
-				{
-					UFunction* Function = *FunctionIt;
-					if (IsInheritedBlueprintFunction(Function)) // remove override virtual function
-					{
-						continue;
-					}
-					if (!Function->HasAllFunctionFlags(FUNC_BlueprintCallable))
-					{
-						continue;
-					}
-
-					AddFunction(Function);
-				}
-			}
+			ConversionFunctionCollection = MakeUnique<UE::MVVM::ConversionFunctionLibrary::FCollection>();
 		}
+		return ConversionFunctionCollection->GetFunctions(WidgetBlueprint, ExpectedArgumentType, ExptectedReturnType);
 	}
 
-	ConversionFunctions.Sort([](const UFunction& A, const UFunction& B) -> bool
-		{
-			return A.GetFName().LexicalLess(B.GetFName());
-		});
-	return ConversionFunctions;
+	return TArray<UE::MVVM::FConversionFunctionValue>();
 }
 
 FMVVMBlueprintPropertyPath UMVVMEditorSubsystem::GetPathForConversionFunctionArgument(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding,  const FMVVMBlueprintPinId& ParameterId, bool bSourceToDestination) const

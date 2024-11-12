@@ -646,6 +646,27 @@ namespace EpicGames.UHT.Types
 	{
 
 		/// <summary>
+		/// For nested properties, this points to the parent
+		/// </summary>
+		public UhtPropertySettings? ParentSettings { get; set; } = null;
+
+		/// <summary>
+		/// The root settings for a nested property
+		/// </summary>
+		public UhtPropertySettings RootSettings
+		{
+			get
+			{
+				UhtPropertySettings settings = this;
+				while (settings.ParentSettings != null)
+				{
+					settings = settings.ParentSettings;
+				}
+				return settings;
+			}
+		}
+
+		/// <summary>
 		/// Source name of the property
 		/// </summary>
 		public string SourceName { get; set; } = String.Empty;
@@ -654,6 +675,11 @@ namespace EpicGames.UHT.Types
 		/// Engine name of the property
 		/// </summary>
 		public string EngineName { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Verse name of the property 
+		/// </summary>
+		public string VerseName { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Property's meta data
@@ -758,8 +784,10 @@ namespace EpicGames.UHT.Types
 		/// <param name="messageSite">Message site used to construct meta data object</param>
 		public void Reset(UhtPropertySettings parentPropertySettings, string sourceName, IUhtMessageSite messageSite)
 		{
+			ParentSettings = parentPropertySettings;
 			SourceName = sourceName;
 			EngineName = sourceName;
+			VerseName = String.Empty;
 			MetaData = new UhtMetaData(messageSite, parentPropertySettings.Outer.Session.Config);
 			Outer = parentPropertySettings.Outer;
 			LineNumber = parentPropertySettings.LineNumber;
@@ -788,8 +816,10 @@ namespace EpicGames.UHT.Types
 		/// <param name="disallowPropertyFlags">Property flags that are not allowed</param>
 		public void Reset(UhtType outer, int lineNumber, UhtPropertyCategory propertyCategory, EPropertyFlags disallowPropertyFlags)
 		{
+			ParentSettings = null;
 			SourceName = String.Empty;
 			EngineName = String.Empty;
+			VerseName = String.Empty;
 			MetaData = new UhtMetaData(outer, outer.Session.Config);
 			Outer = outer;
 			LineNumber = lineNumber;
@@ -820,8 +850,10 @@ namespace EpicGames.UHT.Types
 			{
 				throw new UhtIceException("Property must have an outer specified");
 			}
+			ParentSettings = null;
 			SourceName = property.SourceName;
 			EngineName = property.EngineName;
+			VerseName = property.VerseName;
 			MetaData = property.MetaData;
 			Outer = property.Outer;
 			LineNumber = property.LineNumber;
@@ -918,6 +950,11 @@ namespace EpicGames.UHT.Types
 		#endregion
 
 		/// <summary>
+		/// Verse name of the property 
+		/// </summary>
+		public string VerseName { get; set; } = String.Empty;
+
+		/// <summary>
 		/// Property category
 		/// </summary>
 		[JsonConverter(typeof(JsonStringEnumConverter))]
@@ -1007,6 +1044,12 @@ namespace EpicGames.UHT.Types
 		[JsonIgnore]
 		public override bool Deprecated => PropertyFlags.HasAnyFlags(EPropertyFlags.Deprecated);
 
+		/// <summary>
+		/// Return the engine name without and 'b' prefixes
+		/// </summary>
+		[JsonIgnore]
+		public virtual string StrippedEngineName => EngineName;
+
 		///<inheritdoc/>
 		[JsonIgnore]
 		protected override UhtSpecifierValidatorTable? SpecifierValidatorTable
@@ -1040,11 +1083,32 @@ namespace EpicGames.UHT.Types
 		public bool IsEditorOnlyProperty => PropertyFlags.HasAnyFlags(EPropertyFlags.EditorOnly);
 
 		/// <summary>
+		/// Return the root property for the given property.  If the property is outside of a container, 
+		/// return the property itself.  Otherwise, return the property associated with the container.
+		/// </summary>
+		public UhtProperty RootProperty
+		{
+			get
+			{
+				UhtProperty root = this;
+				while (true)
+				{
+					UhtProperty? outer = root.Outer as UhtProperty;
+					if (outer == null)
+					{
+						return root;
+					}
+					root = outer;
+				}
+			}
+		}
+
+		/// <summary>
 		/// Construct a new property
 		/// </summary>
 		/// <param name="outer">Outer type of the property</param>
 		/// <param name="lineNumber">Line number where property was declared</param>
-		protected UhtProperty(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		protected UhtProperty(UhtType outer, int lineNumber) : base(outer.HeaderFile, outer, lineNumber)
 		{
 			PropertyFlags = EPropertyFlags.None;
 			PropertyCaps = UhtPropertyCaps.CanBeContainerValue | UhtPropertyCaps.CanBeContainerKey | UhtPropertyCaps.CanHaveConfig;
@@ -1054,7 +1118,7 @@ namespace EpicGames.UHT.Types
 		/// Construct a new property
 		/// </summary>
 		/// <param name="propertySettings">Property settings from parsing</param>
-		protected UhtProperty(UhtPropertySettings propertySettings) : base(propertySettings.Outer, propertySettings.LineNumber, propertySettings.MetaData)
+		protected UhtProperty(UhtPropertySettings propertySettings) : base(propertySettings.Outer.HeaderFile, propertySettings.Outer, propertySettings.LineNumber, propertySettings.MetaData)
 		{
 			SourceName = propertySettings.SourceName;
 			// Engine name defaults to source name.  If it doesn't match what is coming in, then set it.
@@ -1062,6 +1126,7 @@ namespace EpicGames.UHT.Types
 			{
 				EngineName = propertySettings.EngineName;
 			}
+			VerseName = propertySettings.VerseName;
 			PropertyCategory = propertySettings.PropertyCategory;
 			PropertyFlags = propertySettings.PropertyFlags;
 			DisallowPropertyFlags = propertySettings.DisallowPropertyFlags;
@@ -1449,6 +1514,27 @@ namespace EpicGames.UHT.Types
 		public virtual void AppendObjectHashes(StringBuilder builder, int startingLength, IUhtPropertyMemberContext context)
 		{
 		}
+
+		/// <summary>
+		/// Fetch the mangled name for a property
+		/// </summary>
+		/// <returns>True if the name needed to be mangled, false if not.</returns>
+		public (bool WasMangled, string Result) GetMangledEngineName()
+		{
+			if (PropertyFlags.HasAnyFlags(EPropertyFlags.ReturnParm))
+			{
+				return (false, EngineName);
+			}
+			if (!String.IsNullOrEmpty(VerseName))
+            {
+				return (false, VerseName);
+            }
+			if (Outer is UhtField fieldObj && fieldObj.IsVerseField)
+			{
+				return VerseNameMangling.MangleCasedName(String.IsNullOrEmpty(VerseName) ? StrippedEngineName : VerseName);
+			}
+			return (false, EngineName);
+		}
 		#endregion
 
 		#region Parsing support
@@ -1812,7 +1898,7 @@ namespace EpicGames.UHT.Types
 				{
 					if (PropertyFlags.HasAnyFlags(EPropertyFlags.Edit | EPropertyFlags.BlueprintVisible))
 					{
-						if (Package.IsPartOfEngine)
+						if (Module.IsPartOfEngine)
 						{
 							this.LogError("An explicit Category specifier is required for any property exposed to the editor or Blueprints in an Engine module.");
 						}
@@ -1982,7 +2068,7 @@ namespace EpicGames.UHT.Types
 		/// Customization point for subclasses for NeedsGCBarrierWhenPassedToFunction
 		/// </summary>
 		/// <returns>True if GC barriers need to run</returns>		
-		protected virtual bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction function)
+		protected virtual bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction uhtFunction)
 		{
 			return false;
 		}

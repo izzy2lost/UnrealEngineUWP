@@ -154,6 +154,13 @@ bool FGLTFLandscapeComponentDataInterface::GetWeightmapTextureData(ULandscapeLay
 		return false;
 	}
 
+	UTexture2D* WeightMapTexture = ComponentWeightmapTextures[ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureIndex];
+
+	if (!WeightMapTexture)
+	{
+		return false;
+	}
+
 	// If requested to skip the duplicate row/col of texture data
 	int32 WeightmapSize = bInRemoveSubsectionDuplicates ?
 		((ComponentSubsectionSizeQuads * Component.NumSubsections) + 1) >> MipLevel :
@@ -161,14 +168,30 @@ bool FGLTFLandscapeComponentDataInterface::GetWeightmapTextureData(ULandscapeLay
 
 	OutData.Empty(FMath::Square(WeightmapSize));
 	OutData.AddUninitialized(FMath::Square(WeightmapSize));
-
-	// DataInterface Lock is a LockMipReadOnly on the texture
-	const TIndirectArray<FTexture2DMipMap>& WeightMips = ComponentWeightmapTextures[ComponentWeightmapLayerAllocations[LayerIdx].WeightmapTextureIndex]->GetPlatformMips();
-	if (MipLevel >= WeightMips.Num())
+	
+#if WITH_EDITOR
+	if (MipLevel >= WeightMapTexture->Source.GetNumMips())
 	{
 		return false;
 	}
-	const FColor* WeightMipData = (FColor*)WeightMips[MipLevel].BulkData.LockReadOnly();
+	TArray64<uint8> MipData;
+	WeightMapTexture->Source.GetMipData(MipData, MipLevel);
+	const FColor* WeightMipData = (FColor*)MipData.GetData();
+#else
+	FTexturePlatformData* PlatformData = WeightMapTexture->GetPlatformData();
+	if (MipLevel >= PlatformData->Mips.Num())
+	{
+		return false;
+	}
+	void* MipData = nullptr;
+	PlatformData->Mips[MipLevel].BulkData.GetCopy(&MipData, false);
+	const FColor* WeightMipData = (FColor*)MipData;
+#endif
+
+	if (!WeightMipData)
+	{
+		return false;
+	}
 
 	// Channel remapping
 	int32 ChannelOffsets[4] = { (int32)STRUCT_OFFSET(FColor, R), (int32)STRUCT_OFFSET(FColor, G), (int32)STRUCT_OFFSET(FColor, B), (int32)STRUCT_OFFSET(FColor, A) };
@@ -180,8 +203,6 @@ bool FGLTFLandscapeComponentDataInterface::GetWeightmapTextureData(ULandscapeLay
 		// If removing subsection duplicates, convert vertex to texel index
 		OutData[i] = bInRemoveSubsectionDuplicates ? SrcTextureData[VertexIndexToTexel(i) * sizeof(FColor)] : SrcTextureData[i * sizeof(FColor)];
 	}
-
-	WeightMips[MipLevel].BulkData.Unlock();
 
 	return true;
 }

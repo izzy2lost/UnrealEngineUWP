@@ -21,6 +21,14 @@
 #include "DebugViewModeRendering.h"
 #include "MeshPassProcessor.inl"
 #include "SimpleMeshDrawCommandPass.h"
+#include "ComponentRecreateRenderStateContext.h"
+
+static TAutoConsoleVariable<int32> CVarParallelMeshDecal(
+	TEXT("r.ParallelMeshDecal"),
+	1,
+	TEXT("Toggles parallel mesh decal rendering. Parallel rendering must be enabled for this to have an effect."),
+	ECVF_RenderThreadSafe
+);
 
 class FMeshDecalsVS : public FMeshMaterialShader
 {
@@ -127,9 +135,9 @@ class FMeshDecalMeshProcessor : public FMeshPassProcessor
 public:
 	FMeshDecalMeshProcessor(const FScene* Scene, 
 		ERHIFeatureLevel::Type FeatureLevel,
-		const FSceneView* InViewIfDynamicMeshCommand, 
-		EDecalRenderStage InPassDecalStage, 
+		const FSceneView* InViewIfDynamicMeshCommand,
 		EDecalRenderTargetMode InRenderTargetMode,
+		EShadingPath ShadingPath,
 		FMeshPassDrawListContext* InDrawListContext);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
@@ -177,16 +185,15 @@ private:
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(DeferredDecals);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FDeferredDecalUniformParameters, "DeferredDecal", DeferredDecals);
 
-static const TCHAR* MeshDecalPassName = TEXT("MeshDecal");
 
 FMeshDecalMeshProcessor::FMeshDecalMeshProcessor(const FScene* Scene, 
 	ERHIFeatureLevel::Type InFeatureLevel,
 	const FSceneView* InViewIfDynamicMeshCommand, 
-	EDecalRenderStage InPassDecalStage, 
 	EDecalRenderTargetMode InRenderTargetMode,
+	EShadingPath ShadingPath,
 	FMeshPassDrawListContext* InDrawListContext)
-	: FMeshPassProcessor(MeshDecalPassName, Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
-	, PassDecalStage(InPassDecalStage)
+	: FMeshPassProcessor(DecalRendering::GetMeshPassType(InRenderTargetMode), Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
+	, PassDecalStage(DecalRendering::GetRenderStage(InRenderTargetMode, ShadingPath))
 	, RenderTargetMode(InRenderTargetMode)
 {
 	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());
@@ -226,7 +233,7 @@ bool FMeshDecalMeshProcessor::TryAddMeshBatch(
 		// We have no special engine material for decals since we don't want to eat the compilation & memory cost, so just skip if it failed to compile
 		if (Material.GetRenderingThreadShaderMap())
 		{
-			const EShaderPlatform ShaderPlatform = ViewIfDynamicMeshCommand->GetShaderPlatform();
+			const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 			const FDecalBlendDesc DecalBlendDesc = DecalRendering::ComputeDecalBlendDesc(ShaderPlatform, Material);
 
 			const bool bShouldRender =
@@ -239,7 +246,7 @@ bool FMeshDecalMeshProcessor::TryAddMeshBatch(
 				ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 				ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 
-				if (ViewIfDynamicMeshCommand->Family->UseDebugViewPS())
+				if (ViewIfDynamicMeshCommand && ViewIfDynamicMeshCommand->Family->UseDebugViewPS())
 				{
 					// Deferred decals can only use translucent blend mode
 					if (ViewIfDynamicMeshCommand->Family->EngineShowFlags.ShaderComplexity)
@@ -377,10 +384,17 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	Shaders.TryGetVertexShader(MeshDecalPassShaders.VertexShader);
 	Shaders.TryGetPixelShader(MeshDecalPassShaders.PixelShader);
 
-	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	RenderTargetsInfo.NumSamples = 1;
-	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, ShaderPlatform, LocalRenderTargetMode, RenderTargetsInfo);
+	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, LocalRenderTargetMode, RenderTargetsInfo);
+
+	uint8 SubpassIndex = 0;
+	ESubpassHint SubpassHint = ESubpassHint::None;
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		// subpass info set during the submission of the draws in a mobile renderer
+		SubpassIndex = 1; // all decals use second sub-pass on mobile
+		SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.bRequireMultiView, SceneTexturesConfig.NumSamples);
+	}
 
 	AddGraphicsPipelineStateInitializer(
 		VertexFactoryData,
@@ -392,7 +406,10 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 		MeshCullMode,
 		PT_TriangleList,
 		EMeshPassFeatures::Default,
+		SubpassHint,
+		SubpassIndex,
 		true /*bRequired*/,
+		PSOCollectorIndex,
 		PSOInitializers);
 }
 
@@ -424,73 +441,156 @@ void FMeshDecalMeshProcessor::CollectPSOInitializers(
 		// Collect decal pass PSOs
 		CollectDeferredDecalPassPSOInitializers(PSOCollectorIndex, FeatureLevel, SceneTexturesConfig, Material, LocalDecalRenderStage, PSOInitializers);
 
-		// Collect decal mesh PSOs
-		CollectDeferredDecalMeshPSOInitializers(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, DecalBlendDesc, LocalDecalRenderStage, PSOInitializers);
+		// TODO: need to pass a correct vertex declaration for non-MVF platforms
+		if (RHISupportsManualVertexFetch(ShaderPlatform))
+		{
+			// Collect decal mesh PSOs
+			CollectDeferredDecalMeshPSOInitializers(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, DecalBlendDesc, LocalDecalRenderStage, PSOInitializers);
+		}
 	}
 }
 
-IPSOCollector* CreateMeshDecalMeshProcessor(ERHIFeatureLevel::Type FeatureLevel)
+FMeshPassProcessor* CreateMeshDecalDBufferMeshProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
 {
-	if (DoesPlatformSupportNanite(GetFeatureLevelShaderPlatform(FeatureLevel)))
-	{
-		return new FMeshDecalMeshProcessor(nullptr, FeatureLevel, nullptr, EDecalRenderStage::None, EDecalRenderTargetMode::None, nullptr);
-	}
-	else
-	{
-		return nullptr;
-	}
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::DBuffer, EShadingPath::Deferred, InDrawListContext);
 }
 
-// Only register for PSO Collection
-FRegisterPSOCollectorCreateFunction RegisterPSOCollectorMeshDecal(&CreateMeshDecalMeshProcessor, EShadingPath::Deferred, MeshDecalPassName);
+FMeshPassProcessor* CreateMeshDecalSceneColorAndGBufferMeshProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::SceneColorAndGBuffer, EShadingPath::Deferred, InDrawListContext);
+}
+
+FMeshPassProcessor* CreateMeshDecalSceneColorAndGBufferNoNormalMeshProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::SceneColorAndGBufferNoNormal, EShadingPath::Deferred, InDrawListContext);
+}
+
+FMeshPassProcessor* CreateMeshDecalSceneColorMeshProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::SceneColor, EShadingPath::Deferred, InDrawListContext);
+}
+
+FMeshPassProcessor* CreateMeshDecalAmbientOcclusionProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::AmbientOcclusion, EShadingPath::Deferred, InDrawListContext);
+}
+
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(MeshDecalPass_DBuffer, CreateMeshDecalDBufferMeshProcessor, EShadingPath::Deferred, EMeshPass::MeshDecal_DBuffer, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(MeshDecal_SceneColorAndGBuffer, CreateMeshDecalSceneColorAndGBufferMeshProcessor, EShadingPath::Deferred, EMeshPass::MeshDecal_SceneColorAndGBuffer, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(MeshDecal_SceneColorAndGBufferNoNormal, CreateMeshDecalSceneColorAndGBufferNoNormalMeshProcessor, EShadingPath::Deferred, EMeshPass::MeshDecal_SceneColorAndGBufferNoNormal, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(MeshDecal_SceneColor, CreateMeshDecalSceneColorMeshProcessor, EShadingPath::Deferred, EMeshPass::MeshDecal_SceneColor, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(MeshDecal_AmbientOcclusion, CreateMeshDecalAmbientOcclusionProcessor, EShadingPath::Deferred, EMeshPass::MeshDecal_AmbientOcclusion, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+
+FMeshPassProcessor* CreateMeshDecalSceneColorAndGBufferMeshProcessor_Mobile(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::SceneColorAndGBuffer, EShadingPath::Mobile, InDrawListContext);
+}
+
+FMeshPassProcessor* CreateMeshDecalSceneColorMeshProcessor_Mobile(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::SceneColor, EShadingPath::Mobile, InDrawListContext);
+}
+
+FMeshPassProcessor* CreateMeshDecalDBufferMeshProcessor_Mobile(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
+{
+	return new FMeshDecalMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, EDecalRenderTargetMode::DBuffer, EShadingPath::Mobile, InDrawListContext);
+}
+
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(Mobile_MeshDecal_SceneColorAndGBuffer, CreateMeshDecalSceneColorAndGBufferMeshProcessor_Mobile, EShadingPath::Mobile, EMeshPass::MeshDecal_SceneColorAndGBuffer, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(Mobile_MeshDecal_SceneColor, CreateMeshDecalSceneColorMeshProcessor_Mobile, EShadingPath::Mobile, EMeshPass::MeshDecal_SceneColor, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
+REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(Mobile_MeshDecal_DBuffer, CreateMeshDecalDBufferMeshProcessor_Mobile, EShadingPath::Mobile, EMeshPass::MeshDecal_DBuffer, EMeshPassFlags::CachedMeshCommands | EMeshPassFlags::MainView);
 
 void DrawDecalMeshCommands(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
-	const FViewInfo& View,
+	FViewInfo& View,
 	const FDeferredDecalPassTextures& DecalPassTextures,
 	FInstanceCullingManager& InstanceCullingManager,
 	EDecalRenderStage DecalRenderStage,
 	EDecalRenderTargetMode RenderTargetMode)
 {
 	auto* PassParameters = GraphBuilder.AllocParameters<FDeferredDecalPassParameters>();
-	GetDeferredDecalPassParameters(GraphBuilder, View, DecalPassTextures, RenderTargetMode, *PassParameters);
+	GetDeferredDecalPassParameters(GraphBuilder, View, DecalPassTextures, DecalRenderStage, RenderTargetMode, *PassParameters);
 
-	AddSimpleMeshPass(
-		GraphBuilder, 
-		PassParameters, 
-		&Scene, 
-		View, 
-		&InstanceCullingManager, 
-		RDG_EVENT_NAME("MeshDecals"), 
-		View.ViewRect,
-		[&View, DecalRenderStage, RenderTargetMode](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
+	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);
+	if (View.ParallelMeshDrawCommandPasses[DecalMeshPassType].HasAnyDraw())
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(MeshDecalCommands);
+		const bool bRenderInParallel = GRHICommandList.UseParallelAlgorithms() && CVarParallelMeshDecal.GetValueOnRenderThread() == 1;
 
-		FMeshDecalMeshProcessor PassMeshProcessor(
-			View.Family->Scene->GetRenderScene(),
-			View.GetFeatureLevel(),
-			&View,
-			DecalRenderStage,
-			RenderTargetMode,
-			DynamicMeshPassContext);
+		View.ParallelMeshDrawCommandPasses[DecalMeshPassType].BuildRenderingCommands(GraphBuilder, Scene.GPUScene, PassParameters->InstanceCullingDrawParams);
 
-		for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.MeshDecalBatches.Num(); ++MeshBatchIndex)
+		if (bRenderInParallel)
 		{
-			const FMeshBatch* Mesh = View.MeshDecalBatches[MeshBatchIndex].Mesh;
-			const FPrimitiveSceneProxy* PrimitiveSceneProxy = View.MeshDecalBatches[MeshBatchIndex].Proxy;
-			const uint64 DefaultBatchElementMask = ~0ull;
+			// Make sure we are not clearing any render targets via the pass parameters (otherwise it might be cleared multiple times)
+			for (FRenderTargetBinding& RenderTarget : PassParameters->RenderTargets.Output)
+			{
+				if (RenderTarget.GetLoadAction() == ERenderTargetLoadAction::EClear)
+				{
+					AddClearRenderTargetPass(GraphBuilder, RenderTarget.GetTexture());
+					RenderTarget.SetLoadAction(ERenderTargetLoadAction::ELoad);
+				}
+			}
 
-			PassMeshProcessor.AddMeshBatch(*Mesh, DefaultBatchElementMask, PrimitiveSceneProxy);
+			GraphBuilder.AddDispatchPass(
+				RDG_EVENT_NAME("%s", GetMeshPassName(DecalMeshPassType)),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[&View, PassParameters, DecalMeshPassType](FRDGDispatchPassBuilder& DispatchPassBuilder)
+				{
+					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
+				});
 		}
-	});
+		else
+		{
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("%s", GetMeshPassName(DecalMeshPassType)),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[&View, PassParameters, DecalMeshPassType](FRDGAsyncTask, FRHICommandList& RHICmdList)
+				{
+					FSceneRenderer::SetStereoViewport(RHICmdList, View, 1.0f);
+					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				});
+		}
+	}
+}
+
+bool HasAnyDrawCommandDecalCount(
+	EDecalRenderStage DecalRenderStage,
+	FViewInfo& View)
+{
+	switch (DecalRenderStage)
+	{
+	case EDecalRenderStage::BeforeBasePass:	
+		return View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_DBuffer].HasAnyDraw();
+
+	case EDecalRenderStage::BeforeLighting:
+		return View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_SceneColorAndGBuffer].HasAnyDraw() || View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_SceneColorAndGBufferNoNormal].HasAnyDraw();
+		break;
+
+	case EDecalRenderStage::Mobile:
+		return View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_SceneColor].HasAnyDraw();
+		break;
+
+	case EDecalRenderStage::MobileBeforeLighting:
+		return View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_SceneColorAndGBuffer].HasAnyDraw();
+		break;
+
+	case EDecalRenderStage::Emissive:
+		return View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_SceneColor].HasAnyDraw();
+		break;
+
+	case EDecalRenderStage::AmbientOcclusion:
+		return View.ParallelMeshDrawCommandPasses[EMeshPass::MeshDecal_AmbientOcclusion].HasAnyDraw();
+		break;
+	}
+	return false;
 }
 
 void RenderMeshDecals(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
-	const FViewInfo& View,
+	FViewInfo& View,
 	const FDeferredDecalPassTextures& DecalPassTextures,
 	FInstanceCullingManager& InstanceCullingManager,
 	EDecalRenderStage DecalRenderStage)
@@ -524,31 +624,4 @@ void RenderMeshDecals(
 		DrawDecalMeshCommands(GraphBuilder, Scene, View, DecalPassTextures, InstanceCullingManager, DecalRenderStage, EDecalRenderTargetMode::AmbientOcclusion);
 		break;
 	}
-}
-
-void RenderMeshDecalsMobile(FRHICommandList& RHICmdList, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode)
-{
-	FGraphicsPipelineStateInitializer GraphicsPSOInit;
-	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-	DrawDynamicMeshPass(View, RHICmdList, [&View, DecalRenderStage, RenderTargetMode](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-	{
-		FMeshDecalMeshProcessor PassMeshProcessor(
-			View.Family->Scene->GetRenderScene(),
-			View.GetFeatureLevel(),
-			&View,
-			DecalRenderStage,
-			RenderTargetMode,
-			DynamicMeshPassContext);
-
-		for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.MeshDecalBatches.Num(); ++MeshBatchIndex)
-		{
-			const FMeshBatch* Mesh = View.MeshDecalBatches[MeshBatchIndex].Mesh;
-			const FPrimitiveSceneProxy* PrimitiveSceneProxy = View.MeshDecalBatches[MeshBatchIndex].Proxy;
-			const uint64 DefaultBatchElementMask = ~0ull;
-
-			PassMeshProcessor.AddMeshBatch(*Mesh, DefaultBatchElementMask, PrimitiveSceneProxy);
-		}
-	}, true);
 }

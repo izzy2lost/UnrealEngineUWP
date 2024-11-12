@@ -4,11 +4,15 @@
 
 #include "AvaMediaEditorStyle.h"
 #include "ContentBrowserMenuContexts.h"
+#include "Framework/Commands/UIAction.h"
 #include "IAvaMediaEditorModule.h"
 #include "Misc/MessageDialog.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorUtils.h"
+#include "Rundown/AvaRundownSerializationUtils.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "UAssetDefinition_AvaRundown"
 
@@ -74,10 +78,17 @@ namespace UE::AvaMediaEditor::Rundown::Private
 				}
 
 				using namespace UE::AvaRundownEditor::Utils;
+				using namespace UE::AvaMedia::RundownSerializationUtils;
 				FString ExportFilename = GetExportFilepath(Rundown, TEXT("json file"), TEXT("json"));
 				if (!ExportFilename.IsEmpty())
 				{
-					SaveRundownToJson(Rundown, *ExportFilename);
+					FText ErrorMessage;
+					if (!SaveRundownToJson(Rundown, *ExportFilename, ErrorMessage))
+					{
+						UE_LOG(LogAvaRundown, Error,
+							TEXT("Failed to export rundown \"%s\" to file \"%s\". Reason: %s"),
+							*Rundown->GetFullName(), *ExportFilename, *ErrorMessage.ToString());
+					}
 				}
 			}
 		}
@@ -147,10 +158,17 @@ namespace UE::AvaMediaEditor::Rundown::Private
 				}
 				
 				using namespace UE::AvaRundownEditor::Utils;
+				using namespace UE::AvaMedia::RundownSerializationUtils;
 				FString ImportFilename = GetImportFilepath(TEXT("json file"), TEXT("json"));
 				if (!ImportFilename.IsEmpty())
 				{
-					LoadRundownFromJson(Rundown, *ImportFilename);
+					FText ErrorMessage;
+					if (!LoadRundownFromJson(Rundown, *ImportFilename, ErrorMessage))
+					{
+						UE_LOG(LogAvaRundown, Error,
+							TEXT("Failed to import rundown \"%s\" from file \"%s\". Reason: %s"),
+							*Rundown->GetFullName(), *ImportFilename, *ErrorMessage.ToString());
+					}
 				}
 			}
 		}

@@ -39,6 +39,7 @@ public:
 	};
 
 	SLATE_API SUniformWrapPanel();
+	SLATE_API virtual ~SUniformWrapPanel();
 
 	/**
 	 * Used by declarative syntax to create a Slot.

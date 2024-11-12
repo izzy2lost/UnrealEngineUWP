@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "MovieSceneNameableTrack.h"
-#include "Compilation/IMovieSceneTrackTemplateProducer.h"
 #include "MovieSceneAudioTrack.generated.h"
 
 class USoundBase;
@@ -38,9 +37,6 @@ public:
 	{
 		return AudioSections;
 	}
-
-	UE_DEPRECATED(5.2, "IsAMasterTrack is deprecated. Please use Cast<UMovieScene>(GetOuter())->ContainsTrack instead")
-	MOVIESCENETRACKS_API bool IsAMasterTrack() const;
 
 public:
 

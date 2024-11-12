@@ -32,31 +32,6 @@ UNiagaraEmitterEditorData::UNiagaraEmitterEditorData(const FObjectInitializer& O
 	PlaybackRangeMax = 10;
 }
 
-void UNiagaraEmitterEditorData::Serialize(FArchive& Ar)
-{
-#if WITH_EDITORONLY_DATA
-	// When cooking an emitter that's not an asset, clear out the thumbnail image to prevent issues
-	// with cooked editor data.
-	bool bCookingNonAssetEmitter = Ar.IsCooking() && GetTypedOuter<UNiagaraEmitter>() && GetTypedOuter<UNiagaraEmitter>()->IsAsset() == false;
-	UTexture2D* CachedThumbnail = nullptr;
-	if (bCookingNonAssetEmitter)
-	{
-		CachedThumbnail = EmitterThumbnail;
-		EmitterThumbnail = nullptr;
-	}
-	
-#endif
-	Super::Serialize(Ar);
-
-#if WITH_EDITORONLY_DATA
-	// Restore the thumbnail image that was cleared before serialize.
-	if (bCookingNonAssetEmitter)
-	{
-		EmitterThumbnail = CachedThumbnail;
-	}
-#endif
-}
-
 void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 {
 	// ATTENTION
@@ -184,16 +159,16 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 						if(MatchingScriptVariable != nullptr)
 						{
 							ScriptVariable = *MatchingScriptVariable;
-							OriginalCategoryName = FName(ScriptVariable->Metadata.CategoryName.ToString());
+							OriginalCategoryName = FName(ScriptVariable->Metadata.GetCategoryName_DEPRECATED().ToString());
 							ParentInputIdentity.Guids.Add(ScriptVariable->Metadata.GetVariableGuid());
 							AssetVariableMetadata.Add(ParentInputIdentity, ScriptVariable->Metadata);
 
 							// now that we found the matching parent input, we look for child inputs
 							for(UNiagaraScriptVariable* CandidateChildScriptVariable : ScriptVariables)
 							{
-								if(CandidateChildScriptVariable != nullptr && !CandidateChildScriptVariable->Metadata.ParentAttribute.IsNone())
+								if(CandidateChildScriptVariable != nullptr && !CandidateChildScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsNone())
 								{
-									if(CandidateChildScriptVariable->Metadata.ParentAttribute.IsEqual(ScriptVariable->Variable.GetName()))
+									if(CandidateChildScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsEqual(ScriptVariable->Variable.GetName()))
 									{
 										FNiagaraHierarchyIdentity ChildIdentity;
 										ChildIdentity.Guids.Add(FunctionCall->NodeGuid);
@@ -323,13 +298,13 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 			int32 SortOrderA = SummarySortOrder[&ItemA];
 			if(SortOrderA == INDEX_NONE)
 			{
-				SortOrderA = MetaDataA.EditorSortPriority;
+				SortOrderA = MetaDataA.GetEditorSortPriority_DEPRECATED();
 			}
 
 			int32 SortOrderB = SummarySortOrder[&ItemB];
 			if(SortOrderB == INDEX_NONE)
 			{
-				SortOrderB = MetaDataB.EditorSortPriority;
+				SortOrderB = MetaDataB.GetEditorSortPriority_DEPRECATED();
 			}
 				
 			return SortOrderA < SortOrderB;
@@ -358,7 +333,7 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 				{
 					if(AssetVariableMetadata.Contains(MinimumItem->GetPersistentIdentity()))
 					{
-						MinimumCategorySortOrder = AssetVariableMetadata[MinimumItem->GetPersistentIdentity()].EditorSortPriority;
+						MinimumCategorySortOrder = AssetVariableMetadata[MinimumItem->GetPersistentIdentity()].GetEditorSortPriority_DEPRECATED();
 					}
 				}
 				
@@ -452,6 +427,15 @@ void UNiagaraEmitterEditorData::PostLoad()
 	if(SummaryViewRoot == nullptr)
 	{
 		SummaryViewRoot = NewObject<UNiagaraHierarchyRoot>(this, TEXT("SummaryViewRoot"), RF_Transactional);
+	}
+
+	if(UPackage* Package = GetPackage())
+	{
+		if(Package->HasAnyPackageFlags(PKG_Cooked))
+		{
+			// We remove the thumbnail for cooked emitters as it can cause issues with cooked emitter being put into uncooked systems
+			EmitterThumbnail = nullptr;
+		}
 	}
 }
 

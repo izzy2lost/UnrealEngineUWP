@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ReplicatedTestObject.h"
+#include "ReplicatedTestObjectFactory.h"
 #include "NetworkAutomationTest.h"
 #include "NetworkAutomationTestMacros.h"
 #include "Iris/ReplicationState/PropertyReplicationState.h"
@@ -33,6 +34,15 @@ UReplicatedTestObjectBridge::UReplicatedTestObjectBridge()
 : UObjectReplicationBridge()
 , CreatedObjectsOnNode(nullptr)
 {
+	
+}
+
+void UReplicatedTestObjectBridge::Initialize(UReplicationSystem* InReplicationSystem)
+{
+	Super::Initialize(InReplicationSystem);
+
+	ReplicatedObjectFactoryId = UE::Net::FNetObjectFactoryRegistry::GetFactoryIdFromName(UReplicatedTestObjectFactory::GetFactoryName());
+	check(ReplicatedObjectFactoryId != UE::Net::InvalidNetObjectFactoryId);
 }
 
 const UE::Net::FReplicationInstanceProtocol* UReplicatedTestObjectBridge::GetReplicationInstanceProtocol(FNetRefHandle Handle) const
@@ -50,10 +60,8 @@ const UE::Net::FReplicationInstanceProtocol* UReplicatedTestObjectBridge::GetRep
 UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance)
 {
 	// Create NetRefHandle for the registered fragments
-	Super::FCreateNetRefHandleParams Params = Super::DefaultCreateNetRefHandleParams;
-	Params.bCanReceive = true;
-
-	FNetRefHandle Handle = Super::BeginReplication(Instance, Params);
+	FRootObjectReplicationParams Params;
+	FNetRefHandle Handle = StartReplicatingRootObject(Instance, Params, ReplicatedObjectFactoryId);
 
 	// This is optional but typically we want to cache at least the NetRefHandle in the game instance to avoid doing map lookups to find it
 	if (Handle.IsValid())
@@ -64,10 +72,10 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicated
 	return Handle;
 }
 
-UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance, const UObjectReplicationBridge::FCreateNetRefHandleParams& Params)
+UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance, const UObjectReplicationBridge::FRootObjectReplicationParams& Params)
 {
 	// Create NetRefHandle for the registered fragments
-	FNetRefHandle Handle = Super::BeginReplication(Instance, Params);
+	FNetRefHandle Handle = Super::StartReplicatingRootObject(Instance, Params, ReplicatedObjectFactoryId);
 
 	// This is optional but typically we want to cache at least the NetRefHandle in the game instance to avoid doing map lookups to find it
 	if (Handle.IsValid())
@@ -83,11 +91,8 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHand
 	check(OwnerHandle.IsValid());
 
 	// Create NetRefHandle for the registered fragments
-	Super::FCreateNetRefHandleParams Params = Super::DefaultCreateNetRefHandleParams;
-	Params.bCanReceive = true;
-
-	// Create NetRefHandle for the registered fragments
-	FNetRefHandle Handle = Super::BeginReplication(OwnerHandle, SubObjectInstance, InsertRelativeToSubObjectHandle, InsertionOrder, Params);
+	const FSubObjectReplicationParams Params { .RootObjectHandle = OwnerHandle, .InsertRelativeToSubObjectHandle = InsertRelativeToSubObjectHandle, .InsertionOrder = InsertionOrder };
+	FNetRefHandle Handle = Super::StartReplicatingSubObject(SubObjectInstance, Params, ReplicatedObjectFactoryId);
 
 	if (Handle.IsValid())
 	{
@@ -99,121 +104,9 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHand
 	return Handle;
 }
 
-
-bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerializationContext& Context, FNetRefHandle Handle)
+void UReplicatedTestObjectBridge::EndReplication(UReplicatedTestObject* Instance, EEndReplicationFlags Flags)
 {
-	UE::Net::FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
-
-	uint16 NumComponentsToSpawn = 0U;
-	uint16 NumIrisComponentsToSpawn = 0U;
-	uint16 NumDynamicComponentsToSpawn = 0U;
-	uint16 NumConnectionFilteredComponentsToSpawn = 0U;
-	uint16 NumObjectReferenceComponentsToSpawn = 0U;
-	bool bForceFailToInstantiateOnRemote = false;
-
-	const UObject* Object = GetReplicatedObject(Handle);
-	if (const UReplicatedTestObject* ReplicatedTestObject = Cast<UReplicatedTestObject>(Object))
-	{
-		bForceFailToInstantiateOnRemote = ReplicatedTestObject->bForceFailToInstantiateOnRemote;
-	}
-	if (const UTestReplicatedIrisObject* TestReplicatedIrisObject = Cast<UTestReplicatedIrisObject>(Object))
-	{
-		NumComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->Components.Num());
-		NumIrisComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->IrisComponents.Num());
-		NumDynamicComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->DynamicStateComponents.Num());
-		NumConnectionFilteredComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ConnectionFilteredComponents.Num());
-		NumObjectReferenceComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ObjectReferenceComponents.Num());
-	}
-
-	UObject* Archetype = Object->GetArchetype();
-	check(Archetype);
-
-	WriteString(&Writer, Archetype->GetPathName());
-	Writer.WriteBits(NumComponentsToSpawn, 16);
-	Writer.WriteBits(NumIrisComponentsToSpawn, 16);
-	Writer.WriteBits(NumDynamicComponentsToSpawn, 16);
-	Writer.WriteBits(NumConnectionFilteredComponentsToSpawn, 16);
-	Writer.WriteBits(NumObjectReferenceComponentsToSpawn, 16);
-	Writer.WriteBool(bForceFailToInstantiateOnRemote);
-
-	return !Writer.IsOverflown();
-}
-
-UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCreationHeader(UE::Net::FNetSerializationContext& Context)
-{
-	UE::Net::FNetBitStreamReader& Reader = *Context.GetBitStreamReader();
-	TUniquePtr<FReplicationTestObjectCreationHeader> Header(new FReplicationTestObjectCreationHeader);
-
-	ReadString(&Reader, Header->ArchetypeName);
-
-	//FNetObjectReference ArcheTypeRef;
-
-	Header->NumComponentsToSpawn = Reader.ReadBits(16);
-	Header->NumIrisComponentsToSpawn = Reader.ReadBits(16);
-	Header->NumDynamicComponentsToSpawn = Reader.ReadBits(16);
-	Header->NumConnectionFilteredComponentsToSpawn = Reader.ReadBits(16);
-	Header->NumObjectReferenceComponentsToSpawn = Reader.ReadBits(16);
-	Header->bForceFailCreateRemoteInstance = Reader.ReadBool();
-
-	if (Reader.IsOverflown())
-	{
-		return nullptr;
-	}
-
-	return Header.Release();
-}
-
-FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const FCreationHeader* InHeader)
-{
-	const FReplicationTestObjectCreationHeader* Header = static_cast<const FReplicationTestObjectCreationHeader*>(InHeader);
-
-	// Force fail to create this remote instance
-	if (Header->bForceFailCreateRemoteInstance)
-	{
-		return FObjectReplicationBridgeInstantiateResult();
-	}
-
-	UObject* ArcheType = StaticFindObject(UObject::StaticClass(), nullptr, *Header->ArchetypeName, false);
-
-	check(ArcheType);
-
-	FStaticConstructObjectParameters ConstructObjectParameters(ArcheType->GetClass());
-	UObject* CreatedObject = StaticConstructObject_Internal(ConstructObjectParameters);
-
-	if (UReplicatedTestObject* BaseTestObject = Cast<UReplicatedTestObject>(CreatedObject))
-	{
-		BaseTestObject->bIsSubObject = RootObjectOfSubObject.IsValid();
-	}
-	
-	if (UTestReplicatedIrisObject* CreatedTestObject = Cast<UTestReplicatedIrisObject>(CreatedObject))
-	{
-		UTestReplicatedIrisObject::FComponents Components;
-		Components.PropertyComponentCount = Header->NumComponentsToSpawn;
-		Components.IrisComponentCount = Header->NumIrisComponentsToSpawn;
-		Components.DynamicStateComponentCount = Header->NumDynamicComponentsToSpawn;
-		Components.ConnectionFilteredComponentCount = Header->NumConnectionFilteredComponentsToSpawn;
-		Components.ObjectReferenceComponentCount = Header->NumObjectReferenceComponentsToSpawn;
-
-		CreatedTestObject->AddComponents(Components);
-	}
-
-	// Store the object so that we can find detached/torn off instances from tests
-	if (CreatedObjectsOnNode)
-	{
-		CreatedObjectsOnNode->Add(TStrongObjectPtr<UObject>(CreatedObject));
-	}
-	
-	FObjectReplicationBridgeInstantiateResult InstantiateResult;
-	InstantiateResult.Object = CreatedObject;
-	InstantiateResult.Flags |= EReplicationBridgeCreateNetRefHandleResultFlags::AllowDestroyInstanceFromRemote;
-	return InstantiateResult;
-}
-
-void UReplicatedTestObjectBridge::EndInstantiateFromRemote(FNetRefHandle Handle)
-{
-	UReplicatedTestObject* Instance = CastChecked<UReplicatedTestObject>(GetReplicatedObject(Handle));
-
-	Instance->NetRefHandle = Handle;
+	StopReplicatingNetObject(Instance, Flags);
 }
 
 void UReplicatedTestObjectBridge::DestroyInstanceFromRemote(const FDestroyInstanceParams& Params)
@@ -249,7 +142,12 @@ void UReplicatedTestObjectBridge::SetExternalWorldLocationUpdateFunctor(TFunctio
 	SetInstanceGetWorldObjectInfoFunction(LocUpdateFunctor);
 }
 
-void UReplicatedTestObjectBridge::SetExternalPreUpdateFunctor(TFunction<void(FNetRefHandle, UObject*, const UReplicationBridge*)> PreUpdateFunctor)
+TFunction<void(UE::Net::FNetRefHandle, const UObject*, FVector&, float&)> UReplicatedTestObjectBridge::GetExternalWorldLocationUpdateFunctor() const
+{
+	return GetInstanceGetWorldObjectInfoFunction();
+}
+
+void UReplicatedTestObjectBridge::SetExternalPreUpdateFunctor(TFunction<void(TArrayView<UObject*>, const UReplicationBridge*)> PreUpdateFunctor)
 {
 	SetInstancePreUpdateFunction(PreUpdateFunctor);
 }
@@ -329,6 +227,11 @@ void UTestReplicatedIrisLifetimeConditionalsPropertyState::GetLifetimeReplicated
 	DOREPLIFETIME_CONDITION(ThisClass, NeverInt, COND_Never);
 	DOREPLIFETIME_CONDITION(ThisClass, SkipReplayInt, COND_SkipReplay);
 	DOREPLIFETIME_CONDITION(ThisClass, ReplayOnlyInt, COND_ReplayOnly);
+
+	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOnlyIntArray, COND_SimulatedOnly);
+	DOREPLIFETIME_CONDITION(ThisClass, AutonomousOnlyIntArray, COND_AutonomousOnly);
+	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOrPhysicsIntArray, COND_SimulatedOrPhysics);
+	DOREPLIFETIME_CONDITION(ThisClass, OwnerOnlyIntArray, COND_OwnerOnly);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -561,6 +464,49 @@ void UTestReplicatedObjectWithRepNotifies::OnRep_IntA(int32 OldInt)
 void UTestReplicatedObjectWithRepNotifies::OnRep_IntB(int32 OldInt)
 {
 	PrevIntBStoredInOnRep = OldInt;
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+// Implementation for UTestReplicatedIrisPushModelObject
+//////////////////////////////////////////////////////////////////////////
+void UTestReplicatedIrisPushModelObject::GetLifetimeReplicatedProps(TArray< class FLifetimeProperty >& OutLifetimeProps) const
+{
+	FDoRepLifetimeParams Params{ .bIsPushBased = true };
+	DOREPLIFETIME_WITH_PARAMS(UTestReplicatedIrisPushModelObject, IntA, Params);
+	DOREPLIFETIME_WITH_PARAMS(UTestReplicatedIrisPushModelObject, IntB, Params);
+}
+
+void UTestReplicatedIrisPushModelObject::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
+{
+	// Base object owns the fragment in this case
+	{
+		this->ReplicationFragments.Reset();
+		UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags, &this->ReplicationFragments);
+	}
+}
+
+
+void UTestReplicatedIrisPushModelObject::SetIntA(int32 InValue)
+{
+	IntA = InValue;
+	MARK_PROPERTY_DIRTY_FROM_NAME(UTestReplicatedIrisPushModelObject, IntA, this);
+}
+
+int32 UTestReplicatedIrisPushModelObject::GetIntA() const
+{
+	return IntA;
+}
+
+void UTestReplicatedIrisPushModelObject::SetIntB(int32 InValue)
+{
+	IntB = InValue;
+	MARK_PROPERTY_DIRTY_FROM_NAME(UTestReplicatedIrisPushModelObject, IntB, this);
+}
+
+int32 UTestReplicatedIrisPushModelObject::GetIntB() const
+{
+	return IntB;
 }
 
 //////////////////////////////////////////////////////////////////////////

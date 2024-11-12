@@ -88,6 +88,13 @@ int32 FGLTFBuilder::SanitizeLOD(const USkeletalMesh* SkeletalMesh, const USkelet
 		: FGLTFMeshUtilities::GetLOD(SkeletalMesh, SkeletalMeshComponent, ExportOptions->DefaultLevelOfDetail);
 }
 
+int32 FGLTFBuilder::SanitizeLOD(const UStaticMesh* StaticMesh, const USplineMeshComponent* SplineMeshComponent, int32 LODIndex) const
+{
+	return LODIndex > 0
+		? FMath::Min(LODIndex, FGLTFMeshUtilities::GetMaximumLOD(StaticMesh))
+		: FGLTFMeshUtilities::GetLOD(StaticMesh, SplineMeshComponent, ExportOptions->DefaultLevelOfDetail);
+}
+
 const UGLTFExportOptions* FGLTFBuilder::SanitizeExportOptions(const UGLTFExportOptions* Options)
 {
 	if (Options == nullptr)

@@ -5,7 +5,7 @@ import moment from "moment";
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { BatchData, GetArtifactResponseV2, GetJobTimingResponse, GetLabelResponse, GetTemplateRefResponse, GroupData, JobData, JobState, LabelState, NodeData, ReportPlacement, StepData, StreamData } from "../../backend/Api";
+import { BatchData, GetArtifactResponse, GetJobTimingResponse, GetLabelStateResponse, GetTemplateRefResponse, JobData, JobState, LabelState, ReportPlacement, StepData, StreamData } from "../../backend/Api";
 import { JobLabel } from "../../backend/JobDetails";
 import { PollBase } from "../../backend/PollBase";
 import { projectStore } from "../../backend/ProjectStore";
@@ -174,8 +174,6 @@ export class JobDetailsV2 extends PollBase {
       this.stream = undefined;
       this.template = undefined;
       this.labels = [];
-      this.groups = [];
-      this.nodes = [];
       this.batches = [];
       this.views = [];
       this.timing = undefined;
@@ -244,21 +242,6 @@ export class JobDetailsV2 extends PollBase {
 
    }
 
-   nodeByStepId(stepId: string | undefined): NodeData | undefined {
-
-      if (!stepId) {
-         return undefined;
-      }
-
-      const batch = this.batchByStepId(stepId);
-      const step = this.stepById(stepId);
-
-      if (!batch || !step) return undefined;
-
-      return this.groups[batch.groupIdx].nodes[step.nodeIdx];
-
-   }
-
    getSteps(): StepData[] {
       return this.batches.map(b => b.steps).flat();
    }
@@ -285,51 +268,43 @@ export class JobDetailsV2 extends PollBase {
       return step;
    }
 
-   getStepGroupIndex(stepId: string): number {
-
-      const node = this.nodeByStepId(stepId);
-      if (!node) {
-         return -1;
-      }
-
-      return this.groups.findIndex(g => !!g.nodes.find(n => n.name === node.name));
-   }
-
-
    getStepName(stepId: string | undefined, includeRetry: boolean = true): string {
 
       if (!stepId) {
          return "";
       }
 
-      const node = this.nodeByStepId(stepId);
-      if (!node) {
+      const step = this.stepById(stepId);
+
+      if (!step?.name) {
          return "";
       }
 
       const idx = this.getStepRetryNumber(stepId);
       if (!idx || !includeRetry) {
-         return node.name;
+         return step.name;
       }
 
-      return `${node.name} (${idx + 1})`;
+      return `${step.name} (${idx + 1})`;
 
    }
+
+
 
    stepRetries: Map<string, number> = new Map();
 
    getStepRetries(stepId: string): StepData[] {
 
-      const node = this.nodeByStepId(stepId);
-
-      if (!node) {
+      const step = this.stepById(stepId);
+      if (!step) {
          return [];
       }
+
 
       let steps: StepData[] = [];
 
       this.batches.forEach(b => {
-         b.steps.filter(s => this.nodeByStepId(s.id) === node).forEach(s => {
+         b.steps.filter(s => s.name === step.name).forEach(s => {
             steps.push(s);
          });
       })
@@ -391,7 +366,7 @@ export class JobDetailsV2 extends PollBase {
 
    }
 
-   private processGraph() {
+   processGraph() {
 
       const jobData = this.jobData;
 
@@ -400,26 +375,12 @@ export class JobDetailsV2 extends PollBase {
       }
 
       this.batches = jobData.batches ?? [];
-      this.groups = jobData.graphRef?.groups ?? [];
-      this.nodes = [];
-      if (this.groups) {
-         this.nodes = this.groups.map(g => g.nodes).flat();
-      }
 
-      let labels: GetLabelResponse[] = [];
-      if (jobData.graphRef?.labels && jobData.labels) {
-         labels = jobData.graphRef.labels;
-      }
-
+      let labels = jobData.labels ?? [];
       this.labels = labels.map((label, index) => {
          return {
-            category: label.category,
-            name: label.name,
-            includedNodes: label.includedNodes,
-            requiredNodes: label.requiredNodes,
             default: false,
-            stateResponse: jobData.labels![index],
-            internal: label,
+            stateResponse: label,
             timing: undefined
          }
       });
@@ -427,12 +388,9 @@ export class JobDetailsV2 extends PollBase {
       const defaultLabel = jobData.defaultLabel;
       if (defaultLabel) {
          this.labels.push({
-            category: "Other",
-            name: "Other",
-            includedNodes: defaultLabel.nodes,
-            requiredNodes: [],
             stateResponse: defaultLabel,
-            default: true
+            default: true,
+            timing: undefined
          })
       }
    }
@@ -454,7 +412,7 @@ export class JobDetailsV2 extends PollBase {
 
       const labels = this.labels;
 
-      if (!labels || idx >= labels.length) {
+      if (!labels || (idx as number) >= labels.length) {
          return undefined;
       }
 
@@ -475,9 +433,9 @@ export class JobDetailsV2 extends PollBase {
 
       const label = labels.find(label => {
          if (category) {
-            return category === label.category && name === label.name;
+            return category === label.stateResponse.dashboardCategory && name === label.stateResponse.dashboardName;
          }
-         return name === label.name;
+         return name === label.stateResponse.dashboardName;
       });
 
       return label;
@@ -499,7 +457,7 @@ export class JobDetailsV2 extends PollBase {
             return;
          }
 
-         step = b.steps.find(s => this.nodeByStepId(s.id)?.name === name);
+         step = b.steps.find(s => s.name === name);
 
       });
 
@@ -585,87 +543,98 @@ export class JobDetailsV2 extends PollBase {
 
    async poll() {
 
-      if (!this.jobId || this.jobError) {
-         return;
-      }
+      try {
 
-      let requests = [];
-
-      const initialRequest = !this.jobData;
-
-      requests.push(backend.getJob(this.jobId, undefined, true, true));
-
-      let results: any;
-
-      await Promise.all(requests as any).then(r => results = r).catch(reason => {
-         console.error(reason);
-         this.jobError = reason;
-      });
-
-      if (!this.jobError && !results?.length) {
-         this.jobError = "Not Found";
-      }
-
-      if (this.jobError) {
-         this.setRootUpdated();
-         return;
-      }
-
-      const lastUpdateTime = this.jobData?.updateTime;
-
-      const jobData = this.jobData = results[0] as JobData;
-
-      if (!this.stream) {
-         this.stream = projectStore.streamById(jobData.streamId);
-      }
-
-      if (!this.stream) {
-         throw new Error(`Unable to get stream for job ${this.jobId}`)
-      }
-
-      let forceUpdate = false;
-      if (initialRequest) {
-         const templates = await TemplateCache.getStreamTemplates(this.stream);
-         this.template = templates.find(t => t.id === jobData.templateId);
-         if (!this.template) {
-            throw new Error(`Unable to get stream template for job ${this.jobId}`)
+         if (!this.jobId || this.jobError) {
+            return;
          }
-      } else {
 
-         if (!this.timing && this.jobId) {
-            forceUpdate = true;
-            this.timing = await backend.getJobTiming(this.jobId);
+         let requests: any[] = [];
+
+         const initialRequest = !this.jobData;
+
+         requests.push(backend.getJob(this.jobId, undefined, true));
+
+         let results: any;
+
+         await Promise.all(requests as any).then(r => results = r).catch(reason => {
+            console.error(reason);
+            this.jobError = reason;
+         });
+
+         if (!this.jobError && !results?.length) {
+            this.jobError = "Not Found";
+         }
+
+         if (this.jobError) {
+            this.setRootUpdated();
+            return;
+         }
+
+         const lastUpdateTime = this.jobData?.updateTime;
+
+         const jobData = this.jobData = results[0] as JobData;
+
+         if (!this.stream) {
+            this.stream = projectStore.streamById(jobData.streamId);
+         }
+
+         if (!this.stream) {
+            throw new Error(`Unable to get stream for job ${this.jobId}`)
+         }
+
+         let forceUpdate = false;
+         if (initialRequest) {
+            const templates = await TemplateCache.getStreamTemplates(this.stream);
+            this.template = templates.find(t => t.id === jobData.templateId);
+            if (!this.template) {
+               throw new Error(`Error: Missing template ${this.stream?.fullname ?? jobData.streamId} - ${jobData.templateId}`)
+            }
+         } else {
+
+            if (!this.timing && this.jobId) {
+               forceUpdate = true;
+               this.timing = await backend.getJobTiming(this.jobId);
+               this.syncTiming();
+            }
+         }
+
+
+         if (jobData.updateTime !== lastUpdateTime) {
+            this.processGraph();
             this.syncTiming();
+            this.setUpdated();
          }
-      }
 
+         if (initialRequest) {
+            this.filter.updateFilterItems();
+            this.filterUpdated();
 
-      if (jobData.updateTime !== lastUpdateTime) {
-         this.processGraph();
-         this.syncTiming();
-         this.setUpdated();
-      }
+            // poll again for initial request, to save delay on 2nd pass
+            clearTimeout(this.timeoutId);
+            this.timeoutId = setTimeout(() => { this.update(); }, 500);
 
-      if (initialRequest) {
-         this.filter.updateFilterItems();
-         this.filterUpdated();
-
-         // poll again for initial request, to save delay on 2nd pass
-         clearTimeout(this.timeoutId);
-         this.timeoutId = setTimeout(() => { this.update(); }, 500);
-
-      }
-
-      this.views.forEach(v => {
-         v.tick();
-      });
-
-      this.views.forEach(v => {
-         if (forceUpdate || (v.updateTime !== jobData.updateTime)) {
-            v.updateTime = jobData.updateTime;
-            v.detailsUpdated();
          }
-      });
+
+         this.views.forEach(v => {
+            v.tick();
+         });
+
+         this.views.forEach(v => {
+            if (forceUpdate || (v.updateTime !== jobData.updateTime)) {
+               v.updateTime = jobData.updateTime;
+               v.detailsUpdated();
+            }
+         });
+         
+      } catch (reason) {
+         console.error(reason);
+         this.jobError = reason?.message ?? "Error loading job";
+         this.setRootUpdated();
+         
+      } finally {
+
+      }
 
    }
 
@@ -690,13 +659,11 @@ export class JobDetailsV2 extends PollBase {
    jobData?: JobData;
    stream?: StreamData;
    labels: JobLabel[] = [];
-   groups: GroupData[] = [];
-   nodes: NodeData[] = [];
    batches: BatchData[] = [];
    template?: GetTemplateRefResponse;
 
    // stepId => artifacts
-   stepArtifacts = new Map<string, GetArtifactResponseV2[]>();
+   stepArtifacts = new Map<string, GetArtifactResponse[]>();
 
    @observable
    private rootUpdated: number = 0;
@@ -719,21 +686,16 @@ export class JobDetailsV2 extends PollBase {
 
       const steps: StepData[] = [];
 
-      const nodes: NodeData[] = [];
-
       const getStepsRecursive = (stepId: string) => {
 
-         const stepNode = this.nodeByStepId(stepId);
-
-         if (!stepNode || nodes.find(n => stepNode === n)) {
+         const step = this.stepById(stepId);
+         if (!step) {
             return;
          }
 
-         nodes.push(stepNode);
-
-         [stepNode.inputDependencies, stepNode.orderDependencies].flat().forEach(name => {
-            const s = this.stepByName(name);
-            if (s) {
+         [step.inputDependencies, step.orderDependencies].flat().forEach(id => {
+            const s = this.stepById(id);
+            if (s && !steps.find(s => s.id === id)) {
                steps.push(s);
                getStepsRecursive(s.id);
             }
@@ -786,7 +748,7 @@ export type StateFilter = "All" | "Waiting" | "Ready" | "Skipped" | "Running" | 
 
 // filter options for picker
 type FilterPickerItem = ITag & {
-   label?: GetLabelResponse;
+   label?: GetLabelStateResponse;
    step?: StepData;
    searchItem?: boolean;
    searchInput?: string;
@@ -800,7 +762,7 @@ export class JobDetailFilters {
       this.details = details;
    }
 
-   get label(): GetLabelResponse | undefined {
+   get label(): GetLabelStateResponse | undefined {
       return this._selected?.label;
    }
 
@@ -882,7 +844,7 @@ export class JobDetailFilters {
       this.setSelected(undefined, undefined, undefined);
    }
 
-   setSelected(step: StepData | undefined, label: GetLabelResponse | undefined, search?: string) {
+   setSelected(step: StepData | undefined, label: GetLabelStateResponse | undefined, search?: string) {
       /*
       console.log("setSelected Filter", step, label, search, this.filterItems.length);
       console.log(console.trace(""));
@@ -896,7 +858,7 @@ export class JobDetailFilters {
             return true;
          }
 
-         if (label && item.label?.category === label.category && item.label?.name === label.name) {
+         if (label && item.label?.dashboardCategory === label.dashboardCategory && item.label?.dashboardName === label.dashboardName) {
             return true;
          }
 
@@ -937,14 +899,14 @@ export class JobDetailFilters {
       };
 
       const categories: Set<string> = new Set();
-      labels.forEach(label => { if (label.name) { categories.add(label.category!); } });
+      labels.forEach(label => { if (label.stateResponse.dashboardName) { categories.add(label.stateResponse.dashboardCategory!); } });
 
 
       let labelItems = Array.from(categories.values()).map(c => {
          return {
             category: c,
-            labels: labels.filter(label => label.name && (label.category === c)).sort((a, b) => {
-               return a.name! < b.name! ? -1 : 1;
+            labels: labels.filter(label => label.stateResponse.dashboardName && (label.stateResponse.dashboardCategory === c)).sort((a, b) => {
+               return a.stateResponse.dashboardName! < b.stateResponse.dashboardName! ? -1 : 1;
             })
          } as LabelItem;
       }).filter(item => item.labels?.length).sort((a, b) => {
@@ -980,11 +942,11 @@ export class JobDetailFilters {
 
       labelItems.forEach(labelItem => {
          labelItem.labels.forEach(label => {
-            const count = labelDupes.get(label.name);
+            const count = labelDupes.get(label.stateResponse.dashboardName ?? "");
             if (!count) {
-               labelDupes.set(label.name, 1);
+               labelDupes.set(label.stateResponse.dashboardName ?? "", 1);
             } else {
-               labelDupes.set(label.name, count + 1);
+               labelDupes.set(label.stateResponse.dashboardName ?? "", count + 1);
             }
          });
       });
@@ -994,16 +956,16 @@ export class JobDetailFilters {
       labelItems.forEach(labelItem => {
          labelItem.labels.forEach(label => {
 
-            const count = labelDupes.get(label.name);
-            let name = `Label: ${label.name}`;
+            const count = labelDupes.get(label.stateResponse.dashboardName ?? "");
+            let name = `Label: ${label.stateResponse.dashboardName ?? ""}`;
             if (count! > 1) {
-               name = `Label: ${labelItem.category} - ${label.name}`
+               name = `Label: ${labelItem.category} - ${label.stateResponse.dashboardName ?? ""}`
             }
 
             filterItems.push({
-               key: `label_item_${labelItem.category}_${label.name}`,
+               key: `label_item_${labelItem.category}_${label.stateResponse.dashboardName ?? ""}`,
                name: name,
-               label: label
+               label: label.stateResponse
             })
          });
       });
@@ -1129,8 +1091,8 @@ export const JobFilterBar: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
       if (!isNaN(idx)) {
          const nlabel = jobDetails.labelByIndex(labelIdx);
          if (nlabel) {
-            if (!label || nlabel !== label) {
-               jobFilter.setSelected(undefined, nlabel);
+            if (!label || (nlabel?.stateResponse.dashboardCategory !== label.dashboardCategory || nlabel?.stateResponse.dashboardName !== label.dashboardName)) {
+               jobFilter.setSelected(undefined, nlabel.stateResponse);
             }
          }
       }
@@ -1222,7 +1184,7 @@ export const JobFilterBar: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
                let inner: JSX.Element | undefined;
                if (item.label) {
                   inner = <Stack horizontal verticalAlign="center" verticalFill={true}>
-                     <LabelStatusIcon label={item.label as JobLabel} />
+                     <LabelStatusIcon label={item.label} />
                      <Text>{item.name}</Text>
                   </Stack>
                }
@@ -1294,7 +1256,7 @@ export const JobFilterBar: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
 
                const label = (item as FilterPickerItem).label;
                if (label) {
-                  const idx = jobDetails.labelIndex(label.name, label.category);
+                  const idx = jobDetails.labelIndex(label.dashboardName ?? "", label.dashboardCategory ?? "");
                   if (idx >= 0) {
                      navigate(location.pathname + `?label=${idx}`);
                   } else {

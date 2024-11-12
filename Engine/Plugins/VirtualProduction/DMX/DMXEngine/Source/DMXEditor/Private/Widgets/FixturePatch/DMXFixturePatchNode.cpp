@@ -5,15 +5,12 @@
 #include "DMXEditor.h"
 #include "DMXFixturePatchEditorDefinitions.h"
 #include "DMXFixturePatchSharedData.h"
-#include "SDMXFixturePatchFragment.h"
-#include "SDMXPatchedUniverse.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
-#include "MVR/Types/DMXMVRFixtureNode.h"
-
 #include "ScopedTransaction.h"
+#include "SDMXFixturePatchFragment.h"
+#include "SDMXPatchedUniverse.h"
 #include "Widgets/Layout/SGridPanel.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXFixturePatchNode"
 
@@ -316,62 +313,22 @@ bool FDMXFixturePatchNode::IsSelected() const
 
 FString FDMXFixturePatchNode::GetFixtureID() const
 {
-	if (!MVRFixtureNode.IsValid())
-	{
-		UDMXLibrary* DMXLibrary = WeakDMXEditor.IsValid() ? WeakDMXEditor.Pin()->GetDMXLibrary() : nullptr;
-		if (!DMXLibrary || !FixturePatch.IsValid())
-		{
-			return FString();
-		}
-
-		TArray<UDMXMVRFixtureNode*> MVRFixtureNodes;
-		DMXLibrary->GetLazyGeneralSceneDescription()->GetFixtureNodes(MVRFixtureNodes);
-		UDMXMVRFixtureNode* const* MVRFixtureNodePtr = Algo::FindByPredicate(MVRFixtureNodes, [this](const UDMXMVRFixtureNode* Node)
-			{
-				return Node->UUID == FixturePatch->GetMVRFixtureUUID();
-			});
-		if (MVRFixtureNodePtr)
-		{
-			MVRFixtureNode = TWeakObjectPtr<UDMXMVRFixtureNode>(*MVRFixtureNodePtr);
-		}
-	}
-
-	if (MVRFixtureNode.IsValid())
-	{
-		return MVRFixtureNode->FixtureID;
-	}
-
-	return FString();
+	return FixturePatch.IsValid() ? FString::FromInt(FixturePatch->GetFixtureID()) : TEXT("Invalid");
 }
 
 int32 FDMXFixturePatchNode::GetUniverseID() const
 {
-	if (FixturePatch.IsValid())
-	{
-		return FixturePatch->GetUniverseID();
-	}
-
-	return -1;
+	return FixturePatch.IsValid() ? FixturePatch->GetUniverseID() : -1;
 }
 
 int32 FDMXFixturePatchNode::GetStartingChannel() const
 {
-	if (FixturePatch.IsValid())
-	{
-		return FixturePatch->GetStartingChannel();
-	}
-
-	return -1;
+	return FixturePatch.IsValid() ? FixturePatch->GetStartingChannel() : -1;
 }
 
 int32 FDMXFixturePatchNode::GetChannelSpan() const
 {
-	if (FixturePatch.IsValid())
-	{
-		return FixturePatch->GetChannelSpan();
-	}
-
-	return -1;
+	return FixturePatch.IsValid() ? FixturePatch->GetChannelSpan() : -1;
 }
 
 void FDMXFixturePatchNode::UpdateIsSelected()

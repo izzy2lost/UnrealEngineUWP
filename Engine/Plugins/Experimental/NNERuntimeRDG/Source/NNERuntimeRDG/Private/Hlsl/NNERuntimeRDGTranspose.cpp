@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGTranspose.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersTransposeCS.h"
 #include "NNERuntimeRDGHelperTranspose.h"
 #include "NNERuntimeRDGHlslHelper.h"
@@ -66,7 +68,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (Perm.Num() != InputTensorDescs[0].GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Transpose 'perm' attribute should contain the same amount of element as the rank of the input tensor."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Transpose: 'perm' attribute should contain the same amount of element as the rank of the input tensor."));
 				return false;
 			}
 
@@ -115,7 +117,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<FTransposeCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Transpose");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorTranspose, "NNE.Operator.Hlsl.Transpose");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorTranspose);
 
 			FComputeShaderUtils::AddPass(

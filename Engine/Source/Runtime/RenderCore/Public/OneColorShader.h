@@ -53,14 +53,6 @@ public:
 		SetShaderValue(BatchedParameters, DepthParameter, Depth);
 	}
 
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetDepthParameter(FRHICommandList& RHICmdList, float Depth)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, Depth);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-	}
-
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return true;

@@ -75,7 +75,7 @@ private:
 	int32 Size;
 	int32 NumMips;
 	EPixelFormat Format;
-	FTextureCubeRHIRef TextureCubeRHI;
+	FTextureRHIRef TextureCubeRHI;
 	int32 NumRefs;
 };
 
@@ -274,6 +274,9 @@ class USkyLightComponent : public ULightComponentBase
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|SkyLight")
 	ENGINE_API void SetMinOcclusion(float InMinOcclusion);
 
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|SkyLight")
+	ENGINE_API void SetRealTimeCapture(bool bInRealTimeCapture);
+
 protected:
 	ENGINE_API virtual void OnVisibilityChanged() override;
 
@@ -388,6 +391,9 @@ public:
 		Super::ApplyToComponent(Component, CacheApplyPhase);
 		CastChecked<USkyLightComponent>(Component)->ApplyComponentInstanceData(this);
 	}
+
+	UPROPERTY()
+	FGuid OriginalLightGuid;
 
 	UPROPERTY()
 	FGuid LightGuid;

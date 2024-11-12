@@ -25,7 +25,7 @@ DECLARE_CYCLE_STAT(TEXT("Blur Image"), STAT_BlurImage, STATGROUP_ARKIT);
 
 static bool InRenderThread()
 {
-	if (GIsThreadedRendering && !GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed))
+	if (GIsThreadedRendering)
 	{
 		return IsInActualRenderingThread();
 	}
@@ -630,7 +630,7 @@ public:
 		SamplerStateRHI = RHICreateSamplerState(SamplerStateInitializer);
 	}
 
-	void CopyCubeFace(id<MTLTexture> MetalTexture, FTextureCubeRHIRef Cubemap, uint32 Rotation, int32 MetalCubeIndex, int32 OurCubeIndex)
+	void CopyCubeFace(id<MTLTexture> MetalTexture, FTextureRHIRef Cubemap, uint32 Rotation, int32 MetalCubeIndex, int32 OurCubeIndex)
 	{
 		// Rotate the image we need to get a view into the face as a new slice
 		id<MTLTexture> CubeFaceMetalTexture = [MetalTexture newTextureViewWithPixelFormat: MTLPixelFormatBGRA8Unorm textureType: MTLTextureType2D levels: NSMakeRange(0, 1) slices: NSMakeRange(MetalCubeIndex, 1)];
@@ -686,7 +686,7 @@ public:
 private:
 	FIntPoint Size;
 	
-	FTextureCubeRHIRef EnvCubemapTextureRHIRef;
+	FTextureRHIRef EnvCubemapTextureRHIRef;
 	
 	const UAppleARKitEnvironmentCaptureProbeTexture* Owner;
 	
@@ -1083,7 +1083,7 @@ private:
 	FIntPoint Size;
 
 	/** The texture that we actually render with which is populated via the GPU conversion process */
-	FTexture2DRHIRef DecodedTextureRef;
+	FTextureRHIRef DecodedTextureRef;
 	
 	FCriticalSection DecodedTextureLock;
 	

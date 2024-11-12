@@ -69,6 +69,19 @@ FAvaBroadcastOutputChannel::FAvaBroadcastOutputChannel(ENoInit NoInit)
 
 namespace UE::AvaMedia::Private
 {
+	EMediaCaptureOverrunAction GetCaptureOverrunAction()
+	{
+		const UAvaMediaSettings& Settings = UAvaMediaSettings::Get();
+		switch (Settings.ChannelOutputOverrunAction)
+		{
+		case EAvaBroadcastOutputOverrunAction::Skip:
+			return EMediaCaptureOverrunAction::Skip;
+		case EAvaBroadcastOutputOverrunAction::Flush:
+		default:
+			return EMediaCaptureOverrunAction::Flush;
+		}
+	}
+	
 	bool IsCapturing(const UMediaCapture* InMediaCapture)
 	{
 		if (IsValid(InMediaCapture))
@@ -126,10 +139,10 @@ namespace UE::AvaMedia::Private
 	{
 		FRDGBuilder GraphBuilder(RHICmdList);
 
-		const FTexture2DRHIRef SourceTexture = SourceRT->GetRenderTargetResource()->GetTexture2DRHI();
+		const FTextureRHIRef SourceTexture = SourceRT->GetRenderTargetResource()->GetTexture2DRHI();
 		const FRDGTextureRef SourceRGBTexture = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTexture, TEXT("SourceTexture")));
 
-		const FTexture2DRHIRef DestinationTexture = DestinationRT->GetRenderTargetResource()->GetTexture2DRHI();
+		const FTextureRHIRef DestinationTexture = DestinationRT->GetRenderTargetResource()->GetTexture2DRHI();
 		const FRDGTextureRef OutputResource = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(DestinationTexture, TEXT("DestTexture")));
 
 		const FVector2D SizeU = { 0.0f, 1.0f };
@@ -240,7 +253,8 @@ void FAvaBroadcastOutputChannel::DuplicateChannel(const FAvaBroadcastOutputChann
 		OutTargetChannel.MediaOutputInfos.Last().Guid = FGuid::NewGuid();	// Allocate a new guid for the duplicate.
 	}
 	OnChannelChanged.Broadcast(OutTargetChannel, EAvaBroadcastChannelChange::MediaOutputs);
-	OutTargetChannel.UpdateChannelResources(false);
+	OutTargetChannel.UpdateChannelResources(/*bInIsProfileActive*/false);
+	OutTargetChannel.RefreshState();
 }
 
 void FAvaBroadcastOutputChannel::SetChannelIndex(int32 InIndex)
@@ -311,6 +325,11 @@ EAvaBroadcastChannelState FAvaBroadcastOutputChannel::RefreshState()
 
 EAvaBroadcastIssueSeverity FAvaBroadcastOutputChannel::GetMediaOutputIssueSeverity(EAvaBroadcastOutputState InOutputState, const UMediaOutput* InMediaOutput) const
 {
+	if (!IsValid(InMediaOutput))
+	{
+		return EAvaBroadcastIssueSeverity::Errors;
+	}
+	
 	if (InOutputState == EAvaBroadcastOutputState::Live || InOutputState == EAvaBroadcastOutputState::Preparing)
 	{
 		// If the output is broadcasting remote, fetch the status from the playback client (which is proxying that output's status).
@@ -341,25 +360,32 @@ EAvaBroadcastIssueSeverity FAvaBroadcastOutputChannel::GetMediaOutputIssueSeveri
 
 const TArray<FString>& FAvaBroadcastOutputChannel::GetMediaOutputIssueMessages(const UMediaOutput* InMediaOutput) const
 {
-	if (IAvaMediaModule::Get().IsPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
+	if (IsValid(InMediaOutput))
 	{
-		const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
-		const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
-		return PlaybackClient.GetMediaOutputIssueMessages(GetMediaOutputServerName(InMediaOutput), GetChannelName().ToString(), OutputInfo.Guid);
-	}
-	else
-	{
+		if (IAvaMediaModule::Get().IsPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
+		{
+			const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
+			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
+			return PlaybackClient.GetMediaOutputIssueMessages(GetMediaOutputServerName(InMediaOutput), GetChannelName().ToString(), OutputInfo.Guid);
+		}
+		
 		if (const FLocalMediaOutputStatus* LocalMediaOutputStatus = LocalMediaOutputStatuses.Find(InMediaOutput))
 		{
 			return LocalMediaOutputStatus->Messages;
 		}
 	}
+
 	static const TArray<FString> EmptyStringArray;
 	return EmptyStringArray;
 }
 
 EAvaBroadcastOutputState FAvaBroadcastOutputChannel::GetMediaOutputState(const UMediaOutput* InMediaOutput) const
 {
+	if (!IsValid(InMediaOutput))
+	{
+		return EAvaBroadcastOutputState::Invalid;
+	}
+	
 	if (IsMediaOutputRemote(InMediaOutput))
 	{
 		if (IAvaMediaModule::Get().IsPlaybackClientStarted())
@@ -660,9 +686,9 @@ bool FAvaBroadcastOutputChannel::StartChannelBroadcast()
 	}
 
 	// Ensure placeholder render targets are compatible with media outputs.
-	UpdateChannelResources(true);
+	UpdateChannelResources(/*bInIsProfileActive*/true);
 	
-	UTextureRenderTarget2D* const RenderTarget = GetCurrentRenderTarget(true);
+	UTextureRenderTarget2D* const RenderTarget = GetCurrentRenderTarget(/*bInFallbackToPlaceholder*/true);
 	
 	for (UMediaOutput* MediaOutput : MediaOutputs)
 	{
@@ -711,6 +737,7 @@ bool FAvaBroadcastOutputChannel::StartChannelBroadcast()
 		CaptureOptions.bSkipFrameWhenRunningExpensiveTasks = false;
 		// Allow the formats to be converted if different.
 		CaptureOptions.bConvertToDesiredPixelFormat = true;
+		CaptureOptions.OverrunAction = UE::AvaMedia::Private::GetCaptureOverrunAction();
 		
 		check(RenderTarget);
 		if (MediaCapture->CaptureTextureRenderTarget2D(RenderTarget, CaptureOptions))
@@ -768,7 +795,7 @@ void FAvaBroadcastOutputChannel::StopChannelBroadcast()
 UMediaOutput* FAvaBroadcastOutputChannel::AddMediaOutput(const UClass* InMediaOutputClass, const FAvaBroadcastMediaOutputInfo& InOutputInfo)
 {
 	// Don't add a remote output to a local preview channel.
-	if (InOutputInfo.IsValid() && InOutputInfo.IsRemote() && GetChannelType() == EAvaBroadcastChannelType::Preview)
+	if (InOutputInfo.IsRemote() && GetChannelType() == EAvaBroadcastChannelType::Preview)
 	{
 		return nullptr;
 	}
@@ -799,7 +826,15 @@ UMediaOutput* FAvaBroadcastOutputChannel::AddMediaOutput(const UClass* InMediaOu
 			}
 		}
 
-		AddMediaOutput(MediaOutput, InOutputInfo);
+		FAvaBroadcastMediaOutputInfo OutputInfo = InOutputInfo;
+
+		// If the device was not enumerated, we try to get the device name from the MediaOutput object.
+		if (OutputInfo.DeviceName.IsNone())
+		{
+			OutputInfo.DeviceName = FName(UE::AvaBroadcastOutputUtils::GetDeviceName(MediaOutput));
+		}
+
+		AddMediaOutput(MediaOutput, OutputInfo);
 		
 		return MediaOutput;
 	}
@@ -819,7 +854,8 @@ void FAvaBroadcastOutputChannel::AddMediaOutput(UMediaOutput* InMediaOutput, con
 		MediaOutputInfos.Add(InOutputInfo);
 		// Note: the media output may not be fully configured at that point.
 		OnChannelChanged.Broadcast(*this, EAvaBroadcastChannelChange::MediaOutputs);
-		UpdateChannelResources(true);
+		UpdateChannelResources(/*bInIsProfileActive*/true);
+		RefreshState();
 	}
 }
 
@@ -836,7 +872,8 @@ int32 FAvaBroadcastOutputChannel::RemoveMediaOutput(UMediaOutput* InMediaOutput)
 		MediaOutputs.RemoveAt(IndexToRemove);
 		MediaOutputInfos.RemoveAt(IndexToRemove);
 		OnChannelChanged.Broadcast(*this, EAvaBroadcastChannelChange::MediaOutputs);
-		UpdateChannelResources(true);
+		UpdateChannelResources(/*bInIsProfileActive*/true);
+		RefreshState();
 	}
 	return RemoveCount;
 }
@@ -861,7 +898,7 @@ void FAvaBroadcastOutputChannel::OnMediaOutputModified(UMediaOutput* InMediaOutp
 	}
 	else
 	{
-		UpdateChannelResources(true);
+		UpdateChannelResources(/*bInIsProfileActive*/true);
 		RefreshState();
 	}
 }
@@ -1113,7 +1150,7 @@ void FAvaBroadcastOutputChannel::UpdateViewportTarget()
 	//Only need to update when Broadcasting, since when starting Broadcast it will Capture and update it anyways
 	if (GetState() == EAvaBroadcastChannelState::Live)
 	{
-		UTextureRenderTarget2D* const RenderTarget = GetCurrentRenderTarget(true);
+		UTextureRenderTarget2D* const RenderTarget = GetCurrentRenderTarget(/*bInFallbackToPlaceholder*/true);
 
 		bool bNeedStateRefresh = false;
 
@@ -1194,7 +1231,7 @@ void FAvaBroadcastOutputChannel::StopCaptureForOutput(const UMediaOutput* InMedi
 	UMediaCapture* const MediaCapture = GetMediaCaptureForOutput(InMediaOutput);
 	if (IsValid(MediaCapture) && UE::AvaMedia::Private::IsCapturing(MediaCapture))
 	{
-		MediaCapture->StopCapture(false);
+		MediaCapture->StopCapture(/*bAllowPendingFrameToBeProcess*/false);
 	}
 	MediaCaptures.Remove(InMediaOutput);
 }
@@ -1202,7 +1239,7 @@ void FAvaBroadcastOutputChannel::StopCaptureForOutput(const UMediaOutput* InMedi
 void FAvaBroadcastOutputChannel::TickPlaceholder(float)
 {
 	// Only Draw if Render Target is Invalid 
-	if (GetState() == EAvaBroadcastChannelState::Live && !IsValid(GetCurrentRenderTarget(false)))
+	if (GetState() == EAvaBroadcastChannelState::Live && !IsValid(GetCurrentRenderTarget(/*bInFallbackToPlaceholder*/false)))
 	{
 		DrawPlaceholderWidget();
 	}

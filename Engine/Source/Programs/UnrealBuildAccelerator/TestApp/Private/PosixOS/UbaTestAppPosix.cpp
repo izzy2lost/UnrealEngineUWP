@@ -5,13 +5,17 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <stdio.h>
+#include <dirent.h>
 #include <dlfcn.h>
+#include <spawn.h>
 
 #if PLATFORM_LINUX
 #include <link.h>
 #include <dlfcn.h>
+#include <wait.h>
 #else
 #include <mach-o/dyld.h>
+extern char** environ;
 #endif
 
 
@@ -119,7 +123,7 @@ int main(int argc, char* argv[])
 		if (stat("FileW", &attrW2) == -1)
 			return LogError("stat for FileW failed");
 		if (S_ISREG(attrW2.st_mode) == 0)
-			return LogError("stat for FileW did not return normal file");
+			return LogError("stat for FileW did not return normal file (%u)", attrW2.st_mode);
 
 		if (rename("FileW", "FileW2") == -1)
 			return LogError("rename for FileW to FileW2 failed");
@@ -127,9 +131,18 @@ int main(int argc, char* argv[])
 
 		struct stat attrD1;
 		if (stat("Dir1", &attrD1) == -1)
-			return LogError("stat for FileW failed");
+			return LogError("stat for Dir1 failed");
 		if (S_ISREG(attrD1.st_mode) != 0)
-			return LogError("stat for FileW did not return directory");
+			return LogError("stat for Dir1 did not return directory");
+		
+		if (mkdir("Dir2/Dir3", S_IRUSR | S_IWUSR) == 0)
+			return LogError("mkdir for dir2 did not fail even though it exists");
+		if (errno != EEXIST)
+			return LogError("mkdir for dir2 did not return error that it exists");
+
+		struct stat attrD2;
+		if (stat("Dir2/Dir3/Dir4/Dir5", &attrD2) == -1)
+			return LogError("stat for Dir2/Dir3 failed");
 
 		struct stat attr3;
 		if (stat("/usr", &attr3) == -1)
@@ -155,6 +168,67 @@ int main(int argc, char* argv[])
 		struct stat attrRoot;
 		if (stat("/", &attrRoot) != 0)
 			return LogError("stat for '/' failed");
+
+		if (mkdir("FooDir", S_IRUSR | S_IWUSR) != 0)
+			return LogError("mkdir 'FooDir' failed");
+
+		struct stat attrFoo;
+		if (stat("FooDir", &attrFoo) != 0)
+			return LogError("stat for 'FooDir' failed");
+		if (!S_ISDIR(attrFoo.st_mode))
+			return LogError("stat for dir 'FooDir' returned wrong type");
+
+		if (rmdir("FooDir") != 0)
+			return LogError("rmdir 'FooDir' failed");
+
+		if (stat("FooDir", &attrFoo) == 0)
+			return LogError("stat for 'FooDir' failed to not find removed directory");
+
+		auto dir = opendir(".");
+		if (!dir)
+			return LogError("opendir failed");
+		while (true)
+		{
+			dirent* ent = readdir(dir);
+			if (!ent)
+				break;
+		}
+		closedir(dir);
+
+		{
+			char execPath[1024];
+			if (readlink("/proc/self/exe", execPath, sizeof(execPath)) == -1)
+				return LogError("readlink failed while getting executable path");
+
+			pid_t childPid = 0;
+			const char* args[] { execPath, "-child", nullptr };
+			if (posix_spawn(&childPid, execPath, nullptr, nullptr, (char**)args, environ) != 0)
+				return LogError("posix_spawn failed");
+			int status = 0;
+			do
+			{
+				if (waitpid(childPid, &status, WUNTRACED | WCONTINUED) == -1)
+					return LogError("waitpid on child process failed (pid %i)", childPid);
+				if (WIFSIGNALED(status))
+					return LogError("Child process killed by signal %d", WTERMSIG(status));
+				if (WIFSTOPPED(status))
+					return LogError("Child process stopped by signal %d", WSTOPSIG(status));
+				if (WIFCONTINUED(status))
+					return LogError("Child process continued");
+			} while (!WIFEXITED(status));
+			if (WEXITSTATUS(status) != 0)
+				return LogError("Child process failed");
+		}
+
+		return 0;
+	}
+	else if (strcmp(argv[1], "-child") == 0)
+	{
+		struct stat attr;
+		if (stat("FileW2", &attr) != 0)
+			return LogError("stat for 'FileW' in child process failed");
+		if (stat("FileW", &attr) != -1)
+			return LogError("stat for 'FileW' in child process failed");
 		return 0;
 	}
 	else if (strncmp(argv[1], "-file=", 6) == 0)

@@ -184,20 +184,21 @@ struct FAutomationWorkerRequestTests : public FAutomationWorkerMessageBase
 
 	/** Holds a flag indicating whether the developer directory should be included. */
 	UPROPERTY(EditAnywhere, Category="Message")
-	bool DeveloperDirectoryIncluded;
+	bool DeveloperDirectoryIncluded = false;
 
 	/** Holds a flag indicating which tests we'd like to request. */
 	UPROPERTY(EditAnywhere, Category="Message")
-	uint32 RequestedTestFlags;
+	uint32 RequestedTestFlags = 0;
 
 	/** Default constructor. */
-	FAutomationWorkerRequestTests() : DeveloperDirectoryIncluded(false), RequestedTestFlags(0) { }
+	FAutomationWorkerRequestTests() = default;
 
 	/** Creates and initializes a new instance. */
-	FAutomationWorkerRequestTests(bool InDeveloperDirectoryIncluded, uint32 InRequestedTestFlags)
+	FAutomationWorkerRequestTests(bool InDeveloperDirectoryIncluded, EAutomationTestFlags InRequestedTestFlags)
 		: DeveloperDirectoryIncluded(InDeveloperDirectoryIncluded)
-		, RequestedTestFlags(InRequestedTestFlags)
-	{ }
+		, RequestedTestFlags((uint32)InRequestedTestFlags)
+	{
+	}
 };
 
 
@@ -225,7 +226,7 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 	FString SourceFile;
 
 	UPROPERTY(EditAnywhere, Category="Message")
-	int32 SourceFileLine;
+	int32 SourceFileLine = 0;
 
 	UPROPERTY(EditAnywhere, Category="Message")
 	FString AssetPath;
@@ -234,13 +235,16 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 	FString OpenCommand;
 
 	UPROPERTY(EditAnywhere, Category="Message")
-	uint32 TestFlags;
+	uint32 TestFlags = 0;
 
 	UPROPERTY(EditAnywhere, Category="Message")
-	uint32 NumParticipantsRequired;
+	uint32 NumParticipantsRequired = 0;
+
+	UPROPERTY(EditAnywhere, Category="Message")
+	FString TestTags;
 
 	/** Default constructor. */
-	FAutomationWorkerSingleTestReply() : SourceFileLine(0), TestFlags(0), NumParticipantsRequired(0) { }
+	FAutomationWorkerSingleTestReply() = default;
 
 	/** Creates and initializes a new instance. */
 	FAutomationWorkerSingleTestReply(const FAutomationTestInfo& InTestInfo)
@@ -253,8 +257,9 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 		SourceFileLine = InTestInfo.GetSourceFileLine();
 		AssetPath = InTestInfo.GetAssetPath();
 		OpenCommand = InTestInfo.GetOpenCommand();
-		TestFlags = InTestInfo.GetTestFlags();
+		TestFlags = (uint32)InTestInfo.GetTestFlags();
 		NumParticipantsRequired = InTestInfo.GetNumParticipantsRequired();
+		TestTags = InTestInfo.GetTestTags();
 	}
 
 	FAutomationTestInfo GetTestInfo() const
@@ -263,13 +268,14 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 			DisplayName,
 			FullTestPath,
 			TestName,
-			TestFlags,
+			(EAutomationTestFlags)TestFlags,
 			NumParticipantsRequired,
 			TestParameter,
 			SourceFile,
 			SourceFileLine,
 			AssetPath,
-			OpenCommand);
+			OpenCommand,
+			TestTags);
 	}
 };
 
@@ -319,17 +325,22 @@ struct FAutomationWorkerRunTests : public FAutomationWorkerMessageBase
 	UPROPERTY()
 	bool bSendAnalytics;
 
+	/** If true, prune log events from test report on success */
+	UPROPERTY()
+	bool bPruneLogsOnSuccess;
+
 	/** Default constructor. */
-	FAutomationWorkerRunTests( ) :ExecutionCount(0), RoleIndex(0), bSendAnalytics(false) { }
+	FAutomationWorkerRunTests( ) :ExecutionCount(0), RoleIndex(0), bSendAnalytics(false), bPruneLogsOnSuccess(false) { }
 
 	/** Creates and initializes a new instance. */
-	FAutomationWorkerRunTests( uint32 InExecutionCount, int32 InRoleIndex, FString InTestName, FString InBeautifiedTestName, FString InFullTestPath, bool InSendAnalytics)
+	FAutomationWorkerRunTests( uint32 InExecutionCount, int32 InRoleIndex, FString InTestName, FString InBeautifiedTestName, FString InFullTestPath, bool InSendAnalytics, bool InPruneLogsOnSuccess)
 		: ExecutionCount(InExecutionCount)
 		, RoleIndex(InRoleIndex)
 		, TestName(InTestName)
 		, BeautifiedTestName(InBeautifiedTestName)
 		, FullTestPath(InFullTestPath)
 		, bSendAnalytics(InSendAnalytics)
+		, bPruneLogsOnSuccess(InPruneLogsOnSuccess)
 	{ }
 };
 

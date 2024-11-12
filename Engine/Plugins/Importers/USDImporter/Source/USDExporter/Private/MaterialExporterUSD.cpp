@@ -10,6 +10,7 @@
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
 #include "USDMetadataExportOptions.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
@@ -372,7 +373,7 @@ bool UMaterialExporterUsd::ExportMaterial(
 
 	if (MetadataOptions.bExportAssetMetadata)
 	{
-		if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(&Material))
+		if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(&Material))
 		{
 			UnrealToUsd::ConvertMetadata(UserData, RootPrim, MetadataOptions.BlockedPrefixFilters, MetadataOptions.bInvertFilters);
 		}
@@ -473,7 +474,7 @@ bool UMaterialExporterUsd::ExportMaterialsForStage(
 		FString MaterialFilePath = FPaths::Combine(FPaths::GetPath(UExporter::CurrentFilename), FPaths::GetBaseFilename(MaterialPathName));
 
 		// "C:/MyFolder/Export/Blue_4"
-		FString FinalPathNoExt = UsdUtils::GetUniqueName(MaterialFilePath, UsedFilePathsWithoutExt);
+		FString FinalPathNoExt = UsdUnreal::ObjectUtils::GetUniqueName(MaterialFilePath, UsedFilePathsWithoutExt);
 
 		// "C:/MyFolder/Export/Blue_4.usda"
 		FString FinalPath = FString::Printf(TEXT("%s.%s"), *FinalPathNoExt, *ExtensionNoDot);

@@ -37,7 +37,7 @@ private:
 	 * @param bUseTransparency Whether to enable transparency.
 	 * @param bJSBindingToLoweringEnabled Whether we ToLower all JavaScript member names.
 	 */
-	FAndroidWebBrowserWindow(FString Url, TOptional<FString> ContentsToLoad, bool bShowErrorMessage, bool bThumbMouseButtonNavigation, bool bUseTransparency, bool bJSBindingToLoweringEnabled);
+	FAndroidWebBrowserWindow(FString Url, TOptional<FString> ContentsToLoad, bool bShowErrorMessage, bool bThumbMouseButtonNavigation, bool bUseTransparency, bool bJSBindingToLoweringEnabled, const FString& InUserAgentApplication);
 
 	/**
 	 * Create the SWidget for this WebBrowserWindow
@@ -258,6 +258,9 @@ private:
 
 	/** Optional text to load as a web page. */
 	TOptional<FString> ContentsToLoad;
+
+	/** User Agent Application to report */
+	FString UserAgentApplication;
 
 	/** Whether to enable background transparency */
 	bool bUseTransparency;

@@ -4,6 +4,10 @@
 
 #include "ContextObjectStore.h"
 #include "EdModeInteractiveToolsContext.h"
+#include "SEditorViewport.h"
+#include "Slate/SceneViewport.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/SlateUser.h"
 
 IPersonaEditorModeManager* UPersonaEditorModeManagerContext::GetPersonaEditorModeManager() const
 {
@@ -20,6 +24,38 @@ void UPersonaEditorModeManagerContext::GetOnScreenDebugInfo(TArray<FText>& OutDe
 {
 	check(ModeManager);
 	return ModeManager->GetOnScreenDebugInfo(OutDebugText);
+}
+
+void UPersonaEditorModeManagerContext::SetFocusInViewport()
+{
+	const IPersonaEditorModeManager* PersonaEditorModeManager = GetPersonaEditorModeManager();
+	if (!PersonaEditorModeManager)
+	{
+		return;
+	}
+
+	const FEditorViewportClient* ViewportClient = PersonaEditorModeManager->GetHoveredViewportClient();
+	if (!ViewportClient)
+	{
+		ViewportClient = PersonaEditorModeManager->GetFocusedViewportClient();
+	}
+	if (!ViewportClient)
+	{
+		return;
+	}
+
+	const TWeakPtr<SViewport> ViewportWidget = ViewportClient->GetEditorViewportWidget()->GetSceneViewport()->GetViewportWidget();
+	if (!ViewportWidget.IsValid())
+	{
+		return;
+	}
+	
+	// set focus back to viewport so that hotkeys are immediately detected
+	TSharedPtr<SWidget> ViewportContents = ViewportWidget.Pin()->GetContent();
+	FSlateApplication::Get().ForEachUser([&ViewportContents](FSlateUser& User) 
+	{
+		User.SetFocus(ViewportContents.ToSharedRef());
+	});
 }
 
 IPersonaEditorModeManager::IPersonaEditorModeManager() : FAssetEditorModeManager()

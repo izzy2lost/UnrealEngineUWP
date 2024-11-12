@@ -6,6 +6,7 @@
 
 
 #include "KismetCompiler.h"
+#include "Algo/Find.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Misc/CoreMisc.h"
 #include "Components/ActorComponent.h"
@@ -21,7 +22,7 @@
 #include "Editor/EditorEngine.h"
 #include "Components/TimelineComponent.h"
 #include "Engine/TimelineTemplate.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Blueprint/BlueprintExtension.h"
 #include "EdGraphUtilities.h"
 #include "INotifyFieldValueChanged.h"
@@ -30,8 +31,10 @@
 #include "K2Node_Composite.h"
 #include "K2Node_CreateDelegate.h"
 #include "K2Node_CustomEvent.h"
+#include "K2Node_Event.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
+#include "K2Node_GeneratedBoundEvent.h"
 #include "K2Node_Knot.h"
 #include "K2Node_MacroInstance.h"
 #include "K2Node_MakeArray.h"
@@ -73,14 +76,16 @@ FSimpleMulticastDelegate FKismetCompilerContext::OnPostCompile;
 // Stats for this module
 DECLARE_CYCLE_STAT(TEXT("Create Schema"), EKismetCompilerStats_CreateSchema, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Create Function List"), EKismetCompilerStats_CreateFunctionList, STATGROUP_KismetCompiler );
-DECLARE_CYCLE_STAT(TEXT("Expansion"), EKismetCompilerStats_Expansion, STATGROUP_KismetCompiler )
+DECLARE_CYCLE_STAT(TEXT("Expansion"), EKismetCompilerStats_Expansion, STATGROUP_KismetCompiler)
+DECLARE_CYCLE_STAT(TEXT("Validate"), EKismetCompilerStats_Validate, STATGROUP_KismetCompiler )
 DECLARE_CYCLE_STAT(TEXT("Expand Node"), EKismetCompilerStats_ExpandNode, STATGROUP_KismetCompiler )
 DECLARE_CYCLE_STAT(TEXT("Post Expansion Step"), EKismetCompilerStats_PostExpansionStep, STATGROUP_KismetCompiler )
 DECLARE_CYCLE_STAT(TEXT("Process uber"), EKismetCompilerStats_ProcessUbergraph, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Process func"), EKismetCompilerStats_ProcessFunctionGraph, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Generate Function Graph"), EKismetCompilerStats_GenerateFunctionGraphs, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Precompile Function"), EKismetCompilerStats_PrecompileFunction, STATGROUP_KismetCompiler );
-DECLARE_CYCLE_STAT(TEXT("Compile Function"), EKismetCompilerStats_CompileFunction, STATGROUP_KismetCompiler );
+DECLARE_CYCLE_STAT(TEXT("Compile Function"), EKismetCompilerStats_CompileFunction, STATGROUP_KismetCompiler);
+DECLARE_CYCLE_STAT(TEXT("Create Locals and Register Nets"), EKismetCompilerStats_CreateLocalsAndRegisterNets, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Postcompile Function"), EKismetCompilerStats_PostcompileFunction, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Finalization"), EKismetCompilerStats_FinalizationWork, STATGROUP_KismetCompiler );
 DECLARE_CYCLE_STAT(TEXT("Code Gen"), EKismetCompilerStats_CodeGenerationTime, STATGROUP_KismetCompiler);
@@ -346,7 +351,7 @@ namespace UE::KismetCompiler::Private
 	// that's what the underlying delegate signature requires.
 	// Failure to do so will lead to incorrect UFunction signatures in the skeleton class,
 	// which can cause compilation errors.
-	static void MatchNodesToDelegateSignatures(UBlueprint* BP)
+	static void MatchNodesToDelegateSignatures(const UBlueprint* BP)
 	{
 		check(BP);
 
@@ -652,14 +657,16 @@ void FKismetCompilerContext::CleanAndSanitizeClass(UBlueprintGeneratedClass* Cla
 	SetNewClass( ClassToClean );
 	InOldCDO = ClassToClean->ClassDefaultObject; // we don't need to create the CDO at this point
 	
-	const ERenameFlags RenFlags = REN_DontCreateRedirectors |  ((bRecompilingOnLoad) ? REN_ForceNoResetLoaders : 0) | REN_NonTransactional | REN_DoNotDirty;
+	const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 
 	if( InOldCDO )
 	{
 		FString TransientCDOString = FString::Printf(TEXT("TRASH_%s"), *InOldCDO->GetName());
 		FName TransientCDOName = MakeUniqueObjectName(GetTransientPackage(), TransientClass, FName(*TransientCDOString));
-		InOldCDO->Rename(*TransientCDOName.ToString(), GetTransientPackage(), RenFlags);
+
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 		FLinkerLoad::InvalidateExport(InOldCDO);
+		InOldCDO->Rename(*TransientCDOName.ToString(), GetTransientPackage(), RenFlags);
 	}
 
 	// Purge all subobjects (properties, functions, params) of the class, as they will be regenerated
@@ -721,8 +728,10 @@ void FKismetCompilerContext::CleanAndSanitizeClass(UBlueprintGeneratedClass* Cla
 		}
 
 		FName NewSubobjectName = MakeUniqueObjectName(TransientClass, CurrSubObj->GetClass(), CurrSubObj->GetFName());
-		CurrSubObj->Rename(*NewSubobjectName.ToString(), TransientClass, RenFlags | REN_ForceNoResetLoaders);
+
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 		FLinkerLoad::InvalidateExport(CurrSubObj);
+		CurrSubObj->Rename(*NewSubobjectName.ToString(), TransientClass, RenFlags);
 	}
 
 	// Purge the class to get it back to a "base" state
@@ -966,6 +975,20 @@ FProperty* FKismetCompilerContext::CreateVariable(const FName VarName, const FEd
 	}
 
 	return NewProperty;
+}
+
+FMulticastDelegateProperty* FKismetCompilerContext::CreateMulticastDelegateVariable(const FName Name, const FEdGraphPinType& Type)
+{
+	// Note: We don't transact like OnAddNewDelegate since this method is intented to used during compilation only
+	FMulticastDelegateProperty* NewMulticastDelegateProperty = CastField<FMulticastDelegateProperty>(CreateVariable(Name, Type));
+	GeneratedMulticastDelegateProps.Add(NewMulticastDelegateProperty);
+	return NewMulticastDelegateProperty;
+}
+
+FMulticastDelegateProperty* FKismetCompilerContext::CreateMulticastDelegateVariable(const FName Name)
+{
+	FEdGraphPinType MulticastDelegatePinType(UEdGraphSchema_K2::PC_MCDelegate, NAME_None, Blueprint->GeneratedClass, EPinContainerType::None, false, FEdGraphTerminalType());
+	return CreateMulticastDelegateVariable(Name, MulticastDelegatePinType);
 }
 
 /** Determines if a node is pure */
@@ -1819,9 +1842,9 @@ void FKismetCompilerContext::PrintVerboseInfoStruct(UStruct* Struct) const
 				FText::FromString(Prop->GetClass()->GetDescription()),
 				FText::FromString(Prop->GetName()),
 				Prop->GetOffset_ForDebug(),
-				Prop->ElementSize,
+				Prop->GetElementSize(),
 				Prop->ArrayDim,
-				FText::FromString(FString::Printf(TEXT("%x"), Prop->PropertyFlags))
+				FText::FromString(FString::Printf(TEXT("%" UINT64_x_FMT), (uint64)Prop->PropertyFlags))
 			).ToString()
 		);
 	}
@@ -2562,6 +2585,67 @@ void FKismetCompilerContext::PrecompileFunction(FKismetFunctionContext& Context,
 	}
 }
 
+void FKismetCompilerContext::InitializeGeneratedEventNodes(EInternalCompilerFlags InternalFlags)
+{
+	if (GeneratedMulticastDelegateProps.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<UK2Node_GeneratedBoundEvent*> EventNodes;
+	ConsolidatedEventGraph->GetNodesOfClass<UK2Node_GeneratedBoundEvent>(EventNodes);
+
+	for (FMulticastDelegateProperty* GeneratedMulticastDelegateProp : GeneratedMulticastDelegateProps)
+	{
+		if (UClass* OwningClass = GeneratedMulticastDelegateProp->GetOwner<UClass>())
+		{
+			// Don't associate the skeleton BPGC with the precompiled function (Skeleton is not authoritative).
+			if (OwningClass->GetAuthoritativeClass() != OwningClass)
+			{
+				continue;
+			}
+		}
+
+		auto FindNodeWithDelegateName = [GeneratedMulticastDelegateProp](UK2Node_GeneratedBoundEvent* EventNode)
+		{
+			if (EventNode && GeneratedMulticastDelegateProp)
+			{
+				if (EventNode->EventReference.GetMemberName() == GeneratedMulticastDelegateProp->GetFName())
+				{
+					return true;
+				}
+			}
+
+			return false;
+		};
+		
+		if (UK2Node_GeneratedBoundEvent** EventNodeItr = EventNodes.FindByPredicate(FindNodeWithDelegateName))
+		{
+			UK2Node_GeneratedBoundEvent* EventNode = *EventNodeItr;
+
+			auto FindFunctionWithDelegateName = [GeneratedMulticastDelegateProp, EventNode](const FKismetFunctionContext& FunctionContext)
+			{
+				if (FunctionContext.Function && FunctionContext.Function->GetFName() == EventNode->CustomFunctionName)
+				{
+					if (EventNode->EventReference.GetMemberName() == GeneratedMulticastDelegateProp->GetFName())
+					{
+						return true;
+					}
+				}
+
+				return false;
+			};
+
+			if (const FKismetFunctionContext* PrecompiledFunctionItr = Algo::FindByPredicate(FunctionList, FindFunctionWithDelegateName))
+			{
+				const FKismetFunctionContext& PrecompiledFunction = *PrecompiledFunctionItr;
+				GeneratedMulticastDelegateProp->SignatureFunction = PrecompiledFunction.Function;
+				EventNode->InitializeGeneratedBoundEventParams(GeneratedMulticastDelegateProp);
+			}
+		}
+	}
+}
+
 void FKismetCompilerContext::PreCompileUpdateBlueprintOnLoad(UBlueprint* BP)
 {
 	check(BP);
@@ -2876,7 +2960,7 @@ void FKismetCompilerContext::SetCalculatedMetaDataAndFlags(UFunction* Function, 
 	Function->NumParms = 0;
 	Function->ReturnValueOffset = MAX_uint16;
 	Function->FirstPropertyToInit = nullptr;
-	FProperty** ConstructLink = &Function->FirstPropertyToInit;
+	UEProperty_Private::FPropertyListBuilderPostConstructLink ConstructLink(&Function->FirstPropertyToInit);
 
 	for (TFieldIterator<FProperty> PropIt(Function, EFieldIteratorFlags::ExcludeSuper); PropIt; ++PropIt)
 	{
@@ -2900,10 +2984,7 @@ void FKismetCompilerContext::SetCalculatedMetaDataAndFlags(UFunction* Function, 
 		{
 			if (!Property->HasAnyPropertyFlags(CPF_ZeroConstructor))
 			{
-				(*ConstructLink) = Property;
-				Property->PostConstructLinkNext = nullptr;
-				ConstructLink = &Property->PostConstructLinkNext;
-
+				ConstructLink.Append(*Property);
 				Function->FunctionFlags |= FUNC_HasDefaults;
 			}
 		}
@@ -3046,6 +3127,7 @@ void FKismetCompilerContext::FinishCompilingClass(UClass* Class)
 		Class->ClassFlags |= (ParentClass->ClassFlags & CLASS_ScriptInherit);//@TODO: ChangeParentClass had this, but I don't think I want it: | UClass::StaticClassFlags;  // will end up with CLASS_Intrinsic
 		Class->ClassCastFlags |= ParentClass->ClassCastFlags;
 		Class->ClassConfigName = ParentClass->ClassConfigName;
+		Class->ClassWithin = ParentClass->ClassWithin;
 
 		// If the Blueprint was marked as deprecated, then flag the class as deprecated.
 		if(Blueprint->bDeprecate)
@@ -3744,30 +3826,12 @@ void FKismetCompilerContext::MergeUbergraphPagesIn(UEdGraph* Ubergraph)
 	for (decltype(Blueprint->UbergraphPages)::TIterator It(Blueprint->UbergraphPages); It; ++It)
 	{
 		UEdGraph* SourceGraph = *It;
+		MergeGraphIntoUbergraph(SourceGraph, Ubergraph);
+	}
 
-		if (CompileOptions.bSaveIntermediateProducts)
-		{
-			TArray<UEdGraphNode*> ClonedNodeList;
-			FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true, &ClonedNodeList);
-
-			// Create a comment block around the ubergrapgh contents before anything else got started
-			int32 OffsetX = 0;
-			int32 OffsetY = 0;
-			CreateCommentBlockAroundNodes(ClonedNodeList, SourceGraph, Ubergraph, SourceGraph->GetName(), FLinearColor(1.0f, 0.7f, 0.7f), /*out*/ OffsetX, /*out*/ OffsetY);
-			
-			// Reposition the nodes, so nothing ever overlaps
-			for (TArray<UEdGraphNode*>::TIterator NodeIt(ClonedNodeList); NodeIt; ++NodeIt)
-			{
-				UEdGraphNode* ClonedNode = *NodeIt;
-
-				ClonedNode->NodePosX += OffsetX;
-				ClonedNode->NodePosY += OffsetY;
-			}
-		}
-		else
-		{
-			FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true);
-		}
+	for (UEdGraph* UbergraphPage : GeneratedUbergraphPages)
+	{
+		MergeGraphIntoUbergraph(UbergraphPage, Ubergraph);
 	}
 }
 
@@ -3850,6 +3914,8 @@ void FKismetCompilerContext::DetermineNodeExecLinks(UEdGraphNode* SourceNode, TM
 
 void FKismetCompilerContext::CreateLocalsAndRegisterNets(FKismetFunctionContext& Context, FField**& FunctionPropertyStorageLocation)
 {
+	BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_CreateLocalsAndRegisterNets);
+
 	// Create any user defined variables, this must occur before registering nets so that the properties are in place
 	CreateUserDefinedLocalVariablesForFunction(Context, FunctionPropertyStorageLocation);
 
@@ -3970,6 +4036,25 @@ void FKismetCompilerContext::VerifyValidOverrideFunction(const UEdGraph* Graph)
 	}
 }
 
+namespace UE::Private
+{
+
+static bool CanEventGraphBePruned(const UEdGraph* ConsolidatedEventGraph)
+{
+	static const FBoolConfigValueHelper DisableLateEventGraphPruning(TEXT("Blueprints"), TEXT("bDisableLateEventGraphPruning"), GEngineIni);
+	if(DisableLateEventGraphPruning)
+	{
+		return false;
+	}
+
+	return Algo::FindByPredicate(ConsolidatedEventGraph->Nodes, 
+		[](const UEdGraphNode* Node)
+		{
+			return Cast<UK2Node_Event>(Node) != nullptr;
+		}) == nullptr;
+}
+
+}
 
 // Merges pages and creates function stubs, etc... from the ubergraph entry points
 void FKismetCompilerContext::CreateAndProcessUbergraph()
@@ -4044,7 +4129,7 @@ void FKismetCompilerContext::CreateAndProcessUbergraph()
 		{
 			if (OldEventGraph)
 			{
-				OldEventGraph->Rename(NULL, GetTransientPackage(), (Blueprint->bIsRegeneratingOnLoad) ? REN_ForceNoResetLoaders : 0);
+				OldEventGraph->Rename(NULL, GetTransientPackage());
 			}
 		}
 	}
@@ -4067,9 +4152,18 @@ void FKismetCompilerContext::CreateAndProcessUbergraph()
 
 		// If a function in the graph cannot be overridden/placed as event make sure that it is not.
 		VerifyValidOverrideEvent(ConsolidatedEventGraph);
+		
+		// expansion may have removed all of the event entry points, in which case nothing will
+		// be placed in the ubergraph function and we can prune it:
+		if(UE::Private::CanEventGraphBePruned(ConsolidatedEventGraph))
+		{
+			return;
+		}
 
 		// Do some cursory validation (pin types match, inputs to outputs, pins never point to their parent node, etc...)
 		{
+			BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_Validate);
+
 			UbergraphContext = new FKismetFunctionContext(MessageLog, Schema, NewClass, Blueprint);
 			FunctionList.Add(UbergraphContext);
 			UbergraphContext->SourceGraph = ConsolidatedEventGraph;
@@ -4223,27 +4317,6 @@ void FKismetCompilerContext::ExpandTunnelsAndMacros(UEdGraph* SourceGraph)
 
 			TArray<UEdGraphNode*> MacroNodes(ClonedGraph->Nodes);
 
-			// resolve any wildcard pins in the nodes cloned from the macro
-			if (!MacroInstanceNode->ResolvedWildcardType.PinCategory.IsNone())
-			{
-				for (UEdGraphNode* const ClonedNode : ClonedGraph->Nodes)
-				{
-					if (ClonedNode)
-					{
-						for (UEdGraphPin* const ClonedPin : ClonedNode->Pins)
-						{
-							if ( ClonedPin && (ClonedPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard) )
-							{
-								// copy only type info, so array or ref status is preserved
-								ClonedPin->PinType.PinCategory = MacroInstanceNode->ResolvedWildcardType.PinCategory;
-								ClonedPin->PinType.PinSubCategory = MacroInstanceNode->ResolvedWildcardType.PinSubCategory;
-								ClonedPin->PinType.PinSubCategoryObject = MacroInstanceNode->ResolvedWildcardType.PinSubCategoryObject;
-							}
-						}
-					}
-				}
-			}
-
 			// Handle any nodes that need to inherit their macro instance's NodeGUID
 			for( UEdGraphNode* ClonedNode : MacroNodes)
 			{
@@ -4301,6 +4374,9 @@ void FKismetCompilerContext::ExpandTunnelsAndMacros(UEdGraph* SourceGraph)
 
 			ClonedGraph->MoveNodesToAnotherGraph(SourceGraph, IsAsyncLoading() || bIsLoading, Blueprint && Blueprint->bBeingCompiled);
 			FEdGraphUtilities::MergeChildrenGraphsIn(SourceGraph, ClonedGraph, /*bRequireSchemaMatch=*/ true);
+
+			// run type inference on MacroNodes:
+			MacroInstanceNode->InferWildcards(MacroNodes);
 
 			// When emitting intermediate products; make an effort to make them readable by preventing overlaps and adding informative comments
 			int32 NodeOffsetX = 0;
@@ -4427,6 +4503,33 @@ void FKismetCompilerContext::ResetErrorFlags(UEdGraph* Graph) const
 	}
 }
 
+void FKismetCompilerContext::MergeGraphIntoUbergraph(UEdGraph* SourceGraph, UEdGraph* Ubergraph)
+{
+	if (CompileOptions.bSaveIntermediateProducts)
+	{
+		TArray<UEdGraphNode*> ClonedNodeList;
+		FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true, &ClonedNodeList);
+
+		// Create a comment block around the ubergrapgh contents before anything else got started
+		int32 OffsetX = 0;
+		int32 OffsetY = 0;
+		CreateCommentBlockAroundNodes(ClonedNodeList, SourceGraph, Ubergraph, SourceGraph->GetName(), FLinearColor(1.0f, 0.7f, 0.7f), /*out*/ OffsetX, /*out*/ OffsetY);
+			
+		// Reposition the nodes, so nothing ever overlaps
+		for (TArray<UEdGraphNode*>::TIterator NodeIt(ClonedNodeList); NodeIt; ++NodeIt)
+		{
+			UEdGraphNode* ClonedNode = *NodeIt;
+
+			ClonedNode->NodePosX += OffsetX;
+			ClonedNode->NodePosY += OffsetY;
+		}
+	}
+	else
+	{
+		FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true);
+	}
+}
+
 /**
  * Merges macros/subgraphs into the graph and validates it, creating a function list entry if it's reasonable.
  */
@@ -4448,7 +4551,7 @@ void FKismetCompilerContext::ProcessOneFunctionGraph(UEdGraph* SourceGraph, bool
 		FString FunctionGraphName = SourceGraph->GetName() + TEXT("_MERGED");
 
 		ERenameFlags RenameFlags =
-			(REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			(REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors);
 
 		if (UEdGraph* ExistingGraph = FindObject<UEdGraph>(Blueprint, *FunctionGraphName))
 		{
@@ -4840,6 +4943,10 @@ void FKismetCompilerContext::CompileClassLayout(EInternalCompilerFlags InternalF
 			PrecompileFunction(FunctionList[i], InternalFlags);
 		}
 	}
+
+	// Now that generated delegate signature functions are compiled & linked to multicast properties, bind generated event nodes
+	// The functions have only been compiled to script, so we can initialize the node events now
+	InitializeGeneratedEventNodes(InternalFlags);
 
 	if (UsePersistentUberGraphFrame() && UbergraphContext)
 	{
@@ -5328,11 +5435,26 @@ void FKismetCompilerContext::PostCDOCompiled(const UObject::FPostCDOCompiledCont
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 		NewClass->ClassDefaultObject->PostCDOCompiled();
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		
+		for (const TFunction<void(const UObject::FPostCDOCompiledContext&, UObject*)>& Step : PostCDOCompileSteps)
+		{
+			Step(Context, NewClass->ClassDefaultObject);
+		}
 	}
+	
 	FCoreUObjectDelegates::OnObjectPostCDOCompiled.Broadcast(NewClass->ClassDefaultObject, Context);
 
 	// Allow children to customize PostCDOCompile:
 	OnPostCDOCompiled(Context);
+
+	// Run this function in case any native default property values have been changed on the CDO
+	// from all the user code above
+	NewClass->UpdateCustomPropertyListForPostConstruction();
+}
+
+void FKismetCompilerContext::AddPostCDOCompiledStep(TFunction<void(const UObject::FPostCDOCompiledContext&, UObject*)>&& StepFunction)
+{
+	PostCDOCompileSteps.Emplace(StepFunction);
 }
 
 void FKismetCompilerContext::Compile()

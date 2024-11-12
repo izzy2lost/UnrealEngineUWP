@@ -14,13 +14,8 @@
 #include "Serialization/EditorBulkData.h"
 #include "Engine/TextureDefines.h"
 #include "MaterialValueType.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MaterialShared.h"
-#include "TextureResource.h"
-#include "RenderResource.h"
-#endif
 #include "Engine/StreamableRenderAsset.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "ImageCore.h"
 #if WITH_EDITORONLY_DATA
 #include "Misc/TVariant.h"
@@ -39,6 +34,7 @@ namespace FOodleDataCompression {enum class ECompressor : uint8; enum class ECom
 class FTextureReference;
 class FTextureResource;
 class ITargetPlatform;
+class ITargetPlatformSettings;
 class UAssetUserData;
 struct FPropertyChangedEvent;
 
@@ -264,8 +260,8 @@ struct FTextureSource
 	);
 
 	/** Make a copy with a torn-off BulkData that has the same Guid used for DDC as this->BulkData */
-	FTextureSource CopyTornOff() const;
-
+	ENGINE_API FTextureSource CopyTornOff() const;
+	
 	/** PNG Compresses the source art if possible or tells the bulk data to zlib compress when it saves out to disk. */
 	ENGINE_API void Compress();
 
@@ -294,7 +290,7 @@ struct FTextureSource
 		return GetMipData(OutMipData, 0, 0, MipIndex, ImageWrapperModule);
 	}
 
-	/** Retrieve a copy of the MipData as an FImage */
+	/** Retrieve a copy of the MipData as an FImage.  Uses LockMip.  Allocates OutImage and copies into it. */
 	ENGINE_API bool GetMipImage(FImage & OutImage, int32 BlockIndex, int32 LayerIndex, int32 MipIndex);
 	
 	/** Retrieve a copy of the MipData as an FImage */
@@ -306,8 +302,16 @@ struct FTextureSource
 	/** Returns a FMipData structure that wraps around the entire mip chain for read only operations. This is more efficient than calling the above method once per mip. */
 	ENGINE_API FMipData GetMipData(class IImageWrapperModule* ImageWrapperModule);
 
-	/** Computes the size of a single mip. */
+	/** Get ImageInfo of one mip.  Does not require locking the mips, or accessing the payload data.
+	Returns false if the requested indexes were out of bounds, true if successful and fills OutImageInfo. **/
+	ENGINE_API bool GetMipImageInfo(FImageInfo & OutImageInfo, int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
+
+	/** Computes the size of a single mip in bytes.  Same size as the image in GetMipImageInfo.
+	See also: CalcMipOffset. */
 	ENGINE_API int64 CalcMipSize(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
+	
+	/** Retrieve the size and offset for a source mip. The size includes all slices. */
+	ENGINE_API int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 
 	/** Computes the number of bytes per-pixel. */
 	ENGINE_API int64 GetBytesPerPixel(int32 LayerIndex = 0) const;
@@ -331,16 +335,22 @@ struct FTextureSource
 
 	/** Size of texture in blocks */
 	ENGINE_API FIntPoint GetSizeInBlocks() const;
+	
+	/* Total number of pixels in the top mip level over all blocks+layers.
+	This is the pixel count of the source data, not the size of the built virtual canvas. */
+	ENGINE_API int64 GetTotalTopMipPixelCount() const;
 
 	/** Returns the unique ID string for this source art. */
-	FString GetIdString() const;
+	ENGINE_API FString GetIdString() const;
 
 	/** Returns the compression format of the source data in string format for use with the UI. */
-	FString GetSourceCompressionAsString() const;
+	ENGINE_API FString GetSourceCompressionAsString() const;
 
-	/** Returns the compression format of the source data in enum format. */
+	/** Returns the compression format of the source data in enum format.
+	Note "compression" here means the image format of the BulkData (eg. JPEG/PNG), not whether or not the BulkData has Oodle LZ Compression. */
 	FORCEINLINE ETextureSourceCompressionFormat GetSourceCompression() const { return CompressionFormat; }
 	FORCEINLINE bool IsSourceCompressed() const { return GetSourceCompression() != ETextureSourceCompressionFormat::TSCF_None; }
+	ENGINE_API void RemoveCompression();
 
 	/** Get GammaSpace for this Source (asks owner) */
 	ENGINE_API EGammaSpace GetGammaSpace(int LayerIndex) const;
@@ -352,11 +362,11 @@ struct FTextureSource
 	ENGINE_API int GetMippedNumSlices(int NumSlices,int MipIndex) const;
 
 	/** Support for copy/paste */
-	void ExportCustomProperties(FOutputDevice& Out, uint32 Indent);
-	void ImportCustomProperties(const TCHAR* SourceText, FFeedbackContext* Warn);
+	ENGINE_API void ExportCustomProperties(FOutputDevice& Out, uint32 Indent);
+	ENGINE_API void ImportCustomProperties(const TCHAR* SourceText, FFeedbackContext* Warn);
 
 	/** Trivial accessors. These will only give values for Block0 so may not be correct for UDIM/multi-block textures, use GetBlock() for this case. */
-	FGuid GetPersistentId() const { return BulkData.GetIdentifier(); }
+	inline FGuid GetPersistentId() const { return BulkData.GetIdentifier(); }
 	/** GetId() returns a hash of the Id member (data hash) and also the attributes of the Source.
 	( GetId does not just return Id ) **/
 	ENGINE_API FGuid GetId() const;
@@ -368,9 +378,6 @@ struct FTextureSource
 	FORCEINLINE int32 GetNumBlocks() const { return Blocks.Num() + 1; }
 	FORCEINLINE ETextureSourceFormat GetFormat(int32 LayerIndex = 0) const { return (LayerIndex == 0) ? Format : LayerFormat[LayerIndex]; }
 	
-	UE_DEPRECATED(5.1, "Use GetSourceCompression instead")
-	FORCEINLINE bool IsPNGCompressed() const { return GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_PNG; }
-	
 	// Warning: bLongLatCubemap is not correct.  LongLat Cubemaps often have bLongLatCubemap == false
 	// bLongLatCubemap is sometimes set to true for cube arrays to disambiguate the case of 6 longlat cubemaps in an array
 	ENGINE_API bool IsCubeOrCubeArray() const;
@@ -379,18 +386,31 @@ struct FTextureSource
 	// returns volume depth, or 1 if not a volume
 	ENGINE_API int GetVolumeSizeZ() const;
 
+	//note: simple queries on BulkData are not taking the BulkDataLock , nor does BulkData internally mutex protect these
 	FORCEINLINE int64 GetSizeOnDisk() const { return BulkData.GetPayloadSize(); }
-	inline bool HasPayloadData() const { return BulkData.HasPayloadData(); }
-	/** Returns true if the texture's bulkdata payload is either already in memory or if the payload is 0 bytes in length. It will return false if the payload needs to load from disk */
-	FORCEINLINE bool IsBulkDataLoaded() const { return BulkData.DoesPayloadNeedLoading(); }
+	FORCEINLINE bool HasPayloadData() const { return BulkData.HasPayloadData(); } // this is the same as GetSizeOnDisk() != 0
+	
+	/** Reset the source to empty, frees all memory. */
+	ENGINE_API void Reset();
 
-	// Apply a visitor to the bulkdata :
+	// Apply a visitor to the bulkdata : prefer GetBulkDataPayload() instead.
 	ENGINE_API void OperateOnLoadedBulkData(TFunctionRef<void (const FSharedBuffer& BulkDataBuffer)> Operation);
+
+	// GetBulkDataPayload returns the raw bulkdata memory in compressed form, not decompressed (use LockMip or GetMipData for that)
+	//	the shared buffer should be treated as read only!
+	//	to modify, make a copy and call Init() on the source with the changed copy
+	ENGINE_API FSharedBuffer GetBulkDataPayload();
+		
+	/** Returns true if the texture's bulkdata payload is either already in memory or if the payload is 0 bytes in length. It will return false if the payload needs to load from disk */
+	//  broken function, did the opposite of its name (was == DoesPayloadNeedLoading, which is usually == HasPayloadData)
+	UE_DEPRECATED(5.5, "IsBulkDataLoaded was broken, do not use")
+	FORCEINLINE bool IsBulkDataLoaded() const { return true; }
 
 	UE_DEPRECATED(5.0, "There is no longer a need to call LoadBulkDataWithFileReader, FTextureSource::BulkData can now load the data on demand without it.")
 	FORCEINLINE bool LoadBulkDataWithFileReader() { return true; }
-
-	FORCEINLINE void RemoveBulkData() { BulkData.UnloadData(); }
+	
+	UE_DEPRECATED(5.5, "RemoveBulkData did not actually remove bulkdata; use ReleaseBulkDataCachedMemory if that's what you wanted")
+	FORCEINLINE void RemoveBulkData() { }
 	
 	/** Sets the GUID to use, and whether that GUID is actually a hash of some data. */
 	ENGINE_API void SetId(const FGuid& InId, bool bInGuidIsHash);
@@ -415,12 +435,12 @@ struct FTextureSource
 		// we need to support the old bulkdata code path (although previously storing these allocations as
 		// raw pointers would allow it to be assigned, this would most likely cause a mismatch in lock counts,
 		// either in FTextureSource or the underlying bulkdata and was never actually safe)
-		FMipAllocation(const FMipAllocation&) {}
-		FMipAllocation& operator =(const FMipAllocation&) { return *this; }
+		ENGINE_API FMipAllocation(const FMipAllocation&) {}
+		ENGINE_API FMipAllocation& operator =(const FMipAllocation&) { return *this; }
 
 		// We do allow rvalue assignment
-		FMipAllocation(FMipAllocation&&);
-		FMipAllocation& operator =(FMipAllocation&&);
+		ENGINE_API FMipAllocation(FMipAllocation&&);
+		ENGINE_API FMipAllocation& operator =(FMipAllocation&&);
 
 		~FMipAllocation() = default;
 
@@ -494,7 +514,20 @@ struct FTextureSource
 		ENGINE_API FSharedBuffer GetMipData(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 		ENGINE_API FSharedBuffer GetMipDataWithInfo(int32 InBlockIndex, int32 InLayerIndex, int32 InMipIndex, FImageInfo& OutMipImageInfo) const;
 
-		ENGINE_API bool IsValid() const { return !MipData.IsNull(); }
+		// note: FImageView does not hold a ref on the FSharedBuffer memory it points at
+		//	you must keep the FMipData around or hold a ref on the FSharedBuffer elsewhere
+		inline FImageView GetMipDataImageView(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const
+		{
+			FImageInfo Info;
+			FSharedBuffer Buffer = GetMipDataWithInfo(BlockIndex,LayerIndex,MipIndex,Info);
+			return FImageView(Info,const_cast<void *>(Buffer.GetData()));
+		}
+
+		inline bool IsValid() const { return !MipData.IsNull(); }
+
+		inline void ResetData() { MipData.Reset(); }
+
+		inline FSharedBuffer GetData() const { return MipData; }
 
 	private:
 		// We only want to allow FTextureSource to create FMipData objects
@@ -587,6 +620,8 @@ private:
 	/** if Owner != null, check Owner->GetGammaSpace , if it is null, use TornOffGammaSpace
 	* do not check this directly, use GetGammaSpace. **/
 	TArray<EGammaSpace, TInlineAllocator<1>> TornOffGammaSpace;
+	/* For debugging : */
+	FString TornOffOwnerName;
 #endif
 	/** The bulk source data. */
 	UE::Serialization::FEditorBulkData BulkData;
@@ -604,31 +639,26 @@ private:
 	FMipAllocation LockedMipData;
 
 	// Internal implementation for locking the mip data, called by LockMipReadOnly or LockMip.
-	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
-	
-	// As per UpdateChannelLinearMinMax(), except acts on incoming new data rather than locking existing mips.
-	// This only works on uncompressed incoming data - otherwise the channel bounds will get updated on save.
-	void UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
-	
+	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState, FImageInfo & OutImageInfo);
+		
 	/** Returns the source data fully decompressed */
 	// ImageWrapperModule is not used
 	FSharedBuffer Decompress(class IImageWrapperModule* ImageWrapperModule = nullptr) const;
 	/** Attempt to decompress the source data from a compressed format. All failures will be logged and result in the method returning false */
 	FSharedBuffer TryDecompressData() const;
-
-	/** Return true if the source art is not png compressed but could be. */
-	bool CanPNGCompress() const;
-	/** Removes source data. */
-	void RemoveSourceData();
-	/** Retrieve the size and offset for a source mip. The size includes all slices. */
-	int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
-	
+	/** Do TSCF_UEDELTA transform.  Returned buffer is same size as source.
+	DoUEDeltaTransform( DoUEDeltaTransform(Buffer,true), false) == Buffer
+	*/
+	FSharedBuffer DoUEDeltaTransform(FSharedBuffer InBuffer,bool bForward) const;
+		
+	/* total size of source data in bytes */
 	int64 CalcTotalSize() const;
+	/* size of block in bytes, over all layers */
 	int64 CalcBlockSize(int32 BlockIndex) const;
 	int64 CalcLayerSize(int32 BlockIndex, int32 LayerIndex) const;
 	int64 CalcBlockSize(const FTextureSourceBlock& Block) const;
 	int64 CalcLayerSize(const FTextureSourceBlock& Block, int32 LayerIndex) const;
-
+	
 	void InitLayeredImpl(
 		int32 NewSizeX,
 		int32 NewSizeY,
@@ -645,23 +675,37 @@ private:
 	bool EnsureBlocksAreSorted();
 
 public:
-	// Runs FImageCore::ComputeChannelLinearMinMax on all blocks and layers (but only mip0), returns false
-	// if the source was unable to be locked and leaves the channel minmax as unknown. Compute just gets
-	// the values and leaves the source untouched.
+	// UpdateChannelLinearMinMax runs FImageCore::ComputeChannelLinearMinMax on all blocks and layers (but only mip0), returns false
+	//   if the source was unable to be locked and leaves the channel minmax as unknown. 
+	// Compute just gets the values and leaves the cached minax in the Source untouched.
 	ENGINE_API bool UpdateChannelLinearMinMax();
 	ENGINE_API bool ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor& OutMinColor, FLinearColor& OutMaxColor) const;
-	ENGINE_API const TArray<FTextureSourceLayerColorInfo>& GetLayerColorInfo() const { return LayerColorInfo; }
+
+	ENGINE_API void GetLayerColorInfo(TArray<FTextureSourceLayerColorInfo> & OutLayerColorInfo) const;
+	ENGINE_API void SetLayerColorInfo(const TArray<FTextureSourceLayerColorInfo> & InLayerColorInfo);
+	ENGINE_API void ResetLayerColorInfo();
+	ENGINE_API bool HasLayerColorInfo() const;
+
+	// As per UpdateChannelLinearMinMax(), except acts on incoming new data rather than locking existing mips.
+	// InNewTextureData must be uncompressed
+	// UpdateChannelMinMaxFromIncomingTextureData does not use the BulkData or CompressionFormat on the TextureSource
+	//	but it does use the dimensions/blocks/etc. they must be set before calling this.
+	// returns true/false for success/failure.
+	// failure may occur if the size of InNewTextureData does not match the dimensions set in the Texturesource
+	ENGINE_API bool UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
 
 	/** Uses a hash as the GUID, useful to prevent creating new GUIDs on load for legacy assets.
 	This is automatically done by Init() and Mip Lock/Unlock.  New textures should always have the data hash as Id. */
 	ENGINE_API void UseHashAsGuid();
 
-	void ReleaseSourceMemory(); // release the memory from the mips (does almost the same as remove source data except doesn't rebuild the guid)
-	FORCEINLINE bool HasHadBulkDataCleared() const { return bHasHadBulkDataCleared; }
+	UE_DEPRECATED(5.5, "Remove call to ReleaseSourceMemory.")
+	FORCEINLINE void ReleaseSourceMemory() { }
+
+	UE_DEPRECATED(5.5, "Remove call to HasHadBulkDataCleared.")
+	FORCEINLINE bool HasHadBulkDataCleared() const { return false; }
+#endif // WITH_EDITOR
+
 private:
-	/** Used while cooking to clear out unneeded memory after compression */
-	bool bHasHadBulkDataCleared;
-#endif
 
 #if WITH_EDITORONLY_DATA
 	/** GUID used to track changes to the source data.
@@ -719,9 +763,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
 	bool bGuidIsHash;
 
-	/** Per layer color info. If this is empty we don't have the data, otherwise count is == NumLayers. */
+	/** Per layer color info. If this is empty we don't have the data, otherwise count is == NumLayers.
+	Protected by BulkDataLock for thread safety.  Use Get/Set accessors which do the locking for you.*/
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
-	TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
+	TArray<FTextureSourceLayerColorInfo> LayerColorInfo_LockProtected;
 
 	/** Format in which the source data is stored. */
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
@@ -832,6 +877,11 @@ struct FTexturePlatformData
 		// Returned from ITextureFormat
 		FName Encoder;
 
+		// This is the format the texture will be using on the device so that when
+		// we decode for viewing we know what it originally was. In some cases this can only be known
+		// if we have source alpha information so it might remain PF_Unknown even when bIsValid is true.
+		EPixelFormat EncodedFormat = PF_Unknown;
+
 		// This struct is not always filled out, allow us to check for invalid data.
 		bool bIsValid = false;
 
@@ -870,19 +920,31 @@ struct FTexturePlatformData
 
 	struct FStructuredDerivedDataKey
 	{
-		FIoHash TilingBuildDefinitionKey; // All zeroes if the derived data didn't have a child build.
+		FIoHash TilingBuildDefinitionKey; // All zeroes if not shared linear tiling
+		FIoHash DeTilingBuildDefinitionKey; // All zeroes if not tiled.
+		FIoHash DecodeBuildDefinitionKey; // All zeroes if not decoding for pc.
 		FIoHash BuildDefinitionKey;
 		FGuid SourceGuid;
 		FGuid CompositeSourceGuid;
 
 		bool operator==(const FStructuredDerivedDataKey& Other) const
 		{
-			return TilingBuildDefinitionKey == Other.TilingBuildDefinitionKey && BuildDefinitionKey == Other.BuildDefinitionKey && SourceGuid == Other.SourceGuid && CompositeSourceGuid == Other.CompositeSourceGuid;
+			return	DecodeBuildDefinitionKey == Other.DecodeBuildDefinitionKey && 
+					TilingBuildDefinitionKey == Other.TilingBuildDefinitionKey && 
+					DeTilingBuildDefinitionKey == Other.DeTilingBuildDefinitionKey &&
+					BuildDefinitionKey == Other.BuildDefinitionKey && 
+					SourceGuid == Other.SourceGuid && 
+					CompositeSourceGuid == Other.CompositeSourceGuid;
 		}
 
 		bool operator!=(const FStructuredDerivedDataKey& Other) const
 		{
-			return TilingBuildDefinitionKey != Other.TilingBuildDefinitionKey || BuildDefinitionKey != Other.BuildDefinitionKey || SourceGuid != Other.SourceGuid || CompositeSourceGuid != Other.CompositeSourceGuid;
+			return	DecodeBuildDefinitionKey != Other.DecodeBuildDefinitionKey ||
+					DeTilingBuildDefinitionKey != Other.DeTilingBuildDefinitionKey ||
+					TilingBuildDefinitionKey != Other.TilingBuildDefinitionKey || 
+					BuildDefinitionKey != Other.BuildDefinitionKey || 
+					SourceGuid != Other.SourceGuid || 
+					CompositeSourceGuid != Other.CompositeSourceGuid;
 		}
 	};
 
@@ -1147,6 +1209,11 @@ struct FTextureSourceColorSettings
 	/** Chromatic adaption method applied if the source white point differs from the working color space white point. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ColorManagement)
 	ETextureChromaticAdaptationMethod ChromaticAdaptationMethod;
+
+#if WITH_EDITORONLY_DATA
+	/** Update the chromaticity coordinates member variables based on the color space choice (unless custom). */
+	ENGINE_API void UpdateColorSpaceChromaticities();
+#endif
 };
 
 UCLASS(abstract, MinimalAPI, BlueprintType)
@@ -1267,8 +1334,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Texture, meta=(ClampMin = "0", ClampMax = "1.0", EditCondition="bDoScaleMipsForAlphaCoverage"), AdvancedDisplay)
 	FVector4 AlphaCoverageThresholds = FVector4(0,0,0,0);
 
-	/** Use faster mip generation filter, usually the same result but occasionally causes color shift in high contrast areas. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta=(DisplayName = "Use Fast MipGen Filter"), AdvancedDisplay)
+	/** Use faster mip generation filter, usually the same result but occasionally causes color shift in high contrast areas.
+	This is now used for things other than just the mip filter.  It's a bool to toggle the legacy texture processing pipe vs. the modern improved path.
+	It is turned on automatically by SetModernSettingsForNewOrChangedTexture (eg. reimport, and all new textures). */
+	// for GUI hover text : 
+	/** Disable for legacy compatibility.  New and changed textures should set this to use modern improved image processing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta=(DisplayName = "Use Improved Image Processing"), AdvancedDisplay)
 	bool bUseNewMipFilter = false;
 
 	/** When true the texture's border will be preserved during mipmap generation. */
@@ -1474,6 +1545,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// When we are open in an asset editor, we have a pointer to a custom encoding
 	// object which can optionally cause us to do something other than Fast/Final encode settings.
 	TWeakPtr<class FTextureEditorCustomEncode> TextureEditorCustomEncoding;
+
+	// Override the platform to cache for, instead of using "running plaform". NAME_None to use default editor platform.
+	FName OverrideRunningPlatformName;
 #endif // WITH_EDITORONLY_DATA
 
 	/** If true, the RHI texture will be created using TexCreate_NoTiling */
@@ -1521,6 +1595,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category = "Rendering|Texture")
 	bool ComputeTextureSourceChannelMinMax(FLinearColor & OutColorMin, FLinearColor & OutColorMax) const;
+
+	/**
+	 * Return the ID for the texture source.
+	 * If the source isn't valid or editor data isn't available, returns false.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "GetTextureSourceIdString"), Category = "Rendering|Texture")
+	bool Blueprint_GetTextureSourceIdString(FString& OutTextureSourceId);
 
 private:
 	/** Whether the async resource release process has already been kicked off or not */
@@ -1635,6 +1716,16 @@ public:
 	/** Returns the virtual texture build settings. */
 	ENGINE_API virtual void GetVirtualTextureBuildSettings(struct FVirtualTextureBuildSettings& OutSettings) const;
 
+#if WITH_EDITORONLY_DATA
+	/** Returns true if this Texture cannot be built unless it has VT enabled.
+	Does not check the VirtualTextureStreaming bool on the texture, this is telling you if that bool must be true. **/
+	ENGINE_API bool RequiresVirtualTexturing() const;
+#endif
+
+	/** Check the Project settings to see if VT is enabled.
+	Optionally also checks the TargetPlatform. **/
+	ENGINE_API static bool IsVirtualTexturingEnabled( const ITargetPlatformSettings * TargetPlatform = nullptr );
+
 	/**
 	 * Textures that use the derived data cache must override this function and
 	 * provide a pointer to the linked list of platform data.
@@ -1648,8 +1739,19 @@ public:
 	 * Get the dimensions of the largest mip of the texture when built for the target platform
 	 *   accounting for LODBias and other constraints
 	 */
-	ENGINE_API void GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY ) const;
-	ENGINE_API void GetBuiltTextureSize( const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY ) const;
+	ENGINE_API void GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY, int32 & OutSizeZ ) const;
+	ENGINE_API void GetBuiltTextureSize( const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY, int32 & OutSizeZ ) const;
+	
+	ENGINE_API void GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY) const
+	{
+		int32 IgnoredSizeZ;
+		GetBuiltTextureSize(TargetPlatform,OutSizeX,OutSizeY,IgnoredSizeZ);
+	}
+	ENGINE_API void GetBuiltTextureSize( const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY) const
+	{
+		int32 IgnoredSizeZ;
+		GetBuiltTextureSize(TargetPlatformSettings,TargetPlatformControls,OutSizeX,OutSizeY,IgnoredSizeZ);
+	}
 
 	/**
 	 * Serializes cooked platform data.
@@ -1676,15 +1778,21 @@ public:
 	 */
 	void CachePlatformData(bool bAsyncCache = false, bool bAllowAsyncBuild = false, bool bAllowAsyncLoading = false, class ITextureCompressorModule* Compressor = nullptr);
 
+	/* Returns if it is possible to build this texture for a given TargetPlatform (or any).
+	This supercedes checking Source.IsValid()
+	When this returns false, CachePlatformData will not attempt to build or cache the PlatformData.
+	*/
+	bool CanBuildPlatformData(const ITargetPlatformSettings * TargetPlatform = nullptr) const;
+
 	/**
 	 * Begins caching platform data in the background for the platform requested
 	 */
 	ENGINE_API virtual void BeginCacheForCookedPlatformData(  const ITargetPlatform* TargetPlatform ) override;
 
 	/**
-	 * Have we finished loading all the cooked platform data for the target platforms requested in BeginCacheForCookedPlatformData
-	 * 
-	 * @param	TargetPlatform target platform to check for cooked platform data
+	 * Have we finished loading all the cooked platform data for the given platform.
+	 * Note that this return true when there's no more work to be done, which includes failure
+	 * due to errors. Never returning true will livelock the cook!
 	 */
 	ENGINE_API virtual bool IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) override;
 
@@ -1718,7 +1826,12 @@ public:
 	ENGINE_API bool IsAsyncCacheComplete() const;
 
 	/**
-	 * Blocks on async cache tasks and prepares platform data for use.
+	 * Blocks on async cache tasks and prepares platform data for use. This should only be called by the texture compilation manager.
+	 * If you call this manually when the texture has been registed in the texture compilation manager, it doesn't get cleared there
+	 * and you can end up crashing in FTextureCompilationManager::AddTextures.
+	 * 
+	 * If you need the texture resource after you've made modifications, you should wrap your changes in PreEditChange/PostEditChange,
+	 * then call BlockOnAnyAsyncBuild on your texture.
 	 */
 	ENGINE_API void FinishCachePlatformData();
 
@@ -1929,9 +2042,14 @@ public:
 	 * Checks whether this texture should be tiled to a platform-specific format during cook, or whether the bNotOfflineProcessed flag 
 	 * should be set to true at runtime because it has not been tiled at cook
 	 * 
-	 * @param  TargetPlatform	The platform for which the texture is being cooked and texture group info will be extracted from. 
-	 *                          If null, this info will be extracted from UDeviceProfileManager::Get().GetActiveProfile(), possibly at runtime
+	 * @param  TargetPlatformSettings	The platform for which the texture is being cooked and texture group info will be extracted from. 
+	 *									If null, this info will be extracted from UDeviceProfileManager::Get().GetActiveProfile(), possibly at runtime
 	 * @return true if platform tiling during cook is disabled for this texture 
+	 */
+	ENGINE_API bool IsCookPlatformTilingDisabled(const ITargetPlatformSettings* TargetPlatformSettings) const;
+
+	/**
+	 * Legacy function to support the old API, will call IsCookPlatformTilingDisabled with ITargetPlatformSettings
 	 */
 	ENGINE_API bool IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatform) const;
 
@@ -2000,11 +2118,6 @@ public:
 	* Return false for VT. */
 	bool IsCandidateForTextureStreamingOnPlatformDuringCook(const ITargetPlatform* InTargetPlatform) const;
 
-	/** Get the largest allowed dimension of non-VT texture
-	* this is not for the current RHI (which may have a lower limit), this is for a Texture in general
-	*/
-	ENGINE_API static int32 GetMaximumDimensionOfNonVT();
-
 	/*
 	 * Downsize the 2D Image with the build settings for the texture until all dimensions are <= TargetSize.
 	 * This downsizes using the mip generation system and so will only cut sizes in half. Return false
@@ -2017,6 +2130,11 @@ public:
 	ENGINE_API void GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<TArray<FTextureBuildSettings>>& OutSettingsPerFormatPerLayer) const;
 
 #endif
+
+	/** Get the largest allowed dimension of non-VT texture
+	* this is not for the current RHI (which may have a lower limit), this is for a Texture in general
+	*/
+	ENGINE_API static int32 GetMaximumDimensionOfNonVT();
 
 protected:
 

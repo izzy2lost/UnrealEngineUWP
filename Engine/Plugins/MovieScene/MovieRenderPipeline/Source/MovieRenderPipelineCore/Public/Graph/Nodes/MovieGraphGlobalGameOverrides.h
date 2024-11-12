@@ -35,6 +35,10 @@ public:
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const override;
 	// ~UMovieGraphSettingNode interface
 
+	// UObject interface
+	virtual void PostLoad() override;
+	// ~UObject interface
+
 	/**
 	 * Applies any cvars, scalability settings, etc. to reflect the properties set on the node. Remembers what the
 	 * settings are before they are set, so bOverrideValues can be set to false to revert them to their original
@@ -56,8 +60,12 @@ public:
 #endif
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	UE_DEPRECATED(5.5, "Please use the bOverride_SoftGameModeOverride property instead.")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle, DeprecatedProperty, DeprecationMessage = "Please use the bOverride_SoftGameModeOverride property instead."))
 	uint8 bOverride_GameModeOverride : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_SoftGameModeOverride : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_ScalabilityQualityLevel : 1;
@@ -93,8 +101,16 @@ public:
 	 * Optional game mode to override the map's default game mode with. This can be useful if the game's normal mode
 	 * displays UI elements or loading screens that you don't want captured.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game", meta = (EditCondition = "bOverride_GameModeOverride"))
+	UE_DEPRECATED(5.5, "Please use the SoftGameModeOverride property instead.")
+	UPROPERTY(BlueprintReadWrite, Category = "Game", meta = (EditCondition = "bOverride_GameModeOverride", DeprecatedProperty, DeprecationMessage = "Please use the SoftGameModeOverride property instead."))
 	TSubclassOf<AGameModeBase> GameModeOverride;
+
+	/**
+	 * Optional game mode to override the map's default game mode with. This can be useful if the game's normal mode
+	 * displays UI elements or loading screens that you don't want captured.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game", DisplayName = "Game Mode Override", meta = (EditCondition = "bOverride_SoftGameModeOverride"))
+	TSoftClassPtr<AGameModeBase> SoftGameModeOverride;
 
 	/**
 	 * The scalability quality level that should be used in renders. See the Scalability Reference documentation for
@@ -203,6 +219,7 @@ private:
 	int32 PreviousSkipRedundantTransformUpdate;
 	int32 PreviousChaosClothUseTimeStepSmoothing;
 	int32 PreviousSkipWaterInfoTextureRenderWhenWorldRenderingDisabled;
+	int32 PreviousNaniteVSMInvalidateOnLODDelta;
 
 #if WITH_EDITOR
 	int32 PreviousGeoCacheStreamerShowNotification;

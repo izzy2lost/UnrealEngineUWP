@@ -175,9 +175,6 @@ public:
 	/** Sort all nodes and descendants */
 	TSharedPtr< FUICommandInfo > SortAllNodesAndDescendants;
 
-	/** Reset all enabled filters */
-	TSharedPtr< FUICommandInfo > ResetFilters;
-
 	/** Sets the upper bound of the selection range */
 	TSharedPtr< FUICommandInfo > SetSelectionRangeEnd;
 
@@ -285,6 +282,9 @@ public:
 
 	/** Set mode to key all. */
 	TSharedPtr< FUICommandInfo > SetKeyAll;
+
+	/** Toggle showing marked frames */
+	TSharedPtr< FUICommandInfo> ToggleShowMarkedFrames;
 
 	/** Toggle on/off a Mark at the current time **/
 	TSharedPtr< FUICommandInfo> ToggleMarkAtPlayPosition;
@@ -394,9 +394,6 @@ public:
 	/** Turns auto scroll on and off. */
 	TSharedPtr< FUICommandInfo > ToggleAutoScroll;
 
-	/** Toggles whether or not to show selected nodes only. */
-	TSharedPtr< FUICommandInfo > ToggleShowSelectedNodesOnly;
-
 	/** Toggles whether or not the curve editor should be shown. */
 	TSharedPtr< FUICommandInfo > ToggleShowCurveEditor;
 
@@ -471,6 +468,18 @@ public:
 
 	/** Forcibly refresh the UI */
 	TSharedPtr< FUICommandInfo > RefreshUI;
+
+	/** Toggles selectability of viewport objects to Sequencer items only */
+	TSharedPtr< FUICommandInfo > ToggleLimitViewportSelection;
+
+	/** Toggles the visibility of the Sequencer sidebar */
+	TSharedPtr< FUICommandInfo > ToggleSidebarVisible;
+
+	/** Toggles the sidebar "Selection" drawer open or closed */
+	TSharedPtr< FUICommandInfo > ToggleSidebarSelectionDrawerOpen;
+
+	/** Toggles the docked state of the current sidebar drawer. Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
+	TSharedPtr< FUICommandInfo > ToggleSidebarDrawerDock;
 
 	/**
 	 * Initialize commands

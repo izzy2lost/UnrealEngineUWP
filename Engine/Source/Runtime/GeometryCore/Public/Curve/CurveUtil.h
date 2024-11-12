@@ -61,6 +61,23 @@ using namespace UE::Math;
 			Normalize(OutToPrev);
 		}
 	}
+
+	/**
+	 * Get (by reference) vectors pointing toward the given vertex index, from its surrounding vertices
+	 * If bLoop is false and the Prev or Next vertex would be out of bounds, a zero vector is used instead
+	 */
+	template<typename RealType, typename VectorType>
+	inline void GetVectorsToPrevNext(const TArrayView<const VectorType>& Vertices, int32 VertexIndex, VectorType& OutToPrev, VectorType& OutToNext, bool bNormalize, bool bLoop)
+	{
+		if (bLoop)
+		{
+			GetVectorsToPrevNext<RealType, VectorType, true>(Vertices, VertexIndex, OutToPrev, OutToNext, bNormalize);
+		}
+		else
+		{
+			GetVectorsToPrevNext<RealType, VectorType, false>(Vertices, VertexIndex, OutToPrev, OutToNext, bNormalize);
+		}
+	}
 	
 	/**
 	 * @return the tangent direction (normalized) of the path at Idx, using the surrounding vertices (as found by GetPrevNext())

@@ -8,8 +8,6 @@
 
 #define LOCTEXT_NAMESPACE "SAvaHorizontalAlignment"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SAvaHorizontalAlignment::Construct(const FArguments& InArgs)
 {
 	Alignment = InArgs._Alignment;
@@ -34,8 +32,6 @@ void SAvaHorizontalAlignment::Construct(const FArguments& InArgs)
 			.ToolTip(LOCTEXT("HAlignRight", "Right Align Horizontally"))
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 EAvaHorizontalAlignment SAvaHorizontalAlignment::GetCurrentAlignment() const
 {

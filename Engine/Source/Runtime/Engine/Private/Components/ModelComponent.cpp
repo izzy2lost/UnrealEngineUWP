@@ -59,21 +59,9 @@ const FMeshMapBuildData* FModelElement::GetMeshMapBuildData() const
 
 	if (OwnerLevel && OwnerLevel->OwningWorld)
 	{
-		ULevel* ActiveLightingScenario = OwnerLevel->OwningWorld->GetActiveLightingScenario();
-		UMapBuildDataRegistry* MapBuildData = NULL;
-
-		if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
+		if (UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(OwnerLevel, OwnerLevel->OwningWorld))
 		{
-			MapBuildData = ActiveLightingScenario->MapBuildData;
-		}
-		else if (OwnerLevel->MapBuildData)
-		{
-			MapBuildData = OwnerLevel->MapBuildData;
-		}
-
-		if (MapBuildData)
-		{
-			return MapBuildData->GetMeshBuildData(MapBuildDataId);
+			return MapBuildData->GetMeshBuildData(MapBuildDataId);		
 		}
 	}
 	

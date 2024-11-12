@@ -29,6 +29,8 @@ public:
 
 	AVALANCHEOUTLINER_API bool IsSelected(const UObject* InObject) const;
 
+	AVALANCHEOUTLINER_API const FEditorModeTools& GetEditorModeTools() const;
+
 private:
 	void SyncSelections();
 

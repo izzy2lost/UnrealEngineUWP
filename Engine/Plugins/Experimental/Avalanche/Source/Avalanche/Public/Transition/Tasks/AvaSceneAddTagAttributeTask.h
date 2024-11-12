@@ -10,9 +10,11 @@ struct AVALANCHE_API FAvaSceneAddTagAttributeTask : public FAvaSceneTask
 {
 	GENERATED_BODY()
 
-	//~ Begin FAvaTransitionTask
-	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
-	//~ End FAvaTransitionTask
+	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
+	//~ End FStateTreeNodeBase
 
 	//~ Begin FStateTreeTaskBase
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& InContext, const FStateTreeTransitionResult& InTransition) const override;

@@ -5,9 +5,11 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
+#include "ClothingAsset.h"
 #include "Components.h"
 #include "CoreGlobals.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkeletalMeshSocket.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
@@ -19,6 +21,7 @@
 #include "InterchangeManager.h"
 #include "InterchangeMaterialFactoryNode.h"
 #include "InterchangeMeshNode.h"
+#include "InterchangeMeshUtilities.h"
 #include "InterchangeSceneNode.h"
 #include "InterchangeSkeletalMeshLodDataNode.h"
 #include "InterchangeSkeletalMeshFactoryNode.h"
@@ -63,29 +66,38 @@ namespace UE
 {
 	namespace Interchange
 	{
+		FInterchangeMeshPayLoadKey FMeshNodeContext::GetTranslatorAndTransformPayloadKey() const
+		{
+			FInterchangeMeshPayLoadKey GlobalPayloadKey = TranslatorPayloadKey;
+			GlobalPayloadKey.UniqueId = GetUniqueId();
+			return GlobalPayloadKey;
+		}
+		FInterchangeMeshPayLoadKey FMeshNodeContext::GetMorphTargetAndTransformPayloadKey(const FInterchangeMeshPayLoadKey& MorphTargetKey) const
+		{
+			FInterchangeMeshPayLoadKey GlobalPayloadKey = MorphTargetKey;
+			if (SceneGlobalTransform.IsSet())
+			{
+				GlobalPayloadKey.UniqueId += FInterchangeMeshPayLoadKey::GetTransformString(SceneGlobalTransform.GetValue());
+			}
+			return GlobalPayloadKey;
+		}
+
+		//Return the translator key merge with the transform
+		FString FMeshNodeContext::GetUniqueId() const
+		{
+			FString UniqueId = TranslatorPayloadKey.UniqueId;
+			if (SceneGlobalTransform.IsSet())
+			{
+				UniqueId += FInterchangeMeshPayLoadKey::GetTransformString(SceneGlobalTransform.GetValue());
+			}
+			return UniqueId;
+		}
+
 		namespace Private
 		{
-			//Get the mesh node context for each MeshUids
-			struct FMeshNodeContext
-			{
-				const UInterchangeMeshNode* MeshNode = nullptr;
-				const UInterchangeSceneNode* SceneNode = nullptr;
-				TOptional<FTransform> SceneGlobalTransform;
-				FInterchangeMeshPayLoadKey TranslatorPayloadKey;
-				FString GetUniqueId() const
-				{
-					FString UniqueId = TranslatorPayloadKey.UniqueId;
-					if (SceneGlobalTransform.IsSet())
-					{
-						UniqueId += SceneGlobalTransform->ToString();
-					}
-					return UniqueId;
-				}
-			};
-
 			void FillMorphTargetMeshDescriptionsPerMorphTargetName(const FMeshNodeContext& MeshNodeContext
 																 , TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>>& MorphTargetMeshDescriptionsPerMorphTargetName
-																 , const IInterchangeMeshPayloadInterface* MeshTranslatorPayloadInterface
+																 , UInterchangeSkeletalMeshFactory::FLodPayloads& LodPayloads
 																 , const int32 VertexOffset
 																 , const UInterchangeBaseNodeContainer* NodeContainer
 																 , FString AssetName)
@@ -93,7 +105,7 @@ namespace UE
 				TRACE_CPUPROFILER_EVENT_SCOPE(FillMorphTargetMeshDescriptionsPerMorphTargetName)
 				TArray<FString> MorphTargetUids;
 				MeshNodeContext.MeshNode->GetMorphTargetDependencies(MorphTargetUids);
-				TMap<FString, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>> TempMorphTargetMeshDescriptionsPerMorphTargetName;
+				TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>> TempMorphTargetMeshDescriptionsPerMorphTargetName;
 				TempMorphTargetMeshDescriptionsPerMorphTargetName.Reserve(MorphTargetUids.Num());
 				for (const FString& MorphTargetUid : MorphTargetUids)
 				{
@@ -106,9 +118,9 @@ namespace UE
 							continue;
 						}
 						FInterchangeMeshPayLoadKey& PayLoadKey = OptionalPayLoadKey.GetValue();
-
+						FInterchangeMeshPayLoadKey GlobalMorphPayLoadKey = MeshNodeContext.GetMorphTargetAndTransformPayloadKey(PayLoadKey);
 						//Add the map entry key, the translator will be call after to bulk get all the needed payload
-						TempMorphTargetMeshDescriptionsPerMorphTargetName.Add(PayLoadKey.UniqueId, MeshTranslatorPayloadInterface->GetMeshPayloadData(PayLoadKey, MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity)));
+						TempMorphTargetMeshDescriptionsPerMorphTargetName.Add(PayLoadKey.UniqueId, LodPayloads.MorphPayloadPerKey.FindChecked(GlobalMorphPayLoadKey));
 					}
 				}
 
@@ -130,7 +142,7 @@ namespace UE
 							continue;
 						}
 
-						TOptional<UE::Interchange::FMeshPayloadData> MorphTargetMeshPayload = TempMorphTargetMeshDescriptionsPerMorphTargetName.FindChecked(MorphTargetPayloadKeyString).Get();
+						TOptional<UE::Interchange::FMeshPayloadData> MorphTargetMeshPayload = TempMorphTargetMeshDescriptionsPerMorphTargetName.FindChecked(MorphTargetPayloadKeyString);
 						if (!MorphTargetMeshPayload.IsSet())
 						{
 							UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid skeletal mesh morph target payload key [%s] for SkeletalMesh asset %s."), *MorphTargetPayloadKeyString, *AssetName);
@@ -150,19 +162,32 @@ namespace UE
 				}
 			}
 
-			void CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(const TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>>& LodMorphTargetMeshDescriptions, FSkeletalMeshImportData& DestinationSkeletalMeshImportData)
+			void CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(const TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>>& LodMorphTargetMeshDescriptions, FSkeletalMeshImportData& DestinationSkeletalMeshImportData, const bool bMergeMorphTargetWithSameName)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData)
 				const int32 OriginalMorphTargetCount = LodMorphTargetMeshDescriptions.Num();
-				TArray<FString> Keys;
-				int32 MorphTargetCount = 0;
+				TArray < TPair<FString, TArray<FString>>> KeysPerName;
+				auto FindOrAdd = [&KeysPerName](const FString& MorphTargetName)->TPair<FString, TArray<FString>>&
+					{
+						for (TPair<FString, TArray<FString>>& Pair : KeysPerName)
+						{
+							if (Pair.Key.Equals(MorphTargetName))
+							{
+								return Pair;
+							}
+						}
+
+						TPair<FString, TArray<FString>>& NewPair = KeysPerName.AddDefaulted_GetRef();
+						NewPair.Key = MorphTargetName;
+						return NewPair;
+					};
 				for (const TPair<FString, TOptional<UE::Interchange::FMeshPayloadData>>& Pair : LodMorphTargetMeshDescriptions)
 				{
-					const FString MorphTargetName(Pair.Key);
+					const FString MorphTargetUniqueId(Pair.Key);
 					const TOptional<UE::Interchange::FMeshPayloadData>& MorphTargetPayloadData = Pair.Value;
 					if (!MorphTargetPayloadData.IsSet())
 					{
-						UE_LOG(LogInterchangeImport, Error, TEXT("Empty morph target optional payload data [%s]."), *MorphTargetName);
+						UE_LOG(LogInterchangeImport, Error, TEXT("Empty morph target optional payload data [%s]."), *MorphTargetUniqueId);
 						continue;
 					}
 
@@ -172,12 +197,25 @@ namespace UE
 					const int32 DestinationVertexIndexMax = VertexOffset + SourceMeshVertexCount;
 					if (!DestinationSkeletalMeshImportData.Points.IsValidIndex(DestinationVertexIndexMax-1))
 					{
-						UE_LOG(LogInterchangeImport, Error, TEXT("Corrupted morph target optional payload data [%s]."), *MorphTargetName);
+						UE_LOG(LogInterchangeImport, Error, TEXT("Corrupted morph target optional payload data [%s]."), *MorphTargetUniqueId);
 						continue;
 					}
-					Keys.Add(Pair.Key);
-					MorphTargetCount++;
+
+					if (bMergeMorphTargetWithSameName)
+					{
+						TPair<FString, TArray<FString>>& PairMorphNameWithKeys = FindOrAdd(MorphTargetPayloadData->MorphTargetName);
+						PairMorphNameWithKeys.Value.Add(MorphTargetUniqueId);
+					}
+					else
+					{
+						TPair<FString, TArray<FString>>& NewPair = KeysPerName.AddDefaulted_GetRef();
+						NewPair.Key = MorphTargetPayloadData->MorphTargetName;
+						NewPair.Value.Add(MorphTargetUniqueId);
+					}
 				}
+				
+				//Adjust the count from the merge context
+				const int32 MorphTargetCount = KeysPerName.Num();
 
 				//No morph target to import
 				if (MorphTargetCount == 0)
@@ -185,7 +223,6 @@ namespace UE
 					return;
 				}
 
-				ensure(Keys.Num() == MorphTargetCount);
 				//Allocate the data
 				DestinationSkeletalMeshImportData.MorphTargetNames.AddDefaulted(MorphTargetCount);
 				DestinationSkeletalMeshImportData.MorphTargetModifiedPoints.AddDefaulted(MorphTargetCount);
@@ -200,70 +237,75 @@ namespace UE
 							MorphTargetCount,
 							NumMorphGroup,
 							&LodMorphTargetMeshDescriptions,
-							&Keys,
+							&KeysPerName,
+							bMergeMorphTargetWithSameName,
 							&DestinationSkeletalMeshImportData](const int32 MorphTargetGroupIndex)
 				{
 					const int32 MorphTargetIndexOffset = MorphTargetGroupIndex * MorphTargetGroupSize;
 					const int32 MorphTargetEndLoopCount = MorphTargetIndexOffset + MorphTargetGroupSize;
 					for (int32 MorphTargetIndex = MorphTargetIndexOffset; MorphTargetIndex < MorphTargetEndLoopCount; ++MorphTargetIndex)
 					{
-						if (!Keys.IsValidIndex(MorphTargetIndex))
+						if (!KeysPerName.IsValidIndex(MorphTargetIndex))
 						{
 							ensure(MorphTargetGroupIndex + 1 == NumMorphGroup);
 							//Executing the last morph target group, in case we do not have a full last group.
 							break;
 						}
-						const FString MorphTargetKey(Keys[MorphTargetIndex]);
-						const TOptional<UE::Interchange::FMeshPayloadData>& MorphTargetPayloadData = LodMorphTargetMeshDescriptions.FindChecked(MorphTargetKey);
-						if (!ensure(MorphTargetPayloadData.IsSet()))
-						{
-							//This error was suppose to be catch in the pre parallel for loop
-							break;
-						}
-
-						const FMeshDescription& SourceMeshDescription = MorphTargetPayloadData.GetValue().MeshDescription;
-						const FTransform GlobalTransform = MorphTargetPayloadData->GlobalTransform.IsSet() ? MorphTargetPayloadData->GlobalTransform.GetValue() : FTransform::Identity;
-						const int32 VertexOffset = MorphTargetPayloadData->VertexOffset;
-						const int32 SourceMeshVertexCount = SourceMeshDescription.Vertices().Num();
-						const int32 DestinationVertexIndexMax = VertexOffset + SourceMeshVertexCount;
-						if (!ensure(DestinationSkeletalMeshImportData.Points.IsValidIndex(DestinationVertexIndexMax-1)))
-						{
-							//This error was suppose to be catch in the pre parallel for loop
-							break;
-						}
-						TArray<FVector3f> CompressPoints;
-						CompressPoints.Reserve(SourceMeshVertexCount);
-						FStaticMeshConstAttributes Attributes(SourceMeshDescription);
-						TVertexAttributesConstRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
-
 						//Create the morph target source data
 						FString& MorphTargetName = DestinationSkeletalMeshImportData.MorphTargetNames[MorphTargetIndex];
-						MorphTargetName = MorphTargetPayloadData->MorphTargetName;
+						MorphTargetName = KeysPerName[MorphTargetIndex].Key;
 						TSet<uint32>& ModifiedPoints = DestinationSkeletalMeshImportData.MorphTargetModifiedPoints[MorphTargetIndex];
 						FSkeletalMeshImportData& MorphTargetData = DestinationSkeletalMeshImportData.MorphTargets[MorphTargetIndex];
 
-						//Reserve the point and influences
-						MorphTargetData.Points.AddZeroed(SourceMeshVertexCount);
-
-						for (FVertexID VertexID : SourceMeshDescription.Vertices().GetElementIDs())
+						TArray<FVector3f> CompressPoints;
+						for (const FString& MorphTargetKey : KeysPerName[MorphTargetIndex].Value)
 						{
-							//We can use GetValue because the Meshdescription was compacted before the copy
-							MorphTargetData.Points[VertexID.GetValue()] = (FVector3f)GlobalTransform.TransformPosition((FVector)VertexPositions[VertexID]);
-						}
-
-						for (int32 PointIdx = VertexOffset; PointIdx < DestinationSkeletalMeshImportData.Points.Num(); ++PointIdx)
-						{
-							int32 OriginalPointIdx = DestinationSkeletalMeshImportData.PointToRawMap[PointIdx] - VertexOffset;
-							if (!MorphTargetData.Points.IsValidIndex(OriginalPointIdx))
+							const TOptional<UE::Interchange::FMeshPayloadData>& MorphTargetPayloadData = LodMorphTargetMeshDescriptions.FindChecked(MorphTargetKey);
+							if (!ensure(MorphTargetPayloadData.IsSet()))
 							{
-								//We break if we get over a valid point it mean we are inspecting a different part of the mesh
+								//This error was suppose to be catch in the pre parallel for loop
 								break;
 							}
-							//Rebuild the data with only the modified point
-							if ((MorphTargetData.Points[OriginalPointIdx] - DestinationSkeletalMeshImportData.Points[PointIdx]).SizeSquared() > FMath::Square(THRESH_POINTS_ARE_SAME))
+
+							const FMeshDescription& SourceMeshDescription = MorphTargetPayloadData.GetValue().MeshDescription;
+							const FTransform GlobalTransform = MorphTargetPayloadData->GlobalTransform.IsSet() ? MorphTargetPayloadData->GlobalTransform.GetValue() : FTransform::Identity;
+							const int32 VertexOffset = MorphTargetPayloadData->VertexOffset;
+							const int32 SourceMeshVertexCount = SourceMeshDescription.Vertices().Num();
+							const int32 DestinationVertexIndexMax = VertexOffset + SourceMeshVertexCount;
+							if (!ensure(DestinationSkeletalMeshImportData.Points.IsValidIndex(DestinationVertexIndexMax - 1)))
 							{
-								ModifiedPoints.Add(PointIdx);
-								CompressPoints.Add(MorphTargetData.Points[OriginalPointIdx]);
+								//This error was suppose to be catch in the pre parallel for loop
+								break;
+							}
+							
+							CompressPoints.Reserve(CompressPoints.Num() + SourceMeshVertexCount);
+							FStaticMeshConstAttributes Attributes(SourceMeshDescription);
+							TVertexAttributesConstRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
+
+							//Reserve the point and influences
+							MorphTargetData.Points.Reset(SourceMeshVertexCount);
+							MorphTargetData.Points.AddZeroed(SourceMeshVertexCount);
+
+							for (FVertexID VertexID : SourceMeshDescription.Vertices().GetElementIDs())
+							{
+								//We can use GetValue because the Meshdescription was compacted before the copy
+								MorphTargetData.Points[VertexID.GetValue()] = (FVector3f)GlobalTransform.TransformPosition((FVector)VertexPositions[VertexID]);
+							}
+
+							for (int32 PointIdx = VertexOffset; PointIdx < DestinationSkeletalMeshImportData.Points.Num(); ++PointIdx)
+							{
+								int32 OriginalPointIdx = DestinationSkeletalMeshImportData.PointToRawMap[PointIdx] - VertexOffset;
+								if (!MorphTargetData.Points.IsValidIndex(OriginalPointIdx))
+								{
+									//We break if we get over a valid point it mean we are inspecting a different part of the mesh
+									break;
+								}
+								//Rebuild the data with only the modified point
+								if ((MorphTargetData.Points[OriginalPointIdx] - DestinationSkeletalMeshImportData.Points[PointIdx]).SizeSquared() > FMath::Square(THRESH_POINTS_ARE_SAME))
+								{
+									ModifiedPoints.Add(PointIdx);
+									CompressPoints.Add(MorphTargetData.Points[OriginalPointIdx]);
+								}
 							}
 						}
 						MorphTargetData.Points = CompressPoints;
@@ -295,10 +337,13 @@ namespace UE
 				return nullptr;
 			}
 
+			//We assume normalize weight method in this bind pose conversion
 			void SkinVertexPositionToTimeZero(UE::Interchange::FMeshPayloadData& LodMeshPayload
 				, const UInterchangeBaseNodeContainer* NodeContainer
 				, const FString& RootJointNodeId
-				, const FTransform& MeshGlobalTransform)
+				, const UInterchangeMeshNode* MeshNode
+				, const UInterchangeSceneNode* SceneNode
+				, const FTransform& SceneNodeTransform)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(SkinVertexPositionToTimeZero)
 				FMeshDescription& MeshDescription = LodMeshPayload.MeshDescription;
@@ -331,39 +376,46 @@ namespace UE
 					CommonPipelineDataFactoryNode->GetCustomGlobalOffsetTransform(GlobalOffsetTransform);
 				}
 
-				//We assume normalize weight method in this bind pose conversion
-
-				const FTransform MeshGlobalTransformInverse = MeshGlobalTransform.Inverse();
 				const int32 JointCount = JointNames.Num();
 				for (int32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
 				{
 					const FString& JointName = JointNames[JointIndex];
 
 					const UInterchangeSceneNode* JointNode = RecursiveFindJointByName(NodeContainer, RootJointNodeId, JointName);
-					if (!ensure(JointNode))
+					if (!JointNode)
 					{
 						continue;
 					}
-					
-					FTransform JointBindPoseGlobalTransform;
-					if (!ensure(JointNode->GetCustomBindPoseGlobalTransform(NodeContainer, GlobalOffsetTransform, JointBindPoseGlobalTransform)))
+
+					FTransform BindPose;
+					if (!ensure(JointNode->GetCustomBindPoseGlobalTransform(NodeContainer, FTransform::Identity, BindPose)))
 					{
 						//BindPose will fall back on LocalTransform in case its not present.
 						//If neither is present: No Value to convert from, skip this joint.
 						continue;
 					}
 
-					FTransform JointTimeZeroGlobalTransform;
-					if (!JointNode->GetCustomTimeZeroGlobalTransform(NodeContainer, GlobalOffsetTransform, JointTimeZeroGlobalTransform))
+					FTransform T0;
+					if (!JointNode->GetCustomTimeZeroGlobalTransform(NodeContainer, FTransform::Identity, T0))
 					{
 						//If there is no time zero global transform we cannot set the bind pose to time zero.
 						//We must skip this joint.
 						continue;
 					}
 
-					//JointBindPoseGlobalTransform Contains the GlobalTransform as the GlobalTransform calculation fallsback onto Transform (from BindPoseTransform or T0Transforms if they are not present)
-					//Multiply both transform to get a matrix that will transform the mesh vertices from the bind pose skinning to the time zero skinning
-					const FMatrix VertexTransformMatrix = (JointBindPoseGlobalTransform.Inverse() * JointTimeZeroGlobalTransform).ToMatrixWithScale();
+					FMatrix TransformMatrix = FMatrix::Identity;
+					JointNode->GetGlobalBindPoseReferenceForMeshUID(MeshNode->GetUniqueID(), TransformMatrix);
+					FTransform TransformMatrixTransform;
+					TransformMatrixTransform.SetFromMatrix(TransformMatrix);
+
+					FTransform GeometricTransform;
+					if (SceneNode->GetCustomGeometricTransform(GeometricTransform))
+					{
+						//We must add the geometric node transform
+						TransformMatrixTransform = GeometricTransform * TransformMatrixTransform;
+					}
+
+					FMatrix VertexTransformMatrix = (SceneNodeTransform.Inverse() * ((TransformMatrixTransform * BindPose.Inverse()) * (T0 * SceneNodeTransform.Inverse()))).ToMatrixWithScale();
 
 					//Iterate all bone vertices
 					for (FVertexID VertexID : MeshDescription.Vertices().GetElementIDs())
@@ -410,7 +462,7 @@ namespace UE
 						//Normalized, in case the weight is different then 1
 						lDstVertex /= Weight;
 						//Set the new vertex position in the mesh description
-						VertexPositions[VertexID] = lDstVertex;
+						VertexPositions[VertexID] = FVector3f(FVector4f(SceneNodeTransform.TransformFVector4(FVector(lDstVertex))));
 					}
 				}
 			}
@@ -418,18 +470,14 @@ namespace UE
 			void RetrieveAllSkeletalMeshPayloadsAndFillImportData(const UInterchangeSkeletalMeshFactoryNode* SkeletalMeshFactoryNode
 																  , FSkeletalMeshImportData& DestinationImportData
 																  , TArray<FMeshNodeContext>& MeshReferences
+																  , UInterchangeSkeletalMeshFactory::FLodPayloads& LodPayloads
 																  , TArray<SkeletalMeshImportData::FBone>& RefBonesBinary
 																  , const UInterchangeSkeletalMeshFactory::FImportAssetObjectParams& Arguments
-																  , const IInterchangeMeshPayloadInterface* MeshTranslatorPayloadInterface
 																  , const bool bSkinControlPointToTimeZero
 																  , const UInterchangeBaseNodeContainer* NodeContainer
 																  , const FString& RootJointNodeId)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(RetrieveAllSkeletalMeshPayloadsAndFillImportData)
-				if (!MeshTranslatorPayloadInterface)
-				{
-					return;
-				}
 				FMeshDescription LodMeshDescription;
 				FSkeletalMeshAttributes SkeletalMeshAttributes(LodMeshDescription);
 				SkeletalMeshAttributes.Register();
@@ -442,17 +490,18 @@ namespace UE
 				bool bKeepSectionsSeparate = false;
 				SkeletalMeshFactoryNode->GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
 
+				bool bImportVertexAttributes = false;
+				SkeletalMeshFactoryNode->GetCustomImportVertexAttributes(bImportVertexAttributes);
+
 				bool bImportMorphTarget = true;
 				SkeletalMeshFactoryNode->GetCustomImportMorphTarget(bImportMorphTarget);
 
-				TMap<const FMeshNodeContext*, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>> LodMeshPayloadPerTranslatorPayloadKey;
+				TMap<const FMeshNodeContext*, TOptional<UE::Interchange::FMeshPayloadData>> LodMeshPayloadPerTranslatorPayloadKey;
 				LodMeshPayloadPerTranslatorPayloadKey.Reserve(MeshReferences.Num());
 
 				TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>> MorphTargetMeshDescriptionsPerMorphTargetName;
 				int32 MorphTargetCount = 0;
 
-				bool bImportVertexAttributes = false;
-				SkeletalMeshFactoryNode->GetCustomImportVertexAttributes(bImportVertexAttributes);
 				struct FInternalInstanceData
 				{
 					bool ScaleGreaterThenOne = false;
@@ -472,17 +521,17 @@ namespace UE
 
 				for (const FMeshNodeContext& MeshNodeContext : MeshReferences)
 				{
-					const FInternalInstanceData& InstanceData = MeshInstancesDatas.FindChecked(MeshNodeContext.TranslatorPayloadKey.UniqueId);
-					FTransform ApplyTransformWhenFetchPayload = InstanceData.ShouldFetchWithTransform() ? MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity) : FTransform::Identity;
 					//Add the payload entry key, the payload data will be fill later in bulk by the translator
-					LodMeshPayloadPerTranslatorPayloadKey.Add(&MeshNodeContext, MeshTranslatorPayloadInterface->GetMeshPayloadData(MeshNodeContext.TranslatorPayloadKey, ApplyTransformWhenFetchPayload));
+					LodMeshPayloadPerTranslatorPayloadKey.Add(&MeshNodeContext, LodPayloads.MeshPayloadPerKey.FindChecked(MeshNodeContext.GetTranslatorAndTransformPayloadKey()));
 					//Count the morph target dependencies so we can reserve the right amount
 					MorphTargetCount += (bImportMorphTarget && MeshNodeContext.MeshNode) ? MeshNodeContext.MeshNode->GetMorphTargetDependeciesCount() : 0;
 				}
 				MorphTargetMeshDescriptionsPerMorphTargetName.Reserve(MorphTargetCount);
 
 				//Fill the lod mesh description using all combined mesh part
-				for(TPair<const FMeshNodeContext*, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>>& MeshNodeContextAndFuture: LodMeshPayloadPerTranslatorPayloadKey)
+				TArray<SkeletalMeshImportData::FMeshInfo> MeshInfos;
+				int32 MeshInfoVertexOffset = 0;
+				for(TPair<const FMeshNodeContext*, TOptional<UE::Interchange::FMeshPayloadData>>& MeshNodeContextAndFuture: LodMeshPayloadPerTranslatorPayloadKey)
 				{
 					if (!MeshNodeContextAndFuture.Key)
 					{
@@ -490,11 +539,32 @@ namespace UE
 					}
 					const FMeshNodeContext& MeshNodeContext = *MeshNodeContextAndFuture.Key;
 					TRACE_CPUPROFILER_EVENT_SCOPE(RetrieveAllSkeletalMeshPayloadsAndFillImportData::GetPayload)
-					TOptional<UE::Interchange::FMeshPayloadData> LodMeshPayload = MeshNodeContextAndFuture.Value.Get();
+					TOptional<UE::Interchange::FMeshPayloadData> LodMeshPayload = MeshNodeContextAndFuture.Value;
 					if (!LodMeshPayload.IsSet())
 					{
 						UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid skeletal mesh payload key [%s] for SkeletalMesh asset %s."), *MeshNodeContext.TranslatorPayloadKey.UniqueId, *Arguments.AssetName);
 						continue;
+					}
+
+					// Generate the mesh info.
+					if (MeshNodeContext.SceneNode && MeshNodeContext.MeshNode)
+					{
+						SkeletalMeshImportData::FMeshInfo MeshInfo;
+						MeshInfo.Name = FName(MeshNodeContext.SceneNode->GetDisplayLabel());
+						if (MeshNodeContext.MeshNode->GetCustomVertexCount(MeshInfo.NumVertices))
+						{
+							MeshInfo.StartImportedVertex = MeshInfoVertexOffset;
+							MeshInfoVertexOffset += MeshInfo.NumVertices;
+							MeshInfos.Add(MeshInfo);
+						}
+					}
+					else
+					{
+						int32 NumVerts = 0;
+						if (MeshNodeContext.MeshNode && MeshNodeContext.MeshNode->GetCustomVertexCount(NumVerts))
+						{
+							MeshInfoVertexOffset += NumVerts;
+						}
 					}
 					
 					const int32 VertexOffset = LodMeshDescription.Vertices().Num();
@@ -513,12 +583,7 @@ namespace UE
 					{
 						//We need to rebind the mesh at time 0. Skeleton joint have the time zero transform, so we need to apply the skinning to the mesh
 						//With the skeleton transform at time zero
-						FTransform MeshGlobalTransform = FTransform::Identity;
-						if (MeshNodeContext.SceneGlobalTransform.IsSet())
-						{
-							MeshGlobalTransform = MeshNodeContext.SceneGlobalTransform.GetValue();
-						}
-						SkinVertexPositionToTimeZero(LodMeshPayload.GetValue(), NodeContainer, RootJointNodeId, MeshGlobalTransform);
+						SkinVertexPositionToTimeZero(LodMeshPayload.GetValue(), NodeContainer, RootJointNodeId, MeshNodeContext.MeshNode, MeshNodeContext.SceneNode, MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity));
 					}
 
 					const int32 RefBoneCount = RefBonesBinary.Num();
@@ -596,18 +661,38 @@ namespace UE
 					{
 						FillMorphTargetMeshDescriptionsPerMorphTargetName(MeshNodeContext
 																		, MorphTargetMeshDescriptionsPerMorphTargetName
-																		, MeshTranslatorPayloadInterface
+																		, LodPayloads
 																		, VertexOffset
 																		, Arguments.NodeContainer
 																		, Arguments.AssetName);
 					}
 				}
 
+				//The color data is linearized twice by the translator, we need to convert to sRGB to have proper linear
+				//TODO: change the translator to put linear instead of linear of linear
+				//      remove the ToFColor in StaticMeshBuilder
+				//      version the meshdescription properly to force the ToFColor when loading old static meshdescription
+				{
+					TVertexInstanceAttributesRef<FVector4f> VertexColor = SkeletalMeshAttributes.GetVertexInstanceColors();
+					for (FVertexInstanceID VertexInstanceID : LodMeshDescription.VertexInstances().GetElementIDs())
+					{
+						const FColor LinearUint8Color = FLinearColor(VertexColor[VertexInstanceID]).ToFColor(true);
+						constexpr float ColorScale = (1.0f / 255.0f);
+						VertexColor[VertexInstanceID] = FVector4f(static_cast<float>(LinearUint8Color.R) * ColorScale
+							, static_cast<float>(LinearUint8Color.G) * ColorScale
+							, static_cast<float>(LinearUint8Color.B) * ColorScale
+							, static_cast<float>(LinearUint8Color.A) * ColorScale);
+					}
+				}
+
 				DestinationImportData = FSkeletalMeshImportData::CreateFromMeshDescription(LodMeshDescription);
 				DestinationImportData.RefBonesBinary = RefBonesBinary;
+				DestinationImportData.MeshInfos = MoveTemp(MeshInfos);
 
+				bool bMergeMorphTargetWithSameName = false;
+				SkeletalMeshFactoryNode->GetCustomMergeMorphTargetShapeWithSameName(bMergeMorphTargetWithSameName);
 				//Copy all the lod morph targets data to the DestinationImportData.
-				CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(MorphTargetMeshDescriptionsPerMorphTargetName, DestinationImportData);
+				CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(MorphTargetMeshDescriptionsPerMorphTargetName, DestinationImportData, bMergeMorphTargetWithSameName);
 			}
 
 			void ProcessImportMeshInfluences(const int32 WedgeCount, TArray<SkeletalMeshImportData::FRawBoneInfluence>& Influences)
@@ -928,78 +1013,310 @@ namespace UE
 				ContentInfo.bApplySkinningOnly = ContentInfo.bApplyPartialContent && ContentInfo.bApplySkinning;
 				return ContentInfo;
 			}
+
+			bool BuildMeshReferences(const UInterchangeFactoryBase::FImportAssetObjectParams& Arguments
+				, const FString& RootJointNodeId
+				, UInterchangeSkeletalMeshFactory::FImportAssetObjectLODData& ImportAssetObjectLODDataRef
+				, const FTransform& GlobalOffsetTransform
+				, const UInterchangeSkeletalMeshLodDataNode* LodDataNode
+				, const bool bBakeMeshes)
+			{
+				if (!LodDataNode)
+				{
+					return false;
+				}
+				const UInterchangeSceneNode* RootJointNode = Cast<UInterchangeSceneNode>(Arguments.NodeContainer->GetNode(RootJointNodeId));
+				if (!RootJointNode)
+				{
+					return false;
+				}
+				if (!ImportAssetObjectLODDataRef.bUseTimeZeroAsBindPose)
+				{
+					bool bHasBoneWithoutBindPose = false;
+					UE::Interchange::Private::FSkeletonHelper::RecursiveBoneHasBindPose(Arguments.NodeContainer, RootJointNodeId, bHasBoneWithoutBindPose);
+					if (bHasBoneWithoutBindPose)
+					{
+						ImportAssetObjectLODDataRef.bUseTimeZeroAsBindPose = true;
+					}
+				}
+
+				ImportAssetObjectLODDataRef.bDiffPose = false;
+				TArray <Private::FJointInfo> JointInfos;
+				TArray<FString> BoneNotBindNames;
+				Private::FSkeletonHelper::RecursiveAddBones(Arguments.NodeContainer
+					, RootJointNodeId
+					, JointInfos
+					, INDEX_NONE
+					, ImportAssetObjectLODDataRef.RefBonesBinary
+					, ImportAssetObjectLODDataRef.bUseTimeZeroAsBindPose
+					, ImportAssetObjectLODDataRef.bDiffPose
+					, BoneNotBindNames);
+
+				FTransform RootJointNodeGlobalTransform;
+				ensure(RootJointNode->GetCustomGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, RootJointNodeGlobalTransform));
+				FTransform RootJointNodeLocalTransform;
+				ensure(RootJointNode->GetCustomLocalTransform(RootJointNodeLocalTransform));
+				FTransform BakeToRootJointTransfromModifier = RootJointNodeGlobalTransform.Inverse() * RootJointNodeLocalTransform; //It is used for !bBakeMeshes, and so the GlobalTransform will be inversed out when multiplied into the CustomBindPoseGlobalTransform
+				FTransform BakeFromRootJointTransfromModifier = RootJointNodeLocalTransform.Inverse() * RootJointNodeGlobalTransform * GlobalOffsetTransform.Inverse(); //GlobalOffseTransform will be added by the BindPoseGlobalTransform when bBakeMeshes && !bRootAncestorOfMeshDependency is used
+
+				//Scope to query the mesh node
+				{
+					TArray<FString> MeshUids;
+					LodDataNode->GetMeshUids(MeshUids);
+					ImportAssetObjectLODDataRef.MeshNodeContexts.Reserve(MeshUids.Num());
+					for (const FString& MeshUid : MeshUids)
+					{
+						FMeshNodeContext MeshReference;
+						MeshReference.MeshNode = Cast<UInterchangeMeshNode>(Arguments.NodeContainer->GetNode(MeshUid));
+						if (!MeshReference.MeshNode)
+						{
+							//The reference is a scene node and we need to bake the geometry
+							MeshReference.SceneNode = Cast<UInterchangeSceneNode>(Arguments.NodeContainer->GetNode(MeshUid));
+							if (!ensure(MeshReference.SceneNode != nullptr))
+							{
+								continue;
+							}
+							FString MeshDependencyUid;
+							MeshReference.SceneNode->GetCustomAssetInstanceUid(MeshDependencyUid);
+							MeshReference.MeshNode = Cast<UInterchangeMeshNode>(Arguments.NodeContainer->GetNode(MeshDependencyUid));
+							bool bRootAncestorOfSceneNode = Arguments.NodeContainer->GetIsAncestor(MeshReference.SceneNode->GetUniqueID(), RootJointNode->GetParentUid());
+							//Cache the scene node global matrix, we will use this matrix to bake the vertices, add the node geometric mesh offset to this matrix to bake it properly
+							FTransform SceneNodeTransform;
+							if (!ImportAssetObjectLODDataRef.bUseTimeZeroAsBindPose || !MeshReference.SceneNode->GetCustomTimeZeroGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, SceneNodeTransform))
+							{
+								ensure(MeshReference.SceneNode->GetCustomBindPoseGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, SceneNodeTransform));
+								if (bRootAncestorOfSceneNode)
+								{
+									if (!bBakeMeshes)
+									{
+										SceneNodeTransform *= BakeToRootJointTransfromModifier;
+									}
+								}
+								else
+								{
+									if (bBakeMeshes)
+									{
+										SceneNodeTransform = BakeFromRootJointTransfromModifier * SceneNodeTransform;
+									}
+									else
+									{
+										SceneNodeTransform *= GlobalOffsetTransform.Inverse();
+									}
+								}
+							}
+
+							FTransform SceneNodeGeometricTransform;
+							if (MeshReference.SceneNode->GetCustomGeometricTransform(SceneNodeGeometricTransform))
+							{
+								SceneNodeTransform = SceneNodeGeometricTransform * SceneNodeTransform;
+							}
+							MeshReference.SceneGlobalTransform = SceneNodeTransform;
+						}
+						else
+						{
+							MeshReference.SceneGlobalTransform = GlobalOffsetTransform;
+						}
+
+						if (!ensure(MeshReference.MeshNode != nullptr))
+						{
+							continue;
+						}
+
+						TOptional<FInterchangeMeshPayLoadKey> OptionalPayLoadKey = MeshReference.MeshNode->GetPayLoadKey();
+						if (OptionalPayLoadKey.IsSet())
+						{
+							MeshReference.TranslatorPayloadKey = OptionalPayLoadKey.GetValue();
+						}
+						else
+						{
+							continue;
+						}
+						ImportAssetObjectLODDataRef.MeshNodeContexts.Add(MeshReference);
+					}
+				}
+				return true;
+			}
 		} //Namespace Private
 	} //namespace Interchange
 } //namespace UE
 
 #endif //#if WITH_EDITOR
 
-void FInterchangeSkeletalMeshPostImportTask::Execute()
+UClass* UInterchangeSkeletalMeshFactory::GetFactoryClass() const
 {
-#if WITH_EDITOR
-	if (!SkeletalMesh)
+	return USkeletalMesh::StaticClass();
+}
+
+void UInterchangeSkeletalMeshFactory::CreatePayloadTasks(const FImportAssetObjectParams& Arguments, bool bAsync, TArray<TSharedPtr<UE::Interchange::FInterchangeTaskBase>>& PayloadTasks)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::CreateAsset)
+
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
+	using namespace UE::Interchange;
+
+	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
 		return;
 	}
 
-	//This code works only on the game thread and is not asynchronous
-	check(IsInGameThread());
-
-	if (bReImportAlternateSkinWeights)
+	UInterchangeSkeletalMeshFactoryNode* SkeletalMeshFactoryNode = Cast<UInterchangeSkeletalMeshFactoryNode>(Arguments.AssetNode);
+	if (SkeletalMeshFactoryNode == nullptr)
 	{
-		//We can't show user if unattended just return;
-		if (GIsAutomationTesting || GIsRunningUnattendedScript || FApp::IsUnattended())
-		{
-			return;
-		}
-
-		FText MessageText = FText::Format(NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "ShouldReimportAlternateSkinning", "When reimporting asset \"{0}\" the system cannot re-apply the alternate skinning data, do you want to re-import all alternate skinning?")
-			, FText::FromString(SkeletalMesh->GetName()));
-
-		EAppReturnType::Type ReimportAlternateSkinningChoice = FMessageDialog::Open(EAppMsgType::YesNo
-			, EAppReturnType::No
-			, MessageText);
-		if (ReimportAlternateSkinningChoice == EAppReturnType::No)
-		{
-			return;
-		}
-
-		//User say yes so re-import the alternate skinning
-		const int32 LodCount = SkeletalMesh->GetLODNum();
-		float ProgressCount = LodCount + 0.1f;
-
-		FScopedSlowTask Progress(ProgressCount, NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "SkeletalMeshPostImportTaskGameThread", "Executing Skeletal Mesh Post Import Tasks..."));
-		Progress.MakeDialog();
-		{
-			//Make sure we rebuild the skeletal mesh after re-importing all skin weight
-			FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
-
-			//Wait until the asset is finish building then lock the skeletal mesh properties to prevent the UI to update during the alternate skinning reimport
-			FEvent* LockEvent = SkeletalMesh->LockPropertiesUntil();
-			FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
-
-			//We have a 0.1 progress for the lock
-			Progress.EnterProgressFrame(0.1f);
-
-			//Reimport all the alternate skinning
-			for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
-			{
-				FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
-				Progress.EnterProgressFrame(1.0f);
-			}
-
-			//Release the skeletal mesh async properties
-			LockEvent->Trigger();
-
-			//Skeletal mesh will rebuild when going out of scope
-		}
+		return;
 	}
-#endif //WITH_EDITOR
-}
 
-UClass* UInterchangeSkeletalMeshFactory::GetFactoryClass() const
-{
-	return USkeletalMesh::StaticClass();
+	const IInterchangeMeshPayloadInterface* MeshTranslatorPayloadInterface = Cast<IInterchangeMeshPayloadInterface>(Arguments.Translator);
+	if (!MeshTranslatorPayloadInterface)
+	{
+		UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
+		Message->Text = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "CreatePayloadTasks_TranslatorInterfaceMissing", "Cannot import skeletalMesh {0}, the translator {1} does not implement the IInterchangeSkeletalMeshPayloadInterface.")
+			, FText::FromString(Arguments.AssetName)
+			, FText::FromString(Arguments.Translator->GetName()));
+		return;
+	}
+
+	FTransform GlobalOffsetTransform = FTransform::Identity;
+	bool bBakeMeshes = false;
+	if (UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::GetUniqueInstance(Arguments.NodeContainer))
+	{
+		CommonPipelineDataFactoryNode->GetCustomGlobalOffsetTransform(GlobalOffsetTransform);
+		CommonPipelineDataFactoryNode->GetBakeMeshes(bBakeMeshes);
+	}
+
+	bool bImportMorphTarget = true;
+	SkeletalMeshFactoryNode->GetCustomImportMorphTarget(bImportMorphTarget);
+
+	int32 LodCount = SkeletalMeshFactoryNode->GetLodDataCount();
+	TArray<FString> LodDataUniqueIds;
+	SkeletalMeshFactoryNode->GetLodDataUniqueIds(LodDataUniqueIds);
+	ensure(LodDataUniqueIds.Num() == LodCount);
+	PayloadsPerLodIndex.Reserve(LodCount);
+	int32 CurrentLodIndex = 0;
+	for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
+	{
+		FString LodUniqueId = LodDataUniqueIds[LodIndex];
+		const UInterchangeSkeletalMeshLodDataNode* LodDataNode = Cast<UInterchangeSkeletalMeshLodDataNode>(Arguments.NodeContainer->GetNode(LodUniqueId));
+		if (!LodDataNode)
+		{
+			continue;
+		}
+
+		FString SkeletonNodeUid;
+		if (!LodDataNode->GetCustomSkeletonUid(SkeletonNodeUid))
+		{
+			continue;
+		}
+		const UInterchangeSkeletonFactoryNode* SkeletonNode = Cast<UInterchangeSkeletonFactoryNode>(Arguments.NodeContainer->GetNode(SkeletonNodeUid));
+		if (!SkeletonNode)
+		{
+			continue;
+		}
+
+		FString RootJointNodeId;
+		if (!SkeletonNode->GetCustomRootJointUid(RootJointNodeId))
+		{
+			continue;
+		}
+
+		const UInterchangeSceneNode* RootJointNode = Cast<UInterchangeSceneNode>(Arguments.NodeContainer->GetNode(RootJointNodeId));
+		if (!RootJointNode)
+		{
+			continue;
+		}
+
+		FLodPayloads& LodPayloads = PayloadsPerLodIndex.FindOrAdd(LodIndex);
+
+		FImportAssetObjectLODData& ImportAssetObjectLODData = ImportAssetObjectData.LodDatas.AddDefaulted_GetRef();
+		ImportAssetObjectLODData.LodIndex = CurrentLodIndex;
+
+		bool bUseTimeZeroAsBindPose = false;
+		SkeletonNode->GetCustomUseTimeZeroForBindPose(ImportAssetObjectLODData.bUseTimeZeroAsBindPose);
+		
+		Private::BuildMeshReferences(
+			Arguments
+			, RootJointNodeId
+			, ImportAssetObjectLODData
+			, GlobalOffsetTransform
+			, LodDataNode
+			, bBakeMeshes
+		);
+
+		struct FInternalInstanceData
+		{
+			bool ScaleGreaterThenOne = false;
+			int32 Count = 0;
+			bool ShouldFetchWithTransform() const
+			{
+				return Count == 1 || ScaleGreaterThenOne;
+			}
+		};
+		TMap<FString, FInternalInstanceData> MeshInstancesDatas;
+		for (const FMeshNodeContext& MeshNodeContext : ImportAssetObjectLODData.MeshNodeContexts)
+		{
+			FInternalInstanceData& InstanceData = MeshInstancesDatas.FindOrAdd(MeshNodeContext.TranslatorPayloadKey.UniqueId);
+			InstanceData.Count++;
+			InstanceData.ScaleGreaterThenOne |= MeshNodeContext.SceneGlobalTransform->GetScale3D().GetAbs().GetMax() > 1.0;
+		}
+		
+		//Reserve the correct amount since we point in the array for the lambda so array must not be resized at any moments after we create the tasks
+		LodPayloads.MeshPayloadPerKey.Reserve(ImportAssetObjectLODData.MeshNodeContexts.Num());
+		int32 MorphTargetCount = 0;
+		for (const FMeshNodeContext& MeshNodeContext : ImportAssetObjectLODData.MeshNodeContexts)
+		{
+			//Count the morph target dependencies so we can reserve the right amount
+			if (bImportMorphTarget)
+			{
+				MorphTargetCount += MeshNodeContext.MeshNode->GetMorphTargetDependeciesCount();
+			}
+		}
+		LodPayloads.MorphPayloadPerKey.Reserve(MorphTargetCount);
+
+		for (const FMeshNodeContext& MeshNodeContext : ImportAssetObjectLODData.MeshNodeContexts)
+		{
+			const FInternalInstanceData& InstanceData = MeshInstancesDatas.FindChecked(MeshNodeContext.TranslatorPayloadKey.UniqueId);
+			FTransform ApplyTransformWhenFetchPayload = InstanceData.ShouldFetchWithTransform() ? MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity) : FTransform::Identity;
+			//Create the payload task
+			TOptional<FMeshPayloadData>& MeshPayload = LodPayloads.MeshPayloadPerKey.FindOrAdd(MeshNodeContext.GetTranslatorAndTransformPayloadKey());
+			TSharedPtr<FInterchangeTaskLambda, ESPMode::ThreadSafe> TaskGetMeshPayload = MakeShared<FInterchangeTaskLambda, ESPMode::ThreadSafe>(bAsync ? EInterchangeTaskThread::AsyncThread : EInterchangeTaskThread::GameThread
+				, [&MeshPayload, ApplyTransformWhenFetchPayload, MeshTranslatorPayloadInterface, PayLoadKey = MeshNodeContext.TranslatorPayloadKey]()
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::GetMeshPayloadDataTask);
+					MeshPayload = MeshTranslatorPayloadInterface->GetMeshPayloadData(PayLoadKey, ApplyTransformWhenFetchPayload);
+				});
+			PayloadTasks.Add(TaskGetMeshPayload);
+
+			//Count the morph target dependencies so we can reserve the right amount
+			if (bImportMorphTarget)
+			{
+				TArray<FString> MorphTargetUids;
+				MeshNodeContext.MeshNode->GetMorphTargetDependencies(MorphTargetUids);
+				for (const FString& MorphTargetUid : MorphTargetUids)
+				{
+					if (const UInterchangeMeshNode* MorphTargetMeshNode = Cast<UInterchangeMeshNode>(Arguments.NodeContainer->GetNode(MorphTargetUid)))
+					{
+						TOptional<FInterchangeMeshPayLoadKey> OptionalPayLoadKey = MorphTargetMeshNode->GetPayLoadKey();
+						if (!OptionalPayLoadKey.IsSet())
+						{
+							UE_LOG(LogInterchangeImport, Warning, TEXT("Empty LOD morph target mesh reference payload when importing SkeletalMesh asset %s."), *Arguments.AssetName);
+							continue;
+						}
+						FInterchangeMeshPayLoadKey& MorphPayLoadKey = OptionalPayLoadKey.GetValue();
+						FInterchangeMeshPayLoadKey GlobalMorphPayLoadKey = MeshNodeContext.GetMorphTargetAndTransformPayloadKey(MorphPayLoadKey);
+						TOptional<FMeshPayloadData>& MorphPayload = LodPayloads.MorphPayloadPerKey.FindOrAdd(GlobalMorphPayLoadKey);
+						TSharedPtr<FInterchangeTaskLambda, ESPMode::ThreadSafe> TaskGetMorphPayload = MakeShared<FInterchangeTaskLambda, ESPMode::ThreadSafe>(bAsync ? EInterchangeTaskThread::AsyncThread : EInterchangeTaskThread::GameThread
+							, [&MorphPayload, ApplyTransformWhenFetchPayload, MeshTranslatorPayloadInterface, MorphPayLoadKey]()
+							{
+								TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::GetMeshMorphTargetPayloadDataTask);
+								MorphPayload = MeshTranslatorPayloadInterface->GetMeshPayloadData(MorphPayLoadKey, ApplyTransformWhenFetchPayload);
+							});
+						PayloadTasks.Add(TaskGetMorphPayload);
+					}
+				}
+			}
+		}
+		CurrentLodIndex++;
+	}
+#endif
 }
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
@@ -1008,12 +1325,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 
 	FImportAssetResult ImportAssetResult;
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	USkeletalMesh* SkeletalMesh = nullptr;
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
@@ -1207,11 +1519,15 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 			Message->Text = WarningMessage_InvalidRootJoint;
 			continue;
 		}
-
-		FImportAssetObjectLODData& ImportAssetObjectLODData = ImportAssetObjectData.LodDatas.AddDefaulted_GetRef();
-		ImportAssetObjectLODData.LodIndex = CurrentLodIndex;
-
-		SkeletonNode->GetCustomUseTimeZeroForBindPose(ImportAssetObjectLODData.bUseTimeZeroAsBindPose);
+		if (!ImportAssetObjectData.LodDatas.IsValidIndex(CurrentLodIndex))
+		{
+			UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
+			Message->Text = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "BeginImportAsset_GameThread_BadLodIndexPrecomputed", "Invalid precompute LOD {0} data when importing SkeletalMesh asset {1}.")
+				, FText::AsNumber(LodIndex)
+				, FText::FromString(Arguments.AssetName));
+			continue;
+		}
+		FImportAssetObjectLODData& ImportAssetObjectLODData = ImportAssetObjectData.LodDatas[CurrentLodIndex];
 		
 		//Do not alter the skeletal mesh reference skeleton when importing geometry only
 		FReferenceSkeleton RefSkeleton;
@@ -1235,10 +1551,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 
 		CurrentLodIndex++;
 	}
+#endif
 
 	return ImportAssetResult;
-
-#endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
 }
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::ImportAsset_Async(const FImportAssetObjectParams& Arguments)
@@ -1247,12 +1562,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 
 	FImportAssetResult ImportAssetResult;
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
 		return ImportAssetResult;
@@ -1297,6 +1607,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 	//Make sure we can modify the skeletalmesh properties
 	FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
 
+	TMap<FString, TArray<FLODUtilities::FMorphTargetLodBackupData>> BackupImportedMorphTargetData;
+	FLODUtilities::BackupCustomImportedMorphTargetData(SkeletalMesh, BackupImportedMorphTargetData);
+
+
 	FTransform GlobalOffsetTransform = FTransform::Identity;
 	bool bBakeMeshes = false;
 	if (UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::GetUniqueInstance(Arguments.NodeContainer))
@@ -1339,55 +1653,13 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		SkeletalMeshFactoryNode->SetCustomVertexColorReplace(bFalseSetting);
 	}
 
-	// Update skeletal materials
-	TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
-	auto UpdateOrAddSkeletalMaterial = [&Materials, bIsReImport = ImportAssetObjectData.bIsReImport](const FName& MaterialSlotName, UMaterialInterface* MaterialInterface)
+
+	//Call the mesh helper to create the missing material and to use the unmatched existing slot with the unmatch import slot
 	{
-		UMaterialInterface* NewMaterial = MaterialInterface ? MaterialInterface : UMaterial::GetDefaultMaterial(MD_Surface);
-
-		FSkeletalMaterial* SkeletalMaterial = Materials.FindByPredicate([&MaterialSlotName](const FSkeletalMaterial& Material) { return Material.MaterialSlotName == MaterialSlotName; });
-		if (SkeletalMaterial)
-		{
-			//When we are not re-importing, we always force update the material, we should see this case when importing LODs is on since its an import.
-			//When we do a re-import we update the material interface only if the current asset matching material is null and is not the default material.
-			if (!bIsReImport || (MaterialInterface && (!SkeletalMaterial->MaterialInterface || SkeletalMaterial->MaterialInterface == UMaterial::GetDefaultMaterial(MD_Surface))))
-			{
-				SkeletalMaterial->MaterialInterface = NewMaterial;
-			}
-		}
-		else
-		{
-			const bool bEnableShadowCasting = true;
-			const bool bInRecomputeTangent = false;
-			Materials.Emplace(NewMaterial, bEnableShadowCasting, bInRecomputeTangent, MaterialSlotName, MaterialSlotName);
-		}
-	};
-
-	TMap<FString, FString> SlotMaterialDependencies;
-	SkeletalMeshFactoryNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
-	Materials.Reserve(SlotMaterialDependencies.Num());
-
-	for (TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
-	{
-		FName MaterialSlotName = *SlotMaterialDependency.Key;
-
-		const UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(Arguments.NodeContainer->GetNode(SlotMaterialDependency.Value));
-		if (!MaterialFactoryNode)
-		{
-			UpdateOrAddSkeletalMaterial(MaterialSlotName, nullptr);
-			continue;
-		}
-
-		FSoftObjectPath MaterialFactoryNodeReferenceObject;
-		MaterialFactoryNode->GetCustomReferenceObject(MaterialFactoryNodeReferenceObject);
-		if (!MaterialFactoryNodeReferenceObject.IsValid())
-		{
-			UpdateOrAddSkeletalMaterial(MaterialSlotName, nullptr);
-			continue;
-		}
-
-		UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(MaterialFactoryNodeReferenceObject.ResolveObject());
-		UpdateOrAddSkeletalMaterial(MaterialSlotName, MaterialInterface ? MaterialInterface : nullptr);
+		using namespace UE::Interchange::Private::MeshHelper;
+		TMap<FString, FString> SlotMaterialDependencies;
+		SkeletalMeshFactoryNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
+		SkeletalMeshFactorySetupAssetMaterialArray(SkeletalMesh->GetMaterials(), SlotMaterialDependencies, Arguments.NodeContainer, ImportAssetObjectData.bIsReImport);
 	}
 
 	for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
@@ -1451,88 +1723,12 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 			Message->Text = WarningMessage_InvalidRootJoint;
 			continue;
 		}
+
+		//We should have a valid lod payload data
+		FLodPayloads& LodPayloads = PayloadsPerLodIndex.FindChecked(LodIndex);
+
 		FImportAssetObjectLODData& ImportAssetObjectLODData = ImportAssetObjectData.LodDatas[CurrentLodIndex];
 		ensure(ImportAssetObjectLODData.LodIndex == CurrentLodIndex);
-
-		FTransform RootJointNodeGlobalTransform;
-		ensure(RootJointNode->GetCustomGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, RootJointNodeGlobalTransform));
-		FTransform RootJointNodeLocalTransform;
-		ensure(RootJointNode->GetCustomLocalTransform(RootJointNodeLocalTransform));
-		FTransform BakeToRootJointTransfromModifier = RootJointNodeGlobalTransform.Inverse() * RootJointNodeLocalTransform;
-
-		TArray<UE::Interchange::Private::FMeshNodeContext> MeshReferences;
-		//Scope to query the mesh node
-		{
-			TArray<FString> MeshUids;
-			LodDataNode->GetMeshUids(MeshUids);
-			MeshReferences.Reserve(MeshUids.Num());
-
-			FText WarningMessage_InvalidLODMeshReference = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "ImportAsset_Async_InvalidLODMeshReference", "Invalid LOD {0} mesh reference when importing SkeletalMesh asset {1}")
-				, FText::AsNumber(LodIndex)
-				, FText::FromString(Arguments.AssetName));
-
-			for (const FString& MeshUid : MeshUids)
-			{
-				UE::Interchange::Private::FMeshNodeContext MeshReference;
-				MeshReference.MeshNode = Cast<UInterchangeMeshNode>(Arguments.NodeContainer->GetNode(MeshUid));
-				if (!MeshReference.MeshNode)
-				{
-					//The reference is a scene node and we need to bake the geometry
-					MeshReference.SceneNode = Cast<UInterchangeSceneNode>(Arguments.NodeContainer->GetNode(MeshUid));
-					if (!ensure(MeshReference.SceneNode != nullptr))
-					{
-						UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-						Message->Text = WarningMessage_InvalidLODMeshReference;
-						continue;
-					}
-					FString MeshDependencyUid;
-					MeshReference.SceneNode->GetCustomAssetInstanceUid(MeshDependencyUid);
-					MeshReference.MeshNode = Cast<UInterchangeMeshNode>(Arguments.NodeContainer->GetNode(MeshDependencyUid));
-					//Cache the scene node global matrix, we will use this matrix to bake the vertices, add the node geometric mesh offset to this matrix to bake it properly
-					FTransform SceneNodeTransform;
-					if (!ImportAssetObjectLODData.bUseTimeZeroAsBindPose || !MeshReference.SceneNode->GetCustomTimeZeroGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, SceneNodeTransform))
-					{
-						ensure(MeshReference.SceneNode->GetCustomBindPoseGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, SceneNodeTransform));
-						if (!bBakeMeshes)
-						{
-							SceneNodeTransform *= BakeToRootJointTransfromModifier;
-						}
-					}
-					FTransform SceneNodeGeometricTransform;
-					if(MeshReference.SceneNode->GetCustomGeometricTransform(SceneNodeGeometricTransform))
-					{
-						SceneNodeTransform = SceneNodeGeometricTransform * SceneNodeTransform;
-					}
-					MeshReference.SceneGlobalTransform = SceneNodeTransform;
-				}
-				else
-				{
-					MeshReference.SceneGlobalTransform = GlobalOffsetTransform;
-				}
-
-				if (!ensure(MeshReference.MeshNode != nullptr))
-				{
-					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-					Message->Text = WarningMessage_InvalidLODMeshReference;
-					continue;
-				}
-
-				TOptional<FInterchangeMeshPayLoadKey> OptionalPayLoadKey = MeshReference.MeshNode->GetPayLoadKey();
-				if (OptionalPayLoadKey.IsSet())
-				{
-					MeshReference.TranslatorPayloadKey = OptionalPayLoadKey.GetValue();
-				}
-				else
-				{
-					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-					Message->Text = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "ImportAsset_Async_EmptyLODMeshReference", "Empty LOD {0} mesh reference payload when importing SkeletalMesh asset {1}.")
-						, FText::AsNumber(LodIndex)
-						, FText::FromString(Arguments.AssetName));
-					continue;
-				}
-				MeshReferences.Add(MeshReference);
-			}
-		}
 
 		//Add the lod mesh data to the skeletalmesh
 		FSkeletalMeshImportData SkeletalMeshImportData;
@@ -1540,10 +1736,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		//Get all meshes and morph targets payload and fill the SkeletalMeshImportData structure
 		UE::Interchange::Private::RetrieveAllSkeletalMeshPayloadsAndFillImportData(SkeletalMeshFactoryNode
 																					, SkeletalMeshImportData
-																					, MeshReferences
+																					, ImportAssetObjectLODData.MeshNodeContexts
+																					, LodPayloads
 																					, ImportAssetObjectLODData.RefBonesBinary
 																					, Arguments
-																					, MeshTranslatorPayloadInterface
 																					, bSkinControlPointToTimeZero
 																					, Arguments.NodeContainer
 																					, RootJointNodeId);
@@ -1665,6 +1861,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 			}
 			else
 			{
+				TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
 				//LOD 0 import data is reorder to the material array before when building the LOD 0
 				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 				{
@@ -1672,10 +1869,18 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 				}
 			}
 		}
-		//Store the original fbx import data the SkelMeshImportDataPtr should not be modified after this
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SkeletalMesh->SaveLODImportedData(CurrentLodIndex, SkeletalMeshImportData);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		//Store the original fbx import data the SkeletalMeshImportData should not be modified after this
+		{
+			FMeshDescription MeshDescription;
+			if (SkeletalMeshImportData.GetMeshDescription(nullptr, &SkeletalMesh->GetLODInfo(CurrentLodIndex)->BuildSettings, MeshDescription))
+			{
+				//Restore the morph target into the imported mesh description
+				FLODUtilities::RestoreCustomImportedMorphTargetData(SkeletalMesh, CurrentLodIndex, MeshDescription, BackupImportedMorphTargetData);
+				SkeletalMesh->CreateMeshDescription(CurrentLodIndex, MoveTemp(MeshDescription));
+				SkeletalMesh->CommitMeshDescription(CurrentLodIndex);
+			}
+		}
 
 		//Update the bounding box if we are importing the LOD 0
 		if(CurrentLodIndex == 0)
@@ -1703,9 +1908,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 	Arguments.SourceData->GetFileContentHash();
 
 	ImportAssetResult.ImportedObject = SkeletalMeshObject;
-	return ImportAssetResult;
+#endif
 
-#endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
+	return ImportAssetResult;
 }
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::EndImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
@@ -1715,12 +1920,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	check(IsInGameThread());
 	FImportAssetResult ImportAssetResult;
 
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import SkeletalMesh asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
 		return ImportAssetResult;
@@ -1764,12 +1964,21 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
 
 	//Finish the import in the game thread so we can pop dialog if needed
-	if (ensure(ImportAssetObjectData.IsValid()))
+	if (ImportAssetObjectData.IsValid())
 	{
 		for (FImportAssetObjectLODData& ImportAssetObjectLODData : ImportAssetObjectData.LodDatas)
 		{
 			if (FSkeletalMeshLODInfo* LodInfo = SkeletalMesh->GetLODInfo(ImportAssetObjectLODData.LodIndex))
 			{
+				if (SkeletalMesh->GetMaterials().IsEmpty() && !ImportAssetObjectLODData.ImportedMaterials.IsEmpty() )
+				{
+					for (SkeletalMeshImportData::FMaterial ImportMaterial : ImportAssetObjectLODData.ImportedMaterials)
+					{
+						UMaterialInterface* MaterialInterface = ImportMaterial.Material.Get() ? ImportMaterial.Material.Get() : UMaterial::GetDefaultMaterial(MD_Surface);
+						SkeletalMesh->GetMaterials().Add(FSkeletalMaterial(MaterialInterface, FName(ImportMaterial.MaterialImportName), FName(ImportMaterial.MaterialImportName)));
+					}
+				}
+
 				if (SkeletalMesh->GetMaterials().Num() > 0)
 				{
 					FLODUtilities::FSkeletalMeshMatchImportedMaterialsParameters Parameters;
@@ -1804,6 +2013,11 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 
 	if (USkeleton* SkeletonReference = ImportAssetObjectData.SkeletonReference)
 	{
+		if (SkeletalMesh->GetSkeleton() != SkeletonReference)
+		{
+			SkeletalMesh->SetSkeleton(SkeletonReference);
+		}
+
 		constexpr bool bShowProgress = false;
 		if ((!ImportAssetObjectData.bApplyGeometryOnly || !ImportAssetObjectData.bIsReImport) && !SkeletonReference->MergeAllBonesToBoneTree(SkeletalMesh, bShowProgress))
 		{
@@ -1895,10 +2109,22 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 				Async(EAsyncExecution::TaskGraphMainThread, MoveTemp(RecreateSkeleton)).Wait();
 			}
 		}
-		if (SkeletalMesh->GetSkeleton() != SkeletonReference)
+
+		//Cleanup the reference skeleton sockets that doesn't fit anymmore a bone name.
+		TArray<TObjectPtr<USkeletalMeshSocket>>& Sockets = SkeletalMesh->GetMeshOnlySocketList();
+
+		for (int32 SocketIndex = Sockets.Num()-1; SocketIndex >= 0; SocketIndex--)
 		{
-			SkeletalMesh->SetSkeleton(SkeletonReference);
+			// Find bone index the socket is attached to.
+			USkeletalMeshSocket* Socket = Sockets[SocketIndex];
+			int32 SocketBoneIndex = SkeletalMesh->GetRefSkeleton().FindBoneIndex(Socket->BoneName);
+			// If this LOD does not contain the socket bone, abort import.
+			if (SocketBoneIndex == INDEX_NONE)
+			{
+				Sockets.RemoveAt(SocketIndex, EAllowShrinking::No);
+			}
 		}
+		Sockets.Shrink();
 	}
 	else
 	{
@@ -1952,9 +2178,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	SkeletalMeshFactoryNode->SetCustomReferenceObject(FSoftObjectPath(SkeletalMesh));
 
 	ImportAssetResult.ImportedObject = SkeletalMesh;
-	return ImportAssetResult;
+#endif
 
-#endif //WITH_EDITOR
+	return ImportAssetResult;
 }
 
 void UInterchangeSkeletalMeshFactory::Cancel()
@@ -2061,19 +2287,27 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 		//Re-apply the alternate skinning data
 		if (ImportAssetObjectData.ExistingSkinWeightProfileInfos.Num() > 0)
 		{
-			TSharedPtr<FInterchangeSkeletalMeshPostImportTask> SkeletalMeshPostImportTask = nullptr;
+			//Reimport alternate skin of the reimport lod only by looking at the factory node lod data count.
+			int32 LodCount = SkeletalMesh->GetLODNum();
+			if (const UInterchangeSkeletalMeshFactoryNode* SkeletalMeshFactoryNode = Cast<const UInterchangeSkeletalMeshFactoryNode>(Arguments.NodeContainer->GetFactoryNode(Arguments.NodeUniqueID)))
+			{
+				int32 ImportedLodCount = SkeletalMeshFactoryNode->GetLodDataCount();
+				if (ImportedLodCount >  0 && ImportedLodCount <= SkeletalMesh->GetLODNum())
+				{
+					LodCount = ImportedLodCount;
+				}
+			}
+
+			TSharedPtr<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask> SkeletalMeshPostImportTask = nullptr;
 			TArray<FSkinWeightProfileInfo>& SkinProfiles = SkeletalMesh->GetSkinWeightProfiles();
 			SkinProfiles = ImportAssetObjectData.ExistingSkinWeightProfileInfos;
 			for (const FSkinWeightProfileInfo& ProfileInfo : SkinProfiles)
 			{
-				const int32 LodCount = SkeletalMesh->GetLODNum();
 				for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
 				{
-					if (!ImportAssetObjectData.ExistingAlternateImportDataPerLOD.IsValidIndex(LodIndex))
-					{
-						continue;
-					}
-					if (!SkeletalMesh->HasMeshDescription(LodIndex))
+					if (!SkeletalMesh->IsValidLODIndex(LodIndex)
+						|| !ImportAssetObjectData.ExistingAlternateImportDataPerLOD.IsValidIndex(LodIndex)
+						|| !SkeletalMesh->HasMeshDescription(LodIndex))
 					{
 						continue;
 					}
@@ -2091,54 +2325,70 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					SkeletalMesh->LoadLODImportedData(LodIndex, ImportDataDest);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
-					
+
 					int32 PointNumberDest = ImportDataDest.Points.Num();
 					int32 VertexNumberDest = ImportDataDest.Points.Num();
 
-					if (ExistingImportDataSrc.Points.Num() != PointNumberDest)
+					if (ExistingImportDataSrc.Points.Num() == PointNumberDest)
 					{
-						//Warn the user but still apply the data
-						UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-						Message->Text = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "SetupObject_GameThread_AlternateSkinning missmatch", "Alternate skinning mesh vertex number is different from the mesh LOD, we cannot apply the existing alternate skinning [{0}] when re-importing skeletal mesh LOD{1} [{2}]")
-							, FText::FromString(ProfileNameStr)
-							, FText::AsNumber(LodIndex)
-							, FText::FromString(SkeletalMesh->GetName()));
-
-						//We must enqueue a post import task that will re-import all skin weight profile.
-						if (!SkeletalMeshPostImportTask.IsValid())
+						//Replace the data into the destination bulk data and save it, so the build dont complain until we reimport the new alternate skinning
+						int32 ProfileIndex = 0;
+						if (ImportDataDest.AlternateInfluenceProfileNames.Find(ProfileNameStr, ProfileIndex))
 						{
-							SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshPostImportTask>();
-							SkeletalMeshPostImportTask->SkeletalMesh = SkeletalMesh;
-							SkeletalMeshPostImportTask->bReImportAlternateSkinWeights = true;
-							UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
+							ImportDataDest.AlternateInfluenceProfileNames.RemoveAt(ProfileIndex);
+							ImportDataDest.AlternateInfluences.RemoveAt(ProfileIndex);
 						}
-						continue;
+						int32 SrcProfileIndex = 0;
+						if (ExistingImportDataSrc.AlternateInfluenceProfileNames.Find(ProfileNameStr, SrcProfileIndex))
+						{
+							ImportDataDest.AlternateInfluenceProfileNames.Add(ProfileNameStr);
+							ImportDataDest.AlternateInfluences.Add(ExistingImportDataSrc.AlternateInfluences[SrcProfileIndex]);
+						}
+
+						//Resave the bulk data with the new or refreshed data
+						PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						SkeletalMesh->SaveLODImportedData(LodIndex, ImportDataDest);
+						PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 
-					//Replace the data into the destination bulk data and save it
-					int32 ProfileIndex = 0;
-					if (ImportDataDest.AlternateInfluenceProfileNames.Find(ProfileNameStr, ProfileIndex))
+					//We must enqueue a post import task that will re-import all skin weight profile.
+					if (!SkeletalMeshPostImportTask.IsValid())
 					{
-						ImportDataDest.AlternateInfluenceProfileNames.RemoveAt(ProfileIndex);
-						ImportDataDest.AlternateInfluences.RemoveAt(ProfileIndex);
+						SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask>(SkeletalMesh);
+						SkeletalMeshPostImportTask->ReimportAlternateSkinWeightDelegate.BindLambda([](USkeletalMesh* SkeletalMesh, int32 LodIndex)
+							{
+								return FSkinWeightsUtilities::ReimportAlternateSkinWeight(SkeletalMesh, LodIndex);
+							});
 					}
-					int32 SrcProfileIndex = 0;
-					if (ExistingImportDataSrc.AlternateInfluenceProfileNames.Find(ProfileNameStr, SrcProfileIndex))
-					{
-						ImportDataDest.AlternateInfluenceProfileNames.Add(ProfileNameStr);
-						ImportDataDest.AlternateInfluences.Add(ExistingImportDataSrc.AlternateInfluences[SrcProfileIndex]);
-					}
-
-					//Resave the bulk data with the new or refreshed data
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					SkeletalMesh->SaveLODImportedData(LodIndex, ImportDataDest);
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					SkeletalMeshPostImportTask->AddLodToReimportAlternate(LodIndex);
 				}
+			}
+			
+			//Enqueue the task if needed
+			if (SkeletalMeshPostImportTask.IsValid())
+			{
+				UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
 			}
 		}
 #endif //WITH_EDITOR
 	}
 #endif //WITH_EDITORONLY_DATA
+}
+
+void UInterchangeSkeletalMeshFactory::BuildObject_GameThread(const FSetupObjectParams& Arguments, bool& OutPostEditchangeCalled)
+{
+	check(IsInGameThread());
+	OutPostEditchangeCalled = false;
+#if WITH_EDITOR
+	if (Arguments.ImportedObject)
+	{
+		if (USkeletalMesh* SkeletalMesh = CastChecked<USkeletalMesh>(Arguments.ImportedObject))
+		{
+			//Start an async build of the staticmesh
+			SkeletalMesh->Build();
+		}
+	}
+#endif
 }
 
 void UInterchangeSkeletalMeshFactory::FinalizeObject_GameThread(const FSetupObjectParams& Arguments)
@@ -2162,33 +2412,24 @@ void UInterchangeSkeletalMeshFactory::FinalizeObject_GameThread(const FSetupObje
 	//to do this we need to put the cloth binding data in the import data use by the build (i.e. Meshdescription)
 	if (ImportAssetObjectData.ExistingClothingBindings.Num() > 0)
 	{
-		float ProgressCount = 2.0f;
-
-		FScopedSlowTask Progress(ProgressCount, NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "SkeletalMeshFinalizeImportGameThread", "Executing Skeletal Mesh Finalize Import Task..."));
-		Progress.MakeDialog();
-
 		//Make sure we rebuild the skeletal mesh after re-importing all skin weight
 		FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
-
 		//Wait until the asset is finish building then lock the skeletal mesh properties to prevent the UI to update during the alternate skinning reimport
 		FEvent* LockEvent = SkeletalMesh->LockPropertiesUntil();
-
-		Progress.EnterProgressFrame(1.0f);
-
 		FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
-
-		//Restore the clothing
-		if (ImportAssetObjectData.ExistingClothingBindings.Num() > 0)
+		for (ClothingAssetUtils::FClothingAssetMeshBinding& ExistingClothMeshBinding : ImportAssetObjectData.ExistingClothingBindings)
 		{
-			FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
-			for (int32 LodIndex = 0; LodIndex < ImportedResource->LODModels.Num(); ++LodIndex)
+			if (UClothingAssetCommon* ClothAssetCommon = ExistingClothMeshBinding.Asset)
 			{
-				// Re-apply our clothing assets
-				FLODUtilities::RestoreClothingFromBackup(SkeletalMesh, ImportAssetObjectData.ExistingClothingBindings, LodIndex);
+				ClothAssetCommon->RefreshBoneMapping(SkeletalMesh);
 			}
-			Progress.EnterProgressFrame(1.0f);
 		}
-
+		FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
+		for (int32 LodIndex = 0; LodIndex < ImportedResource->LODModels.Num(); ++LodIndex)
+		{
+			// Re-apply our clothing assets
+			FLODUtilities::RestoreClothingFromBackup(SkeletalMesh, ImportAssetObjectData.ExistingClothingBindings, LodIndex);
+		}
 		//Release the skeletal mesh async properties
 		LockEvent->Trigger();
 	}
@@ -2220,6 +2461,38 @@ bool UInterchangeSkeletalMeshFactory::SetSourceFilename(const UObject* Object, c
 #endif
 
 	return false;
+}
+
+void UInterchangeSkeletalMeshFactory::BackupSourceData(const UObject* Object) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::BackupSourceData)
+#if WITH_EDITORONLY_DATA
+	if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(SkeletalMesh->GetAssetImportData());
+	}
+#endif
+}
+
+void UInterchangeSkeletalMeshFactory::ReinstateSourceData(const UObject* Object) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::ReinstateSourceData)
+#if WITH_EDITORONLY_DATA
+		if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+		{
+			UE::Interchange::FFactoryCommon::ReinstateSourceData(SkeletalMesh->GetAssetImportData());
+		}
+#endif
+}
+void UInterchangeSkeletalMeshFactory::ClearBackupSourceData(const UObject* Object) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::ClearBackupSourceData)
+#if WITH_EDITORONLY_DATA
+		if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+		{
+			UE::Interchange::FFactoryCommon::ClearBackupSourceData(SkeletalMesh->GetAssetImportData());
+		}
+#endif
 }
 
 bool UInterchangeSkeletalMeshFactory::SetReimportSourceIndex(const UObject* Object, int32 SourceIndex) const

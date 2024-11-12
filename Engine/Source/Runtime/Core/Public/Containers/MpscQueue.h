@@ -23,7 +23,7 @@ public:
 
 	TMpscQueue()
 	{
-		FNode* Sentinel = new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
+		FNode* Sentinel = ::new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
 		Head.store(Sentinel, std::memory_order_relaxed);
 		Tail = Sentinel;
 	}
@@ -48,8 +48,8 @@ public:
 	template <typename... ArgTypes>
 	void Enqueue(ArgTypes&&... Args)
 	{
-		FNode* New = new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
-		new (&New->Value) ElementType(Forward<ArgTypes>(Args)...);
+		FNode* New = ::new(AllocatorType::Malloc(sizeof(FNode), alignof(FNode))) FNode;
+		::new ((void*)&New->Value) ElementType(Forward<ArgTypes>(Args)...);
 
 		FNode* Prev = Head.exchange(New, std::memory_order_acq_rel);
 		Prev->Next.store(New, std::memory_order_release);

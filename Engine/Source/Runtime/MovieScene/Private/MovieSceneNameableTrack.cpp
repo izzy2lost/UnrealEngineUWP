@@ -94,6 +94,8 @@ FText UMovieSceneNameableTrack::GetDefaultDisplayName() const
 
 void UMovieSceneNameableTrack::OnRowIndicesChanged(const TMap<int32, int32>& NewToOldRowIndices)
 {
+	Super::OnRowIndicesChanged(NewToOldRowIndices);
+
 	TArray<FText> OriginalTrackRowDisplayNames = TrackRowDisplayNames;
 
 	Modify();

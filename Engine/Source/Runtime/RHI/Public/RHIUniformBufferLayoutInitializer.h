@@ -61,8 +61,18 @@ struct FRHIUniformBufferLayoutInitializer
 
 	void ComputeHash()
 	{
+		uint32 TmpHash = 0;
+
+		TmpHash |= (ConstantBufferSize << 16);
+		TmpHash |= (static_cast<uint32>(BindingFlags) << 8);
+
 		// Static slot is not stable. Just track whether we have one at all.
-		uint32 TmpHash = ConstantBufferSize << 16 | static_cast<uint32>(BindingFlags) << 8 | static_cast<uint32>(StaticSlot != MAX_UNIFORM_BUFFER_STATIC_SLOTS);
+		TmpHash |= (StaticSlot != MAX_UNIFORM_BUFFER_STATIC_SLOTS ? 1 << 0 : 0);
+
+		// These flags aren't based on the resources, so make sure they change the hash
+		TmpHash |= (EnumHasAnyFlags(Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer) ? 1 << 1 : 0);
+		TmpHash |= (EnumHasAnyFlags(Flags, ERHIUniformBufferFlags::NeedsReflectedMembers)   ? 1 << 2 : 0);
+		TmpHash |= (EnumHasAnyFlags(Flags, ERHIUniformBufferFlags::UniformView)             ? 1 << 3 : 0);
 
 		for (int32 ResourceIndex = 0; ResourceIndex < Resources.Num(); ResourceIndex++)
 		{
@@ -96,6 +106,7 @@ struct FRHIUniformBufferLayoutInitializer
 		ConstantBufferSize = Source.ConstantBufferSize;
 		StaticSlot = Source.StaticSlot;
 		BindingFlags = Source.BindingFlags;
+		Flags = Source.Flags;
 		Resources = Source.Resources;
 		Name = Source.Name;
 		Hash = Source.Hash;
@@ -111,11 +122,6 @@ struct FRHIUniformBufferLayoutInitializer
 		return RenderTargetsOffset != kUniformBufferInvalidOffset;
 	}
 
-	bool HasExternalOutputs() const
-	{
-		return bHasNonGraphOutputs;
-	}
-
 	bool HasStaticSlot() const
 	{
 		return IsUniformBufferStaticSlotValid(StaticSlot);
@@ -126,8 +132,8 @@ struct FRHIUniformBufferLayoutInitializer
 		Ar << Ref.ConstantBufferSize;
 		Ar << Ref.StaticSlot;
 		Ar << Ref.RenderTargetsOffset;
-		Ar << Ref.bHasNonGraphOutputs;
 		Ar << Ref.BindingFlags;
+		Ar << Ref.Flags;
 		Ar << Ref.Resources;
 		Ar << Ref.GraphResources;
 		Ar << Ref.GraphTextures;
@@ -136,8 +142,6 @@ struct FRHIUniformBufferLayoutInitializer
 		Ar << Ref.UniformBuffers;
 		Ar << Ref.Name;
 		Ar << Ref.Hash;
-		Ar << Ref.bNoEmulatedUniformBuffer;
-		Ar << Ref.bUniformView;
 		return Ar;
 	}
 
@@ -180,14 +184,8 @@ public:
 	/** The binding flags describing how this resource can be bound to the RHI. */
 	LAYOUT_FIELD_INITIALIZED(EUniformBufferBindingFlags, BindingFlags, EUniformBufferBindingFlags::Shader);
 
-	/** Whether this layout may contain non-render-graph outputs (e.g. RHI UAVs). */
-	LAYOUT_FIELD_INITIALIZED(bool, bHasNonGraphOutputs, false);
-
-	/** Used for platforms which use emulated ub's, forces a real uniform buffer instead */
-	LAYOUT_FIELD_INITIALIZED(bool, bNoEmulatedUniformBuffer, false);
-
-	/** This struct is a view into uniform buffer object, on platforms that support UBO */
-	LAYOUT_FIELD_INITIALIZED(bool, bUniformView, false);
+	/** Flags for the uniform buffer */
+	LAYOUT_FIELD_INITIALIZED(ERHIUniformBufferFlags, Flags, ERHIUniformBufferFlags::None);
 	
 	/** Compare two uniform buffer layout initializers. */
 	friend inline bool operator==(const FRHIUniformBufferLayoutInitializer& A, const FRHIUniformBufferLayoutInitializer& B)

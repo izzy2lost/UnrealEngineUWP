@@ -197,7 +197,10 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool bDependsOnVerse = false;
 
-		public List<FileItem> NatvisFiles = new();
+		/// <summary>
+		/// Set of debug visualizer paths
+		/// </summary>
+		public HashSet<FileItem> NatvisFiles = new();
 
 		/// <summary>
 		/// Constructor
@@ -264,7 +267,7 @@ namespace UnrealBuildTool
 							ZipFile: FileReference.Combine(ModuleDirectory, FrameworkRules.Path),
 							OutputDirectory: DirectoryReference.Combine(Unreal.EngineDirectory, "Intermediate", "UnzippedFrameworks", FrameworkRules.Name, Path.GetFileNameWithoutExtension(FrameworkRules.Path)),
 							CopyBundledAssets: FrameworkRules.CopyBundledAssets,
-							bLinkFramework, bCopyFramework);
+							bLinkFramework, bCopyFramework, Logger);
 					}
 					else
 					{
@@ -299,9 +302,28 @@ namespace UnrealBuildTool
 			// get the module directories from the module
 			ModuleDirectories = Rules.GetAllModuleDirectories();
 
-			foreach (DirectoryItem Directory in ModuleDirectories.Select(x => DirectoryItem.GetItemByDirectoryReference(x)))
+			// Add any additional debug visualizers 
+			foreach (string natVisPath in HashSetFromOptionalEnumerableStringParameter(Rules.PublicDebugVisualizerPaths))
 			{
-				NatvisFiles.AddRange(Directory.EnumerateFiles().Where(x => x.HasExtension(".natvis") || x.HasExtension(".natstepfilter")));
+				FileItem natVisItem = FileItem.GetItemByPath(natVisPath);
+				if (!natVisItem.HasExtension(".natvis") && !natVisItem.HasExtension(".natstepfilter"))
+				{
+					Log.TraceWarningTask(RulesFile, $"Referenced Debug Visualizer '{natVisItem}' is not a .natvis or .natstepfilter file");
+				}
+				else if (!natVisItem.Exists)
+				{
+					Log.TraceWarningTask(RulesFile, $"Referenced Debug Visualizer '{natVisItem}' does not exist");
+				}
+				else
+				{
+					NatvisFiles.Add(natVisItem);
+				}
+			}
+
+			// Add any debug visualizers found in the module directories
+			foreach (DirectoryItem directory in ModuleDirectories.Select(x => DirectoryItem.GetItemByDirectoryReference(x)))
+			{
+				NatvisFiles.UnionWith(directory.EnumerateFiles().Where(x => x.HasExtension(".natvis") || x.HasExtension(".natstepfilter")));
 			}
 		}
 
@@ -660,7 +682,7 @@ namespace UnrealBuildTool
 						Definitions.Add(ModuleApiDefine + "=");
 					}
 				}
-				else if (Binary == null || SourceBinary != Binary)
+				else if (Binary == null || (Rules.Target.bMergeModules ? (SourceBinary == null || SourceModule != this) : SourceBinary != Binary))
 				{
 					Definitions.Add(ModuleApiDefine + "=DLLIMPORT");
 				}
@@ -684,6 +706,10 @@ namespace UnrealBuildTool
 				foreach (ModuleRules.TypeLibrary TypeLibrary in Rules.TypeLibraries)
 				{
 					AdditionalPrerequisites.Add(FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, TypeLibrary.Header)));
+					if (!String.IsNullOrEmpty(TypeLibrary.Include))
+					{
+						AdditionalPrerequisites.Add(FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, TypeLibrary.Include)));
+					}
 				}
 			}
 		}
@@ -931,7 +957,8 @@ namespace UnrealBuildTool
 			foreach (ModuleRules.TypeLibrary TypeLibrary in Rules.TypeLibraries)
 			{
 				FileReference OutputFile = FileReference.Combine(IntermediateDirectory, TypeLibrary.Header);
-				ToolChain.GenerateTypeLibraryHeader(CompileEnvironment, TypeLibrary, OutputFile, Graph);
+				FileReference? OutputInclude = TypeLibrary.Include != null ? FileReference.Combine(IntermediateDirectory, TypeLibrary.Include) : null;
+				ToolChain.GenerateTypeLibraryHeader(CompileEnvironment, TypeLibrary, OutputFile, OutputInclude, Graph);
 			}
 
 			return new List<FileItem>();
@@ -950,7 +977,7 @@ namespace UnrealBuildTool
 			}
 			return Results;
 		}
-		
+
 		public void LinkDebuggerVisualizers(List<FileItem> OutFiles, UEToolChain ToolChain, ILogger Logger)
 		{
 			foreach (FileItem NatvisSourceFile in NatvisFiles)
@@ -1319,7 +1346,7 @@ namespace UnrealBuildTool
 				return new[] { ModuleApiDefine + "=" };
 			}
 
-			return new string[0];
+			return Array.Empty<string>();
 		}
 
 		/// <summary>
@@ -1335,6 +1362,8 @@ namespace UnrealBuildTool
 			Writer.WriteValue("Directory", ModuleDirectory.FullName);
 			Writer.WriteValue("Rules", RulesFile.FullName);
 			Writer.WriteValue("PCHUsage", Rules.PCHUsage.ToString());
+
+			ExportJsonStringArray(Writer, "ForceIncludeModules", Rules.ForceIncludeFiles);
 
 			if (Rules.PrivatePCHHeaderFile != null)
 			{

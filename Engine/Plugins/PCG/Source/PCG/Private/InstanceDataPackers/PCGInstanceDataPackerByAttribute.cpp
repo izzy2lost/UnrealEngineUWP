@@ -6,43 +6,94 @@
 #include "PCGElement.h"
 #include "Data/PCGSpatialData.h"
 #include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
+#include "MeshSelectors/PCGMeshSelectorBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGInstanceDataPackerByAttribute)
 
 #define LOCTEXT_NAMESPACE "PCGInstanceDataPackerByAttribute"
 
+#if WITH_EDITOR
+void UPCGInstanceDataPackerByAttribute::PostLoad()
+{
+	Super::PostLoad();
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (FName AttributeName : AttributeNames)
+	{
+		FPCGAttributePropertyInputSelector& Selector = AttributeSelectors.Emplace_GetRef();
+		Selector.SetAttributeName(AttributeName);
+	}
+
+	AttributeNames.Reset();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+#endif // WITH_EDITOR
+
 void UPCGInstanceDataPackerByAttribute::PackInstances_Implementation(FPCGContext& Context, const UPCGSpatialData* InSpatialData, const FPCGMeshInstanceList& InstanceList, FPCGPackedCustomData& OutPackedCustomData) const
 {
 	if (!InSpatialData || !InSpatialData->Metadata)
 	{
-		PCGE_LOG_C(Error, GraphAndLog, &Context, LOCTEXT("InvalidInputData", "Invalid input data"));
+		PCGLog::InputOutput::LogInvalidInputDataError(&Context);
 		return;
 	}
 
-	TArray<const FPCGMetadataAttributeBase*> SelectedAttributes;
+	TArray<TUniquePtr<const IPCGAttributeAccessor>> SelectedAccessors;
+	TArray<TUniquePtr<const IPCGAttributeAccessorKeys>> SelectedKeys;
 
-	// Find Attributes by name and calculate NumCustomDataFloats
-	for (const FName& AttributeName : AttributeNames)
+	SelectedAccessors.Reserve(AttributeSelectors.Num());
+	SelectedKeys.Reserve(AttributeSelectors.Num());
+
+	// Find attributes and calculate NumCustomDataFloats
+	for (const FPCGAttributePropertyInputSelector& Selector : AttributeSelectors)
 	{
-		if (!InSpatialData->Metadata->HasAttribute(AttributeName)) 
+		TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InSpatialData, Selector);
+		TUniquePtr<const IPCGAttributeAccessorKeys> Keys;
+		const UPCGPointData* PointData = InstanceList.PointData.Get();
+		TArray<const PCGMetadataEntryKey> ExtractedKeys;
+		
+		if (InSpatialData == PointData)
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, &Context, FText::Format(LOCTEXT("AttributeNotInMetadata", "Attribute '{0}' is not in the metadata"), FText::FromName(AttributeName)));
+			Keys = MakeUnique<const FPCGAttributeAccessorKeysPointsSubset>(PointData->GetPoints(), InstanceList.InstancesIndices);
+		}
+		else
+		{
+			// Convert indices to entry keys
+			ExtractedKeys.Reserve(InstanceList.InstancesIndices.Num());
+			Algo::Transform(InstanceList.InstancesIndices, ExtractedKeys, [](const int32 Index) -> PCGMetadataEntryKey{ return Index; });
+			Keys = MakeUnique<const FPCGAttributeAccessorKeysEntries>(ExtractedKeys);
+		}
+
+		if (!Accessor.IsValid() || !Keys.IsValid())
+		{
+			PCGLog::Metadata::LogFailToCreateAccessorError(Selector, &Context);
 			continue;
 		}
 
-		const FPCGMetadataAttributeBase* AttributeBase = InSpatialData->Metadata->GetConstAttribute(AttributeName);
-		check(AttributeBase);
-
-		if (!AddTypeToPacking(AttributeBase->GetTypeId(), OutPackedCustomData))
+		if (!AddTypeToPacking(Accessor->GetUnderlyingType(), OutPackedCustomData))
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, &Context, FText::Format(LOCTEXT("AttributeInvalidType", "Attribute name '{0}' is not a valid type"), FText::FromName(AttributeName)));
+			PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("AttributeInvalidType", "Attribute/property '{0}' is not a valid type - skipped."), Selector.GetDisplayText()), &Context);
 			continue;
 		}
 
-		SelectedAttributes.Add(AttributeBase);
+		SelectedAccessors.Add(std::move(Accessor));
+		SelectedKeys.Add(std::move(Keys));
 	}
 
-	PackCustomDataFromAttributes(InstanceList, SelectedAttributes, OutPackedCustomData);
- }
+	PackCustomDataFromAccessors(InstanceList, std::move(SelectedAccessors), std::move(SelectedKeys), OutPackedCustomData);
+}
+
+bool UPCGInstanceDataPackerByAttribute::GetAttributeNames(TArray<FName>* OutNames)
+{
+	if (OutNames)
+	{
+		for (const FPCGAttributePropertyInputSelector& AttributeSelector : AttributeSelectors)
+		{
+			OutNames->Add(AttributeSelector.GetAttributeName());
+		}
+	}
+
+	return true;
+}
 
 #undef LOCTEXT_NAMESPACE

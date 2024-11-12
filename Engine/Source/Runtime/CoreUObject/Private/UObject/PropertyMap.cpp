@@ -150,7 +150,7 @@ static const FName NAME_MapValue(ANSITEXTVIEW("Value"));
 IMPLEMENT_FIELD(FMapProperty)
 
 FMapProperty::FMapProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EMapPropertyFlags InMapFlags)
-	: FMapProperty_Super(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 	// These are expected to be set post-construction by AddCppProperty
 	KeyProp = nullptr;
@@ -159,20 +159,8 @@ FMapProperty::FMapProperty(FFieldVariant InOwner, const FName& InName, EObjectFl
 	MapFlags = InMapFlags;
 }
 
-FMapProperty::FMapProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, EMapPropertyFlags InMapFlags)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	: FMapProperty_Super(InOwner, InName, InObjectFlags, InOffset, InFlags)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	// These are expected to be set post-construction by AddCppProperty
-	KeyProp   = nullptr;
-	ValueProp = nullptr;
-
-	MapFlags = InMapFlags;
-}
-
 FMapProperty::FMapProperty(FFieldVariant InOwner, const UECodeGen_Private::FMapPropertyParams& Prop)
-	: FMapProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	// These are expected to be set post-construction by AddCppProperty
 	KeyProp = nullptr;
@@ -183,7 +171,7 @@ FMapProperty::FMapProperty(FFieldVariant InOwner, const UECodeGen_Private::FMapP
 
 #if WITH_EDITORONLY_DATA
 FMapProperty::FMapProperty(UField* InField)
-	: FMapProperty_Super(InField)
+	: Super(InField)
 	, MapFlags(EMapPropertyFlags::None)
 {
 	UMapProperty* SourceProperty = CastChecked<UMapProperty>(InField);
@@ -320,26 +308,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Using custom property list is not supported by overridable serialization"));
 
-			auto GetIDFromKey = [&](uint8* KeyData) -> FOverriddenPropertyNodeID
-			{
-				if (FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
-				{
-					if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
-					{
-						return FOverriddenPropertyNodeID(*Object);
-					}
-				}
-				else
-				{
-					FString KeyString;
-					KeyProp->ExportTextItem_Direct(KeyString, KeyData, /*DefaultValue*/nullptr, /*Parent*/nullptr, PPF_None);
-					return FOverriddenPropertyNodeID(FName(KeyString));
-				}
-		
-				checkf(false, TEXT("This case is not handled"))
-				return FOverriddenPropertyNodeID();
-			};
-
 			if (UnderlyingArchive.IsLoading())
 			{
 				int32 NumReplaced = 0;
@@ -352,14 +320,13 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						FStructuredArchive::FRecord EntryRecord = ReplacedArray.EnterElement().EnterRecord();
 						int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
 						uint8* PairPtr = MapHelper.GetPairPtr(Index);
-						UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, Index, UE::ESerializedPropertyPathNotify::Yes);
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 							KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), PairPtr);
 						}
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 							ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), PairPtr + MapLayout.ValueOffset);
 						}
@@ -395,7 +362,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						for (int32 i = 0; i < NumRemoved; ++i)
 						{
 							{
-								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 								FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 								KeyProp->SerializeItem(RemovedArray.EnterElement().EnterRecord().EnterField(TEXT("Key")), TempKeyValueStorage);
 							}
@@ -406,7 +373,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 							if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
 							{
 								// Rebuild the overridden info
-								FOverriddenPropertyNodeID RemovedKeyID = GetIDFromKey(TempKeyValueStorage);
+								FOverriddenPropertyNodeID RemovedKeyID = FOverriddenPropertyNodeID::FromMapKey(KeyProp, TempKeyValueStorage);
 								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Remove, *MapOverriddenPropertyNode, RemovedKeyID);
 							}
 						}
@@ -428,7 +395,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 							// Read key into temporary storage
 							{
-								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 								FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 								KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), TempKeyValueStorage);
 							}
@@ -438,9 +405,17 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 							// Deserialize value into hash map-owned memory
 							{
-								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 								FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 								ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePtr);
+							}
+
+							// Need to fetch the MapOverriddenPropertyNode every loop as the previous might have reallocated the node.
+							if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
+							{
+								// Rebuild the overridden info
+								FOverriddenPropertyNodeID ModifiedKeyID = FOverriddenPropertyNodeID::FromMapKey(KeyProp, TempKeyValueStorage);
+								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Modified, *MapOverriddenPropertyNode, ModifiedKeyID);
 							}
 						}
 					}
@@ -462,7 +437,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 							// Read key into temporary storage
 							{
-								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 								FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 								KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), TempKeyValueStorage);
 							}
@@ -471,7 +446,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 							// Deserialize value into hash map-owned memory
 							{
-								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+								UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 								FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 								ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePtr);
 							}
@@ -480,7 +455,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 							if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
 							{
 								// Rebuild the overridden info
-								FOverriddenPropertyNodeID AddedKeyID = GetIDFromKey(TempKeyValueStorage);
+								FOverriddenPropertyNodeID AddedKeyID = FOverriddenPropertyNodeID::FromMapKey(KeyProp, TempKeyValueStorage);
 								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Add, *MapOverriddenPropertyNode, AddedKeyID);
 							}
 						}
@@ -489,39 +464,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			}
 			else
 			{
-				auto FindKeyInternalIndex = [this](const FOverriddenPropertyNodeID& KeyIDToFind, FScriptMapHelper& MapHelper) -> int32
-				{
-					if (const FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
-					{
-						for (FScriptMapHelper::FIterator It(MapHelper); It; ++It) 
-						{
-							if (UObject* CurrentObject = KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It.GetInternalIndex())))
-							{
-								if (KeyIDToFind == FOverriddenPropertyNodeID(*CurrentObject))
-								{
-									return It.GetInternalIndex();
-								}
-							}
-						}
-					}
-					else
-					{
-						void* TempKeyValueStorage = FMemory::Malloc(MapLayout.SetLayout.Size);
-						KeyProp->InitializeValue(TempKeyValueStorage);
-
-						FString KeyToFind(KeyIDToFind.ToString());
-						KeyProp->ImportText_Direct(*KeyToFind, TempKeyValueStorage, nullptr, PPF_None);
-
-						const int32 InternalIndex = MapHelper.FindMapPairIndexFromHash(TempKeyValueStorage);
-
-						KeyProp->DestroyValue(TempKeyValueStorage);
-						FMemory::Free(TempKeyValueStorage);
-
-						return InternalIndex;
-					}
-					return INDEX_NONE;
-				};
-
 				// Container for temporarily tracking some indices
 				TArray<int32> RemovedIndices;
 				TArray<int32> AddedIndices;
@@ -551,16 +493,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 					{
 						checkf(!KeyProp->HasAnyPropertyFlags(CPF_PersistentInstance) || CastField<FClassProperty>(KeyProp) || !CastField<FObjectProperty>(KeyProp), TEXT("The key as an instanced sub object is NYI"));
 
-						// For instanced subobject, the overridable is handled per object base, not only here, so we need to serialize the object ptr no matter what.
-						const bool bAreValuesInstancedSubObjects = ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) && CastField<FObjectProperty>(ValueProp);
-						if(bAreValuesInstancedSubObjects)
-						{
-							for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
-							{
-								ModifiedIndices.Add(It.GetInternalIndex());
-							}
-						}
-
 						if (OverriddenProperties && MapOverrideOp != EOverriddenPropertyOperation::None)
 						{
 							checkf(Defaults, TEXT("Expecting overridable serialization to have defaults to compare to"));
@@ -574,35 +506,33 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 									const EOverriddenPropertyOperation OverrideOp = OverriddenProperties->GetSubPropertyOperation(Pair.Value);
 									switch (OverrideOp)
 									{
-									case EOverriddenPropertyOperation::Remove:
+										case EOverriddenPropertyOperation::Remove:
 										{
-											const int32 InternalIndex = FindKeyInternalIndex(Pair.Key, DefaultsMapHelper);
+											const int32 InternalIndex = Pair.Key.ToMapInternalIndex(DefaultsMapHelper);
 											if (InternalIndex != INDEX_NONE)
 											{
 												RemovedIndices.Add(InternalIndex);
 											}
 											break;
 										}
-									case EOverriddenPropertyOperation::Add:
+										case EOverriddenPropertyOperation::Add:
 										{
-											const int32 InternalIndex = FindKeyInternalIndex(Pair.Key, MapHelper);
+											const int32 InternalIndex = Pair.Key.ToMapInternalIndex(MapHelper);
 											if (InternalIndex != INDEX_NONE)
 											{
 												AddedIndices.Add(InternalIndex);
-												ModifiedIndices.Remove(InternalIndex);
 											}
 											break;
 										}
-									case EOverriddenPropertyOperation::Modified:
-										if (!bAreValuesInstancedSubObjects)
+										case EOverriddenPropertyOperation::Modified:
 										{
-											const int32 InternalIndex = FindKeyInternalIndex(Pair.Key, MapHelper);
+											const int32 InternalIndex = Pair.Key.ToMapInternalIndex(MapHelper);
 											if (InternalIndex != INDEX_NONE)
 											{
 												ModifiedIndices.Add(InternalIndex);
 											}
+											break;
 										}
-										break;
 									default:
 										checkf(false, TEXT("Unsupported map operation"));
 										break;
@@ -622,12 +552,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						FStructuredArchive::FRecord EntryRecord = ReplacedArray.EnterElement().EnterRecord();
 						uint8* PairPtr = MapHelper.GetPairPtr(It.GetInternalIndex());
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 							KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), PairPtr);
 						}
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 							ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), PairPtr + MapLayout.ValueOffset);
 						}
@@ -643,7 +573,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 					for (int32 i : RemovedIndices)
 					{
 						FStructuredArchive::FRecord EntryRecord = RemovedArray.EnterElement().EnterRecord();
-						UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+						UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 						FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 						KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), DefaultsMapHelper.GetKeyPtr(i));
 					}
@@ -655,12 +585,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						FStructuredArchive::FRecord EntryRecord = ModifiedArray.EnterElement().EnterRecord();
 						uint8* PairPtr = MapHelper.GetPairPtr(i);
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 							KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), PairPtr);
 						}
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 							ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), PairPtr + MapLayout.ValueOffset);
 						}
@@ -674,12 +604,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						FStructuredArchive::FRecord EntryRecord = AddedArray.EnterElement().EnterRecord();
 						uint8* PairPtr = MapHelper.GetPairPtr(i);
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 							KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), PairPtr);
 						}
 						{
-							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+							UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 							ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), PairPtr + MapLayout.ValueOffset);
 						}
@@ -707,12 +637,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			if (NumKeysToRemove && !bReplaceMap)
 			{
-				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-				if (Context)
-				{
-					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-				}
-
 				// Load and discard keys to remove, map is empty
 				void* TempKeyValueStorage = FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
@@ -727,13 +651,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				FMemory::Free(TempKeyValueStorage);
 			}
 
-			// Disable serialization of unknown properties until the TODO in the loop is addressed.
-			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-			if (Context)
-			{
-				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-			}
-
 			int32 NumEntries = 0;
 			FStructuredArchive::FArray EntriesArray = Record.EnterArray(TEXT("Entries"), NumEntries);
 
@@ -743,14 +660,13 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			{
 				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
 				int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
-				UE::FSerializedPropertyPathIndexScope SerializedPropertyPathIndex(Context, Index, UE::ESerializedPropertyPathNotify::Yes);
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), MapHelper.GetKeyPtr(Index));
 				}
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 					ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), MapHelper.GetValuePtr(Index));
 				}
@@ -772,17 +688,10 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			if (NumKeysToRemove)
 			{
-				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-				if (Context)
-				{
-					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-				}
-
 				TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
 
-				
-				UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+				UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 				FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 				for (; NumKeysToRemove; --NumKeysToRemove)
 				{
@@ -795,13 +704,6 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						MapHelper.RemovePair(PairPtr);
 					}
 				}
-			}
-
-			// Disable serialization of unknown properties until the TODO in the loop is addressed.
-			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-			if (Context)
-			{
-				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
 			}
 
 			int32 NumEntries = 0;
@@ -817,13 +719,11 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			// Read remaining items into container
 			for (; NumEntries; --NumEntries)
 			{
-				// TODO: SetIndex on Context->SerializedPropertyPath and remove the element from the bag later if it existed.
-
 				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
 
 				// Read key into temporary storage
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), TempKeyValueStorage);
 				}
@@ -832,7 +732,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 				// Deserialize value into hash map-owned memory
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 					ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePtr);
 				}
@@ -897,12 +797,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
 
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), ValuePairPtr);
 				}
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 					ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePairPtr + MapLayout.ValueOffset);
 				}
@@ -919,12 +819,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 				uint8* ValuePairPtr = MapHelper.GetPairPtr(Iterator);
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapKey});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), ValuePairPtr);
 				}
 				{
-					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue}, UE::ESerializedPropertyPathNotify::No);
+					UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {NAME_MapValue});
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
 					ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePairPtr + MapLayout.ValueOffset);
 				}
@@ -1203,7 +1103,7 @@ const TCHAR* FMapProperty::ImportText_Internal(const TCHAR* Buffer, void* Contai
 		return Buffer + 1;
 	}
 
-	uint8* TempPairStorage   = (uint8*)FMemory::Malloc(MapLayout.ValueOffset + ValueProp->ElementSize);
+	uint8* TempPairStorage   = (uint8*)FMemory::Malloc(MapLayout.ValueOffset + ValueProp->GetElementSize());
 
 	bool bSuccess = false;
 	ON_SCOPE_EXIT
@@ -1365,6 +1265,45 @@ bool FMapProperty::PassCPPArgsByRef() const
 	return true;
 }
 
+bool FMapProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(KeyProp);
+	check(ValueProp);
+	return KeyProp->ContainsFinishDestroy(EncounteredStructProps) || ValueProp->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FMapProperty::FinishDestroyInternal( void* Data ) const
+{
+	if (!Data)
+	{
+		return;
+	}
+	
+	check(KeyProp);
+	check(ValueProp);
+
+	const bool bMayHaveFinishDestroyKey   = (KeyProp->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0;
+	const bool bMayHaveFinishDestroyValue = (ValueProp->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0;
+
+	if (bMayHaveFinishDestroyKey
+		|| bMayHaveFinishDestroyValue)
+	{
+		FScriptMapHelper MapHelper(this, Data);
+		for (FScriptMapHelper::FIterator It(MapHelper.CreateIterator()); It; ++It)
+		{
+			uint8* PairPtr = MapHelper.GetPairPtr(It);
+			if (bMayHaveFinishDestroyKey)
+			{
+				KeyProp->FinishDestroy(PairPtr);
+			}
+			if (bMayHaveFinishDestroyValue)
+			{
+				ValueProp->FinishDestroy(PairPtr + MapLayout.ValueOffset);
+			}
+		}
+	}
+}
+
 /**
  * Creates new copies of components
  * 
@@ -1497,7 +1436,7 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 
 	const auto SerializeOrConvert = [Context = FUObjectThreadContext::Get().GetSerializeContext()](bool bCanSerialize, FProperty* Inner, const FPropertyTag& InnerTag, FName InnerName, FStructuredArchive::FSlot InnerSlot, uint8* InnerData, UStruct* InnerDefaultsStruct) -> bool
 	{
-		UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {InnerName}, UE::ESerializedPropertyPathNotify::No);
+		UE::FSerializedPropertyPathScope SerializedPropertyPath(Context, {InnerName});
 
 		if (!bCanSerialize)
 		{
@@ -1814,4 +1753,96 @@ bool FMapProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	check(LocalKeyProp);
 	check(LocalValueProp);
 	return LocalKeyProp->CanSerializeFromTypeName(Type.GetParameter(0)) && LocalValueProp->CanSerializeFromTypeName(Type.GetParameter(1));
+}
+
+EPropertyVisitorControlFlow FMapProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		checkf(KeyProp && ValueProp, TEXT("Expecting a valid inner property type"));
+		FScriptMapHelper MapHelper(this, InData.PropertyData);
+
+		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+		{
+			{
+				// Visit Key
+				FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(KeyProp, It.GetLogicalIndex(), EPropertyVisitorInfoType::MapKey));
+
+				FPropertyVisitorData Data = InData.VisitPropertyData(MapHelper.GetKeyPtr(It));
+
+				RetVal = KeyProp->Visit(Path, Data, InFunc);
+				if (RetVal == EPropertyVisitorControlFlow::Stop)
+				{
+					return EPropertyVisitorControlFlow::Stop;
+				}
+				if (RetVal == EPropertyVisitorControlFlow::StepOut)
+				{
+					return EPropertyVisitorControlFlow::StepOver;
+				}
+			}
+
+			{
+				// Visit Value
+				FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ValueProp, It.GetLogicalIndex(), EPropertyVisitorInfoType::MapValue));
+
+				FPropertyVisitorData Data = InData.VisitPropertyData(MapHelper.GetValuePtr(It));
+
+				RetVal = ValueProp->Visit(Path, Data, InFunc);
+				if (RetVal == EPropertyVisitorControlFlow::Stop)
+				{
+					return EPropertyVisitorControlFlow::Stop;
+				}
+				if (RetVal == EPropertyVisitorControlFlow::StepOut)
+				{
+					return EPropertyVisitorControlFlow::StepOver;
+				}
+			}
+		}
+	}
+	return RetVal;
+}
+
+void* FMapProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if ((Info.PropertyInfo == EPropertyVisitorInfoType::MapKey && Info.Property == KeyProp) || (Info.PropertyInfo == EPropertyVisitorInfoType::MapValue && Info.Property == ValueProp))
+	{
+		return GetValueAddressAtIndex_Direct(Info.Property, Data, Info.Index);
+	}
+
+	return nullptr;
+}
+
+bool FMapProperty::HasIntrusiveUnsetOptionalState() const
+{
+	return true;
+}
+
+void FMapProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const
+{
+	// FScriptMap's unset state constructor is good enough
+	Super::InitializeIntrusiveUnsetOptionalValue(Data);
+}
+
+bool FMapProperty::IsIntrusiveOptionalValueSet(const void* Data) const
+{
+	// FScriptMap's unset state comparison is good enough
+	return Super::IsIntrusiveOptionalValueSet(Data);
+}
+
+void FMapProperty::ClearIntrusiveOptionalValue(void* Data) const
+{
+	// Destroy any inner elements first, because FScriptMap's destructor will only free memory
+	if (IsIntrusiveOptionalValueSet(Data))
+	{
+		FScriptMapHelper MapHelper(this, Data);
+		MapHelper.EmptyValues();
+
+		// Call Super to actually reset the optional to the unset state, now that any elements have been destroyed
+		Super::ClearIntrusiveOptionalValue(Data);
+	}
 }

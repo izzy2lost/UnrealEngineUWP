@@ -11,7 +11,7 @@ class FReply;
 class UAvaShapeDynamicMeshBase;
 class UDynamicMaterialModel;
 
-/* Used to create the details materials meshes widget and export to StaticMesh */
+/** Used to create the details materials meshes widget and export to StaticMesh */
 class FAvaMeshesDetailCustomization : public IDetailCustomization
 {
 public:
@@ -20,18 +20,16 @@ public:
 		return MakeShared<FAvaMeshesDetailCustomization>();
 	}
 
-	FAvaMeshesDetailCustomization()
-	{
-	}
-
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	//~ Begin IDetailCustomization
+	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
+	//~ End IDetailCustomization
 
 protected:
-	// Handler when the convert button is clicked
+	/** Handler when the convert button is clicked */
 	FReply OnConvertToStaticMeshClicked();
 
-	// Enable or disable the button when selected object is not compatible
+	/** Enable or disable the button when selected object is not compatible */
 	bool CanConvertToStaticMesh() const;
 
-	TArray<TWeakObjectPtr<UAvaShapeDynamicMeshBase>> SelectedDynamicMeshes;
+	TArray<TWeakObjectPtr<UAvaShapeDynamicMeshBase>> MeshGeneratorsWeak;
 };

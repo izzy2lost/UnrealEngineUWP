@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
-using UnrealBuildBase;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -20,25 +18,25 @@ namespace AutomationTool.Tasks
 		/// Directory for the repository
 		/// </summary>
 		[TaskParameter]
-		public string Dir;
+		public string Dir { get; set; }
 
 		/// <summary>
 		/// The remote to add
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Remote;
+		public string Remote { get; set; }
 
 		/// <summary>
 		/// The branch to check out on the remote
 		/// </summary>
 		[TaskParameter]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// Configuration file for the repo. This can be used to set up a remote to be fetched and/or provide credentials.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ConfigFile;
+		public string ConfigFile { get; set; }
 	}
 
 	/// <summary>
@@ -50,69 +48,69 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		GitCloneTaskParameters Parameters;
+		readonly GitCloneTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Git task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public GitCloneTask(GitCloneTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public GitCloneTask(GitCloneTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference GitExe = CommandUtils.FindToolInPath("git");
-			if(GitExe == null)
+			FileReference gitExe = CommandUtils.FindToolInPath("git");
+			if (gitExe == null)
 			{
 				throw new AutomationException("Unable to find path to Git. Check you have it installed, and it is on your PATH.");
 			}
 
-			DirectoryReference Dir = ResolveDirectory(Parameters.Dir);
-			Logger.LogInformation("Cloning Git repository into {Dir}", Parameters.Dir);
-			using (LogIndentScope Scope = new LogIndentScope("  "))
+			DirectoryReference dir = ResolveDirectory(_parameters.Dir);
+			Logger.LogInformation("Cloning Git repository into {Dir}", _parameters.Dir);
+			using (LogIndentScope scope = new LogIndentScope("  "))
 			{
-				DirectoryReference GitDir = DirectoryReference.Combine(Dir, ".git");
-				if (!FileReference.Exists(FileReference.Combine(GitDir, "HEAD")))
+				DirectoryReference gitDir = DirectoryReference.Combine(dir, ".git");
+				if (!FileReference.Exists(FileReference.Combine(gitDir, "HEAD")))
 				{
-					await RunGitAsync(GitExe, $"init \"{Dir}\"", Unreal.RootDirectory);
+					await RunGit(gitExe, $"init \"{dir}\"", Unreal.RootDirectory);
 				}
 
-				if (Parameters.ConfigFile != null)
+				if (_parameters.ConfigFile != null)
 				{
-					CommandUtils.CopyFile(Parameters.ConfigFile, FileReference.Combine(GitDir, "config").FullName);
+					CommandUtils.CopyFile(_parameters.ConfigFile, FileReference.Combine(gitDir, "config").FullName);
 				}
 
-				if (Parameters.Remote != null)
+				if (_parameters.Remote != null)
 				{
-					await RunGitAsync(GitExe, $"remote add origin {Parameters.Remote}", Dir);
+					await RunGit(gitExe, $"remote add origin {_parameters.Remote}", dir);
 				}
 
-				await RunGitAsync(GitExe, "clean -dxf", Dir);
-				await RunGitAsync(GitExe, "fetch --all", Dir);
-				await RunGitAsync(GitExe, $"reset --hard {Parameters.Branch}", Dir);
+				await RunGit(gitExe, "clean -dxf", dir);
+				await RunGit(gitExe, "fetch --all", dir);
+				await RunGit(gitExe, $"reset --hard {_parameters.Branch}", dir);
 			}
 		}
 
 		/// <summary>
 		/// Runs a git command
 		/// </summary>
-		/// <param name="ToolFile"></param>
-		/// <param name="Arguments"></param>
-		/// <param name="WorkingDir"></param>
-		Task RunGitAsync(FileReference ToolFile, string Arguments, DirectoryReference WorkingDir)
+		/// <param name="toolFile"></param>
+		/// <param name="arguments"></param>
+		/// <param name="workingDir"></param>
+		static Task RunGit(FileReference toolFile, string arguments, DirectoryReference workingDir)
 		{
-			IProcessResult Result = CommandUtils.Run(ToolFile.FullName, Arguments, WorkingDir: WorkingDir.FullName);
-			if (Result.ExitCode != 0)
+			IProcessResult result = CommandUtils.Run(toolFile.FullName, arguments, WorkingDir: workingDir.FullName);
+			if (result.ExitCode != 0)
 			{
-				throw new AutomationException("Git terminated with an exit code indicating an error ({0})", Result.ExitCode);
+				throw new AutomationException("Git terminated with an exit code indicating an error ({0})", result.ExitCode);
 			}
 			return Task.CompletedTask;
 		}
@@ -120,9 +118,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

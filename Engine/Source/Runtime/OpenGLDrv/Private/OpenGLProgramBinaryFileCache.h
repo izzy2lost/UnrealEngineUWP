@@ -6,18 +6,7 @@
 
 #pragma once
 
-#include "HAL/UnrealMemory.h"
-#include "Templates/UnrealTemplate.h"
-#include "Containers/Array.h"
-#include "Misc/Crc.h"
-#include "Containers/UnrealString.h"
-#include "Containers/Map.h"
-#include "Misc/SecureHash.h"
-#include "HAL/IConsoleManager.h"
-#include "RHI.h"
-#include "ShaderCore.h"
-#include "CrossCompilerCommon.h"
-#include "ShaderCodeLibrary.h"
+#include "OpenGLShaderResources.h"
 #include "ShaderPipelineCache.h"
 
 class FOpenGLLinkedProgram;
@@ -99,9 +88,6 @@ private:
 	*/
 	TMap<GLuint, FPendingShaderCode> ShadersPendingCompilation;
 
-	bool AppendProgramBinaryFile(FArchive& Ar, const FOpenGLProgramKey& ProgramKey, GLuint Program, uint32& ProgramBinaryOffsetOUT, uint32& ProgramBinarySizeOUT);
-	void AppendProgramBinaryFileEofEntry(FArchive& Ar);
-
 	void Reset();
 
 	void ScanProgramCacheFile();
@@ -117,8 +103,6 @@ private:
 	bool RequiresCaching_Internal(const FOpenGLProgramKey& ProgramKey);
 
 	void AddProgramBinaryDataToBinaryCache(const FOpenGLProgramKey& ProgramKey, const FOpenGLProgramBinary& BinaryProgramData);
-
-	void ReleaseGLProgram_internal(FOpenGLLinkedProgramConfiguration& Config, GLuint Program);
 
 	void CheckPendingGLProgramCreateRequests_internal();
 	bool CheckSinglePendingGLProgramCreateRequest_internal(const FOpenGLProgramKey& ProgramKey);

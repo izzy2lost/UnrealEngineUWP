@@ -18,20 +18,30 @@ FDMMaterialNodeArranger::FDMMaterialNodeArranger(UMaterial* InDynamicMaterial)
 
 void FDMMaterialNodeArranger::ArrangeNodes()
 {
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->BaseColor.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->EmissiveColor.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Opacity.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->OpacityMask.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Metallic.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Specular.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Roughness.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Anisotropy.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Normal.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Tangent.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->WorldPositionOffset.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->Refraction.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->AmbientOcclusion.Expression);
-	ArrangeMaterialInputNodes(DynamicMaterial->GetEditorOnlyData()->PixelDepthOffset.Expression);
+	UMaterialEditorOnlyData* EditorOnlyData = DynamicMaterial->GetEditorOnlyData();
+
+	if (!EditorOnlyData)
+	{
+		return;
+	}
+
+	ArrangeMaterialInputNodes(EditorOnlyData->BaseColor.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->EmissiveColor.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Opacity.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->OpacityMask.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Metallic.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Specular.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Roughness.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Anisotropy.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Normal.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Tangent.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->WorldPositionOffset.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Refraction.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->AmbientOcclusion.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->PixelDepthOffset.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->Displacement.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->SubsurfaceColor.Expression);
+	ArrangeMaterialInputNodes(EditorOnlyData->SurfaceThickness.Expression);
 
 	FInt32Interval Vertical = {0, 0};
 
@@ -71,29 +81,28 @@ void FDMMaterialNodeArranger::ArrangeNode(TMap<UMaterialExpression*, FIntPoint>&
 		return;
 	}
 
-	TConstArrayView<FExpressionInput*> Inputs = InNode->GetInputsView();
 	InOutNodeSize = {0, 0};
 	const FIntPoint ThisNodeSize = {InNode->GetWidth() * 2, InNode->GetHeight()};
 	FIntPoint ChildOffsetStart = InOffsetStart;
 	ChildOffsetStart.X += ThisNodeSize.X + UE::DynamicMaterialEditor::BuildState::Private::SpaceBetweenNodes;
 
-	for (FExpressionInput* Input : Inputs)
+	for (FExpressionInputIterator It{ InNode }; It; ++It)
 	{
-		if (!Input->Expression)
+		if (!It->IsConnected())
 		{
 			continue;
 		}
 
 		FIntPoint ChildNodeSize;
-		const FIntPoint* NodePosition = InOutNodePositions.Find(Input->Expression);
+		const FIntPoint* NodePosition = InOutNodePositions.Find(It->Expression);
 
 		if (NodePosition && (-NodePosition->X) > InOffsetStart.X)
 		{
-			ChildNodeSize = {Input->Expression->GetWidth(), Input->Expression->GetHeight()};
+			ChildNodeSize = {It->Expression->GetWidth(), It->Expression->GetHeight()};
 		}
 		else
 		{
-			ArrangeNode(InOutNodePositions, ChildOffsetStart, Input->Expression, ChildNodeSize);
+			ArrangeNode(InOutNodePositions, ChildOffsetStart, It->Expression, ChildNodeSize);
 		}
 
 		if (ChildNodeSize.X > 0)

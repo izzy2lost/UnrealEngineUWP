@@ -11,11 +11,14 @@
 #include "Misc/CommandLine.h"
 #include "RenderCore.h"
 #include "RHIUniformBufferLayoutInitializer.h"
+#include "RHIShaderBindingLayout.h"
 #include "Serialization/MemoryHasher.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "ShaderCore.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderParameters.h"
 #include "ShaderParameterMacros.h"
+#include "HLSLReservedSpaces.h"
 
 bool SupportShaderPrecisionModifier(EShaderPlatform Platform)
 {
@@ -146,6 +149,85 @@ FShaderParametersMetadata* FindUniformBufferStructByLayoutHash(uint32 Hash)
 	return GetLayoutHashStructMap().FindRef(Hash);
 }
 
+void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> UniformBuffers, EShaderBindingLayoutFlags BaseShaderBindingLayoutFlags, FShaderBindingLayoutContainer& OutShaderBindingLayoutContainer)
+{
+	// only build the bindless version for now
+	FShaderBindingLayoutContainer::EBindingType BindingType = FShaderBindingLayoutContainer::EBindingType::Bindless;
+	
+	FShaderBindingLayout ShaderBindingLayout;
+
+	EShaderBindingLayoutFlags ShaderBindingLayoutFlags = BaseShaderBindingLayoutFlags;
+	//if (BindingType == FShaderBindingLayoutContainer::EBindingType::Bindless)
+	{
+		ShaderBindingLayoutFlags |= EShaderBindingLayoutFlags::BindlessResources | EShaderBindingLayoutFlags::BindlessSamplers;
+	}
+
+	bool bBindlessResources = EnumHasAllFlags(ShaderBindingLayoutFlags, EShaderBindingLayoutFlags::BindlessResources);
+	bool bBindlessSamplers = EnumHasAllFlags(ShaderBindingLayoutFlags, EShaderBindingLayoutFlags::BindlessSamplers);
+
+	TArray<FRHIUniformBufferShaderBindingLayout> UniformBufferEntries;
+	UniformBufferEntries.Reserve(UniformBuffers.Num());
+
+	int32 CurrentCBVResourceIndex = 0;
+	int32 CurrentBaseSRVResourceIndex = bBindlessResources ? -1 : 0;
+	int32 CurrentBaseUAVResourceIndex = bBindlessResources ? -1 : 0;
+	int32 CurrentBaseSamplerResourceIndex = bBindlessSamplers ? -1 : 0;
+	for (FShaderParametersMetadata* ShaderParametersMetaData : UniformBuffers)
+	{
+		const FRHIUniformBufferLayout& UniformBufferLayout = ShaderParametersMetaData->GetLayout();
+		check(UniformBufferLayout.ConstantBufferSize > 0);
+
+		FRHIUniformBufferShaderBindingLayout& NewEntry = UniformBufferEntries.AddDefaulted_GetRef();
+		NewEntry.LayoutName = UniformBufferLayout.Name;
+		NewEntry.RegisterSpace = UE_HLSL_SPACE_STATIC_SHADER_BINDINGS;
+		NewEntry.CBVResourceIndex = CurrentCBVResourceIndex;
+		NewEntry.BaseSRVResourceIndex = CurrentBaseSRVResourceIndex;
+		NewEntry.BaseUAVResourceIndex = CurrentBaseUAVResourceIndex;
+		NewEntry.BaseSamplerResourceIndex = CurrentBaseSamplerResourceIndex;
+
+		// Increment counters		
+		CurrentCBVResourceIndex++;
+
+		// Don't need to increment resources if using bindless because all data is in the CBV
+		if (!bBindlessSamplers)
+		{
+			// TODO use layout to find out all the samplers
+			check(false);
+		}
+		if (!bBindlessResources)
+		{
+			// TODO use layout to find out all the resources and uavs
+			check(false);
+		}
+	}
+
+	ShaderBindingLayout.RHILayout = FRHIShaderBindingLayout(ShaderBindingLayoutFlags, UniformBufferEntries);
+
+#if WITH_EDITOR
+	// Also create the uniform buffer decleration shared ansi strings used during shader gen
+	for (uint8 UniformBufferIndex = 0; UniformBufferIndex < UniformBuffers.Num(); ++UniformBufferIndex)	
+	{
+		FShaderParametersMetadata* ShaderParametersMetaData = UniformBuffers[UniformBufferIndex];
+		const FString& LayoutName = ShaderParametersMetaData->GetLayout().Name;
+		const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout = ShaderBindingLayout.RHILayout.FindEntry(LayoutName);
+		check(UniformBufferSBLayout);
+
+		FString UniformBufferName(ShaderParametersMetaData->GetShaderVariableName());
+		FString NewDeclaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(*UniformBufferName, *ShaderParametersMetaData, UniformBufferSBLayout);
+		check(!NewDeclaration.IsEmpty());
+			
+		// Cache preprocessor friendly copy of uniform buffer declaration
+		TArray<ANSICHAR>* NewDeclarationAnsi = new TArray<ANSICHAR>;
+		ShaderConvertAndStripComments(NewDeclaration, *NewDeclarationAnsi);
+		FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi = MakeShareable(NewDeclarationAnsi);
+
+		ShaderBindingLayout.SetUniformBufferDeclarationAnsiPtr(ShaderParametersMetaData, UniformBufferDeclarationAnsi);
+	}
+#endif //WITH_EDITOR
+
+	OutShaderBindingLayoutContainer.SetLayout(BindingType, ShaderBindingLayout);
+}
+
 static TArray<const FShaderParametersMetadataRegistration*>* GShaderParametersMetadataRegistrationInstances = nullptr;
 TArray<const FShaderParametersMetadataRegistration*>& FShaderParametersMetadataRegistration::GetInstances()
 {
@@ -194,6 +276,7 @@ const TCHAR* const kShaderParameterMacroNames[] = {
 	TEXT("RDG_TEXTURE_ACCESS"), // UBMT_RDG_TEXTURE_ACCESS,
 	TEXT("RDG_TEXTURE_ACCESS_ARRAY"), // UBMT_RDG_TEXTURE_ACCESS,
 	TEXT("SHADER_PARAMETER_RDG_TEXTURE_SRV"), // UBMT_RDG_TEXTURE_SRV,
+	TEXT("SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV"), // UBMT_RDG_TEXTURE_NON_PIXEL_SRV,
 	TEXT("SHADER_PARAMETER_RDG_TEXTURE_UAV"), // UBMT_RDG_TEXTURE_UAV,
 	TEXT("RDG_BUFFER_ACCESS"), // UBMT_RDG_BUFFER_ACCESS,
 	TEXT("RDG_BUFFER_ACCESS_ARRAY"), // UBMT_RDG_BUFFER_ACCESS_ARRAY,
@@ -212,6 +295,8 @@ const TCHAR* const kShaderParameterMacroNames[] = {
 
 	// Structure dedicated to setup render targets for a rasterizer pass.
 	TEXT("RENDER_TARGET_BINDING_SLOTS"), // UBMT_RENDER_TARGET_BINDING_SLOTS,
+
+	TEXT("RESOURCE_COLLECTION"), // UBMT_RESOURCE_COLLECTION,
 };
 
 static_assert(UE_ARRAY_COUNT(kShaderParameterMacroNames) == int32(EUniformBufferBaseType_Num), "Shader parameter enum does not match name macro name array.");
@@ -328,7 +413,7 @@ FShaderParametersMetadata::FShaderParametersMetadata(
 	const TArray<FMember>& InMembers,
 	bool bForceCompleteInitialization,
 	FRHIUniformBufferLayoutInitializer* OutLayoutInitializer,
-	uint32 InUsageFlags)
+	EUsageFlags InUsageFlags)
 	: LayoutName(InLayoutName)
 	, StructTypeName(InStructTypeName)
 	, ShaderVariableName(InShaderVariableName)
@@ -339,9 +424,9 @@ FShaderParametersMetadata::FShaderParametersMetadata(
 	, Size(InSize)
 	, UseCase(InUseCase)
 	, BindingFlags(InBindingFlags)
+	, UsageFlags(InUsageFlags)
 	, Members(InMembers)
 	, GlobalListLink(this)
-	, UsageFlags(InUsageFlags)
 {
 	checkf(UseCase == EUseCase::UniformBuffer || !EnumHasAnyFlags(BindingFlags, EUniformBufferBindingFlags::Static), TEXT("Only uniform buffers can utilize the global binding flag."));
 
@@ -460,45 +545,18 @@ void FShaderParametersMetadata::InitializeAllUniformBufferStructs()
 
 #if WITH_EDITOR
 
-void FShaderParametersMetadata::FMember::HashLayout(FMemoryHasherBlake3& Hasher)
+void FShaderParametersMetadata::AppendKeyString(FString& OutKeyString) const
 {
-	Hasher << Offset;
-	Hasher << reinterpret_cast<uint8&>(BaseType);
-
-	Hasher.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
-	Hasher << NumElements;
-
-	const bool bIsRHIResource = (
-		BaseType == UBMT_TEXTURE ||
-		BaseType == UBMT_SRV ||
-		BaseType == UBMT_SAMPLER);
-	const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
-
-	if (BaseType == UBMT_INT32 ||
-		BaseType == UBMT_UINT32 ||
-		BaseType == UBMT_FLOAT32)
-	{
-		Hasher << reinterpret_cast<uint8&>(Precision);
-		Hasher << NumRows;
-		Hasher << NumColumns;
-	}
-	else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
-	{
-		const_cast<FShaderParametersMetadata*>(Struct)->HashLayout(Hasher);
-	}
-	else if (bIsRHIResource || bIsRDGResource)
-	{
-		Hasher.Serialize(const_cast<TCHAR*>(ShaderType), FCString::Strlen(ShaderType));
-	}
+	FShaderKeyGenerator KeyGen(OutKeyString);
+	Append(KeyGen);
 }
 
-void FShaderParametersMetadata::HashLayout(FMemoryHasherBlake3& SignatureData) 
+void FShaderParametersMetadata::Append(FShaderKeyGenerator& KeyGen) const
 {
-	for (FMember& CurrentMember : Members)
-	{
-		CurrentMember.HashLayout(SignatureData);
-	}
+	KeyGen.AppendDebugText(TEXT("SPM_"));
+	KeyGen.Append(LayoutSignature);
 }
+
 #endif // WITH_EDITOR
 
 void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitializer* OutLayoutInitializer)
@@ -508,8 +566,21 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	FRHIUniformBufferLayoutInitializer LocalLayoutInitializer(LayoutName);
 	FRHIUniformBufferLayoutInitializer& LayoutInitializer = OutLayoutInitializer ? *OutLayoutInitializer : LocalLayoutInitializer;
 	LayoutInitializer.ConstantBufferSize = Size;
-	LayoutInitializer.bUniformView = UsageFlags & (uint32)EUsageFlags::UniformView;
-	LayoutInitializer.bNoEmulatedUniformBuffer = LayoutInitializer.bUniformView || (UsageFlags & (uint32)EUsageFlags::NoEmulatedUniformBuffer);
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::UniformView))
+	{
+		EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::UniformView);
+	}
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NoEmulatedUniformBuffer|EUsageFlags::UniformView))
+	{
+		EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
+	}
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NeedsReflectedMembers))
+	{
+		EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::NeedsReflectedMembers);
+	}
 	
 	if (StaticSlotName)
 	{
@@ -553,6 +624,8 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	/** Allow all use cases that inline a structure within another. Data driven are not known to inline structures. */
 	const bool bAllowStructureInlining = UseCase == EUseCase::ShaderParameterStruct || UseCase == EUseCase::UniformBuffer;
 
+	bool bHasNonGraphOutputs = false;
+
 	for (int32 i = 0; i < MemberStack.Num(); ++i)
 	{
 		const FShaderParametersMetadata& CurrentStruct = MemberStack[i].ContainingStruct;
@@ -564,14 +637,11 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 		const TCHAR* ShaderType = CurrentMember.GetShaderType();
 
 		const bool bIsArray = ArraySize > 0;
-		const bool bIsRHIResource = (
-			BaseType == UBMT_TEXTURE ||
-			BaseType == UBMT_SRV ||
-			BaseType == UBMT_SAMPLER);
+		const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
 		const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 		const bool bIsVariableNativeType = CurrentMember.IsVariableNativeType();
 
-		LayoutInitializer.bHasNonGraphOutputs |= BaseType == UBMT_UAV;
+		bHasNonGraphOutputs |= (BaseType == UBMT_UAV);
 
 		if (DO_CHECK)
 		{
@@ -655,13 +725,15 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 						BaseType == UBMT_TEXTURE ||
 						BaseType == UBMT_SRV ||
 						BaseType == UBMT_RDG_TEXTURE ||
-						BaseType == UBMT_RDG_TEXTURE_SRV);
+						BaseType == UBMT_RDG_TEXTURE_SRV ||
+						BaseType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV);
 				}
 				else if (BindingType == EShaderCodeResourceBindingType::TextureMetadata)
 				{
 					bIsValidBindingType = (
 						BaseType == UBMT_SRV ||
-						BaseType == UBMT_RDG_TEXTURE_SRV);
+						BaseType == UBMT_RDG_TEXTURE_SRV ||
+						BaseType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV);
 				}
 				else if (
 					BindingType == EShaderCodeResourceBindingType::Buffer ||
@@ -670,7 +742,8 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 				{
 					bIsValidBindingType = (
 						BaseType == UBMT_SRV ||
-						BaseType == UBMT_RDG_BUFFER_SRV);
+						BaseType == UBMT_RDG_BUFFER_SRV ||
+						BaseType == UBMT_RESOURCE_COLLECTION);
 				}
 				else if (BindingType == EShaderCodeResourceBindingType::RaytracingAccelerationStructure)
 				{
@@ -713,6 +786,11 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 						*GetMemberErrorPrefix(), ShaderType, CurrentMacroName);
 				}
 			}
+		}
+
+		if (bHasNonGraphOutputs)
+		{
+			EnumAddFlags(LayoutInitializer.Flags, ERHIUniformBufferFlags::HasNonGraphOutputs);
 		}
 
 		if (IsShaderParameterTypeForUniformBufferLayout(BaseType))
@@ -796,54 +874,11 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	// Compute the hash of the RHI layout.
 	LayoutInitializer.ComputeHash();
 	
-	// Compute the hash about the entire layout of the structure.
+	// Fast runtime-compatible hash about the entire layout of the structure.
 	{
-		uint32 RootStructureHash = 0;
-		RootStructureHash = HashCombine(RootStructureHash, GetTypeHash(int32(GetSize())));
-
-		for (const FMember& CurrentMember : Members)
-		{
-			EUniformBufferBaseType BaseType = CurrentMember.GetBaseType();
-			const FShaderParametersMetadata* ChildStruct = CurrentMember.GetStructMetadata();
-
-			uint32 MemberHash = 0;
-			MemberHash = HashCombine(MemberHash, GetTypeHash(int32(CurrentMember.GetOffset())));
-			MemberHash = HashCombine(MemberHash, GetTypeHash(uint8(BaseType)));
-			static_assert(EUniformBufferBaseType_NumBits <= 8, "Invalid EUniformBufferBaseType_NumBits");
-			MemberHash = HashCombine(MemberHash, FCrc::Strihash_DEPRECATED(CurrentMember.GetName()));
-			MemberHash = HashCombine(MemberHash, GetTypeHash(int32(CurrentMember.GetNumElements())));
-
-			const bool bIsRHIResource = (
-				BaseType == UBMT_TEXTURE ||
-				BaseType == UBMT_SRV ||
-				BaseType == UBMT_SAMPLER);
-			const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
-
-			if (BaseType == UBMT_INT32 ||
-				BaseType == UBMT_UINT32 ||
-				BaseType == UBMT_FLOAT32)
-			{
-				MemberHash = HashCombine(MemberHash, GetTypeHash(uint8(CurrentMember.GetNumRows())));
-				MemberHash = HashCombine(MemberHash, GetTypeHash(uint8(CurrentMember.GetNumColumns())));
-			}
-			else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
-			{
-				if (!ChildStruct->IsLayoutInitialized())
-				{
-					const_cast<FShaderParametersMetadata*>(ChildStruct)->InitializeLayout();
-				}
-
-				MemberHash = HashCombine(MemberHash, ChildStruct->GetLayoutHash());
-			}
-			else if (bIsRHIResource || bIsRDGResource)
-			{
-				MemberHash = HashCombine(MemberHash, FCrc::Strihash_DEPRECATED(CurrentMember.GetShaderType()));
-			}
-
-			RootStructureHash = HashCombine(RootStructureHash, MemberHash);
-		}
-
-		LayoutHash = RootStructureHash;
+		TMemoryHasher<FXxHash64Builder, FXxHash64> FastHasher;
+		HashLayout(FastHasher);
+		LayoutHash = (uint32)FastHasher.Finalize().Hash; // note: decimating 64 bit hash to 32 bits to avoid data format changes & API deprecation
 	}
 
 	if (UseCase == EUseCase::UniformBuffer)
@@ -854,6 +889,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	Layout = RHICreateUniformBufferLayout(LayoutInitializer);
 
 #if WITH_EDITOR
+	// second stronger hash for use in DDC keys
 	FMemoryHasherBlake3 Hasher;
 	HashLayout(Hasher);
 	LayoutSignature = Hasher.Finalize();
@@ -965,7 +1001,7 @@ void FShaderParametersMetadata::InitializeUniformBufferDeclaration()
 {
 	if (UseCase != EUseCase::ShaderParameterStruct)
 	{
-		FString* NewDeclaration = new FString(UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ShaderVariableName, *this));
+		FString* NewDeclaration = new FString(UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ShaderVariableName, *this, nullptr));
 		check(!NewDeclaration->IsEmpty());
 
 		UniformBufferDeclaration = MakeShareable(NewDeclaration);
@@ -1012,20 +1048,21 @@ void FShaderParametersMetadata::AddResourceTableEntries(FShaderResourceTableMap&
 	
 	FUniformBufferEntry UniformBufferEntry;
 	UniformBufferEntry.StaticSlotName = StaticSlotName;
+	UniformBufferEntry.MemberNameBuffer = MemberNameBuffer;
 	UniformBufferEntry.LayoutHash = IsLayoutInitialized() ? GetLayout().GetHash() : 0;
 	UniformBufferEntry.BindingFlags = BindingFlags;
-	UniformBufferEntry.bNoEmulatedUniformBuffer = (UsageFlags & (uint32)EUsageFlags::NoEmulatedUniformBuffer) || (UsageFlags & (uint32)EUsageFlags::UniformView);
-	UniformBufferEntry.MemberNameBuffer = MemberNameBuffer;
+
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NoEmulatedUniformBuffer | EUsageFlags::UniformView))
+	{
+		EnumAddFlags(UniformBufferEntry.Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer);
+	}
+	if (EnumHasAnyFlags(UsageFlags, EUsageFlags::NeedsReflectedMembers))
+	{
+		EnumAddFlags(UniformBufferEntry.Flags, ERHIUniformBufferFlags::NeedsReflectedMembers);
+	}
+
 	UniformBufferMap.AddByHash(ShaderVariableNameHash, ShaderVariableName, UniformBufferEntry);
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-// Deprecated version of function
-void FShaderParametersMetadata::AddResourceTableEntries(TMap<FString, FResourceTableEntry>& ResourceTableMap, TMap<FString, FUniformBufferEntry>& UniformBufferMap) const
-{
-	UE_LOG(LogShaders, Error, TEXT("FShaderParametersMetadata::AddResourceTableEntries call that accepts a TMap has been deprecated.  Use FShaderResourceTableMap structure instead."));
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // WITH_EDITOR
 
@@ -1076,9 +1113,7 @@ void FShaderParametersMetadata::FindMemberFromOffset(uint16 MemberOffset, const 
 			}
 		}
 		else if (NumElements > 0 && (
-			BaseType == UBMT_TEXTURE ||
-			BaseType == UBMT_SRV ||
-			BaseType == UBMT_SAMPLER ||
+			IsShaderParameterTypeReadOnlyRHIResource(BaseType) ||
 			IsRDGResourceReferenceShaderParameterType(BaseType)))
 		{
 			uint16 ArrayStartOffset = Member.GetOffset();

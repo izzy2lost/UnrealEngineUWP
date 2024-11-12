@@ -9,7 +9,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Jupiter
 {
-	
+
 	public class UnrealCloudDDCSettings
 	{
 		public enum ReplicationLogWriterImplementations
@@ -55,14 +55,14 @@ namespace Jupiter
 
 		public enum LeaderElectionImplementations
 		{
-			Static, 
+			Static,
 			Kubernetes,
 			Disabled
 		}
 
 		public enum ServiceDiscoveryImplementations
 		{
-			Static, 
+			Static,
 			Kubernetes
 		}
 
@@ -90,7 +90,7 @@ namespace Jupiter
 
 		public IEnumerable<UnrealCloudDDCSettings.StorageBackendImplementations> GetStorageImplementations()
 		{
-			foreach (string s in StorageImplementations ?? new [] {UnrealCloudDDCSettings.StorageBackendImplementations.Memory.ToString()})
+			foreach (string s in StorageImplementations ?? new[] { UnrealCloudDDCSettings.StorageBackendImplementations.Memory.ToString() })
 			{
 				UnrealCloudDDCSettings.StorageBackendImplementations impl = (UnrealCloudDDCSettings.StorageBackendImplementations)Enum.Parse(typeof(UnrealCloudDDCSettings.StorageBackendImplementations), s, ignoreCase: true);
 
@@ -115,7 +115,15 @@ namespace Jupiter
 		public bool EnableOnDemandReplication { get; set; } = true;
 
 		public bool EnableBucketStatsTracking { get; set; } = true;
-		public bool EnablePutRefBodyIntoBlobStore { get; set; } = true;
+		public bool EnableInlineSmallBlobs { get; set; } = true;
+
+		/// <summary>
+		/// Forces the inlined blobs to also be submitted into the blob store, is the old behavior and is not recommended.
+		/// </summary>
+		public bool EnableForceSubmitRefBlobToBlobStore { get; set; } = true;
+		public bool RequirePrivatePortForEnumeration { get; set; } = true;
+
+		public long InlineBlobMaxSize { get; set; } = 32 * 1024; // default to 32 kb blobs max
 	}
 
 	public class MongoSettings
@@ -125,7 +133,7 @@ namespace Jupiter
 		public bool RequireTls12 { get; set; } = true;
 		public bool CreateDatabaseIfMissing { get; set; } = true;
 	}
-	
+
 	public class MemoryCacheContentIdSettings : MemoryCacheOptions
 	{
 		public bool Enabled { get; set; } = true;
@@ -150,7 +158,6 @@ namespace Jupiter
 		// ReSharper disable once CollectionNeverUpdated.Global
 		public Dictionary<string, string> StoragePoolConnectionStrings { get; set; } = new Dictionary<string, string>();
 
-		
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Modified by settings")]
 		// ReSharper disable once CollectionNeverUpdated.Global
 		public Dictionary<string, string> StoragePoolContainerOverride { get; set; } = new Dictionary<string, string>();
@@ -166,13 +173,13 @@ namespace Jupiter
 
 	public class S3Settings
 	{
-		[Required] public string ConnectionString  { get; set; } = "";
+		[Required] public string ConnectionString { get; set; } = "";
 
 		[Required] public string BucketName { get; set; } = "";
 
 		public bool ForceAWSPathStyle { get; set; }
 		public bool AssumeHttpForRedirectUri { get; set; } = false;
-		public bool CreateBucketIfMissing { get;set; } = true;
+		public bool CreateBucketIfMissing { get; set; } = true;
 
 		// Options to disable setting of bucket access policies, useful for local testing as minio does not support them.
 		public bool SetBucketPolicies { get; set; } = true;
@@ -190,12 +197,23 @@ namespace Jupiter
 		/// Allows you to override S3 behavior with chunk encoding, this needs to be set to false for uploads against GCS
 		/// </summary>
 		public bool UseChunkEncoding { get; set; } = true;
+
+		/// <summary>
+		/// Keeps S3 list queries within one prefix (first 2 bytes in the hash) - can help reduce errors from S3 about to many operations
+		/// Is also a speed up on larger datasets
+		/// </summary>
+		public bool PerPrefixListing { get; set; } = true;
+
+		/// <summary>
+		/// Max number of keys returned in a single request when listing S3
+		/// </summary>
+		public int PerPrefixMaxKeys { get; set; } = 10_000;
 	}
 
 	public class GCSettings
 	{
 		public bool BlobCleanupServiceEnabled { get; set; } = true;
-		
+
 		public bool CleanOldRefRecords { get; set; } = false;
 		public bool CleanOldBlobs { get; set; } = true;
 		public bool RunFilesystemCleanup { get; set; } = false;
@@ -232,7 +250,7 @@ namespace Jupiter
 	}
 
 	public class PeerEndpoints
-	{ 
+	{
 		[Required] public Uri Url { get; set; } = null!;
 
 		public bool IsInternal { get; set; } = false;
@@ -247,5 +265,8 @@ namespace Jupiter
 		public int BlobIndexMaxParallelOperations { get; set; } = 4;
 		public bool AllowDeletesInBlobIndex { get; set; } = false;
 		public bool RunBlobStoreConsistencyCheckOnRootStore { get; set; } = false;
+		public bool CheckRefStoreLastAccessTimeConsistency { get; set; } = false;
+		public bool CheckRefStoreRegionalConsistency { get; set; } = false;
+		public string[] RegionalConsistencyCheckNamespaces { get; set; } = Array.Empty<string>();
 	}
 }

@@ -438,7 +438,7 @@ class LocalState {
       }).finally(function () {
          that.selection.setAllSelected(false);
          that.currentSelection = [];
-         agentStore.update();
+         agentStore.update(false, true);
       });
    };
 
@@ -1260,6 +1260,9 @@ const agentSelectedProps: IContextualMenuProps = {
          else if (item.key === "requestFullConform") {
             localState.requestBuilderUpdate(false, false, true);
          }
+         else if (item.key === "clearConform") {
+            localState.requestBuilderUpdate(false, false, false);
+         }            
          else if (item.key === "restart") {
             localState.setRestartBuilderDialogOpen(true);
          }
@@ -1300,6 +1303,10 @@ const agentSelectedProps: IContextualMenuProps = {
       {
          key: 'cancelleases',
          text: 'Cancel Leases',
+      },
+      {
+         key: 'clearConform',
+         text: 'Clear Pending Conform'
       },
       {
          key: 'requestConform',
@@ -1377,6 +1384,11 @@ const agentContextMenuProps: IContextualMenuItem[] = [
       onClick: () => localState.setCancelLeasesDialogOpen(true)
    },
    {
+      key: 'clearConform',
+      text: 'Clear Pending Conform',
+      onClick: () => localState.requestBuilderUpdate(false, false, false)
+   },
+   {
       key: 'requestConform',
       text: 'Request Conform',
       onClick: () => localState.requestBuilderUpdate(true, false)
@@ -1403,7 +1415,7 @@ const agentContextMenuProps: IContextualMenuItem[] = [
    },
 ];
 
-const agentStatus = ["Active", "Ready", "Disabled", "Ephemeral", "Pending Conform", "Pending Shutdown", "Offline", "Offline (Autoscaler)", "Offline (Manual)", "Offline (Unexpected)"];
+const agentStatus = ["Active", "Ready", "Disabled", "Ephemeral", "No Pools", "Pending Conform", "Pending Shutdown", "Offline", "Offline (Autoscaler)", "Offline (Manual)", "Offline (Unexpected)"];
 
 
 export const AgentMenuBar: React.FC<{ agentView?: boolean }> = observer(({ agentView }) => {
@@ -1950,7 +1962,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
    useEffect(() => {
       const interval = setInterval(() => {
          agentStore.update(true)
-      }, 5000);
+      }, 15000);
       return () => clearInterval(interval);
    }, []);
 
@@ -2284,6 +2296,30 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
          }
       }
 
+      if (filter.has("No Pools")) {
+         if (!item.pools?.length) {
+            filtered = false;
+         } else {
+            let anyInvalid = false;
+            item.pools.forEach(pid => {
+
+               if (anyInvalid) {
+                  return;
+               }
+
+               if (!agentStore.pools.find(pool => { return pool.id === pid; })) {
+                  anyInvalid = true;
+               }
+
+            });
+
+            if (anyInvalid) {
+               filtered = false;
+            }
+         }
+
+      }
+
       if (filter.has("Ephemeral")) {
          if (item.ephemeral) {
             filtered = false;
@@ -2514,8 +2550,9 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                </Stack>
             );
          case 'pools':
-            const poolItems = [];
-            const poolSearchNames = [];
+            const poolItems: any = [];
+            const poolSearchNames: string[] = [];
+            const invalidPoolIds = new Set<string>();
             if (agent.pools) {
                const poolObjs: PoolData[] = [];
                // get actual pool objects
@@ -2524,6 +2561,15 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                   const pool = agentStore.pools.find(pool => { return pool.id === id; });
                   if (pool) {
                      poolObjs.push(pool);
+                  } else {
+                     invalidPoolIds.add(id);
+                     poolObjs.push({
+                        id: id,
+                        name: id ?? "",
+                        colorValue: "#797979",
+                        enableAutoscaling: false,
+                        workspaces: []
+                     })
                   }
                }
                // sort them by name
@@ -2532,7 +2578,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                });
                for (let idx = 0; idx < poolObjs.length; idx++) {
                   let color = poolObjs[idx].colorValue;
-                  const textColor = "white";
+                  const textColor = invalidPoolIds.has(poolObjs[idx]?.id) ? "#DDDDDD" : "white";
                   if (agent.pendingConform || agent.pendingFullConform) {
                      const pendingConformColor = hexToRGB(color);
                      color = `rgb(${pendingConformColor.r},${pendingConformColor.g},${pendingConformColor.b}, .5)`;
@@ -2564,13 +2610,15 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                      ],
                   };
 
+                  const disabled = invalidPoolIds.has(poolObjs[idx].id);
+
 
                   poolItems.push(
                      <Stack.Item align={"center"} key={"pool_" + agent.id + "_" + poolObjs[idx].id}>
                         <DefaultButton key={poolObjs[idx].id}
                            text={poolObjs[idx].name}
                            primary
-                           menuProps={menuProps}
+                           menuProps={!disabled ? menuProps : undefined}
                            menuIconProps={{ iconName: "" }}
                            className={agentStyles.buttonFont}
                            onClick={(ev) => { ev.preventDefault(); ev.stopPropagation() }}
@@ -2586,10 +2634,10 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                }
             }
             localState.columnSearchState['pools'][agent.id] = poolSearchNames;
-            return <Stack horizontal horizontalAlign={"start"} styles={{ root: { overflow: "auto", height: '100%' } }} tokens={{ childrenGap: 4 }}>{poolItems}</Stack>;
+            return <Stack horizontal horizontalAlign={"start"} styles={{ root: { overflow: "auto", height: '100%' } }} tokens={{ childrenGap: 6 }}>{poolItems}</Stack>;
          case 'status':
             const leases: any = [];
-            const leaseSearchItems = [];
+            const leaseSearchItems: string[] = [];
             if (agent.leases) {
                agent.leases.forEach(lease => {
 
@@ -2637,7 +2685,9 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                         <Text key={"statusText_" + agent.id + "_" + lease.id}>{statusText}</Text>
                      </Stack.Item>);
                   }
-                  leaseSearchItems.push(lease.name);
+                  if (lease.name) {
+                     leaseSearchItems.push(lease.name);
+                  }
                });
             }
             // if there are no leases, we'll push some other state.

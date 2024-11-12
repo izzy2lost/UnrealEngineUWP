@@ -2,7 +2,6 @@
 
 #include "Playback/Http/AvaPlaybackHttpServer.h"
 
-#include "AvaMediaModule.h"
 #include "HttpServerModule.h"
 #include "HttpServerResponse.h"
 #include "Playback/AvaPlaybackServer.h"
@@ -39,23 +38,20 @@ FAvaPlaybackHttpRouteBuilder::FAvaPlaybackHttpRouteBuilder(
 {
 }
 
-void FAvaPlaybackHttpServer::Start(int32 InPortToUse)
+void FAvaPlaybackHttpServer::Start(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer, int32 InPortToUse)
 {
 	PortToUse = InPortToUse;
 	HttpRouter = FHttpServerModule::Get().GetHttpRouter(PortToUse);
 
-	RegisterRoutes();
+	RegisterRoutes(InPlaybackServer);
 
 	FHttpServerModule::Get().StartAllListeners();
 }
 
-void FAvaPlaybackHttpServer::RegisterRoutes()
+void FAvaPlaybackHttpServer::RegisterRoutes(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer)
 {
-	const TSharedPtr<FAvaPlaybackServer> MediaPlaybackServer = FModuleManager::GetModulePtr<FAvaMediaModule>(UE_MODULE_NAME)->GetPlaybackServerInternal();
-	check(MediaPlaybackServer.IsValid());
-	
 	// Map as per FAvaPlaybackServer::Init(const FString& AssignedServerName)
-	FAvaPlaybackHttpServer::FBuilder(AsShared(), MediaPlaybackServer)
+	FAvaPlaybackHttpServer::FBuilder(AsShared(), InPlaybackServer)
 	.Route<FAvaPlaybackPing>(TEXT("/playback/ping"), EHttpServerRequestVerbs::VERB_POST, &FAvaPlaybackServer::HandlePlaybackPing)
 	.Route<FAvaPlaybackDeviceProviderDataRequest>(TEXT("/playback/devices"), EHttpServerRequestVerbs::VERB_POST, &FAvaPlaybackServer::HandleDeviceProviderDataRequest)
 	.Route<FAvaPlaybackRequest>(TEXT("/playback"), EHttpServerRequestVerbs::VERB_POST, &FAvaPlaybackServer::HandlePlaybackRequest)

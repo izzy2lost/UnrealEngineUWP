@@ -77,16 +77,16 @@ TMap<const UDMXMVRFixtureNode*, FDMXPixelMappingLayoutToken> UDMXPixelMappingLay
 	{
 		return Result;
 	}
+	
+#if WITH_EDITOR
+	DMXLibrary->UpdateGeneralSceneDescription();
+#endif
 
 	UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary->GetLazyGeneralSceneDescription();
 	if (!GeneralSceneDescription)
 	{
 		return Result;
 	}
-
-#if WITH_EDITOR
-	GeneralSceneDescription->WriteDMXLibraryToGeneralSceneDescription(*DMXLibrary);
-#endif
 
 	TArray<UDMXMVRFixtureNode*> FixtureNodes;
 	GeneralSceneDescription->GetFixtureNodes(FixtureNodes);

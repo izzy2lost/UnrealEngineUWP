@@ -3,23 +3,16 @@
 #pragma once
 
 #include "Trace/Config.h"
+#include "Trace/Trace.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "CoreTypes.h"
 
 namespace UE {
 namespace Trace {
 
-struct FChannelInfo
-{
-	const ANSICHAR* Name;
-	const ANSICHAR* Desc;
-	bool bIsEnabled;
-	bool bIsReadOnly;
-};
 
-typedef void ChannelIterFunc(const ANSICHAR*, bool, void*);	
 typedef bool ChannelIterCallback(const FChannelInfo& OutChannelInfo, void*);
 
 /*
@@ -32,10 +25,9 @@ typedef bool ChannelIterCallback(const FChannelInfo& OutChannelInfo, void*);
 
 	Note that this works as an AND operator, similar to how a bitmask is constructed.
 
-	Channels are by default enabled until this method is called. This is to allow
+	Channels are by default enabled until FChannel::Initialize() is called. This is to allow
 	events to be emitted during static initialization. In fact all events during
-	this phase are always emitted. In this method we disable all channels except
-	those specified on the command line using -tracechannels argument.
+	this phase are always emitted.
 */
 class FChannel
 {
@@ -49,9 +41,8 @@ public:
 
 	struct InitArgs
 	{
-		const ANSICHAR* 	Desc;		// User facing description string
+		const ANSICHAR*		Desc;		// User facing description string
 		bool				bReadOnly;	// If set, channel cannot be changed during a run, only set through command line.
-
 	};
 
 	TRACELOG_API void	Setup(const ANSICHAR* InChannelName, const InitArgs& Args);
@@ -61,12 +52,13 @@ public:
 	static bool			Toggle(const ANSICHAR* ChannelName, bool bEnabled);
 	static void			ToggleAll(bool bEnabled);
 	static void			PanicDisableAll(); // Disabled channels wont be logged with UE_TRACE_LOG
-	static FChannel*	FindChannel(const ANSICHAR* ChannelName);
-	UE_DEPRECATED(5.2, "Please use the ChannelIterCallback overload for enumerating channels.")
-	static void			EnumerateChannels(ChannelIterFunc Func, void* User);
+	static FChannel* FindChannel(const ANSICHAR* ChannelName);
+	static FChannel* FindChannel(FChannelId ChannelId);
 	static void			EnumerateChannels(ChannelIterCallback Func, void* User);
-	bool				Toggle(bool bEnabled);
-	bool				IsEnabled() const;
+	TRACELOG_API bool	Toggle(bool bEnabled);
+	bool	IsEnabled() const;
+	bool	IsReadOnly() const { return Args.bReadOnly; };
+	uint32	GetName(const ANSICHAR** OutName) const;
 	explicit			operator bool () const;
 	bool				operator | (const FChannel& Rhs) const;
 
@@ -82,7 +74,25 @@ private:
 	InitArgs			Args;
 };
 
+inline uint32 FChannel::GetName(const ANSICHAR** OutName) const
+{
+	if (OutName != nullptr)
+	{
+		*OutName = Name.Ptr;
+		return Name.Len;
+	}
+	return 0;
+}
+
+
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#else
+
+// Since we use this type in macros we need
+// provide an empty definition when trace is
+// not enabled.
+namespace UE::Trace { class FChannel {}; }
+
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

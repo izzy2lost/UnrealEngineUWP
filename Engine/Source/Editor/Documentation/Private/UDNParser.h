@@ -164,6 +164,9 @@ private:
 	/** Adds the content text source to the scrollbox */
 	void AddContentToExcerpt(TSharedPtr<SVerticalBox> Box, const FString& ContentSource, FExcerpt& Excerpt);
 	
+	/** Adds the content text source to the scrollbox as a caption for an image */
+	void AddCaptionToExcerpt(TSharedPtr<SVerticalBox> Box, const FString& ContentSource, FExcerpt& Excerpt);
+
 	/** Adds the content text sources to the scrollbox in two columns, emulating a list item with hanging indent */
 	void AddListItemToExcerpt(TSharedPtr<SVerticalBox> Box, const FString& LeftContentSource, const FString& RightContentSource, FExcerpt& Excerpt);
 

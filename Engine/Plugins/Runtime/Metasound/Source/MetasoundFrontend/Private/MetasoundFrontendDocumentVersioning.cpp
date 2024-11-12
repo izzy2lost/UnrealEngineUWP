@@ -1,10 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundFrontendDocumentVersioning.h"
 
+#if WITH_EDITORONLY_DATA
 #include "Algo/Transform.h"
+#include "CoreGlobals.h"
 #include "Interfaces/MetasoundFrontendInterface.h"
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"
 #include "MetasoundAccessPtr.h"
+#include "MetasoundDocumentInterface.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendDocumentController.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
@@ -13,18 +17,111 @@
 #include "Misc/App.h"
 
 
-namespace Metasound
+namespace Metasound::Frontend
 {
-	namespace Frontend
+	namespace VersioningPrivate
 	{
-		class FVersionDocumentTransform : public IDocumentTransform
+		class FMigratePagePropertiesTransform : public FMetaSoundFrontendDocumentBuilder::IPropertyVersionTransform
 		{
+		public:
+			virtual ~FMigratePagePropertiesTransform() = default;
+
+			bool Transform(FMetaSoundFrontendDocumentBuilder& OutBuilder) const override
+			{
+				using namespace Metasound;
+
+				bool bUpdated = false;
+				auto MigrateInterfaceInputDefaults = [&](FMetasoundFrontendClassInterface& OutInterface)
+				{
+					for (FMetasoundFrontendClassInput& Input : OutInterface.Inputs)
+					{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						if (Input.DefaultLiteral.IsValid())
+						{
+							Input.AddDefault(Frontend::DefaultPageID) = MoveTemp(Input.DefaultLiteral);
+							Input.DefaultLiteral = FMetasoundFrontendLiteral::GetInvalid();
+							bUpdated = true;
+						}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					}
+				};
+
+				FMetasoundFrontendDocument& Document = GetDocumentUnsafe(OutBuilder);
+				FMetasoundFrontendGraphClass& GraphClass = Document.RootGraph;
+				MigrateInterfaceInputDefaults(GraphClass.Interface);
+				for (FMetasoundFrontendClass& Dependency : Document.Dependencies)
+				{
+					MigrateInterfaceInputDefaults(Dependency.Interface);
+				}
+
+				struct FMigratePageGraphs : public FMetasoundFrontendGraphClass::IPropertyVersionTransform
+				{
+				public:
+					virtual ~FMigratePageGraphs() = default;
+
+					virtual bool Transform(FMetasoundFrontendGraphClass& OutClass) const override
+					{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						TArray<FMetasoundFrontendGraph>& Pages = GetPagesUnsafe(OutClass);
+						if (Pages.IsEmpty())
+						{
+							Pages.Add(MoveTemp(OutClass.Graph));
+							return true;
+						}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+						return false;
+					}
+				};
+
+				bUpdated |= FMigratePageGraphs().Transform(GraphClass);
+				return bUpdated;
+			}
+		};
+
+		class FVersionDocumentInterfacesTransform : public FMetaSoundFrontendDocumentBuilder::IPropertyVersionTransform
+		{
+		public:
+			virtual ~FVersionDocumentInterfacesTransform() = default;
+
+			bool Transform(FMetaSoundFrontendDocumentBuilder& OutBuilder) const override
+			{
+				FMetasoundFrontendDocument& Document = GetDocumentUnsafe(OutBuilder);
+				if (Document.RequiresInterfaceVersioning())
+				{
+					Document.VersionInterfaces();
+					return true;
+				}
+
+				return false;
+			}
+		};
+
+		class FVersionDocumentTransform
+		{
+			public:
+				virtual ~FVersionDocumentTransform() = default;
+
 			protected:
 				virtual FMetasoundFrontendVersionNumber GetTargetVersion() const = 0;
-				virtual void TransformInternal(FDocumentHandle InDocument) const = 0;
+
+				virtual void TransformInternal(FDocumentHandle) const
+				{
+					checkNoEntry();
+				}
+
+				virtual void TransformInternal(FMetasoundFrontendDocument& OutDocument) const
+				{
+					FDocumentAccessPtr DocAccessPtr = MakeAccessPtr<FDocumentAccessPtr>(OutDocument.AccessPoint, OutDocument);
+					return TransformInternal(FDocumentController::CreateDocumentHandle(DocAccessPtr));
+				}
+
+				virtual void TransformInternal(FMetaSoundFrontendDocumentBuilder&) const
+				{
+				}
 
 			public:
-				bool Transform(FDocumentHandle InDocument) const override
+				bool Transform(FDocumentHandle InDocument) const
 				{
 					if (FMetasoundFrontendDocumentMetadata* Metadata = InDocument->GetMetadata())
 					{
@@ -39,6 +136,21 @@ namespace Metasound
 
 					return false;
 				}
+
+				virtual bool Transform(FMetaSoundFrontendDocumentBuilder& OutDocumentBuilder) const 
+				{
+					const FMetasoundFrontendDocumentMetadata& Metadata = OutDocumentBuilder.GetConstDocumentChecked().Metadata;
+
+					const FMetasoundFrontendVersionNumber TargetVersion = GetTargetVersion();
+					if (Metadata.Version.Number < TargetVersion)
+					{
+						TransformInternal(OutDocumentBuilder);
+						OutDocumentBuilder.SetVersionNumber(TargetVersion);
+						return true;
+					}
+
+					return false;
+				}
 		};
 
 		/** Versions document from 1.0 to 1.1. */
@@ -48,6 +160,8 @@ namespace Metasound
 			const FString& Path;
 
 		public:
+			virtual ~FVersionDocument_1_1() = default;
+
 			FVersionDocument_1_1(FName InName, const FString& InPath)
 			: Name(InName)
 			, Path(InPath)
@@ -61,7 +175,7 @@ namespace Metasound
 
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
-#if WITH_EDITOR
+	#if WITH_EDITOR
 				FGraphHandle GraphHandle = InDocument->GetRootGraph();
 				TArray<FNodeHandle> FrontendNodes = GraphHandle->GetNodes();
 
@@ -107,9 +221,9 @@ namespace Metasound
 						GraphHandle->RemoveNode(*NodeHandle);
 					}
 				}
-#else
+	#else
 				UE_LOG(LogMetaSound, Error, TEXT("Asset '%s' at '%s' must be saved with editor enabled in order to version document to target version '%s'."), *Name.ToString(), *Path, *GetTargetVersion().ToString());
-#endif // !WITH_EDITOR
+	#endif // !WITH_EDITOR
 			}
 		};
 
@@ -126,6 +240,7 @@ namespace Metasound
 				, Path(InPath)
 			{
 			}
+			virtual ~FVersionDocument_1_2() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -134,16 +249,16 @@ namespace Metasound
 
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
-#if WITH_EDITOR
+	#if WITH_EDITOR
 				const FMetasoundFrontendGraphClass& GraphClass = InDocument->GetRootGraphClass();
 				FMetasoundFrontendClassMetadata Metadata = GraphClass.Metadata;
 
 				Metadata.SetClassName({ "GraphAsset", Name, *Path });
 				Metadata.SetDisplayName(FText::FromString(Name.ToString()));
 				InDocument->GetRootGraph()->SetGraphMetadata(Metadata);
-#else
+	#else
 				UE_LOG(LogMetaSound, Error, TEXT("Asset '%s' at '%s' must be saved with editor enabled in order to version document to target version '%s'."), *Name.ToString(), *Path, *GetTargetVersion().ToString());
-#endif // !WITH_EDITOR
+	#endif // !WITH_EDITOR
 			}
 		};
 
@@ -151,9 +266,7 @@ namespace Metasound
 		class FVersionDocument_1_3 : public FVersionDocumentTransform
 		{
 		public:
-			FVersionDocument_1_3()
-			{
-			}
+			virtual ~FVersionDocument_1_3() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -174,9 +287,7 @@ namespace Metasound
 		class FVersionDocument_1_4 : public FVersionDocumentTransform
 		{
 		public:
-			FVersionDocument_1_4()
-			{
-			}
+			virtual ~FVersionDocument_1_4() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -251,6 +362,7 @@ namespace Metasound
 				, Path(InPath)
 			{
 			}
+			virtual ~FVersionDocument_1_5() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -259,7 +371,7 @@ namespace Metasound
 
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
-#if WITH_EDITOR
+	#if WITH_EDITOR
 				const FMetasoundFrontendClassMetadata& Metadata = InDocument->GetRootGraphClass().Metadata;
 				const FText NewAssetName = FText::FromString(Name.ToString());
 				if (Metadata.GetDisplayName().CompareTo(NewAssetName) != 0)
@@ -268,9 +380,9 @@ namespace Metasound
 					NewMetadata.SetDisplayName(NewAssetName);
 					InDocument->GetRootGraph()->SetGraphMetadata(NewMetadata);
 				}
-#else
+	#else
 				UE_LOG(LogMetaSound, Error, TEXT("Asset '%s' at '%s' must be saved with editor enabled in order to version document to target version '%s'."), *Name.ToString(), *Path, *GetTargetVersion().ToString());
-#endif // !WITH_EDITOR
+	#endif // !WITH_EDITOR
 			}
 		};
 
@@ -279,6 +391,7 @@ namespace Metasound
 		{
 		public:
 			FVersionDocument_1_6() = default;
+			virtual ~FVersionDocument_1_6() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -288,7 +401,8 @@ namespace Metasound
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
 				const FGuid NewAssetClassID = FGuid::NewGuid();
-				FRenameRootGraphClass::Generate(InDocument, NewAssetClassID);
+				FMetasoundFrontendGraphClass Class = InDocument->GetRootGraphClass();
+				Class.Metadata.SetClassName(FMetasoundFrontendClassName({ }, FName(*NewAssetClassID.ToString()), { }));
 			}
 		};
 
@@ -304,7 +418,7 @@ namespace Metasound
 				, Path(InPath)
 			{
 			}
-
+			virtual ~FVersionDocument_1_7() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -313,7 +427,7 @@ namespace Metasound
 
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
-#if WITH_EDITOR
+	#if WITH_EDITOR
 				auto RenameTransform = [](FNodeHandle NodeHandle)
 				{
 					// Required nodes are all (at the point of this transform) providing
@@ -340,9 +454,9 @@ namespace Metasound
 
 				InDocument->GetRootGraph()->IterateNodes(RenameTransform, EMetasoundFrontendClassType::Input);
 				InDocument->GetRootGraph()->IterateNodes(RenameTransform, EMetasoundFrontendClassType::Output);
-#else
+	#else
 				UE_LOG(LogMetaSound, Error, TEXT("Asset '%s' at '%s' must be saved with editor enabled in order to version document to target version '%s'."), *Name.ToString(), *Path, *GetTargetVersion().ToString());
-#endif // !WITH_EDITOR
+	#endif // !WITH_EDITOR
 			}
 		};
 
@@ -358,6 +472,7 @@ namespace Metasound
 				, Path(InPath)
 			{
 			}
+			virtual ~FVersionDocument_1_8() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -366,7 +481,7 @@ namespace Metasound
 
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
-#if WITH_EDITOR
+	#if WITH_EDITOR
 				// Do not serialize MetaData text for dependencies as
 				// CacheRegistryData dynamically provides this.
 				InDocument->IterateDependencies([](FMetasoundFrontendClass& Dependency)
@@ -426,9 +541,9 @@ namespace Metasound
 				}
 
 				InDocument->SetRootGraphClass(MoveTemp(RootGraphClass));
-#else
+	#else
 			UE_LOG(LogMetaSound, Error, TEXT("Asset '%s' at '%s' must be saved with editor enabled in order to version document to target version '%s'."), *Name.ToString(), *Path, *GetTargetVersion().ToString());
-#endif // !WITH_EDITOR
+	#endif // !WITH_EDITOR
 			}
 		};
 
@@ -444,6 +559,7 @@ namespace Metasound
 				, Path(InPath)
 			{
 			}
+			virtual ~FVersionDocument_1_9() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -452,16 +568,16 @@ namespace Metasound
 
 			void TransformInternal(FDocumentHandle InDocument) const override
 			{
-#if WITH_EDITOR
+	#if WITH_EDITOR
 				// Display name text is no longer copied at this versioning point for assets
 				// from the asset's FName to avoid FText warnings regarding generation from
 				// an FString.  It also avoids desync if asset gets moved.
 				FMetasoundFrontendGraphClass RootGraphClass = InDocument->GetRootGraphClass();
 				RootGraphClass.Metadata.SetDisplayName(FText());
 				InDocument->SetRootGraphClass(MoveTemp(RootGraphClass));
-#else
+	#else
 				UE_LOG(LogMetaSound, Error, TEXT("Asset '%s' at '%s' must be saved with editor enabled in order to version document to target version '%s'."), *Name.ToString(), *Path, *GetTargetVersion().ToString());
-#endif // !WITH_EDITOR
+	#endif // !WITH_EDITOR
 			}
 		};
 
@@ -469,7 +585,7 @@ namespace Metasound
 		class FVersionDocument_1_10 : public FVersionDocumentTransform
 		{
 		public:
-			FVersionDocument_1_10() = default;
+			virtual ~FVersionDocument_1_10() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -489,7 +605,7 @@ namespace Metasound
 		class FVersionDocument_1_11 : public FVersionDocumentTransform
 		{
 		public:
-			FVersionDocument_1_11() = default;
+			virtual ~FVersionDocument_1_11() = default;
 
 			FMetasoundFrontendVersionNumber GetTargetVersion() const override
 			{
@@ -511,45 +627,174 @@ namespace Metasound
 			}
 		};
 
-		FVersionDocument::FVersionDocument(FName InName, const FString& InPath)
-			: Name(InName)
-			, Path(InPath)
+		/** Versions document from 1.11 to 1.12. */
+		class FVersionDocument_1_12 : public FVersionDocumentTransform
 		{
-		}
+			const FName Name;
+			const FSoftObjectPath* Path = nullptr;
 
-		bool FVersionDocument::Transform(FDocumentHandle InDocument) const
-		{
-			if (!ensure(InDocument->IsValid()))
+		public:
+			FVersionDocument_1_12(FName InName, const FSoftObjectPath& InAssetPath)
+				: Name(InName)
+				, Path(&InAssetPath)
 			{
-				return false;
 			}
+			virtual ~FVersionDocument_1_12() = default;
+
+			FMetasoundFrontendVersionNumber GetTargetVersion() const override
+			{
+				return { 1, 12 };
+			}
+
+			void TransformInternal(FMetaSoundFrontendDocumentBuilder& OutBuilder) const override
+			{
+				using namespace VersioningPrivate;
+
+				if (IsRunningCookCommandlet())
+				{
+					UE_LOG(LogMetaSound, Display, TEXT("Resave recommended: Asset '%s' at '%s' skipped migrated editor data/creation of input template nodes during cook to target document version '%s'."), *Name.ToString(), *Path->ToString(), *GetTargetVersion().ToString());
+				}
+				else
+				{
+					FMigratePagePropertiesTransform().Transform(OutBuilder);
+					OutBuilder.GetMetasoundAsset().MigrateEditorGraph(OutBuilder);
+					UE_LOG(LogMetaSound, Display, TEXT("Resave recommended: Asset '%s' at '%s' successfully migrated editor data in target document version '%s'."), *Name.ToString(), *Path->ToString(), *GetTargetVersion().ToString());
+				}
+			}
+		};
+
+		/** Versions document from 1.12 to 1.13. */
+		class FVersionDocument_1_13 : public FVersionDocumentTransform
+		{
+		public:
+			virtual ~FVersionDocument_1_13() = default;
+
+			FMetasoundFrontendVersionNumber GetTargetVersion() const override
+			{
+				return { 1, 13 };
+			}
+
+			void TransformInternal(FMetaSoundFrontendDocumentBuilder& OutBuilder) const override
+			{
+				FMigratePagePropertiesTransform().Transform(OutBuilder);
+			}
+		};
+
+		/** Versions document from 1.13 to 1.14. */
+		class FVersionDocument_1_14 : public FVersionDocumentTransform
+		{
+		public:
+			virtual ~FVersionDocument_1_14() = default;
+
+			FMetasoundFrontendVersionNumber GetTargetVersion() const override
+			{
+				return { 1, 14 };
+			}
+
+			void TransformInternal(FMetaSoundFrontendDocumentBuilder& OutBuilder) const override
+			{
+				// Between 1.13 and 1.14, it was possible to add multiple default input page values
+				// due to missing versioning logic. This fixes that issue if any data was serialized
+				// to a MetaSound Asset by removing any extraneous default data (early values in the
+				// array were stale).
+				FMetasoundFrontendDocument& Document = const_cast<FMetasoundFrontendDocument&>(OutBuilder.GetConstDocumentChecked());
+				for (FMetasoundFrontendClassInput& Input : Document.RootGraph.Interface.Inputs)
+				{
+					int32 PageIDIndex = INDEX_NONE;
+					TArray<FMetasoundFrontendClassInputDefault>& Defaults = const_cast<TArray<FMetasoundFrontendClassInputDefault>&>(Input.GetDefaults());
+					for (int32 Index = 0; Index < Defaults.Num(); ++Index)
+					{
+						FMetasoundFrontendClassInputDefault& Default = Defaults[Index];
+						const bool bIsDefault = Default.PageID == Frontend::DefaultPageID;
+						if (bIsDefault)
+						{
+							if (PageIDIndex == INDEX_NONE)
+							{
+								PageIDIndex = Index;
+							}
+							else
+							{
+								Defaults.RemoveAt(PageIDIndex);
+								break;
+							}
+						}
+					}
+				}
+
+				// Safeguards against prior fix-up corrupting any cached data
+				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+				{
+					BuilderRegistry->ReloadBuilder(Document.RootGraph.Metadata.GetClassName());
+				}
+			}
+		};
+
+		bool VersionBuilderDocument(FMetaSoundFrontendDocumentBuilder& Builder)
+		{
+			UObject& DocObject = Builder.CastDocumentObjectChecked<UObject>();
+			const FName Name = DocObject.GetFName();
+			const FString Path = DocObject.GetPathName();
 
 			bool bWasUpdated = false;
-
-			FMetasoundFrontendDocumentMetadata* Metadata = InDocument->GetMetadata();
-			check(Metadata);
-			const FMetasoundFrontendVersionNumber InitVersionNumber = Metadata->Version.Number;
-
-			// Add additional transforms here after defining them above, example below.
-			bWasUpdated |= FVersionDocument_1_1(Name, Path).Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_2(Name, Path).Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_3().Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_4().Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_5(Name, Path).Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_6().Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_7(Name, Path).Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_8(Name, Path).Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_9(Name, Path).Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_10().Transform(InDocument);
-			bWasUpdated |= FVersionDocument_1_11().Transform(InDocument);
-
-			if (bWasUpdated)
-			{
-				const FMetasoundFrontendVersionNumber& NewVersionNumber = Metadata->Version.Number;
-				UE_LOG(LogMetaSound, Verbose, TEXT("MetaSound at '%s' Document Versioned: '%s' --> '%s'"), *Path, *InitVersionNumber.ToString(), *NewVersionNumber.ToString());
-			}
+			bWasUpdated |= FVersionDocument_1_12(Name, Path).Transform(Builder);
+			bWasUpdated |= FVersionDocument_1_13().Transform(Builder);
+			bWasUpdated |= FVersionDocument_1_14().Transform(Builder);
 
 			return bWasUpdated;
 		}
-	} // namespace Frontend
-} // namespace Metasound
+	} // namespace VersioningPrivate
+
+	bool VersionDocument(FMetaSoundFrontendDocumentBuilder& Builder)
+	{
+		using namespace VersioningPrivate;
+
+		bool bWasUpdated = false;
+
+		UObject& MetaSoundAsset = Builder.CastDocumentObjectChecked<UObject>();
+		const FName Name(*MetaSoundAsset.GetName());
+		const FString Path = MetaSoundAsset.GetPathName();
+
+		// Copied as value will be mutated with each applicable transform below
+		const FMetasoundFrontendVersionNumber InitVersionNumber = Builder.GetConstDocumentChecked().Metadata.Version.Number;
+
+		// Old manual property transform that was applied prior to versioning schema being added.
+		// Only runs if internal logic finds necessary.
+		bWasUpdated = FVersionDocumentInterfacesTransform().Transform(Builder);
+
+		if (InitVersionNumber < GetMaxDocumentVersion())
+		{
+			// Controller (Soft Deprecated) Transforms
+			if (InitVersionNumber.Major == 1 && InitVersionNumber.Minor < 12)
+			{
+				// Page Graph migration must be completed for graph accessor back
+				// compat prior to all controller versioning, so just do it here.
+				FMigratePagePropertiesTransform().Transform(Builder);
+
+				FDocumentHandle DocHandle = Builder.GetMetasoundAsset().GetDocumentHandle();
+
+				bWasUpdated |= FVersionDocument_1_1(Name, Path).Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_2(Name, Path).Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_3().Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_4().Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_5(Name, Path).Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_6().Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_7(Name, Path).Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_8(Name, Path).Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_9(Name, Path).Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_10().Transform(DocHandle);
+				bWasUpdated |= FVersionDocument_1_11().Transform(DocHandle);
+				// No longer supported, new versions should go in VersioningPrivate::VersionBuilderDocument
+			}
+
+			bWasUpdated |= VersionBuilderDocument(Builder);
+			if (bWasUpdated)
+			{
+				const FMetasoundFrontendVersionNumber& NewVersionNumber = Builder.GetConstDocumentChecked().Metadata.Version.Number;
+				UE_LOG(LogMetaSound, Verbose, TEXT("MetaSound at '%s' Document Versioned: '%s' --> '%s'"), *Path, *InitVersionNumber.ToString(), *NewVersionNumber.ToString());
+			}
+		}
+
+		return bWasUpdated;
+	}
+} // namespace Metasound::Frontend
+#endif // WITH_EDITORONLY_DATA

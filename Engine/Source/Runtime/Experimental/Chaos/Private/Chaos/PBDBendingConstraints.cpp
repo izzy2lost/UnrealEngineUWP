@@ -62,6 +62,7 @@ void FPBDBendingConstraints::InitColor(const SolverParticlesOrRange& InParticles
 		ConstraintSharedEdges = MoveTemp(ReorderedConstraintSharedEdges);
 		RestAngles = MoveTemp(ReorderedRestAngles);
 		Stiffness.ReorderIndices(OrigToReorderedIndices);
+		BucklingRatioWeighted.ReorderIndices(OrigToReorderedIndices);
 		BucklingStiffness.ReorderIndices(OrigToReorderedIndices);
 	}
 }
@@ -92,7 +93,21 @@ void FPBDBendingConstraints::SetProperties(
 	}
 	if (IsBucklingRatioMutable(PropertyCollection))
 	{
-		BucklingRatio = (FSolverReal)FMath::Clamp(GetBucklingRatio(PropertyCollection), 0.f, 1.);
+		const FSolverVec2 WeightedValue = FSolverVec2(GetWeightedFloatBucklingRatio(PropertyCollection)).ClampAxes(0.f, 1.f);
+		if (IsBucklingRatioStringDirty(PropertyCollection))
+		{
+			const FString& WeightMapName = GetBucklingRatioString(PropertyCollection);
+			BucklingRatioWeighted = FPBDWeightMap(
+				WeightedValue,
+				WeightMaps.FindRef(WeightMapName),
+				TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+				ParticleOffset,
+				ParticleCount);
+		}
+		else
+		{
+			BucklingRatioWeighted.SetWeightedValue(WeightedValue);
+		}
 	}
 	if (IsBucklingStiffnessMutable(PropertyCollection))
 	{

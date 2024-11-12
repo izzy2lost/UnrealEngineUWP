@@ -9,6 +9,30 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 #include "UnifiedBuffer.h"
+#include "ComponentRecreateRenderStateContext.h"
+
+static int32 GSkipNaniteLPIs = 1;
+static FAutoConsoleVariableRef CVarSkipNaniteLPIs(
+	TEXT("r.SkipNaniteLPIs"),
+	GSkipNaniteLPIs,
+	TEXT("Skip Nanite primitives in the light-primitive interactions & the primitive octree as they perform GPU-driven culling separately.\n")
+	TEXT(" Values:")
+	TEXT("   1 - (auto, default) Skipping is auto-disabled if r.AllowStaticLighting is enabled for the project as it breaks some associated editor features otherwise.")
+	TEXT("   2 - (forced) Skipping is always enabled regardless of r.AllowStaticLighting. May cause issues with static lighting. Use with care."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		// Needed because the primitives need to be re-added to the scene to be removed from the octree and to have existing LPIs cleaned up. And vice versa.
+		// The cvar is not expected to be changed during runtime outside of testing.
+		FGlobalComponentRecreateRenderStateContext Context;
+	}),
+	ECVF_RenderThreadSafe);
+
+bool ShouldSkipNaniteLPIs(EShaderPlatform ShaderPlatform)
+{
+	return (GSkipNaniteLPIs > 1 
+		|| ( GSkipNaniteLPIs == 1 && !IsStaticLightingAllowed()))
+		&& UseNanite(ShaderPlatform);
+}
 
 class FRTWriteMaskDecodeCS : public FGlobalShader
 {
@@ -142,7 +166,7 @@ void FRenderTargetWriteMask::Decode(
 		RDG_EVENT_NAME("DecodeWriteMask[%d]", NumRenderTargets),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[DecodeCS, PassParameters, ShaderMap, RTWriteMaskDims](FRHIComputeCommandList& RHICmdList)
+		[DecodeCS, PassParameters, ShaderMap, RTWriteMaskDims](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 	{
 		FRHITexture* Texture0RHI = PassParameters->ReferenceInput->GetRHI();
 
@@ -271,4 +295,47 @@ RENDERER_API FBufferRHIRef& GetOneTileQuadVertexBuffer()
 RENDERER_API FBufferRHIRef& GetOneTileQuadIndexBuffer()
 {
 	return GOneTileQuadIndexBuffer.IndexBufferRHI;
+}
+
+class FClearIndirectDispatchArgsCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FClearIndirectDispatchArgsCS);
+	SHADER_USE_PARAMETER_STRUCT(FClearIndirectDispatchArgsCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, NumIndirectArgs)
+		SHADER_PARAMETER(uint32, IndirectArgStride)
+		SHADER_PARAMETER(FIntVector3, DimClearValue)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutIndirectArgsBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FClearIndirectDispatchArgsCS, "/Engine/Private/RendererUtils.usf", "ClearIndirectDispatchArgsCS", SF_Compute);
+
+void AddClearIndirectDispatchArgsPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGBufferRef IndirectArgsRDG, const FIntVector3 &DimClearValue, uint32 NumIndirectArgs, uint32 IndirectArgStride)
+{
+	// Need room for XYZ dims at least.
+	check(IndirectArgStride >= 3);
+
+	FClearIndirectDispatchArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearIndirectDispatchArgsCS::FParameters>();
+	PassParameters->NumIndirectArgs = NumIndirectArgs;
+	PassParameters->IndirectArgStride = IndirectArgStride;
+	PassParameters->DimClearValue = DimClearValue; 
+	PassParameters->OutIndirectArgsBuffer = GraphBuilder.CreateUAV(IndirectArgsRDG);
+
+	auto ComputeShader = GetGlobalShaderMap(FeatureLevel)->GetShader<FClearIndirectDispatchArgsCS>();
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("ClearIndirectDispatchArgs"),
+		ComputeShader,
+		PassParameters,
+		FComputeShaderUtils::GetGroupCount(NumIndirectArgs, 64)
+	);
+}
+
+FRDGBufferRef CreateAndClearIndirectDispatchArgs(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name, const FIntVector3& DimClearValue, uint32 NumIndirectArgs, uint32 IndirectArgStride)
+{
+	FRDGBufferRef IndirectArgsRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(NumIndirectArgs * IndirectArgStride), Name);
+	AddClearIndirectDispatchArgsPass(GraphBuilder, FeatureLevel, IndirectArgsRDG, DimClearValue, NumIndirectArgs, IndirectArgStride);
+	return IndirectArgsRDG;
 }

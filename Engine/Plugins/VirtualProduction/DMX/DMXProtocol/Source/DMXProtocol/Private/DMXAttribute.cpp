@@ -3,26 +3,18 @@
 #include "DMXAttribute.h"
 
 #include "DMXProtocolModule.h"
+#include "DMXProtocolObjectVersion.h"
 #include "DMXProtocolSettings.h"
 #include "Modules/ModuleManager.h"
 
-
+// UE-224455. Before 5.5 the Name member was defaulted to the first entry of the Attributes set in project settings, 
+// which is variable implicitly. Since CDOs can define the struct default individually, it is important to keep the
+// original attribute name "Color". This is to ensure CDOs of objects created before 5.5 get the correct default value.
+// 
+// Also see FDMXAttributeName::Serialize where instances that use a structure serializer are handled.
 FDMXAttributeName::FDMXAttributeName()
+	: Name("Color")
 {
-	// This depends on the FDMXProtocolModule and can be called
-	// on CDO creation, when the module might not be available yet.
-	// So we first check if it is available.
-	const IModuleInterface* DMXProtocolModule = FModuleManager::Get().GetModule("DMXProtocol");
-	if (DMXProtocolModule != nullptr)
-	{
-		if (const UDMXProtocolSettings* DMXSettings = GetDefault<UDMXProtocolSettings>())
-		{
-			if (DMXSettings->Attributes.Num() > 0)
-			{
-				Name = DMXSettings->Attributes.begin()->Name;
-			}
-		}
-	}
 }
 
 FDMXAttributeName::FDMXAttributeName(const FDMXAttribute& InAttribute)
@@ -54,6 +46,34 @@ TArray<FName> FDMXAttributeName::GetPredefinedValues()
 		Result.Add(Attribute.Name);
 	}
 	return Result;
+}
+
+bool FDMXAttributeName::Serialize(FArchive& Ar)
+{
+#if WITH_EDITORONLY_DATA
+	Ar.UsingCustomVersion(FDMXProtocolObjectVersion::GUID);
+	if (Ar.CustomVer(FDMXProtocolObjectVersion::GUID) < FDMXProtocolObjectVersion::FixAttributeNameDefaultValue)
+	{			
+		// UE-224455. The Name member was defaulted to the first entry of the Attributes set in project settings, 
+		// which is variable implicitly. For old projects keep this behaviour when upgrading to 5.5.
+
+		const IModuleInterface* DMXProtocolModule = FModuleManager::Get().GetModule("DMXProtocol");
+		if (DMXProtocolModule != nullptr)
+		{
+			if (const UDMXProtocolSettings* DMXSettings = GetDefault<UDMXProtocolSettings>())
+			{
+				if (DMXSettings->Attributes.Num() > 0)
+				{
+					Name = DMXSettings->Attributes.begin()->Name;
+				}
+			}
+		}
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	// Serialize is only implemented to recall the right default for versions before 5.5.
+	// Return false to leave it to the outer serializer to perform the actual serialization.
+	return false;
 }
 
 FString UDMXAttributeNameConversions::Conv_DMXAttributeToString(const FDMXAttributeName& InAttribute)

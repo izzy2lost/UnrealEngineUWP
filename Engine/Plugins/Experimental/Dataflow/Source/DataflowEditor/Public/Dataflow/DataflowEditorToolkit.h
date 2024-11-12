@@ -7,10 +7,13 @@
 #include "Dataflow/DataflowObjectInterface.h"
 #include "Misc/NotifyHook.h"
 #include "GraphEditor.h"
+#include "SAdvancedPreviewDetailsTab.h"
 #include "TickableEditorObject.h"
 #include "Dataflow/DataflowSelectionView.h"
 #include "Dataflow/DataflowCollectionSpreadSheet.h"
-#include "Dataflow/DataflowEditorViewport.h"
+#include "Dataflow/DataflowConstructionViewport.h"
+#include "Dataflow/DataflowSimulationViewport.h"
+//#include "UObject\GCObject.h"
 
 class FEditorViewportTabContent;
 class IDetailsView;
@@ -21,23 +24,14 @@ class UDataflow;
 class USkeletalMesh;
 class SDataflowGraphEditor;
 class FDataflowConstructionScene;
+class FDataflowSimulationViewportClient;
 class UDataflowBaseContent;
 class FDataflowSimulationScene;
+class FDataflowSkeletonView;
+class UDataflowEditor;
 
-namespace Dataflow
-{
-	class DATAFLOWEDITOR_API FAssetContext : public TEngineContext<FContextSingle>
-	{
-	public:
-		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FAssetContext); 
 
-		FAssetContext(UObject* InOwner, UDataflow* InGraph, FTimestamp InTimestamp)
-			: Super(InOwner, InGraph, InTimestamp)
-		{}
-	};
-}
-
-class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook
+class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook, public FGCObject
 {
 	using FBaseCharacterFXEditorToolkit::ObjectScene;
 
@@ -50,10 +44,17 @@ public:
 	static bool HasDataflowAsset(UObject* ObjectToEdit);
 	static UDataflow* GetDataflowAsset(UObject* ObjectToEdit);
 	static const UDataflow* GetDataflowAsset(const UObject* ObjectToEdit);
+	
+	/** Editor dataflow content accessors */
+	const TObjectPtr<UDataflowBaseContent>& GetEditorContent() const;
+	TObjectPtr<UDataflowBaseContent>& GetEditorContent();
 
-	/** Dataflow Content Access */
-	const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const;
-	TObjectPtr<UDataflowBaseContent> GetDataflowContent();
+	/** Terminal dataflow contents accessors */
+	const TArray<TObjectPtr<UDataflowBaseContent>>& GetTerminalContents() const;
+	TArray<TObjectPtr<UDataflowBaseContent>>& GetTerminalContents();
+	
+	/** Dataflow graph editor accessor */
+	const TSharedPtr<SDataflowGraphEditor> GetDataflowGraphEditor() const { return GraphEditor; }
 
 	// IToolkit interface
 	virtual FName GetToolkitFName() const override;
@@ -68,7 +69,16 @@ public:
 	/** Dataflow preview scenes accessor */
 	const TSharedPtr<FDataflowSimulationScene>& GetSimulationScene() const {return SimulationScene;}
 
+	// FSerializableObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override
+	{
+		return TEXT("FDataflowEditorToolkit");
+	}
+	// End of FSerializableObject interface
 protected:
+
+	UDataflowEditor* DataflowEditor = nullptr;
 
 	// List of dataflow actions callbacks
 	void OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
@@ -78,20 +88,26 @@ protected:
 	void OnNodeDeleted(const TSet<UObject*>& NewSelection);
 	void OnNodeSingleClicked(UObject* ClickedNode) const;
 	void OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
-	
+	void OnConstructionViewSelectionChanged(const TArray<UPrimitiveComponent*>& SelectedComponents);
 	// Callback to remove the closed one from the listener views
 	void OnTabClosed(TSharedRef<SDockTab> Tab);
-	
+
+	// Node evaluation
+	void EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, UE::Dataflow::FTimestamp& InOutTimestamp);
+	void OnFinishEvaluate();
+
 private:
 	
 	// Spawning of all the additional tabs (viewport,details ones are coming from the base asset toolkit)
 	TSharedRef<SDockTab> SpawnTab_GraphCanvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_NodeDetails(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_Skeletal(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_SkeletonView(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SelectionView(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SimulationViewport(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_PreviewScene(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_SimulationVisualization(const FSpawnTabArgs& Args);
 	
 	// FTickableEditorObject interface
 	virtual void Tick(float DeltaTime) override;
@@ -114,10 +130,13 @@ private:
 	virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const override;
 	virtual void CreateEditorModeManager() override;
 
+	// FNotifyHook
+	virtual void NotifyPreChange(class FEditPropertyChain* PropertyAboutToChange) override;
+
 	// List of all the tab names ids that will be used to identify the editor widgets
 	static const FName GraphCanvasTabId;
 	static const FName NodeDetailsTabId;
-	static const FName SkeletalTabId;
+	static const FName SkeletonViewTabId;
 	static const FName SelectionViewTabId_1;
 	static const FName SelectionViewTabId_2;
 	static const FName SelectionViewTabId_3;
@@ -127,13 +146,15 @@ private:
 	static const FName CollectionSpreadSheetTabId_3;
 	static const FName CollectionSpreadSheetTabId_4;
 	static const FName SimulationViewportTabId;
+	static const FName PreviewSceneTabId;
+	static const FName SimulationVisualizationTabId;
 
 	// List of all the widgets shared ptr that will be built in the editor
-	TSharedPtr<SDataflowEditorViewport> DataflowEditorViewport;
-	TSharedPtr<SDataflowEditorViewport> DataflowSimulationViewport;
+	TSharedPtr<SDataflowConstructionViewport> DataflowConstructionViewport;
+	TSharedPtr<SDataflowSimulationViewport> DataflowSimulationViewport;
 	TSharedPtr<SDataflowGraphEditor> GraphEditor;
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
-	TSharedPtr<class ISkeletonTree> SkeletalEditor;
+	TSharedPtr<FDataflowSkeletonView> SkeletonEditorView;
 	TSharedPtr<IDetailsView> AssetDetailsEditor;
 	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_1;
 	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_2;
@@ -143,12 +164,17 @@ private:
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_2;
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_3;
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_4;
+	TSharedPtr<SWidget> AdvancedPreviewSettingsWidget;
+	TSharedPtr<SWidget> SimulationVisualizationWidget;
+
+	/** Customize preview scene with editor/terminal contents */
+	TSharedRef<class IDetailCustomization> CustomizePreviewSceneDescription() const;
 
 	// Utility factory functions to build the widgets
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
-    TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(UObject* ObjectToEdit);
+    TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(const TArray<UObject*>& ObjectsToEdit);
+	TSharedPtr<SWidget> CreateSimulationVisualizationWidget();
     TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
-	TSharedPtr<ISkeletonTree> CreateSkeletalEditorWidget();
 
 	/** Create the simulation viewport client */
 	void CreateSimulationViewportClient();
@@ -163,11 +189,13 @@ private:
 	FDelegateHandle OnSelectionChangedMulticastDelegateHandle;
     FDelegateHandle OnNodeDeletedMulticastDelegateHandle;
     FDelegateHandle OnFinishedChangingPropertiesDelegateHandle;
-    FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
+	FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
+	FDelegateHandle OnConstructionSelectionChangedDelegateHandle;
+	FDelegateHandle OnSimulationSceneChangedDelegateHandle;
 
 	// The currently selected set of dataflow nodes. 
 	UPROPERTY()
-	TSet<UObject*> SelectedDataflowNodes;
+	TSet< TObjectPtr<UObject> > SelectedDataflowNodes;
 
 	// The most recently selected dataflow node.
 	UPROPERTY()
@@ -186,5 +214,11 @@ private:
 	AssetEditorViewportFactoryFunction SimulationViewportDelegate;
 
 	/** Simulation Viewport client */
-	TSharedPtr<FDataflowEditorViewportClient> SimulationViewportClient;
+	TSharedPtr<FDataflowSimulationViewportClient> SimulationViewportClient;
+
+	/** Simulation default layout */
+	TSharedPtr<FTabManager::FLayout> SimulationDefaultLayout;
+	
+	/** Simulation default layout */
+	TSharedPtr<FTabManager::FLayout> ConstructionDefaultLayout;
 };

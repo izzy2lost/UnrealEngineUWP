@@ -7,6 +7,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/App.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
@@ -218,7 +219,6 @@ int32 FZenFileSystemManifest::Generate()
 			GetExtensionDirs(ExtensionDirs, *EngineDir, ExtensionSubDir, PlatformDirectoryNames);
 			for (const FString& Dir : ExtensionDirs)
 			{
-				//AddFilesFromDirectory(Dir.Replace(*EngineDir, TEXT("/{engine}")), Dir, true, AdditionalFilter);
 				AddFilesFromDirectory(Dir.Replace(*EngineDir, TEXT("/{engine}")), Dir, true, AdditionalFilter);
 			}
 			ExtensionDirs.Reset();
@@ -233,7 +233,6 @@ int32 FZenFileSystemManifest::Generate()
 
 	FFileFilter CookedFilter = FFileFilter()
 		.ExcludeDirectory(TEXT("Metadata"))
-		.ExcludeExtension(TEXT("json"))
 		.ExcludeExtension(TEXT("uasset"))
 		.ExcludeExtension(TEXT("ubulk"))
 		.ExcludeExtension(TEXT("uexp"))
@@ -241,8 +240,15 @@ int32 FZenFileSystemManifest::Generate()
 		.ExcludeExtension(TEXT("uregs"));
 	AddFilesFromDirectory(TEXT("/{engine}"), FPaths::Combine(CookDirectory, TEXT("Engine")), true, &CookedFilter);
 	AddFilesFromDirectory(TEXT("/{project}"), FPaths::Combine(CookDirectory, FApp::GetProjectName()), true, &CookedFilter);
-	
-	AddFilesFromDirectory(TEXT("/{project}"), ProjectDir, false);
+
+	FFileFilter CookedMetadataFilter = FFileFilter()
+		.ExcludeDirectory(TEXT("ShaderLibrarySource"))
+		.ExcludeExtension(TEXT("manifest"));
+	AddFilesFromDirectory(TEXT("/{project}/Metadata"), FPaths::Combine(CookDirectory, FApp::GetProjectName(), "Metadata"), true, &CookedMetadataFilter);
+
+	FFileFilter ProjectSourceFilter = FFileFilter()
+		.IncludeExtension(TEXT("uproject"));
+	AddFilesFromDirectory(TEXT("/{project}"), ProjectDir, false, &ProjectSourceFilter);
 	
 	FFileFilter ConfigFilter = FFileFilter()
 		.IncludeExtension(TEXT("ini"));
@@ -314,8 +320,13 @@ int32 FZenFileSystemManifest::Generate()
 		.IncludeExtension(TEXT("locmeta"))
 		.IncludeExtension(TEXT("locres"));
 
-	const bool FilterDisabledPlugins = true;
+	FFileFilter PluginFilter = FFileFilter()
+		.IncludeExtension(TEXT("uplugin"));
+
+	const bool FilterDisabledPlugins = false;
 	FString PluginTargetPlatformString = PlatformInfo.UBTPlatformString;
+	TSet<FString> PlatformDirectoryNameSet;
+	PlatformDirectoryNameSet.Append(PlatformDirectoryNames);
 	IPluginManager& PluginManager = IPluginManager::Get();
 	TArray<TSharedRef<IPlugin>> DiscoveredPlugins = PluginManager.GetDiscoveredPlugins();
 	for (TSharedRef<IPlugin>& Plugin : DiscoveredPlugins)
@@ -359,6 +370,51 @@ int32 FZenFileSystemManifest::Generate()
 		AddFromPluginPath(EngineDir, ClientDirectory, SourcePath, *ProjectFile);
 		AddFromPluginDir(EngineDir, ClientDirectory, SourcePath, LocalizationDir, true, &LocalizationFilter);
 		AddFromPluginDir(EngineDir, ClientDirectory, SourcePath, ConfigDir, true, &ConfigFilter);
+
+		// Next add any valid plugin extension directories of this plugin.
+		TArray<FString> ExtensionBaseDirs = Plugin->GetExtensionBaseDirs();
+		for (const FString& ExtensionBaseDir : ExtensionBaseDirs)
+		{
+			// Scan the extension path for "Platforms/X" and include this extension if it is not platform specific at all,
+			// or if X is found and it is a valid target platform
+			bool bFoundPlatformsComponent = false;
+			bool bDone = false;
+			bool bIncludeExtension = true;
+			FPathViews::IterateComponents(
+				ExtensionBaseDir,
+				[&bFoundPlatformsComponent, &bDone, &bIncludeExtension, &PlatformDirectoryNameSet](FStringView CurrentPathComponent)
+				{
+					if (!bFoundPlatformsComponent)
+					{
+						if (CurrentPathComponent == TEXTVIEW("Platforms"))
+						{
+							bFoundPlatformsComponent = true;
+						}
+					}
+					else if (!bDone)
+					{
+						const bool bIsValidPlatform = PlatformDirectoryNameSet.Contains(FString(CurrentPathComponent));
+						bIncludeExtension = bIsValidPlatform;
+						bDone = true;
+					}
+					else
+					{
+						// Do nothing.
+					}
+				}
+			);
+
+			if (bIncludeExtension)
+			{
+				FString ExtensionLocalizationDir = ExtensionBaseDir / TEXT("Content") / TEXT("Localization");
+				FString ExtensionConfigDir = ExtensionBaseDir / TEXT("Config");
+				UE_LOG(LogZenFileSystemManifest, Verbose, TEXT("Plugin '%s': ExtensionBaseDir: '%s'"), *ProjectName, *ExtensionBaseDir);
+
+				AddFromPluginDir(EngineDir, ClientDirectory, SourcePath, ExtensionBaseDir, false, &PluginFilter);
+				AddFromPluginDir(EngineDir, ClientDirectory, SourcePath, ExtensionLocalizationDir, true, &LocalizationFilter);
+				AddFromPluginDir(EngineDir, ClientDirectory, SourcePath, ExtensionConfigDir, true, &ConfigFilter);
+			}
+		}
 	}
 
 	FString InternationalizationPresetAsString = UEnum::GetValueAsString(PackagingSettings->InternationalizationPreset);
@@ -376,6 +432,44 @@ int32 FZenFileSystemManifest::Generate()
 	AddFilesFromDirectory(*FPaths::Combine(TEXT("/{engine}"), TEXT("Content"), TEXT("Internationalization"), ICUDataVersion), FPaths::Combine(EngineDir, TEXT("Content"), TEXT("Internationalization"), InternationalizationPresetPath, ICUDataVersion), true);
 	
 	AddFilesFromExtensionDirectories(TEXT("Content/Localization"), &LocalizationFilter);
+
+	bool bSSLCertificatesWillStage = false;
+	FConfigCacheIni* TargetPlatformConfig = TargetPlatform.GetConfigSystem();
+	if (TargetPlatformConfig)
+	{
+		GConfig->GetBool(TEXT("/Script/Engine.NetworkSettings"), TEXT("n.VerifyPeer"), bSSLCertificatesWillStage, GEngineIni);
+	}
+	if (bSSLCertificatesWillStage)
+	{
+		FString ProjectCertFile = FPaths::Combine(ProjectDir, TEXT("Content"), TEXT("Certificates"), TEXT("cacert.pem"));
+		if (FPaths::FileExists(ProjectCertFile))
+		{
+			const TCHAR* ClientProjectCertFile = TEXT("/{project}/Content/Certificates/cacert.pem");
+			const FIoChunkId FileChunkId = CreateExternalFileChunkId(ClientProjectCertFile);
+			FPaths::MakePathRelativeTo(ProjectCertFile, *FPaths::RootDir());
+			AddManifestEntry(
+				FileChunkId,
+				ProjectCertFile,
+				ClientProjectCertFile);
+		}
+		else
+		{
+			FString EngineCertFile = FPaths::Combine(EngineDir, TEXT("Content"), TEXT("Certificates"), TEXT("ThirdParty"), TEXT("cacert.pem"));
+			if (FPaths::FileExists(EngineCertFile))
+			{
+				const TCHAR* ClientEngineCertFile = TEXT("/{engine}/Content/Certificates/ThirdParty/cacert.pem");
+				const FIoChunkId FileChunkId = CreateExternalFileChunkId(ClientEngineCertFile);
+				FPaths::MakePathRelativeTo(EngineCertFile, *FPaths::RootDir());
+				AddManifestEntry(
+					FileChunkId,
+					EngineCertFile,
+					ClientEngineCertFile);
+			}
+		}
+		FFileFilter CertificateFilter = FFileFilter()
+			.IncludeExtension(TEXT("pem"));
+		AddFilesFromDirectory(TEXT("/{project}/Certificates"), FPaths::Combine(ProjectDir, TEXT("Certificates")), true, &CertificateFilter);
+	}
 
 	FFileFilter ContentFilter = FFileFilter()
 		.ExcludeExtension(TEXT("uasset"))
@@ -433,11 +527,17 @@ int32 FZenFileSystemManifest::Generate()
 
 const FZenFileSystemManifest::FManifestEntry& FZenFileSystemManifest::CreateManifestEntry(const FString& Filename)
 {
-	FString CookedEngineDirectory = FPaths::Combine(CookDirectory, TEXT("Engine"));
+	const FString FullFilename = FPaths::ConvertRelativePathToFull(Filename);
 
-	auto AddEntry = [this, &Filename](const FString& ClientDirectory, const FString& LocalDirectory) -> const FManifestEntry&
+	FString CookedEngineDirectory = FPaths::Combine(CookDirectory, TEXT("Engine"));
+	FString CookedEngineDirectoryTrailingSeparator;
+	CookedEngineDirectoryTrailingSeparator.Reserve(CookedEngineDirectory.Len() + 1);
+	CookedEngineDirectoryTrailingSeparator.Append(CookedEngineDirectory);
+	CookedEngineDirectoryTrailingSeparator.AppendChar(TEXT('/'));
+
+	auto AddEntry = [this, &FullFilename](const FString& ClientDirectory, const FString& LocalDirectory) -> const FManifestEntry&
 	{
-		FStringView RelativePath = Filename;
+		FStringView RelativePath = FullFilename;
 		RelativePath.RightChopInline(LocalDirectory.Len() + 1);
 
 		FString ServerRelativeDirectory = LocalDirectory;
@@ -451,13 +551,18 @@ const FZenFileSystemManifest::FManifestEntry& FZenFileSystemManifest::CreateMani
 		return AddManifestEntry(FileChunkId, MoveTemp(ServerPath), MoveTemp(ClientPath));
 	};
 
-	if (Filename.StartsWith(CookedEngineDirectory))
+	if (FullFilename.StartsWith(CookedEngineDirectoryTrailingSeparator))
 	{
 		return AddEntry(TEXT("/{engine}"), CookedEngineDirectory);
 	}
 
 	FString CookedProjectDirectory = FPaths::Combine(CookDirectory, FApp::GetProjectName());
-	if (Filename.StartsWith(CookedProjectDirectory))
+	FString CookedProjectDirectoryTrailingSeparator;
+	CookedProjectDirectoryTrailingSeparator.Reserve(CookedProjectDirectory.Len() + 1);
+	CookedProjectDirectoryTrailingSeparator.Append(CookedProjectDirectory);
+	CookedProjectDirectoryTrailingSeparator.AppendChar(TEXT('/'));
+
+	if (FullFilename.StartsWith(CookedProjectDirectoryTrailingSeparator))
 	{
 		return AddEntry(TEXT("/{project}"), CookedProjectDirectory);
 	}

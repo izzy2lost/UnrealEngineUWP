@@ -44,6 +44,10 @@ StructuredBuffer<float4> InstanceTransforms;
 // Extra per instance debug data
 RWStructuredBuffer<uint> RWDebugInstanceGPUSceneIndices;
 
+#if OUTPUT_STATS
+RWStructuredBuffer<uint> RWOutputStats;
+#endif
+
 #if GPU_CULLING
 
 float CullingRadius;
@@ -172,5 +176,16 @@ void RayTracingBuildInstanceBufferCS(uint3 DispatchThreadId : SV_DispatchThreadI
 			InputDesc.InstanceContributionToHitGroupIndex,
 			LocalToTranslatedWorld,
 			BlasAddress);
+
+#if OUTPUT_STATS
+		if (!bCulled)
+		{
+#if USE_WAVE_OPS
+			WaveInterlockedAddScalar(RWOutputStats[0], 1);
+#else
+			InterlockedAdd(RWOutputStats[0], 1);
+#endif
+		}
+#endif
 	}
 }

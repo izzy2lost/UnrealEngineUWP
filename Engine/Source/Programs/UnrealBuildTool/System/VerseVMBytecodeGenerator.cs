@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealBuildTool
 {
@@ -14,6 +14,9 @@ namespace UnrealBuildTool
 		internal enum CppType
 		{
 			LabelOffset,
+			ClassKind,
+			Bool,
+			Int,
 		}
 
 		internal enum Role
@@ -27,6 +30,7 @@ namespace UnrealBuildTool
 		internal enum Arity
 		{
 			Fixed,
+			Optional,
 			Variadic,
 		}
 
@@ -72,6 +76,12 @@ namespace UnrealBuildTool
 				{
 					case CppType.LabelOffset:
 						return "FLabelOffset";
+					case CppType.ClassKind:
+						return "VClass::EKind";
+					case CppType.Bool:
+						return "bool";
+					case CppType.Int:
+						return "int32";
 				}
 				return "#error";
 			}
@@ -80,44 +90,45 @@ namespace UnrealBuildTool
 			{
 				return Bool ? "true" : "false";
 			}
+
+			public static IEnumerable<T> Yield<T>(this T item)
+			{
+				yield return item;
+			}
 		}
 
 		internal class Argument
 		{
 			public string Name;
+			public Role Role;
+			public Arity Arity;
 
 			/// <summary>
 			/// If this is an immediate operand, the value will be embedded in the opcode itself.
 			/// This should be set to the the string name of the underlying operand native type.
 			/// </summary>
 			public string CppTypeName;
-			public Role Role;
-			public Arity Arity;
 
-			public Argument(in string InName, in Role InRole, in Arity InArity, in string InCppTypeName)
+			public Argument(string InName, Role InRole, Arity InArity, string InCppTypeName)
 			{
 				Name = InName;
 				Role = InRole;
 				Arity = InArity;
 				CppTypeName = InCppTypeName;
 			}
-			
-			public Argument(in string InName, in Role InRole, in Arity InArity) : this(InName, InRole, InArity, "")
-			{}
-
-			public Argument(in string InName, in Role InRole) : this(InName, InRole, Arity.Fixed)
-			{}
 		}
 
 		internal class Constant
 		{
 			public string Name;
 			public CppType Type;
+			public Arity Arity;
 
-			public Constant(string _Name, CppType _Type)
+			public Constant(string InName, CppType InType, Arity InArity)
 			{
-				Name = _Name;
-				Type = _Type;
+				Name = InName;
+				Type = InType;
+				Arity = InArity;
 			}
 
 			public bool IsJump()
@@ -145,13 +156,13 @@ namespace UnrealBuildTool
 
 			public string CppCapturesName => $"F{Name}SuspensionCaptures";
 
-			public Instruction Arg(in string InName, in Role InRole, in Arity InArity, in string InCppTypeName)
+			public Instruction Arg(string InName, Role InRole, Arity InArity, string InCppTypeName)
 			{
 				Args.Add(new Argument(InName, InRole, InArity, InCppTypeName));
 				return this;
 			}
 
-			public Instruction Arg(in string InName, in Role InRole, in Arity InArity)
+			public Instruction Arg(string InName, Role InRole, Arity InArity)
 			{
 				return Arg(InName, InRole, InArity, "");
 			}
@@ -161,16 +172,26 @@ namespace UnrealBuildTool
 				return Arg(InName, InRole, Arity.Fixed);
 			}
 
+			public Instruction Const(string Name, CppType Type, Arity InArity)
+			{
+				Consts.Add(new Constant(Name, Type, InArity));
+				return this;
+			}
+
 			public Instruction Const(string Name, CppType Type)
 			{
-				Consts.Add(new Constant(Name, Type));
-				return this;
+				return Const(Name, Type, Arity.Fixed);
+			}
+
+			public Instruction Jump(string Name, Arity InArity)
+			{
+				_Jumps = true;
+				return Const(Name, CppType.LabelOffset, InArity);
 			}
 
 			public Instruction Jump(string Name)
 			{
-				_Jumps = true;
-				return Const(Name, CppType.LabelOffset);
+				return Jump(Name, Arity.Fixed);
 			}
 
 			public Instruction CapturesEffectToken()
@@ -233,72 +254,12 @@ namespace UnrealBuildTool
 			{
 				S.Append($"    v({Inst.Name}) \\\n");
 			}
-			S.Append("\n");
+			S.Append('\n');
 
 			return S.ToString();
 		}
 
-		string EmitReflectionMethods(in Instruction Inst, in bool bIsSuspensionCapture)
-		{
-			StringBuilder S = new StringBuilder();
-			void EmitForEachOperand(in StringBuilder S, in Instruction Inst, in bool bIsSuspensionCapture, in bool bIsConst)
-			{
-				string ConstString = bIsConst ? " const" : "";
-
-				S.Append("    template <typename FunctionType>\n");
-				S.Append($"    void ForEachOperand(FunctionType Function){ConstString}\n");
-				S.Append("    {\n");
-				foreach (Argument Arg in Inst.Args)
-				{
-					if (Arg.Arity == Arity.Variadic)
-					{
-						string OperandString = bIsSuspensionCapture ? "Operand.Get()" : "Operand";
-						S.Append($"        for (const auto& Operand : {Arg.Name})\n");
-						S.Append("        {\n");
-						S.Append($"            Function({Arg.Role.ToCpp()}, {OperandString});\n");
-						S.Append("        }\n");
-					}
-					else
-					{
-						// If the argument is immediate, `ForEachOperand`/`ForEachOperandWithName` will operate on
-						// the `TWriteBarrier<T>` itself instead of `T`. This is to allow for better control over marking the
-						// values encapsulated within the write barriers.
-						string ArgString = (bIsSuspensionCapture && Arg.Role != Role.Immediate) ? $"{Arg.Name}.Get()" : $"{Arg.Name}";
-						S.Append($"        Function({Arg.Role.ToCpp()}, {ArgString});\n");
-					}
-				}
-				S.Append("    }\n\n");
-				S.Append("    template <typename FunctionType>\n");
-				S.Append($"    void ForEachOperandWithName(FunctionType Function){ConstString}\n");
-				S.Append("    {\n");
-				foreach (Argument Arg in Inst.Args)
-				{
-					if (Arg.Arity == Arity.Variadic)
-					{
-						string OperandString = bIsSuspensionCapture ? "Operand.Get()" : "Operand";
-						S.Append($"        for (int32 Index = 0; Index < {Arg.Name}.Num(); ++Index)\n");
-						S.Append("        {\n");
-						S.Append($"            auto& Operand = {Arg.Name}[Index];\n");
-							S.Append($"            const FString ArgName = FString::Format(TEXT(\"{{0}}{{1}}\"), {{\"{Arg.Name}\", Index}});\n");
-							S.Append($"            Function({Arg.Role.ToCpp()}, {OperandString}, TCHAR_TO_ANSI(*ArgName));\n");
-							S.Append("        }\n");
-					}
-					else
-					{
-						string ArgString = (bIsSuspensionCapture && Arg.Role != Role.Immediate) ? $"{Arg.Name}.Get()" : $"{Arg.Name}";
-						S.Append($"        Function({Arg.Role.ToCpp()}, {ArgString}, \"{Arg.Name}\");\n");
-					}
-				}
-				S.Append("    }\n\n");
-			}
-			// Generate const and non-const versions since it is useful for being able to mutate operands (i.e. marking).
-			EmitForEachOperand(S, Inst, bIsSuspensionCapture, true);
-			EmitForEachOperand(S, Inst, bIsSuspensionCapture, false);
-
-			return S.ToString();
-		}
-
-		String EmitBytecodeAndCaptureDefs()
+		string EmitBytecodeAndCaptureDefs()
 		{
 			StringBuilder S = new StringBuilder();
 			S.Append(Preamble());
@@ -310,162 +271,174 @@ namespace UnrealBuildTool
 			// Emit bytecode structs.
 			foreach (Instruction Inst in Instructions)
 			{
-				S.Append($"struct {Inst.CppName} : public FOp");
-				S.Append("\n{\n");
-				
-				int[] ImmediateArgsIndices = new int[Inst.Args.Count];
-				int[] VariadicArgsIndices = new int[Inst.Args.Count];
-				int NumImmediateArgs = 0;
-				int NumVariadicArgs = 0;
-				int Index = 0;
+				S.Append($"struct {Inst.CppName} : public FOp\n");
+				S.Append("{\n");
+
 				// Define fields
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.Role == Role.Immediate)
+					switch (Arg.Arity)
 					{
-						ImmediateArgsIndices[NumImmediateArgs++] = Index;
+						case Arity.Fixed:
+						case Arity.Optional:
+							if (Arg.Role == Role.Immediate)
+							{
+								S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
+							}
+							else
+							{
+								S.Append($"    {Arg.DefCppType()} {Arg.Name};\n");
+							}
+							break;
+						case Arity.Variadic:
+							if (Arg.Role == Role.Immediate)
+							{
+								S.Append($"    TOperandRange<TWriteBarrier<{Arg.DefCppType()}>> {Arg.Name};\n");
+							}
+							else
+							{
+								S.Append($"    TOperandRange<{Arg.DefCppType()}> {Arg.Name};\n");
+							}
+							break;
 					}
-					if (Arg.Arity == Arity.Variadic)
-					{
-						VariadicArgsIndices[NumVariadicArgs++] = Index;
-					}
-					else if (Arg.Arity == Arity.Fixed && Arg.Role != Role.Immediate)
-					{
-						S.Append($"    {Arg.DefCppType()} {Arg.Name};\n");
-					}
-					++Index;
 				}
 				foreach (Constant Const in Inst.Consts)
 				{
-					S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
-				}
-
-				if (NumVariadicArgs > 0)
-				{
-					S.Append("    // Variadic arguments.\n");
-				}
-				for (int CurrentIndex = 0; CurrentIndex < NumVariadicArgs; ++CurrentIndex)
-				{
-					Argument Arg = Inst.Args[VariadicArgsIndices[CurrentIndex]];
-					// NOTE: (yiliang.siew) This could be raised to a location such as in `VProgram` when that
-					// exists and each opcode store only the index + size to index into that array, so that we don't
-					// need to store a separate `TArray` of operand values per-opcode struct.
-					S.Append($"    TArray<{Arg.DefCppType()}> {Arg.Name};\n");
-				}
-
-				// We wrap these in a `TWriteBarrier` so that we can have an easy way to mark these values for GC purposes.
-				if (NumImmediateArgs > 0)
-				{
-					S.Append("    // Immediate arguments.\n");
-				}
-				for (int CurrentIndex = 0; CurrentIndex < NumImmediateArgs; ++CurrentIndex)
-				{
-					Argument Arg = Inst.Args[ImmediateArgsIndices[CurrentIndex]];
-					if (Arg.Arity == Arity.Variadic)
+					switch (Const.Arity)
 					{
-						throw new ArgumentException("Variadic immediate arguments are not currently supported!");
+						case Arity.Fixed:
+							S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
+							break;
+						case Arity.Optional:
+							S.Append($"    TOptional<{Const.Type.ToCpp()}> {Const.Name};\n");
+							break;
+						case Arity.Variadic:
+							S.Append($"    TOperandRange<{Const.Type.ToCpp()}> {Const.Name};\n");
+							break;
 					}
-					S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
 				}
-				S.Append("\n");  // For readability.
+				S.Append('\n');
+
 				S.Append($"    static constexpr EOpcode StaticOpcode = EOpcode::{Inst.Name};\n");
 				S.Append($"    static constexpr bool bHasJumps = {Inst._Jumps.ToCpp()};\n\n");
 
 				// Constructor
-				S.Append($"    {Inst.CppName}(");
-				string ArgumentsList = string.Join(", ", Inst.Args.Select(Arg =>
+				bool bWriteBarrier = Inst.Args.Any(Arg => Arg.Role == Role.Immediate && Arg.Arity != Arity.Variadic);
+				IEnumerable<string> Context = bWriteBarrier ? Extensions.Yield("FAccessContext Context") : Enumerable.Empty<string>();
+				IEnumerable<string> Operands = Inst.Args.Select(Arg =>
+				{
+					switch (Arg.Arity)
 					{
-						// Prefix with `In` to avoid any shadowing issues.
-						if (Arg.Role == Role.Immediate)
-						{
-							// TODO: Support variadic immediate arguments.
-							return $"TWriteBarrier<{Arg.DefCppType()}>&& In{Arg.Name}";
-						}
-						else if (Arg.Arity == Arity.Variadic)
-						{
-							return $"TArray<{Arg.DefCppType()}>&& In{Arg.Name}";
-						}
-						else
-						{
-							return $"const {Arg.DefCppType()} In{Arg.Name}";
-						}
-					}));
-				S.Append(ArgumentsList);
-				string ConstantsList = string.Join(", ", Inst.Consts.Select(Const => $"{Const.Type.ToCpp()} {Const.Name}"));
-				S.Append(ConstantsList);
-				S.Append(")\n");
+						case Arity.Fixed:
+						case Arity.Optional:
+							if (Arg.Role == Role.Immediate)
+							{
+								if (Arg.CppTypeName == "VValue")
+								{
+									return $"VValue {Arg.Name}";
+								}
+								else if (Arg.Arity == Arity.Fixed)
+								{
+									return $"{Arg.DefCppType()}& {Arg.Name}";
+								}
+								else
+								{
+									return $"{Arg.DefCppType()}* {Arg.Name}";
+								}
+							}
+							else
+							{
+								return $"{Arg.DefCppType()} {Arg.Name}";
+							}
+						case Arity.Variadic:
+							if (Arg.Role == Role.Immediate)
+							{
+								return $"TOperandRange<TWriteBarrier<{Arg.DefCppType()}>> {Arg.Name}";
+							}
+							else
+							{
+								return $"TOperandRange<{Arg.DefCppType()}> {Arg.Name}";
+							}
+						default:
+							return "UnknownArity";
+					}
+				});
+				IEnumerable<string> Constants = Inst.Consts.Select(Const =>
+				{
+					switch (Const.Arity)
+					{
+						case Arity.Fixed:
+							return $"{Const.Type.ToCpp()} {Const.Name}";
+						case Arity.Optional:
+							return $"TOptional<{Const.Type.ToCpp()}> {Const.Name}";
+						case Arity.Variadic:
+							return $"TOperandRange<{Const.Type.ToCpp()}> {Const.Name}";
+						default:
+							return "UnknownArity";
+					}
+				});
+				S.Append($"    {Inst.CppName}({String.Join(", ", Context.Concat(Operands).Concat(Constants))})\n");
 				S.Append("        : FOp(StaticOpcode)\n");
 				foreach (Argument Arg in Inst.Args)
 				{
-					// The order here has to match because C++ initializer order must match the order of the fields.
-					if (Arg.Arity == Arity.Variadic || Arg.Role == Role.Immediate)
-					{
-						continue;
-					}
-					S.Append($"        , {Arg.Name}(In{Arg.Name})\n");
+					string ContextString = (Arg.Role == Role.Immediate && Arg.Arity != Arity.Variadic) ? "Context, " : "";
+					S.Append($"        , {Arg.Name}({ContextString}{Arg.Name})\n");
 				}
 				foreach (Constant Const in Inst.Consts)
 				{
 					S.Append($"        , {Const.Name}({Const.Name})\n");
 				}
-				for (int CurrentIndex = 0; CurrentIndex < NumVariadicArgs; ++CurrentIndex)
-				{
-					Argument Arg = Inst.Args[VariadicArgsIndices[CurrentIndex]];
-					S.Append($"        , {Arg.Name}(In{Arg.Name})\n");
-				}
-				for (int CurrentIndex = 0; CurrentIndex < NumImmediateArgs; ++CurrentIndex)
-				{
-					Argument Arg = Inst.Args[ImmediateArgsIndices[CurrentIndex]];
-					S.Append($"        , {Arg.Name}(In{Arg.Name})\n");
-				}
-				
 				S.Append("    {}\n\n");
 
 				// Reflection methods 
-				S.Append(EmitReflectionMethods(Inst, false));
+				EmitReflectionMethods(S, Inst, false);
+				S.Append('\n');
+
 				S.Append("    template <typename FunctionType>\n");
-				S.Append("    FORCEINLINE void ForEachJump(FunctionType Function) const\n");
+				S.Append("    void ForEachJump(FunctionType&& Function)\n");
 				S.Append("    {\n");
 				foreach (Constant Const in Inst.Consts.Where(C => C.IsJump()))
 				{
-					S.Append($"        Function({Const.Name});\n");
+					S.Append($"        Function({Const.Name}, TEXT(\"{Const.Name}\"));\n");
 				}
 				S.Append("    }\n");
 
-				S.Append("    template <typename FunctionType>\n");
-				S.Append("    FORCEINLINE void ForEachJumpWithName(FunctionType Function) const\n");
-				S.Append("    {\n");
-				foreach (Constant Const in Inst.Consts.Where(C => C.IsJump()))
-				{
-					S.Append($"        Function({Const.Name}, \"{Const.Name}\");\n");
-				}
-				S.Append("    }\n");
-
-				S.Append("\n};\n");
+				S.Append("};\n");
 				S.Append($"static_assert(alignof({Inst.CppName}) >= 8);\n\n");
 			}
 
 			// Emit captures structs.
 			foreach (Instruction Inst in Instructions.Where(I => I._Suspends))
 			{
-				string Name = Inst.CppCapturesName;
-				S.Append($"struct {Name}");
-				S.Append("\n{\n");
+				S.Append($"struct {Inst.CppCapturesName}\n");
+				S.Append("{\n");
 
 				// Generate the fields.
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.Arity == Arity.Variadic)
+					switch (Arg.Arity)
 					{
-						S.Append($"    TArray<TWriteBarrier<VValue>> {Arg.Name};  // Captured variadic arguments.\n");
-					}
-					else if (Arg.Role == Role.Immediate)
-					{
-						S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};  \n");
-					}
-					else
-					{
-						S.Append($"    TWriteBarrier<VValue> {Arg.Name};  \n");
+						case Arity.Fixed:
+						case Arity.Optional:
+							if (Arg.Role == Role.Immediate)
+							{
+								S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
+							}
+							else
+							{
+								S.Append($"    TWriteBarrier<VValue> {Arg.Name};  \n");
+							}
+							break;
+						case Arity.Variadic:
+							if (Arg.Role == Role.Immediate)
+							{
+								S.Append($"    TArray<TWriteBarrier<{Arg.DefCppType()}>> {Arg.Name};\n");
+							}
+							else
+							{
+								S.Append($"    TArray<TWriteBarrier<VValue>> {Arg.Name};\n");
+							}
+							break;
 					}
 				}
 				if (Inst._CapturesEffectToken)
@@ -476,53 +449,93 @@ namespace UnrealBuildTool
 				{
 					S.Append($"    TWriteBarrier<VValue> ReturnEffectToken;\n");
 				}
-
-				S.Append("\n");
+				foreach (Constant Const in Inst.Consts)
+				{
+					switch (Const.Arity)
+					{
+						case Arity.Fixed:
+							S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
+							break;
+						case Arity.Optional:
+							S.Append($"    TOptional<{Const.Type.ToCpp()}> {Const.Name};\n");
+							break;
+						case Arity.Variadic:
+							S.Append($"    TOperandRange<{Const.Type.ToCpp()}> {Const.Name};\n");
+							break;
+					}
+				}
+				S.Append('\n');
 
 				// Generate the constructor.
 				{
-					S.Append($"    {Name}(FAccessContext Context");
-					foreach (Argument Arg in Inst.Args)
+					IEnumerable<string> Context = Extensions.Yield("FAccessContext Context");
+					IEnumerable<string> Operands = Inst.Args.Select(Arg =>
 					{
-						if (Arg.Arity == Arity.Variadic)
+						switch (Arg.Arity)
 						{
-							S.Append($", TArray<TWriteBarrier<VValue>>&& In{Arg.Name}");
+							case Arity.Fixed:
+							case Arity.Optional:
+								if (Arg.Role == Role.Immediate)
+								{
+									if (Arg.CppTypeName == "VValue")
+									{
+										return $"VValue {Arg.Name}";
+									}
+									else if (Arg.Arity == Arity.Fixed)
+									{
+										return $"{Arg.DefCppType()}& {Arg.Name}";
+									}
+									else
+									{
+										return $"{Arg.DefCppType()}* {Arg.Name}";
+									}
+								}
+								else
+								{
+									return $"VValue {Arg.Name}";
+								}
+							case Arity.Variadic:
+								if (Arg.Role == Role.Immediate)
+								{
+									return $"TArray<TWriteBarrier<{Arg.DefCppType()}>>&& {Arg.Name}";
+								}
+								else
+								{
+									return $"TArray<TWriteBarrier<VValue>>&& {Arg.Name}";
+								}
+							default:
+								return $"UnknownArity {Arg.Name}";
 						}
-						else if (Arg.Role == Role.Immediate)
-						{
-							S.Append($", const TWriteBarrier<{Arg.DefCppType()}>& In{Arg.Name}");
-						}
-						else
-						{
-							S.Append($", VValue In{Arg.Name}");
-						}
-					}
-					if (Inst._CapturesEffectToken)
+					});
+					IEnumerable<string> EffectToken = Inst._CapturesEffectToken ? Extensions.Yield("VValue EffectToken") : Enumerable.Empty<string>();
+					IEnumerable<string> ReturnEffectToken = Inst._CreatesNewReturnEffectToken ? Extensions.Yield("VValue ReturnEffectToken") : Enumerable.Empty<string>();
+					IEnumerable<string> Constants = Inst.Consts.Select(Const =>
 					{
-						S.Append(", VValue EffectToken");
-					}
-					if (Inst._CreatesNewReturnEffectToken)
-					{
-						S.Append(", VValue ReturnEffectToken");
-					}
-					S.Append(")\n");
+						switch (Const.Arity)
+						{
+							case Arity.Fixed:
+								return $"{Const.Type.ToCpp()} {Const.Name}";
+							case Arity.Optional:
+								return $"TOptional<{Const.Type.ToCpp()}> {Const.Name}";
+							case Arity.Variadic:
+								return $"TOperandRange<{Const.Type.ToCpp()}> {Const.Name}";
+							default:
+								return $"UnknownArity {Const.Name}";
+						}
+					});
+					S.Append($"    {Inst.CppCapturesName}({String.Join(", ", Context.Concat(Operands).Concat(EffectToken).Concat(ReturnEffectToken).Concat(Constants))})\n");
 					string Prefix = ":";
 					foreach (Argument Arg in Inst.Args)
 					{
-						if (Arg.Arity == Arity.Variadic)
+						switch (Arg.Arity)
 						{
-							S.Append($"        {Prefix} {Arg.Name}(MoveTemp(In{Arg.Name}))\n");
-						}
-						else
-						{
-							if (Arg.Role == Role.Immediate)
-							{
-								S.Append($"        {Prefix} {Arg.Name}(In{Arg.Name})\n");
-							}
-							else
-							{
-								S.Append($"        {Prefix} {Arg.Name}(Context, In{Arg.Name})\n");
-							}
+							case Arity.Fixed:
+							case Arity.Optional:
+								S.Append($"        {Prefix} {Arg.Name}(Context, {Arg.Name})\n");
+								break;
+							case Arity.Variadic:
+								S.Append($"        {Prefix} {Arg.Name}(MoveTemp({Arg.Name}))\n");
+								break;
 						}
 						Prefix = ",";
 					}
@@ -536,55 +549,82 @@ namespace UnrealBuildTool
 						S.Append($"        {Prefix} ReturnEffectToken(Context, ReturnEffectToken)\n");
 						Prefix = ",";
 					}
+					foreach (Constant Const in Inst.Consts)
+					{
+						S.Append($"        {Prefix} {Const.Name}({Const.Name})\n");
+						Prefix = ",";
+					}
 					S.Append("    {}\n");
 				}
-
-				S.Append("\n");
+				S.Append('\n');
 
 				// Generate the copy constructor.
 				{
-					S.Append($"    {Name}(FAccessContext Context, const {Name}& Other)\n");
+					S.Append($"    {Inst.CppCapturesName}(FAccessContext Context, const {Inst.CppCapturesName}& Other)\n");
 					string Prefix = ":";
 					foreach (Argument Arg in Inst.Args)
 					{
-						if (Arg.Arity == Arity.Variadic)
+						switch (Arg.Arity)
 						{
-							S.Append($"        {Prefix} {Arg.Name}(Other.{Arg.Name})\n");
-						}
-						else
-						{
-							if (Arg.Role == Role.Immediate)
-							{
-								S.Append($"        {Prefix} {Arg.Name}(Other.{Arg.Name})\n");
-							}
-							else
-							{
+							case Arity.Fixed:
+							case Arity.Optional:
 								S.Append($"        {Prefix} {Arg.Name}(Context, Other.{Arg.Name}.Get())\n");
-							}
+								break;
+							case Arity.Variadic:
+								S.Append($"        {Prefix} {Arg.Name}(Other.{Arg.Name})\n");
+								break;
 						}
 						Prefix = ",";
 					}
 					if (Inst._CapturesEffectToken)
 					{
 						S.Append($"        {Prefix} EffectToken(Context, Other.EffectToken.Get())\n");
-						Prefix = ", ";
+						Prefix = ",";
 					}
 					if (Inst._CreatesNewReturnEffectToken)
 					{
 						S.Append($"        {Prefix} ReturnEffectToken(Context, Other.ReturnEffectToken.Get())\n");
-						Prefix = ", ";
+						Prefix = ",";
 					}
-					S.Append("    {\n    }\n");
+					foreach (Constant Const in Inst.Consts)
+					{
+						S.Append($"        {Prefix} {Const.Name}(Other.{Const.Name})\n");
+						Prefix = ",";
+					}
+					S.Append("    {}\n");
 				}
+				S.Append('\n');
 
-				S.Append("\n");
-				S.Append(EmitReflectionMethods(Inst, true));
+				EmitReflectionMethods(S, Inst, true);
 				S.Append("};\n\n");
 			}
 
 			S.Append("} // namespace Verse\n");
 
 			return S.ToString();
+		}
+
+		void EmitReflectionMethods(StringBuilder S, Instruction Inst, bool bIsSuspensionCapture)
+		{
+			S.Append("    template <typename FunctionType>\n");
+			S.Append("    void ForEachOperand(FunctionType&& Function)\n");
+			S.Append("    {\n");
+			foreach (Argument Arg in Inst.Args)
+			{
+				S.Append($"        Function({Arg.Role.ToCpp()}, {Arg.Name}, TEXT(\"{Arg.Name}\"));\n");
+			}
+			if (bIsSuspensionCapture)
+			{
+				if (Inst._CapturesEffectToken)
+				{
+					S.Append($"        Function({Role.Use.ToCpp()}, EffectToken, TEXT(\"EffectToken\"));\n");
+				}
+				if (Inst._CreatesNewReturnEffectToken)
+				{
+					S.Append($"        Function({Role.UnifyDef.ToCpp()}, ReturnEffectToken, TEXT(\"ReturnEffectToken\"));\n");
+				}
+			}
+			S.Append("    }\n");
 		}
 
 		string EmitMakeCapturesFunctions()
@@ -594,42 +634,62 @@ namespace UnrealBuildTool
 
 			foreach (Instruction Inst in Instructions.Where(I => I._Suspends))
 			{
-				S.Append($"FORCEINLINE {Inst.CppCapturesName} MakeCaptures(const {Inst.CppName}& Op)\n{{\n");
+				S.Append($"FORCEINLINE {Inst.CppCapturesName} MakeCaptures({Inst.CppName}& Op)\n{{\n");
 
 				if (Inst._CapturesEffectToken)
 				{
-					S.Append("    const VValue IncomingEffectToken = EffectToken.Get(Context);\n");
+					S.Append("    VValue IncomingEffectToken = EffectToken.Get(Context);\n");
 				}
 				if (Inst._CreatesNewReturnEffectToken)
 				{
-					S.Append("    const VValue ReturnEffectToken = VValue::Placeholder(VPlaceholder::New(Context, 0));\n");
+					S.Append("    VValue ReturnEffectToken = VValue::Placeholder(VPlaceholder::New(Context, 0));\n");
 					S.Append("    EffectToken.Set(Context, ReturnEffectToken);\n");
 				}
-				foreach (Argument Arg in Inst.Args)
+				foreach (Argument Arg in Inst.Args.Where(A => A.Arity == Arity.Variadic))
 				{
-					if (Arg.Arity == Arity.Variadic)
+					if (Arg.Role == Role.Immediate)
+					{
+						S.Append($"    TArray<TWriteBarrier<{Arg.DefCppType()}>> Array{Arg.Name};\n");
+						S.Append($"    for (auto& CurrentValue : GetOperands(Op.{Arg.Name}))\n");
+						S.Append($"    {{\n");
+						S.Append($"        Array{Arg.Name}.Add({{Context, *CurrentValue}});\n");
+						S.Append($"    }}\n");
+					}
+					else
 					{
 						S.Append($"    TArray<TWriteBarrier<VValue>> Array{Arg.Name};\n");
-						S.Append($"    for (auto& CurrentValue : Op.{Arg.Name})\n");
-						S.Append("    {\n");
+						S.Append($"    for (auto& CurrentValue : GetOperands(Op.{Arg.Name}))\n");
+						S.Append($"    {{\n");
 						S.Append($"        Array{Arg.Name}.Add({{Context, GetOperand(CurrentValue)}});\n");
-						S.Append("    }\n");
+						S.Append($"    }}\n");
 					}
 				}
 				S.Append($"    return {Inst.CppCapturesName}(Context");
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.Arity == Arity.Variadic)
+					switch (Arg.Arity)
 					{
-						S.Append($", MoveTemp(Array{Arg.Name})");
-					}
-					else if (Arg.Role == Role.Immediate)
-					{
-						S.Append($", Op.{Arg.Name}");
-					}
-					else
-					{
-						S.Append($", GetOperand(Op.{Arg.Name})");
+						case Arity.Fixed:
+						case Arity.Optional:
+							if (Arg.Role == Role.Immediate)
+							{
+								if (Arg.CppTypeName == "VValue")
+								{
+									S.Append($", Op.{Arg.Name}.Get()");
+								}
+								else
+								{
+									S.Append($", *Op.{Arg.Name}");
+								}
+							}
+							else
+							{
+								S.Append($", GetOperand(Op.{Arg.Name})");
+							}
+							break;
+						case Arity.Variadic:
+							S.Append($", MoveTemp(Array{Arg.Name})");
+							break;
 					}
 				}
 				if (Inst._CapturesEffectToken)
@@ -639,6 +699,10 @@ namespace UnrealBuildTool
 				if (Inst._CreatesNewReturnEffectToken)
 				{
 					S.Append(", ReturnEffectToken");
+				}
+				foreach (Constant Const in Inst.Consts)
+				{
+					S.Append($", Op.{Const.Name}");
 				}
 				S.Append(");\n");
 
@@ -752,6 +816,12 @@ namespace UnrealBuildTool
 
 			Inst("Jump")
 				.Jump("JumpOffset");
+			Inst("JumpIfInitialized")
+				.Arg("Source", Role.Use)
+				.Jump("JumpOffset");
+			Inst("Switch")
+				.Arg("Which", Role.Use)
+				.Jump("JumpOffsets", Arity.Variadic);
 
 			// These labels are needed for lenient execution.
 			// On success, EndFailureContext falls through.
@@ -763,6 +833,21 @@ namespace UnrealBuildTool
 			Inst("EndFailureContext")
 				.Jump("Done");
 
+			Inst("BeginTask")
+				.Arg("Dest", Role.UnifyDef)
+				.Const("bAttached", CppType.Bool)
+				.Jump("OnYield");
+			Inst("EndTask")
+				.Arg("Write", Role.ClobberDef, Arity.Optional)
+				.Arg("Signal", Role.Use, Arity.Optional)
+				.Arg("Value", Role.Use);
+
+			Inst("NewSemaphore")
+				.Arg("Dest", Role.UnifyDef);
+			Inst("WaitSemaphore")
+				.Arg("Source", Role.Use)
+				.Const("Count", CppType.Int);
+
 			Inst("Call")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Callee", Role.Use)
@@ -771,8 +856,19 @@ namespace UnrealBuildTool
 				.CreatesNewReturnEffectToken()
 				.Suspends();
 
+			Inst("CallNamed")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Callee", Role.Use)
+				.Arg("Arguments", Role.Use, Arity.Variadic)
+				.Arg("NamedArguments", Role.Immediate, Arity.Variadic, "VUniqueString")
+				.Arg("NamedArgumentVals", Role.Use, Arity.Variadic)
+				.CapturesEffectToken()
+				.CreatesNewReturnEffectToken()
+				.Suspends();
+
 			Inst("Return")
 				.Arg("Value", Role.Use);
+			Inst("ResumeUnwind");
 
 			Inst("NewVar")
 				.Arg("Dest", Role.UnifyDef);
@@ -804,7 +900,7 @@ namespace UnrealBuildTool
 				.Arg("Container", Role.Use)
 				.Suspends();
 
-			Inst("IndexSet")
+			Inst("CallSet")
 				.Arg("Container", Role.Use)
 				.Arg("Index", Role.Use)
 				.Arg("ValueToSet", Role.Use)
@@ -829,6 +925,7 @@ namespace UnrealBuildTool
 			Inst("ArrayAdd")
 				.Arg("Container", Role.Use)
 				.Arg("ValueToAdd", Role.Use)
+				.CapturesEffectToken()
 				.Suspends();
 
 			// This in place converts a VMutableArray into a VArray.
@@ -864,8 +961,14 @@ namespace UnrealBuildTool
 
 			Inst("NewClass")
 				.Arg("Dest", Role.UnifyDef)
-				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
+				.Arg("Package", Role.Immediate, Arity.Fixed, "VPackage")
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VArray")
+				.Arg("UEMangledName", Role.Immediate, Arity.Fixed, "VArray")
+				.Arg("ImportStruct", Role.Immediate, Arity.Optional, "VValue")
+				.Const("bNative", CppType.Bool)
+				.Const("ClassKind", CppType.ClassKind)
 				.Arg("Inherited", Role.Use, Arity.Variadic)
+				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
 				.Suspends();
 
 			Inst("NewObject")
@@ -881,10 +984,25 @@ namespace UnrealBuildTool
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
 				.Suspends();
 
+			Inst("LoadFieldFromSuper")
+				.Arg("Dest", Role.UnifyDef)
+				// This is used to store `(super:)` and in the future, anything else that a generic lambda capture would encompass.
+				.Arg("Scope", Role.Use)
+				.Arg("Self", Role.Use)
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
+				.Suspends();
+
 			Inst("UnifyField")
 				.Arg("Object", Role.Use)
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
 				.Arg("Value", Role.Use)
+				.Suspends();
+
+			Inst("SetField")
+				.Arg("Object", Role.Use)
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
+				.Arg("Value", Role.Use)
+				.CapturesEffectToken()
 				.Suspends();
 
 			string[] ComparisonOps =

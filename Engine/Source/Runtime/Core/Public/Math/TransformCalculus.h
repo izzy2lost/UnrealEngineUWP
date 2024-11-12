@@ -417,7 +417,7 @@ inline VectorType TransformVector(const TransformType& Transform, const VectorTy
  * @param RHS Scale that goes from space B to space C.
  * @return a new Scale representing the transformation from the input space of LHS to the output space of RHS.
  */
-template<typename FloatType, TEMPLATE_REQUIRES(TIsFloatingPoint<FloatType>::Value)>
+template<typename FloatType UE_REQUIRES(std::is_floating_point_v<FloatType>)>
 inline FloatType Concatenate(FloatType LHS, FloatType RHS)
 {
 	return LHS * RHS;
@@ -430,7 +430,7 @@ inline FloatType Concatenate(FloatType LHS, FloatType RHS)
  * @param Transform Input transform from space A to space B.
  * @return Inverted transform from space B to space A.
  */
-template<typename FloatType, TEMPLATE_REQUIRES(TIsFloatingPoint<FloatType>::Value)>
+template<typename FloatType UE_REQUIRES(std::is_floating_point_v<FloatType>)>
 inline FloatType Inverse(FloatType Scale)
 {
 	return 1.0f / Scale;

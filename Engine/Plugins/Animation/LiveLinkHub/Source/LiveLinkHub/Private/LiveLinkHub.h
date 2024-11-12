@@ -49,8 +49,13 @@ public:
 	//~ End ILiveLinkHub interface
 
 public:
-	/** Launch the slate application and initialize its components. */
-	void Initialize();
+	/** First phase initialization; must precede FEngineLoop::Init(). */
+	void Preinitialize(class FLiveLinkHubTicker& Ticker);
+	/** 
+	 * Launch the slate application and initialize its components. 
+	 * @param bLauncherDistribution Whether the hub should be initialized as a launcher distributed LiveLinkHub.
+	 */
+	void Initialize(bool bLauncherDistribution);
 	/** Tick the hub. */
 	void Tick();
 	/** Get the root window that hosts the hub's slate application. */
@@ -75,14 +80,15 @@ private:
 	void OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticDataStruct) const;
 	void OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameDataStruct) const;
 	void OnSubjectMarkedPendingKill_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const;
-	void OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey) const;
 	//~ LiveLink Client delegates
 
 	/** Bind all available live link hub commands. */
 	void BindCommands();
 
-	/** Clear all client settings. */
-	FName GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const;
+	/** Register settings relevant to the livelink hub. */
+	void RegisterLiveLinkHubSettings();
+	/** Unregister settings relevant to the livelink hub. */
+	void UnregisterLiveLinkHubSettings();
 
 	/** Create a new config. */
 	void NewConfig();

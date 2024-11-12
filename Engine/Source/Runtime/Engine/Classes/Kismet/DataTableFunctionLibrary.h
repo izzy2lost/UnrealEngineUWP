@@ -9,7 +9,6 @@
 #include "UObject/ScriptMacros.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Engine/DataTable.h"
-#include "UObject/Class.h" // for FStructUtils
 #include "Blueprint/BlueprintExceptionInfo.h"
 #include "DataTableFunctionLibrary.generated.h"
 
@@ -79,62 +78,8 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
     /** Get a Row from a DataTable given a RowName */
     UFUNCTION(BlueprintCallable, CustomThunk, Category = "DataTable", meta=(CustomStructureParam = "OutRow", BlueprintInternalUseOnly="true"))
     static ENGINE_API bool GetDataTableRowFromName(UDataTable* Table, FName RowName, FTableRowBase& OutRow);
-    
 	static ENGINE_API bool Generic_GetDataTableRowFromName(const UDataTable* Table, FName RowName, void* OutRowPtr);
-
-    /** Based on UDataTableFunctionLibrary::GetDataTableRow */
-    DECLARE_FUNCTION(execGetDataTableRowFromName)
-    {
-        P_GET_OBJECT(UDataTable, Table);
-        P_GET_PROPERTY(FNameProperty, RowName);
-        
-        Stack.StepCompiledIn<FStructProperty>(NULL);
-        void* OutRowPtr = Stack.MostRecentPropertyAddress;
-
-		P_FINISH;
-		bool bSuccess = false;
-		
-		FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
-		if (!Table)
-		{
-			FBlueprintExceptionInfo ExceptionInfo(
-				EBlueprintExceptionType::AccessViolation,
-				NSLOCTEXT("GetDataTableRow", "MissingTableInput", "Failed to resolve the table input. Be sure the DataTable is valid.")
-			);
-			FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
-		}
-		else if(StructProp && OutRowPtr)
-		{
-			UScriptStruct* OutputType = StructProp->Struct;
-			const UScriptStruct* TableType  = Table->GetRowStruct();
-		
-			const bool bCompatible = (OutputType == TableType) || 
-				(OutputType->IsChildOf(TableType) && FStructUtils::TheSameLayout(OutputType, TableType));
-			if (bCompatible)
-			{
-				P_NATIVE_BEGIN;
-				bSuccess = Generic_GetDataTableRowFromName(Table, RowName, OutRowPtr);
-				P_NATIVE_END;
-			}
-			else
-			{
-				FBlueprintExceptionInfo ExceptionInfo(
-					EBlueprintExceptionType::AccessViolation,
-					NSLOCTEXT("GetDataTableRow", "IncompatibleProperty", "Incompatible output parameter; the data table's type is not the same as the return type.")
-					);
-				FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
-			}
-		}
-		else
-		{
-			FBlueprintExceptionInfo ExceptionInfo(
-				EBlueprintExceptionType::AccessViolation,
-				NSLOCTEXT("GetDataTableRow", "MissingOutputProperty", "Failed to resolve the output parameter for GetDataTableRow.")
-			);
-			FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
-		}
-		*(bool*)RESULT_PARAM = bSuccess;
-    }
+	DECLARE_FUNCTION(execGetDataTableRowFromName);
 
 #if WITH_EDITOR
 	/** 
@@ -209,5 +154,9 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
     UFUNCTION(BlueprintCallable, CustomThunk, Category = "Editor Scripting | DataTable", meta=(AutoCreateRefTerm="RowName", CustomStructureParam="RowData"))
 	static ENGINE_API void AddDataTableRow(UDataTable* const DataTable, const FName& RowName, const FTableRowBase& RowData);
     DECLARE_FUNCTION(execAddDataTableRow);
+
+	/** Removes the row with the provided name from a Data Table. */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", meta = (AutoCreateRefTerm = "RowName"))
+	static ENGINE_API void RemoveDataTableRow(UDataTable* DataTable, const FName& RowName);
 #endif //WITH_EDITOR
 };

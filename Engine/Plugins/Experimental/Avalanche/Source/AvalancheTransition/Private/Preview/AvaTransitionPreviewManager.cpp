@@ -138,7 +138,7 @@ const FAvaTransitionPreviewLevelState* AAvaTransitionPreviewManager::FindExistin
 	FString ShortPackageName = FPackageName::GetShortName(LevelInstanceParams.LongPackageName);
 	if (ShortPackageName.StartsWith(LevelInstanceParams.World->StreamingLevelsPrefix))
 	{
-		ShortPackageName.RightChopInline(LevelInstanceParams.World->StreamingLevelsPrefix.Len(), false);
+		ShortPackageName.RightChopInline(LevelInstanceParams.World->StreamingLevelsPrefix.Len(), EAllowShrinking::No);
 	}
 
 	const FName PackageName = *(FPackageName::GetLongPackagePath(LevelInstanceParams.LongPackageName)

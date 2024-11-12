@@ -407,7 +407,16 @@ void SDetailsSplitter::Construct(const FArguments& InArgs)
 	Splitter = SNew(SSplitter).PhysicalSplitterHandleSize(5.f);
 	
 	GetRowHighlightColor = InArgs._RowHighlightColor.IsBound() ? InArgs._RowHighlightColor : FRowHighlightColor::CreateStatic(
-		[](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&) {return FLinearColor(0.f, 1.f, 1.f, .7f);});
+		[](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&)
+		{
+			return FLinearColor(0.f, 1.f, 1.f, .7f);
+		});
+
+	GetShouldHighlightRow = InArgs._ShouldHighlightRow.IsBound() ? InArgs._ShouldHighlightRow : FShouldHighlightRow::CreateStatic(
+		[](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode)
+		{
+			return DiffNode->DiffResult != ETreeDiffResult::Identical;
+		});
 	
 	for(const FSlot::FSlotArguments& SlotArgs : InArgs._Slots)
 	{
@@ -432,7 +441,7 @@ void SDetailsSplitter::AddSlot(const FSlot::FSlotArguments& SlotArgs, int32 Inde
 	[
 		SNew(SBox).Padding(15.f,0.f, 15.f,0.f)
 		[
-			SlotArgs._DetailsView.ToSharedRef()
+			SlotArgs._DetailsView ? SlotArgs._DetailsView.ToSharedRef() : SNullWidget::NullWidget
 		]
 	];
 	Panels.Insert({
@@ -534,7 +543,7 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 	for (int32 LeftIndex = 0; LeftIndex < Panels.Num(); ++LeftIndex)
 	{
 		const FPanel& LeftPanel = Panels[LeftIndex];
-		if (!LeftPanel.DiffRight.IsBound())
+		if (!LeftPanel.DiffRight.IsSet())
 		{
 			continue;
 		}
@@ -549,6 +558,7 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 			
 			Diff->ForEachRow([&](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode, int32, int32)->ETreeTraverseControl
 			{
+				const bool bShouldHighlightRow = GetShouldHighlightRow.Execute(DiffNode);
 				const FLinearColor Color = GetRowHighlightColor.Execute(DiffNode);
 				
 				FSlateRect LeftPropertyRect;
@@ -564,7 +574,7 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 					LeftPropertyRect = PrevLeftPropertyRect;
 					LeftPropertyRect.Top = LeftPropertyRect.Bottom;
 				}
-				if (LeftPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
+				if (LeftPropertyRect.IsValid() && bShouldHighlightRow)
 				{
 					if (!LeftPanel.ShouldIgnoreRow.Execute(DiffNode->ValueA))
 					{
@@ -589,15 +599,15 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 						RightPropertyRect = PrevRightPropertyRect;
 						RightPropertyRect.Top = RightPropertyRect.Bottom;
 					}
-					if (RightPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
+					if (RightPropertyRect.IsValid() && bShouldHighlightRow)
 					{
 						if (!RightPanel.ShouldIgnoreRow.Execute(DiffNode->ValueB))
 						{
 							RowHighlights.Add(RightPropertyRect, Color);
 						}
 					}
-					
-					if (LeftPropertyRect.IsValid() && RightPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
+
+					if (LeftPropertyRect.IsValid() && RightPropertyRect.IsValid() && bShouldHighlightRow)
 					{
 						if (!LeftPanel.ShouldIgnoreRow.Execute(DiffNode->ValueA) && !RightPanel.ShouldIgnoreRow.Execute(DiffNode->ValueB))
 						{
@@ -668,7 +678,7 @@ FReply SDetailsSplitter::OnMouseMove(const FGeometry& MyGeometry, const FPointer
 	for (int32 LeftIndex = 0; LeftIndex < Panels.Num() - 1; ++LeftIndex)
 	{
 		const FPanel& LeftPanel = Panels[LeftIndex];
-		if (!LeftPanel.DiffRight.IsBound())
+		if (!LeftPanel.DiffRight.IsSet())
 		{
 			continue;
 		}

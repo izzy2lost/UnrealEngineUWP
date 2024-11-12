@@ -265,7 +265,7 @@ void URemeshMeshTool::UpdateVisualization()
 {
 	if (BasicProperties->bShowGroupColors)
 	{
-		Preview->OverrideMaterial = ToolSetupUtil::GetSelectionMaterial(GetToolManager());
+		Preview->OverrideMaterial = ToolSetupUtil::GetVertexColorMaterial(GetToolManager());
 		Preview->PreviewMesh->SetTriangleColorFunction([this](const FDynamicMesh3* Mesh, int TriangleID)
 		{
 			return LinearColors::SelectFColor(Mesh->GetTriangleGroup(TriangleID));

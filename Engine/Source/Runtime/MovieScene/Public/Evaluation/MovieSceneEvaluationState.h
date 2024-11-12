@@ -22,13 +22,10 @@
 #include "Templates/UnrealTypeTraits.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
-#include "ILocatorSpawnedCache.h"
 
 class IMovieScenePlayer;
 class UMovieSceneSequence;
 class UObject;
-struct FMovieSceneDynamicBinding;
-struct FMovieSceneDynamicBindingResolveParams;
 struct FMovieSceneEvaluationKey;
 struct FMovieSceneObjectBindingID;
 struct FSharedPersistentDataKey;
@@ -73,34 +70,10 @@ namespace UE::MovieScene
 
 }  // namespace UE::MovieScene
 
-struct FMovieSceneLocatorSpawnedCacheKey
-{
-	bool IsValid() const { return BindingID.IsValid() && BindingIndex != INDEX_NONE; }
-	void Reset() { BindingID = FGuid(); BindingIndex = INDEX_NONE; }
-
-	friend uint32 GetTypeHash(const FMovieSceneLocatorSpawnedCacheKey& A)
-	{
-		return GetTypeHash(A.BindingID) ^ GetTypeHash(A.BindingIndex);
-	}
-
-	friend bool operator==(const FMovieSceneLocatorSpawnedCacheKey& A, const FMovieSceneLocatorSpawnedCacheKey& B)
-	{
-		return A.BindingID == B.BindingID && A.BindingIndex == B.BindingIndex;
-	}
-
-	friend bool operator!=(const FMovieSceneLocatorSpawnedCacheKey& A, const FMovieSceneLocatorSpawnedCacheKey& B)
-	{
-		return A.BindingID != B.BindingID || A.BindingIndex != B.BindingIndex;
-	}
-
-	FGuid BindingID = FGuid();
-	int32 BindingIndex = INDEX_NONE;
-};
-
 /**
  * Object cache that looks up, resolves, and caches object bindings for a specific sequence
  */
-struct FMovieSceneObjectCache : public UE::UniversalObjectLocator::ILocatorSpawnedCache
+struct FMovieSceneObjectCache
 {
 	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
 
@@ -219,18 +192,6 @@ struct FMovieSceneObjectCache : public UE::UniversalObjectLocator::ILocatorSpawn
 	 * @param OutBindings			(mandatory) Array to populate with bindings that relate to the object
 	 */
 	void FilterObjectBindings(UObject* PredicateObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<FMovieSceneObjectBindingID>* OutBindings);
-	
-	/* ILocatorSpawnedCache Implementation */
-	MOVIESCENE_API UObject* FindExistingObject() override;
-	MOVIESCENE_API FName GetRequestedObjectName() override;
-	MOVIESCENE_API void ReportSpawnedObject(UObject* Object) override;
-	MOVIESCENE_API void SpawnedObjectDestroyed() override;
-	
-	FMovieSceneLocatorSpawnedCacheKey GetResolvingBindingCacheKey() const { return CurrentlyResolvingCacheKey; }
-	void SetResolvingBindingCacheKey(const FMovieSceneLocatorSpawnedCacheKey& InCacheKey) { CurrentlyResolvingCacheKey = InCacheKey; }
-	void ClearResolvingBindingCacheKey() { CurrentlyResolvingCacheKey.Reset(); }
-
-	MOVIESCENE_API void UnloadBinding(const FGuid& InBindingID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 public:
 
@@ -253,16 +214,6 @@ private:
 	void UpdateBindings(const FGuid& InGuid, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
-	 * Handles optional dynamic binding for a given object binding.
-	 */
-	bool ResolveDynamicBinding(const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects);
-
-	/**
-	 * Invokes the custom function used to resolve a given dynamic object binding.
-	 */
-	UObject* InvokeDynamicBinding(UObject* DirectorInstance, const FMovieSceneDynamicBinding& DynamicBinding, const FMovieSceneDynamicBindingResolveParams& ResolveParams);
-
-	/**
 	 * Invalidate the object bindings for a specific object binding ID
 	 */
 	bool InvalidateInternal(const FGuid& InGuid);
@@ -276,9 +227,6 @@ private:
 	 * Update the serial number of this instance.
 	 */
 	void UpdateSerialNumber();
-
-	/* Unloads the binding in question in cases where resolving the binding loaded a locator.*/
-	void UnloadBindingInternal(const FMovieSceneLocatorSpawnedCacheKey& CacheKey, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	struct FBoundObjects
 	{
@@ -329,17 +277,10 @@ private:
 	/* A set of inactive binding ids based on Binding Lifetime track. While inactive, these will be prevented from resolving.*/
 	TSet<FGuid> InactiveBindingIds;
 
-	/* A map of binding ids and binding indices that have been loaded by locators. We keep these here and reference them if necessary when resolving objects.*/
-	TMap<FMovieSceneLocatorSpawnedCacheKey, TWeakObjectPtr<>> LoadedBindingIds;
-
 	/** Serial number for this cache */
 	uint32 SerialNumber = 0;
 
 	bool bReentrantUpdate = false;
-
-	// Temporary variable set during a resolve for use by the ILocatorSpawnedCache functions
-	FMovieSceneLocatorSpawnedCacheKey CurrentlyResolvingCacheKey;
-
 };
 
 /**
@@ -372,6 +313,7 @@ struct FMovieSceneEvaluationState : public UE::MovieScene::IPlaybackCapability
 	 * @param InSequence		The sequence to look up
 	 */
 	MOVIESCENE_API FMovieSceneSequenceID FindSequenceId(UMovieSceneSequence* InSequence) const;
+	MOVIESCENE_API FMovieSceneSequenceID FindSequenceId(const UMovieSceneSequence* InSequence) const;
 
 	/**
 	 * Attempt deduce the posessable or spawnable that relates to the specified object
@@ -514,11 +456,6 @@ struct FMovieSceneEvaluationState : public UE::MovieScene::IPlaybackCapability
 	 * Get the serial number for this state.
 	 */
 	MOVIESCENE_API uint32 GetSerialNumber();
-
-	/** 
-	* Returns whether we are currently resolving a locator
-	*/
-	MOVIESCENE_API bool IsResolvingObject() const;
 
 	/** A map of persistent evaluation data mapped by movie scene evaluation entity (i.e, a given track or section) */
 	TMap<FMovieSceneEvaluationKey, TUniquePtr<IPersistentEvaluationData>> PersistentEntityData;

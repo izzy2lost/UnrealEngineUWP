@@ -43,14 +43,17 @@ namespace GLTF
 
 		TArray<float> MorphTargetWeights; //for the instantiated mesh with morph targets.
 
-		FString UniqueId; //will be generated in FAsset::GenerateNames
-
-		TMap<int, FTransform> SkinIndexToGlobalInverseBindTransform;
-		TMap<int, FTransform> SkinIndexToLocalBindPose; //bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
+		TMap<int, FMatrix> SkinIndexToGlobalInverseBindMatrix; //Matrix in glTF space
+		TMap<int, FMatrix> SkinIndexToLocalBindMatrix;	//Matrix in glTF space
+														//bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
 		bool bHasLocalBindPose;
 		FTransform LocalBindPose;	// First Skin that's using the joint will fill the LocalBindPose.
 									//	Edge case Scenario which is currently not supported:
 									//	Where multiple skins use the same Joint. Currently expected bad outcome if the different skins have different inversebindmatrices on the joint.
+
+		TMap<FString, FString> Extras;
+
+		FString UniqueId;
 
 		FNode()
 		    : Type(EType::None)
@@ -92,6 +95,9 @@ namespace GLTF
 		float ZNear;
 		float ZFar;
 		bool  bIsPerspective;
+
+		TMap<FString, FString> Extras;
+
 		FString UniqueId; //will be generated in FAsset::GenerateNames
 
 		FCamera(const FNode& Node)
@@ -150,13 +156,16 @@ namespace GLTF
 		const FAccessor& InverseBindMatrices;
 		FString          Name;
 		TArray<int32>    Joints;    // each is an index into FAsset::Nodes
-		int32            Skeleton;  // root node, index into FAsset::Nodes
+		int32            Skeleton = INDEX_NONE;  // root node, index into FAsset::Nodes
+
+		TMap<FString, FString> Extras;
+
+		bool bUsed = false;
 
 		FString          UniqueId; //will be generated in FAsset::GenerateNames
 
 		FSkinInfo(const FAccessor& InverseBindMatrices)
 		    : InverseBindMatrices(InverseBindMatrices)
-		    , Skeleton(INDEX_NONE)
 		{
 		}
 	};

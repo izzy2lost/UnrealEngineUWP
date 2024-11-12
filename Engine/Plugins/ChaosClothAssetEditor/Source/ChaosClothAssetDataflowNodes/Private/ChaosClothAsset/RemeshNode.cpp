@@ -12,6 +12,7 @@
 #include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/SimulationSelfCollisionSpheresConfigNode.h"
 #include "ChaosClothAsset/SimulationLongRangeAttachmentConfigNode.h"
+#include "ChaosClothAsset/SimulationMaxDistanceConfigNode.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "DynamicMesh/MeshTangents.h"
 #include "DynamicMesh/MeshNormals.h"
@@ -668,7 +669,7 @@ namespace UE::Chaos::ClothAsset::Private
 			const double EdgeLength = (Mesh.GetVertex(EdgeVerts[0]) - Mesh.GetVertex(EdgeVerts[1])).Length();
 			if (EdgeLength < MinLength)
 			{
-				const Private::FEdgeCollapseParameters CollapseParams = Private::GetBoundaryEdgeCollapseParameters(Mesh, Seams, EdgeVerts);
+				const UE::Chaos::ClothAsset::Private::FEdgeCollapseParameters CollapseParams = Private::GetBoundaryEdgeCollapseParameters(Mesh, Seams, EdgeVerts);
 
 				if (CollapseParams.bCanCollapse)
 				{
@@ -834,34 +835,6 @@ namespace UE::Chaos::ClothAsset::Private
 	}
 
 
-	void ProjectTo3D(const UE::Geometry::FDynamicMesh3& Mesh2D,
-		const UE::Geometry::FDynamicMesh3& ProjectionTarget2D,
-		const UE::Geometry::FDynamicMesh3& ProjectionTarget3D,
-		UE::Geometry::FDynamicMesh3& OutMesh3D)
-	{
-		using namespace UE::Geometry;
-
-		OutMesh3D.Copy(Mesh2D);
-
-		TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3> ProjectionTargetSpatial = MakeShared<UE::Geometry::FDynamicMeshAABBTree3>(&ProjectionTarget2D, true);
-
-		for (const int VertexIndex : Mesh2D.VertexIndicesItr())
-		{
-			const FVector3d SrcVert = Mesh2D.GetVertex(VertexIndex);
-
-			double Distance;
-			const int NearestTriangle = ProjectionTargetSpatial->FindNearestTriangle(SrcVert, Distance);
-
-			const FDistPoint3Triangle3d Dist = TMeshQueries<FDynamicMesh3>::TriangleDistance(ProjectionTarget2D, NearestTriangle, SrcVert);
-			const FVector3d Bary = Dist.TriangleBaryCoords;
-			const FVector3d InterpolatedPoint = ProjectionTarget3D.GetTriBaryPoint(NearestTriangle, Bary[0], Bary[1], Bary[2]);
-
-			OutMesh3D.SetVertex(VertexIndex, InterpolatedPoint);
-		}
-	}
-
-
-
 	bool Simplify(UE::Geometry::FDynamicMesh3& Mesh, int TargetVertexCount, bool bCoarsenBoundaries, UE::Geometry::FCompactMaps* CompactMaps = nullptr)
 	{
 		using namespace UE::Geometry;
@@ -949,7 +922,7 @@ namespace UE::Chaos::ClothAsset::Private
 }
 
 
-FChaosClothAssetRemeshNode::FChaosClothAssetRemeshNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetRemeshNode::FChaosClothAssetRemeshNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -1105,21 +1078,21 @@ void FChaosClothAssetRemeshNode::RemeshSimMesh(const TSharedRef<const FManagedAr
 
 	for (int32 ResampleIter = 0; ResampleIter < IterationsSim; ++ResampleIter)
 	{
-		Private::RemeshSeams(Mesh2D, Seams, TargetEdgeLength);
+		UE::Chaos::ClothAsset::Private::RemeshSeams(Mesh2D, Seams, TargetEdgeLength);
 	}
 
 	// Remesh boundaries
 
 	for (int32 ResampleIter = 0; ResampleIter < IterationsSim; ++ResampleIter)
 	{
-		Private::RemeshBoundaries(Mesh2D, Seams, TargetEdgeLength);
+		UE::Chaos::ClothAsset::Private::RemeshBoundaries(Mesh2D, Seams, TargetEdgeLength);
 	}
 
 	// Do the remeshing of the rest of the mesh
 
 	UE::Geometry::FCompactMaps CompactMaps;
 	constexpr bool bUniformSmoothing = true;
-	Private::Remesh(Mesh2D, TargetEdgeLength, IterationsSim, SmoothingSim, bUniformSmoothing, Seams, &CompactMaps);
+	UE::Chaos::ClothAsset::Private::Remesh(Mesh2D, TargetEdgeLength, IterationsSim, SmoothingSim, bUniformSmoothing, Seams, &CompactMaps);
 
 	// Update stitches
 	for (TArray<FIntVector2>& Seam : Seams)
@@ -1136,14 +1109,57 @@ void FChaosClothAssetRemeshNode::RemeshSimMesh(const TSharedRef<const FManagedAr
 
 	// Project the 3D vertices onto the input 3D mesh
 
-	FDynamicMesh3 SourceMesh2D;
-	Converter.Convert(ClothCollection, INDEX_NONE, EClothPatternVertexType::Sim2D, SourceMesh2D);
-	FDynamicMesh3 SourceMesh3D;
-	Converter.Convert(ClothCollection, INDEX_NONE, EClothPatternVertexType::Sim3D, SourceMesh3D);
+	// For each 2D vertex, we will find the closest triangle on the input 2D mesh, then look up that triangle on the input 3D mesh to get the final 3D location.
+	// We will do this pattern-by-pattern to handle issues where the patterns overlap in 2D space.
+
+	const FDynamicMeshPolygroupAttribute* const NewPatternIndexLayer = Mesh2D.Attributes()->GetPolygroupLayer((int)PatternIndexLayerID);
+	check(NewPatternIndexLayer);
 
 	FDynamicMesh3 Mesh3D;
-	Private::ProjectTo3D(Mesh2D, SourceMesh2D, SourceMesh3D, Mesh3D);
+	Mesh3D.Copy(Mesh2D);
 
+	TMap<int32, TSet<int32>> PatternVertexIDs;
+	for (int32 TID : Mesh2D.TriangleIndicesItr())
+	{
+		const int32 PatternID = NewPatternIndexLayer->GetValue(TID);
+		if (!PatternVertexIDs.Contains(PatternID))
+		{
+			PatternVertexIDs.Add(PatternID, TSet<int32>());
+		}
+
+		const FIndex3i Tri = Mesh2D.GetTriangle(TID);
+		PatternVertexIDs[PatternID].Add(Tri[0]);
+		PatternVertexIDs[PatternID].Add(Tri[1]);
+		PatternVertexIDs[PatternID].Add(Tri[2]);
+	}
+
+	for (int32 PatternID = 0; PatternID < InClothFacade.GetNumSimPatterns(); ++PatternID)
+	{
+		if (!PatternVertexIDs.Contains(PatternID))
+		{
+			continue;
+		}
+
+		FDynamicMesh3 ProjectionTarget2D;
+		Converter.Convert(ClothCollection, PatternID, EClothPatternVertexType::Sim2D, ProjectionTarget2D);
+		FDynamicMesh3 ProjectionTarget3D;
+		Converter.Convert(ClothCollection, PatternID, EClothPatternVertexType::Sim3D, ProjectionTarget3D);
+		TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3> ProjectionTargetSpatial = MakeShared<UE::Geometry::FDynamicMeshAABBTree3>(&ProjectionTarget2D, true);
+
+		for (const int32 VID : PatternVertexIDs[PatternID])
+		{
+			const FVector3d SrcVert = Mesh2D.GetVertex(VID);
+
+			double Distance;
+			const int NearestTriangle = ProjectionTargetSpatial->FindNearestTriangle(SrcVert, Distance);
+
+			const FDistPoint3Triangle3d Dist = TMeshQueries<FDynamicMesh3>::TriangleDistance(ProjectionTarget2D, NearestTriangle, SrcVert);
+			const FVector3d Bary = Dist.TriangleBaryCoords;
+			const FVector3d InterpolatedPoint = ProjectionTarget3D.GetTriBaryPoint(NearestTriangle, Bary[0], Bary[1], Bary[2]);
+
+			Mesh3D.SetVertex(VID, InterpolatedPoint);
+		}
+	}
 
 	// Build the output cloth sim mesh
 
@@ -1189,6 +1205,8 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 
 	FCollectionClothConstFacade InClothFacade(InClothCollection);
 	FCollectionClothFacade OutClothFacade(OutClothCollection);
+	FCollectionClothSelectionFacade OutSelectionFacade(OutClothCollection);
+	OutSelectionFacade.DefineSchema();
 
 	// Check that weight maps and skinning info have been interpolated over
 	for (const FName& InWeightMapName : InClothFacade.GetWeightMapNames())
@@ -1206,6 +1224,16 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 	}
 
 	Chaos::Softs::FCollectionPropertyConstFacade InProperties(InClothCollection);
+
+	// Reconstruct KinematicVertexSet
+	const FString MaxDistanceString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationMaxDistanceConfigNode, MaxDistance);
+	const FName KinematicVertices3DName = GET_MEMBER_NAME_CHECKED(FChaosClothAssetSimulationMaxDistanceConfigNode, KinematicVertices3D);
+	if (InProperties.GetKeyIndex(MaxDistanceString) != INDEX_NONE)
+	{
+		const FName MaxDistanceMapName(InProperties.GetStringValue(MaxDistanceString, MaxDistanceString));
+		OutSelectionFacade.FindOrAddSelectionSet(KinematicVertices3DName, ClothCollectionGroup::SimVertices3D) =
+			FClothGeometryTools::GenerateKinematicVertices3D(OutClothCollection, MaxDistanceMapName, InProperties.GetWeightedFloatValue(MaxDistanceString, FVector2f(0.f, 1.f)), NAME_None);
+	}
 
 	// Reconstruct collision spheres
 	const FString SelfCollisionSphereStiffnessString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereStiffness);
@@ -1225,26 +1253,36 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 			TSet<int32> VertexSet;
 			FClothGeometryTools::SampleVertices(SimPositions, CullDiameterSq, VertexSet);
 
-			FCollectionClothSelectionFacade Selection(OutClothCollection);
-			Selection.DefineSchema();
-
 			const FName SelectionSetName(*InProperties.GetStringValue(SelfCollisionSphereSetNameString, SelfCollisionSphereSetNameString));
-			Selection.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
+			OutSelectionFacade.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
 		}
 	}
 
 	// Reconstruct long-range attachments
-	const FString TetherStiffnessString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, TetherStiffness);
-	const FString FixedEndWeightMapString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, FixedEndWeightMap);
-	FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, bUseGeodesicTethers);
-	UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
 
-	if (InProperties.GetKeyIndex(TetherStiffnessString) != INDEX_NONE)
+	// v1 (weight map)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const FString FixedEndWeightMapString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, FixedEndWeightMap);
+	if (InProperties.GetKeyIndex(FixedEndWeightMapString) != INDEX_NONE)
 	{
+		FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, bUseGeodesicTethers);
+		UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
 		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(UseGeodesicTethersString);
 		const FName FixedEndWeightMap(InProperties.GetStringValue(FixedEndWeightMapString));
 
 		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(OutClothCollection, FixedEndWeightMap, bUseGeodesicTethers);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	// v2 (vertex set)
+	const FString FixedEndSetString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2, FixedEndSet);
+	if (InProperties.GetKeyIndex(FixedEndSetString) != INDEX_NONE)
+	{
+		// Regenerate using the Kinematic vertices.
+		FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2, bUseGeodesicTethers);
+		UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
+		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(UseGeodesicTethersString);
+		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethersFromSelectionSet(OutClothCollection, KinematicVertices3DName, bUseGeodesicTethers);
 	}
 }
 
@@ -1301,19 +1339,19 @@ void FChaosClothAssetRemeshNode::RemeshRenderMesh(const TSharedRef<const FManage
 		// Create pseudo-stitches based on boundary vertex proximity. These stitches aren't going to actually weld vertices together, but they will guide boundary remeshing.
 		// The goal is to maintain a vertex pairing along boundaries in order to avoid holes opening up when the mesh deforms due to skinning.
 		TArray<FIntVector2> Stitches;
-		Private::FindCoincidentBoundaryVertices(DynamicMesh, Stitches);
+		UE::Chaos::ClothAsset::Private::FindCoincidentBoundaryVertices(DynamicMesh, Stitches);
 
 		FClothGeometryTools::BuildConnectedSeams(Stitches, DynamicMesh, Seams);
 
 		for (int RemeshPass = 0; RemeshPass < RenderSeamRemeshIterations; ++RemeshPass)
 		{
-			Private::RemeshSeams(DynamicMesh, Seams, TargetEdgeLength);
+			UE::Chaos::ClothAsset::Private::RemeshSeams(DynamicMesh, Seams, TargetEdgeLength);
 		}
 
 		// Also remesh the open boundaries that are not constrained by seams
 		for (int RemeshPass = 0; RemeshPass < RenderSeamRemeshIterations; ++RemeshPass)
 		{
-			Private::RemeshBoundaries(DynamicMesh, Seams, TargetEdgeLength);
+			UE::Chaos::ClothAsset::Private::RemeshBoundaries(DynamicMesh, Seams, TargetEdgeLength);
 		}
 	}
 
@@ -1322,14 +1360,14 @@ void FChaosClothAssetRemeshNode::RemeshRenderMesh(const TSharedRef<const FManage
 	if (RemeshMethodRender == EChaosClothAssetRemeshMethod::Remesh)
 	{
 		constexpr bool bUniformSmoothing = false;	// uniform smoothing can distort the UV layer pretty badly
-		const bool bSuccess = Private::Remesh(DynamicMesh, TargetEdgeLength, IterationsRender, SmoothingRender, bUniformSmoothing, Seams, &CompactMaps);
+		const bool bSuccess = UE::Chaos::ClothAsset::Private::Remesh(DynamicMesh, TargetEdgeLength, IterationsRender, SmoothingRender, bUniformSmoothing, Seams, &CompactMaps);
 		check(bSuccess);
 	}
 	else
 	{
 		const bool bCoarsenBoundariesDuringSimplify = !bRemeshRenderSeams;
 		const int TargetVertexCount = FMath::RoundToInt(static_cast<float>(TargetPercentRender) / 100.0f * static_cast<float>(InputMeshVertexCount));
-		Private::Simplify(DynamicMesh, TargetVertexCount, bCoarsenBoundariesDuringSimplify, &CompactMaps);
+		UE::Chaos::ClothAsset::Private::Simplify(DynamicMesh, TargetVertexCount, bCoarsenBoundariesDuringSimplify, &CompactMaps);
 	}
 
 	// Collect outputs
@@ -1559,7 +1597,7 @@ void FChaosClothAssetRemeshNode::RemeshRenderMesh(const TSharedRef<const FManage
 }
 
 
-void FChaosClothAssetRemeshNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetRemeshNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{

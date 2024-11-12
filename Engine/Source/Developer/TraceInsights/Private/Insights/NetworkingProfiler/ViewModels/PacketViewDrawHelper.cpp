@@ -5,8 +5,10 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/ViewModels/PacketViewport.h"
 #include "Insights/NetworkingProfiler/ViewModels/PacketContentViewDrawHelper.h"
@@ -15,6 +17,9 @@
 #include <limits>
 
 #define INSIGHTS_USE_LEGACY_BORDER 0
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FNetworkPacketAggregatedSample
@@ -112,7 +117,7 @@ void FNetworkPacketSeriesBuilder::SetHighlightEventTypeIndex(int32 EventTypeInde
 FPacketViewDrawHelper::FPacketViewDrawHelper(const FDrawContext& InDrawContext, const FPacketViewport& InViewport)
 	: DrawContext(InDrawContext)
 	, Viewport(InViewport)
-	, WhiteBrush(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+	, WhiteBrush(FAppStyle::Get().GetBrush("WhiteBrush"))
 	//, EventBorderBrush(FInsightsStyle::Get().GetBrush("EventBorder"))
 	, HoveredEventBorderBrush(FInsightsStyle::Get().GetBrush("HoveredEventBorder"))
 	, SelectedEventBorderBrush(FInsightsStyle::Get().GetBrush("SelectedEventBorder"))
@@ -233,7 +238,10 @@ void FPacketViewDrawHelper::DrawCached(const FNetworkPacketSeries& Series) const
 			{
 				DrawContext.DrawBox(X, FilterMatchContentY, SampleW, FilterMatchContentH, WhiteBrush, ColorFilterMatch);
 			}
-
+		}
+		if (Sample.AggregatedStatus == TraceServices::ENetProfilerDeliveryStatus::Dropped)
+		{
+			DrawContext.DrawBox(X + (SampleW/2.f), 0.f, 1.f, Y + H, WhiteBrush, FLinearColor::Red);
 		}
 	}
 
@@ -345,5 +353,7 @@ void FPacketViewDrawHelper::DrawSelection(int32 StartPacketIndex, int32 EndPacke
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef INSIGHTS_USE_LEGACY_BORDER

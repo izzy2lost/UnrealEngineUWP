@@ -115,11 +115,7 @@ namespace EpicGames.Core
 		/// </summary>
 		ManualResetEvent GetEmptyEvent()
 		{
-			ManualResetEvent? emptyEvent = _emptyEvent;
-			if (emptyEvent == null)
-			{
-				throw new ObjectDisposedException(typeof(ThreadPoolWorkQueue).Name);
-			}
+			ManualResetEvent? emptyEvent = _emptyEvent ?? throw new ObjectDisposedException(typeof(ThreadPoolWorkQueue).Name);
 			return emptyEvent;
 		}
 

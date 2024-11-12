@@ -3,6 +3,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncFile.h"
 #include "UnsyncSocket.h"
+#include "UnsyncProtocol.h"
 
 #if UNSYNC_PLATFORM_WINDOWS
 #	include <Windows.h>
@@ -27,6 +28,13 @@
 #include <unordered_set>
 #include <system_error>
 #include <fmt/format.h>
+#if __has_include(<fmt/xchar.h>)
+#	include <fmt/xchar.h>
+#endif
+
+#ifdef __GNUC__
+#	define _strnicmp strncasecmp
+#endif
 
 namespace unsync {
 
@@ -34,17 +42,30 @@ static FBuffer GSystemRootCerts;
 
 static const char G_HEX_CHARS[] = "0123456789abcdef";
 
+template<typename CharT>
 uint64
-BytesToHexChars(char* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
+BytesToHexCharsT(CharT* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
 {
 	const uint64 MaxBytes = std::min(OutputSize / 2, InputSize);
 	for (uint64 I = 0; I < MaxBytes; ++I)
 	{
 		uint8 V			  = Input[I];
-		Output[I * 2 + 0] = G_HEX_CHARS[V >> 4];
-		Output[I * 2 + 1] = G_HEX_CHARS[V & 0xF];
+		Output[I * 2 + 0] = CharT(G_HEX_CHARS[V >> 4]);
+		Output[I * 2 + 1] = CharT(G_HEX_CHARS[V & 0xF]);
 	}
 	return MaxBytes * 2;
+}
+
+uint64
+BytesToHexChars(char* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
+{
+	return BytesToHexCharsT(Output, OutputSize, Input, InputSize);
+}
+
+uint64
+BytesToHexChars(wchar_t* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize)
+{
+	return BytesToHexCharsT(Output, OutputSize, Input, InputSize);
 }
 
 std::string
@@ -62,6 +83,127 @@ BytesToHexString(const uint8* Data, uint64 Size)
 
 	return Result;
 }
+
+
+void
+FormatJsonKeyValueStr(std::wstring& Output, std::wstring_view K, std::wstring_view V, std::wstring_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), L"\"{}\": \"{}\"{}", K, V, Suffix);
+}
+
+void
+FormatJsonKeyValueStr(std::string& Output, std::string_view K, std::string_view V, std::string_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), "\"{}\": \"{}\"{}", K, V, Suffix);
+}
+
+void
+FormatJsonKeyValueUInt(std::wstring& Output, std::wstring_view K, uint64 V, std::wstring_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), L"\"{}\": {}{}", K, V, Suffix);
+}
+
+void
+FormatJsonKeyValueUInt(std::string& Output, std::string_view K, uint64 V, std::string_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), "\"{}\": {}{}", K, V, Suffix);
+}
+
+
+void
+FormatJsonKeyValueBool(std::wstring& Output, std::wstring_view K, bool V, std::wstring_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), L"\"{}\": {}{}", K, V ? L"true" : L"false", Suffix);
+}
+
+void
+FormatJsonKeyValueBool(std::string& Output, std::string_view K, bool V, std::string_view Suffix)
+{
+	fmt::format_to(std::back_inserter(Output), "\"{}\": {}{}", K, V ? "true" : "false", Suffix);
+}
+
+void
+FormatJsonBlock(std::wstring& Output, const FGenericBlock& Block)
+{
+	Output += L"{";
+
+	static const size_t MaxHashLen = 2 * sizeof(Block.HashStrong.Data);
+	wchar_t				HashChars[MaxHashLen];
+
+	uint64			  HashLen = BytesToHexChars(HashChars, MaxHashLen, Block.HashStrong.Data, Block.HashStrong.Size());
+	std::wstring_view HashStr = std::wstring_view(HashChars, HashLen);
+
+	FormatJsonKeyValueUInt(Output, L"offset", Block.Offset, L", ");
+	FormatJsonKeyValueUInt(Output, L"size", Block.Size, L", ");
+	if (Block.HashWeak != 0)
+	{
+		FormatJsonKeyValueUInt(Output, L"hash_weak", Block.HashWeak, L", ");
+	}
+	FormatJsonKeyValueStr(Output, L"hash_strong", HashStr);
+
+	Output += L"}";
+}
+
+void
+FormatJsonBlock(std::string& Output, const FGenericBlock& Block)
+{
+	Output += "{";
+
+	static const size_t MaxHashLen = 2 * sizeof(Block.HashStrong.Data);
+	char				HashChars[MaxHashLen];
+
+	uint64			 HashLen = BytesToHexChars(HashChars, MaxHashLen, Block.HashStrong.Data, Block.HashStrong.Size());
+	std::string_view HashStr = std::string_view(HashChars, HashLen);
+
+	FormatJsonKeyValueUInt(Output, "offset", Block.Offset, ", ");
+	FormatJsonKeyValueUInt(Output, "size", Block.Size, ", ");
+	if (Block.HashWeak != 0)
+	{
+		FormatJsonKeyValueUInt(Output, "hash_weak", Block.HashWeak, ", ");
+	}
+	FormatJsonKeyValueStr(Output, "hash_strong", HashStr);
+
+	Output += "}";
+}
+
+void
+FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks)
+{
+	Output += L"[\n";
+	uint64 BlockIndex = 0;
+	for (const FGenericBlock& Block : Blocks)
+	{
+		if (BlockIndex != 0)
+		{
+			Output += L",\n";
+		}
+
+		FormatJsonBlock(Output, Block);
+
+		++BlockIndex;
+	}
+	Output += L"]";
+}
+
+void
+FormatJsonBlockArray(std::string& Output, const FGenericBlockArray& Blocks)
+{
+	Output += "[\n";
+	uint64 BlockIndex = 0;
+	for (const FGenericBlock& Block : Blocks)
+	{
+		if (BlockIndex != 0)
+		{
+			Output += ",\n";
+		}
+
+		FormatJsonBlock(Output, Block);
+
+		++BlockIndex;
+	}
+	Output += "]";
+}
+
 
 FTimingLogger::FTimingLogger(const char* InName, ELogLevel InLogLevel, bool bInEnabled)
 : bEnabled(bInEnabled)
@@ -195,20 +337,70 @@ FFileAttributeCache::Exists(const FPath& Path) const
 	return It != Map.end();
 }
 
-std::wstring
-StringToLower(const std::wstring& Input)
+std::string
+ToString(const FPath& Path)
 {
-	std::wstring Result = Input;
+	FPathStringView PathView = Path.native();
+	return ToString(PathView);
+}
+
+std::string
+StringToLower(std::string_view Input)
+{
+	std::string Result(Input);
+	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return char(::tolower(C)); });
+	return Result;
+}
+
+
+std::wstring
+StringToLower(std::wstring_view Input)
+{
+	std::wstring Result(Input);
 	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return wchar_t(::tolower(C)); });
 	return Result;
 }
 
 std::wstring
-StringToUpper(const std::wstring& Input)
+StringToUpper(std::wstring_view Input)
 {
-	std::wstring Result = Input;
+	std::wstring Result(Input);
 	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return wchar_t(::toupper(C)); });
 	return Result;
+}
+
+bool
+StringStartsWith(const std::string_view String, const std::string_view Prefix, bool bCaseSensitive)
+{
+	if (bCaseSensitive)
+	{
+		return String.starts_with(Prefix);
+	}
+	else if (Prefix.length() <= String.length())
+	{
+		return _strnicmp(String.data(), Prefix.data(), Prefix.length()) == 0;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool
+StringEquals(const std::string_view A, const std::string_view B, bool bCaseSensitive)
+{
+	if (bCaseSensitive)
+	{
+		return A == B;
+	}
+	else if (A.length() == B.length())
+	{
+		return _strnicmp(A.data(), B.data(), A.length()) == 0;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 std::string
@@ -276,102 +468,6 @@ StringEscape(const std::string_view Input)
 	return Result;
 }
 
-FDfsMirrorInfo
-DfsEnumerate(const FPath& Root)
-{
-	FDfsMirrorInfo Result;
-
-#if UNSYNC_PLATFORM_WINDOWS
-
-	std::wstring RootPathLower = StringToLower(Root.native());
-
-	LPWSTR RootPathCstr = (LPWSTR)Root.c_str();
-
-	DWORD ResumeHandle = 0;
-
-	std::vector<PDFS_INFO_3> InfosToFree;
-
-	PDFS_INFO_3	 BestMatchEntry = nullptr;
-	std::wstring BestMatchPath;
-
-	for (;;)
-	{
-		DWORD		EntriesRead = 0;
-		PDFS_INFO_3 DfsInfoRoot = nullptr;
-		DWORD		Res			= NetDfsEnum(RootPathCstr, 3, MAX_PREFERRED_LENGTH, (LPBYTE*)&DfsInfoRoot, &EntriesRead, &ResumeHandle);
-		if (Res == ERROR_NO_MORE_ITEMS)
-		{
-			break;
-		}
-		else if (Res == RPC_S_INVALID_NET_ADDR)
-		{
-			// Not a network share root, so nothing to do
-			break;
-		}
-		else if (Res != ERROR_SUCCESS)
-		{
-			UNSYNC_LOG(L"DFS enumeration failed with error: %d", Res);
-			break;
-		}
-
-		PDFS_INFO_3 DfsInfo = DfsInfoRoot;
-
-		for (DWORD I = 0; I < EntriesRead; I++)
-		{
-			std::wstring EntryPathLower = StringToLower(DfsInfo->EntryPath);
-
-			// entry prefix must match requested root path
-			if (RootPathLower.find(EntryPathLower) == 0 && (RootPathLower.length() > BestMatchPath.length()))
-			{
-				DWORD			  NumOnlineStorages = 0;
-				PDFS_STORAGE_INFO StorageInfo		= DfsInfo->Storage;
-				for (DWORD J = 0; J < DfsInfo->NumberOfStorages; J++)
-				{
-					if (StorageInfo->State != DFS_STORAGE_STATE_OFFLINE)
-					{
-						NumOnlineStorages++;
-					}
-					++StorageInfo;
-				}
-
-				BestMatchPath  = DfsInfo->EntryPath;
-				BestMatchEntry = DfsInfo;
-			}
-
-			++DfsInfo;
-		}
-
-		InfosToFree.push_back(DfsInfoRoot);
-	}
-
-	if (BestMatchEntry)
-	{
-		Result.Root					  = BestMatchPath;
-		PDFS_STORAGE_INFO StorageInfo = BestMatchEntry->Storage;
-		Result.Storages.reserve(BestMatchEntry->NumberOfStorages);
-		for (DWORD J = 0; J < BestMatchEntry->NumberOfStorages; J++)
-		{
-			if (StorageInfo->State != DFS_STORAGE_STATE_OFFLINE)
-			{
-				FDfsStorageInfo ResultEntry;
-				ResultEntry.Server = StorageInfo->ServerName;
-				ResultEntry.Share  = StorageInfo->ShareName;
-				Result.Storages.push_back(ResultEntry);
-			}
-			++StorageInfo;
-		}
-	}
-
-	for (auto It : InfosToFree)
-	{
-		NetApiBufferFree(It);
-	}
-
-#endif	// UNSYNC_PLATFORM_WINDOWS
-
-	return Result;
-}
-
 FPath
 GetUniversalPath(const FPath& Path)
 {
@@ -416,14 +512,14 @@ NormalizeFilenameUtf8(const std::string& InFilename)
 
 	FPath FilenameAsPath = ConvertUtf8ToWide(Filename);
 
-	FPath NormalPath = FilenameAsPath.lexically_normal();
 	FPath AbsoluteNormalPath;
 	if (Filename.starts_with("\\\\") || Filename.starts_with("//"))
 	{
-		AbsoluteNormalPath = NormalPath;  // Assume network paths are absolute
+		AbsoluteNormalPath = FilenameAsPath; // Assume network paths are absolute
 	}
 	else
 	{
+		FPath NormalPath	= FilenameAsPath.lexically_normal();
 		FPath CanonicalPath = std::filesystem::weakly_canonical(NormalPath);
 		AbsoluteNormalPath	= std::filesystem::absolute(CanonicalPath);
 	}
@@ -631,6 +727,91 @@ GetAnonymizedMachineIdString(std::string_view Seed)
 {
 	FHash256	MachineId = GetAnonymizedMachineId(Seed);
 	std::string Result	  = HashToHexString(MachineId);
+	return Result;
+}
+
+bool
+LooksLikeHash160(const std::string_view Str)
+{
+	if (Str.length() != 40)
+	{
+		return false;
+	}
+
+	const char* PossibleChars = "0123456789abcdefABCDEF";
+	if (Str.find_first_not_of(PossibleChars) != std::string::npos)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool
+LooksLikeHash160(const std::wstring_view Str)
+{
+	if (Str.length() != 40)
+	{
+		return false;
+	}
+
+	const wchar_t* PossibleChars = L"0123456789abcdefABCDEF";
+	if (Str.find_first_not_of(PossibleChars) != std::wstring::npos)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool
+LooksLikeUrl(std::string_view Str)
+{
+	std::string_view Prefixes[] = {
+		"http://",
+		"https://",
+		"unsync://",
+		"unsync+tls://",
+		"horde+http://",
+		"horde+https://",
+		"unsync+http://",
+		"unsync+https://",
+		"jupiter+http://",
+		"jupiter+https://",
+	};
+
+	for (std::string_view Prefix : Prefixes)
+	{
+		if (Str.starts_with(Prefix))
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+std::vector<std::string_view>
+SplitByAny(std::string_view String, const char* SeparatorCharacters)
+{
+	std::vector<std::string_view> Result;
+
+	while (!String.empty())
+	{
+		size_t Pos = String.find_first_of(SeparatorCharacters);
+		if (Pos == std::string::npos)
+		{
+			Result.push_back(String);
+			break;
+		}
+
+		std::string_view Part = String.substr(0, Pos);
+
+		Result.push_back(Part);
+
+		String = String.substr(Pos + 1);
+	}
+
 	return Result;
 }
 

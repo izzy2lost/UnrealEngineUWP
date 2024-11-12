@@ -35,6 +35,7 @@
 #include "PropertyEditorModule.h"
 #include "Customizations/ConsoleVariableCustomization.h"
 #include "Graph/MovieGraphPinFactory.h"
+#include "LevelSequence.h"
 
 #define LOCTEXT_NAMESPACE "FMovieRenderPipelineEditorModule"
 

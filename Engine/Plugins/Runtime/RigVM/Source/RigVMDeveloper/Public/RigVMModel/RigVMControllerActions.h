@@ -118,12 +118,12 @@ struct FRigVMBaseAction
 
 public:
 	
-	inline static const FString RedoPrefix = TEXT("Redo");
-	inline static const FString UndoPrefix = TEXT("Undo");
-	inline static const FString AddActionPrefix = TEXT("Add Action");
-	inline static const FString BeginActionPrefix = TEXT("Begin Action");
-	inline static const FString EndActionPrefix = TEXT("End Action");
-	inline static const FString CancelActionPrefix = TEXT("Cancel Action");
+	static const inline TCHAR* RedoPrefix = TEXT("Redo");
+	static const inline TCHAR* UndoPrefix = TEXT("Undo");
+	static const inline TCHAR* AddActionPrefix = TEXT("Add Action");
+	static const inline TCHAR* BeginActionPrefix = TEXT("Begin Action");
+	static const inline TCHAR* EndActionPrefix = TEXT("End Action");
+	static const inline TCHAR* CancelActionPrefix = TEXT("Cancel Action");
 
 	// Default constructor
 	FRigVMBaseAction(URigVMController* InController)
@@ -240,10 +240,16 @@ class RIGVMDEVELOPER_API URigVMActionStack : public UObject
 
 public:
 
+	static URigVMActionStack* GetDisabledActionStack();
+
 	// Begins an action and opens a bracket / scope.
 	template<class ActionType>
 	void BeginAction(ActionType& InAction)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 #if RIGVM_ACTIONSTACK_VERBOSE_LOG		
 		TGuardValue<int32> TabDepthGuard(LogActionDepth, CurrentActions.Num());
 		LogAction<ActionType>(InAction, FRigVMBaseAction::BeginActionPrefix);
@@ -263,6 +269,10 @@ public:
 	template<class ActionType>
 	void EndAction(ActionType& InAction, bool bPerformMerge = false)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 		ensure(CurrentActions.Num() > 0);
 		ensure((FRigVMBaseAction*)&InAction == CurrentActions.Last());
 		CurrentActions.Pop();
@@ -286,6 +296,10 @@ public:
 	template<class ActionType>
 	void CancelAction(ActionType& InAction)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 		ensure(CurrentActions.Num() > 0);
 		ensure((FRigVMBaseAction*)&InAction == CurrentActions.Last());
 		CurrentActions.Pop();
@@ -305,6 +319,10 @@ public:
 	template<class ActionType>
 	void AddAction(const ActionType& InAction, bool bPerformMerge = false)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 #if RIGVM_ACTIONSTACK_VERBOSE_LOG		
 		TGuardValue<int32> TabDepthGuard(LogActionDepth, CurrentActions.Num());
 		LogAction<ActionType>(InAction, FRigVMBaseAction::AddActionPrefix);
@@ -416,6 +434,8 @@ private:
 	
 	void LogAction(const UScriptStruct* InActionStruct, const FRigVMBaseAction& InAction, const FString& InPrefix);
 #endif
+
+	bool IsDisabled() const;
 	
 	UPROPERTY()
 	int32 ActionIndex;
@@ -833,6 +853,143 @@ public:
 };
 
 /**
+ * An action setting a pin's display name in the graph.
+ */
+USTRUCT()
+struct FRigVMSetPinDisplayNameAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinDisplayNameAction();
+	FRigVMSetPinDisplayNameAction(URigVMController* InController, URigVMPin* InPin, const FString& InNewDisplayName);
+	virtual ~FRigVMSetPinDisplayNameAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinDisplayNameAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString PinPath;
+
+	UPROPERTY()
+	FString OldDisplayName;
+
+	UPROPERTY()
+	FString NewDisplayName;
+};
+
+/**
+ * An action setting a pin's category in the graph.
+ */
+USTRUCT()
+struct FRigVMSetPinCategoryAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinCategoryAction();
+	FRigVMSetPinCategoryAction(URigVMController* InController, URigVMPin* InPin, const FString& InNewCategory);
+	virtual ~FRigVMSetPinCategoryAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString PinPath;
+
+	UPROPERTY()
+	FString OldCategory;
+
+	UPROPERTY()
+	FString NewCategory;
+};
+
+/**
+ * An action setting a pin's category in the graph.
+ */
+USTRUCT()
+struct FRigVMChangeNodePinCategoriesAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMChangeNodePinCategoriesAction();
+	FRigVMChangeNodePinCategoriesAction(URigVMController* InController, const URigVMNode* InNode);
+	virtual ~FRigVMChangeNodePinCategoriesAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMChangeNodePinCategoriesAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+	
+	void UpdateAfterModification(const URigVMNode* InNode);
+
+	UPROPERTY()
+	FString NodeName;
+
+	UPROPERTY()
+	TArray<FString> OldCategories;
+
+	UPROPERTY()
+	TArray<FString> NewCategories;
+};
+
+/**
+ * An action to change the expansion on a pin's category in the graph.
+ */
+USTRUCT()
+struct FRigVMSetPinCategoryExpansionAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinCategoryExpansionAction();
+	FRigVMSetPinCategoryExpansionAction(URigVMController* InController, const URigVMNode* InNode, const FString& InPinCategory);
+	virtual ~FRigVMSetPinCategoryExpansionAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString NodeName;
+
+	UPROPERTY()
+	FString PinCategory;
+
+	UPROPERTY()
+	bool bOldExpansionState;
+};
+
+/**
+ * An action setting a pin's index within a category.
+ */
+USTRUCT()
+struct FRigVMSetPinIndexInCategoryAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinIndexInCategoryAction();
+	FRigVMSetPinIndexInCategoryAction(URigVMController* InController, URigVMPin* InPin, int32 InNewIndexInCategory);
+	virtual ~FRigVMSetPinIndexInCategoryAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinIndexInCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString PinPath;
+
+	UPROPERTY()
+	int32 OldIndexInCategory;
+
+	UPROPERTY()
+	int32 NewIndexInCategory;
+};
+
+/**
  * An action setting a pin's default value in the graph.
  */
 USTRUCT()
@@ -858,6 +1015,12 @@ public:
 
 	UPROPERTY()
 	FString NewDefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType OldDefaultValueType;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType NewDefaultValueType;
 };
 
 /**
@@ -871,7 +1034,7 @@ struct FRigVMInsertArrayPinAction : public FRigVMBaseAction
 public:
 
 	FRigVMInsertArrayPinAction();
-	FRigVMInsertArrayPinAction(URigVMController* InController, URigVMPin* InArrayPin, int32 InIndex, const FString& InNewDefaultValue);
+	FRigVMInsertArrayPinAction(URigVMController* InController, URigVMPin* InArrayPin, int32 InIndex, const FString& InNewDefaultValue, const ERigVMPinDefaultValueType& InNewDefaultValueType);
 	virtual ~FRigVMInsertArrayPinAction() {};
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMInsertArrayPinAction::StaticStruct(); }
 	virtual bool Undo() override;
@@ -885,6 +1048,9 @@ public:
 
 	UPROPERTY()
 	FString NewDefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType NewDefaultValueType;
 };
 
 /**
@@ -912,6 +1078,9 @@ public:
 
 	UPROPERTY()
 	FString DefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType DefaultValueType;
 };
 
 /**
@@ -1400,6 +1569,78 @@ public:
 };
 
 /**
+ * An action creating a function variant
+ */
+USTRUCT()
+struct FRigVMCreateFunctionVariantAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMCreateFunctionVariantAction();
+	FRigVMCreateFunctionVariantAction(URigVMController* InController, const FName& InFunctionName, const FName& InNewFunctionName);
+	virtual ~FRigVMCreateFunctionVariantAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMCreateFunctionVariantAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FName NewFunctionName;
+};
+
+/**
+ * An action adding a tag to a function variant
+ */
+USTRUCT()
+struct FRigVMAddFunctionVariantTagAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMAddFunctionVariantTagAction();
+	FRigVMAddFunctionVariantTagAction(URigVMController* InController, const FName& InFunctionName, const FRigVMTag& InTag);
+	virtual ~FRigVMAddFunctionVariantTagAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMCreateFunctionVariantAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FRigVMTag FunctionTag;
+};
+
+/**
+ * An action removing a tag from a function variant
+ */
+USTRUCT()
+struct FRigVMRemoveFunctionVariantTagAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMRemoveFunctionVariantTagAction();
+	FRigVMRemoveFunctionVariantTagAction(URigVMController* InController, const FName& InFunctionName, const FName& InTagName);
+	virtual ~FRigVMRemoveFunctionVariantTagAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMCreateFunctionVariantAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FRigVMTag FunctionTag;
+};
+
+/**
  * An action importing nodes and links from text
  */
 USTRUCT()
@@ -1445,19 +1686,19 @@ public:
 };
 
 /**
- * An action to add a decorator to a node
+ * An action to add a trait to a node
  */
 USTRUCT()
-struct FRigVMAddDecoratorAction : public FRigVMBaseAction
+struct FRigVMAddTraitAction : public FRigVMBaseAction
 {
 	GENERATED_BODY()
 
 public:
 
-	FRigVMAddDecoratorAction();
-	FRigVMAddDecoratorAction(URigVMController* InController, const URigVMNode* InNode, const FName& InDecoratorName, const UScriptStruct* InDecoratorScriptStruct, const FString& InDecoratorDefault, int32 InPinIndex);
-	virtual ~FRigVMAddDecoratorAction() {};
-	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMAddDecoratorAction::StaticStruct(); }
+	FRigVMAddTraitAction();
+	FRigVMAddTraitAction(URigVMController* InController, const URigVMNode* InNode, const FName& InTraitName, const UScriptStruct* InTraitScriptStruct, const FString& InTraitDefault, int32 InPinIndex);
+	virtual ~FRigVMAddTraitAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMAddTraitAction::StaticStruct(); }
 	virtual bool Undo() override;
 	virtual bool Redo() override;
 
@@ -1465,32 +1706,32 @@ public:
 	FName NodeName;
 
 	UPROPERTY()
-	FName DecoratorName;
+	FName TraitName;
 
 	UPROPERTY()
 	FString ScriptStructPath;
 
 	UPROPERTY()
-	FString DecoratorDefault;
+	FString TraitDefault;
 
 	UPROPERTY()
 	int32 PinIndex;
 };
 
 /**
- * An action to remove a decorator from a node
+ * An action to remove a trait from a node
  */
 USTRUCT()
-struct FRigVMRemoveDecoratorAction : public FRigVMAddDecoratorAction
+struct FRigVMRemoveTraitAction : public FRigVMAddTraitAction
 {
 	GENERATED_BODY()
 
 public:
 
-	FRigVMRemoveDecoratorAction();
-	FRigVMRemoveDecoratorAction(URigVMController* InController, const URigVMNode* InNode, const FName& InDecoratorName, const UScriptStruct* InDecoratorScriptStruct, const FString& InDecoratorDefault, int32 InPinIndex);
-	virtual ~FRigVMRemoveDecoratorAction() {};
-	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMRemoveDecoratorAction::StaticStruct(); }
+	FRigVMRemoveTraitAction();
+	FRigVMRemoveTraitAction(URigVMController* InController, const URigVMNode* InNode, const FName& InTraitName, const UScriptStruct* InTraitScriptStruct, const FString& InTraitDefault, int32 InPinIndex);
+	virtual ~FRigVMRemoveTraitAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMRemoveTraitAction::StaticStruct(); }
 	virtual bool Undo() override;
 	virtual bool Redo() override;
 };

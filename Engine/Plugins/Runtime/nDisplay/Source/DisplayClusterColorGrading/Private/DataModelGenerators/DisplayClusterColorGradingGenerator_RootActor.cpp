@@ -33,9 +33,9 @@
 
 #define GET_MEMBER_NAME_ARRAY_CHECKED(ClassName, MemberName, Index) FName(FString(GET_MEMBER_NAME_STRING_CHECKED(ClassName, MemberName)).Replace(TEXT(#Index), *FString::FromInt(Index), ESearchCase::CaseSensitive))
 
-FDisplayClusterColorGradingDataModel::FColorGradingGroup FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings::CreateColorGradingGroup(const TSharedPtr<IPropertyHandle>& GroupPropertyHandle)
+FColorGradingEditorDataModel::FColorGradingGroup FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings::CreateColorGradingGroup(const TSharedPtr<IPropertyHandle>& GroupPropertyHandle)
 {
-	FDisplayClusterColorGradingDataModel::FColorGradingGroup ColorGradingGroup;
+	FColorGradingEditorDataModel::FColorGradingGroup ColorGradingGroup;
 	ColorGradingGroup.DisplayName = GroupPropertyHandle->GetPropertyDisplayName();
 	ColorGradingGroup.GroupPropertyHandle = GroupPropertyHandle;
 
@@ -55,12 +55,12 @@ FDisplayClusterColorGradingDataModel::FColorGradingGroup FDisplayClusterColorGra
 	return ColorGradingGroup;
 }
 
-FDisplayClusterColorGradingDataModel::FColorGradingElement FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings::CreateColorGradingElement(
+FColorGradingEditorDataModel::FColorGradingElement FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings::CreateColorGradingElement(
 	const TSharedPtr<IPropertyHandle>& GroupPropertyHandle,
 	FName ElementPropertyName,
 	FText ElementLabel)
 {
-	FDisplayClusterColorGradingDataModel::FColorGradingElement ColorGradingElement;
+	FColorGradingEditorDataModel::FColorGradingElement ColorGradingElement;
 	ColorGradingElement.DisplayName = ElementLabel;
 
 	TSharedPtr<IPropertyHandle> ElementPropertyHandle = GroupPropertyHandle->GetChildHandle(ElementPropertyName);
@@ -136,6 +136,11 @@ TSharedPtr<IPropertyHandle> MakePropertyTransactional(const TSharedPtr<IProperty
 			PropertyHandle->GetOuterObjects(OuterObjects);
 			for (UObject* Object : OuterObjects)
 			{
+				if (!Object)
+				{
+					continue;
+				}
+
 				if (!Object->HasAnyFlags(RF_Transactional))
 				{
 					Object->SetFlags(RF_Transactional);
@@ -150,7 +155,7 @@ TSharedPtr<IPropertyHandle> MakePropertyTransactional(const TSharedPtr<IProperty
 	return PropertyHandle;
 }
 
-TSharedRef<IDisplayClusterColorGradingDataModelGenerator> FDisplayClusterColorGradingGenerator_RootActor::MakeInstance()
+TSharedRef<IColorGradingEditorDataModelGenerator> FDisplayClusterColorGradingGenerator_RootActor::MakeInstance()
 {
 	return MakeShareable(new FDisplayClusterColorGradingGenerator_RootActor());
 }
@@ -159,10 +164,10 @@ TSharedRef<IDisplayClusterColorGradingDataModelGenerator> FDisplayClusterColorGr
  * A detail customization that picks out only the necessary properties needed to display a root actor in the color grading drawer and hides all other properties
  * Also organizes the properties into custom categories that can be easily displayed in the color grading drawer
  */
-class FRootActorColorGradingCustomization : public IDetailCustomization
+class FRootActorDetailsCustomization : public IDetailCustomization
 {
 public:
-	FRootActorColorGradingCustomization(const TSharedRef<FDisplayClusterColorGradingDataModel>& InColorGradingDataModel)
+	FRootActorDetailsCustomization(const TSharedRef<FColorGradingEditorDataModel>& InColorGradingDataModel)
 		: ColorGradingDataModel(InColorGradingDataModel)
 	{ }
 
@@ -283,14 +288,14 @@ private:
 	}
 
 private:
-	TWeakPtr<FDisplayClusterColorGradingDataModel> ColorGradingDataModel;
+	TWeakPtr<FColorGradingEditorDataModel> ColorGradingDataModel;
 };
 
 /** A property customizer that culls unneeded properties from the FDisplayClusterConfigurationViewport_EntireClusterColorGrading struct to help speed up property node tree generation */
 class FFastEntireClusterColorGradingCustomization : public IPropertyTypeCustomization
 {
 public:
-	FFastEntireClusterColorGradingCustomization(const TSharedRef<FDisplayClusterColorGradingDataModel>& InColorGradingDataModel)
+	FFastEntireClusterColorGradingCustomization(const TSharedRef<FColorGradingEditorDataModel>& InColorGradingDataModel)
 		: ColorGradingDataModel(InColorGradingDataModel)
 	{ }
 
@@ -315,14 +320,14 @@ public:
 	}
 
 private:
-	TWeakPtr<FDisplayClusterColorGradingDataModel> ColorGradingDataModel;
+	TWeakPtr<FColorGradingEditorDataModel> ColorGradingDataModel;
 };
 
 /** A property customizer that culls unneeded properties from the FDisplayClusterConfigurationViewport_PerViewportColorGrading struct to help speed up property node tree generation */
 class FFastPerViewportColorGradingCustomization : public IPropertyTypeCustomization
 {
 public:
-	FFastPerViewportColorGradingCustomization(const TSharedRef<FDisplayClusterColorGradingDataModel>& InColorGradingDataModel)
+	FFastPerViewportColorGradingCustomization(const TSharedRef<FColorGradingEditorDataModel>& InColorGradingDataModel)
 		: ColorGradingDataModel(InColorGradingDataModel)
 	{ }
 
@@ -349,10 +354,10 @@ public:
 	}
 
 private:
-	TWeakPtr<FDisplayClusterColorGradingDataModel> ColorGradingDataModel;
+	TWeakPtr<FColorGradingEditorDataModel> ColorGradingDataModel;
 };
 
-void FDisplayClusterColorGradingGenerator_RootActor::Initialize(const TSharedRef<class FDisplayClusterColorGradingDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
+void FDisplayClusterColorGradingGenerator_RootActor::Initialize(const TSharedRef<class FColorGradingEditorDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
 {
 	PropertyRowGenerator->RegisterInstancedCustomPropertyTypeLayout(FDisplayClusterConfigurationViewport_EntireClusterColorGrading::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([ColorGradingDataModel]
 	{
@@ -366,18 +371,18 @@ void FDisplayClusterColorGradingGenerator_RootActor::Initialize(const TSharedRef
 
 	PropertyRowGenerator->RegisterInstancedCustomPropertyLayout(ADisplayClusterRootActor::StaticClass(), FOnGetDetailCustomizationInstance::CreateLambda([ColorGradingDataModel]
 	{
-		return MakeShared<FRootActorColorGradingCustomization>(ColorGradingDataModel);
+		return MakeShared<FRootActorDetailsCustomization>(ColorGradingDataModel);
 	}));
 }
 
-void FDisplayClusterColorGradingGenerator_RootActor::Destroy(const TSharedRef<class FDisplayClusterColorGradingDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
+void FDisplayClusterColorGradingGenerator_RootActor::Destroy(const TSharedRef<class FColorGradingEditorDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
 {
 	PropertyRowGenerator->UnregisterInstancedCustomPropertyTypeLayout(FDisplayClusterConfigurationViewport_EntireClusterColorGrading::StaticStruct()->GetFName());
 	PropertyRowGenerator->UnregisterInstancedCustomPropertyTypeLayout(FDisplayClusterConfigurationViewport_PerViewportColorGrading::StaticStruct()->GetFName());
 	PropertyRowGenerator->UnregisterInstancedCustomPropertyLayout(ADisplayClusterRootActor::StaticClass());
 }
 
-void FDisplayClusterColorGradingGenerator_RootActor::GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FDisplayClusterColorGradingDataModel& OutColorGradingDataModel)
+void FDisplayClusterColorGradingGenerator_RootActor::GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FColorGradingEditorDataModel& OutColorGradingDataModel)
 {
 	RootActors.Empty();
 
@@ -394,7 +399,7 @@ void FDisplayClusterColorGradingGenerator_RootActor::GenerateDataModel(IProperty
 	// Add a color grading group for the root actor's "EntireClusterColorGrading" property
 	if (TSharedPtr<IPropertyHandle> EntireClusterColorGradingHandle = FindPropertyHandle(PropertyRowGenerator, CREATE_PROPERTY_PATH(UDisplayClusterConfigurationData, StageSettings.EntireClusterColorGrading)))
 	{
-		FDisplayClusterColorGradingDataModel::FColorGradingGroup EntireClusterGroup = CreateColorGradingGroup(EntireClusterColorGradingHandle);
+		FColorGradingEditorDataModel::FColorGradingGroup EntireClusterGroup = CreateColorGradingGroup(EntireClusterColorGradingHandle);
 		EntireClusterGroup.EditConditionPropertyHandle = EntireClusterColorGradingHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationViewport_EntireClusterColorGrading, bEnableEntireClusterColorGrading));
 
 		EntireClusterGroup.GroupHeaderWidget = SNew(SHorizontalBox)
@@ -430,7 +435,7 @@ void FDisplayClusterColorGradingGenerator_RootActor::GenerateDataModel(IProperty
 			{
 				TSharedRef<IPropertyHandle> PerViewportElementHandle = PerViewportColorGradingHandle->AsArray()->GetElement(Index);
 
-				FDisplayClusterColorGradingDataModel::FColorGradingGroup PerViewportGroup = CreateColorGradingGroup(PerViewportElementHandle);
+				FColorGradingEditorDataModel::FColorGradingGroup PerViewportGroup = CreateColorGradingGroup(PerViewportElementHandle);
 				PerViewportGroup.bCanBeDeleted = true;
 				PerViewportGroup.bCanBeRenamed = true;
 				PerViewportGroup.EditConditionPropertyHandle = PerViewportElementHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationViewport_PerViewportColorGrading, bIsEnabled));
@@ -472,7 +477,7 @@ void FDisplayClusterColorGradingGenerator_RootActor::GenerateDataModel(IProperty
 							if (NamePropertyHandle.IsValid() && NamePropertyHandle->IsValidHandle())
 							{
 								NamePropertyHandle->SetValue(InText);
-								IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+								IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 							}
 						})
 						.Text_Lambda([NamePropertyHandle]()
@@ -519,31 +524,6 @@ void FDisplayClusterColorGradingGenerator_RootActor::GenerateDataModel(IProperty
 
 	OutColorGradingDataModel.OnColorGradingGroupDeleted().AddSP(this, &FDisplayClusterColorGradingGenerator_RootActor::DeleteColorGradingGroup);
 	OutColorGradingDataModel.OnColorGradingGroupRenamed().AddSP(this, &FDisplayClusterColorGradingGenerator_RootActor::RenameColorGradingGroup);
-
-	{
-		FDisplayClusterColorGradingDataModel::FDetailsSection InnerFrustumDetailsSection;
-		InnerFrustumDetailsSection.DisplayName = LOCTEXT("InnerFrustumDetailsSectionLabel", "Inner Frustum");
-		InnerFrustumDetailsSection.Categories.Add(TEXT("CustomViewportsCategory"));
-		InnerFrustumDetailsSection.Categories.Add(TEXT("CustomICVFXCategory"));
-		InnerFrustumDetailsSection.EditConditionPropertyHandle = FindPropertyHandle(PropertyRowGenerator, CREATE_PROPERTY_PATH(UDisplayClusterConfigurationData, StageSettings.bEnableInnerFrustums));
-
-		OutColorGradingDataModel.DetailsSections.Add(InnerFrustumDetailsSection);
-	}
-
-	{
-		FDisplayClusterColorGradingDataModel::FDetailsSection TransformDetailsSection;
-		TransformDetailsSection.Categories.Add(TEXT("TransformCommon"));
-
-		OutColorGradingDataModel.DetailsSections.Add(TransformDetailsSection);
-	}
-
-	{
-		FDisplayClusterColorGradingDataModel::FDetailsSection ChromakeyDetailsSection;
-		ChromakeyDetailsSection.Categories.Add(TEXT("CustomViewportChromakeyCategory"));
-		ChromakeyDetailsSection.Categories.Add(TEXT("CustomViewportChromakeyMarkersCategory"));
-
-		OutColorGradingDataModel.DetailsSections.Add(ChromakeyDetailsSection);
-	}
 }
 
 FReply FDisplayClusterColorGradingGenerator_RootActor::AddColorGradingGroup()
@@ -564,7 +544,7 @@ FReply FDisplayClusterColorGradingGenerator_RootActor::AddColorGradingGroup()
 
 				ConfigData->StageSettings.PerViewportColorGrading.Add(NewColorGradingGroup);
 
-				IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+				IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 			}
 		}
 	}
@@ -590,7 +570,7 @@ void FDisplayClusterColorGradingGenerator_RootActor::DeleteColorGradingGroup(int
 
 					ConfigData->StageSettings.PerViewportColorGrading.RemoveAt(GroupIndex - 1);
 
-					IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+					IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 				}
 			}
 		}
@@ -615,7 +595,7 @@ void FDisplayClusterColorGradingGenerator_RootActor::RenameColorGradingGroup(int
 
 					ConfigData->StageSettings.PerViewportColorGrading[GroupIndex - 1].Name = NewName;
 
-					IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+					IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 				}
 			}
 		}
@@ -780,7 +760,7 @@ TSharedRef<SWidget> FDisplayClusterColorGradingGenerator_RootActor::GetViewportC
 	return MenuBuilder.MakeWidget();
 }
 
-TSharedRef<IDisplayClusterColorGradingDataModelGenerator> FDisplayClusterColorGradingGenerator_ICVFXCamera::MakeInstance()
+TSharedRef<IColorGradingEditorDataModelGenerator> FDisplayClusterColorGradingGenerator_ICVFXCamera::MakeInstance()
 {
 	return MakeShareable(new FDisplayClusterColorGradingGenerator_ICVFXCamera());
 }
@@ -792,7 +772,7 @@ TSharedRef<IDisplayClusterColorGradingDataModelGenerator> FDisplayClusterColorGr
 class FICVFXCameraColorGradingCustomization : public IDetailCustomization
 {
 public:
-	FICVFXCameraColorGradingCustomization(const TSharedRef<FDisplayClusterColorGradingDataModel>& InColorGradingDataModel)
+	FICVFXCameraColorGradingCustomization(const TSharedRef<FColorGradingEditorDataModel>& InColorGradingDataModel)
 		: ColorGradingDataModel(InColorGradingDataModel)
 	{ }
 
@@ -824,11 +804,12 @@ public:
 		{
 			const TMap<FName, int32> SortOrder =
 			{
-				{ TEXT("DetailView_PerNode"), 0},
-				{ TEXT("DetailView_Exposure"), 1},
-				{ TEXT("DetailView_ColorGrading"), 2},
-				{ TEXT("DetailView_WhiteBalance"), 3},
-				{ TEXT("DetailView_Misc"), 4}
+				{ TEXT("DetailView_AllNodes"), 0},
+				{ TEXT("DetailView_PerNode"), 1},
+				{ TEXT("DetailView_Exposure"), 2},
+				{ TEXT("DetailView_ColorGrading"), 3},
+				{ TEXT("DetailView_WhiteBalance"), 4},
+				{ TEXT("DetailView_Misc"), 5}
 			};
 
 			for (const TPair<FName, int32>& SortPair : SortOrder)
@@ -883,6 +864,9 @@ private:
 		}
 		else
 		{
+			IDetailCategoryBuilder& AllNodeSettingsCategoryBuilder = DetailBuilder.EditCategory(TEXT("DetailView_AllNodes"), LOCTEXT("DetailView_AllNodesDisplayName", "All Nodes Settings"));
+			AllNodeSettingsCategoryBuilder.AddProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UDisplayClusterICVFXCameraComponent, CameraSettings.AllNodesColorGrading.bEnableEntireClusterColorGrading)));
+
 			AddColorGradingSettings(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UDisplayClusterICVFXCameraComponent, CameraSettings.AllNodesColorGrading.ColorGradingSettings)));
 		}
 	}
@@ -925,14 +909,14 @@ private:
 	}
 
 private:
-	TWeakPtr<FDisplayClusterColorGradingDataModel> ColorGradingDataModel;
+	TWeakPtr<FColorGradingEditorDataModel> ColorGradingDataModel;
 };
 
 /** A property customizer that culls unneeded properties from the FDisplayClusterConfigurationViewport_AllNodesColorGrading struct to help speed up property node tree generation */
 class FFastAllNodesColorGradingCustomization : public IPropertyTypeCustomization
 {
 public:
-	FFastAllNodesColorGradingCustomization(const TSharedRef<FDisplayClusterColorGradingDataModel>& InColorGradingDataModel)
+	FFastAllNodesColorGradingCustomization(const TSharedRef<FColorGradingEditorDataModel>& InColorGradingDataModel)
 		: ColorGradingDataModel(InColorGradingDataModel)
 	{ }
 
@@ -957,14 +941,14 @@ public:
 	}
 
 private:
-	TWeakPtr<FDisplayClusterColorGradingDataModel> ColorGradingDataModel;
+	TWeakPtr<FColorGradingEditorDataModel> ColorGradingDataModel;
 };
 
 /** A property customizer that culls unneeded properties from the FDisplayClusterConfigurationViewport_PerNodeColorGrading struct to help speed up property node tree generation */
 class FFastPerNodeColorGradingCustomization : public IPropertyTypeCustomization
 {
 public:
-	FFastPerNodeColorGradingCustomization(const TSharedRef<FDisplayClusterColorGradingDataModel>& InColorGradingDataModel)
+	FFastPerNodeColorGradingCustomization(const TSharedRef<FColorGradingEditorDataModel>& InColorGradingDataModel)
 		: ColorGradingDataModel(InColorGradingDataModel)
 	{ }
 
@@ -991,10 +975,10 @@ public:
 	}
 
 private:
-	TWeakPtr<FDisplayClusterColorGradingDataModel> ColorGradingDataModel;
+	TWeakPtr<FColorGradingEditorDataModel> ColorGradingDataModel;
 };
 
-void FDisplayClusterColorGradingGenerator_ICVFXCamera::Initialize(const TSharedRef<class FDisplayClusterColorGradingDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
+void FDisplayClusterColorGradingGenerator_ICVFXCamera::Initialize(const TSharedRef<class FColorGradingEditorDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
 {
 	PropertyRowGenerator->RegisterInstancedCustomPropertyTypeLayout(FDisplayClusterConfigurationViewport_AllNodesColorGrading::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([ColorGradingDataModel]
 	{
@@ -1012,14 +996,14 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::Initialize(const TSharedR
 	}));
 }
 
-void FDisplayClusterColorGradingGenerator_ICVFXCamera::Destroy(const TSharedRef<class FDisplayClusterColorGradingDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
+void FDisplayClusterColorGradingGenerator_ICVFXCamera::Destroy(const TSharedRef<class FColorGradingEditorDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator)
 {
 	PropertyRowGenerator->UnregisterInstancedCustomPropertyTypeLayout(FDisplayClusterConfigurationViewport_AllNodesColorGrading::StaticStruct()->GetFName());
 	PropertyRowGenerator->UnregisterInstancedCustomPropertyTypeLayout(FDisplayClusterConfigurationViewport_PerNodeColorGrading::StaticStruct()->GetFName());
 	PropertyRowGenerator->UnregisterInstancedCustomPropertyLayout(UDisplayClusterICVFXCameraComponent::StaticClass());
 }
 
-void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FDisplayClusterColorGradingDataModel& OutColorGradingDataModel)
+void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FColorGradingEditorDataModel& OutColorGradingDataModel)
 {
 	CameraComponents.Empty();
 
@@ -1036,8 +1020,10 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IProper
 	// Add a color grading group for the camera's "AllNodesColorGrading" property
 	if (TSharedPtr<IPropertyHandle> AllNodesColorGradingHandle = FindPropertyHandle(PropertyRowGenerator, CREATE_PROPERTY_PATH(UDisplayClusterICVFXCameraComponent, CameraSettings.AllNodesColorGrading)))
 	{
-		FDisplayClusterColorGradingDataModel::FColorGradingGroup AllNodesGroup = CreateColorGradingGroup(AllNodesColorGradingHandle);
+		FColorGradingEditorDataModel::FColorGradingGroup AllNodesGroup = CreateColorGradingGroup(AllNodesColorGradingHandle);
 		AllNodesGroup.EditConditionPropertyHandle = AllNodesColorGradingHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationViewport_AllNodesColorGrading, bEnableInnerFrustumAllNodesColorGrading));
+
+		AllNodesGroup.DetailsViewCategories.Add(TEXT("DetailView_AllNodes"));
 
 		AllNodesGroup.GroupHeaderWidget = SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -1072,7 +1058,7 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IProper
 			{
 				TSharedRef<IPropertyHandle> PerNodeElementHandle = PerNodeColorGradingHandle->AsArray()->GetElement(Index);
 
-				FDisplayClusterColorGradingDataModel::FColorGradingGroup PerNodeGroup = CreateColorGradingGroup(PerNodeElementHandle);
+				FColorGradingEditorDataModel::FColorGradingGroup PerNodeGroup = CreateColorGradingGroup(PerNodeElementHandle);
 				PerNodeGroup.bCanBeDeleted = true;
 				PerNodeGroup.bCanBeRenamed = true;
 				PerNodeGroup.EditConditionPropertyHandle = PerNodeElementHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationViewport_PerNodeColorGrading, bIsEnabled));
@@ -1114,7 +1100,7 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IProper
 							if (NamePropertyHandle.IsValid() && NamePropertyHandle->IsValidHandle())
 							{
 								NamePropertyHandle->SetValue(InText);
-								IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+								IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 							}
 						})
 						.Text_Lambda([NamePropertyHandle]()
@@ -1147,7 +1133,7 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IProper
 		}
 	}
 
-	OutColorGradingDataModel.bShowColorGradingGroupToolBar = true;OutColorGradingDataModel.bShowColorGradingGroupToolBar = true;
+	OutColorGradingDataModel.bShowColorGradingGroupToolBar = true;
 	OutColorGradingDataModel.ColorGradingGroupToolBarWidget = SNew(SButton)
 		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.OnClicked(this, &FDisplayClusterColorGradingGenerator_ICVFXCamera::AddColorGradingGroup)
@@ -1161,33 +1147,6 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::GenerateDataModel(IProper
 
 	OutColorGradingDataModel.OnColorGradingGroupDeleted().AddSP(this, &FDisplayClusterColorGradingGenerator_ICVFXCamera::DeleteColorGradingGroup);
 	OutColorGradingDataModel.OnColorGradingGroupRenamed().AddSP(this, &FDisplayClusterColorGradingGenerator_ICVFXCamera::RenameColorGradingGroup);
-
-	{
-		FDisplayClusterColorGradingDataModel::FDetailsSection InnerFrustumDetailsSection;
-		InnerFrustumDetailsSection.DisplayName = LOCTEXT("InnerFrustumDetailsSectionLabel", "Inner Frustum");
-		InnerFrustumDetailsSection.EditConditionPropertyHandle = FindPropertyHandle(PropertyRowGenerator, CREATE_PROPERTY_PATH(UDisplayClusterICVFXCameraComponent, CameraSettings.bEnable));
-		InnerFrustumDetailsSection.Categories = { TEXT("CustomICVFXCategory"), TEXT("CustomSoftEdgeCategory"), TEXT("CustomBorderCategory") };
-
-		OutColorGradingDataModel.DetailsSections.Add(InnerFrustumDetailsSection);
-	}
-
-	{
-		FDisplayClusterColorGradingDataModel::FDetailsSection InnerFrustumOverscanDetailsSection;
-		InnerFrustumOverscanDetailsSection.DisplayName = LOCTEXT("InnerFrustumOverscanDetailsSectionLabel", "Inner Frustum Overscan");
-		InnerFrustumOverscanDetailsSection.EditConditionPropertyHandle = FindPropertyHandle(PropertyRowGenerator, CREATE_PROPERTY_PATH(UDisplayClusterICVFXCameraComponent, CameraSettings.CustomFrustum.bEnable));
-		InnerFrustumOverscanDetailsSection.Categories = { TEXT("CustomOverscanCategory") };
-
-		OutColorGradingDataModel.DetailsSections.Add(InnerFrustumOverscanDetailsSection);
-	}
-
-	{
-		FDisplayClusterColorGradingDataModel::FDetailsSection ChromakeyDetailsSection;
-		ChromakeyDetailsSection.DisplayName = LOCTEXT("ChromakeyDetailsSectionLabel", "Chromakey");
-		ChromakeyDetailsSection.EditConditionPropertyHandle = FindPropertyHandle(PropertyRowGenerator, CREATE_PROPERTY_PATH(UDisplayClusterICVFXCameraComponent, CameraSettings.Chromakey.bEnable));
-		ChromakeyDetailsSection.Categories = { TEXT("CustomChromakeyCategory"), TEXT("CustomChromakeyMarkersCategory") };
-
-		OutColorGradingDataModel.DetailsSections.Add(ChromakeyDetailsSection);
-	}
 }
 
 FReply FDisplayClusterColorGradingGenerator_ICVFXCamera::AddColorGradingGroup()
@@ -1204,7 +1163,7 @@ FReply FDisplayClusterColorGradingGenerator_ICVFXCamera::AddColorGradingGroup()
 
 			CameraComponent->CameraSettings.PerNodeColorGrading.Add(NewColorGradingGroup);
 
-			IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+			IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 		}
 	}
 
@@ -1225,7 +1184,7 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::DeleteColorGradingGroup(i
 
 				CameraComponent->CameraSettings.PerNodeColorGrading.RemoveAt(GroupIndex - 1);
 
-				IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+				IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 			}
 		}
 	}
@@ -1245,7 +1204,7 @@ void FDisplayClusterColorGradingGenerator_ICVFXCamera::RenameColorGradingGroup(i
 
 				CameraComponent->CameraSettings.PerNodeColorGrading[GroupIndex - 1].Name = NewName;
 
-				IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers(true);
+				IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().RefreshColorGradingDrawers();
 			}
 		}
 	}

@@ -19,6 +19,7 @@ namespace UE::Tasks
 	bool Wait(const TaskCollectionType& Tasks, FTimespan InTimeout = FTimespan::MaxValue());
 
 	template<typename TaskCollectionType>
+	UE_DEPRECATED(5.5, "Use Wait instead.")
 	bool BusyWait(const TaskCollectionType& Tasks, FTimespan InTimeout = FTimespan::MaxValue());
 
 	template<typename TaskType> void AddNested(const TaskType& Nested);
@@ -79,26 +80,55 @@ namespace UE::Tasks
 			// waits for task's completion with timeout. Tries to retract the task and execute it in-place, if failed - blocks until the task 
 			// is completed by another thread. If timeout is zero, tries to retract the task and returns immedially after that.
 			// @return true if the task is completed
-			bool Wait(FTimespan Timeout = FTimespan::MaxValue()) const
+			bool Wait(FTimespan Timeout) const
 			{
 				return !IsValid() || Pimpl->Wait(FTimeout{ Timeout });
+			}
+
+			// waits for task's completion without timeout. Tries to retract the task and execute it in-place, if failed - blocks until the task 
+			// is completed by another thread.
+			// @return true if the task is completed
+			bool Wait() const
+			{
+				if (IsValid())
+				{
+					Pimpl->Wait();
+				}
+				
+				// we keep the return type as boolean even if always returning true
+				// as we could merge some versions of the Wait API back at some point.
+				return true;
 			}
 
 			// waits for task's completion for at least the specified amount of time, while executing other tasks.
 			// the call can return much later than the given timeout
 			// @return true if the task is completed
+			UE_DEPRECATED(5.5, "Use Wait instead.")
 			bool BusyWait(FTimespan Timeout = FTimespan::MaxValue()) const
 			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				return !IsValid() || Pimpl->BusyWait(FTimeout{ Timeout });
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// waits for task's completion or the given condition becomes true, while executing other tasks.
 			// the call can return much later than the given condition became true
 			// @return true if the task is completed
 			template<typename ConditionType>
+			UE_DEPRECATED(5.5, "This method will be removed.")
 			bool BusyWait(ConditionType&& Condition) const
 			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				return !IsValid() || Pimpl->BusyWait(Forward<ConditionType>(Condition));
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+
+			// try to finish the task on the current thread if it's not already started.
+			// @return true if the task is completed
+			bool TryRetractAndExecute()
+			{
+				Pimpl->TryRetractAndExecute(FTimeout::Never());
+				return IsCompleted();
 			}
 
 			// launches a task for asynchronous execution
@@ -167,6 +197,17 @@ namespace UE::Tasks
 			{
 				return Pimpl != Other.Pimpl;
 			}
+			
+			ETaskPriority GetPriority() const
+			{
+				return Pimpl->GetPriority();
+			}
+
+			EExtendedTaskPriority GetExtendedPriority() const
+			{
+				return Pimpl->GetExtendedPriority();
+			}
+		
 
 		protected:
 			TRefCountPtr<FTaskBase> Pimpl;
@@ -355,8 +396,10 @@ namespace UE::Tasks
 
 	// wait for multiple tasks while executing other tasks
 	template<typename TaskCollectionType>
+	UE_DEPRECATED(5.5, "Use Wait instead.")
 	bool BusyWait(const TaskCollectionType& Tasks, FTimespan InTimeout/* = FTimespan::MaxValue()*/)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TaskTrace::FWaitingScope WaitingScope(Private::GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::BusyWait);
 
@@ -367,13 +410,14 @@ namespace UE::Tasks
 
 		for (auto& Task : Tasks)
 		{
-			if (Timeout || !Task.BusyWait(Timeout))
+			if (Timeout.IsExpired() || !Task.BusyWait(Timeout))
 			{
 				return false;
 			}
 		}
 
 		return true;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	using FTask = Private::FTaskHandle;

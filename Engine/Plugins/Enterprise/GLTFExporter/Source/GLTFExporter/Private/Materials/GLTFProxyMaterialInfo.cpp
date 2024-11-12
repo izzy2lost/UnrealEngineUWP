@@ -40,3 +40,14 @@ const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::SheenRoughn
 
 const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::TransmissionFactor = { TEXT("Transmission Factor") };
 const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::TransmissionTexture = { TEXT("Transmission") };
+
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::IridescenceFactor = { TEXT("Iridescence Factor") };
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::IridescenceIOR = { TEXT("Iridescence IOR") };
+const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::IridescenceTexture = { TEXT("Iridescence") };
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::IridescenceThicknessMinimum = { TEXT("IridescenceThickness Minimum") };
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::IridescenceThicknessMaximum = { TEXT("IridescenceThickness Maximum") };
+const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::IridescenceThicknessTexture = { TEXT("IridescenceThickness") };
+
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::AnisotropyStrength = { TEXT("Anisotropy Strength") };
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::AnisotropyRotation = { TEXT("Anisotropy Rotation") };
+const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::AnisotropyTexture = { TEXT("Anisotropy") };

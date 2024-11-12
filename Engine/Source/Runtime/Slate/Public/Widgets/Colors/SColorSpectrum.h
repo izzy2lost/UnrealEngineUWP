@@ -44,6 +44,7 @@ public:
 	
 public:
 	SLATE_API SColorSpectrum();
+	SLATE_API virtual ~SColorSpectrum();
 
 	/**
 	 * Construct this widget.

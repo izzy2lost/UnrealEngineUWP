@@ -40,6 +40,7 @@ FSingleParticlePhysicsProxy::FSingleParticlePhysicsProxy(TUniquePtr<PARTICLE_TYP
 {
 	Particle->SetProxy(this);
 	Reference = FPhysicsObjectFactory::CreatePhysicsObject(this);
+	InterpolationData = MakeUnique<FProxyInterpolationBase>();
 }
 
 
@@ -104,7 +105,7 @@ void PushToPhysicsStateImp(const Chaos::FDirtyPropertiesManager& Manager, Chaos:
 			// Update world-space cached state like the bounds
 			// @todo(chaos): do we need to do this here? It should be done in Integrate and ApplyKinematicTarget so only really Statics need this...
 			const bool bHasKinematicTarget = (NewKinematicTargetGT != nullptr) && (NewKinematicTargetGT->GetMode() == EKinematicTargetMode::Position);
-			const FRigidTransform3 WorldTransform = !bHasKinematicTarget ? FRigidTransform3(Handle->GetX(), Handle->GetR()) : NewKinematicTargetGT->GetTarget();
+			const FRigidTransform3 WorldTransform = !bHasKinematicTarget ? FRigidTransform3(Handle->GetX(), Handle->GetR()) : NewKinematicTargetGT->GetTransform();
 			Handle->UpdateWorldSpaceState(WorldTransform, FVec3(0));
 
 			Evolution.DirtyParticle(*Handle);
@@ -284,25 +285,33 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidP
 		// logic in one place is changed, it should be checked in the other place too.
 		bool bUpdatePositionFromSimulation = ShouldUpdateTransformFromSimulation(*Rigid);
 		const FSingleParticleProxyTimestamp* ProxyTimestamp = PullData.GetTimestamp();
-		
-#if RENDERINTERP_ERRORVELOCITYSMOOTHING
-		const int32 RenderInterpErrorVelocitySmoothingDurationTicks = FMath::FloorToInt32(GetRenderInterpErrorVelocitySmoothingDuration() / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
-#endif
 
+		FProxyInterpolationBase* InterpData = GetInterpolationData();
 		if (Error)
 		{
-			const FReal ErrorMagSq = Error->ErrorX.SizeSquared();
-			const FReal MaxErrorCorrection = GetRenderInterpMaximumErrorCorrectionBeforeSnapping();
-			int32 RenderInterpErrorCorrectionDurationTicks = 0;
-			if (ErrorMagSq < MaxErrorCorrection * MaxErrorCorrection)
+			if (RenderInterpolationCVars::bRenderInterpErrorVelocityCorrection)
 			{
-				RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(GetRenderInterpErrorCorrectionDuration() / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+				InterpData = GetOrCreateErrorInterpolationData<FProxyInterpolationErrorVelocity>();
 			}
-			InterpolationData.AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
-#if RENDERINTERP_ERRORVELOCITYSMOOTHING
-			InterpolationData.SetVelocitySmoothing(Rigid->V(), Rigid->X(), RenderInterpErrorVelocitySmoothingDurationTicks);
-#endif
+			else
+			{
+				InterpData = GetOrCreateErrorInterpolationData<FProxyInterpolationError>();
+			}
+			check(InterpData);
+
+			// If error is within interpolation limit, set the number of physics frames to interpolate over, else leave at 0 frames to instantly correct the error.
+			int32 RenderInterpErrorCorrectionDurationTicks = 0;
+			const FReal MaxErrorCorrection = RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping;
+			if (Error->ErrorX.SizeSquared() < (MaxErrorCorrection * MaxErrorCorrection))
+			{
+				RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(RenderInterpolationCVars::RenderInterpErrorCorrectionDuration / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+			}
+			InterpData->AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
+			
+			const int32 RenderInterpErrorVelocitySmoothingDurationTicks = FMath::FloorToInt32(RenderInterpolationCVars::RenderInterpErrorVelocitySmoothingDuration / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+			InterpData->SetVelocitySmoothing(Rigid->V(), Rigid->X(), RenderInterpErrorVelocitySmoothingDurationTicks);
 		}
+		const bool bHasInterpolationData = InterpData != nullptr;
 
 		if (NextPullData)
 		{
@@ -318,39 +327,41 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidP
 
 			if (bUpdatePositionFromSimulation)
 			{
-				const bool bIsReplicationErrorSmoothing = InterpolationData.IsErrorSmoothing();
+				if (bHasInterpolationData)
+				{
+					InterpData->UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
+				}
+
+				const bool bIsReplicationErrorSmoothing = bHasInterpolationData ? InterpData->IsErrorSmoothing() : false;
 				bool DirectionalDecayPerformed = false;
-#if RENDERINTERP_ERRORVELOCITYSMOOTHING
-				const bool bIsErrorVelocitySmoothing = InterpolationData.IsErrorVelocitySmoothing();
-#endif
-				InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
 
 				if (const FVec3* Prev = LerpHelper(PullData.X, ProxyTimestamp->OverWriteX))
 				{
 					FVec3 Target = FMath::Lerp(*Prev, NextPullData->X, *Alpha);
 					if (bIsReplicationErrorSmoothing)
 					{
-						if (GetRenderInterpErrorDirectionalDecayMultiplier() > 0.0f)
+						if (RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier > 0.0f)
 						{
-							DirectionalDecayPerformed = InterpolationData.DirectionalDecay(NextPullData->X - *Prev);
+							DirectionalDecayPerformed = InterpData->DirectionalDecay(NextPullData->X - *Prev);
 						}
 
-						Target += InterpolationData.GetErrorX(*Alpha);
+						Target += InterpData->GetErrorX(*Alpha);
 
-#if RENDERINTERP_ERRORVELOCITYSMOOTHING
-						if (bIsErrorVelocitySmoothing)
+						if (InterpData->IsErrorVelocitySmoothing())
 						{
 #if CHAOS_DEBUG_DRAW
-							if (!!RenderInterpDebugDraw)
+							if (RenderInterpolationCVars::bRenderInterpDebugDraw)
 							{
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow((Target - InterpolationData.GetErrorX(*Alpha)), Target, 1, FColor::Blue, false, 5.0f, 0, 0.5f);
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Target, FVector(2, 1, 1), Rigid->R(), FColor::Cyan, false, 5.f, 0, 0.25f);
+								const FVector ZOffset = FVector(0,0, RenderInterpolationCVars::RenderInterpDebugDrawZOffset);
+								Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + (Target - InterpData->GetErrorX(*Alpha)), ZOffset + Target, 1, FColor::Blue, false, 5.0f, 0, 0.5f);
+								Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + InterpData->GetErrorVelocitySmoothingX(*Alpha), ZOffset + Target, 1, FColor::Blue, false, 5.0f, 0, 0.5f);
+								Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + Target, FVector(2, 1, 1), Rigid->R(), FColor::Cyan, false, 5.f, 0, 0.25f);
 							}
 #endif // CHAOS_DEBUG_DRAW
 
-							Target = FMath::Lerp(Target, InterpolationData.GetErrorVelocitySmoothingX(*Alpha), InterpolationData.GetErrorVelocitySmoothingAlpha(RenderInterpErrorVelocitySmoothingDurationTicks));
+							const int32 RenderInterpErrorVelocitySmoothingDurationTicks = FMath::FloorToInt32(RenderInterpolationCVars::RenderInterpErrorVelocitySmoothingDuration / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
+							Target = FMath::Lerp(Target, InterpData->GetErrorVelocitySmoothingX(*Alpha), InterpData->GetErrorVelocitySmoothingAlpha(RenderInterpErrorVelocitySmoothingDurationTicks));
 						}
-#endif // RENDERINTERP_ERRORVELOCITYSMOOTHING
 					}
 
 					Rigid->SetX(Target, false);					
@@ -361,35 +372,34 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidP
 					FQuat Target = FMath::Lerp(*Prev, NextPullData->R, *Alpha);
 					if (bIsReplicationErrorSmoothing)
 					{
-						Target = InterpolationData.GetErrorR(*Alpha) * Target;
+						Target = InterpData->GetErrorR(*Alpha) * Target;
 					}
 					Rigid->SetR(Target, false);
 				}
 				
 #if CHAOS_DEBUG_DRAW
-				if (GetRenderInterpDebugDraw())
+				if (RenderInterpolationCVars::bRenderInterpDebugDraw)
 				{
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Rigid->X(), FVector(2, 1, 1), Rigid->R(), DirectionalDecayPerformed ? FColor::Cyan : FColor::Green, false, 5.f, 0, 0.5f);
+					const FVector ZOffset = FVector(0, 0, RenderInterpolationCVars::RenderInterpDebugDrawZOffset);
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + PullData.X, ZOffset + NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + Rigid->X(), FVector(2, 1, 1), Rigid->R(), DirectionalDecayPerformed ? FColor::Cyan : FColor::Green, false, 5.f, 0, 0.5f);
 
 					if (bIsReplicationErrorSmoothing)
 					{
 						if (Error)
 						{
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PullData.X, FVector(4, 2, 2), PullData.R, FColor::Red, false, 5.f, 0, 0.5f);
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, (PullData.X + InterpolationData.GetErrorX(0)), 1, FColor::Red, false, 5.0f, 0, 0.5f);
+							Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + PullData.X, FVector(4, 2, 2), PullData.R, FColor::Red, false, 5.f, 0, 0.5f);
+							Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + PullData.X, ZOffset + (PullData.X + InterpData->GetErrorX(0)), 1, FColor::Red, false, 5.0f, 0, 0.5f);
 						}
 
-#if RENDERINTERP_ERRORVELOCITYSMOOTHING
-						if (bIsErrorVelocitySmoothing)
+						if (InterpData->IsErrorVelocitySmoothing())
 						{
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(InterpolationData.GetErrorVelocitySmoothingX(*Alpha), FVector(2, 2, 2), Rigid->R(), FColor::Purple, false, 5.f, 0, 0.5f);
+							Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(ZOffset + InterpData->GetErrorVelocitySmoothingX(*Alpha), FVector(2, 2, 2), Rigid->R(), FColor::Purple, false, 5.f, 0, 0.5f);
 						}
 						else
-#endif // RENDERINTERP_ERRORVELOCITYSMOOTHING
 						{
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow((Rigid->X() - InterpolationData.GetErrorX(*Alpha)), Rigid->X(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
+							Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(ZOffset + (Rigid->X() - InterpData->GetErrorX(*Alpha)), ZOffset + Rigid->X(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
 						}
 					}
 				}

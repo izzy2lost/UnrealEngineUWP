@@ -8,10 +8,10 @@
 #include "MoveLibrary/ModularMovement.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverLog.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WalkingMode)
 
@@ -19,7 +19,9 @@
 UWalkingMode::UWalkingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
+	SharedSettingsClasses.Add(UCommonLegacyMovementSettings::StaticClass());
+
+	GameplayTags.AddTag(Mover_IsOnGround);
 }
 
 void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
@@ -34,7 +36,7 @@ void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	FFloorCheckResult LastFloorResult;
 	FVector MovementNormal;
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	// Try to use the floor as the basis for the intended move direction (i.e. try to walk along slopes, rather than into them)
 	if (SimBlackboard && SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult) && LastFloorResult.IsWalkableFloor())
@@ -64,7 +66,9 @@ void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	if (CharacterInputs)
 	{
 		Params.MoveInputType = CharacterInputs->GetMoveInputType();
-		Params.MoveInput = CharacterInputs->GetMoveInput_WorldSpace();
+
+		const bool bMaintainInputMagnitude = true;
+		Params.MoveInput = UPlanarConstraintUtils::ConstrainDirectionToPlane(MoverComp->GetPlanarConstraint(), CharacterInputs->GetMoveInput_WorldSpace(), bMaintainInputMagnitude);
 	}
 	else
 	{
@@ -103,10 +107,10 @@ void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 
 void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
-	const UMoverComponent* MoverComp = GetMoverComponent();
+	UMoverComponent* MoverComp = GetMoverComponent();
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
+	UPrimitiveComponent* UpdatedPrimitive = Params.MovingComps.UpdatedPrimitive.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 
 	if (!UpdatedComponent || !UpdatedPrimitive)
@@ -123,15 +127,6 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if ( (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)) ||	// Teleport
-		 (CharacterInputs && CharacterInputs->bIsJumpJustPressed && AttemptJump(CommonLegacySettings->JumpUpwardsSpeed, OutputState)) )	// Jump
-	{
-		UpdatedComponent->ComponentVelocity = StartingSyncState->GetVelocity_WorldSpace();
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	const FVector OrigMoveDelta = ProposedMove.LinearVelocity * DeltaSeconds;
 
 	TObjectPtr<AActor> OwnerActor = UpdatedComponent->GetOwner();
@@ -142,7 +137,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 
 	FFloorCheckResult CurrentFloor;
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	// If we don't have cached floor information, we need to search for it again
 	if (!SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, CurrentFloor))
@@ -160,7 +155,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	bool bIsOrientationChanging = false;
 
 	// Apply orientation changes (if any)
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 	{ 
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 		bIsOrientationChanging = (TargetOrient != StartingOrient);
@@ -182,7 +177,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	{
 		// Attempt to move the full amount first
 		bDidAttemptMovement = true;
-		bool bMoved = UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, CurMoveDelta, TargetOrientQuat, true, MoveHitResult, ETeleportType::None, MoveRecord);
+		bool bMoved = UMovementUtils::TrySafeMoveUpdatedComponent(Params.MovingComps, CurMoveDelta, TargetOrientQuat, true, MoveHitResult, ETeleportType::None, MoveRecord);
 		float LastMoveSeconds = DeltaSeconds;
 
 		if (MoveHitResult.bStartPenetrating)
@@ -205,7 +200,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 				// It's a walkable ramp, so cut up the move and attempt to move the remainder of it along the ramp's surface, possibly generating another hit
 				const float PercentTimeRemaining = 1.f - PercentTimeAppliedSoFar;
 				CurMoveDelta = UGroundMovementUtils::ComputeDeflectedMoveOntoRamp(CurMoveDelta * PercentTimeRemaining, MoveHitResult, CommonLegacySettings->MaxWalkSlopeCosine, CurrentFloor.bLineTrace);
-				UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, CurMoveDelta, TargetOrientQuat, true, MoveHitResult, ETeleportType::None, MoveRecord);
+				UMovementUtils::TrySafeMoveUpdatedComponent(Params.MovingComps, CurMoveDelta, TargetOrientQuat, true, MoveHitResult, ETeleportType::None, MoveRecord);
 				LastMoveSeconds = PercentTimeRemaining * LastMoveSeconds;
 
 				const float SecondHitPercent = MoveHitResult.Time * PercentTimeRemaining;
@@ -216,7 +211,6 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 			{
 				// If still blocked, try to step up onto the blocking object OR slide along it
 
-				UMoverComponent* MoverComponent = GetMoverComponent();
 				// JAH TODO: Take movement bases into account
 				if (UGroundMovementUtils::CanStepUpOnHitSurface(MoveHitResult)) // || (CharacterOwner->GetMovementBase() != nullptr && Hit.HitObjectHandle == CharacterOwner->GetMovementBase()->GetOwner()))
 				{
@@ -224,21 +218,21 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 					const FVector PreStepUpLocation = UpdatedComponent->GetComponentLocation();
 					const FVector DownwardDir = -MoverComp->GetUpDirection();
 
-					if (!UGroundMovementUtils::TryMoveToStepUp(UpdatedComponent, UpdatedPrimitive, MoverComponent, DownwardDir, CommonLegacySettings->MaxStepHeight, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->FloorSweepDistance, OrigMoveDelta * (1.f - PercentTimeAppliedSoFar), MoveHitResult, CurrentFloor, false, &StepUpFloorResult, MoveRecord))
+					if (!UGroundMovementUtils::TryMoveToStepUp(Params.MovingComps, DownwardDir, CommonLegacySettings->MaxStepHeight, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->FloorSweepDistance, OrigMoveDelta * (1.f - PercentTimeAppliedSoFar), MoveHitResult, CurrentFloor, false, &StepUpFloorResult, MoveRecord))
 					{
 						FMoverOnImpactParams ImpactParams(DefaultModeNames::Walking, MoveHitResult, OrigMoveDelta);
-						MoverComponent->HandleImpact(ImpactParams);
+						MoverComp->HandleImpact(ImpactParams);
 						float PercentAvailableToSlide = 1.f - PercentTimeAppliedSoFar;
-						float SlideAmount = UGroundMovementUtils::TryWalkToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, OrigMoveDelta, PercentAvailableToSlide, TargetOrientQuat, MoveHitResult.Normal, MoveHitResult, true, MoveRecord, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->MaxStepHeight);
+						float SlideAmount = UGroundMovementUtils::TryWalkToSlideAlongSurface(Params.MovingComps, OrigMoveDelta, PercentAvailableToSlide, TargetOrientQuat, MoveHitResult.Normal, MoveHitResult, true, MoveRecord, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->MaxStepHeight);
 						PercentTimeAppliedSoFar += PercentAvailableToSlide * SlideAmount;
 					}
 				}
 				else if (MoveHitResult.Component.IsValid() && !MoveHitResult.Component.Get()->CanCharacterStepUp(Cast<APawn>(MoveHitResult.GetActor())))
 				{
 					FMoverOnImpactParams ImpactParams(DefaultModeNames::Walking, MoveHitResult, OrigMoveDelta);
-					MoverComponent->HandleImpact(ImpactParams);
+					MoverComp->HandleImpact(ImpactParams);
 					float PercentAvailableToSlide = 1.f - PercentTimeAppliedSoFar;
-					float SlideAmount = UGroundMovementUtils::TryWalkToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, OrigMoveDelta, 1.f - PercentTimeAppliedSoFar, TargetOrientQuat, MoveHitResult.Normal, MoveHitResult, true, MoveRecord, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->MaxStepHeight);
+					float SlideAmount = UGroundMovementUtils::TryWalkToSlideAlongSurface(Params.MovingComps, OrigMoveDelta, 1.f - PercentTimeAppliedSoFar, TargetOrientQuat, MoveHitResult.Normal, MoveHitResult, true, MoveRecord, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->MaxStepHeight);
 					PercentTimeAppliedSoFar += PercentAvailableToSlide * SlideAmount;
 				}
 			}
@@ -251,7 +245,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 
 		if (CurrentFloor.IsWalkableFloor())
 		{
-			UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(UpdatedComponent, UpdatedPrimitive, CurrentFloor, CommonLegacySettings->MaxWalkSlopeCosine, MoveRecord);
+			UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(MoverComp, CurrentFloor, CommonLegacySettings->MaxWalkSlopeCosine, MoveRecord);
 		}
     
 		if (!CurrentFloor.IsWalkableFloor() && !CurrentFloor.HitResult.bStartPenetrating)
@@ -282,7 +276,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 			const EMoveComponentFlags IncludeBlockingOverlapsWithoutEvents = (MOVECOMP_NeverIgnoreBlockingOverlaps | MOVECOMP_DisableBlockingOverlapDispatch);
 			EMoveComponentFlags MoveComponentFlags = MOVECOMP_NoFlags;
 			MoveComponentFlags = (MoveComponentFlags | IncludeBlockingOverlapsWithoutEvents);
-			UMovementUtils::TryMoveToResolvePenetration(UpdatedComponent, UpdatedPrimitive, MoveComponentFlags, RequestedAdjustment, Hit, UpdatedComponent->GetComponentQuat(), MoveRecord);
+			UMovementUtils::TryMoveToResolvePenetration(Params.MovingComps, MoveComponentFlags, RequestedAdjustment, Hit, UpdatedComponent->GetComponentQuat(), MoveRecord);
 		}
 		
 		if (!CurrentFloor.IsWalkableFloor() && !Hit.bStartPenetrating)
@@ -333,45 +327,12 @@ void UWalkingMode::OnUnregistered()
 	Super::OnUnregistered();
 }
 
-bool UWalkingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputState)
-{
-	// TODO: This should check if a jump is even allowed
-	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
-	JumpMove->UpwardsSpeed = UpwardsSpeed;
-	OutputState.SyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
-	return true;
-}
-
-bool UWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  PriorVelocity,
-												  nullptr ); // no movement base
-		
-		// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-		if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-		{
-			SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-			SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
 void UWalkingMode::CaptureFinalState(USceneComponent* UpdatedComponent, bool bDidAttemptMovement, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const
 {
 	FRelativeBaseInfo PriorBaseInfo;
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	const UMoverComponent* MoverComp = GetMoverComponent();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	const bool bHasPriorBaseInfo = SimBlackboard->TryGet(CommonBlackboard::LastFoundDynamicMovementBase, PriorBaseInfo);
 
@@ -415,7 +376,8 @@ FRelativeBaseInfo UWalkingMode::UpdateFloorAndBaseInfo(const FFloorCheckResult& 
 {
 	FRelativeBaseInfo ReturnBaseInfo;
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	const UMoverComponent* MoverComp = GetMoverComponent();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 

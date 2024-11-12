@@ -35,6 +35,7 @@
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "Windows/WindowsPlatformCrashContext.h"
 #include "HAL/PlatformOutputDevices.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include "GenericPlatform/GenericPlatformChunkInstall.h"
 #include "GenericPlatform/GenericPlatformDriver.h"
@@ -229,7 +230,7 @@ int32 GetOSVersionsHelper( TCHAR* OutOSVersionLabel, int32 OSVersionLabelLength,
 					}
 
 					// Add the build number as displayed by the winver utility.
-					OSVersionLabel += FString::Printf(TEXT(" [%u.%u.%u.%s]"), OsVersionInfo.dwMajorVersion, OsVersionInfo.dwMinorVersion, OsVersionInfo.dwBuildNumber, *UpdateBuildRevision);
+					OSVersionLabel += FString::Printf(TEXT(" [%u.%u.%u.%s]"), (uint32)OsVersionInfo.dwMajorVersion, (uint32)OsVersionInfo.dwMinorVersion, (uint32)OsVersionInfo.dwBuildNumber, *UpdateBuildRevision);
 				}
 				break;
 			default:
@@ -898,6 +899,7 @@ void FWindowsPlatformMisc::PlatformPreInit()
 	// initialize the file SHA hash mapping
 	InitSHAHashes();
 
+#if !PLATFORM_CPU_ARM_FAMILY
 	// Check for SSE42 or better. This is now minspec and there is a high likelihood
 	// of crashing on an invalid instruction on unsupported processors as we use these
 	// instructions now.
@@ -906,6 +908,7 @@ void FWindowsPlatformMisc::PlatformPreInit()
 		FMessageDialog::Open(EAppMsgType::Ok, NSLOCTEXT("Launch", "Error_CPUNotSupported", "This CPU does not support a required feature (SSE4.2)."));
 		FPlatformMisc::RequestExit(false, TEXT("FWindowsPlatformMisc::PlatformPreInit.CPUNotSupported"));
 	}
+#endif
 }
 
 
@@ -1401,7 +1404,7 @@ const TCHAR* FWindowsPlatformMisc::GetSystemErrorMessage(TCHAR* OutBuffer, int32
 	return OutBuffer;
 }
 
-void FWindowsPlatformMisc::CreateGuid(FGuid& Result)
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformMisc::CreateGuid(FGuid& Result)
 {
 	verify( CoCreateGuid( (GUID*)&Result )==S_OK );
 }
@@ -1454,7 +1457,7 @@ private:
 		LPGetDpiForWindow GetDpiForWindow = (LPGetDpiForWindow)(void*)GetProcAddress(User32Module, "GetDpiForWindow");
 		if (GetDpiForWindow == nullptr) { return 1.0f; }
 
-		return static_cast<float>(GetDpiForWindow(HandleWnd)) / 96.0f;
+		return static_cast<float>(GetDpiForWindow(HandleWnd)) / USER_DEFAULT_SCREEN_DPI;
 	}
 
 	static void SetWindowStyleFlags(HWND HandleWnd, LONG Flags, bool bEnabled)
@@ -1802,7 +1805,7 @@ private:
 			return true;
 			case WM_DPICHANGED:
 				/*{
-					float NewScale = LOWORD(WParam) / 96.0f;
+					float NewScale = LOWORD(WParam) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
 					RECT* SuggestedRect = (RECT*)LParam;
 					SetWindowPos(HandleWnd,
 						HWND_NOTOPMOST,
@@ -2574,8 +2577,7 @@ int32 FWindowsPlatformMisc::NumberOfWorkerThreadsToSpawn()
 {	
 	static int32 MaxServerWorkerThreads = 4;
 
-	extern CORE_API int32 GUseNewTaskBackend;
-	int32 MaxWorkerThreads = GUseNewTaskBackend ? INT32_MAX : 26;
+	int32 MaxWorkerThreads = INT32_MAX;
 
 	int32 NumberOfCores = FWindowsPlatformMisc::NumberOfCores();
 	int32 NumberOfCoresIncludingHyperthreads = FWindowsPlatformMisc::NumberOfCoresIncludingHyperthreads();
@@ -3943,7 +3945,7 @@ bool FWindowsPlatformMisc::QueryRegKey( const Windows::HKEY InKey, const TCHAR* 
 						::DWORD Value;
 						if (RegQueryValueEx(Key, InValueName, NULL, NULL, (LPBYTE)&Value, &Size) == ERROR_SUCCESS)
 						{
-							OutData = FString::Printf(TEXT("%d"), Value);
+							OutData = FString::Printf(TEXT("%u"), (uint32)Value);
 							bSuccess = true;
 						}
 						break;
@@ -3954,7 +3956,7 @@ bool FWindowsPlatformMisc::QueryRegKey( const Windows::HKEY InKey, const TCHAR* 
 						int64 Value;
 						if (RegQueryValueEx(Key, InValueName, NULL, NULL, (LPBYTE)&Value, &Size) == ERROR_SUCCESS)
 						{
-							OutData = FString::Printf(TEXT("%lld"), Value);
+							OutData = FString::Printf(TEXT("%" INT64_FMT ), Value);
 							bSuccess = true;
 						}
 						break;

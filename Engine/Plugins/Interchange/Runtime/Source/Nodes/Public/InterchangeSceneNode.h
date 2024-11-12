@@ -22,8 +22,11 @@ namespace UE
 			static const FString& GetTransformSpecializeTypeString();
 			static const FString& GetJointSpecializeTypeString();
 			static const FString& GetLodGroupSpecializeTypeString();
+			static const FString& GetMeshToGlobalBindPoseReferencesString();
 			static const FString& GetSlotMaterialDependenciesString();
 			static const FString& GetMorphTargetCurveWeightsKey();
+			static const FString& GetLayerNamesKey();
+			static const FString& GetTagsKey();
 		};
 
 	}//ns Interchange
@@ -124,6 +127,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Scene")
 	bool SetCustomGeometricTransform(const FTransform& AttributeValue);
 
+	/** Get the node pivot geometric offset. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Scene")
+	bool GetCustomPivotNodeTransform(FTransform& AttributeValue) const;
+
+	/** Set the node pivot geometric offset. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Scene")
+	bool SetCustomPivotNodeTransform(const FTransform& AttributeValue);
+
 	/***********************************************************************************************
 	* Skeleton bind bone API Begin
 	* 
@@ -213,6 +224,41 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
 	bool GetCustomAnimationAssetUidToPlay(FString& AttributeValue) const;
 
+	/** Set the Global Bind Pose Referenced for MeshUIDs. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	void SetGlobalBindPoseReferenceForMeshUIDs(const TMap<FString, FMatrix>& GlobalBindPoseReferenceForMeshUIDs);
+
+	/** Get the Global Bind Pose Reference for given MeshUID. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	bool GetGlobalBindPoseReferenceForMeshUID(const FString& MeshUID, FMatrix& GlobalBindPoseReference) const;
+
+
+	/** Sets if Joint has Bind Pose. Automatic T0 usage will be configured in case if the Skeleton contanis at least 1 Joint without BindPose. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	bool SetCustomHasBindPose(const bool& bHasBindPose);
+
+	/** Gets if the joint has BindPose (if the setter was used, otherwise returns with false and T0 evaluation presumes bHasBindPose==true). */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	bool GetCustomHasBindPose(bool &bHasBindPose) const;
+
+	/** Gets the LayerNames that this SceneNode (Actor) is supposed to be part of. */
+	void GetLayerNames(TArray<FString>& OutLayerNames) const;
+
+	/** Add LayerName that this SceneNode (Actor) is supposed to be part of. */
+	bool AddLayerName(const FString& LayerName);
+
+	/** Remove LayerName that this SceneNode (Actor) is supposed to be part of. */
+	bool RemoveLayerName(const FString& LayerName);
+
+	/** Gets the Tags that this SceneNode (Actor) is supposed to have. */
+	void GetTags(TArray<FString>& OutTags) const;
+
+	/** Add Tag that this SceneNode (Actor) is supposed to have. */
+	bool AddTag(const FString& Tag);
+
+	/** Remove Tag that this SceneNode (Actor) is supposed to have. */
+	bool RemoveTag(const FString& Tag);
+
 private:
 
 	bool GetGlobalTransformInternal(const UE::Interchange::FAttributeKey LocalTransformKey
@@ -234,9 +280,15 @@ private:
 	//A scene node can have a transform apply to the mesh it reference.
 	const UE::Interchange::FAttributeKey Macro_CustomGeometricTransformKey = UE::Interchange::FAttributeKey(TEXT("GeometricTransform"));
 
+	//A scene node can have a pivot transform apply to the mesh it reference (use this pivot only if you are not baking the vertices of the mesh).
+	const UE::Interchange::FAttributeKey Macro_CustomPivotNodeTransformKey = UE::Interchange::FAttributeKey(TEXT("PivotNodeTransform"));
+
 	//A scene node can reference an asset. Asset can be Mesh, Light, camera...
 	const UE::Interchange::FAttributeKey Macro_CustomAssetInstanceUidKey = UE::Interchange::FAttributeKey(TEXT("AssetInstanceUid"));
-	
+
+	//Tracks if Scene Node Has Bind Pose.
+	const UE::Interchange::FAttributeKey Macro_CustomHasBindPoseKey = UE::Interchange::FAttributeKey(TEXT("HasBindPose"));
+
 	//A scene node can represent many special types
 	UE::Interchange::TArrayAttributeHelper<FString> NodeSpecializeTypes;
 
@@ -245,6 +297,15 @@ private:
 
 	//A scene node can have different MorphTarget curve settings:
 	UE::Interchange::TMapAttributeHelper<FString, float> MorphTargetCurveWeights;
+
+	//BindPose References per Mesh for a JointNode.
+	UE::Interchange::TMapAttributeHelper<FString, FMatrix> MeshToGlobalBindPoseReferences;
+
+	//A scene node can be part of multiple Layers.
+	UE::Interchange::TArrayAttributeHelper<FString> LayerNames;
+
+	//A scene node can have multiple Tags.
+	UE::Interchange::TArrayAttributeHelper<FString> Tags;
 
 	//A scene node can reference an animation asset on top of base asset:
 	const UE::Interchange::FAttributeKey Macro_CustomAnimationAssetUidToPlayKey = UE::Interchange::FAttributeKey(TEXT("AnimationAssetUidToPlay"));

@@ -27,14 +27,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Imported nodes
 		/// </summary>
-		public IReadOnlyList<IBlobHandle> Imports { get; }
+		public IReadOnlyList<IBlobRef> Imports { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="obj">The compact binary object</param>
 		/// <param name="imports">List of imports for attachments</param>
-		public CbNode(CbObject obj, IReadOnlyList<IBlobHandle> imports)
+		public CbNode(CbObject obj, IReadOnlyList<IBlobRef> imports)
 		{
 			Object = obj;
 			Imports = imports;

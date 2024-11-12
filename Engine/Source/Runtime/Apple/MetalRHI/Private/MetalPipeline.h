@@ -3,19 +3,17 @@
 #pragma once
 
 #include "MetalRHIPrivate.h"
-
 #include "ShaderPipelineCache.h"
+#include "MetalShaderResources.h"
 
 /**
  * The sampler, buffer and texture resource limits as defined here:
  * https://developer.apple.com/library/ios/documentation/Miscellaneous/Conceptual/MetalProgrammingGuide/Render-Ctx/Render-Ctx.html
  */
 #if PLATFORM_IOS
-#define METAL_MAX_BUFFERS 31
 #define METAL_MAX_TEXTURES 31
 typedef uint32 FMetalTextureMask;
 #elif PLATFORM_MAC
-#define METAL_MAX_BUFFERS 31
 #define METAL_MAX_TEXTURES 128
 typedef __uint128_t FMetalTextureMask;
 #else
@@ -90,10 +88,11 @@ enum EMetalPipelineHashOffsets
 	Offset_End = Offset_AlphaToCoverage + NumBits_AlphaToCoverage
 };
 
+class FMetalDevice;
 class FMetalPipelineStateCacheManager
 {
 public:
-	FMetalPipelineStateCacheManager();
+	FMetalPipelineStateCacheManager(FMetalDevice& Device);
 	~FMetalPipelineStateCacheManager();
 	
 private:
@@ -110,13 +109,15 @@ private:
 class FMetalShaderPipeline
 {
 public:
-    FMetalShaderPipeline() {};
+    FMetalShaderPipeline(FMetalDevice& MetalDevice)
+	 : Device(MetalDevice) {};
     ~FMetalShaderPipeline();
     
     void Init();
     void InitResourceMask();
     void InitResourceMask(EMetalShaderFrequency Frequency);
     
+	FMetalDevice& Device;
 	MTLRenderPipelineStatePtr RenderPipelineState;
     MTLComputePipelineStatePtr ComputePipelineState;
     MTLRenderPipelineStatePtr StreamPipelineState;

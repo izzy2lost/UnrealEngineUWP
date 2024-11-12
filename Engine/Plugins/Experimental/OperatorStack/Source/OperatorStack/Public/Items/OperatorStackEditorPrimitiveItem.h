@@ -25,22 +25,26 @@ struct FOperatorStackEditorPrimitiveItem : FOperatorStackEditorItem
 		CachedHash = GetTypeHash(InValue);
 	}
 
-	virtual bool HasValue() const override
+	virtual uint32 GetValueCount() const override
+	{
+		return 1;
+	}
+
+	virtual bool HasValue(uint32 InIndex) const override
 	{
 		return MemoryPtr != nullptr;
 	}
 
-protected:
 	virtual uint32 GetHash() const override
 	{
 		return CachedHash;
 	}
 
-	virtual void* GetValuePtr() const override
+	virtual void* GetValuePtr(uint32 InIndex) const override
 	{
 		return MemoryPtr;
 	}
 
-	uint32 CachedHash = 0;
+protected:
 	uint8* MemoryPtr = nullptr;
 };

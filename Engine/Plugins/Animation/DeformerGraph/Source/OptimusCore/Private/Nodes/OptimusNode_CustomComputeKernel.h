@@ -51,9 +51,10 @@ public:
 	}
 
 	void OnDataTypeChanged(FName InTypeName) override;
+	void PostLoadNodeSpecificData() override;
 
 	// UOptimusNode_ComputeKernelBase overrides
-	FString GetKernelName() const override { return KernelName.ToString(); }
+	FString GetKernelHlslName() const override;
 	FIntVector GetGroupSize() const override { return GroupSize; }
 	FString GetKernelSourceText() const override;
 	TArray<TObjectPtr<UComputeSource>> GetAdditionalSources() const override { return AdditionalSources; }
@@ -168,8 +169,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 	void Serialize(FArchive& Ar) override;
-	void PostLoad() override;
-
 	
 	
 protected:

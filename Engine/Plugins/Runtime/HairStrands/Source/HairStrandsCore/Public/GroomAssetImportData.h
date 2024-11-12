@@ -16,4 +16,7 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<class UGroomImportOptions> ImportOptions;
+
+	UPROPERTY()
+	TObjectPtr<class UGroomCreateStrandsTexturesOptions> HairStrandsTexturesOptions;
 };

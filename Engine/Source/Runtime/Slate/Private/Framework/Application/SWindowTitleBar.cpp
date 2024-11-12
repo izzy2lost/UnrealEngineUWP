@@ -10,6 +10,7 @@ void SWindowTitleBar::Construct( const FArguments& InArgs, const TSharedRef<SWin
 	Style = InArgs._Style;
 	ShowAppIcon = InArgs._ShowAppIcon;
 	Title = InArgs._Title;
+	CloseButtonToolTipText = InArgs._CloseButtonToolTipText;
 
 	WindowMenuSlot = nullptr;
 
@@ -145,6 +146,7 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 						.Image(this, &SWindowTitleBar::GetMinimizeImage)
 						.ColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
 						.AccessibleText(NSLOCTEXT("WindowTitleBar", "Minimize", "Minimize"))
+						.ToolTipText(NSLOCTEXT("WindowTitleBar", "Minimize", "Minimize"))
 				];
 
 		MaximizeRestoreButton = SNew(SButton)
@@ -159,7 +161,8 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 					SNew(SImage)
 						.Image(this, &SWindowTitleBar::GetMaximizeRestoreImage)
 						.ColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
-						.AccessibleText(NSLOCTEXT("WindowTitleBar", "Maximize", "Maximize"))
+						.AccessibleText(this, &SWindowTitleBar::GetMaximizeButtonToolTip)
+						.ToolTipText(this, &SWindowTitleBar::GetMaximizeButtonToolTip)
 				];
 
 		CloseButton = SNew(SButton)
@@ -174,7 +177,8 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 					SNew(SImage)
 						.Image(this, &SWindowTitleBar::GetCloseImage)
 						.ColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
-						.AccessibleText(NSLOCTEXT("WindowTitleBar", "Close", "Close"))
+						.AccessibleText(CloseButtonToolTipText)
+						.ToolTipText(CloseButtonToolTipText)
 				];
 	}
 #endif //!PLATFORM_MAC
@@ -578,4 +582,16 @@ FText SWindowTitleBar::HandleWindowTitleText( ) const
 	}
 
 	return OwnerWindow->GetTitle();
+}
+
+FText SWindowTitleBar::GetMaximizeButtonToolTip() const
+{
+	TSharedPtr<SWindow> OwnerWindow = OwnerWindowPtr.Pin();
+
+	if (OwnerWindow.IsValid() && OwnerWindow->IsWindowMaximized())
+	{
+		return NSLOCTEXT("WindowTitleBar", "MaximizeRestoreDown", "Restore Down");
+	}
+
+	return NSLOCTEXT("WindowTitleBar", "Maximize", "Maximize");
 }

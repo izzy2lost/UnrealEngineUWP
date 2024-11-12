@@ -41,6 +41,7 @@ public:
 	SLATE_END_ARGS()
 	
 	SLATE_API SComplexGradient();
+	SLATE_API virtual ~SComplexGradient();
 
 	/**
 	 * Construct this widget

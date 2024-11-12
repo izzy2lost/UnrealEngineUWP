@@ -2214,20 +2214,14 @@ bool FWebRemoteControlModule::HandlePresetSetControllerRoute(const FHttpServerRe
 	// 2. Validate Content Type
 	if (!WebRemoteControlInternalUtils::ValidateContentType(Request, TEXT("application/json"), OnComplete))
 	{
-		WebRemoteControlInternalUtils::CreateUTF8ErrorMessage(TEXT("Expected content type to be application/json"), Response->Body);
-		OnComplete(MoveTemp(Response));
-
-		return false;
+		return true;
 	}
 
 	// 3. Deserialize Json POST data into request struct
 	FRCPresetSetControllerRequest SetControllerRequest;
 	if (!WebRemoteControlInternalUtils::DeserializeRequest(Request, &OnComplete, SetControllerRequest))
 	{
-		WebRemoteControlInternalUtils::CreateUTF8ErrorMessage(TEXT("Unable to process JSON body. Expected format: type to be application/json"), Response->Body);
-		OnComplete(MoveTemp(Response));
-
-		return false;
+		return true;
 	}
 
 	// 4. Resolve url arguments
@@ -2236,14 +2230,13 @@ bool FWebRemoteControlModule::HandlePresetSetControllerRoute(const FHttpServerRe
 	Args.ControllerName = Request.PathParams.FindChecked(TEXT("controller"));
 
 	// 5. Acquire Remote Control Preset object
-	URemoteControlPreset* Preset = IRemoteControlModule::Get().ResolvePreset(*Args.PresetName);
+	URemoteControlPreset* Preset = WebRemoteControl::GetPreset(*Args.PresetName);
 	if (Preset == nullptr)
 	{
 		Response->Code = EHttpServerResponseCodes::NotFound;
 		WebRemoteControlInternalUtils::CreateUTF8ErrorMessage(TEXT("Unable to resolve the preset."), Response->Body);
 		OnComplete(MoveTemp(Response));
-
-		return false;
+		return true;
 	}
 
 	// 6. Acquire Controller
@@ -2253,8 +2246,7 @@ bool FWebRemoteControlModule::HandlePresetSetControllerRoute(const FHttpServerRe
 		Response->Code = EHttpServerResponseCodes::NotFound;
 		WebRemoteControlInternalUtils::CreateUTF8ErrorMessage(TEXT("Unable to resolve the controller input."), Response->Body);
 		OnComplete(MoveTemp(Response));
-
-		return false;
+		return true;
 	}
 
 	// 7. Reformat Payload to represent our internal structure
@@ -2276,13 +2268,12 @@ bool FWebRemoteControlModule::HandlePresetSetControllerRoute(const FHttpServerRe
 	}
 	else
 	{
+		Response->Code = EHttpServerResponseCodes::ServerError;
 		WebRemoteControlInternalUtils::CreateUTF8ErrorMessage(FString::Printf(TEXT("Error while trying to set controller %s."), *Args.ControllerName), Response->Body);
 	}
 
 	OnComplete(MoveTemp(Response));
-
 	return true;
-
 }
 
 bool FWebRemoteControlModule::HandlePresetGetControllerRoute(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
@@ -2296,7 +2287,7 @@ bool FWebRemoteControlModule::HandlePresetGetControllerRoute(const FHttpServerRe
 	Args.ControllerName = Request.PathParams.FindChecked(TEXT("controller"));
 
 	// 3. Acquire Remote Control Preset object
-	URemoteControlPreset* Preset = IRemoteControlModule::Get().ResolvePreset(*Args.PresetName);
+	URemoteControlPreset* Preset = WebRemoteControl::GetPreset(*Args.PresetName);
 	if (Preset == nullptr)
 	{
 		Response->Code = EHttpServerResponseCodes::NotFound;
@@ -2375,6 +2366,7 @@ void FWebRemoteControlModule::HandleWebSocketHttpMessage(const FRemoteControlWeb
 	{
 		Wrapper.Passphrase = WebSocketMessage.Header[WebRemoteControlInternalUtils::PassphraseHeader][0];
 	}
+
 
 	LogRequestExternally(Wrapper.RequestId, TEXT("UE Received"));
 	

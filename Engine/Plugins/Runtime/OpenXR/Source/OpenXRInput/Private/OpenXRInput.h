@@ -135,6 +135,7 @@ public:
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		virtual bool SetPlayerMappableInputConfig(TObjectPtr<class UPlayerMappableInputConfig> InputConfig) override;
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		virtual bool SetEnhancedInputUserSettings(TObjectPtr<class UEnhancedInputUserSettings> InputSettings) override;
 		virtual bool AttachInputMappingContexts(const TSet<TObjectPtr<UInputMappingContext>>& MappingContexts) override;
 
 		// IHapticDevice overrides
@@ -155,6 +156,7 @@ public:
 		TArray<FOpenXRAction> LegacyActions, EnhancedActions;
 		TMap<EControllerHand, FOpenXRController> Controllers;
 		TMap<FName, EControllerHand> MotionSourceToControllerHandMap;
+		TMap<FString, TArray<FInputKeyOpenXRProperties>> InputsKeysToPropertiesMap;
 
 		// Holds Enhanced Input Mapping Contexts pulled from the Enhanced Input Settings and mapped to their priority
 		// These will be converted into OpenXR action sets

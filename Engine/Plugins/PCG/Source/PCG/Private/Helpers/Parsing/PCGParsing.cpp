@@ -15,7 +15,7 @@ namespace PCGParser
 	}
 
 	// TODO: Consider passing error messages as well for more precise feedback
-	EPCGParserResult ParseIndexRanges(PCGIndexing::FPCGIndexCollection& OutIndexCollection, const FString& InputString)
+	EPCGParserResult ParseIndexRanges(PCGIndexing::FPCGIndexCollection& OutIndexCollection, const FStringView& InputString)
 	{
 		FString PurgedInputString(InputString);
 		PurgedInputString.RemoveSpacesInline();
@@ -69,7 +69,8 @@ namespace PCGParser
 				}
 
 				const int32 Index = FCString::Atoi(*ElementSubstring);
-				if (!OutIndexCollection.AddRange(Index, Index + 1))
+				// Adding the same index twice will adjust the end index appropriately
+				if (!OutIndexCollection.AddRange(Index, Index))
 				{
 					return EPCGParserResult::InvalidExpression;
 				}

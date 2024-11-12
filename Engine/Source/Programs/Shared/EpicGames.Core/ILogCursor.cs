@@ -229,6 +229,35 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
+		/// Matches lines forwards from the given offset until the given pattern matches
+		/// </summary>
+		/// <param name="cursor">The log cursor</param>
+		/// <param name="offset">Initial offset</param>
+		/// <param name="pattern">Pattern to match</param>
+		/// <param name="maxLines">Max number of lines to look forward</param>
+		/// <returns>Offset of the line that matches the pattern (inclusive), or EOF is encountered</returns>
+		public static int MatchForwardsLimited(this ILogCursor cursor, int offset, Regex pattern, int maxLines)
+		{
+			string? nextLine;
+			int numLines = 0;
+			int nextOffset = offset + 1;
+			cursor.TryGetLine(nextOffset, out nextLine);
+
+			while (numLines < maxLines && nextLine!=null)
+			{
+				
+				if (pattern.IsMatch(nextLine))
+				{
+					return nextOffset;
+				}
+				cursor.TryGetLine(nextOffset, out nextLine);
+				nextOffset++;
+				numLines++;
+			}
+			return offset;
+		}
+
+		/// <summary>
 		/// Tests if a line consists only of whitespace
 		/// </summary>
 		/// <param name="cursor">The log cursor</param>

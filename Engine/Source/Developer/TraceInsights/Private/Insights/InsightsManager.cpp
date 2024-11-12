@@ -4,8 +4,10 @@
 
 #include "DesktopPlatformModule.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Docking/TabManager.h"
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformProcess.h"
+#include "ISessionServicesModule.h"
 #include "ISourceCodeAccessModule.h"
 #include "ISourceCodeAccessor.h"
 #include "Logging/MessageLog.h"
@@ -15,96 +17,57 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/UniquePtr.h"
-#include "Trace/StoreClient.h"
-#include "TraceServices/AnalysisService.h"
-#include "TraceServices/Model/Diagnostics.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
-// Insights
+// TraceTools
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
+
+// TraceAnalysis
+#include "Trace/StoreClient.h"
+
+// TraceServices
+#include "TraceServices/AnalysisService.h"
+#include "TraceServices/Model/Diagnostics.h"
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/MiscUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
-#include "Insights/Common/TimeUtils.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 #include "Insights/Log.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
 #include "Insights/Tests/InsightsTestRunner.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/Filters.h"
-#include "Insights/Widgets/SStartPageWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/SSessionInfoWindow.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Special tab type, that cannot be dragged/undocked from the tab bar
- */
-class SLockedTab : public SDockTab
-{
-	virtual FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
-	{
-		return FReply::Handled();
-	}
-};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define LOCTEXT_NAMESPACE "InsightsManager"
 
 const FName FInsightsManagerTabs::StartPageTabId(TEXT("TraceStore")); // DEPRECATED
-const FName FInsightsManagerTabs::TraceStoreTabId(TEXT("TraceStore"));
-const FName FInsightsManagerTabs::ConnectionTabId(TEXT("Connection"));
-const FName FInsightsManagerTabs::LauncherTabId(TEXT("Launcher"));
+const FName FInsightsManagerTabs::TraceStoreTabId(TEXT("TraceStore")); // DEPRECATED
+const FName FInsightsManagerTabs::ConnectionTabId(TEXT("Connection")); // DEPRECATED
+const FName FInsightsManagerTabs::LauncherTabId(TEXT("Launcher")); // DEPRECATED
+
 const FName FInsightsManagerTabs::SessionInfoTabId(TEXT("SessionInfo"));
 const FName FInsightsManagerTabs::TimingProfilerTabId(TEXT("TimingProfiler"));
 const FName FInsightsManagerTabs::LoadingProfilerTabId(TEXT("LoadingProfiler"));
-const FName FInsightsManagerTabs::NetworkingProfilerTabId(TEXT("NetworkingProfiler"));
 const FName FInsightsManagerTabs::MemoryProfilerTabId(TEXT("MemoryProfiler"));
+const FName FInsightsManagerTabs::NetworkingProfilerTabId(TEXT("NetworkingProfiler"));
+
 const FName FInsightsManagerTabs::AutomationWindowTabId(TEXT("AutomationWindow"));
 const FName FInsightsManagerTabs::MessageLogTabId(TEXT("MessageLog"));
+const FName FInsightsManagerTabs::TraceControlTabId(TEXT("TraceControl"));
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// FAvailabilityCheck
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FAvailabilityCheck::Tick()
+namespace UE::Insights
 {
-	if (NextTimestamp != (uint64)-1)
-	{
-		const uint64 Time = FPlatformTime::Cycles64();
-		if (Time > NextTimestamp)
-		{
-			// Increase wait time with 0.1s, but at no more than 3s.
-			WaitTime = FMath::Min(WaitTime + 0.1, 3.0);
-			const uint64 WaitTimeCycles64 = static_cast<uint64>(WaitTime / FPlatformTime::GetSecondsPerCycle64());
-			NextTimestamp = Time + WaitTimeCycles64;
-
-			return true; // yes, manager can check for (slow) availability conditions
-		}
-	}
-
-	return false; // no, manager should not check for (slow) availability conditions during this tick
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FAvailabilityCheck::Disable()
-{
-	WaitTime = 0.0;
-	NextTimestamp = (uint64)-1;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FAvailabilityCheck::Enable(double InWaitTime)
-{
-	WaitTime = InWaitTime;
-	const uint64 WaitTimeCycles64 = static_cast<uint64>(WaitTime / FPlatformTime::GetSecondsPerCycle64());
-	NextTimestamp = FPlatformTime::Cycles64() + WaitTimeCycles64;
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FInsightsManager
@@ -164,12 +127,12 @@ void FInsightsManager::Initialize(IUnrealInsightsModule& InsightsModule)
 
 	InsightsMenuBuilder = MakeShared<FInsightsMenuBuilder>();
 
-	Insights::FFilterService::Initialize();
-
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 	MessageLogModule.RegisterLogListing(GetLogListingName(), LOCTEXT("UnrealInsights", "Unreal Insights"));
 	MessageLogModule.RegisterLogListing(AnalysisLogListingName, LOCTEXT("TraceAnalysis", "Trace Analysis"));
 	MessageLogModule.EnableMessageLogDisplay(true);
+
+	RegisterTraceControlTab();
 
 	// Register tick functions.
 	OnTick = FTickerDelegate::CreateSP(this, &FInsightsManager::Tick);
@@ -206,8 +169,6 @@ void FInsightsManager::Shutdown()
 		}
 	}
 
-	Insights::FFilterService::Shutdown();
-
 	FInsightsManager::Instance.Reset();
 }
 
@@ -231,50 +192,6 @@ void FInsightsManager::BindCommands()
 
 void FInsightsManager::RegisterMajorTabs(IUnrealInsightsModule& InsightsModule)
 {
-#if !WITH_EDITOR
-	const FInsightsMajorTabConfig& TraceStoreConfig = InsightsModule.FindMajorTabConfig(FInsightsManagerTabs::TraceStoreTabId);
-	if (TraceStoreConfig.bIsAvailable)
-	{
-		// Register tab spawner for the Trace Store tab.
-		FTabSpawnerEntry& TabSpawnerEntry = FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FInsightsManagerTabs::TraceStoreTabId,
-			FOnSpawnTab::CreateRaw(this, &FInsightsManager::SpawnTraceStoreTab))
-			.SetDisplayName(TraceStoreConfig.TabLabel.IsSet() ? TraceStoreConfig.TabLabel.GetValue() : LOCTEXT("TraceStoreTabTitle", "Trace Store"))
-			.SetTooltipText(TraceStoreConfig.TabTooltip.IsSet() ? TraceStoreConfig.TabTooltip.GetValue() : LOCTEXT("TraceStoreTooltipText", "Open the Trace Store Browser."))
-			.SetIcon(TraceStoreConfig.TabIcon.IsSet() ? TraceStoreConfig.TabIcon.GetValue() : FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TraceStore"));
-
-		TSharedRef<FWorkspaceItem> Group = TraceStoreConfig.WorkspaceGroup.IsValid() ? TraceStoreConfig.WorkspaceGroup.ToSharedRef() : WorkspaceMenu::GetMenuStructure().GetDeveloperToolsProfilingCategory();
-		TabSpawnerEntry.SetGroup(Group);
-	}
-
-	const FInsightsMajorTabConfig& ConnectionConfig = InsightsModule.FindMajorTabConfig(FInsightsManagerTabs::ConnectionTabId);
-	if (ConnectionConfig.bIsAvailable)
-	{
-		// Register tab spawner for the Connection tab.
-		FTabSpawnerEntry& TabSpawnerEntry = FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FInsightsManagerTabs::ConnectionTabId,
-			FOnSpawnTab::CreateRaw(this, &FInsightsManager::SpawnConnectionTab))
-			.SetDisplayName(ConnectionConfig.TabLabel.IsSet() ? ConnectionConfig.TabLabel.GetValue() : LOCTEXT("ConnectionTabTitle", "Connection"))
-			.SetTooltipText(ConnectionConfig.TabTooltip.IsSet() ? ConnectionConfig.TabTooltip.GetValue() : LOCTEXT("ConnectionTooltipText", "Open the Connection tab."))
-			.SetIcon(ConnectionConfig.TabIcon.IsSet() ? ConnectionConfig.TabIcon.GetValue() : FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Connection"));
-
-		TSharedRef<FWorkspaceItem> Group = ConnectionConfig.WorkspaceGroup.IsValid() ? ConnectionConfig.WorkspaceGroup.ToSharedRef() : WorkspaceMenu::GetMenuStructure().GetDeveloperToolsProfilingCategory();
-		TabSpawnerEntry.SetGroup(Group);
-	}
-
-	const FInsightsMajorTabConfig& LauncherConfig = InsightsModule.FindMajorTabConfig(FInsightsManagerTabs::LauncherTabId);
-	if (LauncherConfig.bIsAvailable)
-	{
-		// Register tab spawner for the Launcher tab.
-		FTabSpawnerEntry& TabSpawnerEntry = FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FInsightsManagerTabs::LauncherTabId,
-			FOnSpawnTab::CreateRaw(this, &FInsightsManager::SpawnLauncherTab))
-			.SetDisplayName(LauncherConfig.TabLabel.IsSet() ? LauncherConfig.TabLabel.GetValue() : LOCTEXT("LauncherTabTitle", "Launcher"))
-			.SetTooltipText(LauncherConfig.TabTooltip.IsSet() ? LauncherConfig.TabTooltip.GetValue() : LOCTEXT("LauncherTooltipText", "Open the Launcher tab."))
-			.SetIcon(LauncherConfig.TabIcon.IsSet() ? LauncherConfig.TabIcon.GetValue() : FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Launcher"));
-
-		TSharedRef<FWorkspaceItem> Group = LauncherConfig.WorkspaceGroup.IsValid() ? LauncherConfig.WorkspaceGroup.ToSharedRef() : WorkspaceMenu::GetMenuStructure().GetDeveloperToolsProfilingCategory();
-		TabSpawnerEntry.SetGroup(Group);
-	}
-#endif // !WITH_EDITOR
-
 	const FInsightsMajorTabConfig& SessionInfoConfig = InsightsModule.FindMajorTabConfig(FInsightsManagerTabs::SessionInfoTabId);
 	if (SessionInfoConfig.bIsAvailable)
 	{
@@ -300,111 +217,6 @@ void FInsightsManager::RegisterMajorTabs(IUnrealInsightsModule& InsightsModule)
 void FInsightsManager::UnregisterMajorTabs()
 {
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::SessionInfoTabId);
-
-	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::TraceStoreTabId);
-	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::ConnectionTabId);
-	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::LauncherTabId);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-TSharedRef<SDockTab> FInsightsManager::SpawnTraceStoreTab(const FSpawnTabArgs& Args)
-{
-	const TSharedRef<SDockTab> DockTab = SNew(SLockedTab)
-		.TabRole(ETabRole::MajorTab);
-
-	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FInsightsManager::OnTraceStoreTabClosed));
-
-	TSharedRef<STraceStoreWindow> Window = SNew(STraceStoreWindow);
-	DockTab->SetContent(Window);
-
-	AssignTraceStoreWindow(Window);
-
-	if (!bIsMainTabSet)
-	{
-		FGlobalTabmanager::Get()->SetMainTab(DockTab);
-		bIsMainTabSet = true;
-	}
-
-	return DockTab;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FInsightsManager::OnTraceStoreTabClosed(TSharedRef<SDockTab> TabBeingClosed)
-{
-	RemoveTraceStoreWindow();
-
-	// Disable TabClosed delegate.
-	TabBeingClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback());
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-TSharedRef<SDockTab> FInsightsManager::SpawnConnectionTab(const FSpawnTabArgs& Args)
-{
-	const TSharedRef<SDockTab> DockTab = SNew(SLockedTab)
-		.TabRole(ETabRole::MajorTab)
-		.OnCanCloseTab_Lambda([]() { return false; }); // can't close this tab
-
-	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FInsightsManager::OnConnectionTabClosed));
-
-	TSharedRef<SConnectionWindow> Window = SNew(SConnectionWindow);
-	DockTab->SetContent(Window);
-
-	AssignConnectionWindow(Window);
-
-	//if (!bIsMainTabSet)
-	//{
-	//	FGlobalTabmanager::Get()->SetMainTab(DockTab);
-	//	bIsMainTabSet = true;
-	//}
-
-	return DockTab;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FInsightsManager::OnConnectionTabClosed(TSharedRef<SDockTab> TabBeingClosed)
-{
-	RemoveConnectionWindow();
-
-	// Disable TabClosed delegate.
-	TabBeingClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback());
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-TSharedRef<SDockTab> FInsightsManager::SpawnLauncherTab(const FSpawnTabArgs& Args)
-{
-	const TSharedRef<SDockTab> DockTab = SNew(SLockedTab)
-		.TabRole(ETabRole::NomadTab)
-		.OnCanCloseTab_Lambda([]() { return false; }); // can't close this tab
-
-	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FInsightsManager::OnLauncherTabClosed));
-
-	TSharedRef<SLauncherWindow> Window = SNew(SLauncherWindow);
-	DockTab->SetContent(Window);
-
-	AssignLauncherWindow(Window);
-
-	//if (!bIsMainTabSet)
-	//{
-	//	FGlobalTabmanager::Get()->SetMainTab(DockTab);
-	//	bIsMainTabSet = true;
-	//}
-
-	return DockTab;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FInsightsManager::OnLauncherTabClosed(TSharedRef<SDockTab> TabBeingClosed)
-{
-	RemoveLauncherWindow();
-
-	// Disable TabClosed delegate.
-	TabBeingClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -443,51 +255,6 @@ void FInsightsManager::OnSessionInfoTabClosed(TSharedRef<SDockTab> TabBeingClose
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FString FInsightsManager::GetStoreDir()
-{
-	using namespace UE::Trace;
-	if (!StoreClient.IsValid())
-	{
-		return FString();
-	}
-	FScopeLock _(&StoreClientCriticalSection);
-	const FStoreClient::FStatus* Status = StoreClient->GetStatus();
-	return Status ? FString(Status->GetStoreDir()) : FString();
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FInsightsManager::ConnectToStore(const TCHAR* Host, uint32 Port)
-{
-	using namespace UE::Trace;
-	StoreClient.Reset(FStoreClient::Connect(Host, Port));
-	if (!StoreClient.IsValid())
-	{
-		return false;
-	}
-
-	LastStoreHost = Host;
-	LastStorePort = Port;
-	bCanChangeStoreSettings = LastStoreHost.Equals(TEXT("localhost"), ESearchCase::IgnoreCase) ||
-	                          LastStoreHost.Equals(TEXT("127.0.0.1"));
-
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FInsightsManager::ReconnectToStore() const
-{
-	if (!StoreClient.IsValid())
-	{
-		return false;
-	}
-
-	return StoreClient->Reconnect(*LastStoreHost, LastStorePort);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 TSharedPtr<const TraceServices::IAnalysisSession> FInsightsManager::GetSession() const
 {
 	return Session;
@@ -514,12 +281,6 @@ FInsightsActionManager& FInsightsManager::GetActionManager()
 	return FInsightsManager::Instance->ActionManager;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-FInsightsSessionBrowserSettings& FInsightsManager::GetSessionBrowserSettings()
-{
-	return FInsightsManager::Instance->SessionBrowserSettings;
-}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FInsightsSettings& FInsightsManager::GetSettings()
@@ -559,8 +320,15 @@ bool FInsightsManager::Tick(float DeltaTime)
 			if (DiagnosticsProvider && DiagnosticsProvider->IsSessionInfoAvailable())
 			{
 				bIsSessionInfoSet = true;
+				InstanceId = DiagnosticsProvider->GetSessionInfo().InstanceId;
+				TSharedPtr<SWidget> TraceControlPtr = TraceControl.Pin();
+				if (TraceControlPtr.IsValid())
+				{
+					FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools").SetTraceControlWidgetInstanceId(TraceControlPtr.ToSharedRef(), InstanceId);
+				}
 			}
 		}
+
 		if (bIsSessionInfoSet)
 		{
 			UpdateAppTitle();
@@ -581,6 +349,8 @@ bool FInsightsManager::Tick(float DeltaTime)
 
 void FInsightsManager::UpdateSessionDuration()
 {
+	using namespace UE::Insights;
+
 	if (Session.IsValid())
 	{
 		bool bLocalIsAnalysisComplete = false;
@@ -592,7 +362,6 @@ void FInsightsManager::UpdateSessionDuration()
 
 		}
 
-
 		if (LocalSessionDuration != SessionDuration)
 		{
 			SessionDuration = LocalSessionDuration;
@@ -602,7 +371,7 @@ void FInsightsManager::UpdateSessionDuration()
 			if (bIsAnalysisComplete)
 			{
 				UE_LOG(TraceInsights, Warning, TEXT("The session duration was updated (%s) after the analysis has been completed."),
-					*TimeUtils::FormatTimeAuto(GetSessionDuration(), 2));
+					*FormatTimeAuto(GetSessionDuration(), 2));
 			}
 		}
 
@@ -612,9 +381,9 @@ void FInsightsManager::UpdateSessionDuration()
 			SessionAnalysisCompletedEvent.Broadcast();
 
 			UE_LOG(TraceInsights, Log, TEXT("Analysis has completed in %s (%.1fX speed; session duration: %s)."),
-				*TimeUtils::FormatTimeAuto(AnalysisDuration, 2),
+				*FormatTimeAuto(AnalysisDuration, 2),
 				AnalysisSpeedFactor,
-				*TimeUtils::FormatTimeAuto(SessionDuration, 2));
+				*FormatTimeAuto(SessionDuration, 2));
 
 			OnSessionAnalysisCompleted();
 		}
@@ -785,6 +554,8 @@ void FInsightsManager::ActivateTimingInsightsTab()
 	{
 		TimingInsightsTab->ActivateInParent(ETabActivationCause::SetDirectly);
 
+		using namespace UE::Insights::TimingProfiler;
+
 		//TODO: FTimingProfilerManager::Get()->ActivateWindow();
 		TSharedPtr<class STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (Wnd)
@@ -804,7 +575,7 @@ void FInsightsManager::ActivateTimingInsightsTab()
 
 bool FInsightsManager::ShowOpenTraceFileDialog(FString& OutTraceFile) const
 {
-	static FString DefaultDirectory(FPaths::ConvertRelativePathToFull(FInsightsManager::Get()->GetStoreDir()));
+	static FString DefaultDirectory(FPaths::ConvertRelativePathToFull(GetStoreDir()));
 
 	TArray<FString> OutFiles;
 	bool bOpened = false;
@@ -838,39 +609,10 @@ bool FInsightsManager::ShowOpenTraceFileDialog(FString& OutTraceFile) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FInsightsManager::OpenUnrealInsights(const TCHAR* CmdLine) const
-{
-	if (CmdLine == nullptr)
-	{
-		CmdLine = TEXT("");
-	}
-
-	const TCHAR* ExecutablePath = FPlatformProcess::ExecutablePath();
-
-	constexpr bool bLaunchDetached = true;
-	constexpr bool bLaunchHidden = false;
-	constexpr bool bLaunchReallyHidden = false;
-
-	uint32 ProcessID = 0;
-	const int32 PriorityModifier = 0;
-	const TCHAR* OptionalWorkingDirectory = nullptr;
-
-	void* PipeWriteChild = nullptr;
-	void* PipeReadChild = nullptr;
-
-	FProcHandle Handle = FPlatformProcess::CreateProc(ExecutablePath, CmdLine, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
-	if (Handle.IsValid())
-	{
-		FPlatformProcess::CloseProc(Handle);
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void FInsightsManager::OpenTraceFile() const
 {
 	FString TraceFile;
-	if (FInsightsManager::Get()->ShowOpenTraceFileDialog(TraceFile))
+	if (ShowOpenTraceFileDialog(TraceFile))
 	{
 		OpenTraceFile(TraceFile);
 	}
@@ -881,7 +623,7 @@ void FInsightsManager::OpenTraceFile() const
 void FInsightsManager::OpenTraceFile(const FString& InTraceFile) const
 {
 	FString CmdLine = TEXT("-OpenTraceFile=\"") + InTraceFile + TEXT("\"");
-	OpenUnrealInsights(*CmdLine);
+	FMiscUtils::OpenUnrealInsights(*CmdLine);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -893,14 +635,15 @@ void FInsightsManager::AutoLoadLiveSession()
 		return;
 	}
 
-	if (!StoreClient.IsValid())
+	UE::Trace::FStoreClient* StoreClient = TraceStoreConnection.GetStoreClient();
+	if (!StoreClient)
 	{
 		return;
 	}
 
 	uint32 AutoLoadTraceId = 0;
 	{
-		FScopeLock _(&StoreClientCriticalSection);
+		FScopeLock _(&TraceStoreConnection.GetStoreClientCriticalSection());
 		const uint32 SessionCount = StoreClient->GetSessionCount();
 		for (uint32 SessionIndex = 0; SessionIndex < SessionCount; ++SessionIndex)
 		{
@@ -930,14 +673,15 @@ void FInsightsManager::LoadLastLiveSession(float RetryTime)
 {
 	ResetSession();
 
-	if (!StoreClient.IsValid())
+	UE::Trace::FStoreClient* StoreClient = TraceStoreConnection.GetStoreClient();
+	if (!StoreClient)
 	{
 		return;
 	}
 
 	uint32 LastLiveSessionTraceId = 0;
 	{
-		FScopeLock _(&StoreClientCriticalSection);
+		FScopeLock _(&TraceStoreConnection.GetStoreClientCriticalSection());
 		const uint32 SessionCount = StoreClient->GetSessionCount();
 		if (SessionCount != 0)
 		{
@@ -966,7 +710,8 @@ void FInsightsManager::LoadTrace(uint32 InTraceId, bool InAutoQuit)
 {
 	ResetSession();
 
-	if (!StoreClient.IsValid())
+	UE::Trace::FStoreClient* StoreClient = TraceStoreConnection.GetStoreClient();
+	if (!StoreClient)
 	{
 		if (InAutoQuit)
 		{
@@ -975,7 +720,7 @@ void FInsightsManager::LoadTrace(uint32 InTraceId, bool InAutoQuit)
 		return;
 	}
 
-	FScopeLock StoreClientLock(&StoreClientCriticalSection);
+	FScopeLock StoreClientLock(&TraceStoreConnection.GetStoreClientCriticalSection());
 
 	UE::Trace::FStoreClient::FTraceData TraceData = StoreClient->ReadTrace(InTraceId);
 	if (!TraceData)
@@ -1030,7 +775,7 @@ void FInsightsManager::LoadTrace(uint32 InTraceId, bool InAutoQuit)
 void FInsightsManager::LoadTraceFile()
 {
 	FString TraceFile;
-	if (FInsightsManager::Get()->ShowOpenTraceFileDialog(TraceFile))
+	if (ShowOpenTraceFileDialog(TraceFile))
 	{
 		LoadTraceFile(TraceFile);
 	}
@@ -1141,8 +886,9 @@ void FInsightsManager::UpdateAppTitle()
 					TraceServices::FSessionInfo SessionInfo = DiagnosticsProvider->GetSessionInfo();
 
 					const FString SessionName = FPaths::GetBaseFilename(CurrentTraceFilename);
-					const FText AppTitle = FText::Format(LOCTEXT("UnrealInsightsAppNameFmt2", "{0} - {1} - {2} - {3} - {4} - Unreal Insights"),
+					const FText AppTitle = FText::Format(LOCTEXT("UnrealInsightsAppNameFmt2", "{0}{1} - {2} - {3} - {4} - {5} Unreal Insights"),
 						FText::FromString(SessionName),
+						!SessionInfo.Branch.IsEmpty() ? FText::FromString(TEXT(" - ") + SessionInfo.Branch) : FText::GetEmpty(),
 						FText::FromString(SessionInfo.Platform),
 						FText::FromString(SessionInfo.AppName),
 						FText::FromString(LexToString(SessionInfo.ConfigurationType)),
@@ -1168,11 +914,6 @@ void FInsightsManager::UpdateAppTitle()
 
 void FInsightsManager::OpenSettings()
 {
-	TSharedPtr<STraceStoreWindow> Wnd = GetTraceStoreWindow();
-	if (Wnd.IsValid())
-	{
-		Wnd->OpenSettings();
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1190,7 +931,7 @@ void FInsightsManager::OnSessionAnalysisCompleted()
 	{
 		FOutputDevice& Ar = *GLog;
 		Ar.Logf(TEXT("Executing commands on analysis completed..."));
-		FStopwatch Stopwatch;
+		UE::Insights::FStopwatch Stopwatch;
 		Stopwatch.Start();
 		IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 		TraceInsightsModule.Exec(*SessionAnalysisCompletedCmd, Ar);
@@ -1299,5 +1040,59 @@ bool FInsightsManager::HandleResponseFileCmd(const TCHAR* ResponseFile, FOutputD
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsManager::RegisterTraceControlTab()
+{
+#if !WITH_EDITOR
+	FTabSpawnerEntry& TabSpawnerEntry = FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FInsightsManagerTabs::TraceControlTabId,
+		FOnSpawnTab::CreateRaw(this, &FInsightsManager::SpawnTraceControlTab))
+		.SetDisplayName(LOCTEXT("TraceControl", "Trace Control"))
+		.SetTooltipText(LOCTEXT("TraceControlTooltip", "Open the Trace Control tab."))
+		.SetIcon(FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TraceControl"))
+		.SetAutoGenerateMenuEntry(false);
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SDockTab> FInsightsManager::SpawnTraceControlTab(const FSpawnTabArgs& Args)
+{
+	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
+		.TabRole(ETabRole::NomadTab);
+
+	DockTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FInsightsManager::OnTraceControlTabClosed));
+
+	ISessionServicesModule& SessionServicesModule = FModuleManager::LoadModuleChecked<ISessionServicesModule>("SessionServices");
+	TSharedPtr<ITraceController> TraceController = SessionServicesModule.GetTraceController();
+
+	TSharedRef<SWidget> TraceControlRef = FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools").CreateTraceControlWidget(TraceController, InstanceId);
+
+	DockTab->SetContent(TraceControlRef);
+
+	TraceControl = TraceControlRef;
+
+	return DockTab;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsManager::OnTraceControlTabClosed(TSharedRef<SDockTab> TabBeingClosed)
+{
+	TraceControl.Reset();
+
+	// Disable TabClosed delegate.
+	TabBeingClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FInsightsManager::OpenTraceControlWindow()
+{
+	FGlobalTabmanager::Get()->TryInvokeTab(FInsightsManagerTabs::TraceControlTabId);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

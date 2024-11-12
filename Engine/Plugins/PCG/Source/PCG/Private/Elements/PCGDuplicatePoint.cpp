@@ -61,7 +61,7 @@ bool FPCGDuplicatePointElement::ExecuteInternal(FPCGContext* Context) const
 			return true;
 		}
 
-		UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutPointData->InitializeFromData(InputPointData);
 		TArray<FPCGPoint>& OutputPoints = OutPointData->GetMutablePoints();
 		OutputPoints.SetNumUninitialized(NumIterations);

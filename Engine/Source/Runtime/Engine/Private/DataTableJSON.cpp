@@ -883,7 +883,7 @@ bool FDataTableImporterJSON::ReadContainerEntry(const TSharedRef<FJsonValue>& In
 			const FString Error = DataTableUtils::AssignStringToPropertyDirect(PropertyValueString, InProperty, (uint8*)InPropertyData);
 			if (Error.Len() > 0)
 			{
-				ImportProblems.Add(FString::Printf(TEXT("Problem assigning string '%s' to entry %d on property '%s' on row '%s' : %s"), InArrayEntryIndex, *PropertyValueString, *InColumnName, *InRowName.ToString(), *Error));
+				ImportProblems.Add(FString::Printf(TEXT("Problem assigning string '%s' to entry %d on property '%s' on row '%s' : %s"), *PropertyValueString, InArrayEntryIndex, *InColumnName, *InRowName.ToString(), *Error));
 				return false;
 			}
 
@@ -902,7 +902,7 @@ bool FDataTableImporterJSON::ReadContainerEntry(const TSharedRef<FJsonValue>& In
 		const FString Error = DataTableUtils::AssignStringToPropertyDirect(PropertyValue, InProperty, (uint8*)InPropertyData);
 		if(Error.Len() > 0)
 		{
-			ImportProblems.Add(FString::Printf(TEXT("Problem assigning string '%s' to entry %d on property '%s' on row '%s' : %s"), InArrayEntryIndex, *PropertyValue, *InColumnName, *InRowName.ToString(), *Error));
+			ImportProblems.Add(FString::Printf(TEXT("Problem assigning string '%s' to entry %d on property '%s' on row '%s' : %s"), *PropertyValue, InArrayEntryIndex, *InColumnName, *InRowName.ToString(), *Error));
 			return false;
 		}
 	}

@@ -11,6 +11,7 @@
 #include "Graph/MovieGraphConfig.h"
 #include "PropertyBagDetails.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
 #include "SPinTypeSelector.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -46,6 +47,8 @@ protected:
 	
 	void OnNameCommitted(const FText& InText, ETextCommit::Type Arg, UMovieGraphMember* MovieGraphMember) const
 	{
+		const FScopedTransaction Transaction(LOCTEXT("SetMemberName_Transaction", "Set Graph Member Name"));
+		
 		if (MovieGraphMember->SetMemberName(InText.ToString()))
 		{
 			NameEditableTextBox->SetError(FText::GetEmpty());
@@ -65,6 +68,10 @@ protected:
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 	{
+		static const FText NameLabel = LOCTEXT("MemberPropertyLabel_Name", "Name");
+		static const FText CategoryLabel = LOCTEXT("MemberPropertyLabel_Category", "Category");
+		static const FText TypeLabel = LOCTEXT("MemberPropertyLabel_Type", "Type");
+		
 		TSharedRef<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
 		
 		auto GetFilteredVariableTypeTree = [this](TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter)
@@ -155,16 +162,17 @@ protected:
 				continue;
 			}
 
-			const bool bIsNameRowEnabled = MemberObject->IsEditable();
+			const bool bIsEditable = MemberObject->IsEditable();
 			
 			// Add a custom row for the Name property (to allow for proper validation)
 			IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory("General");
 			GeneralCategory.AddCustomRow(FText::GetEmpty())
-			.IsEnabled(bIsNameRowEnabled)
+			.FilterString(NameLabel)
+			.IsEnabled(bIsEditable)
 			.NameContent()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("MemberPropertyLabel_Name", "Name"))
+				.Text(NameLabel)
 				.Font(DetailBuilder.GetDetailFont())
 			]
 			.ValueContent()
@@ -177,6 +185,36 @@ protected:
 				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
 
+			// Add a custom row for the Category property (its property is not edited directly in order to give the graph a chance to sort the
+			// variables correctly). This is only applicable to variables.
+			if (UMovieGraphVariable* VariableMember = Cast<UMovieGraphVariable>(MemberObject))
+			{
+				GeneralCategory.AddCustomRow(FText::GetEmpty())
+				.FilterString(CategoryLabel)
+				.IsEnabled(bIsEditable)
+				.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(CategoryLabel)
+					.ToolTipText(LOCTEXT("MemberPropertyTooltip_Category", "The category assigned to the variable. Use a '|' to separate category names to create a category hierarchy (eg, Settings|Resolution)."))
+					.Font(DetailBuilder.GetDetailFont())
+				]
+				.ValueContent()
+				[
+					SNew(SEditableTextBox)
+					.Text_Lambda([VariableMember]()
+					{
+						return FText::FromString(VariableMember->GetCategory());
+					})
+					.OnTextCommitted_Lambda([VariableMember](const FText& InNewCategory, ETextCommit::Type TextCommitType)
+					{
+						const FScopedTransaction Transaction(LOCTEXT("SetVariableCategory", "Set Variable Category"));
+						VariableMember->SetCategory(InNewCategory.ToString());
+					})
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				];
+			}
+
 			// If this is an interface (eg, input/output) only enable the type selector if it's not a branch and editable.
 			// Otherwise, editability is the only factor in enable state.
 			const bool bIsTypeRowEnabled = InterfaceBase ? (!InterfaceBase->bIsBranch && MemberObject->IsEditable()) : MemberObject->IsEditable();
@@ -186,11 +224,12 @@ protected:
 			// Add a PinTypeSelector widget to pick the data type the member uses
 			IDetailCategoryBuilder& ValueCategory = DetailBuilder.EditCategory("Value");
 			ValueCategory.AddCustomRow(FText::GetEmpty())
+			.FilterString(TypeLabel)
 			.IsEnabled(bIsTypeRowEnabled)
 			.NameContent()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("MemberPropertyLabel_Type", "Type"))
+				.Text(TypeLabel)
 				.Font(DetailBuilder.GetDetailFont())
 			]
 			.ValueContent()

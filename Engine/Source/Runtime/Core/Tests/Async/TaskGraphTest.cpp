@@ -664,7 +664,7 @@ namespace OldTaskGraphTests
 				uint32 RunningCrc = 0;
 				for (int32 Index = 0; Index < 1000000; Index++)
 				{
-					FCrc::MemCrc32(CompletionEvent.GetReference(), sizeof(FGraphEvent), RunningCrc);
+					RunningCrc = FCrc::MemCrc32(CompletionEvent.GetReference(), sizeof(FGraphEvent), RunningCrc);
 				}
 				uint64 StartTime = FPlatformTime::Cycles64();
 				FFunctionGraphTask::CreateAndDispatchWhenReady([StartTime, &ForegroundTask] { ForegroundTask(StartTime); }, TStatId{}, nullptr, ENamedThreads::AnyHiPriThreadHiPriTask);
@@ -714,7 +714,7 @@ extern int32 GNumForegroundWorkers;
 
 namespace TaskGraphTests
 {
-	TEST_CASE_NAMED(FTaskGraphGraphEventTest, "System::Core::Async::TaskGraph::GraphEventTest", "[.][ApplicationContextMask][EngineFilter][Disabled]")
+	TEST_CASE_NAMED(FTaskGraphGraphEventTest, "System::Core::Async::TaskGraph::GraphEventTest", "[.][ApplicationContextMask][EngineFilter]")
 	{
 		{	// task completes before it's waited for
 			FGraphEventRef Event = FFunctionGraphTask::CreateAndDispatchWhenReady(
@@ -803,33 +803,7 @@ namespace TaskGraphTests
 		}
 	}
 
-	TEST_CASE_NAMED(FTaskGraphRecursionTest, "System::Core::Async::TaskGraph::RecursionTest", "[.][ApplicationContextMask][EngineFilter][Disabled]")
-	{
-		{	// recursive call on game thread
-			FGraphEventRef Event = FFunctionGraphTask::CreateAndDispatchWhenReady(
-				[]
-				{
-					FGraphEventRef Inner = FFunctionGraphTask::CreateAndDispatchWhenReady(
-						[]
-						{
-							check(IsInGameThread());
-						},
-						TStatId{}, nullptr, ENamedThreads::GameThread
-					);
-					Inner->Wait(ENamedThreads::GameThread);
-				},
-				TStatId{}, nullptr, ENamedThreads::GameThread
-			);
-			Event->Wait(ENamedThreads::GameThread);
-		}
-
-		//{	// didn't work in the old version
-		//	FGraphEventRef Event = FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, nullptr, ENamedThreads::GameThread_Local);
-		//	Event->Wait(ENamedThreads::GameThread);
-		//}
-	}
-
-	TEST_CASE_NAMED(FTaskGraphBasicTest, "System::Core::Async::TaskGraph::BasicTest", "[.][ApplicationContextMask][EngineFilter][Disabled]")
+	TEST_CASE_NAMED(FTaskGraphBasicTest, "System::Core::Async::TaskGraph::BasicTest", "[.][ApplicationContextMask][EngineFilter]")
 	{
 		// thread and task priorities
 
@@ -1279,7 +1253,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	TEST_CASE_NAMED(FTaskGraphPerfTest, "System::Core::Async::TaskGraph::PerfTest", "[.][ApplicationContextMask][EngineFilter][Disabled]")
+	TEST_CASE_NAMED(FTaskGraphPerfTest, "System::Core::Async::TaskGraph::PerfTest", "[.][ApplicationContextMask][EngineFilter]")
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TaskGraphTests_PerfTest);
 
@@ -1329,44 +1303,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	TEST_CASE_NAMED(FTaskGraphOversubscriptionTest, "System::Core::Async::TaskGraph::Oversubscription", "[.][ApplicationContextMask][EngineFilter][Disabled]")
+	TEST_CASE_NAMED(FTaskGraphOversubscriptionTest, "System::Core::Async::TaskGraph::Oversubscription", "[.][ApplicationContextMask][EngineFilter]")
 	{
 		UE_BENCHMARK(5, OversubscriptionStressTest<10>);
 	}
 
-	template<uint32 Nujm>
-	void SquaredOversubscriptionStressTest()
-	{
-		// same as before but using two ParallelFor nested one into another to simulate oversubscription in square
-
-		FSharedEventRef Event;
-		FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[Event]
-			{
-				ParallelFor(200,
-					[](int32)
-					{
-						ParallelFor(200,
-							[](int32)
-							{
-								FPlatformProcess::Sleep(0.01f); // simulate some work and let all workers to pick up ParallelFor tasks
-								FFunctionGraphTask::CreateAndDispatchWhenReady([] {})->Wait();
-							}
-						);
-					}
-				);
-				Event->Trigger();
-			}
-		);
-		verify(Event->Wait(FTimespan::FromSeconds(30.f)));
-	}
-
-	TEST_CASE_NAMED(FTaskGraphSquaredOversubscriptionTest, "System::Core::Async::TaskGraph::SquaredOversubscription", "[.][ApplicationContextMask][EngineFilter][Disabled]")
-	{
-		UE_BENCHMARK(5, SquaredOversubscriptionStressTest<10>);
-	}
-
-	TEST_CASE_NAMED(FTaskGraphTaskDestructionTest, "System::Core::Async::TaskGraph::TaskDestruction", "[.][ApplicationContextMask][EngineFilter][Disabled]")
+	TEST_CASE_NAMED(FTaskGraphTaskDestructionTest, "System::Core::Async::TaskGraph::TaskDestruction", "[.][ApplicationContextMask][EngineFilter]")
 	{
 		struct FDestructionTest
 		{
@@ -1422,6 +1364,56 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
+	// This test proves that retraction alone is not sufficient to avoid deadlocks and oversubscription is also required as a last resort.
+	// This test is a repro for a virtual texture system scheduled on foreground thread, sending and waiting on an IO thread request that itself needs to 
+	// do some processing on the foreground thread before releasing the IO event, causing a deadlock when only a single worker is present.
+	TEST_CASE_NAMED(FTaskGraphConstrainedRetraction, "System::Core::Async::TaskGraph::ConstrainedRetraction", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FTaskGraphConstrainedRetraction);
+
+		// A lot easier to prove when we have a minimal amount of workers
+		LowLevelTasks::FScheduler::Get().RestartWorkers(1, 0);
+
+		TFunction<void(FGraphEventRef Task)> WaitMethods[2] =
+		{
+			[](FGraphEventRef Task) { TRACE_CPUPROFILER_EVENT_SCOPE(Task_Wait); TRACE_CPUPROFILER_EVENT_FLUSH(); Task->Wait(); },
+			[](FGraphEventRef Task) { TRACE_CPUPROFILER_EVENT_SCOPE(Task_WaitUntilTaskCompletes); TRACE_CPUPROFILER_EVENT_FLUSH(); FTaskGraphInterface::Get().WaitUntilTaskCompletes(Task); }
+		};
+
+		for (int32 WaitMethodIndex = 0; WaitMethodIndex < UE_ARRAY_COUNT(WaitMethods); ++WaitMethodIndex)
+		{
+			// This is going to be a dependency on something outside the taskgraph system
+			// Could be another system entirely like the IO thread pool, or even a lowlevel task without prerequisites/subsequents knowledge.
+			FGraphEventRef ExternalEvent = FGraphEvent::CreateGraphEvent();
+
+			// We need the worker thread to be busy with our root task while we schedule the external one
+			FGraphEventRef RootTask = 
+				FFunctionGraphTask::CreateAndDispatchWhenReady(
+					[&]
+					{
+						FFunctionGraphTask::CreateAndDispatchWhenReady(
+							[&]
+							{
+								TRACE_CPUPROFILER_EVENT_SCOPE(DispatchSubsequents);
+								TRACE_CPUPROFILER_EVENT_FLUSH();
+								ExternalEvent->DispatchSubsequents();
+
+							}, TStatId{}
+						);
+						WaitMethods[WaitMethodIndex](ExternalEvent);
+
+					}, TStatId{}
+				);
+
+			// This wait should try to perform retraction, but it can't see past the external task prerequisites
+			// Since we launch a task on a single worker system and then wait, retraction alone without oversubscription
+			// will hold the worker forever and will cause a deadlock.
+			WaitMethods[WaitMethodIndex](RootTask);
+		}
+
+		LowLevelTasks::FScheduler::Get().RestartWorkers();
+	}
+
 	TEST_CASE_NAMED(FTaskGraphAnyTask, "System::Core::Async::TaskGraph::AnyTask", "[.][ApplicationContextMask][EngineFilter]")
 	{
 		{	// blocks if none of tasks is completed
@@ -1433,12 +1425,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker)
 			};
 
+			FGraphEventRef CompletedEvent = AnyTaskCompleted(Tasks);
 			FPlatformProcess::Sleep(0.1f);
-			verify(!AnyTaskCompleted(Tasks)->IsComplete());
+			verify(!CompletedEvent->IsComplete());
 
 			Blocker->DispatchSubsequents();
 
-			AnyTaskCompleted(Tasks)->Wait();
+			CompletedEvent->Wait();
 		}
 
 		{	// doesn't wait for all tasks

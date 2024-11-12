@@ -280,6 +280,9 @@ public:
 
 	NIAGARAEDITOR_API virtual bool IsExpandedByDefault() const;
 
+	/** By default, we hide the expander if an stack entry can't be expanded. */
+	NIAGARAEDITOR_API virtual bool KeepExpanderIndentation() const;
+
 	NIAGARAEDITOR_API bool GetIsExpanded() const;
 
 	NIAGARAEDITOR_API void SetIsExpanded(bool bInExpanded);
@@ -317,7 +320,7 @@ public:
 
 	NIAGARAEDITOR_API void GetCustomFilteredChildren(TArray<UNiagaraStackEntry*>& OutFilteredChildren, const TArray<FOnFilterChild>& ChildFilters) const;
 
-	void GetFilteredChildrenOfTypes(TArray<UNiagaraStackEntry*>& OutFilteredChildren, const TSet<UClass*>& AllowedClasses) const
+	void GetFilteredChildrenOfTypes(TArray<UNiagaraStackEntry*>& OutFilteredChildren, const TSet<UClass*>& AllowedClasses, bool bRecursive = false) const
 	{
 		TArray<UNiagaraStackEntry*> FilteredChildrenTmp;
 		GetFilteredChildren(FilteredChildrenTmp);
@@ -335,13 +338,18 @@ public:
 
 			if(AllowedClasses.Contains(ChildClass))
 			{
-				OutFilteredChildren.Add(FilteredChild);	
+				OutFilteredChildren.Add(FilteredChild);
+
+				if(bRecursive)
+				{
+					FilteredChild->GetFilteredChildrenOfTypes(OutFilteredChildren, AllowedClasses, bRecursive);
+				}
 			}
 		}
 	}
 	
 	template<typename T>
-	void GetUnfilteredChildrenOfType(TArray<T*>& OutUnfilteredChildrenOfType) const
+	void GetUnfilteredChildrenOfType(TArray<T*>& OutUnfilteredChildrenOfType, bool bRecursive = false) const
 	{
 		TArray<UNiagaraStackEntry*> UnfilteredChildren;
 		GetUnfilteredChildren(UnfilteredChildren);
@@ -353,19 +361,35 @@ public:
 				OutUnfilteredChildrenOfType.Add(UnfilteredChildOfType);
 			}
 		}
+
+		if(bRecursive)
+		{
+			for (UNiagaraStackEntry* UnfilteredChild : UnfilteredChildren)
+			{
+				UnfilteredChild->GetUnfilteredChildrenOfType(OutUnfilteredChildrenOfType, bRecursive);
+			}
+		}
 	}
 
 	template<typename T>
-	void GetFilteredChildrenOfType(TArray<T*>& OutFilteredChildrenOfType) const
+	void GetFilteredChildrenOfType(TArray<T*>& OutFilteredChildrenOfType, bool bRecursive = false) const
 	{
 		TArray<UNiagaraStackEntry*> OutFilteredChildren;
 		GetFilteredChildren(OutFilteredChildren);
-		for (UNiagaraStackEntry* UnfilteredChild : OutFilteredChildren)
+		for (UNiagaraStackEntry* FilteredChild : OutFilteredChildren)
 		{
-			T* UnfilteredChildOfType = Cast<T>(UnfilteredChild);
+			T* UnfilteredChildOfType = Cast<T>(FilteredChild);
 			if (UnfilteredChildOfType != nullptr)
 			{
 				OutFilteredChildrenOfType.Add(UnfilteredChildOfType);
+			}
+		}
+
+		if(bRecursive)
+		{
+			for (UNiagaraStackEntry* FilteredChild : OutFilteredChildren)
+			{
+				FilteredChild->GetFilteredChildrenOfType(OutFilteredChildrenOfType, bRecursive);
 			}
 		}
 	}
@@ -508,7 +532,7 @@ public:
 
 	virtual bool TestCanCopyWithMessage(FText& OutMessage) const { return false; }
 
-	virtual void Copy(UNiagaraClipboardContent* ClipboardContent) const { }
+	virtual void Copy(UNiagaraClipboardContent* ClipboardContent) const { OnCopyPasteDelegate.ExecuteIfBound(); }
 
 	virtual bool SupportsPaste() const { return false; }
 
@@ -516,8 +540,10 @@ public:
 
 	virtual FText GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const { return FText(); }
 
-	virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) { }
+	virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) { OnCopyPasteDelegate.ExecuteIfBound(); }
 
+	FSimpleDelegate& OnCopyPaste() { return OnCopyPasteDelegate; }
+	
 	virtual bool SupportsDelete() const { return false; }
 
 	virtual bool TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const { return false; }
@@ -603,7 +629,7 @@ protected:
 
 	bool IsSystemViewModelValid() const { return SystemViewModel.IsValid(); }
 
-
+	FSimpleDelegate OnCopyPasteDelegate;
 private:
 	NIAGARAEDITOR_API void ChildStructureChanged(ENiagaraStructureChangedFlags Info);
 

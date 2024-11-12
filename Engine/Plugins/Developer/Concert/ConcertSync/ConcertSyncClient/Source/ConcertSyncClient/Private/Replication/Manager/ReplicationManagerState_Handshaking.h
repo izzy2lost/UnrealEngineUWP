@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "IConcertSessionHandler.h"
+#include "ConcertSyncSessionFlags.h"
 #include "ReplicationManagerState.h"
-#include "ReplicationManagerUtils.h"
-#include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 
 class IConcertClientSession;
@@ -21,8 +19,9 @@ namespace UE::ConcertSyncClient::Replication
 			FJoinReplicatedSessionArgs RequestArgs,
 			TPromise<FJoinReplicatedSessionResult> JoinSessionPromise,
 			TSharedRef<IConcertClientSession> LiveSession,
-			IConcertClientReplicationBridge* ReplicationBridge,
-			FReplicationManager& Owner
+			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
+			FReplicationManager& Owner UE_LIFETIMEBOUND,
+			EConcertSyncSessionFlags SessionFlags
 			);
 		virtual ~FReplicationManagerState_Handshaking() override;
 		
@@ -44,7 +43,9 @@ namespace UE::ConcertSyncClient::Replication
 		/** Passed to FReplicationManagerState_Handshaking */
 		TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Handshaking */
-		IConcertClientReplicationBridge* ReplicationBridge;
+		IConcertClientReplicationBridge& ReplicationBridge;
+		/** Passed to FReplicationManagerState_Handshaking */
+		const EConcertSyncSessionFlags SessionFlags;
 
 		//~ Begin FReplicationManagerState Interface
 		virtual void OnEnterState() override;

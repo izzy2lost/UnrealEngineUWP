@@ -5,7 +5,7 @@ Level.cpp: Level-related functions
 =============================================================================*/
 
 #include "Engine/Level.h"
-
+#include "Engine/LevelStreamingGCHelper.h"
 #include "EngineLogs.h"
 #include "Algo/Copy.h"
 #include "Algo/ForEach.h"
@@ -22,6 +22,7 @@ Level.cpp: Level-related functions
 #include "SceneInterface.h"
 #include "PrecomputedLightVolume.h"
 #include "PrecomputedVolumetricLightmap.h"
+#include "PrecomputedVolumetricLightmapStreaming.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Components/LightComponent.h"
 #include "Model.h"
@@ -71,13 +72,16 @@ Level.cpp: Level-related functions
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/StaticLightingData/MapBuildDataActor.h"
 #include "Engine/LevelStreaming.h"
 #include "LevelUtils.h"
 #include "Components/ModelComponent.h"
 #include "Engine/LevelActorContainer.h"
 #include "ObjectTrace.h"
 #include "UObject/MetaData.h"
+#include "UObject/PropertyBagRepository.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Level)
 
@@ -89,6 +93,15 @@ static FAutoConsoleVariableRef CVarActorClusteringEnabled(
 	TEXT("gc.ActorClusteringEnabled"),
 	GActorClusteringEnabled,
 	TEXT("Whether to allow levels to create actor clusters for GC."),
+	ECVF_Default
+);
+
+// Fix crash caused by ActorsForGC.Add() being called when not clustering. ActorsForGC does not particpate in undo (Serialize) or garbage collection when not clustering leading to stale pointers. (FORT-741623)
+int32 GActorClusteringFixStalePointers = 1;
+static FAutoConsoleVariableRef CVarActorClusteringFixStalePointers(
+	TEXT("gc.ActorClusteringFixStalePointers"),
+	GActorClusteringFixStalePointers,
+	TEXT("Enables fix for stale pointers."),
 	ECVF_Default
 );
 
@@ -116,6 +129,7 @@ static FAutoConsoleVariableRef CVarRouteActorInitializationWorkUnitWeighting(
 
 TArray<ULevel::FLevelExternalActorsPathsProviderDelegate> ULevel::LevelExternalActorsPathsProviders;
 TArray<ULevel::FLevelMountPointResolverDelegate> ULevel::LevelMountPointResolvers;
+TWeakObjectPtr<const UObject> ULevel::OverrideSpawningLevelMountPointObject;
 
 void FLevelActorFoldersHelper::SetUseActorFolders(ULevel* InLevel, bool bInEnabled)
 {
@@ -391,8 +405,8 @@ const FName ULevel::DontLoadExternalFoldersTag(TEXT("DontLoadExternalFoldersTag"
 ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	:	UObject( ObjectInitializer )
 	,	Actors()
-	,	OwningWorld(NULL)
-	,	TickTaskLevel(FTickTaskManagerInterface::Get().AllocateTickTaskLevel())
+	,	OwningWorld(nullptr)
+	,	TickTaskLevel(nullptr)
 	,	PrecomputedLightVolume(new FPrecomputedLightVolume())
 	,	PrecomputedVolumetricLightmap(new FPrecomputedVolumetricLightmap())
 	,	RouteActorInitializationState(ERouteActorInitializationState::Preinitialize)
@@ -410,6 +424,7 @@ ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	bPromptWhenAddingToLevelOutsideBounds = true;
 	bUseActorFolders = false;
 	bFixupActorFoldersAtLoad = IsActorFolderObjectsFeatureAvailable();
+	bForcePackageTrashingAtCleanup = false;
 	bForceCantReuseUnloadedButStillAround = false;
 #endif	
 	bActorClusterCreated = false;
@@ -426,8 +441,11 @@ void ULevel::Initialize(const FURL& InURL)
 
 ULevel::~ULevel()
 {
-	FTickTaskManagerInterface::Get().FreeTickTaskLevel(TickTaskLevel);
-	TickTaskLevel = NULL;
+	if (TickTaskLevel)
+	{
+		FTickTaskManagerInterface::Get().FreeTickTaskLevel(TickTaskLevel);
+		TickTaskLevel = nullptr;
+	}
 }
 
 void ULevel::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
@@ -435,16 +453,59 @@ void ULevel::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collecto
 	ULevel* This = CastChecked<ULevel>(InThis);
 
 	// Let GC know that we're referencing some AActor objects
-	if (FPlatformProperties::RequiresCookedData() && GActorClusteringEnabled && This->bGarbageCollectionClusteringEnabled && This->bActorClusterCreated)
+	if (GActorClusteringFixStalePointers)
 	{
-		Collector.AddStableReferenceArray(&This->ActorsForGC);
+		if (This->bActorClusterCreated)
+		{
+			Collector.AddStableReferenceArray(&This->ActorsForGC);
+		}
+		else
+		{
+			Collector.AddStableReferenceArray(&This->Actors);
+		}
 	}
 	else
 	{
-		Collector.AddStableReferenceArray(&This->Actors);
+		if (FPlatformProperties::RequiresCookedData() && GActorClusteringEnabled && This->bGarbageCollectionClusteringEnabled && This->bActorClusterCreated)
+		{
+			Collector.AddStableReferenceArray(&This->ActorsForGC);
+		}
+		else
+		{
+			Collector.AddStableReferenceArray(&This->Actors);
+		}
 	}
 
 	Super::AddReferencedObjects( This, Collector );
+}
+
+bool ULevel::TryAddActorToList(AActor* InActor, bool bAddUnique)
+{
+	bool bResult = true;
+	if (bAddUnique)
+	{
+		const int32 OriginalLen = Actors.Num();
+		Actors.AddUnique(InActor);
+		bResult = (Actors.Num() != OriginalLen);
+	}
+	else
+	{
+		Actors.Add(InActor);
+	}
+
+	if (!GActorClusteringFixStalePointers || bActorClusterCreated)
+	{
+		if (bAddUnique)
+		{
+			ActorsForGC.AddUnique(InActor);
+		}
+		else
+		{
+			ActorsForGC.Add(InActor);
+		}
+	}
+
+	return bResult;
 }
 
 void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
@@ -459,7 +520,14 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 		}
 	}
 
-	const bool bTrashPackage = !ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(this);
+	bool bTrashPackage = !ULevelStreaming::ShouldReuseUnloadedButStillAroundLevels(this);
+#if WITH_EDITOR
+	if (bForcePackageTrashingAtCleanup)
+	{
+		bTrashPackage = true;
+	}
+#endif
+
 	TSet<UPackage*> ProcessedPackages;
 	auto ProcessPackage = [&ProcessedPackages, bTrashPackage](UPackage* InPackage, bool bInClearStandaloneFlag = false)
 	{
@@ -477,8 +545,7 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 			if (bTrashPackage && (InPackage != GetTransientPackage()))
 			{
 				// Rename package to make sure it won't be reused
-				FName NewPackageName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InPackage->GetName())));
-				InPackage->Rename(*NewPackageName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+				FLevelStreamingGCHelper::TrashPackage(InPackage);
 			}
 		}
 	};
@@ -568,7 +635,10 @@ void ULevel::Serialize( FArchive& Ar )
 				return false;
 			}
 
-			check(Actor->GetLevel() == this);
+			if (!ensureMsgf(Actor->GetLevel() == this, TEXT("Actor %s is in wrong level:") LINE_TERMINATOR TEXT("\tOwner Level=%s") LINE_TERMINATOR TEXT("\tActor Level=%s)"), *GetPathNameSafe(Actor), *GetPathNameSafe(this), *GetPathNameSafe(Actor->GetLevel())))
+			{
+				return false;
+			}
 
 			if (Actor->HasAnyFlags(RF_Transient))
 			{
@@ -843,8 +913,8 @@ void ULevel::AddLoadedActors(const TArray<AActor*>& ActorList, const FTransform*
 
 		if (!ActorsSet.Contains(Actor))
 		{
-			Actors.Add(Actor);
-			ActorsForGC.Add(Actor);
+			TryAddActorToList(Actor, /*bAddUnique*/false);
+
 			ActorsQueue.Add(Actor);
 
 			// Handle child actors
@@ -860,7 +930,12 @@ void ULevel::AddLoadedActors(const TArray<AActor*>& ActorList, const FTransform*
 
 	for (AActor* Actor : ActorList)
 	{
-		QueueActor(Actor);
+		// Ignore child actors as they are added when their parent is processed.
+		// This garantees a proper ordering in the Actors array.
+		if (!Actor->IsChildActor())
+		{
+			QueueActor(Actor);
+		}
 	}
 
 	FScopedSlowTask SlowTask(ActorsQueue.Num() * 3, LOCTEXT("RegisteringActors", "Registering actors..."));
@@ -922,6 +997,8 @@ void ULevel::AddLoadedActors(const TArray<AActor*>& ActorList, const FTransform*
 			{
 				Actor->FixupActorFolder();
 			}
+
+			Actor->OnLoadedActorAddedToLevel();
 
 			OnLoadedActorAddedToLevelEvent.Broadcast(*Actor);
 		}
@@ -1023,6 +1100,7 @@ void ULevel::RemoveLoadedActors(const TArray<AActor*>& ActorList, const FTransfo
 		{
 			Actor->UnregisterAllComponents();
 			Actor->RegisterAllActorTickFunctions(false, true);
+			Actor->OnLoadedActorRemovedFromLevel();
 
 			OnLoadedActorRemovedFromLevelEvent.Broadcast(*Actor);
 
@@ -1305,11 +1383,11 @@ void ULevel::PostLoad()
 			// If there is already something there with that name, rename it to something else.
 			if (UObject* ExistingObject = StaticFindObject(nullptr, LevelScriptBlueprint->GetOuter(), *OuterWorld->GetName()))
 			{
-				ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+				ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			}
 
 			// Use LevelScriptBlueprint->GetOuter() instead of NULL to make sure the generated top level objects are moved appropriately
-			LevelScriptBlueprint->Rename(*OuterWorld->GetName(), LevelScriptBlueprint->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_SkipGeneratedClasses);
+			LevelScriptBlueprint->Rename(*OuterWorld->GetName(), LevelScriptBlueprint->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses);
 		}
 	}
 
@@ -1378,33 +1456,7 @@ void ULevel::PreDuplicate(FObjectDuplicationParameters& DupParams)
 		}
 	}
 
-	if (DupParams.DuplicateMode != EDuplicateMode::PIE && DupParams.bAssignExternalPackages)
-	{
-		UPackage* SrcPackage = GetPackage();
-		UPackage* DstPackage = DupParams.DestOuter->GetPackage();
-
-		FString ReplaceFrom = FPaths::GetBaseFilename(*SrcPackage->GetName());
-		ReplaceFrom = FString::Printf(TEXT("%s.%s:"), *ReplaceFrom, *ReplaceFrom);
-
-		FString ReplaceTo = FPaths::GetBaseFilename(*DstPackage->GetName());
-		ReplaceTo = FString::Printf(TEXT("%s.%s:"), *ReplaceTo, *ReplaceTo);
-
-		ForEachObjectWithOuter(this, [this, &SrcPackage, &DstPackage, &ReplaceFrom, &ReplaceTo, &DupParams](UObject* Object)
-		{
-			if (UPackage* Package = Object ? Object->GetExternalPackage() : nullptr)
-			{
-				FString Path = Object->GetPathName();
-				if (DstPackage != SrcPackage)
-				{
-					Path = Path.Replace(*ReplaceFrom, *ReplaceTo);
-				}
-				UPackage* DupPackage = Object->IsA<AActor>() ? ULevel::CreateActorPackage(DstPackage, GetActorPackagingScheme(), Path, Object) : FExternalPackageHelper::CreateExternalPackage(DstPackage, Path);
-				DupPackage->MarkAsFullyLoaded();
-				DupPackage->MarkPackageDirty();
-				DupParams.DuplicationSeed.Add(Package, DupPackage);
-			}
-		}, /*bIncludeNestedObjects*/ true);
-	}
+	FExternalPackageHelper::DuplicateExternalPackages(this, DupParams, GetActorPackagingScheme());
 #endif
 }
 
@@ -1480,6 +1532,9 @@ void ULevel::FinishDestroy()
 
 	delete PrecomputedVolumetricLightmap;
 	PrecomputedVolumetricLightmap = NULL;
+
+	delete VolumetricLightmapGridManager;
+	VolumetricLightmapGridManager = NULL;
 
 	Super::FinishDestroy();
 }
@@ -1559,6 +1614,10 @@ static void SortActorsHierarchy(TArray<TObjectPtr<AActor>>& Actors, ULevel* Leve
 			else if (Actor == DefaultBrush)
 			{
 				Depth = TNumericLimits<int32>::Lowest() + 1;
+			}
+			else if (Actor->IsA<AMapBuildDataActor>())
+			{
+				Depth = TNumericLimits<int32>::Lowest() + 2;
 			}
 			else if (AActor* ParentActor = Actor->GetAttachParentActor())
 			{
@@ -1911,7 +1970,7 @@ bool ULevel::HasStaticMeshCompilationPending()
 			{
 				if (Component->IsCompiling())
 				{
-					bHasStaticMeshCompilationPending = false;
+					bHasStaticMeshCompilationPending = true;
 					return false;
 				}
 			}
@@ -1937,7 +1996,7 @@ bool ULevel::DeferRunningConstructionScripts(AActor* InActor)
 			bCachedHasStaticMeshCompilationPending = HasStaticMeshCompilationPending();
 		}
 
-		if (bCachedHasStaticMeshCompilationPending)
+		if (bCachedHasStaticMeshCompilationPending.GetValue())
 		{
 			FActorDeferredScriptManager::Get().AddActor(InActor);
 			return true;
@@ -2245,7 +2304,7 @@ uint16 ULevel::RegisterStreamableTexture(const FString& InTextureName, const FGu
 	if (TextureNameIndex != TextureGuidIndex)
 	{
 		UE_CLOG(TextureNameIndex != INDEX_NONE, LogLevel, Warning, TEXT("Failed to register streamable texture Name = %s Guid = %s: An entry already exists for this Name with a different Guid = %s. Consider rebuilding texture streaming."), *InTextureName, *InTextureGuid.ToString(), *StreamingTextureGuids[TextureNameIndex].ToString());
-		UE_CLOG(TextureGuidIndex != INDEX_NONE, LogLevel, Warning, TEXT("Failed to register streamable texture Name = %s Guid = %s: An entry already exists for this Guid with a different Name = %s. Consider modifying & resaving one of these textures (will change its guid) and rebuiling texture streaming."), *InTextureName, *InTextureGuid.ToString(), *StreamingTextures[TextureGuidIndex].ToString());
+		UE_CLOG(TextureGuidIndex != INDEX_NONE, LogLevel, Warning, TEXT("Failed to register streamable texture Name = %s Guid = %s: An entry already exists for this Guid with a different Name = %s. Consider modifying & resaving one of these textures (will change its guid) and rebuilding texture streaming."), *InTextureName, *InTextureGuid.ToString(), *StreamingTextures[TextureGuidIndex].ToString());
 		return InvalidRegisteredStreamableTexture;
 	}
 	else if (TextureNameIndex != INDEX_NONE)
@@ -2507,6 +2566,25 @@ bool ULevel::GetIsLevelUsingExternalActorsFromPackage(FName LevelPackage)
 	return LevelAssetRegistryHelper::GetLevelInfoFromAssetRegistry(LevelPackage, [](const FAssetData& Asset)
 	{
 		return GetIsLevelUsingExternalActorsFromAsset(Asset);
+	});
+}
+
+bool ULevel::GetIsLevelUsingActorsDescsFromAsset(const FAssetData& Asset)
+{
+	FString ActorsMetaDataStr;
+	static FName NAME_ActorsMetaData(TEXT("ActorsMetaData"));
+	if (Asset.GetTagValue(NAME_ActorsMetaData, ActorsMetaDataStr))
+	{
+		return true;
+	}
+	return false;
+}
+
+bool ULevel::GetIsLevelUsingActorsDescsFromPackage(FName LevelPackage)
+{
+	return LevelAssetRegistryHelper::GetLevelInfoFromAssetRegistry(LevelPackage, [](const FAssetData& Asset)
+	{
+		return GetIsLevelUsingActorsDescsFromAsset(Asset);
 	});
 }
 
@@ -3005,7 +3083,7 @@ void ULevel::FixupActorFolders()
 				const FString NewPath = FString::Printf(TEXT("%s_%s"), *NewParent->GetPath().ToString(), *FGuid::NewGuid().ToString());
 				const FFolder NewFolder = FFolder(OldFolder.GetRootObject(), FName(NewPath));
 				FLevelActorFoldersHelper::RenameFolder(this, OldFolder, NewFolder);
-				const FString NewPath2 = FString::Printf(TEXT("%s/DuplicateFolder_%s"), *NewParent->GetPath().ToString(), *FolderToDelete->GetLabel(), *FGuid::NewGuid().ToString());
+				const FString NewPath2 = FString::Printf(TEXT("%s/DuplicateFolder_%s_%s"), *NewParent->GetPath().ToString(), *FolderToDelete->GetLabel(), *FGuid::NewGuid().ToString());
 				const FFolder NewFolder2 = FFolder(OldFolder.GetRootObject(), FName(NewPath2));
 				FLevelActorFoldersHelper::RenameFolder(this, NewFolder, NewFolder2);
 				// Then delete (mark as deleted) this folder
@@ -3049,7 +3127,12 @@ void ULevel::OnLevelLoaded()
 	// Set level's associated WorldPartitionRuntimeCell for dynamically injected cells
 	if (LevelStreaming && !WorldPartitionRuntimeCell.GetUniqueID().IsValid())
 	{
-		WorldPartitionRuntimeCell = Cast<const UWorldPartitionRuntimeCell>(LevelStreaming->GetWorldPartitionCell());
+		WorldPartitionRuntimeCell = Cast<UWorldPartitionRuntimeCell>(const_cast<IWorldPartitionCell*>(LevelStreaming->GetWorldPartitionCell()));
+	}
+
+	if (ULevel* OwningLevel = ULevelInstanceSubsystem::GetOwningLevel(this, true))
+	{
+		MapBuildData = OwningLevel->MapBuildData;
 	}
 
 	// 1. Cook commandlet does it's own UWorldPartition::Initialize call in FWorldPartitionCookPackageSplitter::GetGenerateList
@@ -3076,11 +3159,9 @@ void ULevel::OnLevelLoaded()
 
 			if (bIsMainWorldLevel || bInitializeForEditor)
 			{
-				if (!WorldPartition->IsInitialized())
-				{
-					FTransform Transform = LevelStreaming ? LevelStreaming->LevelTransform : FTransform::Identity;
-					WorldPartition->Initialize(OwningWorld, Transform);
-				}
+				check(!WorldPartition->IsInitialized());
+				FTransform Transform = LevelStreaming ? LevelStreaming->LevelTransform : FTransform::Identity;
+				WorldPartition->Initialize(OwningWorld, Transform);
 			}
 		}
 	}
@@ -3301,6 +3382,12 @@ void ULevel::InitializeRenderingResources()
 		ULevel* ActiveLightingScenario = OwningWorld->GetActiveLightingScenario();
 		UMapBuildDataRegistry* EffectiveMapBuildData = MapBuildData;
 
+		if (!IsMapBuildDataOwner())
+		{
+			// If we're using the MapBuildData of our owning Level don't touch the rendering resources, owning level will take care of it
+			return;
+		}
+
 		if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
 		{
 			EffectiveMapBuildData = ActiveLightingScenario->MapBuildData;
@@ -3309,6 +3396,11 @@ void ULevel::InitializeRenderingResources()
 		if (!PrecomputedLightVolume->IsAddedToScene())
 		{
 			PrecomputedLightVolume->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId);
+		}
+
+		if (EffectiveMapBuildData && EffectiveMapBuildData->GetVolumetricLightMapGridDesc())
+		{
+			VolumetricLightmapGridManager = new FVolumetricLightmapGridManager(OwningWorld, EffectiveMapBuildData->GetVolumetricLightMapGridDesc());
 		}
 
 		if (!PrecomputedVolumetricLightmap->IsAddedToScene())
@@ -3327,6 +3419,17 @@ void ULevel::ReleaseRenderingResources()
 {
 	if (OwningWorld && FApp::CanEverRender())
 	{
+		if (!IsMapBuildDataOwner())
+		{
+			// If we're using the MapBuildData of our owning Level don't touch the rendering resources, owning level will take care of it
+			return;
+		}
+
+		if (VolumetricLightmapGridManager)
+		{
+			VolumetricLightmapGridManager->RemoveFromScene(OwningWorld->Scene);
+		}
+
 		if (PrecomputedLightVolume)
 		{
 			PrecomputedLightVolume->RemoveFromScene(OwningWorld->Scene);
@@ -3482,6 +3585,11 @@ UPackage* ULevel::CreateMapBuildDataPackage() const
 	return BuiltDataPackage;
 }
 
+bool ULevel::IsMapBuildDataOwner() const
+{
+	return ULevelInstanceSubsystem::GetOwningLevel(this, true) == this;
+}
+
 UMapBuildDataRegistry* ULevel::GetOrCreateMapBuildData()
 {
 	if (!MapBuildData 
@@ -3503,6 +3611,14 @@ UMapBuildDataRegistry* ULevel::GetOrCreateMapBuildData()
 		FName ShortPackageName = FPackageName::GetShortFName(BuiltDataPackage->GetFName());
 		// Top level UObjects have to have both RF_Standalone and RF_Public to be saved into packages
 		MapBuildData = NewObject<UMapBuildDataRegistry>(BuiltDataPackage, ShortPackageName, RF_Standalone | RF_Public);
+		// assign to all transient Levels inside the World
+		for (ULevel* Level : GetWorld()->GetLevels())
+		{
+			if (ULevelInstanceSubsystem::GetOwningLevel(Level, true) == this)
+			{
+				Level->MapBuildData = MapBuildData;
+			}
+		}
 		MarkPackageDirty();
 	}
 
@@ -4235,7 +4351,7 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 			UObject* Object = ObjectToPackage.Key;
 			UPackage* Package = ObjectToPackage.Value;
 
-			Object->Rename(nullptr, Package, REN_ForceNoResetLoaders);
+			Object->Rename(nullptr, Package);
 		}
 
 		ObjectsToExternalPackages.Empty();
@@ -4261,10 +4377,10 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 					GetObjectsWithPackage(ActorExternalPackage, Objects, bIncludeNestedSubobjects, RF_NoFlags, EInternalObjectFlags::Garbage);
 					for (UObject* Object : Objects)
 					{
-						if (Object != Actor && Object->GetFName() != NAME_PackageMetaData)
+						if (!Cast<AActor>(Object) && Object->GetFName() != NAME_PackageMetaData)
 						{
 							// Move objects in the destination level package
-							Object->Rename(nullptr, LevelPackage, REN_ForceNoResetLoaders);
+							Object->Rename(nullptr, LevelPackage);
 
 							// Keep track of which package this object really belongs to
 							ObjectsToExternalPackages.Emplace(Object, ActorExternalPackage);
@@ -4312,7 +4428,7 @@ ULevelScriptBlueprint* ULevel::GetLevelScriptBlueprint(bool bDontCreate)
 		// If there is already something there with that name, rename it to something else.
 		if (UObject* ExistingObject = StaticFindObject(nullptr, this, *LevelScriptName))
 		{
-			ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+			ExistingObject->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 
 		// If no blueprint is found, create one. 

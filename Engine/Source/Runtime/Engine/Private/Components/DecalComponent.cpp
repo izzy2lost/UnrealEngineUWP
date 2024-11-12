@@ -16,7 +16,19 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MarkActorRenderStateDirtyTask.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Logging/MessageLog.h"
+#include "Misc/MapErrors.h"
+#include "Misc/UObjectToken.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DecalComponent)
+
+#define LOCTEXT_NAMESPACE "DecalComponent"
 
 static TAutoConsoleVariable<float> CVarDecalFadeDurationScale(
 	TEXT("r.Decal.FadeDurationScale"),
@@ -318,23 +330,56 @@ void UDecalComponent::PrecachePSOs()
 		return;
 	}
 
-	// clear the current request data
-	PSOPrecacheCompileEvent = nullptr;
-
 	if (DecalMaterial && !DecalMaterial->HasAnyFlags(RF_NeedPostLoad))
 	{
 		FPSOPrecacheParams PSOPrecacheParams;		
 		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;		
 		VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
 
+
 		// Immediately create at high priority and thus doesn't need boosting anymore
 		TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
 		FGraphEventArray GraphEvents = DecalMaterial->PrecachePSOs(VertexFactoryDataList, PSOPrecacheParams, EPSOPrecachePriority::High, MaterialPSOPrecacheRequestIDs);
 
 		// Request recreate of the render state when the PSO compilation is ready (if we want to delay proxy creation)
-		if (GraphEvents.Num() > 0 && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
+		if (GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 		{
-			PSOPrecacheCompileEvent = TGraphTask<FMarkActorRenderStateDirtyTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this);
+			struct FPSODecalPrecacheFinishedTask
+			{
+				explicit FPSODecalPrecacheFinishedTask(UDecalComponent* InDecalComponent, int32 InJobSetThatJustCompleted)
+					: WeakDecalComponent(InDecalComponent),
+					JobSetThatJustCompleted(InJobSetThatJustCompleted)
+				{
+				}
+
+				static TStatId GetStatId() { return TStatId(); }
+				static ENamedThreads::Type GetDesiredThread() { return ENamedThreads::GameThread; }
+				static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+
+				void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+				{
+					if (UDecalComponent* DC = WeakDecalComponent.Get())
+					{
+						int32 CurrJobSetCompleted = DC->LatestPSOPrecacheJobSetCompleted.load();
+						while (CurrJobSetCompleted < JobSetThatJustCompleted && !DC->LatestPSOPrecacheJobSetCompleted.compare_exchange_weak(CurrJobSetCompleted, JobSetThatJustCompleted)) {}
+						DC->MarkRenderStateDirty();
+					}
+				}
+
+				TWeakObjectPtr<UDecalComponent> WeakDecalComponent;
+				int32 JobSetThatJustCompleted;
+			};
+
+			LatestPSOPrecacheJobSet++;
+			if (GraphEvents.Num() > 0)
+			{
+				TGraphTask<FPSODecalPrecacheFinishedTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this, LatestPSOPrecacheJobSet);
+			}
+			else
+			{ 
+				// No graph events to wait on, the job set can be considered complete.
+				LatestPSOPrecacheJobSetCompleted = LatestPSOPrecacheJobSet;
+			}
 		}
 	}
 #endif
@@ -381,11 +426,10 @@ FDeferredDecalProxy* UDecalComponent::CreateSceneProxy()
 	LLM_SCOPE(ELLMTag::SceneRender);
 
 #if UE_WITH_PSO_PRECACHING
-	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
+	if (LatestPSOPrecacheJobSetCompleted != LatestPSOPrecacheJobSet && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
 		return nullptr;
 	}
-	PSOPrecacheCompileEvent = nullptr;
 #endif // UE_WITH_PSO_PRECACHING
 
 	return new FDeferredDecalProxy(this);
@@ -394,6 +438,36 @@ FDeferredDecalProxy* UDecalComponent::CreateSceneProxy()
 FBoxSphereBounds UDecalComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
 	return FBoxSphereBounds(FVector(0, 0, 0), DecalSize, DecalSize.Size()).TransformBy(LocalToWorld);
+}
+
+void UDecalComponent::OnRegister()
+{
+	Super::OnRegister();
+
+#if WITH_EDITOR
+	if (DecalMaterial && DecalMaterial->GetMaterial()->MaterialDomain != MD_DeferredDecal && GEditor)
+	{
+		static TWeakPtr<class SNotificationItem> NotificationHandle;
+		if (!NotificationHandle.IsValid())
+		{
+			FNotificationInfo Info(LOCTEXT("DecalMaterial_Notify", "Decal Material must use Deferred Decal Material Domain."));
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 8.0f;
+			Info.SubText = FText::Format(
+				LOCTEXT("DecalMaterial_NotifySubtext", "Decal materials must use the Deferred Decal Material Domain.\nEither select a valid material for {0} or open the current material and select the Deferred Decal Material Domain."), 
+				FText::FromString(GetOwner()->GetActorNameOrLabel()));
+			Info.HyperlinkText = FText::Format(
+				LOCTEXT("DecalMaterial_Hyperlink", "Open {0}"), 
+				FText::FromString(DecalMaterial->GetName()));
+			Info.Hyperlink = FSimpleDelegate::CreateWeakLambda(this, [this]
+				{
+					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(DecalMaterial);
+				});
+
+			NotificationHandle = FSlateNotificationManager::Get().AddNotification(Info);
+		}
+	}
+#endif
 }
 
 void UDecalComponent::BeginPlay()
@@ -436,4 +510,24 @@ void UDecalComponent::DestroyRenderState_Concurrent()
 	GetWorld()->Scene->RemoveDecal(this);
 }
 
+#if WITH_EDITOR
 
+void UDecalComponent::CheckForErrors()
+{
+	Super::CheckForErrors();
+
+	if (DecalMaterial && DecalMaterial->GetMaterial()->MaterialDomain != MD_DeferredDecal)
+	{
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("ComponentName"), FText::FromString(GetName()));
+		Arguments.Add(TEXT("OwnerName"), FText::FromString(GetNameSafe(GetOwner())));
+
+		FMessageLog("MapCheck").Warning()
+			->AddToken(FUObjectToken::Create(this))
+			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("DecalMaterial_MapCheck", "{ComponentName}::{OwnerName} has a DecalMaterial that doesn't use the Deferred Decal Material Domain."), Arguments)));
+	}
+}
+
+#endif // WITH_EDITOR
+
+#undef LOCTEXT_NAMESPACE

@@ -14,13 +14,16 @@
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceID.h"
 #include "UniversalObjectLocatorResolveParameterBuffer.inl"
+#include "MovieSceneBindingReferences.h"
+#include "Misc/TransactionallySafeRWLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 
 namespace UE
 {
 namespace MovieScene
 {
 
-static FRWLock                          GGlobalPlayerRegistryLock;
+static FTransactionallySafeRWLock       GGlobalPlayerRegistryLock;
 static TSparseArray<IMovieScenePlayer*> GGlobalPlayerRegistry;
 static TBitArray<> GGlobalPlayerUpdateFlags;
 
@@ -51,7 +54,7 @@ UE::MovieScene::TPlaybackCapabilityID<IMovieScenePlaybackClient> IMovieScenePlay
 
 IMovieScenePlayer::IMovieScenePlayer()
 {
-	FWriteScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
+	FTransactionallySafeWriteScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
 
 	UE::MovieScene::GGlobalPlayerRegistry.Shrink();
 	UniqueIndex = UE::MovieScene::GGlobalPlayerRegistry.Add(this);
@@ -62,7 +65,7 @@ IMovieScenePlayer::IMovieScenePlayer()
 
 IMovieScenePlayer::~IMovieScenePlayer()
 {	
-	FWriteScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
+	FTransactionallySafeWriteScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
 
 	UE::MovieScene::GGlobalPlayerUpdateFlags[UniqueIndex] = 0;
 	UE::MovieScene::GGlobalPlayerRegistry.RemoveAt(UniqueIndex, 1);
@@ -70,14 +73,14 @@ IMovieScenePlayer::~IMovieScenePlayer()
 
 IMovieScenePlayer* IMovieScenePlayer::Get(uint16 InUniqueIndex)
 {
-	FReadScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
+	FTransactionallySafeReadScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
 	check(UE::MovieScene::GGlobalPlayerRegistry.IsValidIndex(InUniqueIndex));
 	return UE::MovieScene::GGlobalPlayerRegistry[InUniqueIndex];
 }
 
 void IMovieScenePlayer::Get(TArray<IMovieScenePlayer*>& OutPlayers, bool bOnlyUnstoppedPlayers)
 {
-	FReadScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
+	FTransactionallySafeReadScopeLock ScopeLock(UE::MovieScene::GGlobalPlayerRegistryLock);
 	for (auto It = UE::MovieScene::GGlobalPlayerRegistry.CreateIterator(); It; ++It)
 	{
 		if (IMovieScenePlayer* Player = *It)
@@ -124,9 +127,27 @@ void IMovieScenePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieScen
 	}
 }
 
-void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	Sequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+	using namespace UE::UniversalObjectLocator;
+	using namespace UE::MovieScene;
+
+	const IMovieScenePlaybackClient* PlaybackClient = GetPlaybackClient();
+
+	bool bAllowDefault = PlaybackClient ? PlaybackClient->RetrieveBindingOverrides(InBindingId, SequenceID, OutObjects) : true;
+
+	if (bAllowDefault)
+	{
+		if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
+		{
+			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID, LocatorResolveParams.Context };
+			BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, FindSharedPlaybackState(), OutObjects);
+		}
+		else
+		{
+			InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, FindSharedPlaybackState(), OutObjects);
+		}
+	}
 }
 
 TArrayView<TWeakObjectPtr<>> IMovieScenePlayer::FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID)
@@ -157,10 +178,21 @@ TSharedPtr<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::FindSharedPl
 	return GetEvaluationTemplate().GetSharedPlaybackState();
 }
 
+TSharedPtr<const UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::FindSharedPlaybackState() const
+{
+	return ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->GetEvaluationTemplate().GetSharedPlaybackState());
+}
+
 TSharedRef<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPlaybackState()
 {
 	// ToSharedRef will assert if evaluation template isn't initialized
 	return GetEvaluationTemplate().GetSharedPlaybackState().ToSharedRef();
+}
+
+TSharedRef<const UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPlaybackState() const
+{
+	// ToSharedRef will assert if evaluation template isn't initialized
+	return ConstCastSharedRef<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->GetEvaluationTemplate().GetSharedPlaybackState().ToSharedRef());
 }
 
 void IMovieScenePlayer::ResetDirectorInstances()
@@ -224,13 +256,29 @@ bool IMovieScenePlayer::IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) 
 	return false;
 }
 
+
+FGuid IMovieScenePlayer::CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject)
+{
+	if (InSequence && InObject)
+	{
+		return InSequence->CreatePossessable(InObject);
+	}
+	return FGuid();
+}
+
 void IMovieScenePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState)
 {
 	using namespace UE::MovieScene;
 
 	NewSharedPlaybackState->AddCapability<FPlayerIndexPlaybackCapability>(UniqueIndex);
 	NewSharedPlaybackState->AddCapabilityRaw(&State);
-	NewSharedPlaybackState->AddCapabilityRaw(&GetSpawnRegister());
+
+	// Only add the spawnregister if it is different from the default 'null' register (which does nothing)
+	FMovieSceneSpawnRegister* SpawnRegister = &GetSpawnRegister();
+	if (SpawnRegister != &IMovieScenePlayer::GetSpawnRegister())
+	{
+		NewSharedPlaybackState->AddCapabilityRaw(SpawnRegister);
+	}
 	NewSharedPlaybackState->AddCapabilityRaw((IObjectBindingNotifyPlaybackCapability*)this);
 	NewSharedPlaybackState->AddCapabilityRaw((IStaticBindingOverridesPlaybackCapability*)this);
 

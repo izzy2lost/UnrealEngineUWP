@@ -65,6 +65,8 @@ enum class ERepresentativeShader
 	UIInstancedVertexShader,
 	LastVertexShader = UIInstancedVertexShader,
 
+	NaniteMesh,
+
 	Num
 };
 
@@ -118,6 +120,8 @@ public:
 	static FSlateColor PlatformTypeColor(EPlatformCategoryType PlatformType);
 
 	MATERIALEDITOR_API static bool IsPlatformOfflineCompilerAvailable(const EShaderPlatform ShaderPlatform);
+	UE_DEPRECATED(5.5, "GetPlatformOfflineCompilerPath is no longer used; Use GetPlatformOfflineCompilerSettings instead.")
 	MATERIALEDITOR_API static FString GetPlatformOfflineCompilerPath(const EShaderPlatform ShaderPlatform);
+	MATERIALEDITOR_API static void GetPlatformOfflineCompilerSettings(const EShaderPlatform ShaderPlatform, FExtraShaderCompilerSettings& SCSettings);
 	MATERIALEDITOR_API static bool PlatformNeedsOfflineCompiler(const EShaderPlatform ShaderPlatform);
 };

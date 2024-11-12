@@ -17,9 +17,9 @@ inline FString LegacyAttachmentString(
 	FString Out;
 	if (!Context.EventData.GetString(FieldName, Out))
 	{
-		Out = FString(
-				Context.EventData.GetAttachmentSize() / sizeof(AttachedCharType),
-				(const AttachedCharType*)(Context.EventData.GetAttachment()));
+		Out = FString::ConstructFromPtrSize(
+				(const AttachedCharType*)(Context.EventData.GetAttachment()),
+				Context.EventData.GetAttachmentSize() / sizeof(AttachedCharType));
 	}
 	return Out;
 }

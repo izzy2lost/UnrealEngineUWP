@@ -389,11 +389,14 @@ void UNiagaraComponentRendererProperties::UpdateSetterFunctions()
 
 			for (const FString& Prefix : SetterPrefixes)
 			{
-				FName SetterFunctionName = FName(Prefix + PropertyName);
-				SetterFunction = TemplateComponent->FindFunction(SetterFunctionName);
-				if (SetterFunction)
+				FName SetterFunctionName = FName(Prefix + PropertyName, FNAME_Find);
+				if (!SetterFunctionName.IsNone())
 				{
-					break;
+					SetterFunction = TemplateComponent->FindFunction(SetterFunctionName);
+					if (SetterFunction)
+					{
+						break;
+					}
 				}
 			}
 		}

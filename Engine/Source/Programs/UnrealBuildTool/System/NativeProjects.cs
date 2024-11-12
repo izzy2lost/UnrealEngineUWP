@@ -83,31 +83,13 @@ namespace UnrealBuildTool
 		/// Returns true if this project is a Hybrid content only project that requires it to be built as code
 		/// </summary>
 		/// <param name="UProjectFile"></param>
+		/// <param name="Reason"></param>
 		/// <param name="Logger"></param>
 		/// <returns></returns>
-		public static bool IsHybridContentOnlyProject(FileReference UProjectFile, ILogger Logger)
+		public static bool IsHybridContentOnlyProject(FileReference UProjectFile, [NotNullWhen(true)] out string? Reason, ILogger Logger)
 		{
 			return RequiresTempTarget(
 				UProjectFile,
-				new List<UnrealTargetPlatform>() { BuildHostPlatform.Current.Platform },
-				new List<UnrealTargetConfiguration>() { UnrealTargetConfiguration.Development, UnrealTargetConfiguration.Shipping },
-				out _,
-				Logger);
-		}
-
-		/// <summary>
-		/// Returns true if this project is a Hybrid content only project that requires it to be built as code
-		/// </summary>
-		/// <param name="UProjectFile"></param>
-		/// <param name="TargetPlatforms">The target platforms we are asking about.</param>
-		/// <param name="Reason">Contains a description of the reason the project is hybrid</param>
-		/// <param name="Logger"></param>
-		/// <returns></returns>
-		public static bool IsHybridContentOnlyProject(FileReference UProjectFile, List<UnrealTargetPlatform> TargetPlatforms, [NotNullWhen(true)] out string? Reason, ILogger Logger)
-		{
-			return RequiresTempTarget(
-				UProjectFile,
-				TargetPlatforms,
 				new List<UnrealTargetConfiguration>() { UnrealTargetConfiguration.Development, UnrealTargetConfiguration.Shipping },
 				out Reason,
 				Logger);
@@ -117,13 +99,12 @@ namespace UnrealBuildTool
 		/// Creates temporary target files, if needed, for a hybrid content only project
 		/// </summary>
 		/// <param name="UProjectFile"></param>
-		/// <param name="TargetPlatforms"></param>
 		/// <param name="Logger"></param>
 		/// <returns>True if the project is hybrid</returns>
-		public static bool ConditionalMakeTempTargetForHybridProject(FileReference UProjectFile, List<UnrealTargetPlatform> TargetPlatforms, ILogger Logger)
+		public static bool ConditionalMakeTempTargetForHybridProject(FileReference UProjectFile, ILogger Logger)
 		{
 			string? Reason;
-			bool bIsHybrid = IsHybridContentOnlyProject(UProjectFile, TargetPlatforms, out Reason, Logger);
+			bool bIsHybrid = IsHybridContentOnlyProject(UProjectFile, out Reason, Logger);
 
 			DirectoryReference TempDir = DirectoryReference.Combine(UProjectFile.Directory, "Intermediate", "Source");
 
@@ -146,7 +127,7 @@ namespace UnrealBuildTool
 				// clean up if needed
 				if (bWasHybrid)
 				{
-					Logger.LogWarning("Cleaning old temporary Target files for {Project} because it no longer being treated as a code-based project.", ProjectName);
+					Logger.LogWarning("Cleaning old temporary Target files for {Project} because it no longer being treated as a code-based project for any enabled platform.", ProjectName);
 					DirectoryReference.Delete(TempDir, bRecursive: true);
 				}
 				return false;
@@ -250,7 +231,7 @@ namespace UnrealBuildTool
 			return false;
 		}
 
-		private static bool RequiresTempTarget(FileReference UProjectFile, List<UnrealTargetPlatform> Platforms, List<UnrealTargetConfiguration> Configurations, [NotNullWhen(true)] out string? Reason, ILogger Logger)
+		private static bool RequiresTempTarget(FileReference UProjectFile, List<UnrealTargetConfiguration> Configurations, [NotNullWhen(true)] out string? Reason, ILogger Logger)
 		{
 			// no reason by default
 			Reason = null;
@@ -261,6 +242,11 @@ namespace UnrealBuildTool
 				return false;
 			}
 
+			List<UnrealTargetPlatform> Platforms = DataDrivenPlatformInfo.GetAllPlatformInfos()
+				.Where(x => x.Value.bIsEnabled)
+				.Select(x => UnrealTargetPlatform.Parse(x.Key.Replace("Windows", "Win64")))
+				.ToList();
+
 			bool bHasCode = ProjectHasCode(UProjectFile, bCheckForTempTargets: false);
 			foreach (UnrealTargetPlatform Platform in Platforms)
 			{
@@ -269,7 +255,8 @@ namespace UnrealBuildTool
 					string? InnerReason;
 					if (RequiresTempTarget(UProjectFile, bHasCode, Platform, Configuration, TargetType.Game, out InnerReason, Logger))
 					{
-						Reason = $"{UProjectFile.GetFileName()} is has no code, but is being treated as a code-based project because: {InnerReason}.";
+						string PlatformNames = string.Join(", ", Platforms.Select(x => x.ToString()));
+						Reason = $"{UProjectFile.GetFileName()} is has no code, but is being treated as a code-based project for platforms {PlatformNames} because: {InnerReason}.";
 						return true;
 					}
 				}
@@ -280,7 +267,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// NOTE: This function must mirror the functionality of TargetPlatformBase::RequiresTempTarget
 		/// </summary>
-		public static bool RequiresTempTarget(FileReference RawProjectPath, bool bProjectHasCode, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetType, out string? OutReason, ILogger Logger)
+		private static bool RequiresTempTarget(FileReference RawProjectPath, bool bProjectHasCode, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetType, out string? OutReason, ILogger Logger)
 		{
 			// check to see if we already have a Target.cs file
 			if (bProjectHasCode)
@@ -497,7 +484,7 @@ namespace UnrealBuildTool
 						// Ignore any optional plugins
 						if (Reference.bOptional)
 						{
-							Logger.LogDebug("Ignored optional reference to '%s' plugin; plugin was not found.", Reference.Name);
+							Logger.LogDebug("Ignored optional reference to '{Plugin}' plugin; plugin was not found.", Reference.Name);
 							continue;
 						}
 

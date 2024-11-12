@@ -115,7 +115,7 @@ struct FScopedCreateImportCounter
 class FAsyncArchive;
 
 class FLinkerLoad 
-#if !WITH_EDITOR
+#if !WITH_EDITOR && !WITH_LOW_LEVEL_TESTS
 	final 
 #endif
 	: public FLinker, public FArchiveUObject
@@ -168,6 +168,10 @@ public:
 	UObject*				TemplateForGetArchetypeFromLoader;
 	bool					bForceSimpleIndexToObject;
 	bool					bLockoutLegacyOperations;
+	
+	/** Set to true during IDO generation to skip non-loose properties during serialization.
+	 * In any other context, this would end up skipping *every* property */
+	UE_INTERNAL bool bSkipKnownProperties;
 
 	/** True if Loader is FAsyncArchive  */
 	bool					bIsAsyncLoader;
@@ -406,9 +410,11 @@ public:
 
 	virtual bool SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializationParams& Params) override;
 
+	virtual bool ShouldSkipProperty(const FProperty* InProperty) const override;
+
 private:
 
-	void SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, int64& DuplicateSerialOffset, int32 ElementSize);
+	void SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, FBulkDataCookedIndex& CookedIndex, int64& DuplicateSerialOffset, int32 ElementSize);
 
 	// Variables used during async linker creation.
 
@@ -566,18 +572,28 @@ public:
 	 * Locates package index for a UPackage import
 	 */
 	COREUOBJECT_API bool FindImportPackage(FName PackageName, FPackageIndex& PackageIdx);
-	/* Locates package index for a given name in an outer. */
+
+	/** 
+	 * Locates package index for a given name in an outer.
+	 */
 	COREUOBJECT_API bool FindImport(FPackageIndex OuterIndex, FName ObjectName, FPackageIndex& OutObjectIndex);
+
+	/**
+	 * Finds an import given the full object path as a string.
+	 * 
+	 * Note: since imports are stored in an array, it needs to linearly search for _each_ import in the object path.
+	 */
+	COREUOBJECT_API bool FindImport(FStringView FullObjectPath, FPackageIndex& OutObjectIndex);
 
 	/**
 	 * Locates the class adjusted index and its package adjusted index for a given class name in the import map
 	 */
-	COREUOBJECT_API bool FindImportClassAndPackage( FName ClassName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx );
+	COREUOBJECT_API bool FindImportClassAndPackage(FName ClassName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx);
 	
 	/**
 	 * Attempts to find the index for the given class object in the import list and adds it + its package if it does not exist
 	 */
-	COREUOBJECT_API bool CreateImportClassAndPackage( FName ClassName, FName PackageName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx );
+	COREUOBJECT_API bool CreateImportClassAndPackage(FName ClassName, FName PackageName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx);
 
 	/**
 	 * Allows object instances to be converted to other classes upon loading a package
@@ -864,17 +880,31 @@ private:
 
 #if WITH_EDITOR
 	/**
-	 * Utility function to create a placeholder type for the specified export.
+	 * Utility function for callers to try and create a placeholder class
+	 * object in the specified import slot if it represents a class object.
+	 * This allows for objects to still be serialized even if missing its
+	 * class type on load (the data will be serialized into a property bag).
+	 * 
+	 * Note: If the import is already non-NULL, this will not create a
+	 * placeholder class (and the function will return NULL as a result).
+	 *
+	 * @param  ImportIndex    Index of the import that may be a missing class.
+	 * @return A reference to the placeholder class (if created), otherwise NULL.
+	 */
+	UClass* TryCreatePlaceholderClassImport(int32 ImportIndex);
+
+	/**
+	 * Utility function to create a placeholder class for the specified export.
 	 * This will be called if the export could not resolve its LoadClass import.
 	 * In that case, its data might still be serializable (into a property bag).
 	 *
 	 * @param  ExportIndex    Index of the export that's missing its type.
 	 * @return The placeholder type that will be used to load the export's data.
 	 */
-	UClass* TryCreatePlaceholderTypeForExport(int32 ExportIndex);
+	UClass* TryCreatePlaceholderClassForExport(int32 ExportIndex);
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/** 
 	 * Looks for and loads meta data object from export map.
 	 *
@@ -885,7 +915,7 @@ private:
 	 *         INDEX_NONE otherwise.
 	 */
 	int32 LoadMetaDataFromExportMap(bool bForcePreload);
-#endif
+#endif // WITH_METADATA
 
 	UObject* CreateImport( int32 Index );
 
@@ -955,10 +985,10 @@ public:
 	 */
 	COREUOBJECT_API void DetachExports();
 
-	/** Should bulkdata identifiers should be regenerated as they are loaded or not */
+	UE_DEPRECATED(5.5, "LOAD_RegenerateBulkDataGuids is now obsolete so this method no longer has any purpose.")
 	bool ShouldRegenerateGuids() const
 	{
-		return (LoadFlags & LOAD_RegenerateBulkDataGuids) != 0;
+		return false;
 	}
 
 private:
@@ -1460,7 +1490,7 @@ private:
 
 
 	/** 
-	 * Creates the export hash.
+	0 *00 0C0r0e0ates the export hash.
 	 */
 	ELinkerStatus CreateExportHash();
 
@@ -1490,7 +1520,7 @@ private:
 public:
 
 	//~ FArchive interface
-	COREUOBJECT_API virtual void SetSerializeContext(FUObjectSerializeContext* InLoadContext) override;
+	UE_DEPRECATED(5.5, "GetSerializeContext is not supported. Use FUObjectThreadContext::Get().GetSerializeContext().")
 	COREUOBJECT_API virtual FUObjectSerializeContext* GetSerializeContext() override;
 };
 

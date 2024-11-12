@@ -4,11 +4,11 @@
 	MetalGraphicsPipelineState.cpp: Metal RHI graphics pipeline state class.
 =============================================================================*/
 
+#include "MetalGraphicsPipelineState.h"
 
 #include "MetalRHIPrivate.h"
 #include "MetalVertexDeclaration.h"
 #include "MetalShaderTypes.h"
-#include "MetalGraphicsPipelineState.h"
 
 
 //------------------------------------------------------------------------------

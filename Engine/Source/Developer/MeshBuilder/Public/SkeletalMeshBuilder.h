@@ -18,6 +18,14 @@ public:
 	FSkeletalMeshBuilder();
 
 	//No support for static mesh build in this class
+	virtual bool Build(FStaticMeshRenderData& OutRenderData, const struct FStaticMeshBuildParameters& BuildParameters) override
+	{
+		bool No_Support_For_StaticMesh_Build_In_FSkeletalMeshBuilder_Class = false;
+		check(No_Support_For_StaticMesh_Build_In_FSkeletalMeshBuilder_Class);
+		return false;
+	}
+
+	UE_DEPRECATED(5.5, "Use FStaticMeshBuildParameters instead.")
 	virtual bool Build(FStaticMeshRenderData& OutRenderData, UStaticMesh* StaticMesh, const FStaticMeshLODGroup& LODGroup, bool bAllowNanite) override
 	{
 		bool No_Support_For_StaticMesh_Build_In_FSkeletalMeshBuilder_Class = false;

@@ -5,21 +5,21 @@
 #include "Builders/OperatorStackEditorBodyBuilder.h"
 #include "Builders/OperatorStackEditorFooterBuilder.h"
 #include "Builders/OperatorStackEditorHeaderBuilder.h"
+#include "Contexts/OperatorStackEditorMenuContext.h"
 #include "CustomDetailsViewModule.h"
 #include "Customizations/OperatorStackEditorStackCustomization.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ICustomDetailsView.h"
-#include "SOperatorStackEditorPanel.h"
 #include "Items/ICustomDetailsViewItem.h"
-#include "SOperatorStackExpanderButton.h"
-#include "Styles/OperatorStackEditorStyle.h"
-#include "Styling/AppStyle.h"
-#include "Styling/ToolBarStyle.h"
-#include "ToolMenu.h"
-#include "ToolMenus.h"
-#include "Contexts/OperatorStackEditorMenuContext.h"
 #include "Items/OperatorStackEditorTree.h"
 #include "Items/OperatorStackEditorStructItem.h"
+#include "SOperatorStackEditorPanel.h"
+#include "SOperatorStackExpanderButton.h"
+#include "SPositiveActionButton.h"
+#include "Styles/OperatorStackEditorStyle.h"
+#include "Styling/AppStyle.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
@@ -66,9 +66,9 @@ void SOperatorStackEditorStack::Construct(const FArguments& InArgs
 	{
 		Items = ItemTree.GetChildrenItems(InCustomizeItem);
 	}
-	else
+	else if (const FOperatorStackEditorItemPtr RootItem = ItemTree.GetRootItem())
 	{
-		Items = ItemTree.GetRootItems();
+		Items = {RootItem};
 	}
 
 	ChildSlot
@@ -77,6 +77,12 @@ void SOperatorStackEditorStack::Construct(const FArguments& InArgs
 	[
 		GenerateStackWidget()
 	];
+
+	// Refresh search when we hit a leaf
+	if (CustomizeItem.IsValid() && Items.IsEmpty())
+	{
+		InMainPanel->FilterItemsAsync(InMainPanel->GetLastSearch());
+	}
 }
 
 FOperatorStackEditorContextPtr SOperatorStackEditorStack::GetContext() const
@@ -137,7 +143,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 	{
 		// Find previous expansion state or use default
 		bHeaderExpanded = HeaderBuilder.GetStartsExpanded();
-		MainPanel->GetItemExpansionState(CustomizeItem->GetValuePtr(), bHeaderExpanded);
+		MainPanel->GetItemExpansionState(CustomizeItem->GetHash(), bHeaderExpanded);
 
 		HorizontalHeaderWidget->AddSlot()
 		.AutoWidth()
@@ -162,6 +168,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 		[
 			SNew(SImage)
 			.Image(Icon)
+			.ToolTipText(HeaderBuilder.GetTooltip())
 		];
 	}
 
@@ -176,6 +183,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 		[
 			SNew(STextBlock)
 			.Text(HeaderBuilder.GetLabel())
+			.ToolTipText(HeaderBuilder.GetTooltip())
 			.Justification(ETextJustify::Center)
 		];
 	}
@@ -294,6 +302,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
             .AutoHeight()
             [
             	SAssignNew(SearchBox, SSearchBox)
+	            .InitialText(MainPanel->GetLastSearch())
             	.HintText(LOCTEXT("OperatorStackEditorStackSearchHint", "Search items"))
             	.OnTextChanged(this, &SOperatorStackEditorStack::OnSearchTextChanged)
             	.OnTextCommitted(this, &SOperatorStackEditorStack::OnSearchTextCommitted)
@@ -302,12 +311,25 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 			// Add scrollbox with pinned keywords
 			if (!HeaderBuilder.GetSearchPinnedKeywords().IsEmpty())
 			{
-				static const FToolBarStyle& ToolBarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-				static const FCheckBoxStyle* const CheckStyle = &ToolBarStyle.ToggleButton;
-
 				const TSharedPtr<SScrollBox> SearchScroll = SNew(SScrollBox)
 				.Orientation(EOrientation::Orient_Horizontal)
 				.ScrollBarThickness(FVector2D(3.f));
+
+				auto CreatePinnedButton = [this](const FString& InPinnedKeyword)->TSharedRef<SWidget>
+				{
+					return SNew(SBox)
+						.Padding(FMargin(0.0f))
+						[
+							SNew(SCheckBox)
+							.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+							.OnCheckStateChanged(this, &SOperatorStackEditorStack::OnSearchPinnedKeyword, InPinnedKeyword)
+							[
+								SNew(STextBlock)
+								.TextStyle(FAppStyle::Get(), "SmallText")
+								.Text(FText::FromString(InPinnedKeyword))
+							]
+						];
+				};
 
 				for (const FString& PinnedKeyword : HeaderBuilder.GetSearchPinnedKeywords())
 				{
@@ -316,14 +338,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 					.VAlign(VAlign_Fill)
 					.Padding(Padding)
 					[
-						SNew(SCheckBox)
-						.Style(CheckStyle)
-						.ForegroundColor(FLinearColor::White)
-						.OnCheckStateChanged(this, &SOperatorStackEditorStack::OnSearchPinnedKeyword, PinnedKeyword)
-						[
-							SNew(STextBlock)
-							.Text(FText::FromString(PinnedKeyword))
-						]
+						CreatePinnedButton(PinnedKeyword)
 					];
 				}
 
@@ -378,7 +393,11 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
 		.Padding(Padding)
 		.AutoHeight()
 		[
-			MenuButtonWidget
+			SNew(SPositiveActionButton)
+			.Icon(HeaderBuilder.GetToolMenuIcon())
+			.Text(HeaderBuilder.GetToolMenuLabel())
+			.ToolTipText(HeaderBuilder.GetToolMenuLabel())
+			.OnGetMenuContent(this, &SOperatorStackEditorStack::GenerateMenuWidget, ToolMenuName)
 		];
 	}
 
@@ -453,9 +472,60 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateBodyWidget()
 
 	FText EmptyBodyDefaultText = LOCTEXT("EmptyBodyText", "Select a supported item to display it here");
 
+	auto GetItemWidget = [this, MainPanel](const FOperatorStackEditorBodyBuilder& InItem)->TSharedPtr<SWidget>
+	{
+		// We have set a custom widget for this body
+		if (TSharedPtr<SWidget> CustomWidget = InItem.GetCustomWidget())
+		{
+			return CustomWidget;
+		}
+
+		// Only build details view if we allow it
+		if (InItem.GetShowDetailsView())
+		{
+			FCustomDetailsViewArgs BodyCustomViewArgs;
+			BodyCustomViewArgs.bShowCategories = false;
+			BodyCustomViewArgs.KeyframeHandler = MainPanel->GetKeyframeHandler();
+			BodyCustomViewArgs.bAllowGlobalExtensions = true;
+			BodyCustomViewArgs.ColumnSizeData = MainPanel->GetDetailColumnSize();
+
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetDisallowedDetailsViewItems())
+			{
+				BodyCustomViewArgs.ItemAllowList.Disallow(DetailsViewId.Get());
+			}
+
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetAllowedDetailsViewItems())
+			{
+				BodyCustomViewArgs.ItemAllowList.Allow(DetailsViewId.Get());
+			}
+
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetCollapsedDetailsViewItems())
+			{
+				BodyCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::Collapsed);
+			}
+
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetExpandedDetailsViewItems())
+			{
+				BodyCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::SelfAndChildrenExpanded);
+			}
+
+			const FOperatorStackEditorItem* DetailViewItem = InItem.GetDetailsViewItem().IsValid()
+				? InItem.GetDetailsViewItem().Get()
+				: CustomizeItem.Get();
+
+			BodyDetailsView = CreateDetailsView(BodyCustomViewArgs, *DetailViewItem);
+
+			return BodyDetailsView;
+		}
+
+		return nullptr;
+	};
+
 	// We are the root and we have multiple supported items selected
 	if (!CustomizeItem.IsValid() && !Items.IsEmpty())
 	{
+		check(Items.Num() == 1)
+
 		FOperatorStackEditorBodyBuilder StackBodyBuilder;
 		StackCustomization->CustomizeStackBody(ItemTree, StackBodyBuilder);
 
@@ -471,55 +541,64 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateBodyWidget()
 			return StackWidget;
 		}
 
-		const TSharedRef<SSplitter> MultiStackBox = SNew(SSplitter)
-			.Orientation(Orient_Vertical);
-
-		for (FOperatorStackEditorItemPtr Item : Items)
-		{
-			TSharedPtr<SOperatorStackEditorStack> ItemStackWidget;
-
-			MultiStackBox->AddSlot()
-			.Value(1.f)
+		// Scrollbar to be able to scroll in the full view per vertical stack
+		TSharedPtr<SOperatorStackEditorStack> RootStack;
+		TSharedRef<SScrollBox> ScrollBox = SNew(SScrollBox)
+			.ScrollBarPadding(FMargin(0.f))
+			.ScrollBarAlwaysVisible(true)
+			.ScrollBarThickness(FVector2D(3.f))
+			.ScrollBarVisibility(EVisibility::Hidden)
+			.Orientation(Orient_Vertical)
+			+ SScrollBox::Slot()
+			.FillSize(1.f)
+			.Padding(Padding)
 			[
-				// Scrollbar to be able to scroll in the full view per vertical stack
-				SNew(SScrollBox)
-				.ScrollBarPadding(FMargin(0.f))
-				.ScrollBarAlwaysVisible(true)
-				.ScrollBarThickness(FVector2D(3.f))
-				.ScrollBarVisibility(EVisibility::Hidden)
-				.Orientation(Orient_Vertical)
-				+ SScrollBox::Slot()
-				.FillSize(1.f)
-				.Padding(Padding)
-				[
-					SAssignNew(ItemStackWidget, SOperatorStackEditorStack, GetMainPanel(), StackCustomization, Item)
-				]
+				SAssignNew(RootStack, SOperatorStackEditorStack, GetMainPanel(), StackCustomization, Items[0])
 			];
 
-			ItemsWidgets.Add(ItemStackWidget);
-		}
+		ItemsWidgets.Add(RootStack);
 
-		return MultiStackBox;
+		return ScrollBox;
 	}
 
 	// We are not the root but we contain children then add a list view
 	if (CustomizeItem.IsValid() && !Items.IsEmpty())
 	{
-		ItemsListView = SNew(SListView<FOperatorStackEditorItemPtr>)
-			.ListViewStyle(&FOperatorStackEditorStyle::Get().GetWidgetStyle<FTableViewStyle>("ListViewStyle"))
-			.ListItemsSource(&Items)
-			.ClearSelectionOnClick(true)
-			.SelectionMode(ESelectionMode::Multi)
-			.OnKeyDownHandler(this, &SOperatorStackEditorStack::OnKeyDownHandler)
-			.OnSelectionChanged(this, &SOperatorStackEditorStack::OnSelectionChanged)
-			.OnGenerateRow(this, &SOperatorStackEditorStack::OnGenerateRow);
+		FOperatorStackEditorBodyBuilder ItemBodyBuilder;
+		StackCustomization->CustomizeItemBody(CustomizeItem, ItemTree, ItemBodyBuilder);
+
+		TSharedRef<SVerticalBox> ParentBox = SNew(SVerticalBox);
+
+		if (TSharedPtr<SWidget> BodyWidget = GetItemWidget(ItemBodyBuilder))
+		{
+			ParentBox->AddSlot()
+				.AutoHeight()
+				.Padding(0.f)
+				[
+					BodyWidget.ToSharedRef()
+				];
+		}
+
+		ParentBox->AddSlot()
+			.FillHeight(1.f)
+			.Padding(0.f)
+			[
+				SAssignNew(ItemsListView, SListView<FOperatorStackEditorItemPtr>)
+				.ListViewStyle(&FOperatorStackEditorStyle::Get().GetWidgetStyle<FTableViewStyle>("ListViewStyle"))
+				.ListItemsSource(&Items)
+				.ClearSelectionOnClick(true)
+				.SelectionMode(ESelectionMode::Multi)
+				.OnKeyDownHandler(this, &SOperatorStackEditorStack::OnKeyDownHandler)
+				.OnSelectionChanged(this, &SOperatorStackEditorStack::OnSelectionChanged)
+				.OnGenerateRow(this, &SOperatorStackEditorStack::OnGenerateRow)
+			];
 
 		return SNew(SBox)
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
 			.Padding(0.f)
 			[
-				ItemsListView.ToSharedRef()
+				ParentBox
 			];
 	}
 
@@ -535,39 +614,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateBodyWidget()
 			EmptyBodyDefaultText = ItemBodyBuilder.GetEmptyBodyText();
 		}
 
-		// We have set a custom widget for this body
-		if (TSharedPtr<SWidget> CustomWidget = ItemBodyBuilder.GetCustomWidget())
-		{
-			return CustomWidget;
-		}
-
-		// Only build details view if we allow it
-		if (ItemBodyBuilder.GetShowDetailsView())
-		{
-			FCustomDetailsViewArgs BodyCustomViewArgs;
-			BodyCustomViewArgs.bShowCategories = false;
-			BodyCustomViewArgs.KeyframeHandler = MainPanel->GetKeyframeHandler();
-			BodyCustomViewArgs.bAllowGlobalExtensions = true;
-			BodyCustomViewArgs.ColumnSizeData = MainPanel->GetDetailColumnSize();
-
-			for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : ItemBodyBuilder.GetDisallowedDetailsViewItems())
-			{
-				BodyCustomViewArgs.ItemAllowList.Disallow(*DetailsViewId.Get());
-			}
-
-			for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : ItemBodyBuilder.GetAllowedDetailsViewItems())
-			{
-				BodyCustomViewArgs.ItemAllowList.Allow(*DetailsViewId.Get());
-			}
-
-			const FOperatorStackEditorItem* DetailViewItem = ItemBodyBuilder.GetDetailsViewItem().IsValid()
-				? ItemBodyBuilder.GetDetailsViewItem().Get()
-				: CustomizeItem.Get();
-
-			BodyDetailsView = CreateDetailsView(BodyCustomViewArgs, *DetailViewItem);
-
-			return BodyDetailsView;
-		}
+		return GetItemWidget(ItemBodyBuilder);
 	}
 
 	// No children and no items, display empty body info text
@@ -613,14 +660,24 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateFooterWidget()
 		FooterCustomViewArgs.bAllowGlobalExtensions = true;
 		FooterCustomViewArgs.ColumnSizeData = MainPanel->GetDetailColumnSize();
 
-		for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetDisallowedDetailsViewItems())
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetDisallowedDetailsViewItems())
 		{
-			FooterCustomViewArgs.ItemAllowList.Disallow(*DetailsViewId.Get());
+			FooterCustomViewArgs.ItemAllowList.Disallow(DetailsViewId.Get());
 		}
 
-		for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetAllowedDetailsViewItems())
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetAllowedDetailsViewItems())
 		{
-			FooterCustomViewArgs.ItemAllowList.Allow(*DetailsViewId.Get());
+			FooterCustomViewArgs.ItemAllowList.Allow(DetailsViewId.Get());
+		}
+
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetCollapsedDetailsViewItems())
+		{
+			FooterCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::Collapsed);
+		}
+
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetExpandedDetailsViewItems())
+		{
+			FooterCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::SelfAndChildrenExpanded);
 		}
 
 		const FOperatorStackEditorItem* DetailViewItem = FooterBuilder.GetDetailsViewItem().IsValid()
@@ -648,14 +705,19 @@ TSharedRef<SWidget> SOperatorStackEditorStack::GenerateMenuWidget(FName InMenuNa
 	return UToolMenus::Get()->GenerateWidget(InMenuName, ToolMenuContext);
 }
 
+EVisibility SOperatorStackEditorStack::GetHeaderVisibility() const
+{
+	return !bHiddenByFilter ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
 EVisibility SOperatorStackEditorStack::GetBodyVisibility() const
 {
-	return bHeaderExpanded ? EVisibility::Visible : EVisibility::Collapsed;
+	return !bHiddenByFilter && bHeaderExpanded ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SOperatorStackEditorStack::GetFooterVisibility() const
 {
-	return bHeaderExpanded ? EVisibility::Visible : EVisibility::Collapsed;
+	return !bHiddenByFilter && bHeaderExpanded ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SOperatorStackEditorStack::GetMessageBoxVisibility() const
@@ -692,31 +754,53 @@ EVisibility SOperatorStackEditorStack::GetMessageBoxIconVisibility() const
 	return GetMessageBoxIcon() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-void SOperatorStackEditorStack::OnSearchTextChanged(const FText& InSearchText)
+void SOperatorStackEditorStack::RequestSearchAsync() const
 {
-	OnSearchChanged();
+	if (const TSharedPtr<SOperatorStackEditorPanel> MainPanel = GetMainPanel())
+	{
+		if (SearchBox.IsValid())
+		{
+			MainPanel->FilterItemsAsync(SearchBox->GetText());
+		}
+	}
 }
 
-void SOperatorStackEditorStack::OnSearchChanged()
+void SOperatorStackEditorStack::OnSearchTextChanged(const FText& InSearchText)
 {
+	RequestSearchAsync();
+}
+
+void SOperatorStackEditorStack::FilterItems(const FText& InText)
+{
+	if (!SearchBox.IsValid())
+	{
+		return;
+	}
+
+	if (!SearchBox->GetText().EqualTo(InText))
+	{
+		SearchBox->SetText(InText);
+	}
+
 	const TSet<FString> SearchOR = SearchedKeywords;
 	TSet<FString> SearchAND;
 
-	const FString FilterString = SearchBox->GetText().ToString();
+	const FString FilterString = InText.ToString();
 	if (!FilterString.IsEmpty())
 	{
 		SearchAND.Add(FilterString);
 	}
 
-	HandleSearch(SearchOR, SearchAND);
+	HandleRecursiveSearch(SearchOR, SearchAND);
 }
 
 void SOperatorStackEditorStack::OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
 {
 	if (InCommitType == ETextCommit::OnCleared)
 	{
-		SearchBox->SetText(FText::GetEmpty());
-		OnSearchChanged();
+		const FText& EmptyText = FText::GetEmpty();
+		SearchBox->SetText(EmptyText);
+		OnSearchTextChanged(EmptyText);
 		FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::Cleared);
 	}
 }
@@ -732,7 +816,7 @@ void SOperatorStackEditorStack::OnSearchPinnedKeyword(ECheckBoxState InCheckStat
 		SearchedKeywords.Remove(InPinnedKeyword);
 	}
 
-	OnSearchChanged();
+	RequestSearchAsync();
 }
 
 bool SOperatorStackEditorStack::MatchSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND) const
@@ -812,7 +896,7 @@ bool SOperatorStackEditorStack::MatchSearch(const TSet<FString>& InSearchedKeywo
 	return bORSearchMatched && bANDSearchMatched;
 }
 
-bool SOperatorStackEditorStack::HandleSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND)
+bool SOperatorStackEditorStack::HandleRecursiveSearch(const TSet<FString>& InSearchedKeywords_OR, const TSet<FString>& InSearchedKeywords_AND)
 {
 	bool bMatchSearch = false;
 
@@ -820,36 +904,36 @@ bool SOperatorStackEditorStack::HandleSearch(const TSet<FString>& InSearchedKeyw
 	{
 		if (ItemWidget.IsValid())
 		{
-			if (ItemWidget->HandleSearch(InSearchedKeywordsOR, InSearchedKeywordsAND))
+			if (ItemWidget->HandleRecursiveSearch(InSearchedKeywords_OR, InSearchedKeywords_AND))
 			{
 				bMatchSearch = true;
 			}
 		}
 	}
 
-	// Search for properties in details view
-	if (BodyDetailsView)
-	{
-		bMatchSearch |= BodyDetailsView->FilterItems(InSearchedKeywordsAND.Array());
-	}
-
-	if (FooterDetailsView)
-	{
-		bMatchSearch |= FooterDetailsView->FilterItems(InSearchedKeywordsAND.Array());
-	}
-
 	// Do not hide root item if nothing was found
-	if (CustomizeItem.IsValid())
+	if (CustomizeItem.IsValid() && CustomizeItem->HasValue())
 	{
-		if (bMatchSearch || MatchSearch(InSearchedKeywordsOR, InSearchedKeywordsAND))
+		// Search for properties row in details view
+		bool bRowFound = false;
+
+		if (BodyDetailsView)
 		{
-			bMatchSearch = true;
-			SetVisibility(EVisibility::Visible);
+			bRowFound |= BodyDetailsView->FilterItems(InSearchedKeywords_AND.Array());
 		}
-		else
+
+		if (FooterDetailsView)
 		{
-			SetVisibility(EVisibility::Collapsed);
+			bRowFound |= FooterDetailsView->FilterItems(InSearchedKeywords_AND.Array());
 		}
+
+		if (!InSearchedKeywords_AND.IsEmpty())
+		{
+			bMatchSearch |= bRowFound;
+		}
+		
+		bMatchSearch |= MatchSearch(InSearchedKeywords_OR, InSearchedKeywords_AND);
+		bHiddenByFilter = !bMatchSearch;
 	}
 
 	return bMatchSearch;
@@ -903,36 +987,39 @@ TSharedRef<SWidget> SOperatorStackEditorStack::GenerateStackWidget()
 	if (CustomizeItem.IsValid() && Items.IsEmpty())
 	{
 		return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.Padding(0.f)
-		.AutoWidth()
-		[
-			SNew(SSeparator)
-			.Visibility(BorderColor == FLinearColor::Transparent ? EVisibility::Collapsed : EVisibility::Visible)
-			.ColorAndOpacity(BorderColor)
-			.SeparatorImage(FAppStyle::GetBrush("ThinLine.Horizontal"))
-			.Thickness(3.0f)
-			.Orientation(EOrientation::Orient_Vertical)
-		]
-		+ SHorizontalBox::Slot()
-		.Padding(0.f)
-		.FillWidth(1.f)
-		[
-			SNew(SBox)
-			.Padding(2.f)
+			.Visibility(this, &SOperatorStackEditorStack::GetHeaderVisibility)
+
+			+ SHorizontalBox::Slot()
+			.Padding(0.f)
+			.AutoWidth()
 			[
-				SNew(SOverlay)
-				+ SOverlay::Slot()
-				[
-					SNew(SColorBlock)
-					.Color(FOperatorStackEditorStyle::Get().GetColor("ForegroundColor"))
-				]
-				+ SOverlay::Slot()
-				[
-					StackWidget
-				]
+				SNew(SSeparator)
+				.Visibility(BorderColor == FLinearColor::Transparent ? EVisibility::Collapsed : EVisibility::Visible)
+				.ColorAndOpacity(BorderColor)
+				.SeparatorImage(FAppStyle::GetBrush("ThinLine.Horizontal"))
+				.Thickness(3.0f)
+				.Orientation(EOrientation::Orient_Vertical)
 			]
-		];
+
+			+ SHorizontalBox::Slot()
+			.Padding(0.f)
+			.FillWidth(1.f)
+			[
+				SNew(SBox)
+				.Padding(2.f)
+				[
+					SNew(SOverlay)
+					+ SOverlay::Slot()
+					[
+						SNew(SColorBlock)
+						.Color(FOperatorStackEditorStyle::Get().GetColor("ForegroundColor"))
+					]
+					+ SOverlay::Slot()
+					[
+						StackWidget
+					]
+				]
+			];
 	}
 
 	return StackWidget;
@@ -946,7 +1033,7 @@ void SOperatorStackEditorStack::OnHeaderExpansionChanged(bool bInExpansion)
 	{
 		if (CustomizeItem.IsValid())
 		{
-			MainPanel->SaveItemExpansionState(CustomizeItem->GetValuePtr(), bHeaderExpanded);
+			MainPanel->SaveItemExpansionState(CustomizeItem->GetHash(), bHeaderExpanded);
 		}
 	}
 }
@@ -1015,11 +1102,12 @@ FReply SOperatorStackEditorStack::OnHeaderMouseButtonDown(const FGeometry& MyGeo
 
 bool SOperatorStackEditorStack::IsSelectableRow(FOperatorStackEditorItemPtr InItem) const
 {
-	UOperatorStackEditorStackCustomization* StackCustomization = GetStackCustomization();
-
-	if (InItem.IsValid() && StackCustomization)
+	if (InItem.IsValid())
 	{
-		return StackCustomization->OnIsItemDraggable(InItem);
+		if (UOperatorStackEditorStackCustomization* StackCustomization = GetStackCustomization())
+		{
+			return StackCustomization->OnIsItemSelectable(InItem);
+		}
 	}
 
 	return false;
@@ -1031,11 +1119,22 @@ TSharedRef<ICustomDetailsView> SOperatorStackEditorStack::CreateDetailsView(cons
 
 	if (InItem.GetValueType().GetTypeEnum() == EOperatorStackEditorItemType::Object)
 	{
-		UObject* Item = InItem.Get<UObject>();
-		CustomDetailsView->SetObject(Item);
+		if (InItem.GetValueCount() == 1)
+		{
+			UObject* Object = InItem.Get<UObject>(0);
+			CustomDetailsView->SetObject(Object);
+		}
+		else
+		{
+			const TArray<UObject*> Objects = InItem.GetAsArray<UObject>();
+			CustomDetailsView->SetObjects(Objects);
+		}
 	}
 	else if (InItem.GetValueType().GetTypeEnum() == EOperatorStackEditorItemType::Struct)
 	{
+		// multi support for struct on scope is not yet available
+		check(InItem.GetValueCount() == 1)
+
 		const FOperatorStackEditorStructItem* Item = static_cast<const FOperatorStackEditorStructItem*>(&InItem);
 		CustomDetailsView->SetStruct(Item->GetStructOnScope());
 	}

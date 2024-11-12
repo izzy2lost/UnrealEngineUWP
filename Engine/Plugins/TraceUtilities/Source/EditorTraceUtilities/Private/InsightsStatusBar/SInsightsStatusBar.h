@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "EditorTraceUtilities.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SWidget.h"
@@ -11,10 +11,12 @@
 class FLiveSessionTracker;
 class FMenuBuilder;
 class FUICommandList;
-class STraceServerControl;
+namespace UE::Insights { class FTraceServerControl; }
 
 TSharedRef<SWidget> CreateInsightsStatusBarWidget();
 
+namespace UE::EditorTraceUtilities
+{
 struct FTraceFileInfo
 {
 	FString FilePath;
@@ -33,16 +35,10 @@ struct FTraceFileInfo
  */
 class SInsightsStatusBarWidget : public SCompoundWidget
 {
-private:
-	enum class ETraceDestination : uint32
-	{
-		TraceStore = 0,
-		File = 1
-	};
-
 	struct FChannelData
 	{
 		FString Name;
+		FString Desc;
 		bool bIsEnabled = false;
 		bool bIsReadOnly = false;
 	};
@@ -55,6 +51,10 @@ private:
 	};
 
 public:
+
+	/** Settings this widget uses. */
+	static FStatusBarTraceSettings StatusBarTraceSettings;
+	
 	SLATE_BEGIN_ARGS(SInsightsStatusBarWidget) {}
 	SLATE_END_ARGS()
 
@@ -65,10 +65,6 @@ public:
 private:
 	FText	GetTitleToolTipText() const;
 	
-	FSlateColor GetRecordingButtonColor() const;
-	FSlateColor GetRecordingButtonOutlineColor() const;
-	FText GetRecordingButtonTooltipText() const;
-
 	void LaunchUnrealInsights_OnClicked();
 	
 	void OpenLiveSession_OnClicked();
@@ -88,18 +84,17 @@ private:
 	bool SetTraceDestination_IsChecked(ETraceDestination InDestination);
 
 	void SaveSnapshot();
-	bool SaveSnapshot_CanExecute();
+	bool SaveSnapshot_CanExecute() const;
 
 	FText GetTraceMenuItemText() const;
 	FText GetTraceMenuItemTooltipText() const;
+
 	void ToggleTrace_OnClicked();
+	bool ToggleTrace_CanExecute() const;
 
 	bool PauseTrace_CanExecute();
 	FText GetPauseTraceMenuItemTooltipText() const;
 	void TogglePauseTrace_OnClicked();
-
-	EVisibility GetStartTraceIconVisibility() const;
-	EVisibility GetStopTraceIconVisibility() const;
 
 	bool StartTracing();
 
@@ -109,9 +104,6 @@ private:
 
 	void LogMessage(const FText& Text);
 	void ShowNotification(const FText& Text, const FText& SubText);
-
-	void SetTraceChannels(const TCHAR* InChannels);
-	bool IsPresetSet(const TCHAR* InChannels) const;
 
 	bool GetBooleanSettingValue(const TCHAR* InSettingName);
 	void ToggleBooleanSettingValue(const TCHAR* InSettingName);
@@ -130,12 +122,24 @@ private:
 
 	void InitCommandList();
 
-	bool TraceScreenshot_CanExecute();
+	bool TraceScreenshot_CanExecute() const;
 	void TraceScreenshot_Execute();
+	FText GetTraceScreenshotTooltipText() const;
 
-	bool TraceBookmark_CanExecute();
+	bool TraceBookmark_CanExecute() const;
 	void TraceBookmark_Execute();
+	FText GetTraceBookmarkTooltipText() const;
+	
+	FText GetTraceRegionName();
+	FText TraceRegionName = FText();
+	FText GetTraceRegionNameDesc();
 
+	void ToggleRegion_Execute();
+	bool ToggleRegion_CanExecute() const;
+	bool RegionIsActive() const;
+	FText GetRegionSwitchLabelText() const;
+	FText GetRegionSwitchDescText() const;
+	
 	void PopulateRecentTracesList();
 
 	void OpenTrace(int32 Index);
@@ -149,9 +153,9 @@ private:
 	static const TCHAR* SettingsCategory;
 	static const TCHAR* OpenLiveSessionOnTraceStartSettingName;
 	static const TCHAR* OpenInsightsAfterTraceSettingName;
+	static const TCHAR* TraceRegionSettingName;
 	static const TCHAR* ShowInExplorerAfterTraceSettingName;
 
-	ETraceDestination TraceDestination = ETraceDestination::TraceStore;
 	bool bIsTraceRecordButtonHovered = false;
 	mutable double ConnectionStartTime = 0.0f;
 
@@ -164,8 +168,11 @@ private:
 
 	TSharedPtr<FUICommandList> CommandList;
 	
-	TArray<STraceServerControl> ServerControls;
+	TArray<UE::Insights::FTraceServerControl> ServerControls;
 
 	TArray<TSharedPtr<FTraceFileInfo>> Traces;
 	FName LogListingName;
+
+	uint64 RegionId = 0;
 };
+}

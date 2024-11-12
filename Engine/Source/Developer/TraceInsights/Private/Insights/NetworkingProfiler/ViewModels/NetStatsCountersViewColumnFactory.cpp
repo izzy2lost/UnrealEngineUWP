@@ -2,14 +2,19 @@
 
 #include "NetStatsCountersViewColumnFactory.h"
 
-// Insights
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterGroupingAndSorting.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterNodeHelper.h"
 
-#define LOCTEXT_NAMESPACE "SNetStatsCountersView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SNetStatsCountersView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Column identifiers
@@ -24,7 +29,7 @@ const FName FNetStatsCountersViewColumns::AverageCountColumnID(TEXT("Avg"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FNetStatsCountersViewColumnFactory::CreateNetStatsCountersViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns)
+void FNetStatsCountersViewColumnFactory::CreateNetStatsCountersViewColumns(TArray<TSharedRef<FTableColumn>>& Columns)
 {
 	Columns.Reset();
 
@@ -39,10 +44,8 @@ void FNetStatsCountersViewColumnFactory::CreateNetStatsCountersViewColumns(TArra
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateNameColumn()
+TSharedRef<FTableColumn> FNetStatsCountersViewColumnFactory::CreateNameColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsCountersViewColumns::NameColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -74,10 +77,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateNam
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateTypeColumn()
+TSharedRef<FTableColumn> FNetStatsCountersViewColumnFactory::CreateTypeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsCountersViewColumns::TypeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -118,10 +119,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateTyp
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateInstanceCountColumn()
+TSharedRef<FTableColumn> FNetStatsCountersViewColumnFactory::CreateInstanceCountColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsCountersViewColumns::InstanceCountColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -162,10 +161,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateIns
 // Inclusive  Columns
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateSumColumn()
+TSharedRef<FTableColumn> FNetStatsCountersViewColumnFactory::CreateSumColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsCountersViewColumns::SumColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -218,10 +215,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateSum
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateMaxCountColumn()
+TSharedRef<FTableColumn> FNetStatsCountersViewColumnFactory::CreateMaxCountColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsCountersViewColumns::MaxCountColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -273,10 +268,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateMax
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateAverageCountColumn()
+TSharedRef<FTableColumn> FNetStatsCountersViewColumnFactory::CreateAverageCountColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsCountersViewColumns::AverageCountColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -327,5 +320,7 @@ TSharedRef<Insights::FTableColumn> FNetStatsCountersViewColumnFactory::CreateAve
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

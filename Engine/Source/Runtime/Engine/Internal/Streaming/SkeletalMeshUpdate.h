@@ -13,6 +13,10 @@ SkeletalMeshUpdate.h: Helpers to stream in and out skeletal mesh LODs.
 #include "Rendering/SkeletalMeshHalfEdgeBuffer.h"
 #include "Rendering/SkinWeightVertexBuffer.h"
 #include "Serialization/BulkData.h"
+#include "RayTracingGeometry.h"
+
+
+struct FSkinWeightProfileStack;
 
 /**
 * A context used to update or proceed with the next update step.
@@ -68,7 +72,7 @@ public:
 class ENGINE_API FSkeletalMeshStreamIn : public FSkeletalMeshUpdate
 {
 public:
-	FSkeletalMeshStreamIn(const USkeletalMesh* InMesh);
+	FSkeletalMeshStreamIn(const USkeletalMesh* InMesh, EThreadType CreateResourcesThread);
 
 	virtual ~FSkeletalMeshStreamIn();
 
@@ -83,23 +87,34 @@ protected:
 		FSkinWeightRHIInfo SkinWeightVertexBuffer;
 		FBufferRHIRef ClothVertexBuffer;
 		FBufferRHIRef IndexBuffer;
-		TArray<TPair<FName, FSkinWeightRHIInfo>> AltSkinWeightVertexBuffers;
+		TArray<TPair<FSkinWeightProfileStack, FSkinWeightRHIInfo>> AltSkinWeightVertexBuffers;
 		FSkeletalMeshHalfEdgeBuffer::FRHIInfo HalfEdgeBuffer;
 
-		void CreateFromCPUData_RenderThread(FSkeletalMeshLODRenderData& LODResource);
-		void CreateFromCPUData_Async(FSkeletalMeshLODRenderData& LODResource);
+		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODResource);
+
+		/** Transfer ownership of buffers to a LOD resource */
+		void TransferBuffers(FSkeletalMeshLODRenderData& LODResource, FRHIResourceReplaceBatcher& Batcher);
+	};
+
+#if RHI_RAYTRACING
+	struct FIntermediateRayTracingGeometry
+	{
+	private:
+		FRayTracingGeometryInitializer Initializer;
+		FRayTracingGeometryRHIRef RayTracingGeometryRHI;
+		bool bRequiresBuild = false;
+
+	public:
+		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FRayTracingGeometry& RayTracingGeometry);
 
 		void SafeRelease();
 
-		/** Transfer ownership of buffers to a LOD resource */
-		void TransferBuffers(FSkeletalMeshLODRenderData& LODResource, FRHIResourceUpdateBatcher& Batcher);
-
-		void CheckIsNull() const;
+		void TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceReplaceBatcher& Batcher);
 	};
+#endif
 
-	/** Create buffers with new LOD data on render or pooled thread */
-	void CreateBuffers_RenderThread(const FContext& Context);
-	void CreateBuffers_Async(const FContext& Context);
+	/** Create buffers with new LOD data */
+	void CreateBuffers(const FContext& Context);
 
 	/** Discard newly streamed-in CPU data */
 	void DiscardNewLODs(const FContext& Context);
@@ -113,9 +128,15 @@ protected:
 	/** The intermediate buffers created in the update process. */
 	FIntermediateBuffers IntermediateBuffersArray[MAX_MESH_LOD_COUNT];
 
-private:
-	template <bool bRenderThread>
-	void CreateBuffers_Internal(const FContext& Context);
+#if RHI_RAYTRACING
+	FIntermediateRayTracingGeometry IntermediateRayTracingGeometry[MAX_MESH_LOD_COUNT];
+#endif
+
+	/** RHI command list used for creating buffers and replacing the streaming placeholders. Submitted in DoFinishUpdate */
+	FRHICommandList* StreamingRHICmdList = nullptr;
+
+	/** The thread to use for recording the above command list */
+	const EThreadType CreateResourcesThread;
 };
 
 class FSkeletalMeshStreamOut : public FSkeletalMeshUpdate
@@ -147,7 +168,7 @@ private:
 class FSkeletalMeshStreamIn_IO : public FSkeletalMeshStreamIn
 {
 public:
-	FSkeletalMeshStreamIn_IO(const USkeletalMesh* InMesh, bool bHighPrio);
+	FSkeletalMeshStreamIn_IO(const USkeletalMesh* InMesh, bool bHighPrio, EThreadType CreateResourcesThread);
 
 	virtual ~FSkeletalMeshStreamIn_IO() {}
 
@@ -203,17 +224,7 @@ protected:
 
 	// Whether an IO error was detected (when files do not exists).
 	bool bFailedOnIOError = false;
-};
 
-template <bool bRenderThread>
-class TSkeletalMeshStreamIn_IO : public FSkeletalMeshStreamIn_IO
-{
-public:
-	TSkeletalMeshStreamIn_IO(const USkeletalMesh* InMesh, bool bHighPrio);
-
-	virtual ~TSkeletalMeshStreamIn_IO() {}
-
-protected:
 	void DoInitiateIO(const FContext& Context);
 
 	void DoSerializeLODData(const FContext& Context);
@@ -223,28 +234,16 @@ protected:
 	void DoCancelIO(const FContext& Context);
 };
 
-typedef TSkeletalMeshStreamIn_IO<true> FSkeletalMeshStreamIn_IO_RenderThread;
-typedef TSkeletalMeshStreamIn_IO<false> FSkeletalMeshStreamIn_IO_Async;
-
 #if WITH_EDITOR
 class FSkeletalMeshStreamIn_DDC : public FSkeletalMeshStreamIn
 {
 public:
-	FSkeletalMeshStreamIn_DDC(const USkeletalMesh* InMesh);
+	FSkeletalMeshStreamIn_DDC(const USkeletalMesh* InMesh, EThreadType CreateResourcesThread);
 
 	virtual ~FSkeletalMeshStreamIn_DDC() {}
 
 protected:
 	void LoadNewLODsFromDDC(const FContext& Context);
-};
-
-template <bool bRenderThread>
-class TSkeletalMeshStreamIn_DDC : public FSkeletalMeshStreamIn_DDC
-{
-public:
-	TSkeletalMeshStreamIn_DDC(const USkeletalMesh* InMesh);
-
-	virtual ~TSkeletalMeshStreamIn_DDC() {}
 
 private:
 	/** Load new LOD buffers from DDC and queue a task to create RHI buffers on RT */
@@ -253,7 +252,4 @@ private:
 	/** Create RHI buffers for newly streamed-in LODs and queue a task to rename references on RT */
 	void DoCreateBuffers(const FContext& Context);
 };
-
-typedef TSkeletalMeshStreamIn_DDC<true> FSkeletalMeshStreamIn_DDC_RenderThread;
-typedef TSkeletalMeshStreamIn_DDC<false> FSkeletalMeshStreamIn_DDC_Async;
 #endif

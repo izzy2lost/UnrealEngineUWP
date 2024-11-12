@@ -9,6 +9,7 @@
 #include "EdGraph/EdGraphSchema.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IDetailCustomization.h"
+#include "IDetailPropertyExtensionHandler.h"
 #include "IDetailPropertyRow.h"
 #include "IPropertyTypeCustomization.h"
 #include "Layout/Visibility.h"
@@ -184,7 +185,22 @@ namespace Metasound
 			}
 			virtual ~FMetasoundFloatLiteralCustomization();
 
-			virtual TArray<IDetailPropertyRow*> CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
+			virtual void CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
+		};
+
+		class FMetasoundBoolLiteralCustomization : public FMetasoundDefaultLiteralCustomizationBase
+		{
+			TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultBool> BoolLiteral;
+
+		public:
+			FMetasoundBoolLiteralCustomization(IDetailCategoryBuilder& InDefaultCategoryBuilder)
+				: FMetasoundDefaultLiteralCustomizationBase(InDefaultCategoryBuilder)
+			{
+			}
+			virtual ~FMetasoundBoolLiteralCustomization();
+
+			virtual void CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
+			virtual TAttribute<EVisibility> GetDefaultVisibility() const override;
 		};
 
 		// Customization to support drag-and-drop of Proxy UObject types on underlying members that are structs.
@@ -199,7 +215,8 @@ namespace Metasound
 
 			virtual ~FMetasoundObjectArrayLiteralCustomization() = default;
 
-			virtual TArray<IDetailPropertyRow*> CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
+			virtual void BuildDefaultValueWidget(IDetailPropertyRow& ValueRow, TSharedPtr<IPropertyHandle> ValueProperty) override;
+			virtual void CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
 		};
 
 		class FMetasoundDefaultLiteralCustomizationFactory : public IMemberDefaultLiteralCustomizationFactory
@@ -218,6 +235,16 @@ namespace Metasound
 			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateLiteralCustomization(IDetailCategoryBuilder& DefaultCategoryBuilder) const override
 			{
 				return TUniquePtr<FMetasoundDefaultLiteralCustomizationBase>(new FMetasoundFloatLiteralCustomization(DefaultCategoryBuilder));
+			}
+		};
+
+		// Customization to support bool widgets (ex. Buttons)
+		class FMetasoundBoolLiteralCustomizationFactory : public IMemberDefaultLiteralCustomizationFactory
+		{
+		public:
+			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateLiteralCustomization(IDetailCategoryBuilder& DefaultCategoryBuilder) const override
+			{
+				return TUniquePtr<FMetasoundDefaultLiteralCustomizationBase>(new FMetasoundBoolLiteralCustomization(DefaultCategoryBuilder));
 			}
 		};
 
@@ -312,11 +339,17 @@ namespace Metasound
 
 			void UpdateRenameDelegate(UMetasoundEditorGraphMember& InMember);
 			void CacheMemberData(IDetailLayoutBuilder& InDetailLayout);
+
+			virtual void CustomizeDefaultCategory(IDetailLayoutBuilder& InDetailLayout);
 			virtual void CustomizeGeneralCategory(IDetailLayoutBuilder& InDetailLayout);
-			virtual TArray<IDetailPropertyRow*> CustomizeDefaultCategory(IDetailLayoutBuilder& InDetailLayout);
 
 			virtual EVisibility GetDefaultVisibility() const { return EVisibility::Visible; }
+			virtual TAttribute<bool> GetEnabled() const { return { }; }
+			virtual const TOptional<FResetToDefaultOverride>& GetResetOverride() const { return ResetOverride; }
+
+			UE_DEPRECATED(5.5, "Use GetEnabled attribute instead")
 			virtual bool IsDefaultEditable() const { return true; }
+
 			virtual bool IsInterfaceMember() const { return false; }
 
 			// IDetailCustomization interface
@@ -338,9 +371,14 @@ namespace Metasound
 			TSharedPtr<SEditableTextBox> NameEditableTextBox;
 			FMetasoundDataTypeSelector DataTypeSelector;
 
+			TOptional<FResetToDefaultOverride> ResetOverride;
+
 			bool bIsNameInvalid = false;
 
 			FDelegateHandle RenameRequestedHandle;
+
+		private:
+			TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> LiteralCustomization;
 		};
 
 		class FMetasoundVertexDetailCustomization : public FMetasoundMemberDetailCustomization
@@ -358,6 +396,15 @@ namespace Metasound
 			void OnConstructorPinStateChanged(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphMember, ECheckBoxState InNewState);
 
 			TSharedPtr<SCheckBox> ConstructorPinCheckbox;
+
+#if WITH_EDITORONLY_DATA
+			void AddAdvancedPinRow(IDetailLayoutBuilder& InDetailLayout);
+			ECheckBoxState OnGetAdvancedPinCheckboxState(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphMember) const;
+			void OnAdvancedPinStateChanged(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphMember, ECheckBoxState InNewState);
+
+			TSharedPtr<SCheckBox> AdvancedPinCheckbox;
+#endif // WITH_EDITORONLY_DATA
+
 		};
 
 		class FMetasoundInputDetailCustomization : public FMetasoundVertexDetailCustomization
@@ -366,12 +413,15 @@ namespace Metasound
 			virtual ~FMetasoundInputDetailCustomization() = default;
 			
 			virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailLayout) override;
+			virtual TAttribute<bool> GetEnabled() const override;
 			virtual bool IsDefaultEditable() const override;
 
 		private:
 			bool GetInputInheritsDefault() const;
 			void SetInputInheritsDefault();
 			void ClearInputInheritsDefault();
+
+			TAttribute<bool> Enabled;
 		};
 
 		class FMetasoundVariableDetailCustomization : public FMetasoundMemberDetailCustomization
@@ -380,6 +430,14 @@ namespace Metasound
 		};
 
 		using FMetasoundOutputDetailCustomization = FMetasoundVertexDetailCustomization;
+
+		class FMetaSoundNodeExtensionHandler : public IDetailPropertyExtensionHandler
+		{
+		public:
+			// IDetailPropertyExtensionHandler interface
+			virtual bool IsPropertyExtendable(const UClass* InObjectClass, const IPropertyHandle& PropertyHandle) const override;
+			virtual void ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, const IDetailLayoutBuilder& InDetailBuilder, const UClass* InObjectClass, TSharedPtr<IPropertyHandle> PropertyHandle) override;
+		};
 	} // namespace Editor
 } // namespace Metasound
 #undef LOCTEXT_NAMESPACE

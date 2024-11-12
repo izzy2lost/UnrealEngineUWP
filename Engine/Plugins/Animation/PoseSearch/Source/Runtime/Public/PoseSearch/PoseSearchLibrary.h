@@ -18,6 +18,9 @@ namespace UE::PoseSearch
 	struct FSearchContext;
 } // namespace UE::PoseSearch
 
+struct FAnimationUpdateContext;
+struct FAnimNode_PoseSearchHistoryCollector_Base;
+
 UENUM()
 enum class EPoseSearchInterruptMode : uint8
 {
@@ -39,10 +42,10 @@ enum class EPoseSearchInterruptMode : uint8
 	ForceInterruptAndInvalidateContinuingPose,
 };
 
-struct FAnimationUpdateContext;
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 struct FMotionMatchingState
 {
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// Reset the state to a default state using the current Database
 	void Reset(const FTransform& ComponentTransform);
 
@@ -72,16 +75,19 @@ struct FMotionMatchingState
 	UE::PoseSearch::FPoseIndicesHistory PoseIndicesHistory;
 
 	// Component delta yaw (also considered as root bone delta yaw)
+	UE_DEPRECATED(5.4, "Use Steering, OrientationWarping, OffsetRootBone nodes instead")
 	float ComponentDeltaYaw = 0.f;
 
 	// Internal component yaw in world space. Initialized as FRotator(AnimInstanceProxy->GetComponentTransform().GetRotation()).Yaw, but then integrated by ComponentDeltaYaw
+	UE_DEPRECATED(5.4, "Use Steering, OrientationWarping, OffsetRootBone nodes instead")
 	float ComponentWorldYaw = 0.f;
 	
 	// RootMotionTransformDelta yaw at the end of FAnimNode_MotionMatching::Evaluate_AnyThread (it represents the previous frame animation delta yaw)
+	UE_DEPRECATED(5.4, "Use Steering, OrientationWarping, OffsetRootBone nodes instead")
 	float AnimationDeltaYaw = 0.f;
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-	// Root motion delta for currently playing animation (or animation tree if from the blend stack)
+	UE_DEPRECATED(5.4, "Debug RootMotionDelta is now calculated in-place.")
 	FTransform RootMotionTransformDelta = FTransform::Identity;
 #endif //UE_POSE_SEARCH_TRACE_ENABLED
 };
@@ -94,7 +100,7 @@ struct POSESEARCH_API FPoseSearchFutureProperties
 public:
 	// Animation to play (it'll start at AnimationTime seconds)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	TObjectPtr<UObject> Animation;
+	TObjectPtr<const UObject> Animation;
 
 	// Start time for Animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
@@ -105,12 +111,52 @@ public:
 	float IntervalTime = 0.f;
 };
 
+USTRUCT(Experimental, BlueprintType, Category="Animation|Pose Search")
+struct POSESEARCH_API FPoseSearchContinuingProperties
+{
+	GENERATED_BODY()
+
+public:
+	// Currently playing animation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	TObjectPtr<const UObject> PlayingAsset = nullptr;
+
+	// Currently playing animation accumulated time
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	float PlayingAssetAccumulatedTime = 0.f;
+};
+
 UCLASS()
 class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
+
+	static void TraceMotionMatching(
+		UE::PoseSearch::FSearchContext& SearchContext,
+		FMotionMatchingState& CurrentState,
+		float DeltaTime,
+		bool bSearch,
+		float RecordingTime);
+	
+	UE_DEPRECATED(5.5, "Use TraceMotionMatching with different signature instead.")
+	static void TraceMotionMatching(
+		UE::PoseSearch::FSearchContext& SearchContext,
+		const UE::PoseSearch::FSearchResult& CurrentResult,
+		float ElapsedPoseSearchTime,
+		const FTransform& RootMotionTransformDelta,
+		float DeltaTime,
+		bool bSearch,
+		float RecordingTime)
+	{
+		FMotionMatchingState MotionMatchingState;
+		MotionMatchingState.CurrentSearchResult = CurrentResult;
+		MotionMatchingState.ElapsedPoseSearchTime = ElapsedPoseSearchTime;
+		TraceMotionMatching(SearchContext, MotionMatchingState, DeltaTime, bSearch, RecordingTime);
+	}
+
+	UE_DEPRECATED(5.4, "Use TraceMotionMatching instead")
 	static void TraceMotionMatchingState(
 		UE::PoseSearch::FSearchContext& SearchContext,
 		const UE::PoseSearch::FSearchResult& CurrentResult,
@@ -119,7 +165,14 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		int32 NodeId,
 		float DeltaTime,
 		bool bSearch,
-		float RecordingTime);
+		float RecordingTime)
+	{
+		FMotionMatchingState MotionMatchingState;
+		MotionMatchingState.CurrentSearchResult = CurrentResult;
+		MotionMatchingState.ElapsedPoseSearchTime = ElapsedPoseSearchTime;
+		TraceMotionMatching(SearchContext, MotionMatchingState, DeltaTime, bSearch, RecordingTime);
+	}
+	
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 public:
@@ -165,58 +218,78 @@ public:
 	* @param Future							Input future properties to match (animation / start time / time offset)
 	* @param SelectedAnimation				Output selected animation from the Database asset
 	* @param Result							Output FPoseSearchBlueprintResult with the search result
-	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
 	*/
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatch(
 		UAnimInstance* AnimInstance,
 		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
-		FPoseSearchFutureProperties Future,
-		FPoseSearchBlueprintResult& Result,
-		const int32 DebugSessionUniqueIdentifier = 6174);
-
-	/**
-	* Implementation of the core motion matching algorithm for multiple characters
-	*
-	* @param AnimInstances					Input animation instances
-	* @param Roles							Input Roles associated to the animation instances
-	* @param AssetsToSearch					Input assets to search (UPoseSearchDatabase or any animation asset containing UAnimNotifyState_PoseSearchBranchIn)
-	* @param PoseHistoryName				Input tag of the associated PoseSearchHistoryCollector node in the anim graphs of the AnimInstances
-	* @param Result							Output FPoseSearchBlueprintResult with the search result
-	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
-	*/
-	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
-	static void MotionMatchMulti(
-		TArray<ACharacter*> AnimInstances,
-		TArray<FName> Roles,
-		TArray<UObject*> AssetsToSearch,
-		const FName PoseHistoryName,
-		FPoseSearchBlueprintResult& Result,
-		const int32 DebugSessionUniqueIdentifier = 6174);
+		const FPoseSearchContinuingProperties ContinuingProperties,
+		const FPoseSearchFutureProperties Future,
+		FPoseSearchBlueprintResult& Result);
 
 	static void MotionMatch(
-		TArrayView<UAnimInstance*> AnimInstances,
-		TArrayView<const UE::PoseSearch::FRole> Roles,
-		TArrayView<const UObject*> AssetsToSearch,
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const FPoseSearchFutureProperties& Future,
+		FPoseSearchBlueprintResult& Result);
+
+	static UE::PoseSearch::FSearchResult MotionMatch(
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
+		const TArrayView<const UObject*> AssetsToSearch,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const FPoseSearchFutureProperties& Future);
+
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
+	static void MotionMatch(
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UObject*> AssetsToSearch,
+		const FName PoseHistoryName,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
 		const FPoseSearchFutureProperties& Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier);
 
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
+	static UE::PoseSearch::FSearchResult MotionMatch(
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
+		const TArrayView<const UObject*> AssetsToSearch,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const FPoseSearchFutureProperties& Future,
+		const int32 DebugSessionUniqueIdentifier);
+
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
 	static UE::PoseSearch::FSearchResult MotionMatch(
 		const FAnimationBaseContext& Context,
 		TArrayView<const UObject*> AssetsToSearch,
-		const UObject* PlayingAsset = nullptr,
-		float PlayingAssetAccumulatedTime = 0.f);
-
+		const FPoseSearchContinuingProperties& ContinuingProperties);
+		
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
 	static UE::PoseSearch::FSearchResult MotionMatch(
 		TArrayView<UAnimInstance*> AnimInstances,
 		TArrayView<const UE::PoseSearch::FRole> Roles,
 		TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
 		TArrayView<const UObject*> AssetsToSearch,
-		const UObject* PlayingAsset,
-		float PlayingAssetAccumulatedTime,
-		const int32 DebugSessionUniqueIdentifier);
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const int32 DebugSessionUniqueIdentifier,
+		float DesiredPermutationTimeOffset = 0.f);
+
+	static const FAnimNode_PoseSearchHistoryCollector_Base* FindPoseHistoryNode(
+		const FName PoseHistoryName,
+		const UAnimInstance* AnimInstance);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
+	static void IsAnimationAssetLooping(const UObject* Asset, bool& bIsAssetLooping);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
+	static void GetDatabaseTags(const UPoseSearchDatabase* Database, TArray<FName>& Tags);
 };
 

@@ -360,11 +360,13 @@ int32 FContextualAnimSceneBinding::GetCurrentSectionIndex() const
 
 FContextualAnimSceneBindings::FContextualAnimSceneBindings(const UContextualAnimSceneAsset& InSceneAsset, int32 InSectionIdx, int32 InAnimSetIdx)
 {
-	check(InSceneAsset.HasValidData());
-	SceneAsset = &InSceneAsset;
-	SectionIdx = InSectionIdx;
-	AnimSetIdx = InAnimSetIdx;
-	GenerateUniqueId();
+	if (ensureAlways(InSceneAsset.HasValidData()))
+	{
+		SceneAsset = &InSceneAsset;
+		SectionIdx = InSectionIdx;
+		AnimSetIdx = InAnimSetIdx;
+		GenerateUniqueId();
+	}
 }
 
 void FContextualAnimSceneBindings::GenerateUniqueId()
@@ -403,6 +405,12 @@ void FContextualAnimSceneBindings::Reset()
 void FContextualAnimSceneBindings::Clear()
 {
 	Data.Reset();
+}
+
+bool FContextualAnimSceneBindings::ShouldSyncAnimation() const
+{
+	const FContextualAnimSceneSection* Section = IsValid() ? SceneAsset->GetSection(SectionIdx) : nullptr;
+	return Section ? Section->ShouldSyncAnimations() : false;
 }
 
 const FContextualAnimSceneBinding* FContextualAnimSceneBindings::GetSyncLeader() const
@@ -476,7 +484,7 @@ const FContextualAnimIKTargetDefContainer& FContextualAnimSceneBindings::GetIKTa
 		return FContextualAnimIKTargetDefContainer::EmptyContainer;
 	}
 
-	return GetSceneAsset()->GetIKTargetDefsForRoleInSection(GetSectionIdx(), GetRoleFromBinding(Binding));
+	return GetSceneAsset()->GetIKTargetDefsForRole(GetRoleFromBinding(Binding));
 }
 
 FTransform FContextualAnimSceneBindings::GetIKTargetTransformFromBinding(const FContextualAnimSceneBinding& Binding, const FName& TrackName, float Time) const

@@ -15,11 +15,12 @@
 #include "MeshDescriptionToDynamicMesh.h"
 
 #include "TargetInterfaces/MaterialProvider.h"
-#include "TargetInterfaces/MeshDescriptionCommitter.h"
-#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/DynamicMeshCommitter.h"
+#include "TargetInterfaces/DynamicMeshProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ToolTargetManager.h"
 #include "ModelingToolTargetUtil.h"
+#include "Selection/StoredMeshSelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BaseMeshProcessingTool)
 
@@ -35,8 +36,8 @@ const FToolTargetTypeRequirements& UBaseMeshProcessingToolBuilder::GetTargetRequ
 {
 	static FToolTargetTypeRequirements TypeRequirements({
 		UMaterialProvider::StaticClass(),
-		UMeshDescriptionCommitter::StaticClass(),
-		UMeshDescriptionProvider::StaticClass(),
+		UDynamicMeshCommitter::StaticClass(),
+		UDynamicMeshProvider::StaticClass(),
 		UPrimitiveComponentBackedTarget::StaticClass()
 		});
 	return TypeRequirements;
@@ -47,16 +48,11 @@ bool UBaseMeshProcessingToolBuilder::CanBuildTool(const FToolBuilderState& Scene
 	return SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1;
 }
 
-UInteractiveTool* UBaseMeshProcessingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+USingleTargetWithSelectionTool* UBaseMeshProcessingToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
-	UBaseMeshProcessingTool* NewTool = MakeNewToolInstance(SceneState.ToolManager);
-
-	UToolTarget* Target = SceneState.TargetManager->BuildFirstSelectedTargetable(SceneState, GetTargetRequirements());
-	check(Target);
-	NewTool->SetTarget(Target);
-	NewTool->SetWorld(SceneState.World);
-
-	return NewTool;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return  MakeNewToolInstance(SceneState.ToolManager);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 
@@ -65,12 +61,6 @@ UInteractiveTool* UBaseMeshProcessingToolBuilder::BuildTool(const FToolBuilderSt
 /*
  * Tool
  */
-
-void UBaseMeshProcessingTool::SetWorld(UWorld* World)
-{
-	this->TargetWorld = World;
-}
-
 
 void UBaseMeshProcessingTool::Setup()
 {
@@ -84,8 +74,7 @@ void UBaseMeshProcessingTool::Setup()
 	ToolPropertyObjects.Add(this);
 
 	// populate the BaseMesh with a conversion of the input mesh.
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), InitialMesh);
+	InitialMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	if (RequiresScaleNormalization())
 	{
@@ -144,8 +133,9 @@ void UBaseMeshProcessingTool::Setup()
 
 	// Construct the preview object and set the material on it.
 	Preview = NewObject<UMeshOpPreviewWithBackgroundCompute>(this, "Preview");
-	Preview->Setup(this->TargetWorld, this); // Adds the actual functional tool in the Preview object
+	Preview->Setup(GetTargetWorld(), this); // Adds the actual functional tool in the Preview object
 	Preview->PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
+	Preview->SetMaxActiveBackgroundTasksFromMeshSizeHeuristic(InitialMesh.TriangleCount());
 	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, Target);
 
 	FComponentMaterialSet MaterialSet;
@@ -241,7 +231,7 @@ void UBaseMeshProcessingTool::Shutdown(EToolShutdownType ShutdownType)
 			}
 
 			bool bTopologyChanged = HasMeshTopologyChanged();
-			UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Target, *DynamicMeshResult, bTopologyChanged);
+			UE::ToolTarget::CommitDynamicMeshUpdate(Target, *DynamicMeshResult, bTopologyChanged);
 
 			GetToolManager()->EndUndoTransaction();
 		}

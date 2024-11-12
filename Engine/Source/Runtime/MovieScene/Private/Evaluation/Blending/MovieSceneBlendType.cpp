@@ -22,7 +22,7 @@ FMovieSceneBlendTypeField FMovieSceneBlendTypeField::All()
 {
 	FMovieSceneBlendTypeField New;
 	New.Add(EMovieSceneBlendType::Absolute, EMovieSceneBlendType::Additive, EMovieSceneBlendType::Relative,
-			EMovieSceneBlendType::AdditiveFromBase);
+			EMovieSceneBlendType::AdditiveFromBase, EMovieSceneBlendType::Override);
 	return New;
 }
 
@@ -73,8 +73,10 @@ int32 FMovieSceneBlendTypeField::Num() const
 		(Contains(EMovieSceneBlendType::Absolute) ? 1 : 0) +
 		(Contains(EMovieSceneBlendType::Relative) ? 1 : 0) +
 		(Contains(EMovieSceneBlendType::Additive) ? 1 : 0) +
-		(Contains(EMovieSceneBlendType::AdditiveFromBase) ? 1 : 0);
+		(Contains(EMovieSceneBlendType::AdditiveFromBase) ? 1 : 0) +
+		(Contains(EMovieSceneBlendType::Override) ? 1 : 0);
 }
+
 
 void FMovieSceneBlendTypeFieldIterator::IterateToNext()
 {

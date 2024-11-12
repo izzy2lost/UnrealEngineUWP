@@ -92,6 +92,18 @@ void FDisplayClusterConfiguratorKismetCompilerContext::PreCompile()
 	ValidateConfiguration();
 }
 
+void FDisplayClusterConfiguratorKismetCompilerContext::PostCompile()
+{
+	Super::PostCompile();
+
+	UDisplayClusterBlueprint* DCBlueprint = CastChecked<UDisplayClusterBlueprint>(Blueprint);
+	check(DCBlueprint->GeneratedClass);
+
+	// The parent class (DCRA) may have NotPlaceable flag set. This prevents the child blueprints from
+	// placing into a world. To avoid this limitation, we explicitly clear it because we know it's safe.
+	DCBlueprint->GeneratedClass->ClassFlags &= ~CLASS_NotPlaceable;
+}
+
 void FDisplayClusterConfiguratorKismetCompilerContext::SaveSubObjectsFromCleanAndSanitizeClass(
 	FSubobjectCollection& SubObjectsToSave, UBlueprintGeneratedClass* ClassToClean)
 {
@@ -159,14 +171,16 @@ void FDisplayClusterConfiguratorKismetCompilerContext::CopyTermDefaultsToDefault
 			});
 		}
 		
-		const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders;
+		const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 
 		// Rename our new config data (along with all new sub-objects) to the transient package.
 		{
-			NewConfigData->Rename(nullptr, GetTransientPackage(), RenFlags);
 			NewConfigData->SetFlags(RF_Transient);
 			NewConfigData->ClearFlags(RF_Transactional);
+
+            // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 			FLinkerLoad::InvalidateExport(NewConfigData);
+			NewConfigData->Rename(nullptr, GetTransientPackage(), RenFlags);
 		}
 
 		// Rename our old config data (along with all sub-objects) to our new CDO.

@@ -30,6 +30,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="VarName">Variable name.</param>
 		/// <param name="Default">Default value to be returned if the variable does not exist.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>Variable value or the default value if the variable did not exist.</returns>
 		public static string GetEnvironmentVariable(string VarName, string Default, bool bQuiet = false)
 		{
@@ -50,6 +51,7 @@ namespace AutomationTool
 		/// @todo: this function should not exchange exception context for error codes that can be ignored.
 		/// </summary>
 		/// <param name="Path">Directory name.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>True if the directory was created, false otherwise.</returns>
 		public static bool SafeCreateDirectory(string Path, bool bQuiet = false)
 		{
@@ -165,6 +167,7 @@ namespace AutomationTool
 		/// Recursively deletes a directory and all its files and subdirectories.
 		/// </summary>
 		/// <param name="Path">Path to delete.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>Whether the deletion was succesfull.</returns>
 		private static bool RecursivelyDeleteDirectory(string Path, bool bQuiet = false)
 		{
@@ -201,6 +204,7 @@ namespace AutomationTool
 		/// Deletes an empty directory.
 		/// </summary>
 		/// <param name="Path">Path to the Directory.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>True if deletion was successful, otherwise false.</returns>
 		public static bool SafeDeleteEmptyDirectory(string Path, bool bQuiet = false)
 		{
@@ -247,6 +251,7 @@ namespace AutomationTool
 		/// Deletes a directory and all its contents. Will delete read-only files.
 		/// </summary>
 		/// <param name="Path">Directory name.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>True if the directory no longer exists, false otherwise.</returns>
 		public static bool SafeDeleteDirectory(string Path, bool bQuiet = false)
 		{
@@ -268,9 +273,11 @@ namespace AutomationTool
 		/// <summary>
 		/// Renames/moves a directory and all its contents
 		/// </summary>
-		/// <param name="Oldname"></param>
+		/// <param name="OldName"></param>
 		/// <param name="NewName"></param>
 		/// <param name="bQuiet"></param>
+		/// <param name="bRetry"></param>
+		/// <param name="bThrow"></param>
 		/// <returns>True if the directory was moved, false otehrwise</returns>
 		public static bool SafeRenameDirectory(string OldName, string NewName, bool bQuiet = false, bool bRetry = true, bool bThrow = false)
 		{
@@ -323,6 +330,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="OldName">Old name</param>
 		/// <param name="NewName">New name</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>True if the operation was successful, false otherwise.</returns>
 		public static bool SafeRenameFile(string OldName, string NewName, bool bQuiet = false)
 		{
@@ -436,6 +444,12 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="SourceName">Source name</param>
 		/// <param name="TargetName">Target name</param>
+		/// <param name="bQuiet"></param>
+		/// <param name="OverrideCopyHandler"></param>
+		/// <param name="IniKeyDenyList"></param>
+		/// <param name="IniSectionDenyList"></param>
+		/// <param name="IniSectionAllowList"></param>
+		/// <param name="bSafeCreateDirectory"></param>
 		/// <returns>True if the operation was successful, false otherwise.</returns>
 		public static bool SafeCopyFile(string SourceName, string TargetName, bool bQuiet = false, OverrideCopyDelegate OverrideCopyHandler = null, List<string> IniKeyDenyList = null, List<string> IniSectionDenyList = null, List<string> IniSectionAllowList = null, bool bSafeCreateDirectory = false)
 		{
@@ -588,6 +602,7 @@ namespace AutomationTool
 		/// <param name="Path">Path</param>
 		/// <param name="SearchPattern">Search pattern</param>
 		/// <param name="Recursive">Whether to search recursively or not.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>List of all files found (can be empty) or null if the operation failed.</returns>
 		public static string[] FindFiles(string Path, string SearchPattern, bool Recursive, bool bQuiet = false)
 		{
@@ -633,6 +648,7 @@ namespace AutomationTool
 		/// <param name="Path">Path</param>
 		/// <param name="SearchPattern">Search pattern</param>
 		/// <param name="Recursive">Whether to search recursively or not.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>List of all directories found (can be empty) or null if the operation failed.</returns>
 		public static string[] FindDirectories(string Path, string SearchPattern, bool Recursive, bool bQuiet = false)
 		{
@@ -649,6 +665,7 @@ namespace AutomationTool
 		/// <param name="Path">Path</param>
 		/// <param name="SearchPattern">Search pattern</param>
 		/// <param name="Recursive">Whether to search recursively or not.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>List of all files found (can be empty) or null if the operation failed.</returns>
 		public static string[] SafeFindFiles(string Path, string SearchPattern, bool Recursive, bool bQuiet = false)
 		{
@@ -675,6 +692,7 @@ namespace AutomationTool
 		/// <param name="Path">Path</param>
 		/// <param name="SearchPattern">Search pattern</param>
 		/// <param name="Recursive">Whether to search recursively or not.</param>
+		/// <param name="bQuiet"></param>
 		/// <returns>List of all files found (can be empty) or null if the operation failed.</returns>
 		public static string[] SafeFindDirectories(string Path, string SearchPattern, bool Recursive, bool bQuiet = false)
 		{
@@ -796,7 +814,7 @@ namespace AutomationTool
 		/// Writes text to a file.
 		/// </summary>
 		/// <param name="Path">Filename</param>
-		/// <param name="Text">Text</param>
+		/// <param name="Bytes"></param>
 		/// <returns>True if the operation was successful, false otherwise.</returns>
 		public static bool SafeWriteAllBytes(string Path, byte[] Bytes)
 		{
@@ -1155,13 +1173,13 @@ namespace AutomationTool
 			return new FEngineVersionSupport(ReadVersionFromFile(Filename), InChangelist, InBranchName);
         }
 
-        /// <summary>
-        /// Creates a <see cref="FEngineVersionSupport"/> from a string that matches the format given in <see cref="ToString"/>.
-        /// </summary>
-        /// <param name="versionString">Version string that should match the FEngineVersion::ToString() format.</param>
-		/// <param name="bAllowVersion">Optional parameter which if set to true, allows version strings with no version number specified.</param>
-        /// <returns>a new instance with fields initialized to the match those given in the string.</returns>
-        public static FEngineVersionSupport FromString(string versionString, bool bAllowNoVersion = false)
+		/// <summary>
+		/// Creates a <see cref="FEngineVersionSupport"/> from a string that matches the format given in <see cref="ToString"/>.
+		/// </summary>
+		/// <param name="versionString">Version string that should match the FEngineVersion::ToString() format.</param>
+		/// <param name="bAllowNoVersion"></param>
+		/// <returns>a new instance with fields initialized to the match those given in the string.</returns>
+		public static FEngineVersionSupport FromString(string versionString, bool bAllowNoVersion = false)
         {
             try
             {

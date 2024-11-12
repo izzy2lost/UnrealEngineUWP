@@ -24,6 +24,21 @@ public:
 	LAYOUT_FIELD_EDITORONLY(uint8, GraphSharedLocalBasisIndex);
 };
 
+enum ESubstrateBsdfFeature
+{
+	ESubstrateBsdfFeature_None                             = 0u,
+	ESubstrateBsdfFeature_SSS                              = 1u<<0u,
+	ESubstrateBsdfFeature_MFPPluggedIn                     = 1u<<1u,
+	ESubstrateBsdfFeature_EdgeColor                        = 1u<<2u,
+	ESubstrateBsdfFeature_Fuzz                             = 1u<<3u,
+	ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat = 1u<<4u,
+	ESubstrateBsdfFeature_Anisotropy                       = 1u<<5u,
+	ESubstrateBsdfFeature_Glint                            = 1u<<6u,
+	ESubstrateBsdfFeature_SpecularProfile                  = 1u<<7u,
+	ESubstrateBsdfFeature_Eye                              = 1u<<8u,
+	ESubstrateBsdfFeature_Hair                             = 1u<<9u
+};
+
 struct FSubstrateOperator
 {
 	DECLARE_TYPE_LAYOUT(FSubstrateOperator, NonVirtual);
@@ -48,14 +63,8 @@ public:
 	LAYOUT_FIELD_EDITORONLY(int32, BSDFIndex);		// Index in the array of BSDF if a BSDF operator
 	LAYOUT_FIELD_EDITORONLY(int32, BSDFType);
 	LAYOUT_FIELD_EDITORONLY(FSubstrateRegisteredSharedLocalBasis, BSDFRegisteredSharedLocalBasis);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasSSS);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasMFPPluggedIn);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasEdgeColor);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasFuzz);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasSecondRoughnessOrSimpleClearCoat);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasAnisotropy);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasGlint);
-	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasSpecularProfile);
+	LAYOUT_FIELD_EDITORONLY(uint32,BSDFFeatures);
+	LAYOUT_FIELD_EDITORONLY(uint8, SubUsage);		// Sometimes, Unlit or Weight operators are used to transport data for other meaning (e.g. Light Function or ConvertToDecal)
 
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFWritesEmissive);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFWritesAmbientOcclusion);
@@ -75,6 +84,24 @@ public:
 	void CopyFlagsForParameterBlending(FSubstrateOperator& A);
 
 	bool IsDiscarded() const;
+	
+	bool Has(ESubstrateBsdfFeature In) const 
+	{ 
+	#if WITH_EDITOR
+		return (BSDFFeatures & In) != 0; 
+	#else
+		return false;
+	#endif
+	}
+
+	bool Has(uint32 In) const 
+	{ 
+	#if WITH_EDITOR
+		return (BSDFFeatures & In) != 0; 
+	#else
+		return false;
+	#endif
+	}
 };
 
 #define SUBSTRATE_COMPILATION_OUTPUT_MAX_OPERATOR 24

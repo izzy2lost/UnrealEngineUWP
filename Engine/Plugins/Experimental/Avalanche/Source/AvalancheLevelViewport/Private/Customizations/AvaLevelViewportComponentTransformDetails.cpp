@@ -374,8 +374,6 @@ FUIAction FAvaLevelViewportComponentTransformDetails::CreatePasteAction(EAvaLeve
 	return FUIAction(FExecuteAction::CreateSP(MutableThis, &FAvaLevelViewportComponentTransformDetails::OnPaste, TransformField));
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 TSharedPtr<SWidget> FAvaLevelViewportComponentTransformDetails::GetTransformBody()
 {
 	FSlateFontInfo FontInfo = IDetailLayoutBuilder::GetDetailFont();
@@ -498,8 +496,6 @@ void FAvaLevelViewportComponentTransformDetails::SetTransform(EAvaLevelViewportT
 	OnSetTransform(TransformField, EAxisList::XYZ, NewValue, /* bMirror */ false, /* bCommitted */ true);
 	OnEndChange(TransformField, EAxisList::XYZ);
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void FAvaLevelViewportComponentTransformDetails::OnSelectionChanged(const TArray<UObject*>& InSelectedObjects)
 {
@@ -1060,9 +1056,9 @@ void FAvaLevelViewportComponentTransformDetails::CacheTransform()
 		CachedScale.Z = SelectionScale.Z;
 	}
 
-	FVector CurLoc;
-	FRotator CurRot;
-	FVector CurScale;
+	FVector CurLoc = FVector::ZeroVector;
+	FRotator CurRot = FRotator::ZeroRotator;
+	FVector CurScale = FVector::ZeroVector;
 	bool bFirstObject = true;
 	bool bSkipFirst = false;
 

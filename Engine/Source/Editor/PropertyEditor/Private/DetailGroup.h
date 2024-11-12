@@ -26,7 +26,8 @@ public:
 	virtual FDetailWidgetRow& AddWidgetRow() override;
 	virtual IDetailPropertyRow& AddPropertyRow( TSharedRef<IPropertyHandle> PropertyHandle ) override;
 	virtual IDetailGroup& AddGroup(FName NewGroupName, const FText& InLocalizedDisplayName, bool bInStartExpanded = false) override;
-
+	virtual const TOptional<FText>& GetToolTip() const override;
+	virtual void SetToolTip(const FText& ToolTip) override;
 	virtual void ToggleExpansion( bool bExpand ) override;
 	virtual bool GetExpansionState() const override;
 	virtual void SetDisplayMode(EDetailGroupDisplayMode Mode) override;
@@ -131,6 +132,8 @@ private:
 	TAttribute<bool> IsParentEnabled;
 	/** Display name of this group */
 	FText LocalizedDisplayName;
+	/** ToolTip for this group */
+	TOptional<FText> LocalizedToolTip;
 	/** Name identifier of this group */
 	FName GroupName;
 	/** Whether the detail group should start expanded or not */

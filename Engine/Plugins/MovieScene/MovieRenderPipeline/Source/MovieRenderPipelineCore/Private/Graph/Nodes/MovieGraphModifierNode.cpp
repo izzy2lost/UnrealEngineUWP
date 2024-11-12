@@ -229,6 +229,9 @@ bool UMovieGraphModifierNode::RemoveCollection(const FName& InCollectionName)
 #if WITH_EDITOR
 	Modify();
 #endif
+
+	// Remove from disabled collections (in case this collection was disabled when it was deleted)
+	DisabledCollections.Remove(InCollectionName);
 	
 	return Collections.Remove(InCollectionName) > 0;
 }
@@ -236,6 +239,27 @@ bool UMovieGraphModifierNode::RemoveCollection(const FName& InCollectionName)
 const TArray<FName>& UMovieGraphModifierNode::GetCollections() const
 {
 	return Collections;
+}
+
+void UMovieGraphModifierNode::SetCollectionEnabled(const FName& InCollectionName, const bool bIsCollectionEnabled)
+{
+#if WITH_EDITOR
+	Modify();
+#endif
+	
+	if (bIsCollectionEnabled)
+	{
+		DisabledCollections.Remove(InCollectionName);
+	}
+	else
+	{
+		DisabledCollections.Add(InCollectionName);
+	}
+}
+
+bool UMovieGraphModifierNode::IsCollectionEnabled(const FName& InCollectionName) const
+{
+	return !DisabledCollections.Contains(InCollectionName);
 }
 
 #undef LOCTEXT_NAMESPACE // "MovieGraph"

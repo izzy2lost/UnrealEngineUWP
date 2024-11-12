@@ -29,6 +29,7 @@ protected:
 	virtual void SpawnNewClass(const FString& NewClassName) override;
 	virtual void OnNewClassSet(UBlueprintGeneratedClass* ClassToUse) override;
 	virtual void PreCompile() override;
+	virtual void PostCompile() override;
 	virtual void SaveSubObjectsFromCleanAndSanitizeClass(FSubobjectCollection& SubObjectsToSave, UBlueprintGeneratedClass* ClassToClean) override;
 	virtual void CopyTermDefaultsToDefaultObject(UObject* DefaultObject) override;
 	/** ~FKismetCompilerContext interface */

@@ -812,7 +812,7 @@ namespace AutomationTool.Benchmark
 		/// <summary>
 		/// Returns true/false based on whether the project supports a client configuration
 		/// </summary>
-		/// <param name="ProjectName"></param>
+		/// <param name="InProjectFile"></param>
 		/// <returns></returns>
 		bool ProjectSupportsClientBuild(FileReference InProjectFile)
 		{

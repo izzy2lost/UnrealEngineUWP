@@ -92,8 +92,11 @@ class TMediaObjectPool
 
 	public:
 
-		/** Acquire an object from the pool. */
-		ObjectType* Acquire()
+		/** 
+		* Acquire an object from the pool. 
+		* bAlloc allows to chose if new object should be allocated and added to the pool.
+		*/
+		ObjectType* Acquire(bool bAlloc = true)
 		{
 			ObjectType* Result = nullptr;
 			{
@@ -129,9 +132,13 @@ class TMediaObjectPool
 				}
 			}
 
-			if (Result == nullptr)
+			if (Result == nullptr && bAlloc)
 			{
 				Result = ObjectAllocatorInstance->Alloc();
+			}
+			else
+			{
+				return Result;
 			}
 			
 			Result->InitializePoolable();
@@ -268,7 +275,7 @@ public:
 	 * @param NumReserve Number of objects to reserve.
 	 */
 	TMediaObjectPool(uint32 NumReserve)
-		: Storage(MakeShareable(new TStorage))
+		: Storage(MakeShareable(new TStorage(nullptr)))
 	{
 		Storage->Reserve(NumReserve);
 	}
@@ -281,13 +288,14 @@ public:
 	 * Use the Release method to return the object to the pool.
 	 * You can use the ToShared and ToUnique methods to convert
 	 * this object to a tracked shared object later if desired.
+	 * bAlloc allows to chose if new object should be allocated and added to the pool.
 	 *
 	 * @return The object.
 	 * @see AcquireShared, AcquireUnique, Release, ToShared, ToUnique
 	 */
-	ObjectType* Acquire()
+	ObjectType* Acquire(bool bAlloc = true)
 	{
-		return Storage->Acquire();
+		return Storage->Acquire(bAlloc);
 	}
 
 	/**
@@ -301,7 +309,28 @@ public:
 	 */
 	TSharedRef<ObjectType, ESPMode::ThreadSafe> AcquireShared()
 	{
-		ObjectType* Object = Acquire();
+		ObjectType* Object = Acquire(true);
+		check(Object != nullptr);
+		return MakeShareable(Object, TDeleter(Storage));
+	}
+
+	/**
+	 * Acquire a shared object from the pool.
+	 *
+	 * Shared objects do not need to be returned to the pool. They'll be
+	 * reclaimed automatically when their reference count goes to zero.
+	 * bAlloc allows to chose if new object should be allocated and added to the pool.
+	 *
+	 * @return The shared object.
+	 * @see Acquire, AcquireUnique, Reset, ToShared
+	 */
+	TSharedPtr<ObjectType, ESPMode::ThreadSafe> AcquireShared(bool bAlloc)
+	{
+		ObjectType* Object = Acquire(bAlloc);
+		if (!Object && !bAlloc)
+		{
+			return nullptr;
+		}
 		check(Object != nullptr);
 
 		return MakeShareable(Object, TDeleter(Storage));

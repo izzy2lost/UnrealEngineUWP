@@ -19,8 +19,8 @@ void UDMXEntity::PostInitProperties()
 
 	if (UDMXLibrary* DMXLibrary = Cast<UDMXLibrary>(GetOuter()))
 	{
-		DMXLibrary->RegisterEntity(this);
 		ParentLibrary = DMXLibrary;
+		DMXLibrary->RegisterEntity(this);
 	}
 	else if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{

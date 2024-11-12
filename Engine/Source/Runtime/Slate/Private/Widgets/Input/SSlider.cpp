@@ -35,6 +35,8 @@ SSlider::SSlider()
 #endif
 }
 
+SSlider::~SSlider() = default;
+
 void SSlider::Construct( const SSlider::FArguments& InDeclaration )
 {
 	check(InDeclaration._Style);

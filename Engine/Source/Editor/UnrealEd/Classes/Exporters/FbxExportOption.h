@@ -36,6 +36,30 @@ enum class EMovieSceneBakeType : uint8
 	BakeAll = BakeChannels | BakeTransforms,
 };
 
+UENUM(BlueprintType)
+enum class EFbxMaterialBakeMode : uint8
+{
+	/** Never bake material inputs. */
+	Disabled,
+	/** Only use a simple quad if a material input needs to be baked out. */
+	Simple,
+	/** Allow usage of the mesh data if a material input needs to be baked out with vertex data. */
+	UseMeshData,
+};
+
+USTRUCT(Blueprintable)
+struct FFbxMaterialBakeSize
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "")
+	FIntPoint Size = FIntPoint(1024, 1024);
+
+	/** If enabled, bake size is based on the largest texture used in the material input's expression graph. If none found, bake size will fall back to the explicit dimensions. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "")
+	bool bAutoDetect = true;
+};
+
 UCLASS(config = EditorPerProjectUserSettings, MinimalAPI, BlueprintType)
 class UFbxExportOption : public UObject
 {
@@ -97,6 +121,14 @@ public:
 	/** Bake settings for exported non-camera, non-light object animation */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, config, Category = Animation)
 	EMovieSceneBakeType BakeActorAnimation;
+
+	/** Bake mode determining if and how a material input is baked out to a texture. Baking is only used for non-trivial material inputs (i.e. not simple texture or constant expressions). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = Material)
+	EFbxMaterialBakeMode BakeMaterialInputs;
+
+	/** Default size of the baked out texture (containing the material input).*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = Material, Meta = (EditCondition = "BakeMaterialInputs != EFbxMaterialBakeMode::Disabled"))
+	FFbxMaterialBakeSize DefaultMaterialBakeSize;
 
 	/* Set all the FProperty to the CDO value */
 	void ResetToDefault();

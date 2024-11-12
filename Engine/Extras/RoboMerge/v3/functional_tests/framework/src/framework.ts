@@ -158,8 +158,6 @@ type RobomergeBranchOptions = {
 	streamSubpath: string
 	workspace: (string | null)
 
-	// if set, still generate workspace but use this name
-	workspaceNameOverride: string
 	additionalSlackChannelForBlockages: string
 	ignoreBranchspecs: boolean
 	lastGoodCLPath: string
@@ -204,6 +202,9 @@ type EdgeOptionFields = {
 	implicitCommands: string[]
 
 	ignoreInCycleDetection: boolean
+
+	// if set, still generate workspace but use this name
+	workspaceNameOverride: string
 
 	approval: {
 		description: string
@@ -612,10 +613,13 @@ export abstract class FunctionalTest {
 		let verifyResult: any
 
 		try {
-			const post = bent('POST', 'json', 200, 400)
+			const post = bent('POST', 'json', 200, 400, 500)
 			verifyResult = await post(url)
 
-			// console.dir(verifyResult)
+			if (verifyResult.statusCode == 500) {
+				console.log(verifyResult)
+				throw new Error(`Verify returned 500 (${verifyResult})`)
+			}
 		}
 		catch (err) {
 			this.error(err)

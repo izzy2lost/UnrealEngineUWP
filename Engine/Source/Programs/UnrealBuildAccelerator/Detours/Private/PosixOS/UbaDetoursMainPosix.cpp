@@ -63,6 +63,8 @@ static void __attribute__((constructor(102))) PreInitCtor()
 	
 	InitSharedVariables();
 
+	g_runningRemote = getenv("UBA_REMOTE") != nullptr;
+	
 	const char* logFile = getenv("UBA_LOGFILE");
 	PreInit(logFile);
 	unsetenv("UBA_LOGFILE");
@@ -116,7 +118,6 @@ static void __attribute__((constructor(102))) PreInitCtor()
 	#endif
 
 	g_sessionPid = atoi(getenv("UBA_SESSION_PROCESS"));
-	g_runningRemote = getenv("UBA_REMOTE") != nullptr;
 
 	g_rulesIndex = strtoul(getenv("UBA_RULES"), nullptr, 10);
 	g_rules = GetApplicationRules()[g_rulesIndex].rules;

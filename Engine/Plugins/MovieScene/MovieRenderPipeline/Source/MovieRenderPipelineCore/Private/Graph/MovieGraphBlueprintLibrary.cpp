@@ -11,7 +11,9 @@
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MoviePipelineUtils.h"
+#include "CineCameraActor.h"
 
+#include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Internationalization/Regex.h"
 
@@ -115,29 +117,31 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	
 
 	//  Now get the settings from our config. We need to gather KVP data from all possible nodes, even if not expressed in your configuration. This is because you might want to
-	// always use the {ts_count} token even if you don't have a Temporal Sample Count node to add it. So we loop through all the possible class types, and call a function on the 
-	// CDO, but then we pass that class type from the evaluated config (if it exists), and we pass the CDO as an argument if it doesn't.
+	// always use the {ts_count} token even if you don't have a Temporal Sample Count node to add it. We look at all possible class types and then get all instances of them in
+	// the evaluated graph. We look at all instances because "Named" nodes can end up having multiple copies in the final graph which may want to provide different data.
 	TArray<UClass*> AllSettingsNodeClasses = UE::MovieRenderPipeline::FindMoviePipelineSettingClasses(UMovieGraphSettingNode::StaticClass(), false);
 
 	// ToDo: This loops through class iterators every frame, we should probably initialize a copy of everything into the flattened config, since we could cache the classes
 	// once per run there. We don't cache the returned results here because you could potentially add/remove classes (via Blueprints) which would invalidate our cache.
 	for (UClass* InClass : AllSettingsNodeClasses)
 	{
-		const UMovieGraphSettingNode* SettingInstance = nullptr;
+		TArray<UMovieGraphSettingNode*> SettingInstances;
 		if (InParams.EvaluatedConfig)
 		{
 			const bool bIncludeCDOs = true;
 			const bool bExactMatch = true;
-			SettingInstance = InParams.EvaluatedConfig->GetSettingForBranch(InClass, InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs, bExactMatch);
+			SettingInstances = InParams.EvaluatedConfig->GetSettingsForBranch(InClass, InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs, bExactMatch);
 		}
 		else
 		{
-			SettingInstance = GetDefault<UMovieGraphSettingNode>(InClass);
+			// GetFormatResolveArgs is const, but GetSettingsForBranch doesn't return a const pointer array,
+			// so we just get a non-const CDO pointer here instead, knowing that the function being called is const.
+			SettingInstances.Add(GetMutableDefault<UMovieGraphSettingNode>(InClass));
 		}
 
-		if (SettingInstance)
+		for(UMovieGraphSettingNode* Instance : SettingInstances)
 		{
-			SettingInstance->GetFormatResolveArgs(OutMergedFormatArgs, InParams.RenderDataIdentifier);
+			Instance->GetFormatResolveArgs(OutMergedFormatArgs, InParams.RenderDataIdentifier);
 		}
 	}
 
@@ -339,7 +343,29 @@ int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResol
 	return HighestVersion + (bGetNextVersion ? 1 : 0);
 }
 
-FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph)
+int32 UMovieGraphBlueprintLibrary::GetCurrentVersionNumber(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	// This is effectively identical to UMoviePipelineBlueprintLibrary::GetCurrentVersionNumber (since the
+	// version is stored on the shot structure which is shared between the two pipelines) but provided here
+	// via a UMovieGraphPipeline specific pointer for consistency in fetching values in the UI to go along
+	// with the other functions here get things like focal length, etc.
+	if (!InMovieGraphPipeline)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot get version number from null pipeline!"), ELogVerbosity::Error);
+		return 0;
+	}
+	
+	int32 CurrentShotIndex = InMovieGraphPipeline->GetCurrentShotIndex();
+	if(!InMovieGraphPipeline->GetActiveShotList().IsValidIndex(CurrentShotIndex))
+	{
+		FFrame::KismetExecutionMessage(TEXT("No shot is currently active to get the version number from."), ELogVerbosity::Error);
+		return 0;
+	}
+
+	return InMovieGraphPipeline->GetActiveShotList()[CurrentShotIndex]->ShotInfo.VersionNumber;
+}
+
+FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph, float DefaultOverscan)
 {
 	if (!InEvaluatedGraph)
 	{
@@ -354,11 +380,14 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 		return FIntPoint();
 	}
 
-	float RescaledOverscan = 0.f;
+	float RescaledOverscan = DefaultOverscan;
 	if (UMovieGraphCameraSettingNode* CameraSetting = InEvaluatedGraph->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs))
 	{
-		// The old system used [0-1] range for floats, the new system will use [0-100], so we rescale down before calling through.
-		RescaledOverscan = FMath::Clamp(CameraSetting->OverscanPercentage / 100.f, 0.f, 1.f);
+		if (CameraSetting->bOverride_OverscanPercentage)
+		{
+			// The old system used [0-1] range for floats, the new system will use [0-100], so we rescale down before calling through.
+			RescaledOverscan = FMath::Clamp(CameraSetting->OverscanPercentage / 100.f, 0.f, 1.f);
+		}
 	}
 
 	// We need to look at the Project Settings for the latest value for a given profile
@@ -548,41 +577,81 @@ FFrameNumber UMovieGraphBlueprintLibrary::GetCurrentShotFrameNumber(const UMovie
 	return FFrameNumber(-1);
 }
 
-float UMovieGraphBlueprintLibrary::GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline)
+float UMovieGraphBlueprintLibrary::GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent->CurrentFocusDistance;
+		if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent->CurrentFocusDistance;
+		}
+	}
+	else if (UCineCameraComponent* CurrentCameraComponent = GetCurrentCineCamera(InMovieGraphPipeline, InCameraIndex))
+	{
+		return CurrentCameraComponent->CurrentFocusDistance;
 	}
 
 	return -1.f;
 }
 
-float UMovieGraphBlueprintLibrary::GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline)
+float UMovieGraphBlueprintLibrary::GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent->CurrentFocalLength;
+		if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent->CurrentFocalLength;
+		}
+	}
+	else if (UCineCameraComponent* CurrentCameraComponent = GetCurrentCineCamera(InMovieGraphPipeline, InCameraIndex))
+	{
+		return CurrentCameraComponent->CurrentFocalLength;
 	}
 
 	return -1.f;
 }
 
-float UMovieGraphBlueprintLibrary::GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline)
+float UMovieGraphBlueprintLibrary::GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent->CurrentAperture;
+		if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent->CurrentAperture;
+		}
+
+	}
+	else if (UCineCameraComponent* CurrentCameraComponent = GetCurrentCineCamera(InMovieGraphPipeline, InCameraIndex))
+	{
+		return CurrentCameraComponent->CurrentAperture;
 	}
 
 	return 0.f;
 }
 
-UCineCameraComponent* UMovieGraphBlueprintLibrary::GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline)
+UCineCameraComponent* UMovieGraphBlueprintLibrary::GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent;
+		if (UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent;
+		}
+	}
+	else if (UMoviePipelineExecutorShot* CurrentShot = GetCurrentExecutorShot(InMovieGraphPipeline))
+	{
+		// If we're not rendering all cameras, InCameraIndex is -1.
+		const bool bRenderAllCameras = InCameraIndex >= 0;
+		TArray<UE::MovieGraph::FMinimalCameraInfo> MinimalCameraInfos = InMovieGraphPipeline->GetDataSourceInstance()->GetCameraInformation(CurrentShot, bRenderAllCameras);
+		if (!ensure(MinimalCameraInfos.IsValidIndex(InCameraIndex)))
+		{
+			return nullptr;
+		}
+
+		if (const ACineCameraActor* CineCameraActor = Cast<ACineCameraActor>(MinimalCameraInfos[InCameraIndex].ViewActor))
+		{
+			return CineCameraActor->GetCineCameraComponent();
+		}
 	}
 
 	return nullptr;
@@ -626,4 +695,19 @@ bool UMovieGraphBlueprintLibrary::IsNamedResolutionValid(const FName& InResoluti
 FMovieGraphNamedResolution UMovieGraphBlueprintLibrary::NamedResolutionFromSize(const int32 InResX, const int32 InResY)
 {
 	return FMovieGraphNamedResolution(FMovieGraphNamedResolution::CustomEntryName, FIntPoint(InResX, InResY), FString());
+}
+
+UMoviePipelineExecutorShot* UMovieGraphBlueprintLibrary::GetCurrentExecutorShot(const UMovieGraphPipeline* InMoviePipeline)
+{
+	if (InMoviePipeline)
+	{
+		const TArray<UMoviePipelineExecutorShot*>& ActiveShotList = InMoviePipeline->GetActiveShotList();
+		int32 CurrentShotIndex = InMoviePipeline->GetCurrentShotIndex();
+		if (ActiveShotList.IsValidIndex(CurrentShotIndex))
+		{
+			return ActiveShotList[CurrentShotIndex];
+		}
+	}
+
+	return nullptr;
 }

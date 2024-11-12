@@ -98,15 +98,6 @@ bool UExternalDataLayerInstance::CanAddActor(AActor* InActor, FText* OutReason) 
 		return false;
 	}
 
-	if (InActor->HasAllFlags(RF_Transient))
-	{
-		if (OutReason)
-		{
-			*OutReason = LOCTEXT("CantAddActorTransientActorNotSupported", "Can't assign transient actor to external data layer.");
-		}
-		return false;
-	}
-
 	if (!InActor->IsMainPackageActor())
 	{
 		if (OutReason)
@@ -196,7 +187,7 @@ bool UExternalDataLayerInstance::PerformAddActor(AActor* InActor) const
 	check(ExternalDataLayer);
 	if (FAssignActorDataLayer::AddDataLayerAsset(InActor, ExternalDataLayer))
 	{
-		if (UExternalDataLayerManager::GetExternalDataLayerManager(GetOuterWorld())->OnActorExternalDataLayerAssetChanged(InActor))
+		if (UExternalDataLayerManager::GetExternalDataLayerManager(GetOuterWorld())->ValidateOnActorExternalDataLayerAssetChanged(InActor))
 		{
 			return true;
 		}

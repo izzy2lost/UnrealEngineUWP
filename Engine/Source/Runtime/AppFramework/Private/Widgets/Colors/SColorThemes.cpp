@@ -743,7 +743,7 @@ void SThemeColorBlocksBar::Construct(const FArguments& InArgs)
 	if (!InArgs._EmptyText.IsEmpty())
 	{
 		EmptyHintTextBlock = SNew(SBorder)
-			.Padding(1.0f)
+			.Padding( 8.0f , 4.0f , 0.0f , 0.0f )
 			.Content()
 			[
 				SNew(STextBlock)
@@ -916,7 +916,6 @@ void SColorThemesViewer::Construct(const FArguments& InArgs)
 			.WidthOverride(360)
 			[
 				SAssignNew(ColorThemeList, SListView< TSharedPtr<FColorTheme> >)
-					.ItemHeight(32)
 					.ListItemsSource(&ColorThemes)
 					.OnGenerateRow(this, &SColorThemesViewer::OnGenerateColorThemeBars)
 			]

@@ -19,6 +19,8 @@ struct FChaosVDTraceSessionDescriptor
 {
 	FString SessionName;
 	bool bIsLiveSession = false;
+
+	bool IsValid() const { return !SessionName.IsEmpty(); }
 };
 
 /** Manager class used by Chaos VD to interact/control UE Trace systems */

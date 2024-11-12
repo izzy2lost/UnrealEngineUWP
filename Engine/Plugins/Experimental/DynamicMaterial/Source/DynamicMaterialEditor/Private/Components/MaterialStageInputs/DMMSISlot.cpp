@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageInputs/DMMSISlot.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageThroughput.h"
 #include "DMComponentPath.h"
-#include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "Model/DMMaterialBuildState.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputSlot"
 
@@ -149,6 +149,19 @@ FText UDMMaterialStageInputSlot::GetComponentDescription() const
 	return Super::GetComponentDescription();
 }
 
+FSlateIcon UDMMaterialStageInputSlot::GetComponentIcon() const
+{
+	if (Slot)
+	{
+		if (Slot->IsComponentValid())
+		{
+			return Slot->GetComponentIcon();
+		}
+	}
+
+	return Super::GetComponentIcon();
+}
+
 FText UDMMaterialStageInputSlot::GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)
 {
 	return GetComponentDescription();
@@ -185,10 +198,7 @@ void UDMMaterialStageInputSlot::SetSlot(UDMMaterialSlot* InSlot)
 
 	UpdateOutputConnectors();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputSlot::SetMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
@@ -207,10 +217,7 @@ void UDMMaterialStageInputSlot::SetMaterialProperty(EDMMaterialPropertyType InMa
 
 	UpdateOutputConnectors();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputSlot::OnComponentRemoved()
@@ -340,19 +347,19 @@ UDMMaterialStageInputSlot::UDMMaterialStageInputSlot()
 {
 }
 
-void UDMMaterialStageInputSlot::OnSlotUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageInputSlot::OnSlotUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (Slot != InComponent)
+	if (Slot != InSource)
 	{
 		return;
 	}
 
-	Update(InUpdateType);
+	Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
@@ -367,7 +374,7 @@ void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	check(Layer);
 
 	UDMMaterialSlot* StageSlot = Layer->GetSlot();
@@ -377,7 +384,7 @@ void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 	{
 		if (UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask))
 		{
-			MaskStage->Update(EDMUpdateType::Structure);
+			MaskStage->Update(InSlot, EDMUpdateType::Structure);
 		}
 	}
 	else
@@ -385,7 +392,7 @@ void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 		EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 		check(StageProperty != EDMMaterialPropertyType::None);
 
-		if (const UDMMaterialLayerObject* NextLayer = Layer->GetNextLayer(StageProperty, EDMMaterialLayerStage::Base))
+		if (UDMMaterialLayerObject* NextLayer = Layer->GetNextLayer(StageProperty, EDMMaterialLayerStage::Base))
 		{
 			NextLayer->GetStage(EDMMaterialLayerStage::Base)->ResetInputConnectionMap();
 		}
@@ -442,7 +449,7 @@ void UDMMaterialStageInputSlot::UpdateOutputConnectors()
 
 		if (MaterialProperties.Contains(MaterialProperty))
 		{
-			const FText MaterialPropertyName = StaticEnum<EDMMaterialPropertyType>()->GetDisplayNameTextByValue(static_cast<int64>(MaterialProperty));
+			const FText MaterialPropertyName = UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(MaterialProperty);
 			const TArray<EDMValueType>& OutputTypes = Slot->GetOutputConnectorTypesForMaterialProperty(MaterialProperty);
 
 			for (int32 OutputTypeIdx = 0; OutputTypeIdx < OutputTypes.Num(); ++OutputTypeIdx)

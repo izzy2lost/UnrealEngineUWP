@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include "USDInfoCache.h"
+#include "USDInfoCacheObject.h"
 #include "USDLevelSequenceHelper.h"
 #include "USDListener.h"
 #include "USDMetadataImportOptions.h"
+#include "USDPrimLinkCacheObject.h"
 #include "USDSkeletalDataConversion.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdStage.h"
@@ -17,8 +20,8 @@
 class FUsdInfoCache;
 class ISequencer;
 class ULevelSequence;
-class UUsdAssetCache;
 class UUsdAssetCache2;
+class UUsdAssetCache3;
 class UUsdPrimTwin;
 class UUsdTransactor;
 enum class EMovieSceneDataChangeType;
@@ -27,6 +30,10 @@ namespace UE
 {
 	class FUsdGeomBBoxCache;
 	class FUsdPrim;
+}
+namespace UsdUtils
+{
+	class FUsdTransactorImpl;
 }
 
 UENUM()
@@ -53,6 +60,15 @@ public:
 	EUsdStageState StageState;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD")
+	TObjectPtr<UUsdAssetCache3> AssetCache;
+
+	UPROPERTY()
+	TObjectPtr<UUsdInfoCache> UsdInfoCache;
+
+	UPROPERTY()
+	TObjectPtr<UUsdPrimLinkCache> PrimLinkCache;
+
+	UPROPERTY()
 	TObjectPtr<UUsdAssetCache2> UsdAssetCache;
 
 	// These properties are configs so that spawned actors read them from the CDO when spawned.
@@ -64,6 +80,16 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	EUsdInterpolationType InterpolationType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	EGeometryCacheImport GeometryCacheImport;
+
+	/**
+	 * Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).
+	 * Disable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	bool bUsePrimKindsForCollapsing;
 
 	/**
 	 * Whether to try to combine individual assets and components of the same type on a kind-per-kind basis,
@@ -85,6 +111,10 @@ public:
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	bool bShareAssetsForIdenticalPrims;
+
+	UE_DEPRECATED(5.5, "This property has been renamed to 'Share Assets for Identical Prims'")
+	UPROPERTY()
 	bool bReuseIdenticalAssets;
 
 	/**
@@ -154,8 +184,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetStageState(EUsdStageState NewStageState);
 
+	UE_DEPRECATED(5.5, "The UUsdAssetCache2 class has been deprecated. Use UUsdAssetCache3 and call SetUsdAssetCache instead")
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetAssetCache(UUsdAssetCache2* NewCache);
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetUsdAssetCache(UUsdAssetCache3* NewCache);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetInitialLoadSet(EUsdInitialLoadSet NewLoadSet);
@@ -164,11 +198,21 @@ public:
 	USDSTAGE_API void SetInterpolationType(EUsdInterpolationType NewType);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetGeometryCacheImport(EGeometryCacheImport ImportOption);
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetUsePrimKindsForCollapsing(bool bUse);
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetKindsToCollapse(int32 NewKindsToCollapse);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetMergeIdenticalMaterialSlots(bool bMerge);
 
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetShareAssetsForIdenticalPrims(bool bShare);
+
+	UE_DEPRECATED(5.5, "Use 'SetShareAssetsForIdenticalPrims' instead.")
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetReuseIdenticalAssets(bool bReuse);
 
@@ -227,7 +271,7 @@ public:
 	 * invalid.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API USceneComponent* GetGeneratedComponent(const FString& PrimPath);
+	USDSTAGE_API USceneComponent* GetGeneratedComponent(const FString& PrimPath) const;
 
 	/**
 	 * Gets the transient assets that were generated for a prim with a given prim path. Likely one asset (e.g. UStaticMesh), but can be multiple
@@ -236,7 +280,7 @@ public:
 	 * @return The corresponding generated assets. May be empty if path is invalid or if that prim led to no generated assets.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API TArray<UObject*> GetGeneratedAssets(const FString& PrimPath);
+	USDSTAGE_API TArray<UObject*> GetGeneratedAssets(const FString& PrimPath) const;
 
 	/**
 	 * Gets the path to the prim that was parsed to generate the given `Object`.
@@ -245,7 +289,7 @@ public:
 	 * @return The path to the source prim, e.g. "/root_prim/some_prim". May be empty in case we couldn't find the source prim.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API FString GetSourcePrimPath(UObject* Object);
+	USDSTAGE_API FString GetSourcePrimPath(const UObject* Object) const;
 
 	// Creates a brand new, memory-only USD stage and opens it
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
@@ -288,10 +332,24 @@ public:
 	// Enters isolated mode by creating a new USD Stage using the provided layer as its root
 	USDSTAGE_API void IsolateLayer(const UE::FSdfLayer& Layer);
 
-	// Regenerates our LevelSequence from the USD Stage
+	UE_DEPRECATED(5.5, "This function has been renamed into 'RegenerateLevelSequence', which better describes what it does")
 	USDSTAGE_API void ReloadAnimations();
 
+	// Creates new ULevelSequence assets for the root layer and sublayers
+	USDSTAGE_API void RegenerateLevelSequence();
+
+	/**
+	 * Fills in the current LevelSequences with animations for the prims of the opened stage.
+	 *
+	 * Can be called even if our current LevelSequence has already been populated: It will simply refresh the
+	 * current LevelSequence, adding/removing tracks and bindings as needed.
+	 */
+	USDSTAGE_API void RepopulateLevelSequence();
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The FUsdInfoCache struct is deprecated in favor of the UUsdInfoCache and UUsdPrimLinkCache, referenced via UPROPERTYs")
 	USDSTAGE_API TSharedPtr<FUsdInfoCache> GetInfoCache();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	USDSTAGE_API TSharedPtr<UE::FUsdGeomBBoxCache> GetBBoxCache();
 	USDSTAGE_API TMap<FString, TMap<FString, int32>> GetMaterialToPrimvarToUVIndex();
 	USDSTAGE_API const UsdUtils::FBlendShapeMap& GetBlendShapeMap();
@@ -315,6 +373,7 @@ public:
 	USDSTAGE_API virtual void PostActorCreated() override;
 	USDSTAGE_API virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	USDSTAGE_API virtual void BeginDestroy() override;
+	USDSTAGE_API virtual void PostInitProperties() override;
 #if WITH_EDITOR
 	USDSTAGE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	USDSTAGE_API virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
@@ -345,9 +404,15 @@ protected:
 	void AnimatePrims();
 
 	UUsdPrimTwin* GetRootPrimTwin();
+	UUsdPrimTwin* GetRootPrimTwin() const;
 	UUsdPrimTwin* GetOrCreatePrimTwin(const UE::FSdfPath& UsdPrimPath);
 
-	UUsdPrimTwin* ExpandPrim(const UE::FUsdPrim& Prim, bool bResync, FUsdSchemaTranslationContext& TranslationContext);
+	UUsdPrimTwin* ExpandPrim(
+		const UE::FUsdPrim& Prim,
+		bool bResync,
+		FUsdSchemaTranslationContext& TranslationContext,
+		TOptional<bool> bParentHasAnimatedVisibility = {}
+	);
 	void UpdatePrim(const UE::FSdfPath& UsdPrimPath, bool bResync, FUsdSchemaTranslationContext& TranslationContext);
 
 	void OpenUsdStage();
@@ -359,12 +424,13 @@ protected:
 	void SetupAssetCacheIfNeeded();
 	void SetupBBoxCacheIfNeeded();
 
+	void RebuildInfoCacheFromStoredChanges();
+
 	bool HasAuthorityOverStage() const;
 
 	void UpdateSpawnedObjectsTransientFlag(bool bTransient);
 
-	void OnActorAddedToSequencer(AActor* NewActor, const FGuid Guid, TWeakPtr<ISequencer> WeakSequencer);
-	void OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeType, TWeakPtr<ISequencer> WeakSequencer);
+	USDSTAGE_API void RequestDelayedTransactorReset();
 
 #if WITH_EDITOR
 	void OnBeginPIE(bool bIsSimulating);
@@ -377,14 +443,17 @@ protected:
 	void OnPreUsdImport(FString FilePath);
 	void OnPostUsdImport(FString FilePath);
 	void OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& InfoChanges, const UsdUtils::FObjectChangesByPath& ResyncChanges);
+	void HandleAccumulatedNotices();
 	void OnUsdPrimTwinDestroyed(const UUsdPrimTwin& UsdPrimTwin);
 	void OnObjectPropertyChanged(UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent);
 	void HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyChangedEvent);
 	void OnSkelAnimationBaked(const FString& SkeletonPrimPath);
 
 protected:
+	friend class SUsdStage;	   // So that it can call RequestDelayedTransactorReset
 	friend struct FUsdStageActorImpl;
 	friend class FUsdLevelSequenceHelperImpl;
+	friend class UsdUtils::FUsdTransactorImpl;
 
 	UPROPERTY(
 		Category = UsdStageActor,
@@ -411,18 +480,22 @@ protected:
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UObject>, FString> ObjectsToWatch;
 
-	UE_DEPRECATED(5.2, "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects")
-	UPROPERTY(
-		AdvancedDisplay,
-		meta = (DeprecatedProperty, DeprecationMessage = "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects")
-	)
-	TObjectPtr<UUsdAssetCache> AssetCache;
-
 	UPROPERTY(Transient)
 	TObjectPtr<UUsdTransactor> Transactor;
 
+	/**
+	 * USD can emit multiple notices within the same UE transaction. We accumulate these in here, and respond
+	 * to them only once, when the transaction is about to finish
+	 */
+	UsdUtils::FObjectChangesByPath AccumulatedInfoChanges;
+	UsdUtils::FObjectChangesByPath AccumulatedResyncChanges;
+	bool bLayerReloaded = false;
+	TArray<UE::FSdfPath> ResyncedPrimsForThisTransaction;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Caches various information about prims that are expensive to query */
 	TSharedPtr<FUsdInfoCache> InfoCache;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** USD bounding box cache for the stage. Constructed on-demand */
 	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;
@@ -458,6 +531,8 @@ protected:
 	bool bIsTransitioningIntoPIE;
 	bool bIsModifyingAProperty;
 	bool bIsUndoRedoing;
+	bool bIsAddingBinding = false;
+	bool bIsPendingTransactorReset = false;
 
 	FDelegateHandle OnRedoHandle;
 	FDelegateHandle OnSequencerCreatedHandle;

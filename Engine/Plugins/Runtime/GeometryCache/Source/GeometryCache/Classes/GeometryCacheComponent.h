@@ -74,7 +74,6 @@ class GEOMETRYCACHE_API UGeometryCacheComponent : public UMeshComponent
 	virtual bool IsMaterialSlotNameValid(FName MaterialSlotName) const override;
 	//~ End UMeshComponent Interface.
 
-
 	/**
 	* OnObjectReimported, Callback function to refresh section data and update scene proxy.
 	*
@@ -164,11 +163,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	void SetStartTimeOffset(const float NewStartTimeOffset);
 
-	/** Set the current animation time for GeometryCache. Includes the influence of elapsed time and SetStartTimeOffset */
+	/** Get the current animation time for GeometryCache. Includes the influence of elapsed time and SetStartTimeOffset */
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	float GetAnimationTime() const;
 
-	/** Set the current animation time for GeometryCache. Includes the influence of elapsed time and SetStartTimeOffset */
+	/** Get the current elapsed time for GeometryCache. Doesn't include the influence of StartTimeOffset */
+	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
+	float GetElapsedTime() const;
+
+	/** Get the playback direction for GeometryCache. */
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	float GetPlaybackDirection() const;
 
@@ -183,6 +186,10 @@ public:
 	/** Get the number of frames */
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	int32 GetNumberOfFrames() const;
+
+	/** Get the number of tracks */
+	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
+	int32 GetNumberOfTracks() const;
 
 	/** Override wireframe color? */
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
@@ -200,13 +207,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	FLinearColor GetWireframeOverrideColor() const;
 
-
 public:
-	/** Helper to get the frame of the ABC asset at this time*/
+	/** Helper to get the frame of the ABC asset at time provided*/
 	int32 GetFrameAtTime(const float Time) const;
 
 	/** Helper to get the time at this frame */
 	float GetTimeAtFrame(const int32 Frame) const;
+
+	/** Helper to make the animation jump to this time*/
+	void SetCurrentTime(const float Time);
 
 public:
 	/** Functions to override the default TickComponent */
@@ -217,6 +226,21 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	void TickAtThisTime(const float Time, bool bInIsRunning, bool bInBackwards, bool bInIsLooping);
+
+#if WITH_EDITOR
+	// Animation Helpers for Transport Controls
+	void StepForward();
+
+	void ForwardEnd();
+
+	void StepBackward();
+
+	void BackwardEnd();
+
+	void ToggleLooping();
+
+	TArray<FString> GetTrackNames() const;
+#endif
 
 protected:
 	/**
@@ -255,6 +279,17 @@ protected:
 	*/
 	void ClearTrackData();
 
+	/**
+	 * Jumps animation to time specified.
+	 */
+	void JumpAnimationToTime(float Time, bool bInIsRunning, bool bInBackwards, bool bInIsLooping);
+
+	/**
+	 * Helper method to tick animation by one frame in PlayDirection
+	 */
+	void StepAnimationFrame(bool bInBackwards);
+
+protected:
 	UPROPERTY(EditAnywhere, Interp, Category = GeometryCache)
 	bool bRunning;
 

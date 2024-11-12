@@ -44,7 +44,7 @@ public:
 	 * @return true on success, false otherwise.
 	 */
 	bool Initialize(
-		TRefCountPtr<FRHITexture2D>& InTexture,
+		TRefCountPtr<FRHITexture>& InTexture,
 		const FIntPoint& InDim,
 		const FIntPoint& InOutputDim,
 		FTimespan InTime,
@@ -185,7 +185,7 @@ private:
 
 #if WITH_ENGINE
 	/** The sample's texture resource. */
-	TRefCountPtr<FRHITexture2D> Texture;
+	TRefCountPtr<FRHITexture> Texture;
 
 #else
 	/** The sample's data buffer. */

@@ -9,8 +9,9 @@
 #include "Engine/Level.h"
 #include "ConstraintsManager.generated.h"
 
-class IMovieScenePlayer;
 class UTickableConstraint;
+
+namespace UE::MovieScene { struct FSharedPlaybackState; }
 
 /** 
  * FConstraintTickFunction
@@ -93,7 +94,7 @@ public:
 	/** If true it contains objects bound to an external system, like sequencer so we don't do certain things, like remove constraints when they don't resolve*/
 	CONSTRAINTS_API virtual bool HasBoundObjects() const PURE_VIRTUAL(HasBoundObjects, return false;);
 	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
-	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr)  PURE_VIRTUAL(ResolveBoundObjects);
+	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject = nullptr)  PURE_VIRTUAL(ResolveBoundObjects);
 
 	/** @todo document */
 	CONSTRAINTS_API virtual uint32 GetTargetHash() const PURE_VIRTUAL(GetTargetHash, return 0;);
@@ -277,7 +278,7 @@ public:
 	CONSTRAINTS_API TArray< TWeakObjectPtr<UTickableConstraint> > GetAllConstraints(const bool bSorted = false) const;
 
 	/** Returns the static/non-animated constraints*/
-	CONSTRAINTS_API TArray< TObjectPtr<UTickableConstraint> >GetStaticConstraints(const bool bSorted = false) const;
+	CONSTRAINTS_API TArray< TWeakObjectPtr<UTickableConstraint> > GetStaticConstraints(const bool bSorted = false) const;
 
 	/** Returns a filtered constraints array checking if the predicate for each element is true. */
 	template <typename Predicate>

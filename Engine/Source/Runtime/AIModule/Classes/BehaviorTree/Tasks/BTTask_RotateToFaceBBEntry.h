@@ -6,6 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 #include "BehaviorTree/Services/BTService_DefaultFocus.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_RotateToFaceBBEntry.generated.h"
 
 class AAIController;
@@ -21,16 +22,9 @@ class UBTTask_RotateToFaceBBEntry : public UBTTask_BlackboardBase
 protected:
 	/** Success condition precision in degrees */
 	UPROPERTY(config, Category = Node, EditAnywhere, meta = (ClampMin = "0.0"))
-	float Precision;
-
-private:
-	/** cached Precision tangent value */
-	float PrecisionDot;
+	FValueOrBBKey_Float Precision;
 
 public:
-
-	AIMODULE_API virtual void PostInitProperties() override;
-	AIMODULE_API virtual void PostLoad() override;
 
 	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	AIMODULE_API virtual void TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds) override;
@@ -44,6 +38,6 @@ public:
 
 protected:
 
-	float GetPrecisionDot() const { return PrecisionDot; }
+	AIMODULE_API float GetPrecisionDot(const UBehaviorTreeComponent& OwnerComp) const;
 	AIMODULE_API void CleanUp(AAIController& AIController, uint8* NodeMemory);
 };

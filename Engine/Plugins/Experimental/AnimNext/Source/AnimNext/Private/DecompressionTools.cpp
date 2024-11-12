@@ -44,6 +44,9 @@ struct FGetBonePoseScratchArea : public TThreadSingleton<FGetBonePoseScratchArea
 	BoneTrackArray AnimScaleRetargetingPairs;
 	BoneTrackArray AnimRelativeRetargetingPairs;
 	BoneTrackArray OrientAndScaleRetargetingPairs;
+
+	// A bit set that specifies whether a compact bone index has its rotation animated by the sequence or not
+	TBitArray<> AnimatedCompactRotations;
 };
 
 
@@ -56,7 +59,7 @@ static bool CanEvaluateRawAnimationData(const UAnimSequence* AnimSequence)
 #endif
 }
 
-static bool UseRawDataForPoseExtraction(const UAnimSequence* AnimSequence, FLODPose& AnimationPoseData)
+static bool UseRawDataForPoseExtraction(const UAnimSequence* AnimSequence, const FLODPose& AnimationPoseData)
 {
 	return CanEvaluateRawAnimationData(AnimSequence) && (
 #if WITH_EDITOR
@@ -71,9 +74,20 @@ static bool UseRawDataForPoseExtraction(const UAnimSequence* AnimSequence, FLODP
 		AnimationPoseData.ShouldUseSourceData());
 }
 
+bool FDecompressionTools::ShouldUseRawData(const UAnimSequence* AnimSequence, const FLODPose& AnimationPoseData)
+{
+	const bool bUseRawData =
+#if WITH_EDITOR
+		GetForceRawData() ||
+#endif // WITH_EDITOR
+		UseRawDataForPoseExtraction(AnimSequence, AnimationPoseData);
+
+	return bUseRawData;
+}
+
 // --- ---
 
-/*static*/ void FDecompressionTools::GetAnimationPose(const UAnimSequence* AnimSequence, FLODPose& OutAnimationPoseData, const FAnimExtractContext& ExtractionContext)
+/*static*/ void FDecompressionTools::GetAnimationPose(const UAnimSequence* AnimSequence, const FAnimExtractContext& ExtractionContext, FLODPose& OutAnimationPoseData, bool bForceUseRawData)
 {
 	if (OutAnimationPoseData.GetRefPose().IsValid() == false)
 	{
@@ -81,7 +95,7 @@ static bool UseRawDataForPoseExtraction(const UAnimSequence* AnimSequence, FLODP
 	}
 
 	// @todo anim: if compressed and baked in the future, we don't have to do this 
-	if (UseRawDataForPoseExtraction(AnimSequence, OutAnimationPoseData) && AnimSequence->IsValidAdditive())
+	if (bForceUseRawData && AnimSequence->IsValidAdditive())
 	{
 		switch (AnimSequence->GetAdditiveAnimType())
 		{
@@ -103,21 +117,12 @@ static bool UseRawDataForPoseExtraction(const UAnimSequence* AnimSequence, FLODP
 	}
 	else
 	{
-		GetBonePose(AnimSequence, ExtractionContext, OutAnimationPoseData);
-	}
-
-	// If the sequence has root motion enabled, allow sampling of a root motion delta into the custom attribute container of the outgoing pose
-	if (AnimSequence->HasRootMotion())
-	{
-		if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
-		{
-			//RootMotionProvider->SampleRootMotion(ExtractionContext.DeltaTimeRecord, *AnimSequence, ExtractionContext.bLooping, OutAnimationPoseData.GetAttributes());
-		}
+		GetBonePose(AnimSequence, ExtractionContext, OutAnimationPoseData, bForceUseRawData);
 	}
 
 	// Check that all bone atoms coming from animation are normalized
 #if DO_CHECK && WITH_EDITORONLY_DATA
-	//check(OutAnimationPoseData.LocalTransforms.IsNormalized());
+	check(OutAnimationPoseData.LocalTransformsView.IsValid());
 #endif
 
 }
@@ -130,13 +135,8 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 	const TArrayView<const FBoneIndexType> LODBoneIndexToSkeletonBoneIndexMap = OutAnimationPoseData.GetLODBoneIndexToSkeletonBoneIndexMap();
 
 	check(!bForceUseRawData || CanEvaluateRawAnimationData(AnimSequence));
-	const bool bUseRawDataForPoseExtraction = (CanEvaluateRawAnimationData(AnimSequence) && bForceUseRawData) ||
-#if WITH_EDITOR
-		GetForceRawData() ||
-#endif // WITH_EDITOR
-		UseRawDataForPoseExtraction(AnimSequence, OutAnimationPoseData);
 
-	const bool bIsBakedAdditive = !bUseRawDataForPoseExtraction && AnimSequence->IsValidAdditive();
+	const bool bIsBakedAdditive = !bForceUseRawData && AnimSequence->IsValidAdditive();
 
 	const USkeleton* MySkeleton = AnimSequence->GetSkeleton();
 	if (!MySkeleton)
@@ -181,16 +181,16 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 	}
 
 #if WITH_EDITOR
-	const int32 NumTracks = bUseRawDataForPoseExtraction ? AnimSequence->GetDataModelInterface()->GetNumBoneTracks() : AnimSequence->CompressedData.CompressedTrackToSkeletonMapTable.Num();
+	const int32 NumTracks = bForceUseRawData ? AnimSequence->GetDataModelInterface()->GetNumBoneTracks() : AnimSequence->CompressedData.CompressedTrackToSkeletonMapTable.Num();
 #else
 	const int32 NumTracks = AnimSequence->CompressedData.CompressedTrackToSkeletonMapTable.Num();
 #endif 
-	const bool bTreatAnimAsAdditive = (AnimSequence->IsValidAdditive() && !bUseRawDataForPoseExtraction); // Raw data is never additive
+	const bool bTreatAnimAsAdditive = (AnimSequence->IsValidAdditive() && !bForceUseRawData); // Raw data is never additive
 	const FRootMotionReset RootMotionReset(AnimSequence->bEnableRootMotion, AnimSequence->RootMotionRootLock, AnimSequence->bForceRootLock, AnimSequence->ExtractRootTrackTransform(0.0f, /*&RequiredBones*/nullptr), bTreatAnimAsAdditive);
 
 #if WITH_EDITOR
 	// Evaluate raw (source) curve and bone data
-	if (bUseRawDataForPoseExtraction)
+	if (bForceUseRawData)
 	{
 		// TODO : Curves support
 		//{
@@ -210,6 +210,7 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 	}
 	else
 #endif // WITH_EDITOR
+	{
 		// Only try and evaluate compressed bone data if the animation contains any bone tracks
 		if (NumTracks != 0)
 		{
@@ -227,24 +228,7 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 
 			DecompressPose(OutAnimationPoseData, AnimSequence->CompressedData, ExtractionContext, DecompContext, AnimSequence->GetRetargetTransforms(), RootMotionReset);
 		}
-
-//	// TODO : Curves support
-//	// (Always) evaluate compressed curve data
-//	{
-//		// Scoped so that the RemappedCurve destructs and isn't kept alive longer than needed.
-//		FSkeletonRemappingCurve RemappedCurve(OutAnimationPoseData.GetCurve(), RequiredBones, GetSkeleton());
-//#if WITH_EDITOR
-//		// When evaluating from raw animation data, UE::Anim::BuildPoseFromModel will populate the curve data
-//		if (!bUseRawDataForPoseExtraction)
-//#endif // WITH_EDITOR
-//		{
-//			AnimSequence->EvaluateCurveData(RemappedCurve.GetCurve(), ExtractionContext.CurrentTime, bUseRawDataForPoseExtraction);
-//		}
-//	}
-
-	// TODO : attributes support
-	// Evaluate animation attributes (no compressed format yet)
-	//EvaluateAttributes(OutAnimationPoseData, ExtractionContext, false);
+	}
 }
 
 void FDecompressionTools::GetBonePose_Additive(const UAnimSequence* AnimSequence, const FAnimExtractContext& ExtractionContext, FLODPose& OutAnimationPoseData)
@@ -253,6 +237,58 @@ void FDecompressionTools::GetBonePose_Additive(const UAnimSequence* AnimSequence
 
 void FDecompressionTools::GetBonePose_AdditiveMeshRotationOnly(const UAnimSequence* AnimSequence, const FAnimExtractContext& ExtractionContext, FLODPose& OutAnimationPoseData)
 {
+}
+
+void FDecompressionTools::GetAnimationCurves(const UAnimSequence* AnimSequence, const FAnimExtractContext& ExtractionContext, FBlendedCurve& OutCurves, bool bForceUseRawData)
+{
+	check(!bForceUseRawData || CanEvaluateRawAnimationData(AnimSequence));
+
+	if (bForceUseRawData)
+	{
+		//FAnimationPoseData RemappedPoseData(OutAnimationPoseData.GetPose(), OutCurves, OutAnimationPoseData.GetAttributes());
+		//const UE::Anim::DataModel::FEvaluationContext EvaluationContext(ExtractionContext.CurrentTime, DataModelInterface->GetFrameRate(), GetRetargetTransformsSourceName(), GetRetargetTransforms(), Interpolation);
+		//DataModelInterface->Evaluate(RemappedPoseData, EvaluationContext);
+	}
+	else
+	{
+		AnimSequence->EvaluateCurveData(OutCurves, ExtractionContext.CurrentTime, bForceUseRawData);
+	}
+}
+
+void FDecompressionTools::GetAnimationAttributes(const UAnimSequence* AnimSequence, const FAnimExtractContext& ExtractionContext, const FReferencePose& RefPose, UE::Anim::FStackAttributeContainer& OutAttributes, bool bForceUseRawData)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_EvaluateAttributes);
+
+#if WITH_EDITOR
+	if (bForceUseRawData)
+	{
+		AnimSequence->ValidateModel();
+
+		for (const FAnimatedBoneAttribute& Attribute : AnimSequence->GetDataModel()->GetAttributes())
+		{
+			const int32 LODBoneIndex = RefPose.GetLODBoneIndexFromSkeletonBoneIndex(Attribute.Identifier.GetBoneIndex());
+			// Only add attribute if the bone its tied to exists in the currently evaluated set of bones
+			if (LODBoneIndex != INDEX_NONE)
+			{
+				UE::Anim::Attributes::GetAttributeValue(OutAttributes, FCompactPoseBoneIndex(LODBoneIndex), Attribute, ExtractionContext.CurrentTime);
+			}
+		}
+	}
+	else
+#endif // WITH_EDITOR
+	{
+		for (const TPair<FAnimationAttributeIdentifier, FAttributeCurve>& BakedAttribute : AnimSequence->AttributeCurves)
+		{
+			const int32 LODBoneIndex = RefPose.GetLODBoneIndexFromSkeletonBoneIndex(BakedAttribute.Key.GetBoneIndex());
+			// Only add attribute if the bone its tied to exists in the currently evaluated set of bones
+			if (LODBoneIndex != INDEX_NONE)
+			{
+				UE::Anim::FAttributeId Info(BakedAttribute.Key.GetName(), FCompactPoseBoneIndex(LODBoneIndex));
+				uint8* AttributePtr = OutAttributes.FindOrAdd(BakedAttribute.Key.GetType(), Info);
+				BakedAttribute.Value.EvaluateToPtr(BakedAttribute.Key.GetType(), ExtractionContext.CurrentTime, AttributePtr);
+			}
+		}
+	}
 }
 
 
@@ -286,11 +322,12 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 	const USkeleton* TargetSkeleton = OutAnimationPoseData.GetSkeletonAsset();
 	const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(DecompressionContext.GetSourceSkeleton(), TargetSkeleton);
 
-	BoneTrackArray& RotationScalePairs = FGetBonePoseScratchArea::Get().RotationScalePairs;
-	BoneTrackArray& TranslationPairs = FGetBonePoseScratchArea::Get().TranslationPairs;
-	BoneTrackArray& AnimScaleRetargetingPairs = FGetBonePoseScratchArea::Get().AnimScaleRetargetingPairs;
-	BoneTrackArray& AnimRelativeRetargetingPairs = FGetBonePoseScratchArea::Get().AnimRelativeRetargetingPairs;
-	BoneTrackArray& OrientAndScaleRetargetingPairs = FGetBonePoseScratchArea::Get().OrientAndScaleRetargetingPairs;
+	FGetBonePoseScratchArea& ScratchArea = FGetBonePoseScratchArea::Get();
+	BoneTrackArray& RotationScalePairs = ScratchArea.RotationScalePairs;
+	BoneTrackArray& TranslationPairs = ScratchArea.TranslationPairs;
+	BoneTrackArray& AnimScaleRetargetingPairs = ScratchArea.AnimScaleRetargetingPairs;
+	BoneTrackArray& AnimRelativeRetargetingPairs = ScratchArea.AnimRelativeRetargetingPairs;
+	BoneTrackArray& OrientAndScaleRetargetingPairs = ScratchArea.OrientAndScaleRetargetingPairs;
 
 	// build a list of desired bones
 	RotationScalePairs.Reset();
@@ -298,6 +335,13 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 	AnimScaleRetargetingPairs.Reset();
 	AnimRelativeRetargetingPairs.Reset();
 	OrientAndScaleRetargetingPairs.Reset();
+
+	const bool bIsMeshSpaceAdditive = DecompressionContext.GetAdditiveType() == AAT_RotationOffsetMeshSpace;
+	TBitArray<>& AnimatedCompactRotations = ScratchArea.AnimatedCompactRotations;
+	if (bIsMeshSpaceAdditive)
+	{
+		AnimatedCompactRotations.Init(false, NumLODBoneIndexes);
+	}
 
 	// Optimization: assuming first index is root bone. That should always be the case in Skeletons.
 	checkSlow((LODBoneIndexToSkeletonBoneIndexMap[0] == FMeshPoseBoneIndex(0).GetInt()));
@@ -320,6 +364,11 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 				if (LODBoneIndex != INDEX_NONE && LODBoneIndex < NumLODBoneIndexes) // skip bones not in current LOD
 				{
 					RotationScalePairs.Add(BoneTrackPair(LODBoneIndex, TrackIndex));
+
+					if (bIsMeshSpaceAdditive)
+					{
+						AnimatedCompactRotations[LODBoneIndex] = true;
+					}
 
 					// Skip extracting translation component for EBoneTranslationRetargetingMode::Skeleton.
 					switch (TargetSkeleton->GetBoneTranslationRetargetingMode(TargetSkeletonBoneIndex, OutAnimationPoseData.GetDisableRetargeting()))
@@ -419,11 +468,9 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 	// Retarget the pose onto the target skeleton (correcting for differences in rest poses)
 	if (SkeletonRemapping.RequiresReferencePoseRetarget())
 	{
-		const int32 LODNumBones = OutAnimationPoseData.GetNumBones();
-
 		if (DecompressionContext.IsAdditiveAnimation())
 		{
-			for (int32 LODBoneIndex = (bFirstTrackIsRootBone ? 1 : 0); LODBoneIndex < LODNumBones; ++LODBoneIndex)
+			for (int32 LODBoneIndex = (bFirstTrackIsRootBone ? 1 : 0); LODBoneIndex < NumLODBoneIndexes; ++LODBoneIndex)
 			{
 				const int32 TargetSkeletonBoneIndex = ReferencePose.GetSkeletonBoneIndexFromLODBoneIndex(LODBoneIndex);
 
@@ -441,7 +488,7 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 		}
 		else
 		{
-			for (int32 LODBoneIndex = (bFirstTrackIsRootBone ? 1 : 0); LODBoneIndex < LODNumBones; ++LODBoneIndex)
+			for (int32 LODBoneIndex = (bFirstTrackIsRootBone ? 1 : 0); LODBoneIndex < NumLODBoneIndexes; ++LODBoneIndex)
 			{
 				const int32 TargetSkeletonBoneIndex = LODBoneIndexToSkeletonBoneIndexMap[LODBoneIndex]; // ReferencePose.GetSkeletonBoneIndexFromLODBoneIndex(LODBoneIndex);
 				OutAnimationPoseData.LocalTransformsView[LODBoneIndex].SetRotation(SkeletonRemapping.RetargetBoneRotationToTargetSkeleton(TargetSkeletonBoneIndex, OutAnimationPoseData.LocalTransformsView[LODBoneIndex].GetRotation()));
@@ -544,6 +591,31 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 	//		}
 	//	}
 	//}
+
+	if (bIsMeshSpaceAdditive)
+	{
+		// When an animation is a mesh-space additive, bones that aren't animated will end up with some non-identity
+		// delta relative to the base used to create the additive. This is because the delta is calculated in mesh-space
+		// unlike regular additive animations where bones that aren't animated has an identity delta. For rotations,
+		// this mesh-space delta will be the parent bone rotation.
+		// However, if a bone isn't animated in the sequence but present on the target skeleton, we have no data for it
+		// and the output pose will contain an identity delta which isn't what we want. As such, bones missing from
+		// the sequence have their rotation set to their parent.
+
+		const TArrayView<const FBoneIndexType> LODBoneIndexToParentLODBoneIndexMap = OutAnimationPoseData.GetLODBoneIndexToParentLODBoneIndexMap();
+
+		// We always skip the root since it has no parent (its delta value is fine as the identity)
+		for (int32 LODBoneIndex = 1; LODBoneIndex < NumLODBoneIndexes; ++LODBoneIndex)
+		{
+			if (!AnimatedCompactRotations[LODBoneIndex])
+			{
+				// This bone wasn't animated in the sequence, fix it up
+				const FBoneIndexType ParentLODBoneIndex = LODBoneIndexToParentLODBoneIndexMap[LODBoneIndex];
+				const FQuat ParentRotation = OutAnimationPoseData.LocalTransformsView[ParentLODBoneIndex].GetRotation();
+				OutAnimationPoseData.LocalTransformsView[LODBoneIndex].SetRotation(ParentRotation);
+			}
+		}
+	}
 }
 
 void FDecompressionTools::RetargetBoneTransform(const FReferencePose& ReferencePose

@@ -212,10 +212,12 @@ public:
 		{
 			const FAssetData& AssetData = AllAssets[AssetIdx];
 
-			FString PackageFilename;
-			if ( FPackageName::DoesPackageExist(AssetData.PackageName.ToString(), &PackageFilename) )
+			// Note, the 'internal' version of DoesPackageExist must be used to avoid re-entering the AssetRegistry's lock resulting in deadlock
+			FPackagePath PackagePath;
+			if (FPackageName::InternalDoesPackageExistEx(AssetData.PackageName.ToString(), FPackageName::EPackageLocationFilter::Any, 
+				false /*bMatchCaseOnDisk*/, &PackagePath) != FPackageName::EPackageLocationFilter::None)
 			{
-				if ( FPaths::GetExtension(PackageFilename, true) == FPackageName::GetAssetPackageExtension() && !AssetData.IsUAsset())
+				if (PackagePath.GetHeaderExtension() == EPackageExtension::Asset && !AssetData.IsUAsset())
 				{
 					// This asset was in a package with a uasset extension but did not share the name of the package
 					UE_LOG(LogAssetRegistry, Log, TEXT("%s"), *AssetData.GetObjectPathString());
@@ -260,8 +262,10 @@ public:
 				FString LocalPath;
 				if (FPackageName::TryConvertLongPackageNameToFilename(InPath, LocalPath))
 				{
+					// Note, the 'internal' version of DoesPackageExist must be used to avoid re-entering the AssetRegistry's lock resulting in deadlock
 					FPackagePath PackagePath = FPackagePath::FromLocalPath(LocalPath);
-					if (FPackageName::DoesPackageExist(PackagePath, &PackagePath))
+					if (FPackageName::InternalDoesPackageExistEx(PackagePath, FPackageName::EPackageLocationFilter::Any, 
+						false /* bMatchCaseOnDisk */, &PackagePath) != FPackageName::EPackageLocationFilter::None)
 					{
 						bAsFile = true;
 						bAsDir = false;

@@ -10,9 +10,11 @@
 	// Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer 
 	#define MobileSceneTextures MobileBasePass.SceneTextures
 	#define EyeAdaptationStruct MobileBasePass
+	#define SubstrateStruct MobileBasePass.SubstratePublic
 #else
 	#define SceneTexturesStruct DecalPass.SceneTextures
 	#define EyeAdaptationStruct DecalPass
+	#define SubstrateStruct DecalPass.SubstratePublic
 #endif
 
 #include "Substrate/Substrate.ush"
@@ -61,12 +63,26 @@ struct FMeshDecalVSToPS
 void MainVS(
 	FVertexFactoryInput Input,
 	out VS_OUTPUT_TYPE Output
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	, out nointerpolation uint EyeIndex : VIEW_ID
+	, out uint LayerIndex : SV_RenderTargetArrayIndex
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint ViewId : SV_ViewID
+#endif
 #if USE_GLOBAL_CLIP_PLANE
 	, out float OutGlobalClipPlaneDistance : SV_ClipDistance
 #endif
 	)
 {
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	EyeIndex = GetEyeIndexFromVF(Input);
+	ResolvedView = ResolveView(EyeIndex);
+	LayerIndex = EyeIndex;
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
+#else
 	ResolvedView = ResolveView();
+#endif
 
 	FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
 	float4 WorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates);
@@ -84,7 +100,7 @@ void MainVS(
 		WorldPosition.xyz += GetMaterialWorldPositionOffset(VertexParameters);
 	}
 	
-	Output.Position = mul(WorldPosition, View.TranslatedWorldToClip);
+	Output.Position = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
 	Output.FactoryInterpolants = VertexFactoryGetInterpolantsVSToPS(Input, VFIntermediates, VertexParameters);
 
 #if USE_GLOBAL_CLIP_PLANE
@@ -107,10 +123,11 @@ void FPixelShaderInOut_MainPS(
 	FMeshDecalInterpolants MeshDecalInterpolants,
 #endif
 	inout FPixelShaderIn In,
-	inout FPixelShaderOut Out)
+	inout FPixelShaderOut Out,
+	uint EyeIndex)
 {
-#if INSTANCED_STEREO
-	ResolvedView = ResolveView(FactoryInterpolants.EyeIndex);
+#if INSTANCED_STEREO || MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(EyeIndex);
 #else
 	ResolvedView = ResolveView();
 #endif
@@ -147,12 +164,12 @@ void FPixelShaderInOut_MainPS(
 
 		// Either propagate the BSDF opacity, or use the one for AlphaComposite (premultiplied alpha)
 		float CoverageOverBackground = SubstrateHeader.SubstrateTree.BSDFs[0].Coverage;
-#if SUBSTRATE_USE_PREMULTALPHA_OVERRIDE // AlphaComposite - Premultiplied alpha blending
+	#if SUBSTRATE_USE_PREMULTALPHA_OVERRIDE // AlphaComposite - Premultiplied alpha blending
 		CoverageOverBackground = GetMaterialOpacity(PixelMaterialInputs);
-#endif 
-
+	#endif 
 		// Since the Convert-To-Decal node forces parameter blending for the entire Substrate tree, the BSDF we are interested in will be in 0.
-		Coverage = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], 1.0f /*CoverageWeight*/, CoverageOverBackground);
+		const FSubstrateDBuffer DBuffer = DecalCommonOutput(Out, SubstrateHeader, SubstrateHeader.SubstrateTree.BSDFs[0], 1.0f /*CoverageWeight*/, CoverageOverBackground);
+		Coverage = DBuffer.Coverage;
 	}
 	const float Opacity = Coverage;
 #else // SUBSTRATE_ENABLED
@@ -187,6 +204,21 @@ void FPixelShaderInOut_MainPS(
 		View.FrameNumber,
 		View.VTFeedbackBuffer
 	);
+#endif
+}
+
+void FPixelShaderInOut_MainPS(
+	FVertexFactoryInterpolantsVSToPS FactoryInterpolants,
+#if NEED_MESH_DECAL_INTERPOLATORS
+	FMeshDecalInterpolants MeshDecalInterpolants,
+#endif
+	inout FPixelShaderIn In,
+	inout FPixelShaderOut Out)
+{
+#if NEED_MESH_DECAL_INTERPOLATORS
+	FPixelShaderInOut_MainPS(FactoryInterpolants, MeshDecalInterpolants, In, Out, 0);
+#else 
+	FPixelShaderInOut_MainPS(FactoryInterpolants, In, Out, 0);
 #endif
 }
 

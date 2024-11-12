@@ -101,8 +101,6 @@ public:
 	{
 		return true;
 	}
-
-	~VSH_Simple() { FShaderType::Uninitialize();  }
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -126,8 +124,6 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& params, FShaderCompilerEnvironment& env)
 	{
 	}
-
-	~FSH_Simple() { FShaderType::Uninitialize(); }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -167,8 +163,6 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& params, FShaderCompilerEnvironment& env)
 	{
 	}
-
-	~FSH_SimpleVT() { FShaderType::Uninitialize(); }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -244,7 +238,7 @@ public:
 	virtual std::shared_ptr<FxMaterial>	
 									Clone() = 0;
 	virtual FxMetadataSet			GetMetadata() const = 0;
-	virtual void					Blit(FRHICommandListImmediate& RHI, FRHITexture2D* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) = 0;
+	virtual void					Blit(FRHICommandListImmediate& RHI, FRHITexture* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) = 0;
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Mimicing UMaterialInstanceDynamic
@@ -333,7 +327,7 @@ public:
 		Params.Result = UAV;
 	}
 
-	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture2D* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) override
+	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) override
 	{
 		BindTexturesForBlitting();
 
@@ -371,6 +365,9 @@ public:
 				FMath::DivideAndRoundUp(NumThreadsZ, groupSize.Z)
 			)
 		);
+
+		// UAV target has been rendered, transition to the default SRV state for read
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::UAVMask, ERHIAccess::SRVMask));
 	}
 };
 
@@ -429,7 +426,7 @@ public:
 		};
 	}
 
-	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture2D* Target, const RenderMesh* MeshObj, int32 InTargetId, FGraphicsPipelineStateInitializer* InPSO = nullptr) override
+	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture* Target, const RenderMesh* MeshObj, int32 InTargetId, FGraphicsPipelineStateInitializer* InPSO = nullptr) override
 	{
 		BindTexturesForBlitting();
 
@@ -439,8 +436,13 @@ public:
 
 		//check(target->IsRenderTarget());
 
+		// Target render target needs to transition to RTV for rendering
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::Unknown, ERHIAccess::RTV));
+
 		FRHIRenderPassInfo passInfo(Target, ERenderTargetActions::Clear_Store);
 		RHI.BeginRenderPass(passInfo, TEXT("FxMaterial_Render"));
+
+
 		//RHI.BindDebugLabelName(target, *target->GetName().ToString());
 		auto shaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		TShaderMapRef<VSH_Type> VSH(shaderMap, VSHPermDomain);
@@ -477,7 +479,11 @@ public:
 		{
 			MeshObj->Render_Now(RHI, InTargetId);
 		}
+		
 		RHI.EndRenderPass();
+
+		// Target render target has been rendered, transition to the default SRV state for read
+		RHI.Transition(FRHITransitionInfo(Target, ERHIAccess::RTV, ERHIAccess::SRVMask));
 	}
 };
 

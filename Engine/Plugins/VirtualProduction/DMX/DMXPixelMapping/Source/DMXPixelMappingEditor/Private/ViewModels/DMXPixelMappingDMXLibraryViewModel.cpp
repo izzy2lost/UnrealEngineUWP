@@ -15,6 +15,7 @@
 #include "Editor.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/ScopedSlowTask.h"
 #include "ScopedTransaction.h"
 #include "Templates/DMXPixelMappingComponentTemplate.h"
 #include "Toolkits/DMXPixelMappingToolkit.h"
@@ -174,9 +175,15 @@ void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<
 		return;
 	}
 
+	const float NumSteps = FixturePatches.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("AddFixturePatchesSlowTask", "Updating Pixel Mapping Editor..."));
+	Task.MakeDialogDelayed(.5f);
+
 	TArray<TSharedPtr<FDMXPixelMappingComponentTemplate>> Templates;
 	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 	{
+		Task.EnterProgressFrame();
+
 		if (!FixturePatch)
 		{
 			continue;
@@ -395,6 +402,7 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 	{
 		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component))
 		{
+			NextPosition = NextPosition - FLT_EPSILON * 2.f;
 			OutputComponent->SetPosition(NextPosition);
 
 			if (OutputComponent->IsOverParent())

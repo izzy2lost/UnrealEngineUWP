@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Redis.Converters;
 using EpicGames.Serialization;
+using Google.Protobuf;
 using ProtoBuf;
 using StackExchange.Redis;
 
@@ -161,6 +163,7 @@ namespace EpicGames.Redis
 				CreateNativeConverter(x => (ReadOnlyMemory<byte>)x, x => x),
 				CreateNativeConverter(x => (byte[])x!, x => x),
 				CreateNativeConverter(x => (string)x!, x => x),
+				CreateNativeConverter(x => new DateTime((long)x, DateTimeKind.Utc), x => x.ToUniversalTime().Ticks)
 			};
 			return new Dictionary<Type, object>(converters);
 		}
@@ -171,6 +174,17 @@ namespace EpicGames.Redis
 		}
 
 		static readonly Dictionary<Type, Type> s_typeToConverterType = new Dictionary<Type, Type>();
+
+		class RedisObjectConverter<T> : IRedisConverter<object>
+		{
+			public object FromRedisValue(RedisValue value)
+				=> GetConverter<T>().FromRedisValue(value)!;
+
+			public RedisValue ToRedisValue(object value)
+				=> GetConverter<T>().ToRedisValue((T)value);
+		}
+
+		static readonly ConcurrentDictionary<Type, IRedisConverter<object>> s_typeToObjectConverter = new ConcurrentDictionary<Type, IRedisConverter<object>>();
 
 		/// <summary>
 		/// Register a custom converter for a particular type
@@ -221,11 +235,18 @@ namespace EpicGames.Redis
 				return (IRedisConverter<T>)nativeConverter;
 			}
 
+			// Check if the type is a protobuf message
+			if (type.IsAssignableTo(typeof(IMessage)))
+			{
+				Type converterType = typeof(RedisProtobufConverter<>).MakeGenericType(type);
+				return (IRedisConverter<T>)Activator.CreateInstance(converterType)!;
+			}
+
 			// Check if the type supports protobuf serialization
 			ProtoContractAttribute? protoAttribute = type.GetCustomAttribute<ProtoContractAttribute>();
 			if (protoAttribute != null)
 			{
-				return new RedisProtobufConverter<T>();
+				return new RedisProtobufNetConverter<T>();
 			}
 
 			// Check if there's a regular converter we can use to convert to/from a string
@@ -272,6 +293,32 @@ namespace EpicGames.Redis
 		}
 
 		/// <summary>
+		/// Gets a type converter which casts to/from an object value
+		/// </summary>
+		/// <param name="type">The concrete type for the converter</param>
+		/// <returns></returns>
+		public static IRedisConverter<object> GetObjectConverter(Type type)
+		{
+			IRedisConverter<object>? converter;
+			if (!s_typeToObjectConverter.TryGetValue(type, out converter))
+			{
+				converter = s_typeToObjectConverter.GetOrAdd(type, (IRedisConverter<object>)Activator.CreateInstance(typeof(RedisObjectConverter<>).MakeGenericType(type))!);
+			}
+			return converter;
+		}
+
+		/// <summary>
+		/// Serialize an object to a <see cref="RedisValue"/>
+		/// </summary>
+		/// <param name="value"></param>
+		/// <param name="type">Type of the object</param>
+		/// <returns></returns>
+		public static RedisValue Serialize(object? value, Type type)
+		{
+			return GetObjectConverter(type).ToRedisValue(value!);
+		}
+
+		/// <summary>
 		/// Serialize an object to a <see cref="RedisValue"/>
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -298,6 +345,17 @@ namespace EpicGames.Redis
 			}
 
 			return outputs;
+		}
+
+		/// <summary>
+		/// Deserialize a <see cref="RedisValue"/>
+		/// </summary>
+		/// <param name="value"></param>
+		/// <param name="type">Type of the value to return</param>
+		/// <returns></returns>
+		public static object? Deserialize(RedisValue value, Type type)
+		{
+			return GetObjectConverter(type).FromRedisValue(value);
 		}
 
 		/// <summary>

@@ -5,9 +5,13 @@
 
 #include "Cluster/IPDisplayClusterClusterManager.h"
 
+#include "Render/Viewport/IDisplayClusterViewport.h"
+
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CustomFrustumRuntimeSettings.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_ICVFX.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Postprocess.h"
+#include "Render/Viewport/Misc/DisplayClusterViewportHelpers.h"
 
 #include "Components/DisplayClusterCameraComponent.h"
 #include "DisplayClusterRootActor.h"
@@ -18,6 +22,83 @@
 #include "Misc/Parse.h"
 #include "DisplayClusterEnums.h"
 #include "Version/DisplayClusterICVFXCameraCustomVersion.h"
+
+/** Enumerates the values of CVar "nDisplay.icvfx.camera.AdaptResolution". */
+enum class EICVFXCameraAdaptResolutionMethod : uint8
+{
+	// The size doesn't change at all.
+	Disabled = 0,
+
+	// Respect pixels: Pixels = NewWidth * NewHeight = Width * Height.
+	PreservePixelArea = 1,
+
+	// Constant Pixel Area : Uses the maximum value of the camera frame size as the basis for the longest side of the sensor.
+	PreserveLongestDimension = 2,
+
+	// Max value in this enum.
+	MAX = PreserveLongestDimension
+};
+
+/** Current method used to change the icvfx camera resolution. */
+int32 GDisplayClusterICVFXCameraAdaptResolution = (uint8)EICVFXCameraAdaptResolutionMethod::PreservePixelArea;
+static FAutoConsoleVariableRef CVarGDisplayClusterICVFXCameraAdaptResolution(
+	TEXT("nDisplay.icvfx.camera.AdaptResolution"),
+	GDisplayClusterICVFXCameraAdaptResolution,
+	TEXT("Adapt camera viewport resolution with 'Filmback + CropSettings + SqueezeFactor' CineCamera settings.  (Default = 1)\n")
+	TEXT("0 - Disabled.\n")
+	TEXT("1 - Preserve Pixel Area: Pixels = NewWidth * NewHeight = Width * Height.\n")
+	TEXT("2 - Preserve Longest Dimension : Uses the maximum value of the camera frame size as the basis for the longest side of the sensor.\n"),
+	ECVF_Default
+);
+
+namespace UE::DisplayClusterICVFXCameraComponent
+{
+	static inline FIntPoint AdaptResolutionToAspectRatio(const FIntPoint& InResolution, const float InDesiredAspectRatio)
+	{
+		// Decode the method of resizing.
+		const EICVFXCameraAdaptResolutionMethod ResizeMethod = (EICVFXCameraAdaptResolutionMethod)(FMath::Clamp(
+			GDisplayClusterICVFXCameraAdaptResolution, 0, (uint8)EICVFXCameraAdaptResolutionMethod::MAX));
+
+		// Implements resizing methods.
+		switch (ResizeMethod)
+		{
+		case EICVFXCameraAdaptResolutionMethod::PreservePixelArea:
+		{
+			// AR = (W/H) -> W = (AR*H)
+			// Pixels = W * H ->   Pixels = ((AR*H) * H) -> H^2 = (Pixels/AR)
+			// H = sqrt(Pixels/AR), W = (AR*H)
+			const int32 Pixels = InResolution.X * InResolution.Y;
+			const float Height = FMath::Sqrt(Pixels / InDesiredAspectRatio);
+			const float Width = InDesiredAspectRatio * Height;
+
+			// Get new camera size
+			return FIntPoint(FMath::RoundToInt(Width), FMath::RoundToInt(Height));
+		}
+
+		case EICVFXCameraAdaptResolutionMethod::PreserveLongestDimension:
+		{
+			// Use the max size of the RTT as a basis.
+			const float BasisDimension = InResolution.GetMax();
+
+			const float Width = (InDesiredAspectRatio >= 1.0)
+				? BasisDimension
+				: BasisDimension * InDesiredAspectRatio;
+
+			const float Height = (InDesiredAspectRatio >= 1.0)
+				? BasisDimension / InDesiredAspectRatio
+				: BasisDimension;
+
+			// Get new camera size
+			return FIntPoint(FMath::RoundToInt(Width), FMath::RoundToInt(Height));
+		}
+
+		default:
+			break;
+		}
+
+		return InResolution;
+	}
+};
 
 UDisplayClusterICVFXCameraComponent::UDisplayClusterICVFXCameraComponent(const FObjectInitializer& ObjectInitializer)
 {
@@ -35,7 +116,7 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 {
 	Super::PostLoad();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	const int32 CustomVersion = GetLinkerCustomVersion(FDisplayClusterICVFXCameraCustomVersion::GUID);
 	if (CustomVersion < FDisplayClusterICVFXCameraCustomVersion::UpdateChromakeyConfig)
 	{
@@ -56,7 +137,16 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 			CameraSettings.Chromakey.ChromakeySettingsSource = EDisplayClusterConfigurationICVFX_ChromakeySettingsSource::ICVFXCamera;
 		}
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+
+	// Propagate Media settings from the Archetype. Works around instanced property limitations.
+	if (!IsTemplate())
+	{
+		if (const UDisplayClusterICVFXCameraComponent* Archetype = Cast<UDisplayClusterICVFXCameraComponent>(GetArchetype()))
+		{
+			CameraSettings.RenderSettings.Media = Archetype->CameraSettings.RenderSettings.Media;
+		}
+	}
 }
 
 void UDisplayClusterICVFXCameraComponent::PostApplyToComponent()
@@ -74,12 +164,10 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 		return;
 	}
 
-	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
-
-	if (CameraSettings.ExternalCameraActor.IsValid())
+	if (UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent())
 	{
 		// Get ViewInfo from external CineCamera
-		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetCameraView(DeltaTime, InOutViewInfo);
+		ExternalCineCameraComponent->GetCameraView(DeltaTime, InOutViewInfo);
 	}
 	else
 	{
@@ -87,17 +175,14 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 		UCineCameraComponent::GetCameraView(DeltaTime, InOutViewInfo);
 	}
 
-	CameraSettings.SetupViewInfo(StageSettings, InOutViewInfo);
+	CameraSettings.SetupViewInfo(RootActor->GetStageSettings(), InOutViewInfo);
 }
 
 UCineCameraComponent* UDisplayClusterICVFXCameraComponent::GetActualCineCameraComponent()
 {
-	if (UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.ExternalCameraActor.IsValid() ? CameraSettings.ExternalCameraActor->GetCineCameraComponent() : nullptr)
-	{
-		return ExternalCineCameraComponent;
-	}
+	UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent();
 
-	return this;
+	return ExternalCineCameraComponent ? ExternalCineCameraComponent : this;
 }
 
 FString UDisplayClusterICVFXCameraComponent::GetCameraUniqueId() const
@@ -108,15 +193,17 @@ FString UDisplayClusterICVFXCameraComponent::GetCameraUniqueId() const
 #if WITH_EDITOR
 bool UDisplayClusterICVFXCameraComponent::GetEditorPreviewInfo(float DeltaTime, FMinimalViewInfo& ViewOut)
 {
-	return CameraSettings.ExternalCameraActor.IsValid() ?
-		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetEditorPreviewInfo(DeltaTime, ViewOut) :
+	UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent();
+	return ExternalCineCameraComponent ?
+		ExternalCineCameraComponent->GetEditorPreviewInfo(DeltaTime, ViewOut) :
 		UCameraComponent::GetEditorPreviewInfo(DeltaTime, ViewOut);
 }
 
 TSharedPtr<SWidget> UDisplayClusterICVFXCameraComponent::GetCustomEditorPreviewWidget()
 {
-	return CameraSettings.ExternalCameraActor.IsValid() ?
-		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetCustomEditorPreviewWidget() :
+	UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.GetExternalCineCameraComponent();
+	return ExternalCineCameraComponent ?
+		ExternalCineCameraComponent->GetCustomEditorPreviewWidget() :
 		UCameraComponent::GetCustomEditorPreviewWidget();
 }
 #endif
@@ -135,10 +222,10 @@ void UDisplayClusterICVFXCameraComponent::TickComponent(float DeltaTime, ELevelT
 		{
 			FVector CameraLocation = FVector::ZeroVector;
 			FVector CameraDirection = FVector::XAxisVector;
-			if (CameraSettings.ExternalCameraActor.IsValid())
+			if (ACineCameraActor* ExternalCineCameraActor = CameraSettings.GetExternalCineCameraActor())
 			{
-				CameraLocation = CameraSettings.ExternalCameraActor->GetActorLocation();
-				CameraDirection = CameraSettings.ExternalCameraActor->GetActorRotation().RotateVector(FVector::XAxisVector);
+				CameraLocation = ExternalCineCameraActor->GetActorLocation();
+				CameraDirection = ExternalCineCameraActor->GetActorRotation().RotateVector(FVector::XAxisVector);
 			}
 			else
 			{
@@ -158,6 +245,147 @@ void UDisplayClusterICVFXCameraComponent::TickComponent(float DeltaTime, ELevelT
 	}
 }
 
+const FDisplayClusterConfigurationICVFX_CameraSettings& UDisplayClusterICVFXCameraComponent::GetCameraSettingsICVFX() const
+{
+	return CameraSettings;
+}
+
+void UDisplayClusterICVFXCameraComponent::ApplyICVFXCameraPostProcessesToViewport(IDisplayClusterViewport* InViewport, const EDisplayClusterViewportCameraPostProcessFlags InPostProcessingFlags)
+{
+	if (InViewport)
+	{
+		using namespace UE::DisplayClusterViewportHelpers;
+		// Get the same component from DCRA that is used as the configuration source. Then this component can also be used as a configuration data source.
+		const UDisplayClusterICVFXCameraComponent& CfgICVFXCameraComponent = GetMatchingComponentFromRootActor(InViewport->GetConfiguration(), EDisplayClusterRootActorType::Configuration, *this);
+		
+		FDisplayClusterViewportConfigurationHelpers_Postprocess::ImplApplyICVFXCameraPostProcessesToViewport(InViewport->ToSharedRef().Get(), *this, CfgICVFXCameraComponent.GetCameraSettingsICVFX(), InPostProcessingFlags);
+	}
+}
+
+FDisplayClusterShaderParameters_ICVFX::FCameraSettings UDisplayClusterICVFXCameraComponent::GetICVFXCameraShaderParameters(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)
+{
+	FDisplayClusterShaderParameters_ICVFX::FCameraSettings OutCameraSettings;
+
+	const float CameraMult =
+		CameraSettings.GetCameraBufferRatio(InStageSettings)
+		* CameraSettings.CustomFrustum.GetCameraAdaptResolutionRatio(InStageSettings);
+
+	const FIntPoint CameraFrameSize = GetICVFXCameraFrameSize(InStageSettings, InCameraSettings);
+	const FIntPoint RealInnerFrustumResolution(CameraFrameSize.X * CameraMult, CameraFrameSize.Y * CameraMult);
+
+	// Creates unique name "DCRA.Component"
+	const FString UniqueComponentName = FString::Printf(TEXT("%s.%s"), *GetOwner()->GetName(), *GetName());
+
+	FIntRect RealViewportRect(FIntPoint(0, 0), RealInnerFrustumResolution);
+	FDisplayClusterViewport_CustomFrustumSettings RealFrustumSettings;
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings RealFrustumRuntimeSettings;
+
+	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, RealFrustumSettings);
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+		UniqueComponentName, RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect, TEXT("ShaderParameters CustomFrustum"));
+
+	const FDisplayClusterViewport_CustomFrustumRuntimeSettings::FCustomFrustumPercent& Angles = RealFrustumRuntimeSettings.CustomFrustumPercent;
+
+	// Camera Border
+	{
+		if (InCameraSettings.Border.Enable)
+		{
+			const float RealThicknessScaleValue = 0.1f;
+
+			OutCameraSettings.InnerCameraBorderColor = InCameraSettings.Border.Color;
+			OutCameraSettings.InnerCameraBorderThickness = InCameraSettings.Border.Thickness;
+		}
+		else
+		{
+			// No border:
+			OutCameraSettings.InnerCameraBorderColor = FLinearColor::Black;
+			OutCameraSettings.InnerCameraBorderThickness = 0.0f;
+		}
+	}
+
+	// Camera Soft Edges
+	{
+		FVector4 SoftEdge(
+			// remap values from 0-1 GUI range into acceptable 0.0 - 0.25 shader range
+			FMath::GetMappedRangeValueClamped(FVector2D(0.0, 1.0f), FVector2D(0.0, 0.25), InCameraSettings.SoftEdge.Horizontal), // Left
+			FMath::GetMappedRangeValueClamped(FVector2D(0.0, 1.0f), FVector2D(0.0, 0.25), InCameraSettings.SoftEdge.Vertical), // Top
+
+			// ZW now used in other way
+			// Z for new parameter Feather
+			InCameraSettings.SoftEdge.Feather
+		);
+
+
+		SoftEdge.X /= (1 + Angles.Left + Angles.Right);
+		SoftEdge.Y /= (1 + Angles.Top + Angles.Bottom);
+
+		OutCameraSettings.SoftEdge = SoftEdge;
+	}
+
+	return OutCameraSettings;
+}
+
+FIntPoint UDisplayClusterICVFXCameraComponent::GetICVFXCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)
+{
+	using namespace UE::DisplayClusterICVFXCameraComponent;
+
+	const FIntPoint CameraFrameSize = InCameraSettings.RenderSettings.CustomFrameSize.bUseCustomSize
+		? FIntPoint(InCameraSettings.RenderSettings.CustomFrameSize.CustomWidth, InCameraSettings.RenderSettings.CustomFrameSize.CustomHeight)
+		: FIntPoint(InStageSettings.DefaultFrameSize.Width, InStageSettings.DefaultFrameSize.Height);
+
+	UCineCameraComponent* ActualCineCameraComponent = GetActualCineCameraComponent();
+	if (!ActualCineCameraComponent)
+	{
+		// Adaptation math requires an actual CineCamera component
+		return CameraFrameSize;
+	}
+
+	// User can disable this feature.
+	const bool bAdaptFrameSize = InCameraSettings.RenderSettings.CustomFrameSize.bUseCustomSize
+		? InCameraSettings.RenderSettings.CustomFrameSize.bAdaptSize
+		: InStageSettings.DefaultFrameSize.bAdaptSize;
+
+	// Get the size of the cinematic camera's cropped sensor:
+	const double CroppedSensorWidth  = FMath::Tan(FMath::DegreesToRadians(ActualCineCameraComponent->GetHorizontalFieldOfView()) / 2.f) * 2.f * ActualCineCameraComponent->CurrentFocalLength;
+	const double CroppedSensorHeight = FMath::Tan(FMath::DegreesToRadians(ActualCineCameraComponent->GetVerticalFieldOfView()) / 2.f) * 2.f * ActualCineCameraComponent->CurrentFocalLength;
+
+	if (!(CroppedSensorWidth > 0.f && CroppedSensorHeight > 0.f) || !bAdaptFrameSize)
+	{
+		// The CineCamera cropped sensor size has invalid values.
+		// or this feature is disabled.
+		return CameraFrameSize;
+	}
+
+	// Desired aspect ratio
+	double CroppedSensorAR = CroppedSensorWidth / CroppedSensorHeight;
+
+	// When no adopt resolution is used we must compensate for the change in aspect ratio caused by overscan.
+	if (InCameraSettings.CustomFrustum.bEnable && !InCameraSettings.CustomFrustum.bAdaptResolution)
+	{
+		// Creates unique name "DCRA.Component"
+		const FString UniqueComponentName = FString::Printf(TEXT("%s.%s"), *GetOwner()->GetName(), *GetName());
+
+		// Overscan should only be used through this api:
+		FDisplayClusterViewport_CustomFrustumSettings CustomFrustumSettings;
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings CustomFrustumRuntimeSettings;
+
+		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(InCameraSettings.CustomFrustum, CustomFrustumSettings);
+
+		FIntPoint DesiredSize = AdaptResolutionToAspectRatio(CameraFrameSize, CroppedSensorAR);
+		FIntRect ViewportRect(FIntPoint(0, 0), DesiredSize);
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+			UniqueComponentName, CustomFrustumSettings, CustomFrustumRuntimeSettings, ViewportRect, TEXT("CameraFrame Size CustomFrustum"));
+
+		// Overscan without the bAdaptResolution option does not change the RTT aspect ratio.
+		// In this case, the sensor AR must be modified to include CustomFrustumPercent values.
+		CroppedSensorAR *= CustomFrustumRuntimeSettings.CustomFrustumPercent.GetAspectRatioMult();
+	}
+
+	const FIntPoint AdaptedCameraFrameSize = AdaptResolutionToAspectRatio(CameraFrameSize, CroppedSensorAR);
+
+	return AdaptedCameraFrameSize;
+}
+
 void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 {
 	const ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner());
@@ -166,53 +394,50 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 		return;
 	}
 
+	// Creates unique name "DCRA.Component"
+	const FString UniqueComponentName = FString::Printf(TEXT("%s.%s"), *GetOwner()->GetName(), *GetName());
+
 	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
-
-	UCineCameraComponent* ActualCineCameraComponent = GetActualCineCameraComponent();
-	check(ActualCineCameraComponent);
-
-	// additional multipliers from FDisplayClusterConfigurationRenderFrame are not used in following calculations
-	const float CameraBufferRatio = CameraSettings.GetCameraBufferRatio(StageSettings);
-	const FIntPoint CameraFrameSize = CameraSettings.GetCameraFrameSize(StageSettings, *ActualCineCameraComponent);
-	const FIntPoint InnerFrustumResolution( CameraFrameSize.X * CameraBufferRatio, CameraFrameSize.Y * CameraBufferRatio);
-	
 	{
 		// calculate estimations
-		FDisplayClusterConfigurationICVFX_CameraCustomFrustum EstimatedCustomFrustum = CameraSettings.CustomFrustum;
-		EstimatedCustomFrustum.bEnable = true;
-		EstimatedCustomFrustum.bAdaptResolution = true;
+		FDisplayClusterConfigurationICVFX_CameraSettings EstimatedCameraSettings = CameraSettings;
+		EstimatedCameraSettings.CustomFrustum.bEnable = true;
+		EstimatedCameraSettings.CustomFrustum.bAdaptResolution = true;
 
-		const float EstimatedCameraAdaptResolutionRatio = EstimatedCustomFrustum.GetCameraAdaptResolutionRatio(StageSettings);
-		const FIntPoint EstimatedInnerFrustumResolution(
-			InnerFrustumResolution.X * EstimatedCameraAdaptResolutionRatio,
-			InnerFrustumResolution.Y * EstimatedCameraAdaptResolutionRatio
-	);
+		const float CameraMult =
+			EstimatedCameraSettings.GetCameraBufferRatio(StageSettings)
+			* EstimatedCameraSettings.CustomFrustum.GetCameraAdaptResolutionRatio(StageSettings);
+
+		const FIntPoint CameraFrameSize = GetICVFXCameraFrameSize(StageSettings, EstimatedCameraSettings);
+		const FIntPoint EstimatedInnerFrustumResolution(CameraFrameSize.X * CameraMult, CameraFrameSize.Y * CameraMult);
 
 		FIntRect EstimatedViewportRect(FIntPoint(0, 0), EstimatedInnerFrustumResolution);
 		FDisplayClusterViewport_CustomFrustumSettings EstimatedFrustumSettings;
 		FDisplayClusterViewport_CustomFrustumRuntimeSettings EstimatedFrustumRuntimeSettings;
 
-		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(EstimatedCustomFrustum, EstimatedFrustumSettings);
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), EstimatedFrustumSettings, EstimatedFrustumRuntimeSettings, EstimatedViewportRect);
+		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(EstimatedCameraSettings.CustomFrustum, EstimatedFrustumSettings);
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+			UniqueComponentName, EstimatedFrustumSettings, EstimatedFrustumRuntimeSettings, EstimatedViewportRect, TEXT("Estimated CustomFrustum"));
 
 		// Assign estimated calculated values
 		CameraSettings.CustomFrustum.EstimatedOverscanResolution = EstimatedViewportRect.Size();
 	}
 
 	{
-		// calculate real
-		const float RealCameraAdaptResolutionRatio = CameraSettings.CustomFrustum.GetCameraAdaptResolutionRatio(StageSettings);
-		const FIntPoint RealInnerFrustumResolution(
-			InnerFrustumResolution.X * RealCameraAdaptResolutionRatio,
-			InnerFrustumResolution.Y * RealCameraAdaptResolutionRatio
-		);
+		const float CameraMult =
+			CameraSettings.GetCameraBufferRatio(StageSettings)
+			* CameraSettings.CustomFrustum.GetCameraAdaptResolutionRatio(StageSettings);
+
+		const FIntPoint CameraFrameSize = GetICVFXCameraFrameSize(StageSettings, CameraSettings);
+		const FIntPoint RealInnerFrustumResolution(CameraFrameSize.X * CameraMult, CameraFrameSize.Y * CameraMult);
 
 		FIntRect RealViewportRect(FIntPoint(0, 0), RealInnerFrustumResolution);
 		FDisplayClusterViewport_CustomFrustumSettings RealFrustumSettings;
 		FDisplayClusterViewport_CustomFrustumRuntimeSettings RealFrustumRuntimeSettings;
 
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, RealFrustumSettings);
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect);
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+			UniqueComponentName, RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect, TEXT("Real CustomFrustum"));
 
 		// Assign real calculated values
 		CameraSettings.CustomFrustum.InnerFrustumResolution = RealViewportRect.Size();
@@ -222,52 +447,6 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 	const int32 BasePixels = CameraSettings.CustomFrustum.InnerFrustumResolution.X * CameraSettings.CustomFrustum.InnerFrustumResolution.Y;
 
 	CameraSettings.CustomFrustum.OverscanPixelsIncrease = ((float)(EstimatedPixel) / (float)(BasePixels));
-}
-
-FDisplayClusterViewport_CameraMotionBlur UDisplayClusterICVFXCameraComponent::GetMotionBlurParameters()
-{
-	FDisplayClusterViewport_CameraMotionBlur OutParameters;
-	OutParameters.Mode = EDisplayClusterViewport_CameraMotionBlur::Undefined;
-
-	switch (CameraSettings.CameraMotionBlur.MotionBlurMode)
-	{
-	case EDisplayClusterConfigurationCameraMotionBlurMode::Off:
-		OutParameters.Mode = EDisplayClusterViewport_CameraMotionBlur::Off;
-		break;
-
-	case EDisplayClusterConfigurationCameraMotionBlurMode::On:
-		OutParameters.Mode = EDisplayClusterViewport_CameraMotionBlur::On;
-		break;
-
-	case EDisplayClusterConfigurationCameraMotionBlurMode::Override:
-		ADisplayClusterRootActor* RootActor = static_cast<ADisplayClusterRootActor*>(GetOwner());
-		if (RootActor)
-		{
-			UDisplayClusterCameraComponent* OuterCamera = RootActor->GetDefaultCamera();
-			if (OuterCamera)
-			{
-				OutParameters.CameraLocation   = OuterCamera->GetComponentLocation();
-				OutParameters.CameraRotation   = OuterCamera->GetComponentRotation();
-				OutParameters.TranslationScale = CameraSettings.CameraMotionBlur.TranslationScale;
-				OutParameters.Mode             = EDisplayClusterViewport_CameraMotionBlur::Override;
-			}
-		}
-		break;
-	}
-
-	return OutParameters;
-}
-
-FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::GetDepthOfFieldParameters()
-{
-	FDisplayClusterViewport_CameraDepthOfField OutParameters;
-
-	OutParameters.bEnableDepthOfFieldCompensation = CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation;
-	OutParameters.DistanceToWall = CameraSettings.CameraDepthOfField.DistanceToWall;
-	OutParameters.DistanceToWallOffset = CameraSettings.CameraDepthOfField.DistanceToWallOffset;
-	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? CameraSettings.CameraDepthOfField.DynamicCompensationLUT : CameraSettings.CameraDepthOfField.CompensationLUT.Get();
-
-	return OutParameters;
 }
 
 void UDisplayClusterICVFXCameraComponent::OnRegister()
@@ -351,33 +530,40 @@ void UDisplayClusterICVFXCameraComponent::PostEditChangeProperty(FPropertyChange
 void UDisplayClusterICVFXCameraComponent::UpdateICVFXPreviewState()
 {
 	// handle frustum visibility
-	if (CameraSettings.ExternalCameraActor.IsValid())
+	if (ACineCameraActor* ExternalCineCameraActor = CameraSettings.GetExternalCineCameraActor())
 	{
-		ACineCameraActor* CineCamera = CameraSettings.ExternalCameraActor.Get();
-		CineCamera->GetCineCameraComponent()->bDrawFrustumAllowed = false;
+		UCineCameraComponent* ExternalCineCameraComponent = ExternalCineCameraActor->GetCineCameraComponent();
+		if (IsValid(ExternalCineCameraComponent))
+		{
+			ExternalCineCameraComponent->bDrawFrustumAllowed = false;
+		}
 
-		UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(CineCamera->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
-		if (DrawFustumComponent != nullptr)
+		UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(ExternalCineCameraActor->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
+		if (IsValid(DrawFustumComponent))
 		{
 			DrawFustumComponent->bFrustumEnabled = false;
 			DrawFustumComponent->MarkRenderStateDirty();
 		}
 
-		if (ProxyMeshComponent)
+		if (IsValid(ProxyMeshComponent))
 		{
 			ProxyMeshComponent->DestroyComponent();
 			ProxyMeshComponent = nullptr;
 		}
 	}
 
-
 	// restore frustum visibility if reference was changed
-	if (ExternalCameraCachedValue.IsValid())
+	if (ACineCameraActor* ExternalCineCameraCachedActor = ExternalCameraCachedValue.Get())
 	{
-		ACineCameraActor* CineCamera = ExternalCameraCachedValue.Get();
-		UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(CineCamera->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
-		DrawFustumComponent->bFrustumEnabled = true;
-		DrawFustumComponent->MarkRenderStateDirty();
+		if (IsValid(ExternalCineCameraCachedActor))
+		{
+			UDrawFrustumComponent* DrawFustumComponent = Cast<UDrawFrustumComponent>(ExternalCineCameraCachedActor->GetComponentByClass(UDrawFrustumComponent::StaticClass()));
+			if (IsValid(DrawFustumComponent))
+			{
+				DrawFustumComponent->bFrustumEnabled = true;
+				DrawFustumComponent->MarkRenderStateDirty();
+			}
+		}
 
 		ExternalCameraCachedValue.Reset();
 	}

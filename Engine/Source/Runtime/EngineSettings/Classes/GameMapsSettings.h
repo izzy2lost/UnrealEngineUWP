@@ -90,6 +90,12 @@ struct FTemplateMapInfoOverride
 	}
 };
 
+enum class EDefaultMapRequestType : uint8
+{
+	Default,
+	Client,
+	Server
+};
 
 UCLASS(config=Engine, defaultconfig, MinimalAPI)
 class UGameMapsSettings
@@ -99,11 +105,12 @@ class UGameMapsSettings
 
 	/**
 	 * Get the default map specified in the settings.
-	 * Makes a choice based on running as listen server/client vs dedicated server
+	 * Makes a choice based on running as listen server/client vs dedicated server if RequestType is Default
 	 *
+	 * @param RequestType If default, it will return the map for your currently running configuration, otherwise you can request the client or server map specifically
 	 * @return the default map specified in the settings
 	 */
-	static ENGINESETTINGS_API FString GetGameDefaultMap( );
+	static ENGINESETTINGS_API FString GetGameDefaultMap(EDefaultMapRequestType RequestType = EDefaultMapRequestType::Default);
 
 	/**
 	 * Get the global default game type specified in the configuration

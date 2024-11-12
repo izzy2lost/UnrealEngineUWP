@@ -11,19 +11,27 @@
 FDynamicMesh3 UE::Geometry::GetDynamicMeshViaMeshDescription(
 	IMeshDescriptionProvider& MeshDescriptionProvider, bool bRequestTangents)
 {
+	FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = bRequestTangents;
+	return GetDynamicMeshViaMeshDescription(MeshDescriptionProvider, GetMeshParams);
+}
+
+FDynamicMesh3 UE::Geometry::GetDynamicMeshViaMeshDescription(
+	IMeshDescriptionProvider& MeshDescriptionProvider,
+	const FGetMeshParameters& InGetMeshParams)
+{
 	FDynamicMesh3 DynamicMesh;
 	FMeshDescriptionToDynamicMesh Converter;
 	Converter.bVIDsFromNonManifoldMeshDescriptionAttr = true;
-	if (bRequestTangents)
+	Converter.SetPolygonGroupToMaterialIndexMap(MeshDescriptionProvider.GetPolygonGroupToMaterialIndexMap());
+	if (InGetMeshParams.bWantMeshTangents)
 	{
-		FGetMeshParameters GetMeshParams;
-		GetMeshParams.bWantMeshTangents = true;
-		FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider.GetMeshDescriptionCopy(GetMeshParams);
-		Converter.Convert(&MeshDescriptionCopy, DynamicMesh, bRequestTangents);
+		FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider.GetMeshDescriptionCopy(InGetMeshParams);
+		Converter.Convert(&MeshDescriptionCopy, DynamicMesh, InGetMeshParams.bWantMeshTangents);
 	}
 	else
 	{
-		Converter.Convert(MeshDescriptionProvider.GetMeshDescription(), DynamicMesh, bRequestTangents);
+		Converter.Convert(MeshDescriptionProvider.GetMeshDescription(InGetMeshParams), DynamicMesh);
 	}
 	return DynamicMesh;
 }
@@ -43,6 +51,7 @@ void UE::Geometry::CommitDynamicMeshViaMeshDescription(
 	ConversionOptions.bTransformVtxColorsSRGBToLinear = CommitInfo.bTransformVertexColorsSRGBToLinear;
 
 	FDynamicMeshToMeshDescription Converter(ConversionOptions);
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter.GetPolygonGroupToMaterialIndexMap());
 	if (!CommitInfo.bTopologyChanged)
 	{
 		Converter.UpdateUsingConversionOptions(&Mesh, CurrentMeshDescription);

@@ -5,6 +5,8 @@
 #include "Misc/Parse.h"
 #include "Modules/ModuleManager.h"
 #include "Modules/ModuleInterface.h"
+#include "IDesktopPlatform.h"
+#include "DesktopPlatformModule.h"
 
 struct FHordeModule : IModuleInterface
 {
@@ -16,6 +18,16 @@ struct FHordeModule : IModuleInterface
 IMPLEMENT_MODULE(FHordeModule, Horde)
 
 // --------------------------------------------------------------------------------
+
+bool FHorde::GetServerUrl(FString& OutUrl, FString* OutUrlConfigSource)
+{
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::TryGet();
+	if (DesktopPlatform == nullptr)
+	{
+		return false;
+	}
+	return DesktopPlatform->GetHordeUrl(OutUrl, OutUrlConfigSource);
+}
 
 FString FHorde::GetTemplateName()
 {

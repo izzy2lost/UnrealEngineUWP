@@ -513,9 +513,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new instance of the class
 		/// </summary>
+		/// <param name="headerFile">Header being parsed</param>
 		/// <param name="outer">The outer type</param>
 		/// <param name="lineNumber">Line number where class begins</param>
-		public UhtClass(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		public UhtClass(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 			ClassWithin = this;
 		}
@@ -532,6 +533,10 @@ namespace EpicGames.UHT.Types
 		{
 			get
 			{
+				if (IsVerseField)
+				{
+					return "";
+				}
 				switch (ClassType)
 				{
 					case UhtClassType.Class:
@@ -564,10 +569,7 @@ namespace EpicGames.UHT.Types
 		/// <param name="function">If parsed as part of a UFUNCTION, this will reference it</param>
 		public void AddDeclaration(UhtCompilerDirective compilerDirectives, List<UhtToken> tokens, UhtFunction? function)
 		{
-			if (_declarations == null)
-			{
-				_declarations = new List<UhtDeclaration>();
-			}
+			_declarations ??= new List<UhtDeclaration>();
 			_declarations.Add(new UhtDeclaration { CompilerDirectives = compilerDirectives, Tokens = tokens.ToArray(), Function = function });
 		}
 
@@ -774,8 +776,8 @@ namespace EpicGames.UHT.Types
 								}
 								else
 								{
-									// Copy the children
-									AddChildren(nativeInterface.DetachChildren());
+									// Move native interface children into the interface
+									MoveChildren(nativeInterface);
 								}
 							}
 							break;
@@ -1445,10 +1447,7 @@ namespace EpicGames.UHT.Types
 		/// <returns>Resulting dictionary</returns>
 		private static Dictionary<string, List<GetterSetterToResolve>> AddGetterSetter(Dictionary<string, List<GetterSetterToResolve>>? gsToResolve, string name, UhtProperty property, bool setter)
 		{
-			if (gsToResolve == null)
-			{
-				gsToResolve = new Dictionary<string, List<GetterSetterToResolve>>();
-			}
+			gsToResolve ??= new Dictionary<string, List<GetterSetterToResolve>>();
 			if (!gsToResolve.TryGetValue(name, out List<GetterSetterToResolve>? gsList))
 			{
 				gsList = new List<GetterSetterToResolve>();
@@ -1466,10 +1465,13 @@ namespace EpicGames.UHT.Types
 			options = base.Validate(options);
 
 			// Classes must start with a valid prefix
-			string expectedClassName = EngineNamePrefix + EngineName;
-			if (expectedClassName != SourceName)
+			if (!IsVerseField)
 			{
-				this.LogError($"Class '{SourceName}' has an invalid Unreal prefix, expecting '{expectedClassName}'");
+				string expectedClassName = EngineNamePrefix + EngineName;
+				if (expectedClassName != SourceName)
+				{
+					this.LogError($"Class '{SourceName}' has an invalid Unreal prefix, expecting '{expectedClassName}'");
+				}
 			}
 
 			// If we have a super class

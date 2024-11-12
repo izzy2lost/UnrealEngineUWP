@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "MovieGraphPin.h"
-#include "InstancedStruct.h"
-#include "PropertyBag.h"
+#include "StructUtils/InstancedStruct.h"
+#include "StructUtils/PropertyBag.h"
 #include "Graph/MovieGraphValueContainer.h"
 #include "Graph/MovieGraphFilenameResolveParams.h"
 #include "UObject/Interface.h"
@@ -26,6 +26,7 @@ class UMovieGraphPipeline;
 class UMovieGraphVariable;
 struct FMovieGraphEvaluationContext;
 struct FMovieGraphTraversalContext;
+struct FMoviePipelineShotRenderTelemetry;
 
 #if WITH_EDITOR
 class UEdGraphNode;
@@ -45,6 +46,14 @@ struct FMovieGraphPropertyInfo
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FName Name;
 
+	/** The display name of the property which will be shown in the context menu. If empty, the value from 'Name' will be used. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	FText ContextMenuName;
+
+	/** If this property is promoted, this is the name of the variable that is created. If empty, the value from 'Name' will be used. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	FName PromotionName;
+
 	/** Whether this property is dynamic (ie, it does not correspond to a native UPROPERTY on the node). */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	bool bIsDynamicProperty = false;
@@ -56,6 +65,12 @@ struct FMovieGraphPropertyInfo
 	/** The associated value type object if the ValueType is an enum, struct, class, or object. */
 	UPROPERTY()
 	TObjectPtr<const UObject> ValueTypeObject;
+
+	/**
+	 * Whether this property is permanently exposed on the node. If true, it cannot be toggled on/off (via Expose Property as Pin).
+	 */
+	UPROPERTY()
+	bool bIsPermanentlyExposed = false;
 
 	/**
 	 * Determines if this struct represents the same property as another instance of this struct.
@@ -73,13 +88,17 @@ struct FMovieGraphPropertyInfo
 	bool operator==(const FMovieGraphPropertyInfo& Other) const
 	{
 		return (Name == Other.Name)
+			&& (ContextMenuName.EqualTo(Other.ContextMenuName))
+			&& (PromotionName == Other.PromotionName)
 			&& (bIsDynamicProperty == Other.bIsDynamicProperty)
 			&& (ValueType == Other.ValueType)
-			&& (ValueTypeObject == Other.ValueTypeObject);
+			&& (ValueTypeObject == Other.ValueTypeObject)
+			&& (bIsPermanentlyExposed == Other.bIsPermanentlyExposed);
 	}
 };
 
 /** Describes a restriction on what kind of branch a node can be created in within the graph. */
+UENUM(BlueprintType)
 enum class EMovieGraphBranchRestriction : uint8
 {
 	Any,			///< The node can be created in any type of branch
@@ -107,14 +126,23 @@ public:
 	
 	UMovieGraphNode();
 
-	const TArray<TObjectPtr<UMovieGraphPin>>& GetInputPins() const { return InputPins; }
-	const TArray<TObjectPtr<UMovieGraphPin>>& GetOutputPins() const { return OutputPins; }
+	/** Gets all input pins on the node. Note that the returned array is const, so input pins cannot be added/removed from the node via this array. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	const TArray<UMovieGraphPin*>& GetInputPins() const { return InputPins; }
 	
+	/** Gets all output pins on the node. Note that the returned array is const, so output pins cannot be added/removed from the node via this array. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	const TArray<UMovieGraphPin*>& GetOutputPins() const { return OutputPins; }
+	
+	/** Gets the properties for all input pins. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPinProperties> GetInputPinProperties() const
 	{
 		return TArray<FMovieGraphPinProperties>();
 	}
 	
+	/** Gets the properties for all output pins. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPinProperties> GetOutputPinProperties() const
 	{
 		return TArray<FMovieGraphPinProperties>();
@@ -157,7 +185,7 @@ public:
 	 * Gets the value of the dynamic property with the specified name. Provides the serialized value of the property in
 	 * "OutValue". Returns true if "OutValue" was set and there were no errors, else returns false.
 	 */
-	bool GetDynamicPropertyValue(const FName PropertyName, FString& OutValue);
+	virtual bool GetDynamicPropertyValue(const FName PropertyName, FString& OutValue);
 
 	/** Gets the override property for the specified dynamic property. If one does not exist, returns nullptr. */
 	const FBoolProperty* FindOverridePropertyForDynamicProperty(const FName& InPropertyName) const;
@@ -175,6 +203,7 @@ public:
 	void SetDynamicPropertyOverridden(const FName& InPropertyName, const bool bIsOverridden);
 
 	/** Gets the information about properties which can be exposed as a pin on the node. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPropertyInfo> GetOverrideablePropertyInfo() const;
 
 	/** Gets the information about properties which are currently exposed as pins on the node. */
@@ -214,6 +243,7 @@ public:
 	 * Determines if this node type can be added to the graph interactively by a user or via the API when constructing a graph.
 	 * @return true if the object can be added via the API, false otherwise
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual bool CanBeAddedByUser() const { return true; }
 
 	/**
@@ -240,24 +270,30 @@ public:
 	UMovieGraphPin* GetOutputPin(const FName& InPinLabel) const;
 
 	/** Gets the first input pin on the node which has a connection, or nullptr if no pins are connected. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetFirstConnectedInputPin() const;
 	
 	/** Gets the first output pin on the node which has a connection, or nullptr if no pins are connected. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetFirstConnectedOutputPin() const;
 
 	/** Gets the GUID which uniquely identifies this node. */
 	const FGuid& GetGuid() const { return Guid; }
 	
 	/** Determines which types of branches the node can be created in. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const { return EMovieGraphBranchRestriction::Any; }
 
 	/** Determines if this node can be disabled. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual bool CanBeDisabled() const;
 
 	/** Set whether this node is currently disabled. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetDisabled(const bool bNewDisableState);
 
 	/** Determines if this node is currently disabled. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool IsDisabled() const;
 
 #if WITH_EDITOR
@@ -301,6 +337,13 @@ public:
 public:
 	FOnMovieGraphNodeChanged OnNodeChangedDelegate;
 
+	/**
+	 * Tags that can be used to identify this node within a pre/post render script. Tags can be unique in order to identify this specific node,
+	 * or the same tag can be applied to multiple nodes in order to identify a grouping of nodes.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tags")
+	TArray<FString> ScriptTags;
+
 #if WITH_EDITORONLY_DATA
 	/** Editor Node Graph representation. Not strongly typed to avoid circular dependency between editor/runtime modules. */
 	UPROPERTY()
@@ -314,12 +357,15 @@ public:
 	 * Gets the node's title. Optionally gets a more descriptive, multi-line title for the node if bGetDescriptive is
 	 * set to true.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const PURE_VIRTUAL(UMovieGraphNode::GetNodeTitle, return FText(););
 
 	/** Gets the category that the node belongs under. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FText GetMenuCategory() const PURE_VIRTUAL(UMovieGraphNode::GetMenuCategory, return FText(); );
 
 	/** Gets the keywords (space-separated) that will be searched in the node creation context menu. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FText GetKeywords() const { return FText(); }
 #endif
 
@@ -391,6 +437,14 @@ public:
 	 * identifier.
 	 */
 	virtual FString GetNodeInstanceName() const { return FString(); }
+
+	/**
+	 * In some very rare cases, a node needs to be "primed" from the node that the flattening is starting from before it's actually put through the
+	 * flattening process.
+	 *
+	 * The need for this should be exceedingly uncommon, so only use if absolutely necessary.
+	 */
+	virtual void PrepareForFlattening(const UMovieGraphSettingNode* InSourceNode) { }
 	
 	/*
 	* This is called either on the CDO, or on a "flattened" instance of the node every frame when
@@ -405,6 +459,9 @@ public:
 	
 	/** Modify the Unreal URL and command line arguments when the node will be run in a new process. Only applies to nodes in the Globals branch. */
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const { }
+
+	/** Updates telemetry data for this node. Should only be used by nodes that ship with Movie Render Graph. Called on the fully-evaluated node in the flattened graph. */
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const { }
 };
 
 UINTERFACE()

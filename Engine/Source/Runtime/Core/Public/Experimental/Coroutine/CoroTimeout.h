@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
+
 #include "Coroutine.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Timespan.h"
+
+#if WITH_CPP_COROUTINES
 
 enum class ECoroTimeoutFlags : uint8
 {
@@ -12,7 +15,6 @@ enum class ECoroTimeoutFlags : uint8
 };
 ENUM_CLASS_FLAGS(ECoroTimeoutFlags)
 
-#if WITH_CPP_COROUTINES
 /*
  * FCoroTimeoutAwaitable allows to suspend a Coroutine after it's timelimit has passed
  */
@@ -59,14 +61,4 @@ public:
 	}
 };
 
-#else
-
-class FCoroTimeoutAwaitable
-{
-public:
-	inline FCoroTimeoutAwaitable(FTimespan InTimedelta = FTimespan::FromMilliseconds(33), ECoroTimeoutFlags InFlags = ECoroTimeoutFlags::Suspend_Worker)
-	{
-	}
-};
-
-#endif
+#endif // WITH_CPP_COROUTINES

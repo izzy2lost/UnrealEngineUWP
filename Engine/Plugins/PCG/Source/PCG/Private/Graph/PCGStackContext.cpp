@@ -11,8 +11,29 @@
 #include "Algo/Find.h"
 #include "Containers/UnrealString.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGStackContext)
+
+void FPCGStackFrame::PostSerialize(const FArchive& Ar)
+{
+	if (Ar.IsLoading())
+	{
+		ComputeHash();
+	}
+}
+
+void FPCGStackFrame::ComputeHash()
+{
+	if (Object.IsNull())
+	{
+		Hash = GetTypeHash(LoopIndex);
+	}
+	else
+	{
+		Hash = GetTypeHash(Object.ToString());
+	}
+}
 
 const FPCGStack* FPCGStackContext::GetStack(int32 InStackIndex) const
 {
@@ -167,6 +188,21 @@ const UPCGGraph* FPCGStack::GetGraphForCurrentFrame() const
 	return nullptr;
 }
 
+const UPCGGraph* FPCGStack::GetNearestDynamicSubgraphForCurrentFrame() const
+{
+	// Dynamic subgraphs and looped subgraphs always have 3 stacks: SubgraphNode/LoopIndex/Subgraph
+	// Look for a loop index frame and then return the corresponding graph.
+	for (int StackIndex = GetStackFrames().Num() - 1; StackIndex >= 2; --StackIndex)
+	{
+		if (StackFrames[StackIndex - 1].IsLoopIndexFrame())
+		{
+			return Cast<UPCGGraph>(StackFrames[StackIndex].Object.Get());
+		}
+	}
+
+	return nullptr;
+}
+
 const UPCGNode* FPCGStack::GetCurrentFrameNode() const
 {
 	return StackFrames.IsEmpty() ? nullptr : Cast<const UPCGNode>(StackFrames.Last().Object.Get());
@@ -178,6 +214,36 @@ bool FPCGStack::HasObject(const UObject* InObject) const
 	{
 		return Frame.Object == InObject;
 	});
+}
+
+bool FPCGStack::ReplaceRoot(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	if (!StackFrames.IsEmpty())
+	{
+		UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.Get());
+
+		// If the stack frame was marked as garbage, NewStackRoot will be nullptr, but we still match against the object ptr hash.
+		if (!NewStackRoot)
+		{
+			for (const TPair<UObject*, UObject*>& Pair : ReplacementMap)
+			{
+				// TODO: If we ever have a replacement where the name changed, this won't work.
+				// We might need to have a serialization pointer (soft) and an execution pointer (weak).
+				if (Pair.Key && Pair.Value && StackFrames[0].Object == Pair.Value)
+				{
+					NewStackRoot = Pair.Value;
+				}
+			}
+		}
+
+		if (NewStackRoot)
+		{
+			StackFrames[0].SetObject(NewStackRoot);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool FPCGStack::operator==(const FPCGStack& Other) const
@@ -197,6 +263,27 @@ bool FPCGStack::operator==(const FPCGStack& Other) const
 	}
 
 	return true;
+}
+
+FPCGCrc FPCGStack::GetCrc() const
+{
+	FArchiveCrc32 Ar;
+		
+	for (const FPCGStackFrame& StackFrame : StackFrames)
+	{
+		if (!StackFrame.Object.IsNull())
+		{
+			TSoftObjectPtr<const UObject> SoftObjectPtr = StackFrame.Object;
+			Ar << SoftObjectPtr;
+		}
+		else
+		{
+			int32 LoopIndex = StackFrame.LoopIndex;
+			Ar << LoopIndex;
+		}
+	}
+
+	return FPCGCrc(Ar.GetCrc());
 }
 
 int32 FPCGStackContext::PushFrame(const UObject* InFrameObject)
@@ -267,6 +354,7 @@ void FPCGStackContext::AppendStacks(const FPCGStackContext& InStacks)
 	for (const FPCGStack& SubgraphStack : InStacks.Stacks)
 	{
 		FPCGStack& NewStack = Stacks.Emplace_GetRef();
+		NewStack.GraphExecutionTaskId = GraphExecutionTaskId;
 		NewStack.StackFrames.Reserve(Stacks[CurrentStackIndex].StackFrames.Num() + SubgraphStack.StackFrames.Num());
 		
 		NewStack.StackFrames.Append(Stacks[CurrentStackIndex].StackFrames);
@@ -290,4 +378,15 @@ void FPCGStackContext::PrependParentStack(const FPCGStack* InParentStack)
 bool FPCGStackContext::operator==(const FPCGStackContext& Other) const
 {
 	return (CurrentStackIndex == Other.CurrentStackIndex) && (Stacks == Other.Stacks);
+}
+
+void FPCGStackContext::SetGraphExecutionTaskId(FPCGTaskId InGraphExecutionTaskId)
+{
+	check(GraphExecutionTaskId == InvalidPCGTaskId);
+	GraphExecutionTaskId = InGraphExecutionTaskId;
+
+	for (FPCGStack& Stack : Stacks)
+	{
+		Stack.GraphExecutionTaskId = GraphExecutionTaskId;
+	}
 }

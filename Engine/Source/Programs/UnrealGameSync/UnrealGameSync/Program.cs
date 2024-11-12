@@ -275,7 +275,7 @@ namespace UnrealGameSync
 						}
 						catch (Exception ex)
 						{
-							UgsTelemetry.SendEvent("Crash", new { Exception = ex.ToString() });
+							UgsTelemetry.SendEvent("Crash", new { User = Environment.UserName, Machine = System.Net.Dns.GetHostName(), Exception = ex.ToString() });
 							throw;
 						}
 						finally
@@ -351,7 +351,7 @@ namespace UnrealGameSync
 			Exception? ex = args.ExceptionObject as Exception;
 			if (ex != null)
 			{
-				UgsTelemetry.SendEvent("Crash", new { Exception = ex.ToString() });
+				UgsTelemetry.SendEvent("Crash", new { User = Environment.UserName, Machine = System.Net.Dns.GetHostName(), Exception = ex.ToString() });
 			}
 		}
 

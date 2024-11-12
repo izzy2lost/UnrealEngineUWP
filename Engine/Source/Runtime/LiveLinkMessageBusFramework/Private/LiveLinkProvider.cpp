@@ -24,6 +24,7 @@ template TSharedPtr<ILiveLinkProvider> ILiveLinkProvider::CreateLiveLinkProvider
 
 FName FLiveLinkMessageAnnotation::SubjectAnnotation = TEXT("SubjectName");
 FName FLiveLinkMessageAnnotation::RoleAnnotation = TEXT("Role");
+FName FLiveLinkMessageAnnotation::OriginalSourceAnnotation = TEXT("OriginalSource");
 
 
 // Address that we have had a connection request from
@@ -64,12 +65,15 @@ struct FTrackedStaticData
 	FTrackedStaticData()
 		: SubjectName(NAME_None)
 	{}
-	FTrackedStaticData(FName InSubjectName, TWeakObjectPtr<UClass> InRoleClass, FLiveLinkStaticDataStruct InStaticData)
+	FTrackedStaticData(FName InSubjectName, TWeakObjectPtr<UClass> InRoleClass, FLiveLinkStaticDataStruct InStaticData, TMap<FName, FString>&& InAnnotations)
 		: SubjectName(InSubjectName), RoleClass(InRoleClass), StaticData(MoveTemp(InStaticData))
+		, Annotations(MoveTemp(InAnnotations))
 	{}
 	FName SubjectName;
 	TWeakObjectPtr<UClass> RoleClass;
 	FLiveLinkStaticDataStruct StaticData;
+	TMap<FName, FString> Annotations;
+
 	bool operator==(FName InSubjectName) const { return SubjectName == InSubjectName; }
 };
 
@@ -80,11 +84,13 @@ struct FTrackedFrameData
 	FTrackedFrameData()
 		: SubjectName(NAME_None)
 	{}
-	FTrackedFrameData(FName InSubjectName, FLiveLinkFrameDataStruct InFrameData)
+	FTrackedFrameData(FName InSubjectName, FLiveLinkFrameDataStruct InFrameData, TMap<FName, FString>&& InAnnotations)
 		: SubjectName(InSubjectName), FrameData(MoveTemp(InFrameData))
+		, Annotations(MoveTemp(InAnnotations))
 	{}
 	FName SubjectName;
 	FLiveLinkFrameDataStruct FrameData;
+	TMap<FName, FString> Annotations;
 	bool operator==(FName InSubjectName) const { return SubjectName == InSubjectName; }
 };
 
@@ -203,30 +209,32 @@ FTrackedFrameData* FLiveLinkProvider::GetLastSubjectFrameData(const FName& Subje
 	return FrameDatas.FindByKey(SubjectName);
 }
 
-void FLiveLinkProvider::SetLastSubjectStaticData(FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData)
+void FLiveLinkProvider::SetLastSubjectStaticData(FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData, TMap<FName, FString>&& SubjectAnnotations)
 {
 	FTrackedStaticData* Result = StaticDatas.FindByKey(SubjectName);
 	if (Result)
 	{
+		Result->Annotations = MoveTemp(SubjectAnnotations);
 		Result->StaticData = MoveTemp(StaticData);
 		Result->RoleClass = Role.Get();
 	}
 	else
 	{
-		StaticDatas.Emplace(SubjectName, Role.Get(), MoveTemp(StaticData));
+		StaticDatas.Emplace(SubjectName, Role.Get(), MoveTemp(StaticData), MoveTemp(SubjectAnnotations));
 	}
 }
 
-void FLiveLinkProvider::SetLastSubjectFrameData(FName SubjectName, FLiveLinkFrameDataStruct&& FrameData)
+void FLiveLinkProvider::SetLastSubjectFrameData(FName SubjectName, FLiveLinkFrameDataStruct&& FrameData, TMap<FName, FString>&& SubjectAnnotations)
 {
 	FTrackedFrameData* Result = FrameDatas.FindByKey(SubjectName);
 	if (Result)
 	{
 		Result->FrameData = MoveTemp(FrameData);
+		Result->Annotations = MoveTemp(SubjectAnnotations);
 	}
 	else
 	{
-		FrameDatas.Emplace(SubjectName, MoveTemp(FrameData));
+		FrameDatas.Emplace(SubjectName, MoveTemp(FrameData), MoveTemp(SubjectAnnotations));
 	}
 }
 
@@ -302,7 +310,7 @@ void FLiveLinkProvider::SendClearSubjectToConnections(FName SubjectName)
 	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkClearSubject>(SubjectName), EMessageFlags::Reliable, GetAnnotations(), nullptr, MessageAddresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
 
-bool FLiveLinkProvider::UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData)
+bool FLiveLinkProvider::UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData, const TMap<FName, FString>& ExtraAnnotations)
 {
 	FScopeLock Lock(&CriticalSection);
 
@@ -323,19 +331,20 @@ bool FLiveLinkProvider::UpdateSubjectStaticData(const FName SubjectName, TSubcla
 
 	ValidateConnections();
 
+	TMap<FName, FString> Annotations;
+	Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, SubjectName.ToString());
+	Annotations.Add(FLiveLinkMessageAnnotation::RoleAnnotation, Role->GetName());
+	Annotations.Append(ExtraAnnotations);
+
 	if (ConnectedAddresses.Num() > 0)
 	{
 		TArray<FMessageAddress> Addresses;
 		GetFilteredAddresses(SubjectName, Addresses);
 
-		TMap<FName, FString> Annotations;
-		Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, SubjectName.ToString());
-		Annotations.Add(FLiveLinkMessageAnnotation::RoleAnnotation, Role->GetName());
-
 		MessageEndpoint->Send(StaticData.CloneData(), const_cast<UScriptStruct*>(StaticData.GetStruct()), EMessageFlags::Reliable, Annotations, nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 	}
 
-	SetLastSubjectStaticData(SubjectName, Role, MoveTemp(StaticData));
+	SetLastSubjectStaticData(SubjectName, Role, MoveTemp(StaticData), MoveTemp(Annotations));
 
 	return true;
 }
@@ -383,7 +392,7 @@ void FLiveLinkProvider::UpdateSubjectFrame(const FName& SubjectName, const TArra
 	SendSubjectFrame(SubjectName, Subject);
 }
 
-bool FLiveLinkProvider::UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData)
+bool FLiveLinkProvider::UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData, const TMap<FName, FString>& ExtraAnnotations)
 {
 	FScopeLock Lock(&CriticalSection);
 
@@ -411,18 +420,19 @@ bool FLiveLinkProvider::UpdateSubjectFrameData(const FName SubjectName, FLiveLin
 
 	ValidateConnections();
 
+	TMap<FName, FString> Annotations;
+	Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, SubjectName.ToString());
+	Annotations.Append(ExtraAnnotations);
+
 	if (ConnectedAddresses.Num() > 0)
 	{
 		TArray<FMessageAddress> Addresses;
 		GetFilteredAddresses(SubjectName, Addresses);
 
-		TMap<FName, FString> Annotations;
-		Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, SubjectName.ToString());
-
 		MessageEndpoint->Send(FrameData.CloneData(), const_cast<UScriptStruct*>(FrameData.GetStruct()), EMessageFlags::None, Annotations, nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 	}
 
-	SetLastSubjectFrameData(SubjectName, MoveTemp(FrameData));
+	SetLastSubjectFrameData(SubjectName, MoveTemp(FrameData), MoveTemp(Annotations));
 
 	return true;
 }
@@ -501,8 +511,8 @@ void FLiveLinkProvider::HandleConnectMessage(const FLiveLinkConnectMessage& Mess
 		for (const FTrackedStaticData& Data : StaticDatas)
 		{
 			UClass* RoleClass = Data.RoleClass.Get();
-			Annotations.FindChecked(FLiveLinkMessageAnnotation::SubjectAnnotation) = Data.SubjectName.ToString();
-			Annotations.FindChecked(FLiveLinkMessageAnnotation::RoleAnnotation) = RoleClass ? RoleClass->GetName() : TEXT("");
+			Annotations.Append(Data.Annotations);
+
 			MessageEndpoint->Send(Data.StaticData.CloneData(), const_cast<UScriptStruct*>(Data.StaticData.GetStruct()), EMessageFlags::Reliable, Annotations, nullptr, MessageAddress, FTimespan::Zero(), FDateTime::MaxValue());
 		}
 
@@ -510,7 +520,7 @@ void FLiveLinkProvider::HandleConnectMessage(const FLiveLinkConnectMessage& Mess
 
 		for (const FTrackedFrameData& Data : FrameDatas)
 		{
-			Annotations.FindChecked(FLiveLinkMessageAnnotation::SubjectAnnotation) = Data.SubjectName.ToString();
+			Annotations.Append(Data.Annotations);
 			MessageEndpoint->Send(Data.FrameData.CloneData(), const_cast<UScriptStruct*>(Data.FrameData.GetStruct()), EMessageFlags::None, Annotations, nullptr, MessageAddress, FTimespan::Zero(), FDateTime::MaxValue());
 		}
 

@@ -4070,8 +4070,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		super.onConfigurationChanged(newConfig);
 //$${gameActivityonConfigurationChangedAdditions}$$
-		// forward the orientation
-		nativeOnOrientationChanged(newConfig.orientation);
+		// recalculate current orientation (the one in the Configuration object is only portrait/landscape and does not convert to EDeviceScreenOrientation)
+		// AndroidThunkJava_GetDeviceOrientation will call nativeOnOrientationChanged if the current orientation actually changes from last time
+		AndroidThunkJava_GetDeviceOrientation();
 	}
 
 	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
@@ -4760,20 +4761,77 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		});
 	}
 
-	public void AndroidThunkJava_SetCellularPreference(int value)
+	public boolean AndroidThunkJava_HasSharedPreference(String group, String key)
 	{
 		Context context = getApplicationContext();
-		SharedPreferences preferences = context.getSharedPreferences("CellularNetworkPreferences", context.MODE_PRIVATE);
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.contains(key);
+	}
+
+	public void AndroidThunkJava_SetSharedPreferenceBoolean(String group, String key, boolean value)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = preferences.edit();
-		editor.putInt("AllowCellular", value);
+		editor.putBoolean(key, value);
 		editor.commit();
 	}
 
-	public int AndroidThunkJava_GetCellularPreference()
+	public boolean AndroidThunkJava_GetSharedPreferenceBoolean(String group, String key, boolean defaultValue)
 	{
 		Context context = getApplicationContext();
-		SharedPreferences preferences = context.getSharedPreferences("CellularNetworkPreferences", context.MODE_PRIVATE);
-		return preferences.getInt("AllowCellular", 0 );
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.getBoolean(key, defaultValue);
+	}
+
+	public void AndroidThunkJava_SetSharedPreferenceInt(String group, String key, int value)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.putInt(key, value);
+		editor.commit();
+	}
+
+	public int AndroidThunkJava_GetSharedPreferenceInt(String group, String key, int defaultValue)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.getInt(key, defaultValue);
+	}
+
+	public void AndroidThunkJava_SetSharedPreferenceString(String group, String key, String value)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.putString(key, value);
+		editor.commit();
+	}
+
+	public String AndroidThunkJava_GetSharedPreferenceString(String group, String key, String defaultValue)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.getString(key, defaultValue);
+	}
+
+	public void AndroidThunkJava_DeleteSharedPreference(String group, String key)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.remove(key);
+		editor.commit();
+	}
+
+	public void AndroidThunkJava_DeleteSharedPreferenceGroup(String group)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.clear();
+		editor.commit();
 	}
 
 	// call back into native code from the Java UI thread, initializing any available VR HMD modules
@@ -4813,6 +4871,16 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public static String getAppPackageName()
 	{
 		return appPackageName;
+	}
+
+	public String AndroidThunkJava_GetCacheDir()
+	{
+		try {
+			return getApplicationContext().getCacheDir().getPath();
+		} catch (Exception e) {
+			Log.debug("getCacheDir failed: " + e.toString());
+		}
+		return "";
 	}
 
 	public boolean AndroidThunkJava_IsMusicActive()
@@ -6946,7 +7014,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		if (deviceScreenOrientation != currentScreenOrientation)
 		{
 			deviceScreenOrientation = currentScreenOrientation;
-			Log.debug("==============> onSensorChanged: orientation : " + deviceScreenOrientation);
+			Log.debug("==============> GetDeviceOrientation new orientation : " + deviceScreenOrientation);
 			nativeOnOrientationChanged(deviceScreenOrientation);
 		}
 
@@ -7135,8 +7203,17 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				bundle.getString("com.epicgames.unreal.GameActivity.BuildConfiguration").equals("Shipping");
 			if (!bShipping)
 			{ 
-				boolean bEnableMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracing.txt").exists();
-				Os.setenv("UEEnableMemoryTracing", bEnableMemoryTracing ? "1" : "0", true);
+				boolean bEnableFullMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracing.txt").exists();
+				boolean bEnableLightlMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracingLight.txt").exists();
+				
+				if (bEnableFullMemoryTracing)
+				{
+					Os.setenv("UEEnableMemoryTracing", "full", true);
+				}
+				else if (bEnableLightlMemoryTracing)
+				{
+					Os.setenv("UEEnableMemoryTracing", "light", true);
+				}
 			}
 		}
 		catch (ErrnoException | NameNotFoundException e)
@@ -7145,12 +7222,26 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			Log.debug("Cannot set \"UEEnableMemoryTracing\" environment variable");
 		}
 
+		if (!isUnderTest())
+		{
 //$${soLoadUnreal}$$
 //$${soLoadLibrary}$$
+		}
 	}
 
 	public native void nativeHandleSensorEvents(float[] tilt, float[] rotation_rate, float[] gravity, float[] acceleration);
 
 	protected static ClipboardManager clipboardManager;
 
+	private static boolean isUnderTest()
+	{
+		// Check for a specific environment variable set in tests
+		String testPackageName = System.getProperty("unreal.test.environment");
+		if (testPackageName == null)
+		{
+			return false;
+		}
+
+		return testPackageName.equals(GameApplication.getAppContext().getPackageName());
+	}
 }

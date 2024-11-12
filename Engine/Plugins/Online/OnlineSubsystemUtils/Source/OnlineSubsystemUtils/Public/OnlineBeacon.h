@@ -75,6 +75,11 @@ class AOnlineBeacon : public AActor, public FNetworkNotify
 	 */
 	void PauseBeaconRequests(bool bPause)
 	{
+		if (!NetDriver)
+		{
+			return;
+		}
+
 		if (bPause)
 		{
 			UE_LOG(LogBeacon, Verbose, TEXT("All Beacon Requests Paused."));

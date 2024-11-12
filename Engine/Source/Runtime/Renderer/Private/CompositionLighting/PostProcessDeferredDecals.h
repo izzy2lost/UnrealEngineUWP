@@ -6,6 +6,7 @@
 #include "SceneTextureParameters.h"
 #include "SceneView.h"
 #include "InstanceCulling/InstanceCullingContext.h"
+#include "Substrate/Substrate.h"
 
 enum class EDecalRenderStage : uint8;
 enum class EDecalRenderTargetMode : uint8;
@@ -22,6 +23,7 @@ bool IsDBufferEnabled(const FSceneViewFamily& ViewFamily, EShaderPlatform Shader
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FDecalPassUniformParameters, )
 	SHADER_PARAMETER_STRUCT(FSceneTextureUniformParameters, SceneTextures)
 	SHADER_PARAMETER_STRUCT(FMobileSceneTextureUniformParameters, MobileSceneTextures)
+	SHADER_PARAMETER_STRUCT(FSubstratePublicParameters, SubstratePublic)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -42,13 +44,15 @@ struct FDeferredDecalPassTextures
 
 FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 	FRDGBuilder& GraphBuilder, 
-	const FSceneView& ViewInfo,
+	const FViewInfo& View,
+	const FSubstrateSceneData& SubstrateSceneData,
 	const FSceneTextures& SceneTextures, 
-	FDBufferTextures* DBufferTextures);
+	FDBufferTextures* DBufferTextures,
+	EDecalRenderStage DecalRenderStage);
 
 void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& ViewInfo,
+	FViewInfo& ViewInfo,
 	TConstArrayView<FTransientDecalRenderData> VisibleDecals,
 	const FDeferredDecalPassTextures& Textures,
 	FInstanceCullingManager& InstanceCullingManager,
@@ -76,7 +80,6 @@ END_SHADER_PARAMETER_STRUCT()
 
 void GetDeferredDecalRenderTargetsInfo(
 	const FSceneTexturesConfig& Config,
-	EShaderPlatform ShaderPlatform,
 	EDecalRenderTargetMode RenderTargetMode,
 	FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo);
 
@@ -92,16 +95,21 @@ void GetDeferredDecalPassParameters(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FDeferredDecalPassTextures& DecalPassTextures,
+	EDecalRenderStage DecalRenderStage,
 	EDecalRenderTargetMode RenderTargetMode,
 	FDeferredDecalPassParameters& PassParameters);
 
 void RenderMeshDecals(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
-	const FViewInfo& View,
+	FViewInfo& View,
 	const FDeferredDecalPassTextures& DecalPassTextures,
 	FInstanceCullingManager& InstanceCullingManager, 
 	EDecalRenderStage DecalRenderStage);
+
+bool HasAnyDrawCommandDecalCount(
+	EDecalRenderStage DecalRenderStage, 
+	FViewInfo& View);
 
 void ExtractNormalsForNextFrameReprojection(
 	FRDGBuilder& GraphBuilder,

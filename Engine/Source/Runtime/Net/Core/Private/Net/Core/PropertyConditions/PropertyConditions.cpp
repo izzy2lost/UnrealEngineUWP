@@ -33,26 +33,54 @@ FNetPropertyConditionManager& FNetPropertyConditionManager::Get()
 	return Singleton;
 }
 
-void FNetPropertyConditionManager::SetPropertyActive(const FObjectKey ObjectKey, const uint16 RepIndex, const bool bActive)
+void FNetPropertyConditionManager::SetPropertyActive(const UObject* Object, const uint16 RepIndex, const bool bActive)
 {
+	const FObjectKey ObjectKey(Object);
+
 	TSharedPtr<FRepChangedPropertyTracker> Tracker = FindPropertyTracker(ObjectKey);
 	if (Tracker.IsValid())
 	{
-		Tracker->CallSetCustomIsActiveOverride(ObjectKey.ResolveObjectPtr(), RepIndex, bActive);
+		Tracker->SetCustomIsActiveOverride(Object, RepIndex, bActive);
 	}
 }
 
-void FNetPropertyConditionManager::SetPropertyDynamicCondition(const FObjectKey ObjectKey, const uint16 RepIndex, const ELifetimeCondition Condition)
+void FNetPropertyConditionManager::SetPropertyActiveOverride(const UObject* Object, const uint16 RepIndex, const bool bActive)
 {
+	const FObjectKey ObjectKey(Object);
+
+	// We cache the LastFoundTracker and Key to avoid the map lookup if we modify multiple properties at once.
+	if (LastFoundTrackerKey != ObjectKey || LastFoundTracker == nullptr)
+	{
+		TSharedPtr<FRepChangedPropertyTracker> Tracker = bAllowCreateTrackerFromSetPropertyActiveOverride ? FindOrCreatePropertyTracker(ObjectKey) : FindPropertyTracker(ObjectKey);
+		LastFoundTrackerKey = ObjectKey;
+		LastFoundTracker = Tracker.Get();
+	}
+
+	if (LastFoundTracker)
+	{
+		LastFoundTracker->SetCustomIsActiveOverride(Object, RepIndex, bActive);
+	}
+}
+
+void FNetPropertyConditionManager::SetPropertyDynamicCondition(const UObject* Object, const uint16 RepIndex, const ELifetimeCondition Condition)
+{
+	const FObjectKey ObjectKey(Object);
+
 	TSharedPtr<FRepChangedPropertyTracker> Tracker = FindPropertyTracker(ObjectKey);
 	if (Tracker.IsValid())
 	{
-		Tracker->CallSetDynamicCondition(ObjectKey.ResolveObjectPtr(), RepIndex, Condition);
+		Tracker->SetDynamicCondition(Object, RepIndex, Condition);
 	}
 }
 
 void FNetPropertyConditionManager::NotifyObjectDestroyed(const FObjectKey ObjectKey)
 {
+	if (ObjectKey == LastFoundTrackerKey)
+	{
+		LastFoundTrackerKey = FObjectKey();
+		LastFoundTracker = nullptr;
+	}
+
 	PropertyTrackerMap.Remove(ObjectKey);
 }
 
@@ -98,6 +126,11 @@ void FNetPropertyConditionManager::PostGarbageCollect()
 	{
 		if (!It.Key().ResolveObjectPtr())
 		{
+			if (It.Key() == LastFoundTrackerKey)
+			{
+				LastFoundTrackerKey = FObjectKey();
+				LastFoundTracker = nullptr;
+			}
 			It.RemoveCurrent();
 		}
 	}
@@ -120,11 +153,6 @@ void FNetPropertyConditionManager::LogMemory(FOutputDevice& Ar)
 	const int32 CountBytes = sizeof(*this) + CountAr.GetNum();
 
 	Ar.Logf(TEXT("  Property Condition Memory: %u"), CountBytes);
-}
-
-void FNetPropertyConditionManager::SetPropertyActiveOverride(IRepChangedPropertyTracker& Tracker, UObject* OwningObject, const uint16 RepIndex, const bool bIsActive)
-{
-	Tracker.CallSetCustomIsActiveOverride(OwningObject, RepIndex, bIsActive);
 }
 
 }; // UE::Net::Private

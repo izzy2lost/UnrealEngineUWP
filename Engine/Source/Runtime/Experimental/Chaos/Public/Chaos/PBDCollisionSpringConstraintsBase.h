@@ -68,10 +68,10 @@ public:
 
 	template<typename SpatialAccelerator, typename SolverParticlesOrRange>
 	UE_DEPRECATED(5.4, "Use Init with CollidableSubMesh. This method is much less efficient as it recreates the CollidableSubMesh each call.")
-	void Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+	CHAOS_API void Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
 	template<typename SpatialAccelerator, typename SolverParticlesOrRange>
-	void Init(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh,
+	CHAOS_API void Init(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh,
 		const SpatialAccelerator& DynamicSpatial, const SpatialAccelerator& KinematicColliderSpatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
 	template<typename SolverParticlesOrRange>
@@ -147,7 +147,7 @@ public:
 	}
 
 	template<typename SolverParticlesOrRange>
-	void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
+	CHAOS_API void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
 
 	void Apply(FSolverParticles& InParticles, const FSolverReal Dt, const TArray<int32>& InConstraintIndices) const
 	{
@@ -250,14 +250,15 @@ private:
 };
 }  // End namespace Chaos::Softs
 
+#if !defined(CHAOS_COLLISION_SPRING_ISPC_ENABLED_DEFAULT)
+#define CHAOS_COLLISION_SPRING_ISPC_ENABLED_DEFAULT 1
+#endif
+
 // Support ISPC enable/disable in non-shipping builds
-#if !INTEL_ISPC
-const bool bChaos_CollisionSpring_ISPC_Enabled = false;
-#elif UE_BUILD_SHIPPING
-const bool bChaos_CollisionSpring_ISPC_Enabled = true;
+#if !INTEL_ISPC || UE_BUILD_SHIPPING
+static constexpr bool bChaos_CollisionSpring_ISPC_Enabled = INTEL_ISPC && CHAOS_COLLISION_SPRING_ISPC_ENABLED_DEFAULT;
 #else
 extern CHAOS_API bool bChaos_CollisionSpring_ISPC_Enabled;
 #endif
-
 
 #endif

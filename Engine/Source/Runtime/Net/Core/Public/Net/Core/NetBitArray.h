@@ -58,6 +58,12 @@ public:
 	static constexpr StorageWordType AndNotOp(StorageWordType A, StorageWordType B) { return A & ~B; }
 	static constexpr StorageWordType OrOp(StorageWordType A, StorageWordType B) { return A | B; }
 	static constexpr StorageWordType XorOp(StorageWordType A, StorageWordType B) { return A ^ B; }
+
+	// Round up to a value that uses all available bits in a single NetBitArray Word
+	static uint32 RoundUpToMaxWordBitCount(uint32 Value)
+	{
+		return Value > 0  ? ((Value + WordBitCount - 1) & ~(WordBitCount - 1)) : WordBitCount;
+	}
 };
 
 /**
@@ -117,14 +123,52 @@ public:
 	/** Returns the number of words in our storage */
 	uint32 GetNumWords() const;
 
-	/** Returns a pointer to the internal storage. */
-	const StorageWordType* GetData() const { return Storage.GetData(); }
+	/**
+	 * Returns a pointer to the internal storage but validates that the array buffer is the expected size.
+	 * Use this before directly iterating over one or multiple buffers and ensure they all support the max iteration index.
+	 */
+	FORCEINLINE const StorageWordType* GetDataChecked(uint32 MaxWordIterationCount) const UE_LIFETIMEBOUND
+	{
+		checkf((int32)MaxWordIterationCount <= Storage.Num(), TEXT("MaxWordIterationCount (%u) is higher than this NetBitArray word count (%d). Out of Bounds memory access will occur."), MaxWordIterationCount, Storage.Num());
+		return Storage.GetData();
+	}
 
-	/** Returns a pointer to the internal storage. */
-	StorageWordType* GetData() { return Storage.GetData(); }
+	/**
+	 * Returns a pointer to the internal storage but validates that the array buffer is the expected size.
+	 * Use this before directly iterating over one or multiple buffers and ensure they all support the max iteration index.
+	 */
+	FORCEINLINE StorageWordType* GetDataChecked(uint32 MaxWordIterationCount) UE_LIFETIMEBOUND
+	{
+		checkf((int32)MaxWordIterationCount <= Storage.Num(), TEXT("MaxWordIterationCount (%u) is higher than this NetBitArray word count (%d). Out of Bounds memory access will occur."), MaxWordIterationCount, Storage.Num());
+		return Storage.GetData();
+	}
+
+	/** Returns a pointer to the internal storage. It's safer to use GetWord() or GetDataChecked() instead. */
+	FORCEINLINE const StorageWordType* GetData() const UE_LIFETIMEBOUND { return Storage.GetData(); }
+
+	/** Returns a pointer to the internal storage. It's safer to use GetWord() or GetDataChecked() instead. */
+	FORCEINLINE StorageWordType* GetData() UE_LIFETIMEBOUND { return Storage.GetData(); }
+
+	/** Read an entire word. Useful when you want to read 'WordBitCount(32)' bits at once */
+	FORCEINLINE StorageWordType GetWord(uint32 WordIndex) const UE_LIFETIMEBOUND 
+	{ 
+		checkf(WordIndex < (uint32)Storage.Num(), TEXT("NetBitArray index out of bounds: %u / max %u"), WordIndex, Storage.Num());
+		return Storage.GetData()[WordIndex]; 
+	}
+
+	/** Access an entire word. Useful when you want to write 'WordBitCount(32)' bits at once */
+	FORCEINLINE StorageWordType& GetWord(uint32 WordIndex) UE_LIFETIMEBOUND 
+	{  
+		checkf(WordIndex < (uint32)Storage.Num(), TEXT("NetBitArray index out of bounds: %u / max %u"), WordIndex, Storage.Num());
+		return Storage.GetData()[WordIndex]; 
+	}
 
 	/** Clear all bits in the array. */
-	void Reset();
+	UE_DEPRECATED(5.5, "Use ClearAllBits instead.")
+	void Reset() { ClearAllBits(); }
+
+	/** Clear all bits in the array. */
+	void ClearAllBits();
 
 	/** Sets all bits in the array, but clears padding bits. */
 	void SetAllBits();
@@ -284,7 +328,7 @@ public:
 	/** Return true if equal including BitCount and padding bits */
 	bool operator==(const FNetBitArrayView& Other) const;
 
-	/** Return if a specified bit is set or not */
+	/** Return if a specific bit is set or not */
 	inline bool IsBitSet(uint32 Index) const { return GetBit(Index); }
 
 	/** Returns true if any bit is set in the bitset Note: Padding bits in storage are expected to be zero. */
@@ -297,7 +341,11 @@ public:
 	inline bool IsNoBitSet() const;
 
 	/** Reset the storage of the BitArray including any padding bits */
-	inline void Reset();
+	UE_DEPRECATED(5.5, "Use ClearAllBits instead.")
+	inline void Reset() { ClearAllBits(); }
+
+	/** Clear all bits to zero*/
+	inline void ClearAllBits();
 
 	/** All padding bits will be set to zero */
 	inline void ClearPaddingBits();
@@ -347,11 +395,45 @@ public:
 	/** Returns the number of words in our storage */
 	inline uint32 GetNumWords() const;
 
-	/** Returns a pointer to the internal storage. */
-	const StorageWordType* GetData() const { return Storage; }
+	/**
+	 * Returns a pointer to the internal storage but validates that the array buffer is the expected size.
+	 * Use this before directly iterating over one or multiple buffers and ensure they all support the max iteration index.
+	 */
+	FORCEINLINE const StorageWordType* GetDataChecked(uint32 MaxWordIterationCount) const UE_LIFETIMEBOUND
+	{
+		checkf(MaxWordIterationCount <= WordCount, TEXT("MaxWordIterationCount (%u) is higher than this NetBitArrayView word count (%u). Out of Bounds memory access will occur."), MaxWordIterationCount, WordCount);
+		return Storage;
+	}
 
-	/** Returns a pointer to the internal storage. */
-	StorageWordType* GetData() { return Storage; }
+	/**
+	 * Returns a pointer to the internal storage but validates that the array buffer is the expected size.
+	 * Use this before directly iterating over one or multiple buffers and ensure they all support the max iteration index.
+	 */
+	FORCEINLINE StorageWordType* GetDataChecked(uint32 MaxWordIterationCount) UE_LIFETIMEBOUND
+	{
+		checkf(MaxWordIterationCount <= WordCount, TEXT("MaxWordIterationCount (%u) is higher than this NetBitArrayView word count (%u). Out of Bounds memory access will occur."), MaxWordIterationCount, WordCount);
+		return Storage;
+	}
+
+	/** Returns a pointer to the internal storage. It's safer to use GetWord() or GetDataChecked() instead. */
+	FORCEINLINE const StorageWordType* GetData() const UE_LIFETIMEBOUND { return Storage; }
+
+	/** Returns a pointer to the internal storage. It's safer to use GetWord() or GetDataChecked() instead. */
+	FORCEINLINE StorageWordType* GetData() UE_LIFETIMEBOUND { return Storage; }
+
+	/** Read an entire word. Useful when you want to read 'WordBitCount(32)' bits at once */
+	FORCEINLINE StorageWordType GetWord(uint32 WordIndex) const UE_LIFETIMEBOUND 
+	{ 
+		checkf(WordIndex < WordCount, TEXT("NetBitArrayView index out of bounds: %u / max %u"), WordIndex, WordCount);
+		return Storage[WordIndex]; 
+	}
+
+	/** Access an entire word. Useful when you want to write 'WordBitCount(32)' bits at once */
+	FORCEINLINE StorageWordType& GetWord(uint32 WordIndex) UE_LIFETIMEBOUND 
+	{
+		checkf(WordIndex < WordCount, TEXT("NetBitArrayView index out of bounds: %u / max %u"), WordIndex, WordCount);
+		return Storage[WordIndex]; 
+	}
 
 	/** Only prints the amount of set bits in the array. @see FNetBitArrayPrinter for more print options */
 	NETCORE_API FString ToString() const;
@@ -953,7 +1035,7 @@ inline uint32 FNetBitArray::GetNumWords() const
 	return static_cast<uint32>(Storage.Num());
 }
 
-inline void FNetBitArray::Reset()
+inline void FNetBitArray::ClearAllBits()
 {
 	FPlatformMemory::Memset(Storage.GetData(), 0, Storage.Num()*sizeof(StorageWordType));
 }
@@ -1158,7 +1240,7 @@ FNetBitArrayView::FNetBitArrayView(StorageWordType* StorageIn, uint32 BitCountIn
 FNetBitArrayView::FNetBitArrayView(StorageWordType* StorageIn, uint32 BitCountIn, const EResetOnInitType)
 : FNetBitArrayView(StorageIn, BitCountIn, NoResetNoValidate)
 {
-	Reset();
+	ClearAllBits();
 }
 
 FNetBitArrayView::FNetBitArrayView(StorageWordType* StorageIn, uint32 BitCountIn)
@@ -1193,7 +1275,7 @@ bool FNetBitArrayView::IsNoBitSet() const
 	return !IsAnyBitSet();
 }
 
-void FNetBitArrayView::Reset()
+void FNetBitArrayView::ClearAllBits()
 {
 	FPlatformMemory::Memset(&Storage[0], 0, WordCount * sizeof(StorageWordType));
 }

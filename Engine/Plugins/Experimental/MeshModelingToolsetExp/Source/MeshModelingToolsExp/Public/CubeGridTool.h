@@ -88,6 +88,9 @@ public:
 		UIMin = -180, UIMax = 180, ClampMin = -180000, ClampMax = 18000))
 	FRotator GridFrameOrientation = FRotator(0, 0, 0);
 
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bShowGrid = true;
+
 	UPROPERTY(EditAnywhere, Category = Options, meta = (TransientToolProperty))
 	bool bShowGizmo = false;
 
@@ -416,6 +419,12 @@ public:
 	virtual bool SupportsWorldSpaceFocusBox() { return bHaveSelection; }
 	virtual FBox GetWorldSpaceFocusBox() override;
 
+	void SetInitialGridPivot(FVector3d PivotPos)
+	{
+		InitialGridPivot = PivotPos;
+		bHasInitialGridPivot = true;
+	}
+
 protected:
 
 	UPROPERTY()
@@ -611,4 +620,8 @@ protected:
 
 	void OutputCurrentResults(bool bSetSelection);
 	void AcceptToolAndStartNew();
+
+private:
+	bool bHasInitialGridPivot = false;
+	FVector3d InitialGridPivot;
 };

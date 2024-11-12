@@ -19,7 +19,7 @@ struct FSequentialPartialNetBlobHandlerInitParams
 	const USequentialPartialNetBlobHandlerConfig* Config;
 };
 
-UCLASS(Config=Engine)
+UCLASS(Config=Engine, MinimalAPI)
 class USequentialPartialNetBlobHandlerConfig : public UObject
 {
 	GENERATED_BODY()
@@ -36,7 +36,7 @@ protected:
 
 	/** How many parts a NetBlob can be split into at most. If more parts are required the splitting will fail. Cannot exceed 65535. */
 	UPROPERTY(Config)
-	uint32 MaxPartCount = 1024;
+	uint32 MaxPartCount = 4096;
 };
 
 UCLASS(abstract, MinimalApi, transient)
@@ -46,10 +46,10 @@ class USequentialPartialNetBlobHandler : public UNetBlobHandler
 
 public:
 	/** Unconditionally splits a NetBlob into a sequence of PartialNetBlobs which are small in size. Calls FNetBlob::Serialize(). */
-	IRISCORE_API bool SplitNetBlob(const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName = nullptr) const;
+	IRISCORE_API bool SplitNetBlob(UE::Net::FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName = nullptr) const;
 
 	/** Unconditionally splits a NetBlob into a sequence of PartialNetBlobs which are small in size. Calls FNetBlob::SerializeWithObject(). */
-	IRISCORE_API bool SplitNetBlob(const UE::Net::FNetObjectReference& NetObjectReference, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName = nullptr) const;
+	IRISCORE_API bool SplitNetBlob(UE::Net::FNetSerializationContext& Context, const UE::Net::FNetObjectReference& NetObjectReference, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName = nullptr) const;
 
 protected:
 	IRISCORE_API USequentialPartialNetBlobHandler();

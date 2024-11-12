@@ -10,6 +10,7 @@ using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
 
 using static AutomationTool.CommandUtils;
+using IdentityModel.OidcClient;
 
 public static class SteamDeckSupport
 {
@@ -206,6 +207,10 @@ public static class SteamDeckSupport
 			$"-o StrictHostKeyChecking=no",
 			$"-i '{DevKitRSAPath}'",
 		};
+
+		if (SSHPath.Any(Char.IsWhiteSpace))
+			AuthOpts[0] = $"'{SSHPath}'";
+
 		string AuthOptions = $"-e \"{string.Join(" ", AuthOpts)}\"";
 
 		// make a set of --exclude options for anything we want to exclude
@@ -350,6 +355,18 @@ public static class SteamDeckSupport
 		if (GetDeviceInfo(RuntimePlatform, Params, out IpAddr, out UserName) == false)
 		{
 			return null;
+		}
+
+		if (RuntimePlatform == UnrealTargetPlatform.Win64)
+		{
+			// Run msvsmoninstall.py in order to copy remote debuggers files in the right folders
+			IProcessResult Result = SSHCommand("python3 ~/devkit-msvsmon/msvsmoninstall.py", UserName, IpAddr);
+
+			if (Result.ExitCode > 0)
+			{
+				Logger.LogWarning("Failed to run msvsmoninstall.py");
+				return Result;
+			}
 		}
 
 		string GameFolderPath = $"/home/{UserName}/devkit-game/{Params.ShortProjectName}_{RuntimePlatform}";

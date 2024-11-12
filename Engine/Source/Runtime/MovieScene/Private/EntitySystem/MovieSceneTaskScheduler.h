@@ -11,8 +11,8 @@
 #include "EntitySystem/RelativePtr.h"
 #include "EntitySystem/IMovieSceneTaskScheduler.h"
 #include "EntitySystem/MovieSceneEntityManager.h"
-
-#include <atomic>
+#include "EntitySystem/MovieSceneMaybeAtomic.h"
+#include "Misc/TransactionallySafeCriticalSection.h"
 
 namespace UE::MovieScene
 {
@@ -150,9 +150,9 @@ struct FScheduledTask
 	/** 4 Bytes - the total number of tasks that must complete before this one can begin */
 	int32 NumPrerequisites = 0;
 	/** 4 Bytes - the number of outstanding prerequisite tasks this task is waiting on. Reset to NumPrerequisites on completion */
-	mutable std::atomic<int32> WaitCount = std::atomic<int32>(0);
+	mutable FEntitySystemMaybeAtomicInt32 WaitCount = 0;
 	/** 4 Bytes - the number of child tasks that must be completed before this task is considered complete */
-	mutable std::atomic<int32> ChildCompleteCount = std::atomic<int32>(0);
+	mutable FEntitySystemMaybeAtomicInt32 ChildCompleteCount = 0;
 
 	/** 4 Bytes - This task's parent (or None() if it is not a child task) */
 	FTaskID Parent;
@@ -350,7 +350,7 @@ private:
 
 	FEntityManager* EntityManager;
 
-	mutable std::atomic<int32> NumTasksRemaining = 0;
+	mutable FEntitySystemMaybeAtomicInt32 NumTasksRemaining = 0;
 
 	FEvent* GameThreadSignal = nullptr;
 	mutable TLockFreePointerListFIFO<FScheduledTask, PLATFORM_CACHE_LINE_SIZE> GameThreadTaskList;

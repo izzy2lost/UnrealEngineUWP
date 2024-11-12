@@ -91,8 +91,6 @@ static void ClearCachedWindowRects()
 	CachedWindowRect_EventThread = FAndroidCachedWindowRectParams();
 }
 
-static int32 GSurfaceViewX = 0;
-static int32 GSurfaceViewY = 0;
 int32 GSurfaceViewWidth = -1;
 int32 GSurfaceViewHeight = -1;
 
@@ -200,11 +198,8 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfa
 	ANativeWindow* prev = (ANativeWindow*)GAndroidWindowOverride;
 	if (surface != 0)
 	{
-		GSurfaceViewX = x;
-		GSurfaceViewY = y;
-
 		GAndroidWindowOverride = (ANativeWindow*)ANativeWindow_fromSurface(jenv, surface);
-		UE_LOG(LogAndroid, Log, TEXT("nativeSetSurfaceOverride applied: prev to new %p -> %p, pos(%d, %d)"), prev, GAndroidWindowOverride, GSurfaceViewX, GSurfaceViewY);
+		UE_LOG(LogAndroid, Log, TEXT("nativeSetSurfaceOverride applied: prev to new %p -> %p, pos(%d, %d)"), prev, GAndroidWindowOverride, x, y);
 
 	}
 	else
@@ -418,6 +413,28 @@ void FAndroidWindow::EventManagerUpdateWindowDimensions(int32 Width, int32 Heigh
 	{
 		InvalidateCachedScreenRect();
 	}
+}
+
+bool FAndroidWindow::GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const
+{
+#if USE_ANDROID_JNI
+
+	if (NativeWindow == nullptr) return false;
+
+	ANativeWindow* AndroidWindow = static_cast<ANativeWindow*>(NativeWindow);
+
+	OutWidth = ANativeWindow_getWidth(AndroidWindow);
+	OutHeight = ANativeWindow_getHeight(AndroidWindow);
+
+	return true;
+
+#else
+
+	// Android without JNI?
+	// Just making the function work for unexpected platforms
+	return FPlatformMisc::GetOverrideResolution(OutWidth, OutHeight);
+
+#endif
 }
 
 void* FAndroidWindow::WaitForHardwareWindow()
@@ -787,6 +804,9 @@ static FAndroidDisplayInfo GetAndroidDisplayInfoFromDPITargets(int32 TargetDPI, 
 	UE_CLOG(TargetDPI <= NativeScreenDensityDPI, LogAndroid, Display, TEXT("AndroidDisplayInfoFromDPITargets : New DPI target %d, window dims %d, %d"), TargetDPI, Info.WindowDims.X, Info.WindowDims.Y);
 	UE_CLOG(TargetDPI > NativeScreenDensityDPI, LogAndroid, Display, TEXT("AndroidDisplayInfoFromDPITargets : TargetDPI too high, using native screen DPI %d, window dims %d, %d"), NativeScreenDensityDPI, Info.WindowDims.X, Info.WindowDims.Y);
 	TargetDPI = FMath::Min(TargetDPI, NativeScreenDensityDPI);
+
+	UE_CLOG(NativeScreenDensityDPI<LowerLimit3DDPI, LogAndroid, Display, TEXT("AndroidDisplayInfoFromDPITargets : 3d scene lower limit is too high (%d) for a native screen, clamping lower limit to DPI %d"), LowerLimit3DDPI, NativeScreenDensityDPI);
+	LowerLimit3DDPI = FMath::Min(LowerLimit3DDPI, NativeScreenDensityDPI);
 
 	int DesiredPixelCount = Info.WindowDims.X * Info.WindowDims.Y;
 	if (SceneMaxDesiredPixelCount && DesiredPixelCount > SceneMaxDesiredPixelCount)

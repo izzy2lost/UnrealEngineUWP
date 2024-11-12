@@ -315,8 +315,10 @@ namespace UnrealVS
 
 				var MatchedSolutionConfig =
 					(from SolutionConfiguration2 Sc in SolutionConfigs select Sc).FirstOrDefault(
-						Sc =>
-						String.CompareOrdinal(Sc.Name, SolutionConfig) == 0 && String.CompareOrdinal(Sc.PlatformName, SolutionPlatform) == 0);
+						Sc => {
+							ThreadHelper.ThrowIfNotOnUIThread();
+							return String.CompareOrdinal(Sc.Name, SolutionConfig) == 0 && String.CompareOrdinal(Sc.PlatformName, SolutionPlatform) == 0;
+						});
 
 				if (MatchedSolutionConfig != null)
 				{

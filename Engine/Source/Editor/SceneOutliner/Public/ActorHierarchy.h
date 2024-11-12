@@ -30,6 +30,7 @@ public:
 	void SetShowingLevelInstances(bool bInShowingLevelInstances) { bShowingLevelInstances = bInShowingLevelInstances; }
 	void SetShowingUnloadedActors(bool bInShowingUnloadedActors) { bShowingUnloadedActors = bInShowingUnloadedActors; }
 	void SetShowingEmptyFolders(bool bInShowingEmptyFolders) { bShowingEmptyFolders = bInShowingEmptyFolders; }
+	void SetSearchComponentsByActorName(bool bInSearchComponentsByActorName) { bSearchComponentsByActorName = bInSearchComponentsByActorName;}
 
 private:
 	bool IsShowingUnloadedActors() const;
@@ -123,6 +124,7 @@ protected:
 	bool bShowingLevelInstances = false;
 	bool bShowingUnloadedActors = false;
 	bool bShowingEmptyFolders = false;
+	bool bSearchComponentsByActorName = false;
 
 protected:
 

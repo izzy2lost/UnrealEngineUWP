@@ -4,7 +4,6 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
 
 #include "Misc/Launder.h"
 
@@ -18,7 +17,15 @@ class FChannel;
 } // namespace Trace
 } // namespace UE
 
-#define TRACE_PRIVATE_STATISTICS (!UE_BUILD_SHIPPING)
+#define TRACE_PRIVATE_EXPAND(x) x
+
+#if TRACE_PRIVATE_MINIMAL_ENABLED
+
+//------------------------------------------------------------------------------------------------
+//-- Private functional variants
+//------------------------------------------------------------------------------------------------
+
+#define TRACE_PRIVATE_STATISTICS (!(UE_BUILD_SHIPPING || USING_THREAD_SANITISER))
 
 #define TRACE_PRIVATE_CHANNEL_DEFAULT_ARGS false, "None"
 
@@ -139,6 +146,7 @@ class FChannel;
 		} \
 		typedef UE::Trace::TField<DefinitionId_Meta::Index + NumDefinitionFields, DefinitionId_Meta::Offset + DefinitionId_Meta::Size, UE::Trace::EventProps> EventProps_Meta; \
 		EventProps_Meta const EventProps_Private = {}; \
+		static_assert(bIsImportant == 0 || TRACE_PRIVATE_ALLOW_IMPORTANTS, "Important events are disabled in this configuration.");\
 		typedef std::conditional<bIsImportant != 0, UE::Trace::Private::FImportantLogScope, UE::Trace::Private::FLogScope>::type LogScopeType; \
 		explicit operator bool () const { return true; } \
 		enum { EventFlags = PartialEventFlags|((EventProps_Meta::NumAuxFields != 0) ? UE::Trace::Private::FEventInfo::Flag_MaybeHasAux : 0), }; \
@@ -154,6 +162,10 @@ class FChannel;
 			if (const auto& __restrict EventName = *UE_LAUNDER((F##LoggerName##EventName##Fields*)(&LogScope))) \
 				((void)EventName),
 
+#define TRACE_PRIVATE_LOG_PRELUDE_CONDITIONAL(EnterFunc, LoggerName, EventName, ChannelsExpr, Condition, ...) \
+	if (Condition) \
+		TRACE_PRIVATE_LOG_PRELUDE(EnterFunc, LoggerName, EventName, ChannelsExpr, __VA_ARGS__) 
+
 #define TRACE_PRIVATE_LOG_EPILOG() \
 				LogScope += LogScope
 
@@ -167,9 +179,21 @@ class FChannel;
 		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
 		TRACE_PRIVATE_LOG_EPILOG()
 
+#define TRACE_PRIVATE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...) \
+	UE::Trace::Private::FScopedLogScope PREPROCESSOR_JOIN(TheScope, __LINE__); \
+	TRACE_PRIVATE_LOG_PRELUDE_CONDITIONAL(ScopedEnter, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__) \
+		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
+		TRACE_PRIVATE_LOG_EPILOG()
+
 #define TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...) \
 	UE::Trace::Private::FScopedStampedLogScope PREPROCESSOR_JOIN(TheScope, __LINE__); \
 	TRACE_PRIVATE_LOG_PRELUDE(ScopedStampedEnter, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__) \
+		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
+		TRACE_PRIVATE_LOG_EPILOG()
+
+#define TRACE_PRIVATE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...) \
+	UE::Trace::Private::FScopedStampedLogScope PREPROCESSOR_JOIN(TheScope, __LINE__); \
+	TRACE_PRIVATE_LOG_PRELUDE_CONDITIONAL(ScopedStampedEnter, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__) \
 		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
 		TRACE_PRIVATE_LOG_EPILOG()
 
@@ -181,30 +205,44 @@ class FChannel;
 	TRACE_PRIVATE_LOG(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__) \
 		<< EventName.SetDefinitionId(UE::Trace::MakeEventRef(Id, F##LoggerName##EventName##Fields::GetUid()))
 
-#else
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED
 
-#define TRACE_PRIVATE_CHANNEL(ChannelName, ...)
+//------------------------------------------------------------------------------------------------
+//-- Private no op variants
+//------------------------------------------------------------------------------------------------
 
-#define TRACE_PRIVATE_CHANNEL_EXTERN(ChannelName, ...)
+#define TRACE_PRIVATE_NOP_CHANNEL(ChannelName, ...)
 
-#define TRACE_PRIVATE_CHANNEL_DEFINE(ChannelName, ...)
+#define TRACE_PRIVATE_NOP_CHANNEL_EXTERN(ChannelName, ...)
 
-#define TRACE_PRIVATE_CHANNELEXPR_IS_ENABLED(ChannelsExpr) \
+#define TRACE_PRIVATE_NOP_CHANNEL_DEFINE(ChannelName, ...)
+
+#define TRACE_PRIVATE_NOP_CHANNELEXPR_IS_ENABLED(ChannelsExpr) \
 	false
 
-#define TRACE_PRIVATE_EVENT_DEFINE(LoggerName, EventName) \
+#define TRACE_PRIVATE_NOP_EVENT_DEFINE(LoggerName, EventName) \
 	int8* LoggerName##EventName##DummyPtr = nullptr;
 
-#define TRACE_PRIVATE_EVENT_BEGIN(LoggerName, EventName, ...) \
-	TRACE_PRIVATE_EVENT_BEGIN_IMPL(LoggerName, EventName)
+#define TRACE_PRIVATE_NOP_EVENT_BEGIN(LoggerName, EventName, ...) \
+	TRACE_PRIVATE_NOP_EVENT_BEGIN_IMPL(LoggerName, EventName)
 
-#define TRACE_PRIVATE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...) \
+#define TRACE_PRIVATE_NOP_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...) \
 	extern int8* LoggerName##EventName##DummyPtr; \
-	TRACE_PRIVATE_EVENT_BEGIN_IMPL(LoggerName, EventName)
+	TRACE_PRIVATE_NOP_EVENT_BEGIN_IMPL(LoggerName, EventName)
 
-#define TRACE_PRIVATE_EVENT_BEGIN_IMPL(LoggerName, EventName) \
+#define TRACE_PRIVATE_NOP_EVENT_BEGIN_IMPL(LoggerName, EventName) \
 	struct F##LoggerName##EventName##Dummy \
 	{ \
+		enum \
+		{ \
+			Important, \
+			NoSync, \
+			Definition8bit, \
+			Definition16bit, \
+			Definition32bit, \
+			Definition64bit, \
+			DefinitionBits, \
+		}; \
 		struct FTraceDisabled \
 		{ \
 			const FTraceDisabled& operator () (...) const { return *this; } \
@@ -215,32 +253,38 @@ class FChannel;
 		} \
 		explicit operator bool () const { return false; }
 
-#define TRACE_PRIVATE_EVENT_FIELD(FieldType, FieldName) \
+#define TRACE_PRIVATE_NOP_EVENT_FIELD(FieldType, FieldName) \
 		const FTraceDisabled& FieldName;
 
-#define TRACE_PRIVATE_EVENT_REFFIELD(RefLogger, RefEventType, FieldName) \
+#define TRACE_PRIVATE_NOP_EVENT_REFFIELD(RefLogger, RefEventType, FieldName) \
 		const FTraceDisabled& FieldName;
 
-#define TRACE_PRIVATE_EVENT_END() \
+#define TRACE_PRIVATE_NOP_EVENT_END() \
 	};
 
-#define TRACE_PRIVATE_LOG(LoggerName, EventName, ...) \
+#define TRACE_PRIVATE_NOP_LOG(LoggerName, EventName, ...) \
 	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
 		EventName
 
-#define TRACE_PRIVATE_LOG_SCOPED(LoggerName, EventName, ...) \
+#define TRACE_PRIVATE_NOP_LOG_SCOPED(LoggerName, EventName, ...) \
 	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
 		EventName
 
-#define TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ...) \
+#define TRACE_PRIVATE_NOP_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ...) \
 	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
 		EventName
 
-#define TRACE_PRIVATE_GET_DEFINITION_TYPE_ID(LoggerName, EventName) \
+#define TRACE_PRIVATE_NOP_LOG_SCOPED_T(LoggerName, EventName, ...) \
+	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
+		EventName
+
+#define TRACE_PRIVATE_NOP_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ...) \
+	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
+		EventName
+
+#define TRACE_PRIVATE_NOP_GET_DEFINITION_TYPE_ID(LoggerName, EventName) \
 	0
 
-#define TRACE_PRIVATE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...) \
+#define TRACE_PRIVATE_NOP_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...) \
 	UE::Trace::MakeEventRef(Id, 0); \
-	TRACE_PRIVATE_LOG(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-
-#endif // UE_TRACE_ENABLED
+	TRACE_PRIVATE_NOP_LOG(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)

@@ -20,6 +20,7 @@ public:
 	TSharedPtr<FUICommandInfo> SaveOnCompile_Never;
 	TSharedPtr<FUICommandInfo> SaveOnCompile_SuccessOnly;
 	TSharedPtr<FUICommandInfo> SaveOnCompile_Always;
+	TSharedPtr<FUICommandInfo> LogCompilationResult;
 
 	TSharedPtr<FUICommandInfo> AddSiblingState;
 	TSharedPtr<FUICommandInfo> AddChildState;
@@ -31,4 +32,9 @@ public:
 	TSharedPtr<FUICommandInfo> DuplicateStates;
 	TSharedPtr<FUICommandInfo> DeleteStates;
 	TSharedPtr<FUICommandInfo> EnableStates;
+
+#if WITH_STATETREE_TRACE_DEBUGGER
+	TSharedPtr<FUICommandInfo> EnableOnEnterStateBreakpoint;
+	TSharedPtr<FUICommandInfo> EnableOnExitStateBreakpoint;
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 };

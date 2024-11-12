@@ -553,6 +553,10 @@ void FScalableFloatDetails::OnBrowseTo()
 void FScalableFloatDetails::OnClear()
 {
 	OnSelectCurveTable(FAssetData());
+	if (RowNameProperty.IsValid())
+	{
+		RowNameProperty->ResetToDefault();
+	}
 }
 
 void FScalableFloatDetails::OnUseSelected()

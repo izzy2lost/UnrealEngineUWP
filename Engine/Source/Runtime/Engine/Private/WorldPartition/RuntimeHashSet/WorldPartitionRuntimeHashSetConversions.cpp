@@ -29,6 +29,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 		// Gather all HLOD layers into their corresponding grids
 		TMap<FName, TMap<FName, TSet<const UHLODLayer*>>> GridHLODLayersMap;
 		const UHLODLayer* DefaultHLODLayer = WorldPartition->GetDefaultHLODLayer();
+		const bool bUseAlignedGridLevels = SpatialHash->GetUseAlignedGridLevels();
 
 		for (const FSpatialHashRuntimeGrid& Grid : SpatialHash->Grids)
 		{
@@ -67,6 +68,8 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 				URuntimePartitionLHGrid* LHGrid = NewObject<URuntimePartitionLHGrid>(HashSet, NAME_None);
 				LHGrid->Name = RuntimePartitionDesc.Name;
 				LHGrid->CellSize = Grid.CellSize;
+				LHGrid->Origin = bUseAlignedGridLevels ? FVector::ZeroVector : FVector(LHGrid->CellSize * -0.5f);
+				LHGrid->bIs2D = true;
 				LHGrid->bBlockOnSlowStreaming = Grid.bBlockOnSlowStreaming;
 				LHGrid->bClientOnlyVisible = Grid.bClientOnlyVisible;
 				LHGrid->Priority = Grid.Priority;
@@ -80,7 +83,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 					const int32 HLODIndex = RuntimePartitionDesc.HLODSetups.Num();
 					FRuntimePartitionHLODSetup& HLODSetup = RuntimePartitionDesc.HLODSetups.AddDefaulted_GetRef();
 
-					HLODSetup.Name = HLODGridName.IsNone() ? NAME_PersistentLevel : HLODGridName;
+					HLODSetup.Name = HLODGridName;
 					HLODSetup.bIsSpatiallyLoaded = !HLODGridName.IsNone();
 					HLODSetup.HLODLayers = HLODLayers.Array();
 
@@ -88,12 +91,14 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 					{
 						URuntimePartitionLHGrid* HLODLHGrid = NewObject<URuntimePartitionLHGrid>(HashSet, NAME_None);
 						HLODLHGrid->CellSize = HLODSetup.HLODLayers[0]->GetCellSize();
+						HLODLHGrid->Origin = bUseAlignedGridLevels ? FVector::ZeroVector : FVector(HLODLHGrid->CellSize * -0.5f);
+						HLODLHGrid->bIs2D = true;
 						HLODLHGrid->LoadingRange = HLODSetup.HLODLayers[0]->GetLoadingRange();
 						HLODSetup.PartitionLayer = HLODLHGrid;
 					}
 					else
 					{
-						HLODSetup.PartitionLayer = NewObject<URuntimePartitionPersistent>(HashSet, NAME_None);;
+						HLODSetup.PartitionLayer = NewObject<URuntimePartitionPersistent>(HashSet, NAME_None);
 						HLODSetup.PartitionLayer->LoadingRange = 0;
 					}
 

@@ -2,9 +2,13 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+
 // HEADER_UNIT_SKIP - Not included directly
 
 PRAGMA_DISABLE_SHADOW_VARIABLE_WARNINGS
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
 
 // Include the intrinsic functions header
 #if ((PLATFORM_WINDOWS || PLATFORM_HOLOLENS) && PLATFORM_64BITS)
@@ -73,6 +77,8 @@ typedef VectorRegisterWrapper<float32x4_t, float> VectorRegister4Float;
 typedef VectorRegisterWrapper<float64x2_t, double> VectorRegister2Double;
 typedef VectorRegisterWrapper<int32x4_t, int> VectorRegister4Int;
 typedef VectorRegisterWrapper<int64x2_t, int64> VectorRegister2Int64;
+
+typedef float32x4x4_t VectorRegister4x4Float;
 
 FORCEINLINE constexpr VectorRegister4Int MakeVectorRegisterIntConstant(int32 X, int32 Y, int32 Z, int32 W)
 {
@@ -395,7 +401,7 @@ FORCEINLINE VectorRegister4Double MakeVectorRegisterDouble(const VectorRegister4
 // Lossy conversion: double->float vector
 FORCEINLINE VectorRegister4Float MakeVectorRegisterFloatFromDouble(const VectorRegister4Double& Vec)
 {
-	return vcvt_high_f32_f64(vcvt_f32_f64(Vec.XY), Vec.ZW);
+	return vcombine_f32(vcvt_f32_f64(Vec.XY), vcvt_f32_f64(Vec.ZW));
 }
 
 /*
@@ -503,16 +509,10 @@ FORCEINLINE VectorRegister4Float VectorLoadFloat2(const float* Ptr)
  */
 FORCEINLINE VectorRegister4Double VectorLoadFloat3(const double* Ptr)
 {
-	union U
-	{
-		VectorRegister4Double V; double D[4];
-		inline U() : V() {}
-	} Tmp;
-
-	Tmp.V.XY = vld1q_f64(Ptr);
-	Tmp.D[2] = Ptr[2];
-	Tmp.D[3] = 0.0;
-	return Tmp.V;
+	VectorRegister4Double Result;
+	Result.XY = vld1q_f64(Ptr);
+	Result.ZW = vcombine_f64(vld1_f64(&Ptr[2]), vdup_n_f64(0.0));
+	return Result;
 }
 
 /**
@@ -523,7 +523,10 @@ FORCEINLINE VectorRegister4Double VectorLoadFloat3(const double* Ptr)
  */
 FORCEINLINE VectorRegister4Double VectorLoadFloat3_W1(const double* Ptr)
 {
-	return MakeVectorRegisterDouble(Ptr[0], Ptr[1], Ptr[2], 1.0f);
+	VectorRegister4Double Result;
+	Result.XY = vld1q_f64(Ptr);
+	Result.ZW = vcombine_f64(vld1_f64(&Ptr[2]), vdup_n_f64(1.0));
+	return Result;
 }
 
 /**
@@ -1477,20 +1480,18 @@ FORCEINLINE VectorRegister4Double VectorShuffleImpl(VectorRegister4Double Vec1, 
  */
 FORCEINLINE uint32 VectorMaskBits(VectorRegister4Float VecMask)
 {
-	uint32x4_t mmA = vtstq_u32(vreinterpretq_u32_f32(VecMask), GlobalVectorConstants::SignBit()); // mask with 1s every bit for vector element if it's sign is negative
-	uint32x4_t mmB = vandq_u32(mmA, MakeVectorRegisterInt(0x1, 0x2, 0x4, 0x8)); // pick only one bit on it's corresponding position
-	uint32x2_t mmC = vorr_u32(vget_low_u32(mmB), vget_high_u32(mmB));           // now combine the result
-	return vget_lane_u32(mmC, 0) | vget_lane_u32(mmC, 1);                       // reduce the result from 2 elements to one
+	int32x4_t Signs = vshrq_n_s32(vreinterpretq_s32_f32(VecMask), 31); // sign bit of each lane replicated 32x
+	int32x4_t Masked = vandq_s32(Signs, MakeVectorRegisterInt(0x1, 0x2, 0x4, 0x8)); // pick bit for lane position
+	return uint32(vaddvq_s32(Masked)); // reduce via add
 }
 
 FORCEINLINE uint32 VectorMaskBits(VectorRegister4Double VecMask)
 {
-	uint64x2_t mmA = vtstq_u64(vreinterpretq_u64_f64(VecMask.XY), GlobalVectorConstants::DoubleSignBit().XY); // mask with 1s every bit for vector element if it's sign is negative
-	uint64x2_t mmA1 = vtstq_u64(vreinterpretq_u64_f64(VecMask.ZW), GlobalVectorConstants::DoubleSignBit().XY);
-	uint64x2_t mmB = vandq_u64(mmA, MakeVectorRegisterInt64(0x1, 0x2)); // pick only one bit on it's corresponding position
-	uint64x2_t mmB1 = vandq_u64(mmA1, MakeVectorRegisterInt64(0x4, 0x8));
-	uint64x2_t mmC = vorrq_u64(mmB, mmB1);								// now combine the result
-	return (uint32)(vgetq_lane_u64(mmC, 0) | vgetq_lane_u64(mmC, 1));     // reduce the result from 2 elements to one
+	int64x2_t Signs0 = vshrq_n_s64(vreinterpretq_s64_f32(VecMask.XY), 63); // sign bit of each lane replicated 64x
+	int64x2_t Signs1 = vshrq_n_s64(vreinterpretq_s64_f32(VecMask.ZW), 63); // sign bit of each lane replicated 64x
+	int32x4_t Signs = vuzp1q_s32(Signs0, Signs1); // 32-bit masks
+	int32x4_t Masked = vandq_s32(Signs, MakeVectorRegisterInt(0x1, 0x2, 0x4, 0x8)); // pick bit for lane position
+	return uint32(vaddvq_s32(Masked)); // reduce via add
 }
 
 /**
@@ -1707,9 +1708,6 @@ FORCEINLINE VectorRegister4Double VectorReciprocalSqrtEstimate(const VectorRegis
  */
 FORCEINLINE VectorRegister4Float VectorReciprocalSqrt(const VectorRegister4Float& Vec)
 {
-	// Perform a single pass of Newton-Raphson iteration on the hardware estimate
-	// This is a builtin instruction (VRSQRTS)
-
 	// Initial estimate
 	VectorRegister4Float RecipSqrt = VectorReciprocalSqrtEstimate(Vec);
 
@@ -1720,9 +1718,6 @@ FORCEINLINE VectorRegister4Float VectorReciprocalSqrt(const VectorRegister4Float
 
 FORCEINLINE VectorRegister4Double VectorReciprocalSqrt(const VectorRegister4Double& Vec)
 {
-	// Perform a single pass of Newton-Raphson iteration on the hardware estimate
-	// This is a builtin instruction (VRSQRTS)
-
 	// Initial estimate
 	VectorRegister4Double RecipSqrt = VectorReciprocalSqrtEstimate(Vec);
 
@@ -2089,78 +2084,72 @@ FORCEINLINE VectorRegister4Double VectorMergeVecXYZ_VecW(const VectorRegister4Do
 
 /**
  * Loads 4 uint8s from unaligned memory and converts them into 4 floats.
- * IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar floats after you've used this intrinsic!
  *
  * @param Ptr			Unaligned memory pointer to the 4 uint8s.
  * @return				VectorRegister4Float( float(Ptr[0]), float(Ptr[1]), float(Ptr[2]), float(Ptr[3]) )
  */
 FORCEINLINE VectorRegister4Float VectorLoadByte4( const void* Ptr )
 {
-	// OPTIMIZE ME!
-	const uint8 *P = (const uint8 *)Ptr;
-	return MakeVectorRegister( (float)P[0], (float)P[1], (float)P[2], (float)P[3] );
+	uint8x8_t AsUInt8 = vreinterpret_u8_u32(vld1_dup_u32((const uint32*)Ptr));
+	uint16x8_t AsUInt16 = vmovl_u8(AsUInt8);
+	uint32x4_t AsUInt32 = vmovl_u16(vget_low_u16(AsUInt16));
+	return vcvtq_f32_u32(AsUInt32);
 }
 
 /**
 * Loads 4 int8s from unaligned memory and converts them into 4 floats.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar floats after you've used this intrinsic!
 *
 * @param Ptr			Unaligned memory pointer to the 4 uint8s.
 * @return				VectorRegister4Float( float(Ptr[0]), float(Ptr[1]), float(Ptr[2]), float(Ptr[3]) )
 */
 FORCEINLINE VectorRegister4Float VectorLoadSignedByte4(const void* Ptr)
 {
-	// OPTIMIZE ME!
-	const int8 *P = (const int8 *)Ptr;
-	return MakeVectorRegister((float)P[0], (float)P[1], (float)P[2], (float)P[3]);
+	int8x8_t AsInt8 = vreinterpret_s8_u32(vld1_dup_u32((const uint32*)Ptr));
+	int16x8_t AsInt16 = vmovl_s8(AsInt8);
+	int32x4_t AsInt32 = vmovl_s16(vget_low_u16(AsInt16));
+	return vcvtq_f32_s32(AsInt32);
 }
 
 /**
  * Loads 4 uint8s from unaligned memory and converts them into 4 floats in reversed order.
- * IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar floats after you've used this intrinsic!
  *
  * @param Ptr			Unaligned memory pointer to the 4 uint8s.
  * @return				VectorRegister4Float( float(Ptr[3]), float(Ptr[2]), float(Ptr[1]), float(Ptr[0]) )
  */
 FORCEINLINE VectorRegister4Float VectorLoadByte4Reverse( const uint8* Ptr )
 {
-	// OPTIMIZE ME!
-	const uint8 *P = (const uint8 *)Ptr;
-	return MakeVectorRegister( (float)P[3], (float)P[2], (float)P[1], (float)P[0] );
+	uint8x8_t AsUInt8 = vrev32_u8(vreinterpret_u8_u32(vld1_dup_u32((const uint32*)Ptr)));
+	uint16x8_t AsUInt16 = vmovl_u8(AsUInt8);
+	uint32x4_t AsUInt32 = vmovl_u16(vget_low_u16(AsUInt16));
+	return vcvtq_f32_u32(AsUInt32);
 }
 
 /**
  * Converts the 4 floats in the vector to 4 uint8s, clamped to [0,255], and stores to unaligned memory.
- * IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar floats after you've used this intrinsic!
  *
  * @param Vec			Vector containing 4 floats
  * @param Ptr			Unaligned memory pointer to store the 4 uint8s.
  */
 FORCEINLINE void VectorStoreByte4( VectorRegister4Float Vec, void* Ptr )
 {
-	uint16x8_t u16x8 = (uint16x8_t)vcvtq_u32_f32(VectorMin(Vec, GlobalVectorConstants::Float255));
-	uint8x8_t u8x8 = (uint8x8_t)vget_low_u16( vuzpq_u16( u16x8, u16x8 ).val[0] );
-	u8x8 = vuzp_u8( u8x8, u8x8 ).val[0];
-	uint32_t buf[2];
-	vst1_u8( (uint8_t *)buf, u8x8 );
-	*(uint32_t *)Ptr = buf[0]; 
+	uint32x4_t AsUInt32 = vcvtq_u32_f32(Vec); // Saturates (clamps) to [0,2^32 - 1]
+	uint16x4_t AsUInt16 = vqmovn_u32(AsUInt32); // Saturates further to [0,2^16 - 1]
+	uint8x8_t AsUInt8 = vqmovn_u16(vcombine_u16(AsUInt16, vdup_n_u16(0))); // Saturates to [0,255]
+	vst1_lane_u32((uint32_t*)Ptr, AsUInt8, 0);
 }
 
 /**
-* Converts the 4 floats in the vector to 4 int8s, clamped to [-127, 127], and stores to unaligned memory.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar floats after you've used this intrinsic!
+* Converts the 4 floats in the vector to 4 int8s, clamped to [-128, 127], and stores to unaligned memory.
 *
 * @param Vec			Vector containing 4 floats
 * @param Ptr			Unaligned memory pointer to store the 4 uint8s.
 */
 FORCEINLINE void VectorStoreSignedByte4(VectorRegister4Float Vec, void* Ptr)
 {
-	int16x8_t s16x8 = (int16x8_t)vcvtq_s32_f32(VectorMax(VectorMin(Vec, GlobalVectorConstants::Float127), GlobalVectorConstants::FloatNeg127));
-	int8x8_t s8x8 = (int8x8_t)vget_low_s16(vuzpq_s16(s16x8, s16x8).val[0]);
-	s8x8 = vuzp_s8(s8x8, s8x8).val[0];
-	int32_t buf[2];
-	vst1_s8((int8_t *)buf, s8x8);
-	*(int32_t *)Ptr = buf[0];
+	int32x4_t AsInt32 = vcvtq_s32_f32(Vec); // Saturates (clamps) to [-2^31,2^31 - 1]
+	int16x4_t AsInt16 = vqmovn_s32(AsInt32); // Saturates further to [-32768,32767]
+	int8x8_t AsInt8 = vqmovn_s16(vcombine_s16(AsInt16, vdup_n_s16(0))); // Saturates to [-128,127]
+	vst1_lane_u32((uint32_t*)Ptr, AsInt8, 0);
 }
 
 /**
@@ -2173,25 +2162,11 @@ template <bool bAligned>
 FORCEINLINE void VectorStoreHalf4(VectorRegister4Float Vec, void* RESTRICT Ptr)
 {
 	float16x4_t f16x4 = vcvt_f16_f32(Vec);
-
-	if (bAligned)
-	{
-		vst1_u8( (uint8_t *)Ptr, f16x4 );
-	}
-	else
-	{
-		alignas(16) uint16_t Buf[4];
-		vst1_u8( (uint8_t *)Buf, f16x4 );
-		for (int i = 0; i < 4; ++i)
-		{
-			((uint16_t*)Ptr)[i] = Buf[i];
-		}
-	}
+	vst1_u8((uint8_t*)Ptr, f16x4);
 }
 
 /**
 * Loads packed RGB10A2(4 bytes) from unaligned memory and converts them into 4 FLOATs.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar FLOATs after you've used this intrinsic!
 *
 * @param Ptr			Unaligned memory pointer to the RGB10A2(4 bytes).
 * @return				VectorRegister4Float with 4 FLOATs loaded from Ptr.
@@ -2211,7 +2186,6 @@ FORCEINLINE VectorRegister4Float VectorLoadURGB10A2N(void* Ptr)
 
 /**
 * Converts the 4 FLOATs in the vector RGB10A2, clamped to [0, 1023] and [0, 3], and stores to unaligned memory.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar FLOATs after you've used this intrinsic!
 *
 * @param Vec			Vector containing 4 FLOATs
 * @param Ptr			Unaligned memory pointer to store the packed RGB10A2(4 bytes).
@@ -2250,12 +2224,11 @@ FORCEINLINE int32 VectorAnyGreaterThan(VectorRegister4Double Vec1, VectorRegiste
 {
 	uint32x4_t MaskXY = (uint32x4_t)vcgtq_f64(Vec1.XY, Vec2.XY);
 	uint32x4_t MaskZW = (uint32x4_t)vcgtq_f64(Vec1.ZW, Vec2.ZW);
-	return vmaxvq_u32(MaskXY) || vmaxvq_u32(MaskZW);
+	return vmaxvq_u32(vorrq_u32(MaskXY, MaskZW));
 }
 
 /**
  * Resets the floating point registers so that they can be used again.
- * Some intrinsics use these for MMX purposes (e.g. VectorLoadByte4 and VectorStoreByte4).
  */
 #define VectorResetFloatRegisters()
 
@@ -2264,19 +2237,42 @@ FORCEINLINE int32 VectorAnyGreaterThan(VectorRegister4Double Vec1, VectorRegiste
  *
  * @return			The uint32 control register
  */
-#define VectorGetControlRegister()		0
+FORCEINLINE uint32_t VectorGetControlRegister()
+{
+#if PLATFORM_WINDOWS
+	return (uint32_t)_ReadStatusReg(ARM64_FPCR);
+#else
+	uint64_t Value;
+	// The system register read/write instructions use 64-bit registers,
+	__asm__ volatile("mrs %0, fpcr" : "=r"(Value));
+	return (uint32_t)Value;
+#endif
+}
 
 /**
  * Sets the control register.
  *
  * @param ControlStatus		The uint32 control status value to set
  */
-#define	VectorSetControlRegister(ControlStatus)
+FORCEINLINE void VectorSetControlRegister(uint32_t ControlStatus)
+{
+#if PLATFORM_WINDOWS
+	_WriteStatusReg(ARM64_FPCR, ControlStatus);
+#else
+	uint64_t State64 = ControlStatus; // instruction needs a 64b reg, but all control bits fit in the lower 32b
+	__asm__ volatile("msr fpcr, %0" : : "r"(State64));
+#endif
+}
 
 /**
  * Control status bit to round all floating point math results towards zero.
  */
-#define VECTOR_ROUND_TOWARD_ZERO		0
+#define VECTOR_ROUND_TOWARD_ZERO		(3 << 22)
+
+ /**
+  * Denormal operands and results will be flushed to zero
+  */
+#define VECTOR_DENORMALS_FLUSH_TO_ZERO	(1 << 24)
 
 
 /**
@@ -2724,46 +2720,33 @@ FORCEINLINE void VectorSinCos(VectorRegister4Double* RESTRICT VSinAngles, Vector
 }
 
 /**
-* Loads packed RGBA16(4 bytes) from unaligned memory and converts them into 4 FLOATs.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar FLOATs after you've used this intrinsic!
+* Loads packed RGBA16(8 bytes) from unaligned memory and converts them into 4 FLOATs.
 *
 * @param Ptr			Unaligned memory pointer to the RGBA16(8 bytes).
 * @return				VectorRegister4Float with 4 FLOATs loaded from Ptr.
 */
 FORCEINLINE VectorRegister4Float VectorLoadURGBA16N(const uint16* E)
 {
-	alignas(16) float V[4];
-	V[0] = float(E[0]);
-	V[1] = float(E[1]);
-	V[2] = float(E[2]);
-	V[3] = float(E[3]);
-
-	return VectorLoad(V);
+	uint16x4_t UInt16s = vld1_u16(E);
+	uint32x4_t UInt32s = vmovl_u16(UInt16s);
+	return vcvtq_f32_u32(UInt32s);
 }
 
 /**
-* Loads packed signed RGBA16(4 bytes) from unaligned memory and converts them into 4 FLOATs.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar FLOATs after you've used this intrinsic!
+* Loads packed signed RGBA16(8 bytes) from unaligned memory and converts them into 4 FLOATs.
 *
 * @param Ptr			Unaligned memory pointer to the RGBA16(8 bytes).
 * @return				VectorRegister4Float with 4 FLOATs loaded from Ptr.
 */
 FORCEINLINE VectorRegister4Float VectorLoadSRGBA16N(const void* Ptr)
 {
-	alignas(16) float V[4];
-	int16* E = (int16*)Ptr;
-
-	V[0] = float(E[0]);
-	V[1] = float(E[1]);
-	V[2] = float(E[2]);
-	V[3] = float(E[3]);
-
-	return VectorLoad(V);
+	int16x4_t Int16s = vld1_s16((const int16 *)Ptr);
+	int32x4_t Int32s = vmovl_s16(Int16s);
+	return vcvtq_f32_s32(Int32s);
 }
 
 /**
 * Converts the 4 FLOATs in the vector RGBA16, clamped to [0, 65535], and stores to unaligned memory.
-* IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar FLOATs after you've used this intrinsic!
 *
 * @param Vec			Vector containing 4 FLOATs
 * @param Ptr			Unaligned memory pointer to store the packed RGBA16(8 bytes).
@@ -2773,16 +2756,10 @@ FORCEINLINE void VectorStoreURGBA16N(const VectorRegister4Float& Vec, uint16* Ou
 	VectorRegister4Float Tmp;
 	Tmp = VectorMax(Vec, VectorZeroFloat());
 	Tmp = VectorMin(Tmp, VectorOneFloat());
-	Tmp = VectorMultiplyAdd(Tmp, vdupq_n_f32(65535.0f), vdupq_n_f32(0.5f));
-	Tmp = VectorTruncate(Tmp);
+	Tmp = VectorMultiply(Tmp, vdupq_n_f32(65535.0f));
 
-	alignas(16) float F[4];
-	VectorStoreAligned(Tmp, F);
-
-	Out[0] = (uint16)F[0];
-	Out[1] = (uint16)F[1];
-	Out[2] = (uint16)F[2];
-	Out[3] = (uint16)F[3];
+	uint32x4_t TmpUInt = vcvtnq_u32_f32(Tmp);
+	vst1_u16(Out, vmovn_u32(TmpUInt));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -2796,7 +2773,7 @@ FORCEINLINE void VectorStoreURGBA16N(const VectorRegister4Float& Vec, uint16* Ou
 /** = a ^ b */
 #define VectorIntXor(A, B)		veorq_s32(A, B)
 /** = (~a) & b to match _mm_andnot_si128 */
-#define VectorIntAndNot(A, B)	vandq_s32(vmvnq_s32(A), B)
+#define VectorIntAndNot(A, B)	vbicq_s32(B, A)
 /** = ~a */
 #define VectorIntNot(A)	vmvnq_s32(A)
 
@@ -2811,7 +2788,7 @@ FORCEINLINE void VectorStoreURGBA16N(const VectorRegister4Float& Vec, uint16* Ou
 
 FORCEINLINE VectorRegister4Int VectorIntSelect(const VectorRegister4Int& Mask, const VectorRegister4Int& Vec1, const VectorRegister4Int& Vec2)
 {
-	return VectorIntXor(Vec2, VectorIntAnd(Mask, VectorIntXor(Vec1, Vec2)));
+	return vbslq_s32(Mask, Vec1, Vec2);
 }
 
 //Arithmetic
@@ -2822,7 +2799,7 @@ FORCEINLINE VectorRegister4Int VectorIntSelect(const VectorRegister4Int& Mask, c
 #define VectorIntMin(A, B) vminq_s32(A,B)
 #define VectorIntMax(A, B) vmaxq_s32(A,B)
 #define VectorIntClamp(A, B, C) VectorIntMin(VectorIntMax(A, B), C)
-#define VectorIntAbs(A) vabdq_s32(A, GlobalVectorConstants::IntZero)
+#define VectorIntAbs(A) vabsq_s32(A)
 
 #define VectorIntSign(A) VectorIntSelect( VectorIntCompareGE(A, GlobalVectorConstants::IntZero), GlobalVectorConstants::IntOne, GlobalVectorConstants::IntMinusOne )
 
@@ -2836,6 +2813,19 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Float& A)
 FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 {
 	return VectorFloatToInt(MakeVectorRegisterFloatFromDouble(A));
+}
+
+FORCEINLINE VectorRegister4Int VectorDoubleToInt(const VectorRegister4Double& Vec)
+{
+	VectorRegister2Int64 A = vcvtq_s64_f64(Vec.XY);
+	VectorRegister2Int64 B = vcvtq_s64_f64(Vec.ZW);
+	
+	return vcombine_s32(vqmovn_s64(A), vqmovn_s64(B));
+}
+
+FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec, const VectorRegister4Int& Mask)
+{
+	return vqtbl1q_u8(Vec, Mask);
 }
 
 //Loads and stores
@@ -2883,11 +2873,13 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 #define VectorIntLoad1( Ptr )	                    vld1q_dup_s32((int32*)(Ptr))
 #define VectorIntLoad1_16(Ptr)                      vld1q_dup_s16((int16*)(Ptr))
 
-#define VectorIntSet1(F)                            vdupq_n_s32(F)
+#define VectorIntSet1(F)                            (VectorRegister4Int)vdupq_n_s32(F)
 #define VectorSetZero()                             vdupq_n_s32(0)
-#define VectorSet1(F)                               vdupq_n_f32(F)
+#define VectorSet1(F)                               (VectorRegister4Float)vdupq_n_f32(F)
 #define VectorCastIntToFloat(Vec)                   ((VectorRegister4f)vreinterpretq_f32_s32(Vec))
 #define VectorCastFloatToInt(Vec)					((VectorRegister4i)vreinterpretq_s32_f32(Vec))
+#define VectorCastDoubleToInt(Vec)                  ((VectorRegister4i)vreinterpretq_s64_f64(Vec))
+#define VectorCastIntToDouble(Vec)                  ((VectorRegister2Double)vreinterpretq_f64_s64(Vec))
 #define VectorShiftLeftImm(Vec, ImmAmt)             vshlq_n_s32(Vec, ImmAmt)
 #define VectorShiftRightImmArithmetic(Vec, ImmAmt)  vshrq_n_s32(Vec, ImmAmt)
 #define VectorShiftRightImmLogical(Vec, ImmAmt)     vshrq_n_u32(Vec, ImmAmt)
@@ -2899,11 +2891,12 @@ FORCEINLINE VectorRegister4Int VectorRoundToIntHalfToEven(const VectorRegister4F
 }
 
 FORCEINLINE VectorRegister4i VectorIntExpandLow16To32(VectorRegister4i V) {
-	int16x4x2_t res = vzip_s16(vget_low_u16(V), vdup_n_u16(0));
-	return vcombine_s16(res.val[0], res.val[1]);
+	return vmovl_u16(vget_low_u16(V));
 }
 
 // To be continued...
+
+#endif // #if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
 
 PRAGMA_ENABLE_SHADOW_VARIABLE_WARNINGS
 

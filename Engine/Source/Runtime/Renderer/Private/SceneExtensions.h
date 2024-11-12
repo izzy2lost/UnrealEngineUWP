@@ -38,7 +38,12 @@ public:
 
 	virtual void Begin(FScene& InScene) {}
 	virtual void End() {}
-	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) {}
+
+	// Some care and caution is needed when using the SceneUniforms passed in here.
+	// These passes run outside of the context of the renderer so certain changes may not persist.
+	// Additionally - particularly in the pre-scene update - only certain fields of the SceneUniforms will be populated (GPUScene notably).
+	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms) {}
+
 	virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) {}
 	virtual void PostGPUSceneUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) {}
 };
@@ -51,7 +56,10 @@ public:
 
 	virtual void Begin(FSceneRendererBase& InRenderer) {}
 	virtual void End() {}
+
+	// See the note in ISceneExtensionUpdater about the SceneUniforms.
 	virtual void UpdateSceneUniformBuffer(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) {}
+
 	virtual void PreRender(FRDGBuilder& GraphBuilder) {}
 	virtual void PostRender(FRDGBuilder& GraphBuilder) {}
 };
@@ -75,22 +83,22 @@ private:
 class FSceneExtensionRegistry
 {
 public:
-	static FSceneExtensionRegistry& Get()
+	RENDERER_API static FSceneExtensionRegistry& Get()
 	{
 		InitRegistry();
 		return *GlobalRegistry;
 	}
 
 	int32 GetMaxRegistrationID() const { return Factories.Num() - 1; }
-	void Register(ISceneExtensionFactory& Factory);
+	RENDERER_API void Register(ISceneExtensionFactory& Factory);
 	TSparseArray<ISceneExtension*> CreateExtensions(FScene& Scene);
 
 private:
-	static void InitRegistry();
+	RENDERER_API static void InitRegistry();
 
 	TArray<ISceneExtensionFactory*> Factories;
 
-	static FSceneExtensionRegistry* GlobalRegistry;
+	RENDERER_API static FSceneExtensionRegistry* GlobalRegistry;
 };
 
 /** A collection of scene extensions */
@@ -183,9 +191,9 @@ public:
 	template<typename TUpdater>
 	const TUpdater& GetUpdater() const { return const_cast<FSceneExtensionsUpdaters*>(this)->GetUpdater<TUpdater>(); }
 
-	void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet)
+	void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms)
 	{
-		for (auto Updater : Updaters) { Updater->PreSceneUpdate(GraphBuilder, ChangeSet); }
+		for (auto Updater : Updaters) { Updater->PreSceneUpdate(GraphBuilder, ChangeSet, SceneUniforms); }
 	}
 
 	void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet)
@@ -278,11 +286,11 @@ public:
 };
 
 /** Use these macros in the class definitions of your extension. */
-#define DECLARE_SCENE_EXTENSION(ClassName) \
+#define DECLARE_SCENE_EXTENSION(ModuleExport, ClassName) \
 	public: \
-		static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
+		ModuleExport static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
 	private: \
-		static TSceneExtensionRegistration<ClassName> ExtensionRegistration
+		ModuleExport static TSceneExtensionRegistration<ClassName> ExtensionRegistration
 
 #define DECLARE_SCENE_EXTENSION_UPDATER(ClassName, SceneExtensionClassName) \
 	public: \

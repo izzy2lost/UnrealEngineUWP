@@ -2,13 +2,12 @@
 
 #include "DisplayClusterConfigurationTypes.h"
 
+#include "DisplayClusterConfigurationLog.h"
+#include "DisplayClusterConfigurationStrings.h"
 #include "DisplayClusterConfigurationTypes_Base.h"
 #include "DisplayClusterConfigurationTypes_Viewport.h"
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes_PostRender.h"
-
-#include "DisplayClusterConfigurationLog.h"
-#include "DisplayClusterConfigurationStrings.h"
 #include "DisplayClusterProjectionStrings.h"
 
 #include "Engine/StaticMesh.h"
@@ -30,7 +29,7 @@
 
 #define SAVE_MAP(Map) \
 	SAVE_MAP_TO_ARRAY(Map, OutObjects); \
-	
+
 
 FIntRect FDisplayClusterReplaceTextureCropRectangle::ToRect() const
 {
@@ -181,7 +180,6 @@ FDisplayClusterConfigurationProjection::FDisplayClusterConfigurationProjection()
 {
 	Type = TEXT("simple");
 }
-
 
 constexpr float UDisplayClusterConfigurationViewport::ViewportMinimumSize = 1.0f;
 constexpr float UDisplayClusterConfigurationViewport::ViewportMaximumSize = 15360.0f;
@@ -337,6 +335,21 @@ void UDisplayClusterConfigurationClusterNode::PostLoad()
 #endif // WITH_EDITOR
 }
 
+void UDisplayClusterConfigurationClusterNode::Serialize(FArchive& Ar)
+{
+	// When loading, overwrite Media settings with defaults unless this is the archetype
+	if (Ar.IsLoading() && !IsTemplate())
+	{
+		const FDisplayClusterConfigurationMediaNodeBackbuffer MediaSettingsOriginal = MediaSettings;
+		Super::Serialize(Ar);
+		MediaSettings = MediaSettingsOriginal;
+	}
+	else
+	{
+		Super::Serialize(Ar);
+	}
+}
+
 UDisplayClusterConfigurationClusterNode::UDisplayClusterConfigurationClusterNode()
 	: bIsSoundEnabled(false)
 #if WITH_EDITORONLY_DATA
@@ -391,7 +404,7 @@ void UDisplayClusterConfigurationData_Base::Serialize(FArchive& Ar)
 			}
 			if (Object->GetOuter() != this)
 			{
-				Object->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+				Object->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors);
 			}
 			Object->SetFlags(RF_Public);
 			Object->ClearFlags(RF_Transient);

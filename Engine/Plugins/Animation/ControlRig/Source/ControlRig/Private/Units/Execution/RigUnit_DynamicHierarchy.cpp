@@ -22,12 +22,12 @@ bool FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(
 
 	if(bAllowOnlyConstructionEvent)
 	{
-		if(InExecuteContext.GetEventName() != FRigUnit_PrepareForExecution::EventName)
+		if(!InExecuteContext.IsRunningConstructionEvent())
 		{
 			if(OutErrorMessage)
 			{
-				static constexpr TCHAR ErrorMessageFormat[] = TEXT("Node can only run in %s Event");
-				*OutErrorMessage = FString::Printf(ErrorMessageFormat, *FRigUnit_PrepareForExecution::EventName.ToString());
+				static constexpr TCHAR ErrorMessageFormat[] = TEXT("Node can only run in %s or %s Event");
+				*OutErrorMessage = FString::Printf(ErrorMessageFormat, *FRigUnit_PrepareForExecution::EventName.ToString(), *FRigUnit_PostPrepareForExecution::EventName.ToString());
 			}
 			return false;
 		}
@@ -38,7 +38,7 @@ bool FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(
 		if(OutErrorMessage)
 		{
 			static constexpr TCHAR ErrorMessageFormat[] = TEXT("Node has hit the Procedural Element Limit. Check the Class Settings under Hierarchy.");
-			*OutErrorMessage = FString::Printf(ErrorMessageFormat, *FRigUnit_PrepareForExecution::EventName.ToString());
+			*OutErrorMessage = ErrorMessageFormat;
 		}
 		return false;
 	}
@@ -99,6 +99,23 @@ FRigUnit_SetDefaultParent_Execute()
 	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
 	{
 		Controller->AddParent(ChildElement, ParentElement, 1.0f, true, true);
+	}
+}
+
+FRigUnit_SetChannelHosts_Execute()
+{
+	if(!FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(ExecuteContext, true))
+	{
+		return;
+	}
+	
+	for(const FRigElementKey& Host : Hosts)
+	{
+		FRigHierarchyEnableControllerBracket EnableController(ExecuteContext.Hierarchy, true);
+		if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
+		{
+			(void)Controller->AddChannelHost(Channel, Host);
+		}
 	}
 }
 
@@ -177,7 +194,7 @@ FRigUnit_SwitchParent_Execute()
 			}
 
 			// during construction event also change the initial weights
-			if(ExecuteContext.GetEventName() == FRigUnit_PrepareForExecution::EventName)
+			if(ExecuteContext.IsRunningConstructionEvent())
 			{
 				if(!ExecuteContext.Hierarchy->SwitchToParent(ChildElement, ParentElement, true, true, EmptyDependencyMap, &FailureReason))
 				{
@@ -251,7 +268,7 @@ FRigUnit_HierarchySetParentWeights_Execute()
 	ExecuteContext.Hierarchy->SetParentWeightArray(ChildElement, Weights, false, true);
 
 	// during construction event also change the initial weights
-	if(ExecuteContext.GetEventName() == FRigUnit_PrepareForExecution::EventName)
+	if(ExecuteContext.IsRunningConstructionEvent())
 	{
 		ExecuteContext.Hierarchy->SetParentWeightArray(ChildElement, Weights, true, true);
 	}
@@ -398,7 +415,7 @@ void FRigUnit_HierarchyAddControl_ShapeSettings::ConfigureFrom(const FRigControl
 	bVisible = InSettings.bShapeVisible;
 	Name = InSettings.ShapeName;
 	Color = InSettings.ShapeColor;
-	Transform = InControlElement->Shape.Get(ERigTransformType::InitialLocal);
+	Transform = InControlElement->GetShapeTransform().Get(ERigTransformType::InitialLocal);
 }
 
 void FRigUnit_HierarchyAddControl_ShapeSettings::Configure(FRigControlSettings& OutSettings) const

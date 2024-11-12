@@ -6,6 +6,7 @@
 #include "Types/SlateEnums.h"
 #include "Layout/Visibility.h"
 #include "IDetailCustomization.h"
+#include "SMaterialLayersFunctionsTree.h"
 #include "Input/Reply.h"
 #include "Customizations/ColorStructCustomization.h"
 
@@ -26,11 +27,12 @@ class FMaterialInstanceParameterDetails : public IDetailCustomization
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
-	static TSharedRef<class IDetailCustomization> MakeInstance(UMaterialEditorInstanceConstant* MaterialInstance, FGetShowHiddenParameters InShowHiddenDelegate);
+	static TSharedRef<class IDetailCustomization> MakeInstance(UMaterialEditorInstanceConstant* MaterialInstance, SMaterialLayersFunctionsInstanceWrapper* MaterialLayersFunctionsInstance, FGetShowHiddenParameters InShowHiddenDelegate);
 	
 	/** Constructor */
-	FMaterialInstanceParameterDetails(UMaterialEditorInstanceConstant* MaterialInstance, FGetShowHiddenParameters InShowHiddenDelegate);
+	FMaterialInstanceParameterDetails(UMaterialEditorInstanceConstant* MaterialInstance, SMaterialLayersFunctionsInstanceWrapper* MaterialLayersFunctionsInstance, FGetShowHiddenParameters InShowHiddenDelegate);
 
+	void CollectStackItemsRecursively(TSharedPtr<FSortedParamData> Item, TArray<TSharedPtr<FSortedParamData>>& OutGroupsContainer);
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 
@@ -45,7 +47,7 @@ private:
 	void CreateGroupsWidget(TSharedRef<IPropertyHandle> ParameterGroupsProperty, class IDetailCategoryBuilder& GroupsCategory);
 
 	/** Builds the widget for an individual parameter group */
-	void CreateSingleGroupWidget(struct FEditorParameterGroup& ParameterGroup, TSharedPtr<IPropertyHandle> ParameterGroupProperty, class IDetailGroup& DetailGroup);
+	void CreateSingleGroupWidget(struct FEditorParameterGroup& ParameterGroup, TSharedPtr<IPropertyHandle> ParameterGroupProperty, class IDetailGroup& DetailGroup, int32 GroupIndex = -1, bool bForceShowParam = false);
 
 	/** Enable/Disable all parameter properties in a group */
 	static void EnableGroupParameters(struct FEditorParameterGroup& ParameterGroup, bool ShouldEnable);
@@ -74,7 +76,7 @@ private:
 	/** Returns true if the refraction options should be displayed */
 	EVisibility ShouldShowMaterialRefractionSettings() const;
 
-	/** Returns true if the refraction options should be displayed */
+	/** Returns true if the Subsurface Profile options should be displayed */
 	EVisibility ShouldShowSubsurfaceProfile() const;
 
 	//Functions supporting copy/paste of entire parameter groups.
@@ -103,42 +105,45 @@ private:
 	/** Creates all the lightmass property override widgets. */
 	void CreateLightmassOverrideWidgets(IDetailLayoutBuilder& DetailLayout);
 
+	/** Creates Blendable Location / Priority and UserSceneTexture input / output override widgets. */
+	void CreatePostProcessOverrideWidgets(IDetailLayoutBuilder& DetailLayout);
+
 	//Functions supporting BasePropertyOverrides
 
 	/** Creates all the base property override widgets. */
 	void CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout, IDetailGroup& MaterialPropertyOverrideGroup);
 
 	EVisibility IsOverriddenAndVisible(TAttribute<bool> IsOverridden) const;
+	EVisibility IsOverriddenAndVisibleShadingModels(TAttribute<bool> IsOverridden) const;
+	EVisibility IsOverriddenAndVisibleSubstrateOnly(TAttribute<bool> IsOverridden) const;
 
-	bool OverrideOpacityClipMaskValueEnabled() const;
-	bool OverrideBlendModeEnabled() const;
-	bool OverrideShadingModelEnabled() const;
-	bool OverrideTwoSidedEnabled() const;
-	bool OverrideIsThinSurfaceEnabled() const;
-	bool OverrideDitheredLODTransitionEnabled() const;
-	bool OverrideOutputTranslucentVelocityEnabled() const;
-	bool OverrideHasPixelAnimationEnabled() const;
-	bool OverrideTessellationEnabled() const;
-	bool OverrideDisplacementScalingEnabled() const;
-	bool OverrideMaxWorldPositionOffsetDisplacementEnabled() const;
-	void OnOverrideOpacityClipMaskValueChanged(bool NewValue);
-	void OnOverrideBlendModeChanged(bool NewValue);
-	void OnOverrideShadingModelChanged(bool NewValue);
-	void OnOverrideTwoSidedChanged(bool NewValue);
-	void OnOverrideIsThinSurfaceChanged(bool NewValue);
-	void OnOverrideDitheredLODTransitionChanged(bool NewValue);
-	void OnOverrideOutputTranslucentVelocityChanged(bool NewValue);
-	void OnOverrideHasPixelAnimationChanged(bool NewValue);
-	void OnOverrideEnableTessellationChanged(bool NewValue);
-	void OnOverrideDisplacementScalingChanged(bool NewValue);
-	void OnOverrideMaxWorldPositionOffsetDisplacementChanged(bool NewValue);
-	bool OverrideCastDynamicShadowAsMaskedEnabled() const;
-	void OnOverrideCastDynamicShadowAsMaskedChanged(bool NewValue);
+#define DECLARE_OVERRIDE_MEMBER_FUNCS(PropertyName) \
+	bool Override ## PropertyName ## Enabled() const; \
+	void OnOverride ## PropertyName ## Changed(bool NewValue);
+
+	DECLARE_OVERRIDE_MEMBER_FUNCS(OpacityMaskClipValue)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(BlendMode)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(ShadingModel)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(TwoSided)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(IsThinSurface)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(DitheredLODTransition)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(OutputTranslucentVelocity)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(HasPixelAnimation)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(EnableTessellation)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(DisplacementScaling)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(EnableDisplacementFade)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(DisplacementFadeRange)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(MaxWorldPositionOffsetDisplacement)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(CastDynamicShadowAsMasked)
+	
+#undef DECLARE_OVERRIDE_MEMBER_FUNCS
 
 private:
 	/** Object that stores all of the possible parameters we can edit */
 	UMaterialEditorInstanceConstant* MaterialEditorInstance;
 
+	SMaterialLayersFunctionsInstanceWrapper* MaterialLayersFunctionsInstance;
+	
 	/** Delegate to call to determine if hidden parameters should be shown */
 	FGetShowHiddenParameters ShowHiddenDelegate;
 

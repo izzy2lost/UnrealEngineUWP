@@ -3,12 +3,17 @@
 #pragma once
 
 #include "MetalRHIPrivate.h"
+#include "MetalRHIPrivate.h"
+#include "MetalPipeline.h"
+#include "MetalResources.h"
+#include "MetalState.h"
 #include "MetalUniformBuffer.h"
 #include "Shaders/MetalShaderParameterCache.h"
-#include "MetalPipeline.h"
 
 class FMetalGraphicsPipelineState;
+class FMetalComputeShader;
 class FMetalQueryBuffer;
+class FMetalDevice;
 
 enum EMetalPipelineFlags
 {
@@ -38,7 +43,7 @@ enum EMetalRenderFlags
 class FMetalStateCache
 {
 public:
-	FMetalStateCache(MTL::Device* Device, bool const bInImmediate);
+	FMetalStateCache(FMetalDevice& Device, bool const bInImmediate);
 	~FMetalStateCache();
 	
 	/** Reset cached state for reuse */
@@ -48,7 +53,7 @@ public:
 	void SetBlendFactor(FLinearColor const& InBlendFactor);
 	void SetStencilRef(uint32 const InStencilRef);
 	void SetComputeShader(FMetalComputeShader* InComputeShader);
-	bool SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTargets, FMetalQueryBuffer* QueryBuffer, bool const bRestart);
+	bool SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTargets, FMetalQueryBuffer* QueryBuffer);
 	void InvalidateRenderTargets(void);
 	void SetRenderTargetsActive(bool const bActive);
 	void SetViewport(const MTL::Viewport& InViewport);
@@ -102,6 +107,8 @@ public:
 #endif
 
 #if METAL_USE_METAL_SHADER_CONVERTER
+	void CacheOrSkipResourceResidencyUpdate(MTL::Resource* InResource, EMetalShaderStages const Frequency, bool bReadOnly, bool bForceUseResource = false);
+	
     void IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV);
     void IRMakeUAVResident(EMetalShaderStages const Frequency, FMetalUnorderedAccessView* UAV);
     void IRMakeTextureResident(EMetalShaderStages const Frequency, MTL::Texture* Texture);
@@ -116,7 +123,9 @@ public:
 	 * @param Content Data to upload
 	 * @param Size Size in bytes
 	 */
-    uint64 IRSideUploadToBuffer(void const* Content, uint64 Size);
+	FMetalBufferPtr IRSideUploadToBuffer(void const* Content, uint64 Size);
+	
+	FMetalBufferPtr GetOrCreateBackingBufferCopy(FMetalUniformBuffer* UB);
 
     template<class ShaderType, EMetalShaderStages Frequency, MTL::FunctionType FunctionType>
     void IRBindResourcesToEncoder(ShaderType Shader, FMetalCommandEncoder* Encoder);
@@ -124,8 +133,6 @@ public:
     void IRMapVertexBuffers(MTL::RenderCommandEncoder* Encoder, bool bBindForMeshShaders = false);
 #endif
 
-	void RegisterMetalHeap(MTL::Heap* Heap);
-	
 	/*
 	 * Set a global texture for the specified shader frequency at the given bind point index.
 	 * @param Frequency The shader frequency to modify.
@@ -161,7 +168,7 @@ public:
 	
 	void CommitResourceTable(EMetalShaderStages const Frequency, MTL::FunctionType const Type, FMetalCommandEncoder& CommandEncoder);
 	
-	bool PrepareToRestart(bool const bCurrentApplied);
+	bool StartRenderPass(const FRHIRenderPassInfo& Info, FMetalQueryBuffer* QueryBuffer);
 	
 	FMetalShaderParameterCache& GetShaderParameters(EMetalShaderStages const Stage) { return ShaderParameters[Stage]; }
 	FLinearColor const& GetBlendFactor() const { return BlendFactor; }
@@ -179,10 +186,9 @@ public:
 	uint32 GetVertexBufferSize(uint32 const Index);
 	uint32 GetRenderTargetArraySize() const { return RenderTargetArraySize; }
 	FMetalQueryBuffer* GetVisibilityResultsBuffer() const { return VisibilityResults; }
-	bool GetScissorRectEnabled() const { return bScissorRectEnabled; }
 	bool NeedsToSetRenderTarget(const FRHIRenderPassInfo& RenderPassInfo);
 	bool HasValidDepthStencilSurface() const { return IsValidRef(DepthStencilSurface); }
-    bool CanRestartRenderPass() const { return bCanRestartRenderPass; }
+
 	MTL::RenderPassDescriptor* GetRenderPassDescriptor(void) const { return RenderPassDesc; }
 	uint32 GetSampleCount(void) const { return SampleCount; }
 	FMetalShaderPipeline* GetPipelineState() const;
@@ -190,14 +196,15 @@ public:
 	MTL::VisibilityResultMode GetVisibilityResultMode() { return VisibilityMode; }
 	uint32 GetVisibilityResultOffset() { return VisibilityOffset; }
 	
-	FTexture2DRHIRef CreateFallbackDepthStencilSurface(uint32 Width, uint32 Height);
-	bool GetFallbackDepthStencilBound(void) const { return bFallbackDepthStencilBound; }
-	
 	void SetRenderPipelineState(FMetalCommandEncoder& CommandEncoder);
     void SetComputePipelineState(FMetalCommandEncoder& CommandEncoder);
 	void FlushVisibilityResults(FMetalCommandEncoder& CommandEncoder);
 
 	void DiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask);
+	
+	void ReleaseDescriptor(MTL::RenderPassDescriptor* Desc);
+	void ClearPreviousComputeState();
+	
 private:
 	void ConditionalUpdateBackBuffer(FMetalSurface& Surface);
 	
@@ -277,6 +284,8 @@ private:
 	};
     
 private:
+	FMetalDevice& Device;
+	
 	FMetalShaderParameterCache ShaderParameters[EMetalShaderStages::Num];
 
 	uint32 SampleCount;
@@ -298,31 +307,20 @@ private:
 	MTL::StoreAction ColorStore[MaxSimultaneousRenderTargets];
     MTL::StoreAction DepthStore;
     MTL::StoreAction StencilStore;
-
-	FCriticalSection               ActiveHeapsLock;
-	TArray<MTL::Heap*>             ActiveHeaps;
 		
 #if METAL_USE_METAL_SHADER_CONVERTER
     static constexpr uint32 TopLevelABNumEntry = 16;
-    static constexpr uint32 SideAllocsBufferSize = 32 << 21; // 64Mb
-
-    struct IRResourceTableBuffer
-    {
-        FMetalBufferPtr         TableBuffer;
-        std::atomic_uint64_t    TableOffset = 0;
-    };
-
+	TMap<FMetalBuffer*, FMetalBufferPtr>  UniformBufferVAs;
+	
     uint64                 CBVTable[EMetalShaderStages::Num][TopLevelABNumEntry];
-    IRResourceTableBuffer  SideAllocs;
-    
-    struct FVertexBufferBind
-    {
-        uint64_t GPUVA;
-        uint32_t Length;
-        uint32_t Stride;
-    };
-
-    FVertexBufferBind VertexBufferVAs[31];
+	
+	IRRuntimeVertexBuffer VertexBufferVAs[31];
+	
+	TStaticArray<TSet<MTL::Heap*>, EMetalShaderStages::Num> HeapsUsedByStage;
+	TStaticArray<TSet<MTL::Resource*>, EMetalShaderStages::Num> RWResourcesByStage;
+	TStaticArray<TSet<MTL::Resource*>, EMetalShaderStages::Num> ROResourcesByStage;
+	
+	TArray<FMetalBufferPtr> TemporaryBuffers;
 #endif
 
 	FMetalQueryBuffer* VisibilityResults;
@@ -334,6 +332,8 @@ private:
 	TRefCountPtr<FMetalRasterizerState> RasterizerState;
 	TRefCountPtr<FMetalGraphicsPipelineState> GraphicsPSO;
 	TRefCountPtr<FMetalComputeShader> ComputeShader;
+	TRefCountPtr<FMetalComputeShader> PreviousComputeShader;
+	
 	uint32 StencilRef;
 	
 	FLinearColor BlendFactor;
@@ -352,16 +352,72 @@ private:
 	FTextureRHIRef ResolveTargets[MaxSimultaneousRenderTargets];
 	FTextureRHIRef DepthStencilSurface;
 	FTextureRHIRef DepthStencilResolve;
-	/** A fallback depth-stencil surface for draw calls that write to depth without a depth-stencil surface bound. */
-	FTexture2DRHIRef FallbackDepthStencilSurface;
+
     MTL::RenderPassDescriptor* RenderPassDesc;
 	uint32 RasterBits;
     uint8 PipelineBits;
 	bool bIsRenderTargetActive;
 	bool bHasValidRenderTarget;
 	bool bHasValidColorTarget;
-	bool bScissorRectEnabled;
-    bool bCanRestartRenderPass;
     bool bImmediate;
-	bool bFallbackDepthStencilBound;
+};
+
+class FMetalRenderPassDescriptorPool
+{
+public:
+	FMetalRenderPassDescriptorPool()
+	{}
+	
+	~FMetalRenderPassDescriptorPool()
+	{}
+	
+	MTL::RenderPassDescriptor* CreateDescriptor()
+	{
+		MTL::RenderPassDescriptor* Desc = Cache.Pop();
+		if (!Desc)
+		{
+			Desc = MTL::RenderPassDescriptor::alloc()->init();
+			check(Desc);
+		}
+		return Desc;
+	}
+	
+	void ReleaseDescriptor(MTL::RenderPassDescriptor* Desc)
+	{
+		MTL::RenderPassColorAttachmentDescriptorArray* Attachments = Desc->colorAttachments();
+		for (uint32 i = 0; i < MaxSimultaneousRenderTargets; i++)
+		{
+			MTL::RenderPassColorAttachmentDescriptor* Color = Attachments->object(i);
+			Color->setTexture(nullptr);
+			Color->setResolveTexture(nullptr);
+			Color->setStoreAction(MTL::StoreActionStore);
+		}
+		
+		MTL::RenderPassDepthAttachmentDescriptor* Depth = Desc->depthAttachment();
+		Depth->setTexture(nullptr);
+		Depth->setResolveTexture(nullptr);
+		Depth->setStoreAction(MTL::StoreActionStore);
+
+		MTL::RenderPassStencilAttachmentDescriptor* Stencil = Desc->stencilAttachment();
+		Stencil->setTexture(nullptr);
+		Stencil->setResolveTexture(nullptr);
+		Stencil->setStoreAction(MTL::StoreActionStore);
+
+		Desc->setVisibilityResultBuffer(nullptr);
+		
+#if PLATFORM_MAC
+		Desc->setRenderTargetArrayLength(1);
+#endif
+		
+		Cache.Push(Desc);
+	}
+	
+	static FMetalRenderPassDescriptorPool& Get()
+	{
+		static FMetalRenderPassDescriptorPool sSelf;
+		return sSelf;
+	}
+	
+private:
+	TLockFreePointerListLIFO<MTL::RenderPassDescriptor> Cache;
 };

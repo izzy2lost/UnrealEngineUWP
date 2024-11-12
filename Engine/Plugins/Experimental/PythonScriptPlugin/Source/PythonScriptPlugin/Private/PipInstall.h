@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "Containers/UnrealString.h"
 #include "Interfaces/IPluginManager.h"
 #include "Templates/SharedPointer.h"
 
@@ -11,7 +12,7 @@
 class FJsonObject;
 class FFeedbackContext;
 
-class IProgressParser;
+struct ICmdProgressParser;
 
 class FPipInstall
 {
@@ -46,8 +47,7 @@ private:
 
 	FString SetupPipInstallCmd(const FString& ParsedReqsFile, const TArray<FString>& ExtraUrls) const;
 
-	static int32 RunPythonCmd(const FText& Description, const FString& PythonInterp, const FString& Cmd, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser = nullptr);
-	static bool RunLoggedSubprocess(int32* OutExitCode, const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser);
+	static int32 RunPythonCmd(const FString& PythonInterp, const FString& Cmd, FFeedbackContext* Context, TSharedPtr<ICmdProgressParser> CmdParser = nullptr);
 
 	FString ParseVenvVersion() const;
 

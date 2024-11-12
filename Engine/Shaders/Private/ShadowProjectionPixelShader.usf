@@ -31,6 +31,9 @@
 #if MODULATED_SHADOWS
 	#define MobileSceneTextures MobileBasePass.SceneTextures
 #endif
+#if SHADING_PATH_MOBILE
+#include "MobileLightingCommon.ush"
+#endif
 
 #include "ShadowProjectionCommon.ush"
 #include "ShadowFilteringCommon.ush"
@@ -104,8 +107,8 @@ EARLYDEPTHSTENCIL
 #endif
 void Main(
 	out float4 OutColor : SV_Target0
-#if INSTANCED_STEREO
-	, in nointerpolation uint EyeIndex : TEXCOORD0
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	, in nointerpolation uint EyeIndex : VIEW_ID
 #elif MOBILE_MULTI_VIEW
 	, in nointerpolation uint ViewId : SV_ViewID
 #endif
@@ -117,19 +120,19 @@ void Main(
 	#endif
 	
 	float ArrayIndex = 0;
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(EyeIndex);
 	ArrayIndex = EyeIndex;
 #elif MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(ViewId);
-	ArrayIndex = ViewId;;
+	ArrayIndex = ViewId;
 #else
 	ResolvedView = ResolveView();
 #endif
 
 	const FPQMPContext PQMPContext = PQMPInit(SVPos.xy);
 	float2 ScreenUV = float2(SVPos.xy * ResolvedView.BufferSizeAndInvSize.zw);
-#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
+#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
 	float SceneW = CalcSceneDepth(ScreenUV, ArrayIndex);
 #else
 	float SceneW = CalcSceneDepth(ScreenUV);
@@ -146,7 +149,7 @@ void Main(
 	
 	float4 ShadowPosition = float4(0, 0, 0, 0);
 	
-#if ((MOBILE_MULTI_VIEW || INSTANCED_STEREO) && SHADING_PATH_MOBILE)
+#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
 	ShadowPosition = mul(ScreenPosition, ResolvedView.MobileMultiviewShadowTransform);
 	ShadowPosition = mul(ShadowPosition, ScreenToShadowMatrix);
 #else
@@ -264,8 +267,11 @@ void Main(
 		Settings.bTreatMaxDepthUnshadowed = false;
 		Settings.DensityMulConstant = 0;
 		Settings.ProjectionDepthBiasParameters = 0;
-
+#if SHADING_PATH_MOBILE
+		Shadow = MobileShadowPCF(ShadowPosition.xy, Settings);
+#else
 		Shadow = ManualPCF(ShadowPosition.xy, Settings);
+#endif
 	}
 	#endif // !USE_PCSS
 		
@@ -420,8 +426,6 @@ void Main(
 #endif
 }
 
-#if FEATURE_LEVEL >= FEATURE_LEVEL_SM4
-
 // .x:DepthBias, y: SlopeDepthBias, z: MaxSlopeDepthBias, 
 float3 PointLightDepthBias;
 
@@ -430,8 +434,10 @@ float2 PointLightProjParameters;
 
 /** Pixel shader for projecting a one pass point light shadow from a cube map. */
 void MainOnePassPointLightPS(
-#if INSTANCED_STEREO
-	in nointerpolation uint EyeIndex : TEXCOORD0,
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	in nointerpolation uint EyeIndex : VIEW_ID,
+#elif MOBILE_MULTI_VIEW
+	in nointerpolation uint ViewId : SV_ViewID,
 #endif
 	in float4 SVPos : SV_POSITION,
 	out float4 OutColor : SV_Target0
@@ -439,15 +445,18 @@ void MainOnePassPointLightPS(
 {
 	
 	float ArrayIndex = 0;
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(EyeIndex);
 	ArrayIndex = EyeIndex;
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
+	ArrayIndex = ViewId;
 #else
 	ResolvedView = ResolveView();
 #endif
 
 	float2 ScreenUV = float2( SVPos.xy * ResolvedView.BufferSizeAndInvSize.zw );
-#if INSTANCED_STEREO && SHADING_PATH_MOBILE
+#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
 	float SceneW = CalcSceneDepth(ScreenUV, ArrayIndex);
 #else
 	float SceneW = CalcSceneDepth( ScreenUV );
@@ -490,7 +499,11 @@ void MainOnePassPointLightPS(
 		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(SVPos.xy, 0)));
 		const float3 WorldNormal = TopLayerData.WorldNormal;
 #else // SUBSTRATE_ENABLED
+	#if SHADING_PATH_MOBILE
+		FGBufferData GBufferData = MobileFetchAndDecodeGBuffer(ScreenUV, SVPos);
+	#else
 		FGBufferData GBufferData = GetGBufferData(ScreenUV);
+	#endif
 		const float3 WorldNormal = GBufferData.WorldNormal;
 #endif // SUBSTRATE_ENABLED
 
@@ -568,5 +581,3 @@ void MainOnePassPointLightPS(
 	OutColor.a = IsSubsurfaceProfile ? EncodeLightAttenuation(Thickness) : OutColor.b;
 #endif // USE_TRANSMISSION
 }
- 
-#endif

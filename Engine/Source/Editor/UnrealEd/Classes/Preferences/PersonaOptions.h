@@ -143,6 +143,10 @@ class UPersonaOptions : public UObject
 	UPROPERTY(EditAnywhere, config, Category = "Viewport")
 	uint32 DefaultBoneDrawSelection;
 
+	/** If true then the bones are displayed with multiple semi-random colors */
+	UPROPERTY(EditAnywhere, config, Category = "Viewport")
+	bool bShowBoneColors = false;
+
 	UPROPERTY(EditAnywhere, config, Category = "Viewport")
 	FLinearColor DefaultBoneColor;
 
@@ -185,6 +189,10 @@ class UPersonaOptions : public UObject
 	/** Whether to hide parent items when filtering or to display them grayed out */
 	UPROPERTY(EditAnywhere, config, Category = "Skeleton Tree")
 	bool bHideParentsWhenFiltering;
+
+	/** Whether to append each bone's index to its name when shown in the skeleton tree */
+	UPROPERTY(EditAnywhere, config, Category = "Skeleton Tree")
+	bool bShowBoneIndexes = false;
 
 	/** Whether to focus and expand an item's tree recursively based on selection */
 	UPROPERTY(EditAnywhere, config, Category = "Skeleton Tree")

@@ -7,7 +7,7 @@
 #include "DatasmithAdditionalData.h"
 #include "DatasmithAssetImportData.h"
 #include "DatasmithUtils.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 
 #include "IDataprepProgressReporter.h"
 

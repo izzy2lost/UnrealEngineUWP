@@ -60,8 +60,12 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationView.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
+
+#include "Iris/ReplicationSystem/NameTokenStore.h"
+#include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "GameplayTagTokenStore.h"
 #endif // UE_WITH_IRIS
 
 #if USE_SERVER_PERF_COUNTERS
@@ -232,7 +236,7 @@ namespace UE::Net::Private
 
 				void* Dest = It->ContainerPtrToValuePtr<void>(LocalParms);
 
-				const int32 CopySize = It->ElementSize * It->ArrayDim;
+				const int32 CopySize = It->GetElementSize() * It->ArrayDim;
 
 				check(((uint8*)Dest - (uint8*)LocalParms) + CopySize <= Function->ParmsSize);
 
@@ -248,33 +252,32 @@ namespace UE::Net::Private
 
 	static bool bIgnoreStaticActorDestruction = false;
 
-
-	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams, bool bIsServer)
+#if UE_WITH_IRIS
+	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams)
 	{
-		if (bIsServer)
+		if (ReplicationSystemConfig.MaxReplicatedObjectCount != 0)
 		{
-			if (ReplicationSystemConfig.MaxReplicatedObjectServerCount != 0)
-			{
-				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectServerCount;
-			}
-
-			OutParams.PreAllocatedReplicatedObjectCount = ReplicationSystemConfig.PreAllocatedReplicatedObjectServerCount;
-
-			OutParams.MaxReplicatedWriterObjectCount = OutParams.MaxReplicatedObjectCount;
+			OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectCount;
 		}
-		else
+
+		if (ReplicationSystemConfig.InitialNetObjectListCount != 0)
 		{
-			if (ReplicationSystemConfig.MaxReplicatedObjectClientCount != 0)
-			{
-				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectClientCount;
-			}
+			OutParams.InitialNetObjectListCount = ReplicationSystemConfig.InitialNetObjectListCount;
+		}
 
-			OutParams.PreAllocatedReplicatedObjectCount = ReplicationSystemConfig.PreAllocatedReplicatedObjectClientCount;
+		if (ReplicationSystemConfig.NetObjectListGrowCount != 0)
+		{
+			OutParams.NetObjectListGrowCount = ReplicationSystemConfig.NetObjectListGrowCount;
+		}
 
-			if (ReplicationSystemConfig.MaxReplicatedWriterObjectClientCount != 0)
-			{
-				OutParams.MaxReplicatedWriterObjectCount = ReplicationSystemConfig.MaxReplicatedWriterObjectClientCount;
-			}
+		if (ReplicationSystemConfig.PreAllocatedMemoryBuffersObjectCount != 0)
+		{
+			OutParams.PreAllocatedMemoryBuffersObjectCount = ReplicationSystemConfig.PreAllocatedMemoryBuffersObjectCount;
+		}
+		
+		if (ReplicationSystemConfig.MaxReplicationWriterObjectCount!= 0)
+		{
+			OutParams.MaxReplicationWriterObjectCount = ReplicationSystemConfig.MaxReplicationWriterObjectCount;
 		}
 
 		if (ReplicationSystemConfig.MaxDeltaCompressedObjectCount != 0)
@@ -287,6 +290,7 @@ namespace UE::Net::Private
 			OutParams.MaxNetObjectGroupCount = ReplicationSystemConfig.MaxNetObjectGroupCount;
 		}
 	}
+#endif // UE_WITH_IRIS
 
 	bool IsGuidInOuterChain(const FNetGUIDCache& GuidCache, const FNetGuidCacheObject* CacheObj, FNetworkGUID GuidMatch)
 	{
@@ -317,6 +321,12 @@ namespace UE::Net::Private
 		SerializeNewActorOverrideLevel,
 		TEXT("If true, servers will serialize a spawned, replicated actor's level so the client attempts to spawn it into that level too. If false, clients will spawn all these actors into the persistent level."));
 
+	int32 SendDormantDestructionOnRemoval = 1;
+	static FAutoConsoleVariableRef CVarNetSendDormantDestructionOnRemoval(
+		TEXT("net.SendDormantDestructionOnRemoval"),
+		SendDormantDestructionOnRemoval,
+		TEXT("If true and net.SerializeNewActorOverrideLevel = 0, servers will send destruction info for dormant destroyed actors in invisible levels, regardless of how they were removed. This ensures they destroy on the client, in-case the they (or the levels they are in) were removed unexpectedly."));
+
 } //namespace UE::Net::Private
 
 namespace UE::Net
@@ -337,13 +347,18 @@ namespace UE::Net
 		return UE::Net::Private::bIgnoreStaticActorDestruction;
 	}
 
+	uint32 CountReplicatedSubObjectsOfActor(AActor* ReplicatedActor)
+	{
+		return UE::Net::FSubObjectRegistryGetter::CountReplicatedSubObjectsOfActor(ReplicatedActor);
+	}
+
 	bool bDiscardTornOffActorRPCs = true;
 	FAutoConsoleVariableRef CVarNetDiscardTornOffActorRPCs(
 		TEXT("net.DiscardTornOffActorRPCs"),
 		bDiscardTornOffActorRPCs,
 		TEXT("If enabled, discard RPCs if the actor has been torn off."),
 		ECVF_Default);
-}
+} // end namespace UE::Net
 
 #if UE_BUILD_SHIPPING
 #define DEBUG_REMOTEFUNCTION(Format, ...)
@@ -431,6 +446,20 @@ static TAutoConsoleVariable<bool> CVarAddNetDriverInfoToNetAnalytics(
 	TEXT("net.AddNetDriverInfoToNetAnalytics"),
 	false,
 	TEXT("Automatically add NetDriver information to the NetAnalytics cache"));
+
+static int32 GNetDisableRandomNetUpdateDelay = 0;
+static FAutoConsoleVariableRef CVarNetDisableRandomNetUpdateDelay(
+	TEXT("net.DisableRandomNetUpdateDelay"),
+	GNetDisableRandomNetUpdateDelay,
+	TEXT("If 1, the server will not add a random delay to an actors' NextUpdateTime."),
+	ECVF_Default);
+
+static bool GbEnableNetStats = false;
+static FAutoConsoleVariableRef CVarEnableNetStats(
+	TEXT("net.EnableNetStats"),
+	GbEnableNetStats,
+	TEXT("Enable the calculation of network stats and storing them in the network metrics database."),
+	ECVF_Default);
 
 namespace UE::Net
 {
@@ -535,8 +564,10 @@ UNetDriver::UNetDriver(const FObjectInitializer& ObjectInitializer)
 ,	NetGUIDOutBytes(0)
 ,	NetGUIDInBytes(0)
 ,	InPackets(0)
+,	PrevInPackets(0)
 ,	InTotalPackets(0)
 ,	OutPackets(0)
+,	PrevOutPackets(0)
 ,	OutTotalPackets(0)
 ,	InBunches(0)
 ,	OutBunches(0)
@@ -545,8 +576,10 @@ UNetDriver::UNetDriver(const FObjectInitializer& ObjectInitializer)
 ,	OutTotalReliableBunches(0)
 ,	InTotalReliableBunches(0)
 ,	InPacketsLost(0)
+,	PrevInPacketsLost(0)
 ,	InTotalPacketsLost(0)
 ,	OutPacketsLost(0)
+,	PrevOutPacketsLost(0)
 ,	OutTotalPacketsLost(0)
 ,	StatUpdateTime(0.0)
 ,	StatPeriod(1.f)
@@ -846,7 +879,7 @@ bool UNetDriver::IsNetworkActorUpdateFrequencyThrottled(const FNetworkObjectInfo
 		const AActor* Actor = InNetworkActor.Actor;
 		if (Actor && InNetworkActor.LastNetReplicateTime != 0)
 		{
-			const float ExpectedNetDelay = (1.0f / Actor->NetUpdateFrequency);
+			const float ExpectedNetDelay = (1.0f / Actor->GetNetUpdateFrequency());
 			if (InNetworkActor.OptimalNetUpdateDelta > ExpectedNetDelay)
 			{
 				bThrottled = true;
@@ -894,7 +927,7 @@ void UNetDriver::CancelAdaptiveReplication(FNetworkObjectInfo& InNetworkActor)
 		{
 			if (UWorld* ActorWorld = Actor->GetWorld())
 			{
-				const float ExpectedNetDelay = (1.0f / Actor->NetUpdateFrequency);
+				const float ExpectedNetDelay = (1.0f / Actor->GetNetUpdateFrequency());
 				const float NewUpdateTime = ActorWorld->GetTimeSeconds() + FMath::FRandRange(0.5f, 1.0f) * ExpectedNetDelay;
 
 				// Only allow the next update to be sooner than the current one
@@ -943,7 +976,7 @@ bool ShouldEnableScopeSecondsTimers()
 {
 #if STATS
 	return true;
-#elif CSV_PROFILER
+#elif CSV_PROFILER_STATS
 	return CVar_NetDriver_ReportGameTickFlushTime || FCsvProfiler::Get()->IsCapturing();
 #else
 	return CVar_NetDriver_ReportGameTickFlushTime;
@@ -1545,6 +1578,29 @@ bool UNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FU
 	Notify = InNotify;
 
 #if UE_WITH_IRIS
+	// At the time being using NetTokens and NetTokenStore is only available when compiling with iris.
+	// Init NetToken stores
+	if (!GetNetTokenStore())
+	{
+		using namespace UE::Net;
+
+		NetTokenStore = MakeUnique<FNetTokenStore>();
+
+		FNetTokenStore::FInitParams NetTokenStoreInitParams;
+		NetTokenStoreInitParams.Authority = !bInitAsClient ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+		NetTokenStoreInitParams.MaxConnections = ConnectionIdHandler.GetMaxConnectionIdCount();
+		NetTokenStore->Init(NetTokenStoreInitParams);
+
+		// TODO: make this configurable from config so that users can provide their own custom NetTokenStores
+		// Order is important, changing order will require new netversion
+		// When we move it to the config TypeId will be made explicit
+		NetTokenStore->CreateAndRegisterDataStore<FStringTokenStore>();
+		NetTokenStore->CreateAndRegisterDataStore<FNameTokenStore>();
+		NetTokenStore->CreateAndRegisterDataStore<FGameplayTagTokenStore>();
+	}
+#endif
+	
+#if UE_WITH_IRIS
 	if (IsUsingIrisReplication() && !ReplicationSystem)
 	{
 		CreateReplicationSystem(bInitAsClient);
@@ -1605,6 +1661,18 @@ void UNetDriver::SetupNetworkMetrics()
 	// The number of outgoing packets per second across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPackets, 0);
 
+	// The number of incoming packets per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsPerFrame, 0);
+
+	// The number of outgoing packets per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsPerFrame, 0);
+
+	// The number of incoming packets lost per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::InLostPacketsFoundPerFrame, 0);
+
+	// The number of outgoing packets lost per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::OutLostPacketsFoundPerFrame, 0);
+
 	// The average/min/max incoming packets per second across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientPerSecondAvg, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientPerSecondMax, 0);
@@ -1615,11 +1683,11 @@ void UNetDriver::SetupNetworkMetrics()
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientPerSecondMax, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientPerSecondMin, 0);
 	
-	// (Server only) The average/max incoming packets per frame across all connections.
+	// (Server only) The average/max incoming packets per stat period across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientAvg, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientMax, 0);
 
-	// (Server only) The average/max outgoing packets per frame across all connections.
+	// (Server only) The average/max outgoing packets per stat period across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientAvg, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientMax, 0);
 
@@ -1642,6 +1710,9 @@ void UNetDriver::SetupNetworkMetrics()
 	// The percentage of incoming/outgoing packets per second that have been lost.
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsLost, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsLost, 0);
+
+	// (Client only) Current jitter for this connection in milliseconds
+	GetMetrics()->CreateFloat(UE::Net::Metric::AverageJitterInMS, 0);
 
 	// The number of incoming bunches per second across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::InBunches, 0);
@@ -1970,9 +2041,9 @@ void UNetDriver::FlushHandler()
 
 ENetMode UNetDriver::GetNetMode() const
 {
-	// Special case for PIE - forcing dedicated server behavior
+	// Special case for PIE and game worlds - forcing dedicated server behavior if requested
 #if WITH_EDITOR
-	if (World && World->WorldType == EWorldType::PIE && IsServer())
+	if (World && (World->WorldType == EWorldType::PIE || World->WorldType == EWorldType::Game) && IsServer())
 	{
 		//@todo: world context won't be valid during seamless travel CopyWorldData
 		FWorldContext* WorldContext = GEngine->GetWorldContextFromWorld(World);
@@ -2189,8 +2260,65 @@ EEngineNetworkRuntimeFeatures UNetDriver::GetNetworkRuntimeFeatures() const
 	{
 		EnumAddFlags(NetDriverFeatures, EEngineNetworkRuntimeFeatures::IrisEnabled);
 	}
-	
+
 	return NetDriverFeatures;
+}
+
+void UNetDriver::TryUpgradeNetworkFeatures(EEngineNetworkRuntimeFeatures RemoteFeatures)
+{
+#if UE_WITH_IRIS
+	const bool bIsRemoteUsingIris = EnumHasAnyFlags(RemoteFeatures, EEngineNetworkRuntimeFeatures::IrisEnabled);
+
+	// If our netdriver needs to enable Iris
+	if (bIsRemoteUsingIris && !IsUsingIrisReplication())
+	{
+		SetReplicationDriver(nullptr);
+
+		constexpr bool bInitWithIris = true;
+		PostCreation(bInitWithIris);
+
+		RecreateIrisSystem();
+		
+		ReinitBase();
+
+		if (ensureMsgf(ReplicationSystem, TEXT("NetworkFeature Upgraded failed to create repSystem for %s"), *GetDescription()))
+		{
+			checkf(ServerConnection, TEXT("NMT_Upgrade control message received with no server connection on %s"), *GetDescription());
+			
+			// Tell Iris and the Datastream about the current netconnection
+			ReplicationSystem->AddConnection(ServerConnection->GetConnectionHandle().GetParentConnectionId());
+			ReplicationSystem->SetConnectionUserData(ServerConnection->GetConnectionHandle().GetParentConnectionId(), ServerConnection);
+			for (UChannel* Channel : ServerConnection->Channels)
+			{
+				if (Channel)
+				{
+					Channel->ReInit();
+				}
+			}
+		}
+
+	}
+	// If the remote was not using Iris but we did
+	else if(!bIsRemoteUsingIris && IsUsingIrisReplication())
+	{
+		DestroyIrisSystem();
+
+		constexpr bool bInitWithoutIris = false;
+		PostCreation(bInitWithoutIris);
+
+		ReinitBase();
+
+		for (UChannel* Channel : ServerConnection->Channels)
+		{
+			if (Channel)
+			{
+				Channel->ReInit();
+			}
+		}
+	}
+
+	ensureMsgf(GetNetworkRuntimeFeatures() == RemoteFeatures, TEXT("UNetDriver::TryUpgradeNetworkFeatures failed for %s"), *GetDescription());
+#endif
 }
 
 // ----------------------------------------------------------------------------------------
@@ -2199,7 +2327,7 @@ EEngineNetworkRuntimeFeatures UNetDriver::GetNetworkRuntimeFeatures() const
 CSV_DEFINE_CATEGORY(ReplicationRPCs, WITH_SERVER_CODE);
 
 #ifndef RPC_CSV_TRACKER	// Defines if RPC CSV tracking is compiled in. Default is only on server builds.
-#define RPC_CSV_TRACKER (CSV_PROFILER && WITH_SERVER_CODE)
+#define RPC_CSV_TRACKER (CSV_PROFILER_STATS && WITH_SERVER_CODE)
 #endif
 
 /** Helper struct for tracking RPC (receive) timing */
@@ -2264,21 +2392,22 @@ void UNetDriver::TickDispatch( float DeltaTime )
 {
 	SendCycles=0;
 
-	const double CurrentRealtime = FPlatformTime::Seconds();
-
-	const float DeltaRealtime = CurrentRealtime - LastTickDispatchRealtime;
-
-	LastTickDispatchRealtime = CurrentRealtime;
-
-	// Check to see if too much time is passing between ticks
-	// Setting this to somewhat large value for now, but small enough to catch blocking calls that are causing timeouts
-	const float TickLogThreshold = 5.0f;
-
-	bDidHitchLastFrame = (DeltaTime > TickLogThreshold || DeltaRealtime > TickLogThreshold);
-
-	if (bDidHitchLastFrame)
+	// Manage realtime values
 	{
-		UE_LOG( LogNet, Log, TEXT( "UNetDriver::TickDispatch: Very long time between ticks. DeltaTime: %2.2f, Realtime: %2.2f. %s" ), DeltaTime, DeltaRealtime, *GetName() );
+		const double CurrentRealtime = FPlatformTime::Seconds();
+		LastTickDispatchRealtime = CurrentRealtime;
+
+		// Check to see if too much time is passing between ticks
+		// Setting this to somewhat large value for now, but small enough to catch blocking calls that are causing timeouts
+		constexpr float TickLogThreshold = 5.0f;
+
+		const float DeltaRealtime = CurrentRealtime - LastTickDispatchRealtime;
+		bDidHitchLastFrame = (DeltaTime > TickLogThreshold || DeltaRealtime > TickLogThreshold);
+
+		if (bDidHitchLastFrame)
+		{
+			UE_LOG( LogNet, Log, TEXT( "UNetDriver::TickDispatch: Very long time between ticks. DeltaTime: %2.2f, Realtime: %2.2f. %s" ), DeltaTime, DeltaRealtime, *GetName() );
+		}
 	}
 
 	// Get new time.
@@ -2322,7 +2451,7 @@ void UNetDriver::TickDispatch( float DeltaTime )
 
 			for (const FDisconnectedClient& CurElement : RecentlyDisconnectedClients)
 			{
-				if ((CurrentRealtime - CurElement.DisconnectTime) >= RecentlyDisconnectedTrackingTime)
+				if ((LastTickDispatchRealtime - CurElement.DisconnectTime) >= RecentlyDisconnectedTrackingTime)
 				{
 					verify(MappedClientConnections.Remove(CurElement.Address) == 1);
 
@@ -2488,8 +2617,16 @@ void UNetDriver::InternalProcessRemoteFunctionPrivate(
 		Connection = ((UChildConnection*)Connection)->Parent;
 	}
 
+	// Prevent RPC calls to gracefully-closing connections
+	const EConnectionState ConnectionState = Connection->GetConnectionState();
+	if (ConnectionState == USOCK_Closing)
+	{
+		DEBUG_REMOTEFUNCTION(TEXT("Attempting to call RPC on a closing connection. Not calling %s::%s"), *GetNameSafe(Actor), *GetNameSafe(Function));
+		return;
+	}
+
 	// Prevent RPC calls to closed connections
-	if (Connection->GetConnectionState() == USOCK_Closed)
+	if (ConnectionState == USOCK_Closed)
 	{
 		DEBUG_REMOTEFUNCTION(TEXT("Attempting to call RPC on a closed connection. Not calling %s::%s"), *GetNameSafe(Actor), *GetNameSafe(Function));
 		return;
@@ -2723,6 +2860,9 @@ void UNetDriver::ProcessRemoteFunctionForChannelPrivate(
 
 	FNetBitWriter TempWriter( Bunch.PackageMap, 0 );
 
+	// Create NetToken export scope for TempBitWriter, appending exports to Bunch.NetTokensPendingExport
+	UE::Net::FNetTokenExportScope ExportScope(TempWriter, GetNetTokenStore(), Bunch.NetTokensPendingExport, "ProcessRemoteFunctionForChannelPrivate");
+	
 #if UE_NET_TRACE_ENABLED
 	// Create trace collector if tracing is enabled for the target bunch
 	SetTraceCollector(TempWriter, GetTraceCollector(Bunch) ? UE_NET_TRACE_CREATE_COLLECTOR(ENetTraceVerbosity::Trace) : nullptr);
@@ -2988,14 +3128,6 @@ void UNetDriver::SetAnalyticsProvider(TSharedPtr<IAnalyticsProvider> InProvider)
 	}
 }
 
-void UNetDriver::FRepChangedPropertyTrackerWrapper::CountBytes(FArchive& Ar) const
-{
-	if (FRepChangedPropertyTracker const * const LocalTracker = RepChangedPropertyTracker.Get())
-	{
-		LocalTracker->CountBytes(Ar);
-	}
-}
-
 void UNetDriver::FReplicationChangelistMgrWrapper::CountBytes(FArchive& Ar) const
 {
 	if (FReplicationChangelistMgr const * const ChangelistMgr = ReplicationChangelistMgr.Get())
@@ -3069,17 +3201,6 @@ void UNetDriver::Serialize( FArchive& Ar )
 		);
 
 		GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RenamedStartupActors", RenamedStartupActors.CountBytes(Ar));
-
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RepChangedPropertyTrackerMap",
-			RepChangedPropertyTrackerMap.CountBytes(Ar);
-
-			for (const auto& RepChangedPropertyTrackerPair : RepChangedPropertyTrackerMap)
-			{
-				RepChangedPropertyTrackerPair.Value.CountBytes(Ar);
-			}
-		);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RepLayoutMap",
 			RepLayoutMap.CountBytes(Ar);
@@ -3821,13 +3942,32 @@ FActorDestructionInfo* UNetDriver::CreateDestructionInfo(AActor* ThisActor, FAct
 	return &NewInfo;
 }
 
-void UNetDriver::NotifyActorDestroyed( AActor* ThisActor, bool IsSeamlessTravel )
+void UNetDriver::NotifyActorDestroyed(AActor* ThisActor, bool IsSeamlessTravel)
 {
 #if UE_WITH_IRIS
-	// For Iris this is handled through a call to AActor::EndReplication
-	// NOTE: The reason for doing this after the removal from the call to RepChangedPropertyTrackerMap.Remove is that Iris currently relies on this to invoke PreReplication which will create a RepChangePropertyTracker
 	if (ReplicationSystem)
 	{
+		// For actors that are DORM_Initial when destroyed we need to create and replicate a destruction info.
+		if (ReplicationSystem->IsServer())
+		{
+			const bool bActorHasRole = ThisActor->GetRemoteRole() != ROLE_None;
+			const bool bShouldCreateDestructionInfoForInitiallyDormantActor = IsDormInitialStartupActor(ThisActor) && bActorHasRole && !IsSeamlessTravel && !GIsReconstructingBlueprintInstances && !UE::Net::ShouldIgnoreStaticActorDestruction();
+
+			if (bShouldCreateDestructionInfoForInitiallyDormantActor)
+			{
+				if (UEngineReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UEngineReplicationBridge>())
+				{
+					const UE::Net::FNetObjectReference Reference = Bridge->GetOrCreateObjectReference(ThisActor);
+					if (Reference.GetRefHandle().IsValid() && Reference.GetRefHandle().IsStatic())
+					{
+						const UReplicationBridge::FEndReplicationParameters Params = { .Location = ThisActor->GetActorLocation(), .Level = ThisActor->GetLevel(), .bUseDistanceBasedPrioritization = true };
+						Bridge->AddStaticDestructionInfo(ThisActor->GetName(), ThisActor->GetOuter(), Params);
+					}
+				}
+			}
+		}
+
+		// For the other cases, Iris handles replication of destroy through EndReplication
 		return;
 	}
 #endif // UE_WITH_IRIS
@@ -3900,7 +4040,27 @@ void UNetDriver::NotifySubObjectDestroyed(UObject* SubObject)
 
 void UNetDriver::RemoveNetworkActor(AActor* Actor)
 {
-	GetNetworkObjectList().Remove(Actor);
+	// This is a hack: Sometimes world streaming will stream out levels even though some players can still see them
+	// Usually this is not a problem since the clients will remove the actors when it's told the level is gone. 
+	// But when SerializeNewActorOverrideLevel is off, the client thinks the actors are in the main level, so they don't get removed.
+	// If the client streams the world back in the actors start to double-up D: 
+	// Ideally world streaming would never stream out worlds until all clients can't see them, but that change is too risky now. 
+	// So for now, notify all the removed actors to make sure the client cleans them up. 
+	if (IsServer() 
+		&& !UE::Net::Private::SerializeNewActorOverrideLevel && UE::Net::Private::SendDormantDestructionOnRemoval
+		&& IsValid(Actor) && !Actor->IsActorBeingDestroyed()
+		&& IsValid(Actor->GetLevel()) && !Actor->GetLevel()->bIsVisible
+		&& !Actor->IsNetStartupActor())
+	{
+		for (int32 i = ClientConnections.Num() - 1; i >= 0; i--)
+		{
+			UNetConnection* Connection = ClientConnections[i];
+			if (Connection && Connection->ClientHasInitializedLevel(Actor->GetLevel()))
+			{
+				SendDestructionInfoForLevelUnloadIfDormant(Actor, Connection);
+			}
+		}
+	}
 
 	// Remove from renamed list if destroyed
 	RenamedStartupActors.Remove(Actor->GetFName());
@@ -3909,6 +4069,8 @@ void UNetDriver::RemoveNetworkActor(AActor* Actor)
 	{
 		ReplicationDriver->RemoveNetworkActor(Actor);
 	}
+
+	GetNetworkObjectList().Remove(Actor);
 }
 
 void UNetDriver::DeleteSubObjectOnClients(AActor* Actor, UObject* SubObject)
@@ -3916,10 +4078,10 @@ void UNetDriver::DeleteSubObjectOnClients(AActor* Actor, UObject* SubObject)
 #if UE_WITH_IRIS
 	if (ReplicationSystem)
 	{
-		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
+		if (UEngineReplicationBridge* Bridge = Cast<UEngineReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
 			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy | EEndReplicationFlags::DestroyNetHandle | EEndReplicationFlags::ClearNetPushId;
-			Bridge->EndReplication(SubObject, EndReplicationFlags);
+			Bridge->StopReplicatingNetObject(SubObject, EndReplicationFlags);
 		}
 	}
 	else
@@ -3936,10 +4098,9 @@ void UNetDriver::TearOffSubObjectOnClients(AActor* Actor, UObject* SubObject)
 #if UE_WITH_IRIS
 	if (ReplicationSystem)
 	{
-		if (UActorReplicationBridge* Bridge = Cast<UActorReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
+		if (UEngineReplicationBridge* Bridge = Cast<UEngineReplicationBridge>(ReplicationSystem->GetReplicationBridge()))
 		{
-			constexpr EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::TearOff;
-			Bridge->EndReplication(SubObject, EndReplicationFlags);
+			Bridge->StopReplicatingNetObject(SubObject, EEndReplicationFlags::TearOff);
 		}
 	}
 	else
@@ -4012,7 +4173,7 @@ void UNetDriver::NotifyActorRenamed(AActor* ThisActor, UObject* PreviousOuter, F
 #if UE_WITH_IRIS
 				if (ReplicationSystem)
 				{
-					if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
+					if (UEngineReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UEngineReplicationBridge>())
 					{
 						Bridge->ActorChangedLevel(ThisActor, Cast<ULevel>(PreviousOuter));
 					}
@@ -4352,16 +4513,6 @@ void UNetDriver::PostGarbageCollect()
 			It.RemoveCurrent();
 		}
 	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for (auto It = RepChangedPropertyTrackerMap.CreateIterator(); It; ++It)
-	{
-		if (!It.Value().IsObjectValid())
-		{
-			It.RemoveCurrent();
-		}
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (FObjectReplicator* Replicator : AllOwnedReplicators)
 	{
@@ -4825,7 +4976,7 @@ int32 UNetDriver::ServerReplicateActors_PrepConnections( const float DeltaSecond
 	{
 		UNetConnection* Connection = ClientConnections[ConnIdx];
 		check( Connection );
-		check( Connection->GetConnectionState() == USOCK_Pending || Connection->GetConnectionState() == USOCK_Open || Connection->GetConnectionState() == USOCK_Closed );
+		check( Connection->GetConnectionState() == USOCK_Pending || Connection->GetConnectionState() == USOCK_Open || Connection->IsClosingOrClosed());
 		checkSlow( Connection->GetUChildConnection() == NULL );
 
 		// Handle not ready channels.
@@ -4896,7 +5047,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 {
 	SCOPE_CYCLE_COUNTER( STAT_NetConsiderActorsTime );
 
-	UE_LOG( LogNetTraffic, Log, TEXT( "ServerReplicateActors_BuildConsiderList, Building ConsiderList %4.2f" ), World->GetTimeSeconds() );
+	UE_LOG( LogNetTraffic, Log, TEXT( "ServerReplicateActors_BuildConsiderList, Building ConsiderList at WorldTime: %f ServerTickTime: %f" ), World->GetTimeSeconds(), ServerTickTime );
 
 	int32 NumInitiallyDormant = 0;
 
@@ -4910,6 +5061,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 
 		if ( !ActorInfo->bPendingNetUpdate && World->TimeSeconds <= ActorInfo->NextUpdateTime )
 		{
+			UE_LOG(LogNetTraffic, VeryVerbose, TEXT("Skipping actor: %s. bPendingNetUpdate: %s | NextUpdateTime: %f (currently %f)"), *GetNameSafe(ActorInfo->Actor), ActorInfo->bPendingNetUpdate?TEXT("true"):TEXT("false"),ActorInfo->NextUpdateTime, World->TimeSeconds);
 			continue;		// It's not time for this actor to perform an update, skip it
 		}
 
@@ -4972,7 +5124,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 		if ( ActorInfo->LastNetReplicateTime == 0 )
 		{
 			ActorInfo->LastNetReplicateTime = World->TimeSeconds;
-			ActorInfo->OptimalNetUpdateDelta = 1.0f / Actor->NetUpdateFrequency;
+			ActorInfo->OptimalNetUpdateDelta = 1.0f / Actor->GetNetUpdateFrequency();
 		}
 
 		const float ScaleDownStartTime = 2.0f;
@@ -4982,14 +5134,14 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 
 		if ( LastReplicateDelta > ScaleDownStartTime )
 		{
-			if ( Actor->MinNetUpdateFrequency == 0.0f )
+			if ( Actor->GetMinNetUpdateFrequency() == 0.0f )
 			{
-				Actor->MinNetUpdateFrequency = 2.0f;
+				Actor->SetMinNetUpdateFrequency(2.0f);
 			}
 
 			// Calculate min delta (max rate actor will update), and max delta (slowest rate actor will update)
-			const float MinOptimalDelta = 1.0f / Actor->NetUpdateFrequency;									  // Don't go faster than NetUpdateFrequency
-			const float MaxOptimalDelta = FMath::Max( 1.0f / Actor->MinNetUpdateFrequency, MinOptimalDelta ); // Don't go slower than MinNetUpdateFrequency (or NetUpdateFrequency if it's slower)
+			const float MinOptimalDelta = 1.0f / Actor->GetNetUpdateFrequency();									  // Don't go faster than NetUpdateFrequency
+			const float MaxOptimalDelta = FMath::Max( 1.0f / Actor->GetMinNetUpdateFrequency(), MinOptimalDelta ); // Don't go slower than MinNetUpdateFrequency (or NetUpdateFrequency if it's slower)
 
 			// Interpolate between MinOptimalDelta/MaxOptimalDelta based on how long it's been since this actor actually sent anything
 			const float Alpha = FMath::Clamp( ( LastReplicateDelta - ScaleDownStartTime ) / ScaleDownTimeRange, 0.0f, 1.0f );
@@ -5004,10 +5156,12 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 		{
 			UE_LOG( LogNetTraffic, Log, TEXT( "actor %s requesting new net update, time: %2.3f" ), *Actor->GetName(), World->TimeSeconds );
 
-			const float NextUpdateDelta = bUseAdapativeNetFrequency ? ActorInfo->OptimalNetUpdateDelta : 1.0f / Actor->NetUpdateFrequency;
+			const float NextUpdateDelta = bUseAdapativeNetFrequency ? ActorInfo->OptimalNetUpdateDelta : 1.0f / Actor->GetNetUpdateFrequency();
+
+			float RandDelay = GNetDisableRandomNetUpdateDelay ? 0.0f : UpdateDelayRandomStream.FRand() * ServerTickTime;
 
 			// then set the next update time
-			ActorInfo->NextUpdateTime = World->TimeSeconds + UpdateDelayRandomStream.FRand() * ServerTickTime + NextUpdateDelta;
+			ActorInfo->NextUpdateTime = World->TimeSeconds + RandDelay + NextUpdateDelta;
 
 			// and mark when the actor first requested an update
 			//@note: using ElapsedTime because it's compared against UActorChannel.LastUpdateTime which also uses that value
@@ -5211,7 +5365,7 @@ int32 UNetDriver::ServerReplicateActors_PrioritizeActors( UNetConnection* Connec
 			// NOTE - We use NetTag to make sure SentTemporaries didn't already mark this actor to be skipped
 			if ( Actor->NetTag != NetTag )
 			{
-				UE_LOG( LogNetTraffic, Log, TEXT( "Consider %s alwaysrelevant %d frequency %f " ), *Actor->GetName(), Actor->bAlwaysRelevant, Actor->NetUpdateFrequency );
+				UE_LOG( LogNetTraffic, Log, TEXT( "Consider %s alwaysrelevant %d frequency %f " ), *Actor->GetName(), Actor->bAlwaysRelevant, Actor->GetNetUpdateFrequency() );
 
 				Actor->NetTag = NetTag;
 
@@ -5371,7 +5525,7 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActorsRange( UNetConne
 						}
 					}
 					// if we couldn't replicate it for a reason that should be temporary, and this Actor is updated very infrequently, make sure we update it again soon
-					else if ( Actor->NetUpdateFrequency < 1.0f )
+					else if ( Actor->GetNetUpdateFrequency() < 1.0f )
 					{
 						UE_LOG( LogNetTraffic, Log, TEXT( "Unable to replicate %s" ), *Actor->GetName() );
 						ActorInfo->NextUpdateTime = World->TimeSeconds + 0.2f * FMath::FRand();
@@ -5420,8 +5574,8 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActorsRange( UNetConne
 #endif // NET_DEBUG_RELEVANT_ACTORS
 
 							// Calculate min delta (max rate actor will upate), and max delta (slowest rate actor will update)
-							const float MinOptimalDelta				= 1.0f / Actor->NetUpdateFrequency;
-							const float MaxOptimalDelta				= FMath::Max( 1.0f / Actor->MinNetUpdateFrequency, MinOptimalDelta );
+							const float MinOptimalDelta				= 1.0f / Actor->GetNetUpdateFrequency();
+							const float MaxOptimalDelta				= FMath::Max( 1.0f / Actor->GetMinNetUpdateFrequency(), MinOptimalDelta );
 							const float DeltaBetweenReplications	= ( World->TimeSeconds - ActorInfo->LastNetReplicateTime );
 
 							// Choose an optimal time, we choose 70% of the actual rate to allow frequency to go up if needed
@@ -5610,8 +5764,8 @@ void UNetDriver::ReportSyncLoad(const FNetSyncLoadReport& Report)
 // -------------------------------------------------------------------------------------------------------------------------
 
 
-// Replication CSV category is enabled by default in server builds
-CSV_DEFINE_CATEGORY(Replication, WITH_SERVER_CODE);
+// Replication CSV category is always enabled (client and server).
+CSV_DEFINE_CATEGORY(Replication, true);
 
 double GReplicationGatherPrioritizeTimeSeconds;
 double GServerReplicateActorTimeSeconds;
@@ -5627,7 +5781,7 @@ struct FReplicationAutoCapture
 
 	void DoFrame()
 	{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (CaptureFrames == -1)
 		{
 			// First time see if we want to auto capture
@@ -5666,7 +5820,7 @@ struct FReplicationAutoCapture
 };
 FReplicationAutoCapture GReplicationAutoCapture;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 struct FScopedNetDriverStats
 {
 	FScopedNetDriverStats(UNetDriver* InNetDriver) : NetDriver(InNetDriver)
@@ -5767,7 +5921,7 @@ int32 UNetDriver::ServerReplicateActors(float DeltaSeconds)
 	GetMetrics()->SetInt(UE::Net::Metric::NumReplicatedActors,0 );
 	GetMetrics()->SetInt(UE::Net::Metric::NumReplicatedActorBytes, 0);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FScopedNetDriverStats NetDriverStats(this);
 	GNumClientConnections = ClientConnections.Num();
 #endif
@@ -6071,6 +6225,11 @@ void UNetDriver::SetNetDriverDefinition(FName NewNetDriverDefinition)
 	InitPacketSimulationSettings();
 }
 
+void UNetDriver::ReinitBase()
+{
+	UE_LOG(LogNet, Log, TEXT("Re-InitBase %s (NetDriverDefinition %s) using replication model %s"), *NetDriverName.ToString(), *NetDriverDefinition.ToString(), *GetReplicationModelName());
+}
+
 void UNetDriver::PostCreation(bool bInitializeWithIris)
 {
 #if UE_WITH_IRIS
@@ -6082,7 +6241,6 @@ void UNetDriver::PostCreation(bool bInitializeWithIris)
 		//Add to CSV whether we're using Iris on the GameNetDriver or not
 		CSV_METADATA(TEXT("Iris"), IsUsingIrisReplication() ? TEXT("1") : TEXT("0"));
 	}
-
 }
 
 #if NET_DEBUG_RELEVANT_ACTORS
@@ -6227,7 +6385,7 @@ void UNetDriver::DrawNetDriverDebug()
 				continue;
 			}
 
-			if (DistanceSquared > It->NetCullDistanceSquared)
+			if (DistanceSquared > It->GetNetCullDistanceSquared())
 			{
 				bWasCulled = true;
 				ExtraStateDrawColor = FColor::White;
@@ -6341,8 +6499,7 @@ void UNetDriver::AddClientConnection(UNetConnection* NewConnection)
 
 	SCOPE_CYCLE_COUNTER(Stat_NetDriverAddClientConnection);
 
-	UE_CLOG(!DDoS.CheckLogRestrictions(), LogNet, Log, TEXT("AddClientConnection: Added client connection: %s"),
-		*NewConnection->Describe());
+	UE_CLOG(!DDoS.CheckLogRestrictions(), LogNet, Log, TEXT("AddClientConnection: Added client connection: %s"), *NewConnection->Describe());
 
 	ClientConnections.Add(NewConnection);
 
@@ -6436,7 +6593,7 @@ void UNetDriver::CreateReplicatedStaticActorDestructionInfo(ULevel* Level, const
 #if UE_WITH_IRIS
 	if (ReplicationSystem)
 	{
-		if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
+		if (UEngineReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UEngineReplicationBridge>())
 		{			
 			// Add explicit destruction info for this object
 			UReplicationBridge::FEndReplicationParameters Params;
@@ -6562,29 +6719,35 @@ void UNetDriver::NotifyActorFullyDormantForConnection(AActor* Actor, UNetConnect
 
 void UNetDriver::RemoveClientConnection(UNetConnection* ClientConnectionToRemove)
 {
+	check(ClientConnectionToRemove);
 	verify(ClientConnections.Remove(ClientConnectionToRemove) == 1);
 
 	TSharedPtr<const FInternetAddr> AddrToRemove = ClientConnectionToRemove->GetRemoteAddr();
 
 	if (AddrToRemove.IsValid())
 	{
+		constexpr bool bPrintPort = true;
+
 		TSharedRef<const FInternetAddr> ConstAddrRef = AddrToRemove.ToSharedRef();
 
 		if (RecentlyDisconnectedTrackingTime > 0)
 		{
-			auto* FoundVal = MappedClientConnections.Find(ConstAddrRef);
+			const bool bIsAddressTracked = MappedClientConnections.Find(ConstAddrRef) != nullptr;
 
-			// Mark recently disconnected clients as nullptr (don't wait for GC), and keep the MappedClientConections entry for a while.
-			// Required for identifying/ignoring packets from recently disconnected clients, with the same performance as for NetConnection's (important for DDoS detection)
-			if (ensure(FoundVal != nullptr))
+			if (ensureMsgf(bIsAddressTracked, TEXT("RemoveClientConnection for %s was not in MappedClientConnections list"), *(ConstAddrRef->ToString(bPrintPort))))
 			{
+				UE_LOG(LogNet, Log, TEXT("UNetDriver::RemoveClientConnection - Removed address %s from MappedClientConnections for: %s"), *(ConstAddrRef->ToString(bPrintPort)), *ClientConnectionToRemove->Describe());
+
 				RecentlyDisconnectedClients.Add(FDisconnectedClient(ConstAddrRef, FPlatformTime::Seconds()));
 
-				*FoundVal = nullptr;
+				// Mark recently disconnected clients as nullptr (don't wait for GC), and keep the MappedClientConections entry for a while.
+				// Required for identifying/ignoring packets from recently disconnected clients, with the same performance as for NetConnection's (important for DDoS detection)
+				MappedClientConnections.Emplace(ConstAddrRef, nullptr);
 			}
 		}
 		else
 		{
+			UE_LOG(LogNet, Log, TEXT("UNetDriver::RemoveClientConnection - Removed address %s from MappedClientConnections for: %s"), *(ConstAddrRef->ToString(bPrintPort)), *ClientConnectionToRemove->Describe());
 			verify(MappedClientConnections.Remove(ConstAddrRef) == 1);
 		}
 	}
@@ -6817,16 +6980,34 @@ void UNetDriver::SetReplicationDriver(UReplicationDriver* NewReplicationDriver)
 	NotifyGameInstanceUpdated();
 }
 
-UNetConnection* UNetDriver::GetConnectionById(uint32 ConnectionId) const
+UNetConnection* UNetDriver::GetConnectionById(uint32 ParentConnectionId) const
 {
-	if (ServerConnection != nullptr && ServerConnection->GetConnectionId() == ConnectionId)
+	if (ServerConnection != nullptr && ServerConnection->GetConnectionHandle().GetParentConnectionId() == ParentConnectionId)
 	{
 		return ServerConnection;
 	}
 
 	for (UNetConnection* Connection : ClientConnections)
 	{
-		if (Connection && Connection->GetConnectionId() == ConnectionId)
+		if (Connection && Connection->GetConnectionHandle().GetParentConnectionId() == ParentConnectionId)
+		{
+			return Connection;
+		}
+	}
+
+	return nullptr;
+}
+
+UNetConnection* UNetDriver::GetConnectionByHandle(UE::Net::FConnectionHandle ConnectionHandle) const
+{
+	if (ServerConnection != nullptr && ServerConnection->GetConnectionHandle() == ConnectionHandle)
+	{
+		return ServerConnection;
+	}
+
+	for (UNetConnection* Connection : ClientConnections)
+	{
+		if (Connection && Connection->GetConnectionHandle() == ConnectionHandle)
 		{
 			return Connection;
 		}
@@ -6855,7 +7036,7 @@ bool UNetDriver::InitReplicationBridgeClass()
 	else
 	{
 		// Fall back on ActorReplicationBridge
-		ReplicationBridgeClass = UActorReplicationBridge::StaticClass();
+		ReplicationBridgeClass = UEngineReplicationBridge::StaticClass();
 	}
 
 	return ReplicationBridgeClass != nullptr;
@@ -6880,7 +7061,7 @@ void UNetDriver::UpdateGroupFilterStatusForLevel(const ULevel* Level, UE::Net::F
 	for (UNetConnection* Connection : ClientConnections)
 	{
 		const bool bIsVisible = (bIsPersistentLevel && WorldPackageName == Connection->GetClientWorldPackageName()) || Connection->ClientVisibleLevelNames.Contains(LevelPackageName);
-		ConnectionMask.SetBitValue(Connection->GetConnectionId(), bIsVisible);
+		ConnectionMask.SetBitValue(Connection->GetConnectionHandle().GetParentConnectionId(), bIsVisible);
 	}
 
 	// Set group filter status
@@ -6905,36 +7086,6 @@ void UNetDriver::SetReplicationSystem(UReplicationSystem* InReplicationSystem)
 	}
 }
 
-void UNetDriver::ClearIrisSystem()
-{
-	if (ReplicationSystem)
-	{
-		UReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridge();
-		if (ensureAlways(Bridge))
-		{
-			Bridge->SetNetDriver(nullptr);
-		}
-	}
-
-	ReplicationSystem = nullptr;
-}
-
-void UNetDriver::RestoreIrisSystem(UReplicationSystem* InReplicationSystem)
-{
-	check(InReplicationSystem != nullptr);
-	check(InReplicationSystem->GetReplicationBridge() != nullptr);
-	checkf(ReplicationSystem == nullptr, TEXT("Cannot restore IrisSystem in %s since one system is already initialized."), *GetName());
-
-	ReplicationSystem = InReplicationSystem;
-	ReplicationSystem->GetReplicationBridge()->SetNetDriver(this);
-
-	// When we run using Iris, we use ReplicationSystemId as our unique identifier
-	NetTraceId = ReplicationSystem->GetId();
-	
-	// World Actors have already been registered in this IrisSystem, prevent adding them twice when the World gets set.
-	bSkipBeginReplicationForWorld = true;
-}
-
 void UNetDriver::RestartIrisSystem()
 {
 	if (ReplicationSystem == nullptr)
@@ -6949,17 +7100,40 @@ void UNetDriver::RestartIrisSystem()
 		return;
 	}
 
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_NetDriver_RestartIrisSystem);
+	DestroyIrisSystem();
+
+	CreateReplicationSystem(!IsServer());
+}
+
+void UNetDriver::DestroyIrisSystem()
+{
+	if (ReplicationSystem == nullptr)
+	{
+		ensureMsgf(false, TEXT("DestroyIrisSystem called while no system existed."));
+		return;
+	}
+
+	if (ClientConnections.Num() > 0)
+	{
+		ensureMsgf(false, TEXT("DestroyIrisSystem called while there were active connections."));
+		return;
+	}
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_NetDriver_DestroyIrisSystem);
 
 	UE::Net::FReplicationSystemFactory::DestroyReplicationSystem(ReplicationSystem);
 	ReplicationSystem = nullptr;
+}
 
+void UNetDriver::RecreateIrisSystem()
+{
 	CreateReplicationSystem(!IsServer());
 }
 
 void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 {
 	LLM_SCOPE_BYTAG(Iris);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_NetDriver_CreateReplicationSystem);
 
 	const bool bBridgeClassExists = InitReplicationBridgeClass();
 
@@ -6969,10 +7143,20 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		return;
 	}
 
-	UReplicationBridge* ReplicationBridge = NewObject<UActorReplicationBridge>(GetTransientPackage(), ReplicationBridgeClass);
+	UEngineReplicationBridge* ReplicationBridge = NewObject<UEngineReplicationBridge>(GetTransientPackage(), ReplicationBridgeClass);
 	if (ReplicationBridge)
 	{
 		ReplicationBridge->SetNetDriver(this);
+
+		FNetDriverReplicationSystemConfig& RepSystemConfig = bInitAsClient ? ReplicationSystemConfigClient : ReplicationSystemConfigServer;
+		// Ask the GameInstance if it wants to override any configs
+		if (const UWorld* LocalWorld = GetWorld())
+		{
+			if (UGameInstance* GameInstance = LocalWorld->GetGameInstance())
+			{
+				GameInstance->OverrideIrisReplicationSystemConfig(RepSystemConfig, !bInitAsClient);
+			}
+		}
 
 		// Create ReplicationSystem
 		UReplicationSystem::FReplicationSystemParams Params;
@@ -6980,8 +7164,8 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		Params.bIsServer = !bInitAsClient;
 		Params.bAllowObjectReplication = !bInitAsClient;
 		Params.ForwardNetRPCCallDelegate.BindUObject(this, &UNetDriver::ForwardRemoteFunction);
-
-		UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfig, Params, !bInitAsClient);
+		UE::Net::Private::ApplyReplicationSystemConfig(RepSystemConfig, Params);
+		Params.NetTokenStore = NetTokenStore.Get();
 
 		SetReplicationSystem(UE::Net::FReplicationSystemFactory::CreateReplicationSystem(Params));
 	}
@@ -7061,7 +7245,7 @@ void UNetDriver::UpdateIrisReplicationViews() const
 
 			FillIrisReplicationViews(AllConnections, ReplicationView);
 
-			ReplicationSystem->SetReplicationView(ClientConnection->GetConnectionId(), ReplicationView);
+			ReplicationSystem->SetReplicationView(ClientConnection->GetConnectionHandle().GetParentConnectionId(), ReplicationView);
 
 			ReplicationView.Views.Reset();
 			AllConnections.Reset();
@@ -7080,7 +7264,7 @@ void UNetDriver::UpdateIrisReplicationViews() const
 
 		FillIrisReplicationViews(AllConnections, ReplicationView);
 
-		ReplicationSystem->SetReplicationView(ServerConnection->GetConnectionId(), ReplicationView);
+		ReplicationSystem->SetReplicationView(ServerConnection->GetConnectionHandle().GetParentConnectionId(), ReplicationView);
 	}
 }
 
@@ -7132,7 +7316,7 @@ void UNetDriver::PostDispatchSendUpdate()
 
 			for (uint32 ConnId : ConnectionsToSend)
 			{
-				UNetConnection* NetConnection = GetConnectionById(ConnId);
+				UNetConnection* NetConnection = GetConnectionByHandle(UE::Net::FConnectionHandle(ConnId));
 				if (NetConnection && NetConnection->Channels.IsValidIndex(DataStreamChannelIndex))
 				{
 					if (UDataStreamChannel* DataStreamChannel = Cast<UDataStreamChannel>(NetConnection->Channels[DataStreamChannelIndex]))
@@ -7215,9 +7399,9 @@ TSharedPtr<FRepLayout> UNetDriver::GetFunctionRepLayout(UFunction * Function)
 
 		// Use a temp shared ptr to hold onto a previous value in case we abort. The adding to RepLayoutMap copies this TSharedPtr, and will end up taking a ref count and owning it
 		TSharedPtr<FRepLayout> NewLayoutPtr;
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN{
 			NewLayoutPtr = FRepLayout::CreateFromFunction(Function, ServerConnection, Flags);
-		});
+		};
 
 		RepLayoutPtr = &RepLayoutMap.Add(Function, NewLayoutPtr);
 	}
@@ -7480,12 +7664,7 @@ void UNetDriver::ProcessRemoteFunction(
 			{
 				if (UNetConnection* Connection = Actor->GetNetConnection())
 				{
-					if (UChildConnection* ChildConnection = Connection->GetUChildConnection())
-					{
-						Connection = ChildConnection->Parent;
-					}
-
-					if (ReplicationSystem->SendRPC(Connection->GetConnectionId(), Actor, SubObject, Function, Parameters))
+					if (ReplicationSystem->SendRPC(Connection->GetConnectionHandle().GetParentConnectionId(), Actor, SubObject, Function, Parameters))
 					{
 						return;
 					}
@@ -7533,7 +7712,7 @@ void UNetDriver::ProcessRemoteFunction(
 					{
 						// We don't want to call this unless necessary, and it will internally handle being called multiple times before a clear
 						// Builds any shared serialization state for this rpc
-						RepLayout->BuildSharedSerializationForRPC(Parameters);
+						RepLayout->BuildSharedSerializationForRPC(Parameters, GetNetTokenStore());
 
 						InternalProcessRemoteFunctionPrivate(Actor, SubObject, Connection, Function, Parameters, OutParms, Stack, bIsServer, RemoteFunctionFlags);
 					}
@@ -7850,13 +8029,23 @@ void UNetDriver::UpdateNetworkStats()
 	bCollectServerStats = true;
 #endif
 
-	if (bCollectNetStats || bCollectServerStats)
+	if (bCollectNetStats || bCollectServerStats || GbEnableNetStats)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NetTickFlushGatherStats);
 
 		++StatUpdateFrames;
 
 		NumFramesOverIncomingBunchTimeLimit += HasExceededIncomingBunchFrameProcessingTime() ? 1 : 0;
+
+		GetMetrics()->SetInt(UE::Net::Metric::InPacketsPerFrame, InPackets - PrevInPackets);
+		GetMetrics()->SetInt(UE::Net::Metric::OutPacketsPerFrame, OutPackets - PrevOutPackets);
+		GetMetrics()->SetInt(UE::Net::Metric::InLostPacketsFoundPerFrame, InPacketsLost - PrevInPacketsLost);
+		GetMetrics()->SetInt(UE::Net::Metric::OutLostPacketsFoundPerFrame, OutPacketsLost - PrevOutPacketsLost);
+
+		PrevInPackets = InPackets;
+		PrevOutPackets = OutPackets;
+		PrevInPacketsLost = InPacketsLost;
+		PrevOutPacketsLost = OutPacketsLost;
 
 		const double CurrentRealtimeSeconds = FPlatformTime::Seconds();
 		// Update network stats (only main game net driver for now) if stats or perf counters are used
@@ -7941,7 +8130,7 @@ void UNetDriver::UpdateNetworkStats()
 #if STATS
 				FThreadStats::IsCollectingData() ||
 #endif
-				bCollectNetStats)
+				bCollectNetStats || GbEnableNetStats)
 			{
 				const float RealTime = CurrentRealtimeSeconds - StatUpdateTime;
 
@@ -7979,6 +8168,7 @@ void UNetDriver::UpdateNetworkStats()
 				if (ServerConnection != nullptr)
 				{
 					NumOpenChannels = ServerConnection->OpenChannels.Num();
+					GetMetrics()->SetFloat(UE::Net::Metric::AverageJitterInMS, ServerConnection->GetAverageJitterInMS());
 				}
 
 				for (int32 i = 0; i < ClientConnections.Num(); i++)
@@ -8036,16 +8226,17 @@ void UNetDriver::UpdateNetworkStats()
 					NumDormantActors -= FMath::Max(0, ClientConnections.Num() - 1) * SharedDormantActors;
 				}
 			}
+			
+			GetMetrics()->SetInt(UE::Net::Metric::Ping, Ping);
+			GetMetrics()->SetInt(UE::Net::Metric::InRate, InBytesPerSecond);
+			GetMetrics()->SetInt(UE::Net::Metric::OutRate, OutBytesPerSecond);
 
 #if STATS
 			if (!bSkipLocalStats)
 			{
 				// Copy the net status values over
-				GetMetrics()->SetInt(UE::Net::Metric::Ping, Ping);
 				GetMetrics()->SetInt(UE::Net::Metric::Channels, NumOpenChannels);
 				GetMetrics()->SetInt(UE::Net::Metric::MaxPacketOverhead, MaxPacketOverhead);
-				GetMetrics()->SetInt(UE::Net::Metric::InRate, InBytesPerSecond);
-				GetMetrics()->SetInt(UE::Net::Metric::OutRate, OutBytesPerSecond);
 
 				GetMetrics()->SetInt(UE::Net::Metric::NetNumClients, NumClients);
 
@@ -8238,11 +8429,15 @@ void UNetDriver::UpdateNetworkStats()
 			NetGUIDOutBytes = 0;
 			NetGUIDInBytes = 0;
 			InPackets = 0;
+			PrevInPackets = 0;
 			OutPackets = 0;
+			PrevOutPackets = 0;
 			InBunches = 0;
 			OutBunches = 0;
 			OutPacketsLost = 0;
+			PrevOutPacketsLost = 0;
 			InPacketsLost = 0;
+			PrevInPacketsLost = 0;
 			VoicePacketsSent = 0;
 			VoiceBytesSent = 0;
 			VoicePacketsRecv = 0;
@@ -8255,7 +8450,7 @@ void UNetDriver::UpdateNetworkStats()
 		}
 		else
 		{
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			// CSV stats need to be collected every frame
 
 			int32 ClientsInPacketsThisFrameAvg = 0;
@@ -8405,7 +8600,7 @@ FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 			UE_LOG(LogNet, Display, TEXT("Printing Server Connection for: %s (Definition=%s)"), *NetDriver->NetDriverName.ToString(), *NetDriver->GetNetDriverDefinition().ToString());
 
 			UE_LOG(LogNet, Display, TEXT("\tServerConnection: ConnectionId=%u ViewTarget=%s FullDescription=%s"), 
-				NetDriver->ServerConnection->GetConnectionId(), 
+				NetDriver->ServerConnection->GetConnectionHandle().GetParentConnectionId(), 
 				*GetNameSafe(NetDriver->ServerConnection->ViewTarget),
 				*NetDriver->ServerConnection->Describe()
 			);
@@ -8417,7 +8612,7 @@ FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 			for (UNetConnection* NetConnection : NetDriver->ClientConnections)
 			{
 				UE_LOG(LogNet, Display, TEXT("\tClientConnection: ConnectionId=%u ViewTarget=%s NetId=%s FullDescription=%s"), 
-					NetConnection->GetConnectionId(), 
+					NetConnection->GetConnectionHandle().GetParentConnectionId(), 
 					*GetNameSafe(NetConnection->ViewTarget),
 					*NetConnection->PlayerId.ToDebugString(), 
 					*NetConnection->Describe()

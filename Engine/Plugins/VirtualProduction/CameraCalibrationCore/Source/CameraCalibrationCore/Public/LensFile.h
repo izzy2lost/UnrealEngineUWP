@@ -27,7 +27,7 @@ class UCineCameraComponent;
 class ULensDistortionModelHandlerBase;
 class UTextureRenderTarget2D;
 struct FBaseLensTable;
-
+struct FDisplacementMapBlendingParams;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLensFileModelChanged, const TSubclassOf<ULensModel>&);
 
@@ -68,6 +68,8 @@ public:
 	ULensFile();
 
 	//~Begin UObject interface
+	virtual void Serialize(FArchive& Ar) override;
+	
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty( struct FPropertyChangedChainEvent& PropertyChangedEvent ) override;
 #endif //WITH_EDITOR
@@ -190,10 +192,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Lens Table")
 	void RemoveFocusPoint(ELensDataCategory InDataCategory, float InFocus);
 
+	/** Checks to see if there is a focal point for the specified focus in the data category */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	bool HasFocusPoint(ELensDataCategory InDataCategory, float InFocus) const;
+
+	/** Changes the value of a focus point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	void ChangeFocusPoint(ELensDataCategory InDataCategory, float InExistingFocus, float InNewFocus);
+
+	/** Merges the contents of one focus point into another focus point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	void MergeFocusPoint(ELensDataCategory InDataCategory, float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints);
+
 	/** Removes a zoom point */
 	UFUNCTION(BlueprintCallable, Category = "Lens Table")
 	void RemoveZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InZoom);
 
+	/** Removes a zoom point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	bool HasZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InZoom);
+
+	/** Changes the value of a zoom point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	void ChangeZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InExistingZoom, float InNewZoom);
+	
 	/** Removes all points of all tables */
 	UFUNCTION(BlueprintCallable, Category = "Lens Table")
 	void ClearAll();
@@ -212,9 +234,15 @@ public:
 
 	/** Get data table reference based on given category */
 	const FBaseLensTable* GetDataTable(ELensDataCategory InDataCategory) const;
+
+	/** Get data table reference based on given category */
+	FBaseLensTable* GetDataTable(ELensDataCategory InDataCategory);
 	
 	/** Returns the delegate that is triggered when the LensModel changes */
 	FOnLensFileModelChanged& OnLensFileModelChanged() { return OnLensFileModelChangedDelegate; }
+
+	/** Returns the distortion state and blend paramters for input focus and zoom */
+	void GetBlendState(float InFocus, float InZoom, FVector2D InFilmback, FDisplacementMapBlendingParams& OutBlendState);
 
 protected:
 	/** Updates derived data entries to make sure it matches what is assigned in map points based on data mode */
@@ -234,6 +262,11 @@ protected:
 	
 	/** Evaluates distortion based on InFocus and InZoom using STMaps */
 	bool EvaluateDistortionForSTMaps(float InFocus, float InZoom, FVector2D InFilmback, ULensDistortionModelHandlerBase* LensHandler) const;
+
+#if WITH_EDITOR
+	/** Builds the lens table focus curves to match the existing data in the tables */
+	void BuildLensTableFocusCurves();
+#endif // WITH_EDITOR
 	
 public:
 
@@ -348,16 +381,16 @@ struct FLensFileEvaluationInputs
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	float Focus = 0.0f;
 
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	float Iris = 0.0f;
 
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	float Zoom = 0.0f;
 
-	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Lens File")
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Lens File")
 	FCameraFilmbackSettings Filmback;
 
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "Lens File")

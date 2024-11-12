@@ -3,8 +3,11 @@
 #include "AvaMediaEditorModule.h"
 
 #include "AvaMediaEditorStyle.h"
+#include "AvaMediaSettings.h"
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Broadcast/OutputDevices/AvaBroadcastMediaIOOutputConfigurationCustomization.h"
+#include "Customization/AvaPlaybackServerLoggingEntryCustomization.h"
+#include "Customization/AvaSynchronizedEventsFeatureSelectionCustomization.h"
 #include "Editor.h"
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
@@ -48,13 +51,6 @@ namespace UE::AvaMediaEditorModule::Private
 		static const FName MenuName(TEXT("LevelEditor.StatusBar.ToolBar"));
 		static const FName SectionName(TEXT("MotionDesign"));
 	}
-	
-	// Command line parsing helper.
-	bool IsRundownServerManuallyStarted(FString& OutRundownServerName)
-	{
-		return FParse::Value(FCommandLine::Get(), TEXT("MotionDesignRundownServerStart="), OutRundownServerName) ||
-			FParse::Param(FCommandLine::Get(), TEXT("MotionDesignRundownServerStart"));
-	}
 
 	static void GetEditorViewportClient(FCommonViewportClient** OutViewportClient)
 	{
@@ -95,50 +91,21 @@ void FAvaMediaEditorModule::StartupModule()
 	// register ours after, i.e. once all modules are loaded.
 	FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddRaw(this, &FAvaMediaEditorModule::RegisterCustomizations);
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAvaMediaEditorModule::PostEngineInit);
-	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FAvaMediaEditorModule::EnginePreExit);
 
 	// Register Map Change Events
 	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	LevelEditor.OnMapChanged().AddRaw(this, &FAvaMediaEditorModule::HandleMapChanged);
 
-	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("MotionDesignRundownServer.Start"),
-		TEXT("Starts the rundown server."),
-		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaEditorModule::StartRundownServerCommand),
-		ECVF_Default
-	));
-	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("MotionDesignRundownServer.Stop"),
-		TEXT("Stops the rundown server."),
-		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaEditorModule::StopRundownServerCommand),
-		ECVF_Default
-	));
-
 	IAvaMediaModule::Get().GetEditorViewportClientDelegate().BindStatic(&GetEditorViewportClient);
 
-	FString DummyServerName;
-	if (IsRundownServerManuallyStarted(DummyServerName))
-	{
-		// Prevent throttling when the server is started.
-		// This has to be done before any SLevelViewport are ticked since the cvar value is cached on first tick.
-		static const FSlateThrottleManager& ThrottleManager = FSlateThrottleManager::Get();
-		if (IConsoleVariable* AllowThrottling = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.bAllowThrottling")))
-		{
-			AllowThrottling->Set(0);
-			UE_LOG(LogAvaMediaEditor, Log, TEXT("Setting Slate.bAllowThrottling to false."));
-		}
-	}
 	RegisterRundownFilterExpressionFactories();
 	RegisterRundownFilterSuggestionFactories();
 }
 
 void FAvaMediaEditorModule::ShutdownModule()
 {
-	StopAllServices();
-
 	FCoreDelegates::OnAllModuleLoadingPhasesComplete.RemoveAll(this);
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 
 	// Unregister Map Change Events
 	if (FLevelEditorModule* LevelEditor = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor"))
@@ -164,12 +131,6 @@ void FAvaMediaEditorModule::ShutdownModule()
 		FEdGraphUtilities::UnregisterVisualPinConnectionFactory(PlaybackConnectionFactory);
 		PlaybackConnectionFactory.Reset();
 	}
-
-	for (IConsoleObject* ConsoleCmd : ConsoleCmds)
-	{
-		IConsoleManager::Get().UnregisterConsoleObject(ConsoleCmd);
-	}
-	ConsoleCmds.Empty();
 }
 
 TSharedPtr<FExtensibilityManager> FAvaMediaEditorModule::GetBroadcastToolBarExtensibilityManager()
@@ -311,6 +272,8 @@ void FAvaMediaEditorModule::RegisterCustomizations() const
 	PropertyModule.RegisterCustomPropertyTypeLayout(FMediaIOOutputConfiguration::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaBroadcastMediaIOOutputConfigurationCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaRundownMacroCommand::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaRundownMacroCommandCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaRundownMacroKeyBinding::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaRundownMacroKeyBindingCustomization::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaSynchronizedEventsFeatureSelection::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaSynchronizedEventsFeatureSelectionCustomization::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaPlaybackServerLoggingEntry::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaPlaybackServerLoggingEntryCustomization::MakeInstance));
 }
 
 void FAvaMediaEditorModule::UnregisterCustomizations() const
@@ -319,66 +282,24 @@ void FAvaMediaEditorModule::UnregisterCustomizations() const
 	PropertyModule.UnregisterCustomPropertyTypeLayout(FMediaIOOutputConfiguration::StaticStruct()->GetFName());
 	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaRundownMacroCommand::StaticStruct()->GetFName());
 	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaRundownMacroKeyBinding::StaticStruct()->GetFName());
-}
-
-void FAvaMediaEditorModule::StartRundownServerCommand(const TArray<FString>& Args)
-{
-	if (RundownServer)
-	{
-		UE_LOG(LogAvaMediaEditor, Log, TEXT("Rundown Server is already started."));
-		return;
-	}
-	
-	RundownServer = MakeShared<FAvaRundownServer>();
-	
-	// Remark: Only the module's rundown server register console commands to avoid
-	// conflicts with temporary servers (for testing).
-	RundownServer->RegisterConsoleCommands();
-
-	RundownServer->Init(Args.Num() > 0 ? Args[0] : TEXT(""));
-	OnRundownServerStarted.Broadcast();
-
-	UE_LOG(LogAvaMediaEditor, Log, TEXT("Rundown Server Started."));
-}
-
-void FAvaMediaEditorModule::StopRundownServerCommand(const TArray<FString>& Args)
-{
-	if (RundownServer)
-	{
-		UE_LOG(LogAvaMediaEditor, Log, TEXT("Stopping Rundown Server..."));
-		OnRundownServerStopped.Broadcast();
-	}
-	RundownServer.Reset();
+	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaSynchronizedEventsFeatureSelection::StaticStruct()->GetFName());
+	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaPlaybackServerLoggingEntry::StaticStruct()->GetFName());
 }
 
 void FAvaMediaEditorModule::PostEngineInit()
 {
 	using namespace UE::AvaMediaEditorModule::Private;
 
-	// This needs to happen late in the loading process, otherwise it fails.
 	const UAvaRundownEditorSettings* Settings = UAvaRundownEditorSettings::Get();
 
-	// Allow for specification of the server name in the command line.
-	// Command line has priority over project settings.
-	FString ServerName;
-	if (IsRundownServerManuallyStarted(ServerName))
+	if (Settings && Settings->bAutoStartRundownServer)
 	{
-		StartRundownServerCommand({ServerName});
+		IAvaMediaModule& AvaModule = IAvaMediaModule::Get();
+		if (!AvaModule.IsRundownServerStarted())
+		{
+			AvaModule.StartRundownServer(Settings->RundownServerName);
+		}
 	}
-	else if (Settings && Settings->bAutoStartRundownServer)
-	{
-		StartRundownServerCommand({Settings->RundownServerName});
-	}
-}
-
-void FAvaMediaEditorModule::EnginePreExit()
-{
-	StopAllServices();
-}
-
-void FAvaMediaEditorModule::StopAllServices()
-{
-	StopRundownServerCommand({});
 }
 
 void FAvaMediaEditorModule::HandleMapChanged(UWorld* InWorld, EMapChangeType InMapChangeType)
@@ -414,7 +335,7 @@ void FAvaMediaEditorModule::HandleMapChanged(UWorld* InWorld, EMapChangeType InM
 template <
 	typename InRundownFilterExpressionFactoryType,
 	typename ... InArgsType
-	UE_REQUIRES(TIsDerivedFrom<InRundownFilterExpressionFactoryType, IAvaRundownFilterExpressionFactory>::Value)
+	UE_REQUIRES_DEFINITION(std::is_base_of_v<IAvaRundownFilterExpressionFactory, InRundownFilterExpressionFactoryType>)
 >
 void FAvaMediaEditorModule::RegisterRundownFilterExpressionFactory(InArgsType&&... InArgs)
 {
@@ -430,7 +351,7 @@ void FAvaMediaEditorModule::RegisterRundownFilterExpressionFactory(InArgsType&&.
 template <
 	typename InRundownSuggestionFactoryType,
 	typename ... InArgsType
-	UE_REQUIRES(TIsDerivedFrom<InRundownSuggestionFactoryType, IAvaRundownFilterSuggestionFactory>::Value)
+	UE_REQUIRES_DEFINITION(std::is_base_of_v<IAvaRundownFilterSuggestionFactory, InRundownSuggestionFactoryType>)
 >
 void FAvaMediaEditorModule::RegisterRundownFilterSuggestionFactory(InArgsType&&... InArgs)
 {

@@ -87,9 +87,6 @@ private:
 	/** Updates the optional fixture ID */
 	void UpdateFixtureID();
 
-	/** Optional fixture ID */
-	TOptional<int32> OptionalFixtureID;
-
 	/** The child items in the component hierarchy */
 	TArray<TSharedPtr<FDMXPixelMappingHierarchyItem>> Children;
 

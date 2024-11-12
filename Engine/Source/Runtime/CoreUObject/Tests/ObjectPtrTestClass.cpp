@@ -26,6 +26,37 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrTestClass, UObject,
 	});
 #endif
 
+#if WITH_EDITORONLY_DATA
+IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrAbstractTestClass, UObject,
+	{
+		auto MetaData = Class->GetOutermost()->GetMetaData();
+		if (MetaData)
+		{
+			MetaData->SetValue(Class, TEXT("LoadBehavior"), TEXT("LazyOnDemand"));
+		}
+	}
+);
+#else
+IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrAbstractTestClass, UObject,
+	{ 
+	});
+#endif
+
+#if WITH_EDITORONLY_DATA
+IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrAbstractDerivedTestClass, UObjectPtrAbstractTestClass,
+	{
+		auto MetaData = Class->GetOutermost()->GetMetaData();
+		if (MetaData)
+		{
+			MetaData->SetValue(Class, TEXT("LoadBehavior"), TEXT("LazyOnDemand"));
+		}
+	}
+);
+#else
+IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrAbstractDerivedTestClass, UObjectPtrAbstractTestClass,
+	{ 
+	});
+#endif
 
 #if WITH_EDITORONLY_DATA
 IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrTestClassWithRef, UObject,
@@ -43,7 +74,6 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrTestClassWithRef, UObject,
 		}
 
 		{
-
 			UECodeGen_Private::FObjectPropertyParams Params = { };
 			Params.NameUTF8 = "ObjectPtrNonNullable";
 			Params.Offset = STRUCT_OFFSET(UObjectPtrTestClassWithRef, ObjectPtrNonNullable);
@@ -54,6 +84,16 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrTestClassWithRef, UObject,
 			Property->PropertyClass = UObjectPtrTestClass::StaticClass();
 		}
 
+		{
+			UECodeGen_Private::FObjectPropertyParams Params = { };
+			Params.NameUTF8 = "ObjectPtrAbstractNonNullable";
+			Params.Offset = STRUCT_OFFSET(UObjectPtrTestClassWithRef, ObjectPtrAbstractNonNullable);
+			Params.PropertyFlags = EPropertyFlags::CPF_NonNullable | CPF_TObjectPtrWrapper;
+			Params.ObjectFlags = RF_Public | RF_Transient | RF_MarkAsNative;
+			Params.ClassFunc = nullptr;
+			auto Property = new FObjectProperty(Class, Params);
+			Property->PropertyClass = UObjectPtrAbstractTestClass::StaticClass();
+		}
 
 		{
 			UECodeGen_Private::FArrayPropertyParams Params = { };
@@ -97,6 +137,17 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrTestClassWithRef, UObject,
 			Params.ClassFunc = nullptr;
 			auto Property = new FObjectProperty(Class, Params);
 			Property->PropertyClass = UObjectPtrTestClass::StaticClass();
+		}
+
+		{
+			UECodeGen_Private::FObjectPropertyParams Params = { };
+			Params.NameUTF8 = "ObjectPtrAbstractNonNullable";
+			Params.Offset = STRUCT_OFFSET(UObjectPtrTestClassWithRef, ObjectPtrAbstractNonNullable);
+			Params.PropertyFlags = EPropertyFlags::CPF_NonNullable | CPF_TObjectPtrWrapper;
+			Params.ObjectFlags = RF_Public | RF_Transient | RF_MarkAsNative;
+			Params.ClassFunc = nullptr;
+			auto Property = new FObjectProperty(Class, Params);
+			Property->PropertyClass = UObjectPtrAbstractTestClass::StaticClass();
 		}
 
 		{

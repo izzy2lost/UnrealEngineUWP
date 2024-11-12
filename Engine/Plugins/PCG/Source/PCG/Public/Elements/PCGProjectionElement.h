@@ -28,10 +28,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGProjectionSettings", "NodeTitle", "Projection"); }
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
-	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
-	
+	virtual bool HasDynamicPins() const override { return true; }
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;	
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -61,8 +60,3 @@ class FPCGProjectionElement : public IPCGElement
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Data/PCGProjectionData.h"
-#endif

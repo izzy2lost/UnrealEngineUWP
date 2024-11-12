@@ -29,6 +29,12 @@ struct FKeyState
 	/** True if this key has been "consumed" by an InputComponent and should be ignored for further components during this update. */
 	uint8 bConsumed:1;
 
+	/** 
+	* True if this key was flushed this frame. This is used to flag to input processing that we may be receiving 
+	* a IE_Repeat event, but the IE_Pressed event accumulator may have been reset. 
+	*/
+	uint8 bWasJustFlushed:1;
+
 	/** Flag paired axes that have been sampled this tick. X = LSB, Z = MSB */
 	uint8 PairSampledAxes : 3;
 
@@ -51,6 +57,7 @@ struct FKeyState
 		, bDown(false)
 		, bDownPrevious(false)
 		, bConsumed(false)
+		, bWasJustFlushed(false)
 		, PairSampledAxes(0)
 		, SampleCountAccumulator(0)
 		, RawValueAccumulator(0.f, 0.f, 0.f)

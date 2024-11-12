@@ -40,6 +40,7 @@ TArray<FName> FRemoteControlProtocolModule::GetProtocolNames() const
 {
 	TArray<FName> ProtocolNames;
 	Protocols.GenerateKeyArray(ProtocolNames);
+	ProtocolNames.Sort(FNameLexicalLess());
 	return ProtocolNames;
 }
 

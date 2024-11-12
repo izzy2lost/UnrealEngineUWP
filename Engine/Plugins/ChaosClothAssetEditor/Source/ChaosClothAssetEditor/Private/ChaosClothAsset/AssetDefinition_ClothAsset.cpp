@@ -15,9 +15,16 @@
 #include "Misc/WarnIfAssetsLoadedInScope.h"
 #include "Dialog/SMessageDialog.h"
 #include "ChaosClothAsset/TerminalNode.h"
+#include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowSNode.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_ClothAsset"
+
+namespace UE::Chaos::ClothAsset::Private
+{
+static int32 bEnableClothDataflowEditor = false;
+static FAutoConsoleVariableRef CVarEnableClothDataflowEditor(TEXT("p.ChaosCloth.EnableDataflowEditor"), bEnableClothDataflowEditor, TEXT("Enable the use of the core dataflow editor for cloth asset (WIP)"));
+}
 
 namespace ClothAssetDefinitionHelpers
 {
@@ -123,21 +130,21 @@ namespace ClothAssetDefinitionHelpers
 
 		return true;
 	}
-
-	// Create a new UDataflow if one doesn't already exist for the Cloth Asset
-	UObject* NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset)
-	{
-		UObject* DataflowAsset = nullptr;
-		bool bDialogDone = false;
-		while (!bDialogDone)
-		{
-			bDialogDone = CreateNewDataflowAsset(ClothAsset, DataflowAsset);
-		}
-
-		return DataflowAsset;
-	}
 }
 
+
+// Create a new UDataflow if one doesn't already exist for the Cloth Asset
+UObject* UAssetDefinition_ClothAsset::NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset)
+{
+	UObject* DataflowAsset = nullptr;
+	bool bDialogDone = false;
+	while (!bDialogDone)
+	{
+		bDialogDone = ClothAssetDefinitionHelpers::CreateNewDataflowAsset(ClothAsset, DataflowAsset);
+	}
+
+	return DataflowAsset;
+}
 
 FText UAssetDefinition_ClothAsset::GetAssetDisplayName() const
 {
@@ -175,26 +182,18 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 	if (ClothObjects.Num() > 0)
 	{
 		UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-		UChaosClothAssetEditor* const AssetEditor = NewObject<UChaosClothAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
-
-		// Validate the asset
-		UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(ClothObjects[0]);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Don't use public property, and have Getter/Setter API instead
-		if (!ClothAsset->DataflowAsset)
+		if(!UE::Chaos::ClothAsset::Private::bEnableClothDataflowEditor)
 		{
-			if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(ClothAssetDefinitionHelpers::NewOrOpenDataflowAsset(ClothAsset)))
-			{
-				ClothAsset->DataflowAsset = NewDataflowAsset;
-			}
+			UChaosClothAssetEditor* const AssetEditor = NewObject<UChaosClothAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
+			AssetEditor->Initialize({ClothObjects[0] });
 		}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		TArray<TObjectPtr<UObject>> Objects;
-		for (UChaosClothAsset* const ClothObject : ClothObjects)
+		else
 		{
-			Objects.Add(ClothObject);
+			UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
+            const TSubclassOf<AActor> ActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
+            	TEXT("/ChaosClothAssetEditor/BP_ClothPreview.BP_ClothPreview_C"), nullptr, LOAD_None, nullptr);
+			AssetEditor->Initialize({ ClothObjects[0] }, ActorClass);
 		}
-		AssetEditor->Initialize(Objects);
 
 		return EAssetCommandResult::Handled;
 	}

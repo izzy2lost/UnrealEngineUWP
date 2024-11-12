@@ -107,17 +107,17 @@ void PackSubstrateOut(
 	float3 V,
 	float3 WorldBentNormal0,
 	inout bool bSubstrateSubsurfaceEnable,
-	inout float3 EmissiveColor,
+	inout float3 OutEmissiveLuminance,
 	inout FSubstrateSubsurfaceData SSSData,
 	inout FSubstrateTopLayerData TopLayerData,
 	inout FSubstrateOpaqueRoughRefractionData OpaqueRoughRefractionData
 #if MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING
-	,
-	in FMaterialPixelParameters MaterialParameters,
-	in FVertexFactoryInterpolantsVSToPS Interpolants,
-	in FBasePassInterpolantsVSToPS BasePassInterpolants,
-	in VTPageTableResult LightmapVTPageTableResult,
-	in float3 VolumetricLightmapBrickTextureUVs
+	,in FMaterialPixelParameters MaterialParameters
+	,in FVertexFactoryInterpolantsVSToPS Interpolants
+	,in FBasePassInterpolantsVSToPS BasePassInterpolants
+	,in VTPageTableResult LightmapVTPageTableResult
+	,in float3 VolumetricLightmapBrickTextureUVs
+	,inout float3 OutScatteredPrecomputedLuminance
 #endif
 )
 {
@@ -125,7 +125,10 @@ void PackSubstrateOut(
 #if SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 
 	bSubstrateSubsurfaceEnable = false;
-	EmissiveColor = 0.0f;
+	OutEmissiveLuminance = 0.0f;
+	#if MATERIAL_SUBSTRATE_OPAQUE_PRECOMPUTED_LIGHTING
+	OutScatteredPrecomputedLuminance = 0.0f;
+	#endif
 
 	const float FullyRough = 1.0f;
 
@@ -134,6 +137,14 @@ void PackSubstrateOut(
 	SSSData = (FSubstrateSubsurfaceData)0;
 	TopLayerData = (FSubstrateTopLayerData)0;
 	OpaqueRoughRefractionData = (FSubstrateOpaqueRoughRefractionData)0;
+
+	// The SSSData we accumulate to allow blending of Wrap and SubstrateDiffusion types.
+	uint SSSDataType = SSS_TYPE_INVALID;
+	float SSSDataAniso = 0.0f;
+	float SSSDataProfileID = 0.0f;
+	float SSSDataRadiusScale = 0.0f;
+	float3 SSSDataMFP = 0.0f;
+	float3 SSSDataBaseColor = 0.0f;
 
 	uint BSDFVisibleCount = 0;
 	
@@ -184,7 +195,7 @@ void PackSubstrateOut(
 					{
 					case SUBSTRATE_BSDF_TYPE_SLAB:
 					{
-						EmissiveColor += BSDF_GETEMISSIVE(BSDF) * BSDF.LuminanceWeightV;
+						OutEmissiveLuminance += BSDF_GETEMISSIVE(BSDF) * BSDF.LuminanceWeightV;
 
 						// Simple and single bsdf do not allow weights other than 1
 						const bool LuminanceWeightEqualOne = all(BSDF.LuminanceWeightV == 1.0f);
@@ -194,14 +205,14 @@ void PackSubstrateOut(
 						#else
 						const bool bForceComplexSpecialPath = false;
 						#endif
-						const bool bForceComplexMaterial = BSDF_GETHASANISOTROPY(BSDF) || bForceComplexSpecialPath;
+						const bool bForceComplexMaterial = BSDF_GETHASANISOTROPY(BSDF) || bForceComplexSpecialPath || !LuminanceWeightEqualOne;
 
 						// Update simple material compatibility
-						bIsSimpleMaterial = bIsSimpleMaterial && IsSubstrateSlabFastPathCompatible(BSDF) && LuminanceWeightEqualOne && !bForceComplexMaterial;
+						bIsSimpleMaterial = bIsSimpleMaterial && IsSubstrateSlabFastPathCompatible(BSDF) && !bForceComplexMaterial;
 
 						// Update single material compatibility. For now, single materials don't support anisotropy, 
 						// they use the complex pass, as the toplayer data does not contain the full frame basis, only the top normal.
-						bIsSingleMaterial = bIsSingleMaterial && LuminanceWeightEqualOne && !bForceComplexMaterial;
+						bIsSingleMaterial = bIsSingleMaterial && !bForceComplexMaterial;
 
 						TopLayerTotalWeight += BSDF.TopLayerDataWeight;
 						float TopLayerRoughnessContribution = BSDF.TopLayerDataWeight * SLAB_ROUGHNESS(BSDF);
@@ -212,11 +223,11 @@ void PackSubstrateOut(
 							if (Haziness.bSimpleClearCoat)
 							{
 								TopLayerRoughnessContribution = BSDF.TopLayerDataWeight * lerp(SLAB_ROUGHNESS(BSDF), Haziness.Roughness, Haziness.Weight);
-								TopLayerBaseColorContribution = BSDF.TopLayerDataWeight * lerp(0.0, 0.04f, F0RGBToMetallic(0.04f));
+								//TopLayerBaseColorContribution = BSDF.TopLayerDataWeight * lerp(0.0, 0.04f, F0RGBToMetallic(0.04f)); Skip because, as for the legacy path, we only show the bottom BaseColor of Clear Coat materials.
 							}
 						}
-						TopLayerData.Roughness += TopLayerRoughnessContribution;
-						TopLayerData.BaseColor += TopLayerBaseColorContribution;
+						TopLayerData.Roughness			+= TopLayerRoughnessContribution;
+						TopLayerData.UnlitViewBaseColor += TopLayerBaseColorContribution;
 
 						TopLayerData.Material = TOP_LAYER_MATERIAL_VALID;
 
@@ -236,11 +247,11 @@ void PackSubstrateOut(
 						bIsOnlySlab = false;
 						bIsSimpleMaterial = false;
 						bIsSingleMaterial = false;
-						EmissiveColor += BSDF_GETEMISSIVE(BSDF) * BSDF.LuminanceWeightV;
+						OutEmissiveLuminance += BSDF_GETEMISSIVE(BSDF) * BSDF.LuminanceWeightV;
 
-						TopLayerTotalWeight += BSDF.TopLayerDataWeight;
-						TopLayerData.Roughness += BSDF.TopLayerDataWeight * FullyRough;
-						TopLayerData.BaseColor += BSDF.TopLayerDataWeight * SubstrateGetBSDFBaseColor(BSDF);
+						TopLayerTotalWeight				+= BSDF.TopLayerDataWeight;
+						TopLayerData.Roughness			+= BSDF.TopLayerDataWeight * FullyRough;
+						TopLayerData.UnlitViewBaseColor += BSDF.TopLayerDataWeight * SubstrateGetBSDFBaseColor(BSDF);
 
 						TopLayerData.Material = TOP_LAYER_MATERIAL_VALID;
 
@@ -270,11 +281,11 @@ void PackSubstrateOut(
 						bIsOnlySlab = false;
 						bIsSimpleMaterial = false;
 						bIsSingleMaterial = false;
-						EmissiveColor += BSDF_GETEMISSIVE(BSDF) * BSDF.LuminanceWeightV;
+						OutEmissiveLuminance += BSDF_GETEMISSIVE(BSDF) * BSDF.LuminanceWeightV;
 
-						TopLayerTotalWeight += BSDF.TopLayerDataWeight;
-						TopLayerData.Roughness += BSDF.TopLayerDataWeight * SLW_ROUGHNESS(BSDF);
-						TopLayerData.BaseColor += BSDF.TopLayerDataWeight * SubstrateGetBSDFBaseColor(BSDF);
+						TopLayerTotalWeight				+= BSDF.TopLayerDataWeight;
+						TopLayerData.Roughness			+= BSDF.TopLayerDataWeight * SLW_ROUGHNESS(BSDF);
+						TopLayerData.UnlitViewBaseColor += BSDF.TopLayerDataWeight * SubstrateGetBSDFBaseColor(BSDF);
 
 						TopLayerData.Material = TOP_LAYER_MATERIAL_SLWATER;
 
@@ -299,9 +310,9 @@ void PackSubstrateOut(
 		}
 
 		// Finalize top layer data
-		TopLayerData.WorldNormal= TopLayerTotalWeight > 0.0f	? normalize(TopLayerData.WorldNormal)			: 0.0f;
-		TopLayerData.Roughness	= TopLayerTotalWeight > 0.0f	? TopLayerData.Roughness / TopLayerTotalWeight	: 0.0f;
-		TopLayerData.BaseColor	= TopLayerTotalWeight > 0.0f	? TopLayerData.BaseColor / TopLayerTotalWeight	: 0.0f;
+		TopLayerData.WorldNormal		= TopLayerTotalWeight > 0.0f	? normalize(TopLayerData.WorldNormal)					: 0.0f;
+		TopLayerData.Roughness			= TopLayerTotalWeight > 0.0f	? TopLayerData.Roughness / TopLayerTotalWeight			: 0.0f;
+		TopLayerData.UnlitViewBaseColor	= TopLayerTotalWeight > 0.0f	? TopLayerData.UnlitViewBaseColor / TopLayerTotalWeight	: 0.0f;
 
 		// Set storage layout as either: fast(0), single(1), or complex(2)
 		// We check BSDFVisibleCount to make sure we do not set a MATERIALMODE that would enforce a BSDFVisibleCount==1.
@@ -364,17 +375,17 @@ void PackSubstrateOut(
 				{
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_CLOTH;
 				}				
-				else if ((OptimisedModeMask & SingleIsWrapThin) == SingleIsWrapThin)
+				else if ((OptimisedModeMask & SingleIsWrapThin) == SingleIsWrapThin && !BSDF_GETHASFUZZ(BSDF))
 				{
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_SSSWRAP_THIN;
 					SSSData.Header.Bytes = 0; // Force to skip SSSData writing
 				}
-				else if ((OptimisedModeMask & SingleIsWrap) == SingleIsWrap)
+				else if ((OptimisedModeMask & SingleIsWrap) == SingleIsWrap && !BSDF_GETHASFUZZ(BSDF))
 				{
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_SSSWRAP;
 					SSSData.Header.Bytes = 0; // Force to skip SSSData writing
 				}
-				else if ((OptimisedModeMask & (SingleIsSSSProfile|SingleIsThin)) == SingleIsSSSProfile) // Force to skip SINGLE_OPTLEGACYMODE_SSSPROFILE when set to ThinSurface
+				else if ((OptimisedModeMask & (SingleIsSSSProfile|SingleIsThin)) == SingleIsSSSProfile && !BSDF_GETHASFUZZ(BSDF)) // Force to skip SINGLE_OPTLEGACYMODE_SSSPROFILE when set to ThinSurface
 				{
 					// SingleIsSSSProfile appears critically after SingleIsWrapThin because thin will disable subsurface profile.
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_SSSPROFILE;
@@ -403,7 +414,7 @@ void PackSubstrateOut(
 				{
 					// Convert BSDF to data ready to evaluate precomputed lighting
 					float2 SpecMultiBounceAO_IndirectIrradiance = 0.0f;
-					EmissiveColor += SubstrateGetBSDFPrecomputedLighting(
+					float3 PrecomputedLighting = SubstrateGetBSDFPrecomputedLighting(
 						Settings,
 						SubstratePixelHeader,
 						BSDF,
@@ -416,6 +427,17 @@ void PackSubstrateOut(
 						VolumetricLightmapBrickTextureUVs,
 						SpecMultiBounceAO_IndirectIrradiance);
 					SpecMultiBounceAO_IndirectIrradiance_Acc += SpecMultiBounceAO_IndirectIrradiance;
+
+					// Selectively add PrecomputedLighting to either OutScatteredPrecomputedLuminance or OutEmissiveLuminance 
+					// depending if the light will be processed or not by SSS postprocess
+					if (bSubstrateSubsurfaceEnable)
+					{
+						OutScatteredPrecomputedLuminance = PrecomputedLighting;
+					}
+					else
+					{
+						OutEmissiveLuminance += PrecomputedLighting;
+					}
 
 					// Stop writing if above budget.
 					BSDFCount++;
@@ -622,8 +644,15 @@ void PackSubstrateOut(
 							const uint PackedDiffuse20Bits		= PackR7G7B6Gamma2(	SLAB_DIFFUSEALBEDO(BSDF)	, Dither);
 							const uint PackedF020Bits			= PackR7G7B6Gamma2(	SLAB_F0(BSDF)				, Dither);
 
+							// When creating a slab with GetSubstrateSlabBSDF(), the SSS profile's dual roughness is expanded into haziness. 
+							// But when storing data with SINGLE_OPTLEGACYMODE_SSSPROFILE we need to store the original roughness. 
+							// The dual roughnesses will be recomputed based on the SSS profile data at load time. To retrieve the 
+							// original roughness, we need to invert the computation done into GetSubstrateSlabBSDF()
+							const uint SubsurfaceProfileUInt = SubstrateSubsurfaceProfileIdTo8bits(SLAB_SSSPROFILEID(BSDF));
+							const float OriginalRoughness = GetSubsurfaceProfileOriginalRoughness(SubsurfaceProfileUInt, SLAB_ROUGHNESS(BSDF), SLAB_SSSPROFILERADIUSSCALE(BSDF));
+
 							// MRT0 
-							SUBSTRATE_STORE_UINT1(Out					| (PackR8(SLAB_ROUGHNESS(BSDF)) << 24));
+							SUBSTRATE_STORE_UINT1(Out					| (PackR8(OriginalRoughness) << 24));
 							// MRT1 20 PackedDiffuse and Profile radius scale
 							SUBSTRATE_STORE_UINT1(PackedDiffuse20Bits  | (PackR8(SLAB_SSSPROFILERADIUSSCALE(BSDF)) << 24));
 							// MRT2 24 PackedF0      and Profile ID
@@ -747,21 +776,28 @@ void PackSubstrateOut(
 								// All SSS types store side data (SSSHeader/SSSData), apart from SIMPLEVOLUME
 								if (BSDF_GETSSSTYPE(BSDF) != SSS_TYPE_SIMPLEVOLUME)
 								{
-									SubstrateSubSurfaceHeaderSetSSSType(SSSData.Header, BSDF_GETSSSTYPE(BSDF));
+									// Always override the type, we can only blend similar types of subsurface lighting effects.
+									SSSDataType = BSDF_GETSSSTYPE(BSDF);
+
+									// Now we are going to blend all the SSS attributes in order to be able to lerp legacy Subsurface and SubstrateDiffusion.
+									// Legacy SSSProfile ID is still set by the last encountered Slab.
+									// Attributes are blended using opacity only, no need to use the throughput to the view (SSS post process wants raw source data like BaseColor and the BSDF will otherwise run the correct lighting math).
+
 									if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_WRAP)
 									{
-										SubstrateSubSurfaceHeaderSetWrap(SSSData.Header, SLAB_SSSPHASEANISOTROPY(BSDF));
+										SSSDataAniso += SLAB_SSSPHASEANISOTROPY(BSDF) * BSDF.Coverage;
 									}
 									else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION_PROFILE)
 									{
-										SubstrateSubSurfaceHeaderSetProfile(SSSData.Header, SLAB_SSSPROFILERADIUSSCALE(BSDF), SubstrateSubsurfaceProfileIdTo8bits(SLAB_SSSPROFILEID(BSDF)));
+										SSSDataProfileID = SLAB_SSSPROFILEID(BSDF);
+										SSSDataRadiusScale = SLAB_SSSPROFILERADIUSSCALE(BSDF);
 									}
 									else
 									{
-										SubstrateSubSurfaceHeaderSetNonProfile(SSSData.Header, SLAB_SSSMFP(BSDF));
+										SSSDataMFP += SLAB_SSSMFP(BSDF) * BSDF.Coverage;
 									}
 
-									SubstrateSubsurfaceExtrasSetBaseColor(SSSData.Extras, SLAB_DIFFUSEALBEDO(BSDF));
+									SSSDataBaseColor += SLAB_DIFFUSEALBEDO(BSDF) * BSDF.Coverage;
 								}
 
 								if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION_PROFILE)
@@ -839,9 +875,10 @@ void PackSubstrateOut(
 							const bool bHasSSS = BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION_PROFILE;
 							if (bHasSSS)
 							{
-								SubstrateSubSurfaceHeaderSetSSSType(SSSData.Header, SSS_TYPE_DIFFUSION_PROFILE);
-								SubstrateSubSurfaceHeaderSetProfile(SSSData.Header, 1.0f, SubstrateSubsurfaceProfileIdTo8bits(EYE_SSSPROFILEID(BSDF)));
-								SubstrateSubsurfaceExtrasSetBaseColor(SSSData.Extras, EYE_DIFFUSEALBEDO(BSDF));
+								SSSDataType = SSS_TYPE_DIFFUSION_PROFILE;
+								SSSDataProfileID = EYE_SSSPROFILEID(BSDF);
+								SSSDataRadiusScale = 1.0f;
+								SSSDataBaseColor = EYE_DIFFUSEALBEDO(BSDF) * BSDF.Coverage;
 							}
 						}
 						break;
@@ -864,6 +901,32 @@ void PackSubstrateOut(
 		}
 
 		FinalizeWrites(SubstrateBuffer, SubstrateAddressing);
+
+		// Now generate the final SSSData structure from the parameter blended attributes
+		if (SSSDataType != SSS_TYPE_INVALID)
+		{
+			// All SSS types store side data (SSSHeader/SSSData), apart from SIMPLEVOLUME
+			if (SSSDataType != SSS_TYPE_SIMPLEVOLUME)
+			{
+				// Always override the type, we can only blend similar types of subsrface
+				SubstrateSubSurfaceHeaderSetSSSType(SSSData.Header, SSSDataType);
+
+				if (SSSDataType == SSS_TYPE_WRAP)
+				{
+					SubstrateSubSurfaceHeaderSetWrap(SSSData.Header, SSSDataAniso);
+				}
+				else if (SSSDataType == SSS_TYPE_DIFFUSION_PROFILE)
+				{
+					SubstrateSubSurfaceHeaderSetProfile(SSSData.Header, SSSDataRadiusScale, SubstrateSubsurfaceProfileIdTo8bits(SSSDataProfileID));
+				}
+				else
+				{
+					SubstrateSubSurfaceHeaderSetNonProfile(SSSData.Header, SSSDataMFP);
+				}
+
+				SubstrateSubsurfaceExtrasSetBaseColor(SSSData.Extras, SSSDataBaseColor);
+			}
+		}
 	}
 #endif // SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 

@@ -177,6 +177,8 @@ void UCommonTabListWidgetBase::RemoveAllTabs()
 			OnTabButtonRemoval.Broadcast(Key, TabButton);
 		}
 	}
+
+	TabButtonWidgetPool.ReleaseAll();
 }
 
 int32 UCommonTabListWidgetBase::GetTabCount() const

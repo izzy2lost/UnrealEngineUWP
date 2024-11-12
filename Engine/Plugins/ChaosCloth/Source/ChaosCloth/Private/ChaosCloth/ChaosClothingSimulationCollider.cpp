@@ -17,6 +17,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/AggregateGeom.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "HAL/PlatformMath.h"
 #include "Containers/ArrayView.h"
 #include "Containers/BitArray.h"
@@ -67,7 +68,7 @@ void FClothingSimulationCollider::FLODData::Add(
 	const FClothCollisionData& InClothCollisionData,
 	const TArray<FLevelSetCollisionData>& InLevelSetCollisionData,
 	const TArray<FSkinnedLevelSetCollisionData>& InSkinnedLevelSetCollisionData,
-	const FReal InScale,
+	const FReal InComponentScale,
 	const TArray<int32>& UsedBoneIndices)
 {
 	check(Solver);
@@ -75,6 +76,12 @@ void FClothingSimulationCollider::FLODData::Add(
 
 	// Keep a list of all collisions
 	ClothCollisionData = InClothCollisionData;
+
+	// Apply LocalScaleInv.
+	const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	const FReal InScale = InComponentScale * LocalSpaceScaleInv;
 
 	// Calculate the number of geometries
 	int32 NumSpheres = ClothCollisionData.Spheres.Num();
@@ -399,6 +406,11 @@ void FClothingSimulationCollider::FLODData::Update(
 
 		FTransform ComponentToLocalSpaceReal = ComponentTransform;
 		ComponentToLocalSpaceReal.AddToTranslation(-Solver->GetLocalSpaceLocation());
+		const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
+		check(LocalSpaceScale > UE_SMALL_NUMBER);
+		const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+		ComponentToLocalSpaceReal.MultiplyScale3D(FVector(LocalSpaceScaleInv));
+		ComponentToLocalSpaceReal.ScaleTranslation(LocalSpaceScaleInv);
 		const Softs::FSolverTransform3 ComponentToLocalSpace(ComponentToLocalSpaceReal);  // LWC, now in local space, therefore it is safe to use the solver transform type
 	
 		// Update the collision transforms
@@ -449,23 +461,6 @@ FClothingSimulationCollider::FClothingSimulationCollider(const UPhysicsAsset* In
 	}
 }
 
-FClothingSimulationCollider::FClothingSimulationCollider(
-	const UClothingAssetCommon* InAsset,
-	const USkeletalMeshComponent* /*InSkeletalMeshComponent*/,
-	bool /*bInUseLODIndexOverride*/,
-	int32 /*InLODIndexOverride*/)
-	: PhysicsAsset(InAsset->PhysicsAsset)
-	, ReferenceSkeleton(&CastChecked<USkeletalMesh>(InAsset->GetOuter())->GetRefSkeleton())
-{
-	// Prepare LOD array
-	const int32 NumLODs = InAsset ? InAsset->LodData.Num() : 0;
-	const int32 NumLODData = (int32)ECollisionDataType::LODs + NumLODs;
-	LODData.Reserve(NumLODData);
-	for (int32 Index = 0; Index < NumLODData; ++Index)
-	{
-		LODData.Add(MakeUnique<FLODData>());
-	}
-}
 
 FClothingSimulationCollider::~FClothingSimulationCollider()
 {
@@ -495,7 +490,15 @@ FClothCollisionData FClothingSimulationCollider::GetCollisionData(const FClothin
 	return ClothCollisionData;
 }
 
-void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionData& ClothCollisionData, TArray<FLevelSetCollisionData>& LevelSetCollisions, TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions, TArray<int32>& UsedBoneIndices)
+void FClothingSimulationCollider::ExtractPhysicsAssetCollision(
+	const UPhysicsAsset* PhysicsAsset,
+	const FReferenceSkeleton* ReferenceSkeleton,
+	FClothCollisionData& ClothCollisionData,
+	TArray<FLevelSetCollisionData>& LevelSetCollisions,
+	TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions,
+	TArray<int32>& UsedBoneIndices,
+	bool bUseSphylsOnly,
+	bool bSkipMissingBones)
 {
 	ClothCollisionData.Reset();
 	UsedBoneIndices.Reset();
@@ -512,6 +515,11 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 			}
 
 			const int32 MeshBoneIndex = ReferenceSkeleton ? ReferenceSkeleton->FindBoneIndex(BodySetup->BoneName) : INDEX_NONE;
+			if (bSkipMissingBones && MeshBoneIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
 			const int32 MappedBoneIndex = UsedBoneIndices.Add(MeshBoneIndex);
 			
 			// Add capsules
@@ -563,18 +571,6 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 				ClothCollisionData.Spheres.Add(Sphere);
 			}
 
-			// Add boxes
-			for (const FKBoxElem& BoxElem : AggGeom.BoxElems)
-			{
-				// Add extracted box collision data
-				FClothCollisionPrim_Box Box;
-				Box.LocalPosition = BoxElem.Center;
-				Box.LocalRotation = BoxElem.Rotation.Quaternion();
-				Box.HalfExtents = FVector(BoxElem.X, BoxElem.Y, BoxElem.Z) * 0.5f;
-				Box.BoneIndex = MappedBoneIndex;
-				ClothCollisionData.Boxes.Add(Box);
-			}
-
 			// Add tapered capsules
 			for (const FKTaperedCapsuleElem& TaperedCapsuleElem : AggGeom.TaperedCapsuleElems)
 			{
@@ -607,6 +603,23 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 					SphereConnection.SphereIndices[1] = ClothCollisionData.Spheres.Add(Sphere1);
 					ClothCollisionData.SphereConnections.Add(SphereConnection);
 				}
+			}
+
+			if (bUseSphylsOnly)
+			{
+				continue;  // Exit now if only spheres and capsules are required
+			}
+
+			// Add boxes
+			for (const FKBoxElem& BoxElem : AggGeom.BoxElems)
+			{
+				// Add extracted box collision data
+				FClothCollisionPrim_Box Box;
+				Box.LocalPosition = BoxElem.Center;
+				Box.LocalRotation = BoxElem.Rotation.Quaternion();
+				Box.HalfExtents = FVector(BoxElem.X, BoxElem.Y, BoxElem.Z) * 0.5f;
+				Box.BoneIndex = MappedBoneIndex;
+				ClothCollisionData.Boxes.Add(Box);
 			}
 
 			// Add convexes
@@ -749,7 +762,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TArray<FLevelSetCollisionData> LevelSetCollisions;
 	TArray<FSkinnedLevelSetCollisionData> SkinnedLevelSetCollisions;
 	TArray<int32> UsedBoneIndices;
-	ExtractPhysicsAssetCollision(PhysicsAssetCollisionData, LevelSetCollisions, SkinnedLevelSetCollisions, UsedBoneIndices);
+	ExtractPhysicsAssetCollision(PhysicsAsset, ReferenceSkeleton, PhysicsAssetCollisionData, LevelSetCollisions, SkinnedLevelSetCollisions, UsedBoneIndices);
 
 	LODData[(int32)ECollisionDataType::LODless]->Add(Solver, Cloth, PhysicsAssetCollisionData, LevelSetCollisions, SkinnedLevelSetCollisions, Scale, UsedBoneIndices);
 }

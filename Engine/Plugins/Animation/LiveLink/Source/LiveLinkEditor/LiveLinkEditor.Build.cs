@@ -37,6 +37,7 @@ namespace UnrealBuildTool.Rules
 					"LiveLinkMessageBusFramework",
 					"LiveLinkMovieScene",
 					"MessageLog",
+					"MovieScene",
 					"Persona",
 					"Projects",
 					"PropertyEditor",

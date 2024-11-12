@@ -123,7 +123,6 @@ void FGameplayDebuggerAddonManager::CreateCategories(AGameplayDebuggerCategoryRe
 	check(World);
 	const ENetMode NetMode = World->GetNetMode();
 	const bool bHasAuthority = FGameplayDebuggerUtils::IsAuthority(World);
-	const bool bIsLocal = (NetMode != NM_DedicatedServer);
 	const bool bIsSimulate = FGameplayDebuggerAddonBase::IsSimulateInEditor();
 
 	TArray<TSharedRef<FGameplayDebuggerCategory> > UnsortedCategories;
@@ -141,7 +140,7 @@ void FGameplayDebuggerAddonManager::CreateCategories(AGameplayDebuggerCategoryRe
 		CategoryObject.CategoryId = CategoryObjects.Num();
 		CategoryObject.CategoryName = It.Key;
 		CategoryObject.bHasAuthority = bHasAuthority;
-		CategoryObject.bIsLocal = bIsLocal;
+		CategoryObject.bIsLocal = Owner.IsLocal();
 		CategoryObject.bIsEnabled =
 			(It.Value.CategoryState == EGameplayDebuggerCategoryState::EnabledInGameAndSimulate) ||
 			(It.Value.CategoryState == EGameplayDebuggerCategoryState::EnabledInGame && !bIsSimulate) ||
@@ -232,11 +231,14 @@ void FGameplayDebuggerAddonManager::UpdateFromConfig()
 			{
 				const bool bDefaultActiveInGame = (It.Value.DefaultCategoryState == EGameplayDebuggerCategoryState::EnabledInGame) || (It.Value.DefaultCategoryState == EGameplayDebuggerCategoryState::EnabledInGameAndSimulate);
 				const bool bDefaultActiveInSimulate = (It.Value.DefaultCategoryState == EGameplayDebuggerCategoryState::EnabledInSimulate) || (It.Value.DefaultCategoryState == EGameplayDebuggerCategoryState::EnabledInGameAndSimulate);
+				const bool bDefaultHidden = It.Value.DefaultCategoryState == EGameplayDebuggerCategoryState::Hidden;
 
 				const bool bActiveInGame = (ConfigData.ActiveInGame == EGameplayDebuggerOverrideMode::UseDefault) ? bDefaultActiveInGame : (ConfigData.ActiveInGame == EGameplayDebuggerOverrideMode::Enable);
 				const bool bActiveInSimulate = (ConfigData.ActiveInSimulate == EGameplayDebuggerOverrideMode::UseDefault) ? bDefaultActiveInSimulate : (ConfigData.ActiveInSimulate == EGameplayDebuggerOverrideMode::Enable);
+				const bool bHidden = (ConfigData.Hidden == EGameplayDebuggerOverrideMode::UseDefault) ? bDefaultHidden : (ConfigData.Hidden == EGameplayDebuggerOverrideMode::Enable);
 
 				EGameplayDebuggerCategoryState NewCategoryState =
+					bHidden ? EGameplayDebuggerCategoryState::Hidden :
 					bActiveInGame && bActiveInSimulate ? EGameplayDebuggerCategoryState::EnabledInGameAndSimulate :
 					bActiveInGame ? EGameplayDebuggerCategoryState::EnabledInGame :
 					bActiveInSimulate ? EGameplayDebuggerCategoryState::EnabledInSimulate :

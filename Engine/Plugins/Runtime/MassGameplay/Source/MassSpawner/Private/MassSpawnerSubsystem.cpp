@@ -7,7 +7,7 @@
 #include "MassEntityTemplateRegistry.h"
 #include "Engine/World.h"
 #include "MassExecutor.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "VisualLogger/VisualLogger.h"
 #include "MassSpawner.h"
 #include "MassObserverProcessor.h"
@@ -85,11 +85,7 @@ void UMassSpawnerSubsystem::DestroyEntities(TConstArrayView<FMassEntityHandle> E
 
 	TArray<FMassArchetypeEntityCollection> EntityCollections;
 	UE::Mass::Utils::CreateEntityCollections(*EntityManager.Get(), Entities, FMassArchetypeEntityCollection::NoDuplicates, EntityCollections);
-
-	for (const FMassArchetypeEntityCollection& Collection : EntityCollections)
-	{
-		EntityManager->BatchDestroyEntityChunks(Collection);
-	}
+	EntityManager->BatchDestroyEntityChunks(EntityCollections);
 }
 
 UMassProcessor* UMassSpawnerSubsystem::GetSpawnDataInitializer(TSubclassOf<UMassProcessor> InitializerClass)
@@ -132,27 +128,30 @@ void UMassSpawnerSubsystem::DoSpawning(const FMassEntityTemplate& EntityTemplate
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassSpawnerSubsystem DoSpawning");
 
 	// 1. Create required number of entities with EntityTemplate.Archetype
+	TArray<FMassEntityHandle> SpawnedEntities;
+	TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext
+		= EntityManager->BatchCreateEntities(EntityTemplate.GetArchetype(), EntityTemplate.GetSharedFragmentValues(), NumToSpawn, SpawnedEntities);
+
 	// 2. Copy data from FMassEntityTemplate.Fragments.
 	//		a. @todo, could be done as part of creation?
-	// 3. Run SpawlDataInitializer if set
-	// 4. "OnEntitiesCreated" notifies will be sent out once the CreationContext gets destroyed (via its destructor).
-
-	TArray<FMassEntityHandle> SpawnedEntities;
-	TSharedRef<FMassEntityManager::FEntityCreationContext> CreationContext = EntityManager->BatchCreateEntities(EntityTemplate.GetArchetype(), EntityTemplate.GetSharedFragmentValues(), NumToSpawn, SpawnedEntities);
-
 	TConstArrayView<FInstancedStruct> FragmentInstances = EntityTemplate.GetInitialFragmentValues();
-	EntityManager->BatchSetEntityFragmentsValues(CreationContext->GetEntityCollection(), FragmentInstances);
+	EntityManager->BatchSetEntityFragmentsValues(CreationContext->GetEntityCollections(), FragmentInstances);
 	
-	UMassProcessor* SpawnDataInitializer = SpawnData.IsValid() ? GetSpawnDataInitializer(InitializerClass) : nullptr;
+	// 3. Run SpawnDataInitializer, if set. This is a special type of processor that operates on the entities to initialize them.
+	// e.g., will run UInstancedActorsInitializerProcessor for Mass InstancedActors
+	UMassProcessor* SpawnDataInitializer = SpawnData.IsValid() 
+		? GetSpawnDataInitializer(InitializerClass) 
+		: nullptr;
 
 	if (SpawnDataInitializer)
 	{
 		FMassProcessingContext ProcessingContext(EntityManager, /*TimeDelta=*/0.0f);
 		ProcessingContext.AuxData = SpawnData;
-		UE::Mass::Executor::RunProcessorsView(MakeArrayView(&SpawnDataInitializer, 1), ProcessingContext, &CreationContext->GetEntityCollection());
+		UE::Mass::Executor::RunProcessorsView(MakeArrayView(&SpawnDataInitializer, 1), ProcessingContext, CreationContext->GetEntityCollections());
 	}
 
 	OutEntities.Append(MoveTemp(SpawnedEntities));
+	// 4. "OnEntitiesCreated" notifies will be sent out once the CreationContext gets destroyed (via its destructor).
 }
 
 const FMassEntityTemplate* UMassSpawnerSubsystem::GetMassEntityTemplate(FMassEntityTemplateID TemplateID) const

@@ -6,6 +6,7 @@
 
 #include "MeshMaterialShader.h"
 #include "ShaderCompiler.h"
+#include "ShaderDiagnostics.h"
 
 #if WITH_EDITOR
 
@@ -30,8 +31,7 @@ static void PrepareMeshMaterialShaderCompileJob(EShaderPlatform Platform,
 	NewJob->bIsDefaultMaterial = Material->IsDefaultMaterial();
 	NewJob->bIsGlobalShader = false;
 
-	static IConsoleVariable* CVarShaderDevMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShaderDevelopmentMode"));
-	if (CVarShaderDevMode && CVarShaderDevMode->GetInt() != 0)
+	if (IsShaderDevelopmentModeEnabled())
 	{
 		NewJob->bErrorsAreLikelyToBeCode = true;
 	}

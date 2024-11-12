@@ -8,7 +8,7 @@
 #include "SimulationPBDBendingElementConfigNode.generated.h"
 
 /** Bending element constraint property configuration node. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Deprecated = "5.4"))
 struct FChaosClothAssetSimulationPBDBendingElementConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -71,9 +71,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "PBDBendingElement Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1", EditCondition = "BucklingRatio != 0"))
 	FChaosClothAssetWeightedValue BucklingStiffness = { true, 0.9f, 0.9f, TEXT("BucklingStiffness") };
 
-	FChaosClothAssetSimulationPBDBendingElementConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationPBDBendingElementConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
-	virtual bool IsDeprecated() override { return true; }
 };

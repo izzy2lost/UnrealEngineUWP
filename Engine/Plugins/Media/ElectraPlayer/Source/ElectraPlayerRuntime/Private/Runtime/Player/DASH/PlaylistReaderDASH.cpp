@@ -1080,9 +1080,9 @@ FErrorDetail FPlaylistReaderDASH::GetXMLResponseString(FString& OutXMLString, FR
 {
 	if (FromRequest.IsValid() && FromRequest->Request.IsValid())
 	{
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
-		int32 NumResponseBytes = ResponseBuffer->Buffer.Num();
-		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
+		int32 NumResponseBytes = ResponseBuffer->Num();
+		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->GetLinearReadData();
 		// Check for potential BOMs
 		if (NumResponseBytes > 3 && ResponseBytes[0] == 0xEF && ResponseBytes[1] == 0xBB && ResponseBytes[2] == 0xBF)
 		{
@@ -1111,7 +1111,7 @@ FErrorDetail FPlaylistReaderDASH::GetXMLResponseString(FString& OutXMLString, FR
 			return CreateErrorAndLog(FString::Printf(TEXT("Document has unsupported UTF-32 LE BOM!")), ERRCODE_DASH_MPD_UNSUPPORTED_DOCUMENT_ENCODING);
 		}
 		FUTF8ToTCHAR TextConv((const ANSICHAR*)ResponseBytes, NumResponseBytes);
-		FString XML(TextConv.Length(), TextConv.Get());
+		FString XML = FString::ConstructFromPtrSize(TextConv.Get(), TextConv.Length());
 		OutXMLString = MoveTemp(XML);
 	}
 	return FErrorDetail();
@@ -1122,11 +1122,11 @@ FErrorDetail FPlaylistReaderDASH::GetResponseString(FString& OutString, FResourc
 {
 	if (FromRequest.IsValid() && FromRequest->Request.IsValid())
 	{
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
-		int32 NumResponseBytes = ResponseBuffer->Buffer.Num();
-		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer = FromRequest->Request->GetResponseBuffer();
+		int32 NumResponseBytes = ResponseBuffer->Num();
+		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->GetLinearReadData();
 		FUTF8ToTCHAR TextConv((const ANSICHAR*)ResponseBytes, NumResponseBytes);
-		FString UTF8Text(TextConv.Length(), TextConv.Get());
+		FString UTF8Text = FString::ConstructFromPtrSize(TextConv.Get(), TextConv.Length());
 		OutString = MoveTemp(UTF8Text);
 	}
 	return FErrorDetail();
@@ -1405,6 +1405,12 @@ void FPlaylistReaderDASH::ManifestUpdateDownloadCompleted(FResourceLoadRequestPt
 				LastErrorDetail = Builder->BuildFromMPD(NewManifest, XML.GetCharArray().GetData(), EffectiveURL, ETag);
 				if (LastErrorDetail.IsOK() || LastErrorDetail.IsTryAgain())
 				{
+					// Set the availability start time of the new MPD to be that of the current MPD.
+					// It is not supposed to change in accordance with ISO/IEC 23009-1:2022 Section 8.4.2, but we
+					// have seen MPDs where it *does* change. In an attempt to make these MPDs usable we keep
+					// the initial AST.
+					NewManifest->GetMPDRoot()->SetAvailabilityStartTime(Manifest->GetMPDRoot()->GetAvailabilityStartTime());
+
 					// Copy over the initial document URL fragments.
 					if (NewManifest.IsValid())
 					{

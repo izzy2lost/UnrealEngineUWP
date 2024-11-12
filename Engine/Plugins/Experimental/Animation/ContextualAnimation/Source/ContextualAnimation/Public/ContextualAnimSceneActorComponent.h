@@ -171,11 +171,13 @@ public:
 
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	virtual void GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const;
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
 
 	virtual void AddIKGoals_Implementation(TMap<FName, FIKRigGoal>& OutGoals) override;
 
+	UFUNCTION(BlueprintPure, Category = "Contextual Anim|Scene Actor Component")
 	const FContextualAnimSceneBindings& GetBindings() const { return Bindings; };
 
 	UFUNCTION(BlueprintPure, Category = "Contextual Anim|Scene Actor Component")
@@ -205,6 +207,9 @@ public:
 	bool TransitionContextualAnimScene(FName SectionName);
 	
 	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
+	bool TransitionContextualAnimSceneToSpecificSet(FName SectionName, int32 AnimSetIdx);
+
+	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
 	bool TransitionSingleActor(int32 SectionIdx, int32 AnimSetIdx);
 
 	bool StartContextualAnimScene(const FContextualAnimSceneBindings& InBindings, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
@@ -220,6 +225,10 @@ public:
 	bool IsOwnerLocallyControlled() const;
 
 protected:
+
+	/** Cache of the owner's AnimInstance for easy access. Only valid while an interaction is active */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UAnimInstance> OwnerAnimInstance = nullptr;
 
 	/** 
 	 * Replicated copy of the bindings so we can start the action on simulated proxies 
@@ -248,12 +257,20 @@ protected:
 	UPROPERTY(Transient)
 	TArray<FContextualAnimIKTarget> IKTargets;
 
+	/** 
+	 * Motion warping doesn't remove warp targets when a warping window ends, so we keep track of the warp targets added during the interaction 
+	 * and remove them at the end of it to prevent issues caused by dangling warp targets after an interaction.
+	 */
+	UPROPERTY(Transient)
+	TArray<FName> WarpTargetNamesCache;
+
 	struct FCharacterProperties
 	{
 		bool bIgnoreClientMovementErrorChecksAndCorrection = false;
 		bool bAllowPhysicsRotationDuringAnimRootMotion = false;
 		bool bUseControllerDesiredRotation = false;
 		bool bOrientRotationToMovement = false;
+		bool bSimulatePhysics = false;
 		EMovementMode MovementMode = EMovementMode::MOVE_Walking;
 		TArray<TTuple<ECollisionChannel, ECollisionResponse>> CollisionResponses;
 	};
@@ -286,7 +303,7 @@ protected:
 	virtual void SetCollisionState(const FContextualAnimSceneBinding& Binding);
 	virtual void RestoreCollisionState(const FContextualAnimSceneBinding& Binding);
 
-	void SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode);
+	void SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode, uint8 CustomMode = 0);
 	void RestoreMovementState(const FContextualAnimSceneBinding& Binding);
 
 	UFUNCTION()
@@ -305,6 +322,9 @@ protected:
 	void LeaveScene();
 
 	virtual bool CanLeaveScene(const FContextualAnimSceneBinding& Binding);
+
+	// Called just before the scene leaving happens (which calls OnLeaveScene)
+	virtual void OnPreLeaveScene(const FContextualAnimSceneBinding& Binding);
 
 	virtual void OnLeaveScene(const FContextualAnimSceneBinding& Binding);
 
@@ -330,7 +350,7 @@ protected:
 
 	virtual void OnTransitionSingleActor(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
 
-	void OtherActorLeftScene(AActor& Actor);
+	virtual void OtherActorLeftScene(AActor& Actor);
 
 private:
 

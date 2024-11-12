@@ -13,6 +13,8 @@ public:
 	FHordeHttpClient(FString InServerUrl);
 	~FHordeHttpClient();
 
+	bool Login(bool bUnattended, FFeedbackContext* Warn = nullptr);
+
 	bool LoginWithOidc(const TCHAR* Profile, bool bUnattended, FFeedbackContext* Warn = nullptr);
 
 	bool LoginWithEnvironmentVariable();

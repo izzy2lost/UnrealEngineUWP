@@ -5,6 +5,7 @@
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessDrawDebugContext.h"
+#include "Stateless/NiagaraStatelessParticleSimExecData.h"
 #include "Stateless/Modules/NiagaraStatelessModule_InitializeParticle.h"
 #include "NiagaraConstants.h"
 #include "NiagaraModule.h"
@@ -14,6 +15,7 @@
 
 #include "Algo/Copy.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "UObject/UObjectIterator.h"
 
 namespace NiagaraStatelessInternal
 {
@@ -62,6 +64,12 @@ namespace NiagaraStatelessInternal
 			return false;
 		}
 
+		// Validate we have output components if we don't there's no point simulating the emitter
+		if (!EmitterData.ParticleDataSetCompiledData.Get() || !EmitterData.ParticleDataSetCompiledData->Variables.Num())
+		{
+			return false;
+		}
+
 		// Validate the shader is correct
 		const FShaderParametersMetadata* ShaderParametersMetadata = EmitterData.GetShaderParametersMetadata();
 		if (!EmitterData.GetShader().IsValid() || !ShaderParametersMetadata)
@@ -98,6 +106,7 @@ void UNiagaraStatelessEmitter::PostLoad()
 #if WITH_EDITOR
 	// Ensure our module list is up to date
 	OnEmitterTemplateChanged();
+	//OnCacheParameterCollectionReferences();
 #endif
 }
 
@@ -132,8 +141,7 @@ bool UNiagaraStatelessEmitter::NeedsLoadForTargetPlatform(const ITargetPlatform*
 		return false;
 	}
 
-	const bool bStatelessEnabled = GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled;
-	const bool bIsEnabled = Platforms.IsEnabledForPlatform(TargetPlatform->IniPlatformName()) && bStatelessEnabled;
+	const bool bIsEnabled = Platforms.IsEnabledForPlatform(TargetPlatform->IniPlatformName());
 	if (!bIsEnabled)
 	{
 		UE_LOG(LogNiagara, Verbose, TEXT("Pruned emitter %s for platform %s"), *GetFullName(), *TargetPlatform->DisplayName().ToString())
@@ -157,6 +165,7 @@ void UNiagaraStatelessEmitter::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		//if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UNiagaraStatelessEmitter, EmitterTemplateClass))
 		{
 			OnEmitterTemplateChanged();
+			OnCacheParameterCollectionReferences();
 		}
 	}
 }
@@ -193,12 +202,62 @@ void UNiagaraStatelessEmitter::OnEmitterTemplateChanged()
 		else
 		{
 			NewModules.Add(Modules[ExistingIndex]);
-			Modules.RemoveAtSwap(ExistingIndex, 1, EAllowShrinking::No);
+			Modules.RemoveAtSwap(ExistingIndex, EAllowShrinking::No);
 		}
 	}
 	Modules = MoveTemp(NewModules);
 }
+
+void UNiagaraStatelessEmitter::OnCacheParameterCollectionReferences()
+{
+	TArray<TObjectPtr<UNiagaraParameterCollection>> OriginalReferences;
+	Swap(OriginalReferences, CachedParameterCollectionReferences);
+
+	for (const UNiagaraStatelessModule* Module : Modules)
+	{
+		for (TFieldIterator<FStructProperty> PropIt(Module->GetClass()); PropIt; ++PropIt)
+		{
+			FStructProperty* StructProp = *PropIt;
+			if (!StructProp || !StructProp->Struct || !StructProp->Struct->IsChildOf(FNiagaraDistributionBase::StaticStruct()))
+			{
+				continue;
+			}
+
+			const FNiagaraDistributionBase* DistributionBase = StructProp->ContainerPtrToValuePtr<const FNiagaraDistributionBase>(Module);
+			if (!DistributionBase->IsBinding())
+			{
+				continue;
+			}
+
+
+			if (!DistributionBase->ParameterBinding.IsInNameSpace(FNiagaraConstants::ParameterCollectionNamespaceString))
+			{
+				continue;
+			}
+
+			for (TObjectIterator<UNiagaraParameterCollection> NPCIt; NPCIt; ++NPCIt)
+			{
+				UNiagaraParameterCollection* NPC = *NPCIt;
+				if (NPC->GetParameters().Contains(DistributionBase->ParameterBinding))
+				{
+					CachedParameterCollectionReferences.AddUnique(NPC);
+					break;
+				}
+			}
+		}
+	}
+	
+	if ( OriginalReferences != CachedParameterCollectionReferences )
+	{
+		Modify();
+	}
+}
 #endif //WITH_EDITOR
+
+bool UNiagaraStatelessEmitter::UsesCollection(const UNiagaraParameterCollection* Collection) const
+{
+	return CachedParameterCollectionReferences.Contains(Collection);
+}
 
 const UNiagaraStatelessEmitterTemplate* UNiagaraStatelessEmitter::GetEmitterTemplate() const
 {
@@ -215,6 +274,14 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 
 	// Setup emitter state
 	StatelessEmitterData->EmitterState = EmitterState;
+
+	if (StatelessEmitterData->EmitterState.bEnableDistanceCulling)
+	{
+		StatelessEmitterData->EmitterState.bEnableDistanceCulling = StatelessEmitterData->EmitterState.bMinDistanceEnabled | StatelessEmitterData->EmitterState.bMaxDistanceEnabled;
+	}
+
+	StatelessEmitterData->EmitterState.LoopDuration.Min = FMath::Max(StatelessEmitterData->EmitterState.LoopDuration.Min, UE_KINDA_SMALL_NUMBER);
+	StatelessEmitterData->EmitterState.LoopDuration.Max = FMath::Max(StatelessEmitterData->EmitterState.LoopDuration.Max, UE_KINDA_SMALL_NUMBER);
 
 	// Find lifetime values
 	//-Note: We could abstact this out to be a more general modules implements Lifetime but this mirrors core Niagara where you always have Initialize Particle in 99% of cases
@@ -249,26 +316,62 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	{
 		if (Renderer && Renderer->GetIsEnabled())
 		{
-			Renderer->CacheFromCompiledData(&StatelessEmitterData->ParticleDataSetCompiledData);
+			Renderer->CacheFromCompiledData(StatelessEmitterData->ParticleDataSetCompiledData.Get());
 		}
 	}
 
 	StatelessEmitterData->bCanEverExecute = NiagaraStatelessInternal::IsValid(*StatelessEmitterData);
-	StatelessEmitterData->bCanEverExecute &= Platforms.IsActive();
-	StatelessEmitterData->bCanEverExecute &= GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled;
+	StatelessEmitterData->bCanEverExecute &= IsAllowedByScalability();
+
+	// Determine our supported feature set mask
+	// If we can not execute on any enabled units then the emitter is considered disabled
+	if (StatelessEmitterData->bCanEverExecute)
+	{
+		StatelessEmitterData->FeatureMask = FNiagaraStatelessGlobals::Get().FeatureMask;
+		StatelessEmitterData->FeatureMask &= ENiagaraStatelessFeatureMask(AllowedFeatureMask);
+
+		for (const UNiagaraStatelessModule* Module : Modules)
+		{
+			if (Module->IsModuleEnabled())
+			{
+				StatelessEmitterData->FeatureMask &= Module->GetFeatureMask();
+			}
+		}
+
+		if (StatelessEmitterData->FeatureMask == ENiagaraStatelessFeatureMask::None)
+		{
+			StatelessEmitterData->bCanEverExecute = false;
+			UE_LOG(LogNiagara, Verbose, TEXT("Stateless Emitter (%s) can not execute on any available path and will be disabled."), *GetFullName());
+		}
+	}
+
+	// Resolve scalability settings
+	ResolveScalabilitySettings();
 
 	// Build buffers that are shared across all instances
 	//-OPT: We should be able to build and serialize this data as part of the UNiagaraStatelessEmitter, potentially all of this data even since it's immutable and does not change at runtime
 	if (StatelessEmitterData->bCanEverExecute)
 	{
+		if (EnumHasAnyFlags(StatelessEmitterData->FeatureMask, ENiagaraStatelessFeatureMask::ExecuteCPU))
+		{
+			StatelessEmitterData->ParticleSimExecData = new NiagaraStateless::FParticleSimulationExecData(*StatelessEmitterData->ParticleDataSetCompiledData.Get());
+		}
+
 		FNiagaraStatelessEmitterDataBuildContext EmitterBuildContext(
+			*StatelessEmitterData->ParticleDataSetCompiledData.Get(),
 			StatelessEmitterData->RendererBindings,
 			StatelessEmitterData->BuiltData,
-			StatelessEmitterData->StaticFloatData
+			StatelessEmitterData->StaticFloatData,
+			StatelessEmitterData->ParticleSimExecData
 		);
+
+		FNiagaraStatelessShaderParametersBuilder ShaderParametersBuilder;
+		ShaderParametersBuilder.AddParameterNestedStruct<NiagaraStateless::FCommonShaderParameters>();
 
 		for (const UNiagaraStatelessModule* Module : Modules)
 		{
+			EmitterBuildContext.PreModuleBuild(ShaderParametersBuilder.GetParametersStructSize());
+			Module->BuildShaderParameters(ShaderParametersBuilder);
 			Module->BuildEmitterData(EmitterBuildContext);
 		}
 		StatelessEmitterData->bModulesHaveRendererBindings = StatelessEmitterData->RendererBindings.Num() > 0;
@@ -279,7 +382,38 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 		}
 		StatelessEmitterData->InitRenderResources();
 
-		// Prepare renderer bindings this avoid having to do this per instance spawned
+		// Gather the parameter collections we need to bind to
+	#if WITH_EDITOR
+		// UNiagaraStatelessEmitter does not get a notification when bindings change.
+		//-OPT: Shift this to be when distributions change mode in / out of binding + binding changed
+		OnCacheParameterCollectionReferences();
+	#endif
+		StatelessEmitterData->BoundParameterCollections.Reset(CachedParameterCollectionReferences.Num());
+		for (UNiagaraParameterCollection* ParameterCollection : CachedParameterCollectionReferences)
+		{
+			if (ParameterCollection)
+			{
+				StatelessEmitterData->BoundParameterCollections.Add(ParameterCollection);
+			}
+		}
+
+		// Populate any renderer bindings from the emitter state and spawn infos
+		EmitterBuildContext.ConvertDistributionToRange(StatelessEmitterData->EmitterState.LoopDuration, 0.0f);
+		EmitterBuildContext.ConvertDistributionToRange(StatelessEmitterData->EmitterState.LoopDelay, 0.0f);
+		for ( const FNiagaraStatelessSpawnInfo& SpawnInfo : StatelessEmitterData->SpawnInfos )
+		{
+			if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
+			{
+				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.Rate, 0.0f);
+			}
+			else //if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Burst)
+			{
+				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.Amount, 0);
+			}
+			EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.SpawnProbability, 0.0f);
+		}
+
+		// Prepare renderer bindings this avoids having to do this per instance spawned
 		// Note: Order is important here we detect if we need to update shader parameters on binding changes above by looking to see if we had any renderer bindings so this must be below
 		for (UNiagaraRendererProperties* Renderer : RendererProperties )
 		{
@@ -319,33 +453,52 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 			}
 		}
 
-		// Build data set from variables that are used
-		ForEachEnabledRenderer(
-			[this, &AvailableVariables](UNiagaraRendererProperties* RendererProps)
+		// Force all the attributes in?
+		if (bForceOutputAllAttributes)
+		{
+			for (const FNiagaraVariableBase& Variable : AvailableVariables)
 			{
-				if (AvailableVariables.Num() == 0)
+				ParticleDataSetCompiledData.Variables.Emplace(Variable);
+			}
+		}
+		// Build data set from variables that are used by renderers
+		else
+		{
+			ForEachEnabledRenderer(
+				[this, &AvailableVariables](UNiagaraRendererProperties* RendererProps)
 				{
-					return;
-				}
-
-				for (FNiagaraVariableBase BoundAttribute : RendererProps->GetBoundAttributes())
-				{
-					// Edge condition with UniqueID which does not contain the Particle namespace from Ribbon Renderer
-					BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString);
-
-					const int32 Index = AvailableVariables.IndexOfByKey(BoundAttribute);
-					if (Index != INDEX_NONE)
+					if (AvailableVariables.Num() == 0)
 					{
-						AvailableVariables.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-						ParticleDataSetCompiledData.Variables.Emplace(BoundAttribute);
-						if (AvailableVariables.Num() == 0)
+						return;
+					}
+
+					for (FNiagaraVariableBase BoundAttribute : RendererProps->GetBoundAttributes())
+					{
+						// Edge condition with UniqueID which does not contain the Particle namespace from Ribbon Renderer
+						BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString);
+
+						const int32 Index = AvailableVariables.IndexOfByKey(BoundAttribute);
+						if (Index != INDEX_NONE)
 						{
-							return;
+							AvailableVariables.RemoveAtSwap(Index, EAllowShrinking::No);
+							ParticleDataSetCompiledData.Variables.Emplace(BoundAttribute);
+							if (AvailableVariables.Num() == 0)
+							{
+								return;
+							}
 						}
 					}
 				}
+			);
+
+			if (bForceOutputUniqueID)
+			{
+				if (AvailableVariables.Contains(FNiagaraStatelessGlobals::Get().UniqueIDVariable))
+				{
+					ParticleDataSetCompiledData.Variables.Emplace(FNiagaraStatelessGlobals::Get().UniqueIDVariable);
+				}
 			}
-		);
+		}
 
 		//-TODO: We can alias variables in the data set, for example PreviousSpriteFacing could be SpriteFacing in some cases
 		ParticleDataSetCompiledData.BuildLayout();
@@ -366,8 +519,37 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 		ComponentOffsets.Shrink();
 	}
 #endif
-	StatelessEmitterData->ParticleDataSetCompiledData = ParticleDataSetCompiledData;
+	StatelessEmitterData->ParticleDataSetCompiledData = MakeShared<FNiagaraDataSetCompiledData>(ParticleDataSetCompiledData);
 	StatelessEmitterData->ComponentOffsets = ComponentOffsets;
+}
+
+void UNiagaraStatelessEmitter::ResolveScalabilitySettings()
+{
+	const float DefaultSpawnCountScale = 1.0f;
+	StatelessEmitterData->SpawnCountScale = DefaultSpawnCountScale;
+
+	if (UNiagaraSystem* OwnerSystem = GetTypedOuter<UNiagaraSystem>())
+	{
+		if (UNiagaraEffectType* ActualEffectType = OwnerSystem->GetEffectType())
+		{
+			const FNiagaraEmitterScalabilitySettings& ScalabilitySettings = ActualEffectType->GetActiveEmitterScalabilitySettings();
+			if (ScalabilitySettings.bScaleSpawnCount)
+			{
+				StatelessEmitterData->SpawnCountScale = ScalabilitySettings.SpawnCountScale;
+			}
+		}
+	}
+
+	for (FNiagaraEmitterScalabilityOverride& Override : ScalabilityOverrides.Overrides)
+	{
+		if (Override.Platforms.IsActive())
+		{
+			if (Override.bOverrideSpawnCountScale)
+			{
+				StatelessEmitterData->SpawnCountScale = Override.bScaleSpawnCount ? Override.SpawnCountScale : DefaultSpawnCountScale;
+			}
+		}
+	}	
 }
 
 bool UNiagaraStatelessEmitter::SetUniqueEmitterName(const FString& InName)
@@ -382,7 +564,7 @@ bool UNiagaraStatelessEmitter::SetUniqueEmitterName(const FString& InName)
 		{
 			// Also rename the underlying uobject to keep things consistent.
 			FName UniqueObjectName = MakeUniqueObjectName(GetOuter(), StaticClass(), *InName);
-			Rename(*UniqueObjectName.ToString(), GetOuter(), REN_ForceNoResetLoaders);
+			Rename(*UniqueObjectName.ToString(), GetOuter());
 		}
 
 //#if WITH_EDITORONLY_DATA
@@ -397,7 +579,7 @@ bool UNiagaraStatelessEmitter::SetUniqueEmitterName(const FString& InName)
 	return false;
 }
 
-NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateShaderParameters(const FNiagaraParameterStore& RendererBindings) const
+NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateShaderParameters(const FNiagaraStatelessSpaceTransforms& SpaceTransforms, const FNiagaraParameterStore& RendererBindings) const
 {
 	// Allocate parameters
 	const FShaderParametersMetadata* ShaderParametersMetadata = StatelessEmitterData->GetShaderParametersMetadata();
@@ -407,6 +589,7 @@ NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateSha
 
 	// Fill in all of the shader parameters
 	FNiagaraStatelessSetShaderParameterContext SetShaderParametersContext(
+		SpaceTransforms,
 		RendererBindings.GetParameterDataArray(),
 		StatelessEmitterData->BuiltData,
 		ShaderParametersMetadata,
@@ -425,6 +608,11 @@ NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateSha
 	GetEmitterTemplate()->SetShaderParameters(static_cast<uint8*>(UntypedShaderParameters), StatelessEmitterData->ComponentOffsets);
 
 	return CommonParameters;
+}
+
+bool UNiagaraStatelessEmitter::IsAllowedByScalability() const
+{
+	return Platforms.IsActive();
 }
 
 #if WITH_EDITOR
@@ -450,14 +638,28 @@ void UNiagaraStatelessEmitter::AddRenderer(UNiagaraRendererProperties* Renderer,
 
 	Modify();
 	Renderer->OuterEmitterVersion = EmitterVersion;
-//	FVersionedNiagaraEmitterData* EmitterData = GetEmitterData(EmitterVersion);
 	RendererProperties.Add(Renderer);
 #if WITH_EDITOR
-//	Renderer->OnChanged().AddUObject(this, &UNiagaraEmitter::RendererChanged);
-//	UpdateChangeId(TEXT("Renderer added"));
+	// When pasting a renderer from stateful they can come with bindings which are not supported for stateless
+	// temporarily we reset them to default values.  We will need to upgrade all these calls to take in an adapter to be able to
+	// interop between different emitter types, or introduce a base emitter type.
+	if (UNiagaraRendererProperties* RendererCDO = Renderer->GetClass()->GetDefaultObject<UNiagaraRendererProperties>())
+	{
+		for (TFieldIterator<FStructProperty> PropIt(Renderer->GetClass()); PropIt; ++PropIt)
+		{
+			FStructProperty* StructProp = *PropIt;
+			if (!StructProp || !StructProp->Struct || !StructProp->Struct->IsChildOf(FNiagaraVariableAttributeBinding::StaticStruct()))
+			{
+				continue;
+			}
+			FNiagaraVariableAttributeBinding* ParameterBinding = StructProp->ContainerPtrToValuePtr<FNiagaraVariableAttributeBinding>(Renderer);
+			FNiagaraVariableAttributeBinding* ParameterBindingDefault = StructProp->ContainerPtrToValuePtr<FNiagaraVariableAttributeBinding>(RendererCDO);
+			*ParameterBinding = *ParameterBindingDefault;
+		}
+	}
+
 	OnRenderersChangedDelegate.Broadcast();
 #endif
-//	EmitterData->RebuildRendererBindings(*this);
 }
 
 void UNiagaraStatelessEmitter::RemoveRenderer(UNiagaraRendererProperties* Renderer, FGuid EmitterVersion)
@@ -548,6 +750,18 @@ FNiagaraStatelessSpawnInfo* UNiagaraStatelessEmitter::GetSpawnInfoByIndex(int32 
 		SpawnInfo = &SpawnInfos[Index];
 	}
 	return SpawnInfo;
+}
+
+UNiagaraStatelessModule* UNiagaraStatelessEmitter::GetModule(UClass* Class) const
+{
+	for (UNiagaraStatelessModule* Module : Modules)
+	{
+		if (Module && Module->GetClass() == Class)
+		{
+			return Module;
+		}
+	}
+	return nullptr;
 }
 
 UNiagaraStatelessEmitter* UNiagaraStatelessEmitter::CreateAsDuplicate(FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem) const

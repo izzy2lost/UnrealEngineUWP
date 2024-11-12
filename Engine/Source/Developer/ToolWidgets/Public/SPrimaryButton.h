@@ -6,10 +6,10 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SButton.h"
 
-class TOOLWIDGETS_API SPrimaryButton : public SButton
+class TOOLWIDGETS_API SPrimaryButton
+	: public SButton
 {
 public:
-
 	SLATE_BEGIN_ARGS(SPrimaryButton)
 	{}
 		/** The text to display in the button. */
@@ -22,7 +22,6 @@ public:
 		 * Called when the button is clicked  
 		 */
 		SLATE_EVENT(FOnClicked, OnClicked)
-
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);

@@ -14,8 +14,6 @@
 
 #define LOCTEXT_NAMESPACE "StormSyncStatusWidget"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SStormSyncStatusWidget::Construct(const FArguments& InArgs, const TSharedRef<FStormSyncTransportStatusResponse>& InStatusResponse)
 {
 	FStormSyncTransportStatusResponse& StatusResponse = InStatusResponse.Get();
@@ -189,8 +187,6 @@ void SStormSyncStatusWidget::Construct(const FArguments& InArgs, const TSharedRe
 		]
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedRef<SWindow> SStormSyncStatusWidget::CreateWindow(const TSharedRef<FStormSyncTransportStatusResponse>& InStatusResponse)
 {

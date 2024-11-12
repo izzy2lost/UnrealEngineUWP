@@ -14,35 +14,62 @@
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/ConsoleManager.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
+#if WITH_EDITOR
+#include "Settings/LevelEditorViewportSettings.h"
+#endif
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 #if WITH_EDITOR
+	/** When positive, we override editor input behavior. Upon becoming zero, the editor behavior is restored. Never negative. */
 	static int32 GVCamInputSubsystemCount = 0;
-	static bool GEnableGamepadEditorNavigationValueBeforeSetting = true;
+	/** Input settings that we override in order for VCam to function properly. Restored once all VCams shut down. */
+	static struct FEditorBehaviorSnapshot
+	{
+		/** We set Slate.EnableGamepadEditorNavigation to false because it navigates through editor tabs using joystick. */
+		bool bEnableGamepadEditorNavigation = true;
+		/** We set ULevelEditorViewportSettings::bLevelEditorJoystickControls so viewport joystick controls do not override VCam. */
+		bool bLevelEditorJoystickControls = true;
+	} GEditorBehaviorSnapshot;
 
-	static void IncrementAndSetEnableGamepadEditorNavigation()
+	static void IncrementAndOverrideEditorBehavior()
 	{
 		++GVCamInputSubsystemCount;
 	
+		// Use-case for the below cases: Person A using gamepad to drive VCam input while Person B clicks stuff in editor.
+		
+		// Gamepad may start navigating editor widgets. This CVar prevents that.
 		if (IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGamepadEditorNavigation")))
 		{
 			if (GVCamInputSubsystemCount == 1)
 			{
-				GEnableGamepadEditorNavigationValueBeforeSetting = ConsoleVariable->GetBool();
+				GEditorBehaviorSnapshot.bEnableGamepadEditorNavigation = ConsoleVariable->GetBool();
 			}
 		
 			ConsoleVariable->Set(false);
 		}
+
+		// While viewport is focused, FEditorViewportClient::UpdateCameraMovementFromJoystick overrides changes VCam makes with the VCam.
+		ULevelEditorViewportSettings* ViewportSettings = GetMutableDefault<ULevelEditorViewportSettings>();
+		if (GVCamInputSubsystemCount == 1)
+		{
+			GEditorBehaviorSnapshot.bLevelEditorJoystickControls = ViewportSettings->bLevelEditorJoystickControls;
+		}
+		ViewportSettings->bLevelEditorJoystickControls = false;
 	}
 
-	static void DecrementAndResetEnableGamepadEditorNavigation()
+	static void DecrementAndRestoreEditorBehavior()
 	{
 		--GVCamInputSubsystemCount;
-		if (IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGamepadEditorNavigation"))
-			; GVCamInputSubsystemCount == 0 && ConsoleVariable)
+
+		if (GVCamInputSubsystemCount == 0)
 		{
-			ConsoleVariable->Set(GEnableGamepadEditorNavigationValueBeforeSetting);
+			if (IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGamepadEditorNavigation")))
+			{
+				ConsoleVariable->Set(GEditorBehaviorSnapshot.bEnableGamepadEditorNavigation);
+			}
+
+			GetMutableDefault<ULevelEditorViewportSettings>()->bLevelEditorJoystickControls = GEditorBehaviorSnapshot.bLevelEditorJoystickControls;
 		}
 	}
 #endif
@@ -61,14 +88,13 @@ void UInputVCamSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		// It's dangerous to consume input in editor (imagine typing something into search boxes but all L keys were consumed by VCam input)
 		// whereas probably expected by gameplay code.
-		using namespace UE::VCamCore::Private;
+		using namespace UE::VCamCore;
 		InputPreprocessor = MakeShared<FVCamInputProcessor>(*this);
 		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, 0);
 
 		// The below things should only be done in Slate applications. Slate is disabled e.g. in commandlets. It makes no sense to have VCam input in such cases.
 #if WITH_EDITOR
-		// Use-case: Person A using gamepad to drive VCam input while Person B clicks stuff in editor > Gamepad may start navigating editor widgets. This CVar prevents that.
-		UE::VCamCore::Private::IncrementAndSetEnableGamepadEditorNavigation();
+		UE::VCamCore::IncrementAndOverrideEditorBehavior();
 #endif
 		
 		if (GetDefault<UEnhancedInputDeveloperSettings>()->bEnableUserSettings)
@@ -91,7 +117,7 @@ void UInputVCamSubsystem::Deinitialize()
 		PlayerInput = nullptr;
 
 #if WITH_EDITOR
-		UE::VCamCore::Private::DecrementAndResetEnableGamepadEditorNavigation();
+		UE::VCamCore::DecrementAndRestoreEditorBehavior();
 #endif
 	}
 }

@@ -145,6 +145,7 @@ public:
 	SLATE_END_ARGS()
 
 	ADVANCEDWIDGETS_API SRadialSlider();
+	ADVANCEDWIDGETS_API virtual ~SRadialSlider();
 
 	/**
 	 * Construct the widget.

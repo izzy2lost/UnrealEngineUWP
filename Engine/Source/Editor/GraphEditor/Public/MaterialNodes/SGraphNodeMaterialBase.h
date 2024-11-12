@@ -77,7 +77,7 @@ private:
 	/**
 	 * ICustomSlateElement interface 
 	 */
-	virtual void Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params) override;
+	virtual void Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs) override;
 
 private:
 	/** Render target that the canvas renders to */

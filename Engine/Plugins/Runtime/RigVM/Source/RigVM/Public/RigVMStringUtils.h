@@ -41,4 +41,7 @@ namespace RigVMStringUtils
 
 	// Splits the default value into name-value pairs
 	RIGVM_API TArray<FString> SplitDefaultValue(const FString& InDefaultValue);
+
+	// Sanitizes a name as per ruleset
+	RIGVM_API void SanitizeName(FString& InOutName, bool bAllowPeriod, bool bAllowSpace, int32 InMaxNameLength);
 }

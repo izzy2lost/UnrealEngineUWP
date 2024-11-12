@@ -741,7 +741,7 @@ namespace Metasound
 			using namespace MetasoundDataTypeRegistrationPrivate;
 			using TArrayType = TArray<TDataType>;
 
-			if (TEnableAutoArrayTypeRegistration<TDataType>::Value)
+			if constexpr (TEnableAutoArrayTypeRegistration<TDataType>::Value)
 			{
 				constexpr bool bIsArrayType = true;
 				bool bSuccess = RegisterDataTypeWithFrontendInternal<TArrayType, TLiteralArrayEnum<PreferredArgType>::Value>();
@@ -749,8 +749,10 @@ namespace Metasound
 				bSuccess = bSuccess && RegisterDataTypeWithFrontendInternal<TVariable<TArrayType>>();
 				return bSuccess;
 			}
-
-			return true;
+			else
+			{
+				return true;
+			}
 		}
 	}
 	

@@ -7,6 +7,7 @@
 #include "UObject/UObjectThreadContext.h"
 #include "Misc/PackageName.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditorPackageLoader, Log, All);
 
@@ -32,7 +33,7 @@ public:
 
 	virtual void InitializeLoading() override
 	{
-		if (FIoDispatcher::Get().DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects)))
+		if (FIoDispatcherInternal::HasPackageData())
 		{
 			UE_LOG(LogEditorPackageLoader, Log, TEXT("Initializing Zen loader for cooked packages in editor startup"));
 			CookedPackageLoader->InitializeLoading();

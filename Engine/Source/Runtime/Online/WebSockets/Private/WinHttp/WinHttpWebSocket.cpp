@@ -383,7 +383,7 @@ void FWinHttpWebSocket::HandleWebSocketMessage(EWebSocketMessageType MessageType
 	if (MessageType == EWebSocketMessageType::Utf8 && OnMessage().IsBound())
 	{
 		const FUTF8ToTCHAR TCHARConverter(reinterpret_cast<const ANSICHAR*>(MessagePayload.GetData()), MessagePayload.Num());
-		const FString Message(TCHARConverter.Length(), TCHARConverter.Get());
+		const FString Message = FString::ConstructFromPtrSize(TCHARConverter.Get(), TCHARConverter.Length());
 
 		OnMessage().Broadcast(Message);
 	}

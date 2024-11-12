@@ -5,7 +5,6 @@
 #include "Features/IModularFeatures.h"
 #include "IProxyLODPlugin.h"
 #include "MeshMergeData.h"
-#include "Engine/MeshMerging.h"
 #include "MaterialUtilities.h" // for FFlattenMaterial 
 #include "Engine/StaticMesh.h"
 #include "Misc/ScopedSlowTask.h"
@@ -754,7 +753,7 @@ void FVoxelizeMeshMerging::ProxyLOD(FMeshDescriptionArrayAdapter& InSrcGeometryA
 
 				// 1) Voxelize - this can potentially run out of memory when very large objecs (or very small voxel sizes) are used.
 				
-				const bool bSuccess = ProxyLOD::MeshArrayToSDFVolume(InSrcGeometryAdapter, SDFVolume, SrcPolyIndexGrid.get());
+				const bool bSuccess = ProxyLOD::MeshToSDFVolume(InSrcGeometryAdapter, InSrcGeometryAdapter.GetTransform(), SDFVolume, SrcPolyIndexGrid.get());
 				const bool bHasClipping = InClippingGeometryAdapter.polygonCount() != 0;
 
 				if (bSuccess && bHasClipping)
@@ -762,7 +761,7 @@ void FVoxelizeMeshMerging::ProxyLOD(FMeshDescriptionArrayAdapter& InSrcGeometryA
 					// Voxelize the clipping geometry.
 
 					openvdb::FloatGrid::Ptr SDFClipping;
-					ProxyLOD::MeshArrayToSDFVolume(InClippingGeometryAdapter, SDFClipping);
+					ProxyLOD::MeshToSDFVolume(InClippingGeometryAdapter, InClippingGeometryAdapter.GetTransform(), SDFClipping);
 
 					// CSG difference that removes the clipping region from the SDFvolume, leaving a watertight SDF
 

@@ -31,7 +31,6 @@ FCinematicShotSection::FCinematicSectionCache::FCinematicSectionCache(UMovieScen
 	: InnerFrameRate(1, 1)
 	, InnerFrameOffset(0)
 	, SectionStartFrame(0)
-	, TimeScale(1.f)
 {
 	if (Section)
 	{
@@ -230,14 +229,14 @@ int32 FCinematicShotSection::OnPaintSection(FSequencerSectionPainter& InPainter)
 
 	InPainter.LayerId = InPainter.PaintSectionBackground();
 
-	FVector2D LocalSectionSize = InPainter.SectionGeometry.GetLocalSize();
+	FVector2D LocalHeaderSize = InPainter.HeaderGeometry.GetLocalSize();
 	const UMovieSceneCinematicShotSection& SectionObject = GetSectionObjectAs<UMovieSceneCinematicShotSection>();
 
 	// Paint fancy-looking film border.
 	FSlateDrawElement::MakeBox(
 		InPainter.DrawElements,
 		InPainter.LayerId++,
-		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalSectionSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, 4.f))),
+		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalHeaderSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, 4.f))),
 		FilmBorder,
 		InPainter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect
 	);
@@ -245,7 +244,7 @@ int32 FCinematicShotSection::OnPaintSection(FSequencerSectionPainter& InPainter)
 	FSlateDrawElement::MakeBox(
 		InPainter.DrawElements,
 		InPainter.LayerId++,
-		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalSectionSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, LocalSectionSize.Y - 11.f))),
+		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalHeaderSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, LocalHeaderSize.Y - 11.f))),
 		FilmBorder,
 		InPainter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect
 	);
@@ -268,6 +267,16 @@ void FCinematicShotSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, c
 {
 	FViewportThumbnailSection::BuildSectionContextMenu(MenuBuilder, ObjectBinding);
 
+	AddShotMenuSection(MenuBuilder, ObjectBinding);
+}
+
+void FCinematicShotSection::BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+{
+	AddShotMenuSection(MenuBuilder, ObjectBinding);
+}
+
+void FCinematicShotSection::AddShotMenuSection(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+{
 	UMovieSceneCinematicShotSection& SectionObject = GetSectionObjectAs<UMovieSceneCinematicShotSection>();
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ShotMenuText", "Shot"));
@@ -338,6 +347,88 @@ void FCinematicShotSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, c
 			FUIAction(FExecuteAction::CreateSP(this, &FCinematicShotSection::EnterRename))
 		);
 	}
+	MenuBuilder.EndSection();
+
+	auto MakeUIAction = [this](EMovieSceneTransformChannel ChannelsToToggle, const TSharedPtr<ISequencer>& Sequencer)
+	{
+
+		UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section);
+		if(!SubSection)
+		{
+			return FUIAction();
+		}
+		return FUIAction(
+			FExecuteAction::CreateLambda([SubSection, ChannelsToToggle, Sequencer]
+				{
+					FScopedTransaction Transaction(LOCTEXT("SetActiveChannelsTransaction", "Set Active Channels"));
+					SubSection->Modify();
+					EMovieSceneTransformChannel Channels = SubSection->GetMask().GetChannels();
+
+					if (EnumHasAllFlags(Channels, ChannelsToToggle) || (Channels & ChannelsToToggle) == EMovieSceneTransformChannel::None)
+					{
+						SubSection->SetMask(SubSection->GetMask().GetChannels() ^ ChannelsToToggle);
+					}
+					else
+					{
+						SubSection->SetMask(SubSection->GetMask().GetChannels() | ChannelsToToggle);
+					}
+				
+					Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+				}
+			),
+			FCanExecuteAction(),
+			FGetActionCheckState::CreateLambda([SubSection, ChannelsToToggle]
+			{
+				EMovieSceneTransformChannel Channels = SubSection->GetMask().GetChannels();
+				if (EnumHasAllFlags(Channels, ChannelsToToggle))
+				{
+					return ECheckBoxState::Checked;
+				}
+				else if (EnumHasAnyFlags(Channels, ChannelsToToggle))
+				{
+					return ECheckBoxState::Undetermined;
+				}
+				return ECheckBoxState::Unchecked;
+			})
+		);
+	};
+
+	TSharedPtr<ISequencer> Sequencer = GetSequencer();
+	
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("OriginChannelsText", "Active Channels"));
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("AllTranslation", "Translation"), LOCTEXT("AllTranslation_ToolTip", "Causes this section to affect the translation of the transform"),
+		FNewMenuDelegate::CreateLambda([Sequencer, MakeUIAction](FMenuBuilder& SubMenuBuilder){
+			SubMenuBuilder.AddMenuEntry(
+				LOCTEXT("TranslationX", "X"), LOCTEXT("TranslationX_ToolTip", "Causes this section to affect the X channel of the transform's translation"),
+				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationX, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+			SubMenuBuilder.AddMenuEntry(
+				LOCTEXT("TranslationY", "Y"), LOCTEXT("TranslationY_ToolTip", "Causes this section to affect the Y channel of the transform's translation"),
+				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationY, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+			SubMenuBuilder.AddMenuEntry(
+				LOCTEXT("TranslationZ", "Z"), LOCTEXT("TranslationZ_ToolTip", "Causes this section to affect the Z channel of the transform's translation"),
+				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationZ, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+		}),
+		MakeUIAction(EMovieSceneTransformChannel::Translation, Sequencer),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton);
+
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("AllRotation", "Rotation"), LOCTEXT("AllRotation_ToolTip", "Causes this section to affect the rotation of the transform"),
+		FNewMenuDelegate::CreateLambda([Sequencer, MakeUIAction](FMenuBuilder& SubMenuBuilder){
+			SubMenuBuilder.AddMenuEntry(
+				LOCTEXT("RotationX", "Roll (X)"), LOCTEXT("RotationX_ToolTip", "Causes this section to affect the roll (X) channel the transform's rotation"),
+				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationX, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+			SubMenuBuilder.AddMenuEntry(
+				LOCTEXT("RotationY", "Pitch (Y)"), LOCTEXT("RotationY_ToolTip", "Causes this section to affect the pitch (Y) channel the transform's rotation"),
+				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationY, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+			SubMenuBuilder.AddMenuEntry(
+				LOCTEXT("RotationZ", "Yaw (Z)"), LOCTEXT("RotationZ_ToolTip", "Causes this section to affect the yaw (Z) channel the transform's rotation"),
+				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationZ, Sequencer), NAME_None, EUserInterfaceActionType::ToggleButton);
+		}),
+		MakeUIAction(EMovieSceneTransformChannel::Rotation, Sequencer),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton);
 	MenuBuilder.EndSection();
 }
 

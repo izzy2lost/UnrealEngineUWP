@@ -31,5 +31,5 @@ public:
 	 * from the template like normal.
 	 */
 	UPROPERTY(Transient)
-	UMovieGraphConfig* InitialSubgraphAsset = nullptr;
+	TObjectPtr<UMovieGraphConfig> InitialSubgraphAsset = nullptr;
 };

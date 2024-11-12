@@ -3,6 +3,7 @@
 #include "Stack/SNiagaraDeterminismToggle.h"
 
 #include "NiagaraEditorStyle.h"
+#include "NiagaraSystem.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SImage.h"
@@ -36,7 +37,7 @@ void SNiagaraDeterminismToggle::Construct(const FArguments& InArgs, TSharedPtr<F
 	}
 
 	FSlateFontInfo FontInfo = FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 9);
-	FontInfo.OutlineSettings = FFontOutlineSettings(1.f, FLinearColor::White);
+	FontInfo.OutlineSettings = FFontOutlineSettings(1, FLinearColor::White);
 	
 	ChildSlot
 	[

@@ -7,8 +7,10 @@
 #include "Containers/Queue.h"
 #include "Curves/RichCurve.h"
 
+#include "Chaos/ChaosCacheInterpolationMode.h"
 
 #include "ChaosCache.generated.h"
+
 
 USTRUCT()
 struct FParticleTransformTrack
@@ -43,7 +45,7 @@ struct FParticleTransformTrack
 	 * @param InCacheTime Absolute time from the beginning of the entire owning cache to evaluate.
 	 * @param MassToLocal if not null, the will be premultiplied to transform before interpolation
 	 */
-	FTransform Evaluate(float InCacheTime, const FTransform* MassToLocal) const;
+	FTransform Evaluate(float InCacheTime, const FTransform* MassToLocal, EChaosCacheInterpolationMode InterpolationMode =  EChaosCacheInterpolationMode::QuatInterp) const;
 
 	/**
 	 * Find the index the key where timestamp is directly above InCacheTime
@@ -67,6 +69,10 @@ struct FParticleTransformTrack
 	const float GetEndTime() const;
 
 	void Compress();
+
+private:
+	void CopyTrackEntry(int32 FromIndex, int32 ToIndex);
+	void ResizeTrack(int32 NewSize);
 };
 
 USTRUCT()
@@ -390,6 +396,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Caching")
 	uint32 NumRecordedFrames;
 
+	UPROPERTY(VisibleAnywhere, Category = "Caching")
+	EChaosCacheInterpolationMode InterpolationMode = EChaosCacheInterpolationMode::QuatInterp;
+
 	/** Maps a track index in the cache to the original particle index specified when recording */
 	UPROPERTY()
 	TArray<int32> TrackToParticle;
@@ -482,4 +491,10 @@ private:
 
 	/** Reverse Lookup for ChannelCurveToParticle. Rebuilt on load.*/
 	TMap<int32,int32> ParticleToChannelCurve;
+
+	/** Min time in case we are not writing to particle/curves/channels datas */
+	float MinTime = TNumericLimits<float>::Max();
+
+	/** Max time in case we are not writing to particle/curves/channels datas */
+	float MaxTime = TNumericLimits<float>::Lowest();
 };

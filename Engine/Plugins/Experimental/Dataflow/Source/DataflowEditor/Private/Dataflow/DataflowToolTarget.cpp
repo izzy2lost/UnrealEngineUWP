@@ -105,14 +105,9 @@ FDynamicMesh3 UDataflowReadOnlyToolTarget::GetDynamicMesh()
 	FDynamicMesh3 DynamicMesh;
 	if(IsValid())
 	{
-		Dataflow::Conversion::DataflowToDynamicMesh(Context, Asset, Dataflow, DynamicMesh);
+		// @todo(dataflow)
 	}
 	return DynamicMesh;
-}
-
-FDynamicMesh3 UDataflowReadOnlyToolTarget::GetDynamicMesh(bool bRequestTangents)
-{
-	return GetDynamicMesh();
 }
 
 //
@@ -147,7 +142,7 @@ void UDataflowToolTarget::CommitDynamicMesh(const FDynamicMesh3& DynamicMesh, co
 {
 	if(IsValid())
 	{
-		Dataflow::Conversion::DynamicMeshToDataflow(DynamicMesh, Dataflow);
+		// @todo(dataflow)
 	}
 }
 
@@ -161,7 +156,7 @@ bool UDataflowReadOnlyToolTargetFactory::CanBuildTarget(UObject* SourceObject, c
 	// If you want to make the tool target work with some subclass of UDataflow,
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
-	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
+	const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(SourceObject);
 	if(BaseContent)
 	{
 		const UDataflow* Dataflow = BaseContent->GetDataflowAsset();
@@ -183,7 +178,7 @@ UToolTarget* UDataflowReadOnlyToolTargetFactory::BuildTarget(UObject* SourceObje
 		UDataflowReadOnlyToolTarget* Target = NewObject<UDataflowReadOnlyToolTarget>();
 		Target->Asset = BaseContent->GetDataflowOwner();
 		Target->Dataflow = BaseContent->GetDataflowAsset();
-		Target->Context = Dataflow::GetContext(BaseContent);
+		Target->Context = UE::Dataflow::GetContext(BaseContent);
 
 		// @todo(brice) : I needed to comment this out?
 		//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
@@ -203,7 +198,7 @@ bool UDataflowToolTargetFactory::CanBuildTarget(UObject* SourceObject, const FTo
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
 
-	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
+	const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(SourceObject);
 	if(BaseContent)
 	{
 		const UDataflow* Dataflow = BaseContent->GetDataflowAsset();
@@ -225,7 +220,7 @@ UToolTarget* UDataflowToolTargetFactory::BuildTarget(UObject* SourceObject, cons
 		UDataflowToolTarget* Target = NewObject<UDataflowToolTarget>();
 		Target->Asset = BaseContent->GetDataflowOwner();
 		Target->Dataflow = BaseContent->GetDataflowAsset();
-		Target->Context = Dataflow::GetContext(BaseContent);
+		Target->Context = UE::Dataflow::GetContext(BaseContent);
 		//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
 
 		return Target;

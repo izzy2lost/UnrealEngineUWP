@@ -35,9 +35,6 @@ public:
 	virtual void SetShaderParameters(uint8* ShaderParametersBase, TConstArrayView<int32> ComponentOffsets) const { checkNoEntry(); }
 	//-TODO: Add a way to set them directly, we should know that the final struct is a series of ints in the order of the provided variables
 
-	static FNiagaraVariableBase MakeProvidedVariable(FNiagaraVariableBase Variable);
-	static FNiagaraVariableBase MakeProvidedPreviousVariable(FNiagaraVariableBase Variable);
-
 protected:
 #if WITH_EDITORONLY_DATA
 	TArray<TObjectPtr<UClass>>		Modules;

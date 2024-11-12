@@ -303,7 +303,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 	Result.Particle.SubUVLerp = Interpolants.SubUV1AndLerp.z;
 #elif NUM_TEX_COORD_INTERPOLATORS
 	UNROLL
-	for (int CoordinateIndex = 0; CoordinateIndex * 2 + 1 < NUM_TEX_COORD_INTERPOLATORS; ++CoordinateIndex)
+	for (int CoordinateIndex = 0; CoordinateIndex < NUM_TEX_COORD_INTERPOLATORS / 2; ++CoordinateIndex)
 	{
 		Result.TexCoords[CoordinateIndex * 2] = Interpolants.TexCoords[CoordinateIndex].xy;
 		Result.TexCoords[CoordinateIndex * 2 + 1] = Interpolants.TexCoords[CoordinateIndex].wz;
@@ -379,12 +379,31 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 	return Result;
 }
 
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+
 /** Converts from vertex factory specific input to a FMaterialVertexParameters, which is used by vertex shader material inputs. */
-FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, float3x3 TangentToLocal)
+FMaterialVertexParameters GetMaterialVertexParameters(
+	FVertexFactoryInput Input, 
+	FVertexFactoryIntermediates Intermediates, 
+	float3 WorldPosition, 
+	float3x3 TangentToLocal,
+	bool bIsPreviousFrame = false)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	Result.SceneData = Intermediates.SceneData;
+	
 	Result.WorldPosition = WorldPosition;
+	if (bIsPreviousFrame)
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
+	}
+	else
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
+	}
+	Result.PositionPrimitiveSpace = Result.PositionInstanceSpace; // No support for instancing, so instance == primitive
+
 	Result.VertexColor = Intermediates.VertexColor;
 	Result.PreSkinnedPosition = Input.Position.xyz;
 	Result.PreSkinnedNormal = TangentBias(Input.TangentZ.xyz);
@@ -556,6 +575,11 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	return CalcWorldPosition(Input);
 }
 
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return Input.Position.xyz;
+}
+
 float3 VertexFactoryGetWorldNormal(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
 	return TangentBias(Input.TangentZ.xyz);
@@ -608,8 +632,10 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 	GetCustomInterpolators(VertexParameters, CustomizedUVs);
 
 	UNROLL
-	for (int CoordinateIndex = 0; CoordinateIndex * 2 + 1 < NUM_TEX_COORD_INTERPOLATORS; ++CoordinateIndex)
+	for (int CoordinateIndex = 0; CoordinateIndex < NUM_TEX_COORD_INTERPOLATORS / 2; ++CoordinateIndex)
 	{
+		//float4 TexCoords[(2+1)/2] : TEXCOORD0;
+		// float2 CustomizedUVs[2];
 		Interpolants.TexCoords[CoordinateIndex].xy = CustomizedUVs[CoordinateIndex * 2];
 		Interpolants.TexCoords[CoordinateIndex].wz = CustomizedUVs[CoordinateIndex * 2 + 1];
 	}
@@ -674,6 +700,12 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {	
 	return CalcPrevWorldPosition(Input, Intermediates);
+}
+
+// local position relative to instance
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return Input.Position.xyz;
 }
 
 #if NEEDS_VERTEX_FACTORY_INTERPOLATION

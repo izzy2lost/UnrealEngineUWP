@@ -50,22 +50,21 @@ void FGuidStructCustomization::CustomizeHeader( TSharedRef<class IPropertyHandle
 	}
 	else
 	{
-		FMenuBuilder QuickSetMenuBuilder(true, nullptr);
-		{
-			FUIAction GenerateAction(FExecuteAction::CreateSP(this, &FGuidStructCustomization::HandleGuidActionClicked, EPropertyEditorGuidActions::Generate));
-			QuickSetMenuBuilder.AddMenuEntry(LOCTEXT("GenerateAction", "Generate"), LOCTEXT("GenerateActionHint", "Generate a new random globally unique identifier (GUID)."), FSlateIcon(), GenerateAction);
-
-			FUIAction InvalidateAction(FExecuteAction::CreateSP(this, &FGuidStructCustomization::HandleGuidActionClicked, EPropertyEditorGuidActions::Invalidate));
-			QuickSetMenuBuilder.AddMenuEntry(LOCTEXT("InvalidateAction", "Invalidate"), LOCTEXT("InvalidateActionHint", "Set an invalid globally unique identifier (GUID)."), FSlateIcon(), InvalidateAction);
-		}
-
 		QuickSetSlotContent = 
 			SNew(SComboButton)
 			.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-			.MenuContent()
-			[
-				QuickSetMenuBuilder.MakeWidget()
-			];
+			.OnGetMenuContent_Lambda([this]()
+			{
+				FMenuBuilder QuickSetMenuBuilder(true, nullptr);
+				{
+					FUIAction GenerateAction(FExecuteAction::CreateSP(this, &FGuidStructCustomization::HandleGuidActionClicked, EPropertyEditorGuidActions::Generate));
+					QuickSetMenuBuilder.AddMenuEntry(LOCTEXT("GenerateAction", "Generate"), LOCTEXT("GenerateActionHint", "Generate a new random globally unique identifier (GUID)."), FSlateIcon(), GenerateAction);
+
+					FUIAction InvalidateAction(FExecuteAction::CreateSP(this, &FGuidStructCustomization::HandleGuidActionClicked, EPropertyEditorGuidActions::Invalidate));
+					QuickSetMenuBuilder.AddMenuEntry(LOCTEXT("InvalidateAction", "Invalidate"), LOCTEXT("InvalidateActionHint", "Set an invalid globally unique identifier (GUID)."), FSlateIcon(), InvalidateAction);
+				}
+				return QuickSetMenuBuilder.MakeWidget();
+			});
 	}
 
 	// create struct header
@@ -86,7 +85,14 @@ void FGuidStructCustomization::CustomizeHeader( TSharedRef<class IPropertyHandle
 					// text box
 					SAssignNew(TextBox, SEditableTextBox)
 						.ClearKeyboardFocusOnCommit(false)
-						.IsEnabled(!PropertyHandle->IsEditConst())
+						.IsEnabled_Lambda([PropertyHandleWeak = PropertyHandle->AsWeak()]()->bool
+						{
+							if (TSharedPtr<IPropertyHandle> PropertyHandleLocal = PropertyHandleWeak.Pin())
+							{
+								return !PropertyHandleLocal->IsEditConst();
+							}
+							return false;
+						})
 						.ForegroundColor(this, &FGuidStructCustomization::HandleTextBoxForegroundColor)
 						.OnTextChanged(this, &FGuidStructCustomization::HandleTextBoxTextChanged)
 						.OnTextCommitted(this, &FGuidStructCustomization::HandleTextBoxTextCommited)

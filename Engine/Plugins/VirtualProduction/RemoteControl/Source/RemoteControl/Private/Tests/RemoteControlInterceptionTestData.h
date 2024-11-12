@@ -66,5 +66,20 @@ public:
 
 		return Copy;
 	}
+	
+	void SetValueWithSetter(const FString& InString)
+	{
+		ValueWithSetter = InString;
+	}
+
+	const FString& GetValueWithSetter() const
+	{
+		return ValueWithSetter;
+	}
+
+private:
+	// Testing private property with a setter.
+	UPROPERTY(EditAnywhere, Setter = "SetValueWithSetter", Category = "RC")
+	FString ValueWithSetter;
 };
 

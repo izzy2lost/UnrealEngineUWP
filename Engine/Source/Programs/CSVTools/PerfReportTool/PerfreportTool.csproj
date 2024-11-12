@@ -9,7 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>anycpu</PlatformTarget>
     <OutputPath>..\..\..\..\Binaries\DotNET\CsvTools\</OutputPath>
   </PropertyGroup>
   <ItemGroup>

@@ -16,6 +16,7 @@ struct FInstancedActorsMassSpawnData
 	TWeakObjectPtr<UInstancedActorsData> InstanceData;
 };
 
+/** Initializes the fragments of all entities that fit the query specified in ConfigureQueries, which are all considered Instanced Actors. */
 UCLASS()
 class UInstancedActorsInitializerProcessor : public UMassProcessor
 {

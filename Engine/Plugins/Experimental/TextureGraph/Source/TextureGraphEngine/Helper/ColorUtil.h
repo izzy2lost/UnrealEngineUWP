@@ -25,6 +25,10 @@ public:
 	static float						GetSquaredDistance(FLinearColor Current, FLinearColor Match);
 	static FString						GetColorName(FLinearColor Color);
 
+	static FLinearColor					HSV2RGB(FLinearColor C);
+	static FLinearColor					RGB2HSV(FLinearColor C);
+	static FLinearColor					HSVTweak(FLinearColor C, float H, float S, float V);
+
 	static bool							IsColorBlack(const FLinearColor& Color, bool IgnoreAlpha = true);
 	static bool							IsColorWhite(const FLinearColor& Color, bool IgnoreAlpha = true);
 	static bool							IsColorGray(const FLinearColor& Color, bool IgnoreAlpha = true);

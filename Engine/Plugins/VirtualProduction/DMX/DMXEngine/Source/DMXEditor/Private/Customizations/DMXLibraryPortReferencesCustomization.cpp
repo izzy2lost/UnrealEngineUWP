@@ -182,6 +182,7 @@ void FDMXLibraryPortReferencesCustomization::CustomizeHeader(TSharedRef<IPropert
 	const FText DisplayToolTipOverride = LOCTEXT("HeaderToolTip", "The ports to be used with this Library.");
 
 	HeaderRow
+		.ShouldAutoExpand(true)
 		.NameContent()
 		[
 			SNullWidget::NullWidget
@@ -379,7 +380,7 @@ TSharedRef<SWidget> FDMXLibraryPortReferencesCustomization::GeneratePortInfoWidg
 			return
 				SNew(SWrapBox)
 				.InnerSlotPadding(FVector2D(4.f, 4.f))
-				.UseAllottedWidth(true)
+				.UseAllottedSize(true)
 
 				// Protocol Name
 				+ SWrapBox::Slot()

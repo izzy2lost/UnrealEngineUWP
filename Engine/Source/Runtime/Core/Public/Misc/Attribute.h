@@ -133,32 +133,12 @@ public:
 	}
 
 	/**
-	 * Helper function for creating TAttributes from a function pointer, accessed through a raw pointer
-	 */
-	template<typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
-	UE_DEPRECATED(5.0, "Attribute's Getter should be const.")
-	[[nodiscard]] FORCEINLINE static TAttribute CreateRaw(SourceType* InObject, ObjectType (SourceTypeOrBase::*InMethod)(PayloadTypes...), typename TDecay<PayloadTypes>::Type... InputPayload)
-	{
-		return Create(FGetter::CreateRaw(InObject, InMethod, MoveTemp(InputPayload)...));
-	}
-
-	/**
 	 * Helper function for creating TAttributes from a const member function pointer, accessed through a raw pointer
 	 */
 	template<typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
 	[[nodiscard]] FORCEINLINE static TAttribute CreateRaw(const SourceType* InObject, ObjectType (SourceTypeOrBase::*InMethod)(PayloadTypes...) const, typename TDecay<PayloadTypes>::Type... InputPayload)
 	{
 		return Create(FGetter::CreateRaw(InObject, InMethod, MoveTemp(InputPayload)...));
-	}
-
-	/**
-	 * Helper function for creating TAttributes from a non-const member function pointer, accessed through a weak pointer to the shared object
-	 */
-	template<typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
-	UE_DEPRECATED(5.0, "Attribute's Getter should be const.")
-	[[nodiscard]] FORCEINLINE static TAttribute CreateSP(SourceType* InObject, ObjectType (SourceTypeOrBase::*InMethod)(PayloadTypes...), typename TDecay<PayloadTypes>::Type... InputPayload)
-	{
-		return Create(FGetter::CreateSP(InObject, InMethod, MoveTemp(InputPayload)...));
 	}
 
 	/**
@@ -177,7 +157,30 @@ public:
 	template<typename LambdaType, typename... PayloadTypes>
 	[[nodiscard]] FORCEINLINE static TAttribute CreateLambda(LambdaType&& InCallable, PayloadTypes&&... InputPayload)
 	{
-		return Create(FGetter::CreateLambda(InCallable, Forward<PayloadTypes>(InputPayload)...));
+		return Create(FGetter::CreateLambda(Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
+	}
+
+	/**
+	 * Helper function for creating TAttributes from a weak shared pointer C++ lambda delegate
+	 */
+	template<typename UserClass, ESPMode Mode, typename LambdaType, typename... PayloadTypes>
+	[[nodiscard]] FORCEINLINE static TAttribute CreateSPLambda(const TSharedRef<UserClass, Mode>& InUserObjectRef, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		return Create(FGetter::CreateSPLambda(InUserObjectRef, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
+	}
+	template <typename UserClass, typename LambdaType, typename... PayloadTypes>
+	[[nodiscard]] FORCEINLINE static TAttribute CreateSPLambda(UserClass* InUserObject, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		return Create(FGetter::CreateSPLambda(InUserObject, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
+	}
+
+	/**
+	 * Helper function for creating TAttributes from a weak object pointer C++ lambda delegate
+	 */
+	template <typename UserClass, typename LambdaType, typename... PayloadTypes>
+	[[nodiscard]] FORCEINLINE static TAttribute CreateWeakLambda(UserClass* InUserObject, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		return Create(FGetter::CreateWeakLambda(InUserObject, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
 	}
 
 	/**
@@ -381,6 +384,45 @@ public:
 	}
 
 	/**
+	 * Static: Binds a C++ lambda delegate
+	 * technically this works for any functor types, but lambdas are the primary use case
+	 */
+	template<typename LambdaType, typename... PayloadTypes>
+	inline void BindLambda(LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		bIsSet = true;
+		Getter.BindLambda(Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...);
+	}
+
+	/**
+	 * Static: Binds a weak shared pointer C++ lambda delegate
+	 * technically this works for any functor types, but lambdas are the primary use case
+	 */
+	template<typename UserClass, ESPMode Mode, typename LambdaType, typename... PayloadTypes>
+	inline void BindSPLambda(const TSharedRef<UserClass, Mode>& InUserObjectRef, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		bIsSet = true;
+		Getter.BindSPLambda(InUserObjectRef, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...);
+	}
+	template <typename UserClass, typename LambdaType, typename... PayloadTypes>
+	inline void BindSPLambda(const UserClass* InUserObject, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		bIsSet = true;
+		Getter.BindSPLambda(InUserObject, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...);
+	}
+
+	/**
+	 * Static: Binds a weak object C++ lambda delegate
+	 * technically this works for any functor types, but lambdas are the primary use case
+	 */
+	template<typename UserClass, typename LambdaType, typename... PayloadTypes>
+	inline void BindWeakLambda(UserClass* InUserObject, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+	{
+		bIsSet = true;
+		Getter.BindWeakLambda(InUserObject, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...);
+	}
+
+	/**
 	 * Checks to see if this attribute has a 'getter' function bound
 	 *
 	 * @return  True if attribute is bound to a getter function
@@ -461,15 +503,6 @@ private:
 	FGetter Getter;
 };
 
-/**
- * Helper function for creating TAttributes from a non-const member function pointer, accessed through a raw pointer
- */
-template<typename T, typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
-UE_DEPRECATED(5.0, "Attribute's Getter should be const.")
-[[nodiscard]] FORCEINLINE TAttribute<T> MakeAttributeRaw(SourceType* InObject, T (SourceTypeOrBase::*InMethod)(PayloadTypes...), typename TDecay<PayloadTypes>::Type... InputPayload)
-{
-	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateRaw(InObject, InMethod, MoveTemp(InputPayload)...));
-}
 
 /**
  * Helper function for creating TAttributes from a const member function pointer, accessed through a raw pointer
@@ -478,16 +511,6 @@ template<typename T, typename SourceType, typename SourceTypeOrBase, typename...
 [[nodiscard]] FORCEINLINE TAttribute<T> MakeAttributeRaw(const SourceType* InObject, T (SourceTypeOrBase::*InMethod)(PayloadTypes...) const, typename TDecay<PayloadTypes>::Type... InputPayload)
 {
 	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateRaw(InObject, InMethod, MoveTemp(InputPayload)...));
-}
-
-/**
- * Helper function for creating TAttributes from a non-const member function pointer, accessed through a weak pointer to the shared object
- */
-template<typename T, typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
-UE_DEPRECATED(5.0, "Attribute's Getter should be const.")
-[[nodiscard]] FORCEINLINE TAttribute<T> MakeAttributeSP(SourceType* InObject, T (SourceTypeOrBase::*InMethod)(PayloadTypes...), typename TDecay<PayloadTypes>::Type...  InputPayload)
-{
-	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateSP(InObject, InMethod, MoveTemp(InputPayload)...));
 }
 
 /**
@@ -519,5 +542,34 @@ template<typename LambdaType, typename... PayloadTypes>
 {
 	typedef decltype(InCallable(DeclVal<PayloadTypes>()...)) T;
 
-	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateLambda(InCallable, Forward<PayloadTypes>(InputPayload)...));
+	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateLambda(Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
+}
+
+/**
+ * Helper function for creating TAttributes from a weak shared pointer C++ lambda delegate
+ */
+template<typename UserClass, ESPMode Mode, typename LambdaType, typename... PayloadTypes>
+[[nodiscard]] decltype(auto) MakeAttributeSPLambda(const TSharedRef<UserClass, Mode>& InUserObjectRef, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+{
+	typedef decltype(InCallable(DeclVal<PayloadTypes>()...)) T;
+
+	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateSPLambda(InUserObjectRef, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
+}
+template <typename UserClass, typename LambdaType, typename... PayloadTypes>
+[[nodiscard]] decltype(auto) MakeAttributeSPLambda(UserClass* InUserObject, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+{
+	typedef decltype(InCallable(DeclVal<PayloadTypes>()...)) T;
+
+	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateSPLambda(InUserObject, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
+}
+
+/**
+ * Helper function for creating TAttributes from a weak object pointer C++ lambda delegate
+ */
+template <typename UserClass, typename LambdaType, typename... PayloadTypes>
+[[nodiscard]] decltype(auto) MakeAttributeWeakLambda(UserClass* InUserObject, LambdaType&& InCallable, PayloadTypes&&... InputPayload)
+{
+	typedef decltype(InCallable(DeclVal<PayloadTypes>()...)) T;
+
+	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateWeakLambda(InUserObject, Forward<LambdaType>(InCallable), Forward<PayloadTypes>(InputPayload)...));
 }

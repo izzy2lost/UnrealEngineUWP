@@ -11,8 +11,15 @@ class FLandscapeComponentSceneProxy;
 class FTextureRenderTarget2DResource;
 class UTextureRenderTarget2D;
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FLandscapeGrassWeightExporter_RenderThread_FixLayout
+{
+public:
+	virtual ~FLandscapeGrassWeightExporter_RenderThread_FixLayout() = default;
+};
+
 // data also accessible by render thread
-class FLandscapeGrassWeightExporter_RenderThread
+class FLandscapeGrassWeightExporter_RenderThread : public FLandscapeGrassWeightExporter_RenderThread_FixLayout
 {
 	FLandscapeGrassWeightExporter_RenderThread(const TArray<int32>& InHeightMips)
 		: HeightMips(InHeightMips)
@@ -70,10 +77,11 @@ public:
 	TArray<int32> HeightMips;
 	float PassOffsetX;
 	FVector ViewOrigin;
-	FMatrix ViewRotationMatrix;
-	FMatrix ProjectionMatrix;
 
 	FLandscapeAsyncTextureReadback* AsyncReadbackPtr = nullptr;
+
+	FMatrix ViewRotationMatrix;
+	FMatrix ProjectionMatrix;
 
 	void RenderLandscapeComponentToTexture_RenderThread(FRHICommandListImmediate& RHICmdList);
 };

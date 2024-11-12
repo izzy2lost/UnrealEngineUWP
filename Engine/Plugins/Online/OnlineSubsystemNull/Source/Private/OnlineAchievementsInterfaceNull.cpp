@@ -44,7 +44,7 @@ void FOnlineAchievementsNull::WriteAchievements(const FUniqueNetId& PlayerId, FO
 	const int32 AchNum = PlayerAch->Num();
 	for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
 	{
-		const FString AchievementId = It.Key().ToString();
+		const FString AchievementId = It.Key();
 		for (int32 AchIdx = 0; AchIdx < AchNum; ++AchIdx)
 		{
 			if ((*PlayerAch)[ AchIdx ].Id == AchievementId)

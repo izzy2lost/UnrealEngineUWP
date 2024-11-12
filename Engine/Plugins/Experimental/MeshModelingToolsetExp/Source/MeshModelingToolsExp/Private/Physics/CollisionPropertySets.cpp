@@ -42,7 +42,7 @@ void UE::PhysicsTools::InitializePhysicsToolObjectPropertySet(const FPhysicsData
 	PropSet->CollisionType = (ECollisionGeometryMode)(int32)PhysicsData->BodySetup->GetCollisionTraceFlag();
 
 	// change object name to above
-	//PropSet->Rename(*PropSet->ObjectName, nullptr, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty);
+	//PropSet->Rename(*PropSet->ObjectName, nullptr, REN_NonTransactional | REN_DoNotDirty);
 
 	const FKAggregateGeom& AggGeom = PhysicsData->AggGeom;
 

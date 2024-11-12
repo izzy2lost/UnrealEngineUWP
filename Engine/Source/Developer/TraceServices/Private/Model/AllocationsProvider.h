@@ -73,6 +73,7 @@ public:
 	bool HasTagFromPtrScope(uint32 ThreadId, uint8 Tracker) const;
 
 	uint32 GetNumErrors() const { return NumErrors; }
+	uint32 GetNumWarnings() const { return NumWarnings; }
 
 private:
 	void BuildTagPath(FStringBuilderBase& OutString, FStringView Name, TagIdType ParentTagId);
@@ -85,7 +86,9 @@ private:
 	TMap<uint32, FThreadState> TrackerThreadStates;
 	TMap<TagIdType, FTagEntry> TagMap;
 	TArray<TTuple<TagIdType, FString>> PendingTags;
+	TagIdType CustomNameTag = InvalidTagId;
 	uint32 NumErrors = 0;
+	uint32 NumWarnings = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,6 +209,10 @@ public:
 	// Returns the found allocation or nullptr if not found.
 	FORCEINLINE FAllocationItem* FindHeapRef(uint64 Address) const;
 
+	// Finds the swap allocation with specified address.
+	// Returns the found allocation or nullptr if not found.
+	FORCEINLINE FAllocationItem* FindSwapRef(uint64 Address) const;
+
 	// Finds an allocation containing the address.
 	// Returns the found allocation or nullptr if not found.
 	FORCEINLINE FAllocationItem* FindByAddressRange(uint64 Address) const;
@@ -248,11 +255,26 @@ public:
 	// Returns the removed heap allocation or nullptr if not found.
 	FORCEINLINE FAllocationItem* RemoveHeap(uint64 Address);
 
+	// Adds a new swap allocation with specified address (a memory page that was moved to swap).
+	// The collection keeps ownership of FAllocationItem* until RemoveSwap is called.
+	// Returns the new added allocation.
+	FORCEINLINE FAllocationItem* AddNewSwap(uint64 Address);
+
+	// Adds a new swap allocation.
+	// The collection keeps ownership of FAllocationItem* until RemoveSwap is called.
+	FORCEINLINE void AddSwap(FAllocationItem* SwapAlloc);
+
+	// Removes a swap allocation with specified address.
+	// The caller takes ownership of FAllocationItem*.
+	// Returns the removed swap allocation or nullptr if not found.
+	FORCEINLINE FAllocationItem* RemoveSwap(uint64 Address);
+
 private:
 	FAllocationItem* LastAlloc = nullptr; // last allocation
 	FShortLivingAllocs ShortLivingAllocs; // short living allocations
 	FAllocMap LongLivingAllocs; // long living allocations
 	FHeapAllocs HeapAllocs; // heap allocations
+	FHeapAllocs SwapAllocs; // swap allocations (memory pages stored in swap)
 
 	uint32 TotalAllocCount = 0;
 	uint32 MaxAllocCount = 0; // debug stats
@@ -318,12 +340,21 @@ public:
 	virtual void EnumerateMaxTotalAllocatedMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const override;
 	virtual void EnumerateMinLiveAllocationsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
 	virtual void EnumerateMaxLiveAllocationsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
+	virtual void EnumerateMinTotalSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const override;
+	virtual void EnumerateMaxTotalSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const override;
+	virtual void EnumerateMinTotalCompressedSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const override;
+	virtual void EnumerateMaxTotalCompressedSwapMemoryTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint64 Value)> Callback) const override;
 	virtual void EnumerateAllocEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
 	virtual void EnumerateFreeEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
+	virtual void EnumeratePageInEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
+	virtual void EnumeratePageOutEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
+	virtual void EnumerateSwapFreeEventsTimeline(int32 StartIndex, int32 EndIndex, TFunctionRef<void(double Time, double Duration, uint32 Value)> Callback) const override;
 
 	virtual FQueryHandle StartQuery(const FQueryParams& Params) const override;
 	virtual void CancelQuery(FQueryHandle Query) const override;
 	virtual const FQueryStatus PollQuery(FQueryHandle Query) const override;
+
+	virtual uint64 GetPlatformPageSize() const override;
 
 	const FSbTree* GetSbTreeUnchecked(HeapId Heap) const { ReadAccessCheck(); return RootHeaps[Heap]->SbTree; }
 
@@ -339,10 +370,11 @@ public:
 	virtual void EndEdit() const override         { Lock.EndWrite(GAllocationsProviderLockState); }
 	virtual void EditAccessCheck() const override { Lock.WriteAccessCheck(GAllocationsProviderLockState); }
 
-	void EditInit(double Time, uint8 MinAlignment);
+	void EditInit(double Time, uint8 MinAlignment, uint64 PlatformPageSize);
 
 	void EditAlloc(uint32 ThreadId, double Time, uint32 CallstackId, uint64 Address, uint64 Size, uint32 Alignment, HeapId RootHeap);
 	void EditFree(uint32 ThreadId, double Time, uint32 CallstackId, uint64 Address, HeapId RootHeap);
+	void EditSwapOp(uint32 ThreadId, double Time, uint64 UnmaskedPageAddress, EMemoryTraceSwapOperation SwapOp, uint64 CompressedPageSize, uint32 CallstackId);
 
 	void EditHeapSpec(HeapId Id, HeapId ParentId, const FStringView& Name, EMemoryTraceHeapFlags Flags);
 	void EditMarkAllocationAsHeap(uint32 ThreadId, double Time, uint32 CallstackId, uint64 Address, HeapId Heap, EMemoryTraceHeapAllocationFlags Flags);
@@ -395,6 +427,7 @@ private:
 	FMetadataProvider& MetadataProvider;
 
 	double InitTime = 0;
+	uint64 PlatformPageSize = 0;
 	uint8 MinAlignment = 0;
 	uint8 SizeShift = 0;
 	uint8 SummarySizeShift = 0;
@@ -417,9 +450,13 @@ private:
 	uint64 AllocErrors = 0;
 	uint64 FreeWarnings = 0;
 	uint64 FreeErrors = 0;
+	uint64 SwapWarnings = 0;
+	uint64 SwapErrors = 0;
 
 	uint64 TotalAllocatedMemory = 0;
 	uint32 TotalLiveAllocations = 0;
+	uint64 TotalSwapMemory = 0;
+	uint64 TotalCompressedSwapMemory = 0;
 
 	double SampleStartTimestamp = 0.0;
 	double SampleEndTimestamp = 0.0;
@@ -427,16 +464,30 @@ private:
 	uint64 SampleMaxTotalAllocatedMemory = 0;
 	uint32 SampleMinLiveAllocations = 0;
 	uint32 SampleMaxLiveAllocations = 0;
+	uint64 SampleMinSwapMemory = 0;
+	uint64 SampleMaxSwapMemory = 0;
+	uint64 SampleMinCompressedSwapMemory = 0;
+	uint64 SampleMaxCompressedSwapMemory = 0;
 	uint32 SampleAllocEvents = 0;
 	uint32 SampleFreeEvents = 0;
+	uint32 SamplePageInEvents = 0;
+	uint32 SamplePageOutEvents = 0;
+	uint32 SampleSwapFreeEvents = 0;
 
 	TPagedArray<double> Timeline;
 	TPagedArray<uint64> MinTotalAllocatedMemoryTimeline;
 	TPagedArray<uint64> MaxTotalAllocatedMemoryTimeline;
 	TPagedArray<uint32> MinLiveAllocationsTimeline;
 	TPagedArray<uint32> MaxLiveAllocationsTimeline;
+	TPagedArray<uint64> MinTotalSwapMemoryTimeline;
+	TPagedArray<uint64> MaxTotalSwapMemoryTimeline;
+	TPagedArray<uint64> MinTotalCompressedSwapMemoryTimeline;
+	TPagedArray<uint64> MaxTotalCompressedSwapMemoryTimeline;
 	TPagedArray<uint32> AllocEventsTimeline;
 	TPagedArray<uint32> FreeEventsTimeline;
+	TPagedArray<uint32> PageInEventsTimeline;
+	TPagedArray<uint32> PageOutEventsTimeline;
+	TPagedArray<uint32> SwapFreeEventsTimeline;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

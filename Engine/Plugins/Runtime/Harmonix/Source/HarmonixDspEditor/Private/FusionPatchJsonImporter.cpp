@@ -31,7 +31,7 @@ TArray<UObject*> FFusionPatchJsonImporter::ImportAudioSamples(const TArray<FStri
 	return AssetToolsModule.Get().ImportAssetsAutomated(AutomatedAssetImportData);
 }
 
-bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFusionPatch* FusionPatch, const FImportArgs& ImportArgs, TArray<FString>& OutErrors)
+bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFusionPatch* FusionPatch, TArray<UObject*>& OutAdditionalImportedObjects, const FImportArgs& ImportArgs, TArray<FString>& OutErrors)
 {
 	if (!ensure(FusionPatch))
 		return false;
@@ -154,6 +154,7 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 	}
 
 	TArray<UObject*> ImportedAssets = ImportAudioSamples(AudioSampleFiles, ImportArgs.SamplesDestPath, ImportArgs.ReplaceExistingSamples);
+	OutAdditionalImportedObjects.Append(ImportedAssets);
 
 	// update the sound wave loading behavior and compression type with the selection set in the import options
 	for (UObject* Asset : ImportedAssets)
@@ -221,6 +222,15 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		{
 			KeyzonesImported[KeyzoneIdx].SoundWave = SoundWave;
 		}
+
+		// The importer failed to map a sound wave to this keyzone!
+		if (!KeyzonesImported[KeyzoneIdx].SoundWave) 
+		{
+			FString SamplePath = KeyzonesImported[KeyzoneIdx].SamplePath;
+            FString AssetName = AudioSampleFiles[KeyzoneIdx];
+			OutErrors.Add(FString::Printf(TEXT("Imported asset (Name: %s) failed to map file (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx));
+			UE_LOG(LogFusionPatchJsonImporter, Error, TEXT("Failed to import FusionPatch. Imported asset (Name: %s) failed to map asset (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx);
+		}
 	}
 
 	// no errors, update the FusionPatchData with the imported data
@@ -229,7 +239,9 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		FusionPatch->UpdateSettings(PatchSettingsImport);
 		FusionPatch->UpdateKeyzones(KeyzonesImported);
 	}
-	return true;
+	
+	// return whether we had any errors
+	return OutErrors.Num() == 0;
 }
 
 #undef LOCTEXT_NAMESPACE

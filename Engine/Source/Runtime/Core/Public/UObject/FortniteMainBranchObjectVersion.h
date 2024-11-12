@@ -416,7 +416,117 @@ struct FFortniteMainBranchObjectVersion
 
 		// Skeletal Mesh optionally cooks half edge data per lod
 		SkeletalHalfEdgeData,
+
+		// Combine graph contexts for AnimNext graphs
+		AnimNextCombineGraphContexts,
+
+		// Combine parameter blocks and graphs
+		AnimNextCombineParameterBlocksAndGraphs,
+
+		// Move workspaces to a seperate plugin
+		AnimNextMoveWorkspaces,
+
+		// Level Instance Property overrides
+		LevelInstancePropertyOverrides,
+
+		// Added FVolumetricLightMapGridDesc in MapBuildData
+		VolumetricLightMapGridDescSupport,
+
+		// Introduce new structure for customizing the landscape edit layer behavior
+		IntroduceLandscapeEditLayerClass,
+
+		// Change workspaces to store asset references as external objects
+		AnimNextWorkspaceEntryConversion,
+
+		// Add support for anytype in dataflow
+		DataflowAnyTypeSupport,
+
+		// Adding a new flag in RBAN Solver Setting to be able to use manifolds
+		PhysicsAssetUseManifoldFlags,
+
+		// Added support for to record sim and query data of Shape Instance data in CVD
+		SimAndQueryDataSupportInChaosVisualDebugger,
+
+		// Add the imported asset dependencies to the Cloth Asset USD Import node
+		ChaosClothAssetUSDImportNodeAddAssetDependencies,
+
+		// Changed HitLighting to HitLightingForReflections, and HitLighting now means hit lighting for entire Lumen
+		LumenRayLightingModeOverrideEnum,
+
+		// PCGPartitionActorDesc
+		PCGPartitionActorDesc,
+
+		// Target layers are now defined in the Landscape actor and not continuously synced from the assigned material.
+		LandscapeTargetLayersInLandscapeActor,
+
+		// Fix to get full name of templated type ( Tarray > TArray<Float> for example )
+		DataflowTemplatedTypeFix,
+
+		// Changes for LevelInstance support in StaticLighting
+		LevelInstanceStaticLightingSupport,
+
+		// PCGGridDescriptor
+		PCGGridDescriptor,
+
+		// AnimNext graphs now have public/private state
+		AnimNextGraphAccessSpecifiers,
+
+		// Added a more stable pixel depth offset mode.
+		MaterialPixelDepthOffsetMode,
+
+		// Added hideable pins to dataflow
+		DataflowHideablePins,
+
+		// Added multiple section import to the cloth asset skeletal mesh import node
+		ClothAssetSkeletalMeshMultiSectionImport,
+
+		// Serialize EditorBounds in WorldPartitionActorDesc
+		WorldPartitionActorDescSerializeEditorBounds,
+
+		// Fixup for the data that has been damaged by LandscapeTargetLayersInLandscapeActor (loss of landscape layer info object assignments)
+		FixupLandscapeTargetLayersInLandscapeActor,
+
+		//Allow custom import of morph target
+		MorphTargetCustomImport,
+
+		// Fix chaos cloth buckling stiffness parameter bug 
+		ChaosClothAllowZeroBucklingStiffness,
 		
+		// LevelSequenceUpgradeDynamicBindings was removed but was intended for this position. Putting this here to make sure versioning of subsequent assets remains the same
+		LevelSequenceUpgradeDynamicBindings_NoOp,
+
+		// AddToFrontend GFA now defaults to unload plugin on exit frontend
+		GameFeatureDataActionAddToFrontendDefaultToUnload,
+
+		// Upgraded movie scene 'dynamic bindings' to use the new Custom Bindings system
+		LevelSequenceUpgradeDynamicBindings,
+		
+		// Changed the precision for the stored rotation on kinematic targets to match the precision used in particles 
+		ChaosStoreKinematicTargetRotationAsSinglePrecision,
+
+		// PCG changes around the ApplyOnActor node, where we collapsed the TargetActor to the input pin.
+		PCGApplyOnActorNodeMoveTargetActorEdgeToInput,
+
+		// Deprecation of the bPlaying flag on FTimeline struct types in favor of a better
+		// PlayingStateTracker type to improve replication reliability 
+		TimelinePlayingStateTrackerDeprecation,
+		
+
+		// Enable SkipOnlyEditorOnly style cooking of UStaticMeshComponent::MeshPaintTexture
+		MeshPaintTextureUsesEditorOnly,
+
+		// Fixup and synchronize some landscape properties that have moved to the property sharing/overriding system :
+		LandscapeBodyInstanceAsSharedProperty,
+		
+		// Multiple changes to AnimNext modules, variables etc.
+		AnimNextModuleRefactor,
+
+		// Subsurface profile now has a guid to be able to select one of many in a Substrate material.
+		SubsurfaceProfileGuid,
+
+		// Added support for to record the new solver iteration settings in CVD
+		SolverIterationsDataSupportInChaosVisualDebugger,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

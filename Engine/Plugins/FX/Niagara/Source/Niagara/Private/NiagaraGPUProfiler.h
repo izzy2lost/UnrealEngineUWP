@@ -41,7 +41,7 @@ public:
 	FNiagaraGPUProfiler(uintptr_t InOwnerContext);
 	~FNiagaraGPUProfiler();
 
-	void BeginFrame(FRHICommandListImmediate& RHICmdList);
+	void BeginFrame(FRHICommandList& RHICmdList);
 	void EndFrame(FRHICommandList& RHICmdList);
 
 	void BeginDispatch(FRHICommandList& RHICmdList, const FNiagaraGpuProfileEvent& Event);
@@ -50,19 +50,20 @@ public:
 private:
 	FGpuFrameData* GetReadFrame() { check(CurrentReadFrame >= 0 && CurrentReadFrame < UE_ARRAY_COUNT(GpuFrames)); return GpuFrames[CurrentReadFrame].CanRead() ? &GpuFrames[CurrentReadFrame] : nullptr; }
 	FGpuFrameData* GetWriteFrame() { check(CurrentWriteFrame >= 0 && CurrentWriteFrame < UE_ARRAY_COUNT(GpuFrames)); return GpuFrames[CurrentWriteFrame].CanWrite() ? &GpuFrames[CurrentWriteFrame] : nullptr; }
-	bool ProcessFrame(FRHICommandListImmediate& RHICmdList, FGpuFrameData& ReadFrame);
+	bool ProcessFrame(FRHICommandList& RHICmdList, FGpuFrameData& ReadFrame);
 
 private:
-	uintptr_t				OwnerContext = 0;
+	uintptr_t					OwnerContext = 0;
 
-	int32					CurrentReadFrame = 0;					// Index of the next frame to read from
-	int32					CurrentWriteFrame = 0;					// Index of the next frame to write into
-	FGpuFrameData			GpuFrames[NumBufferFrames];
+	int32						CurrentReadFrame = 0;					// Index of the next frame to read from
+	int32						CurrentWriteFrame = 0;					// Index of the next frame to write into
+	FGpuFrameData				GpuFrames[NumBufferFrames];
 
-	FGpuFrameData*			ActiveWriteFrame = nullptr;				// Not null while we are generating a frame of data, otherwise null
-	bool					bDispatchRecursionGuard = false;		// We don't support timing dispatches inside one another
+	FGpuFrameData*				ActiveWriteFrame = nullptr;				// Not null while we are generating a frame of data, otherwise null
+	static thread_local uint32	ActiveQueryIndex;					// We don't support timing dispatches inside one another
+	UE::FMutex					Mutex;
 
-	FRenderQueryPoolRHIRef	QueryPool;
+	FRenderQueryPoolRHIRef		QueryPool;
 };
 
 #endif //WITH_NIAGARA_GPU_PROFILER

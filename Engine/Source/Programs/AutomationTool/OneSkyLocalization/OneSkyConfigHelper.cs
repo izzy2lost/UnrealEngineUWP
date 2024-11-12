@@ -8,6 +8,7 @@ using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
 
 using static AutomationTool.CommandUtils;
+using UnrealBuildBase;
 
 namespace EpicGames.OneSkyLocalization.Config
 {
@@ -29,7 +30,7 @@ namespace EpicGames.OneSkyLocalization.Config
 				Assembly[] LoadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
 				foreach (var Dll in LoadedAssemblies)
 				{
-					Type[] AllTypes = Dll.GetTypes();
+					Type[] AllTypes = Dll.SafeGetLoadedTypes();
 					foreach (var PotentialConfigType in AllTypes)
 					{
 						if (PotentialConfigType != typeof(OneSkyConfigData) && typeof(OneSkyConfigData).IsAssignableFrom(PotentialConfigType))

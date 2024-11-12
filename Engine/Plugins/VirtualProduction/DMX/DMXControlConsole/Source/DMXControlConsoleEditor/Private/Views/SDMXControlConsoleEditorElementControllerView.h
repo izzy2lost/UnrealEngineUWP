@@ -38,6 +38,7 @@ namespace UE::DMX::Private
 	protected:
 		//~ Begin SWidget interface
 		virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+		virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 		//~ End of SWidget interface
 
 	private:
@@ -80,6 +81,9 @@ namespace UE::DMX::Private
 		/** Called when a new text on maximum value editable text box is committed */
 		void OnMaxValueTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo);
 
+		/** Returns the physical unit name label as text */
+		FText GetPhysicalUnitNameLabelText() const;
+
 		/** Called when the enable option is selected */
 		void OnEnableElementController(bool bEnable) const;
 
@@ -112,6 +116,9 @@ namespace UE::DMX::Private
 
 		/** Gets the visibility for the lock button  */
 		EVisibility GetLockButtonVisibility() const;
+
+		/** Gets the visibility for the physical unit label text  */
+		EVisibility GetPhysicalUnitLabelVisibility() const;
 
 		/** Changes the element controller background color on hover */
 		const FSlateBrush* GetBorderImage() const;

@@ -8,6 +8,8 @@ public class Water : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		StaticAnalyzerDisabledCheckers.Add("core.uninitialized.ArraySubscript");
+
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				System.IO.Path.Combine(GetModuleDirectory("Renderer"), "Private"),

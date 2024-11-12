@@ -90,18 +90,18 @@ void FLayeredMove_LinearVelocity::AddReferencedObjects(class FReferenceCollector
 
 
 // -------------------------------------------------------------------
-// FLayeredMove_JumpImpulse
+// FLayeredMove_JumpImpulseOverDuration
 // -------------------------------------------------------------------
 
-FLayeredMove_JumpImpulse::FLayeredMove_JumpImpulse() 
+FLayeredMove_JumpImpulseOverDuration::FLayeredMove_JumpImpulseOverDuration() 
 	: UpwardsSpeed(0.f)
 {
-	DurationMs = 0.f;
+	DurationMs = 100.f;
 	MixMode = EMoveMixMode::OverrideVelocity;
 }
 
 
-bool FLayeredMove_JumpImpulse::GenerateMove(const FMoverTickStartData& SimState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
+bool FLayeredMove_JumpImpulseOverDuration::GenerateMove(const FMoverTickStartData& SimState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
 {	
 	const FMoverDefaultSyncState* SyncState = SimState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(SyncState);
@@ -127,30 +127,30 @@ bool FLayeredMove_JumpImpulse::GenerateMove(const FMoverTickStartData& SimState,
 	return true;
 }
 
-FLayeredMoveBase* FLayeredMove_JumpImpulse::Clone() const
+FLayeredMoveBase* FLayeredMove_JumpImpulseOverDuration::Clone() const
 {
-	FLayeredMove_JumpImpulse* CopyPtr = new FLayeredMove_JumpImpulse(*this);
+	FLayeredMove_JumpImpulseOverDuration* CopyPtr = new FLayeredMove_JumpImpulseOverDuration(*this);
 	return CopyPtr;
 }
 
-void FLayeredMove_JumpImpulse::NetSerialize(FArchive& Ar)
+void FLayeredMove_JumpImpulseOverDuration::NetSerialize(FArchive& Ar)
 {
 	Super::NetSerialize(Ar);
 
 	Ar << UpwardsSpeed;
 }
 
-UScriptStruct* FLayeredMove_JumpImpulse::GetScriptStruct() const
+UScriptStruct* FLayeredMove_JumpImpulseOverDuration::GetScriptStruct() const
 {
-	return FLayeredMove_JumpImpulse::StaticStruct();
+	return FLayeredMove_JumpImpulseOverDuration::StaticStruct();
 }
 
-FString FLayeredMove_JumpImpulse::ToSimpleString() const
+FString FLayeredMove_JumpImpulseOverDuration::ToSimpleString() const
 {
-	return FString::Printf(TEXT("JumpImpulse"));
+	return FString::Printf(TEXT("JumpImpulseOverDuration"));
 }
 
-void FLayeredMove_JumpImpulse::AddReferencedObjects(class FReferenceCollector& Collector)
+void FLayeredMove_JumpImpulseOverDuration::AddReferencedObjects(class FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
 }
@@ -307,56 +307,6 @@ FVector FLayeredMove_JumpTo::GetRelativeLocation(float MoveFraction, const FRota
 }
 
 // -------------------------------------------------------------------
-// FLayeredMove_Teleport
-// -------------------------------------------------------------------
-
-FLayeredMove_Teleport::FLayeredMove_Teleport()
-	: TargetLocation(FVector::ZeroVector)
-{
-	DurationMs = 0.f;
-	MixMode = EMoveMixMode::OverrideAll;
-	Priority = 10;
-}
-
-bool FLayeredMove_Teleport::GenerateMove(const FMoverTickStartData& SimState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
-{
-	OutProposedMove = FProposedMove();
-	OutProposedMove.MixMode = EMoveMixMode::OverrideAll;
-	OutProposedMove.TargetLocation = TargetLocation;
-	OutProposedMove.bHasTargetLocation = true;
-
-	return true;
-}
-
-FLayeredMoveBase* FLayeredMove_Teleport::Clone() const
-{
-	FLayeredMove_Teleport* CopyPtr = new FLayeredMove_Teleport(*this);
-	return CopyPtr;
-}
-
-void FLayeredMove_Teleport::NetSerialize(FArchive& Ar)
-{
-	Super::NetSerialize(Ar);
-
-	Ar << TargetLocation;
-}
-
-UScriptStruct* FLayeredMove_Teleport::GetScriptStruct() const
-{
-	return FLayeredMove_Teleport::StaticStruct();
-}
-
-FString FLayeredMove_Teleport::ToSimpleString() const
-{
-	return FString::Printf(TEXT("Teleport"));
-}
-
-void FLayeredMove_Teleport::AddReferencedObjects(class FReferenceCollector& Collector)
-{
-	Super::AddReferencedObjects(Collector);
-}
-
-// -------------------------------------------------------------------
 // FLayeredMove_MoveTo
 // -------------------------------------------------------------------
 
@@ -402,8 +352,6 @@ float FLayeredMove_MoveTo::EvaluateFloatCurveAtFraction(const UCurveFloat& Curve
 bool FLayeredMove_MoveTo::GenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
 {
 	OutProposedMove.MixMode = MixMode;
-	OutProposedMove.TargetLocation = TargetLocation;
-	OutProposedMove.bHasTargetLocation = true;
 
 	const float DeltaSeconds = TimeStep.StepMs / 1000.f;
 	

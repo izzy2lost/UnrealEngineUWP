@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphExecuteScriptNode.h"
+
+#include "MoviePipelineTelemetry.h"
 #include "Styling/AppStyle.h"
 #include "UObject/Package.h"
 
@@ -40,4 +42,9 @@ UMovieGraphScriptBase* UMovieGraphExecuteScriptNode::AllocateScriptInstance() co
 	}
 
 	return nullptr;
+}
+
+void UMovieGraphExecuteScriptNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesScripting = true;
 }

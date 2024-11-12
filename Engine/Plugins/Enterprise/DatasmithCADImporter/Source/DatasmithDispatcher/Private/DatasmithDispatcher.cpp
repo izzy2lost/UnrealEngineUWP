@@ -394,11 +394,6 @@ void FDatasmithDispatcher::SpawnHandlers()
 	}
 }
 
-int32 FDatasmithDispatcher::GetAliveHandlerCount()
-{
-	return Algo::CountIf(WorkerHandlers, [](const FDatasmithWorkerHandler& Handler) { return Handler.IsAlive(); });
-}
-
 void FDatasmithDispatcher::CloseHandlers()
 {
 	for (FDatasmithWorkerHandler& Handler : WorkerHandlers)

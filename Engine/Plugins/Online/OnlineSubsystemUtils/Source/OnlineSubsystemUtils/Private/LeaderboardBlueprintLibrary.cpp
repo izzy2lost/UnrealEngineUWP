@@ -62,12 +62,13 @@ bool ULeaderboardBlueprintLibrary::WriteLeaderboardObject(APlayerController* Pla
 bool ULeaderboardBlueprintLibrary::WriteLeaderboardInteger(APlayerController* PlayerController, FName StatName, int32 StatValue)
 {
 	FOnlineLeaderboardWrite WriteObject;
-	WriteObject.LeaderboardNames.Add(StatName);
-	WriteObject.RatedStat = StatName;
+	const FString StatNameString = StatName.ToString();
+	WriteObject.LeaderboardNames.Add(StatNameString);
+	WriteObject.RatedStat = StatNameString;
 	WriteObject.DisplayFormat = ELeaderboardFormat::Number;
 	WriteObject.SortMethod = ELeaderboardSort::Descending;
 	WriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
-	WriteObject.SetIntStat(StatName, StatValue);
+	WriteObject.SetIntStat(StatNameString, StatValue);
 
 	return WriteLeaderboardObject(PlayerController, WriteObject);
 }

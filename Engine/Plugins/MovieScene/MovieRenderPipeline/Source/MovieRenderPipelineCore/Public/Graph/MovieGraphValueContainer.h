@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MovieGraphCommon.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Templates/ValueOrError.h"
 
 #include "MovieGraphValueContainer.generated.h"

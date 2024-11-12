@@ -25,6 +25,9 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "ToolMenus.h"
+#include "SNegativeActionButton.h"
+#include "SPrimaryButton.h"
+#include "Widgets/Images/SImage.h"
 
 #define LOCTEXT_NAMESPACE "StaticLightingSystem"
 
@@ -35,6 +38,23 @@ FName GPULightmassSettingsTabName = TEXT("GPULightmassSettings");
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif
+
+static FAutoConsoleCommand GPULMBuildLighting(
+	TEXT("GPULM.BuildLighting"),
+	TEXT("Starts lighting build with GPU Lightmass"),
+	FConsoleCommandDelegate::CreateStatic([] {
+		FGPULightmassEditorModule* LightmassModule = FModuleManager::Get().GetModulePtr<FGPULightmassEditorModule>("GPULightmass");
+		if (LightmassModule)
+		{
+			if (UWorld* World = GEditor->GetEditorWorldContext().World())
+			{
+				if (!World->GetSubsystem<UGPULightmassSubsystem>()->IsRunning())
+				{					
+					World->GetSubsystem<UGPULightmassSubsystem>()->Launch();
+				}
+			}
+		}		
+}));
 
 static bool IsRenderDocPresent()
 {
@@ -222,50 +242,27 @@ TSharedRef<SDockTab> FGPULightmassEditorModule::SpawnSettingsTab(const FSpawnTab
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
 			.AutoHeight()
-			.Padding(2)
+			.Padding(12.0f, 8.0f)
 			[
-
 				// Start Build
 				SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				.Padding(0.0f, 0.0f, 8.f, 0.0f)
 				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
+					SNew(SPrimaryButton)
+					.Icon(FAppStyle::Get().GetBrush("EditorViewport.LightingOnlyMode"))
+					.Text_Lambda( []()
+					{ 
+						return FGPULightmassEditorModule::IsBakeWhatYouSeeMode() ? 
+								LOCTEXT("GPULightmassSettingsStartInteractive", "Start Building Lighting") : 
+								LOCTEXT("GPULightmassSettingsStartFull", "Build Lighting");
+					})
 					.IsEnabled_Lambda( []() {
 						return (GetRayTracingDisabledReason() == ERayTracingDisabledReason::OK) && IsStaticLightingAllowed() && IsPathTracingEnabled();
 					}) 
 					.Visibility_Lambda([](){ return IsRunning() ? EVisibility::Collapsed : EVisibility::Visible; })
 					.OnClicked_Raw(this, &FGPULightmassEditorModule::OnStartClicked)
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-							.Font(FAppStyle::Get().GetFontStyle("FontAwesome.11"))
-							.Text(FEditorFontGlyphs::Lightbulb_O)
-						]
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.Padding(4, 0, 0, 0)
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-							.Text_Lambda( []()
-							{ 
-								return FGPULightmassEditorModule::IsBakeWhatYouSeeMode() ? 
-										LOCTEXT("GPULightmassSettingsStartInteractive", "Start Building Lighting") : 
-										LOCTEXT("GPULightmassSettingsStartFull", "Build Lighting");
-							})
-
-						]
-					]
 				]
 
 				// Save and Stop Building
@@ -273,32 +270,11 @@ TSharedRef<SDockTab> FGPULightmassEditorModule::SpawnSettingsTab(const FSpawnTab
 				.Padding(0.0f, 0.0f, 8.f, 0.0f)
 				.AutoWidth()
 				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
+					SNew(SPrimaryButton)
+					.Icon(FAppStyle::Get().GetBrush("EditorViewport.LightingOnlyMode"))
+					.Text(LOCTEXT("GPULightmassSettingsSaveAndStop", "Save And Stop Building"))
 					.Visibility_Lambda([](){ return IsRunning() && IsBakeWhatYouSeeMode() ? EVisibility::Visible : EVisibility::Collapsed; })
 					.OnClicked_Raw(this, &FGPULightmassEditorModule::OnSaveAndStopClicked)
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.VAlign(VAlign_Center)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-							.Font(FAppStyle::Get().GetFontStyle("FontAwesome.11"))
-							.Text(FEditorFontGlyphs::Lightbulb_O)
-						]
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.Padding(4, 0, 0, 0)
-						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
-							.Text(LOCTEXT("GPULightmassSettingsSaveAndStop", "Save And Stop Building"))
-						]
-					]
 				]
 
 				// Cancel Build
@@ -306,108 +282,171 @@ TSharedRef<SDockTab> FGPULightmassEditorModule::SpawnSettingsTab(const FSpawnTab
 				.Padding(0.0f, 0.0f, 8.f, 0.0f)
 				.AutoWidth()
 				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "FlatButton.Danger")
+					SNew(SNegativeActionButton)
 					.Visibility_Lambda([](){ return IsRunning() ? EVisibility::Visible: EVisibility::Collapsed; })
 					.OnClicked_Raw(this, &FGPULightmassEditorModule::OnCancelClicked)
 					.Text(LOCTEXT("GPULightmassSettingsCancel", "Cancel Build"))
-					.TextStyle(FAppStyle::Get(), "ContentBrowser.TopBar.Font")
 				]
-				
 
 				+SHorizontalBox::Slot()
-				.FillWidth(1.0)
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SCheckBox)
-					.IsChecked_Lambda( [] () { return FGPULightmassEditorModule::IsRealtimeOn() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-					.OnCheckStateChanged_Lambda( [] (ECheckBoxState NewState) 
-					{
-						if (GCurrentLevelEditingViewportClient)
-						{
-							GCurrentLevelEditingViewportClient->SetRealtime( NewState == ECheckBoxState::Checked );
-						}	
-					})
-				]
-         
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				[
 					SNew(SBox)
-					.WidthOverride(140)
-					[	
-						SNew(STextBlock)
-						.Text_Lambda( [](){ return FGPULightmassEditorModule::IsRealtimeOn() ? LOCTEXT("GPULightmassRealtimeEnabled", "Viewport Realtime is ON ") : LOCTEXT("GPULightmassRealtimeDisabled", "Viewport Realtime is OFF");})
+					.ToolTipText(LOCTEXT("GPULightmassSettingsRealtimeToggleTooltip", "GPU Lightmass runs in slow mode when the viewport is realtime to avoid freezing. Uncheck Viewport Realtime to get full speed."))
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.HAlign(HAlign_Left)
+						.Padding(0, 0, 2, 0)
+						[
+							SNew(SCheckBox)
+							.IsChecked_Lambda( [] () { return FGPULightmassEditorModule::IsRealtimeOn() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+							.OnCheckStateChanged_Lambda( [] (ECheckBoxState NewState) 
+							{
+								if (GCurrentLevelEditingViewportClient)
+								{
+									GCurrentLevelEditingViewportClient->SetRealtime( NewState == ECheckBoxState::Checked );
+								}
+							})
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.HAlign(HAlign_Left)
+						.Padding(0, 0, 4, 0)
+						[
+							SNew(SImage)
+							.Image(FAppStyle::GetBrush(TEXT("EditorViewport.ToggleRealTime")))
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.HAlign(HAlign_Left)
+						.Padding(0, 0, 2, 0)
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("GPULightmassRealtimeEnabled", "Realtime Viewport"))
+						]
 					]
+
 				]
 			]
+
 			+ SVerticalBox::Slot()
 			.AutoHeight()
-			.Padding(2.f, 4.f)
+			.Padding(12.0f, 4.0f)
 			[
-				SAssignNew(Messages, STextBlock)
-				.AutoWrapText(true)
-				.Text_Lambda( []() -> FText
-				{
-					ERayTracingDisabledReason RayTracingStatus = GetRayTracingDisabledReason();
-					if (RayTracingStatus != ERayTracingDisabledReason::OK)
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Top)
+				.Padding(0, 0, 4, 0)
+				[
+					SNew(SImage)
+					.Image_Lambda([this]() -> const FSlateBrush*
 					{
-						return GenerateRayTracingDisabledReasonMessage(RayTracingStatus);
-					}
-					else if (!IsStaticLightingAllowed())
-					{
-						return LOCTEXT("GPULightmassAllowStaticLightingDisabled", "GPU Lightmass requires Allow Static Lighting enabled in the project settings.");
-					}
-					else if (!IsPathTracingEnabled())
-					{
-						return LOCTEXT("GPULightmassPathTracingDisabled", "GPU Lightmass requires Path Tracing enabled in the project settings.");
-					}
-
-					// Ready
-					static FText ReadyMsg = FText(LOCTEXT("GPULightmassReady", "GPU Lightmass is ready."));
-
-					// Ready, BWYS
-					static FText BWYSReadyMsg = FText(LOCTEXT("GPULightmassReadyBWYS", "GPU Lightmass is ready. Lighting will rebuild continuously in Bake What You See mode until saved or canceled."));
-
-					// Ready, BWYS+RT OFF Warning 
-					static FText RtOffBWYSWarningMsg = LOCTEXT("GPULightmassSpeedReadyRTWarning", "Building Lighting when using Bake What You See Mode will automatically enable Viewport Realtime to start building. Lighting will rebuild continuously in Bake What You See mode until saved or canceled.");
-
-					// Building FULL + RT Off Warning
-					UWorld* World = GEditor->GetEditorWorldContext().World();
-					FText BuildingMsg = FText::Format(LOCTEXT("GPULightmassBuildingLighting", "GPU Lightmass is building lighting for {0}."), FText::FromString(World->GetActiveLightingScenario() ? World->GetActiveLightingScenario()->GetOuter()->GetName() : World->GetName()));
-
-					// Building FULL + RT ON Warning 
-					static FText BuildingFullRTOnMsg = LOCTEXT("GPULightmassBuildingFullRTOn", "GPU Lightmass runs in slow mode when the viewport is realtime to avoid freezing. Uncheck Viewport Realtime to get full speed.");
-
-					// Building BWYS + RT ON Warning 
-					static FText BuildingRTOnMsg = LOCTEXT("GPULightmassBuildingInteractiveRTOn", "Disable Viewport Realtime to speed up building.");
-
-					// Building BWYS + RT OFF Warning 
-					static FText BuidlingRTOffMsg = LOCTEXT("GPULightmassBuildingInteractiveRTOff", "Re-enable Viewport Realtime to preview lighting.  Enabling Viewport Realtime will slow down building, to avoid freezing.");
-
-					bool bIsRunning = IsRunning();
-					bool bIsInteractive = IsBakeWhatYouSeeMode();
-					bool bIsRealtime = IsRealtimeOn();
-					if (bIsRunning)
-					{
-						if (bIsInteractive)
+						// Error
+						if (Message.Severity <= ELogVerbosity::Error)
 						{
-							return bIsRealtime ? BuildingRTOnMsg : BuidlingRTOffMsg;
+							return FAppStyle::GetBrush(TEXT("Icons.ErrorWithColor"));
+						}
+						
+						// Warning
+						if (Message.Severity == ELogVerbosity::Warning)
+						{
+							return FAppStyle::GetBrush(TEXT("Icons.WarningWithColor"));
+						}
+						
+						// Info
+						return FAppStyle::GetBrush(TEXT("Icons.InfoWithColor"));
+					})
+				]
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				.HAlign(HAlign_Fill)
+				.Padding(0, 0, 2, 0)
+				[
+					SAssignNew(MessageWidget, STextBlock)
+					.AutoWrapText(true)
+					.Text_Lambda( [this]() -> FText
+					{
+						Message.Severity = ELogVerbosity::Error; // Default to error
+						
+						ERayTracingDisabledReason RayTracingStatus = GetRayTracingDisabledReason();
+						if (RayTracingStatus != ERayTracingDisabledReason::OK)
+						{
+							Message.Text = GenerateRayTracingDisabledReasonMessage(RayTracingStatus);
+							return Message.Text;
+						}
+						else if (!IsStaticLightingAllowed())
+						{
+							Message.Text = LOCTEXT("GPULightmassAllowStaticLightingDisabled", "GPU Lightmass requires Allow Static Lighting enabled in the project settings.");
+							return Message.Text;
+						}
+						else if (!IsPathTracingEnabled())
+						{
+							Message.Text = LOCTEXT("GPULightmassPathTracingDisabled", "GPU Lightmass requires Path Tracing enabled in the project settings.");
+							return Message.Text;
 						}
 
-						return bIsRealtime ? BuildingFullRTOnMsg : BuildingMsg;
-					}
-					else if (bIsInteractive)
-					{
-						return bIsRealtime ?  BWYSReadyMsg : RtOffBWYSWarningMsg;
-					}
+						// Message is info unless issue found later
+						Message.Severity = ELogVerbosity::Display;
 
-					return bIsRealtime ? BuildingFullRTOnMsg : ReadyMsg;
-				})	
+						// Ready
+						static FText ReadyMsg = FText(LOCTEXT("GPULightmassReady", "GPU Lightmass is ready."));
+
+						// Ready, BWYS
+						static FText BWYSReadyMsg = FText(LOCTEXT("GPULightmassReadyBWYS", "GPU Lightmass is ready. Lighting will rebuild continuously in Bake What You See mode until saved or canceled."));
+
+						// Ready, BWYS+RT OFF Warning 
+						static FText RtOffBWYSWarningMsg = LOCTEXT("GPULightmassSpeedReadyRTWarning", "Building Lighting when using Bake What You See Mode will automatically enable Viewport Realtime to start building. Lighting will rebuild continuously in Bake What You See mode until saved or canceled.");
+
+						// Building FULL + RT Off Warning
+						UWorld* World = GEditor->GetEditorWorldContext().World();
+						FText BuildingMsg = FText::Format(LOCTEXT("GPULightmassBuildingLighting", "GPU Lightmass is building lighting for {0}."), FText::FromString(World->GetActiveLightingScenario() ? World->GetActiveLightingScenario()->GetOuter()->GetName() : World->GetName()));
+
+						// Building FULL + RT ON Warning 
+						static FText BuildingFullRTOnMsg = LOCTEXT("GPULightmassBuildingFullRTOn", "GPU Lightmass runs in slow mode when the viewport is realtime to avoid freezing. Uncheck Viewport Realtime to get full speed.");
+
+						// Building BWYS + RT ON Warning 
+						static FText BuildingRTOnMsg = LOCTEXT("GPULightmassBuildingInteractiveRTOn", "Disable Viewport Realtime to speed up building.");
+
+						// Building BWYS + RT OFF Warning 
+						static FText BuidlingRTOffMsg = LOCTEXT("GPULightmassBuildingInteractiveRTOff", "Re-enable Viewport Realtime to preview lighting.  Enabling Viewport Realtime will slow down building, to avoid freezing.");
+
+						bool bIsRunning = IsRunning();
+						bool bIsInteractive = IsBakeWhatYouSeeMode();
+						bool bIsRealtime = IsRealtimeOn();
+						if (bIsRunning)
+						{
+							if (bIsInteractive)
+							{
+								// Both messages below are considered warnings
+								Message.Severity = ELogVerbosity::Warning;
+								Message.Text = bIsRealtime ? BuildingRTOnMsg : BuidlingRTOffMsg;
+								return Message.Text;
+							}
+
+							Message.Severity = bIsRealtime ? ELogVerbosity::Warning : ELogVerbosity::Display;
+							Message.Text = bIsRealtime ? BuildingFullRTOnMsg : BuildingMsg;
+							return Message.Text;
+						}
+						else if (bIsInteractive)
+						{
+							// Both messages below are considered warnings
+							Message.Severity = ELogVerbosity::Warning;
+							Message.Text = bIsRealtime ?  BWYSReadyMsg : RtOffBWYSWarningMsg;
+							return Message.Text;
+						}
+
+						Message.Severity = bIsRealtime ? ELogVerbosity::Warning : ELogVerbosity::Display;
+						Message.Text = bIsRealtime ? BuildingFullRTOnMsg : ReadyMsg;
+						return Message.Text;
+					})
+				]
 			]
 
 			+ SVerticalBox::Slot()

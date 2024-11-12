@@ -10,7 +10,7 @@
 #include "RigVMCore/RigVMTemplate.h"
 #include "RigVMCompiler/RigVMASTProxy.h"
 #include "UObject/StructOnScope.h"
-#include <RigVMCore/RigVMDecorator.h>
+#include <RigVMCore/RigVMTrait.h>
 #include "RigVMPin.generated.h"
 
 class URigVMGraph;
@@ -19,6 +19,8 @@ class URigVMUnitNode;
 class URigVMPin;
 class URigVMLink;
 class URigVMVariableNode;
+
+extern RIGVMDEVELOPER_API TAutoConsoleVariable<bool> CVarRigVMEnablePinDefaultTypes;
 
 /**
  * The Injected Info is used for injecting a node on a pin.
@@ -71,6 +73,15 @@ public:
 	};
 
 	FWeakInfo GetWeakInfo() const;
+};
+
+UENUM()
+enum class ERigVMPinDefaultValueType : uint8
+{
+	AutoDetect, // Detect if this is an unchanged or overridden value based on the delta
+	Unset, // The value is unchanged and will remain the original default
+	Override, // The value is overridden by the user and should stay like this no matter what
+	KeepValueType, // The value type should be kept as well as the value itself (don't touch this)
 };
 
 /**
@@ -156,6 +167,16 @@ public:
 	// until we hit the provided parent pin.
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	FString GetSubPinPath(const URigVMPin* InParentPin, bool bIncludeParentPinName = false) const;
+
+	// Returns the category on a pin. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	FString GetCategory() const;
+
+	// Returns index within a category on a pin. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	int32 GetIndexInCategory() const;
 
 	// Returns a . separated path containing all names of the pin within its main
 	// memory owner / storage. This is typically used to create an offset pointer
@@ -284,6 +305,9 @@ public:
 	// Returns true if this pin's subpins should be hidden in the UI
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	bool ShouldHideSubPins() const;
+
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	FString GetOriginalDefaultValue() const;
 	
 	// Returns the default value of the Pin as a string.
 	// Note that this value is computed based on the Pin's
@@ -300,7 +324,20 @@ public:
 	FString GetDefaultValueStoredByUserInterface() const;
 
 	// Returns true if the default value provided is valid
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
 	bool IsValidDefaultValue(const FString& InDefaultValue) const;
+
+	// Returns true if the default value was ever changed by the user
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
+	bool HasUserProvidedDefaultValue() const;
+
+	// Returns true if the pin can / may provide a default value 
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
+	ERigVMPinDefaultValueType GetDefaultValueType() const { return DefaultValueType; }
+
+	// Returns true if the pin can / may provide a default value 
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
+	bool CanProvideDefaultValue() const;
 
 	// Returns the default value clamped with the limit meta values defined by the UPROPERTY in URigVMUnitNodes 
 	FString ClampDefaultValueFromMetaData(const FString& InDefaultValue) const;
@@ -369,6 +406,10 @@ public:
 	// Returns all of the SubPins of this one.
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	const TArray<URigVMPin*>& GetSubPins() const;
+
+	// Returns all of the SubPins of this one including sub-sub-pins
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	TArray<URigVMPin*> GetAllSubPinsRecursively() const;
 
 	// Returns a SubPin given a name / path or nullptr.
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
@@ -466,15 +507,21 @@ public:
 
 	uint32 GetStructureHash() const;
 
-	// Returns true if this pin represents a decorator 
+	// Returns true if this pin represents a trait 
 	UFUNCTION(BlueprintPure, Category = RigVMPin)
-	bool IsDecoratorPin() const;
+	bool IsTraitPin() const;
 
-	// Returns the decorator backing up this pin
-	TSharedPtr<FStructOnScope> GetDecoratorInstance(bool bUseDefaultValueFromPin = true) const;
+	// Returns true if this pin represents a trait's programmatic pin
+	bool IsProgrammaticPin() const;
 
-	// Returns the struct of the decorator backing up this pin
-	UScriptStruct* GetDecoratorScriptStruct() const;
+	// Get all the sub-pins that are programmatic
+	TArray<URigVMPin*> GetProgrammaticSubPins() const;
+
+	// Returns the trait backing up this pin
+	TSharedPtr<FStructOnScope> GetTraitInstance(bool bUseDefaultValueFromPin = true) const;
+
+	// Returns the struct of the trait backing up this pin
+	UScriptStruct* GetTraitScriptStruct() const;
 
 private:
 
@@ -536,6 +583,9 @@ private:
 	FString DefaultValue;
 
 	UPROPERTY()
+	ERigVMPinDefaultValueType DefaultValueType;
+
+	UPROPERTY()
 	FName CustomWidgetName;
 
 	UPROPERTY()
@@ -547,6 +597,12 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<URigVMInjectionInfo>> InjectionInfos;
 
+	UPROPERTY()
+	FString UserDefinedCategory;
+
+	UPROPERTY()
+	int32 IndexInCategory;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FString BoundVariablePath_DEPRECATED;
@@ -555,13 +611,16 @@ private:
 	mutable FString LastKnownCPPType;
 	mutable TRigVMTypeIndex LastKnownTypeIndex;
 
-	static const FString OrphanPinPrefix;
+	static const inline TCHAR* OrphanPinPrefix = TEXT("Orphan::");
 
 	friend class URigVMController;
 	friend class URigVMGraph;
 	friend class URigVMNode;
 	friend class URigVMLink;
 	friend class FRigVMParserAST;
+	friend struct FRigVMSetPinDisplayNameAction;
+	friend struct FRigVMSetPinCategoryAction;
+	friend class URigVMLibraryNode;
 };
 
 class RIGVMDEVELOPER_API FRigVMPinDefaultValueImportErrorContext : public FOutputDevice
@@ -570,14 +629,23 @@ public:
 
 	int32 NumErrors;
 
-	FRigVMPinDefaultValueImportErrorContext()
+	FRigVMPinDefaultValueImportErrorContext( ELogVerbosity::Type InMaxVerbosity = ELogVerbosity::Warning )
 		: FOutputDevice()
 		, NumErrors(0)
+		, MaxVerbosity(InMaxVerbosity)
 	{
 	}
 
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
 	{
-		NumErrors++;
+		if(Verbosity <= MaxVerbosity)
+		{
+			NumErrors++;
+		}
 	}
+
+	ELogVerbosity::Type GetMaxVerbosity() const { return MaxVerbosity; }
+
+private:
+	ELogVerbosity::Type MaxVerbosity;
 };

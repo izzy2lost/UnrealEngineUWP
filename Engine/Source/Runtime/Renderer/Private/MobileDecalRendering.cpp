@@ -20,7 +20,6 @@
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 #include "DBufferTextures.h"
 
-void RenderMeshDecalsMobile(FRHICommandList& RHICmdList, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
 extern void RenderDeferredDecalsMobile(FRHICommandList& RHICmdList, const FScene& Scene, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
 
 static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
@@ -44,7 +43,7 @@ static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
 	return true;
 }
 
-void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
+void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& View)
 {
 	if (!DoesPlatformSupportDecals(View.GetShaderPlatform()) || !ViewFamily.EngineShowFlags.Decals || View.bIsPlanarReflection)
 	{
@@ -65,20 +64,24 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FView
 		RenderDeferredDecalsMobile(RHICmdList, *Scene, View, DecalRenderStage, RenderTargetMode);
 	}
 
-	// Mesh decals
-	if (View.MeshDecalBatches.Num() > 0)
+	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);
+	if (View.ParallelMeshDrawCommandPasses[DecalMeshPassType].HasAnyDraw())
 	{
-		SCOPED_DRAW_EVENT(RHICmdList, MeshDecals);
-		RenderMeshDecalsMobile(RHICmdList, View, DecalRenderStage, RenderTargetMode);
-
-		// MeshDecals use DrawDynamicMeshPass which may change BatchedPrimitive binding, so we need to restore it
-		FUniformBufferStaticSlot BatchedPrimitiveSlot = FInstanceCullingContext::GetUniformBufferViewStaticSlot(View.GetShaderPlatform());
-		if (IsUniformBufferStaticSlotValid(BatchedPrimitiveSlot) && InstanceCullingDrawParams->BatchedPrimitive)
+		const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr;
+		switch (DecalMeshPassType)
 		{
-			FRHIUniformBuffer* BatchedPrimitiveBufferRHI = InstanceCullingDrawParams->BatchedPrimitive.GetUniformBuffer()->GetRHI();
-			check(BatchedPrimitiveBufferRHI);
-			RHICmdList.SetStaticUniformBuffer(BatchedPrimitiveSlot, BatchedPrimitiveBufferRHI);
-		}
+		case EMeshPass::MeshDecal_SceneColor:
+			InstanceCullingDrawParams = &MeshDecalSceneColorInstanceCullingDrawParams;
+			break;
+		case EMeshPass::MeshDecal_SceneColorAndGBuffer:
+			InstanceCullingDrawParams = &MeshDecalSceneColorAndGBufferInstanceCullingDrawParams;
+			break;
+		default:
+			checkf(false, TEXT("Unexpected MeshDecal pass, please add corresponding InstanceCullingDrawParams!"))
+		};
+				
+		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
+		View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Draw(RHICmdList, InstanceCullingDrawParams);
 	}
 }
 
@@ -143,9 +146,9 @@ void RenderDeferredDecalsMobile(FRHICommandList& RHICmdList, const FScene& Scene
 			GraphicsPSOInit.BlendState = DecalRendering::GetDecalBlendState(DecalData.BlendDesc, DecalRenderStage, RenderTargetMode);
 
 			// Set shader params
-			DecalRendering::SetShader(RHICmdList, GraphicsPSOInit, 0, View, DecalData, DecalRenderStage, FrustumComponentToClip);
+			DecalRendering::SetShader(RHICmdList, GraphicsPSOInit, 0, View, DecalData, DecalRenderStage, FrustumComponentToClip, &Scene);
 
-			RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, 1);
+			RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, View.GetStereoPassInstanceFactor());
 		}
 	}
 }
@@ -168,7 +171,7 @@ void FMobileSceneRenderer::RenderDBuffer(FRDGBuilder& GraphBuilder, FSceneTextur
 
 		FTransientDecalRenderDataList VisibleDecals = DecalRendering::BuildVisibleDecalList(Scene->Decals, View);
 
-		FDeferredDecalPassTextures DecalPassTextures = GetDeferredDecalPassTextures(GraphBuilder, View, SceneTextures, &DBufferTextures);
+		FDeferredDecalPassTextures DecalPassTextures = GetDeferredDecalPassTextures(GraphBuilder, View, Scene->SubstrateSceneData, SceneTextures, &DBufferTextures, EDecalRenderStage::BeforeBasePass);
 		AddDeferredDecalPass(GraphBuilder, View, VisibleDecals, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::BeforeBasePass);
 	}
 }

@@ -68,10 +68,11 @@ public:
 	/** Changes the viewport to lit mode */
 	TSharedPtr< FUICommandInfo > LitMode;
 
-#if RHI_RAYTRACING
+	/** Changes the viewport to lit wireframe mode */
+	TSharedPtr< FUICommandInfo > LitWireframeMode;
+
 	TSharedPtr< FUICommandInfo > PathTracingMode;
 	TSharedPtr< FUICommandInfo > RayTracingDebugMode;
-#endif
 
 	/** Changes the viewport to detail lighting mode */
 	TSharedPtr< FUICommandInfo > DetailLightingMode;
@@ -148,6 +149,8 @@ public:
 	/** Changes the viewport to Skin Cache mode */
 	TSharedPtr< FUICommandInfo > VisualizeGPUSkinCacheMode;
 
+	TSharedPtr< FUICommandInfo > VisualizeLWCComplexity;
+
 	/** Collision Draw Mode */
 	TSharedPtr< FUICommandInfo > CollisionPawn;
 	TSharedPtr< FUICommandInfo > CollisionVisibility;
@@ -215,6 +218,7 @@ public:
 	TSharedPtr< FUICommandInfo > FocusAllViewportsToSelection;
 	TSharedPtr< FUICommandInfo > FocusViewportToSelection;
 	TSharedPtr< FUICommandInfo > FocusOutlinerToSelection;
+	TSharedPtr< FUICommandInfo > FocusOutlinerToContextFolder;
 
 	/** Toggle automatic exposure */
 	TSharedPtr< FUICommandInfo > ToggleAutoExposure;
@@ -247,6 +251,10 @@ public:
 
 	/** Enables or disables snapping to surfaces when dragging in the viewport */
 	TSharedPtr< FUICommandInfo > SurfaceSnapping;
+
+	/** Enables or disables rotating to surface normal when snapping to surfaces */
+	TSharedPtr< FUICommandInfo > RotateToSurfaceNormal;
+
 public:
 	/** Registers our commands with the binding system */
 	virtual void RegisterCommands() override;

@@ -3,32 +3,75 @@
 #pragma once
 
 #if (defined(__AUTORTFM) && __AUTORTFM)
-#define UE_AUTORTFM 1
+#define UE_AUTORTFM 1  // Compiler is 'verse-clang'
 #else
 #define UE_AUTORTFM 0
 #endif
 
-#if UE_AUTORTFM
-#define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline]]
-#define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
+#if (defined(__AUTORTFM_ENABLED) && __AUTORTFM_ENABLED)
+#define UE_AUTORTFM_ENABLED 1  // Compiled with '-fautortfm'
 #else
-#define UE_AUTORTFM_AUTORTFM(F)
+#define UE_AUTORTFM_ENABLED 0
+#endif
+
+#if !defined(UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT)
+#define UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT 1
+#endif
+
+#if UE_AUTORTFM
+#if defined(__has_feature)
+#if __has_feature(autostm)
+#define UE_AUTOSTM 1
+#endif
+#endif
+#endif
+
+#if !defined(UE_AUTOSTM)
+#define UE_AUTOSTM 0
+#endif
+
+#if !defined(UE_AUTORTFM_STATIC_VERIFIER)
+#define UE_AUTORTFM_STATIC_VERIFIER 0
+#endif
+
+#if UE_AUTORTFM
+#define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
+// #jira SOL-6589: remove clang::noinline once this JIRA is fixed.
+#define UE_AUTORTFM_ALWAYS_OPEN [[clang::autortfm_always_open, clang::noinline]]
+#define UE_AUTORTFM_CALLSITE_FORCEINLINE [[clang::always_inline]]
+#else
 #define UE_AUTORTFM_NOAUTORTFM
+#define UE_AUTORTFM_ALWAYS_OPEN
+#define UE_AUTORTFM_CALLSITE_FORCEINLINE
+#endif
+
+#if UE_AUTORTFM && UE_AUTORTFM_STATIC_VERIFIER
+#define UE_AUTORTFM_ENSURE_SAFE [[clang::autortfm_ensure_safe]]
+#define UE_AUTORTFM_ASSUME_SAFE [[clang::autortfm_assume_safe]]
+#else
+#define UE_AUTORTFM_ENSURE_SAFE
+#define UE_AUTORTFM_ASSUME_SAFE
 #endif
 
 #if defined(UE_AUTORTFM_STANDALONE)
 #include <stdlib.h>
 #include <memory.h>
 #include <type_traits>
+#include <utility>
 #define UE_AUTORTFM_API
 #define UE_AUTORTFM_FORCEINLINE inline
 #define UE_AUTORTFM_MEMCPY ::memcpy
+#define UE_AUTORTFM_MOVE std::move
+#define PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
+#define PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS
 #else
 #include <HAL/Platform.h>
 #include <HAL/PlatformMemory.h>
+#include <Templates/UnrealTemplate.h>
 #define UE_AUTORTFM_API CORE_API
 #define UE_AUTORTFM_FORCEINLINE FORCEINLINE
 #define UE_AUTORTFM_MEMCPY FPlatformMemory::Memcpy
+#define UE_AUTORTFM_MOVE MoveTemp
 #endif
 
 #if UE_AUTORTFM
@@ -66,8 +109,6 @@ typedef enum
 	autortfm_aborted_by_transact_in_on_commit,
 	autortfm_aborted_by_transact_in_on_abort,
 	autortfm_aborted_by_cascade,
-	autortfm_aborted_by_transact_in_open_commit [[deprecated("Use autortfm_aborted_by_transact_in_on_commit instead.")]] = autortfm_aborted_by_transact_in_on_commit,
-	autortfm_aborted_by_transact_in_open_abort [[deprecated("Use autortfm_aborted_by_transact_in_on_abort instead.")]] = autortfm_aborted_by_transact_in_on_abort,
 } autortfm_result;
 
 // This must match AutoRTFM::EContextStatus.
@@ -82,191 +123,230 @@ typedef enum
 	autortfm_status_aborted_by_cascade
 } autortfm_status;
 
-#if UE_AUTORTFM
-UE_AUTORTFM_API bool autortfm_is_transactional(void);
-#else
-UE_AUTORTFM_FORCEINLINE bool autortfm_is_transactional(void)
-{
-    return false;
-}
-#endif
-
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
+// Note: There is no implementation of this function.
+// The AutoRTFM compiler will replace all calls to this function with a constant boolean value.
 UE_AUTORTFM_API bool autortfm_is_closed(void);
 #else
-UE_AUTORTFM_FORCEINLINE bool autortfm_is_closed(void)
+static UE_AUTORTFM_FORCEINLINE bool autortfm_is_closed(void)
 {
     return false;
 }
 #endif
 
-#if UE_AUTORTFM
-UE_AUTORTFM_API autortfm_result autortfm_transact(void (*work)(void* arg), void* arg);
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API bool autortfm_is_transactional(void);
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact(void (*work)(void* arg), void* arg)
+static UE_AUTORTFM_FORCEINLINE bool autortfm_is_transactional(void)
 {
-	work(arg);
+    return false;
+}
+#endif
+
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API bool autortfm_is_committing_or_aborting(void);
+#else
+static UE_AUTORTFM_FORCEINLINE bool autortfm_is_committing_or_aborting(void)
+{
+	return false;
+}
+#endif
+
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
+#else
+static UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
+{
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UninstrumentedWork(Arg);
 	return autortfm_committed;
 }
 #endif
 
-#if UE_AUTORTFM
-UE_AUTORTFM_API autortfm_result autortfm_transact_then_open(void (*work)(void* arg), void* arg);
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API autortfm_result autortfm_transact_then_open(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact_then_open(void (*work)(void* arg), void* arg)
+static UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact_then_open(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	work(arg);
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UninstrumentedWork(Arg);
     return autortfm_committed;
 }
 #endif
 
-#if UE_AUTORTFM
-UE_AUTORTFM_API void autortfm_commit(void (*work)(void* arg), void* arg);
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API void autortfm_commit(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_commit(void (*work)(void* arg), void* arg)
+static UE_AUTORTFM_FORCEINLINE void autortfm_commit(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	UE_AUTORTFM_UNUSED(work);
-	UE_AUTORTFM_UNUSED(arg);
-    abort();
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UninstrumentedWork(Arg);
 }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API autortfm_result autortfm_abort_transaction();
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_abort_transaction() { return autortfm_aborted_by_request; }
+static UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_abort_transaction() { return autortfm_aborted_by_request; }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API autortfm_result autortfm_cascading_abort_transaction();
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_cascading_abort_transaction() { return autortfm_aborted_by_cascade; }
+static UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_cascading_abort_transaction() { return autortfm_aborted_by_cascade; }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API bool autortfm_start_transaction();
 #else
-UE_AUTORTFM_FORCEINLINE bool autortfm_start_transaction() { return false; }
+static UE_AUTORTFM_FORCEINLINE bool autortfm_start_transaction() { return false; }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API autortfm_result autortfm_commit_transaction();
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_commit_transaction() { return autortfm_aborted_by_language; }
+static UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_commit_transaction() { return autortfm_aborted_by_language; }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_clear_transaction_status();
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_clear_transaction_status() {}
+static UE_AUTORTFM_FORCEINLINE void autortfm_clear_transaction_status() {}
 #endif
 
-#if UE_AUTORTFM
-UE_AUTORTFM_API void autortfm_abort_if_transactional(void);
+#if UE_AUTORTFM_ENABLED
+static UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_transactional(void)
+{
+	if (autortfm_is_transactional())
+	{
+		autortfm_abort_transaction();
+	}
+}
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_transactional(void) { }
+static UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_transactional(void) { }
 #endif
 
-#if UE_AUTORTFM
-void autortfm_abort_if_closed(void);
+#if UE_AUTORTFM_ENABLED
+static UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_closed(void)
+{
+	if (autortfm_is_closed())
+	{
+		autortfm_abort_transaction();
+	}
+}
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_closed(void) { }
+static UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_closed(void) { }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_open(void (*work)(void* arg), void* arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_open(void (*work)(void* arg), void* arg) { work(arg); }
+static UE_AUTORTFM_FORCEINLINE void autortfm_open(void (*work)(void* arg), void* arg) { work(arg); }
 #endif
 
-#if UE_AUTORTFM
-[[nodiscard]] UE_AUTORTFM_API autortfm_status autortfm_close(void (*work)(void* arg), void* arg);
+#if UE_AUTORTFM_ENABLED
+[[nodiscard]] UE_AUTORTFM_API autortfm_status autortfm_close(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
 PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
-[[nodiscard]] UE_AUTORTFM_FORCEINLINE autortfm_status autortfm_close(void (*work)(void* arg), void* arg)
+[[nodiscard]] static UE_AUTORTFM_FORCEINLINE autortfm_status autortfm_close(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	UE_AUTORTFM_UNUSED(work);
-	UE_AUTORTFM_UNUSED(arg);
+	UE_AUTORTFM_UNUSED(UninstrumentedWork);
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UE_AUTORTFM_UNUSED(Arg);
     abort();
 	return autortfm_status_aborted_by_language;
 }
 PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_record_open_write(void* Ptr, size_t Size);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_record_open_write(void* Ptr, size_t Size)
+static UE_AUTORTFM_FORCEINLINE void autortfm_record_open_write(void* Ptr, size_t Size)
 {
 	UE_AUTORTFM_UNUSED(Ptr);
 	UE_AUTORTFM_UNUSED(Size);
 }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_register_open_function(void* original_function, void* new_function);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_register_open_function(void* original_function, void* new_function) 
+static UE_AUTORTFM_FORCEINLINE void autortfm_register_open_function(void* original_function, void* new_function) 
 { 
 	UE_AUTORTFM_UNUSED(original_function);
 	UE_AUTORTFM_UNUSED(new_function);
 }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API bool autortfm_is_on_current_transaction_stack(void* Ptr);
+#else
+static UE_AUTORTFM_FORCEINLINE bool autortfm_is_on_current_transaction_stack(void* Ptr)
+{
+	return false;
+}
+#endif
+
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_on_commit(void (*work)(void* arg), void* arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_on_commit(void (*work)(void* arg), void* arg)
+static UE_AUTORTFM_FORCEINLINE void autortfm_on_commit(void (*work)(void* arg), void* arg)
 {
     work(arg);
 }
 #endif
 
-[[deprecated("Use autortfm_on_commit instead.")]]
-UE_AUTORTFM_FORCEINLINE void autortfm_open_commit(void (*work)(void* arg), void* arg)
-{
-	autortfm_on_commit(work, arg);
-}
-
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_on_abort(void (*work)(void* arg), void* arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_on_abort(void (*work)(void* arg), void* arg)
+static UE_AUTORTFM_FORCEINLINE void autortfm_on_abort(void (*work)(void* arg), void* arg)
 {
 	UE_AUTORTFM_UNUSED(work);
 	UE_AUTORTFM_UNUSED(arg);
 }
 #endif
 
-[[deprecated("Use autortfm_on_abort instead.")]]
-UE_AUTORTFM_FORCEINLINE void autortfm_open_abort(void (*work)(void* arg), void* arg)
+#if UE_AUTORTFM_ENABLED
+UE_AUTORTFM_API void autortfm_push_on_abort_handler(const void* key, void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API void autortfm_pop_on_abort_handler(const void* key);
+#else
+static UE_AUTORTFM_FORCEINLINE void autortfm_push_on_abort_handler(const void* key, void (*work)(void* arg), void* arg)
 {
-	autortfm_on_abort(work, arg);
+	UE_AUTORTFM_UNUSED(key);
+	UE_AUTORTFM_UNUSED(work);
+	UE_AUTORTFM_UNUSED(arg);
 }
 
-#if UE_AUTORTFM
+static UE_AUTORTFM_FORCEINLINE void autortfm_pop_on_abort_handler(const void* key)
+{
+	UE_AUTORTFM_UNUSED(key);
+}
+#endif
+
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void* autortfm_did_allocate(void* ptr, size_t size);
 #else
-UE_AUTORTFM_FORCEINLINE void* autortfm_did_allocate(void* ptr, size_t size)
+static UE_AUTORTFM_FORCEINLINE void* autortfm_did_allocate(void* ptr, size_t size)
 {
 	UE_AUTORTFM_UNUSED(size);
     return ptr;
 }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_did_free(void* ptr);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_did_free(void* ptr)
+static UE_AUTORTFM_FORCEINLINE void autortfm_did_free(void* ptr)
 {
 	UE_AUTORTFM_UNUSED(ptr);
 }
 #endif
 
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_check_consistency_assuming_no_races(void);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_check_consistency_assuming_no_races(void) { }
+static UE_AUTORTFM_FORCEINLINE void autortfm_check_consistency_assuming_no_races(void) { }
 #endif
 
 // If running with AutoRTFM enabled, then perform an ABI check between the
@@ -275,10 +355,10 @@ UE_AUTORTFM_FORCEINLINE void autortfm_check_consistency_assuming_no_races(void) 
 // compiler pass. Should not be called manually by the user, a call to this will
 // be injected by the compiler into a global constructor in the AutoRTFM compiled
 // code.
-#if UE_AUTORTFM
+#if UE_AUTORTFM_ENABLED
 UE_AUTORTFM_API void autortfm_check_abi(void* ptr, size_t size);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_check_abi(void* ptr, size_t size)
+static UE_AUTORTFM_FORCEINLINE void autortfm_check_abi(void* ptr, size_t size)
 {
 	UE_AUTORTFM_UNUSED(ptr);
 	UE_AUTORTFM_UNUSED(size);
@@ -287,6 +367,10 @@ UE_AUTORTFM_FORCEINLINE void autortfm_check_abi(void* ptr, size_t size)
 
 #ifdef __cplusplus
 }
+
+#include <algorithm>
+#include <initializer_list>
+#include <tuple>
 
 namespace AutoRTFM
 {
@@ -311,18 +395,12 @@ enum class ETransactionResult
 	// The transaction aborted because in a call to OnAbort, a new transaction nest was attempted which is not allowed.
 	AbortedByTransactInOnAbort = autortfm_aborted_by_transact_in_on_abort,
 
-	// Deprecated use AbortedByTransactInOnCommit instead.
-	AbortedByTransactInOpenCommit [[deprecated("Use AbortedByTransactInOnCommit instead.")]] = autortfm_aborted_by_transact_in_on_commit,
-
-	// Deprecated use AbortedByTransactInOnAbort instead.
-	AbortedByTransactInOpenAbort [[deprecated("Use AbortedByTransactInOnAbort instead.")]] = autortfm_aborted_by_transact_in_on_abort,
-
 	// The transaction aborted because of an explicit call to CascadingAbortTransaction.
 	AbortedByCascade = autortfm_aborted_by_cascade
 };
 
 // The context status shows what state the AutoRTFM context is currently in. 
-enum class EContextStatus
+enum class EContextStatus : uint8_t
 {
 	// An Idle status means we are not in transactional code.
 	Idle = autortfm_status_idle,
@@ -349,21 +427,63 @@ enum class EContextStatus
 	AbortedByCascade = autortfm_status_aborted_by_cascade
 };
 
-// Tells if we are currently running in a transaction. This will return true in an
-// open nest (see Open).
-UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }
+#if UE_AUTORTFM
+namespace ForTheRuntime
+{
+	UE_AUTORTFM_API void OnCommitInternal(TFunction<void()>&& Work);
+	UE_AUTORTFM_API void OnAbortInternal(TFunction<void()>&& Work);
+	UE_AUTORTFM_API void PushOnAbortHandlerInternal(const void* Key, TFunction<void()>&& Work);
+	UE_AUTORTFM_API void PopOnAbortHandlerInternal(const void* Key);
+	UE_AUTORTFM_API void PopAllOnAbortHandlersInternal(const void* Key);
+} // namespace ForTheRuntime
+#endif
 
-// Tells if we are currently running in the closed nest of a transaction. By
-// default, transactional code is in a closed nest; the only way to be in an open
-// nest is to request it via Open.
-//
-// The advantages of this function over IsTransactional are:
-//
-// - It's faster, the compiler will constant-fold this.
-// - Usually, if you are doing special things for transactions, it's to work around
-//   the transactional openation in a closed nest. So, it's often more correct
-//   to test IsClosed than IsTransactional.
-UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
+template<typename TFunctor>
+void AutoRTFMFunctorInvoker(void* Arg) { (*static_cast<const TFunctor*>(Arg))(); }
+
+#if UE_AUTORTFM
+extern "C" UE_AUTORTFM_API void* autortfm_lookup_function(void* OriginalFunction, const char* Where);
+
+template<typename TFunctor>
+auto AutoRTFMLookupInstrumentedFunctorInvoker(const TFunctor& Functor) -> void(*)(void*)
+{
+	// keep this as a single expression to help ensure that even Debug builds optimize this.
+	// if we put intermediate results in local variables then the compiler emits loads
+	// and stores to the stack which confuse our custom pass that tries to strip away
+	// the actual call to autortfm_lookup_function
+	void (*Result)(void*) = reinterpret_cast<void(*)(void*)>(autortfm_lookup_function(reinterpret_cast<void*>(&AutoRTFMFunctorInvoker<TFunctor>), "AutoRTFMLookupInstrumentedFunctorInvoker"));
+	return Result;
+}
+#else
+template<typename TFunctor>
+auto AutoRTFMLookupInstrumentedFunctorInvoker(const TFunctor& Functor) -> void(*)(void*)
+{
+	return nullptr;
+}
+#endif
+
+// Tells if we are currently running in a transaction. This will return true in an open nest
+// (see `Open`). This function is handled specially in the compiler and will be constant folded
+// as true in closed code, or preserved as a function call in open code.
+static UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }
+
+// Tells if we are currently running in the closed nest of a transaction. By default,
+// transactional code is in a closed nest; the only way to be in an open nest is to request it
+// via `Open`. This function is handled specially in the compiler and will be constant folded
+// as true in closed code, and false in open code.
+static UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
+
+// Tells us if we are currently committing or aborting a transaction. This will return true
+// in an on-abort or on-commit.
+static UE_AUTORTFM_FORCEINLINE bool IsCommittingOrAborting() { return autortfm_is_committing_or_aborting(); }
+
+// Returns true if the passed-in pointer is on the stack of the currently-executing transaction.
+// This is occasionally necessary when writing OnAbort handlers for objects on the stack, since 
+// we don't want to scribble on stack memory that might have been reused.
+static UE_AUTORTFM_FORCEINLINE bool IsOnCurrentTransactionStack(void* Ptr) 
+{ 
+	return autortfm_is_on_current_transaction_stack(Ptr);
+}
 
 // Run the functor in a transaction. Memory writes and other side effects get instrumented
 // and will be reversed if the transaction aborts.
@@ -374,11 +494,16 @@ UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
 //
 // If AutoRTFM is disabled, the code will be ran non-transactionally.
 template<typename TFunctor>
-UE_AUTORTFM_FORCEINLINE ETransactionResult Transact(const TFunctor& Functor)
+static UE_AUTORTFM_FORCEINLINE ETransactionResult Transact(const TFunctor& Functor)
 {
-    return static_cast<ETransactionResult>(autortfm_transact(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor))));
+	ETransactionResult Result =
+		static_cast<ETransactionResult>(
+			autortfm_transact(
+				&AutoRTFMFunctorInvoker<TFunctor>,
+				AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+				const_cast<void*>(static_cast<const void*>(&Functor))));
+
+	return Result;
 }
 
 // This is just like calling Transact([&] { Open([&] { Functor(); }); });  
@@ -386,26 +511,32 @@ UE_AUTORTFM_FORCEINLINE ETransactionResult Transact(const TFunctor& Functor)
 // be compiled with the AutoRTFM instrumentation of functions if the only
 // thing that's being invoked is a function in the open.
 template<typename TFunctor>
-UE_AUTORTFM_FORCEINLINE ETransactionResult TransactThenOpen(const TFunctor& Functor)
+static UE_AUTORTFM_FORCEINLINE ETransactionResult TransactThenOpen(const TFunctor& Functor)
 {
-	return static_cast<ETransactionResult>(autortfm_transact_then_open(
-		[] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-		const_cast<void*>(static_cast<const void*>(&Functor))));
+	ETransactionResult Result =
+		static_cast<ETransactionResult>(
+			autortfm_transact_then_open(
+				&AutoRTFMFunctorInvoker<TFunctor>,
+				AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+				const_cast<void*>(static_cast<const void*>(&Functor))));
+
+	return Result;
 }
 
 // Run the callback in a transaction like Transact, but abort program
 // execution if the result is anything other than autortfm_committed.
 // Useful for testing.
 template<typename TFunctor>
-UE_AUTORTFM_FORCEINLINE void Commit(const TFunctor& Functor)
+static UE_AUTORTFM_FORCEINLINE void Commit(const TFunctor& Functor)
 {
     autortfm_commit(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor)));
+		&AutoRTFMFunctorInvoker<TFunctor>,
+		AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+		const_cast<void*>(static_cast<const void*>(&Functor)));
 }
 
 // End a transaction and discard all effects.
-UE_AUTORTFM_FORCEINLINE ETransactionResult AbortTransaction()
+static UE_AUTORTFM_FORCEINLINE ETransactionResult AbortTransaction()
 {
 	return static_cast<ETransactionResult>(autortfm_abort_transaction());
 }
@@ -413,41 +544,184 @@ UE_AUTORTFM_FORCEINLINE ETransactionResult AbortTransaction()
 // End a transaction nest and discard all effects. This cascades, meaning
 // an abort of a nested transaction will cause all transactions in the
 // nest to abort.
-UE_AUTORTFM_FORCEINLINE ETransactionResult CascadingAbortTransaction()
+static UE_AUTORTFM_FORCEINLINE ETransactionResult CascadingAbortTransaction()
 {
 	return static_cast<ETransactionResult>(autortfm_cascading_abort_transaction());
 }
 
 // Abort if running in a transaction.
-UE_AUTORTFM_FORCEINLINE void AbortIfTransactional()
+static UE_AUTORTFM_FORCEINLINE void AbortIfTransactional()
 {
     autortfm_abort_if_transactional();
 }
 
 // Abort if running in closed code.
-UE_AUTORTFM_FORCEINLINE void AbortIfClosed()
+static UE_AUTORTFM_FORCEINLINE void AbortIfClosed()
 {
     autortfm_abort_if_closed();
 }
 
-// Executes the given code non-transactionally regardless of whether we are in
-// a transaction or not.
-template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void Open(const TFunctor& Functor)
+namespace Detail
 {
-    autortfm_open(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor)));
+template <typename T, typename = void>
+struct THasAssignFromOpenToClosedMethod : std::false_type {};
+template <typename T>
+struct THasAssignFromOpenToClosedMethod<T, std::void_t<decltype(T::AutoRTFMAssignFromOpenToClosed(std::declval<T&>(), std::declval<T>()))>> : std::true_type {};
+}
+
+// Evaluates to true if the type T has a static method with the signature:
+//    static void AutoRTFMAssignFromOpenToClosed(T& Closed, U Open)
+// Where `U` is `T`, `const T&` or `T&&`. Supports both copy assignment and move assignment.
+template <typename T>
+static constexpr bool HasAssignFromOpenToClosedMethod = Detail::THasAssignFromOpenToClosedMethod<T>::value;
+
+// Template class used to declare a method for safely copying or moving an 
+// object of type T from open to closed transactions.
+// Specializations of TAssignFromOpenToClosed must have at least one static
+// method with the signature:
+//   static void Assign(T& Closed, U Open);
+// Where `U` is `T`, `const T&` or `T&&`. Supports both copy assignment and move assignment.
+//
+// TAssignFromOpenToClosed has pre-declared specializations for basic primitive
+// types, and can be extended with user-declared template specializations.
+//
+// TAssignFromOpenToClosed has a pre-declared specialization that detects and
+// calls a static method on T with the signature:
+//    static void AutoRTFMAssignFromOpenToClosed(T& Closed, U Open)
+// Where `U` is `T`, `const T&` or `T&&`. Supports both copy assignment and move assignment.
+template<typename T, typename = void>
+struct TAssignFromOpenToClosed;
+
+namespace Detail
+{
+template <typename T, typename = void>
+struct THasAssignFromOpenToClosedTrait : std::false_type {};
+template <typename T>
+struct THasAssignFromOpenToClosedTrait<T, std::void_t<decltype(TAssignFromOpenToClosed<T>::Assign(std::declval<T&>(), std::declval<T>()))>> : std::true_type {};
+}
+
+// Evaluates to true if the type T supports assigning from open to closed transactions.
+template <typename T>
+static constexpr bool HasAssignFromOpenToClosedTrait = Detail::THasAssignFromOpenToClosedTrait<T>::value;
+
+// Specialization of TAssignFromOpenToClosed for fundamental types.
+template <typename T>
+struct TAssignFromOpenToClosed<T, std::enable_if_t<std::is_fundamental_v<T>>>
+{
+	UE_AUTORTFM_FORCEINLINE static void Assign(T& Closed, T Open) { Closed = Open; }
+};
+
+// Specialization of TAssignFromOpenToClosed for raw pointer types.
+template <typename T>
+struct TAssignFromOpenToClosed<T*, void>
+{
+	UE_AUTORTFM_FORCEINLINE static void Assign(T*& Closed, T* Open) { Closed = Open; }
+};
+
+// Specialization of TAssignFromOpenToClosed for std::tuple.
+template <typename ... TYPES>
+struct TAssignFromOpenToClosed<std::tuple<TYPES...>, std::enable_if_t<(HasAssignFromOpenToClosedTrait<TYPES> && ...)>>
+{
+	template<size_t I = 0, typename SRC = void>
+	UE_AUTORTFM_FORCEINLINE static void AssignElements(std::tuple<TYPES...>& Closed, SRC&& Open)
+	{
+		if constexpr(I < sizeof...(TYPES))
+		{
+			using E = std::tuple_element_t<I, std::tuple<TYPES...>>;
+			TAssignFromOpenToClosed<E>::Assign(std::get<I>(Closed), std::get<I>(std::forward<SRC>(Open)));
+			AssignElements<I+1>(Closed, std::forward<SRC>(Open));
+		}
+	}
+
+	template<typename SRC>
+	UE_AUTORTFM_FORCEINLINE static void Assign(std::tuple<TYPES...>& Closed, SRC&& Open)
+	{
+		AssignElements(Closed, std::forward<SRC>(Open));
+	}
+};
+
+// Specialization of TAssignFromOpenToClosed for types that have a static method
+// with the signature:
+//    static void AutoRTFMAssignFromOpenToClosed(T& Closed, U Open)
+// Where `U` is `T`, `const T&` or `T&&`. Supports both copy assignment and move assignment.
+template <typename T>
+struct TAssignFromOpenToClosed<T, std::enable_if_t<HasAssignFromOpenToClosedMethod<T>>>
+{
+	template<typename OPEN>
+	UE_AUTORTFM_FORCEINLINE static void Assign(T& Closed, OPEN&& Open)
+	{
+		Closed.AutoRTFMAssignFromOpenToClosed(Closed, std::forward<OPEN>(Open));
+	}
+};
+
+// Specialization of TAssignFromOpenToClosed for `void` (used to make IsSafeToReturnFromOpen<void> work).
+template <>
+struct TAssignFromOpenToClosed<void, void>;
+
+// Evaluates to true if the type T is safe to return from Open().
+template <typename T>
+static constexpr bool IsSafeToReturnFromOpen = HasAssignFromOpenToClosedTrait<T> || std::is_same_v<T, void>;
+
+// Executes the given code non-transactionally regardless of whether we are in
+// a transaction or not. Returns the value returned by Functor.
+// TReturn must be void or a type that can be safely copied from the open to a closed transaction.
+// TAssignFromOpenToClosed must have a specialization for the type that is being returned.
+template<typename TFunctor, typename TReturn = decltype(std::declval<TFunctor>()())>
+static UE_AUTORTFM_FORCEINLINE TReturn Open(const TFunctor& Functor)
+{
+	static_assert(IsSafeToReturnFromOpen<TReturn>,
+		"function return type is not safe to return from Open()");
+
+	if (!autortfm_is_closed())
+	{
+		return Functor();
+	}
+
+	if constexpr (IsSafeToReturnFromOpen<TReturn>)
+	{
+		if constexpr (std::is_same_v<void, TReturn>)
+		{
+			struct FCallHelper
+			{
+				UE_AUTORTFM_NOAUTORTFM static void Call(void* Arg)
+				{
+					const TFunctor& Fn = *reinterpret_cast<TFunctor*>(Arg);
+					UE_AUTORTFM_CALLSITE_FORCEINLINE Fn();
+				}
+			};
+			autortfm_open(&FCallHelper::Call, const_cast<void*>(static_cast<const void*>(&Functor)));
+		}
+		else
+		{
+			struct FCallHelper
+			{
+				UE_AUTORTFM_NOAUTORTFM static void Call(void* Arg)
+				{
+					FCallHelper& Self = *reinterpret_cast<FCallHelper*>(Arg);
+					UE_AUTORTFM_CALLSITE_FORCEINLINE
+						TAssignFromOpenToClosed<TReturn>::Assign(Self.ReturnValue, std::move(Self.Functor()));
+				}
+				const TFunctor& Functor;
+				TReturn ReturnValue{};
+			};
+			FCallHelper Helper{Functor};
+			autortfm_open(&FCallHelper::Call, reinterpret_cast<void*>(&Helper));
+			return Helper.ReturnValue;
+		}
+	}
 }
 
 // Always executes the given code transactionally when called from a transaction nest
 // (whether we are in open or closed code).
 //
 // Will crash if called outside of a transaction nest.
-template<typename TFunctor> [[nodiscard]] UE_AUTORTFM_FORCEINLINE EContextStatus Close(const TFunctor& Functor)
+template<typename TFunctor> [[nodiscard]] static UE_AUTORTFM_FORCEINLINE EContextStatus Close(const TFunctor& Functor)
 {
-    return static_cast<EContextStatus>(autortfm_close(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor))));
+    return static_cast<EContextStatus>(
+		autortfm_close(
+			&AutoRTFMFunctorInvoker<TFunctor>,
+			AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+			const_cast<void*>(static_cast<const void*>(&Functor))));
 }
 
 #if UE_AUTORTFM
@@ -455,41 +729,82 @@ template<typename TFunctor> [[nodiscard]] UE_AUTORTFM_FORCEINLINE EContextStatus
 // this just adds the work to the work deferred until the outer nest's commit.
 // If this is called outside a transaction or from an open nest then the work
 // happens immediately.
-UE_AUTORTFM_API void OnCommit(TFunction<void()>&& Work);
+template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor& Work)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::OnCommitInternal(Work);
+	}
+	else
+	{
+		UE_AUTORTFM_CALLSITE_FORCEINLINE Work();
+	}
+}
 #else
 // Have some work happen when this transaction commits. For nested transactions,
 // this just adds the work to the work deferred until the outer nest's commit.
 // If this is called outside a transaction or from an open nest then the work
 // happens immediately.
-template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor& Work) { Work(); }
+template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor& Work) { Work(); }
 #endif
 
 #if UE_AUTORTFM
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.
-UE_AUTORTFM_API void OnAbort(TFunction<void()>&& Work);
+template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor& Work)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::OnAbortInternal(Work);
+	}
+}
+
+// Register a handler for transaction abort. Takes a key parameter so that
+// the handler can be unregistered (see PopOnAbortHandler). This is useful
+// for scoped mutations that need an abort handler present unless execution
+// reaches the end of the relevant scope.
+template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void PushOnAbortHandler(const void* Key, const TFunctor& Work)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::PushOnAbortHandlerInternal(Key, Work);
+	}
+}
+
+// Unregister the most recently pushed handler (via PushOnAbortHandler) for the given key.
+static UE_AUTORTFM_FORCEINLINE void PopOnAbortHandler(const void* Key)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::PopOnAbortHandlerInternal(Key);
+	}
+}
+
+// Unregister all pushed handlers (via PushOnAbortHandler) for the given key.
+static UE_AUTORTFM_FORCEINLINE void PopAllOnAbortHandlers(const void* Key)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::PopAllOnAbortHandlersInternal(Key);
+	}
+}
 #else
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.
-template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor&) {}
-#endif
+template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor&) {}
 
-#if UE_AUTORTFM
-[[deprecated("Use OnCommit instead.")]]
-UE_AUTORTFM_API void OpenCommit(TFunction<void()>&& Work);
-#else
-template<typename TFunctor>
-[[deprecated("Use OnCommit instead.")]]
-UE_AUTORTFM_FORCEINLINE void OpenCommit(const TFunctor& Work) { Work(); }
-#endif
+// Register a handler for transaction abort. Takes a key parameter so that
+// the handler can be unregistered (see PopOnAbortHandler). This is useful
+// for scoped mutations that need an abort handler present unless execution
+// reaches the end of the relevant scope.
+template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void PushOnAbortHandler(const void* Key, const TFunctor&) {}
 
-#if UE_AUTORTFM
-[[deprecated("Use OnAbort instead.")]]
-UE_AUTORTFM_API void OpenAbort(TFunction<void()>&& Work);
-#else
-template<typename TFunctor>
-[[deprecated("Use OnAbort instead.")]]
-UE_AUTORTFM_FORCEINLINE void OpenAbort(const TFunctor& Work) {}
+// Unregister the most recently pushed handler (via PushOnAbortHandler) for the given key.
+static UE_AUTORTFM_FORCEINLINE void PopOnAbortHandler(const void* Key) {}
+
+
+// Unregister all pushed handlers (via PushOnAbortHandler) for the given key.
+static UE_AUTORTFM_FORCEINLINE void PopAllOnAbortHandlers(const void* Key) {}
 #endif
 
 // Inform the runtime that we have performed a new object allocation. It's only
@@ -498,30 +813,43 @@ UE_AUTORTFM_FORCEINLINE void OpenAbort(const TFunctor& Work) {}
 // returned by this function. It's guaranteed to be equal to the pointer you
 // passed, but it's blessed specially from the compiler's perspective, leading
 // to some nice optimizations. This does nothing when called from open code.
-UE_AUTORTFM_FORCEINLINE void* DidAllocate(void* Ptr, size_t Size)
+static UE_AUTORTFM_FORCEINLINE void* DidAllocate(void* Ptr, size_t Size)
 {
     return autortfm_did_allocate(Ptr, Size);
 }
 
 // Inform the runtime that we have free'd a given memory location.
-UE_AUTORTFM_FORCEINLINE void DidFree(void* Ptr)
+static UE_AUTORTFM_FORCEINLINE void DidFree(void* Ptr)
 {
     autortfm_did_free(Ptr);
+}
+
+// Informs the runtime that a block of memory is about to be overwritten in the open.
+// During a transaction, this allows the runtime to copy the data in preparation for
+// a possible abort. Normally, tracking memory overwrites should be automatically
+// handled by AutoRTFM, but manual overwrite tracking may be required for third-party 
+// libraries or outside compilers (such as ISPC).
+static UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(void* Ptr, size_t Size)
+{
+	autortfm_record_open_write(Ptr, Size);
+}
+
+// Informs the runtime that a block of memory is about to be overwritten.
+template<typename TTYPE> static UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(TTYPE* Ptr)
+{
+	autortfm_record_open_write(Ptr, sizeof(TTYPE));
 }
 
 // A collection of power-user functions that are reserved for use by the AutoRTFM runtime only.
 namespace ForTheRuntime
 {
-	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONABORT instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnAbortMacro() {}
-	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONCOMMIT instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnCommitMacro() {}
-
 	// An enum to represent the various ways we want to enable/disable the AutoRTFM runtime.
 	enum EAutoRTFMEnabledState
 	{
 		// Disable AutoRTFM.
 		AutoRTFM_Disabled = 0,
 
-		// Enable AutoRTFM.
+		// Enable AutoRTFM for *all* Verse code (not just failure contexts).
 		AutoRTFM_Enabled,
 
 		// Force disable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
@@ -529,18 +857,59 @@ namespace ForTheRuntime
 
 		// Force enable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
 		AutoRTFM_ForcedEnabled,
+
+		AutoRTFM_EnabledForAllVerse [[deprecated("Use AutoRTFM_Enabled instead!")]],
 	};
 
-	// Set whether the AutoRTFM runtime is enabled or disabled.
-	UE_AUTORTFM_API bool SetAutoRTFMRuntime(EAutoRTFMEnabledState bEnabled);
+	// An enum to represent whether we should abort and retry transactions (for testing purposes).
+	enum EAutoRTFMRetryTransactionState 
+	{
+		// Do not abort and retry transactions (the default).
+		NoRetry = 0,
+
+		// Abort and retry non-nested transactions (EG. only abort the parent transactional nest).
+		RetryNonNested,
+
+		// Abort and retry nested-transactions too. Will be slower as each nested-transaction will
+		// be aborted and retried at least *twice* (once when the non-nested transaction runs the
+		// first time, and a second time when the non-nested transaction is doing its retry after
+		// aborting).
+		RetryNestedToo,
+	};
+
+	// Set whether the AutoRTFM runtime is enabled or disabled. Returns true when the state was changed
+	// successfully.
+	UE_AUTORTFM_API bool SetAutoRTFMRuntime(EAutoRTFMEnabledState State);
 
 	// Query whether the AutoRTFM runtime is enabled.
 	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabled();
 
+	// Query whether the AutoRTFM runtime is enabled for *all* Verse code (not just failure contexts).
+	[[deprecated("Use IsAutoRTFMRuntimeEnabled instead!")]]
+	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabledForAllVerse();
+
+	// Set whether we should trigger an ensure on an abort-by-language.
+	UE_AUTORTFM_API void SetEnsureOnAbortByLanguage(bool bEnabled);
+
+	// Returns whether the runtime will trigger an ensure on an abort-by-language, or not.
+	UE_AUTORTFM_API bool IsEnsureOnAbortByLanguageEnabled();
+
+	// Set whether we should retry transactions.
+	UE_AUTORTFM_API void SetRetryTransaction(EAutoRTFMRetryTransactionState State);
+
+	// Returns whether we should retry transactions.
+	UE_AUTORTFM_API EAutoRTFMRetryTransactionState GetRetryTransaction();
+
+	// Returns true if we should retry non-nested transactions.
+	UE_AUTORTFM_API bool ShouldRetryNonNestedTransactions();
+
+	// Returns true if we should also retry nested transactions.
+	UE_AUTORTFM_API bool ShouldRetryNestedTransactionsToo();
+
 	// Manually create a new transaction from open code and push it as a transaction nest.
 	// Can only be called within an already active parent transaction (EG. this cannot start
 	// a transaction nest itself).
-	UE_AUTORTFM_FORCEINLINE bool StartTransaction()
+	static UE_AUTORTFM_FORCEINLINE bool StartTransaction()
 	{
 		return autortfm_start_transaction();
 	}
@@ -548,13 +917,13 @@ namespace ForTheRuntime
 	// Manually commit the top transaction nest, popping it from the execution scope.
 	// Can only be called within an already active parent transaction (EG. this cannot end
 	// a transaction nest itself).
-	UE_AUTORTFM_FORCEINLINE ETransactionResult CommitTransaction()
+	static UE_AUTORTFM_FORCEINLINE ETransactionResult CommitTransaction()
 	{
 		return static_cast<ETransactionResult>(autortfm_commit_transaction());
 	}
 
 	// Manually clear the status of a user abort from the top transaction in a nest.
-	UE_AUTORTFM_FORCEINLINE void ClearTransactionStatus()
+	static UE_AUTORTFM_FORCEINLINE void ClearTransactionStatus()
 	{
 		autortfm_clear_transaction_status();
 	}
@@ -571,7 +940,7 @@ namespace ForTheRuntime
 	// This results in calls to ClosedVariant to happen in open mode. We will call
 	// ClosedVariant's nontransactional version within the transaction. This happens
 	// with the additional caveat that the function signatures must match.
-	UE_AUTORTFM_FORCEINLINE void RegisterOpenFunction(void* const OpenFunction, void* const ClosedVariant)
+	static UE_AUTORTFM_FORCEINLINE void RegisterOpenFunction(void* const OpenFunction, void* const ClosedVariant)
 	{
 		autortfm_register_open_function(OpenFunction, ClosedVariant);
 	}
@@ -584,33 +953,21 @@ namespace ForTheRuntime
 		}
 	};
 
-	// Manually records that the memory span was written in the current transaction.
-	UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(void* Ptr, size_t Size)
-	{
-		autortfm_record_open_write(Ptr, Size);
-	}
-
-	// Manually records that the memory span was written in the current transaction.
-	template<typename TTYPE> UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(TTYPE* Ptr)
-	{
-		autortfm_record_open_write(Ptr, sizeof(TTYPE));
-	}
+	// Reserved for future.
+	static UE_AUTORTFM_FORCEINLINE void RecordOpenRead(void const*, size_t) {}
 
 	// Reserved for future.
-	UE_AUTORTFM_FORCEINLINE void RecordOpenRead(void const*, size_t) {}
-
-	// Reserved for future.
-	template<typename TTYPE> UE_AUTORTFM_FORCEINLINE void RecordOpenRead(TTYPE*) {}
+	template<typename TTYPE> static UE_AUTORTFM_FORCEINLINE void RecordOpenRead(TTYPE*) {}
 
 	// WriteMemory first records the memory span as written (see RecordOpenWrite) and then copies the specified value into it.
-	UE_AUTORTFM_FORCEINLINE void WriteMemory(void* DestPtr, void const* SrcPtr, size_t Size)
+	static UE_AUTORTFM_FORCEINLINE void WriteMemory(void* DestPtr, void const* SrcPtr, size_t Size)
 	{
 		RecordOpenWrite(DestPtr, Size);
 		UE_AUTORTFM_MEMCPY(DestPtr, SrcPtr, Size);
 	}
 
 	// WriteMemory first records the memory span as written (see RecordOpenWrite) and then copies the specified value into it.
-	template<typename TTYPE> UE_AUTORTFM_FORCEINLINE void WriteMemory(TTYPE* DestPtr, TTYPE const* SrcPtr)
+	template<typename TTYPE> static UE_AUTORTFM_FORCEINLINE void WriteMemory(TTYPE* DestPtr, TTYPE const* SrcPtr)
 	{
 		if constexpr (std::is_trivially_copyable<TTYPE>::value)
 		{
@@ -624,7 +981,7 @@ namespace ForTheRuntime
 	}
 
 	// WriteMemory first records the memory span as written (see RecordOpenWrite) and then copies the specified value into it.
-	template<typename TTYPE> UE_AUTORTFM_FORCEINLINE void WriteMemory(TTYPE* DestPtr, TTYPE const SrcValue)
+	template<typename TTYPE> static UE_AUTORTFM_FORCEINLINE void WriteMemory(TTYPE* DestPtr, TTYPE const SrcValue)
 	{
 		if constexpr (std::is_trivially_copyable<TTYPE>::value)
 		{
@@ -642,76 +999,53 @@ namespace ForTheRuntime
 	// expected values with the actual values in global memory. Does nothing when
 	// called outside of a transaction. May do nothing if debugging features aren't
 	// enabled in the autortfm runtime.
-	UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces()
+	static UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces()
 	{
 		autortfm_check_consistency_assuming_no_races();
 	}
 
 } // namespace ForTheRuntime
 
-enum EAutoRTFMEnabledState
-{
-	AutoRTFM_Disabled = ForTheRuntime::AutoRTFM_Disabled,
-	AutoRTFM_Enabled = ForTheRuntime::AutoRTFM_Enabled,
-	AutoRTFM_ForcedDisabled = ForTheRuntime::AutoRTFM_ForcedDisabled,
-};
-
-// Deprecated use AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime instead.")]]
-UE_AUTORTFM_FORCEINLINE bool SetAutoRTFMRuntime(EAutoRTFMEnabledState bEnabled) { return ForTheRuntime::SetAutoRTFMRuntime(static_cast<ForTheRuntime::EAutoRTFMEnabledState>(bEnabled)); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::IsAutoRTFMRuntimeEnabled instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::IsAutoRTFMRuntimeEnabled instead.")]]
-UE_AUTORTFM_FORCEINLINE bool IsAutoRTFMRuntimeEnabled() { return ForTheRuntime::IsAutoRTFMRuntimeEnabled(); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::StartTransaction instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::StartTransaction instead.")]]
-UE_AUTORTFM_FORCEINLINE bool StartTransaction() { return ForTheRuntime::StartTransaction(); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::CommitTransaction instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::CommitTransaction instead.")]]
-UE_AUTORTFM_FORCEINLINE ETransactionResult CommitTransaction() { return ForTheRuntime::CommitTransaction(); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::ClearTransactionStatus instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::ClearTransactionStatus instead.")]]
-UE_AUTORTFM_FORCEINLINE void ClearTransactionStatus() { return ForTheRuntime::ClearTransactionStatus(); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::RegisterOpenFunction instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::RegisterOpenFunction instead.")]]
-UE_AUTORTFM_FORCEINLINE void RegisterOpenFunction(void* OriginalFunction, void* NewFunction) { return ForTheRuntime::RegisterOpenFunction(OriginalFunction, NewFunction); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::RecordOpenWrite instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::RecordOpenWrite instead.")]]
-UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(void* Ptr, size_t Size) { ForTheRuntime::RecordOpenWrite(Ptr, Size); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::RecordOpenWrite instead.
-template<typename TTYPE> [[deprecated("Use AutoRTFM::ForTheRuntime::RecordOpenWrite instead.")]] UE_AUTORTFM_FORCEINLINE void RecordOpenWrite(TTYPE* Ptr) { return ForTheRuntime::RecordOpenWrite(Ptr); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::RecordOpenRead instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::RecordOpenRead instead.")]]
-UE_AUTORTFM_FORCEINLINE void RecordOpenRead(void const* Ptr, size_t Size) { return ForTheRuntime::RecordOpenRead(Ptr, Size); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::RecordOpenRead instead.
-template<typename TTYPE> [[deprecated("Use AutoRTFM::ForTheRuntime::RecordOpenRead instead.")]] UE_AUTORTFM_FORCEINLINE void RecordOpenRead(TTYPE* Ptr) { return ForTheRuntime::RecordOpenRead(Ptr); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::WriteMemory instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::WriteMemory instead.")]]
-UE_AUTORTFM_FORCEINLINE void WriteMemory(void* D, void const* S, size_t Size) { return ForTheRuntime::WriteMemory(D, S, Size); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::WriteMemory instead.
-template<typename TTYPE> [[deprecated("Use AutoRTFM::ForTheRuntime::WriteMemory instead.")]] UE_AUTORTFM_FORCEINLINE void WriteMemory(TTYPE* D, TTYPE const* S) { return ForTheRuntime::WriteMemory(D, S); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::WriteMemory instead.
-template<typename TTYPE> [[deprecated("Use AutoRTFM::ForTheRuntime::WriteMemory instead.")]] UE_AUTORTFM_FORCEINLINE void WriteMemory(TTYPE* D, TTYPE const S) { return ForTheRuntime::WriteMemory(D, S); }
-
-// Deprecated use AutoRTFM::ForTheRuntime::CheckConsistencyAssumingNoRaces instead.
-[[deprecated("Use AutoRTFM::ForTheRuntime::CheckConsistencyAssumingNoRaces instead.")]]
-UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces() { return ForTheRuntime::CheckConsistencyAssumingNoRaces(); }
-
 } // namespace AutoRTFM
 
 // Macro-based variants so we completely compile away when not in use, even in debug builds
 #if UE_AUTORTFM
+
+namespace AutoRTFM::Private
+{
+	struct FOpenHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::Open(UE_AUTORTFM_MOVE(F));
+		}
+	};
+	struct FOnAbortHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::OnAbort(UE_AUTORTFM_MOVE(F));
+		}
+	};
+	struct FOnCommitHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::OnCommit(UE_AUTORTFM_MOVE(F));
+		}
+	};
+	struct FTransactHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::Transact(UE_AUTORTFM_MOVE(F));
+		}
+	};
+} // namespace AutoRTFM::Private
 
 #if defined(__clang__) && __has_warning("-Wdeprecated-this-capture")
 #define UE_AUTORTFM_BEGIN_DISABLE_WARNINGS _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wdeprecated-this-capture\"")
@@ -721,44 +1055,48 @@ UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces() { return ForTheRu
 #define UE_AUTORTFM_END_DISABLE_WARNINGS
 #endif
 
-#define UE_AUTORTFM_OPEN_IMPL(...) AutoRTFM::Open([&]() { __VA_ARGS__ })
-#define UE_AUTORTFM_ONABORT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OnAbort([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
-#define UE_AUTORTFM_ONCOMMIT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OnCommit([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
-#define UE_AUTORTFM_TRANSACT_IMPL(...) AutoRTFM::Transact([&]() { __VA_ARGS__ })
+#define UE_AUTORTFM_OPEN_IMPL          ::AutoRTFM::Private::FOpenHelper{} + [&]()
+#define UE_AUTORTFM_ONABORT_IMPL(...)  ::AutoRTFM::Private::FOnAbortHelper{} + [__VA_ARGS__]()
+#define UE_AUTORTFM_ONCOMMIT_IMPL(...) ::AutoRTFM::Private::FOnCommitHelper{} + [__VA_ARGS__]()
+#define UE_AUTORTFM_TRANSACT_IMPL      ::AutoRTFM::Private::FTransactHelper{} + [&]() { __VA_ARGS__ })
 #else
-#define UE_AUTORTFM_OPEN_IMPL(...) do { __VA_ARGS__ } while (false)
-#define UE_AUTORTFM_ONABORT_IMPL(...) do { /* do nothing */ } while (false)
-#define UE_AUTORTFM_ONCOMMIT_IMPL(...) do { __VA_ARGS__ } while (false)
-#define UE_AUTORTFM_TRANSACT_IMPL(...) do { __VA_ARGS__ } while (false)
+
+// Do nothing, these should be followed by blocks that should be either executed or not executed
+#define UE_AUTORTFM_OPEN_IMPL
+#define UE_AUTORTFM_ONABORT_IMPL(...) while (false)
+#define UE_AUTORTFM_ONCOMMIT_IMPL(...)
+#define UE_AUTORTFM_TRANSACT_IMPL
 #endif
 
 // Runs a block of code in the open, non-transactionally. Anything performed in the open will not be undone if a transaction fails.
-#define UE_AUTORTFM_OPEN(...) UE_AUTORTFM_OPEN_IMPL(__VA_ARGS__)
+// Calls should be written like this: UE_AUTORTFM_OPEN { ... code ... };
+#define UE_AUTORTFM_OPEN  UE_AUTORTFM_OPEN_IMPL
+#define UE_AUTORTFM_OPEN2 UE_AUTORTFM_OPEN_IMPL
 
 // Runs a block of code if a transaction aborts.
 // In non-transactional code paths the block of code will not be executed at all.
-// This captures any used variables from the parent function by-value.
-#define UE_AUTORTFM_ONABORT(...) UE_AUTORTFM_ONABORT_IMPL(__VA_ARGS__)
+// The macro arguments are the capture specification for the lambda.
+// Calls should be written like this: UE_AUTORTFM_ONABORT(=) { ... code ... };
+#define UE_AUTORTFM_ONABORT(...)  UE_AUTORTFM_ONABORT_IMPL(__VA_ARGS__)
+#define UE_AUTORTFM_ONABORT2(...) UE_AUTORTFM_ONABORT_IMPL(__VA_ARGS__)
 
 // Runs a block of code if a transaction commits successfully.
 // In non-transactional code paths the block of code will be executed immediately.
-// This captures any used variables from the parent function by-value.
-#define UE_AUTORTFM_ONCOMMIT(...) UE_AUTORTFM_ONCOMMIT_IMPL(__VA_ARGS__)
+// The macro arguments are the capture specification for the lambda.
+// Calls should be written like this: UE_AUTORTFM_ONCOMMIT(=) { ... code ... };
+#define UE_AUTORTFM_ONCOMMIT(...)  UE_AUTORTFM_ONCOMMIT_IMPL(__VA_ARGS__)
+#define UE_AUTORTFM_ONCOMMIT2(...) UE_AUTORTFM_ONCOMMIT_IMPL(__VA_ARGS__)
 
 // Runs a block of code in the closed, transactionally, within a new transaction.
-#define UE_AUTORTFM_TRANSACT(...) UE_AUTORTFM_TRANSACT_IMPL(__VA_ARGS__)
-
-// Deprecated. Use UE_AUTORTFM_ONABORT instead.
-#define UE_AUTORTFM_OPENABORT(...) UE_AUTORTFM_ONABORT(AutoRTFM::ForTheRuntime::DeprecatedUseOnAbortMacro(); __VA_ARGS__)
-
-// Deprecated. Use UE_AUTORTFM_ONCOMMIT instead.
-#define UE_AUTORTFM_OPENCOMMIT(...) UE_AUTORTFM_ONCOMMIT(AutoRTFM::ForTheRuntime::DeprecatedUseOnCommitMacro(); __VA_ARGS__)
+// Calls should be written like this: UE_AUTORTFM_TRANSACT { ... code ... };
+#define UE_AUTORTFM_TRANSACT  UE_AUTORTFM_TRANSACT_IMPL
+#define UE_AUTORTFM_TRANSACT2 UE_AUTORTFM_TRANSACT_IMPL
 
 #define UE_AUTORTFM_CONCAT_IMPL(A, B) A ## B
 #define UE_AUTORTFM_CONCAT(A, B) UE_AUTORTFM_CONCAT_IMPL(A, B)
 
 #if UE_AUTORTFM
-#define UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT_IMPL(OriginalFunction, NewFunction) static const ForTheRuntime::FRegisterOpenFunction UE_AUTORTFM_CONCAT(AutoRTFMFunctionRegistration, __COUNTER__)(reinterpret_cast<void*>(OriginalFunction), reinterpret_cast<void*>(NewFunction))
+#define UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT_IMPL(OriginalFunction, NewFunction) static const AutoRTFM::ForTheRuntime::FRegisterOpenFunction UE_AUTORTFM_CONCAT(AutoRTFMFunctionRegistration, __COUNTER__)(reinterpret_cast<void*>(OriginalFunction), reinterpret_cast<void*>(NewFunction))
 #define UE_AUTORTFM_REGISTER_OPEN_FUNCTION_IMPL(OriginalFunction) UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(OriginalFunction, RTFM_ ## OriginalFunction)
 #define UE_AUTORTFM_REGISTER_SELF_FUNCTION_IMPL(OriginalFunction) UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(OriginalFunction, OriginalFunction)
 #else

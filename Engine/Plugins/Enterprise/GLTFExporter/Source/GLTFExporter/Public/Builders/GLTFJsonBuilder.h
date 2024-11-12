@@ -43,4 +43,6 @@ private:
 	static FString GetCopyrightString();
 
 	FGLTFJsonRoot JsonRoot;
+
+	void ValidateAndFixGLTFJson();
 };

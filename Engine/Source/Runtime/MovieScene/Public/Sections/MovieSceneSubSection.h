@@ -23,6 +23,7 @@
 #include "MovieSceneFwd.h"
 #include "MovieSceneSection.h"
 #include "MovieSceneSequenceID.h"
+#include "Channels/MovieSceneDoubleChannel.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
@@ -44,6 +45,7 @@ struct FMovieSceneSectionParameters;
 struct FMovieSceneTrackCompilerArgs;
 struct FPropertyChangedEvent;
 struct FQualifiedFrameTime;
+struct FMovieSceneTransformMask;
 
 DECLARE_DELEGATE_OneParam(FOnSequenceChanged, UMovieSceneSequence* /*Sequence*/);
 
@@ -54,6 +56,29 @@ struct FSubSequenceInstanceDataParams
 
 	/** The object binding ID in which the section to be generated resides */
 	FMovieSceneEvaluationOperand Operand;
+};
+
+USTRUCT()
+struct FMovieSceneSubSectionOriginOverrideMask
+{
+	GENERATED_BODY()
+	
+	FMovieSceneSubSectionOriginOverrideMask()
+		: Mask(0)
+	{}
+
+	FMovieSceneSubSectionOriginOverrideMask(EMovieSceneTransformChannel Channels)
+		: Mask((__underlying_type(EMovieSceneTransformChannel))Channels)
+	{}
+
+	EMovieSceneTransformChannel GetChannels() const
+	{
+		return (EMovieSceneTransformChannel) Mask;
+	}
+	
+private:
+	UPROPERTY()
+	uint32 Mask;
 };
 
 /**
@@ -101,6 +126,16 @@ public:
 	MOVIESCENE_API FMovieSceneSequenceTransform OuterToInnerTransform() const;
 
 	/**
+	 * Gets the transform that converts time from this section's time-base to its inner sequence's
+	 */
+	MOVIESCENE_API FMovieSceneSequenceTransform OuterToInnerTransform_NoInnerTimeWarp() const;
+
+	/**
+	 * Gets the transform that converts time from this section's time-base to its inner sequence's
+	 */
+	MOVIESCENE_API void AppendInnerTimeWarpTransform(FMovieSceneSequenceTransform& OutTransform) const;
+
+	/**
 	 * Gets the playrange of the inner sequence, in the inner sequence's time space, trimmed with any start/end offsets,
 	 * and validated to make sure we get at least a 1-frame long playback range (e.g. in the case where excessive
 	 * trimming results in an invalid range).
@@ -121,6 +156,43 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Section")
 	MOVIESCENE_API void SetSequence(UMovieSceneSequence* Sequence);
 
+	/**
+	 * Gets the channel mask for the subsection origin overrides. 
+	 * @return The mask with bit flags for each enabled channel.
+	 */
+	MOVIESCENE_API FMovieSceneSubSectionOriginOverrideMask GetMask() const;
+
+	/**
+	 * Sets the channel mask for the subsection origin overrides.
+	 * @param MovieSceneTransformChannel the new mask.
+	 */
+	MOVIESCENE_API void SetMask(EMovieSceneTransformChannel MovieSceneTransformChannel);
+
+#if WITH_EDITOR
+	/**
+	 * Sets the external Position for controlling the transform origin in the level editor through the edtior mode's gizmo
+	 * @param InPosition An optional vector specifying the gizmo's current location
+	 * @see FSubTrackEditorMode
+	 */
+	MOVIESCENE_API void SetKeyPreviewPosition(TOptional<FVector> InPosition);
+
+	/**
+	* Sets the external rotation for controlling the transform origin in the level editor through the edtior mode's gizmo
+	* @param InRotation An optional vector specifying the gizmo's current location
+	* @see FSubTrackEditorMode
+	*/
+	MOVIESCENE_API void SetKeyPreviewRotation(TOptional<FRotator> InRotation);
+
+	/** Gets the optional value of the external position of the editor mode's gizmo */
+	TOptional<FVector> GetKeyPreviewPosition() const { return KeyPreviewPosition; }
+	
+	/** Gets the optional value of the external Rotation of the editor mode's gizmo */
+	TOptional<FRotator> GetKeyPreviewRotation() const { return KeyPreviewRotation; }
+
+	/** Resets the optional values for the gizmo's position and rotation */
+	MOVIESCENE_API void ResetKeyPreviewRotationAndLocation();
+#endif
+
 	MOVIESCENE_API virtual void PostLoad() override;
 
 #if WITH_EDITOR
@@ -129,9 +201,12 @@ public:
 
 	/** Delegate to fire when our sequence is changed in the property editor */
 	FOnSequenceChanged& OnSequenceChanged() { return OnSequenceChangedDelegate; }
+
+	MOVIESCENE_API bool IsTransformOriginEditable() const;
 #endif
 
 	MOVIESCENE_API FFrameNumber MapTimeToSectionFrame(FFrameTime InPosition) const;
+	MOVIESCENE_API bool HasAnyChannelData() const;
 
 	EMovieSceneServerClientMask GetNetworkMask() const
 	{
@@ -143,6 +218,8 @@ public:
 		NetworkMask = (uint8)InNetworkMask;
 	}
 
+	MOVIESCENE_API void DeleteChannels(TArrayView<const FName> ChannelNames);
+
 public:
 
 	//~ UMovieSceneSection interface
@@ -151,6 +228,7 @@ public:
 	virtual TOptional<FFrameTime> GetOffsetTime() const override { return TOptional<FFrameTime>(FFrameTime(Parameters.StartFrameOffset)); }
 	MOVIESCENE_API virtual void GetSnapTimes(TArray<FFrameNumber>& OutSnapTimes, bool bGetSectionBorders) const override;
 	MOVIESCENE_API virtual void MigrateFrameTimes(FFrameRate SourceRate, FFrameRate DestinationRate) override;
+	MOVIESCENE_API virtual FMovieSceneTimeWarpVariant* GetTimeWarp() override;
 
 protected:
 
@@ -158,6 +236,8 @@ protected:
 
 	MOVIESCENE_API virtual bool PopulateEvaluationFieldImpl(const TRange<FFrameNumber>& EffectiveRange, const FMovieSceneEvaluationFieldEntityMetaData& InMetaData, FMovieSceneEntityComponentFieldBuilder* OutFieldBuilder) override;
 	MOVIESCENE_API virtual void ImportEntityImpl(UMovieSceneEntitySystemLinker* EntityLinker, const FEntityImportParams& Params, FImportedEntity* OutImportedEntity) override;
+
+	MOVIESCENE_API virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
 
 public:
 
@@ -177,6 +257,25 @@ private:
 
 	UPROPERTY(EditAnywhere, Category="Networking", meta=(Bitmask, BitmaskEnum="/Script/MovieScene.EMovieSceneServerClientMask"))
 	uint8 NetworkMask;
+
+	UPROPERTY()
+	FMovieSceneSubSectionOriginOverrideMask OriginOverrideMask;
+
+	UPROPERTY()
+	FMovieSceneDoubleChannel Translation[3];
+	
+	UPROPERTY()
+	FMovieSceneDoubleChannel Rotation[3];
+
+#if WITH_EDITORONLY_DATA
+	/** Preview value of position used for keying. This allows for transforms without needing to commit them to the channel */
+	UPROPERTY(Transient)
+	TOptional<FVector> KeyPreviewPosition;
+
+	/** Preview value of rotation used for keying. This allows for transforms without needing to commit them to the channel */
+	UPROPERTY(Transient)
+	TOptional<FRotator> KeyPreviewRotation;
+#endif	
 
 protected:
 

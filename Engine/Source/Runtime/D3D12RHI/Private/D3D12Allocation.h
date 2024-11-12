@@ -8,6 +8,9 @@ D3D12Allocation.h: A Collection of allocators
 
 #include "D3D12Resources.h"
 #include "D3D12PoolAllocator.h"
+#include "Misc/ScopeRWLock.h"
+
+class FD3D12ConstantBufferView;
 
 #define SUB_ALLOCATED_DEFAULT_ALLOCATIONS	1
 
@@ -434,7 +437,7 @@ public:
 	// Grab a buffer from the available buffers or create a new buffer if none are available
 	void AllocDefaultResource(D3D12_HEAP_TYPE InHeapType, const D3D12_RESOURCE_DESC& pDesc, EBufferUsageFlags InBufferUsage, ED3D12ResourceStateMode InResourceStateMode, D3D12_RESOURCE_STATES InCreateState, FD3D12ResourceLocation& ResourceLocation, uint32 Alignment, const TCHAR* Name);
 	void FreeDefaultBufferPools();
-	void BeginFrame(FRHICommandListBase& RHICmdList);
+	void BeginFrame(FD3D12ContextArray const& Contexts);
 	void CleanupFreeBlocks(uint64 InFrameLag);	
 	void UpdateMemoryStats();
 
@@ -920,7 +923,7 @@ public:
 
 	HRESULT AllocateTexture(FD3D12ResourceDesc Desc, const D3D12_CLEAR_VALUE* ClearValue, EPixelFormat UEFormat, FD3D12ResourceLocation& TextureLocation, const D3D12_RESOURCE_STATES InitialState, const TCHAR* Name);
 	
-	void BeginFrame(FRHICommandListBase& RHICmdList);
+	void BeginFrame(FD3D12ContextArray const& Contexts);
 	void CleanUpAllocations();
 	void Destroy();
 	bool GetMemoryStats(uint64& OutTotalAllocated, uint64& OutTotalUnused) const;
@@ -984,7 +987,7 @@ public:
 
 	HRESULT AllocateTexture(FD3D12ResourceDesc Desc, const D3D12_CLEAR_VALUE* ClearValue, EPixelFormat UEFormat, FD3D12ResourceLocation& TextureLocation, const D3D12_RESOURCE_STATES InitialState, const TCHAR* Name);
 	
-	void BeginFrame(FRHICommandListBase& RHICmdList) {}
+	void BeginFrame(FD3D12ContextArray const& Contexts) {}
 	void CleanUpAllocations() { ReadOnlyTexturePool.CleanUpAllocations(0); }
 
 	void Destroy() { ReadOnlyTexturePool.Destroy(); }

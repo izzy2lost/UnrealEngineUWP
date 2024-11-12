@@ -17,6 +17,16 @@
 #include "ShaderParameterMacros.h"
 #include "UnifiedBuffer.h"
 #include "Tasks/Task.h"
+#include "Math/DoubleFloat.h"
+
+enum class ELumenReflectionPass
+{
+	Opaque,
+	SingleLayerWater,
+	FrontLayerTranslucency,
+
+	MAX
+};
 
 class FDistanceFieldSceneData;
 class FLumenCardBuildData;
@@ -26,6 +36,7 @@ class FLumenMeshCards;
 class FLumenViewState;
 class FMeshCardsBuildData;
 class FPrimitiveSceneInfo;
+class FViewUniformShaderParameters;
 struct FLumenPageTableEntry;
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLumenCardScene, )
@@ -548,9 +559,89 @@ enum class ESurfaceCacheCompression : uint8
 	CopyTextureRegion
 };
 
+class FLumenSharedRT
+{
+public:
+	FRDGTextureRef CreateSharedRT(FRDGBuilder& Builder, const FRDGTextureDesc& Desc, FIntPoint VisibleExtent, const TCHAR* Name, ERDGTextureFlags Flags = ERDGTextureFlags::None);
+	
+	FRDGTextureRef GetRenderTarget() const
+	{
+		return RenderTarget;
+	}
+
+private:
+	FRDGTextureRef RenderTarget = nullptr;
+};
+
+// Unique view origin.  Typically one per view, but for the case of cube captures, a single view origin is shared.
+// The advantage of sharing an origin is that Lumen scene data can be shared and updated once.  In the future, we could
+// allow origins to be shared for other use cases, such as nDisplay inner frustums, or imagine a sim with a wide angle
+// view across three monitors, where the three views share an origin.
+struct FLumenViewOrigin
+{
+	void Init(const FViewInfo& View);
+
+	bool IsPerspectiveProjection() const
+	{
+		return OrthoMaxDimension == 0.0f;
+	}
+
+	const FSceneViewFamily* Family;
+
+	FVector LumenSceneViewOrigin;
+	FVector4f WorldCameraOrigin;
+	FDFVector3 PreViewTranslationDF;
+	
+	// Matrix used for frustum clipping tests in Lumen.  For typical views, this is set to WorldToClip, while cube captures
+	// have an omnidirectional projection, and use a trivial matrix that will pass any point as in-frustum.
+	FMatrix44f FrustumTranslatedWorldToClip;
+
+	float OrthoMaxDimension;				// If orthographic projection, max dimension, otherwise zero
+	float LastEyeAdaptationExposure;		// Shared origin views share exposure
+	float MaxTraceDistance;					// Shared origin views share post process settings, which control these values
+	float CardMaxDistance;
+	float LumenSceneDetail;
+
+	// Ideally this structure would contain a mirror of all view origin specific data, so Lumen scene updates don't end up with
+	// dependencies on FViewInfo, but there are still some code paths that pull data from the FViewInfo structure, which are messy
+	// to refactor.  So this reference view is included to allow fetching an FViewInfo to send to those code paths.
+	// 
+	// The first is the "GetDeferredLightParameters" utility function, which uses a bunch of data from the FViewInfo structure, which
+	// will be invariant across shared origin views in practice.  This includes fields originally copied from CVars, post process
+	// settings, and projection type.  In the future, we could add an API variation that takes those all values as loose parameters.
+	//
+	// The View uniform buffer is used to access some data assumed to be invariant for views that share an origin:
+	//		View.StateFrameIndex			shared origin views are created on same frame and always render together
+	//		View.StateFrameIndexMod8		""
+	//		View.PreExposure				shared origin views share exposure
+	//		View.OneOverPreExposure			""
+	//
+	// The Substrate global uniform buffer is accessed from FViewInfo, but doesn't include any view dependent data.  Looking at
+	// InitialiseSubstrateViewData, it uses SceneTexturesConfig.Extent (as opposed to a view rect), and View.GetShaderPlatform().
+	// The Substrate uniforms aren't initialized until mid render, while the view origin is created early in render.  We could
+	// copy those into the Lumen view origin later, but it works well enough to grab it from the view when it's needed.
+	//
+	// Messier are the uses of FViewInfo in FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene, where view specific
+	// forward lighting data, volumetric cloud shadows, ray tracing TLAS, miscellaneous post process settings, shader map, view
+	// family, feature level, and FScene are referenced.  Basically a ton of stuff.  To share all that, we probably need to refactor
+	// things so there is a formal concept of shared origin views (FViewSharedOrigin?) at a higher level in the scene renderer
+	// itself.  Then we could pull all of the above into that structure.  But that goes well beyond the scope of adding Lumen support
+	// for cube maps, which is the immediate goal.
+	//
+	// There may be rendering artifacts with forward lighting, volumetric cloud shadows, and ray tracing, given that the code that
+	// generates those may not be completely shared origin view friendly.  Forward lighting pulls in lights from the frustum, so that
+	// definitely seems like it should be modified to take into account the frustums of all shared origin views.  It's less clear if
+	// volumetric cloud shadows and ray tracing are view direction or just view origin aware (offhand, they look origin aware, but I
+	// haven't done a deep dive).
+	//
+	const FViewInfo* ReferenceView;
+};
+
 // Temporaries valid only in a single frame
 struct FLumenSceneFrameTemporaries
 {
+	FLumenSceneFrameTemporaries(const TArray<FViewInfo>& Views);
+
 	// Current frame's buffers for writing feedback
 	FLumenSurfaceCacheFeedback::FFeedbackResources SurfaceCacheFeedbackResources;
 
@@ -564,6 +655,9 @@ struct FLumenSceneFrameTemporaries
 	FRDGTextureRef IndirectLightingAtlas = nullptr;
 	FRDGTextureRef RadiosityNumFramesAccumulatedAtlas = nullptr;
 	FRDGTextureRef FinalLightingAtlas = nullptr;
+	FRDGBufferRef TileShadowDownsampleFactorAtlas = nullptr;
+	FRDGTextureRef DiffuseLightingAndSecondMomentHistoryAtlas = nullptr;
+	FRDGTextureRef NumFramesAccumulatedHistoryAtlas = nullptr;
 
 	FRDGBufferSRV* CardBufferSRV = nullptr;
 	FRDGBufferSRV* MeshCardsBufferSRV = nullptr;
@@ -588,6 +682,41 @@ struct FLumenSceneFrameTemporaries
 
 	UE::Tasks::FTask UpdateSceneTask;
 	bool bReallocateAtlas = false;
+
+	TArray<FLumenViewOrigin, TFixedAllocator<LUMEN_MAX_VIEWS>> ViewOrigins;
+
+	FIntPoint ViewExtent;
+	
+	// Targets shared per view, but can't be shared per pass
+	FLumenSharedRT ReflectSpecularIndirect[(uint32)ELumenReflectionPass::MAX];
+	FLumenSharedRT ReflectNumHistoryFrames[(uint32)ELumenReflectionPass::MAX];
+	FLumenSharedRT ReflectResolveVariance[(uint32)ELumenReflectionPass::MAX];
+
+	FLumenSharedRT DiffuseIndirect;
+	FLumenSharedRT BackfaceDiffuseIndirect;
+	FLumenSharedRT RoughSpecularIndirect;
+	FLumenSharedRT NumHistoryFrames;
+	FLumenSharedRT ResolveVariance;
+	FLumenSharedRT NewDiffuseIndirect;
+	FLumenSharedRT NewBackfaceDiffuseIndirect;
+	FLumenSharedRT NewRoughSpecularIndirect;
+	FLumenSharedRT NewNumHistoryFrames;
+	FLumenSharedRT NewResolveVariance;
+	FLumenSharedRT NewHistoryFastUpdateMode;
+	FLumenSharedRT DepthHistory;
+	FLumenSharedRT NormalHistory;
+
+	FLumenSharedRT ReservoirRayDirection;
+	FLumenSharedRT ReservoirTraceRadiance;
+	FLumenSharedRT ReservoirTraceHitDistance;
+	FLumenSharedRT ReservoirTraceHitNormal;
+	FLumenSharedRT ReservoirWeights;
+	FLumenSharedRT DownsampledSceneDepth;
+	FLumenSharedRT DownsampledWorldNormal;
+
+	// Optional debug data enabled with stats visualization
+	// Contains cursor point cards information
+	FRDGBufferSRVRef DebugData = nullptr;
 };
 
 // Tracks scene-wide lighting state whose changes we should propagate quickly by flushing various lighting caches
@@ -613,6 +742,9 @@ class FLumenSceneData
 public:
 	// Clear all cached state like surface cache atlas. Including extra state like final lighting. Used only for debugging.
 	bool bDebugClearAllCachedState = false;
+
+	// Whether we should re-upload entire Lumen Scene on next update
+	bool bReuploadSceneRequest = false;
 
 	TSparseSpanArray<FLumenCard> Cards;
 	FUniqueIndexList CardIndicesToUpdateInBuffer;
@@ -668,6 +800,7 @@ public:
 	TRefCountPtr<IPooledRenderTarget> IndirectLightingAtlas;
 	TRefCountPtr<IPooledRenderTarget> RadiosityNumFramesAccumulatedAtlas;
 	TRefCountPtr<IPooledRenderTarget> FinalLightingAtlas;
+	TRefCountPtr<FRDGPooledBuffer> TileShadowDownsampleFactorAtlas;
 
 	// Radiosity probes
 	TRefCountPtr<IPooledRenderTarget> RadiosityTraceRadianceAtlas;
@@ -675,6 +808,10 @@ public:
 	TRefCountPtr<IPooledRenderTarget> RadiosityProbeSHRedAtlas;
 	TRefCountPtr<IPooledRenderTarget> RadiosityProbeSHGreenAtlas;
 	TRefCountPtr<IPooledRenderTarget> RadiosityProbeSHBlueAtlas;
+
+	// Direct lighting denoising
+	TRefCountPtr<IPooledRenderTarget> DiffuseLightingAndSecondMomentHistoryAtlas;
+	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedHistoryAtlas;
 
 	// Lumen Scene readback for handling GPU driven updates
 	FLumenSceneReadback SceneReadback;
@@ -732,7 +869,7 @@ public:
 
 	void FillFrameTemporaries(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
 
-	void AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
+	void AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneViewFamily* ViewFamily);
 	void ReallocVirtualSurface(FLumenCard& Card, int32 CardIndex, int32 ResLevel, bool bLockPages);
 	void FreeVirtualSurface(FLumenCard& Card, uint8 FromResLevel, uint8 ToResLevel);
 
@@ -797,6 +934,9 @@ private:
 	// Frame index used to time-splice various surface cache update operations
 	// 0 is a special value, and means that surface contains default data
 	uint32 SurfaceCacheUpdateFrameIndex = 1;
+
+	// Used to detect change in data format
+	EPixelFormat CurrentLightingDataFormat = PF_Unknown;
 
 	// Virtual surface cache page table
 	FIntPoint PhysicalAtlasSize = FIntPoint(0, 0);

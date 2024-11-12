@@ -160,21 +160,21 @@ namespace Chaos
 			FVec3 SegmentP, EdgeP;
 			Utilities::NearestPointsOnLineSegments(P0, P1, EdgeP0, EdgeP1, SegmentT, EdgeT, SegmentP, EdgeP);
 
-			// Calculate the separation vector, correct for sign
+			// Calculate the separation vector (from triangle to capsule)
 			FVec3 SegmentEdgeN = SegmentP - EdgeP;
 			FReal SegmentEdgeDistSign = FReal(1);
 			const FReal SegmentEdgeDistSq = SegmentEdgeN.SizeSquared();
 
-			// Separating axis always points away from the triangle
+			// If the near point on the capsule axis is inside the triangle, fix the normal
 			const FReal DotEdge = FVec3::DotProduct(SegmentEdgeN, EdgeNs[EdgeIndex]);
-			if (DotEdge < FReal(0))
+			if (DotEdge < FReal(-NormalTolerance))
 			{
 				SegmentEdgeN = -SegmentEdgeN;
 				SegmentEdgeDistSign = FReal(-1);
 			}
-
 			const FReal DotFace = FVec3::DotProduct(SegmentEdgeN, FaceN);
 
+			// If the near point on the capsule axis is outside the triangle check for cull distance
 			if (SegmentEdgeDistSign > FReal(0))
 			{
 				// We generate contacts when separation is within cull distance
@@ -211,7 +211,7 @@ namespace Chaos
 		const bool bInsideAll1 = ((EdgeD1s[0] <= DistanceTolerance) & (EdgeD1s[1] <= DistanceTolerance) & (EdgeD1s[2] <= DistanceTolerance)) != 0;
 		if ((bInsideAll0 & (FaceD0 < RejectDistance) & (FaceD0 < FaceD1 + DistanceTolerance)) != 0)
 		{
-			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 			ContactPoint.ShapeContactPoints[0] = P0 - R * FaceN;
 			ContactPoint.ShapeContactPoints[1] = P0 - FaceD0 * FaceN;
 			ContactPoint.ShapeContactNormal = FaceN;
@@ -222,7 +222,7 @@ namespace Chaos
 		}
 		if ((bInsideAll1 & (FaceD1 < RejectDistance) & (FaceD1 < FaceD0 + DistanceTolerance)) != 0)
 		{
-			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 			ContactPoint.ShapeContactPoints[0] = P1 - R * FaceN;
 			ContactPoint.ShapeContactPoints[1] = P1 - FaceD1 * FaceN;
 			ContactPoint.ShapeContactNormal = FaceN;
@@ -300,7 +300,7 @@ namespace Chaos
 					{
 						const FReal CylinderFaceD = FVec3::DotProduct(CylinderP - FaceP, FaceN);
 
-						FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+						FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 						ContactPoint.ShapeContactPoints[0] = CylinderP;
 						ContactPoint.ShapeContactPoints[1] = CylinderP - CylinderFaceD * FaceN;
 						ContactPoint.ShapeContactNormal = FaceN;
@@ -352,7 +352,7 @@ namespace Chaos
 			if (((EdgeD0s[EdgeIndex] > -DistanceTolerance) | (EdgeD1s[EdgeIndex] > -DistanceTolerance)) != 0)
 			{
 				// Don't collide with inside face
-				if (DotFace < FReal(0))
+				if (DotFace < FReal(-NormalTolerance))
 				{
 					continue;
 				}
@@ -386,35 +386,48 @@ namespace Chaos
 					{
 						SegmentEdgeN = -SegmentEdgeN;
 					}
-				}
-
-				// We cannot collide with the "inside" of the edge (normal must be facing away from triangle center).
-				// However, we can convert it to a face contact if we are within the Face Contact angle threshold.
-				if ((bCrossedEdgeSegment & bPreferFaceContact) == 0)
-				{
-					// We use a tolerance here so we don't reject very nearly face collisions
-					// @todo(chaos): size dependence issue?
-					const FReal DotCentroid = FVec3::DotProduct(EdgeP - Centroid, SegmentEdgeN);
-					if (DotCentroid < -NormalTolerance)
+					const FReal DotEdge = FVec3::DotProduct(EdgeNs[EdgeIndex], SegmentEdgeN);
+					if (DotEdge < -NormalTolerance)
 					{
 						continue;
 					}
-				
-					// For Vertex contacts, the normal needs to be outside both planes
-					if ((EdgeT == FReal(0)) && ((SegmentT == FReal(0)) || (SegmentT == FReal(1))))
+				}
+
+				if ((bCrossedEdgeSegment & bPreferFaceContact) == 0)
+				{
+					// We cannot collide with the inside of the edge
+					const FReal DotEdge = FVec3::DotProduct(EdgeNs[EdgeIndex], SegmentEdgeN);
+					if (DotEdge < -NormalTolerance)
 					{
-						const int32 PrevEdgeIndex = (EdgeIndex > 0) ? EdgeIndex - 1 : 2;
-						const FReal PrevDotEdge = FVec3::DotProduct(EdgeNs[PrevEdgeIndex], SegmentEdgeN);
-						if (PrevDotEdge < -NormalTolerance)
+						continue;
+					}
+
+					// For Vertex contacts, check that the normal is in the valid range
+					// it must point away from the edge vectors that share the vertex
+					if (EdgeT == FReal(0))
+					{
+						const int32 PrevEdgeVertexIndex0 = (EdgeIndex >= 2) ? (EdgeIndex - 2) : (EdgeIndex - 2 + 3);
+						const FVec3& PrevEdgeP0 = Triangle.GetVertex(PrevEdgeVertexIndex0);
+						const FVec3& PrevEdgeP1 = EdgeP0;
+
+						// NOTE: both edge vetors here point towards the shared vertex (at EdgeP0)
+						const FReal PrevEdgeDotNormal = FVec3::DotProduct(PrevEdgeP1 - PrevEdgeP0, SegmentEdgeN);
+						const FReal EdgeDotNormal = FVec3::DotProduct(EdgeP0 - EdgeP1, SegmentEdgeN);
+						if ((PrevEdgeDotNormal < -NormalTolerance) || (EdgeDotNormal < -NormalTolerance))
 						{
 							continue;
 						}
 					}
-					if ((EdgeT == FReal(1)) && ((SegmentT == FReal(0)) || (SegmentT == FReal(1))))
+					if (EdgeT == FReal(1))
 					{
-						const int32 NextEdgeIndex = (EdgeIndex < 2) ? EdgeIndex + 1 : 0;
-						const FReal NextDotEdge = FVec3::DotProduct(EdgeNs[NextEdgeIndex], SegmentEdgeN);
-						if (NextDotEdge < -NormalTolerance)
+						const int32 NextEdgeVertexIndex1 = (EdgeIndex < 2) ? EdgeIndex + 1 : 0;
+						const FVec3& NextEdgeP0 = EdgeP1;
+						const FVec3& NextEdgeP1 = Triangle.GetVertex(NextEdgeVertexIndex1);
+
+						// NOTE: both edge vetors here point towards the shared vertex (at EgdeP1)
+						const FReal EdgeDotNormal = FVec3::DotProduct(EdgeP1 - EdgeP0, SegmentEdgeN);
+						const FReal NextEdgeDotNormal = FVec3::DotProduct(NextEdgeP0 - NextEdgeP1, SegmentEdgeN);
+						if ((EdgeDotNormal < -NormalTolerance) || (NextEdgeDotNormal < -NormalTolerance))
 						{
 							continue;
 						}
@@ -429,7 +442,7 @@ namespace Chaos
 					const FVec3 CapsuleP = SegmentP - R * SegmentEdgeN;
 					const FReal CapsuleDist = FVec3::DotProduct(CapsuleP - FaceP, FaceN);
 
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					ContactPoint.ShapeContactPoints[0] = CapsuleP;
 					ContactPoint.ShapeContactPoints[1] = CapsuleP - CapsuleDist * FaceN;
 					ContactPoint.ShapeContactNormal = FaceN;
@@ -439,7 +452,7 @@ namespace Chaos
 				}
 				else
 				{
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					ContactPoint.ShapeContactPoints[0] = SegmentP - R * SegmentEdgeN;
 					ContactPoint.ShapeContactPoints[1] = EdgeP;
 					ContactPoint.ShapeContactNormal = SegmentEdgeN;
@@ -465,7 +478,7 @@ namespace Chaos
 				const FReal SegmentEdgeDist = FMath::Sqrt(SegmentEdgeDistSq);
 				const FVec3 SegmentEdgeN = SegmentEdgeDelta / SegmentEdgeDist;
 
-				FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+				FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 				ContactPoint.ShapeContactPoints[0] = SegmentEdgeC + (SegmentEdgeDist - R) * SegmentEdgeN;
 				ContactPoint.ShapeContactPoints[1] = SegmentEdgeC;
 				ContactPoint.ShapeContactNormal = SegmentEdgeN;

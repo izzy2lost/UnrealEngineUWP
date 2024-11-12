@@ -680,7 +680,7 @@ void FMathStructCustomization::SetValue(NumericType NewValue, EPropertyValueSetF
 								ObjectChildValues[ChildOutputIndex] = TTypeToString<NumericType>::ToSanitizedString(ChildNewValue);
 							}
 
-							ChildHandle->SetPerObjectValues(ObjectChildValues);
+							ChildHandle->SetPerObjectValues(ObjectChildValues, Flags);
 						}
 					}
 				}

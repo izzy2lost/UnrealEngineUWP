@@ -50,11 +50,15 @@ void FJointConstraintPhysicsProxy::BufferPhysicsResults(FDirtyJointConstraintDat
 	{
 		Buffer.OutputData.bIsBreaking = Constraint_PT->IsConstraintBreaking();
 		Buffer.OutputData.bIsBroken = !Constraint_PT->IsConstraintEnabled();
+		Buffer.OutputData.bIsViolating = Constraint_PT->IsConstraintViolating();
 		Buffer.OutputData.bDriveTargetChanged = Constraint_PT->IsDriveTargetChanged();
 		Buffer.OutputData.Force = Constraint_PT->GetLinearImpulse();
 		Buffer.OutputData.Torque = Constraint_PT->GetAngularImpulse();
+		Buffer.OutputData.LinearViolation = Constraint_PT->GetLinearViolation();
+		Buffer.OutputData.AngularViolation = Constraint_PT->GetAngularViolation();
 
 		Constraint_PT->ClearConstraintBreaking(); // it's a single frame event, so reset
+		Constraint_PT->ClearConstraintViolating();
 		Constraint_PT->ClearDriveTargetChanged(); // it's a single frame event, so reset
 	}
 }
@@ -72,6 +76,10 @@ bool FJointConstraintPhysicsProxy::PullFromPhysicsState(const FDirtyJointConstra
 		}
 		Constraint_GT->GetOutputData().Force = Buffer.OutputData.Force;
 		Constraint_GT->GetOutputData().Torque = Buffer.OutputData.Torque;
+
+		Constraint_GT->GetOutputData().bIsViolating = Buffer.OutputData.bIsViolating;
+		Constraint_GT->GetOutputData().LinearViolation = Buffer.OutputData.LinearViolation;
+		Constraint_GT->GetOutputData().AngularViolation = Buffer.OutputData.AngularViolation;
 	}
 
 	return true;

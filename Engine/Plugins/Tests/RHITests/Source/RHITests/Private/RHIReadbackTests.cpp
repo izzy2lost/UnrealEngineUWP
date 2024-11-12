@@ -313,6 +313,13 @@ bool FRHIReadbackTests::Test_TextureReadback(FRHICommandListImmediate& RHICmdLis
 	FRHIGPUTextureReadback Texture2DReadback(TEXT("Texture2DReadback"));
 	Texture2DReadback.EnqueueCopy(RHICmdList, Texture2D, ReadbackOffset2D, 0, ReadbackSize2D);
 
+	//Some platform only support readback on single 2d texture therefore the test can happen only on one slice
+	if (GRHIGlobals.SupportLinearTextureVolumeFormat == false)
+	{
+		ReadbackOffset3D.Z = 0;
+		ReadbackSize3D.Z = 1;
+	}
+
 	FRHIGPUTextureReadback Texture3DReadback(TEXT("Texture3DReadback"));
 	Texture3DReadback.EnqueueCopy(RHICmdList, Texture3D, ReadbackOffset3D, 0, ReadbackSize3D);
 

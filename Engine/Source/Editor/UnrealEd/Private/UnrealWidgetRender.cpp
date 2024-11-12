@@ -889,8 +889,21 @@ void FWidget::Render_TranslateRotateZ( const FSceneView* View, FPrimitiveDrawInt
 		{
 			PDI->SetHitProxy( new HWidgetAxis(EAxisList::ZRotation, bDisabled) );
 			{
-				FVector XAxis = CustomCoordSystem.TransformPosition( FVector(1,0,0).RotateAngleAxis( (EditorModeTools ? EditorModeTools->TranslateRotateXAxisAngle : 0 ), FVector(0,0,1)) );
-				FVector YAxis = CustomCoordSystem.TransformPosition( FVector(0,1,0).RotateAngleAxis( (EditorModeTools ? EditorModeTools->TranslateRotateXAxisAngle : 0 ), FVector(0,0,1)) );
+				FVector XAxis;
+				FVector YAxis;
+				if (Space.bIsLocalSpace)
+				{
+					// In local space, only need to set axis
+					XAxis = CustomCoordSystem.TransformPosition(FVector::ForwardVector);
+					YAxis = CustomCoordSystem.TransformPosition(FVector::RightVector);
+				}
+				else
+				{
+					// In world space, need to both set and modify axis
+					XAxis = CustomCoordSystem.TransformPosition(FVector::ForwardVector.RotateAngleAxis((EditorModeTools ? EditorModeTools->TranslateRotateXAxisAngle : 0), FVector::UpVector));
+					YAxis = CustomCoordSystem.TransformPosition(FVector::RightVector.RotateAngleAxis((EditorModeTools ? EditorModeTools->TranslateRotateXAxisAngle : 0), FVector::UpVector));
+				}
+
 				FVector BaseArrowPoint = InLocation + XAxis * ScaledRadius;
 				DrawFlatArrow(PDI, BaseArrowPoint, XAxis, YAxis, ZRotateColor, ScaledRadius, ScaledRadius*.5f, ZRotateMaterial->GetRenderProxy(), SDPG_Foreground);
 			}
@@ -1326,11 +1339,10 @@ void FWidget::DrawThickArc (const FThickArcParams& InParams, const FVector& Axis
 
 			// Push out the arc line borders so they dont z-fight with the mesh arcs
 			// DrawLine needs vertices in world space, but this is fine because it takes FVectors and works with LWC well
-			FVector StartLinePos = LastWorldVertex;
 			FVector EndLinePos = VertexPosition + InParams.Position;
 			if (VertexIndex != 0)
 			{
-				InParams.PDI->DrawLine(StartLinePos,EndLinePos,RingColor,SDPG_Foreground);
+				InParams.PDI->DrawLine(LastWorldVertex,EndLinePos,RingColor,SDPG_Foreground);
 			}
 			LastWorldVertex = EndLinePos;
 		}

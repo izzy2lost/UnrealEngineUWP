@@ -31,8 +31,9 @@ void SEnumComboBox::Construct(const FArguments& InArgs, const UEnum* InEnum)
 	OnEnumSelectionChangedDelegate = InArgs._OnEnumSelectionChanged;
 	OnGetToolTipForValue = InArgs._OnGetToolTipForValue;
 	Font = InArgs._Font;
+	OverrideNoFlagsSetText = InArgs._OverrideNoFlagsSetText;
 	bUpdatingSelectionInternally = false;
-	bIsBitflagsEnum = Enum->HasMetaData(TEXT("Bitflags"));
+	bIsBitflagsEnum = InArgs._bForceBitFlags || Enum->HasMetaData(TEXT("Bitflags"));
 
 	TArray<int32> EnumValueSubset = InArgs._EnumValueSubset;
 	if(EnumValueSubset.IsEmpty())
@@ -141,7 +142,14 @@ FText SEnumComboBox::GetCurrentValueText() const
 
 				return FText::Join(FText::FromString(" | "), SetFlags);
 			}
-			return LOCTEXT("BitmaskButtonContentNoFlagsSet", "(No Flags Set)");
+			if (OverrideNoFlagsSetText.IsSet())
+			{
+				return OverrideNoFlagsSetText.Get();
+			}
+			else
+			{
+				return LOCTEXT("BitmaskButtonContentNoFlagsSet", "(No Flags Set)");
+			}
 		}
 		return FText::GetEmpty();
 	}

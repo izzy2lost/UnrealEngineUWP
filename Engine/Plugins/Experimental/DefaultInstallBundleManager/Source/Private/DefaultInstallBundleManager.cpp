@@ -186,7 +186,7 @@ void LoadKeychainFromInI(FKeyChain& OutCryptoSettings)
 #endif // WITH_EDITOR
 
 FDefaultInstallBundleManager::FDefaultInstallBundleManager(FInstallBundleSourceFactoryFunction InInstallBundleSourceFactory)
-	: InstallBundleSourceFactory(InInstallBundleSourceFactory ? InInstallBundleSourceFactory : InstallBundleManagerUtil::MakeBundleSource )
+	: InstallBundleSourceFactory(InInstallBundleSourceFactory ? MoveTemp(InInstallBundleSourceFactory) : InstallBundleManagerUtil::MakeBundleSource )
 	, PersistentStats(MakeShared<InstallBundleManagerUtil::FPersistentStatContainer>())
 	, AnalyticsProvider(nullptr)
 	, StatsMap(MakeShared<InstallBundleUtil::FContentRequestStatsMap>())
@@ -476,9 +476,9 @@ void FDefaultInstallBundleManager::TickGetContentState()
 
 			FInstallBundleCombinedContentState State;
 			State.FreeSpace = 0;
-			for (const TPair<EInstallBundleSourceType, FInstallBundleCombinedContentState>& SourcePair : Request->BundleSourceContentStates)
+			for (const TPair<FInstallBundleSourceType, FInstallBundleCombinedContentState>& SourcePair : Request->BundleSourceContentStates)
 			{
-				const EInstallBundleSourceType SourceType = SourcePair.Key;
+				const FInstallBundleSourceType SourceType = SourcePair.Key;
 				const FInstallBundleCombinedContentState& SourceState = SourcePair.Value;
 
 				// combine state enums and weights
@@ -513,6 +513,7 @@ void FDefaultInstallBundleManager::TickGetContentState()
 				State.DownloadSize += SourceState.DownloadSize;
 				State.InstallSize += SourceState.InstallSize;
 				State.InstallOverheadSize = FMath::Max(State.InstallOverheadSize, SourceState.InstallOverheadSize);
+				State.MaxDiskSpaceRequired += SourceState.MaxDiskSpaceRequired;
 				State.FreeSpace = FMath::Max(State.FreeSpace, SourceState.FreeSpace);
 			}
 
@@ -522,7 +523,7 @@ void FDefaultInstallBundleManager::TickGetContentState()
 		}
 
 		Request->Started = true;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			Pair.Value->GetContentState(Request->BundleNames, Request->Flags, FInstallBundleGetContentStateDelegate::CreateLambda(
 				[Request, SourceType = Pair.Key](FInstallBundleCombinedContentState SourceState)
@@ -847,7 +848,7 @@ void FDefaultInstallBundleManager::DetermineSteps(FContentRequestRef Request)
 
 void FDefaultInstallBundleManager::AddRequestToInitialBatch(FContentRequestRef Request)
 {
-	const FBundleInfo& BundleInfo = BundleInfoMap.FindChecked(Request->BundleName);
+	FBundleInfo& BundleInfo = BundleInfoMap.FindChecked(Request->BundleName);
 
 	EContentRequestBatch InitialBatch = EContentRequestBatch::Cache;
 	switch (GetBundleStatus(BundleInfo))
@@ -858,6 +859,7 @@ void FDefaultInstallBundleManager::AddRequestToInitialBatch(FContentRequestRef R
 
 	case EBundleState::Mounted:
 		InitialBatch = EContentRequestBatch::Install;
+		BundleInfo.bReleaseRequired = true;
 		Request->bShouldSendAnalytics = false;
 		break;
 	}
@@ -908,10 +910,10 @@ void FDefaultInstallBundleManager::TryReserveCache(FContentRequestRef Request)
 			break;
 
 		case EInstallBundleCacheReserveResult::Fail_NeedsEvict:
-			for (TPair<FName, TArray<EInstallBundleSourceType>>& ResultPair : Result.BundlesToEvict)
+			for (TPair<FName, TArray<FInstallBundleSourceType>>& ResultPair : Result.BundlesToEvict)
 			{
 				// A source can only map to one cache, so we can just append them to the list for this bundle without checking if its already there.
-				TArray<EInstallBundleSourceType>& EvictFromSources = Request->BundlesToEvictFromSourcesMap.FindOrAdd(ResultPair.Key);
+				TArray<FInstallBundleSourceType>& EvictFromSources = Request->BundlesToEvictFromSourcesMap.FindOrAdd(ResultPair.Key);
 				EvictFromSources.Append(MoveTemp(ResultPair.Value));
 			}
 			break;
@@ -990,9 +992,9 @@ void FDefaultInstallBundleManager::RequestEviction(FCacheEvictionRequestorRef Re
 {
 	LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Requestor->GetLogVerbosityOverride(), Display, TEXT("Attempting to evict %i bundles for %s"), Requestor->BundlesToEvictFromSourcesMap.Num(), *Requestor->GetEvictionRequestorName());
 
-	for (const TPair<FName, TArray<EInstallBundleSourceType>>& Pair : Requestor->BundlesToEvictFromSourcesMap)
+	for (const TPair<FName, TArray<FInstallBundleSourceType>>& Pair : Requestor->BundlesToEvictFromSourcesMap)
 	{
-		for (const EInstallBundleSourceType& SourceType : Pair.Value)
+		for (FInstallBundleSourceType SourceType : Pair.Value)
 		{
 			const TSharedPtr<IInstallBundleSource>& Source = BundleSources.FindChecked(SourceType);
 			const TSharedRef<FInstallBundleCache>& BundleCache = BundleCaches.FindChecked(BundleSourceCaches.FindChecked(SourceType));
@@ -1055,7 +1057,7 @@ void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBund
 
 	// Check to clear PendingEvict status
 	auto CacheEvictKey = MakeTuple(BundleCache->GetName(), InResultInfo.BundleName);
-	TArray<EInstallBundleSourceType> SourcesForCache = CachesPendingEvictToSources.FindChecked(CacheEvictKey);
+	TArray<FInstallBundleSourceType> SourcesForCache = CachesPendingEvictToSources.FindChecked(CacheEvictKey);
 	SourcesForCache.RemoveSwap(Source->GetSourceType(), EAllowShrinking::No);
 	if (SourcesForCache.Num() == 0)
 	{
@@ -1102,7 +1104,7 @@ void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBund
 
 void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBundleSource> Source, const FInstallBundleSourceReleaseContentResultInfo& InResultInfo, FCacheEvictionRequestorRef Requestor)
 {
-	TArray<EInstallBundleSourceType>& EvictFromSources = Requestor->BundlesToEvictFromSourcesMap.FindChecked(InResultInfo.BundleName);
+	TArray<FInstallBundleSourceType>& EvictFromSources = Requestor->BundlesToEvictFromSourcesMap.FindChecked(InResultInfo.BundleName);
 	EvictFromSources.RemoveSwap(Source->GetSourceType(), EAllowShrinking::No);
 	if (EvictFromSources.Num() == 0)
 	{
@@ -1184,7 +1186,7 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentRequestRef Reques
 
 void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstallBundleSource> Source, FInstallBundleSourceUpdateContentResultInfo InResultInfo, FContentRequestRef Request)
 {
-	EInstallBundleSourceType SourceType = Source->GetSourceType();
+	FInstallBundleSourceType SourceType = Source->GetSourceType();
 
 	Request->SourcePauseFlags.Remove(SourceType);
 
@@ -1205,7 +1207,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 	FBundleInfo& BundleInfo = BundleInfoMap.FindChecked(Request->BundleName);
 	BundleInfo.ContentPaths = {};
 
-	for (TPair<EInstallBundleSourceType, FInstallBundleSourceUpdateContentResultInfo>& Pair : Request->SourceRequestResults)
+	for (TPair<FInstallBundleSourceType, FInstallBundleSourceUpdateContentResultInfo>& Pair : Request->SourceRequestResults)
 	{
 		FInstallBundleSourceUpdateContentResultInfo& ResultInfo = Pair.Value;
 
@@ -1226,7 +1228,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 					if (bCacheHit)
 					{
 						InstallBundleManagerAnalytics::FireEvent_BundleCacheHit(AnalyticsProvider.Get(),
-							BundleInfo.BundleNameString, LexToString(Pair.Key));
+							BundleInfo.BundleNameString, Pair.Key.GetNameStr());
 					}
 					else
 					{
@@ -1236,7 +1238,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 						// 0 -> Any Data		- No Patch
 						const bool bWasPatchRequired = CacheBundleInfo->CurrentInstallSize > 0 || ResultInfo.CurrentInstallSize == 0;
 						InstallBundleManagerAnalytics::FireEvent_BundleCacheMiss(AnalyticsProvider.Get(),
-							BundleInfo.BundleNameString, LexToString(Pair.Key), bWasPatchRequired);
+							BundleInfo.BundleNameString, Pair.Key.GetNameStr(), bWasPatchRequired);
 					}
 
 					// Since the update succeeded, we know that there is no longer any install overhead
@@ -1266,6 +1268,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 			BundleInfo.ContentPaths.ContentPaths.Append(MoveTemp(ResultInfo.ContentPaths));
 			BundleInfo.ContentPaths.AdditionalRootDirs.Append(MoveTemp(ResultInfo.AdditionalRootDirs));
 			BundleInfo.ContentPaths.NonUFSShaderLibPaths.Append(MoveTemp(ResultInfo.NonUFSShaderLibPaths));
+			BundleInfo.ContentPaths.ProjectName = ResultInfo.ProjectName;
 		}
 
 		if (ResultInfo.bContentWasInstalled)
@@ -1307,7 +1310,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 
 void FDefaultInstallBundleManager::UpdateBundleSourcePause(TSharedRef<IInstallBundleSource> Source, FInstallBundleSourcePauseInfo InPauseInfo, FContentRequestRef Request)
 {
-	EInstallBundleSourceType SourceType = Source->GetSourceType();
+	FInstallBundleSourceType SourceType = Source->GetSourceType();
 
 	Request->SourcePauseFlags.FindChecked(SourceType) = InPauseInfo.PauseFlags;
 	if (InPauseInfo.bDidPauseChange)
@@ -1324,13 +1327,20 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentReleaseRequestRef
 		return;
 	}
 
+	if (EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly))
+	{
+		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Skipping Updated Sources for Release Request %s"), *Request->BundleName.ToString());
+		Request->StepResult = EContentRequestStepResult::Done;
+		return;
+	}
+
 	// Release from any caches that were reserved
 	for (const TPair<FName, TSharedRef<FInstallBundleCache>>& Pair : BundleCaches)
 	{
 		Pair.Value->Release(Request->BundleName);
 	}
 
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		if (const FName* CacheName = BundleSourceCaches.Find(Pair.Key))
 		{
@@ -1355,7 +1365,7 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentReleaseRequestRef
 
 	Request->StepResult = EContentRequestStepResult::Waiting;
 
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceRemoveRequestResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceRemoveRequestResults)
 	{
 		const TSharedPtr<IInstallBundleSource>& BundleSource = BundleSources.FindChecked(Pair.Key);
 
@@ -1368,7 +1378,7 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentReleaseRequestRef
 		BundleSource->RequestReleaseContent(MoveTemp(Context));
 	}
 
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceReleaseRequestResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceReleaseRequestResults)
 	{
 		const TSharedPtr<IInstallBundleSource>& BundleSource = BundleSources.FindChecked(Pair.Key);
 
@@ -1395,7 +1405,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceReleaseComplete(TSharedRef<
 		Result->Emplace(InResultInfo);
 	}
 
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceRemoveRequestResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceRemoveRequestResults)
 	{
 		if (!Pair.Value)
 		{
@@ -1403,7 +1413,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceReleaseComplete(TSharedRef<
 		}
 	}
 
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceReleaseRequestResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceReleaseRequestResults)
 	{
 		if (!Pair.Value)
 		{
@@ -1412,7 +1422,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceReleaseComplete(TSharedRef<
 	}
 
 	bool bContentWasRemoved = false;
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceRemoveRequestResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceRemoveRequestResults)
 	{
 		const FInstallBundleSourceReleaseContentResultInfo& ResultInfo = *Pair.Value;
 		if (Request->Result == EInstallBundleReleaseResult::OK && ResultInfo.Result != EInstallBundleReleaseResult::OK)
@@ -1426,7 +1436,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceReleaseComplete(TSharedRef<
 		}
 	}
 
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceReleaseRequestResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>>& Pair : Request->SourceReleaseRequestResults)
 	{
 		const FInstallBundleSourceReleaseContentResultInfo& ResultInfo = *Pair.Value;
 		if (Request->Result == EInstallBundleReleaseResult::OK && ResultInfo.Result != EInstallBundleReleaseResult::OK)
@@ -1434,7 +1444,13 @@ void FDefaultInstallBundleManager::UpdateBundleSourceReleaseComplete(TSharedRef<
 			Request->Result = ResultInfo.Result;
 		}
 
-		// Since we didn't remove content, update last access times in any caches this bundle participates in
+		if (ResultInfo.bContentWasRemoved)
+		{
+			// Removing content wasn't requested, but the source did it anyway so deal with it
+			bContentWasRemoved = true;
+		}
+
+		// Update last access times in any caches this bundle participates in
 		if (const FName* CacheName = BundleSourceCaches.Find(Pair.Key))
 		{
 			const TSharedRef<FInstallBundleCache>& BundleCache = BundleCaches.FindChecked(*CacheName);
@@ -1450,9 +1466,9 @@ void FDefaultInstallBundleManager::UpdateBundleSourceReleaseComplete(TSharedRef<
 
 	LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Release of Bundle %s done waiting for all bundle sources!"), *BundleInfo.BundleNameString);
 
-	if (Request->Result == EInstallBundleReleaseResult::OK && bContentWasRemoved)
+	if (bContentWasRemoved)
 	{
-		// The Bundle is no longer installed because at least one of its sources is completely uninstalled although
+		// The Bundle is no longer installed because at least one of its sources is not completely installed although
 		// it may still have data in cached sources
 		SetBundleStatus(BundleInfo, EBundleState::NotInstalled);
 	}
@@ -1538,18 +1554,16 @@ void FDefaultInstallBundleManager::MountPaks(FContentRequestRef Request)
 bool FDefaultInstallBundleManager::MountPaksInList(TArrayView<FString> Paths, ELogVerbosity::Type LogVerbosityOverride)
 {
 	FPakPlatformFile* PakPlatformFile = static_cast<FPakPlatformFile*>(FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")));
-	if (!PakPlatformFile)
-	{
-		ensureMsgf(false, TEXT("Pak files have not been correctly initalized. Use -UsePaks on the cmdline if you are using the UnrealEditor.exe"));
-		return false; // if FCoreDelegates::MountPak is unbound there is a major issue.
-	}
 
 	// Sort in descending order.
 	Paths.Sort(TGreater<FString>());
 
 	// Find already mounted paks
 	TSet<FString> MountedPaks;
-	PakPlatformFile->GetMountedPakFilenames(MountedPaks);
+	if (PakPlatformFile)
+	{
+		PakPlatformFile->GetMountedPakFilenames(MountedPaks);
+	}
 
 	bool bMountedPaks = false;
 	for (const FString& File : Paths)
@@ -1563,6 +1577,12 @@ bool FDefaultInstallBundleManager::MountPaksInList(TArrayView<FString> Paths, EL
 		{
 			LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Warning, TEXT("Pak file: %s already mounted, skipping. \n"), *File);
 			continue;
+		}
+
+		if (!PakPlatformFile)
+		{
+			ensureMsgf(false, TEXT("Pak files have not been correctly initalized. Use -UsePaks on the cmdline if you are using the UnrealEditor.exe"));
+			return false; // if FCoreDelegates::MountPak is unbound there is a major issue.
 		}
 
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("Mounting pak file: %s \n"), *File);
@@ -1937,6 +1957,9 @@ void FDefaultInstallBundleManager::TickContentRequests()
 
 		Request->StepResult = EContentRequestStepResult::Done;
 
+		FBundleInfo& BundleInfo = BundleInfoMap.FindChecked(Request->BundleName);
+		BundleInfo.bReleaseRequired = true;
+
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Verbose, TEXT("Moving Request %s from batch %s to batch %s"), *Request->BundleName.ToString(), LexToString(EContentRequestBatch::Cache), LexToString(EContentRequestBatch::Install));
 		ContentRequests[EContentRequestBatch::Install].Add(MoveTemp(Request));
 		ContentRequests[EContentRequestBatch::Cache].RemoveAt(ContentRequests[EContentRequestBatch::Cache].Num() - 1); //Invalidates Request
@@ -2096,7 +2119,8 @@ void FDefaultInstallBundleManager::TickReleaseRequests()
 
 				InstallBundleManagerAnalytics::FireEvent_BundleReleaseRequestStarted(AnalyticsProvider.Get(),
 					Request->BundleName.ToString(),
-					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible));
+					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible),
+					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly));
 
 				ContentReleaseRequests[EContentReleaseRequestBatch::Requested].RemoveAtSwap(i);
 				bRequestComplete = true;
@@ -2147,6 +2171,7 @@ void FDefaultInstallBundleManager::TickReleaseRequests()
 				InstallBundleManagerAnalytics::FireEvent_BundleReleaseRequestComplete(AnalyticsProvider.Get(),
 					Request->BundleName.ToString(),
 					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible),
+					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly),
 					LexToString(Request->Result));
 
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Removing Release Request %s"), *Request->BundleName.ToString());
@@ -2401,9 +2426,9 @@ void FDefaultInstallBundleManager::TickCacheFlush()
 				continue;
 			}
 		}
-		else if (Request->SourceOrCache.HasSubtype<EInstallBundleSourceType>())
+		else if (Request->SourceOrCache.HasSubtype<FInstallBundleSourceType>())
 		{
-			if (FName* CacheName = BundleSourceCaches.Find(Request->SourceOrCache.GetSubtype<EInstallBundleSourceType>()))
+			if (FName* CacheName = BundleSourceCaches.Find(Request->SourceOrCache.GetSubtype<FInstallBundleSourceType>()))
 			{
 				pBundleCache = BundleCaches.Find(*CacheName);
 			}
@@ -2424,7 +2449,7 @@ void FDefaultInstallBundleManager::TickCacheFlush()
 
 		// Determine which sources hold the bundles we need to evict
 		bool bIsAnyPotentialEvictionPendingRelease = false;
-		TMap<FName, TArray<EInstallBundleSourceType>> BundlesToEvictFromSourcesMap;
+		TMap<FName, TArray<FInstallBundleSourceType>> BundlesToEvictFromSourcesMap;
 		if (pBundleCache)
 		{
 			const TSharedRef<FInstallBundleCache>& BundleCache = *pBundleCache;
@@ -2445,9 +2470,9 @@ void FDefaultInstallBundleManager::TickCacheFlush()
 			if (!bIsAnyPotentialEvictionPendingRelease)
 			{
 				FInstallBundleCacheFlushResult FlushResult;
-				if (Request->SourceOrCache.HasSubtype<EInstallBundleSourceType>())
+				if (Request->SourceOrCache.HasSubtype<FInstallBundleSourceType>())
 				{
-					FlushResult = BundleCache->Flush(&Request->SourceOrCache.GetSubtype<EInstallBundleSourceType>());
+					FlushResult = BundleCache->Flush(&Request->SourceOrCache.GetSubtype<FInstallBundleSourceType>());
 				}
 				else
 				{
@@ -2482,10 +2507,10 @@ void FDefaultInstallBundleManager::TickCacheFlush()
 				}
 
 				FInstallBundleCacheFlushResult FlushResult = BundleCache->Flush();
-				for (TPair<FName, TArray<EInstallBundleSourceType>>& ResultPair : FlushResult.BundlesToEvict)
+				for (TPair<FName, TArray<FInstallBundleSourceType>>& ResultPair : FlushResult.BundlesToEvict)
 				{
 					// A source can only map to one cache, so we can just append them to the list for this bundle without checking if its already there.
-					TArray<EInstallBundleSourceType>& EvictFromSources = BundlesToEvictFromSourcesMap.FindOrAdd(ResultPair.Key);
+					TArray<FInstallBundleSourceType>& EvictFromSources = BundlesToEvictFromSourcesMap.FindOrAdd(ResultPair.Key);
 					EvictFromSources.Append(MoveTemp(ResultPair.Value));
 				}
 			}
@@ -2560,7 +2585,7 @@ void FDefaultInstallBundleManager::TickPauseStatus(bool bForceCallback)
 	for (const FContentRequestRef& Request : ContentRequests[EContentRequestBatch::Install])
 	{
 		EInstallBundlePauseFlags PauseFlags = EInstallBundlePauseFlags::None;
-		for (const TPair<EInstallBundleSourceType, EInstallBundlePauseFlags>& Pair : Request->SourcePauseFlags)
+		for (const TPair<FInstallBundleSourceType, EInstallBundlePauseFlags>& Pair : Request->SourcePauseFlags)
 		{
 			PauseFlags |= Pair.Value;
 		}
@@ -2587,7 +2612,7 @@ TSet<FName> FDefaultInstallBundleManager::GetBundleDependencies(FName InBundleNa
 		*bSkippedUnknownBundles = false;
 
 		TSet<FName> SkippedUnknownBundles;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			TSet<FName> SkippedUnknownBundlesForSource;
 			BundlesToLoad.Append(Pair.Value->GetBundleDependencies(InBundleName, &SkippedUnknownBundlesForSource));
@@ -2600,14 +2625,14 @@ TSet<FName> FDefaultInstallBundleManager::GetBundleDependencies(FName InBundleNa
 		{
 			if (!BundlesToLoad.Contains(SkippedBundle))
 			{
-				LOG_INSTALL_BUNDLE_MAN(Warning, TEXT("Unknown Bundle dependency %s, skipping"), *SkippedBundle.ToString());
+				LOG_INSTALL_BUNDLE_MAN(Verbose, TEXT("Unknown Bundle dependency %s, skipping"), *SkippedBundle.ToString());
 				*bSkippedUnknownBundles = true;
 			}
 		}
 	}
 	else
 	{
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			BundlesToLoad.Append(Pair.Value->GetBundleDependencies(InBundleName));
 		}
@@ -2653,9 +2678,9 @@ TSet<FName> FDefaultInstallBundleManager::GatherBundlesForRequest(TArrayView<con
 	return GetBundleDependencies(InBundleNames);
 }
 
-EInstallBundleSourceType FDefaultInstallBundleManager::GetBundleSourceFallback(EInstallBundleSourceType Type) const
+FInstallBundleSourceType FDefaultInstallBundleManager::GetBundleSourceFallback(FInstallBundleSourceType Type) const
 {
-	const EInstallBundleSourceType* Fallback = BundleSourceFallbacks.Find(Type);
+	const FInstallBundleSourceType* Fallback = BundleSourceFallbacks.Find(Type);
 	if (Fallback)
 	{
 		return *Fallback;
@@ -2671,7 +2696,7 @@ EInstallBundleSourceUpdateBundleInfoResult FDefaultInstallBundleManager::OnUpdat
 		return EInstallBundleSourceUpdateBundleInfoResult::NotInitailized;
 	}
 
-	EInstallBundleSourceType SourceType = Source->GetSourceType();
+	FInstallBundleSourceType SourceType = Source->GetSourceType();
 
 	TSet<FName> ExistingBundles;
 	ExistingBundles.Reserve(UpdateInfo.SourceBundleInfoMap.Num());
@@ -2839,7 +2864,7 @@ EInstallBundleSourceUpdateBundleInfoResult FDefaultInstallBundleManager::OnUpdat
 
 void FDefaultInstallBundleManager::OnBundleLostRelevanceForSource(TSharedRef<IInstallBundleSource> Source, TSet<FName> BundleNames)
 {
-	EInstallBundleSourceType SourceType = Source->GetSourceType();
+	FInstallBundleSourceType SourceType = Source->GetSourceType();
 
 	for (FName BundleName : BundleNames)
 	{
@@ -2892,7 +2917,7 @@ void FDefaultInstallBundleManager::StartContentPatchCheck()
 
 	FContentPatchCheckSharedContextRef Context = MakeShared<FContentPatchCheckSharedContext>();
 
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		const TSharedPtr<IInstallBundleSource>& Source = Pair.Value;
 		Source->CheckForContentPatch(FInstallBundleSourceContentPatchResultDelegate::CreateRaw(this, &FDefaultInstallBundleManager::HandleBundleSourceContentPatchCheck, Context));
@@ -2959,7 +2984,7 @@ void FDefaultInstallBundleManager::HandleBundleSourceContentPatchCheck(TSharedRe
 void FDefaultInstallBundleManager::HandleContentPatchCheck(FContentPatchCheckSharedContextRef Context)
 {
 	EInstallBundleManagerPatchCheckResult MyResult = EInstallBundleManagerPatchCheckResult::NoPatchRequired;
-	for (const TPair<EInstallBundleSourceType, bool>& Pair : Context->Results)
+	for (const TPair<FInstallBundleSourceType, bool>& Pair : Context->Results)
 	{
 		if (Pair.Value)
 		{
@@ -2979,7 +3004,7 @@ void FDefaultInstallBundleManager::HandleContentPatchCheck(FContentPatchCheckSha
 	bIsCheckingForPatch = false;
 }
 
-bool FDefaultInstallBundleManager::HasBundleSource(EInstallBundleSourceType SourceType) const
+bool FDefaultInstallBundleManager::HasBundleSource(FInstallBundleSourceType SourceType) const
 {
 	if (InitState != EInstallBundleManagerInitState::Succeeded)
 		return false;
@@ -2987,7 +3012,7 @@ bool FDefaultInstallBundleManager::HasBundleSource(EInstallBundleSourceType Sour
 	return BundleSources.Contains(SourceType);
 }
 
-const TSharedPtr<IInstallBundleSource> FDefaultInstallBundleManager::GetBundleSource(EInstallBundleSourceType SourceType) const
+const TSharedPtr<IInstallBundleSource> FDefaultInstallBundleManager::GetBundleSource(FInstallBundleSourceType SourceType) const
 {
 	if (InitState != EInstallBundleManagerInitState::Succeeded)
 		return nullptr;
@@ -3111,7 +3136,7 @@ TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> FDefaultInstallBu
 			// canceled release has finished.
 			if (!bCanceledRelease && EnumHasAnyFlags(Flags, EInstallBundleRequestFlags::SkipMount) && GetBundleStatus(*BundleInfo) == EBundleState::NeedsMount)
 			{
-				// If this bundle is not reserved in a cache, an  install request cannot be skipped
+				// If this bundle is not reserved in a cache, an install request cannot be skipped
 				bool bNeedsCacheReserve = false;
 				for (const FBundleSourceRelevance& SourceRelevance : BundleInfo->ContributingSources)
 				{
@@ -3154,7 +3179,7 @@ TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> FDefaultInstallBu
 
 		// Allow bundle sources to reject certain bundles
 		EInstallBundleSourceBundleSkipReason BundleSourceSkipReason = EInstallBundleSourceBundleSkipReason::None;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			BundleSourceSkipReason |= Pair.Value->GetBundleSkipReason(BundleName);
 		}
@@ -3248,7 +3273,7 @@ FDelegateHandle FDefaultInstallBundleManager::GetContentState(TArrayView<const F
 	for (const FName& BundleName : AllBundles)
 	{
 		EInstallBundleSourceBundleSkipReason BundleSourceSkipReason = EInstallBundleSourceBundleSkipReason::None;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			BundleSourceSkipReason |= Pair.Value->GetBundleSkipReason(BundleName);
 		}
@@ -3316,7 +3341,7 @@ FDelegateHandle FDefaultInstallBundleManager::GetInstallState(TArrayView<const F
 	for (const FName& BundleName : AllBundles)
 	{
 		EInstallBundleSourceBundleSkipReason BundleSourceSkipReason = EInstallBundleSourceBundleSkipReason::None;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			BundleSourceSkipReason |= Pair.Value->GetBundleSkipReason(BundleName);
 		}
@@ -3368,7 +3393,7 @@ TValueOrError<FInstallBundleCombinedInstallState, EInstallBundleResult> FDefault
 	for (const FName& BundleName : AllBundles)
 	{
 		EInstallBundleSourceBundleSkipReason BundleSourceSkipReason = EInstallBundleSourceBundleSkipReason::None;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			BundleSourceSkipReason |= Pair.Value->GetBundleSkipReason(BundleName);
 		}
@@ -3423,6 +3448,12 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 	if (InitState == EInstallBundleManagerInitState::NotInitialized)
 	{
 		return MakeError(EInstallBundleResult::InitializationPending);
+	}
+
+	// RemoveFilesIfPossible and SkipReleaseUnmountOnly are incompatible
+	if (EnumHasAllFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible | EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly))
+	{
+		return MakeError(EInstallBundleResult::InstallError);
 	}
 
 	LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("RequestReleaseContent"));
@@ -3484,29 +3515,39 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 		// canceled update has finished.
 		if (ActiveQueuedRequest == nullptr && !bCanceledUpdate)
 		{
-			// If this bundle is reserved in a cache, a release request cannot be skipped
-			bool bIsReserved = false;
-			for (const FBundleSourceRelevance& SourceRelevance : BundleInfo->ContributingSources)
+			if (EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly) && GetBundleStatus(*BundleInfo) != EBundleState::Mounted)
 			{
-				if (FName* CacheName = BundleSourceCaches.Find(SourceRelevance.SourceType))
+				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyReleasedBundles;
+				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("BundlesToRelease Bundle %s  - Already Unmounted"), *BundleInfo->BundleNameString);
+				continue;
+			}
+
+			bool bCanSkipRelease = !BundleInfo->bReleaseRequired;
+			if (bCanSkipRelease)
+			{
+				// If this bundle is reserved in a cache, a release request cannot be skipped
+				for (const FBundleSourceRelevance& SourceRelevance : BundleInfo->ContributingSources)
 				{
-					const TSharedRef<FInstallBundleCache>& BundleCache = BundleCaches.FindChecked(*CacheName);
-					if (BundleCache->IsReserved(BundleName))
+					if (FName* CacheName = BundleSourceCaches.Find(SourceRelevance.SourceType))
 					{
-						bIsReserved = true;
-						break;
+						const TSharedRef<FInstallBundleCache>& BundleCache = BundleCaches.FindChecked(*CacheName);
+						if (BundleCache->IsReserved(BundleName))
+						{
+							bCanSkipRelease = false;
+							break;
+						}
 					}
 				}
 			}
 
-			if (!bIsReserved && !EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) && GetBundleStatus(*BundleInfo) != EBundleState::Mounted)
+			if (bCanSkipRelease && !EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) && GetBundleStatus(*BundleInfo) != EBundleState::Mounted)
 			{
 				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyReleasedBundles;
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("BundlesToRelease Bundle %s  - Already Released"), *BundleInfo->BundleNameString);
 				continue;
 			}
 
-			if (!bIsReserved && GetBundleStatus(*BundleInfo) == EBundleState::NotInstalled)
+			if (bCanSkipRelease && GetBundleStatus(*BundleInfo) == EBundleState::NotInstalled)
 			{
 				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyRemovedBundles;
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("BundlesToRelease Bundle %s  - Already Removed"), *BundleInfo->BundleNameString);
@@ -3520,21 +3561,42 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("Requesting Release of Bundle %s"), *BundleInfo->BundleNameString);
 
-		if (ActiveQueuedRequest &&
-			!EnumHasAnyFlags(ActiveQueuedRequest->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) &&
-			EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible))
+		if (ActiveQueuedRequest)
 		{
-			ActiveQueuedRequest->Flags |= EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible;
+			if (!EnumHasAnyFlags(ActiveQueuedRequest->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) &&
+				EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible))
+			{
+				ActiveQueuedRequest->Flags |= EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible;
+
+				// TODO: This assumes that a bundle source that doesn't remove files will always immediatly callback on release.
+				// That is probably a bad assumption, we can't control how the bundle source may be written.
+				// It would be safer to instead in enqueue this with a prereq that there is no pending release
+#if DO_CHECK
+				// Since a request without RemoveFilesIfPossible does no async work after unmounting, it shouldn't be possible to 
+				// call RequestReleaseContent and find an ActiveQueuedRequest that is past the unmounting step.
+				if (ActiveQueuedRequest->Steps.IsValidIndex(ActiveQueuedRequest->iStep))
+				{
+					EContentReleaseRequestState State = ActiveQueuedRequest->Steps[ActiveQueuedRequest->iStep];
+					check(State < EContentReleaseRequestState::UpdatingBundleSources);
+				}
+#endif // DO_CHECK
+			}
+
+			if (EnumHasAnyFlags(ActiveQueuedRequest->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly) &&
+				!EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly))
+			{
+				ActiveQueuedRequest->Flags &= ~EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly;
 
 #if DO_CHECK
-			// Since a request without RemoveFilesIfPossible does no async work after unmounting, it shouldn't be possible to 
-			// call RequestReleaseContent and find an ActiveQueuedRequest that is past the unmounting step.
-			if (ActiveQueuedRequest->Steps.IsValidIndex(ActiveQueuedRequest->iStep))
-			{
-				EContentReleaseRequestState State = ActiveQueuedRequest->Steps[ActiveQueuedRequest->iStep];
-				check(State < EContentReleaseRequestState::UpdatingBundleSources);
-			}
+				// Since a request with SkipReleaseUnmountOnly does no async work after unmounting, it shouldn't be possible to 
+				// call RequestReleaseContent and find an ActiveQueuedRequest that is past the unmounting step.
+				if (ActiveQueuedRequest->Steps.IsValidIndex(ActiveQueuedRequest->iStep))
+				{
+					EContentReleaseRequestState State = ActiveQueuedRequest->Steps[ActiveQueuedRequest->iStep];
+					check(State < EContentReleaseRequestState::UpdatingBundleSources);
+				}
 #endif // DO_CHECK
+			}
 		}
 
 		if (ActiveQueuedRequest == nullptr)
@@ -3608,9 +3670,9 @@ TOptional<FInstallBundleCacheStats> FDefaultInstallBundleManager::GetCacheStats(
 		{
 			pBundleCache = BundleCaches.Find(SourceOrCache.GetSubtype<FName>());
 		}
-		else if (SourceOrCache.HasSubtype<EInstallBundleSourceType>())
+		else if (SourceOrCache.HasSubtype<FInstallBundleSourceType>())
 		{
-			if (FName* CacheName = BundleSourceCaches.Find(SourceOrCache.GetSubtype<EInstallBundleSourceType>()))
+			if (FName* CacheName = BundleSourceCaches.Find(SourceOrCache.GetSubtype<FInstallBundleSourceType>()))
 			{
 				pBundleCache = BundleCaches.Find(*CacheName);
 			}
@@ -3672,47 +3734,58 @@ void FDefaultInstallBundleManager::CancelUpdateContent(TArrayView<const FName> B
 	CancelUpdateContentInternal(BundleNames);
 }
 
-bool FDefaultInstallBundleManager::CancelUpdateContentInternal(TArrayView<const FName> BundleNames)
+bool FDefaultInstallBundleManager::CancelUpdateContentInternal(TArrayView<const FName> InBundleNames)
 {
 	bool bCancledRequest = false;
+	TConstArrayView<FName> BundleNames = InBundleNames;
+	TArray<FName> CurrBundleNames;
 
-	for (EContentRequestBatch b : TEnumRange<EContentRequestBatch>())
+	while (BundleNames.Num() > 0)
 	{
-		for (FContentRequestRef& Request : ContentRequests[b])
+		TSet<FName> BundleNamesNext;
+		for (EContentRequestBatch b : TEnumRange<EContentRequestBatch>())
 		{
-			if (!BundleNames.Contains(Request->BundleName))
-				continue;
-
-			bCancledRequest = true;
-
-			if (Request->bIsCanceled)
+			for (FContentRequestRef& Request : ContentRequests[b])
 			{
-				// Already canceled
-				if (Request->Result != EInstallBundleResult::UserCancelledError) // User cancel always has priority
-				{
-					Request->Result = EInstallBundleResult::UserCancelledError;
-				}
-				continue;
-			}
+				if (!BundleNames.Contains(Request->BundleName))
+					continue;
 
-			if (Request->Steps.IsValidIndex(Request->iStep))
-			{
-				EContentRequestState State = Request->Steps[Request->iStep];
-				if (State == EContentRequestState::UpdatingBundleSources)
+				bCancledRequest = true;
+
+				if (Request->bIsCanceled)
 				{
-					for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+					// Already canceled
+					if (Request->Result != EInstallBundleResult::UserCancelledError) // User cancel always has priority
 					{
-						Pair.Value->CancelBundles(BundleNames);
+						Request->Result = EInstallBundleResult::UserCancelledError;
+					}
+					continue;
+				}
+
+				if (Request->Steps.IsValidIndex(Request->iStep))
+				{
+					EContentRequestState State = Request->Steps[Request->iStep];
+					if (State == EContentRequestState::UpdatingBundleSources)
+					{
+						for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+						{
+							TArray<FName> AdditionalBundles;
+							Pair.Value->CancelBundles(BundleNames, AdditionalBundles);
+							BundleNamesNext.Append(AdditionalBundles);
+						}
 					}
 				}
+
+				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Canceling Install Request %s Result: %s"),
+					*Request->BundleName.ToString(), LexToString(EInstallBundleResult::UserCancelledError));
+
+				Request->bIsCanceled = true;
+				Request->Result = EInstallBundleResult::UserCancelledError;
 			}
-
-			LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Canceling Install Request %s Result: %s"),
-				*Request->BundleName.ToString(), LexToString(EInstallBundleResult::UserCancelledError));
-
-			Request->bIsCanceled = true;
-			Request->Result = EInstallBundleResult::UserCancelledError;
 		}
+
+		CurrBundleNames = BundleNamesNext.Array();
+		BundleNames = CurrBundleNames;
 	}
 
 	return bCancledRequest;
@@ -3754,7 +3827,7 @@ bool FDefaultInstallBundleManager::CancelReleaseContentInternal(TArrayView<const
 
 void FDefaultInstallBundleManager::PauseUpdateContent(TArrayView<const FName> BundleNames)
 {
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		Pair.Value->UserPauseBundles(BundleNames);
 	}
@@ -3762,7 +3835,7 @@ void FDefaultInstallBundleManager::PauseUpdateContent(TArrayView<const FName> Bu
 
 void FDefaultInstallBundleManager::ResumeUpdateContent(TArrayView<const FName> BundleNames)
 {
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		Pair.Value->UserResumeBundles(BundleNames);
 	}
@@ -3804,7 +3877,7 @@ TOptional<FInstallBundleProgress> FDefaultInstallBundleManager::GetBundleProgres
 
 	CombinedStatus.Emplace();
 	CombinedStatus->BundleName = BundleName;
-	for (const TPair<EInstallBundleSourceType, EInstallBundlePauseFlags>& Pair : Request->SourcePauseFlags)
+	for (const TPair<FInstallBundleSourceType, EInstallBundlePauseFlags>& Pair : Request->SourcePauseFlags)
 	{
 		CombinedStatus->PauseFlags |= Pair.Value;
 	}
@@ -3827,7 +3900,7 @@ TOptional<FInstallBundleProgress> FDefaultInstallBundleManager::GetBundleProgres
 	if (State == EContentRequestState::UpdatingBundleSources && Request->Result == EInstallBundleResult::OK)
 	{
 		// Update cached status
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			TOptional<FInstallBundleSourceProgress> Progress = Pair.Value->GetBundleProgress(BundleName);
 			if (Progress)
@@ -3838,7 +3911,7 @@ TOptional<FInstallBundleProgress> FDefaultInstallBundleManager::GetBundleProgres
 
 		// Combine cached status
 		float TotalWeight = 0.0f;
-		for (const TPair<EInstallBundleSourceType, FInstallBundleSourceProgress>& Pair : Request->CachedSourceProgress)
+		for (const TPair<FInstallBundleSourceType, FInstallBundleSourceProgress>& Pair : Request->CachedSourceProgress)
 		{
 			const float SourceWeight = BundleSources.FindChecked(Pair.Key)->GetSourceWeight();
 			check(SourceWeight > 0.0f);
@@ -3899,6 +3972,9 @@ void FDefaultInstallBundleManager::StartSessionPersistentStatTracking(const FStr
 		PersistentStats->UpdateForContentState(*State, SessionName);
 	}
 
+	FInstallBundleSourceType BPSSourceType(TEXT("BuildPatchServices"));
+	check(BPSSourceType.IsValid());
+
 	for (EContentRequestBatch iBatch : TEnumRange<EContentRequestBatch>())
 	{
 		for (const FContentRequestRef& QueuedRequest : ContentRequests[iBatch])
@@ -3909,7 +3985,7 @@ void FDefaultInstallBundleManager::StartSessionPersistentStatTracking(const FStr
 				const FInstallBundleContentState* ContentState = (nullptr != State) ? State->IndividualBundleStates.Find(CurrentBundleName) : nullptr;
 				if (nullptr != ContentState)
 				{
-					FString BundleContentVersion = ContentState->Version.FindRef(EInstallBundleSourceType::BuildPatchServices);
+					FString BundleContentVersion = ContentState->Version.FindRef(BPSSourceType);
 
 					FString PreviousVersionCLString;
 					if (!BundleContentVersion.Split(TEXT("CL-"), nullptr, &PreviousVersionCLString, ESearchCase::CaseSensitive))
@@ -3917,7 +3993,7 @@ void FDefaultInstallBundleManager::StartSessionPersistentStatTracking(const FStr
 						PreviousVersionCLString = TEXT("Unknown");
 					}
 
-					FString CurrentVersion = (nullptr != State) ? State->CurrentVersion.FindRef(EInstallBundleSourceType::BuildPatchServices) : FString();
+					FString CurrentVersion = (nullptr != State) ? State->CurrentVersion.FindRef(BPSSourceType) : FString();
 					if (CurrentVersion.IsEmpty() && AnalyticsProvider)
 					{
 						//if we don't have a BPS CurrentVersion, fail back on whatever we sent to setup our Analytics Provider as that is pretty robust
@@ -3984,6 +4060,16 @@ void FDefaultInstallBundleManager::StartBundlePersistentStatTracking(TSharedRef<
 	}
 }
 
+#if !UE_BUILD_SHIPPING
+void FDefaultInstallBundleManager::GetDebugText(TArray<FString>& Output)
+{
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	{
+		Pair.Value->GetDebugText(Output);
+	}
+}
+#endif
+
 void FDefaultInstallBundleManager::StopBundlePersistentStatTracking(TSharedRef<FContentRequest> ContentRequest)
 {
 	//Only bother calling Stop if this bundle supported tracking persistent bundle stats
@@ -4015,7 +4101,7 @@ void FDefaultInstallBundleManager::PersistentTimingStatsEnd(TSharedRef<FContentR
 EInstallBundleRequestFlags FDefaultInstallBundleManager::GetModifyableContentRequestFlags() const
 {
 	EInstallBundleRequestFlags Result = EInstallBundleRequestFlags::None;
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		Result |= Pair.Value->GetModifyableContentRequestFlags();
 	}
@@ -4025,10 +4111,18 @@ EInstallBundleRequestFlags FDefaultInstallBundleManager::GetModifyableContentReq
 
 void FDefaultInstallBundleManager::UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags)
 {
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		EInstallBundleRequestFlags AllowedFlags = Pair.Value->GetModifyableContentRequestFlags();
 		Pair.Value->UpdateContentRequestFlags(BundleNames, AddFlags & AllowedFlags, RemoveFlags & AllowedFlags);
+	}
+}
+
+void FDefaultInstallBundleManager::SetCellularPreference(int32 Value)
+{
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	{
+		Pair.Value->SetCellularPreference(Value);
 	}
 }
 
@@ -4079,7 +4173,7 @@ void FDefaultInstallBundleManager::SetErrorSimulationCommands(const FString& Com
 		bSimulateContentNotLatest = true;
 #endif // INSTALL_BUNDLE_ALLOW_ERROR_SIMULATION
 
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		Pair.Value->SetErrorSimulationCommands(CommandLine);
 	}
@@ -4098,59 +4192,33 @@ TSharedPtr<IAnalyticsProviderET> FDefaultInstallBundleManager::GetAnalyticsProvi
 
 EInstallBundleManagerInitResult FDefaultInstallBundleManager::Init_DefaultBundleSources()
 {
-#ifdef INSTALL_BUNDLE_SOURCES_FALLBACK_CONFIG_SECTION
-	const TCHAR* BundleSourceFallbackSection = TEXT(INSTALL_BUNDLE_SOURCES_FALLBACK_CONFIG_SECTION);
-#else
-	const TCHAR* BundleSourceFallbackSection = TEXT("InstallBundleManager.FallbackBundleSources");
-#endif // INSTALL_BUNDLE_SOURCES_FALLBACK_CONFIG_SECTION
-
-	TArray<FString> ConfigBundleFallbacks;
-	if (GConfig->GetArray(BundleSourceFallbackSection, TEXT("FallbackBundleSources"), ConfigBundleFallbacks, GInstallBundleIni))
+	TArray<FString> ConfgSources;
+	TMap<FString, FString> ConfigFallbackSources;
+	if (!InstallBundleUtil::GetConfiguredBundleSources(ConfgSources, ConfigFallbackSources))
 	{
-		BundleSourceFallbacks.Empty(ConfigBundleFallbacks.Num());
-		for (FString& ConfigFallback : ConfigBundleFallbacks)
-		{
-			// Remove parentheses
-			ConfigFallback.ReplaceInline(TEXT("("), TEXT(""));
-			ConfigFallback.ReplaceInline(TEXT(")"), TEXT(""));
-
-			TArray<FString> Tokens;
-			if (2 != ConfigFallback.ParseIntoArrayWS(Tokens, TEXT(",")))
-			{
-				ensureAlwaysMsgf(false, TEXT("Malformed entry in InstallBundleManager.FallbackBundleSources"));
-				return EInstallBundleManagerInitResult::ConfigurationError;
-			}
-
-			EInstallBundleSourceType Key = EInstallBundleSourceType::Count;
-			EInstallBundleSourceType Value = EInstallBundleSourceType::Count;
-			LexFromString(Key, *Tokens[0]);
-			LexFromString(Value, *Tokens[1]);
-			if (Key == EInstallBundleSourceType::Count || Value == EInstallBundleSourceType::Count)
-			{
-				ensureAlwaysMsgf(false, TEXT("Malformed entry in InstallBundleManager.FallbackBundleSources"));
-				return EInstallBundleManagerInitResult::ConfigurationError;
-			}
-
-			BundleSourceFallbacks.Add(Key, Value);
-		}
+		return EInstallBundleManagerInitResult::ConfigurationError;
 	}
 
-#ifdef INSTALL_BUNDLE_SOURCES_CONFIG_SECTION
-	const TCHAR* BundleSourceSection = TEXT(INSTALL_BUNDLE_SOURCES_CONFIG_SECTION);
-#else
-	const TCHAR* BundleSourceSection = TEXT("InstallBundleManager.BundleSources");
-#endif // INSTALL_BUNDLE_SOURCE_CONFIG_SECTION
-
-	TArray<FString> ConfigBundleSources;
-	ensureAlways(GConfig->GetArray(BundleSourceSection, TEXT("DefaultBundleSources"), ConfigBundleSources, GInstallBundleIni));
-
-	TArray<EInstallBundleSourceType> SourcesToCreate;
-	SourcesToCreate.Reserve(ConfigBundleSources.Num());
-	for (const FString& ConfigSource : ConfigBundleSources)
+	BundleSourceFallbacks.Empty(ConfigFallbackSources.Num());
+	for (const TPair<FString, FString>& ConfigFallback : ConfigFallbackSources)
 	{
-		EInstallBundleSourceType SourceType = EInstallBundleSourceType::Count;
-		LexFromString(SourceType, *ConfigSource);
-		if (SourceType != EInstallBundleSourceType::Count)
+		FInstallBundleSourceType Key(ConfigFallback.Key);
+		FInstallBundleSourceType Value(ConfigFallback.Value);
+		if (!Key.IsValid() || !Value.IsValid())
+		{
+			ensureAlwaysMsgf(false, TEXT("Malformed entry in InstallBundleManager.FallbackBundleSources"));
+			return EInstallBundleManagerInitResult::ConfigurationError;
+		}
+
+		BundleSourceFallbacks.Add(Key, Value);
+	}
+
+	TArray<FInstallBundleSourceType> SourcesToCreate;
+	SourcesToCreate.Reserve(ConfgSources.Num());
+	for (const FString& ConfigSource : ConfgSources)
+	{
+		FInstallBundleSourceType SourceType(ConfigSource);
+		if (SourceType.IsValid())
 		{
 			SourcesToCreate.Add(SourceType);
 		}
@@ -4178,12 +4246,12 @@ EInstallBundleManagerInitResult FDefaultInstallBundleManager::Init_DefaultBundle
 }
 
 EInstallBundleManagerInitResult FDefaultInstallBundleManager::Init_TryCreateBundleSources(
-	TArray<EInstallBundleSourceType> SourcesToCreate, TArray<TSharedPtr<IInstallBundleSource>>* OutNewSources /*= nullptr*/)
+	TArray<FInstallBundleSourceType> SourcesToCreate, TArray<TSharedPtr<IInstallBundleSource>>* OutNewSources /*= nullptr*/)
 {
 	for (int i = 0; i < SourcesToCreate.Num(); ++i)
 	{
-		EInstallBundleSourceType SourceType = SourcesToCreate[i];
-		check(SourceType != EInstallBundleSourceType::Count);
+		FInstallBundleSourceType SourceType = SourcesToCreate[i];
+		check(SourceType.IsValid());
 
 		TSharedPtr<IInstallBundleSource> Source = BundleSources.FindRef(SourceType);
 		if (!Source)
@@ -4213,7 +4281,7 @@ EInstallBundleManagerInitResult FDefaultInstallBundleManager::Init_TryCreateBund
 			}
 			else
 			{
-				EInstallBundleSourceType FallbackSourceType = FindFallbackSource(SourceType);
+				FInstallBundleSourceType FallbackSourceType = FindFallbackSource(SourceType);
 				if (FallbackSourceType == Source->GetSourceType())
 				{
 					ensureAlwaysMsgf(false, TEXT("Failed to init bundle source %s"), LexToString(SourceType));
@@ -4235,13 +4303,13 @@ EInstallBundleManagerInitResult FDefaultInstallBundleManager::Init_TryCreateBund
 	return EInstallBundleManagerInitResult::OK;
 }
 
-EInstallBundleSourceType FDefaultInstallBundleManager::FindFallbackSource(EInstallBundleSourceType SourceType)
+FInstallBundleSourceType FDefaultInstallBundleManager::FindFallbackSource(FInstallBundleSourceType SourceType)
 {
 	// See if we can find a fallback
-	EInstallBundleSourceType FallbackSourceType = SourceType;
+	FInstallBundleSourceType FallbackSourceType = SourceType;
 	for (;;)
 	{
-		EInstallBundleSourceType FallbackSourceTypeNext = GetBundleSourceFallback(FallbackSourceType);
+		FInstallBundleSourceType FallbackSourceTypeNext = GetBundleSourceFallback(FallbackSourceType);
 
 		// Check if we have reached the end of the fallback chain
 		if (FallbackSourceTypeNext == FallbackSourceType)
@@ -4299,7 +4367,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnBundleSourceInitComplete(TSharedR
 	if (InitInfo.Result != EInstallBundleManagerInitResult::OK && InitInfo.bShouldUseFallbackSource)
 	{
 		// See if we can find a fallback
-		EInstallBundleSourceType FallbackSourceType = FindFallbackSource(Source->GetSourceType());
+		FInstallBundleSourceType FallbackSourceType = FindFallbackSource(Source->GetSourceType());
 		if (FallbackSourceType != Source->GetSourceType())
 		{
 			LOG_INSTALL_BUNDLE_MAN(Display, TEXT("Failed to init bundle source %s, falling back to %s"), LexToString(Source->GetSourceType()), LexToString(FallbackSourceType));
@@ -4328,7 +4396,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnBundleSourceInitComplete(TSharedR
 	}
 
 	bool bHasInitializedAllSources = true;
-	for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceAsyncInitInfo>>& Pair : BundleSourceInitResults)
+	for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceAsyncInitInfo>>& Pair : BundleSourceInitResults)
 	{
 		if (!Pair.Value)
 		{
@@ -4340,7 +4408,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnBundleSourceInitComplete(TSharedR
 	if (bHasInitializedAllSources)
 	{
 #if DO_CHECK
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			check(Pair.Value->GetInitState() != EInstallBundleManagerInitState::NotInitialized);
 		}
@@ -4358,7 +4426,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnBundleSourceInitComplete(TSharedR
 		}
 		else
 		{
-			for (const TPair<EInstallBundleSourceType, TOptional<FInstallBundleSourceAsyncInitInfo>>& Pair : BundleSourceInitResults)
+			for (const TPair<FInstallBundleSourceType, TOptional<FInstallBundleSourceAsyncInitInfo>>& Pair : BundleSourceInitResults)
 			{
 				if (Pair.Value->Result != EInstallBundleManagerInitResult::OK)
 				{
@@ -4497,7 +4565,7 @@ void FDefaultInstallBundleManager::AsyncInit_InitBundleCaches()
 		}
 	}
 
-	TSet<EInstallBundleSourceType> UniqueSources;
+	TSet<FInstallBundleSourceType> UniqueSources;
 	for (FString& Mapping : ConfigBundleSourceCaches)
 	{
 		// Remove parentheses
@@ -4512,12 +4580,11 @@ void FDefaultInstallBundleManager::AsyncInit_InitBundleCaches()
 			InitResult = EInstallBundleManagerInitResult::ConfigurationError;
 		}
 
-		EInstallBundleSourceType Source = EInstallBundleSourceType::Count;
-		LexFromString(Source, *Tokens[0]);
+		FInstallBundleSourceType Source(Tokens[0]);
 		FName CacheName = *Tokens[1];
 
 		FInstallBundleCacheInitInfo* InitInfo = BundleCacheInitInfo.Find(CacheName);
-		if (Source == EInstallBundleSourceType::Count || InitInfo == nullptr)
+		if (!Source.IsValid() || InitInfo == nullptr)
 		{
 			ensureAlwaysMsgf(false, TEXT("Malformed entry in InstallBundleManager.BundleCaches"));
 			InitResult = EInstallBundleManagerInitResult::ConfigurationError;
@@ -4556,7 +4623,7 @@ void FDefaultInstallBundleManager::AsyncInit_QueryBundleInfo()
 	InitStepResult = EAsyncInitStepResult::Waiting;
 
 	BundleSourceBundleInfoQueryResults.Empty(BundleSources.Num());
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		Pair.Value->AsyncInit_QueryBundleInfo(FInstallBundleSourceQueryBundleInfoDelegate::CreateRaw(this, &FDefaultInstallBundleManager::AsyncInit_OnQueryBundleInfoComplete));
 	}
@@ -4580,7 +4647,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnQueryBundleInfoComplete(TSharedRe
 	};
 
 	// Pass one, add all the bundles
-	for (const TPair<EInstallBundleSourceType, FInstallBundleSourceBundleInfoQueryResult>& SourcePair : BundleSourceBundleInfoQueryResults)
+	for (const TPair<FInstallBundleSourceType, FInstallBundleSourceBundleInfoQueryResult>& SourcePair : BundleSourceBundleInfoQueryResults)
 	{
 		for (const TPair<FName, FInstallBundleSourcePersistentBundleInfo>& BundleInfoPair : SourcePair.Value.SourceBundleInfoMap)
 		{
@@ -4633,7 +4700,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnQueryBundleInfoComplete(TSharedRe
 
 		TArray<FBundleSourceRelevance> ContributingBundleSources;
 
-		for (const TPair<EInstallBundleSourceType, FInstallBundleSourceBundleInfoQueryResult>& SourcePair : BundleSourceBundleInfoQueryResults)
+		for (const TPair<FInstallBundleSourceType, FInstallBundleSourceBundleInfoQueryResult>& SourcePair : BundleSourceBundleInfoQueryResults)
 		{
 			const FInstallBundleSourcePersistentBundleInfo* SourceBundleInfo = SourcePair.Value.SourceBundleInfoMap.Find(BundleName);
 			if (SourceBundleInfo == nullptr)
@@ -4708,7 +4775,7 @@ void FDefaultInstallBundleManager::AsyncInit_SetUpdateBundleInfoCallback()
 {
 	LOG_INSTALL_BUNDLE_MAN(Display, TEXT("Setting bundle source callback to update bundle info..."));
 
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 	{
 		Pair.Value->AsyncInit_SetUpdateBundleInfoCallback(
 			FInstallBundleSourceUpdateBundleInfoDelegate::CreateRaw(this, &FDefaultInstallBundleManager::OnUpdateBundleInfoFromSource),
@@ -4725,17 +4792,10 @@ void FDefaultInstallBundleManager::AsyncInit_CreateAnalyticsSession()
 
 	if (AnalyticsProvider)
 	{
-		FString MachineID = FPlatformMisc::GetOperatingSystemId();
-		if (MachineID.IsEmpty())
-		{
-			MachineID = FPlatformMisc::GetLoginId();
-		}
-		ensureAlways(!MachineID.IsEmpty());
-
 		// Pick the latest content version from all sources
 		FString ContentVersion;
 		int64 MaxVersionCL = -1;
-		for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+		for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
 		{
 			const TSharedPtr<IInstallBundleSource>& Source = Pair.Value;
 			FString SourceContentVersion = Source->GetContentVersion();
@@ -4756,7 +4816,7 @@ void FDefaultInstallBundleManager::AsyncInit_CreateAnalyticsSession()
 		}
 		ensureAlways(MaxVersionCL != -1);
 
-		AnalyticsProvider->SetSessionID(FString(TEXT("InstallSession-")) + MachineID + TEXT("-") + ContentVersion);
+		AnalyticsProvider->SetSessionID(FString(TEXT("IBMInstallSession-")) + FGuid::NewGuid().ToString() + TEXT("-") + ContentVersion);
 	}
 	InitStepResult = EAsyncInitStepResult::Done;
 }

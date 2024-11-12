@@ -8,7 +8,11 @@
 
 namespace uba
 {
+	class CacheClient;
+	class Config;
+	class ConfigTable;
 	class Process;
+	class RootPaths;
 	class SessionServer;
 	struct NextProcessInfo;
 	struct ProcessStartInfoHolder;
@@ -17,11 +21,16 @@ namespace uba
 	{
 		SchedulerCreateInfo(SessionServer& s) : session(s) {}
 
+		void Apply(Config& config);
+
 		SessionServer& session;
+		CacheClient* cacheClient = nullptr; // Set cache client for scheduler to use when building
 		u32 maxLocalProcessors = ~0u; // Max local processors to use. ~0u means it will use all processors
 		bool enableProcessReuse = false; // If this is true, the system will allow processes to be reused when they're asking for it.
 		bool forceRemote = false; // Force all processes that can run remotely to run remotely.
 		bool forceNative = false; // Force all processes to run native (not detoured)
+		bool writeToCache = false; // Set to true in combination with setting cacheClient to populate cache
+		ConfigTable* processConfigs = nullptr;
 	};
 
 	struct EnqueueProcessInfo
@@ -60,18 +69,33 @@ namespace uba
 
 		void SetProcessFinishedCallback(const Function<void(const ProcessHandle&)>& processFinished); // Set callback 
 
+		SessionServer& GetSession() { return m_session; }
+		
+		u32 GetProcessCountThatCanRunRemotelyNow();
+
 	private:
 		struct ExitProcessInfo;
 		struct ProcessStartInfo2;
 
+		enum ProcessStatus : u8
+		{
+			ProcessStatus_QueuedForCache,
+			ProcessStatus_QueuedForRun,
+			ProcessStatus_Running,
+			ProcessStatus_Success,
+			ProcessStatus_Failed,
+			ProcessStatus_Skipped,
+		};
+
 		void ThreadLoop();
 		void RemoteProcessReturned(Process& process);
+		void HandleCacheMissed(ExitProcessInfo* ei);
 		void RemoteSlotAvailable();
 		void ProcessExited(ExitProcessInfo* info, const ProcessHandle& handle);
-		u32 PopProcess(bool isLocal);
+		u32 PopProcess(bool isLocal, ProcessStatus& outPrevStatus);
 		bool RunQueuedProcess(bool isLocal);
 		bool HandleReuseMessage(Process& process, NextProcessInfo& outNextProcess, u32 prevExitCode);
-		void ExitProcess(ExitProcessInfo& info, Process& process, u32 exitCode);
+		void ExitProcess(ExitProcessInfo& info, Process& process, u32 exitCode, bool fromCache);
 		void SkipProcess(ProcessStartInfo2& info);
 		void UpdateQueueCounter(int offset);
 		void UpdateActiveProcessCounter(bool isLocal, int offset);
@@ -79,16 +103,6 @@ namespace uba
 
 		SessionServer& m_session;
 		u32 m_maxLocalProcessors;
-	
-		enum ProcessStatus : u8
-		{
-			ProcessStatus_Queued,
-			ProcessStatus_Running,
-			ProcessStatus_Success,
-			ProcessStatus_Failed,
-			ProcessStatus_Skipped,
-		};
-
 		
 		struct ProcessEntry
 		{
@@ -96,8 +110,8 @@ namespace uba
 			u32* dependencies;
 			u32 dependencyCount;
 			ProcessStatus status;
-			u8 canDetour;
-			u8 canExecuteRemotely;
+			bool canDetour;
+			bool canExecuteRemotely;
 		};
 
 		ReaderWriterLock m_processEntriesLock;
@@ -112,13 +126,19 @@ namespace uba
 		bool m_enableProcessReuse;
 		bool m_forceRemote;
 		bool m_forceNative;
+		ConfigTable* m_processConfigs = nullptr;
 
 		float m_activeLocalProcessWeight = 0.0f;
+		u32 m_activeCacheQueries = 0;
 
 		Atomic<u32> m_queuedProcesses;
 		Atomic<u32> m_activeLocalProcesses;
 		Atomic<u32> m_activeRemoteProcesses;
 		Atomic<u32> m_finishedProcesses;
+
+		CacheClient* m_cacheClient;
+		Vector<RootPaths*> m_rootPaths;
+		bool m_writeToCache;
 
 		Scheduler(const Scheduler&) = delete;
 		void operator=(const Scheduler&) = delete;

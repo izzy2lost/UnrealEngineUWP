@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
+
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
 #include "AvaShapeActor.h"
@@ -26,8 +27,10 @@
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
 #if WITH_EDITOR
+#include "DMObjectMaterialProperty.h"
 #include "Editor.h"
 #include "Elements/Actor/ActorElementEditorViewportInteractionCustomization.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "LevelEditor/AvaLevelEditorUtils.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "PropertyEditorModule.h"
@@ -49,11 +52,14 @@ UAvaShapeDynamicMeshBase::UAvaShapeDynamicMeshBase(const FLinearColor& InVertexC
 	, bVerticesDirty(false)
 	, bColorsDirty(false)
 {
+	if (!IsTemplate())
+	{
 #if WITH_EDITOR
-	FEditorDelegates::OnApplyObjectToActor.AddUObject(this, &UAvaShapeDynamicMeshBase::OnAssetDropped);
+		FEditorDelegates::OnApplyObjectToActor.AddUObject(this, &UAvaShapeDynamicMeshBase::OnAssetDropped);
 #endif
 
-	FAvaShapeParametricMaterial::OnMaterialChanged().AddUObject(this, &UAvaShapeDynamicMeshBase::OnParametricMaterialChanged);
+		FAvaShapeParametricMaterial::OnMaterialChanged().AddUObject(this, &UAvaShapeDynamicMeshBase::OnParametricMaterialChanged);
+	}
 }
 
 EMaterialType& UAvaShapeDynamicMeshBase::GetMaterialType(int32 MeshIndex)
@@ -1190,6 +1196,13 @@ void UAvaShapeDynamicMeshBase::OnMaterialTypeChanged(int32 MaterialIndex)
 					UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(this);
 #endif
 					SetMaterial(MaterialIndex, NewInstance);
+
+#if WITH_EDITOR
+					const FDMObjectMaterialProperty ObjectMaterialProperty = FDMObjectMaterialProperty(GetShapeMeshComponent(), MaterialIndex);
+
+					const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+					MaterialDesignerModule.OpenMaterialObjectProperty(ObjectMaterialProperty, GetWorld(), /* Invoke Tab */ true);
+#endif
 				}
 				break;
 			}
@@ -1732,11 +1745,15 @@ void UAvaShapeDynamicMeshBase::PostEditImport()
 	// reset cache component
 	CachedComponent.Reset();
 
+	const bool bUseSingleMaterial = bUsePrimaryMaterialEverywhere;
+
 	// Update material options
 	for (const int32 MeshIdx : GetMeshesIndexes())
 	{
 		OnMaterialTypeChanged(MeshIdx);
 	}
+
+	SetUsePrimaryMaterialEverywhere(bUseSingleMaterial);
 }
 
 void UAvaShapeDynamicMeshBase::PostDuplicate(EDuplicateMode::Type DuplicateMode)

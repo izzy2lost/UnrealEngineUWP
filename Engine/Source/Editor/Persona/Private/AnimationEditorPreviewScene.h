@@ -79,6 +79,14 @@ public:
 		OnLODChanged.RemoveAll(Thing);
 	}
 
+	virtual void BroadcastOnLODChanged() override
+	{
+		if (OnLODChanged.IsBound())
+		{
+			OnLODChanged.Broadcast();
+		}
+	}
+
 	virtual void RegisterOnMorphTargetsChanged(const FSimpleDelegate& Delegate) override
 	{
 		OnMorphTargetsChanged.Add(Delegate);
@@ -334,6 +342,21 @@ public:
 		return bIsBeingConstructed;
 	}
 
+	/** Toggles state on showing Timecode value in the viewport */
+	void ToggleShowTimecode()
+	{
+		bShowTimecode = !bShowTimecode;
+	}
+
+	/** Should we show the timecode in the viewport. */
+	bool IsShowTimecode() const
+	{
+		return bShowTimecode;
+	}
+
+	/** Get the current time of the preview instance for the current animation sequence. */
+	TOptional<float> GetCurrentTime() const;
+
 private:
 	/** Set preview mesh internal use only. The mesh should be verified by now. */
 	void SetPreviewMeshInternal(USkeletalMesh* NewPreviewMesh);
@@ -483,4 +506,7 @@ private:
 
 	/** True during initial creation, so some code can be skipped */
 	bool bIsBeingConstructed = false;
+
+	/** Should we display timecode in the preview viewport. */
+	bool bShowTimecode = true;
 };

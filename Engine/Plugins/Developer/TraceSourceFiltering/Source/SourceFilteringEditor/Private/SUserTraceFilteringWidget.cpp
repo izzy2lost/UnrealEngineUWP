@@ -105,7 +105,6 @@ void SUserTraceFilteringWidget::SetSessionFilterService(TSharedPtr<ISessionSourc
 void SUserTraceFilteringWidget::ConstructTreeview()
 {
 	SAssignNew(FilterTreeView, SSourceFilteringTreeView, StaticCastSharedRef<SUserTraceFilteringWidget>(AsShared()))
-	.ItemHeight(20.0f)
 	.TreeItemsSource(&FilterObjects)
 	.OnGetChildren_Lambda([this](TSharedPtr<IFilterObject> InObject, TArray<TSharedPtr<IFilterObject>>& OutChildren)
 	{

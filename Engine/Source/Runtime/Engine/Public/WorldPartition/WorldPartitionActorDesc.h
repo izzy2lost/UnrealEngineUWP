@@ -12,25 +12,63 @@
 #include "UObject/WeakObjectPtr.h"
 #include "Templates/SubclassOf.h"
 #include "Misc/Guid.h"
+#include "Misc/TVariant.h"
 #include "WorldPartition/WorldPartitionActorDescType.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
 
+class FActorDescArchive;
+
 // Struct used to create actor descriptor
 struct FWorldPartitionActorDescInitData
 {
+	FWorldPartitionActorDescInitData()
+		: DataSource(TInPlaceType<TArray<uint8>>(), TArray<uint8>())
+	{}
+
+	FWorldPartitionActorDescInitData(FActorDescArchive* InArchive)
+		: DataSource(TInPlaceType<FActorDescArchive*>(), InArchive)
+	{}
+
 	UClass* NativeClass;
 	FName PackageName;
 	FSoftObjectPath ActorPath;
-	TArray<uint8> SerializedData;
 
+	TArray<uint8>& GetSerializedData()
+	{
+		check(DataSource.IsType<TArray<uint8>>());
+		return DataSource.Get<TArray<uint8>>();
+	}
+
+	const TArray<uint8>& GetSerializedData() const
+	{
+		check(DataSource.IsType<TArray<uint8>>());
+		return DataSource.Get<TArray<uint8>>();
+	}
+
+	FActorDescArchive* GetArchive() const
+	{
+		check(DataSource.IsType<FActorDescArchive*>());
+		return DataSource.Get<FActorDescArchive*>();
+	}
+
+	bool IsUsingArchive() const
+	{
+		return DataSource.IsType<FActorDescArchive*>();
+	}
+		
 	FWorldPartitionActorDescInitData& SetNativeClass(UClass* InNativeClass) { NativeClass = InNativeClass; return *this; }
 	FWorldPartitionActorDescInitData& SetPackageName(FName InPackageName) { PackageName = InPackageName; return *this; }
 	FWorldPartitionActorDescInitData& SetActorPath(const FSoftObjectPath& InActorPath) { ActorPath = InActorPath; return *this; }
+
+private:
+	// Provide SerializedData or an already initialized Archive
+	TVariant<TArray<uint8>, FActorDescArchive*> DataSource;
 };
 
 struct FWorldPartitionAssetDataPatcher
 {
+	virtual ~FWorldPartitionAssetDataPatcher() {}
 	virtual bool DoPatch(FString& InOutString) = 0;
 	virtual bool DoPatch(FName& InOutName) = 0;
 	virtual bool DoPatch(FSoftObjectPath& InOutSoft) = 0;
@@ -95,6 +133,7 @@ class FWorldPartitionActorDesc
 	friend class FActorDescArchive;
 	friend class FWorldPartitionActorDescInstance;
 	friend class FStreamingGenerationUnsavedDirtyActorDescInstance;
+	friend class FPropertyOverrideUtils;
 	template<class U> friend class TActorDescContainerCollection;
 
 public:
@@ -124,7 +163,7 @@ public:
 	inline UClass* GetActorNativeClass() const { return ActorNativeClass; }
 
 	inline FName GetRuntimeGrid() const { return RuntimeGrid; }
-	inline bool GetIsSpatiallyLoaded() const { return bIsBoundsValid ? bIsSpatiallyLoaded : false; }
+	inline bool GetIsSpatiallyLoaded() const { return RuntimeBounds.IsValid ? bIsSpatiallyLoaded : false; }
 	inline bool GetIsSpatiallyLoadedRaw() const { return bIsSpatiallyLoaded; }
 	inline bool GetActorIsEditorOnly() const { return bActorIsEditorOnly; }
 	inline bool GetActorIsRuntimeOnly() const { return bActorIsRuntimeOnly; }
@@ -144,7 +183,7 @@ public:
 	inline const FGuid& GetFolderGuid() const { return FolderGuid; }
 	inline const FTransform& GetActorTransform() const { return ActorTransform; }
 
-	ENGINE_API virtual FBox GetEditorBounds() const;
+	ENGINE_API FBox GetEditorBounds() const;
 	ENGINE_API FBox GetRuntimeBounds() const;
 
 	inline const FGuid& GetParentActor() const { return ParentActor; }
@@ -157,10 +196,16 @@ public:
 	ENGINE_API FName GetActorLabelOrName() const;
 	ENGINE_API FName GetDisplayClassName() const;
 
+	// Faster accessors for names as strings
+	ENGINE_API const FString& GetActorNameString() const;
+	ENGINE_API const FString& GetActorLabelString() const;
+	ENGINE_API const FString& GetDisplayClassNameString() const;
+
 	inline bool IsDefaultActorDesc() const { return bIsDefaultActorDesc; }
 		
 	virtual bool IsChildContainerInstance() const { return false; }
 	virtual FName GetChildContainerPackage() const { return NAME_None; }
+	virtual FString GetChildContainerName() const { return FString(); }
 	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const { return EWorldPartitionActorFilterType::None; }
 	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const { return nullptr; }
 	virtual UActorDescContainer* GetChildContainer() const { return nullptr; }
@@ -168,7 +213,7 @@ public:
 	ENGINE_API FGuid GetContentBundleGuid() const;
 
 	virtual const FGuid& GetSceneOutlinerParent() const { return GetParentActor(); }
-	virtual bool IsResaveNeeded() const { return false; }
+	virtual bool IsResaveNeeded() const { return bIsSpatiallyLoaded && !RuntimeBounds.IsValid; }
 
 	ENGINE_API virtual void CheckForErrors(const IWorldPartitionActorDescInstanceView* InActorDescView, IStreamingGenerationErrorHandler* ErrorHandler) const;
 
@@ -310,7 +355,9 @@ public:
 	{
 		Guid,
 		Compact,
-		Full
+		Full,
+		Verbose,
+		ForDiff
 	};
 
 	ENGINE_API FString ToString(EToStringMode Mode = EToStringMode::Compact) const;
@@ -328,17 +375,16 @@ public:
 	 */
 	ENGINE_API virtual bool ShouldResave(const FWorldPartitionActorDesc* Other) const;
 
-	ENGINE_API void SerializeTo(TArray<uint8>& OutData) const;
+	ENGINE_API void SerializeTo(TArray<uint8>& OutData, FWorldPartitionActorDesc* BaseDesc = nullptr) const;
 
 	using FActorDescDeprecator = TFunction<void(FArchive&, FWorldPartitionActorDesc*)>;
 	static ENGINE_API void RegisterActorDescDeprecator(TSubclassOf<AActor> ActorClass, const FActorDescDeprecator& Deprecator);
 
 	ENGINE_API bool IsMainWorldOnly() const;
 	ENGINE_API bool IsListedInSceneOutliner() const;
-protected:
-	UE_DEPRECATED(5.4, "OnUnloadingInstance is deprecated.")
-	virtual void OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const {}
 
+protected:
+	void InitTransientProperties(const FWorldPartitionActorDescInitData& DescData);
 	virtual bool GetChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FContainerInstance& OutContainerInstance) const { return false; }
 	virtual UActorDescContainerInstance* CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const { return nullptr; }
 	virtual UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const { return nullptr; }
@@ -352,9 +398,8 @@ protected:
 	virtual void TransferWorldData(const FWorldPartitionActorDesc* From)
 	{
 		ActorTransform = From->ActorTransform;
-		BoundsLocation = From->BoundsLocation;
-		BoundsExtent = From->BoundsExtent;
-		bIsBoundsValid = From->bIsBoundsValid;
+		RuntimeBounds = From->RuntimeBounds;
+		EditorBounds = From->EditorBounds;
 	}
 
 	virtual uint32 GetSizeOf() const { return sizeof(FWorldPartitionActorDesc); }
@@ -369,8 +414,8 @@ protected:
 	FSoftObjectPath					ActorPath;		// Not serialized, comes from initialization data
 	FName							ActorLabel;
 	FTransform						ActorTransform;
-	FVector							BoundsLocation;
-	FVector							BoundsExtent;
+	FBox							RuntimeBounds;
+	FBox							EditorBounds;
 	FName							RuntimeGrid;
 	bool							bIsSpatiallyLoaded;
 	bool							bActorIsEditorOnly;
@@ -379,7 +424,6 @@ protected:
 	bool							bActorIsHLODRelevant;
 	bool							bActorIsListedInSceneOutliner;
 	bool							bIsUsingDataLayerAsset; // Used to know if DataLayers array represents DataLayers Asset paths or the FNames of the deprecated version of Data Layers
-	bool							bIsBoundsValid;
 	FSoftObjectPath					HLODLayer;
 	TArray<FName>					DataLayers;
 	FSoftObjectPath					ExternalDataLayerAsset;
@@ -395,6 +439,9 @@ protected:
 	// Transient
 	UClass*							ActorNativeClass;
 	FName							ActorName;
+	FString							ActorNameString;
+	FString							ActorLabelString;
+	FString							ActorDisplayClassNameString;
 	UActorDescContainer*			Container;
 	bool							bIsDefaultActorDesc;
 

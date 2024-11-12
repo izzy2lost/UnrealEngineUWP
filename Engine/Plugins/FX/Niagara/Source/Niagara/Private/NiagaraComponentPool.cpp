@@ -176,7 +176,7 @@ bool FNCPool::RemoveComponent(UNiagaraComponent* Component)
 	{
 		if (FreeElements[i].Component == Component)
 		{
-			FreeElements.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			FreeElements.RemoveAtSwap(i, EAllowShrinking::No);
 			return true;
 		}
 		++i;
@@ -202,7 +202,7 @@ void FNCPool::KillUnusedComponents(double KillTime, UNiagaraSystem* Template)
 				Component->DestroyComponent();
 			}
 
-			FreeElements.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			FreeElements.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 		else
 		{

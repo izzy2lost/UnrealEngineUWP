@@ -7,6 +7,21 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "RHICommandList.h"
+#include "RHICoreNvidiaAftermath.h"
+
+static bool GRHITransientAllocatorSeparateAsyncComputeHeap = false;
+static FAutoConsoleVariableRef CVarRHITransientAllocatorSeparateAsyncComputeHeap(
+	TEXT("RHI.TransientAllocator.SeparateAsyncComputeHeap"),
+	GRHITransientAllocatorSeparateAsyncComputeHeap,
+	TEXT("If enabled, async compute only allocations are put in their own separate heap."),
+	ECVF_RenderThreadSafe);
+
+static bool GRHITransientAllocatorParallelResourceCreation = true;
+static FAutoConsoleVariableRef CVarRHITransientAllocatorParallelResourceCreation(
+	TEXT("RHI.TransientAllocator.ParallelResourceCreation"),
+	GRHITransientAllocatorParallelResourceCreation,
+	TEXT("If enabled, a task is launched for each placed resource that is created."),
+	ECVF_RenderThreadSafe);
 
 static int32 GRHITransientAllocatorMinimumHeapSize = 128;
 static FAutoConsoleVariableRef CVarRHITransientAllocatorMinimumHeapSize(
@@ -70,7 +85,11 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Textures"), STAT_RHITransientTextures, STAT
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Buffers"), STAT_RHITransientBuffers, STATGROUP_RHITransientMemory);
 
 DECLARE_LLM_MEMORY_STAT(TEXT("RHI Transient Resources"), STAT_RHITransientResourcesLLM, STATGROUP_LLMFULL);
-RHICORE_API LLM_DEFINE_TAG(RHITransientResources, NAME_None, NAME_None, GET_STATFNAME(STAT_RHITransientResourcesLLM), GET_STATFNAME(STAT_EngineSummaryLLM));
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER // if LLM_DEFINE_TAG is something we need to dll export it
+RHICORE_API
+#endif
+LLM_DEFINE_TAG(RHITransientResources, NAME_None, NAME_None, GET_STATFNAME(STAT_RHITransientResourcesLLM), GET_STATFNAME(STAT_EngineSummaryLLM));
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -105,106 +124,6 @@ void FRHITransientMemoryStats::Submit(uint64 UsedSize)
 }
 
 //////////////////////////////////////////////////////////////////////////
-
-void FRHITransientResourceOverlapTracker::Track(FRHITransientResource* TransientResource, uint32 PageOffsetMin, uint32 PageOffsetMax)
-{
-	check(TransientResource);
-
-	FResourceRange ResourceRangeNew;
-	ResourceRangeNew.ResourceIndex = Resources.Emplace(TransientResource);
-	ResourceRangeNew.PageOffsetMin = PageOffsetMin;
-	ResourceRangeNew.PageOffsetMax = PageOffsetMax;
-
-	int32 InsertIndex = Algo::LowerBound(ResourceRanges, ResourceRangeNew, [](const FResourceRange& Lhs, const FResourceRange& Rhs)
-	{
-		return Lhs.PageOffsetMax <= Rhs.PageOffsetMin;
-	});
-
-	for (int32 Index = InsertIndex; Index < ResourceRanges.Num(); ++Index)
-	{
-		FResourceRange& ResourceRangeOld = ResourceRanges[Index];
-
-		// If the old range starts later in the heap and doesn't overlap, the sort invariant guarantees no future range will overlap.
-		if (ResourceRangeOld.PageOffsetMin >= ResourceRangeNew.PageOffsetMax)
-		{
-			break;
-		}
-
-		TransientResource->AddAliasingOverlap(Resources[ResourceRangeOld.ResourceIndex]);
-
-		// Complete overlap.
-		if (ResourceRangeOld.PageOffsetMin >= ResourceRangeNew.PageOffsetMin && ResourceRangeOld.PageOffsetMax <= ResourceRangeNew.PageOffsetMax)
-		{
-			ResourceRanges.RemoveAt(Index, 1, EAllowShrinking::No);
-			Index--;
-		}
-		// Partial overlap, can manifest as three cases:
-		else
-		{
-			// 1) New:    ********
-			//            |||        ->
-			//    Old: ======             ===********
-			if (ResourceRangeOld.PageOffsetMin < ResourceRangeNew.PageOffsetMin)
-			{
-				FResourceRange ResourceRangeOldCopy = ResourceRangeOld;
-				ResourceRangeOld.PageOffsetMax = ResourceRangeNew.PageOffsetMin;
-
-				InsertIndex++;
-				// 3) New:    ********
-				//            ||||||||      ->
-				//    Old: ==============        ===********===
-				if (ResourceRangeOldCopy.PageOffsetMax > ResourceRangeNew.PageOffsetMax)
-				{
-					ResourceRangeOldCopy.PageOffsetMin = ResourceRangeNew.PageOffsetMax;
-
-					// Lower bound has been resized already; add an upper bound.
-					FResourceRange ResourceRangeOldUpper = ResourceRangeOldCopy;
-					ResourceRanges.Insert(ResourceRangeOldUpper, Index + 1);
-
-					break;
-				}
-			}
-			else
-			{
-				// 2) New:    ********
-				//                |||      ->
-				//    Old:        ======         ********===
-				ResourceRangeOld.PageOffsetMin = ResourceRangeNew.PageOffsetMax;
-
-				break;
-			}
-		}
-	}
-
-	ResourceRanges.Insert(ResourceRangeNew, InsertIndex);
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-void FRHITransientResourceOverlapTracker::Reset()
-{
-	TArray<FResourceRange> AcquiredRanges;
-	TArray<FRHITransientResource*> AcquiredResources;
-	AcquiredRanges.Reserve(ResourceRanges.Num());
-	AcquiredResources.Reserve(Resources.Num());
-
-	for (FResourceRange Range : ResourceRanges)
-	{
-		FRHITransientResource* Resource = Resources[Range.ResourceIndex];
-
-		if (Resource->IsAcquired())
-		{
-			Range.ResourceIndex = AcquiredResources.Num();
-			AcquiredRanges.Emplace(Range);
-			AcquiredResources.Emplace(Resource);
-		}
-	}
-
-	Swap(ResourceRanges, AcquiredRanges);
-	Swap(Resources, AcquiredResources);
-}
-
-//////////////////////////////////////////////////////////////////////////
 // Transient Resource Heap Allocator
 //////////////////////////////////////////////////////////////////////////
 
@@ -213,10 +132,10 @@ FRHITransientHeapAllocator::FRHITransientHeapAllocator(uint64 InCapacity, uint32
 	, AlignmentMin(InAlignment)
 {
 	HeadHandle = CreateRange();
-	InsertRange(HeadHandle, 0, Capacity);
+	InsertRange(HeadHandle, nullptr, {}, 0, Capacity);
 }
 
-FRHITransientHeapAllocation FRHITransientHeapAllocator::Allocate(uint64 Size, uint32 Alignment)
+FRHITransientHeapAllocation FRHITransientHeapAllocator::Allocate(const FRHITransientAllocationFences& Fences, uint64 Size, uint32 Alignment, TArray<FAliasingOverlap>& OutAliasingOverlaps)
 {
 	check(Size > 0);
 
@@ -225,48 +144,130 @@ FRHITransientHeapAllocation FRHITransientHeapAllocator::Allocate(uint64 Size, ui
 		Alignment = AlignmentMin;
 	}
 
-	FFindResult FindResult = FindFreeRange(Size, Alignment);
+	TArray<FRangeHandle, TInlineAllocator<64>> RangeCandidates;
 
-	if (FindResult.FoundHandle == InvalidRangeHandle)
+	FRangeHandle Handle = GetFirstFreeRangeHandle();
+	FRangeHandle FirstPreviousHandle = HeadHandle;
+	FRangeHandle PreviousHandle = InvalidRangeHandle;
+	uint64 FirstAllocationRegionMin = 0;
+	uint64 AllocationMin = 0;
+	uint64 AllocationMax = 0;
+	uint64 NextRangeMin  = 0;
+	uint64 LeftoverSize  = 0;
+	bool bAllocationComplete = false;
+
+	while (Handle != InvalidRangeHandle)
 	{
-		return {};
+		FRange& Range = Ranges[Handle];
+		const uint64 RangeMax = Range.Offset + Range.Size;
+
+		const auto NextRegion = [&]
+		{
+			PreviousHandle = Handle;
+			Handle = Range.NextFreeHandle;
+		};
+
+		// Specify the initial min / max bounds based off the current candidate range.
+		if (RangeCandidates.IsEmpty())
+		{
+			const uint64 AlignedOffset = Align(GpuVirtualAddress + Range.Offset, Alignment) - GpuVirtualAddress;
+
+			// Skip regions smaller than the alignment padding.
+			if (AlignedOffset >= RangeMax)
+			{
+				FirstPreviousHandle = InvalidRangeHandle;
+				NextRegion();
+				continue;
+			}
+
+			FirstAllocationRegionMin = NextRangeMin = Range.Offset;
+			AllocationMin = AlignedOffset;
+			AllocationMax = AlignedOffset + Size;
+		}
+
+		// Range is allowed to be part of this allocation.
+		if (Range.Offset == NextRangeMin)
+		{
+			ON_SCOPE_EXIT { NextRegion(); };
+
+			if (!FRHITransientAllocationFences::Contains(Range.Fences, Fences))
+			{
+				if (FirstPreviousHandle == InvalidRangeHandle)
+				{
+					FirstPreviousHandle = PreviousHandle;
+				}
+
+				RangeCandidates.Emplace(Handle);
+
+				// Range is large enough to service remaining allocation
+				if (AllocationMax <= RangeMax)
+				{
+					LeftoverSize = RangeMax - AllocationMax;
+					bAllocationComplete = true;
+					break;
+				}
+
+				NextRangeMin += Range.Size;
+				continue;
+			}
+		}
+
+		RangeCandidates.Reset();
+		FirstPreviousHandle = InvalidRangeHandle;
 	}
-
-	FRange& FoundRange = Ranges[FindResult.FoundHandle];
-
-	const uint64 AlignedSize = FoundRange.Size - FindResult.LeftoverSize;
-	const uint64 AlignmentPad = AlignedSize - Size;
-	const uint64 AlignedOffset = FoundRange.Offset + AlignmentPad;
-	const uint64 AllocationEnd = AlignedOffset + Size;
-
-	// Adjust the range if there is space left over.
-	if (FindResult.LeftoverSize)
-	{
-		FoundRange.Offset = AllocationEnd;
-		FoundRange.Size = FindResult.LeftoverSize;
-	}
-	// Otherwise, remove it.
-	else
-	{
-		RemoveRange(FindResult.PreviousHandle, FindResult.FoundHandle);
-	}
-
-	AllocationCount++;
-	UsedSize += AlignedSize;
-	AlignmentWaste += AlignmentPad;
 
 	FRHITransientHeapAllocation Allocation;
-	Allocation.Size = Size;
-	Allocation.Offset = AlignedOffset;
-	Allocation.AlignmentPad = AlignmentPad;
+
+	if (bAllocationComplete)
+	{
+		check(!RangeCandidates.IsEmpty())
+		const uint64 AlignedSize  = AllocationMax - FirstAllocationRegionMin;
+		const uint64 AlignmentPad = AlignedSize - Size;
+
+		AllocationCount++;
+		UsedSize       += AlignedSize;
+		AlignmentWaste += AlignmentPad;
+
+		for (int32 Index = 0; Index < RangeCandidates.Num(); ++Index)
+		{
+			int32 RangeIndex = RangeCandidates[Index];
+			const FRange& Range = Ranges[RangeIndex];
+
+			if (FRHITransientResource* ResourceToOverlap = Range.Resource)
+			{
+				OutAliasingOverlaps.Emplace(ResourceToOverlap, FRHITransientAllocationFences::GetAcquireFence(Range.Fences, Fences));
+			}
+
+			if (Index < RangeCandidates.Num() - 1)
+			{
+				RemoveRange(FirstPreviousHandle, RangeIndex);
+			}
+		}
+	
+		if (LeftoverSize > 0)
+		{
+			FRange& LastRange = Ranges[RangeCandidates.Last()];
+			LastRange.Offset  = AllocationMax;
+			LastRange.Size    = LeftoverSize;
+		}
+		else
+		{
+			RemoveRange(FirstPreviousHandle, RangeCandidates.Last());
+		}
+		
+		Allocation.Size   = Size;
+		Allocation.Offset = AllocationMin;
+		Allocation.AlignmentPad = AlignmentPad;
+	}
 
 	Validate();
-
 	return Allocation;
 }
 
-void FRHITransientHeapAllocator::Deallocate(FRHITransientHeapAllocation Allocation)
+void FRHITransientHeapAllocator::Deallocate(FRHITransientResource* Resource, const FRHITransientAllocationFences& Fences)
 {
+	check(Resource);
+	const FRHITransientHeapAllocation& Allocation = Resource->GetHeapAllocation();
 	check(Allocation.Size > 0 && Allocation.Size <= UsedSize);
 
 	// Reconstruct the original range offset by subtracting the alignment pad, and expand the size accordingly.
@@ -275,7 +276,6 @@ void FRHITransientHeapAllocator::Deallocate(FRHITransientHeapAllocation Allocati
 	const uint64 RangeToFreeEnd = RangeToFreeOffset + RangeToFreeSize;
 
 	FRangeHandle PreviousHandle = HeadHandle;
-	FRangeHandle NextHandle = InvalidRangeHandle;
 	FRangeHandle Handle = GetFirstFreeRangeHandle();
 
 	while (Handle != InvalidRangeHandle)
@@ -285,7 +285,6 @@ void FRHITransientHeapAllocator::Deallocate(FRHITransientHeapAllocation Allocati
 		// Find the first free range after the one being freed.
 		if (RangeToFreeOffset < Range.Offset)
 		{
-			NextHandle = Handle;
 			break;
 		}
 
@@ -293,88 +292,41 @@ void FRHITransientHeapAllocator::Deallocate(FRHITransientHeapAllocation Allocati
 		Handle = Range.NextFreeHandle;
 	}
 
-	uint64 MergedFreeRangeStart = RangeToFreeOffset;
-	uint64 MergedFreeRangeEnd = RangeToFreeEnd;
-	bool bMergedPrevious = false;
-	bool bMergedNext = false;
+	InsertRange(PreviousHandle, Resource, Fences, RangeToFreeOffset, RangeToFreeSize);
 
-	if (PreviousHandle != HeadHandle)
-	{
-		FRange& PreviousRange = Ranges[PreviousHandle];
-
-		// Attempt to merge the previous range with the range being freed.
-		if (PreviousRange.GetEnd() == RangeToFreeOffset)
-		{
-			PreviousRange.Size += RangeToFreeSize;
-			MergedFreeRangeStart = PreviousRange.Offset;
-			MergedFreeRangeEnd = PreviousRange.GetEnd();
-			bMergedPrevious = true;
-		}
-	}
-
-	if (NextHandle != InvalidRangeHandle)
-	{
-		FRange& NextRange = Ranges[NextHandle];
-
-		// Attempt to merge the next range with the range being freed.
-		if (RangeToFreeEnd == NextRange.Offset)
-		{
-			NextRange.Size += RangeToFreeSize;
-			NextRange.Offset = RangeToFreeOffset;
-			MergedFreeRangeStart = FMath::Min(MergedFreeRangeStart, RangeToFreeOffset);
-			MergedFreeRangeEnd = NextRange.GetEnd();
-			bMergedNext = true;
-		}
-	}
-
-	// With both previous and next ranges merged with the freed range, they now overlap. Remove next and expand previous to cover all three.
-	if (bMergedPrevious && bMergedNext)
-	{
-		FRange& PreviousRange = Ranges[PreviousHandle];
-		FRange& NextRange = Ranges[NextHandle];
-
-		PreviousRange.Size = MergedFreeRangeEnd - MergedFreeRangeStart;
-		RemoveRange(PreviousHandle, NextHandle);
-	}
-	// If neither previous or next were merged, insert a new range between them.
-	else if (!bMergedPrevious && !bMergedNext)
-	{
-		InsertRange(PreviousHandle, RangeToFreeOffset, RangeToFreeSize);
-	}
-
-	UsedSize -= RangeToFreeSize;
+	UsedSize       -= RangeToFreeSize;
 	AlignmentWaste -= Allocation.AlignmentPad;
 	AllocationCount--;
 
 	Validate();
 }
 
-FRHITransientHeapAllocator::FFindResult FRHITransientHeapAllocator::FindFreeRange(uint64 Size, uint32 Alignment)
+void FRHITransientHeapAllocator::Flush()
 {
-	FFindResult FindResult;
-	FindResult.PreviousHandle = HeadHandle;
-
 	FRangeHandle Handle = GetFirstFreeRangeHandle();
+	FRangeHandle PreviousHandle = InvalidRangeHandle;
+
 	while (Handle != InvalidRangeHandle)
 	{
 		FRange& Range = Ranges[Handle];
+		Range.Fences = {};
+		Range.Resource = nullptr;
 
-		// Due to alignment we may have to shift the offset and expand the size accordingly.
-		const uint64 AlignmentPad = Align(GpuVirtualAddress + Range.Offset, Alignment) - GpuVirtualAddress - Range.Offset;
-		const uint64 RequiredSize = Size + AlignmentPad;
-
-		if (RequiredSize <= Range.Size)
+		if (PreviousHandle != InvalidRangeHandle)
 		{
-			FindResult.FoundHandle = Handle;
-			FindResult.LeftoverSize = Range.Size - RequiredSize;
-			return FindResult;
+			FRange& PreviousRange = Ranges[PreviousHandle];
+
+			if (PreviousRange.Offset + PreviousRange.Size == Range.Offset)
+			{
+				PreviousRange.Size += Range.Size;
+				Handle = RemoveRange(PreviousHandle, Handle);
+				continue;
+			}
 		}
 
-		FindResult.PreviousHandle = Handle;
 		Handle = Range.NextFreeHandle;
+		PreviousHandle = Handle;
 	}
-
-	return {};
 }
 
 void FRHITransientHeapAllocator::Validate()
@@ -396,7 +348,7 @@ void FRHITransientHeapAllocator::Validate()
 			const FRange& PreviousRange = Ranges[PreviousHandle];
 
 			// Checks that the ranges are sorted.
-			check(PreviousRange.Offset + PreviousRange.Size < Range.Offset);
+			check(PreviousRange.Offset + PreviousRange.Size <= Range.Offset);
 		}
 
 		PreviousHandle = Handle;
@@ -412,13 +364,13 @@ void FRHITransientHeapAllocator::Validate()
 FRHITransientTexture* FRHITransientHeap::CreateTexture(
 	const FRHITextureCreateInfo& CreateInfo,
 	const TCHAR* DebugName,
-	uint32 PassIndex,
+	const FRHITransientAllocationFences& Fences,
 	uint64 CurrentAllocatorCycle,
 	uint64 TextureSize,
 	uint32 TextureAlignment,
 	FCreateTextureFunction CreateTextureFunction)
 {
-	FRHITransientHeapAllocation Allocation = Allocator.Allocate(TextureSize, TextureAlignment);
+	FRHITransientHeapAllocation Allocation = Allocator.Allocate(Fences, TextureSize, TextureAlignment, AliasingOverlaps);
 	Allocation.Heap = this;
 
 	if (!Allocation.IsValid())
@@ -433,28 +385,28 @@ FRHITransientTexture* FRHITransientHeap::CreateTexture(
 	});
 
 	check(Texture);
-	Texture->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentAllocatorCycle);
-	AllocateMemoryInternal(Texture, DebugName, PassIndex, CurrentAllocatorCycle, Allocation);
+	Texture->Acquire(DebugName, Fences.GetSinglePipeline(), CurrentAllocatorCycle);
+	AllocateMemoryInternal(Texture, Allocation);
 	Stats.AllocateTexture(Allocation.Size);
 	return Texture;
 }
 
-void FRHITransientHeap::DeallocateMemory(FRHITransientTexture* Texture, uint32 PassIndex)
+void FRHITransientHeap::DeallocateMemory(FRHITransientTexture* Texture, const FRHITransientAllocationFences& Fences)
 {
-	DeallocateMemoryInternal(Texture, PassIndex);
+	DeallocateMemoryInternal(Texture, Fences);
 	Stats.DeallocateTexture(Texture->GetSize());
 }
 
 FRHITransientBuffer* FRHITransientHeap::CreateBuffer(
 	const FRHIBufferCreateInfo& CreateInfo,
 	const TCHAR* DebugName,
-	uint32 PassIndex,
+	const FRHITransientAllocationFences& Fences,
 	uint64 CurrentAllocatorCycle,
 	uint64 BufferSize,
 	uint32 BufferAlignment,
 	FCreateBufferFunction CreateBufferFunction)
 {
-	FRHITransientHeapAllocation Allocation = Allocator.Allocate(BufferSize, BufferAlignment);
+	FRHITransientHeapAllocation Allocation = Allocator.Allocate(Fences, BufferSize, BufferAlignment, AliasingOverlaps);
 	Allocation.Heap = this;
 
 	if (!Allocation.IsValid())
@@ -469,39 +421,35 @@ FRHITransientBuffer* FRHITransientHeap::CreateBuffer(
 	});
 
 	check(Buffer);
-	Buffer->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentAllocatorCycle);
-	AllocateMemoryInternal(Buffer, DebugName, PassIndex, CurrentAllocatorCycle, Allocation);
+	Buffer->Acquire(DebugName, Fences.GetSinglePipeline(), CurrentAllocatorCycle);
+	AllocateMemoryInternal(Buffer, Allocation);
 	Stats.AllocateBuffer(Allocation.Size);
 	return Buffer;
 }
 
-void FRHITransientHeap::DeallocateMemory(FRHITransientBuffer* Buffer, uint32 PassIndex)
+void FRHITransientHeap::DeallocateMemory(FRHITransientBuffer* Buffer, const FRHITransientAllocationFences& Fences)
 {
-	DeallocateMemoryInternal(Buffer, PassIndex);
+	DeallocateMemoryInternal(Buffer, Fences);
 	Stats.DeallocateBuffer(Buffer->GetSize());
 }
 
-void FRHITransientHeap::AllocateMemoryInternal(FRHITransientResource* Resource, const TCHAR* Name, uint32 PassIndex, uint64 CurrentAllocatorCycle, const FRHITransientHeapAllocation& Allocation)
+void FRHITransientHeap::AllocateMemoryInternal(FRHITransientResource* Resource, const FRHITransientHeapAllocation& Allocation)
 {
 	Resource->GetHeapAllocation() = Allocation;
 
-	check(Allocation.Offset % Initializer.Alignment == 0);
-		const uint64 AlignedSize   = Align(Allocation.Size, Initializer.Alignment);
-		const uint32 PageOffsetMin = Allocation.Offset >> AlignmentLog2;
-		const uint32 PageOffsetMax = (Allocation.Offset + AlignedSize) >> AlignmentLog2;
-		OverlapTracker.Track(Resource, PageOffsetMin, PageOffsetMax);
+	for (const FRHITransientHeapAllocator::FAliasingOverlap& AliasingOverlap : AliasingOverlaps)
+	{
+		Resource->AddAliasingOverlap(AliasingOverlap.Resource, AliasingOverlap.AcquireFence);
+	}
+	AliasingOverlaps.Reset();
 
 	CommitSize = FMath::Max(CommitSize, Allocation.Offset + Allocation.Size);
 }
 
-void FRHITransientHeap::DeallocateMemoryInternal(FRHITransientResource* Resource, uint32 PassIndex)
+void FRHITransientHeap::DeallocateMemoryInternal(FRHITransientResource* Resource, const FRHITransientAllocationFences& Fences)
 {
-	Resource->Discard(PassIndex);
-
-	const FRHITransientHeapAllocation Allocation = Resource->GetHeapAllocation();
-	check(Allocation.Heap == this);
-
-	Allocator.Deallocate(Allocation);
+	Resource->Discard();
+	Allocator.Deallocate(Resource, Fences);
 }
 
 void FRHITransientHeap::Flush(uint64 AllocatorCycle, FRHITransientMemoryStats& OutMemoryStats, FRHITransientAllocationStats* OutAllocationStats)
@@ -509,6 +457,8 @@ void FRHITransientHeap::Flush(uint64 AllocatorCycle, FRHITransientMemoryStats& O
 	const bool bHasDeallocations = Stats.HasDeallocations();
 	OutMemoryStats.Accumulate(Stats);
 	Stats.Reset();
+
+	Allocator.Flush();
 
 	if (OutAllocationStats)
 	{
@@ -542,6 +492,8 @@ void FRHITransientHeap::Flush(uint64 AllocatorCycle, FRHITransientMemoryStats& O
 		OutAllocationStats->MemoryRanges.Add(MemoryRange);
 	}
 
+	CommitSizeMax = FMath::Max(CommitSize, CommitSizeMax);
+
 	if (bHasDeallocations)
 	{
 		CommitSize = 0;
@@ -565,9 +517,7 @@ void FRHITransientHeap::Flush(uint64 AllocatorCycle, FRHITransientMemoryStats& O
 				CommitSize = FMath::Max(CommitSize, Allocation.Offset + Allocation.Size);
 			}
 		}
-
-			OverlapTracker.Reset();
-		}
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -611,7 +561,18 @@ FRHITransientHeap* FRHITransientHeapCache::Acquire(uint64 FirstAllocationSize, E
 	FRHITransientHeap::FInitializer HeapInitializer;
 	HeapInitializer.Size = GetHeapSize(FirstAllocationSize);
 	HeapInitializer.Alignment = Initializer.HeapAlignment;
-	HeapInitializer.Flags = (Initializer.bSupportsAllHeapFlags ? ERHITransientHeapFlags::AllowAll : FirstAllocationHeapFlags);
+	if (GNumExplicitGPUsForRendering > 1)
+	{
+		// With multi-GPU, we need separate GPU0 only heaps for NNE accessible buffers.  Required by DirectML.  Note that the calling
+		// code only sets one flag for a given allocation, so if the flag is NNE, create a heap with that flag alone, otherwise create
+		// a heap with the rest of the flags (or if bSupportsAllHeapFlags is false, that also forces a single flag per heap).
+		HeapInitializer.Flags = Initializer.bSupportsAllHeapFlags && FirstAllocationHeapFlags != ERHITransientHeapFlags::AllowNNEBuffers ?
+			ERHITransientHeapFlags::AllowBuffers | ERHITransientHeapFlags::AllowTextures | ERHITransientHeapFlags::AllowRenderTargets : FirstAllocationHeapFlags;
+	}
+	else
+	{
+		HeapInitializer.Flags = Initializer.bSupportsAllHeapFlags ? ERHITransientHeapFlags::AllowAll : FirstAllocationHeapFlags;
+	}
 	HeapInitializer.TextureCacheSize = Initializer.TextureCacheSize;
 	HeapInitializer.BufferCacheSize = Initializer.BufferCacheSize;
 
@@ -619,7 +580,6 @@ FRHITransientHeap* FRHITransientHeapCache::Acquire(uint64 FirstAllocationSize, E
 	FRHITransientHeap* Heap = CreateHeap(HeapInitializer);
 	check(Heap);
 
-	TotalMemoryCapacity += HeapInitializer.Size;
 	LiveList.Emplace(Heap);
 	return Heap;
 }
@@ -642,13 +602,14 @@ void FRHITransientHeapCache::GarbageCollect()
 {
 	FScopeLock Lock(&CriticalSection);
 
+	uint64 TotalCommitSize = 0;
+
 	for (int32 HeapIndex = 0; HeapIndex < FreeList.Num(); ++HeapIndex)
 	{
 		FRHITransientHeap* Heap = FreeList[HeapIndex];
 
 		if (Heap->GetLastUsedGarbageCollectCycle() + Initializer.GarbageCollectLatency <= GarbageCollectCycle)
 		{
-			TotalMemoryCapacity -= Heap->GetCapacity();
 			FreeList.RemoveAt(HeapIndex);
 			LiveList.Remove(Heap);
 			HeapIndex--;
@@ -656,20 +617,32 @@ void FRHITransientHeapCache::GarbageCollect()
 			delete Heap;
 		}
 	}
+	
+	for (FRHITransientHeap* Heap : LiveList)
+	{
+		TotalCommitSize += Initializer.bSupportsVirtualMapping ? Heap->CommitSizeMax : Heap->GetCapacity();
+		Heap->CommitSizeMax = 0;
+	}
 
 	TRACE_COUNTER_SET(TransientMemoryRangeCount, LiveList.Num());
 
-	Stats.Submit(TotalMemoryCapacity);
+	Stats.Submit(TotalCommitSize);
 
 	GarbageCollectCycle++;
 }
 
 //////////////////////////////////////////////////////////////////////////
 
+FRHITransientResourceHeapAllocator::FRHITransientResourceHeapAllocator(FRHITransientHeapCache& InHeapCache)
+	: HeapCache(InHeapCache)
+{}
+
+FRHITransientResourceHeapAllocator::~FRHITransientResourceHeapAllocator() = default;
+
 FRHITransientTexture* FRHITransientResourceHeapAllocator::CreateTextureInternal(
 	const FRHITextureCreateInfo& CreateInfo,
 	const TCHAR* DebugName,
-	uint32 PassIndex,
+	const FRHITransientAllocationFences& Fences,
 	uint64 TextureSize,
 	uint32 TextureAlignment,
 	FRHITransientHeap::FCreateTextureFunction CreateTextureFunction)
@@ -688,7 +661,7 @@ FRHITransientTexture* FRHITransientResourceHeapAllocator::CreateTextureInternal(
 			continue;
 		}
 
-		Texture = Heap->CreateTexture(CreateInfo, DebugName, PassIndex, CurrentCycle, TextureSize, TextureAlignment, CreateTextureFunction);
+		Texture = Heap->CreateTexture(CreateInfo, DebugName, Fences, CurrentCycle, TextureSize, TextureAlignment, CreateTextureFunction);
 
 		if (Texture)
 		{
@@ -701,9 +674,9 @@ FRHITransientTexture* FRHITransientResourceHeapAllocator::CreateTextureInternal(
 		FRHITransientHeap* Heap = HeapCache.Acquire(TextureSize, TextureHeapFlags);
 		Heaps.Emplace(Heap);
 
-		Texture = Heap->CreateTexture(CreateInfo, DebugName, PassIndex, CurrentCycle, TextureSize, TextureAlignment, CreateTextureFunction);
+		Texture = Heap->CreateTexture(CreateInfo, DebugName, Fences, CurrentCycle, TextureSize, TextureAlignment, CreateTextureFunction);
 	}
-
+	
 	check(Texture);
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Emplace(Texture));
 	return Texture;
@@ -712,21 +685,27 @@ FRHITransientTexture* FRHITransientResourceHeapAllocator::CreateTextureInternal(
 FRHITransientBuffer* FRHITransientResourceHeapAllocator::CreateBufferInternal(
 	const FRHIBufferCreateInfo& CreateInfo,
 	const TCHAR* DebugName,
-	uint32 PassIndex,
+	const FRHITransientAllocationFences& Fences,
 	uint32 BufferSize,
 	uint32 BufferAlignment,
 	FRHITransientHeap::FCreateBufferFunction CreateBufferFunction)
 {
 	FRHITransientBuffer* Buffer = nullptr;
 
+#if WITH_MGPU
+	ERHITransientHeapFlags BufferHeapFlag = (GNumExplicitGPUsForRendering > 1) && EnumHasAnyFlags(CreateInfo.Usage, EBufferUsageFlags::NNE) ? ERHITransientHeapFlags::AllowNNEBuffers : ERHITransientHeapFlags::AllowBuffers;
+#else
+	ERHITransientHeapFlags BufferHeapFlag = ERHITransientHeapFlags::AllowBuffers;
+#endif
+
 	for (FRHITransientHeap* Heap : Heaps)
 	{
-		if (!Heap->IsAllocationSupported(BufferSize, ERHITransientHeapFlags::AllowBuffers))
+		if (!Heap->IsAllocationSupported(BufferSize, BufferHeapFlag))
 		{
 			continue;
 		}
 
-		Buffer = Heap->CreateBuffer(CreateInfo, DebugName, PassIndex, CurrentCycle, BufferSize, BufferAlignment, CreateBufferFunction);
+		Buffer = Heap->CreateBuffer(CreateInfo, DebugName, Fences, CurrentCycle, BufferSize, BufferAlignment, CreateBufferFunction);
 
 		if (Buffer)
 		{
@@ -736,18 +715,18 @@ FRHITransientBuffer* FRHITransientResourceHeapAllocator::CreateBufferInternal(
 
 	if (!Buffer)
 	{
-		FRHITransientHeap* Heap = HeapCache.Acquire(BufferSize, ERHITransientHeapFlags::AllowBuffers);
+		FRHITransientHeap* Heap = HeapCache.Acquire(BufferSize, BufferHeapFlag);
 		Heaps.Emplace(Heap);
 
-		Buffer = Heap->CreateBuffer(CreateInfo, DebugName, PassIndex, CurrentCycle, BufferSize, BufferAlignment, CreateBufferFunction);
+		Buffer = Heap->CreateBuffer(CreateInfo, DebugName, Fences, CurrentCycle, BufferSize, BufferAlignment, CreateBufferFunction);
 	}
-
+	
 	check(Buffer);
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Emplace(Buffer));
 	return Buffer;
 }
 
-void FRHITransientResourceHeapAllocator::DeallocateMemory(FRHITransientTexture* Texture, uint32 PassIndex)
+void FRHITransientResourceHeapAllocator::DeallocateMemory(FRHITransientTexture* Texture, const FRHITransientAllocationFences& Fences)
 {
 	check(Texture);
 
@@ -756,13 +735,13 @@ void FRHITransientResourceHeapAllocator::DeallocateMemory(FRHITransientTexture* 
 	check(Heap);
 	check(Heaps.Contains(Heap));
 
-	Heap->DeallocateMemory(Texture, PassIndex);
+	Heap->DeallocateMemory(Texture, Fences);
 	DeallocationCount++;
 
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Remove(Texture));
 }
 
-void FRHITransientResourceHeapAllocator::DeallocateMemory(FRHITransientBuffer* Buffer, uint32 PassIndex)
+void FRHITransientResourceHeapAllocator::DeallocateMemory(FRHITransientBuffer* Buffer, const FRHITransientAllocationFences& Fences)
 {
 	check(Buffer);
 
@@ -771,10 +750,22 @@ void FRHITransientResourceHeapAllocator::DeallocateMemory(FRHITransientBuffer* B
 	check(Heap);
 	check(Heaps.Contains(Heap));
 
-	Heap->DeallocateMemory(Buffer, PassIndex);
+	Heap->DeallocateMemory(Buffer, Fences);
 	DeallocationCount++;
 
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Remove(Buffer));
+}
+
+void FRHITransientResourceHeapAllocator::SetCreateMode(ERHITransientResourceCreateMode InCreateMode)
+{
+	const bool bSupportsParallelResourceCreation = GRHITransientAllocatorParallelResourceCreation
+#if NV_AFTERMATH
+		// Aftermath adds locks that serialize placed resource creation.
+		&& !UE::RHICore::Nvidia::Aftermath::IsEnabled()
+#endif
+		;
+
+	CreateMode = bSupportsParallelResourceCreation ? InCreateMode : ERHITransientResourceCreateMode::Inline;
 }
 
 void FRHITransientResourceHeapAllocator::Flush(FRHICommandListImmediate& RHICmdList, FRHITransientAllocationStats* OutAllocationStats)
@@ -821,7 +812,7 @@ void FRHITransientResourceHeapAllocator::Flush(FRHICommandListImmediate& RHICmdL
 		DeallocationCount = 0;
 	}
 
-	RHICmdList.EnqueueLambda([&HeapCache = HeapCache, Stats](FRHICommandListImmediate&)
+	RHICmdList.EnqueueLambda([&HeapCache = HeapCache, Stats](FRHICommandListBase&)
 	{
 		HeapCache.Stats.Accumulate(Stats);
 	});
@@ -871,18 +862,22 @@ void FRHITransientPageSpanAllocator::Reset()
 		// Allocate head and tail nodes (0 and 1)
 		for (uint32 Index = 0; Index < 2; Index++)
 		{
+			PageSpans[Index].Resource = nullptr;
 			PageSpans[Index].Offset = 0;
 			PageSpans[Index].Count = 0;
-			PageSpans[Index].PrevSpanIndex = InvalidIndex;
+			PageSpans[Index].Fences = {};
 			PageSpans[Index].NextSpanIndex = InvalidIndex;
+			PageSpans[Index].PrevSpanIndex = InvalidIndex;
 			PageSpans[Index].bAllocated = false;
 		}
 		PageSpans[HeadSpanIndex].NextSpanIndex = FirstFreeNodeIndex;
 		PageSpans[TailSpanIndex].PrevSpanIndex = FirstFreeNodeIndex;
 
 		// First Node
+		PageSpans[FirstFreeNodeIndex].Resource = nullptr;
 		PageSpans[FirstFreeNodeIndex].Offset = 0;
 		PageSpans[FirstFreeNodeIndex].Count = MaxPageCount;
+		PageSpans[FirstFreeNodeIndex].Fences = {};
 		PageSpans[FirstFreeNodeIndex].PrevSpanIndex = HeadSpanIndex;
 		PageSpans[FirstFreeNodeIndex].NextSpanIndex = TailSpanIndex;
 		PageSpans[FirstFreeNodeIndex].bAllocated = false;
@@ -903,95 +898,101 @@ void FRHITransientPageSpanAllocator::Reset()
 	}
 }
 
-bool FRHITransientPageSpanAllocator::Allocate(uint32 PageCount, uint32& OutNumPagesAllocated, uint32& OutSpanIndex)
+bool FRHITransientPageSpanAllocator::Allocate(FRHITransientResource* Resource, const FRHITransientAllocationFences& Fences, uint32 PageCount, uint32& OutNumPagesAllocated, uint32& OutSpanIndex)
 {
 	OutNumPagesAllocated = 0;
 
-	if (FreePageCount < PageCount)
-	{
-		// If we're allowing partial allocs and we run out of pages, allocate all the remaining pages
-		PageCount = FreePageCount;
-	}
-
-	if (PageCount > FreePageCount || PageCount == 0)
+	if (FreePageCount == 0)
 	{
 		return false;
 	}
-	OutNumPagesAllocated = PageCount;
 
 	// Allocate spans from the free list head
 	uint32 NumPagesToFind = PageCount;
 	uint32 FoundPages = 0;
 	FPageSpan& HeadSpan = PageSpans[FreeSpanListHeadIndex];
-	uint32 StartSpanIndex = HeadSpan.NextSpanIndex;
-	uint32 SpanIndex = StartSpanIndex;
-	while (SpanIndex != FreeSpanListTailIndex && SpanIndex != InvalidIndex)
+	uint32 FirstSpanIndex = InvalidIndex;
+	uint32 LastSpanIndex = InvalidIndex;
+	uint32 SpanIndex = HeadSpan.NextSpanIndex;
+	while (SpanIndex != FreeSpanListTailIndex && SpanIndex != InvalidIndex && NumPagesToFind > 0)
 	{
 		FPageSpan& Span = PageSpans[SpanIndex];
-		if (NumPagesToFind <= Span.Count)
-		{
-			// Span is too big, so split it
-			if (Span.Count > NumPagesToFind)
-			{
-				SplitSpan(SpanIndex, NumPagesToFind);
-			}
-			check(NumPagesToFind == Span.Count);
+		uint32 NextSpanIndex = Span.NextSpanIndex;
 
-			// Move the head to point to the next free span
-			if (HeadSpan.NextSpanIndex != InvalidIndex)
+		if (!FRHITransientAllocationFences::Contains(Span.Fences, Fences))
+		{
+			if (NumPagesToFind <= Span.Count)
 			{
-				PageSpans[HeadSpan.NextSpanIndex].PrevSpanIndex = InvalidIndex;
+				// Span is too big, so split it
+				if (Span.Count > NumPagesToFind)
+				{
+					SplitSpan(SpanIndex, NumPagesToFind);
+				}
+				check(NumPagesToFind == Span.Count);
 			}
-			HeadSpan.NextSpanIndex = Span.NextSpanIndex;
-			if (Span.NextSpanIndex != InvalidIndex)
+			Span.bAllocated = true;
+
+			NextSpanIndex = Span.NextSpanIndex;
+			Unlink(SpanIndex);
+			if (FirstSpanIndex == InvalidIndex)
 			{
-				PageSpans[Span.NextSpanIndex].PrevSpanIndex = FreeSpanListHeadIndex;
+				FirstSpanIndex = LastSpanIndex = SpanIndex;
 			}
-			Span.NextSpanIndex = InvalidIndex;
+			else
+			{
+				InsertAfter(LastSpanIndex, SpanIndex);
+				LastSpanIndex = SpanIndex;
+			}
+
+			// Record the aliasing overlap between the resource we are allocating and the one that was deallocated.
+			if (Span.Resource)
+			{
+				Resource->AddAliasingOverlap(Span.Resource, FRHITransientAllocationFences::GetAcquireFence(Span.Fences, Fences));
+			}
+
+			check(NumPagesToFind >= Span.Count)
+			NumPagesToFind -= Span.Count;
 		}
-		Span.bAllocated = true;
-		NumPagesToFind -= Span.Count;
-		SpanIndex = Span.NextSpanIndex;
+
+		SpanIndex = NextSpanIndex;
 	}
-	check(NumPagesToFind == 0);
-	FreePageCount -= PageCount;
-#if UE_BUILD_DEBUG
+
+	const uint32 NumPagesAllocated = PageCount - NumPagesToFind;
+	if (NumPagesAllocated > 0)
+	{
+		FreePageCount -= NumPagesAllocated;
+		AllocationCount++;
+		OutSpanIndex = FirstSpanIndex;
+		OutNumPagesAllocated = NumPagesAllocated;
+	}
+
 	Validate();
-#endif
-	AllocationCount++;
-	OutSpanIndex = StartSpanIndex;
-	return true;
+	return NumPagesAllocated != 0;
 }
 
-void FRHITransientPageSpanAllocator::Deallocate(uint32 SpanIndex)
+void FRHITransientPageSpanAllocator::Deallocate(FRHITransientResource* Resource, const FRHITransientAllocationFences& Fences, uint32 SpanIndex)
 {
 	if (SpanIndex == InvalidIndex)
 	{
 		return;
 	}
 	check(AllocationCount > 0);
-	// Find the right span with which to merge this
 	while (SpanIndex != InvalidIndex)
 	{
 		FPageSpan& FreedSpan = PageSpans[SpanIndex];
 		check(FreedSpan.bAllocated);
 		FreePageCount += FreedSpan.Count;
 		uint32 NextSpanIndex = FreedSpan.NextSpanIndex;
+		FreedSpan.Resource = Resource;
+		FreedSpan.Fences = Fences;
 		FreedSpan.bAllocated = false;
-		if (!MergeFreeSpanIfPossible(SpanIndex))
-		{
-			// If we can't merge this span, just unlink and add it to the head (or tail)
-			Unlink(SpanIndex);
-
-			InsertAfter(FreeSpanListHeadIndex, SpanIndex);
-		}
+		Unlink(SpanIndex);
+		InsertAfter(FreeSpanListHeadIndex, SpanIndex);
 		SpanIndex = NextSpanIndex;
 	}
 	AllocationCount--;
 
-#if UE_BUILD_DEBUG
 	Validate();
-#endif
 }
 
 void FRHITransientPageSpanAllocator::SplitSpan(uint32 InSpanIndex, uint32 InPageCount)
@@ -1002,6 +1003,8 @@ void FRHITransientPageSpanAllocator::SplitSpan(uint32 InSpanIndex, uint32 InPage
 	{
 		uint32 NewSpanIndex = AllocSpan();
 		FPageSpan& NewSpan = PageSpans[NewSpanIndex];
+		NewSpan.Resource = Span.Resource;
+		NewSpan.Fences = Span.Fences;
 		NewSpan.NextSpanIndex = Span.NextSpanIndex;
 		NewSpan.PrevSpanIndex = InSpanIndex;
 		NewSpan.Count = Span.Count - InPageCount;
@@ -1021,7 +1024,7 @@ void FRHITransientPageSpanAllocator::SplitSpan(uint32 InSpanIndex, uint32 InPage
 	}
 }
 
-void FRHITransientPageSpanAllocator::MergeSpans(uint32 SpanIndex0, uint32 SpanIndex1, const bool bKeepSpan1)
+void FRHITransientPageSpanAllocator::MergeSpans(uint32 SpanIndex0, uint32 SpanIndex1)
 {
 	FPageSpan& Span0 = PageSpans[SpanIndex0];
 	FPageSpan& Span1 = PageSpans[SpanIndex1];
@@ -1030,26 +1033,62 @@ void FRHITransientPageSpanAllocator::MergeSpans(uint32 SpanIndex0, uint32 SpanIn
 	check(Span0.NextSpanIndex == SpanIndex1);
 	check(Span1.PrevSpanIndex == SpanIndex0);
 
-	uint32 SpanIndexToKeep = bKeepSpan1 ? SpanIndex1 : SpanIndex0;
-	uint32 SpanIndexToRemove = bKeepSpan1 ? SpanIndex0 : SpanIndex1;
+	uint32 SpanIndexToKeep = SpanIndex0;
+	uint32 SpanIndexToRemove = SpanIndex1;
 
 	// Update the PageToSpan mappings
 	PageToSpanStart[Span0.Offset] = SpanIndexToKeep;
 	PageToSpanStart[Span1.Offset] = InvalidIndex;
 	PageToSpanEnd[Span0.Offset + Span0.Count] = InvalidIndex; // Should match Span1.Offset
 	PageToSpanEnd[Span1.Offset + Span1.Count] = SpanIndexToKeep;
-	if (bKeepSpan1)
-	{
-		Span1.Offset = Span0.Offset;
-		Span1.Count += Span0.Count;
-	}
-	else
-	{
-		Span0.Count += Span1.Count;
-	}
+	Span0.Count += Span1.Count;
 
 	Unlink(SpanIndexToRemove);
 	ReleaseSpan(SpanIndexToRemove);
+}
+
+void FRHITransientPageSpanAllocator::Flush()
+{
+	uint32 PageIndex = 0;
+	while (PageIndex < MaxPageCount)
+	{
+		int32 SpanIndex = PageToSpanStart[PageIndex];
+		check(SpanIndex != InvalidIndex);
+		FPageSpan& Span = PageSpans[SpanIndex];
+
+		if (!Span.bAllocated)
+		{
+			Span.Resource = nullptr;
+			Span.Fences = {};
+
+			while (true)
+			{
+				// Can we merge this span with an existing free one to the right?
+				int32 NextSpanIndex = PageToSpanStart[Span.Offset + Span.Count];
+
+				if (NextSpanIndex == InvalidIndex)
+				{
+					break;
+				}
+
+				FPageSpan& NextPageSpan = PageSpans[NextSpanIndex];
+
+				if (NextPageSpan.bAllocated)
+				{
+					PageIndex += NextPageSpan.Count;
+					break;
+				}
+
+				NextPageSpan.Resource = nullptr;
+				Unlink(SpanIndex);
+				InsertBefore(NextSpanIndex, SpanIndex);
+				MergeSpans(SpanIndex, NextSpanIndex);
+				Validate();
+			}
+		}
+
+		PageIndex += Span.Count;
+	}
 }
 
 // Inserts a span after an existing span. The span to insert must be unlinked
@@ -1125,35 +1164,6 @@ uint32 FRHITransientPageSpanAllocator::GetAllocationPageCount(uint32 SpanIndex) 
 	return Count;
 }
 
-bool FRHITransientPageSpanAllocator::MergeFreeSpanIfPossible(uint32 SpanIndex)
-{
-	FPageSpan& Span = PageSpans[SpanIndex];
-	check(!Span.bAllocated);
-	bool bMerged = false;
-
-	// Can we merge this span with an existing one to the left?
-	uint32 AdjSpanIndexPrev = PageToSpanEnd[Span.Offset];
-	if (AdjSpanIndexPrev != InvalidIndex && !PageSpans[AdjSpanIndexPrev].bAllocated)
-	{
-		Unlink(SpanIndex);
-		InsertAfter(AdjSpanIndexPrev, SpanIndex);
-		MergeSpans(AdjSpanIndexPrev, SpanIndex, true);
-		bMerged = true;
-	}
-
-	// Can we merge this span with an existing free one to the right?
-	uint32 AdjSpanIndexNext = PageToSpanStart[Span.Offset + Span.Count];
-	if (AdjSpanIndexNext != InvalidIndex && !PageSpans[AdjSpanIndexNext].bAllocated)
-	{
-		Unlink(SpanIndex);
-		InsertBefore(AdjSpanIndexNext, SpanIndex);
-		MergeSpans(SpanIndex, AdjSpanIndexNext, false);
-		bMerged = true;
-	}
-
-	return bMerged;
-}
-
 void FRHITransientPageSpanAllocator::Validate()
 {
 #if UE_BUILD_DEBUG
@@ -1171,6 +1181,7 @@ void FRHITransientPageSpanAllocator::Validate()
 	{
 		FPageSpan& Span = PageSpans[Index];
 		check(Span.PrevSpanIndex == PrevIndex);
+		check(Index == FreeSpanListHeadIndex || Index == FreeSpanListTailIndex || Span.Count != 0);
 		PrevIndex = Index;
 		FreeCount += Span.Count;
 	}
@@ -1187,7 +1198,7 @@ void FRHITransientPagePool::Allocate(FAllocationContext& Context)
 	uint32 PagesAllocated = 0;
 
 	uint32 PagesRemaining = Context.MaxAllocationPage > 0 ? FMath::Min(Context.PagesRemaining, Context.MaxAllocationPage) : Context.PagesRemaining;
-	if (Allocator.Allocate(PagesRemaining, PagesAllocated, SpanIndex))
+	if (Allocator.Allocate(&Context.Resource, Context.Fences, PagesRemaining, PagesAllocated, SpanIndex))
 	{
 		const uint64 DestinationGpuVirtualAddress = Context.GpuVirtualAddress + Context.PagesAllocated * Initializer.PageSize;
 		const uint32 PageSpanOffsetMin = PageSpans.Num();
@@ -1199,12 +1210,6 @@ void FRHITransientPagePool::Allocate(FAllocationContext& Context)
 
 		const  int32 AllocationIndex   = Context.Allocations.Num();
 		const uint64 AllocationHash    = CityHash64WithSeed((const char*)&PageSpans[PageSpanOffsetMin], PageSpanCount * sizeof(FRHITransientPageSpan), DestinationGpuVirtualAddress);
-
-			for (uint32 Index = PageSpanOffsetMin; Index < PageSpanOffsetMax; ++Index)
-			{
-				const FRHITransientPageSpan Span = PageSpans[Index];
-				OverlapTracker.Track(&Context.Resource, Span.Offset, Span.Offset + Span.Count);
-			}
 
 		FRHITransientPagePoolAllocation Allocation;
 		Allocation.Pool = this;
@@ -1255,7 +1260,7 @@ void FRHITransientPagePool::Flush(FRHICommandListImmediate& RHICmdList)
 		PageSpans.Reserve(PageSpanCountMax);
 	}
 
-		OverlapTracker.Reset();
+	Allocator.Flush();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1366,9 +1371,8 @@ void FRHITransientPagePoolCache::GarbageCollect()
 
 				PoolsToDelete.Emplace(PagePool);
 
-			#if 1 // Only delete one per frame. Deletion can be quite expensive.
+				// Only delete one per frame. Deletion can be quite expensive.
 				break;
-			#endif
 			}
 		}
 
@@ -1390,7 +1394,7 @@ void FRHITransientPagePoolCache::GarbageCollect()
 FRHITransientTexture* FRHITransientResourcePageAllocator::CreateTexture(
 	const FRHITextureCreateInfo& CreateInfo,
 	const TCHAR* DebugName,
-	uint32 PassIndex)
+	const FRHITransientAllocationFences& Fences)
 {
 	FRHITransientTexture* Texture = Textures.Acquire(ComputeHash(CreateInfo), [&](uint64 Hash)
 	{
@@ -1402,8 +1406,8 @@ FRHITransientTexture* FRHITransientResourcePageAllocator::CreateTexture(
 	const float FastPoolPercentageRequested = bFastPool ? CreateInfo.FastVRAMPercentage / 255.f : 0.f;
 
 	check(Texture);
-	Texture->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentCycle);
-	AllocateMemoryInternal(Texture, DebugName, PassIndex, bFastPool, FastPoolPercentageRequested);
+	Texture->Acquire(DebugName, Fences.GetSinglePipeline(), CurrentCycle);
+	AllocateMemoryInternal(Texture, DebugName, Fences, bFastPool, FastPoolPercentageRequested);
 	Stats.AllocateTexture(Texture->GetSize());
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Emplace(Texture));
 	return Texture;
@@ -1412,7 +1416,7 @@ FRHITransientTexture* FRHITransientResourcePageAllocator::CreateTexture(
 FRHITransientBuffer* FRHITransientResourcePageAllocator::CreateBuffer(
 	const FRHIBufferCreateInfo& CreateInfo,
 	const TCHAR* DebugName,
-	uint32 PassIndex)
+	const FRHITransientAllocationFences& Fences)
 {
 	FRHITransientBuffer* Buffer = Buffers.Acquire(ComputeHash(CreateInfo), [&](uint64 Hash)
 	{
@@ -1421,16 +1425,16 @@ FRHITransientBuffer* FRHITransientResourcePageAllocator::CreateBuffer(
 	});
 
 	check(Buffer);
-	Buffer->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentCycle);
-	AllocateMemoryInternal(Buffer, DebugName, PassIndex, EnumHasAnyFlags(CreateInfo.Usage, EBufferUsageFlags::FastVRAM), false);
+	Buffer->Acquire(DebugName, Fences.GetSinglePipeline(), CurrentCycle);
+	AllocateMemoryInternal(Buffer, DebugName, Fences, EnumHasAnyFlags(CreateInfo.Usage, EBufferUsageFlags::FastVRAM), false);
 	Stats.AllocateBuffer(Buffer->GetSize());
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Emplace(Buffer));
 	return Buffer;
 }
 
-void FRHITransientResourcePageAllocator::AllocateMemoryInternal(FRHITransientResource* Resource, const TCHAR* DebugName, uint32 PassIndex, bool bFastPoolRequested, float FastPoolPercentageRequested)
+void FRHITransientResourcePageAllocator::AllocateMemoryInternal(FRHITransientResource* Resource, const TCHAR* DebugName, const FRHITransientAllocationFences& Fences, bool bFastPoolRequested, float FastPoolPercentageRequested)
 {
-	FRHITransientPagePool::FAllocationContext AllocationContext(*Resource, PageSize);
+	FRHITransientPagePool::FAllocationContext AllocationContext(*Resource, Fences, PageSize);
 
 	if (bFastPoolRequested && FastPagePool)
 	{
@@ -1465,25 +1469,25 @@ void FRHITransientResourcePageAllocator::AllocateMemoryInternal(FRHITransientRes
 	PageSpanCount     += AllocationContext.PageSpansAllocated;
 }
 
-void FRHITransientResourcePageAllocator::DeallocateMemoryInternal(FRHITransientResource* Resource, uint32 PassIndex)
+void FRHITransientResourcePageAllocator::DeallocateMemoryInternal(FRHITransientResource* Resource, const FRHITransientAllocationFences& Fences)
 {
-	Resource->Discard(PassIndex);
+	Resource->Discard();
 
 	for (const FRHITransientPagePoolAllocation& Allocation : Resource->GetPageAllocation().PoolAllocations)
 	{
-		Allocation.Pool->Deallocate(Allocation.SpanIndex);
+		Allocation.Pool->Deallocate(Resource, Fences, Allocation.SpanIndex);
 	}
 }
 
-void FRHITransientResourcePageAllocator::DeallocateMemory(FRHITransientTexture* Texture, uint32 PassIndex)
+void FRHITransientResourcePageAllocator::DeallocateMemory(FRHITransientTexture* Texture, const FRHITransientAllocationFences& Fences)
 {
-	DeallocateMemoryInternal(Texture, PassIndex);
+	DeallocateMemoryInternal(Texture, Fences);
 	Stats.DeallocateTexture(Texture->GetSize());
 }
 
-void FRHITransientResourcePageAllocator::DeallocateMemory(FRHITransientBuffer* Buffer, uint32 PassIndex)
+void FRHITransientResourcePageAllocator::DeallocateMemory(FRHITransientBuffer* Buffer, const FRHITransientAllocationFences& Fences)
 {
-	DeallocateMemoryInternal(Buffer, PassIndex);
+	DeallocateMemoryInternal(Buffer, Fences);
 	Stats.DeallocateBuffer(Buffer->GetSize());
 }
 
@@ -1583,12 +1587,28 @@ void FRHITransientResourcePageAllocator::Flush(FRHICommandListImmediate& RHICmdL
 
 	if (Stats.HasDeallocations())
 	{
-		const int32 FirstForfeitIndex = Algo::Partition(PagePools.GetData(), PagePools.Num(), [](const FRHITransientPagePool* PagePool) { return !PagePool->IsEmpty(); });
-		PagePoolCache.Forfeit(MakeArrayView(PagePools.GetData() + FirstForfeitIndex, PagePools.Num() - FirstForfeitIndex));
-		PagePools.SetNum(FirstForfeitIndex, EAllowShrinking::No);
+		TArray<FRHITransientPagePool*, FConcurrentLinearArrayAllocator> EmptyPagePools;
+		TArray<FRHITransientPagePool*, FConcurrentLinearArrayAllocator> ActivePagePools;
+		EmptyPagePools.Reserve(PagePools.Num());
+		ActivePagePools.Reserve(PagePools.Num());
+
+		for (FRHITransientPagePool* PagePool : PagePools)
+		{
+			if (PagePool->IsEmpty())
+			{
+				EmptyPagePools.Emplace(PagePool);
+			}
+			else
+			{
+				ActivePagePools.Emplace(PagePool);
+			}
+		}
+
+		PagePoolCache.Forfeit(EmptyPagePools);
+		PagePools = ActivePagePools;
 	}
 
-	RHICmdList.EnqueueLambda([&PagePoolCache = PagePoolCache, Stats = Stats](FRHICommandListImmediate&)
+	RHICmdList.EnqueueLambda([&PagePoolCache = PagePoolCache, Stats = Stats](FRHICommandListBase&)
 	{
 		PagePoolCache.Stats.Accumulate(Stats);
 	});

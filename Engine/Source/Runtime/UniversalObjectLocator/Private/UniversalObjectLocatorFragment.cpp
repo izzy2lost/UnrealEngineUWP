@@ -6,10 +6,12 @@
 #include "UniversalObjectLocatorStringParams.h"
 #include "UniversalObjectLocatorInitializeParams.h"
 #include "UniversalObjectLocatorInitializeResult.h"
+#include "UniversalObjectLocatorFragmentDebugging.h"
 #include "UniversalObjectLocatorRegistry.h"
 #include "UObject/SoftObjectPath.h"
 #include "Containers/SparseArray.h"
 #include "Misc/AsciiSet.h"
+#include "Templates/AlignmentTemplates.h"
 
 #define LOCTEXT_NAMESPACE "UOL"
 
@@ -57,12 +59,46 @@ namespace UE::UniversalObjectLocator
 		return FFragmentTypeHandle(static_cast<uint8>(FragmentTypeOffset));
 	}
 
+	/**
+	 * Compute the size required for the debug header of a fragment with a certain size and alignment constraint
+	 * 
+	 * Since our byte array is explicitly aligned to 8 bytes, we can insert the debug header right at the start of
+	 * our bytes without changing the alignment of the proceeding type.
+	 * 
+	 * If however our type's requested alignment is greater, we use the alignment itself and allocate the header at
+	 *   the tail of that space. For instance, for a 16 byte aligned payload:
+	 * 0..				8..						16..													16 + sizeof(T)
+	 * [				TFragmentPayload<T>		| T Payload 											]
+	 *
+	 * For a 32 byte aligned payload:
+	 * 0..												24..					32..													32 + sizeof(T)
+	 * [												TFragmentPayload<T>		| T Payload 											]
+	 * 
+	 */
+	uint8 ComputeDebugHeaderLog2(size_t Alignment)
+	{
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+		static_assert(alignof(IFragmentPayload) == 8 && sizeof(IFragmentPayload) == 8, "Unexpected alignment/size of IFragmentPayload!");
+
+		const uint32 HeaderCapacityLog2 = FMath::CeilLogTwo((uint32)FMath::Max(Alignment, sizeof(IFragmentPayload)));
+
+		// This value is stored in 6 bits of a uint8
+		// We should never encounter a type aligned > 2^63!
+		check(HeaderCapacityLog2 <= 63);
+
+		return static_cast<uint8>(HeaderCapacityLog2);
+#else
+		return 0;
+#endif
+	}
+
 } // UE::UniversalObjectLocator
 
 
 FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(const UObject* InObject, UObject* Context)
 	: bIsInitialized(0)
 	, bIsInline(0)
+	, DebugHeaderSizeLog2(0)
 {
 	Reset(InObject, Context);
 }
@@ -71,15 +107,17 @@ FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(const UE::Unive
 	: FragmentType(MakeFragmentTypeHandle(&InFragmentType))
 	, bIsInitialized(0)
 	, bIsInline(0)
+	, DebugHeaderSizeLog2(0)
 {
-	this->InitializePayload(InFragmentType.PayloadType);
+	this->DefaultConstructPayload(InFragmentType);
 }
 
 FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment()
 	: bIsInitialized(0)
 	, bIsInline(0)
+	, DebugHeaderSizeLog2(0)
 {
-	static_assert(sizeof(FUniversalObjectLocatorFragment) == FUniversalObjectLocatorFragment::Size, "Unexpected size for FUniversalObjectLocatorFragment");
+	static_assert(sizeof(FUniversalObjectLocatorFragment) == FUniversalObjectLocatorFragment::SizeInMemory, "Unexpected size for FUniversalObjectLocatorFragment");
 	static_assert(offsetof(FUniversalObjectLocatorFragment, Data) == 0, "FUniversalObjectLocatorFragment inline data is not aligned properly");
 }
 
@@ -95,17 +133,18 @@ FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(const FUniversa
 	: FragmentType(RHS.FragmentType)
 	, bIsInitialized(0)
 	, bIsInline(0)
+	, DebugHeaderSizeLog2(0)
 {
 	using namespace UE::UniversalObjectLocator;
 
 	if (RHS.bIsInitialized)
 	{
-		const UScriptStruct* FragmentStruct = GetFragmentStruct();
-		check(FragmentStruct);
+		const FFragmentType* ResolvedFragmentType = GetFragmentType();
+		check(ResolvedFragmentType);
 
-		this->InitializePayload(FragmentStruct);
+		this->DefaultConstructPayload(*ResolvedFragmentType);
 
-		FragmentStruct->CopyScriptStruct(this->GetPayload(), RHS.GetPayload());
+		ResolvedFragmentType->PayloadType->CopyScriptStruct(this->GetPayload(), RHS.GetPayload());
 	}
 	else
 	{
@@ -121,12 +160,13 @@ FUniversalObjectLocatorFragment& FUniversalObjectLocatorFragment::operator=(cons
 
 	if (RHS.bIsInitialized)
 	{
-		const UScriptStruct* FragmentStruct = GetFragmentStruct();
+		const FFragmentType* ResolvedFragmentType = GetFragmentType();
+		check(ResolvedFragmentType);
 
 		// Assign the FragmentType and copy the payload
 		this->FragmentType = RHS.FragmentType;
-		this->InitializePayload(FragmentStruct);
-		FragmentStruct->CopyScriptStruct(this->GetPayload(), RHS.GetPayload());
+		this->DefaultConstructPayload(*ResolvedFragmentType);
+		ResolvedFragmentType->PayloadType->CopyScriptStruct(this->GetPayload(), RHS.GetPayload());
 	}
 	else
 	{
@@ -141,14 +181,16 @@ FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(FUniversalObjec
 	: FragmentType(RHS.FragmentType)
 	, bIsInitialized(RHS.bIsInitialized)
 	, bIsInline(RHS.bIsInline)
+	, DebugHeaderSizeLog2(RHS.DebugHeaderSizeLog2)
 {
 	using namespace UE::UniversalObjectLocator;
 
 	FMemory::Memcpy(this->Data, RHS.Data, sizeof(Data));
 
-	RHS.bIsInitialized = false;
-	RHS.bIsInline      = false;
-	RHS.FragmentType   = FFragmentTypeHandle();
+	RHS.bIsInitialized      = false;
+	RHS.bIsInline           = false;
+	RHS.DebugHeaderSizeLog2 = 0;
+	RHS.FragmentType        = FFragmentTypeHandle();
 }
 
 FUniversalObjectLocatorFragment& FUniversalObjectLocatorFragment::operator=(FUniversalObjectLocatorFragment&& RHS)
@@ -157,14 +199,17 @@ FUniversalObjectLocatorFragment& FUniversalObjectLocatorFragment::operator=(FUni
 
 	this->DestroyPayload();
 
-	this->bIsInitialized = RHS.bIsInitialized;
-	this->bIsInline      = RHS.bIsInline;
-	this->FragmentType   = RHS.FragmentType;
+	this->bIsInitialized      = RHS.bIsInitialized;
+	this->bIsInline           = RHS.bIsInline;
+	this->DebugHeaderSizeLog2 = RHS.DebugHeaderSizeLog2;
+	this->FragmentType        = RHS.FragmentType;
+
 	FMemory::Memcpy(this->Data, RHS.Data, sizeof(Data));
 
-	RHS.bIsInitialized = false;
-	RHS.bIsInline      = false;
-	RHS.FragmentType   = FFragmentTypeHandle();
+	RHS.bIsInitialized      = false;
+	RHS.bIsInline           = false;
+	RHS.DebugHeaderSizeLog2 = 0;
+	RHS.FragmentType        = FFragmentTypeHandle();
 
 	return *this;
 }
@@ -335,7 +380,7 @@ UE::UniversalObjectLocator::FParseStringResult FUniversalObjectLocatorFragment::
 		{
 			this->DestroyPayload();
 			this->FragmentType = MakeFragmentTypeHandle(SerializedFragmentType);
-			this->InitializePayload(SerializedFragmentType->PayloadType);
+			this->DefaultConstructPayload(*SerializedFragmentType);
 
 			return FParseStringResult().Success(InString.Len());
 		}
@@ -416,7 +461,7 @@ void FUniversalObjectLocatorFragment::DestroyPayload()
 		return;
 	}
 
-	void* Payload = GetPayload();
+	uint8* Payload = (uint8*)GetPayload();
 
 	const UScriptStruct* FragmentStruct = GetFragmentStruct();
 	if (ensureMsgf(FragmentStruct, TEXT("FUniversalObjectLocatorFragment has outlived its FragmentType's payload type struct! This could leak memory if the type allocated it.")))
@@ -426,6 +471,7 @@ void FUniversalObjectLocatorFragment::DestroyPayload()
 
 	if (!bIsInline)
 	{
+		Payload -= GetDebugHeaderOffset();
 		FMemory::Free(Payload);
 	}
 
@@ -435,33 +481,71 @@ void FUniversalObjectLocatorFragment::DestroyPayload()
 void* FUniversalObjectLocatorFragment::GetPayload()
 {
 	check(bIsInitialized);
-	return bIsInline ? Data : *((void**)Data);
+
+	uint8* Payload = bIsInline ? Data : *((uint8**)Data);
+	return Payload + GetDebugHeaderOffset();
 }
 
 const void* FUniversalObjectLocatorFragment::GetPayload() const
 {
-	return bIsInline ? Data : *((const void* const *)Data);
+	check(bIsInitialized);
+
+	const uint8* Payload = bIsInline ? Data : *((const uint8* const *)Data);
+	return Payload + GetDebugHeaderOffset();
 }
 
-void FUniversalObjectLocatorFragment::InitializePayload(const UScriptStruct* PayloadType)
+FUniversalObjectLocatorFragment::FAllocatedPayload FUniversalObjectLocatorFragment::AllocatePayload(size_t Size, size_t Alignment)
 {
+	using namespace UE::UniversalObjectLocator;
+
 	check(!bIsInitialized);
 
 	bIsInitialized = true;
-	if (PayloadType->GetStructureSize() <= sizeof(FUniversalObjectLocatorFragment::Data) && PayloadType->GetMinAlignment() <= alignof(FUniversalObjectLocatorFragment))
+
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+	DebugHeaderSizeLog2 = ComputeDebugHeaderLog2(Alignment);
+	Alignment = FMath::Max(Alignment, alignof(IFragmentPayload));
+	Size += GetDebugHeaderOffset();
+#else
+	DebugHeaderSizeLog2 = 0;
+#endif
+
+	uint8* Payload = nullptr;
+	if (Size <= sizeof(FUniversalObjectLocatorFragment::Data) && Alignment <= alignof(FUniversalObjectLocatorFragment))
 	{
 		// We can placement new this into the payload data
 		bIsInline = true;
+		Payload = Data;
 	}
 	else
 	{
 		// We have to allocate this struct on the heap
-		void* HeapAllocation = FMemory::Malloc(PayloadType->GetStructureSize(), PayloadType->GetMinAlignment());
-		*reinterpret_cast<void**>(Data) = HeapAllocation;
+		Payload = (uint8*)FMemory::Malloc(Size, Alignment);
+		*reinterpret_cast<void**>(Data) = Payload;
 		bIsInline = false;
 	}
 
-	PayloadType->InitializeStruct(GetPayload());
+	return FAllocatedPayload{
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+		Payload + GetDebugHeaderOffset() - sizeof(IFragmentPayload),
+#endif
+		Payload + GetDebugHeaderOffset()
+	};
+}
+
+void FUniversalObjectLocatorFragment::DefaultConstructPayload(const UE::UniversalObjectLocator::FFragmentType& InFragmentType)
+{
+	using namespace UE::UniversalObjectLocator;
+
+	const UScriptStruct* PayloadType = InFragmentType.PayloadType.Get();
+
+	FAllocatedPayload Allocation = AllocatePayload((size_t)PayloadType->GetStructureSize(), (size_t)PayloadType->GetMinAlignment());
+
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+	InFragmentType.StaticBindings.FragmentDebugInitializer(Allocation.DebugVFTablePtr);
+#endif
+
+	PayloadType->InitializeStruct(Allocation.Payload);
 }
 
 void FUniversalObjectLocatorFragment::Reset()
@@ -481,7 +565,7 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, UObject* Co
 	if (const FFragmentType* BestFragmentType = FindBestFragmentType(InObject, Context))
 	{
 		FragmentType = MakeFragmentTypeHandle(BestFragmentType);
-		InitializePayload(BestFragmentType->PayloadType);
+		DefaultConstructPayload(*BestFragmentType);
 
 		BestFragmentType->InitializePayload(GetPayload(), FInitializeParams{ InObject, Context });
 	}
@@ -523,7 +607,7 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, UObject* Co
 	if (BestFragmentType && BestFragmentType->PayloadType != nullptr)
 	{
 		FragmentType = MakeFragmentTypeHandle(BestFragmentType);
-		InitializePayload(BestFragmentType->PayloadType);
+		DefaultConstructPayload(*BestFragmentType);
 
 		BestFragmentType->InitializePayload(GetPayload(), FInitializeParams{ InObject, Context });
 	}
@@ -579,7 +663,7 @@ bool FUniversalObjectLocatorFragment::Serialize(FArchive& Ar)
 			UScriptStruct* Struct = SerializedFragmentType->GetStruct();
 			Ar.Preload(Struct);
 
-			InitializePayload(Struct);
+			DefaultConstructPayload(*SerializedFragmentType);
 			Struct->SerializeItem(Ar, GetPayload(), nullptr);
 		}
 	}

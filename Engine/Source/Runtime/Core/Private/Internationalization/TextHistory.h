@@ -570,7 +570,7 @@ class FTextHistory_StringTableEntry : public FTextHistory
 {
 public:
 	FTextHistory_StringTableEntry() = default;
-	FTextHistory_StringTableEntry(FName InTableId, FString&& InKey, const EStringTableLoadingPolicy InLoadingPolicy);
+	FTextHistory_StringTableEntry(FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy);
 
 	//~ Begin FTextHistory Interface
 	OVERRIDE_TEXT_HISTORY_STRINGIFICATION;
@@ -603,7 +603,7 @@ private:
 	{
 	public:
 		/** Initialize this data, immediately starting an asset load if required and possible */
-		void Initialize(FName InTableId, FTextKey InKey, const EStringTableLoadingPolicy InLoadingPolicy);
+		void Initialize(FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy);
 
 		/** Check whether this instance is considered identical to the other instance */
 		bool IsIdentical(const FStringTableReferenceData& Other) const;

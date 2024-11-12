@@ -48,7 +48,7 @@ export class AutoBranchUpdater implements Bot {
 
 	tickCount = 0
 
-	constructor(private graphBot: GraphInterface, parentLogger: ContextualLogger) {
+	constructor(private graphBot: GraphInterface, parentLogger: ContextualLogger, private readonly previewMode: boolean) {
 		this.p4 = AutoBranchUpdater.p4!
 
 		const config = AutoBranchUpdater.config
@@ -151,7 +151,7 @@ export class AutoBranchUpdater implements Bot {
 		}
 
 		const validationErrors: string[] = []
-		const result = BranchDefs.parseAndValidate(validationErrors, branchGraphText, await this.p4.streams())
+		const result = await BranchDefs.parseAndValidate(this.p4, validationErrors, branchGraphText)
 		if (!result.branchGraphDef) {
 			// @todo email author of changes!
 			let errText = 'failed to parse/validate branch specs file\n'
@@ -217,16 +217,26 @@ export class AutoBranchUpdater implements Bot {
 	}
 
 	private async updateMirror(workspace: MirrorPaths) {
+
+		if (this.previewMode)
+		{
+			this.abuLogger.info("Skipping mirror update in Preview Mode")
+			return
+		}
+
 		this.abuLogger.info("Updating branchmap mirror")
 
 		const stream = this.graphBot.branchGraph.config.mirrorPath[0]
 
-		const workspaceQueryResult = await this.p4.find_workspace_by_name(workspace.name)
+		const workspaceQueryResult = await this.p4.find_workspace_by_name(workspace.name, {includeUnloaded: true})
 		if (workspaceQueryResult.length === 0) {
 			await this.p4.newWorkspace(workspace.name, {
 				Stream: stream,
 				Root: AutoBranchUpdater.config!.workspace.directory
 			})
+		}
+		else if (workspaceQueryResult[0].IsUnloaded) {
+			await this.p4.reloadWorkspace(workspace.name)
 		}
 
 		const {depotpath, realFilepath, mirrorFilepath} = workspace

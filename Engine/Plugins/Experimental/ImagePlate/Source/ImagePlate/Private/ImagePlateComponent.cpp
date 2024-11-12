@@ -9,6 +9,7 @@
 #include "Engine/CollisionProfile.h"
 #include "RayTracingInstance.h"
 #include "SceneManagement.h"
+#include "PrimitiveUniformShaderParametersBuilder.h"
 #include "Engine/Engine.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "DynamicMeshBuilder.h"
@@ -80,10 +81,7 @@ namespace
 			IndexBuffer.ReleaseResource();
 			VertexFactory.ReleaseResource();
 #if RHI_RAYTRACING
-			if (IsRayTracingEnabled())
-			{
-				RayTracingGeometry.ReleaseResource();
-			}
+			RayTracingGeometry.ReleaseResource();
 #endif
 		}
 
@@ -254,7 +252,7 @@ namespace
 
 		virtual bool HasRayTracingRepresentation() const override { return true; }
 
-		virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final
+		virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final
 		{
 			if (!CVarRayTracingImagePlate.GetValueOnRenderThread())
 			{
@@ -263,7 +261,7 @@ namespace
 
 			FMaterialRenderProxy* MaterialProxy = Material->GetRenderProxy();
 
-			if (RayTracingGeometry.RayTracingGeometryRHI.IsValid())
+			if (RayTracingGeometry.IsValid())
 			{
 				check(RayTracingGeometry.Initializer.IndexBuffer.IsValid());
 
@@ -281,21 +279,16 @@ namespace
 				MeshBatch.Type = PT_TriangleList;
 				MeshBatch.DepthPriorityGroup = SDPG_World;
 				MeshBatch.bCanApplyViewModeOverrides = false;
-				MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
+				MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
 
 				FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
 				BatchElement.IndexBuffer = &IndexBuffer;
 
-				bool bHasPrecomputedVolumetricLightmap = false;
-				FMatrix PreviousLocalToWorld = {};
-				PreviousLocalToWorld.SetIdentity();
-				int32 SingleCaptureIndex = 0;
-				bool bOutputVelocity = false;
-				GetScene().GetPrimitiveUniformShaderParameters_RenderThread(GetPrimitiveSceneInfo(), bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
-				bOutputVelocity |= AlwaysHasVelocity();
+				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+				FPrimitiveUniformShaderParametersBuilder Builder;
+				BuildUniformShaderParameters(Builder);
+				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), Builder);
 
-				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer.Set(Context.RHICmdList, GetLocalToWorld(), PreviousLocalToWorld, GetBounds(), GetLocalBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
 				BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 
 				BatchElement.FirstIndex = 0;
@@ -305,7 +298,7 @@ namespace
 
 				RayTracingInstance.Materials.Add(MeshBatch);
 
-				OutRayTracingInstances.Add(RayTracingInstance);
+				Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 			}
 		}
 #endif // RHI_RAYTRACING

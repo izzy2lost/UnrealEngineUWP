@@ -15,27 +15,33 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterGroupingAndSorting.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterNode.h"
-#include "TraceServices/Model/NetProfiler.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FMenuBuilder;
-class SNetworkingProfilerWindow;
 
 namespace TraceServices
 {
 	class IAnalysisSession;
 }
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 	class ITableCellValueSorter;
 }
+
+namespace UE::Insights::NetworkingProfiler
+{
+
+class SNetworkingProfilerWindow;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +73,7 @@ public:
 	 */
 	void Construct(const FArguments& InArgs, TSharedPtr<SNetworkingProfilerWindow> InProfilerWindow);
 
-	TSharedPtr<Insights::FTable> GetTable() const { return Table; }
+	TSharedPtr<FTable> GetTable() const { return Table; }
 
 	/**
 	 * Ticks this widget. Override in derived classes, but always call the parent implementation.
@@ -123,7 +129,7 @@ protected:
 
 	FText GetColumnHeaderText(const FName ColumnId) const;
 
-	TSharedRef<SWidget> TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column);
+	TSharedRef<SWidget> TreeViewHeaderRow_GenerateColumnMenu(const FTableColumn& Column);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Tree View - Misc
@@ -151,7 +157,7 @@ protected:
 
 	bool TableRow_ShouldBeEnabled(FNetStatsCounterNodePtr NodePtr) const;
 
-	void TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> TablePtr, TSharedPtr<Insights::FTableColumn> ColumnPtr, FNetStatsCounterNodePtr NodePtr);
+	void TableRow_SetHoveredCell(TSharedPtr<FTable> TablePtr, TSharedPtr<FTableColumn> ColumnPtr, FNetStatsCounterNodePtr NodePtr);
 	EHorizontalAlignment TableRow_GetColumnOutlineHAlignment(const FName ColumnId) const;
 
 	FText TableRow_GetHighlightText() const;
@@ -197,7 +203,7 @@ protected:
 
 	void UpdateCurrentSortingByColumn();
 	void SortTreeNodes();
-	void SortTreeNodesRec(FNetStatsCounterNode& Node, const Insights::ITableCellValueSorter& Sorter);
+	void SortTreeNodesRec(FNetStatsCounterNode& Node, const ITableCellValueSorter& Sorter);
 
 	EColumnSortMode::Type GetSortModeForColumn(const FName ColumnId) const;
 	void SetSortModeForColumn(const FName& ColumnId, EColumnSortMode::Type SortMode);
@@ -255,7 +261,7 @@ protected:
 	TSharedPtr<SNetworkingProfilerWindow> ProfilerWindow;
 
 	/** Table view model. */
-	TSharedPtr<Insights::FTable> Table;
+	TSharedPtr<FTable> Table;
 
 	/** A weak pointer to the profiler session used to populate this widget. */
 	TSharedPtr<const TraceServices::IAnalysisSession>/*Weak*/ Session;
@@ -340,10 +346,10 @@ protected:
 	//bool bUseSorting;
 
 	/** All available sorters. */
-	TArray<TSharedPtr<Insights::ITableCellValueSorter>> AvailableSorters;
+	TArray<TSharedPtr<ITableCellValueSorter>> AvailableSorters;
 
 	/** Current sorter. It is nullptr if sorting is disabled. */
-	TSharedPtr<Insights::ITableCellValueSorter> CurrentSorter;
+	TSharedPtr<ITableCellValueSorter> CurrentSorter;
 
 	/** Name of the column currently being sorted. Can be NAME_None if sorting is disabled (CurrentSorting == nullptr) or if a complex sorting is used (CurrentSorting != nullptr). */
 	FName ColumnBeingSorted;
@@ -364,3 +370,5 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

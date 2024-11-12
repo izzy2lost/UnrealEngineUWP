@@ -45,6 +45,7 @@ private:
 	ENiagaraStatDisplayMode GetDisplayMode() const;
 	bool IsInterpolatedSpawnEnabled() const;
 	bool IsGpuEmitter() const;
+	bool IsFinalized() const;
 	
 	float CalculateGroupOverallTime(FString StatScopeName) const;
 	float CalculateStackEntryTime() const;

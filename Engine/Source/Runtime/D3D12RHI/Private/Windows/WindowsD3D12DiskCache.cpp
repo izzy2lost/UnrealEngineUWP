@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
+#include "WindowsD3D12DiskCache.h"
 #include "D3D12RHIPrivate.h"
 
 void FDiskCacheInterface::Init(FString &filename, bool bEnable)
@@ -108,7 +109,7 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 
 	if (fileSize == 0)
 	{
-		byte data[64];
+		uint8 data[64];
 		FMemory::Memzero(data);
 		//It's invalide to map a zero sized file so write some junk data in that case
 		WriteFile(mFile, data, sizeof(data), NULL, NULL);
@@ -136,7 +137,7 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 		return;
 	}
 
-	mFileStart = (byte*)mMapAddress;
+	mFileStart = (uint8*)mMapAddress;
 }
 
 bool FDiskCacheInterface::AppendData(const void* pData, size_t size)

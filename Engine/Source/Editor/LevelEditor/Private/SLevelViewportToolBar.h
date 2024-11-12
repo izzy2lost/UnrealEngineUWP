@@ -10,7 +10,6 @@
 #include "SViewportToolBar.h"
 
 class ACameraActor;
-class FExtender;
 class SExtensionPanel;
 class SActionableMessageViewportWidget;
 class STransformViewportToolBar;
@@ -134,20 +133,20 @@ private:
 	void FillCameraMenu(UToolMenu* Menu) const;
 
 	/**
-	 * Generates menu entries for placed cameras (e.g CameraActors
+	 * Generates menu entries for placed cameras and Scene Capture Actors (e.g CameraActors, SceneCapture)
 	 *
 	 * @param Menu	The menu to add menu entries to
-	 * @param Cameras	The list of cameras to add
+	 * @param Cameras	The list of actors to add
 	 */
-	void GeneratePlacedCameraMenuEntries(UToolMenu* Menu, TArray<ACameraActor*> Cameras) const;
+	void GeneratePlacedCameraMenuEntries(UToolMenu* Menu, TArray<AActor*> LookThroughActors) const;
 
 	/**
-	 * Generates menu entries for placed cameras (e.g CameraActors
+	 * Generates menu entries for placed cameras and Scene Capture Actors (e.g CameraActors, SceneCapture)
 	 *
 	 * @param Section	The menu section to add menu entries to
-	 * @param Cameras	The list of cameras to add
+	 * @param Cameras	The list of actors to add
 	 */
-	void GeneratePlacedCameraMenuEntries(FToolMenuSection& Section, TArray<ACameraActor*> Cameras) const;
+	void GeneratePlacedCameraMenuEntries(FToolMenuSection& Section, TArray<AActor*> LookThroughActors) const;
 
 	/**
 	 * Generates menu entries for changing the type of the viewport
@@ -204,31 +203,6 @@ private:
 	 */
 	TSharedRef<SWidget> GenerateViewModeOptionsMenu() const;
 
-	/**
-	 * @return The widget containing the perspective only FOV window.
-	 */
-	TSharedRef<SWidget> GenerateFOVMenu() const;
-
-	/** Called by the FOV slider in the perspective viewport to get the FOV value */
-	float OnGetFOVValue() const;
-
-	/** Called when the FOV slider is adjusted in the perspective viewport */
-	void OnFOVValueChanged( float NewValue );
-
-	/**
-	 * @return The widget containing the far view plane slider.
-	 */
-	TSharedRef<SWidget> GenerateFarViewPlaneMenu() const;
-
-	/** Called by the far view plane slider in the perspective viewport to get the far view plane value */
-	float OnGetFarViewPlaneValue() const;
-
-	/** Called when the far view plane slider is adjusted in the perspective viewport */
-	void OnFarViewPlaneValueChanged( float NewValue );
-
-	bool IsLandscapeLODSettingChecked(int32 Value) const;
-	void OnLandscapeLODChanged(int32 NewValue);
-
 	FReply OnRealtimeWarningClicked();
 	EVisibility GetRealtimeWarningVisibility() const;
 
@@ -265,14 +239,8 @@ private:
 	 */
 	void FillShowHLODsMenu(UToolMenu* Menu) const;
 
-	/** Generates the layout sub-menu content */
-	void GenerateViewportConfigsMenu(UToolMenu* Menu) const;
-
 	/** Gets the world we are editing */
 	TWeakObjectPtr<UWorld> GetWorld() const;
-
-	/** Gets the extender for the view menu */
-	TSharedPtr<FExtender> GetViewMenuExtender();
 
 	/** Called when the user disables realtime override from the toolbar */
 	void OnDisableRealtimeOverride();

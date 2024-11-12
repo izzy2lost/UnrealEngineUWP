@@ -11,14 +11,20 @@
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "PCGSubsystem.h"
+#include "Compute/PCGComputeCommon.h"
+#include "Compute/PCGComputeGraph.h"
+#include "Compute/PCGDataBinding.h"
+#include "Compute/PCGDataForGPU.h"
 #include "Elements/PCGAddTag.h"
 #include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 
+#include "Misc/Crc.h"
 #include "Serialization/ArchiveObjectCrc32.h"
 #include "UObject/ObjectSaveContext.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSettings)
 
@@ -36,21 +42,40 @@ namespace PCGSettings
 	static constexpr int DeprecationAliasIndex = -2;
 	// For property path concatenation
 	static constexpr const TCHAR* PropertyPathSeparator = TEXT("/");
+
+	static TAutoConsoleVariable<bool> CVarWarnOverridePinsCollideWithInputPins(
+		TEXT("pcg.Graph.WarnPinNameCollisions"),
+		false,
+		TEXT("Enables warnings when there are name collision between pin names and overrides/user parameters."));
+
+	static TAutoConsoleVariable<bool> CVarWarnOnOverridePinUsage(
+		TEXT("pcg.Graph.GPU.WarnOnOverridePinUsage"),
+		true,
+		TEXT("Enables warnings when parameters are overidden on GPU nodes."));
 }
 
 /** Custom Crc computation that ignores properties that will not affect the computed result of a node. */
-class FPCGSettingsObjectCrc32 : public FArchiveObjectCrc32
+class FPCGSettingsObjectCrc : public FArchiveObjectCrc32
 {
 public:
+	static FPCGCrc PCGCrc(const UPCGSettings* PCGSettings)
+	{
+		// If Settings has an original, use it to get a unique Id
+		const UPCGSettings* OriginalSettings = PCGSettings->OriginalSettings ? PCGSettings->OriginalSettings : PCGSettings;
+				
+		// If Settings is not transient, use its Object Path as a unique Id (this allows persistent Crcs)
+		const bool bSkipUID = !OriginalSettings->GetPackage()->HasAnyPackageFlags(PKG_TransientFlags) && OriginalSettings->GetPackage() != GetTransientPackage();
+		const uint32 SettingsPathOrUIDCrc = bSkipUID ? FCrc::StrCrc32(*OriginalSettings->GetPathName()) : FCrc::TypeCrc32(OriginalSettings->GetStableUID());
+				
+		FPCGSettingsObjectCrc Ar;
+		uint32 ArCrc = Ar.Crc32(const_cast<UPCGSettings*>(PCGSettings), SettingsPathOrUIDCrc);
+		return FPCGCrc(ArCrc);
+	}
+
 #if WITH_EDITOR
 	virtual bool ShouldSkipProperty(const FProperty* InProperty) const override
 	{
-		// Currently we rely on the 'UID' property getting included in the Crc. An example of this are asset settings
-		// for which we avoid doing a full data CRC and instead rely on including hte UID. This property is transient
-		// and will only serialize if IsPersistent() is false (see tests in FProperty::ShouldSerializeValue()).
-		ensure(!IsPersistent());
-
-		// Omit CRC'ing data collections here as it is very slow. Rely instead on UID.
+		// Omit CRC'ing data collections here as it is very slow. Rely instead on UID/ObjectPath.
 		const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty);
 		if (StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FPCGDataCollection::StaticStruct()))
 		{
@@ -58,7 +83,8 @@ public:
 		}
 
 		const bool bSkip = InProperty && (
-			InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DebugSettings)
+			InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, UID)
+			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DebugSettings)
 			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DeterminismSettings)
 			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, bDebug)
 			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, Category)
@@ -75,6 +101,11 @@ public:
 FString FPCGSettingsOverridableParam::GetPropertyPath() const
 {
 	return FString::JoinBy(Properties, PCGSettings::PropertyPathSeparator, [](const FProperty* InProperty) { return InProperty ? InProperty->GetAuthoredName() : FString(); });
+}
+
+bool FPCGSettingsOverridableParam::IsHardReferenceOverride() const
+{
+	return !Properties.IsEmpty() && CastField<const FObjectProperty>(Properties.Last());
 }
 
 TArray<FName> FPCGSettingsOverridableParam::GenerateAllPossibleAliases() const
@@ -176,14 +207,93 @@ void UPCGSettingsInterface::SetEnabled(bool bInEnabled)
 	if (bEnabled != bInEnabled)
 	{
 		bEnabled = bInEnabled;
-#if WITH_EDITOR
+
 		if (UPCGSettings* Settings = GetSettings())
 		{
+			Settings->CacheCrc();
+
+#if WITH_EDITOR
 			const EPCGChangeType ChangeType = Settings->GetChangeTypeForProperty(GET_MEMBER_NAME_CHECKED(UPCGSettingsInterface, bEnabled));
 			OnSettingsChangedDelegate.Broadcast(Settings, ChangeType);
-		}
 #endif
+		}
 	}
+}
+
+bool UPCGSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
+{
+	if (PCGSettings::CVarWarnOnOverridePinUsage.GetValueOnAnyThread() && !bQuiet)
+	{
+		for (const FPCGSettingsOverridableParam& Param : OverridableParams())
+		{
+			if (ensure(!Param.PropertiesNames.IsEmpty()))
+			{
+				const FName PropertyName = Param.PropertiesNames[0];
+
+				if (IsPropertyOverriddenByPin(PropertyName))
+				{
+					PCG_KERNEL_VALIDATION_WARN(InContext, this, bQuiet, FText::Format(
+						LOCTEXT("ParamOverrideGPU", "Tried to override pin '{0}', but overrides are not supported on GPU nodes."),
+						FText::FromName(PropertyName)));
+				}
+			}
+		}
+	}
+
+	// Validate types of incident edges to make sure we catch invalid cases like Spatial -> Point.
+	bool bAllEdgesValid = true;
+
+	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	{
+		for (const UPCGPin* InputPin : Node->GetInputPins())
+		{
+			if (!InputPin)
+			{
+				continue;
+			}
+
+			for (const UPCGEdge* InputEdge : InputPin->Edges)
+			{
+				const UPCGPin* UpstreamPin = InputEdge ? InputEdge->GetOtherPin(InputPin) : nullptr;
+				if (UpstreamPin && InputPin->GetRequiredTypeConversion(UpstreamPin) != EPCGTypeConversion::NoConversionRequired)
+				{
+					PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, FText::Format(
+						LOCTEXT("InvalidInputPinEdge", "Unsupported connected upstream pin '{0}' on node '{1}' with type {2}. Recreate the edge to add required conversion nodes."),
+						FText::FromName(UpstreamPin->Properties.Label),
+						Node->GetNodeTitle(EPCGNodeTitleType::ListView),
+						StaticEnum<EPCGDataType>() ? StaticEnum<EPCGDataType>()->GetDisplayNameTextByValue(static_cast<int64>(UpstreamPin->Properties.AllowedTypes)) : FText::FromString(TEXT("MISSING"))));
+
+					bAllEdgesValid = false;
+				}
+			}
+		}
+	}
+
+	return bAllEdgesValid;
+}
+
+bool UPCGSettings::ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const
+{
+	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
+	return ComputeOutputPinDataDesc(Node->GetOutputPin(OutputPinLabel), InBinding, OutDesc);
+}
+
+bool UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const
+{
+	check(OutputPin);
+	check(InBinding);
+
+	const bool bSuccess = InBinding->ComputeCPUOutputPinDataDesc(OutputPin, OutDesc);
+
+	if (!bSuccess)
+	{
+		ensureMsgf(false, TEXT("Gathering data from CPU output pin '%s' on node '%s' failed. Pin was not present in OutputCPUPinToInputGPUPinAlias map (%d entries)."),
+			*OutputPin->Properties.Label.ToString(),
+			OutputPin->Node ? *OutputPin->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MISSING"),
+			InBinding->Graph->OutputCPUPinToInputGPUPinAlias.Num());
+	}
+
+	return bSuccess;
 }
 
 uint32 UPCGSettings::GetTypeNameHash() const
@@ -199,10 +309,7 @@ bool UPCGSettings::operator==(const UPCGSettings& Other) const
 	}
 	else
 	{
-		FPCGSettingsObjectCrc32 Ar;
-		uint32 ThisCrc = Ar.Crc32(const_cast<UPCGSettings*>(this));
-		uint32 OtherCrc = Ar.Crc32(const_cast<UPCGSettings*>(&Other));
-		return ThisCrc == OtherCrc;
+		return FPCGSettingsObjectCrc::PCGCrc(this) == FPCGSettingsObjectCrc::PCGCrc(&Other);
 	}
 }
 
@@ -319,6 +426,7 @@ void UPCGSettings::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 	Ar.UsingCustomVersion(FPCGCustomVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 #if WITH_EDITOR
 	if (Ar.IsLoading())
@@ -385,6 +493,14 @@ TArray<FPCGPinProperties> UPCGSettings::OutputPinProperties() const
 	return PinProperties;
 }
 
+bool UPCGSettings::HasOverridableParam(FName InParamName) const
+{
+	return CachedOverridableParams.FindByPredicate([InParamName](const FPCGSettingsOverridableParam& ParamToCheck)
+	{
+		return !ParamToCheck.PropertiesNames.IsEmpty() && ParamToCheck.PropertiesNames.Last() == InParamName;
+	}) != nullptr;
+}
+
 void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins) const
 {
 	if (!HasOverridableParams())
@@ -434,7 +550,7 @@ void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins)
 	else
 	{
 		FPCGPinProperties& ParamPin = OutPins.Emplace_GetRef(PCGPinConstants::DefaultParamsLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ true, /*bAllowMultipleData=*/ true);
-		ParamPin.SetAdvancedPin();
+		ParamPin.SetOverrideOrUserParamPin();
 
 #if WITH_EDITOR
 		ParamPin.Tooltip = LOCTEXT("GlobalParamPinTooltip", "Atribute Set containing multiple parameters to override. Names must match perfectly.");
@@ -447,17 +563,20 @@ void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins)
 	{
 		if (InputPinsLabelsAndTypes.Contains(OverridableParam.Label))
 		{
-			//const FString ParamsName = OverridableParam.Label.ToString();
-			//UE_LOG(LogPCG, Warning, TEXT("[%s-%s] While automatically adding override pins, an existing pin was found with conflicting name '%s'. "
-			//	"Rename or remove this pin to allow the automatic override pin to be added. Automatic override pin '%s' skipped."),
-			//	*GraphName, *NodeName, *ParamsName, *ParamsName);
+			if (PCGSettings::CVarWarnOverridePinsCollideWithInputPins.GetValueOnAnyThread())
+			{
+				const FString ParamsName = OverridableParam.Label.ToString();
+				UE_LOG(LogPCG, Warning, TEXT("[%s-%s] While automatically adding override pins, an existing pin was found with conflicting name '%s'. "
+					"Rename or remove this pin to allow the automatic override pin to be added. Automatic override pin '%s' skipped."),
+					*GraphName, *NodeName, *ParamsName, *ParamsName);
+			}
 			continue;
 		}
 
 		InputPinsLabelsAndTypes.Emplace(OverridableParam.Label, EPCGDataType::Param);
 
 		FPCGPinProperties& ParamPin = OutPins.Emplace_GetRef(OverridableParam.Label, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ false, /*bAllowMultipleData=*/ false);
-		ParamPin.SetAdvancedPin();
+		ParamPin.SetOverrideOrUserParamPin();
 #if WITH_EDITOR
 
 		if (!OverridableParam.Properties.IsEmpty())
@@ -523,6 +642,11 @@ TArray<FPCGPinProperties> UPCGSettings::DefaultOutputPinProperties() const
 	return OutputPinProperties();
 }
 
+void UPCGSettings::OnOverrideSettingsDuplicated(bool bSkippedPostLoad)
+{
+	OnOverrideSettingsDuplicatedInternal(bSkippedPostLoad);
+}
+
 FPCGElementPtr UPCGSettings::GetElement() const
 {
 	if (!CachedElement)
@@ -547,7 +671,7 @@ UPCGNode* UPCGSettings::CreateNode() const
 
 int UPCGSettings::GetSeed(const UPCGComponent* InSourceComponent) const
 {
-	return !bUseSeed ? 42 : (InSourceComponent ? PCGHelpers::ComputeSeed(Seed, InSourceComponent->Seed) : Seed);
+	return !UseSeed() ? 42 : (InSourceComponent ? PCGHelpers::ComputeSeed(Seed, InSourceComponent->Seed) : Seed);
 }
 
 #if WITH_EDITOR
@@ -589,9 +713,24 @@ EPCGChangeType UPCGSettings::GetChangeTypeForProperty(FPropertyChangedEvent& Pro
 
 EPCGChangeType UPCGSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
+	EPCGChangeType ChangeType = EPCGChangeType::Settings;
+
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSettings, bExecuteOnGPU))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return EPCGChangeType::Settings | (IsStructuralProperty(InPropertyName) ? EPCGChangeType::Structural : EPCGChangeType::None);
+	ChangeType |= IsStructuralProperty(InPropertyName) ? EPCGChangeType::Structural : EPCGChangeType::None;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	// Changes to GPU nodes can deeply affect the compiled compute graph so trigger recompiles on any non-trivial changes.
+	if (ChangeType != EPCGChangeType::Cosmetic && ShouldExecuteOnGPU())
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
+	return ChangeType;
 }
 
 void UPCGSettings::DirtyCache()
@@ -639,7 +778,15 @@ bool UPCGSettings::CanEditChange(const FEditPropertyChain& InPropertyChain) cons
 
 bool UPCGSettings::CanEditChange(const FProperty* InProperty) const
 {
-	return Super::CanEditChange(InProperty);
+	if (!Super::CanEditChange(InProperty))
+		return false;
+
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, Seed))
+	{
+		return UseSeed();
+	}
+
+	return true;
 }
 
 void UPCGSettings::PostPaste()
@@ -842,7 +989,7 @@ EPCGDataType UPCGSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 TArray<FPCGSettingsOverridableParam> UPCGSettings::GatherOverridableParams() const
 {
 	PCGSettingsHelpers::FPCGGetAllOverridableParamsConfig Config;
-	Config.bUseSeed = bUseSeed;
+	Config.bUseSeed = UseSeed();
 	Config.IncludeMetadataValues.Add(PCGObjectMetadata::Overridable);
 	Config.ExcludeMetadataValues.Add(PCGObjectMetadata::NotOverridable);
 
@@ -907,6 +1054,9 @@ void UPCGSettings::InitializeCachedOverridableParams(bool bReset)
 	}
 #endif // WITH_EDITOR
 
+	// Reset the value
+	bHasAnyOverridableHardReferences = false;
+	
 	for (int32 i = 0; i < CachedOverridableParams.Num(); ++i)
 	{
 		FPCGSettingsOverridableParam& Param = CachedOverridableParams[i];
@@ -968,6 +1118,12 @@ void UPCGSettings::InitializeCachedOverridableParams(bool bReset)
 				break;
 			}
 		}
+
+		// Keep the information if the last property is a hard ref
+		if (Param.IsHardReferenceOverride())
+		{
+			bHasAnyOverridableHardReferences = true;
+		}
 	}
 }
 
@@ -986,9 +1142,7 @@ void UPCGSettings::FixingOverridableParamPropertyClass(FPCGSettingsOverridablePa
 
 void UPCGSettings::CacheCrc()
 {
-	FPCGSettingsObjectCrc32 Ar;
-	const uint32 CrcValue = Ar.Crc32(const_cast<UPCGSettings*>(this));
-	CachedCrc = FPCGCrc(CrcValue);
+	CachedCrc = FPCGSettingsObjectCrc::PCGCrc(this);
 }
 
 TArray<FPCGPinProperties> UPCGSettings::DefaultPointInputPinProperties() const

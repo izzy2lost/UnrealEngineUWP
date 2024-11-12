@@ -40,7 +40,7 @@
 
 //#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionMaterialNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionMaterialNodes()
 	{
@@ -60,7 +60,7 @@ namespace Dataflow
 }
 
 
-void FAddMaterialToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FAddMaterialToCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection) || Out->IsA<TArray<TObjectPtr<UMaterial>>>(&Materials))
 	{
@@ -116,7 +116,7 @@ void FAddMaterialToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context,
 }
 
 
-void FReAssignMaterialInCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FReAssignMaterialInCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -176,7 +176,7 @@ void FReAssignMaterialInCollectionDataflowNode::Evaluate(Dataflow::FContext& Con
 }
 
 
-void FMaterialsInfoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMaterialsInfoDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&String))
 	{
@@ -202,7 +202,7 @@ void FMaterialsInfoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDa
 }
 
 
-void FGetMaterialFromMaterialsArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetMaterialFromMaterialsArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UMaterial>>(&Material))
 	{
@@ -224,7 +224,7 @@ void FGetMaterialFromMaterialsArrayDataflowNode::Evaluate(Dataflow::FContext& Co
 }
 
 
-void FSetMaterialInMaterialsArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSetMaterialInMaterialsArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<TObjectPtr<UMaterial>>>(&Materials))
 	{
@@ -249,7 +249,7 @@ void FSetMaterialInMaterialsArrayDataflowNode::Evaluate(Dataflow::FContext& Cont
 }
 
 
-void FMakeMaterialDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeMaterialDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UMaterial>>(&Material))
 	{
@@ -258,7 +258,7 @@ void FMakeMaterialDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 }
 
 
-void FMakeMaterialsArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeMaterialsArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<TObjectPtr<UMaterial>>>(&Materials))
 	{

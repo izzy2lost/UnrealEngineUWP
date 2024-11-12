@@ -15,8 +15,12 @@
 class FBuildPatchAppManifest;
 enum class EConstructionError : uint8;
 
+class IBuildInstallerSharedContext;
+
 namespace BuildPatchServices
 {
+	
+
 	struct FChunkPart;
 	class IFileSystem;
 	class IChunkSource;
@@ -25,6 +29,8 @@ namespace BuildPatchServices
 	class IInstallerAnalytics;
 	class IFileConstructorStat;
 	class IBuildManifestSet;
+	class IBuildInstallerThread;
+	class IChunkDbChunkSource;
 
 	/**
 	 * A struct containing the configuration values for a file constructor.
@@ -48,6 +54,10 @@ namespace BuildPatchServices
 
 		// The install mode used for this installation.
 		EInstallMode InstallMode;
+
+		IBuildInstallerSharedContext* SharedContext;
+
+		bool bDeleteChunkDBFilesAfterUse = false;
 	};
 
 	/**
@@ -68,7 +78,10 @@ namespace BuildPatchServices
 		 * @param InstallerAnalytics        Pointer to the installer analytics handler for reporting events.
 		 * @param FileConstructorStat       Pointer to the stat class for receiving updates.
 		 */
-		FBuildPatchFileConstructor(FFileConstructorConfig Configuration, IFileSystem* FileSystem, IChunkSource* ChunkSource, IChunkReferenceTracker* ChunkReferenceTracker, IInstallerError* InstallerError, IInstallerAnalytics* InstallerAnalytics, IFileConstructorStat* FileConstructorStat);
+		FBuildPatchFileConstructor(
+			FFileConstructorConfig Configuration, IFileSystem* FileSystem, IChunkSource* ChunkSource, 
+			IChunkDbChunkSource* ChunkDbChunkSource, IChunkReferenceTracker* ChunkReferenceTracker, IInstallerError* InstallerError, 
+			IInstallerAnalytics* InstallerAnalytics, IFileConstructorStat* FileConstructorStat);
 
 		/**
 		 * Default Destructor, will delete the allocated Thread
@@ -90,14 +103,19 @@ namespace BuildPatchServices
 		// IControllable interface end.
 
 		/**
-		 * Get the disk space that was required to perform the installation
-		 * @return	the disk space required to perform the installation in bytes
+		 * Get the disk space that was required to perform the installation. This can change over time and indicates the required
+		 * space to _finish_ the installation from the current state. It is not initialized until after resume is processed and returns
+		 * zero until that time. Note that since this and GetAvailableDiskSpace are separate accessors there's no guarantee that they
+		 * match - e.g. if you call GetRequiredDiskSpace and then GetAvailableDiskSpace immediately afterwards, it's possible the Available
+		 * Disk Space value is from a later call. This is highly unlikely due to how rare these updates are, but it's possible. Use these
+		 * for UI purposes only.
 		 */
 		uint64 GetRequiredDiskSpace();
 
 		/**
-		 * Get the disk space that was available at the time of checking for the required disk space
-		 * @return	the disk space that was available in bytes
+		 * Get the disk space that was available when last updating RequiredDiskSpace. See notes with GetRequiredDiskSpace.
+		 * It's possible for this to return 0 due to the underlying operating system being unable to report a value in cases of
+		 * e.g. the drive being disconnected.
 		 */
 		uint64 GetAvailableDiskSpace();
 
@@ -134,7 +152,10 @@ namespace BuildPatchServices
 		 * @param InProgressFileSize		The remaining size required for the file currently being constructed.
 		 * @return the number of bytes required on disk to complete the installation.
 		 */
-		uint64 CalculateRequiredDiskSpace(const FFileManifest& InProgressFileManifest, uint64 InProgressFileSize);
+		uint64 CalculateInProgressDiskSpaceRequired(const FFileManifest& InProgressFileManifest, uint64 InProgressFileSize);
+
+		// Calculates the amount of disk space we need to finish the install, needs to be called on file boundaries.
+		uint64 CalculateDiskSpaceRequirementsWithDeleteDuringInstall(const TArray<FString>& InConstructionStack);
 
 		/**
 		 * Constructs a particular file referenced by the given BuildManifest. The function takes an interface to a class that can provide availability information of chunks so that this
@@ -147,14 +168,12 @@ namespace BuildPatchServices
 		bool ConstructFileFromChunks(const FString& BuildFilename, const FFileManifest& FileManifest, bool bResumeExisting);
 
 		/**
-		 * Inserts the data data from a chunk into the destination file according to the chunk part info
+		 * Adds the data from a chunk to the given buffer.
 		 * @param ChunkPart          The chunk part details.
-		 * @param DestinationFile    The Filename for the file being constructed.
-		 * @param HashState          An FSHA1 hash state to update with the data going into the destination file.
 		 * @param ConstructionError  Will be set to the error type that ocurred or EConstructionError::None.
 		 * @return true if no errors were detected
 		 */
-		bool InsertChunkData(const FChunkPart& ChunkPart, FArchive& DestinationFile, FSHA1& HashState, EConstructionError& ConstructionError);
+		bool AppendChunkData(const FChunkPart& ChunkPart, TArray<uint8>& DestinationBuffer, EConstructionError& ConstructionError);
 
 		/**
 		 * Delete all contents of a directory
@@ -189,6 +208,7 @@ namespace BuildPatchServices
 
 		// Pointer to chunk source.
 		IChunkSource* ChunkSource;
+		IChunkDbChunkSource* ChunkDbSource; // can be null if not using.
 
 		// Pointer to the chunk reference tracker.
 		IChunkReferenceTracker* ChunkReferenceTracker;
@@ -209,13 +229,33 @@ namespace BuildPatchServices
 		int64 ByteProcessed;
 
 		// The amount of disk space requirement that was calculated when beginning the process. 0 if the install process was not started, or no additional space was needed.
-		uint64 RequiredDiskSpace;
+		std::atomic_uint64_t RequiredDiskSpace;
 
 		// The amount of disk space available when beginning the process. 0 if the install process was not started.
-		uint64 AvailableDiskSpace;
+		std::atomic_uint64_t AvailableDiskSpace;
 
 		// Event executed before deleting an old installation file.
 		FOnBeforeDeleteFile BeforeDeleteFileEvent;
+
+		//
+		// Async write management.
+		IBuildInstallerThread* WriteJobThread;
+		void WriteJobThreadRun();
+
+		// We ping pong between two buffers, filling/hashing one, and writing the other.
+		TArray<uint8> WriteBuffers[2];
+		int32 CurrentFillBuffer = 0;
+		uint32 WriteBufferSize = (4 << 20); // Default write buffer size 4MB.
+
+		FEvent* WriteJobCompleteEvent = nullptr;
+		FEvent* WriteJobStartEvent = nullptr;
+		TArray<uint8>* WriteJobBufferToWrite = nullptr;
+		FArchive* WriteJobArchive = nullptr;
+		std::atomic_bool bWriteJobCompleted = false; // Only set to true if the Serialize() call was completed.
+		bool bWriteJobRunning = false; // Foreground thread only - have we dispatched a job?
+
+		// Where we are in the chunk consumption list after each file.
+		TArray<int32> FileCompletionPositions;
 	};
 
 	/**

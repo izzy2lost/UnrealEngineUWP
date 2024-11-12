@@ -4,6 +4,7 @@
 #include "ChaosCloth/ChaosClothConstraints.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/ArrayCollectionArray.h"
+#include "Chaos/SoftsSimulationSpace.h"
 #include "Chaos/Transform.h"
 #include "Chaos/Framework/PhysicsSolverBase.h"
 #include "Chaos/ImplicitObject.h"
@@ -46,6 +47,8 @@ namespace Chaos
 		const FVec3& GetLocalSpaceLocation() const { return LocalSpaceLocation; }
 		void SetLocalSpaceRotation(const FQuat& InLocalSpaceRotation) { LocalSpaceRotation = InLocalSpaceRotation; }
 		const FRotation3& GetLocalSpaceRotation() const { return LocalSpaceRotation; }
+		CHAOSCLOTH_API void SetLocalSpaceScale(FReal InLocalSpaceScale, bool bReset = false);
+		FReal GetLocalSpaceScale() const { return LocalSpaceScale; }
 		void SetVelocityScale(FReal InVelocityScale) { VelocityScale = InVelocityScale; }
 		FReal GetVelocityScale() const { return VelocityScale; }
 
@@ -58,14 +61,8 @@ namespace Chaos
 		CHAOSCLOTH_API void SetWindVelocity(const TVec3<FRealSingle>& InWindVelocity, FRealSingle InLegacyWindAdaption = (FRealSingle)0.);
 		const TVec3<FRealSingle>& GetWindVelocity() const { return WindVelocity; }
 
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetNumIterations(int32 InNumIterations);
 		CHAOSCLOTH_API int32 GetNumIterations() const;
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetMaxNumIterations(int32 InMaxNumIterations);
 		CHAOSCLOTH_API int32 GetMaxNumIterations() const;
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetNumSubsteps(int32 InNumSubsteps);
 		CHAOSCLOTH_API int32 GetNumSubsteps() const;
 
 		void SetEnableSolver(bool InbEnableSolver) { bEnableSolver = InbEnableSolver; }
@@ -103,8 +100,6 @@ namespace Chaos
 
 		/** Set the cached positions onto the particles */
 		CHAOSCLOTH_API void UpdateFromCache(const FClothingSimulationCacheData& CacheData);
-		UE_DEPRECATED(5.3, "Use UpdateFromCache(CacheData) instead")
-		CHAOSCLOTH_API void UpdateFromCache(const TArray<FVector>& CachedPositions, const TArray<FVector>& CachedVelocities);
 
 		// Return the actual of number of iterations used by the Evolution solver after the update (different from the number of iterations, depends on frame rate)
 		CHAOSCLOTH_API int32 GetNumUsedIterations() const;
@@ -142,10 +137,36 @@ namespace Chaos
 		CHAOSCLOTH_API void SetReferenceVelocityScale(uint32 GroupId,
 			const FRigidTransform3& OldReferenceSpaceTransform,
 			const FRigidTransform3& ReferenceSpaceTransform,
+			TVec3<FReal>& InOutReferenceVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+			TVec3<FReal>& InOutReferenceAngularVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+			const EChaosSoftsSimulationSpace VelocityScaleSpace, // the space the following linear velocity properties are in.
+			const TVec3<FRealSingle>& LinearVelocityScale,
+			const TVec3<FRealSingle>& MaxLinearVelocity,
+			const TVec3<FRealSingle>& MaxLinearAcceleration,
+			FRealSingle AngularVelocityScale,
+			FRealSingle MaxAngularVelocity,
+			FRealSingle MaxAngularAcceleration,
+			FRealSingle FictitiousAngularScale,
+			FRealSingle MaxVelocityScale,
+			bool bDisableFictitiousForces);
+
+		void SetReferenceVelocityScale(uint32 GroupId,
+			const FRigidTransform3& OldReferenceSpaceTransform,
+			const FRigidTransform3& ReferenceSpaceTransform,
 			const TVec3<FRealSingle>& LinearVelocityScale,
 			FRealSingle AngularVelocityScale,
 			FRealSingle FictitiousAngularScale,
-			FRealSingle MaxVelocityScale = 1.f);
+			FRealSingle MaxVelocityScale = 1.f,
+			bool bDisableFictitiousForces = false)
+		{
+			// Acceleration clamps are disabled, so it doesn't matter what the old velocities were.
+			TVec3<FReal> ReferenceVelocity(0.);
+			TVec3<FReal> ReferenceAngularVelocity(0.);
+			SetReferenceVelocityScale(GroupId, OldReferenceSpaceTransform, ReferenceSpaceTransform, ReferenceVelocity, ReferenceAngularVelocity,
+				EChaosSoftsSimulationSpace::ReferenceBoneSpace, LinearVelocityScale, TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()),
+				TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()), AngularVelocityScale, FictitiousAngularScale,
+				MaxVelocityScale, TNumericLimits<FRealSingle>::Max(), TNumericLimits<FRealSingle>::Max(), bDisableFictitiousForces);
+		}
 
 		/** PBDSolver version */
 		CHAOSCLOTH_API void SetProperties(
@@ -180,8 +201,21 @@ namespace Chaos
 			uint32 GroupId,
 			const FTriangleMesh& TriangleMesh,
 			const TConstArrayView<FRealSingle>& DragMultipliers,
+			const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 			const TConstArrayView<FRealSingle>& LiftMultipliers,
+			const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 			const TConstArrayView<FRealSingle>& PressureMultipliers);
+
+		UE_DEPRECATED(5.5, "Use version with PropertyCollection (preferred) or OuterDrag and OuterLift")
+		void SetWindAndPressureGeometry(
+			uint32 GroupId,
+			const FTriangleMesh& TriangleMesh,
+			const TConstArrayView<FRealSingle>& DragMultipliers,
+			const TConstArrayView<FRealSingle>& LiftMultipliers,
+			const TConstArrayView<FRealSingle>& PressureMultipliers)
+		{
+			SetWindAndPressureGeometry(GroupId, TriangleMesh, DragMultipliers, DragMultipliers, LiftMultipliers, LiftMultipliers, PressureMultipliers);
+		}
 
 		// Set the wind and pressure properties.
 		CHAOSCLOTH_API void SetWindAndPressureProperties(
@@ -193,9 +227,22 @@ namespace Chaos
 		CHAOSCLOTH_API void SetWindAndPressureProperties(
 			uint32 GroupId,
 			const TVec2<FRealSingle>& Drag,
+			const TVec2<FRealSingle>& OuterDrag,
+			const TVec2<FRealSingle>& Lift,
+			const TVec2<FRealSingle>& OuterLift,
+			FRealSingle FluidDensity,
+			const TVec2<FRealSingle>& Pressure);
+
+		UE_DEPRECATED(5.5, "Use version with PropertyCollection (preferred) or OuterDrag and OuterLift")
+		void SetWindAndPressureProperties(
+			uint32 GroupId,
+			const TVec2<FRealSingle>& Drag,
 			const TVec2<FRealSingle>& Lift,
 			FRealSingle FluidDensity = 1.225f,
-			const TVec2<FRealSingle>& Pressure = TVec2<FRealSingle>::ZeroVector);
+			const TVec2<FRealSingle>& Pressure = TVec2<FRealSingle>::ZeroVector)
+		{
+			SetWindAndPressureProperties(GroupId, Drag, Drag, Lift, Lift, FluidDensity, Pressure);
+		}
 
 		// Return the wind velocity and pressure field associated with a given group id.
 		CHAOSCLOTH_API const Softs::FVelocityAndPressureField& GetWindVelocityAndPressureField(uint32 GroupId) const;
@@ -428,10 +475,13 @@ namespace Chaos
 		TMap<int32, TUniquePtr<FClothConstraints>> ClothsConstraints;
 
 		// Local space simulation
+		FReal OldLocalSpaceScale = 1.; // Multiply this to simulation space coordinates to get world space coordinates.
+		FReal LocalSpaceScale = 1.;
 		FVec3 OldLocalSpaceLocation;  // This is used to translate between world space and simulation space,
 		FVec3 LocalSpaceLocation;     // add this to simulation space coordinates to get world space coordinates, must keep FReal as underlying type for LWC
-		FRotation3 LocalSpaceRotation;
+		FRotation3 LocalSpaceRotation; // NOTE: Currently the simulation does not apply LocalSpaceRotation.
 		FReal VelocityScale;
+
 
 		// Time stepping
 		FSolverReal Time;

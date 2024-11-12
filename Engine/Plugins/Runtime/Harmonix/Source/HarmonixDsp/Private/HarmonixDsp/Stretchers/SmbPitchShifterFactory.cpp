@@ -40,13 +40,13 @@ void FSmbPitchShifterFactory::OnClientAdded(void* Client, float InSampleRate)
 
 	if (!PitchShifterPool.IsInitialized() && Config->GetNumAllocatedStretchersForPlatform() > 0)
 	{
-		auto FactoryMethod = [this]() -> TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe>
+		auto FactoryMethod = [SampleRate = FactorySampleRate]() -> TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe>
 		{
-			return CreateStretcherAndPitchShifter(FactorySampleRate);
+			return CreateStretcherAndPitchShifter(SampleRate);
 		};
 
 
-		PitchShifterPool.Allocate(Config->GetNumAllocatedStretchersForPlatform(), FactoryMethod);
+		PitchShifterPool.Allocate(Config->GetNumAllocatedStretchersForPlatform(), FactoryMethod, Config->ShouldAllowPoolGrowth());
 	}
 }
 
@@ -70,7 +70,7 @@ void FSmbPitchShifterFactory::ReleasePitchShifter(TSharedPtr<IStretcherAndPitchS
 
 bool FSmbPitchShifterFactory::HasFreePitchShifters(const FTimeStretchConfig& InConfig) const
 {
-	return PitchShifterPool.GetNumFree() > 0;
+	return (PitchShifterPool.GetNumFree() > 0) || PitchShifterPool.CanGrow();
 }
 
 size_t FSmbPitchShifterFactory::GetMemoryUsedByPool() const

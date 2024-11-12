@@ -27,6 +27,7 @@ struct PCG_API FPCGAssetExporterParameters
 	FString AssetPath;
 
 	/** Controls whether the assets will be saved at the end of the process or not. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bSaveOnExportEnded = true;
 };
 
@@ -68,4 +69,7 @@ protected:
 
 	/** Sets up the exporter prior to performing update */
 	virtual void SerializeMetadata(FArchive& Ar) {}
+
+	/** Duplicates data that is outered to the transient package so it is properly saved */
+	void DuplicateAndReOuterData(UPCGDataAsset* Asset);
 };

@@ -49,6 +49,9 @@ struct FGLTFMaterialUtilities
 
 	static EMaterialShadingModel GetShadingModel(const UMaterialInterface* Material, FString& OutMessage);
 
+	static TextureAddress ToTextureAddress(float Value);
+	static float FromTextureWrap(EGLTFJsonTextureWrap Value);
+
 #if WITH_EDITOR
 	static bool IsNormalMap(const FMaterialPropertyEx& Property);
 	static bool IsSRGB(const FMaterialPropertyEx& Property);

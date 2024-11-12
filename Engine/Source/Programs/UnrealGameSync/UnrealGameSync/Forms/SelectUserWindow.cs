@@ -67,7 +67,7 @@ namespace UnrealGameSync
 					}
 
 					UserListView.Items[nextIndex].Selected = true;
-					_selectedUserIndex = (int)UserListView.Items[nextIndex].Tag;
+					_selectedUserIndex = (int)UserListView.Items[nextIndex].Tag!;
 				}
 			}
 		}
@@ -182,7 +182,7 @@ namespace UnrealGameSync
 		{
 			if (UserListView.SelectedItems.Count > 0)
 			{
-				_selectedUserIndex = (int)UserListView.SelectedItems[0].Tag;
+				_selectedUserIndex = (int)UserListView.SelectedItems[0].Tag!;
 				DialogResult = DialogResult.OK;
 				Close();
 			}

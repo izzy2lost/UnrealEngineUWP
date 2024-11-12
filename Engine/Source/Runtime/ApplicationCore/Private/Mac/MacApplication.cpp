@@ -115,6 +115,8 @@ FMacApplication::FMacApplication()
 ,   bHasLoadedInputPlugins(false)
 ,	DraggedWindow(nullptr)
 ,	WindowUnderCursor(nullptr)
+,   SystemResolutionX(0)
+,   SystemResolutionY(0)
 ,	bSystemModalMode(false)
 ,	ModifierKeysFlags(0)
 ,	CurrentModifierFlags(0)
@@ -187,6 +189,12 @@ FMacApplication::FMacApplication()
 #endif
 
 	FMacApplication::OnDisplayReconfiguration(kCGNullDirectDisplay, kCGDisplayDesktopShapeChangedFlag, this);
+    
+    // Listen for res changes to update targeted fullscreen res
+    FCoreDelegates::OnSystemResolutionChanged.AddLambda([this](uint32 ResolutionX, uint32 ResolutionY) {
+        SystemResolutionX = ResolutionX;
+        SystemResolutionY = ResolutionY;
+    });
 }
 
 FMacApplication::~FMacApplication()
@@ -1187,18 +1195,28 @@ void FMacApplication::ProcessKeyUpEvent(const FDeferredMacEvent& Event)
 void FMacApplication::OnWindowDidMove(TSharedRef<FMacWindow> Window)
 {
 	SCOPED_AUTORELEASE_POOL;
+    if ([Window->GetWindowHandle() windowMode] == EWindowMode::Fullscreen)
+    {
+        // Fullscreen mode always moves to 0,0
+        MessageHandler->OnMovedWindow(Window, 0, 0);
+        Window->PositionX = 0;
+        Window->PositionY = 0;
+    }
+    else
+    {
+		// Make sure to take notch and padding into account
+        NSRect WindowFrame = [Window->GetWindowHandle() frame];
+        NSRect OpenGLFrame = [Window->GetWindowHandle() openGLFrame];
 
-	NSRect WindowFrame = [Window->GetWindowHandle() frame];
-	NSRect OpenGLFrame = [Window->GetWindowHandle() openGLFrame];
+        const double X = WindowFrame.origin.x;
+        const double Y = WindowFrame.origin.y + OpenGLFrame.size.height;
 
-	const double X = WindowFrame.origin.x;
-	const double Y = WindowFrame.origin.y + ([Window->GetWindowHandle() windowMode] == EWindowMode::Fullscreen ? WindowFrame.size.height : OpenGLFrame.size.height);
-
-	FVector2D SlatePosition = ConvertCocoaPositionToSlate(X, Y);
-
-	MessageHandler->OnMovedWindow(Window, FMath::TruncToInt(SlatePosition.X), FMath::TruncToInt(SlatePosition.Y));
-	Window->PositionX = FMath::TruncToInt(SlatePosition.X);
-	Window->PositionY = FMath::TruncToInt(SlatePosition.Y);
+        FVector2D SlatePosition = ConvertCocoaPositionToSlate(X, Y);
+        
+        MessageHandler->OnMovedWindow(Window, FMath::TruncToInt(SlatePosition.X), FMath::TruncToInt(SlatePosition.Y));
+        Window->PositionX = FMath::TruncToInt(SlatePosition.X);
+        Window->PositionY = FMath::TruncToInt(SlatePosition.Y);
+    }
 }
 
 void FMacApplication::OnWindowWillResize(TSharedRef<FMacWindow> Window)
@@ -1217,16 +1235,10 @@ void FMacApplication::OnWindowDidResize(TSharedRef<FMacWindow> Window, bool bRes
 	OnWindowDidMove(Window);
 
 	const FCocoaWindow* CocoaWindow = Window->GetWindowHandle();
-	const NSScreen* Screen = [CocoaWindow screen];
 
-	// default is no override
-	const uint32 ScreenWidth  = FMath::TruncToInt([CocoaWindow openGLFrame].size.width * Window->GetDPIScaleFactor());
-	const uint32 ScreenHeight = FMath::TruncToInt([CocoaWindow openGLFrame].size.height * Window->GetDPIScaleFactor());
+	const uint32 WindowWidth  = FMath::TruncToInt([CocoaWindow openGLFrame].size.width * Window->GetDPIScaleFactor());
+	const uint32 WindowHeight = FMath::TruncToInt([CocoaWindow openGLFrame].size.height * Window->GetDPIScaleFactor());
 
-	// Grab current monitor data for sizing
-	const uint32 VisibleWidth = FMath::TruncToInt([Screen visibleFrame].size.width * Window->GetDPIScaleFactor());
-	const uint32 VisibleHeight = FMath::TruncToInt([Screen visibleFrame].size.height * Window->GetDPIScaleFactor());
-	
 	if (bRestoreMouseCursorLocking)
 	{
 		FMacCursor* MacCursor = (FMacCursor*)MacApplication->Cursor.Get();
@@ -1235,18 +1247,22 @@ void FMacApplication::OnWindowDidResize(TSharedRef<FMacWindow> Window, bool bRes
 			MacCursor->SetShouldIgnoreLocking(false);
 		}
 	}
-	// Depending on how the window is resized, it may result in actually moving the window slightly,
-	// e.g. going from fullscreenwindowed to fullscreen there's a few pixels of extra padding below
-	// camera housing on Apple screens for the menu bar, fullscreen doesn't have menu bars so that extra
-	// padding is removed, in effect making the window shift up.
-	if (Window->GetWindowHandle().TargetWindowMode == EWindowMode::WindowedFullscreen || Window->GetWindowHandle().TargetWindowMode == EWindowMode::Fullscreen  )
+    
+	if (Window->GetWindowHandle().TargetWindowMode == EWindowMode::Fullscreen)
 	{
-		MessageHandler->OnMovedWindow(Window, ScreenWidth - VisibleWidth, ScreenHeight - VisibleHeight);
-		MessageHandler->OnSizeChanged(Window, VisibleWidth, VisibleHeight);
+        if (SystemResolutionX != 0 && SystemResolutionY != 0)
+        {
+            // If resolution setting has changed recently, use the target resolution, window size is no longer accurate
+            MessageHandler->OnSizeChanged(Window, SystemResolutionX, SystemResolutionY);
+        }
+        else
+        {
+            MessageHandler->OnSizeChanged(Window, WindowWidth, WindowHeight);
+        }
 	}
 	else
-	{
-		MessageHandler->OnSizeChanged(Window, ScreenWidth, ScreenHeight);
+    {
+        MessageHandler->OnSizeChanged(Window, WindowWidth, WindowHeight);
 	}
 	MessageHandler->OnResizingWindow(Window);
 }
@@ -1286,10 +1302,13 @@ bool FMacApplication::OnWindowDestroyed(TSharedRef<FMacWindow> DestroyedWindow)
 		FScopeLock Lock(&WindowsMutex);
 		Windows.Remove(DestroyedWindow);
 	}
-
-	if (!CocoaWindowsToClose.Contains(WindowHandle))
+	
 	{
-		CocoaWindowsToClose.Add(WindowHandle);
+		FScopeLock Lock(&WindowsToCloseMutex);
+		if (!CocoaWindowsToClose.Contains(WindowHandle))
+		{
+			CocoaWindowsToClose.Add(WindowHandle);
+		}
 	}
 
 	TSharedPtr<FMacWindow> WindowToActivate;
@@ -2157,11 +2176,14 @@ void FMacApplication::CloseQueuedWindows()
 {
 	// OnWindowClose may call PumpMessages, which would reenter this function, so make a local copy of SlateWindowsToClose array to avoid infinite recursive calls
 	TArray<TSharedRef<FMacWindow>> LocalWindowsToClose;
+	TArray<FCocoaWindow*> LocalCocoaWindowsToClose;
 
 	{
 		FScopeLock Lock(&WindowsToCloseMutex);
 		LocalWindowsToClose = SlateWindowsToClose;
+		LocalCocoaWindowsToClose = CocoaWindowsToClose;
 		SlateWindowsToClose.Empty();
+		CocoaWindowsToClose.Empty();
 	}
 
 	if (LocalWindowsToClose.Num() > 0)
@@ -2172,18 +2194,16 @@ void FMacApplication::CloseQueuedWindows()
 		}
 	}
 
-	if (CocoaWindowsToClose.Num() > 0)
+	if (LocalCocoaWindowsToClose.Num() > 0)
 	{
 		MainThreadCall(^{
 			SCOPED_AUTORELEASE_POOL;
-			for (FCocoaWindow* Window : CocoaWindowsToClose)
+			for (FCocoaWindow* Window : LocalCocoaWindowsToClose)
 			{
 				[Window close];
 				[Window release];
 			}
 		}, UnrealCloseEventMode, true);
-
-		CocoaWindowsToClose.Empty();
 	}
 }
 

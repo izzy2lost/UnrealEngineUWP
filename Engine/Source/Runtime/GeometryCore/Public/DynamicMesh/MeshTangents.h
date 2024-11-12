@@ -131,7 +131,7 @@ public:
 	 * Initialize Tangents from the FDynamicMeshAttributeSet of SourceMesh 
 	 * @return false if tangent attributes do not exist
 	 */
-	bool CopyTriVertexTangents(const FDynamicMesh3& SourceMesh);
+	GEOMETRYCORE_API bool CopyTriVertexTangents(const FDynamicMesh3& SourceMesh);
 
 
 	/**
@@ -139,7 +139,7 @@ public:
 	 * In this mode there is no averaging of tangents across triangles. So if we have N triangles
 	 * in the mesh, then 3*N tangents are generated. These tangents are computed in parallel.
 	 */
-	void ComputeTriVertexTangents(const FDynamicMeshNormalOverlay* NormalOverlay, const FDynamicMeshUVOverlay* UVOverlay, const FComputeTangentsOptions& Options);
+	GEOMETRYCORE_API void ComputeTriVertexTangents(const FDynamicMeshNormalOverlay* NormalOverlay, const FDynamicMeshUVOverlay* UVOverlay, const FComputeTangentsOptions& Options);
 
 	/**
 	 * Return tangent and bitangent at a vertex of triangle for per-triangle computed tangents
@@ -241,14 +241,14 @@ public:
 	 * Compute per-triangle tangents for the given UV Overlay 
 	 * @param bOrthogonalize if true, we orthogonalize the tangents by computing the Bitangent sign and regenerating it. Otherwise the tangents are left non-orthogonal.
 	 */
-	void ComputeTriangleTangents(const FDynamicMeshUVOverlay* UVOverlay, bool bOrthogonalize = true);
+	GEOMETRYCORE_API void ComputeTriangleTangents(const FDynamicMeshUVOverlay* UVOverlay, bool bOrthogonalize = true);
 
 
 	/**
 	 * Set Tangents on mesh overlays
 	 * @param MeshToSet Mesh to copy overlays to; does not need to be the same as the Mesh member of this class
 	 */
-	bool CopyToOverlays(FDynamicMesh3& MeshToSet) const;
+	GEOMETRYCORE_API bool CopyToOverlays(FDynamicMesh3& MeshToSet) const;
 
 
 
@@ -280,7 +280,7 @@ protected:
 	/**
 	 * Set the size of the Tangents array to Count, and optionally clear all values to (0,0,0)
 	 */
-	void SetTangentCount(int Count, bool bClearToZero);
+	GEOMETRYCORE_API void SetTangentCount(int Count, bool bClearToZero);
 
 	// calculate per-triangle tangents and then projected to overlay normals at each triangle-vertex
 	void ComputeSeparatePerTriangleTangents(const FDynamicMeshNormalOverlay* NormalOverlay, const FDynamicMeshUVOverlay* UVOverlay, const FComputeTangentsOptions& Options);

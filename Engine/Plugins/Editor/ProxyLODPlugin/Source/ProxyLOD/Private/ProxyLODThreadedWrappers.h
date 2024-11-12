@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "HAL/Platform.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
+
 THIRD_PARTY_INCLUDES_START
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 #include <tbb/blocked_range.h>

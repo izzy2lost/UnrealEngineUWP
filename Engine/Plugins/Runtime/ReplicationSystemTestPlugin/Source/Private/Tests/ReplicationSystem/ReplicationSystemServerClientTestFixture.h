@@ -65,18 +65,30 @@ public:
 
 	struct FConnectionInfo
 	{
-		UDataStreamManager* DataStreamManager;
-		UReplicationDataStream* ReplicationDataStream;
-		UNetTokenDataStream* NetTokenDataStream;
-		FNetTokenStoreState* RemoteNetTokenStoreState;
+		UDataStreamManager* DataStreamManager = nullptr;
+		UReplicationDataStream* ReplicationDataStream = nullptr;
+		UNetTokenDataStream* NetTokenDataStream = nullptr;
+		FNetTokenStoreState* RemoteNetTokenStoreState = nullptr;
 		TResizableCircularQueue<const FDataStreamRecord*> WriteRecords;
 		TResizableCircularQueue<FPacketData> WrittenPackets;
-		uint32 ConnectionId;
+		uint32 ConnectionId = 0;
 	};
+
+	struct FReplicationSystemParamsOverride
+	{
+		uint32 MaxReplicatedObjectCount = 0;
+		uint32 InitialNetObjectListCount = 0;
+		uint32 NetObjectListGrowCount = 0;
+	};
+
+	enum EDelaySetup { DelaySetup=0 };
 
 public:
 	FReplicationSystemTestNode(bool bIsServer, const TCHAR* Name);
-	~FReplicationSystemTestNode();
+	explicit FReplicationSystemTestNode(FReplicationSystemTestNode::EDelaySetup);
+	virtual ~FReplicationSystemTestNode();
+
+	void Setup(bool bIsServer, const TCHAR* Name, FReplicationSystemTestNode::FReplicationSystemParamsOverride* ParamsOverride=nullptr);
 
 	template<typename T>
 	T* CreateObject()
@@ -116,10 +128,10 @@ public:
 		return static_cast<T*>(ReplicationBridge->GetReplicatedObject(Handle));
 	}
 
-	UTestReplicatedIrisObject* CreateObject(const UObjectReplicationBridge::FCreateNetRefHandleParams& Params, UTestReplicatedIrisObject::FComponents* ComponentsToCreate=nullptr);
+	UTestReplicatedIrisObject* CreateObject(const UObjectReplicationBridge::FRootObjectReplicationParams& Params, UTestReplicatedIrisObject::FComponents* ComponentsToCreate=nullptr);
 	UTestReplicatedIrisObject* CreateObject(uint32 NumComponents, uint32 NumIrisComponents);
 	UTestReplicatedIrisObject* CreateSubObject(FNetRefHandle Owner, uint32 NumComponents, uint32 NumIrisComponents);
-	UTestReplicatedIrisObject* CreateObject(const UTestReplicatedIrisObject::FComponents& Components);
+	UTestReplicatedIrisObject* CreateObject(const UTestReplicatedIrisObject::FComponents& Components = UTestReplicatedIrisObject::FComponents());
 	UTestReplicatedIrisObject* CreateSubObject(FNetRefHandle Owner, const UTestReplicatedIrisObject::FComponents& Components);
 	UTestReplicatedIrisObject* CreateObjectWithDynamicState(uint32 NumComponents, uint32 NumIrisComponents, uint32 NumDynamicStateComponents);
 
@@ -127,6 +139,7 @@ public:
 
 	// Connection
 	uint32 AddConnection();
+	void RemoveConnection(uint32 ConnectionId);
 
 	// System Update
 	void PreSendUpdate(const UReplicationSystem::FSendUpdateParams& Params);
@@ -154,6 +167,7 @@ public:
 	float ConvertPollPeriodIntoFrequency(uint32 PollPeriod) const;
 
 public:
+	TUniquePtr<UE::Net::FNetTokenStore> NetTokenStore;
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
 	TArray<TStrongObjectPtr<UObject>> CreatedObjects;
@@ -168,6 +182,7 @@ class FReplicationSystemTestClient : public FReplicationSystemTestNode
 {
 public:
 	FReplicationSystemTestClient(const TCHAR* Name);
+	explicit FReplicationSystemTestClient(FReplicationSystemTestNode::EDelaySetup Delay) : FReplicationSystemTestNode(Delay) {}
 
 	// Tick and send packets to the server
 	bool UpdateAndSend(class FReplicationSystemTestServer* Server, bool bDeliver = true);
@@ -180,6 +195,7 @@ class FReplicationSystemTestServer : public FReplicationSystemTestNode
 {
 public:
 	explicit FReplicationSystemTestServer(const TCHAR* Name);
+	explicit FReplicationSystemTestServer(FReplicationSystemTestNode::EDelaySetup Delay) : FReplicationSystemTestNode(Delay) {}
 
 	// Send data and deliver to the client if bDeliver is true
 	bool SendAndDeliverTo(FReplicationSystemTestClient* Client, bool bDeliver, const TCHAR* Desc = nullptr);
@@ -207,8 +223,10 @@ protected:
 	};
 
 	virtual void SetUp() override;
-	FReplicationSystemTestClient* CreateClient();
 	virtual void TearDown() override;
+
+	FReplicationSystemTestClient* CreateClient();
+	void DestroyClient(FReplicationSystemTestClient* Client);
 
 	FDataStreamTestUtil DataStreamUtil;
 	FReplicationSystemTestServer* Server;

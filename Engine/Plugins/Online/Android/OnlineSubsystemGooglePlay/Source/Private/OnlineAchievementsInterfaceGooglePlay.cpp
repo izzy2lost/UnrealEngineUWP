@@ -88,11 +88,11 @@ void FOnlineAchievementsGooglePlay::FinishAchievementWrite(
 	for (auto& [Key, Stat] : WriteObject->Properties)
 	{
 		// Create an achievement object which should be reported to the server.
-		const FOnlineAchievementGooglePlay* Achievement = Achievements.FindByPredicate([Key = Key.ToString()](const FOnlineAchievement& Achievement) { return Achievement.Id == Key;} );
+		const FOnlineAchievementGooglePlay* Achievement = Achievements.FindByPredicate([Key = Key](const FOnlineAchievement& Achievement) { return Achievement.Id == Key;} );
 		
 		if (!Achievement)
 		{
-            UE_LOG_ONLINE_ACHIEVEMENTS(Error, TEXT("Unknown achievement id: %s"), *Key.ToString());
+            UE_LOG_ONLINE_ACHIEVEMENTS(Error, TEXT("Unknown achievement id: %s"), *Key);
             bAllSucceeded = false;
 			continue;
 		}
@@ -100,7 +100,7 @@ void FOnlineAchievementsGooglePlay::FinishAchievementWrite(
 		TOptional<FString> GoogleAchievementId = GetGoogleAchievementIdFromUnrealAchievementId(Settings, Achievement->Id);
 		if (!GoogleAchievementId)
 		{
-            UE_LOG_ONLINE_ACHIEVEMENTS(Error, TEXT("No Google achievement Id for achievement id: %s"), *Key.ToString());
+            UE_LOG_ONLINE_ACHIEVEMENTS(Error, TEXT("No Google achievement Id for achievement id: %s"), *Key);
             bAllSucceeded = false;
 			continue;
 		}

@@ -161,9 +161,13 @@ float2 GetScreenUVFromScreenProbePosition(uint2 ScreenProbeScreenPosition)
 	return (ScreenCoord + .5f) * View.BufferSizeAndInvSize.zw;
 }
 
-uint EncodeScreenProbeSpeed(float ProbeSpeed, bool bTwoSidedFoliage)
+uint EncodeScreenProbeSpeed(float ProbeSpeed, bool bTwoSidedFoliage, bool bSupportsScreenTraces)
 {
-	return f32tof16(ProbeSpeed) | (bTwoSidedFoliage ? 0x8000 : 0);
+	// Value stored as f16
+	// * Sign bit stores bTwoSidedFoliage
+	// * LSB of mantissa stores bSupportsScreenTraces
+	// 0111 1111 1111 1110
+	return (f32tof16(ProbeSpeed) & 0x7FFE)  | (bTwoSidedFoliage ? 0x8000 : 0) | (bSupportsScreenTraces ? 0x1 : 0);
 }
 
 bool GetScreenProbeIsTwoSidedFoliage(uint2 ScreenProbeAtlasCoord)
@@ -172,10 +176,16 @@ bool GetScreenProbeIsTwoSidedFoliage(uint2 ScreenProbeAtlasCoord)
 	return (Encoded & 0x8000) != 0;
 }
 
+bool GetScreenProbeSupportsScreenTraces(uint2 ScreenProbeAtlasCoord)
+{
+	uint Encoded = ScreenProbeWorldSpeed.Load(int3(ScreenProbeAtlasCoord, 0));
+	return (Encoded & 0x1) != 0;
+}
+
 float GetScreenProbeSpeed(uint2 ScreenProbeAtlasCoord)
 {
 	uint Encoded = ScreenProbeWorldSpeed.Load(int3(ScreenProbeAtlasCoord, 0));
-	return f16tof32(Encoded & 0x7FFF);
+	return f16tof32(Encoded & 0x7FFE);
 }
 
 Texture2D<float> ScreenProbeMoving;
@@ -185,8 +195,8 @@ float GetScreenProbeMoving(uint2 ScreenProbeAtlasCoord)
 	return ScreenProbeMoving[ScreenProbeAtlasCoord];
 }
 
-StructuredBuffer<uint> CompactedTraceTexelAllocator;
-StructuredBuffer<uint> CompactedTraceTexelData;
+Buffer<uint> CompactedTraceTexelAllocator;
+Buffer<uint> CompactedTraceTexelData;
 StructuredBuffer<uint> CompactedLightSampleTraceTexelData;
 
 uint EncodeScreenProbeTraceTexel(uint ScreenProbeIndex, uint2 TraceTexelCoord)
@@ -194,7 +204,7 @@ uint EncodeScreenProbeTraceTexel(uint ScreenProbeIndex, uint2 TraceTexelCoord)
 	return (ScreenProbeIndex & 0xFFFFF) | ((TraceTexelCoord.x & 0x1F) << 20) | ((TraceTexelCoord.y & 0x1F) << 25);
 }
 
-void DecodeScreenProbeTraceTexel(uint TraceTexelData, inout uint ScreenProbeIndex, inout uint2 TraceTexelCoord)
+void DecodeScreenProbeTraceTexel(uint TraceTexelData, out uint ScreenProbeIndex, out uint2 TraceTexelCoord)
 {
 	ScreenProbeIndex = TraceTexelData & 0xFFFFF;
 	TraceTexelCoord.x = (TraceTexelData >> 20) & 0x1F;

@@ -4,7 +4,11 @@
 	DeferredLightPixelShaders.usf:
 =============================================================================*/
   
-#define SUPPORT_CONTACT_SHADOWS 1
+#if USE_HAIR_LIGHTING == 1
+  #define SUPPORT_CONTACT_SHADOWS 0
+#else
+  #define SUPPORT_CONTACT_SHADOWS 1
+#endif
 #define SUBSTRATE_SSS_TRANSMISSION USE_TRANSMISSION
 
 #if SUBSTRATE_ENABLED 
@@ -70,7 +74,7 @@
 #elif LIGHT_SOURCE_SHAPE == 2
 #define CURRENT_LIGHT_TYPE LIGHT_TYPE_RECT
 #else // LIGHT_SOURCE_SHAPE == 1
-#define CURRENT_LIGHT_TYPE LIGHT_TYPE_SPOT
+#define CURRENT_LIGHT_TYPE (IsDeferredSpotlight() ? LIGHT_TYPE_SPOT : LIGHT_TYPE_POINT)
 #endif
 
 struct FInputParams
@@ -97,13 +101,12 @@ FDerivedParams GetDerivedParams(in FInputParams Input, in float SceneDepth)
 	Out.TranslatedWorldPosition = mul(float4(ClipPosition, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 	Out.CameraVector = GetCameraVectorFromTranslatedWorldPosition(Out.TranslatedWorldPosition);
 #else
-	Out.TranslatedWorldPosition = Input.ScreenVector * SceneDepth + View.TranslatedWorldCameraOrigin;
+	Out.TranslatedWorldPosition = Input.ScreenVector * SceneDepth + GetTranslatedWorldCameraPosFromView(Input.PixelPos);
 	Out.CameraVector = normalize(Input.ScreenVector);
 #endif
 	return Out;
 }
 
-int bUseLightFunctionAtlas;
 Texture2D<uint> LightingChannelsTexture;
 
 uint GetLightingChannelMask(float2 UV)
@@ -377,7 +380,7 @@ void DeferredLightPixelMain(
 			//LightAttenuation *= Luminance(ComputeTransmittance(WorldPosition, WorldToLight, 512));
 		}
 #endif // USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
-		float4 Radiance = GetDynamicLighting(DerivedParams.TranslatedWorldPosition, DerivedParams.CameraVector, ScreenSpaceData.GBuffer, ScreenSpaceData.AmbientOcclusion, ScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, uint2(InputParams.PixelPos), SurfaceShadow);
+		float4 Radiance = GetDynamicLighting(DerivedParams.TranslatedWorldPosition, DerivedParams.CameraVector, ScreenSpaceData.GBuffer, ScreenSpaceData.AmbientOcclusion, LightData, LightAttenuation, Dither, uint2(InputParams.PixelPos), SurfaceShadow);
 
 		OutColor += Radiance;
 	}
@@ -425,7 +428,7 @@ FHairTransmittanceData GetTransmittanceDataFromTransmitttanceMask(
 		GBufferData,
 		TransmittanceMask,
 		View.HairScatteringLUTTexture,
-		View.HairScatteringLUTSampler,
+		HairScatteringLUTSampler,
 		View.HairComponents);
 }
 
@@ -471,8 +474,8 @@ void DeferredLightPixelMain(
 	HairScreenSpaceData.AmbientOcclusion = 1;
 	HairScreenSpaceData.GBuffer = HairSampleToGBufferData(Sample, HairStrands.HairDualScatteringRoughnessOverride);
 
-	const float3 TranslatedWorldPosition = mul(float4(ScreenPosition * HairScreenSpaceData.GBuffer.Depth, HairScreenSpaceData.GBuffer.Depth, 1), View.ScreenToTranslatedWorld).xyz;
-	const float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+	const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, HairScreenSpaceData.GBuffer.Depth), HairScreenSpaceData.GBuffer.Depth, 1), View.ScreenToTranslatedWorld).xyz;
+	const float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 
 	FDeferredLightData LightData = InitDeferredLightFromUniforms(CURRENT_LIGHT_TYPE);
 
@@ -534,7 +537,7 @@ void DeferredLightPixelMain(
 	LightAttenuation = min(LightAttenuation, LightData.HairTransmittance.OpaqueVisibility.xxxx);
 
 	float SurfaceShadow = 1.0f;
-	const float4 Radiance = GetDynamicLighting(TranslatedWorldPosition, CameraVector, HairScreenSpaceData.GBuffer, HairScreenSpaceData.AmbientOcclusion, HairScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, PixelCoord, SurfaceShadow);
+	const float4 Radiance = GetDynamicLighting(TranslatedWorldPosition, CameraVector, HairScreenSpaceData.GBuffer, HairScreenSpaceData.AmbientOcclusion, LightData, LightAttenuation, Dither, PixelCoord, SurfaceShadow);
 	const float  Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, GetDeferredLightTranslatedWorldPosition(), -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
 	const float3 AtmosphericTransmittance = GetAtmosphereAndCloudAttenuation(GetStableTranslatedLargeWorldPosition(ScreenPosition, Sample.Depth), UV);
 

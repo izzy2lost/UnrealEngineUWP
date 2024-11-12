@@ -8,6 +8,7 @@
 #include "Misc/AssetRegistryInterface.h"
 #include "Misc/Optional.h"
 #include "Misc/PackageName.h"
+#include "Serialization/ArchiveSavePackageData.h"
 #include "Serialization/CustomVersion.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/PropertyLocalizationDataGathering.h"
@@ -107,7 +108,8 @@ enum class ESaveableStatus
 {
 	Success,
 	PendingKill,
-	Transient,
+	TransientFlag,
+	TransientOverride,
 	AbstractClass,
 	DeprecatedClass,
 	NewerVersionExistsClass,
@@ -117,6 +119,44 @@ enum class ESaveableStatus
 	__Count,
 };
 
+namespace UE::SavePackageUtilities
+{
+
+/** Calculated flags about saveable status and other state for UObjects encountered during save. */
+struct FObjectStatus
+{
+	FObjectStatus()
+		: bSaveOverrideForcedTransient(false)
+		, bSaveableStatusValid(false), bEditorOnlyValid(false), bEditorOnly(false), bAttemptedExport(false)
+	{
+	}
+	FObjectStatus(const FObjectStatus&) = default;
+	FObjectStatus(FObjectStatus&&) = default;
+	FObjectStatus& operator=(const FObjectStatus&) = default;
+	FObjectStatus& operator=(FObjectStatus&&) = default;
+	bool HasTransientFlag(const UObject* InObject)
+	{
+		check(InObject);
+		return InObject->HasAnyFlags(RF_Transient);
+	}
+	void ClearSaveableStatus()
+	{
+		SaveableStatus = ESaveableStatus::Success;
+		bSaveableStatusValid = false;
+		SaveableStatusCulprit = nullptr;
+	}
+
+	UObject* SaveableStatusCulprit = nullptr;
+	ESaveableStatus SaveableStatus = ESaveableStatus::Success;
+	ESaveableStatus SaveableStatusCulpritStatus = ESaveableStatus::Success;
+	bool bSaveOverrideForcedTransient : 1;
+	bool bSaveableStatusValid : 1;
+	bool bEditorOnlyValid : 1;
+	bool bEditorOnly : 1;
+	bool bAttemptedExport : 1;
+};
+
+}
 /** Hold the harvested exports and imports for a realm */
 struct FHarvestedRealm
 {
@@ -433,13 +473,14 @@ public:
 	};
 
 public:
-	FSaveContext(UPackage* InPackage, UObject* InAsset, const TCHAR* InFilename, const FSavePackageArgs& InSaveArgs, FUObjectSerializeContext* InSerializeContext = nullptr)
+	FSaveContext(UPackage* InPackage, UObject* InAsset, const TCHAR* InFilename, const FSavePackageArgs& InSaveArgs)
 		: Package(InPackage)
 		, Asset(InAsset)
 		, Filename(InFilename)
 		, SaveArgs(InSaveArgs)
 		, PackageWriter(InSaveArgs.SavePackageContext ? InSaveArgs.SavePackageContext->PackageWriter : nullptr)
-		, SerializeContext(InSerializeContext)
+		, ObjectSavePackageSerializeContext(ObjectSaveContext)
+		, ArchiveSavePackageData(ObjectSavePackageSerializeContext, nullptr, nullptr)
 		, GameRealmExcludedObjectMarks(GetExcludedObjectMarksForGameRealm(SaveArgs.GetTargetPlatform()))
 	{
 		// Assumptions & checks
@@ -489,6 +530,17 @@ public:
 			ObjectSaveContext.CookType = SaveArgs.ArchiveCookData->CookContext.GetCookType();
 			ObjectSaveContext.CookingDLC = SaveArgs.ArchiveCookData->CookContext.GetCookingDLC();
 		}
+		ArchiveSavePackageData.TargetPlatform = ObjectSaveContext.TargetPlatform;
+		ArchiveSavePackageData.CookContext = SaveArgs.ArchiveCookData ? &SaveArgs.ArchiveCookData->CookContext : nullptr;
+		if (SaveArgs.InOutSaveOverrides)
+		{
+			ObjectSaveContext.SaveOverrides = MoveTemp(*SaveArgs.InOutSaveOverrides);
+		}
+		ObjectSaveContext.PackageWriter = PackageWriter;
+		if (PackageWriter)
+		{
+			ObjectSaveContext.bDeterminismDebug = SaveArgs.SavePackageContext->PackageWriterCapabilities.bDeterminismDebug;
+		}
 
 		// Setup the harvesting flags and generate the context for harvesting the package
 		SetupHarvestingRealms();
@@ -499,6 +551,13 @@ public:
 		if (bPostSaveRootRequired && Asset)
 		{
 			UE::SavePackageUtilities::CallPostSaveRoot(Asset, ObjectSaveContext, bNeedPreSaveCleanup);
+		}
+
+		// Move the SaveOverrides that we copied and/or modified onto our ObjectSaveContext back to the
+		// InOut SaveOverrides parameter on the SaveArgs.
+		if (SaveArgs.InOutSaveOverrides)
+		{
+			*SaveArgs.InOutSaveOverrides = MoveTemp(ObjectSaveContext.SaveOverrides);
 		}
 	}
 
@@ -512,9 +571,9 @@ public:
 		return SaveArgs;
 	}
 
-	FArchiveCookData* GetCookData()
+	FArchiveSavePackageData& GetArchiveSavePackageData()
 	{
-		return SaveArgs.ArchiveCookData;
+		return ArchiveSavePackageData;
 	}
 
 	const ITargetPlatform* GetTargetPlatform() const
@@ -679,11 +738,6 @@ public:
 		return !!(SaveArgs.SaveFlags & ESaveFlags::SAVE_CompareLinker);
 	}
 
-	bool CanSkipEditorReferencedPackagesWhenCooking() const
-	{
-		return SkipEditorRefCookingSetting;
-	}
-
 	bool IsIgnoringHeaderDiff() const
 	{
 		return bIgnoreHeaderDiffs;
@@ -702,16 +756,6 @@ public:
 	bool ShouldRehydratePayloads() const
 	{
 		return (SaveArgs.SaveFlags & ESaveFlags::SAVE_RehydratePayloads) != 0;
-	}
-
-	FUObjectSerializeContext* GetSerializeContext() const
-	{
-		return SerializeContext;
-	}
-
-	void SetSerializeContext(FUObjectSerializeContext* InContext)
-	{
-		SerializeContext = InContext;
 	}
 
 	FEDLCookCheckerThreadState* GetEDLCookChecker() const
@@ -767,11 +811,13 @@ public:
 	/** Returns which save context should be saved. */
 	TArray<ESaveRealm> GetHarvestedRealmsToSave();
 
-	void MarkUnsaveable(UObject* InObject);
-
-	bool IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning = true) const;
-	ESaveableStatus GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit = nullptr, ESaveableStatus* OutCulpritStatus = nullptr) const;
-	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> InObject) const;
+	bool IsTransient(TObjectPtr<UObject> InObject);
+	bool IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning = true);
+	UE::SavePackageUtilities::FObjectStatus& UpdateSaveableStatus(TObjectPtr<UObject> InObject);
+	UE::SavePackageUtilities::FObjectStatus& GetCachedObjectStatus(TObjectPtr<UObject> InObject)
+	{
+		return ObjectStatusCache.FindOrAdd(InObject);
+	}
 
 	void RecordIllegalReference(UObject* InFrom, UObject* InTo, EIllegalRefReason InReason, FString&& InOptionalReasonText = FString())
 	{
@@ -858,6 +904,22 @@ public:
 		return GetHarvestedRealm(ESaveRealm::Game).GetSoftPackageReferenceList();
 	}
 
+	const TArray<FName>& GetPackageBuildDependencies(ESaveRealm SaveRealm = ESaveRealm::None)
+	{
+		SaveRealm = (SaveRealm == ESaveRealm::None) ? GetCurrentHarvestingRealm() : SaveRealm;
+		if (SaveRealm == ESaveRealm::Editor)
+		{
+			return PackageBuildDependencies;
+		}
+		return EmptyList;
+	}
+
+	/**
+	 * PackageBuildDependencies are copied from CookBuildDependencies, and they are only needed
+	 * for the Editor realm.
+	*/
+	void UpdateEditorRealmPackageBuildDependencies();
+
 	const TMap<TObjectPtr<UObject>, TArray<FName>>& GetSearchableNamesObjectMap() const
 	{
 		return GetHarvestedRealm().GetSearchableNamesObjectMap();
@@ -874,6 +936,11 @@ public:
 	}
 
 	const TSet<FNameEntryId>& GetNamesReferencedFromPackageHeader() const
+	{
+		return GetHarvestedRealm().GetNamesReferencedFromPackageHeader();
+	}
+
+	TSet<FNameEntryId>& GetNamesReferencedFromPackageHeader()
 	{
 		return GetHarvestedRealm().GetNamesReferencedFromPackageHeader();
 	}
@@ -1085,6 +1152,39 @@ public:
 		TransientPropertyOverrides = MoveTemp(InTransientPropertyOverrides);
 	}
 
+	void ClearSaveableCache()
+	{
+		for (TPair<TObjectPtr<UObject>, UE::SavePackageUtilities::FObjectStatus>& Pair : ObjectStatusCache)
+		{
+			Pair.Value.ClearSaveableStatus();
+		}
+	}
+
+#if WITH_EDITORONLY_DATA
+	auto GetFunctorReadCachedEditorOnlyObject()
+	{
+		using namespace UE::SavePackageUtilities;
+		return [this](const UObject* Obj)
+			{
+				FObjectStatus& Status = ObjectStatusCache.FindOrAdd(const_cast<UObject*>(Obj));
+				return !Status.bEditorOnlyValid ? EEditorOnlyObjectResult::Uninitialized :
+					Status.bEditorOnly ? EEditorOnlyObjectResult::EditorOnly :
+					EEditorOnlyObjectResult::NonEditorOnly;
+			};
+	}
+	auto GetFunctorWriteCachedEditorOnlyObject()
+	{
+		using namespace UE::SavePackageUtilities;
+		return [this](const UObject* Obj, bool bEditorOnly)
+			{
+				FObjectStatus& Status = ObjectStatusCache.FindOrAdd(const_cast<UObject*>(Obj));
+				Status.bEditorOnlyValid = true;
+				Status.bEditorOnly = bEditorOnly;
+			};
+	}
+#endif
+	UE::SavePackageUtilities::EEditorOnlyObjectFlags GetEditorOnlyObjectFlags() const;
+
 public:
 	ESavePackageResult Result;
 
@@ -1104,8 +1204,10 @@ private:
 
 	// Create the harvesting contexts and automatic optional context gathering options
 	void SetupHarvestingRealms();
+	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj,
+		UE::SavePackageUtilities::FObjectStatus& ObjectStatus) const;
 	static EObjectMark GetExcludedObjectMarksForGameRealm(const ITargetPlatform* TargetPlatform);
-		
+
 	friend class FPackageHarvester;
 
 	// Args
@@ -1117,8 +1219,9 @@ private:
 	IPackageWriter* PackageWriter;
 
 	// State context
-	FUObjectSerializeContext* SerializeContext = nullptr;
 	FObjectSaveContextData ObjectSaveContext;
+	FObjectSavePackageSerializeContext ObjectSavePackageSerializeContext;
+	FArchiveSavePackageData ArchiveSavePackageData;
 	bool bCanUseUnversionedPropertySerialization = false;
 	bool bTextFormat = false;
 	bool bIsProcessingPrestreamPackages = false;
@@ -1159,8 +1262,16 @@ private:
 	// Set of AssetDatas created for the Assets saved into the package
 	TArray<FAssetData> SavedAssets;
 
-	// Overrided properties for each export that should be treated as transient, and nulled out when serializing
+	// Overridden properties for each export that should be treated as transient, and nulled out when serializing
 	TMap<UObject*, TSet<FProperty*>> TransientPropertyOverrides;
+
+	// Cache of FObjectStatus for every object encountered during the save
+	TMap<TObjectPtr<UObject>, UE::SavePackageUtilities::FObjectStatus> ObjectStatusCache;
+
+	// List of package build dependencies reported from PreSave or Serialize functions
+	TArray<FName> PackageBuildDependencies;
+	// Empty list of FNames, used for functions that need to return a reference to an empty array.
+	TArray<FName> EmptyList;
 };
 
 const TCHAR* LexToString(ESaveableStatus Status);

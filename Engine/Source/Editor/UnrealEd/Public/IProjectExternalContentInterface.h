@@ -9,23 +9,26 @@ class IPlugin;
 class IProjectExternalContentInterface
 {
 public:
-	/** Returns whether the project can reference external content */
+	/** Return whether the project can reference external content */
 	virtual bool IsEnabled() const = 0;
 
 	/**
-     * Returns whether the specified external content is referenced by the project
-	 * @param ExternalContentId External content identifier (verse path, link code, etc)
+     * Return whether the specified external content is referenced by the project
+	 * @param VersePath External content Verse path
 	 */
-	virtual bool HasExternalContent(const FString& ExternalContentId) const = 0;
+	virtual bool HasExternalContent(const FString& VersePath) const = 0;
 
 	/** 
-	 * Returns whether the specified external content is loaded (and referenced by the project)
-	 * @param ExternalContentId External content identifier (verse path, link code, etc)
+	 * Return whether the specified external content is loaded (and referenced by the project)
+	 * @param VersePath External content Verse path
 	 */
-	virtual bool IsExternalContentLoaded(const FString& ExternalContentId) const = 0;
+	virtual bool IsExternalContentLoaded(const FString& VersePath) const = 0;
 
-	/** Returns the list of external content referenced by the project (verse paths, link codes, etc) */
-	virtual TArray<FString> GetExternalContentIds() const = 0;
+	/** Return the list of external content Verse paths referenced by the project */
+	virtual TArray<FString> GetExternalContentVersePaths() const = 0;
+
+	UE_DEPRECATED(5.6, "GetExternalContentIds is deprecated, use GetExternalContentVersePaths instead")
+	TArray<FString> GetExternalContentIds() const { return GetExternalContentVersePaths(); };
 
 	/**
 	 * Called upon AddExternalContent completion
@@ -35,11 +38,11 @@ public:
 	DECLARE_DELEGATE_TwoParams(FAddExternalContentComplete, bool /*bSuccess*/, const TArray<TSharedRef<IPlugin>>& /*Plugins*/);
 
 	/**
-	 * Adds a reference to external content to the project and asynchronously downloads/loads the external content
-	 * @param ExternalContentId External content identifier (verse path, link code, etc)
+	 * Add a reference to external content to the project and asynchronously downloads/loads the external content
+	 * @param VersePath External content Verse path
 	 * @param CompleteCallback See FAddExternalContentComplete
 	 */
-	virtual void AddExternalContent(const FString& ExternalContentId, FAddExternalContentComplete CompleteCallback = FAddExternalContentComplete()) = 0;
+	virtual void AddExternalContent(const FString& VersePath, FAddExternalContentComplete CompleteCallback = FAddExternalContentComplete()) = 0;
 
 	/**
 	 * Called upon RemoveExternalContent completion
@@ -48,15 +51,15 @@ public:
 	DECLARE_DELEGATE_OneParam(FRemoveExternalContentComplete, bool /*bSuccess*/);
 
 	/**
-	 * Removes references to external content from the project and unloads the external content
-	 * @param ExternalContentIds External content identifiers (verse path, link code, etc)
+	 * Remove references to external content from the project and unloads the external content
+	 * @param VersePaths External content Verse paths
 	 * @param CompleteCallback See FRemoveExternalContentComplete
 	 */
-	virtual void RemoveExternalContent(TConstArrayView<FString> ExternalContentIds, FRemoveExternalContentComplete CompleteCallback = FRemoveExternalContentComplete()) = 0;
+	virtual void RemoveExternalContent(TConstArrayView<FString> VersePaths, FRemoveExternalContentComplete CompleteCallback = FRemoveExternalContentComplete()) = 0;
 
-	void RemoveExternalContent(const FString& ExternalContentId, FRemoveExternalContentComplete CompleteCallback = FRemoveExternalContentComplete())
+	void RemoveExternalContent(const FString& VersePath, FRemoveExternalContentComplete CompleteCallback = FRemoveExternalContentComplete())
 	{
-		TArray<FString, TInlineAllocator<1>> ExternalContentIds = { ExternalContentId };
-		RemoveExternalContent(ExternalContentIds, MoveTemp(CompleteCallback));
+		TArray<FString, TInlineAllocator<1>> VersePaths = { VersePath };
+		RemoveExternalContent(VersePaths, MoveTemp(CompleteCallback));
 	}
 };

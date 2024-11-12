@@ -28,6 +28,7 @@ void FAssetManagerEditorCommands::RegisterCommands()
 
 	UI_COMMAND(OpenSelectedInAssetEditor, "Edit...", "Opens the selected asset in the relevant editor.", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::E));
 	UI_COMMAND(ZoomToFit, "Zoom to Fit", "Zoom in and center the view on the selected item", EUserInterfaceActionType::Button, FInputChord(EKeys::F));
+	UI_COMMAND(ResolveReferencingProperties, "Resolve Referencing Properties", "Resolve and display the property (or properties) referencing this asset", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(IncreaseReferencerSearchDepth, "Increase Referencer Search Depth", "Increase the Referencer Search Depth", EUserInterfaceActionType::Button, FInputChord(EKeys::R));
 	UI_COMMAND(DecreaseReferencerSearchDepth, "Decrease Referencer Search Depth", "Decrease the Referencer Search Depth", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift, EKeys::R));
@@ -43,8 +44,20 @@ void FAssetManagerEditorCommands::RegisterCommands()
 
 	UI_COMMAND(ShowSoftReferences, "Show Soft References", "Toggles visibility of Soft References", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::S));
 	UI_COMMAND(ShowHardReferences, "Show Hard References", "Toggles visibility of Hard References", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::H));
-	UI_COMMAND(ShowEditorOnlyReferences, "Show EditorOnly References","Toggles visibility of EditorOnly References", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::E));
-
+	UI_COMMAND(EditorOnlyReferenceFilterTypeGame, "Show Game References",
+		"Only UsedInGame references are displayed. UsedInGame references cause the dependencies to be cooked and"
+		" cause management assignments from the referencer to be propagated to the dependencies.",
+		EUserInterfaceActionType::RadioButton, FInputChord(EKeys::G));
+	UI_COMMAND(EditorOnlyReferenceFilterTypePropagation, "Show Propagation References",
+		"UsedInGame and Build references are displayed. Build references are displayed even if they are EditorOnly."
+		" All of these references cause management assignments from the referencer to be propagated to the"
+		" dependencies, but the EditorOnly Build dependencies do not cause the dependencies to be cooked.",
+		EUserInterfaceActionType::RadioButton, FInputChord(EKeys::B));
+	UI_COMMAND(EditorOnlyReferenceFilterTypeEditorOnly, "Show EditorOnly References",
+		"UsedInGame, Build, and EditorOnly references are displayed. EditorOnly references do not cause the"
+		" dependencies to be cooked and do not propagate management assignments. Use this mode to see how assets"
+		" interact in the editor.",
+		EUserInterfaceActionType::RadioButton, FInputChord(EKeys::E));
 	UI_COMMAND(ShowManagementReferences, "Show Management References","Toggles visibility of Management References (i.e. PrimaryAssetIDs)", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::M));
 	UI_COMMAND(ShowNameReferences, "Show Name References","Toggles visibility of Name References (i.e. Gameplay Tags and Data Table Row Handles)", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::N));
 	UI_COMMAND(ShowCodePackages, "Show C++ Packages","Toggles visibility of C++ Packages", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::C));

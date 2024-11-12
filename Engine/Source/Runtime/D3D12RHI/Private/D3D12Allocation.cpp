@@ -5,8 +5,8 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
-#include "D3D12RHIPrivate.h"
 #include "D3D12Allocation.h"
+#include "D3D12RHIPrivate.h"
 #include "Misc/BufferedOutputDevice.h"
 #include "HAL/PlatformStackWalk.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -14,7 +14,7 @@
 #include "ProfilingDebugging/MemoryTrace.h"
 
 // Fix for random GPU crashes on draw indirects on multiple IHVs. Force all indirect arg buffers as committed resources (see UE-115982)
-static int32 GD3D12AllowPoolAllocateIndirectArgBuffers = 0;
+static int32 GD3D12AllowPoolAllocateIndirectArgBuffers = 1;
 static FAutoConsoleVariableRef CVarD3D12AllowPoolAllocateIndirectArgBuffers(
 	TEXT("d3d12.AllowPoolAllocateIndirectArgBuffers"),
 	GD3D12AllowPoolAllocateIndirectArgBuffers,
@@ -178,13 +178,6 @@ static FAutoConsoleVariableRef CVarD3D12FastAllocatorMinPagesToRetain(
 	TEXT("Minimum number of pages to retain. Pages below this limit will never be released. Pages above can be released after being unused for a certain number of frames."),
 	ECVF_Default);
 
-static int32 GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB = 1;
-static FAutoConsoleVariableRef CVarD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB(
-	TEXT("d3d12.UploadAllocator.PendingDeleteSizeForceFlushInGB"),
-	GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB,
-	TEXT("If given threshold of GBs in the pending delete is queue is reached, then a force GPU flush is triggered to reduce memory load (1 by default, 0 to disable)"),
-	ECVF_Default);
-
 DECLARE_LLM_MEMORY_STAT(TEXT("D3D12AllocatorUnused"), STAT_D3D12AllocatorUnusedLLM, STATGROUP_LLMFULL);
 LLM_DEFINE_TAG(D3D12AllocatorUnused, NAME_None, NAME_None, GET_STATFNAME(STAT_D3D12AllocatorUnusedLLM), GET_STATFNAME(STAT_EngineSummaryLLM));
 DECLARE_LLM_MEMORY_STAT(TEXT("D3D12AllocatorWasted"), STAT_D3D12AllocatorWastedLLM, STATGROUP_LLMFULL);
@@ -289,10 +282,15 @@ void FD3D12BuddyAllocator::Initialize()
 		{
 			LLM_PLATFORM_SCOPE(ELLMTag::GraphicsPlatform);
 
-			// we are tracking allocations ourselves, so don't let XMemAlloc track these as well
+#if PLATFORM_WINDOWS
+			// we are tracking allocations ourselves
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
 			VERIFYD3D12RESULT(Adapter->GetD3DDevice()->CreateHeap(&Desc, IID_PPV_ARGS(&Heap)));
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, MaxBlockSize, ELLMTracker::Platform, ELLMAllocType::System);
+#else
+			LLM_SCOPE_BYTAG(D3D12AllocatorUnused);
+			VERIFYD3D12RESULT(Adapter->GetD3DDevice()->CreateHeap(&Desc, IID_PPV_ARGS(&Heap)));
+#endif
 		}
 
 		BackingHeap = new FD3D12Heap(GetParentDevice(), GetVisibilityMask(), TraceHeapId);
@@ -307,10 +305,15 @@ void FD3D12BuddyAllocator::Initialize()
 	else
 	{
 		{
-			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
 			const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InitConfig.HeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
+#if PLATFORM_WINDOWS
+			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
 			VERIFYD3D12RESULT(Adapter->CreateBuffer(HeapProps, GetGPUMask(), InitConfig.InitialResourceState, ED3D12ResourceStateMode::SingleState, InitConfig.InitialResourceState, MaxBlockSize, BackingResource.GetInitReference(), TEXT("Resource Allocator Underlying Buffer"), InitConfig.ResourceFlags));
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, MaxBlockSize, ELLMTracker::Platform, ELLMAllocType::System);
+#else
+			LLM_SCOPE_BYTAG(D3D12AllocatorUnused);
+			VERIFYD3D12RESULT(Adapter->CreateBuffer(HeapProps, GetGPUMask(), InitConfig.InitialResourceState, ED3D12ResourceStateMode::SingleState, InitConfig.InitialResourceState, MaxBlockSize, BackingResource.GetInitReference(), TEXT("Resource Allocator Underlying Buffer"), InitConfig.ResourceFlags));
+#endif
 #if UE_MEMORY_TRACE_ENABLED
 			MemoryTrace_MarkAllocAsHeap(BackingResource->GetGPUVirtualAddress(), TraceHeapId);
 #endif
@@ -427,9 +430,11 @@ void FD3D12BuddyAllocator::Allocate(uint32 SizeInBytes, uint32 Alignment, FD3D12
 	INCREASE_ALLOC_COUNTER(SpaceAlignedUsed, AllocSize);
 	INCREASE_ALLOC_COUNTER(SpaceActualUsed, SizeInBytes);
 	
+#if PLATFORM_WINDOWS
 	// Decrease only texture size so wasted amount stays in D3D12AllocatorUnused
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(SizeInBytes), ELLMTracker::Platform, ELLMAllocType::System);
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorWasted, int64(AllocSize - SizeInBytes), ELLMTracker::Platform, ELLMAllocType::System);
+#endif
 
 	TotalSizeUsed += AllocSize;
 
@@ -469,7 +474,10 @@ void FD3D12BuddyAllocator::Allocate(uint32 SizeInBytes, uint32 Alignment, FD3D12
 
 	// track the allocation
 #if !PLATFORM_WINDOWS
-	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, ResourceLocation.GetAddressForLLMTracking(), SizeInBytes));
+	{
+		LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(AllocSize), ELLMTracker::Default, ELLMAllocType::System);
+	}
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, ResourceLocation.GetAddressForLLMTracking(), AllocSize));
 	// Note: Disabling this LLM hook for Windows is due to a work-around in the way that d3d12 buffers are tracked
 	// by LLM. LLM tracks buffer data in the UpdateBufferStats function because that is the easiest place to ensure that LLM
 	// can be updated whenever a buffer is created or released. Unfortunately, some buffers allocate from this allocator
@@ -534,6 +542,10 @@ void FD3D12BuddyAllocator::Deallocate(FD3D12ResourceLocation& ResourceLocation)
 	// This does mean that non-buffer memory that goes through this allocator won't be tracked, so this does need a better solution.
 	// see UpdateBufferStats for a more detailed explanation.
 	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Default, ResourceLocation.GetAddressForLLMTracking()));
+	{
+		const uint32 AllocSize = uint32(OrderToUnitSize(Block.Data.Order) * MinBlockSize);
+		LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(AllocSize), ELLMTracker::Default, ELLMAllocType::System);
+	}
 #if UE_MEMORY_TRACE_ENABLED
 	MemoryTrace_Free(ResourceLocation.GetGPUVirtualAddress(), EMemoryTraceRootHeap::VideoMemory);
 #endif
@@ -547,9 +559,11 @@ void FD3D12BuddyAllocator::DeallocateInternal(RetiredBlock& Block)
 	const uint32 Size = uint32(OrderToUnitSize(Block.Data.Order) * MinBlockSize);
 	DECREASE_ALLOC_COUNTER(SpaceAlignedUsed, Size);
 	DECREASE_ALLOC_COUNTER(SpaceActualUsed, Block.AllocationSize);
+#if PLATFORM_WINDOWS
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(Block.AllocationSize), ELLMTracker::Platform, ELLMAllocType::System);
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorWasted, 0 - int64(Size - Block.AllocationSize), ELLMTracker::Platform, ELLMAllocType::System);
-
+#endif
+	
 	TotalSizeUsed -= Size;
 
 	if (AllocationStrategy == EResourceAllocationStrategy::kPlacedResource)
@@ -594,8 +608,10 @@ void FD3D12BuddyAllocator::CleanUpAllocations()
 
 void FD3D12BuddyAllocator::ReleaseAllResources()
 {
+#if PLATFORM_WINDOWS
 	LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(MaxBlockSize), ELLMTracker::Platform, ELLMAllocType::System);
+#endif
 
 #if UE_MEMORY_TRACE_ENABLED
 	if (AllocationStrategy != EResourceAllocationStrategy::kPlacedResource)
@@ -1120,38 +1136,6 @@ void* FD3D12UploadHeapAllocator::AllocUploadResource(uint32 InSize, uint32 InAli
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12UploadHeapAllocator::AllocUploadResource);
 
-	// Clean up the release queue of resources which are currently not used by the GPU anymore
-	// @todo d3d12 rhi - begin: do we need to do any of this still?
-	/*FD3D12Adapter* Adapter = GetParentAdapter();
-	bool bFlushDeferredDeletionQueue = Adapter->GetDeferredDeletionQueue().QueueSize() > 128;
-	bool bFlushPendingDeleteRequests = GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB > 0 && BigBlockAllocator.GetPendingDeleteRequestSize() > (GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB * 1024 * 1024 * 1024);
-	if ((bFlushDeferredDeletionQueue || bFlushPendingDeleteRequests) && IsInRenderingThread())
-	{
-		if (bFlushPendingDeleteRequests)
-		{
-			UE_LOG(LogD3D12RHI, Warning, TEXT("Force flushing GPU because pending upload allocations reached its limit"));
-
-			// Flush to GPU & Wait (stall the RHI thread)
-			FScopedRHIThreadStaller StallRHIThread(FRHICommandListExecutor::GetImmediateCommandList());
-			for (uint32 GPUIndex = 0; GPUIndex < GNumExplicitGPUsForRendering; GPUIndex++)
-			{
-				Adapter->GetDevice(GPUIndex)->GetDefaultCommandContext().FlushCommands(true);	// Don't wait yet, since we're stalling the RHI thread.
-			}
-
-			// Waited for GPU to finish so all sync points are ready so can force free all pending deletes (done while RHI thread is stalled)
-			bool bForceFreePendingDeletes = true;
-			BigBlockAllocator.CleanUpAllocations(0, bForceFreePendingDeletes);
-		}
-		else
-		{
-			BigBlockAllocator.CleanUpAllocations(0);
-		}
-		
-		SmallBlockAllocator.CleanUpAllocations(0); // 0 - no FrameLag, delete all unsued pages
-		Adapter->GetDeferredDeletionQueue().ReleaseResources(true, false);
-	}*/
-	// @todo d3d12 rhi - end
-
 	check(InSize > 0);
 	ResourceLocation.Clear();
 
@@ -1425,6 +1409,10 @@ FD3D12BufferPool* FD3D12DefaultBufferAllocator::CreateBufferPool(D3D12_HEAP_TYPE
 	FD3D12Device* Device = GetParentDevice();
 	FD3D12ResourceInitConfig InitConfig = FD3D12BufferPool::GetResourceAllocatorInitConfig(InHeapType, InResourceFlags, InBufferUsage);
 
+	// NNE resources must be in heaps visible on GPU0 only.  Required by DirectML.  Note that in single GPU mode, GetVisibilityMask() will
+	// be the same as GPU0(), so no extra heap fragmentation occurs in that case.
+	FRHIGPUMask VisibleNodes = EnumHasAnyFlags(InBufferUsage, EBufferUsageFlags::NNE) ? FRHIGPUMask::GPU0() : GetVisibilityMask();
+
 #if USE_BUFFER_POOL_ALLOCATOR
 
 	const FString Name(L"D3D12 Pool Allocator");
@@ -1451,7 +1439,7 @@ FD3D12BufferPool* FD3D12DefaultBufferAllocator::CreateBufferPool(D3D12_HEAP_TYPE
 	}
 #endif // D3D12_RHI_RAYTRACING
 
-	FD3D12BufferPool* NewPool = new FD3D12PoolAllocator(Device, GetVisibilityMask(), InitConfig, Name, AllocationStrategy, PoolSize, PoolAlignment, MaxAllocationSize, FreeListOrder, bDefragEnabled, TraceHeapId);
+	FD3D12BufferPool* NewPool = new FD3D12PoolAllocator(Device, VisibleNodes, InitConfig, Name, AllocationStrategy, PoolSize, PoolAlignment, MaxAllocationSize, FreeListOrder, bDefragEnabled, TraceHeapId);
 
 #else // USE_BUFFER_POOL_ALLOCATOR
 
@@ -1462,7 +1450,7 @@ FD3D12BufferPool* FD3D12DefaultBufferAllocator::CreateBufferPool(D3D12_HEAP_TYPE
 
 	const FString Name(L"Default Buffer Multi Buddy Allocator");
 	FD3D12MultiBuddyAllocator* Allocator = new FD3D12MultiBuddyAllocator(Device,
-		GetVisibilityMask(),
+		VisibleNodes,
 		InitConfig,
 		Name,
 		AllocationStrategy,
@@ -1528,8 +1516,9 @@ void FD3D12DefaultBufferAllocator::AllocDefaultResource(D3D12_HEAP_TYPE InHeapTy
 	{
 		ResourceLocation.Clear();
 
+		// NNE resources must be in heaps visible on GPU0 only.  Required by DirectML.
 		FD3D12Resource* NewResource = nullptr;
-		const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InHeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
+		const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InHeapType, GetGPUMask().GetNative(), EnumHasAnyFlags(InBufferUsage, EBufferUsageFlags::NNE) ? FRHIGPUMask::GPU0().GetNative() : GetVisibilityMask().GetNative());
 		D3D12_RESOURCE_DESC Desc = InResourceDesc;
 		Desc.Alignment = 0;
 		VERIFYD3D12RESULT(Adapter->CreateCommittedResource(Desc, GetGPUMask(), HeapProps, InCreateState, InResourceStateMode, InCreateState, nullptr, &NewResource, Name, false));
@@ -1603,7 +1592,7 @@ void FD3D12DefaultBufferAllocator::FreeDefaultBufferPools()
 }
 
 
-void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
+void FD3D12DefaultBufferAllocator::BeginFrame(FD3D12ContextArray const& Contexts)
 {
 #if USE_BUFFER_POOL_ALLOCATOR
 	FScopeLock Lock(&CS);
@@ -1618,7 +1607,7 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
 		{
 			if (DefaultBufferPool)
 			{
-				DefaultBufferPool->Defrag(RHICmdList, MaxCopySize, CopySize);
+				DefaultBufferPool->Defrag(Contexts, MaxCopySize, CopySize);
 
 				// break when we reach the max copy size
 				if (CopySize >= MaxCopySize)
@@ -1630,10 +1619,12 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
 	}
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingBufferCopyOps);
+		// @todo dev-pr - explicit use of graphics context - nothing is synchronizing async compute - needs refactor
+		FD3D12CommandContext& CommandContext = *Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(GetParentDevice()->GetGPUIndex());
 
-		FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
-		CommandContext.RHIPushEvent(TEXT("BufferPoolCopyOps"), FColor::Emerald);
+		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingBufferCopyOps);
+		RHI_BREADCRUMB_EVENT(CommandContext, "BufferPoolCopyOps");
+
 		for (FD3D12BufferPool* DefaultBufferPool : DefaultBufferPools)
 		{
 			if (DefaultBufferPool)
@@ -1641,7 +1632,6 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
 				DefaultBufferPool->FlushPendingCopyOps(CommandContext);
 			}
 		}
-		CommandContext.RHIPopEvent();
 	}
 #endif // USE_BUFFER_POOL_ALLOCATOR
 }
@@ -1814,7 +1804,7 @@ HRESULT FD3D12TextureAllocatorPool::AllocateTexture(
 }
 
 
-void FD3D12TextureAllocatorPool::BeginFrame(FRHICommandListBase& RHICmdList)
+void FD3D12TextureAllocatorPool::BeginFrame(FD3D12ContextArray const& Contexts)
 {
 	if (GD3D12VRAMTexturePoolDefrag > 0 && GD3D12VRAMTexturePoolDefragMaxCopySizePerFrame > 0)
 	{
@@ -1824,21 +1814,21 @@ void FD3D12TextureAllocatorPool::BeginFrame(FRHICommandListBase& RHICmdList)
 		uint32 CopySize = 0;
 		for (uint32 PoolIndex = 0; PoolIndex < (uint32)EPoolType::Count; ++PoolIndex)
 		{
-			PoolAllocators[PoolIndex]->Defrag(RHICmdList, MaxCopySize, CopySize);
+			PoolAllocators[PoolIndex]->Defrag(Contexts, MaxCopySize, CopySize);
 		}
 	}
 
 	{
+		// @todo dev-pr - explicit use of graphics context - nothing is synchronizing async compute - needs refactor
+		FD3D12CommandContext& CommandContext = *Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(GetParentDevice()->GetGPUIndex());
+
 		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingTextureCopyOps);
-
-		FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
-
-		CommandContext.RHIPushEvent(TEXT("TexturePoolCopyOps"), FColor::Emerald);
+		RHI_BREADCRUMB_EVENT(CommandContext, "TexturePoolCopyOps");
+		
 		for (uint32 PoolIndex = 0; PoolIndex < (uint32)EPoolType::Count; ++PoolIndex)
 		{
 			PoolAllocators[PoolIndex]->FlushPendingCopyOps(CommandContext);
 		}
-		CommandContext.RHIPopEvent();
 	}
 }
 
@@ -2355,7 +2345,7 @@ FD3D12SegHeap* FD3D12SegList::CreateBackingHeap(
 {
 	// CS can be unlocked at this point and re-locked before adding it to FreeHeaps
 	// but doing so may cause multiple heaps to be created
-	ID3D12Heap* D3DHeap;
+	ID3D12Heap* D3DHeap = nullptr;
 	D3D12_HEAP_DESC Desc = {};
 	Desc.SizeInBytes = HeapSize;
 	Desc.Properties = CD3DX12_HEAP_PROPERTIES(HeapType, Parent->GetGPUMask().GetNative(), VisibleNodeMask.GetNative());

@@ -3,10 +3,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.UBA;
@@ -23,27 +25,51 @@ namespace UnrealBuildTool
 		public string Crypto { get; private set; } = String.Empty;
 		public IServer? Server { get; private set; }
 		ISessionServer? _session;
+		object _sessionLock = new();
+		ICacheClient? _cacheClient;
+		EpicGames.UBA.ILogger? _ubaLogger;
 		readonly List<IUBAAgentCoordinator> _agentCoordinators = new();
 		DirectoryReference? _rootDirRef;
 		bool _bIsCancelled;
 		bool _bIsRemoteActionsAllowed = true;
 		readonly object _actionsChangedLock = new();
 		bool _bActionsChanged = true;
+		uint _errorCount = 0;
 		uint _actionsQueuedThatCanRunRemotely = UInt32.MaxValue;
 		readonly ThreadedLogger _threadedLogger;
+
+		DateTime _ubaStartTimeUtc = DateTime.UtcNow;
+		TimeSpan _ubaDurationWaitingForRemote = TimeSpan.Zero;
 
 		// Tracking for LinkedActions that failed remotely that should be retried locally
 		readonly ConcurrentDictionary<LinkedAction, bool> _localRetryActions = new();
 		// Tracking for LinkedActions that failed locally that should be retried without UBA
 		readonly ConcurrentDictionary<LinkedAction, bool> _forcedRetryActions = new();
 
+		// Tracking for successful coordinator connections
+		int _successfulCoordinatorConnections = 0;
+		// Tracking for failed coordinator connections
+		int _failedCoordinatorConnections = 0;
+
+		// Tracking for all actions processed locally
+		int _localProcessedActions = 0;
+		// Tracking for all actions processed remotely
+		int _remoteProcessedActions = 0;
+
+		// Tracking for remote connection mode
+		string _remoteConnectionMode = "Local";
+
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing)
 			{
+				_cacheClient?.Dispose();
+				_cacheClient = null;
 				_session?.Dispose();
 				_session = null;
 				_threadedLogger.Dispose();
+				_ubaLogger?.Dispose();
+				_ubaLogger = null;
 			}
 			base.Dispose(disposing);
 		}
@@ -55,22 +81,73 @@ namespace UnrealBuildTool
 			return EpicGames.UBA.Utils.IsAvailable();
 		}
 
-		public UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
+		public static DirectoryReference UbaBinariesDir
+		{
+			get
+			{
+				if (OperatingSystem.IsWindows())
+				{
+					#pragma warning disable CA1308 // Normalize strings to uppercase
+					return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
+					#pragma warning restore CA1308 // Normalize strings to uppercase
+				}
+				else if (OperatingSystem.IsLinux())
+				{
+					if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
+					{
+						return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
+					}
+					else if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+					{
+						return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "LinuxArm64", "UnrealBuildAccelerator");
+					}
+				}
+				else if (OperatingSystem.IsMacOS())
+				{
+					return DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Mac", "UnrealBuildAccelerator");
+				}
+				throw new PlatformNotSupportedException();
+			}
+		}
+
+		public UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, IEnumerable<TargetDescriptor> targetDescriptors)
 			: base(maxLocalActions, bAllCores, bCompactOutput, logger)
 		{
 			XmlConfig.ApplyTo(this);
 			XmlConfig.ApplyTo(UBAConfig);
 			CommandLine.ParseArguments(Environment.GetCommandLineArgs(), this, logger);
-			additionalArguments?.ApplyTo(this);
-			additionalArguments?.ApplyTo(UBAConfig);
+
+			List<UBAAgentCoordinatorHorde> hordeAgentCoordinators = new();
+			foreach (TargetDescriptor targetDescriptor in targetDescriptors)
+			{
+				if (targetDescriptor.HotReloadMode != HotReloadMode.Disabled)
+					UBAConfig.bStoreObjFilesCompressed = false;
+				targetDescriptor.AdditionalArguments.ApplyTo(this);
+				targetDescriptor.AdditionalArguments.ApplyTo(UBAConfig);
+				hordeAgentCoordinators.Add(new UBAAgentCoordinatorHorde(logger, UBAConfig, targetDescriptor.AdditionalArguments, targetDescriptor.ProjectFile?.Directory));
+			}
+			hordeAgentCoordinators.RemoveAll(x => !x.Enabled);
+			_remoteConnectionMode = hordeAgentCoordinators.FirstOrDefault()?.ConnectionModeString ?? "Local";
+			_agentCoordinators.AddRange(hordeAgentCoordinators.DistinctBy(x => x.Server));
 
 			_threadedLogger = new ThreadedLogger(logger);
-			_agentCoordinators.Add(new UBAAgentCoordinatorHorde(logger, UBAConfig, additionalArguments));
+		}
+
+		public void UpdateStatus(uint statusRow, uint statusColumn, string statusText, LogEntryType statusType, string? statusLink)
+		{
+			lock (_sessionLock)
+			{
+				_session?.UpdateStatus(statusRow, statusColumn, statusText, statusType, statusLink);
+			}
 		}
 
 		private void PrintConfiguration()
 		{
 			_threadedLogger.LogInformation("  Storage capacity {StoreCapacityGb}Gb", UBAConfig.StoreCapacityGb);
+			if (UBAConfig.bStoreObjFilesCompressed)
+			{
+				_threadedLogger.LogInformation("  Object Compression Allowed");
+			}
 		}
 
 		private async Task WriteActionOutputFileAsync(IEnumerable<LinkedAction> inputActions)
@@ -100,6 +177,7 @@ namespace UnrealBuildTool
 				await writer.WriteLineAsync($"arg: {action.CommandArguments}");
 				await writer.WriteLineAsync($"dir: {action.WorkingDirectory}");
 				await writer.WriteLineAsync($"desc: {action.StatusDescription}");
+				// TODO: Add cache roots
 				if (action.Weight != 1.0f)
 				{
 					await writer.WriteLineAsync($"weight: {action.Weight}");
@@ -132,6 +210,80 @@ namespace UnrealBuildTool
 			return BitConverter.ToString(bytes).Replace("-", "", StringComparison.OrdinalIgnoreCase).ToLowerInvariant(); // "1234567890abcdef1234567890abcdef";
 		}
 
+		public void AgentCoordinatorInitialized(IUBAAgentCoordinator coordinator, bool successful)
+		{
+			if (successful)
+			{
+				Interlocked.Add(ref _successfulCoordinatorConnections, 1);
+			}
+			else
+			{
+				Interlocked.Add(ref _failedCoordinatorConnections, 1);
+			}
+		}
+
+		class UBAArtifactCache : IArtifactCache
+		{
+			public ArtifactCacheState State => ArtifactCacheState.Available;
+			public Task<ArtifactCacheState> WaitForReadyAsync() => Task.FromResult(ArtifactCacheState.Available);
+			public Task<ArtifactAction[]> QueryArtifactActionsAsync(IoHash[] partialKeys, CancellationToken cancellationToken) => Task.FromResult(Array.Empty<ArtifactAction>());
+			public Task<bool[]?> QueryArtifactOutputsAsync(ArtifactAction[] artifactActions, CancellationToken cancellationToken) => Task.FromResult<bool[]?>(null);
+			public Task SaveArtifactActionsAsync(ArtifactAction[] artifactActions, CancellationToken cancellationToken) => Task.CompletedTask;
+			public Task FlushChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+		}
+
+		private static void RemoveLogLineSpam(List<string> logLines)
+		{
+			logLines.RemoveAll((line) => (line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase)) || line.EndsWith("file(s) copied.", StringComparison.OrdinalIgnoreCase));
+		}
+
+		class UBAActionArtifactCache : IActionArtifactCache
+		{
+			readonly UBAExecutor _executor;
+			readonly UBAArtifactCache _cache = new UBAArtifactCache();
+			public UBAActionArtifactCache(UBAExecutor executor) { _executor = executor; }
+			public IArtifactCache ArtifactCache => _cache;
+			public bool EnableReads { get => true; set { } }
+			public bool EnableWrites { get => true; set { } }
+			public bool LogCacheMisses { get => true; set { } }
+			public DirectoryReference? EngineRoot { get => null; set { } }
+			public DirectoryReference[]? DirectoryRoots { get => null; set { } }
+			public Task<ActionArtifactResult> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
+			{
+				return Task.Factory.StartNew(() =>
+				{
+					ProcessStartInfo startInfo = _executor.GetActionStartInfo(action, out FileItem? pchItem);
+					uint bucket = UBAExecutor.GetActionCacheBucket(action);
+					using (IRootPaths rootPaths = _executor.GetActionRootPaths(action))
+					{
+						FetchFromCacheResult result = _executor._cacheClient!.FetchFromCache(rootPaths, bucket, startInfo);
+						RemoveLogLineSpam(result.LogLines);
+						return new ActionArtifactResult(result.Success, result.LogLines);
+					}
+				}, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
+			}
+
+			public Task ActionCompleteAsync(LinkedAction action, CancellationToken cancellationToken) => Task.CompletedTask;
+			public Task FlushChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+		}
+
+		private void ActionQueueCanceled(IStorageServer? ubaStorage)
+		{
+			Server?.StopServer(); // Make sure all remove processes are returned. We can't have any callbacks after this
+			_bIsCancelled = true;
+			_session?.CancelAll(); // Cancel all processes native side
+			ubaStorage?.SaveCasTable();
+
+			// We need the lock here since things are happening in parallel.
+			lock (_sessionLock)
+			{
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
+				{
+					_agentCoordinators.ForEach(ac => ac.CloseAsync().Wait(2000)); // Give coordinators some time to close (this makes coordinators like horde return resources faster)
+				}
+			}
+		}
+
 		public override async Task<bool> ExecuteActionsAsync(IEnumerable<LinkedAction> inputActions, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
 		{
 			if (!inputActions.Any())
@@ -142,6 +294,7 @@ namespace UnrealBuildTool
 			if (inputActions.Count() < NumParallelProcesses && !UBAConfig.bForceBuildAllRemote)
 			{
 				UBAConfig.bDisableRemote = true;
+				UBAConfig.Zone = "local";
 			}
 
 			PrintConfiguration();
@@ -214,17 +367,6 @@ namespace UnrealBuildTool
 			Log.BackupLogFile(ubaTraceFile);
 
 			IStorageServer? ubaStorage = null;
-			void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-			{
-				_bIsCancelled = true;
-				_session?.CancelAll();
-				ubaStorage?.SaveCasTable();
-				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
-				{
-					coordinator.CloseAsync().Wait(2000); // Give coordinators some time to close (this makes coordinators like horde return resources faster)
-				}
-			}
-			Console.CancelKeyPress += CancelKeyPress;
 
 			try
 			{
@@ -233,41 +375,90 @@ namespace UnrealBuildTool
 					_ = Task.Run(LaunchVisualizer);
 				}
 
-				using EpicGames.UBA.ILogger ubaLogger = EpicGames.UBA.ILogger.CreateLogger(logger, UBAConfig.bDetailedLog);
+				string arch = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+				FileReference configFile = FileReference.Combine(UbaBinariesDir, "UbaHost.toml");
+				EpicGames.UBA.IConfig.LoadConfig(configFile.FullName);
+
+				using EpicGames.UBA.ILogger ubaLogger = EpicGames.UBA.ILogger.CreateLogger(logger);
 				using (Server = IServer.CreateServer(UBAConfig.MaxWorkers, UBAConfig.SendSize, ubaLogger, UBAConfig.bUseQuic))
 				{
+					_ubaLogger = ubaLogger;
 					using IStorageServer ubaStorageServer = IStorageServer.CreateStorageServer(Server, ubaLogger, new StorageServerCreateInfo(_rootDirRef.FullName, ((ulong)UBAConfig.StoreCapacityGb) * 1000 * 1000 * 1000, !UBAConfig.bStoreRaw, UBAConfig.Zone));
-					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef.FullName, ubaTraceFile.FullName, UBAConfig.bDisableCustomAlloc, false, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem));
-					using (_session = ISessionServer.CreateSessionServer(serverCreateInfo))
+					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef.FullName, ubaTraceFile.FullName.Replace('\\', '/'), UBAConfig.bDisableCustomAlloc, false, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem, UBAConfig.bStoreObjFilesCompressed));
 					{
-
-						ubaStorage = ubaStorageServer;
-
-						if (!UBAConfig.bDisableRemote)
+						try
 						{
-							Server.StartServer(UBAConfig.Host, UBAConfig.Port, Crypto);
+							_session = ISessionServer.CreateSessionServer(serverCreateInfo);
+							_cacheClient = ICacheClient.CreateCacheClient(_session, UBAConfig.bReportCacheMissReason);
+							if (!String.IsNullOrEmpty(UBAConfig.CacheServer))
+							{
+								string[] nameAndPort = UBAConfig.CacheServer.Split(':');
+								int port = 1347;
+								if (nameAndPort.Length > 1)
+								{
+									port = Int32.Parse(nameAndPort[1]);
+								}
+
+								_session.UpdateStatus(1, 1, "Cache", LogEntryType.Info, null);
+								_session.UpdateStatus(1, 6, "Connecting...", LogEntryType.Info);
+
+								System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
+								bool cacheSuccess = _cacheClient.Connect(nameAndPort[0], port);
+								long totalMs = stopwatch.ElapsedMilliseconds;
+								string successText = cacheSuccess ? "Connected to" : "Failed to connect to";
+								logger.LogInformation("UbaCache - {SuccessText} {Name}:{Port} ({Seconds}.{Milliseconds}s)", successText, nameAndPort[0], port, totalMs / 1000, totalMs % 1000);
+								if (cacheSuccess)
+								{
+									_session.UpdateStatus(1, 6, "Connected", LogEntryType.Info);
+									actionArtifactCache = new UBAActionArtifactCache(this);
+								}
+								else
+								{
+									_session.UpdateStatus(1, 6, "Not connected", LogEntryType.Info);
+								}
+							}
+
+							ubaStorage = ubaStorageServer;
+
+							if (!UBAConfig.bDisableRemote)
+							{
+								Server.StartServer(UBAConfig.Host, UBAConfig.Port, Crypto);
+							}
+							else
+							{
+								_session.DisableRemoteExecution();
+							}
+
+							bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache, () => ActionQueueCanceled(ubaStorage));
+
+							if (!UBAConfig.bDisableRemote)
+							{
+								Server.StopServer();
+							}
+
+							if (UBAConfig.bPrintSummary)
+							{
+								_session.PrintSummary();
+							}
+
+							return success && !_bIsCancelled;
 						}
-
-						bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache);
-
-						if (!UBAConfig.bDisableRemote)
+						finally
 						{
-							Server.StopServer();
+							_cacheClient?.Dispose();
+							_cacheClient = null;
+							lock (_sessionLock)
+							{
+								_agentCoordinators.ForEach(ac => ac.Done());
+								_session?.Dispose();
+								_session = null;
+							}
 						}
-
-						if (UBAConfig.bPrintSummary)
-						{
-							_session.PrintSummary();
-						}
-
-						return success;
 					}
 				}
 			}
 			finally
 			{
-				Console.CancelKeyPress -= CancelKeyPress;
-
 				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					await coordinator.CloseAsync();
@@ -306,7 +497,7 @@ namespace UnrealBuildTool
 				}
 				if (FileReference.Exists(tempPath))
 				{
-					System.Diagnostics.ProcessStartInfo psi = new(BuildHostPlatform.Current.Shell.FullName, $" /C start \"\" \"{tempPath.FullName}\" -listen")
+					System.Diagnostics.ProcessStartInfo psi = new(BuildHostPlatform.Current.Shell.FullName, $" /C start \"\" \"{tempPath.FullName}\" -listen -nocopy")
 					{
 						WorkingDirectory = System.IO.Path.GetTempPath(),
 						WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
@@ -326,25 +517,19 @@ namespace UnrealBuildTool
 		/// Executes the provided actions
 		/// </summary>
 		/// <returns>True if all the tasks successfully executed, or false if any of them failed.</returns>
-		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
+		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache, System.Action onCancel)
 		{
-			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, logger);
+			_ubaStartTimeUtc = DateTime.UtcNow;
+			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, UBAConfig.CacheMaxWorkers, logger);
 			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 			ImmediateActionQueueRunner remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));
+			queue.CancellationToken.Register(onCancel);
 
-			// Setup a notification that alerts uba when an artifact has been read from the cache
-			queue.OnArtifactsRead = (action) =>
-			{
-				HashSet<DirectoryItem> refreshedDirectories = new();
-				foreach (FileItem output in action.ProducedItems)
-				{
-					if (refreshedDirectories.Add(output.Directory))
-					{
-						session.RefreshDirectories(output.Directory.FullName);
-					}
-				}
-			};
+			queue.OnArtifactsRead += (action) => { UpdateCacheProgress(queue); UpdateProgress(queue); };
+			queue.OnArtifactsMiss += (action) => UpdateCacheProgress(queue);
+
+			UpdateProgress(queue);
 
 			// Start the queue
 			queue.Start();
@@ -360,10 +545,7 @@ namespace UnrealBuildTool
 					if (count <= NumParallelProcesses)
 					{
 						_bIsRemoteActionsAllowed = false;
-						foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
-						{
-							coordinator.Stop();
-						}
+						_agentCoordinators.ForEach(ac => ac.Stop());
 						session!.DisableRemoteExecution();
 					}
 					else
@@ -387,19 +569,32 @@ namespace UnrealBuildTool
 
 			try
 			{
+				uint statusUpdateCounter = 10;
 				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
-					coordinator.Start(queue, CanRunRemotely);
+					uint statusUpdateIndex = statusUpdateCounter;
+					coordinator.Start(queue, CanRunRemotely, (sr, sc, st, t, sl) => UpdateStatus(statusUpdateIndex + sr, sc, st, t, sl));
+					statusUpdateCounter += 10;
 				}
 
 				bool res = queue.RunTillDone().Result; // Using inline wait to avoid possible thread switch
+
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
+				telemetryEvent = new TelemetryExecutorUBAEvent(Name, _ubaStartTimeUtc, res, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions,
+					_localProcessedActions, _remoteProcessedActions,
+					_localRetryActions.Count, _forcedRetryActions.Count,
+					!UBAConfig.bDisableRemote ? _agentCoordinators.Count : 0, !UBAConfig.bDisableRemote ? _successfulCoordinatorConnections : 0, !UBAConfig.bDisableRemote ? _failedCoordinatorConnections : 0,
+					!UBAConfig.bDisableRemote ? _ubaDurationWaitingForRemote : TimeSpan.Zero,
+					!UBAConfig.bDisableRemote || _agentCoordinators.Count == 0 ? "Local" : _remoteConnectionMode,
+					DateTime.UtcNow);
+
 				return res;
 			}
 			finally
 			{
-				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
+				if (_bIsRemoteActionsAllowed)
 				{
-					coordinator.Stop();
+					_agentCoordinators.ForEach(ac => ac.Stop());
 				}
 			}
 		}
@@ -440,6 +635,10 @@ namespace UnrealBuildTool
 
 		ProcessStartInfo GetActionStartInfo(LinkedAction action, out FileItem? pchItem)
 		{
+			string description = action.StatusDescription;
+			if (!String.IsNullOrEmpty(action.CommandDescription))
+				description = $"{action.StatusDescription} ({action.CommandDescription})";
+
 			ProcessStartInfo startInfo = new()
 			{
 				Application = action.CommandPath.FullName,
@@ -448,27 +647,157 @@ namespace UnrealBuildTool
 				Priority = ProcessPriority,
 				OutputStatsThresholdMs = (uint)UBAConfig.OutputStatsThresholdMs,
 				UserData = action,
-				Description = action.StatusDescription,
+				Description = description,
 				Configuration = action.bIsGCCCompiler ? EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileClang : EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileMsvc,
-				LogFile = UBAConfig.bLogEnabled ? action.Inner.ProducedItems.First().Location.GetFileName() : null,
+				LogFile = UBAConfig.bLogEnabled ? (action.Inner.ProducedItems.First().Location.GetFileName() + ".log") : null,
 			};
 
-			bool usingLtcg = true; // ltcg linking checks what pch was used and it seems like it needs to be identical in other ways than timestamp
-			pchItem = action.Inner.ProducedItems.FirstOrDefault(item => item.Name.EndsWith(".pch", StringComparison.OrdinalIgnoreCase));
-			if (pchItem != null)
+			pchItem = null;
+
+			// This is not used. Should probably be deleted.
+			/*
+			if (_cacheClient != null && UBAConfig.bWriteCache && action.ArtifactMode.HasFlag(ArtifactMode.Enabled))
 			{
-				startInfo.Priority = System.Diagnostics.ProcessPriorityClass.AboveNormal;
-				if (!usingLtcg && action.ArtifactMode.HasFlag(ArtifactMode.PropagateInputs))
+				startInfo.TrackInputs = true;
+			}
+			else
+			{
+				// TODO: Revisit this code. This was added to make non-deterministic pch deterministic from a caskey perspective
+				// It is not used atm.
+
+				bool usingLtcg = true; // ltcg linking checks what pch was used and it seems like it needs to be identical in other ways than timestamp
+				pchItem = action.Inner.ProducedItems.FirstOrDefault(item => item.Name.EndsWith(".pch", StringComparison.OrdinalIgnoreCase));
+				if (pchItem != null)
 				{
-					startInfo.TrackInputs = true;
+					startInfo.Priority = System.Diagnostics.ProcessPriorityClass.AboveNormal;
+					if (!usingLtcg && action.ArtifactMode.HasFlag(ArtifactMode.PropagateInputs))
+					{
+						startInfo.TrackInputs = true;
+					}
+					else
+					{
+						pchItem = null;
+					}
 				}
-				else
+			}
+			*/
+
+			return startInfo;
+		}
+
+		static uint GetActionCacheBucket(LinkedAction action)
+		{
+			if (action.Target == null)
+			{
+				return 0;
+			}
+
+			using (Blake3.Hasher hasher = Blake3.Hasher.New())
+			{
+				// Use platform and config to chose bucket since there will never be any cache hits between platforms or configs
+				hasher.Update(System.Text.Encoding.UTF8.GetBytes(action.Target.Platform.ToString()));
+				hasher.Update(new byte[] { (byte)action.Target.Configuration });
+
+				// Absolute path is set for actions that uses pch.
+				// And since pch contains absolute paths we unfortunately can't share cache data between machines that have different paths
+				if (action.ArtifactMode.HasFlag(ArtifactMode.AbsolutePath))
 				{
-					pchItem = null;
+					foreach (DirectoryItem root in action.RootPaths)
+					{
+						hasher.Update(System.Text.Encoding.UTF8.GetBytes(root.FullName));
+					}
+				}
+
+				return (uint)IoHash.FromBlake3(hasher).GetHashCode();
+			}
+		}
+
+		IRootPaths GetActionRootPaths(LinkedAction action)
+		{
+			IRootPaths rootPaths = IRootPaths.Create(_ubaLogger!);
+			foreach (DirectoryItem root in action.RootPaths)
+			{
+				rootPaths.RegisterRoot(root.FullName, true);
+			}
+
+			DirectoryReference? autoSdkDir;
+			if (UEBuildPlatformSDK.TryGetHostPlatformAutoSDKDir(out autoSdkDir))
+			{
+				rootPaths.RegisterRoot(autoSdkDir.FullName, true);
+			}
+
+			rootPaths.RegisterSystemRoots();
+			return rootPaths;
+		}
+
+		public class DepsFile
+		{
+			public class DepsData
+			{
+				public string? Source { get; init; }
+				public string? PCH { get; init; }
+				public SortedSet<string>? Includes { get; init; }
+			}
+			public string? Version { get; init; }
+			public DepsData? Data { get; init; }
+		}
+
+		bool WriteToCache(LinkedAction action, IProcess process)
+		{
+			if (!UBAConfig.bWriteCache || process.ExitCode != 0 || _cacheClient == null || !action.ArtifactMode.HasFlag(ArtifactMode.Enabled))
+			{
+				return true;
+			}
+
+			// If there are no outputs there is nothing to cache
+			if (!action.ProducedItems.Any())
+			{
+				return true;
+			}
+
+			// Collect all inputs for action
+			// We use prerequisite items plus what we find in dependency list file if it exists.
+
+			using MemoryStream inputsMemory = new(1024);
+			using (BinaryWriter writer = new(inputsMemory, System.Text.Encoding.UTF8, true))
+			{
+				writer.Write(action.CommandPath.FullName);
+
+				foreach (FileItem f in action.PrerequisiteItems)
+				{
+					if (f.HasExtension(".lib")) // It seems like .lib files can change without dependencies relink
+					{
+						continue;
+					}
+
+					writer.Write(f.FullName);
+				}
+
+				if (action.DependencyListFile != null)
+				{
+					CppDependencyCache.DependencyInfo info = CppDependencyCache.ReadDependencyInfo(action.DependencyListFile);
+					foreach (FileItem f in info.Files)
+					{
+						writer.Write(f.FullName);
+					}
 				}
 			}
 
-			return startInfo;
+			// Collect all outputs for action
+
+			using MemoryStream outputsMemory = new(1024);
+			using (BinaryWriter writer = new(outputsMemory, System.Text.Encoding.UTF8, true))
+			{
+				foreach (FileItem f in action.ProducedItems)
+				{
+					writer.Write(f.FullName);
+				}
+			}
+
+			uint bucket = GetActionCacheBucket(action);
+			using IRootPaths rootPaths = GetActionRootPaths(action);
+
+			return _cacheClient!.WriteToCache(rootPaths, bucket, process, inputsMemory.GetBuffer(), (uint)inputsMemory.Position, outputsMemory.GetBuffer(), (uint)outputsMemory.Position);
 		}
 
 		Func<Task>? RunActionLocal(ImmediateActionQueue queue, LinkedAction action)
@@ -480,14 +809,20 @@ namespace UnrealBuildTool
 
 			return () =>
 			{
+				if (_bIsCancelled)
+				{
+					HandleActionCancelled(queue, null, action);
+					return Task.CompletedTask;
+				}
 				bool enableDetour = !ForceLocalNoDetour(action) && action.bCanExecuteInUBA && !_forcedRetryActions.ContainsKey(action);
 
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
 				using (IProcess process = _session!.RunProcess(startInfo, false, null, enableDetour))
 				{
-					if (process.ExitCode != 0 && UBAConfig.bForcedRetry || (process.ExitCode >= 9000 && process.ExitCode < 10000))
+					Interlocked.Add(ref _localProcessedActions, 1);
+					if (!UBAConfig.bStoreObjFilesCompressed && (process.ExitCode != 0 && UBAConfig.bForcedRetry || (process.ExitCode >= 9000 && process.ExitCode < 10000)))
 					{
-						_threadedLogger.LogWarning("{Description} {StatusDescription}: Exited with error code {ExitCode}. This action will retry without UBA", action.CommandDescription, action.StatusDescription, process.ExitCode);
+						_threadedLogger.LogInformation("{Description} {StatusDescription}: Exited with error code {ExitCode}. This action will retry without UBA", action.CommandDescription, action.StatusDescription, process.ExitCode);
 						_forcedRetryActions.AddOrUpdate(action, false, (k, v) => false);
 						queue.RequeueAction(action);
 						return Task.CompletedTask;
@@ -498,11 +833,15 @@ namespace UnrealBuildTool
 						_session!.RegisterNewFiles(action.ProducedItems.Where(x => FileReference.Exists(x.Location)).Select(x => x.FullName).ToArray());
 					}
 
+					if (enableDetour)
+					{
+						WriteToCache(action, process);
+					}
+
 					TimeSpan processorTime = process.TotalProcessorTime;
 					TimeSpan executionTime = process.TotalWallTime;
 					List<string> logLines = process.LogLines;
-					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase) || line.EndsWith("file(s) copied.", StringComparison.OrdinalIgnoreCase));
-
+					RemoveLogLineSpam(logLines);
 					string? additionalDescription = !enableDetour ? "(UBA disabled)" : null;
 					ActionFinished(queue, new ExecuteResults(logLines, process.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, process);
 				}
@@ -519,6 +858,16 @@ namespace UnrealBuildTool
 
 			return () =>
 			{
+				if (_ubaDurationWaitingForRemote == TimeSpan.Zero)
+				{
+					_ubaDurationWaitingForRemote = DateTime.UtcNow - _ubaStartTimeUtc;
+				}
+				if (_bIsCancelled)
+				{
+					HandleActionCancelled(queue, null, action);
+					return Task.CompletedTask;
+				}
+
 				uint knownInputsCount = 0;
 				byte[]? knownInputs = null;
 				if (UBAConfig.bUseKnownInputs)
@@ -555,6 +904,12 @@ namespace UnrealBuildTool
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
 				_session!.RunProcessRemote(startInfo, (s, e) =>
 				{
+					if (e.ExitCode == 99999) // Process was cancelled by executor
+					{
+						return;
+					}
+
+					Interlocked.Add(ref _remoteProcessedActions, 1);
 					if (e.ExitCode != 0 && !e.LogLines.Any())
 					{
 						RemoteActionFailedNoOutput(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown");
@@ -580,13 +935,22 @@ namespace UnrealBuildTool
 						RemoteActionFailedCrash(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown", "UBA error");
 						return;
 					}
+					else if (e.ExitCode != 0 && UBAConfig.bForcedRetryRemote)
+					{
+						RemoteActionFailedCrash(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown", "Force local retry");
+						return;
+					}
+
+					IProcess process = (IProcess)s;
+
+					WriteToCache(action, process);
 
 					string additionalDescription = $"[RemoteExecutor: {e.ExecutingHost}]";
 					TimeSpan processorTime = e.TotalProcessorTime;
 					TimeSpan executionTime = e.TotalWallTime;
 					List<string> logLines = e.LogLines;
 					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase));
-					ActionFinished(queue, new ExecuteResults(logLines, e.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, s as IProcess);
+					ActionFinished(queue, new ExecuteResults(logLines, e.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, process);
 				}, action.Weight, knownInputs, knownInputsCount);
 				return Task.CompletedTask;
 			};
@@ -605,10 +969,17 @@ namespace UnrealBuildTool
 			}
 		}
 
+		protected void HandleActionCancelled(ImmediateActionQueue queue, ExecuteResults? results, LinkedAction action)
+		{
+			ExecuteResults cancelResults = new(results?.LogLines ?? new(), Int32.MaxValue, results?.ExecutionTime ?? TimeSpan.Zero, results?.ProcessorTime ?? TimeSpan.Zero, results?.AdditionalDescription);
+			queue.OnActionCompleted(action, false, cancelResults);
+		}
+
 		protected void ActionFinished(ImmediateActionQueue queue, ExecuteResults results, LinkedAction action, FileItem? pchItem = null, IProcess? process = null)
 		{
 			if (_bIsCancelled)
 			{
+				HandleActionCancelled(queue, results, action);
 				return;
 			}
 
@@ -620,20 +991,37 @@ namespace UnrealBuildTool
 
 			queue.OnActionCompleted(action, success, results);
 
+			if (!success)
+			{
+				++_errorCount;
+			}
+			UpdateProgress(queue);
+
 			lock (_actionsChangedLock)
 			{
 				_bActionsChanged = true;
 			}
 		}
-
+		void UpdateProgress(ImmediateActionQueue queue)
+		{
+			int completedActions = queue.CompletedActions;
+			int totalActions = queue.TotalActions;
+			int percent = completedActions * 100 / totalActions;
+			_session!.UpdateProgress((uint)totalActions, (uint)completedActions, _errorCount);
+		}
+		void UpdateCacheProgress(ImmediateActionQueue queue)
+		{
+			_session!.UpdateStatus(1, 6, $"Hits {queue.CacheHitActions} Misses {queue.CacheMissActions}", LogEntryType.Info);
+		}
 		void RemoteActionFailedNoOutput(ImmediateActionQueue queue, LinkedAction action, int exitCode, string executingHost)
 		{
 			if (_bIsCancelled)
 			{
+				HandleActionCancelled(queue, null, action);
 				return;
 			}
 
-			_threadedLogger.LogWarning("{Description} {StatusDescription} [RemoteExecutor: {ExecutingHost}]: Exited with error code {ExitCode} with no output. This action will retry locally", action.CommandDescription, action.StatusDescription, executingHost, exitCode);
+			_threadedLogger.LogInformation("{Description} {StatusDescription} [RemoteExecutor: {ExecutingHost}]: Exited with error code {ExitCode} with no output. This action will retry locally", action.CommandDescription, action.StatusDescription, executingHost, exitCode);
 			_localRetryActions.AddOrUpdate(action, false, (k, v) => false);
 			queue.RequeueAction(action);
 
@@ -647,10 +1035,11 @@ namespace UnrealBuildTool
 		{
 			if (_bIsCancelled)
 			{
+				HandleActionCancelled(queue, null, action);
 				return;
 			}
 
-			_threadedLogger.LogWarning("{Description} {StatusDescription} [RemoteExecutor: {ExecutingHost}]: Exited with error code {ExitCode} ({Error}). This action will retry locally", action.CommandDescription, action.StatusDescription, executingHost, exitCode, error);
+			_threadedLogger.LogInformation("{Description} {StatusDescription} [RemoteExecutor: {ExecutingHost}]: Exited with error code {ExitCode} ({Error}). This action will retry locally", action.CommandDescription, action.StatusDescription, executingHost, exitCode, error);
 			_localRetryActions.AddOrUpdate(action, false, (k, v) => false);
 			queue.RequeueAction(action);
 
@@ -673,8 +1062,8 @@ namespace UnrealBuildTool
 			return EpicGames.UBA.Utils.IsAvailable();
 		}
 
-		public UBALocalExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
-			: base(maxLocalActions, bAllCores, bCompactOutput, logger, additionalArguments)
+		public UBALocalExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, IEnumerable<TargetDescriptor> targetDescriptors)
+			: base(maxLocalActions, bAllCores, bCompactOutput, logger, targetDescriptors)
 		{
 			UBAConfig.bDisableRemote = true;
 			UBAConfig.bForceBuildAllRemote = false;

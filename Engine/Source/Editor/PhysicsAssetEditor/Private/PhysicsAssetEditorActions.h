@@ -36,6 +36,7 @@ public:
 	TSharedPtr<FUICommandInfo> PasteShapes;
 	TSharedPtr<FUICommandInfo> CopyProperties;
 	TSharedPtr<FUICommandInfo> PasteProperties;
+	TSharedPtr<FUICommandInfo> CopyBodyName;
 	TSharedPtr<FUICommandInfo> RepeatLastSimulation;
 	TSharedPtr<FUICommandInfo> SimulationNoGravity;
 	TSharedPtr<FUICommandInfo> SimulationFloorCollision;
@@ -44,6 +45,9 @@ public:
 	TSharedPtr<FUICommandInfo> MeshRenderingMode_Solid;
 	TSharedPtr<FUICommandInfo> MeshRenderingMode_Wireframe;
 	TSharedPtr<FUICommandInfo> MeshRenderingMode_None;
+	TSharedPtr<FUICommandInfo> CenterOfMassRenderingMode_All;
+	TSharedPtr<FUICommandInfo> CenterOfMassRenderingMode_Selected;
+	TSharedPtr<FUICommandInfo> CenterOfMassRenderingMode_None;
 	TSharedPtr<FUICommandInfo> CollisionRenderingMode_Solid;
 	TSharedPtr<FUICommandInfo> CollisionRenderingMode_Wireframe;
 	TSharedPtr<FUICommandInfo> CollisionRenderingMode_SolidWireframe;
@@ -54,6 +58,9 @@ public:
 	TSharedPtr<FUICommandInfo> MeshRenderingMode_Simulation_Solid;
 	TSharedPtr<FUICommandInfo> MeshRenderingMode_Simulation_Wireframe;
 	TSharedPtr<FUICommandInfo> MeshRenderingMode_Simulation_None;
+	TSharedPtr<FUICommandInfo> CenterOfMassRenderingMode_Simulation_All;
+	TSharedPtr<FUICommandInfo> CenterOfMassRenderingMode_Simulation_Selected;
+	TSharedPtr<FUICommandInfo> CenterOfMassRenderingMode_Simulation_None;
 	TSharedPtr<FUICommandInfo> CollisionRenderingMode_Simulation_Solid;
 	TSharedPtr<FUICommandInfo> CollisionRenderingMode_Simulation_Wireframe;
 	TSharedPtr<FUICommandInfo> CollisionRenderingMode_Simulation_SolidWireframe;
@@ -64,10 +71,12 @@ public:
 	TSharedPtr<FUICommandInfo> RenderOnlySelectedSolid;
 	TSharedPtr<FUICommandInfo> HideSimulatedBodies;
 	TSharedPtr<FUICommandInfo> HideKinematicBodies;
+	TSharedPtr<FUICommandInfo> DrawBodyMass;
+	TSharedPtr<FUICommandInfo> DrawCenterOfMass;
+	TSharedPtr<FUICommandInfo> RenderOnlySelectedBodyCoMs;
 	TSharedPtr<FUICommandInfo> RenderOnlySelectedConstraints;
 	TSharedPtr<FUICommandInfo> DrawConstraintsAsPoints;
 	TSharedPtr<FUICommandInfo> DrawViolatedLimits;
-	TSharedPtr<FUICommandInfo> ToggleMassProperties;
 	TSharedPtr<FUICommandInfo> DisableCollision;
 	TSharedPtr<FUICommandInfo> DisableCollisionAll;
 	TSharedPtr<FUICommandInfo> EnableCollision;

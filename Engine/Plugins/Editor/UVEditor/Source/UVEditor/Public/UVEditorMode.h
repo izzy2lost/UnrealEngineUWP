@@ -8,12 +8,14 @@
 #include "ToolTargets/ToolTarget.h" // FToolTargetTypeRequirements
 #include "GeometryBase.h"
 #include "InteractiveTool.h"
+#include "InteractiveToolsContext.h"
 
 #include "UVEditorMode.generated.h"
 
 PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 class FAssetEditorModeManager;
+class FUICommandList;
 class UEditorInteractiveToolsContext;
 class FEditorViewportClient;
 class FToolCommandChange;
@@ -33,6 +35,8 @@ class UUVToolViewportButtonsAPI;
 class UUVTool2DViewportAPI;
 class UUVEditorMode;
 class UWorld;
+class UUVEditorUnwrappedUXProperties;
+class UUVEditorLivePreviewUXProperties;
 
 /**
  * Visualization settings for the UUVEditorMode's Grid
@@ -220,6 +224,12 @@ public:
 	/** @return A settings object suitable for display in a details panel to control the grid. */
 	UObject* GetGridSettingsObject();
 
+	/** @return A settings object suitable for display in a details panel to control the unwrapped viewport visualization. */
+	UObject* GetUnwrappedUXSettingsObject() const;
+
+	/** @return A settings object suitable for display in a details panel to control the visualization in the live preview (3d) viewport. */
+	UObject* GetLivePreviewUXSettingsObject() const;
+
 	/** @return A settings object suitable for display in a details panel to control UDIM configuration. */
 	UObject* GetUDIMSettingsObject();
 
@@ -361,6 +371,13 @@ protected:
 	// Used to forward Render/DrawHUD calls in the live preview to the api object.
 	TWeakObjectPtr<UEditorInteractiveToolsContext> LivePreviewITC;
 
+	//~ Other members should be private as well, but too late for that. Keeping this one here
+	//~  to be next to the other live preview members.
+private: 
+	// Used to make mode hotkeys be triggered properly from the live preview
+	TWeakPtr<FUICommandList> LivePreviewToolkitCommands;
+protected:
+
 	UPROPERTY()
 	TObjectPtr<UUVToolSelectionAPI> SelectionAPI = nullptr;
 
@@ -387,5 +404,15 @@ protected:
 	// Holds references to Save callbacks to handle logic when the autosave triggers and shuts down active tools. 
 	// We need to recover from this, so we restart the select tool after the save is over.
 	FDelegateHandle PostSaveWorldDelegateHandle;
+private:
+	// Hold a settings object to configure the unwrapped visualization
+	UPROPERTY()
+	TObjectPtr<UUVEditorUnwrappedUXProperties> UVEditorUnwrappedUXProperties = nullptr;
+
+	// Hold a settings object to configure the visualization in the live preview (3d) viewport
+	UPROPERTY()
+	TObjectPtr<UUVEditorLivePreviewUXProperties> UVEditorLivePreviewUXProperties = nullptr;
+
+	TArray<FString> ToolsThatAllowActions;
 };
 

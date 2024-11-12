@@ -15,10 +15,22 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FObjectProperty)
 
-FObjectProperty::FObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+FObjectProperty::FObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
+
+FObjectProperty::FObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FObjectProperty::FObjectProperty(UField* InField)
+	: TFObjectPropertyBase(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FObjectProperty::GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerNativeTypeName)  const
 {
@@ -234,7 +246,7 @@ void FObjectProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value,
 
 void FObjectProperty::PostSerializeObjectItem(FArchive& SerializingArchive, void* Value, UObject* CurrentValue, UObject* ObjectValue, EObjectPropertyOptions Options /*= EObjectPropertyOptions::None*/) const
 {
-	// Make sure non-nullable properties don't end up with null values
+	// Make sure non-nullable properties don't end up with null values.
 	if (!(Options & EObjectPropertyOptions::AllowNullValuesOnNonNullableProperty) &&
 		!ObjectValue && HasAnyPropertyFlags(CPF_NonNullable) &&
 		!SerializingArchive.IsSerializingDefaults() && // null values when Serializing CDOs are allowed, they will be fixed up later
@@ -242,15 +254,44 @@ void FObjectProperty::PostSerializeObjectItem(FArchive& SerializingArchive, void
 		!SerializingArchive.IsTransacting() && // Don't create new objects when loading from the transaction buffer
 		!SerializingArchive.IsCountingMemory())
 	{
-		UObject* DefaultValue = ConstructDefaultObjectValueIfNecessary(CurrentValue);
+		UObject* DefaultValue = nullptr;
 
-		UE_LOG(LogProperty, Warning,
-			TEXT("Failed to serialize value for non-nullable property %s. Reference will be defaulted to %s."),
-			*GetFullName(),
-			DefaultValue ? *DefaultValue->GetFullName() : TEXT("None")
-		);
+		using UE::CoreUObject::Private::ENonNullableBehavior;
+		using UE::CoreUObject::Private::GetNonNullableBehavior;
 
-		SetObjectPropertyValue(Value, DefaultValue);
+		ENonNullableBehavior NonNullableBehavior = GetNonNullableBehavior();
+		if (NonNullableBehavior == ENonNullableBehavior::CreateDefaultObjectIfPossible)
+		{
+			DefaultValue = ConstructDefaultObjectValueIfNecessary(CurrentValue);
+		}
+
+		if (DefaultValue)
+		{
+			UE_LOG(LogProperty, Warning,
+				TEXT("Failed to serialize value for non-nullable property %s (previously: %s). Reference will be defaulted to %s."),
+				*GetFullName(),
+				*GetFullNameSafe(CurrentValue),
+				*GetFullNameSafe(DefaultValue)
+			);
+		}
+		else if (NonNullableBehavior == ENonNullableBehavior::LogWarning)
+		{
+			UE_LOG(LogProperty, Warning,
+				TEXT("Failed to serialize value for non-nullable property %s (previously: %s). Reference will be nulled - will cause a runtime error if accessed."),
+				*GetFullNameSafe(CurrentValue),
+				*GetFullName()
+			);
+		}
+		else
+		{
+			UE_LOG(LogProperty, Error,
+				TEXT("Failed to serialize value for non-nullable property %s (previously: %s). Reference will be nulled - will cause a runtime error if accessed."),
+				*GetFullNameSafe(CurrentValue),
+				*GetFullName()
+			);
+		}
+
+		SetObjectPropertyValueUnchecked(Value, DefaultValue);
 		ObjectValue = DefaultValue;
 	}
 
@@ -280,7 +321,7 @@ void FObjectProperty::PostSerializeObjectItem(FArchive& SerializingArchive, void
 		//        to accommodate this (as it depends on finding itself as the set value)
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 
-		CheckValidObject(Value, CurrentValue);
+		CheckValidObject(Value, ObjectValue);
 	}
 }
 
@@ -319,14 +360,14 @@ uint32 FObjectProperty::GetValueTypeHashInternal(const void* Src) const
 	return GetTypeHash(GetPropertyValue(Src));
 }
 
-TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
-{
-	return GetPropertyValue(PropertyValueAddress);
-}
-
 UObject* FObjectProperty::GetObjectPropertyValue(const void* PropertyValueAddress) const
 {
 	return GetPropertyValue(PropertyValueAddress).Get();
+}
+
+TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
+{
+	return GetPropertyValue(PropertyValueAddress);
 }
 
 UObject* FObjectProperty::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
@@ -336,40 +377,31 @@ UObject* FObjectProperty::GetObjectPropertyValue_InContainer(const void* Contain
 	return Result;
 }
 
-void FObjectProperty::SetObjectPtrPropertyValue(void* PropertyValueAddress, TObjectPtr<UObject> Value) const
+TObjectPtr<UObject> FObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
-	{
-		SetPropertyValue(PropertyValueAddress, Value);
-	}
-	else
-	{
-		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
 }
 
-void FObjectProperty::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
+void FObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
-	{
-		SetPropertyValue(PropertyValueAddress, Value);
-	}
-	else
-	{
-		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
+	SetPropertyValue(PropertyValueAddress, Ptr);
 }
 
-void FObjectProperty::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+void FObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
-	{
-		SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
-	}
-	else
-	{
-		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
+	SetPropertyValue(PropertyValueAddress, Value);
+}
+
+void FObjectProperty::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
+}
+
+void FObjectProperty::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+{
+	SetWrappedUObjectPtrValues<FObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
 }
 
 void FObjectProperty::CopySingleValueToScriptVM(void* Dest, const void* Src) const

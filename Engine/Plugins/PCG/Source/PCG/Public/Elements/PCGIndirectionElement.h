@@ -62,7 +62,7 @@ public:
 
 	/** The element settings, which can be overriden, that will be used during the proxy execution */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
-	TSoftObjectPtr<UPCGSettings> Settings;
+	TObjectPtr<UPCGSettings> Settings;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bTagOutputsBasedOnOutputPins = true;

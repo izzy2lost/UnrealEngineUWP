@@ -6,8 +6,6 @@
 
 #define LOCTEXT_NAMESPACE "RigVMExecutionStackTabSummoner"
 
-const FName FRigVMExecutionStackTabSummoner::TabID(TEXT("Execution Stack"));
-
 FRigVMExecutionStackTabSummoner::FRigVMExecutionStackTabSummoner(const TSharedRef<FRigVMEditor>& InRigVMEditor)
 	: FWorkflowTabFactory(TabID, InRigVMEditor)
 	, RigVMEditor(InRigVMEditor)

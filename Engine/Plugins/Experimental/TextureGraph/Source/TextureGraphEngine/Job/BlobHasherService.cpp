@@ -27,7 +27,7 @@ void BlobHasherService::Add(BlobRef BlobObj)
 
 AsyncJobResultPtr BlobHasherService::Tick()
 {
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Svc_BlobHasher::Tick"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Svc_BlobHasher::Tick"));
 
 	static constexpr size_t MaxBlobs = 8;
 	BlobPtr BlobObjs[MaxBlobs];

@@ -9,11 +9,19 @@
 #include "GeometryMaskWorldSubsystem.generated.h"
 
 class FGeometryMaskSceneViewExtension;
+class ULevel;
 
 using FOnGeometryMaskCanvasCreated = TMulticastDelegate<void(const UGeometryMaskCanvas*)>;
 using FOnGeometryMaskCanvasDestroyed = TMulticastDelegate<void(const FGeometryMaskCanvasId&)>;
 
+USTRUCT()
+struct FGeometryMaskLevelState
+{
+	GENERATED_BODY()
 
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UGeometryMaskCanvas>> NamedCanvases;
+};
 
 /** Updates the canvases. */
 UCLASS()
@@ -24,12 +32,10 @@ class GEOMETRYMASK_API UGeometryMaskWorldSubsystem
 
 public:
 	/** Retrieves a Canvas, uniquely identified by this world and the canvas name. */
-	UFUNCTION(BlueprintCallable, Category = "Canvas")
-	UGeometryMaskCanvas* GetNamedCanvas(FName InName);
+	UGeometryMaskCanvas* GetNamedCanvas(const ULevel* InLevel, FName InName);
 
 	/** Returns all registered canvas names for this world. */
-	UFUNCTION(BlueprintCallable, Category = "Canvas")
-	TArray<FName> GetCanvasNames();
+	TArray<FName> GetCanvasNames(const ULevel* InLevel);
 	
 	/** Remove all canvases without any Readers or Writers. Return the number of canvases removed. */
 	int32 RemoveWithoutWriters();
@@ -47,17 +53,21 @@ protected:
 	// ~End USubsystem
 
 private:
+	const FGeometryMaskLevelState* FindLevelState(const ULevel* InLevel) const;
+
+	FGeometryMaskLevelState& FindOrAddLevelState(const ULevel* InLevel);
+
 	void OnCanvasActivated(UGeometryMaskCanvas* InCanvas);
 	void OnCanvasDeactivated(UGeometryMaskCanvas* InCanvas);
 
 private:
 	friend class UGeometryMaskSubsystem;
-	
+
 	TSharedPtr<FGeometryMaskSceneViewExtension> GeometryMaskSceneViewExtension;
 
 	FOnGeometryMaskCanvasCreated OnGeometryMaskCanvasCreatedDelegate;
 	FOnGeometryMaskCanvasDestroyed OnGeometryMaskCanvasDestroyedDelegate;
 
 	UPROPERTY()
-	TMap<FName, TObjectPtr<UGeometryMaskCanvas>> NamedCanvases;
+	TMap<TWeakObjectPtr<const ULevel>, FGeometryMaskLevelState> LevelStates;
 };

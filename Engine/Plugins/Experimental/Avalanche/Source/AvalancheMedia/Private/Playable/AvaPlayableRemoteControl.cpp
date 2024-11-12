@@ -176,6 +176,15 @@ EAvaPlayableRemoteControlResult UE::AvaPlayableRemoteControl::SetValueOfEntity(c
 	// - OnPropertyChangedDelegate (OnExposedPropertiesModified()) is a "per frame" event and is broadcast from URemoteControlPreset::OnEndFrame().
 	const bool bDeserializationSucceeded = IRemoteControlModule::Get().SetObjectProperties(ObjectRefWrite, ReaderBackend, ERCPayloadType::Json);
 
+	if (!bDeserializationSucceeded && !ReaderBackend.GetLastErrorMessage().IsEmpty())
+	{
+		UObject* FieldBoundObject = Field->GetBoundObject();
+		UE_LOG(LogAvaPlayableRemoteControl, Error,
+			TEXT("Couldn\'t set object property \"%s\" in object \"%s\" - Deserializer Error: %s"),
+			*Field->FieldName.ToString(), IsValid(FieldBoundObject) ? *FieldBoundObject->GetPathName() : TEXT("[InvalidFieldBoundObject]"),
+			*ReaderBackend.GetLastErrorMessage());
+	}
+
 #if WITH_EDITOR
 	UObject* const Object = ObjectRefWrite.Object.Get();
 	if (bDeserializationSucceeded && IsValid(Object))

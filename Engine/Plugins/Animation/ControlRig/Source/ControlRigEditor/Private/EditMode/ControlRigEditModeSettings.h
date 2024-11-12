@@ -98,4 +98,7 @@ public:
 
 	/** Delegate broadcasted whenever GizmoScale is modified */
 	FGizmoScaleSet GizmoScaleDelegate;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUpdateSettings, const UControlRigEditModeSettings*);
+	static FOnUpdateSettings OnSettingsChange;
 };

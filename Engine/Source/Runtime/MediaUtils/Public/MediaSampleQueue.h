@@ -21,6 +21,14 @@
 #include "IMediaBinarySample.h"
 #include "IMediaOverlaySample.h"
 
+
+enum class EMediaSampleQueueFetchResult
+{
+	Found,
+	None,
+	PurgedToEmpty
+};
+
 /**
  * Template for media sample queues.
  */
@@ -69,7 +77,7 @@ public:
 		}
 
 		TSharedPtr<SampleType, ESPMode::ThreadSafe> Sample(Samples[0]);
-			
+
 		if (!Sample.IsValid())
 		{
 			return false; // pending flush
@@ -101,6 +109,41 @@ public:
 		OutSample = Sample;
 
 		return true;
+	}
+
+	virtual bool PeekFrontAndBack(TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutFirstSample, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutLastSample) override
+	{
+		FScopeLock Lock(&CriticalSection);
+
+		if (Samples.Num() == 0)
+		{
+			return false; // empty queue
+		}
+
+		TSharedPtr<SampleType, ESPMode::ThreadSafe> FirstSample(Samples[0]);
+		TSharedPtr<SampleType, ESPMode::ThreadSafe> LastSample(Samples.Last());
+
+		if (!FirstSample.IsValid() || !LastSample.IsValid())
+		{
+			return false; // pending flush
+		}
+
+		OutFirstSample = FirstSample;
+		OutLastSample = LastSample;
+
+		return true;
+	}
+
+	virtual void GetSampleTimes(TArray<TRange<FMediaTimeStamp>>& OutSampleTimeRanges) override
+	{
+		FScopeLock Lock(&CriticalSection);
+		for(int32 i=0,iMax=Samples.Num(); i<iMax; ++i)
+		{
+			if (Samples[i].IsValid())
+			{
+				OutSampleTimeRanges.Emplace(TRange<FMediaTimeStamp>(Samples[i]->GetTime(), Samples[i]->GetTime() + Samples[i]->GetDuration()));
+			}
+		}
 	}
 
 	virtual bool Pop() override
@@ -144,13 +187,13 @@ public:
 		return false;
 	}
 
-	bool FetchBestSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
+	EMediaSampleQueueFetchResult FetchBestSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
 	{
 		// Notes:
 		// - Reverse playback still works with increasing indices in the queue. PTS values will be going down in it, rather than up,
 		//   but the order of indices is still identical.
 		// - The code below must be able to deal with time ranges that span loop points (different secondary sequence indices)
-		
+
 		// Code below assumes a fully specified range, no open bounds!
 		check(TimeRange.HasLowerBound() && TimeRange.HasUpperBound());
 
@@ -215,7 +258,7 @@ public:
 				//
 				// Return the first sample with maximum possible coverage given the time range or nothing if the sample is not yet in the queue
 				// (this yields reproducible results between instances as far as the selection of frames is concerned if the passed in ranges are identical in each run / instance)
-				// 
+				//
 
 				for (int32 Idx = FirstPossibleIndex; Idx <= LastPossibleIndex; ++Idx)
 				{
@@ -249,7 +292,7 @@ public:
 		}
 
 		// Return true if we got a sample...
-		return (OutSample.IsValid());
+		return OutSample.IsValid() ? EMediaSampleQueueFetchResult::Found : (NumOldSamplesAtBegin && Samples.IsEmpty() ? EMediaSampleQueueFetchResult::PurgedToEmpty : EMediaSampleQueueFetchResult::None);
 	}
 
 
@@ -320,6 +363,13 @@ public:
 	{
 		FScopeLock Lock(&CriticalSection);
 		Samples.Empty();
+		++FlushCount;
+	}
+
+	virtual uint32 GetFlushCount() const
+	{
+		FScopeLock Lock(&CriticalSection);
+		return FlushCount;
 	}
 
 	virtual bool CanAcceptSamples(int32 NumSamples) const override
@@ -382,6 +432,7 @@ protected:
 	mutable FCriticalSection CriticalSection;
 	TArray<TSharedPtr<SampleType, ESPMode::ThreadSafe>> Samples;
 	int32 MaxSamplesInQueue;
+	uint32 FlushCount = 0;
 };
 
 
@@ -393,10 +444,19 @@ public:
 		: TMediaSampleQueue<class IMediaAudioSample, class FMediaAudioSampleSink>(MaxSamplesInQueue)
 	{ }
 
-	void SetAudioTime(const FMediaTimeStampSample & InAudioTime)
+	void SetAudioTime(const FMediaTimeStampSample& InAudioTime)
 	{
 		FScopeLock Lock(&CriticalSection);
 		AudioTime = InAudioTime;
+	}
+
+	void SetAudioTimeIfEqualFlushCount(const FMediaTimeStampSample& InAudioTime, uint32 InFlushCount)
+	{
+		FScopeLock Lock(&CriticalSection);
+		if (InFlushCount == FlushCount)
+		{
+			AudioTime = InAudioTime;
+		}
 	}
 
 	FMediaTimeStampSample GetAudioTime() const override

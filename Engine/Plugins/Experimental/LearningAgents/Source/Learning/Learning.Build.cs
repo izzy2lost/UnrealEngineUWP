@@ -40,6 +40,8 @@ public class Learning : ModuleRules
 			{
 				"CoreUObject",
 				"Engine",
+				"Json",
+				"JsonUtilities",
 				"NNE",
 				"NNERuntimeBasicCpu",
 				// ... add private dependencies that you statically link with here ...	
@@ -53,5 +55,7 @@ public class Learning : ModuleRules
 				// ... add any modules that your module loads dynamically here ...
 			}
 			);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

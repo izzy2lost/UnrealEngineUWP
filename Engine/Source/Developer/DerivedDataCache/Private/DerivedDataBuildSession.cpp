@@ -2,12 +2,12 @@
 
 #include "DerivedDataBuildSession.h"
 
+#include "Containers/SharedString.h"
 #include "DerivedDataBuildAction.h"
 #include "DerivedDataBuildDefinition.h"
 #include "DerivedDataBuildJob.h"
 #include "DerivedDataBuildOutput.h"
 #include "DerivedDataBuildPrivate.h"
-#include "DerivedDataSharedString.h"
 #include "DerivedDataValue.h"
 
 namespace UE::DerivedData::Private

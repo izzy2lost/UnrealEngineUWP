@@ -73,6 +73,7 @@ bool FComputeEvent::Create(const char* Name)
 		Handle = Value;
 		return true;
 	}
+	checkf(false, TEXT("sem_open failed (%hs)"), strerror(errno));
 	return false;
 #endif
 }
@@ -317,7 +318,7 @@ void FComputeMemoryMappedFile::Close()
 	}
 
 	int Fd = (int)(size_t)Handle;
-	if(Fd >= 0)
+	if(Fd > 0)
 	{
 		close(Fd);
 		Handle = nullptr;

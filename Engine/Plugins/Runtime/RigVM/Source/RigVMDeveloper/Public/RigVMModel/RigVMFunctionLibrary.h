@@ -75,10 +75,16 @@ public:
 
 	bool IsFunctionPublic(const FName& InFunctionName) const { return PublicFunctionNames.Contains(InFunctionName); }
 
+	const FRigVMVariant* GetFunctionVariant(const FName& InFunctionName) const;
+	FRigVMVariant* GetFunctionVariant(const FName& InFunctionName);
+
 private:
 
 	UPROPERTY()
 	TArray<FName> PublicFunctionNames;
+
+	UPROPERTY()
+	TMap<FName, FRigVMVariant> FunctionToVariant;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -94,6 +100,7 @@ private:
 	friend class URigVMController;
 	friend class URigVMCompiler;
 	friend class URigVMBlueprint;
+	friend struct FRigVMClient;
 	friend class UControlRigBlueprint;
 };
 

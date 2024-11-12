@@ -389,7 +389,8 @@ BEGIN_ONLINE_STRUCT_META(FBatchQueryPresence::Result)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FGetCachedPresence::Params)
-	ONLINE_STRUCT_FIELD(FGetCachedPresence::Params, LocalAccountId)
+	ONLINE_STRUCT_FIELD(FGetCachedPresence::Params, LocalAccountId),
+	ONLINE_STRUCT_FIELD(FGetCachedPresence::Params, TargetAccountId)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FGetCachedPresence::Result)

@@ -14,11 +14,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGSelectPointsElement"
 
-UPCGSelectPointsSettings::UPCGSelectPointsSettings()
-{
-	bUseSeed = true;
-}
-
 #if WITH_EDITOR
 FText UPCGSelectPointsSettings::GetNodeTooltipText() const
 {
@@ -90,7 +85,7 @@ bool FPCGSelectPointsElement::ExecuteInternal(FPCGContext* Context) const
 		const TArray<FPCGPoint>& Points = OriginalData->GetPoints();
 		const int OriginalPointCount = Points.Num();
 
-		UPCGPointData* SampledData = NewObject<UPCGPointData>();
+		UPCGPointData* SampledData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		SampledData->InitializeFromData(OriginalData);
 		TArray<FPCGPoint>& SampledPoints = SampledData->GetMutablePoints();
 

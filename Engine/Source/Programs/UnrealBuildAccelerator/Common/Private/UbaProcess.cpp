@@ -4,6 +4,7 @@
 #include "UbaFileAccessor.h"
 #include "UbaProtocol.h"
 #include "UbaProcessStats.h"
+#include "UbaProcessUtils.h"
 #include "UbaApplicationRules.h"
 
 #if PLATFORM_WINDOWS
@@ -31,6 +32,9 @@
 
 extern char **environ;
 #endif
+
+#define UBA_DEBUG_TRACK_PROCESS UBA_DEBUG_LOGGER
+
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -99,8 +103,6 @@ namespace uba
 	,	m_tempFilesLock(parent ? parent->m_tempFilesLock : *new ReaderWriterLock())
 	,	m_tempFiles(parent ? parent->m_tempFiles : *new UnorderedMap<StringKey, WrittenFile>)
 	{
-
-		CreateGuid(m_processGuid);
 		m_cancelEvent.Create(true, true);
 		m_writeEvent.Create(false, true);
 		m_readEvent.Create(false, true);
@@ -108,6 +110,7 @@ namespace uba
 
 	ProcessImpl::~ProcessImpl()
 	{
+		UBA_ASSERT(m_refCount == 0);
 		{
 			#if !PLATFORM_WINDOWS
 			SCOPED_WRITE_LOCK(m_comMemoryLock, lock);
@@ -142,7 +145,7 @@ namespace uba
 		}
 	}
 
-	void ProcessImpl::Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async, bool enableDetour)
+	bool ProcessImpl::Start(const ProcessStartInfo& startInfo, bool runningRemote, void* environment, bool async, bool enableDetour)
 	{
 		m_detourEnabled = enableDetour;
 
@@ -150,29 +153,31 @@ namespace uba
 
 		m_startInfo = startInfo;
 
-		m_description = startInfo.description;
-		m_startInfo.description = m_description.c_str();
+		FixPathSeparators(m_startInfo.workingDirStr.data());
+		FixPathSeparators(m_startInfo.logFileStr.data());
 
-		m_virtualApplication = startInfo.application;
-		FixPathSeparators(m_virtualApplication.data());
-		m_startInfo.application = m_virtualApplication.c_str();
+		if (IsAbsolutePath(m_startInfo.application))
+		{
+			StringBuffer<256> temp2;
+			FixPath(m_startInfo.applicationStr.data(), nullptr, 0, temp2);
+			m_startInfo.applicationStr = temp2.data;
+			m_startInfo.application = m_startInfo.applicationStr.data();
+		}
+		else
+			FixPathSeparators(m_startInfo.applicationStr.data());
 
-		m_arguments = startInfo.arguments;
-		m_startInfo.arguments = m_arguments.c_str();
 
-		m_virtualWorkingDir = startInfo.workingDir;
-		FixPathSeparators(m_virtualWorkingDir.data());
-		m_startInfo.workingDir = m_virtualWorkingDir.c_str();
+		m_startInfo.Expand();
 
-		m_logFile = startInfo.logFile;
-		FixPathSeparators(m_logFile.data());
-		m_startInfo.logFile = m_logFile.c_str();
+		m_extractExports = Contains(m_startInfo.arguments, TC("/extractexports"), true);
 
-		size_t nameIndex = m_virtualApplication.find_last_of(PathSeparator);
-		if (nameIndex != -1)
-			m_virtualApplicationDir = m_virtualApplication.substr(0, nameIndex);
+		StringBuffer<> realApplication(m_startInfo.application);
+		const tchar* realWorkingDir = m_startInfo.workingDir;
 
-		m_realApplication = std::move(realApplication);
+		if (!m_session.PrepareProcess(m_startInfo, m_parentProcess != nullptr, realApplication, realWorkingDir))
+			return false;
+
+		m_realApplication = realApplication.data;
 		m_realWorkingDir = realWorkingDir;
 		if (realWorkingDir == startInfo.workingDir)
 			m_realWorkingDir = m_startInfo.workingDir;
@@ -180,14 +185,34 @@ namespace uba
 		if (m_parentProcess)
 			m_waitForParent.Create(true);
 
-		SetRulesIndex(startInfo);
+		UBA_ASSERT(m_startInfo.rules);
+
+		// If running remote we can't use mspdbsrv (not supported yet).. so instead embed information in .obj file
+		// TODO: This should be placed somewhere else it feels like.
+		#if PLATFORM_WINDOWS
+		if (runningRemote && (m_startInfo.rules->index == 1 || m_startInfo.rules->index == 2))
+		{
+			tchar* pos = nullptr;
+			if (Contains(m_startInfo.argumentsStr.data(), L"/FS ", true, (const tchar**)&pos))
+				memcpy(pos, L"/Z7", 6);
+		}
+		#endif
 
 		m_session.ProcessAdded(*this, 0);
 
 		if (async)
-			m_messageThread.Start([this, runningRemote, environment]() { ThreadRun(runningRemote, environment); return 0; });
+			m_messageThread.Start([this, runningRemote, environment]()
+				{
+					ThreadRun(runningRemote, environment);
+					ThreadExit();
+					return 0;
+				});
 		else
+		{
 			ThreadRun(runningRemote, environment);
+			ThreadExit();
+		}
+		return true;
 	}
 
 	bool ProcessImpl::IsActive()
@@ -240,17 +265,20 @@ namespace uba
 					if (data[0] != 'M' || data[1] != 'Z')
 						is64Bit = false;
 					else
-						is64Bit = *(u32*)(data + 0x3c) == 0x50450000;
+					{
+						u32 offset = *(u32*)(data + 0x3c);
+						is64Bit = *(u32*)(data + offset) == 0x00004550;
+					}
 				}
 
 				if (!is64Bit)
 					err.Appendf(TC("ERROR: Process did not start properly. Doesn't seem to be a 64-bit executable (%s Size: %llu, CasKey: %s)"), m_realApplication.c_str(), fileSize, CasKeyString(key).str);
 				else
-					err.Appendf(TC("ERROR: Process did not start properly. GetExitCodeProcess returned %u (%s Size: %llu, CasKey: %s)"), exitCode, m_realApplication.c_str(), fileSize, CasKeyString(key).str);
+					err.Appendf(TC("ERROR: Process did not start properly. GetExitCodeProcess returned 0x%x (%s Size: %llu, CasKey: %s)"), exitCode, m_realApplication.c_str(), fileSize, CasKeyString(key).str);
 			}
 
 			if (err.IsEmpty())
-				err.Appendf(TC("ERROR: Process %llu %s (%s) not active but did not get exit message. Received %u messages (GetExitCodeProcess returned %u)"), u64(m_nativeProcessHandle), m_description.c_str(), m_realApplication.c_str(), m_messageCount, exitCode);
+				err.Appendf(TC("ERROR: Process %llu %s (%s) not active but did not get exit message. Received %u messages (GetExitCodeProcess returned 0x%x)"), u64(m_nativeProcessHandle), m_startInfo.GetDescription(), m_realApplication.c_str(), m_messageCount, exitCode);
 			LogLine(false, err.data, LogEntryType_Error);
 			m_nativeProcessExitCode = UBA_EXIT_CODE(666);
 		}
@@ -308,6 +336,7 @@ namespace uba
 					break;
 				}
 
+				u32 nativeProcessId = m_nativeProcessId;
 				m_nativeProcessId = 0;
 				m_nativeProcessExitCode = signalInfo.si_status;
 				
@@ -315,7 +344,7 @@ namespace uba
 					break;
 					
 				StringBuffer<> err;
-				err.Appendf(TC("Process %u (%s) %s by signal %i. Received %u messages. Execution time: %s."), m_nativeProcessId, m_description.c_str(), codeType, signalInfo.si_status, m_messageCount, TimeToText(GetTime() - m_startTime).str);
+				err.Appendf(TC("Process %u (%s) %s by signal %i. Received %u messages. Execution time: %s."), nativeProcessId, m_startInfo.GetDescription(), codeType, signalInfo.si_status, m_messageCount, TimeToText(GetTime() - m_startTime).str);
 				LogLine(false, err.data, LogEntryType_Error);
 				m_nativeProcessExitCode = UBA_EXIT_CODE(666); // We do exit code 666 to trigger non-uba retry on the outside
 				return false;
@@ -334,7 +363,7 @@ namespace uba
 			}
 
 			StringBuffer<> err;
-			err.Appendf(TC("ERROR: Process %u (%s) not active but did not get exit message. Received %u messages. Signal code: %i. Exit value or signal: %i. Execution time: %s."), m_nativeProcessId, m_description.c_str(), m_messageCount, signalInfo.si_code, signalInfo.si_status, TimeToText(GetTime() - m_startTime).str);
+			err.Appendf(TC("ERROR: Process %u (%s) not active but did not get exit message. Received %u messages. Signal code: %i. Exit value or signal: %i. Execution time: %s."), m_nativeProcessId, m_startInfo.GetDescription(), m_messageCount, signalInfo.si_code, signalInfo.si_status, TimeToText(GetTime() - m_startTime).str);
 			LogLine(false, err.data, LogEntryType_Error);
 			m_nativeProcessExitCode = UBA_EXIT_CODE(666);
 		}
@@ -351,6 +380,11 @@ namespace uba
 		#else
 		return m_cancelled; // can't use cancel event since memory might have been returned
 		#endif
+	}
+
+	bool ProcessImpl::HasFailedMessage()
+	{
+		return !m_messageSuccess;
 	}
 
 	bool ProcessImpl::WaitForExit(u32 millisecondsTimeout)
@@ -406,10 +440,12 @@ namespace uba
 
 	void ProcessImpl::ThreadRun(bool runningRemote, void* environment)
 	{
-		{
-		SystemStatsScope systemStatsScope(m_systemStats);
+		KernelStatsScope kernelStatsScope(m_kernelStats);
 		StorageStatsScope storageStatsScope(m_storageStats);
 		SessionStatsScope sessionStatsScope(m_sessionStats);
+
+		if (HandleSpecialApplication())
+			return;
 
 		u8* comMemory = m_comMemory.memory;
 		u64 comMemorySize = CommunicationMemSize;
@@ -449,13 +485,11 @@ namespace uba
 				#endif
 			}
 
-			u64 exitStartTime = GetTime();
+			m_processStats.exitTime = GetTime();
 
 			bool cancelled = IsCancelled();
 			if (exitCode == 0)
 				exitCode = InternalExitProcess(cancelled);
-
-			m_processStats.exitTime = GetTime() - exitStartTime;
 
 			if (exitCode == 0 && !m_messageSuccess)
 				exitCode = UBA_EXIT_CODE(1);
@@ -483,8 +517,6 @@ namespace uba
 			ClearTempFiles();
 		}
 
-		m_processStats.wallTime = GetTime() - m_startTime;
-
 		#if PLATFORM_WINDOWS
 		if (m_accountingJobObject)
 		{
@@ -499,18 +531,28 @@ namespace uba
 			m_exitCode = ProcessCancelExitCode;
 		else
 			m_exitCode = exitCode;
-		}
+	}
 
-		SystemStats::GetGlobal().Add(m_systemStats);
+	void ProcessImpl::ThreadExit()
+	{
+		m_processStats.wallTime = GetTime() - m_startTime;
+
+		KernelStats::GetGlobal().Add(m_kernelStats);
+
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("ProcessExitedStart (%u)\n"), m_id);
+		#endif
 
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
 		for (auto& child : m_childProcesses)
-			while (!((ProcessImpl*)child.m_process)->m_hasExited)
+		{
+			auto& childProcess = *(ProcessImpl*)child.m_process;
+			childProcess.m_waitForParent.Set();
+			while (!childProcess.m_hasExited)
 				Sleep(10);
+		}
 
 		UBA_ASSERT(!m_parentProcess || !m_parentProcess->m_hasExited);
-
-		m_session.ProcessExited(*this, m_processStats.wallTime);
 
 		m_hasExited = true;
 
@@ -539,7 +581,89 @@ namespace uba
 			exitedFunc(userData, h);
 			h.m_process = nullptr;
 		}
+
+		UBA_ASSERT(m_refCount);
+
+		if (m_processStats.exitTime)
+			m_processStats.exitTime = GetTime() - m_processStats.exitTime;
+
+		// Must be done last to make sure shutdown is not racing
+		m_session.ProcessExited(*this, m_processStats.wallTime);
+
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("ProcessExitedDone  (%u)\n"), m_id);
+		#endif
 	}
+
+	bool ProcessImpl::HandleSpecialApplication()
+	{
+	#if PLATFORM_WINDOWS
+		if (!Equals(m_startInfo.application, TC("ubacopy")))
+			return false;
+		const tchar* fromFileBegin = m_startInfo.arguments;
+		const tchar* fromFileEnd = TStrchr(fromFileBegin, '\"');
+		UBA_ASSERT(fromFileEnd);
+		const tchar* toFileBegin = TStrchr(fromFileEnd + 1, '\"');
+		UBA_ASSERT(toFileBegin);
+		++toFileBegin;
+		const tchar* toFileEnd = TStrchr(toFileBegin, '\"');
+		UBA_ASSERT(toFileEnd);
+
+		m_processStats.wallTime = GetTime() - m_startTime;
+
+		StringBuffer<> workDir(m_startInfo.workingDir);
+		workDir.EnsureEndsWithSlash();
+
+		StringBuffer<> fromName;
+		StringBuffer<> toName;
+
+		StringBuffer<> temp;
+		temp.Append(fromFileBegin, fromFileEnd - fromFileBegin);
+		FixPath(temp.data, workDir.data, workDir.count, fromName);
+		temp.Clear().Append(toFileBegin, toFileEnd - toFileBegin);
+		FixPath(temp.data, workDir.data, workDir.count, toName);
+
+		DWORD oldAttributes = GetFileAttributes(toName.data);
+		if (oldAttributes != INVALID_FILE_ATTRIBUTES && (oldAttributes & FILE_ATTRIBUTE_READONLY))
+			SetFileAttributes(toName.data, oldAttributes & (~FILE_ATTRIBUTE_READONLY));
+
+		if (!CopyFileW(fromName.data, toName.data, false))
+		{
+			m_exitCode = GetLastError();
+			temp.Clear().Appendf(TC("Failed to copy %s to %s (%s)"), fromName.data, toName.data, LastErrorToText(m_exitCode).data);
+			m_logLines.push_back({ TString(temp.data), LogEntryType_Error });
+			return true;
+		}
+		
+		SetFileAttributes(toName.data, DefaultAttributes());
+
+		StringKey toKey = ToStringKeyLower(toName);
+		m_session.RegisterCreateFileForWrite(toKey, toName, true);
+
+		//m_writtenFiles.try_emplace(name);
+		//WrittenFile& writtenFile = m_writtenFiles[toName.data];
+		//writtenFile.key = toKey;
+		//writtenFile.name = toName.data;
+		//writtenFile.owner = this;
+		//writtenFile.attributes = DefaultAttributes();
+
+		StackBinaryWriter<1024> trackedInputs;
+		trackedInputs.WriteString(fromName);
+		m_trackedInputs.resize(trackedInputs.GetPosition());
+		memcpy(m_trackedInputs.data(), trackedInputs.GetData(), trackedInputs.GetPosition());
+
+		StackBinaryWriter<1024> trackedOutputs;
+		trackedOutputs.WriteString(toName);
+		m_trackedOutputs.resize(trackedOutputs.GetPosition());
+		memcpy(m_trackedOutputs.data(), trackedOutputs.GetData(), trackedOutputs.GetPosition());
+		
+		m_exitCode = 0;
+		return true;
+	#else
+		return false;
+	#endif
+	}
+
 
 	bool ProcessImpl::HandleMessage(BinaryReader& reader, BinaryWriter& writer)
 	{
@@ -571,6 +695,7 @@ namespace uba
 		InitResponse response;
 		m_messageSuccess = m_session.GetInitResponse(response, msg) && m_messageSuccess;
 		writer.WriteBool(m_echoOn);
+		writer.WriteBool(m_parentProcess != nullptr);
 		writer.WriteString(m_startInfo.application);
 		writer.WriteString(m_startInfo.workingDir);
 		writer.WriteU64(response.directoryTableHandle);
@@ -604,11 +729,25 @@ namespace uba
 		GetFullFileNameMessage msg { *this };
 		reader.ReadString(msg.fileName);
 		msg.fileNameKey = reader.ReadStringKey();
+		msg.loaderPathsSize = reader.ReadU16();
+		msg.loaderPaths = reader.GetPositionData();
+		
 		GetFullFileNameResponse response;
 		m_messageSuccess = m_session.GetFullFileName(response, msg) && m_messageSuccess;
 		writer.WriteString(response.fileName);
 		writer.WriteString(response.virtualFileName);
 		writer.WriteU32(response.mappedFileTableSize);
+		return true;
+	}
+
+	bool ProcessImpl::HandleGetLongPathName(BinaryReader& reader, BinaryWriter& writer)
+	{
+		GetLongPathNameMessage msg { *this };
+		reader.ReadString(msg.fileName);
+		GetLongPathNameResponse response;
+		m_messageSuccess = m_session.GetLongPathName(response, msg) && m_messageSuccess;
+		writer.WriteU32(response.errorCode);
+		writer.WriteString(response.fileName);
 		return true;
 	}
 
@@ -698,6 +837,20 @@ namespace uba
 		m_messageSuccess = m_session.CreateDirectory(response, msg) && m_messageSuccess;
 		writer.WriteBool(response.result);
 		writer.WriteU32(response.errorCode);
+		writer.WriteU32(response.directoryTableSize);
+		return true;
+	}
+
+	bool ProcessImpl::HandleRemoveDirectory(BinaryReader& reader, BinaryWriter& writer)
+	{
+		RemoveDirectoryMessage msg;
+		msg.nameKey = reader.ReadStringKey();
+		reader.ReadString(msg.name);
+		RemoveDirectoryResponse response;
+		m_messageSuccess = m_session.RemoveDirectory(response, msg) && m_messageSuccess;
+		writer.WriteBool(response.result);
+		writer.WriteU32(response.errorCode);
+		writer.WriteU32(response.directoryTableSize);
 		return true;
 	}
 
@@ -715,8 +868,50 @@ namespace uba
 
 	bool ProcessImpl::HandleUpdateTables(BinaryReader& reader, BinaryWriter& writer)
 	{
-		u32 dirSize = m_session.GetDirectoryTableSize();
-		writer.WriteU32(dirSize);
+		writer.WriteU32(m_session.GetDirectoryTableSize());
+		writer.WriteU32(m_session.GetFileMappingSize());
+
+#if PLATFORM_WINDOWS
+		if (!m_tempFilesModified)
+		{
+			writer.WriteU32(0);
+			return true;
+		}
+
+		// This should be very rare (lld-link.exe uses it for mt.exe).. if we get too many temp files we'll need to rethink this design
+		SCOPED_READ_LOCK(m_tempFilesLock, l);
+		writer.WriteU32(u32(m_tempFiles.size()));
+		for (auto& kv : m_tempFiles)
+		{
+			writer.WriteStringKey(kv.first);
+			writer.WriteU64(kv.second.mappingWritten);
+		}
+#endif
+		return true;
+	}
+
+	bool ProcessImpl::HandleGetParentWrittenFiles(BinaryReader& reader, BinaryWriter& writer)
+	{
+		// TODO: Recurse
+		UBA_ASSERT(m_parentProcess);
+		u32& writtenCount = *(u32*)writer.AllocWrite(4);
+		
+		//writer.WriteU32(u32(m_parentProcess->m_writtenFiles.size()));
+		u32 count = 0;
+		for (auto& kv : m_parentProcess->m_writtenFiles)
+		{
+			WrittenFile& wf = kv.second;
+			if (wf.mappingHandle.IsValid())
+				continue;
+			u64 fileSize;
+			if (!FileExists(m_session.m_logger, wf.name.c_str(), &fileSize))
+				continue;
+			writer.WriteStringKey(wf.key);
+			writer.WriteString(wf.name);
+			writer.WriteU64(fileSize);
+			++count;
+		}
+		writtenCount = count;
 		return true;
 	}
 
@@ -727,14 +922,15 @@ namespace uba
 		static bool subreaper = []() { prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); return true; }();
 		#endif
 
-		StringBuffer<> application;
-		reader.ReadString(application);
+		TString applicationStr = reader.ReadString();
 		StringBuffer<64*1024*2> fullCommandLine;
 		reader.ReadString(fullCommandLine);
 		StringBuffer<> currentDir;
 		reader.ReadString(currentDir);
 		if (currentDir.IsEmpty())
 			currentDir.Append(m_startInfo.workingDir);
+		bool startSuspended = reader.ReadBool();
+		bool isChild = reader.ReadBool();
 
 		const tchar* commandLine = nullptr;
 
@@ -746,18 +942,26 @@ namespace uba
 				second = fullCommandLine.data + fullCommandLine.count;
 			//UBA_ASSERTF(second, TC("Missing second '\"' in command line: %s"), fullCommandLine.data); // "Unsupported cmd line format"
 			commandLine = second + 1;
-			if (application.IsEmpty())
-				application.Append(fullCommandLine.data + 1, u64(second - fullCommandLine.data - 1));
+			if (applicationStr.empty())
+				applicationStr.assign(fullCommandLine.data + 1, u64(second - fullCommandLine.data - 1));
 		}
 		else
 		{
-			const tchar* secondParamStart = fullCommandLine.First(' ', 1);
+			u32 searchOffset = 1;
+			if (applicationStr.empty() && IsWindows)
+			{
+				const tchar* extPos = nullptr;
+				fullCommandLine.Contains(TC(".exe"), true, &extPos);
+				UBA_ASSERT(extPos);
+				searchOffset = u32(extPos - fullCommandLine.data);
+			}
+			const tchar* secondParamStart = fullCommandLine.First(' ', searchOffset);
 			if (!secondParamStart)
 				commandLine = TC("");
 			else
 				commandLine = secondParamStart + 1;
-			if (application.IsEmpty())
-				application.Append(fullCommandLine.data, u64(secondParamStart - fullCommandLine.data));
+			if (applicationStr.empty())
+				applicationStr.assign(fullCommandLine.data, u64(secondParamStart - fullCommandLine.data));
 		}
 
 		while (*commandLine == ' ')
@@ -765,19 +969,31 @@ namespace uba
 
 		StringBuffer<> temp;
 		ProcessStartInfo info;
-		info.application = application.data;
+		info.application = applicationStr.c_str();
 		info.arguments = commandLine;
-		info.description = application.GetFileName();
 		info.workingDir = currentDir.data;
 		info.logFile = InternalGetChildLogFile(temp);
 		info.priorityClass = m_startInfo.priorityClass;
 		info.outputStatsThresholdMs = m_startInfo.outputStatsThresholdMs;
 		info.logLineUserData = this;
 		info.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((ProcessImpl*)userData)->LogLine(false, TString(line, length), type); };
+		info.startSuspended = startSuspended;
 
-		ProcessHandle h = m_session.InternalRunProcess(info, true, this, true);
-		m_childProcesses.push_back(h);
-		u32 childProcessId = u32(m_childProcesses.size());
+		ProcessImpl* parent = isChild ? this : nullptr;
+		ProcessHandle h = m_session.InternalRunProcess(info, true, parent, true);
+		if (!h.m_process)
+		{
+			// TODO: Do we need to log something here? This failure is most likely a cause of something else so error logging might show somewhere else
+			writer.WriteU32(0); // childProcessId
+			return true;
+		}
+
+		u32 childProcessId = ~0u;
+		if (isChild)
+		{
+			m_childProcesses.push_back(h);
+			childProcessId = u32(m_childProcesses.size());
+		}
 
 		auto& process = *(ProcessImpl*)h.m_process;
 		process.m_echoOn = m_echoOn;
@@ -786,11 +1002,13 @@ namespace uba
 		u32 detoursLibLen = u32(m_session.m_detoursLibrary.size());
 
 		writer.WriteU32(childProcessId);
-		writer.WriteU32(process.m_rulesIndex);
+		writer.WriteU32(info.rules->index);
 		writer.WriteU32(detoursLibLen);
 		writer.WriteBytes(detoursLib, detoursLibLen);
 
 		writer.WriteString(m_realWorkingDir);
+
+		commandLine = process.m_startInfo.arguments;
 		#if PLATFORM_WINDOWS
 		TString realCommandLine = TC("\"") + process.m_realApplication + TC("\" ") + commandLine;
 		writer.WriteString(realCommandLine);
@@ -802,6 +1020,9 @@ namespace uba
 		writer.WriteString(info.logFile);
 		#endif
 
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("CreateChildProcess (%u creating child %u at index %u) %s %s (%s)\n"), m_id, process.m_id, childProcessId-1, process.m_realApplication.c_str(), commandLine, info.logFile);
+		#endif
 		return true;
 	}
 
@@ -812,10 +1033,12 @@ namespace uba
 		auto& process = *(ProcessImpl*)m_childProcesses[processId - 1].m_process;
 		bool result = reader.ReadBool();
 		u32 lastError = reader.ReadU32();
+
+		auto setWaitForParent = MakeGuard([&process]() { process.m_waitForParent.Set(); });
+
 		if (!result)
 		{
 			m_session.m_logger.Logf(LogEntryType_Info, TC("Detoured process failed to start child process - %s. %s (Working dir: %s)"), LastErrorToText(lastError).data, process.m_realApplication.c_str(), process.m_realWorkingDir);
-			process.m_waitForParent.Set();
 			return true;
 		}
 
@@ -827,9 +1050,11 @@ namespace uba
 		if (nativeProcessHandle)
 		{
 			DuplicateHandle((HANDLE)m_nativeProcessHandle, nativeProcessHandle, GetCurrentProcess(), (HANDLE*)&process.m_nativeProcessHandle, 0, false, DUPLICATE_SAME_ACCESS);
-			UBA_ASSERT(process.m_nativeProcessHandle && process.m_nativeProcessHandle != InvalidProcHandle);
+			if (!process.m_nativeProcessHandle || process.m_nativeProcessHandle == InvalidProcHandle)
+				return m_session.m_logger.Error(TC("Failed to duplicate handle for child process"));
 			DuplicateHandle((HANDLE)m_nativeProcessHandle, nativeThreadHandle, GetCurrentProcess(), &process.m_nativeThreadHandle, 0, false, DUPLICATE_SAME_ACCESS);
-			UBA_ASSERT(process.m_nativeThreadHandle && process.m_nativeThreadHandle != INVALID_HANDLE_VALUE);
+			if (!process.m_nativeThreadHandle || process.m_nativeThreadHandle == INVALID_HANDLE_VALUE)
+				return m_session.m_logger.Error(TC("Failed to duplicate handle for child thread"));
 			process.m_nativeProcessId = nativeProcessId;
 		}
 #else
@@ -839,9 +1064,28 @@ namespace uba
 		process.m_nativeProcessHandle = (ProcHandle)nativeProcessHandle;
 		process.m_nativeProcessId = nativeProcessId;
 #endif
-		process.m_waitForParent.Set();
+		
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("WaitForChildProcessReady (%u waiting for child %u at index %u)\n"), m_id, process.m_id, processId-1);
+		#endif
+
+		setWaitForParent.Execute();
+
+		#if UBA_DEBUG_TRACK_PROCESS
+		g_debugLogger.Info(TC("WaitForChildProcessReadyDone (%u waiting for child %u at index %u)\n"), m_id, process.m_id, processId-1);
+		#endif
+
+		#if PLATFORM_WINDOWS
+		// TOOD: This is ugly, should use event or something instead.. right now we make sure to wait and not return until we know payload has been uploaded etc
+		// It is a very uncommon usecase that processes starts suspended.. some process in ninja/cmake does it when building clang/llvm
+		if (process.m_startInfo.startSuspended)
+			while (process.m_nativeThreadHandle)
+				Sleep(1);
+		#endif
+
 		return true;
 	}
+
 	bool ProcessImpl::HandleExitChildProcess(BinaryReader& reader, BinaryWriter& writer)
 	{
 		u32 nativeProcessId = reader.ReadU32();
@@ -859,13 +1103,13 @@ namespace uba
 
 	bool ProcessImpl::HandleCreateTempFile(BinaryReader& reader, BinaryWriter& writer)
 	{
-		CreateTempFile(reader, m_nativeProcessHandle, m_virtualApplication.c_str());
+		CreateTempFile(reader, m_nativeProcessHandle, m_startInfo.application);
 		return true;
 	}
 
 	bool ProcessImpl::HandleOpenTempFile(BinaryReader& reader, BinaryWriter& writer)
 	{
-		OpenTempFile(reader, writer, m_virtualApplication.c_str());
+		OpenTempFile(reader, writer, m_startInfo.application);
 		return true;
 	}
 
@@ -883,7 +1127,12 @@ namespace uba
 		bool printInSession = reader.ReadBool();
 		bool isError = reader.ReadBool();
 		TString line = reader.ReadString();
-		LogLine(printInSession, std::move(line), isError ? LogEntryType_Error : LogEntryType_Info);
+		LogEntryType entryType = isError ? LogEntryType_Error : LogEntryType_Info;
+
+		if (!m_session.LogLine(*this, line.c_str(), entryType))
+			return false;
+
+		LogLine(printInSession, std::move(line), entryType);
 		return true;
 	}
 
@@ -896,11 +1145,10 @@ namespace uba
 	bool ProcessImpl::HandleInputDependencies(BinaryReader& reader, BinaryWriter& writer)
 	{
 		UBA_ASSERT(m_startInfo.trackInputs);
-		if (m_trackedInputs.empty())
-		{
-			u32 trackedInputsSize = reader.ReadU32();
-			m_trackedInputs.reserve(trackedInputsSize);
-		}
+
+		if (u64 reserveSize = reader.Read7BitEncoded())
+			m_trackedInputs.reserve(m_trackedInputs.size() + reserveSize);
+
 		u32 toRead = reader.ReadU32();
 		u8* pos = m_trackedInputs.data() + m_trackedInputs.size();
 		m_trackedInputs.resize(m_trackedInputs.size() + toRead);
@@ -919,10 +1167,14 @@ namespace uba
 		ProcessStats stats;
 		stats.Read(reader, ~0u);
 
+		KernelStats kernelStats;
+		kernelStats.Read(reader, ~0u);
+
 		m_processStats.Add(stats);
+		m_kernelStats.Add(kernelStats);
 
 		if (!IsCancelled())
-			if (m_startInfo.writeOutputFilesOnFail || GetApplicationRules()[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode))
+			if (m_startInfo.writeOutputFilesOnFail || m_startInfo.rules->IsExitCodeSuccess(m_nativeProcessExitCode))
 				m_messageSuccess = WriteFilesToDisk() && m_messageSuccess;
 
 		if (m_parentProcess)
@@ -930,7 +1182,7 @@ namespace uba
 			m_parentProcess->m_processStats.Add(m_processStats);
 			m_parentProcess->m_sessionStats.Add(m_sessionStats);
 			m_parentProcess->m_storageStats.Add(m_storageStats);
-			m_parentProcess->m_systemStats.Add(m_systemStats);
+			m_parentProcess->m_kernelStats.Add(m_kernelStats);
 		}
 
 		if (m_startInfo.outputStatsThresholdMs && TimeToMs(m_processStats.GetTotalTime()) > m_startInfo.outputStatsThresholdMs)
@@ -969,15 +1221,20 @@ namespace uba
 					
 		ProcessStats processStats;
 		processStats.Read(reader, TraceVersion);
+		processStats.Add(m_processStats);
 		processStats.startupTime = m_processStats.startupTime;
 		processStats.wallTime = GetTime() - m_startTime;
 		processStats.cpuTime = 0;
 		processStats.hostTotalTime = m_processStats.hostTotalTime;
-					
+		
+		KernelStats kernelStats;
+		kernelStats.Read(reader, TraceVersion);
+		kernelStats.Add(m_kernelStats);
+
 		processStats.Write(statsWriter);
 		m_sessionStats.Write(statsWriter);
 		m_storageStats.Write(statsWriter);
-		m_systemStats.Write(statsWriter);
+		kernelStats.Write(statsWriter);
 		BinaryReader statsReader(statsWriter.GetData(), 0, statsWriter.GetPosition());
 
 		bool newProcess = false;
@@ -988,11 +1245,27 @@ namespace uba
 		if (!newProcess)
 			return true;
 
-		m_startTime = GetTime();
+		m_startInfo.argumentsStr = nextProcess.arguments;
+		m_startInfo.descriptionStr = nextProcess.description;
+		m_startInfo.logFileStr = nextProcess.logFile;
+
+		m_startInfo.arguments = m_startInfo.argumentsStr.c_str();
+		m_startInfo.description = m_startInfo.descriptionStr.c_str();
+		m_startInfo.logFile = m_startInfo.logFileStr.c_str();
+
+		m_childProcesses.clear();
+		m_logLines.clear();
+		m_trackedInputs.clear();
+		m_trackedOutputs.clear();
+		
+		ClearTempFiles();
+		
 		m_processStats = {};
 		m_sessionStats = {};
 		m_storageStats = {};
-		m_systemStats = {};
+		m_kernelStats = {};
+
+		m_startTime = GetTime();
 
 		writer.WriteString(nextProcess.arguments);
 		writer.WriteString(nextProcess.workingDir);
@@ -1007,6 +1280,26 @@ namespace uba
 		return true;
 	}
 
+	bool ProcessImpl::HandleSHGetKnownFolderPath(BinaryReader& reader, BinaryWriter& writer)
+	{
+		m_session.SHGetKnownFolderPath(*this, reader, writer);
+		return true;
+	}
+
+	bool ProcessImpl::HandleRpcCommunication(BinaryReader& reader, BinaryWriter& writer)
+	{
+		//m_session.RpcCommunication(*this, reader, writer);
+		return true;
+	}
+
+	bool ProcessImpl::HandleHostRun(BinaryReader& reader, BinaryWriter& writer)
+	{
+		u16 size = reader.ReadU16();
+		BinaryReader reader2(reader.GetPositionData(), 0, size);
+		m_session.HostRun(reader2, writer);
+		return true;
+	}
+
 	bool ProcessImpl::CreateTempFile(BinaryReader& reader, ProcHandle nativeProcessHandle, const tchar* application)
 	{
 		StringKey key = reader.ReadStringKey();
@@ -1018,7 +1311,7 @@ namespace uba
 		FileMappingHandle source;
 		source.FromU64(mappingHandle);
 		FileMappingHandle newHandle;
-		if (!DuplicateFileMapping(nativeProcessHandle, source, GetCurrentProcessHandle(), &newHandle, FILE_MAP_READ, false, 0))
+		if (!DuplicateFileMapping(nativeProcessHandle, source, GetCurrentProcessHandle(), &newHandle, 0, false, DUPLICATE_SAME_ACCESS))
 		{
 			m_session.m_logger.Error(TC("Failed to duplicate handle for temp file (%s)"), fileName.data);
 			return true;
@@ -1029,9 +1322,11 @@ namespace uba
 		if (insres.second)
 			return true;
 
+		++m_tempFilesModified;
 		WrittenFile& tempFile = insres.first->second;
 		FileMappingHandle oldMapping = tempFile.mappingHandle;
 		tempFile.mappingHandle = newHandle;
+		tempFile.mappingWritten = mappingHandleSize;
 		tempLock.Leave();
 		CloseFileMapping(oldMapping);
 		return true;
@@ -1059,72 +1354,6 @@ namespace uba
 		return true;
 	}
 
-	void ProcessImpl::SetRulesIndex(const ProcessStartInfo& si)
-	{
-		u32 exeNameStart = 0;
-		u32 exeNameEnd = u32(m_virtualApplication.size());
-		size_t lastSeparator = m_virtualApplication.find_last_of(PathSeparator);
-		if (lastSeparator != -1)
-			exeNameStart = u32(lastSeparator + 1);
-		else if (m_virtualApplication[exeNameStart] == '"')
-			++exeNameStart;
-		if (m_virtualApplication[exeNameEnd - 1] == '"')
-			--exeNameEnd;
-		StringBuffer<128> exeName;
-		exeName.Append(m_virtualApplication.c_str() + exeNameStart, exeNameEnd - exeNameStart);
-		
-		auto rules = GetApplicationRules();
-		
-		while (true)
-		{
-			for (u32 i = 1;; ++i)
-			{
-				const tchar* app = rules[i].app;
-				if (!app)
-					break;
-				if (!exeName.Equals(app))
-					continue;
-				m_rulesIndex = i;
-				return;
-			}
-
-			if (!exeName.Equals(TC("dotnet.exe")))
-				return;
-			
-			u32 firstArgumentStart = 0;
-			u32 firstArgumentEnd = 0;
-			bool quoted = false;
-			for (u32 i = 0, e = u32(m_arguments.size()); i != e; ++i)
-			{
-				tchar c = m_arguments[i];
-				if (firstArgumentEnd)
-				{
-					if (c == '\\')
-						firstArgumentStart = i + 1;
-					if ((quoted && c != '"') || (!quoted && c != ' ' && c != '\t'))
-						continue;
-					firstArgumentEnd = i;
-					break;
-				}
-				else
-				{
-					if (c == ' ' || c == '\t')
-					{
-						++firstArgumentStart;
-						continue;
-					}
-					if (c == '"')
-					{
-						++firstArgumentStart;
-						quoted = true;
-					}
-					firstArgumentEnd = firstArgumentStart + 1;
-				}
-			}
-			exeName.Clear().Append(m_arguments.data() + firstArgumentStart, firstArgumentEnd - firstArgumentStart);
-		}
-	}
-
 	bool ProcessImpl::WriteFilesToDisk()
 	{
 		Vector<WrittenFile*> files;
@@ -1139,7 +1368,20 @@ namespace uba
 				files.push_back(&kv.second);
 		}
 
-		return m_session.WriteFilesToDisk(*this, files.data(), u32(files.size()));
+		if (!m_session.WriteFilesToDisk(*this, files.data(), u32(files.size())))
+			return false;
+
+		if (m_startInfo.trackInputs)
+		{
+			u64 totalBytes = 0;
+			for (auto& kv : m_writtenFiles)
+				totalBytes += GetStringWriteSize(kv.second.name.c_str(), kv.second.name.size());
+			m_trackedOutputs.resize(totalBytes);
+			BinaryWriter writer(m_trackedOutputs.data(), 0, totalBytes);
+			for (auto& kv : m_writtenFiles)
+				writer.WriteString(kv.second.name);
+		}
+		return true;
 	}
 
 	const tchar* ProcessImpl::InternalGetChildLogFile(StringBufferBase& temp)
@@ -1149,7 +1391,7 @@ namespace uba
 		temp.Append(m_startInfo.logFile);
 		if (TStrcmp(temp.data + temp.count - 4, TC(".log")) == 0)
 			temp.Resize(temp.count - 4);
-		temp.Appendf(TC("_CHILD%u.log"), u32(m_childProcesses.size()));
+		temp.Appendf(TC("_CHILD%03u.log"), u32(m_childProcesses.size()));
 		return temp.data;
 	}
 
@@ -1188,6 +1430,15 @@ namespace uba
 				detoursLib = UBA_DETOURS_LIBRARY_ANSI;
 
 			TString commandLine = TC("\"") + m_realApplication + TC("\" ") + m_startInfo.arguments;
+
+			if (m_extractExports)
+			{
+				tchar extractExports[] = TC(" /extractexports");
+				const tchar* pos = nullptr;
+				Contains(commandLine.c_str(), extractExports, true, &pos);
+				commandLine.erase(pos - commandLine.c_str(), sizeof_array(extractExports));
+			}
+
 			LPCSTR dlls[] = { detoursLib };
 
 			STARTUPINFOEX siex;
@@ -1233,7 +1484,7 @@ namespace uba
 				return ProcessCancelExitCode;
 			}
 
-			bool isDetachedProcess = GetApplicationRules()[m_rulesIndex].rules->AllowDetach() && m_detourEnabled;
+			bool isDetachedProcess = m_startInfo.rules->AllowDetach() && m_detourEnabled;
 
 			HANDLE hJob = CreateJobObject(nullptr, nullptr);
 			JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { };
@@ -1347,24 +1598,29 @@ namespace uba
 			m_nativeProcessHandle = (ProcHandle)(u64)processInfo.hProcess;
 			m_nativeProcessId = processInfo.dwProcessId;
 			m_nativeThreadHandle = processInfo.hThread;
+
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("CreateRealProcess  (%u) %s %s\n"), m_id, m_realApplication.c_str(), m_startInfo.arguments);
+			#endif
 		}
 		else
 		{
-			u64 startTime = GetTime();
-			while (!m_waitForParent.IsSet(500))
-			{
-				if (IsCancelled())
-					break;
-				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
-				{
-					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process in createprocess has now taken more than 120 seconds."));
-				}
-			}
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("WaitingForParentReady (%u)\n"), m_id);
+			#endif
 
+			WaitForParent();
 			if (m_nativeProcessHandle == InvalidProcHandle) // Failed to create the child process
 				return UBA_EXIT_CODE(7);
+
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("WaitingForParentReadyDone (%u)\n"), m_id);
+			#endif
+
+			m_extractExports = m_parentProcess->m_extractExports;
 		}
+
+		auto closeThreadHandle = MakeGuard([&]() { CloseHandle(m_nativeThreadHandle); m_nativeThreadHandle = 0; });
 
 		if (m_detourEnabled)
 		{
@@ -1373,25 +1629,29 @@ namespace uba
 			if (!DuplicateHandle(currentProcess, currentProcess, (HANDLE)m_nativeProcessHandle, &hostProcess, 0, FALSE, DUPLICATE_SAME_ACCESS))
 			{
 				if (!IsCancelled())
-					logger.Error(TC("Failed to duplicate host process handle for process"));//% ls."), commandLine.c_str());
+					logger.Error(TC("Failed to duplicate host process handle for process (%s)"), LastErrorToText().data);
 				return UBA_EXIT_CODE(8);
 			}
 
 			DetoursPayload payload;
-			payload.processGuid = m_processGuid;
+			payload.processId = m_id;
 			payload.hostProcess = hostProcess;
 			payload.cancelEvent = m_cancelEvent.GetHandle();
 			payload.writeEvent = m_writeEvent.GetHandle();
 			payload.readEvent = m_readEvent.GetHandle();
 			payload.communicationHandle = communicationHandle.handle;
 			payload.communicationOffset = communicationOffset;
-			payload.rulesIndex = m_rulesIndex;
+			payload.rulesIndex = m_startInfo.rules->index;
 			payload.version = ProcessMessageVersion;
 			payload.runningRemote = runningRemote;
+			payload.allowKeepFilesInMemory = m_session.m_allowKeepFilesInMemory;
+			payload.allowOutputFiles = m_session.m_allowOutputFiles;
+			payload.suppressLogging = m_session.m_suppressLogging;
 			payload.isChild = m_parentProcess != nullptr;
 			payload.trackInputs = m_startInfo.trackInputs;
-			payload.useCustomAllocator = m_startInfo.useCustomAllocator && GetApplicationRules()[m_rulesIndex].rules->AllowMiMalloc();
+			payload.useCustomAllocator = m_startInfo.useCustomAllocator && m_startInfo.rules->AllowMiMalloc();
 			payload.isRunningWine = IsRunningWine();
+			payload.storeObjFilesCompressed = m_session.m_storeObjFilesCompressed;
 			payload.uiLanguage = m_startInfo.uiLanguage;
 			if (*m_startInfo.logFile)
 			{
@@ -1401,9 +1661,9 @@ namespace uba
 				payload.logFile.Append(m_startInfo.logFile);
 			}
 
-			if (!DetourCopyPayloadToProcessEx((HANDLE)m_nativeProcessHandle, DetoursPayloadGuid, &payload, sizeof(payload)))
+			if (!DetourCopyPayloadToProcess((HANDLE)m_nativeProcessHandle, DetoursPayloadGuid, &payload, sizeof(payload)))
 			{
-				logger.Error(TC("Failed to copy payload to process"));//% ls."), commandLine.c_str());
+				logger.Error(TC("Failed to copy payload to process (%s)"), LastErrorToText().data);
 				return UBA_EXIT_CODE(9);
 			}
 		}
@@ -1427,14 +1687,13 @@ namespace uba
 
 		m_processStats.startupTime = GetTime() - m_startTime;
 
-		if (ResumeThread(m_nativeThreadHandle) == -1)
+		if (!m_startInfo.startSuspended && ResumeThread(m_nativeThreadHandle) == -1)
 		{
 			logger.Error(TC("Failed to resume thread for"));//% ls. (% ls)", commandLine.c_str(), LastErrorToText().data);
 			return UBA_EXIT_CODE(11);
 		}
 
-		CloseHandle(m_nativeThreadHandle);
-		m_nativeThreadHandle = 0;
+		closeThreadHandle.Execute();
 
 		if (!m_detourEnabled)
 		{
@@ -1464,14 +1723,14 @@ namespace uba
 			}
 
 			Vector<TString> arguments;
-			if (!ParseArguments(arguments, m_startInfo.arguments))
+			if (!ParseArguments(m_startInfo.arguments, [&](const tchar* arg, u32 argLen) { arguments.push_back(TString(arg, argLen)); }))
 			{
 				logger.Error("Failed to parse arguments: %s", m_startInfo.arguments);
 				return UBA_EXIT_CODE(16);
 			}
 			Vector<const char*> arguments2;
 			arguments2.reserve(arguments.size() + 2);
-			arguments2.push_back(m_virtualApplication.data());
+			arguments2.push_back(m_startInfo.application);
 			for (auto& s : arguments)
 				arguments2.push_back(s.data());
 			arguments2.push_back(nullptr);
@@ -1557,7 +1816,7 @@ namespace uba
 
 				comIdVar.Append("UBA_COMID=").AppendValue(communicationHandle.uid).Append('+').AppendValue(communicationOffset);
 				workingDir.Append("UBA_CWD=").Append(m_realWorkingDir);
-				rulesStr.Append("UBA_RULES=").AppendValue(m_rulesIndex);
+				rulesStr.Append("UBA_RULES=").AppendValue(m_startInfo.rules->index);
 
 				if (*m_startInfo.logFile)
 				{
@@ -1642,6 +1901,8 @@ namespace uba
 				}
 			}
 
+			m_processStats.startupTime = GetTime() - m_startTime;
+
 			m_nativeProcessHandle = (ProcHandle)1;
 			m_nativeProcessId = u32(processID);
 
@@ -1650,21 +1911,19 @@ namespace uba
 			m_stdOutPipe = outPipe[0];
 			m_stdErrPipe = errPipe[0];
 			pipeGuard0.Cancel();
+
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("CreateRealProcess  (%u) %s %.100s\n"), m_id, m_realApplication.c_str(), m_startInfo.arguments);
+			#endif
 		}
 		else
 		{
+			#if UBA_DEBUG_TRACK_PROCESS
+			g_debugLogger.Info(TC("WaitingForParent (%u) %.100s\n"), m_id, m_realApplication.c_str());
+			#endif
+
 			//logger.Info("Waiting for parent");
-			u64 startTime = GetTime();
-			while (!m_waitForParent.IsSet(500))
-			{
-				if (IsCancelled())
-					break;
-				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
-				{
-					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process (%s) has now taken more than 120 seconds. (%s)"), m_parentProcess->m_startInfo.description, m_startInfo.description);
-				}
-			}
+			WaitForParent();
 
 			//logger.Info("DONE waiting on parent");
 
@@ -1685,19 +1944,7 @@ namespace uba
 			return ~0u;
 
 		if (m_parentProcess)
-		{
-			u64 startTime = GetTime();
-			while (!m_waitForParent.IsSet(500))
-			{
-				if (IsCancelled())
-					break;
-				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
-				{
-					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process (%s) while exiting has now taken more than 120 seconds."), m_parentProcess->m_startInfo.description);
-				}
-			}
-		}
+			WaitForParent();
 		m_nativeProcessHandle = InvalidProcHandle;
 
 #if PLATFORM_WINDOWS
@@ -1724,11 +1971,11 @@ namespace uba
 						hadTimeout = true;
 						const tchar* gotMessage = m_gotExitMessage ? TC("Got") : TC("Did not get");
 						const tchar* isCancelledNewCheck = IsCancelled() ? TC("true") : TC("false");
-						logger.Info(TC("WaitForSingleObject timed out after 120 seconds waiting for process %s to exit (Exit code %u, %s ExitMessage and wrote %u files. Cancelled: %s. Runtime: %s). Will terminate and wait again"), m_startInfo.description, m_nativeProcessExitCode, gotMessage, u32(m_writtenFiles.size()), isCancelledNewCheck, TimeToText(GetTime() - m_startTime).str);
+						logger.Info(TC("WaitForSingleObject timed out after 120 seconds waiting for process %s to exit (Exit code %u, %s ExitMessage and wrote %u files. Cancelled: %s. Runtime: %s). Will terminate and wait again"), m_startInfo.GetDescription(), m_nativeProcessExitCode, gotMessage, u32(m_writtenFiles.size()), isCancelledNewCheck, TimeToText(GetTime() - m_startTime).str);
 						TerminateProcess((HANDLE)handle, m_nativeProcessExitCode);
 						continue;
 					}
-					logger.Error(TC("WaitForSingleObject failed while waiting for process %s to exit even after terminating it (%s)"), m_startInfo.description, LastErrorToText().data);
+					logger.Error(TC("WaitForSingleObject failed while waiting for process %s to exit even after terminating it (%s)"), m_startInfo.GetDescription(), LastErrorToText().data);
 				}
 				else if (res == WAIT_FAILED)
 					logger.Error(TC("WaitForSingleObject failed while waiting for process to exit (%s)"), LastErrorToText().data);
@@ -1856,60 +2103,18 @@ namespace uba
 		m_tempFiles.clear();
 	}
 
-	bool ParseArguments(Vector<TString>& outArguments, const tchar* argumentString)
+	void ProcessImpl::WaitForParent()
 	{
-		const tchar* argStart = argumentString;
-		bool isInArg = false;
-		bool isInQuotes = false;
-		bool isEnd = *argumentString == 0;
-		tchar lastChar = 0;
-		for (const tchar* it = argumentString; !isEnd; lastChar = *it, ++it)
+		u64 startTime = GetTime();
+		while (!m_waitForParent.IsSet(500))
 		{
-			isEnd = *it == 0;
-			if (*it == ' ' || *it == '\t' || isEnd)
+			if (IsCancelled())
+				break;
+			if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
 			{
-				if (isInQuotes || !isInArg)
-					continue;
-
-				TString result(argStart, it);
-				tchar lastChar2 = 0;
-				for (auto i = result.begin(); i != result.end();)
-				{
-					if (*i == '\"')
-					{
-						if (lastChar2 == '\\')
-							i = result.erase(i - 1) + 1;
-						else
-							i = result.erase(i);
-						lastChar2 = 0;
-						continue;
-					}
-					lastChar2 = *i;
-					++i;
-				}
-
-				outArguments.push_back(std::move(result));
-				isInArg = false;
-				continue;
-			}
-
-			if (!isInArg)
-			{
-				isInArg = true;
-				argStart = it;
-				if (*it == '\"')
-					isInQuotes = true;
-				continue;
-			}
-
-			if (*it == '\"')
-			{
-				if (isInQuotes && lastChar == '\\')
-					continue;
-
-				isInQuotes = !isInQuotes;
+				startTime = GetTime();
+				m_session.m_logger.Error(TC("Waiting for parent process in createprocess has now taken more than 120 seconds."));
 			}
 		}
-		return true;
 	}
 }

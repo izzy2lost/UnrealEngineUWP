@@ -224,13 +224,16 @@ namespace EpicGames.UHT.Tokenizer
 			for (; ; )
 			{
 				UhtToken token = tokenReader.PeekToken();
-				if (token.IsIdentifier("DEPRECATED") || token.IsIdentifier("UE_DEPRECATED"))
+				if (token.IsIdentifier("DEPRECATED") || token.IsIdentifier("UE_DEPRECATED") || token.IsIdentifier("UE_DEPRECATED_FORGAME") || token.IsIdentifier("UE_DEPRECATED_FORENGINE"))
 				{
 					tokenReader.ConsumeToken();
-					tokenReader
-						.Require('(', "deprecation macro")
-						.RequireConstFloat("version in deprecation macro")
-						.Require(',', "deprecation macro")
+					tokenReader.Require('(', "deprecation macro");
+					token = tokenReader.GetToken();
+					if (!token.IsConstFloat() && !token.IsIdentifier("all", ignoreCase:true))
+					{
+						throw new UhtTokenException(tokenReader, token, "'all' or constant float version in deprecation macro");
+					}
+					tokenReader.Require(',', "deprecation macro")
 						.RequireConstString("message in deprecation macro")
 						.Require(')', "deprecation macro");
 					attributeAction?.Invoke("deprecated");

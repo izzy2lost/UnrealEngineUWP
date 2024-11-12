@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
+#include "../IntersectionUtils.ush"
 #define SUPPORT_CONTACT_SHADOWS 0
 #include "../DeferredLightingCommon.ush"
 
 #include "LumenCardCommon.ush"
 #include "LumenCardTile.ush"
 #include "LumenSceneDirectLighting.ush"
+#include "SurfaceCache/LumenSurfaceCache.ush"
 
 #ifndef THREADGROUP_SIZE
 #define THREADGROUP_SIZE 1
@@ -20,6 +22,8 @@ StructuredBuffer<uint> CardPageIndexAllocator;
 StructuredBuffer<uint> CardPageIndexData;
 RWStructuredBuffer<uint> RWCardTileAllocator;
 RWStructuredBuffer<uint> RWCardTiles;
+
+#ifdef SpliceCardPagesIntoTilesCS
 
 groupshared uint SharedTileAllocator;
 groupshared uint SharedTiles[THREADGROUP_SIZE * THREADGROUP_SIZE];
@@ -93,9 +97,13 @@ void SpliceCardPagesIntoTilesCS(
 	}
 }
 
+#endif
+
 StructuredBuffer<uint> CardTileAllocator;
 StructuredBuffer<uint> CardTiles;
 RWBuffer<uint> RWDispatchCardTilesIndirectArgs;
+
+#ifdef InitializeCardTileIndirectArgsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -105,40 +113,95 @@ void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThread
 		uint NumCardTiles = CardTileAllocator[0];
 
 		// One thread per card tile
-		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 0, (NumCardTiles + 63) / 64, 1, 1);
+		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 0, DivideAndRoundUp64(NumCardTiles), 1, 1);
 
 		// One thread group per card tile
 		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 1, NumCardTiles, 1, 1);
 	}
 }
 
-bool SphereIntersectCone(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin)
+#endif
+
+#ifdef CalculateCardTileDepthRangesCS
+
+RWStructuredBuffer<uint> RWCardTileDepthRanges;
+
+groupshared uint SharedMinTileDepth;
+groupshared uint SharedMaxTileDepth;
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void CalculateCardTileDepthRangesCS(
+	uint GroupId : SV_GroupID,
+	uint2 GroupThreadId : SV_GroupThreadID)
 {
-	float3 U = ConeVertex - (SphereCenterAndRadius.w / ConeAngleSin) * ConeAxis;
-	float3 D = SphereCenterAndRadius.xyz - U;
-	float DSizeSq = dot(D, D);
-	float E = dot(ConeAxis, D);
+	uint CardTileIndex = GroupId;
 
-	if (E > 0 && E * E >= DSizeSq * ConeAngleCos * ConeAngleCos)
+	if (GroupThreadId.x == 0 && GroupThreadId.y == 0)
 	{
-		D = SphereCenterAndRadius.xyz - ConeVertex;
-		DSizeSq = dot(D, D);
-		E = -dot(ConeAxis, D);
-
-		if (E > 0 && E * E >= DSizeSq * ConeAngleSin * ConeAngleSin)
-		{
-			return DSizeSq <= SphereCenterAndRadius.w * SphereCenterAndRadius.w;
-		}
-		else
-		{
-			return true;
-		}
+		SharedMinTileDepth = 0xFFFFFFFF;
+		SharedMaxTileDepth = 0;
 	}
 
-	return false;
+	GroupMemoryBarrierWithGroupSync();
+
+	if (CardTileIndex < CardTileAllocator[0])
+	{
+		FCardTileData CardTile = UnpackCardTileData(CardTiles[CardTileIndex]);
+		FLumenCardPageData CardPage = GetLumenCardPageData(CardTile.CardPageIndex);
+
+		if (CardPage.CardIndex >= 0)
+		{
+			uint2 TexelInCardPageCoord = CardTile.TileCoord * CARD_TILE_SIZE + GroupThreadId.xy;
+			float2 AtlasUV = CardPage.PhysicalAtlasUVRect.xy + CardPage.PhysicalAtlasUVTexelScale * (TexelInCardPageCoord + 0.5f);
+			float Depth = Texture2DSampleLevel(LumenCardScene.DepthAtlas, GlobalPointClampedSampler, AtlasUV, 0).x;
+
+			if (IsSurfaceCacheDepthValid(Depth))
+			{
+				InterlockedMax(SharedMaxTileDepth, asuint(Depth));
+				InterlockedMin(SharedMinTileDepth, asuint(Depth));
+			}
+		}
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	if (GroupThreadId.x == 0 && GroupThreadId.y == 0)
+	{
+		float MinTileDepth = SharedMinTileDepth == 0xFFFFFFFF ? 0.0f : asfloat(SharedMinTileDepth);
+		float MaxTileDepth = SharedMaxTileDepth == 0 ? 1.0f : asfloat(SharedMaxTileDepth);
+		RWCardTileDepthRanges[CardTileIndex] = f32tof16(MinTileDepth) | (f32tof16(MaxTileDepth) << 16);
+	}
 }
 
-bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, inout float3 OutCardPageWorldCenter)
+#endif
+
+uint CullToCardTileDepthRange;
+StructuredBuffer<uint> CardTileDepthRanges;
+
+float2 GetCardTileDepthRange(uint CardTileIndex)
+{
+	if (CullToCardTileDepthRange)
+	{
+		uint Packed = CardTileDepthRanges[CardTileIndex];
+		return float2(f16tof32(Packed & 0xFFFF), f16tof32(Packed >> 16));
+	}
+	
+	return float2(0.0f, 1.0f);
+}
+
+bool DoesLightInfluenceSphereAffectCardPageUVRange(float4 InfluenceSphere, FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, float2 CardTileDepthRange)
+{
+	float3 CardPageLocalCenter;
+	float3 CardPageLocalExtent;
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardTileDepthRange, CardPageLocalCenter, CardPageLocalExtent);
+
+	float3 LightInfluenceSphereLocalCenter = mul(InfluenceSphere.xyz - Card.Origin, Card.WorldToLocalRotation);
+	const float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(CardPageLocalCenter, CardPageLocalExtent, LightInfluenceSphereLocalCenter);
+	return BoxDistanceSq < InfluenceSphere.w * InfluenceSphere.w;
+}
+
+// This function doesn't test light influence spheres
+bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, float2 CardTileDepthRange, inout float3 OutCardPageWorldCenter)
 {
 	// Lighting channels test
 	if (!(Card.LightingChannelMask & LumenLight.LightingChannelMask))
@@ -148,28 +211,17 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 
 	float3 CardPageLocalCenter;
 	float3 CardPageLocalExtent;
-	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardPageLocalCenter, CardPageLocalExtent);
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardTileDepthRange, CardPageLocalCenter, CardPageLocalExtent);
 
 	float3 CardPageWorldCenter = mul(Card.WorldToLocalRotation, CardPageLocalCenter) + Card.Origin;
 	float3 CardPageWorldExtent = mul(abs(Card.WorldToLocalRotation), CardPageLocalExtent);
 	float CardPageWorldBoundingSphere = length(CardPageLocalExtent);
 	OutCardPageWorldCenter = CardPageWorldCenter;
 
-	float4 InfluenceSphere = LumenLight.InfluenceSphere;
-	float3 LightInfluenceSphereLocalCenter = mul(InfluenceSphere.xyz - Card.Origin, Card.WorldToLocalRotation);
-	const float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(CardPageLocalCenter, CardPageLocalExtent, LightInfluenceSphereLocalCenter);
-	const bool bCardAffectedByInfluenceSphere = BoxDistanceSq < InfluenceSphere.w * InfluenceSphere.w;
-
 	const uint LightType = LumenLight.Type;
 	const float3 LightPosition = LumenLight.ProxyPosition;
 	const float3 LightDirection = LumenLight.ProxyDirection;
 	const float LightRadius = LumenLight.ProxyRadius;
-
-	// Fast out
-	if (LightType != LIGHT_TYPE_DIRECTIONAL && !bCardAffectedByInfluenceSphere)
-	{
-		return false;
-	}
 
 	if (LightType == LIGHT_TYPE_DIRECTIONAL)
 	{
@@ -178,7 +230,7 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 	else if (LightType == LIGHT_TYPE_POINT)
 	{
 		// Point light
-		return bCardAffectedByInfluenceSphere;
+		return true;
 	}
 	else if (LightType == LIGHT_TYPE_SPOT)
 	{
@@ -189,8 +241,7 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 		float2 ConeAxisDistanceMinMax = float2(ConeAxisDistance + CardPageWorldBoundingSphere, ConeAxisDistance - CardPageWorldBoundingSphere);
 
 		// Spot light
-		return bCardAffectedByInfluenceSphere
-			&& SphereIntersectCone(float4(CardPageWorldCenter, CardPageWorldBoundingSphere), LightPosition, LightDirection, CosConeAngle, SinConeAngle)
+		return SphereIntersectCone(float4(CardPageWorldCenter, CardPageWorldBoundingSphere), LightPosition, LightDirection, CosConeAngle, SinConeAngle)
 			&& ConeAxisDistanceMinMax.x > 0 && ConeAxisDistanceMinMax.y < LightRadius;
 	}
 	else if (LightType == LIGHT_TYPE_RECT)
@@ -200,7 +251,7 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 		float DistanceFromBoxCenterToPlane = dot(BackPlane.xyz, CardPageWorldCenter) - BackPlane.w;
 		float MaxExtent = dot(CardPageWorldExtent, abs(BackPlane.xyz));
 		bool bInFrontOfPlane = DistanceFromBoxCenterToPlane + MaxExtent > 0.0f;
-		return bCardAffectedByInfluenceSphere && bInFrontOfPlane;
+		return bInFrontOfPlane;
 	}
 
 	// Error: Unknown light type
@@ -262,22 +313,20 @@ void AddLightSample(inout FLightSampleAccumulator LightSampleAccumulator, FLight
 {
 	uint PackedLightSample = PackLightSample(LightSample);
 
-	uint MinPackedLightSample = 0xFFFFFFFF;
+	// Try inserting the new light and keep things in descending order
 	for (uint PackedSampleIndex = 0; PackedSampleIndex < MAX_LIGHT_SAMPLES; ++PackedSampleIndex)
 	{
-		MinPackedLightSample = min(MinPackedLightSample, LightSampleAccumulator.PackedSamples[PackedSampleIndex]);
-	}
-
-	// Replace the least important sample
-	if (PackedLightSample > MinPackedLightSample)
-	{
-		for (uint PackedSampleIndex = 0; PackedSampleIndex < MAX_LIGHT_SAMPLES; ++PackedSampleIndex)
+		uint Temp = LightSampleAccumulator.PackedSamples[PackedSampleIndex];
+		if (PackedLightSample > Temp)
 		{
-			if (LightSampleAccumulator.PackedSamples[PackedSampleIndex] == MinPackedLightSample)
+			LightSampleAccumulator.PackedSamples[PackedSampleIndex] = PackedLightSample;
+			PackedLightSample = Temp;
+		#if MAX_LIGHT_SAMPLES <= 16 // workaround for a shader compiler bug
+			if (PackedLightSample == 0)
 			{
-				LightSampleAccumulator.PackedSamples[PackedSampleIndex] = PackedLightSample;
 				break;
 			}
+		#endif
 		}
 	}
 }
@@ -311,6 +360,8 @@ float GetLightWeight(FLumenLight LumenLight, float3 TranslatedWorldPosition)
 	return Weight;
 }
 
+#ifdef BuildLightTilesCS
+
 /**
  * Pick N most important lights per tile in page selected to update to update this frame, and output a list of light tiles
  */
@@ -343,25 +394,31 @@ void BuildLightTilesCS(
 			UVMin.y = 1.0f - UVMax.y;
 			UVMax.y = 1.0f - SwapY;
 
-			uint ViewIndex = GetCardViewIndex(CardPage, Card, UVMin, UVMax, NumViews, true);
+			float2 CardTileDepthRange = GetCardTileDepthRange(CardTileIndex);
+
+			uint ViewIndex = GetCardViewIndex(CardPage, Card, UVMin, UVMax, CardTileDepthRange, NumViews, true);
 
 			// Loop over lights to select N most important lights
 			for (uint LightIndex = 0; LightIndex < NumLights; ++LightIndex)
 			{
-				FLumenLight LumenLight = LoadLumenLight(LightIndex, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex]);
-
-				float3 CardPageWorldCenter = 0.0f; // LWC_TODO:
-				bool bLightAffectsCard = DoesLightAffectCardPageUVRange(LumenLight, CardPage, Card, UVMin, UVMax, CardPageWorldCenter);
-				if (bLightAffectsCard)
+				if (DoesLightInfluenceSphereAffectCardPageUVRange(LoadLumenLightInfluenceSphere(LightIndex), CardPage, Card, UVMin, UVMax, CardTileDepthRange))
 				{
-					// Center of a tile for estimating attenuation
-					float3 TranslatedWorldPosition = CardPageWorldCenter + DFHackToFloat(PrimaryView.PreViewTranslation);
+					const FDFVector3 PreViewTranslation =  GetPreViewTranslation(ViewIndex);
+					FLumenLight LumenLight = LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
 
-					FLightSample LightSample;
-					LightSample.Weight = GetLightWeight(LumenLight, TranslatedWorldPosition);
-					LightSample.LightIndex = LightIndex;
-					LightSample.bHasShadowMask = LumenLight.bHasShadowMask;
-					AddLightSample(LightSampleAccumulator, LightSample);
+					float3 CardPageWorldCenter = 0.0f; // LWC_TODO:
+					bool bLightAffectsCard = DoesLightAffectCardPageUVRange(LumenLight, CardPage, Card, UVMin, UVMax, CardTileDepthRange, CardPageWorldCenter);
+					if (bLightAffectsCard)
+					{
+						// Center of a tile for estimating attenuation
+						float3 TranslatedWorldPosition = CardPageWorldCenter + DFHackToFloat(PrimaryView.PreViewTranslation);
+
+						FLightSample LightSample;
+						LightSample.Weight = GetLightWeight(LumenLight, TranslatedWorldPosition);
+						LightSample.LightIndex = LightIndex;
+						LightSample.bHasShadowMask = LumenLight.bHasShadowMask;
+						AddLightSample(LightSampleAccumulator, LightSample);
+					}
 				}
 			}
 
@@ -408,6 +465,8 @@ void BuildLightTilesCS(
 	}
 }
 
+#endif
+
 StructuredBuffer<uint> LightTileAllocatorPerLight;
 RWStructuredBuffer<uint> RWLightTileOffsetsPerLight;
 
@@ -439,6 +498,8 @@ StructuredBuffer<uint> LightTileAllocator;
 StructuredBuffer<uint2> LightTiles;
 StructuredBuffer<uint> LightTileOffsetsPerLight;
 StructuredBuffer<uint> LightTileOffsetNumPerCardTile;
+
+#ifdef CompactLightTilesCS
 
 /**
  * Compact card tile array
@@ -478,12 +539,16 @@ void CompactLightTilesCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWDispatchLightTilesIndirectArgs;
 RWBuffer<uint> RWDrawTilesPerLightIndirectArgs;
 RWBuffer<uint> RWDispatchTilesPerLightIndirectArgs;
 
 uint VertexCountPerInstanceIndirect;
 uint PerLightDispatchFactor;
+
+#ifdef InitializeLightTileIndirectArgsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitializeLightTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -499,7 +564,7 @@ void InitializeLightTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThrea
 		WriteDispatchIndirectArgs(RWDispatchLightTilesIndirectArgs, 0, NumLightTiles, 1, 1);
 
 		// NumTilesDiv64
-		WriteDispatchIndirectArgs(RWDispatchLightTilesIndirectArgs, 1, (NumLightTiles + 63) / 64, 1, 1);
+		WriteDispatchIndirectArgs(RWDispatchLightTilesIndirectArgs, 1, DivideAndRoundUp64(NumLightTiles), 1, 1);
 	}
 
 	// Per light card tile array
@@ -518,41 +583,5 @@ void InitializeLightTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThrea
 	}
 }
 
-uint LightIndex;
-uint ViewIndex;
+#endif
 
-void RasterizeToLightTilesVS(
-	uint VertexId : SV_VertexID,
-	uint InstanceId : SV_InstanceID,
-	out FCardVSToPS CardInterpolants,
-	out float4 OutPosition : SV_POSITION
-)
-{
-	float2 TexCoord = float2(0.0f, 0.0f);
-	TexCoord.x += VertexId == 1 || VertexId == 2 || VertexId == 4 ? 1.0f : 0.0f;
-	TexCoord.y += VertexId == 2 || VertexId == 4 || VertexId == 5 ? 1.0f : 0.0f;
-
-	uint LightTileIndex = InstanceId.x + LightTileOffsetsPerLight[LightIndex * NumViews + ViewIndex];
-	uint NumLightTiles = LightTileAllocator[0];
-
-	CardInterpolants = (FCardVSToPS)0;
-	OutPosition = 0;
-
-	if (LightTileIndex < NumLightTiles)
-	{
-		FLightTileForShadowMaskPass LightTile = UnpackLightTileForShadowMaskPass(LightTiles[LightTileIndex]);
-		FLumenCardPageData CardPage = GetLumenCardPageData(LightTile.CardPageIndex);
-
-		float2 AtlasUV = CardPage.PhysicalAtlasUVRect.xy + CardPage.PhysicalAtlasUVTexelScale * CARD_TILE_SIZE * (LightTile.TileCoord + TexCoord);
-		float2 CardUV = CardPage.CardUVRect.xy + CardPage.CardUVTexelScale * CARD_TILE_SIZE * (LightTile.TileCoord + TexCoord);
-
-		float2 ScreenPosition = float2(2.0f, -2.0f) * AtlasUV + float2(-1.0f, 1.0f);
-		OutPosition = float4(ScreenPosition, 0, 1);
-
-		CardInterpolants.AtlasUV = AtlasUV;
-		CardInterpolants.IndirectLightingAtlasUV = float2(0.0f, 0.0f);
-		CardInterpolants.CardUV = CardUV;
-		CardInterpolants.CardTileIndex = LightTileIndex;
-		CardInterpolants.CardPageIndex = LightTile.CardPageIndex;
-	}
-}

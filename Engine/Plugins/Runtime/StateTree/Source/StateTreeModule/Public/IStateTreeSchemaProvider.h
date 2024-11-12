@@ -17,6 +17,10 @@ class UStateTreeSchemaProvider : public UInterface
 
 /**
 * Implementing this interface allows derived class to override the schema used to filter valid state trees for a FStateTreeReference.
+* The state tree reference property needs to be marked with SchemaCanBeOverriden metatag.
+* Ex:
+*	UPROPERTY(EditAnywhere, Category = AI, meta=(Schema="/Script/GameplayStateTreeModule.StateTreeComponentSchema", SchemaCanBeOverriden))
+*	FStateTreeReference StateTreeRef;
 */
 class IStateTreeSchemaProvider
 {

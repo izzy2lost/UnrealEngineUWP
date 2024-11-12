@@ -6,6 +6,7 @@ import marshal
 from enum import Enum
 
 from . import _backtrace
+from ._noticeboard import Noticeboard
 from .text import *
 
 #-------------------------------------------------------------------------------
@@ -112,58 +113,47 @@ class _ExecContext(object):
 
 
 #-------------------------------------------------------------------------------
-class _Channel(object):
-    def read_extensions(self, mount):
-        extendable = self.get_channel().get_extendable(mount)
-        yield from (x for x,_ in extendable.read_extensions())
+class _ArgOverrider(object):
+    def _apply_arg_overrides(self):
+        try:
+            self._apply_guarded()
+        except Exception as e:
+            print("ArgOverrider:", "ERROR:", str(e))
 
-    def get_extension_type(self, mount, name):
-        extendable = self.get_channel().get_extendable(mount)
-        extension = extendable.get_extension_class(name)
-        return extension.get_class_type()
+    def _apply_guarded(self):
+        if not self._invoke_path:
+            return
 
-    def read_extension_types(self, mount):
-        extendable = self.get_channel().get_extendable(mount)
-        return extendable.read_extensions()
+        header = "Argument overrides"
+        for arg_name, arg_value in self.args:
+            if not isinstance(arg_value, tuple):
+                if not self.args.is_default(arg_name):
+                    continue
 
-    def create_extension(self, mount, name, *ctor_args, **ctor_kwargs):
-        extendable = self.get_channel().get_extendable(mount)
-        extension = extendable.get_extension_class(name)
-        return extension.construct(*ctor_args, **ctor_kwargs)
+            over_value = os.getenv(f"ushell{self._invoke_path}:{arg_name}")
+            if over_value is None:
+                continue
 
+            if header:
+                self.print_info(header)
+                header = None
 
-
-#-------------------------------------------------------------------------------
-class _Noticeboard(object):
-    def __init__(self, path):
-        self._path = path
-        self._inner = None
-        self._modified = False
-
-    def __del__(self):
-        if self._modified:
-            with open(self._path, "wb") as x:
-                marshal.dump(self._inner, x)
-
-    def _get_inner(self):
-        if not self._inner:
+            print(arg_name + ": ", end="")
             try:
-                with open(self._path, "rb") as x:
-                    self._inner = marshal.load(x)
-            except:
-                self._inner = {}
-        return self._inner
+                arg_type = self.args.get_type(arg_name)
+                if isinstance(arg_value, tuple):
+                    import shlex
+                    over_value = (arg_type(x) for x in shlex.split(over_value))
+                    over_value = (*arg_value, *over_value)
+                    print(*over_value, end="")
+                else:
+                    over_value = arg_type(over_value)
+                    print(over_value, end="")
+            except Exception as e:
+                print("[ERROR:", str(e))
+            print(" (env)")
 
-    def __getitem__(self, name):
-        return self._get_inner().get(name)
-
-    def __setitem__(self, name, value):
-        self._modified = True
-        self._get_inner()[name] = value
-
-    def copy_from(self, other):
-        self._modified = True
-        self._inner = other._get_inner().copy()
+            setattr(self.args, arg_name, over_value)
 
 
 
@@ -171,7 +161,7 @@ class _Noticeboard(object):
 from . import _flick
 Arg = _flick.Arg
 Opt = _flick.Opt
-class Cmd(_flick.Cmd, _Channel):
+class Cmd(_flick.Cmd, _ArgOverrider):
     Arg = _flick.Arg
     Opt = _flick.Opt
 
@@ -194,6 +184,8 @@ class Cmd(_flick.Cmd, _Channel):
         # 'os.chdir(x); subprocess.run("p4 set")'. Unset PWD.
         if "PWD" in os.environ:
             del os.environ["PWD"]
+
+        self._apply_arg_overrides()
 
         try:
             return super()._call_main()
@@ -222,11 +214,11 @@ class Cmd(_flick.Cmd, _Channel):
 
     def get_noticeboard(self, board_type):
         temp_dir = self._channel.get_system().get_temp_dir()
+        flow_sid = -1
         if board_type == Cmd.Noticeboard.SESSION:
             flow_sid = os.getenv("FLOW_SID", "x")
-            return _Noticeboard(temp_dir + "session_" + flow_sid)
-        elif board_type == Cmd.Noticeboard.PERSISTENT:
-            return _Noticeboard(temp_dir + "noticeboard_p")
+            flow_sid = int(flow_sid) if flow_sid.isdecimal() else "-493"
+        return Noticeboard(temp_dir + "noticeboard", int(flow_sid))
 
     def edit_file(self, path):
         if editor := os.getenv("GIT_EDITOR") or os.getenv("P4EDITOR"):

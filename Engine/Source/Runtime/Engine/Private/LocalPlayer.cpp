@@ -610,7 +610,7 @@ private:
 	 */
 	static FViewPoint GetViewPointFromStrings(const FString* Strings, int32 NumStrings)
 	{
-		FViewPoint ViewPoint;
+		FViewPoint ViewPoint = {};
 		if (NumStrings == 6)
 		{
 			ViewPoint.Location.X = FCString::Atof(*Strings[0]);
@@ -715,11 +715,9 @@ void ULocalPlayer::ReceivedPlayerController(APlayerController* NewController)
 	OnPlayerControllerChanged().Broadcast(NewController);
 
 	// Tell any local player subsystems
-	const TArray<ULocalPlayerSubsystem*>& LPSubsystems = SubsystemCollection.GetSubsystemArray<ULocalPlayerSubsystem>(ULocalPlayerSubsystem::StaticClass());
-	for (ULocalPlayerSubsystem* WorldSubsystem : LPSubsystems)
-	{
-		WorldSubsystem->PlayerControllerChanged(NewController);
-	}
+	SubsystemCollection.ForEachSubsystem([NewController](ULocalPlayerSubsystem* Subsystem){
+		Subsystem->PlayerControllerChanged(NewController);
+	});
 }
 
 bool ULocalPlayer::CalcSceneViewInitOptions(
@@ -838,7 +836,10 @@ FSceneView* ULocalPlayer::CalcSceneView( class FSceneViewFamily* ViewFamily,
 	ViewInitOptions.bUseFieldOfViewForLOD = ViewInfo.bUseFieldOfViewForLOD;
 	ViewInitOptions.FOV = ViewInfo.FOV;
 	ViewInitOptions.DesiredFOV = ViewInfo.DesiredFOV;
-
+	ViewInitOptions.FirstPersonParams = FFirstPersonParameters(ViewInfo.CalculateFirstPersonFOVCorrectionFactor(), ViewInfo.FirstPersonScale, ViewInfo.bUseFirstPersonParameters);
+	ViewInitOptions.OverscanResolutionFraction = ViewInfo.OverscanResolutionFraction;
+	ViewInitOptions.CropFraction = ViewInfo.CropFraction;
+	
 	// Fill out the rest of the view init options
 	ViewInitOptions.ViewFamily = ViewFamily;
 
@@ -878,6 +879,7 @@ FSceneView* ULocalPlayer::CalcSceneView( class FSceneViewFamily* ViewFamily,
 		if (PlayerController->PlayerCameraManager)
 		{
 			PlayerController->PlayerCameraManager->GetCachedPostProcessBlends(CameraAnimPPSettings, CameraAnimPPBlendWeights, CameraAnimPPBlendOrders);
+			checkSlow(CameraAnimPPBlendWeights && CameraAnimPPBlendOrders && CameraAnimPPSettings);
 
 			for (int32 PPIdx = 0; PPIdx < CameraAnimPPBlendWeights->Num(); ++PPIdx)
 			{
@@ -1748,16 +1750,6 @@ FUniqueNetIdRepl ULocalPlayer::GetUniqueNetIdForPlatformUser() const
 FUniqueNetIdRepl ULocalPlayer::GetCachedUniqueNetId() const
 {
 	return CachedUniqueNetId;
-}
-
-void ULocalPlayer::SetCachedUniqueNetId(FUniqueNetIdPtr NewUniqueNetId)
-{
-	CachedUniqueNetId = NewUniqueNetId;
-}
-
-void ULocalPlayer::SetCachedUniqueNetId(TYPE_OF_NULLPTR)
-{
-	CachedUniqueNetId = FUniqueNetIdRepl(nullptr);
 }
 
 void ULocalPlayer::SetCachedUniqueNetId(const FUniqueNetIdRepl& NewUniqueNetId)

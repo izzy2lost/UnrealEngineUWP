@@ -15,9 +15,7 @@
 #include "EngineLogs.h"
 #include "Net/Core/Serialization/QuantizedVectorSerialization.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Net/Serialization/FastArraySerializer.h"
-#endif
+#include <type_traits>
 
 #include "NetSerialization.generated.h"
 
@@ -294,7 +292,7 @@ struct TFixedCompressedFloatDetails
 	static constexpr int32 MaxDelta = (1 << (NumBits - 0)) - 1;     //   1111 1111 - Max delta is
 };
 
-template<int32 MaxValue, uint32 NumBits, typename T, TEMPLATE_REQUIRES(TIsFloatingPoint<T>::Value), TEMPLATE_REQUIRES(NumBits < 32)>
+template<int32 MaxValue, uint32 NumBits, typename T UE_REQUIRES(std::is_floating_point_v<T> && NumBits < 32)>
 bool WriteFixedCompressedFloat(const T Value, FArchive& Ar)
 {
 	using Details = TFixedCompressedFloatDetails<MaxValue, NumBits>;
@@ -327,7 +325,7 @@ bool WriteFixedCompressedFloat(const T Value, FArchive& Ar)
 	return !clamp;
 }
 
-template<int32 MaxValue, uint32 NumBits, typename T, TEMPLATE_REQUIRES(TIsFloatingPoint<T>::Value), TEMPLATE_REQUIRES(NumBits < 32)>
+template<int32 MaxValue, uint32 NumBits, typename T UE_REQUIRES(std::is_floating_point_v<T> && NumBits < 32)>
 bool ReadFixedCompressedFloat(T& Value, FArchive& Ar)
 {
 	using Details = TFixedCompressedFloatDetails<MaxValue, NumBits>;
@@ -412,8 +410,7 @@ struct FVector_NetQuantize : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantize()
-	{}
+	FVector_NetQuantize() = default;
 
 	explicit FORCEINLINE FVector_NetQuantize(EForceInit E)
 	: FVector(E)
@@ -458,8 +455,7 @@ struct FVector_NetQuantize10 : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantize10()
-	{}
+	FVector_NetQuantize10() = default;
 
 	explicit FORCEINLINE FVector_NetQuantize10(EForceInit E)
 	: FVector(E)
@@ -504,8 +500,7 @@ struct FVector_NetQuantize100 : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantize100()
-	{}
+	FVector_NetQuantize100() = default;
 
 	explicit FORCEINLINE FVector_NetQuantize100(EForceInit E)
 	: FVector(E)
@@ -546,8 +541,7 @@ struct FVector_NetQuantizeNormal : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantizeNormal()
-	{}
+	FVector_NetQuantizeNormal() = default;
 
 	explicit FORCEINLINE FVector_NetQuantizeNormal(EForceInit E)
 	: FVector(E)

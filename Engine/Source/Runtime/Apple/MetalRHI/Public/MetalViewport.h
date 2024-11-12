@@ -6,19 +6,24 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "PixelFormat.h"
+#include "RHIResources.h"
+#include "MetalResources.h"
+
 #if PLATFORM_MAC
 #include "Mac/CocoaTextView.h"
 @interface FMetalView : FCocoaTextView
 @end
 #endif
 #include "HAL/PlatformFramePacer.h"
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
 
 #if PLATFORM_VISIONOS
 #import <CompositorServices/CompositorServices.h>
 #endif
+
+class FMetalSurface;
+class FMetalDevice;
 
 enum EMetalViewportAccessFlag
 {
@@ -43,7 +48,7 @@ typedef void (^FMetalViewportPresentHandler)(uint32 CGDirectDisplayID, double Ou
 class FMetalViewport : public FRHIViewport
 {
 public:
-	FMetalViewport(void* WindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
+	FMetalViewport(FMetalDevice& InDevice, void* WindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
 	~FMetalViewport();
 
 	void Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
@@ -76,7 +81,7 @@ public:
 	
 #if PLATFORM_VISIONOS
 	void GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_drawable_t SwiftDrawable, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture );
-    void PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& Params);
+    void PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams* Params);
 #endif
 	
 private:
@@ -87,6 +92,7 @@ private:
 	CP_OBJECT_cp_layer_renderer* SwiftLayer = nullptr;
 #endif
 	
+	FMetalDevice& Device;
 	CA::MetalDrawable* Drawable;
 	TRefCountPtr<FMetalSurface> BackBuffer[2];
 	mutable FCriticalSection Mutex;

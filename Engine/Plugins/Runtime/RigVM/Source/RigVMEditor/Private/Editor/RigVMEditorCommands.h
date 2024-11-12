@@ -57,6 +57,15 @@ public:
 	/** Frames the selected nodes */
 	TSharedPtr< FUICommandInfo > FrameSelection;
 
+	/** Swap Function (Asset) */
+	TSharedPtr< FUICommandInfo > SwapFunctionWithinAsset;
+
+	/** Swap Function (Project) */
+	TSharedPtr< FUICommandInfo > SwapFunctionAcrossProject;
+
+	/** Swap Asset References */
+	TSharedPtr< FUICommandInfo > SwapAssetReferences;
+
 	/**
 	 * Initialize commands
 	 */

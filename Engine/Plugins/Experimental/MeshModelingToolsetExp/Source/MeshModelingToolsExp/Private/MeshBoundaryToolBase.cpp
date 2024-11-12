@@ -29,8 +29,7 @@ void UMeshBoundaryToolBase::Setup()
 
 	// create mesh to operate on
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert( UE::ToolTarget::GetMeshDescription(Target), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	// initialize hit query
 	MeshSpatial.SetMesh(OriginalMesh.Get());

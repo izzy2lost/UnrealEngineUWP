@@ -5,21 +5,22 @@
 #include "IClientAuthoritySynchronizer.h"
 
 #include "Containers/Set.h"
+#include "HAL/Platform.h"
 #include "UObject/SoftObjectPath.h"
 
 struct FGuid;
 struct FConcertAuthorityClientInfo;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
-	class FRegularQueryService;
+	class FStreamAndAuthorityQueryService;
 
 	class FAuthoritySynchronizer_RemoteClient : public FAuthoritySynchronizer_Base
 	{
 	public:
 		
-		FAuthoritySynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService);
-		virtual ~FAuthoritySynchronizer_RemoteClient();
+		FAuthoritySynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FStreamAndAuthorityQueryService& InQueryService UE_LIFETIMEBOUND);
+		virtual ~FAuthoritySynchronizer_RemoteClient() override;
 
 		//~ Begin IClientAuthoritySynchronizer Interface
 		virtual bool HasAnyAuthority() const override;
@@ -29,7 +30,7 @@ namespace UE::MultiUserClient
 	private:
 
 		/** Queries the server in regular intervals. This services outlives our object. */
-		FRegularQueryService& QueryService;
+		FStreamAndAuthorityQueryService& QueryService;
 		
 		/** Used to unregister HandleStreamQuery upon destruction. */
 		const FDelegateHandle QueryStreamHandle;

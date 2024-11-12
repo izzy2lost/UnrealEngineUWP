@@ -163,14 +163,10 @@ bool FBlueprintSupport::IsDeferredDependencyPlaceholder(const UObject* LoadedObj
 		LoadedObj->IsA<ULinkerPlaceholderExportObject>() );
 }
 
+#if WITH_EDITOR
 void FBlueprintSupport::RegisterDeferredDependenciesInStruct(const UStruct* Struct, void* StructData)
 {
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
-	if (GEventDrivenLoaderEnabled)
-	{
-		return;
-	}
-
 	for (TPropertyValueIterator<const FObjectProperty> It(Struct, StructData); It; ++It)
 	{
 		const FObjectProperty* Property = It.Key();
@@ -216,6 +212,7 @@ void FBlueprintSupport::RegisterDeferredDependenciesInStruct(const UStruct* Stru
 	}
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 }
+#endif
 
 void FBlueprintSupport::RepairDeferredDependenciesInObject(UObject* Object)
 {
@@ -725,7 +722,7 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 		// Blueprint has been completely preloaded.
 		ForcePreloadObject(*ClassSourceObject);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		// We likely don't need to load meta data here at all! but we have been doing so 
 		// since 2080292 - subtly the code from 2080292 wouldn't assert about missing metadata
 		// but only because UPackage::GetMetaData creates a dummy UMetaData object that is
@@ -741,7 +738,7 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 				ForcePreloadObject(*MetadataExport.Object);
 			}
 		}
-#endif
+#endif // WITH_METADATA
 
 		// Flush (ie: create and preload) all remaining exports in the package.
 		//
@@ -777,6 +774,9 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 			// A regenerated class won't be post-loaded, so we can clear these flags.
 			LoadClass->ClearFlags(RF_NeedPostLoad | RF_NeedPostLoadSubobjects);
 		}
+
+		// After regeneration, we can now notify placeholders that it's safe to create instances of our class.
+		FResolvingExportTracker::Get().ResolvePlaceholders(LoadClass);
 
 		return true;
 	}
@@ -1575,9 +1575,9 @@ void FLinkerLoad::ResolveDeferredDependencies(UStruct* LoadStruct)
 			// this package may not have introduced any (possible) cyclic 
 			// dependencies, but it still could have been deferred (kept from
 			// fully loading... we need to make sure metadata gets loaded, etc.)
-			if ((SourcePackage != nullptr) && !SourcePackage->HasAnyFlags(RF_WasLoaded))
+			if ((SourcePackage != nullptr) && !SourcePackage->HasAnyFlags(RF_WasLoaded | RF_WillBeLoaded))
 			{
-				uint32 InternalLoadFlags = LoadFlags & (LOAD_NoVerify | LOAD_NoWarn | LOAD_Quiet | LOAD_RegenerateBulkDataGuids);
+				uint32 InternalLoadFlags = LoadFlags & (LOAD_NoVerify | LOAD_NoWarn | LOAD_Quiet);
 				// make sure LoadAllObjects() is called for this package
 				LoadPackageInternal(/*Outer =*/nullptr, SourceLinker->GetPackagePath(), InternalLoadFlags, this, nullptr/*InReaderOverride*/, nullptr/*InstancingContext*/, nullptr /* DiffPackagePath */); //-V595
 			}
@@ -1835,7 +1835,7 @@ int32 FLinkerLoad::ResolveDependencyPlaceholder(FLinkerPlaceholderBase* Placehol
 	// holding onto objects that are spawned during the process (to ensure 
 	// they're not thrown away prematurely)
 	bool const bIsAsyncLoadRef = (UnresolvedReferences.ExternalReferences.Num() == 1) &&
-		PlaceholderObj->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading) && (UnresolvedReferences.ExternalReferences[0].Referencer == FGCObject::GGCObjectReferencer);
+		PlaceholderObj->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading) && (UnresolvedReferences.ExternalReferences[0].Referencer == FGCObject::GGCObjectReferencer);
 
 	DEFERRED_DEPENDENCY_CHECK(!bIsReferenced || bIsAsyncLoadRef);
 #endif // USE_DEFERRED_DEPENDENCY_CHECK_VERIFICATION_TESTS
@@ -2544,14 +2544,24 @@ UObject* FLinkerLoad::RequestPlaceholderValue(const FProperty* Property, const U
 				}
 			}
 
-			const FString ObjectPathStr(ObjectPath);
+			const FStringView ObjectPathStr(ObjectPath);
 			// we don't need placeholders for native object references and for non-BP class objects (the 
 			// calling code should properly handle null return values)
 			if (!FPackageName::IsScriptPackage(ObjectPathStr) && ObjectType->HasAnyClassFlags(CLASS_NeedsDeferredDependencyLoading))
 			{
-				const FString ObjectName = FPackageName::ObjectPathToObjectName(ObjectPathStr);
-				Placeholder = MakeImportPlaceholder<ULinkerPlaceholderClass>(LinkerRoot, ObjectType, *ObjectName);
-				ImportPlaceholders.Add(ObjId, Placeholder);
+				FPackageIndex ImportIndex;
+
+				if (FindImport(ObjectPathStr, ImportIndex))
+				{
+					const FStringView ObjectName = FPackageName::ObjectPathToObjectName(ObjectPathStr);
+
+					Placeholder = MakeImportPlaceholder<ULinkerPlaceholderClass>(LinkerRoot, ObjectType, ObjectName.GetData(), ImportIndex.ToImport());
+					ImportPlaceholders.Add(ObjId, Placeholder);
+				}
+				else
+				{
+					UE_LOG(LogBlueprintSupport, Error, TEXT("'%s' was not found in the import table for package '%s'."), ObjectPathStr.GetData(), *LinkerRoot->GetFullName());
+				}
 			}
 		}
 	}
@@ -2616,7 +2626,17 @@ void UObject::DestroyNonNativeProperties()
 
 	for (FProperty* P = GetClass()->DestructorLink; P; P = P->DestructorLinkNext)
 	{
-		P->DestroyValue_InContainer(this);
+		if (!P->GetOwnerClass()->HasAnyClassFlags(CLASS_Native | CLASS_Intrinsic))
+		{
+			// Non-native value, destroy.
+			P->DestroyValue_InContainer(this);
+		}
+		else
+		{
+			// Native value, call to handle finish destroy.
+			// Native properties appear here if they report true on ContainsFinishDestroy() during UStruct::Link().
+			P->FinishDestroy_InContainer(this);
+		}
 	}
 }
 

@@ -631,7 +631,7 @@ FString FRenderDocPluginModule::GetNewestCapture()
 	
 	while (RenderDocAPI->GetCapture(Index, LogFile, &LogPathLength, &Timestamp))
 	{
-		OutString = FString(LogPathLength, ANSI_TO_TCHAR(LogFile));
+		OutString = FString::ConstructFromPtrSize(ANSI_TO_TCHAR(LogFile), LogPathLength);
 
 		Index++;
 	}

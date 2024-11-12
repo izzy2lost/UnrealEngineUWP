@@ -163,7 +163,6 @@ void SFindInMaterial::Construct(const FArguments& InArgs, TSharedPtr<FMaterialEd
 			.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 			[
 				SAssignNew(TreeView, STreeViewType)
-				.ItemHeight(24)
 				.TreeItemsSource(&ItemsFound)
 				.OnGenerateRow(this, &SFindInMaterial::OnGenerateRow)
 				.OnGetChildren(this, &SFindInMaterial::OnGetChildren)

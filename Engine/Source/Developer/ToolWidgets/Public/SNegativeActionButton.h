@@ -3,9 +3,10 @@
 #pragma once
 
 #include "Framework/SlateDelegates.h"
+#include "SActionButton.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/SCompoundWidget.h"
 
 enum class EActionButtonStyle
 {
@@ -16,20 +17,22 @@ enum class EActionButtonStyle
 /** A Button that is used to call out/highlight a negative option (Warnings or Errors like Force Delete).
 *   It can also be used to open a menu.
 */
-class TOOLWIDGETS_API SNegativeActionButton : public SCompoundWidget
+class TOOLWIDGETS_API SNegativeActionButton
+	: public SCompoundWidget
+	, public IActionButton
 {
 public:
-
 	SLATE_BEGIN_ARGS(SNegativeActionButton)
 		: _ActionButtonStyle(EActionButtonStyle::Error)
-		, _Icon()
 		{}
 
+		/** Determines whether this is a Warning or Error. */
 		SLATE_ATTRIBUTE(EActionButtonStyle, ActionButtonStyle)
 
 		/** The text to display in the button. */
 		SLATE_ATTRIBUTE(FText, Text)
 
+		/** Optionally specify the Icon to display in the button. */
 		SLATE_ATTRIBUTE(const FSlateBrush*, Icon)
 
 		/** The clicked handler. Note that if this is set, the button will behave as though it were just a button.
@@ -43,18 +46,17 @@ public:
 		SLATE_EVENT(FOnGetContent, OnGetMenuContent)
 		SLATE_EVENT(FOnComboBoxOpened, OnComboBoxOpened)
 		SLATE_EVENT(FOnIsOpenChanged, OnMenuOpenChanged)
-
 	SLATE_END_ARGS()
 
-	SNegativeActionButton() {}
+	SNegativeActionButton() = default;
 
 	void Construct(const FArguments& InArgs);
 
-	void SetMenuContentWidgetToFocus(TWeakPtr<SWidget> Widget);
-	void SetIsMenuOpen(bool bIsOpen, bool bIsFocused);
+	//~ Begin IActionButton
+	virtual void SetMenuContentWidgetToFocus(TWeakPtr<SWidget> InWidget) override;
+	virtual void SetIsMenuOpen(bool bInIsOpen, bool bInIsFocused) override;
+	//~ End IActionButton
 
 private:
-
-	TSharedPtr<SComboButton> ComboButton;
-	TSharedPtr<class SButton> Button;
+	TSharedPtr<SActionButton> ActionButton;
 };

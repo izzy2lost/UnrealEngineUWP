@@ -97,6 +97,10 @@ public:
 		return NotifyFieldValueClass != nullptr;
 	}
 
+#if WITH_EDITOR
+	[[nodiscard]] TObjectPtr<UMVVMViewModelContextResolver> CreateDefaultResolver(UPackage* Package) const;
+#endif
+
 private:
 	/** When the view is spawn, create an instance of the viewmodel. */
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Viewmodel", meta = (DisplayName = "Viewmodel Context Id", NoResetToDefault))
@@ -159,6 +163,21 @@ public:
 	/** Expose the viewmodel instance on every instance of the user widget for modification in editor. */
 	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
 	bool bExposeInstanceInEditor = false;
+	
+	/** Auto update the instance when the viewmodel is added/removed/modifed from the global viewmodel collection. */
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
+	bool bGlobalViewModelCollectionUpdate = false;
+
+	UPROPERTY()
+	bool bOverrideForceExecuteBindingsOnSetSource = false;
+
+	/**
+	 * When a viewmodel is set manually and the viewmodel already initialized, then always execute the bindings associated with that viewmodel.
+	 * For performance and to keep the same pattern in all UMG, the bindings are usually skip if the new viewmodel value match the previous viewmodel value.
+	 * This behavior can be desired if the widget is inside a pool or a binding has a side effect with another widget.
+	 */
+	UPROPERTY(EditAnywhere, Category = "View", meta = (EditCondition = "bOverrideForceExecuteBindingsOnSetSource"))
+	bool bForceExecuteBindingsOnSetSource = false;
 
 	/** Can change the name in the editor. */
 	UPROPERTY()

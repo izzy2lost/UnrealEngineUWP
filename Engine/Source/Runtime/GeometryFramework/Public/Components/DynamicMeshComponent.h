@@ -12,6 +12,11 @@
 #include "UDynamicMesh.h"
 #include "PhysicsEngine/BodySetup.h"
 
+#include "Misc/ScopeLock.h"
+#include "Tasks/Task.h"
+#include "Util/ProgressCancel.h"
+#include "DistanceFieldAtlas.h"
+
 #include "DynamicMeshComponent.generated.h"
 
 // predecl
@@ -46,6 +51,108 @@ enum class EDynamicMeshComponentRenderUpdateMode
 	/** Attempt to do partial update of render data if possible */
 	FastUpdate = 2
 };
+
+
+template<typename DataType>
+struct TAsyncComponentDataComputeQueue
+{
+	std::atomic<int> JobCounter = 0;
+	bool bIsShuttingDown = false;
+
+	~TAsyncComponentDataComputeQueue()
+	{
+		WaitForAllJobsDuringShutdown();
+	}
+
+	struct FComputeJob
+	{
+		UE::Tasks::FTask Task;
+		int JobTimestamp = 0;
+		TUniquePtr<FProgressCancel> Progress;
+		bool bCancelled = false;
+		bool bHasCompleted = false;
+	};
+
+	TArray<TUniquePtr<FComputeJob>> PendingJobs;
+	FCriticalSection PendingJobsLock;
+
+	// This function will be called w/ the data computed by a job
+	// when it finishes, if it is still valid
+	// Note this method will be run from a background thread, and should be thread-safe!
+	TFunction<void(TUniquePtr<DataType> NewData)> OnComputeCompleted;
+
+	void LaunchJob(const TCHAR* DebugName, TFunction<TUniquePtr<DataType>(FProgressCancel& Progress)> JobWork)
+	{
+		// OnComputeCompleted function must be set to something
+		check(OnComputeCompleted);
+
+		if (!ensure(bIsShuttingDown == false))
+		{
+			return;
+		}
+
+		JobCounter++;
+		int CurrentTimestamp = JobCounter;
+
+		// cancel any existing jobs and clear them out if they have returned
+		{
+			FScopeLock RemovePending(&PendingJobsLock);
+			for (int32 k = 0; k < PendingJobs.Num(); ++k)
+			{
+				PendingJobs[k]->bCancelled = true;
+				if (PendingJobs[k]->bHasCompleted)
+				{
+					PendingJobs.RemoveAtSwap(k, 1, EAllowShrinking::No);
+					k--;		// reconsider element that was just swapped in to this position
+				}
+			}
+		}
+
+		// set up the new job
+		TUniquePtr<FComputeJob> NewJob = MakeUnique<FComputeJob>();
+		FComputeJob* JobPtr = NewJob.Get();
+		NewJob->Progress = MakeUnique<FProgressCancel>();
+		FProgressCancel* ProgressPtr = NewJob->Progress.Get();
+		NewJob->Progress->CancelF = [this, JobPtr]() { return bIsShuttingDown || JobPtr->bCancelled; };
+		NewJob->JobTimestamp = CurrentTimestamp;
+
+		// launch it
+		NewJob->Task = UE::Tasks::Launch(DebugName, 
+			[this, JobWork, JobPtr]() {
+				// TODO: limit the number of in-progress active jobs
+				TUniquePtr<DataType> Result = JobWork( *JobPtr->Progress );
+				if (JobPtr->JobTimestamp == this->JobCounter && JobPtr->bCancelled == false)
+				{
+					if (!bIsShuttingDown && this->OnComputeCompleted)
+					{
+						this->OnComputeCompleted(MoveTemp(Result));
+					}
+				}
+				JobPtr->bHasCompleted = true;
+			},
+			LowLevelTasks::ETaskPriority::BackgroundNormal, 
+			UE::Tasks::EExtendedTaskPriority::None );
+
+		// add new job
+		{
+			FScopeLock AddJob(&PendingJobsLock);
+			PendingJobs.Add(MoveTemp(NewJob));
+		}
+	}
+
+
+	void WaitForAllJobsDuringShutdown()
+	{
+		bIsShuttingDown = true;
+		FScopeLock PendingLock(&PendingJobsLock);
+		for (int32 k = 0; k < PendingJobs.Num(); ++k)
+		{
+			UE::Tasks::Wait({PendingJobs[k]->Task});
+		}
+	}
+
+};
+
 
 
 /** 
@@ -125,6 +232,20 @@ public:
 	 */
 	GEOMETRYFRAMEWORK_API bool IsEditable() const { return bIsEditable; }
 	GEOMETRYFRAMEWORK_API void SetIsEditable(bool bInIsEditable) { bIsEditable = bInIsEditable; }
+
+
+	/**
+	 * @return Whether geometry elements (triangles, edges, etc) of the dynamic mesh can be interactively selected.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API bool AllowsGeometrySelection() const { return bAllowsGeometrySelection; }
+	/**
+	 * Enable/Disable interactive geometry element selection for the mesh. Useful to disable geometry selection on procedural meshes where the selection will be frequently invalidated.
+	 * 
+	 * @param bInAllowsGeometrySelection Whether geometry elements (triangles, edges, etc) of the dynamic mesh will be interactively selectable.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API void SetAllowsGeometrySelection(bool bInAllowsGeometrySelection) { bAllowsGeometrySelection = bInAllowsGeometrySelection; }
 
 protected:
 	/**
@@ -308,6 +429,13 @@ protected:
 	 */
 	bool bIsEditable = true;
 
+private:
+	/**
+	 * If set to false, the geometry element selection UI will not be used for this mesh component. This is useful for procedural meshes where selection would be frequently invalidated.
+	 */
+	UPROPERTY()
+	bool bAllowsGeometrySelection = true;
+
 
 
 	//===============================================================================================================
@@ -464,9 +592,10 @@ public:
 	 * Set new list of Materials for the Mesh. Dynamic Mesh Component does not have 
 	 * Slot Names, so the size of the Material Set should be the same as the number of
 	 * different Material IDs on the mesh MaterialID attribute
+	 * @param bDeleteExtraSlots if true, extra Material Slots beyond max NewMaterialSet.Num() are removed
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
-	GEOMETRYFRAMEWORK_API void ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet);
+	GEOMETRYFRAMEWORK_API void ConfigureMaterialSet(const TArray<UMaterialInterface*>& NewMaterialSet, bool bDeleteExtraSlots = true);
 
 	/**
 	 * Compute the maximum MaterialID on the DynamicMesh, and ensure that Material Slots match.
@@ -534,6 +663,26 @@ protected:
 	GEOMETRYFRAMEWORK_API void UpdateAutoCalculatedTangents();
 
 
+	//===============================================================================================================
+	//
+	// Distance Field Support
+	//
+protected:
+	FCriticalSection DistanceFieldLock;
+	TSharedPtr<FDistanceFieldVolumeData> CurrentDistanceField;
+
+	GEOMETRYFRAMEWORK_API virtual void UpdateDistanceField();
+
+	TAsyncComponentDataComputeQueue<FDistanceFieldVolumeData> DistanceFieldComputeQueue;
+	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldData_Async(TUniquePtr<FDistanceFieldVolumeData> NewData);
+
+	// UBaseDynamicMeshComponent API
+	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldMode() override;
+
+private:
+	// Internal method to compute the distance field, run in a background thread.
+	TUniquePtr<FDistanceFieldVolumeData> ComputeNewDistanceField_TaskFunction(FProgressCancel& Progress, const FDynamicMesh3& Mesh, bool bMostlyTwoSided);
+
 
 	//===============================================================================================================
 	//
@@ -563,6 +712,7 @@ public:
 
 
 	GEOMETRYFRAMEWORK_API virtual bool GetPhysicsTriMeshData(struct FTriMeshCollisionData* CollisionData, bool InUseAllTriData) override;
+	GEOMETRYFRAMEWORK_API virtual bool GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const override;
 	GEOMETRYFRAMEWORK_API virtual bool ContainsPhysicsTriMeshData(bool InUseAllTriData) const override;
 	GEOMETRYFRAMEWORK_API virtual bool WantsNegXTriMesh() override;
 
@@ -715,7 +865,8 @@ protected:
 
 	//~ UObject Interface.
 	GEOMETRYFRAMEWORK_API virtual void Serialize(FArchive& Ar) override;
-	GEOMETRYFRAMEWORK_API virtual void PostLoad() override;
+	GEOMETRYFRAMEWORK_API virtual void PostLoad() override; // called after load
+	GEOMETRYFRAMEWORK_API virtual void PostEditImport() override; // called after duplicate/copy
 	GEOMETRYFRAMEWORK_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
 	GEOMETRYFRAMEWORK_API void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -725,5 +876,9 @@ public:
 	/** Set whether or not to validate mesh batch materials against the component materials. */
 	GEOMETRYFRAMEWORK_API void SetSceneProxyVerifyUsedMaterials(bool bState);
 
+
+private:
+	// Internal helper to be called when mesh data is updated
+	void InternalOnMeshUpdated();
 
 };

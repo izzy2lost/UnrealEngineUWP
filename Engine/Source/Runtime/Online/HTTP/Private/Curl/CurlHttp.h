@@ -3,12 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HAL/LowLevelMemTracker.h"
-#include "HAL/ThreadSafeCounter.h"
-#include "IHttpThreadedRequest.h"
 #include "Containers/SpscQueue.h"
-#include "GenericPlatform/HttpResponseCommon.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "HAL/ThreadSafeBool.h"
+#include "HAL/ThreadSafeCounter.h"
+#include "GenericPlatform/HttpRequestCommon.h"
+#include "GenericPlatform/HttpResponseCommon.h"
 
 class FCurlHttpResponse;
 
@@ -135,7 +135,9 @@ namespace
 /**
  * Curl implementation of an HTTP request
  */
-class FCurlHttpRequest : public IHttpThreadedRequest
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class FCurlHttpRequest : public FHttpRequestCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 
@@ -155,6 +157,7 @@ public:
 	virtual FString GetVerb() const override;
 	virtual void SetVerb(const FString& InVerb) override;
 	virtual void SetURL(const FString& InURL) override;
+	virtual void SetOption(const FName Option, const FString& OptionValue) override;
 	virtual void SetContent(const TArray<uint8>& ContentPayload) override;
 	virtual void SetContent(TArray<uint8>&& ContentPayload) override;
 	virtual void SetContentAsString(const FString& ContentString) override;
@@ -164,7 +167,6 @@ public:
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
 	virtual void Tick(float DeltaSeconds) override;
-	virtual float GetElapsedTime() const override;
 	//~ End IHttpRequest Interface
 
 	//~ Begin IHttpRequestThreaded Interface
@@ -180,6 +182,11 @@ public:
 	 * @return true if the request was successfully setup
 	 */
 	bool SetupRequestHttpThread();
+
+	/**
+	 * Perform the http-thread cleanup of the request
+	 */
+	void  CleanupRequestHttpThread();
 
 	/**
 	 * Returns libcurl's easy handle - needed for HTTP manager.
@@ -354,6 +361,9 @@ private:
 
 	virtual void ClearInCaseOfRetry() override;
 
+	virtual FHttpResponsePtr CreateResponse() override;
+	virtual void MockResponseData() override;
+
 private:
 
 	/** Pointer to an easy handle specific to this request */
@@ -376,8 +386,6 @@ private:
 	bool bIsRequestPayloadSeekable = false;
 	/** Mapping of header section to values. */
 	TMap<FString, FString> Headers;
-	/** Total elapsed time in seconds since the start of the request */
-	float ElapsedTime;
 	/** Have we had any HTTP activity with the host? Sending headers, SSL handshake, etc */
 	bool bAnyHttpActivity;
 	/** Newly received headers we need to inform listeners about */
@@ -405,7 +413,9 @@ private:
 /**
  * Curl implementation of an HTTP response
  */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FCurlHttpResponse : public FHttpResponseCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	// implementation friends
@@ -420,7 +430,6 @@ public:
 	//~ End IHttpBase Interface
 
 	//~ Begin IHttpResponse Interface
-	virtual int32 GetResponseCode() const override;
 	virtual FString GetContentAsString() const override;
 	//~ End IHttpResponse Interface
 
@@ -438,8 +447,6 @@ private:
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
 	/** Cached key/value header pairs. Parsed once request completes. Only accessible on the game thread. */
 	TMap<FString, FString> Headers;
-	/** Cached code from completed response */
-	int32 HttpCode;
 	/** Cached content length from completed response */
 	uint64 ContentLength;
 	/** True when the response has finished async processing */

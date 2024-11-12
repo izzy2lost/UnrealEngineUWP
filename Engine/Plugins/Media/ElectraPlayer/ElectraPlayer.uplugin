@@ -49,7 +49,7 @@
 			"PlatformAllowList": [ "Win64", "Mac", "IOS", "TVOS", "Android", "Linux" ],
 			"TargetDenyList": [ "Server" ]
 		}
-		
+
 	],
 	"Plugins": [
 		{
@@ -70,6 +70,10 @@
     },
     {
       "Name": "OpusDecoderElectra",
+      "Enabled": true
+    },
+    {
+      "Name": "D3D12VideoDecodersElectra",
       "Enabled": true
     }
 	]

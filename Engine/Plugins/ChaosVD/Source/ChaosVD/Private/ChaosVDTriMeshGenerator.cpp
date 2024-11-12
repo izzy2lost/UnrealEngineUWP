@@ -10,13 +10,14 @@ void FChaosVDTriMeshGenerator::GenerateFromTriMesh(const Chaos::FTriangleMeshImp
 
 	const int32 NormalsNum = NumTriangles * 3;
 	constexpr int32 UVsNum = 0;
-	SetBufferSizes(NumVertices, NumTriangles , UVsNum, NormalsNum );
+	SetBufferSizes(NumVertices, NumTriangles , UVsNum, NormalsNum);
 
+	EParallelForFlags Flags = NumVertices > MaxElementsNumToProcessInSingleThread ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None;
 	// Fill the vertex buffer with the transformed vertices of the TriMesh Shape
-	for (int32 i = 0; i < NumVertices; i++)
+	ParallelFor(NumVertices, [this, &InTriMesh](int32 VertexIndex)
 	{
-		Vertices[i] = FVector3d(UE::Math::TVector<double>(InTriMesh.Particles().GetX(i)));
-	}
+		Vertices[VertexIndex] = FVector3d(UE::Math::TVector<double>(InTriMesh.Particles().GetX(VertexIndex)));
+	}, Flags);
 
 	const Chaos::FTrimeshIndexBuffer& IdxBuffer = InTriMesh.Elements();
 	if (IdxBuffer.RequiresLargeIndices())

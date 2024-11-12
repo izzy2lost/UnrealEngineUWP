@@ -2,12 +2,15 @@
 
 #include "MemAllocNode.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/Callstack.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/CallstackFormatting.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FMemAllocNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemAllocNode"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 INSIGHTS_IMPLEMENT_RTTI(FMemAllocNode)
@@ -77,20 +80,27 @@ FText FMemAllocNode::GetFullCallstackOrSourceFiles(ECallstackType InCallstackTyp
 		return FText();
 	}
 
-	const Insights::FMemoryAlloc& Alloc = GetMemAllocChecked();
-	const TraceServices::FCallstack* Callstack = 
+	const FMemoryAlloc& Alloc = GetMemAllocChecked();
+	const TraceServices::FCallstack* Callstack =
 		InCallstackType == ECallstackType::AllocCallstack
-			? Alloc.GetAllocCallstack() 
+			? Alloc.GetAllocCallstack()
 			: Alloc.GetFreeCallstack();
 
 	if (!Callstack)
 	{
-		return FText::FromString(GetCallstackNotAvailableString());
+		return GetCallstackNotAvailableString();
 	}
 
 	if (Callstack->Num() == 0)
 	{
-		return FText::FromString(GetEmptyCallstackString());
+		if (Callstack->GetEmptyId() == 0)
+		{
+			return GetNoCallstackString();
+		}
+		else
+		{
+			return GetEmptyCallstackString();
+		}
 	}
 
 	TStringBuilder<1024> Tooltip;
@@ -118,25 +128,32 @@ FText FMemAllocNode::GetTopFunctionOrSourceFile(ECallstackType InCallstackType, 
 		return FText();
 	}
 
-	const Insights::FMemoryAlloc& Alloc = GetMemAllocChecked();
-	const TraceServices::FCallstack* Callstack = 
+	const FMemoryAlloc& Alloc = GetMemAllocChecked();
+	const TraceServices::FCallstack* Callstack =
 		InCallstackType == ECallstackType::AllocCallstack
-			? Alloc.GetAllocCallstack() 
+			? Alloc.GetAllocCallstack()
 			: Alloc.GetFreeCallstack();
 
 	if (!Callstack)
 	{
-		return FText::FromString(GetCallstackNotAvailableString());
+		return GetCallstackNotAvailableString();
 	}
 
-	const uint32 NumCallstackFrames = Callstack->Num();
-	if (NumCallstackFrames == 0)
+	if (Callstack->Num() == 0)
 	{
-		return FText::FromString(GetEmptyCallstackString());
+		if (Callstack->GetEmptyId() == 0)
+		{
+			return GetNoCallstackString();
+		}
+		else
+		{
+			return GetEmptyCallstackString();
+		}
 	}
-	check(NumCallstackFrames <= 256); // see Callstack->Frame(uint8)
 
 	const TraceServices::FStackFrame* Frame = nullptr;
+	const uint32 NumCallstackFrames = Callstack->Num();
+	check(NumCallstackFrames <= 256); // see Callstack->Frame(uint8)
 	for (uint32 FrameIndex = 0; FrameIndex < NumCallstackFrames; ++FrameIndex)
 	{
 		Frame = Callstack->Frame(static_cast<uint8>(FrameIndex));
@@ -149,6 +166,7 @@ FText FMemAllocNode::GetTopFunctionOrSourceFile(ECallstackType InCallstackType, 
 			break;
 		}
 	}
+	check(Frame != nullptr);
 
 	TStringBuilder<1024> Str;
 	FormatStackFrame(*Frame, Str, (EStackFrameFormatFlags)Flags);
@@ -157,6 +175,6 @@ FText FMemAllocNode::GetTopFunctionOrSourceFile(ECallstackType InCallstackType, 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

@@ -6,6 +6,7 @@
 #include "SceneView.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "ThumbnailHelpers.h"
+#include "Engine/SkeletalMesh.h"
 
 UPhysicsAssetThumbnailRenderer::UPhysicsAssetThumbnailRenderer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

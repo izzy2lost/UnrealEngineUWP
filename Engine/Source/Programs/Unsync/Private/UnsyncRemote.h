@@ -16,18 +16,19 @@ class FBuffer;
 
 static constexpr uint16 UNSYNC_DEFAULT_PORT = 53841;
 
-enum class EProtocolFlavor {
+enum class EProtocolFlavor : uint8 {
 	Unknown,
 	Unsync,
 	Jupiter,
+	Horde,
 };
 
-enum class ETransportProtocol {
+enum class ETransportProtocol : uint8 {
 	Http,
 	Unsync,
 };
 
-EProtocolFlavor ProtocolFlavorFromString(const char* Str);
+EProtocolFlavor ProtocolFlavorFromString(std::string_view Str);
 const char*		ToString(EProtocolFlavor Protocol);
 
 struct FHostAddressAndPort
@@ -49,9 +50,9 @@ struct FRemoteDesc
 	std::string StorageBucket = "unsync";  // TODO: override via command line
 	std::string HttpHeaders;
 
-	bool					 bTlsEnable			   = true;	// Prefer TLS, if supported by protocol and remote server
 	bool					 bTlsVerifyCertificate = true;	// Disabling this allows self-signed certificates
 	bool					 bTlsVerifySubject	   = true;	// Disabling this is insecure, but may be useful during development
+	ETlsRequirement			 TlsRequirement		   = ETlsRequirement::None;
 	std::string				 TlsSubjectOverride;			// Use host address if empty (default)
 	std::shared_ptr<FBuffer> TlsCacert;	 // Custom CA to use for server certificate validation (system root CA is used by default)
 
@@ -61,6 +62,8 @@ struct FRemoteDesc
 	std::optional<FHostAddressAndPort> PrimaryHost;	 // Optional address of the server used for login requests and other queries. If
 													 // empty, then HostAddress is used.
 
+	bool bPreferCompression = true;	 // Whether to prefer compressed encoding during bulk data transfer
+
 	const FHostAddressAndPort& GetPrimaryHostAddress() const { return PrimaryHost ? *PrimaryHost : Host; }
 
 	uint32 RecvTimeoutSeconds = 0;
@@ -69,7 +72,7 @@ struct FRemoteDesc
 
 	bool IsValid() const { return Protocol != EProtocolFlavor::Unknown && Host.IsValid(); }
 
-	static TResult<FRemoteDesc> FromUrl(std::string_view Url);
+	static TResult<FRemoteDesc> FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint = EProtocolFlavor::Unknown);
 
 	FTlsClientSettings GetTlsClientSettings() const;
 };

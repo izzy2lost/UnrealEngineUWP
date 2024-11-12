@@ -423,7 +423,6 @@ protected:
 	 */
 	FIndex2i split_segment_at_t(int EID, double T, double Tol)
 	{
-		FVector2d V1, V2;
 		FIndex2i ev = Graph.GetEdgeV(EID);
 		FSegment2d seg = FSegment2d(Graph.GetVertex(ev.A), Graph.GetVertex(ev.B));
 

@@ -86,7 +86,7 @@ TSharedRef< ILayoutBlock > FSlateHyperlinkRun::CreateBlock( int32 StartIndex, in
 
 	TSharedRef< SWidget > Widget = SNew( SRichTextHyperlink, ViewModel )
 		.Style( &Style )
-		.Text( FText::FromString( FString( EndIndex - StartIndex, **Text + StartIndex ) ) )
+		.Text( FText::FromString( FString::ConstructFromPtrSize( **Text + StartIndex, EndIndex - StartIndex ) ) )
 		.ToolTip( ToolTip )
 		.ToolTipText( ToolTipText )
 		.OnNavigate( this, &FSlateHyperlinkRun::OnNavigate )

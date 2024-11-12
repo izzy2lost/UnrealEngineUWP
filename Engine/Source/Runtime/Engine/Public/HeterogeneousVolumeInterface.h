@@ -34,6 +34,9 @@ public:
 	virtual float GetLightingDownsampleFactor() const = 0;
 	virtual float GetMipBias() const = 0;
 
+	// Rendering
+	virtual bool IsHoldout() const = 0;
+
 	// Debug
 	virtual FString GetReadableName() const = 0;
 };
@@ -53,6 +56,8 @@ public:
 		, ShadowBiasFactor(0.0)
 		, LightingDownsampleFactor(1.0)
 		, MipBias(0.0)
+		, bPivotAtCentroid(false)
+		, bHoldout(false)
 	{}
 
 	FHeterogeneousVolumeData(const FPrimitiveSceneProxy* SceneProxy, FString Name)
@@ -66,6 +71,7 @@ public:
 		, LightingDownsampleFactor(1.0)
 		, MipBias(0.0)
 		, bPivotAtCentroid(false)
+		, bHoldout(false)
 #if ACTOR_HAS_LABELS
 		, ReadableName(Name)
 #endif // ACTOR_HAS_LABELS
@@ -93,6 +99,9 @@ public:
 	virtual float GetLightingDownsampleFactor() const { return LightingDownsampleFactor; }
 	virtual float GetMipBias() const { return MipBias; }
 
+	// Rendering
+	virtual bool IsHoldout() const { return bHoldout; }
+
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy;
 	FMatrix InstanceToLocal;
 	FIntVector VoxelResolution;
@@ -103,6 +112,7 @@ public:
 	float LightingDownsampleFactor;
 	float MipBias;
 	bool bPivotAtCentroid;
+	bool bHoldout;
 
 #if ACTOR_HAS_LABELS
 	FString ReadableName;

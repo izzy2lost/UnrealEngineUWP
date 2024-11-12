@@ -12,6 +12,7 @@ public:
 	// Callback that's called before highlighting a row. If true, the row is skipped.
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldIgnoreRow, const TWeakPtr<FDetailTreeNode>&)
 	DECLARE_DELEGATE_RetVal_OneParam(FLinearColor, FRowHighlightColor, const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&)
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldHighlightRow, const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>&)
 
 	class FSlot : public TSlotBase<FSlot>
 	{
@@ -39,6 +40,7 @@ public:
 	SLATE_BEGIN_ARGS(SDetailsSplitter)
 	{}
 		SLATE_EVENT(FRowHighlightColor, RowHighlightColor) // default cyan: FLinearColor(0.f, 1.f, 1.f, .7f)
+		SLATE_EVENT(FShouldHighlightRow, ShouldHighlightRow) // default: highlight when node difference result is 'not identical'
 		SLATE_SLOT_ARGUMENT(FSlot, Slots)
 	SLATE_END_ARGS()
 
@@ -86,4 +88,5 @@ private:
 	TArray<FPanel> Panels;
 	FCopyPropertyButton HoveredCopyButton;
 	FRowHighlightColor GetRowHighlightColor;
+	FShouldHighlightRow GetShouldHighlightRow;
 };

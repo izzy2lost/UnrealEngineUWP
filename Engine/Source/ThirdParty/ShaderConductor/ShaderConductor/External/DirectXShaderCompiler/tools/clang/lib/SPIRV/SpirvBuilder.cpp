@@ -14,6 +14,7 @@
 #include "LiteralTypeVisitor.h"
 #include "LowerTypeVisitor.h"
 #include "NonUniformVisitor.h"
+#include "PervertexInputVisitor.h"
 #include "PreciseVisitor.h"
 #include "RelaxedPrecisionVisitor.h"
 #include "RemoveBufferBlockVisitor.h"
@@ -65,10 +66,9 @@ SpirvFunction *SpirvBuilder::beginFunction(QualType returnType,
   return function;
 }
 
-SpirvFunctionParameter *SpirvBuilder::addFnParam(QualType ptrType,
-                                                 bool isPrecise,
-                                                 SourceLocation loc,
-                                                 llvm::StringRef name) {
+SpirvFunctionParameter *
+SpirvBuilder::addFnParam(QualType ptrType, bool isPrecise, bool isNointerp,
+                         SourceLocation loc, llvm::StringRef name) {
   assert(function && "found detached parameter");
   SpirvFunctionParameter *param = nullptr;
   if (isBindlessOpaqueArray(ptrType)) {
@@ -76,9 +76,10 @@ SpirvFunctionParameter *SpirvBuilder::addFnParam(QualType ptrType,
     // a pointer to a pointer of the runtime array.
     param = new (context) SpirvFunctionParameter(
         context.getPointerType(ptrType, spv::StorageClass::UniformConstant),
-        isPrecise, loc);
+        isPrecise, isNointerp, loc);
   } else {
-    param = new (context) SpirvFunctionParameter(ptrType, isPrecise, loc);
+    param = new (context)
+        SpirvFunctionParameter(ptrType, isPrecise, isNointerp, loc);
   }
   param->setStorageClass(spv::StorageClass::Function);
   param->setDebugName(name);
@@ -88,7 +89,7 @@ SpirvFunctionParameter *SpirvBuilder::addFnParam(QualType ptrType,
 
 SpirvVariable *SpirvBuilder::addFnVar(QualType valueType, SourceLocation loc,
                                       llvm::StringRef name, bool isPrecise,
-                                      SpirvInstruction *init) {
+                                      bool isNointerp, SpirvInstruction *init) {
   assert(function && "found detached local variable");
   SpirvVariable *var = nullptr;
   if (isBindlessOpaqueArray(valueType)) {
@@ -96,10 +97,11 @@ SpirvVariable *SpirvBuilder::addFnVar(QualType valueType, SourceLocation loc,
     // a pointer to a pointer of the runtime array.
     var = new (context) SpirvVariable(
         context.getPointerType(valueType, spv::StorageClass::UniformConstant),
-        loc, spv::StorageClass::Function, isPrecise, init);
+        loc, spv::StorageClass::Function, isPrecise, isNointerp, init);
   } else {
-    var = new (context) SpirvVariable(
-        valueType, loc, spv::StorageClass::Function, isPrecise, init);
+    var =
+        new (context) SpirvVariable(valueType, loc, spv::StorageClass::Function,
+                                    isPrecise, isNointerp, init);
   }
   var->setDebugName(name);
   function->addVariable(var);
@@ -210,18 +212,28 @@ SpirvInstruction *SpirvBuilder::createLoad(QualType resultType,
     instruction->setContainsAliasComponent(false);
   }
 
+  if (pointer->isRasterizerOrdered()) {
+    createBeginInvocationInterlockEXT(loc, range);
+  }
+
   insertPoint->addInstruction(instruction);
+
+  if (pointer->isRasterizerOrdered()) {
+    createEndInvocationInterlockEXT(loc, range);
+  }
 
   const auto &bitfieldInfo = pointer->getBitfieldInfo();
   if (!bitfieldInfo.hasValue())
     return instruction;
 
-  auto *offset =
-      getConstantInt(astContext.UnsignedIntTy,
-                     llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->offsetInBits), /* isSigned= */ false));
-  auto *count =
-      getConstantInt(astContext.UnsignedIntTy,
-                     llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->sizeInBits), /* isSigned= */ false));
+  auto *offset = getConstantInt(
+      astContext.UnsignedIntTy,
+      llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->offsetInBits),
+                  /* isSigned= */ false));
+  auto *count = getConstantInt(
+      astContext.UnsignedIntTy,
+      llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->sizeInBits),
+                  /* isSigned= */ false));
   return createBitFieldExtract(
       resultType, instruction, offset, count,
       pointer->getAstResultType()->isSignedIntegerOrEnumerationType(), loc);
@@ -272,6 +284,10 @@ SpirvStore *SpirvBuilder::createStore(SpirvInstruction *address,
   // Safeguard. If this happens, it means we leak non-extracted bitfields.
   assert(false == value->getBitfieldInfo().hasValue());
 
+  if (address->isRasterizerOrdered()) {
+    createBeginInvocationInterlockEXT(loc, range);
+  }
+
   SpirvInstruction *source = value;
   const auto &bitfieldInfo = address->getBitfieldInfo();
   if (bitfieldInfo.hasValue()) {
@@ -282,12 +298,14 @@ SpirvStore *SpirvBuilder::createStore(SpirvInstruction *address,
     context.addToInstructionsWithLoweredType(value);
 
     auto *base = createLoad(value->getResultType(), address, loc, range);
-    auto *offset =
-        getConstantInt(astContext.UnsignedIntTy,
-                       llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->offsetInBits), false));
-    auto *count =
-        getConstantInt(astContext.UnsignedIntTy,
-                       llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->sizeInBits), false));
+    auto *offset = getConstantInt(
+        astContext.UnsignedIntTy,
+        llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->offsetInBits),
+                    false));
+    auto *count = getConstantInt(
+        astContext.UnsignedIntTy,
+        llvm::APInt(32, static_cast<uint64_t>(bitfieldInfo->sizeInBits),
+                    false));
     source =
         createBitFieldInsert(/*QualType*/ {}, base, value, offset, count, loc);
     source->setResultType(value->getResultType());
@@ -296,6 +314,16 @@ SpirvStore *SpirvBuilder::createStore(SpirvInstruction *address,
   auto *instruction =
       new (context) SpirvStore(loc, address, source, llvm::None, range);
   insertPoint->addInstruction(instruction);
+
+  if (address->isRasterizerOrdered()) {
+    createEndInvocationInterlockEXT(loc, range);
+  }
+
+  if (isa<SpirvLoad>(value) && isa<SpirvVariable>(address)) {
+    if (isa<SpirvFunctionParameter>(dyn_cast<SpirvLoad>(value)->getPointer()))
+      function->addFuncParamVarEntry(address,
+                                     dyn_cast<SpirvLoad>(value)->getPointer());
+  }
   return instruction;
 }
 
@@ -369,10 +397,13 @@ SpirvUnaryOp *SpirvBuilder::createUnaryOp(spv::Op op, QualType resultType,
                                           SpirvInstruction *operand,
                                           SourceLocation loc,
                                           SourceRange range) {
+  if (!operand)
+    return nullptr;
   assert(insertPoint && "null insert point");
   auto *instruction =
       new (context) SpirvUnaryOp(op, resultType, loc, operand, range);
   insertPoint->addInstruction(instruction);
+  instruction->setLayoutRule(operand->getLayoutRule());
   return instruction;
 }
 
@@ -380,8 +411,11 @@ SpirvUnaryOp *SpirvBuilder::createUnaryOp(spv::Op op,
                                           const SpirvType *resultType,
                                           SpirvInstruction *operand,
                                           SourceLocation loc) {
+  if (!operand)
+    return nullptr;
   assert(insertPoint && "null insert point");
   auto *instruction = new (context) SpirvUnaryOp(op, resultType, loc, operand);
+  instruction->setLayoutRule(operand->getLayoutRule());
   insertPoint->addInstruction(instruction);
   return instruction;
 }
@@ -727,7 +761,7 @@ SpirvSelect *SpirvBuilder::createSelect(QualType resultType,
 void SpirvBuilder::createSwitch(
     SpirvBasicBlock *mergeLabel, SpirvInstruction *selector,
     SpirvBasicBlock *defaultLabel,
-    llvm::ArrayRef<std::pair<uint32_t, SpirvBasicBlock *>> target,
+    llvm::ArrayRef<std::pair<llvm::APInt, SpirvBasicBlock *>> target,
     SourceLocation loc, SourceRange range) {
   assert(insertPoint && "null insert point");
   // Create the OpSelectioMerege.
@@ -879,26 +913,23 @@ void SpirvBuilder::createEndPrimitive(SourceLocation loc, SourceRange range) {
   insertPoint->addInstruction(inst);
 }
 /// \brief Creates an OpEmitMeshTasksEXT instruction.
-void SpirvBuilder::createEmitMeshTasksEXT(SpirvInstruction* xDim,
-                                          SpirvInstruction* yDim,
-                                          SpirvInstruction* zDim,
-                                          SourceLocation loc,
-                                          SpirvInstruction *payload,
-                                          SourceRange range) {
+void SpirvBuilder::createEmitMeshTasksEXT(
+    SpirvInstruction *xDim, SpirvInstruction *yDim, SpirvInstruction *zDim,
+    SourceLocation loc, SpirvInstruction *payload, SourceRange range) {
   assert(insertPoint && "null insert point");
-  auto *inst =
-      new (context) SpirvEmitMeshTasksEXT(xDim, yDim, zDim, payload, loc, range);
+  auto *inst = new (context)
+      SpirvEmitMeshTasksEXT(xDim, yDim, zDim, payload, loc, range);
   insertPoint->addInstruction(inst);
 }
 
 /// \brief Creates an OpSetMeshOutputsEXT instruction.
-void SpirvBuilder::createSetMeshOutputsEXT(SpirvInstruction* vertCount,
-                                           SpirvInstruction* primCount,
+void SpirvBuilder::createSetMeshOutputsEXT(SpirvInstruction *vertCount,
+                                           SpirvInstruction *primCount,
                                            SourceLocation loc,
                                            SourceRange range) {
   assert(insertPoint && "null insert point");
-  auto *inst = new (context)
-      SpirvSetMeshOutputsEXT(vertCount, primCount, loc, range);
+  auto *inst =
+      new (context) SpirvSetMeshOutputsEXT(vertCount, primCount, loc, range);
   insertPoint->addInstruction(inst);
 }
 SpirvArrayLength *SpirvBuilder::createArrayLength(QualType resultType,
@@ -1093,6 +1124,24 @@ SpirvInstruction *SpirvBuilder::createSpirvIntrInstExt(
   return inst;
 }
 
+void SpirvBuilder::createBeginInvocationInterlockEXT(SourceLocation loc,
+                                                     SourceRange range) {
+  assert(insertPoint && "null insert point");
+
+  auto *inst = new (context)
+      SpirvNullaryOp(spv::Op::OpBeginInvocationInterlockEXT, loc, range);
+  insertPoint->addInstruction(inst);
+}
+
+void SpirvBuilder::createEndInvocationInterlockEXT(SourceLocation loc,
+                                                   SourceRange range) {
+  assert(insertPoint && "null insert point");
+
+  auto *inst = new (context)
+      SpirvNullaryOp(spv::Op::OpEndInvocationInterlockEXT, loc, range);
+  insertPoint->addInstruction(inst);
+}
+
 void SpirvBuilder::createRaytracingTerminateKHR(spv::Op opcode,
                                                 SourceLocation loc) {
   assert(insertPoint && "null insert point");
@@ -1224,9 +1273,9 @@ SpirvVariable *SpirvBuilder::createCloneVarForFxcCTBuffer(
     QualType astType, const SpirvType *spvType, SpirvInstruction *var) {
   SpirvVariable *clone = nullptr;
   if (astType != QualType({})) {
-    clone =
-        addModuleVar(astType, spv::StorageClass::Private, var->isPrecise(),
-                     var->getDebugName(), llvm::None, var->getSourceLocation());
+    clone = addModuleVar(astType, spv::StorageClass::Private, var->isPrecise(),
+                         var->isNoninterpolated(), var->getDebugName(),
+                         llvm::None, var->getSourceLocation());
   } else {
     if (const auto *ty = dyn_cast<StructType>(spvType)) {
       spvType = context.getStructType(ty->getFields(), ty->getName(),
@@ -1237,9 +1286,9 @@ SpirvVariable *SpirvBuilder::createCloneVarForFxcCTBuffer(
           ty->getFields(), ty->getName(), ty->isReadOnly(),
           StructInterfaceType::InternalStorage);
     }
-    clone =
-        addModuleVar(spvType, spv::StorageClass::Private, var->isPrecise(),
-                     var->getDebugName(), llvm::None, var->getSourceLocation());
+    clone = addModuleVar(spvType, spv::StorageClass::Private, var->isPrecise(),
+                         var->isNoninterpolated(), var->getDebugName(),
+                         llvm::None, var->getSourceLocation());
   }
   clone->setLayoutRule(SpirvLayoutRule::Void);
   return clone;
@@ -1308,9 +1357,11 @@ SpirvExtInstImport *SpirvBuilder::getDebugInfoExtInstSet(bool vulkanDebugInfo) {
 SpirvVariable *SpirvBuilder::addStageIOVar(QualType type,
                                            spv::StorageClass storageClass,
                                            llvm::StringRef name, bool isPrecise,
+                                           bool isNointerp,
                                            SourceLocation loc) {
   // Note: We store the underlying type in the variable, *not* the pointer type.
-  auto *var = new (context) SpirvVariable(type, loc, storageClass, isPrecise);
+  auto *var = new (context)
+      SpirvVariable(type, loc, storageClass, isPrecise, isNointerp);
   var->setDebugName(name);
   mod->addVariable(var);
   return var;
@@ -1320,7 +1371,7 @@ SpirvVariable *SpirvBuilder::addVarForHelperInvocation(QualType type,
                                                        bool isPrecise,
                                                        SourceLocation loc) {
   SpirvVariable *var = addModuleVar(type, spv::StorageClass::Private, isPrecise,
-                                    "HelperInvocation", llvm::None, loc);
+                                    false, "HelperInvocation", llvm::None, loc);
 
   auto *oldInsertPoint = insertPoint;
   switchInsertPointToModuleInit();
@@ -1349,7 +1400,8 @@ SpirvVariable *SpirvBuilder::addStageBuiltinVar(QualType type,
   }
 
   // Note: We store the underlying type in the variable, *not* the pointer type.
-  auto *var = new (context) SpirvVariable(type, loc, storageClass, isPrecise);
+  auto *var =
+      new (context) SpirvVariable(type, loc, storageClass, isPrecise, false);
   mod->addVariable(var);
 
   // Decorate with the specified Builtin
@@ -1357,30 +1409,31 @@ SpirvVariable *SpirvBuilder::addStageBuiltinVar(QualType type,
       loc, var, spv::Decoration::BuiltIn, {static_cast<uint32_t>(builtin)});
   mod->addDecoration(decor);
 
-  // UE Change Begin: Allow precise semantic outputs  
-  // When the output semantic is mark as precise add the NoContraction decorator on it.
-  if (spirvOptions.supportPreciseOutputs && isPrecise)
-  {
-	  auto* decorInv = new (context) SpirvDecoration(loc, var, spv::Decoration::NoContraction);
-	  mod->addDecoration(decorInv);
+  // UE Change Begin: Allow precise semantic outputs
+  // When the output semantic is mark as precise add the NoContraction decorator
+  // on it.
+  if (spirvOptions.supportPreciseOutputs && isPrecise) {
+    auto *decorInv =
+        new (context) SpirvDecoration(loc, var, spv::Decoration::NoContraction);
+    mod->addDecoration(decorInv);
   }
   // UE Change End: Allow precise semantic outputs  
+
   // Add variable to cache.
   builtinVars.emplace_back(storageClass, builtin, var);
 
   return var;
 }
 
-SpirvVariable *
-SpirvBuilder::addModuleVar(QualType type, spv::StorageClass storageClass,
-                           bool isPrecise, llvm::StringRef name,
-                           llvm::Optional<SpirvInstruction *> init,
-                           SourceLocation loc) {
+SpirvVariable *SpirvBuilder::addModuleVar(
+    QualType type, spv::StorageClass storageClass, bool isPrecise,
+    bool isNointerp, llvm::StringRef name,
+    llvm::Optional<SpirvInstruction *> init, SourceLocation loc) {
   assert(storageClass != spv::StorageClass::Function);
   // Note: We store the underlying type in the variable, *not* the pointer type.
-  auto *var =
-      new (context) SpirvVariable(type, loc, storageClass, isPrecise,
-                                  init.hasValue() ? init.getValue() : nullptr);
+  auto *var = new (context)
+      SpirvVariable(type, loc, storageClass, isPrecise, isNointerp,
+                    init.hasValue() ? init.getValue() : nullptr);
   var->setDebugName(name);
   mod->addVariable(var);
   return var;
@@ -1388,13 +1441,13 @@ SpirvBuilder::addModuleVar(QualType type, spv::StorageClass storageClass,
 
 SpirvVariable *SpirvBuilder::addModuleVar(
     const SpirvType *type, spv::StorageClass storageClass, bool isPrecise,
-    llvm::StringRef name, llvm::Optional<SpirvInstruction *> init,
-    SourceLocation loc) {
+    bool isNointerp, llvm::StringRef name,
+    llvm::Optional<SpirvInstruction *> init, SourceLocation loc) {
   assert(storageClass != spv::StorageClass::Function);
   // Note: We store the underlying type in the variable, *not* the pointer type.
-  auto *var =
-      new (context) SpirvVariable(/*QualType*/ {}, loc, storageClass, isPrecise,
-                                  init.hasValue() ? init.getValue() : nullptr);
+  auto *var = new (context)
+      SpirvVariable(type, loc, storageClass, isPrecise, isNointerp,
+                    init.hasValue() ? init.getValue() : nullptr);
   var->setResultType(type);
   var->setDebugName(name);
   mod->addVariable(var);
@@ -1560,6 +1613,13 @@ void SpirvBuilder::decoratePerTaskNV(SpirvInstruction *target, uint32_t offset,
   mod->addDecoration(decor);
 }
 
+void SpirvBuilder::decoratePerVertexKHR(SpirvInstruction *target,
+                                        SourceLocation srcLoc) {
+  auto *decor = new (context)
+      SpirvDecoration(srcLoc, target, spv::Decoration::PerVertexKHR);
+  mod->addDecoration(decor);
+}
+
 void SpirvBuilder::decorateCoherent(SpirvInstruction *target,
                                     SourceLocation srcLoc) {
   auto *decor =
@@ -1713,6 +1773,23 @@ void SpirvBuilder::addModuleInitCallToEntryPoints() {
   }
 }
 
+void SpirvBuilder::setPerVertexInterpMode(bool b) {
+  mod->setPerVertexInterpMode(b);
+}
+
+bool SpirvBuilder::isPerVertexInterpMode() {
+  return mod->isPerVertexInterpMode();
+}
+
+void SpirvBuilder::addPerVertexStgInputFuncVarEntry(SpirvInstruction *k,
+                                                    SpirvInstruction *v) {
+  perVertexInputVarMap[k] = v;
+}
+
+SpirvInstruction *SpirvBuilder::getPerVertexStgInput(SpirvInstruction *k) {
+  return perVertexInputVarMap.lookup(k);
+}
+
 void SpirvBuilder::endModuleInitFunction() {
   if (moduleInitInsertPoint == nullptr ||
       moduleInitInsertPoint->hasTerminator()) {
@@ -1742,6 +1819,11 @@ std::vector<uint32_t> SpirvBuilder::takeModule() {
   RemoveBufferBlockVisitor removeBufferBlockVisitor(
       astContext, context, spirvOptions, featureManager);
   EmitVisitor emitVisitor(astContext, context, spirvOptions, featureManager);
+  PervertexInputVisitor pervertexInputVisitor(*this, astContext, context,
+                                              spirvOptions);
+
+  // pervertex inputs refine
+  mod->invokeVisitor(&pervertexInputVisitor);
 
   // UE Change Begin: Ensure "GLSL.std.450" instruction set is included;
   // required for fuse-multiply-add pass.

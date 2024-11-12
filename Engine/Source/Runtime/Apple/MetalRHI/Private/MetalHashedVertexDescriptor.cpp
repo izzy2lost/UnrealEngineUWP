@@ -4,10 +4,9 @@
 	MetalHashedVertexDescriptor.cpp: Metal RHI Hashed Vertex Descriptor.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
 #include "MetalHashedVertexDescriptor.h"
 
+#include "MetalRHIPrivate.h"
 
 //------------------------------------------------------------------------------
 
@@ -19,6 +18,16 @@ FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor()
 {
 	// void
 }
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(IRVersionedInputLayoutDescriptor& Desc, uint32 Hash)
+	: VertexDescHash(Hash)
+	, IRVertexDesc(Desc)
+	, bUsesIRVertexDesc(true)	
+{
+	// void
+}
+#endif
 
 FMetalHashedVertexDescriptor::FMetalHashedVertexDescriptor(MTLVertexDescriptorPtr Desc, uint32 Hash)
 	: VertexDescHash(Hash)
@@ -44,6 +53,9 @@ FMetalHashedVertexDescriptor& FMetalHashedVertexDescriptor::operator=(FMetalHash
 	{
 		VertexDescHash = Other.VertexDescHash;
 		VertexDesc = Other.VertexDesc;
+#if METAL_USE_METAL_SHADER_CONVERTER
+		IRVertexDesc = Other.IRVertexDesc;
+#endif
 	}
 	return *this;
 }
@@ -57,6 +69,28 @@ bool FMetalHashedVertexDescriptor::operator==(FMetalHashedVertexDescriptor const
 		if (VertexDescHash == Other.VertexDescHash)
 		{
 			bEqual = true;
+			
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+			if(bUsesIRVertexDesc)
+			{
+				bEqual &= (IRVertexDesc.desc_1_0.numElements == Other.IRVertexDesc.desc_1_0.numElements);
+				
+				if (bEqual)
+				{
+					for (uint32 ElementIdx = 0; ElementIdx < IRVertexDesc.desc_1_0.numElements; ElementIdx++)
+					{
+						bEqual &= (FCStringAnsi::Strcmp(IRVertexDesc.desc_1_0.semanticNames[ElementIdx], Other.IRVertexDesc.desc_1_0.semanticNames[ElementIdx]) == 0);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].format == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].format);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].alignedByteOffset == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].alignedByteOffset);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlot == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlot);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlotClass == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].inputSlotClass);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].instanceDataStepRate == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].instanceDataStepRate);
+						bEqual &= (IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].semanticIndex == Other.IRVertexDesc.desc_1_0.inputElementDescs[ElementIdx].semanticIndex);
+					}
+				}
+			}
+			else
+#endif
 			if (VertexDesc != Other.VertexDesc)
 			{
                 MTL::VertexBufferLayoutDescriptorArray* Layouts = VertexDesc->layouts();

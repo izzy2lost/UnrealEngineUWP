@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHIPrivate.h"
 #include "D3D12Descriptors.h"
+#include "D3D12RHIPrivate.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +18,9 @@ void UE::D3D12Descriptors::CopyDescriptor(FD3D12Device* Device, FD3D12Descriptor
 
 void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, FD3D12DescriptorHeap* SourceHeap, uint32 FirstDescriptor, uint32 NumDescriptors)
 {
-	SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors HeapToHeap (%d)"), FColor::Turquoise, NumDescriptors);
+	// Use regular CPU Profile without dynamic value - almost same overhead for string formatting as actual Copy
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CopyDescriptors HeapToHeap");
+	//SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors HeapToHeap (%d)"), FColor::Turquoise, NumDescriptors);
 
 	const D3D12_CPU_DESCRIPTOR_HANDLE TargetStart = TargetHeap->GetCPUSlotHandle(FirstDescriptor);
 	const D3D12_CPU_DESCRIPTOR_HANDLE SourceStart = SourceHeap->GetCPUSlotHandle(FirstDescriptor);
@@ -32,9 +34,42 @@ void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12Descripto
 	);
 }
 
+void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, FD3D12DescriptorHeap* SourceHeap, TConstArrayView<FRHIDescriptorHandle> Handles)
+{
+	// Use regular CPU Profile without dynamic value - almost same overhead for string formatting as actual Copy
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CopyDescriptors HeapToHeap Scattered");
+	//SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors HeapToHeap Scattered (%d)"), FColor::Turquoise, Handles.Num());
+
+	const int32 NumDescriptors = Handles.Num();
+	const D3D12_DESCRIPTOR_HEAP_TYPE D3DHeapType = Translate(TargetHeap->GetType());
+
+	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> DstDescriptors;
+	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> SrcDescriptors;
+	TArray<UINT> CopyCounts;
+
+	DstDescriptors.SetNumUninitialized(NumDescriptors);
+	SrcDescriptors.SetNumUninitialized(NumDescriptors);
+	CopyCounts.SetNumUninitialized(NumDescriptors);
+
+	for (int32 Index = 0; Index < NumDescriptors; Index++)
+	{
+		DstDescriptors[Index] = TargetHeap->GetCPUSlotHandle(Handles[Index].GetIndex());
+		SrcDescriptors[Index] = SourceHeap->GetCPUSlotHandle(Handles[Index].GetIndex());
+		CopyCounts[Index] = 1;
+	}
+
+	Device->GetDevice()->CopyDescriptors(
+		NumDescriptors, DstDescriptors.GetData(), CopyCounts.GetData(),
+		NumDescriptors, SrcDescriptors.GetData(), CopyCounts.GetData(),
+		D3DHeapType
+	);
+}
+
 void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, TConstArrayView<FRHIDescriptorHandle> DstHandles, TConstArrayView<FD3D12OfflineDescriptor> SrcOfflineDescriptors)
 {
-	SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors Scattered (%d)"), FColor::Turquoise, DstHandles.Num());
+	// Use regular CPU Profile without dynamic value - almost same overhead for string formatting as actual Copy
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CopyDescriptors Scattered");
+	//SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors Scattered (%d)"), FColor::Turquoise, DstHandles.Num());
 
 	check(DstHandles.Num() == SrcOfflineDescriptors.Num());
 
@@ -164,11 +199,6 @@ FD3D12DescriptorManager::FD3D12DescriptorManager(FD3D12Device* Device, FD3D12Des
 
 FD3D12DescriptorManager::~FD3D12DescriptorManager() = default;
 
-void FD3D12DescriptorManager::UpdateDescriptorImmediately(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InSourceCpuHandle)
-{
-	UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), GetHeap(), InHandle, InSourceCpuHandle);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FD3D12OnlineDescriptorManager
 
@@ -187,7 +217,7 @@ void FD3D12OnlineDescriptorManager::Init(uint32 InTotalSize, uint32 InBlockSize,
 	{
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		Heaps = GetParentDevice()->GetBindlessDescriptorManager().AllocateResourceHeapsForAllPipelines(InTotalSize);
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			if (Heaps[Pipeline])
 			{
@@ -212,7 +242,7 @@ void FD3D12OnlineDescriptorManager::Init(uint32 InTotalSize, uint32 InBlockSize,
 		INC_DWORD_STAT(STAT_NumViewOnlineDescriptorHeaps);
 		INC_MEMORY_STAT_BY(STAT_ViewOnlineDescriptorHeapMemory, Heap->GetMemorySize());
 
-		for (ERHIPipeline Pipeline : GetRHIPipelines())
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			Heaps[Pipeline] = Heap;
 		}
@@ -237,7 +267,7 @@ void FD3D12OnlineDescriptorManager::Init(uint32 InTotalSize, uint32 InBlockSize,
 
 void FD3D12OnlineDescriptorManager::CleanupResources()
 {
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		Heaps[Pipeline] = nullptr;
 	}
@@ -560,7 +590,7 @@ void FD3D12DescriptorHeapManager::DeferredFreeHeap(FD3D12DescriptorHeap* InHeap)
 			if (GlobalHeap.IsHeapAChild(InHeap))
 			{
 				InHeap->AddRef();
-				FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap);
+				FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap, FD3D12DeferredDeleteObject::EType::DescriptorHeap);
 				return;
 			}
 		}
@@ -568,7 +598,7 @@ void FD3D12DescriptorHeapManager::DeferredFreeHeap(FD3D12DescriptorHeap* InHeap)
 	else
 	{
 		InHeap->AddRef();
-		FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap);
+		FD3D12DynamicRHI::GetD3DRHI()->DeferredDelete(InHeap, FD3D12DeferredDeleteObject::EType::DescriptorHeap);
 	}
 }
 

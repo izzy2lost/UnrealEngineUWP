@@ -655,8 +655,8 @@ using FDoublePropertyTraits             = TDirectPropertyTraits<double, false>;
 using FTransformPropertyTraits          = TIndirectPropertyTraits<FTransform, FIntermediate3DTransform>;
 using FEulerTransformPropertyTraits     = TIndirectPropertyTraits<FEulerTransform, FIntermediate3DTransform>;
 using FComponentTransformPropertyTraits = TDirectPropertyTraits<FIntermediate3DTransform>;
-using FStringPropertyTraits			    = TDirectPropertyTraits<FString>;
-
+using FRotatorPropertyTraits            = TDirectPropertyTraits<FRotator>;
+using FStringPropertyTraits             = TDirectPropertyTraits<FString>;
 using FFloatParameterTraits             = TIndirectPropertyTraits<float, double, false>;
 using FColorParameterTraits             = TIndirectPropertyTraits<FLinearColor, FIntermediateColor>;
 
@@ -676,6 +676,7 @@ struct FMovieSceneTracksComponentTypes
 	TPropertyComponents<FTransformPropertyTraits> Transform;
 	TPropertyComponents<FEulerTransformPropertyTraits> EulerTransform;
 	TPropertyComponents<FComponentTransformPropertyTraits> ComponentTransform;
+	TPropertyComponents<FRotatorPropertyTraits> Rotator;
 	TPropertyComponents<FStringPropertyTraits> String;
 	TPropertyComponents<FObjectPropertyTraits> Object;
 
@@ -683,6 +684,7 @@ struct FMovieSceneTracksComponentTypes
 	TPropertyComponents<FColorParameterTraits> ColorParameter;
 
 	TComponentTypeID<FSourceDoubleChannel> QuaternionRotationChannel[3];
+	TComponentTypeID<FSourceDoubleChannel> RotatorChannel[3];
 
 	TComponentTypeID<FConstraintComponentData> ConstraintChannel;
 
@@ -719,7 +721,30 @@ struct FMovieSceneTracksComponentTypes
 	TComponentTypeID<FMovieSceneCameraShakeComponentData> CameraShake;
 	TComponentTypeID<FMovieSceneCameraShakeInstanceData> CameraShakeInstance;
 
-	struct
+	struct FObjectPropertyRegistration : TCustomPropertyRegistration<FObjectPropertyTraits>
+	{
+		struct FMetaData
+		{
+			TWeakObjectPtr<UClass> AllowedClass;
+			bool bAllowsClear = true;
+		};
+
+		void Add(UClass* ClassType, FName PropertyName, GetterFunc Getter, SetterFunc Setter)
+		{
+			TCustomPropertyRegistration<FObjectPropertyTraits>::Add(ClassType, PropertyName, Getter, Setter);
+		}
+
+		void Add(UClass* ClassType, FName PropertyName, GetterFunc Getter, SetterFunc Setter, FMetaData InMetaData)
+		{
+			int32 CustomIndex = CustomAccessors.Num();
+			TCustomPropertyRegistration<FObjectPropertyTraits>::Add(ClassType, PropertyName, Getter, Setter);
+			MetaData.Add(CustomIndex, InMetaData);
+		}
+
+		TMap<int32, FMovieSceneTracksComponentTypes::FObjectPropertyRegistration::FMetaData> MetaData;
+	};
+
+	struct FAccessors
 	{
 		TCustomPropertyRegistration<FBoolPropertyTraits> Bool;
 		TCustomPropertyRegistration<FBytePropertyTraits> Byte;
@@ -731,7 +756,8 @@ struct FMovieSceneTracksComponentTypes
 		TCustomPropertyRegistration<FFloatVectorPropertyTraits> FloatVector;
 		TCustomPropertyRegistration<FDoubleVectorPropertyTraits> DoubleVector;
 		TCustomPropertyRegistration<FComponentTransformPropertyTraits, 1> ComponentTransform;
-		TCustomPropertyRegistration<FObjectPropertyTraits> Object;
+		FObjectPropertyRegistration Object;
+
 	} Accessors;
 
 	struct

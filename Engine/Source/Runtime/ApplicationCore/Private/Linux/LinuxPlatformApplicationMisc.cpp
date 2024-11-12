@@ -295,8 +295,8 @@ bool FLinuxPlatformApplicationMisc::InitSDL()
 
 		// The following hints are needed when FLinuxApplication::SetHighPrecisionMouseMode is called and Enable = true.
 		// SDL_SetRelativeMouseMode when enabled is warping the mouse in default mode but we don't want that. 
-		// Furthermore SDL hides the mouse which we prevent with extending SDL with a new hint.
-		SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_SHOW_CURSOR, "1"); // When relative mouse mode is acive, don't hide cursor.
+		// Furthermore SDL hides the mouse which we prevent by setting SDL_HINT_MOUSE_RELATIVE_CURSOR_VISIBLE
+		SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_CURSOR_VISIBLE, "1"); // When relative mouse mode is active, don't hide cursor.
 		SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "0"); // Don't warp the cursor to the center in relative mouse mode.
 
 		// If we're rendering offscreen, use the "dummy" SDL video driver

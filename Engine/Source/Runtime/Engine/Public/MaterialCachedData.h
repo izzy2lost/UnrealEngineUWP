@@ -13,6 +13,7 @@
 #include "MaterialCachedData.generated.h"
 
 class UTexture;
+class UTextureCollection;
 class UCurveLinearColor;
 class UCurveLinearColorAtlas;
 class UFont;
@@ -176,6 +177,9 @@ struct FMaterialCachedExpressionEditorOnlyData
 
 	UPROPERTY()
 	TSet<FString> ExpressionIncludeFilePaths;
+
+	UPROPERTY()
+	TSet<FName> UserSceneTextureInputs;
 };
 
 USTRUCT()
@@ -197,8 +201,13 @@ struct FMaterialCachedExpressionData
 	void Validate(const UMaterialInterface& Material);
 
 	/** Adds a parameter. If this returns false, a parameter with identical name has already been added but it was set to a different value. */
-	bool AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture);
-	
+	bool AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture, UTextureCollection*& OutReferencedTextureCollection);
+
+	bool AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture)
+	{
+		UTextureCollection* UnusedReferencedTextureCollection = nullptr;
+		return AddParameter(ParameterInfo, ParameterMeta, OutReferencedTexture, UnusedReferencedTextureCollection);
+	}
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
@@ -233,7 +242,7 @@ struct FMaterialCachedExpressionData
 
 	inline int32 GetNumParameters(EMaterialParameterType Type) const { return GetParameterTypeEntry(Type).ParameterInfoSet.Num(); }
 	int32 FindParameterIndex(EMaterialParameterType Type, const FMemoryImageMaterialParameterInfo& HashedParameterInfo) const;
-	bool GetParameterValue(EMaterialParameterType Type, const FMemoryImageMaterialParameterInfo& ParameterInfo, FMaterialParameterMetadata& OutResult) const;
+	ENGINE_API bool GetParameterValue(EMaterialParameterType Type, const FMemoryImageMaterialParameterInfo& ParameterInfo, FMaterialParameterMetadata& OutResult) const;
 	void GetParameterValueByIndex(EMaterialParameterType Type, int32 ParameterIndex, FMaterialParameterMetadata& OutResult) const;
 	const FGuid& GetExpressionGuid(EMaterialParameterType Type, int32 Index) const;
 	void GetAllParametersOfType(EMaterialParameterType Type, TMap<FMaterialParameterInfo, FMaterialParameterMetadata>& OutParameters) const;
@@ -294,6 +303,9 @@ struct FMaterialCachedExpressionData
 	TArray<TSoftObjectPtr<UTexture>> TextureValues;
 
 	UPROPERTY()
+	TArray<TSoftObjectPtr<UTextureCollection>> TextureCollectionValues;
+
+	UPROPERTY()
 	TArray<TSoftObjectPtr<UFont>> FontValues;
 
 	UPROPERTY()
@@ -308,6 +320,9 @@ struct FMaterialCachedExpressionData
 	/** Array of all texture referenced by this material */
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 
 	/** Array of all functions this material depends on. */
 	UPROPERTY()
@@ -340,6 +355,9 @@ struct FMaterialCachedExpressionData
 	uint32 bHasRuntimeVirtualTextureOutput : 1;
 
 	UPROPERTY()
+	uint32 bHasFirstPersonOutput : 1;
+
+	UPROPERTY()
 	uint32 bHasSceneColor : 1;
 
 	UPROPERTY()
@@ -350,6 +368,12 @@ struct FMaterialCachedExpressionData
 
 	UPROPERTY()
 	uint32 bHasVertexInterpolator : 1;
+
+	UPROPERTY()
+	uint32 bHasCustomizedUVs : 1;
+
+	UPROPERTY()
+	uint32 bHasMeshPaintTexture : 1;
 
 	UPROPERTY()
 	uint32 PropertyConnectedBitmask_DEPRECATED = 0;

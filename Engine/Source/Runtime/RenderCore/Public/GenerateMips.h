@@ -71,21 +71,4 @@ public:
 		ERHIFeatureLevel::Type FeatureLevel,
 		FRDGTextureRef Texture,
 		FRHISamplerState* Sampler);
-
-	//////////////////////////////////////////////////////////////////////////
-	UE_DEPRECATED(5.1, "This function now requires a ERHIFeatureLevel argument. You can obtain the correct Feature Level from a Scene or View.")
-	static RENDERCORE_API void Execute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FGenerateMipsParams Params = {}, EGenerateMipsPass Pass = EGenerateMipsPass::AutoDetect);
-
-	UE_DEPRECATED(5.1, "This function now requires a ERHIFeatureLevel argument. You can obtain the correct Feature Level from a Scene or View.")
-	static RENDERCORE_API void Execute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler, EGenerateMipsPass Pass = EGenerateMipsPass::AutoDetect);
-
-	UE_DEPRECATED(5.1, "This function now requires a ERHIFeatureLevel argument. You can obtain the correct Feature Level from a Scene or View.")
-	static RENDERCORE_API void ExecuteCompute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler);
-
-	UE_DEPRECATED(5.1, "This function now requires a ERHIFeatureLevel argument. You can obtain the correct Feature Level from a Scene or View.")
-	static RENDERCORE_API void ExecuteCompute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler, FRDGBufferRef ConditionBuffer, uint32 Offset = 0);
-
-	UE_DEPRECATED(5.1, "This function now requires a ERHIFeatureLevel argument. You can obtain the correct Feature Level from a Scene or View.")
-	static RENDERCORE_API void ExecuteRaster(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler);
-	//////////////////////////////////////////////////////////////////////////
 };

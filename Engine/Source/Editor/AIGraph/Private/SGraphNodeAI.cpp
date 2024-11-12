@@ -274,7 +274,7 @@ FReply SGraphNodeAI::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& D
 		}
 
 		const float DragTime = float(FPlatformTime::Seconds() - DragNodeOp->StartTime);
-		if (DragTime < 0.5f)
+		if (DragTime < 0.25f)
 		{
 			return FReply::Handled();
 		}

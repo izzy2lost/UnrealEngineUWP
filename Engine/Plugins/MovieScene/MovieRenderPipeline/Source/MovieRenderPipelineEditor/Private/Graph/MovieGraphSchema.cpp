@@ -16,6 +16,8 @@
 #include "UObject/UObjectIterator.h"
 #include "ScopedTransaction.h"
 #include "GraphEditor.h"
+#include "MovieEdGraphInputNode.h"
+#include "MovieEdGraphOutputNode.h"
 #include "MovieEdGraphVariableNode.h"
 #include "MoviePipelineEdGraphSubgraphNode.h"
 
@@ -40,6 +42,9 @@ const FName UMovieGraphSchema::PC_Object(UEdGraphSchema_K2::PC_Object);
 const FName UMovieGraphSchema::PC_SoftObject(UEdGraphSchema_K2::PC_SoftObject);
 const FName UMovieGraphSchema::PC_Class(UEdGraphSchema_K2::PC_Class);
 const FName UMovieGraphSchema::PC_SoftClass(UEdGraphSchema_K2::PC_SoftClass);
+
+const FText FMovieGraphSchemaAction::UserVariablesCategory = LOCTEXT("UserVariablesCategory", "User Variables");
+const FText FMovieGraphSchemaAction::GlobalVariablesCategory = LOCTEXT("GlobalVariablesCategory", "Global Variables");
 
 namespace UE::MovieGraph::Private
 {
@@ -115,6 +120,79 @@ bool UMovieGraphSchema::ShouldHidePinDefaultValue(UEdGraphPin* Pin) const
 	return true;
 }
 
+bool UMovieGraphSchema::SupportsDropPinOnNode(UEdGraphNode* InTargetNode, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection, FText& OutErrorMessage) const
+{
+	bool bIsSupported = false;
+
+	if ((InSourcePinDirection == EGPD_Input) && Cast<UMoviePipelineEdGraphNodeInput>(InTargetNode))
+	{
+		bIsSupported = true;
+		OutErrorMessage = LOCTEXT("AddPinToInputNode", "Add Pin to Input Node");
+	}
+	else if ((InSourcePinDirection == EGPD_Output) && Cast<UMoviePipelineEdGraphNodeOutput>(InTargetNode))
+	{
+		bIsSupported = true;
+		OutErrorMessage = LOCTEXT("AddPinToOutputNode", "Add Pin to Output Node");
+	}
+	
+	return bIsSupported;
+}
+
+UEdGraphPin* UMovieGraphSchema::DropPinOnNode(UEdGraphNode* InTargetNode, const FName& InSourcePinName, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection) const
+{
+	UEdGraphPin* NewEdPin = nullptr;
+	
+	const UMoviePipelineEdGraphNodeBase* EdNode = Cast<UMoviePipelineEdGraphNodeBase>(InTargetNode);
+	if (!EdNode)
+	{
+		return nullptr;
+	}
+
+	const UMovieGraphNode* RuntimeNode = EdNode->GetRuntimeNode();
+	if (!RuntimeNode)
+	{
+		return nullptr;
+	}
+
+	if (UMovieGraphConfig* GraphConfig = RuntimeNode->GetGraph())
+	{
+		FText NewMemberName;
+		if (InSourcePinName == NAME_None)
+		{
+			NewMemberName = (InSourcePinDirection == EGPD_Input) ? LOCTEXT("NewInputName", "NewInput") : LOCTEXT("NewOutputName", "NewOutput");
+		}
+		else
+		{
+			NewMemberName = FText::FromName(InSourcePinName);
+		}
+
+		UMovieGraphInterfaceBase* NewMember;
+		if (InSourcePinDirection == EGPD_Input)
+		{
+			NewMember = GraphConfig->AddInput(NewMemberName);
+		}
+		else
+		{
+			NewMember = GraphConfig->AddOutput(NewMemberName);
+		}
+		
+		if (NewMember)
+		{
+			NewMember->bIsBranch = InSourcePinType.PinCategory == PC_Branch;
+
+			if (!NewMember->bIsBranch)
+			{
+				NewMember->SetValueType(UMoviePipelineEdGraphNode::GetValueTypeFromPinType(InSourcePinType), InSourcePinType.PinSubCategoryObject.Get());
+			}
+
+			// Return the last pin on the node (which was just added above)
+			NewEdPin = EdNode->GetPinAt(EdNode->GetAllPins().Num() - 1);
+		}
+	}
+
+	return NewEdPin; 
+}
+
 void UMovieGraphSchema::InitMoviePipelineNodeClasses()
 {
 	if (MoviePipelineNodeClasses.Num() > 0)
@@ -134,6 +212,16 @@ void UMovieGraphSchema::InitMoviePipelineNodeClasses()
 	MoviePipelineNodeClasses.Sort();
 }
 
+const TArray<UClass*>& UMovieGraphSchema::GetNodeClasses()
+{
+	if (MoviePipelineNodeClasses.IsEmpty())
+	{
+		InitMoviePipelineNodeClasses();
+	}
+	
+	return MoviePipelineNodeClasses;
+}
+
 bool UMovieGraphSchema::IsConnectionToBranchAllowed(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin, FText& OutError) const
 {
 	const UMovieGraphPin* ToPin = UE::MovieGraph::Private::GetGraphPinFromEdPin(InputPin);
@@ -144,8 +232,11 @@ bool UMovieGraphSchema::IsConnectionToBranchAllowed(const UEdGraphPin* InputPin,
 
 void UMovieGraphSchema::AddExtraMenuActions(FGraphActionMenuBuilder& ActionMenuBuilder) const
 {
-	// Comment action
-	ActionMenuBuilder.AddAction(CreateCommentMenuAction());
+	// Comment action. Only add if there's no FromPin (ie, no connection is currently being built).
+	if (!ActionMenuBuilder.FromPin)
+	{
+		ActionMenuBuilder.AddAction(CreateCommentMenuAction());
+	}
 }
 
 TSharedRef<FMovieGraphSchemaAction_NewComment> UMovieGraphSchema::CreateCommentMenuAction() const
@@ -182,17 +273,51 @@ void UMovieGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& Context
 			// Add variable actions separately
 			continue;
 		}
-		if(PipelineNodeClass == UMovieGraphInputNode::StaticClass() ||
+		
+		if (PipelineNodeClass == UMovieGraphInputNode::StaticClass() ||
 			PipelineNodeClass == UMovieGraphOutputNode::StaticClass())
 		{
 			// Can't place Input and Output nodes manually.
 			continue;
 		}
 
-		// This can be used to sort whether or not an option shows up. For now there's no restrictions
-		// on where nodes can be made, but eventually we might check which branch they're on (if from pin)
-		// to filter out incompatible nodes.
-		// if (!ContextMenuBuilder.FromPin || ContextMenuBuilder.FromPin->Direction == EGPD_Input)
+		// Determine if this node type can be created in the branch that FromPin is in. FromPin is non-null if the node is being created and connected
+		// to an existing pin in one step (ie, the user is currently creating a connection).
+		bool bCanAppearInMenu = true;
+		if (ContextMenuBuilder.FromPin)
+		{
+			const UMovieGraphConfig* GraphConfig = UE::MovieGraph::Private::GetGraphFromEdPin(ContextMenuBuilder.FromPin);
+			const UMovieGraphPin* FromGraphPin = UE::MovieGraph::Private::GetGraphPinFromEdPin(ContextMenuBuilder.FromPin);
+			UMovieGraphNode* FromGraphNode = UE::MovieGraph::Private::GetGraphNodeFromEdPin(ContextMenuBuilder.FromPin);
+			
+			if (GraphConfig && FromGraphPin && FromGraphNode)
+			{
+				// Get the branch name that FromPin is on (there should only be one branch name found in this scenario)
+				constexpr bool bStopAtSubgraph = true;
+				TArray<FString> FromBranchNames = (ContextMenuBuilder.FromPin->Direction == EGPD_Input)
+					? GraphConfig->GetDownstreamBranchNames(FromGraphNode, FromGraphPin, bStopAtSubgraph)
+					: GraphConfig->GetUpstreamBranchNames(FromGraphNode, FromGraphPin, bStopAtSubgraph);
+
+				// Determine if a specific node class can be created on this branch given its branch restriction
+				bool bBranchRestrictionIsOk = true;
+				if (PipelineNode->GetBranchRestriction() == EMovieGraphBranchRestriction::Globals)
+				{
+					bBranchRestrictionIsOk = FromBranchNames.Contains(UMovieGraphNode::GlobalsPinNameString);
+				}
+				else if (PipelineNode->GetBranchRestriction() == EMovieGraphBranchRestriction::RenderLayer)
+				{
+					bBranchRestrictionIsOk = !FromBranchNames.Contains(UMovieGraphNode::GlobalsPinNameString);
+				}
+				else
+				{
+					// The branch restriction is "Any", so the node creation should be ok
+				}
+				
+				bCanAppearInMenu = bBranchRestrictionIsOk && (ContextMenuBuilder.FromPin->PinType.PinCategory == PC_Branch);
+			}
+		}
+		
+		if (bCanAppearInMenu)
 		{
 			const FText Name = PipelineNode->GetNodeTitle();
 			const FText Category = PipelineNode->GetMenuCategory();
@@ -208,7 +333,7 @@ void UMovieGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& Context
 	}
 
 	// Create an accessor node action for each variable the graph has
-	const bool bIncludeGlobal = true;
+	constexpr bool bIncludeGlobal = true;
 	for (const UMovieGraphVariable* Variable : RuntimeGraph->GetVariables(bIncludeGlobal))
 	{
 		const FText Name = FText::Format(LOCTEXT("CreateVariable_Name", "Get {0}"), FText::FromString(Variable->GetMemberName()));
@@ -218,7 +343,21 @@ void UMovieGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& Context
 		TSharedPtr<FMovieGraphSchemaAction> NewAction = MakeShared<FMovieGraphSchemaAction_NewVariableNode>(Category, Name, Variable->GetGuid(), Tooltip);
 		NewAction->NodeClass = UMovieGraphVariableNode::StaticClass();
 		
-		ContextMenuBuilder.AddAction(NewAction);
+		// Determine if this node can be created and connected to FromPin
+		bool bCanAppearInMenu = true;
+		if (ContextMenuBuilder.FromPin)
+		{
+			if (const UMovieGraphPin* FromPin = UE::MovieGraph::Private::GetGraphPinFromEdPin(ContextMenuBuilder.FromPin))
+			{
+				// Variable type and pin type must match
+				bCanAppearInMenu = (FromPin->Properties.Type == Variable->GetValueType()) && (FromPin->Properties.TypeObject == Variable->GetValueTypeObject());
+			}
+		}
+
+		if (bCanAppearInMenu)
+		{
+			ContextMenuBuilder.AddAction(NewAction);
+		}
 	}
 
 	AddExtraMenuActions(ContextMenuBuilder);
@@ -420,6 +559,50 @@ FConnectionDrawingPolicy* UMovieGraphSchema::CreateConnectionDrawingPolicy(int32
 	UEdGraph* InGraphObj) const
 {
 	return new FMovieEdGraphConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, InZoomFactor, InClippingRect, InDrawElements, InGraphObj);
+}
+
+void FMovieGraphSchemaAction::MovePersistentItemToCategory(const FText& NewCategoryName)
+{
+	if (const TObjectPtr<UMovieGraphVariable> TargetVariable = Cast<UMovieGraphVariable>(ActionTarget))
+	{
+		FString NewCategory = NewCategoryName.ToString();
+		
+		// If moving to the root, the category will be User Variables
+		if (NewCategory == UserVariablesCategory.ToString())
+		{
+			NewCategory = FString();
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("GraphEditor_SetVariableCategory", "Set Variable Category"));
+		
+		// Remove the "User Variables" prefix. Variables themselves do not store that part of the category.
+		const FString UserVariablesRootPrefix = FString::Format(TEXT("{0}|"), {UserVariablesCategory.ToString()});
+		NewCategory = NewCategory.StartsWith(UserVariablesRootPrefix) ? NewCategory.RightChop(UserVariablesRootPrefix.Len()) : NewCategory;
+		TargetVariable->SetCategory(NewCategory);
+	}
+}
+
+bool FMovieGraphSchemaAction::ReorderToBeforeAction(TSharedRef<FEdGraphSchemaAction> OtherAction)
+{
+	const TSharedRef<FMovieGraphSchemaAction> GraphAction = StaticCastSharedRef<FMovieGraphSchemaAction>(OtherAction);
+
+	const TObjectPtr<UMovieGraphVariable> BeforeVariable = Cast<UMovieGraphVariable>(GraphAction->ActionTarget);
+	if (!BeforeVariable)
+	{
+		return false;
+	}
+
+	const TObjectPtr<UMovieGraphVariable> TargetVariable = Cast<UMovieGraphVariable>(ActionTarget);
+	if (!TargetVariable)
+	{
+		return false;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("GraphEditor_MoveVariable", "Move Variable"));
+
+	BeforeVariable->GetOwningGraph()->MoveVariableBefore(TargetVariable, BeforeVariable);
+
+	return true;
 }
 
 FMovieGraphSchemaAction_NewNode::FMovieGraphSchemaAction_NewNode(FText InNodeCategory, FText InDisplayName, FText InToolTip, int32 InGrouping, FText InKeywords)

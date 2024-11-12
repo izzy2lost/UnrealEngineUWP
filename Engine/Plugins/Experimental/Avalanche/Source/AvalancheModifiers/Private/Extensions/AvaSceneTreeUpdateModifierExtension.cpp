@@ -79,7 +79,7 @@ void FAvaSceneTreeUpdateModifierExtension::OnExtensionEnabled(EActorModifierCore
 	}
 
 	// When actor are destroyed in world
-	World->RemoveOnActorDestroyededHandler(WorldActorDestroyedDelegate);
+	World->RemoveOnActorDestroyedHandler(WorldActorDestroyedDelegate);
 	WorldActorDestroyedDelegate = World->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateSP(this, &FAvaSceneTreeUpdateModifierExtension::OnWorldActorDestroyed));
 
 	// Used to detect visibility changes in siblings
@@ -116,7 +116,7 @@ void FAvaSceneTreeUpdateModifierExtension::OnExtensionDisabled(EActorModifierCor
 		return;
 	}
 
-	World->RemoveOnActorDestroyededHandler(WorldActorDestroyedDelegate);
+	World->RemoveOnActorDestroyedHandler(WorldActorDestroyedDelegate);
 
 #if WITH_EDITOR
 	if (UAvaOutlinerSubsystem* const OutlinerSubsystem = World->GetSubsystem<UAvaOutlinerSubsystem>())

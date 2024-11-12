@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalRHIPrivate.h"
 
 class FMetalCommandQueue;
 

@@ -9,6 +9,9 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSplitter.h"
+#include "Widgets/Text/SMultiLineEditableText.h"
+#include "Text/HLSLSyntaxHighlighterMarshaller.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "MaterialEditorActions.h"
 #include "Materials/MaterialInstance.h"
@@ -104,6 +107,12 @@ void FShaderPlatformSettings::OnShaderViewComboSelectionChanged(TSharedPtr<FMate
 
 FText FShaderPlatformSettings::GetShaderCode(const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex)
 {
+	if (PlatformData[QualityType].Instances.IsEmpty())
+	{
+		return FText::GetEmpty();
+	}
+
+	check(InstanceIndex >= 0 && InstanceIndex < PlatformData[QualityType].Instances.Num());
 	auto& Instance = PlatformData[QualityType].Instances[InstanceIndex];
 	// if there were no change to the material return the cached shader code
 	if (!Instance.bUpdateShaderCode)
@@ -140,6 +149,34 @@ FText FShaderPlatformSettings::GetShaderCode(const EMaterialQualityLevel::Type Q
 	}
 
 	return Instance.ShaderCode;
+}
+
+/** returns all shaders' stats concatenated together*/
+FString FShaderPlatformSettings::GetShadersStats() const
+{
+	static FString ExtraLine("---------------------------------------------\n");
+	FString ShadersStats;
+	for (const FPlatformData& LevelData : PlatformData)
+	{
+		for (int32 ShaderType = 0; ShaderType < (int32)ERepresentativeShader::Num; ++ShaderType)
+		{
+			for (const FInstanceData& InstanceData : LevelData.Instances)
+			{
+				if (InstanceData.ShaderStatsInfo.ShaderInstructionCount.IsEmpty())
+				{
+					continue;
+				}
+				
+				if (auto* Count = InstanceData.ShaderStatsInfo.ShaderInstructionCount.Find((ERepresentativeShader)ShaderType))
+				{
+					ShadersStats += FString("\n") + ExtraLine + FMaterialStatsUtils::RepresentativeShaderTypeToString((ERepresentativeShader)ShaderType);
+					ShadersStats += Count->StrDescriptionLong;
+				}
+			}
+		}
+	}
+	
+	return ShadersStats;
 }
 
 void FShaderPlatformSettings::AllocateMaterialResources()
@@ -187,7 +224,9 @@ void FShaderPlatformSettings::SetMaterial(UMaterial *InBaseMaterial, UMaterialIn
 		bReallocate = true;
 	}
 
-	if (InBaseMaterial == nullptr && InBaseMaterialInstance != nullptr && MaterialInstance != InBaseMaterialInstance)
+	if (InBaseMaterial == nullptr && 
+		InBaseMaterialInstance != nullptr && 
+		(MaterialInstance != InBaseMaterialInstance || Material != InBaseMaterialInstance->GetMaterial())) // If the Material Instance changed or its parent changed
 	{
 		Material = InBaseMaterialInstance->GetMaterial();
 		MaterialInstance = InBaseMaterialInstance;
@@ -795,6 +834,26 @@ FText FMaterialStats::GetShaderCode(const EShaderPlatform PlatformID, const EMat
 	return (*Entry)->GetShaderCode(QualityType, InstanceIndex);
 }
 
+FString FMaterialStats::GetShadersStats() const
+{
+	static FString ExtraLine("=============================================\n");
+	FString ShadersStats;
+	int Index = 0; 
+	for (const auto& MapEntry : ShaderPlatformStatsDB)
+	{
+		TSharedPtr<FShaderPlatformSettings> PlatformPtr = MapEntry.Value;
+		FString PlatformShadersStats = PlatformPtr->GetShadersStats();
+		if (PlatformShadersStats.Len())
+		{
+			ShadersStats += (Index ? FString("\n\n") : FString("")) + ExtraLine + ExtraLine + PlatformPtr->GetPlatformName().GetPlainNameString();
+			ShadersStats += PlatformShadersStats;
+			++Index;
+		}
+	}
+
+	return ShadersStats;
+}
+
 void FMaterialStats::Update()
 {
 	const bool bNeedsUpdate = IsShowingStats() || IsCodeViewWindowActive();
@@ -878,25 +937,22 @@ void FMaterialStats::SetMaterial(UMaterial *InMaterial, const TArray<TObjectPtr<
 
 void FMaterialStats::SetMaterial(UMaterialInstance *InMaterialInstance)
 {
-	if (MaterialInterface != InMaterialInstance || DerivedMaterialInstances.Num() > 0)
+	MaterialInterface = InMaterialInstance;
+	DerivedMaterialInstances.Empty();
+
+	for (const auto& Entry : ShaderPlatformStatsDB)
 	{
-		MaterialInterface = InMaterialInstance;
-		DerivedMaterialInstances.Empty();
-
-		for (const auto& Entry : ShaderPlatformStatsDB)
+		auto& Platform = Entry.Value;
+		if (Platform.IsValid())
 		{
-			auto& Platform = Entry.Value;
-			if (Platform.IsValid())
-			{
-				Platform->SetMaterial(nullptr, InMaterialInstance, DerivedMaterialInstances);
-			}
+			Platform->SetMaterial(nullptr, InMaterialInstance, DerivedMaterialInstances);
 		}
+	}
 
-		auto GridPtr = GetGridStatsWidget();
-		if (GridPtr.IsValid())
-		{
-			GridPtr->OnColumnNumChanged();
-		}
+	auto GridPtr = GetGridStatsWidget();
+	if (GridPtr.IsValid())
+	{
+		GridPtr->OnColumnNumChanged();
 	}
 }
 
@@ -922,6 +978,54 @@ bool FMaterialStats::AnyNewCompilationErrors(const int32 StartingFromInstanceInd
 	}
 
 	return bNewCompilationErrors;
+}
+
+// Generates a string of line numbers by counting the number of new-line characters in input source code.
+static FText GenerateLineNoTextForCodeView(const FString& InSourceCode)
+{
+	FString LineNumberStr;
+	int32 LineNo = 1;
+
+	for (TCHAR Chr : InSourceCode)
+	{
+		if (Chr == TEXT('\n'))
+		{
+			LineNumberStr += FString::Printf(TEXT("% 6d\n"), LineNo);
+			++LineNo;
+		}
+	}
+
+	return FText::FromString(MoveTemp(LineNumberStr));
+}
+
+TSharedRef<SScrollBox> FMaterialStats::BuildShaderCodeWidget(TFunction<FText(void)>&& InShaderCodeCallback)
+{
+	return SNew(SScrollBox)
+		+ SScrollBox::Slot().Padding(5)
+		[
+			SNew(SSplitter)
+			.Orientation(EOrientation::Orient_Horizontal)
+			+SSplitter::Slot()
+			.Resizable(false)
+			.SizeRule(SSplitter::SizeToContent)
+			[
+				SNew(STextBlock)
+				.Text_Lambda([InShaderCodeCallback]()
+				{
+					return GenerateLineNoTextForCodeView(InShaderCodeCallback().ToString());
+				})
+				.TextStyle(FAppStyle::Get(), "MessageLog")
+				.ColorAndOpacity(FLinearColor::Gray)
+			]
+			+SSplitter::Slot()
+			[
+				SNew(SMultiLineEditableText)
+				.Text_Lambda([InShaderCodeCallback](){ return InShaderCodeCallback(); })
+				.TextStyle(FAppStyle::Get(), "MessageLog")
+				.IsReadOnly(true)
+				.Marshaller(SyntaxHighlighter)
+			]
+		];
 }
 
 TSharedRef<class SDockTab> FMaterialStats::SpawnTab_HLSLCode(const class FSpawnTabArgs& Args)
@@ -960,15 +1064,6 @@ TSharedRef<class SDockTab> FMaterialStats::SpawnTab_HLSLCode(const class FSpawnT
 			SNew(SSeparator)
 		];
 
-	auto CodeView =
-		SNew(SScrollBox)
-		+ SScrollBox::Slot().Padding(5)
-		[
-			SNew(STextBlock)
-			.Text_Lambda([Code = &HLSLCode]() { return FText::FromString(*Code); })
-		];
-
-
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 		.Label(LOCTEXT("HLSLCodeTitle", "HLSL Code"))
 		[
@@ -981,7 +1076,7 @@ TSharedRef<class SDockTab> FMaterialStats::SpawnTab_HLSLCode(const class FSpawnT
 			+ SVerticalBox::Slot()
 			.FillHeight(1)
 			[
-				CodeView
+				BuildShaderCodeWidget([Code = &HLSLCode]() { return FText::FromString(*Code); })
 			]
 		];
 
@@ -1129,6 +1224,19 @@ void FMaterialStats::BuildViewShaderCodeMenus()
 	TSharedPtr<FWorkspaceItem> PlatformGroupMenuItem = ParentCategoryRef->AddGroup(LOCTEXT("ViewShaderCodePlatformsGroupMenu", "Shader Code"),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), "MaterialEditor.Tabs.HLSLCode"));
 
+	// Create the syntax highlighter
+	FHLSLSyntaxHighlighterMarshaller::FSyntaxTextStyle CodeStyle(
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Normal"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Operator"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Keyword"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.String"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Number"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Comment"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.PreProcessorKeyword"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Error"));
+
+	SyntaxHighlighter = FHLSLSyntaxHighlighterMarshaller::Create(CodeStyle);
+
 	// add hlsl code viewer tab
 	TabManager->RegisterTabSpawner( HLSLCodeTabId, FOnSpawnTab::CreateSP(this, &FMaterialStats::SpawnTab_HLSLCode))
 		.SetDisplayName( LOCTEXT("HLSLCodeTab", "HLSL Code") )
@@ -1176,18 +1284,16 @@ void FMaterialStats::BuildViewShaderCodeMenus()
 					.SetGroup(ShaderPlatformMenuItem.ToSharedRef())
 					.SetDisplayName(FText::FromString(MaterialQualityName));
 
-				auto CodeScrollBox = SNew(SScrollBox)
+				TSharedRef<SScrollBox> CodeScrollBox = SNew(SScrollBox)
 					+ SScrollBox::Slot().Padding(5)
 					[
-						SNew(STextBlock)
-						.Text_Lambda([MaterialStats = TWeakPtr<FMaterialStats>(SharedThis(this)), PlatformID, QualityLevel]()
+						BuildShaderCodeWidget([MaterialStats = TWeakPtr<FMaterialStats>(SharedThis(this)), PlatformID, QualityLevel]()
 						{
 							auto StatsPtr = MaterialStats.Pin();
 							if (StatsPtr.IsValid())
 							{
 								return StatsPtr->GetShaderCode(PlatformID, QualityLevel, InstanceIndex);
 							}
-
 							return FText::FromString(TEXT("Error reading shader code!"));
 						})
 					];

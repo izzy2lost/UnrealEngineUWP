@@ -60,20 +60,3 @@ struct TStructOpsTypeTraits<FMovieScenePropertyBinding> : public TStructOpsTypeT
 };
 #endif // WITH_EDITORONLY_DATA
 
-
-#if UE_MOVIESCENE_ENTITY_DEBUG
-
-namespace UE
-{
-namespace MovieScene
-{
-
-	template<> struct TComponentDebugType<FMovieScenePropertyBinding>
-	{
-		static const EComponentDebugType Type = EComponentDebugType::Property;
-	};
-
-} // namespace MovieScene
-} // namespace UE
-
-#endif // UE_MOVIESCENE_ENTITY_DEBUG

@@ -4,6 +4,7 @@
 #include "Model/Mix/MixUpdateCycle.h"
 #include "Device/FX/Device_FX.h"
 #include "Job.h"
+#include "Transform/Utility/T_RenderCapture.h"
 
 DEFINE_LOG_CATEGORY(LogBatch);
 DECLARE_CYCLE_STAT(TEXT("JobBatch_Exec"), STAT_JobBatch_Exec, STATGROUP_TextureGraphEngine);
@@ -236,7 +237,18 @@ AsyncJobResultPtr JobBatch::Exec(OnAllJobsDoneCallback callback)
 	if (callback)
 		OnAllJobsDoneCallbacks.push_back(std::move(callback));
 
+
+	if (IsCaptureRenderDoc())
+	{
+		JobUPtr BeginJob = T_BeginRenderCapture::CreateJob(Cycle, 0);
+		BeginJob->SetPriority((int32)E_Priority::kHighest, false);
+		JobUPtr EndJob = T_EndRenderCapture::CreateJob(Cycle, 0);
+
+		Queue.addBeginAndEnd(std::move(BeginJob), std::move(EndJob));
+	}
+
 	AllJobs = Queue.to_vector();
+
 
 	UE_LOG(LogBatch, VeryVerbose, TEXT("Running Batch: %llu [Count: %llu]"), BatchId, Queue.size());
 

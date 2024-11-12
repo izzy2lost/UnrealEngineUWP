@@ -5,11 +5,18 @@
 #include "Containers/UnrealString.h"
 #include "StateTreeExecutionContext.h"
 
+struct FAvaTransitionBehaviorInstance;
+
 struct FAvaTransitionExecutionContext : FStateTreeExecutionContext
 {
-	FAvaTransitionExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData);
+	FAvaTransitionExecutionContext(const FAvaTransitionBehaviorInstance& InBehaviorInstance, UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData);
 
 	void SetSceneDescription(FString&& InSceneDescription);
+
+	const FAvaTransitionBehaviorInstance* GetBehaviorInstance() const
+	{
+		return &BehaviorInstance;
+	}
 
 protected:
 	//~ Begin FStateTreeExecutionContext
@@ -17,5 +24,7 @@ protected:
 	//~ End FStateTreeExecutionContext
 
 private:
+	const FAvaTransitionBehaviorInstance& BehaviorInstance;
+
 	FString SceneDescription;
 };

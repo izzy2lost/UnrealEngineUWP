@@ -2,14 +2,19 @@
 
 #include "NetStatsViewColumnFactory.h"
 
-// Insights
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetEventGroupingAndSorting.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNodeHelper.h"
 
-#define LOCTEXT_NAMESPACE "SNetStatsView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SNetStatsView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Column identifiers
@@ -31,7 +36,7 @@ const FName FNetStatsViewColumns::AverageExclusiveSizeColumnID(TEXT("AverageExcl
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FNetStatsViewColumnFactory::CreateNetStatsViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns)
+void FNetStatsViewColumnFactory::CreateNetStatsViewColumns(TArray<TSharedRef<FTableColumn>>& Columns)
 {
 	Columns.Reset();
 
@@ -51,10 +56,8 @@ void FNetStatsViewColumnFactory::CreateNetStatsViewColumns(TArray<TSharedRef<Ins
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateNameColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateNameColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::NameColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -86,10 +89,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateNameColumn(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateTypeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateTypeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::TypeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -132,10 +133,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateTypeColumn(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateLevelColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateLevelColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::LevelColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -177,10 +176,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateLevelColumn
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateInstanceCountColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateInstanceCountColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::InstanceCountColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -226,10 +223,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateInstanceCou
 // Inclusive  Columns
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateTotalInclusiveSizeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateTotalInclusiveSizeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::TotalInclusiveSizeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -274,10 +269,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateTotalInclus
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateMaxInclusiveSizeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateMaxInclusiveSizeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::MaxInclusiveSizeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -320,10 +313,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateMaxInclusiv
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateAverageInclusiveSizeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateAverageInclusiveSizeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::AverageInclusiveSizeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -368,10 +359,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateAverageIncl
 // Exclusive  Columns
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateTotalExclusiveSizeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateTotalExclusiveSizeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::TotalExclusiveSizeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -416,10 +405,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateTotalExclus
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateMaxExclusiveSizeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateMaxExclusiveSizeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::MaxExclusiveSizeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -462,10 +449,8 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateMaxExclusiv
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateAverageExclusiveSizeColumn()
+TSharedRef<FTableColumn> FNetStatsViewColumnFactory::CreateAverageExclusiveSizeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FNetStatsViewColumns::AverageExclusiveSizeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -508,5 +493,7 @@ TSharedRef<Insights::FTableColumn> FNetStatsViewColumnFactory::CreateAverageExcl
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

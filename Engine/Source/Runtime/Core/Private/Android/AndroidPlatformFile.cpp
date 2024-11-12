@@ -154,7 +154,7 @@ FString AndroidRelativeToAbsolutePath(bool bUseInternalBasePath, FString RelPath
 	{
 		
 		do {
-			RelPath.RightChopInline(3, false);
+			RelPath.RightChopInline(3, EAllowShrinking::No);
 		} while (RelPath.StartsWith(TEXT("../"), ESearchCase::CaseSensitive));
 
 		return (bUseInternalBasePath ? GInternalFilePath : GetFileBasePath()) / RelPath;
@@ -220,7 +220,7 @@ public:
 	int64 Length;
 	int64 CurrentOffset;
 
-	FORCEINLINE void CheckValid()
+	FORCEINLINE void CheckValid() const
 	{
 		check(File.IsValid() && File->Handle != -1);
 	}
@@ -345,10 +345,16 @@ public:
 #endif
 			if (ThisSize < 0)
 			{
+				if (errno == EINTR)
+				{
+					// interrupted by signal, no error
+					continue;
+				}
 				return false;
 			}
 			else if (ThisSize == 0)
 			{
+				// 0 is EOF
 				break;
 			}
 			CurrentOffset += ThisSize;
@@ -357,6 +363,12 @@ public:
 		}
 
 		return BytesToRead == 0;
+	}
+
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		int64 TrueOffset = Start + Offset;
+		return ReadInternal(Destination, BytesToRead, TrueOffset);
 	}
 
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
@@ -369,25 +381,38 @@ public:
 		}
 
 		bool bSuccess = true;
-		while (BytesToWrite)
+		while (BytesToWrite > 0)
 		{
-			check(BytesToWrite >= 0);
 			int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToWrite);
 			check(Source);
-			if (__pwrite(File->Handle, Source, ThisSize, CurrentOffset) != ThisSize)
+			errno = EINTR;
+			int64 Result = __pwrite(File->Handle, Source, ThisSize, CurrentOffset);
+			if (Result <= 0)
 			{
+				if (errno == EINTR)
+				{
+					// interrupted by signal, no error
+					continue;
+				}
+#if LOG_ANDROID_FILE
+				int32 SaveErrno = errno;
+				FPlatformMisc::LowLevelOutputDebugStringf(
+					TEXT("(%d/%d) FFileHandleAndroid:Write => Path = %s, this size = %d, CurrentOffset = %d, Source = %p, Result = %d, errno = %d"),
+					FAndroidTLS::GetCurrentThreadId(), File->Handle,
+					*(File->Path), int32(ThisSize), CurrentOffset, Source, int32(Result), SaveErrno);
+#endif
 				bSuccess = false;
 				break;
 			}
 #if LOG_ANDROID_FILE
 			FPlatformMisc::LowLevelOutputDebugStringf(
-				TEXT("(%d/%d) FFileHandleAndroid:Write => Path = %s, this size = %d, CurrentOffset = %d, Source = %p"),
+				TEXT("(%d/%d) FFileHandleAndroid:Write => Path = %s, this size = %d, CurrentOffset = %d, Source = %p, Result = %d"),
 				FAndroidTLS::GetCurrentThreadId(), File->Handle,
-				*(File->Path), int32(ThisSize), CurrentOffset, Source);
+				*(File->Path), int32(ThisSize), CurrentOffset, Source, int32(Result));
 #endif
-			CurrentOffset += ThisSize;
-			Source += ThisSize;
-			BytesToWrite -= ThisSize;
+			CurrentOffset += Result;
+			Source += Result;
+			BytesToWrite -= Result;
 		}
 		
 		// Update the cached file length
@@ -432,6 +457,55 @@ public:
 	virtual int64 Size() override
 	{
 		return Length;
+	}
+
+private:
+	bool ReadInternal(uint8* Destination, int64 BytesToRead, int64 Offset)
+	{
+		CheckValid();
+#if LOG_ANDROID_FILE
+		FPlatformMisc::LowLevelOutputDebugStringf(
+			TEXT("(%d/%d) FFileHandleAndroid:Read => Path = %s, BytesToRead = %d"),
+			FAndroidTLS::GetCurrentThreadId(), File->Handle,
+			*(File->Path), int32(BytesToRead));
+#endif
+		if (BytesToRead < 0 || Offset - Start < 0 || (BytesToRead + Offset - Start) > Size())
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		check(Destination);
+
+		while (BytesToRead > 0)
+		{
+			int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToRead);
+
+			ThisSize = __pread(File->Handle, Destination, ThisSize, Offset);
+#if LOG_ANDROID_FILE
+			FPlatformMisc::LowLevelOutputDebugStringf(
+				TEXT("(%d/%d) FFileHandleAndroid:Read => Path = %s, ThisSize = %d, destination = %X"),
+				FAndroidTLS::GetCurrentThreadId(), File->Handle,
+				*(File->Path), int32(ThisSize), Destination);
+#endif
+			if (ThisSize < 0)
+			{
+				return false;
+			}
+			else if (ThisSize == 0)
+			{
+				break;
+			}
+			Offset += ThisSize;
+			Destination += ThisSize;
+			BytesToRead -= ThisSize;
+		}
+
+		return BytesToRead == 0;
 	}
 };
 
@@ -1785,17 +1859,19 @@ public:
 
 	virtual IFileHandle* OpenRead(const TCHAR* Filename, bool bAllowWrite = false) override
 	{
-		return OpenRead(Filename, false, bAllowWrite);
+		const bool bAllowLocal = false;
+
+		return OpenReadInternal(Filename, bAllowLocal, bAllowWrite);
 	}
 
-	IFileHandle* OpenRead(const TCHAR* Filename, bool AllowLocal, bool bAllowWrite)
+	IFileHandle* OpenReadInternal(const TCHAR* Filename, bool bAllowLocal, bool bAllowWrite)
 	{
 #if LOG_ANDROID_FILE
 		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("FAndroidPlatformFile::OpenRead('%s')"), Filename);
 #endif
 		FString LocalPath;
 		FString AssetPath;
-		PathToAndroidPaths(LocalPath, AssetPath, Filename, AllowLocal);
+		PathToAndroidPaths(LocalPath, AssetPath, Filename, bAllowLocal);
 
 		if (IsLocal(LocalPath))
 		{
@@ -2302,7 +2378,7 @@ private:
 			{
 				while (AndroidPath.StartsWith(TEXT("../"), ESearchCase::CaseSensitive))
 				{
-					AndroidPath.RightChopInline(3, false);
+					AndroidPath.RightChopInline(3, EAllowShrinking::No);
 				}
 				AndroidPath.ReplaceInline(FPlatformProcess::BaseDir(), TEXT(""));
 				if (AndroidPath.Equals(TEXT(".."), ESearchCase::CaseSensitive))
@@ -2379,12 +2455,13 @@ private:
 
 	void MountOBB(const TCHAR* Filename)
 	{
-		FFileHandleAndroid* File
-			= static_cast<FFileHandleAndroid*>(OpenRead(Filename, true, false));
+		const bool bAllowLocal = true;
+		const bool bAllowWrite = false;
+
+		FFileHandleAndroid* File = static_cast<FFileHandleAndroid*>(OpenReadInternal(Filename, bAllowLocal, bAllowWrite));
 		check(nullptr != File);
 		ZipResource.AddPatchFile(MakeShareable(File));
-		FPlatformMisc::LowLevelOutputDebugStringf(
-			TEXT("Mounted OBB '%s'"), Filename);
+		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Mounted OBB '%s'"), Filename);
 	}
 
 	AAssetManager* AssetMgr;

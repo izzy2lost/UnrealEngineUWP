@@ -21,6 +21,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/WorldSettings.h"
+#include "HLOD/HLODSetup.h"
 #include "HLODOutlinerDragDrop.h"
 #include "HLODTreeWidgetItem.h"
 #include "HierarchicalLOD.h"
@@ -501,7 +502,6 @@ namespace HLODOutliner
 	TSharedRef<SHLODOutliner::SHLODTree> SHLODOutliner::CreateTreeviewWidget()
 	{
 		return SAssignNew(TreeView, SHLODTree)
-			.ItemHeight(24.0f)
 			.TreeItemsSource(&HLODTreeRoot)
 			.OnGenerateRow(this, &SHLODOutliner::OnOutlinerGenerateRow)
 			.OnGetChildren(this, &SHLODOutliner::OnOutlinerGetChildren)

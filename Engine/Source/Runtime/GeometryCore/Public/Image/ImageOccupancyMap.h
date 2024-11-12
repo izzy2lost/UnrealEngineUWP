@@ -133,14 +133,25 @@ public:
 
 	template<typename MeshType, typename GetTriangleIDFuncType>
 	bool ClassifySamplesFromUVSpaceMesh(
-		const MeshType& UVSpaceMesh, 
+		const MeshType& UVSpaceMesh,
+		GetTriangleIDFuncType GetTriangleIDFunc = [](int32 TriangleID) { return TriangleID; },
+		const TArray<int32>* UVSpaceMeshTriCharts = nullptr)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FImageOccupancyMap::ClassifySamples_NoSpatial);
+		
+		// make flat mesh
+		TMeshAABBTree3<MeshType> UVSpaceMeshSpatial(&UVSpaceMesh, true);
+		return ClassifySamplesFromUVSpaceMesh(UVSpaceMesh, UVSpaceMeshSpatial, GetTriangleIDFunc, UVSpaceMeshTriCharts);
+	}
+
+	template<typename MeshType, typename GetTriangleIDFuncType>
+	bool ClassifySamplesFromUVSpaceMesh(
+		const MeshType& UVSpaceMesh,
+		const TMeshAABBTree3<MeshType>& UVSpaceMeshSpatial,
 		GetTriangleIDFuncType GetTriangleIDFunc = [](int32 TriangleID) { return TriangleID; },
 		const TArray<int32>* UVSpaceMeshTriCharts = nullptr)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FImageOccupancyMap::ClassifySamples);
-
-		// make flat mesh
-		TMeshAABBTree3<MeshType> FlatSpatial(&UVSpaceMesh, true);
 
 		const int64 LinearImageSize = Tile.Num();
 		TexelInteriorSamples.Init(0, LinearImageSize);
@@ -161,7 +172,7 @@ public:
 
 		// Classify texel samples
 		ParallelFor(Tile.GetHeight(),
-					[this, &UVSpaceMesh, &GetTriangleIDFunc, &FlatSpatial, TexelDiag, &QueryOptions, &TexelSize, UVSpaceMeshTriCharts, NumUVSpaceMeshTriCharts]
+					[this, &UVSpaceMesh, &GetTriangleIDFunc, &UVSpaceMeshSpatial, TexelDiag, &QueryOptions, &TexelSize, UVSpaceMeshTriCharts, NumUVSpaceMeshTriCharts]
 		(int32 ImgY)
 		{
 			for (int32 ImgX = 0; ImgX < Tile.GetWidth(); ++ImgX)
@@ -179,7 +190,7 @@ public:
 					const FVector3d UVPoint3d(UVPoint.X, UVPoint.Y, 0);
 
 					double NearDistSqr;
-					const int32 NearestTriID = FlatSpatial.FindNearestTriangle(UVPoint3d, NearDistSqr, QueryOptions);
+					const int32 NearestTriID = UVSpaceMeshSpatial.FindNearestTriangle(UVPoint3d, NearDistSqr, QueryOptions);
 					if (NearestTriID >= 0)
 					{
 						FVector3d A, B, C;

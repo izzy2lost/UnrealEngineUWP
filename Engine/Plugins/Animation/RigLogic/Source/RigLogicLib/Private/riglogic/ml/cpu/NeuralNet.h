@@ -2,11 +2,8 @@
 
 #pragma once
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-
 #include "riglogic/TypeDefs.h"
-#include "riglogic/types/AlignedBlockView.h"
+#include "riglogic/types/PaddedBlockView.h"
 #include "riglogic/types/Extent.h"
 
 #include <cstdint>
@@ -21,8 +18,8 @@ template<typename T>
 struct WeightMatrix {
     Extent original;
     Extent padded;
-    AlignedBlockView rows;
-    AlignedBlockView cols;
+    PaddedBlockView rows;
+    PaddedBlockView cols;
     AlignedVector<T> values;
 
     explicit WeightMatrix(MemoryResource* memRes) :
@@ -89,6 +86,3 @@ struct NeuralNet {
 }  // namespace ml
 
 }  // namespace rl4
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*

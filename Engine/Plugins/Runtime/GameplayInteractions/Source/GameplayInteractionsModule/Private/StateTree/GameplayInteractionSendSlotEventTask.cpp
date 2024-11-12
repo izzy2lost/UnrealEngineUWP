@@ -86,4 +86,27 @@ void FGameplayInteractionSendSlotEventTask::ExitState(FStateTreeExecutionContext
 	}
 }
 
+#if WITH_EDITOR
+FText FGameplayInteractionSendSlotEventTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, TargetSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("SendSlotEventRich", "<b>Send Event</> {Tag} <s>to slot</> {Slot}")
+		: LOCTEXT("SendSlotEvent", "Send Event {Tag} to slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Tag"), FText::FromString(EventTag.ToString()),
+		TEXT("Slot"), SlotValue);
+}
+#endif
+
 #undef LOCTEXT_NAMESPACE

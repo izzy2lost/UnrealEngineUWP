@@ -103,9 +103,9 @@ private:
 	struct FQualityMetrics
 	{
 		FQualityMetrics()
-		{ 
+		{
 			AverageKbps.Resize(5);
-			Reset(); 
+			Reset();
 		}
 		void Reset()
 		{
@@ -159,15 +159,15 @@ private:
 		};
 
 		FStreamWorkVars()
-		{ 
+		{
 			const int32 HistorySize = 3;
 			AverageBandwidth.Resize(HistorySize);
 			AverageThroughput.Resize(HistorySize);
 			const int32 LatencyHistorySize = 5;
 			AverageLatency.Resize(LatencyHistorySize);
-			Reset(); 
+			Reset();
 		}
-		
+
 		void ClearForNextDownload()
 		{
 			BufferContentDurationAtSegmentStart = -1.0;
@@ -274,7 +274,7 @@ private:
 		const TSharedPtrTS<FABRStreamInformation>* Stream = StreamInfos.FindByPredicate([InQualityIndex](const TSharedPtrTS<FABRStreamInformation>& InInfo) { return InQualityIndex == InInfo->QualityIndex;} );
 		return Stream ? (*Stream) : nullptr;
 	}
-	
+
 	double GetPlayablePlayerDuration(bool& bEOS, EStreamType InStreamType)
 	{
 		IAdaptiveStreamSelector::IPlayerLiveControl::FABRBufferStats bs;
@@ -325,6 +325,7 @@ private:
 	bool bIsRebuffering = false;
 	bool bIsSeeking = false;
 	bool bIsPaused = true;
+	bool bFalloffDetected = false;
 
 	// Work variables used throughout the PrepareStreamCandidateList() -> EvaluateForError() -> EvaluateForQuality() -> PerformSelection() chain.
 	bool bRetryIfPossible = false;
@@ -359,7 +360,7 @@ private:
 	const double AbortDownloadCheckTimeMaxOverSegmentDuration = 2.0;
 	const double SlowdownAfterDownloadTimeBySegmentDurationScale = 1.075;
 	const double SlowdownAfterDownloadCheckTimeMaxOverSegmentDuration = 0.2;
-	
+
 	const double BufferingNonLLCompleteStableScaleBySegmentDuration = 0.3;
 	const double EmitPartialDataNonLLBufferDurationBelow = 1.0;
 
@@ -369,7 +370,7 @@ private:
 	const double BandwidthScaleToReconsiderDeselectedStream = 1.5;
 	const double ClampBandwidthToMaxStreamBitrateScaleFactor = 2.0;
 	const double DownloadOvertimePenaltyScale = 0.5;
-	
+
 	const int32 StableBufferDramaticDropPercentage = -40;
 	const double StableBufferNextHitBadDropSegmentDurationScale = 0.6;
 	const double StableBufferByNetworkLatencyScale = 2.0;
@@ -409,6 +410,7 @@ FABRLiveStream::FABRLiveStream(IABRInfoInterface* InInfo, EMediaFormatType InFor
 	bIsBuffering = false;
 	bIsSeeking = false;
 	bIsPaused = Info->ABRGetPlaySpeed() == FTimeValue::GetZero();
+	bFalloffDetected = false;
 }
 
 FABRLiveStream::~FABRLiveStream()
@@ -419,10 +421,28 @@ void FABRLiveStream::PrepareLatencyConfiguration()
 {
 	TSharedPtrTS<const FLowLatencyDescriptor> lld = Info->ABRGetLowLatencyDescriptor();
 	double TargetLatency = Info->ABRGetDesiredLiveEdgeLatency().GetAsSeconds();
+	FTimeRange TimelineRange = Info->ABRGetTimeline();
 
 	FScopeLock lock(&Lock);
 	LatencyConfig.Reset();
 	LatencyConfig.TargetLatency = TargetLatency;
+	// If the target latency is greater than our assumed default value we need to adjust our value.
+	if (TargetLatency > LatencyConfig.MaxLatency)
+	{
+		// If the media timeline is valid we set the latency to the duration of the timeline.
+		// While this may be far too large it will at least prevent falling behind what the timeline indicates.
+		// If there is a latency element present this value will be replaced by the latency element, so this
+		// is a fallback for streams without a latency element (and therefore not low-latency).
+		if (TimelineRange.IsValid())
+		{
+			LatencyConfig.MaxLatency = (TimelineRange.End - TimelineRange.Start).GetAsSeconds();
+		}
+		else
+		{
+			// Arbitrary fallback value.
+			LatencyConfig.MaxLatency = 60.0;
+		}
+	}
 	if (lld.IsValid())
 	{
 		LatencyConfig.MinLatency = lld->GetLatencyMin().IsValid() ? lld->GetLatencyMin().GetAsSeconds() : LatencyConfig.TargetLatency;
@@ -431,7 +451,7 @@ void FABRLiveStream::PrepareLatencyConfiguration()
 		LatencyConfig.MaxPlayRate = lld->GetPlayrateMax().IsValid() ? lld->GetPlayrateMax().GetAsSeconds() : LatencyConfig.MaxPlayRate;
 	}
 	#ifdef ENABLE_LATENCY_OVERRIDE_CVAR
-	AsyncTask(ENamedThreads::GameThread, [=]() {(*CVarElectraTL).Set(*LexToString(TargetLatency), EConsoleVariableFlags::ECVF_SetByCode);});	
+	AsyncTask(ENamedThreads::GameThread, [=]() {(*CVarElectraTL).Set(*LexToString(TargetLatency), EConsoleVariableFlags::ECVF_SetByCode);});
 	#endif
 }
 
@@ -628,6 +648,16 @@ FABRDownloadProgressDecision FABRLiveStream::ReportDownloadProgress(const Metric
 
 void FABRLiveStream::ReportDownloadEnd(const Metrics::FSegmentDownloadStats& SegmentDownloadStats)
 {
+	if (SegmentDownloadStats.bWasSkipped)
+	{
+		return;
+	}
+	else if (SegmentDownloadStats.bWasFalloffSegment)
+	{
+		bFalloffDetected = true;
+		return;
+	}
+
 	FStreamWorkVars* WorkVars = GetWorkVars(SegmentDownloadStats.StreamType);
 
 	if (WorkVars && SegmentDownloadStats.SegmentType == Metrics::ESegmentType::Media)
@@ -778,6 +808,7 @@ void FABRLiveStream::ReportBufferingEnd(Metrics::EBufferingReason BufferingReaso
 	bIsBuffering = false;
 	bIsRebuffering = false;
 	bIsSeeking = false;
+	bFalloffDetected = false;
 	LatencyExceededVars.Reset();
 }
 
@@ -796,6 +827,7 @@ void FABRLiveStream::ReportPlaybackEnded()
 	bIsBuffering = false;
 	bIsSeeking = false;
 	bIsPaused = true;
+	bFalloffDetected = false;
 }
 
 void FABRLiveStream::RepresentationsChanged(EStreamType InStreamType, TSharedPtrTS<IManifest::IPlayPeriod> InCurrentPlayPeriod)
@@ -1148,7 +1180,7 @@ IAdaptiveStreamSelector::ESegmentAction FABRLiveStream::PerformSelection(const T
 
 			bIsBufferStable = HasStableBuffer(BufferGain, BufferTrend, StreamType, 0.0);
 			CurrentStreamQualityIndex = WorkVars->SegmentDownloadHistory.Num() ? WorkVars->SegmentDownloadHistory.BackRef().QualityIndex : -1;
-	
+
 			double OvertimePenalty = WorkVars->OverDownloadTimeTotal > 0.0 ? WorkVars->OverDownloadTimeTotal * DownloadOvertimePenaltyScale : 0.0;
 			WorkVars->OverDownloadTimeTotal = 0.0;
 
@@ -1303,7 +1335,33 @@ IAdaptiveStreamSelector::ESegmentAction FABRLiveStream::PerformSelection(const T
 		}
 		else
 		{
-			CurrentStreamQualityIndex = NewQualityIndex = InCandidates.Num() - 1;
+			if (WorkVars)
+			{
+				FScopeLock lock(&WorkVars->Lock);
+
+				TArray<FDecisionAttributes> QualityDecision;
+
+				CurrentStreamQualityIndex = WorkVars->SegmentDownloadHistory.Num() ? WorkVars->SegmentDownloadHistory.BackRef().QualityIndex : -1;
+
+				for(auto &Can : InCandidates)
+				{
+					FDecisionAttributes da;
+					da.QualityIndex = Can->QualityIndex;
+					da.Bitrate = Can->Bitrate;
+					da.bIsCandidate = true;
+					QualityDecision.Emplace(MoveTemp(da));
+				}
+
+				for(int32 i=QualityDecision.Num()-1; i>=0; --i)
+				{
+					if (QualityDecision[i].bIsCandidate || i==0)
+					{
+						BandwidthScore = QualityDecision[i].BandwidthScore;
+						NewQualityIndex = QualityDecision[i].QualityIndex;
+						break;
+					}
+				}
+			}
 		}
 
 		check(NewQualityIndex >= 0);
@@ -1469,7 +1527,7 @@ bool FABRLiveStream::HasStableBuffer(int32& OutGain, int32& OutTrend, EStreamTyp
 		Get a reference segment duration.
 
 		It is possible for the segment duration to be larger than the desired latency, espcially for low-latency
-		Live streams where segments are consumed as they are produced. Large segment durations can't really be 
+		Live streams where segments are consumed as they are produced. Large segment durations can't really be
 		used to gauge buffer stability since it will not really be possible to gather that much data ahead of time.
 	*/
 	const double SegmentDuration = Utils::Min(WorkVars->AverageSegmentDuration.GetAsSeconds(DefaultAssumedSegmentDuration), DesiredLatency);
@@ -1479,13 +1537,13 @@ bool FABRLiveStream::HasStableBuffer(int32& OutGain, int32& OutTrend, EStreamTyp
 	{
 		const FStreamWorkVars::FSegmentInfo& Last = WorkVars->SegmentDownloadHistory.BackRef();
 		const double NetworkLatency = WorkVars->AverageLatency.GetSMA();
-		
+
 		// No data at all?
 		if (Last.BufferDurationAtEnd == 0.0 || Last.BufferDurationAtStart == 0.0)
 		{
 			return false;
 		}
-		
+
 
 		// Buffer level
 		double r = Last.BufferDurationAtEnd / Last.BufferDurationAtStart;
@@ -1577,7 +1635,7 @@ bool FABRLiveStream::HasStableBuffer(int32& OutGain, int32& OutTrend, EStreamTyp
 
 
 FTimeValue FABRLiveStream::GetMinBufferTimeForPlayback(IAdaptiveStreamSelector::EMinBufferType InBufferingType, FTimeValue InDefaultMBT)
-{ 
+{
 	if (FormatType == EMediaFormatType::DASH)
 	{
 		const FStreamWorkVars* WorkVars = GetWorkVars(GetPrimaryStreamType());
@@ -1587,13 +1645,13 @@ FTimeValue FABRLiveStream::GetMinBufferTimeForPlayback(IAdaptiveStreamSelector::
 			// but require a tiny amount of data to be buffered to minimize the chance of an immediate rebuffer.
 			if (WorkVars->bIsLowLatencyEnabled)
 			{
-				return FTimeValue(0.3); 
+				return FTimeValue(0.3);
 			}
 			// When it has been determined that buffering will soon be done return a value small enough
 			// to just start now.
 			else if (WorkVars->bBufferingWillCompleteOnTime)
 			{
-				return FTimeValue(0.1); 
+				return FTimeValue(0.1);
 			}
 		}
 	}
@@ -1625,7 +1683,9 @@ IAdaptiveStreamSelector::FRebufferAction FABRLiveStream::GetRebufferAction()
 		}
 		else
 		{
-			Action.Action = IAdaptiveStreamSelector::FRebufferAction::EAction::GoToLive;
+			ApplyRebufferingPenalty();
+			Action.Action = Info->ABRShouldPlayOnLiveEdge() ? IAdaptiveStreamSelector::FRebufferAction::EAction::GoToLive : IAdaptiveStreamSelector::FRebufferAction::EAction::Restart;
+			//Action.Action = IAdaptiveStreamSelector::FRebufferAction::EAction::GoToLive;
 		}
 	}
 	return Action;
@@ -1646,63 +1706,76 @@ IAdaptiveStreamSelector::EHandlingAction FABRLiveStream::PeriodicHandle()
 	// Perform catch up / slow down of playback when playing (not paused and not buffering).
 	if (!bIsPaused && !bIsBuffering && Info->ABRGetPlaySpeed() != FTimeValue::GetZero())
 	{
-		const EStreamType StreamType = GetPrimaryStreamType();
-		const FStreamWorkVars* WorkVars = GetWorkVars(StreamType);
-		if (WorkVars)
+		if (bFalloffDetected)
 		{
-			bool bEOS = false;
-			const double AvailableBufferedDuration = GetPlayablePlayerDuration(bEOS, StreamType);
-			const double CurrentLatency = Info->ABRGetLatency().GetAsSeconds();
-			const double TargetLatency = lc.TargetLatency;
-			const double NetworkLatency = WorkVars->AverageLatency.GetWeightedMax(DefaultNetworkLatency);
-			const double Distance = CurrentLatency - TargetLatency;
-			const double AbsDistance = Utils::AbsoluteValue(Distance);
-			const double CurrentPlayRate = Info->ABRGetRenderRateScale();
-			const bool bOvertime = WorkVars->bWentIntoOvertime;
-
-			int32 Gain, Trend;
-			const bool bStable = HasStableBuffer(Gain, Trend, StreamType, 0.0);
-			const bool bMaybeSpeedUp = bStable || Trend>=0;
-
-			// Slow down because of insufficient buffered data?
-			bool bBufferSlowDown = bOvertime || (!bEOS && AvailableBufferedDuration < Utils::Max(lc.LowBufferContentBackoff, NetworkLatency));
-			// Do not slow down if we are supposed to play on the Live edge and are already too far behind.
-			if (Info->ABRShouldPlayOnLiveEdge() && Distance > lc.LowBufferMaxTargetLatencyDistance)
+			bFalloffDetected = false;
+			if (!LatencyExceededVars.bLiveSeekRequestIssued)
 			{
-				bBufferSlowDown = false;
+				LatencyExceededVars.bLiveSeekRequestIssued = true;
+				NextAction = IAdaptiveStreamSelector::EHandlingAction::SeekToLive;
+				Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Timeline fall off detected, requesting seek to Live edge")));
 			}
-			if (bBufferSlowDown)
+		}
+		else
+		{
+			const EStreamType StreamType = GetPrimaryStreamType();
+			const FStreamWorkVars* WorkVars = GetWorkVars(StreamType);
+			if (WorkVars)
 			{
-				const double NewRate = lc.LowBufferMinMinPlayRate;
-				SetRenderRateScale(NewRate);
-			}
-			// Should we be playing on the Live edge?
-			else if (Info->ABRShouldPlayOnLiveEdge() && AbsDistance > lc.ActivationThreshold * TargetLatency)
-			{
-				double NewRate = CalculateCatchupPlayRate(lc, Distance);
-				if (Utils::AbsoluteValue(NewRate - CurrentPlayRate) > lc.MinRateChangeUseThreshold)
+				bool bEOS = false;
+				const double AvailableBufferedDuration = GetPlayablePlayerDuration(bEOS, StreamType);
+				const double CurrentLatency = Info->ABRGetLatency().GetAsSeconds();
+				const double TargetLatency = lc.TargetLatency;
+				const double NetworkLatency = WorkVars->AverageLatency.GetWeightedMax(DefaultNetworkLatency);
+				const double Distance = CurrentLatency - TargetLatency;
+				const double AbsDistance = Utils::AbsoluteValue(Distance);
+				const double CurrentPlayRate = Info->ABRGetRenderRateScale();
+				const bool bOvertime = WorkVars->bWentIntoOvertime;
+
+				int32 Gain, Trend;
+				const bool bStable = HasStableBuffer(Gain, Trend, StreamType, 0.0);
+				const bool bMaybeSpeedUp = bStable || Trend>=0;
+
+				// Slow down because of insufficient buffered data?
+				bool bBufferSlowDown = bOvertime || (!bEOS && AvailableBufferedDuration < Utils::Max(lc.LowBufferContentBackoff, NetworkLatency));
+				// Do not slow down if we are supposed to play on the Live edge and are already too far behind.
+				if (Info->ABRShouldPlayOnLiveEdge() && Distance > lc.LowBufferMaxTargetLatencyDistance)
 				{
-					// If we are to speed up to catch up with the Live edge we do so only if the buffer is stable.
-					if (NewRate > 1.0 && !bMaybeSpeedUp)
-					{
-						NewRate = 1.0;
-					}
+					bBufferSlowDown = false;
+				}
+				if (bBufferSlowDown)
+				{
+					const double NewRate = lc.LowBufferMinMinPlayRate;
 					SetRenderRateScale(NewRate);
 				}
-			}
-			else if (CurrentPlayRate != 1.0)
-			{
-				SetRenderRateScale(1.0);
-			}
-
-			// Is the maximum latency exceeded and a jump to the Live edge required?
-			if (Info->ABRShouldPlayOnLiveEdge() && CurrentLatency > lc.MaxLatency)
-			{
-				if (!LatencyExceededVars.bLiveSeekRequestIssued)
+				// Should we be playing on the Live edge?
+				else if (Info->ABRShouldPlayOnLiveEdge() && AbsDistance > lc.ActivationThreshold * TargetLatency)
 				{
-					LatencyExceededVars.bLiveSeekRequestIssued = true;
-					NextAction = IAdaptiveStreamSelector::EHandlingAction::SeekToLive;
-					Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Maximum latency exceeded, requesting seek to Live edge")));
+					double NewRate = CalculateCatchupPlayRate(lc, Distance);
+					if (Utils::AbsoluteValue(NewRate - CurrentPlayRate) > lc.MinRateChangeUseThreshold)
+					{
+						// If we are to speed up to catch up with the Live edge we do so only if the buffer is stable.
+						if (NewRate > 1.0 && !bMaybeSpeedUp)
+						{
+							NewRate = 1.0;
+						}
+						SetRenderRateScale(NewRate);
+					}
+				}
+				else if (CurrentPlayRate != 1.0)
+				{
+					SetRenderRateScale(1.0);
+				}
+
+				// Is the maximum latency exceeded and a jump to the Live edge required?
+				if (Info->ABRShouldPlayOnLiveEdge() && CurrentLatency > lc.MaxLatency)
+				{
+					if (!LatencyExceededVars.bLiveSeekRequestIssued)
+					{
+						LatencyExceededVars.bLiveSeekRequestIssued = true;
+						NextAction = IAdaptiveStreamSelector::EHandlingAction::SeekToLive;
+						Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Maximum latency exceeded, requesting seek to Live edge")));
+					}
 				}
 			}
 		}

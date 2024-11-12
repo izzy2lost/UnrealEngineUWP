@@ -40,7 +40,7 @@ void FLandscapeEditorCommands::RegisterCommands()
 	UI_COMMAND(NewLandscape, "New", "Create or import a new landscape", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_NewLandscape", NewLandscape);
 
-	UI_COMMAND(ResizeLandscape, "Resize", "Change Component Size", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(ResizeLandscape, "Resize", "Change landscape component size.\n\nResize is not supported when using World Partition.", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_ResizeLandscape", ResizeLandscape);
 
 	UI_COMMAND(ImportExportTool, "Import", "Import or Export landscape data", EUserInterfaceActionType::RadioButton, FInputChord());
@@ -73,7 +73,9 @@ void FLandscapeEditorCommands::RegisterCommands()
 	UI_COMMAND(NoiseTool, "Noise", "Adds noise to the heightmap or blend layer", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_Noise", NoiseTool);
 
-	UI_COMMAND(RetopologizeTool, "Retop", "Automatically adjusts landscape vertices with an X/Y offset map to improve vertex density on cliffs, reducing texture stretching.\nNote: An X/Y offset map makes the landscape slower to render and paint on with other tools, so only use if needed", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(RetopologizeTool, "Retop", "Automatically adjusts landscape vertices with an X/Y offset map to improve vertex density on cliffs, reducing texture stretching.\n"
+								 "Note: An X/Y offset map makes the landscape slower to render and paint on with other tools, so only use if needed.\n\n"
+							     "Retop is not available with the Landscape Edit Layer System and will be deprecated for all landscape types in UE5.6.  If not using Edit Layers, you can set the CVar landscape.EnableRetopologizeTool to True to enable it.", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_Retopologize", RetopologizeTool);
 
 	UI_COMMAND(VisibilityTool, "Visibility", "Mask out individual quads in the landscape, leaving a hole.", EUserInterfaceActionType::RadioButton, FInputChord());
@@ -91,7 +93,7 @@ void FLandscapeEditorCommands::RegisterCommands()
 	UI_COMMAND(DeleteComponentTool, "Delete", "Delete components from the landscape, leaving a hole", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_DeleteComponent", DeleteComponentTool);
 
-	UI_COMMAND(MoveToLevelTool, "Move", "Move landscape components to a landscape proxy in the currently active streaming level, so that they can be streamed in/out independently of the rest of the landscape", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(MoveToLevelTool, "Move", "Move landscape components to a landscape proxy in the currently active streaming level, so that they can be streamed in/out independently of the rest of the landscape.\n\nMove is not supported when using World Partition.", EUserInterfaceActionType::RadioButton, FInputChord());
 	NameToCommandMap.Add("Tool_MoveToLevel", MoveToLevelTool);
 
 	UI_COMMAND(RegionSelectTool, "Select", "Select a region of landscape to use as a mask for other tools", EUserInterfaceActionType::RadioButton, FInputChord());

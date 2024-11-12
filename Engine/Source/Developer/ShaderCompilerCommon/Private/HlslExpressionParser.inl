@@ -323,6 +323,28 @@ namespace CrossCompiler
 		case EHlslToken::Half4x3:
 		case EHlslToken::Half4x4:
 
+		case EHlslToken::Min16Float:
+		case EHlslToken::Min16Float1:
+		case EHlslToken::Min16Float2:
+		case EHlslToken::Min16Float3:
+		case EHlslToken::Min16Float4:
+		case EHlslToken::Min16Float1x1:
+		case EHlslToken::Min16Float1x2:
+		case EHlslToken::Min16Float1x3:
+		case EHlslToken::Min16Float1x4:
+		case EHlslToken::Min16Float2x1:
+		case EHlslToken::Min16Float2x2:
+		case EHlslToken::Min16Float2x3:
+		case EHlslToken::Min16Float2x4:
+		case EHlslToken::Min16Float3x1:
+		case EHlslToken::Min16Float3x2:
+		case EHlslToken::Min16Float3x3:
+		case EHlslToken::Min16Float3x4:
+		case EHlslToken::Min16Float4x1:
+		case EHlslToken::Min16Float4x2:
+		case EHlslToken::Min16Float4x3:
+		case EHlslToken::Min16Float4x4:
+
 		case EHlslToken::Float:
 		case EHlslToken::Float1:
 		case EHlslToken::Float2:
@@ -562,6 +584,55 @@ namespace CrossCompiler
 
 		return EParseResult::NotMatched;
 	}
+
+	EParseResult ParseFullType(FHlslScanner& Scanner, int32 TypeFlags, int32 TemplateTypeFlags, FSymbolScope* SymbolScope, FLinearAllocator* Allocator, AST::FFullySpecifiedType** OutFullySpecifiedType)
+	{
+		AST::FTypeSpecifier* TypeSpecifier = nullptr;
+		EParseResult Result = ParseGeneralType(Scanner, TypeFlags, SymbolScope, Allocator, &TypeSpecifier);
+		if (Result != EParseResult::Matched)
+		{
+			return Result;
+		}
+
+		// OutFullySpecifiedType could already be initialized
+		AST::FFullySpecifiedType* FullType = *OutFullySpecifiedType ? *OutFullySpecifiedType : new(Allocator) AST::FFullySpecifiedType(Allocator, TypeSpecifier->SourceInfo);
+		FullType->Specifier = TypeSpecifier;
+
+		if (Scanner.MatchToken(EHlslToken::Lower))
+		{
+			AST::FTypeSpecifier* ElementTypeSpecifier = nullptr;
+			EParseResult InnerResult = ParseGeneralType(Scanner, TemplateTypeFlags, SymbolScope, Allocator, &ElementTypeSpecifier);
+			if (InnerResult != EParseResult::Matched)
+			{
+				Scanner.SourceError(TEXT("Expected type!"));
+				return ParseResultError();
+			}
+
+			FullType->Specifier->InnerType = ElementTypeSpecifier->TypeName;
+
+			if (Scanner.MatchToken(EHlslToken::Comma))
+			{
+				auto* Integer = Scanner.GetCurrentToken();
+				if (!Scanner.MatchIntegerLiteral())
+				{
+					Scanner.SourceError(TEXT("Expected constant!"));
+					return ParseResultError();
+				}
+				FullType->Specifier->TextureMSNumSamples = FCString::Atoi(*Integer->String);
+			}
+
+			if (!Scanner.MatchToken(EHlslToken::Greater))
+			{
+				Scanner.SourceError(TEXT("Expected '>'!"));
+				return ParseResultError();
+			}
+		}
+
+		*OutFullySpecifiedType = FullType;
+
+		return EParseResult::Matched;
+	}
+
 
 	// Unary!(Unary-(Unary+())) would have ! as Top, and + as Inner
 	EParseResult MatchUnaryOperator(FHlslScanner& Scanner, /*FInfo& Info,*/ FSymbolScope* SymbolScope, FLinearAllocator* Allocator, AST::FExpression** OuterExpression, AST::FExpression** InnerExpression)

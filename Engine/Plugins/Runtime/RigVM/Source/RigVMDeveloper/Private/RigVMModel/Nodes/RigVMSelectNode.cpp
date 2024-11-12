@@ -4,11 +4,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMSelectNode)
 
-const FString UDEPRECATED_RigVMSelectNode::SelectName = TEXT("Select");
-const FString UDEPRECATED_RigVMSelectNode::IndexName = TEXT("Index");
-const FString UDEPRECATED_RigVMSelectNode::ValueName = TEXT("Values");
-const FString UDEPRECATED_RigVMSelectNode::ResultName = TEXT("Result");
-
 bool UDEPRECATED_RigVMSelectNode::AllowsLinksOn(const URigVMPin* InPin) const
 {
 	if(InPin->GetRootPin() == InPin)
@@ -25,7 +20,7 @@ bool UDEPRECATED_RigVMSelectNode::AllowsLinksOn(const URigVMPin* InPin) const
 FName UDEPRECATED_RigVMSelectNode::GetNotation() const
 {
 	static constexpr TCHAR Format[] = TEXT("%s(in %s,in %s,out %s)");
-	static const FName Notation = *FString::Printf(Format, *SelectName, *IndexName, *ValueName, *ResultName);
+	static const FLazyName Notation(*FString::Printf(Format, SelectName, IndexName, ValueName, ResultName));
 	return Notation;
 }
 
@@ -44,9 +39,9 @@ const FRigVMTemplate* UDEPRECATED_RigVMSelectNode::GetTemplate() const
 			return SelectNodeTemplate;
 		}
 
-		static const FName IndexFName = *IndexName;
-		static const FName ValueFName = *ValueName;
-		static const FName ResultFName = *ResultName;
+		static const FLazyName IndexFName(IndexName);
+		static const FLazyName ValueFName(ValueName);
+		static const FLazyName ResultFName(ResultName);
 
 		static TArray<FRigVMTemplateArgumentInfo> Infos;
 		if(Infos.IsEmpty())
@@ -77,11 +72,11 @@ const FRigVMTemplate* UDEPRECATED_RigVMSelectNode::GetTemplate() const
 				if(InArgumentName == ValueFName)
 				{
 					ValueTypeIndex = InTypeIndex;
-					ResultTypeIndex = FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex);
+					ResultTypeIndex = FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex);
 				}
 				else if(InArgumentName == ResultFName)
 				{
-					ValueTypeIndex = FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex);;
+					ValueTypeIndex = FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex);;
 					ResultTypeIndex = InTypeIndex;
 				}
 				
@@ -95,7 +90,7 @@ const FRigVMTemplate* UDEPRECATED_RigVMSelectNode::GetTemplate() const
 				return Types;
 			});
 
-		SelectNodeTemplate = CachedTemplate = FRigVMRegistry::Get().GetOrAddTemplateFromArguments(*SelectName, Infos, Delegates);
+		SelectNodeTemplate = CachedTemplate = FRigVMRegistry::Get().GetOrAddTemplateFromArguments(SelectName, Infos, Delegates);
 	}
 	return CachedTemplate;
 }

@@ -4,12 +4,13 @@
 	MetalDynamicRHI_Shaders.cpp: Metal Dynamic RHI Class Shader Methods.
 =============================================================================*/
 
-
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "Shaders/MetalShaderLibrary.h"
 #include "DataDrivenShaderPlatformInfo.h"
-
+#include "Serialization/StaticMemoryReader.h"
+#include "Interfaces/IPluginManager.h"
 
 //------------------------------------------------------------------------------
 
@@ -20,7 +21,7 @@ FVertexShaderRHIRef FMetalDynamicRHI::RHICreateVertexShader(TArrayView<const uin
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-	FMetalVertexShader* Shader = new FMetalVertexShader(Code);
+	FMetalVertexShader* Shader = new FMetalVertexShader(*Device, Code);
 	return Shader;
 }
 
@@ -28,27 +29,25 @@ FPixelShaderRHIRef FMetalDynamicRHI::RHICreatePixelShader(TArrayView<const uint8
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-	FMetalPixelShader* Shader = new FMetalPixelShader(Code);
+	FMetalPixelShader* Shader = new FMetalPixelShader(*Device, Code);
 	return Shader;
 }
-
 
 FGeometryShaderRHIRef FMetalDynamicRHI::RHICreateGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
-    FMetalGeometryShader* Shader = new FMetalGeometryShader(Code);
+    FMetalGeometryShader* Shader = new FMetalGeometryShader(*Device, Code);
     return Shader;
 #else
 	return nullptr;
 #endif
 }
 
-
 FComputeShaderRHIRef FMetalDynamicRHI::RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    return new FMetalComputeShader(Code, MTLLibraryPtr());
+    return new FMetalComputeShader(*Device, Code, MTLLibraryPtr());
 }
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
@@ -56,14 +55,14 @@ FMeshShaderRHIRef FMetalDynamicRHI::RHICreateMeshShader(TArrayView<const uint8> 
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 
-    return new FMetalMeshShader(Code);
+    return new FMetalMeshShader(*Device, Code);
 }
 
 FAmplificationShaderRHIRef FMetalDynamicRHI::RHICreateAmplificationShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 
-    return new FMetalAmplificationShader(Code);
+    return new FMetalAmplificationShader(*Device, Code);
 }
 #endif
 
@@ -101,6 +100,21 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
         // the metal libraries are stores non UFS and could be anywhere on the file system.
         // if we don't find the metalmap file straight away try the pak file path
         BinaryShaderFile = FPaths::ProjectContentDir() / LibName + METAL_MAP_EXTENSION;
+
+		if (IFileManager::Get().FileExists(*BinaryShaderFile) == false)
+		{
+			// See if its in a Plugin
+			const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(*Name);
+			if(Plugin !=  nullptr)
+			{
+				BinaryShaderFile = FPaths::Combine(Plugin->GetContentDir(), LibName + METAL_MAP_EXTENSION);
+			}
+			else
+			{
+				// GFP might not be loaded yet
+				BinaryShaderFile = FPaths::ProjectPluginsDir() / TEXT("GameFeatures") / Name / TEXT("Content") / LibName + METAL_MAP_EXTENSION;
+			}
+		}
     }
 
     FScopeLock Lock(&FMetalShaderLibrary::LoadedShaderLibraryMutex);
@@ -111,17 +125,70 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
         return *FoundShaderLibrary;
     }
 
-    FArchive* BinaryShaderAr = IFileManager::Get().CreateFileReader(*BinaryShaderFile);
+    auto SerializeShaderCode = [](FMetalShaderLibrary::FShaderCodeArrayType& Array, FArchive& Ar)
+    {
+#if !USE_MMAPPED_SHADERARCHIVE
+		Ar << Array;
+#else
+       if (Ar.GetArchiveName() == TEXT("FStaticMemoryReader"))
+       {
+			using ArrayType = std::remove_cvref_t <decltype(Array)>;
+			FStaticMemoryReader* MemReader = static_cast<FStaticMemoryReader*>(&Ar);
 
+			typename ArrayType::SizeType SerializeNum;
+			Ar << SerializeNum;
+
+			uint64 ArrayBytes = SerializeNum * sizeof(typename ArrayType::ElementType);
+			uint64 Offset = Ar.Tell();
+
+			Array = FMetalShaderLibrary::FShaderCodeArrayType(MemReader->GetData() + Offset, SerializeNum);
+			Ar.Seek(Offset + ArrayBytes);
+       }
+	   else
+	   {
+		   UE_LOG(LogMetal, Fatal, TEXT("mmapped array must be serialized via FStaticMemoryReader"));
+	   }
+#endif
+	};
+
+ #if !USE_MMAPPED_SHADERARCHIVE
+    FArchive* BinaryShaderAr = IFileManager::Get().CreateFileReader(*BinaryShaderFile);
+#else
+	FStaticMemoryReader* BinaryShaderAr = nullptr;
+    TUniquePtr<FMetalShaderLibrary::FShaderLibDataOwner> MemOwner = MakeUnique<FMetalShaderLibrary::FShaderLibDataOwner>();
+	if (FPlatformProperties::SupportsMemoryMappedFiles())
+	{
+		MemOwner->MappedCacheFile = TUniquePtr<IMappedFileHandle>(FPlatformFileManager::Get().GetPlatformFile().OpenMapped(*BinaryShaderFile));
+		if (MemOwner->MappedCacheFile.IsValid())
+		{
+			MemOwner->MappedRegion = TUniquePtr<IMappedFileRegion>(MemOwner->MappedCacheFile->MapRegion(0, MemOwner->MappedCacheFile->GetFileSize()));
+			if(MemOwner->MappedRegion.IsValid())
+			{
+				UE_LOG(LogMetal, Display, TEXT("mmapping %s, %d bytes"), *BinaryShaderFile, MemOwner->MappedCacheFile->GetFileSize());
+				BinaryShaderAr = new FStaticMemoryReader(MemOwner->MappedRegion->GetMappedPtr(), MemOwner->MappedCacheFile->GetFileSize());
+			}
+		}
+	}
+
+	if(BinaryShaderAr == nullptr)
+	{
+		TArray<uint8>& FileData = MemOwner->Mem;
+		if (FFileHelper::LoadFileToArray(FileData, *BinaryShaderFile))
+		{
+			UE_LOG(LogMetal, Display, TEXT("emulating mmapping %s, %d bytes!"), *BinaryShaderFile, FileData.Num());
+			BinaryShaderAr = new FStaticMemoryReader(FileData.GetData(), FileData.Num());
+		}
+	}
+#endif
     if( BinaryShaderAr != NULL )
     {
         FMetalShaderLibraryHeader Header;
         FSerializedShaderArchive SerializedShaders;
-        TArray<uint8> ShaderCode;
+        FMetalShaderLibrary::FShaderCodeArrayType ShaderCode;
 
         *BinaryShaderAr << Header;
         *BinaryShaderAr << SerializedShaders;
-        *BinaryShaderAr << ShaderCode;
+		SerializeShaderCode(ShaderCode,*BinaryShaderAr);
         BinaryShaderAr->Flush();
         delete BinaryShaderAr;
 
@@ -136,13 +203,38 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
             for (uint32 i = 0; i < Header.NumLibraries; i++)
             {
                 FString MetalLibraryFilePath = (FilePath / LibName) + FString::Printf(TEXT(".%d.metallib"), i);
-                MetalLibraryFilePath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*MetalLibraryFilePath);
+                FString MetalLibraryAbsoluteFilePath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*MetalLibraryFilePath);
 
-                METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("NewLibraryFile: %s"), *MetalLibraryFilePath)));
+                METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("NewLibraryFile: %s"), *MetalLibraryAbsoluteFilePath)));
                 NS::Error* Error;
-                NS::String* MetalLibraryFilePathNSString = FStringToNSString(MetalLibraryFilePath);
+                NS::String* MetalLibraryFilePathNSString = FStringToNSString(MetalLibraryAbsoluteFilePath);
                 NS::URL *metalLibraryURL = NS::URL::fileURLWithPath(MetalLibraryFilePathNSString);
-                MTLLibraryPtr Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(metalLibraryURL, &Error));
+                MTLLibraryPtr Library = NS::TransferPtr(Device->GetDevice()->newLibrary(metalLibraryURL, &Error));
+
+                if (Library.get() == nullptr)
+                {
+                    // Metallib not found. Is Zen server being used?
+                    static const bool bRunningWithZenStore = FPlatformFileManager::Get().FindPlatformFile(TEXT("StorageServer")) != nullptr;
+                    if( bRunningWithZenStore )
+                    {
+                        TArray<uint8> LibraryData;
+                        if (FFileHelper::LoadFileToArray(LibraryData, *MetalLibraryFilePath))
+                        {
+                            dispatch_data_t data = dispatch_data_create(LibraryData.GetData(), LibraryData.Num(), nil, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                            Library = NS::TransferPtr(Device->GetDevice()->newLibrary(data, &Error));
+                        }
+                        else
+                        {
+                            UE_LOG(LogMetal, Warning, TEXT("Metallib '%s' unable to be read from ZenStore."), *MetalLibraryFilePath);
+                            return nullptr;
+                        }
+                    }
+                    else
+                    {
+                        UE_LOG(LogMetal, Warning, TEXT("Metallib '%s' not found and ZenStore is not being used."), *MetalLibraryFilePath);
+                        return nullptr;
+                    }
+                }
 
                 if (Library.get() != nullptr)
                 {
@@ -155,9 +247,18 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
                 }
             }
 
-            Result = new FMetalShaderLibrary(Platform, Name, BinaryShaderFile, Header, SerializedShaders, ShaderCode, Libraries);
+            FMetalShaderLibrary* MtlLib = new FMetalShaderLibrary(*Device, Platform, Name, BinaryShaderFile, Header, MoveTemp(SerializedShaders), MoveTemp(ShaderCode), Libraries
+#if USE_MMAPPED_SHADERARCHIVE
+				,MoveTemp(MemOwner)
+#endif
+			);
+            Result = MtlLib;
             FMetalShaderLibrary::LoadedShaderLibraryMap.Add(BinaryShaderFile, Result.GetReference());
         }
+		else
+		{
+		    UE_LOG(LogMetal, Display, TEXT("Unknown shader format for %s!"), *LibName);
+		}
     }
     else
     {

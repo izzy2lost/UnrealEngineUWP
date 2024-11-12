@@ -11,6 +11,7 @@ class IDisplayClusterWarpPolicy;
 class UWorld;
 class FViewport;
 class FSceneViewFamilyContext;
+class FSceneView;
 class ADisplayClusterRootActor;
 class UDisplayClusterConfigurationViewport;
 class IDisplayClusterViewportManagerProxy;
@@ -98,15 +99,44 @@ public:
 		const bool bInAdditionalViewFamily
 	) const = 0;
 
+	/** This function sets the engine flags corresponding to the rendering mode. */
+	static void SetupEngineShowFlags(const EDisplayClusterViewportCaptureMode InMode, FEngineShowFlags& InOutEngineShowFlags);
+
 	/**
 	* Initialize view family, using rules
 	* [Game thread func]
 	*
 	* @param InFrameTarget          - frame target
-	* @param OutRenderOutViewFamily - output family
+	* @param InFrameViewFamily      - the frame data for the view family
+	* @param OutRenderOutViewFamily - (in, out) The view family that will be configured.
 	*
 	*/
-	virtual void ConfigureViewFamily(const FDisplayClusterRenderFrameTarget& InFrameTarget, const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily, FSceneViewFamilyContext& InOutViewFamily) = 0;
+	virtual void ConfigureViewFamily(
+		const FDisplayClusterRenderFrameTarget& InFrameTarget,
+		const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+		FSceneViewFamilyContext& InOutViewFamily) = 0;
+
+	/**
+	* Post-Initialize view family, using rules
+	* Should be called after all 'FSceneView' have been added.
+	* This function configures the screen percentage.
+	* [Game thread func]
+	*
+	* @param InFrameTarget            - frame target
+	* @param InFrameViewFamily        - the frame data for the view family
+	* @param InOutRenderOutViewFamily - (in, out) The view family that will be configured.
+	* @param InOutViews               - (in, out) The views in the family that will be configured.
+	* @param InRenderingFlags         - (in, opt) Rules for customizing nDisplay views and view families for the renderer.
+	* @param InDPIScale               - (in, opt ) DPI scale value
+	*
+	*/
+	virtual void PostConfigureViewFamily(
+		const FDisplayClusterRenderFrameTarget& InFrameTarget,
+		const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+		FSceneViewFamilyContext& InOutViewFamily,
+		const TArray<FSceneView*>& InOutViews,
+		const EDisplayClusterViewportRenderingFlags InRenderingFlags = EDisplayClusterViewportRenderingFlags::None,
+		const float InDPIScale = 1.f) = 0;
 
 	/** Send to render thread. */
 	virtual void RenderFrame(FViewport* InViewport) = 0;

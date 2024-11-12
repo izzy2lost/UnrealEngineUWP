@@ -13,9 +13,10 @@ public class AndroidDeviceDetection : ModuleRules
 			{
 				"Core",
 				"Json",
-                "JsonUtilities",
-                "PIEPreviewDeviceSpecification"
-            }
+				"JsonUtilities",
+				"PIEPreviewDeviceSpecification",
+				"Zen"
+			}
 		);
 
 		PrivateIncludePathModuleNames.AddRange(

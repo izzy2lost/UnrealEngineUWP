@@ -14,5 +14,5 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FTransposeCS, "/NNE/NNEHlslShadersTranspose.usf", "Transpose", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FTransposeCS, "/NNEHlslShaders/NNEHlslShadersTranspose.usf", "Transpose", SF_Compute);
 } // UE::NNEHlslShaders::Internal

@@ -24,7 +24,13 @@
 			"Name": "ChaosModularVehicleEngine",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
+		},
+		{
+			"Name": "ChaosModularVehicleEditor",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "PreDefault"
 		}
+
 	],
 	"Plugins": [
 		{

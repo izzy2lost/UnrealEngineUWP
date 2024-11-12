@@ -12,33 +12,23 @@ DEFINE_LOG_CATEGORY_STATIC(LogUObjectAllocator, Log, All);
 /** Global UObjectBase allocator							*/
 COREUOBJECT_API FUObjectAllocator GUObjectAllocator;
 
-/**
- * Allocates and initializes the permanent object pool
- *
- * @param InPermanentObjectPoolSize size of permanent object pool
- */
-void FUObjectAllocator::AllocatePermanentObjectPool(int32 InPermanentObjectPoolSize)
-{
-	PermanentObjectPoolSize	= InPermanentObjectPoolSize;
-	PermanentObjectPool		= (uint8*) FMemory::MallocPersistentAuxiliary( PermanentObjectPoolSize );
-	PermanentObjectPoolTail	= PermanentObjectPool;
-	PermanentObjectPoolExceededTail = PermanentObjectPoolTail;
-}
-
+static bool GPersistentAllocatorIsDisabled = false;
 
 /**
  * Prints a debugf message to allow tuning
  */
 void FUObjectAllocator::BootMessage()
 {
-	if (PermanentObjectPoolSize && PermanentObjectPoolExceededTail - PermanentObjectPool > PermanentObjectPoolSize)
+	const SIZE_T ExceedingSize = GetPersistentLinearAllocator().GetExceedingSize();
+	if (ExceedingSize > 0)
 	{
-		UE_LOG(LogUObjectAllocator, Warning, TEXT("%i Exceeds size of permanent object pool %i, please tune SizeOfPermanentObjectPool."), PermanentObjectPoolExceededTail - PermanentObjectPool, PermanentObjectPoolSize );
+		UE_LOG(LogUObjectAllocator, Warning, TEXT("Persistent memory pool exceeded by %u KB, please tune PersistentAllocatorReserveSizeMB setting in [MemoryPools] ini group."), ExceedingSize / 1024);
 	}
-	else
-	{
-		UE_LOG(LogUObjectAllocator, Log, TEXT("%i out of %i bytes used by permanent object pool."), PermanentObjectPoolExceededTail - PermanentObjectPool, PermanentObjectPoolSize );
-	}
+}
+
+void FUObjectAllocator::DisablePersistentAllocator()
+{
+	GPersistentAllocatorIsDisabled = true;
 }
 
 /**
@@ -51,44 +41,22 @@ void FUObjectAllocator::BootMessage()
  */
 UObjectBase* FUObjectAllocator::AllocateUObject(int32 Size, int32 Alignment, bool bAllowPermanent)
 {
-	// Force alignment to minimal of 16 bytes
-	Alignment = FMath::Max(16, Alignment);
-	int32 AlignedSize = Align( Size, Alignment );
-	UObjectBase* Result = nullptr;
-
-	bAllowPermanent &= PermanentObjectPool != nullptr;
-	const bool bPlaceInPerm = bAllowPermanent && (Align(PermanentObjectPoolTail,Alignment) + Size) <= (PermanentObjectPool + PermanentObjectPoolSize);
-	if (bAllowPermanent && !bPlaceInPerm)
+	void* Result = nullptr;
+	// we want to perform this allocation uninstrumented so the GC can clean this up if the transaction is aborted
+	UE_AUTORTFM_OPEN
 	{
-		// advance anyway so we can determine how much space we should set aside in the ini
-		uint8* AlignedPtr = Align( PermanentObjectPoolExceededTail, Alignment );
-		PermanentObjectPoolExceededTail = AlignedPtr + Size;
-	}
-	// Use object memory pool for objects disregarded by GC (initially loaded ones). This allows identifying their
-	// GC status by simply looking at their address.
-	if (bPlaceInPerm)
-	{
-		// Align current tail pointer and use it for object. 
-		uint8* AlignedPtr = Align( PermanentObjectPoolTail, Alignment );
-		// Update tail pointer.
-		PermanentObjectPoolTail = AlignedPtr + Size;
-		Result = (UObjectBase*)AlignedPtr;
-		if (PermanentObjectPoolExceededTail < PermanentObjectPoolTail)
+		if (bAllowPermanent && !GPersistentAllocatorIsDisabled)
 		{
-			PermanentObjectPoolExceededTail = PermanentObjectPoolTail;
+			// this allocation might go over the reserved memory amount and default to FMemory::Malloc, so we are moving it into the ARTFM scope
+			Result = GetPersistentLinearAllocator().Allocate(Size, Alignment);
 		}
-	}
-	else
-	{
-		// Allocate new memory of the appropriate size and alignment.
-		Result = (UObjectBase*)FMemory::Malloc( Size, Alignment );
-	}
+		else
+		{
+			Result = FMemory::Malloc(Size, Alignment);
+		}
+	};
 
-#if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
-	checkf(IsAligned(Result, Alignment), TEXT("Allocated memory address does not match requirement of %d byte alignment for size %d"), Alignment, Size);
-#endif
-
-	return Result;
+	return (UObjectBase*)Result;
 }
 
 /**
@@ -100,7 +68,7 @@ void FUObjectAllocator::FreeUObject(UObjectBase *Object) const
 {
 	check(Object);
 	// Only free memory if it was allocated directly from allocator and not from permanent object pool.
-	if (FPermanentObjectPoolExtents(*this).Contains(Object) == false)
+	if (FPermanentObjectPoolExtents().Contains(Object) == false)
 	{
 		FMemory::Free(Object);
 	}

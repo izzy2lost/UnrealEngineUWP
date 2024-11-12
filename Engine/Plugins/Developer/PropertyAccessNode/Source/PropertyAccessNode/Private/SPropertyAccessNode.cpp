@@ -94,7 +94,10 @@ TSharedRef<SWidget> SPropertyAccessNode::UpdateTitleWidget(FText InTitleText, TS
 
 	FPropertyBindingWidgetArgs Args;
 
-	Args.OnCanBindProperty = FOnCanBindProperty::CreateSP(this, &SPropertyAccessNode::CanBindProperty);
+	Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([this](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
+	{
+		return CanBindProperty(InProperty);
+	});
 
 	Args.OnCanBindFunction = FOnCanBindFunction::CreateLambda([this](UFunction* InFunction)
 	{

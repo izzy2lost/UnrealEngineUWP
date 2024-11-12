@@ -62,6 +62,12 @@ namespace UE::MVVM::BindingHelper
 	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForComplexRuntimeConversion(const UFunction* InFunction);
 
 	/**
+	 * Is the Function usable as a delegate signature binding.
+	 * Delegate signature functions are used for binding to generated events
+	 */
+	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForDelegateSignatureBinding(const UFunction* InFunction);
+
+	/**
 	 * Is the Function usable as an event binding.
 	 * Events can trigger functions with any number of parameters and any return values.
 	 */
@@ -85,6 +91,11 @@ namespace UE::MVVM::BindingHelper
 	/** Is the Property usable as a destination by the binding system and a Setter exists. */
 	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsAccessibleWithSetterForDestinationBinding(const FProperty* InProperty);
 #endif
+
+	/**
+	 * Converts a given graph / function name into it's delegate signature name (By appending the correct UE suffix).
+	 */
+	[[nodiscard]] MODELVIEWVIEWMODEL_API FName GetDelegateSignatureName(FName InGraphName);
 
 	/**
 	 * Returns the Property or the Function that matches that BindingName.
@@ -113,6 +124,7 @@ namespace UE::MVVM::BindingHelper
 	 * int Foo(double) -> returns int
 	 * void Foo(int&, double) -> returns int
 	 * void Foo(const int&, double) -> returns null
+	 * int Foo(int&, double) -> returns null
 	 */
 	[[nodiscard]] MODELVIEWVIEWMODEL_API const FProperty* GetReturnProperty(const UFunction* InFunction);
 
@@ -174,6 +186,14 @@ namespace UE::MVVM::BindingHelper
 	 * @note No test is performed to see if the ConversionFunction can be safely executed. Use with caution.
 	 */
 	MODELVIEWVIEWMODEL_API void ExecuteBinding_NoCheck(const FFieldContext& Source, const FFieldContext& Destination, const FFunctionContext& ConversionFunction);
+
+	/**
+	 * Execute a function with no parameters and no return value
+	 *
+	 * @note No test is performed to verify the function doesn't have parameters and return value. Use with caution.
+	 */
+	MODELVIEWVIEWMODEL_API void ExecuteFunction_NoReturnValue(UFunction* InFunction, UObject* UserWidget);
+
 } //namespace
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

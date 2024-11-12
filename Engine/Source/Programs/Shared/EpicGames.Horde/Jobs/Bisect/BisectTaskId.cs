@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Jobs.Bisect
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<BisectTaskId, BisectTaskIdConverter>))]
 	[BinaryIdConverter(typeof(BisectTaskIdConverter))]
-	public record struct BisectTaskId(BinaryId Id)
+	public readonly record struct BisectTaskId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static BisectTaskId Parse(string text) => new BisectTaskId(BinaryId.Parse(text));

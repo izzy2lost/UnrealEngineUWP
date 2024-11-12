@@ -14,7 +14,7 @@ class UAvaTransitionBehaviorInstance;
 class UAvaTransitionSubsystem;
 struct FStateTreeExecutionContext;
 
-UCLASS(DisplayName = "Motion Design Transition Behavior Actor")
+UCLASS(NotPlaceable, Hidden, DisplayName = "Motion Design Transition Behavior Actor")
 class AAvaTransitionBehaviorActor : public AActor, public IAvaTransitionBehavior
 {
 	GENERATED_BODY()
@@ -49,6 +49,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAvaTransitionTree> TransitionTree;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category="Transition Logic")
 	FStateTreeReference StateTreeReference;
 };

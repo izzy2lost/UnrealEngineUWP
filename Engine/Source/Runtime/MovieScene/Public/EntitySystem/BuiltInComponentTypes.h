@@ -337,10 +337,10 @@ enum class EMovieSceneBindingLifetimeState : uint8
 
 struct FMovieSceneBindingLifetimeComponentData
 {
-	FGuid BindingGuid;
-
 	EMovieSceneBindingLifetimeState BindingLifetimeState = EMovieSceneBindingLifetimeState::Active;
 };
+
+using FBoundObjectResolver = UObject* (*)(UObject*);
 
 /**
  * Specifies a unique, sorted path of hbiases that contribute to a blended output
@@ -610,7 +610,11 @@ public:
 	// An FGuid relating to a direct object binding in a sequence
 	TComponentTypeID<FGuid> GenericObjectBinding;
 
+	// A custom bound object resolver that defines a function to resolve a bound object (ie, from AActor -> RootComponent where a track must operate on a component)
+	TComponentTypeID<FBoundObjectResolver> BoundObjectResolver;
+
 	// An FGuid that is always resolved as a USceneComponent either directly or through the AActor that the GUID relates to
+	UE_DEPRECATED(5.5, "Please use GenericObjectBinding and BoundObjectResolver")
 	TComponentTypeID<FGuid> SceneComponentBinding;
 
 	// An FGuid relating to a spawnable binding in a sequence
@@ -704,6 +708,9 @@ public:
 	/** A blender type that should be used for blending this entity */
 	TComponentTypeID<TSubclassOf<UMovieSceneBlenderSystem>> BlenderType;
 
+	/** Value that is used to sort blending order */
+	TComponentTypeID<int32> BlendingOrder;
+
 	// An FMovieSceneTrackInstanceComponent that defines the track instance to use
 	TComponentTypeID<FMovieSceneTrackInstanceComponent> TrackInstance;
 
@@ -714,6 +721,8 @@ public:
 	TComponentTypeID<FMovieSceneEvaluationHookComponent> EvaluationHook;
 
 	TComponentTypeID<FEvaluationHookFlags> EvaluationHookFlags;
+
+	TComponentTypeID<TObjectPtr<const UMovieSceneCondition>> Condition;
 
 public:
 
@@ -739,11 +748,12 @@ public:
 		FComponentTypeID RelativeBlend;
 		FComponentTypeID AdditiveBlend;
 		FComponentTypeID AdditiveFromBaseBlend;
+		FComponentTypeID OverrideBlend;
 
 		FComponentTypeID NeedsLink;
 		FComponentTypeID NeedsUnlink;
 
-		/** Tag that is added to imported entities with a GenericObjectBinding or SceneComponentBinding whose binding did not resolve */
+		/** Tag that is added to imported entities with a GenericObjectBinding whose binding did not resolve */
 		FComponentTypeID HasUnresolvedBinding;
 
 		FComponentTypeID HasAssignedInitialValue;
@@ -767,7 +777,10 @@ public:
 
 		FComponentTypeID DontOptimizeConstants;
 
+		UE_DEPRECATED(5.5, "This tag is no longer used. Blend targets are entirely managed by UMovieSceneHierarchicalBiasSystem now.")
 		FComponentTypeID RemoveHierarchicalBlendTarget;
+
+		FComponentTypeID OldStyleSpawnable;
 
 	} Tags;
 
@@ -804,10 +817,6 @@ private:
 
 	TMap<FComponentTypeID, FComponentTypeID> ResultToBase;
 };
-
-#if UE_MOVIESCENE_ENTITY_DEBUG
-template<> struct TComponentDebugType<FEntityGroupID> { static const EComponentDebugType Type = EComponentDebugType::GroupID; };
-#endif
 
 } // namespace MovieScene
 } // namespace UE

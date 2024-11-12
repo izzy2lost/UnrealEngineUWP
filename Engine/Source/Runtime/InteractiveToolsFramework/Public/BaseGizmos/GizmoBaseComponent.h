@@ -5,9 +5,32 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Components/PrimitiveComponent.h"
+
 #include "GizmoBaseComponent.generated.h"
 
 class UGizmoViewContext;
+
+UINTERFACE(MinimalAPI)
+class UGizmoBaseComponentInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Interface that allows a component to receive various gizmo-specific callbacks while
+ * still inheriting from some class other than UGizmoBaseComponent.
+ */
+class IGizmoBaseComponentInterface
+{
+	GENERATED_BODY()
+public:
+	virtual void UpdateHoverState(bool bHoveringIn) {}
+
+	virtual void UpdateWorldLocalState(bool bWorldIn) {}
+
+	virtual void UpdateInteractingState(bool bInteractingIn) {}
+};
+
 
 /**
  * Base class for simple Components intended to be used as part of 3D Gizmos.
@@ -16,6 +39,7 @@ class UGizmoViewContext;
  */
 UCLASS(ClassGroup = Utility, HideCategories = (Physics, Collision, Mobile), MinimalAPI)
 class UGizmoBaseComponent : public UPrimitiveComponent
+	, public IGizmoBaseComponentInterface
 {
 	GENERATED_BODY()
 
@@ -55,7 +79,7 @@ public:
 
 public:
 	UFUNCTION()
-	void UpdateHoverState(bool bHoveringIn)
+	virtual void UpdateHoverState(bool bHoveringIn) override
 	{
 		if (bHoveringIn != bHovering)
 		{
@@ -64,7 +88,7 @@ public:
 	}
 
 	UFUNCTION()
-	void UpdateWorldLocalState(bool bWorldIn)
+	virtual void UpdateWorldLocalState(bool bWorldIn) override
 	{
 		if (bWorldIn != bWorld)
 		{

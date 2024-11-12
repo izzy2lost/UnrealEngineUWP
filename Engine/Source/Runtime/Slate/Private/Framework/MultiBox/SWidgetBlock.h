@@ -8,7 +8,6 @@
 #include "Framework/MultiBox/MultiBox.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
-
 /**
  * Arbitrary Widget MultiBlock
  */
@@ -17,16 +16,15 @@ class FWidgetBlock
 {
 
 public:
-
 	/**
 	 * Constructor
 	 *
-	 * @param	InContent		The widget to place in the block
-	 * @param	InLabel			Optional label text to be added to the left of the content
-	 * @param	bInNoIndent		If true, removes the padding from the left of the widget that lines it up with other menu items
-	 * @param	InToolTipText	Optional tooltip text to be added to the widget and label
+	 * @param	InContent					The widget to place in the block
+	 * @param	InLabel						Optional label text to be added to the left of the content
+	 * @param	InToolTipText				Optional tooltip text to be added to the widget and label
+	 * @param	InStyleParams				Optional additional style parameters. @see FMenuEntryStyleParams
 	 */
-	FWidgetBlock(TSharedRef<SWidget> InContent, const FText& InLabel, bool bInNoIndent, EHorizontalAlignment InHorizontalAlignment = HAlign_Fill, const TAttribute<FText>& InToolTipText = FText());
+	FWidgetBlock(TSharedRef<SWidget> InContent, const FText& InLabel, const TAttribute<FText>& InToolTipText = FText(), const FMenuEntryStyleParams& InStyleParams = {});
 
 	/** FMultiBlock interface */
 	virtual void CreateMenuEntry(class FMenuBuilder& MenuBuilder) const override;
@@ -38,7 +36,8 @@ private:
 
 	/** FMultiBlock private interface */
 	virtual TSharedRef< class IMultiBlockBaseWidget > ConstructWidget() const override;
-	virtual bool GetAlignmentOverrides(EHorizontalAlignment& OutHorizontalAlignment, EVerticalAlignment& OutVerticalAlignment, bool& bOutAutoWidth) const;
+	virtual bool GetAlignmentOverrides(FMenuEntryStyleParams& OutAlignmentParameters) const override;
+
 private:
 
 	// Friend our corresponding widget class
@@ -53,11 +52,8 @@ private:
 	/** Optional ToolTip text */
 	TAttribute<FText> ToolTipText;
 
-	/** Remove the padding from the left of the widget that lines it up with other menu items? */
-	bool bNoIndent;
-
-	/** Hortizontal aligment for this widget in its parent container. Note: only applies to toolbars */
-	EHorizontalAlignment HorizontalAlignment;
+	/** Style parameters */
+	FMenuEntryStyleParams StyleParams;
 
 	/** Optional delegate to customize when a menu appears instead of the widget, such as in toolbars */
 	FNewMenuDelegate CustomMenuDelegate;

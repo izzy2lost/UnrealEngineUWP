@@ -108,21 +108,41 @@ protected:
 UENUM(BlueprintType)
 namespace EGameplayModOp
 {
-	/** Defines the ways that mods will modify attributes. Numeric ones operate on the existing value, override ignores it */
+	/**
+	 * Defines the ways that mods will modify attributes. Values of the same type are aggregated, and then applied in the following equation:
+	 * ((BaseValue + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal
+	 */
 	enum Type : int
 	{		
-		/** Numeric. */
-		Additive = 0		UMETA(DisplayName="Add"),
-		/** Numeric. */
-		Multiplicitive		UMETA(DisplayName = "Multiply"),
-		/** Numeric. */
-		Division			UMETA(DisplayName = "Divide"),
+		/** Adds to the Base value. This happens first, before all other mods are considered. */
+		AddBase				UMETA(DisplayName="Add (Base)"),
 
-		/** Other. */
-		Override 			UMETA(DisplayName="Override"),	// This should always be the first non numeric ModOp
+		/** Multipliers are added together first, then multiplied against prev result. E.g. 50% + 50% = 100% in values is 1.5 + 1.5 = 2.0. */
+		MultiplyAdditive	UMETA(DisplayName = "Multiply (Additive)"),
 
-		// This must always be at the end.
-		Max					UMETA(DisplayName="Invalid")
+		/** Divisors are added together, then divided against the prev result. E.g. 1/2 + 1/2 = 1/3 in values is 2 + 2 = 3. */
+		DivideAdditive		UMETA(DisplayName = "Divide (Additive)"),
+
+		// !!! Don't get tripped up here:  Override is 3 (due to existing serialized assets) !!!
+
+		/** Multiply the prev result by this value. E.g. two values of 1.5 compounded: 1.5 * 1.5 = 2.25. */
+		MultiplyCompound = 4 UMETA(DisplayName = "Multiply (Compound)"),
+
+		/** Add this value to the final computed result. */
+		AddFinal			UMETA(DisplayName = "Add (Final)"),
+		
+		/** This must always be the last value (used in iteration code). */
+		Max					UMETA(Hidden, DisplayName="Invalid"),
+
+		// Backwards compatible names
+		Additive = 0		UMETA(Hidden), // Backwards compat name
+		Multiplicitive = 1	 UMETA(Hidden), // Backwards compat name
+		Division = 2		UMETA(Hidden), // Backwards compat name
+
+		// Due to UI being displayed in the same order as the operations, we want Override at the bottom.
+
+		/** Override the value, regardless of what the computation provides. */
+		Override = 3		UMETA(DisplayName="Override"),
 	};
 }
 

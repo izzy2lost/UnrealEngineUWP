@@ -514,7 +514,8 @@ namespace BuildPatchServices
 				512,
 				MemoryEvictionPolicy.Get(),
 				nullptr,
-				MemoryChunkStoreStatistics.Get()));
+				MemoryChunkStoreStatistics.Get(),
+				nullptr));
 			DownloadConnectionCount.Reset(FDownloadConnectionCountFactory::Create(FDownloadConnectionCountConfig(), DownloadServiceStatistics.Get()));
 			CloudChunkSource.Reset(FCloudChunkSourceFactory::Create(
 				CloudSourceConfig,

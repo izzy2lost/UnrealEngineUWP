@@ -7,6 +7,7 @@ public class MovieRenderPipelineRenderPasses : ModuleRules
 	public MovieRenderPipelineRenderPasses(ReadOnlyTargetRules Target) : base(Target)
 	{
 		bEnableExceptions = true;
+		bDisableAutoRTFMInstrumentation = true; // AutoRTFM cannot be used with exceptions
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
@@ -22,7 +23,6 @@ public class MovieRenderPipelineRenderPasses : ModuleRules
 				"ImageWrapper",				
 				"CinematicCamera", // For metadata
 				"MovieRenderPipelineSettings", // For settings
-				"ColorManagement",
 				"SlateCore",
 				"ImageCore",
 				"OpenColorIOWrapper",

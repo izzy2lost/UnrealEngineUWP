@@ -118,6 +118,7 @@ public:
 	
 	SLATE_API void ShowTooltip(const TSharedRef<IToolTip>& InTooltip, const UE::Slate::FDeprecateVector2DParameter& InSpawnLocation);
 	SLATE_API void CloseTooltip();
+	SLATE_API FVector2f GetTooltipPosition() const;
 
 	const FGestureDetector& GetGestureDetector() const { return GestureDetector; }
 
@@ -315,6 +316,9 @@ private:
 
 		/** Desired position of the tooltip in screen space, updated whenever the mouse moves */
 		FVector2f DesiredLocation = FVector2f::ZeroVector;
+
+		/** Desired size of the tooltip in screen space */
+		FVector2f DesiredSize = FVector2f::ZeroVector;
 
 		/** The time at which the tooltip was summoned */
 		double SummonTime = 0.0;

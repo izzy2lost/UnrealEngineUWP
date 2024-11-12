@@ -113,10 +113,6 @@ void FReplayHelper::SetPlaybackNetworkVersions(UNetConnection* Connection)
 {
 	if (Connection)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Connection->EngineNetworkProtocolVersion = PlaybackDemoHeader.GetCustomVersion(FEngineNetworkCustomVersion::Guid);
-		Connection->GameNetworkProtocolVersion = PlaybackDemoHeader.GetCustomVersion(FGameNetworkCustomVersion::Guid);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Connection->SetNetworkCustomVersions(PlaybackDemoHeader.CustomVersions);
 		Connection->SetPackageVersionUE(PlaybackDemoHeader.PackageVersionUE);
 		Connection->SetPackageVersionLicenseeUE(PlaybackDemoHeader.PackageVersionLicenseeUE);

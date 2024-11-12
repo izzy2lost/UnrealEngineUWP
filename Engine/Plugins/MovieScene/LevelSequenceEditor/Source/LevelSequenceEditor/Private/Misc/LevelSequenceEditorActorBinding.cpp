@@ -12,8 +12,10 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Modules/ModuleManager.h"
+#include "Misc/EditorPathHelper.h"
 #include "Editor.h"
 #include "Selection.h"
+#include "SequencerSettings.h"
 
 #define LOCTEXT_NAMESPACE "LevelSequenceEditorActorBinding"
 
@@ -48,9 +50,10 @@ void FLevelSequenceEditorActorBinding::AddPossessActorMenuExtensions(FMenuBuilde
 	// We don't need to check against Sequencer spawnables as they're not valid for possession.
 	TSet<UObject*> ExistingPossessedObjects;
 	UMovieSceneSequence* MovieSceneSequence = nullptr;
-	if (Sequencer.IsValid())
+	TSharedPtr<ISequencer> SequencerPtr = Sequencer.Pin();
+	if (SequencerPtr.IsValid())
 	{
-		MovieSceneSequence = Sequencer.Pin()->GetFocusedMovieSceneSequence();
+		MovieSceneSequence = SequencerPtr->GetFocusedMovieSceneSequence();
 		UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
 		if(MovieScene)
 		{
@@ -61,7 +64,9 @@ void FLevelSequenceEditorActorBinding::AddPossessActorMenuExtensions(FMenuBuilde
 				if (!Possessable.GetParent().IsValid())
 				{
 					// A possession guid can apply to more than one object, so we get all bound objects for the GUID and add them to our set.
-					ExistingPossessedObjects.Append(MovieSceneSequence->LocateBoundObjects(Possessable.GetGuid(), Sequencer.Pin()->GetPlaybackContext()));
+					TArray<UObject*, TInlineAllocator<1>> OutObjects;
+					MovieSceneSequence->LocateBoundObjects(Possessable.GetGuid(), UE::UniversalObjectLocator::FResolveParams(SequencerPtr->GetPlaybackContext()), SequencerPtr->FindSharedPlaybackState(), OutObjects);
+					ExistingPossessedObjects.Append(OutObjects);
 				}
 			}
 		}
@@ -128,12 +133,17 @@ void FLevelSequenceEditorActorBinding::AddPossessActorMenuExtensions(FMenuBuilde
 		InitOptions.Filters->AddFilterPredicate<FActorTreeItem>(FActorTreeItem::FFilterPredicate::CreateLambda(IsActorValidForPossession, ExistingPossessedObjects));
 	}
 
+	const bool bHideLevelInstanceHierarchy = !FEditorPathHelper::IsEnabled();
+
+	const float WidthOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+	const float HeightOverride = SequencerPtr.IsValid() ? SequencerPtr->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 	// actor selector to allow the user to choose an actor
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 	TSharedRef< SWidget > MiniSceneOutliner =
 		SNew(SBox)
-		.MaxDesiredHeight(400.0f)
-		.WidthOverride(300.0f)
+		.WidthOverride(WidthOverride)
+		.HeightOverride(HeightOverride)
 		[
 			SceneOutlinerModule.CreateActorPicker(
 				InitOptions,
@@ -141,7 +151,9 @@ void FLevelSequenceEditorActorBinding::AddPossessActorMenuExtensions(FMenuBuilde
 					// Create a new binding for this actor
 					FSlateApplication::Get().DismissAllMenus();
 					AddActorsToSequencer(&Actor, 1);
-				})
+				}),
+				nullptr,
+				bHideLevelInstanceHierarchy
 			)
 		];
 

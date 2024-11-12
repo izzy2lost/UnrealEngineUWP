@@ -52,7 +52,7 @@ void FInterchangeMaterialXPipelineCustomization::CustomizeDetails(IDetailLayoutB
 		SNew(STextBlock)
 		.Font(IDetailLayoutBuilder::GetDetailFont())
 		.Text(NSLOCTEXT("InterchangeMaterialXPipelineCustomization::Message", "MaterialXPredefinedMaterialSubstitutionMessage", "See 'Project Settings > Engine > Interchange MaterialX' to edit settings."))
-		.AutoWrapText(true)
+		.AutoWrapText(false)
 	];
 }
 
@@ -97,7 +97,7 @@ void FInterchangeMaterialXPipelineSettingsCustomization::CustomizeDetails(IDetai
 			FText EnumString;
 			KeyPropertyHandle->GetValueAsDisplayText(EnumString);
 
-			FDetailWidgetRow& DetailWidgetRow = MaterialXPredefinedCategory.AddCustomRow(DisplayName);
+			FDetailWidgetRow& DetailWidgetRow = MaterialXPredefinedCategory.AddCustomRow(FText::FromStringView(TEXT("MaterialX")));
 			DetailWidgetRow
 			.NameContent()
 			[

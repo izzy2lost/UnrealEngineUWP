@@ -325,7 +325,7 @@ FScreenPassTexture AddVisualizeGBufferOverviewPass(
 	FScreenPassTexture Output;
 	
 	// Respect the r.PostProcessingColorFormat cvar just like the main rendering path
-	const EPixelFormat OutputFormat = OverridePostProcessingColorFormat(Inputs.bOutputInHDR ? PF_FloatRGBA : PF_Unknown);
+	EPixelFormat OutputFormat = OverridePostProcessingColorFormat(Inputs.bOutputInHDR ? PF_FloatRGBA : PF_Unknown);
 
 	TArray<FVisualizeBufferTile> Tiles;
 
@@ -370,14 +370,24 @@ FScreenPassTexture AddVisualizeGBufferOverviewPass(
 				EPathTracingPostProcessMaterialInput::Radiance, FScreenPassTexture(PathTracingResources.Radiance, ViewRect));
 		}
 
+		const TSharedPtr<FImagePixelPipe, ESPMode::ThreadSafe>* OutputPipe = PostProcessSettings.BufferVisualizationPipes.Find(MaterialInterface->GetFName());
+		const bool bIsValidOutputPipe = OutputPipe && OutputPipe->IsValid();
+
+		if (bIsValidOutputPipe && OutputPipe->Get()->bIsExpecting32BitPixelData)
+		{
+			PostProcessMaterialInputs.OutputFormat = PF_A32B32G32R32F;
+		}
+		else
+		{
+			PostProcessMaterialInputs.OutputFormat = OutputFormat;
+		}
 		PostProcessMaterialInputs.SceneTextures = Inputs.SceneTextures;
-		PostProcessMaterialInputs.OutputFormat = OutputFormat;
+		// When dumping to pipe or file, we mandate the allocation of a new transient output texture separate from scene color.
+		PostProcessMaterialInputs.bAllowSceneColorInputAsOutput = !(bIsValidOutputPipe || Inputs.bDumpToFile);
 
 		Output = AddPostProcessMaterialPass(GraphBuilder, View, PostProcessMaterialInputs, MaterialInterface);
 
-		const TSharedPtr<FImagePixelPipe, ESPMode::ThreadSafe>* OutputPipe = PostProcessSettings.BufferVisualizationPipes.Find(MaterialInterface->GetFName());
-
-		if (OutputPipe && OutputPipe->IsValid())
+		if (bIsValidOutputPipe)
 		{
 			AddDumpToPipePass(GraphBuilder, Output, OutputPipe->Get());
 		}

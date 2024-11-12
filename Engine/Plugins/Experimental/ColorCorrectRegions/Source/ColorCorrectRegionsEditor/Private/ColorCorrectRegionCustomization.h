@@ -7,6 +7,7 @@
 #include "IDetailCustomization.h"
 #include "PropertyHandle.h"
 
+class IDetailCategoryBuilder;
 
 class FColorCorrectWindowDetails : public IDetailCustomization
 {
@@ -16,4 +17,8 @@ public:
 
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+private:
+	/** Recreate the color grading property struct's children as groups or root properties of the color grading category */
+	void MoveColorGradingPropertiesToCategory(TSharedRef<IPropertyHandle> StructHandle, IDetailCategoryBuilder& RootCategory);
 };

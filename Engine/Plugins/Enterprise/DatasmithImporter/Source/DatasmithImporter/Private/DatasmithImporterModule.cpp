@@ -268,24 +268,21 @@ void FDatasmithImporterModule::AddDataprepMenuEntryForDatasmithSceneAsset()
 					{
 						if (ContentBrowserMenuContext->CommonClass == UDatasmithScene::StaticClass())
 						{
-							TArray<UObject*> SelectedObjects = ContentBrowserMenuContext->GetSelectedObjects();
+							TArray<UDatasmithScene*> SelectedObjects = ContentBrowserMenuContext->LoadSelectedObjects<UDatasmithScene>({});
 							DataprepAssetInterfacesPtr.Reserve( SelectedObjects.Num() );
-							for (UObject* SelectedObject : SelectedObjects)
+							for (UDatasmithScene* SelectedDatasmithScene : SelectedObjects)
 							{
-								if (UDatasmithScene* SelectedDatasmithScene = Cast<UDatasmithScene>(SelectedObject))
+								if (UDataprepAssetUserData* DataprepAssetUserData = SelectedDatasmithScene->GetAssetUserData<UDataprepAssetUserData>())
 								{
-									if (UDataprepAssetUserData* DataprepAssetUserData = SelectedDatasmithScene->GetAssetUserData<UDataprepAssetUserData>())
+									if (UDataprepAssetInterface* DataprepAsset = DataprepAssetUserData->DataprepAssetPtr.LoadSynchronous())
 									{
-										if (UDataprepAssetInterface* DataprepAsset = DataprepAssetUserData->DataprepAssetPtr.LoadSynchronous())
+										if (UDatasmithConsumer* DatasmithConsumer = Cast<UDatasmithConsumer>(DataprepAsset->GetConsumer()))
 										{
-											if (UDatasmithConsumer* DatasmithConsumer = Cast<UDatasmithConsumer>(DataprepAsset->GetConsumer()))
+											if (DatasmithConsumer->GetDatasmithScene() == SelectedDatasmithScene)
 											{
-												if (DatasmithConsumer->GetDatasmithScene() == SelectedDatasmithScene)
-												{
-													// A Dataprep asset was found and it will regenerate this scene
-													DataprepAssetInterfacesPtr.Emplace( DataprepAsset );
-													continue;
-												}
+												// A Dataprep asset was found and it will regenerate this scene
+												DataprepAssetInterfacesPtr.Emplace( DataprepAsset );
+												continue;
 											}
 										}
 									}

@@ -57,9 +57,9 @@ void UBTDecorator_TagCooldown::OnNodeDeactivation(FBehaviorTreeSearchData& Searc
 	FBTTagCooldownDecoratorMemory* DecoratorMemory = GetNodeMemory<FBTTagCooldownDecoratorMemory>(SearchData);
 	DecoratorMemory->bRequestedRestart = false;
 
-	if (bActivatesCooldown)
+	if (bActivatesCooldown.GetValue(SearchData.OwnerComp))
 	{
-		SearchData.OwnerComp.AddCooldownTagDuration(CooldownTag, CooldownDuration, bAddToExistingDuration);
+		SearchData.OwnerComp.AddCooldownTagDuration(CooldownTag, CooldownDuration.GetValue(SearchData.OwnerComp), bAddToExistingDuration.GetValue(SearchData.OwnerComp));
 	}
 }
 
@@ -79,7 +79,7 @@ void UBTDecorator_TagCooldown::TickNode(UBehaviorTreeComponent& OwnerComp, uint8
 FString UBTDecorator_TagCooldown::GetStaticDescription() const
 {
 	// basic info: result after time
-	return FString::Printf(TEXT("%s %s: lock for %.1fs after execution and return %s"), *Super::GetStaticDescription(), *CooldownTag.ToString(), CooldownDuration, *UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed));
+	return FString::Printf(TEXT("%s %s: lock for %s s after execution and return %s"), *Super::GetStaticDescription(), *CooldownTag.ToString(), *CooldownDuration.ToString(), *UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed));
 }
 
 void UBTDecorator_TagCooldown::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const
@@ -93,11 +93,11 @@ void UBTDecorator_TagCooldown::DescribeRuntimeValues(const UBehaviorTreeComponen
 	{
 		const double TimePassed = (OwnerComp.GetWorld()->GetTimeSeconds() - TagCooldownEndTime);
 
-		if (TimePassed < CooldownDuration)
+		if (TimePassed < CooldownDuration.GetValue(OwnerComp))
 		{
 			Values.Add(FString::Printf(TEXT("%s in %ss"),
 				(FlowAbortMode == EBTFlowAbortMode::None) ? TEXT("unlock") : TEXT("restart"),
-				*FString::SanitizeFloat(CooldownDuration - TimePassed)));
+				*FString::SanitizeFloat(CooldownDuration.GetValue(OwnerComp) - TimePassed)));
 		}
 	}
 }

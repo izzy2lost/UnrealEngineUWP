@@ -16,7 +16,7 @@
 class TestOnlineGameSettings : public FOnlineSessionSettings
 {
  public:
-	TestOnlineGameSettings(bool bTestingLAN = false, bool bTestingPresence = false, const FOnlineSessionSettings& SettingsOverride = FOnlineSessionSettings())
+	TestOnlineGameSettings(bool bTestingLAN = false, const FOnlineSessionSettings& SettingsOverride = FOnlineSessionSettings())
 	{
 		NumPublicConnections = 10;
 		NumPrivateConnections = 0;
@@ -24,7 +24,6 @@ class TestOnlineGameSettings : public FOnlineSessionSettings
 		bShouldAdvertise = true;
 		bAllowJoinInProgress = true;
 		bAllowInvites = true;
-		bUsesPresence = bTestingPresence;
 		bAllowJoinViaPresence = true;
 		bAllowJoinViaPresenceFriendsOnly = false;
 
@@ -84,7 +83,7 @@ class TestOnlineGameSettings : public FOnlineSessionSettings
 class TestOnlineSearchSettings : public FOnlineSessionSearch
 {
 public:
-	TestOnlineSearchSettings(bool bSearchingLAN = false, bool bSearchingPresence = false, const FOnlineSessionSettings& SettingsOverride = FOnlineSessionSettings())
+	TestOnlineSearchSettings(bool bSearchingLAN = false, const FOnlineSessionSettings& SettingsOverride = FOnlineSessionSettings())
 	{
 		bIsLanQuery = bSearchingLAN;
 		MaxSearchResults = 10;
@@ -93,11 +92,6 @@ public:
 		QuerySettings.Set(FName(TEXT("TESTSETTING1")), (int32)5, EOnlineComparisonOp::Equals, 0);
 		QuerySettings.Set(FName(TEXT("TESTSETTING2")), (float)5.0f, EOnlineComparisonOp::Equals, 1);
 		QuerySettings.Set(FName(TEXT("TESTSETTING3")), FString(TEXT("Hello")), EOnlineComparisonOp::Equals, 2);
-
-		if (bSearchingPresence)
-		{
-			QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
-		}
 
 		for (FSessionSettings::TConstIterator It(SettingsOverride.Settings); It; ++It)
 		{
@@ -119,7 +113,7 @@ public:
 	}
 };
 
-void FTestSessionInterface::Test(UWorld* InWorld, bool bTestLAN, bool bIsPresence, bool bIsMatchmaking, const FOnlineSessionSettings& SettingsOverride)
+void FTestSessionInterface::Test(UWorld* InWorld, bool bTestLAN, bool bIsMatchmaking, const FOnlineSessionSettings& SettingsOverride)
 {
 	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(InWorld, FName(*Subsystem));
 	check(OnlineSub);
@@ -169,10 +163,10 @@ void FTestSessionInterface::Test(UWorld* InWorld, bool bTestLAN, bool bIsPresenc
 
 	if (bIsMatchmaking)
 	{
-		HostSettings = MakeShareable(new TestOnlineGameSettings(bTestLAN, bIsPresence, SettingsOverride));
+		HostSettings = MakeShareable(new TestOnlineGameSettings(bTestLAN, SettingsOverride));
 		HostSettings->AddWorldSettings(InWorld);
 
-		SearchSettings = MakeShareable(new TestOnlineSearchSettings(bTestLAN, bIsPresence, SettingsOverride));
+		SearchSettings = MakeShareable(new TestOnlineSearchSettings(bTestLAN, SettingsOverride));
 		TSharedRef<FOnlineSessionSearch> SearchSettingsRef = SearchSettings.ToSharedRef();
 
 		OnMatchmakingCompleteDelegateHandle = SessionInt->AddOnMatchmakingCompleteDelegate_Handle(OnMatchmakingCompleteDelegate);
@@ -185,7 +179,7 @@ void FTestSessionInterface::Test(UWorld* InWorld, bool bTestLAN, bool bIsPresenc
 	// Setup sessions
 	else if (bIsHost)
 	{
-		HostSettings = MakeShareable(new TestOnlineGameSettings(bTestLAN, bIsPresence, SettingsOverride));
+		HostSettings = MakeShareable(new TestOnlineGameSettings(bTestLAN, SettingsOverride));
 		HostSettings->AddWorldSettings(InWorld);
 
 		OnCreateSessionCompleteDelegateHandle = SessionInt->AddOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegate);
@@ -193,7 +187,7 @@ void FTestSessionInterface::Test(UWorld* InWorld, bool bTestLAN, bool bIsPresenc
 	}
 	else
 	{
-		SearchSettings = MakeShareable(new TestOnlineSearchSettings(bTestLAN, bIsPresence, SettingsOverride));
+		SearchSettings = MakeShareable(new TestOnlineSearchSettings(bTestLAN, SettingsOverride));
 		TSharedRef<FOnlineSessionSearch> SearchSettingsRef = SearchSettings.ToSharedRef();
 
 		OnFindSessionsCompleteDelegateHandle = SessionInt->AddOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegate);
@@ -409,7 +403,7 @@ void FTestSessionInterface::OnFindSessionByIdComplete(int32 LocalUserNum, bool b
 
 	DumpSession(&SearchResult.Session);
 
-	SearchSettings = MakeShared<TestOnlineSearchSettings>(false, false);
+	SearchSettings = MakeShared<TestOnlineSearchSettings>(false);
 	SearchSettings->SearchResults.Emplace(SearchResult);
 }
 

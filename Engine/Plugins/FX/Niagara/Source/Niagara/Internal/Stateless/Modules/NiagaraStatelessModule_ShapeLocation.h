@@ -4,6 +4,7 @@
 
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
+#include "Stateless/NiagaraStatelessParticleSimContext.h"
 
 #include "NiagaraStatelessModule_ShapeLocation.generated.h"
 
@@ -59,12 +60,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(EditConditionHides, EditCondition="ShapePrimitive == ENSM_ShapePrimitive::Sphere"))
 	float SphereMax = 100.0f;
 
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
+	virtual void BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const override;
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override;
 
 #if WITH_EDITOR
 	virtual bool CanDisableModule() const override { return true; }
 
-	virtual bool CanDebugDraw() const { return true; }
+	virtual bool CanDebugDraw() const override { return true; }
 	virtual void DrawDebug(const FNiagaraStatelessDrawDebugContext& DrawDebugContext) const override;
 #endif
 #if WITH_EDITORONLY_DATA

@@ -9,6 +9,7 @@ enum ETextureRenderTargetFormat : int;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UTextureRenderTarget2D;
+class UTextureRenderTarget2DArray;
 
 struct FWaterUtils
 {
@@ -36,6 +37,21 @@ struct FWaterUtils
 	 * @return a compatible transient render target if InMaterialInterface is size/format/... is valid, nullptr otherwise
 	 */
 	static WATER_API UTextureRenderTarget2D* GetOrCreateTransientRenderTarget2D(UTextureRenderTarget2D* InRenderTarget, FName InRenderTargetName, const FIntPoint& InSize, ETextureRenderTargetFormat InFormat, 
+		const FLinearColor& InClearColor = FLinearColor::Black, bool bInAutoGenerateMipMaps = false);
+
+	/**
+	 *  Creates a transient render target of the proper size/format/... or returns the existing one if it's compatible.
+		 InRenderTarget is read-only so it's up to the caller to decide to update or not the RT. Usually, the calling code will be : RT = FWaterUtils::GetOrCreateTransientRenderTarget2D(RT, ...)
+	 * @param InRenderTarget is the current render target currently used. It will be the one returned if it's already compatible with the size/format/...
+	 * @param InRenderTargetName is the UObject's name in case we need to create a MID
+	 * @param InSize is the render target's size
+	 * @param InSlices is the number of slices of the render target
+	 * @param InFormat is the render target's format
+	 * @param InClearColor is the render target's default clear color
+	 * @param bInAutoGenerateMipMaps is for generating mipmaps automatically after rendering to the render target
+	 * @return a compatible transient render target if InMaterialInterface is size/format/... is valid, nullptr otherwise
+	 */
+	static WATER_API UTextureRenderTarget2DArray* GetOrCreateTransientRenderTarget2DArray(UTextureRenderTarget2DArray* InRenderTarget, FName InRenderTargetName, const FIntPoint& InSize, int32 InSlices, ETextureRenderTargetFormat InFormat,
 		const FLinearColor& InClearColor = FLinearColor::Black, bool bInAutoGenerateMipMaps = false);
 
 	static FGuid StringToGuid(const FString& InStr);

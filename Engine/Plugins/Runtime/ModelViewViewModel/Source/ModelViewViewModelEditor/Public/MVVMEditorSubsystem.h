@@ -4,6 +4,7 @@
 
 #include "EditorSubsystem.h"
 #include "MVVMBlueprintPin.h"
+#include "Types/MVVMConversionFunctionValue.h"
 #include "UObject/Package.h"
 
 #include "MVVMEditorSubsystem.generated.h"
@@ -12,7 +13,9 @@ class UEdGraphPin;
 class UMVVMBlueprintView;
 enum class EMVVMBindingMode : uint8;
 enum class EMVVMExecutionMode : uint8;
+enum class EMVVMConditionOperation : uint8;
 namespace UE::MVVM { struct FBindingSource; }
+namespace UE::MVVM::ConversionFunctionLibrary { class FCollection; }
 struct FMVVMAvailableBinding;
 struct FMVVMBlueprintFunctionReference;
 struct FMVVMBlueprintPropertyPath;
@@ -20,9 +23,9 @@ struct FMVVMBlueprintViewBinding;
 template <typename T> class TSubclassOf;
 
 class UEdGraph;
-class UK2Node;
 class UK2Node_CallFunction;
 class UMVVMBlueprintViewEvent;
+class UMVVMBlueprintViewCondition;
 class UWidgetBlueprint;
 
 /** */
@@ -69,6 +72,12 @@ public:
 	void RemoveEvent(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	UMVVMBlueprintViewCondition* AddCondition(UWidgetBlueprint* WidgetBlueprint);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	void RemoveCondition(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewCondition* Condition);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	TArray<FMVVMAvailableBinding> GetChildViewModels(TSubclassOf<UObject> Class, TSubclassOf<UObject> Accessor);
 
 	UE_DEPRECATED(5.4, "SetSourceToDestinationConversionFunction with a UFunction is deprecated.")
@@ -77,26 +86,40 @@ public:
 	UE_DEPRECATED(5.4, "SetDestinationToSourceConversionFunction  with a UFunction is deprecated.")
 	void SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const UFunction* ConversionFunction);
 	void SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintFunctionReference ConversionFunction);
-	void SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath Field);
+	void SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath Field, bool bAllowEventConversion);
 	void SetSourcePathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath Field);
 	void OverrideExecutionModeForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, EMVVMExecutionMode Mode);
 	void ResetExecutionModeForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding);
 	void SetBindingTypeForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, EMVVMBindingMode Type);
 	void SetEnabledForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, bool bEnabled);
 	void SetCompileForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, bool bCompile);
+	void GenerateBindToDestinationPathsForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding);
 
-	void SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath);
+	void SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion);
 	void SetEventDestinationPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath);
 	void SetEventArgumentPath(UMVVMBlueprintViewEvent* Event, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& PropertyPath) const;
 	void SetEnabledForEvent(UMVVMBlueprintViewEvent* Event, bool bEnabled);
 	void SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bool bCompile);
 
-	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
-	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
-	bool IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+	void SetConditionPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion);
+	void SetConditionDestinationPath(UMVVMBlueprintViewCondition* Condition, FMVVMBlueprintPropertyPath PropertyPath);
+	void SetConditionArgumentPath(UMVVMBlueprintViewCondition* Condition, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& PropertyPath) const;
+	void SetEnabledForCondition(UMVVMBlueprintViewCondition* Condition, bool bEnabled);
+	void SetCompileForCondition(UMVVMBlueprintViewCondition* Condition, bool bCompile);
+	void SetConditionOperation(UMVVMBlueprintViewCondition* Condition, EMVVMConditionOperation Operation);
+	void SetConditionOperationValue(UMVVMBlueprintViewCondition* Condition, float Value);
+	void SetConditionOperationMaxValue(UMVVMBlueprintViewCondition* Condition, float MaxValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
-	bool IsSimpleConversionFunctionA(const UFunction* Function) const;
+	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
+	bool IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, UE::MVVM::FConversionFunctionValue Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
+
+	bool IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+	bool IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	bool IsSimpleConversionFunction(const UFunction* Function) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	UEdGraph* GetConversionFunctionGraph(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const;
@@ -109,8 +132,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	UK2Node_CallFunction* GetConversionFunctionNode(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const;
 
+	UE_DEPRECATED(5.5, "GetAvailableConversionFunctions return value changes.")
 	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
 	TArray<UFunction*> GetAvailableConversionFunctions(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const;
+
+	TArray<UE::MVVM::FConversionFunctionValue> GetConversionFunctions(const UWidgetBlueprint* WidgetBlueprint, const FProperty* ExpectedArgumentType, const FProperty* ExptectedReturnType) const;
 
 	FMVVMBlueprintPropertyPath GetPathForConversionFunctionArgument(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintPinId& PinId, bool bSourceToDestination) const;
 	void SetPathForConversionFunctionArgument(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& Path, bool bSourceToDestination) const;
@@ -137,6 +163,9 @@ public:
 	TArray<UE::MVVM::FBindingSource> GetAllViewModels(const UWidgetBlueprint* WidgetBlueprint) const;
 
 	FGuid GetFirstBindingThatUsesViewModel(const UWidgetBlueprint* WidgetBlueprint, FGuid ViewModelId) const;
+
+private:
+	mutable TUniquePtr<UE::MVVM::ConversionFunctionLibrary::FCollection> ConversionFunctionCollection;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

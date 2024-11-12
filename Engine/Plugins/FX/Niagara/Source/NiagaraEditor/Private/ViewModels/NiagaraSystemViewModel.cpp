@@ -560,8 +560,12 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitter(U
 	}
 
 	RefreshAll();
-	
-	GetEmitterHandleViewModelById(NewEmitterHandleId)->GetEmitterViewModel()->GetEditorData().SetShowSummaryView(Emitter.GetEmitterData(EmitterVersion)->AddEmitterDefaultViewState == ENiagaraEmitterDefaultSummaryState::Summary ? true : false);
+
+	if (bSystemIsPlaceholder == false)
+	{
+		GetEmitterHandleViewModelById(NewEmitterHandleId)->GetEmitterViewModel()->GetEditorData().SetShowSummaryView(Emitter.GetEmitterData(EmitterVersion)->AddEmitterDefaultViewState == ENiagaraEmitterDefaultSummaryState::Summary ? true : false);
+	}
+
 	
 	TRange<float> SystemPlaybackRange = GetEditorData().GetPlaybackRange();
 	TRange<float> EmitterPlaybackRange = GetEmitterHandleViewModelById(NewEmitterHandleId)->GetEmitterViewModel()->GetEditorData().GetPlaybackRange();
@@ -593,6 +597,7 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitter(U
 
 TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmptyEmitter()
 {
+	// Otherwise we use an actually empty emitter
 	UNiagaraEmitter* EmptyEmitter = NewObject<UNiagaraEmitter>(GetTransientPackage());
 	bool bAddDefaultModulesAndRenderers = false;
 	UNiagaraEmitterFactoryNew::InitializeEmitter(EmptyEmitter, bAddDefaultModulesAndRenderers);
@@ -683,6 +688,20 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddStateless
 TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitter(const FVersionedNiagaraEmitter& VersionedEmitter)
 {
 	return AddEmitter(*VersionedEmitter.Emitter, VersionedEmitter.Version);
+}
+
+TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddMinimalEmitter()
+{
+	FSoftObjectPath MinimalEmitter = GetDefault<UNiagaraEditorSettings>()->DefaultEmptyEmitter;
+	if(MinimalEmitter.IsValid() && MinimalEmitter.IsAsset())
+	{
+		if(UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(MinimalEmitter.TryLoad()))
+		{
+			return AddEmitterFromAssetData(FAssetData(Emitter));
+		}
+	}
+
+	return AddEmptyEmitter();
 }
 
 void FNiagaraSystemViewModel::DuplicateEmitters(TArray<FEmitterHandleToDuplicate> EmitterHandlesToDuplicate)
@@ -803,13 +822,13 @@ void FNiagaraSystemViewModel::DuplicateEmitters(TArray<FEmitterHandleToDuplicate
 					FNiagaraVariable NewUserParameter = FNiagaraVariable(UserParameter.GetType(), FNiagaraUtilities::GetUniqueName(UserParameter.GetName(), ExistingUserParameterNames));
 					TargetParameterStore.AddParameter(NewUserParameter);
 					OriginalSystem->GetExposedParameters().CopyParameterData(TargetParameterStore, UserParameter, NewUserParameter);
-					FNiagaraEditorUtilities::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, NewUserParameter);
+					FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, NewUserParameter);
 					RenamedUserParameters.Add(UserParameter, NewUserParameter);
 				}
 				else
 				{
 					FNiagaraVariable RenamedUserParameter = RenamedUserParameters[UserParameter];
-					FNiagaraEditorUtilities::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, RenamedUserParameter);
+					FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), UserParameter, RenamedUserParameter);
 				}
 			}
 			// if the parameter doesn't exist at all, we just add it, copy the data and we're done
@@ -1342,6 +1361,16 @@ TStatId FNiagaraSystemViewModel::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FNiagaraSystemViewModel, STATGROUP_Tickables);
 }
 
+void FNiagaraSystemViewModel::OnModifiedIndirectly(UMovieSceneSignedObject* MovieSceneSignedObject)
+{
+	SequencerMovieSceneModified(Cast<UMovieScene>(MovieSceneSignedObject));
+}
+
+void FNiagaraSystemViewModel::OnModifiedDirectly(UMovieSceneSignedObject* MovieSceneSignedObject)
+{
+	SequencerMovieSceneModified(Cast<UMovieScene>(MovieSceneSignedObject));
+}
+
 TSharedRef<FNiagaraPlaceholderDataInterfaceManager> FNiagaraSystemViewModel::GetPlaceholderDataInterfaceManager()
 {
 	return PlaceholderDataInterfaceManager.ToSharedRef();
@@ -1384,7 +1413,7 @@ bool FNiagaraSystemViewModel::RenameParameter(const FNiagaraVariable TargetParam
 		NewVariable.SetName(NewName);
 		for(TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel : GetEmitterHandleViewModels())
 		{
-			FNiagaraEditorUtilities::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), TargetParameter, NewVariable);
+			FNiagaraEditorUtilities::UserParameters::ReplaceUserParameterReferences(EmitterHandleViewModel->GetEmitterViewModel(), TargetParameter, NewVariable);
 		}
 		bExposedParametersRename = true;
 	}
@@ -1881,6 +1910,8 @@ void FNiagaraSystemViewModel::SetupPreviewComponentAndInstance()
 		PreviewComponent->SetAsset(System);
 		PreviewComponent->SetForceSolo(true);
 		PreviewComponent->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
+		PreviewComponent->SetSeekDelta((float)GetEditorData().GetPlaybackFrameRate().AsInterval());
+		PreviewComponent->SetLockDesiredAgeDeltaTimeToSeekDelta(GetEditorData().GetLockPlaybackFrameRate());
 		PreviewComponent->SetCanRenderWhileSeeking(false);
 		PreviewComponent->Activate(true);
 
@@ -1903,6 +1934,8 @@ void FNiagaraSystemViewModel::RefreshAll()
 	ResetSystem(ETimeResetMode::AllowResetTime, EMultiResetMode::AllowResetAllInstances, EReinitMode::ReinitializeSystem);
 	RefreshEmitterHandleViewModels();
 	RefreshSequencerTracks();
+	ClearSystemStats();
+	ClearEmitterStats();
 	InvalidateCachedCompileStatus();
 	ScriptScratchPadViewModel->RefreshScriptViewModels();
 	CurveSelectionViewModel->Refresh();
@@ -2331,9 +2364,15 @@ void FNiagaraSystemViewModel::SetupSequencer()
 		// we don't need a sequencer when merging emitters or if we're in a commandlet with no slate application
 		return;
 	}
+
 	NiagaraSequence = NewObject<UNiagaraSequence>(GetTransientPackage());
 	UMovieScene* MovieScene = NewObject<UMovieScene>(NiagaraSequence, FName("Niagara System MovieScene"), RF_Transactional | RF_Transient);
-	MovieScene->SetDisplayRate(FFrameRate(240, 1));
+
+	MovieScene->SetDisplayRate(GetEditorData().GetPlaybackFrameRate());
+	MovieScene->SetEvaluationType(GetEditorData().GetLockPlaybackFrameRate() ? EMovieSceneEvaluationType::FrameLocked : EMovieSceneEvaluationType::WithSubFrames);
+
+	MovieSceneEventHandler.Unlink();
+	MovieScene->UMovieSceneSignedObject::EventHandlers.Link(MovieSceneEventHandler, this);
 
 	NiagaraSequence->Initialize(this, MovieScene);
 
@@ -2772,6 +2811,34 @@ void PopulateNiagaraFoldersFromMovieSceneFolders(TArrayView<UMovieSceneFolder* c
 	}
 }
 
+void FNiagaraSystemViewModel::SequencerMovieSceneModified(const UMovieScene* MovieScene)
+{
+	if (MovieScene == nullptr)
+	{
+		return;
+	}
+
+	UNiagaraSystemEditorData& SystemEditorData = GetEditorData();
+	if (SystemEditorData.GetPlaybackFrameRate() != MovieScene->GetDisplayRate())
+	{
+		SystemEditorData.SetPlaybackFrameRate(MovieScene->GetDisplayRate());
+		if (PreviewComponent != nullptr)
+		{
+			PreviewComponent->SetSeekDelta((float)SystemEditorData.GetPlaybackFrameRate().AsInterval());
+		}
+	}
+
+	bool bMovieSceneIsFrameLocked = MovieScene->GetEvaluationType() == EMovieSceneEvaluationType::FrameLocked;
+	if (SystemEditorData.GetLockPlaybackFrameRate() != bMovieSceneIsFrameLocked)
+	{
+		SystemEditorData.SetLockPlaybackFrameRate(bMovieSceneIsFrameLocked);
+		if (PreviewComponent != nullptr)
+		{
+			PreviewComponent->SetLockDesiredAgeDeltaTimeToSeekDelta(bMovieSceneIsFrameLocked);
+		}
+	}
+}
+
 void FNiagaraSystemViewModel::SequencerDataChanged(EMovieSceneDataChangeType DataChangeType)
 {
 	if (bUpdatingSequencerFromEmitterDataChange == false && GIsTransacting == false && NiagaraSequence)
@@ -2905,13 +2972,20 @@ void FNiagaraSystemViewModel::SequencerTimeChanged()
 
 			if (bUpdateDesiredAge)
 			{
+				// NOTE: Logic copied from FMovieSceneNiagaraSystemTrackTemplate
+				// Add a quarter of a frame offset here to push the desired age into the middle of the frame since it will be automatically rounded
+				// down to the nearest seek delta.  This prevents a situation where float rounding results in a value which is just slightly less than
+				// the frame boundary, which results in a skipped simulation frame.
+				const float FrameOffset = PreviewComponent->GetLockDesiredAgeDeltaTimeToSeekDelta() ? (PreviewComponent->GetSeekDelta() / 4.0f) : 0.0f;
+				float DesiredAge = CurrentSequencerTime + FrameOffset;
+
 				if (CurrentStatus == EMovieScenePlayerStatus::Playing)
 				{
-					PreviewComponent->SetDesiredAge(FMath::Max(CurrentSequencerTime, 0.0f));
+					PreviewComponent->SetDesiredAge(FMath::Max(DesiredAge, 0.0f));
 				}
 				else
 				{
-					PreviewComponent->SeekToDesiredAge(FMath::Max(CurrentSequencerTime, 0.0f));
+					PreviewComponent->SeekToDesiredAge(FMath::Max(DesiredAge, 0.0f));
 				}
 			}
 
@@ -3143,6 +3217,18 @@ void FNiagaraSystemViewModel::UpdateSystemFixedBounds()
 		PreviewComponent->MarkRenderTransformDirty();
 		ResetSystem(ETimeResetMode::KeepCurrentTime, EMultiResetMode::ResetThisInstance, EReinitMode::ResetSystem);
 	}
+}
+
+bool FNiagaraSystemViewModel::SupportsPerformanceMode() const
+{
+	return System->SupportsStatScopedPerformanceMode();
+}
+
+void FNiagaraSystemViewModel::ClearSystemStats()
+{
+#if STATS
+	System->GetStatData().ClearStatCaptures();
+#endif
 }
 
 void FNiagaraSystemViewModel::ClearEmitterStats()

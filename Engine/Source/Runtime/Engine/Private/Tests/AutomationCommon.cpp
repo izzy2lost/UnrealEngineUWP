@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "Misc/EngineVersion.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Engine.h"
 #include "HAL/PlatformFile.h"
 #include "HardwareInfo.h"
@@ -41,6 +42,368 @@ static TAutoConsoleVariable<int32> CVarAutomationAllowFrameTraceCapture(
 //declare static variable
 FOnEditorAutomationMapLoad AutomationCommon::OnEditorAutomationMapLoad;
 #endif
+
+///////////////////////////////////////////////////////////////////////
+// FTestWorldWrapper
+
+FTestWorldWrapper::~FTestWorldWrapper()
+{
+	// Make sure to destroy the test world unless this is a hard exit
+	if (UObjectInitialized() && !IsEngineExitRequested())
+	{
+		DestroyTestWorld(false);
+	}
+}
+
+bool FTestWorldWrapper::CreateTestWorld(EWorldType::Type WorldType)
+{
+	if (TestWorld != nullptr)
+	{
+		ReportFailure(TEXT("TestWorld already exists in CreateTestWorld!"));
+		return false;
+	}
+
+	UGameInstance* TestGameInstance = nullptr;
+
+	switch (WorldType)
+	{
+		case EWorldType::Game:
+			// Create something close to a game world that can be manually ticked
+			TestGameInstance = NewObject<UGameInstance>(GEngine);
+			break;
+
+		case EWorldType::Editor:
+		case EWorldType::EditorPreview:
+		case EWorldType::GamePreview:
+		case EWorldType::GameRPC:
+		case EWorldType::Inactive:
+			// Don't initialize game instance
+			break;
+
+		case EWorldType::PIE: // TODO Implement if needed
+		default:
+			ensureMsgf(false, TEXT("Unsupported world type in CreateTestWorld"));
+			ReportFailure(TEXT("Unsupported world type in CreateTestWorld"));
+			return false;
+	}
+
+	TestWorld = UWorld::CreateWorld(WorldType, false);
+
+	if (!TestWorld)
+	{
+		ReportFailure(TEXT("Failed to create world in CreateTestWorld"));
+		return false;
+	}
+
+	// Will be ticked manually
+	TestWorld->SetShouldTick(false);
+	TestWorld->AddToRoot();
+	
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(WorldType);
+	WorldContext.OwningGameInstance = TestGameInstance;
+
+	TestWorld->SetGameInstance(TestGameInstance);
+	WorldContext.SetCurrentWorld(TestWorld);
+
+	if (TestGameInstance)
+	{
+		TestGameInstance->Init();
+	}
+	
+	return true;
+}
+
+bool FTestWorldWrapper::DestroyTestWorld(bool bForceGarbageCollect)
+{
+	if (TestWorld == nullptr)
+	{
+		ReportFailure(TEXT("TestWorld does not exist in DestroyTestWorld!"));
+		return false;
+	}
+
+	// End play if it hasn't already happened, this will do nothing if it didn't spawn a game mode
+	EndPlayInTestWorld();
+
+	TestWorld->RemoveFromRoot();
+	if (TestWorld->GetGameInstance() != nullptr)
+	{
+		TestWorld->GetGameInstance()->Shutdown();
+	}
+
+	GEngine->DestroyWorldContext(TestWorld);
+	TestWorld->DestroyWorld(false);
+	TestWorld = nullptr;
+
+	if (bForceGarbageCollect)
+	{
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+		// Verify it was actually destroyed
+		GEngine->CheckAndHandleStaleWorldObjectReferences();
+	}
+
+	return true;
+}
+
+bool FTestWorldWrapper::BeginPlayInTestWorld()
+{
+	if (TestWorld == nullptr)
+	{
+		ReportFailure(TEXT("TestWorld does not exist in BeginPlayInTestWorld!"));
+		return false;
+	}
+
+	if (TestWorld->HasBegunPlay())
+	{
+		ReportFailure(TEXT("TestWorld has already begin play in BeginPlayInTestWorld!"));
+		return false;
+	}
+
+	CachedFrameCounter = GFrameCounter;
+
+	FURL URL;
+	if (TestWorld->GetGameInstance())
+	{
+		// This is required to actually forward actor BeginPlay
+		TestWorld->SetGameMode(URL);
+
+		if (!TestWorld->GetAuthGameMode())
+		{
+			ReportFailure(TEXT("BeginPlayInTestWorld failed to create GameMode"));
+			return false;
+		}
+
+		if (!TestWorld->GetWorldSettings())
+		{
+			ReportFailure(TEXT("BeginPlayInTestWorld failed to create WorldSettings"));
+			return false;
+		}
+	}
+
+	TestWorld->InitializeActorsForPlay(URL);
+	TestWorld->BeginPlay();
+
+	if (TestWorld->GetGameInstance())
+	{
+		if (!TestWorld->GetGameState())
+		{
+			ReportFailure(TEXT("BeginPlayInTestWorld failed to create GameState"));
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool FTestWorldWrapper::EndPlayInTestWorld()
+{
+	if (!TestWorld)
+	{
+		ReportFailure(TEXT("Failed to find world in EndPlayInTestWorld"));
+		return false;
+	}
+
+	// Ignore if this never started play
+	if (TestWorld->HasBegunPlay())
+	{
+		TestWorld->BeginTearingDown();
+		TestWorld->EndPlay(EEndPlayReason::Quit);
+
+		// Restore the frame counter
+		GFrameCounter = CachedFrameCounter;
+	}
+
+	return true;
+}
+
+bool FTestWorldWrapper::TickTestWorld(float DeltaTime)
+{
+	if (!TestWorld)
+	{
+		ReportFailure(TEXT("Failed to find world in TickTestWorld"));
+		return false;
+	}
+
+	TestWorld->Tick(LEVELTICK_All, DeltaTime);
+	if (TestWorld->HasBegunPlay())
+	{
+		// If this has begin play increment the global counter to emulate gameplay
+		GFrameCounter++;
+	}
+
+	return true;
+}
+
+void FTestWorldWrapper::ReportFailure(const TCHAR* ErrorMessage)
+{
+	FailureErrors.Emplace(ErrorMessage);
+}
+
+void FTestWorldWrapper::ClearFailureState()
+{
+	FailureErrors.Reset();
+}
+
+bool FTestWorldWrapper::HasFailed() const
+{
+	return FailureErrors.Num() > 0;
+}
+
+void FTestWorldWrapper::AppendErrorMessages(TArray<FString>& OutErrorMessages) const
+{
+	OutErrorMessages.Append(FailureErrors);
+}
+
+void FTestWorldWrapper::ForwardErrorMessages(FAutomationTestBase* AutomationTest) const
+{
+	if (HasFailed())
+	{
+		TArray<FString> FailureMessages;
+		AppendErrorMessages(FailureMessages);
+		for (const FString& Failure : FailureMessages)
+		{
+			AutomationTest->AddError(Failure);
+		}
+	}
+}
+
+///////////////////////////////////////////////////////////////////////
+// FTestConsoleVariable
+
+FTestConsoleVariable::FTestConsoleVariable(const FString& InConsoleVariableName)
+	: bModified(false)
+	, ConsoleVariableName(InConsoleVariableName)
+{
+}
+
+FTestConsoleVariable::FTestConsoleVariable(FTestConsoleVariable&& Other)
+	: bModified(MoveTemp(Other.bModified))
+	, ConsoleVariableName(MoveTemp(Other.ConsoleVariableName))
+	, OriginalValue(MoveTemp(Other.OriginalValue))
+{
+	// Reset our other's modified flag to avoid triggering a reset of the CVar
+	Other.bModified = false;
+}
+
+FTestConsoleVariable::~FTestConsoleVariable()
+{
+	Restore();
+}
+
+void FTestConsoleVariable::Set(const FString& Value)
+{
+	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
+	if (ensure(ConsoleVariable))
+	{
+		if (!bModified)
+		{
+			bModified = true;
+			OriginalValue = ConsoleVariable->GetString();
+		}
+
+		ConsoleVariable->AsVariable()->SetWithCurrentPriority(*Value);
+
+#if WITH_AUTOMATION_TESTS
+		UE_LOG(LogEngineAutomationTests, Verbose, TEXT("CVar '%s' was set with the value '%s'."), *ConsoleVariableName, *Value);
+#endif // WITH_AUTOMATION_TESTS
+	}
+}
+
+FString FTestConsoleVariable::Get()
+{
+	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
+	if (ensure(ConsoleVariable))
+	{
+		return ConsoleVariable->GetString();
+	}
+
+	return FString{};
+}
+
+void FTestConsoleVariable::Restore()
+{
+	if (bModified)
+	{
+		IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
+		if (ensure(ConsoleVariable))
+		{
+			ConsoleVariable->AsVariable()->SetWithCurrentPriority(*OriginalValue);
+
+#if WITH_AUTOMATION_TESTS
+			UE_LOG(LogEngineAutomationTests, Verbose, TEXT("CVar '%s' was restored with the original value '%s'."), *ConsoleVariableName, *OriginalValue);
+#endif // WITH_AUTOMATION_TESTS
+		}
+
+		bModified = false;
+	}
+}
+
+///////////////////////////////////////////////////////////////////////
+// FScopedTestEnvironment
+
+TWeakPtr<FScopedTestEnvironment> FScopedTestEnvironment::EnvironmentInstance = nullptr;
+
+FScopedTestEnvironment::~FScopedTestEnvironment()
+{
+	Restore();
+}
+
+TSharedPtr<FScopedTestEnvironment> FScopedTestEnvironment::Get()
+{
+	check(IsInGameThread());
+
+	TSharedPtr<FScopedTestEnvironment> Instance = EnvironmentInstance.Pin();
+	if (!Instance.IsValid())
+	{
+		Instance = MakeShareable(new FScopedTestEnvironment());
+		EnvironmentInstance = Instance;
+	}
+
+	check(Instance.IsValid());
+	return Instance;
+}
+
+void FScopedTestEnvironment::SetConsoleVariableValue(const FString& ConsoleVariableName, const FString& Value)
+{
+	check(IsInGameThread());
+
+	if (FTestConsoleVariable* Variable = Variables.Find(ConsoleVariableName))
+	{
+		Variable->Set(Value);
+	}
+	else
+	{
+		FTestConsoleVariable NewVariable(ConsoleVariableName);
+		NewVariable.Set(Value);
+		Variables.Emplace(ConsoleVariableName, MoveTemp(NewVariable));
+	}
+}
+
+bool FScopedTestEnvironment::TryGetConsoleVariableValue(const FString& ConsoleVariableName, FString* OutValue)
+{
+	check(IsInGameThread());
+
+	if (FTestConsoleVariable* Variable = Variables.Find(ConsoleVariableName))
+	{
+		if (OutValue)
+		{
+			*OutValue = Variable->Get();
+		}
+		return true;
+	}
+
+	return false;
+}
+
+void FScopedTestEnvironment::Restore()
+{
+	if (!Variables.IsEmpty())
+	{
+		check(IsInGameThread());
+
+		Variables.Empty();
+	}
+}
 
 ///////////////////////////////////////////////////////////////////////
 // Common Latent commands
@@ -481,7 +844,17 @@ bool FExitGameCommand::Update()
 
 bool FRequestExitCommand::Update()
 {
-	FPlatformMisc::RequestExit(true, TEXT("FRequestExitCommand"));
+	GLog->FlushThreadedLogs();
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		GEngine->DeferredCommands.Add(TEXT("QUIT_EDITOR"));
+		return true;
+	}
+#endif
+	// force exit only if platform doesn't support quitting
+	FPlatformMisc::RequestExitWithStatus(!FPlatformProperties::SupportsQuit(), 0);
+
 	return true;
 }
 

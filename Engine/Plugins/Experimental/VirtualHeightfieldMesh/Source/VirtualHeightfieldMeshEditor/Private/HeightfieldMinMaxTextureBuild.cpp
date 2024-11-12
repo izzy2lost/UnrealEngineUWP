@@ -45,7 +45,7 @@ namespace
 			GRenderTargetPool.FindFreeElement(RHICmdList, TileRenderTargetDesc, TileRenderTarget, TEXT("TileTarget"));
 			
 			FPooledRenderTargetDesc FinalRenderTargetDesc = FPooledRenderTargetDesc::Create2DDesc(
-				FIntPoint(NumTilesX, NumTilesY), PF_R8G8B8A8, FClearValueBinding::None, TexCreate_None, TexCreate_UAV | TexCreate_ShaderResource | TexCreate_GenerateMipCapable | TexCreate_RenderTargetable, false, NumMips);
+				FIntPoint(NumTilesX, NumTilesY), PF_R8G8B8A8, FClearValueBinding::None, TexCreate_None, TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable, false, NumMips);
 			GRenderTargetPool.FindFreeElement(RHICmdList, FinalRenderTargetDesc, FinalRenderTarget, TEXT("FinalTarget"));
 
 			for (int32 MipLevel = 0; MipLevel < NumMips; MipLevel++)

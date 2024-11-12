@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.230.0";
+        private static string VersionString = "4.240.0";
 
         public static string Get() { return VersionString; }
     };
@@ -101,6 +101,9 @@ namespace PerfReportTool
 			"  -noSmooth : disable smoothing on all graphs\n" +
 			"  -listSummaryTables: lists available summary tables from the current report XML\n" +
 			"  -dumpVariables | -dumpVariablesAll : dumps variables to the log for each CSV (all includes metadata)\n" +
+			"  -dumpVariablesToJson | -dumpAllVariablesToJson <path> : path (usually a json filename) to write variables (like budgets) to json (all includes metadata)\n" +
+			"  -metadataProxy : when dumping variables can be used in place of a csv, proxy data can be specified in a csvMetadataProxies section in report XML\n" +
+			"  -overrideMetadata : when dumping variables use to specify/override metadata: -overrideMetadata platform=abc,targetframerate=60\n" +
 			"\n" +
 			"Performance args:\n" +
 			"  -perfLog : output performance logging information\n" +
@@ -125,9 +128,10 @@ namespace PerfReportTool
 			"Optional bulk mode args: (use with -csvdir, -summaryTableCacheIn, -csvList, -prcList)\n" +
 			"  -recurse \n" +
 			"  -searchpattern <pattern>, e.g -searchpattern csvprofile*\n" +
-			"  -customTable <comma separated fields>\n" +
-			"  -customTableSort <comma separated field row sort order> (use with -customTable)\n" +
+			"  -customTable <comma separated fields> - sets or overrides the summary table metrics filter\n" +
+			"  -customTableSort <comma separated field row sort order> - overrides the summary table row sort\n" +
 			"  -noDetailedReports : skips individual report generation\n" +
+			"  -noReports : skips generating reports\n" +
 			"  -collateTable : writes a collated table in addition to the main one, merging by row sort\n" +
 			"  -collateTableOnly : as -collateTable, but doesn't write the standard summary table.\n" +
 			"  -emailTable : writes a condensed email-friendly table (see the 'condensed' summary table)\n" +
@@ -147,6 +151,7 @@ namespace PerfReportTool
 			"  -spreadsheetfriendly: outputs a single quote before non-numeric entries in summary tables\n" +
 			"  -noSummaryMinMax: don't make min/max columns for each stat in a condensed summary\n" +
 			"  -reverseTable [0|1]: Reverses the order of summary tables (set 0 to force off)\n" +
+			"  -sortTrailingDigitsAsNumeric : detects trailing digits and pads them when sorting summary table\n"+
 			"  -scrollableTable [0|1]: makes the summary table scrollable, with frozen first rows and columns (set 0 to force off)\n" +
 			"  -colorizeTable [off|budget|auto]: selects the table colorization mode. If omitted, uses the default in the summary\n" +
 			"     xml table if set.\n" +
@@ -164,7 +169,8 @@ namespace PerfReportTool
 			"  -maxFileAgeDays <n> : max file age in days. CSV or PRC files older than this will be ignored\n" +
 			"  -summaryTableStatThreshold <n> : stat/metric columns in the summarytable will be filtered out if all values are\n" +
 			"     less than the threshold\n" +
-			"  -summaryTableXmlSubst <find1>=<replace1>,<find2>=<replace2>... : replace summarytable XML row and filter entries\n" +
+			"  -summaryTableXmlSubst <find1>=<replace1>;<find2>=<replace2>... : replace summarytable XML row and filter entries\n" +
+			"                                                                   Note: one to many is supported (using , separators)\n" +
 			"  -summaryTableXmlAppend <list,of,stats> : append these stats to the summary table's filter list\n" +
 			"  -summaryTableXmlRowSortAppend <list,of,stats> : append these stats to the summary table's row sort list\n" +
 			"  -transposeTable : write the summary tables transposed\n" +
@@ -175,9 +181,10 @@ namespace PerfReportTool
 			"      Notes: Diff score corresponds to the value of a column's diff row; the sign is reversed if LowIsBad\n" +
 			"             Stats are sorted by prefixes first, e.g GPU/\n" +
 			"  -columnDiffDisplayThreshold <value> : if specified, hides columns with max diff value below this threshold\n"+
+			"  -diffRowsAlternating 0|1. If enabled, every other column has a diff. Otherwise diffs are only generated for pairs\n" +
+			"  -showOnlyDiffRows: If enabled, non-diff rows are hidden. Common text fields are combined.\n" +
 			"\n" +
 			"Optional Column Filters\n" +
-			"  -debugShowFilteredColumns : grays out filtered columns instead of removing. Column tooltip will show filtered reason.\n" +
 			"  -hideMetadataColumns : filters out metadata columns from the table (excluding those used in row sort).\n" +
 			"\n" +
 			"Regression Column Filtering\n" +
@@ -210,15 +217,6 @@ namespace PerfReportTool
 			"     Use this if you want to avoid cache data being invalidated by report changes\n" +
 			"  -noCsvCacheFiles: disables usage of .csv.cache files. Cache files can be much faster if filtering on metadata\n" +
 			"";
-		/*
-		"Note on custom tables:\n" +
-		"       The -customTable and -customTableSort args allow you to generate a custom summary table\n" +
-		"       This is an alternative to using preset summary tables (see -summarytable)\n" +
-		"       Example:\n"+
-		"               -customTableSort \"deviceprofile,buildversion\" -customTable \"deviceprofile,buildversion,memoryfreeMB*\" \n"+
-		"       This outputs a table containing deviceprofile, buildversion and memoryfree stats, sorted by deviceprofile and then buildversion\n" +
-		""
-		*/
 
 		Dictionary<string, string> statDisplaynameMapping;
 		ReportXML reportXML;
@@ -260,6 +258,20 @@ namespace PerfReportTool
 				return;
 			}
 
+			// Load the report + graph XML data
+			// Do before commandline processing, -metadataProxyName needs info from report XML
+			reportXML = new ReportXML(
+				GetArg("graphxml", false),
+				GetArg("reportxml", false),
+				GetArg("reportxmlbasedir", false),
+				GetArg("summaryTableXml", false),
+				GetArg("summaryTableXmlSubst", false),
+				GetArg("summaryTableXmlAppend", false),
+				GetArg("summaryTableXmlRowSortAppend", false)
+				);
+
+			bool cleanupTempCsv = false;
+			string tempCsv = Path.GetTempPath() + "dummy.csv";
 			string csvDir = null;
 
 			bool bBulkMode = false;
@@ -278,6 +290,8 @@ namespace PerfReportTool
 				string summaryTableCacheInDir = GetArg("summaryTableCacheIn");
 				string csvListStr = GetArg("csvList");
 				string prcListStr = GetArg("prcList");
+				string metadataProxyName = GetArg("metadataProxy");
+				string explicitMetadata = GetArg("overrideMetadata");
 				if (csvDir.Length > 0)
 				{
 					bool recurse = GetBoolArg("recurse");
@@ -329,6 +343,67 @@ namespace PerfReportTool
 					bBulkMode = true;
 					bSummaryTableCacheOnlyMode = true;
 				}
+				else if (metadataProxyName.Length > 0 || explicitMetadata.Length> 0)
+				{
+					string proxyMetadata = "";
+
+					// Look up a set of meta data from the proxy name if supplied
+					if (metadataProxyName.Length > 0)
+					{
+						proxyMetadata = reportXML.GetMetadataProxyInfo(metadataProxyName);
+						if (explicitMetadata.Length > 0)
+						{
+							proxyMetadata += ",";
+						}
+						else
+						{
+							Console.WriteLine("Warning: Unable to find metadataProxy named " + metadataProxyName + " in report xml csvMetadataProxies section.");
+						}
+					}
+
+					// Append with any supplied metadata from commandline, see -overrideMetadata
+					proxyMetadata += explicitMetadata;
+
+					// Process each key=value pair, later entries will override previous ones
+					Dictionary<string,string> metaDict = new Dictionary<string,string>();
+					if (proxyMetadata.Length > 0)
+					{
+						// This allows flexibility on the commandline, can use commas or semicolons (and spaces since they are mapped to semicolons in GetArg)
+						string[] entries = proxyMetadata.Split(',',';');
+						foreach (string entry in entries)
+						{
+							string[] data = entry.Split("=");
+							if (data.Length == 2)
+							{
+								metaDict[data[0]] = data[1];
+							}
+						}
+					}
+
+					// If we have a set of proxy metadata, save it out to a dummy.csv for processing
+					if (metaDict.Count > 0)
+					{
+						string fakeValues = "FrameTime\n1";
+						string metaDataString = "";
+						string leadingComma = "";
+						foreach (var (key, value) in metaDict)
+						{
+							metaDataString += leadingComma;
+							metaDataString += "[" + key + "]," + value;
+							leadingComma = ",";
+						}
+
+						csvFilenames = new string[] { tempCsv };
+						string[] lines = { fakeValues, metaDataString };
+						File.Delete(csvFilenames[0]);
+						File.AppendAllLines(csvFilenames[0], lines);
+						cleanupTempCsv = true;
+					}
+					else
+					{
+						throw new Exception("Valid -metadataProxy and/or -overrideMetadata not found.");
+					}
+				}
 				else
 				{
 					string csvFilenamesStr = GetArg("csv");
@@ -347,17 +422,6 @@ namespace PerfReportTool
 					csvFilenames = csvFilenamesStr.Split(';');
 				}
 			}
-
-			// Load the report + graph XML data
-			reportXML = new ReportXML(
-				GetArg("graphxml", false), 
-				GetArg("reportxml", false), 
-				GetArg("reportxmlbasedir", false), 
-				GetArg("summaryTableXml", false), 
-				GetArg("summaryTableXmlSubst", false), 
-				GetArg("summaryTableXmlAppend", false),
-				GetArg("summaryTableXmlRowSortAppend", false)
-				);
 
 			if (GetBoolArg("listSummaryTables"))
 			{
@@ -473,6 +537,7 @@ namespace PerfReportTool
 			}
 
 			bool writeDetailedReports = !GetBoolArg("noDetailedReports");
+			bool writeReports = !GetBoolArg("noReports");
 			bool bReadAllStats = GetBoolArg("readAllStats");
 
 			bool bSummaryTableCacheReadonly = GetBoolArg("summaryTableCacheReadOnly");
@@ -484,8 +549,8 @@ namespace PerfReportTool
 			}
 
 			bool bShowHiddenStats = GetBoolArg("showHiddenStats");
-			string customSummaryTableFilter = GetArg("customTable");
-			if (customSummaryTableFilter.Length > 0)
+			string customSummaryTableFilter = GetArg("customTable", null);
+			if (customSummaryTableFilter != null)
 			{
 				bShowHiddenStats = true;
 			}
@@ -580,13 +645,32 @@ namespace PerfReportTool
 							}
 							else
 							{
-								GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, true, cachedCsvFile.reportTypeInfo, csvDir);
-								perfLog.LogTiming("  GenerateReport");
-
-								if ( ( GetBoolArg("dumpVariables") || GetBoolArg("dumpVariablesAll") ) && cachedCsvFile.xmlVariableMappings != null)
+								if (writeReports)
 								{
-									Console.WriteLine("\nDumping variables for " + cachedCsvFile.filename + "\n");
-									cachedCsvFile.xmlVariableMappings.DumpToLog(GetBoolArg("dumpVariablesAll"));
+									GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, true, cachedCsvFile.reportTypeInfo, csvDir);
+									perfLog.LogTiming("  GenerateReport");
+								}
+
+								if (cachedCsvFile.xmlVariableMappings != null)
+								{
+									if ((GetBoolArg("dumpVariables") || GetBoolArg("dumpVariablesAll")))
+									{
+										Console.WriteLine("\nDumping variables for " + cachedCsvFile.filename + "\n");
+										cachedCsvFile.xmlVariableMappings.DumpToLog(GetBoolArg("dumpVariablesAll"));
+									}
+
+									string variablesJsonOutPath = GetArg("dumpVariablesToJson", null);
+									if (variablesJsonOutPath != null)
+									{
+										cachedCsvFile.xmlVariableMappings.SerializeToJson(variablesJsonOutPath, "", "meta.");
+									}
+
+									string allVariablesJsonOutPath = GetArg("dumpAllVariablesToJson", null);
+									if (allVariablesJsonOutPath != null)
+									{
+										cachedCsvFile.xmlVariableMappings.SerializeToJson(allVariablesJsonOutPath, "", "");
+									}
+
 								}
 
 								if (rowData != null && bWriteToSummaryTableCache)
@@ -630,7 +714,7 @@ namespace PerfReportTool
 				{
 					if (bBulkMode)
 					{
-						Console.Out.WriteLine("[ERROR] : " + e.Message);
+						Console.Error.WriteLine("[ERROR] : " + e.Message);
 					}
 					else
 					{
@@ -640,6 +724,10 @@ namespace PerfReportTool
 				}
 			}
 
+			if (cleanupTempCsv)
+			{
+				File.Delete(tempCsv);
+			}
 
 			if (summaryTableJsonHelper != null)
 			{
@@ -675,45 +763,28 @@ namespace PerfReportTool
 
 				bool bSpreadsheetFriendlyStrings = GetBoolArg("spreadsheetFriendly");
 				string weightByColumnName = GetArg("weightByColumn", null);
-				if (customSummaryTableFilter.Length > 0)
+
+				string customSummaryTableRowSort = GetArg("customTableSort", null);
+				string summaryTableName = GetArg("summaryTable",null);
+				SummaryTableInfo tableInfo = GetTableInfo(summaryTableName, customSummaryTableFilter, customSummaryTableRowSort);
+				if (!bCollateTableOnly)
 				{
-					string customSummaryTableRowSort = GetArg("customTableSort");
-					if (customSummaryTableRowSort.Length == 0)
-					{
-						customSummaryTableRowSort = "buildversion,deviceprofile";
-					}
-					if (!bCollateTableOnly)
-					{
-						WriteSummaryTableReport(outputDir, summaryTableFilename, summaryTable, customSummaryTableFilter.Split(',').ToList(), customSummaryTableRowSort.Split(',').ToList(), false, bCsvTable, bSpreadsheetFriendlyStrings, null, null);
-					}
-					if (bCollateTable)
-					{
-						WriteSummaryTableReport(outputDir, collatedTableFilename, summaryTable, customSummaryTableFilter.Split(',').ToList(), customSummaryTableRowSort.Split(',').ToList(), true, bCsvTable, bSpreadsheetFriendlyStrings, null, weightByColumnName);
-					}
+					WriteSummaryTableReport(outputDir, summaryTableFilename, summaryTable, tableInfo, false, bCsvTable, bSpreadsheetFriendlyStrings, null);
 				}
-				else
+				if (bCollateTable)
 				{
-					string summaryTableName = GetArg("summaryTable");
-					if (summaryTableName.Length == 0)
-					{
-						summaryTableName = "default";
-					}
-					SummaryTableInfo tableInfo = reportXML.GetSummaryTable(summaryTableName);
-					if (!bCollateTableOnly)
-					{
-						WriteSummaryTableReport(outputDir, summaryTableFilename, summaryTable, tableInfo, false, bCsvTable, bSpreadsheetFriendlyStrings, null);
-					}
-					if (bCollateTable)
-					{
-						WriteSummaryTableReport(outputDir, collatedTableFilename, summaryTable, tableInfo, true, bCsvTable, bSpreadsheetFriendlyStrings, weightByColumnName);
-					}
+					WriteSummaryTableReport(outputDir, collatedTableFilename, summaryTable, tableInfo, true, bCsvTable, bSpreadsheetFriendlyStrings, weightByColumnName);
 				}
 
 				// EmailTable is hardcoded to use the condensed type
-				string condensedSummaryTable = GetArg("condensedSummaryTable", null);
-				if (GetBoolArg("emailSummary") || GetBoolArg("emailTable") || condensedSummaryTable != null)
+				string condensedSummaryTableName = GetArg("condensedSummaryTable", null);
+				if (GetBoolArg("emailSummary") || GetBoolArg("emailTable") || condensedSummaryTableName != null)
 				{
-					SummaryTableInfo tableInfo = reportXML.GetSummaryTable(condensedSummaryTable == null ? "condensed" : condensedSummaryTable);
+					if (condensedSummaryTableName == null )
+					{
+						condensedSummaryTableName = "condensed";
+					}
+					tableInfo = GetTableInfo(condensedSummaryTableName, customSummaryTableFilter, customSummaryTableRowSort);
 					WriteSummaryTableReport(outputDir, summaryTableFilename + "_Email", summaryTable, tableInfo, true, false, bSpreadsheetFriendlyStrings, weightByColumnName);
 				}
 				perfLog.LogTiming("WriteSummaryTable");
@@ -725,6 +796,41 @@ namespace PerfReportTool
 			}
 			Console.WriteLine("Duplicate CSVs skipped: " + csvFileCache.duplicateCount);
 			perfLog.LogTotalTiming();
+		}
+
+		SummaryTableInfo GetTableInfo(string summaryTableName, string customSummaryTableFilterString = null, string customSummaryTableRowSortString = null)
+		{
+			SummaryTableInfo tableInfo;
+
+			// Use the default summary table name if one isn't provided, unless we're making a custom table			
+			if (summaryTableName == null && customSummaryTableFilterString == null )
+			{
+				summaryTableName = "default";
+			}
+
+			if (summaryTableName != null)
+			{
+				tableInfo = reportXML.GetSummaryTable(summaryTableName);
+			}
+			else
+			{
+				tableInfo = new SummaryTableInfo();
+			}
+			if (customSummaryTableFilterString != null)
+			{
+				tableInfo.columnFilterList = customSummaryTableFilterString.Split(',').ToList();
+				
+				// If we're doing a custom sort but don't have a provided row sort (or preset summary table), set a default
+				if (summaryTableName == null && customSummaryTableRowSortString == null)
+				{
+					customSummaryTableRowSortString = "buildversion,deviceprofile";
+				}
+			}
+			if (customSummaryTableRowSortString != null)
+			{
+				tableInfo.rowSortList = customSummaryTableRowSortString.Split(',').ToList();
+			}
+			return tableInfo;
 		}
 
 		void WriteSummaryTableReport(string outputDir, string filenameWithoutExtension, SummaryTable table, List<string> columnFilterList, List<string> rowSortList, bool bCollated, bool bToCSV, bool bSpreadsheetFriendlyStrings, List<SummarySectionBoundaryInfo> sectionBoundaries, string weightByColumnName)
@@ -795,13 +901,13 @@ namespace PerfReportTool
 			}
 
 			IEnumerable<ISummaryTableColumnFilter> additionalColumnFilters = MakeAdditionalColumnFilters(tableInfo);
-			bool showFilteredColumns = GetBoolArg("debugShowFilteredColumns");
 
 			// Set format info for the columns as some of the info is needed for the filters.
 			// TODO: would be better if we could determine HighIsBad without the format info and store it directly in the column.
 			table.SetColumnFormatInfo(reportXML.columnFormatInfoList);
 
-			SummaryTable filteredTable = table.SortAndFilter(tableInfo.columnFilterList, tableInfo.rowSortList, bReverseTable, weightByColumnName, showFilteredColumns, additionalColumnFilters);
+			bool bSortTrailingDigitsAsNumeric = GetBoolArg("sortTrailingDigitsAsNumeric");
+			SummaryTable filteredTable = table.SortAndFilter(tableInfo.columnFilterList, tableInfo.rowSortList, bReverseTable, weightByColumnName, additionalColumnFilters, bSortTrailingDigitsAsNumeric);
 			if (bCollated)
 			{
 				filteredTable = filteredTable.CollateSortedTable(tableInfo.rowSortList, addMinMaxColumns);
@@ -817,7 +923,7 @@ namespace PerfReportTool
 				string summaryTitle = GetArg("summaryTitle", null);
 				if (GetBoolArg("addDiffRows"))
 				{
-					filteredTable.AddDiffRows(GetBoolArg("sortColumnsByDiff"), GetFloatArg("columnDiffDisplayThreshold", 0.0f));
+					filteredTable.AddDiffRows(GetBoolArg("sortColumnsByDiff"), GetFloatArg("columnDiffDisplayThreshold", 0.0f), GetBoolArg("showOnlyDiffRows"), GetBoolArg("diffRowsAlternating", true));
 				}
 
 				// Run again to add format info for any new columns that were added (eg. count).
@@ -835,8 +941,7 @@ namespace PerfReportTool
 					GetIntArg("maxSummaryTableStringLength", Int32.MaxValue), 
 					weightByColumnName, 
 					summaryTitle,
-					bCollated ? bTransposeCollatedSummaryTable : bTransposeFullSummaryTable,
-					showFilteredColumns
+					bCollated ? bTransposeCollatedSummaryTable : bTransposeFullSummaryTable
 				);
 			}
 		}
@@ -1042,18 +1147,8 @@ namespace PerfReportTool
 						throw new Exception("Graph " + graph.title + " has no <statString> element");
 					}
 
-					bool bFoundStat = false;
-					foreach (string statString in graph.settings.statString.value.Split(','))
-					{
-						List<StatSamples> matchingStats = csvFile.dummyCsvStats.GetStatsMatchingString(statString);
-						if (matchingStats.Count > 0)
-						{
-							bFoundStat = true;
-							break;
-						}
-					}
-
-					if (bFoundStat)
+					bool bShowGraph = graph.ShouldShow(csvFile.finalCsv ?? csvFile.dummyCsvStats);
+					if (bShowGraph)
 					{
 						if (useEmbeddedGraphUrl)
 						{
@@ -1508,7 +1603,8 @@ namespace PerfReportTool
 			// If the reporttype has summary info, then write out the summary]
 			foreach (Summary summary in summaries)
 			{
-				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
+				bool bWriteHtml = htmlFile != null && !summary.bHideInDetailedReport;
+				HtmlSection htmlSection = summary.WriteSummaryData(bWriteHtml, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
 				if (htmlSection != null)
 				{
 					htmlSection.WriteToFile(htmlFile);
@@ -1689,7 +1785,8 @@ namespace PerfReportTool
 			// If the reporttype has summary info, then write out the summary]
 			foreach (Summary summary in reportTypeInfo.summaries)
 			{
-				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
+				bool bWriteHtml = htmlFile != null && !summary.bHideInDetailedReport;
+				HtmlSection htmlSection = summary.WriteSummaryData(bWriteHtml, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
 				if (htmlSection != null)
 				{
 					htmlSection.WriteToFile(htmlFile);
@@ -1844,6 +1941,11 @@ namespace PerfReportTool
 			AddOptionalArg("legendAverageThreshold", graphSettings.legendAverageThreshold);
 			AddConditionalArg("ignoreStats", graphSettings.ignoreStats.isSet, graphSettings.ignoreStats.value);
 
+			AddConditionalArg("startEvent", graphSettings.startEvent.isSet, graphSettings.startEvent.value);
+			AddConditionalArg("startEventOffset", graphSettings.startEventOffset.isSet, graphSettings.startEventOffset.value);
+			AddConditionalArg("endEvent", graphSettings.endEvent.isSet, graphSettings.endEvent.value);
+			AddConditionalArg("endEventOffset", graphSettings.endEventOffset.isSet, graphSettings.endEventOffset.value);
+
 			string argString = string.Empty;
 			if (argFormat == CsvToSvgArgFormat.Url)
 			{
@@ -1955,7 +2057,7 @@ namespace PerfReportTool
 			if (multipleCSVs)
 			{
 				graphParams.showEventNames.Add("CSV:*");
-				graphParams.showEventNameText = false;
+				graphParams.showEventNameTextMode = ShowEventTextMode.Hide;
 			}
 			else
 			{
@@ -1968,6 +2070,25 @@ namespace PerfReportTool
 			{
 				graphParams.statMultiplier = (float)graphSettings.statMultiplier.value;
 			}
+
+			if (graphSettings.startEvent.isSet)
+			{
+				graphParams.startEvent = graphSettings.startEvent.value;
+				if (graphSettings.startEventOffset.isSet)
+				{
+					graphParams.startEventOffset = graphSettings.startEventOffset.value;
+				}					
+			}
+
+			if (graphSettings.endEvent.isSet)
+			{
+				graphParams.endEvent = graphSettings.endEvent.value;
+				if (graphSettings.endEventOffset.isSet)
+				{
+					graphParams.endEventOffset = graphSettings.endEventOffset.value;
+				}
+			}
+
 			graphParams.interactive = true;
 
 			if (!GetBoolArg("noStripEvents"))
@@ -2095,7 +2216,7 @@ namespace PerfReportTool
 				}
 				catch (System.Exception e)
 				{
-					Console.WriteLine("[ERROR] " + e.Message);
+					Console.Error.WriteLine("[ERROR] " + e.Message);
 					return 1;
 				}
 			}

@@ -15,6 +15,15 @@ enum class EVCamTutorialCompletionState : uint8
 	Completed
 };
 
+UENUM(BlueprintType)
+enum class EVCamPhotoSaveMode : uint8
+{
+	Off,
+	PNG,
+	Texture,
+	Both
+};
+
 UCLASS(BlueprintType, Config = EditorPerProjectUserSettings)
 class VIRTUALCAMERA_API UVirtualCameraUserSettings : public UObject
 {
@@ -24,6 +33,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Virtual Camera", meta = (Keywords = "Get Settings Virtual Camera VCam"))
 	static UVirtualCameraUserSettings* GetSettings() { return GetMutableDefault<UVirtualCameraUserSettings>(); }
+
+	UVirtualCameraUserSettings();
 
 	/**
 	 * Indicates whether the VCam tutorial is completed.
@@ -47,4 +58,16 @@ public:
 			SaveConfig();
 		}
 	}
+
+	/** VCam photo save mode*/
+	UPROPERTY(Config, BlueprintReadWrite, EditAnywhere, Category = "VCam Photo")
+	EVCamPhotoSaveMode PhotoSaveMode;
+
+	/** Directory path to store vcam photos*/
+	UPROPERTY(Config, BlueprintReadWrite, EditAnywhere, Category = "VCam Photo", meta = (EditCondition="PhotoSaveMode==EVCamPhotoSaveMode::PNG || PhotoSaveMode==EVCamPhotoSaveMode::Both"))
+	FDirectoryPath PhotoSaveLocation;
+
+	/** Directory path to store vcam photo texture assets*/
+	UPROPERTY(Config, BlueprintReadWrite, EditAnywhere, Category = "VCam Photo", meta = (ContentDir, EditCondition="PhotoSaveMode==EVCamPhotoSaveMode::Texture || PhotoSaveMode==EVCamPhotoSaveMode::Both"))
+	FDirectoryPath TextureSaveLocation;
 };

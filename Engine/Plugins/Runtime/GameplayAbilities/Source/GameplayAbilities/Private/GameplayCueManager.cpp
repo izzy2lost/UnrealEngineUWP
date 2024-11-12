@@ -179,6 +179,11 @@ void UGameplayCueManager::RouteGameplayCue(AActor* TargetActor, FGameplayTag Gam
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_GameplayCueManager_RouteGameplayCue);
 #endif
 
+	if (!Parameters.OriginalTag.IsValid())
+	{
+		Parameters.OriginalTag = GameplayCueTag;
+	}
+
 	// If we want to ignore interfaces, set the pointer to null
 	IGameplayCueInterface* GameplayCueInterface = !(Options & EGameplayCueExecutionOptions::IgnoreInterfaces) ? Cast<IGameplayCueInterface>(TargetActor) : nullptr;
 	bool bAcceptsCue = true;
@@ -1639,7 +1644,7 @@ void UGameplayCueManager::OnPostWorldCleanup(UWorld* World, bool bSessionEnded, 
 		DumpPreallocationStats(PreallocationInfo, bWarnOnActiveActors);
 
 		// Actually remove the entry which can contain hard references
-		PreallocationInfoList_Internal.RemoveAtSwap(idx, 1, EAllowShrinking::No);
+		PreallocationInfoList_Internal.RemoveAtSwap(idx, EAllowShrinking::No);
 		idx--;
 	}
 

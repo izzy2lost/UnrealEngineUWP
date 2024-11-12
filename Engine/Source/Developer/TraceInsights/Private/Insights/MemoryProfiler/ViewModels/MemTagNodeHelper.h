@@ -2,12 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Styling/SlateBrush.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Internationalization/Text.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemTagNode.h"
 #include "Insights/MemoryProfiler/ViewModels/MemTagNodeGroupingAndSorting.h"
+
+struct FSlateBrush;
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -53,3 +59,5 @@ struct MemTagNodeGroupingHelper
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

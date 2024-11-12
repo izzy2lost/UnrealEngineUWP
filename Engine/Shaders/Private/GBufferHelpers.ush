@@ -2,6 +2,9 @@
 
 #pragma once
 
+#ifndef ALLOW_SSS_MATERIAL_OVERRIDE
+#define ALLOW_SSS_MATERIAL_OVERRIDE 1
+#endif
 
 #include "SceneTexturesCommon.ush"
 #include "SceneTextureParameters.ush"
@@ -350,9 +353,9 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLightingCopyHack(inout f
 {
 	// If this function is called in translucent pass, we should not modify the BaseColor, instead directly read the base color as it is. 
 	// The translucent pass is called after the main post process subsurface scattering pass, it will not affect previous logic.
-#if MATERIALBLENDING_TRANSLUCENT
+#if MATERIALBLENDING_TRANSLUCENT || !ALLOW_SSS_MATERIAL_OVERRIDE
 	return;
-#endif
+#else
 
 #if SUBSURFACE_CHANNEL_MODE == 0
 	// If SUBSURFACE_CHANNEL_MODE is 0, we can't support full-resolution lighting, so we 
@@ -372,6 +375,7 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLightingCopyHack(inout f
 		SpecularColor *= !bChecker;
 		Specular *= !bChecker;
 	}
+#endif
 }
 
 #ifndef INDIRECT_SAMPLE_COUNT

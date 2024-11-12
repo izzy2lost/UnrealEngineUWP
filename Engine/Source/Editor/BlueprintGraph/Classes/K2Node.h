@@ -412,7 +412,7 @@ public:
 	 */
 	virtual FBlueprintNodeSignature GetSignature() const { return FBlueprintNodeSignature(GetClass()); }
 
-	enum BLUEPRINTGRAPH_API EBaseNodeRefreshPriority
+	enum EBaseNodeRefreshPriority
 	{
 		Low_UsesDependentWildcard = 100,
 		Low_ReceivesDelegateSignature = 150,

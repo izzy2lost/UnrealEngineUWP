@@ -31,6 +31,21 @@ namespace UE::MLDeformer
 		// ~END FMLDeformerModelDetails overrides.
 
 	protected:
+		/**
+		 * Check whether we should show an error in the UI about possible shading artifacts.
+		 * The ML Deformer cannot run properly if all of the following things are true:
+		 * - Skin cache is disabled
+		 * - Material settings have "Use with morph targets" disabled.
+		 * - No deformer graph is being used.
+		 * 
+		 * This method checks those points.
+		 * If not, we can show a warning in the UI.
+		 * 
+		 * @return Returns true if an error should be displayed in the UI about this issue.
+		 */
+		bool ShouldShowShadingError() const;
+
+	protected:
 		/** A pointer to the morph model. This is updated when UpdateMemberPointers is called. */
 		TObjectPtr<UMLDeformerMorphModel> MorphModel = nullptr;
 

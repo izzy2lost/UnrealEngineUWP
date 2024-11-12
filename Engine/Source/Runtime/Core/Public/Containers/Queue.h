@@ -18,7 +18,10 @@ enum class EQueueMode
 	Mpsc,
 
 	/** Single-producer, single-consumer queue. */
-	Spsc
+	Spsc,
+
+	/** Single-threaded - no guarantees of concurrent safety. */
+	SingleThreaded,
 };
 
 
@@ -77,8 +80,12 @@ public:
 		{
 			return false;
 		}
-		
-		TSAN_AFTER(&Tail->NextNode);
+
+		if constexpr (Mode != EQueueMode::SingleThreaded)
+		{
+			TSAN_AFTER(&Tail->NextNode);
+		}
+
 		OutItem = MoveTemp(Popped->Item);
 
 		TNode* OldTail = Tail;
@@ -129,8 +136,13 @@ public:
 		{
 			OldHead = Head;
 			Head = NewNode;
-			TSAN_BEFORE(&OldHead->NextNode);
-			FPlatformMisc::MemoryBarrier();
+
+			if constexpr (Mode == EQueueMode::Spsc)
+			{
+				TSAN_BEFORE(&OldHead->NextNode);
+				FPlatformMisc::MemoryBarrier();
+			}
+
             OldHead->NextNode = NewNode;
 		}
 
@@ -166,8 +178,13 @@ public:
 		{
 			OldHead = Head;
 			Head = NewNode;
-			TSAN_BEFORE(&OldHead->NextNode);
-			FPlatformMisc::MemoryBarrier();
+
+			if constexpr (Mode == EQueueMode::Spsc)
+			{
+				TSAN_BEFORE(&OldHead->NextNode);
+				FPlatformMisc::MemoryBarrier();
+			}
+
 			OldHead->NextNode = NewNode;
 		}
 
@@ -244,8 +261,11 @@ public:
 		{
 			return false;
 		}
-		
-		TSAN_AFTER(&Tail->NextNode);
+
+		if constexpr (Mode != EQueueMode::SingleThreaded)
+		{
+			TSAN_AFTER(&Tail->NextNode);
+		}
 
 		TNode* OldTail = Tail;
 		Tail = Popped;

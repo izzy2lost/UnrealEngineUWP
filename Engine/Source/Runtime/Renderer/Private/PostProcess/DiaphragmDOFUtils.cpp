@@ -107,7 +107,7 @@ void DiaphragmDOF::FPhysicalCocModel::Compile(const FViewInfo& View)
 
 		FocusDistance = View.FinalPostProcessSettings.DepthOfFieldFocalDistance;
 		FStops = View.FinalPostProcessSettings.DepthOfFieldFstop;
-		Squeeze = FMath::Clamp(View.FinalPostProcessSettings.DepthOfFieldSqueezeFactor, 1.0f, 2.0f);
+		Squeeze = FMath::Clamp(View.FinalPostProcessSettings.DepthOfFieldSqueezeFactor, 0.1f, 10.0f);
 
 		RenderingAspectRatio = float(View.UnscaledViewRect.Width()) / float(View.UnscaledViewRect.Height());
 		const float HorizontalHalfFOV = FMath::Atan(1.0f / View.ViewMatrices.GetProjectionMatrix().M[0][0]);

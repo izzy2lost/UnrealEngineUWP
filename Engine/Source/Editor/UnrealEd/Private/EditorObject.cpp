@@ -12,6 +12,7 @@
 #include "UObject/Object.h"
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
 #include "Misc/AsciiSet.h"
@@ -505,6 +506,13 @@ static const TCHAR* ImportProperties(
 				// since we're redefining an object in the same text block, only need to import properties again
 				SourceText = ImportObjectProperties( (uint8*)BaseTemplate, SourceText, TemplateClass, SubobjectRoot, BaseTemplate,
 													Warn, Depth + 1, ContextSupplier ? ContextSupplier->CurrentLine : 0, &InstanceGraph, ObjectRemapper );
+
+				// If the object import fails, early out and stop parsing.
+				if (SourceText == nullptr)
+				{
+					Warn->Logf(ELogVerbosity::Error, TEXT("BEGIN OBJECT: Could not import properties from sub-object %s."), *SubobjectRoot->GetName());
+					return nullptr;
+				}
 			}
 			else 
 			{
@@ -622,6 +630,21 @@ static const TCHAR* ImportProperties(
 
 				if (!ComponentTemplate)
 				{
+					// When importing hierarchies of objects with instanced sub-objects we don't want to use the
+					// instancing graph of our outer objects since we need our dedicated instances.
+					// For example:
+					//
+					//	A_CDO { SubObj }
+					//	PastedObj { A_1{ SubObj_1 } A_2{ SubObj_1 } }
+					//
+					//	by sharing the instancing graph, we end up with both SubObj_1 being the same pointer
+					//	by using a dedicated instancing graph, both SubObj_1 are newly created object pointer 
+					//
+					// Ideally this rule should be applied more widely but for now we limit it to the Prefab system
+					// which we could identify using the fact it uses overridable serialization.
+					const bool bShouldUseDedicatedInstancingGraph = FOverridableManager::Get().IsEnabled(*SubobjectOuter);
+					FObjectInstancingGraph InstanceGraphForNewObject;
+
 					ComponentTemplate = NewObject<UObject>(
 						SubobjectOuter,
 						TemplateClass,
@@ -629,7 +652,7 @@ static const TCHAR* ImportProperties(
 						NewFlags,
 						Archetype,
 						!!SubobjectOuter,
-						&InstanceGraph
+						bShouldUseDedicatedInstancingGraph ? &InstanceGraphForNewObject : &InstanceGraph
 						);
 				}
 				else
@@ -687,6 +710,13 @@ static const TCHAR* ImportProperties(
 					&InstanceGraph,
 					ObjectRemapper
 					);
+
+				// If the object import fails, early out and stop parsing.
+				if (SourceText == nullptr)
+				{
+					Warn->Logf(ELogVerbosity::Error, TEXT("BEGIN OBJECT: Could not import properties from sub-object %s."), *SubobjectRoot->GetName());
+					return nullptr;
+				}
 			}
 		}
 		else if( FParse::Command(&Str,TEXT("CustomProperties")))
@@ -1427,7 +1457,7 @@ static const TCHAR* ImportPropertiesStep(
 					Params.ObjectRemapper = ObjectRemapper;
 					Params.PropertiesToSkip = PropertiesToSkip;
 
-					ImportObjectsPropertiesStep(Params);
+					CurrentSourceText = ImportObjectsPropertiesStep(Params);
 				}
 			}
 			else if( FParse::Command(&Str,TEXT("CustomProperties")))
@@ -1672,4 +1702,3 @@ const TCHAR* ImportObjectsPropertiesStep(FMultiStepsImportObjectParams& InParams
 }
 
 }	// End namespace EditorUtilities
-

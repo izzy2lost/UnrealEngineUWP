@@ -25,7 +25,7 @@ protected:
 	void OnBoundActorClassPicked(UClass* ChosenClass);
 	void ChangeActorBinding(UObject* Object, UActorFactory* ActorFactory = nullptr, bool bSetupDefaults = true);
 
-	ISequencer* GetSequencer() const { return Sequencer; }
+	TSharedPtr<ISequencer> GetSequencer() const { return WeakSequencer.Pin(); }
 	UTemplateSequence* GetTemplateSequence() const { return TemplateSequence; }
 
 	TSharedPtr<FExtender> CreateObjectBindingContextMenuExtender(UE::Sequencer::FViewModelPtr InViewModel);
@@ -36,7 +36,8 @@ private:
 	void OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeType);
 	void OnSequencerClosed(TSharedRef<ISequencer> InSequencer);
 
-	ISequencer* Sequencer;
+	TWeakPtr<ISequencer> WeakSequencer;
+
 	UTemplateSequence* TemplateSequence;
 };
 

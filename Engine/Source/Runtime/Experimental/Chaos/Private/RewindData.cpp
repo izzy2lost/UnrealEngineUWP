@@ -155,6 +155,37 @@ bool FJointStateBase::IsInSync(const FPBDJointConstraintHandle& Handle, const FF
 	return true;
 }
 
+
+bool bCVarRewindDataOptimization = true;
+FAutoConsoleVariableRef CVarRewindDataOptimization(TEXT("p.Resim.RewindDataOptimization"), bCVarRewindDataOptimization, TEXT("Default value for RewinData optimization, note that this can be overridden at runtime by API calls. Effect: Only alter the minimum required properties during a resim for particles not marked for FullResim"));
+
+FRewindData::FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, bool InRewindDataOptimization, int32 InCurrentFrame)
+	: Managers(NumFrames + 1)	//give 1 extra for saving at head
+	, Solver(InSolver)
+	, CurFrame(InCurrentFrame)
+	, LatestFrame(InCurrentFrame)
+	, FramesSaved(0)
+	, DataIdxOffset(0)
+	, bNeedsSave(false)
+	, bRewindDataOptimization(InRewindDataOptimization)
+	, LatestTargetFrame(0)
+{
+}
+
+FRewindData::FRewindData(FPBDRigidsSolver* InSolver, int32 NumFrames, int32 InCurrentFrame)
+	: Managers(NumFrames + 1)	//give 1 extra for saving at head
+	, Solver(InSolver)
+	, CurFrame(InCurrentFrame)
+	, LatestFrame(InCurrentFrame)
+	, FramesSaved(0)
+	, DataIdxOffset(0)
+	, bNeedsSave(false)
+	, bRewindDataOptimization(bCVarRewindDataOptimization)
+	, LatestTargetFrame(0)
+{
+}
+
+
 void FRewindData::ApplyInputs(const int32 ApplyFrame, const bool bResetSolver)
 {
 	for (TWeakPtr<FBaseRewindHistory>& InputHistory : InputHistories)
@@ -239,13 +270,16 @@ void FRewindData::ApplyTargets(const int32 Frame, const bool bResetSimulation)
 			Particle->SetDisabled(Data.Disabled());
 			Solver->GetEvolution()->SetParticleObjectState(Particle, Data.ObjectState());
 
-			if(Data.ObjectState() == EObjectStateType::Dynamic)
+			// Todo: EResimType should be set by a resimulation system and ApplyTargets() should only process particles marked for resim
+			switch (Data.ObjectState())
 			{
+			case EObjectStateType::Dynamic:
+			case EObjectStateType::Sleeping:
 				Particle->SetResimType(EResimType::FullResim);
-			}
-			else if((Data.ObjectState() == EObjectStateType::Static) || (Data.ObjectState() == EObjectStateType::Kinematic))
-			{
+				break;
+			default:
 				Particle->SetResimType(EResimType::ResimAsFollower);
+				break;
 			}
 		});
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -256,6 +290,106 @@ void FRewindData::ApplyTargets(const int32 Frame, const bool bResetSimulation)
 #endif
 	}
 }
+
+const int32 FRewindData::CompareTargetsToLastFrame()
+{
+	int32 RewindFrame = INDEX_NONE;
+	const FFrameAndPhase FrameAndPhase{ CurrentFrame() - 1, FFrameAndPhase::PostPushData };
+
+	if (LatestTargetFrame < FrameAndPhase.Frame)
+	{
+		// Early out if we only have targets earlier than the previous simulated frame
+		// NOTE: This is the normal flow, we should only run this logic when the client is desynced behind the server and we receive targets from the server ahead of time.
+		return RewindFrame;
+	}
+
+	// TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+	const bool bCompareX = Chaos::FPhysicsSolverBase::GetResimulationErrorPositionThresholdEnabled();
+	const bool bCompareR = Chaos::FPhysicsSolverBase::GetResimulationErrorRotationThresholdEnabled();
+	const bool bCompareV = Chaos::FPhysicsSolverBase::GetResimulationErrorLinearVelocityThresholdEnabled();
+	const bool bCompareW = Chaos::FPhysicsSolverBase::GetResimulationErrorAngularVelocityThresholdEnabled();
+
+	bool ShouldTriggerResim = false;
+
+	// Iterate over targets that exist for current frame
+	for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
+	{
+		// TODO: Only iterate source target states, i.e. states that are not predicted/interpolated to fill in gaps
+		FGeometryParticleHandle* PTParticle = DirtyParticleInfo.GetObjectPtr();
+		if (PTParticle)
+		{
+			FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
+			if ((bCompareX || bCompareR) && !History.TargetPositions.IsEmpty())
+			{
+				// Compare with particle for this frame and mark resim if needed from CurrentFrame()
+				if (const FParticlePositionRotation* TargetState = History.TargetPositions.Read(FrameAndPhase, PropertiesPool))
+				{
+					if (const FParticlePositionRotation* PastState = History.ParticlePositionRotation.Read(FrameAndPhase, PropertiesPool))
+					{
+						if (bCompareX)
+						{
+							ShouldTriggerResim |= FRewindData::CheckVectorThreshold(TargetState->GetX(), PastState->GetX(), FPhysicsSolverBase::GetResimulationErrorPositionThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+
+						if (bCompareR)
+						{
+							ShouldTriggerResim |= FRewindData::CheckQuaternionThreshold(TargetState->GetR(), PastState->GetR(), FPhysicsSolverBase::GetResimulationErrorRotationThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+					}
+				}
+			}
+
+			if (!ShouldTriggerResim && (bCompareV || bCompareW) && !History.TargetVelocities.IsEmpty())
+			{
+				// Compare with particle for this frame and mark resim if needed from CurrentFrame()
+				if (const FParticleVelocities* TargetState = History.TargetVelocities.Read(FrameAndPhase, PropertiesPool))
+				{
+					if (const FParticleVelocities* PastState = History.Velocities.Read(FrameAndPhase, PropertiesPool))
+					{
+						if (bCompareV)
+						{
+							ShouldTriggerResim |= FRewindData::CheckVectorThreshold(TargetState->GetV(), PastState->GetV(), FPhysicsSolverBase::GetResimulationErrorLinearVelocityThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+
+						if (bCompareW)
+						{
+							ShouldTriggerResim |= FRewindData::CheckVectorThreshold(TargetState->GetW(), PastState->GetW(), FPhysicsSolverBase::GetResimulationErrorAngularVelocityThreshold()); // TODO: Take per actor settings into consideration via NetworkPhysicsSettingsComponent
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (ShouldTriggerResim)
+	{
+		RewindFrame = FrameAndPhase.Frame;
+	}
+
+	return RewindFrame;
+}
+
+bool FRewindData::CheckVectorThreshold(FVec3 A, FVec3 B, float Threshold)
+{
+	const FVector Delta = A - B;
+	return Delta.Size() >= Threshold;
+}
+
+bool FRewindData::CheckQuaternionThreshold(FQuat A, FQuat B, float ThresholdDegrees)
+{
+	// Get the rotational delta between A and B 
+	const FQuat RotDelta = A * B.Inverse();
+
+	// Convert delta to angle and axis
+	float Angle;
+	FVector Axis;
+	RotDelta.ToAxisAndAngle(Axis, Angle);
+	Angle = FMath::RadiansToDegrees(FMath::UnwindRadians(Angle));
+	Angle = FMath::Abs(Angle);
+
+	return Angle >= ThresholdDegrees;
+}
+
 
 CHAOS_API bool bResimAllowRewindToResimulatedFrames = false;
 FAutoConsoleVariableRef CVarResimAllowRewindToResimulatedFrames(TEXT("p.Resim.AllowRewindToResimulatedFrames"), bResimAllowRewindToResimulatedFrames, TEXT("Allow rewinding back to a frame that was previously part of a resimulation. If a resimulation is performed between frame 100-110, allow a new resim from 105-115 if needed, else next resim will be able to start from frame 111."));
@@ -270,7 +404,7 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	if (Frame < EarliestFrame)
 	{
 #if DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | RewindToFrame | Failed due to rewind frame earlier than available history | Rewind Frame: %d | Earliest Frame: %d"), Frame, EarliestFrame);
+		UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | RewindToFrame | Failed due to rewind frame earlier than available history | Rewind Frame: %d | Earliest Frame: %d"), Frame, EarliestFrame);
 #endif
 		return false;
 	}
@@ -279,7 +413,7 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	if (Frame == EarliestFrame && bNeedsSave && FramesSaved == Managers.Capacity())
 	{
 #if DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | RewindToFrame | Failed due to rewinding to last available frame and bNeedsSave is set to true"));
+		UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | RewindToFrame | Failed due to rewinding to last available frame and bNeedsSave is set to true"));
 #endif
 		return false;
 	}
@@ -325,6 +459,19 @@ bool FRewindData::RewindToFrame(int32 Frame)
 		FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory(); //non-const in case we need to record what's at head for a rewind (CurFrame has already been increased to the next frame)
 
 		History.CachePreCorrectionState(*PTParticle);
+
+		// Todo: This should be set by bubble resimulation so that Dynamic and Sleeping particles outside of relevancy of resim doesn't actually resimulate as dynamic particles.
+		switch (PTParticle->ObjectState())
+		{
+		case EObjectStateType::Dynamic:
+		case EObjectStateType::Sleeping:
+			PTParticle->SetResimType(EResimType::FullResim);
+			break;
+		default:
+
+			PTParticle->SetResimType(EResimType::ResimAsFollower);
+			break;
+		}
 
 		const bool bResimAsFollower = DirtyParticleInfo.bResimAsFollower;
 
@@ -380,6 +527,131 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	bNeedsSave = false;
 
 	return true;
+}
+
+void FRewindData::StepNonResimParticles(const int32 Frame)
+{
+	const FFrameAndPhase FrameAndPhase{ Frame, FFrameAndPhase::PrePushData };
+	auto RewindHelper = [FrameAndPhase, this](auto Obj, auto& Property, const auto& RewindFunc) -> bool
+	{
+		if (auto Val = Property.Read(FrameAndPhase, PropertiesPool))
+		{
+			return RewindFunc(Obj, *Val);
+		}
+		return false;
+	};
+
+	for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
+	{
+		FGeometryParticleHandle* PTParticle = DirtyParticleInfo.GetObjectPtr();
+		if (PTParticle->ResimType() != EResimType::ResimAsFollower)
+		{
+			continue;
+		}
+
+		bool bHasChanged = false;
+		const FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
+
+		//  Set Postion and Rotation
+		bHasChanged = RewindHelper(PTParticle, History.ParticlePositionRotation, [](auto Particle, const auto& Data) -> bool
+			{
+				if (Particle->GetX() != Data.GetX() || Particle->GetR() != Data.GetR())
+				{
+					Particle->SetXR(Data);
+					return true; 
+				}
+				return false;
+			});
+
+		// Set Velocity and Angular Velocity
+		bHasChanged |= RewindHelper(PTParticle->CastToKinematicParticle(), History.Velocities, [](auto Particle, const auto& Data) -> bool
+			{
+				if (Particle->GetV() != Data.GetV() || Particle->GetW() != Data.GetW())
+				{
+					Particle->SetV(Data.GetV()); Particle->SetW(Data.GetW());
+					return true;
+				}
+				return false;
+			});
+
+		// If XRVW has not changed for the non-resim particle, continue to the next particle
+		if (!bHasChanged)
+		{
+			continue;
+		}
+
+		if (bRewindDataOptimization)
+		{
+			// Set kinematic target
+			RewindHelper(PTParticle->CastToKinematicParticle(), History.KinematicTarget, [](auto Particle, const auto& Data) -> bool { Particle->SetKinematicTarget(Data); return true; });
+
+			// Set disabled true/false and object state
+			bool bHasUpdatedSOAs = RewindHelper(PTParticle->CastToRigidParticle(), History.DynamicsMisc, [this](auto Particle, const auto& Data) -> bool
+				{
+					if (Particle == nullptr)
+					{
+						return false; // SOAs views have not been updated
+					}
+
+					if (Particle->Disabled() != Data.Disabled())
+					{
+						if (Data.Disabled())
+						{
+							Solver->GetEvolution()->DisableParticle(Particle);
+						}
+						else
+						{
+							Solver->GetEvolution()->EnableParticle(Particle);
+						}
+					}
+
+					if (Particle->ObjectState() != Data.ObjectState())
+					{
+						Solver->GetEvolution()->SetParticleObjectState(Particle, Data.ObjectState());
+						return true; // SOA views are updated when calling this function
+					}
+
+					return false; // SOAs views have not been updated
+				});
+
+			// If not already done, update SOA views else particles might not get updated
+			if (!bHasUpdatedSOAs)
+			{
+				if (FPBDRigidParticleHandle* Rigid = PTParticle->CastToRigidParticle())
+				{
+					Solver->GetEvolution()->GetParticles().SetDynamicParticleSOA(Rigid->Handle());
+				}
+				else if (FPBDRigidClusteredParticleHandle* Clustered = PTParticle->CastToClustered())
+				{
+					Solver->GetEvolution()->GetParticles().SetClusteredParticleSOA(Clustered->Handle());
+				}	
+			}
+		}
+		else
+		{
+			RewindHelper(PTParticle, History.NonFrequentData, [this](auto Particle, const auto& Data) -> bool
+				{
+					Solver->GetEvolution()->InvalidateParticle(Particle); // Clear collision/constraints before updating NonFrequentData
+					Particle->SetNonFrequentData(Data);
+					return true;
+				});
+			RewindHelper(PTParticle->CastToKinematicParticle(), History.KinematicTarget, [](auto Particle, const auto& Data) -> bool { Particle->SetKinematicTarget(Data); return true; });
+			RewindHelper(PTParticle->CastToRigidParticle(), History.Dynamics, [](auto Particle, const auto& Data) -> bool { Particle->SetDynamics(Data); return true; });
+			RewindHelper(PTParticle->CastToRigidParticle(), History.DynamicsMisc, [this](auto Particle, const auto& Data) -> bool { Solver->SetParticleDynamicMisc(Particle, Data); return true; });
+			RewindHelper(PTParticle->CastToRigidParticle(), History.MassProps, [](auto Particle, const auto& Data) -> bool { Particle->SetMassProps(Data); return true; });
+		}
+
+		// If the particle is dynamic we must fix the collision anchors so that friction doesn't undo the movement
+		if (PTParticle->ObjectState() == EObjectStateType::Dynamic)
+		{
+			PTParticle->ParticleCollisions().VisitCollisions(
+				[this, PTParticle](FPBDCollisionConstraint& Collision)
+				{
+					Collision.UpdateParticleTransform(PTParticle);
+					return ECollisionVisitorResult::Continue;
+				});
+		}
+	}
 }
 
 template <bool bSkipDynamics, typename TDirtyInfo>
@@ -514,6 +786,11 @@ void FRewindData::DumpHistory_Internal(const int32 FramePrintOffset, const FStri
 	FString Path = FPaths::ProfilingDir() + FString::Printf(TEXT("/RewindData/%s_%d_%d.txt"), *Filename, EarliestFrame + FramePrintOffset, CurFrame - 1 + FramePrintOffset);
 	FFileHelper::SaveStringToFile(Out, *Path);
 	UE_LOG(LogChaos, Warning, TEXT("Saved:%s"), *Path);
+}
+
+bool FRewindData::GetUseCollisionResimCache() const
+{
+	return Solver ? Solver->GetUseCollisionResimCache() : false;
 }
 
 CHAOS_API int32 SkipDesyncTest = 0;
@@ -902,7 +1179,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 	if (RequestedFrame <= BlockResimFrame)
 	{
 #if DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | FindValidResimFrame | Resim is blocked | BlockResimFrame: %d | RequestedFrame: %d"), BlockResimFrame, RequestedFrame);
+		UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | FindValidResimFrame | Resim is blocked | BlockResimFrame: %d | RequestedFrame: %d"), BlockResimFrame, RequestedFrame);
 #endif
 
 		return ValidFrame;
@@ -958,7 +1235,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 		bHasTargetHistory = true;
 		
 #if DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | FindValidResimFrame | Processing resim particles | History Frame: %d | Total Particle Count: %d | ResimIslands Particle Count: %d | ResimFrameValidation: %d"), ValidFrame, DirtyParticles.Num(), ResimIslandParticles.Num(), ResimFrameValidation);
+		UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | FindValidResimFrame | Processing resim particles | History Frame: %d | Total Particle Count: %d | ResimIslands Particle Count: %d | ResimFrameValidation: %d"), ValidFrame, DirtyParticles.Num(), ResimIslandParticles.Num(), ResimFrameValidation);
 #endif
 
 		if ((EResimFrameValidation)ResimFrameValidation == EResimFrameValidation::IslandValidation)
@@ -999,6 +1276,9 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 			}
 		}
 		
+/*
+* todo: Only check input and state histories for actors that will actively resimulate
+
 		if (bHasTargetHistory)
 		{
 			for (TWeakPtr<FBaseRewindHistory>& InputHistory : InputHistories)
@@ -1026,6 +1306,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 				}
 			}
 		}
+*/
 
 		if (bHasTargetHistory)
 		{
@@ -1038,7 +1319,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 		ValidFrame = bResimIncompleteHistory ? RequestedFrame : INDEX_NONE;
 
 #if DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | FindValidResimFrame | No valid resim frame found | RequestedFrame: %d | ValidFrame: %d | EarliestFrame: %d | HasTargetHistory: %d | EarliestHistoryFrame: %d | CurrentFrame: %d | FramesSaved: %d | ResimFrameValidation: %d"), RequestedFrame, ValidFrame, EarliestFrame, bHasTargetHistory, GetEarliestFrame_Internal(), CurrentFrame(), FramesSaved, ResimFrameValidation);
+		UE_LOG(LogChaos, Warning, TEXT("CLIENT | PT | FindValidResimFrame | No valid resim frame found | RequestedFrame: %d | ValidFrame: %d | EarliestFrame: %d | HasTargetHistory: %d | EarliestHistoryFrame: %d | CurrentFrame: %d | FramesSaved: %d | ResimFrameValidation: %d"), RequestedFrame, ValidFrame, EarliestFrame, bHasTargetHistory, GetEarliestFrame_Internal(), CurrentFrame(), FramesSaved, ResimFrameValidation);
 #endif
 	}
 
@@ -1053,6 +1334,7 @@ void FRewindData::PushStateAtFrame(FGeometryParticleHandle& Handle, int32 Frame,
 	FDirtyParticleInfo& Info = FindOrAddDirtyObj(Handle);
 	FGeometryParticleStateBase& Latest = Info.GetHistory();
 	const FFrameAndPhase FrameAndPhase{ Frame, Phase };
+	LatestTargetFrame = bRecordingHistory ? FMath::Max(LatestTargetFrame, Frame) : LatestTargetFrame;
 
 	if (bRecordingHistory || Latest.TargetPositions.IsClean(FrameAndPhase))
 	{

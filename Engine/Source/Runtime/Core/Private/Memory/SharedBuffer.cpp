@@ -105,6 +105,13 @@ FUniqueBuffer FUniqueBuffer::Alloc(uint64 InSize)
 	return FUniqueBuffer(new UE::SharedBuffer::Private::FBufferOwnerHeap(InSize));
 }
 
+FUniqueBuffer FUniqueBuffer::AllocZeroed(uint64 InSize)
+{
+	FUniqueBuffer Buffer = Alloc(InSize);
+	FMemory::Memzero(Buffer.GetData(), Buffer.GetSize());
+	return Buffer;
+}
+
 FUniqueBuffer FUniqueBuffer::Clone(FMemoryView View)
 {
 	FUniqueBuffer Buffer = Alloc(View.GetSize());

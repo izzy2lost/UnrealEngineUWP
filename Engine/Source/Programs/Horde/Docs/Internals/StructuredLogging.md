@@ -91,4 +91,4 @@ To implement a new matcher for plain-text log output, create a class that implem
 from `EpicGames.Core`, and ensure it's registered 
 
 When adding or modifying log parsers, we strongly recommend running (and writing) tests in the `UnrealBuildTool.Tests`
-and `Horde.Agent.Tests` projects to check interaction with other handlers.
+and `HordeAgent.Tests` projects to check interaction with other handlers.

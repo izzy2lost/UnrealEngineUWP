@@ -87,7 +87,7 @@ namespace Metasound
 	{
 		FProfilingOperator* DerivedOperator = static_cast<FProfilingOperator*>(InOperator);
 		check(nullptr != DerivedOperator && DerivedOperator->ResetFunction);
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*DerivedOperator->InsightsResetEventName);
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_FAST(DerivedOperator->InsightsResetEventSpecId, *DerivedOperator->InsightsResetEventName);
 		DerivedOperator->ResetFunction(DerivedOperator->Operator.Get(), InParams);
 	}
 
@@ -95,7 +95,7 @@ namespace Metasound
 	{
 		FProfilingOperator* DerivedOperator = static_cast<FProfilingOperator*>(InOperator);
 		check(nullptr != DerivedOperator && DerivedOperator->ExecuteFunction);
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*DerivedOperator->InsightsExecuteEventName);
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_FAST(DerivedOperator->InsightsExecuteEventSpecId, *DerivedOperator->InsightsExecuteEventName);
 		DerivedOperator->ExecuteFunction(DerivedOperator->Operator.Get());
 	}
 
@@ -103,7 +103,7 @@ namespace Metasound
 	{
 		FProfilingOperator* DerivedOperator = static_cast<FProfilingOperator*>(InOperator);
 		check(nullptr != DerivedOperator && DerivedOperator->PostExecuteFunction);
-		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*DerivedOperator->InsightsPostExecuteEventName);
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_FAST(DerivedOperator->InsightsPostExecuteEventSpecId, *DerivedOperator->InsightsPostExecuteEventName);
 		DerivedOperator->PostExecuteFunction(DerivedOperator->Operator.Get());
 	}
 

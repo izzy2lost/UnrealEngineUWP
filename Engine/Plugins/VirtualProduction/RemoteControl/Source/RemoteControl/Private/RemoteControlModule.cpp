@@ -11,16 +11,16 @@
 #include "Factories/RCDefaultValueFactories.h"
 #include "Factories/RemoteControlMaskingFactories.h"
 #include "Features/IModularFeatures.h"
-#include "PropertyIdHandler/BasePropertyIdHandler.h"
-#include "PropertyIdHandler/EnumPropertyIdHandler.h"
-#include "PropertyIdHandler/ObjectPropertyIdHandler.h"
-#include "PropertyIdHandler/StructPropertyIdHandler.h"
 #include "IRemoteControlInterceptionFeature.h"
 #include "IRemoteControlModule.h"
 #include "IStructDeserializerBackend.h"
 #include "IStructSerializerBackend.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/ScopeExit.h"
+#include "PropertyIdHandler/BasePropertyIdHandler.h"
+#include "PropertyIdHandler/EnumPropertyIdHandler.h"
+#include "PropertyIdHandler/ObjectPropertyIdHandler.h"
+#include "PropertyIdHandler/StructPropertyIdHandler.h"
 #include "RCPropertyUtilities.h"
 #include "RCVirtualProperty.h"
 #include "RCVirtualPropertyContainer.h"
@@ -29,6 +29,7 @@
 #include "RemoteControlInterceptionHelpers.h"
 #include "RemoteControlInterceptionProcessor.h"
 #include "RemoteControlPreset.h"
+#include "RemoteControlProtocolEntityProcessor.h"
 #include "RemoteControlSettings.h"
 #include "SceneInterface.h"
 #include "Serialization/PropertyMapStructDeserializerBackendWrapper.h"
@@ -794,7 +795,7 @@ void FRemoteControlModule::StartupModule()
 	// Register Property Factories
 	RegisterEntityFactory(FRemoteControlInstanceMaterial::StaticStruct()->GetFName(), FRemoteControlInstanceMaterialFactory::MakeInstance());
 
-	// Register Masking Factories
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	RegisterMaskingFactories();
 
 	// Register PropertyIdHandler
@@ -827,8 +828,10 @@ void FRemoteControlModule::ShutdownModule()
 		// Unregister Property Factories
 		UnregisterEntityFactory(FRemoteControlInstanceMaterial::StaticStruct()->GetFName());
 		
-		// Unregister Default Value & Masking factories.
+		// Unregister Default Value
 		DefaultValueFactories.Empty();
+
+		// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 		MaskingFactories.Empty();
 	}
 }
@@ -1029,6 +1032,7 @@ void FRemoteControlModule::ResetToDefaultValue(UObject* InObject, FRCResetToDefa
 
 void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation)
 {
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRemoteControlModule::PerformMasking);
 
 	if (!InMaskingOperation->IsValid())
@@ -1066,6 +1070,7 @@ void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>&
 
 void FRemoteControlModule::RegisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType, const TSharedPtr<IRemoteControlMaskingFactory>& InMaskingFactory)
 {
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	if (!MaskingFactories.Contains(RemoteControlPropertyType))
 	{
 		MaskingFactories.Add(RemoteControlPropertyType, InMaskingFactory);
@@ -1073,18 +1078,21 @@ void FRemoteControlModule::RegisterMaskingFactoryForType(UScriptStruct* RemoteCo
 }
 
 void FRemoteControlModule::UnregisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType)
-{
+{	
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	MaskingFactories.Remove(RemoteControlPropertyType);
+}
+
+bool FRemoteControlModule::SupportsMasking(const UScriptStruct* InStruct) const
+{
+	using namespace UE::RemoteControl;
+	return ProtocolEntityProcessor::DoesScriptStructSupportMasking(InStruct);
 }
 
 bool FRemoteControlModule::SupportsMasking(const FProperty* InProperty) const
 {
-	if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
-	{
-		return MaskingFactories.Contains(StructProperty->Struct);
-	}
-
-	return false;
+	using namespace UE::RemoteControl;
+	return ProtocolEntityProcessor::DoesPropertySupportMasking(InProperty);
 }
 
 bool FRemoteControlModule::ResolveCall(const FString& ObjectPath, const FString& FunctionName, FRCCallReference& OutCallRef, FString* OutErrorText)
@@ -1207,14 +1215,14 @@ bool FRemoteControlModule::InvokeCall(FRCCall& InCall, ERCPayloadType InPayloadT
 		}
 
 		const bool bIsManualTransaction = InCall.TransactionMode == ERCTransactionMode::MANUAL;
-		if ((bIsNewTransaction || bIsManualTransaction) && ensureAlways(InCall.CallRef.Object.IsValid()))
+		if ((bIsNewTransaction || bIsManualTransaction) && ensure(InCall.CallRef.Object.IsValid()))
 		{
 			InCall.CallRef.Object->Modify();
 		}
 			
 #endif
 		FEditorScriptExecutionGuard ScriptGuard;
-		if (ensureAlways(InCall.CallRef.Object.IsValid()))
+		if (ensure(InCall.CallRef.Object.IsValid()))
 		{
 			if (InCall.CallRef.PropertyWithSetter.IsValid())
 			{
@@ -1550,7 +1558,7 @@ void FRemoteControlModule::SnapshotOrEndTransaction(FRCObjectReference& ObjectRe
 }
 #endif
 
-bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType, const TArray<uint8>& InPayload, ERCModifyOperation Operation)
+bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectAccess, IStructDeserializerBackend& Backend, ERCPayloadType InPayloadType, const TArray<uint8>& InPayload, ERCModifyOperation Operation, const ERCModifyOperationFlags ModifyOperationFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRemoteControlModule::SetObjectProperties);
 	UE_LOG(LogRemoteControl, VeryVerbose, TEXT("Set Object Properties"));
@@ -1671,8 +1679,11 @@ bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectA
 		FRCObjectReference MutableObjectReference = ObjectAccess;
 
 #if WITH_EDITOR
-		bool bGeneratedTransaction;
-		if (!StartPropertyTransaction(MutableObjectReference, LOCTEXT("RemoteSetPropertyTransaction", "Remote Set Object Property"), bGeneratedTransaction))
+		const bool bWithPropertyChangedEvents = !EnumHasAnyFlags(ModifyOperationFlags, ERCModifyOperationFlags::SkipPropertyChangeEvents);
+		
+		bool bGeneratedTransaction = false;
+		if (bWithPropertyChangedEvents &&
+			!StartPropertyTransaction(MutableObjectReference, LOCTEXT("RemoteSetPropertyTransaction", "Remote Set Object Property"), bGeneratedTransaction))
 		{
 			return false;
 		}
@@ -1734,7 +1745,10 @@ bool FRemoteControlModule::SetObjectProperties(const FRCObjectReference& ObjectA
 		}
 
 #if WITH_EDITOR
-		SnapshotOrEndTransaction(MutableObjectReference, bGeneratedTransaction);
+		if (bWithPropertyChangedEvents)
+		{
+			SnapshotOrEndTransaction(MutableObjectReference, bGeneratedTransaction);
+		}
 #endif
 
 		for (const TPair<FName, TSharedPtr<IRemoteControlPropertyFactory>>& EntityFactoryPair : EntityFactories)
@@ -2702,6 +2716,7 @@ void FRemoteControlModule::RegisterDefaultValueFactories()
 
 void FRemoteControlModule::RegisterMaskingFactories()
 {
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	RegisterMaskingFactoryForType(TBaseStructure<FVector>::Get(), FVectorMaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FVector4>::Get(), FVector4MaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FIntVector>::Get(), FIntVectorMaskingFactory::MakeInstance());

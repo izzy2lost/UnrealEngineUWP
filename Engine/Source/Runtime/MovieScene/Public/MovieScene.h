@@ -51,6 +51,7 @@ class UK2Node;
 class UMovieSceneFolder;
 class UMovieSceneSection;
 class UMovieSceneTrack;
+class UMovieSceneGroupCondition;
 namespace UE { namespace MovieScene { class ISequenceDataEventHandler; } }
 struct FMovieSceneChannelMetaData;
 struct FMovieSceneTimeController;
@@ -585,6 +586,19 @@ public:
 
 	static MOVIESCENE_API bool IsTrackClassAllowed(UClass* InClass);
 
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FIsCustomBindingClassAllowedEvent, UClass*);
+
+	static MOVIESCENE_API FIsCustomBindingClassAllowedEvent IsCustomBindingClassAllowedEvent;
+
+	static MOVIESCENE_API bool IsCustomBindingClassAllowed(UClass* InClass);
+
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FIsConditionClassAllowedEvent, const UClass*);
+
+	static MOVIESCENE_API FIsConditionClassAllowedEvent IsConditionClassAllowedEvent;
+
+	static MOVIESCENE_API bool IsConditionClassAllowed(const UClass* InClass);
+
+
 	void OnDynamicBindingUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName)
 	{
 		FixupDynamicBindingPayloadParameterNameEvent.Broadcast(this, InNode, OldPinName, NewPinName);
@@ -593,6 +607,15 @@ public:
 	DECLARE_MULTICAST_DELEGATE_FourParams(FFixupDynamicBindingPayloadParameterNameEvent, UMovieScene*, UK2Node*, FName, FName);
 
 	static MOVIESCENE_API FFixupDynamicBindingPayloadParameterNameEvent FixupDynamicBindingPayloadParameterNameEvent;
+
+	void OnDirectorBlueprintConditionUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName)
+	{
+		FixupDirectorBlueprintConditionPayloadParameterNameEvent.Broadcast(this, InNode, OldPinName, NewPinName);
+	}
+
+	DECLARE_MULTICAST_DELEGATE_FourParams(FFixupDirectorBlueprintConditionPayloadParameterNameEvent, UMovieScene*, UK2Node*, FName, FName);
+
+	static MOVIESCENE_API FFixupDirectorBlueprintConditionPayloadParameterNameEvent FixupDirectorBlueprintConditionPayloadParameterNameEvent;
 
 #endif
 
@@ -609,9 +632,6 @@ public:
 	 */
 	MOVIESCENE_API UMovieSceneTrack* AddTrack(TSubclassOf<UMovieSceneTrack> TrackClass);
 	
-	UE_DEPRECATED(5.2, "AddMasterTrack is deprecated. Please use AddTrack instead")
-	UMovieSceneTrack* AddMasterTrack(TSubclassOf<UMovieSceneTrack> TrackClass) { return AddTrack(TrackClass); }
-
 	/**
 	 * Adds a track.
 	 *
@@ -627,10 +647,6 @@ public:
 		return Cast<TrackClass>(AddTrack(TrackClass::StaticClass()));
 	}
 
-	template<typename TrackClass>
-	UE_DEPRECATED(5.2, "AddMasterTrack is deprecated. Please use AddTrack instead")
-	TrackClass* AddMasterTrack() { return AddTrack<TrackClass>(); }
-
 	/**
 	* Adds a given track as a track
 	*
@@ -640,9 +656,6 @@ public:
 	*/
 	MOVIESCENE_API bool AddGivenTrack(UMovieSceneTrack* InTrack);
 
-	UE_DEPRECATED(5.2, "AddGivenMasterTrack is deprecated. Please use AddGivenTrack instead")
-	bool AddGivenMasterTrack(UMovieSceneTrack* InTrack) { return AddGivenTrack(InTrack); }
-
 	/**
 	 * Finds a track (one not bound to a runtime objects).
 	 *
@@ -651,9 +664,6 @@ public:
 	 * @see AddTrack, GetTracks, IsTrack, RemoveTrack
 	 */
 	MOVIESCENE_API UMovieSceneTrack* FindTrack(TSubclassOf<UMovieSceneTrack> TrackClass) const;
-
-	UE_DEPRECATED(5.2, "FindMasterTrack is deprecated. Please use FindTrack instead")
-	UMovieSceneTrack* FindMasterTrack(TSubclassOf<UMovieSceneTrack> TrackClass) const { return FindTrack(TrackClass); }
 
 	/**
 	 * Finds a track (one not bound to a runtime objects).
@@ -668,10 +678,6 @@ public:
 		return Cast<TrackClass>(FindTrack(TrackClass::StaticClass()));
 	}
 
-	template<typename TrackClass>
-	UE_DEPRECATED(5.2, "FindMasterTrack is deprecated. Please use FindTrack instead")
-	TrackClass* FindMasterTrack() const { return FindTrack<TrackClass>(); }
-
 	/**
 	 * Get all tracks.
 	 *
@@ -683,9 +689,6 @@ public:
 		return Tracks;
 	}
 
-	UE_DEPRECATED(5.2, "GetMasterTracks is deprecated. Please use GetTracks instead")
-	const TArray<UMovieSceneTrack*>& GetMasterTracks() const { return GetTracks(); }
-
 	/**
 	 * Check whether the specified track is a track in this movie scene.
 	 *
@@ -693,12 +696,6 @@ public:
 	 * @see AddTrack, FindTrack, GetTracks, RemoveTrack
 	 */
 	MOVIESCENE_API bool ContainsTrack(const UMovieSceneTrack& Track) const;
-
-	UE_DEPRECATED(5.2, "IsAMasterTrack is deprecated. Please use ContainsTrack instead")
-	bool IsAMasterTrack(const UMovieSceneTrack& Track) const { return ContainsTrack(Track); }
-
-	UE_DEPRECATED(5.2, "RemoveMasterTrack is deprecated. Please use RemoveTrack instead")
-	bool RemoveMasterTrack(UMovieSceneTrack& Track) { return RemoveTrack(Track); }
 
 	/**
 	 * Move all the contents (tracks, child bindings) of the specified binding ID onto another
@@ -759,6 +756,14 @@ public:
 	 * @return All object bindings.
 	 */
 	const TArray<FMovieSceneBinding>& GetBindings() const
+	{
+		return ObjectBindings;
+	}
+
+	/**
+	* @return All object bindings.
+	*/
+	TArray<FMovieSceneBinding>& GetBindings()
 	{
 		return ObjectBindings;
 	}
@@ -1190,6 +1195,12 @@ public:
 	 */
 	MOVIESCENE_API void RemoveTag(const FName& TagToRemove);
 
+	/* Called during compilation to add a new generated condition to store in the movie scene. */
+	void AddGeneratedCondition(UMovieSceneGroupCondition* InGeneratedCondition) { GeneratedConditions.Add(InGeneratedCondition); }
+
+	/* Called by the compiler to empty the list of generated conditions*/
+	void ResetGeneratedConditions() { GeneratedConditions.Reset(); }
+
 protected:
 
 	/**
@@ -1299,6 +1310,10 @@ private:
 	/** The set of user-marked frames */
 	UPROPERTY()
 	TArray<FMovieSceneMarkedFrame> MarkedFrames;
+
+	/* List of compiler generated group conditions, stored here to prevent garbage collection. */
+	UPROPERTY()
+	TArray<TObjectPtr<UMovieSceneGroupCondition>> GeneratedConditions;
 
 #if WITH_EDITORONLY_DATA
 

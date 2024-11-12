@@ -142,11 +142,10 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, GlobalDirtyTracke
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object on server that is polled only every 3 frames
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	const uint32 PollPeriod = 2;
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
 	Params.PollFrequency = PollFrequency;
-	Params.bCanReceive = true;
 	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;
 
@@ -187,11 +186,10 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, NetForceUpdateOth
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object on server that is polled late in order to test ForceNetUpdate
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	const uint32 PollPeriod = 100;
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
 	Params.PollFrequency = PollFrequency;
-	Params.bCanReceive = true;
 	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;
 	UTestReplicatedIrisObject* ServerObjectA = Server->CreateObject(Params);
@@ -232,12 +230,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, NetForceUpdateOth
 	// Force ObjectA to replicate
 	Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
 
-	auto PreUpdateObjectA = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObjectA = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		// Inside ObjectA PreReplicationUpdate, force ObjectB to be replicated
-		if (ServerObjectA == ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			Server->ReplicationSystem->ForceNetUpdate(ServerObjectB->NetRefHandle);
+			// Inside ObjectA PreReplicationUpdate, force ObjectB to be replicated
+			if (ServerObjectA == ReplicatedObject)
+			{
+				Server->ReplicationSystem->ForceNetUpdate(ServerObjectB->NetRefHandle);
+			}
 		}
 	};
 
@@ -259,12 +260,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, NetForceUpdateOth
 	// Now the ForceNetUpdate on ObjectB is applied and it is replicated
 	UE_NET_ASSERT_EQ(ClientObjectB->IntA, ServerObjectB->IntA);
 
-	auto PreUpdateObjectB = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObjectB = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		// Inside ObjectB PreReplicationUpdate, force ObjectA to be replicated
-		if (ServerObjectB == ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
+			// Inside ObjectB PreReplicationUpdate, force ObjectA to be replicated
+			if (ServerObjectB == ReplicatedObject)
+			{
+				Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
+			}
 		}
 	};
 	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdateObjectB);
@@ -302,8 +306,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyOtherObjectI
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object on server that is polled every frame.
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
-	Params.bCanReceive = true;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;
 
@@ -322,12 +325,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyOtherObjectI
 	UE_NET_ASSERT_NE(ClientObjectB, nullptr);
 
 	UTestReplicatedIrisObject* ObjectToDirty = nullptr;
-	auto PreUpdateObject = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObject = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		// There's only two objects, so when we update one we dirty the other
-		if (ObjectToDirty != ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			ObjectToDirty->ObjectReferenceComponents[0]->ModifyIntA();
+			// There's only two objects, so when we update one we dirty the other
+			if (ObjectToDirty != ReplicatedObject)
+			{
+				ObjectToDirty->ObjectReferenceComponents[0]->ModifyIntA();
+			}
 		}
 	};
 	
@@ -360,7 +366,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, PushModelMarkSelf
 	FReplicationSystemTestClient* Client = CreateClient();
 
 	// Spawn object with a PreUpdate call
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.bNeedsPreUpdate = true;
 	UTestReplicatedIrisObject::FComponents ComponentsToCreate = { .ObjectReferenceComponentCount = 1 };
 
@@ -373,11 +379,14 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, PushModelMarkSelf
 	UTestReplicatedIrisObject* ClientObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
 	UE_NET_ASSERT_NE(ClientObject, nullptr);
 
-	auto PreUpdateObject = [&](FNetRefHandle NetHandle, UObject* InObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObject = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		if (InObject == ServerObject)
+		for (UObject* InObject : Instances)
 		{
-			ServerObject->ObjectReferenceComponents[0]->ModifyIntA();
+			if (InObject == ServerObject)
+			{
+				ServerObject->ObjectReferenceComponents[0]->ModifyIntA();
+			}
 		}
 	};
 

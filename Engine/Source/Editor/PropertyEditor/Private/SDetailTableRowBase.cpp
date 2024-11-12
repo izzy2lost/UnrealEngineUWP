@@ -115,14 +115,18 @@ void SDetailTableRowBase::PopulateContextMenu(UToolMenu* ToolMenu)
 	}
 }
 
-TArray<TSharedPtr<FPropertyNode>> SDetailTableRowBase::GetPropertyNodes(const bool& bRecursive) const
+TArray<TSharedPtr<FPropertyNode>> SDetailTableRowBase::GetPropertyNodes(const bool bRecursive) const
 {
 	TArray<TSharedPtr<IPropertyHandle>> PropertyHandles = GetPropertyHandles(bRecursive);
+	return GetPropertyNodesFromHandles(PropertyHandles);
+}
 
+TArray<TSharedPtr<FPropertyNode>> SDetailTableRowBase::GetPropertyNodesFromHandles(const TConstArrayView<TSharedPtr<IPropertyHandle>>& InPropertyHandles) const
+{
 	TArray<TSharedPtr<FPropertyNode>> PropertyNodes;
-	PropertyNodes.Reserve(PropertyHandles.Num());
+	PropertyNodes.Reserve(InPropertyHandles.Num());
 	
-	for (const TSharedPtr<IPropertyHandle>& PropertyHandle : PropertyHandles)
+	for (const TSharedPtr<IPropertyHandle>& PropertyHandle : InPropertyHandles)
 	{
 		if (PropertyHandle->IsValidHandle())
 		{
@@ -133,7 +137,7 @@ TArray<TSharedPtr<FPropertyNode>> SDetailTableRowBase::GetPropertyNodes(const bo
 	return PropertyNodes;
 }
 
-TArray<TSharedPtr<IPropertyHandle>> SDetailTableRowBase::GetPropertyHandles(const bool& bRecursive) const
+TArray<TSharedPtr<IPropertyHandle>> SDetailTableRowBase::GetPropertyHandles(const bool bRecursive) const
 {
 	TFunction<bool(const TSharedPtr<IDetailTreeNode>&, TArray<TSharedPtr<IPropertyHandle>>&)> AppendPropertyHandles;
 	AppendPropertyHandles = [&AppendPropertyHandles, bRecursive]

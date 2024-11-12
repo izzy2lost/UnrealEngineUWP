@@ -18,6 +18,7 @@ void UMassMovementTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildCon
 	BuildContext.AddFragment<FMassVelocityFragment>();
 	BuildContext.AddFragment<FMassForceFragment>();
 
-	const FConstSharedStruct MovementFragment = EntityManager.GetOrCreateConstSharedFragment(Movement);
+	const FMassMovementParameters MovementValidated = Movement.GetValidated();
+	const FConstSharedStruct MovementFragment = EntityManager.GetOrCreateConstSharedFragment(MovementValidated);
 	BuildContext.AddConstSharedFragment(MovementFragment);
 }

@@ -14,6 +14,7 @@ public class CQTestTests : ModuleRules
 					"Core",
 					"CoreUObject",
 					"Engine",
+					"Slate",
 					"CQTest"
 				 }
 			);
@@ -22,6 +23,7 @@ public class CQTestTests : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
+					"AssetTools",
 					"EngineSettings",
 					"LevelEditor",
 					"UnrealEd"

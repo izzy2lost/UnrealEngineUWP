@@ -196,6 +196,17 @@ struct GLTFEXPORTER_API FGLTFJsonIridescenceExtension : IGLTFJsonObject
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 };
 
+struct GLTFEXPORTER_API FGLTFJsonAnisotropyExtension : IGLTFJsonObject
+{
+	float                AnisotropyStrength = 0.0f;
+	float                AnisotropyRotation = 0.0f;
+	FGLTFJsonTextureInfo AnisotropyTexture;
+
+	bool HasValue() const { return !FMath::IsNearlyEqual(AnisotropyStrength, 0.f) || !FMath::IsNearlyEqual(AnisotropyRotation, 0.f) || AnisotropyTexture.Index != nullptr; }
+
+	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+};
+
 struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 {
 	FString Name;
@@ -223,6 +234,7 @@ struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 	FGLTFJsonSheenExtension        Sheen;
 	FGLTFJsonTransmissionExtension Transmission;
 	FGLTFJsonIridescenceExtension  Iridescence;
+	FGLTFJsonAnisotropyExtension   Anisotropy;
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 

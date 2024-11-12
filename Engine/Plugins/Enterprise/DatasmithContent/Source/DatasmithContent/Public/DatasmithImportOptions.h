@@ -263,12 +263,27 @@ struct DATASMITHCONTENT_API FDatasmithTessellationOptions
 	 * Sewing : Connects surfaces which physically share a boundary but not topologically within a set of objects.
 	 *          This technique can modify the structure of the model by removing and adding objects.
 	 * Healing : Connects surfaces which physically share a boundary but not topologically within an object.
-	 * The techniques are using the chord tolerance to determine if two surfaces should be stitched.
 	 */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Geometry & Tessellation Options", meta = (ToolTip = "Stitching technique applied on model before tessellation. Sewing could impact number of objects."))
 	EDatasmithCADStitchingTechnique StitchingTechnique;
 
 	bool bUseCADKernel = false;
+
+protected:
+	/**
+	 * Tolerance used to determine if a surface should be tessellate or not.
+	 * Any surface which is narrower than the geometric tolerance
+	 * in one of the iso direction will not be tessellated
+	 * Value is in centimeter
+	 */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Geometry & Tessellation Options", meta = (Units = cm, ToolTip = "Tolerance used to determine if a surface should be tessellated or not."))
+	double GeometricTolerance = 0.001;
+
+	/**
+	 * Tolerance used to determine if two surfaces should be stitched.
+	 */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Geometry & Tessellation Options", meta = (Units = cm, ToolTip = "Tolerance used to determine if two surfaces should be stitched.", editCondition = "StitchingTechnique!=EDatasmithCADStitchingTechnique::StitchingNone"))
+	double StitchingTolerance = 0.001;
 
 public:
 	bool operator == (const FDatasmithTessellationOptions& Other) const
@@ -276,7 +291,9 @@ public:
 		return FMath::IsNearlyEqual(ChordTolerance, Other.ChordTolerance)
 			&& FMath::IsNearlyEqual(MaxEdgeLength, Other.MaxEdgeLength)
 			&& FMath::IsNearlyEqual(NormalTolerance, Other.NormalTolerance)
-			&& StitchingTechnique == Other.StitchingTechnique;
+			&& StitchingTechnique == Other.StitchingTechnique
+			&& FMath::IsNearlyEqual(GeometricTolerance, Other.GeometricTolerance)
+			&& FMath::IsNearlyEqual(StitchingTolerance, Other.StitchingTolerance);
 	}
 
 	uint32 GetHash() const
@@ -288,6 +305,9 @@ public:
 		}
 		return Hash;
 	}
+	/** Helper functions to get geometrical values in the right unit, cm (native) or mm */
+	double GetGeometricTolerance( bool bInMillimeter = false ) const { return bInMillimeter ? GeometricTolerance * 10. : GeometricTolerance; }
+	double GetStitchingTolerance( bool bInMillimeter = false ) const { return bInMillimeter ? StitchingTolerance * 10. : StitchingTolerance; }
 };
 
 USTRUCT(BlueprintType)
@@ -302,7 +322,7 @@ struct DATASMITHCONTENT_API FDatasmithRetessellationOptions : public FDatasmithT
 	}
 
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Retessellation Options", meta = (ToolTip = "Regenerate deleted surfaces during retesselate or ignore them"))
-	EDatasmithCADRetessellationRule RetessellationRule;
+	EDatasmithCADRetessellationRule RetessellationRule = EDatasmithCADRetessellationRule::All;
 
 public:
 	void operator = (const FDatasmithTessellationOptions& Other)
@@ -311,6 +331,8 @@ public:
 		MaxEdgeLength = Other.MaxEdgeLength;
 		NormalTolerance = Other.NormalTolerance;
 		StitchingTechnique = Other.StitchingTechnique;
+		GeometricTolerance = Other.GetGeometricTolerance();
+		StitchingTolerance = Other.GetStitchingTolerance();
 	}
 };
 

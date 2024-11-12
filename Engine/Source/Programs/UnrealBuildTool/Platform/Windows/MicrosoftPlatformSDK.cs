@@ -50,7 +50,7 @@ namespace UnrealBuildTool
 			return null;
 		}
 
-		public override bool TryConvertVersionToInt(string? StringValue, out UInt64 OutValue, string? Hint)
+		public override bool TryConvertVersionToInt(string? StringValue, out ulong OutValue, string? Hint)
 		{
 			OutValue = 0;
 
@@ -193,7 +193,7 @@ namespace UnrealBuildTool
 			VersionNumber? WindowsSdkVersion = null;
 			if (!String.IsNullOrEmpty(DesiredVersion))
 			{
-				if (String.Compare(DesiredVersion, "Latest", StringComparison.InvariantCultureIgnoreCase) == 0 && CachedWindowsSdkDirs!.Count > 0)
+				if (String.Equals(DesiredVersion, "Latest", StringComparison.InvariantCultureIgnoreCase) && CachedWindowsSdkDirs!.Count > 0)
 				{
 					WindowsSdkVersion = CachedWindowsSdkDirs.OrderBy(x => x.Key).Last().Key;
 				}
@@ -882,7 +882,7 @@ namespace UnrealBuildTool
 						int MajorVersion = Version.GetComponent(0);
 
 						WindowsCompiler Compiler;
-						if (MajorVersion >= 17) // Treat any newer versions as 2022, until we have an explicit enum for them
+						if (Version >= MicrosoftPlatformSDK.MinimumVisualStudio2022Version) // Treat any newer versions as 2022, until we have an explicit enum for them
 						{
 							Compiler = WindowsCompiler.VisualStudio2022;
 						}

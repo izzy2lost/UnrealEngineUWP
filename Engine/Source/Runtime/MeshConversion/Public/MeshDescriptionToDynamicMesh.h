@@ -42,6 +42,12 @@ public:
 	/** Should Vertex Colors of MeshDescription be transformed from Linear to SRGB */
 	bool bTransformVertexColorsLinearToSRGB = true;
 
+	/** Set an optional mapping from mesh description polygon group to dynamic mesh material indices; if unset, an identity map is assumed */
+	void SetPolygonGroupToMaterialIndexMap(const TArray<int32>& PolygonGroupToMaterialIndexMapIn)
+	{
+		PolygonGroupToMaterialIndexMap = PolygonGroupToMaterialIndexMapIn;
+	}
+
 	/** map from DynamicMesh triangle ID to MeshDescription FTriangleID*/
 	TArray<FTriangleID> TriIDMap;
 
@@ -109,4 +115,9 @@ protected:
 	 * @param Color color to transform
 	 */
 	MESHCONVERSION_API void ApplyVertexColorTransform(FVector4f& Color) const;
+
+private:
+
+	/** Mapping from mesh description polygon group element IDs to material indices */
+	TArray<int32> PolygonGroupToMaterialIndexMap;
 };

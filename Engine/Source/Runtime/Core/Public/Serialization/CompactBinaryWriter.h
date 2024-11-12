@@ -390,6 +390,17 @@ public:
 		return *this;
 	}
 
+#if PLATFORM_LINUX || PLATFORM_APPLE
+	// On Unix-like platforms, size_t is an unsigned long, whereas UE defines uint64 as unsigned long long,
+	// making the two types immiscible for template resolution. However, SSIZE_T is currently defined as
+	// int64 (see FGenericPlatformTypes) and so no special overload is required for that type.
+	inline FCbWriter& operator<<(SIZE_T Value)
+	{
+		AddInteger(static_cast<uint64>(Value));
+		return *this;
+	}
+#endif
+
 	inline FCbWriter& operator<<(float Value)
 	{
 		AddFloat(Value);
@@ -435,6 +446,9 @@ public:
 		return *this;
 	}
 
+	CORE_API FCbWriter& operator<<(const FString& Value);
+	CORE_API FCbWriter& operator<<(const FAnsiString& Value);
+	CORE_API FCbWriter& operator<<(const FUtf8String& Value);
 	CORE_API FCbWriter& operator<<(FName Value);
 
 	template <typename T, typename Allocator,

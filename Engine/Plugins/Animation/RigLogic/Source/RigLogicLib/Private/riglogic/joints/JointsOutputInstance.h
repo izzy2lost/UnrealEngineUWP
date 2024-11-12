@@ -25,6 +25,7 @@ class JointsOutputInstance {
 
     public:
         virtual ArrayView<float> getOutputBuffer() = 0;
+        virtual void resetOutputBuffer() = 0;
 
 };
 

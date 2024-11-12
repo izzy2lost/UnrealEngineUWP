@@ -73,6 +73,7 @@ public class LyraGame : ModuleRules
 				"AudioModulation",
 				"EngineSettings",
 				"DTLSHandlerComponent",
+				"Json",
 			}
 		);
 
@@ -83,7 +84,21 @@ public class LyraGame : ModuleRules
 
 		// Generate compile errors if using DrawDebug functions in test/shipping builds.
 		PublicDefinitions.Add("SHIPPING_DRAW_DEBUG_ERROR=1");
-		
+
+		// Basic setup for External RPC Framework.
+		// Functionality within framework will be stripped in shipping to remove vulnerabilities.
+		PrivateDependencyModuleNames.Add("ExternalRpcRegistry");
+		PrivateDependencyModuleNames.Add("HTTPServer"); // Dependency for ExternalRpcRegistry
+		if (Target.Configuration == UnrealTargetConfiguration.Shipping)
+		{
+			PublicDefinitions.Add("WITH_RPC_REGISTRY=0");
+			PublicDefinitions.Add("WITH_HTTPSERVER_LISTENERS=0");
+		}
+		else
+		{
+			PublicDefinitions.Add("WITH_RPC_REGISTRY=1");
+			PublicDefinitions.Add("WITH_HTTPSERVER_LISTENERS=1");
+		}
 
 		SetupGameplayDebuggerSupport(Target);
 		SetupIrisSupport(Target);

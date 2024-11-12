@@ -41,10 +41,7 @@ namespace EpicGames.UHT.Parsers
 					},
 					(UhtTokenList identifier) =>
 					{
-						if (baseIdentifiersTemp == null)
-						{
-							baseIdentifiersTemp = new List<UhtToken[]>();
-						}
+						baseIdentifiersTemp ??= new List<UhtToken[]>();
 						baseIdentifiersTemp.Add(identifier.ToArray());
 					});
 				superIdentifier = superIdentifierTemp;
@@ -66,7 +63,7 @@ namespace EpicGames.UHT.Parsers
 		{
 
 			// Fetch the default generation code version. If supplied, then package code version overrides the default.
-			EGeneratedCodeVersion version = structObj.Package.Module.GeneratedCodeVersion;
+			EGeneratedCodeVersion version = structObj.Module.Module.GeneratedCodeVersion;
 			if (version == EGeneratedCodeVersion.None)
 			{
 				version = config.DefaultGeneratedCodeVersion;

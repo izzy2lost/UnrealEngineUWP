@@ -27,14 +27,14 @@ void FAdvancedRenamerObjectProvider::AddObjectData(UObject* InObject)
 	ObjectList.Add(InObject);
 }
 
-UObject* FAdvancedRenamerObjectProvider::GetObject(int32 Index) const
+UObject* FAdvancedRenamerObjectProvider::GetObject(int32 InIndex) const
 {
-	if (!ObjectList.IsValidIndex(Index))
+	if (!ObjectList.IsValidIndex(InIndex))
 	{
 		return nullptr;
 	}
 
-	return ObjectList[Index].Get();
+	return ObjectList[InIndex].Get();
 }
 
 int32 FAdvancedRenamerObjectProvider::Num() const
@@ -42,16 +42,16 @@ int32 FAdvancedRenamerObjectProvider::Num() const
 	return ObjectList.Num();
 }
 
-bool FAdvancedRenamerObjectProvider::IsValidIndex(int32 Index) const
+bool FAdvancedRenamerObjectProvider::IsValidIndex(int32 InIndex) const
 {
-	UObject* Object = GetObject(Index);
+	UObject* Object = GetObject(InIndex);
 
 	return IsValid(Object);
 }
 
-FString FAdvancedRenamerObjectProvider::GetOriginalName(int32 Index) const
+FString FAdvancedRenamerObjectProvider::GetOriginalName(int32 InIndex) const
 {
-	UObject* Object = GetObject(Index);
+	UObject* Object = GetObject(InIndex);
 
 	if (!IsValid(Object))
 	{
@@ -61,9 +61,9 @@ FString FAdvancedRenamerObjectProvider::GetOriginalName(int32 Index) const
 	return Object->GetName();
 }
 
-uint32 FAdvancedRenamerObjectProvider::GetHash(int32 Index) const
+uint32 FAdvancedRenamerObjectProvider::GetHash(int32 InIndex) const
 {
-	UObject* Object = GetObject(Index);
+	UObject* Object = GetObject(InIndex);
 
 	if (!IsValid(Object))
 	{
@@ -73,20 +73,20 @@ uint32 FAdvancedRenamerObjectProvider::GetHash(int32 Index) const
 	return GetTypeHash(Object);
 }
 
-bool FAdvancedRenamerObjectProvider::RemoveIndex(int32 Index)
+bool FAdvancedRenamerObjectProvider::RemoveIndex(int32 InIndex)
 {
-	if (!ObjectList.IsValidIndex(Index))
+	if (!ObjectList.IsValidIndex(InIndex))
 	{
 		return false;
 	}
 
-	ObjectList.RemoveAt(Index);
+	ObjectList.RemoveAt(InIndex);
 	return true;
 }
 
-bool FAdvancedRenamerObjectProvider::CanRename(int32 Index) const
+bool FAdvancedRenamerObjectProvider::CanRename(int32 InIndex) const
 {
-	UObject* Object = GetObject(Index);
+	UObject* Object = GetObject(InIndex);
 
 	if (!IsValid(Object))
 	{
@@ -96,20 +96,46 @@ bool FAdvancedRenamerObjectProvider::CanRename(int32 Index) const
 	return true;
 }
 
-bool FAdvancedRenamerObjectProvider::ExecuteRename(int32 Index, const FString& NewName)
+bool FAdvancedRenamerObjectProvider::BeginRename()
 {
-	UObject* Object = GetObject(Index);
+	ObjectToNewNameList.Reserve(Num());
+	return true;
+}
+
+bool FAdvancedRenamerObjectProvider::PrepareRename(int32 InIndex, const FString& InNewName)
+{
+	UObject* Object = GetObject(InIndex);
 
 	if (!IsValid(Object))
 	{
 		return false;
 	}
 
-	if (Object->Rename(*NewName, nullptr, REN_Test))
-	{
-		Object->Rename(*NewName);
-		return true;
-	}
+	ObjectToNewNameList.Add({ Object, InNewName });
 
-	return false;
+	return true;
+}
+
+bool FAdvancedRenamerObjectProvider::ExecuteRename()
+{
+	bool bAllSuccess = true;
+	for (const TTuple<UObject*, FString>& ObjectToNewName : ObjectToNewNameList)
+	{
+		// We have to run the REN_Test here to prevent the other renamed objects from making this rename fail
+		if (ObjectToNewName.Key->Rename(*ObjectToNewName.Value, nullptr, REN_Test))
+		{
+			bAllSuccess &= ObjectToNewName.Key->Rename(*ObjectToNewName.Value);
+		}
+		else
+		{
+			bAllSuccess = false;
+		}
+	}
+	return bAllSuccess;
+}
+
+bool FAdvancedRenamerObjectProvider::EndRename()
+{
+	ObjectToNewNameList.Empty();
+	return true;
 }

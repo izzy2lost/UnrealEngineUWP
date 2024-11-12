@@ -80,6 +80,7 @@ struct FMultiprocessCreatedContext
 struct FMultiprocessDetachedContext
 {
 	int32 Id;
+	bool bAbnormalDetach;
 };
 }
 

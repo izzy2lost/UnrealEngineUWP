@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.UHT.Utils;
@@ -98,14 +97,31 @@ namespace EpicGames.UHT.Types
 	}
 
 	/// <summary>
-	/// Represents a header file.  Unlike the engine, UhtHeader files will appear as a child 
-	/// of a UhtPackage and the outer of all global types found in that header.
+	/// Type of reference being added
 	/// </summary>
-	public class UhtHeaderFile : UhtType
+	public enum UhtHeaderReferenceType
+	{
+
+		/// <summary>
+		/// The header being referenced in a direct include
+		/// </summary>
+		Include,	
+
+		/// <summary>
+		/// The header being referenced is a passive reference (i.e. NoExportTypes.h or a header referenced by a header being included)
+		/// </summary>
+		Passive,
+	}
+
+	/// <summary>
+	/// Represents a header file.
+	/// </summary>
+	public class UhtHeaderFile : IUhtMessageSite, IUhtMessageLineNumber
 	{
 		private readonly UhtSimpleMessageSite _messageSite;
 		private readonly UhtSourceFile _sourceFile;
 		private readonly List<UhtHeaderFile> _referencedHeaders = new();
+		private readonly List<UhtType> _children = new();
 
 		/// <summary>
 		/// Contents of the header
@@ -118,6 +134,18 @@ namespace EpicGames.UHT.Types
 		/// </summary>
 		[JsonIgnore]
 		public string FilePath => _sourceFile.FilePath;
+
+		/// <summary>
+		/// Currently running session
+		/// </summary>
+		[JsonIgnore]
+		public UhtSession Session => Module.Session;
+
+		/// <summary>
+		/// Module associated with the header
+		/// </summary>
+		[JsonIgnore]
+		public UhtModule Module { get; }
 
 		/// <summary>
 		/// File name without the extension
@@ -166,6 +194,15 @@ namespace EpicGames.UHT.Types
 		public UhtHeaderFileExportFlags HeaderFileExportFlags { get; set; } = UhtHeaderFileExportFlags.None;
 
 		/// <summary>
+		/// Children types of this type
+		/// </summary>
+		[JsonConverter(typeof(UhtNullableTypeListJsonConverter<UhtType>))]
+		public IReadOnlyList<UhtType> Children => _children;
+
+		/// <inheritdoc/>
+		public override string ToString() { return FilePath; }
+
+		/// <summary>
 		/// If true, the header file should be exported
 		/// </summary>
 		[JsonIgnore]
@@ -177,31 +214,6 @@ namespace EpicGames.UHT.Types
 		[JsonIgnore]
 		public UhtReferenceCollector References { get; } = new UhtReferenceCollector();
 
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public override UhtPackage Package
-		{
-			get
-			{
-				if (Outer == null)
-				{
-					throw new UhtIceException("Attempt to fetch header file package but it has no outer");
-				}
-				return (UhtPackage)Outer;
-			}
-		}
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public override UhtHeaderFile HeaderFile => this;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public override UhtEngineType EngineType => UhtEngineType.Header;
-
-		/// <inheritdoc/>
-		public override string EngineClassName => "UhtHeaderFile";
-
 		/// <summary>
 		/// Collection of headers directly included by this header
 		/// </summary>
@@ -209,30 +221,38 @@ namespace EpicGames.UHT.Types
 		public List<UhtHeaderFile> IncludedHeaders { get; } = new List<UhtHeaderFile>();
 
 		#region IUHTMessageSite implementation
+		/// <inheritdoc/>
+		[JsonIgnore]
+		public IUhtMessageSession MessageSession => _messageSite.MessageSession;
 
 		/// <inheritdoc/>
 		[JsonIgnore]
-		public override IUhtMessageSession MessageSession => _messageSite.MessageSession;
+		public IUhtMessageSource? MessageSource => _messageSite.MessageSource;
 
 		/// <inheritdoc/>
 		[JsonIgnore]
-		public override IUhtMessageSource? MessageSource => _messageSite.MessageSource;
+		public IUhtMessageLineNumber? MessageLineNumber => this;
+		#endregion
+
+		#region IUhtMessageLineNumber implementation
+		[JsonIgnore]
+		int IUhtMessageLineNumber.MessageLineNumber => 1;
 		#endregion
 
 		/// <summary>
 		/// Construct a new header file
 		/// </summary>
-		/// <param name="package">Owning package</param>
+		/// <param name="module">Owning module</param>
 		/// <param name="path">Path to the header file</param>
-		public UhtHeaderFile(UhtPackage package, string path) : base(package, 1)
+		public UhtHeaderFile(UhtModule module, string path)
 		{
+			Module = module;
 			HeaderFileTypeIndex = Session.GetNextHeaderFileTypeIndex();
 			_messageSite = new UhtSimpleMessageSite(Session);
 			_sourceFile = new UhtSourceFile(Session, path);
 			_messageSite.MessageSource = _sourceFile;
 			FileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(_sourceFile.FilePath);
 			GeneratedHeaderFileName = FileNameWithoutExtension + ".generated.h";
-			SourceName = System.IO.Path.GetFileName(_sourceFile.FilePath);
 			IsNoExportTypes = String.Equals(_sourceFile.FileName, "NoExportTypes", StringComparison.OrdinalIgnoreCase);
 		}
 
@@ -248,13 +268,13 @@ namespace EpicGames.UHT.Types
 		/// Add a reference to the given header
 		/// </summary>
 		/// <param name="id">Path of the header</param>
-		/// <param name="isIncludedFile">True if this is a directly included file</param>
-		public void AddReferencedHeader(string id, bool isIncludedFile)
+		/// <param name="referenceType">How is the include in question referenced</param>
+		public void AddReferencedHeader(string id, UhtHeaderReferenceType referenceType)
 		{
 			UhtHeaderFile? headerFile = Session.FindHeaderFile(Path.GetFileName(id));
 			if (headerFile != null)
 			{
-				AddReferencedHeader(headerFile, isIncludedFile);
+				AddReferencedHeader(headerFile, referenceType);
 			}
 		}
 
@@ -264,19 +284,19 @@ namespace EpicGames.UHT.Types
 		/// <param name="type">Type in question</param>
 		public void AddReferencedHeader(UhtType type)
 		{
-			AddReferencedHeader(type.HeaderFile, false);
+			AddReferencedHeader(type.HeaderFile, UhtHeaderReferenceType.Passive);
 		}
 
 		/// <summary>
 		/// Add a reference to the given header file
 		/// </summary>
 		/// <param name="headerFile">Header file in question</param>
-		/// <param name="isIncludedFile">True if this is a directly included file</param>
-		public void AddReferencedHeader(UhtHeaderFile headerFile, bool isIncludedFile)
+		/// <param name="referenceType">How is the include in question referenced</param>
+		public void AddReferencedHeader(UhtHeaderFile headerFile, UhtHeaderReferenceType referenceType)
 		{
 
 			// Ignore direct references to myself
-			if (!isIncludedFile && headerFile == this)
+			if (referenceType != UhtHeaderReferenceType.Include && headerFile == this)
 			{
 				return;
 			}
@@ -294,12 +314,12 @@ namespace EpicGames.UHT.Types
 
 				// There is questionable compatibility hack where a source file will always be exported
 				// regardless of having types when it is being included by the SAME package.
-				if (headerFile.Package == Package)
+				if (headerFile.Module == Module)
 				{
 					headerFile.HeaderFileExportFlags |= UhtHeaderFileExportFlags.Referenced;
 				}
 				_referencedHeaders.Add(headerFile);
-				if (isIncludedFile)
+				if (referenceType == UhtHeaderReferenceType.Include)
 				{
 					IncludedHeaders.Add(headerFile);
 				}
@@ -330,20 +350,43 @@ namespace EpicGames.UHT.Types
 			}
 		}
 
-		/// <inheritdoc/>
-		public override void AppendPathName(StringBuilder builder, UhtType? stopOuter = null)
+		/// <summary>
+		/// Add a type as a child
+		/// </summary>
+		/// <param name="child">The child to be added.</param>
+		public void AddChild(UhtType child)
 		{
-			// Headers do not contribute to path names
-			if (this != stopOuter && Outer != null)
+			_children.Add(child);
+		}
+
+		/// <summary>
+		/// Resolve all types owned by the header
+		/// </summary>
+		/// <param name="resolvePhase">Phase of the resolution process</param>
+		public void Resolve(UhtResolvePhase resolvePhase)
+		{
+			UhtType.ResolveChildren(_children, resolvePhase);
+		}
+
+		/// <summary>
+		/// Bind all the super structs and base classes
+		/// </summary>
+		public void BindSuperAndBases()
+		{
+			foreach (UhtType child in Children)
 			{
-				Outer.AppendPathName(builder, stopOuter);
+				child.BindSuperAndBases();
 			}
 		}
 
-		/// <inheritdoc/>
-		protected override UhtValidationOptions Validate(UhtValidationOptions options)
+		/// <summary>
+		/// Validate the state of the header file
+		/// </summary>
+		/// <param name="options">Validation options</param>
+		/// <returns></returns>
+		public void Validate(UhtValidationOptions options)
 		{
-			options = base.Validate(options | UhtValidationOptions.Shadowing);
+			options |= UhtValidationOptions.Shadowing;
 
 			Dictionary<int, UhtFunction> usedRPCIds = new();
 			Dictionary<int, UhtFunction> rpcsNeedingHookup = new();
@@ -398,7 +441,26 @@ namespace EpicGames.UHT.Types
 					kvp.Value.LogError($"Request function '{kvp.Value.SourceName}' is missing a response function with the id of '{kvp.Key}'");
 				}
 			}
-			return options;
+
+			foreach (UhtType child in Children)
+			{
+				UhtType.ValidateType(child, options);
+			}
+		}
+
+		/// <summary>
+		/// Collect all things referenced by the given header
+		/// </summary>
+		public void CollectReferences()
+		{
+			foreach (UhtType child in Children)
+			{
+				child.CollectReferences(References);
+			}
+			foreach (UhtHeaderFile refHeaderFile in References.ReferencedHeaders)
+			{
+				AddReferencedHeader(refHeaderFile, UhtHeaderReferenceType.Passive);
+			}
 		}
 	}
 }

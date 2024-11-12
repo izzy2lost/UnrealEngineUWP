@@ -37,6 +37,15 @@ public:
 
 	INTERACTIVETOOLSFRAMEWORK_API virtual void Initialize(IHoverBehaviorTarget* Target);
 
+	/**
+	 * WantsHoverCapture() will only return capture request if this function returns true (or is null)
+	 *
+	 * Note that unlike click behaviors, hover behaviors continue to receive WantsCapture calls even when
+	 * they hold capture (and end if they fail to request capture), so an active hover behavior will end
+	 * if its HoverModifierCheckFunc returns false.
+	 */
+	TFunction<bool(const FInputDeviceState&)> HoverModifierCheckFunc = nullptr;
+
 	// UInputBehavior hover implementation
 
 	INTERACTIVETOOLSFRAMEWORK_API virtual EInputDevices GetSupportedDevices() override;

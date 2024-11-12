@@ -161,16 +161,15 @@ float3 ComputeLocalGeometryOffset(
 float3 ComputeDynamicGeometryOffset(
 	FGuideIndex GuideIndex, 
 	float GuideVertexWeight, 
-	FHairMeshTriangle RestTriangle, 
-	FHairMeshTriangle DeformedTriangle,
-	float3 RootBarycentric,
+	FHairMeshBasis RestBasis, 
+	FHairMeshBasis DeformedBasis,
 	float3 OutSimHairPositionOffset)
 {
 	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex, InSimHairPositionOffset);
-	const float3 LocalRestGuidePoint = ToTriangle(RestGuidePoint, RootBarycentric, RestTriangle);
+	const float3 LocalRestGuidePoint = ToTriangle(RestGuidePoint, RestBasis);
 
 	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex, OutSimHairPositionOffset);
-	const float3 LocalDeformedGuidePoint = ToTriangle(DeformedGuidePoint, RootBarycentric, DeformedTriangle);
+	const float3 LocalDeformedGuidePoint = ToTriangle(DeformedGuidePoint, DeformedBasis);
 
 	return (LocalDeformedGuidePoint - LocalRestGuidePoint) * GuideVertexWeight;
 }
@@ -189,14 +188,14 @@ float3 ComputeTranslateGeometryOffset(
 float3 ComputeRotateGeometryOffset(
 	FGuideIndex GuideIndex, 
 	float GuideVertexWeight,
-	FHairMeshTriangle RestTriangle, 
-	FHairMeshTriangle DeformedTriangle)
+	FHairMeshBasis RestBasis, 
+	FHairMeshBasis DeformedBasis)
 {	
 	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.RootPointIndex);
-	const float3 LocalRestGuidePoint = VectorToTriangle(RestGuidePoint, RestTriangle);
+	const float3 LocalRestGuidePoint = VectorToTriangle(RestGuidePoint, RestBasis);
 
 	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.RootPointIndex);
-	const float3 LocalDeformedGuidePoint = VectorToTriangle(DeformedGuidePoint, DeformedTriangle);
+	const float3 LocalDeformedGuidePoint = VectorToTriangle(DeformedGuidePoint, DeformedBasis);
 
 	return (LocalDeformedGuidePoint - LocalRestGuidePoint) * GuideVertexWeight;
 }
@@ -204,30 +203,29 @@ float3 ComputeRotateGeometryOffset(
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Root triangles
 
-struct FRootTriangleData
+struct FRootBasis
 {
-	float3 RootBarycentric;
-	FHairMeshTriangle RestTriangle;
-	FHairMeshTriangle DeformedTriangle;
+	FHairMeshBasis RestBasis;
+	FHairMeshBasis DeformedBasis;
 };
 
-FRootTriangleData GetRootTriangleData(uint CurveIndex, bool bSim)
+FRootBasis GetRootBasis(uint CurveIndex, bool bSim)
 {
-	FRootTriangleData Out = (FRootTriangleData)0;
+	FRootBasis Out = (FRootBasis)0;
 	#if PERMUTATION_DYNAMIC_GEOMETRY >= 1 
 	if (bSim)
 	{
 		const uint TriangleIndex = SimRootToUniqueTriangleIndexBuffer[CurveIndex];
-		Out.RootBarycentric  = UnpackBarycentrics(SimRootBarycentricBuffer[CurveIndex]);
-		Out.RestTriangle	 = GetTriangleTransformation(TriangleIndex, SimRootRestPositionBuffer);
-		Out.DeformedTriangle = GetTriangleTransformation(TriangleIndex, SimRootDeformedPositionBuffer);
+		const float3 RootBarycentric  = UnpackBarycentrics(SimRootBarycentricBuffer[CurveIndex]);
+		Out.RestBasis	  = GetHairMeshBasis(TriangleIndex, SimRootRestPositionBuffer, RootBarycentric);
+		Out.DeformedBasis = GetHairMeshBasis(TriangleIndex, SimRootDeformedPositionBuffer, RootBarycentric);
 	}
 	else
 	{
 		const uint TriangleIndex = RenRootToUniqueTriangleIndexBuffer[CurveIndex];
-		Out.RootBarycentric  = UnpackBarycentrics(RenRootBarycentricBuffer[CurveIndex]);
-		Out.RestTriangle	 = GetTriangleTransformation(TriangleIndex, RenRootRestPositionBuffer);
-		Out.DeformedTriangle = GetTriangleTransformation(TriangleIndex, RenRootDeformedPositionBuffer);
+		const float3 RootBarycentric  = UnpackBarycentrics(RenRootBarycentricBuffer[CurveIndex]);
+		Out.RestBasis	  = GetHairMeshBasis(TriangleIndex, RenRootRestPositionBuffer, RootBarycentric);
+		Out.DeformedBasis = GetHairMeshBasis(TriangleIndex, RenRootDeformedPositionBuffer, RootBarycentric);
 	}
 	#endif
 	return Out;
@@ -258,7 +256,7 @@ float3 ApplyRigidInterpolation(FGuideDataWithOffset GuideData, float3 InPosition
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Skinning with offset
-float3 ApplySkinningWithOffset(const FGuideDataWithOffset GuideData, const FRootTriangleData RenTri, const FRootTriangleData SimTris[2], float3 InPosition)
+float3 ApplySkinningWithOffset(const FGuideDataWithOffset GuideData, const FRootBasis RenTri, const FRootBasis SimTris[2], float3 InPosition)
 {
 	float3 CurrOffset = 0;
 
@@ -271,26 +269,26 @@ float3 ApplySkinningWithOffset(const FGuideDataWithOffset GuideData, const FRoot
 	for (uint K = 0; K < HAIR_INTERPOLATION_MAX_GUIDE_COUNT; ++K)
 	#endif
 	{
-		const FRootTriangleData SimTri = SimTris[K];
+		const FRootBasis SimTri = SimTris[K];
 
-		const float3 Offset0 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 0), GuideData.PointWeights[K], SimTri.RestTriangle, SimTri.DeformedTriangle, SimTri.RootBarycentric, GuideData.OutPositionOffset);
-		const float3 Offset1 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 1), GuideData.PointWeights[K], SimTri.RestTriangle, SimTri.DeformedTriangle, SimTri.RootBarycentric, GuideData.OutPositionOffset);
+		const float3 Offset0 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 0), GuideData.PointWeights[K], SimTri.RestBasis, SimTri.DeformedBasis, GuideData.OutPositionOffset);
+		const float3 Offset1 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 1), GuideData.PointWeights[K], SimTri.RestBasis, SimTri.DeformedBasis, GuideData.OutPositionOffset);
 
-		CurrOffset += VectorToWorld(lerp(Offset0, Offset1, GuideData.PointLerps[K]), SimTri.DeformedTriangle);
+		CurrOffset += VectorToWorld(lerp(Offset0, Offset1, GuideData.PointLerps[K]), SimTri.DeformedBasis);
 	}
 #endif		
 
-	InPosition = ToTriangle(InPosition, RenTri.RootBarycentric, RenTri.RestTriangle);
-	InPosition = ToWorld(InPosition, RenTri.RootBarycentric, RenTri.DeformedTriangle) + CurrOffset;
+	InPosition = ToTriangle(InPosition, RenTri.RestBasis);
+	InPosition = ToWorld(InPosition, RenTri.DeformedBasis) + CurrOffset;
 
 	return InPosition;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Skinning with translantion
-float3 ApplySkinningWithTranslation(const FGuideDataWithOffset GuideData, const FRootTriangleData RenTri, float3 InPosition)
+float3 ApplySkinningWithTranslation(const FGuideDataWithOffset GuideData, const FRootBasis RenTri, float3 InPosition)
 {
-	InPosition -= RenTri.RootBarycentric.x * RenTri.RestTriangle.P0 + RenTri.RootBarycentric.y * RenTri.RestTriangle.P1 + RenTri.RootBarycentric.z * RenTri.RestTriangle.P2;
+	InPosition -= RenTri.RestBasis.BaseO;
 
 	float3 CurrOffset = 0;
 
@@ -309,15 +307,15 @@ float3 ApplySkinningWithTranslation(const FGuideDataWithOffset GuideData, const 
 	}
 #endif
 
-	InPosition += RenTri.RootBarycentric.x * RenTri.DeformedTriangle.P0 + RenTri.RootBarycentric.y * RenTri.DeformedTriangle.P1 + RenTri.RootBarycentric.z * RenTri.DeformedTriangle.P2;
+	InPosition += RenTri.DeformedBasis.BaseO;
 	return InPosition + CurrOffset;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Skinning with rotation
-float3 ApplySkinningWithRotation(const FGuideDataWithOffset GuideData, const FRootTriangleData RenTri, const FRootTriangleData SimTris[2], float3 InPosition)
+float3 ApplySkinningWithRotation(const FGuideDataWithOffset GuideData, const FRootBasis RenTri, const FRootBasis SimTris[2], float3 InPosition)
 {
-	InPosition -= RenTri.RootBarycentric.x * RenTri.RestTriangle.P0 + RenTri.RootBarycentric.y * RenTri.RestTriangle.P1 + RenTri.RootBarycentric.z * RenTri.RestTriangle.P2;
+	InPosition -= RenTri.RestBasis.BaseO;
 
 	float3 CurrOffset = 0;
 
@@ -329,24 +327,24 @@ float3 ApplySkinningWithRotation(const FGuideDataWithOffset GuideData, const FRo
 	for (uint K = 0; K < HAIR_INTERPOLATION_MAX_GUIDE_COUNT; ++K)
 	#endif
 	{
-		const FRootTriangleData SimTri = SimTris[K];
+		const FRootBasis SimTri = SimTris[K];
 
-		const float3 LocalPoint = VectorToTriangle(InPosition, SimTri.RestTriangle);
+		const float3 LocalPoint = VectorToTriangle(InPosition, SimTri.RestBasis);
 
-		const float3 Offset0 = ComputeRotateGeometryOffset(ToGuideIndex(GuideData, K, 0), 1.0, SimTri.RestTriangle, SimTri.DeformedTriangle/*, SimHairPositionOffset*/);
-		const float3 Offset1 = ComputeRotateGeometryOffset(ToGuideIndex(GuideData, K, 1), 1.0, SimTri.RestTriangle, SimTri.DeformedTriangle/*, SimHairPositionOffset*/);
+		const float3 Offset0 = ComputeRotateGeometryOffset(ToGuideIndex(GuideData, K, 0), 1.0, SimTri.RestBasis, SimTri.DeformedBasis/*, SimHairPositionOffset*/);
+		const float3 Offset1 = ComputeRotateGeometryOffset(ToGuideIndex(GuideData, K, 1), 1.0, SimTri.RestBasis, SimTri.DeformedBasis/*, SimHairPositionOffset*/);
 
-		CurrOffset += GuideData.PointWeights[K] * VectorToWorld(lerp(Offset0, Offset1, GuideData.PointLerps[K]) + LocalPoint, SimTri.DeformedTriangle);
+		CurrOffset += GuideData.PointWeights[K] * VectorToWorld(lerp(Offset0, Offset1, GuideData.PointLerps[K]) + LocalPoint, SimTri.DeformedBasis);
 	}
 #endif
 
-	InPosition = RenTri.RootBarycentric.x * RenTri.DeformedTriangle.P0 + RenTri.RootBarycentric.y * RenTri.DeformedTriangle.P1 + RenTri.RootBarycentric.z * RenTri.DeformedTriangle.P2;
+	InPosition = RenTri.DeformedBasis.BaseO;
 	return InPosition + CurrOffset;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Skinning with translation and rotation
-float3 ApplySkinningWithTranslationAndRotation(const FGuideDataWithOffset GuideData, const FRootTriangleData RenTri, const FRootTriangleData SimTris[2], float3 InPosition)
+float3 ApplySkinningWithTranslationAndRotation(const FGuideDataWithOffset GuideData, const FRootBasis RenTri, const FRootBasis SimTris[2], float3 InPosition)
 {
 	float3 CurrOffset = 0;
 
@@ -358,14 +356,14 @@ float3 ApplySkinningWithTranslationAndRotation(const FGuideDataWithOffset GuideD
 	for (uint K = 0; K < HAIR_INTERPOLATION_MAX_GUIDE_COUNT; ++K)
 	#endif
 	{
-		const FRootTriangleData SimTri = SimTris[K];  //GetRootTriangleData(GuideIndex0, true);
+		const FRootBasis SimTri = SimTris[K];  //GetRootTriangleData(GuideIndex0, true);
 
-		const float3 LocalPoint = ToTriangle(InPosition, SimTri.RootBarycentric, SimTri.RestTriangle);
+		const float3 LocalPoint = ToTriangle(InPosition, SimTri.RestBasis);
 
-		const float3 Offset0 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 0), 1.0, SimTri.RestTriangle, SimTri.DeformedTriangle, SimTri.RootBarycentric, GuideData.OutPositionOffset);
-		const float3 Offset1 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 1), 1.0, SimTri.RestTriangle, SimTri.DeformedTriangle, SimTri.RootBarycentric, GuideData.OutPositionOffset);
+		const float3 Offset0 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 0), 1.0, SimTri.RestBasis, SimTri.DeformedBasis, GuideData.OutPositionOffset);
+		const float3 Offset1 = ComputeDynamicGeometryOffset(ToGuideIndex(GuideData, K, 1), 1.0, SimTri.RestBasis, SimTri.DeformedBasis, GuideData.OutPositionOffset);
 
-		CurrOffset += GuideData.PointWeights[K] * ToWorld(lerp(Offset0, Offset1, GuideData.PointLerps[K]) + LocalPoint, SimTri.RootBarycentric, SimTri.DeformedTriangle);
+		CurrOffset += GuideData.PointWeights[K] * ToWorld(lerp(Offset0, Offset1, GuideData.PointLerps[K]) + LocalPoint, SimTri.DeformedBasis);
 	}
 #endif
 
@@ -374,19 +372,19 @@ float3 ApplySkinningWithTranslationAndRotation(const FGuideDataWithOffset GuideD
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Deformer transformation
-float3 ApplyDeformer(const FRootTriangleData RenTri, float3 InRestPostion, float3 InDeformerPosition, float3 InDeformedPosition)
+float3 ApplyDeformer(const FRootBasis RenTri, float3 InRestPostion, float3 InDeformerPosition, float3 InDeformedPosition)
 {
 	float3 OutPosition = InDeformedPosition;
 #if PERMUTATION_DEFORMER
 	#if PERMUTATION_DYNAMIC_GEOMETRY == 0
 		OutPosition = InDeformedPosition + (InDeformerPosition - InRestPostion);
 	#else
-		const float3 LocalRestPoint     = ToTriangle(InRestPostion, RenTri.RootBarycentric, RenTri.RestTriangle);
-		const float3 LocalDeformerPoint = ToTriangle(InDeformerPosition, RenTri.RootBarycentric, RenTri.RestTriangle);
+		const float3 LocalRestPoint     = ToTriangle(InRestPostion, RenTri.RestBasis);
+		const float3 LocalDeformerPoint = ToTriangle(InDeformerPosition, RenTri.RestBasis);
 
 		const float3 LocalOffset = LocalDeformerPoint - LocalRestPoint;
-		const float3 LocalDeformedPoint = ToTriangle(InDeformedPosition, RenTri.RootBarycentric, RenTri.DeformedTriangle);
-		OutPosition = ToWorld(LocalDeformedPoint + LocalOffset, RenTri.RootBarycentric, RenTri.DeformedTriangle);
+		const float3 LocalDeformedPoint = ToTriangle(InDeformedPosition, RenTri.DeformedBasis);
+		OutPosition = ToWorld(LocalDeformedPoint + LocalOffset, RenTri.DeformedBasis);
 	#endif
 #endif
 	return OutPosition;
@@ -422,11 +420,11 @@ uint GetGlobalCurveIndex(uint ThreadIndex, uint2 GroupIndex)
 groupshared uint CurvePointIndex[MAX_CURVE];
 groupshared uint CurvePointCount[MAX_CURVE];
 
-groupshared FRootTriangleData g_RenTri[MAX_CURVE];
+groupshared FRootBasis g_RenTri[MAX_CURVE];
 groupshared float3 RenPositionOffset;
 
 groupshared FGuideCurveData SimCurveData[MAX_CURVE];
-groupshared FRootTriangleData g_SimTris[MAX_CURVE][2];
+groupshared FRootBasis g_SimTris[MAX_CURVE][2];
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_GroupIndex, uint2 GroupIndex : SV_GroupID)
@@ -460,16 +458,16 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 			#endif
 
 			// Load ren triangles
-			g_RenTri[LocalCurveIndex] = GetRootTriangleData(GlobalCurveIndex, false/*bSim*/);
+			g_RenTri[LocalCurveIndex] = GetRootBasis(GlobalCurveIndex, false/*bSim*/);
 
 			// Load sim triangles
-			g_SimTris[LocalCurveIndex][0] = (FRootTriangleData)0;
-			g_SimTris[LocalCurveIndex][1] = (FRootTriangleData)0;
+			g_SimTris[LocalCurveIndex][0] = (FRootBasis)0;
+			g_SimTris[LocalCurveIndex][1] = (FRootBasis)0;
 			#if PERMUTATION_SIMULATION
-			g_SimTris[LocalCurveIndex][0] = GetRootTriangleData(SimCurveData[LocalCurveIndex].CurveIndices[0], true/*bSim*/);
+			g_SimTris[LocalCurveIndex][0] = GetRootBasis(SimCurveData[LocalCurveIndex].CurveIndices[0], true/*bSim*/);
 			if (!PERMUTATION_USE_SINGLE_GUIDE)
 			{
-				g_SimTris[LocalCurveIndex][1] = GetRootTriangleData(SimCurveData[LocalCurveIndex].CurveIndices[1], true/*bSim*/);
+				g_SimTris[LocalCurveIndex][1] = GetRootBasis(SimCurveData[LocalCurveIndex].CurveIndices[1], true/*bSim*/);
 			}
 			#endif
 		}
@@ -504,14 +502,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				#endif
 
 				// Remap from LDS to local variable to ease the setup
-				FRootTriangleData RenTri = g_RenTri[LocalCurveIndex];
-				FRootTriangleData SimTris[2];
+				FRootBasis RenTri = g_RenTri[LocalCurveIndex];
+				FRootBasis SimTris[2];
 				#if PERMUTATION_SIMULATION
 				SimTris[0] = g_SimTris[LocalCurveIndex][0];
 				SimTris[1] = g_SimTris[LocalCurveIndex][1];
 				#else
-				SimTris[0] = (FRootTriangleData)0;
-				SimTris[1] = (FRootTriangleData)0;
+				SimTris[0] = (FRootBasis)0;
+				SimTris[1] = (FRootBasis)0;
 				#endif
 
 				// Manual decoding of the rest position
@@ -581,24 +579,18 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 #if PERMUTATION_POINT_PER_CURVE == TOTALMAXPOINTPERCURVE
 
 #if PERMUTATION_WAVEOPS
-FRootTriangleData WaveReadLaneFirstTriangle(FRootTriangleData In)
+FRootBasis WaveReadLaneFirstTriangle(FRootBasis In)
 {
-	FRootTriangleData Out;
-	Out.RootBarycentric = WaveReadLaneFirst(In.RootBarycentric);
+	FRootBasis Out;
+	Out.RestBasis.BaseO = WaveReadLaneFirst(In.RestBasis.BaseO);
+	Out.RestBasis.BaseT = WaveReadLaneFirst(In.RestBasis.BaseT);
+	Out.RestBasis.BaseB = WaveReadLaneFirst(In.RestBasis.BaseB);
+	Out.RestBasis.BaseN = WaveReadLaneFirst(In.RestBasis.BaseN);
 
-	Out.RestTriangle.P0 = WaveReadLaneFirst(In.RestTriangle.P0);
-	Out.RestTriangle.P1 = WaveReadLaneFirst(In.RestTriangle.P1);
-	Out.RestTriangle.P2 = WaveReadLaneFirst(In.RestTriangle.P2);
-	Out.RestTriangle.E0 = WaveReadLaneFirst(In.RestTriangle.E0);
-	Out.RestTriangle.E1 = WaveReadLaneFirst(In.RestTriangle.E1);
-	Out.RestTriangle.N  = WaveReadLaneFirst(In.RestTriangle.N) ;
-
-	Out.DeformedTriangle.P0 = WaveReadLaneFirst(In.DeformedTriangle.P0);
-	Out.DeformedTriangle.P1 = WaveReadLaneFirst(In.DeformedTriangle.P1);
-	Out.DeformedTriangle.P2 = WaveReadLaneFirst(In.DeformedTriangle.P2);
-	Out.DeformedTriangle.E0 = WaveReadLaneFirst(In.DeformedTriangle.E0);
-	Out.DeformedTriangle.E1 = WaveReadLaneFirst(In.DeformedTriangle.E1);
-	Out.DeformedTriangle.N  = WaveReadLaneFirst(In.DeformedTriangle.N) ;
+	Out.DeformedBasis.BaseO = WaveReadLaneFirst(In.DeformedBasis.BaseO);
+	Out.DeformedBasis.BaseT = WaveReadLaneFirst(In.DeformedBasis.BaseT);
+	Out.DeformedBasis.BaseB = WaveReadLaneFirst(In.DeformedBasis.BaseB);
+	Out.DeformedBasis.BaseN = WaveReadLaneFirst(In.DeformedBasis.BaseN);
 
 	return Out;
 }
@@ -615,11 +607,11 @@ FGuideCurveData WaveReadLaneFirstCurveData(FGuideCurveData In)
 groupshared uint CurvePointIndex;
 groupshared uint CurvePointCount;
 
-groupshared FRootTriangleData RenTri;
+groupshared FRootBasis RenTri;
 groupshared float3 RenPositionOffset;
 
 groupshared FGuideCurveData SimCurveData;
-groupshared FRootTriangleData SimTris[2];
+groupshared FRootBasis SimTris[2];
 #endif
 
 #if PERMUTATION_WAVEOPS && COMPILER_SUPPORTS_WAVE_SIZE
@@ -642,12 +634,12 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 	uint CurvePointCount = 0;
 
 	float3 RenPositionOffset = 0;
-	FRootTriangleData RenTri = (FRootTriangleData)0;
+	FRootBasis RenTri = (FRootBasis)0;
 
 	FGuideCurveData SimCurveData = (FGuideCurveData)0;
-	FRootTriangleData SimTris[2];
-	SimTris[0] = (FRootTriangleData)0;
-	SimTris[1] = (FRootTriangleData)0;
+	FRootBasis SimTris[2];
+	SimTris[0] = (FRootBasis)0;
+	SimTris[1] = (FRootBasis)0;
 	#endif
 
 	// 2. Curve's point count/offset
@@ -678,18 +670,18 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 			#endif
 
 			// Load sim/ren triangles
-			RenTri = GetRootTriangleData(CurveIndex, false/*bSim*/);
+			RenTri = GetRootBasis(CurveIndex, false/*bSim*/);
 
 			#if PERMUTATION_SIMULATION
-			SimTris[0] = GetRootTriangleData(SimCurveData.CurveIndices[0], true/*bSim*/);
+			SimTris[0] = GetRootBasis(SimCurveData.CurveIndices[0], true/*bSim*/);
 			SimTris[1] = SimTris[0];
 			if (!PERMUTATION_USE_SINGLE_GUIDE)
 			{
-				SimTris[1] = GetRootTriangleData(SimCurveData.CurveIndices[1], true/*bSim*/);
+				SimTris[1] = GetRootBasis(SimCurveData.CurveIndices[1], true/*bSim*/);
 			}
 			#else
-			SimTris[0] = (FRootTriangleData)0;
-			SimTris[1] = (FRootTriangleData)0;
+			SimTris[0] = (FRootBasis)0;
+			SimTris[1] = (FRootBasis)0;
 			#endif
 		}
 		RenPositionOffset = GetRenPositionOffset();
@@ -922,51 +914,75 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 #if SHADER_GROOMCACHE_UPDATE
 
 uint InstanceRegisteredIndex;
-uint ElementCount;
+uint CachePointCount;
+uint PointCount;
+uint CurveCount;
 uint bHasRadiusData;
+uint bHasAddedControlPoint;
 float InterpolationFactor;
+float MaxHairRadius;
 
 Buffer<float> InPosition0Buffer;
 Buffer<float> InPosition1Buffer;
 Buffer<float> InRadius0Buffer;
 Buffer<float> InRadius1Buffer;
 
-ByteAddressBuffer  InRestPoseBuffer;
+ByteAddressBuffer InRestCurveBuffer;
+ByteAddressBuffer InRestPositionBuffer;
+ByteAddressBuffer InRestPointToCurveBuffer;
 StructuredBuffer<float4> InDeformedOffsetBuffer;
 RWByteAddressBuffer OutDeformedBuffer;
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 {
-	const uint Index = DispatchThreadId;
-	if (Index >= ElementCount)
+	const uint RestPointIndex = DispatchThreadId;
+	const uint CurveIndex = ReadHairPointToCurveIndex(InRestPointToCurveBuffer, RestPointIndex);
+	const FHairCurve Curve = ReadHairCurve(InRestCurveBuffer, CurveIndex);
+
+	const bool bIsEndPoint = RestPointIndex == (Curve.PointIndex + Curve.PointCount - 1);
+	if (bHasAddedControlPoint && bIsEndPoint)
+	{
+		return; // By pass update of the last point
+	}
+
+	// Make the assumption that there is no clamped curve data.
+	// One extra point per curve.
+	const uint NumAddedPoints = bHasAddedControlPoint ? CurveIndex : 0;
+
+	const uint CachePointIndex = RestPointIndex - NumAddedPoints;
+	if (CachePointIndex >= CachePointCount)
 	{
 		return;
 	}
-
-	const uint Index3 = Index * 3;
-	const float3 InPosition0 = float3(
-		InPosition0Buffer[Index3],
-		InPosition0Buffer[Index3+1],
-		InPosition0Buffer[Index3+2]);
 	
-	const float3 InPosition1 = float3(
-		InPosition1Buffer[Index3],
-		InPosition1Buffer[Index3+1],
-		InPosition1Buffer[Index3+2]);
-	
-	const float3 WorldVertexPosition = lerp(InPosition0, InPosition1, InterpolationFactor);
-	FHairControlPoint CP = ReadHairControlPoint(InRestPoseBuffer, Index, float3(0, 0, 0)/*Offset*/, 1/*Radius*/, 1/*RootScale*/, 1/*TipScale*/);
-	CP.Position = WorldVertexPosition;
+	FHairControlPoint CP = ReadHairControlPoint(InRestPositionBuffer, RestPointIndex, float3(0, 0, 0)/*Offset*/, 1/*Radius*/, 1/*RootScale*/, 1/*TipScale*/);
 
+	// Position
+	{
+		const uint Index3 = CachePointIndex * 3;
+		const float3 InPosition0 = float3(
+			InPosition0Buffer[Index3],
+			InPosition0Buffer[Index3+1],
+			InPosition0Buffer[Index3+2]);
+	
+		const float3 InPosition1 = float3(
+			InPosition1Buffer[Index3],
+			InPosition1Buffer[Index3+1],
+			InPosition1Buffer[Index3+2]);
+
+		CP.Position = lerp(InPosition0, InPosition1, InterpolationFactor);
+	}
+
+	// Radius
 	if (bHasRadiusData == 1)
 	{
-		CP.WorldRadius = lerp(InRadius0Buffer[Index], InRadius1Buffer[Index], InterpolationFactor);
+		CP.WorldRadius = lerp(InRadius0Buffer[CachePointIndex], InRadius1Buffer[CachePointIndex], InterpolationFactor);
 	}
 
 	const float3 DeformedPositionOffset = ReadRenPositionOffset(InDeformedOffsetBuffer, InstanceRegisteredIndex);
 
-	WriteHairControlPointPosition(OutDeformedBuffer, Index, CP, DeformedPositionOffset, 1 /*Radius*/);
+	WriteHairControlPointPosition(OutDeformedBuffer, RestPointIndex, CP, DeformedPositionOffset, MaxHairRadius);
 }
 
 #endif // SHADER_GROOMCACHE_UPDATE

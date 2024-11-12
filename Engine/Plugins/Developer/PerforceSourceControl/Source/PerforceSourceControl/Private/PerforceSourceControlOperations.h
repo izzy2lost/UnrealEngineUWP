@@ -527,3 +527,17 @@ public:
 	virtual bool Execute(FPerforceSourceControlCommand& InCommand) override;
 	virtual bool UpdateStates() const override;
 };
+
+class FPerforceWhereWorker final : public IPerforceSourceControlWorker
+{
+public:
+	FPerforceWhereWorker(FPerforceSourceControlProvider& InSourceControlProvider)
+		: IPerforceSourceControlWorker(InSourceControlProvider)
+	{}
+	virtual ~FPerforceWhereWorker() = default;
+
+	// IPerforceSourceControlWorker interface
+	virtual FName GetName() const override;
+	virtual bool Execute(FPerforceSourceControlCommand& InCommand) override;
+	virtual bool UpdateStates() const override;
+};

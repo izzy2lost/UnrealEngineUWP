@@ -3,13 +3,24 @@
 #pragma once
 
 #include "CEClonerEffectorShared.h"
+#include "Templates/SubclassOf.h"
 #include "UObject/Object.h"
 #include "CEClonerLayoutBase.generated.h"
 
-class ACEClonerActor;
 class UCEClonerComponent;
+class UCEClonerExtensionBase;
 class UNiagaraMeshRendererProperties;
 class UNiagaraSystem;
+
+UENUM()
+enum class ECEClonerLayoutAssetVersion : uint8
+{
+	PreVersioning = 0,
+	/** Niagara System is now cached to improve loading time */
+	CachedVersion,
+	LatestVersionPlusOne,
+	LatestVersion = LatestVersionPlusOne - 1
+};
 
 /**
  * Base class for layouts available in the cloner actor
@@ -19,13 +30,15 @@ class UNiagaraSystem;
  * 3. Expose all new system specific parameters in the layout extended class and update them when required
  * Your new layout is ready and will be available in the cloner in the layout dropdown
  */
-UCLASS(MinimalAPI, Abstract, BlueprintType, Within=CEClonerActor, AutoExpandCategories=("Layout"))
+UCLASS(MinimalAPI, Abstract, BlueprintType, AutoExpandCategories=("Layout"))
 class UCEClonerLayoutBase : public UObject
 {
 	GENERATED_BODY()
 
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerLayoutBase* /** InLayout */, bool /** bInSuccess */)
+
 public:
-	static inline constexpr TCHAR LayoutBaseAssetPath[] = TEXT("/Script/Niagara.NiagaraSystem'/ClonerEffector/Systems/NS_ClonerBase.NS_ClonerBase'");
+	static constexpr TCHAR LayoutBaseAssetPath[] = TEXT("/Script/Niagara.NiagaraSystem'/ClonerEffector/Systems/NS_ClonerBase.NS_ClonerBase'");
 
 	UCEClonerLayoutBase()
 		: UCEClonerLayoutBase(NAME_None, FString())
@@ -36,7 +49,7 @@ public:
 		, LayoutAssetPath(InLayoutAssetPath)
 	{}
 
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
+	UFUNCTION(BlueprintPure, Category="Cloner")
 	FName GetLayoutName() const
 	{
 		return LayoutName;
@@ -57,33 +70,28 @@ public:
 		return MeshRenderer;
 	}
 
-	const FCEClonerEffectorDataInterfaces& GetDataInterfaces() const
+	FOnClonerLayoutLoaded::RegistrationType& OnLayoutLoadedDelegate()
 	{
-		return DataInterfaces;
+		return OnClonerLayoutLoadedDelegate;
 	}
-
-	/** Get the cloner actor using this layout */
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
-	CLONEREFFECTOR_API ACEClonerActor* GetClonerActor() const;
 
 	/** Get the cloner component using this layout */
 	UCEClonerComponent* GetClonerComponent() const;
 
-	/** Request refresh layout next tick */
-	void UpdateLayoutParameters(bool bInUpdateCloner = true, bool bInImmediate = false);
+	/** Get the actor using this layout */
+	AActor* GetClonerActor() const;
 
-	/** Updates the cloner, forcing a reset of the system */
-	void RequestClonerUpdate(bool bInImmediate = false) const;
+	/** Updates all parameters handled by this layout */
+	void UpdateLayoutParameters();
 
-	/* Checks if the niagara system asset is valid and usable with the cloner */
+	/** Checks if the niagara system asset is valid and usable with the cloner */
 	bool IsLayoutValid() const;
 
 	/** Is this layout system cached and ready to be used */
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
-	CLONEREFFECTOR_API bool IsLayoutLoaded() const;
+	bool IsLayoutLoaded() const;
 
 	/** Load this layout system if not already loaded */
-	bool LoadLayout();
+	void LoadLayout();
 
 	/** Free the loaded system and return to idle state */
 	bool UnloadLayout();
@@ -98,10 +106,30 @@ public:
 	/** Deactivate this layout system if active */
 	bool DeactivateLayout();
 
-	/** Copies this layout data interfaces to other layout */
-	bool CopyTo(UCEClonerLayoutBase* InOtherLayout) const;
+	/** Gets the cloner extensions supported by this layout */
+	TSet<TSubclassOf<UCEClonerExtensionBase>> GetSupportedExtensions() const;
+
+	/** Filter supported extension for this layout */
+	virtual bool IsExtensionSupported(const UCEClonerExtensionBase* InExtension) const
+	{
+		return true;
+	}
+
+	/** Request refresh layout next tick */
+	void MarkLayoutDirty(bool bInUpdateCloner = true);
+
+	/** Is the cloner not up to date with layout parameters */
+	bool IsLayoutDirty() const;
 
 protected:
+	//~ Begin UObject
+	virtual void PostEditImport() override;
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditUndo() override;
+#endif
+	//~ End UObject
+
 	/** Called once after layout is loaded */
 	virtual void OnLayoutLoaded() {}
 
@@ -120,7 +148,25 @@ protected:
 	void OnLayoutPropertyChanged();
 
 private:
-	UNiagaraSystem* LoadSystemPath(const FString& InPath) const;
+	FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
+
+	/** Called when the system package was async loaded */
+	void OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult);
+	void OnSystemLoaded();
+
+	/** Finds and cache first mesh renderer in emitter */
+	void CacheMeshRenderer();
+
+	/** Bind delegates to clear resources during level or world cleanup */
+	void BindCleanupDelegates();
+	void UnbindCleanupDelegates() const;
+
+	/** When level is unloaded or world cleaned up, deactivate and unload layout */
+	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);
+	void OnLevelCleanup();
+
+	/** Marks niagara system owned by this layout garbage to avoid GC leak */
+	void CleanOwnedSystem() const;
 
 	/** Layout name to display in layout options */
 	UPROPERTY(Transient)
@@ -130,15 +176,21 @@ private:
 	UPROPERTY(Transient)
 	FString LayoutAssetPath;
 
-	/** Niagara system representing this layout */
-	UPROPERTY(Transient)
+	/** Niagara system used for this layout, cached to save some time */
+	UPROPERTY(DuplicateTransient, TextExportTransient)
 	TObjectPtr<UNiagaraSystem> NiagaraSystem;
 
 	/** Mesh renderer in this niagara system */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TObjectPtr<UNiagaraMeshRendererProperties> MeshRenderer;
 
-	/** Data interfaces used by the effectors */
-	UPROPERTY(Transient)
-	FCEClonerEffectorDataInterfaces DataInterfaces;
+	/** Version of the cached system for diffs */
+	UPROPERTY(DuplicateTransient, TextExportTransient)
+	ECEClonerLayoutAssetVersion CachedVersion = ECEClonerLayoutAssetVersion::PreVersioning;
+
+	/** Id for the load request initiated */
+	int32 LoadRequestIdentifier = INDEX_NONE;
+
+	/** Status for this layout */
+	ECEClonerSystemStatus LayoutStatus = ECEClonerSystemStatus::UpToDate;
 };

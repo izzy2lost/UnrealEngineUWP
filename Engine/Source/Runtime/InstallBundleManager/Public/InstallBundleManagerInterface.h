@@ -88,11 +88,19 @@ enum class EInstallBundleManagerInitErrorHandlerResult
 	StopInitialization, // Stop trying to initialize
 };
 
-using FInstallBundleSourceOrCache = TUnion<EInstallBundleSourceType, FName>;
+struct FInstallBundleChunkDownloadInfo
+{
+	FString ChunkName;
+	int32 ChunkFileSize;
+	float ChunkDownloadDuration;
+};
+
+using FInstallBundleSourceOrCache = TUnion<FInstallBundleSourceType, FName>;
 
 DECLARE_DELEGATE_RetVal_OneParam(EInstallBundleManagerInitErrorHandlerResult, FInstallBundleManagerInitErrorHandler, EInstallBundleManagerInitResult);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleManagerInitCompleteMultiDelegate, EInstallBundleManagerInitResult);
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleChunkDownloadMetricsMultiDelegate, FInstallBundleChunkDownloadInfo);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleCompleteMultiDelegate, FInstallBundleRequestResultInfo);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundlePausedMultiDelegate, FInstallBundlePauseInfo);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleReleasedMultiDelegate, FInstallBundleReleaseRequestResultInfo);
@@ -110,6 +118,7 @@ class IInstallBundleManager : public TSharedFromThis<IInstallBundleManager>
 public:
 	static INSTALLBUNDLEMANAGER_API FInstallBundleManagerInitCompleteMultiDelegate InitCompleteDelegate;
 
+	static INSTALLBUNDLEMANAGER_API FInstallBundleChunkDownloadMetricsMultiDelegate InstallBundleChunkDownloadMetricsDelegate; // Called when a content request metrics is available
 	static INSTALLBUNDLEMANAGER_API FInstallBundleCompleteMultiDelegate InstallBundleCompleteDelegate; // Called when a content request is complete
 	static INSTALLBUNDLEMANAGER_API FInstallBundlePausedMultiDelegate PausedBundleDelegate;
 	static INSTALLBUNDLEMANAGER_API FInstallBundleReleasedMultiDelegate ReleasedDelegate; // Called when content release request is complete
@@ -121,9 +130,9 @@ public:
 
 	virtual void Initialize() {}
 
-	virtual bool HasBundleSource(EInstallBundleSourceType SourceType) const = 0;
+	virtual bool HasBundleSource(FInstallBundleSourceType SourceType) const = 0;
 
-	INSTALLBUNDLEMANAGER_API virtual const TSharedPtr<IInstallBundleSource> GetBundleSource(EInstallBundleSourceType SourceType) const;
+	INSTALLBUNDLEMANAGER_API virtual const TSharedPtr<IInstallBundleSource> GetBundleSource(FInstallBundleSourceType SourceType) const;
 
 
 	virtual FDelegateHandle PushInitErrorCallback(FInstallBundleManagerInitErrorHandler Callback) = 0;
@@ -181,7 +190,8 @@ public:
 	virtual EInstallBundleRequestFlags GetModifyableContentRequestFlags() const = 0;
 	INSTALLBUNDLEMANAGER_API void UpdateContentRequestFlags(FName BundleName, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags);
 	virtual void UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags) = 0;
-	
+	virtual void SetCellularPreference(int32 Value) = 0;
+
 	virtual void SetCacheSize(FName CacheName, uint64 CacheSize) = 0;
 
 	INSTALLBUNDLEMANAGER_API virtual void StartPatchCheck();
@@ -197,5 +207,9 @@ public:
 
 	virtual void StartSessionPersistentStatTracking(const FString& SessionName, const TArray<FName>& RequiredBundles = TArray<FName>(), const FString& ExpectedAnalyticsID = FString(), bool bForceResetStatData = false, const FInstallBundleCombinedContentState* State = nullptr) {}
 	virtual void StopSessionPersistentStatTracking(const FString& SessionName) {}
+
+#if !UE_BUILD_SHIPPING
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };
 

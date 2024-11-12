@@ -133,8 +133,7 @@ void UHoleFillTool::Setup()
 
 	// create mesh to operate on
 	OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(UE::ToolTarget::GetMeshDescription(Target), *OriginalMesh);
+	*OriginalMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
 
 	// initialize properties
 	Properties = NewObject<UHoleFillToolProperties>(this, TEXT("Hole Fill Settings"));
@@ -303,7 +302,7 @@ void UHoleFillTool::OnShutdown(EToolShutdownType ShutdownType)
 		GetToolManager()->BeginUndoTransaction(LOCTEXT("HoleFillToolTransactionName", "Hole Fill Tool"));
 
 		check(Result.Mesh.Get() != nullptr);
-		UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Target, *Result.Mesh.Get(), true);
+		UE::ToolTarget::CommitDynamicMeshUpdate(Target, *Result.Mesh.Get(), true);
 
 		GetToolManager()->EndUndoTransaction();
 	}

@@ -6,17 +6,6 @@
 #include "UObject/Class.h"
 #include "FontSdfSettings.generated.h"
 
-/** Enumerates supported font rasterization modes. */
-UENUM()
-enum class EFontRasterizationMode : uint8
-{
-	/** Glyphs are rasterized directly into alpha mask bitmaps per size and skew. */
-	Bitmap,
-
-	/** Glyphs are first rasterized into multi-channel signed distance fields, which are size and skew agnostic. */
-	Msdf UMETA(DisplayName = "Multi-Channel Distance Field")
-};
-
 /**
  * Settings for signed distance field fonts.
  */

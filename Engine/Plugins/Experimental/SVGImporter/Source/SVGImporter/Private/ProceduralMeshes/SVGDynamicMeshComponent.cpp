@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
-
 #include "DynamicMesh/MeshTransforms.h"
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "GeometryScript/MeshSimplifyFunctions.h"
@@ -11,6 +10,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/Paths.h"
+#include "SVGActor.h"
 #include "UObject/ConstructorHelpers.h"
 
 #if WITH_EDITOR
@@ -110,7 +110,10 @@ void USVGDynamicMeshComponent::ApplyScale()
 		MeshTransforms::Translate(EditMesh, -Center);
 	});
 
-	SetRelativeLocation(FVector(0.0f, InternalCenter.Y, InternalCenter.Z) * Scale);
+	if (Cast<ASVGActor>(GetOwner()))
+	{
+		SetRelativeLocation(FVector(0.0f, InternalCenter.Y, InternalCenter.Z) * Scale);
+	}
 }
 
 void USVGDynamicMeshComponent::ScaleShape(float InScale)
@@ -179,41 +182,22 @@ void USVGDynamicMeshComponent::InitializeFromSVGDynamicMesh(const USVGDynamicMes
 	MaterialType = InOtherSVGDynamicMeshComponent->MaterialType;
 
 	// We will apply the scale where needed, and set it to 1.0f
-	Scale = InOtherSVGDynamicMeshComponent->Scale;
-	Extrude = InOtherSVGDynamicMeshComponent->Extrude * Scale;
-	MinExtrudeValue = InOtherSVGDynamicMeshComponent->MinExtrudeValue * Scale;
-	InternalCenter = InOtherSVGDynamicMeshComponent->InternalCenter * Scale;
+	const float SourceScale = InOtherSVGDynamicMeshComponent->Scale;
+	Extrude = InOtherSVGDynamicMeshComponent->Extrude * SourceScale;
+	MinExtrudeValue = InOtherSVGDynamicMeshComponent->MinExtrudeValue * SourceScale;
+	Scale = 1.0f;
 
 	CreateSVGMaterialInstance();
 
-	if (InOtherSVGDynamicMeshComponent->SVGStoredMesh && !InOtherSVGDynamicMeshComponent->SVGStoredMesh->IsEmpty())
+	InOtherSVGDynamicMeshComponent->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
 	{
-		InOtherSVGDynamicMeshComponent->SVGStoredMesh->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
+		EditMesh([&](FDynamicMesh3& EditMesh)
 		{
-			SVGStoredMesh->EditMesh([&](FDynamicMesh3& EditMesh)
-			{
-				EditMesh = SourceEditMesh;
-			});
+			EditMesh = SourceEditMesh;
 		});
+	});
 
-		LoadStoredMesh();
-	}
-	else
-	{
-		InOtherSVGDynamicMeshComponent->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
-		{
-			EditMesh([&](FDynamicMesh3& EditMesh)
-			{
-				EditMesh = SourceEditMesh;
-			});
-		});
-
-		StoreCurrentMesh();
-	}
-
-	ApplyScale();
-
-	Scale = 1.f;
+	StoreCurrentMesh();
 }
 
 void USVGDynamicMeshComponent::LoadResources()
@@ -383,6 +367,8 @@ void USVGDynamicMeshComponent::LoadStoredMesh()
 		RegenerateMesh();
 		StoreCurrentMesh();
 	}
+
+	MarkSVGMeshUpdated();
 }
 
 void USVGDynamicMeshComponent::PostLoad()
@@ -391,12 +377,7 @@ void USVGDynamicMeshComponent::PostLoad()
 
 	SetMeshEditMode(ESVGEditMode::ValueSet);
 	LoadStoredMesh();
-
-	if (USVGDynamicMeshComponent::StaticClass() != GetClass())
-	{
-		ApplyScale();
-	}
-
+	ApplyScale();
 	RefreshMaterial();
 	RegisterDelegates();
 }

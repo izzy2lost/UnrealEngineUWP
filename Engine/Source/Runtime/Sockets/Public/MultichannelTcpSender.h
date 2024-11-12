@@ -44,7 +44,8 @@ public:
 	 * @param InOkToSendDelegate Delegate to ask if it is ok to send a packet.
 	 */
 	FMultichannelTcpSender( FSocket* InSocket, const FOnMultichannelTcpOkToSend& InOkToSendDelegate )
-		: Socket(InSocket)
+		: BytesSent(0)
+		, Socket(InSocket)
 		, OkToSendDelegate(InOkToSendDelegate)
 	{
 		Thread = FRunnableThread::Create(this, TEXT("FMultichannelTCPSender"), 8 * 1024, TPri_AboveNormal);

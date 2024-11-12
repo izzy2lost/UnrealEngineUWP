@@ -11,7 +11,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Regression test. Swapping indices in a TArray<USubobject*> would result in the same hash, e.g. { ObjectA, nullptr } to { nullptr, ObjectA }. 
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHashSubobjectArray, "VirtualProduction.LevelSnapshots.Snapshot.Hash.HashSubobjectArray", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHashSubobjectArray, "VirtualProduction.LevelSnapshots.Snapshot.Hash.HashSubobjectArray", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FHashSubobjectArray::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* SwapElementWithNull = nullptr;

@@ -31,6 +31,14 @@ namespace EpicGames.UHT.Tables
 		/// The exporter should be run by default
 		/// </summary>
 		Default = 1 << 0,
+		
+		/// <summary>
+		/// Generated CPP files that match any filter in the CppFilters property of this UhtExporter will be included in the compilation process.
+		/// For this option, all custom generated files should be placed into the same folder as the default unreal generated files.
+		/// Make sure the CppFilters property is set up properly and does not conflict with other exporters (including the default).
+		/// Header files should be included as normal in code.
+		/// </summary>
+		CompileOutput = 1 << 1,
 	}
 
 	/// <summary>
@@ -121,7 +129,7 @@ namespace EpicGames.UHT.Tables
 	/// <summary>
 	/// Defines an exporter in the table
 	/// </summary>
-	public struct UhtExporter
+	public readonly struct UhtExporter
 	{
 
 		/// <summary>

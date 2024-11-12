@@ -2,7 +2,7 @@
 /**
 	@file		ancillarydata_cea608_vanc.h
 	@brief		Declares the AJAAncillaryData_Cea608_Vanc class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef AJA_ANCILLARYDATA_CEA608_VANC_H
@@ -93,9 +93,9 @@ public:
 
 	/**
 		@param[in]	pInAncData	A valid pointer to a base AJAAncillaryData object that contains the Anc data to inspect.
-		@return		AJAAncillaryDataType if I recognize this Anc data (or AJAAncillaryDataType_Unknown if unrecognized).
+		@return		AJAAncDataType if I recognize this Anc data (or AJAAncDataType_Unknown if unrecognized).
 	**/
-	static AJAAncillaryDataType				RecognizeThisAncillaryData (const AJAAncillaryData * pInAncData);
+	static AJAAncDataType					RecognizeThisAncillaryData (const AJAAncillaryData * pInAncData);
 
 
 	virtual AJAStatus						GetLine (uint8_t & outFieldNum, uint8_t & outLineNum) const;	///< @deprecated	Use AJAAncillaryData_Cea608_Vanc::GetLineNumber or AJAAncillaryData_Cea608_Vanc::IsField2 instead.

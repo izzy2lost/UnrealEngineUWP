@@ -11,6 +11,7 @@
 #include "NiagaraEditorCommon.h"
 #include "NiagaraClipboard.h"
 #include "NiagaraEditorModule.h"
+#include "NiagaraEditorUtilities.h"
 #include "NiagaraNodeFunctionCall.h"
 
 #include "Framework/Application/SlateApplication.h"
@@ -28,6 +29,7 @@
 #include "ViewModels/NiagaraSystemSelectionViewModel.h"
 #include "ViewModels/Stack/NiagaraStackInputCategory.h"
 #include "ViewModels/Stack/NiagaraStackRendererItem.h"
+#include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraStackEditorWidgetsUtilities"
 
@@ -469,6 +471,40 @@ bool FNiagaraStackEditorWidgetsUtilities::AddStackModuleItemContextMenuActions(F
 	return true;
 }
 
+void ShowInsertSimulationStageMenu(TWeakObjectPtr<UNiagaraStackSimulationStageGroup> StackSimulationStageGroupWeak, int32 InsertOffset, TWeakPtr<SWidget> TargetWidgetWeak)
+{
+	UNiagaraStackSimulationStageGroup* StackSimulationStageGroup = StackSimulationStageGroupWeak.Get();
+	TSharedPtr<SWidget> TargetWidget = TargetWidgetWeak.Pin();
+	if (StackSimulationStageGroup != nullptr && TargetWidget.IsValid())
+	{
+		TSharedRef<SNiagaraStackItemGroupAddMenu> MenuContent = SNew(SNiagaraStackItemGroupAddMenu, nullptr, StackSimulationStageGroup->GetEmitterStageAddUtilities(), StackSimulationStageGroup->GetStageIndex() + InsertOffset);
+		FGeometry ThisGeometry = TargetWidget->GetCachedGeometry();
+		bool bAutoAdjustForDpiScale = false; // Don't adjust for dpi scale because the push menu command is expecting an unscaled position.
+		FVector2D MenuPosition = FSlateApplication::Get().CalculatePopupWindowPosition(ThisGeometry.GetLayoutBoundingRect(), MenuContent->GetDesiredSize(), bAutoAdjustForDpiScale);
+		FSlateApplication::Get().PushMenu(TargetWidget.ToSharedRef(), FWidgetPath(), MenuContent, MenuPosition, FPopupTransitionEffect::ContextMenu);
+		FSlateApplication::Get().SetKeyboardFocus(MenuContent->GetFilterTextBox());
+	}
+}
+
+void FNiagaraStackEditorWidgetsUtilities::AddStackSimulationStageGroupContextMenuActions(FMenuBuilder& MenuBuilder, UNiagaraStackSimulationStageGroup* StackSimulationStageGroup, TSharedRef<SWidget> TargetWidget)
+{
+	MenuBuilder.BeginSection("SimulationStageActions", LOCTEXT("SimulationStageActions", "Simulation Stage Actions"));
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("InsertSimulationStageAbove", "Insert Above"),
+			LOCTEXT("InsertSimulationStageAboveToolTip", "Insert a new simulation stage above this stage in the stack."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(&ShowInsertSimulationStageMenu, TWeakObjectPtr<UNiagaraStackSimulationStageGroup>(StackSimulationStageGroup), 0, TWeakPtr<SWidget>(TargetWidget))));
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("InsertSimulationStageBelow", "Insert Below"),
+			LOCTEXT("InsertSimulationStageBelowToolTip", "Insert a new simulation stage below this stage in the stack."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(&ShowInsertSimulationStageMenu, TWeakObjectPtr<UNiagaraStackSimulationStageGroup>(StackSimulationStageGroup), 1, TWeakPtr<SWidget>(TargetWidget))));
+	}
+	MenuBuilder.EndSection();
+}
+
 TSharedRef<FDragDropOperation> FNiagaraStackEditorWidgetsUtilities::ConstructDragDropOperationForStackEntries(const TArray<UNiagaraStackEntry*>& DraggedEntries)
 {
 	TSharedRef<FNiagaraStackEntryDragDropOp> DragDropOp = MakeShared<FNiagaraStackEntryDragDropOp>(DraggedEntries);
@@ -564,7 +600,7 @@ bool FNiagaraStackEditorWidgetsUtilities::HandleDropForStackEntry(const FDragDro
 
 FString FNiagaraStackEditorWidgetsUtilities::StackEntryToStringForListDebug(UNiagaraStackEntry* StackEntry)
 {
-	return FString::Printf(TEXT("0x%08x - %s - %s"), StackEntry, *StackEntry->GetClass()->GetName(), *StackEntry->GetDisplayName().ToString());
+	return FString::Printf(TEXT("0x%08" UPTRINT_x_FMT " - %s - %s"), (UPTRINT)StackEntry, *StackEntry->GetClass()->GetName(), *StackEntry->GetDisplayName().ToString());
 }
 
 #undef LOCTEXT_NAMESPACE

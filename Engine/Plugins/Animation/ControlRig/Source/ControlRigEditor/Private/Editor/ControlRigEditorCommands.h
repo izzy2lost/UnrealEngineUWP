@@ -39,8 +39,29 @@ public:
 	/** Request per node direct manipulation on a scale */
 	TSharedPtr< FUICommandInfo > RequestDirectManipulationScale;
 
+	/** Toggle visibility of the controls */
+	TSharedPtr< FUICommandInfo > ToggleControlVisibility;
+
+	/** Toggle if controls should be rendered on top of other controls */
+	TSharedPtr< FUICommandInfo > ToggleControlsAsOverlay;
+
+	/** Toggle visibility of nulls */
+	TSharedPtr< FUICommandInfo > ToggleDrawNulls;
+
+	/** Toggle visibility of sockets */
+	TSharedPtr< FUICommandInfo > ToggleDrawSockets;
+
+	/** Toggle visibility of axes on selection */
+	TSharedPtr< FUICommandInfo > ToggleDrawAxesOnSelection;
+
 	/** Toggle visibility of the schematic */
 	TSharedPtr< FUICommandInfo > ToggleSchematicViewportVisibility;
+
+	/** Swap Module (Asset) */
+	TSharedPtr< FUICommandInfo > SwapModuleWithinAsset;
+
+	/** Swap Module (Project) */
+	TSharedPtr< FUICommandInfo > SwapModuleAcrossProject;
 
 	/**
 	 * Initialize commands

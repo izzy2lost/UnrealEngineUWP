@@ -12,27 +12,21 @@ using System.Xml.Linq;
 using System.Net;
 using System.Text.Json;
 
-// warning SYSLIB0014: 'WebRequest.Create(string)' is obsolete: 'WebRequest, HttpWebRequest, ServicePoint, and WebClient are obsolete. Use HttpClient instead.' (https://aka.ms/dotnet-warnings/SYSLIB0014)
-#pragma warning disable SYSLIB0014
-
 namespace UnsyncUI
 {
 	public sealed class Config
 	{
-		// Structure that represents mirror server entry in the list from /api/v1/mirrors endpoint
-		private class JsonMirrorDesc
-		{
-			public String name { get; set; }
-			public String address { get; set; }
-			public int port { get; set; } = 0;
-			public String description { get; set; }
-			public String parent { get; set; }
-		}
-
 		public sealed class Proxy
 		{
 			public string Name { get; set; }
 			public string Path { get; set; }
+			public string Protocol { get; set; }
+
+			public UnsyncServerConfig GetServerConfig()
+			{
+				return new UnsyncServerConfig { address=Path, protocol=Protocol };
+			}
+
 		}
 
 		internal struct BuildTemplate
@@ -228,43 +222,103 @@ namespace UnsyncUI
 
 		internal string loggedInUser;
 
-		public Config(string filename)
+		internal void ApplyVariables(XElement rootNode, Dictionary<string, string> Variables)
+		{
+			foreach (XElement node in rootNode.Elements())
+			{
+				foreach (XAttribute attrib in node.Attributes())
+				{
+					if (attrib.Value.Contains("$("))
+					{
+						foreach (KeyValuePair<string, string> KV in Variables)
+						{
+							string resolved = attrib.Value.Replace($"$({KV.Key})", KV.Value);
+							attrib.SetValue(resolved);
+						}
+					}
+				}
+
+				ApplyVariables(node, Variables);
+			}
+		}
+
+		public Config(string filename, string DefaultUnsyncPath = null, Dictionary<string, string> Variables = null)
 		{
 			var rootNode = XDocument.Load(filename).Root;
 
-			UnsyncPath = rootNode.Attribute("path")?.Value;
+			if (Variables != null)
+			{
+				ApplyVariables(rootNode, Variables);
+			}
 
-			if (UnsyncPath != null && !File.Exists(UnsyncPath))
+			UnsyncPath = rootNode.Attribute("path")?.Value;
+			if (UnsyncPath == null)
+			{
+				UnsyncPath = DefaultUnsyncPath;
+			}
+
+			if (UnsyncPath == null)
+			{
+				throw new Exception("Path to unsync.exe was not provided.");
+			}
+
+			if (!File.Exists(UnsyncPath))
 			{
 				throw new Exception("Unable to find unsync.exe binary specified in config file.");
 			}
 
-			Proxies.Add(new Proxy()
-			{
-				Name = "(none)",
-				Path = null
-			});
-
 			List<Proxy> ConfigProxies = new List<Proxy>();
 
-			ConfigProxies.AddRange(rootNode.Element("proxies").Elements("proxy").Select(p => new Proxy()
+			var proxiesConfigNode = rootNode.Element("proxies");
+			if (proxiesConfigNode != null)
 			{
-				Name = p.Attribute("name")?.Value,
-				Path = p.Attribute("path")?.Value
-			}));
-
-			// Auto-discover proxies
-			(List<Proxy> DiscoveredProxies, Proxy DiscoveredRootProxy) = DiscoverProxies(ConfigProxies);
-
-			RootProxy = DiscoveredRootProxy;
-
-			if (DiscoveredProxies == null)
-			{
-				Proxies.AddRange(ConfigProxies);
+				ConfigProxies.AddRange(proxiesConfigNode.Elements("proxy").Select(p => new Proxy()
+				{
+					Name = p.Attribute("name")?.Value,
+					Path = p.Attribute("path")?.Value,
+					Protocol = p.Attribute("protocol")?.Value
+				}));
 			}
-			else
+
+			// Set a default root proxy
+			if (ConfigProxies.Count > 0)
 			{
-				Proxies.AddRange(DiscoveredProxies);
+				RootProxy = ConfigProxies.First();
+			}
+
+			if (RootProxy != null)
+			{
+				// Horde requires a server connection, but unsync / native file system does not
+				if (RootProxy.Protocol == "horde")
+				{
+					Proxies.AddRange(ConfigProxies);
+				}
+				else
+				{
+					Proxies.Add(new Proxy()
+					{
+						Name = "(none)",
+						Path = null,
+						Protocol = null,
+					});
+
+					// Auto-discover proxies
+					(List<Proxy> DiscoveredProxies, Proxy DiscoveredRootProxy) = DiscoverProxies(ConfigProxies);
+
+					if (DiscoveredRootProxy != null)
+					{
+						RootProxy = DiscoveredRootProxy;
+					}
+
+					if (DiscoveredProxies == null)
+					{
+						Proxies.AddRange(ConfigProxies);
+					}
+					else
+					{
+						Proxies.AddRange(DiscoveredProxies);
+					}
+				}
 			}
 
 			Projects = rootNode.Element("projects").Elements("project").Select(p => new Project()
@@ -281,8 +335,6 @@ namespace UnsyncUI
 		// Returns list of mirrors and the seed proxy server that was used to get it or null
 		private (List<Proxy>, Proxy) DiscoverProxies(List<Proxy> SeedServers)
 		{
-			int DefaultPort = 53841;
-
 			foreach (Proxy SeedServer in SeedServers)
 			{
 				if (SeedServer.Path == null)
@@ -292,64 +344,35 @@ namespace UnsyncUI
 
 				try
 				{
-					String Url = SeedServer.Path;
-					if (!Url.Contains(":"))
+					UnsyncQueryUtil QueryUtil = new UnsyncQueryUtil(UnsyncPath, SeedServer.GetServerConfig());
+
+					var ParsedProxies = new List<Proxy>();
+
+					foreach (var Mirror in QueryUtil.Mirrors())
 					{
-						Url += ":" + DefaultPort.ToString();
-					}
-
-					if (!Url.StartsWith("http://"))
-					{
-						Url = "http://" + Url;
-					}
-
-					Url += "/api/v1/mirrors";
-
-					var Request = WebRequest.Create(Url);
-					Request.Timeout = 2500;
-					var Response = (HttpWebResponse)Request.GetResponse();
-					if (Response.StatusCode == HttpStatusCode.OK)
-					{
-						var Reader = new StreamReader(Response.GetResponseStream());
-						var Body = Reader.ReadToEnd();
-						var ParsedList = JsonSerializer.Deserialize<List<JsonMirrorDesc>>(Body);
-
-						var ParsedProxies = new List<Proxy>();
-						foreach (var ParsedProxy in ParsedList)
+						if (!Mirror.ok || Mirror.ping == 0)
 						{
-							if (ParsedProxy.address == null)
-							{
-								continue;
-							}
-
-							var ConvertedProxy = new Proxy();
-							ConvertedProxy.Path = ParsedProxy.address;
-
-							if (ParsedProxy.description != null)
-							{
-								ConvertedProxy.Name = ParsedProxy.description;
-							}
-							else if (ParsedProxy.name != null)
-							{
-								ConvertedProxy.Name = ParsedProxy.name;
-							}
-
-							if (ParsedProxy.port != 0)
-							{
-								ConvertedProxy.Path += ":" + ParsedProxy.port.ToString();
-							}
-
-							ParsedProxies.Add(ConvertedProxy);
+							continue;
 						}
 
-						if (ParsedProxies.Count != 0)
+						var ConvertedProxy = new Proxy();
+						ConvertedProxy.Name = (Mirror.description != null && Mirror.description.Length > 0) ? Mirror.description : Mirror.name;
+						ConvertedProxy.Path = Mirror.address;
+						if (Mirror.port != 0)
 						{
-							return (ParsedProxies, SeedServer);
+							ConvertedProxy.Path += ":" + Mirror.port.ToString();
 						}
+						ParsedProxies.Add(ConvertedProxy);
+					}
+
+					if (ParsedProxies.Count != 0)
+					{
+						return (ParsedProxies, SeedServer);
 					}
 				}
-				catch (Exception)
+				catch (Exception ex)
 				{
+					App.Current.LogError("Exception during unsync query: " + ex.Message);
 					continue;
 				}
 			}
@@ -360,7 +383,7 @@ namespace UnsyncUI
 		private UnsyncQueryConfig CreateUnsyncQueryConfig()
 		{
 			UnsyncQueryConfig unsyncConfig = new UnsyncQueryConfig();
-			unsyncConfig.proxyAddress = RootProxy.Path;
+			unsyncConfig.server = RootProxy.GetServerConfig();
 			unsyncConfig.unsyncPath = UnsyncPath;
 			return unsyncConfig;
 		}

@@ -42,6 +42,8 @@ private:
 	/** Callback for when the close button is clicked. */
 	FReply OnCloseButtonClicked();
 
+	void InitializeDeltaTime();
+
 private:
 
 	/** The border widget. */
@@ -66,7 +68,7 @@ private:
 	USequencerSettings* Settings;
 
 	/** Cached delta time. */
-	FFrameNumber DeltaTime;
+	TOptional<FFrameNumber> DeltaTime;
 
 	/** Cached scale factor. */
 	float ScaleFactor;

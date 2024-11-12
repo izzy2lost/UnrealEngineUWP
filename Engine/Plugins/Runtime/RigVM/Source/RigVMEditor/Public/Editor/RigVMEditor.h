@@ -7,6 +7,7 @@
 #include "RigVMHost.h"
 #include "RigVMBlueprint.h"
 #include "Editor/RigVMDetailsViewWrapperObject.h"
+#include "AssetRegistry/AssetData.h"
 
 class FRigVMEditor;
 
@@ -15,7 +16,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FRigVMEditorClosed, const FRigVMEditor*, UR
 struct FRigVMEditorModes
 {
 	// Mode constants
-	static const FName RigVMEditorMode;
+	RIGVMEDITOR_API static inline const FLazyName RigVMEditorMode = FLazyName(TEXT("RigVM"));
 	static FText GetLocalizedMode(const FName InMode)
 	{
 		static TMap< FName, FText > LocModes;
@@ -93,6 +94,7 @@ public:
 	virtual bool ShouldLoadBPLibrariesFromAssetRegistry() override { return false; }
 	virtual void JumpToHyperlink(const UObject* ObjectReference, bool bRequestRename = false) override;
 	virtual bool ShouldOpenGraphByDefault() const { return true; }
+	virtual void AddNewFunctionVariant(const UEdGraph* InOriginalFunction) override;
 
 	// FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
@@ -186,11 +188,15 @@ protected:
 	virtual void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent) override;
 	void OnPropertyChanged(UObject* InObject, FPropertyChangedEvent& InEvent);
 	virtual void OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrapperObject* InWrapperObject, const FString& InPropertyPath, FPropertyChangedChainEvent& InPropertyChangedChainEvent);
-	void OnRequestLocalizeFunctionDialog(FRigVMGraphFunctionIdentifier& InFunction, URigVMBlueprint* InTargetBlueprint, bool bForce);
+	void OnRequestLocalizeFunctionDialog(FRigVMGraphFunctionIdentifier& InFunction, URigVMController* InTargetController, IRigVMGraphFunctionHost* InTargetFunctionHost, bool bForce);
 	FRigVMController_BulkEditResult OnRequestBulkEditDialog(URigVMBlueprint* InBlueprint, URigVMController* InController, URigVMLibraryNode* InFunction, ERigVMControllerBulkEditType InEditType);
 	bool OnRequestBreakLinksDialog(TArray<URigVMLink*> InLinks);
 	TRigVMTypeIndex OnRequestPinTypeSelectionDialog(const TArray<TRigVMTypeIndex>& InTypes);
+
+public:
 	void HandleJumpToHyperlink(const UObject* InSubject);
+
+protected:
 	bool UpdateDefaultValueForVariable(FBPVariableDescription& InVariable, bool bUseCDO);
 
 	URigVMController* ActiveController;
@@ -214,6 +220,8 @@ protected:
 	void ToggleExecutionMode();
 	TSharedRef<SWidget> GenerateEventQueueMenuContent();
 	TSharedRef<SWidget> GenerateExecutionModeMenuContent();
+	virtual FMenuBuilder GenerateBulkEditMenu();
+	TSharedRef<SWidget> GenerateBulkEditMenuContent();
 	virtual void GenerateEventQueueMenuContent(FMenuBuilder& MenuBuilder);
 
 	/** Wraps the normal blueprint editor's action menu creation callback */
@@ -230,6 +238,7 @@ protected:
 
 	bool IsDetailsPanelRefreshSuspended() const { return bSuspendDetailsPanelRefresh; }
 	bool& GetSuspendDetailsPanelRefreshFlag() { return bSuspendDetailsPanelRefresh; }
+	TArray<TWeakObjectPtr<UObject>> GetSelectedObjects() const;
 	virtual void SetDetailObjects(const TArray<UObject*>& InObjects);
 	virtual void SetDetailObjects(const TArray<UObject*>& InObjects, bool bChangeUISelectionState);
 	virtual void SetMemoryStorageDetails(const TArray<FRigVMMemoryStorageStruct*>& InStructs);
@@ -301,6 +310,10 @@ protected:
 	virtual void HandleBreakpointActionRequested(const ERigVMBreakpointAction BreakpointAction);
 	virtual bool IsHaltedAtBreakpoint() const;
 	virtual void FrameSelection();
+	virtual void SwapFunctionWithinAsset();
+	virtual void SwapFunctionAcrossProject();
+	virtual void SwapFunctionForAssets(const TArray<FAssetData>& InAssets, bool bSetupUndo);
+	virtual void SwapAssetReferences();
 
 	/** Once the log is collected update the graph */
 	void UpdateGraphCompilerErrors();

@@ -6,7 +6,7 @@
 #include "AnimationRuntime.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "Animation/AnimationSettings.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 namespace UE
 {

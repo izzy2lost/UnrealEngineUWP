@@ -129,7 +129,10 @@ public:
 
 	bool ContainsUser(const USocialUser& User) const;
 
+	UE_DEPRECATED(5.5, "GetOwningLocalPlayer returns the Toolkit's LocalPlayerOwner which is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.")
 	ULocalPlayer& GetOwningLocalPlayer() const;
+
+	ULocalPlayer* GetOwningLocalPlayerPtr() const;
 	const FUniqueNetIdRepl& GetOwningLocalUserId() const { return OwningLocalUserId; }
 	const FUniqueNetIdRepl& GetPartyLeaderId() const { return CurrentLeaderId; }
 	bool IsLocalPlayerPartyLeader() const;
@@ -225,6 +228,7 @@ protected:
 	bool IsInitialized() const;
 	void TryFinishInitialization();
 
+	UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
 	bool ShouldCacheForRejoinOnDisconnect() const;
 
 	void SetIsMissingPlatformSession(bool bInIsMissingPlatformSession);
@@ -235,13 +239,21 @@ protected:
 	//--------------------------
 	// User/member-specific actions that are best exposed on the individuals themselves, but best handled by the actual party
 	bool HasUserBeenInvited(const USocialUser& User) const;
-	
-	bool CanPromoteMember(const UPartyMember& PartyMember) const;
-	bool CanKickMember(const UPartyMember& PartyMember) const;
+
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool CanPromoteMember(const UPartyMember& PartyMember) const { return false; }
+	bool CanPromoteMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool CanKickMember(const UPartyMember& PartyMember) const { return false; }
+	virtual bool CanKickMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
+	bool TryPromoteMember(const UPartyMember& PartyMember) { return false; }
+	bool TryPromoteMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember);
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool TryKickMember(const UPartyMember& PartyMember) { return false; }
+	virtual bool TryKickMember(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember);
 	
 	bool TryInviteUser(const USocialUser& UserToInvite, const ESocialPartyInviteMethod InviteMethod = ESocialPartyInviteMethod::Other, const FString& MetaData = FString());
-	bool TryPromoteMember(const UPartyMember& PartyMember);
-	bool TryKickMember(const UPartyMember& PartyMember);
 	//--------------------------
 
 protected:
@@ -259,11 +271,14 @@ protected:
 	virtual void OnLeftPartyInternal(EMemberExitedReason Reason);
 
 	/** Virtual versions of the package-scoped "CanX" methods above, as a virtual declared within package scoping cannot link (exported public, imported protected) */
-	UE_DEPRECATED(5.3, "This function has been deperecated, use CanInviteUserInternal(const USocialUser& User, const ESocialPartyInviteMethod InviteMethod) instead.")
-	virtual ESocialPartyInviteFailureReason CanInviteUserInternal(const USocialUser& User) const;
 	virtual ESocialPartyInviteFailureReason CanInviteUserInternal(const USocialUser& User, const ESocialPartyInviteMethod InviteMethod) const;
-	virtual bool CanPromoteMemberInternal(const UPartyMember& PartyMember) const;
-	virtual bool CanKickMemberInternal(const UPartyMember& PartyMember) const;
+
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool CanPromoteMemberInternal(const UPartyMember& PartyMember) const { return false; }
+	virtual bool CanPromoteMemberInternal(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
+	UE_DEPRECATED(5.5, "This has been deprecated to support multiple local players and now requires a performing player.")
+	virtual bool CanKickMemberInternal(const UPartyMember& PartyMember) const { return false; }
+	virtual bool CanKickMemberInternal(const ULocalPlayer& PerformingPlayer, const UPartyMember& PartyMember) const;
 
 	virtual void OnInviteSentInternal(ESocialSubsystem SubsystemType, const USocialUser& InvitedUser, bool bWasSuccessful, const ESocialPartyInviteFailureReason FailureReason, const ESocialPartyInviteMethod InviteMethod);
 
@@ -283,6 +298,9 @@ protected:
 
 	/** Override in child classes to provide encryption data for party beacon connections. */
 	virtual bool InitializeBeaconEncryptionData(AOnlineBeaconClient& BeaconClient, const FString& SessionId);
+
+	/** The list of party members to send the request for joining in progress. */
+	virtual TArray<UPartyMember*> GetLocalPartyMembersForJoinInProgress() const;
 
 	bool IsInviteRateLimited(const USocialUser& User, ESocialSubsystem SubsystemType) const;
 
@@ -318,7 +336,7 @@ protected:
 
 	/** Spectator beacon class for getting server approval for new spectators while in a game */
 	UPROPERTY()
-		TSubclassOf<ASpectatorBeaconClient> SpectatorBeaconClientClass;
+	TSubclassOf<ASpectatorBeaconClient> SpectatorBeaconClientClass;
 
 	/** Apply local party configuration to the OSS party, optionally resetting the access key to the party in the process */
 	void UpdatePartyConfig(bool bResetAccessKey = false);
@@ -382,8 +400,9 @@ private:
 	UPROPERTY()
 	TMap<FUniqueNetIdRepl, TObjectPtr<UPartyMember>> PartyMembersById;
 
+	UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
 	UPROPERTY(config)
-	bool bEnableAutomaticPartyRejoin = true;
+	bool bEnableAutomaticPartyRejoin = false;
 
 	TMap<FUniqueNetIdRepl, double> LastInviteSentById;
 
@@ -490,9 +509,23 @@ private:
 	mutable FOnInitializationCompletePreNotify OnInitializationCompletePreNotifyEvent;
 };
 
+namespace UE::OnlineFramework
+{
+PARTY_API TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty& SocialParty);
+PARTY_API TArray<USocialToolkit*> GetLocalPartyMemberToolkits(const USocialParty& SocialParty);
+} // UE::OnlineFramework::Party
+
 namespace UE::OnlineFramework::Party
 {
-PARTY_API TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty* SocialParty);
+UE_DEPRECATED(5.5, "Use UE::OnlineFramework::GetPartyMemberIds")
+inline TArray<FUniqueNetIdRepl> GetPartyMemberIds(const USocialParty* SocialParty)
+{
+	if (SocialParty)
+	{
+		return UE::OnlineFramework::GetPartyMemberIds(*SocialParty);
+	}
+	return {};
+}
 } // UE::OnlineFramework::Party
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

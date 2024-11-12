@@ -41,16 +41,16 @@ int32 FChaosVDRecording::GetAvailableSolverFramesNumber_AssumesLocked(int32 Solv
 	return INDEX_NONE;
 }
 
-FString FChaosVDRecording::GetSolverName(int32 SolverID)
+FName FChaosVDRecording::GetSolverFName(int32 SolverID)
 {
 	FReadScopeLock ReadLock(RecordingDataLock);
 
-	return GetSolverName_AssumedLocked(SolverID);
+	return GetSolverFName_AssumedLocked(SolverID);
 }
 
-FString FChaosVDRecording::GetSolverName_AssumedLocked(int32 SolverID)
+FName FChaosVDRecording::GetSolverFName_AssumedLocked(int32 SolverID)
 {
-	static FString DefaultName(TEXT("Invalid"));
+	static FName DefaultName(TEXT("Invalid"));
 
 	// Currently we don't create an entry per solver, so we need to get the name from the frame data
 	// TODO: Record Solver specific data per instance and not per frame
@@ -58,11 +58,22 @@ FString FChaosVDRecording::GetSolverName_AssumedLocked(int32 SolverID)
 	{
 		if(!SolverFramesData->IsEmpty())
 		{
-			return (*SolverFramesData)[0].DebugName;
+			return (*SolverFramesData)[0].DebugFName;
 		}
 	}
 
 	return DefaultName;
+}
+
+bool FChaosVDRecording::IsServerSolver_AssumesLocked(int32 SolverID)
+{
+	return GetSolverFName_AssumedLocked(SolverID).ToString().Contains(TEXT("Server"));
+}
+
+bool FChaosVDRecording::IsServerSolver(int32 SolverID)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	return IsServerSolver_AssumesLocked(SolverID);
 }
 
 FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData_AssumesLocked(const int32 SolverID, const int32 FrameNumber, bool bKeyFrameOnly)
@@ -123,6 +134,19 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberAtCycle_AssumesLocked(int32 S
 	return INDEX_NONE;
 }
 
+
+int32 FChaosVDRecording::GetLowestSolverFrameNumberAtNetworkFrameNumber_AssumesLocked(int32 SolverID, int32 NetworkFrameNumber)
+{
+	if (TArray<FChaosVDSolverFrameData>* SolverFramesPtr = RecordedFramesDataPerSolver.Find(SolverID))
+	{
+		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
+		
+		return Algo::LowerBoundBy(SolverFrames, NetworkFrameNumber, &FChaosVDSolverFrameData::InternalFrameNumber);
+	}
+
+	return INDEX_NONE;
+}
+
 int32 FChaosVDRecording::FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(int32 SolverID, int32 StartFrameNumber)
 {
 	if (TArray<int32>* KeyFrameNumbersPtr = RecordedKeyFramesNumberPerSolver.Find(SolverID))
@@ -164,6 +188,11 @@ int32 FChaosVDRecording::FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(in
 int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame(int32 SolverID, int32 GameFrame)
 {
 	FReadScopeLock ReadLock(RecordingDataLock);
+	return GetLowestSolverFrameNumberGameFrame_AssumesLocked(SolverID, GameFrame);
+}
+
+int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame_AssumesLocked(int32 SolverID, int32 GameFrame)
+{
 	if (!GameFrames.IsValidIndex(GameFrame))
 	{
 		return INDEX_NONE;
@@ -173,7 +202,7 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame(int32 SolverID, int
 	{
 		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
 		
-		return Algo::LowerBoundBy(SolverFrames,GameFrames[GameFrame].FirstCycle, &FChaosVDSolverFrameData::FrameCycle);
+		return Algo::LowerBoundBy(SolverFrames, GameFrames[GameFrame].FirstCycle, &FChaosVDSolverFrameData::FrameCycle);
 	}
 
 	return INDEX_NONE;
@@ -182,6 +211,11 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame(int32 SolverID, int
 int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, int32 SolverFrame)
 {
 	FReadScopeLock ReadLock(RecordingDataLock);
+	return GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(SolverID, SolverFrame);
+}
+
+int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber_AssumesLocked(int32 SolverID, int32 SolverFrame)
+{
 	if (TArray<FChaosVDSolverFrameData>* SolverFramesPtr = RecordedFramesDataPerSolver.Find(SolverID))
 	{
 		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
@@ -194,6 +228,7 @@ int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, i
 
 	return INDEX_NONE;
 }
+
 
 void FChaosVDRecording::AddKeyFrameNumberForSolver(const int32 SolverID, int32 FrameNumber)
 {
@@ -324,52 +359,10 @@ int32 FChaosVDRecording::GetLowestGameFrameNumberAtCycle(uint64 Cycle)
 	return Algo::LowerBoundBy(GameFrames, Cycle, &FChaosVDGameFrameData::FirstCycle);
 }
 
-void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber, TArray<int32>& OutSolversID)
+int32 FChaosVDRecording::GetLowestGameFrameNumberAtTime(double Time)
 {
 	FReadScopeLock ReadLock(RecordingDataLock);
-
-	return GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, OutSolversID);
-}
-
-void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32>& OutSolversID)
-{
-	if (!GameFrames.IsValidIndex(FrameNumber))
-	{
-		return;
-	}
-	
-	GetAvailableSolverIDsAtGameFrame_AssumesLocked(GameFrames[FrameNumber], OutSolversID);
-}
-
-void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID)
-{
-	FReadScopeLock ReadLock(RecordingDataLock);
-	GetAvailableSolverIDsAtGameFrame_AssumesLocked(GameFrameData, OutSolversID);
-}
-
-void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FChaosVDGameFrameData& GameFrameData, TArray<int32>& OutSolversID)
-{
-	OutSolversID.Reserve(RecordedFramesDataPerSolver.Num());
-
-	for (const TPair<int32, TArray<FChaosVDSolverFrameData>>& SolverFramesWithIDPair : RecordedFramesDataPerSolver)
-	{
-		if (SolverFramesWithIDPair.Value.IsEmpty())
-		{
-			continue;
-		}
-
-		if (SolverFramesWithIDPair.Value.Num() == 1 && SolverFramesWithIDPair.Value[0].FrameCycle < GameFrameData.FirstCycle)
-		{
-			OutSolversID.Add(SolverFramesWithIDPair.Key);
-		}
-		else
-		{
-			if (GameFrameData.FirstCycle > SolverFramesWithIDPair.Value[0].FrameCycle && GameFrameData.FirstCycle < SolverFramesWithIDPair.Value.Last().FrameCycle)
-			{
-				OutSolversID.Add(SolverFramesWithIDPair.Key);
-			}
-		}	
-	}
+	return Algo::LowerBoundBy(GameFrames, Time, &FChaosVDGameFrameData::StartTime);
 }
 
 void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData)
@@ -384,9 +377,7 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 		{
 			OutCollapsedFrameData.ParticlesDestroyedIDs.Append(SolverFrameData->ParticlesDestroyedIDs);
 
-			// Only evaluate the last step as it contains all the particles that changed
-			const int32 LastStepNumber = SolverFrameData->SolverSteps.Num() - 1;
-			if (SolverFrameData->SolverSteps.IsValidIndex(LastStepNumber))
+			if (SolverFrameData->SolverSteps.Num() > 0)
 			{
 				for (const FChaosVDStepData& StepData : SolverFrameData->SolverSteps)
 				{
@@ -418,10 +409,13 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 				OutCollapsedFrameData.bIsKeyFrame = true;
 				OutCollapsedFrameData.SolverID = SolverFrameData->SolverID;
 				OutCollapsedFrameData.SimulationTransform = SolverFrameData->SimulationTransform;
-				OutCollapsedFrameData.DebugName = SolverFrameData->DebugName;
+				OutCollapsedFrameData.DebugFName = SolverFrameData->DebugFName;
 
 				FChaosVDStepData CollapsedStepData;
-				CollapsedStepData.StepName = TEXT("GeneratedStep");
+				CollapsedStepData.StepName = TEXT("Auto Generated Stage");
+
+				// Although this is a generated on load stage, is based on explicit stage data, therefore it needs to be treated as such
+				EnumAddFlags(CollapsedStepData.StageFlags, EChaosVDSolverStageFlags::ExplicitStage);
 
 				ParticlesOnCurrentGeneratedKeyframe.GenerateValueArray(CollapsedStepData.RecordedParticlesData);
 
@@ -446,6 +440,11 @@ bool FChaosVDRecording::IsEmpty() const
 {
 	FReadScopeLock ReadLock(RecordingDataLock);
 	return GetAvailableSolversNumber_AssumesLocked() == 0 && GetAvailableGameFrames_AssumesLocked().Num() == 0 && ImplicitObjects.Num() == 0;
+}
+
+void FChaosVDRecording::SetCollisionChannelsInfoContainer(const TSharedPtr<FChaosVDCollisionChannelsInfoContainer>& InCollisionChannelsInfo)
+{
+	CollisionChannelsInfoContainer = InCollisionChannelsInfo;
 }
 
 void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplicitObject* InImplicitObject)

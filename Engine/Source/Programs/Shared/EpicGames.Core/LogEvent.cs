@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -88,17 +89,44 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Map of property name to value
 		/// </summary>
-		public IEnumerable<KeyValuePair<string, object>>? Properties { get; set; }
+		public IEnumerable<KeyValuePair<string, object?>>? Properties { get; set; }
 
 		/// <summary>
 		/// The exception value
 		/// </summary>
 		public LogException? Exception { get; }
 
+		class MergedPropertyList : IEnumerable<KeyValuePair<string, object?>>
+		{
+			readonly HashSet<string> _names = new HashSet<string>();
+			readonly List<KeyValuePair<string, object?>> _properties = new List<KeyValuePair<string, object?>>();
+
+			public void AddRange(IEnumerable<KeyValuePair<string, object?>> properties)
+			{
+				foreach (KeyValuePair<string, object?> property in properties)
+				{
+					if (_names.Add(property.Key))
+					{
+						_properties.Add(property);
+					}
+				}
+			}
+
+			/// <inheritdoc/>
+			public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
+				=> _properties.GetEnumerator();
+
+			/// <inheritdoc/>
+			IEnumerator IEnumerable.GetEnumerator()
+				=> _properties.GetEnumerator();
+		}
+
+		static readonly JsonSerializerOptions s_jsonSerializerOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogEvent(DateTime time, LogLevel level, EventId eventId, string message, string? format, IEnumerable<KeyValuePair<string, object>>? properties, LogException? exception)
+		public LogEvent(DateTime time, LogLevel level, EventId eventId, string message, string? format, IEnumerable<KeyValuePair<string, object?>>? properties, LogException? exception)
 			: this(time, level, eventId, 0, 1, message, format, properties, exception)
 		{
 		}
@@ -106,7 +134,7 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogEvent(DateTime time, LogLevel level, EventId eventId, int lineIndex, int lineCount, string message, string? format, IEnumerable<KeyValuePair<string, object>>? properties, LogException? exception)
+		public LogEvent(DateTime time, LogLevel level, EventId eventId, int lineIndex, int lineCount, string message, string? format, IEnumerable<KeyValuePair<string, object?>>? properties, LogException? exception)
 		{
 			Time = time;
 			Level = level;
@@ -117,6 +145,37 @@ namespace EpicGames.Core
 			Format = format;
 			Properties = properties;
 			Exception = exception;
+		}
+
+		/// <summary>
+		/// Add a new property to this event
+		/// </summary>
+		/// <param name="name">Name of the property to add</param>
+		/// <param name="value">Value for the property</param>
+		public void AddProperty(string name, object? value)
+			=> AddProperties(new[] { KeyValuePair.Create(name, value) });
+
+		/// <summary>
+		/// Add new properties to this event
+		/// </summary>
+		/// <param name="properties">Properties to add</param>
+		public void AddProperties(IEnumerable<KeyValuePair<string, object?>> properties)
+		{
+			if (Properties == null)
+			{
+				Properties = properties;
+			}
+			else
+			{
+				MergedPropertyList? list = Properties as MergedPropertyList;
+				if (list == null)
+				{
+					list = new MergedPropertyList();
+					list.AddRange(Properties);
+					Properties = list;
+				}
+				list.AddRange(properties);
+			}
 		}
 
 		/// <summary>
@@ -152,9 +211,9 @@ namespace EpicGames.Core
 		{
 			if (Properties != null)
 			{
-				foreach (KeyValuePair<string, object> pair in Properties)
+				foreach (KeyValuePair<string, object?> pair in Properties)
 				{
-					if (pair.Key.Equals(name, StringComparison.Ordinal))
+					if (pair.Key.Equals(name, StringComparison.Ordinal) && pair.Value != null)
 					{
 						value = pair.Value;
 						return true;
@@ -176,7 +235,7 @@ namespace EpicGames.Core
 		public bool TryGetProperty<T>(string name, [NotNullWhen(true)] out T value)
 		{
 			object? untypedValue;
-			if(TryGetProperty(name, out untypedValue) && untypedValue is T typedValue)
+			if (TryGetProperty(name, out untypedValue) && untypedValue is T typedValue)
 			{
 				value = typedValue;
 				return true;
@@ -215,8 +274,8 @@ namespace EpicGames.Core
 			int line = 0;
 			int lineCount = 1;
 			string message = String.Empty;
-			string format = String.Empty;
-			Dictionary<string, object>? properties = null;
+			string? format = null;
+			Dictionary<string, object?>? properties = null;
 			LogException? exception = null;
 
 			ReadOnlySpan<byte> propertyName;
@@ -259,33 +318,36 @@ namespace EpicGames.Core
 			return new LogEvent(time, level, eventId, line, lineCount, message, format, properties, exception);
 		}
 
-		static Dictionary<string, object> ReadProperties(ref Utf8JsonReader reader)
+		static Dictionary<string, object?> ReadProperties(ref Utf8JsonReader reader)
 		{
-			Dictionary<string, object> properties = new Dictionary<string, object>();
+			Dictionary<string, object?> properties = new Dictionary<string, object?>();
 
 			ReadOnlySpan<byte> propertyName;
 			for (; JsonExtensions.TryReadNextPropertyName(ref reader, out propertyName); reader.Skip())
 			{
 				string name = Encoding.UTF8.GetString(propertyName);
-				object value = ReadPropertyValue(ref reader);
+
+				object? value = ReadPropertyValue(ref reader);
 				properties.Add(name, value);
 			}
 
 			return properties;
 		}
 
-		static object ReadPropertyValue(ref Utf8JsonReader reader)
+		static object? ReadPropertyValue(ref Utf8JsonReader reader)
 		{
 			switch (reader.TokenType)
 			{
 				case JsonTokenType.Null:
-					return null!;
+					return null;
 				case JsonTokenType.True:
 					return true;
 				case JsonTokenType.False:
 					return false;
+				case JsonTokenType.StartArray:
+					return ReadArrayPropertyValue(ref reader);
 				case JsonTokenType.StartObject:
-					return ReadStructuredPropertyValue(ref reader);
+					return ReadObjectPropertyValue(ref reader);
 				case JsonTokenType.String:
 					return reader.GetString()!;
 				case JsonTokenType.Number:
@@ -306,31 +368,42 @@ namespace EpicGames.Core
 			}
 		}
 
-		static LogValue ReadStructuredPropertyValue(ref Utf8JsonReader reader)
+		static object ReadArrayPropertyValue(ref Utf8JsonReader reader)
 		{
-			string type = String.Empty;
-			string text = String.Empty;
-			Dictionary<Utf8String, object>? properties = null;
-
-			ReadOnlySpan<byte> propertyName;
-			for (; JsonExtensions.TryReadNextPropertyName(ref reader, out propertyName); reader.Skip())
+			List<object?> result = new List<object?>();
+			while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
 			{
-				if (Utf8StringComparer.OrdinalIgnoreCase.Equals(propertyName, LogEventPropertyName.Type.Span))
+				result.Add(ReadPropertyValue(ref reader));
+			}
+			return result;
+		}
+
+		static object ReadObjectPropertyValue(ref Utf8JsonReader reader)
+		{
+			// Read all the properties
+			Dictionary<Utf8String, object?>? properties = new Dictionary<Utf8String, object?>();
+			for (; JsonExtensions.TryReadNextPropertyName(ref reader, out ReadOnlySpan<byte> propertyName); reader.Skip())
+			{
+				properties.Add(new Utf8String(propertyName.ToArray()), ReadPropertyValue(ref reader));
+			}
+
+			// Check if we can convert it to a LogValue
+			if (properties.TryGetValue(LogEventPropertyName.Type, out object? type) && type is string typeStr && properties.TryGetValue(LogEventPropertyName.Text, out object? text) && text is string textStr)
+			{
+				properties.Remove(LogEventPropertyName.Type);
+				properties.Remove(LogEventPropertyName.Text);
+
+				if (properties.Count == 0)
 				{
-					type = reader.GetString() ?? String.Empty;
-				}
-				else if (Utf8StringComparer.OrdinalIgnoreCase.Equals(propertyName, LogEventPropertyName.Text.Span))
-				{
-					text = reader.GetString() ?? String.Empty;
+					return new LogValue(new Utf8String(typeStr), textStr);
 				}
 				else
 				{
-					properties ??= new Dictionary<Utf8String, object>();
-					properties.Add(new Utf8String(propertyName.ToArray()), ReadPropertyValue(ref reader));
+					return new LogValue(new Utf8String(typeStr), textStr, properties);
 				}
 			}
 
-			return new LogValue(new Utf8String(type), text, properties);
+			return properties;
 		}
 
 		/// <summary>
@@ -371,8 +444,16 @@ namespace EpicGames.Core
 				{
 					if (!name.Equals(MessageTemplate.FormatPropertyName, StringComparison.Ordinal))
 					{
-						writer.WritePropertyName(name);
-						LogValueFormatter.Format(value, writer);
+						if (name.StartsWith("@", StringComparison.Ordinal))
+						{
+							writer.WritePropertyName(name[1..]);
+							JsonSerializer.Serialize(writer, value, value?.GetType() ?? typeof(object), s_jsonSerializerOptions);
+						}
+						else
+						{
+							writer.WritePropertyName(name);
+							LogValueFormatter.Format(value, writer);
+						}
 					}
 				}
 				writer.WriteEndObject();
@@ -435,7 +516,7 @@ namespace EpicGames.Core
 		/// </summary>
 		public static LogEvent Create(LogLevel level, EventId eventId, Exception? exception, string format, params object[] args)
 		{
-			Dictionary<string, object> properties = new Dictionary<string, object>();
+			Dictionary<string, object?> properties = new Dictionary<string, object?>();
 			MessageTemplate.ParsePropertyValues(format, args, properties);
 
 			string message = MessageTemplate.Render(format, properties!);
@@ -447,6 +528,8 @@ namespace EpicGames.Core
 		/// </summary>
 		public static LogEvent FromState<TState>(LogLevel level, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
+			_ = formatter;
+
 			if (state is LogEvent logEvent)
 			{
 				return logEvent;
@@ -458,12 +541,10 @@ namespace EpicGames.Core
 
 			DateTime time = DateTime.UtcNow;
 
-			// Render the message
-			string message = formatter(state, exception);
-
 			// Try to log the event
-			IEnumerable<KeyValuePair<string, object>>? values = state as IEnumerable<KeyValuePair<string, object>>;
+			IEnumerable<KeyValuePair<string, object?>>? values = state as IEnumerable<KeyValuePair<string, object?>>;
 			string? format = values?.FirstOrDefault(x => x.Key.Equals(MessageTemplate.FormatPropertyName, StringComparison.Ordinal)).Value?.ToString();
+			string message = (format == null)? formatter(state, exception) : MessageTemplate.Render(format, values);
 			return new LogEvent(time, level, eventId, message, format, values, LogException.FromException(exception));
 		}
 
@@ -572,7 +653,7 @@ namespace EpicGames.Core
 		/// Constructor
 		/// </summary>
 		/// <param name="exception"></param>
-		[return: NotNullIfNotNull("exception")]
+		[return: NotNullIfNotNull(nameof(exception))]
 		public static LogException? FromException(Exception? exception)
 		{
 			LogException? result = null;
@@ -620,11 +701,11 @@ namespace EpicGames.Core
 		/// Log events received
 		/// </summary>
 		public IReadOnlyList<LogEvent> LogEvents => _logEvents;
-		
+
 		private readonly List<LogEvent> _logEvents = new List<LogEvent>();
 		private readonly int[] _includeEventIds;
 		private readonly Action<LogEvent>? _eventCallback;
-		
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -646,7 +727,7 @@ namespace EpicGames.Core
 			}
 		}
 	}
-	
+
 	/// <summary>
 	/// Converter for serialization of <see cref="LogEvent"/> instances to Json streams
 	/// </summary>

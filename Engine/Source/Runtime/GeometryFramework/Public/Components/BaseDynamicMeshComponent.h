@@ -43,7 +43,7 @@ ENUM_CLASS_FLAGS(EMeshRenderAttributeFlags);
 /**
  * Tangent calculation modes
  */
-UENUM()
+UENUM(BlueprintType)
 enum class EDynamicMeshComponentTangentsMode : uint8
 {
 	/** Tangents are not used/available, proceed accordingly (eg generate arbitrary orthogonal basis) */
@@ -60,7 +60,7 @@ enum class EDynamicMeshComponentTangentsMode : uint8
 /**
  * Color Override Modes
  */
-UENUM()
+UENUM(BlueprintType)
 enum class EDynamicMeshComponentColorOverrideMode : uint8
 {
 	/** No Color Override enabled */
@@ -75,20 +75,45 @@ enum class EDynamicMeshComponentColorOverrideMode : uint8
 
 
 /**
+ * Draw Path to use
+ */
+UENUM(BlueprintType)
+enum class EDynamicMeshDrawPath : uint8
+{
+	/** Use the dynamic draw path, intended for meshes that update on most frames */
+	DynamicDraw = 0,
+	/** Use the static draw path, for meshes that do not change on most frames */
+	StaticDraw = 1
+};
+
+
+/**
+ * Mesh Signed Distance Field (SDF) mode
+ */
+UENUM(BlueprintType)
+enum class EDynamicMeshComponentDistanceFieldMode : uint8
+{
+	/** Do not compute a distance field */
+	NoDistanceField = 0,
+	/** Compute a distance field in a background thread */
+	AsyncCPUDistanceField = 1 UMETA(DisplayName = "Async CPU Distance Field")
+};
+
+/**
  * Color Transform to apply to Vertex Colors when converting from internal DynamicMesh
  * Color attributes (eg Color Overlay stored in FVector4f) to RHI Render Buffers (FColor).
  * 
  * Note that UStaticMesh assumes the Source Mesh colors are Linear and always converts to SRGB.
  */
-UENUM()
+UENUM(BlueprintType)
 enum class EDynamicMeshVertexColorTransformMode : uint8
 {
 	/** Do not apply any color-space transform to Vertex Colors */
-	NoTransform,
+	NoTransform = 0,
 	/** Assume Vertex Colors are in Linear space and transform to SRGB */
 	LinearToSRGB,
 	/** Assume Vertex Colors are in SRGB space and convert to Linear */
-	SRGBToLinear
+	SRGBToLinear UMETA(DisplayName = "SRGB To Linear")
 };
 
 
@@ -330,7 +355,7 @@ public:
 	GEOMETRYFRAMEWORK_API virtual void SetEnableFlatShading(bool bEnable);
 
 	/**
-	 * @return active Color used for Constant Color Override Mode
+	 * @return Whether mesh will be rendered with per-triangle normals
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component|Rendering")
 	virtual bool GetFlatShadingEnabled() const { return bEnableFlatShading; }
@@ -497,6 +522,64 @@ protected:
 
 
 
+
+protected:
+	/**
+	 * Controls whether to use the dynamic or static draw path
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite,
+				BlueprintSetter=SetMeshDrawPath, BlueprintGetter=GetMeshDrawPath,
+				 Category = "Dynamic Mesh Component|Rendering")
+	EDynamicMeshDrawPath DrawPath = EDynamicMeshDrawPath::DynamicDraw;
+
+	// Whether the fast update paths will be used for the mesh.
+	// If false, fast update methods can still be called, but will fall back to recreating the render proxy
+	virtual bool AllowFastUpdate()
+	{
+		// note: fast update is not compatible with static draw path
+		return DrawPath == EDynamicMeshDrawPath::DynamicDraw;
+	}
+	
+public:
+
+	/**
+	 * Set the mesh rendering to use the static or dynamic draw path
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual void SetMeshDrawPath(EDynamicMeshDrawPath NewDrawPath);
+
+	/**
+	 * @return Whether the mesh renders using the static or dynamic draw path
+	 */
+	UFUNCTION(BlueprintPure, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual EDynamicMeshDrawPath GetMeshDrawPath() const;
+
+protected:
+	/** Controls how distance field is computed */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, 
+				BlueprintSetter = SetDistanceFieldMode, BlueprintGetter = GetDistanceFieldMode,
+					Category = "Dynamic Mesh Component|Rendering")
+	EDynamicMeshComponentDistanceFieldMode DistanceFieldMode = EDynamicMeshComponentDistanceFieldMode::NoDistanceField;
+
+public:
+	/**
+	 * Configure Distance Field computation mode
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual void SetDistanceFieldMode(EDynamicMeshComponentDistanceFieldMode NewDistFieldMode);
+
+	/**
+	 * @return Method used to compute the distance field
+	 */
+	UFUNCTION(BlueprintPure, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual EDynamicMeshComponentDistanceFieldMode GetDistanceFieldMode() const;
+
+protected:
+	// this will be called if a change to distance field mode is detected
+	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldMode();
+
+
+
 	//===============================================================================================================
 	// Standard Component interfaces
 	//
@@ -510,6 +593,15 @@ public:
 	GEOMETRYFRAMEWORK_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
 
 	GEOMETRYFRAMEWORK_API virtual void SetNumMaterials(int32 NumMaterials);
+
+	//~ Dynamic Mesh component just has an array of materials without managing slot names, but some methods expect
+	//~ to access materials via slot name, so we still implement the UPrimitiveComponent interface to do so
+	// @return an array of slot names generated from the current materials
+	GEOMETRYFRAMEWORK_API virtual TArray<FName> GetMaterialSlotNames() const override;
+	// @return true if the dynamic mesh has a material with this slot name
+	GEOMETRYFRAMEWORK_API virtual bool IsMaterialSlotNameValid(FName MaterialSlotName) const override;
+	// @return a material on this component with this slot name, or null not found
+	GEOMETRYFRAMEWORK_API virtual UMaterialInterface* GetMaterialByName(FName MaterialSlotName) const override;
 
 	//~ UObject Interface.
 #if WITH_EDITOR

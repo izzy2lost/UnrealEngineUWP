@@ -5,22 +5,52 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationBendingConfigNode)
 
-FChaosClothAssetSimulationBendingConfigNode::FChaosClothAssetSimulationBendingConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationBendingConfigNode::FChaosClothAssetSimulationBendingConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&FlatnessRatio.WeightMap);
-	RegisterInputConnection(&RestAngle.WeightMap);
-	RegisterInputConnection(&BendingStiffness.WeightMap);
-	RegisterInputConnection(&BendingStiffnessWarp.WeightMap);
-	RegisterInputConnection(&BendingStiffnessWeft.WeightMap);
-	RegisterInputConnection(&BendingStiffnessBias.WeightMap);
-	RegisterInputConnection(&BendingDamping.WeightMap);
-	RegisterInputConnection(&BendingAnisoDamping.WeightMap);
-	RegisterInputConnection(&BucklingStiffness.WeightMap);
-	RegisterInputConnection(&BucklingStiffnessWarp.WeightMap);
-	RegisterInputConnection(&BucklingStiffnessWeft.WeightMap);
-	RegisterInputConnection(&BucklingStiffnessBias.WeightMap);
+	RegisterInputConnection(&FlatnessRatio.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&RestAngle.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BendingStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BendingStiffnessWarp.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BendingStiffnessWeft.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BendingStiffnessBias.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BendingDamping.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BendingAnisoDamping.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&AnisoBucklingRatio.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BucklingStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BucklingStiffnessWarp.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BucklingStiffnessWeft.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BucklingStiffnessBias.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&BucklingRatioWeighted.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 }
 
 void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
@@ -57,7 +87,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 					FName(TEXT("XPBDAnisoBucklingStiffnessWarp")),
 					FName(TEXT("BucklingStiffness"))});
 				
-				PropertyHelper.SetProperty(FName(TEXT("XPBDBucklingRatio")), BucklingRatio, {
+				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDBucklingRatio")), BucklingRatioWeighted, {
 					FName(TEXT("XPBDAnisoBucklingRatio")),
 					FName(TEXT("BucklingRatio"))});
 			}
@@ -128,7 +158,11 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 				FName(TEXT("XPBDBendingSpringDamping")),  
 				FName(TEXT("XPBDBendingElementDamping"))});
 
-			PropertyHelper.SetProperty(FName(TEXT("XPBDAnisoBucklingRatio")), BucklingRatio, {
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoBucklingRatio")), AnisoBucklingRatio, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			{
+				return FabricFacade.GetBucklingRatio();
+			}, {
 				FName(TEXT("BucklingRatio")),
 				FName(TEXT("XPBDBucklingRatio"))});
 
@@ -170,7 +204,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 				FName(TEXT("XPBDBucklingStiffness")),
 				FName(TEXT("XPBDAnisoBucklingStiffnessWarp"))});
 			
-			PropertyHelper.SetProperty(FName(TEXT("BucklingRatio")), BucklingRatio, {
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("BucklingRatio")), BucklingRatioWeighted, {
 				FName(TEXT("XPBDBucklingRatio")),
 				FName(TEXT("XPBDAnisoBucklingRatio"))});
 		}
@@ -188,5 +222,21 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 			FName(TEXT("XPBDAnisoRestAngle")), 
 			FName(TEXT("XPBDRestAngle"))       
 		});
+	}
+}
+
+void FChaosClothAssetSimulationBendingConfigNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	if (Ar.IsLoading())
+	{
+#if WITH_EDITORONLY_DATA
+		if (BucklingRatio_DEPRECATED != BucklingRatioDeprecatedDefault)
+		{
+			BucklingRatioWeighted.Low = BucklingRatioWeighted.High = BucklingRatio_DEPRECATED;
+			AnisoBucklingRatio.Low = AnisoBucklingRatio.High = BucklingRatio_DEPRECATED;
+			BucklingRatio_DEPRECATED = BucklingRatioDeprecatedDefault;
+		}
+#endif
 	}
 }

@@ -7,12 +7,26 @@
 #include "Misc/AsciiSet.h"
 #include "Misc/PackageName.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/CoreRedirects.h"
 #include "Misc/RedirectCollector.h"
 #include "Misc/AutomationTest.h"
 #include "String/Find.h"
+#include "AutoRTFM/AutoRTFM.h"
+
+namespace SoftObjectPath
+{
+static bool bResolveCoreRedirects = true;
+
+#if !WITH_EDITOR
+static FAutoConsoleVariableRef CVarEnablePathFixupOutsideEditor(TEXT("SoftObjectPath.EnablePathFixupOutsideEditor"),
+	bResolveCoreRedirects,
+	TEXT("When true (by default) we will call FixupCoreRedirects when resolving, loading, or saving soft object paths outside the editor. When false, we will revert to the legacy behavior and not do the extra fixup.")
+);
+#endif
+}
 
 // Deprecated constructor
 FSoftObjectPath::FSoftObjectPath(FName InAssetPathName, FString InSubPathString)
@@ -20,6 +34,59 @@ FSoftObjectPath::FSoftObjectPath(FName InAssetPathName, FString InSubPathString)
 	AssetPath = FTopLevelAssetPath(WriteToString<FName::StringBufferSize>(InAssetPathName).ToView());
 	SubPathString = MoveTemp(InSubPathString);
 }
+
+/** Static methods for more meaningful construction sites. */
+FSoftObjectPath FSoftObjectPath::ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, const FString& InSubPathString)
+{
+	return FSoftObjectPath(InPackageName, InAssetName, InSubPathString);
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, FString&& InSubPathString)
+{
+	return FSoftObjectPath(InPackageName, InAssetName, MoveTemp(InSubPathString));
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromPackageAsset(FName InPackageName, FName InAssetName)
+{
+	return FSoftObjectPath(InPackageName, InAssetName, {});
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromAssetPath(FTopLevelAssetPath InAssetPath)
+{
+	return FSoftObjectPath(InAssetPath);
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FString&& InPath)
+{
+	FSoftObjectPath Tmp;
+	Tmp.SetPath(FStringView(InPath));
+	return Tmp;
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FStringView InPath)
+{
+	FSoftObjectPath Tmp;
+	Tmp.SetPath(InPath);
+	return Tmp;
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FUtf8StringView InPath)
+{
+	FSoftObjectPath Tmp;
+	Tmp.SetPath(InPath);
+	return Tmp;
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromObject(const FObjectPtr& InObject)
+{
+	return FSoftObjectPath(InObject);
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromObject(const UObject* InObject)
+{
+	return FSoftObjectPath(InObject);
+}
+
 
 FString FSoftObjectPath::ToString() const
 {
@@ -39,6 +106,11 @@ void FSoftObjectPath::ToString(FStringBuilderBase& Builder) const
 	AppendString(Builder);
 }
 
+void FSoftObjectPath::ToString(FUtf8StringBuilderBase& Builder) const
+{
+	AppendString(Builder);
+}
+
 void FSoftObjectPath::AppendString(FStringBuilderBase& Builder) const
 {
 	if (AssetPath.IsNull())
@@ -50,6 +122,20 @@ void FSoftObjectPath::AppendString(FStringBuilderBase& Builder) const
 	if (SubPathString.Len() > 0)
 	{
 		Builder << SUBOBJECT_DELIMITER_CHAR << SubPathString;
+	}
+}
+
+void FSoftObjectPath::AppendString(FUtf8StringBuilderBase& Builder) const
+{
+	if (AssetPath.IsNull())
+	{
+		return;
+	}
+
+	Builder << AssetPath;
+	if (SubPathString.Len() > 0)
+	{
+		Builder << SUBOBJECT_DELIMITER_CHAR_ANSI << SubPathString;
 	}
 }
 
@@ -206,12 +292,15 @@ bool FSoftObjectPath::PreSavePath(bool* bReportSoftObjectPathRedirects)
 		*this = FoundRedirection;
 		return true;
 	}
+#endif
 
-	if (FixupCoreRedirects())
+	if (SoftObjectPath::bResolveCoreRedirects)
 	{
-		return true;
+		if (FixupCoreRedirects())
+		{
+			return true;
+		}
 	}
-#endif // WITH_EDITOR
 	return false;
 }
 
@@ -242,7 +331,7 @@ void FSoftObjectPath::SerializePath(FArchive& Ar)
 {
 	bool bSerializeInternals = true;
 #if WITH_EDITOR
-	if (Ar.IsSaving())
+	if (Ar.IsSaving() && !(Ar.IsModifyingWeakAndStrongReferences() && Ar.IsObjectReferenceCollector()))
 	{
 		PreSavePath(false ? GReportSoftObjectPathRedirects : nullptr);
 	}
@@ -507,7 +596,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 		if (IsSubobject())
 		{
 			// For subobjects, it's not safe to call LoadObject directly, so we want to load the parent object and then resolve again
-			FSoftObjectPath TopLevelPath = FSoftObjectPath(AssetPath, FString());
+			FSoftObjectPath TopLevelPath = FSoftObjectPath::ConstructFromAssetPath(AssetPath);
 			UObject* TopLevelObject = TopLevelPath.TryLoad(InLoadContext);
 
 			// This probably loaded the top-level object, so re-resolve ourselves
@@ -524,7 +613,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 		{
 			FString PathString = ToString();
 #if WITH_EDITOR
-			if (GPlayInEditorID != INDEX_NONE)
+			if (UE::GetPlayInEditorID() != INDEX_NONE)
 			{
 				// If we are in PIE and this hasn't already been fixed up, we need to fixup at resolution time. We cannot modify the path as it may be somewhere like a blueprint CDO
 				FSoftObjectPath FixupObjectPath = *this;
@@ -535,19 +624,23 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 			}
 #endif
 
-			LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
+			UE_AUTORTFM_OPEN
+			{
+				LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
+			};
 
-#if WITH_EDITOR
 			// Look at core redirects if we didn't find the object
-			if (!LoadedObject)
+			if (!LoadedObject && SoftObjectPath::bResolveCoreRedirects)
 			{
 				FSoftObjectPath FixupObjectPath = *this;
 				if (FixupObjectPath.FixupCoreRedirects())
 				{
-					LoadedObject = LoadObject<UObject>(nullptr, *FixupObjectPath.ToString());
+					UE_AUTORTFM_OPEN
+					{
+						LoadedObject = LoadObject<UObject>(nullptr, *FixupObjectPath.ToString());
+					};
 				}
 			}
-#endif
 
 			while (UObjectRedirector* Redirector = Cast<UObjectRedirector>(LoadedObject))
 			{
@@ -557,6 +650,40 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 	}
 
 	return LoadedObject;
+}
+
+int32 FSoftObjectPath::LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams) const
+{
+	FSoftObjectPath RequestedPath = *this;
+	FSoftObjectPath PathToLoad = RequestedPath;
+#if WITH_EDITOR
+	if (UE::GetPlayInEditorID() != INDEX_NONE)
+	{
+		// @todo: This logic may need updating to handle level instances properly and we may want to handle other fixups like CoreRedirects before requesting
+		PathToLoad.FixupForPIE();
+	}
+#endif
+
+	if (SoftObjectPath::bResolveCoreRedirects)
+	{
+		PathToLoad.FixupCoreRedirects();
+	}
+
+	FLoadAssetAsyncDelegate WrapperDelegate = FLoadAssetAsyncDelegate::CreateLambda(
+		[RequestedPath, PathToLoad, CompletionDelegate = MoveTemp(InCompletionDelegate)](const FTopLevelAssetPath& InAssetPath, UObject* InLoadedObject, EAsyncLoadingResult::Type InResult) mutable
+		{
+			// If this isn't a subobject, InLoadedObject is already correct
+			if (PathToLoad.IsSubobject())
+			{
+				// Resolve the entire path, including the subobject
+				InLoadedObject = PathToLoad.ResolveObject();
+			}
+
+			// Call delegate with original requested path
+			CompletionDelegate.ExecuteIfBound(RequestedPath, InLoadedObject);
+		});
+
+	return LoadAssetAsync(PathToLoad.GetAssetPath(), MoveTemp(WrapperDelegate), MoveTemp(InOptionalParams));
 }
 
 UObject* FSoftObjectPath::ResolveObject() const
@@ -569,7 +696,7 @@ UObject* FSoftObjectPath::ResolveObject() const
 	}
 
 #if WITH_EDITOR
-	if (GPlayInEditorID != INDEX_NONE)
+	if (UE::GetPlayInEditorID() != INDEX_NONE)
 	{
 		// If we are in PIE and this hasn't already been fixed up, we need to fixup at resolution time. We cannot modify the path as it may be somewhere like a blueprint CDO
 		FSoftObjectPath FixupObjectPath = *this;
@@ -597,7 +724,7 @@ UObject* FSoftObjectPath::ResolveObjectInternal(const TCHAR* PathString) const
 	if (!FoundObject && IsSubobject())
 	{
 		// Try to resolve through the top level object
-		FSoftObjectPath TopLevelPath = FSoftObjectPath(AssetPath, FString());
+		FSoftObjectPath TopLevelPath(AssetPath);
 		UObject* TopLevelObject = TopLevelPath.ResolveObject();
 
 		// If the the top-level object exists but we can't find the object, defer the resolving to the top-level container object in case
@@ -608,9 +735,8 @@ UObject* FSoftObjectPath::ResolveObjectInternal(const TCHAR* PathString) const
 		}
 	}
 
-#if WITH_EDITOR
 	// Look at core redirects if we didn't find the object
-	if (!FoundObject)
+	if (!FoundObject && SoftObjectPath::bResolveCoreRedirects)
 	{
 		FSoftObjectPath FixupObjectPath = *this;
 		if (FixupObjectPath.FixupCoreRedirects())
@@ -618,7 +744,6 @@ UObject* FSoftObjectPath::ResolveObjectInternal(const TCHAR* PathString) const
 			FoundObject = FindObject<UObject>(nullptr, *FixupObjectPath.ToString());
 		}
 	}
-#endif
 
 	while (UObjectRedirector* Redirector = Cast<UObjectRedirector>(FoundObject))
 	{
@@ -679,7 +804,7 @@ bool FSoftObjectPath::FixupForPIE(int32 InPIEInstance, TFunctionRef<void(int32, 
 
 bool FSoftObjectPath::FixupForPIE(TFunctionRef<void(int32, FSoftObjectPath&)> InPreFixupForPIECustomFunction)
 {
-	return FixupForPIE(GPlayInEditorID, InPreFixupForPIECustomFunction);
+	return FixupForPIE(UE::GetPlayInEditorID(), InPreFixupForPIECustomFunction);
 }
 
 bool FSoftObjectPath::FixupCoreRedirects()
@@ -840,6 +965,17 @@ bool FSoftObjectPathThreadContext::GetSerializationOptions(FName& OutPackageName
 
 TSet<FName> FSoftObjectPath::PIEPackageNames;
 
+void SerializeForLog(FCbWriter& Writer, const FSoftObjectPath& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("SoftObjectPath"));
+	Writer.AddString(ANSITEXTVIEW("$text"), WriteToUtf8String<256>(Value));
+	Writer.AddString(ANSITEXTVIEW("PackageName"), WriteToUtf8String<256>(Value.GetLongPackageFName()));
+	Writer.AddString(ANSITEXTVIEW("AssetName"), WriteToUtf8String<256>(Value.GetAssetFName()));
+	Writer.AddString(ANSITEXTVIEW("SubPath"), Value.GetSubPathString());
+	Writer.EndObject();
+}
+
 #if WITH_LOW_LEVEL_TESTS
 
 #include "TestHarness.h"
@@ -855,7 +991,7 @@ std::ostream& operator<<(std::ostream& Stream, const FSoftObjectPath& Value)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathImportTextTests, "System.CoreUObject.SoftObjectPath.ImportText", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathImportTextTests, "System.CoreUObject.SoftObjectPath.ImportText", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FSoftObjectPathImportTextTests::RunTest(const FString& Parameters)
 {
 	const TCHAR* PackageName = TEXT("/Game/Environments/Sets/Arid/Materials/M_Arid");
@@ -883,7 +1019,7 @@ bool FSoftObjectPathImportTextTests::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathTrySetPathTests, "System.CoreUObject.SoftObjectPath.TrySetPath", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathTrySetPathTests, "System.CoreUObject.SoftObjectPath.TrySetPath", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FSoftObjectPathTrySetPathTests::RunTest(const FString& Parameters)
 {
 	FSoftObjectPath Path;
@@ -1012,7 +1148,7 @@ bool FSoftObjectPathTrySetPathTests::RunTest(const FString& Parameters)
 
 #if WITH_EDITOR
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathFixupForPIETests, "System.CoreUObject.SoftObjectPath.FixupForPIE", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSoftObjectPathFixupForPIETests, "System.CoreUObject.SoftObjectPath.FixupForPIE", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FSoftObjectPathFixupForPIETests::RunTest(const FString& Parameters)
 {
 	const TCHAR* TestOriginalPath = TEXT("/Game/Maps/Arena.Arena:PersistentLevel.Target");	

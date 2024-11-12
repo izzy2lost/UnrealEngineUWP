@@ -29,7 +29,7 @@ TSharedRef<ISequencerSection> FColorPropertyTrackEditor::MakeSectionInterface(UM
 
 void FColorPropertyTrackEditor::GenerateKeysFromPropertyChanged( const FPropertyChangedParams& PropertyChangedParams, UMovieSceneSection* SectionToKey, FGeneratedTrackKeys& OutGeneratedKeys )
 {
-	FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
+	const FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
 	if (!Property)
 	{
 		return;

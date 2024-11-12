@@ -34,6 +34,7 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"SourceControl",
 					"Serialization",
+					"TraceLog"
                 }
             );
 

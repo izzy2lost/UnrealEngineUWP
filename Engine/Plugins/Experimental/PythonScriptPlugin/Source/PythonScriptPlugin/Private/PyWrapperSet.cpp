@@ -1548,7 +1548,7 @@ PyTypeObject InitializePyWrapperSetIteratorType()
 PyTypeObject PyWrapperSetType = InitializePyWrapperSetType();
 PyTypeObject PyWrapperSetIteratorType = InitializePyWrapperSetIteratorType();
 
-void FPyWrapperSetMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperSetMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperSet* Self = static_cast<FPyWrapperSet*>(Instance);
 	if (Self->SetProp && Self->SetInstance && !Self->OwnerContext.HasOwner())

@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,12 +20,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using Serilog;
-using Microsoft.Extensions.DependencyInjection;
-using System.Collections.Generic;
 using BinaryReader = System.IO.BinaryReader;
+using ILogger = Serilog.ILogger;
 
 namespace Jupiter.Controllers
 {
@@ -42,8 +45,9 @@ namespace Jupiter.Controllers
 		private readonly IRequestHelper _requestHelper;
 		private readonly Tracer _tracer;
 		private readonly ILogger<SymbolsController> _logger;
+		private readonly ILogger? _auditLogger;
 
-		public SymbolsController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, BufferedPayloadFactory bufferedPayloadFactory, FormatResolver formatResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<SymbolsController> logger)
+		public SymbolsController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, BufferedPayloadFactory bufferedPayloadFactory, FormatResolver formatResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<SymbolsController> logger, IOptionsMonitor<SymbolsSettings> symbolSettings)
 		{
 			_refService = refService;
 			_blobStore = blobStore;
@@ -54,6 +58,7 @@ namespace Jupiter.Controllers
 			_requestHelper = requestHelper;
 			_tracer = tracer;
 			_logger = logger;
+			_auditLogger = symbolSettings.CurrentValue.EnableAuditLog ? Serilog.Log.ForContext("LogType", "Audit") : null;
 		}
 
 		/// <summary>
@@ -65,10 +70,10 @@ namespace Jupiter.Controllers
 		/// <param name="fileName">The specific file to fetch, either pdb or ptrs</param>
 		[HttpGet("{ns}/{moduleName}/{identifier}/{fileName}", Order = 500)]
 		public async Task<IActionResult> GetAsync(
-			[FromRoute] [Required] NamespaceId ns,
-			[FromRoute] [Required] string moduleName,
-			[FromRoute] [Required] string identifier,
-			[FromRoute] [Required] string fileName)
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] string moduleName,
+			[FromRoute][Required] string identifier,
+			[FromRoute][Required] string fileName)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
@@ -76,27 +81,29 @@ namespace Jupiter.Controllers
 				return accessResult;
 			}
 
+			LogAuditEntry(HttpMethod.Get, ns, moduleName, identifier, fileName);
+			BucketId bucket = new BucketId(moduleName);
 			BlobContents? refContents;
 			try
 			{
-				(RefRecord _, refContents) = await _refService.GetAsync(ns, new BucketId(moduleName), RefId.FromName($"{moduleName}.{identifier}.{fileName}"), Array.Empty<string>());
+				(RefRecord _, refContents) = await _refService.GetAsync(ns, bucket, RefId.FromName($"{moduleName}.{identifier}.{fileName}"), Array.Empty<string>());
 			}
 			catch (RefNotFoundException)
 			{
 				return NotFound("Symbol not found");
 			}
-	
+
 			if (refContents == null)
 			{
 				// TODO: is a large blob that is not inlined, we need to read this back from blob storage
 				return BadRequest("No Blob Contents found");
 			}
 
-			byte[] blobMemory = await refContents.Stream.ToByteArrayAsync();
+			byte[] blobMemory = await refContents.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 			CbObject cb = new CbObject(blobMemory);
 			IoHash payloadHash = cb["pdbPayload"].AsBinaryAttachment().Hash;
 
-			BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(payloadHash), null, supportsRedirectUri: true);
+			BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(payloadHash), storageLayers: null, supportsRedirectUri: true, bucketHint: bucket);
 
 			if (referencedBlobContents.RedirectUri != null)
 			{
@@ -146,7 +153,7 @@ namespace Jupiter.Controllers
 				case MediaTypeNames.Application.Octet:
 					{
 						CompressedBufferUtils utils = new CompressedBufferUtils(_tracer, _bufferedPayloadFactory);
-						using IBufferedPayload payload = await utils.DecompressContentAsync(referencedBlobContents.Stream, (ulong)referencedBlobContents.Length);
+						using IBufferedPayload payload = await utils.DecompressContentAsync(referencedBlobContents.Stream, (ulong)referencedBlobContents.Length, HttpContext.RequestAborted);
 						await using Stream s = payload.GetStream();
 						await using BlobContents contents = new BlobContents(s, s.Length);
 						await WriteBody(contents, MediaTypeNames.Application.Octet);
@@ -165,8 +172,8 @@ namespace Jupiter.Controllers
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer, MediaTypeNames.Application.Octet)]
 		public async Task<IActionResult> PutSymbolsAsync(
-			[FromRoute] [Required] NamespaceId ns,
-			[FromRoute] [Required] string moduleName)
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] string moduleName)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
@@ -177,26 +184,28 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			CompressedBufferUtils utils = new CompressedBufferUtils(_tracer, _bufferedPayloadFactory);
 
-			IBufferedPayload payloadToUse = await _bufferedPayloadFactory.CreateFromRequest(Request);
+			IBufferedPayload payloadToUse = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 			if (Request.ContentType == MediaTypeNames.Application.Octet)
 			{
 				await using Stream s = payloadToUse.GetStream();
 				using MemoryStream compressedStream = new MemoryStream();
 
 				// compress the content so we can use our normal path for processing content
-				utils.CompressContent(compressedStream, OoodleCompressorMethod.Kraken, OoodleCompressionLevel.VeryFast, await s.ToByteArrayAsync());
+				utils.CompressContent(compressedStream, OoodleCompressorMethod.Kraken, OoodleCompressionLevel.VeryFast, await s.ToByteArrayAsync(HttpContext.RequestAborted));
 
 				compressedStream.Seek(0, SeekOrigin.Begin);
-				payloadToUse = await _bufferedPayloadFactory.CreateFromStreamAsync(compressedStream, compressedStream.Length);
+				payloadToUse = await _bufferedPayloadFactory.CreateFromStreamAsync(compressedStream, compressedStream.Length, HttpContext.RequestAborted);
 			}
 
+			BucketId bucketName = new BucketId(moduleName);
 			using IBufferedPayload payload = payloadToUse;
 			await using Stream hashStream = payload.GetStream();
-			BlobId attachmentHash = await BlobId.FromStreamAsync(hashStream);
-			IBufferedPayload decompressedContent = await utils.DecompressContentAsync(payload.GetStream(), (ulong)payload.Length);
+			BlobId attachmentHash = await BlobId.FromStreamAsync(hashStream, HttpContext.RequestAborted);
+			IBufferedPayload decompressedContent = await utils.DecompressContentAsync(payload.GetStream(), (ulong)payload.Length, HttpContext.RequestAborted);
 
 			(string pdbIdentifier, int pdbAge) = ExtractModuleInformation(moduleName, decompressedContent);
 
+			LogAuditEntry(HttpMethod.Put, ns, moduleName, pdbIdentifier, moduleName);
 			string filename = moduleName;
 			IoHash attachmentIoHash = attachmentHash.AsIoHash();
 			CbWriter writer = new CbWriter();
@@ -210,9 +219,9 @@ namespace Jupiter.Controllers
 			byte[] blob = writer.ToByteArray();
 			CbObject o = new CbObject(blob);
 			BlobId blobHeader = BlobId.FromBlob(blob);
-			await _blobStore.PutObjectKnownHashAsync(ns, payload, attachmentHash);
+			await _blobStore.PutObjectKnownHashAsync(ns, payload, attachmentHash, bucketName, HttpContext.RequestAborted);
 
-			(ContentId[], BlobId[]) missingHashes = await _refService.PutAsync(ns, new BucketId(moduleName), RefId.FromName($"{moduleName}.{pdbIdentifier}{pdbAge}.{filename}"), blobHeader, o);
+			(ContentId[], BlobId[]) missingHashes = await _refService.PutAsync(ns, bucketName, RefId.FromName($"{moduleName}.{pdbIdentifier}{pdbAge}.{filename}"), blobHeader, o, HttpContext.RequestAborted);
 
 			if (missingHashes.Item1.Any() || missingHashes.Item2.Any())
 			{
@@ -221,6 +230,11 @@ namespace Jupiter.Controllers
 			}
 
 			return Ok(new PutSymbolResponse(moduleName, pdbIdentifier, pdbAge, attachmentIoHash));
+		}
+
+		private void LogAuditEntry(HttpMethod method, NamespaceId ns, string moduleName, string identifier, string fileName)
+		{
+			_auditLogger?.Information("{HttpMethod} '{Namespace}'/'{ModuleName}:{Identifier}' {FileName} IP:{IP} User:{Username} UserAgent:\"{Useragent}\"", method,ns, moduleName, identifier, fileName, Request.HttpContext.Connection.RemoteIpAddress, User?.Identity?.Name ?? "Unknown-user", string.Join(' ', Request.Headers.UserAgent.ToArray()));
 		}
 
 		private static (string, int) ExtractModuleInformation(string moduleName, IBufferedPayload decompressedContent)
@@ -245,7 +259,7 @@ namespace Jupiter.Controllers
 
 			using BinaryReader reader = new BinaryReader(s);
 			// extract magic
-			const string MagicHeader= "Microsoft C/C++ MSF 7.00\r\n\u001aDS\0\0\0";
+			const string MagicHeader = "Microsoft C/C++ MSF 7.00\r\n\u001aDS\0\0\0";
 			byte[] magicBytes = reader.ReadBytes(MagicHeader.Length);
 			string magicString = Encoding.ASCII.GetString(magicBytes);
 			if (!string.Equals(magicString, MagicHeader, StringComparison.OrdinalIgnoreCase))
@@ -318,7 +332,7 @@ namespace Jupiter.Controllers
 				{
 					reader.BaseStream.Seek(streamBlocks[index] * blockSize, SeekOrigin.Begin);
 					byte[] buf = reader.ReadBytes(blockSize);
-					
+
 					Array.Copy(buf, 0, streamBuffer, destinationIndex, buf.Length);
 					destinationIndex += blockSize;
 				}
@@ -333,7 +347,7 @@ namespace Jupiter.Controllers
 						pdbVersion = streamReader.ReadInt32();
 						pdbSignature = streamReader.ReadInt32();
 						pdbAge = streamReader.ReadInt32();
-						
+
 						pdbGuid = new Guid(streamReader.ReadBytes(16));
 
 						infoFound = true;
@@ -370,5 +384,10 @@ namespace Jupiter.Controllers
 		public string PdbIdentifier { get; set; }
 		public int PdbAge { get; set; }
 		public IoHash PdbPayload { get; set; }
+	}
+
+	public class SymbolsSettings
+	{
+		public bool EnableAuditLog { get; set; }
 	}
 }

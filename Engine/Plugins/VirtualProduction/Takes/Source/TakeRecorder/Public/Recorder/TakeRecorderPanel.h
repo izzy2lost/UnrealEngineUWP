@@ -74,10 +74,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Take Recorder|Panel", DisplayName="Set Mode (Read-Only Level Sequence)")
 	void SetupForViewing(ULevelSequence* LevelSequenceAsset);
 
-	UE_DEPRECATED(4.25, "Please use ClearPendingTake instead")
-	UFUNCTION(BlueprintCallable, Category = "Take Recorder|Panel", DisplayName = "New Take", meta = (DeprecatedFunction, DeprecationMessage = "Please use ClearPendingTake instead"))
-	void NewTake() { ClearPendingTake(); }
-
 	/*
 	 * Clear the pending take level sequence
 	 */

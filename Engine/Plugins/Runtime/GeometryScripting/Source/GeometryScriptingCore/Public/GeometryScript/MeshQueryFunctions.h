@@ -217,6 +217,18 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	GetAllVertexPositions( UDynamicMesh* TargetMesh, FGeometryScriptVectorList& PositionList, bool bSkipGaps, bool& bHasVertexIDGaps );
 
+	/**
+	 * Returns the vertex positions for each edge in the given index list.
+	 * 
+	 * @param TargetMesh The mesh to query
+	 * @param EdgeIDs The edge IDs to query
+	 * @param Start The output list of start vertex positions
+	 * @param End The output list of end vertex positions
+	 * @return The target mesh that was queried
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	GetAllVertexPositionsAtEdges( UDynamicMesh* TargetMesh, const FGeometryScriptIndexList& EdgeIDs, FGeometryScriptVectorList& Start, FGeometryScriptVectorList& End);
 
 	/**
 	 * Return array of Triangle IDs connected to the given VertexID, ie the triangle one-ring
@@ -250,6 +262,20 @@ public:
 																			UPARAM(DisplayName = "UV Channel") int UVSetIndex, 
 																			UPARAM(DisplayName = "Is Valid UV Channel") bool& bIsValidUVSet, 
 																			UPARAM(DisplayName = "UV Channel Is Empty") bool& bUVSetIsEmpty );
+
+	/**
+	 * Gets the area of triangles in UV space for the given UV Channel.
+	 * 
+	 * @param TargetMesh The mesh to query.
+	 * @param UVChannel The UV channel to query
+	 * @param bIsValidUVChannel True, if the mesh has UVs for the given UVSetIndex.
+	 * @return The number of UV islands
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta = (ScriptMethod), DisplayName = "Get Mesh UV Area")
+	static UPARAM(DisplayName = "UV Area") double GetMeshUVArea(UDynamicMesh* TargetMesh,
+		UPARAM(DisplayName = "UV Channel") int UVChannel,
+		UPARAM(DisplayName = "Is Valid UV Channel") bool& bIsValidUVChannel);
+
 	/**
 	* Returns the UV values associated with the three vertices of the triangle in the specified UV Channel.
 	* If the Triangle does not exist in the mesh or if no UVs are set in the specified UV Channel for the triangle, the resulting values will be (0,0) and bHaveValidUVs will be set to false.
@@ -282,6 +308,34 @@ public:
 		FVector2D& InterpolatedUV );
 
 
+	/**
+	 * Returns all edge element IDs that are UV seam edges for a given UV channel.
+	 * 
+	 * @param TargetMesh The mesh to query.
+	 * @param UVSetIndex The UV channel to query
+	 * @param bHaveValidUVs True, if the mesh has UVs for the given UVSetIndex.
+	 * @param ElementIDs The returned edge element IDs 
+	 * @return The target mesh that was queried. 
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	GetAllUVSeamEdges( UDynamicMesh* TargetMesh, UPARAM(DisplayName = "UV Channel") int32 UVSetIndex, bool& bHaveValidUVs, FGeometryScriptIndexList& ElementIDs);
+
+	/**
+	 * Returns the number of UV islands in a given UV channel.
+	 *
+	 * @param TargetMesh The mesh to query.
+	 * @param UVChannel The UV channel to query
+	 * @param bIsValidUVChannel True, if the mesh has UVs for the given UVSetIndex.
+	 * @return The number of UV islands
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta = (ScriptMethod), DisplayName = "Get Num UV Islands")
+	static UPARAM(DisplayName = "Num UV Islands") int32 GetNumUVIslands(
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int32 UVChannel, 
+		UPARAM(DisplayName = "Is Valid UV Channel") bool& bIsValidUVChannel);
+
+	
 	//
 	// Normal queries
 	//

@@ -119,6 +119,12 @@ public:
 	void Initialize(UMovieSceneSequence* InSequence, int32 StartOffset = 0, float DurationOverride = 0.f);
 
 	/**
+	 * Returns whether this player is still valid. It could be forcibly torn-down if the camera
+	 * animation subsystem was destroyed with the world.
+	 */
+	bool IsValid() const;
+
+	/**
 	 * Start playing the sequence
 	 *
 	 * @param bLoop              Whether to loop playback
@@ -190,7 +196,10 @@ public:
 	virtual void BeginDestroy() override;
 
 protected:
+
 	virtual void ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const override;
+
+	void OnAbandonLinker(UMovieSceneEntitySystemLinker* InLinker);
 
 private:
 

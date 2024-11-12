@@ -10,6 +10,7 @@
 #include "Delegates/Delegate.h"
 #include "ViewRangeInterpolation.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
+#include "Filters/ISequencerTrackFilters.h"
 #include "HAL/Platform.h"
 #include "IMovieScenePlayer.h"
 #include "IMovieScenePlayer.h"
@@ -35,6 +36,7 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "ITimeSlider.h"
 #endif
+#include "Bindings/MovieSceneCustomBinding.h"
 
 #include "ISequencer.generated.h"
 
@@ -45,9 +47,11 @@ class FSequencerSelectionPreview;
 class FUICommandList;
 class IDetailsView;
 class IKeyArea;
+class ISidebarDrawerContent;
 class ISequencerTrackEditor;
 class SWidget;
 class UActorFactory;
+class UCameraComponent;
 class UMovieSceneCinematicShotSection;
 class UMovieSceneFolder;
 class UMovieSceneSection;
@@ -64,10 +68,12 @@ struct FMovieSceneBinding;
 struct FMovieSceneChannelHandle;
 struct FMovieSceneMarkedFrame;
 struct FQualifiedFrameTime;
+struct FSidebarDrawerConfig;
 template <typename NumericType> struct INumericTypeInterface;
 
 enum class EMapChangeType : uint8;
 enum class EPropertyKeyedStatus : uint8;
+enum class ENearestKeyOption : uint8;
 class FCurveEditor;
 class FCurveModel;
 class IToolkitHost;
@@ -80,7 +86,10 @@ namespace UE
 namespace Sequencer
 {
 
+enum class ETimeDomain : uint8;
 class FSequencerEditorViewModel;
+struct FCreateBindingParams;
+struct FTimeDomainOverride;
 
 } // namespace Sequencer
 } // namespace UE
@@ -234,6 +243,8 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE(FOnTreeViewChanged);
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnViewportSelectionLimitedChanged, const bool /*bInEnabled*/);
+
 public:
 
 	/** Close the sequencer. */
@@ -253,6 +264,12 @@ public:
 
 	/**@return Returns the time transform from the focused sequence back to the root*/
 	virtual FMovieSceneSequenceTransform GetFocusedMovieSceneSequenceTransform() const = 0;
+
+	/**@return Returns the timewrap transform that local time to warped-local-time */
+	virtual FMovieSceneSequenceTransform GetLocalTimeWarpTransform() const = 0;
+
+	/**@return Returns the timewrap transform that applies to global playback */
+	virtual FMovieSceneSequenceTransform GetGlobalPlaybackWarpTransform() const = 0;
 
 	/** @return The root movie scene being used */
 	virtual FMovieSceneSequenceIDRef GetRootTemplateID() const = 0;
@@ -283,6 +300,17 @@ public:
 	virtual void PopToSequenceInstance(FMovieSceneSequenceIDRef SequenceID) = 0;
 
 	/**
+	 * Get the currently viewed sub sequence range
+	 *
+	 * @return The sub sequence range, or an empty optional if we're viewing the root.
+	 */
+	virtual TOptional<TRange<FFrameNumber>> GetSubSequenceRange() const
+	{
+		TOptional<TRange<FFrameNumber>> Optional;
+		return Optional;
+	}
+
+	/**
 	 * Retrieve the top level view model for this sequence
 	 */
 	virtual TSharedPtr<UE::Sequencer::FSequencerEditorViewModel> GetViewModel() const = 0;
@@ -296,9 +324,12 @@ public:
 	virtual void SuppressAutoEvaluation(UMovieSceneSequence* Sequence, const FGuid& InSignature) = 0;
 
 	/**
-	 * Create a new binding for the specified object
-	 */
-	virtual FGuid CreateBinding(UObject& InObject, const FString& InName) = 0;
+	* Create a new binding for the specified object
+	*/
+	SEQUENCER_API virtual FGuid CreateBinding(UObject& InObject, const UE::Sequencer::FCreateBindingParams& InParams) = 0;
+
+	// Override from IMovieScenePlayer
+	FGuid CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject) override;
 
 	/**
 	 * Attempts to add a new spawnable to the MovieScene for the specified object (asset, class or actor instance)
@@ -414,7 +445,17 @@ public:
 	 */
 	virtual FQualifiedFrameTime GetGlobalTime() const = 0;
 
-	virtual uint32 GetLocalLoopIndex() const = 0;
+	/**
+	 * Retrieve the current local time in unwarped space. This is usually only required for time-warp operations. Prefer GetLocalTime.
+	 */
+	virtual FQualifiedFrameTime GetUnwarpedLocalTime() const = 0;
+
+	/**
+	 * Temporarily override the behavior of a call to one of the SetLocalTime or OnScrubPositionChanged functions to operate in a specific time-domain
+	 */
+	[[nodiscard]] virtual UE::Sequencer::FTimeDomainOverride OverrideTimeDomain(UE::Sequencer::ETimeDomain NewDomain) = 0;
+
+	virtual TOptional<int32> GetLocalLoopIndex() const = 0;
 
 	/**
 	 * Sets the cursor position relative to the currently focused sequence
@@ -448,6 +489,9 @@ public:
 
 	/** Forcefully reevaluate the sequence immediately */
 	virtual void ForceEvaluate() = 0;
+	
+	/** @return The camera cut that was last used by a camera cut; it is the view that the sequence should have at the current time. */
+	SEQUENCER_API TWeakObjectPtr<UCameraComponent> GetLastEvaluatedCameraCut() const;
 
 	/** Reset the timing manager to the clock source specified by the root movie scene */
 	virtual void ResetTimeController() = 0;
@@ -530,6 +574,9 @@ public:
 	 * Checks whether we're in silent mode or not
 	 */
 	virtual bool IsInSilentMode() const = 0;
+
+	/** Saves the sequence content to the asset registry. */
+	virtual void Save() = 0;
 
 	virtual FOnActorAddedToSequencer& OnActorAddedToSequencer() = 0;
 
@@ -617,10 +664,15 @@ public:
 	virtual void GetKeysFromSelection(TUniquePtr<FSequencerKeyCollection>& KeyCollection, float DuplicateThresoldTime) = 0;
 	virtual FSequencerKeyCollection* GetKeyCollection() = 0;
 
+	virtual FFrameNumber OnGetNearestKey(FFrameTime InTime, ENearestKeyOption NearestKeyOption) = 0;
+
 	virtual TArray<FMovieSceneMarkedFrame> GetMarkedFrames() const = 0;
 
 	/** Gets the currently selected tracks. */
 	virtual void GetSelectedTracks(TArray<UMovieSceneTrack*>& OutSelectedTracks) = 0;
+
+	/** Gets the currently selected track rows */
+	virtual void GetSelectedTrackRows(TArray<TPair<UMovieSceneTrack*, int32>>& OutSelectedTrackRows) = 0;
 
 	/** Gets the currently selected sections. */
 	virtual void GetSelectedSections(TArray<UMovieSceneSection*>& OutSelectedSections) = 0;
@@ -664,6 +716,10 @@ public:
 	/** Throb key or section selection */
 	virtual void ThrobKeySelection() = 0;
 	virtual void ThrobSectionSelection() = 0;
+
+	virtual void OnScrubPositionChanged(FFrameTime NewScrubPosition, bool bScrubbing, bool bEvaluate) = 0;
+	virtual void OnBeginScrubbing() = 0;
+	virtual void OnEndScrubbing() = 0;
 
 	/** Gets a multicast delegate which is executed whenever the global time changes. */
 	virtual FOnGlobalTimeChanged& OnGlobalTimeChanged() = 0;
@@ -802,13 +858,19 @@ public:
 public:
 
 	/** Sets the specified track filter to be on or off */
+	UE_DEPRECATED(5.5, "SetTrackFilterEnabled() has been deprecated. Use GetFilterInterface()->SetFilterActiveByDisplayName() instead.")
 	virtual void SetTrackFilterEnabled(const FText& InTrackFilterName, bool bEnabled) = 0;
 
 	/** Gets whether the specified track filter is on/off */
+	UE_DEPRECATED(5.5, "IsTrackFilterEnabled() has been deprecated. Use GetFilterInterface()->IsFilterActiveByDisplayName() instead.")
 	virtual bool IsTrackFilterEnabled(const FText& InTrackFilterName) const = 0;
 
 	/** Gets all the available track filter names */
+	UE_DEPRECATED(5.5, "GetTrackFilterNames() has been deprecated. Use GetFilterInterface()->GetFilterDisplayNames() instead.")
 	virtual TArray<FText> GetTrackFilterNames() const = 0;
+
+	/** Gets the Sequencer filter interface used to manage filters */
+	SEQUENCER_API virtual TSharedRef<ISequencerTrackFilters> GetFilterInterface() const = 0;
 
 public:
 
@@ -834,6 +896,12 @@ public:
 
 
 	/**
+	 * Create a new binding for the specified object, lightly deprecated and no longer virtual in favor of the overload with binding parameters
+	 */
+	SEQUENCER_API FGuid CreateBinding(UObject& InObject, const FString& InName);
+
+
+	/**
 	* Get the Display Name of the Object Binding Track.
 	* @param InBinding the Binding of the Object
 	* @return The name of the object binding track.
@@ -846,6 +914,66 @@ public:
 	* @param InDisplayName The new name of the object binding track.
 	*/
 	virtual void SetDisplayName(FGuid InBinding, const FText& InDisplayName) = 0;
+
+	/*
+	* Returns priority-sorted list of custom binding types supported by this Sequencer. 
+	*/
+	virtual TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> GetSupportedCustomBindingTypes() const { static TArray<TSubclassOf<UMovieSceneCustomBinding>> EmptyArray; return EmptyArray; }
+
+	virtual void RefreshSupportedCustomBindingTypes() {}
+
+	/** @return True if the Sequencer is currently limiting viewport selection to only Sequencer objects. */
+	virtual bool IsViewportSelectionLimited() const = 0;
+
+	/** Turns on or off Sequencer selection limiting. */
+	virtual void SetViewportSelectionLimited(const bool bInSelectionLimited) = 0;
+
+	/** @return True if the specified object is selectable in the viewport and not made unselectable by the Sequencer selection limiting. */
+	virtual bool IsObjectSelectableInViewport(UObject* const InObject) = 0;
+
+	/** @return Delegate executed when Sequencer selection limiting is enabled or disabled. */
+	virtual FOnViewportSelectionLimitedChanged& OnViewportSelectionLimitedChanged() = 0;
+
+	/**
+	 * Registers and displays a new drawer in the sidebar.
+	 * 
+	 * @param InDrawerConfig Configuration info for the new drawer
+	 * 
+	 * @return True if the new drawer registration was successful.
+	 */
+	virtual bool RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig) = 0;
+
+	/**
+	 * Unregisters and removes a drawer from the sidebar.
+	 *
+	 * @param InDrawerId Unique drawer Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	virtual bool UnregisterDrawer(const FName InDrawerId) = 0;
+
+	/**
+	 * Registers and displays a new drawer section in the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id to register
+	 * @param InSection Drawer content interface for the section
+	 * 
+	 * @return True if the new drawer section registration was successful.
+	 */
+	virtual bool RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection) = 0;
+
+	/**
+	 * Unregisters and removes a drawer section from the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id that contains the section to unregister
+	 * @param InSectionId Unique drawer section Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	virtual bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId) = 0;
+
+	virtual bool TrackSupportsConditions(const UMovieSceneTrack* Track) const = 0;
+
 protected:
 	FOnInitializeDetailsPanel InitializeDetailsPanelEvent;
 	FOnCameraAddedToSequencer CameraAddedToSequencer;

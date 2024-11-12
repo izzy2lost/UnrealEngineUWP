@@ -21,6 +21,11 @@
 #include "Misc/Guid.h"
 #include "Misc/DateTime.h"
 #include "Misc/Timespan.h"
+#include "Misc/FrameRate.h"
+#include "Misc/FrameTime.h"
+#include "Misc/QualifiedFrameTime.h"
+#include "Misc/FrameNumber.h"
+#include "Misc/Timecode.h"
 
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/SoftObjectPath.h"
@@ -302,6 +307,7 @@ enum EPixelFormat : int
 	PF_ASTC_8x8_NORM_RG,
 	PF_ASTC_10x10_NORM_RG,
 	PF_ASTC_12x12_NORM_RG,
+	PF_R16G16_SINT,
 	PF_MAX,
 };
 
@@ -352,6 +358,9 @@ namespace EMouseCursor
 
 		/** Eye-dropper cursor for picking colors. */
 		EyeDropper,
+
+		/** Custom cursor shape for platforms that support setting a native cursor shape. Same as specifying None if not set. */
+		Custom,
 	};
 }
 
@@ -1062,6 +1071,74 @@ struct FUint64Point
 
 	UPROPERTY(EditAnywhere, Category = IntPoint, SaveGame)
 	int64 Y;
+};
+
+/**
+ * An integer rectangle in 2D space.
+ * @note The full C++ class is located here: Engine\Source\Runtime\Core\Public\Math\IntRect.h
+ */
+USTRUCT(immutable, noexport, BlueprintType, IsAlwaysAccessible, HasDefaults, HasNoOpConstructor, IsCoreType)
+struct FIntRect
+{
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=IntRect, SaveGame)
+	FIntPoint Min;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=IntRect, SaveGame)
+	FIntPoint Max;
+};
+
+USTRUCT(immutable, noexport, IsAlwaysAccessible, HasDefaults, HasNoOpConstructor, IsCoreType)
+struct FInt32Rect
+{
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FInt32Point Min;
+
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FInt32Point Max;	
+};
+
+USTRUCT(immutable, noexport, IsAlwaysAccessible, HasDefaults, HasNoOpConstructor, IsCoreType)
+struct FInt64Rect
+{
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FInt64Point Min;
+
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FInt64Point Max;
+};
+
+/**
+ * An integer rectangle in 2D space.
+ * @note The full C++ class is located here: Engine\Source\Runtime\Core\Public\Math\IntRect.h
+ */
+USTRUCT(immutable, noexport, IsAlwaysAccessible, HasDefaults, HasNoOpConstructor, IsCoreType)
+struct FUintRect
+{
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FUintPoint Min;
+
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FUintPoint Max;
+};
+
+USTRUCT(immutable, noexport, IsAlwaysAccessible, HasDefaults, HasNoOpConstructor, IsCoreType)
+struct FUint32Rect
+{
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FUint32Point Min;
+
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FUint32Point Max;
+};
+
+USTRUCT(immutable, noexport, IsAlwaysAccessible, HasDefaults, HasNoOpConstructor, IsCoreType)
+struct FUint64Rect
+{
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FUint64Point Min;
+
+	UPROPERTY(EditAnywhere, Category=IntRect, SaveGame)
+	FUint64Point Max;
 };
 
 /**
@@ -2052,6 +2129,7 @@ public:
 USTRUCT(immutable, noexport, BlueprintType, IsAlwaysAccessible, HasDefaults, meta=(HasNativeMake="/Script/Engine.KismetMathLibrary.MakeDateTime", HasNativeBreak="/Script/Engine.KismetMathLibrary.BreakDateTime"))
 struct FDateTime
 {
+	UPROPERTY()
 	int64 Ticks;
 };
 
@@ -2135,6 +2213,9 @@ struct FTimecode
 	UPROPERTY(BlueprintReadWrite, Category=Timecode)
 	int32 Frames;
 
+	UPROPERTY(BlueprintReadWrite, Category=Timecode)
+	float Subframe;
+
 	/** If true, this Timecode represents a Drop Frame timecode used to account for fractional frame rates in NTSC play rates. */
 	UPROPERTY(BlueprintReadWrite, Category= Timecode)
 	bool bDropFrameFormat;
@@ -2147,6 +2228,7 @@ struct FTimecode
 USTRUCT(immutable, noexport, BlueprintType, IsAlwaysAccessible, HasDefaults, meta=(HasNativeMake="/Script/Engine.KismetMathLibrary.MakeTimespan", HasNativeBreak="/Script/Engine.KismetMathLibrary.BreakTimespan"))
 struct FTimespan
 {
+	UPROPERTY()
 	int64 Ticks;
 };
 
@@ -2596,6 +2678,19 @@ enum class EInputDeviceTriggerMask : uint8
 	Left		= 0x01,
 	Right		= 0x02,
 	All			= Left | Right
+};
+
+/**
+ * Represents input device analog sticks that are available
+ *
+ * NOTE: Make sure to keep this type in sync with the reflected version in IInputInterface.h!
+ */
+UENUM(BlueprintType)
+enum class EInputDeviceAnalogStickMask : uint8
+{
+	None = 0x00,
+	Left = 0x01,
+	Right = 0x02
 };
 
 /**

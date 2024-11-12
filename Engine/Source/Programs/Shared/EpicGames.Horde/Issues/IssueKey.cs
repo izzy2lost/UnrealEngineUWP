@@ -4,9 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Issues
 {
@@ -59,11 +61,13 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Type of the key
 		/// </summary>
+		[JsonConverter(typeof(JsonStringEnumConverter))]
 		public IssueKeyType Type { get; }
 
 		/// <summary>
 		/// Arbitrary string that can be used to discriminate between otherwise identical keys, limiting the issues that it can merge with.
 		/// </summary>
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 		public string? Scope { get; }
 
 		/// <summary>
@@ -78,12 +82,23 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueKey(string name, IssueKeyType type, string? scope)
+		[JsonConstructor]
+		public IssueKey(string name, IssueKeyType type, string? scope = null)
 		{
 			Name = name;
 			Type = type;
 			Scope = scope;
 		}
+
+		/// <summary>
+		/// Creates an issue key for a file
+		/// </summary>
+		public static IssueKey FromFile(string file, bool note = false) => new IssueKey(file, note? IssueKeyType.Note : IssueKeyType.File);
+
+		/// <summary>
+		/// Creates an issue key for a file
+		/// </summary>
+		public static IssueKey FromSymbol(string name) => new IssueKey(name, IssueKeyType.Symbol);
 
 		/// <summary>
 		/// Creates an issue key for a particular hash
@@ -94,6 +109,11 @@ namespace EpicGames.Horde.Issues
 		/// Creates an issue key for a particular step
 		/// </summary>
 		public static IssueKey FromStep(StreamId streamId, TemplateId templateId, string nodeName) => new IssueKey($"{streamId}:{templateId}:{nodeName}", IssueKeyType.Step);
+
+		/// <summary>
+		/// Creates an issue key for a particular step and severity
+		/// </summary>
+		public static IssueKey FromStepAndSeverity(StreamId streamId, TemplateId templateId, string nodeName, LogLevel severity) => new IssueKey($"{streamId}:{templateId}:{nodeName}:{severity}", IssueKeyType.Step);
 
 		/// <inheritdoc/>
 		public bool Equals(IssueKey? other) => other is not null && other.Name.Equals(Name, StringComparison.OrdinalIgnoreCase) && other.Type == Type && String.Equals(Scope, other.Scope, StringComparison.Ordinal);

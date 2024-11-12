@@ -12,6 +12,7 @@ struct FAssetData;
 class FAssetPackageData;
 class FLinkerTables;
 class FPackageDependencyData;
+namespace UE::AssetRegistry { enum class EExtraDependencyFlags : uint32; }
 struct FGatherableTextData;
 struct FObjectFullNameAndThumbnail;
 
@@ -145,11 +146,12 @@ private:
 	bool SerializeEditorOnlyFlags(TBitArray<>& OutImportUsedInGame, TBitArray<>& OutSoftPackageUsedInGame);
 	bool SerializeSearchableNamesMap(FLinkerTables& OutSearchableNames);
 	bool SerializeAssetRegistryDependencyData(TBitArray<>& OutImportUsedInGame, TBitArray<>& OutSoftPackageUsedInGame,
-		const TArray<FObjectImport>& InImportMap, const TArray<FName>& InSoftPackageReferenceList);
+		TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>>& OutExtraPackageDependencies);
 	bool SerializePackageTrailer(FAssetPackageData& PackageData);
 
 	void ApplyRelocationToImportMapAndSoftPackageReferenceList(FStringView LoadedPackageName,
-		TArray<FName>& OutSoftPackageReferenceList);
+		TArray<FName>& InOutSoftPackageReferenceList, 
+		TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>>& InOutExtraPackageDependencies);
 	static void ConvertLinkerTableToPaths(FName PackageName, TArray<FObjectExport>& ExportMap,
 		TArray<FObjectImport>& ImportMap, TArray<FSoftObjectPath>& OutExports, TArray<FSoftObjectPath>& OutImports);
 
@@ -162,7 +164,7 @@ private:
 	 * Loader is the interface used to read the bytes from the package's repository. All interpretation of the bytes is
 	 * done by serializing into *this, which is also an FArchive.
 	 */
-	FArchive* Loader;
+	FArchive* Loader = nullptr;
 	FPackageFileSummary PackageFileSummary;
 	TArray<FName> NameMap;
 	TArray<FObjectImport> ImportMap;
@@ -172,9 +174,11 @@ private:
 	TArray<FSoftObjectPath> SoftObjectPathMap;
 	TArray<FGatherableTextData> GatherableTextDataMap;
 	TArray<FObjectFullNameAndThumbnail> ThumbnailMap;
-	int64 PackageFileSize;
-	int64 AssetRegistryDependencyDataOffset;
-	bool bLoaderOwner;
+	int64 PackageFileSize = 0;
+	int64 AssetRegistryDependencyDataOffset = INDEX_NONE;
+	// Defined as uint32 to avoid including AssetData.h in this header
+	uint32 AssetRegistryVersion = static_cast<uint32>(~0);
+	bool bLoaderOwner = false;
 };
 ENUM_CLASS_FLAGS(FPackageReader::EReadOptions);
 

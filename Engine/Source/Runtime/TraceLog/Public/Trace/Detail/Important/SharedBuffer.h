@@ -5,7 +5,7 @@
 #include "HAL/Platform.h"
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS
 
 namespace UE {
 namespace Trace {
@@ -37,4 +37,4 @@ struct FNextSharedBuffer
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED && TRACE_PRIVATE_ALLOW_IMPORTANTS

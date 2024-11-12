@@ -4,6 +4,9 @@
 
 #include "Styling/SlateStyle.h"
 
+enum class EStateTreeStateSelectionBehavior : uint8;
+enum class EStateTreeStateType : uint8;
+
 class ISlateStyle;
 
 class STATETREEEDITORMODULE_API FStateTreeEditorStyle
@@ -11,6 +14,8 @@ class STATETREEEDITORMODULE_API FStateTreeEditorStyle
 {
 public:
 	static FStateTreeEditorStyle& Get();
+	
+	static const FSlateBrush* GetBrushForSelectionBehaviorType(EStateTreeStateSelectionBehavior InBehaviour, bool bHasChildren, EStateTreeStateType StateType);	
 
 protected:
 	friend class FStateTreeEditorModule;

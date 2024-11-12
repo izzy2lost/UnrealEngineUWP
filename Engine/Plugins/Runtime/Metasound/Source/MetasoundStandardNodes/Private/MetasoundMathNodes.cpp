@@ -1098,9 +1098,28 @@ namespace Metasound
 				return;
 			}
 
-			FMemory::Memcpy(OutResult->GetData(), InPrimaryOperand->GetData(), sizeof(float) * NumSamples);
+			if (InAdditionalOperands.Num() > 0)
+			{
+				const FAudioBuffer& Operand = *InAdditionalOperands[0];
+				if (!ensure(NumSamples == Operand.Num()))
+				{
+					// TODO: Error
+					OutResult->Zero();
+					return;
+				}
 
-			for (int32 i = 0; i < InAdditionalOperands.Num(); ++i)
+				TArrayView<const float> OperandADataView(InPrimaryOperand->GetData(), NumSamples);
+				TArrayView<const float> OperandBDataView(Operand.GetData(), NumSamples);
+				TArrayView<float> OutDataView(OutResult->GetData(), NumSamples);
+
+				Audio::ArrayMultiply(OperandADataView, OperandBDataView, OutDataView);
+			}
+			else
+			{
+				FMemory::Memcpy(OutResult->GetData(), InPrimaryOperand->GetData(), sizeof(float) * NumSamples);
+			}
+
+			for (int32 i = 1; i < InAdditionalOperands.Num(); ++i)
 			{
 				const FAudioBuffer& Operand = *InAdditionalOperands[i];
 				if (!ensure(NumSamples == Operand.Num()))

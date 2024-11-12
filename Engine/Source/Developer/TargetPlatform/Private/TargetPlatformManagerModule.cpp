@@ -30,6 +30,7 @@
 #include "PlatformInfo.h"
 #include "DesktopPlatformModule.h"
 #include "Interfaces/ITurnkeySupportModule.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTargetPlatformManager, Log, All);
 
@@ -147,11 +148,11 @@ const ITargetPlatformControls* ITargetPlatformControls::GetPlatformFromOrdinal(i
 
 const class ITargetPlatformSettings& ITargetDevice::GetPlatformSettings() const
 {
-	return GetTargetPlatform().GetPlatformSettings();
+	return *(GetTargetPlatform().GetTargetPlatformSettings());
 }
 const class ITargetPlatformControls& ITargetDevice::GetPlatformControls() const
 {
-	return GetTargetPlatform().GetPlatformControls();
+	return *(GetTargetPlatform().GetTargetPlatformControls());
 }
 
 ITargetPlatform::FOnTargetDeviceDiscovered& ITargetPlatform::OnDeviceDiscovered()
@@ -192,7 +193,6 @@ public:
 		, bForceCacheUpdate(true)
 		, bHasInitErrors(false)
 		, bIgnoreFirstDelegateCall(true)
-		, bSkipOneTextureFormatManagerInvalidate(false)
 	{
 #if WITH_EDITOR && UE_WITH_TURNKEY_SUPPORT
 
@@ -220,13 +220,16 @@ public:
 					SetupAndValidateAutoSDK(Pair.Value.AutoSDKPath);
 				}
 			}
+
+			FString ManualSDKEnvironmentVarsPath = FPaths::EngineIntermediateDir() / FString(TEXT("ManualSDKEnvVars.txt"));
+			if (IFileManager::Get().FileExists(*ManualSDKEnvironmentVarsPath))
+			{
+				SetupEnvironmentFromManualSDK(ManualSDKEnvironmentVarsPath);
+			}
 		}
 #endif
 
 		TextureFormatManager = FModuleManager::LoadModulePtr<ITextureFormatManagerModule>("TextureFormat");
-
-		//TextureFormatManager->Invalidate() already done, don't do again now :
-		bSkipOneTextureFormatManagerInvalidate = true;
 
 		// Calling a virtual function from a constructor, but with no expectation that a derived implementation of this
 		// method would be called.  This is solely to avoid duplicating code in this implementation, not for polymorphism.
@@ -264,15 +267,6 @@ public:
 
 		bForceCacheUpdate = false;
 		
-		if ( bSkipOneTextureFormatManagerInvalidate )
-		{
-			bSkipOneTextureFormatManagerInvalidate = false;
-		}
-		else if (!bHasInitErrors)
-		{
-			TextureFormatManager->Invalidate();
-		}
-
 		// If we've had an error due to an invalid target platform, don't do additional work
 		if (!bHasInitErrors)
 		{
@@ -688,12 +682,6 @@ public:
 		return nullptr;
 	}
 
-	virtual const TArray<const ITextureFormat*>& GetTextureFormats() override
-	{
-		// note that this gets ALL ITextureFormat Modules, not just ones relevant to the current TargetPlatform
-		return TextureFormatManager->GetTextureFormats();
-	}
-
 	virtual const ITextureFormat* FindTextureFormat(FName Name) override
 	{
 		return TextureFormatManager->FindTextureFormat(Name);
@@ -885,6 +873,18 @@ protected:
 		}
 #endif
 
+	// Get the platform we are previewing if GMaxRHIShaderPlatform is a preview SP
+#if WITH_EDITOR
+		FName PlatformNamePreview = NAME_None;
+		if (IsRunningGame())
+		{
+			if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(GMaxRHIShaderPlatform))
+			{
+				PlatformNamePreview = FDataDrivenShaderPlatformInfo::GetPlatformName(GMaxRHIShaderPlatform);
+			}
+		}
+#endif
+
 		// find a set of valid target platform names (the platform DataDrivenPlatformInfo.ini file was found indicates support for the platform 
 		// exists on disk, so the TP is expected to work)
 		FScopedSlowTask SlowTask((float)FDataDrivenPlatformInfoRegistry::GetAllPlatformInfos().Num());
@@ -900,10 +900,13 @@ protected:
 
 #if WITH_EDITOR
 			// if we have the editor and we are using -game
-			// only need to instantiate the current platform 
+			// only need to instantiate the current platform if we are not using OverrideSP command
+			// If we are using OverrideSP command that means our SP is a preview SP 
+			// Because of that we must also load the TPS of the Platform we are previewing.
 			if (IsRunningGame())
 			{
-				if (PlatformName != FPlatformProperties::IniPlatformName())
+				if ((PlatformName != FPlatformProperties::IniPlatformName()) && 
+					(PlatformName != PlatformNamePreview))
 				{
 					continue;
 				}
@@ -967,6 +970,16 @@ protected:
 #else
 		return true;
 #endif // AUTOSDKS_ENABLED
+	}
+
+	bool SetupEnvironmentFromManualSDK(const FString& EnvVarFileName)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FTargetPlatformManagerModule::SetupEnvironmentFromManualSDK);
+
+		UE_LOG(LogTargetPlatformManager, Verbose, TEXT("Reading the manifest for auto-selected manual sdks") );
+		bool bResult = SetupEnvironmentFromEnvVarFile(EnvVarFileName);
+		IFileManager::Get().Delete(*EnvVarFileName);
+		return bResult;
 	}
 	
 	bool SetupEnvironmentFromAutoSDK(const FString& AutoSDKPath)
@@ -1035,6 +1048,21 @@ protected:
 		static const FString SDKEnvironmentVarsFile(TEXT("OutputEnvVars.txt"));
 		FString EnvVarFileName = FPaths::Combine(*TargetSDKRoot, *SDKEnvironmentVarsFile);		
 
+		if (!SetupEnvironmentFromEnvVarFile(EnvVarFileName))
+		{
+			UE_LOG(LogTargetPlatformManager, Warning, TEXT("OutputEnvVars.txt not found for platform: '%s'"), *AutoSDKPath);			
+			return false;
+		}
+
+		UE_LOG(LogTargetPlatformManager, Verbose, TEXT("Platform %s has auto sdk install"), *AutoSDKPath);		
+		return true;
+#else
+		return true;
+#endif
+	}
+
+	bool SetupEnvironmentFromEnvVarFile( const FString& EnvVarFileName )
+	{
 		// If we are using a manual install, then it is valid for there to be no OutputEnvVars file.
 		TUniquePtr<FArchive> EnvVarFile(IFileManager::Get().CreateFileReader(*EnvVarFileName));
 		if (EnvVarFile)
@@ -1145,18 +1173,12 @@ protected:
 
 			FString ModifiedPath = FString::Join(ModifiedPathVars, PathDelimiter);
 			FPlatformMisc::SetEnvironmentVar(TEXT("PATH"), *ModifiedPath);			
+			return true;
 		}
 		else
 		{
-			UE_LOG(LogTargetPlatformManager, Warning, TEXT("OutputEnvVars.txt not found for platform: '%s'"), *AutoSDKPath);			
 			return false;
 		}
-
-		UE_LOG(LogTargetPlatformManager, Verbose, TEXT("Platform %s has auto sdk install"), *AutoSDKPath);		
-		return true;
-#else
-		return true;
-#endif
 	}
 
 	bool SetupSDKStatus()
@@ -1363,9 +1385,6 @@ private:
 	// Flag to avoid redunant reloads
 	bool bIgnoreFirstDelegateCall;
 	
-	// Flag to avoid redunant reloads
-	bool bSkipOneTextureFormatManagerInvalidate;
-
 	// Holds the list of discovered platforms.
 	TArray<ITargetPlatform*> Platforms;
 	TArray<ITargetPlatformControls*> PlatformControls;

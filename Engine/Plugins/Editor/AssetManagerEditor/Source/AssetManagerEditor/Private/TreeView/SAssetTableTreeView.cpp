@@ -16,13 +16,12 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "IContentBrowserSingleton.h"
-#include "Insights/Common/InsightsStyle.h"
-#include "Insights/Common/Log.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Filter/ViewModels/FilterConfigurator.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+#include "InsightsCore/Common/Log.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 #include "Interfaces/IPluginManager.h"
 #include "Logging/MessageLog.h"
 #include "Misc/FileHelper.h"
@@ -51,6 +50,8 @@ extern UNREALED_API UEditorEngine* GEditor;
 
 SAssetTableTreeView::SAssetTableTreeView()
 {
+	MaxDepthToAutoExpand = 1;
+	bRunInAsyncMode = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1765,9 +1766,8 @@ void SAssetTableTreeView::RefreshAssets()
 
 		for (int32 SourceAssetIndex = 0; SourceAssetIndex < SourceAssets.Num(); SourceAssetIndex++)
 		{
-			TArrayView<FAssetData const* const> AssetsInSourcePackage = RegistrySource.GetOwnedRegistryState()->GetAssetsByPackageName(SourceAssets[SourceAssetIndex].PackageName);
-
-			for (FAssetData const* const SourceAsset : AssetsInSourcePackage)
+			RegistrySource.GetOwnedRegistryState()->EnumerateAssetsByPackageName(SourceAssets[SourceAssetIndex].PackageName,
+				[&AssetToIndexMap, this, &AssetTable, &PluginToSizeMap](const FAssetData* SourceAsset)
 			{
 				if (AssetToIndexMap.Find(*SourceAsset) == nullptr)
 				{
@@ -1785,7 +1785,8 @@ void SAssetTableTreeView::RefreshAssets()
 						PluginToSizeMap.Add(AssetRow.GetPluginName(), AssetRow.GetStagedCompressedSizeRequiredInstall());
 					}
 				}
-			}
+				return true; // Keep iterating
+			});
 		}
 
 		int32 EntryIndex = AssetTable->GetAssets().Num();
@@ -1808,7 +1809,7 @@ void SAssetTableTreeView::RefreshAssets()
 
 			FAssetIdentifier CurrentIdentifier(SourceAssets[SourceAssetIndex].PackageName);
 			// We'll have to add the dependencies to all these entries
-			TArrayView<FAssetData const* const> AssetsInSourcePackage = RegistrySource.GetOwnedRegistryState()->GetAssetsByPackageName(SourceAssets[SourceAssetIndex].PackageName);
+			TArray<const FAssetData*> AssetsInSourcePackage = RegistrySource.GetOwnedRegistryState()->CopyAssetsByPackageName(SourceAssets[SourceAssetIndex].PackageName);
 
 			// Get the dependencies
 			TArray<FAssetIdentifier> DependencyList;
@@ -1818,8 +1819,10 @@ void SAssetTableTreeView::RefreshAssets()
 
 			for (const FAssetIdentifier& Dependency : DependencyList)
 			{
-				TArrayView<FAssetData const* const> AssetsInDependencyPackage = RegistrySource.GetOwnedRegistryState()->GetAssetsByPackageName(Dependency.PackageName);
-				for (FAssetData const* const DependencyAsset : AssetsInDependencyPackage)
+				RegistrySource.GetOwnedRegistryState()->EnumerateAssetsByPackageName(Dependency.PackageName,
+					[&AssetToIndexMap, &IndicesOfDependenciesInRowTableToAddToCurrentSourceAssetRow, this,
+					&AssetTable, &SourceAssets, &PluginToSizeMap]
+					(const FAssetData* DependencyAsset)
 				{
 					if (int32* DependencyIndex = AssetToIndexMap.Find(*DependencyAsset))
 					{
@@ -1844,7 +1847,8 @@ void SAssetTableTreeView::RefreshAssets()
 							PluginToSizeMap.Add(NewRow.GetPluginName(), NewRow.GetStagedCompressedSizeRequiredInstall());
 						}
 					}
-				}
+					return true; // Keep iterating
+				});
 			}
 
 			if (IndicesOfDependenciesInRowTableToAddToCurrentSourceAssetRow.Num())

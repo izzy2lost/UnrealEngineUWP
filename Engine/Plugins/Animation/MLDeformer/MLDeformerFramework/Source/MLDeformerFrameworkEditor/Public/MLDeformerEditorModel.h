@@ -13,6 +13,7 @@
 #include "MLDeformerModule.h"
 #include "MLDeformerModel.h"
 #include "MLDeformerSampler.h"
+#include "MeshDescription.h"
 #include "MLDeformerEditorModel.generated.h"
 
 class UMLDeformerModel;
@@ -51,7 +52,10 @@ enum class ETrainingResult : uint8
 	FailOnData,
 
 	/** The python script has some error (see output log). Or it's missing some required model training class. */
-	FailPythonError
+	FailPythonError,
+
+	/** Any other error, for example when some exception got thrown during training. */
+	Other
 };
 
 namespace UE::MLDeformer
@@ -95,6 +99,13 @@ namespace UE::MLDeformer
 		// ~END FGCObject overrides.
 
 		/**
+		 * Copy the common property values from a source model into this model.		 
+		 * This includes the skeletal mesh, input animations, and shared visualization settings.
+		 * @param SourceEditorModel The source model to copy the shared settings from.
+		 */
+		virtual void CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel);
+
+		/**
 		 * Change the skeletal mesh on a specific skeletal mesh component.
 		 * This internally will not only call SkelMeshComponent->SetSkeletalMesh(Mesh), but also will reassign the materials.
 		 * The reason for this is because if there are material instances set already, the skeletal mesh component will not override them to preserve changes done by the user.
@@ -107,7 +118,6 @@ namespace UE::MLDeformer
 		 */
 		static void ChangeSkeletalMeshOnComponent(USkeletalMeshComponent* SkelMeshComponent, USkeletalMesh* Mesh);
 
-		// Required overrides.
 		/**
 		 * Get the number of training frames.
 		 * This must not be clamped yet to the maximum training frame limit. It must return the full amount of frames available in your training data.
@@ -212,8 +222,28 @@ namespace UE::MLDeformer
 		 */
 		virtual TSharedPtr<FMLDeformerSampler> CreateSamplerObject() const;
 
+		/**
+		 * Get the number of training input animations.
+		 * Each training input anim is a pair of a source animation and a target mesh deformation with the same poses.
+		 * This data is fed into the training process.
+		 * @return The number of training input anims.
+		 */
 		virtual int32 GetNumTrainingInputAnims() const;
+
+		/**
+		 * Get a given training input animation.
+		 * Each training input anim is a pair of a source animation and a target mesh deformation with the same poses.
+		 * This data is fed into the training process.
+		 * @param Index The training input animation to get.
+		 * @see GetNumTrainingInputAnims
+		 */
 		virtual FMLDeformerTrainingInputAnim* GetTrainingInputAnim(int32 Index) const;
+
+		/**
+		 * Update the timeline's training input animation list.
+		 * This is the list of animations that show inside the timeline when in training mode.
+		 * Each training input animation pair needs some name that is shown inside the timeline.
+		 */
 		virtual void UpdateTimelineTrainingAnimList();
 
 		/**
@@ -283,8 +313,25 @@ namespace UE::MLDeformer
 		 */
 		virtual void CreateTestMLDeformedActor(UWorld* World);
 
+		/**
+		 * Create the compare actors for the testing mode.
+		 * @param World The world to create the actors in.
+		 */
 		virtual void CreateTestCompareActors(UWorld* World);
+
+		/**
+		 * Check if this model is compatible with a specific deformer asset.
+		 * For example it will check whether the other deformer asset's skeletal mesh is the same as the one used
+		 * by this model.
+		 * @param Deformer The deformer asset to check against.
+		 * @return Returns true if the specified asset is compatible with this one, otherwise false is returned.
+		 */
 		virtual bool IsCompatibleDeformer(UMLDeformerAsset* Deformer) const;
+
+		/**
+		 * Update the mesh offset factors, which is basically controlling where to place the actors in the scene.
+		 * The spacing between the characters is the mesh offset factor multiplied by the mesh spacing.
+		 */
 		virtual void UpdateMeshOffsetFactors();
 
 		/**
@@ -457,15 +504,23 @@ namespace UE::MLDeformer
 		 * Go to a given frame in the training data.
 		 * Internally this will also call OnTimeSliderScrubPositionChanged, to go to the specific frame.
 		 * @param FrameNumber The training frame to go to. This will automatically be clamped to a valid range in case it goes out of bounds.
+		 * @param bIsScrubbing This is set to true when we are scrubbing the timeline. It is set to false when the mouse button is released.
 		 */
-		virtual void SetTrainingFrame(int32 FrameNumber);
+		virtual void SetTrainingFrame(int32 FrameNumber, bool bIsScrubbing);
+
+		UE_DEPRECATED(5.5, "Please use the SetTrainingFrame that takes a bIsScrubbing parameter.")
+		virtual void SetTrainingFrame(int32 FrameNumber) { SetTrainingFrame(FrameNumber, false); }
 
 		/**
 		 * Go to a given frame in the test data.
 		 * Internally this will also call OnTimeSliderScrubPositionChanged, to go to the specific frame.
 		 * @param FrameNumber The test frame to go to. This will automatically be clamped to a valid range in case it goes out of bounds.
+		 * @param bIsScrubbing This is set to true when we are scrubbing the timeline. It is set to false when the mouse button is released.
 		 */
-		virtual void SetTestFrame(int32 FrameNumber);
+		virtual void SetTestFrame(int32 FrameNumber, bool bIsScrubbing);
+
+		UE_DEPRECATED(5.5, "Please use the SetTestFrame that takes a bIsScrubbing parameter.")
+		virtual void SetTestFrame(int32 FrameNumber) { SetTestFrame(FrameNumber, false); }
 
 		/**
 		 * Render additional (debug) things in the viewport.
@@ -649,6 +704,17 @@ namespace UE::MLDeformer
 		virtual void ApplyDebugActorTransforms(const TArray<FTransform>& DebugActorComponentSpaceTransforms);
 
 		/**
+		 * Update the character's pose in paint mode.
+		 * This will check whether we are in training or testing mode and choose the editor actor based on that.
+		 * The paint mode will then use this specific editor actor's skeletal mesh component to calculate skinned vertex positions at its current pose.
+		 * After that it will update the dynamic mesh in the paint mode in order to paint in this same pose.
+		 * This method is called when you start painting, or scrub the timeline.
+		 * @param bFullUpdate When set to true, this can internally update the acceleration structures, which is slow. When set to false it can quickly update the visual mesh
+		 *                    It is still important to once call it with bFullUpdate set to true though, before you start painting.
+		 */
+		virtual void UpdatePaintModePose(bool bFullUpdate=true);
+
+		/**
 		 * Debug draw helpers inside the PIE viewport that highlight debuggable actors.
 		 * On default this will draw a bounding box around the actors that can be debugged by this model.
 		 * Also it will render the actor names.
@@ -656,11 +722,52 @@ namespace UE::MLDeformer
 		 */
 		virtual void DrawPIEDebugActors();
 
+		/**
+		 * Check whether this model supports a per training input animation vertex mask.
+		 * If this is enabled, each training intput animation should show something where the user can select an optional mask.
+		 * @return Returns true when vertex masking per training input is supported, false otherwise.
+		 */
+		virtual bool GetSupportsPerTrainingInputAnimVertexMask() const	{ return false; }
+
 		/** 
 		 * Update LOD levels of the actors in editor world.
 		 * This can be used to for example sync the LOD levels of the compare actors with the main actor.
 		 */
 		virtual void UpdateActorLODs();
+
+		/**
+		 * This should update the list of available training devices.
+		 * If not implemented, the user won't be able to pick a training device.
+		 * With training device we mean the device used to store the tensors at. Typically you want to make it build a list of GPU's and have the CPU in there as well.
+		 *
+		 * <code>
+		 * UYourTrainingModel* TrainingModel = NewDerivedObject<UYourTrainingModel>();
+		 * if (TrainingModel)
+		 * {
+		 *     TrainingModel->Init(this);
+		 *     TrainingModel->UpdateAvailableDevices();
+		 *     TrainingModel->ConditionalBeginDestroy();
+		 * }
+		 * </code>
+		 * 
+		 * You can implement the following in Python as an example:
+		 * <code>
+		 * @unreal.ufunction(override=True)
+         * def update_available_devices(self):
+         *     reload(mldeformer.training_helpers)
+         *     mldeformer.training_helpers.update_training_device_list(self)
+		 * </code>
+		 * 
+		 * Then inside the python code you can do something like:
+		 * 
+		 * <code>
+		 * training_device = model.get_training_device()
+         * device_index = mldeformer.training_helpers.find_cuda_device_index(device_name=training_device)
+         * if torch.cuda.is_available() and device_index != -1:
+         *      torch.cuda.set_device(device_index)
+		 * </code>
+		 */
+		virtual void UpdateTrainingDeviceList() {}
 
 		/** Apply the transforms of the debug actor to the actors in the asset editor world. This will internally call ApplyDebugActorTransforms(DebugActorComponentSpaceTransforms). */
 		void ApplyDebugActorTransforms();
@@ -693,10 +800,14 @@ namespace UE::MLDeformer
 		float GetScrubTime() const;
 
 		/** Set the current scrub position. */
-		void SetScrubPosition(FFrameTime NewScrubPostion);
+		UE_DEPRECATED(5.5, "Please use the SetScrubPosition which takes a bIsScrubbing parameter.")
+		void SetScrubPosition(FFrameTime NewScrubPosition);
+		void SetScrubPosition(FFrameTime NewScrubPosition, bool bIsScrubbing);
 
 		/** Set the current scrub position. */
-		void SetScrubPosition(FFrameNumber NewScrubPostion);
+		UE_DEPRECATED(5.5, "Please use the SetScrubPosition which takes a bIsScrubbing parameter.")
+		void SetScrubPosition(FFrameNumber NewScrubPosition);
+		void SetScrubPosition(FFrameNumber NewScrubPosition, bool bIsScrubbing);
 
 		/** Set if frames are displayed. */
 		void SetDisplayFrames(bool bDisplayFrames);
@@ -744,6 +855,11 @@ namespace UE::MLDeformer
 		UE_DEPRECATED(5.4, "Please use GetSamplerForTrainingAnim instead.")
 		FMLDeformerSampler* GetSampler() const;
 
+		/**
+		 * Get the vertex delta sampler for a given training input animation.
+		 * @param AnimIndex The training input animation index.
+		 * @return A pointer to the sampler for this specific input anim, or nullptr in case the index is out of range.
+		 */
 		FMLDeformerSampler* GetSamplerForTrainingAnim(int32 AnimIndex) const	{ return Samplers.IsValidIndex(AnimIndex) ? Samplers[AnimIndex].Get() : nullptr; }
 
 		/**
@@ -855,7 +971,7 @@ namespace UE::MLDeformer
 		/**
 		 * Get the currently desired training frame number.
 		 * You can call CheckTrainingFrameChanged in order to make the desired frame the actual frame.
-		 * @return The currenty desired training frame number, which might not the the same as the real training frame number.
+		 * @return The currently desired training frame number, which might not the the same as the real training frame number.
 		 */
 		int32 GetCurrentTrainingFrame() const { return CurrentTrainingFrame; }
 
@@ -904,6 +1020,22 @@ namespace UE::MLDeformer
 
 		/** Mark the deltas to be updated on next Tick. */
 		void InvalidateDeltas();
+
+		/** 
+		 * Find the float based vertex attributes on the skeletal map that have a given name.
+		 * You can check whether the attribute data has been found using ReturnedValue.IsValid().
+		 */
+		TVertexAttributesConstRef<float> FindVertexAttributes(FName AttributeName) const;
+
+		/** Are we scrubbing on the timeline? */
+		bool IsScrubbingTimeline() const									{ return bIsScrubbingTimeline; }
+
+		/** Get the array of vertex attribute names that can be used for UI widget elements. Refresh this list with UpdateVertexAttributeNames(). */
+		const TArray<TSharedPtr<FName>>& GetVertexAttributeNames() const	{ return VertexAttributeNames; }
+
+		/** Update the vertex attribute names array as returned by GetVertexAttributeNames(). This is some array that can be used for UI elements like combo boxes. */
+		void UpdateVertexAttributeNames();
+
 
 	protected:
 		virtual void CreateSamplers();
@@ -1032,6 +1164,21 @@ namespace UE::MLDeformer
 
 		void UpdateLODMappings();
 
+		/**
+		 * Update whether we force to use step interpolation on the ML Deformed model or not.
+		 * Step interpolation is needed when we are enabled heatmaps and have a ground truth mesh and are in ground truth heatmap mode.
+		 * This will modify the AnimInstance's ForceStepInterpolation state on just the ML Deformed model. It can also disable it when needed.
+		 */
+		void UpdateStepInterpolationMode();
+
+		/**
+		 * Because of some technical reasons we cannot display a correct ground truth heat map at the moment while playing an animation.
+		 * Scrubbing works fine though, because we can align on the right keyframes then.
+		 * This method will look whether we are having heatmaps enabled or not, and if we are playing or not and if we're in ground truth mode.
+		 * It then disables or enables the heatmap material based on the current state.
+		 */
+		void UpdateHeatMapMaterialBasedOnMode();
+
 	protected:
 		struct FLODInfo
 		{
@@ -1074,6 +1221,9 @@ namespace UE::MLDeformer
 
 		/** The heatmap deformer graph. */
 		TObjectPtr<UMeshDeformer> HeatMapDeformerGraph = nullptr;
+
+		/** A list of vertex attribute names that can be used inside combobox UI elements. */
+		TArray<TSharedPtr<FName>> VertexAttributeNames;
 
 		/** The delegate handle to the post edit property event. */
 		FDelegateHandle PostEditPropertyDelegateHandle;
@@ -1122,6 +1272,9 @@ namespace UE::MLDeformer
 
 		/** The training input animation that is selected in the timeline. */
 		int32 ActiveTrainingInputAnimIndex = INDEX_NONE;
+
+		/** Are we currently scrubbing the timeline? */
+		bool bIsScrubbingTimeline = false;
 	};
 
 	/**

@@ -159,8 +159,8 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 
 				MetronomeClockOut = Generator->GetOutputReadReference<FMidiClock>(NodeNames::Metronome::ClockOut);
 
-				TSharedPtr<FMidiFileData> MidiData = FMidiClock::MakeClockConductorMidiData(Params.Metronome.Tempo, Params.Metronome.TimeSig.Numerator, Params.Metronome.TimeSig.Denominator);
-				MetronomeLoopLengthTicks = MidiData->SongMaps.GetBarMap().BarIncludingCountInToTick(Params.Metronome.LoopLengthBars);
+				TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(Params.Metronome.Tempo, Params.Metronome.TimeSig.Numerator, Params.Metronome.TimeSig.Denominator);
+				MetronomeLoopLengthTicks = SongMaps->BarIncludingCountInToTick(Params.Metronome.LoopLengthBars);
 			}
 
 			if (Params.MidiPlayer.MidiFile.IsValid())
@@ -210,19 +210,19 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 					MidiPlayerExpectedTick %= MidiPlayerLoopLengthTicks;
 				}
 
-				if (!InTest.TestEqual("Midi Player Looping", (*MidiPlayerClockOut)->DoesLoop(), Params.MidiPlayer.Loop))
+				if (!InTest.TestEqual("Midi Player Looping", (*MidiPlayerClockOut)->HasPersistentLoop(), Params.MidiPlayer.Loop))
 				{
 					return false;
 				}
 
 				if (MetronomeClockOut)
 				{
-					if (!InTest.TestEqual("Metronome Looping", (*MetronomeClockOut)->DoesLoop(), Params.Metronome.Loop))
+					if (!InTest.TestEqual("Metronome Looping", (*MetronomeClockOut)->HasPersistentLoop(), Params.Metronome.Loop))
 					{
 						return false;
 					}
 
-					int32 MetronomeActualTick = (*MetronomeClockOut)->GetCurrentMidiTick();
+					int32 MetronomeActualTick = (*MetronomeClockOut)->GetNextMidiTickToProcess();
 					MetronomeExpectedTick = FMath::Abs(MidiPlayerExpectedTick - MetronomeActualTick) <= 1 ? MetronomeActualTick : MetronomeExpectedTick;
 					if (MetronomeAllTicksEqual && (MetronomeActualTick != MetronomeExpectedTick))
 					{
@@ -232,7 +232,7 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 					}
 				}
 
-				int32 MidiPlayerActualTick = (*MidiPlayerClockOut)->GetCurrentMidiTick();
+				int32 MidiPlayerActualTick = (*MidiPlayerClockOut)->GetNextMidiTickToProcess();
 				MidiPlayerExpectedTick = FMath::Abs(MidiPlayerExpectedTick - MidiPlayerActualTick) <= 1 ? MidiPlayerActualTick : MidiPlayerExpectedTick;
 
 				if (MidiPlayerAllTicksEqual && (MidiPlayerActualTick != MidiPlayerExpectedTick))
@@ -257,10 +257,7 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 			TSharedPtr<FMidiFileData> OutMidiData = MakeShared<FMidiFileData>();
 
 			// clear it all out for good measure...
-			FTempoMap& TempoMap = OutMidiData->SongMaps.GetTempoMap();
-			TempoMap.Empty();
-			FBarMap& BarMap = OutMidiData->SongMaps.GetBarMap();
-			BarMap.Empty();
+			OutMidiData->SongMaps.EmptyAllMaps();
 			OutMidiData->Tracks.Empty();
 
 			// create conductor track
@@ -270,13 +267,13 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 			int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
 			int32 TimeSigDen = FMath::Clamp(InTimeSigDen, 1, 64);
 			Track.AddEvent(FMidiEvent(0, FMidiMsg((uint8)TimeSigNum, (uint8)TimeSigDen)));
-			BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDen);
+			OutMidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDen);
 
 			// add tempo info
 			float TempoBpm = FMath::Max(1.0f, InTempoBpm);
 			int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBpm);
 			Track.AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-			TempoMap.AddTempoInfoPoint(MidiTempo, 0);
+			OutMidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
 
 			Track.Sort();
 			OutMidiData->SongMaps.SetLengthTotalBars(InLengthBars);
@@ -312,7 +309,8 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 		// Validate output.
 		TOptional<FMidiClockReadRef> OutputMidiClock = Generator->GetOutputReadReference<FMidiClock>(CommonPinNames::Outputs::MidiClockName);
 		UTEST_TRUE("Output exists", OutputMidiClock.IsSet());
-		UTEST_EQUAL("Current Midi Tick Test", (*OutputMidiClock)->GetCurrentMidiTick(), -1);
+		UTEST_EQUAL("Current Midi Tick Test", (*OutputMidiClock)->GetLastProcessedMidiTick(), -1);
+		UTEST_EQUAL("Next Midi Tick Test", (*OutputMidiClock)->GetNextMidiTickToProcess(), 0);
 
 		return true;
 	}

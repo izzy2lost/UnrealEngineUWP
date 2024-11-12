@@ -76,6 +76,7 @@ FPaintContext::FPaintContext()
 // UUserWidget
 UUserWidget::UUserWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bAutomaticallyRegisterInputOnConstruction(false)
 	, bHasScriptImplementedTick(true)
 	, bHasScriptImplementedPaint(true)
 	, bInitialized(false)
@@ -223,21 +224,38 @@ void UUserWidget::DuplicateAndInitializeFromWidgetTree(UWidgetTree* InWidgetTree
 		TArray<UWidget*> AllNamedSlotContentWidgets;
 		NamedSlotContentToMerge.GenerateValueArray(AllNamedSlotContentWidgets);
 
-		auto SetContentWidgetForNamedSlot = [this](FName NamedSlotName, UWidget* TemplateSlotContent)
+		TSet<FName> const* ConflictingWidgetNames = nullptr;
+#if WITH_EDITOR
+		if (UWidgetBlueprintGeneratedClass* BGClass = Cast<UWidgetBlueprintGeneratedClass>(GetClass()))
+		{
+			ConflictingWidgetNames = &(BGClass->NameClashingInHierarchy);
+		}
+#endif
+
+		auto SetContentWidgetForNamedSlot = [this,&ConflictingWidgetNames](FName NamedSlotName, UWidget* TemplateSlotContent)
 		{
 			FObjectInstancingGraph NamedSlotInstancingGraph;
 			// We need to add a mapping from the template's widget tree to the new widget tree, that way
 			// as we instance the widget hierarchy it's grafted onto the new widget tree.
 			NamedSlotInstancingGraph.AddNewObject(WidgetTree, TemplateSlotContent->GetTypedOuter<UWidgetTree>());
 
-			// Instance the new widget from the foreign tree, but do it in a way that grafts it onto the tree we're instancing.
-			UWidget* Content = NewObject<UWidget>(WidgetTree, TemplateSlotContent->GetClass(), TemplateSlotContent->GetFName(), RF_Transactional, TemplateSlotContent, false, &NamedSlotInstancingGraph);
-			Content->SetFlags(RF_Transient | RF_DuplicateTransient);
+			FName TemplateSlotContentName = TemplateSlotContent->GetFName();
+			// ConflictingWidgetNames is an optional parameter. If we find an item with the name we were about to create in the widget tree, we remove the NamedSlot to avoid the corrupted tree we would get otherwise
+			if (ConflictingWidgetNames == nullptr || !ConflictingWidgetNames->Contains(TemplateSlotContentName))
+			{
+				// Instance the new widget from the foreign tree, but do it in a way that grafts it onto the tree we're instancing.
+				UWidget* Content = NewObject<UWidget>(WidgetTree, TemplateSlotContent->GetClass(), TemplateSlotContentName, RF_Transactional, TemplateSlotContent, false, &NamedSlotInstancingGraph);
+				Content->SetFlags(RF_Transient | RF_DuplicateTransient);
 
-			// Insert the newly constructed widget into the named slot that corresponds.  The above creates
-			// it as if it was always part of the widget tree, but this actually puts it into a widget's
-			// slot for the named slot.
-			SetContentForSlot(NamedSlotName, Content);
+				// Insert the newly constructed widget into the named slot that corresponds.  The above creates
+				// it as if it was always part of the widget tree, but this actually puts it into a widget's
+				// slot for the named slot.
+				SetContentForSlot(NamedSlotName, Content);
+			}
+			else
+			{
+				SetContentForSlot(NamedSlotName, nullptr);
+			}
 		};
 
 		// This block controls merging named slot content specified in a child class for the widget we're templated after.
@@ -600,7 +618,14 @@ void UUserWidget::TearDownAnimations()
 
 	for (UUMGSequencePlayer* Player : StoppedSequencePlayers)
 	{
-		Player->TearDown();
+		// These null checks should not be necessary since StoppedSequencePlayers should always keep them alive
+		//   but there are some rare cases where the GC may eliminate and null these references if 'this' is an
+		//   instance of a BP class. This is a bug in the reference collection semantics, but is too intricate
+		//   to fix in a timely manner so we have to be defensive here.
+		if (Player)
+		{
+			Player->TearDown();
+		}
 	}
 
 	ActiveSequencePlayers.Empty();
@@ -1176,6 +1201,27 @@ void UUserWidget::SetContentForSlot(FName SlotName, UWidget* Content)
 {
 	bool bFoundExistingSlot = false;
 
+	bool bIsMissingSlot = false;
+	// Dynamically insert the new widget into the hierarchy if it exists.
+	if (WidgetTree)
+	{
+		ensureMsgf(!HasAnyFlags(RF_ClassDefaultObject), TEXT("The Widget CDO is not expected to ever have a valid widget tree."));
+
+		if (UNamedSlot* NamedSlot = Cast<UNamedSlot>(WidgetTree->FindWidget(SlotName)))
+		{
+			NamedSlot->ClearChildren();
+
+			if (Content)
+			{
+				NamedSlot->AddChild(Content);
+			}
+		}
+		else
+		{
+			bIsMissingSlot = true;
+		}
+	}
+
 	// Find the binding in the existing set and replace the content for that binding.
 	for ( int32 BindingIndex = 0; BindingIndex < NamedSlotBindings.Num(); BindingIndex++ )
 	{
@@ -1185,7 +1231,7 @@ void UUserWidget::SetContentForSlot(FName SlotName, UWidget* Content)
 		{
 			bFoundExistingSlot = true;
 
-			if ( Content )
+			if ( Content && !bIsMissingSlot)
 			{
 				Binding.Content = Content;
 			}
@@ -1198,7 +1244,7 @@ void UUserWidget::SetContentForSlot(FName SlotName, UWidget* Content)
 		}
 	}
 
-	if ( !bFoundExistingSlot && Content )
+	if ( !bFoundExistingSlot && Content && !bIsMissingSlot)
 	{
 		// Add the new binding to the list of bindings.
 		FNamedSlotBinding NewBinding;
@@ -1208,21 +1254,6 @@ void UUserWidget::SetContentForSlot(FName SlotName, UWidget* Content)
 		NamedSlotBindings.Add(NewBinding);
 	}
 
-	// Dynamically insert the new widget into the hierarchy if it exists.
-	if ( WidgetTree )
-	{
-		ensureMsgf(!HasAnyFlags(RF_ClassDefaultObject), TEXT("The Widget CDO is not expected to ever have a valid widget tree."));
-		
-		if ( UNamedSlot* NamedSlot = Cast<UNamedSlot>(WidgetTree->FindWidget(SlotName)))
-		{
-			NamedSlot->ClearChildren();
-
-			if ( Content )
-			{
-				NamedSlot->AddChild(Content);
-			}
-		}
-	}
 }
 
 UWidget* UUserWidget::GetRootWidget() const
@@ -1682,9 +1713,19 @@ void UUserWidget::BindToAnimationEvent(UWidgetAnimation* InAnimation, FWidgetAni
 void UUserWidget::NativeOnInitialized()
 {
 	// Bind any input delegates that may be on this widget to its owning player controller
-	if(APlayerController* PC = GetOwningPlayer())
+	if (bAutomaticallyRegisterInputOnConstruction)
 	{
-		UInputDelegateBinding::BindInputDelegates(GetClass(), PC->InputComponent, this);		
+		// Only widgets with a valid player controller can bind to input delegates
+		if (GetOwningPlayer() != nullptr)
+		{
+			InitializeInputComponent();
+			check(InputComponent);
+			UInputDelegateBinding::BindInputDelegates(GetClass(), InputComponent, this);
+		}
+		else if (!IsEditorUtility())
+		{
+			UE_LOG(LogUMG, Error, TEXT("[%hs] Widget '%s' has bAutomaticallyRegisterInputOnConstruction set to true, but no valid player controller. Input delegates will not work!"), __func__, *GetNameSafe(this));
+		}
 	}
 	
 	if (UWidgetBlueprintGeneratedClass* BPClass = Cast<UWidgetBlueprintGeneratedClass>(GetClass()))
@@ -2115,7 +2156,7 @@ FReply UUserWidget::NativeOnFocusReceived( const FGeometry& InGeometry, const FF
 	// Forward focus if Desired Focus is set
 	if (UWidget * WidgetToFocus = DesiredFocusWidget.Resolve(WidgetTree))
 	{
-		return FReply::Handled().SetUserFocus(WidgetToFocus->GetCachedWidget().ToSharedRef());
+		return FReply::Handled().SetUserFocus(WidgetToFocus->GetCachedWidget().ToSharedRef(),InFocusEvent.GetCause());
 	}
 	return Reply;
 }
@@ -2502,9 +2543,12 @@ UUserWidgetExtension* UUserWidget::GetExtension(TSubclassOf<UUserWidgetExtension
 {
 	for (UUserWidgetExtension* Extension : Extensions)
 	{
-		if (Extension->IsA(InExtensionType))
+		if (ensure(Extension))
 		{
-			return Extension;
+			if (Extension->IsA(InExtensionType))
+			{
+				return Extension;
+			}
 		}
 	}
 	return nullptr;

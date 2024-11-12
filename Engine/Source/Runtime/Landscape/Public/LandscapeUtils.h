@@ -4,10 +4,8 @@
 
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 #include "UObject/NameTypes.h"
+#include "AssetRegistry/AssetData.h"
 
 class ULevel;
 enum EShaderPlatform : uint16;
@@ -15,6 +13,8 @@ class ULandscapeComponent;
 class ULandscapeLayerInfoObject;
 class UTexture2D;
 class UTexture;
+enum class ELandscapeToolTargetType : uint8;
+enum class ELandscapeToolTargetTypeFlags : uint8;
 
 namespace UE::Landscape
 {
@@ -25,10 +25,9 @@ namespace UE::Landscape
 */
 LANDSCAPE_API bool DoesPlatformSupportEditLayers(EShaderPlatform InShaderPlatform);
 
-int32 ComputeMaxDeltasOffsetForMip(int32 InMipIndex, int32 InNumRelevantMips);
-int32 ComputeMaxDeltasCountForMip(int32 InMipIndex, int32 InNumRelevantMips);
-int32 ComputeMipToMipMaxDeltasIndex(int32 InSourceMipIndex, int32 InDestinationMipIndex, int32 InNumRelevantMips);
-int32 ComputeMipToMipMaxDeltasCount(int32 InNumRelevantMips);
+LANDSCAPE_API ELandscapeToolTargetTypeFlags GetLandscapeToolTargetTypeAsFlags(ELandscapeToolTargetType InTargetType);
+LANDSCAPE_API ELandscapeToolTargetType GetLandscapeToolTargetTypeSingleFlagAsType(ELandscapeToolTargetTypeFlags InSingleFlag);
+LANDSCAPE_API FString GetLandscapeToolTargetTypeFlagsAsString(ELandscapeToolTargetTypeFlags InTargetTypeFlags);
 
 #if WITH_EDITOR
 
@@ -63,13 +62,13 @@ public:
 	/**
 	* Uses the provided arguments to add proper source/destination entries to internal copy requests.
 	* @param	InDestination	The texture used as a destination for the copy.
-	* @param	InDestinationChannel	The channel used as a destination for the copy.
 	* @param	InDestinationSlice	The Texture array slice to write to (use 0 for a Texture2D)
+	* @param	InDestinationChannel	The channel used as a destination for the copy.
 	* @param	InComponent		The component containing the wanted source weightmap.
 	* @param	InLayerInfo		The layer info used to retrieve the proper source weightmap and channel.
 	* @return True if the copy has been successfully added.
 	*/
-	LANDSCAPE_API bool AddWeightmapCopy(UTexture* InDestination, int8 InDestinationChannel, int8 InDestinationSlice, const ULandscapeComponent* InComponent, ULandscapeLayerInfoObject* InLayerInfo);
+	LANDSCAPE_API bool AddWeightmapCopy(UTexture* InDestination, int8 InDestinationSlice, int8 InDestinationChannel, const ULandscapeComponent* InComponent, ULandscapeLayerInfoObject* InLayerInfo);
 
 	/** Process pending internal copy requests. */
 	LANDSCAPE_API bool ProcessTextureCopies();
@@ -106,12 +105,14 @@ LANDSCAPE_API FString GetLayerInfoObjectPackageName(const ULevel* InLevel, const
 /** Returns true if the provided layer info object is the current visibility layer. */
 LANDSCAPE_API bool IsVisibilityLayer(const ULandscapeLayerInfoObject* InLayerInfoObject);
 
-/** Returns true if InPlatform is a mobile platform and the Landscape.MobileWeightTextureArray CVar set */
-bool UseWeightmapTextureArray(EShaderPlatform InPlatform);	
+struct FLayerInfoFinder
+{
+	LANDSCAPE_API FLayerInfoFinder();
+	LANDSCAPE_API ~FLayerInfoFinder() = default;
+	LANDSCAPE_API ULandscapeLayerInfoObject* Find(const FName& LayerName) const;
+	TArray<FAssetData> LayerInfoAssets;
+};
 
-/** Check if Landscape.MobileWeightTextureArray CVar set and we should attempt to use texture arrays for weight maps on mobile platforms  */
-bool IsMobileWeightmapTextureArrayEnabled();
-	
 #endif //!WITH_EDITOR
 
 } // end namespace UE::Landscape

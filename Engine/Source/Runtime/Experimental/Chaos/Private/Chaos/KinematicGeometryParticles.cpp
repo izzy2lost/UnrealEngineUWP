@@ -24,7 +24,7 @@ namespace Chaos
 
 template class Chaos::TKinematicGeometryParticlesImp<Chaos::FReal, 3, Chaos::EGeometryParticlesSimType::RigidBodySim>;
 template class Chaos::TKinematicGeometryParticlesImp<Chaos::FReal, 3, Chaos::EGeometryParticlesSimType::Other>;
-template class Chaos::TKinematicTarget<Chaos::FReal, 3>;
+class FKinematicTarget;
 
 // Re-enable when double precision is able to compile
 //template Chaos::TKinematicGeometryParticlesImp<double, 3>;

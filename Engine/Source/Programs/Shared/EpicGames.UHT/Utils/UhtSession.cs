@@ -204,18 +204,18 @@ namespace EpicGames.UHT.Utils
 		/// <returns>Resulting file name</returns>
 		public string MakePath(UhtHeaderFile headerFile, string suffix)
 		{
-			return MakePath(headerFile.Package.Module, headerFile.FileNameWithoutExtension, suffix);
+			return MakePath(headerFile.Module.Module, headerFile.FileNameWithoutExtension, suffix);
 		}
 
 		/// <summary>
 		/// Given a package file, generate the output file name
 		/// </summary>
-		/// <param name="package">Package file</param>
+		/// <param name="module">Module</param>
 		/// <param name="suffix">Suffix/extension to be added to the file name.</param>
 		/// <returns>Resulting file name</returns>
-		public string MakePath(UhtPackage package, string suffix)
+		public string MakePath(UhtModule module, string suffix)
 		{
-			return MakePath(package.Module, package.ShortName, suffix);
+			return MakePath(module.Module, module.ShortName, suffix);
 		}
 
 		/// <summary>
@@ -678,9 +678,9 @@ namespace EpicGames.UHT.Utils
 		public UHTManifest? Manifest => ManifestFile?.Manifest;
 
 		/// <summary>
-		/// Collection of packages from the manifest
+		/// Collection of modules from the manifest
 		/// </summary>
-		public IReadOnlyList<UhtPackage> Packages => _packages;
+		public IReadOnlyList<UhtModule> Modules => _modules;
 
 		/// <summary>
 		/// Collection of header files from the manifest.  The header files will also appear as the children 
@@ -783,7 +783,7 @@ namespace EpicGames.UHT.Utils
 		/// </summary>
 		public UhtScriptStruct? FStateTreePropertyRef { get; set; } = null;
 
-		private readonly List<UhtPackage> _packages = new();
+		private readonly List<UhtModule> _modules = new();
 		private readonly List<UhtHeaderFile> _headerFiles = new();
 		private readonly List<UhtHeaderFile> _sortedHeaderFiles = new();
 		private readonly Dictionary<string, UhtHeaderFile> _headerFileDictionary = new(StringComparer.OrdinalIgnoreCase);
@@ -1130,6 +1130,42 @@ namespace EpicGames.UHT.Utils
 		}
 
 		/// <summary>
+		/// Execute the given action on all the headers
+		/// </summary>
+		/// <param name="action">Action to be executed</param>
+		/// <param name="allowGoWide">If true, go wide if enabled.  Otherwise single threaded</param>
+		public void ForEachHeader(Action<UhtHeaderFile> action, bool allowGoWide)
+		{
+			if (!HasErrors)
+			{
+				ForEachHeaderNoErrorCheck(action, allowGoWide);
+			}
+		}
+
+		/// <summary>
+		/// Execute the given action on all the headers
+		/// </summary>
+		/// <param name="action">Action to be executed</param>
+		/// <param name="allowGoWide">If true, go wide if enabled.  Otherwise single threaded</param>
+		public void ForEachHeaderNoErrorCheck(Action<UhtHeaderFile> action, bool allowGoWide)
+		{
+			if (GoWide && allowGoWide)
+			{
+				Parallel.ForEach(_headerFiles, headerFile =>
+				{
+					TryHeader(action, headerFile);
+				});
+			}
+			else
+			{
+				foreach (UhtHeaderFile headerFile in _headerFiles)
+				{
+					TryHeader(action, headerFile);
+				}
+			}
+		}
+
+		/// <summary>
 		/// Read the given source file
 		/// </summary>
 		/// <param name="filePath">Full or relative file path</param>
@@ -1275,7 +1311,9 @@ namespace EpicGames.UHT.Utils
 			{
 				if (messageSite != null)
 				{
-					messageSite.LogError(lineNumber, "UnrealHeaderTool only supports C++ identifiers of two or less identifiers");
+					//messageSite.LogError(lineNumber, "UnrealHeaderTool only supports C++ identifiers of two or less identifiers");
+					string fullIdentifier = identifiers.Join("::");
+					FindTypeError(messageSite, lineNumber, options, fullIdentifier);
 					return null;
 				}
 			}
@@ -1319,7 +1357,9 @@ namespace EpicGames.UHT.Utils
 			{
 				if (messageSite != null)
 				{
-					messageSite.LogError(lineNumber, "UnrealHeaderTool only supports C++ identifiers of two or less identifiers");
+					//messageSite.LogError(lineNumber, "UnrealHeaderTool only supports C++ identifiers of two or less identifiers");
+					string fullIdentifier = String.Join("::", identifiers);
+					FindTypeError(messageSite, lineNumber, options, fullIdentifier);
 					return null;
 				}
 			}
@@ -1808,20 +1848,6 @@ namespace EpicGames.UHT.Utils
 			}
 		}
 
-		/// <summary>
-		/// Return the normalized path converted to a full path if possible. 
-		/// Code should NOT depend on a full path being returned.
-		/// 
-		/// In general, it is assumed that during normal UHT, all paths are already full paths.
-		/// Only the test harness deals in relative paths.
-		/// </summary>
-		/// <param name="filePath">Path to normalize</param>
-		/// <returns>Normalized path possibly converted to a full path.</returns>
-		private string GetNormalizedFullFilePath(string filePath)
-		{
-			return FileManager!.GetFullFilePath(filePath).Replace('\\', '/');
-		}
-
 		private UhtHeaderFileParser? ParseHeaderFile(UhtHeaderFile headerFile)
 		{
 			UhtHeaderFileParser? parser = null;
@@ -1866,105 +1892,12 @@ namespace EpicGames.UHT.Utils
 			{
 				Log.Logger.LogTrace("Step - Prepare Modules");
 
-				foreach (UHTManifest.Module module in ManifestFile.Manifest.Modules)
+				foreach (UHTManifest.Module manifestModule in ManifestFile.Manifest.Modules)
 				{
-					EPackageFlags packageFlags = EPackageFlags.ContainsScript | EPackageFlags.Compiling;
-
-					switch (module.OverrideModuleType)
-					{
-						case EPackageOverrideType.None:
-							switch (module.ModuleType)
-							{
-								case UHTModuleType.GameEditor:
-								case UHTModuleType.EngineEditor:
-									packageFlags |= EPackageFlags.EditorOnly;
-									break;
-
-								case UHTModuleType.GameDeveloper:
-								case UHTModuleType.EngineDeveloper:
-									packageFlags |= EPackageFlags.Developer;
-									break;
-
-								case UHTModuleType.GameUncooked:
-								case UHTModuleType.EngineUncooked:
-									packageFlags |= EPackageFlags.UncookedOnly;
-									break;
-							}
-							break;
-
-						case EPackageOverrideType.EditorOnly:
-							packageFlags |= EPackageFlags.EditorOnly;
-							break;
-
-						case EPackageOverrideType.EngineDeveloper:
-						case EPackageOverrideType.GameDeveloper:
-							packageFlags |= EPackageFlags.Developer;
-							break;
-
-						case EPackageOverrideType.EngineUncookedOnly:
-						case EPackageOverrideType.GameUncookedOnly:
-							packageFlags |= EPackageFlags.UncookedOnly;
-							break;
-					}
-
-					UhtPackage package = new(this, module, packageFlags);
-					_packages.Add(package);
+					UhtModule module = new(this, manifestModule);
+					_modules.Add(module);
 				}
 			});
-		}
-
-		private void StepPrepareHeaders(UhtPackage package, IEnumerable<string> headerFiles, UhtHeaderFileType headerFileType)
-		{
-			if (package.Module == null)
-			{
-				return;
-			}
-
-			string typeDirectory = headerFileType.ToString() + '/';
-			string normalizedModuleBaseFullFilePath = GetNormalizedFullFilePath(package.Module.BaseDirectory);
-			foreach (string headerFilePath in headerFiles)
-			{
-
-				// Make sure this isn't a duplicate
-				string normalizedFullFilePath = GetNormalizedFullFilePath(headerFilePath);
-				string fileName = Path.GetFileName(normalizedFullFilePath);
-				if (_headerFileDictionary.TryGetValue(fileName, out UhtHeaderFile? existingHeaderFile) && existingHeaderFile != null)
-				{
-					string normalizedExistingFullFilePath = GetNormalizedFullFilePath(existingHeaderFile.FilePath);
-					if (!String.Equals(normalizedFullFilePath, normalizedExistingFullFilePath, StringComparison.OrdinalIgnoreCase))
-					{
-						IUhtMessageSite site = (IUhtMessageSite?)ManifestFile ?? this;
-						site.LogError($"Two headers with the same name is not allowed. '{headerFilePath}' conflicts with '{existingHeaderFile.FilePath}'");
-						continue;
-					}
-				}
-
-				// Create the header file and add to the collections
-				UhtHeaderFile headerFile = new(package, headerFilePath);
-				headerFile.HeaderFileType = headerFileType;
-				_headerFiles.Add(headerFile);
-				_headerFileDictionary.Add(fileName, headerFile);
-				package.AddChild(headerFile);
-
-				// Save metadata for the class path, both for it's include path and relative to the module base directory
-				if (normalizedFullFilePath.StartsWith(normalizedModuleBaseFullFilePath, true, null))
-				{
-					int stripLength = normalizedModuleBaseFullFilePath.Length;
-					if (stripLength < normalizedFullFilePath.Length && normalizedFullFilePath[stripLength] == '/')
-					{
-						++stripLength;
-					}
-
-					headerFile.ModuleRelativeFilePath = normalizedFullFilePath[stripLength..];
-
-					if (normalizedFullFilePath[stripLength..].StartsWith(typeDirectory, true, null))
-					{
-						stripLength += typeDirectory.Length;
-					}
-
-					headerFile.IncludeFilePath = normalizedFullFilePath[stripLength..];
-				}
-			}
 		}
 
 		private void StepPrepareHeaders()
@@ -1978,31 +1911,23 @@ namespace EpicGames.UHT.Utils
 			{
 				Log.Logger.LogTrace("Step - Prepare Headers");
 
-				foreach (UhtPackage package in _packages)
+				foreach (UhtModule module in Modules)
 				{
-					if (package.Module != null)
+					module.PrepareHeaders(headerFile =>
 					{
-						StepPrepareHeaders(package, package.Module.ClassesHeaders, UhtHeaderFileType.Classes);
-						StepPrepareHeaders(package, package.Module.PublicHeaders, UhtHeaderFileType.Public);
-						StepPrepareHeaders(package, package.Module.InternalHeaders, UhtHeaderFileType.Internal);
-						StepPrepareHeaders(package, package.Module.PrivateHeaders, UhtHeaderFileType.Private);
-					}
+						_headerFiles.Add(headerFile);
+						_headerFileDictionary.Add(Path.GetFileName(headerFile.FilePath), headerFile);
+					});
 				}
 
 				// Locate the NoExportTypes.h file and add it to every other header file
 				if (_headerFileDictionary.TryGetValue("NoExportTypes.h", out UhtHeaderFile? noExportTypes))
 				{
-					foreach (UhtPackage package in _packages)
+					foreach (UhtHeaderFile headerFile in _headerFiles)
 					{
-						foreach (UhtType type in package.Children)
+						if (headerFile != noExportTypes)
 						{
-							if (type is UhtHeaderFile headerFile)
-							{
-								if (headerFile != noExportTypes)
-								{
-									headerFile.AddReferencedHeader(noExportTypes);
-								}
-							}
+							headerFile.AddReferencedHeader(noExportTypes, UhtHeaderReferenceType.Passive);
 						}
 					}
 				}
@@ -2017,21 +1942,11 @@ namespace EpicGames.UHT.Utils
 			}
 
 			Log.Logger.LogTrace("Step - Parse Headers");
-
-			if (GoWide)
+			ForEachHeader(headerFile =>
 			{
-				Parallel.ForEach(_headerFiles, headerFile =>
-				{
-					ParseHeaderFile(headerFile);
-				});
-			}
-			else
-			{
-				foreach (UhtHeaderFile headerFile in _headerFiles)
-				{
-					ParseHeaderFile(headerFile);
-				}
-			}
+				headerFile.Read();
+				UhtHeaderFileParser.Parse(headerFile);
+			}, true);
 		}
 
 		private void StepPopulateTypeTable()
@@ -2059,7 +1974,7 @@ namespace EpicGames.UHT.Utils
 		private void StepBindSuperAndBases()
 		{
 			Log.Logger.LogTrace("Step - Bind super and bases");
-			StepForAllHeaders(headerFile => BindSuperAndBases(headerFile), true);
+			ForEachHeader(headerFile => headerFile.BindSuperAndBases(), true);
 		}
 
 		private void StepResolveBases()
@@ -2089,76 +2004,39 @@ namespace EpicGames.UHT.Utils
 		private void StepResolveValidate()
 		{
 			Log.Logger.LogTrace("Step - Resolve validate");
-			StepForAllHeaders(headerFile => UhtType.ValidateType(headerFile, UhtValidationOptions.None), true);
+			ForEachHeader(headerFile => headerFile.Validate(UhtValidationOptions.None), true);
 		}
 
 		private void StepCollectReferences()
 		{
 			Log.Logger.LogTrace("Step - Collect references");
-			StepForAllHeaders(headerFile =>
-			{
-				foreach (UhtType child in headerFile.Children)
-				{
-					child.CollectReferences(headerFile.References);
-				}
-				foreach (UhtHeaderFile refHeaderFile in headerFile.References.ReferencedHeaders)
-				{
-					headerFile.AddReferencedHeader(refHeaderFile);
-				}
-			}, true);
+			ForEachHeader(headerFile => headerFile.CollectReferences(), true);
 		}
 
 		private void ResolveAllHeaders(UhtResolvePhase resolvePhase)
 		{
-			StepForAllHeaders(headerFile => Resolve(headerFile, resolvePhase), resolvePhase.IsMultiThreadedResolvePhase());
-		}
-
-		private void Resolve(UhtHeaderFile headerFile, UhtResolvePhase resolvePhase)
-		{
-			try
+			ForEachHeader(headerFile => headerFile.Resolve(resolvePhase), resolvePhase.IsMultiThreadedResolvePhase());
+			if (resolvePhase == UhtResolvePhase.InvalidCheck)
 			{
-				headerFile.Resolve(resolvePhase);
-			}
-			catch (Exception e)
-			{
-				HandleException(headerFile.MessageSource, e);
-			}
-		}
-
-		private void BindSuperAndBases(UhtHeaderFile headerFile)
-		{
-			try
-			{
-				headerFile.BindSuperAndBases();
-			}
-			catch (Exception e)
-			{
-				HandleException(headerFile.MessageSource, e);
-			}
-		}
-
-		private delegate void StepDelegate(UhtHeaderFile headerFile);
-
-		private void StepForAllHeaders(StepDelegate stepDelegate, bool allowGoWide)
-		{
-			if (HasErrors)
-			{
-				return;
-			}
-
-			if (GoWide && allowGoWide)
-			{
-				Parallel.ForEach(_headerFiles, headerFile =>
+				foreach (UhtModule module in Modules)
 				{
-					stepDelegate(headerFile);
-				});
-			}
-			else
-			{
-				foreach (UhtHeaderFile headerFile in _headerFiles)
-				{
-					stepDelegate(headerFile);
+					foreach (UhtPackage package in module.Packages)
+					{
+						package.RemoveInvalidChildren();
+					}
 				}
+			}
+		}
+
+		private void TryHeader(Action<UhtHeaderFile> action, UhtHeaderFile headerFile)
+		{
+			try
+			{
+				action(headerFile);
+			}
+			catch (Exception e)
+			{
+				HandleException(headerFile.MessageSource, e);
 			}
 		}
 		#endregion
@@ -2168,7 +2046,18 @@ namespace EpicGames.UHT.Utils
 		{
 			foreach (UhtHeaderFile headerFile in _headerFiles)
 			{
-				AddTypeToSymbolTable(headerFile);
+				foreach (UhtType child in headerFile.Children)
+				{
+					if (child.Outer is UhtPackage package)
+					{
+						package.AddChildDirectly(child);
+					}
+					else
+					{
+						throw new UhtIceException($"Type \"{child.SourceName}\" is a root level type but does not have a package outer");
+					}
+					AddTypeToSymbolTable(child);
+				}
 			}
 			_symbolTablePopulated = true;
 		}
@@ -2325,6 +2214,17 @@ namespace EpicGames.UHT.Utils
 					}
 				}
 			});
+		}
+
+		private void TopologicalStructVisitChildren(List<TopologicalState> states, UhtHeaderFile visit, List<UhtStruct> structStack)
+		{
+			foreach (UhtType child in visit.Children)
+			{
+				if (child is UhtStruct childStruct)
+				{
+					TopologicalStructVisit(states, childStruct, structStack);
+				}
+			}
 		}
 
 		private void TopologicalStructVisitChildren(List<TopologicalState> states, UhtType visit, List<UhtStruct> structStack)

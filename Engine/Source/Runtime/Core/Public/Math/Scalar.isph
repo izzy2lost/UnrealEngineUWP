@@ -10,6 +10,9 @@ typedef int64 IntType;
 
 #define REAL_BITS doublebits
 
+#undef  FLT_MAX
+#undef  FLT_MIN
+
 #define FLOAT_PI					(3.1415926535897932f)
 #define FLOAT_SMALL_NUMBER			(1.e-8f)
 #define FLOAT_KINDA_SMALL_NUMBER	(1.e-4f)
@@ -22,6 +25,9 @@ typedef int64 IntType;
 #define FLOAT_ONE					1.0f
 #define FLOAT_ONE_HALF				0.5f
 #define FLOAT_TWO					2.0f
+
+#undef  DBL_MAX
+#undef  DBL_MIN
 
 #define DOUBLE_PI					(3.141592653589793238462643383279502884197169399d)
 #define DOUBLE_SMALL_NUMBER			(1.d-8)

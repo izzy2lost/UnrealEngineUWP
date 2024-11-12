@@ -119,6 +119,11 @@ namespace UnrealBuildTool
 		/// Supported only on some platforms.
 		/// </summary>
 		OptimizeForDebugging = 1 << 19,
+
+		/// <summary>
+		/// Enables compressing the debug sections if the platform supports this
+		/// </summary>
+		CompressDebugFile = 1 << 20,
 	}
 
 	abstract class ClangToolChain : ISPCToolChain
@@ -126,6 +131,7 @@ namespace UnrealBuildTool
 		protected class ClangToolChainInfo
 		{
 			protected ILogger Logger { get; init; }
+			public DirectoryReference? BasePath { get; init; }
 			public FileReference Clang { get; init; }
 			public FileReference Archiver { get; init; }
 
@@ -133,19 +139,21 @@ namespace UnrealBuildTool
 			public string ClangVersionString => LazyClangVersionString.Value;
 			public string ArchiverVersionString => LazyArchiverVersionString.Value;
 
-			Lazy<Version> LazyClangVersion;
-			Lazy<string> LazyClangVersionString;
-			Lazy<string> LazyArchiverVersionString;
+			readonly Lazy<Version> LazyClangVersion;
+			readonly Lazy<string> LazyClangVersionString;
+			readonly Lazy<string> LazyArchiverVersionString;
 
 			/// <summary>
 			/// Constructor for ClangToolChainInfo
 			/// </summary>
+			/// <param name="BasePath">The base path to the clang sdk root, if available</param>
 			/// <param name="Clang">The path to the compiler</param>
 			/// <param name="Archiver">The path to the archiver</param>
 			/// <param name="Logger">Logging interface</param>
-			public ClangToolChainInfo(FileReference Clang, FileReference Archiver, ILogger Logger)
+			public ClangToolChainInfo(DirectoryReference? BasePath, FileReference Clang, FileReference Archiver, ILogger Logger)
 			{
 				this.Logger = Logger;
+				this.BasePath = BasePath;
 				this.Clang = Clang;
 				this.Archiver = Archiver;
 
@@ -197,6 +205,7 @@ namespace UnrealBuildTool
 
 		// Target settings
 		protected bool PreprocessDepends = false;
+		protected bool ShowIncludes = false;
 		protected StaticAnalyzer StaticAnalyzer = StaticAnalyzer.None;
 		protected StaticAnalyzerMode StaticAnalyzerMode = StaticAnalyzerMode.Deep;
 		protected StaticAnalyzerOutputType StaticAnalyzerOutputType = StaticAnalyzerOutputType.Text;
@@ -229,6 +238,7 @@ namespace UnrealBuildTool
 			base.SetUpGlobalEnvironment(Target);
 
 			PreprocessDepends = Target.bPreprocessDepends;
+			ShowIncludes = Target.bShowIncludes;
 			StaticAnalyzer = Target.StaticAnalyzer;
 			StaticAnalyzerMode = Target.StaticAnalyzerMode;
 			StaticAnalyzerOutputType = Target.StaticAnalyzerOutputType;
@@ -369,7 +379,11 @@ namespace UnrealBuildTool
 
 			if (CompileEnvironment.bEnableCoroutines)
 			{
-				Arguments.Add("-fcoroutines-ts");
+				if (CompileEnvironment.CppStandard < CppStandardVersion.Cpp20)
+				{
+					Arguments.Add("-fcoroutines-ts");
+				}
+
 				if (!CompileEnvironment.bEnableExceptions)
 				{
 					Arguments.Add("-Wno-coroutine-missing-unhandled-exception");
@@ -382,9 +396,14 @@ namespace UnrealBuildTool
 				Arguments.Add("-fpch-validate-input-files-content");
 			}
 
-			if (CompileEnvironment.bAllowAutoRTFMInstrumentation && CompileEnvironment.bUseAutoRTFMCompiler)
+			if (CompileEnvironment.bEnableAutoRTFMInstrumentation)
 			{
 				Arguments.Add("-fautortfm");
+
+				if (CompileEnvironment.bEnableAutoRTFMVerification)
+				{
+					Arguments.Add("-fautortfm-verify");
+				}
 			}
 		}
 
@@ -413,10 +432,21 @@ namespace UnrealBuildTool
 					throw new BuildException($"Unsupported C standard type set: {CompileEnvironment.CStandard}");
 			}
 
-			if (CompileEnvironment.bAllowAutoRTFMInstrumentation && CompileEnvironment.bUseAutoRTFMCompiler)
+			if (!CompileEnvironment.bDisableAutoRTFMInstrumentation && CompileEnvironment.bUseAutoRTFMCompiler)
 			{
 				Arguments.Add("-fautortfm");
+
+				if (CompileEnvironment.bEnableAutoRTFMVerification)
+				{
+					Arguments.Add("-fautortfm-verify");
+				}
 			}
+		}
+
+		protected virtual void GetCompileArguments_H(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
+		{
+			GetCompileArguments_CPP(CompileEnvironment, Arguments);
+			ClangWarnings.GetHeaderDisabledWarnings(Arguments);
 		}
 
 		protected virtual void GetCompileArguments_CPP(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
@@ -475,6 +505,11 @@ namespace UnrealBuildTool
 		{
 			Arguments.AddRange(CompileEnvironment.UserIncludePaths.Select(IncludePath => GetUserIncludePathArgument(IncludePath)));
 			Arguments.AddRange(CompileEnvironment.SystemIncludePaths.Select(IncludePath => GetSystemIncludePathArgument(IncludePath)));
+
+			if (ShowIncludes)
+			{
+				Arguments.Add("-H");
+			}
 		}
 
 		protected virtual string GetPreprocessorDefinitionArgument(string Definition)
@@ -635,7 +670,8 @@ namespace UnrealBuildTool
 			if (CompileEnvironment.bPGOOptimize)
 			{
 				Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO). Linking will take a while.");
-				Arguments.Add($"-fprofile-instr-use=\"{Path.Combine(CompileEnvironment.PGODirectory!, CompileEnvironment.PGOFilenamePrefix!)}\"");
+				DirectoryReference? PGODir = DirectoryReference.FromString(CompileEnvironment.PGODirectory!);
+				Arguments.Add($"-fprofile-instr-use=\"{NormalizeCommandLinePath(DirectoryReference.Combine(PGODir!, CompileEnvironment.PGOFilenamePrefix!))}\"");
 			}
 			else if (CompileEnvironment.bPGOProfile)
 			{
@@ -653,6 +689,46 @@ namespace UnrealBuildTool
 			{
 				// We have 'this' vs nullptr comparisons that get optimized away for newer versions of Clang, which is undesirable until we refactor these checks.
 				Arguments.Add("-fno-delete-null-pointer-checks");
+			}
+
+			// architecture (all but None are AVX)
+			if (CompileEnvironment.Architecture == UnrealArch.X64 && CompileEnvironment.MinCpuArchX64 != MinimumCpuArchitectureX64.None)
+			{
+				// The binary created will be targeting AVX instructions. Machines without AVX support will crash on any AVX instructions if they run this compilation unit.
+
+				// AVX available implies sse4 and sse2 available.
+				// Inform Unreal code that we have sse2, sse4, and AVX, both available to compile and available to run
+				// By setting the ALWAYS_HAS defines, we we direct Unreal code to skip cpuid checks to verify that the running hardware supports sse/avx.
+				Arguments.Add("-DPLATFORM_ENABLE_VECTORINTRINSICS=1");
+
+				if (CompileEnvironment.MinCpuArchX64 >= MinimumCpuArchitectureX64.AVX)
+				{
+					// Apparently MSVC enables (a subset?) of BMI (bit manipulation instructions) when /arch:AVX is set. Some code relies on this, so mirror it by enabling BMI1
+					Arguments.Add("-mavx");
+					Arguments.Add("-mbmi");
+					// Inform Unreal code that we have sse2, sse4, and AVX, both available to compile and available to run
+					Arguments.Add("-DPLATFORM_MAYBE_HAS_AVX=1");
+					// By setting the ALWAYS_HAS defines, we we direct Unreal code to skip cpuid checks to verify that the running hardware supports sse/avx.
+					Arguments.Add("-DPLATFORM_ALWAYS_HAS_AVX=1");
+				}
+
+				if (CompileEnvironment.MinCpuArchX64 >= MinimumCpuArchitectureX64.AVX2)
+				{
+					Arguments.Add("-mavx2");
+					Arguments.Add("-DPLATFORM_ALWAYS_HAS_AVX_2=1");
+				}
+
+				if (CompileEnvironment.MinCpuArchX64 >= MinimumCpuArchitectureX64.AVX512)
+				{
+					// Match MSVC which says (https://learn.microsoft.com/en-us/cpp/build/reference/arch-x64?view=msvc-170):
+					// > The __AVX512F__, __AVX512CD__, __AVX512BW__, __AVX512DQ__ and __AVX512VL__ preprocessor symbols are defined when the /arch:AVX512 compiler option is specified
+					Arguments.Add("-mavx512f");
+					Arguments.Add("-mavx512cd");
+					Arguments.Add("-mavx512bw");
+					Arguments.Add("-mavx512dq");
+					Arguments.Add("-mavx512vl");
+					Arguments.Add("-DPLATFORM_ALWAYS_HAS_AVX_512=1");
+				}
 			}
 		}
 
@@ -692,6 +768,7 @@ namespace UnrealBuildTool
 			if (Options.HasFlag(ClangToolChainOptions.EnableAddressSanitizer))
 			{
 				Arguments.Add("-fsanitize=address");
+				Arguments.Add("-fsanitize-recover=address");
 			}
 
 			// TSan
@@ -768,13 +845,15 @@ namespace UnrealBuildTool
 				Arguments.Add("-Xclang -analyzer-config -Xclang mode=shallow");
 			}
 
+			VersionNumber ClangVersion = new VersionNumber(Info.ClangVersion.Major, Info.ClangVersion.Minor, Info.ClangVersion.Build);
+
 			if (CompileEnvironment.StaticAnalyzerCheckers.Count > 0)
 			{
 				// Disable all default checks
 				Arguments.Add("--analyzer-no-default-checks");
 
 				// Only enable specific checkers.
-				foreach (string Checker in CompileEnvironment.StaticAnalyzerCheckers)
+				foreach (string Checker in CompileEnvironment.StaticAnalyzerCheckers.Where(x => ClangWarnings.IsAvailableAnalyzerChecker(x, ClangVersion)))
 				{
 					Arguments.Add($"-Xclang -analyzer-checker -Xclang {Checker}");
 				}
@@ -782,12 +861,12 @@ namespace UnrealBuildTool
 			else
 			{
 				// Disable default checks.
-				foreach (string Checker in CompileEnvironment.StaticAnalyzerDisabledCheckers)
+				foreach (string Checker in CompileEnvironment.StaticAnalyzerDisabledCheckers.Where(x => ClangWarnings.IsAvailableAnalyzerChecker(x, ClangVersion)))
 				{
 					Arguments.Add($"-Xclang -analyzer-disable-checker -Xclang {Checker}");
 				}
 				// Enable additional non-default checks.
-				foreach (string Checker in CompileEnvironment.StaticAnalyzerAdditionalCheckers)
+				foreach (string Checker in CompileEnvironment.StaticAnalyzerAdditionalCheckers.Where(x => ClangWarnings.IsAvailableAnalyzerChecker(x, ClangVersion)))
 				{
 					Arguments.Add($"-Xclang -analyzer-checker -Xclang {Checker}");
 				}
@@ -839,9 +918,6 @@ namespace UnrealBuildTool
 			{
 				GetCompileArguments_Analyze(CompileEnvironment, Arguments);
 			}
-
-			// Add additional arguments to the argument list.
-			GetCompileArguments_AdditionalArgs(CompileEnvironment, Arguments);
 		}
 
 		protected virtual string GetFileNameFromExtension(string AbsolutePath, string Extension)
@@ -900,6 +976,11 @@ namespace UnrealBuildTool
 			{
 				// Compile the file as Objective-C code.
 				GetCompileArguments_M(CompileEnvironment, Arguments);
+			}
+			else if (Extension == ".H")
+			{
+				// Compile the file as C++ code with some additional arguments
+				GetCompileArguments_H(CompileEnvironment, Arguments);
 			}
 			else
 			{
@@ -991,6 +1072,9 @@ namespace UnrealBuildTool
 				// Add the parameters needed to compile the output file to the command-line.
 				Arguments.Add(GetOutputFileArgument(OutputFile));
 			}
+
+			// Add additional arguments to the argument list, must be the final arguments added
+			GetCompileArguments_AdditionalArgs(CompileEnvironment, Arguments);
 
 			return OutputFile;
 		}
@@ -1094,9 +1178,38 @@ namespace UnrealBuildTool
 			Graph.AddAction(new ClangSpecificFileAction(SourceDir, OutputDir, Action, GraphBuilder.ContentLines));
 		}
 
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(ProjectFile.Directory))))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+			if (GetToolChainInfo().BasePath != null)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
+			}
+		}
+
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && LinkEnvironment.InputFiles.Any(x => x.Location.IsUnderDirectory(ProjectFile.Directory)))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+			if (GetToolChainInfo().BasePath != null)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
+			}
+		}
+
 		protected virtual Action CompileCPPFile(CppCompileEnvironment CompileEnvironment, FileItem SourceFile, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph, IReadOnlyCollection<string> GlobalArguments, CPPOutput Result)
 		{
 			Action CompileAction = Graph.CreateAction(ActionType.Compile);
+			CompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
 
 			// If we are using the AutoRTFM compiler, we make the compile action depend on the version of the compiler itself.
 			// This lets us update the compiler (which might not cause a version update of the compiler, which instead tracks
@@ -1142,12 +1255,26 @@ namespace UnrealBuildTool
 
 			// Adds the response file to the compiler input.
 			FileItem CompilerResponseFileItem = Graph.CreateIntermediateTextFile(ResponseFileName, ResponseFileContents);
-			CompileAction.CommandArguments = GetResponseFileArgument(CompilerResponseFileItem);
+			string CommandArguments = GetResponseFileArgument(CompilerResponseFileItem);
+
+			if (bMergeModules && CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create)
+			{
+				// EXTRACTEXPORTS can only be interpreted by UBA.. so this action won't build outside uba
+				CommandArguments += " /EXTRACTEXPORTS";
+				FileItem SymFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, Path.GetFileName(SourceFile.AbsolutePath) + ".exi"));
+				CompileAction.ProducedItems.Add(SymFile);
+			}
+
+			CompileAction.CommandArguments = CommandArguments;
 			CompileAction.PrerequisiteItems.Add(CompilerResponseFileItem);
 
 			CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			CompileAction.CommandPath = Info.Clang;
 			CompileAction.CommandVersion = Info.ClangVersionString;
+			if (bAllowUbaCompression)
+			{
+				CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+			}
 			CompileAction.CommandDescription = IsPreprocessing(CompileEnvironment) ? "Preprocess" : IsAnalyzing(CompileEnvironment) ? "Analyze" : "Compile";
 			UnrealArchitectureConfig ArchConfig = UnrealArchitectureConfig.ForPlatform(CompileEnvironment.Platform);
 			if (ArchConfig.Mode != UnrealArchitectureMode.SingleArchitecture)
@@ -1163,10 +1290,18 @@ namespace UnrealBuildTool
 				CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create ||
 				CompileEnvironment.bAllowRemotelyCompiledPCHs;
 
+			CompileAction.ArtifactMode = ArtifactMode.Enabled;
+
+			if (CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.None)
+			{
+				CompileAction.ArtifactMode |= ArtifactMode.AbsolutePath; // Unfortunately we require matching absolute paths for pch to be cached
+			}
+
 			// Two-pass compile where the preprocessor is run first to output the dependency list
 			if (PreprocessDepends)
 			{
 				Action PrepassAction = Graph.CreateAction(ActionType.Compile);
+				PrepassAction.RootPaths.AddRange(CompileAction.RootPaths);
 				PrepassAction.PrerequisiteItems.UnionWith(CompileAction.PrerequisiteItems);
 				PrepassAction.PrerequisiteItems.Remove(CompilerResponseFileItem);
 				PrepassAction.CommandDescription = "Preprocess Depends";

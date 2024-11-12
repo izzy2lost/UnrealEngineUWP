@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "RigVMCore/RigVMVariant.h"
 
 #include "RigVMSettings.generated.h"
 
@@ -36,3 +37,17 @@ public:
 };
 
 
+UCLASS(config = Editor, meta=(DisplayName="RigVM Project Settings"))
+class RIGVM_API URigVMProjectSettings : public UDeveloperSettings
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, config, Category = Experimental)
+	TArray<FRigVMTag> VariantTags;
+
+	UFUNCTION(BlueprintPure, Category= Variants)
+	FRigVMTag GetTag(FName InTagName) const;
+	const FRigVMTag* FindTag(FName InTagName) const;
+};

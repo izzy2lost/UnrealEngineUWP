@@ -17,7 +17,9 @@ struct VFalse : VHeapValue
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	static void InitializeGlobals();
+	static void InitializeGlobals(FAllocationContext Context);
+
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 private:
 	VFalse(FAllocationContext Context)

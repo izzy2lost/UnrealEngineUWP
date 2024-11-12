@@ -20,12 +20,7 @@ struct FUObjectSerializeContext;
 
 struct FBPCompileRequest
 {
-	explicit FBPCompileRequest(UBlueprint* InBPToCompile, EBlueprintCompileOptions InCompileOptions, FCompilerResultsLog* InClientResultsLog )
-		: BPToCompile(InBPToCompile)
-		, CompileOptions(InCompileOptions)
-		, ClientResultsLog(InClientResultsLog)
-	{
-	}
+	explicit KISMET_API FBPCompileRequest(UBlueprint* InBPToCompile, EBlueprintCompileOptions InCompileOptions, FCompilerResultsLog* InClientResultsLog);
 
 	// BP that needs to be compiled:
 	TObjectPtr<UBlueprint> BPToCompile;

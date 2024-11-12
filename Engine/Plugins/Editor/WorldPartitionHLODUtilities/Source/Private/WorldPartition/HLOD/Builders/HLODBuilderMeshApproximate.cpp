@@ -47,7 +47,7 @@ uint32 UHLODBuilderMeshApproximateSettings::GetCRC() const
 	FArchiveCrc32 Ar;
 
 	// Base key, changing this will force a rebuild of all HLODs from this builder
-	FString HLODBaseKey = "1EC5FBC75A71412EB296F0E7E8424814";
+	FString HLODBaseKey = "60D800B93F8B43789AB7FC0BF9F9BDC1";
 	Ar << HLODBaseKey;
 
 	Ar << This.MeshApproximationSettings;
@@ -59,7 +59,7 @@ uint32 UHLODBuilderMeshApproximateSettings::GetCRC() const
 	{
 		uint32 MaterialCRC = UHLODProxy::GetCRC(HLODMaterial);
 		UE_LOG(LogHLODBuilder, VeryVerbose, TEXT(" - Material = %d"), MaterialCRC);
-		Hash = HashCombine(Hash, MaterialCRC);
+		Hash = HashCombineFast(Hash, MaterialCRC);
 	}
 
 	return Hash;
@@ -98,6 +98,7 @@ TArray<UActorComponent*> UHLODBuilderMeshApproximate::Build(const FHLODBuildCont
 	Options.BasePackagePath = InHLODBuildContext.AssetsOuter->GetPackage()->GetName();
 	Options.bGenerateLightmapUVs = false;
 	Options.bCreatePhysicsBody = false;
+	Options.bBuildReversedIndexBuffer = false;
 
 	// Material baking settings
 	Options.BakeMaterial = HLODMaterial;
@@ -145,13 +146,13 @@ TArray<UActorComponent*> UHLODBuilderMeshApproximate::Build(const FHLODBuildCont
 				if (AssetToReplace)
 				{
 					// Move the previous asset to the transient package
-					AssetToReplace->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+					AssetToReplace->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 				}
 
 				UPackage* TempPackage = NewAsset->GetPackage();
 
 				// Rename the asset to its final destination
-				NewAsset->Rename(*AssetName, InHLODBuildContext.AssetsOuter, REN_DontCreateRedirectors | REN_NonTransactional | REN_ForceNoResetLoaders);
+				NewAsset->Rename(*AssetName, InHLODBuildContext.AssetsOuter, REN_DontCreateRedirectors | REN_NonTransactional);
 				NewAsset->ClearFlags(RF_Public | RF_Standalone);
 
 				// Clean up flags on the temp package. It is not useful anymore.

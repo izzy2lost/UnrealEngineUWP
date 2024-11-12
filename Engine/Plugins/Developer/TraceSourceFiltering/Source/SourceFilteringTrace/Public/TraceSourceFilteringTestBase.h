@@ -23,7 +23,7 @@ public:
 	virtual ~FTraceSourceFilteringTestBase() {};
 
 	/** Begin FAutomationTestBase overrides */
-	virtual uint32 GetTestFlags() const override { return EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter; }
+	virtual EAutomationTestFlags GetTestFlags() const override { return EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter; }
 	virtual bool IsStressTest() const {	return false; }
 	virtual uint32 GetRequiredDeviceNum() const override { return 1; }
 	virtual bool RunTest(const FString& Parameters) override;

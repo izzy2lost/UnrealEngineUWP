@@ -1,5 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+/** Shader types (mirrored from ESlateShader::Type in RenderingCommon.h */
+#define ST_Default			0
+#define ST_Border			1
+#define ST_GrayscaleFont	2
+#define ST_ColorFont		3
+#define ST_LineSegment		4
+#define ST_Custom			5
+#define ST_PostProcess		6
+#define ST_RoundedBox		7
+#define ST_SdfFont			8
+#define ST_MsdfFont			9
+
 #if USE_MATERIALS
 #include "/Engine/Generated/Material.ush"
 
@@ -18,18 +30,6 @@
 #endif
 
 #define SOURCE_IN_LINEAR_SPACE  1 
-
-/** Shader types (mirrored from ESlateShader::Type in RenderingCommon.h */
-#define ST_Default			0
-#define ST_Border			1
-#define ST_GrayscaleFont	2
-#define ST_ColorFont		3
-#define ST_LineSegment		4
-#define ST_Custom			5
-#define ST_PostProcess		6
-#define ST_RoundedBox		7
-#define ST_SdfFont			8
-#define ST_MsdfFont			9
 
 struct VertexToPixelInterpolants
 {

@@ -5,11 +5,11 @@
 #include "OSCLog.h"
 
 
-namespace OSC
+namespace UE::OSC
 {
 	const FString BundleTag = TEXT("#bundle");
 	const FString PathSeparator = TEXT("/");
-} // namespace OSC
+} // namespace UE::OSC
 
 
 FOSCAddress::FOSCAddress()
@@ -23,7 +23,7 @@ FOSCAddress::FOSCAddress(const FString& InValue)
 	: bIsValidPattern(false)
 	, bIsValidPath(false)
 {
-	InValue.ParseIntoArray(Containers, *OSC::PathSeparator, true);
+	InValue.ParseIntoArray(Containers, *UE::OSC::PathSeparator, true);
 	if (Containers.Num() > 0)
 	{
 		Method = Containers.Pop();
@@ -62,83 +62,94 @@ bool FOSCAddress::IsValidPath() const
 	return bIsValidPath;
 }
 
-void FOSCAddress::PushContainer(const FString& Container)
+bool FOSCAddress::PushContainer(FString Container)
 {
-	if (Container.Contains(OSC::PathSeparator))
-	{
-		UE_LOG(LogOSC, Warning, TEXT("Failed to push container on OSCAddress. "
-			"Cannot contain OSC path separator '%s'."), *OSC::PathSeparator);
-		return;
-	}
-
-	Containers.Push(Container);
-	CacheAggregates();
+	return PushContainers({ MoveTemp(Container) });
 }
 
-void FOSCAddress::PushContainers(const TArray<FString>& InContainers)
+bool FOSCAddress::PushContainers(TArray<FString> NewContainers)
 {
-	for (const FString& Container : InContainers)
+	if (NewContainers.IsEmpty())
 	{
-		if (Container.Contains(OSC::PathSeparator))
+		return false;
+	}
+
+	for (const FString& Container : NewContainers)
+	{
+		if (Container.Contains(UE::OSC::PathSeparator))
 		{
 			UE_LOG(LogOSC, Warning, TEXT("Failed to push containers on OSCAddress. "
-				"Cannot contain OSC path separator '%s'."), *OSC::PathSeparator);
-			return;
+				"Cannot contain OSC path separator '%s'."), *UE::OSC::PathSeparator);
+			return false;
 		}
 	}
 
-	for (const FString& Container : InContainers)
-	{
-		Containers.Push(Container);
-	}
-
+	Containers.Append(MoveTemp(NewContainers));
 	CacheAggregates();
+	return true;
 }
 
 FString FOSCAddress::PopContainer()
 {
 	FString Popped;
-	if (Containers.Num() > 0)
-	{
-		Popped = Containers.Pop(EAllowShrinking::No);
-		Hash = GetTypeHash(GetFullPath());
-	}
-
+	PopContainer(Popped);
 	return Popped;
 }
 
-TArray<FString> FOSCAddress::PopContainers(int32 InNumContainers)
+bool FOSCAddress::PopContainer(FString& OutContainer)
+{
+	OutContainer = { };
+
+	FString Popped;
+	if (Containers.IsEmpty())
+	{
+		return false;
+	}
+
+	Popped = Containers.Pop(EAllowShrinking::No);
+	Hash = GetTypeHash(GetFullPath());
+	return true;
+}
+
+TArray<FString> FOSCAddress::PopContainers(int32 NumToPop)
 {
 	TArray<FString> Popped;
-	if (InNumContainers <= 0 || Containers.Num() == 0)
+	PopContainers(NumToPop, Popped);
+	return Popped;
+}
+
+bool FOSCAddress::PopContainers(int32 NumToPop, TArray<FString>& OutContainers)
+{
+	OutContainers = { };
+
+	if (NumToPop <= 0 || Containers.IsEmpty())
 	{
-		return Popped;
+		return false;
 	}
 
 	int32 Removed = 0;
-	for (int32 i = Containers.Num() - 1; i >= 0; --i)
+	for (int32 Index = Containers.Num() - 1; Index >= 0 && Removed <= NumToPop; --Index)
 	{
-		if (Removed > InNumContainers)
-		{
-			break;
-		}
 		++Removed;
-		Popped.Add(Containers.Pop(EAllowShrinking::No));
+		OutContainers.Add(Containers.Pop(EAllowShrinking::No));
 	}
 
 	Hash = GetTypeHash(GetFullPath());
-	return Popped;
+	return true;
 }
 
-void FOSCAddress::RemoveContainers(int32 InIndex, int32 InCount)
+bool FOSCAddress::RemoveContainers(int32 InIndex, int32 InCount)
 {
 	if (InIndex >= 0 && InCount > 0)
 	{
 		if (InIndex + InCount < Containers.Num())
 		{
 			Containers.RemoveAt(InIndex, InCount);
+			return true;
 		}
 	}
+
+	return false;
 }
 
 void FOSCAddress::ClearContainers()
@@ -152,29 +163,81 @@ const FString& FOSCAddress::GetMethod() const
 	return Method;
 }
 
-void FOSCAddress::SetMethod(const FString& InMethod)
+bool FOSCAddress::GetNumericPrefix(int32& OutPreflix) const
 {
-	if (InMethod.IsEmpty())
+	OutPreflix = 0;
+	int32 Dec = 1;
+	const TArray<TCHAR>& CharArray = Method.GetCharArray();
+	for (
+		int32 Index = 0;
+		Index < CharArray.Num() && FChar::IsDigit(CharArray[Index]);
+		++Index)
+	{
+		OutPreflix = (OutPreflix * Dec) + FChar::ConvertCharDigitToInt(CharArray[Index]);
+		Dec *= 10;
+	}
+
+	return Dec == 1;
+}
+
+bool FOSCAddress::GetNumericSuffix(int32& OutSuffix) const
+{
+	OutSuffix = INDEX_NONE;
+	int32 Dec = 1;
+	const TArray<TCHAR>& CharArray = Method.GetCharArray();
+	for (
+		int32 Index = CharArray.Num() - 2 /* less term char */;
+		Index >= 0 && FChar::IsDigit(CharArray[Index]);
+		--Index)
+	{
+		OutSuffix += FChar::ConvertCharDigitToInt(CharArray[Index]) * Dec;
+		Dec *= 10;
+	}
+
+	return Dec == 1;
+}
+
+bool FOSCAddress::Set(TArray<FString> NewContainers, FString NewMethod)
+{
+	Containers = { };
+
+	if (PushContainers(MoveTemp(NewContainers)))
+	{
+		if (SetMethod(MoveTemp(NewMethod))) // Calls aggregate internally, so no need to call again on success
+		{
+			return true;
+		}
+	}
+
+	Method = { };
+	CacheAggregates();
+	return false;
+}
+
+bool FOSCAddress::SetMethod(FString NewMethod)
+{
+	if (NewMethod.IsEmpty())
 	{
 		UE_LOG(LogOSC, Warning, TEXT("Failed to set OSCAddress method. "
 			"'InMethod' cannot be empty string."));
-		return;
+		return false;
 	}
 
-	if (InMethod.Contains(OSC::PathSeparator))
+	if (NewMethod.Contains(UE::OSC::PathSeparator))
 	{
 		UE_LOG(LogOSC, Warning, TEXT("Failed to set OSCAddress method. "
-			"Cannot contain OSC path separator '%s'."), *OSC::PathSeparator);
-		return;
+			"Cannot contain OSC path separator '%s'."), *UE::OSC::PathSeparator);
+		return false;
 	}
 
-	Method = InMethod;
+	Method = MoveTemp(NewMethod);
 	CacheAggregates();
+	return true;
 }
 
 FString FOSCAddress::GetContainerPath() const
 {
-	return OSC::PathSeparator + FString::Join(Containers, *OSC::PathSeparator);
+	return UE::OSC::PathSeparator + FString::Join(Containers, *UE::OSC::PathSeparator);
 }
 
 FString FOSCAddress::GetContainer(int32 Index) const
@@ -196,8 +259,8 @@ FString FOSCAddress::GetFullPath() const
 {
 	if (Containers.Num() == 0)
 	{
-		return OSC::PathSeparator + Method;
+		return UE::OSC::PathSeparator + Method;
 	}
 
-	return GetContainerPath() + OSC::PathSeparator + Method;
+	return GetContainerPath() + UE::OSC::PathSeparator + Method;
 }

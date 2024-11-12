@@ -11,10 +11,40 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OnlineEngineInterfaceImpl)
 
+namespace UOnlineEngineInterfaceImplPrivate
+{
+
+static FName ConvertToCompatibilityOnlineIdentifier(FName OnlineIdentifier)
+{
+	FName CompatibilityOnlineIdentifier;
+
+	FString OnlineIdentifierStr = OnlineIdentifier.ToString();
+	int32 Index = -1;
+	bool bFound = OnlineIdentifierStr.FindChar(':', Index);
+	if (bFound)
+	{
+		CompatibilityOnlineIdentifier = FName(OnlineIdentifierStr.Mid(Index+1));
+	}
+	else
+	{
+		CompatibilityOnlineIdentifier = OnlineIdentifier;
+	}
+
+	return CompatibilityOnlineIdentifier;
+}
+
+}
+
 UOnlineEngineInterfaceImpl::UOnlineEngineInterfaceImpl(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, VoiceSubsystemNameOverride(NAME_None)
 {
+}
+
+void UOnlineEngineInterfaceImpl::PostInitProperties()
+{
+	Super::PostInitProperties();
+	InitCompatibilityInterface();
 }
 
 bool UOnlineEngineInterfaceImpl::IsLoaded(FName OnlineIdentifier)
@@ -50,6 +80,12 @@ bool UOnlineEngineInterfaceImpl::DoesInstanceExist(FName OnlineIdentifier)
 
 void UOnlineEngineInterfaceImpl::ShutdownOnlineSubsystem(FName OnlineIdentifier)
 {
+	if (UOnlineEngineInterface* CompatibilityInterface = OnlineServicesCompatibilityInterface.Get())
+	{
+		FName CompatibilityOnlineIdentifier = UOnlineEngineInterfaceImplPrivate::ConvertToCompatibilityOnlineIdentifier(OnlineIdentifier);
+		CompatibilityInterface->ShutdownOnlineSubsystem(CompatibilityOnlineIdentifier);
+	}
+
 	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get(OnlineIdentifier);
 	if (OnlineSub)
 	{
@@ -59,6 +95,12 @@ void UOnlineEngineInterfaceImpl::ShutdownOnlineSubsystem(FName OnlineIdentifier)
 
 void UOnlineEngineInterfaceImpl::DestroyOnlineSubsystem(FName OnlineIdentifier)
 {
+	if (UOnlineEngineInterface* CompatibilityInterface = OnlineServicesCompatibilityInterface.Get())
+	{
+		FName CompatibilityOnlineIdentifier = UOnlineEngineInterfaceImplPrivate::ConvertToCompatibilityOnlineIdentifier(OnlineIdentifier);
+		CompatibilityInterface->DestroyOnlineSubsystem(CompatibilityOnlineIdentifier);
+	}
+
 	IOnlineSubsystem::Destroy(OnlineIdentifier);
 }
 
@@ -556,6 +598,11 @@ void UOnlineEngineInterfaceImpl::BindToExternalUIOpening(const FOnlineExternalUI
 		OnExternalUIChangeDelegate.BindUObject(this, &ThisClass::OnExternalUIChange, Delegate);
 		Utils->SetEngineExternalUIBinding(OnExternalUIChangeDelegate);
 	}
+
+	if (UOnlineEngineInterface* CompatibilityInterface = OnlineServicesCompatibilityInterface.Get())
+	{
+		CompatibilityInterface->BindToExternalUIOpening(Delegate);
+	}
 }
 
 void UOnlineEngineInterfaceImpl::OnExternalUIChange(bool bInIsOpening, FOnlineExternalUIChanged Delegate)
@@ -678,3 +725,14 @@ void UOnlineEngineInterfaceImpl::OnPIELoginComplete(int32 LocalUserNum, bool bWa
 
 #endif
 
+void UOnlineEngineInterfaceImpl::InitCompatibilityInterface()
+{
+	if (bOnlineServicesCompatibilityEnabled)
+	{
+		const UClass* OnlineEngineInterfaceClass = StaticLoadClass(UOnlineEngineInterface::StaticClass(), NULL, TEXT("/Script/OnlineSubsystemUtils.OnlineServicesEngineInterfaceImpl"), NULL, LOAD_Quiet, NULL);
+		check(OnlineEngineInterfaceClass);
+
+		OnlineServicesCompatibilityInterface = NewObject<UOnlineEngineInterface>(GetTransientPackage(), OnlineEngineInterfaceClass);
+		check(OnlineServicesCompatibilityInterface);
+	}
+}

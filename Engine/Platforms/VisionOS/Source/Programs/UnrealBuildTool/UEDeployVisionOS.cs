@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Xml.Linq;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 
 namespace UnrealBuildTool
 {
@@ -42,40 +42,34 @@ namespace UnrealBuildTool
 			// get the settings from the ini file
 			// plist replacements
 			// @todo tvos: Are we going to make TVOS specific .ini files?
-			DirectoryReference? DirRef = bIsUnrealGame ? (!String.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()) ? new DirectoryReference(UnrealBuildTool.GetRemoteIniPath()!) : null) : new DirectoryReference(ProjectDirectory);
+			DirectoryReference? DirRef = bIsUnrealGame ? (!string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()) ? new DirectoryReference(UnrealBuildTool.GetRemoteIniPath()!) : null) : new DirectoryReference(ProjectDirectory);
 			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirRef, UnrealTargetPlatform.IOS);
 
 			// bundle display name
-			string BundleDisplayName;
-			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "BundleDisplayName", out BundleDisplayName);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "BundleDisplayName", out string BundleDisplayName);
 
 			// bundle identifier
-			string BundleIdentifier;
-			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "BundleIdentifier", out BundleIdentifier);
-			if (!String.IsNullOrEmpty(BundleID))
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "BundleIdentifier", out string BundleIdentifier);
+			if (!string.IsNullOrEmpty(BundleID))
 			{
 				BundleIdentifier = BundleID;
 			}
 
 			// bundle name
-			string BundleName;
-			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "BundleName", out BundleName);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "BundleName", out string BundleName);
 
 			// short version string
-			string BundleShortVersion;
-			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "VersionInfo", out BundleShortVersion);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "VersionInfo", out string BundleShortVersion);
 
 			// required capabilities
 			string RequiredCaps = "\t\t<string>arm64</string>\n";
 
 			// minimum iOS version
-			string MinVersionSetting = "";
-			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "MinimumiOSVersion", out MinVersionSetting);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "MinimumiOSVersion", out string MinVersionSetting);
 			string MinVersion = GetMinimumOSVersion(MinVersionSetting, Logger);
 
 			// extra plist data
-			string ExtraData = "";
-			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "AdditionalPlistData", out ExtraData);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "AdditionalPlistData", out string ExtraData);
 
 			// create the final display name, including converting all entities for XML use
 			string FinalDisplayName = BundleDisplayName.Replace("[PROJECT_NAME]", ProjectName).Replace("_", "");
@@ -86,7 +80,7 @@ namespace UnrealBuildTool
 			FinalDisplayName = FinalDisplayName.Replace(">", "&gt;");
 
 			// generate the plist file
-			StringBuilder Text = new StringBuilder();
+			StringBuilder Text = new();
 			Text.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
 			Text.AppendLine("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">");
 			Text.AppendLine("<plist version=\"1.0\">");
@@ -94,33 +88,33 @@ namespace UnrealBuildTool
 			Text.AppendLine("\t<key>CFBundleDevelopmentRegion</key>");
 			Text.AppendLine("\t<string>en</string>");
 			Text.AppendLine("\t<key>CFBundleDisplayName</key>");
-			Text.AppendLine(String.Format("\t<string>{0}</string>", EncodeBundleName(BundleDisplayName, ProjectName)));
+			Text.AppendLine(string.Format("\t<string>{0}</string>", EncodeBundleName(BundleDisplayName, ProjectName)));
 			Text.AppendLine("\t<key>CFBundleExecutable</key>");
 			string BundleExecutable = bIsUnrealGame ?
 				(bIsClient ? "UnrealClient" : "UnrealGame") :
 				(bIsClient ? GameName + "Client" : GameName);
-			Text.AppendLine(String.Format("\t<string>{0}</string>", BundleExecutable));
+			Text.AppendLine(string.Format("\t<string>{0}</string>", BundleExecutable));
 			Text.AppendLine("\t<key>CFBundleIdentifier</key>");
-			Text.AppendLine(String.Format("\t<string>{0}</string>", BundleIdentifier.Replace("[PROJECT_NAME]", ProjectName).Replace("_", "")));
+			Text.AppendLine(string.Format("\t<string>{0}</string>", BundleIdentifier.Replace("[PROJECT_NAME]", ProjectName).Replace("_", "")));
 			Text.AppendLine("\t<key>CFBundleInfoDictionaryVersion</key>");
 			Text.AppendLine("\t<string>6.0</string>");
 			Text.AppendLine("\t<key>CFBundleName</key>");
-			Text.AppendLine(String.Format("\t<string>{0}</string>", EncodeBundleName(BundleName, ProjectName)));
+			Text.AppendLine(string.Format("\t<string>{0}</string>", EncodeBundleName(BundleName, ProjectName)));
 			Text.AppendLine("\t<key>CFBundlePackageType</key>");
 			Text.AppendLine("\t<string>APPL</string>");
 			Text.AppendLine("\t<key>CFBundleSignature</key>");
 			Text.AppendLine("\t<string>????</string>");
 			Text.AppendLine("\t<key>CFBundleVersion</key>");
-			Text.AppendLine(String.Format("\t<string>{0}</string>", VersionUtilities.UpdateBundleVersion(OldPListData, InEngineDir)));
+			Text.AppendLine(string.Format("\t<string>{0}</string>", VersionUtilities.UpdateBundleVersion(OldPListData, InEngineDir)));
 			Text.AppendLine("\t<key>CFBundleShortVersionString</key>");
-			Text.AppendLine(String.Format("\t<string>{0}</string>", BundleShortVersion));
+			Text.AppendLine(string.Format("\t<string>{0}</string>", BundleShortVersion));
 			Text.AppendLine("\t<key>LSRequiresIPhoneOS</key>");
 			Text.AppendLine("\t<true/>");
 			Text.AppendLine("\t<key>UIRequiredDeviceCapabilities</key>");
 			Text.AppendLine("\t<array>");
 			foreach (string Line in RequiredCaps.Split("\r\n".ToCharArray()))
 			{
-				if (!String.IsNullOrWhiteSpace(Line))
+				if (!string.IsNullOrWhiteSpace(Line))
 				{
 					Text.AppendLine(Line);
 				}
@@ -141,7 +135,7 @@ namespace UnrealBuildTool
 			Text.AppendLine("\t<string>LaunchScreen</string>");
 
 			// write the iCloud container identifier, if present in the old file
-			if (!String.IsNullOrEmpty(OldPListData))
+			if (!string.IsNullOrEmpty(OldPListData))
 			{
 				int index = OldPListData.IndexOf("ICloudContainerIdentifier");
 				if (index > 0)
@@ -150,7 +144,7 @@ namespace UnrealBuildTool
 					int length = OldPListData.IndexOf("</string>", index) - index;
 					string ICloudContainerIdentifier = OldPListData.Substring(index, length);
 					Text.AppendLine("\t<key>ICloudContainerIdentifier</key>");
-					Text.AppendLine(String.Format("\t<string>{0}</string>", ICloudContainerIdentifier));
+					Text.AppendLine(string.Format("\t<string>{0}</string>", ICloudContainerIdentifier));
 				}
 			}
 

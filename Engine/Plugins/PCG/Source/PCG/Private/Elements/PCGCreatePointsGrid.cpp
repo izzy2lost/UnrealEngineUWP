@@ -203,7 +203,7 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 
-	UPCGPointData* PtData = NewObject<UPCGPointData>();
+	UPCGPointData* PtData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	check(PtData);
 
 	TArray<FPCGPoint>& OutputPoints = PtData->GetMutablePoints();
@@ -253,6 +253,7 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 			OutPoint.SetExtents(CellSize * 0.5);
 		}
 
+		OutPoint.Steepness = Settings->PointSteepness;
 		OutPoint.Seed = PCGHelpers::ComputeSeedFromPosition(PointTransform.GetLocation());
 
 		// Discards points outside of the volume

@@ -109,6 +109,10 @@ int32 UCompileShadersTestBedCommandlet::Main(const FString& Params)
 
 			AssetRegistry.GetAssets(Filter, MaterialList);
 			UE_LOG(LogCompileShadersTestBedCommandlet, Display, TEXT("Found %d/%d requested materials/material instances."), MaterialList.Num() - MaterialsNumBefore, Filter.SoftObjectPaths.Num());
+			if ((MaterialList.Num() - MaterialsNumBefore) != CmdLineMaterialEntries.Num())
+			{
+				UE_LOG(LogCompileShadersTestBedCommandlet, Error, TEXT("Some materials/material instances were not found."));
+			}
 		}
 	}
 

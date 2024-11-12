@@ -2,12 +2,27 @@
 
 #include "Playable/AvaPlayableGroup.h"
 
+#include "AvaPlayableGroupSubsystem.h"
+#include "AvaPlayableUtils.h"
+#include "Engine/GameInstance.h"
+#include "Engine/Level.h"
 #include "Engine/ViewportStatsSubsystem.h"
-#include "Framework/AvaGameInstance.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
+#include "IAvaMediaModule.h"
 #include "Playable/AvaPlayable.h"
+#include "Playable/AvaPlayableGroupAssetUserData.h"
 #include "Playable/AvaPlayableGroupManager.h"
+#include "Playable/AvaPlayableSettings.h"
+#include "Playable/PlayableGroups/AvaGameInstancePlayableGroup.h"
+#include "Playable/PlayableGroups/AvaGameViewportPlayableGroup.h"
+#include "Playable/PlayableGroups/AvaRemoteProxyPlayableGroup.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
+#include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackUtils.h"
+#include "Playback/IAvaPlaybackServer.h"
+#include "SceneView.h"
 #include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlayableGroup"
@@ -25,103 +40,72 @@ namespace UE::AvaMedia::PlayableGroup::Private
 			}
 		}
 	}
-}
 
-UPackage* UAvaPlayableGroup::MakeGameInstancePackage(const FSoftObjectPath& InSourceAssetPath, const FName& InChannelName)
-{
-	// Remote Control Preset will be registered with the package name.
-	// We want a package name unique to the game instance and that will be
-	// human readable since it will show up in the Web Remote Control page.
-	
-	FString InstancePackageName = TEXT("/Temp/");	// Keep it short for web page.
-
-	// Using channel name, since we should have one instance per channel.
-	InstancePackageName += InChannelName.ToString();
-
-	// In order to keep things short, we remove "/Game" since we added the channel name instead.
-	FString InstanceSubPath;
-	if (!InSourceAssetPath.GetLongPackageName().Split(TEXT("/Game"), nullptr, &InstanceSubPath))
+	UAvaPlayableGroupAssetUserData* FindPlayableGroupAssetUserData(IInterface_AssetUserData* InAssetInstance)
 	{
-		InstanceSubPath = InSourceAssetPath.GetLongPackageName();
+		return InAssetInstance->GetAssetUserData<UAvaPlayableGroupAssetUserData>();
 	}
 
-	// This may happen if the original asset path is not specified.
-	if (InstanceSubPath.IsEmpty())
+	UAvaPlayableGroupAssetUserData* FindPlayableGroupAssetUserDataSafe(IInterface_AssetUserData* InAssetInstance)
 	{
-		// Add something to get a valid path at least.
-		InstanceSubPath = TEXT("InvalidAssetName");
+		return InAssetInstance ? InAssetInstance->GetAssetUserData<UAvaPlayableGroupAssetUserData>() : nullptr;
 	}
-	
-	InstancePackageName += InstanceSubPath;
 
-	return MakeInstancePackage(InstancePackageName);
-}
-
-UPackage* UAvaPlayableGroup::MakeSharedInstancePackage(const FName& InChannelName)
-{
-	// Remote Control Preset will be registered with the package name.
-	// We want a package name unique to the game instance and that will be
-	// human readable since it will show up in the Web Remote Control page.
-	
-	FString SharedPackageName = TEXT("/Temp/");	// Keep it short for web page.
-
-	// Using channel name, since we should have one instance per channel.
-	SharedPackageName += InChannelName.ToString();
-
-	// Shared for all levels.
-	SharedPackageName += TEXT("/SharedLevels");
-	
-	return MakeInstancePackage(SharedPackageName);
-}
-
-UPackage* UAvaPlayableGroup::MakeInstancePackage(const FString& InInstancePackageName)
-{
-	UPackage* InstancePackage = CreatePackage(*InInstancePackageName);
-	if (InstancePackage)
+	UAvaPlayableGroupAssetUserData* FindOrAddPlayableGroupAssetUserData(IInterface_AssetUserData* InAssetInstance)
 	{
-		InstancePackage->SetFlags(RF_Transient);
+		if (!InAssetInstance)
+		{
+			return nullptr;
+		}
+		
+		UAvaPlayableGroupAssetUserData* PlayableGroupUserData = FindPlayableGroupAssetUserData(InAssetInstance);
+		if (!PlayableGroupUserData)
+		{
+			PlayableGroupUserData = NewObject<UAvaPlayableGroupAssetUserData>();
+			InAssetInstance->AddAssetUserData(PlayableGroupUserData);
+		}
+		return PlayableGroupUserData;
 	}
-	else
-	{
-		// Note: The outer will fallback to GEngine in that case.
-		UE_LOG(LogAvaPlayable, Error, TEXT("Unable to create package \"%s\" for Motion Design Game Instance."), *InInstancePackageName);
-	}
-	return InstancePackage;
 }
 
 UAvaPlayableGroup* UAvaPlayableGroup::MakePlayableGroup(UObject* InOuter, const FPlayableGroupCreationInfo& InPlayableGroupInfo)
 {
 	UObject* Outer = InOuter ? InOuter : GetTransientPackage();
 	
-	UAvaPlayableGroup* GameInstanceGroup;
+	UAvaPlayableGroup* NewPlayableGroup = nullptr;
 	if (InPlayableGroupInfo.bIsRemoteProxy)
 	{
 		// Remote Proxy group doesn't have a game instance.
-		GameInstanceGroup = NewObject<UAvaPlayableRemoteProxyGroup>(Outer);
-		GameInstanceGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
+		NewPlayableGroup = NewObject<UAvaRemoteProxyPlayableGroup>(Outer);
+		NewPlayableGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
 	}
 	else
 	{
-		GameInstanceGroup = NewObject<UAvaPlayableGroup>(Outer);
-		GameInstanceGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
-		
-		if (InPlayableGroupInfo.bIsSharedGroup)
+		if (InPlayableGroupInfo.GameInstance)
 		{
-			GameInstanceGroup->GameInstancePackage = MakeSharedInstancePackage(InPlayableGroupInfo.ChannelName);
+			NewPlayableGroup = UAvaGameViewportPlayableGroup::Create(InOuter, InPlayableGroupInfo.GameInstance, InPlayableGroupInfo.PlayableGroupManager);
 		}
 		else
 		{
-			// We can create the package even if the name is null, it will have a generic name. But that will be considered an error.
-			if (!InPlayableGroupInfo.SourceAssetPath.IsNull())
-			{
-				UE_LOG(LogAvaPlayable, Error, TEXT("Creating game instance package for asset with unspecified name."));
-			}
-			GameInstanceGroup->GameInstancePackage = MakeGameInstancePackage(InPlayableGroupInfo.SourceAssetPath, InPlayableGroupInfo.ChannelName);
+			NewPlayableGroup = UAvaGameInstancePlayableGroup::Create(InOuter, InPlayableGroupInfo);
 		}
-		
-		GameInstanceGroup->GameInstance = UAvaGameInstance::Create(GameInstanceGroup->GameInstancePackage);
 	}
-	return GameInstanceGroup;
+
+	if (NewPlayableGroup)
+	{
+		NewPlayableGroup->ChannelName = InPlayableGroupInfo.ChannelName;
+
+		if (const UWorld* PlayWorld = NewPlayableGroup->GetPlayWorld())
+		{
+			using namespace UE::AvaMedia::PlayableGroup::Private;
+			if(UAvaPlayableGroupAssetUserData* PlayableGroupUserData = FindOrAddPlayableGroupAssetUserData(PlayWorld->PersistentLevel))
+			{
+				PlayableGroupUserData->PlayableGroupsWeak.AddUnique(NewPlayableGroup);
+			}
+		}
+	}
+	
+	return NewPlayableGroup;
 }
 
 void UAvaPlayableGroup::RegisterPlayable(UAvaPlayable* InPlayable)
@@ -273,58 +257,27 @@ bool UAvaPlayableGroup::HasTransitions() const
 	return !PlayableTransitions.IsEmpty();
 }
 
-bool UAvaPlayableGroup::ConditionalCreateWorld()
+void UAvaPlayableGroup::PushSynchronizedEvent(FString&& InEventSignature, TUniqueFunction<void()> InFunction)
 {
-	if (!GameInstance)
+	if (UAvaPlayableGroupManager* Manager = GetPlayableGroupManager())
 	{
-		return false;
+		// Using one dispatcher for now, if the event signature needs to be scoped per playable group
+		// we could have a dispatcher for each playable group with a unique signature.
+		Manager->PushSynchronizedEvent(MoveTemp(InEventSignature), MoveTemp(InFunction));
 	}
-
-	bool bWorldWasCreated = false;
-
-	if (!GameInstance->IsWorldCreated())
+	else if (InFunction)
 	{
-		bWorldWasCreated = GameInstance->CreateWorld();
+		InFunction();
 	}
-	
-	// Make sure we register our delegates to this world.
-	if (GameInstance->GetPlayWorld())
-	{
-		ConditionalRegisterWorldDelegates(GameInstance->GetPlayWorld());
-	}
-	
-	return bWorldWasCreated;
 }
 
-bool UAvaPlayableGroup::ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
+bool UAvaPlayableGroup::IsSynchronizedEventPushed(const FString& InEventSignature) const
 {
-	bool bHasBegunPlay = false;
-	if (!GameInstance)
+	if (const UAvaPlayableGroupManager* Manager = GetPlayableGroupManager())
 	{
-		return bHasBegunPlay;
+		return Manager->IsSynchronizedEventPushed(InEventSignature);
 	}
-	
-	// Make sure we don't have pending unload or stop requests left over in the game instance.
-	GameInstance->CancelWorldRequests();
-
-	if (!GameInstance->IsWorldPlaying())
-	{
-		bHasBegunPlay = GameInstance->BeginPlayWorld(InWorldPlaySettings);
-	}
-	else
-	{
-		GameInstance->UpdateRenderTarget(InWorldPlaySettings.RenderTarget);
-		GameInstance->UpdateSceneViewportSize(InWorldPlaySettings.ViewportSize);
-	}
-	return bHasBegunPlay;
-}
-
-void UAvaPlayableGroup::RequestEndPlayWorld(bool bInForceImmediate)
-{
-	if (GameInstance)
-	{
-		GameInstance->RequestEndPlayWorld(bInForceImmediate);
-	}
+	return false;	
 }
 
 void UAvaPlayableGroup::SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable)
@@ -332,85 +285,30 @@ void UAvaPlayableGroup::SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable)
 	LastAppliedCameraPlayableWeak = InPlayable;
 }
 
-bool UAvaPlayableGroup::UpdateCameraSetup()
-{
-	// With rigs in sub-playables, it may still be valid and won't need updating.
-	if (const UAvaPlayable* LastAppliedCameraPlayable = LastAppliedCameraPlayableWeak.Get())
-	{
-		if (LastAppliedCameraPlayable->GetPlayableStatus() == EAvaPlayableStatus::Visible
-			&& LastAppliedCameraPlayable->GetShouldBeVisible())
-		{
-			return true;	// Camera setup is still valid.
-		}
-	}
-
-	// This is called when a playable from the group is stopped. We need to
-	// select a playable in the group that is still playing and will use it's camera.
-	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables )
-	{
-		UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr();
-		
-		if (Playable && Playable->IsPlaying())
-		{
-			if (Playable->ApplyCamera())
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-bool UAvaPlayableGroup::IsWorldPlaying() const
-{
-	return GameInstance ? GameInstance->IsWorldPlaying() : false;
-}
-
-bool UAvaPlayableGroup::IsRenderTargetReady() const
-{
-	return GameInstance ? GameInstance->IsRenderTargetReady() : false;
-}
-
 UTextureRenderTarget2D* UAvaPlayableGroup::GetRenderTarget() const
 {
-	return GameInstance ? GameInstance->GetRenderTarget() : RenderTarget.Get();
+	return ManagedRenderTarget.Get();
 }
 
-UGameInstance* UAvaPlayableGroup::GetGameInstance() const
+UTextureRenderTarget2D* UAvaPlayableGroup::GetManagedRenderTarget() const
 {
-	return GameInstance;
+	return ManagedRenderTarget.Get();
 }
-	
+
+
+void UAvaPlayableGroup::SetManagedRenderTarget(UTextureRenderTarget2D* InManageRenderTarget)
+{
+	ManagedRenderTarget = InManageRenderTarget;
+}
+
 UWorld* UAvaPlayableGroup::GetPlayWorld() const
 {
-	return GameInstance ? GameInstance->GetPlayWorld() : nullptr;
+	return GameInstance ? GameInstance->GetWorld() : nullptr;
 }
 
-bool UAvaPlayableGroup::ConditionalRequestUnloadWorld(bool bForceImmediate)
+FName UAvaPlayableGroup::GetChannelName() const
 {
-	if (!GameInstance)
-	{
-		return false;
-	}
-	
-	if (!HasPlayables())
-	{
-		UnregisterWorldDelegates(GameInstance->GetPlayWorld());
-		GameInstance->RequestUnloadWorld(bForceImmediate);
-		return true;
-	}
-	return false;
-}
-
-void UAvaPlayableGroup::QueueCameraCut()
-{
-	if (GameInstance)
-	{
-		if (UAvaGameViewportClient* GameViewportClient = GameInstance->GetAvaGameViewportClient())
-		{
-			GameViewportClient->SetCameraCutThisFrame();
-		}
-	}
+	return ChannelName;
 }
 
 void UAvaPlayableGroup::NotifyLevelStreaming(UAvaPlayable* InPlayable)
@@ -435,6 +333,7 @@ void UAvaPlayableGroup::FVisibilityRequest::Execute(const UAvaPlayableGroup* InP
 		UE_LOG(LogAvaPlayable, Error,
 			TEXT("%s Failed to Set Visibility to \"%s\" because the playable has become stale. Playable Group: \"%s\"."),
 			*GetBriefFrameInfo(), bShouldBeVisible ? TEXT("true") : TEXT("false"), *InPlayableGroup->GetFullName());
+		return;
 	}
 
 	Playable->SetShouldBeVisible(bShouldBeVisible);
@@ -472,6 +371,25 @@ void UAvaPlayableGroup::RequestSetVisibility(UAvaPlayable* InPlayable, bool bInS
 	}
 }
 
+void UAvaPlayableGroup::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
+{
+	const FAvaPlayableSettings& PlayableSettings = IAvaMediaModule::Get().GetPlayableSettings();
+	if (PlayableSettings.bHidePawnActors)
+	{
+		HidePawnsForView(GetPlayWorld(), InView);
+	}
+
+	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables)
+	{
+		UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr();
+		
+		if (Playable && Playable->IsPlaying())
+		{
+			Playable->SetupView(InViewFamily, InView);
+		}
+	}
+}
+
 bool UAvaPlayableGroup::IsVisibilityConstrained(const UAvaPlayable* InPlayable) const
 {
 	for (const TWeakInterfacePtr<IAvaPlayableVisibilityConstraint>& ConstraintWeak : VisibilityConstraints)
@@ -485,6 +403,91 @@ bool UAvaPlayableGroup::IsVisibilityConstrained(const UAvaPlayable* InPlayable) 
 		}
 	}
 	return false;
+}
+
+void UAvaPlayableGroup::ForEachPlayable(TFunctionRef<bool(UAvaPlayable*)> InFunction)
+{
+	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables)
+	{
+		if (UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr())
+		{
+			if (!InFunction(Playable))
+			{
+				return;
+			}
+		}
+	}
+}
+	
+void UAvaPlayableGroup::ForEachPlayableTransition(TFunctionRef<bool(UAvaPlayableTransition*)> InFunction)
+{
+	for (const TObjectKey<UAvaPlayableTransition>& TransitionKey : PlayableTransitions)
+	{
+		if (UAvaPlayableTransition* Transition = TransitionKey.ResolveObjectPtr())
+		{
+			if (!InFunction(Transition))
+			{
+				return;
+			}
+		}
+	}
+}
+
+UAvaPlayableGroup* UAvaPlayableGroup::FindPlayableGroupForWorld(const UWorld* InWorld, bool bInFallbackToGlobalSearch)
+{
+	if (!InWorld || !InWorld->PersistentLevel)
+	{
+		return nullptr;
+	}
+
+	// Fast path: if a world is managed by a playable group, it should have an asset user data that
+	// we can retrieve the corresponding playable group from.
+	using namespace UE::AvaMedia::PlayableGroup::Private;
+	if (UAvaPlayableGroupAssetUserData* PlayableGroupUserData = FindPlayableGroupAssetUserData(InWorld->PersistentLevel))
+	{
+		for (const TWeakObjectPtr<UAvaPlayableGroup>& PlayableGroupWeak : PlayableGroupUserData->PlayableGroupsWeak)
+		{
+			if (UAvaPlayableGroup* PlayableGroup = PlayableGroupWeak.Get())
+			{
+				return PlayableGroup;
+			}
+		}
+	}
+
+	if (!bInFallbackToGlobalSearch)
+	{
+		return nullptr;
+	}
+	
+	// Global Search starting from the system's root playable group managers.
+	const UAvaPlayableGroupManager* PlayableGroupManager = nullptr;
+
+	// For Game Viewport output, the sub system will give us the playable group manager directly.
+	if (const UGameInstance* GameInstance = InWorld->GetGameInstance())
+	{
+		if (const UAvaPlayableGroupSubsystem* PlayableGroupSubsystem = GameInstance->GetSubsystem<UAvaPlayableGroupSubsystem>())
+		{
+			PlayableGroupManager = PlayableGroupSubsystem->PlayableGroupManager;
+		}
+	}
+
+	if (!PlayableGroupManager)
+	{
+		const FAvaPlaybackManager& PlaybackManager = IAvaMediaModule::Get().GetLocalPlaybackManager();
+		PlayableGroupManager = PlaybackManager.GetPlayableGroupManager();
+	}
+
+	// Search in the local playable group manager for that world.
+	UAvaPlayableGroup* PlayableGroup = PlayableGroupManager->FindPlayableGroupForWorld(InWorld);
+	
+	// If not found, search in the playback server's playback manager.
+	if (!PlayableGroup && IAvaMediaModule::Get().IsPlaybackServerStarted())
+	{
+		PlayableGroupManager = IAvaMediaModule::Get().GetPlaybackServer()->GetPlaybackManager().GetPlayableGroupManager();
+		PlayableGroup = PlayableGroupManager->FindPlayableGroupForWorld(InWorld);
+	}
+
+	return PlayableGroup;
 }
 
 void UAvaPlayableGroup::OnPlayableStatusChanged(UAvaPlayable* InPlayable)
@@ -629,19 +632,18 @@ bool UAvaPlayableGroup::DisplayTransitions(FText& OutText, FLinearColor& OutColo
 	return false;
 }
 
-bool UAvaPlayableRemoteProxyGroup::ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
+void UAvaPlayableGroup::HidePawnsForView(const UWorld* InPlayWorld, FSceneView& InView) const
 {
-	if (!bIsPlaying)
+	if (!InPlayWorld)
 	{
-		bIsPlaying = true;
-		return true;
+		return;
 	}
-	return false;
-}
 
-void UAvaPlayableRemoteProxyGroup::RequestEndPlayWorld(bool bInForceImmediate)
-{
-	bIsPlaying = false;
+	for (const APawn* Pawn : TActorRange<APawn>(InPlayWorld))
+	{
+		using namespace UE::AvaMedia::PlayableUtils;
+		AddPrimitiveComponentIds(Pawn, InView.HiddenPrimitives);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

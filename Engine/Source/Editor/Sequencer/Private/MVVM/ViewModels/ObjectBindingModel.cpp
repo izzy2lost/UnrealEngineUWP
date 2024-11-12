@@ -679,7 +679,7 @@ TSharedRef<SWidget> FObjectBindingModel::GetAddTrackMenuContent()
 	TMap<FString, TArray<PropertyMenuData>> KeyablePropertyMenuData;
 	for (const FPropertyPath& KeyablePropertyPath : KeyablePropertyPaths)
 	{
-		FProperty* Property = KeyablePropertyPath.GetRootProperty().Property.Get();
+		const FProperty* Property = KeyablePropertyPath.GetRootProperty().Property.Get();
 		if (Property)
 		{
 			PropertyMenuData KeyableMenuData;
@@ -797,7 +797,7 @@ void FObjectBindingModel::HandleAddTrackSubMenuNew(FMenuBuilder& AddTrackMenuBui
 	// [PostProcessSettings] [ColorGrading]
 
 	// Create property menu data based on keyable property paths
-	TArray<FProperty*> PropertiesTraversed;
+	TArray<const FProperty*> PropertiesTraversed;
 	TArray<int32> ArrayIndicesTraversed;
 	TArray<PropertyMenuData> KeyablePropertyMenuData;
 	for (const FPropertyPath& KeyablePropertyPath : KeyablePropertyPaths)
@@ -809,7 +809,7 @@ void FObjectBindingModel::HandleAddTrackSubMenuNew(FMenuBuilder& AddTrackMenuBui
 		if (KeyablePropertyPath.GetNumProperties() > 1) //@todo
 		{
 			const FPropertyInfo& PropertyInfo = KeyablePropertyPath.GetPropertyInfo(1);
-			FProperty* Property = PropertyInfo.Property.Get();
+			const FProperty* Property = PropertyInfo.Property.Get();
 
 			// Search for any array elements
 			int32 ArrayIndex = INDEX_NONE;
@@ -989,8 +989,8 @@ void FObjectBindingModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	const UClass* ObjectClass = FindObjectClass();
 	
 	TSharedPtr<FExtender> Extender = EditorViewModel->GetSequencerMenuExtender(
-			SequencerModule.GetObjectBindingContextMenuExtensibilityManager(), TArrayBuilder<UObject*>().Add(BoundObject),
-			&FSequencerCustomizationInfo::OnBuildObjectBindingContextMenu, SharedThis(this));
+		SequencerModule.GetObjectBindingContextMenuExtensibilityManager(), TArrayBuilder<UObject*>().Add(BoundObject),
+		&FSequencerCustomizationInfo::OnBuildObjectBindingContextMenu, SharedThis(this));
 	if (Extender.IsValid())
 	{
 		MenuBuilder.PushExtender(Extender.ToSharedRef());
@@ -1026,76 +1026,48 @@ void FObjectBindingModel::BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder)
 	FOutlinerItemModel::BuildOrganizeContextMenu(MenuBuilder);
 }
 
-void FObjectBindingModel::AddDynamicBindingMenu(FMenuBuilder& MenuBuilder, FMovieSceneDynamicBinding& DynamicBinding)
+void FObjectBindingModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 {
-	FDetailsViewArgs DetailsViewArgs;
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
 	{
-		DetailsViewArgs.bAllowSearch = false;
-		DetailsViewArgs.bCustomFilterAreaLocation = true;
-		DetailsViewArgs.bCustomNameAreaLocation = true;
-		DetailsViewArgs.bHideSelectionTip = true;
-		DetailsViewArgs.bLockable = false;
-		DetailsViewArgs.bSearchInitialKeyFocus = true;
-		DetailsViewArgs.bUpdatesFromSelection = false;
-		DetailsViewArgs.bShowOptions = false;
-		DetailsViewArgs.bShowModifiedPropertiesOption = false;
-		DetailsViewArgs.bShowScrollBar = false;
+		return;
 	}
 
-	FStructureDetailsViewArgs StructureViewArgs;
+	FSequencer* const Sequencer = EditorViewModel->GetSequencerImpl().Get();
+	if (!Sequencer)
 	{
-		StructureViewArgs.bShowObjects = false;
-		StructureViewArgs.bShowAssets = true;
-		StructureViewArgs.bShowClasses = true;
-		StructureViewArgs.bShowInterfaces = false;
+		return;
+	} 
+
+	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+
+	UObject* const BoundObject = Sequencer->FindSpawnedObjectOrTemplate(ObjectBindingID);
+
+	const TSharedPtr<FExtender> Extender = EditorViewModel->GetSequencerMenuExtender(SequencerModule.GetSidebarExtensibilityManager()
+		, TArrayBuilder<UObject*>().Add(BoundObject), &FSequencerCustomizationInfo::OnBuildSidebarMenu, SharedThis(this));
+	if (Extender.IsValid())
+	{
+		MenuBuilder.PushExtender(Extender.ToSharedRef());
 	}
 
-	TSharedRef<IStructureDetailsView> StructureDetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor")
-		.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
-
-	// Register details customizations for this instance
-	TSharedPtr<FSequencer> Sequencer = OwnerModel->GetSequencerImpl();
-	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
-	StructureDetailsView->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(
-		FMovieSceneDynamicBinding::StaticStruct()->GetFName(),
-		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance, Sequence->GetMovieScene(), ObjectBindingID));
-
-	// We can't just show the FMovieSceneDynamicBinding struct in the details view, because Slate only uses
-	// the above details view customization for *properties* (not for the root object). So here we put a copy of
-	// our dynamic binding struct inside a container, and when the details view is done setting values on it,
-	// we copy these values back to the original dynamic binding.
-	TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(FMovieSceneDynamicBindingContainer::StaticStruct());
-	FMovieSceneDynamicBindingContainer* BufferContainer = (FMovieSceneDynamicBindingContainer*)StructOnScope->GetStructMemory();
-	BufferContainer->DynamicBinding = DynamicBinding;
-	StructureDetailsView->SetStructureData(StructOnScope);
-
-	StructureDetailsView->GetOnFinishedChangingPropertiesDelegate().AddSP(this, &FObjectBindingModel::OnFinishedChangingDynamicBindingProperties, StructOnScope);
-
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("DynamicBindingHeader", "Dynamic Binding"));
-	{
-		TSharedRef<SWidget> Widget = StructureDetailsView->GetWidget().ToSharedRef();
-		MenuBuilder.AddWidget(Widget, FText());
-	}
+	MenuBuilder.BeginSection(TEXT("ObjectBindingActions"), LOCTEXT("ObjectBindingsMenuSection", "Object Bindings"));
 	MenuBuilder.EndSection();
-}
 
-void FObjectBindingModel::OnFinishedChangingDynamicBindingProperties(const FPropertyChangedEvent& ChangeEvent, TSharedPtr<FStructOnScope> ValueStruct)
-{
-	auto* Container = (FMovieSceneDynamicBindingContainer*)ValueStruct->GetStructMemory();
+	// External extension.
+	Sequencer->BuildCustomContextMenuForGuid(MenuBuilder, ObjectBindingID);
 
-	UMovieScene* MovieScene = OwnerModel->GetMovieScene();
-	FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectBindingID);
-	if (Possessable)
+	// Track editor extension.
+	TArray<FGuid> ObjectBindings;
+	ObjectBindings.Add(ObjectBindingID);
+
+	const UClass* const ObjectClass = FindObjectClass();
+	for (const TSharedPtr<ISequencerTrackEditor>& TrackEditor : Sequencer->GetTrackEditors())
 	{
-		Possessable->DynamicBinding = Container->DynamicBinding;
-		return;
+		TrackEditor->BuildObjectBindingContextMenu(MenuBuilder, ObjectBindings, ObjectClass);
 	}
-	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingID);
-	if (Spawnable)
-	{
-		Spawnable->DynamicBinding = Container->DynamicBinding;
-		return;
-	}
+
+	FOutlinerItemModel::BuildSidebarMenu(MenuBuilder);
 }
 
 void FObjectBindingModel::AddTagMenu(FMenuBuilder& MenuBuilder)
@@ -1319,12 +1291,6 @@ void FObjectBindingModel::Delete()
 		if (TViewModelPtr<FFolderModel> ParentFolder = CastParent<FFolderModel>())
 		{
 			ParentFolder->GetFolder()->RemoveChildObjectBinding(ObjectBindingID);
-		}
-
-		// Delete any loaded object that may be bound to this object binding
-		if (FMovieSceneObjectCache* Cache = Sequencer->State.FindObjectCache(OwnerModel->GetSequenceID()))
-		{
-			Cache->UnloadBinding(ObjectBindingID, Sequencer->GetSharedPlaybackState());
 		}
 
 		BindingLifetimeOverlayModel.Reset();

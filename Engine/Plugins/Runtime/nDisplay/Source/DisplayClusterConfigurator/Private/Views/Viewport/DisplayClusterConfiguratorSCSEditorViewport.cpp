@@ -27,6 +27,7 @@
 #include "ViewportTabContent.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Slate/SceneViewport.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 
 #define LOCTEXT_NAMESPACE "DisplayClusterSCSEditorViewport"
@@ -144,7 +145,9 @@ public:
 	{
 		if(EditorViewport.IsValid())
 		{
-			return GetCameraMenuLabelFromViewportType(EditorViewport.Pin()->GetViewportClient()->GetViewportType());
+			return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(
+				EditorViewport.Pin()->GetViewportClient()->GetViewportType()
+			);
 		}
 
 		return NSLOCTEXT("BlueprintEditor", "CameraMenuTitle_Default", "Camera");
@@ -211,6 +214,7 @@ public:
 		static FName LitModeIconName("EditorViewport.LitMode");
 		static FName UnlitModeIconName("EditorViewport.UnlitMode");
 		static FName WireframeModeIconName("EditorViewport.WireframeMode");
+		static FName LitWireframeModeIconName("EditorViewport.LitWireframeMode");
 
 		FName Icon = NAME_None;
 
@@ -228,6 +232,10 @@ public:
 
 			case VMI_BrushWireframe:
 				Icon = WireframeModeIconName;
+				break;
+
+			case VMI_Lit_Wireframe:
+				Icon = LitWireframeModeIconName;
 				break;
 			}
 		}

@@ -138,7 +138,7 @@ bool FObjectHyperlinkColumn::Supports( const TSharedRef< IPropertyTableColumn >&
 		if( PropertyPath.IsValid() && PropertyPath->GetNumProperties() > 0 )
 		{
 			const FPropertyInfo& PropertyInfo = PropertyPath->GetRootProperty();
-			FProperty* Property = PropertyInfo.Property.Get();
+			const FProperty* Property = PropertyInfo.Property.Get();
 			if( Property->IsA( FWeakObjectProperty::StaticClass() ) )
 			{
 				const UClass* PropertyClass = CastField<FWeakObjectProperty>(Property)->PropertyClass;

@@ -199,54 +199,6 @@ void URecastNavMeshDataChunk::SerializeRecastData(FArchive& Ar, int32 NavMeshVer
 }
 #endif// WITH_RECAST
 
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::AttachTiles(FPImplRecastNavMesh& NavMeshImpl)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = AttachTiles(*NavMeshImpl.NavMeshOwner);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::AttachTiles(FPImplRecastNavMesh& NavMeshImpl, const bool bKeepCopyOfData, const bool bKeepCopyOfCacheData)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = AttachTiles(*NavMeshImpl.NavMeshOwner, bKeepCopyOfData, bKeepCopyOfCacheData);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::DetachTiles(FPImplRecastNavMesh& NavMeshImpl)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = DetachTiles(*NavMeshImpl.NavMeshOwner);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::DetachTiles(FPImplRecastNavMesh& NavMeshImpl, const bool bTakeDataOwnership, const bool bTakeCacheDataOwnership)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = DetachTiles(*NavMeshImpl.NavMeshOwner, bTakeDataOwnership, bTakeCacheDataOwnership);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
 #if WITH_RECAST
 TArray<FNavTileRef> URecastNavMeshDataChunk::AttachTiles(ARecastNavMesh& NavMesh)
 {
@@ -551,16 +503,34 @@ void URecastNavMeshDataChunk::ReleaseTiles()
 	Tiles.Reset();
 }
 
+// Deprecated
 void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, const TArray<int32>& TileIndices, const EGatherTilesCopyMode CopyMode, const bool bMarkAsAttached /*= true*/)
 {
 	Tiles.Empty(TileIndices.Num());
 
 #if WITH_RECAST
+	if (NavMeshImpl)
+	{
+		TArray<uint32> TileUnsignedIndices;
+		TileUnsignedIndices.Append(TileIndices);
+
+		TArray<FNavTileRef> TileRefs;
+		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(NavMeshImpl, TileUnsignedIndices, TileRefs);
+		GetTiles(NavMeshImpl, TileRefs, CopyMode, bMarkAsAttached);
+	}
+#endif // WITH_RECAST
+}
+
+#if WITH_RECAST
+void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, const TArray<FNavTileRef>& TileRefs, const EGatherTilesCopyMode CopyMode, const bool bMarkAsAttached /*= true*/)
+{
+	Tiles.Empty(TileRefs.Num());
+
 	const dtNavMesh* NavMesh = NavMeshImpl->DetourNavMesh;
 	
-	for (int32 TileIdx : TileIndices)
+	for (const FNavTileRef TileRef : TileRefs)
 	{
-		const dtMeshTile* Tile = NavMesh->getTile(TileIdx);
+		const dtMeshTile* Tile = NavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
 		if (Tile && Tile->header)
 		{
 			// Make our own copy of tile data
@@ -594,22 +564,37 @@ void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, c
 			Tiles.Add(RecastTileData);
 		}
 	}
-#endif // WITH_RECAST
 }
+#endif // WITH_RECAST
 
+// Deprecated
 void URecastNavMeshDataChunk::GetTilesBounds(const FPImplRecastNavMesh& NavMeshImpl, const TArray<int32>& TileIndices, FBox& OutBounds) const
 {
 	OutBounds.Init();
 #if WITH_RECAST
+	TArray<uint32> TileUnsignedIndices;
+	TileUnsignedIndices.Append(TileIndices);
+
+	TArray<FNavTileRef> TileRefs;
+	FNavTileRef::DeprecatedMakeTileRefsFromTileIds(&NavMeshImpl, TileUnsignedIndices, TileRefs);
+	GetTilesBounds(NavMeshImpl, TileRefs, OutBounds);
+#endif // WITH_RECAST
+}
+
+#if WITH_RECAST
+void URecastNavMeshDataChunk::GetTilesBounds(const FPImplRecastNavMesh& NavMeshImpl, const TArray<FNavTileRef>& TileRefs, FBox& OutBounds) const
+{
+	OutBounds.Init();
+
 	const dtNavMesh* NavMesh = NavMeshImpl.DetourNavMesh;
 
-	for (const int32 TileIdx : TileIndices)
+	for (const FNavTileRef TileRef : TileRefs)
 	{
-		const dtMeshTile* Tile = NavMesh->getTile(TileIdx);
+		const dtMeshTile* Tile = NavMesh->getTileByRef(static_cast<dtTileRef>(TileRef));
 		if (Tile && Tile->header)
 		{
 			OutBounds += Recast2UnrealBox(Tile->header->bmin, Tile->header->bmax);
 		}
 	}
-#endif // WITH_RECAST
 }
+#endif // WITH_RECAST

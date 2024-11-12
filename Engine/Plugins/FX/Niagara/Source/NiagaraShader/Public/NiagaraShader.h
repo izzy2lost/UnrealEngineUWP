@@ -24,6 +24,7 @@
 #endif
 
 class UClass;
+struct FAppendToClassSchemaContext;
 
 template<typename TBufferStruct> class TUniformBufferRef;
 
@@ -235,6 +236,13 @@ public:
 	{
 		return MakeArrayView(DataInterfaceParameters);
 	}
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Called from UNiagaraSystem::AppendToClassSchema() to collect the Script specific details for iterative cooking
+	 */
+	NIAGARASHADER_API static void BuildClassSchema(FAppendToClassSchemaContext& Context);
+#endif
 
 	LAYOUT_FIELD(bool, bNeedsViewUniformBuffer);
 	LAYOUT_FIELD(uint16, MiscUsageBitMask);

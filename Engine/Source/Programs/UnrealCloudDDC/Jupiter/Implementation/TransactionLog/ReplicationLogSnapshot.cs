@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using EpicGames.Horde.Storage;
 using JetBrains.Annotations;
 using Jupiter.Common.Implementation;
@@ -57,7 +58,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 		private BinaryReplicationLogSnapshot(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects, IBufferedPayload payload) : base(ns, lastBucket, lastEvent, countOfObjects)
 		{
-			_bufferedPayload = payload; 
+			_bufferedPayload = payload;
 		}
 
 		private BinaryReplicationLogSnapshot(NamespaceId ns) : base(ns)
@@ -65,18 +66,23 @@ namespace Jupiter.Implementation.TransactionLog
 			_bufferedPayload = null;
 		}
 
-		public override void Dispose()
+		protected override void Dispose(bool disposing)
 		{
-			if (_bufferedPayload != null)
+			if (disposing)
 			{
-				_bufferedPayload.Dispose();
-				_bufferedPayload = null;
+				if (_bufferedPayload != null)
+				{
+					_bufferedPayload.Dispose();
+					_bufferedPayload = null;
+				}
 			}
+
+			base.Dispose(disposing);
 		}
 
 		public static ReplicationLogSnapshot FromStream(BufferedPayloadFactory payloadFactory, Stream stream)
 		{
-			IBufferedPayload payload = payloadFactory.CreateFilesystemBufferedPayloadAsync(stream).Result;
+			IBufferedPayload payload = payloadFactory.CreateFilesystemBufferedPayloadAsync(stream, CancellationToken.None).Result;
 
 			using Stream payloadStream = payload.GetStream();
 			(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects) = ReadHeader(payloadStream);
@@ -84,7 +90,7 @@ namespace Jupiter.Implementation.TransactionLog
 			return new BinaryReplicationLogSnapshot(ns, lastBucket, lastEvent, countOfObjects, payload);
 		}
 
-		private static (NamespaceId,string, Guid, ulong) ReadHeader(Stream stream)
+		private static (NamespaceId, string, Guid, ulong) ReadHeader(Stream stream)
 		{
 			byte[] bytes = new byte[4];
 			int bytesRead = stream.Read(bytes, 0, 4);
@@ -198,7 +204,7 @@ namespace Jupiter.Implementation.TransactionLog
 		public BlobId Blob { get; set; }
 	}
 
-	public abstract class ReplicationLogSnapshot
+	public abstract class ReplicationLogSnapshot : IDisposable
 	{
 		private readonly List<SnapshotLiveObject> _addedObjects = new List<SnapshotLiveObject>();
 		private readonly HashSet<(BucketId, RefId)> _removedObjects = new HashSet<(BucketId, RefId)>();
@@ -317,9 +323,14 @@ namespace Jupiter.Implementation.TransactionLog
 			_removedObjects.Add((bucket, key));
 		}
 
-		public virtual void Dispose()
+		protected virtual void Dispose(bool disposing)
 		{
-			
+		}
+
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
 		}
 	}
 }

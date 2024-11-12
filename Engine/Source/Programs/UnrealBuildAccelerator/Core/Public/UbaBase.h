@@ -20,12 +20,12 @@ namespace uba
 	template<class T> const T& Max(const T& a, const T& b) { return (b > a) ? b : a; }
 
 	#if PLATFORM_WINDOWS
-	inline constexpr bool IsWindows = true;
+	constexpr bool IsWindows = true;
 	using tchar = wchar_t;
 	#define TC(x) L##x
 	#define PERCENT_HS L"%hs"
 	#else
-	inline constexpr bool IsWindows = false;
+	constexpr bool IsWindows = false;
 	using tchar = char;
 	#define TC(x) x
 	#define PERCENT_HS "%s"

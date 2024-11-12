@@ -4,12 +4,12 @@
 
 #include "ContentBrowserMenuContexts.h"
 #include "PackageTools.h"
+#include "ToolMenus.h"
 
 #include "LidarPointCloudEditor.h"
 #include "LidarPointCloudEditorHelper.h"
 
 #include "LidarPointCloud.h"
-
 
 #define LOCTEXT_NAMESPACE "LidarPointCloud"
 

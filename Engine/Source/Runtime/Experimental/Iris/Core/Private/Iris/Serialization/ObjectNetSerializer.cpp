@@ -182,8 +182,12 @@ void FObjectNetSerializerBase<T>::Quantize(FNetSerializationContext& Context, co
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 	UObject* Source = GetValue(*reinterpret_cast<T*>(Args.Source));
 
+	// Notice that we quantize to default here if initializing for default state, this is due to the fact that
+	// object references cannot be quantized for default state as they will use locally assigned ids which will differ between server and client
+	// $TODO: Jira: UE-221750 It should now be possible to implement support for this, need to track if stored quantized data is local or not, as long as dequantized
+	// state is correct it should work.
 	const FInternalNetSerializationContext* InternalContext = Context.GetInternalContext();
-	Target = InternalContext->ObjectReferenceCache ? InternalContext->ObjectReferenceCache->GetOrCreateObjectReference(Source) : QuantizedType();
+	Target = Context.IsInitializingDefaultState() ? QuantizedType() : InternalContext->ObjectReferenceCache->GetOrCreateObjectReference(Source);
 }
 
 template<typename T>

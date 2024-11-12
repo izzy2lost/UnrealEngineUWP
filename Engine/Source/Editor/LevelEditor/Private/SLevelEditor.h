@@ -16,6 +16,7 @@
 #include "ILevelEditor.h"
 #include "LevelViewportTabContent.h"
 #include "SLevelEditorToolBox.h"
+#include "ActorDetailsSCSEditorUICustomization.h"
 
 class IAssetEditorInstance;
 class IDetailsView;
@@ -25,6 +26,7 @@ class SDockTab;
 class SLevelEditorModeContent;
 class SLevelEditorToolBox;
 class UTypedElementSelectionSet;
+namespace UE::WorldHierarchy { class IWorldHierarchy; }
 
 /**
  * Unreal editor level editor Slate widget
@@ -129,12 +131,13 @@ public:
 	virtual UWorld* GetWorld() const override;
 	virtual TSharedRef<SWidget> CreateActorDetails( const FName TabIdentifier ) override;
 	virtual void SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> InActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> InActorDetailsRootCustomization) override;
-	virtual void SetActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization) override;
+	virtual void AddActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) override;
+	virtual void RemoveActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) override;
 	virtual FEditorModeTools& GetEditorModeManager() const override;
 	virtual UTypedElementCommonActions* GetCommonActions() const override;
 	virtual FName GetStatusBarName() const override;
 	virtual FOnActiveViewportChanged& OnActiveViewportChanged() { return OnActiveViewportChangedDelegate; }
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget>, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget>, int32 ZOrder = INDEX_NONE, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget>, TSharedPtr<IAssetViewport> InViewport = nullptr) override; 
 
 
@@ -163,6 +166,8 @@ public:
 	/** Return the most recently interacted with Outliner */
 	UE_DEPRECATED(5.1, "The Level Editor has multiple outliners, use GetAllSceneOutliners() or GetMostRecentlyUsedSceneOutliner() instead to avoid ambiguity")
 	virtual TSharedPtr<ISceneOutliner> GetSceneOutliner() const override;
+
+	virtual TWeakPtr<UE::WorldHierarchy::IWorldHierarchy> GetWorldHierarchy() override { return WorldHierarchy; }
 	
 	TSharedRef<SWidget> GetTitleBarMessageWidget() const { return TtileBarMessageBox.ToSharedRef(); }
 private:
@@ -337,6 +342,9 @@ private:
 	/** Weak pointer to the level editor's most recently created scene outliner */
 	TWeakPtr<ISceneOutliner> SceneOutlinerPtr;
 
+	/** The content displayed by the LevelEditorTabIds::WorldBrowserHierarchy tab. */
+	TWeakPtr<UE::WorldHierarchy::IWorldHierarchy> WorldHierarchy;
+
 	/** Map containing Weak pointers to all the Outliners in the level editor */
 	TMap<FName, TWeakPtr<ISceneOutliner>> SceneOutliners;
 
@@ -365,7 +373,7 @@ private:
 	TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization;
 
 	/** Actor details SCS editor customization */
-	TSharedPtr<ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization;
+	TSharedPtr<FActorDetailsSCSEditorUICustomization> ActorDetailsSCSEditorUICustomization;
 		
 	/** A delegate which is called any time the LevelEditor's active viewport changes. */
 	FOnActiveViewportChanged OnActiveViewportChangedDelegate;

@@ -111,31 +111,15 @@ uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, bool bCastSh
 	return InstanceMask;
 }
 
-FSceneProxyRayTracingMaskInfo GetSceneProxyRayTracingMaskInfo(const FPrimitiveSceneProxy& PrimitiveSceneProxy, const FSceneViewFamily* SceneViewFamily)
+FSceneProxyRayTracingMaskInfo GetSceneProxyRayTracingMaskInfo(const FPrimitiveSceneProxy& PrimitiveSceneProxy)
 {
-
 	bool bAffectsIndirectLightingOnly = PrimitiveSceneProxy.AffectsIndirectLightingWhileHidden() && !PrimitiveSceneProxy.IsDrawnInGame();
 	bool bCastHiddenShadow = PrimitiveSceneProxy.CastsHiddenShadow() && !PrimitiveSceneProxy.IsDrawnInGame();
 	bool bAffectsDynamicIndirectLighting = PrimitiveSceneProxy.AffectsDynamicIndirectLighting();
 
-	ERayTracingViewMaskMode MaskMode = ERayTracingViewMaskMode::RayTracing;
+	const FScene* RenderScene = PrimitiveSceneProxy.GetScene().GetRenderScene();
 
-	if (SceneViewFamily)
-	{
-		if (SceneViewFamily->EngineShowFlags.PathTracing)
-		{
-			MaskMode = ERayTracingViewMaskMode::PathTracing;
-		}
-	}
-	else
-	{
-		FScene* RenderScene = PrimitiveSceneProxy.GetScene().GetRenderScene();
-
-		if (RenderScene)
-		{
-			MaskMode = static_cast<ERayTracingViewMaskMode>(RenderScene->CachedRayTracingMeshCommandsMode);
-		}
-	}
+	ERayTracingViewMaskMode MaskMode = static_cast<ERayTracingViewMaskMode>(RenderScene->CachedRayTracingMeshCommandsMode);
 
 	return {bAffectsIndirectLightingOnly, bCastHiddenShadow, bAffectsDynamicIndirectLighting, MaskMode};
 }
@@ -154,6 +138,7 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 	bool bAnySegmentsDecal = false;
 	bool bAllSegmentsDecal = true;
 	bool bDoubleSided = false;
+	bool bAllSegmentsReverseCulling = true;
 	ERayTracingViewMaskMode MaskMode = SceneProxyRayTracingMaskInfo.MaskMode;
 	Result.Mask = ExtraMask;
 
@@ -175,13 +160,16 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 			bAnySegmentsDecal |= Material.IsDeferredDecal();
 			bAllSegmentsDecal &= Material.IsDeferredDecal();
 			bDoubleSided |= MeshBatch.bDisableBackfaceCulling || Material.IsTwoSided();
+			bAllSegmentsReverseCulling &= MeshBatch.ReverseCulling;
 		}
 	}
 
-	Result.bForceOpaque = bAllSegmentsOpaque && bAllSegmentsCastShadow;
-	Result.bDoubleSided = bDoubleSided;
+	// Run AHS for alpha masked and meshes with only some sections casting shadows, which require per mesh section filtering in AHS
+	Result.bForceOpaque = bAllSegmentsOpaque && (bAllSegmentsCastShadow || !bAnySegmentsCastShadow);
+	Result.bDoubleSided = bDoubleSided;	
 	Result.bAnySegmentsDecal = bAnySegmentsDecal;
 	Result.bAllSegmentsDecal = bAllSegmentsDecal;
+	Result.bReverseCulling = bAllSegmentsReverseCulling;
 
 	const bool bIsHairStrands = Result.Mask & ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::HairStrands, MaskMode);
 	if (bIsHairStrands)
@@ -236,9 +224,9 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 	return Result;
 }
 
-FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& PrimitiveSceneProxy, const FSceneViewFamily* SceneViewFamily)
+FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& PrimitiveSceneProxy)
 {
-	FSceneProxyRayTracingMaskInfo MaskInfo = GetSceneProxyRayTracingMaskInfo(PrimitiveSceneProxy, SceneViewFamily);
+	FSceneProxyRayTracingMaskInfo MaskInfo = GetSceneProxyRayTracingMaskInfo(PrimitiveSceneProxy);
 
 	const TArrayView<const FMeshBatch> MeshBatches = Instance.GetMaterials();
 
@@ -255,10 +243,12 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 
 	MeshCommand.bCastRayTracedShadows = MeshBatch.CastRayTracedShadow && MaterialResource.CastsRayTracedShadows() && MaterialResource.GetBlendMode() != BLEND_Additive;
 	MeshCommand.bOpaque = MaterialResource.GetBlendMode() == EBlendMode::BLEND_Opaque && !(VertexFactory->GetType()->SupportsRayTracingProceduralPrimitive() && FDataDrivenShaderPlatformInfo::GetSupportsRayTracingProceduralPrimitive(GMaxRHIShaderPlatform));
+	MeshCommand.bAlphaMasked = MaterialResource.GetBlendMode() == EBlendMode::BLEND_Masked;
 	MeshCommand.bDecal = MaterialResource.IsDeferredDecal();
 	MeshCommand.bIsSky = MaterialResource.IsSky();
 	MeshCommand.bTwoSided = MaterialResource.IsTwoSided();
 	MeshCommand.bIsTranslucent = MaterialResource.GetBlendMode() == EBlendMode::BLEND_Translucent;
+	MeshCommand.bReverseCulling = MeshBatch.ReverseCulling;
 
 	MeshCommand.InstanceMask = BlendModeToRayTracingInstanceMask(MaterialResource.GetBlendMode(), MeshCommand.bCastRayTracedShadows, MaskMode);
 
@@ -267,7 +257,13 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 		return;
 	}
 
-	FSceneProxyRayTracingMaskInfo MaskInfo = GetSceneProxyRayTracingMaskInfo(*PrimitiveSceneProxy, nullptr);
+	// MeshBatch.ReverseCulling is generally not what we want as the value could be set including the transform's orientation.
+	// This is because cached mesh commands are shared with rasterization.
+	// For ray tracing, only the user decision of wanting reversed culling matters, so query this directly here.
+	// In the case that that this mesh command is not associated with a primitive, the mesh batch value will still apply.
+	MeshCommand.bReverseCulling = PrimitiveSceneProxy->IsCullingReversedByComponent();
+
+	FSceneProxyRayTracingMaskInfo MaskInfo = GetSceneProxyRayTracingMaskInfo(*PrimitiveSceneProxy);
 
 	// TODO: This should be done once all mesh commands for a mesh are combined (similar to BuildRayTracingInstanceMaskAndFlags(...) above)
 	if (MaskMode == ERayTracingViewMaskMode::PathTracing || MaskMode == ERayTracingViewMaskMode::LightMapTracing)

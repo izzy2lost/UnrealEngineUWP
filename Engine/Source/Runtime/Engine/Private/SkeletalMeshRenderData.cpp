@@ -3,12 +3,14 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Engine/SkinnedAsset.h"
 #include "Rendering/SkeletalMeshModel.h"
+#include "Rendering/NaniteResources.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "EngineLogs.h"
 #include "UObject/Package.h"
 #include "Rendering/RenderCommandPipes.h"
+#include "Rendering/RayTracingGeometryManager.h"
 
 #if WITH_EDITOR
 #include "ProfilingDebugging/CookStats.h"
@@ -213,15 +215,17 @@ FString FSkeletalMeshRenderData::GetDerivedDataKey(const ITargetPlatform* Target
 void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkinnedAsset* Owner, FSkinnedAssetCompilationContext* ContextPtr)
 {
 	check(Owner);
-	// Disable ContextPtr check because only USkeletalMesh supports it.
-	//check(ContextPtr);
+	check(ContextPtr);
 
 	check(LODRenderData.Num() == 0); // Should only be called on new, empty RenderData
 	check(TargetPlatform);
 
-	auto SerializeLodModelDdcData = [&Owner](FSkeletalMeshLODModel* LODModel, FArchive& Ar)
+	check(NaniteResourcesPtr.IsValid());
+	Nanite::FResources& NaniteResources = *NaniteResourcesPtr.Get();
+
+	auto SerializeLODModelDDCData = [&Owner](FSkeletalMeshLODModel* LODModel, FArchive& Ar)
 	{
-		//Make sure we add everything FSkeletalMeshLODModel got modified by the skeletalmesh builder
+		//Make sure we add everything FSkeletalMeshLODModel got modified by the skeletal mesh builder
 		Ar << LODModel->Sections;
 		Ar << LODModel->NumVertices;
 		Ar << LODModel->NumTexCoords;
@@ -238,53 +242,51 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 		COOK_STAT(auto Timer = SkeletalMeshCookStats::UsageStats.TimeSyncWork());
 		int32 T0 = FPlatformTime::Cycles();
 
-		//When we import a skeletalmesh, in some cases the asset is not yet built, and the usersectiondata and the inline cache are not set
-		//until the initial build. This is due to the section count which is establish by the initial build of the import data. The section count
-		//is part of the key because users can change section settings(see UserSectionData). So when we do a initial build we do not compute yet
-		//the key and force the build code path, the key will be compute after the build and the DDC data will be store with the computed key.
-		const bool bAllowDdcFetch = Owner->IsInitialBuildDone();
-		if (bAllowDdcFetch)
+		// When we import a skeletal mesh, in some cases the asset is not yet built, and the user section data and the inline cache are not set
+		// until the initial build. This is due to the section count which is establish by the initial build of the import data. The section count
+		// is part of the key because users can change section settings(see UserSectionData). So when we do a initial build we do not compute yet
+		// the key and force the build code path, the key will be compute after the build and the DDC data will be store with the computed key.
+		const bool bAllowDDCFetch = Owner->IsInitialBuildDone();
+		if (bAllowDDCFetch)
 		{
 			DerivedDataKey = Owner->BuildDerivedDataKey(TargetPlatform);
 		}
 		
-		//If we have an initial build, the ddc key will be computed only after the build. Some structure are missing until we first build the asset to get the drived data key
+		// If we have an initial build, the ddc key will be computed only after the build. Some structure are missing until we first build the asset to get the drived data key
 		
 		TArray64<uint8> DerivedData;
-		if(bAllowDdcFetch && DDCUtils64Bit::GetSynchronous(DerivedDataKey, Owner, DerivedData))
+		if(bAllowDDCFetch && DDCUtils64Bit::GetSynchronous(DerivedDataKey, Owner, DerivedData))
 		{
 			COOK_STAT(Timer.AddHit(DerivedData.Num()));
 
 			FLargeMemoryReader Ar(DerivedData.GetData(), DerivedData.Num(), ELargeMemoryReaderFlags::Persistent);
 
-			//Helper structure to change the morph targets
-			TUniquePtr<FFinishBuildMorphTargetData> FinishBuildMorphTargetData;
-
 			FSkeletalMeshModel* SkelMeshModel = Owner->GetImportedModel();
 			check(SkelMeshModel);
 
-			//Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
+			// Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
 			if (Owner->GetMorphTargets().Num() > 0)
 			{
-				FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
+				ContextPtr->FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
 			}
 			else
 			{
 				// Create and initialize the FinishBuildInternalData, use the class default object to call the virtual function
-				FinishBuildMorphTargetData = UMorphTarget::StaticClass()->GetDefaultObject<UMorphTarget>()->CreateFinishBuildMorphTargetData();
+				ContextPtr->FinishBuildMorphTargetData = UMorphTarget::StaticClass()->GetDefaultObject<UMorphTarget>()->CreateFinishBuildMorphTargetData();
 			}
-			check(FinishBuildMorphTargetData);
-			FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
+			check(ContextPtr->FinishBuildMorphTargetData);
+			ContextPtr->FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
 
-			//Serialize the LODModel sections since they are dependent on the reduction
+			// Serialize the LODModel sections since they are dependent on the reduction
 			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
 			{
 				FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
-				SerializeLodModelDdcData(LODModel, Ar);
+				SerializeLODModelDDCData(LODModel, Ar);
 				LODModel->SyncronizeUserSectionsDataArray();
 			}
 
 			Serialize(Ar, Owner);
+
 			for (int32 LODIndex = 0; LODIndex < LODRenderData.Num(); ++LODIndex)
 			{
 				FSkeletalMeshLODRenderData& LODData = LODRenderData[LODIndex];
@@ -296,16 +298,6 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 				const bool bForceKeepCPUResources = FSkeletalMeshLODRenderData::ShouldForceKeepCPUResources();
 				const bool bNeedsCPUAccess = FSkeletalMeshLODRenderData::ShouldKeepCPUResources(Owner, LODIndex, bForceKeepCPUResources);
 				LODData.SerializeStreamedData(Ar, Owner, LODIndex, DummyStripFlags, bNeedsCPUAccess, bForceKeepCPUResources);
-			}
-
-			//Apply the morphtargets change if any
-			if (FinishBuildMorphTargetData.IsValid())
-			{
-				// Morph target is only supported on USkeletalMesh
-				if (USkeletalMesh* SkMesh = Cast<USkeletalMesh>(Owner))
-				{
-					FinishBuildMorphTargetData->ApplyEditorData(SkMesh, ContextPtr ? ContextPtr->bIsSerializeSaving : false);
-				}
 			}
 
 			int32 T1 = FPlatformTime::Cycles();
@@ -330,7 +322,7 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 				FSkeletalMeshLODRenderData* LODData = new FSkeletalMeshLODRenderData();
 				LODRenderData.Add(LODData);
 				
-				//Get the UVs and tangents precision build settings flag specific for this LOD index
+				// Get the UVs and tangents precision build settings flag specific for this LOD index
 				ESkeletalMeshVertexFlags VertexBufferBuildFlags = Owner->GetVertexBufferFlags();
 				{
 					const bool bUseFullPrecisionUVs = LODInfo->BuildSettings.bUseFullPrecisionUVs;
@@ -369,20 +361,21 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			{
 				Owner->GetMorphTargets()[MorphTargetIndex]->SerializeMemoryArchive(Ar);
 			}
-			//No need to serialize the morph target mapping since we will rebuild the mapping when loading a ddc
+			// No need to serialize the morph target mapping since we will rebuild the mapping when loading a ddc
 
-			//Serialize the LODModel sections since they are dependent on the reduction
+			// Serialize the LODModel sections since they are dependent on the reduction
 			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
 			{
 				FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
-				SerializeLodModelDdcData(LODModel, Ar);
+				SerializeLODModelDDCData(LODModel, Ar);
 			}
 
 			IMeshBuilderModule& MeshBuilderModule = IMeshBuilderModule::GetForPlatform(TargetPlatform);
 			MeshBuilderModule.PostBuildSkeletalMesh(this, Owner);
 
-			//Serialize the render data
+			// Serialize the render data
 			Serialize(Ar, Owner);
+
 			for (int32 LODIndex = 0; LODIndex < LODRenderData.Num(); ++LODIndex)
 			{
 				FSkeletalMeshLODRenderData& LODData = LODRenderData[LODIndex];
@@ -400,7 +393,7 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			//There should never be correction of the data during the build, the data has to be corrected in the post load before calling this function.
 			FString BuiltDerivedDataKey = Owner->BuildDerivedDataKey(TargetPlatform);
 			//Only compare keys if the ddc fetch was allowed
-			if (bAllowDdcFetch)
+			if (bAllowDDCFetch)
 			{
 				if (BuiltDerivedDataKey != DerivedDataKey)
 				{
@@ -467,7 +460,9 @@ FSkeletalMeshRenderData::FSkeletalMeshRenderData()
 	, LODBiasModifier(0)
 	, bSupportRayTracing(true)
 	, bInitialized(false)
-{}
+{
+	ClearNaniteResources(NaniteResourcesPtr);
+}
 
 FSkeletalMeshRenderData::~FSkeletalMeshRenderData()
 {
@@ -580,6 +575,9 @@ void FSkeletalMeshRenderData::Serialize(FArchive& Ar, USkinnedAsset* Owner)
 
 	LODRenderData.Serialize(Ar, Owner);
 
+	check(NaniteResourcesPtr.IsValid());
+	NaniteResourcesPtr->Serialize(Ar, Owner, false /* bCooked */);
+
 #if WITH_EDITOR
 	if (Ar.IsSaving())
 	{
@@ -621,6 +619,17 @@ void FSkeletalMeshRenderData::InitResources(bool bNeedsVertexColors, TArray<UMor
 {
 	if (!bInitialized)
 	{
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed())
+		{
+			ENQUEUE_RENDER_COMMAND(SkeletalMeshInitRayTracingGeometryGroup)(UE::RenderCommandPipe::SkeletalMesh,
+				[this, NumLODs = LODRenderData.Num()]
+				{
+					RayTracingGeometryGroupHandle = GRayTracingGeometryManager->RegisterRayTracingGeometryGroup(NumLODs, CurrentFirstLODIdx);
+				});
+		}
+#endif
+
 		// initialize resources for each lod
 		for (int32 LODIndex = 0; LODIndex < LODRenderData.Num(); LODIndex++)
 		{
@@ -631,6 +640,9 @@ void FSkeletalMeshRenderData::InitResources(bool bNeedsVertexColors, TArray<UMor
 				RenderData.InitResources(bNeedsVertexColors, LODIndex, InMorphTargets, Owner);
 			}
 		}
+
+		check(NaniteResourcesPtr.IsValid());
+		NaniteResourcesPtr->InitResources(Owner);
 
 		ENQUEUE_RENDER_COMMAND(CmdSetSkeletalMeshReadyForStreaming)(UE::RenderCommandPipe::SkeletalMesh,
 			[this, Owner]
@@ -651,6 +663,22 @@ void FSkeletalMeshRenderData::ReleaseResources()
 		{
 			LODRenderData[LODIndex].ReleaseResources();
 		}
+
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed())
+		{
+			ENQUEUE_RENDER_COMMAND(SkeletalMeshReleaseRayTracingGeometryGroup)(UE::RenderCommandPipe::SkeletalMesh,
+				[this]
+				{
+					GRayTracingGeometryManager->ReleaseRayTracingGeometryGroup(RayTracingGeometryGroupHandle);
+					RayTracingGeometryGroupHandle = INDEX_NONE;
+				});
+		}
+#endif
+
+		check(NaniteResourcesPtr.IsValid());
+		NaniteResourcesPtr->ReleaseResources();
+
 		bInitialized = false;
 	}
 }
@@ -692,6 +720,8 @@ void FSkeletalMeshRenderData::GetResourceSizeEx(FResourceSizeEx& CumulativeResou
 		const FSkeletalMeshLODRenderData& RenderData = LODRenderData[LODIndex];
 		RenderData.GetResourceSizeEx(CumulativeResourceSize);
 	}
+
+	GetNaniteResourcesSizeEx(NaniteResourcesPtr, CumulativeResourceSize);
 }
 
 SIZE_T FSkeletalMeshRenderData::GetCPUAccessMemoryOverhead() const
@@ -754,4 +784,9 @@ int32 FSkeletalMeshRenderData::GetFirstValidLODIdx(int32 MinIdx) const
 		++LODIndex;
 	}
 	return (LODIndex < LODCount) ? LODIndex : INDEX_NONE;
+}
+
+bool FSkeletalMeshRenderData::HasValidNaniteData() const
+{
+	return NaniteResourcesPtr->PageStreamingStates.Num() > 0;
 }

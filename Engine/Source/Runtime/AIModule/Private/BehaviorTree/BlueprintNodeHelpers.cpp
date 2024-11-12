@@ -10,6 +10,7 @@
 #include "GameFramework/Controller.h"
 #include "BehaviorTree/BehaviorTreeTypes.h"
 #include "BehaviorTree/BTNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "GameplayTagContainer.h"
 #include "UObject/TextProperty.h"
 
@@ -112,6 +113,12 @@ namespace BlueprintNodeHelpers
 			}
 #endif
 		}
+#if WITH_EDITOR
+		else if (StructProp && StructProp->Struct->IsChildOf(FValueOrBlackboardKeyBase::StaticStruct()))
+		{
+			ExportedStringValue = reinterpret_cast<const FValueOrBlackboardKeyBase*>(PropertyAddr)->ToString();
+		}
+#endif // WITH_EDITOR
 		else if (FloatProp)
 		{
 			// special case for floats to remove unnecessary zeros

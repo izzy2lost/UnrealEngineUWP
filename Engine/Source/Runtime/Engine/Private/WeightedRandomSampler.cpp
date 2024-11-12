@@ -11,6 +11,8 @@ FWeightedRandomSampler::FWeightedRandomSampler()
 
 }
 
+FWeightedRandomSampler::~FWeightedRandomSampler() = default;
+
 void FWeightedRandomSampler::Initialize()
 {
 	//Gather all weights.

@@ -5,6 +5,7 @@
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "DynamicMesh/MeshTangents.h"
+#include "DynamicMeshEditor.h" // for sharp edge creation/deletion via overlay seam methods
 #include "Operations/RepairOrientation.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 #include "Polygroups/PolygroupSet.h"
@@ -171,7 +172,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormalsForMe
 			return;
 		}
 		
-		if (Selection.GetSelectionType() == EGeometryScriptMeshSelectionType::Vertices)
+		EGeometryScriptMeshSelectionType SelectionType = Selection.GetSelectionType();
+		if (SelectionType == EGeometryScriptMeshSelectionType::Vertices || SelectionType == EGeometryScriptMeshSelectionType::Edges)
 		{
 			FDynamicMeshNormalOverlay* Normals = EditMesh.Attributes()->PrimaryNormals();
 			TSet<int32> Elements;
@@ -193,6 +195,76 @@ UDynamicMesh* UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormalsForMe
 }
 
 
+
+UDynamicMesh* UGeometryScriptLibrary_MeshNormalsFunctions::SetSplitNormalsAlongSelectedEdges(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptMeshSelection Selection,
+	bool bSplit,
+	bool bRecalculateNormals,
+	FGeometryScriptCalculateNormalsOptions CalculateOptions,
+	bool bDeferChangeNotifications,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetSplitNormalsAlongSelectedEdges_InvalidInput", "SetSplitNormalsAlongSelectedEdges: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+	{
+		if (EditMesh.HasAttributes() == false || EditMesh.Attributes()->PrimaryNormals() == nullptr)
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetSplitNormalsAlongSelectedEdges_NoAttributes", "SetSplitNormalsAlongSelectedEdges: TargetMesh has no Normals attribute enabled"));
+			return;
+		}
+
+		TArray<int32> EdgeArr;
+		Selection.ConvertToMeshIndexArray(EditMesh, EdgeArr, EGeometryScriptIndexType::Edge);
+		TSet<int32> EdgeSet(EdgeArr);
+		// split/merge sharp normals (and tangents/bitangents if available)
+		for (int32 NormalLayerIdx = 0; NormalLayerIdx < EditMesh.Attributes()->NumNormalLayers(); ++NormalLayerIdx)
+		{
+			if (bSplit)
+			{
+				FDynamicMeshEditor::CreateSeamsAtEdges(EdgeSet, EditMesh.Attributes()->GetNormalLayer(NormalLayerIdx));
+			}
+			else
+			{
+				FDynamicMeshEditor::RemoveSeamsAtEdges(EdgeSet, EditMesh.Attributes()->GetNormalLayer(NormalLayerIdx));
+			}
+		}
+		if (bRecalculateNormals)
+		{
+			FDynamicMeshNormalOverlay* Normals = EditMesh.Attributes()->PrimaryNormals();
+			TSet<int32> VIDs;
+			TArray<int32> Elements;
+			auto ProcessVert = [&VIDs, &Elements, Normals](int32 VID)
+			{
+				bool bAlreadyAdded = false;
+				VIDs.Add(VID, &bAlreadyAdded);
+				if (!bAlreadyAdded)
+				{
+					Normals->EnumerateVertexElements(VID, [&Elements](int32 TID, int32 ElID, const FVector3f&)
+						{
+							Elements.Add(ElID);
+							return true;
+						}, /*bFindUniqueElements*/true);
+				}
+			};
+			for (int32 EID : EdgeArr)
+			{
+				FIndex2i EdgeV = EditMesh.GetEdgeV(EID);
+				ProcessVert(EdgeV.A);
+				ProcessVert(EdgeV.B);
+			}
+			FMeshNormals::RecomputeOverlayElementNormals(EditMesh, Elements, CalculateOptions.bAngleWeighted, CalculateOptions.bAngleWeighted);
+		}
+
+	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::NormalsTangents, bDeferChangeNotifications);
+
+	return TargetMesh;
+}
 
 
 UDynamicMesh* UGeometryScriptLibrary_MeshNormalsFunctions::ComputeSplitNormals( 

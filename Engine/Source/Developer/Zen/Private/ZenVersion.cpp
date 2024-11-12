@@ -111,4 +111,12 @@ bool FZenVersion::operator<(FZenVersion& Other) const
 	return false;
 }
 
+FZenVersion::operator bool() const
+{
+	return 	MajorVersion != 0 ||
+		MinorVersion != 0 ||
+		PatchVersion != 0 ||
+		!Details.IsEmpty();
+}
+
 } // namespace UE::Zen

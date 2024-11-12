@@ -171,11 +171,11 @@ void SNiagaraOverviewGraph::ViewModelSelectionChanged()
 {
 	if (bUpdatingViewModelSelectionFromGraph == false)
 	{
-		if (FNiagaraEditorUtilities::SetsMatch(GraphEditor->GetSelectedNodes(), ViewModel->GetNodeSelection()->GetSelectedObjects()) == false)
+		if (FNiagaraEditorUtilities::SetsMatch(GraphEditor->GetSelectedNodes(), ViewModel->GetNodeSelection()->GetSelectedObjectsResolved()) == false)
 		{
 			TGuardValue<bool> UpdateGuard(bUpdatingGraphSelectionFromViewModel, true);
 			GraphEditor->ClearSelectionSet();
-			for (UObject* SelectedNode : ViewModel->GetNodeSelection()->GetSelectedObjects())
+			for (UObject* SelectedNode : ViewModel->GetNodeSelection()->GetSelectedObjectsResolved())
 			{
 				UEdGraphNode* GraphNode = Cast<UEdGraphNode>(SelectedNode);
 				if (GraphNode != nullptr)
@@ -238,18 +238,15 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 		{
 			MenuBuilder.AddMenuEntry(FNiagaraEditorCommands::Get().OpenAddEmitterMenu);
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("EmptyEmitterLabel", "Add empty emitter"),
-				LOCTEXT("AddEmitterToolTip", "Adds an empty emitter without any modules or renderers."),
+				LOCTEXT("MinimalEmitterLabel", "Add minimal emitter"),
+				FNiagaraEditorUtilities::Tooltips::GetMinimalEmitterCreationTooltip(),
 				FSlateIcon(),
 				FExecuteAction::CreateSP(this, &SNiagaraOverviewGraph::OnCreateEmptyEmitter));
-			if (GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
-			{
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("AddStatelessEmitter", "Add lightweight emitter"),
-					LOCTEXT("AddStatelessEmitterToolTip", "Adds a lightweight emitter without any modules or renderers."),
-					FSlateIcon(),
-					FExecuteAction::CreateSP(this, &SNiagaraOverviewGraph::OnCreateStatelessEmitter));
-			}
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("AddStatelessEmitter", "Add lightweight emitter"),
+				LOCTEXT("AddStatelessEmitterToolTip", "Adds a lightweight emitter without any modules or renderers."),
+				FSlateIcon(),
+				FExecuteAction::CreateSP(this, &SNiagaraOverviewGraph::OnCreateStatelessEmitter));
 			MenuBuilder.AddMenuEntry(
 				LOCTEXT("CommentsLabel", "Add Comment"),
 				LOCTEXT("AddCommentBoxToolTip", "Add a comment box"),
@@ -286,7 +283,7 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 
 void SNiagaraOverviewGraph::OnCreateEmptyEmitter()
 {
-	ViewModel->GetSystemViewModel()->AddEmptyEmitter();
+	ViewModel->GetSystemViewModel()->AddMinimalEmitter();
 }
 
 void SNiagaraOverviewGraph::OnCreateStatelessEmitter()

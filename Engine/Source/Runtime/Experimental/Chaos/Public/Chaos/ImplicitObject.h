@@ -8,7 +8,9 @@
 #include "Chaos/ImplicitFwd.h"
 #include "Chaos/ImplicitObjectType.h"
 #include "Chaos/AABB.h"
+#include "Chaos/RefCountedObject.h"
 #include "Templates/RefCounting.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #ifndef TRACK_CHAOS_GEOMETRY
 #define TRACK_CHAOS_GEOMETRY !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -103,49 +105,6 @@ struct TImplicitTypeInfo
 // This is a compiler-dependent behavior, so if you are not seeing any other compile time errors about sizeof(FImplicitObject) + offsetof(...) with this disabled,
 // you should be OK.
 #define DISALLOW_FIMPLICIT_OBJECT_TAIL_PADDING INTEL_ISPC
-
-// Chaos ref counted object
-class FChaosRefCountedObject
-{
-public:
-	FChaosRefCountedObject() : NumRefs(0) {}
-	virtual ~FChaosRefCountedObject() { check(NumRefs.GetValue() == 0); }
-	FChaosRefCountedObject(const FChaosRefCountedObject& Rhs) = delete;
-	FChaosRefCountedObject& operator=(const FChaosRefCountedObject& Rhs) = delete;
-	uint32 AddRef() const
-	{
-		return uint32(NumRefs.Increment());
-	}
-	uint32 Release() const
-	{
-		uint32 Refs = uint32(NumRefs.Decrement());
-		if (Refs == 0)
-		{
-			if(bTransientFlag)
-			{ 
-				delete this;
-			}
-		}
-		return Refs;
-	}
-	uint32 GetRefCount() const
-	{
-		return uint32(NumRefs.GetValue());
-	}
-
-	void MakePersistent() const
-	{
-		bTransientFlag = false;
-	}
-	
-private:
-	// Number of refs onto the object
-	mutable FThreadSafeCounter NumRefs;
-
-	// Transient flag to trigger or not the automatic deletion
-	mutable std::atomic<bool> bTransientFlag = true;
-};
-	
 
 class FImplicitObject : public FChaosRefCountedObject
 {

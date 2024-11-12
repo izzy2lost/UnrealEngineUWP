@@ -36,25 +36,10 @@ struct FKTaperedCapsuleElem : public FKShapeElem
 	UPROPERTY(Category= Capsule, EditAnywhere)
 	float Length;
 
-	FKTaperedCapsuleElem()
-	: FKShapeElem(EAggCollisionShape::TaperedCapsule)
-	, Center(FVector::ZeroVector)
-	, Rotation(FRotator::ZeroRotator)
-	, Radius0(1.0f)
-	, Radius1(1.0f)
-	, Length(1.0f)
-	{
-	}
-
-	FKTaperedCapsuleElem( float InRadius0, float InRadius1, float InLength )
-	: FKShapeElem(EAggCollisionShape::TaperedCapsule)
-	, Center(FVector::ZeroVector)
-	, Rotation(FRotator::ZeroRotator)
-	, Radius0(InRadius0)
-	, Radius1(InRadius1)
-	, Length(InLength)
-	{
-	}
+	ENGINE_API FKTaperedCapsuleElem();
+	ENGINE_API FKTaperedCapsuleElem( float InRadius0, float InRadius1, float InLength );
+	ENGINE_API FKTaperedCapsuleElem(const FKTaperedCapsuleElem&);
+	ENGINE_API ~FKTaperedCapsuleElem();
 
 	friend bool operator==( const FKTaperedCapsuleElem& LHS, const FKTaperedCapsuleElem& RHS )
 	{

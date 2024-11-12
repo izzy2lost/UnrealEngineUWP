@@ -11,6 +11,6 @@ UBakeToControlRigSettings::UBakeToControlRigSettings(const FObjectInitializer& I
 void UBakeToControlRigSettings::Reset()
 {
 	bReduceKeys = false;
-	Tolerance = 0.001f;
+	SmartReduce.Reset();
 }
 

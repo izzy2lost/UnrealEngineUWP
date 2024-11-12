@@ -58,6 +58,8 @@
 class AActor;
 class FBlueprintEditorToolbar;
 class FBlueprintNamespaceHelper;
+class FEditorViewportSelectability;
+class FEditorViewportSelectabilityBridge;
 class FProperty;
 class FReferenceCollector;
 class FSCSEditorTreeNode;
@@ -607,6 +609,9 @@ public:
 
 	/** Pastes a new local variable to the focused function graph */
 	virtual void OnPasteNewLocalVariable(const FBPVariableDescription& VariableDescription);
+
+	/** Create a variant for a function */
+	virtual void AddNewFunctionVariant(const UEdGraph* InOriginalFunction) {}
 
 	// Type of new document/graph being created by a menu item
 	enum ECreatedDocumentType
@@ -1381,6 +1386,8 @@ public://@TODO
 	/** Whether delegates are allowed  to be displayed/created in a blueprint */
 	virtual bool AreDelegatesAllowed() const;
 
+	FEditorViewportSelectabilityBridge* GetViewportSelectabilityBridge();
+
 protected:
 
 	/** Should intermediate build products be saved when recompiling? */
@@ -1636,6 +1643,8 @@ private:
 
 	virtual void OnBlueprintProjectSettingsChanged(UObject*, struct FPropertyChangedEvent&);
 	virtual void OnBlueprintEditorPreferencesChanged(UObject*, struct FPropertyChangedEvent&);
+
+	TUniquePtr<FEditorViewportSelectabilityBridge> ViewportSelectabilityBridge;
 };
 
 #undef LOCTEXT_NAMESPACE

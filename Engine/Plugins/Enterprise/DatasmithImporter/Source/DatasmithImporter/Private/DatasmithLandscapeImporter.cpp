@@ -81,7 +81,7 @@ AActor* FDatasmithLandscapeImporter::ImportLandscapeActor( const TSharedRef< IDa
 		MaterialLayerDataPerLayer.Add(FGuid(), TArray<FLandscapeImportLayerInfo>());
 		
 		Cast< ALandscape >( NewActor )->Import( FGuid::NewGuid(), 0, 0, SizeX - 1, SizeY - 1, OutSectionsPerComponent, OutQuadsPerSection,
-			HeightmapDataPerLayers, nullptr, MaterialLayerDataPerLayer, ELandscapeImportAlphamapType::Additive);
+			HeightmapDataPerLayers, nullptr, MaterialLayerDataPerLayer, ELandscapeImportAlphamapType::Additive, /*InImportLayers = */MakeArrayView<FLandscapeLayer>({}));
 	} ) );
 
 	LandscapeActorElement->SetTranslation( OriginalTranslation );
@@ -115,7 +115,7 @@ AActor* FDatasmithLandscapeImporter::ImportLandscapeActor( const TSharedRef< IDa
 	{
 		if(ImportLandscapeLayersList[i].LayerInfo != nullptr)
 		{
-			Landscape->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ImportLandscapeLayersList[i].LayerInfo, ImportLandscapeLayersList[i].SourceFilePath));
+			Landscape->AddTargetLayer(ImportLandscapeLayersList[i].LayerInfo->LayerName, FLandscapeTargetLayerSettings(ImportLandscapeLayersList[i].LayerInfo, ImportLandscapeLayersList[i].SourceFilePath));
 
 			int32 LayerInfoIndex = LandscapeInfo->GetLayerInfoIndex(ImportLandscapeLayersList[i].LayerName);
 			if(ensure(LayerInfoIndex != INDEX_NONE))

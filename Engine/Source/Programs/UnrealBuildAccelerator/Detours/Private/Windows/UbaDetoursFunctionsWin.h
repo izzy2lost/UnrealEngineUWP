@@ -18,6 +18,9 @@
 #define DETOURED_INCLUDE_DEBUG
 #endif
 
+#if defined(DETOURED_INCLUDE_DEBUG)
+#include <direct.h>
+#endif
 
 
 #define DETOURED_FUNCTIONS \
@@ -26,6 +29,7 @@
 	DETOURED_FUNCTIONS_NTDLL \
 	DETOURED_FUNCTIONS_SHLWAPI \
 	DETOURED_FUNCTIONS_UCRTBASE \
+	DETOURED_FUNCTIONS_RPCRT4 \
 
 #define DETOURED_FUNCTIONS_KERNELBASE \
 	DETOURED_FUNCTION(GetCommandLineW) \
@@ -80,6 +84,7 @@
 	DETOURED_FUNCTION(UnmapViewOfFileEx) \
 	DETOURED_FUNCTION(GetFinalPathNameByHandleW) \
 	DETOURED_FUNCTION(CreateProcessW) \
+	DETOURED_FUNCTION(CreateProcessA) \
 	DETOURED_FUNCTION(TerminateProcess) \
 	DETOURED_FUNCTION(SearchPathW) \
 	DETOURED_FUNCTION(LoadLibraryExW) \
@@ -128,6 +133,7 @@
 	DETOURED_FUNCTION(NtQueryObject) \
 	DETOURED_FUNCTION(NtQueryInformationProcess) \
 	DETOURED_FUNCTION(NtSetInformationFile) \
+	DETOURED_FUNCTION(NtSetInformationObject) \
 	DETOURED_FUNCTION(NtCreateSection) \
 	DETOURED_FUNCTION(RtlSizeHeap) \
 	DETOURED_FUNCTION(RtlFreeHeap) \
@@ -151,6 +157,17 @@
 	DETOURED_FUNCTION(fputs) \
 	DETOURED_FUNCTION(_wsplitpath_s) \
 	DETOURED_FUNCTIONS_UCRTBASE_DEBUG \
+
+#if UBA_SUPPORT_MSPDBSRV
+#define DETOURED_FUNCTIONS_RPCRT4 \
+	DETOURED_FUNCTION(RpcStringBindingComposeW) \
+	DETOURED_FUNCTION(RpcBindingSetAuthInfoExW) \
+	DETOURED_FUNCTION(RpcBindingFromStringBindingW) \
+	DETOURED_FUNCTION(NdrClientCall2) \
+
+#else
+#define DETOURED_FUNCTIONS_RPCRT4
+#endif
 
 #if UBA_USE_MIMALLOC
 #define DETOURED_FUNCTIONS_MEMORY \
@@ -189,6 +206,7 @@
 #if defined(DETOURED_INCLUDE_DEBUG)
 
 #define DETOURED_FUNCTIONS_KERNELBASE_DEBUG \
+	DETOURED_FUNCTION(GetCommandLineA) \
 	DETOURED_FUNCTION(FreeLibrary) \
 	DETOURED_FUNCTION(RegOpenKeyExW) \
 	DETOURED_FUNCTION(SetLastError) \
@@ -219,12 +237,12 @@
 	DETOURED_FUNCTION(GetFullPathNameA) \
 	DETOURED_FUNCTION(GetFileAttributesA) \
 	DETOURED_FUNCTION(GetFileAttributesExA) \
+	DETOURED_FUNCTION(LoadLibraryW) \
 	DETOURED_FUNCTION(GetModuleFileNameA) \
 	DETOURED_FUNCTION(GetModuleFileNameExA) \
 	DETOURED_FUNCTION(GetModuleBaseNameA) \
 	DETOURED_FUNCTION(GetModuleBaseNameW) \
 	DETOURED_FUNCTION(SetUnhandledExceptionFilter) \
-	DETOURED_FUNCTION(CreateProcessA) \
 	DETOURED_FUNCTION(FlushInstructionCache) \
 	DETOURED_FUNCTION(CreateFile2) \
 	DETOURED_FUNCTION(CreateFileTransactedW) \
@@ -236,6 +254,7 @@
 	DETOURED_FUNCTION(ReplaceFileW) \
 	DETOURED_FUNCTION(CreateHardLinkA) \
 	DETOURED_FUNCTION(DeleteFileA) \
+	DETOURED_FUNCTION(SetCurrentDirectoryA) \
 	DETOURED_FUNCTION(CreateSymbolicLinkW) \
 	DETOURED_FUNCTION(CreateSymbolicLinkA) \
 	DETOURED_FUNCTION(SetEnvironmentVariableW) \
@@ -251,7 +270,9 @@
 	DETOURED_FUNCTION(CreateWaitableTimerExW) \
 	DETOURED_FUNCTION(CreateIoCompletionPort) \
 	DETOURED_FUNCTION(CreatePipe) \
+	DETOURED_FUNCTION(SetHandleInformation) \
 	DETOURED_FUNCTION(CreateNamedPipeW) \
+	DETOURED_FUNCTION(CallNamedPipeW ) \
 	DETOURED_FUNCTION(PeekNamedPipe) \
 	DETOURED_FUNCTION(GetKernelObjectSecurity) \
 	DETOURED_FUNCTION(ImpersonateNamedPipeClient) \
@@ -289,6 +310,11 @@
 	DETOURED_FUNCTION(NtQueryFullAttributesFile) \
 	DETOURED_FUNCTION(NtFlushBuffersFileEx) \
 	DETOURED_FUNCTION(NtReadFile) \
+	DETOURED_FUNCTION(NtAlpcCreatePort) \
+	DETOURED_FUNCTION(NtAlpcConnectPort) \
+	DETOURED_FUNCTION(NtAlpcCreatePortSection) \
+	DETOURED_FUNCTION(NtAlpcSendWaitReceivePort) \
+	DETOURED_FUNCTION(NtAlpcDisconnectPort) \
 	DETOURED_FUNCTION(ZwSetInformationFile) \
 	DETOURED_FUNCTION(ZwQueryDirectoryFile) \
 	//DETOURED_FUNCTION(ZwCreateFile) \
@@ -310,6 +336,7 @@
 	DETOURED_FUNCTION(getenv) \
 	DETOURED_FUNCTION(getenv_s) \
 	DETOURED_FUNCTION(_wmakepath_s) \
+	DETOURED_FUNCTION(_getcwd) \
 	//DETOURED_FUNCTION(_wsopen_s) \
 	//DETOURED_FUNCTION(_fileno) \
 
@@ -330,6 +357,9 @@
 #endif
 
 extern "C" {
+	using PALPC_PORT_ATTRIBUTES = void*;
+	using PALPC_MESSAGE_ATTRIBUTES = void*;
+	using PPORT_MESSAGE = void*;
 	enum FS_INFORMATION_CLASS {};
 	NTSTATUS NTAPI NtQueryVolumeInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoStatusBlock, PVOID FsInformation, ULONG Length, FS_INFORMATION_CLASS FsInformationClass);
 	NTSTATUS NTAPI NtQueryFullAttributesFile(POBJECT_ATTRIBUTES ObjectAttributes, PVOID Attributes);
@@ -340,8 +370,14 @@ extern "C" {
 	NTSTATUS NTAPI NtFlushBuffersFileEx(HANDLE FileHandle, ULONG Flags, PVOID Parameters, ULONG ParametersSize, PIO_STATUS_BLOCK IoStatusBlock);
 	NTSTATUS NTAPI NtReadFile(HANDLE FileHandle, HANDLE Event, PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext, PIO_STATUS_BLOCK IoStatusBlock, PVOID Buffer, ULONG Length, PLARGE_INTEGER ByteOffset, PULONG Key);
 	NTSTATUS NTAPI NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoStatusBlock, PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass);
+	NTSTATUS NTAPI NtSetInformationObject(HANDLE ObjectHandle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG Length);
 	NTSTATUS NTAPI NtCreateSection(PHANDLE SectionHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PLARGE_INTEGER MaximumSize, ULONG SectionPageProtection, ULONG AllocationAttributes, HANDLE FileHandle);
 	NTSTATUS NTAPI NtCreateIoCompletion(PHANDLE IoCompletionHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, ULONG Count);
+	NTSTATUS NTAPI NtAlpcCreatePort(PHANDLE PortHandle, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes);
+	NTSTATUS NTAPI NtAlpcConnectPort(PHANDLE PortHandle, PUNICODE_STRING PortName, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes, DWORD ConnectionFlags, PSID RequiredServerSid, PPORT_MESSAGE ConnectionMessage, PSIZE_T ConnectMessageSize, PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes, PALPC_MESSAGE_ATTRIBUTES InMessageAttributes, PLARGE_INTEGER Timeout);
+	NTSTATUS NTAPI NtAlpcCreatePortSection(HANDLE PortHandle, ULONG Flags, HANDLE SectionHandle, SIZE_T SectionSize, PHANDLE AlpcSectionHandle, PSIZE_T ActualSectionSize);
+	NTSTATUS NTAPI NtAlpcSendWaitReceivePort(HANDLE PortHandle, DWORD Flags, PPORT_MESSAGE SendMessage_, PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes, PPORT_MESSAGE ReceiveMessage, PSIZE_T BufferLength, PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes, PLARGE_INTEGER Timeout);
+	NTSTATUS NTAPI NtAlpcDisconnectPort(HANDLE PortHandle, ULONG Flags);
 	NTSTATUS NTAPI ZwCreateFile(PHANDLE FileHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PIO_STATUS_BLOCK IoStatusBlock, PLARGE_INTEGER AllocationSize, ULONG FileAttributes, ULONG ShareAccess, ULONG CreateDisposition, ULONG CreateOptions, PVOID EaBuffer, ULONG EaLength);
 	NTSTATUS NTAPI ZwOpenFile(PHANDLE FileHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PIO_STATUS_BLOCK IoStatusBlock, ULONG ShareAccess, ULONG OpenOptions);
 	NTSTATUS NTAPI ZwQueryDirectoryFile(HANDLE FileHandle, HANDLE Event, PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext, PIO_STATUS_BLOCK IoStatusBlock, PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry, PUNICODE_STRING FileName, BOOLEAN RestartScan);
@@ -403,17 +439,57 @@ struct FILE_RENAME_INFORMATION {
 };
 
 struct FILE_IS_REMOTE_DEVICE_INFORMATION {
-  BOOLEAN IsRemote;
+	BOOLEAN IsRemote;
+	};
+
+	struct FILE_ID_INFORMATION {
+	ULONGLONG   VolumeSerialNumber;
+	FILE_ID_128 FileId;
+	};
+
+	struct FILE_NAME_INFORMATION {
+	ULONG FileNameLength;
+	WCHAR FileName[1];
+	};
+
+	struct FILE_BASIC_INFORMATION {
+	LARGE_INTEGER CreationTime;
+	LARGE_INTEGER LastAccessTime;
+	LARGE_INTEGER LastWriteTime;
+	LARGE_INTEGER ChangeTime;
+	DWORD FileAttributes;
+	};
+
+	struct FILE_STANDARD_INFORMATION {
+	LARGE_INTEGER AllocationSize;
+	LARGE_INTEGER EndOfFile;
+	ULONG         NumberOfLinks;
+	BOOLEAN       DeletePending;
+	BOOLEAN       Directory;
 };
 
-struct FILE_ID_INFORMATION {
-  ULONGLONG   VolumeSerialNumber;
-  FILE_ID_128 FileId;
+struct FILE_INTERNAL_INFORMATION {
+	LARGE_INTEGER IndexNumber;
 };
 
-struct FILE_NAME_INFORMATION {
-  ULONG FileNameLength;
-  WCHAR FileName[1];
+struct FILE_ALL_INFORMATION {
+	FILE_BASIC_INFORMATION     BasicInformation;
+	FILE_STANDARD_INFORMATION  StandardInformation;
+	FILE_INTERNAL_INFORMATION  InternalInformation;
+	//FILE_EA_INFORMATION        EaInformation;
+	//FILE_ACCESS_INFORMATION    AccessInformation;
+	//FILE_POSITION_INFORMATION  PositionInformation;
+	//FILE_MODE_INFORMATION      ModeInformation;
+	//FILE_ALIGNMENT_INFORMATION AlignmentInformation;
+	//FILE_NAME_INFORMATION      NameInformation;
+};
+
+struct FILE_FS_VOLUME_INFORMATION {
+	LARGE_INTEGER VolumeCreationTime;
+	ULONG         VolumeSerialNumber;
+	ULONG         VolumeLabelLength;
+	BOOLEAN       SupportsObjects;
+	WCHAR         VolumeLabel[1];
 };
 
 namespace uba

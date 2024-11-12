@@ -26,17 +26,24 @@ public:
 	/** Creates an instance of StateTree editor. Only virtual so that it can be called across the DLL boundary. */
 	virtual TSharedRef<IStateTreeEditor> CreateStateTreeEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UStateTree* StateTree);
 
+	/** Sets the Details View with required State Tree Detail Property Handlers */
+	static void SetDetailPropertyHandlers(IDetailsView& DetailsView);
+
 	virtual TSharedPtr<FExtensibilityManager> GetMenuExtensibilityManager() override { return MenuExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() override { return ToolBarExtensibilityManager; }
 
 	TSharedPtr<FStateTreeNodeClassCache> GetNodeClassCache();
 	
+	DECLARE_EVENT_OneParam(FStateTreeEditorModule, FOnRegisterLayoutExtensions, FLayoutExtender&);
+	FOnRegisterLayoutExtensions& OnRegisterLayoutExtensions() { return RegisterLayoutExtensions; }
+
 protected:
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 	TSharedPtr<FStateTreeNodeClassCache> NodeClassCache;
 
 	FDelegateHandle OnUserDefinedStructReinstancedHandle;
+	FOnRegisterLayoutExtensions RegisterLayoutExtensions;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

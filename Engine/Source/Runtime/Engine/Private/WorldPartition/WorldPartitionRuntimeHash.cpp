@@ -10,9 +10,14 @@
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceNames.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "Misc/ArchiveMD5.h"
 #if WITH_EDITOR
 #include "WorldPartition/Cook/WorldPartitionCookPackage.h"
+#include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
+#include "UObject/ObjectSaveContext.h"
+#include "UObject/UObjectIterator.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeHash)
@@ -114,27 +119,46 @@ FString URuntimeHashExternalStreamingObjectBase::GetPackageNameToCreate() const
 	return FString();
 }
 
-bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(UPackage* InPackage)
+bool URuntimeHashExternalStreamingObjectBase::PrepareForCook(const IWorldPartitionCookPackageContext& InCookContext)
 {
-	ForEachStreamingCells([this](UWorldPartitionRuntimeCell& Cell)
+	bool bResult = true;
+	ForEachStreamingCells([this, &bResult, &InCookContext](UWorldPartitionRuntimeCell& Cell)
 	{
-		UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
-		UWorldPartitionLevelStreamingDynamic* LevelStreamingDynamic = RuntimeCell->GetLevelStreaming();
-		FWorldPartitionRuntimeCellStreamingData& CellStreamingData = CellToStreamingData.Add(RuntimeCell->GetFName());
-		CellStreamingData.PackageName = LevelStreamingDynamic->GetWorldAsset().GetLongPackageName();
-		// SoftObjectPath will be automatically remapped when ExternalStreamingObject will be instanced/loaded at runtime
-		CellStreamingData.WorldAsset = LevelStreamingDynamic->GetWorldAsset().ToSoftObjectPath();
+		// Make cell is ready for cook
+		if (Cell.PrepareCellForCook(InCookContext))
+		{
+			UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
+			UWorldPartitionLevelStreamingDynamic* LevelStreamingDynamic = RuntimeCell->GetLevelStreaming();
+			FWorldPartitionRuntimeCellStreamingData& CellStreamingData = CellToStreamingData.Add(RuntimeCell->GetFName());
+			CellStreamingData.PackageName = LevelStreamingDynamic->GetWorldAsset().GetLongPackageName();
+			// SoftObjectPath will be automatically remapped when ExternalStreamingObject will be instanced/loaded at runtime
+			CellStreamingData.WorldAsset = LevelStreamingDynamic->GetWorldAsset().ToSoftObjectPath();
 
-		// Level streaming are outered to the world and would not be saved within the ExternalStreamingObject.
-		// Do not save them, instead they will be created once the external streaming object is loaded at runtime. 
-		LevelStreamingDynamic->SetFlags(RF_Transient);
+			// Level streaming are outered to the world and would not be saved within the ExternalStreamingObject.
+			// Do not save them, instead they will be created once the external streaming object is loaded at runtime. 
+			LevelStreamingDynamic->SetFlags(RF_Transient);
+		}
+		else
+		{
+			bResult = false;
+		}
 	});
-	return true;
+	return bResult;
 }
 
-bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
+bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage)
 {
-	return Rename(nullptr, InPackage, REN_DontCreateRedirectors);
+	return PrepareForCook(InCookContext);
+}
+
+bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage, TArray<UPackage*>& OutModifiedPackages)
+{
+	if (PrepareForCook(InCookContext))
+	{
+		// We provide a new name for the URuntimeHashExternalStreamingObjectBase in the package so that we have a stable name (for cook determinism)
+		return Rename(URuntimeHashExternalStreamingObjectBase::GetCookedExternalStreamingObjectName(), InGeneratedPackage, REN_DontCreateRedirectors);
+	}
+	return false;
 }
 
 void URuntimeHashExternalStreamingObjectBase::DumpStateLog(FHierarchicalLogArchive& Ar)
@@ -195,28 +219,22 @@ EWorldPartitionStreamingPerformance UWorldPartitionRuntimeHash::GetStreamingPerf
 	return EWorldPartitionStreamingPerformance::Good;
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOuterWorld)
+URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, UWorld* InOuterWorld)
 {
-	if (FindObject<URuntimeHashExternalStreamingObjectBase>(InOuter, *InName.ToString()))
-	{
-		UE_LOG(LogWorldPartition, Warning, TEXT("UWorldPartitionRuntimeHash::CreateExternalStreamingObject can't create an already existing URuntimeHashExternalStreamingObjectBase object named %s"), *InName.ToString());
-		return nullptr;
-	}
-
-	URuntimeHashExternalStreamingObjectBase* StreamingObject = NewObject<URuntimeHashExternalStreamingObjectBase>(InOuter, InClass, InName, RF_Public);
+	URuntimeHashExternalStreamingObjectBase* StreamingObject = NewObject<URuntimeHashExternalStreamingObjectBase>(InOuter, InClass, NAME_None, RF_Public);
 	StreamingObject->OuterWorld = InOuterWorld;	
 	return StreamingObject;
 }
 
 #if WITH_EDITOR
-void UWorldPartitionRuntimeHash::OnBeginPlay()
+void UWorldPartitionRuntimeHash::PrepareEditorGameWorld()
 {
 	// Mark always loaded actors so that the Level will force reference to these actors for PIE.
 	// These actor will then be duplicated for PIE during the PIE world duplication process
 	ForceExternalActorLevelReference(/*bForceExternalActorLevelReferenceForPIE*/true);
 }
 
-void UWorldPartitionRuntimeHash::OnEndPlay()
+void UWorldPartitionRuntimeHash::ShutdownEditorGameWorld()
 {
 	// Unmark always loaded actors
 	ForceExternalActorLevelReference(/*bForceExternalActorLevelReferenceForPIE*/false);
@@ -320,12 +338,9 @@ void UWorldPartitionRuntimeHash::PopulateRuntimeCell(UWorldPartitionRuntimeCell*
 	{
 		const FStreamingGenerationActorDescView& ActorDescView = ActorInstance.GetActorDescView();
 		RuntimeCell->AddActorToCell(ActorDescView);
-		const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
-		if (RuntimeBounds.IsValid)
-		{
-			CellContentBounds += RuntimeBounds.TransformBy(ActorInstance.GetTransform());
-		}
-					
+
+		CellContentBounds += ActorInstance.GetBounds();
+
 		if (ActorInstance.GetContainerID().IsMainContainer() && RuntimeCell->UnsavedActorsContainer)
 		{
 			if (AActor* Actor = FindObject<AActor>(nullptr, *ActorDescView.GetActorSoftPath().ToString()))
@@ -372,9 +387,9 @@ UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::GetCellForCookPackage(co
 	return nullptr;
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName)
+URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject()
 {
-	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), InStreamingObjectName, GetTypedOuter<UWorld>());
+	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), GetTypedOuter<UWorld>());
 	StoreStreamingContentToExternalStreamingObject(NewExternalStreamingObject);
 	return NewExternalStreamingObject;
 }
@@ -464,6 +479,30 @@ void UWorldPartitionRuntimeHash::ForceExternalActorLevelReference(bool bForceExt
 			}
 		}
 	}
+}
+
+bool UWorldPartitionRuntimeHash::ResolveBlockOnSlowStreamingForCell(bool bInOwnerBlockOnSlowStreaming, bool bInIsHLODCell, const TArray<const UDataLayerInstance*>& InCellDataLayerInstances) const
+{
+	if (bInIsHLODCell)
+	{
+		return false;
+	}
+
+	TOptional<bool> DataLayersOverrideBlockOnSlowStreaming;
+	for (const UDataLayerInstance* DataLayerInstance : InCellDataLayerInstances)
+	{
+		if (DataLayerInstance->GetOverrideBlockOnSlowStreaming() != EOverrideBlockOnSlowStreaming::NoOverride)
+		{
+			bool bIsBlocking = DataLayerInstance->GetOverrideBlockOnSlowStreaming() == EOverrideBlockOnSlowStreaming::Blocking;
+			DataLayersOverrideBlockOnSlowStreaming = bIsBlocking;
+			if (bIsBlocking)
+			{
+				break;
+			}
+		}
+	}
+	const bool bBlockOnSlowStreaming = DataLayersOverrideBlockOnSlowStreaming.IsSet() ? DataLayersOverrideBlockOnSlowStreaming.GetValue() : bInOwnerBlockOnSlowStreaming;
+	return bBlockOnSlowStreaming;
 }
 #endif
 
@@ -592,11 +631,36 @@ UWorldPartitionRuntimeHash* UWorldPartitionRuntimeHash::ConvertWorldPartitionHas
 	NewHash->SetDefaultValues();
 	return NewHash;
 }
+
+void UWorldPartitionRuntimeHash::ExecutePreSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams)
+{
+	// Iterate over all hash types and call PreSetupHLODActors() on each of them
+	for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
+	{
+		if (ClassIterator->IsChildOf(UWorldPartitionRuntimeHash::StaticClass()) && !ClassIterator->HasAnyClassFlags(CLASS_Abstract))
+		{
+			CastChecked<UWorldPartitionRuntimeHash>(ClassIterator->GetDefaultObject())->PreSetupHLODActors(InWorldPartition, InParams);
+		}
+	}
+}
+
+void UWorldPartitionRuntimeHash::ExecutePostSetupHLODActors(const UWorldPartition* InWorldPartition, const UWorldPartition::FSetupHLODActorsParams& InParams)
+{
+	// Iterate over all hash types and call PostSetupHLODActors() on each of them
+	for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
+	{
+		if (ClassIterator->IsChildOf(UWorldPartitionRuntimeHash::StaticClass()) && !ClassIterator->HasAnyClassFlags(CLASS_Abstract))
+		{
+			CastChecked<UWorldPartitionRuntimeHash>(ClassIterator->GetDefaultObject())->PostSetupHLODActors(InWorldPartition, InParams);
+		}
+	}
+}
+
 #endif
 
-void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape)
+void UWorldPartitionRuntimeHash::FStreamingSourceCells::AddCell(const UWorldPartitionRuntimeCell* Cell, const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context)
 {
-	Cell->AppendStreamingSourceInfo(Source, SourceShape);
+	Cell->AppendStreamingSourceInfo(Source, SourceShape, Context);
 	Cells.Add(Cell);
 }
 
@@ -617,6 +681,89 @@ double FWorldPartitionQueryCache::GetCellMinSquareDist(const UWorldPartitionRunt
 {
 	const double* Dist = CellToSourceMinSqrDistances.Find(Cell);
 	return Dist ? *Dist : MAX_dbl;
+}
+
+FWorldPartitionStreamingContext FWorldPartitionStreamingContext::Create(const UWorld* InWorld)
+{
+	if (InWorld && InWorld->GetWorldPartition() && InWorld->GetWorldDataLayers())
+	{
+		check(!InWorld->IsGameWorld() || IsInGameThread());
+		return FWorldPartitionStreamingContext(InWorld);
+	}
+	return FWorldPartitionStreamingContext();
+}
+
+FWorldPartitionStreamingContext::FWorldPartitionStreamingContext()
+	: bIsValid(false)
+	, DataLayersLogicOperator(EWorldPartitionDataLayersLogicOperator::Or)
+	, DataLayerEffectiveStates(nullptr)
+	, UpdateStreamingStateEpoch(0)
+{}
+
+FWorldPartitionStreamingContext::FWorldPartitionStreamingContext(const UWorld* InWorld)
+	: FWorldPartitionStreamingContext(InWorld->GetWorldPartition()->GetDataLayersLogicOperator(), FWorldDataLayersEffectiveStatesAccessor::Get(InWorld->GetWorldDataLayers()), InWorld->GetWorldPartition()->GetUpdateStreamingStateEpoch())
+{
+}
+
+FWorldPartitionStreamingContext::FWorldPartitionStreamingContext(EWorldPartitionDataLayersLogicOperator InDataLayersLogicOperator, const FWorldDataLayersEffectiveStates& InDataLayerEffectiveStates, int32 InUpdateStreamingStateEpoch)
+	: bIsValid(true)
+	, DataLayersLogicOperator(InDataLayersLogicOperator)
+	, DataLayerEffectiveStates(&InDataLayerEffectiveStates)
+	, UpdateStreamingStateEpoch(InUpdateStreamingStateEpoch)
+{}
+
+EDataLayerRuntimeState FWorldPartitionStreamingContext::ResolveDataLayerRuntimeState(const FDataLayerInstanceNames& InDataLayers) const
+{
+	if (InDataLayers.IsEmpty())
+	{
+		return EDataLayerRuntimeState::Activated;
+	}
+
+	check(IsValid());
+	check(DataLayerEffectiveStates);
+	EDataLayerRuntimeState Result = EDataLayerRuntimeState::Unloaded;
+
+	// Determine the maximum runtime state the cell can have based on its External Data Layer. If none, maximum is Activated.
+	FName ExternalDatalayerName = InDataLayers.GetExternalDataLayer();
+	EDataLayerRuntimeState MaxEffectiveRuntimeState = !ExternalDatalayerName.IsNone() ? DataLayerEffectiveStates->GetDataLayerEffectiveRuntimeStateByName(ExternalDatalayerName) : EDataLayerRuntimeState::Activated;
+
+	if (MaxEffectiveRuntimeState > EDataLayerRuntimeState::Unloaded)
+	{
+		TArrayView<const FName> NonExternalDataLayers = InDataLayers.GetNonExternalDataLayers();
+		if (NonExternalDataLayers.IsEmpty())
+		{
+			Result = MaxEffectiveRuntimeState;
+		}
+		else
+		{
+			switch (DataLayersLogicOperator)
+			{
+			case EWorldPartitionDataLayersLogicOperator::Or:
+				if (UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Activated, *DataLayerEffectiveStates))
+				{
+					Result = MaxEffectiveRuntimeState;
+				}
+				else if (UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Loaded, *DataLayerEffectiveStates))
+				{
+					Result = EDataLayerRuntimeState::Loaded;
+				}
+				break;
+			case EWorldPartitionDataLayersLogicOperator::And:
+				if (UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Activated, *DataLayerEffectiveStates))
+				{
+					Result = MaxEffectiveRuntimeState;
+				}
+				else if (UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(NonExternalDataLayers, EDataLayerRuntimeState::Loaded, *DataLayerEffectiveStates))
+				{
+					Result = EDataLayerRuntimeState::Loaded;
+				}
+				break;
+			default:
+				checkNoEntry();
+			}
+		}
+	}
+	return Result;
 }
 
 #undef LOCTEXT_NAMESPACE

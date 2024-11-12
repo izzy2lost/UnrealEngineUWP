@@ -129,7 +129,7 @@ protected:
 
 	UMG_API bool IsEntryClassValid(TSubclassOf<UUserWidget> InEntryClass) const;
 	UMG_API UUserWidget* CreateEntryInternal(TSubclassOf<UUserWidget> InEntryClass);
-	UMG_API void RemoveEntryInternal(UUserWidget* EntryWidget);
+	UMG_API void RemoveEntryInternal(UUserWidget* EntryWidget, bool bReleaseSlate = false);
 	UMG_API FMargin BuildEntryPadding(const FVector2D& DesiredSpacing);
 
 	/** Clear out the box entries, optionally deleting the underlying Slate widgets entirely as well. */

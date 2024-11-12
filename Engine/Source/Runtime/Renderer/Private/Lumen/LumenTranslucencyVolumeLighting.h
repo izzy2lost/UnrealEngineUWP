@@ -7,6 +7,9 @@
 #include "ShaderParameterMacros.h"
 #include "LumenRadianceCacheInterpolation.h"
 #include "LumenFrontLayerTranslucency.h"
+#include "BlueNoise.h"
+
+DECLARE_UNIFORM_BUFFER_STRUCT(FSceneTextureUniformParameters, ENGINE_API);
 
 class FSceneTextureParameters;
 struct FLumenSceneFrameTemporaries;
@@ -52,15 +55,15 @@ extern FLumenTranslucencyLightingParameters GetLumenTranslucencyLightingParamete
 
 // Used by Translucency Lighting pipeline shaders
 BEGIN_SHADER_PARAMETER_STRUCT(FLumenTranslucencyLightingVolumeParameters, )
+	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 	SHADER_PARAMETER(FVector3f, TranslucencyGIGridZParams)
 	SHADER_PARAMETER(uint32, TranslucencyGIGridPixelSizeShift)
 	SHADER_PARAMETER(FIntVector, TranslucencyGIGridSize)
-	SHADER_PARAMETER(uint32, UseJitter)
+	SHADER_PARAMETER(int32, FroxelDirectionJitterFrameIndex)
 	SHADER_PARAMETER(FVector3f, FrameJitterOffset)
 	SHADER_PARAMETER(FMatrix44f, UnjitteredClipToTranslatedWorld)
 	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingOctahedronResolution)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FurthestHZBTexture)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
 	SHADER_PARAMETER(float, HZBMipLevel)
 	SHADER_PARAMETER(float, GridCenterOffsetFromDepthBuffer)
 	SHADER_PARAMETER(float, GridCenterOffsetThresholdToAcceptDepthBufferOffset)

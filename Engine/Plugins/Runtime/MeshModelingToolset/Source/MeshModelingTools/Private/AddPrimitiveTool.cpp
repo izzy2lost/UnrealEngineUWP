@@ -17,6 +17,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 
+#include "Generators/CapsuleGenerator.h"
 #include "Generators/SweepGenerator.h"
 #include "Generators/GridBoxMeshGenerator.h"
 #include "Generators/RectangleMeshGenerator.h"
@@ -77,6 +78,9 @@ UInteractiveTool* UAddPrimitiveToolBuilder::BuildTool(const FToolBuilderState& S
 	case EMakeMeshShapeType::Stairs:
 		NewTool = NewObject<UAddStairsPrimitiveTool>(SceneState.ToolManager);
 		break;
+	case EMakeMeshShapeType::Capsule:
+		NewTool = NewObject<UAddCapsulePrimitiveTool>(SceneState.ToolManager);
+		break;
 	default:
 		break;
 	}
@@ -118,6 +122,7 @@ void UAddPrimitiveTool::Setup()
 	AddToolPropertySource(ShapeSettings);
 	
 	ShapeSettings->WatchProperty(ShapeSettings->TargetSurface, [this](EMakeMeshPlacementType){UpdateTargetSurface();});
+	ShapeSettings->PolygroupMode = GetDefaultPolygroupMode();
 	ShapeSettings->RestoreProperties(this);
 
 	MaterialProperties = NewObject<UNewMeshMaterialProperties>(this);
@@ -358,6 +363,10 @@ void UAddPrimitiveTool::UpdatePreviewMesh() const
 	// set mesh position
 	const FAxisAlignedBox3d Bounds = NewMesh.GetBounds(true);
 	FVector3d TargetOrigin = Bounds.Center();
+	if (!ShouldCenterXY())
+	{
+		TargetOrigin.X = TargetOrigin.Y = 0;
+	}
 	if (ShapeSettings->PivotLocation == EMakeMeshPivotLocation::Base)
 	{
 		TargetOrigin.Z = Bounds.Min.Z;
@@ -698,6 +707,27 @@ void UAddCylinderPrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
 }
 
 
+UAddCapsulePrimitiveTool::UAddCapsulePrimitiveTool(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UProceduralCapsuleToolProperties>(TEXT("ShapeSettings")))
+{
+	AssetName = TEXT("Capsule");
+	UInteractiveTool::SetToolDisplayName(LOCTEXT("CapsuleToolName", "Create Capsule"));
+}
+
+void UAddCapsulePrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
+{
+	FCapsuleGenerator CapGen;
+	const UProceduralCapsuleToolProperties* CapsuleSettings = Cast<UProceduralCapsuleToolProperties>(ShapeSettings);
+	CapGen.Radius = CapsuleSettings->Radius;
+	CapGen.SegmentLength = CapsuleSettings->CylinderLength;
+	CapGen.NumHemisphereArcSteps = CapsuleSettings->HemisphereSlices;
+	CapGen.NumCircleSteps = CapsuleSettings->CylinderSlices;
+	CapGen.NumSegmentSteps = CapsuleSettings->CylinderSubdivisions;
+	CapGen.bPolygroupPerQuad = ShapeSettings->PolygroupMode == EMakeMeshPolygroupMode::PerQuad;
+	CapGen.Generate();
+	OutMesh->Copy(&CapGen);
+}
+
 
 UAddConePrimitiveTool::UAddConePrimitiveTool(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UProceduralConeToolProperties>(TEXT("ShapeSettings")))
@@ -773,7 +803,10 @@ void UAddSpherePrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
 		SphereGen.Radius = SphereSettings->Radius;
 		SphereGen.NumTheta = SphereSettings->VerticalSlices;
 		SphereGen.NumPhi = SphereSettings->HorizontalSlices + 1;
-		SphereGen.bPolygroupPerQuad = (ShapeSettings->PolygroupMode == EMakeMeshPolygroupMode::PerQuad);
+		// In FSphereGenerator, PerFace is effectively ignored, and does the same thing as 
+		//  PerShape, which is unlikely to be useful. So we might as well have PerFace do
+		//  the same thing as PerQuad.
+		SphereGen.bPolygroupPerQuad = (ShapeSettings->PolygroupMode != EMakeMeshPolygroupMode::PerShape);
 		SphereGen.Generate();
 		OutMesh->Copy(&SphereGen);
 		break;

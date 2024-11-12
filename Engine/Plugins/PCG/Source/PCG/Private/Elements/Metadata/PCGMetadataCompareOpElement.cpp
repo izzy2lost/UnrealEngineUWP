@@ -121,7 +121,7 @@ FString UPCGMetadataCompareSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataCompareOperation>())
 	{
-		return FString("Compare: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return FText::Format(NSLOCTEXT("PCGMetadataCompareSettings", "CompareWithOperation", "Compare: {0}"), EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation))).ToString();
 	}
 	else
 	{
@@ -168,10 +168,8 @@ bool FPCGMetadataCompareElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	const UPCGMetadataCompareSettings* Settings = CastChecked<UPCGMetadataCompareSettings>(OperationData.Settings);
 
-	auto CompareFunc = [this, Operation = Settings->Operation, Tolerance = Settings->Tolerance, &OperationData](auto DummyValue) -> bool
+	auto CompareFunc = [this, Operation = Settings->Operation, Tolerance = Settings->Tolerance, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyValue);
-
 		return DoBinaryOp<AttributeType, AttributeType>(OperationData, 
 			[Operation, Tolerance](const AttributeType& Value1, const AttributeType& Value2) -> bool { 
 				return PCGMetadataCompareSettings::ApplyCompare(Value1, Value2, Operation, Tolerance); 

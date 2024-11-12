@@ -23,7 +23,7 @@ void FAvaEditorCommands::RegisterCommands()
 	RegisterPivotCommands();
 	RegisterToolsCommands();
 	RegisterAdvancedRenamerCommands();
-	RegisterAnimatorCommands();
+	RegisterClonerEffectorCommands();
 }
 
 void FAvaEditorCommands::RegisterViewportCommands()
@@ -414,19 +414,37 @@ void FAvaEditorCommands::RegisterAdvancedRenamerCommands()
 		, FInputChord())
 }
 
-void FAvaEditorCommands::RegisterAnimatorCommands()
+void FAvaEditorCommands::RegisterClonerEffectorCommands()
 {
-	UI_COMMAND(DisableAnimators
-		, "Disable Animators"
-		, "Disable animators of the selected actors in the level"
+	UI_COMMAND(DisableEffectors
+		, "Disable Effectors"
+		, "Disable effectors on the selected actors in the level"
 		, EUserInterfaceActionType::Button
-		, FInputChord(EKeys::M, EModifierKey::Control))
+		, FInputChord(EKeys::E, EModifierKey::Alt))
 
-	UI_COMMAND(EnableAnimators
-		, "Enable Animators"
-		, "Enable animators of the selected actors in the level"
+	UI_COMMAND(EnableEffectors
+		, "Enable Effectors"
+		, "Enable effectors on the selected actors in the level"
 		, EUserInterfaceActionType::Button
-		, FInputChord(EKeys::U, EModifierKey::Control))
+		, FInputChord(EKeys::E, EModifierKey::Shift))
+
+	UI_COMMAND(DisableCloners
+		, "Disable Cloners"
+		, "Disable cloners on the selected actors in the level"
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::C, EModifierKey::Alt))
+
+	UI_COMMAND(EnableCloners
+		, "Enable Cloners"
+		, "Enable cloners on the selected actors in the level"
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::C, EModifierKey::Shift))
+
+	UI_COMMAND(CreateCloner
+		, "Create Cloner"
+		, "Create new cloner with selected actors in the level"
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::C, EModifierKey::Control | EModifierKey::Alt))
 }
 
 #undef LOCTEXT_NAMESPACE

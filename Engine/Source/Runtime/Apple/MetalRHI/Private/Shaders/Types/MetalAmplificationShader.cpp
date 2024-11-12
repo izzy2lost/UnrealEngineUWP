@@ -5,23 +5,20 @@
 =============================================================================*/
 
 
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalAmplificationShader.h"
-
 
 //------------------------------------------------------------------------------
 
 #pragma mark - Metal RHI Amplification Shader Class
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-FMetalAmplificationShader::FMetalAmplificationShader(TArrayView<const uint8> InCode)
+FMetalAmplificationShader::FMetalAmplificationShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode) : TMetalBaseShader<FRHIAmplificationShader, SF_Amplification>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, MTLLibraryPtr());
 }
 
-FMetalAmplificationShader::FMetalAmplificationShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+FMetalAmplificationShader::FMetalAmplificationShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary) : TMetalBaseShader<FRHIAmplificationShader, SF_Amplification>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, InLibrary);

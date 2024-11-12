@@ -8,6 +8,7 @@
 #include "DynamicSubmesh3.h"
 #include "DynamicMesh/DynamicVertexSkinWeightsAttribute.h"
 #include "DynamicMesh/DynamicBoneAttribute.h"
+#include "DynamicMesh/MeshIndexUtil.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "MeshQueries.h"
 #include "Selections/MeshConnectedComponents.h"
@@ -15,6 +16,215 @@
 using namespace UE::Geometry;
 
 
+// local static helper functions for seam handling
+namespace UE::Private::OverlaySeamHelpers
+{
+	template<typename RealType, int OverlayDim>
+	static bool CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, FDynamicMesh3* Mesh, TDynamicMeshOverlay<RealType, OverlayDim>* Overlay, TArray<int32>* AddedElementIDs)
+	{
+		// Note: The mesh boundary edge version of this method is the DisconnectTrianglesAlongEdges method --
+		//  the methods are very similar, so if you change this method consider changing that one as well
+
+		auto FindElementForVertex = [Mesh, Overlay](int32 MeshVertexID, int32 MeshEdgeID) -> int32
+		{
+			FIndex2i Tris = Mesh->GetEdgeT(MeshEdgeID);
+			FIndex3i Tri0 = Mesh->GetTriangle(Tris.A);
+			FIndex3i UVTri0 = Overlay->GetTriangle(Tris.A);
+			for (int32 j = 0; j < 3; ++j)
+			{
+				if (Tri0[j] == MeshVertexID)
+				{
+					return UVTri0[j];
+				}
+			}
+			return IndexConstants::InvalidID;
+		};
+
+		/**
+		 * @param TidsUntilNextSeam Tids in a fan away from Eid around Vid until the next seam. Will
+		 *  be the entire one-ring if the given Eid is the only seam attached to Vid.
+		 */
+		auto DoesVertHaveAnotherSeamAttached = [&EidsToMakeIntoSeams, Mesh, Overlay, AddedElementIDs](int32 Eid, int32 Vid, TArray<int32>& TidsUntilNextSeam)
+		{
+			TidsUntilNextSeam.Reset();
+
+			FIndex2i EdgeTids = Mesh->GetEdgeT(Eid);
+			int32 CurrentTid = EdgeTids.A;
+			int32 PreviousTid = EdgeTids.B;
+
+			int32 MaxNumTids = Mesh->GetVtxEdgeCount(Vid);
+			while (true) 
+			{
+				TidsUntilNextSeam.Add(CurrentTid);
+				if (TidsUntilNextSeam.Num() > MaxNumTids) // sanity check
+				{
+					ensure(false);
+					return false;
+				}
+
+				FIndex3i NextTriResult = UE::Geometry::FindNextAdjacentTriangleAroundVtx(Mesh, Vid, CurrentTid, PreviousTid,
+					[&EidsToMakeIntoSeams, Overlay, Eid](int32 Tri0, int32 Tri1, int32 EidBetween) {
+						// We stop at seam or at future seam not including our starting edge (if we walk across the starting
+						// edge we will stop at a later check- we just don't want to think that we reached a true seam).
+						return Overlay->AreTrianglesConnected(Tri0, Tri1) && !(EidBetween != Eid && EidsToMakeIntoSeams.Contains(EidBetween)); }
+				);
+				int32 NextTid = NextTriResult.A;
+
+				// See if we've come to a (current or future) seam or wrapped around
+				if (NextTid == IndexConstants::InvalidID)
+				{
+					return true;
+				}
+				else if (NextTid == EdgeTids.A)
+				{
+					return false;
+				}
+				PreviousTid = CurrentTid;
+				CurrentTid = NextTid;
+			}
+		};
+
+		auto SplitEdgeVertElement = [Mesh, Overlay, AddedElementIDs, &FindElementForVertex](int32 Eid, int32 Vid, const TArray<int32>& TidsToModify) {
+			int32 ElementID = FindElementForVertex(Vid, Eid);
+			if (ensure(ElementID != IndexConstants::InvalidID))
+			{
+				int32 NewElementID = Overlay->SplitElement(ElementID, TidsToModify);
+				if (AddedElementIDs)
+				{
+					AddedElementIDs->Add(NewElementID);
+				}
+			}
+		};
+
+		for (int32 Eid : EidsToMakeIntoSeams)
+		{
+			FIndex2i EdgeVids = Mesh->GetEdgeV(Eid);
+			bool VertNeedsSplitting[2] = { false, false };
+			TArray<int32> VertTidsToUseForSplit[2];
+
+			if (Overlay->IsSeamEdge(Eid))
+			{
+				// If this is already a seam edge, make sure its endpoints are not bowties. We create such edges 
+				// sometimes as we split adjacent edges, and it is also likely to be what the user wants when
+				// selecting edges adjacent to a bowtie.
+				for (int i = 0; i < 2; ++i)
+				{
+					if (Overlay->IsBowtieInOverlay(EdgeVids[i]))
+					{
+						Overlay->SplitBowtiesAtVertex(EdgeVids[i], AddedElementIDs);
+					}
+				}
+				continue;
+			}
+
+			// If we're not already a seam, then it's going to become one. A vert needs to get split if it
+			// has a present or future seam attached, or else it will become a bowtie if we just split the
+			// other vert.
+			for (int i = 0; i < 2; ++i)
+			{
+				VertNeedsSplitting[i] = DoesVertHaveAnotherSeamAttached(Eid, EdgeVids[i], VertTidsToUseForSplit[i]);
+			}
+			
+			// If neither absolutely has to get split, then one needs to get split anyway so that we
+			// make the edge into a seam.
+			if (!VertNeedsSplitting[0] && !VertNeedsSplitting[1])
+			{
+				// We'll go halfway around the triangle one-ring, rounding up
+				int32 NumTrisToDisconnect = (VertTidsToUseForSplit[0].Num() + 1) / 2;
+
+				// In doing this, we are splitting an adjacent edge and therefore might inadvertantly
+				// introduce a bowtie on the other vert of that edge, which we would like to avoid. 
+				// So keep track of that potential bowtie.
+				int32 OtherSplitEdge = Mesh->FindEdgeFromTriPair(
+					VertTidsToUseForSplit[0][NumTrisToDisconnect - 1],
+					VertTidsToUseForSplit[0][NumTrisToDisconnect]);
+				int32 PotentialBowtieVid = ensure(OtherSplitEdge != IndexConstants::InvalidID) ?
+					IndexUtil::FindEdgeOtherVertex(Mesh->GetEdgeV(OtherSplitEdge), EdgeVids[0])
+					: IndexConstants::InvalidID;
+
+				// Perform the split
+				VertTidsToUseForSplit[0].SetNum(NumTrisToDisconnect);
+				SplitEdgeVertElement(Eid, EdgeVids[0], VertTidsToUseForSplit[0]);
+
+				// Deal with the bowtie if we created one
+				if (ensure(PotentialBowtieVid != IndexConstants::InvalidID) 
+					&& Overlay->IsBowtieInOverlay(PotentialBowtieVid))
+				{
+					Overlay->SplitBowtiesAtVertex(PotentialBowtieVid, AddedElementIDs);
+				}
+			}
+			else
+			{
+				for (int i = 0; i < 2; ++i)
+				{
+					if (VertNeedsSplitting[i])
+					{
+						SplitEdgeVertElement(Eid, EdgeVids[i], VertTidsToUseForSplit[i]);
+					}
+				}
+			}//end if at least one side needed splitting
+		}//end for each edge
+
+		return true;
+	}
+
+	template<typename RealType, int OverlayDim>
+	bool RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams, FDynamicMesh3* Mesh, TDynamicMeshOverlay<RealType, OverlayDim>* Overlay)
+	{
+		for (int32 Eid : EidsToRemoveAsSeams)
+		{
+			FIndex2i EdgeVids = Mesh->GetEdgeV(Eid);
+
+			// The following logic closely resemebles the logic within FDynamicMeshOverlay::IsSeamEdge,
+			// but since we want to know both if it's a seam and use many of the intermediate values
+			// computed by IsSeamEdge, we replicate it here.
+
+			FIndex2i Tris = Mesh->GetEdgeT(Eid);
+			if (Tris.B == FDynamicMesh3::InvalidID)
+			{
+				continue; // Technically a seam, but we don't want this one because there's no opposite edge to merge.
+			}
+
+			bool bASet = Overlay->IsSetTriangle(Tris.A), bBSet = Overlay->IsSetTriangle(Tris.B);
+			if (!bASet || !bBSet)
+			{
+				continue; // Similar problem as the above case - could be a seam here, but if one triangle
+						  // in the Overlay isn't set, there's nothing to merge.
+			}
+
+			FIndex3i Triangle0 = Overlay->GetTriangle(Tris.A);
+			FIndex3i BaseTriangle0 = Mesh->GetTriangle(Tris.A);
+			int idx_base_a0 = BaseTriangle0.IndexOf(EdgeVids.A);
+			int idx_base_b0 = BaseTriangle0.IndexOf(EdgeVids.B);
+
+			FIndex3i Triangle1 = Overlay->GetTriangle(Tris.B);
+			FIndex3i BaseTriangle1 = Mesh->GetTriangle(Tris.B);
+			int idx_base_a1 = BaseTriangle1.IndexOf(EdgeVids.A);
+			int idx_base_b1 = BaseTriangle1.IndexOf(EdgeVids.B);
+
+			int el_a_tri0 = Triangle0[idx_base_a0];
+			int el_b_tri0 = Triangle0[idx_base_b0];
+			int el_a_tri1 = Triangle1[idx_base_a1];
+			int el_b_tri1 = Triangle1[idx_base_b1];
+
+			// This shouldn't ever be the case, but lets just check. If true,
+			// it would indicate that there's a joined seam but somehow our pairwise
+			// vertex matching didn't work above for some reason.
+			ensure(!(el_a_tri0 == el_b_tri1 && el_b_tri0 == el_a_tri1));
+
+			if (el_a_tri0 != el_a_tri1)
+			{
+				Overlay->MergeElement(el_a_tri0, el_a_tri1);
+			}
+			if (el_b_tri0 != el_b_tri1)
+			{
+				Overlay->MergeElement(el_b_tri0, el_b_tri1);
+
+			}
+		}
+		return true;
+	}
+}
 
 void FDynamicMeshEditResult::GetAllTriangles(TArray<int>& TrianglesOut) const
 {
@@ -651,7 +861,138 @@ void FDynamicMeshEditor::DisconnectTriangles(const TArray<int>& Triangles, bool 
 	}
 }
 
+bool FDynamicMeshEditor::DisconnectTrianglesAlongEdges(const TSet<int32>& EdgeIDs, TArray<int32>* AddedVertexIDs)
+{
+	// Note: The overlay seams version of this method is the CreateSeamsAlongEdges method --
+	//  the methods are very similar, so if you change this method consider changing that one as well
 
+	/**
+	 * @param TIDsUntilNextBoundary TIDs in a fan away from EID around VID until the next boundary. Will
+	 *  be the entire one-ring if the given EID is the only boundary attached to VID.
+	 */
+	auto DoesVertHaveAnotherBoundaryEdgeAttached = 
+		[this, &EdgeIDs, AddedVertexIDs](int32 EID, int32 VID, TArray<int32>& TIDsUntilNextBoundary) -> bool
+	{
+		TIDsUntilNextBoundary.Reset();
+
+		FIndex2i EdgeTIDs = Mesh->GetEdgeT(EID);
+		int32 CurrentTID = EdgeTIDs.A;
+		int32 PreviousTID = EdgeTIDs.B;
+
+		int32 MaxNumTIDs = Mesh->GetVtxEdgeCount(VID);
+		while (true)
+		{
+			TIDsUntilNextBoundary.Add(CurrentTID);
+			if (TIDsUntilNextBoundary.Num() > MaxNumTIDs) // sanity check
+			{
+				ensure(false);
+				return false;
+			}
+
+			FIndex3i NextTriResult = UE::Geometry::FindNextAdjacentTriangleAroundVtx(Mesh, VID, CurrentTID, PreviousTID,
+				[&EdgeIDs, EID](int32 Tri0, int32 Tri1, int32 EIDBetween)
+				{
+					// Treat 'future' boundary edges that we haven't disconnected yet as boundary edges here
+					// (but not the current EID, since we're looking for *another* boundary edge)
+					return !(EIDBetween != EID && EdgeIDs.Contains(EIDBetween)); 
+				}
+			);
+			int32 NextTID = NextTriResult.A;
+
+			// Stop if we've come to a (current or future) new boundary ...
+			if (NextTID == IndexConstants::InvalidID)
+			{
+				return true;
+			}
+			// ... or if we've wrapped around to the start
+			else if (NextTID == EdgeTIDs.A)
+			{
+				return false;
+			}
+			PreviousTID = CurrentTID;
+			CurrentTID = NextTID;
+		}
+	};
+
+	auto SplitEdgeVert = [this, AddedVertexIDs](int32 VID, const TArray<int32>& TIDsToModify) 
+	{
+		DynamicMeshInfo::FVertexSplitInfo SplitInfo;
+		if (Mesh->SplitVertex(VID, TIDsToModify, SplitInfo) == EMeshResult::Ok && AddedVertexIDs != nullptr)
+		{
+			AddedVertexIDs->Add(SplitInfo.NewVertex);
+		}
+	};
+
+	TArray<int32> VertTIDsToUseForSplit[2];
+	for (int32 EID : EdgeIDs)
+	{
+		FIndex2i EdgeVIDs = Mesh->GetEdgeV(EID);
+		bool VertNeedsSplitting[2] = { false, false };
+		VertTIDsToUseForSplit[0].Reset();
+		VertTIDsToUseForSplit[1].Reset();
+
+		if (Mesh->IsBoundaryEdge(EID))
+		{
+			// If this is already a boundary edge, make sure its endpoints are not bowties. We create such edges 
+			// sometimes as we split adjacent edges, and it is also likely to be what the user wants when
+			// selecting edges adjacent to a bowtie.
+			for (int i = 0; i < 2; ++i)
+			{
+				SplitBowties(EdgeVIDs[i], AddedVertexIDs);
+			}
+			continue;
+		}
+
+		// If we're not already a boundary, then it's going to become one. A vert needs to get split if it
+		// has a present or future boundary edge attached, or else it will become a bowtie if we just split the
+		// other vert.
+		for (int i = 0; i < 2; ++i)
+		{
+			VertNeedsSplitting[i] = DoesVertHaveAnotherBoundaryEdgeAttached(EID, EdgeVIDs[i], VertTIDsToUseForSplit[i]);
+		}
+
+		// If neither absolutely has to get split, then one needs to get split anyway so that we
+		// make the edge into a boundary.
+		if (!VertNeedsSplitting[0] && !VertNeedsSplitting[1])
+		{
+			// We'll go halfway around the triangle one-ring, rounding up
+			int32 NumTrisToDisconnect = (VertTIDsToUseForSplit[0].Num() + 1) / 2;
+
+			// In doing this, we are splitting an adjacent edge and therefore might inadvertantly
+			// introduce a bowtie on the other vert of that edge, which we would like to avoid. 
+			// So keep track of that potential bowtie.
+			int32 OtherSplitEdge = Mesh->FindEdgeFromTriPair(
+				VertTIDsToUseForSplit[0][NumTrisToDisconnect - 1],
+				VertTIDsToUseForSplit[0][NumTrisToDisconnect]);
+			int32 PotentialBowtieVID = ensure(OtherSplitEdge != IndexConstants::InvalidID) ?
+				IndexUtil::FindEdgeOtherVertex(Mesh->GetEdgeV(OtherSplitEdge), EdgeVIDs[0])
+				: IndexConstants::InvalidID;
+
+			// Perform the split
+			VertTIDsToUseForSplit[0].SetNum(NumTrisToDisconnect);
+			SplitEdgeVert(EdgeVIDs[0], VertTIDsToUseForSplit[0]);
+
+			// Deal with the bowtie if we created one
+			if (ensure(PotentialBowtieVID != IndexConstants::InvalidID)
+				&& Mesh->IsBowtieVertex(PotentialBowtieVID))
+			{
+				SplitBowties(PotentialBowtieVID, AddedVertexIDs);
+			}
+		}
+		else
+		{
+			for (int i = 0; i < 2; ++i)
+			{
+				if (VertNeedsSplitting[i])
+				{
+					SplitEdgeVert(EdgeVIDs[i], VertTIDsToUseForSplit[i]);
+				}
+			}
+		}//end if at least one side needed splitting
+	}//end for each edge
+
+	return true;
+}
 
 
 void FDynamicMeshEditor::SplitBowties(FDynamicMeshEditResult& ResultOut)
@@ -679,12 +1020,11 @@ void FDynamicMeshEditor::SplitBowties(FDynamicMeshEditResult& ResultOut)
 
 
 
-void FDynamicMeshEditor::SplitBowties(int VertexID, FDynamicMeshEditResult& ResultOut)
+void FDynamicMeshEditor::SplitBowties(int VertexID, TArray<int32>* NewVertices)
 {
 	TArray<int> TrianglesOut, ContiguousGroupLengths;
 	TArray<bool> GroupIsLoop;
 	DynamicMeshInfo::FVertexSplitInfo SplitInfo;
-	check(Mesh->IsVertex(VertexID));
 	if (ensure(EMeshResult::Ok == Mesh->GetVtxContiguousTriangles(VertexID, TrianglesOut, ContiguousGroupLengths, GroupIsLoop)))
 	{
 		if (ContiguousGroupLengths.Num() > 1)
@@ -693,7 +1033,10 @@ void FDynamicMeshEditor::SplitBowties(int VertexID, FDynamicMeshEditResult& Resu
 			for (int GroupIdx = 1, GroupStartIdx = ContiguousGroupLengths[0]; GroupIdx < ContiguousGroupLengths.Num(); GroupStartIdx += ContiguousGroupLengths[GroupIdx++])
 			{
 				ensure(EMeshResult::Ok == Mesh->SplitVertex(VertexID, TArrayView<const int>(TrianglesOut.GetData() + GroupStartIdx, ContiguousGroupLengths[GroupIdx]), SplitInfo));
-				ResultOut.NewVertices.Add(SplitInfo.NewVertex);
+				if (NewVertices)
+				{
+					NewVertices->Add(SplitInfo.NewVertex);
+				}
 			}
 		}
 	}
@@ -955,7 +1298,7 @@ void FDynamicMeshEditor::SetTriangleNormals(const TArray<int>& Triangles)
 
 
 
-void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArray<int>& VertexIDs1, const TArray<int>& MatchedIndices1, const TArray<int>& VertexIDs2, const TArray<int>& MatchedIndices2)
+void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArray<int>& VertexIDs1, const TArray<int>& MatchedIndices1, const TArray<int>& VertexIDs2, const TArray<int>& MatchedIndices2, bool bReverseNormals)
 {
 	check(Mesh->HasAttributes());
 	check(MatchedIndices1.Num() == MatchedIndices2.Num());
@@ -998,6 +1341,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArr
 		MatchedVertNormals[1][Idx] = Normalized(MatchedEdgeNormals[1][LastMatchedIdx] + MatchedEdgeNormals[1][Idx]);
 	}
 
+	float NormalScale = bReverseNormals ? -1.0f : 1.0f;
 	TMap<int, int> VertToElID;
 	for (int Side = 0; Side < 2; Side++)
 	{
@@ -1034,7 +1378,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArr
 		for (int Idx = 0; Idx < NumVertices; Idx++)
 		{
 			int VID = VertexIDs[Idx];
-			VertToElID.Add(VID, Normals->AppendElement(VertNormals[Side][Idx]));
+			VertToElID.Add(VID, Normals->AppendElement(NormalScale * VertNormals[Side][Idx]));
 		}
 	}
 	for (int TID : Triangles)
@@ -1552,7 +1896,8 @@ int FDynamicMeshEditor::FindOrCreateDuplicateGroup(int TriangleID, FMeshIndexMap
 void FDynamicMeshEditor::AppendMesh(const FDynamicMesh3* AppendMesh,
 	FMeshIndexMappings& IndexMapsOut, 
 	TFunction<FVector3d(int, const FVector3d&)> PositionTransform,
-	TFunction<FVector3d(int, const FVector3d&)> NormalTransform)
+	TFunction<FVector3d(int, const FVector3d&)> NormalTransform,
+	bool bReverseOrientation)
 {
 	// todo: handle this case by making a copy?
 	check(AppendMesh != Mesh);
@@ -1762,6 +2107,17 @@ void FDynamicMeshEditor::AppendMesh(const FDynamicMesh3* AppendMesh,
 				FDynamicMeshAttributeBase* ToAttrib = Mesh->Attributes()->GetAttachedAttribute(AttribPair.Key);
 				ToAttrib->CopyThroughMapping(AttribPair.Value.Get(), IndexMapsOut);
 			}
+		}
+	}
+
+	// Flip tri orientations if requested, after all appends -- note we do this after mapping across all the attributes, as that logic assumes triangle vertices have matching vertex order
+	if (bReverseOrientation)
+	{
+		const TMap<int32, int32>& ReverseTriMap = TriangleMap.GetReverseMap();
+		for (const TPair<int32, int32> KV : ReverseTriMap)
+		{
+			int32 NewTID = KV.Key;
+			Mesh->ReverseTriOrientation(NewTID);
 		}
 	}
 }
@@ -2369,6 +2725,23 @@ void FDynamicMeshEditor::AppendElementSubset(
 
 		ToOverlay->SetTriangle(Tid, ToElementIDs);
 	}
+}
+
+bool FDynamicMeshEditor::RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams, TDynamicMeshOverlay<float, 2>* Overlay)
+{
+	return UE::Private::OverlaySeamHelpers::RemoveSeamsAtEdges<float, 2>(EidsToRemoveAsSeams, Overlay->GetParentMesh(), Overlay);
+}
+bool FDynamicMeshEditor::RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams, TDynamicMeshOverlay<float, 3>* Overlay)
+{
+	return UE::Private::OverlaySeamHelpers::RemoveSeamsAtEdges<float, 3>(EidsToRemoveAsSeams, Overlay->GetParentMesh(), Overlay);
+}
+bool FDynamicMeshEditor::CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, TDynamicMeshOverlay<float, 2>* Overlay, TArray<int32>* AddedElementIDs)
+{
+	return UE::Private::OverlaySeamHelpers::CreateSeamsAtEdges<float, 2>(EidsToMakeIntoSeams, Overlay->GetParentMesh(), Overlay, AddedElementIDs);
+}
+bool FDynamicMeshEditor::CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, TDynamicMeshOverlay<float, 3>* Overlay, TArray<int32>* AddedElementIDs)
+{
+	return UE::Private::OverlaySeamHelpers::CreateSeamsAtEdges<float, 3>(EidsToMakeIntoSeams, Overlay->GetParentMesh(), Overlay, AddedElementIDs);
 }
 
 template GEOMETRYCORE_API void FDynamicMeshEditor::AppendElementSubset(

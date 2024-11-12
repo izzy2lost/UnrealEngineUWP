@@ -143,17 +143,20 @@ inline uint8 ToInt(ENetFaultCounterCategory CategoryVal)
 	return static_cast<uint8>(CategoryVal);
 }
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FNetConnectionFaultRecoveryBaseFixLayout
+{
+public:
+	virtual ~FNetConnectionFaultRecoveryBaseFixLayout() = default;
+};
 
 /**
  * Implements the base/public interface for FNetConnectionFaultRecovery - defined here, to eliminate the need for Engine dependencies.
  */
-class FNetConnectionFaultRecoveryBase
+class FNetConnectionFaultRecoveryBase : public FNetConnectionFaultRecoveryBaseFixLayout
 {
 public:
 	using FNetFaultEscalationHandler = TEscalationManager<ENetFaultCounters, FNetFaultState, ENetFaultCounterCategory>;
-
-public:
-	virtual ~FNetConnectionFaultRecoveryBase() = default;
 
 	/**
 	 * (For Counter Categories) Use this to notify fault recovery of a successfully handled fault it should be aware of, within HandleNetResult;
@@ -206,11 +209,11 @@ protected:
 	/** Whether or not fault recovery has disconnected the NetConnection */
 	bool bDisconnected = false;
 
-	/** The escalation manager instance used for tracking/implementing recovery for the various fault types */
-	TUniquePtr<FNetFaultEscalationHandler> NetFaultEscalationManager;
-
 	/** Tracks the index of the last added counter, before NetFaultEscalationManager is created */
 	int32 LastCounterIndex = static_cast<int32>(ENetFaultCounters::Max);
+
+	/** The escalation manager instance used for tracking/implementing recovery for the various fault types */
+	TUniquePtr<FNetFaultEscalationHandler> NetFaultEscalationManager;
 
 	struct FPendingCategoryRegister
 	{

@@ -191,7 +191,7 @@ namespace UnrealBuildTool
 
 			public void EndObject()
 			{
-				Lines[Lines.Count - 1] = Lines[Lines.Count - 1].TrimEnd(',');
+				Lines[^1] = Lines[^1].TrimEnd(',');
 				TabString = TabString.Remove(TabString.Length - 1);
 				Lines.Add(TabString + "},");
 			}
@@ -205,7 +205,7 @@ namespace UnrealBuildTool
 
 			public void EndArray()
 			{
-				Lines[Lines.Count - 1] = Lines[Lines.Count - 1].TrimEnd(',');
+				Lines[^1] = Lines[^1].TrimEnd(',');
 				TabString = TabString.Remove(TabString.Length - 1);
 				Lines.Add(TabString + "],");
 			}
@@ -227,7 +227,7 @@ namespace UnrealBuildTool
 
 			public void Write(FileReference File)
 			{
-				Lines[Lines.Count - 1] = Lines[Lines.Count - 1].TrimEnd(',');
+				Lines[^1] = Lines[^1].TrimEnd(',');
 				FileReference.WriteAllLines(File, Lines.ToArray());
 			}
 
@@ -1019,14 +1019,7 @@ namespace UnrealBuildTool
 						{
 							OutFile.AddField("label", TaskName);
 							OutFile.AddField("group", "build");
-							if (!RuntimePlatform.IsWindows)
-							{
-								OutFile.AddField("command", MakePathString(FileReference.Combine(ProjectRoot, "Engine", "Build", "BatchFiles", "RunDotnet.sh")));
-							}
-							else
-							{
-								OutFile.AddField("command", "dotnet");
-							}
+							OutFile.AddField("command", MakePathString(Unreal.DotnetPath));
 							OutFile.BeginArray("args");
 							{
 								OutFile.AddUnnamedField(Command.ToLower());
@@ -1036,16 +1029,78 @@ namespace UnrealBuildTool
 								OutFile.AddUnnamedField(MakeUnquotedPathString(BuildProduct.CSharpInfo!.ProjectPath, EPathType.Absolute));
 							}
 							OutFile.EndArray();
-						}
-						OutFile.AddField("problemMatcher", "$msCompile");
-						OutFile.AddField("type", "shell");
 
-						OutFile.BeginObject("options");
-						{
-							OutFile.AddField("cwd", MakeUnquotedPathString(ProjectRoot, EPathType.Absolute));
-						}
+							OutFile.AddField("problemMatcher", "$msCompile");
+							OutFile.AddField("type", "shell");
 
+							OutFile.BeginObject("options");
+							{
+								OutFile.AddField("cwd", MakeUnquotedPathString(ProjectRoot, EPathType.Absolute));
+								OutFile.BeginObject("env");
+								{
+									OutFile.AddField("PATH", $"{Unreal.DotnetDirectory}{Path.PathSeparator}${{env:PATH}}");;
+									OutFile.AddField("DOTNET_MULTILEVEL_LOOKUP", "0");
+									OutFile.AddField("DOTNET_ROLL_FORWARD", "LatestMajor");
+								}
+								OutFile.EndObject();
+							}
+							OutFile.EndObject();
+						}
 						OutFile.EndObject();
+					}
+				}
+			}
+
+			if (InProject.Name.Equals("AutomationTool", StringComparison.OrdinalIgnoreCase)) {
+				WriteAutomationScriptTask(InProject, OutFile);
+			}
+		}
+
+		private void WriteAutomationScriptTask(ProjectData.Project InProject, JsonFile OutFile)
+		{
+			string[] Commands = { "Build" };
+
+			foreach (ProjectData.Target Target in InProject.Targets)
+			{
+				foreach (ProjectData.BuildProduct BuildProduct in Target.BuildProducts.Where(x => x.OutputType == ProjectData.EOutputType.Exe))
+				{
+					foreach (string Command in Commands)
+					{
+						string TaskName = String.Format("{0}+Scripts {1} {2} {3}", Target.Name, BuildProduct.Platform, BuildProduct.Config, Command);
+						string DependsOnTaskName = String.Format("{0} {1} {2} {3}", Target.Name, BuildProduct.Platform, BuildProduct.Config, Command);
+
+						OutFile.BeginObject();
+						{
+							OutFile.AddField("label", TaskName);
+							OutFile.AddField("group", "build");
+							OutFile.AddField("command", MakePathString(BuildProduct.OutputFile));
+							OutFile.BeginArray("args");
+							{
+								OutFile.AddUnnamedField("-list");
+							}
+							OutFile.EndArray();
+							OutFile.BeginArray("dependsOn");
+							{
+								OutFile.AddUnnamedField(DependsOnTaskName);
+							}
+							OutFile.EndArray();
+
+							OutFile.AddField("problemMatcher", "$msCompile");
+							OutFile.AddField("type", "shell");
+
+							OutFile.BeginObject("options");
+							{
+								OutFile.AddField("cwd", MakeUnquotedPathString(ProjectRoot, EPathType.Absolute));
+								OutFile.BeginObject("env");
+								{
+									OutFile.AddField("PATH", $"{Unreal.DotnetDirectory}{Path.PathSeparator}${{env:PATH}}");
+									OutFile.AddField("DOTNET_MULTILEVEL_LOOKUP", "0");
+									OutFile.AddField("DOTNET_ROLL_FORWARD", "LatestMajor");
+								}
+								OutFile.EndObject();
+							}
+							OutFile.EndObject();
+						}
 						OutFile.EndObject();
 					}
 				}
@@ -1134,7 +1189,7 @@ namespace UnrealBuildTool
 			}
 
 			// Make the output file path
-			string BinaryFileName = UEBuildTarget.MakeBinaryFileName(BinaryName, Platform, Configuration, TargetRulesObject!.Architectures, TargetRulesObject.UndecoratedConfiguration, UEBuildBinaryType.Executable);
+			string BinaryFileName = UEBuildTarget.MakeBinaryFileName(BinaryName, TargetRulesObject!.DecoratedSeparator, Platform, Configuration, TargetRulesObject!.Architectures, TargetRulesObject.UndecoratedConfiguration, UEBuildBinaryType.Executable);
 			string ExecutableFilename = FileReference.Combine(OutputDirectory, BinaryFileName).FullName;
 
 			// Include the path to the actual executable for a Mac app bundle
@@ -1150,8 +1205,8 @@ namespace UnrealBuildTool
 		{
 			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(BuildProduct.UProjectFile), BuildProduct.Platform);
 
-			bool ArrayResult = Ini.GetArray("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "PackageForOculusMobile", out var OculusMobileDevices); // Backcompat for deprecated oculus device target setting
-			bool BoolResult = Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bPackageForMetaQuest", out var bPackageForMetaQuest);
+			bool ArrayResult = Ini.GetArray("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "PackageForOculusMobile", out List<string>? OculusMobileDevices); // Backcompat for deprecated oculus device target setting
+			bool BoolResult = Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bPackageForMetaQuest", out bool bPackageForMetaQuest);
 			// Check if packaging for Meta Quest
 			if ((!ArrayResult || OculusMobileDevices == null || OculusMobileDevices.Count == 0) && (!BoolResult || !bPackageForMetaQuest))
 			{
@@ -1410,6 +1465,15 @@ namespace UnrealBuildTool
 					}
 				}
 				OutFile.EndArray();
+				OutFile.BeginObject("env");
+				{
+					OutFile.AddField("PATH", $"{Unreal.DotnetDirectory}{Path.PathSeparator}${{env:PATH}}");
+					OutFile.AddField("DOTNET_ROOT", Unreal.DotnetDirectory.FullName);
+					OutFile.AddField("DOTNET_HOST_PATH", Unreal.DotnetPath.FullName);
+					OutFile.AddField("DOTNET_MULTILEVEL_LOOKUP", "0");
+					OutFile.AddField("DOTNET_ROLL_FORWARD", "LatestMajor");
+				}
+				OutFile.EndObject();
 				if (HostPlatform == UnrealTargetPlatform.Win64)
 				{
 					OutFile.AddField("console", "integratedTerminal");
@@ -1437,8 +1501,13 @@ namespace UnrealBuildTool
 					{
 						string TaskName = String.Format("{0} ({1})", Target.Name, BuildProduct.Config);
 						string BuildTaskName = String.Format("{0} {1} {2} Build", Target.Name, HostPlatform, BuildProduct.Config);
+						string[]? Args = null;
+						if (Target.Name.Equals("AutomationTool", StringComparison.OrdinalIgnoreCase)) {
+							BuildTaskName = String.Format("{0}+Scripts {1} {2} Build", Target.Name, HostPlatform, BuildProduct.Config);
+							Args = new string[] {"-NoCompile"};
+						}
 
-						WriteSingleCSharpLaunchConfig(OutFile, TaskName, BuildTaskName, BuildProduct.OutputFile, null);
+						WriteSingleCSharpLaunchConfig(OutFile, TaskName, BuildTaskName, BuildProduct.OutputFile, Args);
 					}
 				}
 			}
@@ -1624,6 +1693,16 @@ namespace UnrealBuildTool
 				WorkspaceFile.AddField("typescript.tsc.autoDetect", "off");
 				// disable npm script autodetect to avoid lag populating tasks list 
 				WorkspaceFile.AddField("npm.autoDetect", "off");
+				// set environment variables so correct dotnet is used
+				WorkspaceFile.BeginObject($"terminal.integrated.env.{(OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "mac" : "linux")}");
+				{
+					WorkspaceFile.AddField("PATH", $"{Unreal.DotnetDirectory}{Path.PathSeparator}${{env:PATH}}");
+					WorkspaceFile.AddField("DOTNET_ROOT", Unreal.DotnetDirectory.FullName);
+					WorkspaceFile.AddField("DOTNET_HOST_PATH", Unreal.DotnetPath.FullName);
+					WorkspaceFile.AddField("DOTNET_MULTILEVEL_LOOKUP", "0");
+					WorkspaceFile.AddField("DOTNET_ROLL_FORWARD", "LatestMajor");
+				}
+				WorkspaceFile.EndObject();
 
 				if (bUseVSCodeExtension)
 				{

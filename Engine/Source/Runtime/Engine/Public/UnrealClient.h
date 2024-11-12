@@ -16,14 +16,6 @@
 #include "Elements/Framework/TypedElementListFwd.h"
 #include "DynamicRenderScaling.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "InputCoreTypes.h"
-#include "Input/PopupMethodReply.h"
-#include "Widgets/SWidget.h"
-#include "RHI.h"
-#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
-#endif
-
 class FCanvas;
 class FRDGBuilder;
 class FViewport;
@@ -40,12 +32,12 @@ public:
 	/**
 	 * Default constructor
 	 */
-	FRenderTarget() {};
+	ENGINE_API FRenderTarget();
 
 	/**
 	 * Destructor
 	 */
-	virtual ~FRenderTarget() {};
+	ENGINE_API virtual ~FRenderTarget();
 
 	/**
 	* Accessor for the surface RHI when setting this render target
@@ -283,7 +275,9 @@ struct FStatUnitData
 {
 	/** Unit frame times filtered with a simple running average */
 	float RenderThreadTime;
+	float RenderThreadTimeCriticalPath;
 	float GameThreadTime;
+	float GameThreadTimeCriticalPath;
 	float GPUFrameTime[MAX_NUM_GPUS];
 	float GPUClockFraction[MAX_NUM_GPUS];
 	float GPUUsageFraction[MAX_NUM_GPUS];
@@ -294,7 +288,9 @@ struct FStatUnitData
 
 	/** Raw equivalents of the above variables */
 	float RawRenderThreadTime;
+	float RawRenderThreadTimeCriticalPath;
 	float RawGameThreadTime;
+	float RawGameThreadTimeCriticalPath;
 	float RawGPUFrameTime[MAX_NUM_GPUS];
 	float RawGPUClockFraction[MAX_NUM_GPUS];
 	float RawGPUUsageFraction[MAX_NUM_GPUS];
@@ -321,7 +317,9 @@ struct FStatUnitData
 
 	FStatUnitData()
 		: RenderThreadTime(0.0f)
+		, RenderThreadTimeCriticalPath(0.0f)
 		, GameThreadTime(0.0f)
+		, GameThreadTimeCriticalPath(0.0f)
 		, GPUFrameTime{ 0.0f }
 		, GPUClockFraction{ 0.0f }
 		, GPUUsageFraction{ 0.0f }
@@ -330,7 +328,9 @@ struct FStatUnitData
 		, RHITTime(0.0f)
 		, InputLatencyTime(0.0f)
 		, RawRenderThreadTime(0.0f)
+		, RawRenderThreadTimeCriticalPath(0.0f)
 		, RawGameThreadTime(0.0f)
+		, RawGameThreadTimeCriticalPath(0.0f)
 		, RawGPUFrameTime{ 0.0f }
 		, RawGPUClockFraction{ 0.0f }
 		, RawGPUUsageFraction{ 0.0f }
@@ -604,6 +604,17 @@ public:
 	 * @return	constrained view rectangle
 	 */
 	ENGINE_API FIntRect CalculateViewExtents(float AspectRatio, const FIntRect& ViewRect);
+	
+	/**
+	* Calculates the view inside the viewport when the aspect ratio is locked.
+	* Used for creating cinematic bars.
+	* @param AspectRatio [in] ratio to lock to
+	* @param DesiredAspectRatio [in] the aspect ratio of the viewport
+	* @param ViewRect [in] unconstrained view rectangle
+	* @param DestSize [in] the size of the the viewport
+	* @return constrained view rectangle
+	*/
+	ENGINE_API static FIntRect CalculateViewExtents(float AspectRatio, float DesiredAspectRatio, const FIntRect& ViewRect, const FIntPoint& DestSize);
 
 	/**
 	 *	Sets a viewport client if one wasn't provided at construction time.
@@ -764,8 +775,8 @@ protected:
 		virtual void AddReferencedObjects( FReferenceCollector& Collector ) override;
 		virtual FString GetReferencerName() const override;
 
-		const FTexture2DRHIRef& GetHitProxyTexture(void) const		{ return RenderTargetTextureRHI; }
-		const FTexture2DRHIRef& GetHitProxyCPUTexture(void) const		{ return HitProxyCPUTexture; }
+		const FTextureRHIRef& GetHitProxyTexture(void) const		{ return RenderTargetTextureRHI; }
+		const FTextureRHIRef& GetHitProxyCPUTexture(void) const		{ return HitProxyCPUTexture; }
 
 	private:
 
@@ -778,7 +789,7 @@ protected:
 		/** References to the hit proxies cached by the hit proxy map. */
 		TArray<TRefCountPtr<HHitProxy> > HitProxies;
 
-		FTexture2DRHIRef HitProxyCPUTexture;
+		FTextureRHIRef HitProxyCPUTexture;
 	};
 
 	/** The viewport's hit proxy map. */

@@ -39,7 +39,7 @@ struct FSwitchboardMinimizeWindowsTask;
 struct FSwitchboardSetInactiveTimeoutTask;
 struct FSwitchboardFreeListenerBinaryTask;
 
-class FSBLHelperClient;
+class FGpuClockerManager;
 
 
 struct FSwitchboardCommandLineOptions
@@ -264,8 +264,8 @@ private:
 	TArray<FSwitchboardMessageFuture> MessagesFutures;
 	TSharedPtr<FCpuUtilizationMonitor> CpuMonitor;
 
-	/** Client interface to the Switchboard Listener Helper external process */
-	TSharedPtr<FSBLHelperClient> SBLHelper;
+	/** Gpu clock manager. Used to lock/unlock gpu clocks. */
+	TSharedPtr<FGpuClockerManager> GpuClockerManager;
 
 	bool bProcessorSMT;
 

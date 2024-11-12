@@ -35,7 +35,7 @@ static void UpdateUniformBufferConstants(FVulkanDevice* Device, void* Destinatio
 	UE::RHICore::UpdateUniformBufferConstants(DestinationData, SourceData, *Layout, Device->SupportsBindless());
 }
 
-static bool UseRingBuffer(EUniformBufferUsage Usage)
+static bool UseTemporaryBuffer(EUniformBufferUsage Usage)
 {
 	// Add a cvar to control this behavior?
 	return (Usage == UniformBuffer_SingleDraw || Usage == UniformBuffer_SingleFrame);
@@ -47,102 +47,67 @@ static void UpdateUniformBufferHelper(FVulkanCommandListContext& Context, FVulka
 
 	FVulkanDevice* Device = Context.GetDevice();
 	const int32 DataSize = VulkanUniformBuffer->GetLayout().ConstantBufferSize;
+	const int32 DataAlignment = FMath::Max<uint32>(Device->GetLimits().minUniformBufferOffsetAlignment, 16u);
 
-	auto CopyUniformBufferData = [&](void* DestinationData, const void* SourceData) {
+	VulkanRHI::FVulkanAllocation TempAllocation;
+	void* DestinationData = Context.GetTempBlockAllocator().Alloc(DataSize, DataAlignment, CmdBuffer, TempAllocation);
 
-		if (bUpdateConstants)
-		{
-			// Update constants as the data is copied
-			UpdateUniformBufferConstants(Device, DestinationData, SourceData, VulkanUniformBuffer->GetLayoutPtr());
-		}
-		else
-		{
-			// Don't touch constant, copy the data as-is
-			FMemory::Memcpy(DestinationData, SourceData, DataSize);
-		}
-	};
-
-	if (UseRingBuffer(VulkanUniformBuffer->Usage))
+	if (bUpdateConstants)
 	{
-		FVulkanUniformBufferUploader* UniformBufferUploader = Context.GetUniformBufferUploader();
-		const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-		const FVulkanAllocation& RingBufferAllocation = UniformBufferUploader->GetCPUBufferAllocation();
-		uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(DataSize, UBOffsetAlignment, CmdBuffer);
+		// Update constants as the data is copied
+		UpdateUniformBufferConstants(Device, DestinationData, Data, VulkanUniformBuffer->GetLayoutPtr());
+	}
+	else
+	{
+		// Don't touch constant, copy the data as-is
+		FMemory::Memcpy(DestinationData, Data, DataSize);
+	}
 
+
+	if (UseTemporaryBuffer(VulkanUniformBuffer->Usage))
+	{
 		VulkanUniformBuffer->Allocation.Init(
-			EVulkanAllocationEmpty, 
-			EVulkanAllocationMetaUnknown, 
-			RingBufferAllocation.VulkanHandle, 
+			VulkanRHI::EVulkanAllocationEmpty,
+			VulkanRHI::EVulkanAllocationMetaUnknown,
+			TempAllocation.VulkanHandle,
 			DataSize,
-			RingBufferOffset,
-			RingBufferAllocation.AllocatorIndex,
-			RingBufferAllocation.AllocationIndex,
-			RingBufferAllocation.HandleId);
-		
-		uint8* UploadLocation = UniformBufferUploader->GetCPUMappedPointer() + RingBufferOffset;
-		CopyUniformBufferData(UploadLocation, Data);
+			TempAllocation.Offset,
+			TempAllocation.AllocatorIndex,
+			TempAllocation.AllocationIndex,
+			TempAllocation.HandleId);
 	}
 	else
 	{
 		check(CmdBuffer->IsOutsideRenderPass());
 
-		VulkanRHI::FTempFrameAllocationBuffer::FTempAllocInfo LockInfo;
-		Context.GetTempFrameAllocationBuffer().Alloc(DataSize, 16, LockInfo);
-		CopyUniformBufferData(LockInfo.Data, Data);
-
 		VkBufferCopy Region;
 		Region.size = DataSize;
-		Region.srcOffset = LockInfo.CurrentOffset + LockInfo.Allocation.Offset;
+		Region.srcOffset = TempAllocation.Offset;
 		Region.dstOffset = VulkanUniformBuffer->GetOffset();
 		VkBuffer UBBuffer = VulkanUniformBuffer->Allocation.GetBufferHandle();
-		VkBuffer LockHandle = LockInfo.Allocation.GetBufferHandle();
 
-		VulkanRHI::vkCmdCopyBuffer(CmdBuffer->GetHandle(), LockHandle, UBBuffer, 1, &Region);
+		VulkanRHI::vkCmdCopyBuffer(CmdBuffer->GetHandle(), TempAllocation.GetBufferHandle(), UBBuffer, 1, &Region);
 	}
 };
 
-bool FVulkanUniformBuffer::SetupUniformBufferView(const FRHIUniformBufferLayout* InLayout, const void* Contents)
+void FVulkanUniformBuffer::SetupUniformBufferView()
 {
-	bUniformView = false;
-
-	if (InLayout->bUniformView)
+	if (UniformViewSRV && GetBufferHandle() == VK_NULL_HANDLE)
 	{
-		FRHIShaderResourceView* UniformViewSRV = nullptr;
-		for (int32 Index = 0; Index < InLayout->Resources.Num() && !UniformViewSRV; ++Index)
-		{
-			EUniformBufferBaseType ResourceBaseType = InLayout->Resources[Index].MemberType;
-			if (ResourceBaseType == UBMT_SRV || 
-				ResourceBaseType == UBMT_RDG_BUFFER_SRV)
-			{
-				UniformViewSRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[Index].MemberOffset, ResourceBaseType);
-			}
-		}
-
-		check(UniformViewSRV)
-
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		RHICmdList.EnqueueLambda([this, UniformViewSRV](FRHICommandList& CmdList)
-		{
-			FVulkanResourceMultiBuffer* Buffer = ResourceCast(UniformViewSRV->GetBuffer());
-			const FRHIViewDesc::FBufferSRV& SRVInfo = UniformViewSRV->GetDesc().Buffer.SRV;
-			Allocation.Reference(Buffer->GetCurrentAllocation());
-			check(Allocation.Size >= PLATFORM_MAX_UNIFORM_BUFFER_RANGE);
-			//Adjust Allocation.Size ???
-			Allocation.Offset += SRVInfo.OffsetInBytes;
-			bUniformView = true;
-		});
-		
-		return true;
+		const FRHIViewDesc::FBufferSRV& SRVInfo = UniformViewSRV->GetDesc().Buffer.SRV;
+		FVulkanResourceMultiBuffer* Buffer = ResourceCast(UniformViewSRV->GetBuffer());
+		Allocation.Reference(Buffer->GetCurrentAllocation());
+		check(Allocation.Size >= PLATFORM_MAX_UNIFORM_BUFFER_RANGE);
+		//Adjust Allocation.Size ???
+		Allocation.Offset += SRVInfo.OffsetInBytes;
 	}
-	
-	return false;
 }
 
 FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUniformBufferLayout* InLayout, const void* Contents, EUniformBufferUsage InUsage, EUniformBufferValidation Validation)
 	: FRHIUniformBuffer(InLayout)
 	, Device(&InDevice)
 	, Usage(InUsage)
-	, bUniformView(false)
+	, UniformViewSRV(nullptr)
 {
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 	SCOPE_CYCLE_COUNTER(STAT_VulkanUniformBufferCreateTime);
@@ -170,8 +135,16 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 		}
 	}
 
-	if (SetupUniformBufferView(InLayout, Contents))
+	if (EnumHasAnyFlags(InLayout->Flags, ERHIUniformBufferFlags::UniformView))
 	{
+		// For uniform view we expect an buffer SRV as a first resource
+		check(InLayout->Resources.Num() > 0);
+		EUniformBufferBaseType ResourceBaseType = InLayout->Resources[0].MemberType;
+		if (ResourceBaseType == UBMT_SRV || ResourceBaseType == UBMT_RDG_BUFFER_SRV)
+		{
+			UniformViewSRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[0].MemberOffset, ResourceBaseType);
+		}
+		check(UniformViewSRV)
 		return;
 	}
 
@@ -181,7 +154,7 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 		const bool bInRHIThread = IsInRHIThread();
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (UseRingBuffer(InUsage) && (bInRenderingThread || bInRHIThread)
+		if (UseTemporaryBuffer(InUsage) && (bInRenderingThread || bInRHIThread)
 			// :todo-jn:  Temporary check until we have a command list arg passed in to avoid a race where the RenderThread
 			// would pick up other tasks (because of task retraction) and execute them as if on the RenderThread.
 			&& !UE::Tasks::Private::IsThreadRetractingTask())
@@ -234,7 +207,7 @@ FVulkanUniformBuffer::~FVulkanUniformBuffer()
 {
 	if (BindlessHandle.IsValid())
 	{
-		Device->GetBindlessDescriptorManager()->Unregister(BindlessHandle);
+		Device->GetDeferredDeletionQueue().EnqueueBindlessHandle(BindlessHandle);
 	}
 
 	Device->GetMemoryManager().FreeUniformBuffer(Allocation);
@@ -269,7 +242,7 @@ FRHIDescriptorHandle FVulkanUniformBuffer::GetBindlessHandle()
 	{
 		if (BindlessHandle.IsValid())
 		{
-			Device->GetBindlessDescriptorManager()->Unregister(BindlessHandle);
+			Device->GetDeferredDeletionQueue().EnqueueBindlessHandle(BindlessHandle);
 		}
 
 		BindlessHandle = Device->GetBindlessDescriptorManager()->ReserveDescriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -308,11 +281,11 @@ inline void FVulkanDynamicRHI::UpdateUniformBuffer(FRHICommandListBase& RHICmdLi
 	const int32 ConstantBufferSize = Layout.ConstantBufferSize;
 	const int32 NumResources = Layout.Resources.Num();
 
-	FVulkanAllocation NewUBAlloc;
+	VulkanRHI::FVulkanAllocation NewUBAlloc;
 	bool bUseUpload = GVulkanAllowUniformUpload && !RHICmdList.IsInsideRenderPass(); //inside renderpasses, a rename is enforced.
-	const bool bUseRingBuffer = UseRingBuffer(UniformBuffer->Usage);
+	const bool bUseTempBuffer = UseTemporaryBuffer(UniformBuffer->Usage);
 
-	if (!bUseUpload && !bUseRingBuffer)
+	if (!bUseUpload && !bUseTempBuffer)
 	{
 		if (ConstantBufferSize > 0)
 		{
@@ -331,7 +304,7 @@ inline void FVulkanDynamicRHI::UpdateUniformBuffer(FRHICommandListBase& RHICmdLi
 	{
 		if (ConstantBufferSize > 0)
 		{
-			if (bUseUpload || bUseRingBuffer)
+			if (bUseUpload || bUseTempBuffer)
 			{			
 				FVulkanCommandListContext& Context = Device->GetImmediateContext();
 				UpdateUniformBufferHelper(Context, UniformBuffer, Contents);
@@ -358,7 +331,7 @@ inline void FVulkanDynamicRHI::UpdateUniformBuffer(FRHICommandListBase& RHICmdLi
 			}
 		}
 
-		if (bUseUpload || bUseRingBuffer)
+		if (bUseUpload || bUseTempBuffer)
 		{
 			void* CmdListConstantBufferData = RHICmdList.Alloc(ConstantBufferSize, 16);
 			FMemory::Memcpy(CmdListConstantBufferData, Contents, ConstantBufferSize);
@@ -377,7 +350,7 @@ inline void FVulkanDynamicRHI::UpdateUniformBuffer(FRHICommandListBase& RHICmdLi
 			NewUBAlloc.Disown(); //this releases ownership while its put into the lambda
 			RHICmdList.EnqueueLambda([UniformBuffer, NewUBAlloc, CmdListResources, NumResources](FRHICommandListBase& CmdList)
 			{
-				FVulkanAllocation Alloc;
+				VulkanRHI::FVulkanAllocation Alloc;
 				Alloc.Reference(NewUBAlloc);
 				Alloc.Own(); //this takes ownership of the allocation
 				UniformBuffer->UpdateAllocation(Alloc);
@@ -397,98 +370,3 @@ void FVulkanDynamicRHI::RHIUpdateUniformBuffer(FRHICommandListBase& RHICmdList, 
 	UpdateUniformBuffer(RHICmdList, UniformBuffer, Contents);
 }
 
-FVulkanUniformBufferUploader::FVulkanUniformBufferUploader(FVulkanDevice* InDevice)
-	: VulkanRHI::FDeviceChild(InDevice)
-	, CPUBuffer(nullptr)
-{
-	if (Device->HasUnifiedMemory())
-	{
-		CPUBuffer = new FVulkanRingBuffer(InDevice, PackedUniformsRingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	}
-	else
-	{
-		if (FVulkanPlatform::SupportsDeviceLocalHostVisibleWithNoPenalty(InDevice->GetVendorId()) &&
-			InDevice->GetDeviceMemoryManager().SupportsMemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-		{
-			CPUBuffer = new FVulkanRingBuffer(InDevice, PackedUniformsRingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		}
-		else
-		{
-			CPUBuffer = new FVulkanRingBuffer(InDevice, PackedUniformsRingBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		}
-	}
-
-	INC_MEMORY_STAT_BY(STAT_UniformBufferMemory, PackedUniformsRingBufferSize);
-}
-
-FVulkanUniformBufferUploader::~FVulkanUniformBufferUploader()
-{
-	delete CPUBuffer;
-
-	DEC_MEMORY_STAT_BY(STAT_UniformBufferMemory, PackedUniformsRingBufferSize);
-}
-
-
-FVulkanRingBuffer::FVulkanRingBuffer(FVulkanDevice* InDevice, uint64 TotalSize, VkFlags Usage, VkMemoryPropertyFlags MemPropertyFlags)
-	: VulkanRHI::FDeviceChild(InDevice)
-	, BufferSize(TotalSize)
-	, BufferOffset(0)
-	, BufferAddress(0)
-	, MinAlignment(0)
-{
-	const bool bHasBufferDeviceAddress = InDevice->GetOptionalExtensions().HasBufferDeviceAddress;
-	if (bHasBufferDeviceAddress)
-	{
-		Usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-	}
-
-	check(TotalSize <= (uint64)MAX_uint32);
-	InDevice->GetMemoryManager().AllocateBufferPooled(Allocation, nullptr, TotalSize, 0, Usage, MemPropertyFlags, EVulkanAllocationMetaRingBuffer, __FILE__, __LINE__);
-	MinAlignment = Allocation.GetBufferAlignment(Device);
-	// Start by wrapping around to set up the correct fence
-	BufferOffset = TotalSize;
-
-	if (bHasBufferDeviceAddress)
-	{
-		VkBufferDeviceAddressInfo BufferInfo;
-		ZeroVulkanStruct(BufferInfo, VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO);
-		BufferInfo.buffer = Allocation.GetBufferHandle();
-		BufferAddress = VulkanRHI::vkGetBufferDeviceAddressKHR(Device->GetInstanceHandle(), &BufferInfo);
-	}
-}
-
-FVulkanRingBuffer::~FVulkanRingBuffer()
-{
-	Device->GetMemoryManager().FreeVulkanAllocation(Allocation);
-}
-
-uint64 FVulkanRingBuffer::WrapAroundAllocateMemory(uint64 Size, uint32 Alignment, FVulkanCmdBuffer* InCmdBuffer)
-{
-	CA_ASSUME(InCmdBuffer != nullptr); // Suppress static analysis warning
-	uint64 AllocationOffset = Align<uint64>(BufferOffset, Alignment);
-	ensure(AllocationOffset + Size > BufferSize);
-
-	// Check to see if we can wrap around the ring buffer
-	if (FenceCmdBuffer)
-	{
-		if (FenceCounter == FenceCmdBuffer->GetFenceSignaledCounterI())
-		{
-			//if (FenceCounter == FenceCmdBuffer->GetSubmittedFenceCounter())
-			{
-				//UE_LOG(LogVulkanRHI, Error, TEXT("Ringbuffer overflow during the same cmd buffer!"));
-			}
-			//else
-			{
-				//UE_LOG(LogVulkanRHI, Error, TEXT("Wrapped around the ring buffer! Waiting for the GPU..."));
-				//Device->GetImmediateContext().GetCommandBufferManager()->WaitForCmdBuffer(FenceCmdBuffer, 0.5f);
-			}
-		}
-	}
-
-	BufferOffset = Size;
-
-	FenceCmdBuffer = InCmdBuffer;
-	FenceCounter = InCmdBuffer->GetSubmittedFenceCounter();
-
-	return 0;
-}

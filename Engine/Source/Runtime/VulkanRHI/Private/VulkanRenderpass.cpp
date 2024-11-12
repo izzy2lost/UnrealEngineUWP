@@ -231,7 +231,7 @@ void FVulkanRenderPassManager::NotifyDeletedRenderTarget(VkImage Image)
 			FVulkanFramebuffer* Framebuffer = List->Framebuffer[Index];
 			if (Framebuffer->ContainsRenderTarget(Image))
 			{
-				List->Framebuffer.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				List->Framebuffer.RemoveAtSwap(Index, EAllowShrinking::No);
 				Framebuffer->Destroy(*Device);
 				delete Framebuffer;
 			}

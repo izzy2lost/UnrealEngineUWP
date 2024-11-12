@@ -6,9 +6,9 @@
 
 #include "Widgets/Clients/Logging/Source/IConcertLogSource.h"
 
-FLogAckTracker::FLogAckTracker(TSharedRef<IConcertLogSource> LogSource, TSharedRef<IConcertServer> Server)
-	: LogSource(MoveTemp(LogSource))
-	, Server(MoveTemp(Server))
+FLogAckTracker::FLogAckTracker(TSharedRef<IConcertLogSource> InLogSource, TSharedRef<IConcertServer> InServer)
+	: LogSource(MoveTemp(InLogSource))
+	, Server(MoveTemp(InServer))
 {
 	LogSource->OnLogEntryAdded().AddRaw(this, &FLogAckTracker::OnLogEntryProduced);
 	Server->OnConcertMessageAcknowledgementReceived().AddRaw(this, &FLogAckTracker::OnAckProcessed);

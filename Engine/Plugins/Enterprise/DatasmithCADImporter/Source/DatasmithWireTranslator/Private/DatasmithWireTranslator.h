@@ -4,14 +4,22 @@
 
 #include "CoreMinimal.h"
 
+#include "IWireInterface.h"
+
 #include "ParametricSurfaceTranslator.h"
-#include "UObject/ObjectMacros.h"
+
+#include "DatasmithWireTranslator.generated.h"
 
 
-namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
+UCLASS(BlueprintType, config = EditorPerProjectUserSettings)
+class UDatasmithWireOptions : public UDatasmithOptionsBase
 {
+	GENERATED_BODY()
 
-class FWireTranslatorImpl;
+public:
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Wire Translation Options", meta = (ShowOnlyInnerProperties))
+	FWireSettings Settings;
+};
 
 class FDatasmithWireTranslator : public FParametricSurfaceTranslator
 {
@@ -32,6 +40,7 @@ public:
 	// End IDatasmithTranslator overrides
 
 	// Begin ADatasmithCoreTechTranslator overrides
+	virtual void GetSceneImportOptions(TArray<TObjectPtr<UDatasmithOptionsBase>>& Options) override;
 	virtual void SetSceneImportOptions(const TArray<TObjectPtr<UDatasmithOptionsBase>>& Options) override;
 
 protected:
@@ -42,7 +51,9 @@ protected:
 	// End ADatasmithCoreTechTranslator overrides
 
 private:
-	TSharedPtr<FWireTranslatorImpl> Translator;
-};
+	bool CanTranslate();
 
-}
+private:
+	TSharedPtr<IWireInterface> WireInterface;
+	TObjectPtr<UDatasmithWireOptions> WireImportOptions;
+};

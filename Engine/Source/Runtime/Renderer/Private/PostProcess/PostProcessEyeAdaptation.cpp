@@ -18,6 +18,7 @@
 #include "TextureResource.h"
 #include "PostProcessing.h"
 #include "PostProcessLocalExposure.h"
+#include "ColorManagement/ColorSpace.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -53,8 +54,9 @@ namespace
 		TEXT("r.EyeAdaptation.VisualizeDebugType"),
 		0,
 		TEXT("When enabling Show->Visualize->HDR (Eye Adaptation) is enabled, this flag controls the scene color.\n")
-		TEXT("    0: Scene Color after tonemapping (default).\n")
-		TEXT("    1: Histogram Debug\n"),
+		TEXT("    0: Scene Color after tonemapping (default)\n")
+		TEXT("    1: Histogram Debug\n")
+		TEXT("    2: Luminance\n"),
 		ECVF_RenderThreadSafe);
 
 	TAutoConsoleVariable<float> CVarEyeAdaptationLensAttenuation(
@@ -83,7 +85,7 @@ namespace
 		0,
 		TEXT("0 - Uniform.\n")
 		TEXT("1 - NSTC.\n")
-		TEXT("2 - Rec709."),
+		TEXT("2 - Working Color Space."),
 		ECVF_RenderThreadSafe);
 
 	TAutoConsoleVariable<bool> CVarAutoExposureIgnoreMaterialsReconstructFromSceneColor(
@@ -545,13 +547,13 @@ FEyeAdaptationParameters GetEyeAdaptationParameters(const FViewInfo& View)
 	const int32 LuminanceMethod = CVarAutoExposureLuminanceMethod.GetValueOnRenderThread();
 	if (LuminanceMethod == 1)
 	{
-		// NTSC / match weights in Common.ush
+		// NTSC (deprecated legacy weights in Common.ush)
 		Parameters.LuminanceWeights = FVector3f(0.3f, 0.59f, 0.11f);
 	}
 	else if (LuminanceMethod == 2)
 	{
-		// Rec 709
-		Parameters.LuminanceWeights = FVector3f(0.2126f, 0.7152f, 0.0722f);
+		// Working color space (sRGB/Rec709 default)
+		Parameters.LuminanceWeights = FVector3f(UE::Color::FColorSpace::GetWorking().GetLuminanceFactors());
 	}
 	else
 	{
@@ -589,14 +591,9 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWEyeAdaptationTexture)
 		END_SHADER_PARAMETER_STRUCT()
-
-		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FCopyEyeAdaptationToTextureCS, "/Engine/Private/PostProcessEyeAdaptation.usf", "CopyEyeAdaptationToTextureCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FCopyEyeAdaptationToTextureCS, "/Engine/Private/PostProcessEyeAdaptationUtils.usf", "CopyEyeAdaptationToTextureCS", SF_Compute);
 
 void AddCopyEyeAdaptationDataToTexturePass(FRDGBuilder& GraphBuilder, const FGlobalShaderMap* ShaderMap, FRDGBufferRef EyeAdaptationBuffer, FRDGTextureRef OutputTexture)
 {
@@ -640,7 +637,7 @@ class FSetupExposureIlluminanceCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWIlluminanceTexture)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Illuminance)
 		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
-		SHADER_PARAMETER(uint32, IllumiananceDownscaleFactor)
+		SHADER_PARAMETER(FScreenTransform, IlluminanceRectToColorRect)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -691,7 +688,7 @@ FRDGTextureRef AddSetupExposureIlluminancePass(
 			PassParameters->RWIlluminanceTexture = GraphBuilder.CreateUAV(OutputTexture);
 			PassParameters->Illuminance = GetScreenPassTextureViewportParameters(OutputViewport);
 			PassParameters->EyeAdaptation = GetEyeAdaptationParameters(View);
-			PassParameters->IllumiananceDownscaleFactor = GetAutoExposureIlluminanceDownscaleFactor();
+			PassParameters->IlluminanceRectToColorRect = FScreenTransform::ChangeRectFromTo(OutputViewport.Rect, SceneViewport.Rect);
 
 			auto ComputeShader = View.ShaderMap->GetShader<FSetupExposureIlluminanceCS>();
 
@@ -718,7 +715,7 @@ class FCalculateExposureIlluminanceCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWIlluminanceTexture)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Illuminance)
-		SHADER_PARAMETER(uint32, IllumiananceDownscaleFactor)
+		SHADER_PARAMETER(FScreenTransform, IlluminanceRectToColorRect)
 
 		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
 
@@ -769,7 +766,7 @@ FRDGTextureRef AddCalculateExposureIlluminancePass(
 			PassParameters->ColorTexture = SceneTextures.Color.Resolve;
 			PassParameters->RWIlluminanceTexture = GraphBuilder.CreateUAV(ExposureIlluminanceSetup);
 			PassParameters->Illuminance = GetScreenPassTextureViewportParameters(OutputViewport);
-			PassParameters->IllumiananceDownscaleFactor = GetAutoExposureIlluminanceDownscaleFactor();
+			PassParameters->IlluminanceRectToColorRect = FScreenTransform::ChangeRectFromTo(OutputViewport.Rect, SceneViewport.Rect);
 			PassParameters->EyeAdaptation = GetEyeAdaptationParameters(View);
 
 			PassParameters->PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
@@ -833,35 +830,47 @@ FRDGBufferRef AddHistogramEyeAdaptationPass(
 	FRDGTextureRef HistogramTexture,
 	bool bComputeAverageLocalExposure)
 {
-	View.UpdateEyeAdaptationLastExposureFromBuffer();
-	View.SwapEyeAdaptationBuffers();
+	bool bUpdateAdaptationBuffer = View.ShouldUpdateEyeAdaptationBuffer();
 
-	FRDGBufferRef OutputBuffer = GraphBuilder.RegisterExternalBuffer(View.GetEyeAdaptationBuffer(GraphBuilder), ERDGBufferFlags::MultiFrame);
+	FRDGBufferRef OutputBuffer;
 
-	FEyeAdaptationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FEyeAdaptationCS::FParameters>();
-	PassParameters->EyeAdaptation = EyeAdaptationParameters;
-	PassParameters->LocalExposure = LocalExposureParameters;
-	PassParameters->HistogramTexture = HistogramTexture;
-	PassParameters->RWEyeAdaptationBuffer = GraphBuilder.CreateUAV(OutputBuffer);
-
-	FEyeAdaptationCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FEyeAdaptationCS::FComputeAverageLocalExposure>(bComputeAverageLocalExposure);
-
-	auto ComputeShader = View.ShaderMap->GetShader<FEyeAdaptationCS>(PermutationVector);
-
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("HistogramEyeAdaptation (CS)"),
-		ComputeShader,
-		PassParameters,
-		FIntVector(1, 1, 1));
-
+	if (bUpdateAdaptationBuffer)
 	{
-		FRDGTextureRef OutputTexture = GraphBuilder.RegisterExternalTexture(View.GetEyeAdaptationTexture(GraphBuilder), ERDGTextureFlags::MultiFrame);
-		AddCopyEyeAdaptationDataToTexturePass(GraphBuilder, View.ShaderMap, OutputBuffer, OutputTexture);
-	}
+		View.UpdateEyeAdaptationLastExposureFromBuffer();
+		View.SwapEyeAdaptationBuffers();
 
-	View.EnqueueEyeAdaptationExposureBufferReadback(GraphBuilder);
+		OutputBuffer = GraphBuilder.RegisterExternalBuffer(View.GetEyeAdaptationBuffer(GraphBuilder), ERDGBufferFlags::MultiFrame);
+
+		FEyeAdaptationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FEyeAdaptationCS::FParameters>();
+		PassParameters->EyeAdaptation = EyeAdaptationParameters;
+		PassParameters->LocalExposure = LocalExposureParameters;
+		PassParameters->HistogramTexture = HistogramTexture;
+		PassParameters->RWEyeAdaptationBuffer = GraphBuilder.CreateUAV(OutputBuffer);
+
+		FEyeAdaptationCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FEyeAdaptationCS::FComputeAverageLocalExposure>(bComputeAverageLocalExposure);
+
+		auto ComputeShader = View.ShaderMap->GetShader<FEyeAdaptationCS>(PermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("HistogramEyeAdaptation (CS)"),
+			ComputeShader,
+			PassParameters,
+			FIntVector(1, 1, 1));
+
+		{
+			FRDGTextureRef OutputTexture = GraphBuilder.RegisterExternalTexture(View.GetEyeAdaptationTexture(GraphBuilder), ERDGTextureFlags::MultiFrame);
+			AddCopyEyeAdaptationDataToTexturePass(GraphBuilder, View.ShaderMap, OutputBuffer, OutputTexture);
+		}
+
+		View.EnqueueEyeAdaptationExposureBufferReadback(GraphBuilder);
+	}
+	else
+	{
+		// Return pre-existing eye adaptation buffer
+		OutputBuffer = GraphBuilder.RegisterExternalBuffer(View.GetEyeAdaptationBuffer(), ERDGBufferFlags::MultiFrame);
+	}
 
 	return OutputBuffer;
 }
@@ -969,42 +978,55 @@ FRDGBufferRef AddBasicEyeAdaptationPass(
 	FRDGBufferRef EyeAdaptationBuffer,
 	bool bComputeAverageLocalExposure)
 {
-	View.UpdateEyeAdaptationLastExposureFromBuffer();
-	View.SwapEyeAdaptationBuffers();
+	bool bUpdateAdaptationBuffer = View.ShouldUpdateEyeAdaptationBuffer();
 
-	const FScreenPassTextureViewport SceneColorViewport(SceneColor);
+	FRDGBufferRef OutputBuffer;
 
-	FRDGBufferRef OutputBuffer = GraphBuilder.RegisterExternalBuffer(View.GetEyeAdaptationBuffer(GraphBuilder), ERDGBufferFlags::MultiFrame);
+	// The owner of the adaptation buffer handles updates -- other views just read the results
+	if (bUpdateAdaptationBuffer)
+	{
+		View.UpdateEyeAdaptationLastExposureFromBuffer();
+		View.SwapEyeAdaptationBuffers();
 
-	FBasicEyeAdaptationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FBasicEyeAdaptationCS::FParameters>();
-	PassParameters->View = View.ViewUniformBuffer;
-	PassParameters->EyeAdaptation = EyeAdaptationParameters;
-	PassParameters->LocalExposure = LocalExposureParameters;
-	PassParameters->Color = GetScreenPassTextureViewportParameters(SceneColorViewport);
-	PassParameters->ColorTexture = SceneColor.TextureSRV;
-	PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);
-	PassParameters->RWEyeAdaptationBuffer = GraphBuilder.CreateUAV(OutputBuffer);
+		const FScreenPassTextureViewport SceneColorViewport(SceneColor);
 
-	FBasicEyeAdaptationCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FBasicEyeAdaptationCS::FComputeAverageLocalExposure>(bComputeAverageLocalExposure);
+		OutputBuffer = GraphBuilder.RegisterExternalBuffer(View.GetEyeAdaptationBuffer(GraphBuilder), ERDGBufferFlags::MultiFrame);
 
-	auto ComputeShader = View.ShaderMap->GetShader<FBasicEyeAdaptationCS>(PermutationVector);
+		FBasicEyeAdaptationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FBasicEyeAdaptationCS::FParameters>();
+		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->EyeAdaptation = EyeAdaptationParameters;
+		PassParameters->LocalExposure = LocalExposureParameters;
+		PassParameters->Color = GetScreenPassTextureViewportParameters(SceneColorViewport);
+		PassParameters->ColorTexture = SceneColor.TextureSRV;
+		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);
+		PassParameters->RWEyeAdaptationBuffer = GraphBuilder.CreateUAV(OutputBuffer);
 
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("BasicEyeAdaptation (CS)"),
-		ComputeShader,
-		PassParameters,
-		FIntVector(1, 1, 1));
+		FBasicEyeAdaptationCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FBasicEyeAdaptationCS::FComputeAverageLocalExposure>(bComputeAverageLocalExposure);
+
+		auto ComputeShader = View.ShaderMap->GetShader<FBasicEyeAdaptationCS>(PermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("BasicEyeAdaptation (CS)"),
+			ComputeShader,
+			PassParameters,
+			FIntVector(1, 1, 1));
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	{
-		FRDGTextureRef OutputTexture = GraphBuilder.RegisterExternalTexture(View.GetEyeAdaptationTexture(GraphBuilder), ERDGTextureFlags::MultiFrame);
-		AddCopyEyeAdaptationDataToTexturePass(GraphBuilder, View.ShaderMap, OutputBuffer, OutputTexture);
-	}
+		{
+			FRDGTextureRef OutputTexture = GraphBuilder.RegisterExternalTexture(View.GetEyeAdaptationTexture(GraphBuilder), ERDGTextureFlags::MultiFrame);
+			AddCopyEyeAdaptationDataToTexturePass(GraphBuilder, View.ShaderMap, OutputBuffer, OutputTexture);
+		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	View.EnqueueEyeAdaptationExposureBufferReadback(GraphBuilder);
+		View.EnqueueEyeAdaptationExposureBufferReadback(GraphBuilder);
+	}
+	else
+	{
+		// Return pre-existing eye adaptation buffer
+		OutputBuffer = GraphBuilder.RegisterExternalBuffer(View.GetEyeAdaptationBuffer(), ERDGBufferFlags::MultiFrame);
+	}
 
 	return OutputBuffer;
 }

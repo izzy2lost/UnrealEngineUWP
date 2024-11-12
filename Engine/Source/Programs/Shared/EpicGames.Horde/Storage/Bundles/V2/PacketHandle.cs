@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		public abstract BundleHandle Bundle { get; }
 
-		/// <inheritdoc cref="IBlobHandle.FlushAsync(CancellationToken)"/>
+		/// <inheritdoc cref="IBlobRef.FlushAsync(CancellationToken)"/>
 		public abstract ValueTask FlushAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
@@ -56,7 +56,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	class FlushedPacketHandle : PacketHandle
 	{
-		readonly BundleStorageClient _storageClient;
+		readonly BundleStorageNamespace _storageNamespace;
 		readonly BundleHandle _outer;
 		readonly int _packetOffset;
 		readonly int _packetLength;
@@ -73,11 +73,16 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		public int PacketOffset => _packetOffset;
 
 		/// <summary>
+		/// Length of the packet within the bundle
+		/// </summary>
+		public int PacketLength => _packetLength;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedPacketHandle(BundleStorageClient storageClient, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
+		public FlushedPacketHandle(BundleStorageNamespace storageNamespace, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
 		{
-			_storageClient = storageClient;
+			_storageNamespace = storageNamespace;
 
 			_outer = outer;
 			_packetOffset = packetOffset;
@@ -88,9 +93,9 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedPacketHandle(BundleStorageClient storageClient, BundleHandle outer, ReadOnlySpan<byte> fragment, BundleCache cache)
+		public FlushedPacketHandle(BundleStorageNamespace storageNamespace, BundleHandle outer, ReadOnlySpan<byte> fragment, BundleCache cache)
 		{
-			_storageClient = storageClient;
+			_storageNamespace = storageNamespace;
 
 			_outer = outer;
 			_cache = cache;
@@ -215,20 +220,27 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			return await _cache.PacketReaderCache.ScopedGetOrAddAsync(cacheKey, CreatePacketReaderAsync, cancellationToken);
 		}
 
+		internal PacketReader CreatePacketReader(ReadOnlyMemory<byte> encodedData)
+		{
+			PacketReaderCacheKey cacheKey = new PacketReaderCacheKey(_outer, _packetOffset);
+			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData, _cache.Allocator, cacheKey);
+			return new PacketReader(_storageNamespace, _cache, _outer, this, packet.Target, packet);
+		}
+
 		async Task<Scoped<PacketReader>> CreatePacketReaderAsync(PacketReaderCacheKey cacheKey, CancellationToken cancellationToken)
 		{
 			using IReadOnlyMemoryOwner<byte> encodedData = await ReadEncodedPacketAsync(cancellationToken);
 			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Memory, _cache.Allocator, cacheKey);
-			Interlocked.Add(ref _storageClient.PacketReaderStats._numDecodedBytesRead, packet.Target.Length);
+			Interlocked.Add(ref _storageNamespace.PacketReaderStats._numDecodedBytesRead, packet.Target.Length);
 #pragma warning disable CA2000
-			PacketReader reader = new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
+			PacketReader reader = new PacketReader(_storageNamespace, _cache, _outer, this, packet.Target, packet);
 			return new Scoped<PacketReader>(reader);
 #pragma warning restore CA2000
 		}
 
 		async ValueTask<IReadOnlyMemoryOwner<byte>> ReadEncodedPacketAsync(CancellationToken cancellationToken)
 		{
-			Interlocked.Add(ref _storageClient.PacketReaderStats._numEncodedBytesRead, _packetLength);
+			Interlocked.Add(ref _storageNamespace.PacketReaderStats._numEncodedBytesRead, _packetLength);
 
 			int minPageIdx = _packetOffset / _cache.BundlePageSize;
 			int maxPageIdx = ((_packetOffset + _packetLength) + (_cache.BundlePageSize - 1)) / _cache.BundlePageSize;
@@ -276,7 +288,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		async Task<Scoped<IReadOnlyMemoryOwner<byte>>> ReadBundlePageInternalAsync(BundlePageCacheKey key, CancellationToken cancellationToken)
 		{
 			IReadOnlyMemoryOwner<byte> owner = await _outer.ReadAsync(key.Index * _cache.BundlePageSize, _cache.BundlePageSize, cancellationToken);
-			Interlocked.Add(ref _storageClient.PacketReaderStats._numBytesRead, owner.Memory.Length);
+			Interlocked.Add(ref _storageNamespace.PacketReaderStats._numBytesRead, owner.Memory.Length);
 			return new Scoped<IReadOnlyMemoryOwner<byte>>(owner);
 		}
 

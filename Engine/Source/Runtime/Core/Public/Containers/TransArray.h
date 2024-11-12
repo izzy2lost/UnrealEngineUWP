@@ -173,7 +173,7 @@ protected:
 
 	static void DefaultConstructItem( void* TPtr )
 	{
-		new (TPtr) T;
+		::new (TPtr) T;
 	}
 	static void SerializeItem( FArchive& Ar, void* TPtr )
 	{

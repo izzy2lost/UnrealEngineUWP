@@ -425,7 +425,7 @@ struct FRenameObjectResult
 void MakeObjectUniqueToAvoidCollision(UObject* InObject)
 {
 	FString NewName = InObject->GetFName().ToString() + FGuid::NewGuid().ToString(EGuidFormats::Short);
-	InObject->Rename(*NewName, nullptr, REN_ForceNoResetLoaders | REN_NonTransactional);
+	InObject->Rename(*NewName, nullptr, REN_NonTransactional);
 }
 
 /**
@@ -434,7 +434,7 @@ void MakeObjectUniqueToAvoidCollision(UObject* InObject)
  */
 FRenameObjectResult RenameObjectsToAvoidCollision(const FConcertObjectId& InObjectIdToRename)
 {
-	UObject* ObjectToRename = ConcertSyncClientUtil::GetObject(InObjectIdToRename, FName(), FName(), FName(), false).Obj;
+	UObject* ObjectToRename = ConcertSyncClientUtil::GetObject(InObjectIdToRename, FName(), FName(), FName(), FSoftObjectPath(), false).Obj;
 	// The object does not exist or is marked for GC.
 	if (!IsValid(ObjectToRename))
 	{

@@ -10,6 +10,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DelayedAutoRegister.h"
+#include "Misc/OutputDeviceRedirector.h"
 #include "Misc/Paths.h"
 
 
@@ -34,14 +35,14 @@ void InitStats()
 
 void UsePlatformFileStubIfRequired()
 {
-#if WITH_ENGINE && UE_LLT_USE_PLATFORM_FILE_STUB
-	if (IPlatformFile* WrapperFile = FPlatformFileManager::Get().GetPlatformFile(TEXT("PlatformFileStub")))
+#if UE_LLT_USE_PLATFORM_FILE_STUB
+	if (IPlatformFile* WrapperFile = FPlatformFileManager::Get().GetPlatformFile(TEXT("LowLevelTestsRunner")))
 	{
 		IPlatformFile* CurrentPlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
 		WrapperFile->Initialize(CurrentPlatformFile, TEXT(""));
 		FPlatformFileManager::Get().SetPlatformFile(*WrapperFile);
 	}
-#endif // WITH_ENGINE && UE_LLT_USE_PLATFORM_FILE_STUB
+#endif // UE_LLT_USE_PLATFORM_FILE_STUB
 }
 
 void SaveDefaultPlatformFile()
@@ -56,6 +57,17 @@ void UseDefaultPlatformFile()
 
 void SetProjectNameAndDirectory()
 {
+	// Use target name instead of project file being passed in as this will be more accruate to finding the program's config
+	// and project files. Resolves issues with UE_PROJECT_NAME being set to the parent project instead of the program's project.
+	// This will likely break if we ever have one LLT project file have mutliple targets eg: LyraGameEOS vs LyraGame
+#ifdef UE_TARGET_NAME
+	FCString::Strncpy(GInternalProjectName, TEXT(PREPROCESSOR_TO_STRING(UE_TARGET_NAME)), UE_ARRAY_COUNT(GInternalProjectName));
+#endif
+
+	// There may be cases on some platforms that you need to verify files are in the filesystem, 
+	// and this call was needed to correctly initalize the system.
+	FPaths::ProjectDir();
+
 	FString ProjectFileOrName;
 	FString ProjectDirOverride;
 
@@ -117,6 +129,20 @@ void InitAll(bool bAllowLogging, bool bMultithreaded)
 	GIsRunning = true;
 }
 
+void CleanupLogs()
+{
+	if (GLog)
+	{
+		GLog->TearDown();
+	}
+}
+
+void CleanupLocalization()
+{
+	FTextLocalizationManager::TearDown();
+	FInternationalization::TearDown();
+}
+
 void CleanupAll()
 {
 #if WITH_ENGINE
@@ -127,4 +153,6 @@ void CleanupAll()
 #endif
 	CleanupAllThreadPools();
 	CleanupTaskGraph();
+	CleanupLogs();
+	CleanupLocalization();
 }

@@ -291,7 +291,7 @@ void MainPS(
 	
 	// This is for debug only
 	OutColor.xyz = NeuralInput0;
-#if !MATERIALBLENDING_MODULATE && POST_PROCESS_MATERIAL_BEFORE_TONEMAP
+#if !MATERIALBLENDING_MODULATE && POST_PROCESS_MATERIAL_BEFORE_TONEMAP && !POST_PROCESS_DISABLE_PRE_EXPOSURE_SCALE
 	OutColor.xyz *= View.PreExposure;
 #endif
 
@@ -308,7 +308,7 @@ void MainPS(
 	float3 EmissiveColor = 0.0f;
 #if SUBSTRATE_ENABLED
 
-	// Post process node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
+	// Post process node forces a single unlit BSDF. We get the raw data from the Substrate post process node from the raw BSDF on the tree.
 	FSubstratePixelHeader SubstratePixelHeader = Parameters.GetFrontSubstrateHeader();
 	FSubstrateBSDF UnlitBSDF = SubstratePixelHeader.SubstrateTree.BSDFs[0];
 	UnlitBSDF.SubstrateSanitizeBSDF(); // required wehen not calling SubstrateUpdateTreeUnlit
@@ -350,9 +350,13 @@ void MainPS(
 	EmissiveColor = GetMaterialEmissive(PixelMaterialInputs);
 #endif // SUBSTRATE_ENABLED
 
+#ifdef POST_PROCESS_PROPAGATE_ALPHA_INPUT
+	Alpha = SceneTextureLookup(float2(0,0), PPI_PropagatedAlpha, false).r;
+#endif
+
 	OutColor = float4(EmissiveColor, Alpha );
 
-#if !MATERIALBLENDING_MODULATE && POST_PROCESS_MATERIAL_BEFORE_TONEMAP
+#if !MATERIALBLENDING_MODULATE && POST_PROCESS_MATERIAL_BEFORE_TONEMAP && !POST_PROCESS_DISABLE_PRE_EXPOSURE_SCALE
 	OutColor.xyz *= View.PreExposure;
 #endif
 } 

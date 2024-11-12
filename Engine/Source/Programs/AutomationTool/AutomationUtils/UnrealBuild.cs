@@ -146,7 +146,7 @@ namespace AutomationTool
 			}
 		}
 
-		void BuildWithUBT(List<BuildTarget> Targets, Dictionary<BuildTarget, BuildManifest> TargetToManifest, bool DisableXGE, bool AllCores)
+		void BuildWithUBT(List<BuildTarget> Targets, Dictionary<BuildTarget, BuildManifest> TargetToManifest, bool DisableXGE, bool AllCores, bool SkipBuild)
 		{
 			List<FileReference> ManifestFiles = new List<FileReference>(Targets.Count);
 
@@ -174,6 +174,10 @@ namespace AutomationTool
 			if (AllCores)
 			{
 				FullCommandLine.Append(" -AllCores");
+			}
+			if (SkipBuild)
+			{
+				FullCommandLine.Append(" -SkipBuild");
 			}
 
 			PrepareUBT();
@@ -517,14 +521,15 @@ namespace AutomationTool
 		/// <summary>
 		/// Executes a build.
 		/// </summary>
-		/// <param name="Agenda">Build agenda.</param>
+		/// <param name="InAgenda">Build agenda.</param>
 		/// <param name="InDeleteBuildProducts">if specified, determines if the build products will be deleted before building. If not specified -clean parameter will be used,</param>
 		/// <param name="InUpdateVersionFiles">True if the version files are to be updated </param>
 		/// <param name="InForceNoXGE">If true will force XGE off</param>
 		/// <param name="InAllCores">If true AND XGE not present or not being used then ensure UBT uses all available cores</param>
 		/// <param name="InChangelistNumberOverride"></param>
 		/// <param name="InTargetToManifest"></param>
-		public void Build(BuildAgenda Agenda, bool? InDeleteBuildProducts = null, bool InUpdateVersionFiles = true, bool InForceNoXGE = false, bool InAllCores = false, int? InChangelistNumberOverride = null, Dictionary<BuildTarget, BuildManifest> InTargetToManifest = null)
+		/// <param name="InSkipBuild"></param>
+		public void Build(BuildAgenda InAgenda, bool? InDeleteBuildProducts = null, bool InUpdateVersionFiles = true, bool InForceNoXGE = false, bool InAllCores = false, int? InChangelistNumberOverride = null, Dictionary<BuildTarget, BuildManifest> InTargetToManifest = null, bool InSkipBuild = false)
 		{
 			if (!CommandUtils.CmdEnv.HasCapabilityToCompile)
 			{
@@ -540,7 +545,7 @@ namespace AutomationTool
 
 			// make a set of unique platforms involved
 			var UniquePlatforms = new List<UnrealTargetPlatform>();
-			foreach (var Target in Agenda.Targets)
+			foreach (var Target in InAgenda.Targets)
 			{
 				if (!UniquePlatforms.Contains(Target.Platform))
 				{
@@ -548,21 +553,21 @@ namespace AutomationTool
 				}
 			}
 
-			if (Agenda.SwarmAgentProject != "")
+			if (InAgenda.SwarmAgentProject != "")
 			{
-				string SwarmAgentSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, Agenda.SwarmAgentProject);
+				string SwarmAgentSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, InAgenda.SwarmAgentProject);
 				CommandUtils.BuildSolution(CommandUtils.CmdEnv, SwarmAgentSolution, "Development", "Mixed Platforms");
 				AddSwarmBuildProducts();
 			}
 
-			if (Agenda.SwarmCoordinatorProject != "")
+			if (InAgenda.SwarmCoordinatorProject != "")
 			{
-				string SwarmCoordinatorSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, Agenda.SwarmCoordinatorProject);
+				string SwarmCoordinatorSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, InAgenda.SwarmCoordinatorProject);
 				CommandUtils.BuildSolution(CommandUtils.CmdEnv, SwarmCoordinatorSolution, "Development", "Mixed Platforms");
 				AddSwarmBuildProducts();
 			}
 				
-			foreach (var DotNetProject in Agenda.DotNetProjects)
+			foreach (var DotNetProject in InAgenda.DotNetProjects)
 			{
 				string CsProj = Path.Combine(CommandUtils.CmdEnv.LocalRoot, DotNetProject);
 				CommandUtils.BuildCSharpProject(CommandUtils.CmdEnv, CsProj);
@@ -577,7 +582,7 @@ namespace AutomationTool
 			Logger.LogDebug("************************* UseXGE: {bCanUseXGE}", bCanUseXGE);
 
 			// Clean all the targets
-			foreach (BuildTarget Target in Agenda.Targets)
+			foreach (BuildTarget Target in InAgenda.Targets)
 			{
 				bool bClean = Target.Clean ?? DeleteBuildProducts;
 				if (bClean)
@@ -586,36 +591,13 @@ namespace AutomationTool
 				}
 			}
 
-			List<BuildTarget> Targets = new List<BuildTarget>(Agenda.Targets);
-
-			// Temporary hack: iOS & tvOS configs need to build separately
-			if (Targets.Any(x => x.Platform == UnrealTargetPlatform.IOS || x.Platform == UnrealTargetPlatform.TVOS))
-			{
-				List<string> TargetNames = Targets.Select(x => x.TargetName).Distinct().ToList();
-				List<UnrealTargetConfiguration> Configs = Targets.Select(x => x.Config).Distinct().ToList();
-				foreach (string TargetName in TargetNames)
-				{
-					foreach (UnrealTargetConfiguration Config in Configs)
-					{
-						List<BuildTarget> ConfigTargets = Targets.Where(x => (x.Platform == UnrealTargetPlatform.IOS || x.Platform == UnrealTargetPlatform.TVOS) && x.TargetName == TargetName && x.Config == Config).ToList();
-						if (ConfigTargets.Count > 0)
-						{
-							// Build all the targets
-							BuildWithUBT(ConfigTargets, InTargetToManifest, bDisableXGE, InAllCores);
-						}
-					}
-				}
-				Targets.RemoveAll(x => x.Platform == UnrealTargetPlatform.IOS || x.Platform == UnrealTargetPlatform.TVOS);
-			}
-			// End hack
-
-			if (Targets.Count == 0)
+			if (InAgenda.Targets.Count == 0)
 			{
 				return;
 			}
 
 			// Build all the targets
-			BuildWithUBT(Targets, InTargetToManifest, bDisableXGE, InAllCores);
+			BuildWithUBT(InAgenda.Targets, InTargetToManifest, bDisableXGE, InAllCores, InSkipBuild);
 		}
 
 		/// <summary>
@@ -650,6 +632,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Adds or edits existing files at head revision, expecting an exclusive lock, resolving by clobbering any existing version
 		/// </summary>
+		/// <param name="WorkingCL"></param>
 		/// <param name="Files">List of files to check out</param>
 		public static void AddBuildProductsToChangelist(int WorkingCL, IEnumerable<string> Files)
 		{

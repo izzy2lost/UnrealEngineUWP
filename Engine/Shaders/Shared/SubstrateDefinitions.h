@@ -9,7 +9,7 @@
 
 #ifndef __cplusplus
 // Change this to force recompilation of all Substrate dependent shaders (for instance https://guidgenerator.com/online-guid-generator.aspx)
-#pragma message("UESHADERMETADATA_VERSION B013B52C-494E-4FC3-9EB5-B16B754E5CA4")
+#pragma message("UESHADERMETADATA_VERSION 1F256706-39AF-450F-A2C1-6A10D9030F4E")
 #endif
 
 // Closure offsets are packed into 32bits, each entry using SUBSTRATE_CLOSURE_OFFSET_BIT_COUNT bits
@@ -59,6 +59,13 @@
 #define SUBSTRATE_OPERATOR_BSDF							4
 #define SUBSTRATE_OPERATOR_BSDF_LEGACY					5
 
+// Sometimes, Unlit or Weight operators are used to transport data for other meaning (e.g. Light Function or ConvertToDecal)
+#define SUBSTRATE_OPERATOR_SUBUSAGE_NONE				0
+#define SUBSTRATE_OPERATOR_SUBUSAGE_UI					1
+#define SUBSTRATE_OPERATOR_SUBUSAGE_LIGHTFUNCTION		2
+#define SUBSTRATE_OPERATOR_SUBUSAGE_POSTPROCESS			3
+#define SUBSTRATE_OPERATOR_SUBUSAGE_DECAL				4
+
 // This must map directly to ESubstrateTileMaterialType
 #define SUBSTRATE_TILE_TYPE_SIMPLE						0
 #define SUBSTRATE_TILE_TYPE_SINGLE						1
@@ -78,6 +85,11 @@
 
 #define SUBSTRATE_TILE_ENCODING_16BITS 					0
 #define SUBSTRATE_TILE_ENCODING_8BITS  					1
+
+// Specular profile
+#define SUBSTRATE_SPECULAR_PROFILE_ENTRY_LIGHT			0u
+#define SUBSTRATE_SPECULAR_PROFILE_ENTRY_ENV			1u
+#define SUBSTRATE_SPECULAR_PROFILE_ENTRY_COUNT			2u
 
 // sizeof(FRHIDrawIndirectParameters) = 4 uints = 16 bytes
 #define GetSubstrateTileTypeDrawIndirectArgOffset_Byte(x)  (x * 16)

@@ -25,7 +25,19 @@ class UAvaSplineSweepModifier : public UAvaGeometryBaseModifier
 	GENERATED_BODY()
 
 public:
-	static inline constexpr int32 MaxSampleCount = 100;
+	static constexpr int32 MaxSampleCount = 100;
+
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
+	AVALANCHEMODIFIERS_API void SetSplineActor(AActor* InActor)
+	{
+		SetSplineActorWeak(InActor);
+	}
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
+	AActor* GetSplineActor() const
+	{
+		return SplineActorWeak.Get();
+	}
 
 	AVALANCHEMODIFIERS_API void SetSplineActorWeak(TWeakObjectPtr<AActor> InSplineActorWeak);
 	TWeakObjectPtr<AActor> GetSplineActorWeak() const
@@ -33,91 +45,91 @@ public:
 		return SplineActorWeak;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetSampleMode(EAvaSplineSweepSampleMode InMode);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	EAvaSplineSweepSampleMode GetSampleMode() const
 	{
 		return SampleMode;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetSampleDistance(float InDistance);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	float GetSampleDistance() const
 	{
 		return SampleDistance;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetSteps(int32 InSteps);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	int32 GetSteps() const
 	{
 		return Steps;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetProgressOffset(float InOffset);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	float GetProgressOffset() const
 	{
 		return ProgressOffset;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetProgressStart(float InStart);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	float GetProgressStart() const
 	{
 		return ProgressStart;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetProgressEnd(float InEnd);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	float GetProgressEnd() const
 	{
 		return ProgressEnd;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetScaleStart(float InScaleStart);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	float GetScaleStart() const
 	{
 		return ScaleStart;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetScaleEnd(float InScaleEnd);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	float GetScaleEnd() const
 	{
 		return ScaleEnd;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetCapped(bool bInCapped);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	bool GetCapped() const
 	{
 		return bCapped;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|SplineSweep")
 	AVALANCHEMODIFIERS_API void SetLooped(bool bInLooped);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|SplineSweep")
 	bool GetLooped() const
 	{
 		return bLooped;
@@ -147,47 +159,47 @@ protected:
 	bool SampleSpline();
 
 	/** Spline actor to retrieve the USplineComponent from */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSplineActorWeak", Getter="GetSplineActorWeak", Category="SplineSweep", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetSplineActorWeak", Getter="GetSplineActorWeak", Category="SplineSweep", meta=(AllowPrivateAccess="true"))
 	TWeakObjectPtr<AActor> SplineActorWeak;
 
 	/** How do we sample the spline */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSampleMode", Getter="GetSampleMode", Category="SplineSweep", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetSampleMode", Getter="GetSampleMode", Category="SplineSweep", meta=(AllowPrivateAccess="true"))
 	EAvaSplineSweepSampleMode SampleMode = EAvaSplineSweepSampleMode::FullDistance;
 
 	/** Custom sample distance for steps per distance mode */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSampleDistance", Getter="GetSampleDistance", Category="SplineSweep", meta=(ClampMin="1", EditCondition="SampleMode == EAvaSplineSweepSampleMode::CustomDistance", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetSampleDistance", Getter="GetSampleDistance", Category="SplineSweep", meta=(ClampMin="1", EditCondition="SampleMode == EAvaSplineSweepSampleMode::CustomDistance", EditConditionHides, AllowPrivateAccess="true"))
 	float SampleDistance = 1000.f;
 
 	/** The sample count defines the precision of the sweep */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSteps", Getter="GetSteps", Category="SplineSweep", meta=(ClampMin="0", ClampMax="100", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetSteps", Getter="GetSteps", Category="SplineSweep", meta=(ClampMin="0", ClampMax="100", AllowPrivateAccess="true"))
 	int32 Steps = 10;
 
 	/** Sample range offset of the spline, for closed loop spline range can wrap around */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetProgressOffset", Getter="GetProgressOffset", Category="SplineSweep", meta=(ClampMin="0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetProgressOffset", Getter="GetProgressOffset", Category="SplineSweep", meta=(ClampMin="0", AllowPrivateAccess="true"))
 	float ProgressOffset = 0.f;
 
 	/** Sample start range of the spline */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetProgressStart", Getter="GetProgressStart", Category="SplineSweep", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetProgressStart", Getter="GetProgressStart", Category="SplineSweep", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))
 	float ProgressStart = 0.f;
 
 	/** Sample end range of the spline */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetProgressEnd", Getter="GetProgressEnd", Category="SplineSweep", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetProgressEnd", Getter="GetProgressEnd", Category="SplineSweep", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))
 	float ProgressEnd = 1.f;
 
 	/** Start scale of the spline mesh */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetScaleStart", Getter="GetScaleStart", Category="SplineSweep", meta=(ClampMin="0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetScaleStart", Getter="GetScaleStart", Category="SplineSweep", meta=(ClampMin="0", AllowPrivateAccess="true"))
 	float ScaleStart = 1.f;
 
 	/** End scale of the spline mesh */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetScaleEnd", Getter="GetScaleEnd", Category="SplineSweep", meta=(ClampMin="0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetScaleEnd", Getter="GetScaleEnd", Category="SplineSweep", meta=(ClampMin="0", AllowPrivateAccess="true"))
 	float ScaleEnd = 1.f;
 
 	/** Whether start and end are closed, loop must be false */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCapped", Getter="GetCapped", Category="SplineSweep", meta=(EditCondition="!bLooped", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetCapped", Getter="GetCapped", Category="SplineSweep", meta=(EditCondition="!bLooped", AllowPrivateAccess="true"))
 	bool bCapped = true;
 
 	/** Whether we close the whole spline path, if spline loops this will be true */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLooped", Getter="GetLooped", Category="SplineSweep", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetLooped", Getter="GetLooped", Category="SplineSweep", meta=(AllowPrivateAccess="true"))
 	bool bLooped = false;
 
 	/** Spline component to sample from */

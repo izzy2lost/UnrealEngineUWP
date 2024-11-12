@@ -29,8 +29,6 @@ public:
 	void SetZoomLevel(uint8 InZoomLevel);
 	bool IsZoomed() const;
 
-	float GetFOVPerStep() const;
-
 	AVALANCHEVIEWPORT_API void ZoomIn();
 	AVALANCHEVIEWPORT_API void ZoomInCursor();
 

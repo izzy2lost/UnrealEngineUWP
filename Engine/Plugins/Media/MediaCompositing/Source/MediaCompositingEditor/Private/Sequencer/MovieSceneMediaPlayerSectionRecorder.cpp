@@ -142,7 +142,7 @@ void FMovieSceneMediaPlayerSectionRecorder::StartPlayerRecording(float CurrentTi
 	FString RecordeDataPath;
 	if (RecordingSettings.bRecordMediaFrame)
 	{
-		RecordeDataPath = FPaths::Combine(FPackageName::LongPackageNameToFilename(MediaSourceBasePackageName) + FString::Printf(TEXT("%_%016u"), FDateTime::Now().GetTicks()));
+		RecordeDataPath = FPaths::Combine(FPackageName::LongPackageNameToFilename(MediaSourceBasePackageName) + FString::Printf(TEXT("%%_%016" INT64_FMT), FDateTime::Now().GetTicks()));
 		FString RecordedBaseName = FPaths::Combine(RecordeDataPath, RecordingSettings.BaseFilename);
 		FMediaRecorder::FMediaRecorderData RecorderData = FMediaRecorder::FMediaRecorderData(ObjectToRecord->GetPlayerFacade(), RecordedBaseName);
 		RecorderData.CompressionQuality = RecordingSettings.CompressionQuality;

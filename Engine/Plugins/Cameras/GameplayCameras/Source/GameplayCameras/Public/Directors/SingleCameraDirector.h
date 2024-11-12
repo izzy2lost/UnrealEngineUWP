@@ -7,9 +7,9 @@
 #include "SingleCameraDirector.generated.h"
 
 /**
- * A simple camera director that only ever returns one single camera mode.
+ * A simple camera director that only ever returns one single camera rig.
  */
-UCLASS(EditInlineNew)
+UCLASS(MinimalAPI, EditInlineNew)
 class USingleCameraDirector : public UCameraDirector
 {
 	GENERATED_BODY()
@@ -20,12 +20,17 @@ public:
 
 protected:
 
-	virtual void OnRun(const FCameraDirectorRunParams& Params, FCameraDirectorRunResult& OutResult) override;
+	// UCameraDirector interface.
+	virtual FCameraDirectorEvaluatorPtr OnBuildEvaluator(FCameraDirectorEvaluatorBuilder& Builder) const override;
+	virtual void OnBuildCameraDirector(UE::Cameras::FCameraBuildLog& BuildLog) override;
+#if WITH_EDITOR
+	virtual void OnFactoryCreateAsset(const FCameraDirectorFactoryCreateParams& InParams) override;
+#endif
 
 public:
 
-	/** The camera mode to run every frame. */
-	UPROPERTY(EditAnywhere, Category=Common)
-	TObjectPtr<UCameraMode> CameraMode;
+	/** The camera rig to run every frame. */
+	UPROPERTY(EditAnywhere, Category=Common, meta=(UseSelfCameraRigPicker=true))
+	TObjectPtr<UCameraRigAsset> CameraRig;
 };
 

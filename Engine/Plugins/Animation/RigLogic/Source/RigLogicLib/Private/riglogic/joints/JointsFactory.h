@@ -11,7 +11,7 @@ struct Configuration;
 struct RigMetrics;
 
 struct JointsFactory {
-    static Joints::Pointer create(const Configuration& config, const dna::BehaviorReader* reader, MemoryResource* memRes);
+    static Joints::Pointer create(const Configuration& config, const dna::Reader* reader, MemoryResource* memRes);
     static Joints::Pointer create(const Configuration& config, const RigMetrics& metrics, MemoryResource* memRes);
 
 };

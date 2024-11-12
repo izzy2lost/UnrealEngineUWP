@@ -26,10 +26,6 @@
 #include "ToolMenus.h"
 #include "LevelEditorViewport.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "Misc/ArchiveMD5.h"
-#include "Misc/SecureHash.h"
-#include "UObject/ObjectKey.h"
-
 
 #define LOCTEXT_NAMESPACE "SceneOutliner_ActorDescTreeItem"
 
@@ -237,7 +233,7 @@ FActorDescTreeItem::FActorDescTreeItem(const FGuid& InActorGuid, UActorDescConta
 {
 	if (const FWorldPartitionActorDescInstance* const ActorDescInstance = *ActorDescHandle)
 	{
-		DisplayString = ActorDescInstance->GetActorLabel().ToString();
+		DisplayString = ActorDescInstance->GetActorLabelString();
 	}
 	else
 	{
@@ -255,7 +251,7 @@ FActorDescTreeItem::FActorDescTreeItem(const FWorldPartitionActorDescInstance* I
 {
 	if (const FWorldPartitionActorDescInstance* const ActorDescInstance = *ActorDescHandle)
 	{
-		DisplayString = ActorDescInstance->GetActorLabel().ToString();
+		DisplayString = ActorDescInstance->GetActorLabelString();
 	}
 	else
 	{
@@ -267,13 +263,7 @@ FActorDescTreeItem::FActorDescTreeItem(const FWorldPartitionActorDescInstance* I
 
 FSceneOutlinerTreeItemID FActorDescTreeItem::ComputeTreeItemID(FGuid InActorGuid, UActorDescContainerInstance* InContainerInstance)
 {
-	FArchiveMD5 Ar;
-	Ar << InActorGuid;
-
-	FObjectKey ContainerKey(InContainerInstance);
-	Ar << ContainerKey;
-
-	return FSceneOutlinerTreeItemID(Ar.GetGuidFromHash());
+	return FSceneOutlinerTreeItemID(FGuid::Combine(InActorGuid, InContainerInstance->GetContainerActorGuid()));
 }
 
 bool FActorDescTreeItem::ShouldDisplayInOutliner(const FWorldPartitionActorDescInstance* InActorDescInstance)
@@ -352,6 +342,16 @@ bool FActorDescTreeItem::GetPinnedState() const
 		return WorldPartition ? WorldPartition->IsActorPinned(GetGuid()) : false;
 	}
 	return false;
+}
+
+FString FActorDescTreeItem::GetPackageName() const
+{
+	if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescHandle)
+	{
+		return ActorDescInstance->GetActorPackage().ToString();
+	}
+	
+	return IActorBaseTreeItem::GetPackageName();
 }
 
 UExternalDataLayerAsset* FActorDescTreeItem::GetExternalDataLayerAsset() const

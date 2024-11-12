@@ -15,12 +15,14 @@
 #include "SceneInterface.h"
 #include "SkeletalRenderCPUSkin.h"
 #include "SkeletalRenderGPUSkin.h"
+#include "SkeletalRenderNanite.h"
 #include "SkeletalRenderStatic.h"
 #include "Animation/AnimStats.h"
 #include "SkeletalMeshDeformerHelpers.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Engine/CollisionProfile.h"
 #include "SkeletalMeshSceneProxy.h"
 #include "Animation/MeshDeformer.h"
@@ -41,7 +43,10 @@
 #include "HAL/LowLevelMemStats.h"
 #include "UObject/Package.h"
 #include "Rendering/RenderCommandPipes.h"
+#include "Rendering/NaniteResources.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "ComponentRecreateRenderStateContext.h"
+#include "NaniteSceneProxy.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSkinnedMeshComp, Log, All);
 
@@ -85,6 +90,24 @@ static FAutoConsoleVariableRef CVarReleasePreviousLODInfoOnInitialization(
 	TEXT("Whether to flush the render thread (incurring a game thread stall) and clean existing LOD info when re-initializating."),
 	ECVF_Default
 );
+
+int32 GSkinnedMeshRenderNanite = 1;
+static FAutoConsoleVariableRef CVarSkinnedMeshRenderNanite(
+	TEXT("r.SkinnedMesh.RenderNanite"),
+	GSkinnedMeshRenderNanite,
+	TEXT("When true, allows skinned meshes to render as Nanite when enabled on the mesh (otherwise uses fallback mesh)."),
+	FConsoleVariableDelegate::CreateLambda(
+		[](IConsoleVariable* InVariable)
+		{
+			FGlobalComponentRecreateRenderStateContext Context;
+		}
+	)
+);
+
+static bool ShouldRenderNaniteSkinnedMeshes()
+{
+	return NaniteSkinnedMeshesSupported() && GSkinnedMeshRenderNanite != 0;
+}
 
 namespace FAnimUpdateRateManager
 {
@@ -317,11 +340,14 @@ namespace FAnimUpdateRateManager
 		const TArray<USkinnedMeshComponent*>& SkinnedComponents = Tracker->RegisteredComponents;
 		for (USkinnedMeshComponent* Component : SkinnedComponents)
 		{
-			bRecentlyRendered |= Component->bRecentlyRendered;
-			MaxDistanceFactor = FMath::Max(MaxDistanceFactor, Component->MaxDistanceFactor);
-			bPlayingNetworkedRootMotionMontage |= Component->IsPlayingNetworkedRootMotionMontage();
-			bUsingRootMotionFromEverything &= Component->IsPlayingRootMotionFromEverything();
-			MinLod = FMath::Min(MinLod, Tracker->UpdateRateParameters.bShouldUseMinLod ? Component->MinLodModel : Component->GetPredictedLODLevel());
+			if (Component->IsVisible())
+			{
+				bRecentlyRendered |= Component->bRecentlyRendered;
+				MaxDistanceFactor = FMath::Max(MaxDistanceFactor, Component->MaxDistanceFactor);
+				bPlayingNetworkedRootMotionMontage |= Component->IsPlayingNetworkedRootMotionMontage();
+				bUsingRootMotionFromEverything &= Component->IsPlayingRootMotionFromEverything();
+				MinLod = FMath::Min(MinLod, Tracker->UpdateRateParameters.bShouldUseMinLod ? Component->MinLodModel : Component->GetPredictedLODLevel());
+			}
 		}
 
 		bNeedsValidRootMotion &= bPlayingNetworkedRootMotionMontage;
@@ -430,8 +456,6 @@ USkinnedMeshComponent::USkinnedMeshComponent(const FObjectInitializer& ObjectIni
 	bNeedToFlipSpaceBaseBuffers = false;
 	bBoneVisibilityDirty = false;
 
-	bForceUpdateDynamicDataImmediately = false;
-
 	bCanEverAffectNavigation = false;
 	LeaderBoneMapCacheCount = 0;
 	bSyncAttachParentLOD = true;
@@ -453,11 +477,9 @@ USkinnedMeshComponent::USkinnedMeshComponent(const FObjectInitializer& ObjectIni
 
 	bFollowerShouldTickPose = false;
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if UE_ENABLE_DEBUG_DRAWING
 	bDrawDebugSkeleton = false;
 #endif
-
-	CurrentSkinWeightProfileName = NAME_None;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	PredictedLODLevel = 0;
@@ -510,7 +532,15 @@ void USkinnedMeshComponent::UpdateMorphMaterialUsageOnProxy()
 	}
 
 	// If no morph targets are active, then this function needs to know that as well.
-	static_cast<FSkeletalMeshSceneProxy*>(SceneProxy)->UpdateMorphMaterialUsage_GameThread(MaterialUsingMorphTarget);
+	if (SceneProxy->IsNaniteMesh())
+	{
+		// Nanite::FSkinnedSceneProxy
+		// TODO: Nanite-Skinning
+	}
+	else
+	{
+		static_cast<FSkeletalMeshSceneProxy*>(SceneProxy)->UpdateMorphMaterialUsage_GameThread(MaterialUsingMorphTarget);
+	}
 }
 
 
@@ -529,7 +559,7 @@ FPrimitiveSceneProxy* USkinnedMeshComponent::CreateSceneProxy()
 {
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 	ERHIFeatureLevel::Type SceneFeatureLevel = GetWorld()->GetFeatureLevel();
-	FSkeletalMeshSceneProxy* Result = nullptr;
+	FPrimitiveSceneProxy* Result = nullptr;
 	FSkeletalMeshRenderData* SkelMeshRenderData = GetSkeletalMeshRenderData();
 
 	if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
@@ -550,7 +580,15 @@ FPrimitiveSceneProxy* USkinnedMeshComponent::CreateSceneProxy()
 		int32 MaxSupportedNumBones = MeshObject->IsCPUSkinned() ? MAX_int32 : FGPUBaseSkinVertexFactory::GetMaxGPUSkinBones();
 		if (MaxBonesPerChunk <= MaxSupportedNumBones)
 		{
-			Result = ::new FSkeletalMeshSceneProxy(this, SkelMeshRenderData);
+			if (MeshObject->IsNaniteMesh())
+			{
+				const FSkeletalMeshObjectNanite* NaniteMeshObject = static_cast<const FSkeletalMeshObjectNanite*>(MeshObject);
+				Result = ::new Nanite::FSkinnedSceneProxy(NaniteMeshObject->GetMaterials(), this, SkelMeshRenderData);
+			}
+			else
+			{
+				Result = ::new FSkeletalMeshSceneProxy(this, SkelMeshRenderData);
+			}
 		}
 	}
 
@@ -603,6 +641,8 @@ void USkinnedMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Bas
 	{
 		return;
 	}
+
+	// TODO: Nanite-Skinning
 
 	ERHIFeatureLevel::Type FeatureLevel = GetWorld() ? GetWorld()->GetFeatureLevel() : GMaxRHIFeatureLevel;
 	int32 MinLODIndex = ComputeMinLOD();
@@ -952,9 +992,9 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 			ERHIFeatureLevel::Type SceneFeatureLevel = GetWorld()->GetFeatureLevel();
 			if( FSkeletalMeshRenderData* SkelMeshRenderData = GetSkinnedAsset()->GetResourceForRendering() )
 			{
-			int32 MinLODIndex = ComputeMinLOD();
+				int32 MinLODIndex = ComputeMinLOD();
 			
-#if DO_CHECK
+			#if DO_CHECK
 				for (int LODIndex = MinLODIndex; LODIndex < SkelMeshRenderData->LODRenderData.Num(); LODIndex++)
 				{
 					FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData->LODRenderData[LODIndex];
@@ -964,13 +1004,27 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 						UE_LOG(LogSkinnedMeshComp, Warning, TEXT("Invalid Lod %i for Rendering Asset: %s"), LODIndex, *GetSkinnedAsset()->GetFullName());
 					}
 				}
-#endif
+			#endif
 	
-				// Also check if skeletal mesh has too many bones/chunk for GPU skinning.
 				if (MeshObjectFactory)
 				{
 					MeshObject = MeshObjectFactory(MeshObjectFactoryUserData, this, SkelMeshRenderData, SceneFeatureLevel);
 				}
+
+				if (!MeshObject && ShouldNaniteSkin() && !ShouldCPUSkin() /* Needed for calls to GetCPUSkinnedVertices() */)
+				{
+					FSkeletalMeshObjectNanite* NaniteMeshObject = ::new FSkeletalMeshObjectNanite(this, SkelMeshRenderData, SceneFeatureLevel);
+					if (NaniteMeshObject->HasValidMaterials())
+					{
+						MeshObject = NaniteMeshObject;
+					}
+					else
+					{
+						NaniteMeshObject->ReleaseResources();
+						BeginCleanup(NaniteMeshObject);
+					}
+				}
+
 				if (!MeshObject)
 				{
 					// Also check if skeletal mesh has too many bones/chunk for GPU skinning.
@@ -1018,6 +1072,8 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 
 	Super::CreateRenderState_Concurrent(Context);
 
+	int32 UseLOD = 0;
+
 	if (GetSkinnedAsset())
 	{
 		BoneTransformUpdateMethodQueue.Reset();
@@ -1031,22 +1087,22 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 			//	without animated, causing random skinning issues
 			// This can happen if your MinLOD is not valid anymore after loading
 			// which causes meshes to be invisible
-			int32 ModifiedLODLevel = GetPredictedLODLevel();
+			UseLOD = GetPredictedLODLevel();
 			{
 				int32 MinLodIndex = ComputeMinLOD();
 				int32 MaxLODIndex = MeshObject->GetSkeletalMeshRenderData().LODRenderData.Num() - 1;
-				ModifiedLODLevel = FMath::Clamp(ModifiedLODLevel, MinLodIndex, MaxLODIndex);
+				UseLOD = FMath::Clamp(UseLOD, MinLodIndex, MaxLODIndex);
 			}
 
 			// Clamp to loaded streaming data if available
 			if ((GetSkinnedAsset()->IsStreamable() || !IStreamingManager::Get().IsRenderAssetStreamingEnabled(EStreamableRenderAssetType::SkeletalMesh)) && MeshObject)
 			{
-				ModifiedLODLevel = FMath::Max<int32>(ModifiedLODLevel, MeshObject->GetSkeletalMeshRenderData().PendingFirstLODIdx);
+				UseLOD = FMath::Max<int32>(UseLOD, MeshObject->GetSkeletalMeshRenderData().PendingFirstLODIdx);
 			}
 
 			// If we have a valid LOD, set up required data, during reimport we may try to create data before we have all the LODs
 			// imported, in that case we skip until we have all the LODs
-			if(GetSkinnedAsset()->IsValidLODIndex(ModifiedLODLevel))
+			if(GetSkinnedAsset()->IsValidLODIndex(UseLOD))
 			{
 				const bool bMorphTargetsAllowed = CVarEnableMorphTargets.GetValueOnAnyThread(true) != 0;
 
@@ -1058,7 +1114,7 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 
 				constexpr bool bZeroOldWeights = false;
 				RefreshExternalMorphTargetWeights(bZeroOldWeights);
-				MeshObject->Update(ModifiedLODLevel, this, ActiveMorphTargets, MorphTargetWeights, EPreviousBoneTransformUpdateMode::UpdatePrevious, GetExternalMorphWeights(ModifiedLODLevel));  // send to rendering thread
+				MeshObject->Update(UseLOD, this, ActiveMorphTargets, MorphTargetWeights, EPreviousBoneTransformUpdateMode::UpdatePrevious, GetExternalMorphWeights(UseLOD));  // send to rendering thread
 			}
 		}
 
@@ -1066,10 +1122,16 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		UpdateMorphMaterialUsageOnProxy();
 	}
 
- 	if (UMeshDeformerInstance* MeshDeformerInstance = GetMeshDeformerInstance())
+	for (UMeshDeformerInstance* MeshDeformerInstance : MeshDeformerInstances.DeformerInstances)
+	{
+		if (MeshDeformerInstance != nullptr)
+		{
+			MeshDeformerInstance->AllocateResources();
+		}
+	}
+
+	if (UMeshDeformerInstance* MeshDeformerInstance = GetMeshDeformerInstanceForLOD(UseLOD))
  	{
-		MeshDeformerInstance->AllocateResources();
-		
 		// Enqueue immediate execution of work here to ensure that we have some deformer outputs written for the next frame.
 		UMeshDeformerInstance::FEnqueueWorkDesc Desc;
 		Desc.Scene = GetScene();
@@ -1083,9 +1145,12 @@ void USkinnedMeshComponent::DestroyRenderState_Concurrent()
 {
 	Super::DestroyRenderState_Concurrent();
 
-	if (UMeshDeformerInstance* MeshDeformerInstance = GetMeshDeformerInstance())
+	for (UMeshDeformerInstance* MeshDeformerInstance : MeshDeformerInstances.DeformerInstances)
 	{
-		MeshDeformerInstance->ReleaseResources();
+		if (MeshDeformerInstance != nullptr)
+		{
+			MeshDeformerInstance->ReleaseResources();
+		}
 	}
 
 	if(MeshObject)
@@ -1137,7 +1202,6 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 {
 	SCOPE_CYCLE_COUNTER(STAT_SkelCompUpdateTransform);
 
-	Super::SendRenderDynamicData_Concurrent();
 
 #if WITH_EDITOR
 	if (GetSkinnedAsset() && GetSkinnedAsset()->IsCompiling())
@@ -1203,6 +1267,8 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 			DeformerInstanceForLOD->EnqueueWork(Desc);
 		}
 	}
+
+	Super::SendRenderDynamicData_Concurrent();
 }
 
 void USkinnedMeshComponent::ClearMotionVector()
@@ -1276,7 +1342,8 @@ void USkinnedMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	if (const FProperty* Property = PropertyChangedEvent.Property)
 	{
 		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, MeshDeformer) ||
-			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bSetMeshDeformer))
+			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bSetMeshDeformer) ||
+			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bAlwaysUseMeshDeformer))
 		{
 			const FMeshDeformerSet ActiveDeformers = GetActiveMeshDeformers();
 
@@ -1397,51 +1464,59 @@ void USkinnedMeshComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 	SCOPED_NAMED_EVENT(USkinnedMeshComponent_TickComponent, FColor::Yellow);
 	SCOPE_CYCLE_COUNTER(STAT_SkinnedMeshCompTick);
 
-	// Tick ActorComponent first.
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	// We cant run the blueprint events (ReceiveTick, latent actions) on worker threads, so skip them if we are running as such
+	if(!PrimaryComponentTick.bRunOnAnyThread)
+	{
+		// Tick ActorComponent first.
+		Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	}
 
 	// See if this mesh was rendered recently. This has to happen first because other data will rely on this
-	bRecentlyRendered = (GetLastRenderTime() > GetWorld()->TimeSeconds - 1.0f);
+	bRecentlyRendered = ((bUseScreenRenderStateForUpdate ? GetLastRenderTimeOnScreen() : GetLastRenderTime()) > GetWorld()->TimeSeconds - 1.0f);
 
 	// Update component's LOD settings
 	// This must be done BEFORE animation Update and Evaluate (TickPose and RefreshBoneTransforms respectively)
 	const bool bLODHasChanged = UpdateLODStatus();
 
-	// Tick Pose first
-	if (ShouldTickPose())
+	// Skip the rest of the work if we are running on worker threads as none of it is safe
+	if(!PrimaryComponentTick.bRunOnAnyThread)
 	{
-		TickPose(DeltaTime, false);
-	}
-
-	// If we have been recently rendered, and bForceRefPose has been on for at least a frame, or the LOD changed, update bone matrices.
-	if( ShouldUpdateTransform(bLODHasChanged) )
-	{
-		// Do not update bones if we are taking bone transforms from another SkelMeshComp
-		if( LeaderPoseComponent.IsValid() )
+		// Tick Pose first
+		if (ShouldTickPose())
 		{
-			UpdateFollowerComponent();
+			TickPose(DeltaTime, false);
 		}
+
+		// If we have been recently rendered, and bForceRefPose has been on for at least a frame, or the LOD changed, update bone matrices.
+		if( ShouldUpdateTransform(bLODHasChanged) )
+		{
+			// Do not update bones if we are taking bone transforms from another SkelMeshComp
+			if( LeaderPoseComponent.IsValid() )
+			{
+				UpdateFollowerComponent();
+			}
+			else 
+			{
+				RefreshBoneTransforms(ThisTickFunction);
+			}
+		}
+		else if(VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::AlwaysTickPose)
+		{
+			// We are not refreshing bone transforms, but we do want to tick pose. We may need to kick off a parallel task
+			DispatchParallelTickPose(ThisTickFunction);
+		}
+#if WITH_EDITOR
 		else 
 		{
-			RefreshBoneTransforms(ThisTickFunction);
+			// only do this for level viewport actors
+			UWorld* World = GetWorld();
+			if (World && World->WorldType == EWorldType::Editor)
+			{
+				RefreshMorphTargets();
+			}
 		}
-	}
-	else if(VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::AlwaysTickPose)
-	{
-		// We are not refreshing bone transforms, but we do want to tick pose. We may need to kick off a parallel task
-		DispatchParallelTickPose(ThisTickFunction);
-	}
-#if WITH_EDITOR
-	else 
-	{
-		// only do this for level viewport actors
-		UWorld* World = GetWorld();
-		if (World && World->WorldType == EWorldType::Editor)
-		{
-			RefreshMorphTargets();
-		}
-	}
 #endif // WITH_EDITOR
+	}
 }
 
 UObject const* USkinnedMeshComponent::AdditionalStatObject() const
@@ -1457,12 +1532,42 @@ void USkinnedMeshComponent::UpdateFollowerComponent()
 // this has to be skeletalmesh material. You can't have more than what SkeletalMesh materials have
 int32 USkinnedMeshComponent::GetNumMaterials() const
 {
-	if (GetSkinnedAsset())
+	if (GetSkinnedAsset() && !GetSkinnedAsset()->IsCompiling())
 	{
 		return GetSkinnedAsset()->GetMaterials().Num();
 	}
-
 	return 0;
+}
+
+void USkinnedMeshComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const
+{
+	if (!IsRegistered() || IsCompiling())
+	{
+		return;
+	}
+	const TIndirectArray<FSkeletalMeshLODRenderData>& LODRenderData = GetSkeletalMeshRenderData()->LODRenderData;
+	const TArray<FSkeletalMaterial>& Materials = GetSkinnedAsset()->GetMaterials();
+	PrimitiveStats.LODStats.Reserve(LODRenderData.Num());
+	int32 LOD = 0;
+	for (const FSkeletalMeshLODRenderData& RenderData : LODRenderData)
+	{
+		FPrimitiveLODStats& LODStats = PrimitiveStats.LODStats.EmplaceAt_GetRef(LOD, LOD);
+		LODStats.Sections = RenderData.RenderSections.Num();
+		LODStats.bIsOptionalLOD = RenderData.bIsLODOptional;
+		LODStats.bIsAvailable = RenderData.bStreamedDataInlined || RenderData.StreamingBulkData.DoesExist();
+		FResourceSizeEx ResourceSize;
+		RenderData.GetResourceSizeEx(ResourceSize);
+		LODStats.TotalResourceSize = ResourceSize.GetTotalMemoryBytes();
+		for (const auto& Section : RenderData.RenderSections)
+		{
+			if (Materials[Section.MaterialIndex].MaterialInterface)
+			{
+				LODStats.MaterialIndices.Add(Section.MaterialIndex);
+			}
+			LODStats.Triangles += Section.NumTriangles;
+		}
+		LOD++;
+	}
 }
 
 UMaterialInterface* USkinnedMeshComponent::GetMaterial(int32 MaterialIndex) const
@@ -1471,7 +1576,7 @@ UMaterialInterface* USkinnedMeshComponent::GetMaterial(int32 MaterialIndex) cons
 	{
 		return OverrideMaterials[MaterialIndex];
 	}
-	else if (GetSkinnedAsset() && GetSkinnedAsset()->GetMaterials().IsValidIndex(MaterialIndex) && GetSkinnedAsset()->GetMaterials()[MaterialIndex].MaterialInterface)
+	else if (GetSkinnedAsset() && !GetSkinnedAsset()->IsCompiling() && GetSkinnedAsset()->GetMaterials().IsValidIndex(MaterialIndex) && GetSkinnedAsset()->GetMaterials()[MaterialIndex].MaterialInterface)
 	{
 		return GetSkinnedAsset()->GetMaterials()[MaterialIndex].MaterialInterface;
 	}
@@ -1481,7 +1586,7 @@ UMaterialInterface* USkinnedMeshComponent::GetMaterial(int32 MaterialIndex) cons
 
 int32 USkinnedMeshComponent::GetMaterialIndex(FName MaterialSlotName) const
 {
-	if (GetSkinnedAsset() != nullptr)
+	if (GetSkinnedAsset() && !GetSkinnedAsset()->IsCompiling())
 	{
 		const TArray<FSkeletalMaterial>& SkeletalMeshMaterials = GetSkinnedAsset()->GetMaterials();
 		for (int32 MaterialIndex = 0; MaterialIndex < SkeletalMeshMaterials.Num(); ++MaterialIndex)
@@ -1499,7 +1604,7 @@ int32 USkinnedMeshComponent::GetMaterialIndex(FName MaterialSlotName) const
 TArray<FName> USkinnedMeshComponent::GetMaterialSlotNames() const
 {
 	TArray<FName> MaterialNames;
-	if (GetSkinnedAsset() != nullptr)
+	if (GetSkinnedAsset() && !GetSkinnedAsset()->IsCompiling())
 	{
 		const TArray<FSkeletalMaterial>& SkeletalMeshMaterials = GetSkinnedAsset()->GetMaterials();
 		for (int32 MaterialIndex = 0; MaterialIndex < SkeletalMeshMaterials.Num(); ++MaterialIndex)
@@ -1514,6 +1619,12 @@ TArray<FName> USkinnedMeshComponent::GetMaterialSlotNames() const
 bool USkinnedMeshComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
 {
 	return GetMaterialIndex(MaterialSlotName) >= 0;
+}
+
+bool USkinnedMeshComponent::ShouldNaniteSkin()
+{
+	const EShaderPlatform ShaderPlatform = GetScene() ? GetScene()->GetShaderPlatform() : GMaxRHIShaderPlatform;
+	return ShouldRenderNaniteSkinnedMeshes() && UseNanite(ShaderPlatform) && HasValidNaniteData();
 }
 
 bool USkinnedMeshComponent::ShouldCPUSkin()
@@ -1657,7 +1768,9 @@ FBoxSphereBounds USkinnedMeshComponent::CalcBounds(const FTransform& LocalToWorl
 {
 	SCOPE_CYCLE_COUNTER(STAT_CalcSkelMeshBounds);
 
-	return CalcMeshBound( FVector3f::ZeroVector, false, LocalToWorld );
+	return bIncludeComponentLocationIntoBounds ?
+		CalcMeshBound(FVector3f::ZeroVector, false, LocalToWorld) + FBoxSphereBounds(GetComponentLocation(), FVector(1.0f), 1.0f) :
+		CalcMeshBound(FVector3f::ZeroVector, false, LocalToWorld);
 }
 
 void USkinnedMeshComponent::UpdateBounds()
@@ -2049,7 +2162,7 @@ bool USkinnedMeshComponent::IsSkinCacheAllowed(int32 LodIdx) const
 	static const IConsoleVariable* CVarDefaultGPUSkinCacheBehavior = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SkinCache.DefaultBehavior"));
 	const bool bGlobalDefault = CVarDefaultGPUSkinCacheBehavior && ESkinCacheDefaultBehavior(CVarDefaultGPUSkinCacheBehavior->GetInt()) == ESkinCacheDefaultBehavior::Inclusive;
 
-	if (GetMeshDeformerInstance() != nullptr)
+	if (GetMeshDeformerInstanceForLOD(LodIdx) != nullptr)
 	{
 		// Disable skin cache if a mesh deformer is in use.
 		// Any animation buffers are expected to be owned by the MeshDeformer.
@@ -2273,19 +2386,34 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 	// If there's no user-specified deformer, find out if we need to set a default deformer for
 	// Unlimited Bone Influences.
 	const bool bIsDeformerRequiredForUBI = FGPUBaseSkinVertexFactory::GetAlwaysUseDeformerForUnlimitedBoneInfluences(GetScene()->GetShaderPlatform());
-	if (bIsDeformerRequiredForUBI && !ActiveDeformer)
+
+	if (!bIsDeformerRequestedByUser)
 	{
-		bool bMeshUsesUBI = false;
-		for (const FSkeletalMeshLODRenderData& LODRenderData : RenderData->LODRenderData)
+		bool bShouldStillUseMeshDeformer = false;
+		
+		if (bAlwaysUseMeshDeformer)
 		{
-			if (LODRenderData.SkinWeightVertexBuffer.GetBoneInfluenceType() == UnlimitedBoneInfluence)
+			bShouldStillUseMeshDeformer = true;
+		}
+		else if (bIsDeformerRequiredForUBI)
+		{
+			bool bMeshUsesUBI = false;
+			for (const FSkeletalMeshLODRenderData& LODRenderData : RenderData->LODRenderData)
 			{
-				bMeshUsesUBI = true;
-				break;
+				if (LODRenderData.SkinWeightVertexBuffer.GetBoneInfluenceType() == UnlimitedBoneInfluence)
+				{
+					bMeshUsesUBI = true;
+					break;
+				}
+			}
+
+			if (bMeshUsesUBI)
+			{
+				bShouldStillUseMeshDeformer = true;
 			}
 		}
 
-		if (bMeshUsesUBI)
+		if (bShouldStillUseMeshDeformer)
 		{
 			static IMeshDeformerProvider* MeshDeformerProvider = IMeshDeformerProvider::Get();
 
@@ -2314,7 +2442,7 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 	Result.Deformers.Empty(1);
 	Result.Deformers.Add(ActiveDeformer);
 
-	const TArray<FSkeletalMeshLODInfo>& MeshLODInfoArray = GetSkinnedAsset()->GetLODInfoArray();
+	const int32 NumLODs = GetSkinnedAsset()->GetLODNum();
 	const int32 MaxLOD = GetMeshDeformerMaxLOD();
 
 	// Every entry of this array will be written by the loop below
@@ -2328,9 +2456,10 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 
 		const bool bAllowedByMaxLOD = Index <= MaxLOD;
 		// There should be a LODInfo entry for this LOD, but if not, default to allowing the deformer
-		const bool bAllowedByLODInfo = !MeshLODInfoArray.IsValidIndex(Index) || MeshLODInfoArray[Index].bAllowMeshDeformer;
+		const bool bAllowedByLODInfo = Index >= NumLODs || GetSkinnedAsset()->GetLODInfo(Index)->bAllowMeshDeformer;
 
-		const bool bDeformerEnabledForThisLOD = bRequiredForUBI || (bIsDeformerRequestedByUser && bAllowedByMaxLOD && bAllowedByLODInfo);
+		// Always enable for UBI requests, conditional if it is either user requested or triggered by AlwaysUseMeshDeformer 
+		const bool bDeformerEnabledForThisLOD = bRequiredForUBI || ((bIsDeformerRequestedByUser || bAlwaysUseMeshDeformer) && bAllowedByMaxLOD && bAllowedByLODInfo);
 		Result.DeformerIndexForLOD[Index] = bDeformerEnabledForThisLOD ? 0 : INDEX_NONE;
 	}
 
@@ -2357,7 +2486,7 @@ void USkinnedMeshComponent::CreateMeshDeformerInstances(const FMeshDeformerSet& 
 
 UMeshDeformerInstance* USkinnedMeshComponent::GetMeshDeformerInstance() const
 {
-	return MeshDeformerInstances.DeformerInstances.Num() > 0 ? MeshDeformerInstances.DeformerInstances[0] : nullptr;
+	return MeshDeformerInstances.DeformerInstances.Num() > 0 ? MeshDeformerInstances.DeformerInstances[0]->GetInstanceForSourceDeformer() : nullptr;
 }
 
 UMeshDeformerInstance* USkinnedMeshComponent::GetMeshDeformerInstanceForLOD(int32 LODIndex) const
@@ -2393,7 +2522,7 @@ void USkinnedMeshComponent::SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeform
 
 	CreateMeshDeformerInstances(ActiveDeformers);
 
-	MarkRenderDynamicDataDirty();
+	MarkRenderStateDirty();
 }
 
 void USkinnedMeshComponent::SetMeshDeformer(UMeshDeformer* InMeshDeformer)
@@ -2404,6 +2533,18 @@ void USkinnedMeshComponent::SetMeshDeformer(UMeshDeformer* InMeshDeformer)
 void USkinnedMeshComponent::UnsetMeshDeformer()
 {
 	SetMeshDeformer(false, nullptr);
+}
+
+void USkinnedMeshComponent::SetAlwaysUseMeshDeformer(bool bShouldAlwaysUseMeshDeformer)
+{
+	bAlwaysUseMeshDeformer = bShouldAlwaysUseMeshDeformer;
+	// Refresh active deformer 
+	SetMeshDeformer(bSetMeshDeformer, MeshDeformer);
+}
+
+bool USkinnedMeshComponent::GetAlwaysUseMeshDeformer() const
+{
+	return bAlwaysUseMeshDeformer;
 }
 
 static TAutoConsoleVariable<int32> CVarMeshDeformerMaxLod(
@@ -3382,6 +3523,8 @@ void USkinnedMeshComponent::ShowMaterialSection(int32 MaterialID, int32 SectionI
 				InMeshObject->SetHiddenMaterials(LODIndex, HiddenMaterials);
 			});
 		}
+
+		MarkRenderStateDirty();
 	}
 }
 
@@ -3411,6 +3554,7 @@ void USkinnedMeshComponent::ShowAllMaterialSections(int32 LODIndex)
 						InMeshObject->SetHiddenMaterials(LODIndex, HiddenMaterials);
 					});
 			}
+			MarkRenderStateDirty();
 		}
 	}
 }
@@ -3542,8 +3686,19 @@ void USkinnedMeshComponent::SetRefPoseOverride(const TArray<FTransform>& NewRefP
 	// previously allocated RefPoseOverride, if there was one, will potentially be used on other threads by BoneContainer for one frame
 	RefPoseOverride = MakeShared<FSkelMeshRefPoseOverride>();
 
+	const int32 NumBones = GetSkinnedAsset()->GetRefSkeleton().GetNum();
+
 	// Copy input transforms into override data
+	RefPoseOverride->RefBonePoses.Reserve(NumBones);
 	RefPoseOverride->RefBonePoses = NewRefPoseTransforms;
+
+	// Add additional space for any virtual bones & copy them in
+	if(NumBones > NumRealBones)
+	{
+		RefPoseOverride->RefBonePoses.SetNumUninitialized(NumBones);
+		const TArray<FTransform>& RefPose = GetSkinnedAsset()->GetRefSkeleton().GetRefBonePose();
+		FMemory::Memcpy(&RefPoseOverride->RefBonePoses[NumRealBones], &RefPose[NumRealBones], sizeof(FTransform) * (NumBones - NumRealBones));
+	}
 
 	// Allocate output inv matrices
 	RefPoseOverride->RefBasesInvMatrix.AddUninitialized(NumRealBones);
@@ -3840,30 +3995,38 @@ int32 USkinnedMeshComponent::GetNumLODs() const
 	return NumLODs;
 }
 
-
 void USkinnedMeshComponent::SetMinLOD(int32 InNewMinLOD)
 {
-	int32 MaxLODIndex = GetNumLODs() - 1;
-	MinLodModel = FMath::Clamp(InNewMinLOD, 0, MaxLODIndex);
+	MinLodModel = GetValidMinLOD(InNewMinLOD);
 }
 
 void USkinnedMeshComponent::OverrideMinLOD(int32 InNewMinLOD)
 {
-	int32 MaxLODIndex = GetNumLODs() - 1;
-	MinLodModel = FMath::Clamp(InNewMinLOD, 0, MaxLODIndex);
+	MinLodModel = GetValidMinLOD(InNewMinLOD);
 	bOverrideMinLod = true;
 }
 
 int32 USkinnedMeshComponent::ComputeMinLOD() const
 {
-	int32 AssetMinLod = GetSkinnedAsset()->GetMinLodIdx();
+	const int32 AssetMinLOD = GetSkinnedAsset()->GetMinLodIdx();
 	// overriden MinLOD can't be higher than asset MinLOD
-	int32 MinLodIndex = bOverrideMinLod ? FMath::Max(MinLodModel, AssetMinLod) : AssetMinLod;
-	int32 NumLODs = GetNumLODs();
-	// want to make sure MinLOD stays within the valid range
-	MinLodIndex = FMath::Min(MinLodIndex, NumLODs - 1);
-	MinLodIndex = FMath::Max(MinLodIndex, 0);
-	return MinLodIndex;
+	int32 MinLODIndex = bOverrideMinLod ? FMath::Max(MinLodModel, AssetMinLOD) : AssetMinLOD;
+	MinLODIndex = GetValidMinLOD(MinLODIndex);
+	return MinLODIndex;
+}
+
+int32 USkinnedMeshComponent::GetValidMinLOD(const int32 InMinLODIndex) const
+{
+	// Iterate the render data to validate that our min LOD has data that can be used.
+	const int32 MaxLODIndex = GetNumLODs() - 1;
+	const FSkeletalMeshRenderData* RenderData = GetSkeletalMeshRenderData();
+	const int32 FirstValidLODIndex = RenderData != nullptr ? RenderData->GetFirstValidLODIdx(InMinLODIndex) : INDEX_NONE;
+
+	// Return the first LOD that has render data that can be used.
+	/** NOTE: We're logging if the index is not valid in the render data but we still want to return a valid value from 0 to max. 
+	  * Render data could be invalid if we're still loading/streaming in the asset.
+	  */
+	return FMath::Clamp<int32>(FirstValidLODIndex, 0, MaxLODIndex);
 }
 
 #if WITH_EDITOR
@@ -4228,6 +4391,22 @@ void USkinnedMeshComponent::GetCPUSkinnedCachedFinalVertices(TArray<FFinalSkinVe
 		// Copy our vertices out. We know we are using CPU skinning now, so this cast is safe
 		OutVertices = static_cast<FSkeletalMeshObjectCPUSkin*>(MeshObject)->GetCachedFinalVertices();
 	}
+}
+
+const Nanite::FResources* USkinnedMeshComponent::GetNaniteResources() const
+{
+	if (GetSkinnedAsset() && GetSkinnedAsset()->GetResourceForRendering())
+	{
+		return GetSkinnedAsset()->GetResourceForRendering()->NaniteResourcesPtr.Get();
+	}
+
+	return nullptr;
+}
+
+bool USkinnedMeshComponent::HasValidNaniteData() const
+{
+	const Nanite::FResources* NaniteResources = GetNaniteResources();
+	return NaniteResources != nullptr ? NaniteResources->PageStreamingStates.Num() > 0 : false;
 }
 
 void USkinnedMeshComponent::ReleaseResources()
@@ -4668,8 +4847,10 @@ void USkinnedMeshComponent::SetSkinWeightOverride(int32 LODIndex, const TArray<F
 			Info.OverrideSkinWeights->SetUse16BitBoneIndex(bUse16BitBoneIndex);
 
 			const USkinnedAsset* Mesh = GetSkinnedAsset();
+#if RHI_ENABLE_RESOURCE_INFO
 			const FName OwnerName(USkinnedAsset::GetLODPathName(Mesh, LODIndex));
 			Info.OverrideSkinWeights->SetOwnerName(OwnerName);
+#endif
 
 			const FReferenceSkeleton& RefSkel = Mesh->GetRefSkeleton();
 			TArray<FSkinWeightInfo> GPUWeights;
@@ -4702,133 +4883,36 @@ void USkinnedMeshComponent::ClearSkinWeightOverride(int32 LODIndex)
 	}
 }
 
-bool USkinnedMeshComponent::SetSkinWeightProfile(FName InProfileName)
+
+bool USkinnedMeshComponent::SetSkinWeightProfile(
+	FName InProfileName,
+	ESkinWeightProfileLayer InLayer
+	)
 {
-	bool bContainsProfile = false;
-
-	if (FSkeletalMeshRenderData* SkelMeshRenderData = GetSkeletalMeshRenderData())
-	{
-		// Ensure the LOD infos array is initialized
-		InitLODInfos();
-		for (int32 LODIndex = 0; LODIndex < LODInfo.Num(); ++LODIndex)
-        {
-			// Check whether or not setting a profile is allow for this LOD index
-			if (LODIndex > GSkinWeightProfilesAllowedFromLOD)
-			{
-				FSkeletalMeshLODRenderData& RenderData = SkelMeshRenderData->LODRenderData[LODIndex];
-
-				bContainsProfile |= RenderData.SkinWeightProfilesData.ContainsProfile(InProfileName);
-
-				// Retrieve this profile's skin weight buffer
-				FSkinWeightVertexBuffer* Buffer = RenderData.SkinWeightProfilesData.GetOverrideBuffer(InProfileName);
-        
-				FSkelMeshComponentLODInfo& Info = LODInfo[LODIndex];
-				Info.OverrideProfileSkinWeights = Buffer;
-                
-				if (Buffer != nullptr)
-				{
-					bSkinWeightProfileSet = true;
-				}
-			}
-        }
-
-		if (bContainsProfile)
-		{
-			CurrentSkinWeightProfileName = InProfileName;
-
-			if (bSkinWeightProfileSet)
-			{
-				UpdateSkinWeightOverrideBuffer();
-			}
-			else 
-			{
-				TWeakObjectPtr<USkinnedMeshComponent> WeakComponent = this;
-				FRequestFinished Callback = [WeakComponent](TWeakObjectPtr<USkeletalMesh> WeakMesh, FName ProfileName)
-				{
-					// Ensure that the request objects are still valid
-					if (WeakMesh.IsValid() && WeakComponent.IsValid())
-					{
-						USkinnedMeshComponent* Component = WeakComponent.Get();
-						Component->InitLODInfos();
-
-						Component->bSkinWeightProfilePending = false;
-						Component->bSkinWeightProfileSet = true;
-
-						if (FSkeletalMeshRenderData * RenderData = WeakMesh->GetResourceForRendering())
-						{
-							const int32 NumLODs = RenderData->LODRenderData.Num();
-							for (int32 Index = 0; Index < NumLODs; ++Index)
-							{
-								FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[Index];
-								FSkinWeightProfilesData& SkinweightData = LODRenderData.SkinWeightProfilesData;
-
-								// Check whether or not setting a profile is allow for this LOD index
-								if (Index > GSkinWeightProfilesAllowedFromLOD)
-								{
-									// Retrieve this profile's skin weight buffer
-									FSkinWeightVertexBuffer* Buffer = SkinweightData.GetOverrideBuffer(ProfileName);
-									FSkelMeshComponentLODInfo& Info = Component->LODInfo[Index];
-									Info.OverrideProfileSkinWeights = Buffer;
-								}
-							}
-
-							Component->UpdateSkinWeightOverrideBuffer();
-						}
-					}
-				};
-
-				// Put in a skin weight profile request
-				if (FSkinWeightProfileManager* Manager = FSkinWeightProfileManager::Get(GetWorld()))
-				{
-					Manager->RequestSkinWeightProfile(InProfileName, GetSkinnedAsset(), this, Callback);
-					bSkinWeightProfilePending = true;
-				}
-			}
-		}
-	}
-
-	return bContainsProfile;
+	FSkinWeightProfileStack ProfileStack{CurrentSkinWeightProfileLayers};
+	ProfileStack[static_cast<int32>(InLayer)] = InProfileName;
+	return SetSkinWeightProfileStack(ProfileStack);
 }
 
-void USkinnedMeshComponent::ClearSkinWeightProfile()
+void USkinnedMeshComponent::ClearSkinWeightProfile(
+	ESkinWeightProfileLayer InLayer
+	)
 {
-	if (FSkeletalMeshRenderData* SkelMeshRenderData = GetSkeletalMeshRenderData())
-	{	
-		bool bCleared = false;
-
-		if (bSkinWeightProfileSet)
-		{
-			InitLODInfos();
-			// Clear skin weight buffer set for all of the LODs
-			for (int32 LODIndex = 0; LODIndex < LODInfo.Num(); ++LODIndex)
-			{
-				FSkelMeshComponentLODInfo& Info = LODInfo[LODIndex];
-				bCleared |= (Info.OverrideProfileSkinWeights != nullptr);
-				Info.OverrideProfileSkinWeights = nullptr;
-			}
-
-			if (bCleared)
-			{
-				UpdateSkinWeightOverrideBuffer();
-			}
-		}
-
-		if (bSkinWeightProfilePending)
-		{
-			if (FSkinWeightProfileManager * Manager = FSkinWeightProfileManager::Get(GetWorld()))
-			{
-				Manager->CancelSkinWeightProfileRequest(this);
-			}
-		}
-	}
-
-	bSkinWeightProfilePending = false;
-	bSkinWeightProfileSet = false;
-	CurrentSkinWeightProfileName = NAME_None;
+	FSkinWeightProfileStack ProfileStack{CurrentSkinWeightProfileLayers};
+	ProfileStack[static_cast<int32>(InLayer)] = NAME_None;
+	SetSkinWeightProfileStack(ProfileStack);
 }
+
+
+void USkinnedMeshComponent::ClearAllSkinWeightProfiles()
+{
+	SetSkinWeightProfileStack(FSkinWeightProfileStack());
+}
+
 
 void USkinnedMeshComponent::UnloadSkinWeightProfile(FName InProfileName)
 {
+	#if 0
 	if (FSkeletalMeshRenderData* SkelMeshRenderData = GetSkeletalMeshRenderData())
 	{
 		if (LODInfo.Num())
@@ -4871,6 +4955,7 @@ void USkinnedMeshComponent::UnloadSkinWeightProfile(FName InProfileName)
 		bSkinWeightProfileSet = false;
 		CurrentSkinWeightProfileName = NAME_None;
 	}
+#endif
 }
 
 bool USkinnedMeshComponent::IsUsingSkinWeightProfile() const
@@ -4879,31 +4964,221 @@ bool USkinnedMeshComponent::IsUsingSkinWeightProfile() const
 	{		
 		return true;
 	}
-	else
+
+	if (USkinnedAsset* Asset = GetSkinnedAsset())
 	{
-		if (USkinnedAsset* Asset = GetSkinnedAsset())
+		if (Asset->IsCompiling())
 		{
-			if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
-			{
-				return ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden();
-			}
-		}		
-	}
+			return false;
+		}
+
+		if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
+		{
+			return ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden();
+		}
+	}	
 
 	return false;
+}
+
+FName USkinnedMeshComponent::GetCurrentSkinWeightProfileName(
+	ESkinWeightProfileLayer InLayer
+	) const
+{
+	const int32 LayerIndex = static_cast<int32>(InLayer);
+	return GetCurrentSkinWeightProfileLayerNames()[LayerIndex];
+}
+
+TArray<FName> USkinnedMeshComponent::GetCurrentSkinWeightProfileLayerNames() const
+{
+	FSkinWeightProfileStack ProfileStack;
+	if (bSkinWeightProfileSet)
+	{
+		ProfileStack = FSkinWeightProfileStack{CurrentSkinWeightProfileLayers};
+	}
+
+	if (USkinnedAsset* Asset = GetSkinnedAsset())
+	{
+		if (Asset->IsCompiling())
+		{
+			//Return an array with name none entry
+			return { NAME_None };
+		}
+
+		if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
+		{
+			if( ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden())
+			{
+				ProfileStack = ProfileData->GetDefaultProfileStack();
+			}
+		}
+	}
+
+	TArray<FName> ProfileNames;
+	ProfileNames.SetNum(FSkinWeightProfileStack::MaxLayerCount);
+	for (int32 LayerIndex = 0; LayerIndex < FSkinWeightProfileStack::MaxLayerCount; ++LayerIndex)
+	{
+		ProfileNames[LayerIndex] = ProfileStack[LayerIndex];
+	}
+	return ProfileNames;
 }
 
 void USkinnedMeshComponent::UpdateSkinWeightOverrideBuffer()
 {
 	// Force a mesh update to ensure bone buffers are up to date
 	bForceMeshObjectUpdate = true;
-	MarkRenderDynamicDataDirty();
+	MarkRenderStateDirty();
 
 	// Queue an update of the skin weight buffer used by the current Mesh Object
 	if (MeshObject)
 	{
 		MeshObject->UpdateSkinWeightBuffer(this);
 	}
+}
+
+bool USkinnedMeshComponent::SetSkinWeightProfileStack(const FSkinWeightProfileStack& InProfileStack)
+{
+	// If we're not actually changing anything, then just return and say we did, as if the operation succeeded.
+	if (InProfileStack.Normalized() == FSkinWeightProfileStack{CurrentSkinWeightProfileLayers}.Normalized())
+	{
+		return true;
+	}
+
+	bool bChanged = false;
+	
+	if (FSkeletalMeshRenderData* SkelMeshRenderData = GetSkeletalMeshRenderData())
+	{
+		if (InProfileStack.IsEmpty())
+		{
+			if (bSkinWeightProfileSet)
+			{
+				bool bCleared = false;
+				
+				InitLODInfos();
+				// Clear skin weight buffer set for all of the LODs
+				for (int32 LODIndex = 0; LODIndex < LODInfo.Num(); ++LODIndex)
+				{
+					FSkelMeshComponentLODInfo& Info = LODInfo[LODIndex];
+					bCleared |= (Info.OverrideProfileSkinWeights != nullptr);
+					Info.OverrideProfileSkinWeights = nullptr;
+				}
+
+				if (bCleared)
+				{
+					UpdateSkinWeightOverrideBuffer();
+				}
+			}
+
+			// If there was a change request in flight, cancel it now so that we don't get updated with a stale request.
+			if (bSkinWeightProfilePending)
+			{
+				if (FSkinWeightProfileManager* Manager = FSkinWeightProfileManager::Get(GetWorld()))
+				{
+					Manager->CancelSkinWeightProfileRequest(this);
+				}
+			}
+
+			bChanged = true;
+		}
+		else
+		{
+			// Ensure the LOD infos array is initialized
+			bool bHaveExistingBuffer = false;
+			
+			InitLODInfos();
+			for (int32 LODIndex = 0; LODIndex < LODInfo.Num(); ++LODIndex)
+	        {
+				// Check whether setting a profile is allowed for this LOD index
+				if (LODIndex > GSkinWeightProfilesAllowedFromLOD)
+				{
+					FSkeletalMeshLODRenderData& RenderData = SkelMeshRenderData->LODRenderData[LODIndex];
+
+					for (int32 LayerIndex = 0; LayerIndex < FSkinWeightProfileStack::MaxLayerCount; ++LayerIndex)
+					{
+						bChanged |= RenderData.SkinWeightProfilesData.ContainsProfile(InProfileStack[LayerIndex]);
+					}
+
+					// Retrieve this profile's skin weight buffer
+					FSkinWeightVertexBuffer* Buffer = RenderData.SkinWeightProfilesData.GetOverrideBuffer(InProfileStack);
+	        
+					FSkelMeshComponentLODInfo& Info = LODInfo[LODIndex];
+					Info.OverrideProfileSkinWeights = Buffer;
+	                
+					bHaveExistingBuffer = (Buffer != nullptr);
+				}
+	        }
+
+			if (bChanged)
+			{
+				if (bHaveExistingBuffer)
+				{
+					UpdateSkinWeightOverrideBuffer();
+					bSkinWeightProfileSet = true;
+				}
+				else 
+				{
+					TWeakObjectPtr<USkinnedMeshComponent> WeakComponent = this;
+					
+					FRequestFinished Callback = [WeakComponent](TWeakObjectPtr<USkeletalMesh> WeakMesh, FSkinWeightProfileStack ProfileStack)
+					{
+						// Ensure that the request objects are still valid
+						if (WeakMesh.IsValid() && WeakComponent.IsValid())
+						{
+							USkinnedMeshComponent* Component = WeakComponent.Get();
+							Component->InitLODInfos();
+
+							Component->bSkinWeightProfilePending = false;
+							Component->bSkinWeightProfileSet = true;
+
+							if (FSkeletalMeshRenderData * RenderData = WeakMesh->GetResourceForRendering())
+							{
+								const int32 NumLODs = RenderData->LODRenderData.Num();
+								for (int32 Index = 0; Index < NumLODs; ++Index)
+								{
+									FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[Index];
+									FSkinWeightProfilesData& SkinweightData = LODRenderData.SkinWeightProfilesData;
+
+									// Check whether or not setting a profile is allow for this LOD index
+									if (Index > GSkinWeightProfilesAllowedFromLOD)
+									{
+										// Retrieve this profile's skin weight buffer
+										FSkinWeightVertexBuffer* Buffer = SkinweightData.GetOverrideBuffer(ProfileStack);
+										FSkelMeshComponentLODInfo& Info = Component->LODInfo[Index];
+										Info.OverrideProfileSkinWeights = Buffer;
+									}
+								}
+
+								Component->UpdateSkinWeightOverrideBuffer();
+							}
+						}
+					};
+
+					// Put in a skin weight profile request
+					if (FSkinWeightProfileManager* Manager = FSkinWeightProfileManager::Get(GetWorld()))
+					{
+						if (bSkinWeightProfilePending)
+						{
+							Manager->CancelSkinWeightProfileRequest(this);	
+						}
+
+						Manager->RequestSkinWeightProfileStack(InProfileStack, GetSkinnedAsset(), this, Callback);
+						bSkinWeightProfilePending = true;
+					}
+				}
+			}
+		}
+	}
+
+	if (InProfileStack.IsEmpty())
+	{
+		bSkinWeightProfilePending = false;
+		bSkinWeightProfileSet = false;
+	}
+
+	// Store the current layers.
+	InProfileStack.CopyIntoArray(CurrentSkinWeightProfileLayers);
+
+	return bChanged;
 }
 
 void USkinnedMeshComponent::ReleaseUpdateRateParams()
@@ -4927,6 +5202,7 @@ void USkinnedMeshComponent::SetRenderStatic(bool bNewValue)
 	if (bRenderStatic != bNewValue)
 	{
 		bRenderStatic = bNewValue;
+		PrecachePSOs();
 		MarkRenderStateDirty();
 	}
 }

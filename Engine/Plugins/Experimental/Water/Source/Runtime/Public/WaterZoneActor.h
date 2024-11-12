@@ -8,6 +8,7 @@
 class UBillboardComponent;
 class UTexture2D;
 class UTextureRenderTarget2D;
+class UTextureRenderTarget2DArray;
 namespace EEndPlayReason { enum Type : int; }
 
 class UWaterMeshComponent;
@@ -18,14 +19,15 @@ class UWaterBodyComponent;
 enum class EWaterZoneRebuildFlags
 {
 	None = 0,
-	UpdateWaterInfoTexture = (1 << 1),
-	UpdateWaterMesh = (1 << 2),
+	UpdateWaterInfoTexture = (1 << 0),
+	UpdateWaterMesh = (1 << 1),
 	All = (~0),
 };
 ENUM_CLASS_FLAGS(EWaterZoneRebuildFlags);
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaterInfoTextureCreated, const UTextureRenderTarget2D*, WaterInfoTexture);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaterInfoTextureArrayCreated, const UTextureRenderTarget2DArray*, WaterInfoTextureArray);
 
 UCLASS(Blueprintable, HideCategories=(Physics, Replication, Input, Collision))
 class WATER_API AWaterZone : public AActor
@@ -54,17 +56,33 @@ public:
 	FBox2D GetZoneBounds2D() const;
 	FBox GetZoneBounds() const;
 
+	/** Retrieves all the per-view bounds for this water zone */
+	void GetAllDynamicWaterInfoBounds(TArray<FBox>& OutBounds) const;
+	/** Retrieves all the per-view centers for this water zone */
+	void GetAllDynamicWaterInfoCenters(TArray<FVector>& OutCenters) const;
+
 	void SetRenderTargetResolution(FIntPoint NewResolution);
 	FIntPoint GetRenderTargetResolution() const { return RenderTargetResolution; }
 
 	uint32 GetVelocityBlurRadius() const { return VelocityBlurRadius; }
 
-	FVector GetDynamicWaterInfoCenter() const;
+	/** Retrieves the dynamic water info center for a specific player index. */
+	FVector GetDynamicWaterInfoCenter(int32 PlayerIndex) const;
+	/** Retrieves the dynamic water info bounds for a specific player index. */
+	FBox GetDynamicWaterInfoBounds(int32 PlayerIndex) const;
+
 	FVector GetDynamicWaterInfoExtent() const;
-	FBox GetDynamicWaterInfoBounds() const;
 
 	bool IsLocalOnlyTessellationEnabled() const { return bEnableLocalOnlyTessellation; }
-	void SetLocalTessellationCenter(const FVector& NewCenter) { LocalTessellationCenter = NewCenter;}
+
+	UE_DEPRECATED(5.5, "In 5.5 the dynamic water info is now per player view. Either call GetAllDynamicWaterInfoCenters or use the per-player index version")
+	FVector GetDynamicWaterInfoCenter() const;
+
+	UE_DEPRECATED(5.5, "In 5.5 the dynamic water info is now per player view. Either call GetAllDynamicWaterInfoCenters or use the per-player index version")
+	FBox GetDynamicWaterInfoBounds() const;
+
+	UE_DEPRECATED(5.5, "It is no longer possible to manually set the local tessellation center. This is controlled per view by the water view extension.")
+	void SetLocalTessellationCenter(const FVector& NewCenter) {}
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -85,29 +103,32 @@ public:
 	int32 GetWaterZoneIndex() const { return WaterZoneIndex; }
 
 	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
-	TObjectPtr<UTextureRenderTarget2D> WaterInfoTexture;
+	TObjectPtr<UTextureRenderTarget2DArray> WaterInfoTextureArray;
 
-	FOnWaterInfoTextureCreated& GetOnWaterInfoTextureCreated() { return OnWaterInfoTextureCreated; }
+	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
+	int32 WaterInfoTextureArrayNumSlices = 1;
+
+	FOnWaterInfoTextureArrayCreated& GetOnWaterInfoTextureArrayCreated() { return OnWaterInfoTextureArrayCreated; }
 	
 #if WITH_EDITOR
 	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
-	virtual FBox GetStreamingBounds() const override;
+	virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 #endif //WITH_EDITOR
 
 	UFUNCTION(BlueprintCallable, Category=Rendering)
 	void SetFarMeshMaterial(UMaterialInterface* InFarMaterial);
 
-	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoCenter")
-	FVector GetTessellatedWaterMeshCenter() const { return GetDynamicWaterInfoCenter(); }
 
-	UE_DEPRECATED(5.3, "Function renamed to SetLocalTessellationCenter")
-	void SetTessellatedWaterMeshCenter(FVector NewCenter) { SetLocalTessellationCenter(NewCenter); }
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "WaterInfoTexture is deprecated, please use WaterInfoTextureArray instead.")
+	UPROPERTY(Transient, meta = (DeprecatedProperty, DeprecationMessage = "Use WaterInfoTextureArray instead."))
+	TObjectPtr<UTextureRenderTarget2D> WaterInfoTexture_DEPRECATED;
+#endif
 
-	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoExtent")
-	FVector GetTessellatedWaterMeshExtent() const { return GetDynamicWaterInfoExtent(); }
-
-	UE_DEPRECATED(5.3, "Function renamed to IsLocalTessellationEnabled.")
-	bool IsNonTessellatedLODMeshEnabled() const { return IsLocalOnlyTessellationEnabled(); }
+#if WITH_EDITOR 
+	UE_DEPRECATED(5.5, "GetOnWaterInfoTextureCreated is deprecated, please use GetOnWaterInfoTextureArrayCreated instead.")
+	FOnWaterInfoTextureCreated& GetOnWaterInfoTextureCreated() { return OnWaterInfoTextureCreated_DEPRECATED; }
+#endif
 
 private:
 
@@ -129,6 +150,8 @@ private:
 	void OnLevelAddedToWorld(ULevel* InLevel, UWorld* InWorld);
 	void OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld);
 	void OnLevelChanged(ULevel* InLevel, UWorld* InWorld);
+
+	bool ContainsActorsAffectingWaterZone(ULevel* InLevel, const FBox& WaterZoneBounds) const;
 
 	/** Returns true if the provided actor can affect waterzone resources.
 	 *
@@ -198,20 +221,21 @@ private:
 	UPROPERTY(Category = LocalTessellation, EditAnywhere, meta = (EditCondition = "bEnableLocalOnlyTessellation"))
 	FVector LocalTessellationExtent;
 
+	/** When set to true, all landscape proxies that intersect with the bounds of this water zone will be included as ground actors regardless if they have WaterTerrain components. */
+	UPROPERTY(Category = Terrain, EditAnywhere)
+	bool bAutoIncludeLandscapesAsTerrain = true;
+
 	bool bNeedsWaterInfoRebuild = true;
 
 	FVector2f WaterHeightExtents;
 	float GroundZMin;
 
-	/** Current center of the local tessellation sliding window. Updated by the WaterViewExtension when the view crosses the update boundary */
-	FVector LocalTessellationCenter;
-
 	/** Unique Id for accessing zone data (Location, extent, ,...) in GPU buffers */
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, VisibleAnywhere, Category = Water)
 	int32 WaterZoneIndex = INDEX_NONE;
-
-	UPROPERTY(BlueprintAssignable, Category=Water)
-	FOnWaterInfoTextureCreated OnWaterInfoTextureCreated;
+	
+	UPROPERTY(BlueprintAssignable, Category = Water)
+	FOnWaterInfoTextureArrayCreated OnWaterInfoTextureArrayCreated;
 
 #if WITH_EDITORONLY_DATA
 	/** A manipulatable box for visualizing/editing the water zone bounds */
@@ -228,6 +252,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> WaterVelocityTexture_DEPRECATED;
+
+	UPROPERTY()
+	FOnWaterInfoTextureCreated OnWaterInfoTextureCreated_DEPRECATED;
 
 	UPROPERTY()
 	FVector TessellatedWaterMeshExtent_DEPRECATED;

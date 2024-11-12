@@ -75,7 +75,6 @@ void SSessionConsoleFilterBar::Construct(const FArguments& InArgs)
 					.MenuContent()
 					[
 						SAssignNew(CategoriesListView, SListView<FSessionConsoleCategoryFilterPtr>)
-							.ItemHeight(24)
 							.ListItemsSource(&CategoriesList)
 							.OnGenerateRow(this, &SSessionConsoleFilterBar::HandleCategoryFilterGenerateRow)
 					]
@@ -97,7 +96,6 @@ void SSessionConsoleFilterBar::Construct(const FArguments& InArgs)
 					.MenuContent()
 					[
 						SAssignNew(VerbositiesListView, SListView<FSessionConsoleVerbosityFilterPtr>)
-							.ItemHeight(24.0f)
 							.ListItemsSource(&VerbositiesList)
 							.OnGenerateRow(this, &SSessionConsoleFilterBar::HandleVerbosityFilterGenerateRow)
 					]

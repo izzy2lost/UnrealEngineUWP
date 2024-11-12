@@ -20,5 +20,7 @@ protected:
 	//~ Begin UAvaInteractiveToolsToolBase
 	virtual bool OnBegin() override;
 	virtual void DefaultAction() override;
+	virtual bool UseIdentityLocation() const override { return bPerformingDefaultAction; }
+	virtual bool UseIdentityRotation() const override;
 	//~ End UAvaInteractiveToolsToolBase
 };

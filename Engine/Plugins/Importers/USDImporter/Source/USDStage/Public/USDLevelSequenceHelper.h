@@ -10,6 +10,7 @@
 class AUsdStageActor;
 class FScopedBlockMonitoringChangesForTransaction;
 class FUsdInfoCache;
+class UUsdPrimLinkCache;
 class FUsdLevelSequenceHelperImpl;
 class ULevelSequence;
 class UUsdPrimTwin;
@@ -40,8 +41,16 @@ public:
 	/** Creates the main level sequence and subsequences from the usd stage layers */
 	ULevelSequence* Init(const UE::FUsdStage& UsdStage);
 
+	/** Allows serialization for transaction support */
+	bool Serialize(FArchive& Ar);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Sets the asset cache to use when fetching assets and asset info required for the level sequence animation, like UAnimSequences */
+	UE_DEPRECATED(5.5, "Use SetPrimLinkCache instead")
 	void SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	void SetPrimLinkCache(UUsdPrimLinkCache* PrimLinkCache);
 
 	/** Sets the BBoxCache to use when importing bound animations for prims. Needed for importing, where we don't have a stage actor to take the
 	 * BBoxCache from */

@@ -93,6 +93,7 @@ void STG_EditorGraphNode::UpdateGraphNode()
 	RightNodeBox.Reset();
 	LeftNodeBox.Reset();
 	ParametersBox.Reset();
+	LowDetailParametersBox.Reset();
 	NodeSettingsBox.Reset();
 	NotConnectableParametersBox.Reset();
 	NotConnectableInputPinBox.Reset();
@@ -390,7 +391,9 @@ int STG_EditorGraphNode::GetContentAreaBorderThickness()
 
 TSharedRef<SWidget> STG_EditorGraphNode::CreateNodeContentArea()
 {
-	int HAdvanceContentPading = GetContentAreaBorderThickness();
+	const int HAdvanceContentPading = GetContentAreaBorderThickness();
+	const int LowDetailOverrideSettingWidth = 75;
+	const int LowDetailOverrideSettingHeight = 66;
 	// NODE CONTENT AREA
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::GetBrush("NoBorder"))
@@ -438,16 +441,35 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateNodeContentArea()
 			.AutoHeight()
 			.Padding(HAdvanceContentPading, 0)
 			[
-				SAssignNew(ParametersBox, SVerticalBox)
-				.Visibility(this,&STG_EditorGraphNode::ShowParameters) //visible when when node have advance display
-
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Center)
+				SNew(SLevelOfDetailBranchNode)
+				.UseLowDetailSlot(this, &STG_EditorGraphNode::UseLowDetailParameters)
+				.LowDetail()
 				[
-					SNew(SSeparator)
-					.Thickness(2)
+					SAssignNew(LowDetailParametersBox, SVerticalBox)
+					.Visibility(this, &STG_EditorGraphNode::ShowParameters) //visible when when node have advance display
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SSeparator)
+						.Thickness(2)
+					]
+				]
+				.HighDetail()
+				[
+					SAssignNew(ParametersBox, SVerticalBox)
+					.Visibility(this, &STG_EditorGraphNode::ShowParameters) //visible when when node have advance display
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.HAlign(HAlign_Fill)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SSeparator)
+						.Thickness(2)
+					]
 				]
 			]
 
@@ -463,8 +485,21 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateNodeContentArea()
 			.AutoHeight()
 			.Padding(HAdvanceContentPading, 0)
 			[
-				SAssignNew(NodeSettingsBox, SVerticalBox)
-				.Visibility(this, &STG_EditorGraphNode::ShowOverrideSettings)// Visible only when node is expanded
+				SNew(SLevelOfDetailBranchNode)
+				.UseLowDetailSlot(this, &STG_EditorGraphNode::UseLowDetailParameters)
+				.LowDetail()
+				[
+					//Create empty space when showing low lod
+					SNew(SBox)
+					.Visibility(this, &STG_EditorGraphNode::ShowOverrideSettings)
+					.WidthOverride(LowDetailOverrideSettingWidth)
+					.HeightOverride(LowDetailOverrideSettingHeight)
+				]
+				.HighDetail()
+				[
+					SAssignNew(NodeSettingsBox, SVerticalBox)
+					.Visibility(this, &STG_EditorGraphNode::ShowOverrideSettings)// Visible only when node is expanded
+				]
 			]
 		];
 }
@@ -540,6 +575,16 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleWidget(TSharedPtr<SNodeTitle
 bool STG_EditorGraphNode::UseLowDetailNodeTitles() const
 {
 	return SGraphNode::UseLowDetailNodeTitles();
+}
+
+bool STG_EditorGraphNode::UseLowDetailParameters() const
+{
+	if (const SGraphPanel* MyOwnerPanel = GetOwnerPanel().Get())
+	{
+		return (MyOwnerPanel->GetCurrentLOD() <= EGraphRenderingLOD::LowDetail);
+	}
+
+	return false;
 }
 
 FSlateColor STG_EditorGraphNode::GetNodeTitleColor() const
@@ -726,6 +771,15 @@ void STG_EditorGraphNode::AddPin(const TSharedRef<SGraphPin>& PinToAdd)
 				ParametersBox->AddSlot()
 				.AutoHeight()
 				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Center)
+				.Padding(Settings->GetInputPinPadding())
+				[
+					PinToAdd
+				];
+
+				LowDetailParametersBox->AddSlot()
+				.AutoHeight()
+				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				.Padding(Settings->GetInputPinPadding())
 				[

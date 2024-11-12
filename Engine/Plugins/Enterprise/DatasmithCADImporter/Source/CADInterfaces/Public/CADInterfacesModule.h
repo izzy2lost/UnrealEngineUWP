@@ -20,4 +20,5 @@ class CADINTERFACES_API ICADInterfacesModule : public IModuleInterface
 public:
 	static ICADInterfacesModule& Get();
 	static ECADInterfaceAvailability GetAvailability();
+	static const TCHAR* GetLibraryVersion();
 };

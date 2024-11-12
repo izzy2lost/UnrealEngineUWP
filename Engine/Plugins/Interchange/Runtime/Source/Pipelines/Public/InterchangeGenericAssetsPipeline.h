@@ -58,7 +58,7 @@ public:
 	bool bUseSourceNameForAsset = true;
 
 	/** If set, and there is only one asset and one source, the imported asset is given this name. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True", AlwaysResetToDefault = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True"))
 	FString AssetName;
 
 	/** Translation offset applied to meshes and animations. */
@@ -98,11 +98,13 @@ public:
 	virtual bool IsSettingsAreValid(TOptional<FText>& OutInvalidReason) const override;
 
 
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
 #if WITH_EDITOR
 	virtual void FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer) override;
 
-	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override;
+
+	virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const override;
 #endif //WITH_EDITOR
 
 	virtual TArray<FInterchangeConflictInfo> GetConflictInfos(UObject* ReimportObject, UInterchangeBaseNodeContainer* InBaseNodeContainer, UInterchangeSourceData* SourceData) override;
@@ -126,10 +128,17 @@ public:
 		bool bMatch = false;
 		bool bConflict = false;
 		bool bChildConflict = false;
-		bool bInitialAutoExpand = false;
 		TSharedPtr<FSkeletonJoint> Parent;
 		TArray<TSharedPtr<FSkeletonJoint>> Children;
 	};
+
+	//We need to store the adjusted content path existing skeleton to restore it in PreDialogCleanup
+	UPROPERTY(meta = (AlwaysResetToDefault = "True"))
+	FSoftObjectPath ContentPathExistingSkeleton;
+
+	//We need to store the adjusted import only animation boolean to restore it in PreDialogCleanup
+	UPROPERTY(meta = (AlwaysResetToDefault = "True"))
+	bool bImportOnlyAnimationAdjusted = false;
 
 protected:
 
@@ -162,12 +171,10 @@ private:
 	 */
 	void ImplementUseSourceNameForAssetOption(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas);
 
-#if WITH_EDITORONLY_DATA
 	/**
-	 * Adds the user defined attributes (UInterchangeUserDefinedAttributesAPI) to the package meta data (UMetaData)
+	 * Adds the user defined attributes (UInterchangeUserDefinedAttributesAPI) to the package meta data (UMetaData) for WITH_EDITORONLY_DATA, and add UAssetUserData for AActors.
 	 */
-	void AddPackageMetaData(UObject* CreatedAsset, const UInterchangeBaseNode* Node);
-#endif // WITH_EDITORONLY_DATA
+	void AddMetaData(UObject* CreatedAsset, const UInterchangeBaseNode* Node);
 
 	struct FMaterialConflictData
 	{
@@ -316,6 +323,7 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	//Collapse generic
 	bool bShowSectionFlag[EInterchangeSkeletonCompareSection::Count];
+	FReply OnExpandToConflict();
 	FReply SetSectionVisible(EInterchangeSkeletonCompareSection SectionIndex);
 	EVisibility IsSectionVisible(EInterchangeSkeletonCompareSection SectionIndex);
 	const FSlateBrush* GetCollapsableArrow(EInterchangeSkeletonCompareSection SectionIndex) const;

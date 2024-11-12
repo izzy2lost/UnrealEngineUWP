@@ -98,7 +98,15 @@ public:
 	// Inputs
 	//
 
+	// Sample a spline with the given ErrorTolerance and add it as a curve
 	void AddSpline(USplineComponent* Spline, double ErrorTolerance);
+
+	// Add a curve in world space
+	// @param WorldSpaceVertices The vertices of the curve, in world space
+	// @param bClosed Whether the curve is closed, i.e. should include an edge from the last vertex back to the first vertex
+	// @param ReferenceTransform The transform that would take the curve vertices from local space to world space
+	// Note: The first curve's Reference Transform is used as the local reference frame for the triangulation, and will be the operator's Result Transform
+	void AddWorldCurve(TArrayView<const FVector3d> WorldSpaceVertices, bool bClosed, const FTransform& ReferenceTransform);
 
 	//
 	// Parameters
@@ -108,6 +116,9 @@ public:
 
 	// Scaling applied to the default UV values
 	double UVScaleFactor = 1.0;
+
+	// If true, UVs will be consistently scaled relative to the world space, otherwise UVs will be relative to the mesh bounds.
+	bool bWorldSpaceUVScale = false;
 
 	// If > 0, thicken the result mesh to make a solid
 	double Thickness = 0.0;

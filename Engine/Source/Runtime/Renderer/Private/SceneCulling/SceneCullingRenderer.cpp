@@ -66,6 +66,8 @@ FSceneInstanceCullingQuery* FSceneCullingRenderer::CullInstances(FRDGBuilder& Gr
 		for (int32 Index = 0; Index < ViewCullVolumes.Num(); ++Index)
 		{
 			FCullingVolume CullingVolume;
+			// Assume world-space
+			CullingVolume.WorldToVolumeTranslation = FVector3d::ZeroVector;
 			CullingVolume.ConvexVolume = ViewCullVolumes[Index];
 			Query->Add(Index, 1, 1, CullingVolume);
 		}
@@ -128,7 +130,7 @@ void FSceneCullingRenderer::DebugRender(FRDGBuilder& GraphBuilder, TArrayView<FV
 		{
 			ValidCellsMask[Index] =  (SceneCulling.CellHeaders[Index].ItemChunksOffset & FSceneCulling::InvalidCellFlag) == 0; 
 		}
-		FRDGBuffer* ValidCellsMaskRdg = CreateStructuredBuffer(GraphBuilder, TEXT("Shadow.Virtual.RevealedPrimitivesMask"), TConstArrayView<uint32>(ValidCellsMask.GetData(), FBitSet::CalculateNumWords(ValidCellsMask.Num())));
+		FRDGBuffer* ValidCellsMaskRdg = CreateStructuredBuffer(GraphBuilder, TEXT("ValidCellsMaskRdg"), TConstArrayView<uint32>(ValidCellsMask.GetData(), FBitSet::CalculateNumWords(ValidCellsMask.Num())));
 
 		for (auto &View : Views)
 		{

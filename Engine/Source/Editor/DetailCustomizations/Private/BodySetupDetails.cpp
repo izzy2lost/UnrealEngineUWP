@@ -18,6 +18,7 @@
 #include "ObjectEditorUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PropertyEditorModule.h"
 #include "PropertyHandle.h"
 #include "SlotBase.h"
@@ -53,7 +54,7 @@ void FBodySetupDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 			TSharedPtr<IPropertyHandle> BodyInstanceHandler = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBodySetup, DefaultInstance));
 			
 			BodyInstanceCustomizationHelper = MakeShareable(new FBodyInstanceCustomizationHelper(ObjectsCustomized));
-			BodyInstanceCustomizationHelper->CustomizeDetails(DetailBuilder, DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UBodySetup, DefaultInstance)));
+			BodyInstanceCustomizationHelper->CustomizeDetails(DetailBuilder, BodyInstanceHandler.ToSharedRef(), [this, &DetailBuilder](TSharedRef<IPropertyHandle> BodyInstanceHandle) { this->CustomizeCoMNudge(DetailBuilder, BodyInstanceHandle); });
 
 			IDetailCategoryBuilder& CollisionCategory = DetailBuilder.EditCategory("Collision");
 			DetailBuilder.HideProperty(BodyInstanceHandler);
@@ -111,6 +112,7 @@ void FBodySetupDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 		];
 	}
 }
+
 
 TSharedRef<IDetailCustomization> FSkeletalBodySetupDetails::MakeInstance()
 {

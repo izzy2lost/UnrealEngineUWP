@@ -47,9 +47,9 @@ namespace UE::MovieGraph::DefaultRenderer
 	{
 		FCameraInfo()
 			: ViewActor(nullptr)
-			, OverscanFraction(0.f)
 			, bAllowCameraAspectRatio(true)
 			, DoFSensorScale(1.0f)
+			, bUseCameraManagerPostProcess(true)
 		{}
 
 		/** Minimal view info describing the position and orientation in the world. */
@@ -61,14 +61,8 @@ namespace UE::MovieGraph::DefaultRenderer
 		/** The name to use for the {camera_name} token. Filled out by the renderer where possible. */
 		FString CameraName;
 
-		/** In the [0-1] Range. */
-		float OverscanFraction;
-
 		/** should we respect the camera's aspect ratio settings. */
 		bool bAllowCameraAspectRatio;
-
-		/** Projection Matrix this camera should use. Used instead of the one calculated by FMinimalViewInfo to handle special cases. */
-		FMatrix ProjectionMatrix;
 
 		// questionable if these are fcamerainfo
 		/** When using tiling, we scale the sensor to counteract the view changes. This value comes from modifying the ProjectionMatrix. */
@@ -80,6 +74,10 @@ namespace UE::MovieGraph::DefaultRenderer
 		// Sub-pixel jitter this camera should use. Only applied when using no AA.
 		FVector2D ProjectionMatrixJitterAmount;
 
+		// If true, we use the Post Process data from the Camera Manager, instead of deriving it from the camera location. This should be
+		// false when rendering multiple cameras.
+		bool bUseCameraManagerPostProcess;
+
 	};
 
 	struct FRenderTargetInitParams
@@ -87,17 +85,22 @@ namespace UE::MovieGraph::DefaultRenderer
 		FRenderTargetInitParams()
 			: Size(FIntPoint(0, 0))
 			, TargetGamma(0.f)
+			, bForceLinearGamma(false)
 			, PixelFormat(EPixelFormat::PF_Unknown)
 		{
 		}
 
 		FIntPoint Size;
 		float TargetGamma;
+		bool bForceLinearGamma;
 		EPixelFormat PixelFormat;
 
 		bool operator == (const FRenderTargetInitParams& InRHS) const
 		{
-			return Size == InRHS.Size && TargetGamma == InRHS.TargetGamma && PixelFormat == InRHS.PixelFormat;
+			return Size == InRHS.Size
+				&& TargetGamma == InRHS.TargetGamma
+				&& bForceLinearGamma == InRHS.bForceLinearGamma
+				&& PixelFormat == InRHS.PixelFormat;
 		}
 
 		bool operator != (const FRenderTargetInitParams& InRHS) const
@@ -107,7 +110,7 @@ namespace UE::MovieGraph::DefaultRenderer
 
 		friend uint32 GetTypeHash(FRenderTargetInitParams Params)
 		{
-			return HashCombineFast(GetTypeHash(Params.Size), HashCombineFast(GetTypeHash(Params.TargetGamma), GetTypeHash(Params.PixelFormat)));
+			return HashCombineFast(GetTypeHash(Params.Size), HashCombineFast(GetTypeHash(Params.TargetGamma), HashCombineFast(GetTypeHash(Params.bForceLinearGamma), GetTypeHash(Params.PixelFormat))));
 		}
 	};
 
@@ -267,7 +270,6 @@ public:
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
 	virtual UE::MovieGraph::FRenderTimeStatistics* GetRenderTimeStatistics(const int32 InFrameNumber);
-
 	// ~UMovieGraphRendererBase Interface
 
 	// UObject Interface
@@ -275,9 +277,20 @@ public:
 	// ~UObject Interface
 
 	void AddOutstandingRenderTask_AnyThread(UE::Tasks::FTask InTask);
-	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(const FGuid& InCameraIdentifier) const;
+	/** Fetches information for the given camera index. Should be "-1" when not using multi-camera rendering, or [0, n] based on the shot's sidecar camera data when using multi-camera rendering. */
+	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(const int32 InCameraIndex) const;
 	void SetHasRenderedFirstViewThisFrame(bool bInValue) { bHasRenderedFirstViewThisFrame = bInValue; }
 	bool GetHasRenderedFirstViewThisFrame() const { return bHasRenderedFirstViewThisFrame; }
+
+	/**
+	 * Gets the overscan value for the specified camera. First checks to see if any cached overscan value exists and returning it, and if
+	 * no cached value was found, gets the camera's live overscan value and caches it.
+	 */
+	float GetCameraOverscan(int32 InCameraIndex);
+
+	/** Outputs a warning message regarding animated overscan to the MRQ log if one has not already been output  */
+	void WarnAboutAnimatedOverscan(float InInitialOverscan);
+	
 public:
 	UTextureRenderTarget2D* GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams, const FMovieGraphRenderDataIdentifier& InIdentifier);
 	FMoviePipelineSurfaceQueuePtr GetOrCreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams);
@@ -301,7 +314,12 @@ public:
 protected:
 	TObjectPtr<UTextureRenderTarget2D> CreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams) const;
 	FMoviePipelineSurfaceQueuePtr CreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams) const;
-	void GetCameraLocationsForFrame(TArray<FVector>& OutLocations) const;
+	
+	/** 
+	* Gets the camera locations for the current frame to inform the grass system of where streaming is required. If bIncludeSidecar is false, only the primary camera location is considered,
+	* otherwise it'll provide all the camera locations for multi-camera streaming (which can increase resource requirements).
+	*/
+	void GetCameraLocationsForFrame(TArray<FVector>& OutLocations, UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar = false) const;
 	void FlushAsyncEngineSystems(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const;
 
 protected:
@@ -340,4 +358,10 @@ protected:
 	FCriticalSection OutstandingTasksMutex;
 	/** Array of outstanding accumulation / blending tasks that are currently being worked on. */
 	TArray<UE::Tasks::FTask> OutstandingTasks;
+	
+	/** Caches the camera overscan used during setup to ensure that overscan-scaled resolution stays constant for every frame during a render */
+	TMap<int32, float> CameraOverscanCache;
+
+	/** Indicates if the user has already been warned about animate overscan if it is detected so that logs aren't flooded with warning messages */
+	bool bHasWarnedAboutAnimatedOverscan = false;
 };

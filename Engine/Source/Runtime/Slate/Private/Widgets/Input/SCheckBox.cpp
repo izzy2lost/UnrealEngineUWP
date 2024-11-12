@@ -20,6 +20,8 @@ SCheckBox::SCheckBox()
 #endif
 }
 
+SCheckBox::~SCheckBox() = default;
+
 /**
  * Construct this widget
  *
@@ -52,6 +54,7 @@ void SCheckBox::Construct( const SCheckBox::FArguments& InArgs )
 	CheckBoxTypeOverride = InArgs._Type;
 
 	HorizontalAlignment = InArgs._HAlign;
+	CheckBoxImageVAlign = InArgs._CheckBoxImageVAlign;
 	bCheckBoxContentUsesAutoWidth = InArgs._CheckBoxContentUsesAutoWidth;
 
 	bIsPressed = false;
@@ -518,7 +521,7 @@ void SCheckBox::BuildCheckBox(TSharedRef<SWidget> InContent)
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.VAlign(VAlign_Center)
+			.VAlign(CheckBoxImageVAlign)
 			.HAlign(HAlign_Center)
 			[
 				SNew(SOverlay)

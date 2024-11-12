@@ -30,6 +30,10 @@
 #include "Serialization/MemoryWriter.h"
 #endif
 
+#if WITH_EDITOR
+#include "UObject/ArchiveCookContext.h"
+#endif
+
 DEFINE_LOG_CATEGORY_STATIC(LogAudioDerivedData, Log, All);
 
 static int32 AllowAsyncCompression = 1;
@@ -394,7 +398,7 @@ static uint32 PutDerivedDataInCache(
 
 		if (UE_LOG_ACTIVE(LogAudio,Verbose))
 		{
-			LogString += FString::Printf(TEXT("  Chunk%d %d bytes %s\n"),
+			LogString += FString::Printf(TEXT("  Chunk%d %" INT64_FMT " bytes %s\n"),
 				ChunkIndex,
 				Chunk.BulkData.GetBulkDataSize(),
 				*ChunkDerivedDataKey
@@ -1141,7 +1145,12 @@ void FStreamedAudioPlatformData::Cache(USoundWave& InSoundWave, const FPlatformA
 			FWriteScopeLock AsyncTaskScope(AsyncTaskLock.Get());
 			check(AsyncTask == nullptr);
 			AsyncTask = new FStreamedAudioAsyncCacheDerivedDataTask(this, &InSoundWave, CompressionOverrides, AudioFormatName, Flags, InTargetPlatform);
-			int64 RequiredMemory = -1; // @todo RequiredMemory
+
+			// Use the size of the Uncompressed data x3 as guestmate of how much memory will be used.
+			const int64 PayloadSize = InSoundWave.RawData.GetPayloadSize() * 3;
+			// If there is no payoad size for some reason, use the default of -1.
+			const int64 RequiredMemory = PayloadSize > 0 ? PayloadSize : -1;
+
 			AsyncTask->StartBackgroundTask(SoundWaveThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait, RequiredMemory, TEXT("AudioDerivedData") );
 		}
 
@@ -1340,14 +1349,7 @@ int32 FStreamedAudioPlatformData::DeserializeChunkFromDDC(TArray<uint8> TempData
 		Ar.Serialize(*OutChunkData, ChunkSize);
 	}
 
-	if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-	{
-		return AudioDataSize;
-	}
-	else
-	{
-		return ChunkSize;
-	}
+	return AudioDataSize;
 }
 
 int32 FStreamedAudioPlatformData::GetChunkFromDDC(int32 ChunkIndex, uint8** OutChunkData, bool bMakeSureChunkIsLoaded /* = false */)
@@ -1498,6 +1500,14 @@ void FStreamedAudioPlatformData::Serialize(FArchive& Ar, USoundWave* Owner)
 
 	Ar << NumChunks;
 	Ar << AudioFormat;
+
+#if WITH_EDITOR
+	if (Ar.IsCooking() && Ar.IsSaving() && Ar.GetCookContext() && Ar.GetCookContext()->GetCookTagList())
+	{
+		FCookTagList* CookTags = Ar.GetCookContext()->GetCookTagList();
+		CookTags->Add(Owner, "StreamingFormat", LexToString(AudioFormat));
+	}
+#endif
 
 	if (Ar.IsLoading())
 	{
@@ -2134,7 +2144,24 @@ bool FDerivedAudioDataCompressor::Build(TArray<uint8>& OutData)
 		CookSurroundWave(*CookInputs, OutData);
 	}
 
+	const uint64 BeforeSize = CookInputs->BulkData.GetPayloadSize();
+	const uint64 AfterSize = OutData.Num();
+	const float Percent = BeforeSize > 0 ? ((float)AfterSize / BeforeSize) * 100.f : 0.0f;
+
+	// Log message about the completed results
+	FFormatNamedArguments Args2;
+	Args2.Add(TEXT("AudioFormat"), FText::FromName(CookInputs->BaseFormat));
+	Args2.Add(TEXT("SoundNodeName"), FText::FromString(CookInputs->SoundName));	
+	Args2.Add(TEXT("BeforeSize"), BeforeSize >> 10);
+	Args2.Add(TEXT("AfterSize"),  AfterSize >> 10);
+	Args2.Add(TEXT("Percent"), FText::FromString(FString::Printf(TEXT("%2.2f"), Percent)));
+	Args2.Add(TEXT("Quality"), FText::FromString(LexToString(CookInputs->CompressionQuality)));
+	Args2.Add(TEXT("QualityMod"), FText::FromString(FString::Printf(TEXT("%2.2f"), CookInputs->CompressionQualityModifier)));
+
+	FAudioStatusMessageContext CompressedMessage(FText::Format(NSLOCTEXT("Engine", "BuildingCompressedAudioTaskResults", "{SoundNodeName} compressed to {Percent}% (from {BeforeSize}KB to {AfterSize}KB) with {AudioFormat} at Quality {Quality} with Quality Modifier {QualityMod}"), Args2));
+
 #endif
+
 	return OutData.Num() > 0;
 }
 

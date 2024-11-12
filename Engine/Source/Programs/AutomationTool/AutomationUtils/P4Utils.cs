@@ -283,7 +283,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Parses a spec (clientspec, branchspec, changespec) from an array of lines
 		/// </summary>
-		/// <param name="Lines">Text split into separate lines</param>
+		/// <param name="Text">Text split into separate lines</param>
 		/// <returns>Array of section names and values</returns>
 		public static P4Spec FromString(string Text)
 		{
@@ -1136,6 +1136,8 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CommandsToExecute">List of commands to be executed.</param>
 		/// <param name="Commands">Commands.</param>
+		/// <param name="bRequireP4"></param>
+		/// <param name="bRequireCL"></param>
 		private static void CheckIfCommandsRequireP4(List<CommandInfo> CommandsToExecute, Dictionary<string, Type> Commands, out bool bRequireP4, out bool bRequireCL)
 		{
 			bRequireP4 = false;
@@ -1245,6 +1247,8 @@ namespace AutomationTool
 		/// <param name="CommandLine">Command line</param>
 		/// <param name="Input">Stdin</param>
 		/// <param name="AllowSpew">true for spew</param>
+		/// <param name="WithClient"></param>
+		/// <param name="SpewIsVerbose"></param>
 		/// <returns>Exit code</returns>
 		public IProcessResult P4(string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true, bool SpewIsVerbose = false)
 		{
@@ -1254,10 +1258,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Shortcut to Run but with P4.exe as the program name.
 		/// </summary>
-		/// <param name="GlobalOptions">Extra global options just for this command</param>
+		/// <param name="ExtraGlobalOptions">Extra global options just for this command</param>
 		/// <param name="CommandLine">Command line</param>
 		/// <param name="Input">Stdin</param>
 		/// <param name="AllowSpew">true for spew</param>
+		/// <param name="WithClient"></param>
+		/// <param name="SpewIsVerbose"></param>
 		/// <returns>Exit code</returns>
 		public IProcessResult P4(string ExtraGlobalOptions, string CommandLine, string Input, bool AllowSpew = true, bool WithClient = true, bool SpewIsVerbose = false)
 		{
@@ -1318,11 +1324,13 @@ namespace AutomationTool
 		/// Calls p4 and returns the output.
 		/// </summary>
 		/// <param name="Output">Output of the command.</param>
+		/// <param name="ExtraGlobalOptions"></param>
 		/// <param name="CommandLine">Commandline for p4.</param>
 		/// <param name="Input">Stdin input.</param>
 		/// <param name="AllowSpew">Whether the command should spew.</param>
+		/// <param name="WithClient"></param>
 		/// <returns>True if succeeded, otherwise false.</returns>
-        public bool P4Output(out string Output, string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true)
+		public bool P4Output(out string Output, string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true)
 		{
 			Output = "";
 
@@ -1335,12 +1343,14 @@ namespace AutomationTool
 		/// <summary>
 		/// Calls p4 and returns the output.
 		/// </summary>
-		/// <param name="Output">Output of the comman.</param>
+		/// <param name="OutputLines">Output of the command.</param>
+		/// <param name="ExtraGlobalOptions"></param>
 		/// <param name="CommandLine">Commandline for p4.</param>
 		/// <param name="Input">Stdin input.</param>
 		/// <param name="AllowSpew">Whether the command should spew.</param>
+		/// <param name="WithClient"></param>
 		/// <returns>True if succeeded, otherwise false.</returns>
-        public bool P4Output(out string[] OutputLines, string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true)
+		public bool P4Output(out string[] OutputLines, string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true)
 		{
 			string Output;
 			bool bResult = P4Output(out Output, ExtraGlobalOptions, CommandLine, Input, AllowSpew, WithClient);
@@ -1374,10 +1384,13 @@ namespace AutomationTool
 		/// <summary>
 		/// Calls p4 command and writes the output to a logfile.
 		/// </summary>
+		/// <param name="ExtraGlobalOptions"></param>
 		/// <param name="CommandLine">Commandline to pass to p4.</param>
 		/// <param name="Input">Stdin input.</param>
 		/// <param name="AllowSpew">Whether the command is allowed to spew.</param>
-        public void LogP4(string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true, bool SpewIsVerbose = false)
+		/// <param name="WithClient"></param>
+		/// <param name="SpewIsVerbose"></param>
+		public void LogP4(string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true, bool SpewIsVerbose = false)
 		{
 			string Output;
             if (!LogP4Output(out Output, ExtraGlobalOptions, CommandLine, Input, AllowSpew, WithClient, SpewIsVerbose:SpewIsVerbose))
@@ -1390,11 +1403,14 @@ namespace AutomationTool
 		/// Calls p4 and returns the output and writes it also to a logfile.
 		/// </summary>
 		/// <param name="Output">Output of the comman.</param>
+		/// <param name="ExtraGlobalOptions"></param>
 		/// <param name="CommandLine">Commandline for p4.</param>
 		/// <param name="Input">Stdin input.</param>
 		/// <param name="AllowSpew">Whether the command should spew.</param>
+		/// <param name="WithClient"></param>
+		/// <param name="SpewIsVerbose"></param>
 		/// <returns>True if succeeded, otherwise false.</returns>
-        public bool LogP4Output(out string Output, string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true, bool SpewIsVerbose = false)
+		public bool LogP4Output(out string Output, string ExtraGlobalOptions, string CommandLine, string Input = null, bool AllowSpew = true, bool WithClient = true, bool SpewIsVerbose = false)
 		{
 			Output = "";
 
@@ -1417,7 +1433,6 @@ namespace AutomationTool
 		/// format, because it avoids ambiguity when returned fields can have newlines.
 		/// </summary>
 		/// <param name="CommandLine">Command line to execute Perforce with</param>
-		/// <param name="TaggedOutput">List that receives the output records</param>
 		/// <param name="WithClient">Whether to include client information on the command line</param>
 		public List<Dictionary<string, string>> P4TaggedOutput(string CommandLine, bool WithClient = true)
 		{
@@ -1582,7 +1597,6 @@ namespace AutomationTool
         /// <summary>
         /// Invokes p4 changes command.
         /// </summary>
-        /// <param name="CommandLine">CommandLine to pass on to the command.</param>
         public class ChangeRecord
         {
             public int CL = 0;
@@ -1809,8 +1823,9 @@ namespace AutomationTool
 		/// <param name="Changelist">Changelist numbers to query full descriptions for</param>
 		/// <param name="DescribeRecord">Describe record for the given changelist.</param>
 		/// <param name="AllowSpew"></param>
+		/// <param name="bShelvedFiles"></param>
 		/// <returns>True if everything went okay</returns>
-        public bool DescribeChangelist(int Changelist, out DescribeRecord DescribeRecord, bool AllowSpew = true, bool bShelvedFiles = false)
+		public bool DescribeChangelist(int Changelist, out DescribeRecord DescribeRecord, bool AllowSpew = true, bool bShelvedFiles = false)
         {
 			List<DescribeRecord> DescribeRecords;
 			if(!DescribeChangelists(new List<int>{ Changelist }, out DescribeRecords, AllowSpew, bShelvedFiles))
@@ -2029,7 +2044,11 @@ namespace AutomationTool
 		/// Invokes p4 sync command.
 		/// </summary>
 		/// <param name="CommandLine">CommandLine to pass on to the command.</param>
-        public void Sync(string CommandLine, bool AllowSpew = true, bool SpewIsVerbose = false, int Retries=0, int MaxWait=0)
+		/// <param name="AllowSpew"></param>
+		/// <param name="SpewIsVerbose"></param>
+		/// <param name="Retries"></param>
+		/// <param name="MaxWait"></param>
+		public void Sync(string CommandLine, bool AllowSpew = true, bool SpewIsVerbose = false, int Retries=0, int MaxWait=0)
 		{
 			string SyncCommandLine = "sync " + CommandLine;
 
@@ -2052,6 +2071,8 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="FilesPreviewSynced">Files that have been preview synced with the command</param>
 		/// <param name="CommandLine">CommandLine to pass on to the command.</param>
+		/// <param name="AllowSpew"></param>
+		/// <param name="SpewIsVerbose"></param>
 		/// <returns>Whether preview sync is successful</returns>
 		public bool PreviewSync(out List<string> FilesPreviewSynced, string CommandLine, bool AllowSpew = true, bool SpewIsVerbose = false)
 		{
@@ -2095,6 +2116,7 @@ namespace AutomationTool
 		/// <param name="FromCL">Changelist to unshelve.</param>
 		/// <param name="ToCL">Changelist where the checked out files should be added.</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="SpewIsVerbose"></param>
 		public void Unshelve(int FromCL, int ToCL, string CommandLine = "", bool SpewIsVerbose = false)
 		{
 			LogP4("", "unshelve " + String.Format("-s {0} ", FromCL) + String.Format("-c {0} ", ToCL) + CommandLine, SpewIsVerbose: SpewIsVerbose);
@@ -2104,8 +2126,8 @@ namespace AutomationTool
 		/// Invokes p4 shelve command.
 		/// </summary>
 		/// <param name="FromCL">Changelist to unshelve.</param>
-		/// <param name="ToCL">Changelist where the checked out files should be added.</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void Shelve(int FromCL, string CommandLine = "", bool AllowSpew = true)
 		{
 			LogP4("", "shelve " + String.Format("-r -c {0} ", FromCL) + CommandLine, AllowSpew: AllowSpew);
@@ -2116,8 +2138,8 @@ namespace AutomationTool
 		/// This means that any files that are already shelved, but not in the FromCL being shelved, they will still exist
 		/// </summary>
 		/// <param name="FromCL">Changelist to unshelve.</param>
-		/// <param name="ToCL">Changelist where the checked out files should be added.</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void ShelveNoRevert(int FromCL, string CommandLine = "", bool AllowSpew = true)
 		{
 			LogP4("", "shelve " + String.Format("-f -c {0} ", FromCL) + CommandLine, AllowSpew: AllowSpew);
@@ -2127,7 +2149,7 @@ namespace AutomationTool
 		/// Deletes shelved files from a changelist
 		/// </summary>
 		/// <param name="FromCL">Changelist to unshelve.</param>
-		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void DeleteShelvedFiles(int FromCL, bool AllowSpew = true)
         {
 			string Output;
@@ -2140,7 +2162,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Invoke a command on a list of files, breaking up into multiple commands so as not to blow the max commandline length
 		/// </summary>
-		/// <param name="Comand">The command, like "p4 edit -c 1000"</param>
+		/// <param name="Command">The command, like "p4 edit -c 1000"</param>
 		/// <param name="Files"></param>
 		/// <param name="AllowSpew"></param>
 		public  void BatchedCommand(string Command, List<string> Files, bool AllowSpew = true)
@@ -2170,6 +2192,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist where the checked out files should be moved to.</param>
 		/// <param name="CommandLine">Commandline for the command</param>
+		/// <param name="AllowSpew"></param>
 		public void Reopen(int CL, string CommandLine, bool AllowSpew = true)
 		{
 			LogP4("", $"reopen -c {CL} {CommandLine}", AllowSpew: AllowSpew);
@@ -2183,6 +2206,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist where the checked out files should be moved to.</param>
 		/// <param name="Files">List of files to be moved</param>
+		/// <param name="AllowSpew"></param>
 		public void Reopen(int CL, List<string> Files, bool AllowSpew = true)
 		{
 			BatchedCommand($"reopen -c {CL}", Files, AllowSpew: AllowSpew);
@@ -2193,6 +2217,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist where the checked out files should be added.</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void Edit(int CL, string CommandLine, bool AllowSpew = true)
 		{
 			LogP4("", "edit " + String.Format("-c {0} ", CL) + CommandLine, AllowSpew: AllowSpew);
@@ -2202,7 +2227,8 @@ namespace AutomationTool
 		/// Invokes p4 edit command with a list of files.
 		/// </summary>
 		/// <param name="CL">Changelist where the checked out files should be added.</param>
-		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="Files"></param>
+		/// <param name="AllowSpew"></param>
 		public void Edit(int CL, List<string> Files, bool AllowSpew = true)
 		{
 			BatchedCommand($"edit -c {CL}", Files, AllowSpew: AllowSpew);
@@ -2249,6 +2275,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist where the checked out files should be added.</param>
 		/// <param name="Files">The list of files to add.</param>
+		/// <param name="AllowSpew"></param>
 		public void Add(int CL, List<string> Files, bool AllowSpew = true)
 		{
 			BatchedCommand($"add -c {CL}", Files, AllowSpew: AllowSpew);
@@ -2269,6 +2296,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist where the checked out files should be added.</param>
 		/// <param name="Files">List of files to be deleted.</param>
+		/// <param name="AllowSpew"></param>
 		public void Delete(int CL, List<string> Files, bool AllowSpew = true)
 		{
 			BatchedCommand($"delete -c {CL}", Files, AllowSpew: AllowSpew);
@@ -2279,6 +2307,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist to check the files out.</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void Reconcile(int CL, string CommandLine, bool AllowSpew = true)
 		{
 			LogP4("", "reconcile " + String.Format("-c {0} -ead -f ", CL) + CommandLine, AllowSpew: AllowSpew);
@@ -2287,7 +2316,6 @@ namespace AutomationTool
         /// <summary>
         /// Invokes p4 reconcile command.
         /// </summary>
-        /// <param name="CL">Changelist to check the files out.</param>
         /// <param name="CommandLine">Commandline for the command.</param>
         public void ReconcilePreview(string CommandLine)
         {
@@ -2300,6 +2328,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist to check the files out.</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void ReconcileNoDeletes(int CL, string CommandLine, bool AllowSpew = true)
 		{
 			LogP4("", "reconcile " + String.Format("-c {0} -ea ", CL) + CommandLine, AllowSpew: AllowSpew);
@@ -2320,6 +2349,7 @@ namespace AutomationTool
 		/// Invokes revert command.
 		/// </summary>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void Revert(string CommandLine, bool AllowSpew = true)
 		{
 			LogP4("", "revert " + CommandLine, AllowSpew: AllowSpew);
@@ -2330,6 +2360,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist to revert</param>
 		/// <param name="CommandLine">Commandline for the command.</param>
+		/// <param name="AllowSpew"></param>
 		public void Revert(int CL, string CommandLine = "", bool AllowSpew = true)
 		{
 			LogP4("", "revert " + String.Format("-c {0} ", CL) + CommandLine, AllowSpew: AllowSpew);
@@ -2349,6 +2380,7 @@ namespace AutomationTool
 		/// Reverts all files from the specified changelist.
 		/// </summary>
 		/// <param name="CL">Changelist to revert.</param>
+		/// <param name="SpewIsVerbose"></param>
 		public void RevertAll(int CL, bool SpewIsVerbose = false)
 		{
 			LogP4("", "revert " + String.Format("-c {0} //...", CL), SpewIsVerbose: SpewIsVerbose);
@@ -2528,6 +2560,9 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Owner">Owner of the changelist.</param>
 		/// <param name="Description">Description of the changelist.</param>
+		/// <param name="User"></param>
+		/// <param name="Type"></param>
+		/// <param name="AllowSpew"></param>
 		/// <returns>Id of the created changelist.</returns>
 		public int CreateChange(string Owner = null, string Description = null, string User = null, string Type = null, bool AllowSpew = false)
 		{
@@ -2628,6 +2663,8 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist to delete.</param>
 		/// <param name="RevertFiles">Indicates whether files in that changelist should be reverted.</param>
+		/// <param name="SpewIsVerbose"></param>
+		/// <param name="AllowSpew"></param>
 		public void DeleteChange(int CL, bool RevertFiles = true, bool SpewIsVerbose = false, bool AllowSpew = true)
 		{
 			if (RevertFiles)
@@ -2677,6 +2714,7 @@ namespace AutomationTool
 		/// Returns the changelist specification.
 		/// </summary>
 		/// <param name="CL">Changelist to get the specification from.</param>
+		/// <param name="AllowSpew"></param>
 		/// <returns>Specification of the changelist.</returns>
 		public string ChangeOutput(int CL, bool AllowSpew = true)
 		{
@@ -2693,6 +2731,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist id.</param>
 		/// <param name="Pending">Whether it is a pending changelist.</param>
+		/// <param name="AllowSpew"></param>
 		/// <returns>Returns whether the changelist exists.</returns>
 		public bool ChangeExists(int CL, out bool Pending, bool AllowSpew = true)
 		{
@@ -2739,6 +2778,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="CL">Changelist to get the files from.</param>
 		/// <param name="Pending">Whether the changelist is a pending one.</param>
+		/// <param name="AllowSpew"></param>
 		/// <returns>List of the files contained in the changelist.</returns>
 		public List<string> ChangeFiles(int CL, out bool Pending, bool AllowSpew = true)
 		{
@@ -2792,7 +2832,6 @@ namespace AutomationTool
         /// <summary>
         /// Returns the output from p4 opened
         /// </summary>
-        /// <param name="CL">Changelist to get the specification from.</param>
         /// <returns>Specification of the changelist.</returns>
         public string OpenedOutput()
         {
@@ -2807,7 +2846,8 @@ namespace AutomationTool
 		/// Deletes the specified label.
 		/// </summary>
 		/// <param name="LabelName">Label to delete.</param>
-        public void DeleteLabel(string LabelName, bool AllowSpew = true)
+		/// <param name="AllowSpew"></param>
+		public void DeleteLabel(string LabelName, bool AllowSpew = true)
 		{
 			var CommandLine = "label -d " + LabelName;
 
@@ -2867,6 +2907,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="LabelName">Name of the label.</param>
 		/// <param name="AllowSpew">Whether the command is allowed to spew.</param>
+		/// <param name="FileToLabel"></param>
 		public void LabelSync(string LabelName, bool AllowSpew = true, string FileToLabel = "")
 		{
 			string Quiet = "";
@@ -2970,7 +3011,7 @@ namespace AutomationTool
 		/// Updates a label description.
 		/// </summary>
 		/// <param name="Name">Name of the label</param>
-		/// <param name="Description">Description of the label.</param>
+		/// <param name="NewDescription">Description of the label.</param>
 		/// <param name="AllowSpew">Whether to allow log spew</param>
 		public void UpdateLabelDescription(string Name, string NewDescription, bool AllowSpew = true)
 		{
@@ -3082,12 +3123,13 @@ namespace AutomationTool
 			return false;
 		}
 
-        /// <summary>
-        /// Given a file path in the depot, returns the local disk mapping for the current view
-        /// </summary>
+		/// <summary>
+		/// Given a file path in the depot, returns the local disk mapping for the current view
+		/// </summary>
 		/// <param name="DepotFile">The full file path in depot naming form</param>
-        /// <returns>The file's first reported path on disk or null if no mapping was found</returns>
-        public string DepotToLocalPath(string DepotFile, bool AllowSpew = true)
+		/// <param name="AllowSpew"></param>
+		/// <returns>The file's first reported path on disk or null if no mapping was found</returns>
+		public string DepotToLocalPath(string DepotFile, bool AllowSpew = true)
         {
 			//  P4 where outputs missing entries 
 			string Command = String.Format("fstat \"{0}\"", DepotFile);
@@ -3111,12 +3153,13 @@ namespace AutomationTool
 			return null;
         }
 
-        /// <summary>
-        /// Given a set of file paths in the depot, returns the local disk mapping for the current view
-        /// </summary>
+		/// <summary>
+		/// Given a set of file paths in the depot, returns the local disk mapping for the current view
+		/// </summary>
 		/// <param name="DepotFiles">The full file paths in depot naming form</param>
-        /// <returns>The file's first reported path on disk or null if no mapping was found</returns>
-        public string[] DepotToLocalPaths(string[] DepotFiles, bool AllowSpew = true)
+		/// <param name="AllowSpew"></param>
+		/// <returns>The file's first reported path on disk or null if no mapping was found</returns>
+		public string[] DepotToLocalPaths(string[] DepotFiles, bool AllowSpew = true)
         {
 			const int BatchSize = 20;
 
@@ -3264,6 +3307,7 @@ namespace AutomationTool
 		/// Determines whether a file exists in the depot.
 		/// </summary>
 		/// <param name="DepotFile">Depot path</param>
+		/// <param name="AllowSpew"></param>
 		/// <returns>List of records describing the file's mapping. Usually just one, but may be more.</returns>
 		public bool FileExistsInDepot(string DepotFile, bool AllowSpew = true)
 		{
@@ -3339,6 +3383,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Filename">File to change the attributes of.</param>
 		/// <param name="Attributes">Attributes to set.</param>
+		/// <param name="Changelist"></param>
 		public void ChangeFileType(string Filename, P4FileAttributes Attributes, string Changelist = null)
 		{
 			Logger.LogDebug("ChangeFileType({Filename}, {Attributes}, {Arg2})", Filename, Attributes, String.IsNullOrEmpty(Changelist) ? "null" : Changelist);
@@ -3444,6 +3489,7 @@ namespace AutomationTool
 		/// Checks if the client exists in P4.
 		/// </summary>
 		/// <param name="ClientName">Client name</param>
+		/// <param name="Quiet"></param>
 		/// <returns>True if the client exists.</returns>
 		public bool DoesClientExist(string ClientName, bool Quiet = false)
 		{
@@ -3460,6 +3506,7 @@ namespace AutomationTool
 		/// Gets client info.
 		/// </summary>
 		/// <param name="ClientName">Name of the client.</param>
+		/// <param name="Quiet"></param>
 		/// <returns></returns>
 		public P4ClientInfo GetClientInfo(string ClientName, bool Quiet = false)
 		{
@@ -3563,6 +3610,8 @@ namespace AutomationTool
 		/// Gets all clients owned by the user.
 		/// </summary>
 		/// <param name="UserName"></param>
+		/// <param name="PathUnderClientRoot"></param>
+		/// <param name="AllowedStream"></param>
 		/// <returns>List of clients owned by the user.</returns>
 		public P4ClientInfo[] GetClientsForUser(string UserName, string PathUnderClientRoot = null, string AllowedStream = null)
 		{
@@ -3577,37 +3626,33 @@ namespace AutomationTool
 				P4Command += " -S " + AllowedStream;
 			}
 
-			var P4Result = P4(P4Command, AllowSpew: false, WithClient: false);
-			if (P4Result.ExitCode != 0)
+			string Output;
+			if (!P4Output(out Output, "-ztag -F \"Client %client% Root %Root%\"", P4Command, AllowSpew: false, WithClient: false))
 			{
 				throw new AutomationException("p4 clients -u {0} failed.", UserName);
 			}
 
 			// Parse output.
-			var Lines = P4Result.Output.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+			Regex OutputSplitter = new Regex(@"Client (?<client>.+) Root (?<root>.*)");
+			var Lines = Output.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
 			foreach (string Line in Lines)
 			{
-				var Tokens = Line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-				P4ClientInfo Info = null;
+				Match RegexMatch = OutputSplitter.Match(Line);
+				string ClientName = RegexMatch.Groups["client"].Value;
+				string RootPath = RegexMatch.Groups["root"].Value;
 
-				// Retrieve the client name and info.
-				for (int TokenIndex = 0; TokenIndex < Tokens.Length; ++TokenIndex)
-				{
-					if (Tokens[TokenIndex] == "Client")
-					{
-						var ClientName = Tokens[++TokenIndex];
-						Info = GetClientInfoInternal(ClientName);
-						break;
-					}
-				}
-
-				if (Info == null || String.IsNullOrEmpty(Info.Name) || String.IsNullOrEmpty(Info.RootPath))
+				if (String.IsNullOrEmpty(ClientName) || String.IsNullOrEmpty(RootPath))
 				{
 					throw new AutomationException("Failed to retrieve p4 client info for user {0}. Unable to set up local environment", UserName);
 				}
-				
-				if (IsValidClientForFile(Info, PathUnderClientRoot))
+
+				if (IsValidRootPathForFile(RootPath, PathUnderClientRoot))
 				{
+					P4ClientInfo Info = GetClientInfoInternal(ClientName);
+					if (Info == null)
+					{
+						throw new AutomationException("Failed to retrieve p4 client info for user {0}. Unable to set up local environment", UserName);
+					}
 					ClientList.Add(Info);
 				}
 			}
@@ -3616,11 +3661,16 @@ namespace AutomationTool
 
 		public bool IsValidClientForFile(P4ClientInfo Info, string PathUnderClientRoot)
 		{
+			return IsValidRootPathForFile(Info.RootPath, PathUnderClientRoot);
+		}
+
+		public bool IsValidRootPathForFile(string RootPath, string PathUnderClientRoot)
+		{
 			// Filter the client out if the specified path is not under the client root
 			bool bAddClient = true;
-			if (!String.IsNullOrEmpty(PathUnderClientRoot) && !String.IsNullOrEmpty(Info.RootPath))
+			if (!String.IsNullOrEmpty(PathUnderClientRoot) && !String.IsNullOrEmpty(RootPath))
 			{
-				var ClientRootPathWithSlash = Info.RootPath;
+				var ClientRootPathWithSlash = RootPath;
 				if (!ClientRootPathWithSlash.EndsWith("\\") && !ClientRootPathWithSlash.EndsWith("/"))
 				{
 					ClientRootPathWithSlash = CommandUtils.ConvertSeparators(PathSeparator.Default, ClientRootPathWithSlash + "/");
@@ -3635,17 +3685,19 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Name">Client name.</param>
 		/// <param name="Force">Forces the operation (-f)</param>
+		/// <param name="AllowSpew"></param>
 		public void DeleteClient(string Name, bool Force = false, bool AllowSpew = true)
         {
             LogP4("", String.Format("client -d {0} {1}", (Force ? "-f" : ""), Name), WithClient: false, AllowSpew: AllowSpew);
         }
 
-        /// <summary>
-        /// Creates a new client.
-        /// </summary>
-        /// <param name="ClientSpec">Client specification.</param>
-        /// <returns></returns>
-        public P4ClientInfo CreateClient(P4ClientInfo ClientSpec, bool AllowSpew = true)
+		/// <summary>
+		/// Creates a new client.
+		/// </summary>
+		/// <param name="ClientSpec">Client specification.</param>
+		/// <param name="AllowSpew"></param>
+		/// <returns></returns>
+		public P4ClientInfo CreateClient(P4ClientInfo ClientSpec, bool AllowSpew = true)
         {
             string SpecInput = "Client: " + ClientSpec.Name + Environment.NewLine;
             SpecInput += "Owner: " + ClientSpec.Owner + Environment.NewLine;
@@ -3785,6 +3837,7 @@ namespace AutomationTool
 		/// Gets the contents of a particular file in the depot without syncing it
 		/// </summary>
 		/// <param name="DepotPath">Depot path to the file (with revision/range if necessary)</param>
+		/// <param name="AllowSpew"></param>
 		/// <returns>Contents of the file</returns>
 		public string Print(string DepotPath, bool AllowSpew = true)
 		{
@@ -3909,6 +3962,7 @@ namespace AutomationTool
 		/// <param name="MaxChanges">Number of changelists to show. Ignored if zero or negative.</param>
 		/// <param name="Options">Options for the command</param>
 		/// <param name="FileSpecs">List of file specifications to query</param>
+		/// <param name="OutRecords"></param>
 		/// <returns>List of file records</returns>
 		public P4ReturnCode TryFileLog(int ChangeNumber, int MaxChanges, P4FileLogOptions Options, string[] FileSpecs, out P4FileRecord[] OutRecords)
 		{

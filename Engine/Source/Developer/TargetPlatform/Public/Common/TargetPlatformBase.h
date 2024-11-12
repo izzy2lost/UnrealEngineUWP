@@ -36,7 +36,7 @@ namespace Audio
 /**
  * Base class for target platforms.
  */
-class FTargetPlatformBase
+class UE_DEPRECATED(5.5, "FTargetPlatformBase is deprecated, please use FTargetPlatformControlsBase(SDK required to build) or FTargetPlatformSettingsBase(no SDK required).") FTargetPlatformBase
 	: public ITargetPlatform
 {
 public:
@@ -89,6 +89,8 @@ public:
 	TARGETPLATFORM_API virtual bool UsesDistanceFields() const override;
 
 	TARGETPLATFORM_API virtual bool UsesRayTracing() const override;
+
+	TARGETPLATFORM_API virtual ERayTracingRuntimeMode GetRayTracingMode() const override;
 
 	TARGETPLATFORM_API virtual uint32 GetSupportedHardwareMask() const override;
 
@@ -243,7 +245,8 @@ public:
 	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 	}
-
+	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 		// these are the default texture format modules, since many platforms 
@@ -259,6 +262,9 @@ public:
 		}
 	}
 	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
+	TARGETPLATFORM_API virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const override;
+
 	TARGETPLATFORM_API virtual FName GetWaveFormat(const class USoundWave* Wave) const override;
 	
 	TARGETPLATFORM_API virtual void GetAllWaveFormats(TArray<FName>& OutFormats) const override;
@@ -270,6 +276,11 @@ public:
 	virtual bool CopyFileToTarget(const FString& TargetAddress, const FString& HostFilename, const FString& TargetFilename, const TMap<FString,FString>& CustomPlatformData) override
 	{
 		return false; 
+	}
+
+	virtual void InitializeForCook() override
+	{
+
 	}
 
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
@@ -315,7 +326,7 @@ private:
  * @param TPlatformProperties Type of platform properties.
  */
 template<typename TPlatformProperties>
-class TTargetPlatformBase
+class UE_DEPRECATED(5.5, "TTargetPlatformBase is deprecated, please use TTargetPlatformControlsBase(SDK required to build) or TTargetPlatformSettingsBase(no SDK required).") TTargetPlatformBase
 	: public FTargetPlatformBase
 {
 public:
@@ -547,7 +558,7 @@ public:
 
 
 template<typename TPlatformProperties>
-class TNonDesktopTargetPlatformBase 
+class UE_DEPRECATED(5.5, "TNonDesktopTargetPlatformBase is deprecated, please use TNonDesktopTargetPlatformControlsBase.") TNonDesktopTargetPlatformBase
 	: public TTargetPlatformBase<TPlatformProperties>
 {
 public:
@@ -800,6 +811,10 @@ public:
 	{
 		return TargetPlatformSettings->UsesRayTracing();
 	}
+	virtual ERayTracingRuntimeMode GetRayTracingMode() const override
+	{
+		return TargetPlatformSettings->GetRayTracingMode();
+	}
 	virtual uint32 GetSupportedHardwareMask() const override
 	{
 		return TargetPlatformSettings->GetSupportedHardwareMask();
@@ -867,7 +882,7 @@ public:
 	}
 	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override 
 	{
-		TargetPlatformControls->GetShaderFormatModuleHints(OutModuleNames);
+		TargetPlatformSettings->GetShaderFormatModuleHints(OutModuleNames);
 	}
 	virtual void GetTextureFormats(const class UTexture* Texture, TArray< TArray<FName> >& OutFormats) const override 
 	{
@@ -876,6 +891,11 @@ public:
 	virtual void GetAllTextureFormats(TArray<FName>& OutFormats) const override 
 	{
 		TargetPlatformControls->GetAllTextureFormats(OutFormats);
+	}
+	
+	virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const override
+	{
+		TargetPlatformControls->GetTextureSizeLimits(OutMaximumSurfaceBytes,OutMaximumPackageBytes);
 	}
 
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override 
@@ -962,6 +982,10 @@ public:
 	virtual bool CopyFileToTarget(const FString& DeviceId, const FString& HostFilename, const FString& TargetFilename, const TMap<FString, FString>& CustomPlatformData) override 
 	{
 		return TargetPlatformControls->CopyFileToTarget(DeviceId, HostFilename, TargetFilename, CustomPlatformData);
+	}
+	virtual void InitializeForCook() override
+	{
+		TargetPlatformControls->InitializeForCook();
 	}
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
 	{

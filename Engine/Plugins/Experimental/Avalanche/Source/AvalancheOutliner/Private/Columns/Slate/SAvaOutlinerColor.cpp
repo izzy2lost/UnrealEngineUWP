@@ -119,7 +119,7 @@ public:
 	}
 };
 
-class FColorDragDropOp : public FDragDropOperation, public TSharedFromThis<FColorDragDropOp>
+class FColorDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FColorDragDropOp, FDragDropOperation)

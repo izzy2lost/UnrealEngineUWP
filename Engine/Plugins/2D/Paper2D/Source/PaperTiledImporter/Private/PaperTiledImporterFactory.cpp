@@ -148,7 +148,7 @@ UObject* UPaperTiledImporterFactory::FactoryCreateText(UClass* InClass, UObject*
  	const FString LongPackagePath = FPackageName::GetLongPackagePath(InParent->GetOutermost()->GetPathName());
  
  	const FString NameForErrors(InName.ToString());
- 	const FString FileContent(BufferEnd - Buffer, Buffer);
+ 	const FString FileContent = FString::ConstructFromPtrSize(Buffer, BufferEnd - Buffer);
  	TSharedPtr<FJsonObject> DescriptorObject = ParseJSON(FileContent, NameForErrors);
 
  	UPaperTileMap* Result = nullptr;

@@ -100,7 +100,13 @@ namespace UnrealBuildTool
 		/// <param name="Action">Action to enqueue</param>
 		static void Enqueue(System.Action Action)
 		{
-			Queue.Enqueue(() => { if (!CancelToken.IsCancellationRequested) { Action(); } });
+			Queue.Enqueue(() =>
+			{
+				if (!CancelToken.IsCancellationRequested)
+				{
+					Action();
+				}
+			});
 		}
 
 		/// <summary>

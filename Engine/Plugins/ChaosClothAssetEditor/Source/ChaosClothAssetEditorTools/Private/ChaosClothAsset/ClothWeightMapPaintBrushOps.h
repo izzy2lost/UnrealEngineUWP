@@ -132,7 +132,11 @@ public:
 	virtual float GetStrength() override { return Strength; }
 	virtual void SetStrength(float NewStrength) override { Strength = NewStrength; }
 
-	virtual float GetFalloff() override { return 0.0f; }
+	UPROPERTY(EditAnywhere, Category = PaintBrush, meta = (DisplayName = "Falloff", UIMin = "0.0", UIMax = "1.", ClampMin = "0.0", ClampMax = "1."))
+	float Falloff = 0.5;
+
+	virtual float GetFalloff() override { return Falloff; }
+	virtual void SetFalloff(float NewFalloff) override { Falloff = NewFalloff; }
 };
 
 

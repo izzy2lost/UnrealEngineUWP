@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGConvTranspose.h"
+
 #include "NNEHlslShadersConvTransposeCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -74,17 +76,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (Input.GetShape().Rank() < 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("ConvTranspose first input should be at least of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ConvTranspose: First input should be at least of rank 2"));
 				return false;
 			}
 			if (Weights.GetShape().Rank() != Input.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("ConvTranspose first and second inputs should be of same ranks"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ConvTranspose: First and second inputs should be of same ranks"));
 				return false;
 			}
 			if (Output.GetShape().Rank() != Input.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("ConvTranspose first input and output should be of same ranks"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ConvTranspose: First input and output should be of same ranks"));
 				return false;
 			}
 
@@ -164,7 +166,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			PermutationVector.Set<FConvTransposeCS::FConvTransposeHasB>(HasBias);
 			TShaderMapRef<FConvTransposeCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.ConvTranspose");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorConvTranspose, "NNE.Operator.Hlsl.ConvTranspose");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorConvTranspose);
 
 			FComputeShaderUtils::AddPass(

@@ -6,6 +6,7 @@
 #include "UObject/GCObject.h"
 #include "HAL/CriticalSection.h"
 #include "Types/SlateVector2.h"
+#include "Tasks/Task.h"
 
 #include <atomic>
 
@@ -20,6 +21,7 @@ class FSlateDrawBuffer : public FGCObject
 public:
 	/** Default constructor. */
 	SLATECORE_API FSlateDrawBuffer();
+	SLATECORE_API ~FSlateDrawBuffer();
 
 	/** Removes all data from the buffer. */
 	SLATECORE_API void ClearBuffer();
@@ -58,7 +60,12 @@ public:
 	 *
 	 * @see Lock
 	 */
-	SLATECORE_API void Unlock();
+	SLATECORE_API void Unlock(const UE::Tasks::FTask& PrerequisiteTask);
+
+	void Unlock()
+	{
+		Unlock(UE::Tasks::FTask{});
+	}
 
 	/** @return true if the buffer is locked. */
 	bool IsLocked() const

@@ -7,13 +7,14 @@
 #include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 
-
 struct FConcertPropertyChain;
 struct FConcertPropertySelection;
 struct FConcertReplication_ChangeAuthority_Request;
 struct FConcertReplication_ChangeStream_Request;
 struct FConcertObjectReplicationMap;
 struct FConcertReplicatedObjectId;
+
+namespace UE::ConcertSyncCore::Replication { class IReplicationGroundTruth; }
 
 namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 {
@@ -26,23 +27,6 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	};
 	
 	using FProcessAuthorityConflict = TFunctionRef<EBreakBehavior(const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& ConflictingProperty)>;
-
-	/** Defines a way to obtain streaming information about clients. */
-	class IReplicationGroundTruth
-	{
-	public:
-
-		/** Provides a way to extract all streams registered to a given client. */
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const = 0;
-
-		/** Iterates through all clients have registered to send any data. */
-		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const = 0;
-
-		/** @return Whether ClientId's stream StreamId has authority over ObjectPath. */
-		virtual bool HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const = 0; 
-
-		virtual ~IReplicationGroundTruth() = default;
-	};
 	
 	/**
 	 * Enumerates all authority conflicts, if any, that would occur if Object were to be replicated with the given Properties.
@@ -59,7 +43,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	CONCERTSYNCCORE_API EAuthorityConflict EnumerateAuthorityConflicts(
 		const FGuid& ClientId,
 		const FSoftObjectPath& Object,
-		TConstArrayView<FConcertPropertyChain> OverwriteProperties,
+		const TSet<FConcertPropertyChain>& OverwriteProperties,
 		const IReplicationGroundTruth& GroundTruth,
 		FProcessAuthorityConflict ProcessConflict = [](const FGuid&, const FGuid&, const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 		);

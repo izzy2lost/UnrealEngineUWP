@@ -57,7 +57,7 @@ void FWebMMovieStreamer::Cleanup()
 	AudioBackend->ShutdownPlatform();
 }
 
-FTexture2DRHIRef FWebMMovieStreamer::GetTexture()
+FTextureRHIRef FWebMMovieStreamer::GetTexture()
 {
 	return SlateVideoTexture.IsValid() ? SlateVideoTexture->GetRHIRef() : nullptr;
 }

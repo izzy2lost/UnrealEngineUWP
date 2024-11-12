@@ -66,7 +66,7 @@ FVertexFactoryInput LoadVertexFactoryInputForHGS(uint TriangleIndex, int VertexI
 	Input.VertexId = TriangleAttributes.Indices[VertexIndex];
 #endif
 
-	// Note: GetInstanceUserData() stores the GPU-Scene primitive ID
+	// Note: GetInstanceUserData() stores the GPU-Scene instance ID
 	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, GetInstanceUserData(), 0U);
 
 	return Input;
@@ -207,12 +207,30 @@ half3x3 CalcTangentToWorldNoScale(FVertexFactoryIntermediates Intermediates, hal
 	return mul(TangentToLocal, LocalToWorld); 
 }
 
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+
 /** Converts from vertex factory specific input to a FMaterialVertexParameters, which is used by vertex shader material inputs. */
-FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal)
+FMaterialVertexParameters GetMaterialVertexParameters(
+	FVertexFactoryInput Input, 
+	FVertexFactoryIntermediates Intermediates, 
+	float3 WorldPosition, 
+	half3x3 TangentToLocal,
+	bool bIsPreviousFrame = false)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	Result.SceneData = Intermediates.SceneData;
+	
 	Result.WorldPosition = WorldPosition;
+	if (bIsPreviousFrame)
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
+	}
+	else
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
+	}
+	Result.PositionPrimitiveSpace = Result.PositionInstanceSpace; // No support for instancing, so instance == primitive
 
 	// does not handle instancing!
 	Result.TangentToWorld = Intermediates.TangentToWorld;
@@ -305,6 +323,11 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	return WorldPosition;
 }
 
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return GetVertexPosition(Input).Position;
+}
+
 float4 VertexFactoryGetRasterizedWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float4 InWorldPosition)
 {
 	return InWorldPosition;
@@ -361,6 +384,12 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 {
 	const float3 VertexPosition = GetVertexPreviousPosition(Input);
 	return DFTransformLocalToTranslatedWorld(VertexPosition, GetPrimitiveData(Intermediates).PreviousLocalToWorld, ResolvedView.PrevPreViewTranslation);
+}
+
+// local position relative to instance
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return GetVertexPreviousPosition(Input);
 }
 
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)

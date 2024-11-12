@@ -167,7 +167,10 @@ namespace UnrealBuildTool
 			while (KeepRunning)
 			{
 				string? Line = Console.ReadLine();
-				if (Line == null) { continue; }
+				if (Line == null)
+				{
+					continue;
+				}
 				HandleCommand(Line, Logger);
 			}
 			return Task.FromResult(0);

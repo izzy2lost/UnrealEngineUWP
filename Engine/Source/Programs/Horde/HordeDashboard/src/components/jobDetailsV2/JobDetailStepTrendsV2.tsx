@@ -20,6 +20,9 @@ import { getHordeStyling } from "../../styles/Styles";
 
 const sideRail: ISideRailLink = { text: "Trends", url: "rail_step_trends" };
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
+
 class Tooltip {
 
    constructor() {
@@ -67,6 +70,8 @@ class StepTrendsDataView extends JobDataView {
 
       this.minTime = this.maxTime = undefined;
       this.maxMinutes = 0;
+
+      const alltimes: number[] = [];
 
       history = history.filter(r => {
 
@@ -118,6 +123,12 @@ class StepTrendsDataView extends JobDataView {
             this.maxMinutes = Math.max(minutes, this.maxMinutes);
          }
 
+         if (h.outcome === JobStepOutcome.Success || h.outcome === JobStepOutcome.Warnings) {
+            alltimes.push(minutes);
+         } else {
+            this.skipTrendLine.add(h.jobId);
+         }
+
          durations.set(h.jobId, minutes);
       });
 
@@ -126,6 +137,30 @@ class StepTrendsDataView extends JobDataView {
       history = history.filter(h => {
          return (durations.get(h.jobId) ?? (24 * 60)) <= (23 * 60)
       })
+
+      const median = (arr: number[]): number | undefined => {
+         if (!arr.length) return undefined;
+         const s = [...arr].sort((a, b) => a - b);
+         const mid = Math.floor(s.length / 2);
+         return s.length % 2 ? s[mid] : ((s[mid - 1] + s[mid]) / 2);
+      };
+
+      this.median = undefined;
+
+      this.median = median(alltimes);
+      if (this.median) {
+
+         this.median *= 3.0;
+
+         if (this.median < 1) {
+            this.median = 1;
+         }
+
+
+         if (this.median > this.maxMinutes) {
+            this.median = undefined;
+         }
+      }
 
       this.history = history;
    }
@@ -208,7 +243,9 @@ class StepTrendsDataView extends JobDataView {
    order = 8;
 
    durations = new Map<string, number>();
+   skipTrendLine = new Set<string>();
    maxMinutes = 0;
+   median?: number;
 
    minTime?: Date;
    maxTime?: Date;
@@ -221,7 +258,7 @@ class StepTrendsDataView extends JobDataView {
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type Zoom = d3.ZoomBehavior<Element, unknown>;
-type Scalar = d3.ScaleLinear<number, number, never>;
+type Scalar = d3.ScaleLinear<number, number>;
 
 class StepTrendsRenderer {
 
@@ -268,7 +305,7 @@ class StepTrendsRenderer {
          .range([margin.left, width - margin.right])
 
       const y = this.scaleY = d3.scaleLinear()
-         .domain([0, dataView.maxMinutes]).nice()
+         .domain([0, dataView.median ?? dataView.maxMinutes]).nice()
          .range([height - margin.bottom, margin.top])
 
 
@@ -327,14 +364,14 @@ class StepTrendsRenderer {
       const arrowPoints = [[0, 0], [0, 10], [10, 5]] as any;
       svg.append("marker")
          .attr("id", "cmarker")
-         .attr('viewBox', [0, 0, 10, 10])
+         .attr('viewBox', [0, 0, 10, 10] as any)
          .attr("refX", 5)
          .attr("refY", 5)
          .attr("markerWidth", 5)
          .attr("markerHeight", 5)
          .attr("orient", 'auto-start-reverse')
          .append("path")
-         .attr('d', d3.line()(arrowPoints))
+         .attr('d', (d3.line() as any)(arrowPoints))
          .style("fill", dashboard.darktheme ? "#6D6C6B" : "#4D4C4B");
 
       //svg.append("g")
@@ -360,32 +397,107 @@ class StepTrendsRenderer {
          .attr("stroke-width", () => 1)
          .attr("stroke", () => dashboard.darktheme ? "#6D6C6B" : "#4D4C4B")
 
-      const lineI = d3.range(data.length);
+      const lineI: number[] = [];
+      data.forEach((d, idx) => {
+         if (!dataView.skipTrendLine.has(d.jobId)) {
+            lineI.push(idx)
+         }
+      })
 
-      const curve = d3.curveLinear;
-      const line = d3.line()
-         .defined(i => true)
+      const showTrendLine = dataView.durations.size >= 10;
+
+      const plotTrendY = (i: any, scaleY?: any) => {
+         const idx = i as any as number;
+
+         let sum = 0;
+         let count = 0;
+         const range = 6;
+         for (let j = idx - range; j < idx + range; j++) {
+
+            if (j < 0 || j >= data.length) {
+               continue;
+            }
+
+            if (dataView.skipTrendLine.has(data[j].jobId)) {
+               continue;
+            }
+
+            const v = dataView.durations.get(data[j].jobId)!;
+
+            if (dataView.median && v > dataView.median) {
+               continue;
+            }
+
+            sum += v;
+            count++;
+         }
+
+         const f = scaleY ?? y;
+
+         if (!count) {
+            return f(dataView.durations.get(data[idx].jobId)!) - 2
+         }
+
+         return f(sum / count) - 2
+
+      }
+
+      const curve = d3.curveMonotoneX;
+      const line: any = d3.line()
+         .defined(i => showTrendLine)
          .curve(curve)
          .x(i => { return x(new Date(data[i as any].startTime!).getTime() / 1000) })
-         .y(i => { return y(dataView.durations.get(data[i as any].jobId)!) - 2 })
+         .y(i => {
+            return plotTrendY(i);
+         })
 
       svg.append("path")
          .attr("clip-path", `url(#${clipId})`)
          .attr("class", "linechart")
          .attr("fill", "none")
-         .attr("stroke", dashboard.darktheme ? "#6D6C6B" : "#6D6C6B")
-         .attr("stroke-width", 1.0)
+         .attr("stroke", dashboard.darktheme ? "#EEEEEE" : "#035CA1")
+         .attr("stroke-width", 3.0)
          .attr("stroke-linecap", "round")
          .attr("stroke-linejoin", "round")
-         .attr("stroke-opacity", 0.5)
+         .attr("stroke-opacity", 1)
          .attr("d", line(lineI as any));
 
       const xAxis = (g: SelectionType) => {
+
+         const dateMin = dataView.minTime!
+         const dateMax = dataView.maxTime!
+
+         let ticks: number[] = [];
+         for (const date of d3.timeDays(dateMin, dateMax, 1).reverse()) {
+            ticks.push(date.getTime() / 1000);
+         }
+
+         if (ticks.length > 14) {
+            let nticks = [...ticks];
+            // remove first and last, will be readded 
+            const first = nticks.shift()!;
+            const last = nticks.pop()!;
+
+            const n = Math.floor(nticks.length / 12);
+
+            const rticks: number[] = [];
+            for (let i = 0; i < nticks.length; i = i + n) {
+               rticks.push(nticks[i]);
+            }
+
+            rticks.unshift(first);
+            rticks.push(last);
+            ticks = rticks;
+
+         }
+
 
          g.attr("transform", `translate(0,24)`)
             .style("font-family", "Horde Open Sans SemiBold")
             .style("font-size", "12px")
             .call(d3.axisTop(x)
+               .tickValues(ticks)
+               //.ticks(d3.timeDays(dateMin, dateMax))
                .tickFormat(d => {
                   return getHumanTime(new Date((d as number) * 1000));
                })
@@ -440,17 +552,14 @@ class StepTrendsRenderer {
             .attr("x", (d: any) => x(new Date(d.startTime!).getTime() / 1000) - (barWidth / 2))
             .attr("width", barWidth);
 
-         const strokeWidth = zoomLevel > 4 ? 2 : 1;
-
-         const scaledLine = d3.line()
-            .defined(i => true)
+         const scaledLine: any = d3.line()
+            .defined(i => showTrendLine)
             .curve(curve)
             .x(i => { return x(new Date(data[i as any].startTime!).getTime() / 1000) })
-            .y(i => { return renderer.scaleY!(dataView.durations.get(data[i as any].jobId)!) - 2 })
+            .y(i => plotTrendY(i, renderer.scaleY!))
 
 
          svg!.selectAll(".linechart")
-            .attr("stroke-width", strokeWidth)
             .attr("d", scaledLine(lineI as any));
 
 
@@ -469,11 +578,11 @@ class StepTrendsRenderer {
             .attr("height", (d: any) => scaleY(0) - scaleY(dataView.durations.get(d.jobId)!))
 
 
-         const scaledLine = d3.line()
-            .defined(i => true)
+         const scaledLine: any = d3.line()
+            .defined(i => showTrendLine)
             .curve(curve)
             .x(i => { return x(new Date(data[i as any].startTime!).getTime() / 1000) })
-            .y(i => { return scaleY(dataView.durations.get(data[i as any].jobId)!) - 2 })
+            .y(i => { return plotTrendY(i, scaleY) })
 
 
          svg!.selectAll(".linechart")
@@ -514,8 +623,8 @@ class StepTrendsRenderer {
             return;
          }
 
-         let mouseX = d3.pointer(event)[0];
-         let mouseY = d3.pointer(event)[1];
+         let mouseX = _d3.pointer(event)[0];
+         let mouseY = _d3.pointer(event)[1];
 
          const ref = closestData(mouseX, mouseY);
 
@@ -538,11 +647,11 @@ class StepTrendsRenderer {
          if (ref) {
             this.showToolTip()
          }
-         dataView.tooltip.update(ref, d3.pointer(event, container)[0], mouseY, ref?.change);
+         dataView.tooltip.update(ref, _d3.pointer(event, container)[0], mouseY, ref?.change);
       }
 
       // events
-      svg.on("wheel", (event) => { event.preventDefault(); })
+      svg.on("wheel", (event: any) => { event.preventDefault(); })
 
       svg.on("mousemove", (event) => { this.showToolTip(true); handleMouseMove(event); });
       svg.on("mouseleave", (event) => { if (!dataView.tooltip.frozen) dataView.tooltip.update(undefined); })
@@ -586,7 +695,7 @@ class StepTrendsRenderer {
 const GraphTooltip: React.FC<{ dataView: StepTrendsDataView }> = observer(({ dataView }) => {
 
    const { modeColors } = getHordeStyling();
-   
+
    // subscribe
    if (dataView.tooltip.updated) { }
 
@@ -631,6 +740,8 @@ const GraphTooltip: React.FC<{ dataView: StepTrendsDataView }> = observer(({ dat
    const format = dashboard.display24HourClock ? "HH:mm:ss z" : "LT z";
    let displayTimeStr = displayTime.format('MMM Do') + ` at ${displayTime.format(format)}`;
 
+   const step = dataView.details?.stepById(dataView.stepId);
+
    return <div style={{
       position: "absolute",
       display: "block",
@@ -650,7 +761,7 @@ const GraphTooltip: React.FC<{ dataView: StepTrendsDataView }> = observer(({ dat
       <Stack>
          <Link to={`/job/${ref.jobId}?step=${ref.stepId}`}><Stack horizontal>
             <StepRefStatusIcon stepRef={ref} />
-            <Text variant={textSize}>{dataView.details?.nodeByStepId(dataView.stepId)?.name}</Text>
+            <Text variant={textSize}>{step?.name}</Text>
          </Stack>
          </Link>
          <Stack style={{ paddingLeft: 2, paddingTop: 8 }} tokens={{ childrenGap: 8 }}>
@@ -751,7 +862,7 @@ export const StepTrendsPanelV2: React.FC<{ jobDetails: JobDetailsV2; stepId: str
                      min={1}
                      max={dataView.maxMinutes}
                      step={dataView.maxMinutes / 20}
-                     defaultValue={dataView.maxMinutes}
+                     defaultValue={dataView.median ?? dataView.maxMinutes}
                      showValue
                      valueFormat={(value) => {
                         if (!value) return ""

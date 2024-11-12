@@ -2,14 +2,17 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "SlateFwd.h"
+#include "UObject/NameTypes.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 
 class FMenuBuilder;
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -119,4 +122,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights

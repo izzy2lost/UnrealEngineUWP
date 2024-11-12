@@ -5,7 +5,7 @@
 #include "StateTree.h"
 #include "StateTreeNodeBase.h"
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 namespace UE::StateTreeTrace
 {
@@ -130,12 +130,6 @@ FString FStateTreeTraceTransitionEvent::GetValueString(const UStateTree& StateTr
 {
 	const FCompactStateTreeState* CompactState = StateTree.GetStateFromHandle(TransitionSource.TargetState);
 	FStringBuilderBase StrBuilder;
-	StrBuilder.Appendf(TEXT("go to State '%s'"), CompactState != nullptr ? *UE::StateTreeTrace::GetStateName(StateTree, CompactState) : *TransitionSource.TargetState.Describe());
-
-	if (TransitionSource.Priority != EStateTreeTransitionPriority::None)
-	{
-		StrBuilder.Appendf(TEXT(" (Priority: %s)"), *UEnum::GetDisplayValueAsText(TransitionSource.Priority).ToString()); 
-	}
 
 	if (TransitionSource.SourceType == EStateTreeTransitionSourceType::Asset)
 	{
@@ -143,16 +137,42 @@ FString FStateTreeTraceTransitionEvent::GetValueString(const UStateTree& StateTr
 		{
 			ensureAlways(Transition->Priority == TransitionSource.Priority);
 			ensureAlways(Transition->State == TransitionSource.TargetState);
-			if (Transition->EventTag.IsValid())
+
+			const bool bHasTag = Transition->RequiredEvent.Tag.IsValid();
+			const bool bHasPayload = Transition->RequiredEvent.PayloadStruct != nullptr;
+			
+			if (bHasTag || bHasPayload)
 			{
-				StrBuilder.Appendf(TEXT("\n\t%s"), *Transition->EventTag.ToString()); 
+				StrBuilder.Appendf(TEXT("("));
+				
+				if (bHasTag)
+				{
+					StrBuilder.Appendf(TEXT("Tag: '%s'"), *Transition->RequiredEvent.Tag.ToString()); 
+				}
+				if (bHasTag && bHasPayload)
+				{
+					StrBuilder.Appendf(TEXT(", "));
+				}
+				if (bHasPayload)
+				{
+					StrBuilder.Appendf(TEXT(" Payload: '%s'"), *Transition->RequiredEvent.PayloadStruct->GetName()); 
+				}
+				StrBuilder.Appendf(TEXT(") ")); 
 			}
 		}
 		else
 		{
-			StrBuilder.Appendf(TEXT("Invalid Transition Index %s for '%s'"), *LexToString(TransitionSource.TransitionIndex.Get()), *StateTree.GetFullName());
+			StrBuilder.Appendf(TEXT("[Invalid Transition Index %s for '%s']"), *LexToString(TransitionSource.TransitionIndex.Get()), *StateTree.GetFullName());
 		}
 	}
+	
+	StrBuilder.Appendf(TEXT("go to State '%s'"), CompactState != nullptr ? *UE::StateTreeTrace::GetStateName(StateTree, CompactState) : *TransitionSource.TargetState.Describe());
+
+	if (TransitionSource.Priority != EStateTreeTransitionPriority::None)
+	{
+		StrBuilder.Appendf(TEXT(" (Priority: %s)"), *UEnum::GetDisplayValueAsText(TransitionSource.Priority).ToString()); 
+	}
+
 
 	return StrBuilder.ToString();
 }
@@ -378,4 +398,4 @@ FString FStateTreeTraceInstanceFrameEvent::GetTypeString(const UStateTree& State
 	return TEXT("New instance frame");
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

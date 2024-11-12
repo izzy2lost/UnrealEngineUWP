@@ -24,7 +24,7 @@ TEST(ControlsTest, GUIToRawMapping) {
     const std::uint16_t guiControlCount = conditionals.getInputCount();
     const std::uint16_t rawControlCount = conditionals.getOutputCount();
     const std::uint16_t psdControlCount = psds.getDistinctPSDCount();
-    auto instanceFactory = ControlsFactory::getInstanceFactory(guiControlCount, rawControlCount, psdControlCount, 0u);
+    auto instanceFactory = ControlsFactory::getInstanceFactory(guiControlCount, rawControlCount, psdControlCount, 0u, 0u);
     rl4::Controls controls{std::move(conditionals), std::move(psds), instanceFactory};
 
     const rl4::Vector<float> guiControls{0.1f, 0.2f};
@@ -55,7 +55,7 @@ TEST(ControlsTest, PSDsAppendToOutput) {
     const std::uint16_t guiControlCount = conditionals.getInputCount();
     const std::uint16_t rawControlCount = conditionals.getOutputCount();
     const std::uint16_t psdControlCount = psds.getDistinctPSDCount();
-    auto instanceFactory = ControlsFactory::getInstanceFactory(guiControlCount, rawControlCount, psdControlCount, 0u);
+    auto instanceFactory = ControlsFactory::getInstanceFactory(guiControlCount, rawControlCount, psdControlCount, 0u, 0u);
     rl4::Controls controls{std::move(conditionals), std::move(psds), instanceFactory};
     auto instance = controls.createInstance(&amr);
     auto buffer = instance->getInputBuffer();

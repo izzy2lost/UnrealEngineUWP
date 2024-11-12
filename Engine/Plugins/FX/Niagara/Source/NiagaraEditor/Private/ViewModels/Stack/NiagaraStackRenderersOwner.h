@@ -22,7 +22,7 @@ public:
 	virtual bool IsValid() const = 0;
 	virtual UObject* GetOwnerObject() const = 0;
 	virtual void GetRenderers(TArray<UNiagaraRendererProperties*>& OutRenderers) const = 0;
-	virtual bool IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const = 0;
+	virtual bool SupportsRendererClass(const UClass* RendererClass) const = 0;
 
 	virtual void AddRenderer(UNiagaraRendererProperties* RendererToAdd) = 0;
 	virtual void RemoveRenderer(UNiagaraRendererProperties* Renderer) = 0;
@@ -43,7 +43,7 @@ public:
 class FNiagaraStackRenderersOwner : public INiagaraStackRenderersOwner
 {
 public:
-	virtual bool IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const override { return true; }
+	virtual bool SupportsRendererClass(const UClass* RendererClass) const override { return true; }
 
 	virtual bool HasBaseRenderer(UNiagaraRendererProperties* Renderer) const override { return false; }
 	virtual bool IsRendererDifferentFromBase(UNiagaraRendererProperties* Renderer) const override { return false; }
@@ -96,7 +96,7 @@ public:
 	virtual bool IsValid() const override;
 	virtual UObject* GetOwnerObject() const override;
 	virtual void GetRenderers(TArray<UNiagaraRendererProperties*>& OutRenderers) const override;
-	virtual bool IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const override;
+	virtual bool SupportsRendererClass(const UClass* RendererClass) const override;
 	virtual void AddRenderer(UNiagaraRendererProperties* RendererToAdd) override;
 	virtual void RemoveRenderer(UNiagaraRendererProperties* Renderer) override;
 	virtual void MoveRenderer(UNiagaraRendererProperties* Renderer, int32 NewIndex) override;

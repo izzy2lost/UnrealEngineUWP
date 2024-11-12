@@ -3,18 +3,20 @@
 #pragma once
 
 #include "Framework/SlateDelegates.h"
+#include "SActionButton.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SComboButton.h"
 
 /** A Button that is used to call out/highlight a positive option (Add, Save etc). It can also be used to open a menu.
 */
-class TOOLWIDGETS_API SPositiveActionButton : public SCompoundWidget
+class TOOLWIDGETS_API SPositiveActionButton
+	: public SCompoundWidget
+	, public IActionButton
 {
 public:
-
-	SLATE_BEGIN_ARGS(SPositiveActionButton) :
-		_Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+	SLATE_BEGIN_ARGS(SPositiveActionButton)
+		: _Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 		{}
 
 		/** The text to display in the button. */
@@ -33,18 +35,17 @@ public:
 		SLATE_EVENT(FOnGetContent, OnGetMenuContent)
 		SLATE_EVENT(FOnComboBoxOpened, OnComboBoxOpened)
 		SLATE_EVENT(FOnIsOpenChanged, OnMenuOpenChanged)
-
 	SLATE_END_ARGS()
 
-	SPositiveActionButton() {}
+	SPositiveActionButton() = default;
 
 	void Construct(const FArguments& InArgs);
 
-	void SetMenuContentWidgetToFocus(TWeakPtr<SWidget> Widget);
-	void SetIsMenuOpen(bool bIsOpen, bool bIsFocused);
+	//~ Begin IActionButton
+	virtual void SetMenuContentWidgetToFocus(TWeakPtr<SWidget> InWidget) override;
+	virtual void SetIsMenuOpen(bool bInIsOpen, bool bInIsFocused) override;
+	//~ End IActionButton
 
 private:
-
-	TSharedPtr<SComboButton> ComboButton;
-	TSharedPtr<class SButton> Button;
+	TSharedPtr<SActionButton> ActionButton;
 };

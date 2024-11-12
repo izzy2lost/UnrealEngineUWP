@@ -32,7 +32,7 @@ private:
 	void InitializeResources();
 
 	// updates the internal texture resource after each frame.
-	void UpdateTextureReference(FRHICommandList& RHICmdList, FTexture2DRHIRef Reference);
+	void UpdateTextureReference(FRHICommandList& RHICmdList, FTextureRHIRef Reference);
 
 	TArray<uint8_t> Buffer;
 

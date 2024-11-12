@@ -14,6 +14,7 @@ enum class EGLTFJsonExtension
 	KHR_MaterialsTransmission,
 	KHR_MaterialsSpecularGlossiness,
 	KHR_MaterialsIridescence,
+	KHR_MaterialsAnisotropy,
 	KHR_MeshQuantization,
 	KHR_TextureTransform,
 	KHR_MaterialsSpecular

@@ -16,6 +16,8 @@ struct FClothCollisionData
 
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API void Append(const FClothCollisionData& InOther);
 
+	CLOTHINGSYSTEMRUNTIMEINTERFACE_API void AppendTransformed(const FClothCollisionData& InOther, const TArray<FTransform>& BoneTransforms);
+
 	// Sphere data
 	UPROPERTY(EditAnywhere, Category = Collison)
 	TArray<FClothCollisionPrim_Sphere> Spheres;

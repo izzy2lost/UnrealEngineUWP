@@ -38,6 +38,22 @@ namespace Private
 		SkipUncookedClasses = InSkipUncookedClasses;
 		SkipCookedClasses = InSkipCookedClasses;
 	}
+
+	void FFiltering::InitializeShouldSkipAsset()
+	{
+		if (!bInitializedSkipClasses)
+		{
+			// Since we only collect these the first on-demand time, it is possible we will miss subclasses
+			// from plugins that load later. This flaw is a rare edge case, though, and this solution will
+			// be replaced eventually, so leaving it for now.
+			if (GIsEditor && (!IsRunningCommandlet() || IsRunningCookCommandlet()))
+			{
+				Utils::PopulateSkipClasses(SkipUncookedClasses, SkipCookedClasses);
+			}
+
+			bInitializedSkipClasses = true;
+		}
+	}
 #endif
 
 #if WITH_ENGINE && WITH_EDITOR
@@ -52,8 +68,8 @@ namespace Utils
 		}
 
 		const bool bIsCooked = (PackageFlags & PKG_FilterEditorOnly);
-		if ((bIsCooked && SkipCookedClasses.Contains(AssetClass)) ||
-			(!bIsCooked && SkipUncookedClasses.Contains(AssetClass)))
+		if ((bIsCooked && InSkipCookedClasses.Contains(AssetClass)) ||
+			(!bIsCooked && InSkipUncookedClasses.Contains(AssetClass)))
 		{
 			return true;
 		}
@@ -76,12 +92,12 @@ namespace Utils
 
 	void PopulateSkipClasses(TSet<FTopLevelAssetPath>& OutSkipUncookedClasses, TSet<FTopLevelAssetPath>& OutSkipCookedClasses)
 	{
-		static const FName NAME_EnginePackage("/Script/Engine");
+		const FName NAME_EnginePackage(GetScriptPackageNameEngine());
 		UPackage* EnginePackage = Cast<UPackage>(StaticFindObjectFast(UPackage::StaticClass(), nullptr, NAME_EnginePackage));
 		{
 			OutSkipUncookedClasses.Reset();
 
-			static const FName NAME_BlueprintGeneratedClass("BlueprintGeneratedClass");
+			const FName NAME_BlueprintGeneratedClass(GetClassNameBlueprintGeneratedClass());
 			UClass* BlueprintGeneratedClass = nullptr;
 			if (EnginePackage)
 			{
@@ -106,7 +122,7 @@ namespace Utils
 		{
 			OutSkipCookedClasses.Reset();
 
-			static const FName NAME_Blueprint("Blueprint");
+			const FName NAME_Blueprint(GetClassNameBlueprint());
 			UClass* BlueprintClass = nullptr;
 			if (EnginePackage)
 			{
@@ -140,18 +156,8 @@ namespace Utils
 		// an asset; the content browser does not handle the multiple assets correctly and displays this
 		// class asset as if it is in a separate package. Revisit when we have removed the UBlueprint as an asset
 		// or when we support multiple assets.
-		if (!bInitializedSkipClasses)
-		{
-			// Since we only collect these the first on-demand time, it is possible we will miss subclasses
-			// from plugins that load later. This flaw is a rare edge case, though, and this solution will
-			// be replaced eventually, so leaving it for now.
-			if (GIsEditor && (!IsRunningCommandlet() || IsRunningCookCommandlet()))
-			{
-				Utils::PopulateSkipClasses(SkipUncookedClasses, SkipCookedClasses);
-			}
+		InitializeShouldSkipAsset();
 
-			bInitializedSkipClasses = true;
-		}
 		return Utils::ShouldSkipAsset(AssetClass, PackageFlags, SkipUncookedClasses, SkipCookedClasses);
 #else
 		return false;
@@ -178,4 +184,72 @@ namespace Utils
 		bInitializedSkipClasses = false;
 #endif
 	}
-}
+
+	static FName ScriptPackageNameCoreUObject(TEXT("/Script/CoreUObject"));
+	static FName ScriptPackageNameEngine(TEXT("/Script/Engine"));
+	static FName ScriptPackageNameBlueprintGraph(TEXT("/Script/BlueprintGraph"));
+	static FName ScriptPackageNameUnrealEd(TEXT("/Script/UnrealEd"));
+	static FName ClassNameObject(TEXT("Object"));
+	static FName ClassNameObjectRedirector(TEXT("ObjectRedirector"));
+	static FName ClassNameBlueprintCore(TEXT("BlueprintCore"));
+	static FName ClassNameBlueprint(TEXT("Blueprint"));
+	static FName ClassNameBlueprintGeneratedClass(TEXT("BlueprintGeneratedClass"));
+
+	FName GetScriptPackageNameCoreUObject()
+	{
+		return ScriptPackageNameCoreUObject;
+	}
+	FName GetScriptPackageNameEngine()
+	{
+		return ScriptPackageNameEngine;
+	}
+	FName GetScriptPackageNameBlueprintGraph()
+	{
+		return ScriptPackageNameBlueprintGraph;
+	}
+	FName GetScriptPackageNameUnrealEd()
+	{
+		return ScriptPackageNameUnrealEd;
+	}
+	FName GetClassNameObject()
+	{
+		return ClassNameObject;
+	}
+	FName GetClassNameObjectRedirector()
+	{
+		return ClassNameObjectRedirector;
+	}
+	FName GetClassNameBlueprintCore()
+	{
+		return ClassNameBlueprintCore;
+	}
+	FName GetClassNameBlueprint()
+	{
+		return ClassNameBlueprint;
+	}
+	FName GetClassNameBlueprintGeneratedClass()
+	{
+		return ClassNameBlueprintGeneratedClass;
+	}
+	FTopLevelAssetPath GetClassPathObject()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameCoreUObject(), GetClassNameObject());
+	}
+	FTopLevelAssetPath GetClassPathObjectRedirector()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameCoreUObject(), GetClassNameObjectRedirector());
+	}
+	FTopLevelAssetPath GetClassPathBlueprintCore()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameEngine(), GetClassNameBlueprintCore());
+	}
+	FTopLevelAssetPath GetClassPathBlueprint()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameEngine(), GetClassNameBlueprint());
+	}
+	FTopLevelAssetPath GetClassPathBlueprintGeneratedClass()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameEngine(), GetClassNameBlueprintGeneratedClass());
+	}
+
+} // namespace UE::AssetRegistry

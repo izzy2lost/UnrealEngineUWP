@@ -4,6 +4,7 @@
 #include "AvaTransitionTree.h"
 #include "AvaTransitionEditor.h"
 #include "StateTreeEditorModule.h"
+#include "Modules/ModuleManager.h"
 
 namespace UE::AvaTransitionEditor::Private
 {

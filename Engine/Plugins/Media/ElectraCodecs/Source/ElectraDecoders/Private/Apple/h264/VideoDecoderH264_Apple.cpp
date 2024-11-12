@@ -44,6 +44,8 @@ public:
 	uint64 GetUserValue() const override
 	{ return UserValue; }
 
+	EOutputType GetOutputType() const
+	{ return EOutputType::Output; }
 	int32 GetWidth() const override
 	{ return Width - Crop.Left - Crop.Right; }
 	int32 GetHeight() const override
@@ -362,11 +364,11 @@ void IElectraVideoDecoderH264_Apple::PlatformGetSupportedConfigurations(TArray<F
 		// What is really supported isn't quite clear so allow for UHD.
 
 		// Baseline
-		IElectraVideoDecoderH264_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH264_Apple::FSupportedConfiguration(66, 52, 60, 3840, 2160, 0));
+		IElectraVideoDecoderH264_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH264_Apple::FSupportedConfiguration(66, 52, 120, 3840, 2160, 0));
 		// Main
-		IElectraVideoDecoderH264_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH264_Apple::FSupportedConfiguration(77, 52, 60, 3840, 2160, 0));
+		IElectraVideoDecoderH264_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH264_Apple::FSupportedConfiguration(77, 52, 120, 3840, 2160, 0));
 		// High
-		IElectraVideoDecoderH264_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH264_Apple::FSupportedConfiguration(100, 52, 60, 3840, 2160, 0));
+		IElectraVideoDecoderH264_Apple_Platform::DecoderConfigurations.Emplace(IElectraVideoDecoderH264_Apple::FSupportedConfiguration(100, 52, 120, 3840, 2160, 0));
 
 		IElectraVideoDecoderH264_Apple_Platform::bDecoderConfigurationsDirty = false;
 	}
@@ -818,7 +820,7 @@ bool FElectraVideoDecoderH264_Apple::InternalDecoderCreate(const TMap<FString, F
 
 	// Choice of: kCVPixelBufferOpenGLCompatibilityKey (all)  kCVPixelBufferOpenGLESCompatibilityKey (iOS only)   kCVPixelBufferMetalCompatibilityKey (all)
 	CFDictionarySetValue(OutputImageFormat, kCVPixelBufferMetalCompatibilityKey, kCFBooleanTrue);
-#if PLATFORM_IOS || PLATFORM_TVOS
+#if UE_PLATFORM_IOS_ONLY || PLATFORM_TVOS
 	CFDictionarySetValue(OutputImageFormat, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanFalse);
 #endif
 

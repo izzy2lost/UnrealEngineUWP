@@ -68,6 +68,7 @@ public:
 	virtual bool ShouldShowVisibilityState() const override { return false; }
 	virtual bool HasPinnedStateInfo() const override { return true; }
 	virtual bool GetPinnedState() const override;
+	virtual FString GetPackageName() const override;
 	/* End ISceneOutlinerTreeItem Implementation */
 	
 	/* Begin IActorBaseTreeItem Implementation */

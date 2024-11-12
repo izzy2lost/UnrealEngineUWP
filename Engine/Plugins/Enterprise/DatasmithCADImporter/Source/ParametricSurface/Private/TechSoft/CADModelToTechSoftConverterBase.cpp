@@ -4,7 +4,7 @@
 
 
 #include "CADData.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "ParametricSurfaceTranslator.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -44,7 +44,7 @@ void FCADModelToTechSoftConverterBase::InitializeProcess()
 }
 
 
-bool FCADModelToTechSoftConverterBase::SaveModel(const TCHAR* InFolderPath, TSharedRef<IDatasmithMeshElement>& MeshElement)
+bool FCADModelToTechSoftConverterBase::SaveModel(const TCHAR* InFolderPath, TSharedPtr<IDatasmithMeshElement> MeshElement)
 {
 #ifdef USE_TECHSOFT_SDK
 	FString FilePath = FPaths::Combine(InFolderPath, MeshElement->GetName()) + TEXT(".prc");

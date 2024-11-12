@@ -69,7 +69,8 @@ public:
 
 	void LoadDependenciesFromPackageHeader(FName PackageName, TConstArrayView<FObjectImport> ImportMap,
 		TArray<FName>& SoftPackageReferenceList, TMap<FPackageIndex, TArray<FName>>& SearchableNames,
-		TBitArray<>& ImportUsedInGame, TBitArray<>& SoftPackageUsedInGame);
+		TBitArray<>& ImportUsedInGame, TBitArray<>& SoftPackageUsedInGame,
+		TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>>& ExtraPackageDependencies);
 
 	/** Returns the amount of memory allocated by this container, not including sizeof(*this). */
 	SIZE_T GetAllocatedSize() const

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Chaos/PBDSoftsEvolutionFwd.h"
+#include "Chaos/Vector.h"
 #include "Containers/ArrayView.h"
 
 namespace Chaos::Softs

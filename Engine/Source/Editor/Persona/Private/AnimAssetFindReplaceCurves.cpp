@@ -15,6 +15,7 @@
 #include "Materials/MaterialExpressionParameter.h"
 #include "Materials/MaterialInterface.h"
 #include "String/ParseTokens.h"
+#include "ToolMenuSection.h"
 
 #define LOCTEXT_NAMESPACE "AnimAssetFindReplaceCurves"
 

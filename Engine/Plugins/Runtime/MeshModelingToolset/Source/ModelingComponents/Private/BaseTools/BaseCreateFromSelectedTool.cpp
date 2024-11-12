@@ -89,6 +89,13 @@ void UBaseCreateFromSelectedTool::Setup()
 	Preview->Setup(GetTargetWorld(), this);
 	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, nullptr);
 
+	int32 SourcesTriCount = 0;
+	for (int32 ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
+	{
+		SourcesTriCount += UE::ToolTarget::GetTriangleCount(Targets[ComponentIdx]);
+	}
+	Preview->SetMaxActiveBackgroundTasksFromMeshSizeHeuristic(SourcesTriCount);
+
 	SetPreviewCallbacks();
 	Preview->OnMeshUpdated.AddLambda(
 		[this](const UMeshOpPreviewWithBackgroundCompute* UpdatedPreview)
@@ -293,7 +300,7 @@ void UBaseCreateFromSelectedTool::UpdateAsset(const FDynamicMeshOpResult& Result
 	MeshTransforms::ApplyTransform(*Result.Mesh, ResultTransform, true);
 	MeshTransforms::ApplyTransformInverse(*Result.Mesh, TargetToWorld, true);
 
-	UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(UpdateTarget, *Result.Mesh, true);
+	UE::ToolTarget::CommitDynamicMeshUpdate(UpdateTarget, *Result.Mesh, true);
 
 	FComponentMaterialSet MaterialSet;
 	MaterialSet.Materials = GetOutputMaterials();

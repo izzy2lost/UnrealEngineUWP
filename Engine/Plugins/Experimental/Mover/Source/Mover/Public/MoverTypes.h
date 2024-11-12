@@ -7,7 +7,30 @@
 #include "NetworkPredictionTickState.h"
 #include "MoverLog.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "NativeGameplayTags.h"
 #include "MoverTypes.generated.h"
+
+// Gameplay tags
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsOnGround);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsInAir);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsFalling);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsFlying);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsSwimming);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsCrouching);
+MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsNavWalking);
+
+
+/** Options for how to handle smoothing frame data from the backend. Typically this is for advancing the simulation at a lower or fixed rate versus the game thread/render rate. */
+UENUM(BlueprintType)
+enum class EMoverSmoothingMode : uint8
+{
+	/** Smoothed frames will be ignored */
+	None,
+
+	/** Use the smoothed state data to offset the visual root component only, without smoothing the root moving component or any other state data */
+	VisualComponentOffset,
+};
+
 
 // Struct to hold params for when an impact happens. This contains all of the data for impacts including what gets passed to the FMover_OnImpact delegate
 USTRUCT(BlueprintType, meta = (DisplayName = "Impact Data"))
@@ -73,6 +96,32 @@ struct MOVER_API FMoverTimeStep
 
 };
 
+
+USTRUCT(BlueprintType)
+struct MOVER_API FMoverPredictTrajectoryParams
+{
+	GENERATED_BODY()
+
+	/** How many samples to predict into the future, including the first sample, which is always a snapshot of the
+	 *  starting state with 0 accumulated time. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover, meta=(ClampMin=1))
+	int32 NumPredictionSamples = 1;
+
+	/* How much time between predicted samples */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover, meta=(ClampMin=0.00001))
+	float SecondsPerSample = 0.333f;
+
+	/** If true, samples are based on the visual component transform, rather than the 'updated' movement root. 
+	 *  Typically, this is a mesh with its component location at the bottom of the collision primitive.
+	 *  If false, samples are from the movement root. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	bool bUseVisualComponentRoot = false;
+
+	/** If true, gravity will not taken into account during prediction */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	bool bDisableGravity = false;
+
+};
 
 
 // Base type for all data structs used to compose Mover simulation model definition dynamically (input cmd, sync state, aux state)
@@ -165,6 +214,9 @@ struct MOVER_API FMoverDataCollection
 	/** Get string representation of all elements in this collection */
 	void ToString(FAnsiStringBuilderBase& Out) const;
 
+	/** Const access to data array of collections */
+	TArray<TSharedPtr<FMoverDataStructBase>>::TConstIterator GetCollectionDataIterator() const;
+	
 	/** Find data of a specific type in the collection (mutable version). If not found, null will be returned. */
 	template <typename T>
 	T* FindMutableDataByType() const

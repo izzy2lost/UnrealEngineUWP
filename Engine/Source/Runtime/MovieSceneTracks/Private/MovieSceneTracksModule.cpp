@@ -12,7 +12,7 @@
 #include "MovieSceneTracksComponentTypes.h"
 
 #if !IS_MONOLITHIC
-	UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
+UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 #endif
 
 DEFINE_STAT(MovieSceneEval_ReinitializeBoundMaterials);

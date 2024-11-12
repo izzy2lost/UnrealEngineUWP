@@ -19,6 +19,8 @@
 #include "Nodes/InterchangeSourceNode.h"
 #include "Nodes/InterchangeUserDefinedAttribute.h"
 #include "InterchangeAnimationTrackSetNode.h"
+#include "InterchangeAnimationDefinitions.h"
+#include "InterchangeFbxSettings.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxScene"
 
@@ -28,8 +30,23 @@ namespace UE
 	{
 		namespace Private
 		{
-
-			void FFbxScene::CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform)
+			namespace RecursiveHelper
+			{
+				void RecursiveFillChildrenFbxNode(FbxNode* Parent, TArray<FbxNode*>& NodeArray)
+				{
+					if (!Parent)
+					{
+						return;
+					}
+					NodeArray.Add(Parent);
+					int32 ChildCount = Parent->GetChildCount();
+					for (int32 ChildIndex = 0; ChildIndex < ChildCount; ++ChildIndex)
+					{
+						RecursiveFillChildrenFbxNode(Parent->GetChild(ChildIndex), NodeArray);
+					}
+				}
+			} // ns RecursiveHelper
+			void FFbxScene::CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform, const FTransform& PivotNodeTransform)
 			{
 				const UInterchangeMeshNode* MeshNode = nullptr;
 				if (NodeAttribute->GetAttributeType() == FbxNodeAttribute::eMesh)
@@ -53,6 +70,11 @@ namespace UE
 					if (!GeometricTransform.Equals(FTransform::Identity))
 					{
 						UnrealSceneNode->SetCustomGeometricTransform(GeometricTransform);
+					}
+
+					if (!PivotNodeTransform.Equals(FTransform::Identity))
+					{
+						UnrealSceneNode->SetCustomPivotNodeTransform(PivotNodeTransform);
 					}
 
 					// @todo: Nothing is using the SceneInstanceUid in the MeshNode. Do we even need to support it?
@@ -85,66 +107,22 @@ namespace UE
 				CreateAssetNodeReference(Parser, UnrealSceneNode, NodeAttribute, NodeContainer, UInterchangeLightNode::StaticAssetTypeName());
 			}
 
-			bool DoesChildrenHierarchyContainJoints(FbxNode* Node, TFunction<bool(FbxNode*)> IsNodeAjoint)
+			bool IsNodeUnderCommonJointRootNode(FbxNode* Node, TMap<FbxNode*, FFbxScene::FRootJointInfo>& CommonJointRootNodes)
 			{
-				if (!Node)
+				if (!Node || CommonJointRootNodes.IsEmpty())
 				{
 					return false;
 				}
-				if (IsNodeAjoint(Node))
+
+				//Simply go up the hierarchy until we match the CommonJointRootNode
+				FbxNode* IterateNode = Node;
+				while (IterateNode)
 				{
-					return true;
-				}
-				int32 ChildCount = Node->GetChildCount();
-				for (int32 ChildIndex = 0; ChildIndex < ChildCount; ++ChildIndex)
-				{
-					FbxNode* ChildNode = Node->GetChild(ChildIndex);
-					if (DoesChildrenHierarchyContainJoints(ChildNode, IsNodeAjoint))
+					if (CommonJointRootNodes.Contains(IterateNode))
 					{
 						return true;
 					}
-				}
-				return false;
-			}
-
-			bool DoesTheParentOrChildrenHierarchyContainJoints(FbxNode* Node)
-			{
-				if (!Node)
-				{
-					return false;
-				}
-				auto IsNodeAjoint = [](FbxNode* NodeToTest)
-					{
-						int32 AttributeCount = NodeToTest->GetNodeAttributeCount();
-						for (int32 AttributeIndex = 0; AttributeIndex < AttributeCount; ++AttributeIndex)
-						{
-							FbxNodeAttribute* NodeAttribute = NodeToTest->GetNodeAttributeByIndex(AttributeIndex);
-							if (NodeAttribute->GetAttributeType() == FbxNodeAttribute::eSkeleton)
-							{
-								return true;
-							}
-						}
-						return false;
-					};
-				
-				if (IsNodeAjoint(Node))
-				{
-					return true;
-				}
-
-				FbxNode* ParentNode = Node->GetParent();
-				while (ParentNode)
-				{
-					if (IsNodeAjoint(ParentNode))
-					{
-						return true;
-					}
-					ParentNode = ParentNode->GetParent();
-				}
-
-				if (DoesChildrenHierarchyContainJoints(Node, IsNodeAjoint))
-				{
-					return true;
+					IterateNode = IterateNode->GetParent();
 				}
 				return false;
 			}
@@ -154,7 +132,8 @@ namespace UE
 				, FbxScene* SDKScene
 				, UInterchangeBaseNodeContainer& NodeContainer
 				, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts
-				, TArray<FbxNode*>& ForceJointNodes)
+				, TArray<FbxNode*>& ForceJointNodes
+				, bool& bBadBindPoseMessageDisplay)
 			{
 				constexpr bool bResetCache = false;
 				FString NodeName = Parser.GetFbxHelper()->GetFbxObjectName(Node);
@@ -205,39 +184,62 @@ namespace UE
 					}
 				}
 
-				auto ApplySkeletonAttribute = [this, &SDKScene, &UnrealNode, &Node, &NodeContainer, &bResetCache, &GetConvertedTransform]()
+				auto ApplySkeletonAttribute = [this, &SDKScene, &UnrealNode, &Node, &NodeContainer, &bResetCache, &GetConvertedTransform, &bBadBindPoseMessageDisplay]()
 				{
+					if (FRootJointInfo* RootJointInfo = CommonJointRootNodes.Find(Node))
+					{
+						if (!RootJointInfo->bValidBindPose)
+						{
+							UnrealNode->SetCustomHasBindPose(false);
+						}
+					}
 					//Add the joint specialized type
 					UnrealNode->AddSpecializedType(FSceneNodeStaticData::GetJointSpecializeTypeString());
 					//Get the bind pose transform for this joint
-					FbxAMatrix GlobalBindPoseJointMatrix;
-					if (FFbxMesh::GetGlobalJointBindPoseTransform(SDKScene, Node, GlobalBindPoseJointMatrix))
+					FbxAMatrix GlobalBindPoseJointMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(Node, 0);
+					TMap<FString, FMatrix> MeshIdToGlobalBindPoseReferenceMap;
+
+					FFbxMesh::GetGlobalJointBindPoseTransform(&Parser, SDKScene, Node, GlobalBindPoseJointMatrix, MeshIdToGlobalBindPoseReferenceMap, bBadBindPoseMessageDisplay);
+
+					FTransform GlobalBindPoseJointTransform = GetConvertedTransform(GlobalBindPoseJointMatrix);
+					UnrealNode->SetGlobalBindPoseReferenceForMeshUIDs(MeshIdToGlobalBindPoseReferenceMap);
+
+					FbxNode* ParentNode = Node->GetParent();
+					
+					if (ParentNode != nullptr)
 					{
-						FTransform GlobalBindPoseJointTransform = GetConvertedTransform(GlobalBindPoseJointMatrix);
-						//We grab the fbx parent node to compute the local transform
-						if (FbxNode* ParentNode = Node->GetParent())
-						{
-							FbxAMatrix GlobalFbxParentMatrix = ParentNode->EvaluateGlobalTransform();
-							FFbxMesh::GetGlobalJointBindPoseTransform(SDKScene, ParentNode, GlobalFbxParentMatrix);
-							FbxAMatrix	LocalFbxMatrix = GlobalFbxParentMatrix.Inverse() * GlobalBindPoseJointMatrix;
-							FTransform LocalBindPoseJointTransform = GetConvertedTransform(LocalFbxMatrix);
-							UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, LocalBindPoseJointTransform, bResetCache);
-						}
-						else
-						{
-							//No parent, set the same matrix has the global
-							UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, GlobalBindPoseJointTransform, bResetCache);
-						}
+						FbxAMatrix GlobalFbxParentMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(ParentNode, 0);
+						TMap<FString, FMatrix> ParentMeshIdToGlobalBindPoseReferenceMap;
+						FFbxMesh::GetGlobalJointBindPoseTransform(&Parser, SDKScene, ParentNode, GlobalFbxParentMatrix, ParentMeshIdToGlobalBindPoseReferenceMap, bBadBindPoseMessageDisplay);
+						
+						FbxAMatrix LocalFbxMatrix = GlobalFbxParentMatrix.Inverse() * GlobalBindPoseJointMatrix;
+						FTransform LocalBindPoseJointTransform = GetConvertedTransform(LocalFbxMatrix);
+
+						UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, LocalBindPoseJointTransform, bResetCache);
+					}
+					else
+					{
+						//No parent, set the same matrix has the global
+						UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, GlobalBindPoseJointTransform, bResetCache);
 					}
 
 					//Get time Zero transform for this joint
 					{
+						//NOTE:
+						// Legacy FBX uses the following Matrix calculation for moving Vertices to T0:
+						//		VertexTransformMatrix = ((TransformMatrix * BindPose.Inverse()) * (T0 * GlobalMeshTransformMatrix.Inverse()));
+						//					TransformMatrix				:= GlobalBindPoseReferenceForMeshUIDs (this is joint and Mesh dependent) => seems very FBX specific
+						//					BindPose					:= GlobalBindPose
+						//					T0							:= TimeZero
+						//					GlobalMeshTransformMatrix	:= Mesh's Node's GlobalTransform * GeometricTransform (Interchange.SceneNodeTransform)
+
 						//Set the global node transform
-						FbxAMatrix GlobalFbxMatrix = Node->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+						FbxAMatrix GlobalFbxMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(Node, 0);
 						FTransform GlobalTransform = GetConvertedTransform(GlobalFbxMatrix);
-						if (FbxNode* ParentNode = Node->GetParent())
+
+						if (ParentNode != nullptr)
 						{
-							FbxAMatrix GlobalFbxParentMatrix = ParentNode->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+							FbxAMatrix GlobalFbxParentMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(ParentNode, 0);
 							FbxAMatrix	LocalFbxMatrix = GlobalFbxParentMatrix.Inverse() * GlobalFbxMatrix;
 							FTransform LocalTransform = GetConvertedTransform(LocalFbxMatrix);
 							UnrealNode->SetCustomTimeZeroLocalTransform(&NodeContainer, LocalTransform, bResetCache);
@@ -283,7 +285,7 @@ namespace UE
 
 						case FbxNodeAttribute::eNull:
 						{
-							if (!DoesTheParentOrChildrenHierarchyContainJoints(Node))
+							if (!IsNodeUnderCommonJointRootNode(Node, CommonJointRootNodes))
 							{
 								//eNull node not in a hierarchy containing any joint will not be set has joint
 								break;
@@ -303,6 +305,7 @@ namespace UE
 							//For Mesh attribute we add the fbx nodes materials
 							FFbxMaterial FbxMaterial(Parser);
 							FbxMaterial.AddAllNodeMaterials(UnrealNode, Node, NodeContainer);
+							
 							//Get the Geometric offset transform and set it in the mesh node
 							//The geometric offset is not part of the hierarchy transform, it is not inherited
 							FbxAMatrix Geometry;
@@ -313,8 +316,20 @@ namespace UE
 							Geometry.SetT(Translation);
 							Geometry.SetR(Rotation);
 							Geometry.SetS(Scaling);
+
 							FTransform GeometricTransform = GetConvertedTransform(Geometry);
-							CreateMeshNodeReference(UnrealNode, NodeAttribute, NodeContainer, GeometricTransform);
+
+							//Get the pivot geometry offset 
+							FbxAMatrix PivotGeometry;
+							FbxVector4 RotationPivot = Node->GetRotationPivot(FbxNode::eSourcePivot);
+							FbxVector4 FullPivot;
+							FullPivot[0] = -RotationPivot[0];
+							FullPivot[1] = -RotationPivot[1];
+							FullPivot[2] = -RotationPivot[2];
+							PivotGeometry.SetT(FullPivot);
+							FTransform PivotNodeTransform = GetConvertedTransform(PivotGeometry);
+
+							CreateMeshNodeReference(UnrealNode, NodeAttribute, NodeContainer, GeometricTransform, PivotNodeTransform);
 							break;
 						}
 						case FbxNodeAttribute::eLODGroup:
@@ -345,142 +360,108 @@ namespace UE
 						UnrealNode->AddSpecializedType(FSceneNodeStaticData::GetTransformSpecializeTypeString());
 						ApplySkeletonAttribute();
 					}
-					else if (!bIsRootNode && DoesTheParentOrChildrenHierarchyContainJoints(Node))
+					else if (!bIsRootNode && IsNodeUnderCommonJointRootNode(Node, CommonJointRootNodes))
 					{
 						UnrealNode->AddSpecializedType(FSceneNodeStaticData::GetTransformSpecializeTypeString());
 						ApplySkeletonAttribute();
 					}
 				}
 				
+				auto AddAnimationTrackNode = [&](EInterchangePropertyTracks PropertyTrack, const FString& CurveNodeName, const FString& PayloadKey, EInterchangeAnimationPayLoadType PayloadType)
+				{
+					UInterchangeAnimationTrackNode* AnimTrackNode = NewObject< UInterchangeAnimationTrackNode >(&NodeContainer);
+					const FString AnimTrackNodeName = FString::Printf(TEXT("%s"), *UnrealNode->GetDisplayLabel()) + CurveNodeName;
+					const FString AnimTrackNodeUid = TEXT("\\AnimationTrack\\") + AnimTrackNodeName;
+
+					AnimTrackNode->InitializeNode(AnimTrackNodeUid, AnimTrackNodeName, EInterchangeNodeContainerType::TranslatedAsset);
+					AnimTrackNode->SetCustomActorDependencyUid(*UnrealNode->GetUniqueID());
+					AnimTrackNode->SetCustomAnimationPayloadKey(PayloadKey, PayloadType);
+					AnimTrackNode->SetCustomPropertyTrack(PropertyTrack);
+					NodeContainer.AddNode(AnimTrackNode);
+				};
+
+				//Bool/Enum/Integer curves are treated as StepCurves, otherwise it's a floating point curve
+				auto GetPropertyPayloadType = [](EFbxType FbxType)
+				{
+					switch(FbxType)
+					{
+					case EFbxType::eFbxBool:
+					case EFbxType::eFbxChar:
+					case EFbxType::eFbxUChar:
+					case EFbxType::eFbxShort:
+					case EFbxType::eFbxUShort:
+					case EFbxType::eFbxInt:
+					case EFbxType::eFbxUInt:
+					case EFbxType::eFbxLongLong:
+					case EFbxType::eFbxULongLong:
+					case EFbxType::eFbxEnum:
+					case EFbxType::eFbxEnumM:
+					case EFbxType::eFbxString:
+						return EInterchangeAnimationPayLoadType::STEPCURVE;
+
+					default:
+						return EInterchangeAnimationPayLoadType::CURVE;
+					}
+				};
+
+				const UInterchangeFbxSettings* InterchangeFbxSettings = GetDefault<UInterchangeFbxSettings>();
+
+				//Add all Node Attributes for the node
+				for(int32 i = 0, Count = Node->GetNodeAttributeCount(); i < Count; ++i)
+				{
+					FbxNodeAttribute* NodeAttribute = Node->GetNodeAttributeByIndex(i);
+					FbxProperty Property = NodeAttribute->GetFirstProperty();
+
+					while(Property.IsValid())
+					{
+						FbxAnimCurveNode* CurveNode = Property.GetCurveNode();
+						EFbxType PropertyType = Property.GetPropertyDataType().GetType();
+						if(CurveNode && CurveNode->IsAnimated() && FFbxAnimation::IsFbxPropertyTypeSupported(PropertyType))
+						{
+							TOptional<FString> PayloadKey;
+							//Attribute is animated, add the curves payload key that represent the attribute animation
+							FFbxAnimation::AddNodeAttributeCurvesAnimation(Parser, Node, Property, CurveNode, UnrealNode, PayloadContexts, PropertyType, PayloadKey);
+
+							if(PayloadKey.IsSet())
+							{
+								const char* CurveNodeName = CurveNode->GetName();								
+								if(EInterchangePropertyTracks PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack != EInterchangePropertyTracks::None)
+								{
+									AddAnimationTrackNode(PropertyTrack, CurveNodeName, *PayloadKey, GetPropertyPayloadType(PropertyType));
+								}
+							}
+						}
+
+						Property = NodeAttribute->GetNextProperty(Property);
+					}
+				}
+
+				FbxProperty Property = Node->GetFirstProperty();
 
 				//Add all custom Attributes for the node
-				FbxProperty Property = Node->GetFirstProperty();
 				while (Property.IsValid())
 				{
-					EFbxType PropertyType =  Property.GetPropertyDataType().GetType();
+					EFbxType PropertyType = Property.GetPropertyDataType().GetType();
 					if (Property.GetFlag(FbxPropertyFlags::eUserDefined) && FFbxAnimation::IsFbxPropertyTypeSupported(PropertyType))
 					{
-						FString PropertyName = Parser.GetFbxHelper()->GetFbxPropertyName(Property);
-
 						FbxAnimCurveNode* CurveNode = Property.GetCurveNode();
 						TOptional<FString> PayloadKey;
 						if (CurveNode && CurveNode->IsAnimated())
 						{
 							//Attribute is animated, add the curves payload key that represent the attribute animation
 							FFbxAnimation::AddNodeAttributeCurvesAnimation(Parser, Node, Property, CurveNode, UnrealNode, PayloadContexts, PropertyType, PayloadKey);
+
+							if(PayloadKey.IsSet())
+							{
+								const char* CurveNodeName = CurveNode->GetName();
+								if(EInterchangePropertyTracks PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack != EInterchangePropertyTracks::None)
+								{
+									AddAnimationTrackNode(PropertyTrack, CurveNodeName, *PayloadKey, GetPropertyPayloadType(PropertyType));
+								}
+							}
 						}
-						switch (Property.GetPropertyDataType().GetType())
-						{
-							case EFbxType::eFbxBool:
-								{
-									bool PropertyValue = Property.Get<bool>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxChar:
-								{
-									int8 PropertyValue = Property.Get<int8>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxUChar:
-								{
-									uint8 PropertyValue = Property.Get<uint8>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxShort:
-								{
-									int16 PropertyValue = Property.Get<int16>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxUShort:
-								{
-									uint16 PropertyValue = Property.Get<uint16>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxInt:
-								{
-									int32 PropertyValue = Property.Get<int32>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxUInt:
-								{
-									uint32 PropertyValue = Property.Get<uint32>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxLongLong:
-								{
-									int64 PropertyValue = Property.Get<int64>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxULongLong:
-								{
-									uint64 PropertyValue = Property.Get<uint64>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxHalfFloat:
-								{
-									FbxHalfFloat HalfFloat = Property.Get<FbxHalfFloat>();
-									FFloat16 PropertyValue = FFloat16(HalfFloat.value());
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxFloat:
-								{
-									float PropertyValue = Property.Get<float>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble:
-								{
-									double PropertyValue = Property.Get<double>();
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble2:
-								{
-									FbxDouble2 Vec = Property.Get<FbxDouble2>();
-									FVector2D PropertyValue = FVector2D(Vec[0], Vec[1]);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble3:
-								{
-									FbxDouble3 Vec = Property.Get<FbxDouble3>();
-									FVector3d PropertyValue = FVector3d(Vec[0], Vec[1], Vec[2]);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxDouble4:
-								{
-									FbxDouble4 Vec = Property.Get<FbxDouble4>();
-									FVector4d PropertyValue = FVector4d(Vec[0], Vec[1], Vec[2], Vec[3]);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxEnum:
-								{
-									//Convert enum to uint8
-									FbxEnum EnumValue = Property.Get<FbxEnum>();
-									uint8 PropertyValue = static_cast<uint8>(EnumValue);
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-							case EFbxType::eFbxString:
-								{
-									FbxString StringValue = Property.Get<FbxString>();
-									FString PropertyValue = FFbxConvert::MakeString(StringValue.Buffer());
-									UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UnrealNode, PropertyName, PropertyValue, PayloadKey);
-								}
-								break;
-						}
+
+						ProcessCustomAttribute(Parser, UnrealNode, Property, PayloadKey);
 					}
 					//Inspect next node property
 					Property = Node->GetNextProperty(Property);
@@ -490,7 +471,7 @@ namespace UE
 				for (int32 ChildIndex = 0; ChildIndex < ChildCount; ++ChildIndex)
 				{
 					FbxNode* ChildNode = Node->GetChild(ChildIndex);
-					AddHierarchyRecursively(UnrealNode, ChildNode, SDKScene, NodeContainer, PayloadContexts, ForceJointNodes);
+					AddHierarchyRecursively(UnrealNode, ChildNode, SDKScene, NodeContainer, PayloadContexts, ForceJointNodes, bBadBindPoseMessageDisplay);
 				}
 			}
 
@@ -510,6 +491,99 @@ namespace UE
 				NodeContainer.AddNode(TransformNode);
 				return TransformNode;
 			}
+			
+			bool FFbxScene::IsValidBindPose(FbxScene* SDKScene, FbxNode* RootJoint) const
+			{
+				if (CommonJointRootNodes.IsEmpty())
+				{
+					return false;
+				}
+
+				int32 PoseCount = SDKScene->GetPoseCount();
+				if (PoseCount == 0)
+				{
+					SDKScene->GetFbxManager()->CreateMissingBindPoses(SDKScene);
+					PoseCount = SDKScene->GetPoseCount();
+				}
+				
+				TArray<FbxNode*> NodeArray;
+				RecursiveHelper::RecursiveFillChildrenFbxNode(RootJoint, NodeArray);
+
+				for (int32 PoseIndex = 0; PoseIndex < PoseCount; PoseIndex++)
+				{
+					FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
+
+					// current pose is bind pose, 
+					if (CurrentPose && CurrentPose->IsBindPose())
+					{
+						// IsValidBindPose doesn't work reliably
+						// It checks all the parent chain(regardless root given), and if the parent doesn't have correct bind pose, it fails
+						// It causes more false positive issues than the real issue we have to worry about
+						// If you'd like to try this, set CHECK_VALID_BIND_POSE to 1, and try the error message
+						// when Autodesk fixes this bug, then we might be able to re-open this
+						FString PoseName = CurrentPose->GetName();
+						// all error report status
+						FbxStatus Status;
+
+						// it does not make any difference of checking with different node
+						for(FbxNode* Current : NodeArray)
+						{
+							FString CurrentName = Current->GetName();
+							FbxArray<FbxNode*> pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices;
+
+							if (CurrentPose->IsValidBindPoseVerbose(Current, pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices, 0.0001, &Status))
+							{
+								return true;
+							}
+							else
+							{
+								// first try to fix up
+								// add missing ancestors
+								for (int i = 0; i < pMissingAncestors.GetCount(); i++)
+								{
+									FbxAMatrix mat = pMissingAncestors.GetAt(i)->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+									CurrentPose->Add(pMissingAncestors.GetAt(i), mat);
+								}
+
+								pMissingAncestors.Clear();
+								pMissingDeformers.Clear();
+								pMissingDeformersAncestors.Clear();
+								pWrongMatrices.Clear();
+
+								// check it again
+								if (CurrentPose->IsValidBindPose(Current))
+								{
+									return true;
+								}
+								else
+								{
+									// first try to find parent who is null group and see if you can try test it again
+									FbxNode* ParentNode = Current->GetParent();
+									while (ParentNode)
+									{
+										FbxNodeAttribute* Attr = ParentNode->GetNodeAttribute();
+										if (Attr && Attr->GetAttributeType() == FbxNodeAttribute::eNull)
+										{
+											// found it 
+											break;
+										}
+
+										// find next parent
+										ParentNode = ParentNode->GetParent();
+									}
+
+									if (ParentNode && CurrentPose->IsValidBindPose(ParentNode))
+									{
+										return true;
+									}
+								}
+							}
+						}
+					}
+				}
+				return false;
+			}
+
 
 			void FFbxScene::AddHierarchy(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts)
 			{
@@ -520,18 +594,27 @@ namespace UE
 				TArray<FbxNode*> ForceJointNodes;
 				FindForceJointNode(SDKScene, ForceJointNodes);
 
-				AddHierarchyRecursively(nullptr, RootNode, SDKScene, NodeContainer, PayloadContexts, ForceJointNodes);
+				//Cache the common root joint
+				FindCommonJointRootNode(SDKScene, ForceJointNodes);
+
+				for (TPair<FbxNode*, FRootJointInfo>& RootJointInfo : CommonJointRootNodes)
+				{
+					RootJointInfo.Value.bValidBindPose = IsValidBindPose(SDKScene, RootJointInfo.Key);
+				}
+
+				bool bBadBindPoseMessageDisplay = false;
+				AddHierarchyRecursively(nullptr, RootNode, SDKScene, NodeContainer, PayloadContexts, ForceJointNodes, bBadBindPoseMessageDisplay);
 
 				int32 NodeCount = SDKScene->GetNodeCount();
 				for (int32 NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex)
 				{
 					if (FbxNode* Node = SDKScene->GetNode(NodeIndex))
 					{
-						if(Node != RootNode)
+						if (Node != RootNode)
 						{
 							if (Node->GetParent() == nullptr)
 							{
-								AddHierarchyRecursively(nullptr, Node, SDKScene, NodeContainer, PayloadContexts, ForceJointNodes);
+								AddHierarchyRecursively(nullptr, Node, SDKScene, NodeContainer, PayloadContexts, ForceJointNodes, bBadBindPoseMessageDisplay);
 							}
 						}
 					}
@@ -612,14 +695,93 @@ namespace UE
 						const FString TransformAnimTrackNodeUid = TEXT("\\AnimationTrack\\") + TransformAnimTrackNodeName;
 
 						TransformAnimTrackNode->InitializeNode(TransformAnimTrackNodeUid, TransformAnimTrackNodeName, EInterchangeNodeContainerType::TranslatedAsset);
-
 						TransformAnimTrackNode->SetCustomActorDependencyUid(*UnrealNode->GetUniqueID());
-
 						TransformAnimTrackNode->SetCustomAnimationPayloadKey(PayloadKey.GetValue(), EInterchangeAnimationPayLoadType::CURVE);
-
 						TransformAnimTrackNode->SetCustomUsedChannels(UsedChannels);
 
+						ProcessCustomAttributes(Parser, Node, TransformAnimTrackNode);
+
 						NodeContainer.AddNode(TransformAnimTrackNode);
+					}
+				}
+			}
+
+			FbxNode* FFbxScene::Internal_GetRootSkeleton(FbxScene* SDKScene, FbxNode* Link)
+			{
+				FbxNode* RootBone = Link;
+
+				// get Unreal skeleton root
+				// mesh and dummy are used as bone if they are in the skeleton hierarchy
+				while (RootBone && RootBone->GetParent())
+				{
+					bool bIsBlenderArmatureBone = false;
+					if (Parser.IsCreatorBlender())
+					{
+						//Hack to support armature dummy node from blender
+						//Users do not want the null attribute node named armature which is the parent of the real root bone in blender fbx file
+						//This is a hack since if a rigid mesh group root node is named "armature" it will be skip
+						const FString RootBoneParentName(RootBone->GetParent()->GetName());
+						FbxNode* GrandFather = RootBone->GetParent()->GetParent();
+						bIsBlenderArmatureBone = (GrandFather == nullptr || GrandFather == SDKScene->GetRootNode()) && (RootBoneParentName.Compare(TEXT("armature"), ESearchCase::IgnoreCase) == 0);
+					}
+
+					FbxNodeAttribute* Attr = RootBone->GetParent()->GetNodeAttribute();
+					if (Attr &&
+						(Attr->GetAttributeType() == FbxNodeAttribute::eMesh ||
+							(Attr->GetAttributeType() == FbxNodeAttribute::eNull && !bIsBlenderArmatureBone) ||
+							Attr->GetAttributeType() == FbxNodeAttribute::eSkeleton) &&
+						RootBone->GetParent() != SDKScene->GetRootNode())
+					{
+						// in some case, skeletal mesh can be ancestor of bones
+						// this avoids this situation
+						if (Attr->GetAttributeType() == FbxNodeAttribute::eMesh)
+						{
+							FbxMesh* Mesh = (FbxMesh*)Attr;
+							if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
+							{
+								break;
+							}
+						}
+
+						RootBone = RootBone->GetParent();
+					}
+					else
+					{
+						break;
+					}
+				}
+
+				return RootBone;
+			}
+
+			void FFbxScene::FindCommonJointRootNode(FbxScene* SDKScene, const TArray<FbxNode*>& ForceJointNodes)
+			{
+				//Process the ForceJointNodes and any skeleton joint node
+				int32 NodeCount = SDKScene->GetNodeCount();
+				for (int32 NodeIndex = 0; NodeIndex < NodeCount; ++NodeIndex)
+				{
+					if (FbxNode* Node = SDKScene->GetNode(NodeIndex))
+					{
+						bool bProcessNode = ForceJointNodes.Contains(Node);
+						if (!bProcessNode)
+						{
+							const int32 AttributeCount = Node->GetNodeAttributeCount();
+							for (int32 AttributeIndex = 0; AttributeIndex < AttributeCount; ++AttributeIndex)
+							{
+								if (Node->GetNodeAttributeByIndex(AttributeIndex)->GetAttributeType() == FbxNodeAttribute::eSkeleton)
+								{
+									bProcessNode = true;
+									break;
+								}
+							}
+						}
+						if (bProcessNode)
+						{
+							if (FbxNode* Root = Internal_GetRootSkeleton(SDKScene, Node))
+							{
+								CommonJointRootNodes.FindOrAdd(Root);
+							}
+						}
 					}
 				}
 			}
@@ -699,12 +861,18 @@ namespace UE
 
 							SkeletalAnimationTrackNode->SetCustomAnimationStartTime(TimeSpan.GetStart().GetSecondDouble());
 							SkeletalAnimationTrackNode->SetCustomAnimationStopTime(TimeSpan.GetStop().GetSecondDouble());
+
+							return true;
 						}
+
+						return false;
 					};
 
 					bool bIsNodeContainJointAttribute = false;
 
 					int32 AttributeCount = Node->GetNodeAttributeCount();
+
+					bool bNewSkeltalAnimationStarted = false;
 
 					for (int32 AttributeIndex = 0; AttributeIndex < AttributeCount && !HasSkeletonAttribute; ++AttributeIndex)
 					{
@@ -712,14 +880,14 @@ namespace UE
 						switch (NodeAttribute->GetAttributeType())
 						{
 						case FbxNodeAttribute::eNull:
-							if (!DoesTheParentOrChildrenHierarchyContainJoints(Node))
+							if (!IsNodeUnderCommonJointRootNode(Node, CommonJointRootNodes))
 							{
 								//eNull node not under any joint are not joint
 								break;
 							}
 						case FbxNodeAttribute::eSkeleton:
 							bIsNodeContainJointAttribute = true;
-							ApplySkeletonAttribute();
+							bNewSkeltalAnimationStarted = ApplySkeletonAttribute() || bNewSkeltalAnimationStarted;
 							break;
 						default:
 							break;
@@ -728,16 +896,20 @@ namespace UE
 
 					if (!bIsNodeContainJointAttribute)
 					{
-						//Make sure to threat the node like a joint if it's in the ForcejointNodes array
+						//Make sure to treat the node like a joint if it's in the ForcejointNodes array
 						if (ForceJointNodes.Contains(Node))
 						{
-							ApplySkeletonAttribute();
+							bNewSkeltalAnimationStarted = ApplySkeletonAttribute() || bNewSkeltalAnimationStarted;
 						}
-						else if (!bIsRootNode && DoesTheParentOrChildrenHierarchyContainJoints(Node))
+						else if (!bIsRootNode && IsNodeUnderCommonJointRootNode(Node, CommonJointRootNodes))
 						{
-							ApplySkeletonAttribute();
+							bNewSkeltalAnimationStarted = ApplySkeletonAttribute() || bNewSkeltalAnimationStarted;
 						}
+					}
 
+					if (bNewSkeltalAnimationStarted)
+					{
+						ProcessCustomAttributes(Parser, Node, SkeletalAnimationTrackNode);
 					}
 
 					if (!HasSkeletonAttribute)
@@ -751,7 +923,7 @@ namespace UE
 					else if (SkeletalAnimationTrackNode)
 					{
 						//Scene node transform can be animated, add the transform animation payload key.
-						if (FFbxAnimation::AddSkeletalTransformAnimation(SDKScene, Parser, Node, UnrealNode, PayloadContexts, SkeletalAnimationTrackNode, AnimationIndex)
+						if (FFbxAnimation::AddSkeletalTransformAnimation(NodeContainer, SDKScene, Parser, Node, UnrealNode, PayloadContexts, SkeletalAnimationTrackNode, AnimationIndex)
 							&& !SkeletalAnimationAddedToContainer)
 						{
 							SkeletalAnimationAddedToContainer = true;
@@ -883,7 +1055,7 @@ namespace UE
 				}
 
 				TArray<FString> TransformAnimTrackNodeUids;
-				NodeContainer.IterateNodesOfType<UInterchangeTransformAnimationTrackNode>([&](const FString& NodeUid, UInterchangeTransformAnimationTrackNode* TransformAnimationTrackNode)
+				NodeContainer.IterateNodesOfType<UInterchangeAnimationTrackNode>([&](const FString& NodeUid, UInterchangeAnimationTrackNode* TransformAnimationTrackNode)
 					{
 						TransformAnimTrackNodeUids.Add(NodeUid);
 					});
@@ -892,6 +1064,9 @@ namespace UE
 				if (TransformAnimTrackNodeUids.Num() > 0)
 				{
 					UInterchangeAnimationTrackSetNode* TrackSetNode = NewObject< UInterchangeAnimationTrackSetNode >(&NodeContainer);
+
+					double FrameRate = FbxTime::GetFrameRate(SDKScene->GetGlobalSettings().GetTimeMode());
+					TrackSetNode->SetCustomFrameRate(FrameRate);
 
 					const FString AnimTrackSetNodeUid = TEXT("\\Animation\\") + FString(RootNode->GetName());
 					const FString AnimTrackSetNodeDisplayLabel = FString(RootNode->GetName()) + TEXT("_TrackSetNode");
@@ -911,6 +1086,7 @@ namespace UE
 				//Group the Morph Target animations based on SkeletonNodeUid and AnimationIndex
 				TMap<const UInterchangeSceneNode*, TMap<int32, TArray<FMorphTargetAnimationBuildingData>>> MorphTargetAnimationsBuildingDataGrouped;
 
+				TMap<FString, FString> EvaluatedJoints;
 				for (const FMorphTargetAnimationBuildingData& MorphTargetAnimationBuildingData : MorphTargetAnimationsBuildingData)
 				{
 					if (MorphTargetAnimationBuildingData.StartTime == MorphTargetAnimationBuildingData.StopTime)
@@ -920,6 +1096,7 @@ namespace UE
 					}
 					
 					TSet<FString> SkeletonUids;
+					
 					if (MorphTargetAnimationBuildingData.InterchangeMeshNode->IsSkinnedMesh())
 					{
 						//Find the root joint(s) for this MeshGeometry
@@ -928,31 +1105,39 @@ namespace UE
 						for (const FString& SkeletonDependency : SkeletonDependencies)
 						{
 							FString JointNodeUid = SkeletonDependency;
-							FString ParentNodeUid = SkeletonDependency;
-
-							while (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
+							FString& RootJointNodeForJoint = EvaluatedJoints.FindOrAdd(JointNodeUid);
+							if (!RootJointNodeForJoint.IsEmpty())
 							{
-								if (const UInterchangeSceneNode* Node = Cast< UInterchangeSceneNode >(NodeContainer.GetNode(ParentNodeUid)))
+								SkeletonUids.Add(RootJointNodeForJoint);
+							}
+							else
+							{
+								FString ParentNodeUid = SkeletonDependency;
+								while (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
 								{
-									if (Node->IsSpecializedTypeContains(FSceneNodeStaticData::GetJointSpecializeTypeString()))
+									if (const UInterchangeSceneNode* Node = Cast< UInterchangeSceneNode >(NodeContainer.GetNode(ParentNodeUid)))
 									{
-										JointNodeUid = ParentNodeUid;
-										ParentNodeUid = Node->GetParentUid();
+										if (Node->IsSpecializedTypeContains(FSceneNodeStaticData::GetJointSpecializeTypeString()))
+										{
+											JointNodeUid = ParentNodeUid;
+											ParentNodeUid = Node->GetParentUid();
+										}
+										else
+										{
+											break;
+										}
 									}
 									else
 									{
 										break;
 									}
 								}
-								else
-								{
-									break;
-								}
-							}
 
-							if (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
-							{
-								SkeletonUids.Add(JointNodeUid);
+								if (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
+								{
+									RootJointNodeForJoint = JointNodeUid;
+									SkeletonUids.Add(JointNodeUid);
+								}
 							}
 						}
 					}
@@ -1014,6 +1199,8 @@ namespace UE
 
 						SkeletalAnimationTrackNode->SetCustomAnimationStartTime(TimeSpan.GetStart().GetSecondDouble());
 						SkeletalAnimationTrackNode->SetCustomAnimationStopTime(TimeSpan.GetStop().GetSecondDouble());
+
+						ProcessCustomAttributes(Parser, CurrentAnimationStack, SkeletalAnimationTrackNode);
 
 						NodeContainer.AddNode(SkeletalAnimationTrackNode);
 						

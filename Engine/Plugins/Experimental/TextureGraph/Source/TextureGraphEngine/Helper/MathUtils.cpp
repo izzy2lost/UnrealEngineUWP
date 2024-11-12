@@ -102,3 +102,8 @@ FBox MathUtils::GetCombinedBounds(TArray<FBox> InputBounds)
 	return CombinedBounds;
 }
 
+float MathUtils::Step(float Y, float X)
+{
+	return X >= Y ? 1 : 0;
+}
+

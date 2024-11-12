@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "FrameTypes.h"
 
 class UCurveFloat;
 class UTexture;
@@ -205,7 +206,13 @@ namespace ToolSetupUtil
 	MODELINGCOMPONENTS_API UCurveFloat* GetContrastAdjustmentCurve(UInteractiveToolManager* ToolManager);
 
 
-
+	/**
+	 * Use the current selection, if any, or otherwise the camera position to find a relevant reference frame for creating new objects.
+	 * Note: Should be called in tool setup to access the active geometry element selection (if any) before it is cleared by the tool.
+	 * @param DefaultOrientation			Orientation to use if there is no geometry element selection providing a natural orientation
+	 * @param DefaultPlacementDistance		Distance from camera to place the frame if there is no selection and a raycast doesn't hit anything
+	 */
+	MODELINGCOMPONENTS_API UE::Geometry::FFrame3d GetDefaultWorldReferenceFrame(UInteractiveToolManager* ToolManager, UE::Geometry::FQuaterniond DefaultOrientation = UE::Geometry::FQuaterniond(), double NoSelectionPlacementDistance = 500);
 
 
 	//

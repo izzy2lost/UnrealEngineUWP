@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-
 #include "rltests/Defs.h"
 #include "rltests/StorageValueType.h"
 #include "rltests/controls/ControlFixtures.h"
 #include "rltests/ml/cpu/FixturesBlock4.h"
 
 #include "riglogic/TypeDefs.h"
-#include "riglogic/ml/cpu/Factory.h"
+#include "riglogic/ml/cpu/CPUMachineLearnedBehaviorFactory.h"
 #include "riglogic/system/simd/Detect.h"
 #include "riglogic/system/simd/SIMD.h"
 
@@ -97,7 +94,8 @@ TYPED_TEST(MLBInferenceTest, InferencePerLOD) {
     auto inputInstanceFactory = ControlsFactory::getInstanceFactory(0,
                                                                     rltests::ml::block4::unoptimized::rawControlCount,
                                                                     0,
-                                                                    rltests::ml::block4::unoptimized::mlControlCount);
+                                                                    rltests::ml::block4::unoptimized::mlControlCount,
+                                                                    0);
     auto inputInstance = inputInstanceFactory(&this->memRes);
     auto inputBuffer = inputInstance->getInputBuffer();
     auto outputBuffer = inputBuffer.subview(rltests::ml::block4::unoptimized::rawControlCount,
@@ -122,6 +120,3 @@ TYPED_TEST(MLBInferenceTest, InferencePerLOD) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*

@@ -4,11 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
-#include "UObject/Field.h"
 #include "Misc/Attribute.h"
 #include "Features/IModularFeature.h"
-#include "UObject/UnrealType.h"
 #include "Input/Reply.h"
+#include "Styling/SlateColor.h"
+#include "UObject/Field.h"
+#include "UObject/UnrealType.h"
 
 class UBlueprint;
 class IPropertyHandle;
@@ -85,6 +86,9 @@ struct FBindingContextStruct
 	/** Icon to display in the popup menu. */ 
 	const FSlateBrush* Icon = nullptr;
 
+	/** Color of the icon to display in the popup menu. */ 
+	TOptional<FLinearColor> Color;
+
 	/** Text to display for this item in the popup. If left empty, struct's display text will be used. */
 	FText DisplayText;
 
@@ -93,6 +97,9 @@ struct FBindingContextStruct
 
 	/** Name of the section to put the struct to. If left empty, no section will be created. */
 	FText Section;
+
+	/** Category separated by | of the struct. Will display as submenus. Not part of the section to avoid converting Text to string and back. */
+	FString Category;
 };
 
 
@@ -102,7 +109,7 @@ DECLARE_DELEGATE_RetVal(FString, FOnGenerateBindingName);
 /** Delegate used to open a binding (e.g. a function) */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnGotoBinding, FName /*InPropertyName*/);
 
-/** Delegate used to se if we can open a binding (e.g. a function) */
+/** Delegate used to see if we can open a binding (e.g. a function) */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanGotoBinding, FName /*InPropertyName*/);
 
 /** Delegate used to check whether a property is considered for binding. Returning false will discard the property and all child properties. */
@@ -112,6 +119,9 @@ DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanAcceptPropertyOrChildrenWithBindin
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanAcceptPropertyOrChildren, FProperty* /*InProperty*/);
 
 /** Delegate used to check whether a property can be bound to the property in question */
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanBindPropertyWithBindingChain, FProperty* /*InProperty*/, TConstArrayView<FBindingChainElement> /*InBindingChain*/);
+
+// UE_DEPRECATED(5.4, "Please use OnCanBindPropertyWithBindingChain instead.")
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindProperty, FProperty* /*InProperty*/);
 
 /** Delegate used to check whether a function can be bound to the property in question */
@@ -120,8 +130,11 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindFunction, UFunction* /*InFuncti
 /** Delegate called to see if a class can be bound to */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindToClass, UClass* /*InClass*/);
 
-/** Delegate called to see if a class can be bound to */
+// UE_DEPRECATED(5.5, "Please use OnCanBindToContextStructWithIndex instead.")
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindToContextStruct, UStruct* /*InStruct*/);
+
+/** Delegate called to see if a class can be bound to */
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanBindToContextStructWithIndex, UStruct* /*InStruct*/, int32 /*InStructIndex*/);
 
 /** Delegate called to see if a subobject can be bound to */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindToSubObjectClass, UClass* /*InSubObjectClass*/);
@@ -132,7 +145,7 @@ DECLARE_DELEGATE_TwoParams(FOnAddBinding, FName /*InPropertyName*/, const TArray
 /** Delegate called to remove a binding */
 DECLARE_DELEGATE_OneParam(FOnRemoveBinding, FName /*InPropertyName*/);
 
-/** Delegate called to see if we can remove remove a binding (ie. if it exists) */
+/** Delegate called to see if we can remove a binding (ie. if it exists) */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanRemoveBinding, FName /*InPropertyName*/);
 
 /** Delegate called once a new function binding has been created */
@@ -143,6 +156,9 @@ DECLARE_DELEGATE_RetVal_OneParam(UStruct*, FOnResolveIndirection, const TArray<F
 
 /** Delegate called once a drag-drop event is dropped on the binding widget */
 DECLARE_DELEGATE_RetVal_TwoParams(FReply, FOnDrop, const FGeometry&, const FDragDropEvent&);
+
+/** Delegate called to see if the property has any bindings */
+DECLARE_DELEGATE_RetVal(bool, FOnHasAnyBindings);
 
 /** Setup arguments structure for a property binding widget */
 struct FPropertyBindingWidgetArgs
@@ -178,6 +194,9 @@ struct FPropertyBindingWidgetArgs
 	FOnCanAcceptPropertyOrChildren OnCanAcceptPropertyOrChildren;
 	
 	/** Delegate used to check whether a property can be bound to the property in question */
+	FOnCanBindPropertyWithBindingChain OnCanBindPropertyWithBindingChain;
+
+	UE_DEPRECATED(5.4, "Please use OnCanBindPropertyWithBindingChain instead.")
 	FOnCanBindProperty OnCanBindProperty;
 
 	/** Delegate used to check whether a function can be bound to the property in question */
@@ -186,8 +205,11 @@ struct FPropertyBindingWidgetArgs
 	/** Delegate called to see if a class can be bound to */
 	FOnCanBindToClass OnCanBindToClass;
 
-	/** Delegate called to see if a context struct can be directly bound to */
+	UE_DEPRECATED(5.5, "Please use OnCanBindToContextStructWithIndex instead.")
 	FOnCanBindToContextStruct OnCanBindToContextStruct;
+
+	/** Delegate called to see if a context struct can be directly bound to */
+	FOnCanBindToContextStructWithIndex OnCanBindToContextStructWithIndex;
 	
 	/** Delegate called to see if a subobject can be bound to */
 	FOnCanBindToSubObjectClass OnCanBindToSubObjectClass;
@@ -201,6 +223,9 @@ struct FPropertyBindingWidgetArgs
 	/** Delegate called to see if we can remove remove a binding (ie. if it exists) */
 	FOnCanRemoveBinding OnCanRemoveBinding;
 
+	/** Delegate called to see if the property has any bindings */
+	FOnHasAnyBindings OnHasAnyBindings;
+
 	/** Delegate called once a new function binding has been created */
 	FOnNewFunctionBindingCreated OnNewFunctionBindingCreated;
 
@@ -212,6 +237,9 @@ struct FPropertyBindingWidgetArgs
 
 	/** The current binding's text label */
 	TAttribute<FText> CurrentBindingText;
+	
+	/** The current binding's text label color */
+	TAttribute<FSlateColor> CurrentBindingTextColor;
 
 	/** The current binding's tooltip text label */
 	TAttribute<FText> CurrentBindingToolTipText;
@@ -260,6 +288,9 @@ struct FPropertyBindingWidgetArgs
 
 	/** Whether to allow UScriptStruct functions as non-leaf nodes */
 	bool bAllowStructFunctions = false;	
+
+	/** Whether to format the SPropertyBinding widget to use a link icon (versus the standard combo button) */
+	bool bUseLinkIconStyle = false;
 };
 
 /** Enum describing the result of ResolvePropertyAccess */

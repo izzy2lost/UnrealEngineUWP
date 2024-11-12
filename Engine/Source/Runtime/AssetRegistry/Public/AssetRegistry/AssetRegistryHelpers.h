@@ -8,6 +8,7 @@
 #include "Containers/Array.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
+#include "Delegates/Delegate.h"
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -37,6 +38,13 @@ struct FTagAndValue
 
 	UPROPERTY(BlueprintReadWrite, Transient, Category = AssetData)
 	FString Value;
+};
+
+UENUM(BlueprintType, DisplayName = "Sort Order")
+enum class EAssetRegistrySortOrder : uint8
+{
+	Ascending,
+	Descending
 };
 
 UCLASS(transient)
@@ -114,6 +122,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Asset Registry", meta=(ScriptMethod))
 	static ASSETREGISTRY_API UClass* FindAssetNativeClass(const FAssetData& AssetData);
 
+	DECLARE_DYNAMIC_DELEGATE_RetVal_TwoParams(bool, FSortingPredicate, const FAssetData&, Left, const FAssetData&, Right);
+	/**
+	 * Sorts the assets based on a custom Blueprint delegate.
+	 * 
+	 * @param Assets The assets to sort
+	 * @param SortingPredicate Implements a Left <= Right relation
+	 * @param SortOrder Whether to sort ascending or descending
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Asset Registry")
+	static ASSETREGISTRY_API void SortByPredicate(UPARAM(Ref) TArray<FAssetData>& Assets, FSortingPredicate SortingPredicate, EAssetRegistrySortOrder SortOrder);
+
+	/**
+	 * Sorts the assets by their asset name.
+	 *
+	 * @param Assets The assets to sort
+	 * @param SortOrder Whether to sort ascending or descending
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Asset Registry")
+	static ASSETREGISTRY_API void SortByAssetName(UPARAM(Ref) TArray<FAssetData>& Assets, EAssetRegistrySortOrder SortOrder);
+	
 	/**
 	 * Finds references of the provided asset that are of the a class contained in the InMatchClasses set.
 	 */

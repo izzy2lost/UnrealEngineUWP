@@ -33,13 +33,13 @@ public:
 		return false;
 	}
 
-	virtual bool DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual int64 FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath = nullptr) override;
-	virtual FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath,
+	virtual bool DoesPackageExist(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual int64 FileSize(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual FOpenPackageResult OpenReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath = nullptr) override;
+	virtual FOpenAsyncPackageResult OpenAsyncReadPackage(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
 		EPackageSegment PackageSegment) override;
 	virtual IMappedFileHandle* OpenMappedHandleToPackage(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
 		FPackagePath* OutUpdatedPath = nullptr) override;
@@ -67,6 +67,7 @@ protected:
 	 * assigned the chosen extension.
 	 * PackagePaths without a LocalPath (PackageNameOnly PackagePaths) will result in no calls made to the Callback.
 	 * @param PackagePath The PackagePath used to construct the LocalPath.
+	 * @param CookedIndex The cooked index used by the bulkdata, other segment types can just pass in default
 	 * @param PackageSegment The PackageSegment used to construct the LocalPath.
 	 * @param OutUpdatedPath If non-null and a LocalPath is found for which Callback returns true, will be set equal
 	 *        to a copy of PackagePath, and if a header extension was found, will have the header extension set
@@ -74,8 +75,8 @@ protected:
 	 *        check whether an extension is the correct one (because the FullLocalPath exists)
 	 */
 	template <typename CallbackType>
-	void IteratePossibleFiles(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-		FPackagePath* OutUpdatedPath, const CallbackType& Callback);
+	void IteratePossibleFiles(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+		EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath, const CallbackType& Callback);
 
 	/**
 	 * Base class of classes used in IteratePackagesInPath functions,
@@ -120,21 +121,27 @@ FPackageResourceManagerFile::FPackageResourceManagerFile()
 }
 
 template <typename CallbackType>
-void FPackageResourceManagerFile::IteratePossibleFiles(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-	FPackagePath* OutUpdatedPath, const CallbackType& Callback)
+void FPackageResourceManagerFile::IteratePossibleFiles(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath, const CallbackType& Callback)
 {
 	TStringBuilder<256> FilePath;
 	FilePath << PackagePath.GetLocalBaseFilenameWithPath();
-	const int32 BaseNameLen = FilePath.Len();
+	int32 BaseNameLen = FilePath.Len();
 	if (BaseNameLen == 0)
 	{
 		return;
 	}
 
+	if (!CookedIndex.IsDefault())
+	{
+		FilePath << CookedIndex.GetAsExtension();
+		BaseNameLen = FilePath.Len();
+	}
+
 	for (EPackageExtension Extension : PackagePath.GetPossibleExtensions(PackageSegment))
 	{
 		FilePath.RemoveSuffix(FilePath.Len() - BaseNameLen);
-		FilePath << ((Extension != EPackageExtension::Custom) ? 
+		FilePath << ((Extension != EPackageExtension::Custom) ?
 			FStringView(LexToString(Extension)) : PackagePath.GetExtensionString(EPackageSegment::Header));
 		if (Callback(FilePath.ToString(), Extension))
 		{
@@ -153,12 +160,12 @@ void FPackageResourceManagerFile::IteratePossibleFiles(const FPackagePath& Packa
 	}
 }
 
-bool FPackageResourceManagerFile::DoesPackageExist(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-	FPackagePath* OutUpdatedPath)
+bool FPackageResourceManagerFile::DoesPackageExist(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
 {
 	bool bResult = false;
 	IFileManager* FileManager = &IFileManager::Get();
-	IteratePossibleFiles(PackagePath, PackageSegment, OutUpdatedPath,
+	IteratePossibleFiles(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath,
 		[FileManager, &bResult](const TCHAR* Filename, EPackageExtension Extension)
 		{
 			if (FileManager->FileExists(Filename))
@@ -171,13 +178,13 @@ bool FPackageResourceManagerFile::DoesPackageExist(const FPackagePath& PackagePa
 	return bResult;
 }
 
-int64 FPackageResourceManagerFile::FileSize(const FPackagePath& PackagePath, EPackageSegment PackageSegment,
-	FPackagePath* OutUpdatedPath)
+int64 FPackageResourceManagerFile::FileSize(const FPackagePath& PackagePath, FBulkDataCookedIndex CookedIndex,
+	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
 {
 	int64 Result = INDEX_NONE;
 
 	IFileManager* FileManager = &IFileManager::Get();
-	IteratePossibleFiles(PackagePath, PackageSegment, OutUpdatedPath,
+	IteratePossibleFiles(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath,
 		[FileManager, &Result](const TCHAR* Filename, EPackageExtension Extension)
 		{
 			Result = FileManager->FileSize(Filename);
@@ -192,12 +199,12 @@ int64 FPackageResourceManagerFile::FileSize(const FPackagePath& PackagePath, EPa
 
 
 FOpenPackageResult FPackageResourceManagerFile::OpenReadPackage(const FPackagePath& PackagePath,
-	EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
+	FBulkDataCookedIndex CookedIndex, EPackageSegment PackageSegment, FPackagePath* OutUpdatedPath)
 {
 	FOpenPackageResult Result{ nullptr, EPackageFormat::Binary, true /* bNeedsEngineVersionChecks */};
 
 	IFileManager* FileManager = &IFileManager::Get();
-	IteratePossibleFiles(PackagePath, PackageSegment, OutUpdatedPath,
+	IteratePossibleFiles(PackagePath, CookedIndex, PackageSegment, OutUpdatedPath,
 		[FileManager, &Result](const TCHAR* Filename, EPackageExtension Extension)
 		{
 #if !WITH_TEXT_ARCHIVE_SUPPORT
@@ -227,7 +234,7 @@ FOpenPackageResult FPackageResourceManagerFile::OpenReadPackage(const FPackagePa
 }
 
 FOpenAsyncPackageResult FPackageResourceManagerFile::OpenAsyncReadPackage(const FPackagePath& PackagePath,
-	EPackageSegment PackageSegment)
+	FBulkDataCookedIndex CookedIndex, EPackageSegment PackageSegment)
 {
 	FOpenAsyncPackageResult Result { nullptr, EPackageFormat::Binary, true /* bNeedsEngineVersionChecks */ };
 
@@ -240,7 +247,7 @@ FOpenAsyncPackageResult FPackageResourceManagerFile::OpenAsyncReadPackage(const 
 	else if (Extensions.Num() > 1)
 	{
 		FPackagePath UpdatedPackagePath;
-		if (DoesPackageExist(PackagePath, PackageSegment, &UpdatedPackagePath))
+		if (DoesPackageExist(PackagePath, CookedIndex, PackageSegment, &UpdatedPackagePath))
 		{
 			FStringView CustomExtension;
 			Extension = UpdatedPackagePath.GetExtension(PackageSegment, CustomExtension);
@@ -253,6 +260,11 @@ FOpenAsyncPackageResult FPackageResourceManagerFile::OpenAsyncReadPackage(const 
 		FilePath << PackagePath.GetLocalBaseFilenameWithPath();
 		if (FilePath.Len() > 0)
 		{
+			if (!CookedIndex.IsDefault())
+			{
+				FilePath << CookedIndex.GetAsExtension();
+			}
+
 			FilePath << ((Extension != EPackageExtension::Custom) ?
 				FStringView(LexToString(Extension)) : PackagePath.GetExtensionString(EPackageSegment::Header));
 			Result.Handle.Reset(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(FilePath.ToString()));
@@ -273,7 +285,7 @@ IMappedFileHandle* FPackageResourceManagerFile::OpenMappedHandleToPackage(const 
 	IMappedFileHandle* Result = nullptr;
 
 	IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
-	IteratePossibleFiles(PackagePath, PackageSegment, OutUpdatedPath,
+	IteratePossibleFiles(PackagePath, FBulkDataCookedIndex::Default, PackageSegment, OutUpdatedPath,
 		[PlatformFile, &Result](const TCHAR* Filename, EPackageExtension Extension)
 		{
 			Result = PlatformFile->OpenMapped(Filename);
@@ -287,7 +299,7 @@ bool FPackageResourceManagerFile::TryMatchCaseOnDisk(const FPackagePath& Package
 	IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
 	FString FilenameOnDisk;
 	EPackageExtension ExtensionOnDisk;
-	IteratePossibleFiles(PackagePath, EPackageSegment::Header, nullptr,
+	IteratePossibleFiles(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, nullptr,
 		[PlatformFile, &FilenameOnDisk, &ExtensionOnDisk](const TCHAR* Filename, EPackageExtension Extension)
 		{
 			// TODO: Optimize this function to only hit the disk once by creating a
@@ -332,7 +344,7 @@ TUniquePtr<FArchive> FPackageResourceManagerFile::OpenReadExternalResource(EPack
 		{
 			return TUniquePtr<FArchive>();
 		}
-		return OpenReadPackage(PackagePath, EPackageSegment::Header).Archive;
+		return OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header).Archive;
 	}
 	default:
 		checkNoEntry();
@@ -351,7 +363,7 @@ bool FPackageResourceManagerFile::DoesExternalResourceExist(EPackageExternalReso
 		{
 			return false;
 		}
-		return DoesPackageExist(PackagePath, EPackageSegment::Header);
+		return DoesPackageExist(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 	}
 	default:
 		checkNoEntry();
@@ -371,7 +383,7 @@ FOpenAsyncPackageResult FPackageResourceManagerFile::OpenAsyncReadExternalResour
 		{
 			return FOpenAsyncPackageResult{ TUniquePtr<IAsyncReadFileHandle>(new FAsyncReadFileHandleNull()), EPackageFormat::Binary };
 		}
-		return OpenAsyncReadPackage(PackagePath, EPackageSegment::Header);
+		return OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 	}
 	default:
 		checkNoEntry();

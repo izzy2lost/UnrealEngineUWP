@@ -4,6 +4,7 @@
 
 #include "dna/BaseImpl.h"
 #include "dna/DenormalizedData.h"
+#include "dna/Reader.h"
 #include "dna/TypeDefs.h"
 
 #ifdef _MSC_VER
@@ -169,6 +170,52 @@ class ReaderImpl : public TReaderBase, public virtual BaseImpl {
                                                                                 std::uint16_t layerIndex) const override;
         ConstArrayView<float> getNeuralNetworkLayerBiases(std::uint16_t netIndex, std::uint16_t layerIndex) const override;
         ConstArrayView<float> getNeuralNetworkLayerWeights(std::uint16_t netIndex, std::uint16_t layerIndex) const override;
+
+        // RBFBehaviorReader methods
+        std::uint16_t getRBFPoseCount() const override;
+        StringView getRBFPoseName(std::uint16_t index) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseJointOutputIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseBlendShapeChannelOutputIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseAnimatedMapOutputIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<float> getRBFPoseJointOutputValues(std::uint16_t poseIndex) const override;
+        float getRBFPoseScale(std::uint16_t poseIndex) const override;
+        std::uint16_t getRBFPoseControlCount() const override;
+        StringView getRBFPoseControlName(std::uint16_t poseControlIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const override;
+        ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const override;
+        std::uint16_t getRBFSolverCount() const override;
+        std::uint16_t getRBFSolverIndexListCount() const override;
+        ConstArrayView<std::uint16_t> getRBFSolverIndicesForLOD(std::uint16_t lod) const override;
+        StringView getRBFSolverName(std::uint16_t index) const override;
+        ConstArrayView<std::uint16_t> getRBFSolverRawControlIndices(std::uint16_t solverIndex) const override;
+        ConstArrayView<std::uint16_t> getRBFSolverPoseIndices(std::uint16_t solverIndex) const override;
+        ConstArrayView<float> getRBFSolverRawControlValues(std::uint16_t solverIndex) const override;
+        RBFSolverType getRBFSolverType(std::uint16_t solverIndex) const override;
+        float getRBFSolverRadius(std::uint16_t solverIndex) const override;
+        AutomaticRadius getRBFSolverAutomaticRadius(std::uint16_t solverIndex) const override;
+        float getRBFSolverWeightThreshold(std::uint16_t solverIndex) const override;
+        RBFDistanceMethod getRBFSolverDistanceMethod(std::uint16_t solverIndex) const override;
+        RBFNormalizeMethod getRBFSolverNormalizeMethod(std::uint16_t solverIndex) const override;
+        RBFFunctionType getRBFSolverFunctionType(std::uint16_t solverIndex) const override;
+        TwistAxis getRBFSolverTwistAxis(std::uint16_t solverIndex) const override;
+
+        // JointBehaviorMetadataReader methods
+        TranslationRepresentation getJointTranslationRepresentation(std::uint16_t jointIndex) const override;
+        RotationRepresentation getJointRotationRepresentation(std::uint16_t jointIndex) const override;
+        ScaleRepresentation getJointScaleRepresentation(std::uint16_t jointIndex) const override;
+
+        // TwistSwingBehaviorReader methods
+        std::uint16_t getTwistCount() const override;
+        TwistAxis getTwistSetupTwistAxis(std::uint16_t twistIndex) const override;
+        ConstArrayView<std::uint16_t> getTwistInputControlIndices(std::uint16_t twistIndex) const override;
+        ConstArrayView<std::uint16_t> getTwistOutputJointIndices(std::uint16_t twistIndex) const override;
+        ConstArrayView<float> getTwistBlendWeights(std::uint16_t twistIndex) const override;
+        std::uint16_t getSwingCount() const override;
+        TwistAxis getSwingSetupTwistAxis(std::uint16_t swingIndex) const override;
+        ConstArrayView<std::uint16_t> getSwingInputControlIndices(std::uint16_t swingIndex) const override;
+        ConstArrayView<std::uint16_t> getSwingOutputJointIndices(std::uint16_t swingIndex) const override;
+        ConstArrayView<float> getSwingBlendWeights(std::uint16_t swingIndex) const override;
 
     protected:
         mutable DenormalizedData<TReaderBase> cache;
@@ -433,7 +480,7 @@ template<class TReaderBase>
 inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getMeshBlendShapeChannelMappingIndicesForLOD(std::uint16_t lod)
 const {
     if (cache.meshBlendShapeMappingIndices.getLODCount() == static_cast<std::uint16_t>(0)) {
-        cache.populate(this);
+        cache.populateMeshBlendShapeMappingIndices(this);
     }
     return cache.meshBlendShapeMappingIndices.getIndices(lod);
 }
@@ -564,7 +611,7 @@ inline std::uint16_t ReaderImpl<TReaderBase>::getJointColumnCount() const {
 template<class TReaderBase>
 inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getJointVariableAttributeIndices(std::uint16_t lod) const {
     if (cache.jointVariableAttributeIndices.getLODCount() == static_cast<std::uint16_t>(0)) {
-        cache.populate(this);
+        cache.populateJointVariableAttributeIndices(this);
     }
     return cache.jointVariableAttributeIndices.getIndices(lod);
 }
@@ -1019,7 +1066,7 @@ inline std::uint16_t ReaderImpl<TReaderBase>::getNeuralNetworkIndexListCount() c
 }
 
 template<class TReaderBase>
-ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getNeuralNetworkIndicesForLOD(std::uint16_t lod) const {
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getNeuralNetworkIndicesForLOD(std::uint16_t lod) const {
     return dna.machineLearnedBehavior.lodNeuralNetworkMapping.getIndices(lod);
 }
 
@@ -1041,8 +1088,9 @@ inline StringView ReaderImpl<TReaderBase>::getMeshRegionName(std::uint16_t meshI
 }
 
 template<class TReaderBase>
-ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getNeuralNetworkIndicesForMeshRegion(std::uint16_t meshIndex,
-                                                                                            std::uint16_t regionIndex) const {
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getNeuralNetworkIndicesForMeshRegion(std::uint16_t meshIndex,
+                                                                                                   std::uint16_t regionIndex)
+const {
     if (meshIndex < dna.machineLearnedBehavior.neuralNetworkToMeshRegion.indices.size()) {
         const auto& mesh = dna.machineLearnedBehavior.neuralNetworkToMeshRegion.indices[meshIndex];
         if (regionIndex < mesh.size()) {
@@ -1117,6 +1165,330 @@ inline ConstArrayView<float> ReaderImpl<TReaderBase>::getNeuralNetworkLayerWeigh
     const auto& neuralNets = dna.machineLearnedBehavior.neuralNetworks;
     if ((netIndex < neuralNets.size()) && (layerIndex < neuralNets[netIndex].layers.size())) {
         return ConstArrayView<float>{neuralNets[netIndex].layers[layerIndex].weights};
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getRBFPoseCount() const {
+    return static_cast<std::uint16_t>(dna.rbfBehavior.poses.size());
+}
+
+template<class TReaderBase>
+inline StringView ReaderImpl<TReaderBase>::getRBFPoseName(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehavior.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].name;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseJointOutputIndices(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehavior.poses;
+    if (poseIndex < poses.size()) {
+        if (cache.rbfPoseJointOutputIndices.size() == 0) {
+            cache.populateRBFPoseJointOutputIndices(this);
+        }
+        return cache.rbfPoseJointOutputIndices[poseIndex];
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseBlendShapeChannelOutputIndices(std::uint16_t poseIndex)
+const {
+    const auto& poses = dna.rbfBehavior.poses;
+    if (poseIndex < poses.size()) {
+        if (cache.rbfBlendShapeChannelOutputIndices.size() == 0) {
+            cache.populateRBFBlendShapeOutputIndices(this);
+        }
+        return cache.rbfBlendShapeChannelOutputIndices[poseIndex];
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseAnimatedMapOutputIndices(std::uint16_t poseIndex)
+const {
+    const auto& poses = dna.rbfBehavior.poses;
+    if (poseIndex < poses.size()) {
+        if (cache.rbfAnimatedMapOutputIndices.size() == 0) {
+            cache.populateRBFAnimatedMapOutputIndices(this);
+        }
+        return cache.rbfAnimatedMapOutputIndices[poseIndex];
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<float> ReaderImpl<TReaderBase>::getRBFPoseJointOutputValues(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehavior.poses;
+    if (poseIndex < poses.size()) {
+        if (cache.rbfPoseJointOutputValues.size() == 0) {
+            cache.populateRBFPoseJointOutputValues(this);
+        }
+        return cache.rbfPoseJointOutputValues[poseIndex];
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline float ReaderImpl<TReaderBase>::getRBFPoseScale(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehavior.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].scale;
+    }
+    return 0.0f;
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getRBFPoseControlCount() const {
+    return static_cast<std::uint16_t>(dna.rbfBehaviorExt.poseControlNames.size());
+}
+
+template<class TReaderBase>
+StringView ReaderImpl<TReaderBase>::getRBFPoseControlName(std::uint16_t poseControlIndex) const {
+    if (poseControlIndex < dna.rbfBehaviorExt.poseControlNames.size()) {
+        const auto& poseControlName = dna.rbfBehaviorExt.poseControlNames[poseControlIndex];
+        return {poseControlName.data(), poseControlName.size()};
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseInputControlIndices(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehaviorExt.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].inputControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehaviorExt.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].outputControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<float> ReaderImpl<TReaderBase>::getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const {
+    const auto& poses = dna.rbfBehaviorExt.poses;
+    if (poseIndex < poses.size()) {
+        return poses[poseIndex].outputControlWeights;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getRBFSolverCount() const {
+    return static_cast<std::uint16_t>(dna.rbfBehavior.solvers.size());
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getRBFSolverIndexListCount() const {
+    return dna.rbfBehavior.lodSolverMapping.getIndexListCount();
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFSolverIndicesForLOD(std::uint16_t lod) const {
+    return dna.rbfBehavior.lodSolverMapping.getIndices(lod);
+}
+
+template<class TReaderBase>
+inline StringView ReaderImpl<TReaderBase>::getRBFSolverName(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return dna.rbfBehavior.solvers[solverIndex].name;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFSolverRawControlIndices(std::uint16_t solverIndex)
+const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return dna.rbfBehavior.solvers[solverIndex].rawControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getRBFSolverPoseIndices(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return dna.rbfBehavior.solvers[solverIndex].poseIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<float> ReaderImpl<TReaderBase>::getRBFSolverRawControlValues(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return dna.rbfBehavior.solvers[solverIndex].rawControlValues;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline RBFSolverType ReaderImpl<TReaderBase>::getRBFSolverType(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return static_cast<RBFSolverType>(dna.rbfBehavior.solvers[solverIndex].solverType);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline float ReaderImpl<TReaderBase>::getRBFSolverRadius(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return dna.rbfBehavior.solvers[solverIndex].radius;
+    }
+    return 0.0f;
+}
+
+template<class TReaderBase>
+inline AutomaticRadius ReaderImpl<TReaderBase>::getRBFSolverAutomaticRadius(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return static_cast<AutomaticRadius>(dna.rbfBehavior.solvers[solverIndex].automaticRadius);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline float ReaderImpl<TReaderBase>::getRBFSolverWeightThreshold(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return dna.rbfBehavior.solvers[solverIndex].weightThreshold;
+    }
+    return 0.0f;
+}
+
+template<class TReaderBase>
+inline RBFDistanceMethod ReaderImpl<TReaderBase>::getRBFSolverDistanceMethod(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return static_cast<RBFDistanceMethod>(dna.rbfBehavior.solvers[solverIndex].distanceMethod);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline RBFNormalizeMethod ReaderImpl<TReaderBase>::getRBFSolverNormalizeMethod(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return static_cast<RBFNormalizeMethod>(dna.rbfBehavior.solvers[solverIndex].normalizeMethod);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline RBFFunctionType ReaderImpl<TReaderBase>::getRBFSolverFunctionType(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return static_cast<RBFFunctionType>(dna.rbfBehavior.solvers[solverIndex].functionType);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline TwistAxis ReaderImpl<TReaderBase>::getRBFSolverTwistAxis(std::uint16_t solverIndex) const {
+    if (dna.rbfBehavior.solvers.size() > solverIndex) {
+        return static_cast<TwistAxis>(dna.rbfBehavior.solvers[solverIndex].twistAxis);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline TranslationRepresentation ReaderImpl<TReaderBase>::getJointTranslationRepresentation(std::uint16_t jointIndex) const {
+    if (dna.jointBehaviorMetadata.jointRepresentations.size() > jointIndex) {
+        return static_cast<TranslationRepresentation>(dna.jointBehaviorMetadata.jointRepresentations[jointIndex].translation);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline RotationRepresentation ReaderImpl<TReaderBase>::getJointRotationRepresentation(std::uint16_t jointIndex) const {
+    if (dna.jointBehaviorMetadata.jointRepresentations.size() > jointIndex) {
+        return static_cast<RotationRepresentation>(dna.jointBehaviorMetadata.jointRepresentations[jointIndex].rotation);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ScaleRepresentation ReaderImpl<TReaderBase>::getJointScaleRepresentation(std::uint16_t jointIndex) const {
+    if (dna.jointBehaviorMetadata.jointRepresentations.size() > jointIndex) {
+        return static_cast<ScaleRepresentation>(dna.jointBehaviorMetadata.jointRepresentations[jointIndex].scale);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getTwistCount() const {
+    return static_cast<std::uint16_t>(dna.twistSwingBehavior.twists.size());
+}
+
+template<class TReaderBase>
+inline TwistAxis ReaderImpl<TReaderBase>::getTwistSetupTwistAxis(std::uint16_t twistIndex) const {
+    if (dna.twistSwingBehavior.twists.size() > twistIndex) {
+        return static_cast<TwistAxis>(dna.twistSwingBehavior.twists[twistIndex].twistAxis);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getTwistInputControlIndices(std::uint16_t twistIndex) const {
+    if (dna.twistSwingBehavior.twists.size() > twistIndex) {
+        return dna.twistSwingBehavior.twists[twistIndex].twistInputControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getTwistOutputJointIndices(std::uint16_t twistIndex) const {
+    if (dna.twistSwingBehavior.twists.size() > twistIndex) {
+        return dna.twistSwingBehavior.twists[twistIndex].twistOutputJointIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<float> ReaderImpl<TReaderBase>::getTwistBlendWeights(std::uint16_t twistIndex) const {
+    if (dna.twistSwingBehavior.twists.size() > twistIndex) {
+        return dna.twistSwingBehavior.twists[twistIndex].twistBlendWeights;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline std::uint16_t ReaderImpl<TReaderBase>::getSwingCount() const {
+    return static_cast<std::uint16_t>(dna.twistSwingBehavior.swings.size());
+}
+
+template<class TReaderBase>
+inline TwistAxis ReaderImpl<TReaderBase>::getSwingSetupTwistAxis(std::uint16_t swingIndex) const {
+    if (dna.twistSwingBehavior.swings.size() > swingIndex) {
+        return static_cast<TwistAxis>(dna.twistSwingBehavior.swings[swingIndex].twistAxis);
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getSwingInputControlIndices(std::uint16_t swingIndex) const {
+    if (dna.twistSwingBehavior.swings.size() > swingIndex) {
+        return dna.twistSwingBehavior.swings[swingIndex].swingInputControlIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<std::uint16_t> ReaderImpl<TReaderBase>::getSwingOutputJointIndices(std::uint16_t swingIndex) const {
+    if (dna.twistSwingBehavior.swings.size() > swingIndex) {
+        return dna.twistSwingBehavior.swings[swingIndex].swingOutputJointIndices;
+    }
+    return {};
+}
+
+template<class TReaderBase>
+inline ConstArrayView<float> ReaderImpl<TReaderBase>::getSwingBlendWeights(std::uint16_t swingIndex) const {
+    if (dna.twistSwingBehavior.swings.size() > swingIndex) {
+        return dna.twistSwingBehavior.swings[swingIndex].swingBlendWeights;
     }
     return {};
 }

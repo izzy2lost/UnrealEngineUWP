@@ -6,6 +6,7 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "ClothCollisionSource.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/Pawn.h"
 #include "HAL/Event.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -21,6 +22,7 @@
 #include "Chaos/PBDJointConstraints.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Logging/MessageLog.h"
 
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
@@ -33,8 +35,6 @@ LLM_DEFINE_TAG(Animation_RigidBodyWithControl);
 
 /////////////////////////////////////////////////////
 // FAnimNode_RigidBodyWithControl
-
-//UE_DISABLE_OPTIMIZATION
 
 #define LOCTEXT_NAMESPACE "ImmediatePhysicsWithControl"
 
@@ -143,7 +143,8 @@ FAnimNode_RigidBodyWithControl::FAnimNode_RigidBodyWithControl()
 	, bOverrideWorldGravity(false)
 	, bTransferBoneVelocities(false)
 	, bFreezeIncomingPoseOnStart(false)
-	, bModifyConstraintTransformsToMatchSkeleton(false)
+	, PhysicsAssetConditioningConstraintPosition(MapConstraintsBehaviorType::None)
+	, PhysicsAssetConditioningConstraintOrientation(MapConstraintsBehaviorType::None)
 	, WorldSpaceMinimumScale(0.01f)
 	, EvaluationResetTime(0.01f)
 	, bEnableControls(false)
@@ -287,9 +288,10 @@ void FAnimNode_RigidBodyWithControl::EvaluateComponentPose_AnyThread(FComponentS
 	}
 }
 
-void FAnimNode_RigidBodyWithControl::InitializeNewBodyTransformsDuringSimulation(FComponentSpacePoseContext& Output, const FTransform& ComponentTransform, const FTransform& BaseBoneTM)
+void FAnimNode_RigidBodyWithControl::InitializeNewBodyTransformsDuringSimulation(
+	FComponentSpacePoseContext& Output, const FTransform& ComponentTransform, const FTransform& BaseBoneTM)
 {
-	for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+	for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 	{
 		const int32 BodyIndex = OutputData.BodyIndex;
 		FBodyAnimData& BodyData = BodyAnimData[BodyIndex];
@@ -435,6 +437,7 @@ void FAnimNode_RigidBodyWithControl::CalculateSimulationSpace(
 
 void FAnimNode_RigidBodyWithControl::RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBodyWithControl"));
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Simulation);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyNodeWithControlSimulation);
 	FScopeCycleCounterUObject AdditionalScope(PhysicsAssetToUse, GET_STATID(STAT_RigidBodyNodeWithControl_Simulation));
@@ -493,6 +496,7 @@ void FAnimNode_RigidBodyWithControl::SetupControls(USkeletalMeshComponent* const
 
 void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBodyWithControl"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(EvaluateSkeletalControl_AnyThread)
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Eval);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyEval);
@@ -576,7 +580,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 			// Capture bone velocities if we have captured a bone velocity pose.
 			if (bTransferBoneVelocities && (CapturedBoneVelocityPose.GetPose().GetNumBones() > 0))
 			{
-				for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+				for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 				{
 					const int32 BodyIndex = OutputData.BodyIndex;
 					FBodyAnimData& BodyData = BodyAnimData[BodyIndex];
@@ -627,7 +631,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 					UE_LOG(LogPhysicsControl, Verbose, TEXT("%s TeleportPhysics (Scale: %f %f %f)"), *Output.AnimInstanceProxy->GetAnimInstanceName(), CompWorldSpaceTM.GetScale3D().X, CompWorldSpaceTM.GetScale3D().Y, CompWorldSpaceTM.GetScale3D().Z);
 
 					// Teleport bodies.
-					for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+					for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 					{
 						const int32 BodyIndex = OutputData.BodyIndex;
 						BodyAnimData[BodyIndex].bBodyTransformInitialized = true;
@@ -656,7 +660,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 					InitSimulationSpace(CompWorldSpaceTM, BaseBoneTM);
 
 					// Completely reset bodies.
-					for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+					for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 					{
 						const int32 BodyIndex = OutputData.BodyIndex;
 						BodyAnimData[BodyIndex].bBodyTransformInitialized = true;
@@ -696,7 +700,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 			// Transfer bone velocities previously captured.
 			if (bTransferBoneVelocities && (CapturedBoneVelocityPose.GetPose().GetNumBones() > 0))
 			{
-				for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+				for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 				{
 					const int32 BodyIndex = OutputData.BodyIndex;
 					const FBodyAnimData& BodyData = BodyAnimData[BodyIndex];
@@ -729,7 +733,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 					ApplyLinearAcc += WorldVectorToSpaceNoScale(SimulationSpace, -ComponentLinearAcceleration, CompWorldSpaceTM, BaseBoneTM) * ComponentLinearAccScale;
 
 					// Iterate over bodies
-					for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+					for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 					{
 						const int32 BodyIndex = OutputData.BodyIndex;
 						const FBodyAnimData& BodyData = BodyAnimData[BodyIndex];
@@ -784,14 +788,17 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 			}
 
 			// Note that the simulation interpolates kinematic targets to handle substepping
-			for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+			for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 			{
 				const int32 BodyIndex = OutputData.BodyIndex;
 				BodyAnimData[BodyIndex].bIsSimulated = !Bodies[BodyIndex]->GetIsKinematic();
 				if (!BodyAnimData[BodyIndex].bIsSimulated)
 				{
-					// TODO support explicit targets for kinematics, like we do for controls
-					Bodies[BodyIndex]->SetKinematicTarget(PoseData.GetTM(BodyIndex).ToTransform());
+					// Custom kinematic targets are set subsequently, overriding these.
+					if (ensure(PoseData.IsValidIndex(BodyIndex)))
+					{
+						Bodies[BodyIndex]->SetKinematicTarget(PoseData.GetTM(BodyIndex).ToTransform());
+					}
 				}
 			}
 
@@ -828,7 +835,8 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 				SolverSettings.bUseLinearJointSolver,
 				SolverSettings.PositionIterations,
 				SolverSettings.VelocityIterations,
-				SolverSettings.ProjectionIterations);
+				SolverSettings.ProjectionIterations,
+				SolverSettings.bUseManifolds);
 
 			if (!bUseDeferredSimulationTask)
 			{
@@ -844,21 +852,24 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 		
 		//write back to animation system
 		const FTransform& SimulationWorldSpaceTM = bUseDeferredSimulationTask ? PreviousCompWorldSpaceTM : CompWorldSpaceTM;
-		for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
+		for (const UE::PhysicsControl::FOutputBoneData& OutputData : OutputBoneData)
 		{
 			const int32 BodyIndex = OutputData.BodyIndex;
 			// Note that we always read back, whether kinematic or simulated
 			FTransform BodyTM = Bodies[BodyIndex]->GetWorldTransform();
-			FTransform ComponentSpaceTM;
-			switch(SimulationSpace)
+			if (ensure(!BodyTM.ContainsNaN()))
 			{
-				case ESimulationSpace::ComponentSpace: ComponentSpaceTM = BodyTM; break;
-				case ESimulationSpace::WorldSpace: ComponentSpaceTM = BodyTM.GetRelativeTransform(SimulationWorldSpaceTM); break;
-				case ESimulationSpace::BaseBoneSpace: ComponentSpaceTM = BodyTM * BaseBoneTM; break;
-				default: ensureMsgf(false, TEXT("Unsupported Simulation Space")); ComponentSpaceTM = BodyTM;
-			}
+				FTransform ComponentSpaceTM;
+				switch(SimulationSpace)
+				{
+					case ESimulationSpace::ComponentSpace: ComponentSpaceTM = BodyTM; break;
+					case ESimulationSpace::WorldSpace: ComponentSpaceTM = BodyTM.GetRelativeTransform(SimulationWorldSpaceTM); break;
+					case ESimulationSpace::BaseBoneSpace: ComponentSpaceTM = BodyTM * BaseBoneTM; break;
+					default: ensureMsgf(false, TEXT("Unsupported Simulation Space")); ComponentSpaceTM = BodyTM;
+				}
 					
-			OutBoneTransforms.Add(FBoneTransform(OutputData.CompactPoseBoneIndex, ComponentSpaceTM));
+				OutBoneTransforms.Add(FBoneTransform(OutputData.CompactPoseBoneIndex, ComponentSpaceTM));
+			}
 		}
 
 		// Deferred task must be started after we read actor poses to avoid a race
@@ -1028,10 +1039,9 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 			FPhysicsAggregateHandle(),
 			bCreateBodiesInRefPose);
 
-		if (bModifyConstraintTransformsToMatchSkeleton && 
-			CVarEnableRigidBodyNodeWithControlMatchingConstraintsToSkeleton.GetValueOnAnyThread() > 0)
+		if (CVarEnableRigidBodyNodeWithControlMatchingConstraintsToSkeleton.GetValueOnAnyThread() > 0)
 		{
-			TransformConstraintsToMatchSkeletalMesh(SkeletalMeshAsset, HighLevelConstraintInstances);
+			TransformConstraintsToMatchSkeletalMesh(SkeletalMeshAsset, PhysicsAssetConditioningConstraintPosition, PhysicsAssetConditioningConstraintOrientation, HighLevelConstraintInstances);
 		}
 
 		TMap<FName, ImmediatePhysics::FActorHandle*> NamesToHandles;
@@ -1254,7 +1264,8 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 			SolverSettings.bUseLinearJointSolver,
 			SolverSettings.PositionIterations,
 			SolverSettings.VelocityIterations,
-			SolverSettings.ProjectionIterations);
+			SolverSettings.ProjectionIterations,
+			SolverSettings.bUseManifolds);
 
 		SolverIterations = PhysicsAssetToUse->SolverIterations;
 
@@ -1837,6 +1848,7 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 	const FReferenceSkeleton& RefSkeleton = RequiredBones.GetReferenceSkeleton();
 
 	OutputBoneData.Empty(NumBodies);
+	int32 OutputBoneDataMaxBodyIndex = -1;
 
 	int32 NumSimulatedBodies = 0;
 	TArray<int32> SimulatedBodyIndices;
@@ -1877,9 +1889,10 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 		if (BodyIndex != INDEX_NONE)
 		{
 			//If we have a body we need to save it for later
-			RigidBodyWithControl::FOutputBoneData* OutputData = new (OutputBoneData) RigidBodyWithControl::FOutputBoneData();
-			OutputData->BodyIndex = BodyIndex;
-			OutputData->CompactPoseBoneIndex = CompactPoseBoneIndex;
+			UE::PhysicsControl::FOutputBoneData& OutputData = OutputBoneData.AddDefaulted_GetRef();
+			OutputData.BodyIndex = BodyIndex;
+			OutputBoneDataMaxBodyIndex = FMath::Max(OutputBoneDataMaxBodyIndex, BodyIndex);
+			OutputData.CompactPoseBoneIndex = CompactPoseBoneIndex;
 
 			if (BodyAnimData[BodyIndex].bIsSimulated)
 			{
@@ -1887,12 +1900,12 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 				SimulatedBodyIndices.AddUnique(BodyIndex);
 			}
 
-			OutputData->BoneIndicesToParentBody.Add(CompactPoseBoneIndex);
+			OutputData.BoneIndicesToParentBody.Add(CompactPoseBoneIndex);
 
 			// Walk up parent chain until we find parent body.
-			OutputData->ParentBodyIndex = INDEX_NONE;
+			OutputData.ParentBodyIndex = INDEX_NONE;
 			FCompactPoseBoneIndex CompactParentIndex = RequiredBones.GetParentBoneIndex(CompactPoseBoneIndex);
-			OutputData->CompactPoseParentBoneIndex = CompactParentIndex;
+			OutputData.CompactPoseParentBoneIndex = CompactParentIndex;
 			while (CompactParentIndex != INDEX_NONE)
 			{
 				const FBoneIndexType SkeletonParentBoneIndex = (FBoneIndexType ) RequiredBones.GetSkeletonIndex(CompactParentIndex);
@@ -1904,14 +1917,14 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 					break;
 				}
 
-				OutputData->ParentBodyIndex = SkeletonBoneIndexToBodyIndex[SkeletonParentBoneIndex];
-				OutputData->CompactPoseParentBoneIndex = CompactParentIndex;
-				if (OutputData->ParentBodyIndex != INDEX_NONE)
+				OutputData.ParentBodyIndex = SkeletonBoneIndexToBodyIndex[SkeletonParentBoneIndex];
+				OutputData.CompactPoseParentBoneIndex = CompactParentIndex;
+				if (OutputData.ParentBodyIndex != INDEX_NONE)
 				{
 					break;
 				}
 
-				OutputData->BoneIndicesToParentBody.Add(CompactParentIndex);
+				OutputData.BoneIndicesToParentBody.Add(CompactParentIndex);
 				CompactParentIndex = RequiredBones.GetParentBoneIndex(CompactParentIndex);
 			}
 
@@ -1931,6 +1944,9 @@ void FAnimNode_RigidBodyWithControl::InitializeBoneReferences(const FBoneContain
 	}
 	else
 	{
+		// The Pose data cache will only be indexed using the body indices from OutputBoneData
+		PoseData.SetSize(OutputBoneDataMaxBodyIndex + 1);
+
 		// New bodies potentially introduced with new LOD
 		// We'll have to initialize their transform.
 		bCheckForBodyTransformInit = true;

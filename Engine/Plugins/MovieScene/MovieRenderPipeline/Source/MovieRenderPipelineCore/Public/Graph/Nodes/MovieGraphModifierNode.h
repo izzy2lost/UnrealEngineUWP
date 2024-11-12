@@ -84,6 +84,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Modifiers")
 	const TArray<FName>& GetCollections() const;
 
+	/**
+	 * Sets the enable state (within this modifier) of the collection with the given name. Disabled collections will not be modified by this modifier
+	 * node. Collections that are added to the modifier are enabled by default.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Modifiers")
+	void SetCollectionEnabled(const FName& InCollectionName, const bool bIsCollectionEnabled);
+
+	/** Gets the enable state (within this modifier) of the collection with the given name. */
+	UFUNCTION(BlueprintCallable, Category = "Modifiers")
+	bool IsCollectionEnabled(const FName& InCollectionName) const;
+
 public:
 	UPROPERTY()
 	uint8 bOverride_ModifierName : 1 = 1;	// Always merge the modifier name, no need for the user to do this explicitly
@@ -93,11 +104,16 @@ public:
 	FString ModifierName;
 
 private:
+	// These private override properties exist so that the associated non-override properties are merged properly
+	// by UMovieGraphMergeableModifierContainer
 	UPROPERTY()
 	uint8 bOverride_Collections : 1 = 1; //-V570
 
 	UPROPERTY()
 	uint8 bOverride_ModifiersContainer : 1 = 1; //-V570
+
+	UPROPERTY()
+	uint8 bOverride_DisabledCollections : 1 = 1; //-V570
 	
 	/** The names of collections being modified. */
 	UPROPERTY()
@@ -106,4 +122,8 @@ private:
 	/** The modifiers this node should run. */
 	UPROPERTY(meta=(DisplayName="Modifiers"))
 	TObjectPtr<UMovieGraphMergeableModifierContainer> ModifiersContainer;
+
+	/** The collections on this node that have been disabled. */
+	UPROPERTY()
+	TSet<FName> DisabledCollections;
 };

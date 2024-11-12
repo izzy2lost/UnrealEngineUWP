@@ -18,7 +18,7 @@ namespace UnrealBuildTool.Rules
 			);
 
 			// Needed for PIE callbacks, which should really be somewhere better
-			if (Target.Type == TargetType.Editor)
+			if (Target.bBuildEditor)
 			{
 				PrivateDependencyModuleNames.AddRange(
 					new string[]

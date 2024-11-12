@@ -9,9 +9,11 @@
 #include "ComputeFramework/ComputeGraph.h"
 #include "ComputeFramework/ComputeGraphRenderProxy.h"
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
+#include "RenderCaptureInterface.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RHIDefinitions.h"
+#include "RHIGPUReadback.h"
 
 DECLARE_GPU_STAT_NAMED(ComputeFramework_ExecuteBatches, TEXT("ComputeFramework::ExecuteBatches"));
 
@@ -19,6 +21,14 @@ static TAutoConsoleVariable<int32> CVarComputeFrameworkSortSubmit(
 	TEXT("r.ComputeFramework.SortSubmit"),
 	1,
 	TEXT("Sort submission of work to GPU for optimal scheduling."),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GTriggerGPUCaptureDispatches = 0;
+static FAutoConsoleVariableRef CVarComputeFrameworkTriggerGPUCapture(
+	TEXT("r.ComputeFramework.TriggerGPUCaptureDispatches"),
+	GTriggerGPUCaptureDispatches,
+	TEXT("Trigger GPU captures for this many of the subsequent compute graph dispatches."),
 	ECVF_RenderThreadSafe
 );
 
@@ -55,10 +65,23 @@ void FComputeGraphTaskWorker::Abort(const UObject* InOwnerPointer)
 			}
 		}
 	}
+
+	for (int I = ActiveAsyncReadbacks.Num() - 1; I >= 0; --I)
+	{
+		if (ActiveAsyncReadbacks[I].OwnerPointer == InOwnerPointer)
+		{
+			ActiveAsyncReadbacks.RemoveAtSwap(I);
+		}
+	}
 }
 
 bool FComputeGraphTaskWorker::HasWork(FName InExecutionGroupName) const
 {
+	if (!ActiveAsyncReadbacks.IsEmpty())
+	{
+		return true;
+	}
+
 	TArray<FGraphInvocation> const* GraphInvocations = GraphInvocationsPerGroup.Find(InExecutionGroupName);
 	return GraphInvocations != nullptr && GraphInvocations->Num();
 }
@@ -66,8 +89,17 @@ bool FComputeGraphTaskWorker::HasWork(FName InExecutionGroupName) const
 void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExecutionGroupName, ERHIFeatureLevel::Type FeatureLevel)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ComputeFramework::ExecuteBatches);
-	RDG_EVENT_SCOPE(GraphBuilder, "ComputeFramework::ExecuteBatches");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, ComputeFramework_ExecuteBatches, "ComputeFramework::ExecuteBatches");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, ComputeFramework_ExecuteBatches);
+
+	RenderCaptureInterface::FScopedCapture RenderCapture(GTriggerGPUCaptureDispatches > 0, GraphBuilder, TEXT("FComputeGraphTaskWorker::SubmitWork"));
+	GTriggerGPUCaptureDispatches = FMath::Max(GTriggerGPUCaptureDispatches - 1, 0);
+
+	// Currently poll readbacks once at end of frame.
+	if (InExecutionGroupName == ComputeTaskExecutionGroup::EndOfFrameUpdate)
+	{
+		UpdateReadbacks();
+	}
 
 	// Reset our scratch memory arrays.
 	SubmitDescs.Reset();
@@ -263,16 +295,81 @@ void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExec
 				GroupCount
 			);
 		}
+
+		// Enqueue readbacks.
+		for (int32 DataProviderIndex : KernelInvocation.ReadbackProviderIndices)
+		{
+			if (FComputeDataProviderRenderProxy* DataProviderProxy = GraphInvocation.DataProviderRenderProxies[DataProviderIndex])
+			{
+				ReadbackDatas.Reset();
+				DataProviderProxy->GetReadbackData(ReadbackDatas);
+
+				for (const FComputeDataProviderRenderProxy::FReadbackData& ReadbackData : ReadbackDatas)
+				{
+					if (!ReadbackData.Buffer || ReadbackData.NumBytes == 0 || !ReadbackData.ReadbackCallback_RenderThread)
+					{
+						continue;
+					}
+
+					FRHIGPUBufferReadback* ReadbackRequest = new FRHIGPUBufferReadback(TEXT("ComputeFrameworkBuffer"));
+					check(ReadbackRequest);
+
+					FAsyncReadback& Readback = ActiveAsyncReadbacks.Emplace_GetRef();
+					Readback.Readback = ReadbackRequest;
+					Readback.NumBytes = ReadbackData.NumBytes;
+					Readback.OwnerPointer = GraphInvocation.OwnerPointer;
+					Readback.OnDataAvailable = *ReadbackData.ReadbackCallback_RenderThread;
+
+					AddEnqueueCopyPass(GraphBuilder, Readback.Readback, ReadbackData.Buffer, Readback.NumBytes);
+				}
+			}
+		}
+	}
+
+	// Let proxies perform any post-graph-dispatch actions.
+	// TODO: Given few proxies currently implement this method, it may be better to record which proxies require this callback rather than calling on all.
+	for (FSubmitDescription const& SubmitDesc : SubmitDescs)
+	{
+		const int32 GraphIndex = SubmitDesc.GraphIndex;
+		FGraphInvocation const& GraphInvocation = GraphInvocations[GraphIndex];
+		for (const FComputeDataProviderRenderProxy* Proxy : GraphInvocation.DataProviderRenderProxies)
+		{
+			if (Proxy)
+			{
+				Proxy->PostGraphDispatch(GraphBuilder);
+			}
+		}
 	}
 
 	// Release any graph resources at the end of graph execution.
-	GraphBuilder.AddPass(
-		{},
-		ERDGPassFlags::None,
-		[this, InExecutionGroupName](FRHICommandList&)
+	GraphBuilder.AddPostExecuteCallback(
+		[this, InExecutionGroupName]
 		{
 			GraphInvocationsPerGroup.FindChecked(InExecutionGroupName).Reset();
 		});
+}
+
+void FComputeGraphTaskWorker::UpdateReadbacks()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputeFramework::UpdateReadbacks);
+
+	for (int I = ActiveAsyncReadbacks.Num() - 1; I >= 0; --I)
+	{
+		FRHIGPUBufferReadback* Request = ActiveAsyncReadbacks[I].Readback;
+		const uint32 NumBytes = ActiveAsyncReadbacks[I].NumBytes;
+
+		if (ensure(Request) && Request->IsReady())
+		{
+			void* ReadbackData = Request->Lock(NumBytes);
+
+			if (ensure(ReadbackData))
+			{
+				ActiveAsyncReadbacks[I].OnDataAvailable(ReadbackData, NumBytes);
+			}
+
+			ActiveAsyncReadbacks.RemoveAtSwap(I);
+		}
+	}
 }
 
 FComputeGraphTaskWorker::FGraphInvocation::~FGraphInvocation()
@@ -282,5 +379,14 @@ FComputeGraphTaskWorker::FGraphInvocation::~FGraphInvocation()
 	for (FComputeDataProviderRenderProxy* DataProvider : DataProviderRenderProxies)
 	{
 		delete DataProvider;
+	}
+}
+
+FComputeGraphTaskWorker::FAsyncReadback::~FAsyncReadback()
+{
+	if (ensure(Readback))
+	{
+		delete Readback;
+		Readback = nullptr;
 	}
 }

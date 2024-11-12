@@ -37,6 +37,7 @@ class OUTPUTLOG_API UOutputLogSettings : public UObject
 public:
 	UOutputLogSettings()
 	{
+		LogFontSize = 9;
 		bCycleToOutputLogDrawer = true;
 		LogTimestampMode = ELogTimes::None;
 	}

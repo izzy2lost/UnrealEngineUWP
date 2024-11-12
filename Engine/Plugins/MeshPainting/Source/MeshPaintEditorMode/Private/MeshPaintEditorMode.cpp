@@ -50,9 +50,11 @@ void FMeshPaintEditorModeModule::Register()
 	RegisterGeometryAdapterFactory(MakeShareable(new FMeshPaintGeometryCollectionComponentAdapterFactory));
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomClassLayout("MeshColorPaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FColorPaintingSettingsCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("MeshWeightPaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FWeightPaintingSettingsCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("MeshTexturePaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FTexturePaintingSettingsCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("MeshPaintModeSettings", FOnGetDetailCustomizationInstance::CreateStatic(&FMeshPaintModeSettingsCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("MeshVertexColorPaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FVertexColorPaintingSettingsCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("MeshVertexWeightPaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FVertexWeightPaintingSettingsCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("MeshTextureColorPaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FTextureColorPaintingSettingsCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout("MeshTextureAssetPaintingToolProperties", FOnGetDetailCustomizationInstance::CreateStatic(&FTextureAssetPaintingSettingsCustomization::MakeInstance));
 }
 
 

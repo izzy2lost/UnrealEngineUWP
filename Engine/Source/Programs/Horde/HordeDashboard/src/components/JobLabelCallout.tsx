@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 import { Callout, DirectionalHint, List, Stack, Text } from "@fluentui/react";
 import React from "react";
 import { Link } from "react-router-dom";
-import { LabelData, StepData } from "../backend/Api";
+import { GetLabelStateResponse, StepData } from "../backend/Api";
 import { JobDetails } from "../backend/JobDetails";
 import { StepStatusIcon } from './StatusIcon';
 
@@ -15,8 +15,8 @@ type StepItem = {
 
 export type CalloutState = {
    jobId?: string;
-   label?: LabelData;
    target?: string;
+   label?: GetLabelStateResponse;
 }
 
 export class CalloutController {
@@ -117,6 +117,7 @@ export class CalloutController {
 export const JobLabelCallout: React.FC<{ controller: CalloutController }> = observer(({ controller }) => {
 
    const state = controller.state;
+
    const label = state.label;
    const jobId = state.jobId;
    const target = state.target;
@@ -126,11 +127,9 @@ export const JobLabelCallout: React.FC<{ controller: CalloutController }> = obse
       return <div />;
    }
 
-   const nodes = details.nodes?.filter(n => label.includedNodes?.find(on => on === n.name));
    const allSteps = details.getSteps();
-   const steps = allSteps.filter(step => nodes.indexOf(details.nodeByStepId(step.id)!) !== -1);
+   const steps = allSteps.filter(step => label.steps.indexOf(step.id) !== -1);
    const items = steps.map(step => { return { step: step }; });
-
 
    const onRenderCell = (stepItem?: StepItem): JSX.Element => {
 

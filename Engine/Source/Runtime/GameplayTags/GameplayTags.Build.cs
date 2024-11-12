@@ -20,6 +20,7 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Projects",
+					"NetCore",
 					"Json",
 					"JsonUtilities"
 				}
@@ -35,8 +36,6 @@ namespace UnrealBuildTool.Rules
 				}
                 );
             }
-
-			bAllowAutoRTFMInstrumentation = true;
 
 			SetupIrisSupport(Target);
 		}

@@ -78,8 +78,12 @@ public:
 	void SetLocalUserOnlineState(EOnlinePresenceState::Type OnlineState);
 	void AddLocalUserOnlineProperties(FPresenceProperties OnlineProperties);
 
-	USocialManager& GetSocialManager() const;
+	UE_DEPRECATED(5.5, "GetOwningLocalPlayer returns LocalPlayerOwner which is a TWeakObjectPtr and may return nullptr when the local player logs out. Please use the pointer version.")
 	ULocalPlayer& GetOwningLocalPlayer() const;
+
+	ULocalPlayer* GetOwningLocalPlayerPtr() const;
+	USocialManager& GetSocialManager() const;
+
 	const TArray<USocialUser*>& GetAllUsers() const { return AllUsers; }
 
 	/** Finds a SocialUser given a unique net ID from any OSS */
@@ -108,6 +112,10 @@ public:
 
 	const FString& GetRecentPlayerNamespaceToQuery() const { return RecentPlayerNamespaceToQuery; }
 	
+	/** Event triggered when the owning local player's login status changes */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLoginChanged, bool /*bLoggedIn*/);
+	FOnLoginChanged& OnLoginChanged() const { return OnLoginChangedEvent; }
+
 	DECLARE_EVENT_OneParam(USocialToolkit, FPartyInviteEvent, USocialUser&);
 	FPartyInviteEvent& OnPartyInviteReceived() const { return OnPartyInviteReceivedEvent; }
 	FPartyInviteEvent& OnPartyInviteRemoved() const { return OnPartyInviteRemovedEvent; }
@@ -294,6 +302,10 @@ private:	// Handlers
 	FTSTicker::FDelegateHandle Debug_PresenceTickerHandle;
 #endif
 
+protected:
+	UPROPERTY()
+	TObjectPtr<USocialChatManager> SocialChatManager;
+
 private:
 	static USocialToolkit* GetToolkitForPlayerInternal(const ULocalPlayer* LocalPlayer);
 	static TMap<TWeakObjectPtr<const ULocalPlayer>, TWeakObjectPtr<USocialToolkit>> AllToolkitsByOwningPlayer;
@@ -311,11 +323,10 @@ private:
 	UPROPERTY()
 	TWeakObjectPtr<ULocalPlayer> LocalPlayerOwner = nullptr;
 
-	UPROPERTY()
-	TObjectPtr<USocialChatManager> SocialChatManager;
-
 	TSet<IOnlinePartyJoinInfoConstRef> PartyInvitations;
 	mutable TArray<TWeakPtr<FSocialUserList>> CachedSocialUserLists;
+
+	mutable FOnLoginChanged OnLoginChangedEvent;
 
 	mutable FPartyInviteEvent OnPartyInviteReceivedEvent;
 	mutable FPartyInviteEvent OnPartyInviteAcceptedEvent;

@@ -36,7 +36,7 @@ FPreviewProfileController::FPreviewProfileController()
 
 FPreviewProfileController::~FPreviewProfileController()
 {
-	if (AssetViewerSettings)
+	if (IsValid(AssetViewerSettings))
 	{
 		AssetViewerSettings->OnAssetViewerProfileAddRemoved().Remove(AssetViewerSettingsProfileAddRemoveHandle);
 		AssetViewerSettings->OnAssetViewerSettingsChanged().Remove(AssetViewerSettingsChangedHandle);
@@ -52,7 +52,7 @@ void FPreviewProfileController::UpdateAssetViewerProfiles()
 		// Rebuild the profile list.
 		for (const FPreviewSceneProfile& Profile : AssetViewerSettings->Profiles)
 		{
-			AssetViewerProfileNames.Add(Profile.ProfileName + (Profile.bSharedProfile ? TEXT(" (Shared)") : TEXT("")));
+			AssetViewerProfileNames.Add(Profile.ProfileName);
 		}
 
 		CurrentProfileIndex = PerProjectSettings->AssetViewerProfileIndex;
@@ -73,7 +73,7 @@ TArray<FString> FPreviewProfileController::GetPreviewProfiles(int32& OutCurrentP
 
 bool FPreviewProfileController::SetActiveProfile(const FString& ProfileName)
 {
-	if (PerProjectSettings && AssetViewerSettings)
+	if (IsValid(PerProjectSettings) && IsValid(AssetViewerSettings))
 	{
 		EnsureProfilesStateCoherence();
 
@@ -100,6 +100,22 @@ FString FPreviewProfileController::GetActiveProfile() const
 		return AssetViewerProfileNames[PerProjectSettings->AssetViewerProfileIndex];
 	}
 	return FString();
+}
+
+bool FPreviewProfileController::HasAnyUserProfiles() const
+{
+	if (AssetViewerSettings)
+	{
+		for (const FPreviewSceneProfile& Profile : AssetViewerSettings->Profiles)
+		{
+			if (!Profile.bIsEngineDefaultProfile)
+			{
+				return true;
+			}
+		}
+	}
+	
+	return false;
 }
 
 void FPreviewProfileController::EnsureProfilesStateCoherence() const

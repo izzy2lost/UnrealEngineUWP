@@ -50,9 +50,9 @@ public:
 
 	const FOperatorStackEditorTree& GetItemTree(UOperatorStackEditorStackCustomization* InCustomization);
 
-	void SaveItemExpansionState(const void* InItem, bool bInExpanded);
+	void SaveItemExpansionState(uint32 InItem, bool bInExpanded);
 
-	bool GetItemExpansionState(const void* InItem, bool& bOutExpanded);
+	bool GetItemExpansionState(uint32 InItem, bool& bOutExpanded);
 
 	virtual FOperatorStackEditorContextPtr GetContext() const override
 	{
@@ -79,6 +79,13 @@ public:
 		return DetailColumnSize;
 	}
 
+	const FText& GetLastSearch() const
+	{
+		return LastSearch;
+	}
+
+	void FilterItemsAsync(const FText& InNewSearch, float InDelay = 0.f);
+
 protected:
 	/** Is the toolbar button active */
 	EVisibility GetToolbarButtonVisibility(int32 InIdx) const;
@@ -90,7 +97,7 @@ protected:
 	void UpdateSlots();
 
 	/** Switch view when toolbar button is clicked */
-	void OnToolbarButtonClicked(ECheckBoxState InState, int32 InWidgetIdx) const;
+	void OnToolbarButtonClicked(ECheckBoxState InState, int32 InWidgetIdx);
 
 	/** Highlight active selection */
 	ECheckBoxState IsToolbarButtonActive(int32 InWidgetIdx) const;
@@ -127,5 +134,14 @@ private:
 	TMap<TWeakObjectPtr<UOperatorStackEditorStackCustomization>, FOperatorStackEditorTree> CustomizationTrees;
 
 	/** To check whether an item was expanded and restore it */
-	TMap<const void*, bool> ItemExpansionState;
+	TMap<uint32, bool> ItemExpansionState;
+
+	/** Contains the customization stacks */
+	TArray<TSharedRef<SOperatorStackEditorStack>> CustomizationStacks;
+
+	/** Last search done within the stack */
+	FText LastSearch = FText::GetEmpty();
+
+	/** Last search request triggered */
+	FTSTicker::FDelegateHandle LastSearchHandle;
 };

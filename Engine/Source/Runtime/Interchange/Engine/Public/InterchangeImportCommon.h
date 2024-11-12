@@ -11,6 +11,7 @@ class UAssetImportData;
 class UInterchangeAssetImportData;
 class UInterchangeBaseNode;
 class UInterchangeBaseNodeContainer;
+class UInterchangeFactoryBase;
 class UInterchangeFactoryBaseNode;
 class UInterchangePipelineBase;
 class UInterchangeSourceData;
@@ -91,6 +92,21 @@ namespace UE::Interchange
 		static INTERCHANGEENGINE_API bool GetSourceFilenames(const UAssetImportData* AssetImportData, TArray<FString>& OutSourceFilenames);
 
 		/**
+		 * Backups the SourceData. Primary usage for re-instating SourceData on Re-Import cancellation.
+		 */
+		static INTERCHANGEENGINE_API void BackupSourceData(const UAssetImportData* AssetImportData);
+
+		/**
+		 * Reinstates the backedup SourceData. Primary usage for re-instating SourceData on Re-Import cancellation.
+		 */
+		static INTERCHANGEENGINE_API void ReinstateSourceData(UAssetImportData* AssetImportData);
+
+		/**
+		 * Clears the backedup SourceData. Primary usage for re-instating SourceData on Re-Import cancellation.
+		 */
+		static INTERCHANGEENGINE_API void ClearBackupSourceData(const UAssetImportData* AssetImportData);
+
+		/**
 		 * Sets the SourceFileName value at the specified index.
 		 */
 		static INTERCHANGEENGINE_API bool SetSourceFilename(UAssetImportData* AssetImportData, const FString& SourceFilename, int32 SourceIndex, const FString& SourceLabel = FString());
@@ -119,7 +135,7 @@ namespace UE::Interchange
 		 * @param AssetName: Asset name of the actual object to reimport
 		 * @param SubPathString: Optional subobject name
 		 */
-		static 	INTERCHANGEENGINE_API UObject* GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString());
+		static 	INTERCHANGEENGINE_API UObject* GetObjectToReimport(UInterchangeFactoryBase* Factory, UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString());
 
 		/**
 		 * If the ReimportObject is a UInterchangeSceneImportAsset, returns the factory node

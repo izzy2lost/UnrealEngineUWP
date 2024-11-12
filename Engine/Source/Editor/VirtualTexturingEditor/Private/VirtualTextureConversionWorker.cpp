@@ -37,7 +37,7 @@ namespace VTConversionWorkerUtil
 		TArray<FAssetData> OutAssetDatas;
 		UAssetRegistryHelpers::FindReferencersOfAssetOfClass(Object, { T::StaticClass() }, OutAssetDatas);
 
-		FScopedSlowTask SlowTask(OutAssetDatas.Num(), LOCTEXT("ConvertToVT_Progress_LoadingObjects", "Loading Objects..."));
+		FScopedSlowTask SlowTask(static_cast<float>(OutAssetDatas.Num()), LOCTEXT("ConvertToVT_Progress_LoadingObjects", "Loading Objects..."));
 
 		for (auto Data : OutAssetDatas)
 		{
@@ -542,7 +542,7 @@ void FVirtualTextureConversionWorker::DoConvert()
 	UE_LOG(LogVirtualTextureConversion, Display, TEXT("Beginning conversion..."));
 	SlowTask.EnterProgressFrame();
 	{
-		FScopedSlowTask TextureTask(Textures.Num(), LOCTEXT("ConvertToVT_Progress_TextureTask", "Updating textures..."));
+		FScopedSlowTask TextureTask(static_cast<float>(Textures.Num()), LOCTEXT("ConvertToVT_Progress_TextureTask", "Updating textures..."));
 
 		for (UTexture2D *Tex : Textures)
 		{
@@ -605,7 +605,7 @@ void FVirtualTextureConversionWorker::DoConvert()
 
 	SlowTask.EnterProgressFrame();
 	{
-		FScopedSlowTask MaterialTask(Materials.Num() + Functions.Num(), LOCTEXT("ConvertToVT_Progress_MaterialTask", "Updating materials..."));
+		FScopedSlowTask MaterialTask(static_cast<float>(Materials.Num() + Functions.Num()), LOCTEXT("ConvertToVT_Progress_MaterialTask", "Updating materials..."));
 		FMaterialUpdateContext UpdateContext;
 
 		TMap<UMaterialFunctionInterface*, TArray<UMaterial*>> FunctionToMaterialMap;

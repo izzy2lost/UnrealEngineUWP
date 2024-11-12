@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "GameplayTagContainer.h"
 #include "MoveLibrary/MovementUtilsTypes.h"
 #include "LayeredMove.generated.h"
 
@@ -61,10 +62,13 @@ struct FLayeredMoveFinishVelocitySettings
 * are aggregated and applied to the overall attempted move.
 * Multiple layered moves can be active at any time, and may produce additive motion or motion that overrides
 * what the current Movement Mode may intend.
+* Layered moves can also set a preferred movement mode that only changes the movement mode at the start of
+* the move. Any movement mode changes that need to happen as part of the layered move after the start of the move
+* need to be queued through an Instant Effect or the QueueNextMode function
 */
 
 // Base class for all layered moves
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintInternalUseOnly)
 struct MOVER_API FLayeredMoveBase
 {
 	GENERATED_USTRUCT_BODY()
@@ -91,6 +95,19 @@ struct MOVER_API FLayeredMoveBase
 	// Settings related to velocity applied to the actor after a layered move has finished
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	FLayeredMoveFinishVelocitySettings FinishVelocitySettings;
+
+	/**
+	 * Check Layered Move for a gameplay tag.
+	 *
+	 * @param TagToFind			Tag to check on the Mover systems
+	 * @param bExactMatch		If true, the tag has to be exactly present, if false then TagToFind will include it's parent tags while matching
+	 * 
+	 * @return True if the TagToFind was found
+	 */
+	virtual bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+	{
+		return false;
+	}
 	
 	// Kicks off this move, allowing any initialization to occur.
 	void StartMove(const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, float CurrentSimTimeMs);

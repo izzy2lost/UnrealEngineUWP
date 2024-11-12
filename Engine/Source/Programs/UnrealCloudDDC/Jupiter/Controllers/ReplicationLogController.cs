@@ -45,7 +45,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -54,7 +54,6 @@ namespace Jupiter.Controllers
 			return Ok(new ReplicationLogSnapshots(await _replicationLog.GetSnapshotsAsync(ns).ToListAsync()));
 		}
 
-		
 		[HttpPost("snapshots/{ns}/create")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
@@ -62,7 +61,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -83,7 +82,7 @@ namespace Jupiter.Controllers
 			[FromQuery] int count = 1000
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -115,7 +114,7 @@ namespace Jupiter.Controllers
 					{
 						Title = $"Log file is not available, use snapshot {snapshot.SnapshotBlob} instead",
 						Type = ProblemTypes.UseSnapshot,
-						Extensions = { { "SnapshotId", snapshot.SnapshotBlob }, { "BlobNamespace", snapshot.BlobNamespace },  }
+						Extensions = { { "SnapshotId", snapshot.SnapshotBlob }, { "BlobNamespace", snapshot.BlobNamespace }, }
 					});
 				}
 
@@ -124,6 +123,59 @@ namespace Jupiter.Controllers
 				return BadRequest(new ProblemDetails
 				{
 					Title = $"No snapshot or bucket found for namespace \"{ns}\"",
+					Type = ProblemTypes.NoDataFound,
+				});
+			}
+			catch (NamespaceNotFoundException)
+			{
+				return NotFound(new ProblemDetails
+				{
+					Title = $"Namespace {ns} was not found",
+				});
+			}
+		}
+
+		[HttpGet("blobs/{ns}/{replicationBucket}")]
+		[ProducesDefaultResponseType]
+		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
+		public async Task<IActionResult> GetBlobLogAsync(
+			[Required] NamespaceId ns,
+			[Required] string replicationBucket
+		)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadTransactionLog });
+			if (result != null)
+			{
+				return result;
+			}
+			try
+			{
+				IAsyncEnumerable<BlobReplicationLogEvent> events = _replicationLog.GetBlobEventsAsync(ns, replicationBucket);
+
+				List<BlobReplicationLogEvent> l = await events.ToListAsync();
+				return Ok(new BlobReplicationLogEvents(l));
+			}
+			catch (IncrementalLogNotAvailableException)
+			{
+				// failed to resume from the incremental log, check for a snapshot instead
+				SnapshotInfo? snapshot = await _replicationLog.GetLatestSnapshotAsync(ns);
+				if (snapshot != null)
+				{
+					// no log file is available
+					return BadRequest(new ProblemDetails
+					{
+						Title = $"Log file is not available, use snapshot {snapshot.SnapshotBlob} instead",
+						Type = ProblemTypes.UseSnapshot,
+						Extensions = { { "SnapshotId", snapshot.SnapshotBlob }, { "BlobNamespace", snapshot.BlobNamespace }, }
+					});
+				}
+
+				// if no snapshot is available we just give up, the replication will be started to a old bucket by the BlobReplicator	
+
+				return BadRequest(new ProblemDetails
+				{
+					Title = $"No snapshot or bucket found for namespace \"{ns}\"",
+					Type = ProblemTypes.NoDataFound,
 				});
 			}
 			catch (NamespaceNotFoundException)
@@ -184,5 +236,22 @@ namespace Jupiter.Controllers
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
 		public List<ReplicationLogEvent> Events { get; set; }
+	}
+
+	public class BlobReplicationLogEvents
+	{
+		public BlobReplicationLogEvents()
+		{
+			Events = new List<BlobReplicationLogEvent>();
+		}
+
+		[JsonConstructor]
+		public BlobReplicationLogEvents(List<BlobReplicationLogEvent> events)
+		{
+			Events = events;
+		}
+
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
+		public List<BlobReplicationLogEvent> Events { get; set; }
 	}
 }

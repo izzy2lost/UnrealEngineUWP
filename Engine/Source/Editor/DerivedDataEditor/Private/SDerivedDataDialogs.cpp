@@ -69,21 +69,21 @@ EActiveTimerReturnType SDerivedDataRemoteStoreDialog::UpdateGridPanels(double In
 
 TSharedRef<SWidget> SDerivedDataRemoteStoreDialog::GetGridPanel()
 {
+	// Gather the latest resource stats
 	TArray<FDerivedDataCacheResourceStat> DDCResourceStats;
-
-	// Grab the latest resource stats
-	GetDerivedDataCacheRef().GatherResourceStats(DDCResourceStats);
+	GatherDerivedDataCacheResourceStats(DDCResourceStats);
 
 	FDerivedDataCacheResourceStat DDCResourceStatsTotal(TEXT("Total"));
 
-	// Accumulate Totals
+	// Find the total
 	for (const FDerivedDataCacheResourceStat& Stat : DDCResourceStats)
 	{
-		DDCResourceStatsTotal += Stat;
+		if (Stat.AssetType == TEXT("Total"))
+		{
+			DDCResourceStatsTotal = Stat;
+			break;
+		}
 	}
-
-	const int64 TotalCount = DDCResourceStatsTotal.LoadCount + DDCResourceStatsTotal.BuildCount;
-	const double Efficiency = TotalCount > 0 ? static_cast<double>(DDCResourceStatsTotal.LoadCount) / static_cast<double>(TotalCount) : 0.0;
 
 	const double DownloadedBytesMB = FUnitConversion::Convert(FDerivedDataInformation::GetCacheActivitySizeBytes(true, false), EUnit::Bytes, EUnit::Megabytes);
 	const double UploadedBytesMB = FUnitConversion::Convert(FDerivedDataInformation::GetCacheActivitySizeBytes(false, false), EUnit::Bytes, EUnit::Megabytes);
@@ -184,17 +184,16 @@ EActiveTimerReturnType SDerivedDataResourceUsageDialog::UpdateGridPanels(double 
 
 TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 {
+	// Gather the latest resource stats
 	TArray<FDerivedDataCacheResourceStat> DDCResourceStats;
+	GatherDerivedDataCacheResourceStats(DDCResourceStats);
 
-	// Grab the resource stats
-	GetDerivedDataCacheRef().GatherResourceStats(DDCResourceStats);
-
-	// Sort results on descending build size, then descending load size, then ascending asset type.
+	// Sort results on descending build count, then descending load size, then ascending asset type.
 	const auto CompareStats = [](const FDerivedDataCacheResourceStat& A, const FDerivedDataCacheResourceStat& B)
 	{
-		if (A.BuildSizeMB != B.BuildSizeMB)
+		if (A.BuildCount != B.BuildCount)
 		{
-			return A.BuildSizeMB > B.BuildSizeMB;
+			return A.BuildCount > B.BuildCount;
 		}
 		if (A.LoadSizeMB != B.LoadSizeMB)
 		{
@@ -206,10 +205,14 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 
 	FDerivedDataCacheResourceStat DDCResourceStatsTotal(TEXT("Total"));
 
-	// Accumulate Totals
+	// Find the total and store it off, we will render that out separately
 	for (const FDerivedDataCacheResourceStat& Stat : DDCResourceStats)
 	{
-		DDCResourceStatsTotal += Stat;
+		if (Stat.AssetType == TEXT("Total"))
+		{
+			DDCResourceStatsTotal = Stat;
+			break;
+		}
 	}
 
 	TSharedRef<SGridPanel> Panel =
@@ -226,7 +229,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 	const FMargin DefaultMargin(0.0f, RowMargin, ColumnMargin, RowMargin);
 	const FMargin DefaultMarginFirstColumn(ColumnMargin, RowMargin);
 
-	Panel->AddSlot(2, Row)
+	Panel->AddSlot(3, Row)
 	.HAlign(HAlign_Center)
 	[
 		SNew(STextBlock)
@@ -236,7 +239,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Text(LOCTEXT("Loaded", "Loaded"))
 	];
 
-	Panel->AddSlot(5, Row)
+	Panel->AddSlot(6, Row)
 	.HAlign(HAlign_Center)
 	[
 		SNew(STextBlock)
@@ -262,9 +265,9 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(TitleMargin)
-		.ColorAndOpacity(TitleColor)
-		.Font(TitleFont)
-		.Text(LOCTEXT("Count", "Count"))
+	.ColorAndOpacity(TitleColor)
+	.Font(TitleFont)
+	.Text(LOCTEXT("Hit", "Hit%"))
 	];
 
 	Panel->AddSlot(2, Row)
@@ -274,7 +277,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(LOCTEXT("Time (Sec)", "Time (Sec)"))
+		.Text(LOCTEXT("Count", "Count"))
 	];
 
 	Panel->AddSlot(3, Row)
@@ -284,7 +287,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(LOCTEXT("Size (MiB)", "Size (MiB)"))
+		.Text(LOCTEXT("Time (Sec)", "Time (Sec)"))
 	];
 
 	Panel->AddSlot(4, Row)
@@ -294,7 +297,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(LOCTEXT("Count", "Count"))
+		.Text(LOCTEXT("Size (MiB)", "Size (MiB)"))
 	];
 
 	Panel->AddSlot(5, Row)
@@ -304,10 +307,20 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(LOCTEXT("Time (Sec)", "Time (Sec)"))
+		.Text(LOCTEXT("Count", "Count"))
 	];
 
 	Panel->AddSlot(6, Row)
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Margin(TitleMargin)
+		.ColorAndOpacity(TitleColor)
+		.Font(TitleFont)
+		.Text(LOCTEXT("Time (Sec)", "Time (Sec)"))
+	];
+
+	Panel->AddSlot(7, Row)
 	.HAlign(HAlign_Right)
 	[
 		SNew(STextBlock)
@@ -321,6 +334,11 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 
 	for (const FDerivedDataCacheResourceStat& Stat : DDCResourceStats)
 	{	
+		if (Stat.AssetType == TEXT("Total"))
+		{
+			continue;
+		}
+
 		Panel->AddSlot(0, Row)
 		[
 			SNew(STextBlock)
@@ -333,15 +351,16 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.Text(FText::FromString(ZeroDecimalFormat(Stat.LoadCount)))
+			.Text(FText::FromString(SingleDecimalFormat(Stat.Efficiency*100.0)))
 		];
+
 
 		Panel->AddSlot(2, Row)
 		.HAlign(HAlign_Right)
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.Text(FText::FromString(SingleDecimalFormat(Stat.LoadTimeSec)))
+			.Text(FText::FromString(ZeroDecimalFormat(Stat.LoadCount)))
 		];
 
 		Panel->AddSlot(3, Row)
@@ -349,7 +368,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.Text(FText::FromString(SingleDecimalFormat(Stat.LoadSizeMB)))
+			.Text(FText::FromString(SingleDecimalFormat(Stat.LoadTimeSec)))
 		];
 
 		Panel->AddSlot(4, Row)
@@ -357,7 +376,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.Text(FText::FromString(ZeroDecimalFormat(Stat.BuildCount)))
+			.Text(FText::FromString(SingleDecimalFormat(Stat.LoadSizeMB)))
 		];
 
 		Panel->AddSlot(5, Row)
@@ -365,10 +384,18 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		[
 			SNew(STextBlock)
 			.Margin(DefaultMargin)
-			.Text(FText::FromString(SingleDecimalFormat(Stat.BuildTimeSec)))
+			.Text(FText::FromString(ZeroDecimalFormat(Stat.BuildCount)))
 		];
 
 		Panel->AddSlot(6, Row)
+		.HAlign(HAlign_Right)
+		[
+			SNew(STextBlock)
+			.Margin(DefaultMargin)
+			.Text(FText::FromString(SingleDecimalFormat(Stat.BuildTimeSec)))
+		];
+
+		Panel->AddSlot(7, Row)
 		.HAlign(HAlign_Right)
 		[
 			SNew(STextBlock)
@@ -395,8 +422,9 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(FText::FromString(ZeroDecimalFormat(DDCResourceStatsTotal.LoadCount)))
+		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.Efficiency * 100.0)))
 	];
+
 
 	Panel->AddSlot(2, Row)
 	.HAlign(HAlign_Right)
@@ -405,7 +433,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.LoadTimeSec)))
+		.Text(FText::FromString(ZeroDecimalFormat(DDCResourceStatsTotal.LoadCount)))
 	];
 
 	Panel->AddSlot(3, Row)
@@ -415,7 +443,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.LoadSizeMB)))
+		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.LoadTimeSec)))
 	];
 
 	Panel->AddSlot(4, Row)
@@ -425,7 +453,7 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(FText::FromString(ZeroDecimalFormat(DDCResourceStatsTotal.BuildCount)))
+		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.LoadSizeMB)))
 	];
 
 	Panel->AddSlot(5, Row)
@@ -435,10 +463,20 @@ TSharedRef<SWidget> SDerivedDataResourceUsageDialog::GetGridPanel()
 		.Margin(TitleMargin)
 		.ColorAndOpacity(TitleColor)
 		.Font(TitleFont)
-		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.BuildTimeSec)))
+		.Text(FText::FromString(ZeroDecimalFormat(DDCResourceStatsTotal.BuildCount)))
 	];
 
 	Panel->AddSlot(6, Row)
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Margin(TitleMargin)
+		.ColorAndOpacity(TitleColor)
+		.Font(TitleFont)
+		.Text(FText::FromString(SingleDecimalFormat(DDCResourceStatsTotal.BuildTimeSec)))
+	];
+
+	Panel->AddSlot(7, Row)
 	.HAlign(HAlign_Right)
 	[
 		SNew(STextBlock)

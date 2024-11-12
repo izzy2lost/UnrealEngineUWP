@@ -4,10 +4,11 @@
 
 #include "CoreMinimal.h"
 
-#include "RemoteControlCommon.h"
+#include "Containers/UnrealString.h"
+#include "RCModifyOperationFlags.h"
 #include "RCPropertyUtilities.h"
 #include "RCTypeTraits.h"
-#include "Containers/UnrealString.h"
+#include "RemoteControlCommon.h"
 #include "UObject/Class.h"
 #include "UObject/StructOnScope.h"
 
@@ -112,6 +113,23 @@ public:
 		*reinterpret_cast<ValueType*>(InterpolationRangePropertyData.GetData()) = InRangeValue;
 
 		RefreshCachedData(PropertyType::StaticClass()->GetFName());
+	}
+
+	/** Returns true if one can get mapping value as primitive for the specified type */
+	template <typename ValueType>
+	bool CanGetMappingValueAsPrimitive() const
+	{
+		if constexpr (RemoteControlTypeTraits::TIsStringLikeValue<ValueType>::Value)
+		{
+			return TRemoteControlTypeTraits<ValueType>::IsSupportedMappingType();
+		}
+		else
+		{
+			return 
+				TRemoteControlTypeTraits<ValueType>::IsSupportedMappingType() &&
+				!InterpolationMappingPropertyData.IsEmpty() &&
+				InterpolationMappingPropertyData.Num() == sizeof(ValueType);
+		}
 	}
 
 	/** Get Mapping Property Value as a primitive type */
@@ -232,6 +250,7 @@ public:
 		}
 		return false;
 	}
+#endif
 
 	/** Sets the underlying InterpolationMappingPropertyData to the given source, using the input property for type information */
 	bool SetRawMappingData(URemoteControlPreset* InOwningPreset, const FProperty* InProperty, const void* InSource)
@@ -245,7 +264,6 @@ public:
 		}
 		return false;
 	}
-#endif
 
 	/** Get Mapping value as a Struct on Scope, only in case BoundProperty is FStructProperty */
 	TSharedPtr<FStructOnScope> GetMappingPropertyAsStructOnScope();
@@ -339,13 +357,13 @@ inline void FRemoteControlProtocolMapping::SetMappingValueAsPrimitive<FText>(FTe
 template <>
 inline bool FRemoteControlProtocolMapping::PropertySizeMatchesData<FBoolProperty>(const TArray<uint8>& InSource, const FBoolProperty* InProperty)
 {
-	return ensure(InProperty->ElementSize == InSource.Num());
+	return ensure(InProperty->GetElementSize() == InSource.Num());
 }
 
 template <>
 inline bool FRemoteControlProtocolMapping::PropertySizeMatchesData<FNumericProperty>(const TArray<uint8>& InSource, const FNumericProperty* InProperty)
 {
-	return ensure(InProperty->ElementSize >= InSource.Num());
+	return ensure(InProperty->GetElementSize() >= InSource.Num());
 }
 
 template <>
@@ -385,10 +403,13 @@ public:
 
 	/**
 	 * Interpolate and apply protocol value to the property
-	 * @param InProtocolValue double value from the protocol
-	 * @return true of applied successfully
+	 * 
+	 * @param InProtocolValue				Double value from the protocol
+	 * @param ModifyOperationFlags			(optional) Flags that specify how the property is modified when the value is applied.
+	 * @return								True if the value was applied successfully
 	 */
-	bool ApplyProtocolValueToProperty(double InProtocolValue);
+	UE_DEPRECATED(5.5, "ApplyProtocolValueToProperty is deprecated. Instead please refer to UE::RemoteControl::ProtocolEntityProcessor::ProcessEntities")
+	bool ApplyProtocolValueToProperty(const double InProtocolValue);
 
 	/** 
 	 * Get bound range property. For example, the range could be bound to FFloatProperty or FIntProperty, etc.
@@ -436,17 +457,20 @@ public:
 	/** Returns true if the given mask is enabled, false otherwise. */
 	virtual bool HasMask(ERCMask InMaskBit) const;
 
-#if WITH_EDITOR
+	/** Returns the overriden masks. */
+	ERCMask GetOverridenMask() const { return OverridenMasks; }
 
+#if WITH_EDITOR
 	/** Retrieves the name of property corresponding to the given column name. */
 	const FName GetPropertyName(const FName& ForColumnName);
 	
 	/** Register(s) all the properties (to be exposed) of this protocol entity. */
 	virtual void RegisterProperties() {};
-
 #endif // WITH_EDITOR
 
-public:
+	/** Returns the preset that owns this protocol entity */
+	const TWeakObjectPtr<URemoteControlPreset>& GetOwner() const { return Owner; }
+
 	/** Container for range and mapping value pointers, and an optional number of elements (arrays, strings). */
 	struct FRangeMappingData
 	{
@@ -510,21 +534,25 @@ public:
 		}
 	};
 
+	/** Get Ranges and Mapping Value pointers */
+	TArray<FRangeMappingData> GetRangeMappingBuffers();
+
+	/** The current protocol value. Useful to test if the value changed */
+	double ProtocolValue = 0.0;
+
 private:
 	friend struct FRemoteControlProtocolBinding;
 
 	/**
 	 * Serialize interpolated property value to Cbor buffer
-	 * @param InProperty Property to apply serialization 
+	 * @param InProperty Property to apply serialization
 	 * @param InProtocolValue double value from the protocol
 	 * @param OutBuffer serialized buffer
 	 * @return true if serialized correctly
 	 */
+	UE_DEPRECATED(5.5, "Deprecated in favor of the overload that specifies the OwnerObject of the property.")
 	bool GetInterpolatedPropertyBuffer(FProperty* InProperty, double InProtocolValue, TArray<uint8>& OutBuffer);
 
-private:
-	/** Get Ranges and Mapping Value pointers */
-	TArray<FRangeMappingData> GetRangeMappingBuffers();
 
 protected:
 	/** The preset that owns this entity. */

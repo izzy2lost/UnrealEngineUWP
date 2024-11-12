@@ -46,8 +46,10 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMobileSceneTextureUniformParameters, ENGIN
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ScenePartialDepthTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, ScenePartialDepthTextureSampler)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, CustomDepthTexture)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, CustomDepthTextureArray)
 	SHADER_PARAMETER_SAMPLER(SamplerState, CustomDepthTextureSampler)
 	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint2>, CustomStencilTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint2>, CustomStencilTextureArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneVelocityTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, SceneVelocityTextureSampler)
 	// GBuffer
@@ -127,6 +129,7 @@ struct FSceneTexturesConfig
 		, bKeepDepthContent{ 1 }
 		, bRequiresDepthAux{}
 		, bPreciseDepthAux{}
+		, bCustomResolveSubpass{}
 		, bSamplesCustomStencil{}
 		, bMemorylessMSAA{}
 		, bSupportsXRTargetManagerDepthAlloc{}
@@ -136,6 +139,9 @@ struct FSceneTexturesConfig
     ENGINE_API void BuildSceneColorAndDepthFlags();
 	ENGINE_API uint32 GetGBufferRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EGBufferLayout Layout = GBL_Default) const;
 	ENGINE_API void SetupMobileGBufferFlags(bool bRequiresMultiPass);
+
+	// Number of MSAA samples in the Editor.Primitive<Color/Depth> textures. See also r.MSAA.CompositingSampleCount
+	ENGINE_API static uint32 GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel);
 
 	FORCEINLINE bool IsValid() const
 	{
@@ -198,6 +204,9 @@ struct FSceneTexturesConfig
 	
 	// (Mobile) True if SceneDepthAux should use a precise pixel format
 	uint32 bPreciseDepthAux : 1;
+	
+	// (Mobile) True if Custom MSAA resolve subpass is enabled
+	uint32 bCustomResolveSubpass : 1;
 
 	// (Mobile) True if CustomStencil are sampled in a shader
 	uint32 bSamplesCustomStencil : 1;

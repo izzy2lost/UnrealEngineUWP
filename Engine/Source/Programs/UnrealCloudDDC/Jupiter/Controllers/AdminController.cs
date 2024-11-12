@@ -43,13 +43,13 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(UpdatedRecordsResponse), 200)]
 		public async Task<IActionResult> StartLastAccessRollupAsync()
 		{
-			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new [] { JupiterAclAction.AdminAction });
+			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new[] { JupiterAclAction.AdminAction });
 			if (result != null)
 			{
 				return result;
 			}
 
-			List<(LastAccessRecord, DateTime)>? updatedRecords = await _lastAccessService.ProcessLastAccessRecordsAsync();
+			List<(LastAccessRecord, DateTime)>? updatedRecords = await _lastAccessService.ProcessLastAccessRecordsAsync(HttpContext.RequestAborted);
 
 			return Ok(new UpdatedRecordsResponse(
 				updatedRecords?.Select(tuple => new UpdatedRecordsResponse.UpdatedRecord(tuple.Item1, tuple.Item2))
@@ -67,7 +67,7 @@ namespace Jupiter.Controllers
 		[HttpPost("refCleanup")]
 		public async Task<IActionResult> RefCleanupAsync()
 		{
-			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new [] { JupiterAclAction.AdminAction });
+			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new[] { JupiterAclAction.AdminAction });
 			if (result != null)
 			{
 				return result;
@@ -76,7 +76,7 @@ namespace Jupiter.Controllers
 			int countOfDeletedRecords = await _refCleanup.Cleanup(CancellationToken.None);
 			return Ok(new RemovedRefRecordsResponse(countOfDeletedRecords));
 		}
-		
+
 		/// <summary>
 		/// Dumps all settings currently in use
 		/// </summary>
@@ -84,7 +84,7 @@ namespace Jupiter.Controllers
 		[HttpGet("settings")]
 		public async Task<IActionResult> SettingsAsync()
 		{
-			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new [] { JupiterAclAction.AdminAction });
+			ActionResult? result = await _requestHelper.HasAccessForGlobalOperationsAsync(User, new[] { JupiterAclAction.AdminAction });
 			if (result != null)
 			{
 				return result;

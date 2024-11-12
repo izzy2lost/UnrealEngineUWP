@@ -36,6 +36,9 @@ AsyncBufferResultPtr TargetTextureSet::BindTo(RenderMaterial_BPPtr Material, TAr
 {
 	RenderCount++;
 
+	// clear previous callbacks
+	Callbacks.Empty();
+	
 	for(const FMaterialMappingInfo MappingInfo : MaterialMappingInfo)
 	{
 		BindOnTextureUpdate(Material, MappingInfo);
@@ -90,9 +93,12 @@ void TargetTextureSet::SetTexture(FName TextureName, TiledBlobRef InTexture)
 	}
 
 	//if there exists a callback, now is the time to update it 
-	if (Callbacks.Contains(TextureName) && Callbacks[TextureName])
+	if (Callbacks.Contains(TextureName) && Callbacks[TextureName].Num())
 	{
-		Callbacks[TextureName](InTexture);
+		for(int i = 0; i < Callbacks[TextureName].Num(); i++)
+		{
+			Callbacks[TextureName][i](InTexture);
+		}
 	}
 }
 
@@ -136,8 +142,9 @@ void TargetTextureSet::BindOnTextureUpdate(RenderMaterial_BPPtr InMaterial, FMat
 					// Linear textures are now being displayed in linear gamma.
 					// So turning off the conversion to match UE's convention.
 					// InMaterial->SetInt(TEXT("sRGB"), texture.get()->GetDescriptor().bIsSRGB ? 1 : 0);
-
-					InMaterial->SetInt(TEXT("IsGrayscale"), texture.get()->GetDescriptor().ItemsPerPoint == 1 ? 1 : 0);
+					FString GrayScaleParam = "Is" + BindInfo.Target + "GrayScale";
+					
+					InMaterial->SetInt(FName(GrayScaleParam), texture.get()->GetDescriptor().ItemsPerPoint == 1 ? 1 : 0);
 
 					texture->OnFinalise().then([=]()
 					{
@@ -166,11 +173,11 @@ void TargetTextureSet::RegisterCallback(TextureReadyCallback Callback, FMaterial
 
 	if(Callbacks.Contains(MaterialMappingInfo.Target))
 	{
-		Callbacks[MaterialMappingInfo.Target] = Callback;
+		Callbacks[MaterialMappingInfo.Target].Add(Callback);
 	}
 	else
 	{
-		Callbacks.Add(MaterialMappingInfo.Target, Callback);
+		Callbacks.Add(MaterialMappingInfo.Target, TArray<TextureReadyCallback>{Callback});
 	}
 }
 

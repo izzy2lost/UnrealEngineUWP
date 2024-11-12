@@ -5,7 +5,7 @@
 #include "RigVMDefines.h"
 #include "RigVMCore/RigVMMemoryStorage.h"
 #include "RigVMCore/RigVMPropertyPath.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RigVMMemoryStorageStruct.generated.h"
 
 USTRUCT()
@@ -363,6 +363,14 @@ struct RIGVM_API FRigVMMemoryStorageStruct : public FInstancedPropertyBag
 	static bool CopyProperty(
 		FRigVMMemoryHandle& InTargetHandle,
 		FRigVMMemoryHandle& InSourceHandle);
+
+	/**
+	* Returns the PropertyBag struct using a standard function signature, so it can be used at IStructureDataProvider
+	*/
+	inline const UStruct * GetStruct() const
+	{
+		return GetPropertyBagStruct();
+	}
 
 protected:
 	ERigVMMemoryType MemoryType = ERigVMMemoryType::Invalid;

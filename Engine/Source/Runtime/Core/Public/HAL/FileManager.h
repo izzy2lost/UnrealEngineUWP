@@ -53,7 +53,6 @@ enum EFileOpenFlags
 	IO_APPEND		= 0x40,					// When writing, keep the existing data, set the filepointer to the end of the existing data
 };
 
-
 class IFileManager
 {
 protected:

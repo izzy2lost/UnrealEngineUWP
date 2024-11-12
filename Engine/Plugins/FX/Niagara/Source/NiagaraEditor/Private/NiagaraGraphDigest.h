@@ -88,6 +88,8 @@ public:
 	FNiagaraCompilationInputPin(const UEdGraphPin* InPin);
 	FNiagaraCompilationInputPin(const FNiagaraCompilationInputPin& SourceInputPin, const FNiagaraCompilationNode* InOwningNode, FNiagaraCompilationGraphDuplicateContext& Context);
 
+	bool Disconnect();
+
 	virtual FLinkedPinView GetLinkedPins() const override
 	{
 		return MakeArrayView(reinterpret_cast<const FNiagaraCompilationPin* const*>(&LinkedTo), 1);
@@ -372,7 +374,7 @@ protected:
 	void PatchGenericNumericsFromCaller(FNiagaraCompilationGraphInstanceContext& Context);
 	void InheritDebugState(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode);
 	void PropagateDefaultValues(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode);
-	void RemoveUnconnectedNodes();
+	void StripUnconnectedPins(FNiagaraCompilationGraphInstanceContext& Context);
 };
 
 class FNiagaraCompilationScript
@@ -399,7 +401,6 @@ public:
 	FString EmitterName;
 	FString EmitterPathName;
 	FString EmitterHandleIdString;
-	FName EmitterUniqueFName;
 	FNiagaraCompilationGraph::FSharedPtr CalledGraph;
 	ENiagaraScriptUsage Usage;
 };
@@ -606,6 +607,10 @@ public:
 
 	virtual void BuildParameterMapHistory(FParameterMapHistoryBuilder& Builder, bool bRecursive, bool bFilterForCompilation) const override;
 	virtual void Compile(FTranslator* Translator, TArray<int32>& Outputs) const;
+
+protected:
+	using FInputPinCollection = TArray<const FNiagaraCompilationInputPin*, TInlineAllocator<16>>;
+	virtual void CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const;
 };
 
 class FNiagaraCompilationNodeParameterMapFor : public FNiagaraCompilationNodeParameterMapSet
@@ -617,6 +622,9 @@ public:
 	FNiagaraCompilationNodeParameterMapFor(const FNiagaraCompilationNodeParameterMapFor& InNode, FNiagaraCompilationGraphDuplicateContext& Context);
 
 	virtual void Compile(FTranslator* Translator, TArray<int32>& Outputs) const;
+
+protected:
+	virtual void CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const override;
 };
 
 class FNiagaraCompilationNodeParameterMapForWithContinue : public FNiagaraCompilationNodeParameterMapFor
@@ -628,6 +636,9 @@ public:
 	FNiagaraCompilationNodeParameterMapForWithContinue(const FNiagaraCompilationNodeParameterMapForWithContinue& InNode, FNiagaraCompilationGraphDuplicateContext& Context);
 
 	virtual void Compile(FTranslator* Translator, TArray<int32>& Outputs) const;
+
+protected:
+	virtual void CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const override;
 };
 
 class FNiagaraCompilationNodeParameterMapForIndex : public FNiagaraCompilationNode
@@ -711,6 +722,7 @@ public:
 
 	bool bSetByCompiler;
 	bool bSetByPin;
+	bool bDebugStateSwitch;
 	ENiagaraStaticSwitchType SwitchType;
 	FNiagaraTypeDefinition InputType;
 	int32 SwitchBranchCount;

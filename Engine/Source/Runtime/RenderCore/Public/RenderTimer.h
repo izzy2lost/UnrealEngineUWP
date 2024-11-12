@@ -122,5 +122,8 @@ extern RENDERCORE_API uint32 GGameThreadWaitTime;
 /** How many cycles it took to swap buffers to present the frame. */
 extern RENDERCORE_API uint32 GSwapBufferTime;
 
+/** How many cycles the gamethread used, including dependent wait time. */
+extern RENDERCORE_API uint32 GGameThreadTimeCriticalPath;
+
 /** How many cycles the renderthread used, including dependent wait time. */
 extern RENDERCORE_API uint32 GRenderThreadTimeCriticalPath;

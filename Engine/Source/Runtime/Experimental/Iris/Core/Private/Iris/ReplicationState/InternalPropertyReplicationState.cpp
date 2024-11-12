@@ -18,7 +18,7 @@ void InitReplicationStateInternals(uint8* StateBuffer, const FReplicationStateDe
 
 	// init dirty state tracking
 	FNetBitArrayView DirtyStates = GetMemberChangeMask(StateBuffer, Descriptor);
-	DirtyStates.Reset();
+	DirtyStates.ClearAllBits();
 
 	// Init optional conditionals
 	if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasLifetimeConditionals))
@@ -257,7 +257,7 @@ bool InternalCompareStructProperty(const FReplicationStateDescriptor* StructDesc
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[StructMemberIt];
 		const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[StructMemberIt];
 		const FProperty* MemberProperty = MemberProperties[StructMemberIt];
-		const SIZE_T MemberOffset = MemberProperty->GetOffset_ForGC() + MemberProperty->ElementSize*MemberPropertyDescriptor.ArrayIndex;
+		const SIZE_T MemberOffset = MemberProperty->GetOffset_ForGC() + MemberProperty->GetElementSize()*MemberPropertyDescriptor.ArrayIndex;
 		if (!InternalCompareMember(StructDescriptor, StructMemberIt, static_cast<const uint8*>(ValueA) + MemberOffset, static_cast<const uint8*>(ValueB) + MemberOffset))
 		{
 			return false;
@@ -302,7 +302,7 @@ void InternalApplyStructProperty(const FReplicationStateDescriptor* StructDescri
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[StructMemberIt];
 		const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[StructMemberIt];
 		const FProperty* MemberProperty = MemberProperties[StructMemberIt];
-		const SIZE_T MemberOffset = MemberProperty->GetOffset_ForGC() + MemberProperty->ElementSize*MemberPropertyDescriptor.ArrayIndex;
+		const SIZE_T MemberOffset = MemberProperty->GetOffset_ForGC() + MemberProperty->GetElementSize()*MemberPropertyDescriptor.ArrayIndex;
 		InternalApplyPropertyValue(StructDescriptor, StructMemberIt, static_cast<uint8*>(Dst) + MemberOffset, static_cast<const uint8*>(Src) + MemberOffset);
 	}
 }
@@ -411,7 +411,7 @@ void InternalCopyStructProperty(const FReplicationStateDescriptor* StructDescrip
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[StructMemberIt];
 		const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[StructMemberIt];
 		const FProperty* MemberProperty = MemberProperties[StructMemberIt];
-		const SIZE_T MemberOffset = MemberProperty->GetOffset_ForGC() + MemberProperty->ElementSize*MemberPropertyDescriptor.ArrayIndex;
+		const SIZE_T MemberOffset = MemberProperty->GetOffset_ForGC() + MemberProperty->GetElementSize()*MemberPropertyDescriptor.ArrayIndex;
 		InternalCopyPropertyValue(StructDescriptor, StructMemberIt, static_cast<uint8*>(Dst) + MemberOffset, static_cast<const uint8*>(Src) + MemberOffset);
 	}
 }

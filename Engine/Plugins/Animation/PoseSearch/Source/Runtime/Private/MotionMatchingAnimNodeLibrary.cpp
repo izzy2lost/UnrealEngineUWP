@@ -3,6 +3,15 @@
 #include "PoseSearch/MotionMatchingAnimNodeLibrary.h"
 #include "PoseSearch/AnimNode_MotionMatching.h"
 #include "PoseSearch/PoseSearchDatabase.h"
+#include "AlphaBlend.h"
+
+FMotionMatchingBlueprintBlendSettings::FMotionMatchingBlueprintBlendSettings()
+	: BlendTime(0.2f)
+	, BlendProfile(nullptr)
+	, BlendOption(EAlphaBlendOption::Linear)
+	, bUseInertialBlend(false)
+{
+}
 
 FMotionMatchingAnimNodeReference UMotionMatchingAnimNodeLibrary::ConvertToMotionMatchingNode(const FAnimNodeReference& Node, EAnimNodeReferenceConversionResult& Result)
 {
@@ -22,10 +31,11 @@ void UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(const FMotion
 			const UPoseSearchDatabase* CurrentResultDatabase = MotionMatchingState.CurrentSearchResult.Database.Get();
 			if (CurrentResultDatabase && CurrentResultDatabase->Schema)
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = CurrentResultDatabase->GetAnimationAssetBase(*SearchIndexAsset))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = CurrentResultDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
 				{
 					Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
 					Result.SelectedTime = MotionMatchingState.CurrentSearchResult.AssetTime;
+					Result.bIsContinuingPoseSearch = MotionMatchingState.CurrentSearchResult.bIsContinuingPoseSearch;
 					Result.bLoop = SearchIndexAsset->IsLooping();
 					Result.bIsMirrored = SearchIndexAsset->IsMirrored();
 					Result.BlendParameters = SearchIndexAsset->GetBlendParameters();
@@ -39,6 +49,37 @@ void UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(const FMotion
 	else
 	{
 		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::SetDatabase called on an invalid context or with an invalid type"));
+	}
+}
+
+void UMotionMatchingAnimNodeLibrary::GetMotionMatchingBlendSettings(const FMotionMatchingAnimNodeReference& MotionMatchingNode, FMotionMatchingBlueprintBlendSettings& BlendSettings, bool& bIsResultValid)
+{
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		BlendSettings.BlendOption = MotionMatchingNodePtr->BlendOption;
+		BlendSettings.BlendProfile = MotionMatchingNodePtr->BlendProfile;
+		BlendSettings.BlendTime = MotionMatchingNodePtr->BlendTime;
+		BlendSettings.bUseInertialBlend = MotionMatchingNodePtr->bUseInertialBlend;
+	}
+	else
+	{
+		BlendSettings = FMotionMatchingBlueprintBlendSettings();
+		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::GetMotionMatchingBlendSettings called on an invalid context or with an invalid type"));
+	}
+}
+
+void UMotionMatchingAnimNodeLibrary::OverrideMotionMatchingBlendSettings(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const FMotionMatchingBlueprintBlendSettings& BlendSettings, bool& bIsResultValid)
+{
+	if (FAnimNode_MotionMatching* MotionMatchingNodePtr = MotionMatchingNode.GetAnimNodePtr<FAnimNode_MotionMatching>())
+	{
+		 MotionMatchingNodePtr->BlendOption = BlendSettings.BlendOption;
+		 MotionMatchingNodePtr->BlendProfile = BlendSettings.BlendProfile;
+		 MotionMatchingNodePtr->BlendTime = BlendSettings.BlendTime;
+		 MotionMatchingNodePtr->bUseInertialBlend = BlendSettings.bUseInertialBlend;
+	}
+	else
+	{
+		UE_LOG(LogPoseSearch, Warning, TEXT("UMotionMatchingAnimNodeLibrary::OverrideMotionMatchingBlendSettings called on an invalid context or with an invalid type"));
 	}
 }
 

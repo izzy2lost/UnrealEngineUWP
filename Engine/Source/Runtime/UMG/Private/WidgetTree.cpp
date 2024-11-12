@@ -168,7 +168,7 @@ bool UWidgetTree::TryMoveWidgetToNewTree(UWidget* Widget, UWidgetTree* Destinati
 
 	if (DestinationTree && OriginalTree && OriginalTree != DestinationTree)
 	{
-		bWidgetMoved = Widget->Rename(*Widget->GetName(), DestinationTree, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+		bWidgetMoved = Widget->Rename(*Widget->GetName(), DestinationTree, REN_DontCreateRedirectors);
 	}
 
 	return bWidgetMoved;

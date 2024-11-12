@@ -56,19 +56,10 @@ TSharedRef<ISequencerTrackEditor> FCinematicShotTrackEditor::CreateTrackEditor(T
 	return MakeShareable(new FCinematicShotTrackEditor(InSequencer));
 }
 
-
-void FCinematicShotTrackEditor::OnInitialize()
+TWeakObjectPtr<AActor> FCinematicShotTrackEditor::GetCinematicShotCamera() const
 {
-	OnCameraCutHandle = GetSequencer()->OnCameraCut().AddSP(this, &FCinematicShotTrackEditor::OnUpdateCameraCut);
-}
-
-
-void FCinematicShotTrackEditor::OnRelease()
-{
-	if (OnCameraCutHandle.IsValid() && GetSequencer().IsValid())
-	{
-		GetSequencer()->OnCameraCut().Remove(OnCameraCutHandle);
-	}
+	const UCameraComponent* Camera = GetSequencer()->GetLastEvaluatedCameraCut().Get();
+	return Camera ? Camera->GetOwner() : nullptr;
 }
 
 
@@ -83,7 +74,7 @@ TSharedPtr<SWidget> FCinematicShotTrackEditor::BuildOutlinerColumnWidget(const F
 	{
 		return UE::Sequencer::MakeAddButton(
 			LOCTEXT("CinematicShotText", "Shot"),
-			FOnGetContent::CreateSP(this, &FCinematicShotTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent, Params.TrackModel->GetTrack()),
+			FOnGetContent::CreateSP(this, &FCinematicShotTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent, Params.TrackModel.AsWeak()),
 			Params.ViewModel);
 	}
 
@@ -179,7 +170,7 @@ void FCinematicShotTrackEditor::Tick(float DeltaTime)
 	}
 }
 
-void FCinematicShotTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track )
+void FCinematicShotTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track)
 {
 	MenuBuilder.BeginSection("Import/Export", NSLOCTEXT("Sequencer", "ImportExportMenuSectionName", "Import/Export"));
 
@@ -214,26 +205,9 @@ void FCinematicShotTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder
 	MenuBuilder.EndSection();
 }
 
-void FCinematicShotTrackEditor::InsertShot()
-{
-	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = FocusedMovieScene ? FocusedMovieScene->FindTrack<UMovieSceneCinematicShotTrack>() : nullptr;
-	FSubTrackEditor::InsertSection(CinematicShotTrack);
-}
-
-void FCinematicShotTrackEditor::DuplicateShot(UMovieSceneCinematicShotSection* Section)
-{
-	FSubTrackEditor::DuplicateSection(Section);
-}
-
 void FCinematicShotTrackEditor::RenderShots(const TArray<UMovieSceneCinematicShotSection*>& Sections)
 {
 	GetSequencer()->RenderMovie(Sections);
-}
-
-void FCinematicShotTrackEditor::NewTake(UMovieSceneCinematicShotSection* Section)
-{
-	FSubTrackEditor::CreateNewTake(Section);
 }
 
 /* FSubTrackEditor
@@ -274,20 +248,6 @@ FString FCinematicShotTrackEditor::GetDefaultSubsequenceDirectory() const
 TSubclassOf<UMovieSceneSubTrack> FCinematicShotTrackEditor::GetSubTrackClass() const
 {
 	return UMovieSceneCinematicShotTrack::StaticClass();
-}
-
-TSharedRef<SWidget> FCinematicShotTrackEditor::HandleAddCinematicShotComboButtonGetMenuContent()
-{
-	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = FocusedMovieScene ? FocusedMovieScene->FindTrack<UMovieSceneCinematicShotTrack>() : nullptr;
-	return HandleAddSubSequenceComboButtonGetMenuContent(CinematicShotTrack);
-}
-
-UMovieSceneCinematicShotTrack* FCinematicShotTrackEditor::FindOrCreateCinematicShotTrack()
-{
-	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = FocusedMovieScene ? FocusedMovieScene->FindTrack<UMovieSceneCinematicShotTrack>() : nullptr;
-	return Cast<UMovieSceneCinematicShotTrack>(FindOrCreateSubTrack(FocusedMovieScene, CinematicShotTrack));
 }
 
 bool FCinematicShotTrackEditor::HandleAddSubTrackMenuEntryCanExecute() const
@@ -340,12 +300,6 @@ FText FCinematicShotTrackEditor::GetLockShotsToolTip() const
 	return AreShotsLocked() == ECheckBoxState::Checked ?
 		LOCTEXT("UnlockShots", "Unlock Viewport from Shots") :
 		LOCTEXT("LockShots", "Lock Viewport to Shots");
-}
-
-void FCinematicShotTrackEditor::OnUpdateCameraCut(UObject* CameraObject, bool bJumpCut)
-{
-	// Keep track of the camera when it switches so that the thumbnail can be drawn with the correct camera
-	CinematicShotCamera = Cast<AActor>(CameraObject);
 }
 
 UAutomatedLevelSequenceCapture* GetMovieSceneCapture()

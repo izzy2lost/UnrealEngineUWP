@@ -74,7 +74,7 @@ void FMoviePipelineSurfaceReader::Reset()
 	bQueuedForCapture = false;
 }
 
-void FMoviePipelineSurfaceReader::ResolveSampleToReadbackTexture_RenderThread(const FTexture2DRHIRef& SourceSurfaceSample)
+void FMoviePipelineSurfaceReader::ResolveSampleToReadbackTexture_RenderThread(const FTextureRHIRef& SourceSurfaceSample)
 {
 	// We use GetModuleChecked here to avoid accidentally loading the module from the non-main thread.
 	static const FName RendererModuleName("Renderer");
@@ -222,11 +222,6 @@ void FMoviePipelineSurfaceReader::CopyReadbackTexture_RenderThread(TUniqueFuncti
 		}
 		else
 		{
-			UE_LOG(LogMovieRenderPipeline, Log, TEXT("Unexpected size in FMoviePipelineSurfaceReader::CopyReadbackTexture_RenderThread."));
-			// UE_LOG(LogMovieRenderPipeline, Log, TEXT("    Tile size:     %d x %d"), InSampleState.TileSize.X, InSampleState.TileSize.Y);
-			UE_LOG(LogMovieRenderPipeline, Log, TEXT("    Expected size: %d x %d"), ExpectedSizeX, ExpectedSizeY);
-			UE_LOG(LogMovieRenderPipeline, Log, TEXT("    Actual size:   %d x %d"), ActualSizeX, ActualSizeY);
-
 			// Make sure the target is larger than expected size.
 			check(ExpectedSizeX <= ActualSizeX);
 			check(ExpectedSizeY <= ActualSizeY);
@@ -323,7 +318,7 @@ void FMoviePipelineSurfaceQueue::Shutdown()
 	}
 }
 
-void FMoviePipelineSurfaceQueue::OnRenderTargetReady_RenderThread(const FTexture2DRHIRef InRenderTarget, TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> InFramePayload, TUniqueFunction<void(TUniquePtr<FImagePixelData>&&)>&& InFunctionCallback)
+void FMoviePipelineSurfaceQueue::OnRenderTargetReady_RenderThread(const FTextureRHIRef InRenderTarget, TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> InFramePayload, TUniqueFunction<void(TUniquePtr<FImagePixelData>&&)>&& InFunctionCallback)
 {
 	ensure(IsInRenderingThread());
 

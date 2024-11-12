@@ -58,7 +58,7 @@ bool FSceneOutlinerVisibilityCache::GetVisibility(const ISceneOutlinerTreeItem& 
 	}
 }
 
-class FVisibilityDragDropOp : public FDragDropOperation, public TSharedFromThis<FVisibilityDragDropOp>
+class FVisibilityDragDropOp : public FDragDropOperation
 {
 public:
 	

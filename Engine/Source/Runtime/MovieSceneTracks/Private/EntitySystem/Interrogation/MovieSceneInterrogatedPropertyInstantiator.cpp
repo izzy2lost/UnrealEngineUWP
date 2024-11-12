@@ -111,6 +111,7 @@ bool UMovieSceneInterrogatedPropertyInstantiatorSystem::PropertySupportsFastPath
 		FComponentMask Type = Linker->EntityManager.GetEntityType(Input);
 		if (Type.Contains(BuiltInComponents->Tags.RelativeBlend) ||
 			Type.Contains(BuiltInComponents->Tags.AdditiveBlend) ||
+			Type.Contains(BuiltInComponents->Tags.OverrideBlend) ||
 			Type.Contains(BuiltInComponents->Tags.AdditiveFromBaseBlend) ||
 			Type.Contains(BuiltInComponents->WeightAndEasingResult))
 		{

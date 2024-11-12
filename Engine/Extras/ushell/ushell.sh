@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Check whether this script has been "sourced" into a host shell
+# Launch as a sub-shell if the the script was not sourced into the current shell
 if [ $0 = "$BASH_SOURCE" ]; then
-    # The script was not sourced, so source it in a child shell and propagate
-    # any arguments
     args=""
     for arg in "$@"
     do
         escaped=$(printf '%q' "$arg")
         args="$args $escaped"
     done
-    bash --init-file <(echo "source \"$HOME/.bashrc\"; source \"$BASH_SOURCE\" $args")
+
+    bash_rc="$HOME/.bashrc"
+    bash --init-file <(echo "if [ -f '$bash_rc' ]; then source '$bash_rc'; fi; source '$BASH_SOURCE' $args")
     exit $?
 fi
 

@@ -295,11 +295,36 @@ inline T128<T> andnot(const T128<T>& lhs, const T128<T>& rhs) {
     return ~lhs & rhs;
 }
 
+template<typename T>
+inline T128<T> rsqrt(const T128<T>& rhs) {
+    #ifndef TRIMD_ENABLE_FAST_INVERSE_SQRT
+    return T128<T>{1.0f / std::sqrt(rhs.data[0]),
+                   1.0f / std::sqrt(rhs.data[1]),
+                   1.0f / std::sqrt(rhs.data[2]),
+                   1.0f / std::sqrt(rhs.data[3])};
+    #else
+    std::uint32_t asInts[4];
+    std::memcpy(asInts, rhs.data.data(), sizeof(asInts));
+    asInts[0] = 0x5f1ffff9 - (asInts[0] >> 1);
+    asInts[1] = 0x5f1ffff9 - (asInts[1] >> 1);
+    asInts[2] = 0x5f1ffff9 - (asInts[2] >> 1);
+    asInts[3] = 0x5f1ffff9 - (asInts[3] >> 1);
+    T128<T> result;
+    std::memcpy(result.data.data(), asInts, sizeof(asInts));
+    result.data[0] *= 0.703952253f * (2.38924456f - rhs.data[0] * result.data[0] * result.data[0]);
+    result.data[1] *= 0.703952253f * (2.38924456f - rhs.data[1] * result.data[1] * result.data[1]);
+    result.data[2] *= 0.703952253f * (2.38924456f - rhs.data[2] * result.data[2] * result.data[2]);
+    result.data[3] *= 0.703952253f * (2.38924456f - rhs.data[3] * result.data[3] * result.data[3]);
+    return result;
+    #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+}
+
 using F128 = T128<float>;
 using F256 = fallback::T256<F128>;
 using fallback::transpose;
 using fallback::abs;
 using fallback::andnot;
+using fallback::rsqrt;
 
 }  // namespace scalar
 

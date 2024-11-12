@@ -15,7 +15,10 @@ class IAvaTagHandleCustomizer
 public:
 	virtual ~IAvaTagHandleCustomizer() = default;
 
-	/** Gets the Child Property Handle to the Tag Collection Property */
+	/**
+	 * Gets the Child Property Handle to the Tag Collection Property
+	 * If returning nullptr, the picker will not generate a Tag Collection Source Picker
+	 */
 	virtual TSharedPtr<IPropertyHandle> GetTagCollectionHandle(const TSharedRef<IPropertyHandle>& InStructHandle) const = 0;
 
 	/** Gets or Loads the Tag Collection from the Raw Data Struct */
@@ -32,4 +35,7 @@ public:
 
 	/** Whether multiple tags are allowed to be selected, or just a single one */
 	virtual bool AllowMultipleTags() const { return false; }
+
+	/** Whether to show alias tags as options */
+	virtual bool AllowAliasTags() const { return true; }
 };

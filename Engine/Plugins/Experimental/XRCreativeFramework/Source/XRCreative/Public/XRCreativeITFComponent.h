@@ -9,6 +9,7 @@
 
 
 class AXRCreativeBaseTransformGizmoActor;
+class AXRCreativeCombinedTransformGizmoActor;
 class FXRCreativeToolsContextTransactionImpl;
 class FXRCreativeToolsContextQueriesImpl;
 class UInteractiveToolsContext;
@@ -92,9 +93,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
 	void SetCurrentTransformGizmoMode(EToolContextTransformGizmoMode GizmoMode);
 
+	UPROPERTY()
+	TWeakObjectPtr<AXRCreativeCombinedTransformGizmoActor> GizmoActor;
+
+	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
+	AXRCreativeCombinedTransformGizmoActor* GetGizmoActor() const { return GizmoActor.Get(); }
+	
+	TSubclassOf<AXRCreativeCombinedTransformGizmoActor> GetCombinedGizmoActorClass() const { return CombinedGizmoActorClass; }
+
 protected:
 	UPROPERTY(EditAnywhere, Category="XR Creative")
-	TSubclassOf<AXRCreativeBaseTransformGizmoActor> FullTRSGizmoActorClass;
+	TSubclassOf<AXRCreativeCombinedTransformGizmoActor> CombinedGizmoActorClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="XR Creative")
 	TArray<TSubclassOf<AActor>> UnselectableActorClasses;

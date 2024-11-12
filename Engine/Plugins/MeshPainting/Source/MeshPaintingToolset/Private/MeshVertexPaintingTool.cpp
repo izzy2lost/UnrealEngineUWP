@@ -18,25 +18,25 @@
  * ToolBuilder
  */
 
-bool UMeshColorPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+bool UMeshVertexColorPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return true;
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetSelectionSupportsVertexPaint();
 }
 
-UInteractiveTool* UMeshColorPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+UInteractiveTool* UMeshVertexColorPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
-	UMeshColorPaintingTool* NewTool = NewObject<UMeshColorPaintingTool>(SceneState.ToolManager);
+	UMeshVertexColorPaintingTool* NewTool = NewObject<UMeshVertexColorPaintingTool>(SceneState.ToolManager);
 	return NewTool;
 }
 
-bool UMeshWeightPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+bool UMeshVertexWeightPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return true;
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetSelectionSupportsVertexPaint();
 }
 
-UInteractiveTool* UMeshWeightPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+UInteractiveTool* UMeshVertexWeightPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
-	UMeshWeightPaintingTool* NewTool = NewObject<UMeshWeightPaintingTool>(SceneState.ToolManager);
+	UMeshVertexWeightPaintingTool* NewTool = NewObject<UMeshVertexWeightPaintingTool>(SceneState.ToolManager);
 	return NewTool;
 }
 
@@ -46,10 +46,7 @@ UInteractiveTool* UMeshWeightPaintingToolBuilder::BuildTool(const FToolBuilderSt
  */
 
 UMeshVertexPaintingToolProperties::UMeshVertexPaintingToolProperties()
-	:UBrushBaseProperties(),
-	PaintColor(FLinearColor::White),
-	EraseColor(FLinearColor::Black),
-	bEnableFlow(false),
+	:UMeshPaintingToolProperties(),
 	VertexPreviewSize(6.0f)
 {
 }
@@ -87,6 +84,10 @@ void UMeshVertexPaintingTool::Setup()
 
 void UMeshVertexPaintingTool::Shutdown(EToolShutdownType ShutdownType)
 {
+	//If we're painting vertex colors then propagate the painting done on LOD0 to all lower LODs. 
+	//Then stop forcing the LOD level of the mesh to LOD0.
+	ApplyForcedLODIndex(-1);
+
 	FinishPainting();
 	BrushProperties->SaveProperties(this);
 	UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
@@ -165,7 +166,6 @@ void UMeshVertexPaintingTool::OnTick(float DeltaTime)
 		if (MeshPaintingSubsystem->bNeedsRecache)
 		{
 			CacheSelectionData();
-			bDoRestoreRenTargets = true;
 		}
 	}
 
@@ -340,7 +340,6 @@ bool UMeshVertexPaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVec
 				// Vertex painting is an ongoing transaction, while texture painting is handled separately later in a single transaction
 				GetToolManager()->BeginUndoTransaction(LOCTEXT("MeshPaintMode_VertexPaint_TransactionPaintStroke", "Vertex Paint"));
 				bArePainting = true;
-				TimeSinceStartedPainting = 0.0f;
 		}
 
 		// Iterate over the selected meshes under the cursor and paint them!
@@ -420,16 +419,6 @@ void UMeshVertexPaintingTool::UpdateResult()
 	GetToolManager()->PostInvalidation();
 
 	bResultValid = true;
-}
-
-bool UMeshVertexPaintingTool::HasAccept() const
-{
-	return false;
-}
-
-bool UMeshVertexPaintingTool::CanAccept() const
-{
-	return false;
 }
 
 FInputRayHit UMeshVertexPaintingTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
@@ -522,51 +511,33 @@ void UMeshVertexPaintingTool::FinishPainting()
 	}
 }
 
-UMeshColorPaintingToolProperties::UMeshColorPaintingToolProperties()
-	:UMeshVertexPaintingToolProperties(),
-	bWriteRed(true),
-	bWriteGreen(true),
-	bWriteBlue(true),
-	bWriteAlpha(false)
-{
 
+UMeshVertexColorPaintingTool::UMeshVertexColorPaintingTool()
+{
+	PropertyClass = UMeshVertexColorPaintingToolProperties::StaticClass();
 }
 
-UMeshColorPaintingTool::UMeshColorPaintingTool()
-{
-	PropertyClass = UMeshColorPaintingToolProperties::StaticClass();
-}
-
-void UMeshColorPaintingTool::Setup()
+void UMeshVertexColorPaintingTool::Setup()
 {
 	Super::Setup();
-	ColorProperties = Cast<UMeshColorPaintingToolProperties>(BrushProperties);
+	ColorProperties = Cast<UMeshVertexColorPaintingToolProperties>(BrushProperties);
 
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartColorPaintTool", "Paint vertex colors on selected meshes.  Use the Color View Mode to preview your applied changes."),
 		EToolMessageLevel::UserNotification);
 }
 
-void UMeshColorPaintingTool::Shutdown(EToolShutdownType ShutdownType)
+void UMeshVertexPaintingTool::CacheSelectionData()
 {
-	//If we're painting vertex colors then propagate the painting done on LOD0 to all lower LODs. 
-	//Then stop forcing the LOD level of the mesh to LOD0.
-	ApplyForcedLODIndex(-1);
-	Super::Shutdown(ShutdownType);
-}
-
-void UMeshColorPaintingTool::CacheSelectionData()
-{
-	Super::CacheSelectionData();
 	if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
 	{
 		MeshPaintingSubsystem->ClearPaintableMeshComponents();
 		// Update(cached) Paint LOD level if necessary
-		ColorProperties->LODIndex = FMath::Min<int32>(ColorProperties->LODIndex, GetMaxLODIndexToPaint());
-		CachedLODIndex = ColorProperties->LODIndex;
-		bCachedForceLOD = ColorProperties->bPaintOnSpecificLOD;
+		VertexProperties->LODIndex = FMath::Min<int32>(VertexProperties->LODIndex, GetMaxLODIndexToPaint());
+		CachedLODIndex = VertexProperties->LODIndex;
+		bCachedForceLOD = VertexProperties->bPaintOnSpecificLOD;
 		//Determine LOD level to use for painting(can only paint on LODs in vertex mode)
-		const int32 PaintLODIndex = ColorProperties->bPaintOnSpecificLOD ? ColorProperties->LODIndex : 0;
+		const int32 PaintLODIndex = VertexProperties->bPaintOnSpecificLOD ? VertexProperties->LODIndex : 0;
 		//Determine UV channel to use while painting textures
 		const int32 UVChannel = 0;
 
@@ -574,7 +545,7 @@ void UMeshColorPaintingTool::CacheSelectionData()
 	}
 }
 
-void UMeshColorPaintingTool::SetAdditionalPaintParameters(FMeshPaintParameters& InPaintParameters)
+void UMeshVertexColorPaintingTool::SetAdditionalPaintParameters(FMeshPaintParameters& InPaintParameters)
 {
 	InPaintParameters.bWriteRed = ColorProperties->bWriteRed;
 	InPaintParameters.bWriteGreen = ColorProperties->bWriteGreen;
@@ -583,7 +554,7 @@ void UMeshColorPaintingTool::SetAdditionalPaintParameters(FMeshPaintParameters& 
 	InPaintParameters.ApplyVertexDataDelegate.AddUObject(GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>(), &UMeshPaintingSubsystem::ApplyVertexColorPaint);
 }
 
-int32 UMeshColorPaintingTool::GetMaxLODIndexToPaint() const
+int32 UMeshVertexPaintingTool::GetMaxLODIndexToPaint() const
 {
 	//The maximum LOD we can paint is decide by the lowest number of LOD in the selection
 	int32 LODMin = TNumericLimits<int32>::Max();
@@ -609,18 +580,17 @@ int32 UMeshColorPaintingTool::GetMaxLODIndexToPaint() const
 }
 
 
-void UMeshColorPaintingTool::LODPaintStateChanged(const bool bLODPaintingEnabled)
+void UMeshVertexPaintingTool::LODPaintStateChanged(const bool bLODPaintingEnabled)
 {
 	bool AbortChange = false;
 
 	// Set actual flag in the settings struct
-	ColorProperties->bPaintOnSpecificLOD = bLODPaintingEnabled;
+	VertexProperties->bPaintOnSpecificLOD = bLODPaintingEnabled;
 
 	if (!bLODPaintingEnabled)
 	{
 		// Reset painting LOD index
-		ColorProperties->LODIndex = 0;
-
+		VertexProperties->LODIndex = 0;
 	}
 
 	ApplyForcedLODIndex(bLODPaintingEnabled ? CachedLODIndex : -1);
@@ -643,7 +613,7 @@ void UMeshColorPaintingTool::LODPaintStateChanged(const bool bLODPaintingEnabled
 	}
 }
 
-void UMeshColorPaintingTool::ApplyForcedLODIndex(int32 ForcedLODIndex)
+void UMeshVertexPaintingTool::ApplyForcedLODIndex(int32 ForcedLODIndex)
 {
 	if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
 	{
@@ -660,12 +630,12 @@ void UMeshColorPaintingTool::ApplyForcedLODIndex(int32 ForcedLODIndex)
 }
 
 
-void UMeshColorPaintingTool::PaintLODChanged()
+void UMeshVertexPaintingTool::PaintLODChanged()
 {
 	// Enforced LOD for painting
-	if (CachedLODIndex != ColorProperties->LODIndex)
+	if (CachedLODIndex != VertexProperties->LODIndex)
 	{
-		CachedLODIndex = ColorProperties->LODIndex;
+		CachedLODIndex = VertexProperties->LODIndex;
 		ApplyForcedLODIndex(bCachedForceLOD ? CachedLODIndex : -1);
 
 		TUniquePtr< FComponentReregisterContext > ComponentReregisterContext;
@@ -687,19 +657,19 @@ void UMeshColorPaintingTool::PaintLODChanged()
 	}
 }
 
-void UMeshColorPaintingTool::CycleMeshLODs(int32 Direction)
+void UMeshVertexPaintingTool::CycleMeshLODs(int32 Direction)
 {
 	if (bCachedForceLOD)
 	{
 		const int32 MaxLODIndex = GetMaxLODIndexToPaint() + 1;
-		const int32 NewLODIndex = ColorProperties->LODIndex + Direction;
+		const int32 NewLODIndex = VertexProperties->LODIndex + Direction;
 		const int32 AdjustedLODIndex = NewLODIndex < 0 ? MaxLODIndex + NewLODIndex : NewLODIndex % MaxLODIndex;
-		ColorProperties->LODIndex = AdjustedLODIndex;
+		VertexProperties->LODIndex = AdjustedLODIndex;
 		PaintLODChanged();
 	}
 }
 
-UMeshWeightPaintingToolProperties::UMeshWeightPaintingToolProperties()
+UMeshVertexWeightPaintingToolProperties::UMeshVertexWeightPaintingToolProperties()
 	:UMeshVertexPaintingToolProperties(),
 	TextureWeightType(EMeshPaintWeightTypes::AlphaLerp),
 	PaintTextureWeightIndex(EMeshPaintTextureIndex::TextureOne),
@@ -708,36 +678,22 @@ UMeshWeightPaintingToolProperties::UMeshWeightPaintingToolProperties()
 
 }
 
-UMeshWeightPaintingTool::UMeshWeightPaintingTool()
+UMeshVertexWeightPaintingTool::UMeshVertexWeightPaintingTool()
 {
-	PropertyClass = UMeshWeightPaintingToolProperties::StaticClass();
+	PropertyClass = UMeshVertexWeightPaintingToolProperties::StaticClass();
 }
 
-void UMeshWeightPaintingTool::Setup()
+void UMeshVertexWeightPaintingTool::Setup()
 {
 	Super::Setup();
-	WeightProperties = Cast<UMeshWeightPaintingToolProperties>(BrushProperties);
+	WeightProperties = Cast<UMeshVertexWeightPaintingToolProperties>(BrushProperties);
 
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartPaintWeightsTool", "Paint Vertex Weights on selected meshes."),
 		EToolMessageLevel::UserNotification);
 }
 
-void UMeshWeightPaintingTool::CacheSelectionData()
-{
-	Super::CacheSelectionData();
-	if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
-	{
-		MeshPaintingSubsystem->ClearPaintableMeshComponents();
-		//Determine LOD level to use for painting(can only paint on LODs in vertex mode)
-		const int32 PaintLODIndex = 0;
-		//Determine UV channel to use while painting textures
-		const int32 UVChannel = 0;
-		MeshPaintingSubsystem->CacheSelectionData(PaintLODIndex, UVChannel);
-	}
-}
-
-void UMeshWeightPaintingTool::SetAdditionalPaintParameters(FMeshPaintParameters& InPaintParameters)
+void UMeshVertexWeightPaintingTool::SetAdditionalPaintParameters(FMeshPaintParameters& InPaintParameters)
 {
 	InPaintParameters.TotalWeightCount = (int32)WeightProperties->TextureWeightType;
 

@@ -42,6 +42,8 @@ template<typename FilterType> class SFilterBar;
 template<typename ItemType> class STreeView;
 class SFilterSearchBox;
 
+SCENEOUTLINER_API DECLARE_LOG_CATEGORY_EXTERN(LogSceneOutliner, Log, All);
+
 /**
  * Scene Outliner definition
  * Note the Scene Outliner is also called the World Outliner
@@ -246,7 +248,11 @@ public:
 		void Construct(const FArguments& InArgs, const FSceneOutlinerInitializationOptions& InitOptions);
 
 	/** Default constructor - initializes data that is shared between all tree items */
-	SSceneOutliner() : SharedData(MakeShareable(new FSharedSceneOutlinerData)) {}
+	SSceneOutliner() 
+		: SharedData(MakeShareable(new FSharedSceneOutlinerData)) 
+		, Filters(MakeShareable(new FSceneOutlinerFilters))
+		, InteractiveFilters(MakeShareable(new FSceneOutlinerFilters))
+	{}
 
 	/** SSceneOutliner destructor */
 	virtual ~SSceneOutliner();
@@ -310,6 +316,13 @@ public:
 	 * @param Filter The filter to add
 	 */
 	virtual void AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutliner::FilterBarType>>& InFilter) override;
+
+	/** 
+	 * Disable all filters currently active in the filter bar
+	 * @param bRemove if true, the filter will also be unpinned and removed from the filter bar
+	 */
+	virtual void DisableAllFilterBarFilters(bool bRemove) override;
+	
 
 	/**
 	 * Remove a filter from the scene outliner
@@ -399,6 +412,11 @@ public:
 
 	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
 	virtual FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false) override;
+	
+	/** Set a delay (in seconds) before the the next requested UI refresh executes. Note: This only applies until the next refresh that executes
+	 * and any subsequent ones will be immediate. */
+	virtual void SetNextUIRefreshDelay(float InDelay) override;
+
 public:
 	/** Event to react to a user double click on a item */
 	SceneOutliner::FTreeItemPtrEvent& GetDoubleClickEvent() { return OnDoubleClickOnTreeEvent; }
@@ -479,6 +497,12 @@ public:
 	 * If more are selected, the chosen item is undeterministic.
 	 */
 	virtual void FrameSelectedItems() override;
+
+	/**
+	 * Scrolls the outliner to the specified item if it's found.
+	 * No action is done otherwise.
+	 */
+	virtual void FrameItem(const FSceneOutlinerTreeItemID& Item) override;
 
 	/**
 	 * Returns the parent tree item for a given item if it exists, nullptr otherwise.
@@ -584,7 +608,10 @@ private:
 				OnItemPassesFilters(Temporary);
 			}
 
-		bPassesFilters &= SearchBoxFilter->PassesFilter(Temporary);
+			if (SearchBoxFilter)
+			{
+				bPassesFilters &= SearchBoxFilter->PassesFilter(Temporary);
+			}
 			
 		if (bForce || bPassesFilters)
 		{
@@ -624,7 +651,12 @@ private:
 
 	bool PassesAllFilters(const FSceneOutlinerTreeItemPtr& Item) const
 	{
-		bool bPassesFilters = SearchBoxFilter->PassesFilter(*Item);
+		bool bPassesFilters = false;
+		
+		if (SearchBoxFilter)
+		{
+			bPassesFilters = SearchBoxFilter->PassesFilter(*Item);
+		}
 
 		if(FilterCollection)
 		{
@@ -643,6 +675,9 @@ private:
 	/** Handler for when a property changes on any item. Called by the mode */
 	void OnItemLabelChanged(FSceneOutlinerTreeItemPtr ChangedItem);
 private:
+
+	/** BindCommands for this Outliner */
+	void BindCommands();
 
 	/** Map of columns that are shown on this outliner. */
 	TMap<FName, TSharedPtr<ISceneOutlinerColumn>> Columns;
@@ -712,6 +747,9 @@ private:
 
 	/** Called by STreeView when the user double-clicks on an item in the tree */
 	void OnOutlinerTreeDoubleClick( FSceneOutlinerTreeItemPtr TreeItem );
+
+	/** Called by STreeView when the user single-clicks on an item in the tree */
+	void OnOutlinerTreeSingleClick( FSceneOutlinerTreeItemPtr TreeItem ) const;
 
 	/** Called by STreeView when an item is scrolled into view */
 	void OnOutlinerTreeItemScrolledIntoView( FSceneOutlinerTreeItemPtr TreeItem, const TSharedPtr<ITableRow>& Widget );
@@ -879,6 +917,9 @@ private:
 	/** The button that displays view options */
 	TSharedPtr<SComboButton> ViewOptionsComboButton;
 
+	/** Command list to be processed during the OnKeyDown, extended by derived Mode through BindCommands */
+	TSharedPtr<FUICommandList> CommandList;
+
 private:
 
 	/** Called when SceneOutlinerModule column permission list changes. */
@@ -889,9 +930,6 @@ private:
 	
 	/** Cached expansion state info */
 	mutable FParentsExpansionState CachedExpansionStateInfo;
-
-	/** Updates the expansion state of parent items after a repopulate */
-	void SetParentsExpansionState() const;
 
 private:
 
@@ -921,6 +959,9 @@ private:
 
 	/** Reentrancy guard */
 	bool bIsReentrant;
+
+	/** The delay (in seconds) before a UI sort and refresh is executed after being requested. 0 means the next refresh will be immediate */
+	float UIRefreshDelay = 0.0f;
 
 	/* Widget containing the filtering text box */
 	TSharedPtr< SFilterSearchBox > FilterTextBoxWidget;

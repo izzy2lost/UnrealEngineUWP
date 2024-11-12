@@ -42,7 +42,6 @@ PACKAGE_SCOPE:
 	FOnlineUserCloudEOSPlus(FOnlineSubsystemEOSPlus* InSubsystem);
 
 	void OnEnumerateUserFilesComplete(bool bWasSuccessful, const FUniqueNetId& UserId);
-	void OnWriteUserFileProgress(int32 BytesWritten, const FUniqueNetId& UserId, const FString& FileName);
 	void OnWriteUserFileProgress64(uint64 BytesWritten, const FUniqueNetId& UserId, const FString& FileName);
 	void OnWriteUserFileComplete(bool bWasSuccessful, const FUniqueNetId& UserId, const FString& FileName);
 	void OnWriteUserFileCanceled(bool bWasSuccessful, const FUniqueNetId& UserId, const FString& FileName);

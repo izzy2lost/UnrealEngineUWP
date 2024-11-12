@@ -39,6 +39,10 @@ public:
 
 	UControlRigGraphNode();
 
+#if WITH_EDITOR
+	virtual void AddPinSearchMetaDataInfo(const UEdGraphPin* Pin, TArray<FSearchTagDataPair>& OutTaggedMetaData) const override;
+#endif
+
 private:
 
 	friend class SRigVMGraphNode;

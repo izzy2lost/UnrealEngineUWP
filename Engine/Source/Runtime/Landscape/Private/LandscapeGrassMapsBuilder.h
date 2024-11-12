@@ -77,14 +77,16 @@ private:
 	// false if the world can not currently render the grass (but this may change later, for example if preview modes are modified)
 	bool CanCurrentlyRender() const;
 
-	// Update all of the non-pending components.
+	// Update all of the non-pending components.  Returns true if any components changed states.
 	// If passed an empty Cameras array, distances are calculated as zero (i.e. it won't evict for distance)
-	// returns true if any components changed states
-	bool UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAll);
+	// MaxExpensiveUpdateChecksToPerform controls how many expensive component updates are performed (pass ComponentStates.Num() to process all)
+	// bCancelAndEvictAllImmediately will move all tracked component states to the pending state and block until any in-flight processing is cancelled and cleaned up
+	// bEvictWhenBeyondEvictionRange will evict any populated components that are beyond the eviction range distance (used to reclaim memory when using runtime generation)
+	bool UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAllImmediately, bool bEvictWhenBeyondEvictionRange);
 
 	// Start the grass map generation process on pending components in priority order
 	// (based on distance from the given Camera set) -- Cameras must not be empty.
-	void StartPrioritizedGrassMapGeneration(const TArray<FVector>& Cameras, int32 MaxComponentsToStart);
+	void StartPrioritizedGrassMapGeneration(const TArray<FVector>& Cameras, int32 MaxComponentsToStart, bool bOnlyWhenCloserThanEvictionRange);
 	
 	enum class EComponentStage
 	{
@@ -260,6 +262,7 @@ private:
 		void RemoveTextureStreamingRequests(FComponentState& State);
 
 	// state transition helpers
+	void StreamingToNotReady(FComponentState& State);
 	void PendingToNotReady(FComponentState& State);
 	void PendingToPopulatedFastPathAlreadyHasData(FComponentState& State);
 	void PendingToPopulatedFastPathNoGrass(FComponentState& State);

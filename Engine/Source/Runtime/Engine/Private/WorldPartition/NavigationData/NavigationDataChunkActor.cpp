@@ -146,9 +146,9 @@ void ANavigationDataChunkActor::GetActorBounds(bool bOnlyCollidingComponents, FV
 }
 
 #if WITH_EDITOR
-FBox ANavigationDataChunkActor::GetStreamingBounds() const
+void ANavigationDataChunkActor::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	return DataChunkActorBounds;
+	OutRuntimeBounds = OutEditorBounds = DataChunkActorBounds;
 }
 #endif // WITH_EDITOR
 

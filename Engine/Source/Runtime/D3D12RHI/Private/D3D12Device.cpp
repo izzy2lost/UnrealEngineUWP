@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "D3D12Device.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12IntelExtensions.h"
 #include "D3D12RayTracing.h"
@@ -13,7 +14,7 @@ static TAutoConsoleVariable<int32> CVarD3D12GPUTimeout(
 	ECVF_ReadOnly
 );
 
-static TAutoConsoleVariable<int32> CVarD3D12ExtraDiagnosticBufferMemory(
+TAutoConsoleVariable<int32> CVarD3D12ExtraDiagnosticBufferMemory(
 	TEXT("r.D3D12.DiagnosticBufferExtraMemory"),
 	0,
 	TEXT("Extra allocated memory for diagnostic buffer"),
@@ -39,13 +40,12 @@ FD3D12Queue::FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType)
 	, bSupportsTileMapping(FD3D12DynamicRHI::GetD3DRHI()->QueueSupportsTileMapping(QueueType))
 {
 	FD3D12Adapter* Adapter = Device->GetParentAdapter();
-	const bool bFullGPUCrashDebugging = (Adapter->GetGPUCrashDebuggingModes() == ED3D12GPUCrashDebuggingModes::All);
 
 	D3D12_COMMAND_QUEUE_DESC CommandQueueDesc = {};
 	CommandQueueDesc.Type = GetD3DCommandListType((ED3D12QueueType)QueueType);
 	CommandQueueDesc.Priority = 0;
 	CommandQueueDesc.NodeMask = Device->GetGPUMask().GetNative();
-	CommandQueueDesc.Flags = (bFullGPUCrashDebugging || CVarD3D12GPUTimeout.GetValueOnAnyThread() == 0)
+	CommandQueueDesc.Flags = (CVarD3D12GPUTimeout.GetValueOnAnyThread() == 0)
 		? D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT
 		: D3D12_COMMAND_QUEUE_FLAG_NONE;
 
@@ -58,71 +58,52 @@ FD3D12Queue::FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType)
 		IID_PPV_ARGS(Fence.D3DFence.GetInitReference())
 	));
 	Fence.D3DFence->SetName(*FString::Printf(TEXT("%s Queue Fence (GPU %d)"), GetD3DCommandQueueTypeName(QueueType), Device->GetGPUIndex()));
-}
 
-void FD3D12Queue::SetupAfterDeviceCreation()
-{
-	// setup the bread crumb data to track GPU progress on this command queue when GPU crash debugging is enabled
-	if (EnumHasAnyFlags(Device->GetParentAdapter()->GetGPUCrashDebuggingModes(), ED3D12GPUCrashDebuggingModes::BreadCrumbs))
-	{
-		// QI for the ID3DDevice3 - manual buffer write from command line only supported on 1709+
-		TRefCountPtr<ID3D12Device3> D3D12Device3;
-		HRESULT hr = Device->GetDevice()->QueryInterface(IID_PPV_ARGS(D3D12Device3.GetInitReference()));
-		if (SUCCEEDED(hr))
-		{
-			const uint32 ShaderDiagnosticBufferSize = sizeof(FD3D12DiagnosticBufferData) + FMath::Max(0, CVarD3D12ExtraDiagnosticBufferMemory.GetValueOnAnyThread());
 
-			// Allocate persistent CPU readable memory which will still be valid after a device lost and wrap this data in a placed resource
-			// so the GPU command list can write to it
-			int32 MaxBreadcrumbsContexts = MAX_GPU_BREADCRUMB_CONTEXTS;
-			int32 MaxBreadcrumbsSize = MAX_GPU_BREADCRUMB_SIZE;
-			const uint32 EventBufferSize = MaxBreadcrumbsSize * MaxBreadcrumbsContexts * sizeof(uint32);
-			const uint32 TotalBufferSize = EventBufferSize + ShaderDiagnosticBufferSize;
-
-			// Create the platform-specific diagnostic buffer
-			FString Name = FString::Printf(TEXT("DiagnosticBuffer (%s)"), GetD3DCommandQueueTypeName(QueueType));
-
-			const D3D12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(TotalBufferSize, D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER);
-			DiagnosticBuffer = Device->CreateDiagnosticBuffer(BufferDesc, *Name);
-
-			if (DiagnosticBuffer)
-			{
-				// Diagnostic buffer is split between breadcrumb events and diagnostic messages.
-				DiagnosticBuffer->BreadCrumbsOffset = 0;
-				DiagnosticBuffer->BreadCrumbsSize = EventBufferSize;
-
-				DiagnosticBuffer->BreadCrumbsContextSize = EventBufferSize / MaxBreadcrumbsContexts;
-
-				for (uint16 Idx = 0; Idx < MaxBreadcrumbsContexts; ++Idx)
-				{
-					DiagnosticBuffer->FreeContextIds.Add(MaxBreadcrumbsContexts - Idx);
-				}
-
-				DiagnosticBuffer->DiagnosticsOffset = DiagnosticBuffer->BreadCrumbsOffset + DiagnosticBuffer->BreadCrumbsSize;
-				DiagnosticBuffer->DiagnosticsSize = ShaderDiagnosticBufferSize;
-			}
-		}
-	}
+	VERIFYD3D12RESULT(Device->GetDevice()->CreateFence(
+		0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(ExecuteCommandListsFence.D3DFence.GetInitReference())
+	));
+	ExecuteCommandListsFence.D3DFence->SetName(*FString::Printf(TEXT("%s ExecuteCommandListsFence (GPU %d)"), GetD3DCommandQueueTypeName(QueueType), Device->GetGPUIndex()));
 }
 
 FD3D12Queue::~FD3D12Queue()
 {
-	// The diagnostic buffer would be implicitly destroyed before the context pool, which can lead to a situation where there
-	// are still some FBreadcrumbStack objects owned by a context, and their destructor tries to use the diagnostic buffer
-	// after it's been freed. Explicitly freeing the buffer now and setting it to null works around this problem.
-	DiagnosticBuffer = nullptr;
 	check(PendingSubmission.IsEmpty());
 	check(PendingInterrupt.IsEmpty());
 }
 
+#if RHI_NEW_GPU_PROFILER
+UE::RHI::GPUProfiler::FQueue FD3D12Queue::GetProfilerQueue() const
+{
+	UE::RHI::GPUProfiler::FQueue Queue;
+	Queue.GPU = Device->GetGPUIndex();
+	Queue.Index = 0;
+
+	switch (QueueType)
+	{
+	default: checkNoEntry(); [[fallthrough]];
+	case ED3D12QueueType::Direct: Queue.Type = UE::RHI::GPUProfiler::FQueue::EType::Graphics; break;
+	case ED3D12QueueType::Async : Queue.Type = UE::RHI::GPUProfiler::FQueue::EType::Compute ; break;
+	case ED3D12QueueType::Copy  : Queue.Type = UE::RHI::GPUProfiler::FQueue::EType::Copy    ; break;
+	}
+
+	return Queue;
+}
+#endif // RHI_NEW_GPU_PROFILER
+
 FD3D12Device::FD3D12Device(FRHIGPUMask InGPUMask, FD3D12Adapter* InAdapter)
 	: FD3D12SingleNodeGPUObject(InGPUMask)
 	, FD3D12AdapterChild       (InAdapter)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, GPUProfilingData         (this)
+#endif
 	, ResidencyManager         (*this)
 	, DescriptorHeapManager    (this)
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	, BindlessDescriptorManager(this)
+	, BindlessDescriptorAllocator(InAdapter->GetBindlessDescriptorAllocator())
+	, BindlessDescriptorManager(this, InAdapter->GetBindlessDescriptorAllocator())
 #endif
 	, GlobalSamplerHeap        (this)
 	, OnlineDescriptorManager  (this)
@@ -225,11 +206,6 @@ static D3D12_FEATURE_DATA_FORMAT_SUPPORT GetFormatSupport(ID3D12Device* InDevice
 
 void FD3D12Device::SetupAfterDeviceCreation()
 {
-	for (FD3D12Queue& Queue : Queues)
-	{
-		Queue.SetupAfterDeviceCreation();
-	}
-
 	ID3D12Device* Direct3DDevice = GetParentAdapter()->GetD3DDevice();
 
 	for (uint32 FormatIndex = PF_Unknown; FormatIndex < PF_MAX; FormatIndex++)
@@ -364,9 +340,9 @@ void FD3D12Device::SetupAfterDeviceCreation()
 	}
 #endif // USE_PIX
 
-	if(bUnderGPUCapture)
+	if (bUnderGPUCapture)
 	{
-		GDynamicRHI->EnableIdealGPUCaptureOptions(true);
+		FDynamicRHI::EnableIdealGPUCaptureOptions(true);
 	}
 #endif // PLATFORM_WINDOWS
 
@@ -419,7 +395,7 @@ void FD3D12Device::SetupAfterDeviceCreation()
 	check(RayTracingCompactionRequestHandler == nullptr);
 	RayTracingCompactionRequestHandler = new FD3D12RayTracingCompactionRequestHandler(this);
 
-	D3D12_RESOURCE_DESC DispatchRaysDescBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(D3D12_DISPATCH_RAYS_DESC), D3D12RHI_RESOURCE_FLAG_ALLOW_INDIRECT_BUFFER);
+	D3D12_RESOURCE_DESC DispatchRaysDescBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(D3D12_DISPATCH_RAYS_DESC), D3D12RHI_RESOURCE_FLAG_ALLOW_INDIRECT_BUFFER | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	RayTracingDispatchRaysDescBuffer = GetParentAdapter()->CreateRHIBuffer(
 		DispatchRaysDescBufferDesc, 256,
 		FRHIBufferDesc(DispatchRaysDescBufferDesc.Width, 0, BUF_DrawIndirect),
@@ -429,6 +405,13 @@ void FD3D12Device::SetupAfterDeviceCreation()
 
 	check(!ImmediateCommandContext);
 	ImmediateCommandContext = FD3D12DynamicRHI::GetD3DRHI()->CreateCommandContext(this, ED3D12QueueType::Direct, true);
+
+	// Setup diagnostic buffer that contains GPU messages as well as breadcrumb data to to track GPU progress on this command queue (when GPU crash debugging is enabled).
+	// The buffer is always allocated and bound to shaders that require it, but breadcrumbs are controlled by UE::RHI::UseGPUCrashBreadcrumbs() and WITH_RHI_BREADCRUMBS.
+	for (FD3D12Queue& Queue : Queues)
+	{
+		Queue.DiagnosticBuffer = MakeUnique<FD3D12DiagnosticBuffer>(Queue);
+	}
 }
 
 void FD3D12Device::CleanupResources()
@@ -502,7 +485,7 @@ void FD3D12Device::CreateDefaultViews()
 
 	{
 		const FSamplerStateInitializerRHI SamplerDesc(SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp);
-		DefaultViews.DefaultSampler = CreateSampler(SamplerDesc);
+		DefaultViews.DefaultSampler = CreateSampler(SamplerDesc, GetGPUIndex() > 0 ? GetParentAdapter()->GetDevice(0)->DefaultViews.DefaultSampler : nullptr);
 
 		// The default sampler must have ID=0
 		// FD3D12DescriptorCache::SetSamplers relies on this
@@ -544,27 +527,19 @@ void FD3D12Device::UpdateMSAASettings()
 	AvailableMSAAQualities[8] = 0;
 }
 
-void FD3D12Device::RegisterGPUWork(uint32 NumPrimitives, uint32 NumVertices)
-{
-	GetGPUProfiler().RegisterGPUWork(NumPrimitives, NumVertices);
-}
-
-void FD3D12Device::RegisterGPUDispatch(FIntVector GroupCount)
-{
-	GetGPUProfiler().RegisterGPUDispatch(GroupCount);
-}
-
 void FD3D12Device::BlockUntilIdle()
 {
 	// Submit a new sync point to each queue
-	TArray<FD3D12Payload*, TInlineAllocator<(uint32)ED3D12QueueType::Count>> Payloads;
+	TArray<FD3D12Payload*> Payloads;
+	Payloads.Reserve(int32(ED3D12QueueType::Count));
+
 	TArray<FD3D12SyncPointRef, TInlineAllocator<(uint32)ED3D12QueueType::Count>> SyncPoints;
 
 	for (uint32 QueueTypeIndex = 0; QueueTypeIndex < (uint32)ED3D12QueueType::Count; ++QueueTypeIndex)
 	{
 		FD3D12SyncPointRef SyncPoint = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUAndCPU);
 
-		FD3D12Payload* Payload = new FD3D12Payload(this, (ED3D12QueueType)QueueTypeIndex);
+		FD3D12Payload* Payload = new FD3D12Payload(GetQueue((ED3D12QueueType)QueueTypeIndex));
 		Payload->SyncPointsToSignal.Add(SyncPoint);
 		Payload->bAlwaysSignal = true;
 
@@ -572,7 +547,7 @@ void FD3D12Device::BlockUntilIdle()
 		SyncPoints.Add(SyncPoint);
 	}
 
-	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(Payloads);
+	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(MoveTemp(Payloads));
 
 	// Block this thread until the sync points have signaled.
 	for (FD3D12SyncPointRef& SyncPoint : SyncPoints)
@@ -786,13 +761,18 @@ void FD3D12Device::ReleaseQueryHeap(FD3D12QueryHeap* QueryHeap)
 
 uint64 FD3D12Device::GetTimestampFrequency(ED3D12QueueType QueueType)
 {
+	check(QueueType != ED3D12QueueType::Copy || GetParentAdapter()->AreCopyQueueTimestampQueriesSupported());
+
 	uint64 Frequency;
 	VERIFYD3D12RESULT(Queues[(uint32)QueueType].D3DCommandQueue->GetTimestampFrequency(&Frequency));
 	return Frequency;
 }
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 FGPUTimingCalibrationTimestamp FD3D12Device::GetCalibrationTimestamp(ED3D12QueueType QueueType)
 {
+	check(QueueType != ED3D12QueueType::Copy || GetParentAdapter()->AreCopyQueueTimestampQueriesSupported());
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(D3D12GetCalibrationTimestamp);
 
 	uint64 GPUTimestampFrequency = GetTimestampFrequency(QueueType);
@@ -810,6 +790,7 @@ FGPUTimingCalibrationTimestamp FD3D12Device::GetCalibrationTimestamp(ED3D12Queue
 
 	return Result;
 }
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 void FD3D12Device::InitExplicitDescriptorHeap()
 {

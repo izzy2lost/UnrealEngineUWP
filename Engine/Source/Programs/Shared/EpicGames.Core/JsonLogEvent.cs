@@ -12,7 +12,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Defines a preformatted Json log event, which can pass through raw Json data directly or format it as a regular string
 	/// </summary>
-	public struct JsonLogEvent : IEnumerable<KeyValuePair<string, object?>>
+	public readonly struct JsonLogEvent : IEnumerable<KeyValuePair<string, object?>>
 	{
 		/// <summary>
 		/// The log level
@@ -70,12 +70,7 @@ namespace EpicGames.Core
 				return jsonLogEvent;
 			}
 
-			LogEvent? logEvent = state as LogEvent;
-			if (logEvent == null)
-			{
-				logEvent = LogEvent.FromState(logLevel, eventId, state, exception, formatter);
-			}
-
+			LogEvent? logEvent = state as LogEvent ?? LogEvent.FromState(logLevel, eventId, state, exception, formatter);
 			return new JsonLogEvent(logLevel, eventId, 0, 1, logEvent.ToJsonBytes());
 		}
 
@@ -95,7 +90,7 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
-		/// Tries to parse a Json log event from the given 
+		/// Tries to parse a Json log event from the given string
 		/// </summary>
 		/// <param name="data"></param>
 		/// <param name="logEvent"></param>
@@ -111,6 +106,18 @@ namespace EpicGames.Core
 				logEvent = default;
 				return false;
 			}
+		}
+
+		/// <summary>
+		/// Tries to parse a Json log event from the given string
+		/// </summary>
+		/// <param name="text">Text to parse</param>
+		/// <param name="logEvent"></param>
+		/// <returns></returns>
+		public static bool TryParse(string text, out JsonLogEvent logEvent)
+		{
+			byte[] data = Encoding.UTF8.GetBytes(text);
+			return TryParse(data, out logEvent);
 		}
 
 		static bool TryParseInternal(ReadOnlyMemory<byte> data, out JsonLogEvent logEvent)

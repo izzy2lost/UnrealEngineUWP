@@ -19,7 +19,8 @@
 namespace NDIOcclusionImpl
 {
 	static const TCHAR*	TemplateShaderFilePath = TEXT("/Plugin/FX/Niagara/Private/NiagaraDataInterfaceOcclusion.ush");
-	static const FName	GetCameraOcclusionRectangleName(TEXT("QueryOcclusionFactorWithRectangleGPU"));
+	static const FName	Deprecated_GetCameraOcclusionRectangleName(TEXT("QueryOcclusionFactorWithRectangleGPU"));
+	static const FName	GetCameraOcclusionRectangleName(TEXT("QueryOcclusionFactorWithRectangle"));
 	static const FName	Deprecated_GetCameraOcclusionCircleName(TEXT("QueryOcclusionFactorWithCircleGPU"));
 	static const FName	QueryOcclusionFactorWithCircleName(TEXT("QueryOcclusionFactorWithCircle"));
 	static const FName	QueryCloudOcclusionWithCircleName(TEXT("QueryCloudOcclusionWithCircle"));
@@ -79,7 +80,9 @@ void UNiagaraDataInterfaceOcclusion::GetFunctionsInternal(TArray<FNiagaraFunctio
 
 	{
 		FNiagaraFunctionSignature& Sig = OutFunctions.Add_GetRef(DefaultSig);
-		Sig.Name = GetCameraOcclusionRectangleName;
+		FNiagaraFunctionSignature& SigNew = OutFunctions.Add_GetRef(DefaultSig);
+		Sig.Name = Deprecated_GetCameraOcclusionRectangleName;
+		Sig.bSoftDeprecatedFunction = true;
 		Sig.SetDescription(LOCTEXT("GetCameraOcclusionRectFunctionDescription", "This function returns the occlusion factor of a sprite. It samples the depth buffer in a rectangular grid around the given world position and compares each sample with the camera distance."));
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetPositionDef(), TEXT("Sample Center World Position")), LOCTEXT("RectCenterPosDescription", "This world space position where the center of the sample rectangle should be."));
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Sample Window Width World")), LOCTEXT("SampleWindowWidthWorldDescription", "The total width of the sample rectangle in world space.\nIf the particle is a camera-aligned sprite then this is the sprite width."));
@@ -87,6 +90,10 @@ void UNiagaraDataInterfaceOcclusion::GetFunctionsInternal(TArray<FNiagaraFunctio
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Sample Steps Per Line")), LOCTEXT("StepsPerLineDescription", "The number of samples to take horizontally. The total number of samples is this value squared."));
 		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Visibility Fraction")), VisibilityFractionDescription);
 		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Sample Fraction")), SampleFractionDescription);
+
+		SigNew = Sig;
+		SigNew.bSoftDeprecatedFunction = false;
+		SigNew.Name = GetCameraOcclusionRectangleName;
 	}
 
 	{
@@ -104,7 +111,7 @@ void UNiagaraDataInterfaceOcclusion::GetFunctionsInternal(TArray<FNiagaraFunctio
 	{
 		FNiagaraFunctionSignature& Sig = OutFunctions.Add_GetRef(DefaultSig);
 		Sig.Name = QueryOcclusionFactorWithCircleName;
-		Sig.SetDescription(LOCTEXT("QueryCloudOcclusionWithCircleDescription", "Returns the cloud occlusion factor for the world position. "));
+		Sig.SetDescription(LOCTEXT("QueryCameraOcclusionCircleDescription", "This function returns the occlusion factor of a sprite. It samples the depth buffer in a spiral pattern around the given world position and compares each sample with the camera distance."));
 		Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetPositionDef(), TEXT("WorldPosition"));
 		Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetFloatDef(), TEXT("WorldDiameter"));
 		Sig.Inputs.Emplace_GetRef(FNiagaraTypeDefinition::GetBoolDef(), TEXT("IncludeCenterSample")).SetValue(true);
@@ -174,6 +181,7 @@ bool UNiagaraDataInterfaceOcclusion::GetFunctionHLSL(const FNiagaraDataInterface
 		QueryOcclusionFactorWithCircleName,
 		QueryCloudOcclusionWithCircleName,
 		Deprecated_GetCameraOcclusionCircleName,
+		Deprecated_GetCameraOcclusionRectangleName,
 	};
 	return ValidGpuFunctions.Contains(FunctionInfo.DefinitionName);
 }

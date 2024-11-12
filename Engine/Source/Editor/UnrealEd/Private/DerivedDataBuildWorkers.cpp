@@ -21,3 +21,8 @@ void InitDerivedDataBuildWorkers()
 		GBuildWorkers.Emplace();
 	}
 }
+
+void ShutdownDerivedDataBuildWorkers()
+{
+	GBuildWorkers.Reset();
+}

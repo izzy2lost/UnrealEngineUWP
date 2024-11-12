@@ -91,10 +91,10 @@ namespace UnrealBuildTool
 				StringBuilder Configuration = new StringBuilder();
 				Configuration.Append("Project file formats specified via the command line will be ignored when generating\n");
 				Configuration.Append("project files from the editor and other engine tools.\n");
-				Configuration.Append("\n");
+				Configuration.Append('\n');
 				Configuration.Append("Consider setting your desired IDE from the editor preferences window, or modify your\n");
 				Configuration.Append("BuildConfiguration.xml file with:\n");
-				Configuration.Append("\n");
+				Configuration.Append('\n');
 				Configuration.Append("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n");
 				Configuration.Append("<Configuration xmlns=\"https://www.unrealengine.com/BuildConfiguration\">\n");
 				Configuration.Append("  <ProjectFileGenerator>\n");
@@ -179,7 +179,6 @@ namespace UnrealBuildTool
 				SingleTargetName = Arguments.GetString("-SingleTarget=");
 			}
 
-
 			// Create each project generator and run it
 			Dictionary<ProjectFileFormat, ProjectFileGenerator> Generators = new();
 			foreach (ProjectFileFormat ProjectFileFormat in ProjectFileFormats.Distinct())
@@ -239,7 +238,7 @@ namespace UnrealBuildTool
 				}
 				// remember if we only wanted a single target (similar to -game -project, except usable with progarms without uprojects)
 				Generator.SingleTargetName = SingleTargetName;
-				
+
 				Generators[ProjectFileFormat] = Generator;
 			}
 
@@ -330,7 +329,7 @@ namespace UnrealBuildTool
 				return true;
 			}
 
-			FileReference? InstalledProjectFile = UnrealBuildTool.GetInstalledProjectFile();
+			FileReference? InstalledProjectFile = Unreal.GetInstalledProjectFile();
 			if (InstalledProjectFile != null)
 			{
 				ProjectFile = InstalledProjectFile;

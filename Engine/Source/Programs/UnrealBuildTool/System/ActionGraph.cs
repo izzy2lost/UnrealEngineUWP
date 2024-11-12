@@ -289,40 +289,60 @@ namespace UnrealBuildTool
 			{
 				const int MAX_PATH = 260;
 
-				List<FileReference> FailPaths = new List<FileReference>();
-				List<FileReference> WarnPaths = new List<FileReference>();
+				bool ShouldFail(FileItem item)
+				{
+					return item.Location.FullName.Length >= MAX_PATH &&
+						!(item.Location.ContainsName("Intermediate", 0) && item.Location.ContainsName("H", 1)); // Ignore -IncludeHeader items
+				}
+
+				bool ShouldWarn(FileItem item)
+				{
+					if (item.Location.FullName.Length <= Unreal.RootDirectory.FullName.Length + BuildConfiguration.MaxNestedPathLength)
+						return false;
+
+					if (!item.Location.IsUnderDirectory(Unreal.RootDirectory))
+						return false;
+
+					if (!item.Location.FullName.Contains("/Restricted/NotForLicensees/", StringComparison.OrdinalIgnoreCase)) //Be more relaxed for internal only code
+						return false;
+
+					if (item.Location.FullName.Contains("/Intermediate/", StringComparison.OrdinalIgnoreCase))
+					{
+						if (item.Location.ContainsName("H", 1)) // Ignore -IncludeHeader items
+							return false;
+
+						if (item.Location.FullName.EndsWith(".i.PVS-Studio.log")) // Ignore PVS Studio intermediate items
+							return false;
+					}
+
+					return true;
+				}
+
+				HashSet<FileReference> FailPaths = new();
+				HashSet<FileReference> WarnPaths = new();
 				foreach (IExternalAction Action in Actions)
 				{
 					foreach (FileItem PrerequisiteItem in Action.PrerequisiteItems)
 					{
-						if (PrerequisiteItem.Location.FullName.Length >= MAX_PATH)
+						if (ShouldFail(PrerequisiteItem))
 						{
 							FailPaths.Add(PrerequisiteItem.Location);
 						}
 
-						if (PrerequisiteItem.Location.FullName.Length > Unreal.RootDirectory.FullName.Length + BuildConfiguration.MaxNestedPathLength &&
-							PrerequisiteItem.Location.IsUnderDirectory(Unreal.RootDirectory) &&
-							(PrerequisiteItem.Location.ContainsName("Restricted", 0) == false) && //Be more relaxed for internal only code
-							(PrerequisiteItem.Location.ContainsName("NotForLicensees", 0) == false)
-							)
+						if (ShouldWarn(PrerequisiteItem))
 						{
 							WarnPaths.Add(PrerequisiteItem.Location);
 						}
-
 					}
 
 					foreach (FileItem ProducedItem in Action.ProducedItems)
 					{
-						if (ProducedItem.Location.FullName.Length >= MAX_PATH)
+						if (ShouldFail(ProducedItem))
 						{
 							FailPaths.Add(ProducedItem.Location);
 						}
 
-						if (ProducedItem.Location.FullName.Length > Unreal.RootDirectory.FullName.Length + BuildConfiguration.MaxNestedPathLength &&
-							ProducedItem.Location.IsUnderDirectory(Unreal.RootDirectory) &&
-							(ProducedItem.Location.ContainsName("Restricted", 0) == false) && //Be more relaxed for internal only code
-							(ProducedItem.Location.ContainsName("NotForLicensees", 0) == false)
-							)
+						if (ShouldWarn(ProducedItem))
 						{
 							WarnPaths.Add(ProducedItem.Location);
 						}
@@ -332,8 +352,8 @@ namespace UnrealBuildTool
 				if (FailPaths.Count > 0)
 				{
 					StringBuilder Message = new StringBuilder();
-					Message.Append($"The following output paths are longer than {MAX_PATH} characters. Please move the engine to a directory with a shorter path.");
-					foreach (FileReference Path in FailPaths)
+					Message.Append($"The following action paths are longer than {MAX_PATH} characters. Please move the engine to a directory with a shorter path.");
+					foreach (FileReference Path in FailPaths.OrderBy(x => x.FullName))
 					{
 						Message.Append($"\n[{Path.FullName.Length.ToString()} characters] {Path}");
 					}
@@ -344,7 +364,7 @@ namespace UnrealBuildTool
 				{
 					StringBuilder Message = new StringBuilder();
 					Message.Append($"Detected paths more than {BuildConfiguration.MaxNestedPathLength.ToString()} characters below UE root directory. This may cause portability issues due to the {MAX_PATH.ToString()} character maximum path length on Windows:\n");
-					foreach (FileReference Path in WarnPaths)
+					foreach (FileReference Path in WarnPaths.OrderBy(x => x.FullName))
 					{
 						string RelativePath = Path.MakeRelativeTo(Unreal.RootDirectory);
 						Message.Append($"\n[{RelativePath.Length.ToString()} characters] {RelativePath}");
@@ -356,13 +376,13 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static ActionExecutor? GetRemoteExecutorByName(string Name, BuildConfiguration BuildConfiguration, int ActionCount, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
+		private static ActionExecutor? GetRemoteExecutorByName(string Name, BuildConfiguration BuildConfiguration, int ActionCount, int MinActionsForRemote, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
 		{
 			switch (Name)
 			{
 				case "XGE":
 					{
-						if (BuildConfiguration.bAllowXGE && XGE.IsAvailable(Logger) && ActionCount >= XGE.MinActions)
+						if (ActionCount >= MinActionsForRemote && BuildConfiguration.bAllowXGE && XGE.IsAvailable(Logger) && ActionCount >= XGE.MinActions)
 						{
 							return new XGE(Logger);
 						}
@@ -370,7 +390,7 @@ namespace UnrealBuildTool
 					}
 				case "SNDBS":
 					{
-						if (BuildConfiguration.bAllowSNDBS && SNDBS.IsAvailable(Logger))
+						if (ActionCount >= MinActionsForRemote && BuildConfiguration.bAllowSNDBS && SNDBS.IsAvailable(Logger))
 						{
 							return new SNDBS(TargetDescriptors, Logger);
 						}
@@ -378,7 +398,7 @@ namespace UnrealBuildTool
 					}
 				case "FASTBuild":
 					{
-						if (BuildConfiguration.bAllowFASTBuild && FASTBuild.IsAvailable(Logger))
+						if (ActionCount >= MinActionsForRemote && BuildConfiguration.bAllowFASTBuild && FASTBuild.IsAvailable(Logger))
 						{
 							return new FASTBuild(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
 						}
@@ -386,9 +406,10 @@ namespace UnrealBuildTool
 					}
 				case "UBA":
 					{
+						// Intentionally not checking MinActionsForRemote
 						if (BuildConfiguration.bAllowUBAExecutor && UBAExecutor.IsAvailable())
 						{
-							return new UBAExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
+							return new UBAExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors);
 						}
 						return null;
 					}
@@ -405,21 +426,19 @@ namespace UnrealBuildTool
 		/// </summary>
 		private static ActionExecutor SelectExecutor(BuildConfiguration BuildConfiguration, int ActionCount, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
 		{
-			if (ActionCount > ParallelExecutor.GetDefaultNumParallelProcesses(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, Logger))
+			int MinActionsForRemote = ParallelExecutor.GetDefaultNumParallelProcesses(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, Logger);
+			foreach (string Name in BuildConfiguration.RemoteExecutorPriority)
 			{
-				foreach (string Name in BuildConfiguration.RemoteExecutorPriority)
+				ActionExecutor? Executor = GetRemoteExecutorByName(Name, BuildConfiguration, ActionCount, MinActionsForRemote, TargetDescriptors, Logger);
+				if (Executor != null)
 				{
-					ActionExecutor? Executor = GetRemoteExecutorByName(Name, BuildConfiguration, ActionCount, TargetDescriptors, Logger);
-					if (Executor != null)
-					{
-						return Executor;
-					}
+					return Executor;
 				}
 			}
 
 			if (BuildConfiguration.bAllowUBALocalExecutor && UBALocalExecutor.IsAvailable())
 			{
-				return new UBALocalExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
+				return new UBALocalExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors);
 			}
 
 			return new ParallelExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
@@ -443,6 +462,7 @@ namespace UnrealBuildTool
 				// Execute the build
 				Stopwatch Timer = Stopwatch.StartNew();
 				bool Result = await Executor.ExecuteActionsAsync(ActionsToExecute, Logger, actionArtifactCache);
+				Executor.PostTelemetryEvent();
 
 				Logger.LogInformation("Total time in {ExecutorName} executor: {TotalSeconds:0.00} seconds", Executor.Name, Timer.Elapsed.TotalSeconds);
 
@@ -599,7 +619,7 @@ namespace UnrealBuildTool
 					if (!ActionIsNonCyclical.ContainsKey(Action))
 					{
 						string CycleDescription = "";
-						CycleDescription += $"Action #{ActionToIndex[Action].ToString()}: {Action.CommandPath}\n";
+						CycleDescription += $"Action #{ActionToIndex[Action]}: {Action.CommandPath}\n";
 						CycleDescription += $"\twith arguments: {Action.CommandArguments}\n";
 						foreach (FileItem PrerequisiteItem in Action.PrerequisiteItems)
 						{
@@ -622,11 +642,11 @@ namespace UnrealBuildTool
 										CyclicPrerequisiteAction.ProducedItems.ToList();
 									if (CyclicProducedItems.Count == 1)
 									{
-										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction].ToString()} (produces: {CyclicProducedItems[0].AbsolutePath})\n";
+										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction]} (produces: {CyclicProducedItems[0].AbsolutePath})\n";
 									}
 									else
 									{
-										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction].ToString()}\n";
+										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction]}\n";
 										foreach (FileItem CyclicProducedItem in CyclicProducedItems)
 										{
 											CycleDescription += $"\t\t\tproduces:   {CyclicProducedItem.AbsolutePath}\n";

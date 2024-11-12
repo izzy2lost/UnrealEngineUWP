@@ -49,11 +49,18 @@ namespace MovieScene
 		float Weight = 0.f;
 		/** The base value, which should only be set when the value has additive-from-base blend type */
 		double BaseValue = 0.f;
-
+		/** Optional Blending Order*/
+		int32 BlendingOrder = INDEX_NONE;
+		/** if BlendingOrder set, whether additive or override*/
+		bool bIsAdditive = true;
 		/** Multiplies the value by the weight */
 		double Get() const
 		{
 			return (Value - BaseValue) * Weight;
+		}
+		bool operator<(const FWeightedValue& RHS) const
+		{
+			return BlendingOrder < RHS.BlendingOrder;
 		}
 	};
 
@@ -66,32 +73,32 @@ namespace MovieScene
 		float TotalWeight = 0.f;
 
 		/** Normalizes the total value by the total weight */
-		double Normalize() const
+		FORCENOINLINE double Normalize() const
 		{
 			return TotalWeight != 0.f ? Total / TotalWeight : Total;
 		}
 
 		/** Accumulates more values into this value */
-		FAccumulatedWeightedValue& AccumulateThis(const FWeightedValue& Other)
+		FORCENOINLINE FAccumulatedWeightedValue& AccumulateThis(const FWeightedValue& Other)
 		{
 			Total += Other.Get();
 			TotalWeight += Other.Weight;
 			return *this;
 		}
 		/** Accumulates more values into this value */
-		FAccumulatedWeightedValue& AccumulateThis(const FAccumulatedWeightedValue& Other)
+		FORCENOINLINE FAccumulatedWeightedValue& AccumulateThis(const FAccumulatedWeightedValue& Other)
 		{
 			Total += Other.Total;
 			TotalWeight += Other.TotalWeight;
 			return *this;
 		}
 		/** Accumulates values */
-		FAccumulatedWeightedValue Accumulate(const FWeightedValue& Other) const
+		FORCENOINLINE FAccumulatedWeightedValue Accumulate(const FWeightedValue& Other) const
 		{
 			return FAccumulatedWeightedValue{ Total + Other.Get(), TotalWeight + Other.Weight };
 		}
 		/** Accumulates values */
-		FAccumulatedWeightedValue Accumulate(const FAccumulatedWeightedValue& Other) const
+		FORCENOINLINE FAccumulatedWeightedValue Accumulate(const FAccumulatedWeightedValue& Other) const
 		{
 			return FAccumulatedWeightedValue{ Total + Other.Total, TotalWeight + Other.TotalWeight };
 		}
@@ -117,12 +124,16 @@ namespace MovieScene
 		/** The absolute and additive values for all the non-decomposed channels */
 		FResult Result;
 
+		/** values for non-decomposed overides, we leave it decomposed */
+		mutable TArray <FWeightedValue> AllDecomposedOverrides;
 		/**
 		 * Decomposed values for channels we're interested in. Note that decomposed additives-from-base are lumped with
-		 * decomposed additives.
+		 * decomposed additives
 		 */
 		TArray<TTuple<FMovieSceneEntityID, FWeightedValue>> DecomposedAbsolutes;
 		TArray<TTuple<FMovieSceneEntityID, FWeightedValue>> DecomposedAdditives;
+		TArray<TTuple<FMovieSceneEntityID, FWeightedValue>> DecomposedOverrides;
+
 
 		/**
 		 * Get the value that the channel behind the given entity should have in order for the combined blended values
@@ -141,7 +152,8 @@ namespace MovieScene
 		{
 			Absolute,
 			Additive,
-			AdditiveFromBase
+			AdditiveFromBase,
+			Override,
 		};
 
 		/**

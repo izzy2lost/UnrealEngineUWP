@@ -18,23 +18,25 @@ public:
 
 	FName GetItemName() const { return ItemName; }
 
-	void InitWidget();
-
-	void CreateNameWidget();
-
 	//~ Begin ICustomDetailsViewItem
 	virtual void RefreshItemId() override;
 	//~ End ICustomDetailsViewItem
 
 	//~ Begin ICustomDetailsViewCustomItem
+	virtual void SetNodeType(TOptional<EDetailNodeType> InNodeType) override;
 	virtual void SetLabel(const FText& InLabel) override;
 	virtual void SetToolTip(const FText& InToolTip) override;
 	virtual void SetValueWidget(const TSharedRef<SWidget>& InValueWidget) override;
-	virtual void SetExtensionWidget(const TSharedRef<SWidget>& InExpansionWidget) override;
+	virtual void SetExpansionWidget(const TSharedRef<SWidget>& InExpansionWidget) override;
+	virtual void SetWholeRowWidget(const TSharedRef<SWidget>& InWholeRowWidget) override;
 	virtual TSharedRef<ICustomDetailsViewItem> AsItem() override;
 	//~ End ICustomDetailsViewCustomItem
 
 protected:
+	void InitWidget();
+
+	void CreateNameWidget();
+
 	FName ItemName;
 
 	FText Label;

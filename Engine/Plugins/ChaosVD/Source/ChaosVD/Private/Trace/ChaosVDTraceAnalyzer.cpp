@@ -25,6 +25,7 @@ void FChaosVDTraceAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	
 	Builder.RouteEvent(RouteId_ChaosVDNonSolverLocation, "ChaosVDLogger", "ChaosVDNonSolverLocation");
 	Builder.RouteEvent(RouteId_ChaosVDNonSolverTransform, "ChaosVDLogger", "ChaosVDNonSolverTransform");
+	Builder.RouteEvent(RouteId_ChaosVDNetworkTickOffset, "ChaosVDLogger", "ChaosVDNetworkTickOffset");
 
 	Builder.RouteEvent(RouteId_BeginFrame, "Misc", "BeginFrame");
 	Builder.RouteEvent(RouteId_EndFrame, "Misc", "EndFrame");
@@ -35,6 +36,8 @@ void FChaosVDTraceAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 
 void FChaosVDTraceAnalyzer::OnAnalysisEnd()
 {
+	ChaosVDTraceProvider->HandleAnalysisComplete();
+
 	OnAnalysisComplete().Broadcast();
 }
 
@@ -56,6 +59,7 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 				TSharedPtr<FChaosVDGameFrameData> FrameData = MakeShared<FChaosVDGameFrameData>();
 				FrameData->FirstCycle = EventData.GetValue<uint64>("Cycle");
 				FrameData->StartTime = Context.EventTime.AsSeconds(FrameData->FirstCycle);
+
 				ChaosVDTraceProvider->StartGameFrame(FrameData);
 			}
 
@@ -81,13 +85,19 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 
 			NewFrameData.SolverID = EventData.GetValue<int32>("SolverID");
 			NewFrameData.FrameCycle = EventData.GetValue<uint64>("Cycle");
+			NewFrameData.InternalFrameNumber = EventData.GetValue<int32>("CurrentFrameNumber", INDEX_NONE);
 			NewFrameData.bIsKeyFrame = EventData.GetValue<bool>("IsKeyFrame");
 			NewFrameData.bIsResimulated = EventData.GetValue<bool>("IsReSimulated");
 			NewFrameData.StartTime = Context.EventTime.AsSeconds(NewFrameData.FrameCycle);
 
+			if (int32* TickOffsetPtr = ChaosVDTraceProvider->GetCurrentTickOffsetsBySolverID().Find(NewFrameData.SolverID))
+			{
+				NewFrameData.NetworkTickOffset = *TickOffsetPtr;
+			}
+
 			FWideStringView DebugNameView;
 			EventData.GetString("DebugName", DebugNameView);
-			NewFrameData.DebugName = DebugNameView;
+			NewFrameData.DebugFName = FName(DebugNameView);
 
 			// Currently not all solvers have an end frame event, so lets just set the end frame time of the previous frame, with the start of this new one.
 			{
@@ -112,18 +122,38 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
 			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
 			{
+				if (FrameData->SolverSteps.Num() > 0)
+				{
+					FChaosVDStepData& LastSolverStage = FrameData->SolverSteps.Last();
+					if (EnumHasAnyFlags(LastSolverStage.StageFlags, EChaosVDSolverStageFlags::Open) && ensure(!EnumHasAnyFlags(LastSolverStage.StageFlags, EChaosVDSolverStageFlags::ExplicitStage)))
+					{
+						// If the current Solver stage was implicitly generated, we need to close it before starting a new one.
+						// This should not happen with an explicitly recorded stage
+						EnumRemoveFlags(LastSolverStage.StageFlags, EChaosVDSolverStageFlags::Open);
+					}
+				}
+
 				// Add an empty step. It will be filled out by the particle (and later on other objects/elements) events
-				FChaosVDStepData& StepData = FrameData->SolverSteps.AddDefaulted_GetRef();
+				FChaosVDStepData& NewSolverStageData = FrameData->SolverSteps.AddDefaulted_GetRef();
 
 				FWideStringView DebugNameView;
 				EventData.GetString("StepName", DebugNameView);
-				StepData.StepName = DebugNameView;
+				NewSolverStageData.StepName = DebugNameView;
+				EnumAddFlags(NewSolverStageData.StageFlags, EChaosVDSolverStageFlags::Open);
 			}
 	
 			break;
 		}
 	case RouteId_ChaosVDSolverStepEnd:
 		{
+			const int32 SolverID = EventData.GetValue<int32>("SolverID");
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
+			{
+				if (FrameData->SolverSteps.Num() > 0)
+				{
+					EnumRemoveFlags(FrameData->SolverSteps.Last().StageFlags, EChaosVDSolverStageFlags::Open);
+				}
+			}
 			break;
 		}
 	case RouteId_ChaosVDParticleDestroyed:
@@ -229,6 +259,17 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			{
 				CurrentFrameData->RecordedNonSolverTransformsByID.Add(FName(TrackedTransform.DebugName), MoveTemp(TrackedTransform));
 			}
+
+			break;
+		}
+	case RouteId_ChaosVDNetworkTickOffset:
+		{
+			FChaosVDTrackedTransform TrackedTransform;
+
+			const int32 TickOffset = EventData.GetValue<int32>("Offset");
+			const int32 SolverID = EventData.GetValue<int32>("SolverID");
+
+			ChaosVDTraceProvider->GetCurrentTickOffsetsBySolverID().FindOrAdd(SolverID, TickOffset);
 
 			break;
 		}

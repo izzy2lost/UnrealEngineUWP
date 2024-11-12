@@ -65,6 +65,7 @@ bool UStateTreeComponent::CollectExternalData(const FStateTreeExecutionContext& 
 
 bool UStateTreeComponent::SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors)
 {
+	Context.SetLinkedStateTreeOverrides(&LinkedStateTreeOverrides);
 	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UStateTreeComponent::CollectExternalData));
 	return UStateTreeComponentSchema::SetContextRequirements(*this, Context);
 }
@@ -73,7 +74,7 @@ void UStateTreeComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	if (AIOwner == nullptr && bStartLogicAutomatically)
+	if (bStartLogicAutomatically)
 	{
 		StartLogic();
 	}
@@ -129,7 +130,7 @@ void UStateTreeComponent::StartLogic()
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Start(&StateTreeRef.GetParameters());
-		bIsRunning = true;
+		bIsRunning = CurrentRunStatus == EStateTreeRunStatus::Running;
 		
 		if (CurrentRunStatus != PreviousRunStatus)
 		{
@@ -153,7 +154,7 @@ void UStateTreeComponent::RestartLogic()
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Start(&StateTreeRef.GetParameters());
-		bIsRunning = true;
+		bIsRunning = CurrentRunStatus == EStateTreeRunStatus::Running;
 		
 		if (CurrentRunStatus != PreviousRunStatus)
 		{
@@ -342,7 +343,17 @@ FString UStateTreeComponent::GetDebugInfoString() const
 		return FString("No StateTree to run.");
 	}
 
-	return FStateTreeExecutionContext(*GetOwner(), *StateTreeRef.GetStateTree(), const_cast<FStateTreeInstanceData&>(InstanceData)).GetDebugInfoString();
+	return FConstStateTreeExecutionContextView(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData).Get().GetDebugInfoString();
+}
+
+TArray<FName> UStateTreeComponent::GetActiveStateNames() const
+{
+	if (!StateTreeRef.IsValid())
+	{
+		return TArray<FName>();
+	}
+
+	return FConstStateTreeExecutionContextView(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData).Get().GetActiveStateNames();
 }
 #endif // WITH_GAMEPLAY_DEBUGGER
 

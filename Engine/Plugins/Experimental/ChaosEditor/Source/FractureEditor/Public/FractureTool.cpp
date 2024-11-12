@@ -228,10 +228,6 @@ TArray<FString> UFractureActionTool::GetSelectedComponentMaterialNames(bool bInc
 			int32 NumMaterials = Component->GetNumMaterials();
 			for (int32 MatIdx = 0; MatIdx < NumMaterials; ++MatIdx)
 			{
-				if (MatIdx == Component->GetRestCollection()->GetBoneSelectedMaterialIndex())
-				{
-					continue;
-				}
 				UMaterialInterface* Material = Component->GetMaterial(MatIdx);
 				FString MaterialName = Material ? Material->GetName() : LOCTEXT("NoMaterialName", "None").ToString();
 				MaterialNames.Add(FString::Printf(TEXT("[%d] %s"), MatIdx, *MaterialName));

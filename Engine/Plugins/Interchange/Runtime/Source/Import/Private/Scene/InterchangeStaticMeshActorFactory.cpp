@@ -2,6 +2,7 @@
 #include "Scene/InterchangeStaticMeshActorFactory.h"
 
 #include "InterchangeMeshActorFactoryNode.h"
+#include "InterchangeStaticMeshFactoryNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Scene/InterchangeActorHelper.h"
 
@@ -127,4 +128,31 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 	}
 
 	return nullptr;
-};
+}
+
+void UInterchangeStaticMeshActorFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
+{
+	if (AStaticMeshActor* StaticMeshActor = Cast<AStaticMeshActor>(Arguments.ImportedObject))
+	{
+		if (UStaticMeshComponent* StaticMeshComponent = StaticMeshActor->GetStaticMeshComponent())
+		{
+			TArray<FString> TargetNodeUids;
+			Arguments.FactoryNode->GetTargetNodeUids(TargetNodeUids);
+			const UInterchangeStaticMeshFactoryNode* StaticMeshFactoryNode = TargetNodeUids.IsEmpty() ? nullptr : Cast<UInterchangeStaticMeshFactoryNode>(Arguments.NodeContainer->GetFactoryNode(TargetNodeUids[0]));
+			if (StaticMeshFactoryNode)
+			{
+				FSoftObjectPath ReferenceObject;
+				StaticMeshFactoryNode->GetCustomReferenceObject(ReferenceObject);
+				if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ReferenceObject.TryLoad()))
+				{
+					StaticMeshComponent->SetStaticMesh(StaticMesh);
+
+					if (const UInterchangeMeshActorFactoryNode* MeshActorFactoryNode = Cast<UInterchangeMeshActorFactoryNode>(Arguments.FactoryNode))
+					{
+						UE::Interchange::ActorHelper::ApplySlotMaterialDependencies(*Arguments.NodeContainer, *MeshActorFactoryNode, *StaticMeshComponent);
+					}
+				}
+			}
+		}
+	}
+}

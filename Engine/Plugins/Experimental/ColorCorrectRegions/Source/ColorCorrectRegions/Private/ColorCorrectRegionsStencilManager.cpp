@@ -8,6 +8,10 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#include "ScopedTransaction.h"
+#endif
 
 
 static TAutoConsoleVariable<int32> CVarStencilIdRangeMin(
@@ -27,6 +31,8 @@ static TAutoConsoleVariable<bool> CVarEnablePopupStencilIdChangedOnActors(
 	false,
 	TEXT("Allows CCRs to notify users of change in stencil Ids on actors modified by CCR. \n\
 		By default no notification is displayed and CCR assumes that users changed stencil numbers intentionally.\n"));
+
+#define LOCTEXT_NAMESPACE "CCR"
 
 namespace
 {
@@ -130,13 +136,32 @@ namespace
 		{
 			TArray<UPrimitiveComponent*> PrimitiveComponents;
 			ActorToAssignStencilTo->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
-#if WITH_EDITOR
-			ActorToAssignStencilTo->Modify();
-#endif
+
+			bool bNeedsDirtying = false;
+			TArray<UPrimitiveComponent*> PrimitiveComponentsToDirty;
+
 			for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
 			{
 				// If the stencil id is within our range then it is managed by us, so we should reset this to default.
 				if (PrimitiveComponent->bRenderCustomDepth && PrimitiveComponent->CustomDepthStencilValue >= StencilIdMin)
+				{
+					bNeedsDirtying = true;
+					PrimitiveComponentsToDirty.Add(PrimitiveComponent);
+				}
+			}
+
+			if (bNeedsDirtying
+#if WITH_EDITOR
+				&& GEditor
+#endif
+				)
+			{
+#if WITH_EDITOR
+				const FScopedTransaction Transaction(LOCTEXT("PerActorCCActorCleaned", "Per actor CC Actor Stencil Id Cleared."));
+				ActorToAssignStencilTo->Modify();
+#endif
+
+				for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponentsToDirty)
 				{
 					PrimitiveComponent->SetRenderCustomDepth(false);
 					PrimitiveComponent->CustomDepthStencilValue = 0;
@@ -440,5 +465,6 @@ void FColorCorrectRegionsStencilManager::CheckAssignedActorsValidity(AColorCorre
 
 		}
 	}
-	
 }
+
+#undef LOCTEXT_NAMESPACE

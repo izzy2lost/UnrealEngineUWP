@@ -2,7 +2,7 @@
 
 #include "Rendering/SkeletalMeshHalfEdgeBuffer.h"
 
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 
 struct FEdgeKey
@@ -215,6 +215,9 @@ void SkeletalMeshHalfEdgeUtility::BuildHalfEdgeBuffers(const FSkeletalMeshLODRen
 	}	
 }
 
+FSkeletalMeshHalfEdgeBuffer::FSkeletalMeshHalfEdgeBuffer() = default;
+FSkeletalMeshHalfEdgeBuffer::~FSkeletalMeshHalfEdgeBuffer() = default;
+
 void FSkeletalMeshHalfEdgeBuffer::Init(const FSkeletalMeshLODRenderData& InLodRenderData)
 {
 	check(VertexToEdgeData.Num() == 0);
@@ -258,27 +261,27 @@ FSkeletalMeshHalfEdgeBuffer::FRHIInfo FSkeletalMeshHalfEdgeBuffer::CreateRHIBuff
 	return Buffers;
 }
 
-void FSkeletalMeshHalfEdgeBuffer::InitRHIForStreaming(FRHIInfo RHIInfo, FRHIResourceUpdateBatcher& Batcher)
+void FSkeletalMeshHalfEdgeBuffer::InitRHIForStreaming(FRHIInfo RHIInfo, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexToEdgeBufferRHI && RHIInfo.VertexToEdgeBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(VertexToEdgeBufferRHI, RHIInfo.VertexToEdgeBufferRHI);
+		Batcher.EnqueueReplace(VertexToEdgeBufferRHI, RHIInfo.VertexToEdgeBufferRHI);
 	}
 	if (EdgeToTwinEdgeBufferRHI && RHIInfo.EdgeToTwinEdgeBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(EdgeToTwinEdgeBufferRHI, RHIInfo.EdgeToTwinEdgeBufferRHI);
+		Batcher.EnqueueReplace(EdgeToTwinEdgeBufferRHI, RHIInfo.EdgeToTwinEdgeBufferRHI);
 	}
 }
 
-void FSkeletalMeshHalfEdgeBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FSkeletalMeshHalfEdgeBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexToEdgeBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(VertexToEdgeBufferRHI, nullptr);
+		Batcher.EnqueueReplace(VertexToEdgeBufferRHI, nullptr);
 	}
 	if (EdgeToTwinEdgeBufferRHI )
 	{
-		Batcher.QueueUpdateRequest(EdgeToTwinEdgeBufferRHI, nullptr);
+		Batcher.EnqueueReplace(EdgeToTwinEdgeBufferRHI, nullptr);
 	}	
 }
 

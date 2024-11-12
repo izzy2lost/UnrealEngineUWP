@@ -27,6 +27,7 @@
 	<Option Name="SymbolServerPath" DefaultValue="" Description="A shared symbols server for your office, debugging shipped builds."/>
 	
 	<Option Name="RunCookOnTheFlyTest" DefaultValue="false" Description="To run cook on the fly test"/>
+	<Option Name="RunProjectTests" DefaultValue="false" Description="To run all tests under the Project Group"/>
 	
 	<Option Name="SourceBuildVersion" DefaultValue="" Description="The source build version for diffing"/>
 	
@@ -37,7 +38,7 @@
 	<Property Name="DefaultEditorPlatforms" Value="Win64" />
 	<Property Name="DefaultTargetPlatforms" Value="Win64"/>
 	<Property Name="DefaultTargetConfigurations" Value="Development" />
-	<Property Name="DefaultEditorTestList" Value="UE.EditorAutomation(RunTest=Project.Maps.PIE)" />
+	<Property Name="DefaultEditorTestList" Value="" />
 	<Property Name="DefaultTargetTestList" Value="" />
 	<Property Name="NetworkTempRootOverride" Value="" />
 	<Property Name="NetworkPublishRootOverride" Value="" />
@@ -53,10 +54,13 @@
 		<Property Name="DefaultTargetTestList" Value="" />
 	</Do>
 
-	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.CookOnTheFly" If="$(RunCookOnTheFlyTest)" />
+	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.CookOnTheFly(Map=L_Expanse)" If="$(RunCookOnTheFlyTest)" />
+	<Property Name="DefaultTargetTestList" Value="$(DefaultTargetTestList)+UE.TargetAutomation(RunTest=Group:Project)" If="$(RunProjectTests)" />
+	<Property Name="DefaultEditorTestList" Value="$(DefaultEditorTestList)+UE.EditorAutomation(RunTest=Group:Project)" If="$(RunProjectTests)" />
 
 	<Property Name="ExtraStageAndPackageArguments" Value="-target=&quot;$(TargetName)&quot; -compressed -CrashReporter" />
 
+	<Property Name="CheckBuildSizePlatforms" Value="Android:420000" />
 
 	<!-- =============================================================================== -->
 	<!-- Setup -->
@@ -78,7 +82,7 @@
 				<Property Name="RefExtensionsTypelist" Value=".uasset,.umap,.cpp,.c,.h,.inl,.ini,.uproject,.uplugin,.json"/>
 
 				<Property Name="CLArgs" Value="-CL=$(Change) -LastGoodContentCLPath=$(NetworkOutputDirectory)/AutoTest/LastGoodContentCL"/>
-				<Property Name="CLArgs" Value="-CL=$(PreflightChange) -shelved" If="$(IsPreflight)" />
+				<Property Name="CLArgs" Value="-CL=$(PreflightChange) -shelved -SkipPrevCLFileExport" If="$(IsPreflight)" />
 				<Property Name="CLArgs" Value="-opened" If="!$(IsBuildMachine)" />
 
 				<Property Name="CheckAssetReferencesArgs" Value="-Branch=$(Branch) $(CLArgs) -ExtTypeList=&quot;$(RefExtensionsTypelist)&quot; -MaxPackagesToLoad=3000" />
@@ -268,7 +272,9 @@
 		<Property Name="HostAgentType" Value="Linux" If="'$(Platform)' == 'Linux'"/>
 		<Agent Name="PGO Optimize Agent $(Platform)" Type="$(HostAgentType)">
 			<Node Name="$(ProjectName) PGO Optimize $(Platform)" Requires="$(PreNodeName)PGO Profile Replay $(Platform)">
-				<Compile Target="$(TargetName)" Platform="$(Platform)" Configuration="$(TargetConfigurations)" Arguments="-PGOOptimize -BuildVersion=&quot;$(BuildVersion)&quot; $(GenericCompileArguments) $(ExtraTargetCompileArguments)" Tag="#PGO Optimized Binaries $(Platform)"/>
+				<ForEach Name="Configuration" Values="$(TargetConfigurations)" Separator="+">
+					<Compile Target="$(TargetName)" Platform="$(Platform)" Configuration="$(Configuration)" Arguments="$(PGOOptimizeCompileArgs$(Platform)) -BuildVersion=&quot;$(BuildVersion)&quot; $(GenericCompileArguments) $(ExtraTargetCompileArguments)" Tag="#PGO Optimized Binaries $(Platform)"/>
+				</ForEach>
 			</Node>
 		</Agent>
 	</ForEach>

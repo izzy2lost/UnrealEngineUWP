@@ -15,7 +15,7 @@ inline void FRDGSubresourceState::SetPass(ERHIPipeline Pipeline, FRDGPassHandle 
 inline void FRDGSubresourceState::Validate()
 {
 #if RDG_ENABLE_DEBUG
-	for (ERHIPipeline Pipeline : GetRHIPipelines())
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
 		checkf(FirstPass[Pipeline].IsValid() == LastPass[Pipeline].IsValid(), TEXT("Subresource state has unset first or last pass on '%s."), *GetRHIPipelineName(Pipeline));
 	}
@@ -242,7 +242,11 @@ inline FGraphicsPipelineRenderTargetsInfo ExtractRenderTargetsInfo(const FRender
 		RenderTargetsInfo.StencilTargetLoadAction = DepthStencil.GetStencilLoadAction();
 
 		RenderTargetsInfo.DepthStencilAccess = DepthStencil.GetDepthStencilAccess();
-		const ERenderTargetStoreAction StoreAction = EnumHasAnyFlags(DepthTexture->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetStoreAction::ENoAction : ERenderTargetStoreAction::EStore;
+		ERenderTargetStoreAction StoreAction = EnumHasAnyFlags(DepthTexture->Desc.Flags, TexCreate_Memoryless) ? ERenderTargetStoreAction::ENoAction : ERenderTargetStoreAction::EStore;
+		if (DepthStencil.GetResolveTexture())
+		{
+			StoreAction = ERenderTargetStoreAction::EMultisampleResolve;
+		}
 		RenderTargetsInfo.DepthTargetStoreAction = RenderTargetsInfo.DepthStencilAccess.IsUsingDepth() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 		RenderTargetsInfo.StencilTargetStoreAction = RenderTargetsInfo.DepthStencilAccess.IsUsingStencil() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 	}

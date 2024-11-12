@@ -43,6 +43,12 @@ public:
 	/** Thickness of gutter/border in pixel dimensions. Not supported by all packing methods  */
 	float GutterSize = 1.0;
 
+	/** If true, original island scale is maintained during any packing process. */
+	bool bPreserveScale = false;
+
+	/** If true, original island rotation is maintained during any packing process. Automatically prevents bAllowFlips from applying, if set. */
+	bool bPreserveRotation = false;
+
 	/** If true, islands can be flipped in addition to rotate/translate/scale */
 	bool bAllowFlips = false;
 

@@ -34,7 +34,6 @@ public class AvalancheMediaEditor : ModuleRules
 				"ContentBrowser",
 				"EditorWidgets",
 				"GraphEditor",
-				"ImageCore",
 				"InputCore",
 				"Json",
 				"JsonSerialization",
@@ -53,6 +52,7 @@ public class AvalancheMediaEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ToolMenus",
+				"ToolWidgets",
 				"UnrealEd",
 				"XmlSerialization",
 			}

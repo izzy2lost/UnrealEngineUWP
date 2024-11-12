@@ -75,7 +75,7 @@ void FAssetTypeActions_DataAsset::PerformAssetDiff(UObject* OldAsset, UObject* N
 {
 	const TSharedRef<SDetailsDiff> DetailsDiff = SDetailsDiff::CreateDiffWindow(OldAsset, NewAsset, OldRevision, NewRevision, GetSupportedClass());
 	// allow users to edit NewAsset if it's a local asset
-	if (!FPackageName::IsTempPackage(NewAsset->GetPackage()->GetName()))
+	if (NewAsset && !FPackageName::IsTempPackage(NewAsset->GetPackage()->GetName()))
 	{
 		DetailsDiff->SetOutputObject(NewAsset);
 	}

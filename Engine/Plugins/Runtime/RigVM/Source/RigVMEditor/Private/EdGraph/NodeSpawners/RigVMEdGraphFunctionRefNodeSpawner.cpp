@@ -15,6 +15,7 @@
 #include "BlueprintNodeTemplateCache.h"
 #include "RigVMBlueprintUtils.h"
 #include "ScopedTransaction.h"
+#include "Editor/RigVMEditorTools.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMEdGraphFunctionRefNodeSpawner)
 
@@ -39,6 +40,8 @@ URigVMEdGraphFunctionRefNodeSpawner* URigVMEdGraphFunctionRefNodeSpawner::Create
 	NodeSpawner->ReferencedPublicFunctionHeader = InFunction->GetFunctionHeader();
 	NodeSpawner->NodeClass = URigVMEdGraphNode::StaticClass();
 	NodeSpawner->bIsLocalFunction = true;
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(InFunction->GetPathName(), true);
+	NodeSpawner->AssetPath = Asset.ToSoftObjectPath(); 	
 
 	FBlueprintActionUiSpec& MenuSignature = NodeSpawner->DefaultMenuSignature;
 
@@ -91,6 +94,7 @@ URigVMEdGraphFunctionRefNodeSpawner* URigVMEdGraphFunctionRefNodeSpawner::Create
 	NodeSpawner->ReferencedPublicFunctionHeader = InPublicFunction;
 	NodeSpawner->NodeClass = URigVMEdGraphNode::StaticClass();
 	NodeSpawner->bIsLocalFunction = false;
+	NodeSpawner->AssetPath = InAssetData.ToSoftObjectPath(); 	
 
 	FBlueprintActionUiSpec& MenuSignature = NodeSpawner->DefaultMenuSignature;
 
@@ -258,7 +262,7 @@ UEdGraphNode* URigVMEdGraphFunctionRefNodeSpawner::Invoke(UEdGraph* ParentGraph,
 	// if we are trying to build the real function ref - but we haven't loaded the asset yet...
 	if(!FBlueprintNodeTemplateCache::IsTemplateOuter(ParentGraph))
 	{
-		if (!ReferencedPublicFunctionHeader.IsValid() && AssetPath.IsValid())
+		if (AssetPath.IsValid())
 		{
 			if (URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(AssetPath.TryLoad()))
 			{
@@ -364,6 +368,18 @@ bool URigVMEdGraphFunctionRefNodeSpawner::IsTemplateNodeFilteredOut(FBlueprintAc
 	{
 		return true;
 	}
+
+	// filter outdated functions
+	if(ReferencedPublicFunctionHeader.IsValid())
+	{
+		for(const FRigVMTag& Tag : ReferencedPublicFunctionHeader.Variant.Tags)
+		{
+			if(Tag.bMarksSubjectAsInvalid)
+			{
+				return true;
+			}
+		}
+	}
 	
 	if(bIsLocalFunction)
 	{
@@ -378,7 +394,7 @@ bool URigVMEdGraphFunctionRefNodeSpawner::IsTemplateNodeFilteredOut(FBlueprintAc
 			}
 		}
 	}
-	const FString ReferencedAssetObjectPathString = ReferencedPublicFunctionHeader.LibraryPointer.LibraryNode.GetAssetName();
+	const FString ReferencedAssetObjectPathString = ReferencedPublicFunctionHeader.LibraryPointer.GetNodeSoftPath().GetAssetName();
 	for (UBlueprint* Blueprint : Filter.Context.Blueprints)
 	{
 		if(Blueprint->GetPathName() == ReferencedAssetObjectPathString)

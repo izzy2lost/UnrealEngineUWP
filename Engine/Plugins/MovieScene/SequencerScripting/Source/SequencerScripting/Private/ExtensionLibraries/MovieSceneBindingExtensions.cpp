@@ -7,6 +7,13 @@
 #include "MovieSceneSequence.h"
 #include "MovieScene.h"
 #include "MovieSceneSpawnable.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
+#include "MovieSceneBindingReferences.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
+#include "MovieSceneCommonHelpers.h"
+#include "Engine/World.h"
+#include "Engine/Engine.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneBindingExtensions)
 
@@ -253,11 +260,12 @@ UObject* UMovieSceneBindingExtensions::GetObjectTemplate(const FMovieSceneBindin
 	UMovieScene* MovieScene = InBinding.GetMovieScene();
 	if (MovieScene)
 	{
-		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(InBinding.BindingID);
-		if (Spawnable)
-		{
-			return Spawnable->GetObjectTemplate();
-		}
+		UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GWorld, ThisSequence);
+
+
+		// TODO: Technically this assumes only one spawnable- do we need to upgrade script to handle multiple binding indices?
+		return MovieSceneHelpers::GetObjectTemplate(MovieScene->GetTypedOuter<UMovieSceneSequence>(), InBinding.BindingID, TransientPlaybackState);
 	}
 	return nullptr;
 }

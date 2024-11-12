@@ -264,6 +264,7 @@ void UBakeMeshAttributeMapsToolBase::UpdatePreview(const EBakeMapType PreviewMap
 		case EBakeMapType::Texture:
 		case EBakeMapType::MultiTexture:
 		case EBakeMapType::VertexColor:
+		case EBakeMapType::UVShell:
 			PreviewMaterial->SetTextureParameterValue(TEXT("NormalMap"), EmptyNormalMap);
 			PreviewMaterial->SetTextureParameterValue(TEXT("OcclusionMap"), EmptyColorMapWhite);
 			PreviewMaterial->SetTextureParameterValue(TEXT("ColorMap"), PreviewMap);
@@ -454,6 +455,12 @@ void UBakeMeshAttributeMapsToolBase::OnMapsUpdated(const TUniquePtr<UE::Geometry
 			UpdateCachedMap(MapType, Format, 0);
 			break;
 		}
+		case EMeshMapEvaluatorType::UVShell:
+		{
+			constexpr EBakeMapType MapType = EBakeMapType::UVShell;
+			UpdateCachedMap(MapType, Format, 0);
+			break;
+		}
 		case EMeshMapEvaluatorType::ResampleImage:
 		{
 			constexpr EBakeMapType MapType = EBakeMapType::Texture;
@@ -515,6 +522,8 @@ FTexture2DBuilder::ETextureType UBakeMeshAttributeMapsToolBase::GetTextureType(c
 	case EBakeMapType::MaterialID:
 	case EBakeMapType::PolyGroupID:
 	case EBakeMapType::VertexColor:
+	case EBakeMapType::UVShell:
+		TexType = FTexture2DBuilder::ETextureType::Color;
 		break;
 	case EBakeMapType::Texture:
 	case EBakeMapType::MultiTexture:
@@ -565,6 +574,9 @@ void UBakeMeshAttributeMapsToolBase::GetTextureName(const EBakeMapType MapType, 
 		break;
 	case EBakeMapType::Position:
 		TexName = FString::Printf(TEXT("%s_Position"), *BaseName);
+		break;
+	case EBakeMapType::UVShell:
+		TexName = FString::Printf(TEXT("%s_UVShell"), *BaseName);
 		break;
 	case EBakeMapType::Texture:
 		TexName = FString::Printf(TEXT("%s_Texture"), *BaseName);
@@ -734,6 +746,9 @@ void UBakeMeshAttributeMapsToolBase::RecordAnalytics(const FBakeAnalytics& Data,
 
 	const bool bVertexColor = static_cast<bool>(Data.BakeSettings.SourceBakeMapTypes & EBakeMapType::VertexColor);
 	Attributes.Add(FAnalyticsEventAttribute(TEXT("Settings.VertexColor.Enabled"), bVertexColor));
+
+	const bool bUVShell = static_cast<bool>(Data.BakeSettings.SourceBakeMapTypes & EBakeMapType::UVShell);
+	Attributes.Add(FAnalyticsEventAttribute(TEXT("Settings.UVShell.Enabled"), bUVShell));
 
 	FEngineAnalytics::GetProvider().RecordEvent(FString(TEXT("Editor.Usage.MeshModelingMode.")) + EventName, Attributes);
 

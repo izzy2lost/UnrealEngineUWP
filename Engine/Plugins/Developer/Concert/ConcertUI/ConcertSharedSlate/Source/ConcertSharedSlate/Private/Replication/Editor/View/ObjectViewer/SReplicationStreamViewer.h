@@ -4,7 +4,7 @@
 
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 #include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 #include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Replication/Editor/View/Column/SelectionViewerColumns.h"
@@ -24,12 +24,13 @@ struct FSoftObjectPath;
 namespace UE::ConcertSharedSlate
 {
 	class SReplicatedPropertyView;
-	class FReplicatedPropertyData;
+	class FPropertyData;
 	class FReplicatedObjectData;
 	class IEditableReplicationStreamModel;
-	class IObjectNameModel;
-	class IReplicationStreamModel;
 	class IObjectHierarchyModel;
+	class IObjectNameModel;
+	class IPropertyAssignmentView;
+	class IReplicationStreamModel;
 	class SPropertyTreeView;
 	
 	enum class EChildRelationship : uint8;
@@ -50,8 +51,8 @@ namespace UE::ConcertSharedSlate
 
 		SLATE_BEGIN_ARGS(SReplicationStreamViewer)
 		{}
-			/** Displays the properties in a tree view */
-			SLATE_ARGUMENT(TSharedPtr<IPropertyTreeView>, PropertyTreeView)
+			/** In the lower half of the editor, this view presents the properties associated with the object that is currently selected in the upper part of the view. */
+			SLATE_ARGUMENT(TSharedPtr<IPropertyAssignmentView>, PropertyAssignmentView)
 		
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<FObjectColumnEntry>, ObjectColumns)
@@ -71,7 +72,14 @@ namespace UE::ConcertSharedSlate
 		
 			/** Called to generate the context menu for objects. */
 			SLATE_EVENT(FOnContextMenuOpening, OnObjectsContextMenuOpening)
+			
 		
+			/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
+			SLATE_EVENT(FShouldDisplayObject, ShouldDisplayObject)
+		
+			/** Optional. Gets the content to overlay on hovered rows; it covers the entire row. */
+			SLATE_EVENT(SReplicationTreeView<FReplicatedObjectData>::FGetHoveredRowContent, GetHoveredRowContent)
+			
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
 			/** Optional widget to add to the right of the object list search bar. */
@@ -81,25 +89,28 @@ namespace UE::ConcertSharedSlate
 			SLATE_ATTRIBUTE(FText, NoOutlinerObjects)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);
+		void Construct(const FArguments& InArgs, const TSharedRef<IReplicationStreamModel>& InPropertiesModel);
 
 		//~ Begin IReplicationStreamViewer Interface
 		virtual void Refresh() override;
 		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		virtual TArray<TSoftObjectPtr<>> GetSelectedObjects() const override;
 		//~ End IReplicationStreamViewer Interface
 
 		void RequestObjectDataRefresh() { bHasRequestedObjectRefresh = true; }
 		void RequestPropertyDataRefresh() { bHasRequestedPropertyRefresh = true; }
 
 		/** Selects the given objects. */
-		void SelectObjects(TConstArrayView<FSoftObjectPath> Objects, bool bAtEndOfTick = false);
+		void SelectObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bAtEndOfTick = false);
 		/** Expands the given objects, recursively if desired. */
-		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive, bool bAtEndOfTick = false);
+		void ExpandObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bRecursive, bool bAtEndOfTick = false);
+
+		/** @return Whether Object is being displayed in the top object panel. */
+		bool IsDisplayedInTopView(const FSoftObjectPath& Object) const;
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
-		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const;
+		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedObjectItems() const;
 
 		//~ Begin SWidget Interface
 		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -135,19 +146,22 @@ namespace UE::ConcertSharedSlate
 
 		bool bHasRequestedObjectRefresh = false;
 		bool bHasRequestedPropertyRefresh = false;
-		TArray<FSoftObjectPath> PendingToSelect;
-		TArray<FSoftObjectPath> PendingToExpand;
-		bool bPendingExpandRecursively;
-
-		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
+		TArray<TSoftObjectPtr<>> PendingToSelect;
+		TArray<TSoftObjectPtr<>> PendingToExpand;
+		bool bPendingExpandRecursively = false;
+		
+		/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
+		FShouldDisplayObject ShouldDisplayObjectDelegate;
 
 		// Widget creation helpers
 		TSharedRef<SWidget> CreateContentWidget(const FArguments& InArgs);
 		TSharedRef<SWidget> CreateOutlinerSection(const FArguments& InArgs);
 		TSharedRef<SWidget> CreatePropertiesSection(const FArguments& InArgs);
-		
+
+		/** Regenerates object row data in the top view */
 		void RefreshObjectData();
-		void RefreshPropertyData();
+		/** Lists all objects that need an object in the top-view. */
+		void IterateDisplayableObjects(TFunctionRef<void(const FSoftObjectPath& Object)> Delegate) const;
 		
 		/** Sets RootObjectRowData to all non-root nodes from ObjectRowData. */
 		void BuildRootObjectRowData();
@@ -166,6 +180,13 @@ namespace UE::ConcertSharedSlate
 			RequestObjectDataRefresh();
 			RequestPropertyDataRefresh();
 		}
-		bool ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const;
+		
+		/** Invokes the ShouldDisplayObjectDelegate to determine whether ObjectPath should be displayed. */
+		bool CanDisplayObject(const TSoftObjectPtr<>& Object) const;
+		bool CanDisplayObject(const FSoftObjectPath& ObjectPath) const { return CanDisplayObject(TSoftObjectPtr<>(ObjectPath)); }
+		/** Whether the view options allow this type of relationship to be shown. */
+		bool ShouldDisplayObjectRelation(EChildRelationship Relationship) const;
+		
+		FSoftClassPath GetObjectClass(const TSoftObjectPtr<>& Object) const;
 	};
 }

@@ -208,7 +208,7 @@ protected:
 protected:
 
 	/** Enqueues a last minute wait and copy of the expected texture data for the renderer to use */
-	virtual void JustInTimeSampleRender();
+	virtual void JustInTimeSampleRender(FRHICommandListImmediate& RHICmdList);
 
 	/** Offsets the frame number by the specified latency. Used to associate resources with frame numbers being evaluated */
 	uint32 InputTextureFrameNumberForFrameNumber(uint32 FrameNumber) const;

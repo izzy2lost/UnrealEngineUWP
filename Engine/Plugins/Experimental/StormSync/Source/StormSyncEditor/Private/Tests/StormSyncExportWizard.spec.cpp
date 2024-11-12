@@ -5,7 +5,7 @@
 #include "StormSyncCoreSettings.h"
 #include "Slate/SStormSyncExportWizard.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncExportWizardSpec, "StormSync.StormSyncEditor.SStormSyncExportWizard", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncExportWizardSpec, "StormSync.StormSyncEditor.SStormSyncExportWizard", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 
 END_DEFINE_SPEC(FStormSyncExportWizardSpec)

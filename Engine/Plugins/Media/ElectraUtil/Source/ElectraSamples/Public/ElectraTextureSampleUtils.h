@@ -3,7 +3,8 @@
 #pragma once
 
 #include "HAL/Platform.h"
-#include "ColorManagementDefines.h"
+#include "ColorManagement/ColorManagementDefines.h"
+#include "Misc/AssertionMacros.h"
 
 namespace ElectraColorimetryUtils
 {
@@ -17,6 +18,9 @@ namespace ElectraColorimetryUtils
 		{
 			case 1:				// Rec709
 			case 2:				// unknown
+				return UE::Color::EColorSpace::sRGB;
+			case 6:				// Rec601
+			case 7:				// Rec601 (historical)
 				return UE::Color::EColorSpace::sRGB;
 			case 9:				// Rec2020
 				return UE::Color::EColorSpace::Rec2020;
@@ -34,6 +38,9 @@ namespace ElectraColorimetryUtils
 				return UE::Color::EColorSpace::None;
 			case 1:				// Rec709
 			case 2:				// unknown
+				return UE::Color::EColorSpace::sRGB;
+			case 6:				// Rec601
+			case 7:				// Rec601 (historical)
 				return UE::Color::EColorSpace::sRGB;
 			case 9:				// Rec2020
 				return UE::Color::EColorSpace::Rec2020;

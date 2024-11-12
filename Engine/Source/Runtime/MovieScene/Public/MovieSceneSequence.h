@@ -41,6 +41,12 @@ struct FMovieScenePossessable;
 struct FMovieSceneTimecodeSource;
 struct FUniversalObjectLocator;
 struct FMovieSceneBindingReferences;
+struct FMovieSceneDynamicBinding;
+
+#if WITH_EDITOR
+struct FSlateBrush;
+#endif
+
 
 namespace UE::MovieScene
 {
@@ -98,7 +104,9 @@ public:
 	/**
 	 * Unloads an object that has been loaded via a locator.
 	 */
-	MOVIESCENE_API void UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex);
+	UE_DEPRECATED(5.5, "UnloadBoundObject no longer supported")
+	MOVIESCENE_API void UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex) {}
+
 
 	/**
 	 * Called when Sequencer has created an object binding for a possessable object
@@ -130,27 +138,44 @@ public:
 	virtual void LocateBoundObjects(const FGuid& ObjectId, UObject* Context, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const {}
 
 	/**
-	 * Locate all the objects that correspond to the specified object ID, using the specified parameters
+	 * Locate all the objects that correspond to the specified object ID, using the specified parameters.
+	 * Calling this directly instead of IMovieScenePlayer::ResolveBoundObjects means that you won't be able to locate Spawnable objects or objects from Custom Bindings.
 	 *
 	 * @param ObjectId				The unique identifier of the object.
 	 * @param Params				Resolve parameters specifying the context and fragment-specific parameters
 	 * @param OutObjects			Destination array to add found objects to
 	 */
+	UE_DEPRECATED(5.5, "Please use the version that also takes a SharedPlaybackState")
 	MOVIESCENE_API void LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
 	 * Locate all the objects that correspond to the specified object ID, using the specified context
+	 * Calling this directly instead of IMovieScenePlayer::ResolveBoundObjects means that you won't be able to locate Spawnable objects or objects from Custom Bindings.
 	 *
 	 * @param ObjectId				The unique identifier of the object.
 	 * @param Context				Optional context to use to find the required object (for instance, a parent spawnable object)
 	 * @return An array of all bound objects
 	 */
+	UE_DEPRECATED(5.5, "Please use the version that also takes a SharedPlaybackState")
 	TArray<UObject*, TInlineAllocator<1>> LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& Context) const
 	{
 		TArray<UObject*, TInlineAllocator<1>> OutObjects;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		LocateBoundObjects(ObjectId, Context, OutObjects);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return OutObjects;
 	}
+
+	/**
+	 * Locate all the objects that correspond to the specified object ID, using the specified parameters.
+	 * Calling this directly instead of IMovieScenePlayer::ResolveBoundObjects means that you won't be able to locate Spawnable objects or objects from Custom Bindings.
+	 *
+	 * @param ObjectId				The unique identifier of the object.
+	 * @param ResolveParams			Resolve parameters specifying the context and fragment-specific parameters
+	 * @param SharedPlaybackState   Optional ptr to SharedPlaybackState
+	 * @param OutObjects			Destination array to add found objects to
+	 */
+	MOVIESCENE_API virtual void LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TSharedPtr<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
 	 * Attempt to find the guid relating to the specified object
@@ -161,14 +186,17 @@ public:
 	 */
 	MOVIESCENE_API FGuid FindPossessableObjectId(UObject& Object, UObject* Context) const;
 
+	UE_DEPRECATED(5.5, "Use the version that takes a SharedPlaybackState")
+	MOVIESCENE_API virtual FGuid FindBindingFromObject(UObject* InObject, UObject* Context) const;
+
 	/**
 	 * Optional method for efficient lookup of an object binding from an actual object in the world
 	 *
 	 * @param ObjectId				The unique identifier of the object.
-	 * @param Context				Optional context to use to find the required object (for instance, a parent spawnable object or its world)
+	 * @param SharedPlaybackState   A shared playback state for the binding- create a transient one if necessary.
 	 * @return The object's guid, or zero guid if the object is not a valid possessable in the current context
 	 */
-	virtual FGuid FindBindingFromObject(UObject* InObject, UObject* Context) const { return FGuid(); }
+	virtual FGuid FindBindingFromObject(UObject* InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const { return FGuid(); }
 
 	/**
 	 * Called to validate the specified object cache by removing anything that should be deemed out of date
@@ -202,6 +230,13 @@ public:
 	 * @return true if objects can be spawned by sequencer, false if only existing objects can be possessed.
 	 */
 	virtual bool AllowsSpawnableObjects() const { return false; }
+
+	/**
+	 * Whether the sequence type supports custom bindings.
+	 *
+	 * @return true if custom bindings are supported, false if they are not
+	 */
+	virtual bool AllowsCustomBindings() const { return false; }
 
 	/**
 	 * Unbinds all possessable objects from the provided GUID.
@@ -291,6 +326,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence")
 	MOVIESCENE_API FMovieSceneTimecodeSource GetEarliestTimecodeSource() const;
 
+#if WITH_EDITOR
+	MOVIESCENE_API virtual void IterateDynamicBindings(TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback) {}
+
+	MOVIESCENE_API virtual const FSlateBrush* GetCustomBrushForBinding(FGuid BindingID) const { return nullptr; }
+#endif
+
 public:
 
 	MOVIESCENE_API virtual void PostLoad() override;
@@ -350,7 +391,7 @@ public:
 private:
 
 #if WITH_EDITOR
-	bool OptimizeForCook();
+	void OptimizeForCook();
 #endif
 
 	/** Serialized compiled data - should only be used through UMovieSceneCompiledDataManager */
@@ -395,6 +436,10 @@ public:
 	/*
 	 * Sequences can determine whether they support a particular track type
 	 */
-	virtual ETrackSupport IsTrackSupported(TSubclassOf<UMovieSceneTrack> InTrackClass) const { return ETrackSupport::Default; }
+	MOVIESCENE_API ETrackSupport IsTrackSupported(TSubclassOf<UMovieSceneTrack> InTrackClass) const;
+
+	/** Subclasses can implement this to determine whether they support a particular track type */
+	virtual ETrackSupport IsTrackSupportedImpl(TSubclassOf<UMovieSceneTrack> InTrackClass) const { return ETrackSupport::Default; }
+
 #endif
 };

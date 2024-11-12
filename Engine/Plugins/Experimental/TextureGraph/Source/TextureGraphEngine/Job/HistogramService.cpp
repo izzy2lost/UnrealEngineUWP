@@ -42,7 +42,7 @@ AsyncJobResultPtr HistogramService::Tick()
 {
 	check(IsInGameThread());
 
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Svc_Histogram::Tick"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Svc_Histogram::Tick"));
 
 	if (Batch)
 	{
@@ -50,6 +50,8 @@ AsyncJobResultPtr HistogramService::Tick()
 		Batch = nullptr;
 
 		//TextureGraphEngine::GetScheduler()->AddBatch(LastBatch);
+		LastBatch->SetCaptureRenderDoc(bCaptureNextBatch);
+		bCaptureNextBatch = false;
 
 		TextureGraphEngine::GetInstance()->GetScheduler()->GetObserverSource()->BatchAdded(LastBatch); // notify observer
 
@@ -72,3 +74,8 @@ void HistogramService::Stop()
 	Batch = nullptr;
 }
  
+
+void HistogramService::CaptureNextBatch()
+{
+	bCaptureNextBatch = true;
+}

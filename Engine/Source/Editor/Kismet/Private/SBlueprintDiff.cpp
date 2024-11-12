@@ -58,6 +58,7 @@
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SListView.h"
+#include "AsyncDetailViewDiff.h"
 
 class FProperty;
 
@@ -397,6 +398,18 @@ void SBlueprintDiff::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	if (const TSharedPtr<IDiffControl> DiffControl = ModePanels[CurrentMode].DiffControl)
 	{
 		DiffControl->Tick();
+	}
+	if (PanelOld.DetailsView)
+	{
+		PanelOld.DetailsView->Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	}
+	if (PanelNew.DetailsView)
+	{
+		PanelNew.DetailsView->Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	}
+	if (GraphDetailDiff)
+	{
+		GraphDetailDiff->Tick();
 	}
 }
 
@@ -850,29 +863,44 @@ void SBlueprintDiff::GenerateDifferencesList()
 
 	// SMyBlueprint needs to be created *before* the KismetInspector or the diffs are generated, because the KismetInspector's customizations
 	// need a reference to the SMyBlueprint widget that is controlling them...
-	const auto CreateInspector = [](TSharedPtr<SMyBlueprint> InMyBlueprint) {
+	const auto CreateInspector = [](TSharedPtr<SMyBlueprint> InMyBlueprint, const TSharedPtr<SScrollBar>& Scrollbar, EHorizontalAlignment ScrollbarAlignment) {
 		return SNew(SKismetInspector)
 			.HideNameArea(true)
 			.ViewIdentifier(FName("BlueprintInspector"))
 			.MyBlueprintWidget(InMyBlueprint)
 			.IsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateStatic([] { return false; }))
-			.ShowLocalVariables(true);
+			.ShowLocalVariables(true)
+			.ExternalScrollbar(Scrollbar)
+			.ScrollbarAlignment(ScrollbarAlignment);
 	};
 
 	TArray<UEdGraph*> GraphsOld, GraphsNew;
 	if (PanelOld.Blueprint)
 	{
 		PanelOld.GenerateMyBlueprintWidget();
-		PanelOld.DetailsView = CreateInspector(PanelOld.MyBlueprint);
+		PanelOld.DetailScrollbar = SNew(SLinkableScrollBar);
+		PanelOld.DetailsView = CreateInspector(PanelOld.MyBlueprint, PanelOld.DetailScrollbar, HAlign_Left);
 		PanelOld.MyBlueprint->SetInspector(PanelOld.DetailsView);
 		PanelOld.Blueprint->GetAllGraphs(GraphsOld);
 	}
 	if (PanelNew.Blueprint)
 	{
 		PanelNew.GenerateMyBlueprintWidget();
-		PanelNew.DetailsView = CreateInspector(PanelNew.MyBlueprint);
+		PanelNew.DetailScrollbar = SNew(SLinkableScrollBar);
+		PanelNew.DetailsView = CreateInspector(PanelNew.MyBlueprint, PanelNew.DetailScrollbar, HAlign_Right);
 		PanelNew.MyBlueprint->SetInspector(PanelNew.DetailsView);
 		PanelNew.Blueprint->GetAllGraphs(GraphsNew);
+	}
+
+	if (PanelOld.DetailsView && PanelNew.DetailsView)
+	{
+		GraphDetailDiff = MakeShared<FAsyncDetailViewDiff>(
+			PanelOld.DetailsView->GetPropertyView().ToSharedRef(),
+			PanelNew.DetailsView->GetPropertyView().ToSharedRef());
+
+		SLinkableScrollBar::LinkScrollBars(PanelOld.DetailScrollbar.ToSharedRef(), PanelNew.DetailScrollbar.ToSharedRef(),
+		TAttribute<TArray<FVector2f>>::CreateRaw(GraphDetailDiff.Get(), &FAsyncDetailViewDiff::GenerateScrollSyncRate));
+		TAttribute<TArray<FVector2f>> ScrollRate = TAttribute<TArray<FVector2f>>::CreateRaw(GraphDetailDiff.Get(), &FAsyncDetailViewDiff::GenerateScrollSyncRate);
 	}
 
 	//Add Graphs that exist in both blueprints, or in blueprint 1 only
@@ -1091,16 +1119,14 @@ SBlueprintDiff::FDiffControl SBlueprintDiff::GenerateGraphPanel()
 			+ SSplitter::Slot()
 			.Value(.2f)
 			[
-				SNew(SSplitter)
-				.PhysicalSplitterHandleSize(10.0f)
-				+SSplitter::Slot()
-				[
-					PanelOld.GetDetailsWidget()
-				]
-				+ SSplitter::Slot()
-				[
-					PanelNew.GetDetailsWidget()
-				]
+				SNew(SDetailsSplitter)
+				+SDetailsSplitter::Slot()
+					.Value(0.5f)
+					.DetailsView(PanelOld.DetailsView ? PanelOld.DetailsView->GetPropertyView() : nullptr)
+					.DifferencesWithRightPanel(GraphDetailDiff)
+				+ SDetailsSplitter::Slot()
+					.Value(0.5f)
+					.DetailsView(PanelNew.DetailsView ? PanelNew.DetailsView->GetPropertyView() : nullptr)
 			]
 		]
 	];

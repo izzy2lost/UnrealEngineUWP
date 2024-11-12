@@ -3,6 +3,7 @@
 #include "Extensions/AvaRenderStateUpdateModifierExtension.h"
 
 #include "AvaModifiersActorUtils.h"
+#include "Components/PrimitiveComponent.h"
 #include "Containers/Ticker.h"
 #include "Modifiers/ActorModifierCoreBase.h"
 
@@ -102,13 +103,13 @@ void FAvaRenderStateUpdateModifierExtension::OnRenderStateDirty(UActorComponent&
 		return;
 	}
 
-	const UActorModifierCoreBase* Modifier = GetModifier();
-	if (!Modifier || !Modifier->IsModifierEnabled())
+	if (ActorDirty->GetLevel() != ModifierActor->GetLevel())
 	{
 		return;
 	}
 
-	if (ActorDirty->GetLevel() != ModifierActor->GetLevel())
+	const UActorModifierCoreBase* Modifier = GetModifier();
+	if (!Modifier || !Modifier->IsModifierEnabled() || !Modifier->IsModifierIdle())
 	{
 		return;
 	}

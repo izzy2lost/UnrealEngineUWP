@@ -214,9 +214,9 @@ void UEnvQueryDebugHelpers::LogQueryInternal(FEnvQueryInstance& Query, const FNa
 		// table header		
 		{
 			FString HeaderString;
-			PRINT_TABLE_ROW(FString::Printf(TEXT("Item "), EQSLocalData.NumValidItems), HeaderString, 27);
+			PRINT_TABLE_ROW(TEXT("Item "), HeaderString, 27);
 
-			PRINT_TABLE_ROW(FString::Printf(TEXT(" | Score"), EQSLocalData.NumValidItems), HeaderString, 8);
+			PRINT_TABLE_ROW(TEXT(" | Score"), HeaderString, 8);
 
 			for (int32 TestIdx = 0; TestIdx < NumTests; TestIdx++)
 			{

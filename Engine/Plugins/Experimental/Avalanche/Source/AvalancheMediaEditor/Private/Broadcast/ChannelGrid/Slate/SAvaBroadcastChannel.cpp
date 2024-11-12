@@ -10,6 +10,7 @@
 #include "Broadcast/OutputDevices/DragDropOps/AvaBroadcastOutputTreeItemDragDropOp.h"
 #include "Broadcast/OutputDevices/Slate/SAvaBroadcastCaptureImage.h"
 #include "Brushes/SlateImageBrush.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Input/DragAndDrop.h"
@@ -19,15 +20,21 @@
 #include "Layout/Geometry.h"
 #include "Layout/Visibility.h"
 #include "MediaOutput.h"
+#include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
+#include "Styling/AppStyle.h"
 #include "Styling/SlateBrush.h"
 #include "Styling/SlateTypes.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/SListView.h"
@@ -47,6 +54,13 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 	
 	FAvaBroadcastOutputChannel::GetOnChannelChanged().AddRaw(this, &SAvaBroadcastChannel::OnChannelChanged);
 	InBroadcastEditor->OnOutputTileSelectionChanged.AddRaw(this, &SAvaBroadcastChannel::OnOutputTileSelectionChanged);
+
+	FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannelMutable(ChannelName);
+	QualitySettingsStruct = MakeShared<FStructOnScope>(FAvaBroadcastOutputChannel::StaticStruct(), reinterpret_cast<uint8*>(&Channel));
+
+	CreateQualitySettingsDetails();
+
+	const FMargin ButtonPadding = FMargin(2.f);
 	
 	ChildSlot
 	[
@@ -77,17 +91,17 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			[
-				SAssignNew(ChannelSettingsMenuAnchor, SMenuAnchor)
-				.Content()
+				SNew(SComboButton)
+				.ToolTipText(LOCTEXT("ChannelSettingToolTip", "Open the channel viewport quality settings"))
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(ButtonPadding)
+				.HasDownArrow(false)
+				.MenuPlacement(MenuPlacement_BelowAnchor)
+				.OnGetMenuContent(this, &SAvaBroadcastChannel::GetQualitySettingsDetails)
+				.ButtonContent()
 				[
-					SNew(SButton)
-					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-					.OnClicked(this, &SAvaBroadcastChannel::OnChannelSettingsButtonClicked)
-					.ToolTipText(LOCTEXT("ChannelSettingToolTip", "Open the channel settings"))
-					[
-						SNew(SImage)
-						.Image(FAppStyle::Get().GetBrush("Icons.Settings"))
-					]
+					SNew(SImage)
+					.Image(FAppStyle::Get().GetBrush("Icons.Settings"))
 				]
 			]
 			+ SHorizontalBox::Slot()
@@ -95,6 +109,7 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(ButtonPadding)
 				.OnClicked(this, &SAvaBroadcastChannel::OnChannelPinButtonClicked)
 				.ToolTipText(LOCTEXT("ChannelPinToolTip", "Pin the channel across all profiles."))
 				[
@@ -107,6 +122,7 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(ButtonPadding)
 				.OnClicked(this, &SAvaBroadcastChannel::OnChannelMaximizeButtonClicked)
 				.ToolTipText(this, &SAvaBroadcastChannel::GetChannelMaximizeRestoreTooltipText)
 				[
@@ -119,6 +135,7 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(ButtonPadding)
 				.OnClicked(this, &SAvaBroadcastChannel::OnChannelRemoveButtonClicked)
 				.IsEnabled(this, &SAvaBroadcastChannel::CanEditChanges)
 				.ToolTipText(LOCTEXT("ChannelRemoveToolTip", "Remove this channel."))
@@ -140,6 +157,7 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(ButtonPadding)
 				.OnClicked(this, &SAvaBroadcastChannel::OnChannelStatusButtonClicked)
 				.ToolTipText(LOCTEXT("ChannelStatusChangeToolTip", "Change the status of this channel."))
 				[
@@ -169,6 +187,7 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(ButtonPadding)
 				.OnClicked(this, &SAvaBroadcastChannel::OnChannelTypeToggleButtonClicked)
 				.ToolTipText(LOCTEXT("ChannelTypeToggleToolTip", "Toggles between \"Program\" or \"Preview\" channel type."))
 				[
@@ -180,7 +199,7 @@ void SAvaBroadcastChannel::Construct(const FArguments& InArgs, const TSharedPtr<
 	];
 
 	OutputTileListView->SetStyle(nullptr);	
-	const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(ChannelName);
+
 	OnChannelBroadcastStateChanged(Channel);
 	OnChannelMediaOutputsChanged(Channel);
 }
@@ -384,7 +403,7 @@ TSharedRef<SWidget> SAvaBroadcastChannel::GetChannelStatusOptions()
 				if (Channel.GetState() != State && State != EAvaBroadcastChannelState::Offline)
 				{
 					Builder.AddMenuEntry(StaticEnum<EAvaBroadcastChannelState>()->GetDisplayNameTextByIndex(Index)
-						, FText()
+						, FText::GetEmpty()
 						, FSlateIcon()
 						, FUIAction(FExecuteAction::CreateSP(this, &SAvaBroadcastChannel::OnChannelStatusSelected, State)));	
 				}
@@ -608,54 +627,6 @@ FReply SAvaBroadcastChannel::OnChannelStatusButtonClicked()
 	return FReply::Unhandled();
 }
 
-FReply SAvaBroadcastChannel::OnChannelSettingsButtonClicked()
-{
-	if (!ChannelSettings.IsValid())
-	{
-		FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannelMutable(ChannelName);
-		if (!Channel.IsValidChannel())
-		{
-			return FReply::Unhandled();
-		}
-
-		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-		FDetailsViewArgs DetailsViewArgs;
-		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-		DetailsViewArgs.bAllowSearch = false;
-		DetailsViewArgs.bShowOptions = false;
-
-		TSharedRef<FStructOnScope> ChannelStruct = MakeShared<FStructOnScope>(FAvaBroadcastOutputChannel::StaticStruct(), reinterpret_cast<uint8*>(&Channel));
-
-		ChannelSettings = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, FStructureDetailsViewArgs(), ChannelStruct);
-
-		ChannelSettings->GetOnFinishedChangingPropertiesDelegate().AddLambda(
-			[ChannelStructWeak = TWeakPtr<FStructOnScope>(ChannelStruct)](const FPropertyChangedEvent&)
-			{
-				if (TSharedPtr<FStructOnScope> ChannelStruct = ChannelStructWeak.Pin())
-				{
-					const FAvaBroadcastOutputChannel& Channel = *reinterpret_cast<const FAvaBroadcastOutputChannel*>(ChannelStruct->GetStructMemory());
-					FAvaBroadcastOutputChannel::GetOnChannelChanged().Broadcast(Channel, EAvaBroadcastChannelChange::Settings);
-				}
-			});
-
-		ChannelSettingsMenuAnchor->SetMenuContent(SNew(SBox)
-				.MaxDesiredHeight(500.f)
-				.MinDesiredWidth(150.f)
-				[
-					SNew(SScrollBox)
-					+ SScrollBox::Slot()
-					[
-				    	ChannelSettings->GetWidget().ToSharedRef()
-					]
-				]
-			);
-	}
-
-	ChannelSettingsMenuAnchor->SetIsOpen(true);
-	return FReply::Handled();
-}
-
 FReply SAvaBroadcastChannel::OnChannelPinButtonClicked()
 {
 	FScopedTransaction Transaction(LOCTEXT("ToggleChannelPin", "Toggle Channel Pin"));
@@ -811,6 +782,42 @@ FText SAvaBroadcastChannel::GetChannelMaximizeRestoreTooltipText() const
 		TooltipText = LOCTEXT("ChannelRestoreToolTip", "Restore this channel in the view. All other channels will be visible.");
 	}
 	return TooltipText;
+}
+
+void SAvaBroadcastChannel::CreateQualitySettingsDetails()
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bAllowSearch = false;
+	DetailsViewArgs.bShowOptions = false;
+
+	QualitySettingsDetails = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, FStructureDetailsViewArgs(), QualitySettingsStruct);
+	QualitySettingsDetails->GetOnFinishedChangingPropertiesDelegate().AddSP(this, &SAvaBroadcastChannel::OnChannelQualitySettingsChanged);
+}
+
+void SAvaBroadcastChannel::OnChannelQualitySettingsChanged(const FPropertyChangedEvent& InEvent)
+{
+	if (QualitySettingsStruct.IsValid())
+	{
+		const FAvaBroadcastOutputChannel& Channel = *reinterpret_cast<const FAvaBroadcastOutputChannel*>(QualitySettingsStruct->GetStructMemory());
+		FAvaBroadcastOutputChannel::GetOnChannelChanged().Broadcast(Channel, EAvaBroadcastChannelChange::Settings);
+	}
+}
+
+TSharedRef<SWidget> SAvaBroadcastChannel::GetQualitySettingsDetails() const
+{
+	return SNew(SBox)
+		.MaxDesiredHeight(500.f)
+		.MinDesiredWidth(120.f)
+		[
+			SNew(SScrollBox)
+			+ SScrollBox::Slot()
+			[
+				QualitySettingsDetails->GetWidget().ToSharedRef()
+			]
+		];
 }
 
 #undef LOCTEXT_NAMESPACE

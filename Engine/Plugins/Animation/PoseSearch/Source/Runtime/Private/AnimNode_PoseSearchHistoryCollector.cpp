@@ -10,30 +10,6 @@
 
 #define LOCTEXT_NAMESPACE "AnimNode_PoseSearchHistoryCollector"
 
-namespace UE::PoseSearch::Private
-{
-
-class FPoseHistoryProvider : public IPoseHistoryProvider
-{
-public:
-	FPoseHistoryProvider(const IPoseHistory& InPoseHistory)
-		: PoseHistory(InPoseHistory)
-	{
-	}
-
-	// IPoseHistoryProvider interface
-	virtual const IPoseHistory& GetPoseHistory() const override
-	{
-		return PoseHistory;
-	}
-
-private:
-	const IPoseHistory& PoseHistory;
-};
-
-} // namespace UE::PoseSearch::Private
-
-
 /////////////////////////////////////////////////////
 // FAnimNode_PoseSearchHistoryCollector_Base
 
@@ -42,6 +18,52 @@ void FAnimNode_PoseSearchHistoryCollector_Base::Initialize_AnyThread(const FAnim
 	Super::Initialize_AnyThread(Context);
 
 	PoseHistory.Initialize_AnyThread(PoseCount, SamplingInterval);
+
+	if (bInitializeWithRefPose)
+	{
+		const FBoneContainer& BoneContainer = Context.AnimInstanceProxy->GetRequiredBones();
+		if (BoneContainer.IsValid())
+		{
+			// initializing PoseHistory with a ref pose at FAnimInstanceProxy location/facing
+			FMemMark Mark(FMemStack::Get());
+			FCSPose<FCompactPose> ComponentSpacePose;
+			FBlendedCurve EmptyCurves;
+			ComponentSpacePose.InitPose(&BoneContainer);
+			PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales,
+				RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, true, true, 
+				GetRequiredBones(Context.AnimInstanceProxy), EmptyCurves, MakeConstArrayView(CollectedCurves));
+		}
+	}
+}
+
+TArray<FBoneIndexType> FAnimNode_PoseSearchHistoryCollector_Base::GetRequiredBones(const FAnimInstanceProxy* AnimInstanceProxy) const
+{
+	check(AnimInstanceProxy);
+
+	TArray<FBoneIndexType> RequiredBones;
+	if (!CollectedBones.IsEmpty())
+	{
+		if (const USkeletalMeshComponent* SkeletalMeshComponent = AnimInstanceProxy->GetSkelMeshComponent())
+		{
+			if (const USkinnedAsset* SkinnedAsset = SkeletalMeshComponent->GetSkinnedAsset())
+			{
+				if (const USkeleton* Skeleton = SkinnedAsset->GetSkeleton())
+				{
+					RequiredBones.Reserve(CollectedBones.Num());
+					for (const FBoneReference& BoneReference : CollectedBones)
+					{
+						FBoneReference BoneReferenceCopy = BoneReference;
+						if (BoneReferenceCopy.Initialize(Skeleton))
+						{
+							RequiredBones.AddUnique(BoneReferenceCopy.BoneIndex);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return RequiredBones;
 }
 
 void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
@@ -51,40 +73,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 
 	Super::CacheBones_AnyThread(Context);
 
-	TArray<FBoneIndexType> RequiredBones;
-	if (!CollectedBones.IsEmpty())
-	{
-		if (const USkeletalMeshComponent* SkeletalMeshComponent = Context.AnimInstanceProxy->GetSkelMeshComponent())
-		{
-			if (const USkinnedAsset* SkinnedAsset = SkeletalMeshComponent->GetSkinnedAsset())
-			{
-				if (const USkeleton* Skeleton = SkinnedAsset->GetSkeleton())
-				{
-					RequiredBones.Reserve(CollectedBones.Num());
-					for (FBoneReference& BoneReference : CollectedBones)
-					{
-						if (BoneReference.Initialize(Skeleton))
-						{
-							RequiredBones.AddUnique(BoneReference.BoneIndex);
-						}
-					}
-				}
-			}
-		}
-	}
-
-	PoseHistory.CacheBones_AnyThread(RequiredBones);
-
-	if (bInitializeWithRefPose)
-	{
-		// initializing PoseHistory with a ref pose at FAnimInstanceProxy location/facing
-		FMemMark Mark(FMemStack::Get());
-		FCompactPose Pose;
-		Pose.SetBoneContainer(&Context.AnimInstanceProxy->GetRequiredBones());
-		FCSPose<FCompactPose> ComponentSpacePose;
-		ComponentSpacePose.InitPose(Pose);
-		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales, RootBoneRecoveryTime);
-	}
+	bCacheBones = true;
 }
 
 void FAnimNode_PoseSearchHistoryCollector_Base::Update_AnyThread(const FAnimationUpdateContext& Context)
@@ -100,18 +89,31 @@ void FAnimNode_PoseSearchHistoryCollector_Base::PreUpdate(const UAnimInstance* I
 {
 	Super::PreUpdate(InAnimInstance);
 	
-	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(InAnimInstance->GetUpdateCounter());
-	const float DeltaTime = InAnimInstance->GetDeltaSeconds();
+	if (bGenerateTrajectory)
+	{
+		GenerateTrajectory(InAnimInstance);
+	}
 
-	FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
-	TrajectoryDataSampling.NumHistorySamples = FMath::Max(PoseCount, TrajectoryHistoryCount);
-	TrajectoryDataSampling.SecondsPerHistorySample = SamplingInterval;
-	TrajectoryDataSampling.NumPredictionSamples = TrajectoryPredictionCount;
-	TrajectoryDataSampling.SecondsPerPredictionSample = PredictionSamplingInterval;
+	PoseHistory.PreUpdate();
 
-	PoseHistory.PreUpdate(InAnimInstance, DeltaTime, bGenerateTrajectory, TrajectoryData, TrajectoryDataSampling, bNeedsReset);
+	bIsTrajectoryGeneratedBeforePreUpdate = false;
 }
 
+void FAnimNode_PoseSearchHistoryCollector_Base::GenerateTrajectory(const UAnimInstance* InAnimInstance)
+{
+	if (!bIsTrajectoryGeneratedBeforePreUpdate)
+	{
+		FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
+		TrajectoryDataSampling.NumHistorySamples = FMath::Max(PoseCount, TrajectoryHistoryCount);
+		TrajectoryDataSampling.SecondsPerHistorySample = SamplingInterval;
+		TrajectoryDataSampling.NumPredictionSamples = TrajectoryPredictionCount;
+		TrajectoryDataSampling.SecondsPerPredictionSample = PredictionSamplingInterval;
+
+		PoseHistory.GenerateTrajectory(InAnimInstance, InAnimInstance->GetDeltaSeconds(), TrajectoryData, TrajectoryDataSampling);
+
+		bIsTrajectoryGeneratedBeforePreUpdate = true;
+	}
+}
 /////////////////////////////////////////////////////
 // FAnimNode_PoseSearchHistoryCollector
 
@@ -139,9 +141,22 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 	Super::Evaluate_AnyThread(Output);
 	Source.Evaluate(Output);
 
+	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Output.AnimInstanceProxy->GetUpdateCounter());
+
 	FCSPose<FCompactPose> ComponentSpacePose;
 	ComponentSpacePose.InitPose(Output.Pose);
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bStoreScales, RootBoneRecoveryTime);
+
+	TArray<FBoneIndexType> RequiredBones;
+	if (bCacheBones)
+	{
+		RequiredBones = GetRequiredBones(Output.AnimInstanceProxy);
+	}
+
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bStoreScales,
+		RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, bNeedsReset, bCacheBones, 
+		RequiredBones, Output.Curve, MakeConstArrayView(CollectedCurves));
+
+	bCacheBones = false;
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	FColor Color;
@@ -158,7 +173,7 @@ void FAnimNode_PoseSearchHistoryCollector::Update_AnyThread(const FAnimationUpda
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
 	Super::Update_AnyThread(Context);
-	UE::Anim::TScopedGraphMessage<UE::PoseSearch::Private::FPoseHistoryProvider> ScopedMessage(Context, PoseHistory);
+	UE::Anim::TScopedGraphMessage<UE::PoseSearch::FPoseHistoryProvider> ScopedMessage(Context, this);
 	Source.Update(Context);
 }
 
@@ -195,7 +210,18 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 	Super::EvaluateComponentSpace_AnyThread(Output);
 	Source.EvaluateComponentSpace(Output);
 
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bStoreScales, RootBoneRecoveryTime);
+	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Output.AnimInstanceProxy->GetUpdateCounter());
+
+	TArray<FBoneIndexType> RequiredBones;
+	if (bCacheBones)
+	{
+		RequiredBones = GetRequiredBones(Output.AnimInstanceProxy);
+	}
+
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bStoreScales, 
+		RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, bNeedsReset, bCacheBones, RequiredBones);
+	
+	bCacheBones = false;
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	FColor Color;
@@ -212,7 +238,7 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::Update_AnyThread(const 
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
 	Super::Update_AnyThread(Context);
-	UE::Anim::TScopedGraphMessage<UE::PoseSearch::Private::FPoseHistoryProvider> ScopedMessage(Context, PoseHistory);
+	UE::Anim::TScopedGraphMessage<UE::PoseSearch::FPoseHistoryProvider> ScopedMessage(Context, this);
 	Source.Update(Context);
 }
 

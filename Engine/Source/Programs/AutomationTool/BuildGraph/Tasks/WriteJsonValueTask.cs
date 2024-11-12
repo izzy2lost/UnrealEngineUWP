@@ -1,16 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using IdentityModel.Client;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 using UnrealBuildBase;
 
 #nullable enable
@@ -28,7 +24,7 @@ namespace AutomationTool.Tasks
 		/// Json file(s) which will be modified
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string File = null!;
+		public string File { get; set; } = null!;
 
 		/// <summary>
 		/// Json element to set in each file. Syntax for this string is a limited subset of JsonPath notation, and may support object properties and
@@ -36,13 +32,13 @@ namespace AutomationTool.Tasks
 		/// an element to the 'bar' array in the 'foo' object).
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.Default)]
-		public string Key = null!;
+		public string Key { get; set; } = null!;
 
 		/// <summary>
 		/// New value to set. May be any value JSON value (string, array, object, number, boolean or null).
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.Default)]
-		public string Value = null!;
+		public string Value { get; set; } = null!;
 	}
 
 	/// <summary>
@@ -51,138 +47,138 @@ namespace AutomationTool.Tasks
 	[TaskElement("WriteJsonValue", typeof(WriteJsonValueTaskParameters))]
 	public class WriteJsonValueTask : BgTaskImpl
 	{
-		WriteJsonValueTaskParameters Parameters;
+		readonly WriteJsonValueTaskParameters _parameters;
 
 		/// <summary>
 		/// Create a new ModifyJsonValue.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task.</param>
-		public WriteJsonValueTask(WriteJsonValueTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task.</param>
+		public WriteJsonValueTask(WriteJsonValueTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
 		/// Placeholder comment
 		/// </summary>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.File, TagNameToFileSet);
+			HashSet<FileReference> files = ResolveFilespec(Unreal.RootDirectory, _parameters.File, tagNameToFileSet);
 
-			JsonNode? ValueNode;
+			JsonNode? valueNode;
 			try
 			{
-				ValueNode = String.IsNullOrEmpty(Parameters.Value) ? null : JsonNode.Parse(Parameters.Value);
+				valueNode = String.IsNullOrEmpty(_parameters.Value) ? null : JsonNode.Parse(_parameters.Value);
 			}
 			catch (Exception ex)
 			{
-				throw new AutomationException(ex, $"Unable to parse '{Parameters.Value}': {ex.Message}");
+				throw new AutomationException(ex, $"Unable to parse '{_parameters.Value}': {ex.Message}");
 			}
 
-			foreach (FileReference JsonFile in Files)
+			foreach (FileReference jsonFile in files)
 			{
-				string JsonText = FileReference.Exists(JsonFile) ? await FileReference.ReadAllTextAsync(JsonFile) : "{}";
+				string jsonText = FileReference.Exists(jsonFile) ? await FileReference.ReadAllTextAsync(jsonFile) : "{}";
 
-				if (!Parameters.Key.StartsWith("$", StringComparison.Ordinal))
+				if (!_parameters.Key.StartsWith("$", StringComparison.Ordinal))
 				{
 					throw new AutomationException("Key must be in JsonPath format (eg. $.Foo.Bar[123])");
 				}
 
-				JsonNode? RootNode;
+				JsonNode? rootNode;
 				try
 				{
-					RootNode = JsonNode.Parse(JsonText, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+					rootNode = JsonNode.Parse(jsonText, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
 				}
 				catch (Exception ex)
 				{
-					throw new AutomationException($"Error parsing {JsonFile}: {ex.Message}");
+					throw new AutomationException($"Error parsing {jsonFile}: {ex.Message}");
 				}
-				RootNode = MergeValue(Parameters.Key, 1, RootNode, ValueNode);
+				rootNode = MergeValue(_parameters.Key, 1, rootNode, valueNode);
 
-				string NewJsonText = RootNode?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? String.Empty;
+				string newJsonText = rootNode?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? String.Empty;
 
-				DirectoryReference.CreateDirectory(JsonFile.Directory);
-				await FileReference.WriteAllTextAsync(JsonFile, NewJsonText);
+				DirectoryReference.CreateDirectory(jsonFile.Directory);
+				await FileReference.WriteAllTextAsync(jsonFile, newJsonText);
 			}
 		}
 
-		static JsonNode? MergeValue(string Key, int MinIdx, JsonNode? PrevValue, JsonNode? Value)
+		static JsonNode? MergeValue(string key, int minIdx, JsonNode? prevValue, JsonNode? value)
 		{
-			if (MinIdx == Key.Length)
+			if (minIdx == key.Length)
 			{
-				return Value;
+				return value;
 			}
 
 			// Find the length of the next token
-			int MaxIdx = MinIdx + 1;
-			while (MaxIdx < Key.Length && Key[MaxIdx] != '[' && Key[MaxIdx] != '.')
+			int maxIdx = minIdx + 1;
+			while (maxIdx < key.Length && key[maxIdx] != '[' && key[maxIdx] != '.')
 			{
-				MaxIdx++;
+				maxIdx++;
 			}
 
 			// Handle different types of element
-			if (Key[MinIdx] == '.')
+			if (key[minIdx] == '.')
 			{
-				JsonObject? Obj = PrevValue as JsonObject;
-				if (Obj != null)
+				JsonObject? obj = prevValue as JsonObject;
+				if (obj != null)
 				{
-					Obj = Obj.Deserialize<JsonObject>(); // Clone so we can reattach
+					obj = obj.Deserialize<JsonObject>(); // Clone so we can reattach
 				}
-				Obj ??= new JsonObject();
+				obj ??= new JsonObject();
 
-				string PropertyName = Key.Substring(MinIdx + 1, MaxIdx - (MinIdx + 1));
+				string propertyName = key.Substring(minIdx + 1, maxIdx - (minIdx + 1));
 
-				JsonNode? NextNode;
-				Obj.TryGetPropertyValue(PropertyName, out NextNode);
-				Obj[PropertyName] = MergeValue(Key, MaxIdx, NextNode, Value);
+				JsonNode? nextNode;
+				obj.TryGetPropertyValue(propertyName, out nextNode);
+				obj[propertyName] = MergeValue(key, maxIdx, nextNode, value);
 
-				return Obj;
+				return obj;
 			}
-			else if (Key[MinIdx] == '[')
+			else if (key[minIdx] == '[')
 			{
-				if (Key[MaxIdx - 1] != ']')
+				if (key[maxIdx - 1] != ']')
 				{
 					throw new AutomationException("Missing ']' in array subscript in Json path expression '{Key}'");
 				}
 
-				string IndexStr = Key.Substring(MinIdx + 1, (MaxIdx - 1) - (MinIdx + 1)).Trim();
+				string indexStr = key.Substring(minIdx + 1, (maxIdx - 1) - (minIdx + 1)).Trim();
 
-				int Index = int.MaxValue;
-				if (IndexStr.Length > 0)
+				int index = int.MaxValue;
+				if (indexStr.Length > 0)
 				{
-					Index = int.Parse(IndexStr);
+					index = int.Parse(indexStr);
 				}
 
-				JsonArray? Array = PrevValue as JsonArray;
-				if (Array != null)
+				JsonArray? array = prevValue as JsonArray;
+				if (array != null)
 				{
-					Array = Array.Deserialize<JsonArray>();
+					array = array.Deserialize<JsonArray>();
 				}
-				Array ??= new JsonArray();
+				array ??= new JsonArray();
 
-				if (Index < Array.Count)
+				if (index < array.Count)
 				{
-					Array[Index] = MergeValue(Key, MaxIdx, Array[Index], Value);
+					array[index] = MergeValue(key, maxIdx, array[index], value);
 				}
 				else
 				{
-					Array.Add(MergeValue(Key, MaxIdx, null, Value));
+					array.Add(MergeValue(key, maxIdx, null, value));
 				}
 
-				return Array;
+				return array;
 			}
 			else
 			{
-				throw new AutomationException($"Unable to parse JSON path after '{Key}'");
+				throw new AutomationException($"Unable to parse JSON path after '{key}'");
 			}
 		}
 
 		/// <summary>
 		/// Placeholder comment
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -190,9 +186,9 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			foreach (string TagName in FindTagNamesFromFilespec(Parameters.File))
+			foreach (string tagName in FindTagNamesFromFilespec(_parameters.File))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 		}
 

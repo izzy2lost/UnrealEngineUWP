@@ -15,6 +15,7 @@
 
 class SMenuAnchor;
 class STextBlock;
+class SButton;
 class STextureEditorViewport;
 class UFactory;
 class UTexture;
@@ -97,7 +98,10 @@ public:
 	{
 		return ExposureBias;
 	}
-
+	virtual EVisibility GetVisibilityWhileAssetCompiling() const override
+	{
+		return EVisibility::Visible;
+	}
 
 	// IToolkit interface
 	virtual FText GetBaseToolkitName( ) const override;
@@ -387,6 +391,7 @@ private:
 	TSharedRef<SWidget> MakeOpacityControlWidget();
 	TSharedRef<SWidget> MakeZoomControlWidget();
 	TSharedRef<SWidget> MakeView3DControlWidget();
+	TSharedRef<SWidget> MakePlatformSelectorWidget();
 private:
 
 	/** The Texture asset being inspected */
@@ -414,6 +419,7 @@ private:
 	TSharedPtr<STextBlock> LODBiasText;
 	TSharedPtr<STextBlock> HasAlphaChannelText;
 	TSharedPtr<STextBlock> SourceMipsAlphaDetectedText;
+	TSharedPtr<SButton> DetectSourceAlphaButton;
 	TSharedPtr<STextBlock> NumMipsText;
 	TSharedPtr<STextBlock> MipLevelTextBlock;
 	TSharedPtr<STextBlock> EncodeSpeedText;
@@ -480,6 +486,8 @@ private:
 	/** The texture's zoom factor. */
 	double Zoom;
 
+	FName ViewingPlatform; // NAME_None if viewing editor.
+
 	// Which exposure level should be used, in FStop e.g. 0:original, -1:half as bright, 1:2x as bright, 2:4x as bright.
 	int32 ExposureBias;
 
@@ -503,10 +511,16 @@ private:
 
 	bool bIsVolumeTexture;
 
+	TArray<TSharedPtr<FString>> AvailablePlatforms;
+	TArray<FName> AvailablePlatformNames;
+
 	// Objects and callbacks for the custom encoding settings checkbox
 	TSharedPtr<class SCheckBox> OodleOverrideCheck;
 	void OnUseEditorOodleSettingsChanged(ECheckBoxState NewState);
 	ECheckBoxState UseEditorOodleSettingsChecked() const;
+
+	FReply DetectSourceAlphaButton_Clicked();
+	bool CanPlatformPreview() const;
 
 	// callback for enabling custom encoding sub-controls
 	bool EditorOodleSettingsEnabled() const;

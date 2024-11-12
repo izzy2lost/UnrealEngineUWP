@@ -120,9 +120,6 @@ DEFINE_FUNCTION(UPythonScriptLibrary::execExecutePythonScript)
 
 		// Execute the Python command
 		FPyObjectPtr PyResult = FPyObjectPtr::StealReference(FPythonScriptPlugin::Get()->EvalString(*PythonScript, TEXT("<string>"), Py_file_input, PyTempGlobalDict, PyTempGlobalDict));
-		Py_BEGIN_ALLOW_THREADS
-		FPyWrapperTypeReinstancer::Get().ProcessPending();
-		Py_END_ALLOW_THREADS
 
 		// Read the output values from the Python context
 		if (PyResult)
@@ -156,11 +153,15 @@ DEFINE_FUNCTION(UPythonScriptLibrary::execExecutePythonScript)
 		FPyScopedGIL GIL;
 		if (ExecuteCustomPythonScriptImpl())
 		{
+			Py_BEGIN_ALLOW_THREADS
+			FPyWrapperTypeReinstancer::Get().ProcessPending();
+			Py_END_ALLOW_THREADS
 			*(bool*)RESULT_PARAM = true;
 		}
 		else
 		{
-			*(bool*)RESULT_PARAM = PyUtil::ReThrowPythonError();
+			PyUtil::ReThrowPythonError();
+			*(bool*)RESULT_PARAM = false;
 		}
 	}
 #else	// WITH_PYTHON

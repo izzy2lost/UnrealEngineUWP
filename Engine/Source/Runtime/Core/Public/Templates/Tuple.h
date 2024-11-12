@@ -8,8 +8,10 @@
 #include "Templates/Invoke.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/MemoryLayout.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include <tuple>
+#include <type_traits>
 
 // This workaround exists because Visual Studio causes false positives for code like this during static analysis:
 //
@@ -71,6 +73,9 @@ namespace UE::Core::Private::Tuple
 		}
 
 		TTupleBaseElement()
+#ifdef __cpp_concepts // A C++17 fix was deemed too complex
+			requires (std::is_default_constructible_v<T>)
+#endif
 			: Value()
 		{
 		}
@@ -96,6 +101,9 @@ namespace UE::Core::Private::Tuple
 		}
 
 		TTupleBaseElement()
+#ifdef __cpp_concepts // A C++17 fix was deemed too complex
+			requires (std::is_default_constructible_v<T>)
+#endif
 			: Key()
 		{
 		}

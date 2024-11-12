@@ -350,9 +350,11 @@ public:
 					}
 				}
 
+				TWeakObjectPtr<AUsdStageActor> WeakActor = StageActor;
 				StageActor->OnPreStageChanged.AddLambda(
-					[this, StageActor]()
+					[this, WeakActor]()
 					{
+						AUsdStageActor* StageActor = WeakActor.Get();
 						if (!bUndoRedoing && StageActor && static_cast<const AUsdStageActor*>(StageActor)->GetUsdStage())
 						{
 							const bool bForClosing = true;
@@ -621,6 +623,16 @@ void IUsdStageEditorModule::FileExportFlattenedStage(const FString& OutputLayer)
 	if (TSharedPtr<SUsdStage> UsdStageEditor = UE::UsdStageEditorModule::Private::GetUsdStageEditor())
 	{
 		UsdStageEditor->FileExportFlattenedStage(OutputLayer);
+	}
+#endif	  // USE_USD_SDK
+}
+
+void IUsdStageEditorModule::FileExportFlattenedLayerStack(const FString& OutputLayer) const
+{
+#if USE_USD_SDK
+	if (TSharedPtr<SUsdStage> UsdStageEditor = UE::UsdStageEditorModule::Private::GetUsdStageEditor())
+	{
+		UsdStageEditor->FileExportFlattenedLayerStack(OutputLayer);
 	}
 #endif	  // USE_USD_SDK
 }

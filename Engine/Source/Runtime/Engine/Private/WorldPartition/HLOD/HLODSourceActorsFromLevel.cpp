@@ -35,18 +35,14 @@ ULevelStreaming* UWorldPartitionHLODSourceActorsFromLevel::LoadSourceActors(bool
 
 uint32 UWorldPartitionHLODSourceActorsFromLevel::GetHLODHash() const
 {
-	uint32 HLODHash = Super::GetHLODHash();
-
 	// SourceLevel
-	HLODHash = HashCombine(HLODHash, GetTypeHash(SourceLevel));
-	
-	return HLODHash;
+	return FCrc::StrCrc32(*SourceLevel.GetUniqueID().GetLongPackageName(), Super::GetHLODHash());
 }
 
 
 void UWorldPartitionHLODSourceActorsFromLevel::SetSourceLevel(const UWorld* InSourceLevel)
 {
-	SourceLevel = InSourceLevel;
+	SourceLevel = const_cast<UWorld*>(InSourceLevel);
 }
 
 const TSoftObjectPtr<UWorld>& UWorldPartitionHLODSourceActorsFromLevel::GetSourceLevel() const

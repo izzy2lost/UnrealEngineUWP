@@ -329,21 +329,21 @@ namespace BlackmagicMediaPlayerHelpers
 		
 					if (MediaPlayer->bOverrideSourceColorSpace)
 					{
-						ColorFormat.ColorSpace = (UE::Color::EColorSpace) MediaPlayer->OverrideSourceColorSpace;
+						ColorFormat.ColorSpaceType = (UE::Color::EColorSpace) MediaPlayer->OverrideSourceColorSpace;
 					}
 					else
 					{
 						switch (HDROptions.Gamut)
 						{
 						case EBlackmagicHDRMetadataGamut::Rec709:
-							ColorFormat.ColorSpace = UE::Color::EColorSpace::sRGB;
+							ColorFormat.ColorSpaceType = UE::Color::EColorSpace::sRGB;
 							break;
 						case EBlackmagicHDRMetadataGamut::Rec2020:
-							ColorFormat.ColorSpace = UE::Color::EColorSpace::Rec2020;
+							ColorFormat.ColorSpaceType = UE::Color::EColorSpace::Rec2020;
 							break;
 						default:
 							checkNoEntry();
-							ColorFormat.ColorSpace = UE::Color::EColorSpace::sRGB;
+							ColorFormat.ColorSpaceType = UE::Color::EColorSpace::sRGB;
 							break;
 						}
 					}
@@ -559,11 +559,6 @@ bool FBlackmagicMediaPlayer::Open(const FString& Url, const IMediaOptions* Optio
 	
 	const EMediaIOAutoDetectableTimecodeFormat TimecodeFormat = (EMediaIOAutoDetectableTimecodeFormat)(Options->GetMediaOption(BlackmagicMediaOption::TimecodeFormat, (int64)EMediaIOAutoDetectableTimecodeFormat::None));
 	const bool bAutoDetectTimecode = TimecodeFormat == EMediaIOAutoDetectableTimecodeFormat::Auto;
-
-	bOverrideSourceEncoding = Options->GetMediaOption(UE::CaptureCardMediaSource::OverrideSourceEncoding, true);
-	OverrideSourceEncoding = (ETextureSourceEncoding) Options->GetMediaOption(UE::CaptureCardMediaSource::SourceEncoding, (int64) ETextureSourceEncoding::TSE_Linear);
-	bOverrideSourceColorSpace = Options->GetMediaOption(UE::CaptureCardMediaSource::OverrideSourceColorSpace, true);
-	OverrideSourceColorSpace =  (ETextureColorSpace) Options->GetMediaOption(UE::CaptureCardMediaSource::SourceColorSpace, (int64) ETextureColorSpace::TCS_None);
 	
 	BlackmagicDesign::FChannelInfo ChannelInfo;
 	ChannelInfo.DeviceIndex = Options->GetMediaOption(BlackmagicMediaOption::DeviceIndex, (int64)0);

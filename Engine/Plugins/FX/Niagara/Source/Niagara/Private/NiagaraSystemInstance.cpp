@@ -104,13 +104,13 @@ static FAutoConsoleVariableRef CVarNiagaraAllowDeferredReset(
 
 FNiagaraSystemInstance::FNiagaraSystemInstance(UWorld& InWorld, UNiagaraSystem& InSystem, FNiagaraUserRedirectionParameterStore* InOverrideParameters,
                                                USceneComponent* InAttachComponent, ENiagaraTickBehavior InTickBehavior, bool bInPooled)
-	: SystemInstanceIndex(INDEX_NONE)
+	: TickBehavior(InTickBehavior)
+	  , SystemInstanceIndex(INDEX_NONE)
 	  , SignificanceIndex(INDEX_NONE)
 	  , World(&InWorld)
 	  , System(&InSystem)
 	  , OverrideParameters(InOverrideParameters)
 	  , AttachComponent(InAttachComponent)
-	  , TickBehavior(InTickBehavior)
 	  , Age(0.0f)
 	  , LastRenderTime(0.0f)
 	  , TickCount(0)
@@ -768,7 +768,7 @@ void FNiagaraSystemInstance::Reset(EResetMode Mode)
 	// Wait for any async operations, can complete the system
 	WaitForConcurrentTickAndFinalize();
 
-	LastRenderTime = World->GetTimeSeconds();
+	LastRenderTime = static_cast<float>(World->GetTimeSeconds());
 
 	SetPaused(false);
 
@@ -1407,6 +1407,31 @@ bool FNiagaraSystemInstance::RequiresRayTracingScene() const
 	return false;
 }
 
+bool FNiagaraSystemInstance::RequiresCurrentFrameNDC() const
+{
+	if (!bHasGPUEmitters)
+	{
+		return false;
+	}
+
+	for (const FNiagaraEmitterInstanceRef& Emitter : Emitters)
+	{
+		FNiagaraComputeExecutionContext* GPUContext = Emitter->GetGPUContext();
+		if (GPUContext)
+		{
+			for (UNiagaraDataInterface* DataInterface : GPUContext->CombinedParamStore.GetDataInterfaces())
+			{
+				if (DataInterface && DataInterface->RequiresCurrentFrameNDC())
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 FNDIStageTickHandler* FNiagaraSystemInstance::GetSystemDIStageTickHandler(ENiagaraScriptUsage Usage)
 {
 	if(Usage == ENiagaraScriptUsage::SystemSpawnScript || Usage == ENiagaraScriptUsage::EmitterSpawnScript)
@@ -1827,7 +1852,8 @@ float FNiagaraSystemInstance::GetLODDistance()
 	const FVector EffectLocation = WorldTransform.GetLocation() + (FVector(LWCTile) * FLargeWorldRenderScalar::GetTileSize());
 	LODDistance = DefaultLODDistance;
 
-	LODDistance = WorldManager->GetLODDistance(EffectLocation);
+	// truncation to float here with precision loss seems ok for LOD distance
+	LODDistance = static_cast<float>(WorldManager->GetLODDistance(EffectLocation));
 
 	bLODDistanceIsValid = true;
 	return LODDistance;
@@ -2362,18 +2388,10 @@ void FNiagaraSystemInstance::WaitForConcurrentTickDoNotFinalize(bool bEnsureComp
 		extern int32 GNiagaraSystemSimulationTaskStallTimeout;
 		if (GNiagaraSystemSimulationTaskStallTimeout > 0)
 		{
-			const double EndTimeoutSeconds = FPlatformTime::Seconds() + (double(GNiagaraSystemSimulationTaskStallTimeout) / 1000.0);
-			LowLevelTasks::BusyWaitUntil(
-				[this, EndTimeoutSeconds]()
-				{
-					if (FPlatformTime::Seconds() > EndTimeoutSeconds)
-					{
-						DumpStalledInfo();
-						return true;
-					}
-					return ConcurrentTickGraphEvent->IsComplete();
-				}
-			);
+			if (WaitForAnyTaskCompleted({ ConcurrentTickGraphEvent }, FTimespan::FromMicroseconds(GNiagaraSystemSimulationTaskStallTimeout)) == INDEX_NONE)
+			{
+				DumpStalledInfo();
+			}
 		}
 		else
 		{

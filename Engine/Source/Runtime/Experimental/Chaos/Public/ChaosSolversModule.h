@@ -41,7 +41,53 @@ public:
 		return false;
 	}
 
+	UE_DEPRECATED(5.5, "GetResimulationErrorThreshold has been renamed, please use GetResimulationErrorPositionThreshold.")
 	virtual float GetResimulationErrorThreshold() const
+	{
+		return GetResimulationErrorPositionThreshold();
+	}
+
+	virtual bool GetResimulationErrorPositionThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorPositionThreshold() const
+	{
+		return 0;
+	}
+
+	virtual bool GetResimulationErrorRotationThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorRotationThreshold() const
+	{
+		return 0;
+	}
+
+	virtual bool GetResimulationErrorLinearVelocityThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorLinearVelocityThreshold() const
+	{
+		return 0;
+	}
+
+	virtual bool GetResimulationErrorAngularVelocityThresholdEnabled() const
+	{
+		return false;
+	}
+
+	virtual float GetResimulationErrorAngularVelocityThreshold() const
+	{
+		return 0;
+	}
+
+	virtual float GetPhysicsHistoryTimeLength() const
 	{
 		return 0;
 	}
@@ -142,11 +188,7 @@ public:
 	 * @param ThreadingMode The desired threading mode the solver will use
 	 * @param bStandalone Whether the solver is standalone (not sent to physics thread - updating left to caller)
 	 */
-	CHAOS_API Chaos::FPBDRigidsSolver* CreateSolver(UObject* InOwner, Chaos::FReal InAsyncDt, Chaos::EThreadingMode ThreadingMode = Chaos::EThreadingMode::SingleThread
-#if CHAOS_DEBUG_NAME
-		, const FName& DebugName = NAME_None
-#endif
-	);
+	CHAOS_API Chaos::FPBDRigidsSolver* CreateSolver(UObject* InOwner, Chaos::FReal InAsyncDt, Chaos::EThreadingMode ThreadingMode = Chaos::EThreadingMode::SingleThread, const FName& DebugName = NAME_None);
 
 	CHAOS_API void MigrateSolver(Chaos::FPhysicsSolverBase* InSolver, const UObject* InNewOwner);
 

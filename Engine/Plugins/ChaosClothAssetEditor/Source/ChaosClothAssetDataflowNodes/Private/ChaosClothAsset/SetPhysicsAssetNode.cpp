@@ -9,14 +9,14 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetSetPhysicsAssetNode"
 
-FChaosClothAssetSetPhysicsAssetNode::FChaosClothAssetSetPhysicsAssetNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSetPhysicsAssetNode::FChaosClothAssetSetPhysicsAssetNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection, &Collection);
 }
 
-void FChaosClothAssetSetPhysicsAssetNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetSetPhysicsAssetNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -29,7 +29,7 @@ void FChaosClothAssetSetPhysicsAssetNode::Evaluate(Dataflow::FContext& Context, 
 		if (FCollectionClothFacade(ClothCollection).IsValid())  // Can only act on the collection if it is a valid cloth collection
 		{
 			FCollectionClothFacade CollectionClothFacade(ClothCollection);
-			CollectionClothFacade.SetPhysicsAssetPathName(PhysicsAsset.GetPathName());
+			CollectionClothFacade.SetPhysicsAssetPathName(PhysicsAsset ? PhysicsAsset.GetPathName() : FString());
 		}
 
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);

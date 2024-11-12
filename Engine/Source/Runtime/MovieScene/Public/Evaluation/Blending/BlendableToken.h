@@ -79,8 +79,13 @@ namespace MovieScene
 	template<typename InType, typename WorkingDataType, typename SourceDataType>
 	void BlendValue(WorkingDataType& OutBlend, InType InValue, float Weight, EMovieSceneBlendType BlendType, TMovieSceneInitialValueStore<SourceDataType>& InitialValueStore)
 	{
-		// Always assert on instantiation
-		static_assert(std::is_same_v<WorkingDataType, void>, "BlendValue must be implemented for the specified types in order to blend them with Sequencer.");
+		BlendValue(OutBlend, InValue, Weight, BlendType, INDEX_NONE, InitialValueStore);
+	}
+	//new optional blending priority that supports blending priorities
+	template<typename InType, typename WorkingDataType, typename SourceDataType>
+	void BlendValue(WorkingDataType& OutBlend, InType InValue, float Weight, EMovieSceneBlendType BlendType, int32 BlendingOrder, TMovieSceneInitialValueStore<SourceDataType>& InitialValueStore)
+	{
+	
 	}
 } // namespace MovieScene
 } // namespace UE
@@ -100,21 +105,25 @@ struct TBlendableToken
 
 	/** Construction from a value, blend method, and a weight. Scope and bias to be populated later */
 	template<typename T>
-	TBlendableToken(T&& InValue, EMovieSceneBlendType InBlendType, float InWeight = 1.f)
+	TBlendableToken(T&& InValue, EMovieSceneBlendType InBlendType, float InWeight = 1.f, int32 InBlendingOrder = INDEX_NONE)
 		: Value(TData<typename TDecay<T>::Type>(Forward<T>(InValue)))
 		, HierarchicalBias(0)
 		, Weight(InWeight)
 		, BlendType(InBlendType)
+		, BlendingOrder(InBlendingOrder)
 	{}
 
 	/** Construction from a value, scope, context, blend method, and a weight */
 	template<typename T>
-	TBlendableToken(T&& InValue, const FMovieSceneEvaluationScope& InCurrentScope, const FMovieSceneContext& InContext, EMovieSceneBlendType InBlendType, float InWeight = 1.f)
+	TBlendableToken(T&& InValue, const FMovieSceneEvaluationScope& InCurrentScope, const FMovieSceneContext& InContext, EMovieSceneBlendType InBlendType, float InWeight = 1.f,
+		int32 InBlendingOrder = INDEX_NONE)
 		: Value(TData<typename TDecay<T>::Type>(Forward<T>(InValue)))
 		, AnimatingScope(InCurrentScope)
 		, HierarchicalBias(InContext.GetHierarchicalBias())
 		, Weight(InWeight)
 		, BlendType(InBlendType)
+		, BlendingOrder(InBlendingOrder)
+
 	{}
 
 	/** Copying is disabled */
@@ -133,16 +142,20 @@ struct TBlendableToken
 	void AddTo(WorkingDataType& CumulativeBlend, TMovieSceneInitialValueStore<DataType>& InitialValueStore) const
 	{
 		check(Value.IsValid());
-		Value->AddTo(CumulativeBlend, Weight, BlendType, InitialValueStore);
+		Value->AddTo(CumulativeBlend, Weight, BlendType, BlendingOrder, InitialValueStore);
 	}
 
+	bool operator<(const TBlendableToken& RHS) const
+	{
+		return BlendingOrder < RHS.BlendingOrder;
+	}
 private:
 
 	/** Base class for all value types */
 	struct IData
 	{
 		virtual ~IData() {}
-		virtual void AddTo(WorkingDataType& CumulativeBlend, float Weight, EMovieSceneBlendType BlendType, TMovieSceneInitialValueStore<DataType>& InitialValueStore) const = 0;
+		virtual void AddTo(WorkingDataType& CumulativeBlend, float Weight, EMovieSceneBlendType BlendType, int32 BlendingOrder, TMovieSceneInitialValueStore<DataType>& InitialValueStore) const = 0;
 	};
 
 	/** Templated value data for any other type */
@@ -151,11 +164,18 @@ private:
 	{
 		TData(T In) : Data(MoveTemp(In)) {}
 
-		virtual void AddTo(WorkingDataType& CumulativeBlend, float InWeight, EMovieSceneBlendType InBlendType, TMovieSceneInitialValueStore<DataType>& InitialValueStore) const
+		virtual void AddTo(WorkingDataType& CumulativeBlend, float InWeight, EMovieSceneBlendType InBlendType, int32 InBlendingOrder, TMovieSceneInitialValueStore<DataType>& InitialValueStore) const
 		{
 			// Use the default BlendValue function, or any other BlendValue function found through ADL on WorkingDataType
 			using UE::MovieScene::BlendValue;
-			BlendValue(CumulativeBlend, Data, InWeight, InBlendType, InitialValueStore);
+			if (InBlendingOrder == INDEX_NONE)
+			{
+				BlendValue(CumulativeBlend, Data, InWeight, InBlendType, InitialValueStore);
+			}
+			else
+			{
+				BlendValue(CumulativeBlend, Data, InWeight, InBlendType, InBlendingOrder, InitialValueStore);
+			}
 		}
 
 		/** The actual value to blend */
@@ -178,4 +198,8 @@ public:
 
 	/** Enumeration specifying how this token should be blended */
 	EMovieSceneBlendType BlendType;
+
+	/** Opitonal Blending Order, if present will be used to sort additives and override blend types*/
+	int32 BlendingOrder = INDEX_NONE;
+
 };

@@ -29,7 +29,7 @@ FQualifiedFrameTime ULiveLinkTimecodeProvider::GetQualifiedFrameTime() const
 		}
 		else
 		{
-			// Find the frame that is the closest to what we expect.
+			// Find the frame that is the closest to the current world time.
 			const double Seconds = FPlatformTime::Seconds();
 			int32 FoundIndex = SubjectFrameTimes.Num() - 1;
 			for (; FoundIndex >= 0; --FoundIndex)
@@ -62,7 +62,7 @@ FQualifiedFrameTime ULiveLinkTimecodeProvider::GetQualifiedFrameTime() const
 			}
 
 			check(IndexA != INDEX_NONE && IndexB != INDEX_NONE);
-			// Between the 2 closest frames
+			// Using the 2 closest frames
 			return LerpBetweenFrames(Seconds, IndexA, IndexB);
 		}
 	}
@@ -111,6 +111,9 @@ bool ULiveLinkTimecodeProvider::Initialize(class UEngine* InEngine)
 
 	InitClient();
 
+	UnregisterSubject();
+	RegisterSubject();
+	
 	return true;
 }
 

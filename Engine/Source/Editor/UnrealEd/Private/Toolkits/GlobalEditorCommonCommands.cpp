@@ -15,6 +15,7 @@
 #include "Toolkits/SGlobalOpenAssetDialog.h"
 #include "Toolkits/SGlobalTabSwitchingDialog.h"
 #include "StatusBarSubsystem.h"
+#include "LevelEditorActions.h"
 
 #define LOCTEXT_NAMESPACE "GlobalEditorCommonCommands"
 
@@ -54,6 +55,8 @@ void FGlobalEditorCommonCommands::RegisterCommands()
 	UI_COMMAND(OpenOutputLogDrawer, "Open Output Log Drawer", "Opens the output log drawer from the active asset editor status bar", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Alt, EKeys::Tilde));
 
 	UI_COMMAND(OpenDocumentation, "Open Documentation...", "Opens documentation for this tool", EUserInterfaceActionType::Button, FInputChord(EKeys::F1));
+
+	UI_COMMAND(OpenLevel, "Open Level...", "Loads an existing level", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::O));
 
 #if PLATFORM_MAC
 	// On mac command and ctrl are automatically swapped. Command + Space is spotlight search so we use ctrl+space on mac to avoid the conflict
@@ -102,6 +105,11 @@ void FGlobalEditorCommonCommands::MapActions(TSharedRef<FUICommandList>& Toolkit
 	ToolkitCommands->MapAction(
 		Get().OpenOutputLogDrawer,
 		FExecuteAction::CreateStatic(&FGlobalEditorCommonCommands::OnOpenOutputLogDrawer));
+
+	ToolkitCommands->MapAction(
+		Get().OpenLevel,
+		FExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::OpenLevel),
+		FCanExecuteAction::CreateStatic(&FLevelEditorActionCallbacks::OpenLevel_CanExecute));
 }
 
 void FGlobalEditorCommonCommands::OnPressedCtrlTab(TSharedPtr<FUICommandInfo> TriggeringCommand)
@@ -220,7 +228,7 @@ void FGlobalEditorCommonCommands::OnSummonedConsoleCommandBox()
 
 void FGlobalEditorCommonCommands::OnOpenContentBrowserDrawer()
 {
-	GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->OpenContentBrowserDrawer();
+	GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->ToggleContentBrowserDrawer();
 }
 
 void FGlobalEditorCommonCommands::OnOpenOutputLogDrawer()

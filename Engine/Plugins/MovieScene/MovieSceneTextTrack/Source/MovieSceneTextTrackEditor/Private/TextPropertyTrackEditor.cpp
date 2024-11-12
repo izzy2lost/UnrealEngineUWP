@@ -6,6 +6,7 @@
 #include "SequencerKeyStructGenerator.h"
 #include "UObject/TextProperty.h"
 #include "Widgets/STextKeyEditor.h"
+#include "ISequencerChannelInterface.h"
 
 TSharedRef<ISequencerTrackEditor> FTextPropertyTrackEditor::CreateTrackEditor(TSharedRef<ISequencer> OwningSequencer)
 {
@@ -31,11 +32,7 @@ bool CanCreateKeyEditor(const FMovieSceneTextChannel* Channel)
 	return true;
 }
 
-TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTextChannel>& Channel
-	, UMovieSceneSection* Section
-	, const FGuid& InObjectBindingID
-	, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings
-	, TWeakPtr<ISequencer> InSequencer)
+TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTextChannel>& Channel, const UE::Sequencer::FCreateKeyEditorParams& InParams)
 {
 	using namespace UE::MovieScene;
 
@@ -46,11 +43,11 @@ TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTe
 	}
 
 	FTextKeyEditorParams Params;
-	Params.ObjectBindingID = InObjectBindingID;
+	Params.ObjectBindingID = InParams.ObjectBindingID;
 	Params.ChannelHandle = Channel;
-	Params.WeakSection = Section;
-	Params.WeakSequencer = InSequencer;
-	Params.WeakPropertyBindings = PropertyBindings;
+	Params.WeakSection = InParams.OwningSection;
+	Params.WeakSequencer = InParams.Sequencer;
+	Params.WeakPropertyBindings = InParams.PropertyBindings;
 	Params.OnGetExternalValue = ExternalValue->OnGetExternalValue;
 
 	return SNew(STextKeyEditor, MoveTemp(Params));

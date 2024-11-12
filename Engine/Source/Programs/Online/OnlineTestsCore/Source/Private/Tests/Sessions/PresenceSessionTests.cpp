@@ -2,8 +2,10 @@
 
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/LeaveSessionHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "Online/OnlineServicesLog.h"
+#include "EOSShared.h"
 #include "Helpers/TickForTime.h"
-#include "OnlineCatchHelper.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_PRESENCESESSION_TAG SESSIONS_TAG "[presencesession]"
@@ -14,7 +16,8 @@
 SESSIONS_TEST_CASE("If I call IsPresenceSession with an invalid account id, I get an error", EG_SESSIONS_PRESENCESESSION_TAG)
 {
 	DestroyCurrentServiceModule();
-	GetLoginPipeline()
+
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FIsPresenceSession::Params OpIsPresenceParams;
@@ -33,7 +36,7 @@ SESSIONS_TEST_CASE("If I call IsPresenceSession with an invalid session id, I ge
 {
 	FAccountId AccountId;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([&AccountId](SubsystemType OnlineSubsystem)
 			{
 				FIsPresenceSession::Params OpIsPresenceParams;
@@ -51,9 +54,11 @@ SESSIONS_TEST_CASE("If I call IsPresenceSession with an invalid session id, I ge
 
 SESSIONS_TEST_CASE("If I call IsPresenceSession with an unregistered account id, I get an error", EG_SESSIONS_PRESENCESESSION_TAG)
 {
-	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
 
+	DestroyCurrentServiceModule();
+
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -75,7 +80,7 @@ SESSIONS_TEST_CASE("If I call IsPresenceSession with an unregistered account id,
 	FGetSessionByName::Params OpGetByNameParams;
 	OpGetByNameParams.LocalName = TEXT("IsPresenceUnregisteredSessionName");
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -106,6 +111,8 @@ SESSIONS_TEST_CASE("If I call IsPresenceSession with an unregistered account id,
 
 SESSIONS_TEST_CASE("If I call IsPresenceSession with valid information, it returns true if the session matches, and error if it does not", EG_SESSIONS_PRESENCESESSIONEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpFirstCreateParams;
@@ -127,17 +134,26 @@ SESSIONS_TEST_CASE("If I call IsPresenceSession with valid information, it retur
 	FIsPresenceSession::Params OpFirstIsPresenceParams;
 	FIsPresenceSession::Params OpSecondIsPresenceParams;
 
-	FLeaveSession::Params OpLeaveParams;
-	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
-	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
-	LeaveSessionHelperParams.OpParams->SessionName = TEXT("IsPresenceEnableSessionName");
-	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+	FLeaveSession::Params OpFirstLeaveParams;
+	FLeaveSessionHelper::FHelperParams FirstLeaveSessionHelperParams;
+	FirstLeaveSessionHelperParams.OpParams = &OpFirstLeaveParams;
+	FirstLeaveSessionHelperParams.OpParams->SessionName = TEXT("IsPresenceEnableSessionName");
+	FirstLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpSecondLeaveParams;
+	FLeaveSessionHelper::FHelperParams SecondLeaveSessionHelperParams;
+	SecondLeaveSessionHelperParams.OpParams = &OpSecondLeaveParams;
+	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("IsPresenceDisableSessionName");
+	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 	 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = SecondAccountId;
-	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	
+	FirstLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	SecondLeaveSessionHelperParams.OpParams->LocalAccountId = SecondAccountId;
+
 	OpFirstIsPresenceParams.LocalAccountId = FirstAccountId;
 	OpSecondIsPresenceParams.LocalAccountId = SecondAccountId;
 
@@ -169,14 +185,15 @@ SESSIONS_TEST_CASE("If I call IsPresenceSession with valid information, it retur
 				REQUIRE(Result.IsError());
 				CHECK(Result.GetErrorValue() == Errors::InvalidState());
 			})
-		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(FirstLeaveSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(SecondLeaveSessionHelperParams));
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("If I call SetPresenceSession for EOS, I get an error", EG_SESSIONS_PRESENCESESSIONEOS_TAG)
 {
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FSetPresenceSession::Params OpSetPresenceParams;
@@ -192,7 +209,7 @@ SESSIONS_TEST_CASE("If I call SetPresenceSession for EOS, I get an error", EG_SE
 
 SESSIONS_TEST_CASE("If I call SetPresenceSession with an invalid account id, I get an error", EG_SESSIONS_PRESENCESESSIONNULL_TAG)
 {
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FSetPresenceSession::Params OpSetPresenceParams;
@@ -210,7 +227,7 @@ SESSIONS_TEST_CASE("If I call SetPresenceSession with an invalid account id, I g
 SESSIONS_TEST_CASE("If I call SetPresenceSession with an invalid session id, I get an error", EG_SESSIONS_PRESENCESESSIONNULL_TAG)
 {
 	FAccountId AccountId;
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceLambda([&AccountId](SubsystemType OnlineSubsystem)
 			{
 				FSetPresenceSession::Params OpSetPresenceParams;
@@ -246,7 +263,7 @@ SESSIONS_TEST_CASE("If I call SetPresenceSession with valid data, the operation 
 
 	FSetPresenceSession::Params OpSetPresenceParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -276,7 +293,7 @@ SESSIONS_TEST_CASE("If I call SetPresenceSession with valid data, the operation 
 
 SESSIONS_TEST_CASE("If I call ClearPresenceSession for EOS, I get an error", EG_SESSIONS_PRESENCESESSIONEOS_TAG)
 {
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FClearPresenceSession::Params OpClearPresenceParams;
@@ -292,7 +309,7 @@ SESSIONS_TEST_CASE("If I call ClearPresenceSession for EOS, I get an error", EG_
 
 SESSIONS_TEST_CASE("If I call ClearPresenceSession with an invalid account id, I get an error", EG_SESSIONS_PRESENCESESSIONNULL_TAG)
 {
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceLambda([](SubsystemType OnlineSubsystem)
 			{
 				FClearPresenceSession::Params OpClearPresenceParams;
@@ -319,9 +336,16 @@ SESSIONS_TEST_CASE("If I call ClearPresenceSession with valid data, the operatio
 	CreateSessionHelperParams.OpParams->SessionSettings.SchemaName = TEXT("SchemaName");
 	CreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 2;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("ClearPresenceValidName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 	
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -333,7 +357,8 @@ SESSIONS_TEST_CASE("If I call ClearPresenceSession with valid data, the operatio
 				ISessionsPtr SessionsInterface = OnlineSubsystem->GetSessionsInterface();
 				TOnlineResult<FClearPresenceSession> Result = SessionsInterface->ClearPresenceSession(MoveTemp(OpClearPresenceParams));
 				REQUIRE_OP(Result);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }

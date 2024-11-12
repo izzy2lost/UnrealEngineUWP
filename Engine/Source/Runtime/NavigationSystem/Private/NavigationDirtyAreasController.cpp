@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NavigationDirtyAreasController.h"
+#include "AI/Navigation/NavigationDirtyArea.h"
+#include "AI/Navigation/NavigationDirtyElement.h"
 #include "NavigationData.h"
 #include "NavigationSystem.h"
 #include "VisualLogger/VisualLogger.h"
-#include "AI/Navigation/NavigationDirtyElement.h"
 
 DEFINE_LOG_CATEGORY(LogNavigationDirtyArea);
 
@@ -77,7 +78,8 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 			for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
 			{
 				const FBox& AreaBound = DirtyArea.Bounds;
-				if (!ensureMsgf(AreaBound.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
+				if (!ensureMsgf(AreaBound.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"),
+					__FUNCTION__, *DirtyArea.GetSourceDescription()))
 				{
 					continue;
 				}
@@ -90,7 +92,7 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 						const FBox OverlapBox = AreaBound.Overlap(SeedBounds);
 						if (OverlapBox.IsValid)
 						{
-							SubAreaArray.Emplace(OverlapBox, DirtyArea.Flags, DirtyArea.OptionalSourceObject.Get());
+							SubAreaArray.Emplace(OverlapBox, DirtyArea.Flags, DirtyArea.OptionalSourceElement);
 						}
 					}
 				}
@@ -114,45 +116,58 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 	}
 }
 
+// Deprecated
 void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc /*= nullptr*/,
 	const FNavigationDirtyElement* DirtyElement /*= nullptr*/, const FName& DebugReason /*= NAME_None*/)
 {
-	AddAreas({NewArea}, Flags, ObjectProviderFunc, DirtyElement, DebugReason);
+	AddAreas({NewArea}, static_cast<ENavigationDirtyFlag>(Flags), /*ElementProviderFunc*/nullptr, DirtyElement, DebugReason);
 }
 
+// Deprecated
 void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAreas, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FNavigationDirtyElement* DirtyElement, const FName& DebugReason)
+{
+	AddAreas(NewAreas, static_cast<ENavigationDirtyFlag>(Flags), /*ElementProviderFunc*/nullptr, DirtyElement, DebugReason);
+}
+
+void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const ENavigationDirtyFlag Flags, const TFunction<const TSharedPtr<const FNavigationElement>()>& ElementProviderFunc /*= nullptr*/,
+	const FNavigationDirtyElement* DirtyElement /*= nullptr*/, const FName& DebugReason /*= NAME_None*/)
+{
+	AddAreas({NewArea}, Flags, ElementProviderFunc, DirtyElement, DebugReason);
+}
+
+void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAreas, const ENavigationDirtyFlag Flags, const TFunction<const TSharedPtr<const FNavigationElement>()>& ElementProviderFunc, const FNavigationDirtyElement* DirtyElement, const FName& DebugReason)
 {
 #if !UE_BUILD_SHIPPING
 	// always keep track of reported areas even when filtered out by invalid area as long as flags are valid
-	bDirtyAreasReportedWhileAccumulationLocked = bDirtyAreasReportedWhileAccumulationLocked || (Flags > 0 && !bCanAccumulateDirtyAreas);
+	bDirtyAreasReportedWhileAccumulationLocked |= (Flags != ENavigationDirtyFlag::None) && !bCanAccumulateDirtyAreas;
 
 	checkf(NewAreas.Num() > 0, TEXT("All callers of this method are expected to provide at least one area."));
 #endif // !UE_BUILD_SHIPPING
 
-	UObject* SourceObject = ObjectProviderFunc ? ObjectProviderFunc() : nullptr;
-
+	const TSharedPtr<const FNavigationElement> SourceElement = ElementProviderFunc ? ElementProviderFunc() : nullptr;
 	if (bUseWorldPartitionedDynamicMode)
 	{
 		// Both conditions must be true to ignore dirtiness.
 		//  If it's only a visibility change and it's not in the base navmesh, it's the case created by loading a data layer (dirtiness must be applied)
 		//  If there is no visibility change, the change is not from loading/unloading a cell (dirtiness must be applied)
 		
-		// ObjectProviderFunc() is not always providing a valid object.
-		if (const bool bIsFromVisibilityChange = (DirtyElement && DirtyElement->bIsFromVisibilityChange) || (SourceObject && FNavigationSystem::IsLevelVisibilityChanging(SourceObject)))
+		// ElementProviderFunc() is not always providing a valid element.
+		if (const bool bIsFromVisibilityChange = (DirtyElement && DirtyElement->bIsFromVisibilityChange) || (SourceElement && SourceElement->IsFromLevelVisibilityChange()))
 		{
-			// If the area is from the addition or removal of objects caused by level loading/unloading and it's already in the base navmesh ignore the dirtiness.
-			if (const bool bIsIncludedInBaseNavmesh = (DirtyElement && DirtyElement->bIsInBaseNavmesh) || (SourceObject && FNavigationSystem::IsInBaseNavmesh(SourceObject)))
+			// If the area is from the addition or removal of elements caused by level loading/unloading and it's already in the base navmesh ignore the dirtiness.
+			if (const bool bIsIncludedInBaseNavmesh = (DirtyElement && DirtyElement->bIsInBaseNavmesh) || (SourceElement && SourceElement->IsInBaseNavigationData()))
 			{
-				UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("Ignoring dirtyness (visibility changed and in base navmesh). (object: %s from: %s)"),
-					*GetFullNameSafe(SourceObject), *DebugReason.ToString());
+				UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("Ignoring dirtyness (visibility changed and in base navmesh). (element: %s from: %s)"),
+					*GetFullNameSafe(SourceElement.Get()), *DebugReason.ToString());
 				return;
 			}
 		}
 	}
 
-	if (ShouldSkipObjectPredicate.IsBound() && SourceObject)
+	if (ShouldSkipObjectPredicate.IsBound())
 	{
-		if (ShouldSkipObjectPredicate.Execute(*SourceObject))
+		const UObject* SourceObject = SourceElement ? SourceElement->GetWeakUObject().Get() : nullptr;
+		if (SourceObject && ShouldSkipObjectPredicate.Execute(*SourceObject))
 		{
 			return;
 		}
@@ -176,7 +191,9 @@ void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAr
 		}
 
 #if !UE_BUILD_SHIPPING
-		auto DumpExtraInfo = [SourceObject, DebugReason, BoundsSize, NewArea]() {
+		auto DumpExtraInfo = [SourceElement, DebugReason, BoundsSize, NewArea]()
+			{
+				const UObject* SourceObject = SourceElement ? SourceElement->GetWeakUObject().Get() : nullptr;
 				FString ObjectInfo;
 				if (const UObject* ObjectOwner = (SourceObject != nullptr ? SourceObject->GetOuter() : nullptr))
 				{
@@ -184,12 +201,30 @@ void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAr
 					ObjectInfo = FString::Printf(TEXT(" | Element's owner: %s"), *GetFullNameSafe(ObjectOwner));
 				}
 
-				return FString::Printf(TEXT("From: %s | Object: %s %s | Bounds: %s"),
+				// attempt to find the actor which is/contains SourceObject
+				const AActor* Actor = Cast<AActor>(SourceObject);
+				{
+					const UObject* CurrentObject = SourceObject;
+					while (!Actor && CurrentObject)
+					{
+						CurrentObject = CurrentObject->GetOuter();
+						Actor = Cast<AActor>(CurrentObject);
+					}
+				}
+				FString ActorInfo;
+				if (Actor)
+				{
+					// useful to have actor label for those placed in editor
+					ActorInfo = FString::Printf(TEXT("| Actor: %s | Actor label: %s"), *GetFullNameSafe(Actor), *Actor->GetActorNameOrLabel());
+				}
+
+				return FString::Printf(TEXT("From: %s | Object: %s %s | Bounds: %s %s"),
 					*DebugReason.ToString(),
 					*GetFullNameSafe(SourceObject),
 					*ObjectInfo,
-					*BoundsSize.ToString());
-		};
+					*BoundsSize.ToString(),
+					*ActorInfo);
+			};
 
 		if (ShouldReportOversizedDirtyArea() && BoundsSize.GetMax() > DirtyAreaWarningSizeThreshold)
 		{
@@ -201,15 +236,15 @@ void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAr
 		}
 #endif // !UE_BUILD_SHIPPING
 
-		if (Flags > 0 && bCanAccumulateDirtyAreas)
+		if (Flags != ENavigationDirtyFlag::None && bCanAccumulateDirtyAreas)
 		{
-			DirtyAreas.Add(FNavigationDirtyArea(NewArea, Flags, SourceObject));
+			DirtyAreas.Add(FNavigationDirtyArea(NewArea, Flags, SourceElement));
 		}
 	}
 	
 	UE_CLOG(NumInvalidBounds > 0 || NumEmptyBounds > 0, LogNavigationDirtyArea, Warning,
-		TEXT("Skipped some dirty area creation due to: %d invalid bounds, %d empty bounds (object: %s, from: %s)"),
-		NumInvalidBounds, NumEmptyBounds, *GetFullNameSafe(SourceObject), *DebugReason.ToString());
+		TEXT("Skipped some dirty area creation due to: %d invalid bounds, %d empty bounds (element: %s, from: %s)"),
+		NumInvalidBounds, NumEmptyBounds, *GetFullNameSafe(SourceElement.Get()), *DebugReason.ToString());
 }
 
 void FNavigationDirtyAreasController::OnNavigationBuildLocked()

@@ -73,7 +73,7 @@ void FRollingHash::RollForward(const uint8& NewByte)
 {
 	// We must have consumed enough bytes to function correctly
 	check(NumBytesConsumed == WindowSize);
-	uint8 OldByte;
+	uint8 OldByte = 0;
 	WindowData.Dequeue(OldByte);
 	WindowData.Enqueue(NewByte);
 	// Update our HashState
@@ -97,15 +97,11 @@ uint64 FRollingHash::GetHashForDataSet(const uint8* DataSet, uint32 WindowSize)
 
 FRollingHash::FRollingHash(uint32 InWindowSize)
 	: WindowSize(InWindowSize)
-	, HashState(0)
-	, NumBytesConsumed(0)
 	, WindowData(WindowSize)
 {
 }
 
 FRollingHash::FRollingHash()
-	: WindowSize(0)
-	, WindowData(0)
 {
 }
 

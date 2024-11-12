@@ -10,9 +10,11 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Internationalization/Internationalization.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 #include "HAL/PlatformApplicationMisc.h" // For clipboard
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSpacer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ToolMenus)
 
@@ -267,17 +269,16 @@ public:
 			}
 			else
 			{
-				FMenuEntryParams MenuEntryParams;
-				MenuEntryParams.LabelOverride = LabelToDisplay;
-				MenuEntryParams.ToolTipOverride = Block.ToolTip;
-				MenuEntryParams.IconOverride = Block.Icon.Get();
-				MenuEntryParams.DirectActions = UIAction;
-				MenuEntryParams.ExtensionHook = BlockNameOverride;
-				MenuEntryParams.UserInterfaceActionType = Block.UserInterfaceActionType;
-				MenuEntryParams.TutorialHighlightName = Block.TutorialHighlightName;
-				MenuEntryParams.InputBindingOverride = Block.InputBindingLabel;
-				
-				MenuBuilder.AddMenuEntry(MenuEntryParams);
+				MenuBuilder.AddMenuEntry(
+					LabelToDisplay,
+					Block.ToolTip,
+					Block.Icon.Get(),
+					UIAction,
+					BlockNameOverride,
+					Block.UserInterfaceActionType,
+					Block.TutorialHighlightName,
+					Block.InputBindingLabel
+				);
 			}
 		}
 	}
@@ -351,12 +352,13 @@ public:
 			}
 			else
 			{
-				MenuBuilder.AddWidget(Widget.ToSharedRef(), LabelToDisplay.Get(), Block.WidgetData.bNoIndent, Block.WidgetData.bSearchable, Block.ToolTip.Get());
+				Block.WidgetData.StyleParams.bNoIndent = Block.WidgetData.bNoIndent;
+				MenuBuilder.AddWidget(Widget.ToSharedRef(), LabelToDisplay.Get(), Block.WidgetData.StyleParams, Block.WidgetData.bSearchable, Block.ToolTip.Get());
 			}
 		}
 		else
 		{
-			UE_LOG(LogToolMenus, Warning, TEXT("Menu '%s', item '%s', type not currently supported: %d"), *MenuData->MenuName.ToString(), *BlockNameOverride.ToString(), int(Block.Type));
+			UE_LOG(LogToolMenus, Warning, TEXT("Menu '%s', item '%s', Menus do not support: %s"), *MenuData->MenuName.ToString(), *BlockNameOverride.ToString(), *UEnum::GetValueAsString(Block.Type));
 		}
 	};
 
@@ -633,7 +635,7 @@ void UToolMenus::AssembleMenuSection(UToolMenu* GeneratedMenu, const UToolMenu* 
 					ConstructedSection.Context = ConstructedEntries->Context;
 					GeneratedEntry.Construct.Execute(ConstructedSection);
 				}
-				GeneratedEntries.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedEntries.RemoveAt(0, EAllowShrinking::No);
 
 				// Combine all user's choice of selections here into the current section target
 				// If the user wants to add items to different sections they will need to create dynamic section instead (for now)
@@ -661,7 +663,7 @@ void UToolMenus::AssembleMenuSection(UToolMenu* GeneratedMenu, const UToolMenu* 
 				{
 					BlocksToAddLast.Add(GeneratedEntry);
 				}
-				GeneratedEntries.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedEntries.RemoveAt(0, EAllowShrinking::No);
 			}
 		}
 	}
@@ -764,13 +766,13 @@ void UToolMenus::AssembleMenu(UToolMenu* GeneratedMenu, const UToolMenu* Other)
 					}
 				}
 				
-				GeneratedSections.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedSections.RemoveAt(0, EAllowShrinking::No);
 				GeneratedSections.Insert(ConstructedSections->Sections, 0);
 			}
 			else
 			{
 				RemainingSections.Add(GeneratedSections[0]);
-				GeneratedSections.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedSections.RemoveAt(0, EAllowShrinking::No);
 			}
 		}
 	}
@@ -862,7 +864,7 @@ void UToolMenus::RemoveCustomization(const FName InName)
 	int32 FoundIndex = FindMenuCustomizationIndex(InName);
 	if (FoundIndex != INDEX_NONE)
 	{
-		CustomizedMenus.RemoveAt(FoundIndex, 1, EAllowShrinking::No);
+		CustomizedMenus.RemoveAt(FoundIndex, EAllowShrinking::No);
 	}
 }
 
@@ -1347,6 +1349,8 @@ TSharedRef<SWidget> UToolMenus::GenerateToolbarComboButtonMenu(TWeakObjectPtr<UT
 
 void UToolMenus::PopulateMenuBuilder(FMenuBuilder& MenuBuilder, UToolMenu* MenuData)
 {
+	MenuBuilder.SetSearchable(MenuData->bSearchable);
+
 	const bool bIsEditing = MenuData->IsEditing();
 	if (GetEditMenusMode() && !bIsEditing && EditMenuDelegate.IsBound())
 	{
@@ -1408,6 +1412,453 @@ void UToolMenus::PopulateMenuBuilder(FMenuBuilder& MenuBuilder, UToolMenu* MenuD
 	AddReferencedContextObjects(MenuBuilder.GetMultiBox(), MenuData);
 }
 
+void UToolMenus::ExtractChildBlocksFromSubMenu(
+	UToolMenu* ParentMenu, FToolMenuEntry& InBlock, TArray<TTuple<UToolMenu*, FToolMenuEntry*, FName>>& SubMenuBlocks
+)
+{
+	const bool bBuiltViaDelegate =
+		ConvertWidgetChoice(InBlock.ToolBarData.ComboButtonContextMenuGenerator, ParentMenu->Context).IsBound();
+
+	const bool bHasChildren = (InBlock.Type == EMultiBlockType::ToolBarComboButton
+								  || (InBlock.Type == EMultiBlockType::MenuEntry && InBlock.IsSubMenu()))
+						   && !bBuiltViaDelegate;
+
+	if (!bHasChildren)
+	{
+		return;
+	}
+
+	UToolMenu* const SubMenu = GenerateSubMenu(ParentMenu, InBlock.Name);
+	if (!SubMenu)
+	{
+		return;
+	}
+
+	// Add the blocks reversed to follow a depth-first iteration.
+	for (int i = SubMenu->Sections.Num() - 1; i >= 0; --i)
+	{
+		FToolMenuSection& Section = SubMenu->Sections[i];
+
+		for (int j = Section.Blocks.Num() - 1; j >= 0; --j)
+		{
+			FToolMenuEntry& Block = Section.Blocks[j];
+			SubMenuBlocks.Push(TTuple<UToolMenu*, FToolMenuEntry*, FName>(SubMenu, &Block, Section.Name));
+		}
+	}
+}
+
+void UToolMenus::PopulateToolBarBuilderWithTopLevelChildren(
+	FToolBarBuilder& ToolBarBuilder, UToolMenu* ParentMenu, FToolMenuEntry& InBlock)
+{
+	TArray<TTuple<UToolMenu*, FToolMenuEntry*, FName>> SubMenuBlocks;
+	// Seed the blocks with the passed-in submenu.
+	ExtractChildBlocksFromSubMenu(ParentMenu, InBlock, SubMenuBlocks);
+
+	// Collect the blocks that might be raised to the top level. Also include separators so we can visualize those in
+	// the toolbar when they appear between two raised blocks.
+	TArray<TTuple<UToolMenu*, FToolMenuEntry*, FName>> BlocksToAdd;
+
+	// Traverse the sub menu blocks we've found thus far to find more grandchild blocks that are raised (raised set to
+	// boolean true) or could be dynamically raised (raised set to a TAttribute<bool> driven by a delegate) to the
+	// top-level toolbar.
+	int32 NumIterations = 0;
+	while (SubMenuBlocks.Num() > 0)
+	{
+		const TTuple<UToolMenu*, FToolMenuEntry*, FName> SubMenuBlock = SubMenuBlocks.Pop(EAllowShrinking::No);
+		UToolMenu* const SubMenu = SubMenuBlock.Get<0>();
+		FToolMenuEntry* const Block = SubMenuBlock.Get<1>();
+		const FName SectionName = SubMenuBlock.Get<2>();
+
+		// Keep track of how many blocks we've visited to ensure we don't loop indefinitely.
+		if (++NumIterations > 5000)
+		{
+			UE_LOG(LogToolMenus, Warning,
+				TEXT("Possible infinite loop for menu with section menu. parent menu: %s, menu: %s, block: %s"),
+				*ParentMenu->MenuName.ToString(), *SubMenu->MenuName.ToString(), *Block->Name.ToString());
+			break;
+		}
+
+		const bool bIsBound = Block->ShowInToolbarTopLevel.IsBound();
+		const bool bIsSetToValue = !bIsBound && Block->ShowInToolbarTopLevel.IsSet();
+		const bool bIsSetToTrueValue = bIsSetToValue && Block->ShowInToolbarTopLevel.Get();
+		const bool bIsBoundOrTrue = bIsBound || bIsSetToTrueValue;
+		if (bIsBoundOrTrue || Block->Type == EMultiBlockType::Separator)
+		{
+			BlocksToAdd.Add(SubMenuBlock);
+		}
+
+		ExtractChildBlocksFromSubMenu(SubMenu, *Block, SubMenuBlocks);
+	}
+
+	// Do not allow leading separators.
+	while (BlocksToAdd.Num() > 0 && BlocksToAdd[0].Get<1>()->Type == EMultiBlockType::Separator)
+	{
+		BlocksToAdd.RemoveAt(0);
+	}
+
+	// Do not allow trailing separators.
+	while (BlocksToAdd.Num() > 0 && BlocksToAdd[BlocksToAdd.Num() - 1].Get<1>()->Type == EMultiBlockType::Separator)
+	{
+		BlocksToAdd.RemoveAt(BlocksToAdd.Num() - 1);
+	}
+
+	// Do not allow rows of separators.
+	for (int i = 1; i < BlocksToAdd.Num(); ++i)
+	{
+		const bool bIsCurrentSeparator = BlocksToAdd[i].Get<1>()->Type == EMultiBlockType::Separator;
+		const bool bWasPreviousSeparator = BlocksToAdd[i - 1].Get<1>()->Type == EMultiBlockType::Separator;
+		const bool bPartOfRowOfSeparators = bIsCurrentSeparator && bWasPreviousSeparator;
+
+		if (bPartOfRowOfSeparators)
+		{
+			BlocksToAdd.RemoveAt(i--);
+		}
+	}
+
+	if (BlocksToAdd.IsEmpty())
+	{
+		return;
+	}
+
+	// Dynamic visibility of separators
+	//
+	// We add separators in the top-level toolbar between raised entries if the raised entries lived in different
+	// sections or if a separator was explicitly added between the raised entries.
+	//
+	// Since entries can be dynamically raised, added toolbar separators must have dynamic visiblity. To support this,
+	// we record the visibility delegates of previously raised entries so separator visiblity delegates can use them.
+	//
+	// A menu might look like this:
+	//
+	//  |-- previous1 -|               |-- previous2 -|               |-- previous3 -|             |---- next ----|
+	//  raisedA raisedB SEPARATOR(N-2) raisedC raisedD SEPARATOR(N-1) raisedE raisedF SEPARATOR(N) raisedG raisedH
+	//
+	// PreviousEntries = (raisedA, raisedB, raisedC, raisedD, raisedE, raisedF)
+	// NextEntries = (raisedG, raisedH)
+	//
+	// Separator visibility is then calculated like this:
+	//
+	//   sep_vis = anyVisible(nextEntries) && anyVisible(PreviousEntries
+	//
+
+	TArray<TAttribute<bool>> PreviousVisibilities;
+	// This has to be heap allocated so we can still add do it after a separator visibility delegate captures it.
+	TSharedPtr<TArray<TAttribute<bool>>> NextVisibilities = MakeShared<TArray<TAttribute<bool>>>();
+
+	bool bHasRaisedEntrySinceLastSeparator = false;
+	// Seed the previous section with the first blocks's section so we don't start with adding a separator because
+	// sections seem to have changed.
+	FName PreviousSectionName = BlocksToAdd[0].Get<2>();
+	for (int i = 0; i < BlocksToAdd.Num(); ++i)
+	{
+		UToolMenu* const SubMenu = BlocksToAdd[i].Get<0>();
+		FToolMenuEntry* const Entry = BlocksToAdd[i].Get<1>();
+		const FName SectionName = BlocksToAdd[i].Get<2>();
+
+		// Add a separator if one was found or a new section was encountered.
+		if (bHasRaisedEntrySinceLastSeparator
+			&& (SectionName != PreviousSectionName || Entry->Type == EMultiBlockType::Separator))
+		{
+			// Step entry visibility delegate records forward now that we encountered a new separator.
+			PreviousVisibilities.Append(*NextVisibilities);
+			NextVisibilities = MakeShared<TArray<TAttribute<bool>>>();
+
+			const TAttribute<EVisibility> VisibilityOverride = TAttribute<EVisibility>::CreateLambda(
+				[Previous = PreviousVisibilities, Next = NextVisibilities]()
+				{
+					// This function calculates this expression and earlies out if possible.
+					// const bool bVisible = bAnyNext && bAnyPrevious;
+
+					bool bAnyNext = false;
+					for (const TAttribute<bool>& Visibility : *Next)
+					{
+						if (Visibility.Get())
+						{
+							bAnyNext = true;
+							break;
+						}
+					}
+
+					if (!bAnyNext)
+					{
+						return EVisibility::Collapsed;
+					}
+
+					for (const TAttribute<bool>& Visibility : Previous)
+					{
+						if (Visibility.Get())
+						{
+							return EVisibility::Visible;
+						}
+					}
+
+					return EVisibility::Collapsed;
+				}
+			);
+
+			const FName UnsetExtensionHook = NAME_None;
+			ToolBarBuilder.AddSeparator(UnsetExtensionHook, VisibilityOverride);
+			bHasRaisedEntrySinceLastSeparator = false;
+		}
+
+		// Make sure we actually add the entry if the reason we added a separator above was that the section names changed.
+		if (Entry->Type != EMultiBlockType::Separator)
+		{
+			const bool bRaiseToTopLevel = true;
+			PopulateToolBarBuilderWithEntry(ToolBarBuilder, SubMenu, *Entry, bRaiseToTopLevel);
+			bHasRaisedEntrySinceLastSeparator = true;
+
+			// Keep track of added entries' visibilities so separators can set their visibility override.
+			NextVisibilities->Add(Entry->ShowInToolbarTopLevel);
+		}
+
+		PreviousSectionName = SectionName;
+	}
+}
+
+void UToolMenus::PopulateToolBarBuilderWithEntry(
+	FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, FToolMenuEntry& Block, bool bIsRaisingToTopLevel
+)
+{
+	if (Block.ToolBarData.ConstructLegacy.IsBound())
+	{
+		Block.ToolBarData.ConstructLegacy.Execute(ToolBarBuilder, MenuData);
+		return;
+	}
+
+	// Override the style name.
+	{
+		FName OverrideStyleName = Block.StyleNameOverride;
+
+		// Add the .Raised suffix for menu entries raised to the top level.
+		if (bIsRaisingToTopLevel)
+		{
+			if (Block.StyleNameOverride != NAME_None)
+			{
+				OverrideStyleName = ISlateStyle::Join(Block.StyleNameOverride, ".Raised");
+			}
+			else
+			{
+				// We have to search up the submenu parent chain here because the immediate menu we're a part of might
+				// not have a style set while a parent could.
+				const UToolMenu* CurrentMenu = MenuData;
+				FName MenuStyleName = NAME_None;
+				while (MenuStyleName == NAME_None && CurrentMenu->SubMenuParent)
+				{
+					CurrentMenu = CurrentMenu->SubMenuParent.Get();
+					MenuStyleName = CurrentMenu->StyleName;
+				}
+
+				if (MenuStyleName != NAME_None)
+				{
+					OverrideStyleName = ISlateStyle::Join(MenuStyleName, ".Raised");
+				}
+			}
+		}
+
+		ToolBarBuilder.BeginStyleOverride(OverrideStyleName);
+	}
+
+	TAttribute<EVisibility> VisibilityOverride;
+	if (bIsRaisingToTopLevel && Block.ShowInToolbarTopLevel.IsBound())
+	{
+		VisibilityOverride = TAttribute<EVisibility>::CreateLambda(
+			[ShowInToolbarTopLevel = Block.ShowInToolbarTopLevel]() -> EVisibility
+			{
+				if (ShowInToolbarTopLevel.IsSet() && !ShowInToolbarTopLevel.Get())
+				{
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Visible;
+			}
+		);
+	}
+
+	const FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
+
+	TAttribute<FText> ToolbarLabelOverride;
+	if (Block.ToolBarData.LabelOverride.IsSet())
+	{
+		ToolbarLabelOverride = Block.ToolBarData.LabelOverride;
+	}
+	else if (const bool bHasIcon = Block.Icon.IsSet() || (Block.Command.IsValid() && Block.Command->GetIcon().IsSet());
+			 bHasIcon && bIsRaisingToTopLevel)
+	{
+		// Set the toolbar label to the empty string if we're raising an entry that has an icon. This makes
+		// raising/pinning of icons less annoying because the intended design is for them to not have a label. We can
+		// still use the ToolbarLabelOverride to bypass this.
+		ToolbarLabelOverride = FText();
+	}
+
+	if (Block.Type == EMultiBlockType::ToolBarButton || (Block.Type == EMultiBlockType::MenuEntry && !Block.IsSubMenu()))
+	{
+		if (Block.Command.IsValid() && !Block.IsCommandKeybindOnly())
+		{
+			bool bPopCommandList = false;
+			TSharedPtr<const FUICommandList> CommandListForAction;
+			if (Block.GetActionForCommand(MenuData->Context, CommandListForAction) != nullptr
+				&& CommandListForAction.IsValid())
+			{
+				ToolBarBuilder.PushCommandList(CommandListForAction.ToSharedRef());
+				bPopCommandList = true;
+			}
+			else
+			{
+				UE_LOG(LogToolMenus, Verbose, TEXT("UI command not found for toolbar entry: %s, toolbar: %s"),
+					*Block.Name.ToString(), *MenuData->MenuName.ToString());
+			}
+
+			ToolBarBuilder.AddToolBarButton(
+				Block.Command,
+				Block.Name,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.TutorialHighlightName,
+				FNewMenuDelegate(),
+				VisibilityOverride,
+				ToolbarLabelOverride
+			);
+
+			if (bPopCommandList)
+			{
+				ToolBarBuilder.PopCommandList();
+			}
+		}
+		else if (Block.ScriptObject)
+		{
+			UToolMenuEntryScript* ScriptObject = Block.ScriptObject;
+			TAttribute<FSlateIcon> Icon = ScriptObject->CreateIconAttribute(MenuData->Context);
+			ToolBarBuilder.AddToolBarButton(
+				UIAction,
+				ScriptObject->Data.Name,
+				ScriptObject->CreateLabelAttribute(MenuData->Context),
+				ScriptObject->CreateToolTipAttribute(MenuData->Context),
+				Icon,
+				Block.UserInterfaceActionType,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
+			);
+		}
+		else
+		{
+			ToolBarBuilder.AddToolBarButton(
+				UIAction,
+				Block.Name,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.UserInterfaceActionType,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
+			);
+		}
+
+		if (Block.ToolBarData.OptionsDropdownData.IsValid())
+		{
+			FOnGetContent OnGetContent = ConvertWidgetChoice(
+				Block.ToolBarData.OptionsDropdownData->MenuContentGenerator, MenuData->Context);
+			ToolBarBuilder.AddComboButton(
+				Block.ToolBarData.OptionsDropdownData->Action,
+				OnGetContent,
+				Block.Label,
+				Block.ToolBarData.OptionsDropdownData->ToolTip,
+				Block.Icon,
+				true,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
+			);
+		}
+	}
+	else if (Block.Type == EMultiBlockType::ToolBarComboButton
+			 || (Block.Type == EMultiBlockType::MenuEntry && Block.IsSubMenu()))
+	{
+		FOnGetContent OnGetContent = ConvertWidgetChoice(
+			Block.ToolBarData.ComboButtonContextMenuGenerator, MenuData->Context);
+		if (OnGetContent.IsBound())
+		{
+			ToolBarBuilder.AddComboButton(
+				UIAction,
+				OnGetContent,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.ToolBarData.bSimpleComboBox,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
+			);
+		}
+		else
+		{
+			FOnGetContent Delegate = FOnGetContent::CreateUObject(
+				this, &UToolMenus::GenerateToolbarComboButtonMenu, TWeakObjectPtr<UToolMenu>(MenuData), Block.Name);
+
+			ToolBarBuilder.AddComboButton(
+				UIAction,
+				Delegate,
+				Block.Label,
+				Block.ToolTip,
+				Block.Icon,
+				Block.ToolBarData.bSimpleComboBox,
+				Block.TutorialHighlightName,
+				VisibilityOverride,
+				ToolbarLabelOverride
+			);
+
+			// Also add any top-level flagged children to the toolbar.
+			if (!bIsRaisingToTopLevel)
+			{
+				PopulateToolBarBuilderWithTopLevelChildren(ToolBarBuilder, MenuData, Block);
+			}
+		}
+	}
+	else if (Block.Type == EMultiBlockType::Separator)
+	{
+		ToolBarBuilder.AddSeparator(Block.Name);
+	}
+	else if (Block.Type == EMultiBlockType::Widget)
+	{
+		TSharedPtr<SWidget> Widget;
+
+		if (Block.MakeCustomWidget.IsBound())
+		{
+			FToolMenuCustomWidgetContext EntryWidgetContext;
+			TSharedRef<FMultiBox> MultiBox = ToolBarBuilder.GetMultiBox();
+			EntryWidgetContext.StyleSet = MultiBox->GetStyleSet();
+			EntryWidgetContext.StyleName = MultiBox->GetStyleName();
+			Widget = Block.MakeCustomWidget.Execute(MenuData->Context, EntryWidgetContext);
+		}
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		else if (Block.MakeWidget.IsBound())
+		{
+			Widget = Block.MakeWidget.Execute(MenuData->Context);
+		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		FMenuEntryStyleParams StyleParams = Block.WidgetData.StyleParams;
+		StyleParams.HorizontalAlignment = HAlign_Fill;
+		// Default to vertical fill if vertical alignment hasn't been modified for this particular entry.
+		if (!StyleParams.VerticalAlignment.IsSet())
+		{
+			StyleParams.VerticalAlignment = VAlign_Fill;
+		}
+
+		ToolBarBuilder.AddWidget(Widget.ToSharedRef(), StyleParams, Block.TutorialHighlightName, Block.WidgetData.bSearchable, FNewMenuDelegate(), VisibilityOverride);
+	}
+	else
+	{
+		UE_LOG(LogToolMenus, Warning, TEXT("Toolbar '%s', item '%s', Toolbars do not support: %s"),
+			*MenuData->MenuName.ToString(), *Block.Name.ToString(), *UEnum::GetValueAsString(Block.Type));
+	}
+
+	ToolBarBuilder.EndStyleOverride();
+}
+
 void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData)
 {
 	if (GetEditMenusMode() && !MenuData->IsEditing() && EditMenuDelegate.IsBound())
@@ -1432,116 +1883,68 @@ void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMe
 		ToolBarBuilder.EndSection();
 	}
 
-	for (FToolMenuSection& Section : MenuData->Sections)
+	// Add the sections grouped by alignment with SSpacers in between. This visually separates them and allows users
+	// to align sections to appear first, middle, or last. Default-aligned sections appear grouped with first-aligned
+	// sections but appear after them.
+	const TArray<EToolMenuSectionAlign> SectionAlignments = { EToolMenuSectionAlign::First,
+															  EToolMenuSectionAlign::Default,
+															  EToolMenuSectionAlign::Middle,
+															  EToolMenuSectionAlign::Last };
+	int32 NumAddedSections = 0;
+	for (const EToolMenuSectionAlign CurrentAlignment : SectionAlignments)
 	{
-		if (Section.Construct.NewToolBarDelegateLegacy.IsBound())
+		// If we've already added all sections, there's no more work to do. Especially, we don't want to add any more SSpacers.
+		if (NumAddedSections >= MenuData->Sections.Num())
 		{
-			Section.Construct.NewToolBarDelegateLegacy.Execute(ToolBarBuilder, MenuData);
-			continue;
+			break;
 		}
 
-		ToolBarBuilder.BeginSection(Section.Name);
+		const bool bIsMiddleOrLast = CurrentAlignment == EToolMenuSectionAlign::Middle
+								  || CurrentAlignment == EToolMenuSectionAlign::Last;
 
-		for (FToolMenuEntry& Block : Section.Blocks)
+		// Add a spacer before the middle and last alignment groups, and only if we've already added a section to a
+		// previous alignment group.
+		if (bIsMiddleOrLast && NumAddedSections > 0)
 		{
-			if (Block.ToolBarData.ConstructLegacy.IsBound())
+			FMenuEntryStyleParams StyleParams;
+			StyleParams.HorizontalAlignment = HAlign_Right;
+			StyleParams.SizeRule = FSizeParam::ESizeRule::SizeRule_StretchContent;
+			StyleParams.MinSize = 0.5f;
+
+			ToolBarBuilder.AddWidget(SNew(SSpacer), StyleParams, NAME_None, true, {});
+		}
+
+		// Keep track if this is the first section we're adding for the CurrentAlignment. Make an exception if the
+		// current alignment is Default and we already added a first-aligned section, because in that case this
+		// isn't the first section in the "group" since we're displaying first and default-aligned sections together.
+		bool bFirstSectionInAlignmentGroup = CurrentAlignment == EToolMenuSectionAlign::Default ? NumAddedSections == 0
+																								: true;
+		for (FToolMenuSection& Section : MenuData->Sections)
+		{
+			if (Section.Alignment != CurrentAlignment)
 			{
-				Block.ToolBarData.ConstructLegacy.Execute(ToolBarBuilder, MenuData);
 				continue;
 			}
 
-			FUIAction UIAction = ConvertUIAction(Block, MenuData->Context);
-
-			ToolBarBuilder.BeginStyleOverride(Block.StyleNameOverride);
-
-			TSharedPtr<SWidget> Widget;
-
-			if (Block.MakeCustomWidget.IsBound())
+			if (Section.Construct.NewToolBarDelegateLegacy.IsBound())
 			{
-				FToolMenuCustomWidgetContext EntryWidgetContext;
-				TSharedRef<FMultiBox> MultiBox = ToolBarBuilder.GetMultiBox();
-				EntryWidgetContext.StyleSet = MultiBox->GetStyleSet();
-				EntryWidgetContext.StyleName = MultiBox->GetStyleName();
-				Widget = Block.MakeCustomWidget.Execute(MenuData->Context, EntryWidgetContext);
-			}
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			else if(Block.MakeWidget.IsBound())
-			{
-				Widget = Block.MakeWidget.Execute(MenuData->Context);
-			}
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-			if (Block.Type == EMultiBlockType::ToolBarButton)
-			{
-				if (Block.Command.IsValid() && !Block.IsCommandKeybindOnly())
-				{
-					bool bPopCommandList = false;
-					TSharedPtr<const FUICommandList> CommandListForAction;
-					if (Block.GetActionForCommand(MenuData->Context, CommandListForAction) != nullptr && CommandListForAction.IsValid())
-					{
-						ToolBarBuilder.PushCommandList(CommandListForAction.ToSharedRef());
-						bPopCommandList = true;
-					}
-					else
-					{
-						UE_LOG(LogToolMenus, Verbose, TEXT("UI command not found for toolbar entry: %s, toolbar: %s"), *Block.Name.ToString(), *MenuData->MenuName.ToString());
-					}
-
-					ToolBarBuilder.AddToolBarButton(Block.Command, Block.Name, Block.Label, Block.ToolTip, Block.Icon, Block.TutorialHighlightName);
-
-					if (bPopCommandList)
-					{
-						ToolBarBuilder.PopCommandList();
-					}
-				}
-				else if (Block.ScriptObject)
-				{
-					UToolMenuEntryScript* ScriptObject = Block.ScriptObject;
-					TAttribute<FSlateIcon> Icon = ScriptObject->CreateIconAttribute(MenuData->Context);
-					ToolBarBuilder.AddToolBarButton(UIAction, ScriptObject->Data.Name, ScriptObject->CreateLabelAttribute(MenuData->Context), ScriptObject->CreateToolTipAttribute(MenuData->Context), Icon, Block.UserInterfaceActionType, Block.TutorialHighlightName);
-				}
-				else
-				{
-					ToolBarBuilder.AddToolBarButton(UIAction, Block.Name, Block.Label, Block.ToolTip, Block.Icon, Block.UserInterfaceActionType, Block.TutorialHighlightName);
-				}
-
-				if (Block.ToolBarData.OptionsDropdownData.IsValid())
-				{
-					FOnGetContent OnGetContent = ConvertWidgetChoice(Block.ToolBarData.OptionsDropdownData->MenuContentGenerator, MenuData->Context);
-					ToolBarBuilder.AddComboButton(Block.ToolBarData.OptionsDropdownData->Action, OnGetContent, Block.Label, Block.ToolBarData.OptionsDropdownData->ToolTip, Block.Icon, true, Block.TutorialHighlightName);
-				}
-			}
-			else if (Block.Type == EMultiBlockType::ToolBarComboButton)
-			{
-				FOnGetContent OnGetContent = ConvertWidgetChoice(Block.ToolBarData.ComboButtonContextMenuGenerator, MenuData->Context);
-				if (OnGetContent.IsBound())
-				{
-					ToolBarBuilder.AddComboButton(UIAction, OnGetContent, Block.Label, Block.ToolTip, Block.Icon, Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName);
-				}
-				else
-				{
-					FName SubMenuFullName = JoinMenuPaths(MenuData->MenuName, Block.Name);
-					FOnGetContent Delegate = FOnGetContent::CreateUObject(this, &UToolMenus::GenerateToolbarComboButtonMenu, TWeakObjectPtr<UToolMenu>(MenuData), Block.Name);
-					ToolBarBuilder.AddComboButton(UIAction, Delegate, Block.Label, Block.ToolTip, Block.Icon, Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName);
-				}
-			}
-			else if (Block.Type == EMultiBlockType::Separator)
-			{
-				ToolBarBuilder.AddSeparator(Block.Name);
-			}
-			else if (Block.Type == EMultiBlockType::Widget)
-			{
-				ToolBarBuilder.AddWidget(Widget.ToSharedRef(), Block.TutorialHighlightName, Block.WidgetData.bSearchable);
-			}
-			else
-			{
-				UE_LOG(LogToolMenus, Warning, TEXT("Toolbar '%s', item '%s', Toolbars do not support: %s"), *MenuData->MenuName.ToString(), *Block.Name.ToString(), *UEnum::GetValueAsString(Block.Type));
+				Section.Construct.NewToolBarDelegateLegacy.Execute(ToolBarBuilder, MenuData);
+				continue;
 			}
 
-			ToolBarBuilder.EndStyleOverride();
+			const bool bSectionShouldHaveSeparator = !bFirstSectionInAlignmentGroup;
+			ToolBarBuilder.BeginSection(Section.Name, bSectionShouldHaveSeparator);
+
+			for (FToolMenuEntry& Block : Section.Blocks)
+			{
+				PopulateToolBarBuilderWithEntry(ToolBarBuilder, MenuData, Block);
+			}
+
+			ToolBarBuilder.EndSection();
+
+			++NumAddedSections;
+			bFirstSectionInAlignmentGroup = false;
 		}
-
-		ToolBarBuilder.EndSection();
 	}
 
 	AddReferencedContextObjects(ToolBarBuilder.GetMultiBox(), MenuData);
@@ -1666,7 +2069,7 @@ FUIAction UToolMenus::ConvertUIAction(const FToolMenuEntry& Block, const FToolMe
 	{
 		UIAction = ConvertUIAction(Block.Action, Context);
 	}
-	
+
 	if (!UIAction.ExecuteAction.IsBound() && Block.StringExecuteAction.IsBound())
 	{
 		UIAction.ExecuteAction = Block.StringExecuteAction.ToExecuteAction(Context);
@@ -2276,13 +2679,14 @@ void UToolMenus::CleanupStaleWidgets()
 
 bool UToolMenus::RefreshMenuWidget(const FName InName)
 {
+	bool bRefreshedAnyWidget = false;
 	if (FGeneratedToolMenuWidgets* WidgetsForMenuName = GeneratedMenuWidgets.Find(InName))
 	{
 		for (auto Instance = WidgetsForMenuName->Instances.CreateIterator(); Instance; ++Instance)
 		{
 			if (RefreshMenuWidget(InName, *Instance))
 			{
-				return true;
+				bRefreshedAnyWidget = true;
 			}
 			else
 			{
@@ -2291,7 +2695,7 @@ bool UToolMenus::RefreshMenuWidget(const FName InName)
 		}
 	}
 
-	return false;
+	return bRefreshedAnyWidget;
 }
 
 bool UToolMenus::RefreshMenuWidget(const FName InName, FGeneratedToolMenuWidget& GeneratedMenuWidget)
@@ -2309,7 +2713,7 @@ bool UToolMenus::RefreshMenuWidget(const FName InName, FGeneratedToolMenuWidget&
 	{
 		OriginalMenu->bShouldCleanupContextOnDestroy = false;
 	}
-	
+
 	UToolMenu* GeneratedMenu = GenerateMenu(InName, GeneratedMenuWidget.GeneratedMenu->Context);
 	GeneratedMenuWidget.GeneratedMenu = GeneratedMenu;
 
@@ -2532,7 +2936,7 @@ void UToolMenus::UnregisterOwnerInternal(FToolMenuOwner InOwner)
 
 				if (Section.Blocks.Num() == 0)
 				{
-					Menu->Sections.RemoveAt(SectionIndex, 1, EAllowShrinking::No);
+					Menu->Sections.RemoveAt(SectionIndex, EAllowShrinking::No);
 					bNeedsRefresh = true;
 				}
 			}

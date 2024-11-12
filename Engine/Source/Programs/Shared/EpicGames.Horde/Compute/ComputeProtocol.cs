@@ -22,11 +22,16 @@ namespace EpicGames.Horde.Compute
 		/// Initial version number
 		/// </summary>
 		Initial,
+		
+		/// <summary>
+		/// Set new env vars UE_HORDE_CPU_COUNT and UE_HORDE_CPU_MULTIPLIER
+		/// </summary>
+		NewCpuEnvVars,
 
 		/// <summary>
 		/// Constant for the latest protocol version
 		/// </summary>
-		Latest = (int)Initial
+		Latest = (int)NewCpuEnvVars
 	}
 
 	/// <summary>

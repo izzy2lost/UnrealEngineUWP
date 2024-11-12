@@ -68,6 +68,12 @@ public:
 	/** Sets whether or not this emitter is enabled within the System.  Disabled emitters aren't simulated. Returns whether or not the enabled state changed. */
 	NIAGARA_API bool SetIsEnabled(bool bInIsEnabled, UNiagaraSystem& InOwnerSystem, bool bRecompileIfChanged);
 
+	/** Test to see if the emitter is allowed by scalability or not */
+	NIAGARA_API bool IsAllowedByScalability() const;
+
+	/** Test to see if the emitter is enabled on the provided quality level or not. */
+	NIAGARA_API bool IsEnabledOnEffectQualityLevel(int32 QualityLevel) const;
+
 #if WITH_EDITORONLY_DATA
 	bool IsIsolated() const {	return bIsolated; }
 	void SetIsolated(bool bInIsolated) { bIsolated = bInIsolated; }
@@ -131,6 +137,9 @@ private:
 	UPROPERTY()
 	bool bIsEnabled;
 
+	UPROPERTY()
+	ENiagaraEmitterMode EmitterMode = ENiagaraEmitterMode::Standard;
+
 #if WITH_EDITORONLY_DATA
 	/** The source emitter this emitter handle was built from. */
 	UPROPERTY()
@@ -158,9 +167,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UNiagaraStatelessEmitter> StatelessEmitter = nullptr;
 	//-TODO:Stateless: Should we return a bass class here / have a factory method to generate the runtime instance?
-
-	UPROPERTY()
-	ENiagaraEmitterMode EmitterMode = ENiagaraEmitterMode::Standard;
 
 #if WITH_EDITORONLY_DATA
 	FSimpleMulticastDelegate OnEmitterModeChangedDelegate;

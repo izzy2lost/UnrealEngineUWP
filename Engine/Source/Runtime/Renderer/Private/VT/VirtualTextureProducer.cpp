@@ -129,6 +129,24 @@ void FVirtualTextureProducerCollection::ReleaseProducer(FVirtualTextureSystem* S
 	}
 }
 
+bool FVirtualTextureProducerCollection::TryReleaseProducer(FVirtualTextureSystem* System, const FVirtualTextureProducerHandle& Handle)
+{
+	if (FProducerEntry* Entry = GetEntry(Handle))
+	{
+		FGraphEventArray ProducePageTasks;
+		Entry->Producer.GetVirtualTexture()->GatherProducePageDataTasks(Handle, ProducePageTasks);
+
+		if (ProducePageTasks.Num() != 0)
+		{
+			// Don't release with tasks remaining.
+			return false;
+		}
+	}
+
+	ReleaseProducer(System, Handle);
+	return true;
+}
+
 void FVirtualTextureProducerCollection::CallPendingCallbacks()
 {
 	uint32 CallbackIndex = Callbacks[CallbackList_Pending].NextIndex;

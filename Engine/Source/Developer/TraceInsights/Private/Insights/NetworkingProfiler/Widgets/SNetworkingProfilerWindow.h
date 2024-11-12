@@ -3,11 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "Widgets/Input/SComboBox.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsights
 #include "Insights/Widgets/SMajorTabWindow.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +35,7 @@ struct FNetworkingProfilerTabs
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** Implements the Networking Insights window. */
-class SNetworkingProfilerWindow : public Insights::SMajorTabWindow
+class SNetworkingProfilerWindow : public ::Insights::SMajorTabWindow
 {
 private:
 	struct FGameInstanceItem
@@ -248,3 +253,7 @@ private:
 	uint32 OldGameInstanceChangeCount;
 	uint32 OldConnectionChangeCount;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

@@ -27,7 +27,6 @@
 
 #include "SLandscapeEditor.h"
 #include "LandscapeEditorCommands.h"
-#include "LandscapeEditorDetailWidgets.h"
 #include "LandscapeEditorDetailCustomization_LayersBrushStack.h"
 #include "LandscapeEditorObject.h"
 #include "Landscape.h"
@@ -75,6 +74,7 @@ void FLandscapeEditorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 		
 		SafeSetOrder(FName("Tool Settings"));
 		SafeSetOrder(FName("Brush Settings"));
+		SafeSetOrder(FName("Select Mask"));
 		
 		SafeSetOrder(FName("Edit Layers"));
 		SafeSetOrder(FName("Edit Layer Blueprint Brushes"));
@@ -218,55 +218,52 @@ void FLandscapeEditorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 
 FText FLandscapeEditorDetails::GetLocalizedName(FString Name)
 {
-	static bool bInitialized = false;
-	if (!bInitialized)
-	{
-		FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+#define LANDSCAPE_TOOL_LOCTEXT(KEY, SOURCE) { TEXT(KEY), LOCTEXT(KEY, SOURCE) }
+	static const TSortedMap<FString, FText, FDefaultAllocator, FLocKeySortedMapLess> ToolNames = {
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_NewLandscape", "New Landscape"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_ResizeLandscape", "Change Component Size"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Sculpt", "Sculpt"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Erase", "Erase"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Paint", "Paint"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Smooth", "Smooth"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Flatten", "Flatten"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Ramp", "Ramp"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Erosion", "Erosion"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_HydraErosion", "HydroErosion"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Noise", "Noise"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Retopologize", "Retopologize"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Visibility", "Visibility"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_BlueprintBrush", "Blueprint Brushes"),
 
-		bInitialized = true;
-		LOCTEXT("ToolSet_NewLandscape", "New Landscape");
-		LOCTEXT("ToolSet_ResizeLandscape", "Change Component Size");
-		LOCTEXT("ToolSet_Sculpt", "Sculpt");
-		LOCTEXT("ToolSet_Erase", "Erase");
-		LOCTEXT("ToolSet_Paint", "Paint");
-		LOCTEXT("ToolSet_Smooth", "Smooth");
-		LOCTEXT("ToolSet_Flatten", "Flatten");
-		LOCTEXT("ToolSet_Ramp", "Ramp");
-		LOCTEXT("ToolSet_Erosion", "Erosion");
-		LOCTEXT("ToolSet_HydraErosion", "HydroErosion");
-		LOCTEXT("ToolSet_Noise", "Noise");
-		LOCTEXT("ToolSet_Retopologize", "Retopologize");
-		LOCTEXT("ToolSet_Visibility", "Visibility");
-		LOCTEXT("ToolSet_BlueprintBrush", "Blueprint Brushes");
-		
-		LOCTEXT("ToolSet_Select", "Selection");
-		LOCTEXT("ToolSet_AddComponent", "Add");
-		LOCTEXT("ToolSet_DeleteComponent", "Delete");
-		LOCTEXT("ToolSet_MoveToLevel", "Move to Level");
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Select", "Selection"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_AddComponent", "Add"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_DeleteComponent", "Delete"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_MoveToLevel", "Move to Level"),
 
-		LOCTEXT("ToolSet_Mask", "Selection");
-		LOCTEXT("ToolSet_CopyPaste", "Copy/Paste");
-		LOCTEXT("ToolSet_Mirror", "Mirror");
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Mask", "Selection"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_CopyPaste", "Copy/Paste"),
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Mirror", "Mirror"),
 
-		LOCTEXT("ToolSet_Splines", "Edit Splines");
+		LANDSCAPE_TOOL_LOCTEXT("ToolSet_Splines", "Edit Splines"),
 
-		LOCTEXT("BrushSet_Circle", "Circle");
-		LOCTEXT("BrushSet_Alpha", "Alpha");
-		LOCTEXT("BrushSet_Pattern", "Pattern");
-		LOCTEXT("BrushSet_Component", "Component");
-		LOCTEXT("BrushSet_Gizmo", "Gizmo");
-		LOCTEXT("BrushSet_Dummy", "NoBrush");
-		LOCTEXT("BrushSet_Splines", "Splines");
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Circle", "Circle"),
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Alpha", "Alpha"),
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Pattern", "Pattern"),
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Component", "Component"),
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Gizmo", "Gizmo"),
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Dummy", "NoBrush"),
+		LANDSCAPE_TOOL_LOCTEXT("BrushSet_Splines", "Splines"),
 
-		LOCTEXT("Circle_Smooth", "Smooth");
-		LOCTEXT("Circle_Linear", "Linear");
-		LOCTEXT("Circle_Spherical", "Spherical");
-		LOCTEXT("Circle_Tip", "Tip");
-		LOCTEXT("Circle_Dummy", "NoBrush");
-	}
-
-	FText Result;
-	ensure(FText::FindText(TEXT(LOCTEXT_NAMESPACE), Name, Result));
+		LANDSCAPE_TOOL_LOCTEXT("Circle_Smooth", "Smooth"),
+		LANDSCAPE_TOOL_LOCTEXT("Circle_Linear", "Linear"),
+		LANDSCAPE_TOOL_LOCTEXT("Circle_Spherical", "Spherical"),
+		LANDSCAPE_TOOL_LOCTEXT("Circle_Tip", "Tip"),
+		LANDSCAPE_TOOL_LOCTEXT("Circle_Dummy", "NoBrush"),
+	};
+#undef LANDSCAPE_TOOL_LOCTEXT
+	
+	FText Result = ToolNames.FindRef(Name);
+	ensure(!Result.IsEmpty());
 	return Result;
 }
 

@@ -101,8 +101,10 @@ protected:
 			{
 				// Remove Model from Data Container
 				const int32 RemoveCount = RemoveModel(SelectedItem);
-				if (ensure(RemoveCount > 0))
+				if (RemoveCount > 0)
 				{
+					bIsDeleted = true;
+
 					// Remove View Model from UI List
 					const int32 RemoveModelItemIndex = ItemsSource.IndexOfByPredicate([SelectedItem](TSharedPtr<T> InModel)
 						{
@@ -112,8 +114,6 @@ protected:
 					if (RemoveModelItemIndex > INDEX_NONE)
 					{
 						ItemsSource.RemoveAt(RemoveModelItemIndex);
-
-						bIsDeleted = true;
 					}
 				}
 			}

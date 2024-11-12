@@ -201,7 +201,7 @@ public:
 	CORE_API FTextFilterExpressionEvaluator(const ETextFilterExpressionEvaluatorMode InMode);
 	CORE_API FTextFilterExpressionEvaluator(const FTextFilterExpressionEvaluator& Other);
 	CORE_API FTextFilterExpressionEvaluator& operator=(const FTextFilterExpressionEvaluator& Other);
-	virtual ~FTextFilterExpressionEvaluator() {}
+	CORE_API virtual ~FTextFilterExpressionEvaluator();
 
 	/** Get the complexity of the current filter terms */
 	CORE_API ETextFilterExpressionType GetFilterType() const;

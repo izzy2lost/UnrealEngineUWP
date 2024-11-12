@@ -187,7 +187,7 @@ void UAvaInteractiveToolsToolViewportAreaPlanner::DrawHUD(FCanvas* InCanvas, ITo
 		return;
 	}
 
-	const FAvaVisibleArea VisibleArea = AvaViewportClient->GetVirtualZoomedVisibleArea();
+	const FAvaVisibleArea VisibleArea = AvaViewportClient->GetZoomedVisibleArea();
 
 	if (!VisibleArea.IsValid())
 	{

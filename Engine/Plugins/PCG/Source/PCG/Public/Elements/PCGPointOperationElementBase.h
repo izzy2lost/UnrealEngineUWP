@@ -35,12 +35,12 @@ protected:
 	//~Begin IPCGElement interface
 	/** Conveniently calls PreparePointOperationData to prepare the time sliced element for execution. May be overridden, but PreparePointOperationData must be called. */
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 	//~End IPCGElement interface
 
 	/** Executes the PointFunction function/lambda for every point copied from PreparePointOperationData */
 	bool ExecutePointOperation(ContextType* Context, TFunctionRef<PointExecSignature> PointFunction, int32 PointsPerChunk = PCGPointOperation::Constants::PointsPerChunk) const;
 
-private:
 	/** Mandatory call. Using the context, prepares the state data for time slice execution */
-	bool PreparePointOperationData(ContextType* Context) const;
+	bool PreparePointOperationData(ContextType* Context, FName InputPinLabel = PCGPinConstants::DefaultInputLabel) const;
 };

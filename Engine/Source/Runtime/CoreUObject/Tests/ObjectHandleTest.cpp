@@ -14,6 +14,7 @@
 #include "TestHarness.h"
 #include "UObject/ObjectRef.h"
 #include "UObject/ObjectPathId.h"
+#include "UObject/PropertyBagRepository.h"
 
 static_assert(sizeof(FObjectHandle) == sizeof(void*), "FObjectHandle type must always compile to something equivalent to a pointer size.");
 
@@ -382,90 +383,301 @@ TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Type Safety
 		TestPackage->RemoveFromRoot();
 	};
 
-	// simulate an unsafe class type
-	UClass* TestClass = NewObject<UClass>(TestPackage, TEXT("TestClass"), RF_Transient);
-	TestClass->SetSuperStruct(UObject::StaticClass());
-	TestClass->Bind();
-	TestClass->StaticLink(/*bRelinkExistingProperties =*/ true);
-	UObject* TestClassDefaults = TestClass->GetDefaultObject();
-	TestClass->PostLoadDefaultObject(TestClassDefaults);
-
-	// validate helper method(s)
-	CHECK_FALSE(UE::CoreUObject::Private::HasAnyFlags(TestClassDefaults, RF_NoFlags));
-	CHECK(UE::CoreUObject::Private::HasAnyFlags(TestClassDefaults, RF_ClassDefaultObject));
+	// construct an unsafe class type
+	UClass* TestUnsafeClass = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(TestPackage, UClass::StaticClass(), TEXT("TestUnsafeClass"));
 
 	// construct objects for testing
-	UObject* TestSafeObject = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("TestSafeObject"), RF_Transient);
-	UObject* TestUnsafeObject = NewObject<UObject>(TestPackage, TestClass, TEXT("TestUnsafeObject"), RF_Transient | RF_HasPlaceholderType);
+	UObjectPtrTestClass* TestSafeObject = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("TestSafeObject"), RF_Transient);
+	UObject* TestUnsafeObject = NewObject<UObject>(TestPackage, TestUnsafeClass, TEXT("TestUnsafeObject"), RF_Transient);
+
+	// invalid address value for testing
+	UObject* TestInvalidAddress = (UObject*)0xFFFF'FFFF'FFFF'FFFCull;
 
 	// construct object handles for testing
 	FObjectHandle NullObjectHandle = UE::CoreUObject::Private::MakeObjectHandle(nullptr);
 	FObjectHandle TestSafeObjectHandle = UE::CoreUObject::Private::MakeObjectHandle(TestSafeObject);
-	FObjectHandle TestUnsafeObjectHandle = UE::CoreUObject::Private::MakeObjectHandle(TestUnsafeObject);
+	FObjectHandle TestSafeInvalidAddressHandle = UE::CoreUObject::Private::MakeObjectHandle(TestInvalidAddress);
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-	// note that unresolved object handles are type safe by definition (since it implies the underlying type was not a placeholder)
-	FObjectRef TestSafeObjectRef(TestSafeObject);
-	UE::CoreUObject::Private::FPackedObjectRef PackedSafeObjectRef = UE::CoreUObject::Private::MakePackedObjectRef(TestSafeObjectRef);
-	FObjectHandle TestUnresolvedSafeObjectHandle = { PackedSafeObjectRef.EncodedRef };
+	FObjectHandle TestLateResolveSafeObjectHandle = { UE::CoreUObject::Private::MakePackedObjectRef(TestSafeObject).EncodedRef };
+	FObjectHandle TestLateResolveUnsafeObjectHandle = { UE::CoreUObject::Private::MakePackedObjectRef(TestUnsafeObject).EncodedRef };
+	FObjectHandle TestLateResolveSafeInvalidAddressHandle = { (UE::CoreUObject::Private::FPackedObjectRef { reinterpret_cast<UPTRINT>(TestInvalidAddress) | 1 }).EncodedRef };
+	FObjectHandle TestLateResolveUnsafeInvalidAddressHandle = { (UE::CoreUObject::Private::FPackedObjectRef { reinterpret_cast<UPTRINT>(TestInvalidAddress) | (1 << UE::CoreUObject::Private::TypeIdShift) | 1 }).EncodedRef };
 #endif
 
-	// NULL/type-safe objects should report as being safe
+	// NULL/type-safe object handles should report as being safe
 	CHECK(IsObjectHandleTypeSafe(NullObjectHandle));
 	CHECK(IsObjectHandleTypeSafe(TestSafeObjectHandle));
+	CHECK(IsObjectHandleTypeSafe(TestSafeInvalidAddressHandle));
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-	CHECK(IsObjectHandleTypeSafe(TestUnresolvedSafeObjectHandle));
-	CHECK(!IsObjectHandleResolved(TestUnresolvedSafeObjectHandle));	// the call above should not resolve the handle
+	CHECK(IsObjectHandleTypeSafe(TestLateResolveSafeObjectHandle));
+	CHECK(IsObjectHandleTypeSafe(TestLateResolveSafeInvalidAddressHandle));
 #endif
 
 	// unsafe type object handles should report as being unsafe
-	CHECK_FALSE(IsObjectHandleTypeSafe(TestUnsafeObjectHandle));
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK_FALSE(IsObjectHandleTypeSafe(TestLateResolveUnsafeObjectHandle));
+	CHECK_FALSE(IsObjectHandleTypeSafe(TestLateResolveUnsafeInvalidAddressHandle));
+#endif
 
-	// object handles should resolve the class to the unsafe type
-	CHECK(UE::CoreUObject::Private::ResolveObjectHandleClass(TestUnsafeObjectHandle) == TestClass);
+	// unsafe type object handles should resolve the class to the unsafe type
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(UE::CoreUObject::Private::ResolveObjectHandleClass(TestLateResolveUnsafeObjectHandle) == TestUnsafeClass);
+#endif
 
-	// object handles should resolve/evaluate to the original type object
-	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestUnsafeObjectHandle) == TestUnsafeObject);
+	// an unsafe type object handle should not equate to other unsafe type object handles (including NULL), except for itself
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(NullObjectHandle != TestLateResolveUnsafeObjectHandle);
+	CHECK(TestLateResolveUnsafeObjectHandle != NullObjectHandle);
+	CHECK(TestSafeObjectHandle != TestLateResolveUnsafeObjectHandle);
+	CHECK(TestLateResolveUnsafeObjectHandle != TestSafeObjectHandle);
+	CHECK(TestLateResolveSafeObjectHandle != TestLateResolveUnsafeObjectHandle);
+	CHECK(TestLateResolveUnsafeObjectHandle != TestLateResolveSafeObjectHandle);
+	CHECK(TestLateResolveUnsafeObjectHandle == TestLateResolveUnsafeObjectHandle);
+//	CHECK(TestSafeInvalidAddressHandle != TestLateResolveUnsafeInvalidAddressHandle);			// note: commented out for now; FObjectHandle::operator==() will call FindExistingPackedObjectRef() when comparing
+//	CHECK(TestLateResolveUnsafeInvalidAddressHandle != TestSafeInvalidAddressHandle);			// resolved to unresolved values, which will then attempt to dereference the resolved address and crash (known issue)
+	CHECK(TestLateResolveSafeInvalidAddressHandle != TestLateResolveUnsafeInvalidAddressHandle);
+	CHECK(TestLateResolveUnsafeInvalidAddressHandle != TestLateResolveSafeInvalidAddressHandle);
+	CHECK(TestLateResolveUnsafeInvalidAddressHandle == TestLateResolveUnsafeInvalidAddressHandle);
+#endif
 
-	// an unsafe type object handle should not equate to other unsafe type object handles except for itself (including NULL)
-	CHECK(NullObjectHandle != TestUnsafeObjectHandle);			// note: this intentionally differs from object *pointers* (see below)
-	CHECK(TestUnsafeObjectHandle != NullObjectHandle);			// see note directly above
-	CHECK(TestSafeObjectHandle != TestUnsafeObjectHandle);
-	CHECK(TestUnsafeObjectHandle != TestSafeObjectHandle);
-	CHECK(TestUnsafeObjectHandle == TestUnsafeObjectHandle);
+	// the type safety and class queries above should not have resolved an object handle that's using late resolve
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK_FALSE(IsObjectHandleResolved(TestLateResolveSafeObjectHandle));
+	CHECK_FALSE(IsObjectHandleResolved(TestLateResolveUnsafeObjectHandle));
+	CHECK_FALSE(IsObjectHandleResolved(TestLateResolveSafeInvalidAddressHandle));
+	CHECK_FALSE(IsObjectHandleResolved(TestLateResolveUnsafeInvalidAddressHandle));
+#endif
 
-	// construct object pointers for testing
+	// unsafe type object handles should resolve/evaluate to the original object/address, or NULL for an invalid object w/ late resolve
+	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestSafeInvalidAddressHandle) == TestInvalidAddress);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestLateResolveSafeObjectHandle) == TestSafeObject);
+	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestLateResolveUnsafeObjectHandle) == TestUnsafeObject);
+	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestLateResolveSafeInvalidAddressHandle) == nullptr);
+	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestLateResolveUnsafeInvalidAddressHandle) == nullptr);
+#endif
+
+	// unsafe type object handles should report as NOT being resolved (in order to preserve the bit flag on the underlying packed reference)
+	CHECK(IsObjectHandleResolved(TestSafeInvalidAddressHandle));
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(IsObjectHandleResolved(TestLateResolveSafeObjectHandle));
+	CHECK_FALSE(IsObjectHandleResolved(TestLateResolveUnsafeObjectHandle));
+	CHECK(IsObjectHandleResolved(TestLateResolveSafeInvalidAddressHandle));
+	CHECK_FALSE(IsObjectHandleResolved(TestLateResolveUnsafeInvalidAddressHandle));
+#endif
+
+	// construct object pointers for testing intentionally different behaviors of UObject-type vs. non-UObject-type bindings
 	TObjectPtr<UObject> NullObjectPtr(nullptr);
-	TObjectPtr<UObject> TestSafeObjectPtr(TestSafeObject);
-	TObjectPtr<UObject> TestUnsafeObjectPtr(TestUnsafeObject);
+	TObjectPtr<UObject> TestSafeObjectPtr(TestUnsafeObject);								// type safe pointer to placeholder (bound to UObject type)
+	TObjectPtr<const UObject> TestSafeConstObjectPtr(TestUnsafeObject);						// type safe const pointer to placeholder (bound to UObject type)
+	FObjectPtr TestSafeInvalidObjectPtr_Untyped(TestSafeInvalidAddressHandle);
+	TObjectPtr<UObject> TestSafeInvalidObjectPtr(TestSafeInvalidObjectPtr_Untyped);
+	TObjectPtr<const UObject> TestSafeInvalidConstObjectPtr(TestSafeInvalidObjectPtr_Untyped);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	// note: "safe" in this context means the pointer should be type safe because it's bound to the UObject base type, but both reference the same "unsafe" object and as such do not update the handle on resolve
+	FObjectPtr TestLateResolveUnsafeObjectPtr_Untyped(TestLateResolveUnsafeObjectHandle);
+	TObjectPtr<UObject> TestLateResolveSafeObjectPtr(TestLateResolveUnsafeObjectPtr_Untyped);
+	TObjectPtr<const UObject> TestLateResolveSafeConstObjectPtr(TestLateResolveUnsafeObjectPtr_Untyped);
+	TObjectPtr<UObjectPtrTestClass> TestLateResolveUnsafeObjectPtr(TestLateResolveUnsafeObjectPtr_Untyped);
+	TObjectPtr<const UObjectPtrTestClass> TestLateResolveUnsafeConstObjectPtr(TestLateResolveUnsafeObjectPtr_Untyped);
+	FObjectPtr TestLateResolveUnsafeInvalidObjectPtr_Untyped(TestLateResolveUnsafeInvalidAddressHandle);
+	TObjectPtr<UObject> TestLateResolveSafeInvalidObjectPtr(TestLateResolveUnsafeInvalidObjectPtr_Untyped);
+	TObjectPtr<const UObject> TestLateResolveSafeInvalidConstObjectPtr(TestLateResolveUnsafeInvalidObjectPtr_Untyped);
+	TObjectPtr<UObjectPtrTestClass> TestLateResolveUnsafeInvalidObjectPtr(TestLateResolveUnsafeInvalidObjectPtr_Untyped);
+	TObjectPtr<const UObjectPtrTestClass> TestLateResolveUnsafeInvalidConstObjectPtr(TestLateResolveUnsafeInvalidObjectPtr_Untyped);
+	TArray<TObjectPtr<UObject>> TestLateResolveSafeObjectPtrArray = { TestLateResolveSafeObjectPtr, TestLateResolveSafeInvalidObjectPtr };
+	TArray<TObjectPtr<UObjectPtrTestClass>> TestLateResolveUnsafeObjectPtrArray = { TestLateResolveUnsafeObjectPtr, TestLateResolveUnsafeInvalidObjectPtr };
+	TArray<TObjectPtr<const UObject>> TestLateResolveSafeConstObjectPtrArray = { TestLateResolveSafeConstObjectPtr, TestLateResolveSafeInvalidConstObjectPtr };
+	TArray<TObjectPtr<const UObjectPtrTestClass>> TestLateResolveUnsafeConstObjectPtrArray = { TestLateResolveUnsafeConstObjectPtr, TestLateResolveUnsafeInvalidConstObjectPtr };
+#endif
+
+	// type safe object pointers should evaluate to true/non-NULL (including invalid pointers)
+	CHECK(TestSafeObjectPtr);
+	CHECK(!!TestSafeObjectPtr);
+	CHECK(NULL != TestSafeObjectPtr);
+	CHECK(TestSafeObjectPtr != NULL);
+	CHECK(nullptr != TestSafeObjectPtr);
+	CHECK(TestSafeObjectPtr != nullptr);
+	CHECK(TestSafeConstObjectPtr);
+	CHECK(!!TestSafeConstObjectPtr);
+	CHECK(NULL != TestSafeConstObjectPtr);
+	CHECK(TestSafeConstObjectPtr != NULL);
+	CHECK(nullptr != TestSafeConstObjectPtr);
+	CHECK(TestSafeConstObjectPtr != nullptr);
+	CHECK(TestSafeInvalidObjectPtr);
+	CHECK(!!TestSafeInvalidObjectPtr);
+	CHECK(NULL != TestSafeInvalidObjectPtr);
+	CHECK(TestSafeInvalidObjectPtr != NULL);
+	CHECK(nullptr != TestSafeInvalidObjectPtr);
+	CHECK(TestSafeInvalidObjectPtr != nullptr);
+	CHECK(TestSafeInvalidConstObjectPtr);
+	CHECK(!!TestSafeInvalidConstObjectPtr);
+	CHECK(NULL != TestSafeInvalidConstObjectPtr);
+	CHECK(TestSafeInvalidConstObjectPtr != NULL);
+	CHECK(nullptr != TestSafeInvalidConstObjectPtr);
+	CHECK(TestSafeInvalidConstObjectPtr != nullptr);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(TestLateResolveSafeObjectPtr);
+	CHECK(!!TestLateResolveSafeObjectPtr);
+	CHECK(NULL != TestLateResolveSafeObjectPtr);
+	CHECK(TestLateResolveSafeObjectPtr != NULL);
+	CHECK(nullptr != TestLateResolveSafeObjectPtr);
+	CHECK(TestLateResolveSafeObjectPtr != nullptr);
+	CHECK(TestLateResolveSafeConstObjectPtr);
+	CHECK(!!TestLateResolveSafeConstObjectPtr);
+	CHECK(NULL != TestLateResolveSafeConstObjectPtr);
+	CHECK(TestLateResolveSafeConstObjectPtr != NULL);
+	CHECK(nullptr != TestLateResolveSafeConstObjectPtr);
+	CHECK(TestLateResolveSafeConstObjectPtr != nullptr);
+	CHECK(TestLateResolveSafeInvalidObjectPtr);
+	CHECK(!!TestLateResolveSafeInvalidObjectPtr);
+	CHECK(NULL != TestLateResolveSafeInvalidObjectPtr);
+	CHECK(TestLateResolveSafeInvalidObjectPtr != NULL);
+	CHECK(nullptr != TestLateResolveSafeInvalidObjectPtr);
+	CHECK(TestLateResolveSafeInvalidObjectPtr != nullptr);
+	CHECK(TestLateResolveSafeInvalidConstObjectPtr);
+	CHECK(!!TestLateResolveSafeInvalidConstObjectPtr);
+	CHECK(NULL != TestLateResolveSafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveSafeInvalidConstObjectPtr != NULL);
+	CHECK(nullptr != TestLateResolveSafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveSafeInvalidConstObjectPtr != nullptr);
+#endif
 
 	// unsafe type object pointers should evaluate to NULL/false (for type safety)
-	CHECK(!TestUnsafeObjectPtr);
-	CHECK_FALSE(!!TestUnsafeObjectPtr);
-	CHECK(NULL == TestUnsafeObjectPtr);
-	CHECK(TestUnsafeObjectPtr == NULL);
-	CHECK(nullptr == TestUnsafeObjectPtr);
-	CHECK(TestUnsafeObjectPtr == nullptr);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK_FALSE(TestLateResolveUnsafeObjectPtr);
+	CHECK_FALSE(!!TestLateResolveUnsafeObjectPtr);
+	CHECK(NULL == TestLateResolveUnsafeObjectPtr);
+	CHECK(TestLateResolveUnsafeObjectPtr == NULL);
+	CHECK(nullptr == TestLateResolveUnsafeObjectPtr);
+	CHECK(TestLateResolveUnsafeObjectPtr == nullptr);
+	CHECK_FALSE(TestLateResolveUnsafeConstObjectPtr);
+	CHECK_FALSE(!!TestLateResolveUnsafeConstObjectPtr);
+	CHECK(NULL == TestLateResolveUnsafeConstObjectPtr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr == NULL);
+	CHECK(nullptr == TestLateResolveUnsafeConstObjectPtr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr == nullptr);
+	CHECK_FALSE(TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK_FALSE(!!TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK(NULL == TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr == NULL);
+	CHECK(nullptr == TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr == nullptr);
+	CHECK_FALSE(TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK_FALSE(!!TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK(NULL == TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr == NULL);
+	CHECK(nullptr == TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr == nullptr);
+#endif
 
-	// an unsafe type object pointer should not equate to other pointers except for NULL and itself
-	CHECK(NullObjectPtr == TestUnsafeObjectPtr);				// note: this intentionally differs from object *handles* (see above)
-	CHECK(TestUnsafeObjectPtr == NullObjectPtr);				// see note directly above
-	CHECK(TestSafeObjectPtr != TestUnsafeObjectPtr);
-	CHECK(TestUnsafeObjectPtr != TestSafeObjectPtr);
-	CHECK(TestUnsafeObjectPtr == TestUnsafeObjectPtr);
+	// an unsafe type object pointer should not equate to other unsafe type object pointers, excluding NULL and itself
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(NullObjectPtr == TestLateResolveUnsafeObjectPtr);		// note: this intentionally differs from object *handles* (see above)
+	CHECK(TestLateResolveUnsafeObjectPtr == NullObjectPtr);		// see note directly above
+	CHECK(TestSafeObjectPtr != TestLateResolveUnsafeObjectPtr);
+	CHECK(TestLateResolveUnsafeObjectPtr != TestSafeObjectPtr);
+	CHECK(NullObjectPtr != TestLateResolveSafeConstObjectPtr);
+	CHECK(TestLateResolveSafeConstObjectPtr != NullObjectPtr);
+	CHECK(NullObjectPtr == TestLateResolveUnsafeConstObjectPtr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr == NullObjectPtr);
+	CHECK(TestSafeConstObjectPtr != TestLateResolveUnsafeConstObjectPtr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr != TestSafeConstObjectPtr);
+	CHECK(TestLateResolveSafeObjectPtr != TestLateResolveUnsafeObjectPtr);
+	CHECK(TestLateResolveUnsafeObjectPtr != TestLateResolveSafeObjectPtr);
+	CHECK(TestLateResolveSafeConstObjectPtr != TestLateResolveUnsafeConstObjectPtr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr != TestLateResolveSafeConstObjectPtr);
+	CHECK(TestLateResolveUnsafeObjectPtr == TestLateResolveUnsafeObjectPtr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr == TestLateResolveUnsafeConstObjectPtr);
+	CHECK(NullObjectPtr == TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr == NullObjectPtr);
+	CHECK(TestSafeInvalidObjectPtr != TestLateResolveUnsafeInvalidObjectPtr);						// note: these do not result in a handle-to-handle test because the underlying
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr != TestSafeInvalidObjectPtr);						// handle will resolve to NULL for the late resolve case with an invalid address
+	CHECK(TestLateResolveSafeInvalidObjectPtr != TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr != TestLateResolveSafeInvalidObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr == TestLateResolveUnsafeInvalidObjectPtr);
+	CHECK(NullObjectPtr == TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr == NullObjectPtr);
+	CHECK(TestSafeInvalidConstObjectPtr != TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr != TestSafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveSafeInvalidConstObjectPtr != TestLateResolveUnsafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr != TestLateResolveSafeInvalidConstObjectPtr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr == TestLateResolveUnsafeInvalidConstObjectPtr);
+#endif
 
-	// an unsafe type object should evaluate the object's attributes correctly
-	CHECK(TestUnsafeObjectPtr.GetName() == TestUnsafeObject->GetName());
-	CHECK(TestUnsafeObjectPtr.GetFName() == TestUnsafeObject->GetFName());
-	CHECK(TestUnsafeObjectPtr.GetPathName() == TestUnsafeObject->GetPathName());
-	CHECK(TestUnsafeObjectPtr.GetFullName() == TestUnsafeObject->GetFullName());
-	CHECK(TestUnsafeObjectPtr.GetOuter() == TestUnsafeObject->GetOuter());
-	CHECK(TestUnsafeObjectPtr.GetPackage() == TestUnsafeObject->GetPackage());
+	// an unsafe type object should evaluate the object's attributes correctly (applicable only to valid object pointers)
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(TestLateResolveUnsafeObjectPtr.GetName() == TestUnsafeObject->GetName());
+	CHECK(TestLateResolveUnsafeObjectPtr.GetFName() == TestUnsafeObject->GetFName());
+	CHECK(TestLateResolveUnsafeObjectPtr.GetPathName() == TestUnsafeObject->GetPathName());
+	CHECK(TestLateResolveUnsafeObjectPtr.GetFullName() == TestUnsafeObject->GetFullName());
+	CHECK(TestLateResolveUnsafeObjectPtr.GetOuter() == TestUnsafeObject->GetOuter());
+	CHECK(TestLateResolveUnsafeObjectPtr.GetClass() == TestUnsafeObject->GetClass());
+	CHECK(TestLateResolveUnsafeObjectPtr.GetPackage() == TestUnsafeObject->GetPackage());
+#endif
 
-	// an unsafe type object should not allow direct access to the underlying type
-	CHECK(TestUnsafeObjectPtr.GetClass() == nullptr);
+	// the type safety and queries above should not have resolved an object pointer that's using late resolve
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK_FALSE(TestLateResolveSafeObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveSafeConstObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeConstObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveSafeInvalidObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeInvalidObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveSafeInvalidConstObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeInvalidConstObjectPtr.IsResolved());
+#endif
+
+	// a type safe object pointer should resolve to a non-NULL value when dereferenced, or NULL for an invalid object w/ late resolve
+	CHECK(TestSafeObjectPtr.Get() == TestUnsafeObject);
+	CHECK(TestSafeConstObjectPtr.Get() == TestUnsafeObject);
+	CHECK(TestSafeInvalidObjectPtr.Get() == TestInvalidAddress);
+	CHECK(TestSafeInvalidConstObjectPtr.Get() == TestInvalidAddress);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(TestLateResolveSafeObjectPtr.Get() == TestUnsafeObject);
+	CHECK(TestLateResolveSafeConstObjectPtr.Get() == TestUnsafeObject);
+	CHECK(TestLateResolveSafeInvalidObjectPtr.Get() == nullptr);
+	CHECK(TestLateResolveSafeInvalidConstObjectPtr.Get() == nullptr);
+#endif
 
 	// an unsafe type object pointer should resolve to NULL when dereferenced (for type safety)
-	CHECK(TestUnsafeObjectPtr.Get() == nullptr);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(TestLateResolveUnsafeObjectPtr.Get() == nullptr);
+	CHECK(TestLateResolveUnsafeConstObjectPtr.Get() == nullptr);
+	CHECK(TestLateResolveUnsafeInvalidObjectPtr.Get() == nullptr);
+	CHECK(TestLateResolveUnsafeInvalidConstObjectPtr.Get() == nullptr);
+#endif
+
+	// unsafe type object pointers should report as NOT being resolved; all others as resolved
+	CHECK(TestSafeObjectPtr.IsResolved());
+	CHECK(TestSafeConstObjectPtr.IsResolved());
+	CHECK(TestSafeInvalidObjectPtr.IsResolved());
+	CHECK(TestSafeInvalidConstObjectPtr.IsResolved());
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK_FALSE(TestLateResolveSafeObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveSafeConstObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveSafeInvalidObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeConstObjectPtr.IsResolved());
+	CHECK_FALSE(TestLateResolveUnsafeInvalidObjectPtr.IsResolved());
+#endif
+
+	// unsafe type object pointers should not convert to raw pointer / array
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	CHECK(ToRawPtr(TestLateResolveSafeObjectPtr) == TestUnsafeObject);
+	CHECK(ToRawPtr(TestLateResolveSafeConstObjectPtr) == TestUnsafeObject);
+	CHECK(ToRawPtr(TestLateResolveUnsafeObjectPtr) == nullptr);
+	CHECK(ToRawPtr(TestLateResolveUnsafeConstObjectPtr) == nullptr);
+	CHECK(ToRawPtr(TestLateResolveSafeInvalidObjectPtr) == nullptr);
+	CHECK(ToRawPtr(TestLateResolveUnsafeInvalidObjectPtr) == nullptr);
+	{
+		SKIP(); // comment this out to run the tests below (they should assert as they will not be resolved)
+		ToRawPtrTArrayUnsafe(TestLateResolveSafeObjectPtrArray);
+		ToRawPtrTArrayUnsafe(TestLateResolveSafeConstObjectPtrArray);
+		ToRawPtrTArrayUnsafe(TestLateResolveUnsafeObjectPtrArray);
+		ToRawPtrTArrayUnsafe(TestLateResolveUnsafeConstObjectPtrArray);
+	}
+#endif
 }
 #endif
 

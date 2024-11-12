@@ -3,6 +3,7 @@
 #include "GeometryMaskWorldSubsystem.h"
 
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GeometryMaskSVE.h"
 #include "SceneViewExtension.h"
@@ -20,15 +21,18 @@ void UGeometryMaskWorldSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
-	for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : NamedCanvases)
+	for (const TPair<TWeakObjectPtr<const ULevel>, FGeometryMaskLevelState>& LevelState : LevelStates)
 	{
-		if (IsValid(NamedCanvas.Value))
+		for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : LevelState.Value.NamedCanvases)
 		{
-			NamedCanvas.Value->Free();	
+			if (IsValid(NamedCanvas.Value))
+			{
+				NamedCanvas.Value->Free();	
+			}
 		}
 	}
 
-	NamedCanvases.Empty();
+	LevelStates.Empty();
 
 	if (UGeometryMaskSubsystem* EngineSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
 	{
@@ -36,27 +40,53 @@ void UGeometryMaskWorldSubsystem::Deinitialize()
 	}
 }
 
-UGeometryMaskCanvas* UGeometryMaskWorldSubsystem::GetNamedCanvas(FName InName)
+const FGeometryMaskLevelState* UGeometryMaskWorldSubsystem::FindLevelState(const ULevel* InLevel) const
 {
+	if (IsValid(InLevel))
+	{
+		return LevelStates.Find(InLevel);
+	}
+	return nullptr;
+}
+
+FGeometryMaskLevelState& UGeometryMaskWorldSubsystem::FindOrAddLevelState(const ULevel* InLevel)
+{
+	check(IsValid(InLevel));
+	return LevelStates.FindOrAdd(InLevel);
+}
+
+UGeometryMaskCanvas* UGeometryMaskWorldSubsystem::GetNamedCanvas(const ULevel* InLevel, FName InName)
+{
+	if (!IsValid(InLevel))
+	{
+		return nullptr;
+	}
+
 	UGeometryMaskSubsystem* EngineSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>();
 	if (!ensureAlwaysMsgf(EngineSubsystem, TEXT("UGeometryMaskSubsystem not resolved.")))
 	{
 		return nullptr;
 	}
-	
+
 	if (InName.IsNone())
 	{
 		return EngineSubsystem->GetDefaultCanvas();
 	}
 
-	const FName ObjectName = MakeUniqueObjectName(this, UGeometryMaskCanvas::StaticClass(), FName(FString::Printf(TEXT("GeometryMaskCanvas_%s_"), *InName.ToString())));
-	if (TObjectPtr<UGeometryMaskCanvas>* FoundCanvas = NamedCanvases.Find(InName))
+	if (const FGeometryMaskLevelState* LevelState = FindLevelState(InLevel))
 	{
-		return *FoundCanvas;
+		if (const TObjectPtr<UGeometryMaskCanvas>* FoundCanvas = LevelState->NamedCanvases.Find(InName))
+		{
+			return *FoundCanvas;
+		}
 	}
 
-	const TObjectPtr<UGeometryMaskCanvas>& NewCanvas = NamedCanvases.Emplace(InName, NewObject<UGeometryMaskCanvas>(this, ObjectName));
-	NewCanvas->Initialize(GetWorld(), InName);
+	const FName ObjectName = MakeUniqueObjectName(this, UGeometryMaskCanvas::StaticClass(), FName(FString::Printf(TEXT("GeometryMaskCanvas_%s_"), *InName.ToString())));
+
+	FGeometryMaskLevelState& LevelState = FindOrAddLevelState(InLevel);
+	const TObjectPtr<UGeometryMaskCanvas>& NewCanvas = LevelState.NamedCanvases.Emplace(InName, NewObject<UGeometryMaskCanvas>(this, ObjectName));
+
+	NewCanvas->Initialize(InLevel, InName);
 	EngineSubsystem->AssignResourceToCanvas(NewCanvas);
 
 	NewCanvas->OnActivated().BindUObject(this, &UGeometryMaskWorldSubsystem::OnCanvasActivated, NewCanvas.Get());
@@ -67,10 +97,13 @@ UGeometryMaskCanvas* UGeometryMaskWorldSubsystem::GetNamedCanvas(FName InName)
 	return NewCanvas;
 }
 
-TArray<FName> UGeometryMaskWorldSubsystem::GetCanvasNames()
+TArray<FName> UGeometryMaskWorldSubsystem::GetCanvasNames(const ULevel* InLevel)
 {
 	TArray<FName> CanvasNames;
-	NamedCanvases.GenerateKeyArray(CanvasNames);
+	if (const FGeometryMaskLevelState* LevelState = FindLevelState(InLevel))
+	{
+		LevelState->NamedCanvases.GenerateKeyArray(CanvasNames);
+	}
 	return CanvasNames;
 }
 
@@ -79,28 +112,33 @@ int32 UGeometryMaskWorldSubsystem::RemoveWithoutWriters()
 	int32 NumRemoved = 0;
 	
 	TMap<FName, TObjectPtr<UGeometryMaskCanvas>> UsedCanvases;
-	UsedCanvases.Reserve(NamedCanvases.Num());
+	UsedCanvases.Reserve(LevelStates.Num());
 
-	for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : NamedCanvases)
+	for (decltype(LevelStates)::TIterator LevelStateIter(LevelStates); LevelStateIter; ++LevelStateIter)
 	{
-		if (!IsValid(NamedCanvas.Value))
+		FGeometryMaskLevelState& LevelState = LevelStateIter.Value();
+
+		for (decltype(LevelState.NamedCanvases)::TIterator CanvasIter(LevelState.NamedCanvases); CanvasIter; ++CanvasIter)
 		{
-			continue;
+			TObjectPtr<UGeometryMaskCanvas> NamedCanvas = CanvasIter.Value();
+			if (IsValid(NamedCanvas))
+			{
+				if (NamedCanvas->GetWriters().IsEmpty())
+				{
+					OnGeometryMaskCanvasDestroyed().Broadcast(NamedCanvas->GetCanvasId());
+					NamedCanvas->FreeResource();
+				}
+
+				CanvasIter.RemoveCurrent();
+				++NumRemoved;
+			}
 		}
-		
-		if (!NamedCanvas.Value->GetWriters().IsEmpty())
+
+		if (LevelState.NamedCanvases.IsEmpty())
 		{
-			UsedCanvases.Emplace(NamedCanvas.Key, NamedCanvas.Value);
-		}
-		else
-		{
-			OnGeometryMaskCanvasDestroyed().Broadcast(NamedCanvas.Value->GetCanvasId());
-			NamedCanvas.Value->FreeResource();
-			++NumRemoved;
+			LevelStateIter.RemoveCurrent();
 		}
 	}
-	
-	NamedCanvases = UsedCanvases;
 
 	return NumRemoved;
 }

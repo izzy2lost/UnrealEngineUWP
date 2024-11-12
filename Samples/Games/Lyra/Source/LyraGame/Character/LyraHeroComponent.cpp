@@ -3,7 +3,6 @@
 #include "LyraHeroComponent.h"
 #include "Components/GameFrameworkComponentDelegates.h"
 #include "Logging/MessageLog.h"
-#include "Input/LyraMappableConfigPair.h"
 #include "LyraLogChannels.h"
 #include "EnhancedInputSubsystems.h"
 #include "Player/LyraPlayerController.h"

@@ -8,6 +8,7 @@
 #include "DMXControlConsoleFixturePatchCellAttributeFader.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "IDMXControlConsoleFaderGroupElement.h"
+#include "Misc/ScopedSlowTask.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleMatrixCellController"
@@ -90,9 +91,15 @@ void UDMXControlConsoleMatrixCellController::Group()
 		}
 	}
 
+	const float NumSteps = AttributeNameToElementsMap.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GroupMatrixControllerSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+
 	// Create a single cell attribute controller for each attribute name
 	for (const TTuple<FName, TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>>& AttributeNameToElements : AttributeNameToElementsMap)
 	{
+		Task.EnterProgressFrame();
+
 		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& ElementsToGroup = AttributeNameToElements.Value;
 		if (ElementsToGroup.IsEmpty())
 		{
@@ -282,8 +289,15 @@ void UDMXControlConsoleMatrixCellController::GenerateCellAttributeControllers(co
 
 	// Create cell attribute controllers for faders with no controller
 	const TArray<UDMXControlConsoleFaderBase*>& Faders = MatrixCell->GetFaders();
+
+	const float NumSteps = Faders.Num();
+	FScopedSlowTask Task(NumSteps, LOCTEXT("GenerateCellAttributeControllersSlowTask", "Updating Control Console..."));
+	Task.MakeDialogDelayed(.5f);
+
 	for (UDMXControlConsoleFaderBase* Fader : Faders)
 	{
+		Task.EnterProgressFrame();
+
 		if (!Fader)
 		{
 			continue;

@@ -12,8 +12,9 @@ typedef std::shared_ptr< FxMaterial> FxMaterialPtr;
 class TEXTUREGRAPHENGINE_API RenderMaterial_BP : public RenderMaterial
 {
 protected:
-	UMaterial*						Material = nullptr;			/// The base material that is part 
-	TStrongObjectPtr<UMaterialInstanceDynamic> 
+
+	UMaterialInterface*				Material = nullptr;			/// The base material that is used for this job 
+	TStrongObjectPtr<UMaterialInstanceDynamic>
 									MaterialInstance;			/// An instance of the material
 	CHashPtr						HashValue;					/// The hash for this material
 	bool							RequestMaterialValidation = true;		/// 
@@ -27,7 +28,7 @@ protected:
 									FVector2D CoordinatePosition, FVector2D CoordinateSize=FVector2D::UnitVector, float Rotation=0.f,
 									FVector2D PivotPoint=FVector2D(0.5f,0.5f)) const;
 public:
-									RenderMaterial_BP(FString Name, UMaterial* InMaterial, UMaterialInstanceDynamic* InMaterialInstance = nullptr);
+									RenderMaterial_BP(FString Name, UMaterialInterface* InMaterial, UMaterialInstanceDynamic* InMaterialInstance = nullptr);
 
 	virtual							~RenderMaterial_BP() override;
 
@@ -63,7 +64,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	/// Inline functions
 	////////////////////////////////////////////////////////////////////////// 
-	FORCEINLINE UMaterial*			GetMaterial() { return Material; }
+	FORCEINLINE UMaterialInterface*			GetMaterial() { return Material; }
 
 	FORCEINLINE UMaterialInstanceDynamic* Instance() { return MaterialInstance.Get(); }
 	FORCEINLINE const UMaterialInstanceDynamic* Instance() const { return MaterialInstance.Get(); }

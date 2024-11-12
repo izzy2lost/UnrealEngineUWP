@@ -134,6 +134,9 @@ public:
 	/*~ IRecyclableExtension */
 	void OnRecycle() override;
 
+	/*~ FOutlinerItemModelMixin */
+	virtual void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
+
 private:
 
 	TArray<TWeakViewModelPtr<FCategoryModel>> Categories;

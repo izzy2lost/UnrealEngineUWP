@@ -7,6 +7,8 @@
 #include "UObject/GCObject.h"
 #include "Preferences/MaterialStatsOptions.h"
 
+class FHLSLSyntaxHighlighterMarshaller;
+
 /** structure used to store various statistics extracted from compiled shaders */
 struct FShaderStatsInfo
 {
@@ -275,6 +277,9 @@ public:
 	/** returns the actual shader source selected by the shaders viewer's combo-box */
 	FText GetShaderCode(const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
 
+	/** returns all shaders' stats concatenated together*/
+	FString GetShadersStats() const;
+
 	/** call this whenever the analyzed material or material instance is changed */
 	void SetMaterial(UMaterial *InBaseMaterial, UMaterialInstance *InBaseMaterialInstance, const TArray<TObjectPtr<UMaterialInstance>>& InDerivedMaterialInstances);
 
@@ -354,6 +359,8 @@ class FMaterialStats : public FGCObject, public TSharedFromThis<FMaterialStats>
 
 	TMulticastDelegate<void()> RefreshDependentTabs;
 
+	TSharedPtr<FHLSLSyntaxHighlighterMarshaller> SyntaxHighlighter;
+
 private:
 	/** adds a specified platform in the grid widget for analysis; usually called from BuildShaderPlatformDB() */
 	TSharedPtr<FShaderPlatformSettings> AddShaderPlatform(const EPlatformCategoryType PlatformType, const EShaderPlatform PlatformID, const FName PlatformName, const bool bAllowCodeView, const FString& Description, const bool bAlwaysOn = false);
@@ -364,6 +371,8 @@ private:
 	/** this will spawn the window that will display the a specific set of shaders from the analyzed material */
 	TSharedRef<class SDockTab> SpawnTab_ShaderCode(const class FSpawnTabArgs& Args, const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
 	TSharedRef<class SDockTab> SpawnTab_HLSLCode(const class FSpawnTabArgs& Args);
+
+	TSharedRef<SScrollBox> BuildShaderCodeWidget(TFunction<FText(void)>&& InShaderCodeCallback);
 
 	/** utility function used to build names for the shader viewing tabs  */
 	static FName MakeTabName(const EPlatformCategoryType PlatformType, const EShaderPlatform ShaderPlatformType, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
@@ -463,6 +472,9 @@ public:
 
 	/** returns the shader code computed by the specified platform with some quality level */
 	FText GetShaderCode(const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
+
+	/** returns all shaders' stats concatenated together*/
+	FString GetShadersStats() const;
 
 	/** call this whenever some material property is changed, as it will trigger shader recompilation */
 	void SignalMaterialChanged();

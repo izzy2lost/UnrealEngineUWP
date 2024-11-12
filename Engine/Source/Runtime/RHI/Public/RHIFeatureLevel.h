@@ -107,11 +107,3 @@ using FStaticFeatureLevel = FGenericStaticFeatureLevel;
 
 // The maximum feature level available on this system
 extern RHI_API ERHIFeatureLevel::Type GMaxRHIFeatureLevel;
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIStrings.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Serialization/MemoryLayout.h"
-#endif

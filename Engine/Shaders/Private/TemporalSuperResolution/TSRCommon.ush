@@ -14,7 +14,7 @@
 
 //------------------------------------------------------- RECOMPILE HASH
 
-#pragma message("UESHADERMETADATA_VERSION F3C5FF82-E809-4903-98CD-5CC7E2254C77")
+#pragma message("UESHADERMETADATA_VERSION F3C5FF82-E809-4903-98CD-5DC7E2254C87")
 
 
 //------------------------------------------------------- COMPILER CONFIG
@@ -35,12 +35,6 @@
 	#define CONFIG_COMPILE_FP16 0
 #endif
 
-#if PLATFORM_SUPPORTS_WAVE_BROADCAST && 1
-	#define CONFIG_BUTTERFLY_KERNEL 1
-#else
-	#define CONFIG_BUTTERFLY_KERNEL 0
-#endif
-
 #define CONFIG_SCENE_COLOR_OVERFLOW 1
 
 #if defined(DIM_ALPHA_CHANNEL)
@@ -55,100 +49,11 @@
 // which on 16bit, if linear color spaces ends up close to half(65504.0), this can go +inf on if the compiler transform a * 0.5 + b * 0.5 into (a + b) * 0.5.
 #define CONFIG_FP16_PRECISE_MULTIPLY_ORDER 1
 
-#define CONFIG_SUPPORT_ORTHO_VIEW 1
-
 
 //------------------------------------------------------- CONSTANTS
 
 /* Maximum number of sample. */
 #define MAX_SAMPLE_COUNT 8
-
-#define MAX_FALLBACK_SAMPLE_COUNT 20
-
-// Spatial anti-aliasing encoding settings.
-#define SPATIAL_ANTI_ALIASING_OFFSET_RANGE 0.5
-#define SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL 4
-
-#define COMPRESS_PREV_USE_COUNT 1
-#if COMPRESS_PREV_USE_COUNT
-	// COMPRESS_PREV_USE_COUNT compress the use count in 8bit, so need to sum of a 2x2 to not overflow these 8bits
-	#define PREV_USE_COUNT_QUANTIZATION 63
-#else
-	#define PREV_USE_COUNT_QUANTIZATION 255
-#endif
-
-#define PARALLAX_REJECTION_MASK_THRESHOLD 0.5
-
-#define MAX_PARALLAX_FACTOR 8.0
-
-// Minimum number of sample of each texel when reprojecting the high frequency history.
-// Value too low causes area of low sample count to have pixel dominating too much in reprojection causing input res aliasing on texture details
-#define MIN_REPROJECTION_SAMPLE_COUNT 2.0
-
-// Minimum weight of a pixel in history.
-#define MIN_IMPLICIT_HISTORY_WEIGHT ceil(tsr_half(255.0) * rcp(tsr_half(MAX_SAMPLE_COUNT)) * tsr_half(MIN_REPROJECTION_SAMPLE_COUNT)) * rcp(tsr_half(255.0))
-
-#define SPATIAL_ANTI_ALIASER_MIN_LUMIMANCE 0.05
-
-
-// K = Center of the nearest input pixel.
-// O = Center of the output pixel.
-//
-//          |           |
-//    0     |     1     |     2
-//          |           |
-//          |           |
-//  --------+-----------+--------
-//          |           |
-//          | O         |
-//    3     |     K     |     5
-//          |           |
-//          |           |
-//  --------+-----------+--------
-//          |           |
-//          |           |
-//    6     |     7     |     8
-//          |           |
-//
-static const int2 kOffsets3x3[9] =
-{
-	int2(-1, -1),
-	int2(0, -1),
-	int2(1, -1),
-	int2(-1,  0),
-	int2(0,  0), // K
-	int2(1,  0),
-	int2(-1,  1),
-	int2(0,  1),
-	int2(1,  1),
-};
-
-// T = Center of the nearest top left pixel input pixel.
-// O = Center of the output pixel.
-//
-//          | 
-//    T     |     .
-//          | 
-//       O  | 
-//  --------+--------
-//          | 
-//          | 
-//    .     |     .
-//          | 
-static const int2 Offsets2x2[4] =
-{
-	int2( 0,  0), // T
-	int2( 1,  0),
-	int2( 0,  1),
-	int2( 1,  1),
-};
-
-// Indexes of the 3x3 square.
-static const uint kSquareIndexes3x3[9] = { 4, 0, 1, 2, 3, 8, 7, 6, 5 };
-
-// Indexes of the offsets to have plus + shape.
-static const uint kPlusIndexes3x3[5] = { 4, 1, 3, 7, 5 };
-
 
 #if CONFIG_COMPILE_FP16
 	#define tsr_half  half
@@ -232,16 +137,6 @@ static const uint kPlusIndexes3x3[5] = { 4, 1, 3, 7, 5 };
 // Largest encodable normal number in a half used on console.
 static const tsr_half LargestNormalNumber = tsr_half(65504.0);
 
-// Largest encodable scene color value to not overflaw in YCoCg with halfs on console
-static const tsr_half3 LargestSceneColorRGB = (LargestNormalNumber * tsr_half(0.25)).xxx;
-static const tsr_half4 LargestSceneColorRGBA = (LargestNormalNumber * tsr_half(0.25)).xxxx;
-static const tsr_half3 LargestSceneColorYCoCg = LargestNormalNumber.xxx;
-static const tsr_half4 LargestSceneColorYCoCgA = LargestNormalNumber.xxxx;
-
-// Weight of each channel for the computation of luminance.
-static const tsr_half kMoireLumaToChannel = tsr_half(3.0);
-static const tsr_half3 kMoireLumaWeights = rcp(kMoireLumaToChannel).xxx;
-
 
 //------------------------------------------------------- PARAMETERS
 
@@ -299,6 +194,33 @@ uint bCameraCut;
 
 #if DEBUG_OUTPUT
 	RWTexture2DArray<float4> DebugOutput;
+#endif
+
+
+//------------------------------------------------------- UTILITY
+	
+uint sign_bit(float x)
+{
+    return asuint(x) >> 31u;
+}
+
+uint2 sign_bit(float2 x)
+{
+    return uint2(sign_bit(x.x), sign_bit(x.y));
+}
+
+#if PLATFORM_SUPPORTS_REAL_TYPES
+
+uint16_t sign_bit(half x)
+{
+    return asuint16(x) >> uint16_t(15);
+}
+
+uint16_t2 sign_bit(half2 x)
+{
+    return asuint16(x) >> uint16_t(15);
+}
+
 #endif
 
 
@@ -363,148 +285,6 @@ uint GetGroupThreadIndex(uint GroupThreadIndex, uint GroupWaveIndex)
 	return GroupThreadIndex;
 }
 #endif
-
-// Clamp the offset to be shared across multiple samples
-CALL_SITE_DEBUGLOC
-tsr_short2x2 ClampPixelOffset(
-	tsr_short2x2 KernelCenterPixelPos,
-	tsr_short2x2 Offset,
-	const tsr_short2 OffsetDirection,
-	int2 MinPixelPos, int2 MaxPixelPos)
-{
-	tsr_short2x2 Min = dpv_sub(tsr_short2(MinPixelPos), KernelCenterPixelPos);
-	tsr_short2x2 Max = dpv_sub(tsr_short2(MaxPixelPos), KernelCenterPixelPos);
-
-	// Only do clamp based on the compile time known direction of the offset.
-	// This turns only 1 v_pk_max_i16 and v_pk_min_i16 for a 3x3 kernel.
-	tsr_short2x2 ClampedOffset = 0;
-
-	if (OffsetDirection.x > 0)
-	{
-		ClampedOffset[0] = min(Offset[0], Max[0]);
-	}
-	else if (OffsetDirection.x < 0)
-	{
-		ClampedOffset[0] = max(Offset[0], Min[0]);
-	}
-		
-	if (OffsetDirection.y > 0)
-	{
-		ClampedOffset[1] = min(Offset[1], Max[1]);
-	}
-	else if (OffsetDirection.y < 0)
-	{
-		ClampedOffset[1] = max(Offset[1], Min[1]);
-	}
-
-	return ClampedOffset;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_short2 ClampPixelOffset(
-	tsr_short2 KernelCenterPixelPos,
-	tsr_short2 Offset,
-	const tsr_short2 OffsetDirection,
-	int2 MinPixelPos, int2 MaxPixelPos)
-{
-	tsr_short2 Min = tsr_short2(MinPixelPos) - KernelCenterPixelPos;
-	tsr_short2 Max = tsr_short2(MaxPixelPos) - KernelCenterPixelPos;
-
-	// Only do clamp based on the compile time known direction of the offset.
-	// This turns only 1 v_pk_max_i16 and v_pk_min_i16 for a 3x3 kernel.
-	tsr_short2 ClampedOffset = 0;
-
-	if (OffsetDirection.x > 0)
-		ClampedOffset.x = min(Offset.x, Max.x);
-	else if (OffsetDirection.x < 0)
-		ClampedOffset.x = max(Offset.x, Min.x);
-		
-	if (OffsetDirection.y > 0)
-		ClampedOffset.y = min(Offset.y, Max.y);
-	else if (OffsetDirection.y < 0)
-		ClampedOffset.y = max(Offset.y, Min.y);
-
-	return ClampedOffset;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_short2x2 ClampPixelOffset(
-	tsr_short2x2 SamplePixelPos,
-	int2 MinPixelPos, int2 MaxPixelPos)
-{
-	SamplePixelPos[0] = fastClamp(SamplePixelPos[0], tsr_short2(MinPixelPos.xx), tsr_short2(MaxPixelPos.xx));
-	SamplePixelPos[1] = fastClamp(SamplePixelPos[1], tsr_short2(MinPixelPos.yy), tsr_short2(MaxPixelPos.yy));
-	return SamplePixelPos;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_short2 ClampPixelOffset(
-	tsr_short2 SamplePixelPos,
-	int2 MinPixelPos, int2 MaxPixelPos)
-{
-	return fastClamp(SamplePixelPos, tsr_short2(MinPixelPos), tsr_short2(MaxPixelPos));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_short2x2 AddAndClampPixelOffset(
-	tsr_short2x2 KernelCenterPixelPos,
-	tsr_short2x2 Offset,
-	const tsr_short2 OffsetDirection,
-	int2 MinPixelPos, int2 MaxPixelPos)
-{
-	tsr_short2x2 SamplePixelPos = KernelCenterPixelPos + Offset;
-	
-	tsr_short2 SamplePixelPos0 = dpv_lo(SamplePixelPos);
-	tsr_short2 SamplePixelPos1 = dpv_hi(SamplePixelPos);
-
-	// Only do clamp based on the compile time known direction of the offset.
-	// This turns only 1 v_pk_max_i16 and v_pk_min_i16 for a 3x3 kernel.
-	if (OffsetDirection.x > 0)
-		SamplePixelPos0.x = min(SamplePixelPos0.x, tsr_short(MaxPixelPos.x));
-	else if (OffsetDirection.x < 0)
-		SamplePixelPos0.x = max(SamplePixelPos0.x, tsr_short(MinPixelPos.x));
-		
-	if (OffsetDirection.y > 0)
-		SamplePixelPos0.y = min(SamplePixelPos0.y, tsr_short(MaxPixelPos.y));
-	else if (OffsetDirection.y < 0)
-		SamplePixelPos0.y = max(SamplePixelPos0.y, tsr_short(MinPixelPos.y));
-	
-	if (OffsetDirection.x > 0)
-		SamplePixelPos1.x = min(SamplePixelPos1.x, tsr_short(MaxPixelPos.x));
-	else if (OffsetDirection.x < 0)
-		SamplePixelPos1.x = max(SamplePixelPos1.x, tsr_short(MinPixelPos.x));
-		
-	if (OffsetDirection.y > 0)
-		SamplePixelPos1.y = min(SamplePixelPos1.y, tsr_short(MaxPixelPos.y));
-	else if (OffsetDirection.y < 0)
-		SamplePixelPos1.y = max(SamplePixelPos1.y, tsr_short(MinPixelPos.y));
-	
-	return dpv_interleave_registers(SamplePixelPos0, SamplePixelPos1);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_short2 AddAndClampPixelOffset(
-	tsr_short2 KernelCenterPixelPos,
-	tsr_short2 Offset,
-	const tsr_short2 OffsetDirection,
-	int2 MinPixelPos, int2 MaxPixelPos)
-{
-	tsr_short2 SamplePixelPos = KernelCenterPixelPos + Offset;
-
-	// Only do clamp based on the compile time known direction of the offset.
-	// This turns only 1 v_pk_max_i16 and v_pk_min_i16 for a 3x3 kernel.
-	if (OffsetDirection.x > 0)
-		SamplePixelPos.x = min(SamplePixelPos.x, tsr_short(MaxPixelPos.x));
-	else if (OffsetDirection.x < 0)
-		SamplePixelPos.x = max(SamplePixelPos.x, tsr_short(MinPixelPos.x));
-		
-	if (OffsetDirection.y > 0)
-		SamplePixelPos.y = min(SamplePixelPos.y, tsr_short(MaxPixelPos.y));
-	else if (OffsetDirection.y < 0)
-		SamplePixelPos.y = max(SamplePixelPos.y, tsr_short(MinPixelPos.y));
-
-	return SamplePixelPos;
-}
 
 CALL_SITE_DEBUGLOC
 tsr_short2x2 InvalidateOutputPixelPos(tsr_short2x2 PixelPos, uint2 ViewportMax)
@@ -615,188 +395,6 @@ half2 SafeRcp(half2 x)
 #endif
 
 CALL_SITE_DEBUGLOC
-tsr_half2 ComputeLowFrequencyContribution(tsr_half2 HistoryValidity)
-{
-	return saturate((HistoryValidity - tsr_half(1.0 * rcp(MAX_SAMPLE_COUNT))) * tsr_half(6.0));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half ComputeLowFrequencyContribution(tsr_half HistoryValidity)
-{
-	return dpv_lo(ComputeLowFrequencyContribution(dpv_interleave_mono_registers(HistoryValidity)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 RGBToYCoCg(tsr_half3x2 RGB)
-{
-    tsr_half2 R = RGB[0];
-    tsr_half2 G = RGB[1];
-    tsr_half2 B = RGB[2];       
-
-    tsr_half2 RplusB = R + B;
-    tsr_half2 Y = 2.0 * G + RplusB;
-    tsr_half2 Cg = 2.0 * G - RplusB;
-    tsr_half2 Co = 2.0 * (R - B);
-    tsr_half3x2 YCoCg = tsr_half3x2(Y, Co, Cg);
-
-    return YCoCg;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 YCoCgToRGB(tsr_half3x2 YCoCg)
-{
-	tsr_half2 Y =  YCoCg[0] * tsr_half(0.25);
-	tsr_half2 Co = YCoCg[1] * tsr_half(0.25);
-	tsr_half2 Cg = YCoCg[2] * tsr_half(0.25);
-
-	tsr_half2 R = Y + Co - Cg;
-	tsr_half2 G = Y + Cg;
-	tsr_half2 B = Y - Co - Cg;
-
-	tsr_half3x2 RGB = tsr_half3x2(R, G, B);
-	return RGB;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4x2 RGBToYCoCg(tsr_half4x2 RGBA)
-{
-	return tsr_half4x2(RGBToYCoCg(tsr_half3x2(RGBA[0], RGBA[1], RGBA[2])), RGBA[3]);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4x2 YCoCgToRGB(tsr_half4x2 YCoCgA)
-{
-	return tsr_half4x2(YCoCgToRGB(tsr_half3x2(YCoCgA[0], YCoCgA[1], YCoCgA[2])), YCoCgA[3]);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 RGBToYCoCg(tsr_half3 RGB)
-{
-	return dpv_lo(RGBToYCoCg(dpv_interleave_mono_registers(RGB)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 YCoCgToRGB(tsr_half3 YCoCg)
-{
-	return dpv_lo(YCoCgToRGB(dpv_interleave_mono_registers(YCoCg)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4 RGBToYCoCg(tsr_half4 RGBA)
-{
-	return dpv_lo(RGBToYCoCg(dpv_interleave_mono_registers(RGBA)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4 YCoCgToRGB(tsr_half4 YCoCgA)
-{
-	return dpv_lo(YCoCgToRGB(dpv_interleave_mono_registers(YCoCgA)));
-}
-
-
-// Some bright pixel can cause HdrWeight to get nullified under fp16 representation. So clamping this to a value close to the minimum float float positive value (0.000061).
-#define HDR_WEIGHT_SAFE_MIN_VALUE 0.0001
-
-// Faster but less accurate luma computation. 
-// Luma includes a scaling by 4.
-CALL_SITE_DEBUGLOC
-tsr_half2 Luma4(tsr_half3x2 Color)
-{
-	return (Color[1] * tsr_half(2.0)) + (Color[0] + Color[2]);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 Luma4(tsr_half4x2 Color)
-{
-	return Luma4(tsr_half3x2(Color[0], Color[1], Color[2]));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half Luma4(tsr_half3 Color)
-{
-	return dpv_lo(Luma4(dpv_interleave_mono_registers(Color)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half Luma4(tsr_half4 Color)
-{
-	return Luma4(Color.rgb);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeightY(tsr_half2 Luma)
-{
-	tsr_half Exposure = tsr_half(1.0);
-
-	return max(tsr_half(HDR_WEIGHT_SAFE_MIN_VALUE), rcp(Luma * Exposure + tsr_half(4.0)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeightY(tsr_half Luma)
-{
-	return dpv_lo(HdrWeightY(dpv_interleave_mono_registers(Luma)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeightInvY(tsr_half2 LDRLuma) 
-{
-	return tsr_half(4.0) * rcp(tsr_half(1.0) - LDRLuma);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeightInvY(tsr_half LDRLuma) 
-{
-	return dpv_lo(HdrWeightInvY(dpv_interleave_mono_registers(LDRLuma)));
-}
-
-// Optimized HDR weighting function.
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeight4(tsr_half3x2 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeight4(tsr_half4x2 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeight4(tsr_half3 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeight4(tsr_half4 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-
-// Returns the weight of a pixels at a coordinate <PixelDelta> from the PDF highest point.
-CALL_SITE_DEBUGLOC
-tsr_half2 ComputeSampleWeigth(tsr_half2 UpscaleFactor, tsr_half2x2 PixelDelta, const float MinimalContribution)
-{
-	tsr_half2 u2 = UpscaleFactor * UpscaleFactor;
-
-	// 1 - 1.9 * x^2 + 0.9 * x^4
-	tsr_half2 x2 = saturate(u2 * dpv_length2(PixelDelta));
-	//return tsr_half(((float(0.9) + MinimalContribution) * x2 - float(1.9)) * x2 + float(1.0));
-	return saturate((tsr_half(0.9) * x2 - tsr_half(1.9)) * x2 + tsr_half(1.0 + MinimalContribution));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half ComputeSampleWeigth(tsr_half UpscaleFactor, tsr_half2 PixelDelta, const float MinimalContribution)
-{
-	return dpv_lo(ComputeSampleWeigth(
-		dpv_interleave_mono_registers(UpscaleFactor),
-		dpv_interleave_mono_registers(PixelDelta),
-		MinimalContribution));
-}
-
-CALL_SITE_DEBUGLOC
 tsr_half2x2 WeightedLerpFactors(tsr_half2 WeightA, tsr_half2 WeightB, tsr_half2 Blend)
 {
 	tsr_half2 BlendA = (tsr_half(1.0) - Blend) * WeightA;
@@ -822,29 +420,9 @@ bool TakeOnlyOneSamplePair(float2 Offset)
 	return Offset.y > 0.0 || (Offset.x > 0.0 && Offset.y == 0.0);
 }
 
-float3 ComputeStaticVelocity(float2 ScreenPos, float DeviceZ)
-{
-	float3 PosN = float3(ScreenPos, DeviceZ);
-
-	float4 ThisClip = float4(PosN, 1);
-	float4 PrevClip = mul( ThisClip, View.ClipToPrevClip );
-	float3 PrevScreen = PrevClip.xyz / PrevClip.w;
-	return PosN - PrevScreen;
-}
-
 tsr_half ComputePredictionCompleteness(tsr_half SampleHistoryValidity)
 {
 	return saturate(SampleHistoryValidity * tsr_half(MAX_SAMPLE_COUNT) - tsr_half(0.2));
-}
-
-CALL_SITE_DEBUGLOC
-bool IsOffScreen(uint bCameraCut, float2 ScreenPos, tsr_half ParallaxRejectionMask)
-{
-	bool bIsCameraCut = bCameraCut != 0;
-	bool bIsOutOfBounds = max(abs(ScreenPos.x), abs(ScreenPos.y)) >= 1.0;
-	bool bIsParallaxRejected = ParallaxRejectionMask < tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD);
-
-	return (bIsCameraCut || bIsOutOfBounds || bIsParallaxRejected);
 }
 
 CALL_SITE_DEBUGLOC
@@ -857,248 +435,6 @@ void IsOffScreenOrDisoccluded(uint bCameraCut, float2x2 ScreenPos, bool2 bIsPara
 	bIsDisoccluded = and(!bIsOffScreen, bIsParallaxRejected);
 }
 
-tsr_half MeasureBackbufferLDRQuantizationError()
-{
-	// Assume the backbuffer is 10bit per channels
-	return tsr_half(0.5 / 1024.0);
-}
-
-tsr_half2 MeasureBackbufferLDRQuantizationErrorFromHDRLuma(tsr_half2 Luma)
-{
-	tsr_half2 Tonemap = Luma * HdrWeightY(Luma) + MeasureBackbufferLDRQuantizationError().xx;
-	tsr_half2 PixelColorQuantizationError = abs(Tonemap * HdrWeightInvY(Tonemap) - Luma);
-
-	return PixelColorQuantizationError;
-}
-
-tsr_half MeasureBackbufferLDRQuantizationErrorFromHDRLuma(tsr_half Luma)
-{
-	return dpv_lo(MeasureBackbufferLDRQuantizationErrorFromHDRLuma(dpv_interleave_mono_registers(Luma)));
-}
-
-tsr_half2 MeasureRejectionFactor(
-	tsr_halfCx2 PrevYCoCg,
-	tsr_halfCx2 ClampedPrevYCoCg,
-	tsr_halfCx2 InputCenterYCoCg,
-	tsr_halfCx2 InputMinYCoCg, tsr_halfCx2 InputMaxYCoCg,
-	tsr_half2 BackbufferQuantizationError)
-{
-	const tsr_halfC Null = tsr_half(0.0);
-	
-	#if CONFIG_SCENE_COLOR_ALPHA
-		tsr_halfCx2 BackbufferQuantizationErrorVector = tsr_half4x2(BackbufferQuantizationError, BackbufferQuantizationError, BackbufferQuantizationError, BackbufferQuantizationError);
-	#else
-		tsr_halfCx2 BackbufferQuantizationErrorVector = tsr_half3x2(BackbufferQuantizationError, BackbufferQuantizationError, BackbufferQuantizationError);
-	#endif
-
-	tsr_halfCx2 BoxSize = InputMaxYCoCg - InputMinYCoCg;
-
-	tsr_halfCx2 ClampedEnergy = abs(ClampedPrevYCoCg - PrevYCoCg);
-	tsr_halfCx2 Delta = abs(InputCenterYCoCg - PrevYCoCg);
-
-	tsr_halfCx2 ClampError = max(
-		BoxSize * tsr_half(0.25),
-		BackbufferQuantizationErrorVector);
-
-	tsr_halfCx2 Factor = tsr_half(1.0) - saturate(max(ClampedEnergy - ClampError, dpv_interleave_mono_registers(Null)) * rcp(max(Delta, BoxSize)));
-
-	tsr_half2 Rejection = min3(Factor[0], Factor[1], Factor[2]);
-	
-	#if CONFIG_SCENE_COLOR_ALPHA
-		Rejection = min(Rejection, Factor[3]);
-	#endif
-
-	return Rejection;
-}
-
-tsr_half MeasureRejectionFactor(
-	tsr_halfC PrevYCoCg,
-	tsr_halfC ClampedPrevYCoCg,
-	tsr_halfC InputCenterYCoCg,
-	tsr_halfC InputMinYCoCg, tsr_halfC InputMaxYCoCg,
-	tsr_half BackbufferQuantizationError)
-{
-	return dpv_lo(MeasureRejectionFactor(
-		dpv_interleave_mono_registers(PrevYCoCg), 
-		dpv_interleave_mono_registers(ClampedPrevYCoCg), 
-		dpv_interleave_mono_registers(InputCenterYCoCg), 
-		dpv_interleave_mono_registers(InputMinYCoCg), 
-		dpv_interleave_mono_registers(InputMaxYCoCg), 
-		dpv_interleave_mono_registers(BackbufferQuantizationError)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 QuantizeForUNormRenderTarget(tsr_half3x2 Color, tsr_half E, const float3 QuantizationError)
-{
-	return Color + dpv_interleave_mono_registers(tsr_half3(QuantizationError)) * (E - tsr_half(0.5));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 QuantizeForUNormRenderTarget(tsr_half3 Color, tsr_half E, const float3 QuantizationError)
-{
-	return dpv_lo(QuantizeForUNormRenderTarget(dpv_interleave_mono_registers(Color), E, QuantizationError));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 QuantizeForFloatRenderTarget(tsr_half3x2 Color, tsr_half E, const float3 QuantizationError)
-{
-	tsr_half3x2 Error = dpv_mul(Color, tsr_half3(QuantizationError));
-
-	#if 0
-		// NOP
-	#elif CONFIG_COMPILE_FP16
-	{
-		Error[0] = asfloat16(asint16(Error[0]) & uint16_t(~0x03FF));
-		Error[1] = asfloat16(asint16(Error[1]) & uint16_t(~0x03FF));
-		Error[2] = asfloat16(asint16(Error[2]) & uint16_t(~0x03FF));
-	}
-	#else
-	{
-		Error[0] = asfloat(asuint(Error[0]) & ~0x007FFFFF);
-		Error[1] = asfloat(asuint(Error[1]) & ~0x007FFFFF);
-		Error[2] = asfloat(asuint(Error[2]) & ~0x007FFFFF);
-	}
-	#endif
-	
-	return Color + Error * E;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 QuantizeForFloatRenderTarget(tsr_half3 Color, tsr_half E, const float3 QuantizationError)
-{
-	return dpv_lo(QuantizeForFloatRenderTarget(dpv_interleave_mono_registers(Color), E, QuantizationError));
-}
-
-
-#if COMPRESS_PREV_USE_COUNT
-
-// encode 4 use count that are 8bits shifted in the PF_R32_UINT
-void ComputeCompressedUseCountPixelCoordinates(uint2 PixelPos, out uint2 CompressedUseCountPixelPos, out uint Shift)
-{
-	// Overlap 2x2 consecutive blocks of 8x8 pixel to reduce atomic contention in the scattering pass
-	const uint kTileSize = 8;
-
-	uint2 PixelPosOffset = PixelPos - InputInfo_ViewportMin;
-
-	CompressedUseCountPixelPos = ((PixelPosOffset % kTileSize) | ((PixelPosOffset >> 1) & ~(kTileSize - 1))) + InputInfo_ViewportMin;
-	Shift = ((PixelPosOffset.x / kTileSize) % 2) | (((PixelPosOffset.y / kTileSize) % 2) << 1);
-}
-	
-#endif
-
-CALL_SITE_DEBUGLOC
-uint2 EncodeSpatialAntiAliasingOffset(tsr_half2x2 TexelOffset)
-{
-	const uint Mask = (1 << SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL) - 1;
-	const uint Zero = Mask / 2;
-
-	tsr_half Multiply = tsr_half(float(Zero) / SPATIAL_ANTI_ALIASING_OFFSET_RANGE);
-
-	uint2 EncodedTexelOffset = 0;
-	EncodedTexelOffset |= fastClamp(uint2(int2(round(TexelOffset[0] * Multiply)) + int(1 + Zero)), uint(1), Mask) << 0;
-	EncodedTexelOffset |= fastClamp(uint2(int2(round(TexelOffset[1] * Multiply)) + int(1 + Zero)), uint(1), Mask) << SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL;
-	return EncodedTexelOffset;
-}
-
-CALL_SITE_DEBUGLOC
-uint EncodeSpatialAntiAliasingOffset(tsr_half2 TexelOffset)
-{
-	return dpv_lo(EncodeSpatialAntiAliasingOffset(dpv_interleave_mono_registers(TexelOffset)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2x2 DecodeSpatialAntiAliasingOffset(tsr_ushort2 EncodedInputTexelOffset)
-{
-	const tsr_ushort Mask = tsr_ushort(1 << SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL) - tsr_ushort(1);
-	const tsr_ushort Zero = Mask / tsr_ushort(2);
-	
-	tsr_half Multiply = tsr_half(SPATIAL_ANTI_ALIASING_OFFSET_RANGE / float(Zero));
-
-	tsr_half2x2 TexelOffset;
-	TexelOffset[0] = tsr_half2((EncodedInputTexelOffset >> tsr_ushort(0                                                )) & Mask) * Multiply - (tsr_half(1 + Zero) * Multiply);
-	TexelOffset[1] = tsr_half2((EncodedInputTexelOffset >> tsr_ushort(SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL)) & Mask) * Multiply - (tsr_half(1 + Zero) * Multiply);
-
-	return TexelOffset;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 DecodeSpatialAntiAliasingOffset(tsr_ushort EncodedInputTexelOffset)
-{
-	return dpv_lo(DecodeSpatialAntiAliasingOffset(dpv_interleave_mono_registers(EncodedInputTexelOffset)));
-}
-
-
-#define VELOCITY_HOLE_FILLING_BITS 18
-#define VELOCITY_HOLE_FILLING_LENGTH_BITS 13
-#define VELOCITY_HOLE_FILLING_ANGLE_BITS (VELOCITY_HOLE_FILLING_BITS - VELOCITY_HOLE_FILLING_LENGTH_BITS)
-#define VELOCITY_HOLE_FILLING_LENGTH_PRECISION (pow(2.0, 5))
-
-CALL_SITE_DEBUGLOC
-uint EncodeHoleFillingVelocity(float2 PixelVelocity)
-{
-	const uint AngleBitDepth = 1 << VELOCITY_HOLE_FILLING_ANGLE_BITS;
-	const uint LengthBitDepth = 1 << VELOCITY_HOLE_FILLING_LENGTH_BITS;
-	const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
-
-	float EncodedAngle = atan2Fast(PixelVelocity.y, PixelVelocity.x) * (0.5 * AngleBitDepth / PI) + (0.5 * AngleBitDepth);
-	uint iEncodedAngle = uint(round(EncodedAngle)) & (AngleBitDepth - 1);
-
-	float EncodedLength = length(PixelVelocity) * LengthPixelPrecision;
-	uint iEncodedLength = fastClamp(uint(ceil(EncodedLength)), 0u, LengthBitDepth - 1u);
-
-	uint EncodedHoleFillingVelocity = iEncodedAngle * LengthBitDepth + iEncodedLength;
-	return EncodedHoleFillingVelocity;
-}
-
-CALL_SITE_DEBUGLOC
-void DecodeHoleFillingVelocity(uint EncodedHoleFillingVelocity, out float2 PixelVelocity, out float OutOfRangeFactor)
-{
-	const uint AngleBitDepth = 1 << VELOCITY_HOLE_FILLING_ANGLE_BITS;
-	const uint LengthBitDepth = 1 << VELOCITY_HOLE_FILLING_LENGTH_BITS;
-	const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
-	const float LengthRange = float(LengthBitDepth) / LengthPixelPrecision;
-
-	uint iEncodedLength = EncodedHoleFillingVelocity % LengthBitDepth;
-	uint iEncodedAngle = (EncodedHoleFillingVelocity >> VELOCITY_HOLE_FILLING_LENGTH_BITS) % AngleBitDepth;
-
-	float EncodedLength = float(iEncodedLength);
-	float Length = EncodedLength * rcp(LengthPixelPrecision);
-
-	float EncodedAngle = float(iEncodedAngle);
-	float Angle = EncodedAngle * (PI * 2.0 / float(AngleBitDepth)) - PI;
-
-	sincos(Angle, /* out */ PixelVelocity.y, /* out */ PixelVelocity.x);
-	PixelVelocity *= Length;
-
-	OutOfRangeFactor = saturate(LengthRange - Length);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_short2 GetLaneOffsetSign()
-#if CONFIG_BUTTERFLY_KERNEL
-{
-	uint LaneIndex = WaveGetLaneIndex();
-
-	return tsr_short(-1) + tsr_short2(tsr_ushort2(tsr_ushort(LaneIndex) << tsr_ushort(1), LaneIndex) & tsr_ushort(0x2));
-}
-#else
-{
-	return tsr_short(1).xx;
-}
-#endif
-
-CALL_SITE_DEBUGLOC
-float ComputePixelVelocityBilateralWeight(float2 PixelVelocityDelta)
-{
-	return saturate(1.0 - length2(PixelVelocityDelta));
-}
-
-CALL_SITE_DEBUGLOC
-float ComputeScreenVelocityBilateralWeight(float2 ScreenVelocityDelta)
-{
-	return ComputePixelVelocityBilateralWeight(ScreenVelocityDelta * ScreenVelocityToInputPixelVelocity);
-}
-
 tsr_half2 ComputePrevWeightMultiplier(tsr_half2 BlendFactor)
 {
 	return (1.0 - BlendFactor) / BlendFactor;
@@ -1108,46 +444,3 @@ tsr_half2 RejectionFactorToBlendFactor(tsr_half2 RejectionFactor)
 {
 	return tsr_half(1.0) - RejectionFactor;
 }
-
-FCatmullRomSamples GetBicubic2DCatmullRomSamples_Stubbe(float2 UV, float2 Size, in float2 InvSize)
-{
-	float2 PixelCoord = UV * Size;
-
-	float2 iuv = floor(PixelCoord - 0.5) + 1.0;
-	tsr_half2 f = tsr_half2(PixelCoord - iuv);
-	tsr_half2 f2 = f * f;
-	tsr_half2 f_2 = f + f;
-
-	tsr_half2 uv = (tsr_half(1.25) - f2) * f + tsr_half(0.5);
-	tsr_half2 t0 = (tsr_half(0.25) * f2 - tsr_half(0.0625)) * (tsr_half(1.125) - tsr_half(0.5) * f2.yx);
-	tsr_half2 w0 = t0 - f_2 * t0;
-	tsr_half2 w3 = t0 + f_2 * t0;
-
-	float2 cuv = (iuv - 0.5) * InvSize;
-	uv *= tsr_half2(InvSize);
-
-	FCatmullRomSamples Samples;
-	Samples.Count = BICUBIC_CATMULL_ROM_SAMPLES;
-
-	Samples.UV[0] = cuv + tsr_half2(               -InvSize.x,                      uv.y);
-	Samples.UV[1] = cuv + tsr_half2(tsr_half(2.0) * InvSize.x,                      uv.y);
-	Samples.UV[2] = cuv + uv;
-	Samples.UV[3] = cuv + tsr_half2(                     uv.x,                -InvSize.y);
-	Samples.UV[4] = cuv + tsr_half2(                     uv.x, tsr_half(2.0) * InvSize.y);
-	
-	Samples.Weight[0] = half(w0.x);
-	Samples.Weight[1] = half(w3.x);
-	Samples.Weight[2] = half(tsr_half(1.0) - w0.x - w3.x - w0.y - w3.y);
-	Samples.Weight[3] = half(w0.y);
-	Samples.Weight[4] = half(w3.y);
-
-	Samples.UVDir[0] = int2(-1,  0);
-	Samples.UVDir[1] = int2( 1,  0);
-	Samples.UVDir[2] = int2( 0,  0);
-	Samples.UVDir[3] = int2( 0, -1);
-	Samples.UVDir[4] = int2( 0,  1);
-	
-	Samples.FinalMultiplier = 1.0;
-	return Samples;
-}
-

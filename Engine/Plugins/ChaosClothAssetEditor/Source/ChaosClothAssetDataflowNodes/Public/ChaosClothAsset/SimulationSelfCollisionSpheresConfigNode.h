@@ -14,11 +14,11 @@ struct FChaosClothAssetSimulationSelfCollisionSpheresConfigNode : public FChaosC
 
 public:
 	/** The radius of the spheres used in self collision centered at each vertex. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", InteractorName = "SelfCollisionSphereRadius"))
 	float SelfCollisionSphereRadius = 0.5f;
 
 	/** The stiffness of the springs used to control self collision. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", InteractorName = "SelfCollisionSphereStiffness"))
 	float SelfCollisionSphereStiffness = 1.f;
 
 	/** 
@@ -32,11 +32,11 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Self-Collision Spheres Properties", Meta = (DataflowOutput))
 	FString SelfCollisionSphereSetName = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereSetName);
 
-	FChaosClothAssetSimulationSelfCollisionSpheresConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationSelfCollisionSpheresConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 
-	virtual void EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void EvaluateClothCollection(UE::Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };

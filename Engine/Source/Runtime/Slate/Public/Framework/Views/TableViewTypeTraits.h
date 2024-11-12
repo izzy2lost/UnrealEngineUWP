@@ -165,7 +165,7 @@ public:
 
 	static FString DebugDump( TSharedPtr<T> InPtr )
 	{
-		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08x"), InPtr.Get()) : FString(TEXT("nullptr"));
+		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)InPtr.Get()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType{};
@@ -211,7 +211,7 @@ public:
 
 	static FString DebugDump( TSharedPtr<T, ESPMode::ThreadSafe> InPtr )
 	{
-		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08x"), InPtr.Get()) : FString(TEXT("nullptr"));
+		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)InPtr.Get()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType{};
@@ -257,7 +257,7 @@ public:
 
 	static FString DebugDump( TSharedRef<T> InPtr )
 	{
-		return FString::Printf(TEXT("0x%08x"), &InPtr.Get());
+		return FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)&InPtr.Get());
 	}
 
 	class SerializerType{};
@@ -303,7 +303,7 @@ public:
 
 	static FString DebugDump( TSharedRef<T, ESPMode::ThreadSafe> InPtr )
 	{
-		return FString::Printf(TEXT("0x%08x"), &InPtr.Get());
+		return FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)&InPtr.Get());
 	}
 
 	class SerializerType{};
@@ -348,7 +348,7 @@ public:
 
 	static FString DebugDump( TWeakPtr<T> InPtr )
 	{
-		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08x"), InPtr.Get()) : FString(TEXT("nullptr"));
+		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)InPtr.Get()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType{};
@@ -394,7 +394,7 @@ public:
 
 	static FString DebugDump( TWeakPtr<T, ESPMode::ThreadSafe> InPtr )
 	{
-		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08x"), InPtr.Pin().Get()) : FString(TEXT("nullptr"));
+		return InPtr.IsValid() ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)InPtr.Pin().Get()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType{};
@@ -443,7 +443,7 @@ public:
 	static FString DebugDump( TWeakObjectPtr<T> InPtr )
 	{
 		T* ObjPtr = InPtr.Get();
-		return ObjPtr ? FString::Printf(TEXT("0x%08x [%s]"), ObjPtr, *ObjPtr->GetName()) : FString(TEXT("nullptr"));
+		return ObjPtr ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT " [%s]"), (UPTRINT)ObjPtr, *ObjPtr->GetName()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType{};
@@ -504,7 +504,7 @@ public:
 
 	static FString DebugDump(TObjectPtr<T> InPtr)
 	{
-		return InPtr ? FString::Printf(TEXT("0x%08x [%s]"), InPtr.Get(), *InPtr->GetName()) : FString(TEXT("nullptr"));
+		return InPtr ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT " [%s]"), (UPTRINT)InPtr.Get(), *InPtr->GetName()) : FString(TEXT("nullptr"));
 	}
 
 	typedef FGCObject SerializerType;
@@ -556,7 +556,7 @@ public:
 
 	static FString DebugDump( T* InPtr )
 	{
-		return InPtr ? FString::Printf(TEXT("0x%08x [%s]"), InPtr, *InPtr->GetName()) : FString(TEXT("nullptr"));
+		return InPtr ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT " [%s]"), (UPTRINT)InPtr, *InPtr->GetName()) : FString(TEXT("nullptr"));
 	}
 
 	typedef FGCObject SerializerType;
@@ -602,7 +602,7 @@ public:
 
 	static FString DebugDump( const T* InPtr )
 	{
-		return InPtr ? FString::Printf(TEXT("0x%08x [%s]"), InPtr, *InPtr->GetName()) : FString(TEXT("nullptr"));
+		return InPtr ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT " [%s]"), (UPTRINT)InPtr, *InPtr->GetName()) : FString(TEXT("nullptr"));
 	}
 
 	typedef FGCObject SerializerType;
@@ -678,7 +678,7 @@ public:
 	static FString DebugDump(TFieldPath<T> InPtr)
 	{
 		T* ObjPtr = InPtr.Get();
-		return ObjPtr ? FString::Printf(TEXT("0x%08x [%s]"), ObjPtr, *ObjPtr->GetName()) : FString(TEXT("nullptr"));
+		return ObjPtr ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT " [%s]"), (UPTRINT)ObjPtr, *ObjPtr->GetName()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType {};

@@ -16,6 +16,7 @@
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/MemoryImageWriter.h"
 #include "Containers/UnrealString.h"
+#include "Misc/IntrusiveUnsetOptionalState.h"
 
 
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
@@ -83,6 +84,24 @@ public:
 		// Destruct the elements in the array.
 		Empty();
 	}
+
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSparseArray> state //
+	/////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSparseArray;
+
+	explicit TSparseArray(FIntrusiveUnsetOptionalState Tag)
+		: Data(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Data == Tag;
+	}
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<TSparseArray> state //
+	///////////////////////////////////////////////////
 
 	/** Marks an index as allocated, and returns information about the allocation. */
 	FSparseArrayAllocationInfo AllocateIndex(int32 Index)
@@ -659,6 +678,43 @@ public:
 		// Set up the new head
 		FirstFreeIndex = CurrentHeadIndex;
 	}
+	
+	/**
+	 * Finds an item by predicate.
+	 *
+	 * @param Pred The predicate to match.
+	 * @returns Index to the first matching element, or INDEX_NONE if none is found.
+	 */
+	template <typename Predicate>
+	int32 IndexOfByPredicate(Predicate Pred) const
+	{	
+		for (TConstIterator It = CreateConstIterator(); It; ++It)
+		{
+			if (::Invoke(Pred, *It))
+			{
+				return It.GetIndex();
+			}
+		}
+
+		return INDEX_NONE;
+	}
+
+	/**
+	 * Finds the index of an arbitrary element.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return The index of any element in the container, or INDEX_NONE if it is empty.
+	 */
+	int32 FindArbitraryElementIndex() const
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		if (NumFreeIndices == 0)
+		{
+			return Data.Num() - 1; // this will return INDEX_NONE if Data is empty.
+		}
+
+		return AllocationFlags.Find(true);
+	}
 
 	/** 
 	 * Helper function to return the amount of memory allocated by this container 
@@ -1120,10 +1176,10 @@ private:
 	AllocationBitArrayType AllocationFlags;
 
 	/** The index of an unallocated element in the array that currently contains the head of the linked list of free elements. */
-	int32 FirstFreeIndex;
+	int32 FirstFreeIndex = -1;
 
 	/** The number of elements in the free list. */
-	int32 NumFreeIndices;
+	int32 NumFreeIndices = 0;
 
 public:
 	void WriteMemoryImage(FMemoryImageWriter& Writer) const
@@ -1178,7 +1234,7 @@ public:
 			const FTypeLayoutDesc& ElementTypeDesc = StaticGetTypeLayoutDesc<ElementType>();
 			TSparseArray* DstObject = (TSparseArray*)Dst;
 			{
-				new(&DstObject->Data) DataType();
+				::new((void*)&DstObject->Data) DataType();
 				DstObject->Data.SetNumUninitialized(this->Data.Num());
 				for (int32 i = 0; i < this->Data.Num(); ++i)
 				{
@@ -1196,13 +1252,13 @@ public:
 				}
 			}
 
-			new(&DstObject->AllocationFlags) AllocationBitArrayType(this->AllocationFlags);
+			::new((void*)&DstObject->AllocationFlags) AllocationBitArrayType(this->AllocationFlags);
 			DstObject->FirstFreeIndex = this->FirstFreeIndex;
 			DstObject->NumFreeIndices = this->NumFreeIndices;
 		}
 		else
 		{
-			new(Dst) TSparseArray();
+			::new((void*)Dst) TSparseArray();
 		}
 	}
 
@@ -1286,6 +1342,24 @@ public:
 	{
 	}
 
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSparseArray> state //
+	/////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptSparseArray;
+
+	explicit TScriptSparseArray(FIntrusiveUnsetOptionalState Tag)
+		: Data(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Data == Tag;
+	}
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<TSparseArray> state //
+	///////////////////////////////////////////////////
+
 	bool IsValidIndex(int32 Index) const
 	{
 		return AllocationFlags.IsValidIndex(Index) && AllocationFlags[Index];
@@ -1304,6 +1378,11 @@ public:
 	int32 Num() const
 	{
 		return Data.Num() - NumFreeIndices;
+	}
+
+	int32 NumUnchecked() const
+	{
+		return Data.NumUnchecked() - NumFreeIndices;
 	}
 
 	int32 GetMaxIndex() const
@@ -1403,8 +1482,8 @@ public:
 private:
 	TScriptArray   <typename AllocatorType::ElementAllocator>  Data;
 	TScriptBitArray<typename AllocatorType::BitArrayAllocator> AllocationFlags;
-	int32                                                      FirstFreeIndex;
-	int32                                                      NumFreeIndices;
+	int32                                                      FirstFreeIndex = -1;
+	int32                                                      NumFreeIndices = 0;
 
 	// This function isn't intended to be called, just to be compiled to validate the correctness of the type.
 	static void CheckConstraints()
@@ -1467,6 +1546,14 @@ class FScriptSparseArray : public TScriptSparseArray<FDefaultSparseArrayAllocato
 
 public:
 	using Super::Super;
+
+	/////////////////////////////////////////////////////
+	// Start - intrusive TOptional<FSparseArray> state //
+	/////////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptSparseArray;
+	///////////////////////////////////////////////////
+	// End - intrusive TOptional<FSparseArray> state //
+	///////////////////////////////////////////////////
 };
 
 /**

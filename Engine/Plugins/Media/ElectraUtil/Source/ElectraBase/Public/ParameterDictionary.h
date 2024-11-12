@@ -82,8 +82,7 @@ public:
 	void* const & GetPointer() const;
 	template<typename T> TSharedPtr<T, ESPMode::ThreadSafe> GetSharedPointer() const
 	{
-		check(DataType == EDataType::TypeSharedPointer);
-		if (DataType == EDataType::TypeSharedPointer)
+		if (ensure(DataType == EDataType::TypeSharedPointer))
 		{
 			const TSharedPtrHolder<T>* Pointer = reinterpret_cast<const TSharedPtrHolder<T>*>(&DataBuffer);
 			return Pointer->Pointer;
@@ -131,6 +130,8 @@ public:
 		return DataType == type;
 	}
 
+	FVariant ToFVariant() const;
+
 private:
 
 	union FUnionLayout
@@ -163,10 +164,12 @@ public:
 	~FParamDict() = default;
 	void Clear();
 	void Set(const FName& Key, const FVariantValue& Value);
+	void Set(const FName& Key, FVariantValue&& Value);
 	void GetKeys(TArray<FName>& OutKeys) const;
 	bool HaveKey(const FName& Key) const;
 	FVariantValue GetValue(const FName& Key) const;
 	void Remove(const FName& Key);
+	bool SetValueFrom(FName InKey, const FParamDict& InOther);
 
 	void ConvertTo(TMap<FString, FVariant>& OutVariantMap, const FString& InAddPrefixToKey) const;
 	void ConvertKeysStartingWithTo(TMap<FString, FVariant>& OutVariantMap, const FString& InKeyStartsWith, const FString& InAddPrefixToKey) const;
@@ -217,6 +220,11 @@ public:
 		FScopeLock lock(&Lock);
 		Dictionary.Set(Key, Value);
 	}
+	void Set(const FName& Key, FVariantValue&& Value)
+	{
+		FScopeLock lock(&Lock);
+		Dictionary.Set(Key, MoveTemp(Value));
+	}
 	void GetKeys(TArray<FName>& OutKeys) const
 	{
 		FScopeLock lock(&Lock);
@@ -236,6 +244,11 @@ public:
 	{
 		FScopeLock lock(&Lock);
 		Dictionary.Remove(Key);
+	}
+	bool SetValueFrom(FName InKey, const FParamDict& InOther)
+	{
+		FScopeLock lock(&Lock);
+		return Dictionary.SetValueFrom(InKey, InOther);
 	}
 	void ConvertTo(TMap<FString, FVariant>& OutVariantMap, const FString& InAddPrefixToKey) const
 	{

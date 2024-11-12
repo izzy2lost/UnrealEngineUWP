@@ -263,7 +263,6 @@ void FComputeKernelShaderMap::LoadFromDerivedDataCache(const FComputeKernelResou
 
 				// Deserialize from the cached data
 				InOutShaderMap->Serialize(Ar);
-				//InOutShaderMap->RegisterSerializedShaders(false);
 
 				checkSlow(InOutShaderMap->GetShaderMapId() == InShaderMapId);
 
@@ -357,7 +356,7 @@ void FComputeKernelShaderMap::Compile(
 				if (ShaderType && ShouldCacheComputeKernelShader(ShaderType, InPlatform, InKernel))
 				{
 					// Verify that the shader map Id contains inputs for any shaders that will be put into this shader map
-					check(InShaderMapId.ContainsShaderType(ShaderType));
+					checkf(InShaderMapId.ContainsShaderType(ShaderType), TEXT("Compute shader map %s missing expected shader type %s"), *GetFriendlyName(), ShaderType->GetName());
 					
 					// Compile this ComputeKernel shader.
 					TArray<FString> ShaderErrors;
@@ -433,7 +432,7 @@ FShader* FComputeKernelShaderMap::ProcessCompilationResultsForSingleJob(FShaderC
 {
 	check(CurrentJob.Id == CompilingId);
 
-	GetResourceCode()->AddShaderCompilerOutput(CurrentJob.Output, CurrentJob.Key.ToString());
+	GetResourceCode()->AddShaderCompilerOutput(CurrentJob.Output, CurrentJob.Key.ToString(), CurrentJob.Input.GenerateDebugInfo());
 
 	FShader* Shader = nullptr;
 
@@ -597,6 +596,16 @@ void FComputeKernelShaderMap::GetShaderList(TMap<FShaderId, TShaderRef<FShader>>
 	GetContent()->GetShaderList(*this, FSHAHash(), OutShaders);
 }
 
+void FComputeKernelShaderMap::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FComputeKernelShaderMap::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 /**
  * Registers a ComputeKernel shader map in the global map.
  */
@@ -657,12 +666,13 @@ FComputeKernelShaderMap::~FComputeKernelShaderMap()
 	AllComputeKernelShaderMaps.RemoveSwap(this);
 }
 
-bool FComputeKernelShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources)
+bool FComputeKernelShaderMap::Serialize(FArchive& Ar)
 {
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump COMPUTEKERNEL_DERIVEDDATA_VER
-	return Super::Serialize(Ar, bInlineShaderResources, false);
+	FShaderSerializeContext Ctx(Ar);
+	return Super::Serialize(Ctx);
 }
 
 #if WITH_EDITOR

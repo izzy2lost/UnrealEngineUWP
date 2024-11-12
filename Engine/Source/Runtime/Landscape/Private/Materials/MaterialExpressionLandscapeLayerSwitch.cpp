@@ -8,7 +8,7 @@
 #include "MaterialHLSLGenerator.h"
 #include "MaterialHLSLTree.h"
 #include "Materials/Material.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialExpressionLandscapeLayerSwitch)
 
@@ -52,7 +52,7 @@ bool UMaterialExpressionLandscapeLayerSwitch::IsResultMaterialAttributes(int32 O
 
 int32 UMaterialExpressionLandscapeLayerSwitch::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
+	const bool bTextureArrayEnabled = UE::Landscape::Private::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
 	const int32 WeightCode = Compiler->StaticTerrainLayerWeight(
 		ParameterName,
 		PreviewUsed ? Compiler->Constant(1.0f) : INDEX_NONE,

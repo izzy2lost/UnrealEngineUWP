@@ -11,11 +11,14 @@ namespace Geometry
 class FDynamicMesh3;
 
 /**
-* Weld a pair of group edges.
-* 
-* User can optionally allow triangle deletion which handles cases
-* where the group edges are connected by an edge at the end points.
-*/
+ * Weld a pair of group edges. The two input spans must be boundary spans. Their
+ *  position in the world is irrelevant, as the welding will always be done to
+ *  preserve appropriate triangle winding, i.e. so that the newly welded triangles
+ *  are not flipped relative to their neighbor.
+ * 
+ * User can optionally allow triangle deletion which handles cases
+ *  where the group edges are connected by an edge at the end points.
+ */
 
 class DYNAMICMESH_API FWeldEdgeSequence
 {
@@ -42,12 +45,14 @@ public:
 	FEdgeSpan EdgeSpanToKeep;		// This is the updated edge span which can be used once Weld() is called
 
 	// Whether triangle deletion is allowed in order to merge edges which are connected by a different edge
-	// This specifically determines how CheckForAndCollapseSideTriangles() behaves
 	bool bAllowIntermediateTriangleDeletion = false;
 
 	// When true, failed calls to MergeEdges() will be handled by moving the edges without merging such
 	// that the final result appears to be welded but has invisible seam(s) instead of just failing.
 	bool bAllowFailedMerge = false;
+
+	// When vertices are welded, each kept vertex will be placed at Lerp(KeepPos, RemovePos, InterpolationT)
+	double InterpolationT = 0;
 
 	// This is populated with pairs of eids which were not able to be merged.
 	// Only valid when bAllowFailedMerge is true
@@ -71,6 +76,12 @@ public:
 	*/
 	EWeldResult Weld();
 
+	/**
+	 * Helper that splits the edges in the shorter span until the spans have the same number
+	 *  of edges. Weld() will automatically do this, but this is public in case the user wants
+	 *  to equalize spans that get concatenated together before all being welded at once.
+	 */
+	static EWeldResult SplitEdgesToEqualizeSpanLengths(FDynamicMesh3& Mesh, FEdgeSpan& Span1, FEdgeSpan& Span2);
 protected:
 	/**
 	* Verifies validity of input edges by ensuring they are
@@ -88,13 +99,8 @@ protected:
 	*/
 	EWeldResult SplitSmallerSpan();
 
-	/**
-	* Checks for edges between terminating vertices of the input spans and attempts to delete them if possible
-	* by deleting the adjacent triangle. These cases would prevent MergeEdges() from succeeding because it won't
-	* implicitly collapse/delete triangles which connect the two edges being merged.
-	* 
-	* @return EWeldResult::OK on success
-	*/
+
+	UE_DEPRECATED(5.5, "Side triangles are handled appropriately in WeldEdgeSequence")
 	EWeldResult CheckForAndCollapseSideTriangles();
 
 	/**

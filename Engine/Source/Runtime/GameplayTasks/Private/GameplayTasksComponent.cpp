@@ -524,7 +524,7 @@ void UGameplayTasksComponent::RemoveTaskFromPriorityQueue(UGameplayTask& Task)
 	const int32 RemovedTaskIndex = TaskPriorityQueue.Find(&Task);
 	if (RemovedTaskIndex != INDEX_NONE)
 	{
-		TaskPriorityQueue.RemoveAt(RemovedTaskIndex, 1, EAllowShrinking::No);
+		TaskPriorityQueue.RemoveAt(RemovedTaskIndex, EAllowShrinking::No);
 	}
 	else
 	{

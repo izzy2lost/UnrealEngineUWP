@@ -210,6 +210,9 @@ namespace Scalability
 	 */
 	ENGINE_API void RecordQualityLevelsAnalytics(bool bAutoApplied);
 
+	/** Compute scalability quality levels from existing CPU and GPU perf indices **/
+	ENGINE_API FQualityLevels ComputeQualityLevelsFromPerfIndex(float CPUPerfIndex, float GPUPerfIndex);
+	
 	/** Run synthbenchmark and configure scalability based on results **/
 	ENGINE_API FQualityLevels BenchmarkQualityLevels(uint32 WorkScale=10, float CPUMultiplier = 1.0f, float GPUMultiplier = 1.0f);
 

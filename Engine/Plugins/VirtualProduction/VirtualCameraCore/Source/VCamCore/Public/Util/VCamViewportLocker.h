@@ -11,39 +11,11 @@ struct FVCamViewportLockState
 	GENERATED_BODY()
 	
 	/** Whether the user wants the viewport to be locked */
-	UPROPERTY(EditAnywhere, Category = "Viewport", meta = (EditCondition = "!bIsForceLocked"))
+	UPROPERTY(EditAnywhere, Category = "Viewport")
 	bool bLockViewportToCamera = false;
-	
-	/** Whether this viewport is currently locked */
-	UPROPERTY(Transient)
-	bool bWasLockedToViewport = false;
-
-#if WITH_EDITORONLY_DATA
-	// This property is editor-only because we use it for EditCondition only
-	UPROPERTY(Transient)
-	bool bIsForceLocked = false;
-
-	/**
-	 * Updated every time live link calls update (every tick).
-	 * 
-	 * Used for when the lock actor is switched by an external system.
-	 * Once the lock actor becomes nullptr, we lock the viewport to our own virtual camera UNLESS
-	 * this variable points to another virtual camera. In that case we lock to that camera.
-	 * 
-	 * Consider that the live link updates are not predictable.
-	 */
-	UPROPERTY(Transient)
-	TWeakObjectPtr<AActor> LastKnownEditorLockActor;
-#endif
-	
-	/** Used for gameplay to restore to the previous view taget*/
-	UPROPERTY(Transient)
-	TWeakObjectPtr<AActor> Backup_ViewTarget;
 };
 
-/**
- * Keeps track of which viewports are locked
- */
+/** Keeps track of which viewports are locked */
 USTRUCT()
 struct FVCamViewportLocker
 {
@@ -56,13 +28,28 @@ struct FVCamViewportLocker
 		{ EVCamTargetViewportID::Viewport3, {} },
 		{ EVCamTargetViewportID::Viewport4, {} }
 	};
-
-	void Reset()
+	
+	bool ShouldLock(EVCamTargetViewportID ViewportID) const
 	{
-		for (TPair<EVCamTargetViewportID, FVCamViewportLockState>& Pair : Locks)
-		{
-			Pair.Value.bWasLockedToViewport = false;
-			Pair.Value.Backup_ViewTarget = nullptr;
-		}
+		return Locks[ViewportID].bLockViewportToCamera;
+	}
+	
+	FVCamViewportLocker& SetLockState(EVCamTargetViewportID ViewportID, bool bShouldLock)
+	{
+		Locks[ViewportID].bLockViewportToCamera = bShouldLock;
+		return *this;
+	}
+
+	friend bool operator==(const FVCamViewportLocker& Left, const FVCamViewportLocker& Right)
+	{
+		return Left.Locks[EVCamTargetViewportID::Viewport1].bLockViewportToCamera == Right.Locks[EVCamTargetViewportID::Viewport1].bLockViewportToCamera
+			&& Left.Locks[EVCamTargetViewportID::Viewport2].bLockViewportToCamera == Right.Locks[EVCamTargetViewportID::Viewport2].bLockViewportToCamera
+			&& Left.Locks[EVCamTargetViewportID::Viewport3].bLockViewportToCamera == Right.Locks[EVCamTargetViewportID::Viewport3].bLockViewportToCamera
+			&& Left.Locks[EVCamTargetViewportID::Viewport4].bLockViewportToCamera == Right.Locks[EVCamTargetViewportID::Viewport4].bLockViewportToCamera;
+	}
+
+	friend bool operator!=(const FVCamViewportLocker& Left, const FVCamViewportLocker& Right)
+	{
+		return !(Left == Right);
 	}
 };

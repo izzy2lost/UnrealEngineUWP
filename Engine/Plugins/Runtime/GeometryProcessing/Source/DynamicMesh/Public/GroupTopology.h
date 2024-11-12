@@ -205,11 +205,12 @@ public:
 	/** 
 	 * Adjacency of Per-Triangle integers are what define the triangle groups.
 	 * Override this function to provide an alternate group definition.
+	 * Note: By convention, group IDs should not be negative
 	 * @return group id integer for given TriangleID 
 	 */
 	virtual int GetGroupID(int TriangleID) const
 	{
-		return (GroupLayer != nullptr) ? GroupLayer->GetValue(TriangleID) : Mesh->GetTriangleGroup(TriangleID);
+		return FMath::Max(0, (GroupLayer != nullptr) ? GroupLayer->GetValue(TriangleID) : Mesh->GetTriangleGroup(TriangleID));
 	}
 
 
@@ -343,6 +344,13 @@ public:
 	void FindCornerNbrGroups(int CornerID, TArray<int>& GroupsOut) const;
 	/** Add all the groups connected to the given Corners to the GroupsOut list */
 	void FindCornerNbrGroups(const TArray<int>& CornerIDs, TArray<int>& GroupsOut) const;
+
+	/**
+	 * Helper that iterates over the group edges neighboring a particular corner.
+	 * @param ReturnTrueToContinue Function to call on all the group edges, which should return
+	 *  true if it wants iteration to continue, and false if it wants to exit early.
+	 */
+	void ForCornerNbrEdges(int CornerID, TFunctionRef<bool(int32 EdgeID)> ReturnTrueToContinue) const;
 
 	/** Add all the Edges connected to the given Corner to the EdgesOut list. This is somewhat expensive as there is no connection from Corners to Edges, must iterate over adjacent faces */
 	void FindCornerNbrEdges(int CornerID, TArray<int>& EdgesOut) const;

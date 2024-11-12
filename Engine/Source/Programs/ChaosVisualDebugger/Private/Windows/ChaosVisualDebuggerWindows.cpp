@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// Note: This application is still in very early development
-
-// This translation unit is windows specific
-
-#include "ChaosVisualDebuggerWindows.h"
 #include "ChaosVisualDebuggerMain.h"
 #include "HAL/ExceptionHandling.h"
 #include "Windows/WindowsHWrapper.h"
@@ -21,14 +16,12 @@
  * @param nShowCmd Specifies how the window is to be shown.
  * @return Application's exit value.
  */
-
-int WINAPI WinMain(_In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
+int32 WINAPI WinMain(_In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
 	hInstance = hInInstance;
 
-	const TCHAR* CmdLine = ::GetCommandLineW();
+	const WIDECHAR* CmdLine = ::GetCommandLineW();
 	CmdLine = FCommandLine::RemoveExeName(CmdLine);
-
 
 	int32 ErrorLevel = 0;
 
@@ -38,7 +31,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstance,
 	if (FPlatformMisc::IsDebuggerPresent() && !GAlwaysReportCrash)
 #endif
 	{
-		ErrorLevel = ChaosVisualDebuggerMain(CmdLine);
+		ErrorLevel = RunChaosVisualDebugger(CmdLine);
 	}
 	else
 	{
@@ -46,9 +39,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstance,
 		__try
 #endif
 		{
-			GIsGuarded = 1;
-			ErrorLevel = ChaosVisualDebuggerMain(CmdLine);
-			GIsGuarded = 0;
+			GIsGuarded = true;
+			ErrorLevel = RunChaosVisualDebugger(CmdLine);
+			GIsGuarded = false;
 		}
 #if !PLATFORM_SEH_EXCEPTIONS_DISABLED
 		__except (ReportCrash(GetExceptionInformation()))

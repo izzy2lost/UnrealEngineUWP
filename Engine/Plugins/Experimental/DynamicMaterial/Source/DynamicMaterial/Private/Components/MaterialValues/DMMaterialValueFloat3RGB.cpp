@@ -4,12 +4,14 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat3RGBDynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
+#include "Utils/DMUtils.h"
 #endif
  
 #define LOCTEXT_NAMESPACE "DMMaterialValueFloat3RGB"
@@ -36,7 +38,12 @@ void UDMMaterialValueFloat3RGB::GenerateExpression(const TSharedRef<IDMMaterialB
 		return;
 	}
  
-	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = FLinearColor(Value.R, Value.G, Value.B, 0);
@@ -61,7 +68,43 @@ void UDMMaterialValueFloat3RGB::ResetDefaultValue()
 	DefaultValue = FLinearColor(0, 0, 0, 1);
 }
 
-void UDMMaterialValueFloat3RGB::SetDefaultValue(FLinearColor InDefaultValue)
+UDMMaterialValueDynamic* UDMMaterialValueFloat3RGB::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat3RGBDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat3RGBDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat3RGB::GetComponentPathComponent() const
+{
+	return TEXT("RGB");
+}
+
+FText UDMMaterialValueFloat3RGB::GetComponentDescription() const
+{
+	return LOCTEXT("ColorRGB", "Color (RGB)");
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueFloat3RGB::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat3RGB::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	FLinearColor ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
+}
+
+void UDMMaterialValueFloat3RGB::SetDefaultValue(const FLinearColor& InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
 }
@@ -93,7 +136,7 @@ void UDMMaterialValueFloat3RGB::SetValue(const FLinearColor& InValue)
 
 	Value = ValueClamped;
 
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
  
 #if WITH_EDITOR

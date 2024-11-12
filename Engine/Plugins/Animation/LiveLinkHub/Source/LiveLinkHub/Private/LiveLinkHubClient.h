@@ -10,6 +10,7 @@
 
 class FLiveLinkHubPlaybackController;
 class FLiveLinkHubRecordingController;
+class FLiveLinkSubject;
 class ILiveLinkHub;
 struct ILiveLinkProvider;
 
@@ -21,11 +22,27 @@ DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSubjectMarkedPendingKill_AnyThread, co
 class FLiveLinkHubClient : public FLiveLinkClient
 {
 public:
-	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub);
-	virtual ~FLiveLinkHubClient();
+	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub, FTSSimpleMulticastDelegate& InTickingDelegate)
+		: FLiveLinkClient(InTickingDelegate)
+		, LiveLinkHub(MoveTemp(InLiveLinkHub))
+	{
+		constexpr bool bUseUnmappedData = true;
+		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded),
+			FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded),
+			StaticDataAddedHandle, FrameDataAddedHandle, bUseUnmappedData);
+	}
 
-	/** Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording. */
-	const FLiveLinkStaticDataStruct* GetSubjectStaticData(const FLiveLinkSubjectKey& InSubjectKey);
+	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub)
+		: FLiveLinkClient()
+		, LiveLinkHub(MoveTemp(InLiveLinkHub))
+	{
+		constexpr bool bUseUnmappedData = true;
+		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded),
+			FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded),
+			StaticDataAddedHandle, FrameDataAddedHandle, bUseUnmappedData);
+	}
+
+	virtual ~FLiveLinkHubClient();
 	
 	/** Get the delegate called when frame data is received. */
 	FOnFrameDataReceived_AnyThread& OnFrameDataReceived_AnyThread()
@@ -48,24 +65,29 @@ public:
 		return OnSubjectMarkedPendingKillDelegate_AnyThread;
 	}
 
+	/** Cache subject settings for the subject specified by the subject key. */
+	void CacheSubjectSettings(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkSubjectSettings* Settings) const;
+
 public:
 	//~ Begin ILiveLinkClient interface
 	virtual bool CreateSource(const FLiveLinkSourcePreset& InSourcePreset) override;
-	virtual bool CreateSubject(const FLiveLinkSubjectPreset& InSubjectPreset) override;
-	virtual void PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& InStaticData) override;
-	virtual void PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, FLiveLinkFrameDataStruct&& FrameData) override;
 	virtual FText GetSourceStatus(FGuid InEntryGuid) const override;
-	virtual bool IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey) const override;
 	virtual void RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) override;
+	virtual bool AddVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey, TSubclassOf<ULiveLinkVirtualSubject> VirtualSubjectClass) override;
+    virtual void RemoveVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey) override;
 	//~ End ILiveLinkClient interface
 
+	//~ Begin FLiveLinkClient interface
+	virtual TSharedPtr<ILiveLinkProvider> GetRebroadcastLiveLinkProvider() const override;
+	//~ End FLiveLinkClient interface
+
 private:
-	/** Create a LiveLinkPlaybackSource which acts as a dummy source when doing playback. */
-	bool CreatePlaybackSource(const FLiveLinkSourcePreset& InSourcePreset);
-	/** Create a LiveLinkPlaybackSubject which acts as a dummy subject when doing playback. */
-	bool CreatePlaybackSubject(const FLiveLinkSubjectPreset& InSubjectPreset);
-	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
-	mutable FCriticalSection CollectionAccessCriticalSection;
+	/** Broadcast a static data update to this client's listeners. */
+	void BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const;
+
+	//~ Delegates called by LiveLinkClient
+	void OnStaticDataAdded(FLiveLinkSubjectKey SubjectKey, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkStaticDataStruct& InStaticData);
+	void OnFrameDataAdded(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkFrameDataStruct& InFrameData);
 
 private:
 	/** Weak pointer to the live link hub. */
@@ -76,4 +98,10 @@ private:
     FOnStaticDataReceived_AnyThread OnStaticDataReceivedDelegate_AnyThread;
 	/** Delegate called when a subject is marked for deletion. */
 	FOnSubjectMarkedPendingKill_AnyThread OnSubjectMarkedPendingKillDelegate_AnyThread;
+	/** Whether there are virtual subjects at the moment. Used to determine if we should cache frame data for their usage. */
+	std::atomic<bool> bVirtualSubjectsPresent = false;
+
+	//~ Delegate handles given by FLiveLinkClient.
+	FDelegateHandle StaticDataAddedHandle;
+	FDelegateHandle FrameDataAddedHandle;
 };

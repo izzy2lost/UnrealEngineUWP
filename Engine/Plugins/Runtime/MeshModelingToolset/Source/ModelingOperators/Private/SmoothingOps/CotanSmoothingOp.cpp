@@ -12,6 +12,11 @@ FCotanSmoothingOp::FCotanSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothing
 {
 }
 
+FCotanSmoothingOp::FCotanSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn, const FDynamicSubmesh3& Submesh) :
+	FSmoothingOpBase(Mesh, OptionsIn, Submesh)
+{
+}
+
 double FCotanSmoothingOp::GetSmoothPower(int32 VertexID, bool bIsBoundary)
 {
 	double UsePower = SmoothOptions.SmoothPower;
@@ -27,14 +32,19 @@ double FCotanSmoothingOp::GetSmoothPower(int32 VertexID, bool bIsBoundary)
 void FCotanSmoothingOp::CalculateResult(FProgressCancel* Progress)
 {
 	// Update the values in the position buffer with smoothed positions.
-	Smooth();
+	Smooth(Progress);
+
+	if (Progress && Progress->Cancelled())
+	{
+		return;
+	}
 
 	// Copy the results back into the result mesh and update normals
 	UpdateResultMesh();
 
 }
 
-void FCotanSmoothingOp::Smooth()
+void FCotanSmoothingOp::Smooth(FProgressCancel* Progress)
 {
 	ELaplacianWeightScheme UseScheme = ELaplacianWeightScheme::ClampedCotangent;
 	if (SmoothOptions.bUniform)
@@ -42,8 +52,18 @@ void FCotanSmoothingOp::Smooth()
 		UseScheme = ELaplacianWeightScheme::Uniform;
 	}
 
+	if (Progress && Progress->Cancelled())
+	{
+		return;
+	}
+
 	TUniquePtr<UE::Solvers::IConstrainedMeshSolver> Smoother = UE::MeshDeformation::ConstructConstrainedMeshSmoother(
 		UseScheme, *ResultMesh);
+
+	if (Progress && Progress->Cancelled())
+	{
+		return;
+	}
 
 	if (SmoothOptions.SmoothPower < 0.0001)
 	{
@@ -72,6 +92,12 @@ void FCotanSmoothingOp::Smooth()
 
 			Smoother->AddConstraint(vid, Weight, Position, false);
 		}
+
+		if (Progress && Progress->Cancelled())
+		{
+			return;
+		}
+
 		Smoother->Deform(PositionBuffer);
 	}
 

@@ -2,6 +2,7 @@
 
 #include "MediaIOCoreTextureSampleBase.h"
 
+#include "Async/Async.h"
 #include "MediaIOCoreTextureSampleConverter.h"
 
 #include "OpenColorIOConfiguration.h"
@@ -13,16 +14,17 @@
 #include "RHI.h"
 #include "RHIResources.h"
 #include "ScreenPass.h"
-
 DECLARE_GPU_STAT(MediaIO_ColorConversion);
 
 FMediaIOCoreTextureSampleBase::FMediaIOCoreTextureSampleBase()
 	: Duration(FTimespan::Zero())
 	, SampleFormat(EMediaTextureSampleFormat::Undefined)
 	, Time(FTimespan::Zero())
+	, FrameNumber(0)
 	, Stride(0)
 	, Width(0)
 	, Height(0)
+	, bIsAwaitingForGPUTransfer(false)
 {
 }
 
@@ -119,8 +121,8 @@ bool FMediaIOCoreTextureSampleBase::SetProperties(uint32 InStride, uint32 InWidt
 	Duration = FTimespan(ETimespan::TicksPerSecond * InFrameRate.AsInterval());
 	Timecode = InTimecode;
 	Encoding = InColorFormatArgs.Encoding;
-	ColorSpace = InColorFormatArgs.ColorSpace;
-	ColorSpaceStruct = UE::Color::FColorSpace(ColorSpace);
+	ColorSpaceType = InColorFormatArgs.ColorSpaceType;
+	ColorSpaceStruct = UE::Color::FColorSpace(ColorSpaceType);
 
 	return true;
 }
@@ -150,10 +152,35 @@ bool FMediaIOCoreTextureSampleBase::SetBufferWithEvenOddLine(bool bUseEvenLine, 
 	return true;
 }
 
+void FMediaIOCoreTextureSampleBase::SetColorConversionSettings(TSharedPtr<struct FOpenColorIOColorConversionSettings> InColorConversionSettings)
+{
+	ColorConversionSettings = InColorConversionSettings;
+	if (IsInGameThread())
+	{
+		CacheColorCoversionSettings_GameThread();
+	}
+	else
+	{
+		AsyncTask(ENamedThreads::GameThread, [this]() {
+			CacheColorCoversionSettings_GameThread();
+			});
+	}
+}
+
 void* FMediaIOCoreTextureSampleBase::RequestBuffer(uint32 InBufferSize)
 {
 	FreeSample();
 	Buffer.SetNumUninitialized(InBufferSize); // Reset the array without shrinking (Does not destruct items, does not de-allocate memory).
+	return Buffer.GetData();
+}
+
+void* FMediaIOCoreTextureSampleBase::GetOrRequestBuffer(uint32 InBufferSize)
+{
+	if (Buffer.Num() != InBufferSize)
+	{
+		RequestBuffer(InBufferSize);
+	}
+
 	return Buffer.GetData();
 }
 
@@ -174,12 +201,13 @@ bool FMediaIOCoreTextureSampleBase::InitializeJITR(const FMediaIOCoreSampleJITRC
 	Height = Args.Height;
 	Time   = Args.Time;
 	Timecode = Args.Timecode;
+	FrameNumber = GFrameNumber;
+	Duration = FTimespan(ETimespan::TicksPerSecond * Args.FrameRate.AsInterval());
 
 	// JITR data
 	Player    = Args.Player;
 	Converter = Args.Converter;
 	EvaluationOffsetInSeconds = Args.EvaluationOffsetInSeconds;
-
 	return true;
 }
 
@@ -198,60 +226,42 @@ void FMediaIOCoreTextureSampleBase::CopyConfiguration(const TSharedPtr<FMediaIOC
 	Time = SourceSample->Time;
 	Timecode = SourceSample->Timecode;
 	Encoding = SourceSample->Encoding;
-	ColorSpace = SourceSample->ColorSpace;
+	ColorSpaceType = SourceSample->ColorSpaceType;
 	ColorSpaceStruct = SourceSample->ColorSpaceStruct;
 	ColorConversionSettings = SourceSample->ColorConversionSettings;
 	CachedOCIOResources = SourceSample->CachedOCIOResources;
+	Player = SourceSample->Player;
+	Converter = SourceSample->Converter;
+	FrameNumber = SourceSample->FrameNumber.load();
+	Duration = SourceSample->Duration;
+	Texture = SourceSample->Texture;
+
+	EvaluationOffsetInSeconds = SourceSample->EvaluationOffsetInSeconds;
 
 	// Save original sample
 	OriginalSample = SourceSample;
 }
 
-bool FMediaIOCoreTextureSampleBase::ApplyColorConversion(FTexture2DRHIRef& InSrcTexture, FTexture2DRHIRef& InDstTexture)
+void FMediaIOCoreTextureSampleBase::CacheColorCoversionSettings_GameThread()
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-	if (!CachedOCIOResources.IsValid())
+	if (ColorConversionSettings.IsValid() && ColorConversionSettings->IsValid())
 	{
-		if (ColorConversionSettings.IsValid() && ColorConversionSettings->IsValid())
-		{
-			CachedOCIOResources = MakeShared<FOpenColorIORenderPassResources>();
+		CachedOCIOResources = MakeShared<FOpenColorIORenderPassResources>();
 
-			FOpenColorIOTransformResource* ShaderResource = nullptr;
-			TSortedMap<int32, TWeakObjectPtr<UTexture>> TransformTextureResources;
-
-			if (ColorConversionSettings->ConfigurationSource != nullptr)
-			{
-				const bool bFoundTransform = ColorConversionSettings->ConfigurationSource->GetRenderResources(
-					GMaxRHIFeatureLevel
-					, *ColorConversionSettings
-					, ShaderResource
-					, TransformTextureResources);
-
-				if (bFoundTransform)
-				{
-					// Transform was found, so shader must be there but doesn't mean the actual shader is available
-					check(ShaderResource);
-					if (ShaderResource->GetShader<FOpenColorIOPixelShader>().IsNull())
-					{
-						ensureMsgf(false, TEXT("Can't apply display look - Shader was invalid for Resource %s"), *ShaderResource->GetFriendlyName());
-
-						//Invalidate shader resource
-						ShaderResource = nullptr;
-					}
-				}
-			}
-
-			CachedOCIOResources->ShaderResource = ShaderResource;
-			CachedOCIOResources->TextureResources = TransformTextureResources;
-		}
+		FOpenColorIORenderPassResources Resources = FOpenColorIORendering::GetRenderPassResources(*ColorConversionSettings, GMaxRHIFeatureLevel);
+		CachedOCIOResources->ShaderResource = Resources.ShaderResource;
+		CachedOCIOResources->TextureResources = Resources.TextureResources;
 	}
+}
 
+bool FMediaIOCoreTextureSampleBase::ApplyColorConversion(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture)
+{
 	if (CachedOCIOResources)
 	{
 		FRDGBuilder GraphBuilder(RHICmdList);
 		
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, MediaIO_ColorConversion, "MediaIO_ColorConversion");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, MediaIO_ColorConversion);
 
 			const FRDGTextureRef ColorConversionInput = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(InSrcTexture, TEXT("MediaTextureResourceColorConverisonInputRT")));
@@ -307,6 +317,25 @@ void FMediaIOCoreTextureSampleBase::SetDestructionCallback(TFunction<void(TRefCo
 	DestructionCallback = InDestructionCallback;
 }
 
+EPixelFormat FMediaIOCoreTextureSampleBase::GetPixelFormat()
+{
+	switch (GetFormat())
+	{
+	case EMediaTextureSampleFormat::FloatRGBA:
+		return PF_FloatRGBA;
+	case EMediaTextureSampleFormat::CharBGR10A2:
+	{
+		if (GetEncodingType() != UE::Color::EEncoding::Linear)
+		{
+			return PF_FloatRGB;
+		}
+		return PF_FloatRGBA;
+	}
+	default:
+		return PF_B8G8R8A8;
+	}
+}
+
 void FMediaIOCoreTextureSampleBase::ShutdownPoolable()
 {
 	if (DestructionCallback)
@@ -319,7 +348,7 @@ void FMediaIOCoreTextureSampleBase::ShutdownPoolable()
 
 const FMatrix& FMediaIOCoreTextureSampleBase::GetYUVToRGBMatrix() const
 {
-	switch (ColorSpace)
+	switch (ColorSpaceType)
 	{
 	case UE::Color::EColorSpace::sRGB:
 		return MediaShaders::YuvToRgbRec709Scaled;
@@ -339,29 +368,9 @@ bool FMediaIOCoreTextureSampleBase::IsOutputSrgb() const
 	return Encoding == UE::Color::EEncoding::sRGB;
 }
 
-FMatrix44d FMediaIOCoreTextureSampleBase::GetGamutToXYZMatrix() const
+const UE::Color::FColorSpace& FMediaIOCoreTextureSampleBase::GetSourceColorSpace() const
 {
-	return ColorSpaceStruct.GetRgbToXYZ().GetTransposed();
-}
-
-FVector2d FMediaIOCoreTextureSampleBase::GetWhitePoint() const
-{
-	return ColorSpaceStruct.GetWhiteChromaticity();
-}
-
-FVector2d FMediaIOCoreTextureSampleBase::GetDisplayPrimaryRed() const
-{
-	return ColorSpaceStruct.GetRedChromaticity();
-}
-
-FVector2d FMediaIOCoreTextureSampleBase::GetDisplayPrimaryGreen() const
-{
-	return ColorSpaceStruct.GetGreenChromaticity();
-} 
-
-FVector2d FMediaIOCoreTextureSampleBase::GetDisplayPrimaryBlue() const
-{
-	return ColorSpaceStruct.GetBlueChromaticity();
+	return ColorSpaceStruct;
 }
 
 UE::Color::EEncoding FMediaIOCoreTextureSampleBase::GetEncodingType() const
@@ -374,6 +383,15 @@ UE::Color::EEncoding FMediaIOCoreTextureSampleBase::GetEncodingType() const
 	return Encoding;
 }
 
+UE::Color::EColorSpace FMediaIOCoreTextureSampleBase::GetColorSpaceType() const
+{
+	if (ColorConversionSettings && ColorConversionSettings->IsValid())
+	{
+		return UE::Color::EColorSpace::None;
+	}
+	return ColorSpaceType;
+}
+
 float FMediaIOCoreTextureSampleBase::GetHDRNitsNormalizationFactor() const
 {
 	if (ColorConversionSettings && ColorConversionSettings->IsValid())
@@ -381,5 +399,5 @@ float FMediaIOCoreTextureSampleBase::GetHDRNitsNormalizationFactor() const
     	return 1.0f;
     }
 	
-	return (GetEncodingType() == UE::Color::EEncoding::sRGB || GetEncodingType() == UE::Color::EEncoding::Linear) ? 1.0f : kMediaSample_HDR_NitsNormalizationFactor;
+	return IMediaTextureSample::GetHDRNitsNormalizationFactor();
 }

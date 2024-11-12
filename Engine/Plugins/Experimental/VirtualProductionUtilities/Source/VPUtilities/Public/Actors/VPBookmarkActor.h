@@ -16,7 +16,7 @@ class UTextRenderComponent;
 class USplineMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterial;
-
+class UCineCaptureComponent2D;
 
 UCLASS(HideCategories=(Rendering, Lighting, HLOD, Mobile, Navigation, RayTracing, TextureStreaming), CollapseCategories)
 class VPUTILITIES_API AVPBookmarkActor : public AVPViewportTickableActorBase, public IVPInteraction, public IVPBookmarkProvider
@@ -43,9 +43,25 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Components")
 	TObjectPtr<UCineCameraComponent> CameraComponent;
 
+	/**CineCaptureComponent*/
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Components")
+	TObjectPtr<UCineCaptureComponent2D> SceneCaptureComponent;
+
 	/** Color of Bookmark in MU Session */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Bookmark", meta = (MultiLine = "true", ExposeOnSpawn = "true"))
 	FLinearColor BookmarkColor;
+
+	/** Favorite status set by a user */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Bookmark")
+	int32 FavoriteLevel = 0;
+
+	/** Whether this was flagged by a user */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Bookmark")
+	bool bIsFlagged = false;
+
+	/** DateTime to store creation time */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bookmark")
+	FDateTime Timestamp;
 
 	/** Reference to Editor Bookmark UObject*/
 	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Bookmark", meta = (MultiLine = "true"))
@@ -56,7 +72,7 @@ public:
 	bool IsHome;
 
 	/** Texture reference to store render of viewpoint  */
-	UPROPERTY(BlueprintReadWrite, Category = "Snapshot")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Snapshot")
 	TObjectPtr<UTexture2D> SnapshotTexture;
 
 	/**Update the mesh color and BookmarkColor variable. Intended for use with multiuser initialization*/
@@ -69,6 +85,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Default")
 	TObjectPtr<UMaterialInterface> BookmarkMaterial;
 
+	/** Update SnapshotTexture captured via SceneCaptureComponent*/
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Snapshot")
+	void CaptureSnapshot();
+
+	/** Update Timestamp property with current time*/
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Bookmark")
+	void UpdateTimestamp();
 
 	//VPBookmark Interface events
 
@@ -101,7 +124,7 @@ public:
 
 	//Overrides
 
-	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void PostRegisterAllComponents() override;
 
 	virtual void Tick(float DeltaSeconds) override;
 

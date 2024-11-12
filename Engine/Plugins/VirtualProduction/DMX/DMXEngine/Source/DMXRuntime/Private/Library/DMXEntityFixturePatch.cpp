@@ -2,6 +2,9 @@
 
 #include "Library/DMXEntityFixturePatch.h"
 
+#include "Algo/Find.h"
+#include "Algo/MaxElement.h"
+#include "Algo/NoneOf.h"
 #include "DMXConversions.h"
 #include "DMXProtocolConstants.h"
 #include "DMXRuntimeLog.h"
@@ -9,25 +12,20 @@
 #include "DMXRuntimeUtils.h"
 #include "DMXStats.h"
 #include "DMXTypes.h"
-#include "Interfaces/IDMXProtocol.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXTrace.h"
 #include "Library/DMXEntityController.h"
 #include "Library/DMXEntityFixtureType.h"
-#include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
 #include "Modulators/DMXModulator.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-
-#include "Algo/Find.h"
 #include "UObject/UObjectGlobals.h"
 
 DECLARE_LOG_CATEGORY_CLASS(DMXEntityFixturePatchLog, Log, All);
 
 DECLARE_CYCLE_STAT(TEXT("FixturePatch receive DMX"), STAT_DMXFixturePatchReceiveDMX, STATGROUP_DMX);
 DECLARE_CYCLE_STAT(TEXT("FixturePatch cache values"), STAT_DMXFixturePatchCacheValues, STATGROUP_DMX);
-
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixturePatch"
 
@@ -69,6 +67,10 @@ UDMXEntityFixturePatch* UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FDMX
 			NewFixturePatch->SetStartingChannel(ConstructionParams.StartingAddress);
 			NewFixturePatch->SetActiveModeIndex(ConstructionParams.ActiveMode);
 
+#if WITH_EDITOR
+			NewFixturePatch->SetDefaultTransform(ConstructionParams.DefaultTransform);
+#endif 
+
 			if (ConstructionParams.MVRFixtureUUID.IsValid())
 			{
 				// Make sure the MVR UUID is truly unique across the DNX Library
@@ -92,10 +94,12 @@ UDMXEntityFixturePatch* UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FDMX
 			}
 			else
 			{
-				// No MVR Fixture UUID specified, generate one.
+				// If no MVR Fixture UUID is specified, generate one.
 				ConstructionParams.MVRFixtureUUID = FGuid::NewGuid();
 			}
 			NewFixturePatch->MVRFixtureUUID = ConstructionParams.MVRFixtureUUID;
+
+			NewFixturePatch->GenerateFixtureID();
 
 #if WITH_EDITOR
 			// Make a nice Editor Color
@@ -139,7 +143,6 @@ void UDMXEntityFixturePatch::RemoveFixturePatchFromLibrary(FDMXEntityFixturePatc
 			DMXLibrary->Modify();
 			FixturePatch->Modify();
 
-			FixturePatch->SetFixtureType(nullptr);
 			FixturePatch->Destroy();
 		}
 	}
@@ -196,7 +199,46 @@ void UDMXEntityFixturePatch::PostLoad()
 	Super::PostLoad();
 
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
-	{
+	{		
+
+#if WITH_EDITOR	
+		// ~UE5.3, upgrade the patch to hold its fixture ID
+		if (GetLinkerCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixturePatchHasFixtureID)
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			UDMXLibrary* DMXLibrary = GetParentLibrary();
+			UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary ? DMXLibrary->GetLazyGeneralSceneDescription() : nullptr;
+			UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription ? GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID) : nullptr;
+			if (FixtureNode)
+			{
+				int32 IntegralMVRFixtureID;
+				if (LexTryParseString(IntegralMVRFixtureID, *FixtureNode->FixtureID))
+				{
+					FixtureID = IntegralMVRFixtureID;
+				}
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+
+		// ~UE5.5, adopt the DefaultTransform property from the General Scene Description
+		if (GetLinkerCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixturePatchesHaveDefaultTransform)
+		{
+			UDMXLibrary* DMXLibrary = GetParentLibrary();
+			UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary ? DMXLibrary->GetLazyGeneralSceneDescription() : nullptr;
+			UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription ? GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID) : nullptr;
+			if (FixtureNode)
+			{
+				DefaultTransform = FixtureNode->GetTransformAbsolute();
+			}
+		}
+#endif
+
+		// Mend invalid fixture IDs
+		if (FixtureID < 1)
+		{
+			GenerateFixtureID();
+		}
+
 		RebuildCache();
 	}
 }
@@ -475,18 +517,14 @@ bool UDMXEntityFixturePatch::IsValidEntity(FText& OutReason) const
 
 void UDMXEntityFixturePatch::ValidateActiveMode()
 {
-	if (ParentFixtureTypeTemplate != nullptr)
+	if (ParentFixtureTypeTemplate && !ParentFixtureTypeTemplate->Modes.IsEmpty())
 	{
 		ActiveMode = FMath::Clamp(ActiveMode, 0, ParentFixtureTypeTemplate->Modes.Num() - 1);
 	}
-}
-
-bool UDMXEntityFixturePatch::CanReadActiveMode() const
-{
-	// DEPRECATED 4.27
-	return ParentFixtureTypeTemplate != nullptr
-		&& ParentFixtureTypeTemplate->IsValidLowLevelFast()
-		&& ParentFixtureTypeTemplate->Modes.IsValidIndex(ActiveMode);
+	else
+	{
+		ActiveMode = INDEX_NONE;
+	}
 }
 
 const FDMXFixtureMode* UDMXEntityFixturePatch::GetActiveMode() const
@@ -523,27 +561,6 @@ void UDMXEntityFixturePatch::SetUniverseID(int32 NewUniverseID)
 
 	RebuildCache();
 }
-
-#if WITH_EDITOR
-void UDMXEntityFixturePatch::SetAutoStartingAddress(int32 NewAutoStartingAddress)
-{
-	// DEPRECATED 5.1
-	AutoStartingAddress_DEPRECATED = NewAutoStartingAddress;
-	ManualStartingAddress_DEPRECATED = NewAutoStartingAddress;
-
-	RebuildCache();
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXEntityFixturePatch::SetManualStartingAddress(int32 NewManualStartingAddress)
-{
-	// DEPRECATED 5.1
-	ManualStartingAddress_DEPRECATED = NewManualStartingAddress;
-
-	RebuildCache();
-}
-#endif // WITH_EDITOR
 
 void UDMXEntityFixturePatch::SetStartingChannel(int32 NewStartingChannel)
 {
@@ -583,33 +600,57 @@ bool UDMXEntityFixturePatch::SetActiveModeIndex(int32 NewActiveModeIndex)
 	return false;
 }
 
+void UDMXEntityFixturePatch::GenerateFixtureID(int32 DesiredFixtureID)
+{
+	if (!ParentLibrary.IsValid())
+	{
+		FixtureID = 1;
+		return;
+	}
+
+	const TArray<UDMXEntityFixturePatch*> FixturePatches = ParentLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+
+	// Try to use the desired fixture ID
+	if (DesiredFixtureID > 0)
+	{
+		const bool bCanUseDesiredFixtureID = Algo::NoneOf(FixturePatches, [DesiredFixtureID, this](const UDMXEntityFixturePatch* Other)
+			{
+				return 
+					Other &&
+					Other != this &&
+					Other->GetFixtureID() == DesiredFixtureID;
+			});
+		if (bCanUseDesiredFixtureID)
+		{
+			FixtureID = DesiredFixtureID;
+			return;
+		}
+	}
+
+	// Generate a new fixture ID
+	const UDMXEntityFixturePatch* const* MaxFixtureIDPatchPtr = Algo::MaxElementBy(FixturePatches, [this](const UDMXEntityFixturePatch* Other)
+		{
+			if (Other && Other != this)
+			{
+				return Other->GetFixtureID();
+			}
+			return 0;
+		});
+	if (MaxFixtureIDPatchPtr)
+	{
+		FixtureID = (*MaxFixtureIDPatchPtr)->GetFixtureID() + 1;
+	}
+	else
+	{
+		FixtureID = 1;
+	}
+}
 
 bool UDMXEntityFixturePatch::FindFixtureID(int32& OutFixtureID) const
 {
-	if (!MVRFixtureUUID.IsValid())
-	{
-		return false;
-	}
-
-	const UDMXLibrary* DMXLibrary = GetParentLibrary();
-	if (!DMXLibrary)
-	{
-		return false;
-	}
-
-	UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary->GetLazyGeneralSceneDescription();
-	if (!GeneralSceneDescription)
-	{
-		return false;
-	}
-
-	UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID);
-	if (!FixtureNode)
-	{
-		return false;
-	}
-
-	return LexTryParseString(OutFixtureID, *FixtureNode->FixtureID);
+	// DEPRECATED 5.5
+	OutFixtureID = FixtureID;
+	return true;
 }
 
 #if WITH_EDITOR
@@ -881,7 +922,13 @@ float UDMXEntityFixturePatch::GetNormalizedAttributeValue(FDMXAttributeName Attr
 
 void UDMXEntityFixturePatch::GetAttributesValues(TMap<FDMXAttributeName, int32>& AttributesValues)
 {
-	AttributesValues.Reset();
+	// DEPRECATED 5.5
+	GetAttributeValues(AttributesValues);
+}
+
+void UDMXEntityFixturePatch::GetAttributeValues(TMap<FDMXAttributeName, int32>& AttributeValues)
+{
+	AttributeValues.Reset();
 
 	// Update the cache if it isn't updated on tick
 	if (!IsTickable())
@@ -891,11 +938,17 @@ void UDMXEntityFixturePatch::GetAttributesValues(TMap<FDMXAttributeName, int32>&
 
 	if (const TMap<FDMXAttributeName, int32>* AttributeValuesPtr = Cache.GetAllRawAttributeValues())
 	{
-		AttributesValues = *AttributeValuesPtr;
+		AttributeValues = *AttributeValuesPtr;
 	}
 }
 
 void UDMXEntityFixturePatch::GetNormalizedAttributesValues(FDMXNormalizedAttributeValueMap& NormalizedAttributesValues)
+{
+	// DEPRECATED 5.5
+	GetNormalizedAttributeValues(NormalizedAttributesValues);
+}
+
+void UDMXEntityFixturePatch::GetNormalizedAttributeValues(FDMXNormalizedAttributeValueMap& NormalizedAttributeValues)
 {
 	// Update the cache if it isn't updated on tick
 	if (!IsTickable())
@@ -905,7 +958,7 @@ void UDMXEntityFixturePatch::GetNormalizedAttributesValues(FDMXNormalizedAttribu
 
 	if (const FDMXNormalizedAttributeValueMap* NormalizedAttributeValuesPtr = Cache.GetAllNormalizedAttributeValues())
 	{
-		NormalizedAttributesValues = *NormalizedAttributeValuesPtr;
+		NormalizedAttributeValues = *NormalizedAttributeValuesPtr;
 	}
 }
 

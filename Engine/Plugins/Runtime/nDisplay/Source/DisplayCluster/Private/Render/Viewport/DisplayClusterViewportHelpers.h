@@ -5,6 +5,7 @@
 #include "PixelFormat.h"
 
 class FDisplayClusterViewportResource;
+class FRHITexture;
 struct FDisplayClusterRenderFrameSettings;
 
 /**
@@ -83,4 +84,22 @@ public:
 	 * Getting the default pixel format
 	 */
 	static EPixelFormat GetDefaultPixelFormat();
+
+	/**
+	* Check if resources with the specified regions can be resolved.
+	* If any rect exceeds the texture size, RHI will crash.
+	* This function adjusts the rects to the size of the textures.
+	* 
+	* @param InSourceTexture - (in) src RHI texture
+	* @param InDestTexture   - (in) dest RHI texture
+	* @param InOutSourceRect - (in, out) src rect
+	* @param InOutDestRect   - (in, out) dest rect
+	* 
+	* @return false, if it isn't possible
+	*/
+	static bool GetValidResourceRectsForResolve(
+		const FRHITexture* InSourceTexture,
+		const FRHITexture* InDestTexture,
+		FIntRect& InOutSourceRect,
+		FIntRect& InOutDestRect);
 };

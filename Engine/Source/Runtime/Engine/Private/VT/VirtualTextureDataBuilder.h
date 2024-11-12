@@ -149,6 +149,4 @@ private:
 
 	const FString& DebugTexturePathName;
 	int32 ChunkDumpIndex = 0;
-
-	static bool DetectAlphaChannel(const FImage &image);
 };

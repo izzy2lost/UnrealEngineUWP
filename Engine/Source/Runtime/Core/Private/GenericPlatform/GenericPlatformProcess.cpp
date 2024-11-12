@@ -472,6 +472,7 @@ bool FPThreadEvent::Wait(uint32 WaitTime, const bool bIgnoreThreadIdleStats /*= 
 			WaitingThreads++;
 			if (WaitTime == ((uint32)-1)) // infinite wait?
 			{
+				LowLevelTasks::FOversubscriptionScope _; // Let the scheduler know one of its thread might be waiting.
 				int rc = pthread_cond_wait(&Condition, &Mutex);  // unlocks Mutex while blocking...
 				check(rc == 0);
 			}
@@ -481,6 +482,7 @@ bool FPThreadEvent::Wait(uint32 WaitTime, const bool bIgnoreThreadIdleStats /*= 
 				const uint32 ms = (StartTime.tv_usec / 1000) + WaitTime;
 				TimeOut.tv_sec = StartTime.tv_sec + (ms / 1000);
 				TimeOut.tv_nsec = (ms % 1000) * 1000000;  // remainder of milliseconds converted to nanoseconds.
+				LowLevelTasks::FOversubscriptionScope _; // Let the scheduler know one of its thread might be waiting.
 				int rc = pthread_cond_timedwait(&Condition, &Mutex, &TimeOut);    // unlocks Mutex while blocking...
 				check((rc == 0) || (rc == ETIMEDOUT));
 

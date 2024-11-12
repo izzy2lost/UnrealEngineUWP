@@ -137,10 +137,8 @@ void UFractureCutterSettings::TransferNoiseSettings(FNoiseSettings& NoiseSetting
 UFractureToolCutterBase::UFractureToolCutterBase(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
-	CutterSettings = NewObject<UFractureCutterSettings>(GetTransientPackage(), UFractureCutterSettings::StaticClass());
-	CutterSettings->OwnerTool = this;
-	CollisionSettings = NewObject<UFractureCollisionSettings>(GetTransientPackage(), UFractureCollisionSettings::StaticClass());
-	CollisionSettings->OwnerTool = this;
+	CutterSettings = GetMutableDefault<UFractureCutterSettings>();
+	CollisionSettings = GetMutableDefault<UFractureCollisionSettings>();
 }
 
 bool UFractureToolCutterBase::CanExecute() const
@@ -460,6 +458,7 @@ void UFractureToolVoronoiCutterBase::AddNoiseVisualizations(TArray<FCellNoisePre
 		VoronoiNoisePreviews.Add(DynamicMeshComponent);
 		DynamicMeshComponent->GetMesh()->Copy(Res.NoiseMesh);
 		DynamicMeshComponent->NotifyMeshUpdated();
+		DynamicMeshComponent->SetIsEditable(false);
 
 		// TODO: this material-access logic can go to the base class and be used by FractureToolPlaneCut as well
 		// Note the ToolSetupUtil functions optionally take a UInteractiveToolManager to provide fallback materials,
@@ -626,6 +625,7 @@ public:
 	float Grout;
 	int Seed;
 	FTransform Transform;
+	bool bSplitIslands = true;
 
 	// TGenericDataOperator interface:
 	virtual void CalculateResult(FProgressCancel* Progress) override
@@ -657,7 +657,7 @@ public:
 		FProgressCancel::FProgressScope FractureMeshProgress =
 			FProgressCancel::CreateScopeTo(Progress, 1, LOCTEXT("FractureMeshMessage", "Fracturing Mesh"));
 
-		ResultGeometryIndex = CutMultipleWithPlanarCells(VoronoiPlanarCells, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, true, Progress, Origin);
+		ResultGeometryIndex = CutMultipleWithPlanarCells(VoronoiPlanarCells, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, true, Progress, Origin, bSplitIslands);
 		
 		SetResult(MoveTemp(CollectionCopy));
 	}
@@ -678,6 +678,7 @@ int32 UFractureToolVoronoiCutterBase::ExecuteFracture(const FFractureToolContext
 		VoronoiOp->Grout = CutterSettings->Grout;
 		VoronoiOp->PointSpacing = CollisionSettings->GetPointSpacing();
 		VoronoiOp->Sites = Sites;
+		VoronoiOp->bSplitIslands = CutterSettings->bSplitIslands;
 		if (CutterSettings->Amplitude > 0.0f)
 		{
 			FNoiseSettings Settings;

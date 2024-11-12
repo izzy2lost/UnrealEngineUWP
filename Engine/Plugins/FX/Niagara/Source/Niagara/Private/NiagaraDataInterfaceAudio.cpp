@@ -52,11 +52,6 @@ FNiagaraSubmixListener::FNiagaraSubmixListener(FNiagaraSubmixListener&& Other)
 	RegisterToSubmix();
 }
 
-FNiagaraSubmixListener::~FNiagaraSubmixListener()
-{
-	UnregisterFromSubmix();
-}
-
 void FNiagaraSubmixListener::RegisterToSubmix()
 {
 	if (FAudioDevice* AudioDevice = FAudioDeviceManager::Get()->GetAudioDeviceRaw(AudioDeviceId))

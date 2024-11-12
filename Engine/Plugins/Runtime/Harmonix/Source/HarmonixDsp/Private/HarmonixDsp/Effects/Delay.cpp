@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "HarmonixDsp/Effects/Delay.h"
 
+#include "DSP/FloatArrayMath.h"
+
 #define LOG10OFONEBIT -4.5154367f
 
 namespace Harmonix::Dsp::Effects
@@ -56,6 +58,11 @@ namespace Harmonix::Dsp::Effects
 		FeedbackFilters.SetTargetGain(1.0f, true);
 
 		SetParamsToTargets();
+	}
+
+	FDelay::~FDelay()
+	{
+		FreeUpMemory();
 	}
 
 	void FDelay::Prepare(float InSampleRate, uint32 InMaxChannels, float InMaxDelayTimeMs)
@@ -116,12 +123,11 @@ namespace Harmonix::Dsp::Effects
 		PosMask = Length - 1;
 
 		// allocate and clear the delay line array;
-		DelayLineInterleaved.Configure(MaxChannels, Length, EAudioBufferCleanupMode::Delete, SampleRate, true);
-		DelayLineInterleaved.ZeroData();
+		DelayLineInterleaved.Reset();
+		DelayLineInterleaved.SetNumZeroed(MaxChannels * Length);
 		// allocate the wet channel buffer
-		WetChannelInterleaved.Configure(MaxChannels, Length, EAudioBufferCleanupMode::Delete, SampleRate, true);
-		WetChannelInterleaved.ZeroData();
-
+		WetChannelInterleaved.Reset();
+		WetChannelInterleaved.SetNumZeroed(MaxChannels * Length);
 
 		Speed = 1.0f;
 	}
@@ -164,10 +170,10 @@ namespace Harmonix::Dsp::Effects
 		Lfo.UseSettings(&LfoSettings);
 	}
 
-	void FDelay::Process(TAudioBuffer<float>& InOutData)
+	void FDelay::Process(Audio::FMultichannelBufferView& InOutBuffer)
 	{
-		const int32 NumFrames = InOutData.GetNumValidFrames();
-		ActiveChannels = InOutData.GetNumValidChannels();
+		const int32 NumFrames = Audio::GetMultichannelBufferNumFrames(InOutBuffer);
+		ActiveChannels = InOutBuffer.Num();
 		check(MaxChannels >= ActiveChannels);
 
 		ApplyNewParams();
@@ -180,11 +186,11 @@ namespace Harmonix::Dsp::Effects
 		TDynamicStridePtr<float> InOutDataPointers[AbsoluteMaxChannels];
 		TDynamicStridePtr<float> DelayLinePointers[AbsoluteMaxChannels];
 		TDynamicStridePtr<float> WetChannelPointers[AbsoluteMaxChannels];
-		for (int32 i = 0; i < AbsoluteMaxChannels; ++i)
+		for (int32 i = 0; i < ActiveChannels; ++i)
 		{
-			InOutDataPointers[i] = InOutData.GetStridingChannelDataPointer(i);
-			DelayLinePointers[i] = DelayLineInterleaved.GetStridingChannelDataPointer(i);
-			WetChannelPointers[i] = WetChannelInterleaved.GetStridingChannelDataPointer(i);
+			InOutDataPointers[i] = TDynamicStridePtr(&InOutBuffer[i][0], 1);
+			DelayLinePointers[i] = TDynamicStridePtr(&DelayLineInterleaved[i], ActiveChannels);
+			WetChannelPointers[i] = TDynamicStridePtr(&WetChannelInterleaved[i], ActiveChannels);
 		}
 		
 		for (int32 s = 0; s < NumFrames; ++s)
@@ -249,7 +255,7 @@ namespace Harmonix::Dsp::Effects
 			// Filter the feedback
 			if (FeedbackFilters.GetSettings().IsEnabled)
 			{
-				float* DelayLineFramePointer = DelayLineInterleaved.GetRawChannelData(0) + DelayPos * MaxChannels;
+				float* DelayLineFramePointer = DelayLineInterleaved.GetData() + DelayPos * MaxChannels;
 				FeedbackFilters.ProcessInterleavedInPlace(DelayLineFramePointer, 1, MaxChannels, ActiveChannels);
 			}
 			
@@ -259,7 +265,7 @@ namespace Harmonix::Dsp::Effects
 		// Filter the wet signal
 		if (WetFilters.GetSettings().IsEnabled)
 		{
-			WetFilters.ProcessInterleavedInPlace(WetChannelInterleaved.GetRawChannelData(0), NumFrames, MaxChannels, ActiveChannels);
+			WetFilters.ProcessInterleavedInPlace(WetChannelInterleaved.GetData(), NumFrames, MaxChannels, ActiveChannels);
 		}
 
 		// Add the wet signal to the output
@@ -274,7 +280,10 @@ namespace Harmonix::Dsp::Effects
 		// Scale the output
 		if (OutputGain != 1.0f)
 		{
-			InOutData.Scale(OutputGain);
+			Algo::ForEach(InOutBuffer, [Gain = OutputGain](TArrayView<float>& Channel)
+			{
+				Audio::ArrayMultiplyByConstantInPlace(Channel, Gain);
+			});
 		}
 	}
 
@@ -631,7 +640,7 @@ namespace Harmonix::Dsp::Effects
 	{
 		DelayType = EDelayStereoType(InType);
 	}
-
+	
 	float FDelay::CalculateSecsToIdle()
 	{
 		float AbsGain = FMath::Abs(FeedbackGain);

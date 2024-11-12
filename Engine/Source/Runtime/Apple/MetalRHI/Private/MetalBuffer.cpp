@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MetalRHIPrivate.h"
 #include "MetalBuffer.h"
-#include "Templates/AlignmentTemplates.h"
-#include "MetalLLM.h"
-#include <objc/runtime.h>
 #include "MetalCommandBuffer.h"
+#include "MetalCommandQueue.h"
+#include "MetalDevice.h"
+#include "MetalLLM.h"
 #include "MetalProfiler.h"
-#include "MetalRenderPass.h"
+#include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
+#include "Templates/AlignmentTemplates.h"
+#include <objc/runtime.h>
 
 DECLARE_MEMORY_STAT(TEXT("Used Device Buffer Memory"), STAT_MetalDeviceBufferMemory, STATGROUP_MetalRHI);
 DECLARE_MEMORY_STAT(TEXT("Used Pooled Buffer Memory"), STAT_MetalPooledBufferMemory, STATGROUP_MetalRHI);
@@ -33,6 +35,13 @@ static FAutoConsoleVariableRef CVarMetalResourcePurgeInPool(
 	GMetalResourcePurgeInPool,
 	TEXT("Use the SetPurgeableState function to allow the OS to reclaim memory from resources while they are unused in the pools. (Default: 0, Off)"));
 
+static int32 GMetalMaxBucketSize = 32 * 1024 * 1024;
+static FAutoConsoleVariableRef CVarMetalMaxBucketSize(
+	TEXT("rhi.Metal.MaxBucketSize"),
+	GMetalMaxBucketSize,
+	TEXT("Set the Max Bucket Size for the Pooled Buffer. (Default: 33547255)"));
+
+
 #if METAL_DEBUG_OPTIONS
 extern int32 GMetalBufferScribble;
 #endif
@@ -42,108 +51,54 @@ FMetalBuffer::~FMetalBuffer()
     Release();
 }
 
-FMetalBuffer::FMetalBuffer(MTLBufferPtr Handle)
+FMetalBuffer::FMetalBuffer(MTL::Buffer* Handle, FreePolicy InFreePolicy)
 : Buffer(Handle)
-, Heap(nullptr)
-, Linear(nullptr)
-, Magazine(nullptr)
+, Allocator(nullptr)
 , SubRange(0, Handle->length())
-, bPooled(false)
-, bSingleUse(false)
+, OnFreePolicy(InFreePolicy)
 {
 }
 
-FMetalBuffer::FMetalBuffer(MTLBufferPtr Handle, NS::Range Range, FMetalSubBufferHeap* Heap)
+FMetalBuffer::FMetalBuffer(MTL::Buffer* Handle, NS::Range Range, IMetalBufferAllocator* InAllocator)
 : Buffer(Handle)
-, Heap(Heap)
-, Linear(nullptr)
-, Magazine(nullptr)
+, Allocator(InAllocator)
 , SubRange(Range)
-, bPooled(false)
-, bSingleUse(false)
-{
-}
-
-
-FMetalBuffer::FMetalBuffer(MTLBufferPtr Handle, NS::Range Range, FMetalSubBufferLinear* Heap)
-: Buffer(Handle)
-, Heap(nullptr)
-, Linear(Heap)
-, Magazine(nullptr)
-, SubRange(Range)
-, bPooled(false)
-, bSingleUse(false)
-{
-}
-
-FMetalBuffer::FMetalBuffer(MTLBufferPtr Handle, NS::Range InRange, FMetalSubBufferMagazine* Magazine)
-: Buffer(Handle)
-, Heap(nullptr)
-, Linear(nullptr)
-, Magazine(Magazine)
-, SubRange(InRange)
-, bPooled(false)
-, bSingleUse(false)
-{
-}
-
-FMetalBuffer::FMetalBuffer(MTLBufferPtr Handle, NS::Range InRange, bool bInPooled)
-: Buffer(Handle)
-, Heap(nullptr)
-, Linear(nullptr)
-, Magazine(nullptr)
-, SubRange(InRange)
-, bPooled(bInPooled)
-, bSingleUse(false)
+, OnFreePolicy(FreePolicy::BufferAllocator)
 {
 }
 
 void FMetalBuffer::Release()
 {
-	if (Heap)
-	{
-		Heap->FreeRange(SubRange);
-		Heap = nullptr;
-	}
-	else if (Linear)
-	{
-		Linear->FreeRange(SubRange);
-		Linear = nullptr;
-	}
-	else if (Magazine)
-	{
-		Magazine->FreeRange(SubRange);
-		Magazine = nullptr;
-	}
+    check(!GIsRHIInitialized || (OnFreePolicy != FreePolicy::Owner || bMarkedDeleted));
     
-    if(bMarkedAllocated)
-    {
-        LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
-        
-		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, this, ELLMAllocType::System));
-        
-        DEC_MEMORY_STAT_BY(STAT_MetalBufferMemory, GetLength());
-        DEC_DWORD_STAT(STAT_MetalBufferCount);
-    }
-}
-
-void FMetalBuffer::SetOwner(class FMetalRHIBuffer* Owner, bool bIsSwap)
-{
-	check(Owner == nullptr);
-	if (Heap)
+	if (OnFreePolicy == FreePolicy::BufferAllocator)
 	{
-		Heap->SetOwner(SubRange, Owner, bIsSwap);
+		check(Allocator);
+		Allocator->ReleaseBuffer(this);
+		Allocator = nullptr;
+	}
+	else if(OnFreePolicy == FreePolicy::Owner)
+	{
+		LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
+		
+		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, this, ELLMAllocType::System));
+		
+		DEC_MEMORY_STAT_BY(STAT_MetalBufferMemory, GetLength());
+		DEC_DWORD_STAT(STAT_MetalBufferCount);
+		
+		Buffer->release();
 	}
 }
 
-FMetalSubBufferHeap::FMetalSubBufferHeap(NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions Options, FCriticalSection& InPoolMutex)
-: PoolMutex(InPoolMutex)
+FMetalSubBufferHeap::FMetalSubBufferHeap(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions Options, FCriticalSection& InPoolMutex)
+: Device(MetalDevice)
+, PoolMutex(InPoolMutex)
 , OutstandingAllocs(0)
 , MinAlign(Alignment)
 , UsedSize(0)
 {
 	Options = (MTL::ResourceOptions)FMetalCommandQueue::GetCompatibleResourceOptions(Options);
-	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
 	NS::UInteger FullSize = Align(Size, Alignment);
 	METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("AllocBuffer: %llu, %llu"), FullSize, Options)));
 	
@@ -159,26 +114,26 @@ FMetalSubBufferHeap::FMetalSubBufferHeap(NS::UInteger Size, NS::UInteger Alignme
         
 		Desc->setSize(FullSize);
 		Desc->setStorageMode(Storage);
-		ParentHeap = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newHeap(Desc));
+		ParentHeap = NS::TransferPtr(Device.GetDevice()->newHeap(Desc));
         Desc->release();
 		check(ParentHeap);
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocHeap(GetMetalDeviceContext().GetDevice(), ParentHeap.get());
+		MetalLLM::LogAllocHeap(ParentHeap.get());
 #endif
 	}
 	else
 	{
-		//ParentBuffer = MTLPP_VALIDATE(MTL::Device*, GetMetalDeviceContext().GetDevice(), SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(FullSize, Options));
-        ParentBuffer = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newBuffer(FullSize, Options));
+        ParentBuffer = Device.GetDevice()->newBuffer(FullSize, Options);
 		check(ParentBuffer);
 		check(ParentBuffer->length() >= FullSize);
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocBufferNative(GetMetalDeviceContext().GetDevice(), ParentBuffer);
+		MetalLLM::LogAllocBufferNative(ParentBuffer);
 #endif
 		FreeRanges.Add(NS::Range(0, FullSize));
 	}
 	INC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, FullSize);
 	INC_MEMORY_STAT_BY(STAT_MetalHeapBufferUnusedMemory, FullSize);
+	
 }
 
 FMetalSubBufferHeap::~FMetalSubBufferHeap()
@@ -192,6 +147,12 @@ FMetalSubBufferHeap::~FMetalSubBufferHeap()
 	{
 		DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, ParentBuffer->length());
 		DEC_MEMORY_STAT_BY(STAT_MetalHeapBufferUnusedMemory, ParentBuffer->length());
+	}
+	
+	if(ParentBuffer)
+	{
+		ParentBuffer->release();
+		ParentBuffer = nullptr;
 	}
 }
 
@@ -237,12 +198,10 @@ void FMetalSubBufferHeap::FreeRange(NS::Range const& Range)
 #if METAL_DEBUG_OPTIONS
 		if (GIsRHIInitialized)
 		{
-			//MTLPP_VALIDATE_ONLY(mtlpp::Buffer, ParentBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ReleaseRange(Range));
-            //ParentBuffer->releaseRange(Range);
             assert(Range.location < ParentBuffer->length());
             assert(Range.length && (Range.location + Range.Length) <= ParentBuffer->length());
             
-			GetMetalDeviceContext().ValidateIsInactiveBuffer(ParentBuffer.get(), Range);
+			Device.ValidateIsInactiveBuffer(ParentBuffer, Range);
 		}
 #endif
     
@@ -298,6 +257,15 @@ void FMetalSubBufferHeap::FreeRange(NS::Range const& Range)
 #endif
 		}
 	}
+}
+
+void FMetalSubBufferHeap::ReleaseBuffer(FMetalBuffer* Buffer)
+{
+	if(ParentHeap)
+	{
+		Buffer->GetMTLBuffer()->release();
+	}
+	FreeRange(Buffer->GetRange());
 }
 
 NS::String* FMetalSubBufferHeap::GetLabel() const
@@ -436,9 +404,9 @@ FMetalBufferPtr FMetalSubBufferHeap::NewBuffer(NS::UInteger length)
 		NS::UInteger Cache = (NS::UInteger(GetCpuCacheMode()) << MTL::ResourceCpuCacheModeShift);
 		MTL::ResourceOptions Opt = MTL::ResourceOptions(Storage | Cache);
 		
-		Result = FMetalBufferPtr(new FMetalBuffer(NS::TransferPtr(ParentHeap->newBuffer(Size, Opt)), NS::Range(0, Size), this));
+		Result = FMetalBufferPtr(new FMetalBuffer(ParentHeap->newBuffer(Size, Opt), NS::Range(0, Size), this));
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocBufferNative(GetMetalDeviceContext().GetDevice(), Result->GetMTLBuffer());
+		MetalLLM::LogAllocBufferNative(Result->GetMTLBuffer());
 #endif
 		DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Result->GetLength());
 		DEC_MEMORY_STAT_BY(STAT_MetalHeapBufferUnusedMemory, Result->GetLength());
@@ -512,8 +480,9 @@ MTL::PurgeableState FMetalSubBufferHeap::SetPurgeableState(MTL::PurgeableState s
 
 #pragma mark --
 
-FMetalSubBufferLinear::FMetalSubBufferLinear(NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions Options, FCriticalSection& InPoolMutex)
-: PoolMutex(InPoolMutex)
+FMetalSubBufferLinear::FMetalSubBufferLinear(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions Options, FCriticalSection& InPoolMutex)
+: Device(MetalDevice)
+, PoolMutex(InPoolMutex)
 , MinAlign(Alignment)
 , WriteHead(0)
 , UsedSize(0)
@@ -525,15 +494,13 @@ FMetalSubBufferLinear::FMetalSubBufferLinear(NS::UInteger Size, NS::UInteger Ali
 	
 	MTL::StorageMode Storage = (MTL::StorageMode)((Options & MTL::ResourceStorageModeMask) >> MTL::ResourceStorageModeShift);
 	
-    //ParentBuffer = MTLPP_VALIDATE(MTL::Device, GetMetalDeviceContext().GetDevice(), SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(FullSize, Options));
-    
-    ParentBuffer = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newBuffer(FullSize, Options));
+    ParentBuffer = Device.GetDevice()->newBuffer(FullSize, Options);
     
 	check(ParentBuffer);
 	check(ParentBuffer->length() >= FullSize);
     
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-	MetalLLM::LogAllocBufferNative(GetMetalDeviceContext().GetDevice(), ParentBuffer);
+	MetalLLM::LogAllocBufferNative(ParentBuffer);
 #endif
     
 	INC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, FullSize);
@@ -544,6 +511,12 @@ FMetalSubBufferLinear::~FMetalSubBufferLinear()
 {
 	DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, ParentBuffer->length());
 	DEC_MEMORY_STAT_BY(STAT_MetalLinearBufferUnusedMemory, ParentBuffer->length());
+	
+	if(ParentBuffer)
+	{
+		ParentBuffer->release();
+		ParentBuffer = nullptr;
+	}
 }
 
 void FMetalSubBufferLinear::FreeRange(NS::Range const& Range)
@@ -551,12 +524,10 @@ void FMetalSubBufferLinear::FreeRange(NS::Range const& Range)
 #if METAL_DEBUG_OPTIONS
 	if (GIsRHIInitialized)
 	{
-		//MTLPP_VALIDATE_ONLY(mtlpp::Buffer, ParentBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ReleaseRange(Range));
-		
         assert(Range.location < ParentBuffer->length());
         assert(Range.length && (Range.location + Range.length) <= ParentBuffer->length());
         
-		GetMetalDeviceContext().ValidateIsInactiveBuffer(ParentBuffer.get(), Range);
+		Device.ValidateIsInactiveBuffer(ParentBuffer, Range);
 	}
 #endif
 	
@@ -573,6 +544,11 @@ void FMetalSubBufferLinear::FreeRange(NS::Range const& Range)
 			WriteHead = 0;
 		}
 	}
+}
+
+void FMetalSubBufferLinear::ReleaseBuffer(FMetalBuffer* Buffer)
+{
+	FreeRange(Buffer->GetRange());
 }
 
 NS::String* FMetalSubBufferLinear::GetLabel() const
@@ -638,7 +614,6 @@ FMetalBufferPtr FMetalSubBufferLinear::NewBuffer(NS::UInteger length)
 		DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Range.length);
 		DEC_MEMORY_STAT_BY(STAT_MetalLinearBufferUnusedMemory, Range.length);
 		INC_MEMORY_STAT_BY(STAT_MetalLinearBufferMemory, Range.length);
-		//Result = FMetalBuffer(MTLPP_VALIDATE(mtlpp::Buffer, ParentBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(Range)), this);
         
         assert(Range.Location < ParentBuffer->getLength());
         assert(Range.Length && (Range.Location + Range.length) <= ParentBuffer->getLength());
@@ -658,18 +633,19 @@ MTL::PurgeableState FMetalSubBufferLinear::SetPurgeableState(MTL::PurgeableState
 
 #pragma mark --
 
-FMetalSubBufferMagazine::FMetalSubBufferMagazine(NS::UInteger Size, NS::UInteger ChunkSize, MTL::ResourceOptions Options)
-: MinAlign(ChunkSize)
+FMetalSubBufferMagazine::FMetalSubBufferMagazine(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger ChunkSize, MTL::ResourceOptions Options)
+: Device(MetalDevice)
+, MinAlign(ChunkSize)
 , BlockSize(ChunkSize)
 , OutstandingAllocs(0)
 , UsedSize(0)
 {
 	Options = (MTL::ResourceOptions)FMetalCommandQueue::GetCompatibleResourceOptions(Options);
-    static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+    static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
     MTL::StorageMode Storage = (MTL::StorageMode)((Options & MTL::ResourceStorageModeMask) >> MTL::ResourceStorageModeShift);
     if (PLATFORM_IOS && bSupportsHeaps && Storage == MTL::StorageModePrivate)
     {
-        MinAlign = GetMetalDeviceContext().GetDevice()->heapBufferSizeAndAlign(BlockSize, Options).align;
+        MinAlign = Device.GetDevice()->heapBufferSizeAndAlign(BlockSize, Options).align;
     }
     
     NS::UInteger FullSize = Align(Size, MinAlign);
@@ -686,24 +662,22 @@ FMetalSubBufferMagazine::FMetalSubBufferMagazine(NS::UInteger Size, NS::UInteger
         
 		Desc->setSize(FullSize);
 		Desc->setStorageMode(Storage);
-		ParentHeap = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newHeap(Desc));
+		ParentHeap = NS::TransferPtr(Device.GetDevice()->newHeap(Desc));
         Desc->release();
 		check(ParentHeap);
 		//METAL_FATAL_ASSERT(ParentHeap, TEXT("Failed to create heap of size %u and resource options %u"), Size, (uint32)Options);
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocHeap(GetMetalDeviceContext().GetDevice(), ParentHeap.get());
+		MetalLLM::LogAllocHeap(ParentHeap.get());
 #endif
 	}
 	else
 	{
-		//ParentBuffer = MTLPP_VALIDATE(MTL::Device, GetMetalDeviceContext().GetDevice(), SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(FullSize, Options));
-        
-        ParentBuffer = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newBuffer(FullSize, Options));
+        ParentBuffer = Device.GetDevice()->newBuffer(FullSize, Options);
 		check(ParentBuffer);
 		check(ParentBuffer->length() >= FullSize);
 		//METAL_FATAL_ASSERT(ParentBuffer, TEXT("Failed to create heap of size %u and resource options %u"), Size, (uint32)Options);
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocBufferNative(GetMetalDeviceContext().GetDevice(), ParentBuffer);
+		MetalLLM::LogAllocBufferNative(ParentBuffer);
 #endif
 		
 		INC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, FullSize);
@@ -724,6 +698,12 @@ FMetalSubBufferMagazine::~FMetalSubBufferMagazine()
 	{
         DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, ParentBuffer->length());
 		DEC_MEMORY_STAT_BY(STAT_MetalMagazineBufferUnusedMemory, ParentBuffer->length());
+		
+		if(ParentBuffer)
+		{
+			ParentBuffer->release();
+			ParentBuffer = nullptr;
+		}
 	}
 }
 
@@ -741,8 +721,7 @@ void FMetalSubBufferMagazine::FreeRange(NS::Range const& Range)
 #if METAL_DEBUG_OPTIONS
 		if (GIsRHIInitialized)
 		{
-			//MTLPP_VALIDATE_ONLY(mtlpp::Buffer, ParentBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ReleaseRange(Range));
-			GetMetalDeviceContext().ValidateIsInactiveBuffer(ParentBuffer.get(), Range);
+			Device.ValidateIsInactiveBuffer(ParentBuffer, Range);
 		}
 #endif
 	
@@ -754,6 +733,15 @@ void FMetalSubBufferMagazine::FreeRange(NS::Range const& Range)
 		INC_MEMORY_STAT_BY(STAT_MetalMagazineBufferUnusedMemory, Range.length);
 		DEC_MEMORY_STAT_BY(STAT_MetalMagazineBufferMemory, Range.length);
 	}
+}
+
+void FMetalSubBufferMagazine::ReleaseBuffer(FMetalBuffer* Buffer)
+{
+	if(ParentHeap)
+	{
+		Buffer->GetMTLBuffer()->release();
+	}
+	FreeRange(Buffer->GetRange());
 }
 
 NS::String* FMetalSubBufferMagazine::GetLabel() const
@@ -873,9 +861,9 @@ FMetalBufferPtr FMetalSubBufferMagazine::NewBuffer()
 		NS::UInteger Cache = (NS::UInteger(GetCpuCacheMode()) << MTL::ResourceCpuCacheModeShift);
 		MTL::ResourceOptions Opt = MTL::ResourceOptions(Storage | Cache);
 		
-		Result = FMetalBufferPtr(new FMetalBuffer(NS::TransferPtr(ParentHeap->newBuffer(Size, Opt)), NS::Range(0, Size), this));
+		Result = FMetalBufferPtr(new FMetalBuffer(ParentHeap->newBuffer(Size, Opt), NS::Range(0, Size), this));
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocBuffer(GetMetalDeviceContext().GetDevice(), Result);
+		MetalLLM::LogAllocBuffer(Result);
 #endif
 		DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Result->GetLength());
 		DEC_MEMORY_STAT_BY(STAT_MetalMagazineBufferUnusedMemory, Result->GetLength());
@@ -894,7 +882,6 @@ FMetalBufferPtr FMetalSubBufferMagazine::NewBuffer()
                 DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Range.length);
 				DEC_MEMORY_STAT_BY(STAT_MetalMagazineBufferUnusedMemory, Range.length);
 				INC_MEMORY_STAT_BY(STAT_MetalMagazineBufferMemory, Range.length);
-				//Result = FMetalBuffer(MTLPP_VALIDATE(mtlpp::Buffer, ParentBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(Range)), this);
                 
                 Result = FMetalBufferPtr(new FMetalBuffer(ParentBuffer, Range, this));
 				break;
@@ -919,8 +906,9 @@ MTL::PurgeableState FMetalSubBufferMagazine::SetPurgeableState(MTL::PurgeableSta
 	}
 }
 
-FMetalRingBufferRef::FMetalRingBufferRef(FMetalBufferPtr Buf)
-: Buffer(Buf)
+FMetalRingBufferRef::FMetalRingBufferRef(FMetalDevice& InDevice, FMetalBufferPtr Buf)
+: Device(InDevice)
+, Buffer(Buf)
 , LastRead(Buffer->GetLength())
 {
     Buffer->GetMTLBuffer()->setLabel(NS::String::string("Ring Buffer", NS::UTF8StringEncoding));
@@ -928,12 +916,12 @@ FMetalRingBufferRef::FMetalRingBufferRef(FMetalBufferPtr Buf)
 
 FMetalRingBufferRef::~FMetalRingBufferRef()
 {
-	//MTLPP_VALIDATE_ONLY(MTL::Buffer, Buffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ReleaseAllRanges());
-	SafeReleaseMetalBuffer(Buffer);
+	FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 }
 
-FMetalSubBufferRing::FMetalSubBufferRing(NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions InOptions)
-: LastFrameChange(0)
+FMetalSubBufferRing::FMetalSubBufferRing(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions InOptions)
+: Device(MetalDevice)
+, LastFrameChange(0)
 , InitialSize(Align(Size, Alignment))
 , MinAlign(Alignment)
 , CommitHead(0)
@@ -990,7 +978,7 @@ FMetalBufferPtr FMetalSubBufferRing::NewBuffer(NS::UInteger Size, uint32 Alignme
 	// Allocate on first use
 	if(!RingBufferRef.IsValid())
 	{
-        RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(GetMetalDeviceContext().GetResourceHeap().CreateBuffer(InitialSize, MinAlign, BUF_Dynamic, Options, true));
+        RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(Device, Device.GetResourceHeap().CreateBuffer(InitialSize, MinAlign, BUF_Dynamic, Options, true));
 		BufferSize = InitialSize;
 	}
 	
@@ -998,21 +986,18 @@ FMetalBufferPtr FMetalSubBufferRing::NewBuffer(NS::UInteger Size, uint32 Alignme
 	{
 		if (WriteHead + FullSize <= RingBufferRef->GetBuffer()->GetLength())
 		{
-			//FMetalBuffer NewBuffer(MTLPP_VALIDATE(mtlpp::Buffer, Buffer->Buffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(ns::Range(WriteHead, FullSize))), false);
-			
-            FMetalBufferPtr NewBuffer = FMetalBufferPtr(new FMetalBuffer(RingBufferRef->GetMTLBuffer(), NS::Range(WriteHead, FullSize), false));
+            FMetalBufferPtr NewBuffer = FMetalBufferPtr(new FMetalBuffer(RingBufferRef->GetMTLBuffer(), NS::Range(WriteHead, FullSize), this));
             
 			FMemory::Memset(((uint8*)NewBuffer->Contents()), 0x0, FullSize);
 			
 			WriteHead += FullSize;
-			// NewBuffer.MarkSingleUse();
 			return NewBuffer;
 		}
 #if PLATFORM_MAC
 		else if (Storage == MTL::StorageModeManaged)
 		{
 			Submit();
-            RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(GetMetalDeviceContext().GetResourceHeap().CreateBuffer(BufferSize, MinAlign, BUF_Dynamic, Options, true));
+            RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(Device, Device.GetResourceHeap().CreateBuffer(BufferSize, MinAlign, BUF_Dynamic, Options, true));
 			WriteHead = 0;
 			CommitHead = 0;
 			SubmitHead = 0;
@@ -1032,7 +1017,7 @@ FMetalBufferPtr FMetalSubBufferRing::NewBuffer(NS::UInteger Size, uint32 Alignme
 		
 		Submit();
 		
-        RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(GetMetalDeviceContext().GetResourceHeap().CreateBuffer(NewBufferSize, MinAlign, BUF_Dynamic, Options, true));
+        RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(Device, Device.GetResourceHeap().CreateBuffer(NewBufferSize, MinAlign, BUF_Dynamic, Options, true));
 		BufferSize = NewBufferSize;
 		WriteHead = 0;
 		CommitHead = 0;
@@ -1040,9 +1025,7 @@ FMetalBufferPtr FMetalSubBufferRing::NewBuffer(NS::UInteger Size, uint32 Alignme
 	}
     
 	{
-		//FMetalBuffer NewBuffer(MTLPP_VALIDATE(mtlpp::Buffer, Buffer->Buffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(ns::Range(WriteHead, FullSize))), false);
-        
-        FMetalBufferPtr NewBuffer = FMetalBufferPtr(new FMetalBuffer(RingBufferRef->GetMTLBuffer(), NS::Range(WriteHead, FullSize), false));
+        FMetalBufferPtr NewBuffer = FMetalBufferPtr(new FMetalBuffer(RingBufferRef->GetMTLBuffer(), NS::Range(WriteHead, FullSize), this));
 		
 		AllocatedRanges.Add(NS::Range(WriteHead, FullSize));
 		
@@ -1073,7 +1056,7 @@ void FMetalSubBufferRing::Shrink()
 			
 			UE_LOG(LogMetal, Verbose, TEXT("Shrinking RingBuffer from %u to %u as max. usage is %u at frame %lld]"), (uint32)RingBufferRef->GetBuffer()->GetLength(), (uint32)ThreeQuarterSize, (uint32)FrameMax, GFrameNumberRenderThread);
 			
-            RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(GetMetalDeviceContext().GetResourceHeap().CreateBuffer(ThreeQuarterSize, MinAlign, BUF_Dynamic, Options, true));
+            RingBufferRef = MakeShared<FMetalRingBufferRef, ESPMode::ThreadSafe>(Device, Device.GetResourceHeap().CreateBuffer(ThreeQuarterSize, MinAlign, BUF_Dynamic, Options, true));
 			BufferSize = ThreeQuarterSize;
 			WriteHead = 0;
 			CommitHead = 0;
@@ -1150,11 +1133,6 @@ void FMetalSubBufferRing::Commit(FMetalCommandBuffer* CmdBuf)
 					FMemory::Memset(((uint8*)CmdBufferRingBuffer->GetBuffer()->Contents()), 0xCD, WriteOffset);
 				}
 			}
-			
-			for (NS::Range const& Range : Ranges)
-			{
-				//MTLPP_VALIDATE_ONLY(mtlpp::Buffer, CmdBufferRingBuffer->Buffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ReleaseRange(Range));
-			}
 #endif
 			CmdBufferRingBuffer->SetLastRead(WriteOffset);
 		};
@@ -1197,7 +1175,9 @@ uint32 FMetalBufferPoolPolicyData::GetPoolBucketSize(uint32 Bucket)
 	return BucketSizes[Index];
 }
 
-FMetalBufferPtr FMetalBufferPoolPolicyData::CreateResource(FRHICommandListBase&, CreationArguments Args)
+TMap<MTL::Buffer*, FMetalBufferPoolPolicyData::CreationArguments> FMetalBufferPoolPolicyData::CreationArgumentMap;
+
+MTL::Buffer* FMetalBufferPoolPolicyData::CreateResource(FRHICommandListBase&, CreationArguments Args)
 {
 	check(Args.Device);	
 	uint32 BufferSize = GetPoolBucketSize(GetPoolBucketIndex(Args));
@@ -1207,30 +1187,33 @@ FMetalBufferPtr FMetalBufferPoolPolicyData::CreateResource(FRHICommandListBase&,
 	MTL::ResourceOptions ResourceOptions = FMetalCommandQueue::GetCompatibleResourceOptions(MTL::ResourceOptions(CpuCacheMode | StorageMode | MTL::ResourceHazardTrackingModeUntracked));
 	
 	METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("AllocBuffer: %llu, %llu"), BufferSize, ResourceOptions)));
-	//FMetalBuffer NewBuf(MTLPP_VALIDATE(MTL::Device, Args.Device, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(BufferSize, ResourceOptions), true));
     
-    FMetalBufferPtr NewBuf = FMetalBufferPtr(new FMetalBuffer(NS::TransferPtr(Args.Device->newBuffer(BufferSize, ResourceOptions)), NS::Range(0, BufferSize), true));
+	MTL::Buffer* NewBuf = Args.Device->GetDevice()->newBuffer(BufferSize, ResourceOptions);
 
+	check(!CreationArgumentMap.Contains(NewBuf));
+	CreationArgumentMap.Add(NewBuf, Args);
+	
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-	MetalLLM::LogAllocBuffer(Args.Device, NewBuf);
+	MetalLLM::LogAllocBufferNative(NewBuf);
 #endif
-	INC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, NewBuf->GetLength());
-	INC_MEMORY_STAT_BY(STAT_MetalPooledBufferUnusedMemory, NewBuf->GetLength());
+	INC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, NewBuf->length());
+	INC_MEMORY_STAT_BY(STAT_MetalPooledBufferUnusedMemory, NewBuf->length());
 	return NewBuf;
 }
 
-FMetalBufferPoolPolicyData::CreationArguments FMetalBufferPoolPolicyData::GetCreationArguments(FMetalBufferPtr Resource)
+FMetalBufferPoolPolicyData::CreationArguments FMetalBufferPoolPolicyData::GetCreationArguments(MTL::Buffer* Resource)
 {
-    MTL::Buffer* Buffer = Resource->GetMTLBuffer().get();
-	return FMetalBufferPoolPolicyData::CreationArguments(Buffer->device(), Resource->GetLength(), BUF_None,
-                                                         Buffer->storageMode(), Buffer->cpuCacheMode());
+	FMetalBufferPoolPolicyData::CreationArguments& Args = CreationArgumentMap.FindChecked(Resource); 
+	return Args;
 }
 
-void FMetalBufferPoolPolicyData::FreeResource(FMetalBufferPtr Resource)
+void FMetalBufferPoolPolicyData::FreeResource(MTL::Buffer* Resource)
 {
-	DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Resource->GetLength());
-	DEC_MEMORY_STAT_BY(STAT_MetalPooledBufferUnusedMemory, Resource->GetLength());
-	Resource = nullptr;
+	DEC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Resource->length());
+	DEC_MEMORY_STAT_BY(STAT_MetalPooledBufferUnusedMemory, Resource->length());
+	
+	CreationArgumentMap.Remove(Resource);
+	Resource->release();
 }
 
 FMetalTexturePool::FMetalTexturePool(FCriticalSection& InPoolMutex)
@@ -1242,7 +1225,7 @@ FMetalTexturePool::~FMetalTexturePool()
 {
 }
 
-MTLTexturePtr FMetalTexturePool::CreateTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc)
+MTLTexturePtr FMetalTexturePool::CreateTexture(FMetalDevice& Device, MTL::TextureDescriptor* Desc)
 {
 	FMetalTexturePool::Descriptor Descriptor;
 	Descriptor.textureType = (NS::UInteger)Desc->textureType();
@@ -1276,8 +1259,7 @@ MTLTexturePtr FMetalTexturePool::CreateTexture(MTL::Device* Device, MTL::Texture
 	else
 	{
 		METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("AllocTexture: %s"), TEXT("")/**FString([Desc.GetPtr() description])*/)));
-		//Texture = MTLPP_VALIDATE(MTL::Device, Device, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewTexture(Desc));
-        Texture = NS::TransferPtr(Device->newTexture(Desc));
+        Texture = NS::TransferPtr(Device.GetDevice()->newTexture(Desc));
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
 		MetalLLM::LogAllocTexture(Device, Desc, Texture.get());
 #endif
@@ -1335,8 +1317,9 @@ void FMetalTexturePool::Drain(bool const bForce)
     }
 }
 
-FMetalResourceHeap::FMetalResourceHeap(void)
-: Queue(nullptr)
+FMetalResourceHeap::FMetalResourceHeap(FMetalDevice& MetalDevice)
+: Device(MetalDevice)
+, Queue(nullptr)
 , TexturePool(Mutex)
 , TargetPool(Mutex)
 {
@@ -1344,7 +1327,7 @@ FMetalResourceHeap::FMetalResourceHeap(void)
 
 FMetalResourceHeap::~FMetalResourceHeap()
 {
-	Compact(nullptr, true);
+	Compact(true);
 }
 
 void FMetalResourceHeap::Init(FMetalCommandQueue& InQueue)
@@ -1435,7 +1418,7 @@ MTLHeapPtr FMetalResourceHeap::GetTextureHeap(MTL::TextureDescriptor* Desc, MTL:
     MTLHeapPtr Result;
     
 	static bool bTextureHeaps = FParse::Param(FCommandLine::Get(),TEXT("metaltextureheaps"));
-	if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesHeaps) && bTextureHeaps && Size.size <= HeapTextureHeapSizes[MaxTextureSize])
+	if (Device.SupportsFeature(EMetalFeaturesHeaps) && bTextureHeaps && Size.size <= HeapTextureHeapSizes[MaxTextureSize])
 	{
 		FMetalResourceHeap::TextureHeapSize HeapIndex = TextureSizeToIndex(Size.size);
 
@@ -1469,10 +1452,10 @@ MTLHeapPtr FMetalResourceHeap::GetTextureHeap(MTL::TextureDescriptor* Desc, MTL:
 				HeapDesc->setSize(HeapTextureHeapSizes[HeapIndex]);
 				HeapDesc->setStorageMode(Desc->storageMode());
 				HeapDesc->setCpuCacheMode(Desc->cpuCacheMode());
-				Result = NS::TransferPtr(Queue->GetDevice()->newHeap(HeapDesc));
+				Result = NS::TransferPtr(Device.GetDevice()->newHeap(HeapDesc));
                 HeapDesc->release();
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-				MetalLLM::LogAllocHeap(Queue->GetDevice(), Result.get());
+				MetalLLM::LogAllocHeap(Result.get());
 #endif
 				TextureHeaps[UsageIndex][HeapIndex].Add(Result);
 			}
@@ -1575,6 +1558,8 @@ void FMetalResourceHeap::FreeBlock(const uint32 ResourceAllocationHandle)
 	// Put the block into the free list
 	UsedList->RemoveNode(BlockIt.GetNode(), false);
 	FreeList->InsertNode(BlockIt.GetNode(), NextBlockIt ? NextBlockIt.GetNode() : nullptr);
+	
+	INC_MEMORY_STAT_BY(STAT_MetalHeapBufferUnusedMemory, (*BlockIt).Size);
 
 	// If we have a next block then attempt to merge blocks
 	if(NextBlockIt)
@@ -1671,6 +1656,8 @@ TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator FMetalResourceHeap
 				FreeList->RemoveNode(It.GetNode(), false);
 				UsedList->AddHead(It.GetNode());
 
+				DEC_MEMORY_STAT_BY(STAT_MetalHeapBufferUnusedMemory, (*It).Size);
+				
 				return It;
 			}
 		}
@@ -1692,7 +1679,7 @@ TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator FMetalResourceHeap
 		HeapDesc->setType(MTL::HeapTypePlacement);
 		HeapDesc->setHazardTrackingMode(MTL::HazardTrackingModeTracked);
 
-		MTLHeapPtr BlockHeap = NS::TransferPtr(Queue->GetDevice()->newHeap(HeapDesc));
+		MTLHeapPtr BlockHeap = NS::TransferPtr(Device.GetDevice()->newHeap(HeapDesc));
 		HeapDesc->release();
 
 		MemoryBlock NewBlock;
@@ -1702,9 +1689,13 @@ TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator FMetalResourceHeap
 		NewBlock.Resource = nullptr;
 		NewBlock.Options = Options;
 
-		GetMetalDeviceContext().GetCurrentState().RegisterMetalHeap(NewBlock.Heap.get());
-
 		FreeList->AddTail(NewBlock);
+		
+#if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
+		MetalLLM::LogAllocHeap(BlockHeap.get());
+#endif
+		INC_MEMORY_STAT_BY(STAT_MetalHeapBufferMemory, NewBlockSize);
+		INC_MEMORY_STAT_BY(STAT_MetalHeapBufferUnusedMemory, NewBlockSize);
 
 		// Try again, but this time a fitting block will be immediately available at the front of the list
 		return FindOrAllocateBlock(Size, Alignment, Options);
@@ -1716,10 +1707,11 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 	LLM_SCOPE_METAL(ELLMTagMetal::Buffers);
 	LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
 	
-	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
 	if (bSupportsHeaps)
 	{
-		check(Alignment != 0);
+		MTL::SizeAndAlign BufferSizeAndAlign = Device.GetDevice()->heapBufferSizeAndAlign(Size, Options);
+		Alignment = FMath::Max((uint32)BufferSizeAndAlign.align, Alignment);
 
 		uint32 BlockSize = Align(Size, Alignment);
 		auto BlockIt = FindOrAllocateBlock(BlockSize, Alignment, Options);
@@ -1743,16 +1735,16 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 			}
 		}
 
-		FMetalBufferPtr Buffer = FMetalBufferPtr(new FMetalBuffer(NS::TransferPtr(Block.Heap->newBuffer(Size, Options, Block.Offset)), NS::Range(0, Size), false));
-		check(Buffer->GetMTLBuffer() && Buffer->GetMTLBuffer().get());
-		AllocationHandlesLUT.Add(Buffer->GetMTLBuffer().get(), HeapAllocationHandle);
+		FMetalBufferPtr Buffer = FMetalBufferPtr(new FMetalBuffer(Block.Heap->newBuffer(Size, Options, Block.Offset), NS::Range(0, Size), this));
+		check(Buffer->GetMTLBuffer() && Buffer->GetMTLBuffer());
+		AllocationHandlesLUT.Add(Buffer->GetMTLBuffer(), HeapAllocationHandle);
 
-		Block.Resource = Buffer->GetMTLBuffer().get();
+		Block.Resource = Buffer->GetMTLBuffer();
 
 		return Buffer;
 	}
 	
-	static bool bSupportsBufferSubAllocation = FMetalCommandQueue::SupportsFeature(EMetalFeaturesBufferSubAllocation);
+	static bool bSupportsBufferSubAllocation = Device.SupportsFeature(EMetalFeaturesBufferSubAllocation);
 	bForceUnique |= (!bSupportsBufferSubAllocation && !bSupportsHeaps);
 	
 	uint32 Usage = EnumHasAnyFlags(Flags, BUF_Static) ? UsageStatic : UsageDynamic;
@@ -1765,7 +1757,8 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 	// Write combined should be on a case by case basis
 	check(CpuMode == MTL::CPUCacheModeDefaultCache);
 	
-	if (BlockSize <= 33554432)
+	check(GMetalMaxBucketSize <= 32 * 1024 * 1024);
+	if (BlockSize <= GMetalMaxBucketSize)
 	{
 		switch (StorageMode)
 		{
@@ -1790,7 +1783,7 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 				 	}
 				 	if (!Found)
 				 	{
-				 		Found = new FMetalSubBufferLinear(HeapAllocSizes[NumHeapSizes - 1], BufferOffsetAlignment, MTL::ResourceOptions((NS::UInteger)Options & (MTL::ResourceStorageModeMask|MTL::ResourceHazardTrackingModeMask)), Mutex);
+				 		Found = new FMetalSubBufferLinear(Device, HeapAllocSizes[NumHeapSizes - 1], BufferOffsetAlignment, MTL::ResourceOptions((NS::UInteger)Options & (MTL::ResourceStorageModeMask|MTL::ResourceHazardTrackingModeMask)), Mutex);
 				 		ManagedSubHeaps.Add(Found);
 				 	}
 				 	check(Found);
@@ -1799,7 +1792,9 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 				 }
 				 else
 				 {
-                    Buffer = ManagedBuffers.CreatePooledResource(FRHICommandListExecutor::GetImmediateCommandList(), FMetalPooledBufferArgs(Queue->GetDevice(), BlockSize, Flags, StorageMode, CpuMode));
+					MTL::Buffer* MTLBuffer = ManagedBuffers.CreatePooledResource(FRHICommandListExecutor::GetImmediateCommandList(), FMetalPooledBufferArgs(&Device, BlockSize, Flags, StorageMode, CpuMode));
+                    Buffer = FMetalBufferPtr(new FMetalBuffer(MTLBuffer, NS::Range(0, MTLBuffer->length()), this));
+					 
 					if (GMetalResourcePurgeInPool)
 					{
 						Buffer->GetMTLBuffer()->setPurgeableState(MTL::PurgeableStateNonVolatile);
@@ -1817,7 +1812,7 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 				AllocTypes Storage = StorageMode != MTL::StorageModePrivate ? AllocShared : AllocPrivate;
 				check(Alignment == 16 || Alignment == 64 || Alignment == 256 || Alignment == 1024);
 
-				static bool bSupportsPrivateBufferSubAllocation = FMetalCommandQueue::SupportsFeature(EMetalFeaturesPrivateBufferSubAllocation);
+				static bool bSupportsPrivateBufferSubAllocation = Device.SupportsFeature(EMetalFeaturesPrivateBufferSubAllocation);
 				if (!bForceUnique && BlockSize <= MagazineSizes[NumMagazineSizes - 1] && (Storage == AllocShared || bSupportsPrivateBufferSubAllocation))
 				{
 					FScopeLock Lock(&Mutex);
@@ -1837,7 +1832,7 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 					
 					if (!Found)
 					{
-						Found = new FMetalSubBufferMagazine(MagazineAllocSizes[i], MagazineSizes[i], MTL::ResourceOptions((NS::UInteger)Options & (MTL::ResourceStorageModeMask|MTL::ResourceHazardTrackingModeMask)));
+						Found = new FMetalSubBufferMagazine(Device, MagazineAllocSizes[i], MagazineSizes[i], MTL::ResourceOptions((NS::UInteger)Options & (MTL::ResourceStorageModeMask|MTL::ResourceHazardTrackingModeMask)));
 						SmallBuffers[Usage][Storage][i].Add(Found);
 					}
 					check(Found);
@@ -1865,7 +1860,7 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 					if (!Found)
 					{
 						uint32 MinAlign = PLATFORM_MAC ? 1024 : 64;
-						Found = new FMetalSubBufferHeap(HeapAllocSizes[i], MinAlign, MTL::ResourceOptions((NS::UInteger)Options & (MTL::ResourceStorageModeMask|MTL::ResourceHazardTrackingModeMask)), Mutex);
+						Found = new FMetalSubBufferHeap(Device, HeapAllocSizes[i], MinAlign, MTL::ResourceOptions((NS::UInteger)Options & (MTL::ResourceStorageModeMask|MTL::ResourceHazardTrackingModeMask)), Mutex);
 						BufferHeaps[Usage][Storage][i].Add(Found);
 					}
 					check(Found);
@@ -1876,7 +1871,9 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 				else
 				{
 					FScopeLock Lock(&Mutex);
-                    Buffer = Buffers[Storage].CreatePooledResource(FRHICommandListExecutor::GetImmediateCommandList(), FMetalPooledBufferArgs(Queue->GetDevice(), BlockSize, Flags, StorageMode, CpuMode));
+					MTL::Buffer* MTLBuffer = Buffers[Storage].CreatePooledResource(FRHICommandListExecutor::GetImmediateCommandList(), FMetalPooledBufferArgs(&Device, BlockSize, Flags, StorageMode, CpuMode));
+					Buffer = FMetalBufferPtr(new FMetalBuffer(MTLBuffer, NS::Range(0, MTLBuffer->length()), this));
+					
 					if (GMetalResourcePurgeInPool)
 					{
                    		Buffer->GetMTLBuffer()->setPurgeableState(MTL::PurgeableStateNonVolatile);
@@ -1897,29 +1894,22 @@ FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, 
 	else
 	{
 		METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("AllocBuffer: %llu, %llu"), BlockSize, Options)));
-		//Buffer = FMetalBuffer(MTLPP_VALIDATE(MTL::Device, Queue->GetDevice(), SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(BlockSize, Options)), false);
-        
-        Buffer = FMetalBufferPtr(new FMetalBuffer(NS::TransferPtr(Queue->GetDevice()->newBuffer(BlockSize, Options)), NS::Range(0, BlockSize), false));
+        Buffer = FMetalBufferPtr(new FMetalBuffer(Device.GetDevice()->newBuffer(BlockSize, Options), FMetalBuffer::FreePolicy::Owner));
         
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocBuffer(Queue->GetDevice(), Buffer);
+		MetalLLM::LogAllocBuffer(Buffer);
 #endif
 		INC_MEMORY_STAT_BY(STAT_MetalDeviceBufferMemory, Buffer->GetLength());
 	}
 	
-	if (GMetalBufferZeroFill && Buffer->GetMTLBuffer()->storageMode() != MTL::StorageModePrivate)
-	{
-		FMemory::Memset(((uint8*)Buffer->Contents()), 0, Buffer->GetLength());
-	}
-	
-    METAL_DEBUG_OPTION(GetMetalDeviceContext().ValidateIsInactiveBuffer(Buffer->GetMTLBuffer().get(), Buffer->GetRange()));
+    METAL_DEBUG_OPTION(Device.ValidateIsInactiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange()));
 	METAL_FATAL_ASSERT(Buffer, TEXT("Failed to create buffer of size %u and resource options %u"), Size, (uint32)Options);
 	return Buffer;
 }
 
-void FMetalResourceHeap::ReleaseBuffer(FMetalBufferPtr Buffer)
+void FMetalResourceHeap::ReleaseBuffer(FMetalBuffer* Buffer)
 {
-    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
 	MTL::StorageMode StorageMode = MTLBuffer->storageMode();
 	
 	FScopeLock ScopeLock(&InUseResourcesCS);
@@ -1929,8 +1919,10 @@ void FMetalResourceHeap::ReleaseBuffer(FMetalBufferPtr Buffer)
 	{
 		FreeBlock(*It);
 		AllocationHandlesLUT.Remove(MTLBuffer);
+		
+		MTLBuffer->release();
 	}
-	else if (Buffer->IsPooled())
+	else
 	{
 		FScopeLock Lock(&Mutex);
 		
@@ -1948,14 +1940,14 @@ void FMetalResourceHeap::ReleaseBuffer(FMetalBufferPtr Buffer)
 	#if PLATFORM_MAC
 			case MTL::StorageModeManaged:
 			{
-				ManagedBuffers.ReleasePooledResource(Buffer);
+				ManagedBuffers.ReleasePooledResource(Buffer->GetMTLBuffer());
 				break;
 			}
 	#endif
 			case MTL::StorageModePrivate:
 			case MTL::StorageModeShared:
 			{
-				Buffers[(NS::UInteger)StorageMode].ReleasePooledResource(Buffer);
+				Buffers[(NS::UInteger)StorageMode].ReleasePooledResource(Buffer->GetMTLBuffer());
 				break;
 			}
 			default:
@@ -1965,10 +1957,6 @@ void FMetalResourceHeap::ReleaseBuffer(FMetalBufferPtr Buffer)
 			}
 		}
 	}
-    else
-	{
-		DEC_MEMORY_STAT_BY(STAT_MetalDeviceBufferMemory, Buffer->GetLength());
-	}
 }
 
 MTLTexturePtr FMetalResourceHeap::CreateTexture(MTL::TextureDescriptor* Desc, FMetalSurface* Surface)
@@ -1976,15 +1964,15 @@ MTLTexturePtr FMetalResourceHeap::CreateTexture(MTL::TextureDescriptor* Desc, FM
 	LLM_SCOPE_METAL(ELLMTagMetal::Textures);
 	LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Textures);
 
-	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
 	if (bSupportsHeaps)
 	{
-		MTL::SizeAndAlign SizeAndAlign = Queue->GetDevice()->heapTextureSizeAndAlign(Desc);
+		MTL::SizeAndAlign SizeAndAlign = Device.GetDevice()->heapTextureSizeAndAlign(Desc);
 		uint32 Size = SizeAndAlign.size;
 		uint32 Alignment = SizeAndAlign.align;
 		uint32 BlockSize = Align(Size, Alignment);
 		auto BlockIt = FindOrAllocateBlock(BlockSize, Alignment, Desc->resourceOptions());
-			MemoryBlock& Block = *BlockIt;
+		MemoryBlock& Block = *BlockIt;
 	
 		check(Block.Resource == nil && Block.Size == BlockSize);
 		Block.Options = Desc->resourceOptions();
@@ -2013,25 +2001,25 @@ MTLTexturePtr FMetalResourceHeap::CreateTexture(MTL::TextureDescriptor* Desc, FM
 		return Texture;
 	}
 		
-	MTL::SizeAndAlign Res = Queue->GetDevice()->heapTextureSizeAndAlign(Desc);
+	MTL::SizeAndAlign Res = Device.GetDevice()->heapTextureSizeAndAlign(Desc);
     MTLHeapPtr Heap = GetTextureHeap(Desc, Res);
 	if (Heap)
 	{
 		METAL_GPUPROFILE(FScopedMetalCPUStats CPUStat(FString::Printf(TEXT("AllocTexture: %s"), TEXT("")/**FString([Desc.GetPtr() description])*/)));
 		MTLTexturePtr Texture = NS::TransferPtr(Heap->newTexture(Desc));
 #if STATS || ENABLE_LOW_LEVEL_MEM_TRACKER
-		MetalLLM::LogAllocTexture(Queue->GetDevice(), Desc, Texture.get());
+		MetalLLM::LogAllocTexture(Device, Desc, Texture.get());
 #endif
 		return Texture;
 	}
 	else if (Desc->usage() & MTL::TextureUsageRenderTarget)
 	{
 		LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::RenderTargets);
-		return TargetPool.CreateTexture(Queue->GetDevice(), Desc);
+		return TargetPool.CreateTexture(Device, Desc);
 	}
 	else
 	{
-		return TexturePool.CreateTexture(Queue->GetDevice(), Desc);
+		return TexturePool.CreateTexture(Device, Desc);
 	}
 }
 
@@ -2058,7 +2046,7 @@ void FMetalResourceHeap::ReleaseTexture(FMetalSurface* Surface, MTLTexturePtr Te
 	}
 }
 
-void FMetalResourceHeap::Compact(FMetalRenderPass* Pass, bool const bForce)
+void FMetalResourceHeap::Compact(bool const bForce)
 {
 	FScopeLock Lock(&Mutex);
 	for (uint32 u = 0; u < NumUsageTypes; u++)

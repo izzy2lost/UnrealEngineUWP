@@ -17,28 +17,42 @@ public class GameplayCamerasEditor : ModuleRules
 		);
 
 		PrivateDependencyModuleNames.AddRange(
-			new string[] {
+			new string[]
+			{
+				"ApplicationCore",
 				"AssetDefinition",
 				"AssetRegistry",
-				"GameplayCameras",
 				"BlueprintGraph",
+				"CinematicCamera",
 				"Core",
 				"CoreUObject",
+				"DeveloperSettings",
 				"EditorFramework",
+				"EditorSubsystem",
 				"Engine",
+				"GameplayCameras",
+				"GraphEditor",
 				"InputCore",
+				"InteractiveToolsFramework",
 				"Kismet",
+				"LevelEditor",
+				"Projects",
+				"RewindDebuggerInterface",
 				"Slate",
 				"SlateCore",
+				"TimeManagement",
 				"ToolMenus",
+				"TraceAnalysis",
+				"TraceInsights",
+				"TraceLog",
+				"TraceServices",
 				"UnrealEd",
-				"TimeManagement"
 			}
 		);
 
 		var DynamicModuleNames = new string[] {
-			"LevelEditor",
 			"PropertyEditor",
+			"WorkspaceMenuStructure",
 		};
 
 		foreach (var Name in DynamicModuleNames)

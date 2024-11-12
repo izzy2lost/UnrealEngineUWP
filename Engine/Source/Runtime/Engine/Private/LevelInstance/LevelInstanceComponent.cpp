@@ -208,12 +208,22 @@ void ULevelInstanceComponent::OnEdit()
 	}
 }
 
+void ULevelInstanceComponent::OnEditOverrides()
+{
+	OnEdit();
+}
+
 void ULevelInstanceComponent::OnCommit()
 {
 	if (SpriteComponent)
 	{
 		SpriteComponent->SetVisibility(ShouldShowSpriteComponent());
 	}
+}
+
+void ULevelInstanceComponent::OnCommitOverrides()
+{
+	OnCommit();
 }
 
 void ULevelInstanceComponent::UpdateEditFilter()

@@ -9,6 +9,7 @@
 #include "Editor.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
+#include "GetOrEnumerateSink.h"
 #include "HAL/IConsoleManager.h"
 #include "IContentBrowserDataModule.h"
 #include "Interfaces/IPluginManager.h"
@@ -98,6 +99,13 @@ void UContentBrowserDataSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 		{
 			HandleDataSourceRegistered(DataSourceFeatureName, ModularFeatures.GetModularFeatureImplementation(DataSourceFeatureName, AvailableDataSourcesIndex));
 		}
+
+		/**
+		 * If any view already exist refresh them now instead of waiting.
+		 * This avoid asking for the view that where just created to refresh their data next frame during the editor initialization.
+		 */ 
+		bPendingItemDataRefreshedNotification = false;
+		ItemDataRefreshedDelegate.Broadcast();
 	}
 
 	ModularFeatures.OnModularFeatureRegistered().AddUObject(this, &UContentBrowserDataSubsystem::HandleDataSourceRegistered);
@@ -160,7 +168,9 @@ bool UContentBrowserDataSubsystem::ActivateDataSource(const FName Name)
 			DataSource->SetDataSink(this);
 			ActiveDataSources.Add(Name, DataSource);
 			ActiveDataSourcesDiscoveringContent.Add(Name);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return true;
 		}
 		else
@@ -181,7 +191,9 @@ bool UContentBrowserDataSubsystem::DeactivateDataSource(const FName Name)
 		DataSource->SetDataSink(nullptr);
 		ActiveDataSources.Remove(Name);
 		ActiveDataSourcesDiscoveringContent.Remove(Name);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return true;
 	}
 
@@ -205,7 +217,9 @@ void UContentBrowserDataSubsystem::ActivateAllDataSources()
 		// Merge this array as it may contain sources that we've not yet discovered, so can't activate yet
 		EnabledDataSources.AddUnique(ActiveDataSourcePair.Key);
 	}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UContentBrowserDataSubsystem::DeactivateAllDataSources()
@@ -223,7 +237,10 @@ void UContentBrowserDataSubsystem::DeactivateAllDataSources()
 	ActiveDataSources.Reset();
 	EnabledDataSources.Reset();
 	ActiveDataSourcesDiscoveringContent.Reset();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 TArray<FName> UContentBrowserDataSubsystem::GetAvailableDataSources() const
@@ -285,7 +302,12 @@ void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBr
 
 void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const
 {
-	for (const auto& ActiveDataSourcePair : ActiveDataSources)
+	EnumerateItemsMatchingFilter(InFilter, TGetOrEnumerateSink<FContentBrowserItemData>(InCallback));
+}
+
+void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const
+{
+	for (const TPair<FName, UContentBrowserDataSource*>& ActiveDataSourcePair : ActiveDataSources)
 	{
 		UContentBrowserDataSource* DataSource = ActiveDataSourcePair.Value;
 
@@ -299,7 +321,8 @@ void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBr
 					check(EnumHasAnyFlags(InFilter.ItemTypeFilter, EContentBrowserItemTypeFilter::IncludeFolders));
 
 					const FString MountLeafName = FPackageName::GetShortName(MountRootPart);
-					InCallback(FContentBrowserItemData(DataSource, EContentBrowserItemFlags::Type_Folder, MountRootPart, *MountLeafName, FText(), nullptr));
+					FName InternalPath; // Virtual folders have no internal path 
+					InSink.ProduceItem(FContentBrowserItemData(DataSource, EContentBrowserItemFlags::Type_Folder, MountRootPart, *MountLeafName, FText(), nullptr, InternalPath));
 				}
 			}
 
@@ -311,13 +334,13 @@ void UContentBrowserDataSubsystem::EnumerateItemsMatchingFilter(const FContentBr
 					for (const auto& It : VirtualFolderFilter->CachedSubPaths)
 					{
 						// how do we skip over this item if not included (Engine Content, Engine Plugins, C++ Classes, etc..)
-						InCallback(FContentBrowserItemData(It.Value));
+						InSink.ProduceItem(FContentBrowserItemData(It.Value));
 					}
 				}
 			}
 		}
 
-		DataSource->EnumerateItemsMatchingFilter(InFilter, InCallback);
+		DataSource->EnumerateItemsMatchingFilter(InFilter, InSink);
 	}
 }
 
@@ -334,11 +357,15 @@ void UContentBrowserDataSubsystem::EnumerateItemsUnderPath(const FName InPath, c
 {
 	FContentBrowserDataCompiledFilter CompiledFilter;
 	CompileFilter(InPath, InFilter, CompiledFilter);
+	EnumerateItemsMatchingFilter(CompiledFilter, MoveTemp(InCallback));
+}
 
-	EnumerateItemsMatchingFilter(CompiledFilter, [&InCallback](FContentBrowserItemData&& InItemData)
-	{
-		return InCallback(MoveTemp(InItemData));
-	});
+void UContentBrowserDataSubsystem::EnumerateItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const
+{
+	FContentBrowserDataCompiledFilter CompiledFilter;
+	CompileFilter(InPath, InFilter, CompiledFilter);
+
+	EnumerateItemsMatchingFilter(CompiledFilter, InSink);
 }
 
 TArray<FContentBrowserItem> UContentBrowserDataSubsystem::GetItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter) const
@@ -382,7 +409,7 @@ void UContentBrowserDataSubsystem::EnumerateItemsAtPath(const FName InPath, cons
 void UContentBrowserDataSubsystem::EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const
 {
 	bool bHandledVirtualFolder = false;
-	for (const auto& ActiveDataSourcePair : ActiveDataSources)
+	for (const TPair<FName, UContentBrowserDataSource*>& ActiveDataSourcePair : ActiveDataSources)
 	{
 		UContentBrowserDataSource* DataSource = ActiveDataSourcePair.Value;
 		FName InternalPath;
@@ -537,7 +564,7 @@ bool UContentBrowserDataSubsystem::PrioritizeSearchPath(const FName InPath)
 	return bDidPrioritize;
 }
 
-bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags) const
+bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags, TOptional<FContentBrowserFolderContentsFilter> InContentsFilter) const
 {
 	bool bIsKnownPath = false;
 	for (const auto& ActiveDataSourcePair : ActiveDataSources)
@@ -546,7 +573,7 @@ bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const ECo
 		if (DataSource->IsVirtualPathUnderMountRoot(InPath))
 		{
 			bIsKnownPath = true;
-			if (DataSource->IsFolderVisible(InPath, InFlags))
+			if (DataSource->IsFolderVisible(InPath, InFlags, InContentsFilter))
 			{
 				return true;
 			}
@@ -559,7 +586,9 @@ bool UContentBrowserDataSubsystem::IsFolderVisible(const FName InPath, const ECo
 
 bool UContentBrowserDataSubsystem::IsFolderVisibleIfHidingEmpty(const FName InPath) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return IsFolderVisible(InPath, EContentBrowserIsFolderVisibleFlags::Default | EContentBrowserIsFolderVisibleFlags::HideEmptyFolders);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool UContentBrowserDataSubsystem::CanCreateFolder(const FName InPath, FText* OutErrorMsg) const
@@ -755,8 +784,10 @@ void UContentBrowserDataSubsystem::Tick(const float InDeltaTime)
 
 	if (bPendingItemDataRefreshedNotification)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UContentBrowserDataSubsystem::BroadcastItemDataRefreshed);
+
 		bPendingItemDataRefreshedNotification = false;
-		bHasIgnoredItemUpdates = false;
+		DelayedPendingUpdates.Empty();
 		PendingUpdates.Empty();
 		ItemDataRefreshedDelegate.Broadcast();
 	}
@@ -805,10 +836,34 @@ void UContentBrowserDataSubsystem::OnContentPathMounted(const FString& AssetPath
 
 void UContentBrowserDataSubsystem::QueueItemDataUpdate(FContentBrowserItemDataUpdate&& InUpdate)
 {
-	// Ignore modified during PIE to reduce hitches, they will be updated when PIE stops
-	if ((InUpdate.GetUpdateType() == EContentBrowserItemUpdateType::Modified) && !AllowModifiedItemDataUpdates())
+	if (!AllowModifiedItemDataUpdates())
 	{
-		bHasIgnoredItemUpdates = true;
+		const EContentBrowserItemUpdateType UpdateType = InUpdate.GetUpdateType();
+
+		// Ignore modified during PIE to reduce hitches, they will be queue and then added to the pending updates when PIE stops
+		if (UpdateType == EContentBrowserItemUpdateType::Modified)
+		{
+			FContentBrowserItemKey ItemKey(InUpdate.GetItemData());
+			DelayedPendingUpdates.Add(MoveTemp(ItemKey), MoveTemp(InUpdate));
+		}
+		else
+		{
+			// Clear the delayed update for the item if there was one 
+			if (UpdateType == EContentBrowserItemUpdateType::Moved)
+			{
+				const FContentBrowserItemData& ItemData = InUpdate.GetItemData();
+				FContentBrowserItemKey ItemKey(ItemData.GetItemType(), InUpdate.GetPreviousVirtualPath(), ItemData.GetOwnerDataSource());
+				DelayedPendingUpdates.Remove(ItemKey);
+			}
+			else
+			{
+				FContentBrowserItemKey ItemKey(InUpdate.GetItemData());
+				DelayedPendingUpdates.Remove(ItemKey);
+			}
+
+			// TODO: Merge multiple Modified updates for a single item?
+			PendingUpdates.Emplace(MoveTemp(InUpdate));
+		}
 	}
 	else
 	{
@@ -836,10 +891,17 @@ void UContentBrowserDataSubsystem::OnEndPIE(const bool bIsSimulating)
 {
 	bIsPIEActive = false;
 
-	if (bHasIgnoredItemUpdates)
+	if (!DelayedPendingUpdates.IsEmpty())
 	{
-		// Perform a full update because modified updates were ignored during PIE
-		NotifyItemDataRefreshed();
+		// Move the DelayedPendingUpdates into the PendingUpdates.
+		PendingUpdates.Reserve(DelayedPendingUpdates.Num() + PendingUpdates.Num());
+		
+		for (TPair<FContentBrowserItemKey, FContentBrowserItemDataUpdate>& Pair : DelayedPendingUpdates)
+		{
+			PendingUpdates.Add(MoveTemp(Pair.Value));
+		}
+
+		DelayedPendingUpdates.Empty();
 	}
 }
 

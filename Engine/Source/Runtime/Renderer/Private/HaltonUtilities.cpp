@@ -31,7 +31,7 @@
 
 #define PERMUTATION_BUFFER TArray
 
-float asfloat(unsigned int integer)
+static float asfloat(unsigned int integer)
 {
 	union {
 		unsigned int u;

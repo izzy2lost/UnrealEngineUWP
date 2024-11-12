@@ -7,6 +7,7 @@
 #include "Async/AsyncWork.h"
 #include "D3D12DiskCache.h"
 #include "D3D12Shader.h"
+#include "D3D12Stats.h"
 
 class FD3D12VertexShader;
 class FD3D12MeshShader;
@@ -51,6 +52,9 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Compute: Num low-level cache entries"), STA
 DECLARE_DWORD_COUNTER_STAT(TEXT("Compute: Low-level cache hit"), STAT_PSOComputeLowlevelCacheHit, STATGROUP_D3D12PipelineState);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Compute: Low-level cache miss"), STAT_PSOComputeLowlevelCacheMiss, STATGROUP_D3D12PipelineState);
 
+struct FD3D12_GRAPHICS_PIPELINE_STATE_STREAM;
+struct FD3D12_MESH_PIPELINE_STATE_STREAM;
+struct FD3D12_COMPUTE_PIPELINE_STATE_STREAM;
 
 // Graphics pipeline struct that represents the latest versions of PSO subobjects currently supported by the RHI.
 struct FD3D12_GRAPHICS_PIPELINE_STATE_DESC
@@ -270,6 +274,8 @@ template <> struct equality_pipeline_state_desc<FD3D12ComputePipelineStateDesc>
 
 struct ComputePipelineCreationArgs;
 struct GraphicsPipelineCreationArgs;
+struct ComputePipelineCreationArgs_POD;
+struct GraphicsPipelineCreationArgs_POD;
 
 struct FD3D12PipelineStateWorker : public FD3D12AdapterChild, public FNonAbandonableTask
 {
@@ -378,6 +384,19 @@ struct FD3D12GraphicsPipelineState : public FRHIGraphicsPipelineState, FD3D12Pip
 	FORCEINLINE FD3D12AmplificationShader* GetAmplificationShader() const { return (FD3D12AmplificationShader*)PipelineStateInitializer.BoundShaderState.GetAmplificationShader(); }
 	FORCEINLINE FD3D12GeometryShader*      GetGeometryShader() const      { return (FD3D12GeometryShader*)PipelineStateInitializer.BoundShaderState.GetGeometryShader(); }
 
+	FRHIGraphicsShader* GetShader(EShaderFrequency Frequency) const override
+	{
+		switch (Frequency)
+		{
+		case SF_Vertex: return PipelineStateInitializer.BoundShaderState.GetVertexShader();
+		case SF_Mesh: return PipelineStateInitializer.BoundShaderState.GetMeshShader();
+		case SF_Amplification: return PipelineStateInitializer.BoundShaderState.GetAmplificationShader();
+		case SF_Pixel: return PipelineStateInitializer.BoundShaderState.GetPixelShader();
+		case SF_Geometry: return PipelineStateInitializer.BoundShaderState.GetGeometryShader();
+		default: return nullptr;
+		}
+	}
+
 	FGraphicsPipelineStateInitializer PipelineStateInitializer;
 	TStaticArray<uint16, MaxVertexElementCount> StreamStrides;
 	bool bShaderNeedsGlobalConstantBuffer[SF_NumStandardFrequencies];
@@ -389,9 +408,6 @@ struct FD3D12ComputePipelineState : public FRHIComputePipelineState, FD3D12Pipel
 	FD3D12ComputePipelineState(FD3D12ComputeShader* InComputeShader, const FD3D12RootSignature* InRootSignature, FD3D12PipelineState* InPipelineState);
 	~FD3D12ComputePipelineState();
 
-	FORCEINLINE FD3D12ComputeShader* GetComputeShader() const { return ComputeShader; }
-
-	TRefCountPtr<FD3D12ComputeShader> ComputeShader;
 	bool bShaderNeedsGlobalConstantBuffer;
 };
 

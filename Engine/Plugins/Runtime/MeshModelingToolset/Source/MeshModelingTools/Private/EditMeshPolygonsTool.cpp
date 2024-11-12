@@ -3,6 +3,7 @@
 #include "EditMeshPolygonsTool.h"
 
 #include "Algo/ForEach.h"
+#include "Algo/Reverse.h"
 #include "BaseBehaviors/SingleClickBehavior.h"
 #include "BaseGizmos/CombinedTransformGizmo.h"
 #include "BaseGizmos/TransformGizmoUtil.h"
@@ -73,6 +74,15 @@ namespace EditMeshPolygonsToolLocals
 		"Hold Ctrl while translating or (in local mode) rotating to align to scene. Shift and Ctrl change marquee select "
 		"behavior. Ctrl+R toggles Gizmo Orientation Lock.");
 
+	FText WeldIncompleteMessage = LOCTEXT("OnWeldEdgesCompletedSeamsRemain", "Warning: welding incomplete because it would create "
+		"invalid geometry (attached non manifold edge or duplicate triangle). Seam still exists at weld "
+		"location. Modify attached triangles and retry, or undo.");
+
+	FText PartialCollapseFailureMessage = LOCTEXT("OnCollapseFailures", "Some edges could not be collapsed, "
+		"likely because adjoining edges would then have non manifold geometry (more than two faces), or "
+		"the mesh would end up empty.");
+	FText CollapseEdgeTransactionLabel = LOCTEXT("PolyMeshCollapseChange", "Collapse Edges");
+
 	FString GetPropertyCacheIdentifier(bool bTriangleMode)
 	{
 		return bTriangleMode ? TEXT("TriEditTool") : TEXT("PolyEditTool");
@@ -84,6 +94,14 @@ namespace EditMeshPolygonsToolLocals
 		TEXT("Maximal number of edges that PolyEd and TriEd support. Meshes that would require "
 			"more than this number of edges to be rendered in PolyEd or TriEd force the tools to "
 			"be disabled to avoid hanging the editor."));
+
+	bool bAllowBowtieWeldAtInternalVertex = false;
+	static FAutoConsoleVariableRef CVarAllowWeldInternalBowtie(
+		TEXT("modeling.PolyEdit.AllowWeldInternalBowtie"),
+		bAllowBowtieWeldAtInternalVertex,
+		TEXT("If true, \"Weld\" and \"Weld To\" operations on a pair of vertices will allow the creation "
+			"of non-boundary bowties. If false, then the vertices in these situations will not be welded, "
+			"and will instead be moved to the destination."));
 
 	// Allows undo/redo of addition of extra corners in the group topology based on user angle thresholds.
 	// Used after user-triggered topology corner changes where the mesh was not actually edited.
@@ -116,6 +134,290 @@ namespace EditMeshPolygonsToolLocals
 		TSet<int32> Before;
 		TSet<int32> After;
 	};
+
+	/**
+	 * Creates a group edge selection out of a group corner selection by selecting 
+	 *  those edges whose endpoints are BOTH selected.
+	 */
+	void ConvertCornerSelectionToGroupEdgeSelection(const FGroupTopology* Topology, const TSet<int32>& CornerIDs, TSet<int32>& GroupEdgeIDs)
+	{
+		for (int32 CornerID : CornerIDs)
+		{
+			Topology->ForCornerNbrEdges(CornerID, [CornerID, &CornerIDs, &GroupEdgeIDs, Topology](int32 EdgeID)
+			{
+				if (CornerIDs.Contains(Topology->Edges[EdgeID].EndpointCorners.A)
+					&& CornerIDs.Contains(Topology->Edges[EdgeID].EndpointCorners.B))
+				{
+					GroupEdgeIDs.Add(EdgeID);					
+				}
+				return true;
+			});
+		}
+	}
+
+	// TODO: Note that so far, simply converting our selection sets to arrays via set.Array() has
+	//  been sufficient to get a selection order, but that only works due to TSet storing its
+	//  elements in a sparse array, and seems likely to break depending on how the set is updated.
+	//  For now this is good enough, but we may need to store selection order some other way someday.
+	/** 
+	 * Attempts to link boundary edges together to create either two separate boundaries, or
+	 *   one boundary loop.
+	 * 
+	 * @param GroupEdgesIn Input edges. The order of the array affects which component ends up in 
+	 *  GroupEdgesAOut, and the output of bShouldReverseAForIteration. 
+	 * @param GroupEdgesAOut This will always have the first edge in GroupEdgesIn. If the result was
+	 *  a loop, it will be the only one with edges.
+	 * @param GroupEdgesBOut The other boundary, if result was not a loop.
+	 * @param bShouldReverseAForIteration If iterating pairwise across the two groups, one of the
+	 *  arrays needs reversing, since the boundary orientation will orient the sequences in opposite
+	 *  directions. bShouldReverseAForIteration says that this array should be GroupEdgesAOut rather
+	 *  than GroupEdgesBOut based on the selection order of the longer sequence.
+	 * @return true if the edges were able to be partitioned either into one boundary loop, 
+	 *  or two separate boundaries.
+	 */
+	bool LinkBoundaryGroupEdges(const FGroupTopology* Topology, const FDynamicMesh3* Mesh,
+		const TArray<int32>& GroupEdgesIn, TArray<int32>& GroupEdgesAOut, TArray<int32>& GroupEdgesBOut, 
+		bool& bShouldReverseAForIteration)
+	{
+		if (GroupEdgesIn.IsEmpty() || !Topology || !Mesh)
+		{
+			return false;
+		}
+
+		bShouldReverseAForIteration = false;
+		if (GroupEdgesIn.Num() == 1)
+		{
+			GroupEdgesAOut.Add(GroupEdgesIn[0]);
+			return Topology->IsIsolatedLoop(GroupEdgesAOut[0]);
+		}
+
+		for (int32 GroupEdgeID : GroupEdgesIn)
+		{
+			if (Topology->IsIsolatedLoop(GroupEdgeID) || !Topology->IsBoundaryEdge(GroupEdgeID))
+			{
+				return false;
+			}
+		}
+
+		if (GroupEdgesIn.Num() == 2)
+		{
+			GroupEdgesAOut.Add(GroupEdgesIn[0]);
+			GroupEdgesBOut.Add(GroupEdgesIn[1]);
+			return true;
+		}
+
+		// Build a graph through start/end vids of the edges.
+
+		// GroupID to start vid and end vid pair
+		TMap<int32, FIndex2i> EdgeToStartEnd;
+		// start/end vid to edge id. The bool is true if start.
+		TMap<TPair<int32, bool>, int32> StartEndToEdge;
+		for (int32 GroupEdgeID : GroupEdgesIn)
+		{
+			const FEdgeSpan& Span = Topology->Edges[GroupEdgeID].Span;
+			FIndex2i OrientedEdgeVids = Mesh->GetOrientedBoundaryEdgeV(Span.Edges[0]);
+			bool bReversed = OrientedEdgeVids.A != Span.Vertices[0];
+
+			TPair<int32, bool> KeyForFirst(Span.Vertices[0], !bReversed);
+			TPair<int32, bool> KeyForLast(Span.Vertices.Last(), bReversed);
+			if (StartEndToEdge.Contains(KeyForFirst) || StartEndToEdge.Contains(KeyForLast))
+			{
+				// This means that a vertex was the end or start point for more than one edge,
+				//  i.e. there was a branch. So, there is ambiguity in how to partition.
+				return false;
+			}
+			StartEndToEdge.Add(KeyForFirst, GroupEdgeID);
+			StartEndToEdge.Add(KeyForLast, GroupEdgeID);
+			EdgeToStartEnd.Add(GroupEdgeID, bReversed ? FIndex2i(Span.Vertices.Last(), Span.Vertices[0])
+				: FIndex2i(Span.Vertices[0], Span.Vertices.Last()));
+		}
+
+		TSet<int32> PartitionedEdges;
+		// Helper that gets all the connected edges from a given edge, in order.
+		auto GetEdgeSequence = [&PartitionedEdges, &EdgeToStartEnd, &StartEndToEdge](int32 StartEdge, TArray<int32>& EdgeSequenceOut)
+		{
+			bool bAlreadyProcessed = false;
+			PartitionedEdges.Add(StartEdge, &bAlreadyProcessed);
+			if (bAlreadyProcessed) return;
+
+			// Go backwards and forwards through the graph to get our adjoining edges.
+			// We'll start by going backwards (we'll reverse this output in a bit so that it is in the correct order)
+			FIndex2i StartEnd = EdgeToStartEnd[StartEdge];
+			int32 CurrentEndpoint = StartEnd.A;
+			while (int32* CurrentEdge = StartEndToEdge.Find(TPair<int32, bool>(CurrentEndpoint, false)))
+			{
+				PartitionedEdges.Add(*CurrentEdge, &bAlreadyProcessed);
+				if (bAlreadyProcessed) break;
+
+				EdgeSequenceOut.Add(*CurrentEdge);
+				CurrentEndpoint = EdgeToStartEnd[*CurrentEdge].A;
+			}
+			Algo::Reverse(EdgeSequenceOut);
+
+			// Now that we have the preceding edges, add this one and search forwards
+			EdgeSequenceOut.Add(StartEdge);
+			CurrentEndpoint = StartEnd.B;
+			while (int32* CurrentEdge = StartEndToEdge.Find(TPair<int32, bool>(CurrentEndpoint, true)))
+			{
+				PartitionedEdges.Add(*CurrentEdge, &bAlreadyProcessed);
+				if (bAlreadyProcessed) break;
+
+				EdgeSequenceOut.Add(*CurrentEdge);
+				CurrentEndpoint = EdgeToStartEnd[*CurrentEdge].B;
+			}
+		};
+
+		for (int32 GroupEdgeID : GroupEdgesIn)
+		{
+			if (PartitionedEdges.Contains(GroupEdgeID))
+			{
+				continue;
+			}
+			if (GroupEdgesAOut.IsEmpty())
+			{
+				GetEdgeSequence(GroupEdgeID, GroupEdgesAOut);
+			}
+			else if (GroupEdgesBOut.IsEmpty())
+			{
+				GetEdgeSequence(GroupEdgeID, GroupEdgesBOut);
+			}
+			else
+			{
+				// Had a third connected component
+				return false;
+			}
+		}
+
+		if (GroupEdgesBOut.IsEmpty())
+		{
+			// Make sure that the output result is a loop
+			return !GroupEdgesAOut.IsEmpty()
+				&& EdgeToStartEnd[GroupEdgesAOut[0]].A == EdgeToStartEnd[GroupEdgesAOut.Last()].B;
+		}
+
+		// Figure out the preferred iteration order based on the longer subsequence.
+		// The issue is this: if we have edges A, B, and C in EdgesA and corresponding edges 1, 2, and 3 on the other
+		//  side, then the latter will be ordered 3, 2, 1 in EdgesB according to triangle orientations, and as long
+		//  as we reverse one group or the other, pairwise iteration will give us the correct pairings (through which
+		//  we will iterate either as A1, B2, C3, or as C3, B2, A1, depending on whether we reverse EdgesB or EdgesA,
+		//  respectively). However, what happens if we have a mismatched number of edges, e.g. edge D after C? We will 
+		//  group the extra edge(s) with the last edge in the shorter sequence, so iteration order matters: either we 
+		//  end up grouping CD with 3 if we reverse GroupB, or we end up grouping AB with 1 if we reverse GroupA.
+		// We choose to decide based on which of the ends of the longer sequence was selected last- this is the direction
+		//  that we interpret the user wanting to iterate in. E.g., if user selected D after they selected A, then we decide
+		//  that the iteration order should be A1, B2, CD3.
+		if (ensure(!GroupEdgesAOut.IsEmpty()))
+		{
+			if (GroupEdgesAOut.Num() > GroupEdgesBOut.Num())
+			{
+				// Reverse if the later edge in the sequence was selected earlier the first
+				bShouldReverseAForIteration = GroupEdgesIn.IndexOfByKey(GroupEdgesAOut.Last()) < GroupEdgesIn.IndexOfByKey(GroupEdgesAOut[0]);
+			}
+			else if (GroupEdgesBOut.Num() > GroupEdgesAOut.Num())
+			{
+				// The comparison is backwards here because bShouldReverseAForIteration needs to be the opposite of 
+				//  whether we should reverse EdgesB.
+				bShouldReverseAForIteration = GroupEdgesIn.IndexOfByKey(GroupEdgesBOut[0]) < GroupEdgesIn.IndexOfByKey(GroupEdgesBOut.Last());
+			}
+		}
+		
+		// Make sure that both partitions are not loops
+		return !GroupEdgesAOut.IsEmpty()
+			&& EdgeToStartEnd[GroupEdgesAOut[0]].A != EdgeToStartEnd[GroupEdgesAOut.Last()].B
+			&& EdgeToStartEnd[GroupEdgesBOut[0]].A != EdgeToStartEnd[GroupEdgesBOut.Last()].B;
+	}
+
+	// Helper to share the retriangulation code
+	int32 RetriangulateGroups(FDynamicMesh3* Mesh, FGroupTopology* Topology, TSet<int32> GroupIDs, FDynamicMeshChangeTracker& ChangeTracker)
+	{
+		FDynamicMeshEditor Editor(Mesh);
+		int32 NumCompleted = 0;
+		for (int32 GroupID : GroupIDs)
+		{
+			const TArray<int32>& Triangles = Topology->GetGroupTriangles(GroupID);
+			ChangeTracker.SaveTriangles(Triangles, true);
+			FMeshRegionBoundaryLoops RegionLoops(Mesh, Triangles, true);
+			if (!RegionLoops.bFailed && RegionLoops.Loops.Num() == 1 && Triangles.Num() > 1)
+			{
+				TArray<FMeshRegionBoundaryLoops::VidOverlayMap<FVector2f>> VidUVMaps;
+				if (Mesh->HasAttributes())
+				{
+					const FDynamicMeshAttributeSet* Attributes = Mesh->Attributes();
+					for (int i = 0; i < Attributes->NumUVLayers(); ++i)
+					{
+						VidUVMaps.Emplace();
+						RegionLoops.GetLoopOverlayMap(RegionLoops.Loops[0], *Attributes->GetUVLayer(i), VidUVMaps.Last());
+					}
+				}
+
+				// We don't want to remove isolated vertices while removing triangles because we don't
+				// want to throw away boundary verts. However, this means that we'll have to go back
+				// through these vertices later to throw away isolated internal verts.
+				TArray<int32> OldVertices;
+				UE::Geometry::TriangleToVertexIDs(Mesh, Triangles, OldVertices);
+				Editor.RemoveTriangles(Topology->GetGroupTriangles(GroupID), false);
+
+				RegionLoops.Loops[0].Reverse();
+				FSimpleHoleFiller Filler(Mesh, RegionLoops.Loops[0]);
+				Filler.FillType = FSimpleHoleFiller::EFillType::PolygonEarClipping;
+				Filler.Fill(GroupID);
+
+				// Throw away any of the old verts that are still isolated (they were in the interior of the group)
+				Algo::ForEachIf(OldVertices,
+					[Mesh](int32 Vid)
+					{
+						return !Mesh->IsReferencedVertex(Vid);
+					},
+					[Mesh](int32 Vid)
+					{
+						checkSlow(!Mesh->IsReferencedVertex(Vid));
+						constexpr bool bPreserveManifold = false;
+						Mesh->RemoveVertex(Vid, bPreserveManifold);
+					});
+
+				if (Mesh->HasAttributes())
+				{
+					const FDynamicMeshAttributeSet* Attributes = Mesh->Attributes();
+					for (int i = 0; i < Attributes->NumUVLayers(); ++i)
+					{
+						RegionLoops.UpdateLoopOverlayMapValidity(VidUVMaps[i], *Attributes->GetUVLayer(i));
+					}
+					Filler.UpdateAttributes(VidUVMaps);
+				}
+
+				NumCompleted++;
+			}
+		}
+		return NumCompleted;
+	}//end RetriangulateGroups
+
+	// Helper that removes the triangles around an edge as long as they are not the last
+	//  ones in the mesh. Used to allow collapses of isolated triangles and quads, which
+	//  are not currently permitted by CollapseEdge.
+	// TODO: We should probably have a permissiveness option that does allow this in
+	//  CollapseEdge, though it should be noted that the kept vert may end up deleted
+	//  in that case.
+	bool RemoveEdgeTrisIfNotLast(FDynamicMesh3& Mesh, int32 Eid)
+	{
+		if (!Mesh.IsEdge(Eid))
+		{
+			return false;
+		}
+
+		FIndex2i EdgeTids = Mesh.GetEdgeT(Eid);
+
+		if (Mesh.TriangleCount() > 2
+			|| (Mesh.TriangleCount() > 1 && EdgeTids.B == IndexConstants::InvalidID))
+		{
+			Mesh.RemoveTriangle(EdgeTids.A);
+			if (EdgeTids.B != IndexConstants::InvalidID)
+			{
+				Mesh.RemoveTriangle(EdgeTids.B);
+			}
+			return true;
+		}
+		return false;
+	}
 }
 
 /*
@@ -143,13 +445,6 @@ bool UEditMeshPolygonsActionModeToolBuilder::CanBuildTool(const FToolBuilderStat
 {
 	if (UEditMeshPolygonsToolBuilder::CanBuildTool(SceneState))
 	{
-		if ( StartupAction == EEditMeshPolygonsToolActions::SimplifyByGroups
-			 || StartupAction == EEditMeshPolygonsToolActions::InsertEdge
-			 || StartupAction == EEditMeshPolygonsToolActions::InsertEdgeLoop )
-		{
-			return true;
-		}
-
 		if ( UGeometrySelectionManager* SelectionManager = SceneState.ToolManager->GetContextObjectStore()->FindContext<UGeometrySelectionManager>() )
 		{
 			EGeometryTopologyType TopologyType = EGeometryTopologyType::Triangle;
@@ -157,6 +452,14 @@ bool UEditMeshPolygonsActionModeToolBuilder::CanBuildTool(const FToolBuilderStat
 			int NumTargets;
 			bool bIsEmpty = false;
 			SelectionManager->GetActiveSelectionInfo(TopologyType, ElementType, NumTargets, bIsEmpty);
+
+			// Default to Polygroup topology type if no topology mode selected. GetActiveSelectionInfo will return Triangle in this case.
+			if (SelectionManager->GetMeshTopologyMode() == UGeometrySelectionManager::EMeshTopologyMode::None)
+			{
+				TopologyType = EGeometryTopologyType::Polygroup;
+			}
+
+			bool bCanBuild = false;
 			if (StartupAction == EEditMeshPolygonsToolActions::Extrude
 				|| StartupAction == EEditMeshPolygonsToolActions::PushPull
 				|| StartupAction == EEditMeshPolygonsToolActions::Offset
@@ -164,16 +467,23 @@ bool UEditMeshPolygonsActionModeToolBuilder::CanBuildTool(const FToolBuilderStat
 				|| StartupAction == EEditMeshPolygonsToolActions::Outset
 				|| StartupAction == EEditMeshPolygonsToolActions::CutFaces)
 			{
-				return (TopologyType == EGeometryTopologyType::Polygroup && ElementType == EGeometryElementType::Face && bIsEmpty == false);
+				bCanBuild = (TopologyType == EGeometryTopologyType::Polygroup && ElementType == EGeometryElementType::Face && bIsEmpty == false);
 			}
 			else if (StartupAction == EEditMeshPolygonsToolActions::BevelAuto)
 			{
-				return (TopologyType == EGeometryTopologyType::Polygroup && ElementType != EGeometryElementType::Vertex && bIsEmpty == false);
+				bCanBuild = (TopologyType == EGeometryTopologyType::Polygroup && ElementType != EGeometryElementType::Vertex && bIsEmpty == false);
 			}
 			else if (StartupAction == EEditMeshPolygonsToolActions::ExtrudeEdges)
 			{
-				return (ElementType == EGeometryElementType::Edge && !bIsEmpty);
+				bCanBuild = (ElementType == EGeometryElementType::Edge && !bIsEmpty);
 			}
+			else if ( StartupAction == EEditMeshPolygonsToolActions::SimplifyByGroups
+			 || StartupAction == EEditMeshPolygonsToolActions::InsertEdge
+			 || StartupAction == EEditMeshPolygonsToolActions::InsertEdgeLoop )
+			{
+				bCanBuild = (TopologyType == EGeometryTopologyType::Polygroup);
+			}
+			return bCanBuild;
 		}
 	}
 	return false;
@@ -189,13 +499,9 @@ void UEditMeshPolygonsActionModeToolBuilder::InitializeNewTool(USingleTargetWith
 	// const method.
 	if (UGeometrySelectionManager* SelectionManager = SceneState.ToolManager->GetContextObjectStore()->FindContext<UGeometrySelectionManager>())
 	{
-		EGeometryTopologyType TopologyType = EGeometryTopologyType::Triangle;
-		EGeometryElementType ElementType = EGeometryElementType::Face;
-		int NumTargets;
-		bool bIsEmpty = false;
-		SelectionManager->GetActiveSelectionInfo(TopologyType, ElementType, NumTargets, bIsEmpty);
-
-		if (TopologyType == EGeometryTopologyType::Triangle)
+		// Note that we don't use GetActiveSelectionInfo here because that defaults to Triangle in the
+		// None/Object selection case and we want this tool to default to polygroup.
+		if (SelectionManager->GetMeshTopologyMode() == UGeometrySelectionManager::EMeshTopologyMode::Triangle)
 		{
 			if (UEditMeshPolygonsTool* EditPolygonsTool = Cast<UEditMeshPolygonsTool>(Tool))
 			{
@@ -560,13 +866,46 @@ void UEditMeshPolygonsTool::Setup()
 	if (HasGeometrySelection())
 	{
 		const FGeometrySelection& CurSelection = GetGeometrySelection();
-		if (CurSelection.TopologyType == EGeometryTopologyType::Triangle && bTriangleMode)
+		// If the topology type doesn't match, we'll need to convert it here
+		FGeometrySelection ConvertedSelection;
+		const FGeometrySelection* UseSelection = &CurSelection;
+		bool bCanUseSelection = true;
+		// For polygroup edge selections, if the tool's polygroups have extra corners, need to convert to that
+		if (!bTriangleMode && 
+			CurSelection.TopologyType == EGeometryTopologyType::Polygroup && CurSelection.ElementType == EGeometryElementType::Edge && 
+			TopologyProperties->bAddExtraCorners)
 		{
-			SelectionMechanic->SetSelection_AsTriangleTopology(CurSelection);
+			// Convert default (no corner) group topology -> triangle topology -> tool (w/ corner) group topology
+			ConvertedSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Polygroup);
+			FGeometrySelection TempTriSelection;
+			TempTriSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
+			FGroupTopology GroupTopology(CurrentMesh.Get(), true);
+			bCanUseSelection = UE::Geometry::ConvertSelection(*CurrentMesh, &GroupTopology, CurSelection, TempTriSelection, EEnumerateSelectionConversionParams::ContainSelection);
+			bCanUseSelection = bCanUseSelection && UE::Geometry::ConvertSelection(*CurrentMesh, Topology.Get(), TempTriSelection, ConvertedSelection, EEnumerateSelectionConversionParams::ContainSelection);
+			UseSelection = &ConvertedSelection;
 		}
-		else if (CurSelection.TopologyType == EGeometryTopologyType::Polygroup && bTriangleMode == false)
+		// If topology type is triangle but we want polygroup, or vice versa, convert accordingly
+		else if ((CurSelection.TopologyType == EGeometryTopologyType::Triangle) != bTriangleMode)
 		{
-			SelectionMechanic->SetSelection_AsGroupTopology(CurSelection);
+			ConvertedSelection.InitializeTypes(CurSelection.ElementType, bTriangleMode ? EGeometryTopologyType::Triangle : EGeometryTopologyType::Polygroup);
+			const FGroupTopology* UseTopology = Topology.Get();
+			// We need a default topology to reference if we're converting from polygroup->triangle, since w/ Triangle Mode the tool's Topology has per-triangle groups
+			FGroupTopology DefaultGroupTopology(CurrentMesh.Get(), false);
+			if (bTriangleMode)
+			{
+				DefaultGroupTopology.RebuildTopology();
+				UseTopology = &DefaultGroupTopology;
+			}
+			bCanUseSelection = UE::Geometry::ConvertSelection(*CurrentMesh, UseTopology, CurSelection, ConvertedSelection, EEnumerateSelectionConversionParams::ContainSelection);
+			UseSelection = &ConvertedSelection;
+		}
+		if (bCanUseSelection && UseSelection->TopologyType == EGeometryTopologyType::Triangle && bTriangleMode)
+		{
+			SelectionMechanic->SetSelection_AsTriangleTopology(*UseSelection);
+		}
+		else if (bCanUseSelection && UseSelection->TopologyType == EGeometryTopologyType::Polygroup && bTriangleMode == false)
+		{
+			SelectionMechanic->SetSelection_AsGroupTopology(*UseSelection);
 		}
 	}
 
@@ -1367,6 +1706,9 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		case EEditMeshPolygonsToolActions::WeldEdges:
 			ApplyWeldEdges();
 			break;
+		case EEditMeshPolygonsToolActions::WeldEdgesCentered:
+			ApplyWeldEdges(0.5);
+			break;
 		case EEditMeshPolygonsToolActions::StraightenEdge:
 			ApplyStraightenEdges();
 			break;
@@ -1398,7 +1740,7 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 			ApplySplitSingleEdge();
 			break;
 		case EEditMeshPolygonsToolActions::CollapseSingleEdge:
-			ApplyCollapseSingleEdge();
+			ApplyCollapseEdge();
 			break;
 		case EEditMeshPolygonsToolActions::FlipSingleEdge:
 			ApplyFlipSingleEdge();
@@ -1796,75 +2138,20 @@ void UEditMeshPolygonsTool::ApplyFlipNormals()
 
 void UEditMeshPolygonsTool::ApplyRetriangulate()
 {
+	using namespace EditMeshPolygonsToolLocals;
 	if (BeginMeshFaceEditChange() == false)
 	{
 		GetToolManager()->DisplayMessage( LOCTEXT("OnRetriangulateFailed", "Cannot Retriangulate Current Selection"), EToolMessageLevel::UserWarning);
 		return;
 	}
 
-	int32 nCompleted = 0;
 	FDynamicMesh3* Mesh = CurrentMesh.Get();
 	FDynamicMeshChangeTracker ChangeTracker(Mesh);
 	ChangeTracker.BeginChange();
-	FDynamicMeshEditor Editor(Mesh);
 	FGroupTopologySelection ActiveSelection = SelectionMechanic->GetActiveSelection();
-	for (int32 GroupID : ActiveSelection.SelectedGroupIDs)
-	{
-		const TArray<int32>& Triangles = Topology->GetGroupTriangles(GroupID);
-		ChangeTracker.SaveTriangles(Triangles, true);
-		FMeshRegionBoundaryLoops RegionLoops(Mesh, Triangles, true);
-		if (!RegionLoops.bFailed && RegionLoops.Loops.Num() == 1 && Triangles.Num() > 1)
-		{
-			TArray<FMeshRegionBoundaryLoops::VidOverlayMap<FVector2f>> VidUVMaps;
-			if (Mesh->HasAttributes())
-			{
-				const FDynamicMeshAttributeSet* Attributes = Mesh->Attributes();
-				for (int i = 0; i < Attributes->NumUVLayers(); ++i)
-				{
-					VidUVMaps.Emplace();
-					RegionLoops.GetLoopOverlayMap(RegionLoops.Loops[0], *Attributes->GetUVLayer(i), VidUVMaps.Last());
-				}
-			}
+	
+	int32 nCompleted = RetriangulateGroups(Mesh, Topology.Get(), ActiveSelection.SelectedGroupIDs, ChangeTracker);
 
-			// We don't want to remove isolated vertices while removing triangles because we don't
-			// want to throw away boundary verts. However, this means that we'll have to go back
-			// through these vertices later to throw away isolated internal verts.
-			TArray<int32> OldVertices;
-			UE::Geometry::TriangleToVertexIDs(Mesh, Triangles, OldVertices);
-			Editor.RemoveTriangles(Topology->GetGroupTriangles(GroupID), false);
-
-			RegionLoops.Loops[0].Reverse();
-			FSimpleHoleFiller Filler(Mesh, RegionLoops.Loops[0]);
-			Filler.FillType = FSimpleHoleFiller::EFillType::PolygonEarClipping;
-			Filler.Fill(GroupID);
-
-			// Throw away any of the old verts that are still isolated (they were in the interior of the group)
-			Algo::ForEachIf(OldVertices, 
-				[Mesh](int32 Vid) 
-			{ 
-				return !Mesh->IsReferencedVertex(Vid); 
-			},
-				[Mesh](int32 Vid) 
-			{
-				checkSlow(!Mesh->IsReferencedVertex(Vid));
-				constexpr bool bPreserveManifold = false;
-				Mesh->RemoveVertex(Vid, bPreserveManifold);
-			}
-			);
-
-			if (Mesh->HasAttributes())
-			{
-				const FDynamicMeshAttributeSet* Attributes = Mesh->Attributes();
-				for (int i = 0; i < Attributes->NumUVLayers(); ++i)
-				{
-					RegionLoops.UpdateLoopOverlayMapValidity(VidUVMaps[i], *Attributes->GetUVLayer(i));
-				}
-				Filler.UpdateAttributes(VidUVMaps);
-			}
-
-			nCompleted++;
-		}
-	}
 	if (nCompleted != ActiveSelection.SelectedGroupIDs.Num())
 	{
 		GetToolManager()->DisplayMessage(LOCTEXT("OnRetriangulateFailures", "Some faces could not be retriangulated"), EToolMessageLevel::UserWarning);
@@ -2034,148 +2321,382 @@ void UEditMeshPolygonsTool::ApplyDuplicate()
 
 
 
-
-void UEditMeshPolygonsTool::ApplyCollapseEdge()
+// Deprecated
+void UEditMeshPolygonsTool::ApplyCollapseSingleEdge()
 {
-	// AAAHHH cannot do because of overlays!
-	return;
-#if 0
-	if (SelectionMechanic->GetActiveSelection().SelectedEdgeIDs.Num() != 1 || BeginMeshEdgeEditChange() == false)
-	{
-		GetToolManager()->DisplayMessage(
-			LOCTEXT("OnEdgeColllapseFailed", "Cannot Collapse current selection"),
-			EToolMessageLevel::UserWarning);
-		return;
-	}
-
-	FDynamicMesh3* Mesh = CurrentMesh.Get();
-
-	FDynamicMeshChangeTracker ChangeTracker(Mesh);
-	ChangeTracker.BeginChange();
-	//const TArray<int32>& EdgeIDs = ActiveEdgeSelection[0].EdgeIDs;
-	//for (int32 eid : EdgeIDs)
-	//{
-	//	if (Mesh->IsEdge(eid))
-	//	{
-	//		FIndex2i EdgeVerts = Mesh->GetEdgeV(eid);
-	//		ChangeTracker.SaveVertexOneRingTriangles(EdgeVerts.A, true);
-	//		ChangeTracker.SaveVertexOneRingTriangles(EdgeVerts.B, true);
-	//		FDynamicMesh3::FEdgeCollapseInfo CollapseInfo;
-	//		Mesh->CollapseEdge()
-	//	}
-	//}
-
-	// emit undo
-	FGroupTopologySelection NewSelection;
-	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshEdgeCollapseChange", "Collapse"),
-		ChangeTracker.EndChange(), NewSelection);
-#endif
+	ApplyCollapseEdge();
 }
 
 
 
 void UEditMeshPolygonsTool::ApplyWeldEdges()
 {
-	if (SelectionMechanic->GetActiveSelection().SelectedEdgeIDs.Num() != 2)
+	ApplyWeldEdges(0);
+}
+
+void UEditMeshPolygonsTool::ApplyWeldEdges(double InterpolationT)
+{
+	using namespace EditMeshPolygonsToolLocals;
+
+	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
+	
+	TSet<int32> GroupEdges;
+	if (!CurrentSelection.SelectedCornerIDs.IsEmpty())
+	{
+		if (CurrentSelection.SelectedCornerIDs.Num() == 2)
+		{
+			ApplyWeldVertices(InterpolationT);
+			return;
+		}
+		ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), CurrentSelection.SelectedCornerIDs, GroupEdges);
+		if (GroupEdges.Num() < 2)
+		{
+			GetToolManager()->DisplayMessage(
+				LOCTEXT("OnWeldVerticesFailedInvalidCount", "Cannot Weld current selection, "
+					"selection must be either 2 vertices or convertible to at least 2 edges."),
+				EToolMessageLevel::UserWarning);
+			return;
+		}
+	}
+	else
+	{
+		GroupEdges = CurrentSelection.SelectedEdgeIDs;
+	}
+	
+	if (GroupEdges.Num() < 2)
 	{
 		GetToolManager()->DisplayMessage(
-			LOCTEXT("OnWeldEdgesFailedEdgeCount", "Cannot Weld current selection, selection must be exactly 2 edges."),
+			LOCTEXT("OnWeldEdgesFailedTooFew", "Cannot Weld current selection, selection must be at least 2 edges."),
 			EToolMessageLevel::UserWarning);
 		return;
 	}
 
 	FDynamicMesh3* Mesh = CurrentMesh.Get();
-	FDynamicMesh3 MeshCopy(*Mesh);				// We are going to operate on this copy and, if successful, copy the changes back into Mesh
-	
-	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
-	TArray<int32> SelectedEdgeIDs = CurrentSelection.SelectedEdgeIDs.Array();
-	FEdgeSpan& SpanA = Topology->Edges[SelectedEdgeIDs[0]].Span;
-	FEdgeSpan& SpanB = Topology->Edges[SelectedEdgeIDs[1]].Span;
-	
-	if (SpanA.Vertices[0] == SpanA.Vertices.Last() || SpanB.Vertices[0] == SpanB.Vertices.Last())
+	TArray<int32> GroupEdgesA;
+	TArray<int32> GroupEdgesB;
+	bool bShouldReverseA = false;
+	if (!LinkBoundaryGroupEdges(Topology.Get(), Mesh, GroupEdges.Array(), GroupEdgesA, GroupEdgesB, bShouldReverseA)
+		// We don't allow a single loop
+		|| GroupEdgesB.IsEmpty())
 	{
 		GetToolManager()->DisplayMessage(
-			LOCTEXT("OnWeldEdgesFailedEdgesAreLoops", "Cannot Weld current selection, selected edges must not be loops."),
+			LOCTEXT("OnWeldEdgesFailedEdgeCount", "Cannot Weld current selection, selection could not be partitioned into two non-loop open-boundary sequences."),
 			EToolMessageLevel::UserWarning);
-		return;
+			return;
 	}
+
+	// The two sequences are given in boundary orientation, which will be in the opposite direction.
+	//  We reverse one of them so we can do our pairwise welding in the proper order.
+	Algo::Reverse(bShouldReverseA ? GroupEdgesA : GroupEdgesB);
 
 	FDynamicMeshChangeTracker ChangeTracker(Mesh);
 	ChangeTracker.BeginChange();
 
-	// Save one ring tri's for vertices along first edge
-	for (int Vert : SpanA.Vertices)
+	bool bAllSucceeded = true;
+	bool bHaveSeam = false;
+
+	// Conceptually, we weld pairwise across group edges until we reach the last group edge
+	//  of the shorter sequence, and then weld that edge to remaining concatenated group edges
+	//  in the longer sequence. 
+	// However there are some pathological cases where welding of one edge could remove an edge
+	//  of an adjacent group edge, and these are best handled inside FWeldEdgeSequence if it 
+	//  knows all of the edges it needs to weld. So, we want to pass FWeldEdgeSequence the 
+	//  concatenated sequences, but we need to do the equalizing splits on a per-group-edge
+	//  basis so that we can make sure that group corners still get welded to other group corners.
+	
+	TArray<int32> ConcatenatedKeptEids;
+	TArray<int32> ConcatenatedDiscardEids;
+
+	auto PrepGroupEdgePair = [&ChangeTracker, Mesh, &bAllSucceeded, 
+		&ConcatenatedKeptEids, &ConcatenatedDiscardEids, bShouldReverseA](FEdgeSpan& SpanA, FEdgeSpan& SpanB)
 	{
-		ChangeTracker.SaveVertexOneRingTriangles(Vert, true);
+		// Save one ring tri's for vertices along both edges. The kept edge is necessary
+		//  because we might be splitting its triangles if needed.
+		for (int32 Vid : SpanA.Vertices)
+		{
+			if (!ensure(Mesh->IsVertex(Vid)))
+			{
+				return false;
+			}
+			Mesh->EnumerateVertexTriangles(Vid, [&ChangeTracker](int32 Tid)
+			{
+				ChangeTracker.SaveTriangle(Tid, true);
+			});
+		}
+		for (int32 Vid : SpanB.Vertices)
+		{
+			if (!ensure(Mesh->IsVertex(Vid)))
+			{
+				return false;
+			}
+			Mesh->EnumerateVertexTriangles(Vid, [&ChangeTracker](int32 Tid)
+			{
+				ChangeTracker.SaveTriangle(Tid, true);
+			});
+		}
+
+		SpanA.SetCorrectOrientation();
+		SpanB.SetCorrectOrientation();
+
+		FWeldEdgeSequence::EWeldResult Result = FWeldEdgeSequence::SplitEdgesToEqualizeSpanLengths(*Mesh, SpanA, SpanB);
+		
+		if (bShouldReverseA)
+		{
+			ConcatenatedDiscardEids.Insert(SpanA.Edges, 0);
+			ConcatenatedKeptEids.Append(SpanB.Edges);
+		}
+		else
+		{
+			ConcatenatedDiscardEids.Append(SpanA.Edges);
+			ConcatenatedKeptEids.Insert(SpanB.Edges, 0);
+		}
+
+		if (Result != FWeldEdgeSequence::EWeldResult::Ok)
+		{
+			bAllSucceeded = false;
+			return false;
+		}
+		return true;
+	};
+
+	int32 NumMatched = GroupEdgesA.Num() == GroupEdgesB.Num() ? GroupEdgesA.Num()
+		: FMath::Min(GroupEdgesA.Num(), GroupEdgesB.Num()) - 1;
+	for (int32 i = 0; i < NumMatched; ++i)
+	{
+		FEdgeSpan& SpanA = Topology->Edges[GroupEdgesA[i]].Span;
+		FEdgeSpan& SpanB = Topology->Edges[GroupEdgesB[i]].Span;
+		PrepGroupEdgePair(SpanA, SpanB);
 	}
 
-	// Save one ring tri's for vertices along second edge
-	for (int Vert : SpanB.Vertices)
+	// If there was a mismatched number of edges, we have set NumMatched to be one less than
+	//  the shorter sequence so we can weld the last edge to the remainder on the other side.
+	if (NumMatched < GroupEdgesA.Num())
 	{
-		ChangeTracker.SaveVertexOneRingTriangles(Vert, true);
+		// Assemble our two edge sequences to weld.
+		TArray<int32> SpanAEids;
+		for (int32 i = 0; i < GroupEdgesA.Num() - NumMatched; ++i)
+		{
+			int32 Index = bShouldReverseA ? GroupEdgesA.Num() - 1 - i : NumMatched + i;
+			FEdgeSpan Span = Topology->Edges[GroupEdgesA[Index]].Span;
+			Span.SetCorrectOrientation();
+			SpanAEids.Append(Span.Edges);
+		}
+		TArray<int32> SpanBEids;
+		for (int32 i = 0; i < GroupEdgesB.Num() - NumMatched; ++i)
+		{
+			int32 Index = !bShouldReverseA ? GroupEdgesB.Num() - 1 - i : NumMatched + i;
+			FEdgeSpan Span = Topology->Edges[GroupEdgesB[Index]].Span;
+			Span.SetCorrectOrientation();
+			SpanBEids.Append(Span.Edges);
+		}
+
+		FEdgeSpan SpanA;
+		SpanA.InitializeFromEdges(Mesh, SpanAEids);
+		FEdgeSpan SpanB;
+		SpanB.InitializeFromEdges(Mesh, SpanBEids);
+
+		PrepGroupEdgePair(SpanA, SpanB);
 	}
 
-	FWeldEdgeSequence EdgeWelder(&MeshCopy, SpanA, SpanB);
+	FEdgeSpan ConcatenatedKeptSpan(Mesh), ConcatenatedDiscardSpan(Mesh);
+	ConcatenatedKeptSpan.InitializeFromEdges(ConcatenatedKeptEids);
+	ConcatenatedDiscardSpan.InitializeFromEdges(ConcatenatedDiscardEids);
+
+	FWeldEdgeSequence EdgeWelder(Mesh, ConcatenatedDiscardSpan, ConcatenatedKeptSpan);
 	EdgeWelder.bAllowIntermediateTriangleDeletion = true;
 	EdgeWelder.bAllowFailedMerge = true;
-	
+	EdgeWelder.InterpolationT = InterpolationT;
+
 	FWeldEdgeSequence::EWeldResult Result = EdgeWelder.Weld();
+	if (EdgeWelder.UnmergedEdgePairsOut.Num() != 0)
+	{
+		bHaveSeam = true;
+	}
 	if (Result != FWeldEdgeSequence::EWeldResult::Ok)
 	{
-		switch (Result)
-		{
-		case FWeldEdgeSequence::EWeldResult::Failed_EdgesNotBoundaryEdges:
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("OnWeldEdgesFailedBoundary", "Cannot Weld current selection, selected edges must be boundary edges."),
-				EToolMessageLevel::UserWarning);
-			break;
+		bAllSucceeded = false;
+	}
 
-		case FWeldEdgeSequence::EWeldResult::Failed_CannotSplitEdge:
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("OnWeldEdgesFailedSplitEdge", "Cannot Weld current selection, failed to insert vertex."), 
-				EToolMessageLevel::UserWarning);
-			break;
+	if (CurrentMesh->TriangleCount() == 0)
+	{
+		GetToolManager()->DisplayMessage(LOCTEXT("WeldEdgesWouldDeleteAll",
+			"Could not weld current selection because doing so would discard entire mesh."), 
+			EToolMessageLevel::UserWarning);
 
-		case FWeldEdgeSequence::EWeldResult::Failed_TriangleDeletionDisabled:
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("OnWeldEdgesFailedTriDeleteDisabled", "Cannot Weld current selection, deletion of edges connecting selected edges is disabled."), 
-				EToolMessageLevel::UserWarning);
-			break;
-
-		case FWeldEdgeSequence::EWeldResult::Failed_CannotDeleteTriangle:
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("OnWeldEdgesFailedTriDeleteFailed", "Cannot Weld current selection, failed to delete edge connecting selected edges."), 
-				EToolMessageLevel::UserWarning);
-			break;
-
-		case FWeldEdgeSequence::EWeldResult::Failed_Other:
-		default:
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("OnWeldEdgesFailedOther", "Cannot Weld current selection, bad geometry."), 
-				EToolMessageLevel::UserWarning);
-			break;
-		}
-
+		// Use our change tracker to undo what we've done
+		ChangeTracker.EndChange()->Apply(CurrentMesh.Get(), /*bRevert*/ true);
+		// Update so spatial doesn't complain about mismatched changestamps. 
+		UpdateFromCurrentMesh(false);
+		
+		// The topology didn't actually change, but unfortunately the eids it stores in its spans
+		//  are now invalid, and we need to update those. We do this update ourselves (rather than
+		//  passing true to UpdateFromCurrentMesh above) so that we can keep the same extra corners
+		//  and therefore same selection.
+		TSet<int32> ExtraCorners = Topology->GetCurrentExtraCornerVids();
+		Topology->RebuildTopologyWithSpecificExtraCorners(ExtraCorners);
 		return;
 	}
-	else
-	{
-		// On success, apply the result by copying over the existing mesh
-		*Mesh = MeshCopy;
 
-		if (EdgeWelder.UnmergedEdgePairsOut.Num() != 0)
+	FText TransactionName = LOCTEXT("PolyMeshWeldEdgeChange", "Weld Edges");
+	GetToolManager()->BeginUndoTransaction(TransactionName);
+	EmitCurrentMeshChangeAndUpdate(TransactionName, ChangeTracker.EndChange(), FGroupTopologySelection());
+
+	// Now that the topology is updated, set the new selection
+	FGroupTopologySelection NewSelection;
+	TSet<int32> SelectedEids;
+	for (int32 Eid : ConcatenatedKeptEids)
+	{
+		if (Mesh->IsEdge(Eid) && !SelectedEids.Contains(Eid))
 		{
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("OnWeldEdgesCompletedSeamsRemain", "Warning: welding incomplete because it would create "
-					"invalid geometry (attached non manifold edge or duplicate triangle). Seam still exists at weld "
-					"location. Modify attached triangles and retry, or undo."),
-				EToolMessageLevel::UserWarning);
+			int32 GroupEdgeID = Topology->FindGroupEdgeID(Eid);
+			if (GroupEdgeID != IndexConstants::InvalidID)
+			{
+				NewSelection.SelectedEdgeIDs.Add(GroupEdgeID);
+				SelectedEids.Append(Topology->GetGroupEdgeEdges(GroupEdgeID));
+			}
 		}
 	}
+	// Seems possible to end up with an empty selection if we welded edges of the same group,
+	//  so the new edge is not a group boundary, or if we ended up collapsing things.
+	if (!NewSelection.IsEmpty())
+	{
+		SelectionMechanic->SetSelection(NewSelection);
+	}
 
-	FGroupTopologySelection NewSelection;
-	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshWeldEdgeChange", "Weld Edges"),
-		ChangeTracker.EndChange(), NewSelection);
+	if (bHaveSeam)
+	{
+		GetToolManager()->DisplayMessage(WeldIncompleteMessage, EToolMessageLevel::UserWarning);
+	}
+	else if (!bAllSucceeded)
+	{
+		GetToolManager()->DisplayMessage(LOCTEXT("OnWeldEdgesPartialFailure", 
+			"Warning: some edges could not be welded."), EToolMessageLevel::UserWarning);
+	}
+
+	GetToolManager()->EndUndoTransaction();
+}
+
+void UEditMeshPolygonsTool::ApplyWeldVertices(double InterpolationT)
+{
+	using namespace EditMeshPolygonsToolLocals;
+
+	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
+
+	TArray<int32> CornerIDs = CurrentSelection.SelectedCornerIDs.Array();
+	if (CornerIDs.Num() != 2)
+	{
+		return;
+	}
+
+	FDynamicMeshChangeTracker ChangeTracker(CurrentMesh.Get());
+	ChangeTracker.BeginChange();
+
+	// See if there's a group edge between the two selected corners. If there is, the
+	//  user was probably expecting to collapse the group edge.
+	TSet<int32> GroupEdges;
+	ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), CurrentSelection.SelectedCornerIDs, GroupEdges);
+	if (GroupEdges.Num() != 0)
+	{
+		GetToolManager()->BeginUndoTransaction(CollapseEdgeTransactionLabel);
+		CollapseGroupEdges(GroupEdges, ChangeTracker);
+		GetToolManager()->EndUndoTransaction();
+		return;
+	}
+	// Othewise do the operation
+	
+	int32 KeptVid = Topology->GetCornerVertexID(CornerIDs[1]);
+	int32 DiscardedVid = Topology->GetCornerVertexID(CornerIDs[0]);
+
+	CurrentMesh->EnumerateVertexTriangles(DiscardedVid, [&ChangeTracker](int32 Tid)
+	{
+		ChangeTracker.SaveTriangle(Tid, true);
+	});
+	CurrentMesh->EnumerateVertexTriangles(KeptVid, [&ChangeTracker](int32 Tid)
+	{
+		ChangeTracker.SaveTriangle(Tid, true);
+	});
+
+	// Helper used when we can't weld, but choose to move the verts to the destination instead
+	auto MoveToDestination = [this, KeptVid, DiscardedVid, InterpolationT]()
+	{
+		FVector3d Destination = Lerp(CurrentMesh->GetVertex(KeptVid), CurrentMesh->GetVertex(DiscardedVid), InterpolationT);
+		CurrentMesh->SetVertex(DiscardedVid, Destination);
+		CurrentMesh->SetVertex(KeptVid, Destination);
+	};
+
+	FDynamicMesh3::FMergeVerticesInfo MergeInfo;
+	FDynamicMesh3::FMergeVerticesOptions Options;
+	Options.bAllowNonBoundaryBowtieCreation = bAllowBowtieWeldAtInternalVertex;
+	EMeshResult Result = CurrentMesh->MergeVertices(KeptVid, DiscardedVid, InterpolationT, Options, MergeInfo);
+
+	if (Result == EMeshResult::Failed_CollapseTriangle
+		|| Result == EMeshResult::Failed_CollapseQuad
+		|| Result == EMeshResult::Failed_FoundDuplicateTriangle)
+	{
+		bool bSuccessful = RemoveEdgeTrisIfNotLast(*CurrentMesh, CurrentMesh->FindEdge(KeptVid, DiscardedVid));
+		if (!bSuccessful)
+		{
+			GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesCannotDeleteAll",
+				"Could not weld vertices because it would delete remainder of mesh."), EToolMessageLevel::UserWarning);
+			return;
+		}
+	}
+	// Align with behavior in weld and collapse when we're unable to weld due to topology.
+	else if (Result == EMeshResult::Failed_InvalidNeighbourhood)
+	{
+		if (CurrentMesh->FindEdge(KeptVid, DiscardedVid) != IndexConstants::InvalidID)
+		{
+			// Collapse case: refuse to collapse
+			GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesCollapseInvalidTopology",
+				"Could not weld vertices because the collapse would create an edge with more than "
+				"two triangles (non-manifold geometry)."), EToolMessageLevel::UserWarning);
+			return;
+		}
+		else
+		{
+			// Weld case: move to destination and complain
+			MoveToDestination();
+			GetToolManager()->DisplayMessage(WeldIncompleteMessage, EToolMessageLevel::UserWarning);
+		}
+	}
+	else if (Result == EMeshResult::Failed_WouldCreateBowtie)
+	{
+		MoveToDestination();
+		GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesDisallowInternalBowtie",
+			"Could not weld vertices because it would create a non-boundary edge bowtie. Vertices "
+			"were moved to their destination without actually welding. Set "
+			"modeling.PolyEdit.AllowWeldInternalBowtie to true to allow a true weld."), 
+			EToolMessageLevel::UserWarning);
+	}
+	else if (Result == EMeshResult::Failed_NotABoundaryEdge)
+	{
+		// This happens if a user is trying to weld internal edges by successive internal vertices.
+		//  Handle this the same way as the other weld failure.
+		MoveToDestination();
+		GetToolManager()->DisplayMessage(WeldIncompleteMessage, EToolMessageLevel::UserWarning);
+	}
+	else if (!ensure(Result == EMeshResult::Ok))
+	{
+		GetToolManager()->DisplayMessage(LOCTEXT("WeldVerticesGenericFailure",
+			"Could not weld vertices."), EToolMessageLevel::UserWarning);
+		return;
+	}
+
+
+	FText TransactionName = LOCTEXT("PolyMeshWeldVerticesChange", "Weld Vertices");
+	GetToolManager()->BeginUndoTransaction(TransactionName);
+	EmitCurrentMeshChangeAndUpdate(TransactionName, ChangeTracker.EndChange(), FGroupTopologySelection());
+
+	// Now that the topology is updated, set the new selection
+	int32 RemainingCornerID = Topology->GetCornerIDFromVertexID(KeptVid);
+	if (RemainingCornerID != IndexConstants::InvalidID)
+	{
+		FGroupTopologySelection NewSelection;
+		NewSelection.SelectedCornerIDs.Add(RemainingCornerID);
+		SelectionMechanic->SetSelection(NewSelection);
+	}
+
+	GetToolManager()->EndUndoTransaction();
 }
 
 void UEditMeshPolygonsTool::ApplyStraightenEdges()
@@ -2365,110 +2886,202 @@ void UEditMeshPolygonsTool::ApplyFillHole()
 
 void UEditMeshPolygonsTool::ApplyBridgeEdges()
 {
+	using namespace EditMeshPolygonsToolLocals;
+
 	const FText BridgeFailMessage = LOCTEXT("OnEdgeBridgeFailed", "Cannot Bridge current selection");
 
-	if (SelectionMechanic->GetActiveSelection().SelectedEdgeIDs.Num() != 2 || BeginMeshBoundaryEdgeEditChange(false) == false)
+	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
+
+	TSet<int32> GroupEdges;
+	if (!CurrentSelection.SelectedCornerIDs.IsEmpty())
 	{
-		GetToolManager()->DisplayMessage(BridgeFailMessage, EToolMessageLevel::UserWarning);
-		return;
+		ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), CurrentSelection.SelectedCornerIDs, GroupEdges);
+	}
+	else
+	{
+		GroupEdges = CurrentSelection.SelectedEdgeIDs;
 	}
 
 	FDynamicMesh3* Mesh = CurrentMesh.Get();
-	FDynamicMeshChangeTracker ChangeTracker(Mesh);
-	ChangeTracker.BeginChange();
-	FGroupTopologySelection CurrentSelection = SelectionMechanic->GetActiveSelection();
-
-	TArray<int32> LoopVertices;
-	TArray<int32> LoopEdges;
-	TArray<int32> SelectedEdgeIDs = CurrentSelection.SelectedEdgeIDs.Array();
-	
-	// I think doing this will guarantee that every edge in the span stores the vertices corresponding to the connected triangles orientation
-	FEdgeSpan& SpanA = Topology->Edges[SelectedEdgeIDs[0]].Span;
-	FEdgeSpan& SpanB = Topology->Edges[SelectedEdgeIDs[1]].Span;
-	SpanA.SetCorrectOrientation();
-	SpanB.SetCorrectOrientation();
-
-	// Disallow bridging of edge loops for now
-	if (SpanA.Vertices[0] == SpanA.Vertices.Last() || SpanB.Vertices[0] == SpanB.Vertices.Last())
+	TArray<int32> GroupEdgesA;
+	TArray<int32> GroupEdgesB;
+	bool bShouldReverseA = false;
+	if (!LinkBoundaryGroupEdges(Topology.Get(), Mesh, GroupEdges.Array(), GroupEdgesA, GroupEdgesB, bShouldReverseA))
 	{
-		GetToolManager()->DisplayMessage(BridgeFailMessage, EToolMessageLevel::UserWarning);
+		GetToolManager()->DisplayMessage(LOCTEXT("OnEdgeBridgeFailedInvalidSelection", 
+			"Cannot bridge current selection, selection could not be partitioned into a single hole or two "
+			"non-loop open-boundary sequences."), EToolMessageLevel::UserWarning);
 		return;
 	}
 
-	// Add all vertices from first edge
-	LoopVertices = SpanA.Vertices;
+	TArray<int32> TrianglesToSelect;
 
-	// If first vertex of second edge is not a duplicate of a terminating vertex of the first edge, add vertex
-	if (SpanB.Vertices[0] != SpanA.Vertices[0] && SpanB.Vertices[0] != SpanA.Vertices.Last())
+	auto BridgeEdges = [&](const TArray<int32>& LoopVids)
 	{
-		LoopVertices.Add(SpanB.Vertices[0]);
-	}
+		TArray<int32> LoopEdges;
+		FEdgeLoop::VertexLoopToEdgeLoop(Mesh, LoopVids, LoopEdges);
+		FEdgeLoop Loop(Mesh, LoopVids, LoopEdges);
 
-	// Definitely add the non-terminating vertices of second edge.
-	for (int Vertex = 1; Vertex < SpanB.Vertices.Num() - 1; ++Vertex)
-	{
-		LoopVertices.Add(SpanB.Vertices[Vertex]);
-	}
+		// We could always use the minimal hole filler, but it doesn't quite do what "bridge" would suggest when
+		// the area to be bridged is concave (across two curved-inward edges). Meanwhile simple ear clipping
+		// seems to fail in some common cases for reasons that we should investigate. For now, start with ear
+		// clipping, and revert to minimal if needed.
+		FSimpleHoleFiller SimpleHoleFiller(Mesh, Loop, FSimpleHoleFiller::EFillType::PolygonEarClipping);
+		TArray<int32> NewTriangles;
 
-	// If last vertex of second edge is not a duplicate of a terminating vertex of the first edge, add vertex
-	if (SpanB.Vertices.Last() != SpanA.Vertices[0] && SpanB.Vertices.Last() != SpanA.Vertices.Last())
-	{
-		LoopVertices.Add(SpanB.Vertices.Last());
-	}
-
-	FEdgeLoop::VertexLoopToEdgeLoop(Mesh, LoopVertices, LoopEdges);
-	FEdgeLoop Loop(Mesh, LoopVertices, LoopEdges);
-
-	// We could always use the minimal hole filler, but it doesn't quite do what "bridge" would suggest when
-	// the area to be bridged is concave (across two curved-inward edges). Meanwhile simple ear clipping
-	// seems to fail in some common cases for reasons that we should investigate. For now, start with ear
-	// clipping, and revert to minimal if needed.
-	FSimpleHoleFiller SimpleHoleFiller(Mesh, Loop, FSimpleHoleFiller::EFillType::PolygonEarClipping);
-	TArray<int32> NewTriangles;
-
-	// Fill the hole
-	if (!SimpleHoleFiller.Fill())
-	{
-		//Ear clipping doesn't add vertices, so don't need to delete isolated verts
-		FDynamicMeshEditor Editor(Mesh);
-		Editor.RemoveTriangles(SimpleHoleFiller.NewTriangles, false);
-
-		FMinimalHoleFiller MinimalHoleFiller(Mesh, Loop);
-
-		if (!MinimalHoleFiller.Fill())
+		// Fill the hole
+		if (!SimpleHoleFiller.Fill())
 		{
-			Editor.RemoveTriangles(MinimalHoleFiller.NewTriangles, false);
-			GetToolManager()->DisplayMessage(BridgeFailMessage, EToolMessageLevel::UserWarning);
-			// Even though we've manually 'undone' the changes, this will still change mesh timestamps, so we need to register the mesh update
-			UpdateFromCurrentMesh(false);
-			return;
-		}
-		else
-		{
+			//Ear clipping doesn't add vertices, so don't need to delete isolated verts
+			FDynamicMeshEditor Editor(Mesh);
+			Editor.RemoveTriangles(SimpleHoleFiller.NewTriangles, false);
+
+			FMinimalHoleFiller MinimalHoleFiller(Mesh, Loop);
+
+			if (!MinimalHoleFiller.Fill())
+			{
+				Editor.RemoveTriangles(MinimalHoleFiller.NewTriangles, false);
+				GetToolManager()->DisplayMessage(BridgeFailMessage, EToolMessageLevel::UserWarning);
+				// Even though we've manually 'undone' the changes, this will still change mesh timestamps, so we need to register the mesh update
+				UpdateFromCurrentMesh(false);
+				return;
+			}
 			NewTriangles = MinimalHoleFiller.NewTriangles;
 		}
-	}
-	else {
-		NewTriangles = SimpleHoleFiller.NewTriangles;
-	}
+		else 
+		{
+			NewTriangles = SimpleHoleFiller.NewTriangles;
+		}
 
-	// Compute normals and UVs
-	if (Mesh->HasAttributes())
+		TrianglesToSelect.Append(NewTriangles);
+
+		// Compute normals and UVs
+		if (Mesh->HasAttributes())
+		{
+			TArray<FVector3d> VertexPositions;
+			Loop.GetVertices(VertexPositions);
+			FVector3d PlaneOrigin;
+			FVector3d PlaneNormal;
+			PolygonTriangulation::ComputePolygonPlane<double>(VertexPositions, PlaneNormal, PlaneOrigin);
+
+			FDynamicMeshEditor Editor(Mesh);
+			FFrame3d ProjectionFrame(PlaneOrigin, PlaneNormal);
+			Editor.SetTriangleNormals(NewTriangles);
+			Editor.SetTriangleUVsFromProjection(NewTriangles, ProjectionFrame, UVScaleFactor);
+		}
+	};
+
+	FDynamicMeshChangeTracker ChangeTracker(Mesh);
+	ChangeTracker.BeginChange();
+
+	if (GroupEdgesB.IsEmpty())
 	{
-		TArray<FVector3d> VertexPositions;
-		Loop.GetVertices(VertexPositions);
-		FVector3d PlaneOrigin;
-		FVector3d PlaneNormal;
-		PolygonTriangulation::ComputePolygonPlane<double>(VertexPositions, PlaneNormal, PlaneOrigin);
+		// This means that there was just one big hole. Concatenate everything into one
+		//  big loop to triangulate.
+		TArray<int32> LoopVertices;
+		for (int32 i = 0; i < GroupEdgesA.Num(); ++i)
+		{
+			FEdgeSpan Span = Topology->Edges[GroupEdgesA[i]].Span;
+			Span.SetCorrectOrientation();
+			if (LoopVertices.Num() > 0 && LoopVertices.Last() == Span.Vertices[0])
+			{
+				LoopVertices.Pop();
+			}
+			LoopVertices.Append(Span.Vertices);
+		}
+		if (!ensure(LoopVertices.Num() > 0 && LoopVertices.Last() == LoopVertices[0]))
+		{
+			GetToolManager()->DisplayMessage(BridgeFailMessage, EToolMessageLevel::UserWarning);
+			return;
+		}
+		LoopVertices.Pop();
 
-		FDynamicMeshEditor Editor(Mesh);
-		FFrame3d ProjectionFrame(PlaneOrigin, PlaneNormal);
-		Editor.SetTriangleNormals(NewTriangles);
-		Editor.SetTriangleUVsFromProjection(NewTriangles, ProjectionFrame, UVScaleFactor);
+		BridgeEdges(LoopVertices);
+	}
+	else
+	{
+		// We will bridge as many pairs as we can, and then do one big "triangular" bridge for
+		//  the unmatched ones.
+
+		// The two sequences are given in boundary orientation, which will be in the opposite direction.
+		//  So, we need to process one of the sequences in reverse order.
+		Algo::Reverse(bShouldReverseA ? GroupEdgesA : GroupEdgesB);
+
+		// Keeps track of the endpoints so we can use it for the final triangular bridge
+		FIndex2i LastVids(IndexConstants::InvalidID, IndexConstants::InvalidID);
+
+		int32 NumMatched = FMath::Min(GroupEdgesA.Num(), GroupEdgesB.Num());
+		for (int32 i = 0; i < NumMatched; ++i)
+		{
+			FEdgeSpan SpanA = Topology->Edges[GroupEdgesA[i]].Span;
+			SpanA.SetCorrectOrientation();
+			FEdgeSpan SpanB = Topology->Edges[GroupEdgesB[i]].Span;
+			SpanB.SetCorrectOrientation();
+
+			TArray<int32> LoopVertices;
+			LoopVertices.Append(SpanA.Vertices);
+			LoopVertices.Append(SpanB.Vertices);
+
+			LastVids.A = SpanA.Vertices[bShouldReverseA ? 0 : SpanA.Vertices.Num() - 1];
+			LastVids.B = SpanB.Vertices[!bShouldReverseA ? 0 : SpanB.Vertices.Num() - 1];
+
+			BridgeEdges(LoopVertices);
+		}
+
+		if (GroupEdgesA.Num() != GroupEdgesB.Num())
+		{
+			bool bAIsLonger = GroupEdgesA.Num() > GroupEdgesB.Num();
+			TArray<int32>& LongerSequence = bAIsLonger ? GroupEdgesA : GroupEdgesB;
+			TArray<int32> RemainingEdges;
+			for (int32 i = NumMatched; i < LongerSequence.Num(); ++i)
+			{
+				RemainingEdges.Add(LongerSequence[i]);
+			}
+			if (bAIsLonger == bShouldReverseA)
+			{
+				// If the remaining edges are the ones we reversed for the pairwise iteration, we
+				//  need to reverse them back so that they are in proper boundary ordering.
+				Algo::Reverse(RemainingEdges);
+			}
+
+			int32 OtherLastVid = bAIsLonger ? LastVids.B : LastVids.A;
+			if (ensure(OtherLastVid != IndexConstants::InvalidID))
+			{
+				TArray<int32> LoopVertices;
+				for (int32 i = 0; i < RemainingEdges.Num(); ++i)
+				{
+					FEdgeSpan Span = Topology->Edges[RemainingEdges[i]].Span;
+					Span.SetCorrectOrientation();
+					if (LoopVertices.Num() > 0 && ensure(LoopVertices.Last() == Span.Vertices[0]))
+					{
+						LoopVertices.Pop();
+					}
+					LoopVertices.Append(Span.Vertices);
+				}
+				LoopVertices.Add(OtherLastVid);
+
+				BridgeEdges(LoopVertices);
+			}
+		}//end if have unmatched edges
 	}
 
-	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshBridgeEdgeChange", "Bridge Edge"),
-		ChangeTracker.EndChange(), CurrentSelection);
+	FText TransactionName = LOCTEXT("PolyMeshBridgeEdgeChange", "Bridge Edge");
+	GetToolManager()->BeginUndoTransaction(TransactionName);
+
+	EmitCurrentMeshChangeAndUpdate(TransactionName, ChangeTracker.EndChange(), FGroupTopologySelection());
+
+	// Now that topology is updated, set the new selection
+	FGroupTopologySelection NewSelection;
+	for (int32 Tid : TrianglesToSelect)
+	{
+		NewSelection.SelectedGroupIDs.Add(Topology->GetGroupID(Tid));
+	}
+	if (ensure(!NewSelection.IsEmpty()))
+	{
+		SelectionMechanic->SetSelection(NewSelection);
+	}
+
+	GetToolManager()->EndUndoTransaction();
 }
 
 
@@ -2544,50 +3157,191 @@ void UEditMeshPolygonsTool::ApplyFlipSingleEdge()
 	}
 
 	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshFlipChange", "Flip Edges"),
-		ChangeTracker.EndChange(), NewSelection);
+		ChangeTracker.EndChange(), FGroupTopologySelection());
 }
 
-void UEditMeshPolygonsTool::ApplyCollapseSingleEdge()
+void UEditMeshPolygonsTool::ApplyCollapseEdge()
 {
-	if (BeginMeshEdgeEditChange() == false)
-	{
-		GetToolManager()->DisplayMessage(LOCTEXT("OnCollapseFailedMessage", "Cannot Collapse Current Selection"), EToolMessageLevel::UserWarning);
-		return;
-	}
+	using namespace EditMeshPolygonsToolLocals;
 
 	FDynamicMesh3* Mesh = CurrentMesh.Get();
 	FGroupTopologySelection ActiveSelection = SelectionMechanic->GetActiveSelection();
+	if (ActiveSelection.IsEmpty())
+	{
+		GetToolManager()->DisplayMessage(LOCTEXT("OnCollapseFailedMessage", "Cannot collapse empty selection"), EToolMessageLevel::UserWarning);
+		return;
+	}
+
+	GetToolManager()->BeginUndoTransaction(CollapseEdgeTransactionLabel);
+
 	FDynamicMeshChangeTracker ChangeTracker(Mesh);
 	ChangeTracker.BeginChange();
-	TSet<int32> ValidEdgeIDs;
-	for (FSelectedEdge& Edge : ActiveEdgeSelection)
+
+	TSet<int32> GroupEdgesToCollapse = ActiveSelection.SelectedEdgeIDs;
+	if (!ActiveSelection.SelectedGroupIDs.IsEmpty())
 	{
-		int32 eid = Edge.EdgeIDs[0];
-		if (Mesh->IsEdge(eid) && Mesh->Attributes()->IsSeamEdge(eid) == false)
+		// Retriangulating can be thought of as equivalent to collapsing all the interior
+		//  edges, except without the risk of failing because of some kind of awful topology
+		//  on the inside of the group.
+		int32 NumCompleted = RetriangulateGroups(Mesh, Topology.Get(), ActiveSelection.SelectedGroupIDs, ChangeTracker);
+		if (NumCompleted != ActiveSelection.SelectedGroupIDs.Num())
 		{
-			ValidEdgeIDs.Add(eid);
+			GetToolManager()->DisplayMessage(PartialCollapseFailureMessage, EToolMessageLevel::UserWarning);
+			// continue on and try to collapse the boundary
+		}
+		// After retriangulation, our topology object may have incorrect eids (if the group was on the boundary,
+		//  so the edges got removed during triangle deletion and then recreated). So we have to update it.
+		Topology->RebuildTopology();
+
+		for (int32 GroupID : ActiveSelection.SelectedGroupIDs)
+		{
+			Topology->ForGroupEdges(GroupID, [&GroupEdgesToCollapse](const FGroupTopology::FGroupEdge&, int32 GroupEdgeID)
+			{
+				GroupEdgesToCollapse.Add(GroupEdgeID);
+			});
 		}
 	}
-	TSet<int32> DoneEdgeIDs;
-	for (int32 eid : ValidEdgeIDs)
+	else if (!ActiveSelection.SelectedCornerIDs.IsEmpty())
 	{
-		if (DoneEdgeIDs.Contains(eid) == false && Mesh->IsEdge(eid))
+		ConvertCornerSelectionToGroupEdgeSelection(Topology.Get(), ActiveSelection.SelectedCornerIDs, GroupEdgesToCollapse);
+	}
+
+	CollapseGroupEdges(GroupEdgesToCollapse, ChangeTracker);
+
+	GetToolManager()->EndUndoTransaction();
+}
+
+void UEditMeshPolygonsTool::CollapseGroupEdges(TSet<int32>& GroupEdgesToCollapse, 
+	UE::Geometry::FDynamicMeshChangeTracker& ChangeTracker)
+{
+	using namespace EditMeshPolygonsToolLocals;
+
+	FDynamicMesh3* Mesh = CurrentMesh.Get();
+
+	FDynamicMesh3::FCollapseEdgeOptions CollapseOptions;
+	CollapseOptions.bAllowHoleCollapse = true;
+	CollapseOptions.bAllowCollapsingInternalEdgeWithBoundaryVertices = true;
+	CollapseOptions.bAllowTetrahedronCollapse = true;
+
+	TSet<int32> EidsToCollapse;
+	for (int32 GroupEdgeID : GroupEdgesToCollapse)
+	{
+		EidsToCollapse.Append(Topology->GetGroupEdgeEdges(GroupEdgeID));
+	}
+
+	// Partition our edges into connected components so that we can collapse into their
+	//  individual centroids.
+	TArray<TSet<int32>> EidComponents;
+	TSet<int32> PartitionedEids;
+	TArray<int32> TempQueue;
+	for (int32 Eid : EidsToCollapse)
+	{
+		if (PartitionedEids.Contains(Eid))
 		{
-			FIndex2i ev = Mesh->GetEdgeV(eid);
-			ChangeTracker.SaveVertexOneRingTriangles(ev.A, true);
-			ChangeTracker.SaveVertexOneRingTriangles(ev.B, true);
-			FDynamicMesh3::FEdgeCollapseInfo CollapseInfo;
-			if (Mesh->CollapseEdge(ev.A, ev.B, CollapseInfo) == EMeshResult::Ok)
+			continue;
+		}
+
+		TSet<int32>& ComponentEids = EidComponents.Emplace_GetRef();
+		ComponentEids.Add(Eid);
+		FMeshConnectedComponents::GrowToConnectedEdges(*Mesh, { Eid }, ComponentEids, &TempQueue,
+			[&EidsToCollapse](int32 CurrentEid, int32 NeighborEid)
 			{
-				DoneEdgeIDs.Add(eid);
-				DoneEdgeIDs.Add(CollapseInfo.RemovedEdges.A);
-				DoneEdgeIDs.Add(CollapseInfo.RemovedEdges.B);
+				return EidsToCollapse.Contains(NeighborEid);
+			});
+		PartitionedEids.Append(ComponentEids);
+	}
+
+	// Now process our components.
+	bool bAllCollapsesSuccessful = true;
+	TSet<int32> NewSelectionVids;
+	for (TSet<int32>& Component : EidComponents)
+	{
+		FVector3d Centroid = FVector3d::Zero();
+		for (int32 Eid : Component)
+		{
+			Centroid += Mesh->GetEdgePoint(Eid, 0.5);
+		}
+		Centroid /= Component.Num();
+
+		// Unfiltered because vids will disappear in subsequent collapses
+		TSet<int32> UnfilteredVidsToMove;
+
+		for (int32 Eid : Component)
+		{
+			// Some edges might be collapsed away by other collapses
+			if (!Mesh->IsEdge(Eid))
+			{
+				continue;
+			}
+
+			FIndex2i EdgeVids = Mesh->GetEdgeV(Eid);
+			ChangeTracker.SaveVertexOneRingTriangles(EdgeVids.A, true);
+			ChangeTracker.SaveVertexOneRingTriangles(EdgeVids.B, true);
+			FDynamicMesh3::FEdgeCollapseInfo CollapseInfo;
+			EMeshResult Result = Mesh->CollapseEdge(EdgeVids.A, EdgeVids.B, CollapseOptions, CollapseInfo);
+
+			// Certain collapses of isolated triangles/quads are not currently allowed by CollapseEdge,
+			//  but we allow them if the user asks for them.
+			if (Result == EMeshResult::Failed_CollapseTriangle
+				|| Result == EMeshResult::Failed_CollapseQuad
+				|| Result == EMeshResult::Failed_FoundDuplicateTriangle)
+			{
+				bAllCollapsesSuccessful = RemoveEdgeTrisIfNotLast(*CurrentMesh, Eid) && bAllCollapsesSuccessful;
+			}
+			// We could also check for EMeshResult::InvalidTopology and do the "move with seam"
+			//  approach we do for welding, but it seems like it would be harder to notice this
+			//  for collapses because the degenerate triangles are harder to find than open boundaries.
+			//  So for now we won't fake a collapse in that case.
+			else if (Result == EMeshResult::Ok)
+			{
+				UnfilteredVidsToMove.Add(CollapseInfo.KeptVertex);
+			}
+			else
+			{
+				bAllCollapsesSuccessful = false;
+			}
+		}
+
+		for (int32 Vid : UnfilteredVidsToMove)
+		{
+			if (Mesh->IsVertex(Vid))
+			{
+				Mesh->SetVertex(Vid, Centroid);
+				NewSelectionVids.Add(Vid);
 			}
 		}
 	}
 
-	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshCollapseChange", "Collapse Edges"), 
-		ChangeTracker.EndChange(), FGroupTopologySelection());
+	if (!bAllCollapsesSuccessful)
+	{
+		GetToolManager()->DisplayMessage(PartialCollapseFailureMessage, EToolMessageLevel::UserWarning);
+	}
+
+	EmitCurrentMeshChangeAndUpdate(CollapseEdgeTransactionLabel, ChangeTracker.EndChange(), FGroupTopologySelection());
+
+	// Now that the topology is updated, we can get the new corner id's to
+	//  set the new selection.
+	FGroupTopologySelection NewSelection;
+	for (int32 Vid : NewSelectionVids)
+	{
+		// Even though we filtered each component, it's possible for one component's collapses to indirectly
+		//  destroy verts in another, hence the check here.
+		if (!Mesh->IsVertex(Vid))
+		{
+			continue;
+		}
+		int32 CornerID = Topology->GetCornerIDFromVertexID(Vid);
+		if (CornerID != IndexConstants::InvalidID)
+		{
+			NewSelection.SelectedCornerIDs.Add(CornerID);
+		}
+	}
+	// Seems possible to end up with an empty selection if we collapsed a triangle hole in a group,
+	//  so the new vertex is not part of a group boundary.
+	if (!NewSelection.IsEmpty())
+	{
+		SelectionMechanic->SetSelection(NewSelection);
+	}
 }
 
 void UEditMeshPolygonsTool::ApplySplitSingleEdge()
@@ -2621,7 +3375,7 @@ void UEditMeshPolygonsTool::ApplySplitSingleEdge()
 				NewSelection.SelectedGroupIDs.Add(SplitInfo.NewTriangles.A);
 				if (SplitInfo.NewTriangles.B != FDynamicMesh3::InvalidID)
 				{
-					NewSelection.SelectedGroupIDs.Add(SplitInfo.NewTriangles.A);
+					NewSelection.SelectedGroupIDs.Add(SplitInfo.NewTriangles.B);
 				}
 			}
 		}

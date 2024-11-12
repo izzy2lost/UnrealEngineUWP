@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
@@ -38,14 +39,17 @@ namespace EpicGames.Core
 			protected override void Dispose(bool disposing) { }
 		}
 
-		const uint FILE_MAP_ALL_ACCESS = 0x000F001F;
+		const uint FILE_MAP_COPY = 0x0001;
+		const uint FILE_MAP_WRITE = 0x0002;
+		const uint FILE_MAP_READ = 0x0004;
+		const uint FILE_MAP_EXECUTE = 0x0020;
 
 		[DllImport("kernel32.dll")]
 		static extern unsafe void* MapViewOfFile(SafeMemoryMappedFileHandle handle, uint desiredAccess, uint fileOffsetHigh, uint fileOffsetLow, long numberOfBytes);
 
 		[DllImport("kernel32.dll")]
 		static extern unsafe bool UnmapViewOfFile(void* ptr);
-		
+
 		byte* _data;
 		Action? _disposeMethod;
 
@@ -55,12 +59,28 @@ namespace EpicGames.Core
 		/// <param name="memoryMappedFile">Handle of the file to map into memory</param>
 		/// <param name="offset">Offset within the file to map</param>
 		/// <param name="length">Length of the region to map</param>
-		public MemoryMappedView(MemoryMappedFile memoryMappedFile, long offset, long length)
+		/// <param name="access">How to open the file as read only</param>
+		public MemoryMappedView(MemoryMappedFile memoryMappedFile, long offset, long length, MemoryMappedFileAccess access = MemoryMappedFileAccess.ReadWrite)
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				_data = (byte*)MapViewOfFile(memoryMappedFile.SafeMemoryMappedFileHandle, FILE_MAP_ALL_ACCESS, (uint)(offset >> 32), (uint)offset, length);
-				Trace.Assert(_data != null);
+				uint accessFlags = access switch
+				{
+					MemoryMappedFileAccess.Read => FILE_MAP_READ,
+					MemoryMappedFileAccess.ReadWrite => FILE_MAP_READ | FILE_MAP_WRITE,
+					MemoryMappedFileAccess.Write => FILE_MAP_WRITE,
+					MemoryMappedFileAccess.CopyOnWrite => FILE_MAP_READ | FILE_MAP_WRITE | FILE_MAP_COPY,
+					MemoryMappedFileAccess.ReadExecute => FILE_MAP_READ | FILE_MAP_EXECUTE,
+					MemoryMappedFileAccess.ReadWriteExecute => FILE_MAP_READ | FILE_MAP_WRITE | FILE_MAP_EXECUTE,
+					_ => FILE_MAP_READ | FILE_MAP_WRITE
+				};
+
+				_data = (byte*)MapViewOfFile(memoryMappedFile.SafeMemoryMappedFileHandle, accessFlags, (uint)(offset >> 32), (uint)offset, length);
+				if (_data == null)
+				{
+					int status = Marshal.GetLastWin32Error();
+					throw new Win32Exception(status, $"Unable to create memory mapped file (GetLastError() == {status})");
+				}
 
 				_disposeMethod = () =>
 				{
@@ -69,7 +89,7 @@ namespace EpicGames.Core
 			}
 			else
 			{
-				MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(offset, length);
+				MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(offset, length, access);
 				memoryMappedViewAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref _data);
 				Trace.Assert(_data != null);
 

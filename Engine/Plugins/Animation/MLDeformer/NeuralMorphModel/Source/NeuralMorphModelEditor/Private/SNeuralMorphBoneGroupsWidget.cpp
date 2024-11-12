@@ -190,7 +190,7 @@ namespace UE::NeuralMorphModel
 					else
 					{
 						NeuralMorphModel->BoneGroups[ParentGroup->GroupIndex].BoneNames.Remove(BoneItem->Name);
-						FNeuralMorphMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfos.Find(ParentGroup->Name);
+						FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfoMap.Find(ParentGroup->Name);
 						if (MaskInfo)
 						{
 							MaskInfo->BoneNames.Remove(BoneItem->Name);
@@ -208,7 +208,7 @@ namespace UE::NeuralMorphModel
 			// Remove the items, back to front.
 			for (const int32 Index : GroupsToRemove)
 			{
-				NeuralMorphModel->BoneGroupMaskInfos.Remove(NeuralMorphModel->BoneGroups[Index].GroupName);
+				NeuralMorphModel->BoneGroupMaskInfoMap.Remove(NeuralMorphModel->BoneGroups[Index].GroupName);
 				NeuralMorphModel->BoneGroups.RemoveAt(Index);
 			}
 		}
@@ -221,7 +221,7 @@ namespace UE::NeuralMorphModel
 	{
 		UNeuralMorphModel* NeuralMorphModel = EditorModel->GetNeuralMorphModel();
 		NeuralMorphModel->BoneGroups.Empty();
-		NeuralMorphModel->BoneGroupMaskInfos.Empty();
+		NeuralMorphModel->BoneGroupMaskInfoMap.Empty();
 		RefreshTree(true);
 		EditorModel->RebuildEditorMaskInfo();
 	}

@@ -3,10 +3,11 @@
 #include "DecoupledOutputProviderModule.h"
 
 #include "IOutputProviderLogic.h"
+#include "Output/VCamOutputProviderBase.h"
 
 #include "Engine/World.h"
 
-namespace UE::DecoupledOutputProvider::Private
+namespace UE::DecoupledOutputProvider
 {
 	void FDecoupledOutputProviderModule::StartupModule()
 	{
@@ -137,7 +138,33 @@ namespace UE::DecoupledOutputProvider::Private
 		}
 	}
 
+	TFuture<FVCamStringPromptResponse> FDecoupledOutputProviderModule::PromptClientForString(IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			return Logic->PromptClientForString(Args, Request);
+		}
+
+		return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+	}
+
 #if WITH_EDITOR
+	void FDecoupledOutputProviderModule::PreEditChange(IOutputProviderEvent& Args, FProperty* PropertyAboutToChange)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			Logic->OnPreEditChange(Args, PropertyAboutToChange);
+		}
+	}
+
+	void FDecoupledOutputProviderModule::PreEditChange(IOutputProviderEvent& Args, FEditPropertyChain& PropertyAboutToChange)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			Logic->OnPreEditChange(Args, PropertyAboutToChange);
+		}
+	}
+	
 	void FDecoupledOutputProviderModule::OnPostEditChangeProperty(IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
 	{
 		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
@@ -238,4 +265,4 @@ namespace UE::DecoupledOutputProvider::Private
 	}
 }
 
-IMPLEMENT_MODULE(UE::DecoupledOutputProvider::Private::FDecoupledOutputProviderModule, DecoupledOutputProvider);
+IMPLEMENT_MODULE(UE::DecoupledOutputProvider::FDecoupledOutputProviderModule, DecoupledOutputProvider);

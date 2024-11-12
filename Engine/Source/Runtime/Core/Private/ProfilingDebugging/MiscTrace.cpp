@@ -31,9 +31,19 @@ UE_TRACE_EVENT_BEGIN(Misc, RegionBegin)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, RegionName)
 UE_TRACE_EVENT_END()
 
+UE_TRACE_EVENT_BEGIN(Misc, RegionBeginWithId)
+	UE_TRACE_EVENT_FIELD(uint64, CycleAndId)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, RegionName)
+UE_TRACE_EVENT_END()
+
 UE_TRACE_EVENT_BEGIN(Misc, RegionEnd)
 	UE_TRACE_EVENT_FIELD(uint64, Cycle)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, RegionName)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Misc, RegionEndWithId)
+	UE_TRACE_EVENT_FIELD(uint64, Cycle)
+	UE_TRACE_EVENT_FIELD(uint64, RegionId)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(Misc, BeginFrame)
@@ -83,6 +93,15 @@ void FMiscTrace::OutputBeginRegion(const TCHAR* RegionName)
 		<< RegionBegin.RegionName(RegionName);
 }
 
+uint64 FMiscTrace::OutputBeginRegionWithId(const TCHAR* RegionName)
+{
+	const uint64 CycleAndId = FPlatformTime::Cycles64();
+	UE_TRACE_LOG(Misc, RegionBeginWithId, RegionChannel)
+		<< RegionBeginWithId.CycleAndId(CycleAndId)
+		<< RegionBeginWithId.RegionName(RegionName);
+	return CycleAndId;
+}
+
 void FMiscTrace::OutputEndRegion(const TCHAR* RegionName)
 {
 	UE_TRACE_LOG(Misc, RegionEnd, RegionChannel)
@@ -90,10 +109,25 @@ void FMiscTrace::OutputEndRegion(const TCHAR* RegionName)
 		<< RegionEnd.RegionName(RegionName);
 }
 
+void FMiscTrace::OutputEndRegionWithId(uint64 RegionId)
+{
+	UE_TRACE_LOG(Misc, RegionEndWithId, RegionChannel)
+		<< RegionEndWithId.Cycle(FPlatformTime::Cycles64())
+		<< RegionEndWithId.RegionId(RegionId);
+}
+
 void FMiscTrace::OutputBookmarkInternal(const void* BookmarkPoint, uint16 EncodedFormatArgsSize, uint8* EncodedFormatArgs)
 {
 	UE_TRACE_LOG(Misc, Bookmark, BookmarkChannel)
 		<< Bookmark.Cycle(FPlatformTime::Cycles64())
+		<< Bookmark.BookmarkPoint(BookmarkPoint)
+		<< Bookmark.FormatArgs(EncodedFormatArgs, EncodedFormatArgsSize);
+}
+
+void FMiscTrace::OutputBookmarkInternalCycles(uint64 Cycles, const void* BookmarkPoint, uint16 EncodedFormatArgsSize, uint8* EncodedFormatArgs)
+{
+	UE_TRACE_LOG(Misc, Bookmark, BookmarkChannel)
+		<< Bookmark.Cycle(Cycles)
 		<< Bookmark.BookmarkPoint(BookmarkPoint)
 		<< Bookmark.FormatArgs(EncodedFormatArgs, EncodedFormatArgsSize);
 }
@@ -168,5 +202,10 @@ bool FMiscTrace::ShouldTraceScreenshot()
 bool FMiscTrace::ShouldTraceBookmark()
 {
 	return UE_TRACE_CHANNELEXPR_IS_ENABLED(BookmarkChannel);
+}
+
+bool FMiscTrace::ShouldTraceRegion()
+{
+	return UE_TRACE_CHANNELEXPR_IS_ENABLED(RegionChannel);
 }
 #endif

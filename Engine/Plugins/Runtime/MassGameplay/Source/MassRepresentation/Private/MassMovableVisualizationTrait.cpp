@@ -6,7 +6,8 @@
 
 void UMassMovableVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	if (World.IsNetMode(NM_DedicatedServer))
+	if (!bAllowServerSideVisualization && World.IsNetMode(NM_DedicatedServer)
+		&& !BuildContext.IsInspectingData())
 	{
 		return;
 	}

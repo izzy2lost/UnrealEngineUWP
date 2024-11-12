@@ -175,6 +175,8 @@ public:
 	UPROPERTY()
 	TArray<FGuid> OutputConnections;
 
+	virtual bool IsOutBoundConnectionAllowed(const UConversationNodeWithLinks* OtherNode, FText& OutErrorMessage) const { return true; }
+
 	friend class UConversationRegistry;
 };
 

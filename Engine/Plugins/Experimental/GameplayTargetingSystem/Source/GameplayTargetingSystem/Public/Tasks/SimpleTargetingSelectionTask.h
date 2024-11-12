@@ -25,8 +25,10 @@ public:
 	/** Evaluation function called by derived classes to process the targeting request */
 	virtual void Execute(const FTargetingRequestHandle& TargetingHandle) const override;
 	
-	UFUNCTION(BlueprintImplementableEvent)
+	UFUNCTION(BlueprintNativeEvent)
 	void SelectTargets(const FTargetingRequestHandle& TargetingHandle, const FTargetingSourceContext& SourceContext) const;
+
+	virtual void SelectTargets_Implementation(const FTargetingRequestHandle& TargetingHandle, const FTargetingSourceContext& SourceContext) const {};
 
 protected:
 	/**

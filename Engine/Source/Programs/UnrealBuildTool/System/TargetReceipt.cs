@@ -547,7 +547,7 @@ namespace UnrealBuildTool
 			BuildVersion? Version;
 			if (!BuildVersion.TryParse(RawObject.GetObjectField("Version"), out Version))
 			{
-				throw new JsonException("Invalid 'Version' field");
+				throw new JsonException("Invalid 'Version' field", Location.FullName, null, null);
 			}
 
 			// Read the project path

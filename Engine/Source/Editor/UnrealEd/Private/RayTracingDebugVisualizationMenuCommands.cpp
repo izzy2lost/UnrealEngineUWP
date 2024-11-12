@@ -80,6 +80,10 @@ void FRayTracingDebugVisualizationMenuCommands::CreateRayTracingDebugVisualizati
 		RayTracingDebugModeNames.Add(LOCTEXT("Proxy Type", "Proxy Type"));
 		RayTracingDebugModeNames.Add(LOCTEXT("Picker", "Picker"));
 		RayTracingDebugModeNames.Add(LOCTEXT("Light Grid Occupancy", "Light Grid Occupancy"));
+		if (Substrate::IsSubstrateEnabled())
+		{
+			RayTracingDebugModeNames.Emplace(LOCTEXT("Subtrate Material Properties", "Subtrate Material Properties"));
+		}
 	}
 	for ( int32 RayTracingDebugIndex = 0; RayTracingDebugIndex < RayTracingDebugModeNames.Num(); ++RayTracingDebugIndex)
 	{

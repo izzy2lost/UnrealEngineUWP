@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "SequencerTrackFilterExtension.h"
+#include "Filters/SequencerTrackFilterExtension.h"
 #include "LiveLinkSequencerFilters.generated.h"
 
 UCLASS()
@@ -11,7 +11,9 @@ class ULiveLinkSequencerTrackFilter : public USequencerTrackFilterExtension
 public:
 	GENERATED_BODY()
 
-	// USequencerTrackFilterExtension interface
-	virtual void AddTrackFilterExtensions(TArray< TSharedRef<class FSequencerTrackFilter> >& InOutFilterList) const override;
-	// End of USequencerTrackFilterExtension interface
+	//~ Begin USequencerTrackFilterExtension
+	virtual void AddTrackFilterExtensions(ISequencerTrackFilters& InFilterInterface
+		, const TSharedRef<FFilterCategory>& InPreferredCategory
+		, TArray<TSharedRef<FSequencerTrackFilter>>& InOutFilterList) const override;
+	//~ End USequencerTrackFilterExtension
 };

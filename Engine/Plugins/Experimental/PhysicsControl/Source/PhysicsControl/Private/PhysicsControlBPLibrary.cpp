@@ -75,9 +75,6 @@ template<typename TNamedParameters> void BlendParametersThroughSet(
 	const TArray<FName>&                               Names,
 	FPhysicsControlControlAndModifierParameters&       OutParametersContainer)
 {
-	// TODO - Limbs can include branches. Would need a more sophisticated approach to deal with
-	// those properly, perhaps include a depth index in the control name ?
-
 	OutParametersContainer = InParametersContainer;
 
 	const float WeightDelta = 1.0f / static_cast<float>(Names.Num() - 1);

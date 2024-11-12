@@ -7,6 +7,7 @@
 #include "HAL/PlatformMath.h"
 #include "Math/MathFwd.h"
 #include "Templates/Identity.h"
+#include "Templates/Requires.h"
 
 // Assert on non finite numbers. Used to track NaNs.
 #ifndef ENABLE_NAN_DIAGNOSTIC
@@ -602,10 +603,9 @@ public:
 	/** Clamps X to be between Min and Max, inclusive. Overload to support mixed int64/int32 types. */
 	[[nodiscard]] static constexpr FORCEINLINE int64 Clamp(const int64 X, const int32 Min, const int32 Max) { return Clamp<int64>(X, Min, Max); }
 
-	/** Wraps X to be between Min and Max, inclusive. */
-	/** When X can wrap to both Min and Max, it will wrap to Min if it lies below the range and wrap to Max if it is above the range. */
+private:
 	template< class T >
-	[[nodiscard]] static constexpr FORCEINLINE T Wrap(const T X, const T Min, const T Max)
+	[[nodiscard]] static constexpr FORCEINLINE T WrapImpl(const T X, const T Min, const T Max)
 	{
 		// Use unsigned type for integers to allow for large ranges which don't overflow on subtraction
 		// We don't do that for floating point types because there are no unsigned versions of those.  We
@@ -631,16 +631,74 @@ public:
 		}
 		else if (EndVal > Max)
 		{
-			T Mod = FMath::Modulo((SizeType)((SizeType)EndVal - (SizeType)Max), Size);
+			SizeType Mod = FMath::Modulo((SizeType)((SizeType)EndVal - (SizeType)Max), Size);
 			EndVal = (Mod != (T)0) ? (T)((SizeType)Min + Mod) : Max;
 		}
 		return EndVal;
 	}
 
-	template <typename T>
-	[[nodiscard]] static constexpr FORCEINLINE T Modulo(T Value, T Base)
+public:
+	/** Wraps X to be between Min and Max, inclusive. */
+	/** When X can wrap to both Min and Max, it will wrap to Min if it lies below the range and wrap to Max if it is above the range. */
+	template <
+		typename T
+		UE_REQUIRES(std::is_floating_point_v<T>)
+	>
+	[[nodiscard]] static constexpr FORCEINLINE T Wrap(const T X, const T Min, const T Max)
 	{
-		if constexpr (std::is_floating_point_v<T>)
+		return WrapImpl(X, Min, Max);
+	}
+	template <
+		typename T
+		UE_REQUIRES(!std::is_floating_point_v<T>)
+	>
+	UE_DEPRECATED(5.5, "Use of FMath::Wrap with non-floating point arguments is deprecated - consider FMath::WrapExclusive instead.")
+	[[nodiscard]] static constexpr FORCEINLINE T Wrap(const T X, const T Min, const T Max)
+	{
+		return WrapImpl(X, Min, Max);
+	}
+
+	/** Wraps X to be between Min and Max, exclusive. Will never return Max. */
+	template <
+		typename T
+		UE_REQUIRES(std::is_integral_v<T>)
+	>
+	[[nodiscard]] static constexpr FORCEINLINE T WrapExclusive(const T X, const T Min, const T Max)
+	{
+		// Use unsigned type allow for large ranges which don't overflow on subtraction.
+		using SizeType = std::make_unsigned_t<T>;
+
+		// Our asserts are not constexpr-friendly yet
+		// checkSlow(Min <= Max);
+
+		SizeType Size = (SizeType)((SizeType)Max - (SizeType)Min);
+		if (Size == 0)
+		{
+			// Guard against zero-sized ranges causing division by zero.
+			return Max;
+		}
+
+		SizeType Mod;
+		if (X < Min)
+		{
+			Mod = (SizeType)FMath::Modulo((SizeType)((SizeType)Min - (SizeType)X), Size);
+			if (Mod > 0)
+			{
+				Mod = (SizeType)(Size - Mod);
+			}
+		}
+		else
+		{
+			Mod = (SizeType)FMath::Modulo((SizeType)((SizeType)X - (SizeType)Min), Size);
+		}
+
+		return (T)(Min + Mod);
+	}
+
+	template <typename ValueType, typename BaseType>
+	[[nodiscard]] static constexpr FORCEINLINE auto Modulo(ValueType Value, BaseType Base)
+	{
+		if constexpr (std::is_floating_point_v<ValueType>)
 		{
 			return FMath::Fmod(Value, Base);
 		}
@@ -1124,7 +1182,7 @@ public:
 	template <
 		typename T,
 		typename U
-		UE_REQUIRES(!TCustomLerp<T>::Value && (std::is_floating_point_v<U> || std::is_same_v<T, U>))
+		UE_REQUIRES(!TCustomLerp<T>::Value && (std::is_floating_point_v<U> || std::is_same_v<T, U>) && !std::is_same_v<T, bool>)
 	>
 	[[nodiscard]] static constexpr FORCEINLINE_DEBUGGABLE T Lerp( const T& A, const T& B, const U& Alpha )
 	{
@@ -1502,6 +1560,7 @@ public:
 	template<typename T1, typename T2 = T1, typename T3 = T2, typename T4 = T3>
 	[[nodiscard]] static auto FInterpConstantTo( T1 Current, T2 Target, T3 DeltaTime, T4 InterpSpeed )
 	{
+		static_assert(!std::is_same_v<T1, bool> && !std::is_same_v<T2, bool>, "Boolean types may not be interpolated");
 		using RetType = decltype(T1() * T2() * T3() * T4());
 	
 		const RetType Dist = Target - Current;
@@ -1520,6 +1579,7 @@ public:
 	template<typename T1, typename T2 = T1, typename T3 = T2, typename T4 = T3>
 	[[nodiscard]] static auto FInterpTo( T1  Current, T2 Target, T3 DeltaTime, T4 InterpSpeed )
 	{
+		static_assert(!std::is_same_v<T1, bool> && !std::is_same_v<T2, bool>, "Boolean types may not be interpolated");
 		using RetType = decltype(T1() * T2() * T3() * T4());
 	
 		// If no interp speed, jump to target value

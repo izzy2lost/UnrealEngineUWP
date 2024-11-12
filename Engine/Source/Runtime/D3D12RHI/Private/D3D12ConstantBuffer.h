@@ -2,12 +2,16 @@
 
 #pragma once
 
-// Chunk size for global constant buffer shadow data. Should always be a multiple of 256
-#define GLOBAL_CONSTANT_BUFFER_CHUNK_SIZE 512
-
-using namespace D3D12RHI;
+#include "D3D12RHICommon.h"
+#if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+#include "D3D12View.h"
+#endif
 
 class FD3D12FastConstantAllocator;
+class FD3D12ResourceLocation;
+
+// Chunk size for global constant buffer shadow data. Should always be a multiple of 256
+#define GLOBAL_CONSTANT_BUFFER_CHUNK_SIZE 512
 
 /**
  * A D3D constant buffer
@@ -70,6 +74,3 @@ protected:
 
 	FD3D12FastConstantAllocator& Allocator;
 };
-
-DECLARE_CYCLE_STAT_EXTERN(TEXT("Global Constant buffer update time"), STAT_D3D12GlobalConstantBufferUpdateTime, STATGROUP_D3D12RHI, );
-

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "ReplicationSystemServerClientTestFixture.h"
 #include "ReplicationSystemTestFixture.h"
+
 #include "Iris/ReplicationSystem/ChangeMaskUtil.h"
 #include "Iris/ReplicationSystem/ReplicationOperations.h"
 #include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
@@ -347,90 +349,55 @@ UE_NET_TEST_FIXTURE(FTestReplicationOperationsFixture, CanSerializeAndDeserializ
 	ReplicationBridge->EndReplication(TestObject);
 }
 
-UE_NET_TEST_FIXTURE(FTestReplicationOperationsFixture, PreAndPostNetReceivedOnlyCalledOnce)
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, PreAndPostNetReceivedOnlyCalledOnce)
 {
-	UTestReplicatedIrisObject* TestObject = CreateObject(1, 0);
-	
-	// Create NetRefHandle for the CreatedHandle,
-	FNetRefHandle CreatedHandle = ReplicationBridge->BeginReplication(TestObject);
-	const FReplicationProtocol* ProtocolA = ReplicationSystem->GetReplicationProtocol(CreatedHandle);
-
-	UE_NET_ASSERT_EQ(3U, ProtocolA->ReplicationStateCount);
+	// Create replicated object 
+	UTestReplicatedIrisObject* ServerTestObject = Server->CreateObject(1, 0);
+	Server->ReplicationBridge->BeginReplication(ServerTestObject);
 
 	// Set some values
-	TestObject->Components[0]->IntA = 3;
-	TestObject->Components[0]->IntB = 3;
+	ServerTestObject->Components[0]->IntA = 3;
+	ServerTestObject->Components[0]->IntB = 3;
 
-	// Poll data to update property replication state
-	FReplicationInstanceOperations::PollAndCopyPropertyData(ReplicationBridge->GetReplicationInstanceProtocol(TestObject->NetRefHandle));
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
 
-	// Quantize to buffer
-	uint8* AlignedBuffer = (uint8*)(GetTempAllocator()).Alloc(ProtocolA->InternalTotalSize, ProtocolA->InternalTotalAlignment);
+	// Spawn the replicated instance
+	Server->UpdateAndSend({ Client });
 
-	// Copy data from test object to buffer
-	FNetSerializationContext NetContext;
-	NetContext.SetIsInitState(true);
-	FReplicationInstanceOperations::Quantize(NetContext, AlignedBuffer, GetChangeMaskWriter(ProtocolA->ChangeMaskBitCount), ReplicationBridge->GetReplicationInstanceProtocol(TestObject->NetRefHandle), ProtocolA);
-
-	// Create second object 
-	UTestReplicatedIrisObject* TestObjectB = CreateObject(1, 0);
-	ReplicationBridge->BeginReplication(TestObjectB);
-	const FReplicationProtocol* ProtocolB = ReplicationSystem->GetReplicationProtocol(TestObjectB->NetRefHandle);
-	UE_NET_ASSERT_EQ(ProtocolA, ProtocolB);
-
-	// Check values before we try to apply data
-	UE_NET_ASSERT_EQ(0U, TestObjectB->Components[0]->CallCounts.PreNetReceiveCounter);
-	UE_NET_ASSERT_EQ(0U, TestObjectB->Components[0]->CallCounts.PostNetReceiveCounter);
-
-	// Push state data to ObjectB
-	FReplicationInstanceOperations::DequantizeAndApply(NetContext, GetTempAllocator(), GetChangeMaskStorage(), ReplicationBridge->GetReplicationInstanceProtocol(TestObjectB->NetRefHandle), AlignedBuffer, ProtocolB);
-
-	// Check value after apply
-	UE_NET_ASSERT_EQ(1U, TestObjectB->Components[0]->CallCounts.PreNetReceiveCounter);
-	UE_NET_ASSERT_EQ(1U, TestObjectB->Components[0]->CallCounts.PostNetReceiveCounter);
-
-	ReplicationBridge->EndReplication(TestObject);
-	ReplicationBridge->EndReplication(TestObjectB);
+	// Find the client instance and make sure it replicated
+	UTestReplicatedIrisObject* ClientTestObject = Cast<UTestReplicatedIrisObject>(Client->ReplicationBridge->GetReplicatedObject(ServerTestObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientTestObject, nullptr);
+	UE_NET_ASSERT_EQ(3, ClientTestObject->Components[0]->IntA);
+	UE_NET_ASSERT_EQ(3, ClientTestObject->Components[0]->IntB);
+	
+	// Check NetReceive callbacks
+	UE_NET_ASSERT_EQ(1U, ClientTestObject->Components[0]->CallCounts.PreNetReceiveCounter);
+	UE_NET_ASSERT_EQ(1U, ClientTestObject->Components[0]->CallCounts.PostNetReceiveCounter);
 }
 
-UE_NET_TEST_FIXTURE(FTestReplicationOperationsFixture, RepNotifyIsCalledForSimpleProperty)
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, RepNotifyIsCalledForSimpleProperty)
 {
-	constexpr uint32 PropertyComponentCount = 1;
-	UTestReplicatedIrisObject* TestObject = CreateObject(PropertyComponentCount, 0);
-	
-	// Create NetRefHandle for the CreatedHandle,
-	FNetRefHandle CreatedHandle = ReplicationBridge->BeginReplication(TestObject);
-	const FReplicationProtocol* Protocol = ReplicationSystem->GetReplicationProtocol(CreatedHandle);
+	// Create replicated object 
+	UTestReplicatedIrisObject* ServerTestObject = Server->CreateObject(1, 0);
+	Server->ReplicationBridge->BeginReplication(ServerTestObject);
 
 	// Set some values
-	TestObject->Components[0]->IntB ^= 1;
+	ServerTestObject->Components[0]->IntB = 3;
 
-	// Poll data to update property replication state
-	FReplicationInstanceOperations::PollAndCopyPropertyData(ReplicationBridge->GetReplicationInstanceProtocol(TestObject->NetRefHandle));
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
 
-	// Quantize to buffer
-	uint8* AlignedBuffer = (uint8*)(GetTempAllocator()).Alloc(Protocol->InternalTotalSize, Protocol->InternalTotalAlignment);
+	// Spawn the replicated instance
+	Server->UpdateAndSend({ Client });
 
-	// Copy data from test object to buffer
-	FNetSerializationContext NetContext;
-	NetContext.SetIsInitState(true);
-	FReplicationInstanceOperations::Quantize(NetContext, AlignedBuffer, GetChangeMaskWriter(Protocol->ChangeMaskBitCount), ReplicationBridge->GetReplicationInstanceProtocol(TestObject->NetRefHandle), Protocol);
-
-	// Create second object 
-	UTestReplicatedIrisObject* TestObjectB = CreateObject(PropertyComponentCount, 0);
-	ReplicationBridge->BeginReplication(TestObjectB);
-
-	// Check that we've not yet gotten any RepNotify calls
-	UE_NET_ASSERT_EQ(TestObjectB->Components[0]->CallCounts.IntBRepNotifyCounter, 0U);
-
-	// Push state data to ObjectB
-	FReplicationInstanceOperations::DequantizeAndApply(NetContext, GetTempAllocator(), GetChangeMaskStorage(), ReplicationBridge->GetReplicationInstanceProtocol(TestObjectB->NetRefHandle), AlignedBuffer, Protocol);
+	// Find the client instance and make sure it replicated
+	UTestReplicatedIrisObject* ClientTestObject = Cast<UTestReplicatedIrisObject>(Client->ReplicationBridge->GetReplicatedObject(ServerTestObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientTestObject, nullptr);
+	UE_NET_ASSERT_EQ(3, ClientTestObject->Components[0]->IntB);
 
 	// Check that we got exactly one RepNotify call
-	UE_NET_ASSERT_EQ(TestObjectB->Components[0]->CallCounts.IntBRepNotifyCounter, 1U);
-
-	ReplicationBridge->EndReplication(TestObject);
-	ReplicationBridge->EndReplication(TestObjectB);
+	UE_NET_ASSERT_EQ(ClientTestObject->Components[0]->CallCounts.IntBRepNotifyCounter, 1U);
 }
 
 UE_NET_TEST_FIXTURE(FTestReplicationOperationsFixture, InitPropertyIsNotUpdatedWhenInitStateIsExcluded)
@@ -476,58 +443,36 @@ UE_NET_TEST_FIXTURE(FTestReplicationOperationsFixture, InitPropertyIsNotUpdatedW
 	ReplicationBridge->EndReplication(TestObjectB);
 }
 
-UE_NET_TEST_FIXTURE(FTestReplicationOperationsFixture, RepNotifyIsCalledExactlyOnceForArrays)
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, RepNotifyIsCalledExactlyOnceForArrays)
 {
-	constexpr uint32 DynamicStateComponentCount = 1;
-	UTestReplicatedIrisObject* TestObject = CreateObjectWithDynamicState(0, 0, DynamicStateComponentCount);
-	
-	// Create NetRefHandle for the TestObject
-	FNetRefHandle CreatedHandle = ReplicationBridge->BeginReplication(TestObject);
-	const FReplicationProtocol* Protocol = ReplicationSystem->GetReplicationProtocol(CreatedHandle);
+	// Create replicated object 
+	UTestReplicatedIrisObject* ServerTestObject = Server->CreateObjectWithDynamicState(0, 0, 1);
+	Server->ReplicationBridge->BeginReplication(ServerTestObject);
 
 	// Set some values
-	TestObject->DynamicStateComponents[0]->IntArray.SetNum(4);
-	TestObject->DynamicStateComponents[0]->IntArray[0] = 1;
-	TestObject->DynamicStateComponents[0]->IntArray[1] = 1;
-	TestObject->DynamicStateComponents[0]->IntArray[2] = 7;
-	TestObject->DynamicStateComponents[0]->IntArray[3] = 4;
+	ServerTestObject->DynamicStateComponents[0]->IntArray.SetNum(4);
+	ServerTestObject->DynamicStateComponents[0]->IntArray[0] = 1;
+	ServerTestObject->DynamicStateComponents[0]->IntArray[1] = 1;
+	ServerTestObject->DynamicStateComponents[0]->IntArray[2] = 7;
+	ServerTestObject->DynamicStateComponents[0]->IntArray[3] = 4;
 
-	TestObject->DynamicStateComponents[0]->IntStaticArray[1] = 5;
-	TestObject->DynamicStateComponents[0]->IntStaticArray[5] = 1;
+	ServerTestObject->DynamicStateComponents[0]->IntStaticArray[1] = 5;
+	ServerTestObject->DynamicStateComponents[0]->IntStaticArray[5] = 1;
 
-	// Poll data to update property replication state
-	FReplicationInstanceOperations::PollAndCopyPropertyData(ReplicationBridge->GetReplicationInstanceProtocol(TestObject->NetRefHandle));
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
 
-	// Quantize to buffer
-	uint8* AlignedBuffer = (uint8*)(GetTempAllocator()).Alloc(Protocol->InternalTotalSize, Protocol->InternalTotalAlignment);
-	FMemory::Memzero(AlignedBuffer, Protocol->InternalTotalSize);
+	// Spawn the replicated instance
+	Server->UpdateAndSend({ Client });
 
-	// Copy data from test object to buffer
-	FNetSerializationContext SerializationContext;
-	FInternalNetSerializationContext InternalContext;
-	SerializationContext.SetInternalContext(&InternalContext);
-	SerializationContext.SetIsInitState(true);
-	FReplicationInstanceOperations::Quantize(SerializationContext, AlignedBuffer, GetChangeMaskWriter(Protocol->ChangeMaskBitCount), ReplicationBridge->GetReplicationInstanceProtocol(TestObject->NetRefHandle), Protocol);
-
-	// Create second object 
-	UTestReplicatedIrisObject* TestObjectB = CreateObjectWithDynamicState(0, 0, DynamicStateComponentCount);
-	ReplicationBridge->BeginReplication(TestObjectB);
-
-	// Check that we've not yet gotten any RepNotify calls
-	UE_NET_ASSERT_EQ(TestObjectB->DynamicStateComponents[0]->CallCounts.IntArrayRepNotifyCounter, 0U);
-	UE_NET_ASSERT_EQ(TestObjectB->DynamicStateComponents[0]->CallCounts.IntStaticArrayRepNotifyCounter, 0U);
-
-	// Push state data to ObjectB
-	FReplicationInstanceOperations::DequantizeAndApply(SerializationContext, GetTempAllocator(), GetChangeMaskStorage(), ReplicationBridge->GetReplicationInstanceProtocol(TestObjectB->NetRefHandle), AlignedBuffer, Protocol);
+	// Find the client instance and make sure it replicated
+	UTestReplicatedIrisObject* ClientTestObject = Cast<UTestReplicatedIrisObject>(Client->ReplicationBridge->GetReplicatedObject(ServerTestObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientTestObject, nullptr);
+	UE_NET_ASSERT_EQ(4, ClientTestObject->DynamicStateComponents[0]->IntArray.Num());
 
 	// Check that we got exactly one RepNotify call per array
-	UE_NET_ASSERT_EQ(TestObjectB->DynamicStateComponents[0]->CallCounts.IntArrayRepNotifyCounter, 1U);
-	UE_NET_ASSERT_EQ(TestObjectB->DynamicStateComponents[0]->CallCounts.IntStaticArrayRepNotifyCounter, 1U);
-
-	FReplicationProtocolOperations::FreeDynamicState(SerializationContext, AlignedBuffer, Protocol);
-
-	ReplicationBridge->EndReplication(TestObject);
-	ReplicationBridge->EndReplication(TestObjectB);
+	UE_NET_ASSERT_EQ(ClientTestObject->DynamicStateComponents[0]->CallCounts.IntArrayRepNotifyCounter, 1U);
+	UE_NET_ASSERT_EQ(ClientTestObject->DynamicStateComponents[0]->CallCounts.IntStaticArrayRepNotifyCounter, 1U);
 }
 
 class FTestReplicationOperationsForObjectsFixture : public FTestReplicationOperationsFixture
@@ -592,9 +537,10 @@ UE_NET_TEST_FIXTURE(FTestReplicationOperationsForObjectsFixture, StaleObjectPoin
 	ReplicationSystem->PostSendUpdate();
 
 	// Destroy first object and invalidate references to it.
-	ReplicationBridge->EndReplication(HandleToObject0);
+	ReplicationBridge->EndReplication(Object0);
 	DestroyObject(Object0);
-	CollectGarbage(RF_NoFlags);
+	constexpr bool bPerformFullPurge = false;
+	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, bPerformFullPurge);
 
 	ReplicationSystem->PreSendUpdate(0.033f);
 	FReplicationInstanceOperations::Quantize(SerializationContext, StateBuffers1[1], GetChangeMaskWriter(Protocol1->ChangeMaskBitCount), InstanceProtocol1, Protocol1);

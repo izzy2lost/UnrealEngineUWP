@@ -273,7 +273,7 @@ struct FVectorMixin
 
 		if (!bHasInitialValue)
 		{
-			FLinearColor ColorValue;
+			FLinearColor ColorValue = FLinearColor::Black;
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
 				bHasInitialValue = MID->GetVectorParameterValue(ParameterInfo, ColorValue);
@@ -366,6 +366,20 @@ struct TOverlappingMaterialParameterHandler : Mixin
 			return;
 		}
 
+		if (!BoundMaterial)
+		{
+			// Handle null bound materials - this is a rare case but must be handled explicitly because it is possible
+			//  a GC has already destroyed our OutputEntityID because it was considered garbage. In this instance we just
+			//  remove the invalid blend channel input components off all inputs.
+			DestroyOutput(BoundMaterial, ParameterInfo, Output, Aggregate);
+
+			for (FMovieSceneEntityID Input : Inputs)
+			{
+				Linker->EntityManager.RemoveComponent(Input, BuiltInComponents->BlendChannelInput);
+			}
+			return;
+		}
+
 		const bool bUseBlending = NumContributors > 1 || !Linker->EntityManager.HasComponent(Inputs[0], BuiltInComponents->Tags.AbsoluteBlend) || Linker->EntityManager.HasComponent(Inputs[0], BuiltInComponents->WeightAndEasingResult);
 		if (bUseBlending)
 		{
@@ -390,44 +404,12 @@ struct TOverlappingMaterialParameterHandler : Mixin
 
 			const FComponentTypeID BlenderTypeTag = System->DoubleBlenderSystem->GetBlenderTypeTag();
 
-			struct FBlendInfo
-			{
-				int16 HBias = TNumericLimits<int16>::Min();
-				bool bBlendHierarchicalBias = true;
-			};
-			FBlendInfo IgnoredBlendInfo;
-			FBlendInfo BlendInfo;
 
-			FHierarchicalBlendTarget BlendTarget;
 
-			for (FMovieSceneEntityID Input : Inputs)
-			{
-				FBlendInfo& BlendInfoToUpdate = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.Ignored) ? IgnoredBlendInfo : BlendInfo;
 
-				TOptionalComponentReader<int16> HBiasComponent = Linker->EntityManager.ReadComponent(Input, BuiltInComponents->HierarchicalBias);
-				const int16 HBias = HBiasComponent ? *HBiasComponent : 0;
 
-				BlendTarget.Add(HBias);
 
-				if (HBias > BlendInfoToUpdate.HBias)
-				{
-					BlendInfoToUpdate.HBias = HBias;
-					BlendInfoToUpdate.bBlendHierarchicalBias = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.BlendHierarchicalBias);
-				}
-				else if (HBias == BlendInfoToUpdate.HBias && !BlendInfoToUpdate.bBlendHierarchicalBias)
-				{
-					BlendInfoToUpdate.bBlendHierarchicalBias = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.BlendHierarchicalBias);
-				}
-			}
 
-			if (BlendInfo.HBias == TNumericLimits<int16>::Min())
-			{
-				BlendInfo = IgnoredBlendInfo;
-			}
-			else if (IgnoredBlendInfo.HBias != TNumericLimits<int16>::Min())
-			{
-				BlendInfo.bBlendHierarchicalBias |= IgnoredBlendInfo.bBlendHierarchicalBias;
-			}
 
 			for (FMovieSceneEntityID Input : Inputs)
 			{
@@ -441,21 +423,6 @@ struct TOverlappingMaterialParameterHandler : Mixin
 					Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->BlendChannelInput, Output->BlendChannelID);
 				}
 
-				if (BlendInfo.bBlendHierarchicalBias)
-				{
-					if (!Linker->EntityManager.HasComponent(Input, BuiltInComponents->HierarchicalBlendTarget))
-					{
-						Linker->EntityManager.AddComponent(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
-					}
-					else
-					{
-						Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
-					}
-				}
-				else if (Linker->EntityManager.HasComponent(Input, BuiltInComponents->HierarchicalBlendTarget))
-				{
-					Linker->EntityManager.AddComponent(Input, BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
-				}
 
 				// Ensure we have the blender type tag on the inputs.
 				Linker->EntityManager.AddComponent(Input, BlenderTypeTag);
@@ -466,11 +433,6 @@ struct TOverlappingMaterialParameterHandler : Mixin
 			Linker->EntityManager.RemoveComponent(Inputs[0], BuiltInComponents->BlendChannelInput);
 
 			Mixin::InitializeSoleInput(Linker, BoundMaterial, ParameterInfo, Inputs[0], Output);
-
-			if (Linker->EntityManager.HasComponent(Inputs[0], BuiltInComponents->HierarchicalBlendTarget))
-			{
-				Linker->EntityManager.AddComponent(Inputs[0], BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
-			}
 		}
 
 		Output->NumContributors = NumContributors;
@@ -511,7 +473,7 @@ UMovieSceneMaterialParameterInstantiatorSystem::UMovieSceneMaterialParameterInst
 	{
 		DefineComponentConsumer(GetClass(), TracksComponents->BoundMaterial);
 
-		DefineComponentProducer(GetClass(), BuiltInComponents->HierarchicalBlendTarget);
+		DefineComponentConsumer(GetClass(), BuiltInComponents->HierarchicalBlendTarget);
 
 		DefineImplicitPrerequisite(UMovieSceneHierarchicalEasingInstantiatorSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(GetClass(), UMovieSceneInitialValueSystem::StaticClass());

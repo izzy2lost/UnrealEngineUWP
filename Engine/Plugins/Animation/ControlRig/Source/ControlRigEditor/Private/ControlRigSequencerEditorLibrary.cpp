@@ -49,6 +49,8 @@
 #include "Sections/MovieSceneConstrainedSection.h"
 #include "BakingAnimationKeySettings.h"
 #include "EditMode/ControlRigEditMode.h"
+#include "Sequencer/AnimLayers/AnimLayers.h"
+
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigSequencerEditorLibrary)
 
@@ -270,20 +272,17 @@ static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelS
 		UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, bSequencerOwnsControlRig);
 		NewSection->Modify();
 
+		Track->SetTrackName(FName(*ObjectName));
 		if (bIsAdditiveControlRig)
 		{
 			const FString AdditiveObjectName = ObjectName + TEXT(" (Layered)");
-			Track->SetTrackName(FName(*ObjectName));
 			Track->SetDisplayName(FText::FromString(AdditiveObjectName));
-			Track->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
 		}
 		else
 		{
-			//mz todo need to have multiple rigs with same class
-			Track->SetTrackName(FName(*ObjectName));
 			Track->SetDisplayName(FText::FromString(ObjectName));
-			Track->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
 		}
+		UControlRigSequencerEditorLibrary::MarkLayeredModeOnTrackDisplay(Track);
 
 		if (SharedSequencer.IsValid())
 		{
@@ -485,6 +484,18 @@ UTickableConstraint* UControlRigSequencerEditorLibrary::AddConstraint(UWorld* Wo
 		return nullptr;
 	}
 
+	if (!InChildHandle || !InChildHandle->IsValid())
+    {
+    	UE_LOG(LogControlRig, Error, TEXT("AddConstraint: Need Valid Child Handle"));
+    	return nullptr;
+    }
+
+	if (!InParentHandle || !InParentHandle->IsValid())
+	{
+		UE_LOG(LogControlRig, Error, TEXT("AddConstraint: Need Valid Parent Handle"));
+		return nullptr;
+	}
+
 	UTickableTransformConstraint* Constraint = FTransformConstraintUtils::CreateFromType(World, InType);
 	if (!Constraint)
 	{
@@ -552,7 +563,7 @@ bool UControlRigSequencerEditorLibrary::Compensate(UTickableConstraint* InConstr
 			InTime = FFrameRate::TransformTime(FFrameTime(InTime, 0), DisplayRate, TickResolution).RoundToFrame();
 		}
 		TOptional<FFrameNumber> OptTime(InTime);
-		FMovieSceneConstraintChannelHelper::Compensate(Sequencer, Constraint, OptTime);
+		FMovieSceneConstraintChannelHelper::Compensate(Sequencer, Constraint, OptTime, true /*bCompPreviousTick*/);
 		return true;
 	}
 	else
@@ -572,7 +583,7 @@ bool UControlRigSequencerEditorLibrary::CompensateAll(UTickableConstraint* InCon
 	}
 	if (UTickableTransformConstraint* Constraint = Cast<UTickableTransformConstraint>(InConstraint))
 	{
-		FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), Constraint, TOptional<FFrameNumber>());
+		FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), Constraint, TOptional<FFrameNumber>(), true /*bCompPreviousTick*/);
 		return true;
 	}
 	else
@@ -1103,6 +1114,26 @@ void UControlRigSequencerEditorLibrary::SetControlRigWorldTransforms(ULevelSeque
 	LocalSetControlRigWorldTransforms(LevelSequence, ControlRig, ControlName, EControlRigSetKey::Always, Frames, WorldTransforms,TimeUnit);
 }
 
+bool UControlRigSequencerEditorLibrary::SmartReduce(FSmartReduceParams& ReduceParams, UMovieSceneSection* MovieSceneSection)
+{
+	//get level sequence if one exists...
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Smart Reduce: No open level sequence"));
+		return false;
+	}
+	if (UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(MovieSceneSection))
+	{
+		TSharedPtr<ISequencer>  SequencerPtr = WeakSequencer.Pin();
+		FControlRigParameterTrackEditor::SmartReduce(SequencerPtr, ReduceParams, Section);
+		return true;
+	}
+	UE_LOG(LogControlRig, Error, TEXT("Smart Reduce: Section is not Control Rig Section"));
+	return false;
+}
+
+
 bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSequence* LevelSequence, UClass* InClass, UAnimSeqExportOption* ExportOptions, bool bReduceKeys, float Tolerance,
 	const FMovieSceneBindingProxy& Binding, bool bResetControls)
 {
@@ -1135,13 +1166,10 @@ bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSe
 		UE_LOG(LogControlRig, Error, TEXT("Baking: Problem Setting up Player"));
 		return false;
 	}
-	
-	
-
 	bool bResult = false;
 	const FScopedTransaction Transaction(LOCTEXT("BakeToControlRig_Transaction", "Bake To Control Rig"));
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
 
 		if (LevelPlayer && SpawnableRestoreState.bWasChanged)
 		{
@@ -1161,7 +1189,12 @@ bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSe
 			{
 				UAnimSequence* TempAnimSequence = NewObject<UAnimSequence>(GetTransientPackage(), NAME_None);
 				TempAnimSequence->SetSkeleton(Skeleton);
-				bResult = MovieSceneToolHelpers::ExportToAnimSequence(TempAnimSequence, ExportOptions, MovieScene, Player, SkeletalMeshComp, Template, RootToLocalTransform);
+				FAnimExportSequenceParameters AESP;
+				AESP.Player = Player;
+				AESP.RootToLocalTransform = RootToLocalTransform;
+				AESP.MovieSceneSequence = LevelSequence;
+				AESP.RootMovieSceneSequence = LevelSequence;
+				bResult = MovieSceneToolHelpers::ExportToAnimSequence(TempAnimSequence, ExportOptions, AESP, SkeletalMeshComp);
 				if (bResult == false)
 				{
 					TempAnimSequence->MarkAsGarbage();
@@ -1261,8 +1294,8 @@ bool UControlRigSequencerEditorLibrary::BakeToControlRig(UWorld* World, ULevelSe
 						WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 						DefaultInterpolation = WeakSequencer.Pin()->GetKeyInterpolation();
 					}
-
-					ParamSection->LoadAnimSequenceIntoThisSection(TempAnimSequence, MovieScene, SkeletalMeshComp,
+					FFrameNumber StartFrame = MovieScene->GetPlaybackRange().GetLowerBoundValue();
+					ParamSection->LoadAnimSequenceIntoThisSection(TempAnimSequence, StartFrame, MovieScene, SkeletalMeshComp,
 						bReduceKeys, Tolerance, bResetControls, FFrameNumber(0), DefaultInterpolation);
 
 					//Turn Off Any Skeletal Animation Tracks
@@ -1328,7 +1361,8 @@ bool UControlRigSequencerEditorLibrary::LoadAnimSequenceIntoControlRigSection(UM
 		{
 			InStartFrame = FFrameRate::TransformTime(FFrameTime(InStartFrame, 0), MovieScene->GetDisplayRate(),MovieScene->GetTickResolution()).RoundToFrame();
 		}
-		return Section->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkelMeshComp, bKeyReduce, Tolerance, bResetControls, InStartFrame, Interpolation);
+		FFrameNumber StartFrame  = MovieScene->GetPlaybackRange().GetLowerBoundValue();
+		return Section->LoadAnimSequenceIntoThisSection(AnimSequence, StartFrame,  MovieScene, SkelMeshComp, bKeyReduce, Tolerance, bResetControls, InStartFrame, Interpolation);
 	}
 	return false;
 }
@@ -1359,7 +1393,7 @@ static bool LocalGetControlRigControlValues(IMovieScenePlayer* Player, UMovieSce
 			{
 				GlobalTime = FFrameRate::TransformTime(GlobalTime, MovieScene->GetDisplayRate(), MovieScene->GetTickResolution());
 			}
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = RootToLocalTransform.Inverse().TryTransformTime(GlobalTime).Get(GlobalTime);
 			FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 
 			Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
@@ -1775,7 +1809,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigInts(ULevelSequence* L
 
 FVector2D UControlRigSequencerEditorLibrary::GetLocalControlRigVector2D(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, EMovieSceneTimeUnit TimeUnit)
 {
-	FVector2D Value;
+	FVector2D Value = FVector2D::ZeroVector;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -1893,7 +1927,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigVector2Ds(ULevelSequen
 
 FVector UControlRigSequencerEditorLibrary::GetLocalControlRigPosition(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, EMovieSceneTimeUnit TimeUnit)
 {
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -2009,7 +2043,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigPositions(ULevelSequen
 
 FRotator UControlRigSequencerEditorLibrary::GetLocalControlRigRotator(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, EMovieSceneTimeUnit TimeUnit)
 {
-	FRotator Value;
+	FRotator Value = FRotator::ZeroRotator;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -2125,7 +2159,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigRotators(ULevelSequenc
 
 FVector UControlRigSequencerEditorLibrary::GetLocalControlRigScale(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,  EMovieSceneTimeUnit TimeUnit)
 {
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -2740,6 +2774,60 @@ bool UControlRigSequencerEditorLibrary::SetControlRigSpace(ULevelSequence* Level
 	return bValid;
 }
 
+
+bool UControlRigSequencerEditorLibrary::SpaceCompensate(UControlRig* InControlRig, FFrameNumber InTime, EMovieSceneTimeUnit TimeUnit)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() && InControlRig)
+	{
+		TSharedPtr<ISequencer>  Sequencer = WeakSequencer.Pin();
+		TOptional<FFrameNumber> OptionalTime;
+		if (TimeUnit == EMovieSceneTimeUnit::DisplayRate)
+		{
+			const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
+			const FFrameRate& FrameRate = Sequencer->GetFocusedDisplayRate();
+			OptionalTime = FFrameRate::TransformTime(FFrameTime(InTime, 0), FrameRate, TickResolution).RoundToFrame();
+		}
+		else
+		{
+			OptionalTime = InTime;
+		}
+		FScopedTransaction Transaction(LOCTEXT("SpacecCompensate", "Space Compensate"));
+		// compensate spaces
+		if (UMovieSceneControlRigParameterSection* CRSection = FControlRigSpaceChannelHelpers::GetControlRigSection(Sequencer.Get(), InControlRig))
+		{
+			// compensate spaces
+			FControlRigSpaceChannelHelpers::CompensateIfNeeded(
+				InControlRig, Sequencer.Get(), CRSection,
+				OptionalTime, true /*comp previous*/);
+		}
+		return true;
+	}
+	return false;
+}
+
+bool UControlRigSequencerEditorLibrary::SpaceCompensateAll(UControlRig* InControlRig)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	bool bValid = false;
+	TSharedPtr<ISequencer>  Sequencer = WeakSequencer.Pin();
+	if (WeakSequencer.IsValid() && InControlRig)
+	{
+		TOptional<FFrameNumber> OptionalTime;
+		FScopedTransaction Transaction(LOCTEXT("SpacecCompensateAll", "Space Compensate All"));
+		// compensate spaces
+		if (UMovieSceneControlRigParameterSection* CRSection = FControlRigSpaceChannelHelpers::GetControlRigSection(Sequencer.Get(), InControlRig))
+		{
+			// compensate spaces
+			FControlRigSpaceChannelHelpers::CompensateIfNeeded(
+				InControlRig, Sequencer.Get(), CRSection,
+				OptionalTime, true /*comp previous*/);
+		}
+		return true;
+	}
+	return false;
+}
+
 bool UControlRigSequencerEditorLibrary::BakeControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, const TArray<FName>& InControlNames, FRigSpacePickerBakeSettings InSettings, EMovieSceneTimeUnit TimeUnit)
 {
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
@@ -2990,21 +3078,7 @@ bool UControlRigSequencerEditorLibrary::GetControlsMask(UMovieSceneSection* InSe
 		FFrame::KismetExecutionMessage(TEXT("Section does not have a control rig"), ELogVerbosity::Error);
 		return false;
 	}
-
-	TArray<FRigControlElement*> Controls;
-	ControlRig->GetControlsInOrder(Controls);
-	int32 Index = 0;
-	for (const FRigControlElement* RigControl : Controls)
-	{
-		if (RigControl->GetFName() == ControlName)
-		{
-			return ParameterSection->GetControlsMask(Index);
-		}
-		++Index;
-	}
-
-	FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Control Name ('%s') not found"), *ControlName.ToString()), ELogVerbosity::Error);
-	return false;
+	return ParameterSection->GetControlNameMask(ControlName);
 }
 
 void UControlRigSequencerEditorLibrary::SetControlsMask(UMovieSceneSection* InSection, const TArray<FName>& ControlNames, bool bVisible)
@@ -3024,18 +3098,11 @@ void UControlRigSequencerEditorLibrary::SetControlsMask(UMovieSceneSection* InSe
 	}
 
 	ParameterSection->Modify();
-
-	TArray<FRigControlElement*> Controls;
-	ControlRig->GetControlsInOrder(Controls);
-	int32 Index = 0;
-	for (const FRigControlElement* RigControl : Controls)
+	for (const FName& ControlName : ControlNames)
 	{
-		if (ControlNames.Contains(RigControl->GetFName()))
-		{
-			ParameterSection->SetControlsMask(Index, bVisible);
-		}
-		++Index;
+		ParameterSection->SetControlNameMask(ControlName, bVisible);
 	}
+	
 }
 
 void UControlRigSequencerEditorLibrary::ShowAllControls(UMovieSceneSection* InSection)
@@ -3048,7 +3115,7 @@ void UControlRigSequencerEditorLibrary::ShowAllControls(UMovieSceneSection* InSe
 	}
 
 	ParameterSection->Modify();
-	ParameterSection->FillControlsMask(true);
+	ParameterSection->FillControlNameMask(true);
 }
 
 void UControlRigSequencerEditorLibrary::HideAllControls(UMovieSceneSection* InSection)
@@ -3061,7 +3128,7 @@ void UControlRigSequencerEditorLibrary::HideAllControls(UMovieSceneSection* InSe
 	}
 
 	ParameterSection->Modify();
-	ParameterSection->FillControlsMask(false);
+	ParameterSection->FillControlNameMask(false);
 }
 
 bool UControlRigSequencerEditorLibrary::IsFKControlRig(UControlRig* InControlRig)
@@ -3072,6 +3139,33 @@ bool UControlRigSequencerEditorLibrary::IsFKControlRig(UControlRig* InControlRig
 bool UControlRigSequencerEditorLibrary::IsLayeredControlRig(UControlRig* InControlRig)
 {
 	return (InControlRig && InControlRig->IsAdditive());
+}
+
+bool UControlRigSequencerEditorLibrary::MarkLayeredModeOnTrackDisplay(UMovieSceneControlRigParameterTrack* InTrack)
+{
+	if (!InTrack)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Invalid track"), ELogVerbosity::Error);
+		return false;
+	}
+
+	UControlRig* ControlRig = InTrack->GetControlRig();
+	if (!ControlRig)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Track does not have a control rig"), ELogVerbosity::Error);
+		return false;
+	}
+
+	if (ControlRig->IsAdditive())
+	{
+		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
+	}
+	else
+	{
+		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
+	}
+
+	return true;
 }
 
 bool UControlRigSequencerEditorLibrary::SetControlRigLayeredMode(UMovieSceneControlRigParameterTrack* InTrack, bool bSetIsLayered)
@@ -3121,20 +3215,9 @@ bool UControlRigSequencerEditorLibrary::SetControlRigLayeredMode(UMovieSceneCont
 
 	FString ObjectName = ControlRig->GetClass()->GetName(); //GetDisplayNameText().ToString();
 	ObjectName.RemoveFromEnd(TEXT("_C"));
+	InTrack->SetTrackName(FName(*ObjectName));
 	
-	if (bSetIsLayered)
-	{
-		const FString AdditiveObjectName = ObjectName + TEXT(" (Layered)");
-		InTrack->SetTrackName(FName(*ObjectName));
-		InTrack->SetDisplayName(FText::FromString(AdditiveObjectName));
-		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
-	}
-	else
-	{
-		InTrack->SetTrackName(FName(*ObjectName));
-		InTrack->SetDisplayName(FText::FromString(ObjectName));
-		InTrack->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
-	}
+	MarkLayeredModeOnTrackDisplay(InTrack);
 
 	FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
 	if (ControlRigEditMode)
@@ -3183,6 +3266,134 @@ bool UControlRigSequencerEditorLibrary::SetControlRigApplyMode(UControlRig* InCo
 		return true;
 	}
 	return false;
+}
+
+bool UControlRigSequencerEditorLibrary::DeleteAnimLayer(int32 Index)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("DeleteAnimLayer: Need open Sequencer"));
+		return false;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+	{
+		if (Index != INDEX_NONE)
+		{
+			return AnimLayers->DeleteAnimLayer(SequencerPtr.Get(), Index);
+		}
+	}
+	else
+	{
+		UE_LOG(LogControlRig, Error, TEXT("DeleteAnimLayer: No Anim Layers on Level Sequence"));
+	}
+	return false;
+}
+
+int32 UControlRigSequencerEditorLibrary::DuplicateAnimLayer(int32 Index)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("DuplicateAnimLayer: Need open Sequencer"));
+		return INDEX_NONE;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+	{
+		if (Index != INDEX_NONE)
+		{
+			return AnimLayers->DuplicateAnimLayer(SequencerPtr.Get(), Index);
+		}
+	}
+	else
+	{
+		UE_LOG(LogControlRig, Error, TEXT("DuplicateAnimLayer: No Anim Layers on Level Sequence"));
+	}
+	return INDEX_NONE;
+}
+
+int32 UControlRigSequencerEditorLibrary::AddAnimLayerFromSelection()
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("AddAnimLayerFromSelection: Need open Sequencer"));
+		return INDEX_NONE;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+	{
+		return AnimLayers->AddAnimLayerFromSelection(SequencerPtr.Get());
+	}
+	else
+	{
+		UE_LOG(LogControlRig, Error, TEXT("AddAnimLayerFromSelection: No Anim Layers on Level Sequence"));
+	}
+	return INDEX_NONE;
+
+}
+
+bool UControlRigSequencerEditorLibrary::MergeAnimLayers(const TArray<int32>& Indices)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("MergeAnimLayers: Need open Sequencer"));
+		return false;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+	{
+		return AnimLayers->MergeAnimLayers(SequencerPtr.Get(), Indices, nullptr);
+	}
+	else
+	{
+		UE_LOG(LogControlRig, Error, TEXT("MergeAnimLayers: No Anim Layers on Level Sequence"));
+	}
+	return false;
+}
+
+TArray<UAnimLayer*> UControlRigSequencerEditorLibrary::GetAnimLayers()
+{
+	TArray<UAnimLayer*> AnimLayersArray;
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("GetAnimLayers: Need open Sequencer"));
+		return AnimLayersArray;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+	{
+		return AnimLayers->AnimLayers;
+	}
+	else
+	{
+		UE_LOG(LogControlRig, Error, TEXT("GetAnimLayers: No Anim Layers on Level Sequence"));
+	}
+	return AnimLayersArray;
+}
+
+int32 UControlRigSequencerEditorLibrary::GetAnimLayerIndex(UAnimLayer* AnimLayer)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() == false)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("GetAnimLayerIndex: Need open Sequencer"));
+		return INDEX_NONE;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(SequencerPtr.Get()))
+	{
+		return AnimLayers->GetAnimLayerIndex(AnimLayer);
+	}
+	else
+	{
+		UE_LOG(LogControlRig, Error, TEXT("GetAnimLayerIndex: No Anim Layers on Level Sequence"));
+	}
+	return INDEX_NONE;
 }
 
 #undef LOCTEXT_NAMESPACE

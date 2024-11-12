@@ -37,6 +37,7 @@ public class StaticMeshEditor : ModuleRules
 				"RawMesh",
                 "PropertyEditor",
 				"MeshUtilities",
+				"NaniteUtilities",
                 "Json",
                 "JsonUtilities",
                 "AdvancedPreviewScene",

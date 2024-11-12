@@ -6,8 +6,9 @@
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorStyle.h"
-#include "Dataflow/DataflowEditorViewport.h"
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowConstructionViewport.h"
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
+#include "Dataflow/DataflowConstructionScene.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Framework/Application/SlateApplication.h"
 #include "InteractiveToolManager.h"
@@ -16,6 +17,7 @@
 #include "SPrimaryButton.h"
 #include "Tools/UEdMode.h"
 #include "Widgets/Images/SImage.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowEditorModeToolkit"
 
@@ -131,19 +133,6 @@ void FDataflowEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolki
 	];
 }
 
-void FDataflowEditorModeToolkit::BuildEditorToolBar(const FName& EditorToolBarName)
-{
-	check(EditorToolBarName != FName());
-
-	const TSharedRef<const FUICommandList> EdModeToolkitCommands = GetToolkitCommands();
-
-	UToolMenu* const ToolBarMenu = UToolMenus::Get()->ExtendMenu(EditorToolBarName);
-	FToolMenuSection& Section = ToolBarMenu->FindOrAddSection("DataflowTools");
-
-	FToolMenuEntry& WeightMapButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FDataflowEditorCommandsImpl::Get().AddWeightMapNode));
-	WeightMapButtonEntry.SetCommandList(EdModeToolkitCommands);
-}
-
 const FSlateBrush* FDataflowEditorModeToolkit::GetActiveToolIcon(const FString& ActiveToolIdentifier) const
 {
 	FName ActiveToolIconName = ISlateStyle::Join(FDataflowEditorCommandsImpl::Get().GetContextName(), TCHAR_TO_ANSI(*ActiveToolIdentifier));
@@ -158,7 +147,7 @@ SBaseCharacterFXEditorViewport* FDataflowEditorModeToolkit::GetViewportWidgetFor
 
 		if (const UDataflowEditorMode* const DataflowEdMode = Cast<UDataflowEditorMode>(Mode))
 		{
-			if (const FDataflowPreviewScene* const PreviewScene = DataflowEdMode->GetDataflowConstructionScene())
+			if (const FDataflowPreviewSceneBase* const PreviewScene = DataflowEdMode->GetDataflowConstructionScene())
 			{
 				if (const UEditorInteractiveToolsContext* const PreviewToolsContext = PreviewScene->GetDataflowModeManager()->GetInteractiveToolsContext())
 				{
@@ -174,7 +163,7 @@ SBaseCharacterFXEditorViewport* FDataflowEditorModeToolkit::GetViewportWidgetFor
 					//}
 					//else
 					//{
-					if (const TSharedPtr<SDataflowEditorViewport> Widget = RestSpaceViewportWidget.Pin())
+					if (const TSharedPtr<SDataflowConstructionViewport> Widget = ConstructionViewportWidget.Pin())
 					{
 						return Widget.Get();
 					}
@@ -242,6 +231,19 @@ void FDataflowEditorModeToolkit::OnToolStarted(UInteractiveToolManager* Manager,
 
 void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
+	auto GetConstructionScene = [&]() 
+	{
+		if (OwningEditorMode.IsValid(/*bEvenIfPendingKill*/ false))
+		{
+			UEdMode* const Mode = OwningEditorMode.Get();
+			if (UDataflowEditorMode* DataflowEdMode = Cast<UDataflowEditorMode>(Mode))
+			{
+				return DataflowEdMode->GetDataflowConstructionScene();
+			}
+		}
+		return (FDataflowConstructionScene* )nullptr;
+	};
+
 	FModeToolkit::OnToolEnded(Manager, Tool);
 
 	ActiveToolName = FText::GetEmpty();
@@ -258,11 +260,28 @@ void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, U
 		CurTool->OnPropertySetsModified.RemoveAll(this);
 		CurTool->OnPropertyModifiedDirectlyByTool.RemoveAll(this);
 	}
+
+
+	if (FDataflowConstructionScene* ConstructionScene = GetConstructionScene())
+	{
+		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
+		{
+			EditorContent->SetConstructionDirty(true);
+		}
+	}
+
 }
 
-void FDataflowEditorModeToolkit::SetRestSpaceViewportWidget(TWeakPtr<SDataflowEditorViewport> InRestSpaceViewportWidget)
+void FDataflowEditorModeToolkit::SetConstructionViewportWidget(TWeakPtr<SDataflowConstructionViewport> InConstructionViewportWidget)
 {
-	RestSpaceViewportWidget = InRestSpaceViewportWidget;
+	ConstructionViewportWidget = InConstructionViewportWidget;
 }
+
+void FDataflowEditorModeToolkit::SetSimulationViewportWidget(TWeakPtr<SDataflowSimulationViewport> InSimulationViewportWidget)
+{
+	SimulationViewportWidget = InSimulationViewportWidget;
+}
+
+
 
 #undef LOCTEXT_NAMESPACE

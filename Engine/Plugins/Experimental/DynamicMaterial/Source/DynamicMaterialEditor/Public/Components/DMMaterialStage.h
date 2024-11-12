@@ -3,9 +3,11 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
+
 #include "Components/DMMaterialStageSource.h"
 #include "DMEDefs.h"
 #include "Templates/SubclassOf.h"
+
 #include "DMMaterialStage.generated.h"
 
 class FAssetThumbnailPool;
@@ -37,24 +39,26 @@ struct FDMMaterialBuildState;
 struct FDMTextureUV;
 
 /**
- * A node which handles a specific operation and manages its inputs and outputs.
+ * A component which wraps a source and its inputs.
  */
-UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialStage : public UDMMaterialComponent
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage"))
+class UDMMaterialStage : public UDMMaterialComponent
 {
 	GENERATED_BODY()
 
 	friend class FDMThroughputPropertyRowGenerator;
 
 public:
-	static const FString SourcePathToken;
-	static const FString InputsPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString SourcePathToken;
+	DYNAMICMATERIALEDITOR_API static const FString InputsPathToken;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStage* CreateMaterialStage(UDMMaterialLayerObject* InLayer = nullptr);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateMaterialStage(UDMMaterialLayerObject* InLayer = nullptr);
+
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialLayerObject* GetLayer() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* GetLayer() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialStageSource* GetSource() const { return Source; }
@@ -63,7 +67,7 @@ public:
 	bool IsEnabled() const { return bEnabled; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetEnabled(bool bInEnabled);
+	DYNAMICMATERIALEDITOR_API bool SetEnabled(bool bInEnabled);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	bool CanChangeSource() const { return bCanChangeSource; }
@@ -72,11 +76,7 @@ public:
 	void SetCanChangeSource(bool bInCanChangeSource) { bCanChangeSource = bInCanChangeSource; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetSource(UDMMaterialStageSource* InSource);
-
-	//~ Begin UDMMaterialComponent
-	virtual FText GetComponentDescription() const override;
-	//~ End UDMMaterialComponent
+	DYNAMICMATERIALEDITOR_API void SetSource(UDMMaterialStageSource* InSource);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const TArray<UDMMaterialStageInput*>& GetInputs() const { return Inputs; }
@@ -88,41 +88,47 @@ public:
 	TArray<FDMMaterialStageConnection>& GetInputConnectionMap() { return InputConnectionMap; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	EDMValueType GetSourceType(const FDMMaterialStageConnectorChannel& InChannel) const;
+	DYNAMICMATERIALEDITOR_API EDMValueType GetSourceType(const FDMMaterialStageConnectorChannel& InChannel) const;
 
+	/** Returns true if the given source's input is mapped to an input (or the previous stage). */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool IsInputMapped(int32 InputIndex) const;
+	DYNAMICMATERIALEDITOR_API bool IsInputMapped(int32 InputIndex) const;
 
+	/**
+	 * Returns true if the output of the previous stage can connect to this stage.
+	 * It is now up to the user to sort this particular problem out because it would do more harm than good
+	 * to force correctness in "transition states" while the user is changing settings.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	virtual bool IsCompatibleWithPreviousStage(const UDMMaterialStage* InPreviousStage) const;
+	DYNAMICMATERIALEDITOR_API virtual bool IsCompatibleWithPreviousStage(const UDMMaterialStage* InPreviousStage) const;
 
+	/* @see IsCompatibleWithPreviousStage */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	virtual bool IsCompatibleWithNextStage(const UDMMaterialStage* InNextStage) const;
+	DYNAMICMATERIALEDITOR_API virtual bool IsCompatibleWithNextStage(const UDMMaterialStage* InNextStage) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void AddInput(UDMMaterialStageInput* InNewInput);
+	DYNAMICMATERIALEDITOR_API void AddInput(UDMMaterialStageInput* InNewInput);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RemoveInput(UDMMaterialStageInput* InInput);
+	DYNAMICMATERIALEDITOR_API void RemoveInput(UDMMaterialStageInput* InInput);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RemoveAllInputs();
+	DYNAMICMATERIALEDITOR_API void RemoveAllInputs();
 
+	/** Called when one of the inputs triggers it's Update event. */
 	virtual void InputUpdated(UDMMaterialStageInput* InInput, EDMUpdateType InUpdateType);
 
+	/** Verifies the entire input connection map. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual void ResetInputConnectionMap();
+	DYNAMICMATERIALEDITOR_API virtual void ResetInputConnectionMap();
 
-	void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+	DYNAMICMATERIALEDITOR_API void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
 
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool IsBeingEdited() const { return bIsBeingEdited; }
+	/** Get the last layer for each property type from the previous stages. */
+	DYNAMICMATERIALEDITOR_API TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPreviousStagesPropertyMap();
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetBeingEdited(bool bInBeingEdited);
-
-	TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPreviousStagesPropertyMap();
-	TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPropertyMap();
+	/** Get the last layer for each property type from all stages. */
+	DYNAMICMATERIALEDITOR_API TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPropertyMap();
 	 
 	using FSourceInitFunctionPtr = TFunction<void(UDMMaterialStage*, UDMMaterialStageSource*)>;
 
@@ -132,7 +138,8 @@ public:
 		return ChangeSource(InSourceClass, nullptr);
 	}
 
-	UDMMaterialStageSource* ChangeSource(TSubclassOf<UDMMaterialStageSource> InSourceClass, FSourceInitFunctionPtr InPreInit);
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageSource* ChangeSource(TSubclassOf<UDMMaterialStageSource> InSourceClass, 
+		FSourceInitFunctionPtr InPreInit);
 
 	template<typename InSourceClass>
 	InSourceClass* ChangeSource(FSourceInitFunctionPtr InPreInit = nullptr)
@@ -155,7 +162,15 @@ public:
 		return ChangeInput(InInputClass, InInputIdx, InInputChannel, InOutputIdx, InOutputChannel, nullptr);
 	}
 
-	UDMMaterialStageInput* ChangeInput(TSubclassOf<UDMMaterialStageInput> InInputClass, int32 InInputIdx, int32 InInputChannel,
+	/**
+	 * Creates a new input value and maps it to a specific source input.
+	 * @param InInputIdx Index of the source input.
+	 * @param InInputChannel The channel of the input that the input connects to.
+	 * @param InOutputIdx The output index of the new input.
+	 * @param InOutputChannel The channel of the output to connect.
+	 * @param InPreInit Called on the new input before initialisation.
+	 */
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageInput* ChangeInput(TSubclassOf<UDMMaterialStageInput> InInputClass, int32 InInputIdx, int32 InInputChannel,
 		int32 InOutputIdx, int32 InOutputChannel, FInputInitFunctionPtr InPreInit);
 
 	template<typename InInputClass>
@@ -174,58 +189,63 @@ public:
 			InPreInit));
 	}
 
+	/** Changes the input of the given input index to the output of the previous stage with the given material property. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageSource* ChangeInput_PreviousStage(int32 InInputIdx, int32 InInputChannel, EDMMaterialPropertyType InPreviousStageProperty, 
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageSource* ChangeInput_PreviousStage(int32 InInputIdx, int32 InInputChannel, EDMMaterialPropertyType InPreviousStageProperty,
 		int32 InOutputIdx, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RemoveUnusedInputs();
+	DYNAMICMATERIALEDITOR_API void RemoveUnusedInputs();
 
 	/** Returns true if any changes were made */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool VerifyAllInputMaps();
+	DYNAMICMATERIALEDITOR_API bool VerifyAllInputMaps();
 
 	/** Returns true if any changes were made */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool VerifyInputMap(int32 InInputIdx);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UMaterialInterface* GetPreviewMaterial();
-
-	const FDMMaterialStageConnectorChannel* FindInputChannel(UDMMaterialStageInput* InStageInput);
-
-	void UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int32 InInputChannel, int32 InOutputIdx, int32 InOutputChannel, EDMMaterialPropertyType InStageProperty);
+	DYNAMICMATERIALEDITOR_API bool VerifyInputMap(int32 InInputIdx);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	int32 FindIndex() const;
+	DYNAMICMATERIALEDITOR_API void GeneratePreviewMaterial(UMaterial* InPreviewMaterial);
+
+	DYNAMICMATERIALEDITOR_API const FDMMaterialStageConnectorChannel* FindInputChannel(UDMMaterialStageInput* InStageInput);
+
+	/**
+	 * Changes the input mapping.
+	 * @param InInputIdx Index of the source input.
+	 * @param InInputChannel The channel of the input that the input connects to.
+	 * @param InOutputIdx The output index of the new input.
+	 * @param InOutputChannel The channel of the output to connect.
+	 * @param InStageProperty The property for previous stage connections.
+	 */
+	DYNAMICMATERIALEDITOR_API void UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int32 InInputChannel, int32 InOutputIdx, 
+		int32 InOutputChannel, EDMMaterialPropertyType InStageProperty);
+
+	/** Returns the index of this stage in the layer. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API int32 FindIndex() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetPreviousStage() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetPreviousStage() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStage* GetNextStage() const;
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	virtual bool IsRootStage() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetNextStage() const;
 
 	//~ Begin UDMMaterialComponent
-	virtual void Update(EDMUpdateType InUpdateType) override;
-	virtual void DoClean() override;
-	virtual FString GetComponentPathComponent() const override;
-	virtual UDMMaterialComponent* GetParentComponent() const override;
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual FSlateIcon GetComponentIcon() const override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetParentComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostEditUndo() override;
-	virtual void PostLoad() override;
-	virtual void PostEditImport() override;
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditUndo() override;
 	//~ End UObject
 
 protected:
-	UDMMaterialStage();
-
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialStageSource> Source;
 
@@ -242,28 +262,10 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bCanChangeSource;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	bool bIsBeingEdited;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	TObjectPtr<UMaterial> PreviewMaterialBase;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	TObjectPtr<UMaterialInstanceDynamic> PreviewMaterialDynamic;
-
-	void CreatePreviewMaterial();
-	void UpdatePreviewMaterial();
-
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
-	virtual void GetComponentPathInternal(TArray<FString>& OutChildComponentPathComponents) const override;
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual void GetComponentPathInternal(TArray<FString>& OutChildComponentPathComponents) const override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
 	//~ End UDMMaterialComponent
-
-	virtual void AddDelegates();
-	virtual void RemoveDelegates();
-
-	void OnValueUpdated(UDynamicMaterialModel* InMaterialModel, UDMMaterialValue* InValue);
-	void OnTextureUVUpdated(UDynamicMaterialModel* InMaterialModel, UDMTextureUV* InTextureUV);
 };

@@ -234,6 +234,11 @@ struct FBuildInstallStats
 	double PeakDiskWriteSpeed;
 	// The total number of files constructed.
 	uint32 NumFilesConstructed;
+	
+	// We don't actually do any installation when requesting this value, we just start up an installer, compute it, then bail. See
+	// bCalculateDeleteChunkDbMaxDiskSpaceAndExit in the installer configuration. Will be zero all other times.
+	uint64 MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested = 0;
+
 	// The time spent during the initialization stage.
 	float InitializeTime;
 	// The time spent during the construction stage.
@@ -464,6 +469,13 @@ public:
 	 * @returns a const reference to the configuration
 	 */
 	virtual const BuildPatchServices::FBuildInstallerConfiguration& GetConfiguration() const = 0;
+
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Returns debug text for download screen to help troubleshoot download issues
+	 */
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };
 
 static_assert((uint32)EBuildPatchInstallError::NumInstallErrors == 12, "Please add support for the extra values to the Lex functions below.");

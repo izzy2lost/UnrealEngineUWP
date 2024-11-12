@@ -6,7 +6,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "RenderingThread.h"
 #include "RenderUtils.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 #include "StaticMeshVertexData.h"
 
 /*-----------------------------------------------------------------------------
@@ -210,30 +210,19 @@ FBufferRHIRef FPositionVertexBuffer::CreateRHIBuffer(FRHICommandListBase& RHICmd
 	return FRenderResource::CreateRHIBuffer(RHICmdList, VertexData, NumVertices, BUF_Static | BUF_ShaderResource, TEXT("FPositionVertexBuffer"));
 }
 
-FBufferRHIRef FPositionVertexBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListExecutor::GetImmediateCommandList());
-}
-
-FBufferRHIRef FPositionVertexBuffer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList CommandList;
-	return CreateRHIBuffer(*CommandList);
-}
-
-void FPositionVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FPositionVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	check(VertexBufferRHI);
 	if (IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(VertexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FPositionVertexBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FPositionVertexBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	check(VertexBufferRHI);
-	Batcher.QueueUpdateRequest(VertexBufferRHI, nullptr);
+	Batcher.EnqueueReplace(VertexBufferRHI, nullptr);
 }
 
 void FPositionVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)

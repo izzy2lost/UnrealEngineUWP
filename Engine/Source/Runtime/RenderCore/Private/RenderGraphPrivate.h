@@ -7,6 +7,7 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "RHI.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRDG, Log, All);
 
@@ -17,10 +18,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogRDG, Log, All);
 #define RDG_ASYNC_COMPUTE_DISABLED 0
 #define RDG_ASYNC_COMPUTE_ENABLED 1
 #define RDG_ASYNC_COMPUTE_FORCE_ENABLED 2
-
-#define RDG_BREAKPOINT_WARNINGS 1
-#define RDG_BREAKPOINT_PASS_COMPILE 2
-#define RDG_BREAKPOINT_PASS_EXECUTE 3
 
 #ifndef RDG_ENABLE_PARALLEL_TASKS
 #define RDG_ENABLE_PARALLEL_TASKS 1
@@ -36,11 +33,11 @@ extern int32 GRDGDebug;
 extern int32 GRDGDebugFlushGPU;
 extern int32 GRDGDebugExtendResourceLifetimes;
 extern int32 GRDGDebugDisableTransientResources;
-extern int32 GRDGBreakpoint;
 extern int32 GRDGTransitionLog;
 extern int32 GRDGImmediateMode;
 extern int32 GRDGOverlapUAVs;
 extern bool  GRDGAllowRHIAccess;
+extern bool  GRDGAllowRHIAccessAsync;
 
 class FRDGAllowRHIAccessScope
 {
@@ -70,22 +67,6 @@ bool IsDebugAllowedForGraph(const TCHAR* GraphName);
 bool IsDebugAllowedForPass(const TCHAR* PassName);
 bool IsDebugAllowedForResource(const TCHAR* ResourceName);
 
-inline void ConditionalDebugBreak(int32 BreakpointCVarValue, const TCHAR* GraphName, const TCHAR* PassName)
-{
-	if (GRDGBreakpoint == BreakpointCVarValue && IsDebugAllowedForGraph(GraphName) && IsDebugAllowedForPass(PassName))
-	{
-		UE_DEBUG_BREAK();
-	}
-}
-
-inline void ConditionalDebugBreak(int32 BreakpointCVarValue, const TCHAR* GraphName, const TCHAR* PassName, const TCHAR* ResourceName)
-{
-	if (GRDGBreakpoint == BreakpointCVarValue && IsDebugAllowedForGraph(GraphName) && IsDebugAllowedForPass(PassName) && IsDebugAllowedForResource(ResourceName))
-	{
-		UE_DEBUG_BREAK();
-	}
-}
-
 void EmitRDGWarning(const FString& WarningMessage);
 
 #define EmitRDGWarningf(WarningMessageFormat, ...) \
@@ -99,7 +80,6 @@ const int32 GRDGDebug = 0;
 const int32 GRDGDebugFlushGPU = 0;
 const int32 GRDGDebugExtendResourceLifetimes = 0;
 const int32 GRDGDebugDisableTransientResources = 0;
-const int32 GRDGBreakpoint = 0;
 const int32 GRDGTransitionLog = 0;
 const int32 GRDGImmediateMode = 0;
 const int32 GRDGOverlapUAVs = 1;
@@ -114,6 +94,7 @@ extern int32 GRDGAsyncCompute;
 extern int32 GRDGCullPasses;
 extern int32 GRDGMergeRenderPasses;
 extern int32 GRDGTransientAllocator;
+extern int32 GRDGAsyncComputeTransientAliasing;
 extern int32 GRDGTransientExtractedResources;
 extern int32 GRDGTransientIndirectArgBuffers;
 
@@ -124,6 +105,7 @@ extern int32 GRDGParallelSetup;
 extern int32 GRDGParallelExecute;
 extern int32 GRDGParallelExecutePassMin;
 extern int32 GRDGParallelExecutePassMax;
+extern int32 GRDGParallelExecutePassTaskModeThreshold;
 
 #else
 
@@ -132,10 +114,11 @@ const int32 GRDGParallelSetup = 0;
 const int32 GRDGParallelExecute = 0;
 const int32 GRDGParallelExecutePassMin = 0;
 const int32 GRDGParallelExecutePassMax = 0;
+const int32 GRDGParallelExecutePassTaskModeThreshold = 0;
 
 #endif
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 extern int32 GRDGVerboseCSVStats;
 #else
 const int32 GRDGVerboseCSVStats = 0;
@@ -210,14 +193,6 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Flush RHI Resources"), STAT_RDG_FlushRHIResource
 
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Builder Watermark"), STAT_RDG_MemoryWatermark, STATGROUP_RDG, RENDERCORE_API);
 
-#if RDG_GPU_DEBUG_SCOPES
-extern int32 GRDGEvents;
-#endif
-
-#if RDG_EVENTS != RDG_EVENTS_NONE
-extern int32 GRDGEmitDrawEvents_RenderThread;
-#endif
-
 inline const TCHAR* GetEpilogueBarriersToBeginDebugName(ERHIPipeline Pipelines)
 {
 #if RDG_ENABLE_DEBUG
@@ -252,7 +227,7 @@ FORCEINLINE bool IsImmediateMode()
 
 FORCEINLINE bool IsRenderPassMergeEnabled()
 {
-	return GRDGMergeRenderPasses != 0 && !IsImmediateMode();
+	return GRDGMergeRenderPasses != 0 && !IsImmediateMode() && RHIHasTiledGPU(GMaxRHIShaderPlatform) && !GRDGDebugFlushGPU;
 }
 
 FORCEINLINE bool IsAsyncComputeSupported()
@@ -262,9 +237,15 @@ FORCEINLINE bool IsAsyncComputeSupported()
 
 extern bool IsParallelExecuteEnabled();
 extern bool IsParallelSetupEnabled();
+extern bool IsExtendedLifetimeResource(FRDGViewableResource* Resource);
+
+inline bool IsAsyncComputeTransientAliasingEnabled()
+{
+	return GRDGAsyncComputeTransientAliasing && GRHIGlobals.SupportsAsyncComputeTransientAliasing;
+}
 
 template <typename ResourceRegistryType, typename FunctionType>
-inline void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, FunctionType Function)
+void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, FunctionType Function)
 {
 #if RDG_ENABLE_DEBUG
 	if (GRDGDebugExtendResourceLifetimes)
@@ -273,7 +254,7 @@ inline void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, F
 		{
 			auto* Resource = Registry[Handle];
 
-			if (IsDebugAllowedForResource(Resource->Name) && !Resource->IsCulled())
+			if (IsExtendedLifetimeResource(Resource))
 			{
 				Function(Resource);
 			}

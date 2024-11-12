@@ -15,94 +15,6 @@
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupDetails"
 
 /////////////////////////////////////////////////////////////////
-// FInstanceDataObjectFixupDetailCustomization
-/////////////////////////////////////////////////////////////////
-
-FInstanceDataObjectFixupDetailCustomization::FInstanceDataObjectFixupDetailCustomization(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel)
-	: DiffPanel(InDiffPanel)
-{
-	
-}
-
-FInstanceDataObjectFixupDetailCustomization::~FInstanceDataObjectFixupDetailCustomization()
-{
-}
-
-void FInstanceDataObjectFixupDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
-	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
-	if (!Panel)
-	{
-		return;
-	}
-	
-	TArray<TWeakObjectPtr<UObject>> Objects;
-	DetailBuilder.GetObjectsBeingCustomized(Objects);
-	if (Objects.IsEmpty())
-	{
-		return;
-	}
-	TArray<FName> CategoryNames;
-	DetailBuilder.GetCategoryNames(CategoryNames);
-	for (const FName CategoryName : CategoryNames)
-	{
-		IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName);
-		TArray<TSharedRef<IPropertyHandle>> Handles;
-		Category.GetDefaultProperties(Handles, true, true);
-		for (const TSharedRef<IPropertyHandle>& Handle : Handles)
-		{
-			CustomizeHandle(Handle, DetailBuilder);
-		}
-	}
-}
-
-bool FInstanceDataObjectFixupDetailCustomization::IsHidden(const TSharedPtr<IPropertyHandle>& PropertyHandle) const
-{
-	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
-	if (!Panel)
-	{
-		return true;
-	}
-
-	if (const FProperty* Property = PropertyHandle->GetProperty())
-	{
-		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::HideLooseProperties) &&
-			Property->GetBoolMetaData(TEXT("isLoose")))
-		{
-			return true;
-		}
-
-		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::IncludeOnlySetBySerialization))
-		{
-			if (!Panel->IsInRedirectedPropertyTree(*PropertyHandle->CreateFPropertyPath()))
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-void FInstanceDataObjectFixupDetailCustomization::CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder)
-{
-	if (IsHidden(Handle))
-	{
-		DetailBuilder.HideProperty(Handle);
-	}
-	else
-	{
-		// recurse into children
-		uint32 NumChildren = 0;
-		Handle->GetNumChildren(NumChildren);
-		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
-		{
-			CustomizeHandle(Handle->GetChildHandle(ChildIndex).ToSharedRef(), DetailBuilder);
-		}
-	}
-}
-
-
-/////////////////////////////////////////////////////////////////
 // FInstanceDataObjectNameWidgetOverride
 /////////////////////////////////////////////////////////////////
 
@@ -263,6 +175,18 @@ int32 FInstanceDataObjectNameWidgetOverride::GetNameWidgetIndex(FPropertyPath Pa
 	return DisplayRegularName;
 }
 
+static FText GetCleanVersePath(const FPropertyPath& Path)
+{
+	FString PathString = Path.ToString();
+	int32 I = PathString.Find(TEXT("__verse_0x"));
+	while (I < GetNum(PathString) && I != INDEX_NONE)
+	{
+		PathString.RemoveAt(I, 19, EAllowShrinking::No);
+		I = PathString.Find(TEXT("__verse_0x"), ESearchCase::IgnoreCase, ESearchDir::FromStart, I);
+	}
+	return FText::FromString(PathString);
+}
+
 TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedirectMenu(FPropertyPath Path) const
 {
 	FMenuBuilder MenuBuilder(true, nullptr);
@@ -277,7 +201,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ResetRedirect", "Reset"));
 	if (OriginalPath != Path || Panel->MarkedForDelete.Contains(OriginalPath))
 	{
-		FText OriginalPathText = FText::FromString(OriginalPath.ToString());
+		FText OriginalPathText = GetCleanVersePath(OriginalPath);
 		FText Tooltip = FText::Format(LOCTEXT("ResetTooltip", "Reset back to {0}"), OriginalPathText);
 		MenuBuilder.AddMenuEntry(OriginalPathText, Tooltip, FSlateIcon()
 						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, OriginalPath))
@@ -307,13 +231,13 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (ThisProperty->GetFName() == OptionProperty->GetFName())
 			{
 				if (OptionProperty->SameType(ThisProperty))
 				{
-					FText DisplayName = FText::FromString(Option.ToString());
+					FText DisplayName = GetCleanVersePath(Option);
 					FText Tooltip = FText::Format(LOCTEXT("MovePropertyTooltip", "Move property to '{0}'"), DisplayName);
 					MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
 					, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
@@ -329,15 +253,15 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (ThisProperty->GetFName() == OptionProperty->GetFName())
 			{
 				continue; // handled in the "move" category
 			}
 			if (OptionProperty->SameType(ThisProperty))
 			{
-				FText DisplayName = FText::FromString(Option.ToString());
+				FText DisplayName = GetCleanVersePath(Option);
 				FText Tooltip = FText::Format(LOCTEXT("RenamePropertyTooltip", "Rename property to '{0}'"), DisplayName);
 				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
 				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
@@ -352,8 +276,8 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (OptionProperty->SameType(ThisProperty))
 			{
 				continue; // same type handled above
@@ -364,7 +288,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 			}
 			if (FInstanceDataObjectFixupPanel::FTypeConverter Converter = Panel->CreateTypeConverter(Path, Option))
 			{
-				FText DisplayName = FText::FromString(Option.ToString());
+				FText DisplayName = GetCleanVersePath(Option);
 				FText TypeName = FText::FromName(Option.GetLeafMostProperty().Property->GetID());
 				FText Warning = Converter.GetWarning();
 				FText Tooltip = FText::Format(LOCTEXT("ConvertTypeTooltip", "Change type to {0}"), TypeName);
@@ -386,8 +310,8 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (OptionProperty->SameType(ThisProperty))
 			{
 				continue; // same type handled above
@@ -398,7 +322,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 			}
 			if (FInstanceDataObjectFixupPanel::FTypeConverter Converter = Panel->CreateTypeConverter(Path, Option))
 			{
-				FText DisplayName = FText::FromString(Option.ToString());
+				FText DisplayName = GetCleanVersePath(Option);
 				FText PropDisplayName = Option.GetLeafMostProperty().Property->GetDisplayNameText();
 				FText TypeName = FText::FromName(Option.GetLeafMostProperty().Property->GetID());
 				FText Warning = Converter.GetWarning();
@@ -436,54 +360,6 @@ EVisibility FInstanceDataObjectNameWidgetOverride::ValueContentVisibility(FPrope
 		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Collapsed :  EVisibility::Visible;
 	}
 	return EVisibility::Visible;
-}
-
-/////////////////////////////////////////////////////////////////
-// FHideLoosePropertiesCustomization
-/////////////////////////////////////////////////////////////////
-
-FHideLoosePropertiesCustomization::~FHideLoosePropertiesCustomization()
-{
-}
-
-void FHideLoosePropertiesCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
-	TArray<TWeakObjectPtr<UObject>> Objects;
-	DetailBuilder.GetObjectsBeingCustomized(Objects);
-	if (Objects.IsEmpty())
-	{
-		return;
-	}
-	TArray<FName> CategoryNames;
-	DetailBuilder.GetCategoryNames(CategoryNames);
-	for (const FName CategoryName : CategoryNames)
-	{
-		IDetailCategoryBuilder& Category = DetailBuilder.EditCategoryAllowNone(CategoryName);
-		TArray<TSharedRef<IPropertyHandle>> Handles;
-		Category.GetDefaultProperties(Handles, true, true);
-		for (const TSharedRef<IPropertyHandle>& Handle : Handles)
-		{
-			CustomizeHandle(Handle, DetailBuilder);
-		}
-	}
-}
-
-void FHideLoosePropertiesCustomization::CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder)
-{
-	if (Handle->GetBoolMetaData(TEXT("isLoose")))
-	{
-		DetailBuilder.HideProperty(Handle);
-	}
-	else
-	{
-		// recurse into children
-		uint32 NumChildren = 0;
-		Handle->GetNumChildren(NumChildren);
-		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
-		{
-			CustomizeHandle(Handle->GetChildHandle(ChildIndex).ToSharedRef(), DetailBuilder);
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

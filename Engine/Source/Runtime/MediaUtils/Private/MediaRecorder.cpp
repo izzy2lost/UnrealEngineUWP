@@ -293,7 +293,7 @@ void FMediaRecorder::TickRecording()
 			}
 			else
 			{
-				ImageTask->Filename = FString::Printf(TEXT("%s_%.16lu"), *BaseFilename, Sample->GetTime().Time.GetTicks());
+				ImageTask->Filename = FString::Printf(TEXT("%s_%.16" INT64_FMT), *BaseFilename, Sample->GetTime().Time.GetTicks());
 			}
 
 			ImageWriteQueue->Enqueue(MoveTemp(ImageTask), false);

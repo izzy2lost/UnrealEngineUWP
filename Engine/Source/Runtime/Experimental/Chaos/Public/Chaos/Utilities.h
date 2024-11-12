@@ -15,6 +15,15 @@ namespace Chaos
 {
 	namespace Utilities
 	{
+		// Get the signed square of the input, i.e. (A * Abs(A)) or (Sign(A) * Square(A))
+		// SignedSquare(2) -> 4
+		// SignedSquare(-2) -> -4
+		template<typename TRealType>
+		inline TRealType SignedSquare(TRealType A)
+		{
+			return A * FMath::Abs(A);
+		}
+
 		//! Take the factorial of \p Num, which should be of integral type.
 		template<class TINT = uint64>
 		TINT Factorial(TINT Num)
@@ -589,6 +598,8 @@ namespace Chaos
 			return V;
 		}
 
+		// Get the closest point on a line segment between P1 and Q1 and a 
+		// second line segment between P2 and Q2
 		// For implementation notes, see "Realtime Collision Detection", Christer Ericson, 2005
 		inline void NearestPointsOnLineSegments(
 			const FVec3& P1, const FVec3& Q1,
@@ -615,12 +626,12 @@ namespace Chaos
 			{
 				// Both segments are points
 			}
-			else if (A <= Epsilon)
+			else if (A <= EpsilonSq)
 			{
 				// First segment (only) is a point
 				T = FMath::Clamp<FReal>(F / E, Min, Max);
 			}
-			else if (E <= Epsilon)
+			else if (E <= EpsilonSq)
 			{
 				// Second segment (only) is a point
 				S = FMath::Clamp<FReal>(-C / A, Min, Max);
@@ -645,6 +656,62 @@ namespace Chaos
 					S = FMath::Clamp<FReal>((B - C) / A, Min, Max);
 					T = 1.0f;
 				}
+			}
+
+			C1 = P1 + S * D1;
+			C2 = P2 + T * D2;
+		}
+
+		// Get the closest point on a line segment between SegmentBegin and SegmentEnd to an infinite
+		// line through LinePos along LineVector in both direction.
+		// For implementation notes, see "Realtime Collision Detection", Christer Ericson, 2005
+		inline void NearestPointsOnLineSegmentToLine(
+			const FVec3& SegmentBegin, const FVec3& SegmentEnd,
+			const FVec3& LinePos, const FVec3& LineVector,
+			FReal& S, FReal& T,
+			FVec3& C1, FVec3& C2,
+			const FReal Epsilon = 1.e-4f)
+		{
+			const FReal EpsilonSq = Epsilon * Epsilon;
+			const FVec3& P1 = SegmentBegin;
+			const FVec3& Q1 = SegmentEnd;
+			const FVec3& P2 = LinePos;
+			const FVec3 D1 = Q1 - P1;
+			const FVec3& D2 = LineVector;
+			const FVec3 R = P1 - P2;
+			const FReal A = FVec3::DotProduct(D1, D1);
+			const FReal B = FVec3::DotProduct(D1, D2);
+			const FReal C = FVec3::DotProduct(D1, R);
+			const FReal E = FVec3::DotProduct(D2, D2);
+			const FReal F = FVec3::DotProduct(D2, R);
+			constexpr FReal Min = 0, Max = 1;
+
+			S = 0.0f;
+			T = 0.0f;
+
+			if ((A <= EpsilonSq) && (B <= EpsilonSq))
+			{
+				// Both segments are points
+			}
+			else if (A <= EpsilonSq)
+			{
+				// First segment (only) is a point
+				T = F / E;
+			}
+			else if (E <= EpsilonSq)
+			{
+				// Second line (only) is a point (i.e., LineVector is zero)
+				S = FMath::Clamp<FReal>(-C / A, Min, Max);
+			}
+			else
+			{
+				// Non-degenrate case - we have two lines
+				const FReal Denom = A * E - B * B;
+				if (Denom != 0.0f)
+				{
+					S = FMath::Clamp<FReal>((B * F - C * E) / Denom, Min, Max);
+				}
+				T = (B * S + F) / E;
 			}
 
 			C1 = P1 + S * D1;
@@ -1057,6 +1124,52 @@ namespace Chaos
 			ConnectedComponentsDFSIterative(AdjacencyList, ConnectedComponents);
 		}
 
+		inline TArray<int32> ComputeBoundaryNodes(const TArray<TVec3<int32>>& TriangleMesh)
+		{
+			TMap<TPair<int32, int32>, int32> FaceCountPerEdge;
+		
+			auto AddTriToFaceCountPerEdge = [&FaceCountPerEdge](const TVec3<int32> &Face)
+			{
+				auto AddEdge = [&FaceCountPerEdge](int32 A, int32 B)
+				{
+					FaceCountPerEdge.FindOrAdd(TPair<int32, int32>(FMath::Min(A, B), FMath::Max(A, B)))++;
+				};
+				AddEdge(Face[0], Face[1]);
+				AddEdge(Face[0], Face[2]);
+				AddEdge(Face[1], Face[2]);
+			};
+
+			auto CandidateTriWouldMakeNonManifoldEdge = [&FaceCountPerEdge](int32 A, int32 B, int32 C)
+			{
+				auto GetCount = [&FaceCountPerEdge](int32 InnerA, int32 InnerB)
+				{
+					int32 *Count = FaceCountPerEdge.Find(TPair<int32, int32>(FMath::Min(InnerA, InnerB), FMath::Max(InnerA, InnerB)));
+					return Count ? *Count : 0;
+				};
+				return GetCount(A, B) > 1 || GetCount(B, C) > 1 || GetCount(C, A) > 1;
+			};
+
+			for (const TVec3<int32> &Face : TriangleMesh)
+			{
+				AddTriToFaceCountPerEdge(Face);
+			}
+
+			TArray<TPair<int32, int32>> AllEdges;
+			TSet<int32> BoundaryVerts;
+			int32 NumKeys = FaceCountPerEdge.GetKeys(AllEdges);
+
+			for (const TPair<int32, int32>& Edge: AllEdges)
+			{
+				if (FaceCountPerEdge[Edge] == 1)
+				{
+					BoundaryVerts.Emplace(Edge.Key);
+					BoundaryVerts.Emplace(Edge.Value);
+				}
+			}
+
+			return BoundaryVerts.Array();
+		}
+
 		inline TArray<TArray<int32>> ComputeIncidentElements(const TArray<TArray<int32>>& Constraints, TArray<TArray<int32>>* LocalIndex = nullptr)
 		{
 			int32 MaxIdx = 0;
@@ -1102,6 +1215,153 @@ namespace Chaos
 					IncidentElementsLocal[i] += ExtraIncidentElementsLocal[i];
 				}
 			}
+		}
+
+		inline FIntVector3 SortFIntVector3(FIntVector3& V)
+		{
+			if (V[1] < V[0])
+			{
+				int32 V0 = V[0];
+				V[0] = V[1];
+				V[1] = V0;
+			}
+			if (V[2] < V[0])
+			{
+				int32 V2 = V[2];
+				V[2] = V[1];
+				V[1] = V[0];
+				V[0] = V2;
+			}
+			else if (V[2] < V[1])
+			{
+				int32 V1 = V[1];
+				V[1] = V[2];
+				V[2] = V1;
+			}
+			return V;
+		}
+
+		// For each of the 4 triangle faces in a tet, return local vertex indices
+		// right hand rule, triangle normal pointing outwards
+		inline FIntVector3 TetFace(int32 f) {
+			switch (f) {
+			case 0:
+				return { 1, 2, 3 };
+			case 1:
+				return { 0, 3, 2 };
+			case 2:
+				return { 0, 1, 3 };
+			case 3:
+				return { 0, 2, 1 };
+			default:
+				return { -1, -1, -1 };
+			}
+		}
+
+		template <typename Func1, typename Func2>
+		TArray<FIntVector2> ComputeMeshFacePairs(const TArray<FIntVector4>& Mesh, Func1 GreaterThan, Func2 Equal) {
+			int32 NumFacesPerElement = 4;
+			int32 face_number = Mesh.Num() * NumFacesPerElement;
+			TArray<int32> AllFaces, ranges;
+			AllFaces.SetNum(face_number);
+			for (int32 f = 0; f < face_number; f++) {
+				AllFaces[f] = f;
+			}
+
+			AllFaces.Sort([&GreaterThan, &Mesh](int32 face_a, int32 face_b) { return GreaterThan(Mesh, face_a, face_b); });
+			TArray<FIntVector2> CommonFacePairs;
+			int32 f1 = 0, f2 = 1;
+			while (f2 < AllFaces.Num())
+			{
+				if (Equal(Mesh, AllFaces[f1], AllFaces[f2])) //common face from two tetrahedra
+				{
+					CommonFacePairs.Add(FIntVector2(AllFaces[f1], AllFaces[f2]));
+					f1 += 2;
+					f2 += 2;
+				}
+				else //boundary face
+				{
+					CommonFacePairs.Add(FIntVector2(AllFaces[f1], -1));
+					f1 += 1;
+					f2 += 1;
+				}
+			}
+			if (f1 < AllFaces.Num())
+			{
+				CommonFacePairs.Add(FIntVector2(AllFaces[f1], -1));
+			}
+			return CommonFacePairs;
+		}
+
+		//returns pairs of face indices {FaceA, FaceB} that are shared by two adjacent tetrahedra or boundary face {FaceA, -1}
+		inline TArray<FIntVector2> ComputeTetMeshFacePairs(const TArray<FIntVector4>& TetMesh) {
+			auto FaceGreaterThan = [](FIntVector3& i1, FIntVector3& i2)
+			{
+				SortFIntVector3(i1);
+				SortFIntVector3(i2);
+				if (i1[0] > i2[0])
+					return true;
+				else if (i1[0] == i2[0] && i1[1] > i2[1])
+					return true;
+				return (i1[0] == i2[0] && i1[1] == i2[1] && i1[2] > i2[2]);
+			};
+			auto FaceEqual = [](FIntVector3& i1, FIntVector3& i2)
+			{
+				SortFIntVector3(i1);
+				SortFIntVector3(i2);
+				return i1 == i2;
+			};
+			auto GreaterThan = [&FaceGreaterThan](const TArray<FIntVector4>& Mesh, int32 e1, int32 e2)
+			{
+				int32 Local1 = e1 % 4;
+				int32 Element1 = e1 / 4;
+				FIntVector3 LocalFace1 = TetFace(Local1);
+				FIntVector3 Edge1 = FIntVector3(Mesh[Element1][LocalFace1[0]], Mesh[Element1][LocalFace1[1]], Mesh[Element1][LocalFace1[2]]);
+				int32 Local2 = e2 % 4;
+				int32 Element2 = e2 / 4;
+				FIntVector3 LocalFace2 = TetFace(Local2);
+				FIntVector3 Edge2 = FIntVector3(Mesh[Element2][LocalFace2[0]], Mesh[Element2][LocalFace2[1]], Mesh[Element2][LocalFace2[2]]);
+				return FaceGreaterThan(Edge1, Edge2);
+			};
+			auto Equal = [&FaceEqual](const TArray<FIntVector4>& Mesh, int32 e1, int32 e2)
+			{
+				int32 Local1 = e1 % 4;
+				int32 Element1 = e1 / 4;
+				FIntVector3 LocalFace1 = TetFace(Local1);
+				FIntVector3 Edge1 = FIntVector3(Mesh[Element1][LocalFace1[0]], Mesh[Element1][LocalFace1[1]], Mesh[Element1][LocalFace1[2]]);
+				int32 Local2 = e2 % 4;
+				int32 Element2 = e2 / 4;
+				FIntVector3 LocalFace2 = TetFace(Local2);
+				FIntVector3 Edge2 = FIntVector3(Mesh[Element2][LocalFace2[0]], Mesh[Element2][LocalFace2[1]], Mesh[Element2][LocalFace2[2]]);
+				return FaceEqual(Edge1, Edge2);
+			};
+			return ComputeMeshFacePairs(TetMesh, GreaterThan, Equal);
+		}
+
+		//Return a randomly sampled point in selected tetrahedra following uniform distribution
+		inline TArray<TArray<FVector3f>> RandomPointsInTet(const TArray<FVector3f>& x, const TArray<FIntVector4>& TetMesh, const TArray<int32>& SampleElements, int32 NumRandomPointsPerElement = 1) {
+			srand(1);
+			TArray<TArray<FVector3f>> SampledPoints;
+			SampledPoints.SetNum(SampleElements.Num());
+			for (int32 ElemIdx = 0; ElemIdx < SampleElements.Num(); ++ElemIdx)
+			{
+				int32 e = SampleElements[ElemIdx];
+				for (int32 i = 0; i < NumRandomPointsPerElement; ++i) {
+					FVector4f Weights(0);
+					FVector3f Point(0);
+					float TotalWeight = 0;
+					for (int32 j = 0; j < 4; ++j) {
+						Weights[j] = float(rand()) / float(RAND_MAX);
+						TotalWeight += Weights[j];
+					}
+					for (int32 j = 0; j < 4; ++j) {
+						Weights[j] /= TotalWeight;
+						Point += Weights[j] * x[TetMesh[e][j]];
+					}
+					SampledPoints[ElemIdx].Add(Point);
+				}
+			}
+			return SampledPoints;
 		}
 	} // namespace Utilities
 } // namespace Chaos

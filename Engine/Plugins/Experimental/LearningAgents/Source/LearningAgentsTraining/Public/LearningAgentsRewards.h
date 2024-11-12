@@ -65,6 +65,34 @@ public:
 		const FLinearColor VisualLoggerColor = FLinearColor::Green);
 
 	/**
+	 * Make a reward based on the distance between two locations. Gives a larger reward the further the distance between the locations.
+	 *
+	 * @param LocationA The first location.
+	 * @param LocationB The second location.
+	 * @param LocationScale The expected scale for the distance between locations.
+	 * @param RewardScale The scale of the reward. Use a negative scale to create a penalty.
+	 * @param Tag The tag for the reward. Used for debugging.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this reward. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this reward.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The resulting reward value.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4, DefaultToSelf = "VisualLoggerListener"))
+	static float MakeRewardFromLocationDifference(
+		const FVector LocationA,
+		const FVector LocationB,
+		const float LocationScale = 100.0f,
+		const float RewardScale = 1.0f,
+		const FName Tag = TEXT("LocationDifferenceReward"),
+		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Green);
+
+	/**
 	 * Make a reward when the distance between two locations is below a threshold, otherwise returns zero.
 	 *
 	 * @param LocationA The first location.

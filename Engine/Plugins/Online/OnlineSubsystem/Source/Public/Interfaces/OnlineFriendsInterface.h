@@ -51,6 +51,34 @@ namespace EFriendsLists
 		}
 		return TEXT("");
 	}
+
+	/** @return whether or not the passed string was successfully converted to a valid enum value */
+	inline bool FromString(EFriendsLists::Type& OutEnum, const TCHAR* InString)
+	{
+		if (FCString::Stricmp(InString, TEXT("default")) == 0)
+		{
+			OutEnum = EFriendsLists::Type::Default;
+		}
+		else if (FCString::Stricmp(InString, TEXT("onlinePlayers")) == 0)
+		{
+			OutEnum = EFriendsLists::Type::OnlinePlayers;
+		}
+		else if (FCString::Stricmp(InString, TEXT("inGamePlayers")) == 0)
+		{
+			OutEnum = EFriendsLists::Type::InGamePlayers;
+		}
+		else if (FCString::Stricmp(InString, TEXT("inGameAndSessionPlayers")) == 0)
+		{
+			OutEnum = EFriendsLists::Type::InGameAndSessionPlayers;
+		}
+		else
+		{
+			checkNoEntry();
+			return false;
+		}
+
+		return true;
+	}
 }
 
 /*

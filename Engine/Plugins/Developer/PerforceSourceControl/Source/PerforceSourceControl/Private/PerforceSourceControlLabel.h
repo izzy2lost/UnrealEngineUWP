@@ -11,7 +11,7 @@ class FPerforceSourceControlProvider;
 /** 
  * Abstraction of a Perforce label.
  */
-class FPerforceSourceControlLabel : public ISourceControlLabel, public TSharedFromThis<FPerforceSourceControlLabel>
+class FPerforceSourceControlLabel : public ISourceControlLabel
 {
 public:
 

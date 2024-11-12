@@ -46,6 +46,22 @@ enum class ESequenceInstanceUpdateFlags : uint8
 ENUM_CLASS_FLAGS(ESequenceInstanceUpdateFlags);
 
 /**
+ * Specifies what cached data should be invalidated in a sequence instance.
+ */
+enum class ESequenceInstanceInvalidationType : uint8
+{
+	/**
+	 * Only invalidate cached data for sequences whose data has been dynamically changed.
+	 */
+	DataChanged,
+
+	/**
+	 * Invalidate all cached data for all sequences.
+	 */
+	All
+};
+
+/**
  * A sequence instance represents a specific instance of a currently playing sequence, either as a top-level sequence in an IMovieScenePlayer, or as a sub sequence.
  * Any given sequence asset may have any number of instances created for it at any given time depending on how many times it is referenced by playing sequences
  */
@@ -139,11 +155,13 @@ public:
 	 *
 	 * @return A pointer to this instance's player
 	 */
+	UE_DEPRECATED(5.5, "The player interface is now optional and will be deprecated in a future relase. Please use FPlayerIndexPlaybackCapability::GetPlayer()")
 	MOVIESCENE_API IMovieScenePlayer* GetPlayer() const;
 
 	/**
 	 * Retrieve the IMovieScenePlayer's unique index
 	 */
+	UE_DEPRECATED(5.5, "The player interface is now optional and will be deprecated in a future relase. Please use FPlayerIndexPlaybackCapability::GetPlayerIndex()")
 	MOVIESCENE_API uint16 GetPlayerIndex() const;
 
 	/**
@@ -297,7 +315,7 @@ public:
 	/**
 	 * Invalidate any cached data that may be being used for evaluation due to a change in the source asset data
 	 */
-	MOVIESCENE_API void InvalidateCachedData();
+	MOVIESCENE_API void InvalidateCachedData(ESequenceInstanceInvalidationType InvalidationType = ESequenceInstanceInvalidationType::All);
 
 	/**
 	 * Destroy this sequence instance immediately - Finish must previously have been called
@@ -308,6 +326,11 @@ public:
 	 * Called to override the simulated root sequence ID for this instance. Only valid for IsRootSequence() instances.
 	 */
 	MOVIESCENE_API void OverrideRootSequence(FMovieSceneSequenceID NewRootSequenceID);
+
+	/*
+	* Evaluate a condition on this sequence instance hierarchy, utilizing any cache as relevant.
+	*/
+	MOVIESCENE_API bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject) const;
 
 public:
 

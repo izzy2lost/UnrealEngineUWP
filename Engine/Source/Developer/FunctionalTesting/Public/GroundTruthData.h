@@ -47,6 +47,6 @@ public:
 
 protected:
 	
-	UPROPERTY(VisibleAnywhere, Instanced, Category=Data)
+	UPROPERTY(VisibleAnywhere, Export, Category=Data)
 	TObjectPtr<UObject> ObjectData;
 };

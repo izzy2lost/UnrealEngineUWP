@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+
+#pragma warning disable CA1716
 
 namespace EpicGames.Horde.Storage
 {
@@ -44,11 +47,22 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
 		/// </summary>
-		/// <param name="stream">Stream to write</param>
+		/// <param name="stream">Data stream</param>
+		/// <param name="imports">List of referenced blobs</param>
 		/// <param name="prefix">Path prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to the uploaded object</returns>
-		Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default);
+		Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
+		/// </summary>s
+		/// <param name="locator">Locator for the new blob</param>
+		/// <param name="stream">Data stream</param>
+		/// <param name="imports">Imported blobs. If omitted, the backend will parse them from the stream data.</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Path to the uploaded object</returns>
+		Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a read request
@@ -61,10 +75,20 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Gets a HTTP redirect for a write request
 		/// </summary>
+		/// <param name="locator">Path to write to</param>
+		/// <param name="imports">Imports for this blob</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Path for retrieval, and URI to upload the data to</returns>
+		ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets a HTTP redirect for a write request
+		/// </summary>
+		/// <param name="imports">Imports for this blob</param>
 		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path for retrieval, and URI to upload the data to</returns>
-		ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+		ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -108,7 +132,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Blob pointed to by the ref</returns>
-		Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+		Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a new ref to the store
@@ -118,7 +142,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique identifier for the blob</returns>
-		Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default);
+		Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads data for a ref from the store
@@ -209,13 +233,14 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
 		/// <param name="data">Data to be written</param>
+		/// <param name="imports"></param>
 		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task<BlobLocator> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, string? prefix = null, CancellationToken cancellationToken = default)
+		public static async Task<BlobLocator> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using (ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data))
 			{
-				return await storageBackend.WriteBlobAsync(stream, prefix, cancellationToken);
+				return await storageBackend.WriteBlobAsync(stream, imports, prefix, cancellationToken);
 			}
 		}
 	}

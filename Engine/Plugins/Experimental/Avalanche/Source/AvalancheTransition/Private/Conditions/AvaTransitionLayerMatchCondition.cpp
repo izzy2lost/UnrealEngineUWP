@@ -2,21 +2,29 @@
 
 #include "Conditions/AvaTransitionLayerMatchCondition.h"
 #include "AvaTransitionContext.h"
-#include "StateTreeExecutionContext.h"
+#include "AvaTransitionLayerUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
+#include "StateTreeExecutionContext.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionLayerMatchCondition"
 
-FText FAvaTransitionLayerMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionLayerMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	return FText::Format(LOCTEXT("ConditionDescription", "scenes transitioning in {0}"), GetLayerQueryText());
+	const FText LayerDesc = Super::GetDescription(InId, InInstanceDataView, InBindingLookup, InFormatting);
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "<s>scenes transitioning in</> {0}"), LayerDesc)
+		: FText::Format(LOCTEXT("Desc", "scenes transitioning in {0}"), LayerDesc);
 }
+#endif
 
 bool FAvaTransitionLayerMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {
 	const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 
-	if (LayerType == EAvaTransitionLayerCompareType::Same && TransitionContext.GetTransitionType() == EAvaTransitionType::In)
+	if (InstanceData.LayerType == EAvaTransitionLayerCompareType::Same && TransitionContext.GetTransitionType() == EAvaTransitionType::In)
 	{
 		return true;
 	}

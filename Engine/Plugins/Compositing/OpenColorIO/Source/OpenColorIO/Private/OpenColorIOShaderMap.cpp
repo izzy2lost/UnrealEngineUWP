@@ -283,7 +283,6 @@ void FOpenColorIOShaderMap::LoadFromDerivedDataCache(const FOpenColorIOTransform
 
 				// Deserialize from the cached data
 				InOutShaderMap->Serialize(Ar);
-				//InOutShaderMap->RegisterSerializedShaders(false);
 
 				checkSlow(InOutShaderMap->GetShaderMapId() == InShaderMapId);
 
@@ -434,7 +433,7 @@ FShader* FOpenColorIOShaderMap::ProcessCompilationResultsForSingleJob(const TRef
 	FShaderCompileJob* CurrentJob = SingleJob->GetSingleShaderJob();
 	check(CurrentJob->Id == CompilingId);
 
-	GetResourceCode()->AddShaderCompilerOutput(CurrentJob->Output, CurrentJob->Key.ToString());
+	GetResourceCode()->AddShaderCompilerOutput(CurrentJob->Output, CurrentJob->Key.ToString(), CurrentJob->Input.GenerateDebugInfo());
 
 	FShader* Shader = nullptr;
 
@@ -552,6 +551,16 @@ void FOpenColorIOShaderMap::GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& 
 	GetContent()->GetShaderList(*this, FSHAHash(), OutShaders);
 }
 
+void FOpenColorIOShaderMap::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FOpenColorIOShaderMap::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 /**
  * Registers a OpenColorIO shader map in the global map.
  */
@@ -612,12 +621,13 @@ FOpenColorIOShaderMap::~FOpenColorIOShaderMap()
 	AllOpenColorIOShaderMaps.RemoveSwap(this);
 }
 
-bool FOpenColorIOShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources)
+bool FOpenColorIOShaderMap::Serialize(FArchive& Ar)
 {
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump OPENCOLORIO_DERIVEDDATA_VER
-	return Super::Serialize(Ar, bInlineShaderResources, false);
+	FShaderSerializeContext Ctx(Ar);
+	return Super::Serialize(Ctx);
 }
 
 #if WITH_EDITOR

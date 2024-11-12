@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// *INDENT-OFF*
-#ifdef RL_BUILD_WITH_ML_EVALUATOR
-
 #include "rltests/Defs.h"
 #include "rltests/StorageValueType.h"
 #include "rltests/ml/cpu/FixturesBlock4.h"
 
 #include "riglogic/TypeDefs.h"
-#include "riglogic/ml/cpu/Factory.h"
+#include "riglogic/ml/cpu/CPUMachineLearnedBehaviorFactory.h"
 #include "riglogic/system/simd/Detect.h"
 
 #include <tuple>
@@ -28,9 +25,9 @@ template<typename T, typename TF256, typename TF128>
 struct Evaluator<T, TF256, TF128>::Accessor {
 
     static void assertRawDataEqual(const Evaluator<T, TF256, TF128>& result) {
-        ASSERT_EQ(result.lods.netIndicesPerLOD, rltests::ml::block4::optimized::lods.netIndicesPerLOD);
-        ASSERT_EQ(result.lods.netCount, rltests::ml::block4::optimized::lods.netCount);
-        ASSERT_EQ(result.neuralNets.size(), rltests::ml::block4::optimized::lods.netCount);
+        ASSERT_EQ(result.lods.indicesPerLOD, rltests::ml::block4::optimized::lods.indicesPerLOD);
+        ASSERT_EQ(result.lods.count, rltests::ml::block4::optimized::lods.count);
+        ASSERT_EQ(result.neuralNets.size(), rltests::ml::block4::optimized::lods.count);
         for (std::uint16_t netIndex = {}; netIndex < rltests::ml::block4::unoptimized::neuralNetworkCount; ++netIndex) {
             const auto& inference = result.neuralNets[netIndex];
             ASSERT_EQ(inference.layerEvaluators.size(),
@@ -136,6 +133,3 @@ TYPED_TEST(MLBSStorageBuilderTest, LayoutOptimization) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
-
-#endif  // RL_BUILD_WITH_ML_EVALUATOR
-// *INDENT-ON*

@@ -66,14 +66,15 @@ protected:
 	mutable int32 ValueArgIndex = INDEX_NONE;
 	mutable int32 FoundArgIndex = INDEX_NONE;
 	mutable int32 SuccessArgIndex = INDEX_NONE;
-	static FName ItemArgName;
-	static FName NameArgName;
-	static FName NameSpaceArgName;
-	static FName CacheArgName;
-	static FName DefaultArgName;
-	static FName ValueArgName;
-	static FName FoundArgName;
-	static FName SuccessArgName;
+
+	static inline const FLazyName ItemArgName = FLazyName(TEXT("Item"));
+	static inline const FLazyName NameArgName = FLazyName(TEXT("Name"));
+	static inline const FLazyName NameSpaceArgName = FLazyName(TEXT("NameSpace"));
+	static inline const FLazyName CacheArgName = FLazyName(TEXT("Cache"));
+	static inline const FLazyName DefaultArgName = FLazyName(TEXT("Default"));
+	static inline const FLazyName ValueArgName = FLazyName(TEXT("Value"));
+	static inline const FLazyName FoundArgName = FLazyName(TEXT("Found"));
+	static inline const FLazyName SuccessArgName = FLazyName(TEXT("Success"));
 };
 
 template<>

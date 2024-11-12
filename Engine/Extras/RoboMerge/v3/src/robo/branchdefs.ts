@@ -1,12 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { StreamSpecs } from '../common/perforce'
-
-// for validating all branchspecs
-// import { ContextualLogger } from '../common/logger';
-// import { initializePerforce, PerforceContext, StreamSpec } from '../common/perforce';
-// import fs = require('fs')
-// import path = require('path')
+import { PerforceContext } from '../common/perforce'
 
 const jsonlint: any = require('jsonlint')
 
@@ -41,6 +35,7 @@ const branchBasePrototype = {
 	name: '',
 
 	rootPath: '',
+	uniqueBranch: false,
 	isDefaultBot: false,
 	emailOnBlockage: false, // if present, completely overrides BotConfig
 
@@ -122,12 +117,10 @@ const nodeOptionFieldsPrototype = {
 	streamDepot: '',
 	streamName: '',
 	streamSubpath: '',
-	workspace: '',
+	uniqueBranch: false,
 
 	graphNodeColor: '',
 
-	// if set, still generate workspace but use this name
-	workspaceNameOverride: '',
 	additionalSlackChannelForBlockages: '',
 	postMessagesToAdditionalChannelOnly: false,
 	ignoreBranchspecs: false,
@@ -161,6 +154,9 @@ const edgeOptionFieldsPrototype = {
 	implicitCommands: [''],
 
 	ignoreInCycleDetection: false,
+
+	// if set, still generate workspace but use this name
+	workspaceNameOverride: '',
 
 	approval: {
 		description: '',
@@ -267,7 +263,7 @@ export class BranchDefs {
 		}
 	}
 
-	static parseAndValidate(outErrors: string[], branchSpecsText: string, allStreamSpecs: StreamSpecs, isPreviewing?: boolean): ParseResult {
+	static async parseAndValidate(p4: PerforceContext, outErrors: string[], branchSpecsText: string, isPreviewing?: boolean): Promise<ParseResult> {
 		const defaultConfigForWholeBot: BotConfig = {
 			defaultStreamDepot: null,
 			defaultIntegrationMethod: null,
@@ -382,7 +378,7 @@ export class BranchDefs {
 				def.streamSubpath
 			)
 
-			if (!isPreviewing && streamResult.stream && !allStreamSpecs.has(streamResult.stream)) {
+			if (!isPreviewing && streamResult.stream && !await p4.stream(streamResult.stream)) {
 				outErrors.push(`Stream ${streamResult.stream} not found`)
 			}
 		}
@@ -539,34 +535,3 @@ export class BranchDefs {
 		return {branchGraphDef: branchGraph, config: defaultConfigForWholeBot}
 	}
 }
-
-// function verifyAllBranchmaps(allStreamSpecs: Map<string, StreamSpec>, folder: string) {
-
-// 	for (const file of fs.readdirSync(folder, {encoding: "utf8"})) {
-// 		if (!file.endsWith('branchmap.json') || file.indexOf('iron.') >= 0) {
-// 			continue
-// 		}
-// 		console.log(file)
-// 		const validationErrors: string[] = []
-
-// 		const result = BranchDefs.parseAndValidate(
-// 			validationErrors,
-// 			fs.readFileSync(path.join(folder, file), 'utf8'),
-// 			allStreamSpecs)
-
-// 		if (!result.branchGraphDef) {
-// 			throw new Error(validationErrors.length === 0 ? 'Failed to parse' : validationErrors.join('\n'))
-// 		}
-// 		console.log(`Branches found in ${file}: ${result.branchGraphDef.branches.length}`)
-// 	}
-// }
-
-// export async function runTests(logger: ContextualLogger) {
-// 	if (process.platform === 'darwin') {
-// 		await initializePerforce(logger)
-// 		const allStreamSpecs = await (new PerforceContext(logger)).streams()
-
-// 		verifyAllBranchmaps(allStreamSpecs, '../RoboMerge/data')
-// 	}
-// 	return 0
-// }

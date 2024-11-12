@@ -73,7 +73,8 @@ SLATE_END_ARGS()
 	void ClearFilterSelection();
 	void UpdateStringFilters();
 	void SelectAll();
-	bool IsDataInterfaceViewActive() const;
+	bool ShouldShowComponentView() const;
+
 private:
 	TSharedRef<ITableRow> OnGenerateRow(TSharedRef<FNiagaraSimCacheTreeItem> Item, const TSharedRef<STableViewBase>& OwnerTable);
 
@@ -98,7 +99,7 @@ private:
 
 struct FNiagaraSimCacheTreeItem : FNiagaraSimCacheOverviewItem
 {
-	FNiagaraSimCacheTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner)
+	explicit FNiagaraSimCacheTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner)
 	{
 		Owner = InOwner;
 	}
@@ -149,7 +150,7 @@ struct FNiagaraSimCacheTreeItem : FNiagaraSimCacheOverviewItem
 				{
 					if (TSharedPtr<SNiagaraSimCacheTreeView> TreeView = Owner.Pin())
 					{
-						return TreeView->IsDataInterfaceViewActive() ? EVisibility::Collapsed : EVisibility::Visible; 
+						return TreeView->ShouldShowComponentView() ? EVisibility::Visible : EVisibility::Collapsed;
 					}
 					return EVisibility::Collapsed;
 				})
@@ -166,8 +167,7 @@ struct FNiagaraSimCacheTreeItem : FNiagaraSimCacheOverviewItem
 
 struct FNiagaraSimCacheEmitterTreeItem : FNiagaraSimCacheTreeItem
 {
-	
-	FNiagaraSimCacheEmitterTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner): FNiagaraSimCacheTreeItem(InOwner)
+	explicit FNiagaraSimCacheEmitterTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner): FNiagaraSimCacheTreeItem(InOwner)
 	{
 	}
 
@@ -178,7 +178,7 @@ struct FNiagaraSimCacheEmitterTreeItem : FNiagaraSimCacheTreeItem
 
 struct FNiagaraSimCacheDataInterfaceTreeItem : FNiagaraSimCacheTreeItem
 {
-	FNiagaraSimCacheDataInterfaceTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner): FNiagaraSimCacheTreeItem(InOwner)
+	explicit FNiagaraSimCacheDataInterfaceTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner): FNiagaraSimCacheTreeItem(InOwner)
 	{
 	}
 
@@ -189,10 +189,20 @@ struct FNiagaraSimCacheDataInterfaceTreeItem : FNiagaraSimCacheTreeItem
 	FNiagaraVariableBase DataInterfaceReference;
 };
 
+struct FNiagaraSimCacheDebugDataTreeItem : FNiagaraSimCacheTreeItem
+{
+	explicit FNiagaraSimCacheDebugDataTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner) : FNiagaraSimCacheTreeItem(InOwner)
+	{
+	}
+
+	virtual ~FNiagaraSimCacheDebugDataTreeItem() override {}
+
+	virtual ENiagaraSimCacheOverviewItemType GetType() override { return ENiagaraSimCacheOverviewItemType::DebugData; }
+};
+
 struct FNiagaraSimCacheComponentTreeItem : FNiagaraSimCacheTreeItem
 {
-	
-	FNiagaraSimCacheComponentTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner): FNiagaraSimCacheTreeItem(InOwner)
+	explicit FNiagaraSimCacheComponentTreeItem(TWeakPtr<SNiagaraSimCacheTreeView> InOwner) : FNiagaraSimCacheTreeItem(InOwner)
 	{
 	}
 
@@ -202,7 +212,6 @@ struct FNiagaraSimCacheComponentTreeItem : FNiagaraSimCacheTreeItem
 
 	virtual TSharedRef<SWidget> GetRowWidget() override
 	{
-		
 		TSharedRef<SHorizontalBox> Contents = SNew(SHorizontalBox);
 
 		if(TypeDef.IsSet())
@@ -247,7 +256,7 @@ struct FNiagaraSimCacheComponentTreeItem : FNiagaraSimCacheTreeItem
 			{
 				if (TSharedPtr<SNiagaraSimCacheTreeView> TreeView = Owner.Pin())
 				{
-					return TreeView->IsDataInterfaceViewActive() ? EVisibility::Collapsed : EVisibility::Visible; 
+					return TreeView->ShouldShowComponentView() ? EVisibility::Visible : EVisibility::Collapsed;
 				}
 				return EVisibility::Collapsed;
 			})

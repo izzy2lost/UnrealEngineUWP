@@ -2,6 +2,7 @@
 
 #include "BlackmagicDeviceProvider.h"
 
+#include "Algo/Sort.h"
 #include "BlackmagicCoreModule.h"
 #include "BlackmagicLib.h"
 #include "BlackmagicMediaPrivate.h"
@@ -208,6 +209,8 @@ TArray<FMediaIOConfiguration> FBlackmagicDeviceProvider::GetConfigurations(bool 
 			}
 		}
 	}
+
+	Algo::SortBy(Results, [](const FMediaIOConfiguration& Config){ return Config.MediaConnection.Device.DeviceName; }, FNameLexicalLess());
 
 	return Results;
 }

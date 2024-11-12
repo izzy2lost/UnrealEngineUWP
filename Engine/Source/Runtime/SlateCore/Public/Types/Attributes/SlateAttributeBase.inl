@@ -554,7 +554,7 @@ namespace SlateAttributePrivate
 
 	private:
 		template<typename SlateAttributeType>
-		class FSlateAttributeGetterWrapper : public ISlateAttributeGetter
+		class FSlateAttributeGetterWrapper final : public ISlateAttributeGetter
 		{
 		public:
 			using ObjectType = typename SlateAttributeType::ObjectType;

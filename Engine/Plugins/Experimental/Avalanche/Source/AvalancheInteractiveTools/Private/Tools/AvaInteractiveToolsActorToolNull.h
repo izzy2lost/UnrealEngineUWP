@@ -14,7 +14,6 @@ public:
 	UAvaInteractiveToolsActorToolNull();
 
 	//~ Begin UAvaInteractiveToolsToolBase
-	virtual bool UseIdentityLocation() const override { return false; }
 	virtual bool UseIdentityRotation() const override { return true; }
 	virtual FName GetCategoryName() override;
 	virtual FAvaInteractiveToolsToolParameters GetToolParameters() const override;

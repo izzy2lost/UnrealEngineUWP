@@ -33,13 +33,18 @@ namespace Chaos
 	bool FConvex::Raycast(const FVec3& StartPoint, const FVec3& Dir, const FReal Length, const FReal Thickness, FReal& OutTime, FVec3& OutPosition, FVec3& OutNormal, int32& OutFaceIndex) const
 	{
 #if CHAOS_CONVEX_USE_FAST_RAYCAST
-		return RaycastFast(StartPoint, Dir, Length, Thickness, OutTime, OutPosition, OutNormal, OutFaceIndex);
-#else
+		// If we are just doing a raycast (Thickness == 0) we can run a faster direct ray test, but if it's
+		// a sphere-cast we'll still need to defer to GJK for an accurate result
+		if(Thickness == 0)
+		{
+			return RaycastFast(StartPoint, Dir, Length, Thickness, OutTime, OutPosition, OutNormal, OutFaceIndex);
+		}
+#endif
+
 		OutFaceIndex = INDEX_NONE;	//finding face is expensive, should be called directly by user
 		const FRigidTransform3 StartTM(StartPoint, FRotation3::FromIdentity());
 		const TSphere<FReal, 3> Sphere(FVec3(0), Thickness);
 		return GJKRaycast(*this, Sphere, StartTM, Dir, Length, OutTime, OutPosition, OutNormal);
-#endif
 	}
 
 	bool FConvex::RaycastFast(const FVec3& StartPoint, const FVec3& Dir, const FReal Length, const FReal Thickness, FReal& OutTime, FVec3& OutPosition, FVec3& OutNormal, int32& OutFaceIndex) const

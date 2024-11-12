@@ -30,6 +30,9 @@ public:
 	/** General settings for conversions to mesh description */
 	FConversionToMeshDescriptionOptions ConversionOptions;
 
+	// Set MaterialID to Polygroup mapping via the reverse mapping
+	void MESHCONVERSION_API SetMaterialIDMapFromInverseMap(TArrayView<const int32> PolygroupIDToMaterialIDMap);
+
 	FDynamicMeshToMeshDescription()
 	{
 	}
@@ -182,4 +185,8 @@ protected:
 	 * @param Color color to transform
 	 */
 	MESHCONVERSION_API void ApplyVertexColorTransform(FVector4f& Color) const;
+	
+private:
+	/** Optional remapping from dynamic mesh material ID to desired mesh description polygroup IDs. IDs not found in mapping will be mapped to themselves. */
+	TArray<int32> MaterialIDToPolygroupIDMap;
 };

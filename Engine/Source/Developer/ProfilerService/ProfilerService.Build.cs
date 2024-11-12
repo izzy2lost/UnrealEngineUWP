@@ -1,21 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+
 namespace UnrealBuildTool.Rules
 {
+	[Obsolete("Profiler is deprecated since UE 5.0 - use Trace/UnrealInsights instead.")]
 	public class ProfilerService : ModuleRules
 	{
 		public ProfilerService(ReadOnlyTargetRules Target) : base(Target)
 		{
 			PublicDependencyModuleNames.AddRange(
-				new string[]
-				{
+				new string[] {
 					"Core",
 				}
 			);
 
 			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
+				new string[] {
 					"CoreUObject",
 					"Engine",
 					"ProfilerMessages",

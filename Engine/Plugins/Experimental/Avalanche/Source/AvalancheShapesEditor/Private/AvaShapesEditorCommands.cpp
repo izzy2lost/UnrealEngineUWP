@@ -49,7 +49,7 @@ void FAvaShapesEditorCommands::Register2DCommands()
 
 	UI_COMMAND(Tool_Shape_Line
 		, "Line"
-		, "Create a 2D Line Shape in the viewport."
+		, "Create a 2D Line Shape in the viewport.\n\n- Holding shift will snap the line to 15 degree increments."
 		, EUserInterfaceActionType::ToggleButton
 		, FInputChord());
 

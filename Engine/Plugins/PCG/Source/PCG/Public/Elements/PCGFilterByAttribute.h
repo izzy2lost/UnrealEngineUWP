@@ -30,13 +30,21 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	/** Attribute to look for */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	/** Comma-separated list of attributes to look for */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "Attributes", PCG_Overridable))
 	FName Attribute;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGStringMatchingOperator Operator = EPCGStringMatchingOperator::Equal;
+
+	/** Controls whether properties (denoted by $) will be considered in the filter or not. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bIgnoreProperties = false;
 };
 
 class FPCGFilterByAttributeElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

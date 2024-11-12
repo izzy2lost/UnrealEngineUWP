@@ -47,13 +47,6 @@ FClothingSimulationContextCommon::~FClothingSimulationContextCommon()
 {}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void FClothingSimulationContextCommon::Fill(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta)
-{
-	// Deprecated version always fills RefToLocals with current animation results instead of using reference pose on initialization
-	const bool bIsInitialization = false;
-	Fill(InComponent, InDeltaSeconds, InMaxPhysicsDelta, bIsInitialization);
-}
-
 void FClothingSimulationContextCommon::Fill(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta, bool bIsInitialization)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ClothFillContext);
@@ -68,6 +61,7 @@ void FClothingSimulationContextCommon::Fill(const USkeletalMeshComponent* InComp
 	FillDeltaSeconds(InDeltaSeconds, InMaxPhysicsDelta);
 	FillTeleportMode(InComponent, InDeltaSeconds, InMaxPhysicsDelta);
 	FillMaxDistanceScale(InComponent);
+	FillSolverGeometryScale(InComponent);
 
 	PredictedLod = InComponent->GetPredictedLODLevel();
 }
@@ -176,7 +170,7 @@ void FClothingSimulationContextCommon::FillDeltaSeconds(float InDeltaSeconds, fl
 
 void FClothingSimulationContextCommon::FillTeleportMode(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta)
 {
-	TeleportMode = (InDeltaSeconds > InMaxPhysicsDelta * GClothMaxDeltaTimeTeleportMultiplier.GetValueOnGameThread()) ?
+	TeleportMode = (InComponent->ClothTeleportMode < EClothingTeleportMode::Teleport && (InDeltaSeconds > InMaxPhysicsDelta * GClothMaxDeltaTimeTeleportMultiplier.GetValueOnGameThread())) ?
 		EClothingTeleportMode::Teleport :
 		InComponent->ClothTeleportMode;
 
@@ -190,6 +184,11 @@ void FClothingSimulationContextCommon::FillTeleportMode(const USkeletalMeshCompo
 void FClothingSimulationContextCommon::FillMaxDistanceScale(const USkeletalMeshComponent* InComponent)
 {
 	MaxDistanceScale = InComponent->GetClothMaxDistanceScale();
+}
+
+void FClothingSimulationContextCommon::FillSolverGeometryScale(const USkeletalMeshComponent* InComponent)
+{
+	SolverGeometryScale = InComponent->ClothGeometryScale;
 }
 
 //==============================================================================

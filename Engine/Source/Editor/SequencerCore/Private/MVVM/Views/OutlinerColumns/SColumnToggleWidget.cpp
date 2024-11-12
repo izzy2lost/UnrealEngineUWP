@@ -13,7 +13,7 @@
 namespace UE::Sequencer
 {
 
-class FColumnToggleDragDropOp : public FDragDropOperation, public TSharedFromThis<FColumnToggleDragDropOp>
+class FColumnToggleDragDropOp : public FDragDropOperation
 {
 public:
 

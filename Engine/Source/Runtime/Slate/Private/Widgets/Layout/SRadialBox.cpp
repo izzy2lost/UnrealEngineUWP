@@ -160,12 +160,6 @@ void SRadialBox::SetUseAllottedWidth(bool bInUseAllottedWidth)
 	bUseAllottedWidth = bInUseAllottedWidth;
 }
 
-int32 SRadialBox::NormalizeAngle(int32 Angle) const
-{
-	int32 NormalizedAngle = Angle % 360;
-	return NormalizedAngle < 0 ? NormalizedAngle + 360 : NormalizedAngle;
-}
-
 float SRadialBox::InternalNormalizeAngle(float Angle) const
 {
 	float NormalizedAngle = FMath::Fmod(Angle, 360.f);

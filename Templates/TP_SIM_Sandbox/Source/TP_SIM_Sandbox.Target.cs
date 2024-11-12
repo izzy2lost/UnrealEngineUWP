@@ -9,7 +9,7 @@ public class TP_SIM_SandboxTarget : TargetRules
 	{
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V5;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_4;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_5;
 		ExtraModuleNames.AddRange( new string[] { "TP_SIM_Sandbox" } );
 	}
 }

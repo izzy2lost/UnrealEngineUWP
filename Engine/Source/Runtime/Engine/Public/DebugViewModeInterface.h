@@ -61,6 +61,8 @@ public:
 		int32 VisualizeElementIndex,
 		int32 NumVSInstructions,
 		int32 NumPSInstructions,
+		int32 LWCComplexityVS,
+		int32 LWCComplexityPS,
 		int32 ViewModeParam,
 		FName ViewModeParamName,
 		FMeshDrawSingleShaderBindings& ShaderBindings

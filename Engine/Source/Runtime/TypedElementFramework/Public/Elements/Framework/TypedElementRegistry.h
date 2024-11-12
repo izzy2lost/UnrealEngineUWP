@@ -77,28 +77,26 @@ public:
 	UFUNCTION(BlueprintPure, DisplayName="Get Default Typed Element Registry", Category = "TypedElementFramework|Registry", meta=(ScriptName="GetDefaultTypedElementRegistry"))
 	static TYPEDELEMENTFRAMEWORK_API UTypedElementRegistry* GetInstance();
 
-	TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface* GetMutableDataStorage();
-	TYPEDELEMENTFRAMEWORK_API const ITypedElementDataStorageInterface* GetDataStorage() const;
-	TYPEDELEMENTFRAMEWORK_API void SetDataStorage(ITypedElementDataStorageInterface* Storage);
+	UE_DEPRECATED(5.5, "Function has moved to modular features. Use UE::Editor::DataStorage::GetMutableDataStorageFeature instead.")
+	TYPEDELEMENTFRAMEWORK_API IEditorDataStorageProvider* GetMutableDataStorage();
+	UE_DEPRECATED(5.5, "Function has moved to modular features. Use UE::Editor::DataStorage::GetDataStorageFeature instead.")
+	TYPEDELEMENTFRAMEWORK_API const IEditorDataStorageProvider* GetDataStorage() const;
 
-	TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageCompatibilityInterface* GetMutableDataStorageCompatibility();
-	TYPEDELEMENTFRAMEWORK_API const ITypedElementDataStorageCompatibilityInterface* GetDataStorageCompatibility() const;
-	TYPEDELEMENTFRAMEWORK_API void SetDataStorageCompatibility(ITypedElementDataStorageCompatibilityInterface* Storage);
+	UE_DEPRECATED(5.5, "Function has moved to modular features. Use UE::Editor::DataStorage::GetMutableDataStorageFeature instead.")
+	TYPEDELEMENTFRAMEWORK_API IEditorDataStorageCompatibilityProvider* GetMutableDataStorageCompatibility();
+	UE_DEPRECATED(5.5, "Function has moved to modular features. Use UE::Editor::DataStorage::GetDataStorageFeature instead.")
+	TYPEDELEMENTFRAMEWORK_API const IEditorDataStorageCompatibilityProvider* GetDataStorageCompatibility() const;
 
-	TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageUiInterface* GetMutableDataStorageUi();
-	TYPEDELEMENTFRAMEWORK_API const ITypedElementDataStorageUiInterface* GetDataStorageUi() const;
-	TYPEDELEMENTFRAMEWORK_API void SetDataStorageUi(ITypedElementDataStorageUiInterface* Storage);
+	UE_DEPRECATED(5.5, "Function has moved to modular features. Use UE::Editor::DataStorage::GetMutableDataStorageFeature instead.")
+	TYPEDELEMENTFRAMEWORK_API IEditorDataStorageUiProvider* GetMutableDataStorageUi();
+	UE_DEPRECATED(5.5, "Function has moved to modular features. Use UE::Editor::DataStorage::GetDataStorageFeature instead.")
+	TYPEDELEMENTFRAMEWORK_API const IEditorDataStorageUiProvider* GetDataStorageUi() const;
 
+	UE_DEPRECATED(5.5, "Use UE::Editor::DataStorage::AreDataStorageInterfacesSet instead.")
 	TYPEDELEMENTFRAMEWORK_API bool AreDataStorageInterfacesSet() const;
 
-	/**
-	 * Event fired when all Data Storage Interfaces have been set. 
-	 */
-	DECLARE_MULTICAST_DELEGATE(FOnDataStorageInterfacesSet);
-	FOnDataStorageInterfacesSet& OnDataStorageInterfacesSet()
-	{
-		return OnDataStorageInterfacesSetDelegate;
-	}
+	UE_DEPRECATED(5.5, "Use UE::Editor::DataStorage::OnAllStorageFeaturesEnabled instead")
+	TYPEDELEMENTFRAMEWORK_API FSimpleMulticastDelegate& OnDataStorageInterfacesSet();
 
 	/**
 	 * Event fired when references to one element should be replaced with a reference to a different element.
@@ -682,8 +680,6 @@ private:
 		--DisableElementDestructionOnGCCount;
 	}
 
-	TYPEDELEMENTFRAMEWORK_API void CallDataStorageInterfacesSetDelegateIfNeeded();
-
 	mutable FRWLock RegisteredElementTypesRW;
 	TUniquePtr<FRegisteredElementType> RegisteredElementTypes[TypedHandleMaxTypeId - 1];
 	TSortedMap<FName, FTypedHandleTypeId, FDefaultAllocator, FNameFastLess> RegisteredElementTypesNameToId;
@@ -699,9 +695,4 @@ private:
 	FOnElementReplaced OnElementReplacedDelegate;
 	FOnElementUpdated OnElementUpdatedDelegate;
 	FSimpleMulticastDelegate OnProcessingDeferredElementsToDestroyDelegate;
-	
-	FOnDataStorageInterfacesSet OnDataStorageInterfacesSetDelegate;
-	ITypedElementDataStorageInterface* DataStorage = nullptr;
-	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = nullptr;
-	ITypedElementDataStorageUiInterface* DataStorageUi = nullptr;
 };

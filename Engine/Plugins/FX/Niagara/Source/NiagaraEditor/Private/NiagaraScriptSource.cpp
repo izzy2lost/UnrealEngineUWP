@@ -21,17 +21,13 @@
 #include "NiagaraNodeParameterMapSet.h"
 #include "NiagaraScript.h"
 #include "Logging/LogMacros.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraScriptSource)
 
 DECLARE_CYCLE_STAT(TEXT("Niagara - ScriptSource - Compile"), STAT_NiagaraEditor_ScriptSource_Compile, STATGROUP_NiagaraEditor);
 DECLARE_CYCLE_STAT(TEXT("Niagara - ScriptSource - InitializeNewRapidIterationParameters"), STAT_NiagaraEditor_ScriptSource_InitializeNewRapidIterationParameters, STATGROUP_NiagaraEditor);
-
-UNiagaraScriptSource::UNiagaraScriptSource(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-}
 
 void UNiagaraScriptSource::RegisterVMCompilationIdDependencies(FNiagaraScriptHashCollector& Collector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const
 {
@@ -164,7 +160,6 @@ void UNiagaraScriptSource::RefreshFromExternalChanges()
 		}
 	}
 }
-
 
 void UNiagaraScriptSource::PostLoad()
 {
@@ -373,6 +368,14 @@ bool UNiagaraScriptSource::AddModuleIfMissing(FString ModulePath, ENiagaraScript
 	}
 
 	return false;
+}
+
+void UNiagaraScriptSource::MigrateParameterDataToHierarchyRoot(FVersionedNiagaraScriptData& OwnerData)
+{
+	if (NodeGraph)
+	{
+		NodeGraph->MigrateParameterScriptDataToHierarchyRoot(OwnerData);
+	}
 }
 
 void UNiagaraScriptSource::FixupRenamedParameters(UNiagaraNodeFunctionCall* FunctionCallNode, TConstArrayView<FNiagaraVariable> ModuleInputVariables, FNiagaraParameterStore& RapidIterationParameters, const TArray<FNiagaraVariable>& OldRapidIterationVariables, const FVersionedNiagaraEmitter& VersionedEmitter, ENiagaraScriptUsage ScriptUsage) const

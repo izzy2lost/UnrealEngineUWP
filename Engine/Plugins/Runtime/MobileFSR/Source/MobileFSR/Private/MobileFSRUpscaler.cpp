@@ -426,6 +426,7 @@ ISpatialUpscaler* FMobileFSRUpscaler::Fork_GameThread(const class FSceneViewFami
 
 FScreenPassTexture FMobileFSRUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs) const
 {
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, MobileFSRUpscaler, "MobileFSRUpscaler");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, MobileFSRUpscaler);
 	
 	FScreenPassTexture SceneColor;

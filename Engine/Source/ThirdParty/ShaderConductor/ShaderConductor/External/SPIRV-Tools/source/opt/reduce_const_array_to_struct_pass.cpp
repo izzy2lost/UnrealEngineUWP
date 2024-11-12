@@ -207,12 +207,12 @@ bool ReduceConstArrayToStructPass::ReduceArray(ArrayStruct& arrayStruct, Instruc
             bool bMatchesArray = ConstIdx->GetOperand(2).words[0] == memberIdx;
             if (bMatchesArray) {
 			  // Can't convert because access cannot be guarenteed as const
-              if (user->NumOperands() < 5) {              
+              if (user->NumOperands() < 5) {
                 bInvalid = true;
               } else {
 				Operand constOperand = user->GetOperand(4);
-              	const Instruction* ConstInst = context()->get_def_use_mgr()->GetDef(constOperand.words[0]);
-              	if (ConstInst->opcode() != spv::Op::OpConstant) {
+                const Instruction* ConstInst = context()->get_def_use_mgr()->GetDef(constOperand.words[0]);
+                if (ConstInst->opcode() != spv::Op::OpConstant) {
                   bInvalid = true;
                 } else {
                   uint32_t ConstVal = ConstInst->GetOperand(2).words[0];
@@ -324,7 +324,7 @@ bool ReduceConstArrayToStructPass::ReduceArray(ArrayStruct& arrayStruct, Instruc
     }
   }
 
-  // Find SpvOpAccessChains using struct and offset
+  // Find spv::Op::OpAccessChains using struct and offset
   context()->get_def_use_mgr()->ForEachUser(
     variableType, [&variableType, &memberIdx, &numConstants, this](Instruction* user) {
     if (user->opcode() == spv::Op::OpAccessChain) {

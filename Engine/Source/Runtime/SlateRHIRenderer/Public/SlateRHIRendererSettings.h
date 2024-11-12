@@ -72,14 +72,21 @@ class SLATERHIRENDERER_API USlateRHIRendererSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
-		
 	static const USlateRHIRendererSettings* Get()
-	{ 
+	{
+		if (!IsClassLoaded<USlateRHIRendererSettings>())
+		{
+			return nullptr;
+		}
 		return GetDefault<USlateRHIRendererSettings>();
 	}
 
 	static USlateRHIRendererSettings* GetMutable()
 	{
+		if (!IsClassLoaded<USlateRHIRendererSettings>())
+		{
+			return nullptr;
+		}
 		return GetMutableDefault<USlateRHIRendererSettings>();
 	}
 

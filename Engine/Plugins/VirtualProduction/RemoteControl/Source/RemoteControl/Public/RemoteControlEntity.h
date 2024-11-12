@@ -58,6 +58,13 @@ struct REMOTECONTROL_API FRemoteControlEntity
 	UObject* GetBoundObject() const;
 
 	/**
+	 * Return the Entity Object in the given world
+	 * @param InWorld World where to retrieve the object
+	 * @return The object in the given world or nullptr if not found
+	 */
+	UObject* GetBoundObjectForWorld(const UWorld* InWorld) const;
+
+	/**
 	 * Get the unresolved bindings of this exposed entity.
 	 */
 	const TArray<TWeakObjectPtr<URemoteControlBinding>>& GetBindings() const;

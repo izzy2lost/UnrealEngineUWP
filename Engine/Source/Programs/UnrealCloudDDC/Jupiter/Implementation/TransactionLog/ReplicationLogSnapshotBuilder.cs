@@ -32,7 +32,6 @@ namespace Jupiter.Implementation.TransactionLog
 		public async Task<BlobId> BuildSnapshotAsync(NamespaceId ns, NamespaceId storeInNamespace, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// builds a snapshot and commits it to the blob store with the identifier specified
-
 			SnapshotInfo? snapshotInfo = await _replicationLog.GetLatestSnapshotAsync(ns);
 
 			if (cancellationToken.IsCancellationRequested)
@@ -40,89 +39,37 @@ namespace Jupiter.Implementation.TransactionLog
 				throw new TaskCanceledException();
 			}
 
-			ReplicationLogSnapshot snapshot;
-			string? lastBucket;
-			Guid? lastEvent;
-			if (snapshotInfo != null)
+			FileInfo? tempFile = null;
+			ReplicationLogSnapshot? snapshot = null;
+
+			try
 			{
-				// append to the previous snapshot if one is available
-				await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob);
-				if (cancellationToken.IsCancellationRequested)
+				BucketId bucketName = new BucketId("snapshot");
+				string? lastBucket;
+				Guid? lastEvent;
+				if (snapshotInfo != null)
 				{
-					throw new TaskCanceledException();
+					// append to the previous snapshot if one is available
+					await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob,
+						bucketHint: bucketName, cancellationToken: cancellationToken);
+					if (cancellationToken.IsCancellationRequested)
+					{
+						throw new TaskCanceledException();
+					}
+
+					using IBufferedPayload snapshotPayload =
+						await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(blobContents.Stream, cancellationToken);
+					await using Stream s = snapshotPayload.GetStream();
+					snapshot = _replicationLogFactory.DeserializeSnapshotFromStream(s);
+					lastBucket = snapshot.LastBucket;
+					lastEvent = snapshot.LastEvent;
 				}
-
-				using IBufferedPayload snapshotPayload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(blobContents.Stream);
-				await using Stream s = snapshotPayload.GetStream();
-				snapshot = _replicationLogFactory.DeserializeSnapshotFromStream(s);
-				lastBucket = snapshot.LastBucket;
-				lastEvent = snapshot.LastEvent;
-			}
-			else
-			{
-				snapshot = ReplicationLogFactory.CreateEmptySnapshot(ns);
-
-				lastBucket = null;
-				lastEvent = null;
-			}
-
-			if (cancellationToken.IsCancellationRequested)
-			{
-				throw new TaskCanceledException();
-			}
-
-			await foreach (ReplicationLogEvent entry in _replicationLog.GetAsync(ns, lastBucket, lastEvent))
-			{
-				if (cancellationToken.IsCancellationRequested)
+				else
 				{
-					throw new TaskCanceledException();
-				}
+					snapshot = ReplicationLogFactory.CreateEmptySnapshot(ns);
 
-				snapshot.ProcessEvent(entry);
-			}
-
-			FileInfo tempFile = new FileInfo(Path.GetTempFileName());
-			{
-				await using FileStream fs = tempFile.OpenWrite();
-				snapshot.Serialize(fs);
-				await fs.FlushAsync(cancellationToken);
-			}
-
-			Stream tempFileStream = tempFile.OpenRead();
-			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(tempFileStream, tempFile.Length);
-			tempFileStream.Close();
-			tempFile.Delete();
-
-			{
-				BlobId blobIdentifier;
-				{
-					await using Stream stream = payload.GetStream();
-					blobIdentifier = await BlobId.FromStreamAsync(stream);
-				}
-
-				CbWriter writer = new CbWriter();
-				writer.BeginObject();
-				writer.WriteBinaryAttachment("snapshotBlob", blobIdentifier.AsIoHash());
-				writer.WriteDateTime("timestamp", DateTime.Now);
-				writer.EndObject();
-
-				byte[] cbObjectBytes = writer.ToByteArray();
-				BlobId cbBlobId = BlobId.FromBlob(cbObjectBytes);
-
-				if (cancellationToken.IsCancellationRequested)
-				{
-					throw new TaskCanceledException();
-				}
-
-				// upload the attachment first so we are not missing any references when we go to create the ref
-				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier);
-			
-				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
-				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
-				missingHashes.AddRange(missingBlobs);
-				if (missingHashes.Count != 0)
-				{
-					throw new Exception($"Failed to upload snapshot to object service, missing references {string.Join(',' , missingHashes.Select(b => b.ToString()))}");
+					lastBucket = null;
+					lastEvent = null;
 				}
 
 				if (cancellationToken.IsCancellationRequested)
@@ -130,11 +77,77 @@ namespace Jupiter.Implementation.TransactionLog
 					throw new TaskCanceledException();
 				}
 
-				// update the replication log with the new snapshot
-				await _replicationLog.AddSnapshotAsync(new SnapshotInfo(ns, storeInNamespace, blobIdentifier, DateTime.Now));
+				await foreach (ReplicationLogEvent entry in _replicationLog.GetAsync(ns, lastBucket, lastEvent).WithCancellation(cancellationToken))
+				{
+					if (cancellationToken.IsCancellationRequested)
+					{
+						throw new TaskCanceledException();
+					}
 
-				return blobIdentifier;
+					snapshot.ProcessEvent(entry);
+				}
 
+				tempFile = new FileInfo(Path.GetTempFileName());
+
+				{
+					await using FileStream fs = tempFile.OpenWrite();
+					snapshot.Serialize(fs);
+					await fs.FlushAsync(cancellationToken);
+				}
+
+				Stream tempFileStream = tempFile.OpenRead();
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(tempFileStream, tempFile.Length, cancellationToken);
+				tempFileStream.Close();
+
+				{
+					BlobId blobIdentifier;
+					{
+						await using Stream stream = payload.GetStream();
+						blobIdentifier = await BlobId.FromStreamAsync(stream, cancellationToken);
+					}
+
+					CbWriter writer = new CbWriter();
+					writer.BeginObject();
+					writer.WriteBinaryAttachment("snapshotBlob", blobIdentifier.AsIoHash());
+					writer.WriteDateTime("timestamp", DateTime.Now);
+					writer.EndObject();
+
+					byte[] cbObjectBytes = writer.ToByteArray();
+					BlobId cbBlobId = BlobId.FromBlob(cbObjectBytes);
+
+					if (cancellationToken.IsCancellationRequested)
+					{
+						throw new TaskCanceledException();
+					}
+
+					// upload the attachment first so we are not missing any references when we go to create the ref
+					await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier, bucketHint: bucketName, cancellationToken);
+
+					(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, bucketName,
+						new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes), cancellationToken);
+					List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
+					missingHashes.AddRange(missingBlobs);
+					if (missingHashes.Count != 0)
+					{
+						throw new Exception(
+							$"Failed to upload snapshot to object service, missing references {string.Join(',', missingHashes.Select(b => b.ToString()))}");
+					}
+
+					if (cancellationToken.IsCancellationRequested)
+					{
+						throw new TaskCanceledException();
+					}
+
+					// update the replication log with the new snapshot
+					await _replicationLog.AddSnapshotAsync(new SnapshotInfo(ns, storeInNamespace, blobIdentifier, DateTime.Now));
+
+					return blobIdentifier;
+				}
+			}
+			finally
+			{
+				snapshot?.Dispose();
+				tempFile?.Delete();
 			}
 		}
 	}

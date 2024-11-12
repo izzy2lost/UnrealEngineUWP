@@ -13,12 +13,11 @@ UBTTask_FinishWithResult::UBTTask_FinishWithResult(const FObjectInitializer& Obj
 
 EBTNodeResult::Type UBTTask_FinishWithResult::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	return Result;
+	return Result.GetValue<EBTNodeResult::Type>(OwnerComp);
 }
 
 FString UBTTask_FinishWithResult::GetStaticDescription() const
 {
 	return FString::Printf(TEXT("%s %s"), *Super::GetStaticDescription()
-		, *UBehaviorTreeTypes::DescribeNodeResult(Result.GetValue()));
+		, *Result.ToString());
 }
-

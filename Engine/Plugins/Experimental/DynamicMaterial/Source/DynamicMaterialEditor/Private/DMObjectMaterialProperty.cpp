@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DMObjectMaterialProperty.h"
+
 #include "Components/PrimitiveComponent.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
@@ -14,17 +15,11 @@
 #define LOCTEXT_NAMESPACE "DMObjectMaterialProperty"
 
 FDMObjectMaterialProperty::FDMObjectMaterialProperty()
-	: OuterWeak(nullptr)
-	, Property(nullptr)
-	, PropertyName(NAME_None)
-	, Index(INDEX_NONE)
 {
 }
 
 FDMObjectMaterialProperty::FDMObjectMaterialProperty(UPrimitiveComponent* InOuter, int32 InIndex)
 	: OuterWeak(InOuter)
-	, Property(nullptr)
-	, PropertyName(NAME_None)
 	, Index(InIndex)
 {
 }
@@ -32,16 +27,30 @@ FDMObjectMaterialProperty::FDMObjectMaterialProperty(UPrimitiveComponent* InOute
 FDMObjectMaterialProperty::FDMObjectMaterialProperty(UObject* InOuter, FProperty* InProperty, int32 InIndex)
 	: OuterWeak(InOuter)
 	, Property(InProperty)
-	, PropertyName(InProperty ? InProperty->GetFName() : NAME_None)
 	, Index(InIndex)
 {
 }
 
-UDynamicMaterialModel* FDMObjectMaterialProperty::GetMaterialModel() const
+UObject* FDMObjectMaterialProperty::GetOuter() const
+{
+	return OuterWeak.Get();
+}
+
+FProperty* FDMObjectMaterialProperty::GetProperty() const
+{
+	return Property;
+}
+
+int32 FDMObjectMaterialProperty::GetIndex() const
+{
+	return Index;
+}
+
+UDynamicMaterialModelBase* FDMObjectMaterialProperty::GetMaterialModelBase() const
 {
 	if (UDynamicMaterialInstance* Instance = GetMaterial())
 	{
-		return Instance->GetMaterialModel();
+		return Instance->GetMaterialModelBase();
 	}
 
 	return nullptr;
@@ -71,7 +80,7 @@ UDynamicMaterialInstance* FDMObjectMaterialProperty::GetMaterial() const
 				if (ArrayHelper.IsValidIndex(Index))
 				{
 					void* Value = ArrayHelper.GetRawPtr(Index);
-					Material = *reinterpret_cast<UMaterialInterface**>(Value);
+					Material = *static_cast<UMaterialInterface**>(Value);
 				}
 			}
 		}
@@ -104,7 +113,7 @@ UDynamicMaterialInstance* FDMObjectMaterialProperty::GetMaterial() const
 	return nullptr;
 }
 
-void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMaterial)
+void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* InDynamicMaterial)
 {
 	UObject* Outer = OuterWeak.Get();
 
@@ -127,7 +136,7 @@ void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMat
 
 				if (ArrayHelper.IsValidIndex(Index))
 				{
-					*reinterpret_cast<UMaterialInterface**>(ArrayHelper.GetRawPtr(Index)) = DynamicMaterial;
+					*reinterpret_cast<UMaterialInterface**>(ArrayHelper.GetRawPtr(Index)) = InDynamicMaterial;
 				}
 			}
 		}
@@ -137,7 +146,7 @@ void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMat
 
 			if (ObjectProperty && ObjectProperty->PropertyClass->IsChildOf(UMaterialInterface::StaticClass()))
 			{
-				Property->SetValue_InContainer(Outer, &DynamicMaterial);
+				Property->SetValue_InContainer(Outer, &InDynamicMaterial);
 			}
 		}
 
@@ -150,7 +159,7 @@ void FDMObjectMaterialProperty::SetMaterial(UDynamicMaterialInstance* DynamicMat
 		{
 			if (Index >= 0 && Index < Component->GetNumMaterials())
 			{
-				Component->SetMaterial(Index, DynamicMaterial);
+				Component->SetMaterial(Index, InDynamicMaterial);
 			}
 		}
 	}
@@ -213,13 +222,13 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 		return FText::GetEmpty();
 	}
 
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 	if (Property != nullptr)
 	{
 		FText PropertyNameText = Property->GetDisplayNameText();
 
-		if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+		if (CastField<FArrayProperty>(Property))
 		{
 			PropertyNameText = FText::Format(
 				LOCTEXT("PropertyNameFormatArray", "{0} [{1}]"),
@@ -228,7 +237,7 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 			);
 		}
 
-		if (MaterialModel || bInIgnoreNewStatus)
+		if (MaterialModelBase || bInIgnoreNewStatus)
 		{
 			return FText::Format(
 				LOCTEXT("PropertyNameFormat", "{0}"),
@@ -249,17 +258,17 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 		{
 			if (Index >= 0 && Index <= Component->GetNumMaterials())
 			{
-				if (MaterialModel || bInIgnoreNewStatus)
+				if (MaterialModelBase || bInIgnoreNewStatus)
 				{
 					return FText::Format(
-						LOCTEXT("MaterialListNameFormat", "Material Slot {0}"),
+						LOCTEXT("MaterialListNameFormat", "Element {0}"),
 						FText::AsNumber(Index)
 					);
 				}
 				else
 				{
 					return FText::Format(
-						LOCTEXT("MaterialListNameFormatNew", "Material Slot {0} (Create New)"),
+						LOCTEXT("MaterialListNameFormatNew", "Element {0} (Create New)"),
 						FText::AsNumber(Index)
 					);
 				}
@@ -276,8 +285,17 @@ void FDMObjectMaterialProperty::Reset()
 {
 	OuterWeak = nullptr;
 	Property = nullptr;
-	PropertyName = NAME_None;
 	Index = INDEX_NONE;
+}
+
+bool FDMObjectMaterialProperty::IsProperty() const
+{
+	return !!Property;
+}
+
+bool FDMObjectMaterialProperty::IsElement() const
+{
+	return !Property;
 }
 
 #undef LOCTEXT_NAMESPACE

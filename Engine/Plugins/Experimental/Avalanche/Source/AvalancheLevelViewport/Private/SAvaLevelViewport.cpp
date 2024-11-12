@@ -26,6 +26,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SAvaLevelViewportCameraBounds.h"
 #include "Widgets/SAvaLevelViewportGuide.h"
+#include "Widgets/SAvaLevelViewportTextureOverlay.h"
 #include "Widgets/SAvaLevelViewportPixelGrid.h"
 #include "Widgets/SAvaLevelViewportSafeFrames.h"
 #include "Widgets/SAvaLevelViewportScreenGrid.h"
@@ -58,9 +59,16 @@ void SAvaLevelViewport::Construct(const FArguments& InArgs, const FAssetEditorVi
 	VirtualSizeAspectRatio = 0.f;
 	VirtualSizeAspectRatioState = EAvaViewportVirtualSizeAspectRatioState::LockedToCamera;
 
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = InArgs._ViewportFrame->GetViewportClient();
+
+	if (ViewportClient.IsValid())
+	{
+		ViewportClient->SetViewportWidget(SharedThis(this));
+	}
+
 	Super::Construct(Super::FArguments()
 			.ParentLevelEditor(InArgs._ParentLevelEditor)
-			.LevelEditorViewportClient(InArgs._ViewportFrame->GetViewportClient())
+			.LevelEditorViewportClient(ViewportClient)
 		, InViewportArgs);
 
 	GetMutableDefault<UAvaViewportSettings>()->OnChange.AddSP(SharedThis(this), &SAvaLevelViewport::OnSettingsChanged);
@@ -70,12 +78,12 @@ int32 SAvaLevelViewport::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 {
 	const_cast<SAvaLevelViewport*>(this)->CheckVirtualSizeCameraUpdateSettings();
 
-	return SLevelViewport::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	return Super::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 }
 
 void SAvaLevelViewport::BindCommands()
 {
-	SLevelViewport::BindCommands();
+	Super::BindCommands();
 
 	const FEditorViewportCommands& EditorViewportCommands = FEditorViewportCommands::Get();
 	FUICommandList& CommandListRef = *CommandList;
@@ -89,7 +97,7 @@ void SAvaLevelViewport::BindCommands()
 	CommandListRef.UnmapAction(EditorViewportCommands.Right);
 	CommandListRef.UnmapAction(EditorViewportCommands.Bottom);
 
-	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	// Viewport
 	CommandListRef.MapAction(
@@ -111,51 +119,56 @@ void SAvaLevelViewport::BindCommands()
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessNone,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessNone),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessNone),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessNoneEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::None),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::None),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::None)
 	);
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessBackground,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessBackground),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessBackground),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessBackgroundEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::Background),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::Background),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::Background)
 	);
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessChannelRed,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessChannelRed),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessChannelRed),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessChannelRedEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::RedChannel),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::RedChannel),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::RedChannel)
 	);
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessChannelGreen,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessChannelGreen),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessChannelGreen),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessChannelGreenEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::GreenChannel),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::GreenChannel),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::GreenChannel)
 	);
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessChannelBlue,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessChannelBlue),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessChannelBlue),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessChannelBlueEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::BlueChannel),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::BlueChannel),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::BlueChannel)
 	);
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessChannelAlpha,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessChannelAlpha),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessChannelAlpha),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessChannelAlphaEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::AlphaChannel),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::AlphaChannel),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::AlphaChannel)
 	);
 
 	CommandListRef.MapAction(
 		AvaLevelViewportCommands.TogglePostProcessCheckerboard,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessCheckerboard),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessCheckerboard),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessCheckerboardEnabled)
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessType, EAvaViewportPostProcessType::Checkerboard),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessType, EAvaViewportPostProcessType::Checkerboard),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessTypeEnabled, EAvaViewportPostProcessType::Checkerboard)
+	);
+	CommandListRef.MapAction(
+		AvaLevelViewportCommands.ToggleTextureOverlay,
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteToggleTextureOverlay),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanToggleTextureOverlay)
 	);
 
 	// Grid
@@ -325,7 +338,7 @@ void SAvaLevelViewport::BindCommands()
 
 void SAvaLevelViewport::PopulateViewportOverlays(TSharedRef<SOverlay> Overlay)
 {
-	SLevelViewport::PopulateViewportOverlays(Overlay);
+	Super::PopulateViewportOverlays(Overlay);
 
 	if (TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient())
 	{
@@ -355,6 +368,11 @@ void SAvaLevelViewport::PopulateViewportOverlays(TSharedRef<SOverlay> Overlay)
 		Overlay->AddSlot(-2)
 		[
 			SAssignNew(PixelGrid, SAvaLevelViewportPixelGrid, ViewportClient.ToSharedRef())
+		];
+
+		Overlay->AddSlot(-2)
+		[
+			SAssignNew(TextureOverlay, SAvaLevelViewportTextureOverlay, ViewportClient.ToSharedRef())
 		];
 
 		Overlay->AddSlot(-2)
@@ -593,7 +611,7 @@ void SAvaLevelViewport::ActivateCamera(TWeakObjectPtr<ACameraActor> InCamera)
 
 	ViewportClient->SetViewTarget(InCamera);
 
-	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& AvaLevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 	ViewportClient->GetZoomController()->Reset();
 
 	if (VirtualSizeAspectRatioState == EAvaViewportVirtualSizeAspectRatioState::LockedToCamera)
@@ -647,6 +665,11 @@ void SAvaLevelViewport::ApplySettings(const UAvaViewportSettings* InSettings)
 	if (SnapIndicators.IsValid())
 	{
 		SnapIndicators->SetVisibility(InSettings->bEnableViewportOverlay && InSettings->bSnapIndicatorsEnabled ? EVisibility::HitTestInvisible : EVisibility::Collapsed);
+	}
+
+	if (TextureOverlay.IsValid())
+	{
+		TextureOverlay->SetVisibility(InSettings->bEnableTextureOverlay ? EVisibility::HitTestInvisible : EVisibility::Collapsed);
 	}
 
 	if (CameraBounds.IsValid())
@@ -946,6 +969,28 @@ void SAvaLevelViewport::UnregisterPanelExtension()
 	}
 
 	PanelExtensionSubsystem->UnregisterPanelFactory(PanelExtensionFactory.Identifier, TEXT("LevelViewportToolBar.RightExtension"));
+}
+
+ECheckBoxState SAvaLevelViewport::GetTextureOverlayStretchEnabledCheckBoxState() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->bTextureOverlayStretch
+			? ECheckBoxState::Checked
+			: ECheckBoxState::Unchecked;
+	}
+
+	return ECheckBoxState::Undetermined;
+}
+
+void SAvaLevelViewport::OnTextureOverlayStretchEnabledCheckBoxChanged(ECheckBoxState InState)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->bTextureOverlayStretch = (InState == ECheckBoxState::Checked);
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, bTextureOverlayStretch));
+		AvaViewportSettings->SaveConfig();
+	}
 }
 
 int32 SAvaLevelViewport::GetVirtualSizeX() const

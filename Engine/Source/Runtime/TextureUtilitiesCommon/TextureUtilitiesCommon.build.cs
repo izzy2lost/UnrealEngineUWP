@@ -20,5 +20,14 @@ public class TextureUtilitiesCommon : ModuleRules
 				"Slate",
 				"SlateCore",
 			});
+
+		// TextureUtilitiesCommon is *incorrectly* in /Runtime/
+		// "TextureBuildUtilities" is in /Developer/
+		// TextureUtilitiesCommon is not allowed to depend on TextureBuildUtilities
+
+		if (Target.bBuildEditor == true)
+		{
+			PrivateDependencyModuleNames.Add("TextureBuildUtilities");
+		}
 	}
 }

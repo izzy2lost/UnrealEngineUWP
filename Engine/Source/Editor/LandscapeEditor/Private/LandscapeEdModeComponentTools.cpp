@@ -42,7 +42,6 @@ public:
 		: Super(InEdMode, InViewportClient, InTarget)
 		, bInitializedComponentInvert(false)
 		, bNeedsSelectionUpdate(false)
-		, Cache(InTarget)
 	{
 	}
 
@@ -122,9 +121,6 @@ public:
 			bNeedsSelectionUpdate = true;
 		}
 	}
-
-protected:
-	FLandscapeDataCache Cache;
 };
 
 class FLandscapeToolSelect : public FLandscapeToolBase<FLandscapeToolStrokeSelect>
@@ -603,7 +599,7 @@ namespace
 				TArray<ULandscapeComponent*> ComponentsUsingHeightmap;
 				ComponentsUsingHeightmap.Add(NewComponent);
 
-				for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+				for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 				{
 					// Since we do not share heightmap when adding new component, we will provided the required array, but they will only be used for 1 component
 					TMap<UTexture2D*, UTexture2D*> CreatedHeightmapTextures;
@@ -764,7 +760,7 @@ public:
 					TArray<ULandscapeComponent*> ComponentsUsingHeightmap;
 					ComponentsUsingHeightmap.Add(NewComponent);
 
-					for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+					for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 					{
 						// Since we do not share heightmap when adding new component, we will provided the required array, but they will only be used for 1 component
 						TMap<UTexture2D*, UTexture2D*> CreatedHeightmapTextures;
@@ -790,7 +786,7 @@ public:
 				TMap<ULandscapeLayerInfoObject*, int32> NeighbourLayerInfoObjectCount;
 
 				{
-					FLandscapeLayer* LandscapeLayer = Landscape ? Landscape->GetLayer(0) : nullptr;
+					const FLandscapeLayer* LandscapeLayer = Landscape ? Landscape->GetLayerConst(0) : nullptr;
 					FScopedSetLandscapeEditingLayer Scope(Landscape, LandscapeLayer ? LandscapeLayer->Guid : FGuid(), [=] { });
 
 					// Cover 9 tiles around us to determine which object should we use by default

@@ -12,5 +12,12 @@ namespace UE::Chaos::ClothAsset
 		/** IModuleInterface implementation */
 		virtual void StartupModule() override;
 		virtual void ShutdownModule() override;
+
+	private:
+
+		FDelegateHandle StartupCallbackDelegateHandle;
+
+		void RegisterMenus();
+		
 	};
 } // namespace UE::Chaos::ClothAsset

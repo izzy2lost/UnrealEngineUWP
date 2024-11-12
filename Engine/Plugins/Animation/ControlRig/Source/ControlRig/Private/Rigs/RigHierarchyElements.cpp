@@ -47,9 +47,9 @@ UScriptStruct* FRigBaseElement::GetElementStruct() const
 		{
 			return FRigReferenceElement::StaticStruct();
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			return FRigRigidBodyElement::StaticStruct();
+			return FRigPhysicsElement::StaticStruct();
 		}
 		case ERigElementType::Connector:
 		{
@@ -216,53 +216,239 @@ void FRigBaseElement::CopyFrom(const FRigBaseElement* InOther)
 {
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// FRigTransformDirtyState
+////////////////////////////////////////////////////////////////////////////////
+
+const bool& FRigTransformDirtyState::Get() const
+{
+	if(Storage)
+	{
+		return *Storage;
+	}
+	ensure(false);
+	static constexpr bool bDefaultDirtyFlag = false;
+	return bDefaultDirtyFlag;
+}
+
+bool& FRigTransformDirtyState::Get()
+{
+	if(Storage)
+	{
+		return *Storage;
+	}
+	ensure(false);
+	static bool bDefaultDirtyFlag = false;
+	return bDefaultDirtyFlag;
+}
+
+bool FRigTransformDirtyState::Set(bool InDirty)
+{
+	if(Storage)
+	{
+		if(*Storage != InDirty)
+		{
+			*Storage = InDirty;
+			return true;
+		}
+	}
+	return false;
+}
+
+FRigTransformDirtyState& FRigTransformDirtyState::operator=(const FRigTransformDirtyState& InOther)
+{
+	if(Storage)
+	{
+		*Storage = InOther.Get();
+	}
+	return *this;
+}
+
+void FRigTransformDirtyState::LinkStorage(const TArrayView<bool>& InStorage)
+{
+	if(InStorage.IsValidIndex(StorageIndex))
+	{
+		Storage = InStorage.GetData() + StorageIndex;
+	}
+}
+
+void FRigTransformDirtyState::UnlinkStorage(FRigReusableElementStorage<bool>& InStorage)
+{
+	InStorage.Deallocate(StorageIndex, &Storage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigLocalAndGlobalDirtyState
+////////////////////////////////////////////////////////////////////////////////
+
+FRigLocalAndGlobalDirtyState& FRigLocalAndGlobalDirtyState::operator=(const FRigLocalAndGlobalDirtyState& InOther)
+{
+	Local = InOther.Local;
+	Global = InOther.Global;
+	return *this;
+}
+
+void FRigLocalAndGlobalDirtyState::LinkStorage(const TArrayView<bool>& InStorage)
+{
+	Local.LinkStorage(InStorage);
+	Global.LinkStorage(InStorage);
+}
+
+void FRigLocalAndGlobalDirtyState::UnlinkStorage(FRigReusableElementStorage<bool>& InStorage)
+{
+	Local.UnlinkStorage(InStorage);
+	Global.UnlinkStorage(InStorage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigCurrentAndInitialDirtyState
+////////////////////////////////////////////////////////////////////////////////
+
+FRigCurrentAndInitialDirtyState& FRigCurrentAndInitialDirtyState::operator=(const FRigCurrentAndInitialDirtyState& InOther)
+{
+	Current = InOther.Current;
+	Initial = InOther.Initial;
+	return *this;
+}
+
+void FRigCurrentAndInitialDirtyState::LinkStorage(const TArrayView<bool>& InStorage)
+{
+	Current.LinkStorage(InStorage);
+	Initial.LinkStorage(InStorage);
+}
+
+void FRigCurrentAndInitialDirtyState::UnlinkStorage(FRigReusableElementStorage<bool>& InStorage)
+{
+	Current.UnlinkStorage(InStorage);
+	Initial.UnlinkStorage(InStorage);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // FRigComputedTransform
 ////////////////////////////////////////////////////////////////////////////////
 
-void FRigComputedTransform::Save(FArchive& Ar, bool& bDirty)
+void FRigComputedTransform::Save(FArchive& Ar, const FRigTransformDirtyState& InDirtyState)
 {
+	FTransform Transform = Get();
+	bool bDirty = InDirtyState.Get();
+	
 	Ar << Transform;
 	Ar << bDirty;
 }
 
-void FRigComputedTransform::Load(FArchive& Ar, bool& bDirty)
+void FRigComputedTransform::Load(FArchive& Ar, FRigTransformDirtyState& InDirtyState)
 {
-	// load and save are identical
-	Save(Ar, bDirty);
+	FTransform Transform = FTransform::Identity;
+	bool bDirty = false;
+
+	Ar << Transform;
+	Ar << bDirty;
+
+	Set(Transform);
+	(void)InDirtyState.Set(bDirty);
+}
+
+const FTransform& FRigComputedTransform::Get() const
+{
+	if(Storage)
+	{
+		return *Storage;
+	}
+	ensure(false);
+	static const FTransform DefaultTransform = FTransform::Identity;
+	return DefaultTransform;
+}
+
+FRigComputedTransform& FRigComputedTransform::operator=(const FRigComputedTransform& InOther)
+{
+	if(Storage)
+	{
+		*Storage = InOther.Get();
+	}
+	return *this;
+}
+
+void FRigComputedTransform::LinkStorage(const TArrayView<FTransform>& InStorage)
+{
+	if(InStorage.IsValidIndex(StorageIndex))
+	{
+		Storage = InStorage.GetData() + StorageIndex;
+	}
+}
+
+void FRigComputedTransform::UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage)
+{
+	InStorage.Deallocate(StorageIndex, &Storage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FRigLocalAndGlobalTransform
 ////////////////////////////////////////////////////////////////////////////////
 
-void FRigLocalAndGlobalTransform::Save(FArchive& Ar)
+void FRigLocalAndGlobalTransform::Save(FArchive& Ar, const FRigLocalAndGlobalDirtyState& InDirtyState)
 {
-	Local.Save(Ar, bDirty[ELocal]);
-	Global.Save(Ar, bDirty[EGlobal]);
+	Local.Save(Ar, InDirtyState.Local);
+	Global.Save(Ar, InDirtyState.Global);
 }
 
-void FRigLocalAndGlobalTransform::Load(FArchive& Ar)
+void FRigLocalAndGlobalTransform::Load(FArchive& Ar, FRigLocalAndGlobalDirtyState& OutDirtyState)
 {
-	Local.Load(Ar, bDirty[ELocal]);
-	Global.Load(Ar, bDirty[EGlobal]);
+	Local.Load(Ar, OutDirtyState.Local);
+	Global.Load(Ar, OutDirtyState.Global);
+}
+
+FRigLocalAndGlobalTransform& FRigLocalAndGlobalTransform::operator=(const FRigLocalAndGlobalTransform& InOther)
+{
+	Local = InOther.Local;
+	Global = InOther.Global;
+	return *this;
+}
+
+void FRigLocalAndGlobalTransform::LinkStorage(const TArrayView<FTransform>& InStorage)
+{
+	Local.LinkStorage(InStorage);
+	Global.LinkStorage(InStorage);
+}
+
+void FRigLocalAndGlobalTransform::UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage)
+{
+	Local.UnlinkStorage(InStorage);
+	Global.UnlinkStorage(InStorage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FRigCurrentAndInitialTransform
 ////////////////////////////////////////////////////////////////////////////////
 
-void FRigCurrentAndInitialTransform::Save(FArchive& Ar)
+void FRigCurrentAndInitialTransform::Save(FArchive& Ar, const FRigCurrentAndInitialDirtyState& InDirtyState)
 {
-	Current.Save(Ar);
-	Initial.Save(Ar);
+	Current.Save(Ar, InDirtyState.Current);
+	Initial.Save(Ar, InDirtyState.Initial);
 }
 
-void FRigCurrentAndInitialTransform::Load(FArchive& Ar)
+void FRigCurrentAndInitialTransform::Load(FArchive& Ar, FRigCurrentAndInitialDirtyState& OutDirtyState)
 {
-	Current.Load(Ar);
-	Initial.Load(Ar);
+	Current.Load(Ar, OutDirtyState.Current);
+	Initial.Load(Ar, OutDirtyState.Initial);
+}
+
+FRigCurrentAndInitialTransform& FRigCurrentAndInitialTransform::operator=(const FRigCurrentAndInitialTransform& InOther)
+{
+	Current = InOther.Current;
+	Initial = InOther.Initial;
+	return *this;
+}
+
+void FRigCurrentAndInitialTransform::LinkStorage(const TArrayView<FTransform>& InStorage)
+{
+	Current.LinkStorage(InStorage);
+	Initial.LinkStorage(InStorage);
+}
+
+void FRigCurrentAndInitialTransform::UnlinkStorage(FRigReusableElementStorage<FTransform>& InStorage)
+{
+	Current.UnlinkStorage(InStorage);
+	Initial.UnlinkStorage(InStorage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,7 +602,7 @@ void FRigTransformElement::Save(FArchive& Ar, ESerializationPhase SerializationP
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
-		Pose.Save(Ar);
+		GetTransform().Save(Ar, GetDirtyState());
 	}
 }
 
@@ -426,7 +612,7 @@ void FRigTransformElement::Load(FArchive& Ar, ESerializationPhase SerializationP
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
-		Pose.Load(Ar);
+		GetTransform().Load(Ar, GetDirtyState());
 	}
 }
 
@@ -438,13 +624,35 @@ void FRigTransformElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, boo
 	{
 		if(bCurrent)
 		{
-			Pose.Current = Other->Pose.Current;
+			GetTransform().Current = Other->GetTransform().Current;
+			GetDirtyState().Current = Other->GetDirtyState().Current; 
 		}
 		if(bInitial)
 		{
-			Pose.Initial = Other->Pose.Initial;
+			GetTransform().Initial = Other->GetTransform().Initial;
+			GetDirtyState().Initial = Other->GetDirtyState().Initial; 
 		}
 	}
+}
+
+const FRigCurrentAndInitialTransform& FRigTransformElement::GetTransform() const
+{
+	return PoseStorage;
+}
+
+FRigCurrentAndInitialTransform& FRigTransformElement::GetTransform()
+{
+	return PoseStorage;
+}
+
+const FRigCurrentAndInitialDirtyState& FRigTransformElement::GetDirtyState() const
+{
+	return PoseDirtyState;
+}
+
+FRigCurrentAndInitialDirtyState& FRigTransformElement::GetDirtyState()
+{
+	return PoseDirtyState;
 }
 
 void FRigTransformElement::CopyFrom(const FRigBaseElement* InOther)
@@ -452,7 +660,8 @@ void FRigTransformElement::CopyFrom(const FRigBaseElement* InOther)
 	Super::CopyFrom(InOther);
 	
 	const FRigTransformElement* SourceTransform = CastChecked<FRigTransformElement>(InOther);
-	Pose = SourceTransform->Pose;
+	GetTransform() = SourceTransform->GetTransform();
+	GetDirtyState() = SourceTransform->GetDirtyState();
 
 	ElementsToDirty.Reset();
 	ElementsToDirty.Reserve(SourceTransform->ElementsToDirty.Num());
@@ -465,6 +674,22 @@ void FRigTransformElement::CopyFrom(const FRigBaseElement* InOther)
 		ElementsToDirty.Add(Target);
 		check(ElementsToDirty[ElementToDirtyIndex].Element->GetKey() == Source.Element->GetKey());
 	}
+}
+
+void FRigTransformElement::LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates,
+	const TArrayView<float>& InCurves)
+{
+	FRigBaseElement::LinkStorage(InTransforms, InDirtyStates, InCurves);
+	PoseStorage.LinkStorage(InTransforms);
+	PoseDirtyState.LinkStorage(InDirtyStates);
+}
+
+void FRigTransformElement::UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms,
+	FRigReusableElementStorage<bool>& InDirtyStates, FRigReusableElementStorage<float>& InCurves)
+{
+	FRigBaseElement::UnlinkStorage(InTransforms, InDirtyStates, InCurves);
+	PoseStorage.UnlinkStorage(InTransforms);
+	PoseDirtyState.UnlinkStorage(InDirtyStates);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -561,7 +786,8 @@ void FRigMultiParentElement::Load(FArchive& Ar, ESerializationPhase Serializatio
 		if (Ar.CustomVer(FControlRigObjectVersion::GUID) < FControlRigObjectVersion::RemovedMultiParentParentCache)
 		{
 			FRigCurrentAndInitialTransform Parent;
-			Parent.Load(Ar);
+			FRigCurrentAndInitialDirtyState DirtyState;
+			Parent.Load(Ar, DirtyState);
 		}
 
 		int32 NumParents = 0;
@@ -1177,6 +1403,46 @@ void FRigControlSettings::SetupLimitArrayForType(bool bLimitTranslation, bool bL
 	}
 }
 
+const FRigCurrentAndInitialTransform& FRigControlElement::GetOffsetTransform() const
+{
+	return OffsetStorage;
+}
+
+FRigCurrentAndInitialTransform& FRigControlElement::GetOffsetTransform()
+{
+	return OffsetStorage;
+}
+
+const FRigCurrentAndInitialDirtyState& FRigControlElement::GetOffsetDirtyState() const
+{
+	return OffsetDirtyState;
+}
+
+FRigCurrentAndInitialDirtyState& FRigControlElement::GetOffsetDirtyState()
+{
+	return OffsetDirtyState;
+}
+
+const FRigCurrentAndInitialTransform& FRigControlElement::GetShapeTransform() const
+{
+	return ShapeStorage;
+}
+
+FRigCurrentAndInitialTransform& FRigControlElement::GetShapeTransform()
+{
+	return ShapeStorage;
+}
+
+const FRigCurrentAndInitialDirtyState& FRigControlElement::GetShapeDirtyState() const
+{
+	return ShapeDirtyState;
+}
+
+FRigCurrentAndInitialDirtyState& FRigControlElement::GetShapeDirtyState()
+{
+	return ShapeDirtyState;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // FRigControlElement
 ////////////////////////////////////////////////////////////////////////////////
@@ -1190,8 +1456,8 @@ void FRigControlElement::Save(FArchive& Ar, ESerializationPhase SerializationPha
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
 		Settings.Save(Ar);
-		Offset.Save(Ar);
-		Shape.Save(Ar);
+		GetOffsetTransform().Save(Ar, GetOffsetDirtyState());
+		GetShapeTransform().Save(Ar, GetShapeDirtyState());
 		PreferredEulerAngles.Save(Ar);
 	}
 }
@@ -1203,8 +1469,8 @@ void FRigControlElement::Load(FArchive& Ar, ESerializationPhase SerializationPha
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
 		Settings.Load(Ar);
-		Offset.Load(Ar);
-		Shape.Load(Ar);
+		GetOffsetTransform().Load(Ar, GetOffsetDirtyState());
+		GetShapeTransform().Load(Ar, GetShapeDirtyState());
 
 		if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::PreferredEulerAnglesForControls)
 		{
@@ -1224,8 +1490,10 @@ void FRigControlElement::CopyFrom(const FRigBaseElement* InOther)
 	
 	const FRigControlElement* Source = CastChecked<FRigControlElement>(InOther);
 	Settings = Source->Settings;
-	Offset = Source->Offset;
-	Shape = Source->Shape;
+	GetOffsetTransform() = Source->GetOffsetTransform();
+	GetOffsetDirtyState() = Source->GetOffsetDirtyState();
+	GetShapeTransform() = Source->GetShapeTransform();
+	GetShapeDirtyState() = Source->GetShapeDirtyState();
 	PreferredEulerAngles = Source->PreferredEulerAngles;
 }
 
@@ -1237,17 +1505,41 @@ void FRigControlElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, bool 
 	{
 		if(bCurrent)
 		{
-			Offset.Current = Other->Offset.Current;
-			Shape.Current = Other->Shape.Current;
+			GetOffsetTransform().Current = Other->GetOffsetTransform().Current;
+			GetOffsetDirtyState().Current = Other->GetOffsetDirtyState().Current;
+			GetShapeTransform().Current = Other->GetShapeTransform().Current;
+			GetShapeDirtyState().Current = Other->GetShapeDirtyState().Current;
 			PreferredEulerAngles.SetAngles(Other->PreferredEulerAngles.GetAngles(false), false);
 		}
 		if(bInitial)
 		{
-			Offset.Initial = Other->Offset.Initial;
-			Shape.Initial = Other->Shape.Initial;
+			GetOffsetTransform().Initial = Other->GetOffsetTransform().Initial;
+			GetOffsetDirtyState().Initial = Other->GetOffsetDirtyState().Initial;
+			GetShapeTransform().Initial = Other->GetShapeTransform().Initial;
+			GetShapeDirtyState().Initial = Other->GetShapeDirtyState().Initial;
 			PreferredEulerAngles.SetAngles(Other->PreferredEulerAngles.GetAngles(true), true);
 		}
 	}
+}
+
+void FRigControlElement::LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates,
+	const TArrayView<float>& InCurves)
+{
+	FRigMultiParentElement::LinkStorage(InTransforms, InDirtyStates, InCurves);
+	OffsetStorage.LinkStorage(InTransforms);
+	ShapeStorage.LinkStorage(InTransforms);
+	OffsetDirtyState.LinkStorage(InDirtyStates);
+	ShapeDirtyState.LinkStorage(InDirtyStates);
+}
+
+void FRigControlElement::UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms, FRigReusableElementStorage<bool>& InDirtyStates,
+	FRigReusableElementStorage<float>& InCurves)
+{
+	FRigMultiParentElement::UnlinkStorage(InTransforms, InDirtyStates, InCurves);
+	OffsetStorage.UnlinkStorage(InTransforms);
+	ShapeStorage.UnlinkStorage(InTransforms);
+	OffsetDirtyState.UnlinkStorage(InDirtyStates);
+	ShapeDirtyState.UnlinkStorage(InDirtyStates);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1262,6 +1554,7 @@ void FRigCurveElement::Save(FArchive& Ar, ESerializationPhase SerializationPhase
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
+		float Value = Get();
 		Ar << bIsValueSet;
 		Ar << Value;
 	}
@@ -1281,7 +1574,11 @@ void FRigCurveElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase
 		{
 			bIsValueSet = true;
 		}
+
+		float Value = 0.f;
 		Ar << Value;
+
+		Set(Value, bIsValueSet);
 	}
 }
 
@@ -1291,9 +1588,46 @@ void FRigCurveElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, bool bI
 	
 	if(const FRigCurveElement* Other = Cast<FRigCurveElement>(InOther))
 	{
+		Set(Other->Get());
 		bIsValueSet = Other->bIsValueSet;
-		Value = Other->Value;
 	}
+}
+
+const float& FRigCurveElement::Get() const
+{
+	if(Storage)
+	{
+		return *Storage;
+	}
+	ensure(false);
+	static constexpr float DefaultCurve = 0.f;
+	return DefaultCurve;
+}
+
+void FRigCurveElement::Set(const float& InValue, bool InValueIsSet)
+{
+	if(Storage)
+	{
+		*Storage = InValue;
+		bIsValueSet = InValueIsSet;
+	}
+}
+
+void FRigCurveElement::LinkStorage(const TArrayView<FTransform>& InTransforms, const TArrayView<bool>& InDirtyStates,
+	const TArrayView<float>& InCurves)
+{
+	FRigBaseElement::LinkStorage(InTransforms, InDirtyStates, InCurves);
+	if(InCurves.IsValidIndex(StorageIndex))
+	{
+		Storage = InCurves.GetData() + StorageIndex;
+	}
+}
+
+void FRigCurveElement::UnlinkStorage(FRigReusableElementStorage<FTransform>& InTransforms, FRigReusableElementStorage<bool>& InDirtyStates,
+	FRigReusableElementStorage<float>& InCurves)
+{
+	FRigBaseElement::UnlinkStorage(InTransforms, InDirtyStates, InCurves);
+	InCurves.Deallocate(StorageIndex, &Storage);
 }
 
 void FRigCurveElement::CopyFrom(const FRigBaseElement* InOther)
@@ -1302,61 +1636,112 @@ void FRigCurveElement::CopyFrom(const FRigBaseElement* InOther)
 	
 	if(const FRigCurveElement* Other = CastChecked<FRigCurveElement>(InOther))
 	{
+		Set(Other->Get());
 		bIsValueSet = Other->bIsValueSet;
-		Value = Other->Value;
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FRigRigidBodySettings
+// FRigPhysicsSolver
 ////////////////////////////////////////////////////////////////////////////////
 
-FRigRigidBodySettings::FRigRigidBodySettings()
+void FRigPhysicsSolverDescription::Serialize(FArchive& Ar)
+{
+	if (Ar.IsSaving() || Ar.IsObjectReferenceCollector() || Ar.IsCountingMemory())
+	{
+		Save(Ar);
+	}
+	else if (Ar.IsLoading())
+	{
+		Load(Ar);
+	}
+}
+
+void FRigPhysicsSolverDescription::Save(FArchive& Ar)
+{
+	Ar << ID;
+	Ar << Name;
+}
+
+void FRigPhysicsSolverDescription::Load(FArchive& Ar)
+{
+	Ar << ID;
+	Ar << Name;
+}
+
+FGuid FRigPhysicsSolverDescription::MakeGuid(const FString& InObjectPath, const FName& InSolverName)
+{
+	const FString CompletePath = FString::Printf(TEXT("%s|%s"), *InObjectPath, *InSolverName.ToString());
+	return FGuid::NewDeterministicGuid(CompletePath);
+}
+
+FRigPhysicsSolverID FRigPhysicsSolverDescription::MakeID(const FString& InObjectPath, const FName& InSolverName)
+{
+	return FRigPhysicsSolverID(MakeGuid(InObjectPath, InSolverName));
+}
+
+void FRigPhysicsSolverDescription::CopyFrom(const FRigPhysicsSolverDescription* InOther)
+{
+	if(InOther)
+	{
+		ID = InOther->ID;
+		Name = InOther->Name;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigPhysicsSettings
+////////////////////////////////////////////////////////////////////////////////
+
+FRigPhysicsSettings::FRigPhysicsSettings()
 	: Mass(1.f)
 {
 }
 
-void FRigRigidBodySettings::Save(FArchive& Ar)
+void FRigPhysicsSettings::Save(FArchive& Ar)
 {
 	Ar << Mass;
 }
 
-void FRigRigidBodySettings::Load(FArchive& Ar)
+void FRigPhysicsSettings::Load(FArchive& Ar)
 {
 	Ar << Mass;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FRigRigidBodyElement
+// FRigPhysicsElement
 ////////////////////////////////////////////////////////////////////////////////
 
-const FRigBaseElement::EElementIndex FRigRigidBodyElement::ElementTypeIndex = RigidBodyElement;
+const FRigBaseElement::EElementIndex FRigPhysicsElement::ElementTypeIndex = PhysicsElement;
 
-void FRigRigidBodyElement::Save(FArchive& Ar, ESerializationPhase SerializationPhase)
+void FRigPhysicsElement::Save(FArchive& Ar, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, SerializationPhase);
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
+		Ar << Solver;
 		Settings.Save(Ar);
 	}
 }
 
-void FRigRigidBodyElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
+void FRigPhysicsElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
 {
 	Super::Load(Ar, SerializationPhase);
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
+		Ar << Solver;
 		Settings.Load(Ar);
 	}
 }
 
-void FRigRigidBodyElement::CopyFrom(const FRigBaseElement* InOther)
+void FRigPhysicsElement::CopyFrom(const FRigBaseElement* InOther)
 {
 	Super::CopyFrom(InOther);
 	
-	const FRigRigidBodyElement* Source = CastChecked<FRigRigidBodyElement>(InOther);
+	const FRigPhysicsElement* Source = CastChecked<FRigPhysicsElement>(InOther);
+	Solver = Source->Solver;
 	Settings = Source->Settings;
 }
 

@@ -44,11 +44,12 @@ class SNumericTextBlockKeyEditor : public SCompoundWidget
 	}
 };
 
-struct FPerlinNoiseChannelSectionMenuExtension : TSharedFromThis<FPerlinNoiseChannelSectionMenuExtension>
+struct FPerlinNoiseChannelSectionMenuExtension : TSharedFromThis<FPerlinNoiseChannelSectionMenuExtension>, ISidebarChannelExtension
 {
-	FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, TArrayView<UMovieSceneSection* const> InSections);
+	FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections);
+	virtual ~FPerlinNoiseChannelSectionMenuExtension() {}
 
-	void ExtendMenu(FMenuBuilder& MenuBuilder);
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu) override;
 
 private:
 
@@ -61,9 +62,9 @@ private:
 
 	struct FChannelNotifyHook : FNotifyHook
 	{
-		UObject* ObjectToModify = nullptr;
+		TWeakObjectPtr<UObject> WeakObjectToModify;
 
-		FChannelNotifyHook(UObject* InObjectToModify) : ObjectToModify(InObjectToModify) {}
+		FChannelNotifyHook(UObject* InObjectToModify) : WeakObjectToModify(InObjectToModify) {}
 
 		virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
 		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
@@ -71,7 +72,7 @@ private:
 
 	TArray<FMovieSceneChannelHandle> ChannelHandles;
 	TArray<int32> ChannelHandleSectionIndexes;
-	TArray<UMovieSceneSection*> Sections;
+	TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSections;
 	TArray<FChannelNotifyHook> NotifyHooks;
 };
 
@@ -103,7 +104,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		return true;
 	}
 
-	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> Sequencer) const override
+	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params) const override
 	{
 		const TMovieSceneExternalValue<typename ChannelType::CurveValueType>* ExternalValue = Channel.Cast<ChannelType>().GetExtendedEditorData();
 		if (!ExternalValue)
@@ -112,8 +113,8 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		}
 
 		TSequencerKeyEditor<ChannelType, typename ChannelType::CurveValueType> KeyEditor(
-			InObjectBindingID, Channel.Cast<ChannelType>(),
-			Section, Sequencer, PropertyBindings, ExternalValue->OnGetExternalValue
+			Params.ObjectBindingID, Channel.Cast<ChannelType>(),
+			Params.OwningSection, Params.Sequencer, Params.PropertyBindings, ExternalValue->OnGetExternalValue
 			);
 
 		using KeyEditorType = SNumericTextBlockKeyEditor<ChannelType, typename ChannelType::CurveValueType>;
@@ -124,11 +125,22 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 	{
 	}
 
-	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const override
+	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArrayView<const FMovieSceneChannelHandle> InChannels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer) const override
 	{
-		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(Channels, Sections);
+		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(InChannels, InWeakSections);
 
-		MenuExtender->AddMenuExtension("SequencerChannels", EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder) { Extension->ExtendMenu(MenuBuilder); }));
+		InMenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
+			, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder)
+				{
+					Extension->ExtendMenu(MenuBuilder, true);
+				}));
+	}
+
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArrayView<const FMovieSceneChannelHandle> InChannels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer) const override
+	{
+		const TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(InChannels, InWeakSections);
+		Extension->ExtendMenu(MenuBuilder, false);
+		return Extension;
 	}
 
 	virtual void DrawKeys_Raw(FMovieSceneChannel* Channel, TArrayView<const FKeyHandle> InKeyHandles, const UMovieSceneSection* InOwner, TArrayView<FKeyDrawParams> OutKeyDrawParams) const override
@@ -145,7 +157,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		return false;
 	}
 
-	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer) const override
+	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateCurveEditorModelParams& Params) const override
 	{
 		return nullptr;
 	}
@@ -183,7 +195,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		return LayerId + 1;
 	}
 
-	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, FName InChannelName) const override
+	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName) const override
 	{
 		return nullptr;
 	}

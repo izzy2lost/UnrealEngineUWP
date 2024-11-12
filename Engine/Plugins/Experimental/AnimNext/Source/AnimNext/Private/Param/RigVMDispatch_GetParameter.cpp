@@ -2,11 +2,6 @@
 
 #include "Param/RigVMDispatch_GetParameter.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "RigVMCore/RigVM.h"
-#include "Graph/AnimNextExecuteContext.h"
-#include "Context.h"
-#include "Param/ParamStack.h"
-#include "Param/ParamStack.h"
 
 const FName FRigVMDispatch_GetParameter::ValueName = TEXT("Value");
 const FName FRigVMDispatch_GetParameter::TypeHandleName = TEXT("Type");
@@ -80,29 +75,6 @@ FRigVMTemplateTypeMap FRigVMDispatch_GetParameter::OnNewArgumentType(const FName
 
 void FRigVMDispatch_GetParameter::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
-	using namespace UE::AnimNext;
-
-	const FName Parameter = *(FName*)Handles[0].GetData();
-	const FProperty* ValueProperty = Handles[1].GetResolvedProperty();
-	check(ValueProperty);
-	uint8* TargetDataPtr = Handles[1].GetData();
-
-	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
-	if (ParameterHash == 0 && Parameter != NAME_None)
-	{
-		ParameterHash = GetTypeHash(Parameter);
-	}
-
-	uint32& TypeHandle = *(uint32*)Handles[3].GetData();
-	if (TypeHandle == 0)
-	{
-		TypeHandle = FParamTypeHandle::FromProperty(ValueProperty).ToRaw();
-	}
-
-	TConstArrayView<uint8> SourceData;
-	if (FParamStack::Get().GetParamData(FParamId(Parameter, ParameterHash), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
-	{
-		ValueProperty->CopyCompleteValue(TargetDataPtr, SourceData.GetData());
-	}
+	// Deprecated stub
 }
 

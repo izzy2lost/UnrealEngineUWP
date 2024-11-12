@@ -5,6 +5,7 @@
 #include "Iris/Core/IrisLog.h"
 #include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationState/ReplicationStateUtil.h"
+#include "Iris/ReplicationState/InternalReplicationStateDescriptorUtils.h"
 #include "Iris/ReplicationSystem/ObjectReferenceCache.h"
 #include "Iris/ReplicationSystem/ReplicationFragment.h"
 #include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
@@ -26,6 +27,9 @@
 #include "DequantizeAndApplyHelper.h"
 #include "HAL/IConsoleManager.h"
 #include "UObject/CoreNetTypes.h"
+
+#include "CoreTypes.h"
+
 
 namespace UE::Net::Private
 {
@@ -266,6 +270,102 @@ bool FReplicationStateOperations::Validate(FNetSerializationContext& Context, co
 	return true;
 }
 
+static void OutputDescriptorMemberHashToString(FNetSerializationContext Context, uint32* HashBuffer, uint32 Indentation, FStringBuilderBase& StringBuilder, const uint8* RESTRICT SrcInternalBuffer, const FReplicationStateDescriptor* Descriptor)
+{
+	const FReplicationStateMemberDescriptor* MemberDescriptors = Descriptor->MemberDescriptors;
+	const FReplicationStateMemberSerializerDescriptor* MemberSerializerDescriptors = Descriptor->MemberSerializerDescriptors;
+	const FReplicationStateMemberDebugDescriptor* MemberDebugDescriptors = Descriptor->MemberDebugDescriptors;
+	const uint32 MemberCount = Descriptor->MemberCount;
+
+	FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
+
+	auto AppendMemberAndIndentation = [](FStringBuilderBase& StringBuilder, uint32 MemberIndex, uint32 Indentation)
+	{
+		while (Indentation--)
+		{
+			StringBuilder.Append(TEXT("    "));
+		};
+		StringBuilder.Appendf(TEXT("Member: %u "), MemberIndex);
+	};
+
+	for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
+	{
+		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
+		const FReplicationStateMemberSerializerDescriptor& MemberSerializerDescriptor = MemberSerializerDescriptors[MemberIt];
+
+		AppendMemberAndIndentation(StringBuilder, MemberIt, Indentation);
+
+		// Traverse struct members as well.
+		if (IsUsingStructNetSerializer(MemberSerializerDescriptor))
+		{
+			const FStructNetSerializerConfig* StructConfig = static_cast<const FStructNetSerializerConfig*>(MemberSerializerDescriptor.SerializerConfig);
+			const FReplicationStateDescriptor* StructDescriptor = StructConfig->StateDescriptor;
+
+			StringBuilder.Appendf(TEXT("%s\n"), ToCStr(MemberDebugDescriptors[MemberIt].DebugName));
+			OutputDescriptorMemberHashToString(Context, HashBuffer, Indentation + 1, StringBuilder, SrcInternalBuffer + MemberDescriptor.InternalMemberOffset, StructDescriptor);
+			return;	
+		}
+		else
+		{
+			// Reset writer as we want to capture this per member
+			Writer.Seek(0U);
+
+			FNetSerializeArgs Args;
+			Args.Version = 0;
+			Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
+			Args.Source = reinterpret_cast<NetSerializerValuePointer>(SrcInternalBuffer + MemberDescriptor.InternalMemberOffset);
+
+			MemberSerializerDescriptor.Serializer->Serialize(Context, Args);
+
+			// Make sure last byte has well defined data as we include it in hash
+			if (const uint32 BitsToFill = (8U - (Writer.GetPosBits() & 7U)) & 7U)
+			{
+				Writer.WriteBits(0U, BitsToFill);
+			}
+
+			Writer.CommitWrites();
+
+			// Calculate and print hash 
+			// Hash the serialized buffer
+			const uint64 MemberDefaultHash = CityHash64((const char*)HashBuffer, Writer.GetPosBytes());
+		
+			StringBuilder.Appendf(TEXT("%s Serializer: %s Hash: 0x%" UINT64_x_FMT "\n"), ToCStr(MemberDebugDescriptors[MemberIt].DebugName), ToCStr(MemberSerializerDescriptor.Serializer->Name), MemberDefaultHash);
+		}
+	}
+};
+
+void FReplicationStateOperations::OutputDefaultStateMembersHashToString(UReplicationSystem* ReplicationSystem, FStringBuilderBase& StringBuilder, const FReplicationStateDescriptor* Descriptor)
+{
+	if (!ReplicationSystem)
+	{
+		return;
+	}
+
+	if (!Descriptor || !Descriptor->DefaultStateBuffer)
+	{
+		return;
+	}
+
+	// Setup a temporary buffer for this.
+	constexpr uint32 BufferSize = 4096;
+	TArray<uint32> TempBuffer;
+	TempBuffer.SetNum(BufferSize/sizeof(uint32));
+
+	FNetBitStreamWriter Writer;
+	Writer.InitBytes(TempBuffer.GetData(), BufferSize);
+
+	// Setup context to serialize default state
+	FNetSerializationContext Context(&Writer);
+	Private::FInternalNetSerializationContext InternalContext(ReplicationSystem);
+	Context.SetInternalContext(&InternalContext);
+
+	// Tell serializers we are serializing default state. It allows serializers to opt out of being part of the checksum by simply not serializing any data.
+	Context.SetIsInitializingDefaultState(true);
+
+	OutputDescriptorMemberHashToString(Context, TempBuffer.GetData(), 0, StringBuilder, Descriptor->DefaultStateBuffer, Descriptor);
+}
+
+
 void FReplicationStateOperations::Serialize(FNetSerializationContext& Context, const uint8* RESTRICT SrcInternalBuffer, const FReplicationStateDescriptor* Descriptor)
 {
 	const FReplicationStateMemberDescriptor* MemberDescriptors = Descriptor->MemberDescriptors;
@@ -301,6 +401,7 @@ void FReplicationStateOperations::Deserialize(FNetSerializationContext& Context,
 	for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
 	{
 		UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberDebugDescriptors[MemberIt].DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
 
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
 		const FReplicationStateMemberSerializerDescriptor& MemberSerializerDescriptor = MemberSerializerDescriptors[MemberIt];
@@ -351,6 +452,7 @@ void FReplicationStateOperations::DeserializeDelta(FNetSerializationContext& Con
 	for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
 	{
 		UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberDebugDescriptors[MemberIt].DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
 
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
 		const FReplicationStateMemberSerializerDescriptor& MemberSerializerDescriptor = MemberSerializerDescriptors[MemberIt];
@@ -448,6 +550,8 @@ void FReplicationStateOperations::DeserializeWithMask(FNetSerializationContext& 
 			UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberSerializerDescriptor.Serializer->Name, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
 #endif
 
+			UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
+
 			FNetDeserializeArgs Args;
 			Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
 			Args.Target = reinterpret_cast<NetSerializerValuePointer>(DstInternalBuffer + MemberDescriptor.InternalMemberOffset);
@@ -540,6 +644,8 @@ void FReplicationStateOperations::DeserializeDeltaWithMask(FNetSerializationCont
 
 			UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberDebugDescriptors[MemberIt].DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 #endif
+
+			UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
 
 			FNetDeserializeDeltaArgs Args;
 			Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
@@ -799,6 +905,22 @@ void FReplicationInstanceOperations::OutputInternalStateToString(FNetSerializati
 	}
 }
 
+void FReplicationInstanceOperations::OutputInternalDefaultStateMemberHashesToString(UReplicationSystem* ReplicationSystem, FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments)
+{
+	// Iterate over fragments
+	for (int32 Index=0; Index < Fragments.Num(); ++Index)
+	{
+		const FReplicationFragmentInfo& FragmentInfo = Fragments[Index];
+
+		const FReplicationStateDescriptor* CurrentDescriptor = FragmentInfo.Descriptor;
+		const FReplicationFragment* CurrentFragment = FragmentInfo.Fragment;
+
+		StringBuilder.Appendf(TEXT("Printing default state hash for members of [%d/%d] Fragment: %s DescriptorId: 0x%" UINT64_x_FMT " DefaultStateHash: 0x%" UINT64_x_FMT "\n"), 
+			Index+1, Fragments.Num(), ToCStr(CurrentDescriptor->DebugName), CurrentDescriptor->DescriptorIdentifier.Value, CurrentDescriptor->DescriptorIdentifier.DefaultStateHash);
+		FReplicationStateOperations::OutputDefaultStateMembersHashToString(ReplicationSystem, StringBuilder, CurrentDescriptor);
+	}	
+}
+
 void FReplicationInstanceOperations::OutputInternalDefaultStateToString(FNetSerializationContext& NetSerializationContext, FStringBuilderBase& StringBuilder, const FReplicationFragments& Fragments)
 {
 	// Iterate over fragments
@@ -855,6 +977,8 @@ void FReplicationProtocolOperations::Deserialize(FNetSerializationContext& Conte
 	for (uint32 StateIt = 0; StateIt < Protocol->ReplicationStateCount; ++StateIt)
 	{
 		const FReplicationStateDescriptor* CurrentDescriptor = ReplicationStateDescriptors[StateIt];
+
+		UE_ADD_READ_JOURNAL_ENTRY(Context, CurrentDescriptor->DebugName);
 
 		CurrentInternalStateBuffer = Align(CurrentInternalStateBuffer, CurrentDescriptor->InternalAlignment);
 		
@@ -935,6 +1059,7 @@ void FReplicationProtocolOperations::DeserializeWithMask(FNetSerializationContex
 	// Read the ChangeMask
 	{
 		UE_NET_TRACE_SCOPE(ChangeMasks, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ChangeMask"));
 		ReadSparseBitArray(Context.GetBitStreamReader(), DstChangeMaskData, Protocol->ChangeMaskBitCount);
 	}
 
@@ -945,6 +1070,8 @@ void FReplicationProtocolOperations::DeserializeWithMask(FNetSerializationContex
 		const FReplicationStateDescriptor* CurrentDescriptor = ReplicationStateDescriptors[StateIt];
 
 		CurrentInternalStateBuffer = Align(CurrentInternalStateBuffer, CurrentDescriptor->InternalAlignment);
+
+		UE_ADD_READ_JOURNAL_ENTRY(Context, CurrentDescriptor->DebugName);
 		
 		if (CurrentDescriptor->IsInitState())
 		{
@@ -1174,6 +1301,7 @@ void FReplicationProtocolOperations::DeserializeWithMaskDelta(FNetSerializationC
 	// Read the ChangeMask
 	{
 		UE_NET_TRACE_SCOPE(ChangeMasks, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ChangeMask"));
 		ReadSparseBitArray(Context.GetBitStreamReader(), DstChangeMaskData, Protocol->ChangeMaskBitCount);
 	}
 
@@ -1187,6 +1315,7 @@ void FReplicationProtocolOperations::DeserializeWithMaskDelta(FNetSerializationC
 		PrevInternalStateBuffer = Align(PrevInternalStateBuffer, CurrentDescriptor->InternalAlignment);
 
 		UE_NET_TRACE_DYNAMIC_NAME_SCOPE(CurrentDescriptor->DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, CurrentDescriptor->DebugName);
 		if (CurrentDescriptor->IsInitState())
 		{
 			if (bIsInitState)

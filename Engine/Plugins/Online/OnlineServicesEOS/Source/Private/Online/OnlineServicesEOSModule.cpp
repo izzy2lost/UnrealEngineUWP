@@ -16,9 +16,9 @@ class FOnlineServicesFactoryEOS : public IOnlineServicesFactory
 {
 public:
 	virtual ~FOnlineServicesFactoryEOS() {}
-	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName) override
+	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName, FName InInstanceConfigName) override
 	{
-		return MakeShared<FOnlineServicesEOS>(InInstanceName);
+		return MakeShared<FOnlineServicesEOS>(InInstanceName, InInstanceConfigName);
 	}
 };
 
@@ -29,11 +29,7 @@ int FOnlineServicesEOSModule::GetRegistryPriority()
 
 void FOnlineServicesEOSModule::StartupModule()
 {
-	const FName EOSSharedModuleName = TEXT("EOSShared");
-	if (!FModuleManager::Get().IsModuleLoaded(EOSSharedModuleName))
-	{
-		FModuleManager::Get().LoadModuleChecked(EOSSharedModuleName);
-	}
+	FModuleManager::Get().LoadModuleChecked(TEXT("OnlineServicesEOSGS"));
 
 	// Making sure we load the module at this point will avoid errors while cooking
 	const FName OnlineServicesInterfaceModuleName = TEXT("OnlineServicesInterface");

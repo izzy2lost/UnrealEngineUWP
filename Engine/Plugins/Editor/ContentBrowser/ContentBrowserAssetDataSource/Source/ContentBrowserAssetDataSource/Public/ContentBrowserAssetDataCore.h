@@ -17,16 +17,30 @@ class UObject;
 class UToolMenu;
 class UContentBrowserDataSource;
 
-DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowserAssetDataSource, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowserAssetDataSource, Log, Log);
 
 namespace ContentBrowserAssetData
 {
 
-	CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsCookedPath = false, const bool bIsPlugin = false);
+CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalFolderPath,
+	const bool bIsCookedPath = false,
+	const bool bIsPlugin = false);
 
-	CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData, const bool bIsPlugin = false);
+CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData,
+	const bool bIsPlugin = false);
 
-	CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateUnsupportedAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData);
+CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateUnsupportedAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData);
 
 	CONTENTBROWSERASSETDATASOURCE_API TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> GetAssetFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem);
 
@@ -156,11 +170,23 @@ namespace ContentBrowserAssetData
 
 	CONTENTBROWSERASSETDATASOURCE_API bool AppendItemReference(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr);
 
+	CONTENTBROWSERASSETDATASOURCE_API bool AppendItemObjectPath(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr);
+
+	CONTENTBROWSERASSETDATASOURCE_API bool AppendItemPackageName(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr);
+
 	CONTENTBROWSERASSETDATASOURCE_API bool AppendAssetFolderItemReference(IAssetRegistry* InAssetRegistry, const FContentBrowserAssetFolderItemDataPayload& InFolderPayload, FString& InOutStr);
 
 	CONTENTBROWSERASSETDATASOURCE_API bool AppendAssetFileItemReference(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr);
 
+	CONTENTBROWSERASSETDATASOURCE_API bool AppendAssetFileObjectPath(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr);
+
+	CONTENTBROWSERASSETDATASOURCE_API bool AppendAssetFilePackageName(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr);
+
 	CONTENTBROWSERASSETDATASOURCE_API bool AppendUnsupportedAssetFileItemReference(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr);
+
+	CONTENTBROWSERASSETDATASOURCE_API bool AppendUnsupportedAssetFileObjectPath(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr);
+
+	CONTENTBROWSERASSETDATASOURCE_API bool AppendUnsupportedAssetFilePackageName(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr);
 
 	CONTENTBROWSERASSETDATASOURCE_API bool GetItemPhysicalPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& OutDiskPath);
 

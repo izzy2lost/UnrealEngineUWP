@@ -62,19 +62,19 @@ namespace UE::LevelSnapshots::Private
 			{
 				const FSoftObjectPath ActorPath = WorldActor;
 				const TOptional<TNonNullPtr<AActor>> DeserializedSnapshotActor = Snapshot->GetDeserializedActor(ActorPath);
-				if (!ensureAlwaysMsgf(DeserializedSnapshotActor.Get(nullptr), TEXT("Failed to get TMap value for key %s. Is the snapshot corrupted?"), *ActorPath.ToString()))
+				if (!ensureAlwaysMsgf(GetRawPointerOrNull(DeserializedSnapshotActor), TEXT("Failed to get TMap value for key %s. Is the snapshot corrupted?"), *ActorPath.ToString()))
 				{
 					continue;
 				}
 		
-				const EFilterResult::Type ActorInclusionResult = Filter->IsActorValid(FIsActorValidParams(DeserializedSnapshotActor.GetValue(), WorldActor));
+				const EFilterResult::Type ActorInclusionResult = Filter->IsActorValid(FIsActorValidParams(DeserializedSnapshotActor->Get(), WorldActor));
 				if (EFilterResult::CanInclude(ActorInclusionResult))
 				{
 					ULevelSnapshotsFilteringLibrary::ApplyFilterToFindSelectedProperties(
 						Snapshot,
 						Result,
 						WorldActor,
-						DeserializedSnapshotActor.GetValue(),
+						DeserializedSnapshotActor->Get(),
 						Filter
 					);
 				}
@@ -91,7 +91,7 @@ namespace UE::LevelSnapshots::Private
 					*RemovedActorsIt,
 					[this](const FSoftObjectPath& ObjectPath)
 					{
-						return Snapshot->GetDeserializedActor(ObjectPath).Get(nullptr);
+						return GetRawPointerOrNull(Snapshot->GetDeserializedActor(ObjectPath));
 					}
 				)
 			);

@@ -4,7 +4,7 @@
 
 #include "IDetailCustomization.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Makes the "Virtual Camera" category appear first on the actor properties. */
 	class FVCamBaseActorCustomization : public IDetailCustomization

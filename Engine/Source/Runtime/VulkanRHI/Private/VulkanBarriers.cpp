@@ -44,6 +44,17 @@ static FAutoConsoleVariableRef CVarVulkanAutoCorrectUnknownLayouts(
 	ECVF_Default
 );
 
+int32 GVulkanMaxBarriersPerBatch = -1;
+static FAutoConsoleVariableRef CVarVulkanMaxBarriersPerBatch(
+	TEXT("r.Vulkan.MaxBarriersPerBatch"),
+	GVulkanMaxBarriersPerBatch,
+	TEXT("Will limit the number of barriers sent per batch\n")
+	TEXT(" <=0: Do not limit (default)\n")
+	TEXT(" >0: Limit to the specified number\n"),
+	ECVF_Default
+);
+
+
 //
 // The following two functions are used when the RHI needs to do image layout transitions internally.
 // They are not used for the transitions requested through the public API (RHICreate/Begin/EndTransition)
@@ -207,13 +218,11 @@ static void GetVkStageAndAccessFlags(ERHIAccess RHIAccess, FRHITransitionInfo::E
 		RHIAccess = ERHIAccess::RTV;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	// BVHRead state may be combined with SRV, but we always treat this as just BVHRead by clearing the SRV mask
 	if (EnumHasAnyFlags(RHIAccess, ERHIAccess::BVHRead))
 	{
 		RHIAccess &= ~ERHIAccess::SRVMask;
 	}
-#endif
 
 	Layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -272,13 +281,19 @@ static void GetVkStageAndAccessFlags(ERHIAccess RHIAccess, FRHITransitionInfo::E
 
 		case ERHIAccess::BVHRead:
 			// vkrt todo: Finer grain stage flags would be ideal here.
-			StageFlags = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			StageFlags = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			if (GRHISupportsRayTracingShaders) {
+				StageFlags |= VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+			}
 			AccessFlags = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
 			return;
 
 		case ERHIAccess::BVHWrite:
 			// vkrt todo: Finer grain stage flags would be ideal here.
-			StageFlags = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			StageFlags = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			if (GRHISupportsRayTracingShaders) {
+				StageFlags |= VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+			}
 			AccessFlags = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
 			return;
 	}
@@ -509,6 +524,14 @@ static void GetDepthOrStencilStageAndAccessFlags(ERHIAccess Access, VkPipelineSt
 	StageFlags = 0;
 	AccessFlags = 0;
 	uint32 ProcessedRHIFlags = 0;
+
+	if (EnumHasAllFlags(Access, ERHIAccess::ResolveDst))
+	{
+		// Despite being a depth/stencil target, resolve operations are part of the color attachment output stage
+		StageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		AccessFlags |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		ProcessedRHIFlags |= (uint32)ERHIAccess::ResolveDst;
+	}
 
 	if (EnumHasAnyFlags(Access, ERHIAccess::DSVWrite))
 	{
@@ -895,7 +918,7 @@ static void AddSubresourceTransitions(TArray<VkImageMemoryBarrier>& Barriers, Vk
 			if (bIsDepthStencil)
 			{
 				const VkImageLayout OtherLayout = (CurrentLayout.NumPlanes == 1) ? SrcLayout : CurrentLayout.GetSubresLayout(LayerIdx, MipIdx, 1);
-				SrcLayout = GetMergedDepthStencilLayout(SrcLayout, OtherLayout);
+				SrcLayout = VulkanRHI::GetMergedDepthStencilLayout(SrcLayout, OtherLayout);
 			}
 
 			// Merge with the previous transition if the previous mip was in the same state as this mip.
@@ -916,7 +939,7 @@ static void AddSubresourceTransitions(TArray<VkImageMemoryBarrier>& Barriers, Vk
 				Barrier = TemplateBarrier;
 				Barrier.srcAccessMask = GetVkAccessMaskForLayout(SrcLayout);
 				Barrier.oldLayout = SrcLayout;
-				Barrier.newLayout = bIsDepthStencil ? GetMergedDepthStencilLayout(DstLayout, DstLayout) : DstLayout;
+				Barrier.newLayout = bIsDepthStencil ? VulkanRHI::GetMergedDepthStencilLayout(DstLayout, DstLayout) : DstLayout;
 				Barrier.image = ImageHandle;
 				Barrier.subresourceRange.baseMipLevel = MipIdx;
 				Barrier.subresourceRange.levelCount = 1;
@@ -1254,13 +1277,13 @@ void FTransitionProcessor<VkMemoryBarrier, VkBufferMemoryBarrier, VkImageMemoryB
 		// Merge the layout with its other half and set it in the barrier
 		if (OtherAspectMask == VK_IMAGE_ASPECT_STENCIL_BIT)
 		{
-			ImageBarrier->oldLayout = GetMergedDepthStencilLayout(ImageBarrier->oldLayout, OtherAspectOldLayout);
-			ImageBarrier->newLayout = GetMergedDepthStencilLayout(ImageBarrier->newLayout, OtherAspectNewLayout);
+			ImageBarrier->oldLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->oldLayout, OtherAspectOldLayout);
+			ImageBarrier->newLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->newLayout, OtherAspectNewLayout);
 		}
 		else
 		{
-			ImageBarrier->oldLayout = GetMergedDepthStencilLayout(OtherAspectOldLayout, ImageBarrier->oldLayout);
-			ImageBarrier->newLayout = GetMergedDepthStencilLayout(OtherAspectNewLayout, ImageBarrier->newLayout);
+			ImageBarrier->oldLayout = VulkanRHI::GetMergedDepthStencilLayout(OtherAspectOldLayout, ImageBarrier->oldLayout);
+			ImageBarrier->newLayout = VulkanRHI::GetMergedDepthStencilLayout(OtherAspectNewLayout, ImageBarrier->newLayout);
 		}
         ImageBarrier->subresourceRange.aspectMask |= OtherAspectMask;
 
@@ -1297,8 +1320,8 @@ void FTransitionProcessor<VkMemoryBarrier, VkBufferMemoryBarrier, VkImageMemoryB
 		{
 			// The only way we end up here is if the barrier transitions every aspect of the depth(-stencil) texture
 			check(Texture->GetFullAspectMask() == ImageBarrier->subresourceRange.aspectMask);
-			ImageBarrier->oldLayout = GetMergedDepthStencilLayout(ImageBarrier->oldLayout, ImageBarrier->oldLayout);
-			ImageBarrier->newLayout = GetMergedDepthStencilLayout(ImageBarrier->newLayout, ImageBarrier->newLayout);
+			ImageBarrier->oldLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->oldLayout, ImageBarrier->oldLayout);
+			ImageBarrier->newLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->newLayout, ImageBarrier->newLayout);
 		}
 
 		MergedDstStageMask |= GetVkStageFlagsForLayout(ImageBarriers[TargetIndex].newLayout);
@@ -1377,6 +1400,19 @@ void FTransitionProcessor<VkMemoryBarrier2, VkBufferMemoryBarrier2, VkImageMemor
 	// Sync2 does not submit batches, only one big clump at the end
 }
 
+template<typename BarrierType>
+static void SendBatchedBarriers(VkCommandBuffer CommandBuffer, VkDependencyInfo& BatchDependencyInfo, BarrierType*& BarrierPtr, uint32_t& BarrierCountRef, int32 TotalBarrierCount)
+{
+	for (int32 BatchStartIndex = 0; BatchStartIndex < TotalBarrierCount; BatchStartIndex += GVulkanMaxBarriersPerBatch)
+	{
+		BarrierCountRef = FMath::Min((TotalBarrierCount - BatchStartIndex), GVulkanMaxBarriersPerBatch);
+		VulkanRHI::vkCmdPipelineBarrier2KHR(CommandBuffer, &BatchDependencyInfo);
+		BarrierPtr += BarrierCountRef;
+	}
+	BarrierPtr = nullptr;
+	BarrierCountRef = 0;
+}
+
 template <>
 void FTransitionProcessor<VkMemoryBarrier2, VkBufferMemoryBarrier2, VkImageMemoryBarrier2>::FinishAll()
 {
@@ -1395,7 +1431,23 @@ void FTransitionProcessor<VkMemoryBarrier2, VkBufferMemoryBarrier2, VkImageMemor
 	DependencyInfo.pBufferMemoryBarriers = BufferBarriers.GetData();
 	DependencyInfo.imageMemoryBarrierCount = ImageBarriers.Num();
 	DependencyInfo.pImageMemoryBarriers = ImageBarriers.GetData();
-	VulkanRHI::vkCmdPipelineBarrier2KHR(Context.GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &DependencyInfo);
+
+	if ((GVulkanMaxBarriersPerBatch <= 0) || ((MemoryBarriers.Num() + BufferBarriers.Num() + ImageBarriers.Num()) < GVulkanMaxBarriersPerBatch))
+	{
+		VulkanRHI::vkCmdPipelineBarrier2KHR(Context.GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &DependencyInfo);
+	}
+	else
+	{
+		VkDependencyInfo BatchDependencyInfo = DependencyInfo;
+		BatchDependencyInfo.memoryBarrierCount = 0;
+		BatchDependencyInfo.bufferMemoryBarrierCount = 0;
+		BatchDependencyInfo.imageMemoryBarrierCount = 0;
+
+		VkCommandBuffer CommandBuffer = Context.GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle();
+		SendBatchedBarriers(CommandBuffer, BatchDependencyInfo, BatchDependencyInfo.pMemoryBarriers, BatchDependencyInfo.memoryBarrierCount, DependencyInfo.memoryBarrierCount);
+		SendBatchedBarriers(CommandBuffer, BatchDependencyInfo, BatchDependencyInfo.pBufferMemoryBarriers, BatchDependencyInfo.bufferMemoryBarrierCount, DependencyInfo.bufferMemoryBarrierCount);
+		SendBatchedBarriers(CommandBuffer, BatchDependencyInfo, BatchDependencyInfo.pImageMemoryBarriers, BatchDependencyInfo.imageMemoryBarrierCount, DependencyInfo.imageMemoryBarrierCount);
+	}
 }
 
 template <>
@@ -1488,12 +1540,6 @@ static TArray<VulkanRHI::FSemaphore*> ExtractTransitionSemaphores(TArrayView<con
 
 void FVulkanCommandListContext::RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions)
 {
-	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
-	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
-	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIBeginTransitions, bShowTransitionEvents, TEXT("RHIBeginTransitions"));
-
-	TRACE_CPUPROFILER_EVENT_SCOPE(RHIBeginTransitions);
-
 	if (Device->SupportsParallelRendering())
 	{
 		FTransitionProcessor<VkMemoryBarrier2, VkBufferMemoryBarrier2, VkImageMemoryBarrier2> Processor(*this, true);
@@ -1516,12 +1562,6 @@ void FVulkanCommandListContext::RHIBeginTransitions(TArrayView<const FRHITransit
 
 void FVulkanCommandListContext::RHIEndTransitions(TArrayView<const FRHITransition*> Transitions)
 {
-	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
-	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
-	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIEndTransitions, bShowTransitionEvents, TEXT("RHIEndTransitions"));
-
-	TRACE_CPUPROFILER_EVENT_SCOPE(RHIEndTransitions);
-
 	const ERHIPipeline CurrentPipeline = Device->IsRealAsyncComputeContext(this) ? ERHIPipeline::AsyncCompute : ERHIPipeline::Graphics;
 	TArray<VulkanRHI::FSemaphore*> WaitSemaphores = ExtractTransitionSemaphores(Transitions, CurrentPipeline);
 	if (WaitSemaphores.Num() > 0)
@@ -1593,8 +1633,8 @@ void FVulkanPipelineBarrier::AddFullImageLayoutTransition(const FVulkanTexture& 
 	const VkImageSubresourceRange SubresourceRange = MakeSubresourceRange(Texture.GetFullAspectMask());
 	if (Texture.IsDepthOrStencilAspect())
 	{
-		SrcLayout = GetMergedDepthStencilLayout(SrcLayout, SrcLayout);
-		DstLayout = GetMergedDepthStencilLayout(DstLayout, DstLayout);
+		SrcLayout = VulkanRHI::GetMergedDepthStencilLayout(SrcLayout, SrcLayout);
+		DstLayout = VulkanRHI::GetMergedDepthStencilLayout(DstLayout, DstLayout);
 	}
 
 	VkImageMemoryBarrier2& ImgBarrier = ImageBarriers.AddDefaulted_GetRef();
@@ -1941,6 +1981,8 @@ VkImageLayout FVulkanLayoutManager::GetDefaultLayout(FVulkanCmdBuffer* CmdBuffer
 	{
 	case ERHIAccess::SRVCompute:
 	case ERHIAccess::SRVGraphics:
+	case ERHIAccess::SRVGraphicsNonPixel:
+	case ERHIAccess::SRVGraphicsPixel:
 	case ERHIAccess::SRVMask:
 	{
 		if (VulkanTexture.IsDepthOrStencilAspect())
@@ -1957,7 +1999,7 @@ VkImageLayout FVulkanLayoutManager::GetDefaultLayout(FVulkanCmdBuffer* CmdBuffer
 				FVulkanLayoutManager& LayoutMgr = CmdBuffer->GetLayoutManager();
 				const VkImageLayout DepthLayout = LayoutMgr.GetDepthStencilHint(VulkanTexture, VK_IMAGE_ASPECT_DEPTH_BIT);
 				const VkImageLayout StencilLayout = LayoutMgr.GetDepthStencilHint(VulkanTexture, VK_IMAGE_ASPECT_STENCIL_BIT);
-				return GetMergedDepthStencilLayout(DepthLayout, StencilLayout);
+				return VulkanRHI::GetMergedDepthStencilLayout(DepthLayout, StencilLayout);
 			}
 		}
 		else
@@ -2017,7 +2059,7 @@ VkImageLayout FVulkanLayoutManager::SetExpectedLayout(FVulkanCmdBuffer* CmdBuffe
 			FVulkanPipelineBarrier Barrier;
 			if (VulkanTexture.IsDepthOrStencilAspect() && (SrcLayout->NumPlanes > 1) && !LayoutMgr.bWriteOnly)
 			{
-				const VkImageLayout MergedLayout = GetMergedDepthStencilLayout(SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_DEPTH_BIT), SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_STENCIL_BIT));
+				const VkImageLayout MergedLayout = VulkanRHI::GetMergedDepthStencilLayout(SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_DEPTH_BIT), SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_STENCIL_BIT));
 				Barrier.AddImageLayoutTransition(VulkanTexture.Image, MergedLayout, ExpectedLayout, FVulkanPipelineBarrier::MakeSubresourceRange(VulkanTexture.GetFullAspectMask()));
 				PreviousLayout = MergedLayout;
 			}

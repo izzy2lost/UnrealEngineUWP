@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_GravityForce.generated.h"
 
+// Applies a gravitational force (in cm/s)
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Gravity Force"))
 class UNiagaraStatelessModule_GravityForce : public UNiagaraStatelessModule
 {
@@ -18,7 +19,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Gravity", DisableUniformDistribution, DisableBindingDistribution))
 	FNiagaraDistributionRangeVector3 GravityDistribution = FNiagaraDistributionRangeVector3(GetDefaultValue());
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		if (!IsModuleEnabled())
 		{
@@ -27,8 +28,8 @@ public:
 		const FNiagaraStatelessRangeVector3 GravityRange = GravityDistribution.CalculateRange(GetDefaultValue());
 
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
-		PhysicsBuildData.AccelerationRange.Min += GravityRange.Min;
-		PhysicsBuildData.AccelerationRange.Max += GravityRange.Max;
+		PhysicsBuildData.GravityRange.Min = GravityRange.Min;
+		PhysicsBuildData.GravityRange.Max = GravityRange.Max;
 	}
 
 	static FVector3f GetDefaultValue() { return FVector3f(0.0f, 0.0f, -980.0f); }

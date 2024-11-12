@@ -104,6 +104,7 @@
 #include "ActorGroupingUtils.h"
 #include "LevelUtils.h"
 #include "ISceneOutliner.h"
+#include "SceneOutlinerStandaloneTypes.h"
 #include "ISettingsModule.h"
 #include "PlatformInfo.h"
 #include "Misc/CoreMisc.h"
@@ -117,11 +118,21 @@
 #include "DataDrivenShaderPlatformInfo.h"
 
 #include "Internationalization/Culture.h"
+#include "Misc/FileHelper.h"
+#include "EditorDirectories.h"
+#include "IDesktopPlatform.h"
+#include "DesktopPlatformModule.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "IDeviceProfileSelectorModule.h"
+#include "DeviceProfiles/DeviceProfile.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
 
 #if WITH_LIVE_CODING
 #include "ILiveCodingModule.h"
 #endif
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Subsystems/EditorActorSubsystem.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LevelEditorActions, Log, All);
 
@@ -536,6 +547,119 @@ void FLevelEditorActionCallbacks::ImportScene_Clicked()
 	FEditorFileUtils::Import();
 }
 
+void FLevelEditorActionCallbacks::PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName, FString JsonFile)
+{
+	if (JsonFile.IsEmpty())
+	{
+		TArray<FString> OpenedFiles;
+		FString DefaultLocation = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectSavedDir() / TEXT("PreviewJsonDevices") / PlatformName.ToString()));
+
+		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+		bool bOpened = false;
+		if (DesktopPlatform)
+		{
+			bOpened = DesktopPlatform->OpenFileDialog(
+				FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+				NSLOCTEXT("UnrealEd", "PreviewJson", "Preview Json").ToString(),
+				DefaultLocation,
+				TEXT(""),
+				TEXT("*.json"),
+				EFileDialogFlags::None,
+				OpenedFiles
+			);
+		}
+		if (bOpened && OpenedFiles.Num() > 0 && OpenedFiles[0].IsEmpty() == false)
+		{
+			JsonFile = OpenedFiles[0];
+		}
+	}
+
+	if (!JsonFile.IsEmpty())
+	{
+		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
+		FString DeviceProfileSelectionModule;
+		if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+		{
+			if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+			{
+				FString DevileProfileName;
+
+				TMap<FName, FString> DeviceParameters;
+				DPSelectorModule->GetDeviceParametersFromJson(JsonFile, DeviceParameters);
+				DPSelectorModule->SetSelectorProperties(DeviceParameters);
+
+				DevileProfileName = DPSelectorModule->GetDeviceProfileName();
+				
+				UDeviceProfile* DevileProfile = UDeviceProfileManager::Get().FindProfile(DevileProfileName, false);
+				if (DevileProfile)
+				{
+					EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(PreviewShaderPlatformName);
+
+					auto GetPreviewFeatureLevelInfo = [&]()
+						{
+							const ERHIFeatureLevel::Type FeatureLevel = GetMaxSupportedFeatureLevel(ShaderPlatform);
+							return FPreviewPlatformInfo(FeatureLevel, ShaderPlatform, PlatformName, FDataDrivenShaderPlatformInfo::GetShaderFormat(ShaderPlatform), DevileProfile->GetFName(), true, PreviewShaderPlatformName, FText::FromName(DevileProfile->GetFName()));
+						};
+
+					FPreviewPlatformInfo PreviewFeatureLevelInfo = GetPreviewFeatureLevelInfo();
+					GEditor->SetPreviewPlatform(PreviewFeatureLevelInfo, false);
+				}
+			}
+		}
+	}
+}
+
+bool FLevelEditorActionCallbacks::IsPreviewJsonVisible(FName PlatformName)
+{
+	FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
+	FString DeviceProfileSelectionModule;
+	if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+	{
+		if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+		{
+			return DPSelectorModule->CanGetDeviceParametersFromJson();
+		}
+	}
+	return false;
+}
+
+bool FLevelEditorActionCallbacks::IsGeneratePreviewJsonVisible(FName PlatformName)
+{
+	FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
+	FString DeviceProfileSelectionModule;
+	if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+	{
+		if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+		{
+			return DPSelectorModule->CanExportDeviceParametersToJson();
+		}
+	}
+	return false;
+}
+
+void FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked(FString PlatformName)
+{
+
+	FString AbsoluteDebugInfoDirectory = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectSavedDir() / TEXT("PreviewJsonDevices") / PlatformName));
+
+	{
+		FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "GeneratePlatformJson", "Generate Platform Json"), true);
+		SlowTask.Visibility = ESlowTaskVisibility::ForceVisible;
+		SlowTask.MakeDialog();
+
+		SlowTask.EnterProgressFrame(35.0f);
+
+		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName);
+		FString DeviceProfileSelectionModule;
+		if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+		{
+			if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+			{
+				DPSelectorModule->ExportDeviceParametersToJson(AbsoluteDebugInfoDirectory);
+			}
+		}
+	}
+}
 
 void FLevelEditorActionCallbacks::ExportAll_Clicked()
 {
@@ -695,18 +819,6 @@ bool FLevelEditorActionCallbacks::CanExecutePreviewPlatform(FPreviewPlatformInfo
 
 	if (FDataDrivenShaderPlatformInfo::IsValid(PreviewShaderPlatform) && FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(PreviewShaderPlatform))
 	{
-		const EShaderPlatform RealShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(PreviewShaderPlatform);
-
-		// TODO: Prevent previewing VULKAN_SM5 with a D3D renderer until all issues are resolved.
-		// We have to use the real platform here since these fields are overridden in preview.
-		if (GDynamicRHI
-			&& (GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D12 || GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D11)
-			&& IsVulkanPlatform(RealShaderPlatform)
-			&& IsFeatureLevelSupported(RealShaderPlatform, ERHIFeatureLevel::SM5))
-		{
-			return false;
-		}
-
 		// When the preview platform's DDSPI MaxSamplers is > 16 and the current RHI device has support
 		// for > 16 samplers we rely on the shader compiler being able to choose an appropriate profile for the
 		// preview feature level that supports > 16 samplers. On D3D12 SM5 the D3D shader compiler will use Dxc and
@@ -1441,7 +1553,22 @@ void FLevelEditorActionCallbacks::DetachActor_Clicked()
 bool FLevelEditorActionCallbacks::DetachActor_CanExecute()
 {
 	FSelectedActorInfo SelectionInfo = AssetSelectionUtils::GetSelectedActorInfo();
-	return SelectionInfo.NumSelected > 0 && SelectionInfo.bHaveAttachedActor;
+	
+	if (SelectionInfo.NumSelected > 0 && SelectionInfo.bHaveAttachedActor)
+	{
+		TArray<AActor*> SelectedActors;
+		GEditor->GetSelectedActors()->GetSelectedObjects<AActor>(SelectedActors);
+		FText DetachErrorMsg;
+		for (AActor* SelectedActor : SelectedActors)
+		{
+			if (!SelectedActor->EditorCanDetachFrom(SelectedActor->GetSceneOutlinerParent(), DetachErrorMsg))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
 }
 
 void FLevelEditorActionCallbacks::AttachSelectedActors()
@@ -1632,7 +1759,7 @@ AActor* FLevelEditorActionCallbacks::ReplaceActors( UActorFactory* ActorFactory,
 	if( ActorFactory->CanCreateActorFrom( AssetData, ErrorMessage ) )
 	{
 		// Replace all selected actors with actors created from the specified factory
-		GEditor->ReplaceSelectedActors( ActorFactory, AssetData, bCopySourceProperties );
+		UEditorActorSubsystem::ReplaceSelectedActors( ActorFactory, AssetData, bCopySourceProperties );
 
 		if ( IPlacementModeModule::IsAvailable() )
 		{
@@ -1672,12 +1799,12 @@ void FLevelEditorActionCallbacks::ReplaceActorsFromClass_Clicked( UClass* ActorC
 			if( ActorFactory->CanCreateActorFrom( TargetAssetData, ErrorMessage ) )
 			{
 				// Replace all selected actors with actors created from the specified factory
-				GEditor->ReplaceSelectedActors( ActorFactory, TargetAssetData );
-			}	
+				UEditorActorSubsystem::ReplaceSelectedActors( ActorFactory, TargetAssetData );
+			}
 			else if ( ActorFactory->CanCreateActorFrom( NoAssetData, UnusedErrorMessage ) )
 			{
 				// Replace all selected actors with actors created from the specified factory
-				GEditor->ReplaceSelectedActors( ActorFactory, NoAssetData );
+				UEditorActorSubsystem::ReplaceSelectedActors( ActorFactory, NoAssetData );
 			}
 			else
 			{
@@ -2447,6 +2574,27 @@ void FLevelEditorActionCallbacks::OnFocusOutlinerToSelection(TWeakPtr<SLevelEdit
 	}
 }
 
+void FLevelEditorActionCallbacks::OnFocusOutlinerToContextFolder(TWeakPtr<SLevelEditor> LevelEditor)
+{
+	if (const TSharedPtr<SLevelEditor> Editor = LevelEditor.Pin())
+	{
+		if (UWorld* World = Editor->GetWorld())
+		{
+			const FFolder ContextFolder = FActorFolders::Get().GetActorEditorContextFolder(*World);
+			if (ContextFolder.IsValid())
+			{
+				for (TWeakPtr<ISceneOutliner> SceneOutliner : Editor->GetAllSceneOutliners())
+				{
+					if (const TSharedPtr<ISceneOutliner> Outliner = SceneOutliner.Pin())
+					{
+						Outliner->FrameItem(ContextFolder);
+					}
+				}
+			}
+		}
+	}
+}
+
 void FLevelEditorActionCallbacks::OpenPlaceActors()
 {
 	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>( TEXT("LevelEditor") );
@@ -2933,12 +3081,41 @@ void FLevelEditorActionCallbacks::SnapObjectToView_Clicked()
 
 void FLevelEditorActionCallbacks::CopyActorFilePathtoClipboard_Clicked()
 {
-	TArray<const UObject*> Objects;
+	TStringBuilder<1024> Result;
+
+	TArray<AActor*> SelectedActors;
 	for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
 	{
-		Objects.Add(*It);
+		SelectedActors.Add(Cast<AActor>(*It));
 	}
-	FExternalPackageHelper::CopyObjectsExternalPackageFilePathToClipboard(Objects);
+
+	for (AActor* Actor : SelectedActors)
+	{
+		if (Result.Len() != 0)
+		{
+			Result.Append(LINE_TERMINATOR);
+		}
+
+		const UPackage* Package = Actor->GetPackage();
+		const FString LocalFullPath(Package->GetLoadedPath().GetLocalFullPath());
+		if (SelectedActors.Num() > 1)
+		{
+			const FString& ActorLabel = Actor->GetActorLabel(false);
+			if (ActorLabel.Len())
+			{
+				Result.Append(ActorLabel);
+			}
+			Result.Append(TEXT("("));
+			Result.Append(Actor->GetName());
+			Result.Append(TEXT("): "));
+		}
+		Result.Append(FPaths::ConvertRelativePathToFull(LocalFullPath));
+	}
+
+	if (Result.Len())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Result);
+	}
 }
 
 void FLevelEditorActionCallbacks::SaveActor_Clicked()
@@ -3621,7 +3798,6 @@ void FLevelEditorCommands::RegisterCommands()
 	UI_COMMAND( BrowseDocumentation, "Level Editor Documentation", "Details on how to use the Level Editor", EUserInterfaceActionType::Button, FInputChord( EKeys::F1 ) );
 	UI_COMMAND( BrowseViewportControls, "Viewport Controls", "Ways to move around in the 3D viewport", EUserInterfaceActionType::Button, FInputChord() );
 	UI_COMMAND( NewLevel, "New Level...", "Create a new level, or choose a level template to start from.", EUserInterfaceActionType::Button, FInputChord( EModifierKey::Control, EKeys::N ) );
-	UI_COMMAND( OpenLevel, "Open Level...", "Loads an existing level", EUserInterfaceActionType::Button, FInputChord( EModifierKey::Control, EKeys::O ) );
 	UI_COMMAND( Save, "Save Current Level", "Saves the current level to disk", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::S) );
 	UI_COMMAND( SaveAs, "Save Current Level As...", "Save the current level as...", EUserInterfaceActionType::Button, FInputChord( EModifierKey::Control|EModifierKey::Alt, EKeys::S ) );
 	UI_COMMAND( SaveAllLevels, "Save All Levels", "Saves all unsaved levels to disk", EUserInterfaceActionType::Button, FInputChord() );
@@ -3946,29 +4122,35 @@ void FLevelEditorCommands::RegisterCommands()
 	UI_COMMAND(ToggleFeatureLevelPreview, "Preview Mode Toggle", "Toggles the Preview Mode on or off for the currently selected Preview target", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	// Add preview platforms
+	TSet<FName> PreviewShaderPlatformNames;
 	for (const FPreviewPlatformMenuItem& Item : FDataDrivenPlatformInfoRegistry::GetAllPreviewPlatformMenuItems())
 	{
 		FTextBuilder FriendlyNameBuilder;
+		bool bIsDisablePreview = false;
 		if (!IsRunningCommandlet() && !GUsingNullRHI)
 		{
-			EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.PreviewShaderPlatformName);
-			if (ShaderPlatform == SP_NumPlatforms)
+			if (FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview) == GMaxRHIShaderPlatform)
 			{
-				// if the shader platform isn't compiled in, we don't have a friendly name available, so use ugly name
-				FriendlyNameBuilder.AppendLine(FText::FromName(Item.PreviewShaderPlatformName));
-			}
-			else if (!Item.OptionalFriendlyNameOverride.IsEmpty())
-			{
-				FriendlyNameBuilder.AppendLine(Item.OptionalFriendlyNameOverride);
+				bIsDisablePreview = true;
+				FriendlyNameBuilder.AppendLine(NSLOCTEXT("PreviewPlatform", "PreviewMenuText_DisablePreview", "Disable Preview"));
 			}
 			else
 			{
-				FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
-				FPlatformMisc::LowLevelOutputDebugStringf(TEXT("MENU friendly name %s\n"), *FriendlyNameBuilder.ToText().ToString());
-			}
-			if (FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview) == GMaxRHIShaderPlatform)
-			{
-				FriendlyNameBuilder.AppendLine(NSLOCTEXT("PreviewPlatform", "PreviewMenuText_DisablePreview", "(Disable Preview)"));
+				EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.PreviewShaderPlatformName);
+				if (ShaderPlatform == SP_NumPlatforms)
+				{
+					// if the shader platform isn't compiled in, we don't have a friendly name available, so use ugly name
+					FriendlyNameBuilder.AppendLine(FText::FromName(Item.PreviewShaderPlatformName));
+				}
+				else if (!Item.OptionalFriendlyNameOverride.IsEmpty())
+				{
+					FriendlyNameBuilder.AppendLine(Item.OptionalFriendlyNameOverride);
+				}
+				else
+				{
+					FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
+					FPlatformMisc::LowLevelOutputDebugStringf(TEXT("MENU friendly name %s\n"), *FriendlyNameBuilder.ToText().ToString());
+				}
 			}
 		}
 
@@ -3981,9 +4163,103 @@ void FLevelEditorCommands::RegisterCommands()
 			.UserInterfaceType(EUserInterfaceActionType::Check)
 			.DefaultChord(FInputChord())
 		);
+		
+		FName SectionName = FDataDrivenShaderPlatformInfo::GetLanguage(FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview));
+		if (bIsDisablePreview)
+		{
+			DisablePlatformPreview = PreviewPlatformOverrides.Last();
+		}
+		else
+		{
+			FLevelEditorCommands::PreviewPlatformCommand PreviewPlatform;
+			PreviewPlatform.CommandInfo = PreviewPlatformOverrides.Last();
+			PreviewPlatform.SectionName = SectionName;
+			PlatformToPreviewPlatformOverrides.FindOrAdd(Item.PlatformName).Add(PreviewPlatform);
+		}
+
+		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*Item.PlatformName.ToString());
+		FString DeviceProfileSelectionModule;
+
+		if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+		{
+			EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview);
+			FText PlatformFriendlyName = FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform);
+
+			TArray<PreviewPlatformCommand>* PlatformToPreviewJsonPlatformOverridesValue = PlatformToPreviewJsonPlatformOverrides.Find(Item.PlatformName);
+			if (!PlatformToPreviewJsonPlatformOverridesValue)
+			{
+				FLevelEditorCommands::PreviewPlatformCommand GenerateJsonPlatform;
+				GenerateJsonPlatform.CommandInfo = FUICommandInfoDecl(
+					this->AsShared(),
+					FName(*FString::Printf(TEXT("Generate Platform Json for %s"), *Item.PlatformName.ToString())),
+					NSLOCTEXT("GeneratePlatformJson", "Generate Platform Json", "Generate Platform Json..."),
+					NSLOCTEXT("GeneratePlatformJsonDesc", "Generate Platform Json From Connected Devices", "Generate Platform Json From Connected Devices"))
+					.UserInterfaceType(EUserInterfaceActionType::Button)
+					.DefaultChord(FInputChord());
+				GenerateJsonPlatform.bIsGeneratingJsonCommand = true;
+
+				PlatformToPreviewJsonPlatformOverridesValue = &PlatformToPreviewJsonPlatformOverrides.Add(Item.PlatformName);
+				PlatformToPreviewJsonPlatformOverridesValue->Add(GenerateJsonPlatform);
+			}
+
+			check(PlatformToPreviewJsonPlatformOverridesValue != nullptr);
+			if (!PreviewShaderPlatformNames.Find(Item.PreviewShaderPlatformName))
+			{
+				FLevelEditorCommands::PreviewPlatformCommand PreviewJsonPlatform;
+				PreviewJsonPlatform.CommandInfo = FUICommandInfoDecl(
+					this->AsShared(),
+					FName(*FString::Printf(TEXT("Preview via Json with %s"), *Item.PreviewShaderPlatformName.ToString())),
+					NSLOCTEXT("PreviewviaJson", "Preview via Json", "Preview via Json..."),
+					NSLOCTEXT("PreviewviaJsonDesc", "Preview via Json", "Preview via Json"))
+					.UserInterfaceType(EUserInterfaceActionType::Button)
+					.DefaultChord(FInputChord());
+				PreviewJsonPlatform.bIsGeneratingJsonCommand = false;
+				PreviewJsonPlatform.SectionName = SectionName;
+				PlatformToPreviewJsonPlatformOverridesValue->Add(PreviewJsonPlatform);
+
+				TMap<FString, TArray<FString>> DirectoryToJsonFiles;
+				FString AbsoluteDebugInfoDirectory = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(FPaths::ProjectSavedDir() / TEXT("PreviewJsonDevices") / Item.PlatformName.ToString()));
+				IFileManager::Get().FindFiles(DirectoryToJsonFiles.Add(AbsoluteDebugInfoDirectory), *AbsoluteDebugInfoDirectory, TEXT(".json"));
+				FString ProjectEditorJsonDir = FPaths::ProjectContentDir() / TEXT("Editor") / TEXT("PreviewJsonDevices") / Item.PlatformName.ToString();
+				IFileManager::Get().FindFiles(DirectoryToJsonFiles.Add(ProjectEditorJsonDir), *ProjectEditorJsonDir, TEXT(".json"));
+
+				TSet<FString> UniqueJsons;
+				for (auto Iter = DirectoryToJsonFiles.CreateConstIterator(); Iter; ++Iter)
+				{
+					FString DirectoryName = Iter.Key();
+					for (const FString& JsonFile : Iter.Value())
+					{
+						if (!UniqueJsons.Find(JsonFile))
+						{
+							FLevelEditorCommands::PreviewPlatformCommand PreviewJsonFilePlatform;
+							PreviewJsonFilePlatform.CommandInfo = FUICommandInfoDecl(
+								this->AsShared(),
+								FName(*FString::Printf(TEXT("Preview %s with Json %s"), *JsonFile, *Item.PreviewShaderPlatformName.ToString())),
+								FText::Format(NSLOCTEXT("PreviewJson", "Preview Json", "Preview {0}"), FText::FromString(FPaths::GetBaseFilename(JsonFile))),
+								FText::Format(NSLOCTEXT("PreviewJsonDesc", "Preview using Platform Json", "Preview {0}"), FText::FromString(FPaths::GetBaseFilename(JsonFile))))
+								.UserInterfaceType(EUserInterfaceActionType::Check)
+								.DefaultChord(FInputChord());
+							PreviewJsonFilePlatform.bIsGeneratingJsonCommand = false;
+							PreviewJsonFilePlatform.FilePath = DirectoryName / JsonFile;
+							PreviewJsonFilePlatform.SectionName = SectionName;
+							PlatformToPreviewJsonPlatformOverridesValue->Add(PreviewJsonFilePlatform);
+							UniqueJsons.Add(JsonFile);
+						}
+					}
+				}	
+				PreviewShaderPlatformNames.Add(Item.PreviewShaderPlatformName);
+			}
+		}
 	}
 
+	PlatformToPreviewPlatformOverrides.KeyStableSort([](FName lhs, FName rhs) {return lhs.Compare(rhs) < 0; });
+
 	UI_COMMAND(OpenMergeActor, "Merge Actors", "Opens the Merge Actor panel", EUserInterfaceActionType::Button, FInputChord());
+}
+
+FORCENOINLINE const FLevelEditorCommands& FLevelEditorCommands::Get()
+{
+	return TCommands<FLevelEditorCommands>::Get();
 }
 
 UE_ENABLE_OPTIMIZATION_SHIP

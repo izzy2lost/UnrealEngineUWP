@@ -5,44 +5,26 @@
 #include "OptimusDataTypeRegistry.h"
 #include "OptimusDeformer.h"
 #include "OptimusHelpers.h"
+#include "OptimusObjectVersion.h"
 #include "OptimusValueContainer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusVariableDescription)
 
 
-bool UOptimusVariableDescription::EnsureValueContainer()
+void UOptimusVariableDescription::SetDataType(FOptimusDataTypeRef InDataType)
 {
-	bool bValueContainerChanged = false;
-	
-	// Check if the current default value storage matches, otherwise create a matching default value storage, otherwise
-	// if the variable type changes, we end up with mismatch in storage vs type.
-	const UClass* RequiredClass = UOptimusValueContainerGeneratorClass::GetClassForType(GetPackage(), DataType);
-
-	bool bValueContainerNeedsZeroing = false;
-	if (!DefaultValue || DefaultValue->GetClass() != RequiredClass)
+	if (InDataType != DataType)
 	{
-		DefaultValue = UOptimusValueContainer::MakeValueContainer(this, DataType);
-		bValueContainerChanged = true;
-		bValueContainerNeedsZeroing = true;
+		DataType = InDataType;
+		DefaultValueStruct.SetType(InDataType);
 	}
-
-	if (DataType->CanCreateProperty())
+	else
 	{
-		const FShaderValueType::FValue ShaderValue = DataType->MakeShaderValue();
-		
-		if (bValueContainerNeedsZeroing || ValueData.Num() != ShaderValue.ShaderValue.Num())
+		if (!DefaultValueStruct.IsInitialized())
 		{
-			ValueData.SetNumZeroed(ShaderValue.ShaderValue.Num());
-			bValueContainerChanged = true;
+			DefaultValueStruct.SetType(InDataType);
 		}
 	}
-	else if (!ValueData.IsEmpty())
-	{
-		ValueData.Reset();
-		bValueContainerChanged = true;
-	}
-
-	return bValueContainerChanged;
 }
 
 
@@ -64,18 +46,37 @@ void UOptimusVariableDescription::PostLoad()
 {
 	Super::PostLoad();
 
+	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyBagValueContainer)
+	{
+		if (DefaultValue_DEPRECATED)
+		{
+			DefaultValue_DEPRECATED->ConditionalPostLoad();
+			DefaultValueStruct = DefaultValue_DEPRECATED->MakeValueContainerStruct();
+			DefaultValue_DEPRECATED = nullptr;
+		}
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	// 32-bit float data type is not supported for variables although they were allowed before. Do an in-place upgrade here. 
 	const FOptimusDataTypeHandle FloatDataType = FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass());
 	const FOptimusDataTypeHandle DoubleDataType = FOptimusDataTypeRegistry::Get().FindType(*FDoubleProperty::StaticClass());
-	
+
 	if (DataType == FloatDataType)
 	{
-		DataType = DoubleDataType;
+		TValueOrError<float, EPropertyBagResult> SavedValue = DefaultValueStruct.Value.GetValueFloat(FOptimusValueContainerStruct::ValuePropertyName);
+		SetDataType(DoubleDataType);
+		if (SavedValue.HasValue())
+		{
+			DefaultValueStruct.Value.SetValueDouble(FOptimusValueContainerStruct::ValuePropertyName, SavedValue.GetValue());
+		}
 	}
 
-	if (EnsureValueContainer())
+	if (!DefaultValueStruct.IsInitialized())
 	{
-		(void)MarkPackageDirty();
+		SetDataType(DataType);
 	}
 }
 
@@ -103,16 +104,13 @@ void UOptimusVariableDescription::PostEditChangeProperty(FPropertyChangedEvent& 
 		UOptimusDeformer* Deformer = GetOwningDeformer();
 		if (ensure(Deformer))
 		{
+			// Keep the default value in sync
+			DefaultValueStruct.SetType(DataType);
+			
 			// Set the variable type again, so that we can remove any links that are now type-incompatible.
 			constexpr bool bForceChange = true;
 			Deformer->SetVariableDataType(this, DataType, bForceChange);
 		}
-	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UOptimusVariableDescription, DefaultValue))
-	{
-		// Store the default shader value.
-		FShaderValueType::FValue Value = DefaultValue->GetShaderValue();
-		ValueData = MoveTemp(Value.ShaderValue);
 	}
 }
 

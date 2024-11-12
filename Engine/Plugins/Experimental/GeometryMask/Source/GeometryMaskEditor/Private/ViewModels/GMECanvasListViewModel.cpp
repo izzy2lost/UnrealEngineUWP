@@ -23,14 +23,19 @@ FGMECanvasListViewModel::~FGMECanvasListViewModel()
 		{
 			if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
 			{
-				if (FDelegateHandle* DelegateHandle = OnCanvasCreatedHandles.Find(World))
+				for (ULevel* Level : World->GetLevels())
 				{
-					Subsystem->OnGeometryMaskCanvasCreated().Remove(*DelegateHandle);
-				}
+					if (FDelegateHandle* DelegateHandle = OnCanvasCreatedHandles.Find(Level))
+					{
+						Subsystem->OnGeometryMaskCanvasCreated().Remove(*DelegateHandle);
+						DelegateHandle->Reset();
+					}
 
-				if (FDelegateHandle* DelegateHandle = OnCanvasDestroyedHandles.Find(World))
-				{
-					Subsystem->OnGeometryMaskCanvasDestroyed().Remove(*DelegateHandle);
+					if (FDelegateHandle* DelegateHandle = OnCanvasDestroyedHandles.Find(Level))
+					{
+						Subsystem->OnGeometryMaskCanvasDestroyed().Remove(*DelegateHandle);
+						DelegateHandle->Reset();
+					}
 				}
 			}
 		}
@@ -52,20 +57,31 @@ bool FGMECanvasListViewModel::RefreshItems()
 
 		for (const TObjectKey<UWorld>& WorldKey : LoadedWorlds)
 		{
-			if (UWorld* World = WorldKey.ResolveObjectPtr())
+			UWorld* World = WorldKey.ResolveObjectPtr();
+			if (!World)
 			{
-				if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
+				continue;
+			}
+
+			UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>();
+			if (!Subsystem)
+			{
+				continue;
+			}
+
+			for (const ULevel* Level : World->GetLevels())
+			{
+				TArray<FName> CanvasNames = Subsystem->GetCanvasNames(Level);
+				for (const FName CanvasName : CanvasNames)
 				{
-					TArray<FName> CanvasNames = Subsystem->GetCanvasNames();
-					for (const FName CanvasName : CanvasNames)
+					if (UGeometryMaskCanvas* Canvas = Subsystem->GetNamedCanvas(Level, CanvasName))
 					{
-						UGeometryMaskCanvas* Canvas = Subsystem->GetNamedCanvas(CanvasName);
 						CanvasItems.Add(FGMECanvasItemViewModel::Create(Canvas));
 					}
-
-					OnCanvasCreatedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated));
-					OnCanvasDestroyedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasDestroyed().AddRaw(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
 				}
+
+				OnCanvasCreatedHandles.Emplace(Level, Subsystem->OnGeometryMaskCanvasCreated().AddSP(this, &FGMECanvasListViewModel::OnCanvasCreated));
+				OnCanvasDestroyedHandles.Emplace(Level, Subsystem->OnGeometryMaskCanvasDestroyed().AddSP(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
 			}
 		}
 	}
@@ -85,8 +101,11 @@ void FGMECanvasListViewModel::OnPostWorldInit(UWorld* InWorld, const UWorld::Ini
 			{
 				if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
 				{
-					OnCanvasCreatedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasCreated().AddRaw(this, &FGMECanvasListViewModel::OnCanvasCreated));
-					OnCanvasDestroyedHandles.Emplace(World, Subsystem->OnGeometryMaskCanvasDestroyed().AddRaw(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
+					for (const ULevel* Level : World->GetLevels())
+					{
+						OnCanvasCreatedHandles.Emplace(Level, Subsystem->OnGeometryMaskCanvasCreated().AddSP(this, &FGMECanvasListViewModel::OnCanvasCreated));
+						OnCanvasDestroyedHandles.Emplace(Level, Subsystem->OnGeometryMaskCanvasDestroyed().AddSP(this, &FGMECanvasListViewModel::OnCanvasDestroyed));
+					}
 				}
 			}
 		}
@@ -103,14 +122,17 @@ void FGMECanvasListViewModel::OnPreWorldDestroyed(UWorld* InWorld)
 		{
 			if (UGeometryMaskWorldSubsystem* Subsystem = World->GetSubsystem<UGeometryMaskWorldSubsystem>())
 			{
-				if (FDelegateHandle* DelegateHandle = OnCanvasCreatedHandles.Find(World))
+				for (const ULevel* Level : World->GetLevels())
 				{
-					Subsystem->OnGeometryMaskCanvasCreated().Remove(*DelegateHandle);
-				}
+					if (FDelegateHandle* DelegateHandle = OnCanvasCreatedHandles.Find(Level))
+					{
+						Subsystem->OnGeometryMaskCanvasCreated().Remove(*DelegateHandle);
+					}
 
-				if (FDelegateHandle* DelegateHandle = OnCanvasDestroyedHandles.Find(World))
-				{
-					Subsystem->OnGeometryMaskCanvasDestroyed().Remove(*DelegateHandle);
+					if (FDelegateHandle* DelegateHandle = OnCanvasDestroyedHandles.Find(Level))
+					{
+						Subsystem->OnGeometryMaskCanvasDestroyed().Remove(*DelegateHandle);
+					}
 				}
 			}
 		}

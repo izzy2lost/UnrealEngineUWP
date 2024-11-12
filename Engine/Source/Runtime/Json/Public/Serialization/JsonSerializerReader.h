@@ -103,6 +103,14 @@ public:
 	*/
 	JSON_API virtual void Serialize(FStringView Name, FDateTime& Value) override;
 	/**
+	* Writes the field name and the corresponding value to the JSON data
+	*
+	* @param Name the field name to write out
+	* @param Value the value to write out
+	*/
+	JSON_API virtual void Serialize(FStringView Name, JsonSimpleValueVariant& InVariant) override;
+
+	/**
 	 * Serializes an array of values
 	 *
 	 * @param Name the name of the property to serialize
@@ -169,6 +177,14 @@ public:
 	 * @param Map the map to serialize
 	 */
 	JSON_API virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapFloat& Map) override;
+
+	/**
+	 * Serializes the keys & values for map
+	 *
+	 * @param Name the name of the property to serialize
+	 * @param Map the map to serialize
+	 */
+	JSON_API virtual void SerializeMap(FStringView Name, FJsonSerializableKeySimpleValueVariantMap& Map) override;
 
 	JSON_API virtual void SerializeSimpleMap(FJsonSerializableKeyValueMap& Map) override;
 

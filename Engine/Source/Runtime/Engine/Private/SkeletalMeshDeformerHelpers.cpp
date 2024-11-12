@@ -81,7 +81,7 @@ FSkeletalMeshDeformerHelpers::FClothBuffers FSkeletalMeshDeformerHelpers::GetClo
 	return Ret;
 }
 
-FRDGBuffer* FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(FRDGBuilder& GraphBuilder, FSkeletalMeshObject* InMeshObject, int32 InLodIndex, TCHAR const* InBufferName)
+FRDGBuffer* FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(FRDGBuilder& GraphBuilder, FSkeletalMeshObject* InMeshObject, int32 InLodIndex, bool bInLodJustChanged, TCHAR const* InBufferName)
 {
 	if (InMeshObject->IsCPUSkinned())
 	{
@@ -112,9 +112,20 @@ FRDGBuffer* FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(FR
 		PositionBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(PosBufferBytesPerElement, NumVertices * 3), InBufferName, ERDGBufferFlags::None);
 		DeformerGeometry.Position = GraphBuilder.ConvertToExternalBuffer(PositionBuffer);
 		DeformerGeometry.PositionSRV = DeformerGeometry.Position->GetOrCreateSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_FLOAT));
+
+		// Avoid using position buffer from the last time this LOD was active to compute motion vectors,
+		// the position delta between that previous position (could be from any time ago) and the current position can be any crazy value that is not meaningful
+		// instead lets just set the motion vector to zero here
+		if (bInLodJustChanged)
+		{
+			DeformerGeometry.PrevPosition = DeformerGeometry.Position;
+			DeformerGeometry.PrevPositionSRV = DeformerGeometry.PositionSRV;
+		}
+		
 		DeformerGeometry.PositionUpdatedFrame = Frame;
 		GraphBuilder.SetBufferAccessFinal(PositionBuffer, ERHIAccess::VertexOrIndexBuffer | ERHIAccess::SRVMask);
 
+		
 #if RHI_RAYTRACING
 		// Update ray tracing geometry whenever we recreate the position buffer.
 		FSkeletalMeshRenderData& SkelMeshRenderData = MeshObjectGPU->GetSkeletalMeshRenderData();
@@ -225,24 +236,29 @@ void FSkeletalMeshDeformerHelpers::UpdateVertexFactoryBufferOverrides(FRHIComman
 	FGPUSkinPassthroughVertexFactory::FAddVertexAttributeDesc Desc;
 	Desc.FrameNumber = DeformerGeometry.PositionUpdatedFrame;
 
+	bool bAssignedAttributes = false;
+
 	if (DeformerGeometry.PositionSRV)
 	{
-		Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexPosition);
+		Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::VertexPosition] = DeformerGeometry.Position->GetRHI();
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::Position] = DeformerGeometry.PositionSRV;
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::PreviousPosition] = DeformerGeometry.PrevPositionSRV;
+		bAssignedAttributes = true;
 	}
 	if (DeformerGeometry.TangentSRV)
 	{
-		Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexTangent);
+		Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::VertexTangent] = DeformerGeometry.Tangent->GetRHI();
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::Tangent] = DeformerGeometry.TangentSRV;
+		bAssignedAttributes = true;
 	}
 	if (DeformerGeometry.ColorSRV)
 	{
-		Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexColor);
+		Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::VertexColor] = DeformerGeometry.Color->GetRHI();
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::Color] = DeformerGeometry.ColorSRV;
+		bAssignedAttributes = true;
 	}
 
-	if (Desc.VertexAttributes.Num() == 0)
+	if (!bAssignedAttributes)
 	{
 		return;
 	}
@@ -253,7 +269,12 @@ void FSkeletalMeshDeformerHelpers::UpdateVertexFactoryBufferOverrides(FRHIComman
 	{
 		FGPUBaseSkinVertexFactory const* BaseVertexFactory = MeshObjectGPU->GetBaseSkinVertexFactory(InLodIndex, SectionIndex);
 		FGPUSkinPassthroughVertexFactory* TargetVertexFactory = LOD.GPUSkinVertexFactories.PassthroughVertexFactories[SectionIndex].Get();
-		TargetVertexFactory->SetVertexAttributes(RHICmdList, BaseVertexFactory, Desc);
+
+		// The passthrough vertex factory should exist if we got this far, but prefer skipping the update to crashing if that assumption fails.
+		if (ensure(TargetVertexFactory))
+		{
+			TargetVertexFactory->SetVertexAttributes(RHICmdList, BaseVertexFactory, Desc);
+		}
 	}
 }
 
@@ -284,12 +305,13 @@ void FSkeletalMeshDeformerHelpers::ResetVertexFactoryBufferOverrides(FSkeletalMe
 	const int32 NumSections = InMeshObject->GetRenderSections(LODIndex).Num();
 	for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 	{
-		FGPUBaseSkinVertexFactory const* BaseVertexFactory = MeshObjectGPU->GetBaseSkinVertexFactory(LODIndex, SectionIndex);
 		FGPUSkinPassthroughVertexFactory* TargetVertexFactory = LOD.GPUSkinVertexFactories.PassthroughVertexFactories[SectionIndex].Get();
-		TargetVertexFactory->ResetVertexAttributes();
-		FGPUSkinPassthroughVertexFactory::FDataType Data;
-		BaseVertexFactory->CopyDataTypeForLocalVertexFactory(Data);
-		TargetVertexFactory->SetData(RHICmdList, Data);
+
+		// The passthrough vertex factory should exist if we got this far, but prefer skipping the update to crashing if that assumption fails.
+		if (ensure(TargetVertexFactory))
+		{
+			TargetVertexFactory->ResetVertexAttributes(RHICmdList);
+		}
 	}
 
 #if RHI_RAYTRACING

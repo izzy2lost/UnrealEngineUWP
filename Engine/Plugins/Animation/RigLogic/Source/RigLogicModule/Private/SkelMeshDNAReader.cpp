@@ -698,6 +698,206 @@ TArrayView<const float> FSkelMeshDNAReader::GetNeuralNetworkLayerWeights(uint16 
 	return BehaviorReader->GetNeuralNetworkLayerWeights(NetIndex, LayerIndex);
 }
 
+ETranslationRepresentation FSkelMeshDNAReader::GetJointTranslationRepresentation(uint16 JointIndex) const
+{
+	return BehaviorReader->GetJointTranslationRepresentation(JointIndex);
+}
+
+ERotationRepresentation FSkelMeshDNAReader::GetJointRotationRepresentation(uint16 JointIndex) const
+{
+	return BehaviorReader->GetJointRotationRepresentation(JointIndex);
+}
+
+EScaleRepresentation FSkelMeshDNAReader::GetJointScaleRepresentation(uint16 JointIndex) const
+{
+	return BehaviorReader->GetJointScaleRepresentation(JointIndex);
+}
+
+uint16 FSkelMeshDNAReader::GetRBFPoseCount() const
+{
+	return BehaviorReader->GetRBFPoseCount();
+}
+
+FString FSkelMeshDNAReader::GetRBFPoseName(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseName(PoseIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseJointOutputIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseJointOutputIndices(PoseIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseBlendShapeChannelOutputIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseBlendShapeChannelOutputIndices(PoseIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseAnimatedMapOutputIndices(PoseIndex);
+}
+
+TArrayView<const float> FSkelMeshDNAReader::GetRBFPoseJointOutputValues(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseJointOutputValues(PoseIndex);
+}
+
+float FSkelMeshDNAReader::GetRBFPoseScale(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseScale(PoseIndex);
+}
+
+uint16 FSkelMeshDNAReader::GetRBFPoseControlCount() const
+{
+	return BehaviorReader->GetRBFPoseControlCount();
+}
+
+FString FSkelMeshDNAReader::GetRBFPoseControlName(uint16 PoseControlIndex) const
+{
+	return BehaviorReader->GetRBFPoseControlName(PoseControlIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseInputControlIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseInputControlIndices(PoseIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFPoseOutputControlIndices(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseOutputControlIndices(PoseIndex);
+}
+
+TArrayView<const float> FSkelMeshDNAReader::GetRBFPoseOutputControlWeights(uint16 PoseIndex) const
+{
+	return BehaviorReader->GetRBFPoseOutputControlWeights(PoseIndex);
+}
+
+uint16 FSkelMeshDNAReader::GetRBFSolverCount() const
+{
+	return BehaviorReader->GetRBFSolverCount();
+}
+
+uint16 FSkelMeshDNAReader::GetRBFSolverIndexListCount() const
+{
+	return BehaviorReader->GetRBFSolverIndexListCount();
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFSolverIndicesForLOD(uint16 LOD) const
+{
+	return BehaviorReader->GetRBFSolverIndicesForLOD(LOD);
+}
+
+FString FSkelMeshDNAReader::GetRBFSolverName(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverName(SolverIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFSolverRawControlIndices(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverRawControlIndices(SolverIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetRBFSolverPoseIndices(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverPoseIndices(SolverIndex);
+}
+
+TArrayView<const float> FSkelMeshDNAReader::GetRBFSolverRawControlValues(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverRawControlValues(SolverIndex);
+}
+
+ERBFSolverType FSkelMeshDNAReader::GetRBFSolverType(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverType(SolverIndex);
+}
+
+float FSkelMeshDNAReader::GetRBFSolverRadius(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverRadius(SolverIndex);
+}
+
+EAutomaticRadius FSkelMeshDNAReader::GetRBFSolverAutomaticRadius(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverAutomaticRadius(SolverIndex);
+}
+
+float FSkelMeshDNAReader::GetRBFSolverWeightThreshold(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverWeightThreshold(SolverIndex);
+}
+
+ERBFDistanceMethod FSkelMeshDNAReader::GetRBFSolverDistanceMethod(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverDistanceMethod(SolverIndex);
+}
+
+ERBFNormalizeMethod FSkelMeshDNAReader::GetRBFSolverNormalizeMethod(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverNormalizeMethod(SolverIndex);
+}
+
+ERBFFunctionType FSkelMeshDNAReader::GetRBFSolverFunctionType(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverFunctionType(SolverIndex);
+}
+
+ETwistAxis FSkelMeshDNAReader::GetRBFSolverTwistAxis(uint16 SolverIndex) const
+{
+	return BehaviorReader->GetRBFSolverTwistAxis(SolverIndex);
+}
+
+uint16 FSkelMeshDNAReader::GetTwistCount() const
+{
+	return BehaviorReader->GetTwistCount();
+}
+
+ETwistAxis FSkelMeshDNAReader::GetTwistSetupTwistAxis(uint16 TwistIndex) const
+{
+	return BehaviorReader->GetTwistSetupTwistAxis(TwistIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetTwistInputControlIndices(uint16 TwistIndex) const
+{
+	return BehaviorReader->GetTwistInputControlIndices(TwistIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetTwistOutputJointIndices(uint16 TwistIndex) const
+{
+	return BehaviorReader->GetTwistOutputJointIndices(TwistIndex);
+}
+
+TArrayView<const float> FSkelMeshDNAReader::GetTwistBlendWeights(uint16 TwistIndex) const
+{
+	return BehaviorReader->GetTwistBlendWeights(TwistIndex);
+}
+
+uint16 FSkelMeshDNAReader::GetSwingCount() const
+{
+	return BehaviorReader->GetSwingCount();
+}
+
+ETwistAxis FSkelMeshDNAReader::GetSwingSetupTwistAxis(uint16 SwingIndex) const
+{
+	return BehaviorReader->GetSwingSetupTwistAxis(SwingIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetSwingInputControlIndices(uint16 SwingIndex) const
+{
+	return BehaviorReader->GetSwingInputControlIndices(SwingIndex);
+}
+
+TArrayView<const uint16> FSkelMeshDNAReader::GetSwingOutputJointIndices(uint16 SwingIndex) const
+{
+	return BehaviorReader->GetSwingOutputJointIndices(SwingIndex);
+}
+
+TArrayView<const float> FSkelMeshDNAReader::GetSwingBlendWeights(uint16 SwingIndex) const
+{
+	return BehaviorReader->GetSwingBlendWeights(SwingIndex);
+}
+
 void FSkelMeshDNAReader::Unload(EDNADataLayer Layer)
 {
 	ensureMsgf(false, TEXT("Assest are not unloadable"));

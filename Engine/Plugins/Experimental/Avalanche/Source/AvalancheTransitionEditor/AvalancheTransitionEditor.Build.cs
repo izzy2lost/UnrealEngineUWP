@@ -26,6 +26,7 @@ public class AvalancheTransitionEditor : ModuleRules
                 "AssetTools",
                 "AvalancheCore",
                 "AvalancheTransition",
+                "DeveloperSettings",
                 "EditorStyle",
                 "Engine",
                 "InputCore",
@@ -35,13 +36,14 @@ public class AvalancheTransitionEditor : ModuleRules
                 "Slate",
                 "SlateCore",
                 "StateTreeModule",
-                "StructUtils",
+                "StructUtilsEditor",
                 "ToolMenus",
                 "UnrealEd",
             }
         );
 
-        if (Target.Platform == UnrealTargetPlatform.Win64 && (Target.Configuration != UnrealTargetConfiguration.Shipping || Target.bBuildEditor))
+        // Until we split use of TraceServices and TraceAnalysis in the debugger we enable only on platforms supporting both at the moment
+        if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop) && (Target.Configuration != UnrealTargetConfiguration.Shipping || Target.bBuildEditor))
         {
             PrivateDefinitions.Add("WITH_STATETREE_DEBUGGER=1");
             PrivateDependencyModuleNames.AddRange(

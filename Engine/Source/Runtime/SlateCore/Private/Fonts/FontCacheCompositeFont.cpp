@@ -246,7 +246,7 @@ void FCachedCompositeFontData::RefreshFontRanges()
 					FInt32Range::BoundsType::Inclusive(ThisRange.Range.GetLowerBoundValue()), 
 					FInt32Range::BoundsType::Inclusive(FMath::Max(ThisRange.Range.GetUpperBoundValue(), NextRange.Range.GetUpperBoundValue()))
 					);
-				InFontRanges.RemoveAt(RangeIndex + 1, 1, EAllowShrinking::No);
+				InFontRanges.RemoveAt(RangeIndex + 1, EAllowShrinking::No);
 			}
 		}
 	};

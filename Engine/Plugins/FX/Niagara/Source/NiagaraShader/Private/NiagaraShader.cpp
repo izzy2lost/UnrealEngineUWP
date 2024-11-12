@@ -23,6 +23,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "NiagaraShaderModule.h"
 #include "NiagaraCustomVersion.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "UObject/UObjectThreadContext.h"
 
 IMPLEMENT_SHADER_TYPE(, FNiagaraShader, TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf"),TEXT("SimulateMain"), SF_Compute)
@@ -70,10 +71,6 @@ namespace NiagaraShaderCookStats
 //
 FCriticalSection GIdToNiagaraShaderMapCS;
 TMap<FNiagaraShaderMapId, FNiagaraShaderMap*> FNiagaraShaderMap::GIdToNiagaraShaderMap[SP_NumPlatforms];
-#if ALLOW_SHADERMAP_DEBUG_DATA
-TArray<FNiagaraShaderMap*> FNiagaraShaderMap::AllNiagaraShaderMaps;
-FCriticalSection FNiagaraShaderMap::AllNiagaraShaderMapsGuard;
-#endif
 
 #if WITH_EDITOR
 TMap<FNiagaraShaderMapRef, TArray<FNiagaraShaderScript*>> FNiagaraShaderMap::NiagaraShaderMapsBeingCompiled;
@@ -462,7 +459,7 @@ void FNiagaraShaderType::BeginCompileShaderFromSource(
 
 void FNiagaraShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const
 {
-	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
+	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBuffers);
 }
 
 /**
@@ -549,9 +546,9 @@ void FNiagaraShaderMap::LoadFromDerivedDataCache(const FNiagaraShaderScript* Scr
 				COOK_STAT(Timer.AddHit(CachedData.Num()));
 				InOutShaderMap = new FNiagaraShaderMap();
 				FMemoryReader Ar(CachedData, true);
-
+				FShaderSerializeContext Ctx(Ar);
 				// Deserialize from the cached data
-				if (InOutShaderMap->Serialize(Ar))
+				if (InOutShaderMap->Serialize(Ctx))
 				{
 					check(InOutShaderMap->GetShaderMapId() == ShaderMapId);
 
@@ -581,31 +578,11 @@ void FNiagaraShaderMap::SaveToDerivedDataCache(const FNiagaraShaderScript* Scrip
 	COOK_STAT(auto Timer = NiagaraShaderCookStats::UsageStats.TimeSyncWork());
 	TArray<uint8> SaveData;
 	FMemoryWriter Ar(SaveData, true);
-	Serialize(Ar);
+	FShaderSerializeContext Ctx(Ar);
+	Serialize(Ctx);
 
 	GetDerivedDataCacheRef().Put(*GetNiagaraShaderMapKeyString(GetContent()->ShaderMapId, GetShaderPlatform()), SaveData, Script ? Script->GetFriendlyName() : TEXT(""));
 	COOK_STAT(Timer.AddMiss(SaveData.Num()));
-}
-
-TArray<uint8>* FNiagaraShaderMap::BackupShadersToMemory()
-{
-	TArray<uint8>* SavedShaderData = new TArray<uint8>();
-	FMemoryWriter Ar(*SavedShaderData);
-
-	check(false);
-	//SerializeInline(Ar, true, true, false);
-	//RegisterSerializedShaders(false);
-	//Empty();
-
-	return SavedShaderData;
-}
-
-void FNiagaraShaderMap::RestoreShadersFromMemory(const TArray<uint8>& ShaderData)
-{
-	FMemoryReader Ar(ShaderData);
-	check(false);
-	//SerializeInline(Ar, true, true, false);
-	//RegisterSerializedShaders(false);
 }
 
 /**
@@ -801,7 +778,7 @@ FShader* FNiagaraShaderMap::ProcessCompilationResultsForSingleJob(const TRefCoun
 	auto CurrentJob = SingleJob->GetSingleShaderJob();
 	check(CurrentJob->Id == CompilingId);
 
-	GetResourceCode()->AddShaderCompilerOutput(CurrentJob->Output, CurrentJob->Key.ToString());
+	GetResourceCode()->AddShaderCompilerOutput(CurrentJob->Output, CurrentJob->Key.ToString(), SingleJob->GetSingleShaderJob()->Input.GenerateDebugInfo());
 
 	FShader* Shader = nullptr;
 
@@ -983,6 +960,16 @@ void FNiagaraShaderMap::GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutS
 	GetContent()->GetShaderList(*this, FSHAHash(), OutShaders);
 }
 
+void FNiagaraShaderMap::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FNiagaraShaderMap::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
+}
+
 /**
  * Registers a Niagara shader map in the global map so it can be used by scripts.
  */
@@ -1049,10 +1036,6 @@ FNiagaraShaderMap::FNiagaraShaderMap() :
 	bIsPersistent(true) 
 {
 	checkSlow(IsInGameThread() || IsAsyncLoading());
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
-	AllNiagaraShaderMaps.Add(this);
-#endif
 }
 
 #if WITH_EDITOR
@@ -1065,10 +1048,6 @@ FNiagaraShaderMap::FNiagaraShaderMap(EWorkerThread)
 	, bCompiledSuccessfully(true)
 	, bIsPersistent(true) 
 {
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
-	AllNiagaraShaderMaps.Add(this);
-#endif
 }
 #endif // WITH_EDITOR
 
@@ -1077,18 +1056,14 @@ FNiagaraShaderMap::~FNiagaraShaderMap()
 	checkSlow(IsInGameThread() || IsAsyncLoading());
 	check(bDeletedThroughDeferredCleanup);
 	check(!bRegistered);
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
-	AllNiagaraShaderMaps.RemoveSwap(this);
-#endif
 }
 
-bool FNiagaraShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial)
+bool FNiagaraShaderMap::Serialize(FShaderSerializeContext& Ctx)
 {
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump NIAGARASHADERMAP_DERIVEDDATA_VER
-	return Super::Serialize(Ar, bInlineShaderResources, bLoadedByCookedMaterial);
+	return Super::Serialize(Ctx);
 }
 
 #if WITH_EDITOR
@@ -1226,6 +1201,44 @@ FNiagaraShader::FNiagaraShader(const FNiagaraShaderType::CompiledShaderInitializ
 		checkf(DataInterfaceParamRef.Parameters == nullptr || CDODataInterface->GetShaderStorageType()->Interface == ETypeLayoutInterface::NonVirtual, TEXT("DataInterface(%s) shader storage is either abstract or virtual which is not allowed"), *GetNameSafe(CDODataInterface->GetClass()));
 	}
 }
+
+#if WITH_EDITORONLY_DATA
+void FNiagaraShader::BuildClassSchema(FAppendToClassSchemaContext& Context)
+{
+	// Used by iterative cooking.  This will provide additional context for if things have changed such that a cook will
+	// be required.  This is focused on global settings rather than the usual dependencies between objects.
+
+	FShaderKeyGenerator KeyGen([&Context](const void* Data, uint64 Size) { Context.Update(Data, Size); });
+
+	FPlatformTypeLayoutParameters DefaultLayoutParams;
+	DefaultLayoutParams.Append(KeyGen);
+
+	const FSHAHash ContentLayoutHash = GetShaderTypeLayoutHash(StaticGetTypeLayoutDesc<FNiagaraShaderMapContent>(), DefaultLayoutParams);
+	Context.Update(&ContentLayoutHash, sizeof(ContentLayoutHash));
+
+	const FSHAHash ShaderLayoutHash = GetShaderTypeLayoutHash(StaticGetTypeLayoutDesc<FNiagaraShader>(), DefaultLayoutParams);
+	Context.Update(&ShaderLayoutHash, sizeof(ShaderLayoutHash));
+
+	const uint32 ShaderParamStructHash = TShaderParameterStructTypeInfo<FNiagaraShader::FParameters>::GetStructMetadata()->GetLayoutHash();
+	Context.Update(&ShaderParamStructHash, sizeof(ShaderParamStructHash));
+
+	// Add in any referenced HLSL files.
+	if (AllowShaderCompiling())
+	{
+		const FSHAHash InstanceShaderHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf")), EShaderPlatform::SP_PCD3D_SM5);
+		Context.Update(&InstanceShaderHash, sizeof(InstanceShaderHash));
+
+		const FSHAHash NiagaraShaderVersionHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
+		Context.Update(&NiagaraShaderVersionHash, sizeof(NiagaraShaderVersionHash));
+
+		const FSHAHash ShaderVersionHash = GetShaderFileHash((TEXT("/Engine/Public/ShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
+		Context.Update(&ShaderVersionHash, sizeof(ShaderVersionHash));
+	}
+
+	Context.Update(&GNiagaraSkipVectorVMBackendOptimizations, sizeof(GNiagaraSkipVectorVMBackendOptimizations));
+}
+#endif
+
 
 //////////////////////////////////////////////////////////////////////////
 bool FNiagaraDataInterfaceGeneratedFunction::Serialize(FArchive& Ar)

@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Xml.Linq;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -307,8 +308,12 @@ namespace EpicGames.BuildGraph
 			}
 			TagNameToNodeOutput = newTagNameToNodeOutput;
 
-			// Remove any artifacts which are not produced
-			Artifacts.RemoveAll(x => !TagNameToNodeOutput.ContainsKey(x.TagName));
+			// Remove any artifacts whose outputs are not produced
+			Artifacts.RemoveAll(x => x.TagName != null && !TagNameToNodeOutput.ContainsKey(x.TagName));
+
+			// Remove any artifacts whose nodes are no longer run
+			HashSet<string> newNodeNames = Agents.SelectMany(x => x.Nodes).Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+			Artifacts.RemoveAll(x => x.NodeName != null && !newNodeNames.Contains(x.NodeName));
 		}
 
 		/// <summary>
@@ -457,21 +462,35 @@ namespace EpicGames.BuildGraph
 						jsonWriter.WriteValue("BasePath", artifact.BasePath);
 					}
 
-					jsonWriter.WriteArrayStart("Keys");
-					foreach (string key in artifact.Keys)
+					if (artifact.Keys.Count > 0)
 					{
-						jsonWriter.WriteValue(key);
+						jsonWriter.WriteArrayStart("Keys");
+						foreach (string key in artifact.Keys)
+						{
+							jsonWriter.WriteValue(key);
+						}
+						jsonWriter.WriteArrayEnd();
 					}
-					jsonWriter.WriteArrayEnd();
 
-					jsonWriter.WriteArrayStart("Metadata");
-					foreach (string metadata in artifact.Metadata)
+					if (artifact.Metadata.Count > 0)
 					{
-						jsonWriter.WriteValue(metadata);
+						jsonWriter.WriteArrayStart("Metadata");
+						foreach (string metadata in artifact.Metadata)
+						{
+							jsonWriter.WriteValue(metadata);
+						}
+						jsonWriter.WriteArrayEnd();
 					}
-					jsonWriter.WriteArrayEnd();
 
-					jsonWriter.WriteValue("OutputName", artifact.TagName);
+					if (!String.IsNullOrEmpty(artifact.NodeName))
+					{
+						jsonWriter.WriteValue("NodeName", artifact.NodeName);
+					}
+					if (!String.IsNullOrEmpty(artifact.TagName))
+					{
+						jsonWriter.WriteValue("OutputName", artifact.TagName);
+					}
+
 					jsonWriter.WriteObjectEnd();
 				}
 				jsonWriter.WriteArrayEnd();

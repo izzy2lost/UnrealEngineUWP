@@ -28,6 +28,11 @@
 
 #include <limits>
 
+namespace SpinBoxPrivate
+{
+	SLATE_API extern bool bUseSpinBoxMouseMoveOptimization;
+}
+
 /*
  * This function compute a slider position by simulating two log on both side of the neutral value
  * Example a slider going from 0.0 to 2.0 with a neutral value of 1.0, the user will have a lot of precision around the neutral value
@@ -90,6 +95,9 @@ public:
 		, _ClearKeyboardFocusOnCommit(false)
 		, _SelectAllTextOnCommit(true)
 		, _MinDesiredWidth(0.0f)
+		, _Justification(ETextJustify::Left)
+		, _KeyboardType(Keyboard_Default)
+		, _PreventThrottling(true)
 	{}
 
 	/** The style used to draw this spinbox */
@@ -174,6 +182,14 @@ public:
 
 	SSpinBox()
 	{
+	}
+
+	virtual ~SSpinBox()
+	{
+		if (bDragging || PointerDraggingSliderIndex != INDEX_NONE)
+		{
+			CancelMouseCapture();
+		}
 	}
 
 	/**
@@ -391,6 +407,16 @@ public:
 		}
 
 		return FMath::Max(FilledLayer, SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, FilledLayer, InWidgetStyle, bEnabled));
+	}
+	
+	void Tick(const FGeometry& AlottedGeometry, const double InCurrentTime, const float InDeltaTime)
+	{
+		if (PendingCommitValue)
+		{
+			const NumericType RoundedNewValue = RoundIfIntegerValue(PendingCommitValue->NewValue);
+			CommitValue(RoundedNewValue, PendingCommitValue->NewValue, PendingCommitValue->CommitMethod, ETextCommit::OnEnter);
+			PendingCommitValue.Reset();
+		}
 	}
 
 	const bool CommitWithMultiplier(const FPointerEvent& MouseEvent)
@@ -680,8 +706,26 @@ public:
 					}
 				}
 
-				NumericType RoundedNewValue = RoundIfIntegerValue(NewValue);
-				CommitValue(RoundedNewValue, NewValue, CommitMethod, ETextCommit::OnEnter);
+				if (SpinBoxPrivate::bUseSpinBoxMouseMoveOptimization)
+				{
+					if (CommitMethod == ECommitMethod::CommittedViaSpin)
+					{
+						NewValue = FMath::Clamp<double>(NewValue, (double)GetMinSliderValue(), (double)GetMaxSliderValue());
+					}
+					NewValue = FMath::Clamp<double>(NewValue, (double)GetMinValue(), (double)GetMaxValue());
+					InternalValue = NewValue;
+
+					PendingCommitValue.Emplace(FPendingCommitValue
+							{
+								.NewValue = NewValue,
+								.CommitMethod = CommitMethod
+							}); 
+				}
+				else
+				{
+					NumericType RoundedNewValue = RoundIfIntegerValue(NewValue);
+					CommitValue(RoundedNewValue, NewValue, CommitMethod, ETextCommit::OnEnter);
+				}
 			}
 
 			return FReply::Handled();
@@ -772,11 +816,7 @@ public:
 		const FKey Key = InKeyEvent.GetKey();
 		if (Key == EKeys::Escape && HasMouseCapture())
 		{
-			bDragging = false;
-			PointerDraggingSliderIndex = INDEX_NONE;
-
-			InternalValue = (double)PreDragValue;
-			NotifyValueCommitted(PreDragValue);
+			CancelMouseCapture();
 			return FReply::Handled().ReleaseMouseCapture().SetMousePos(CachedMousePosition);
 		}
 		else if (Key == EKeys::Up || Key == EKeys::Right)
@@ -1024,6 +1064,7 @@ protected:
 	 */
 	void CommitValue(NumericType NewValue, double NewSpinValue, ECommitMethod CommitMethod, ETextCommit::Type OriginalCommitInfo)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SSpinBox_CommitValue);
 		if (CommitMethod == CommittedViaSpin || CommitMethod == CommittedViaArrowKey)
 		{
 			const NumericType LocalMinSliderValue = GetMinSliderValue();
@@ -1134,6 +1175,15 @@ protected:
 	}
 
 private:
+	
+	// New value to be Committed on Tick for MouseMove events
+	// This exists to insulate high-frequency mouse move events which can fire many times during input processing
+	// from the side-effects of committing the spinbox value
+	struct FPendingCommitValue
+	{
+		double NewValue;
+		ECommitMethod CommitMethod;
+	};
 
 	/** The default minimum fractional digits */
 	static const int32 DefaultMinFractionalDigits;
@@ -1225,6 +1275,15 @@ private:
 		}
 	}
 
+	void CancelMouseCapture()
+	{
+		bDragging = false;
+		PointerDraggingSliderIndex = INDEX_NONE;
+
+		InternalValue = (double)PreDragValue;
+		NotifyValueCommitted(PreDragValue);
+	}
+
 	/** Tracks which cursor is currently dragging the slider (e.g., the mouse cursor or a specific finger) */
 	int32 PointerDraggingSliderIndex;
 
@@ -1278,6 +1337,8 @@ private:
 
 	/** True to broadcast every time we type. */
 	bool bBroadcastValueChangesPerKey = false;
+	
+	TOptional<FPendingCommitValue> PendingCommitValue;
 };
 
 template<typename NumericType>

@@ -5,7 +5,7 @@
 #include "StormSyncTransportNetworkUtils.h"
 #include "StormSyncTransportSettings.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncTransportNetworkUtilsSpec, "StormSync.StormSyncTransportCore.StormSyncTransportNetworkUtils", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncTransportNetworkUtilsSpec, "StormSync.StormSyncTransportCore.StormSyncTransportNetworkUtils", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 END_DEFINE_SPEC(FStormSyncTransportNetworkUtilsSpec)
 

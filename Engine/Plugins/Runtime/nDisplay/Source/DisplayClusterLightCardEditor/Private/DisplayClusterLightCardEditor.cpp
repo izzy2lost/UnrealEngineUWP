@@ -76,6 +76,7 @@ FDisplayClusterLightCardEditor::~FDisplayClusterLightCardEditor()
 	UnregisterTabSpawners();
 	
 	IDisplayClusterOperator::Get().GetOperatorViewModel()->OnActiveRootActorChanged().Remove(ActiveRootActorChangedHandle);
+	IDisplayClusterOperator::Get().GetOperatorViewModel()->OnActorsSelectedExternally().Remove(ActorsSelectedExternallyHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 
 	if (GEngine != nullptr)
@@ -109,6 +110,7 @@ void FDisplayClusterLightCardEditor::Initialize(TSharedRef<IDisplayClusterOperat
 	OperatorViewModel = InViewModel;
 
 	ActiveRootActorChangedHandle = InViewModel->OnActiveRootActorChanged().AddSP(this, &FDisplayClusterLightCardEditor::OnActiveRootActorChanged);
+	ActorsSelectedExternallyHandle = InViewModel->OnActorsSelectedExternally().AddSP(this, &FDisplayClusterLightCardEditor::OnActorsSelectedExternally);
 	if (GEngine != nullptr)
 	{
 		GEngine->OnLevelActorAdded().AddSP(this, &FDisplayClusterLightCardEditor::OnLevelActorAdded);
@@ -254,7 +256,7 @@ AActor* FDisplayClusterLightCardEditor::SpawnActor(TSubclassOf<AActor> InActorCl
 		{
 			// Only template recent items need to be handled, new actor spawning is handled from caller otherwise.
 			FDisplayClusterLightCardEditorRecentItem RecentlyPlacedItem;
-			RecentlyPlacedItem.ObjectPath = InTemplate;
+			RecentlyPlacedItem.ObjectPath = const_cast<UDisplayClusterLightCardTemplate*>(InTemplate);
 			RecentlyPlacedItem.ItemType = FDisplayClusterLightCardEditorRecentItem::Type_LightCardTemplate;
 		
 			AddRecentlyPlacedItem(MoveTemp(RecentlyPlacedItem));
@@ -1052,6 +1054,31 @@ void FDisplayClusterLightCardEditor::OnActiveRootActorChanged(ADisplayClusterRoo
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &FDisplayClusterLightCardEditor::OnActorPropertyChanged);
 
 	RefreshLabels();
+}
+
+void FDisplayClusterLightCardEditor::OnActorsSelectedExternally(const TArray<AActor*>& Actors, bool bShouldSelect)
+{
+	if (!OperatorViewModel.IsValid())
+	{
+		return;
+	}
+
+	if (bShouldSelect)
+	{
+		LightCardOutliner->SelectActors(Actors);
+	}
+	else
+	{
+		TArray<AActor*> NewActors;
+		LightCardOutliner->GetSelectedActors(NewActors);
+		
+		for (AActor* Actor : Actors)
+		{
+			NewActors.Remove(Actor);
+		}
+
+		LightCardOutliner->SelectActors(NewActors);
+	}
 }
 
 void FDisplayClusterLightCardEditor::RegisterTabSpawners()

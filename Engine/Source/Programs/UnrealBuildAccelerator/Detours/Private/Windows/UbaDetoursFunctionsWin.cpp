@@ -41,8 +41,9 @@ DETOURED_FUNCTIONS_MEMORY
 #include "UbaWinBinDependencyParser.h"
 #include "UbaDetoursPayload.h"
 #include "UbaApplicationRules.h"
-
 #include "UbaDetoursShared.h"
+#include "UbaDetoursObjFilesPreloader.h"
+#include "UbaDetoursPrepopulatePchFiles.h"
 
 #include "Shlwapi.h"
 #include <detours/detours.h>
@@ -111,127 +112,55 @@ int g_uiLanguage;
 
 StringBuffer<256> g_exeDir;
 
-const wchar_t* g_commandLine;
-wchar_t* g_virtualCommandLine;
+wchar_t* g_virtualCommandLineW;
+char* g_virtualCommandLineA;
 
 constexpr u32 TrackInputsMemCapacity = 512 * 1024;
 u8* g_trackInputsMem;
 u32 g_trackInputsBufPos;
-void TrackInput(const wchar_t* file)
+
+void SendInput()
 {
-	if (g_trackInputsMem)
+	u32 left = g_trackInputsBufPos;
+	u32 reserveSize = left;
+	u32 pos = 0;
+	while (left)
 	{
-		BinaryWriter w(g_trackInputsMem, g_trackInputsBufPos, TrackInputsMemCapacity);
-		w.WriteString(file);
-		g_trackInputsBufPos = u32(w.GetPosition());
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_InputDependencies);
+		writer.Write7BitEncoded(reserveSize);
+		reserveSize = 0;
+		u32 toWrite = Min(left, u32(writer.GetCapacityLeft() - sizeof(u32)));
+		writer.WriteU32(toWrite);
+		writer.WriteBytes(g_trackInputsMem + pos, toWrite);
+		writer.Flush();
+		left -= toWrite;
+		pos += toWrite;
 	}
+	g_trackInputsBufPos = 0;
 }
 
-struct MemoryFile
+
+void TrackInput(const wchar_t* file)
 {
-	MemoryFile(u8* data = nullptr, bool localOnly = true) : baseAddress(data), isLocalOnly(localOnly) {}
-	MemoryFile(bool localOnly, u64 reserveSize_) : isLocalOnly(localOnly)
-	{
-		Reserve(reserveSize_);
-	}
+	if (!g_trackInputsMem)
+		return;
 
-	void Reserve(u64 reserveSize_)
-	{
-		reserveSize = reserveSize_;
-		if (isLocalOnly)
-		{
-			baseAddress = (u8*)VirtualAlloc(NULL, reserveSize, MEM_RESERVE, PAGE_READWRITE);
-			if (!baseAddress)
-				FatalError(1354, L"VirtualAlloc failed trying to reserve %llu. (Error code: %u)", reserveSize, GetLastError());
-			mappedSize = reserveSize;
-		}
-		else
-		{
-			mappedSize = 32 * 1024 * 1024;
-			mappingHandle = True_CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE | SEC_RESERVE, ToHigh(reserveSize), ToLow(reserveSize), NULL);
-			if (!mappingHandle)
-				FatalError(1348, L"CreateFileMappingW failed trying to reserve %llu. (Error code: %u)", reserveSize, GetLastError());
-			baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
-			if (!baseAddress)
-				FatalError(1353, L"MapViewOfFile failed trying to map %llu. ReservedSize: %llu (Error code: %u)", mappedSize, reserveSize, GetLastError());
-		}
-	}
+	if (g_trackInputsBufPos > TrackInputsMemCapacity - 2048)
+		SendInput();
 
-	void Unreserve()
-	{
-		if (isLocalOnly)
-		{
-			VirtualFree(baseAddress, 0, MEM_RELEASE);
-		}
-		else
-		{
-			True_UnmapViewOfFile(baseAddress);
-			CloseHandle(mappingHandle);
-			mappingHandle = nullptr;
-		}
-		baseAddress = nullptr;
-		committedSize = 0;
-	}
+	BinaryWriter w(g_trackInputsMem, g_trackInputsBufPos, TrackInputsMemCapacity);
+	w.WriteString(file);
+	g_trackInputsBufPos = u32(w.GetPosition());
+}
+void SkipTrackInput(const wchar_t* file)
+{
+	// Just here to easily log out what we are ignoring in terms of input
+}
 
-	void Write(struct DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBytesToWrite);
-	void EnsureCommited(struct DetouredHandle& handle, u64 size);
-
-	u64 fileIndex = ~u64(0);
-	u64 fileTime = ~u64(0);
-	u32 volumeSerial = 0;
-
-	HANDLE mappingHandle = nullptr;
-	u8* baseAddress;
-	u64 reserveSize = 0;
-	u64 mappedSize = 0;
-	u64 committedSize = 0;
-	u64 writtenSize = 0;
-	bool isLocalOnly;
-	bool isReported = false;
-};
 u8 g_emptyMemoryFileMem;
 MemoryFile& g_emptyMemoryFile = *new MemoryFile(&g_emptyMemoryFileMem, true);
-
-struct FileObject
-{
-	void* operator new(size_t size);
-	void operator delete(void* p);
-	FileInfo* fileInfo = nullptr;
-	u32 refCount = 1;
-	u32 closeId = 0;
-	u32 desiredAccess = 0;
-	bool deleteOnClose = false;
-	bool ownsFileInfo = false;
-	TString newName;
-};
-BlockAllocator<FileObject> g_fileObjectAllocator(g_memoryBlock);
-void* FileObject::operator new(size_t size) { return g_fileObjectAllocator.Allocate(); }
-void FileObject::operator delete(void* p) { g_fileObjectAllocator.Free(p); }
-
-
-enum HandleType
-{
-	HandleType_File,
-	HandleType_FileMapping,
-	HandleType_Process,
-	HandleType_Std,
-};
-
-struct DetouredHandle
-{
-	void* operator new(size_t size);
-	void operator delete(void* p);
-
-	DetouredHandle(HandleType t, HANDLE th = INVALID_HANDLE_VALUE) : trueHandle(th), type(t) {}
-
-	HANDLE trueHandle;
-	u32 dirTableOffset = ~u32(0);
-	HandleType type;
-
-	// Only for files
-	FileObject* fileObject = nullptr;
-    u64 pos = 0;
-};
 
 constexpr u64 DetouredHandleMaxCount = 200*1024; // ~200000 handles enough?
 constexpr u64 DetouredHandleStart = 300000; // Let's hope noone uses the handles starting at 300000! :)
@@ -296,13 +225,16 @@ ReaderWriterLock g_loadedModulesLock;
 UnorderedMap<HMODULE, TString> g_loadedModules;
 u64 g_memoryFileIndexCounter = ~u64(0) - 1000000; // I really hope this will not collide with anything
 
+ObjFilesPreloader g_objFilesPreloader;
+
+
 struct SuppressCreateFileDetourScope
 {
 	SuppressCreateFileDetourScope() { ++t_disallowCreateFileDetour; }
 	~SuppressCreateFileDetourScope() { --t_disallowCreateFileDetour; }
 };
 
-const wchar_t* HandleToName(DetouredHandle& dh)
+const wchar_t* HandleToName(const DetouredHandle& dh)
 {
 	if (dh.fileObject)
 		if (const wchar_t* name = dh.fileObject->fileInfo->name)
@@ -310,11 +242,12 @@ const wchar_t* HandleToName(DetouredHandle& dh)
 	return L"Unknown";
 }
 
+BlockAllocator<FileObject> g_fileObjectAllocator(g_memoryBlock);
 
 void MemoryFile::Write(DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBytesToWrite)
 {
 	u64 newPos = handle.pos + nNumberOfBytesToWrite;
-	EnsureCommited(handle, newPos);
+	EnsureCommitted(handle, newPos);
 	memcpy(baseAddress + handle.pos, lpBuffer, nNumberOfBytesToWrite);
 	handle.pos += nNumberOfBytesToWrite;
 	if (writtenSize < newPos)
@@ -324,7 +257,7 @@ void MemoryFile::Write(DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBy
 	}
 }
 
-void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
+void MemoryFile::EnsureCommitted(const DetouredHandle& handle, u64 size)
 {
 	if (committedSize >= size)
 		return;
@@ -336,7 +269,8 @@ void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
 			if (writtenSize == 0 && !isReported)
 			{
 				u64 newReserve = AlignUp(size, g_pageSize);
-				Rpc_WriteLogf(L"TODO: RE-RESERVING MemoryFile. Initial reserve: %llu, New reserve: %llu. Please fix application rules", reserveSize, newReserve);
+				if (reserveSize)
+					Rpc_WriteLogf(L"TODO: RE-RESERVING MemoryFile. Initial reserve: %llu, New reserve: %llu. Please fix application rules", reserveSize, newReserve);
 				Unreserve();
 				Reserve(newReserve);
 				shouldRemap = false;
@@ -346,19 +280,23 @@ void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
 		}
 
 		if (shouldRemap)
-		{
-			True_UnmapViewOfFile(baseAddress);
-			mappedSize = Min(reserveSize, AlignUp(Max(size, mappedSize * 4), g_pageSize));
-			baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
-			if (!baseAddress)
-				FatalError(1347, L"MapViewOfFile failed trying to map %llu for %ls. ReservedSize: %llu (Error code: %u)", mappedSize, HandleToName(handle), reserveSize, GetLastError());
-		}
+			Remap(handle, size);
 	}
 
 	u64 toCommit = Min(reserveSize, AlignUp(size - committedSize, g_pageSize));
 	if (!VirtualAlloc(baseAddress + committedSize, toCommit, MEM_COMMIT, PAGE_READWRITE))
 		FatalError(1347, L"Failed to ensure virtual memory for %ls. MappedSize: %llu, CommittedSize: %llu RequestedSize: %llu. (%u)", HandleToName(handle), mappedSize, committedSize, size, GetLastError());
 	committedSize += toCommit;
+}
+
+void MemoryFile::Remap(const DetouredHandle& handle, u64 size)
+{
+	True_UnmapViewOfFile(baseAddress);
+	mappedSize = Min(reserveSize, AlignUp(Max(size, mappedSize * 4), g_pageSize));
+	TimerScope ts(g_kernelStats.mapViewOfFile);
+	baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
+	if (!baseAddress)
+		FatalError(1347, L"MapViewOfFile failed trying to map %llu for %ls. ReservedSize: %llu (Error code: %u)", mappedSize, HandleToName(handle), reserveSize, GetLastError());
 }
 
 void ToInvestigate(const wchar_t* format, ...)
@@ -375,12 +313,12 @@ void ToInvestigate(const wchar_t* format, ...)
 #endif
 }
 
-void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr, u32 terminateCode, bool allowTerminate)
+UBA_NOINLINE void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr, u32 terminateCode, bool allowTerminate)
 {
 	SuppressDetourScope _;
 	
 	StringBuffer<32*1024> b;
-	WriteAssertInfo(b, text, file, line, expr, 1);
+	WriteAssertInfo(b, text, file, line, expr, 3);
 	Rpc_WriteLog(b.data, b.count, true, true);
 	#if UBA_DEBUG_LOG_ENABLED
 	FlushDebugLog();
@@ -392,7 +330,7 @@ void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr
 	int ret = MessageBoxW(GetConsoleWindow(), b.data, title.data, MB_ABORTRETRYIGNORE|MB_SYSTEMMODAL);
 	if (ret == IDABORT)
 		ExitProcess(terminateCode);
-	else if (ret == IDRETRY)
+	else if (ret == IDRETRY && IsDebuggerPresent())
 		DebugBreak();
 	#else
 	if (allowTerminate)
@@ -433,7 +371,7 @@ const wchar_t* HandleToName(HANDLE handle)
 
 bool NeedsSharedMemory(const wchar_t* file) { return g_allowKeepFilesInMemory && g_rules->NeedsSharedMemory(file); }
 u64 FileTypeMaxSize(const StringBufferBase& file, bool isSystemOrTempFile) { return g_rules->FileTypeMaxSize(file, isSystemOrTempFile); }
-bool IsOutputFile(LPCWSTR fileName, u64 fileNameLen, DWORD desiredAccess, bool isDeleteOnClose = false) { return ((desiredAccess & GENERIC_WRITE) || isDeleteOnClose) && g_allowKeepFilesInMemory && g_rules->IsOutputFile(fileName, fileNameLen); }
+bool IsOutputFile(const StringView& fileName, bool isWrite, bool isDeleteOnClose = false) { return (isWrite || isDeleteOnClose) && g_allowOutputFiles && g_rules->IsOutputFile(fileName); }
 
 
 bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFileOffsetLow = 0, SIZE_T numberOfBytesToMap = 0, void* baseAddress = nullptr)
@@ -458,10 +396,12 @@ bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFi
 		alignedOffsetStart = AlignUp(offset - (g_pageSize - 1), g_pageSize);
 		u64 alignedOffsetEnd = AlignUp(endOffset, g_pageSize);
 		u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
+		TimerScope ts(g_kernelStats.mapViewOfFile);
 		info.fileMapMem = (u8*)True_MapViewOfFileEx(info.trueFileMapHandle, info.fileMapViewDesiredAccess, ToHigh(alignedOffsetStart), ToLow(alignedOffsetStart), mapSize, baseAddress);
 	}
 	else
 	{
+		TimerScope ts(g_kernelStats.mapViewOfFile);
 		info.fileMapMem = (u8*)True_MapViewOfFileEx(info.trueFileMapHandle, info.fileMapViewDesiredAccess, 0, 0, numberOfBytesToMap, baseAddress);
 	}
 
@@ -475,17 +415,6 @@ bool EnsureMapped(DetouredHandle& handle, DWORD dwFileOffsetHigh = 0, DWORD dwFi
 
 	DEBUG_LOG_TRUE(L"INTERNAL MapViewOfFileEx", L"(%ls) (size: %llu) (%ls) -> 0x%llx", info.name, numberOfBytesToMap, info.originalName, uintptr_t(info.fileMapMem));
 	return true;
-}
-
-enum : u8 { AccessFlag_Read = 1, AccessFlag_Write = 2 };
-u8 GetFileAccessFlags(DWORD dwDesiredAccess)
-{
-	u8 access = 0;
-	if (dwDesiredAccess & GENERIC_READ)
-		access |= AccessFlag_Read;
-	if (dwDesiredAccess & GENERIC_WRITE)
-		access |= AccessFlag_Write;
-	return access;
 }
 
 ReaderWriterLock g_longPathNameCacheLock;
@@ -535,31 +464,35 @@ void CloseCaches()
 
 bool g_exitMessageSent;
 
+void SendExitMessage(DWORD exitCode, u64 startTime);
+void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name);
+
+// Variables used to communicate state from kernelbase functions to ntdll functions
+thread_local const wchar_t* t_renameFileNewName;
+thread_local const wchar_t* t_createFileFileName;
+
+#include "UbaDetoursFunctionsMiMalloc.inl"
+#include "UbaDetoursFunctionsNtDll.inl"
+#include "UbaDetoursFunctionsKernelBase.inl"
+#include "UbaDetoursFunctionsUcrtBase.inl"
+#include "UbaDetoursFunctionsImagehlp.inl"
+#include "UbaDetoursFunctionsDbgHelp.inl"
+#include "UbaDetoursFunctionsShell32.inl"
+#include "UbaDetoursFunctionsRpcrt4.inl"
+
+extern u32 g_consoleStringIndex;
+
 void SendExitMessage(DWORD exitCode, u64 startTime)
 {
 	if (g_exitMessageSent)
 		return;
 	g_exitMessageSent = true;
 
+	if (g_consoleStringIndex)
+		Shared_WriteConsole(L"\n", 1, 0);
+
 	if (g_trackInputsMem)
-	{
-		u32 left = g_trackInputsBufPos;
-		u32 pos = 0;
-		while (left)
-		{
-			u32 toWrite = Min(left, u32(30 * 1024));
-			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
-			BinaryWriter writer;
-			writer.WriteByte(MessageType_InputDependencies);
-			if (pos == 0)
-				writer.WriteU32(left);
-			writer.WriteU32(toWrite);
-			writer.WriteBytes(g_trackInputsMem + pos, toWrite);
-			writer.Flush();
-			left -= toWrite;
-			pos += toWrite;
-		}
-	}
+		SendInput();
 
 	g_stats.usedMemory = u32(g_memoryBlock.writtenSize);
 
@@ -573,25 +506,13 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 	g_stats.detach.count = 1;
 
 	g_stats.Write(writer);
+	g_kernelStats.Write(writer);
 
 	// We must flush here if this is a child because,
 	// if there is a parent process waiting for this to finish,
 	// the parent might move on before Exit message has been processed on session side
 	writer.Flush(g_isChild);
 }
-
-void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name);
-
-// Variables used to communicate state from kernelbase functions to ntdll functions
-thread_local const wchar_t* t_renameFileNewName;
-thread_local const wchar_t* t_createFileFileName;
-
-#include "UbaDetoursFunctionsMiMalloc.inl"
-#include "UbaDetoursFunctionsNtDll.inl"
-#include "UbaDetoursFunctionsKernelBase.inl"
-#include "UbaDetoursFunctionsUcrtBase.inl"
-#include "UbaDetoursFunctionsImagehlp.inl"
-#include "UbaDetoursFunctionsDbgHelp.inl"
 
 void DetourAttachFunction(void** trueFunc, void* detouredFunc, const char* funcName)
 {
@@ -650,7 +571,14 @@ int DetourAttachFunctions(bool runningRemote)
 		DETOURED_FUNCTIONS_SHLWAPI
 	}
 
-	#undef DETOURED_FUNCTION
+	#if UBA_SUPPORT_MSPDBSRV
+	if (HMODULE moduleHandle = GetModuleHandleW(L"rpcrt4.dll"))
+	{
+		DETOURED_FUNCTIONS_RPCRT4
+	}
+	#endif
+
+#undef DETOURED_FUNCTION
 
 	// Can't attach to these when running through debugger with some vs extensions (Microsoft child process debugging)
 #if UBA_DEBUG
@@ -680,15 +608,17 @@ int DetourAttachFunctions(bool runningRemote)
 		ExitProcess(1343);
 	}
 
+	#if UBA_SUPPORT_MSPDBSRV
+	True2_NdrClientCall2 = True_NdrClientCall2;
+	#endif
+
 	return 0;
 }
 
 void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name)
 {
-	UBA_ASSERT(g_isRunningWine);
-
 	// SymLoadModuleExW do something bad that cause remote wine to fail everything after this call.. TODO: Revisit
-	if (!True_SymLoadModuleExW && Contains(name, L"dbghelp.dll"))
+	if (g_isRunningWine && !True_SymLoadModuleExW && Contains(name, L"dbghelp.dll"))
 	{
 		True_SymLoadModuleExW = (SymLoadModuleExWFunc*)GetProcAddress(moduleHandle, "SymLoadModuleExW");
 		UBA_ASSERT(True_SymLoadModuleExW);
@@ -700,13 +630,25 @@ void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name)
 	}
 
 	// ImageGetDigestStream is buggy in wine so we have to detour it for ShaderCompileWorker
-	if (!True_ImageGetDigestStream && Contains(name, L"imagehlp.dll"))
+	if (g_isRunningWine && !True_ImageGetDigestStream && Contains(name, L"imagehlp.dll"))
 	{
 		True_ImageGetDigestStream = (ImageGetDigestStreamFunc*)GetProcAddress(moduleHandle, "ImageGetDigestStream");
 		UBA_ASSERT(True_ImageGetDigestStream);
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
 		DetourAttachFunction((PVOID*)&True_ImageGetDigestStream, Detoured_ImageGetDigestStream, "ImageGetDigestStream");
+		LONG error = DetourTransactionCommit(); (void)error;
+		UBA_ASSERT(!error);
+	}
+
+	// SHGetKnownFolderPath is used by Metal.exe and must always execute on host
+	if (!True_SHGetKnownFolderPath && Contains(name, L"shell32.dll"))
+	{
+		True_SHGetKnownFolderPath = (SHGetKnownFolderPathFunc*)GetProcAddress(moduleHandle, "SHGetKnownFolderPath");
+		UBA_ASSERT(True_SHGetKnownFolderPath);
+		DetourTransactionBegin();
+		DetourUpdateThread(GetCurrentThread());
+		DetourAttachFunction((PVOID*)&True_SHGetKnownFolderPath, Detoured_SHGetKnownFolderPath, "SHGetKnownFolderPath");
 		LONG error = DetourTransactionCommit(); (void)error;
 		UBA_ASSERT(!error);
 	}
@@ -749,6 +691,9 @@ void PreInit(const DetoursPayload& payload)
 	g_useMiMalloc = payload.useCustomAllocator;
 	g_runningRemote = payload.runningRemote;
 	g_isChild = payload.isChild;
+	g_allowKeepFilesInMemory = payload.allowKeepFilesInMemory;
+	g_allowOutputFiles = g_allowKeepFilesInMemory && payload.allowOutputFiles;
+	g_suppressLogging = payload.suppressLogging;
 	g_isDetachedProcess = g_rules->AllowDetach();
 	g_isRunningWine = payload.isRunningWine;
 	g_uiLanguage = payload.uiLanguage;
@@ -814,15 +759,10 @@ void PreInit(const DetoursPayload& payload)
 			FatalError(1349, L"Failed to reserve memory for cl.exe (%u)", GetLastError());
 	}
 
-	// Special link.exe handling.. it seems loading bcrypt.dll can deadlock when using mimalloc so we make sure ti load it here directly instead
-	// There is a setting to disable bcrypt dll loading inside mimalloc but with that change mimalloc does not work with older versions of windows
-	if (payload.rulesIndex == 2)
-	{
-		if (!LoadLibraryExW(L"bcrypt.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))
-			FatalError(1351, L"Failed to load bcrypt.dll (%u)", GetLastError());
-		if (!LoadLibraryExW(L"bcryptprimitives.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))
-			FatalError(1352, L"Failed to load bcryptprimitives.dll (%u)", GetLastError());
-	}
+	if (const tchar* const* preloads = g_rules->LibrariesToPreload())
+		for (auto it = preloads; *it; ++it)
+			if (!LoadLibraryExW(*it, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))
+				FatalError(1351, L"Failed to preload %s (%u)", *it, GetLastError());
 }
 
 void Init(const DetoursPayload& payload, u64 startTime)
@@ -843,19 +783,28 @@ void Init(const DetoursPayload& payload, u64 startTime)
 
 	DetourAttachFunctions(g_runningRemote);
 
+	if (!g_isDetachedProcess)
+	{
+		// If GetStdHandle returns 0 it is likely that there is a parent process and that one has detached process set (which means now conhost is created)
+		// .. solve this by detaching this process too
+		HANDLE stdoutHandle = True_GetStdHandle(STD_OUTPUT_HANDLE);
+		if (stdoutHandle == 0)
+		{
+			g_isDetachedProcess = true;
+		}
+		else
+		{
+			HANDLE stderrHandle = True_GetStdHandle(STD_ERROR_HANDLE);
+			g_stdHandle[0] = GetFileType(stderrHandle) == FILE_TYPE_CHAR ? stderrHandle : 0;
+			g_stdHandle[1] = GetFileType(stdoutHandle) == FILE_TYPE_CHAR ? stdoutHandle : 0;
+		}
+	}
+
 	if (g_isDetachedProcess)
 	{
-		g_stdHandle[0] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_ERR
-		g_stdHandle[1] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_OUT
-		g_stdHandle[2] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_IN
-	}
-	else
-	{
-		HANDLE stderrHandle = True_GetStdHandle(STD_ERROR_HANDLE);
-		g_stdHandle[0] = GetFileType(stderrHandle) == FILE_TYPE_CHAR ? stderrHandle : 0;
-		
-		HANDLE stdoutHandle = True_GetStdHandle(STD_OUTPUT_HANDLE);
-		g_stdHandle[1] = GetFileType(stdoutHandle) == FILE_TYPE_CHAR ? stdoutHandle : 0;
+		g_stdHandle[0] = makeDetouredHandle(new DetouredHandle(HandleType_StdErr)); // STD_ERR
+		g_stdHandle[1] = makeDetouredHandle(new DetouredHandle(HandleType_StdOut)); // STD_OUT
+		g_stdHandle[2] = makeDetouredHandle(new DetouredHandle(HandleType_StdIn)); // STD_IN
 	}
 
 	if (payload.trackInputs)
@@ -887,6 +836,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 		BinaryReader reader;
 
 		g_echoOn = reader.ReadBool();
+		g_isChild = reader.ReadBool();
 
 		reader.ReadString(applicationBuffer);
 		reader.ReadString(workingDirBuffer);
@@ -910,26 +860,35 @@ void Init(const DetoursPayload& payload, u64 startTime)
 		if (const wchar_t* lastBackslash = g_virtualApplication.Last('\\'))
 			g_virtualApplicationDir.Append(g_virtualApplication.data, (lastBackslash + 1 - g_virtualApplication.data));
 		else
-			FatalError(4444, L"What the heck: %s", g_virtualApplication.data);
+			FatalError(4444, L"What the heck: %s (%s)", g_virtualApplication.data, applicationBuffer.data);
 	}
 
 	const wchar_t* cmdLine = True_GetCommandLineW();
 
 	const wchar_t* exePos;
-	if (Contains(cmdLine, g_exeDir.data, true, &exePos))
+	if (g_runningRemote && Contains(cmdLine, g_exeDir.data, true, &exePos))
 	{
 		StringBuffer<> buf;
 		buf.Append(cmdLine, exePos - cmdLine);
 		buf.Append(g_virtualApplicationDir);
 		TString realCmdLine(buf.data);
 		realCmdLine += (cmdLine + g_exeDir.count);
-		g_virtualCommandLine = g_memoryBlock.Strdup(realCmdLine.c_str());
+		g_virtualCommandLineW = g_memoryBlock.Strdup(realCmdLine.c_str());
+	}
+	//else
+	//	g_virtualCommandLineW = g_memoryBlock.Strdup(cmdLine);
+
+	if (g_virtualCommandLineW)
+	{
+		u64 len = wcslen(g_virtualCommandLineW);
+		g_virtualCommandLineA = (char*)g_memoryBlock.Allocate(len + 1, 1, L"");
+		size_t res;
+		wcstombs_s(&res, g_virtualCommandLineA, len + 1, g_virtualCommandLineW, len);
 	}
 
 	#if UBA_DEBUG_LOG_ENABLED
 	if (isLogging())
 	{
-		g_commandLine = cmdLine;
 		u64 cmdLineLen = wcslen(cmdLine);
 		wchar_t temp[LogBufSize - 10];
 		if (cmdLineLen > sizeof_array(temp))
@@ -938,6 +897,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 			temp[sizeof_array(temp)-1] = 0;
 			cmdLine = temp;
 		}
+		DEBUG_LOG(L"ProcessId: %u", payload.processId);
 		DEBUG_LOG(L"Cmdline: %ls", cmdLine);
 		DEBUG_LOG(L"WorkingDir: %ls", g_virtualWorkingDir.data);
 		DEBUG_LOG(L"ExeDir: %ls", g_virtualApplicationDir.data);
@@ -948,23 +908,50 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	if (!True_DuplicateHandle(g_hostProcess, mappedFileTableHandle, GetCurrentProcess(), &mappedFileTableHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
 		UBA_ASSERTF(false, L"Failed to duplicate filetable handle (%u)", GetLastError());
 
-	u8* mappedFileTableMem = (u8*)True_MapViewOfFile(mappedFileTableHandle, FILE_MAP_READ, 0, 0, 0);
-	UBA_ASSERT(mappedFileTableMem);
-	g_mappedFileTable.Init(mappedFileTableMem, mappedFileTableCount, mappedFileTableSize);
+	u8* mappedFileTableMem;
+	{
+		TimerScope ts(g_kernelStats.mapViewOfFile);
+		mappedFileTableMem = (u8*)True_MapViewOfFile(mappedFileTableHandle, FILE_MAP_READ, 0, 0, 0);
+		UBA_ASSERT(mappedFileTableMem);
+	}
+	{
+		TimerScope ts2(g_stats.fileTable);
+		g_mappedFileTable.Init(mappedFileTableMem, mappedFileTableCount, mappedFileTableSize);
+	}
 
 	if (!True_DuplicateHandle(g_hostProcess, directoryTableHandle, GetCurrentProcess(), &directoryTableHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
 		UBA_ASSERTF(false, L"Failed to duplicate directorytable handle (%u)", GetLastError());
 
-	u8* directoryTableMem = (u8*)True_MapViewOfFile(directoryTableHandle, FILE_MAP_READ, 0, 0, 0);
-	UBA_ASSERT(directoryTableMem);
-	g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
+	u8* directoryTableMem;
+	{
+		TimerScope ts(g_kernelStats.mapViewOfFile);
+		directoryTableMem = (u8*)True_MapViewOfFile(directoryTableHandle, FILE_MAP_READ, 0, 0, 0);
+		UBA_ASSERT(directoryTableMem);
+	}
+	{
+		TimerScope ts2(g_stats.dirTable);
+		g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
+	}
+
+	if (g_runningRemote && g_isChild)
+		Rpc_GetParentWrittenFiles();
 
 	g_stats.attach.time += GetTime() - startTime;
 	g_stats.attach.count = 1;
+
+	if (payload.storeObjFilesCompressed && g_rules->ShouldDecompressFiles(StringView()))
+	{
+		TimerScope ts(g_stats.preparseObjFiles);
+		g_objFilesPreloader.Start(cmdLine);
+	}
+	else if (g_rulesIndex == 1 || g_rulesIndex == 7 || g_rulesIndex == 11 || g_rulesIndex == 14)
+		PrepopulatePchIncludedFiles(cmdLine, g_rulesIndex);
 }
 
 void Deinit(u64 startTime)
 {
+	g_objFilesPreloader.Stop();
+
 	if (g_isRunningWine) // mt.exe etc fails if detaching is not done during shutdown
 	{
 		DetourTransactionBegin();
@@ -981,7 +968,7 @@ void Deinit(u64 startTime)
 	#endif
 
 	DWORD exitCode = STILL_ACTIVE;
-	if (!GetExitCodeProcess(GetCurrentProcess(), &exitCode))
+	if (!True_GetExitCodeProcess(GetCurrentProcess(), &exitCode))
 		exitCode = STILL_ACTIVE;
 
 	if (!g_exitMessageSent)
@@ -1070,7 +1057,7 @@ extern "C"
 			writer.WriteByte(MessageType_GetNextProcess);
 			writer.WriteU32(prevExitCode);
 			g_stats.Write(writer);
-
+			g_kernelStats.Write(writer);
 
 			writer.Flush();
 			BinaryReader reader;
@@ -1086,6 +1073,7 @@ extern "C"
 
 		if (newProcess)
 		{
+			g_kernelStats = {};
 			g_stats = {};
 
 			#if UBA_DEBUG_LOG_ENABLED

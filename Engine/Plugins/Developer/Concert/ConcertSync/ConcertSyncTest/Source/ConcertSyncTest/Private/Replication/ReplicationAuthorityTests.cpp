@@ -2,9 +2,11 @@
 
 #include "Util/SendReceiveObjectTestBase.h"
 
+#include "Replication/AuthorityConflictSharedUtils.h"
 #include "Replication/Formats/FullObjectFormat.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/Messages/ObjectReplication.h"
+#include "Replication/Misc/IReplicationGroundTruth.h"
 #include "TestReflectionObject.h"
 #include "Util/ConcertClientReplicationBridgeMock.h"
 #include "Util/SendReceiveGenericStreamTestBase.h"
@@ -13,7 +15,6 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
-#include "Replication/AuthorityConflictSharedUtils.h"
 
 namespace UE::ConcertSyncTests::Replication::Authority
 {
@@ -372,7 +373,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		constexpr FGuid RequestingClientId { 0, 0, 0, 0};
 		constexpr FGuid ExistingClientId { 1, 0, 0, 0};
 		
-		class FTestGroundTruth : public ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		class FTestGroundTruth : public ConcertSyncCore::Replication::IReplicationGroundTruth
 		{
 		public:
 			
@@ -400,7 +401,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 				}
 			}
 			
-			virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
+			virtual void ForEachClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
 			{
 				if (bRequestingClientHasAuthority && Callback(RequestingClientId) == EBreakBehavior::Break)
 				{
@@ -420,7 +421,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			}
 		};
 		
-		FConcertBaseStreamInfo MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TArray<FConcertPropertyChain> Properties)
+		FConcertBaseStreamInfo MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TSet<FConcertPropertyChain> Properties)
 		{
 			FConcertObjectReplicationMap ExistingReplicationMap;
 			const FConcertPropertySelection Selection{ Properties};

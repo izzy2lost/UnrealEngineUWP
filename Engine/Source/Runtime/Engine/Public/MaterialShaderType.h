@@ -9,11 +9,6 @@
 #include "Shader.h"
 #include "GlobalShader.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Engine/EngineTypes.h"
-#endif
-
 /** A macro to implement material shaders. */
 #define IMPLEMENT_MATERIAL_SHADER_TYPE(TemplatePrefix,ShaderClass,SourceFilename,FunctionName,Frequency) \
 	IMPLEMENT_SHADER_TYPE( \
@@ -29,6 +24,7 @@ class FMaterialShaderMap;
 class FMaterialShaderMapId;
 class FShaderCommonCompileJob;
 class FShaderCompileJob;
+class FShaderKeyGenerator;
 class FUniformExpressionSet;
 class FVertexFactoryType;
 struct FMaterialShaderParameters;
@@ -36,6 +32,10 @@ struct FMaterialShadingModelField;
 enum EBlendMode : int;
 enum EMaterialShadingModel : int;
 enum class EShaderCompileJobPriority : uint8;
+#if WITH_EDITOR
+class FMaterialKeyGeneratorContext;
+#endif
+
 
 DECLARE_DELEGATE_RetVal_OneParam(FString, FShadingModelToStringDelegate, EMaterialShadingModel)
 
@@ -51,8 +51,39 @@ extern ENGINE_API FString GetShadingModelFieldString(FMaterialShadingModelField 
 /** Converts an EBlendMode to a string description. */
 extern ENGINE_API FString GetBlendModeString(EBlendMode BlendMode);
 
+#if WITH_EDITOR
 /** Creates a string key for the derived data cache given a shader map id. */
-extern ENGINE_API FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies = true);
+UE_DEPRECATED(5.5, "GetMaterialShaderMapKeyString now requires passing an FMaterialShaderParameters instance as input.")
+inline FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies = true)
+{
+	return TEXT("INVALID_KEY");
+}
+
+extern ENGINE_API FString GetMaterialShaderMapKeyString(
+	const FMaterialShaderMapId& ShaderMapId,
+	const FMaterialShaderParameters& ShaderParameters,
+	EShaderPlatform Platform,
+	bool bIncludeKeyStringShaderDependencies = true);
+
+extern ENGINE_API void RecordOrEmitMaterialShaderMapKey(
+	FMaterialKeyGeneratorContext& Context,
+	FMaterialShaderMapId& ShaderMapId,
+	FMaterialShaderParameters& ShaderParameters);
+
+// Alternate arguments for RecordOrEmitMaterialShaderMapKey: Support being called with const&
+// when emitting or saving.
+extern ENGINE_API void RecordOrEmitMaterialShaderMapKey(
+	FMaterialKeyGeneratorContext& Context,
+	const FMaterialShaderMapId& ShaderMapId,
+	const FMaterialShaderParameters& ShaderParameters);
+inline void RecordOrEmitMaterialShaderMapKey(
+	FMaterialKeyGeneratorContext& Context,
+	FMaterialShaderMapId& ShaderMapId,
+	FMaterialShaderParameters&& ShaderParameters)
+{
+	RecordOrEmitMaterialShaderMapKey(Context, ShaderMapId, ShaderParameters);
+}
+#endif
 
 /** Called for every material shader to update the appropriate stats. */
 extern void UpdateMaterialShaderCompilingStats(const FMaterial* Material);
@@ -109,7 +140,9 @@ public:
 		ConstructSerializedType InConstructSerializedRef,
 		ConstructCompiledType InConstructCompiledRef,
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
+		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+		GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 		ValidateCompiledResultType InValidateCompiledResultRef,
@@ -121,7 +154,9 @@ public:
 			InConstructSerializedRef,
 			InConstructCompiledRef,
 			InShouldCompilePermutationRef,
+			InShouldPrecachePermutationRef,
 			InGetRayTracingPayloadTypeRef,
+			InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 			InModifyCompilationEnvironmentRef,
 			InValidateCompiledResultRef,
@@ -286,10 +321,12 @@ struct FMaterialShaders
 	template<typename ShaderType> inline bool TryGetGeometryShader(TShaderRef<ShaderType>& OutShader) const { return TryGetShader(SF_Geometry, OutShader); }
 	template<typename ShaderType> inline bool TryGetMeshShader(TShaderRef<ShaderType>& OutShader) const { return TryGetShader(SF_Mesh, OutShader); }
 	template<typename ShaderType> inline bool TryGetComputeShader(TShaderRef<ShaderType>& OutShader) const { return TryGetShader(SF_Compute, OutShader); }
+	template<typename ShaderType> inline bool TryGetWorkGraphShader(TShaderRef<ShaderType>& OutShader) const { return TryGetShader(SF_WorkGraphComputeNode, OutShader); }
 
 	template<typename ShaderType> inline bool TryGetVertexShader(TShaderRef<ShaderType>* OutShader) const { return TryGetShader(SF_Vertex, OutShader); }
 	template<typename ShaderType> inline bool TryGetPixelShader(TShaderRef<ShaderType>* OutShader) const { return TryGetShader(SF_Pixel, OutShader); }
 	template<typename ShaderType> inline bool TryGetGeometryShader(TShaderRef<ShaderType>* OutShader) const { return TryGetShader(SF_Geometry, OutShader); }
 	template<typename ShaderType> inline bool TryGetMeshShader(TShaderRef<ShaderType>* OutShader) const { return TryGetShader(SF_Mesh, OutShader); }
 	template<typename ShaderType> inline bool TryGetComputeShader(TShaderRef<ShaderType>* OutShader) const { return TryGetShader(SF_Compute, OutShader); }
+	template<typename ShaderType> inline bool TryGetWorkGraphShader(TShaderRef<ShaderType>* OutShader) const { return TryGetShader(SF_WorkGraphComputeNode, OutShader); }
 };

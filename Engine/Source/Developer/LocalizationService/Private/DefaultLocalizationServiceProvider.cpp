@@ -2,10 +2,7 @@
 
 #include "DefaultLocalizationServiceProvider.h"
 #include "UObject/WeakObjectPtr.h"
-
-#if WITH_EDITOR
 #include "Logging/MessageLog.h"
-#endif
 
 #define LOCTEXT_NAMESPACE "DefaultLocalizationServiceProvider"
 

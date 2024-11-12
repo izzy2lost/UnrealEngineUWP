@@ -17,14 +17,27 @@ namespace RenderCaptureInterface
 
 		if (bCapture)
 		{
-			ENQUEUE_RENDER_COMMAND(BeginCaptureCommand)([bPushEvent = bEvent, EventName = FString(InEventName), FileName = FString(InFileName)](FRHICommandListImmediate& RHICommandListLocal)
+#if WITH_RHI_BREADCRUMBS
+			RHIBreadcrumb = MakeUnique<TOptional<FRHIBreadcrumbEventManual>>();
+#endif
+
+			ENQUEUE_RENDER_COMMAND(BeginCaptureCommand)([
+				  FileName = FString(InFileName)
+#if WITH_RHI_BREADCRUMBS
+				, EventName = FString(InEventName)
+				, Breadcrumb = RHIBreadcrumb.Get()
+				, bPushEvent = bEvent
+#endif
+			](FRHICommandListImmediate& RHICommandListLocal)
 			{
 				IRenderCaptureProvider::Get().BeginCapture(&RHICommandListLocal, IRenderCaptureProvider::ECaptureFlags_Launch, FileName);
 
+#if WITH_RHI_BREADCRUMBS
 				if (bPushEvent)
 				{
-					RHICommandListLocal.PushEvent(*EventName, FColor::White);
+					Breadcrumb->Emplace(RHICommandListLocal, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), TEXT("%s"), EventName);
 				}
+#endif
 			});
 		}
 	}
@@ -41,10 +54,13 @@ namespace RenderCaptureInterface
 
 			IRenderCaptureProvider::Get().BeginCapture(&FRHICommandListImmediate::Get(*RHICommandList), IRenderCaptureProvider::ECaptureFlags_Launch, FString(InFileName));
 		
+#if WITH_RHI_BREADCRUMBS
 			if (bEvent)
 			{
-				RHICommandList->PushEvent(InEventName, FColor::White);
+				RHIBreadcrumb = MakeUnique<TOptional<FRHIBreadcrumbEventManual>>();
+				RHIBreadcrumb->Emplace(*RHICommandList, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), TEXT("%s"), FString(InEventName));
 			}
+#endif
 		}
 	}
 
@@ -66,10 +82,12 @@ namespace RenderCaptureInterface
 					IRenderCaptureProvider::Get().BeginCapture(&RHICommandListLocal, IRenderCaptureProvider::ECaptureFlags_Launch, FString(FileName));
 				});
 
+#if RDG_EVENTS
 			if (bEvent)
 			{
-				GraphBuilder->BeginEventScope(RDG_EVENT_NAME("%s", InEventName));
+				RDGEvent.Emplace(*GraphBuilder, ERDGScopeFlags::None, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), RDG_EVENT_NAME("%s", InEventName));
 			}
+#endif
 		}
 	}
 
@@ -81,10 +99,12 @@ namespace RenderCaptureInterface
 			{
 				check(!GIsThreadedRendering || IsInRenderingThread());
 
+#if RDG_EVENTS
 				if (bEvent)
 				{
-					GraphBuilder->EndEventScope();
+					RDGEvent.Reset();
 				}
+#endif
 
 				GraphBuilder->AddPass(
 					RDG_EVENT_NAME("EndCapture"), 
@@ -98,10 +118,12 @@ namespace RenderCaptureInterface
 			{
 				check(!GIsThreadedRendering || IsInRenderingThread());
 				
+#if WITH_RHI_BREADCRUMBS
 				if (bEvent)
 				{
-					RHICommandList->PopEvent();
+					(*RHIBreadcrumb)->End(*RHICommandList);
 				}
+#endif
 
 				IRenderCaptureProvider::Get().EndCapture(&FRHICommandListImmediate::Get(*RHICommandList));
 			}
@@ -109,12 +131,19 @@ namespace RenderCaptureInterface
 			{
 				check(!GIsThreadedRendering || !IsInRenderingThread());
 
-				ENQUEUE_RENDER_COMMAND(EndCaptureCommand)([bPopEvent = bEvent](FRHICommandListImmediate& RHICommandListLocal)
+				ENQUEUE_RENDER_COMMAND(EndCaptureCommand)([
+#if WITH_RHI_BREADCRUMBS
+					  bPopEvent = bEvent
+					, Breadcrumb = MoveTemp(RHIBreadcrumb)
+#endif
+				](FRHICommandListImmediate& RHICommandListLocal)
 				{
+#if WITH_RHI_BREADCRUMBS
 					if (bPopEvent)
 					{
-						RHICommandListLocal.PopEvent();
+						(*Breadcrumb)->End(RHICommandListLocal);
 					}
+#endif
 
 					IRenderCaptureProvider::Get().EndCapture(&RHICommandListLocal);
 				});

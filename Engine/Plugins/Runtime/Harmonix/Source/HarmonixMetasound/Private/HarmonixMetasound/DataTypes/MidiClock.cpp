@@ -38,388 +38,330 @@ REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiClock, "MIDIClock")
 namespace HarmonixMetasound
 {
 	using namespace Metasound;
-	
+
 	FMidiClock::FMidiClock(const FOperatorSettings& InSettings)
-		: MidiClockEventCursor(this)
+		: SongMapEvaluator(MakeShared<FSongMapsWithAlternateTempoSource>(MakeShared<FSongMaps>(120.0f, 4, 4)))
+		, CurrentTempoInfoPointIndex(0)
+		, CurrentTimeSignaturePointIndex(0)
+		, TickResidualWhenDriven(0.0f)
 		, BlockSize(InSettings.GetNumFramesPerBlock())
 		, CurrentBlockFrameIndex(0)
+		, FirstTickProcessedThisBlock(-1)
+		, LastProcessedMidiTick(-1)
+		, NextMidiTickToProcess(0)
+		, NextTempoMapTickToProcess(0)
 		, SampleRate(InSettings.GetSampleRate())
-		, HasSpeedChangeInBlock(false)
-		, HasTempoChangeInBlock(false)
-		, DrivingMidiPlayCursorMgr(MakeShared<FMidiPlayCursorMgr>())
+		, SampleCount(0)
+		, FramesUntilNextProcess(0)
+		, TransportAtBlockStart(EMusicPlayerTransportState::Invalid)
+		, TransportAtBlockEnd(EMusicPlayerTransportState::Invalid)
+		, SpeedAtBlockStart(0.0f)
+		, SpeedAtBlockEnd(0.0f)
+		, CurrentLocalSpeed(-1.0f)
+		, TempoAtBlockStart(0.0f)
+		, TempoAtBlockEnd(0.0f)
+		, TimeSignatureAtBlockStart(FTimeSignature(0,1))
+		, TimeSignatureAtBlockEnd(FTimeSignature(0,1))
+		, NumTransportChangeInBlock(0)
+		, NumSpeedChangeInBlock(0)
+		, NumTempoChangeInBlock(0)
+		, NumTimeSignatureChangeInBlock(0)
+		, NextTempoChangeTick(std::numeric_limits<int32>::max())
+		, NextTimeSigChangeTick(std::numeric_limits<int32>::max())
+		, NextTempoOrTimeSigChangeTick(std::numeric_limits<int32>::max())
+		, FirstTickInLoop(-1)
+		, LoopLengthTicks(0)
+		, MidiDataChangedInBlock(false)
+		, NeedsSeekToDrivingClock(false)
 	{
-		SpeedChangesInBlock.Add({0, 0.0f, 1.0f});
-		TempoChangesInBlock.Add({0, 0.0f, 120.0f});
-		
-		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&MidiClockEventCursor);
-
-		RegisterForGameThreadUpdates();
 	}
 
 	FMidiClock::FMidiClock(const FMidiClock& Other)
-		: MidiClockEventCursor(this)
+		: TSharedFromThis<FMidiClock, ESPMode::NotThreadSafe>(Other)
+		, SongMapEvaluator(MakeShared<FSongMapsWithAlternateTempoSource>(Other.SongMapEvaluator))
+		, CurrentTempoInfoPointIndex(Other.CurrentTempoInfoPointIndex)
+		, CurrentTimeSignaturePointIndex(Other.CurrentTimeSignaturePointIndex)
+		, ExternalClockDriver(Other.ExternalClockDriver)
+		, TickResidualWhenDriven(Other.TickResidualWhenDriven)
 		, BlockSize(Other.BlockSize)
 		, CurrentBlockFrameIndex(Other.CurrentBlockFrameIndex)
+		, FirstTickProcessedThisBlock(Other.FirstTickProcessedThisBlock)
+		, LastProcessedMidiTick(Other.LastProcessedMidiTick)
+		, NextMidiTickToProcess(Other.NextMidiTickToProcess)
+		, NextTempoMapTickToProcess(Other.NextTempoMapTickToProcess)
 		, SampleRate(Other.SampleRate)
 		, SampleCount(Other.SampleCount)
 		, FramesUntilNextProcess(Other.FramesUntilNextProcess)
-		, CurrentTransportState(Other.CurrentTransportState)
-		, TransportChangesInBlock(Other.TransportChangesInBlock)
-		, HasSpeedChangeInBlock(Other.HasSpeedChangeInBlock)
-		, SpeedChangesInBlock(Other.SpeedChangesInBlock)
-		, HasTempoChangeInBlock(Other.HasTempoChangeInBlock)
-		, TempoChangesInBlock(Other.TempoChangesInBlock)
+		, TransportAtBlockStart(Other.TransportAtBlockStart)
+		, TransportAtBlockEnd(Other.TransportAtBlockEnd)
+		, SpeedAtBlockStart(Other.SpeedAtBlockStart)
+		, SpeedAtBlockEnd(Other.SpeedAtBlockEnd)
+		, CurrentLocalSpeed(Other.CurrentLocalSpeed)
+		, TempoAtBlockStart(Other.TempoAtBlockStart)
+		, TempoAtBlockEnd(Other.TempoAtBlockEnd)
+		, TimeSignatureAtBlockStart(Other.TimeSignatureAtBlockStart)
+		, TimeSignatureAtBlockEnd(Other.TimeSignatureAtBlockEnd)
+		, NumTransportChangeInBlock(Other.NumTransportChangeInBlock)
+		, NumSpeedChangeInBlock(Other.NumSpeedChangeInBlock)
+		, NumTempoChangeInBlock(Other.NumTempoChangeInBlock)
+		, NumTimeSignatureChangeInBlock(Other.NumTimeSignatureChangeInBlock)
+		, NextTempoChangeTick(Other.NextTempoChangeTick)
+		, NextTimeSigChangeTick(Other.NextTimeSigChangeTick)
+		, NextTempoOrTimeSigChangeTick(Other.NextTempoOrTimeSigChangeTick)
+		, FirstTickInLoop(Other.FirstTickInLoop)
+		, LoopLengthTicks(Other.LoopLengthTicks)
+		, MidiDataChangedInBlock(Other.MidiDataChangedInBlock)
+		, NeedsSeekToDrivingClock(Other.NeedsSeekToDrivingClock)
 		, MidiClockEventsInBlock(Other.MidiClockEventsInBlock)
-		, SmoothingEnabled(Other.SmoothingEnabled)
-		, DrivingMidiPlayCursorMgr(Other.DrivingMidiPlayCursorMgr)
 	{
-		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&MidiClockEventCursor);
+	}
 
-		RegisterForGameThreadUpdates();
+	FMidiClock::~FMidiClock()
+	{
 	}
 
 	FMidiClock& FMidiClock::operator=(const FMidiClock& Other)
 	{
 		if (this != &Other)
 		{
-			UnregisterForGameThreadUpdates();
-
-			if (DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
-			{
-				DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&MidiClockEventCursor);
-			}
-
+			SongMapEvaluator = Other.SongMapEvaluator;
+			CurrentTempoInfoPointIndex = Other.CurrentTempoInfoPointIndex;
+			CurrentTimeSignaturePointIndex = Other.CurrentTimeSignaturePointIndex;
+			ExternalClockDriver = Other.ExternalClockDriver;
+			TickResidualWhenDriven = Other.TickResidualWhenDriven;
 			BlockSize = Other.BlockSize;
 			CurrentBlockFrameIndex = Other.CurrentBlockFrameIndex;
+			FirstTickProcessedThisBlock = Other.FirstTickProcessedThisBlock;
+			LastProcessedMidiTick = Other.LastProcessedMidiTick;
+			NextMidiTickToProcess = Other.NextMidiTickToProcess;
+			NextTempoMapTickToProcess = Other.NextTempoMapTickToProcess;
 			SampleRate = Other.SampleRate;
 			SampleCount = Other.SampleCount;
 			FramesUntilNextProcess = Other.FramesUntilNextProcess;
-			CurrentTransportState = Other.CurrentTransportState;
-			TransportChangesInBlock = Other.TransportChangesInBlock;
-			HasSpeedChangeInBlock = Other.HasSpeedChangeInBlock;
-			SpeedChangesInBlock = Other.SpeedChangesInBlock;
-			HasTempoChangeInBlock = Other.HasTempoChangeInBlock;
-			TempoChangesInBlock = Other.TempoChangesInBlock;
+			TransportAtBlockStart = Other.TransportAtBlockStart;
+			TransportAtBlockEnd = Other.TransportAtBlockEnd;
+			SpeedAtBlockStart = Other.SpeedAtBlockStart;
+			SpeedAtBlockEnd = Other.SpeedAtBlockEnd;
+			CurrentLocalSpeed = Other.CurrentLocalSpeed;
+			TempoAtBlockStart = Other.TempoAtBlockStart;
+			TempoAtBlockEnd = Other.TempoAtBlockEnd;
+			TimeSignatureAtBlockStart = Other.TimeSignatureAtBlockStart;
+			TimeSignatureAtBlockEnd = Other.TimeSignatureAtBlockEnd;
+			NumTransportChangeInBlock = Other.NumTransportChangeInBlock;
+			NumSpeedChangeInBlock = Other.NumSpeedChangeInBlock;
+			NumTempoChangeInBlock = Other.NumTempoChangeInBlock;
+			NextTempoChangeTick = Other.NextTempoChangeTick;
+			NextTimeSigChangeTick = Other.NextTimeSigChangeTick;
+			NextTempoOrTimeSigChangeTick = Other.NextTempoOrTimeSigChangeTick;
+			FirstTickInLoop = Other.FirstTickInLoop;
+			LoopLengthTicks = Other.LoopLengthTicks;
+			MidiDataChangedInBlock = Other.MidiDataChangedInBlock;
+			NeedsSeekToDrivingClock = Other.NeedsSeekToDrivingClock;
 			MidiClockEventsInBlock = Other.MidiClockEventsInBlock;
-			SmoothingEnabled = Other.SmoothingEnabled;
-
-			if (DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
-			{
-				DrivingMidiPlayCursorMgr = Other.DrivingMidiPlayCursorMgr;
-				DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&MidiClockEventCursor);
-			}
-
-			RegisterForGameThreadUpdates();
 		}
 
 		return *this;
 	}
 
-	FMidiClock::~FMidiClock()
+	void FMidiClock::AttachToSongMapEvaluator(TSharedPtr<ISongMapEvaluator> SongMaps, bool ResetToStart)
 	{
-		UnregisterForGameThreadUpdates();
-	
-		DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&MidiClockEventCursor, false);
-	}
-
-	void FMidiClock::RegisterForGameThreadUpdates()
-	{
-		UMidiClockUpdateSubsystem::TrackMidiClock(this);
-	}
-
-	void FMidiClock::UnregisterForGameThreadUpdates()
-	{
-		UMidiClockUpdateSubsystem::StopTrackingMidiClock(this);
-	}
-
-	void FMidiClock::ResetAndStart(int32 FrameIndex, bool SeekToStart)
-	{
-		if (SeekToStart)
+		MidiDataChangedInBlock = true;
+		if (!SongMaps)
 		{
-			SampleCount = 0;
-			DrivingMidiPlayCursorMgr->SeekTo(0, 0, true, false);
+			SongMaps = MakeShared<FSongMaps>(TempoAtBlockEnd, TimeSignatureAtBlockEnd.Numerator, TimeSignatureAtBlockEnd.Denominator);
 		}
-	
-		AddTransportStateChangeToBlock({FrameIndex,0.0f, EMusicPlayerTransportState::Playing});
-		
-		HasSpeedChangeInBlock = false;
-		SpeedChangesInBlock.SetNum(1);
-		SpeedChangesInBlock[0] = {0, 0.0f, 1.0f};
 
-		HasTempoChangeInBlock = false;
-		TempoChangesInBlock.SetNum(1);
-		TempoChangesInBlock[0] = { 0, 0.0f, 120.0f };
+		if (ExternalClockDriver)
+		{
+			// use the tempo from the external clock...
+			RebuildSongMapEvaluator(ExternalClockDriver->SongMapEvaluator->GetSongMapsWithTempoMap(), SongMaps);
+		}
+		else
+		{
+			// All maps come from the same source...
+			RebuildSongMapEvaluator(SongMaps, SongMaps);
+		}
 
-		CurrentBlockFrameIndex = FrameIndex;
-		FramesUntilNextProcess = 0;
+		if (ResetToStart)
+		{
+			SeekTo(CurrentBlockFrameIndex, 0, 0);
+		}
+		PostTempoOrTimeSignatureEventsIfNeeded();
+	}
+
+	void FMidiClock::SongMapsChanged()
+	{
+		MidiDataChangedInBlock = true;
+		PostTempoOrTimeSignatureEventsIfNeeded();
+	}
+
+	void FMidiClock::DetachFromSongMaps()
+	{
+		AttachToSongMapEvaluator(nullptr, false);
+	}
+
+	void FMidiClock::SetDrivingClock(FConstSharedMidiClockPtr NewExternalClockDriver)
+	{
+		MidiDataChangedInBlock = true;
+		ExternalClockDriver = NewExternalClockDriver;
+		TickResidualWhenDriven = 0.0f;
+		NeedsSeekToDrivingClock = true;
+		RebuildSongMapEvaluator(ExternalClockDriver ? 
+									ExternalClockDriver->SongMapEvaluator->GetSongMapsWithTempoMap() : 
+									SongMapEvaluator->GetSongMapsWithOtherMaps(),
+								SongMapEvaluator->GetSongMapsWithOtherMaps());
 	}
 
 	void FMidiClock::PrepareBlock()
 	{
-		TransportChangesInBlock.Empty(4);
-		if (SpeedChangesInBlock.Num() > 1)
-		{
-			SpeedChangesInBlock[0].Speed = SpeedChangesInBlock.Last().Speed;
-			SpeedChangesInBlock.SetNum(1, EAllowShrinking::No);
-		}
-		HasSpeedChangeInBlock = false;
-		if (TempoChangesInBlock.Num() > 1)
-		{
-			TempoChangesInBlock[0].Tempo = TempoChangesInBlock.Last().Tempo;
-			TempoChangesInBlock.SetNum(1, EAllowShrinking::No);
-		}
-		HasTempoChangeInBlock = false;
+		FirstTickProcessedThisBlock = -1;
+
+		NumTransportChangeInBlock = 0;
+		TransportAtBlockStart = TransportAtBlockEnd;
+		
+		NumSpeedChangeInBlock = 0;
+		SpeedAtBlockStart = SpeedAtBlockEnd;
+		
+		NumTempoChangeInBlock = 0;
+		TempoAtBlockStart = TempoAtBlockEnd;
+
+		NumTimeSignatureChangeInBlock = 0;
+		TimeSignatureAtBlockStart = TimeSignatureAtBlockEnd;
+		
 		CurrentBlockFrameIndex = 0;
 
+		MidiDataChangedInBlock = false;
+
 		MidiClockEventsInBlock.Reset();
-	}
 
-	bool FMidiClock::HasLowResCursors() const
-	{
-		return DrivingMidiPlayCursorMgr->HasLowResCursors();
-	}
-
-	void FMidiClock::UpdateLowResCursors()
-	{
-		DrivingMidiPlayCursorMgr->AdvanceLowResCursors();
-	}
-
-	void FMidiClock::AddTransportStateChangeToBlock(const FMidiTimestampTransportState& NewTransportState)
-	{
-		if (TransportChangesInBlock.IsEmpty() || TransportChangesInBlock.Last().BlockSampleFrameIndex <= NewTransportState.BlockSampleFrameIndex)
+		if (ExternalClockDriver && ExternalClockDriver->MidiDataChangedInBlock)
 		{
-			CurrentTransportState = NewTransportState;
-			TransportChangesInBlock.Add(NewTransportState);
+			RebuildSongMapEvaluator(ExternalClockDriver->SongMapEvaluator->GetSongMapsWithTempoMap(), SongMapEvaluator->GetSongMapsWithOtherMaps());
 		}
 	}
 
-	void FMidiClock::AddSpeedChangeToBlock(const FMidiTimestampSpeed& NewSpeed)
+	void FMidiClock::SetTransportState(int32 BlockFrameIndex, EMusicPlayerTransportState TransportState)
 	{
-		check(SpeedChangesInBlock.IsEmpty() || SpeedChangesInBlock.Last().BlockSampleFrameIndex <= NewSpeed.BlockSampleFrameIndex);
-		if (SpeedChangesInBlock.Last().BlockSampleFrameIndex == NewSpeed.BlockSampleFrameIndex)
-		{
-			SpeedChangesInBlock.Last().Speed = NewSpeed.Speed;
-		}
-		else
-		{
-			SpeedChangesInBlock.Add(NewSpeed);
-		}
-		HasSpeedChangeInBlock = true;
-		DrivingMidiPlayCursorMgr->InformOfHiResAdvanceRate(NewSpeed.Speed);
+		AddTransportStateChangeToBlock(BlockFrameIndex, TransportState);
 	}
 
-	const TArray<FMidiClockEvent>& FMidiClock::GetMidiClockEventsInBlock() const
+	void FMidiClock::SetSpeed(int32 BlockFrameIndex, float Speed)
 	{
-		return MidiClockEventsInBlock;
+		CurrentLocalSpeed = Speed;
+		AddSpeedChangeToBlock(BlockFrameIndex, Speed, true);
 	}
 
-	EMusicPlayerTransportState FMidiClock::GetTransportStateAtBlockSampleFrame(int32 FrameIndex) const
+	void FMidiClock::SetTempo(int32 BlockFrameIndex, int32 Tick, float Bpm, int32 TempoMapTick)
 	{
-		return GetTransportTimestampForBlockSampleFrame(FrameIndex).TransportState;
+		AddTempoChangeToBlock(BlockFrameIndex, Tick, Bpm, TempoMapTick);
 	}
 
-	EMusicPlayerTransportState FMidiClock::GetTransportStateAtEndOfBlock() const
+	void HarmonixMetasound::FMidiClock::SetTimeSignature(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature, int32 TempoMapTick)
 	{
-		return CurrentTransportState.TransportState;
+		AddTimeSignatureChangeToBlock(BlockFrameIndex, Tick, TimeSignature, TempoMapTick);
 	}
 
-	const FMidiTimestampTransportState& FMidiClock::GetTransportTimestampForBlockSampleFrame(int32 FrameIndex) const
-	{
-		if (TransportChangesInBlock.IsEmpty())
-		{
-			return CurrentTransportState;
-		}
-		int32 Index = Algo::UpperBoundBy(TransportChangesInBlock, FrameIndex, [](const FMidiTimestampTransportState& t) { return t.BlockSampleFrameIndex; }) - 1;
-		if (Index < 0)
-		{
-			return CurrentTransportState;
-		}
-		return TransportChangesInBlock[Index];
-	}
-
-	float FMidiClock::GetSpeedAtBlockSampleFrame(int32 FrameIndex) const
-	{
-		return GetSpeedTimestampForBlockSampleFrame(FrameIndex).Speed;
-	}
-
-	float FMidiClock::GetSpeedAtEndOfBlock() const
-	{
-		return SpeedChangesInBlock.Last().Speed;
-	}
-
-	const FMidiTimestampSpeed& FMidiClock::GetSpeedTimestampForBlockSampleFrame(int32 FrameIndex) const
-	{
-		int32 Index = Algo::UpperBoundBy(SpeedChangesInBlock, FrameIndex, [](const FMidiTimestampSpeed& t) { return t.BlockSampleFrameIndex; }) - 1;
-		if (Index < 0)
-		{
-			Index = 0;
-		}
-		return SpeedChangesInBlock[Index];
-	}
-
-	float FMidiClock::GetTempoAtBlockSampleFrame(int32 FrameIndex) const
-	{
-		int32 Index = Algo::UpperBoundBy(TempoChangesInBlock, FrameIndex, [](const FMidiTimestampTempo& t) { return t.BlockSampleFrameIndex; }) - 1;
-		if (Index < 0)
-		{
-			Index = 0;
-		}
-		return TempoChangesInBlock[Index].Tempo;
-	}
-
-	float FMidiClock::GetTempoAtEndOfBlock() const
-	{
-		return TempoChangesInBlock.Last().Tempo;
-	}
-
-	int32 FMidiClock::GetNumTempoChangesInBlock() const
-	{
-		return TempoChangesInBlock.Num();
-	}
-
-	FMidiTimestampTempo FMidiClock::GetTempoChangeByIndex(int32 Index) const
-	{
-		if (Index >= 0 && Index < TempoChangesInBlock.Num())
-		{
-			return TempoChangesInBlock[Index]; // intentional copy
-		}
-
-		return InvalidMidiTimestampTempo;
-	}
-
-	int32 FMidiClock::GetCurrentMidiTick() const
-	{
-		return DrivingMidiPlayCursorMgr->GetCurrentHiResTick();
-	}
-
-	int32 FMidiClock::GetCurrentBlockFrameIndex() const
-	{
-		return CurrentBlockFrameIndex;
-	}
-
-	void FMidiClock::AdvanceHiResToMs(int32 BlockFrameIndex, float Ms, bool Broadcast)
+	void FMidiClock::SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget)
 	{
 		CurrentBlockFrameIndex = BlockFrameIndex;
-		DrivingMidiPlayCursorMgr->AdvanceHiResToMs(Ms, Broadcast);
-	}
 
-	void FMidiClock::AttachToTimeAuthority(const FMidiClock& MidiClockRef)
-	{
-		DrivingMidiPlayCursorMgr->AttachToTimeAuthority(MidiClockRef.DrivingMidiPlayCursorMgr);
-	}
-
-	void FMidiClock::DetachFromTimeAuthority()
-	{
-		DrivingMidiPlayCursorMgr->DetachFromTimeAuthority();
-	}
-	
-	float FMidiClock::GetQuarterNoteIncludingCountIn() const
-	{
-		int32 Tick = DrivingMidiPlayCursorMgr->GetCurrentHiResTick();
-		return (float)Tick / (float)DrivingMidiPlayCursorMgr->GetSongMaps().GetTicksPerQuarterNote();
-	}
-
-	FMusicTimestamp FMidiClock::GetCurrentMusicTimestamp() const
-	{
-		return DrivingMidiPlayCursorMgr->GetMusicTimestampAtMs(GetCurrentHiResMs());
-	}
-
-	FMusicTimestamp FMidiClock::GetMusicTimestampAtBlockOffset(const int32 Offset) const
-	{
-		const float MsAtOffset = GetMsAtBlockOffset(Offset);
-		return DrivingMidiPlayCursorMgr->GetMusicTimestampAtMs(MsAtOffset);
-	}
-
-	float FMidiClock::GetMsAtBlockOffset(int32 Offset) const
-	{
-		const float EndMs = GetCurrentHiResMs();
-		const float MsPerFrame = 1000 / SampleRate;
-		const int32 InvOffset = BlockSize - Offset - 1;
-		return EndMs - InvOffset * MsPerFrame;
-	}
-
-	void FMidiClock::LockForMidiDataChanges()
-	{
-
-		DrivingMidiPlayCursorMgr->LockForMidiDataChanges();
-	}
-
-	void FMidiClock::MidiDataChangesComplete(FMidiPlayCursorMgr::EMidiChangePositionCorrectMode Mode /*= FMidiPlayCursorMgr::EMidiChangePositionCorrectMode::MaintainTick*/)
-	{
-		DrivingMidiPlayCursorMgr->MidiDataChangeComplete(Mode);
-	}
-
-	void FMidiClock::SeekTo(const FMusicSeekTarget& Target, int32 PreRollBars)
-	{
 		int32 Tick = 0;
-		switch (Target.Type)
+		switch (InTarget.Type)
 		{
 		case ESeekPointType::BarBeat:
-			Tick = DrivingMidiPlayCursorMgr->GetBarMap().MusicTimestampToTick(Target.BarBeat);
+			Tick = SongMapEvaluator->MusicTimestampToTick(InTarget.BarBeat);
 			break;
 		default:
 		case ESeekPointType::Millisecond:
-			Tick = DrivingMidiPlayCursorMgr->GetSongMaps().MsToTick(Target.Ms);
+			Tick = SongMapEvaluator->MsToTick(InTarget.Ms);
 			break;
 		}
-		DrivingMidiPlayCursorMgr->SeekTo(Tick, PreRollBars,true,false);
+
+		SeekTo(BlockFrameIndex, Tick, NextTempoMapTickToProcess);
 	}
 
-	void FMidiClock::SeekTo(int32 Tick, int32 PreRollBars)
+	void FMidiClock::SeekTo(int32 BlockFrameIndex, int32 Tick, int32 TempoMapTick)
 	{
-		DrivingMidiPlayCursorMgr->SeekTo(Tick, PreRollBars, true, false);
-	}
-
-	void FMidiClock::InformOfCurrentAdvanceRate(float AdvanceRate)
-	{
-		DrivingMidiPlayCursorMgr->InformOfHiResAdvanceRate(AdvanceRate);
-	}
-
-	void FMidiClock::CopySpeedAndTempoChanges(const FMidiClock* InClock, float InSpeedMult)
-	{
-		HasTempoChangeInBlock = InClock->HasTempoChangeInBlock;
-		TempoChangesInBlock = InClock->TempoChangesInBlock;
-
-		HasSpeedChangeInBlock = InClock->HasSpeedChangeInBlock;
-		SpeedChangesInBlock = InClock->SpeedChangesInBlock;
-
-		for (FMidiTimestampSpeed& SpeedChange : SpeedChangesInBlock)
+		if (NextMidiTickToProcess != Tick)
 		{
-			SpeedChange.Speed *= InSpeedMult;
+			AddSeekToBlock(BlockFrameIndex, Tick, TempoMapTick);
+			SampleCount = FMath::Max<FSampleCount>(FSampleCount(SongMapEvaluator->TickToMs(NextMidiTickToProcess) / 1000.0f * SampleRate), 0);
 		}
 	}
 
-	void FMidiClock::HandleTransportChange(int32 BlockFrameIndex, EMusicPlayerTransportState TransportState)
+	void FMidiClock::AddTransientLoop(int32 BlockFrameIndex, int32 NewFirstTickInLoop, int32 NewLoopLengthTicks)
 	{
-		switch (TransportState)
-		{
-		case EMusicPlayerTransportState::Prepared:
-		case EMusicPlayerTransportState::Paused:
-			AddTransportStateChangeToBlock({ BlockFrameIndex, 0.0f, TransportState });
-			break;
-		case EMusicPlayerTransportState::Playing:
-			AddTransportStateChangeToBlock({ BlockFrameIndex, 0.0f, TransportState });
-			break;
-		}
+		AddLoopToBlock(BlockFrameIndex, NewFirstTickInLoop, NewLoopLengthTicks, NextTempoMapTickToProcess);
 	}
 
-	void FMidiClock::Process(int32 StartFrame, int32 NumFrames, int32 PrerollBars, float Speed)
+	void FMidiClock::SetupPersistentLoop(int32 NewFirstTickInLoop, int32 NewLoopLengthTicks)
 	{
-		int32 EndFrame = StartFrame + NumFrames;
-		switch (CurrentTransportState.TransportState)
+		if (ensureAlwaysMsgf(NewLoopLengthTicks > (Harmonix::Midi::Constants::GTicksPerQuarterNoteInt / 4), TEXT("For performance reasons, Midi Clock loops must be at least a 1/16th note long!")))
 		{
-		case EMusicPlayerTransportState::Playing:
-		case EMusicPlayerTransportState::Continuing:
-			WriteAdvance(StartFrame, EndFrame, Speed);
-			break;
+			FirstTickInLoop = NewFirstTickInLoop;
+			LoopLengthTicks = NewLoopLengthTicks;
 		}
 	}
 
-	void FMidiClock::Process(const FMidiClock& DrivingClock, int32 StartFrame, int32 NumFrames, int32 PrerollBars, float Speed)
+	void FMidiClock::ClearPersistentLoop()
+	{
+		FirstTickInLoop = -1;
+		LoopLengthTicks = 0;
+	}
+
+	bool FMidiClock::HasPersistentLoop() const
+	{
+		return FirstTickInLoop != -1 && LoopLengthTicks > 0;
+	}
+
+	float FMidiClock::GetLoopStartMs() const
+	{
+		if (!HasPersistentLoop() || FirstTickInLoop <= 0)
+		{
+			return 0.0f;
+		}
+
+		return SongMapEvaluator->TickToMs(FirstTickInLoop);
+	}
+
+	float FMidiClock::GetLoopEndMs() const
+	{
+		if (!HasPersistentLoop())
+		{
+			return 0.0f;
+		}
+
+		return SongMapEvaluator->TickToMs(FirstTickInLoop + LoopLengthTicks);
+	}
+
+	float FMidiClock::GetLoopLengthMs() const
+	{
+		return GetLoopEndMs() - GetLoopStartMs();
+	}
+
+	void FMidiClock::Advance(const FMidiClock& DrivingClock, int32 StartFrame, int32 NumFrames)
 	{
 		int32 EndFrame = StartFrame + NumFrames;
 		const TArray<FMidiClockEvent>& ClockEvents = DrivingClock.GetMidiClockEventsInBlock();
 		int32 Index = Algo::LowerBoundBy(ClockEvents, StartFrame, &FMidiClockEvent::BlockFrameIndex);
+		if (ClockEvents.IsValidIndex(0) && NeedsSeekToDrivingClock)
+		{
+			NeedsSeekToDrivingClock = false;
+			int32 DrivingClocksTick = DrivingClock.GetNextTickToProcessAtBlockFrame(StartFrame);
+			if (DrivingClocksTick >= 0)
+			{
+				int32 OurStartTick = DrivingClocksTick;
+				if (!FMath::IsNearlyEqual(CurrentLocalSpeed, 1.0f, 0.0001))
+				{
+					float FractionalToTick = (float)OurStartTick * CurrentLocalSpeed;
+					OurStartTick = FMath::FloorToInt32(FractionalToTick);
+					TickResidualWhenDriven = FMath::Fractional(FractionalToTick);
+				}
+				OurStartTick = WrapTickIfLooping(OurStartTick);
+				SeekTo(CurrentBlockFrameIndex, OurStartTick, DrivingClocksTick);
+			}
+		}
+
 		while (ClockEvents.IsValidIndex(Index))
 		{
 			const FMidiClockEvent& Event = ClockEvents[Index];
@@ -427,222 +369,715 @@ namespace HarmonixMetasound
 			{
 				return;
 			}
-			
-			HandleClockEvent(DrivingClock, Event, PrerollBars, Speed);
+
+			HandleClockEvent(DrivingClock, Event);
 			++Index;
 		}
 	}
-	
-	void FMidiClock::HandleClockEvent(const FMidiClock& DrivingClock, const FMidiClockEvent& Event, int32 PrerollBars, float Speed)
+
+	void FMidiClock::Advance(int32 StartFrame, int32 NumFrames)
 	{
-		switch (Event.Msg.Type)
+		if (TransportAtBlockEnd != EMusicPlayerTransportState::Playing && TransportAtBlockEnd != EMusicPlayerTransportState::Continuing)
 		{
-		case FMidiClockMsg::EType::Reset:
+			UE_LOG(LogMIDI, Error, TEXT("FMidiClock: Attempt to advance clock that is not playing!"));
+			return;
+		}
+
+		int32 BlockFrameIndex = StartFrame;
+		while (NumFrames > FramesUntilNextProcess)
+		{
+			BlockFrameIndex += FramesUntilNextProcess;
+			NumFrames -= FramesUntilNextProcess;
+			FramesUntilNextProcess = kMidiGranularity;
+			FSampleCount TargetFrame = SampleCount + (FSampleCount)((float)kMidiGranularity * SpeedAtBlockEnd);
+			float TargetMs = ((float)TargetFrame * 1000.0f) / SampleRate;
+			bool bDidLoop = AdvanceToMs(BlockFrameIndex, TargetMs);
+			// AdvanceToMs will have updated SampleCount, but it will have been 
+			// quantized to the resulting target midi tick. That is appropriate in 
+			// some cases, but in this advance type (by sample frames) we need/want
+			// the un-quantized value UNLESS the advance caused a loop...
+			if (!bDidLoop)
 			{
-				int32 Tick = CalculateMappedTick(Event.Msg.ToTick());
-				SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-				break;
+				// blow away the "quantized" value with our true, un-quantized value here...
+				SampleCount = TargetFrame;
 			}
-		case FMidiClockMsg::EType::Loop:
-			// ignore loops since the driving clock will loop us by seeking
-			break;
-		case FMidiClockMsg::EType::SeekTo:
+		}
+		FramesUntilNextProcess -= NumFrames;
+	}
+
+	bool FMidiClock::AdvanceToTick(int32 BlockFrameIndex, int32 UpToTick, int32 TempoMapTick)
+	{
+		using namespace MidiClockMessageTypes;
+
+		bool bDidLoop = false;
+
+		int32 TickAfterLoop = FirstTickInLoop + LoopLengthTicks;
+		if (HasPersistentLoop() && UpToTick > TickAfterLoop)
+		{
+			// first we might need advance to the loop end...
+			if (NextMidiTickToProcess > FirstTickInLoop)
 			{
-				int32 Tick = CalculateMappedTick(Event.Msg.ToTick());
-				SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
-				break;
+				int32 TicksToAdvance = TickAfterLoop - NextMidiTickToProcess;
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TicksToAdvance, TempoMapTick);
+				TempoMapTick += TicksToAdvance;
+				AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, TempoMapTick);
+				check(NextMidiTickToProcess == FirstTickInLoop);
+				bDidLoop = true;
 			}
-		case FMidiClockMsg::EType::SeekThru:
+
+			int NumTicksLeftToProcess = UpToTick - TickAfterLoop;
+			while (NumTicksLeftToProcess)
 			{
-				int32 Tick = CalculateMappedTick(Event.Msg.ThruTick());
-				SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-				break;
-			}
-		case FMidiClockMsg::EType::AdvanceThru:
-			{
-				if (Event.Msg.AsAdvanceThru().IsPreRoll)
+				int32 TicksThisPass = FMath::Min(LoopLengthTicks, NumTicksLeftToProcess);
+				NumTicksLeftToProcess -= TicksThisPass;
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TicksThisPass, TempoMapTick);
+				TempoMapTick += TicksThisPass;
+				if (NumTicksLeftToProcess > 0)
 				{
-					int32 Tick = CalculateMappedTick(Event.Msg.ThruTick());
-					SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
+					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, TempoMapTick);
+					check(NextMidiTickToProcess == FirstTickInLoop);
+					bDidLoop = true;
+				}
+			}
+		}
+		else
+		{
+			int32 NumTicks = UpToTick - NextMidiTickToProcess;
+			AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, NumTicks, TempoMapTick);
+			if (HasPersistentLoop() && NextMidiTickToProcess >= (FirstTickInLoop + LoopLengthTicks))
+			{
+				TempoMapTick += NumTicks;
+				AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, TempoMapTick);
+				check(NextMidiTickToProcess == FirstTickInLoop);
+				bDidLoop = true;
+			}
+		}
+		SampleCount = FMath::Max<FSampleCount>(FSampleCount(SongMapEvaluator->TickToMs(NextMidiTickToProcess) / 1000.0f * SampleRate), 0);
+		return bDidLoop;
+	}
+
+	bool FMidiClock::AdvanceToMs(int32 BlockFrameIndex, float Ms)
+	{
+		if (!ensureMsgf(!ExternalClockDriver, TEXT("Can't Advance an FMidiClock by Ms when it is being driven by another clock!")))
+		{
+			return false;
+		}
+
+		using namespace MidiClockMessageTypes;
+
+		bool bDidLoop = false;
+
+		int32 ToFutureTick = FMath::RoundToInt32(SongMapEvaluator->MsToTick(Ms));
+
+		// NOTE: We CAN'T just pass this calculated future tick to the AdvanceToTick function
+		// and let it wrap around the loop!... Because tempo changes during the loop might result in 
+		// a different wrapped tick. So we have to do this here where we will wrap in "ms space"
+		// instead of "tick space" each time around the loop...
+
+		// do we need to wrap around the loop?
+		int32 TickAfterLoop = FirstTickInLoop + LoopLengthTicks;
+		if (HasPersistentLoop() && ToFutureTick > TickAfterLoop)
+		{
+			// first we might need advance to the loop end...
+			if (NextMidiTickToProcess < TickAfterLoop)
+			{
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess, NextMidiTickToProcess);
+			}
+
+			AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, FirstTickInLoop);
+			check(NextMidiTickToProcess == FirstTickInLoop);
+			bDidLoop = true;
+
+			float MsRemainingAfterProcessingToLoopEnd = Ms - GetLoopEndMs();
+
+			while (MsRemainingAfterProcessingToLoopEnd > 0.0f)
+			{
+				ToFutureTick = SongMapEvaluator->MsToTick(GetLoopStartMs() + MsRemainingAfterProcessingToLoopEnd);
+				if (ToFutureTick > TickAfterLoop)
+				{
+					AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess, NextMidiTickToProcess);
+					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, FirstTickInLoop);
+					check(NextMidiTickToProcess == FirstTickInLoop);
+					MsRemainingAfterProcessingToLoopEnd -= GetLoopLengthMs();
+				}
+				else
+				{
+					AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, ToFutureTick - NextMidiTickToProcess, NextMidiTickToProcess);
+					MsRemainingAfterProcessingToLoopEnd = 0.0f;
+				}
+			}
+
+			// Because we did some looping, we need to update our SampleCount so it is "wrapped" appropriately...
+			SampleCount = FMath::Max<FSampleCount>(FSampleCount(SongMapEvaluator->TickToMs(NextMidiTickToProcess) / 1000.0f * SampleRate), 0);
+		}
+		else
+		{
+			if (ToFutureTick > NextMidiTickToProcess)
+			{
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, ToFutureTick - NextMidiTickToProcess, NextMidiTickToProcess);
+				if (HasPersistentLoop() && LastProcessedMidiTick == TickAfterLoop)
+				{
+					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, FirstTickInLoop);
+					check(NextMidiTickToProcess == FirstTickInLoop);
+					bDidLoop = true;
+				}
+				SampleCount = FMath::Max<FSampleCount>(FSampleCount(Ms / 1000.0f * SampleRate), 0);
+			}
+		}
+		return bDidLoop;
+	}
+
+	float FMidiClock::GetSpeedAtBlockSampleFrame(int32 FrameIndex) const
+	{
+		if (NumSpeedChangeInBlock == 0 || FrameIndex == 0)
+		{
+			return SpeedAtBlockStart;
+		}
+
+		float SpeedCandidate = SpeedAtBlockStart;
+		for (const FMidiClockEvent& ClockEvent : MidiClockEventsInBlock)
+		{
+			if (const MidiClockMessageTypes::FSpeedChange* AsSpeedChange = ClockEvent.TryGet<MidiClockMessageTypes::FSpeedChange>())
+			{
+				if (ClockEvent.BlockFrameIndex > FrameIndex)
+				{
 					break;
 				}
-
-				// Advance based on the delta ticks, and not based on the absolute tick
-				int32 Tick = GetCurrentMidiTick() + (Event.Msg.ThruTick() - Event.Msg.FromTick());
-				float Ms = GetSongMaps().TickToMs(Tick);
-
-				float ClockInSpeed = DrivingClock.GetSpeedAtBlockSampleFrame(Event.BlockFrameIndex);
-				float AdvanceRatio = DrivingClock.GetSongMaps().GetTempoAtTick(Event.Msg.FromTick())
-								   / GetSongMaps().GetTempoAtTick(GetCurrentMidiTick());
-				InformOfCurrentAdvanceRate(ClockInSpeed * Speed * AdvanceRatio);
-				AdvanceHiResToMs(Event.BlockFrameIndex, Ms, true);
-				break;
+				SpeedCandidate = AsSpeedChange->Speed;
 			}
 		}
+		return SpeedCandidate;
 	}
 
-	void FMidiClock::WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed /*= 1.0f*/)
+	float FMidiClock::GetTempoAtBlockSampleFrame(int32 FrameIndex) const
 	{
-		int32 FramesToProcess = EndFrameIndex - StartFrameIndex;
-		const FTempoMap& TempoMap = DrivingMidiPlayCursorMgr->GetSongMaps().GetTempoMap();
-		while (FramesToProcess > FramesUntilNextProcess)
+		if (ExternalClockDriver)
 		{
-			StartFrameIndex += FramesUntilNextProcess;
-			FSampleCount AdvanceToFrame = SampleCount + (FSampleCount)((float)kMidiGranularity * InSpeed);
-			FramesUntilNextProcess = kMidiGranularity;
-			float AdvanceToMs = ((float)AdvanceToFrame * 1000.0f) / SampleRate;
-			DrivingMidiPlayCursorMgr->InformOfHiResAdvanceRate(InSpeed);
-			AdvanceHiResToMs(StartFrameIndex, AdvanceToMs, true);
-
-			
-			// Account for looping
-			// recalculate sampleCount based on our new time, if clock looped back, this will be different from AdvanceToFrame
-			if (GetCurrentHiResMs() < AdvanceToMs)
-			{
-				SampleCount = FMath::Max<FSampleCount>(FSampleCount(GetCurrentHiResMs() / 1000.0f * SampleRate), 0);
-			}
-			else
-			{
-				SampleCount = AdvanceToFrame;
-			}
-			
-
-			FramesToProcess = EndFrameIndex - StartFrameIndex;
+			return ExternalClockDriver->GetTempoAtBlockSampleFrame(FrameIndex);
 		}
-		FramesUntilNextProcess -= FramesToProcess;
-	}
 
-	void FMidiClock::SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget, int32 InPrerollBars)
-	{
-		CurrentBlockFrameIndex = BlockFrameIndex;
-		SeekTo(InTarget, InPrerollBars);
-		SampleCount = FMath::Max<FSampleCount>(FSampleCount(GetCurrentHiResMs() / 1000.0f * SampleRate), 0);
-		FramesUntilNextProcess = 0;
-	}
-
-	void FMidiClock::SeekTo(int32 BlockFrameIndex, int32 Tick, int32 InPrerollBars)
-	{
-		CurrentBlockFrameIndex = BlockFrameIndex;
-		DrivingMidiPlayCursorMgr->SeekTo(Tick, InPrerollBars, true, false);
-		SampleCount = FMath::Max<FSampleCount>(FSampleCount(GetCurrentHiResMs() / 1000.0f * SampleRate), 0);
-		FramesUntilNextProcess = 0;
-	}
-
-	int32 FMidiClock::CalculateMappedTick(int32 Tick) const
-	{
-		if (DoesLoop())
+		if (NumTempoChangeInBlock == 0 || FrameIndex == 0)
 		{
-			const int32 LoopStartTick = GetLoopStartTick();
-			const int32 LoopEndTick = GetLoopEndTick();
-			const int32 LoopLengthTicks = LoopEndTick - LoopStartTick;
+			return TempoAtBlockStart;
+		}
+
+		float TempoCandidate = TempoAtBlockStart;
+		for (const FMidiClockEvent& ClockEvent : MidiClockEventsInBlock)
+		{
+			if (const MidiClockMessageTypes::FTempoChange* AsTempoChange = ClockEvent.TryGet<MidiClockMessageTypes::FTempoChange>())
+			{
+				if (ClockEvent.BlockFrameIndex > FrameIndex)
+				{
+					break;
+				}
+				TempoCandidate = AsTempoChange->Tempo;
+			}
+		}
+		return TempoCandidate;
+	}
+
+	float FMidiClock::GetCurrentSongPosMs() const
+	{
+		// We have processed THRU MostRecentProcessedMidiTick,
+		// so our Ms position is AFTER that tick, just before the 
+		// next tick...
+		return SongMapEvaluator->TickToMs(NextMidiTickToProcess);
+	}
+
+	FMusicTimestamp FMidiClock::GetMusicTimestampAtBlockEnd() const
+	{
+		return SongMapEvaluator->TickToMusicTimestamp(NextMidiTickToProcess);
+	}
+
+	FMusicTimestamp FMidiClock::GetMusicTimestampAtBlockOffset(const int32 Offset) const
+	{
+		return SongMapEvaluator->TickToMusicTimestamp(GetNextTickToProcessAtBlockFrame(Offset));
+	}
+
+	float FMidiClock::GetSongPosMsAtBlockOffset(int32 Offset) const
+	{
+		return SongMapEvaluator->TickToMs(GetNextTickToProcessAtBlockFrame(Offset));
+	}
+
+	int32 FMidiClock::WrapTickIfLooping(int32 Tick) const
+	{
+		if (HasPersistentLoop())
+		{
 			// only wrap the tick if it we're passed the loop end tick
-			if (LoopLengthTicks > 0 && Tick >= LoopEndTick)
+			int32 LastTickInLoop = FirstTickInLoop + LoopLengthTicks - 1;
+			if (Tick > LastTickInLoop)
 			{
-				return LoopStartTick + (Tick - LoopStartTick) % LoopLengthTicks;
+				return FirstTickInLoop + ((Tick - LastTickInLoop - 1) % LoopLengthTicks);
 			}
 		}
 		return Tick;
 	}
-	
-	TSharedPtr<FMidiFileData> FMidiClock::MakeClockConductorMidiData(float InTempoBPM, int32 InTimeSigNum, int32 InTimeSigDen)
+
+	int32 FMidiClock::GetNextTickToProcessAtBlockFrame(int32 BlockFrame) const
 	{
-		TSharedPtr<FMidiFileData> OutMidiData = MakeShared<FMidiFileData>();
-
-		// clear it all out for good measure...
-		FTempoMap& TempoMap = OutMidiData->SongMaps.GetTempoMap();
-		TempoMap.Empty();
-		FBarMap& BarMap = OutMidiData->SongMaps.GetBarMap();
-		BarMap.Empty();
-		OutMidiData->Tracks.Empty();
-
-		// create conductor track
-		FMidiTrack& Track = OutMidiData->Tracks.Add_GetRef(FMidiTrack(TEXT("conductor")));
-		// max out song length data so the midi can play indefinitely
-		OutMidiData->ConformToLength(std::numeric_limits<int32>::max());
-
-		// add time sig info
-		int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
-		int32 TimeSigDen = FMath::Clamp(InTimeSigDen, 1, 64);
-		Track.AddEvent(FMidiEvent(0, FMidiMsg((uint8)TimeSigNum, (uint8)TimeSigDen)));
-		BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDen);
-
-		// add tempo info
-		float TempoBPM = FMath::Max(1.0f, InTempoBPM);
-		int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
-		Track.AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		TempoMap.AddTempoInfoPoint(MidiTempo, 0);
-
-		Track.Sort();
-
-		return OutMidiData;
-	}
-
-	FMidiClock::FMidiClockEventCursor::FMidiClockEventCursor(FMidiClock* MidiClock)
-		: MyMidiClock(MidiClock)
-	{
-		check(MidiClock);
-	}
-
-	void FMidiClock::FMidiClockEventCursor::Reset(bool ForceNoBroadcast /*= false*/)
-	{
-		const int32 FromTick = CurrentTick;
-		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FReset(FromTick, CurrentTick, ForceNoBroadcast)));
-	}
-
-	void FMidiClock::FMidiClockEventCursor::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
-	{
-		FMidiPlayCursor::OnLoop(LoopStartTick, LoopEndTick);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FLoop(LoopStartTick, LoopEndTick)));
-	}
-
-	void FMidiClock::FMidiClockEventCursor::SeekToTick(int32 Tick) 
-	{
-		const int32 FromTick = CurrentTick;
-		FMidiPlayCursor::SeekToTick(Tick);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FSeekTo(FromTick, Tick)));
-	}
-
-	void FMidiClock::FMidiClockEventCursor::SeekThruTick(int32 Tick)
-	{
-		const int32 FromTick = CurrentTick;
-		FMidiPlayCursor::SeekThruTick(Tick);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FSeekThru(FromTick, Tick)));
-	}
-
-	void FMidiClock::FMidiClockEventCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
-	{
-		const int32 FromTick = CurrentTick;
-		FMidiPlayCursor::AdvanceThruTick(Tick, IsPreRoll);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FAdvanceThru(FromTick, Tick, IsPreRoll)));
-	}
-
-	void FMidiClock::FMidiClockEventCursor::OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll)
-	{
-		int32 BlockFrameIndex = MyMidiClock->CurrentBlockFrameIndex;
-
-		check(BlockFrameIndex >= MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex);
-		MyMidiClock->HasTempoChangeInBlock = true;
-		float Bpm = Harmonix::Midi::Constants::MidiTempoToBPM(Tempo);
-		if (MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex == BlockFrameIndex)
+		if (BlockFrame == 0)
 		{
-			MyMidiClock->TempoChangesInBlock.Last().Tempo = Bpm;
+			return FirstTickProcessedThisBlock < 0 ? 0 : FirstTickProcessedThisBlock;
+		}
+
+		int32 FoundNextTick = FirstTickProcessedThisBlock;
+		int32 AtBlockIndex = 0;
+
+		using namespace MidiClockMessageTypes;
+		// we're going to have to look through the clock events...
+		for (const FMidiClockEvent& Event : MidiClockEventsInBlock)
+		{
+			if (Event.BlockFrameIndex > BlockFrame)
+			{
+				break;
+			}
+
+			if (const FSeek* AsSeek = Event.TryGet<FSeek>())
+			{
+				FoundNextTick = AsSeek->NewNextTick;
+				AtBlockIndex = Event.BlockFrameIndex;
+			}
+			else if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
+			{
+				if (Event.BlockFrameIndex == BlockFrame)
+				{
+					FoundNextTick = AsAdvance->FirstTickToProcess;
+				}
+				else
+				{
+					FoundNextTick = AsAdvance->FirstTickToProcess + AsAdvance->NumberOfTicksToProcess;
+				}
+				AtBlockIndex = Event.BlockFrameIndex;
+			}
+			else if (const FLoop* AsLoop = Event.TryGet<FLoop>())
+			{
+				FoundNextTick = AsLoop->FirstTickInLoop;
+				AtBlockIndex = Event.BlockFrameIndex;
+			}
+			else if (const FTempoChange* AsTempoChange = Event.TryGet<FTempoChange>())
+			{
+				FoundNextTick = AsTempoChange->Tick;
+				AtBlockIndex = Event.BlockFrameIndex;
+			}
+			else if (const FTimeSignatureChange* AsTimeSigChange = Event.TryGet<FTimeSignatureChange>())
+			{
+				FoundNextTick = AsTimeSigChange->Tick;
+				AtBlockIndex = Event.BlockFrameIndex;
+			}
+		}
+
+		return FoundNextTick < 0 ? 0 : FoundNextTick;
+	}
+
+	void FMidiClock::AddEvent(const FMidiClockEvent& InEvent, bool bRequireSequential)
+	{
+		if (bRequireSequential && !MidiClockEventsInBlock.IsEmpty())
+		{
+			check(MidiClockEventsInBlock.Last().BlockFrameIndex <= InEvent.BlockFrameIndex);
+		}
+
+		MidiClockEventsInBlock.Add(InEvent);
+	}
+
+	void FMidiClock::HandleClockEvent(const FMidiClock& DrivingClock, const FMidiClockEvent& Event)
+	{
+		using namespace MidiClockMessageTypes;
+
+		if (const FLoop* AsLoop = Event.TryGet<FLoop>())
+		{
+			const int32 Tick = WrapTickIfLooping(AsLoop->FirstTickInLoop);
+			SeekTo(Event.BlockFrameIndex, Tick, AsLoop->TempoMapTick);
+			TickResidualWhenDriven = 0.0f;
+		}
+		else if (const FSeek* AsSeek = Event.TryGet<FSeek>())
+		{
+			const int32 Tick = WrapTickIfLooping(AsSeek->NewNextTick);
+			SeekTo(Event.BlockFrameIndex, Tick, AsSeek->TempoMapTick);
+			TickResidualWhenDriven = 0.0f;
+		}
+		else if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
+		{
+			// Advance based on the delta ticks, and not based on the absolute tick
+			int32 UpToTick;
+			if (FMath::IsNearlyEqual(CurrentLocalSpeed, 1.0f, 0.0001))
+			{
+				UpToTick = NextMidiTickToProcess + AsAdvance->NumberOfTicksToProcess;
+			}
+			else
+			{
+				float FractionalToTick = (float)NextMidiTickToProcess + ((float)AsAdvance->NumberOfTicksToProcess * CurrentLocalSpeed) + TickResidualWhenDriven;
+				UpToTick = FMath::FloorToInt32(FractionalToTick);
+				TickResidualWhenDriven = FMath::Fractional(FractionalToTick);
+			}
+			// No need to wrap the tick here because AdvanceToTick will handle that.
+			AdvanceToTick(Event.BlockFrameIndex, UpToTick, AsAdvance->TempoMapTick);
+		}
+		else if (const FTempoChange* AsTempoChange = Event.TryGet<FTempoChange>())
+		{
+			AddTempoChangeToBlock(Event.BlockFrameIndex, NextMidiTickToProcess, AsTempoChange->Tempo, AsTempoChange->TempoMapTick);
+		}
+		else if (const FSpeedChange* AsSpeedChange = Event.TryGet<FSpeedChange>())
+		{
+			AddSpeedChangeToBlock(Event.BlockFrameIndex, AsSpeedChange->Speed, false);
+		}
+		else if (const FTransportChange* AsTransportChange = Event.TryGet<FTransportChange>())
+		{
+			AddTransportStateChangeToBlock(Event.BlockFrameIndex, AsTransportChange->TransportState);
+		}
+	}
+
+	void FMidiClock::PostTempoOrTimeSignatureEventsIfNeeded()
+	{
+		if (SongMapEvaluator->GetNumTempoChanges() == 0 || ExternalClockDriver)
+		{
+			CurrentTempoInfoPointIndex = -1;
+			if (!ExternalClockDriver)
+			{
+				AddTempoChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, 120.0f, NextMidiTickToProcess);
+			}
+			NextTempoChangeTick = std::numeric_limits<int32>::max();
 		}
 		else
-		{ 
-			MyMidiClock->TempoChangesInBlock.Add({BlockFrameIndex, 0.0f, Bpm});
+		{
+			CurrentTempoInfoPointIndex = SongMapEvaluator->GetTempoPointIndexForTick(NextMidiTickToProcess > 0 ? NextMidiTickToProcess : 0);
+			check(CurrentTempoInfoPointIndex >= 0 && CurrentTempoInfoPointIndex < SongMapEvaluator->GetNumTempoChanges());
+			AddTempoChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, SongMapEvaluator->GetTempoInfoPoint(CurrentTempoInfoPointIndex)->GetBPM(), NextMidiTickToProcess);
+			if ((CurrentTempoInfoPointIndex + 1) < SongMapEvaluator->GetNumTempoChanges())
+			{
+				NextTempoChangeTick = SongMapEvaluator->GetTempoChangePointTick(CurrentTempoInfoPointIndex + 1);
+			}
+			else
+			{
+				NextTempoChangeTick = std::numeric_limits<int32>::max();
+			}
+		}
+
+		if (SongMapEvaluator->GetNumTimeSignatureChanges() == 0)
+		{
+			CurrentTimeSignaturePointIndex = -1;
+			AddTimeSignatureChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, FTimeSignature(4,4), NextTempoMapTickToProcess);
+			NextTimeSigChangeTick = std::numeric_limits<int32>::max();
+		}
+		else
+		{
+			CurrentTimeSignaturePointIndex = SongMapEvaluator->GetTimeSignaturePointIndexForTick(NextMidiTickToProcess > 0 ? NextMidiTickToProcess : 0);
+			check(CurrentTimeSignaturePointIndex >= 0 && CurrentTimeSignaturePointIndex < SongMapEvaluator->GetNumTimeSignatureChanges());
+			AddTimeSignatureChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, SongMapEvaluator->GetTimeSignaturePoint(CurrentTimeSignaturePointIndex)->TimeSignature, NextTempoMapTickToProcess);
+			if ((CurrentTimeSignaturePointIndex + 1) < SongMapEvaluator->GetNumTimeSignatureChanges())
+			{
+				NextTimeSigChangeTick = SongMapEvaluator->GetTimeSignatureChangePointTick(CurrentTimeSignaturePointIndex + 1);
+			}
+			else
+			{
+				NextTimeSigChangeTick = std::numeric_limits<int32>::max();
+			}
+			NextTempoOrTimeSigChangeTick = FMath::Min(NextTimeSigChangeTick, NextTempoChangeTick);
+		}
+
+		if (CurrentLocalSpeed < 0.0f)
+		{
+			SetSpeed(CurrentBlockFrameIndex, 1.0f);
 		}
 	}
 
-	void FMidiClock::FMidiClockEventCursor::AddEvent(const FMidiClockEvent& InEvent)
+	void FMidiClock::AddTransportStateChangeToBlock(int32 BlockFrameIndex, EMusicPlayerTransportState NewTransportState)
 	{
-		TArray<FMidiClockEvent>& Events = MyMidiClock->MidiClockEventsInBlock;
-		if (!Events.IsEmpty())
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+
+		if (TransportAtBlockEnd == NewTransportState)
 		{
-			check(Events.Last().BlockFrameIndex <= InEvent.BlockFrameIndex);
+			// no need to add the transport message... it is already the current transport. 
+			return;
 		}
 
-		Events.Add(InEvent);
+		if (NewTransportState == EMusicPlayerTransportState::Playing || NewTransportState == EMusicPlayerTransportState::Prepared)
+		{
+			PostTempoOrTimeSignatureEventsIfNeeded();
+			FramesUntilNextProcess = 0;
+		}
+
+		AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTransportChange(NewTransportState)));
+		NumTransportChangeInBlock++;
+
+		if (BlockFrameIndex == 0)
+		{
+			TransportAtBlockStart = NewTransportState;
+		}
+
+		TransportAtBlockEnd = NewTransportState;
+	}
+
+	void FMidiClock::AddTimeSignatureChangeToBlock(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature, int32 TempoMapTick)
+	{
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+
+		check(Tick >= NextMidiTickToProcess);
+
+		if (FirstTickProcessedThisBlock == -1)
+		{
+			FirstTickProcessedThisBlock = Tick;
+		}
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+		NextMidiTickToProcess = Tick;
+		NextTempoMapTickToProcess = TempoMapTick;
+
+		if (TimeSignatureAtBlockEnd == TimeSignature)
+		{
+			// no need to add the time signature... it is already the current time signature. 
+			return;
+		}
+
+		if (MidiClockMessageTypes::FTimeSignatureChange* PreviousTimeSigChangeOnSameTick = LookForEventOnMidiTick<MidiClockMessageTypes::FTimeSignatureChange>(BlockFrameIndex))
+		{
+			PreviousTimeSigChangeOnSameTick->TimeSignature = TimeSignature;
+			PreviousTimeSigChangeOnSameTick->TempoMapTick = TempoMapTick;
+		}
+		else
+		{
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTimeSignatureChange(Tick, FTimeSignature(TimeSignature), TempoMapTick)));
+			NumTimeSignatureChangeInBlock++;
+		}
+
+		if (BlockFrameIndex == 0)
+		{
+			TimeSignatureAtBlockStart = TimeSignature;
+		}
+
+		TimeSignatureAtBlockEnd = TimeSignature;
+	}
+
+	void FMidiClock::AddTempoChangeToBlock(int32 BlockFrameIndex, int32 Tick, float NewTempo, int32 TempoMapTick)
+	{
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+
+		check(Tick >= NextMidiTickToProcess);
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+		NextMidiTickToProcess = Tick;
+		NextTempoMapTickToProcess = TempoMapTick;
+
+		if (FirstTickProcessedThisBlock == -1)
+		{
+			FirstTickProcessedThisBlock = Tick;
+		}
+
+		if (TempoAtBlockEnd == NewTempo)
+		{
+			// no need to add the tempo... it is already the current tempo. 
+			return;
+		}
+
+		if (MidiClockMessageTypes::FTempoChange* PreviousTempoChangeOnSameTick = LookForEventOnMidiTick<MidiClockMessageTypes::FTempoChange>(BlockFrameIndex))
+		{
+			PreviousTempoChangeOnSameTick->Tempo = NewTempo;
+			PreviousTempoChangeOnSameTick->TempoMapTick = TempoMapTick;
+		}
+		else
+		{
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTempoChange(Tick, NewTempo, TempoMapTick)));
+			NumTempoChangeInBlock++;
+		}
+
+		if (BlockFrameIndex == 0)
+		{
+			TempoAtBlockStart = NewTempo;
+		}
+
+		TempoAtBlockEnd = NewTempo;
+	}
+
+	void FMidiClock::AddSpeedChangeToBlock(int32 BlockFrameIndex, float NewSpeed, bool bIsNewLocalSpeed)
+	{
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+
+		if (ExternalClockDriver)
+		{
+			// actual speed message is the 
+			if (bIsNewLocalSpeed)
+			{
+				NewSpeed *= ExternalClockDriver->GetSpeedAtBlockSampleFrame(BlockFrameIndex);
+			}
+			else
+			{
+				NewSpeed *= CurrentLocalSpeed;
+			}
+		}
+
+		if (SpeedAtBlockEnd == NewSpeed)
+		{
+			// no need to add the speed... it is already the current speed. 
+			return;
+		}
+
+		if (MidiClockMessageTypes::FSpeedChange* PreviousSpeedChangeOnSameTick = LookForEventOnBlockFrameIndex<MidiClockMessageTypes::FSpeedChange>(BlockFrameIndex))
+		{
+			PreviousSpeedChangeOnSameTick->Speed = NewSpeed;
+		}
+		else
+		{
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FSpeedChange(NewSpeed)));
+			NumSpeedChangeInBlock++;
+		}
+
+		if (BlockFrameIndex == 0)
+		{
+			SpeedAtBlockStart = NewSpeed;
+		}
+
+		SpeedAtBlockEnd = NewSpeed;
+	}
+
+	void FMidiClock::AddLoopToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 LoopLength, int32 TempoMapTick)
+	{
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+		check(LastProcessedMidiTick == FirstTick + LoopLength - 1);
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+
+		if (NextMidiTickToProcess == FirstTick)
+		{
+			return;
+		}
+
+		if (MidiClockMessageTypes::FLoop* PreviousLoopOnSameTick = LookForEventOnBlockFrameIndex<MidiClockMessageTypes::FLoop>(BlockFrameIndex))
+		{
+			PreviousLoopOnSameTick->LengthInTicks = LoopLength;
+			PreviousLoopOnSameTick->FirstTickInLoop = FirstTick;
+			PreviousLoopOnSameTick->TempoMapTick = TempoMapTick;
+		}
+		else
+		{
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FLoop(FirstTick, LoopLength, TempoMapTick)));
+		}
+
+		NextMidiTickToProcess = FirstTick;
+		NextTempoMapTickToProcess = TempoMapTick;
+
+		// The tempo and/or time signature may be different in the location where we are going... so... update...
+		PostTempoOrTimeSignatureEventsIfNeeded();
+	}
+
+	void FMidiClock::AddSeekToBlock(int32 BlockFrameIndex, int32 ToTick, int32 TempoMapTick)
+	{
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+
+		if (NextMidiTickToProcess == ToTick)
+		{
+			return;
+		}
+
+		if (MidiClockMessageTypes::FSeek* PreviousSeekOnSameTick = LookForEventOnBlockFrameIndex<MidiClockMessageTypes::FSeek>(BlockFrameIndex))
+		{
+			check(PreviousSeekOnSameTick->LastTickProcessedBeforeSeek == LastProcessedMidiTick);
+			PreviousSeekOnSameTick->NewNextTick = ToTick;
+			PreviousSeekOnSameTick->TempoMapTick = TempoMapTick;
+		}
+		else
+		{
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FSeek(LastProcessedMidiTick, ToTick, TempoMapTick)));
+		}
+
+		NextMidiTickToProcess = ToTick;
+		NextTempoMapTickToProcess = TempoMapTick;
+
+		// The tempo and/or time signature may be different in the location where we are going... so... update...
+		PostTempoOrTimeSignatureEventsIfNeeded();
+	}
+
+	void FMidiClock::AddAdvanceToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 NumTicks, int32 TempoMapTick)
+	{
+		check(BlockFrameIndex >= CurrentBlockFrameIndex);
+		check(FirstTick == NextMidiTickToProcess);
+
+		CurrentBlockFrameIndex = BlockFrameIndex;
+
+		if (FirstTickProcessedThisBlock == -1)
+		{
+			FirstTickProcessedThisBlock = FirstTick;
+		}
+
+		// moving forward may cause us to move into a new tempo and/or time signature...
+		while (FirstTick <= NextTempoOrTimeSigChangeTick && NextTempoOrTimeSigChangeTick < (FirstTick + NumTicks))
+		{
+			// process ticks UP TO the tempo or time signature change...
+			int32 SpanNumTicks = NextTempoOrTimeSigChangeTick - FirstTick;
+			if (SpanNumTicks > 0)
+			{
+				AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FAdvance(FirstTick, SpanNumTicks, TempoMapTick)));
+				TempoMapTick += SpanNumTicks;
+				NextMidiTickToProcess = FirstTick + SpanNumTicks;
+				LastProcessedMidiTick = NextMidiTickToProcess - 1;
+				FirstTick = NextMidiTickToProcess;
+				NumTicks -= SpanNumTicks;
+			}
+			check(NextMidiTickToProcess == NextTempoOrTimeSigChangeTick);
+
+			// time signature or tempo?
+			if (NextMidiTickToProcess == NextTempoChangeTick && CurrentTempoInfoPointIndex != -1)
+			{
+				CurrentTempoInfoPointIndex++;
+				const FTempoInfoPoint* TempoPoint = SongMapEvaluator->GetTempoInfoPoint(CurrentTempoInfoPointIndex);
+				check(TempoPoint);
+				if (!ExternalClockDriver)
+				{
+					AddTempoChangeToBlock(BlockFrameIndex, TempoPoint->StartTick, TempoPoint->GetBPM(), TempoMapTick);
+				}
+				int32 NextTempoInfoPointIndex = CurrentTempoInfoPointIndex + 1;
+				if (NextTempoInfoPointIndex < SongMapEvaluator->GetNumTempoChanges())
+				{
+					const FTempoInfoPoint* NextTempoPoint = SongMapEvaluator->GetTempoInfoPoint(NextTempoInfoPointIndex);
+					check(NextTempoPoint);
+					NextTempoChangeTick = NextTempoPoint->StartTick;
+				}
+				else
+				{
+					NextTempoChangeTick = std::numeric_limits<int32>::max();
+				}
+			}
+			// time signature or tempo?
+			if (NextMidiTickToProcess == NextTimeSigChangeTick && CurrentTimeSignaturePointIndex != -1)
+			{
+				CurrentTimeSignaturePointIndex++;
+				const FTimeSignaturePoint* TimeSignaturePoint = SongMapEvaluator->GetTimeSignaturePoint(CurrentTimeSignaturePointIndex);
+				check(TimeSignaturePoint);
+				AddTimeSignatureChangeToBlock(BlockFrameIndex, TimeSignaturePoint->StartTick, TimeSignaturePoint->TimeSignature, TempoMapTick);
+				int32 NextTimeSignaturePointIndex = CurrentTimeSignaturePointIndex + 1;
+				if (NextTimeSignaturePointIndex < SongMapEvaluator->GetNumTimeSignatureChanges())
+				{
+					const FTimeSignaturePoint* NextTimeSigPoint = SongMapEvaluator->GetTimeSignaturePoint(NextTimeSignaturePointIndex);
+					check(NextTimeSigPoint);
+					NextTimeSigChangeTick = NextTimeSigPoint->StartTick;
+				}
+				else
+				{
+					NextTimeSigChangeTick = std::numeric_limits<int32>::max();
+				}
+			}
+			NextTempoOrTimeSigChangeTick = FMath::Min(NextTimeSigChangeTick, NextTempoChangeTick);
+		}
+
+		if (NumTicks > 0)
+		{
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FAdvance(FirstTick, NumTicks, TempoMapTick)));
+			NextMidiTickToProcess = FirstTick + NumTicks;
+			TempoMapTick += NumTicks;
+			LastProcessedMidiTick = NextMidiTickToProcess - 1;
+		}
+
+		NextTempoMapTickToProcess = TempoMapTick;
+	}
+
+	void FMidiClock::RebuildSongMapEvaluator(const TSharedPtr<const ISongMapEvaluator>& MapWithTempo, const TSharedPtr<const ISongMapEvaluator>& MapWithOtherMaps)
+	{
+		SongMapEvaluator = MakeShared<FSongMapsWithAlternateTempoSource>(MapWithTempo, MapWithOtherMaps);
+		SongMapsChanged();
 	}
 
 }

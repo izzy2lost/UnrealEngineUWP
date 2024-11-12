@@ -2,24 +2,23 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Styling/SlateTypes.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FDMXEditor;
 struct FDMXFixtureMode;
 class FDMXFixtureTypeSharedData;
 class FDMXFixtureTypeModesEditorModeItem;
-class SDMXFixtureTypeModesEditorModeRow;
-class UDMXEntityFixtureType;
-class UDMXLibrary;
-
 class FUICommandList;
 class ITableRow;
 class SBorder;
+class SCheckBox;
+class SDMXFixtureTypeModesEditorModeRow;
 template <typename ItemType> class SListView;
 class STableViewBase;
 class SVerticalBox;
-
+class UDMXEntityFixtureType;
+class UDMXLibrary;
 
 /** The editor for the Fixure Type Modes array */
 class SDMXFixtureTypeModesEditor
@@ -63,7 +62,13 @@ private:
 
 	/** Called when modes were selected in Fixture Type Shared Data */
 	void OnFixtureTypeSharedDataSelectedModes();
-	
+
+	/** Called when the show all revisions check box state changed */
+	void OnRevisionCheckBoxStateChanged(ECheckBoxState NewCheckState);
+
+	/** Returns the visibility of the Revisions section */
+	EVisibility GetRevisionCheckBoxVisibility() const;
+
 	/** Returns the selected Modes in the List as Indices in the Modes array */
 	TArray<int32> GetListSelectionAsModeIndices() const;
 
@@ -84,6 +89,12 @@ private:
 
 	/** Rows of Mode widgets in the list */
 	TArray<TSharedPtr<SDMXFixtureTypeModesEditorModeRow>> ModeRows;
+
+	/** The revision check box */
+	TSharedPtr<SCheckBox> RevisionCheckBox;
+
+	/** True if mode revisions are available */
+	bool bHasModeRevisions = false;
 
 	/** Search Text entered in the header row */
 	FText SearchText;

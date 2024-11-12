@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SmartObjectDefinitionReferenceDetails.h"
 
@@ -125,6 +125,7 @@ void FSmartObjectDefinitionReferenceDetails::CustomizeHeader(const TSharedRef<IP
 		.AllowedClass(USmartObjectDefinition::StaticClass())
 		.ThumbnailPool(InCustomizationUtils.GetThumbnailPool())
 	]
+	.FilterString(SmartObjectDefinitionProperty->GetPropertyDisplayName())
 	.ShouldAutoExpand(true);
 	
 	SmartObjectDefinitionProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()

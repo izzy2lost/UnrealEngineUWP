@@ -73,8 +73,16 @@ public:
 	static jmethodID AndroidThunkJava_SetSustainedPerformanceMode;
 	static jmethodID AndroidThunkJava_PushSensorEvents;
 	static jmethodID AndroidThunkJava_SetOrientation;
-	static jmethodID AndroidThunkJava_SetCellularPreference;
-	static jmethodID AndroidThunkJava_GetCellularPreference;
+	static jmethodID AndroidThunkJava_HasSharedPreference;
+	static jmethodID AndroidThunkJava_SetSharedPreferenceBoolean;
+	static jmethodID AndroidThunkJava_GetSharedPreferenceBoolean;
+	static jmethodID AndroidThunkJava_SetSharedPreferenceInt;
+	static jmethodID AndroidThunkJava_GetSharedPreferenceInt;
+	static jmethodID AndroidThunkJava_SetSharedPreferenceString;
+	static jmethodID AndroidThunkJava_GetSharedPreferenceString;
+	static jmethodID AndroidThunkJava_DeleteSharedPreference;
+	static jmethodID AndroidThunkJava_DeleteSharedPreferenceGroup;
+	static jmethodID AndroidThunkJava_GetCacheDir;
 
 
 	// Screen capture/recording permission

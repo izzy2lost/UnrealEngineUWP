@@ -8,10 +8,13 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class CopyrightIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent issueEvent)

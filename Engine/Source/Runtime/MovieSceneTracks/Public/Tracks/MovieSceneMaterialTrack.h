@@ -13,8 +13,8 @@
 #endif
 #include "MovieSceneMaterialTrack.generated.h"
 
-UENUM()
-enum class EComponentMaterialType
+UENUM(BlueprintType)
+enum class EComponentMaterialType : uint8
 {
 	/* Empty/Uninitialized*/
 	Empty,
@@ -36,13 +36,13 @@ struct FComponentMaterialInfo
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sequencer|Material")
 	FName MaterialSlotName;
 
-	UPROPERTY()
-	int MaterialSlotIndex = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sequencer|Material")
+	int32 MaterialSlotIndex = 0;
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sequencer|Material")
 	EComponentMaterialType MaterialType = EComponentMaterialType::Empty;
 
 	friend uint32 GetTypeHash(const FComponentMaterialInfo& In)
@@ -184,6 +184,18 @@ public:
 	* @param InAssetName Optional asset name for use in UI.
 	*/
 	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName);
+
+	/**
+	* Adds a color parameter key to the track.
+	* @param ParameterInfo The material parameter info for the parameter you want to add a key for.
+	* @param Time The time to add the new key.
+	* @param RowIndex The preferred row index on which to look for sections.
+	* @param The value for the new key.
+	* @param InLayerName Optional layer name for use in UI.
+	* @param InAssetName Optional asset name for use in UI.
+	* @param InChannelNames Optional channel names for the 4 vector channels for use in the UI.
+	*/
+	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName, const FParameterChannelNames& InChannelNames);
 
 private:
 

@@ -21,6 +21,7 @@ MapBuildData.cpp
 #include "UObject/ReflectionCaptureObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "ContentStreaming.h"
 #include "Components/ReflectionCaptureComponent.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -33,9 +34,15 @@ MapBuildData.cpp
 #endif
 #include "Engine/TextureCube.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "UnrealEngine.h"
+#include "WorldPartition/StaticLightingData/VolumetricLightmapGrid.h"
+#include "WorldPartition/ActorInstanceGuids.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 DECLARE_MEMORY_STAT(TEXT("Stationary Light Static Shadowmap"),STAT_StationaryLightBuildData,STATGROUP_MapBuildData);
 DECLARE_MEMORY_STAT(TEXT("Reflection Captures"),STAT_ReflectionCaptureBuildData,STATGROUP_MapBuildData);
+
+DEFINE_LOG_CATEGORY(LogMapBuildDataRegistry);
 
 FArchive& operator<<(FArchive& Ar, FMeshMapBuildData& MeshMapBuildData)
 {
@@ -436,6 +443,8 @@ UMapBuildDataRegistry::UMapBuildDataRegistry(const FObjectInitializer& ObjectIni
 {
 	LevelLightingQuality = Quality_MAX;
 	bSetupResourceClusters = false;
+	VolumetricLightMapGridDesc = nullptr;
+
 
 #if WITH_EDITOR
 	FAssetCompilingManager::Get().OnAssetPostCompileEvent().AddUObject(this, &ThisClass::HandleAssetPostCompileEvent);
@@ -523,6 +532,7 @@ void UMapBuildDataRegistry::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FReflectionCaptureObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 	if (!StripFlags.IsAudioVisualDataStripped())
 	{
@@ -555,7 +565,39 @@ void UMapBuildDataRegistry::Serialize(FArchive& Ar)
 		{
 			Ar << SkyAtmosphereBuildData;
 		}
+
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::VolumetricLightMapGridDescSupport)
+		{			
+			bool bHasGrid = VolumetricLightMapGridDesc != nullptr;
+			Ar << bHasGrid;
+
+			if (bHasGrid)
+			{
+				// Create the grid when loading for the 1st time
+				if (!VolumetricLightMapGridDesc)
+				{
+					VolumetricLightMapGridDesc = new FVolumetricLightMapGridDesc();
+				}
+
+				FVolumetricLightMapGridDesc::StaticStruct()->SerializeItem(Ar, VolumetricLightMapGridDesc, nullptr);
+				VolumetricLightMapGridDesc->SerializeBulkData(Ar, this);
+			}
+		}
 	}
+
+#if UE_LOG_MAPBUILDATA_ENABLED 
+
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Loaded Registry %s"), *GetFullName());
+	for (auto& It : MeshBuildData)
+	{
+		UE_LOG_MAPBUILDDATA(Log, TEXT("    => Mesh GUID : %s"), *It.Key.ToString());
+	}
+
+	for (auto& It : LightBuildData)
+	{
+		UE_LOG_MAPBUILDDATA(Log, TEXT("    => Light GUID : %s"), *It.Key.ToString());
+	}
+#endif
 }
 
 void UMapBuildDataRegistry::PostLoad()
@@ -668,6 +710,8 @@ FMeshMapBuildData& UMapBuildDataRegistry::AllocateMeshBuildData(const FGuid& Mes
 	check(MeshId.IsValid());
 	check(!bSetupResourceClusters);
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Allocating MeshBuildData in Registry %s for Guid: %s"), *GetFullName(), *MeshId.ToString());
+
 	if (bMarkDirty)
 	{
 		MarkPackageDirty();
@@ -687,6 +731,7 @@ const FMeshMapBuildData* UMapBuildDataRegistry::GetMeshBuildData(FGuid MeshId) c
 		return nullptr;
 	}
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding MeshBuildData (%p) in Registry %s for Guid: %s"), FoundData, *GetFullName(), *MeshId.ToString());
 	return FoundData;
 }
 
@@ -699,6 +744,7 @@ FMeshMapBuildData* UMapBuildDataRegistry::GetMeshBuildData(FGuid MeshId)
 		return nullptr;
 	}
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding MeshBuildData (%p) in Registry %s for Guid: %s"), FoundData, *GetFullName(), *MeshId.ToString());
 	return FoundData;
 }
 
@@ -746,6 +792,12 @@ FPrecomputedLightVolumeData* UMapBuildDataRegistry::GetLevelPrecomputedLightVolu
 
 FPrecomputedVolumetricLightmapData& UMapBuildDataRegistry::AllocateLevelPrecomputedVolumetricLightmapBuildData(const FGuid& LevelId)
 {
+	if (VolumetricLightMapGridDesc && VolumetricLightMapGridDesc->GetCell(LevelId) )
+	{
+		FPrecomputedVolumetricLightmapData* DataPtr = VolumetricLightMapGridDesc->GetOrCreatePrecomputedVolumetricLightmapBuildData(LevelId);		
+		return *DataPtr;	
+	}
+	
 	check(LevelId.IsValid());
 	MarkPackageDirty();
 	return *LevelPrecomputedVolumetricLightmapBuildData.Add(LevelId, new FPrecomputedVolumetricLightmapData());
@@ -759,6 +811,12 @@ void UMapBuildDataRegistry::AddLevelPrecomputedVolumetricLightmapBuildData(const
 
 const FPrecomputedVolumetricLightmapData* UMapBuildDataRegistry::GetLevelPrecomputedVolumetricLightmapBuildData(FGuid LevelId) const
 {
+	if (VolumetricLightMapGridDesc)
+	{
+		const FPrecomputedVolumetricLightmapData* DataPtr = VolumetricLightMapGridDesc->GetPrecomputedVolumetricLightmapBuildData(LevelId);		
+		return DataPtr;
+	}
+
 	const FPrecomputedVolumetricLightmapData* const * DataPtr = LevelPrecomputedVolumetricLightmapBuildData.Find(LevelId);
 
 	if (DataPtr)
@@ -771,6 +829,16 @@ const FPrecomputedVolumetricLightmapData* UMapBuildDataRegistry::GetLevelPrecomp
 
 FPrecomputedVolumetricLightmapData* UMapBuildDataRegistry::GetLevelPrecomputedVolumetricLightmapBuildData(FGuid LevelId)
 {
+	if (VolumetricLightMapGridDesc)
+	{
+		FPrecomputedVolumetricLightmapData* DataPtr = VolumetricLightMapGridDesc->GetPrecomputedVolumetricLightmapBuildData(LevelId);		
+		
+		if (DataPtr)
+		{
+			return DataPtr;
+		}
+	}
+
 	FPrecomputedVolumetricLightmapData** DataPtr = LevelPrecomputedVolumetricLightmapBuildData.Find(LevelId);
 
 	if (DataPtr)
@@ -790,16 +858,20 @@ FLightComponentMapBuildData& UMapBuildDataRegistry::FindOrAllocateLightBuildData
 		MarkPackageDirty();
 	}
 
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Allocating LightBuildData in Registry %s for Guid: %s"), *GetFullName(), *LightId.ToString());
+
 	return LightBuildData.FindOrAdd(LightId);
 }
 
 const FLightComponentMapBuildData* UMapBuildDataRegistry::GetLightBuildData(FGuid LightId) const
 {
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding LightBuildData (%p) in Registry %s for Guid: %s"), LightBuildData.Find(LightId), *GetFullName(), *LightId.ToString());
 	return LightBuildData.Find(LightId);
 }
 
 FLightComponentMapBuildData* UMapBuildDataRegistry::GetLightBuildData(FGuid LightId)
 {
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Finding LightBuildData (%p) in Registry %s for Guid: %s"), LightBuildData.Find(LightId), *GetFullName(), *LightId.ToString());
 	return LightBuildData.Find(LightId);
 }
 
@@ -1139,6 +1211,13 @@ void UMapBuildDataRegistry::EmptyLevelData(const TSet<FGuid>* ResourcesToKeep)
 		}
 	}
 
+	// keep the VLM grid if we kept the VLM data
+	if (!LevelPrecomputedVolumetricLightmapBuildData.Num())
+	{	
+		delete VolumetricLightMapGridDesc;
+		VolumetricLightMapGridDesc = nullptr;
+	}
+
 	LightmapResourceClusters.Empty();
 }
 
@@ -1151,6 +1230,171 @@ void UMapBuildDataRegistry::CleanupTransientOverrideMapBuildData()
 			LOD.OverrideMapBuildData.Reset();
 		}
 	}
+}
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const UActorComponent* Component)
+{
+	AActor* Owner = Component->GetOwner();
+
+	if (Owner)
+	{
+		return Get(Owner);
+	}
+
+	return nullptr;
+}
+
+#if WITH_EDITOR
+void UMapBuildDataRegistry::RedirectToRegistry(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry)
+{	
+	// In PIE multiple worlds will reuse the same global UMapBuildDataRegistry so we make sure to refcount the add/remove of the redirects
+	int32& CurrentRefCount = RedirectedRegistriesRefcount.FindOrAdd(Registry->GetFName());
+	if (CurrentRefCount == 0)
+	{
+		for (const FGuid& ActorInstanceGuid : ActorInstances)
+		{
+			ensureMsgf(!Redirects.Find(ActorInstanceGuid), TEXT("Adding redundant mapping for ActorInstance %s, New registry: %s, Previous registry: %s"), *ActorInstanceGuid.ToString(), *Registry->GetName(), *Redirects.FindChecked(ActorInstanceGuid)->GetName());
+			Redirects.Add(ActorInstanceGuid, Registry);
+		}
+	}
+	
+	CurrentRefCount++;
+}
+
+void UMapBuildDataRegistry::RemoveRedirect(TArray<FGuid>& ActorInstances, UMapBuildDataRegistry* Registry)
+{
+	// In PIE multiple worlds will reuse the same global UMapBuildDataRegistry so we make sure to refcount the add/remove of the redirects
+	int32& CurrentRefCount = RedirectedRegistriesRefcount.FindChecked(Registry->GetFName());	
+	CurrentRefCount--;
+
+	check(CurrentRefCount >= 0);
+
+	if (CurrentRefCount == 0)
+	{
+		for (const FGuid& ActorInstanceGuid : ActorInstances)
+		{
+			Redirects.Remove(ActorInstanceGuid);
+		}
+
+		RedirectedRegistriesRefcount.Remove(Registry->GetFName());
+	}
+}
+#else
+void UMapBuildDataRegistry::RemoveRegistry(UMapBuildDataRegistry* Registry)
+{
+	FScopeLock AutoLock(&PackagesToMapBuildDataLock);
+	PackagesToMapBuildData.Remove(Registry->GetPackage());
+}
+#endif
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::FindRegistryWorldPartition(const AActor* Actor)
+{	
+	UMapBuildDataRegistry* Registry = nullptr;
+
+	// Finding the correct registry
+	//  In editor & PIE : loaded registries will insert a redirect from the ActorInstanceGuids they provide data for so that we can find the proper registry
+	//  In runtime : registry will live inside the same package as the actor so we can find the correct registry through the actor package
+#if WITH_EDITOR
+	check(IsInGameThread());
+
+	if (!Registry)
+	{
+		FGuid ActorInstanceGuid = FActorInstanceGuid::GetActorInstanceGuid(*(const_cast<AActor*>(Actor)));
+		if (UMapBuildDataRegistry** FoundRegistry = Redirects.Find(ActorInstanceGuid))
+		{
+			Registry = *FoundRegistry;
+		}
+	}
+#else	
+	FScopeLock AutoLock(&PackagesToMapBuildDataLock);
+
+	UPackage* ObjectPackage = Actor->GetPackage();
+
+	auto GetRegistryFromPackage = [ObjectPackage](const UObject* Object) -> UMapBuildDataRegistry*
+	{
+		UMapBuildDataRegistry* Registry = nullptr;
+		ForEachObjectWithPackage(ObjectPackage, [&Registry](UObject* ObjInPackage) -> bool
+		{
+			Registry = Cast<UMapBuildDataRegistry>(ObjInPackage);
+			if (Registry)
+			{
+				// stop enumeration
+				return false;
+			}
+
+			return true;
+		});
+
+		return Registry;
+	};
+
+
+	if (UMapBuildDataRegistry** RegistryPtr = PackagesToMapBuildData.Find(ObjectPackage))
+	{
+		Registry = *RegistryPtr;
+	}
+	else
+	{
+		Registry = GetRegistryFromPackage(Actor);
+		
+		if (!Registry)
+		{
+			 Registry = GetRegistryFromPackage(ULevelInstanceSubsystem::GetOwningLevel(Actor->GetLevel(), false));
+		}
+
+		check(!PackagesToMapBuildData.Find(ObjectPackage));
+		PackagesToMapBuildData.Add(ObjectPackage, Registry);
+	}
+#endif
+
+	return Registry;
+}
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
+{
+	ULevel* OwnerLevel = Actor->GetLevel();
+	UWorld* World = OwnerLevel ? OwnerLevel->GetWorld() : nullptr;	
+	UMapBuildDataRegistry* Registry = nullptr;
+
+	if (World && World->IsPartitionedWorld() && World->PersistentLevel->MapBuildData)
+	{
+		Registry = World->PersistentLevel->MapBuildData->FindRegistryWorldPartition(Actor);
+	}
+
+	if (!Registry)
+	{
+		Registry = Get(OwnerLevel, World);
+	}
+
+	UE_LOG_MAPBUILDDATA(Log, TEXT("Returning Registry %s for Actor %s, %s"), *Registry->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName());
+	return Registry;
+}
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::Get(ULevel* OwnerLevel, UWorld* World)
+{
+	UMapBuildDataRegistry* MapBuildData = nullptr;
+
+	if (OwnerLevel && World)
+	{
+		ULevel* ActiveLightingScenario = World->GetActiveLightingScenario();
+		
+		if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
+		{
+			MapBuildData = ActiveLightingScenario->MapBuildData;
+		}
+		else if (OwnerLevel->MapBuildData)
+		{
+			MapBuildData = OwnerLevel->MapBuildData;
+		}
+	}
+
+	return MapBuildData;
+}
+
+void UMapBuildDataRegistry::SetVolumetricLightMapGridDesc(FVolumetricLightMapGridDesc* GridDesc)
+{	 
+	delete VolumetricLightMapGridDesc;
+	VolumetricLightMapGridDesc = GridDesc;
 }
 
 FUObjectAnnotationSparse<FMeshMapBuildLegacyData, true> GComponentsWithLegacyLightmaps;

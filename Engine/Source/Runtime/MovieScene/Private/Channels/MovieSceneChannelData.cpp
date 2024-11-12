@@ -91,6 +91,10 @@ namespace MovieScene
 } // namespace MovieScene
 } // namespace UE
 
+FMovieSceneChannelData::FMovieSceneChannelData(FMovieSceneChannel* InChannel, TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles)
+	: Times(InTimes), KeyHandles(InKeyHandles), OwningChannel(InChannel)
+{}
+
 FMovieSceneChannelData::FMovieSceneChannelData(TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel)
 	: Times(InTimes), KeyHandles(InKeyHandles), OwningChannel(InChannel)
 {}
@@ -152,7 +156,7 @@ int32 FMovieSceneChannelData::MoveKeyInternal(int32 KeyIndex, FFrameNumber InNew
 
 		// We have to remove the key and re-add it in the right place
 		// This could probably be done better by just shuffling up/down the items that need to move, without ever changing the size of the array
-		Times->RemoveAt(KeyIndex, 1, EAllowShrinking::No);
+		Times->RemoveAt(KeyIndex, EAllowShrinking::No);
 		Times->Insert(InNewTime, NewIndex);
 
 		if (KeyHandles)

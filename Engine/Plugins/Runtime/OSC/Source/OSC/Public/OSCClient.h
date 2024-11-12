@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Templates/UniquePtr.h"
 #include "UObject/Object.h"
 
@@ -11,21 +10,43 @@
 #include "OSCClient.generated.h"
 
 
-/** Interface for internal networking implementation.  See UOSCClient for details */
-class OSC_API IOSCClientProxy
+namespace UE::OSC
+{
+	/** Interface for internal network implementation of sending OSC messages & bundles as a client. */
+	class OSC_API IClientProxy
+	{
+	public:
+		// Creates a new client proxy that can be used by any system where the provided dispatch callback is called on a worker thread.
+		static TUniquePtr<IClientProxy> Create(const FString& ClientName);
+
+		virtual ~IClientProxy() = default;
+
+		UE_DEPRECATED(5.5, "Use GetSendIPEndpoint instead")
+		virtual void GetSendIPAddress(FString& InIPAddress, int32& Port) const = 0;
+
+		UE_DEPRECATED(5.5, "Use SetSendIPEndpoint instead")
+		virtual bool SetSendIPAddress(const FString& InIPAddress, const int32 Port) = 0;
+
+		virtual const FIPv4Endpoint& GetSendIPEndpoint() const = 0;
+		virtual void SetSendIPEndpoint(const FIPv4Endpoint& InEndpoint) = 0;
+
+		virtual bool IsActive() const = 0;
+
+		virtual void SendMessage(const FOSCMessage& Message) = 0;
+		virtual void SendBundle(const FOSCBundle& Bundle) = 0;
+
+		virtual void Stop() = 0;
+	};
+} // namespace UE::OSC
+
+// For backward compat.  To be deprecated
+class OSC_API IOSCClientProxy : public UE::OSC::IClientProxy
 {
 public:
-	virtual ~IOSCClientProxy() { }
+	UE_DEPRECATED(5.5, "Use UE::OSC::IClientProxy instead")
+	IOSCClientProxy() = default;
 
-	virtual void GetSendIPAddress(FString& InIPAddress, int32& Port) const = 0;
-	virtual bool SetSendIPAddress(const FString& InIPAddress, const int32 Port) = 0;
-
-	virtual bool IsActive() const = 0;
-
-	virtual void SendMessage(FOSCMessage& Message) = 0;
-	virtual void SendBundle(FOSCBundle& Bundle) = 0;
-
-	virtual void Stop() = 0;
+	virtual ~IOSCClientProxy() = default;
 };
 
 UCLASS(BlueprintType)
@@ -62,5 +83,5 @@ protected:
 	void Stop();
 	
 	/** Pointer to internal implementation of client proxy */
-	TUniquePtr<IOSCClientProxy> ClientProxy;
+	TUniquePtr<UE::OSC::IClientProxy> ClientProxy;
 };

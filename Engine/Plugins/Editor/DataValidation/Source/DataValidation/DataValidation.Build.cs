@@ -46,6 +46,7 @@ public class DataValidation : ModuleRules
 				"TypedElementRuntime",
 				"SourceControl",
 				"UncontrolledChangelists",
+				"RHI"
 			}
 		);
 	}

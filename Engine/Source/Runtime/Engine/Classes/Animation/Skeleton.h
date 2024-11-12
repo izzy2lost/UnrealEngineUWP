@@ -12,14 +12,12 @@
 #include "UObject/Object.h"
 #include "HAL/CriticalSection.h"
 #include "Misc/Guid.h"
+#include "Misc/TransactionallySafeRWLock.h"
 #include "ReferenceSkeleton.h"
 #include "Animation/PreviewAssetAttachComponent.h"
 #include "Animation/SmartName.h"
 #include "Engine/AssetUserData.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/SkeletalMesh.h"
-#endif
-#include "HAL/CriticalSection.h"
+#include "HAL/CriticalSection.h"  // jira SOL-6812: Remove this (duplicate include).
 #include "Interfaces/Interface_AssetUserData.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
 #include "Delegates/DelegateCombinations.h"
@@ -249,6 +247,7 @@ namespace VirtualBoneNameHelpers
 
 	ENGINE_API FString AddVirtualBonePrefix(const FString& InName);
 	ENGINE_API FName RemoveVirtualBonePrefix(const FString& InName);
+	ENGINE_API bool CheckVirtualBonePrefix(const FString& InName);
 }
 
 USTRUCT()
@@ -267,6 +266,13 @@ public:
 	FName VirtualBoneName;
 
 	FVirtualBone() {}
+
+	FVirtualBone(FName InSource, FName InTarget, FName InVirtual)
+		: SourceBoneName(InSource)
+		, TargetBoneName(InTarget)
+		, VirtualBoneName(InVirtual)
+	{
+	}
 
 	FVirtualBone(FName InSource, FName InTarget)
 		: SourceBoneName(InSource)
@@ -301,6 +307,10 @@ protected:
 	/** Reference skeleton poses in local space */
 	UPROPERTY()
 	TArray<FTransform> RefLocalPoses_DEPRECATED;
+
+	// Preview axis to consider as "forward" for the skeleton. Only used for preview purposes.
+	UPROPERTY(EditAnywhere, Category = Preview)
+	TEnumAsByte<EAxis::Type> PreviewForwardAxis;
 #endif
 
 	/** Reference Skeleton */
@@ -339,6 +349,7 @@ public:
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
+	ENGINE_API EAxis::Type GetPreviewForwardAxis() const { return PreviewForwardAxis; }
 #endif
 	ENGINE_API virtual void BeginDestroy() override;
 
@@ -394,9 +405,10 @@ public:
 	/**
 	 * Adds a curve metadata entry with the specified name
 	 * @param	InCurveName			The name of the curve to find
+	 * @param   bTransact           If true record a new transaction
 	 * @return true if an entry was added, false if an entry already existed
 	 */
-	ENGINE_API bool AddCurveMetaData(FName CurveName);
+	ENGINE_API bool AddCurveMetaData(FName CurveName, bool bTransact = true);
 
 	/**
 	 * Get an array of all curve metadata names
@@ -436,6 +448,8 @@ public:
 
 	ENGINE_API bool AddNewVirtualBone(const FName SourceBoneName, const FName TargetBoneName, FName& NewVirtualBoneName);
 
+	ENGINE_API bool AddNewNamedVirtualBone(const FName SourceBoneName, const FName TargetBoneName, const FName NewVirtualBoneName);
+	
 	ENGINE_API void RemoveVirtualBones(const TArray<FName>& BonesToRemove);
 
 	ENGINE_API void RenameVirtualBone(const FName OriginalBoneName, const FName NewBoneName);
@@ -498,7 +512,7 @@ public:
 	TArray<TObjectPtr<UBlendProfile>> BlendProfiles;
 
 	/** Get the specified blend profile by name */
-	UFUNCTION(BlueprintPure, Category = Skeleton)
+	UFUNCTION(BlueprintPure, Category = Skeleton, meta = (BlueprintThreadSafe))
 	ENGINE_API UBlendProfile* GetBlendProfile(const FName& InProfileName);
 
 	/** Create a new blend profile with the specified name */
@@ -650,7 +664,7 @@ private:
 	TMap<TWeakObjectPtr<USkinnedAsset>, int32> SkinnedAsset2LinkupCache;
 	
 	//Use this Lock everytime you change or access SkinnedAssetLinkupCache member.
-	FRWLock SkinnedAssetLinkupCacheLock;
+	FTransactionallySafeRWLock SkinnedAssetLinkupCacheLock;
 
 	/** Runtime built mapping table between SkinnedAssets and Mesh Linkup Data*/
 	TMap<TObjectKey<USkinnedAsset>, TUniquePtr<FSkeletonToMeshLinkup>> SkinnedAssetLinkupCache;

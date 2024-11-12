@@ -35,14 +35,9 @@ public:
 	bool HandleDropPageIdsOnMainListFromMainList(const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
 	bool HandleDropPageIdsOnSubListFromTemplates(const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
 	bool HandleDropPageIdsOnSubListFromMainList(const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
-	bool HandleDropPageIdsOnSubListFromSubList(int32 InFromList, const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
+	bool HandleDropPageIdsOnSubListFromSubList(const FAvaRundownPageListReference& InFromList, const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
 
 	void OnTabActivated(TSharedRef<SDockTab> InDockTab, ETabActivationCause InActivationCause);
-
-	FName GetTabId() const { return TabId; }
-
-	TSharedPtr<SDockTab> GetMyTab() const { return MyTabWeak.Pin(); }
-	void SetMyTab(TSharedRef<SDockTab> InTab) { MyTabWeak = InTab; }
 
 	/** Plays the currently selected page. */
 	void PlaySelectedPage() const;
@@ -71,7 +66,8 @@ public:
 	}
 	
 private:
-	void OnInstancedPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnActiveListChanged();
 
 	TArray<int32> FilterPlayingPages(FFilterPageFunctionRef InFilterPageFunction) const;
 	TArray<int32> FilterSelectedOrPlayingPages(FFilterPageFunctionRef InFilterPageFunction, const bool bInAllowFallback) const;
@@ -84,17 +80,20 @@ private:
 	int32 GetPageIdToTakeNext() const;
 
 protected:
-	FName TabId;
-	TWeakPtr<SDockTab> MyTabWeak;
-
+	void RequestCloseTab();
+	
 	FReply MakeActive();
 	bool CanMakeActive() const;
 	FSlateColor GetMakeActiveButtonColor() const;
 
 	FText GetPageViewName() const;
 	void OnPageViewNameCommitted(const FText& InNewText, ETextCommit::Type InCommitType);
+	FReply OnDeletePageView();
 
 	void PlayNextPageNoReturn() const { PlayNextPage(); }
 
 	virtual TArray<int32> AddPastedPages(const TArray<FAvaRundownPage>& InPages) override;
+
+	void ResetPagesToDefaults(bool bInResetToTemplate);
+	bool CanResetPagesToDefaults(bool bInResetToTemplate) const;
 };

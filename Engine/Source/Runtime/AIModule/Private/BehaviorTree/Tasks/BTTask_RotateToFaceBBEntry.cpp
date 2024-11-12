@@ -23,20 +23,6 @@ UBTTask_RotateToFaceBBEntry::UBTTask_RotateToFaceBBEntry(const FObjectInitialize
 	BlackboardKey.AddRotatorFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_RotateToFaceBBEntry, BlackboardKey));
 }
 
-void UBTTask_RotateToFaceBBEntry::PostInitProperties()
-{
-	Super::PostInitProperties();
-
-	PrecisionDot = FMath::Cos(FMath::DegreesToRadians(Precision));
-}
-
-void UBTTask_RotateToFaceBBEntry::PostLoad()
-{
-	Super::PostLoad();
-
-	PrecisionDot = FMath::Cos(FMath::DegreesToRadians(Precision));
-}
-
 namespace
 {
 	FORCEINLINE_DEBUGGABLE FVector::FReal CalculateAngleDifferenceDot(const FVector& VectorA, const FVector& VectorB)
@@ -59,7 +45,7 @@ EBTNodeResult::Type UBTTask_RotateToFaceBBEntry::ExecuteTask(UBehaviorTreeCompon
 	FBTFocusMemory* MyMemory = (FBTFocusMemory*)NodeMemory;
 	check(MyMemory);
 	MyMemory->Reset();
-
+	const float PrecisionDot = GetPrecisionDot(OwnerComp);
 	EBTNodeResult::Type Result = EBTNodeResult::Failed;
 
 	APawn* Pawn = AIController->GetPawn();
@@ -152,7 +138,7 @@ void UBTTask_RotateToFaceBBEntry::TickTask(UBehaviorTreeComponent& OwnerComp, ui
 
 		if (FocalPoint != FAISystem::InvalidLocation)
 		{
-			if (CalculateAngleDifferenceDot(PawnDirection, FocalPoint - AIController->GetPawn()->GetActorLocation()) >= PrecisionDot)
+			if (CalculateAngleDifferenceDot(PawnDirection, FocalPoint - AIController->GetPawn()->GetActorLocation()) >= GetPrecisionDot(OwnerComp))
 			{
 				CleanUp(*AIController, NodeMemory);
 				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
@@ -164,6 +150,11 @@ void UBTTask_RotateToFaceBBEntry::TickTask(UBehaviorTreeComponent& OwnerComp, ui
 			FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		}
 	}
+}
+
+float UBTTask_RotateToFaceBBEntry::GetPrecisionDot(const UBehaviorTreeComponent& OwnerComp) const
+{
+	return FMath::Cos(FMath::DegreesToRadians(Precision.GetValue(OwnerComp)));;
 }
 
 void UBTTask_RotateToFaceBBEntry::CleanUp(AAIController& AIController, uint8* NodeMemory)

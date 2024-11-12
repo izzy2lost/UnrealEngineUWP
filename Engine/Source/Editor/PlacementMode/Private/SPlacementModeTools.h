@@ -15,6 +15,7 @@
 #include "Misc/TextFilter.h"
 
 class STextBlock;
+class FCategoryDrivenContentBuilder;
 
 /**
  * A tile representation of the class or the asset.  These are embedded into the views inside
@@ -27,6 +28,7 @@ public:
 
 		/** Highlight this text in the text block */
 		SLATE_ATTRIBUTE(FText, HighlightText)
+		SLATE_EVENT( FOnGetContent, OnGetMenuContent )
 
 	SLATE_END_ARGS()
 
@@ -38,9 +40,14 @@ public:
 
 	bool IsPressed() const;
 
+
 	TSharedPtr<const FPlaceableItem> Item;
 
 private:
+	
+	/** Delegate to execute to get the menu content of this button */
+	FOnGetContent OnGetMenuContent;
+	
 	const FSlateBrush* GetBorder() const;
 
 	bool bIsPressed;
@@ -93,6 +100,21 @@ public:
 
 	virtual ~SPlacementModeTools();
 
+	/**
+	 *Creates and returns the TSharedRef<SPlacementAssetEntry>for the given TSharedPtr<SPlacementAssetEntry>
+	 *
+	 * @param InItem the FPlaceableItem for which  the TSharedRef<SPlacementAssetEntry> will be created and returned
+	 */
+	TSharedRef<SWidget> GetPlacementAssetWidget(const TSharedPtr<FPlaceableItem>& InItem) const;
+
+	/**
+	 * Given FName CategoryName as the Category that has been clicked, update the FCategoryDrivenContentBuilder with the proper content for the category
+	 *
+	 * @param CategoryName the name of the currently chosen Category
+	 * @param CategoryLabel the label for the currently chosen Category 
+	 */
+	void UpdateContentForCategory( FName CategoryName, FText CategoryLabel );
+
 private:
 
 	// Begin SWidget
@@ -100,10 +122,6 @@ private:
 	// End SWidget
 
 private:
-
-	/** Generates a widget for the specified item */
-	TSharedRef<ITableRow> OnGenerateWidgetForItem(TSharedPtr<FPlaceableItem> InItem, const TSharedRef<STableViewBase>& OwnerTable);
-
 	/** Get the identifier of the currently active tab */
 	FName GetActiveTab() const;
 
@@ -113,6 +131,11 @@ private:
 	/** Check if a search is active */
 	bool IsSearchActive() const;
 
+	/**
+	 * returns true is the favorites category is selected, else it returns false
+	 */
+	bool IsFavoritesCategorySelected() const;
+	
 	/** Update the list of shown items */
 	void UpdateShownItems();
 
@@ -140,15 +163,6 @@ private:
 	/** Gets the tab 'active' state, so that we can show the active style */
 	ECheckBoxState GetPlacementTabCheckedState( FName CategoryName ) const;
 
-	/** Gets the visibility for the failed search text */
-	EVisibility GetFailedSearchVisibility() const;
-
-	/** Gets the visibility for the list view */
-	EVisibility GetListViewVisibility() const;
-
-	/** Gets the visibility for tabs */
-	EVisibility GetTabsVisibility() const;
-
 private:
 
 	/** Called when the search text changes */
@@ -166,24 +180,15 @@ private:
 	/** Flag to indicate that we need to update the list of shown items */
 	bool bUpdateShownItems;
 
+	/** Flag to indicate that we're programmatically changing the search text and that we should skip updating the placement entries */
+	bool bIsRawSearchChange;
+
 	// The text filter used to filter the classes
 	typedef TTextFilter<const FPlaceableItem&> FPlacementAssetEntryTextFilter;
 	TSharedPtr<FPlacementAssetEntryTextFilter> SearchTextFilter;
 
-	/** Custom content slot, where a category has a custom generator */
-	TSharedPtr<SBox> CustomContent;
-	
-	/** Content container for any data driven content */
-	TSharedPtr<SBox> DataDrivenContent;
-
 	/* The search box used to update the filter text */
 	TSharedPtr<SSearchBox> SearchBoxPtr;
-
-	/* Category Filter */
-	TSharedPtr<SUniformWrapPanel> CategoryFilterPtr;
-
-	/* Active Category Filter Label */
-	TSharedPtr<STextBlock> FilterLabelPtr;
 
 	/** Array of filtered items to show in the list view */
 	TArray<TSharedPtr<FPlaceableItem>> FilteredItems;
@@ -193,4 +198,10 @@ private:
 
 	/** List view that shows placeable items */
 	TSharedPtr<SListView<TSharedPtr<FPlaceableItem>>> ListView;
+
+	/** The FCategoryDrivenContentBuilder which will build the UI for this mode, if defined */
+	TSharedPtr<FCategoryDrivenContentBuilder> CategoryContentBuilder;
+
+	/** Array of favorite items to show in the favorites view */
+	TArray<TSharedPtr<FPlaceableItem>> FavoriteItems;
 };

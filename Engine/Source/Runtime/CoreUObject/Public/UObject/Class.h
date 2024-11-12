@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Concepts/GetTypeHashable.h"
+#include "Concepts/StaticClassProvider.h"
 #include "Concepts/StaticStructProvider.h"
 #include "Containers/Array.h"
 #include "Containers/EnumAsByte.h"
@@ -49,7 +50,6 @@
 #include "Templates/IsAbstract.h"
 #include "Templates/IsEnum.h"
 #include "Templates/IsPODType.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/IsUECoreType.h"
 #include "Templates/Models.h"
 #include "Templates/Tuple.h"
@@ -65,12 +65,14 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/PropertyTag.h"
+#include "UObject/PropertyVisitor.h"
 #include "UObject/ReflectedTypeAccessors.h"
 #include "UObject/Script.h"
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/ObjectPtr.h"
+#include <type_traits>
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Misc/PackageAccessTracking.h"
@@ -211,7 +213,9 @@ class UField : public UObject
 	 * @param bRemoveExtraSections	If true, cut off the comment on first line separator or 2 empty lines in a row
 	 */
 	static COREUOBJECT_API void FormatNativeToolTip(FString& ToolTipString, bool bRemoveExtraSections = true);
+#endif // WITH_EDITORONLY_DATA
 
+#if WITH_METADATA
 	/**
 	 * Determines if the property has any metadata associated with the key
 	 * 
@@ -247,8 +251,8 @@ class UField : public UObject
 	 * @param LocalizationKey			Key to lookup in the localization manager
 	 * @return							Localized metadata if available, defaults to whatever is provided via GetMetaData
 	 */
-	COREUOBJECT_API FText GetMetaDataText(const TCHAR* MetaDataKey, const FString LocalizationNamespace = FString(), const FString LocalizationKey = FString()) const;
-	COREUOBJECT_API FText GetMetaDataText(const FName& MetaDataKey, const FString LocalizationNamespace = FString(), const FString LocalizationKey = FString()) const;
+	COREUOBJECT_API FText GetMetaDataText(const TCHAR* MetaDataKey, const FTextKey LocalizationNamespace = FTextKey(), const FTextKey LocalizationKey = FTextKey()) const;
+	COREUOBJECT_API FText GetMetaDataText(const FName& MetaDataKey, const FTextKey LocalizationNamespace = FTextKey(), const FTextKey LocalizationKey = FTextKey()) const;
 
 	/**
 	 * Sets the metadata value associated with the key
@@ -328,7 +332,7 @@ class UField : public UObject
 	/** Clear any metadata associated with the key */
 	COREUOBJECT_API void RemoveMetaData(const TCHAR* Key);
 	COREUOBJECT_API void RemoveMetaData(const FName& Key);
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 	COREUOBJECT_API bool HasAnyCastFlags(const uint64 InCastFlags) const;
 	COREUOBJECT_API bool HasAllCastFlags(const uint64 InCastFlags) const;
@@ -428,6 +432,9 @@ public:
 	TArray<TObjectPtr<UPropertyWrapper>> PropertyWrappers;
 	/** Unique id incremented each time this class properties get destroyed */
 	int32 FieldPathSerialNumber;
+
+	/** Number of fields, inclusive of base fields and fixed-size array elements. Generated during Link(). */
+	UE_INTERNAL int32 TotalFieldCount = 0;
 #endif
 
 	/** Cached schema for optimized unversioned and filtereditoronly property serialization, owned by this. */
@@ -610,7 +617,19 @@ public:
 	template<class T>
 	bool IsChildOf() const
 	{
-		return IsChildOf(T::StaticClass());
+		if constexpr (TModels_V<CStaticClassProvider, T>)
+		{
+			return IsChildOf(T::StaticClass());
+		}
+		else if constexpr (TModels_V<CStaticStructProvider, T>)
+		{
+			return IsChildOf(T::StaticStruct());
+		}
+		else
+		{
+			static_assert(sizeof(T) == 0, "Unsupported type - requires StaticClass or StaticStruct.");
+			return false;
+		}
 	}
 
 	/** Returns true if this struct either is SomeBase, or is a child of SomeBase. This will not crash on null structs */
@@ -650,7 +669,7 @@ public:
 	/** Destroys all properties owned by this struct */
 	COREUOBJECT_API void DestroyChildPropertiesAndResetPropertyLinks();
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/** Try and find boolean metadata with the given key. If not found on this class, work up hierarchy looking for it. */
 	COREUOBJECT_API bool GetBoolMetaDataHierarchical(const FName& Key) const;
 
@@ -664,7 +683,9 @@ public:
 	 * @return pointer to the UStruct that has associated metadata, nullptr if Key is not associated with any UStruct in the hierarchy
 	 */
 	COREUOBJECT_API const UStruct* HasMetaDataHierarchical(const FName& Key) const;
+#endif // WITH_METADATA
 
+#if WITH_EDITORONLY_DATA
 	/* Returns true if this struct has Asset Registry searchable properties */
 	FORCEINLINE bool HasAssetRegistrySearchableProperties() const
 	{
@@ -710,6 +731,33 @@ public:
 	 * Collects UObjects referenced by bytecode and properties for this class and its child fields and their children...
 	 */
 	COREUOBJECT_API void CollectBytecodeAndPropertyReferencedObjectsRecursively();
+
+	/**
+	 * Visits this property and allows recursion into the inner properties
+	 * This method allows callers to visit inner properties without knowing about its container type as opposed to TPropertyIterator.
+	 * This visit property pattern facilitates the recursion into user defined properties and allows users to add specific visit logic on UStruct via traits. 
+	 * @param Data to the property to visit
+	 * @param InFunc to call on each visited property, the return value controls what is the next behavior once this property has been visited
+	 * @return the new action to take one visited this property
+	 */
+	COREUOBJECT_API EPropertyVisitorControlFlow Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const;
+
+	/**
+	 * Visits this property and allows recursion into the inner properties
+	 * This method allows callers to visit inner properties without knowing about its container type as opposed to TPropertyIterator.
+	 * This visit property pattern facilitates the recursion into user defined properties and allows users to add specific visit logic on UStruct via traits. 
+	 * @param Path that was computed until we reached this property
+	 * @param Data to the property to visit
+	 * @param InFunc to call on each visited property, the return value controls what is the next behavior once this property has been visited
+	 * @return the new action to take one visited this property
+	 */
+	COREUOBJECT_API virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const;
+
+	/**
+	 * Attempt to resolve the given inner path info against this outer struct to get the inner property value.
+	 * @return The inner property value, or null if the path info is incompatible/missing on this struct.
+	 */
+	COREUOBJECT_API virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const;
 
 protected:
 
@@ -824,6 +872,9 @@ enum EStructFlags
 
 	/** If set, this struct will have CanEditChange on it in the editor to determine if a child property can be edited */
 	STRUCT_CanEditChange = 0x02000000,
+
+	/** If set, this struct will have Visit on it to allow custom property visiting implementation */
+	STRUCT_Visitor = 0x04000000,
 	
 	/** Struct flags that are automatically inherited */
 	STRUCT_Inherit				= STRUCT_HasInstancedReference|STRUCT_Atomic,
@@ -855,12 +906,15 @@ struct TStructOpsTypeTraitsBase2
 		WithNetDeltaSerializer         = false,                         // struct has a NetDeltaSerialize function for serializing differences in state from a previous NetSerialize operation.
 		WithSerializeFromMismatchedTag = false,                         // struct has a SerializeFromMismatchedTag function for converting from other property tags.
 		WithStructuredSerializeFromMismatchedTag = false,               // struct has an FStructuredArchive-based SerializeFromMismatchedTag function for converting from other property tags.
-		WithPostScriptConstruct        = false,                         // struct has a PostScriptConstruct function which is called after it is constructed in blueprints
+		WithPostScriptConstruct        = false,                         // struct has a PostScriptConstruct func tion which is called after it is constructed in blueprints
 		WithNetSharedSerialization     = false,                         // struct has a NetSerialize function that does not require the package map to serialize its state.
 		WithGetPreloadDependencies     = false,                         // struct has a GetPreloadDependencies function to return all objects that will be Preload()ed when the struct is serialized at load time.
 		WithPureVirtual                = false,                         // struct has PURE_VIRTUAL functions and cannot be constructed when CHECK_PUREVIRTUALS is true
 		WithFindInnerPropertyInstance  = false,							// struct has a FindInnerPropertyInstance function that can provide an FProperty and data pointer when given a property FName
 		WithCanEditChange			   = false,							// struct has an editor-only CanEditChange function that can conditionally make child properties read-only in the details panel (same idea as UObject::CanEditChange)
+		WithClearOnFinishDestroy	   = false,							// struct should be cleared during owner UObject's FinishDestroy. Clearing calls destructor and initializes again to default value. This is intended for structs which may need to access UObject pointer members during destruction. Referenced objects may already have their FinishDestroy() called. Clearing should ensure that no UObject pointer members are used during the final destruction.
+		WithVisitor					   = false,							// struct has Visit function that allows to visit additional properties
+		WithIntrusiveOptionalSafeForGC = false,							// struct with an intrusive unset state for TOptional certifies that object fields it contains are nulled in the unset state
 	};
 
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::Conservative; // struct's Serialize method(s) may serialize object references of these types - default Conservative means unknown and object reference collector archives should serialize this struct 
@@ -925,11 +979,14 @@ public:
 			bool HasSerializeFromMismatchedTag : 1;
 			bool HasStructuredSerializeFromMismatchedTag : 1;
 			bool HasGetTypeHash : 1;
+			bool HasIntrusiveUnsetOptionalState : 1;
 			bool IsAbstract : 1;
 			bool HasFindInnerPropertyInstance : 1;
+			bool ClearOnFinishDestroy : 1;
 #if WITH_EDITOR
 			bool HasCanEditChange : 1;
 #endif
+			bool HasVisitor : 1;
 		};
 
 		/**
@@ -1165,6 +1222,29 @@ public:
 			return GetCapabilities().IsAbstract;
 		}
 
+		/** return true if this struct has a ClearOnFinishDestroy */
+		bool HasClearOnFinishDestroy() const
+		{
+			return GetCapabilities().ClearOnFinishDestroy;
+		}
+
+		/** Return true if this type can be constructed with FIntrusiveUnsetOptionalState for TOptional */
+		bool HasIntrusiveUnsetOptionalState() const 
+		{
+			return GetCapabilities().HasIntrusiveUnsetOptionalState;
+		}
+		/** Construct an unset optional value */
+		virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const = 0;
+		/** Return true if the optional value at Data is in an unset state */
+		virtual bool IsIntrusiveOptionalValueSet(const void* Data) const = 0;
+		/** Reset an optional value to its unset state */
+		virtual void ClearIntrusiveOptionalValue(void* Data) const = 0;
+		/** 
+		 * Used for assertions only: confirms that this type has certified that its object reference fields are safe 
+		 * for the GC to visit while the struct is in its intrusive unset optional state.
+		*/
+		virtual bool IsIntrusiveOptionalSafeForGC() const = 0;
+
 #if WITH_EDITOR
 		/** Returns true if this struct wants to indicate whether a property can be edited in the details panel */
 		bool HasCanEditChange() const
@@ -1174,7 +1254,16 @@ public:
 		/** Returns true if this struct would allow the given property to be edited in the details panel. */
 		virtual bool CanEditChange(const FEditPropertyChain& PropertyChain, const void* Data) const = 0;
 #endif
-		
+
+		/** Returns true if this struct wants to indicate whether it has a custom impl for visiting properties */
+		bool HasVisitor() const
+		{
+			return GetCapabilities().HasVisitor;
+		}
+		/** Structs property visitor signature */
+		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const = 0;
+		virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const = 0;
+
 	private:
 		/** sizeof() of the structure **/
 		const int32 Size;
@@ -1197,7 +1286,7 @@ public:
 		{
 			constexpr FCapabilities Capabilities {
 				(TIsPODType<CPPSTRUCT>::Value ? CPF_IsPlainOldData : CPF_None)
-				| (TIsTriviallyDestructible<CPPSTRUCT>::Value ? CPF_NoDestructor : CPF_None)
+				| (std::is_trivially_destructible_v<CPPSTRUCT> ? CPF_NoDestructor : CPF_None)
 				| (TIsZeroConstructType<CPPSTRUCT>::Value ? CPF_ZeroConstructor : CPF_None)
 				| (TModels_V<CGetTypeHashable, CPPSTRUCT> ? CPF_HasGetValueTypeHash : CPF_None),
 				TTraits::WithSerializerObjectReferences,
@@ -1222,11 +1311,14 @@ public:
 				TTraits::WithSerializeFromMismatchedTag,
 				TTraits::WithStructuredSerializeFromMismatchedTag,
 				TModels_V<CGetTypeHashable, CPPSTRUCT>,
+				::HasIntrusiveUnsetOptionalState<CPPSTRUCT>(),
 				TIsAbstract<CPPSTRUCT>::Value,
 				TTraits::WithFindInnerPropertyInstance,
+				TTraits::WithClearOnFinishDestroy,
 #if WITH_EDITOR
 				TTraits::WithCanEditChange,
 #endif
+				TTraits::WithVisitor,
 			};
 			return Capabilities;
 		}
@@ -1516,6 +1608,33 @@ public:
 			}
 		}
 
+		/** Construct an unset optional value */
+		virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override
+		{
+			new (Data) TOptional<CPPSTRUCT>();
+		}
+
+		/** Return true if the optional value at Data is in an unset state */
+		virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override
+		{
+			return reinterpret_cast<const TOptional<CPPSTRUCT>*>(Data)->IsSet();
+		}
+
+		/** Reset an optional value to its unset state */
+		virtual void ClearIntrusiveOptionalValue(void* Data) const override
+		{
+			reinterpret_cast<TOptional<CPPSTRUCT>*>(Data)->Reset();
+		}
+
+		/** 
+		 * Used for assertions only: confirms that this type has certified that its object reference fields are safe 
+		 * for the GC to visit while the struct is in its intrusive unset optional state.
+		*/
+		virtual bool IsIntrusiveOptionalSafeForGC() const
+		{
+			return TTraits::WithIntrusiveOptionalSafeForGC;
+		}
+
 #if WITH_EDITOR
 
 		virtual bool CanEditChange(const FEditPropertyChain& PropertyChain, const void* Data) const override
@@ -1530,6 +1649,31 @@ public:
 			}
 		}
 #endif // WITH_EDITOR
+
+		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const override
+		{
+			if constexpr (TStructOpsTypeTraits<CPPSTRUCT>::WithVisitor)
+			{
+				CPPSTRUCT* Struct = (CPPSTRUCT*)Data.PropertyData;
+				return Struct->Visit(Path, Data, InFunc);
+			}
+			else
+			{
+				return EPropertyVisitorControlFlow::StepOver;
+			}
+		}
+
+		virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const override
+		{
+			if constexpr (TStructOpsTypeTraits<CPPSTRUCT>::WithVisitor)
+			{
+				return ((CPPSTRUCT*)Data)->ResolveVisitedPathInfo(Info);
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
 	};
 
 	/** Template for noexport classes to autoregister before main starts **/
@@ -1777,6 +1921,11 @@ public:
 	 * @return				whether the property instance was found
 	 */
 	virtual COREUOBJECT_API bool FindInnerPropertyInstance(FName PropertyName, const void* Data, const FProperty*& OutProp, const void*& OutData) const;
+
+	/* Custom visit implementation for structs */
+	using Super::Visit;
+	virtual COREUOBJECT_API EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const override;
+	virtual COREUOBJECT_API void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const override;
 };
 
 /*-----------------------------------------------------------------------------
@@ -2012,7 +2161,7 @@ class UEnum : public UField
 
 public:
 	/** How this enum is declared in C++, affects the internal naming of enum values */
-	enum class ECppForm
+	enum class ECppForm : uint8
 	{
 		Regular,
 		Namespaced,
@@ -2059,6 +2208,9 @@ public:
 	/** Gets enum value by name, returns INDEX_NONE and optionally errors when name is not found. This is faster than ByNameString if the FName is exact, but will fall back if needed */
 	COREUOBJECT_API int64 GetValueByName(FName InName, EGetByNameFlags Flags = EGetByNameFlags::None) const;
 
+	/** Gets enum value by name, returns INDEX_NONE and optionally errors when name is not found. This is faster than ByNameString if the FName is exact, but will fall back if needed */
+	COREUOBJECT_API int64 GetValueOrBitfieldFromString(FStringView InString, EGetByNameFlags LookupFlags = EGetByNameFlags::None) const;
+
 	/** Returns the short name at the enum index, returns empty string if invalid */
 	COREUOBJECT_API FString GetNameStringByIndex(int32 InIndex) const;
 
@@ -2070,6 +2222,12 @@ public:
 
 	/** If the enumeration is declared as UENUM(Flags), returns a string of the form A | B | C representing set bits A, B, and C. If it is not a bitfield, the result is the same as calling GetNameStringByValue*/
 	COREUOBJECT_API FString GetValueOrBitfieldAsString(int64 InValue) const;
+
+	/** If the enumeration is declared as UENUM(Flags), returns a string of the form A | B | C representing set bits A, B, and C. If it is not a bitfield, the result is the same as calling GetAuthoredNameStringByValue*/
+	COREUOBJECT_API FString GetValueOrBitfieldAsAuthoredNameString(int64 InValue) const;
+
+	/** If the enumeration is declared as UENUM(Flags), returns a string of the form A | B | C representing set bits A, B, and C. If it is not a bitfield, the result is the same as calling GetDisplayNameTextByValue*/
+	COREUOBJECT_API FText GetValueOrBitfieldAsDisplayNameText(int64 InValue) const;
 
 	/** Looks for a name with a given value and returns true and writes the name to Out if one was found */
 	COREUOBJECT_API bool FindNameStringByValue(FString& Out, int64 InValue) const;
@@ -2115,6 +2273,9 @@ public:
 
 	/** Checks if enum has entry with given value. Includes autogenerated _MAX entry. */
 	COREUOBJECT_API bool IsValidEnumValue(int64 InValue) const;
+
+	/** Checks if enum has entry with given value, or combination of flag values. If the enum is not a bitfield, this is equivalent to IsValidEnumValue. */
+	COREUOBJECT_API bool IsValidEnumValueOrBitfield(int64 InValue) const;
 
 	/** Checks if enum has entry with given name. Includes autogenerated _MAX entry. */
 	COREUOBJECT_API bool IsValidEnumName(FName InName) const;
@@ -2265,7 +2426,7 @@ public:
 	COREUOBJECT_API FText GetToolTipTextByIndex(int32 NameIndex) const;
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/**
 	 * Wrapper method for easily determining whether this enum has metadata associated with it.
 	 * 
@@ -2305,7 +2466,7 @@ public:
 	 *
 	 */
 	COREUOBJECT_API void RemoveMetaData( const TCHAR* Key, int32 NameIndex=INDEX_NONE ) const;
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 	
 	/**
 	 * @param EnumPath         Full enum path.
@@ -2521,6 +2682,8 @@ public:
 	COREUOBJECT_API virtual void BeginDestroy() override;
 	// End of UObject interface.
 
+	COREUOBJECT_API ~UEnum();
+
 protected:
 	/** List of pairs of all enum names and values. */
 	TArray<TPair<FName, int64>> Names;
@@ -2531,11 +2694,11 @@ protected:
 	/** Enum flags. */
 	EEnumFlags EnumFlags;
 
-	/** pointer to function used to look up the enum's display name. Currently only assigned for UEnums generated for nativized blueprints */
-	FEnumDisplayNameFn EnumDisplayNameFn;
-
 	/** Package name this enum was in when its names were being added to the primary list */
 	FName EnumPackage;
+	
+	/** pointer to function used to look up the enum's display name. Currently only assigned for UEnums generated for nativized blueprints */
+	FEnumDisplayNameFn EnumDisplayNameFn;
 
 	/** lock to be taken when accessing AllEnumNames */
 	static FRWLock AllEnumNamesLock;
@@ -2942,6 +3105,9 @@ public:
 		ClassVTableHelperCtorCallerType InClassVTableHelperCtorCaller,
 		FUObjectCppClassStaticFunctions&& InCppClassStaticFunctions);
 
+	// Destructor
+	COREUOBJECT_API ~UClass();
+
 #if WITH_RELOAD
 	/**
 	 * Called when a class is reloading from a DLL...updates various information in-place.
@@ -3051,9 +3217,13 @@ public:
 	COREUOBJECT_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	COREUOBJECT_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+
 #if WITH_EDITOR
-	COREUOBJECT_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
+protected:
+	COREUOBJECT_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const;
+public:
 #endif // WITH_EDITOR
+
 	virtual bool IsAsset() const override { return false; }	
 	virtual bool IsNameStableForNetworking() const override { return true; } // For now, assume all classes have stable net names
 	COREUOBJECT_API virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
@@ -3498,6 +3668,19 @@ public:
 	 */
 	static COREUOBJECT_API bool IsSafeToSerializeToStructuredArchives(UClass* InClass);
 
+#if WITH_EDITORONLY_DATA
+	/** Returns true if an InstanceDataObject be created from an instance of this type. */
+	UE_INTERNAL COREUOBJECT_API virtual bool CanCreateInstanceDataObject() const;
+#endif
+
+#if WITH_EDITOR
+	/**
+	 * If this class was recompiled, returns the path to where we should find the new (i.e. reinstanced) class.
+	 * Note: If this is not a recompiled class, this will return a NULL path and should be handled appropriately.
+	 */
+	COREUOBJECT_API FTopLevelAssetPath GetReinstancedClassPathName() const;
+#endif
+
 private:
 	/** 
 	 * This signature intentionally hides the method declared in UObjectBaseUtility to make it private.
@@ -3548,6 +3731,14 @@ protected:
 	 * @return		the CDO for this class
 	 **/
 	COREUOBJECT_API virtual UObject* CreateDefaultObject();
+
+#if WITH_EDITOR
+	/**
+	 * Internal helper method for GetReinstancedClassPathName(). Subclasses can choose to override the default
+	 * implementation to return a valid class path for recompiled class objects based on how reinstancing is handled.
+	 */
+	virtual FTopLevelAssetPath GetReinstancedClassPathName_Impl() const { return nullptr; }
+#endif
 };
 
 /**
@@ -3988,10 +4179,10 @@ struct FStructUtils
 	/** Looks for uninitialized script struct pointers. Returns the number found */
 	COREUOBJECT_API static int32 AttemptToFindUninitializedScriptStructMembers();
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/** Looks for short type names within struct metadata. Returns the number found */
 	COREUOBJECT_API static int32 AttemptToFindShortTypeNamesInMetaData();
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 #endif // !(UE_BUILD_TEST || UE_BUILD_SHIPPING)
 };
 
@@ -4036,6 +4227,11 @@ template<> struct TBaseStructure<FIntPoint>
 template<> struct TBaseStructure<FIntVector> 
 { 
 	static COREUOBJECT_API UScriptStruct* Get(); 
+};
+
+template<> struct TBaseStructure<FInt64Vector2>
+{
+	static COREUOBJECT_API UScriptStruct* Get();
 };
 
 template<> struct TBaseStructure<FIntVector4>
@@ -4157,6 +4353,13 @@ template<> struct TBaseStructure<FFrameTime>
 	static COREUOBJECT_API UScriptStruct* Get();
 };
 
+struct FFrameRate;
+
+template<> struct TBaseStructure<FFrameRate>
+{
+	static COREUOBJECT_API UScriptStruct* Get();
+};
+
 struct FSoftObjectPath;
 
 template<> struct TBaseStructure<FSoftObjectPath>
@@ -4245,4 +4448,8 @@ UE_DECLARE_CORE_VARIANT_TYPE(Sphere3, Sphere);
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
+#endif
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
 #endif

@@ -36,20 +36,6 @@ void FSimpleElementVS::SetParameters(FRHIBatchedShaderParameters& BatchedParamet
 	SetShaderValue(BatchedParameters, TransformPositionHigh, Matrices.PositionHigh);
 }
 
-void FSimpleElementVS::SetParameters(FRHICommandList& RHICmdList, const FMatrix& WorldToClipMatrix)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, WorldToClipMatrix);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-}
-
-void FSimpleElementVS::SetParameters(FRHICommandList& RHICmdList, const FDFRelativeViewMatrices& Matrices)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, Matrices);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-}
-
 void FSimpleElementVS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
 	FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -96,21 +82,6 @@ void FSimpleElementPS::SetParameters(FRHIBatchedShaderParameters& BatchedParamet
 	SetParameters(BatchedParameters, TextureValue);
 }
 
-void FSimpleElementPS::SetEditorCompositingParameters(FRHICommandList& RHICmdList, const FSceneView* View)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetEditorCompositingParameters(BatchedParameters, View);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
-void FSimpleElementPS::SetParameters(FRHICommandList& RHICmdList, const FTexture* TextureValue)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, TextureValue);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
-
 FSimpleElementAlphaOnlyPS::FSimpleElementAlphaOnlyPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
 	FSimpleElementPS(Initializer)
 {
@@ -134,13 +105,6 @@ void FSimpleElementGammaBasePS::SetParameters(FRHIBatchedShaderParameters& Batch
 	SetParameters(BatchedParameters, Texture, GammaValue, BlendMode);
 }
 
-void FSimpleElementGammaBasePS::SetParameters(FRHICommandList& RHICmdList, const FTexture* Texture, float GammaValue, ESimpleElementBlendMode BlendMode)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, Texture, GammaValue, BlendMode);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
 FSimpleElementMaskedGammaBasePS::FSimpleElementMaskedGammaBasePS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
 	FSimpleElementGammaBasePS(Initializer)
 {
@@ -157,13 +121,6 @@ void FSimpleElementMaskedGammaBasePS::SetParameters(FRHIBatchedShaderParameters&
 {
 	SetEditorCompositingParameters(BatchedParameters, View);
 	SetParameters(BatchedParameters, Texture, InGamma, ClipRefValue, BlendMode);
-}
-
-void FSimpleElementMaskedGammaBasePS::SetParameters(FRHICommandList& RHICmdList, const FTexture* Texture, float InGamma, float ClipRefValue, ESimpleElementBlendMode BlendMode)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, Texture, InGamma, ClipRefValue, BlendMode);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
 }
 
 /**
@@ -221,37 +178,6 @@ void FSimpleElementDistanceFieldGammaPS::SetParameters(
 	}
 }
 
-void FSimpleElementDistanceFieldGammaPS::SetParameters(
-	FRHICommandList& RHICmdList, 
-	const FTexture* Texture,
-	float InGamma,
-	float InClipRef,
-	float SmoothWidthValue,
-	bool bEnableShadowValue,
-	const FVector2D& ShadowDirectionValue,
-	const FLinearColor& ShadowColorValue,
-	float ShadowSmoothWidthValue,
-	const FDepthFieldGlowInfo& GlowInfo,
-	ESimpleElementBlendMode BlendMode
-	)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(
-		BatchedParameters
-		, Texture
-		, InGamma
-		, InClipRef
-		, SmoothWidthValue
-		, bEnableShadowValue
-		, ShadowDirectionValue
-		, ShadowColorValue
-		, ShadowSmoothWidthValue
-		, GlowInfo
-		, BlendMode
-	);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
 /**
 * Serialize constant paramaters for this shader
 * 
@@ -290,13 +216,6 @@ void FSimpleElementHitProxyPS::SetParameters(FRHIBatchedShaderParameters& Batche
 	SetTextureParameter(BatchedParameters, InTexture, InTextureSampler, TextureValue);
 }
 
-void FSimpleElementHitProxyPS::SetParameters(FRHICommandList& RHICmdList, const FTexture* TextureValue)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, TextureValue);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
 FSimpleElementColorChannelMaskPS::FSimpleElementColorChannelMaskPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 : FGlobalShader(Initializer)
 {
@@ -316,13 +235,6 @@ void FSimpleElementColorChannelMaskPS::SetParameters(FRHIBatchedShaderParameters
 	SetTextureParameter(BatchedParameters, InTexture, InTextureSampler, TextureValue);
 	SetShaderValue(BatchedParameters, ColorWeights, (FMatrix44f)ColorWeightsValue);
 	SetShaderValue(BatchedParameters, Gamma, GammaValue);
-}
-
-void FSimpleElementColorChannelMaskPS::SetParameters(FRHICommandList& RHICmdList, const FTexture* TextureValue, const FMatrix& ColorWeightsValue, float GammaValue)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, TextureValue, ColorWeightsValue, GammaValue);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
 }
 
 /*bool FSimpleElementColorChannelMaskPS::Serialize(FArchive& Ar)

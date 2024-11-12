@@ -10,5 +10,6 @@ public class UbaVisualizerTarget : TargetRules
 		LaunchModuleName = "UbaVisualizer";
 		UbaAgentTarget.CommonUbaSettings(this, Target);
 		bIsBuildingConsoleApplication = false;
+		WindowsPlatform.ApplicationIcon = "Programs/UnrealBuildAccelerator/Visualizer/Resources/Windows/UbaVisualizer.ico";
 	}
 }

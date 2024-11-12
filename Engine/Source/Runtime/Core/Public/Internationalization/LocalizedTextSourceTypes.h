@@ -5,7 +5,10 @@
 #include "CoreTypes.h"
 #include "Misc/EnumClassFlags.h"
 #include "Templates/RefCounting.h"
+#include "Templates/Requires.h"
 #include "Templates/SharedPointer.h"
+
+#include <type_traits>
 
 /**
  * Categories of localized text.
@@ -56,6 +59,12 @@ enum class ELocalizationLoadFlags : uint8
 
 	/** Force localized game data to be loaded, even when running in the editor */
 	ForceLocalizedGame = 1<<5,
+
+	/**
+	 * Skip updating any entries that already exist in the live table
+	 * @note Not useful when performing a full update, but has utility when patching in new untrusted localization data (eg, loading UGC localization data over the base localization data)
+	 */
+	SkipExisting = 1<<6,
 };
 ENUM_CLASS_FLAGS(ELocalizationLoadFlags);
 
@@ -166,13 +175,19 @@ public:
 		check(this->IsValid());
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringRef(const TDisplayStringRef<OtherType>& InOther)
 		: TDisplayStringPtrBase<ObjectType>(InOther.Private_GetDisplayStringPtr())
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringRef& operator=(const TDisplayStringRef<OtherType>& InOther)
 	{
 		if (this->DisplayStringPtr != InOther.Private_GetDisplayStringPtr())
@@ -207,19 +222,28 @@ public:
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr(const TDisplayStringPtr<OtherType>& InOther)
 		: TDisplayStringPtrBase<ObjectType>(InOther.Private_GetDisplayStringPtr())
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr(const TDisplayStringRef<OtherType>& InOther)
 		: TDisplayStringPtrBase<ObjectType>(InOther.Private_GetDisplayStringPtr())
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr& operator=(const TDisplayStringPtr<OtherType>& InOther)
 	{
 		if (this->DisplayStringPtr != InOther.Private_GetDisplayStringPtr())
@@ -229,7 +253,10 @@ public:
 		return *this;
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr& operator=(const TDisplayStringRef<OtherType>& InOther)
 	{
 		if (this->DisplayStringPtr != InOther.Private_GetDisplayStringPtr())

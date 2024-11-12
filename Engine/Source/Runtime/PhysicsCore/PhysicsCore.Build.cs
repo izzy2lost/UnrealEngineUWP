@@ -27,7 +27,5 @@ public class PhysicsCore: ModuleRules
 		PublicDependencyModuleNames.Remove("PhysicsCore");
 
 		PrivateDefinitions.Add("CHAOS_INCLUDE_LEVEL_1=1");
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

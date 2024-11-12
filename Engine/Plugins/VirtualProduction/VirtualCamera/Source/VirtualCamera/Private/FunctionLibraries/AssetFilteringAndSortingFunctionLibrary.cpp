@@ -7,10 +7,13 @@
 
 #include "Logging/LogMacros.h"
 
+#include "Misc/ComparisonUtility.h"
+
 DEFINE_LOG_CATEGORY_STATIC(LogAssetFilteringAndSorting, All, All);
 
 namespace UE::VirtualCamera::Private
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	template<typename TType>
 	static bool Sort(TArray<FAssetData>& Assets, FName MetaDataTag, TFunctionRef<bool(const FString& TagType, TType& Converted)> Converter, ESortOrder SortOrder)
 	{
@@ -32,15 +35,16 @@ namespace UE::VirtualCamera::Private
 			}
 		}
 
-		UAssetFilteringAndSortingFunctionLibrary::SortAssets(Assets, [&MetaData](const FAssetData& Left, const FAssetData& Right)
+		UDEPRECATED_AssetFilteringAndSortingFunctionLibrary::SortAssets(Assets, [&MetaData](const FAssetData& Left, const FAssetData& Right)
 		{
 			return MetaData[Left.GetSoftObjectPath()] <= MetaData[Right.GetSoftObjectPath()]; 
 		}, SortOrder);
 		return true;
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-TArray<FAssetData> UAssetFilteringAndSortingFunctionLibrary::GetAllAssetsByMetaDataTags(const TSet<FName>& RequiredTags, const TSet<UClass*>& AllowedClasses)
+TArray<FAssetData> UDEPRECATED_AssetFilteringAndSortingFunctionLibrary::GetAllAssetsByMetaDataTags(const TSet<FName>& RequiredTags, const TSet<UClass*>& AllowedClasses)
 {
 	FARFilter Filter;
 	
@@ -61,7 +65,8 @@ TArray<FAssetData> UAssetFilteringAndSortingFunctionLibrary::GetAllAssetsByMetaD
 	return Result;
 }
 
-void UAssetFilteringAndSortingFunctionLibrary::SortByCustomPredicate(TArray<FAssetData>& Assets, FAssetSortingPredicate SortingPredicate, ESortOrder SortOrder)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void UDEPRECATED_AssetFilteringAndSortingFunctionLibrary::SortByCustomPredicate(TArray<FAssetData>& Assets, FAssetSortingPredicate SortingPredicate, ESortOrder SortOrder)
 {
 	if (SortingPredicate.IsBound())
 	{
@@ -73,17 +78,22 @@ void UAssetFilteringAndSortingFunctionLibrary::SortByCustomPredicate(TArray<FAss
 			}, SortOrder);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void UAssetFilteringAndSortingFunctionLibrary::SortByAssetName(TArray<FAssetData>& Assets, ESortOrder SortOrder)
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void UDEPRECATED_AssetFilteringAndSortingFunctionLibrary::SortByAssetName(TArray<FAssetData>& Assets, ESortOrder SortOrder)
 {
 	SortAssets(Assets,
 		[](const FAssetData& Left, const FAssetData& Right)
 		{
-			return Left.AssetName.LexicalLess(Right.AssetName);
+			return UE::ComparisonUtility::CompareNaturalOrder(Left.AssetName.ToString(), Right.AssetName.ToString()) < 0;
 		}, SortOrder);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-bool UAssetFilteringAndSortingFunctionLibrary::SortByMetaData(TArray<FAssetData>& Assets, FName MetaDataTag, EAssetTagMetaDataSortType MetaDataType, ESortOrder SortOrder)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool UDEPRECATED_AssetFilteringAndSortingFunctionLibrary::SortByMetaData(TArray<FAssetData>& Assets, FName MetaDataTag, EAssetTagMetaDataSortType MetaDataType, ESortOrder SortOrder)
 {
 	switch (MetaDataType)
 	{
@@ -109,8 +119,10 @@ bool UAssetFilteringAndSortingFunctionLibrary::SortByMetaData(TArray<FAssetData>
 		return false;
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void UAssetFilteringAndSortingFunctionLibrary::SortAssets(TArray<FAssetData>& Assets, TFunctionRef<bool(const FAssetData& Left, const FAssetData& Right)> Predicate, ESortOrder SortOrder)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void UDEPRECATED_AssetFilteringAndSortingFunctionLibrary::SortAssets(TArray<FAssetData>& Assets, TFunctionRef<bool(const FAssetData& Left, const FAssetData& Right)> Predicate, ESortOrder SortOrder)
 {
 	// Careful this would be undefined behaviour: TFunctionRef Variable = [](){}; 
 	auto ReversePredicate = [&Predicate](const FAssetData& Left, const FAssetData& Right) { return !Predicate(Left, Right); };
@@ -119,3 +131,4 @@ void UAssetFilteringAndSortingFunctionLibrary::SortAssets(TArray<FAssetData>& As
 	
 	Assets.Sort(PredicateToUse);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

@@ -54,6 +54,11 @@
 	The master class that handles tracking of the current mode.
 ------------------------------------------------------------------------------*/
 
+TAutoConsoleVariable<int32> FEditorModeTools::CVarEnableITFCursorOverrideSupport(
+	TEXT("Editor.EnableITFCursorOverrideSupport"),
+	0,
+	TEXT("Enable support for the EditorModeManager to query the InteractiveToolsContext for tool customized cursor overrides."));
+
 FEditorModeTools::FEditorModeTools()
 	: PivotShown(false)
 	, Snapping(false)
@@ -921,6 +926,7 @@ void FEditorModeTools::ActivateMode(FEditorModeID InID, bool bToggle)
 		FGCObjectScopeGuard ScriptModeGuard(ScriptableMode);
 
 		// Remove anything that isn't compatible with this mode
+		TArray<FEditorModeID> EditorModesToRemove;
 		const bool bIsVisibleMode = ScriptableMode->GetModeInfo().IsVisible();
 		for (int32 ModeIndex = ActiveScriptableModes.Num() - 1; ModeIndex >= 0; ModeIndex--)
 		{
@@ -928,8 +934,13 @@ void FEditorModeTools::ActivateMode(FEditorModeID InID, bool bToggle)
 			const bool bModesAreCompatible = ScriptableMode->IsCompatibleWith(Mode->GetID()) || Mode->IsCompatibleWith(ScriptableMode->GetID());
 			if (!bModesAreCompatible || (bIsVisibleMode && Mode->GetModeInfo().IsVisible()))
 			{
-				DeactivateMode(Mode->GetID());
+				EditorModesToRemove.Add(Mode->GetID());
 			}
+		}
+
+		for (FEditorModeID EditorModeToRemove : EditorModesToRemove)
+		{
+			DeactivateMode(EditorModeToRemove);
 		}
 	}
 
@@ -1707,9 +1718,18 @@ bool FEditorModeTools::DisallowMouseDeltaTracking() const
 bool FEditorModeTools::GetCursor(EMouseCursor::Type& OutCursor) const
 {
 	bool bHandled = false;
-	for (const UEdMode* Mode : ActiveScriptableModes)
+
+	if (CVarEnableITFCursorOverrideSupport.GetValueOnGameThread() > 0)
 	{
-		bHandled |= Mode->GetCursor(OutCursor);
+		bHandled = InteractiveToolsContext->GetCursor(OutCursor);
+	}
+
+	if (!bHandled)
+	{
+		for (const UEdMode* Mode : ActiveScriptableModes)
+		{
+			bHandled |= Mode->GetCursor(OutCursor);
+		}
 	}
 	return bHandled;
 }

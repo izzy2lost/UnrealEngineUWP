@@ -10,6 +10,8 @@
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/ManagedArray.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "HAL/PlatformFile.h"
+#include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 
 #include "UnrealUSDWrapper.h"
@@ -91,8 +93,13 @@ UE::ChaosCachingUSD::OpenStage(const FString& StageName, UE::FUsdStage& UsdStage
 {
 	if (!FPaths::FileExists(StageName))
 	{
-		UE_LOG(LogUsd, Error, TEXT("File not found: '%s'"), *StageName);
-		return false;
+		FPlatformFileManager& FileManager = FPlatformFileManager::Get();
+		IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
+		if (!PlatformFile.FileExists(*StageName))
+		{
+			UE_LOG(LogUsd, Error, TEXT("File not found: '%s'"), *StageName);
+			return false;
+		}
 	}
 
 	// USD caches all stages you open/create, unless you tell it not to.
@@ -474,7 +481,7 @@ UE::ChaosCachingUSD::WriteTetMesh(
 	// bool does the same thing.  What's more is that we currently have no consumer for the tet 
 	// topology, so this really doesn't matter.  At least not yet.
 	pxr::UEUsdGeomTetMesh TetMesh = pxr::UEUsdGeomTetMesh::Define(Stage, Path);
-	if (/*TetMesh*/true)
+	if (Tetrahedron->Num())
 	{
 		pxr::UsdPrim Prim = TetMesh.GetPrim();
 
@@ -617,6 +624,31 @@ UE::ChaosCachingUSD::WritePoints(
 	return WritePoints(Stage, PrimPath, Time, VtPoints, VtVels);
 }
 
+bool UE::ChaosCachingUSD::WritePoints(
+	UE::FUsdStage& Stage, 
+	const FString& PrimPath, 
+	const double Time, 
+	const TArray<Chaos::TVector<float, 3>>& Points, 
+	const TArray<Chaos::TVector<float, 3>>& Vels,
+	const FIntVector2& PointsRange)
+{
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+
+	const size_t NumPoints = PointsRange[1];
+
+	pxr::VtArray<pxr::GfVec3f> VtPoints(NumPoints);
+	pxr::VtArray<pxr::GfVec3f> VtVels(NumPoints);
+
+	int32 GlobalIndex = PointsRange[0];
+	for (int32 LocalIndex = 0; LocalIndex < NumPoints; ++LocalIndex, ++GlobalIndex)
+	{
+		VtPoints[LocalIndex].Set(Points[GlobalIndex][0], Points[GlobalIndex][1], Points[GlobalIndex][2]);
+		VtVels[LocalIndex].Set(Vels[GlobalIndex][0], Vels[GlobalIndex][1], Vels[GlobalIndex][2]);
+	}
+
+	return WritePoints(Stage, PrimPath, Time, VtPoints, VtVels);
+}
+
 bool
 UE::ChaosCachingUSD::ReadTimeSamples(
 	const UE::FUsdStage& Stage, 
@@ -746,6 +778,33 @@ UE::ChaosCachingUSD::ReadPoints(
 		Time == -TNumericLimits<double>::Max() ? pxr::UsdTimeCode::Default() : pxr::UsdTimeCode(Time));
 
 	return true;
+}
+
+bool 
+UE::ChaosCachingUSD::ReadPoints(
+	const UE::FUsdStage& Stage,
+	const FString& PrimPath,
+	const FString& AttrPath,
+	const double Time,
+	TArray<Chaos::TVector<Chaos::FRealSingle, 3>>& Points)
+{
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+	pxr::VtArray<pxr::GfVec3f> VtPoints;
+	if (ReadPoints(Stage, PrimPath, AttrPath, Time, VtPoints))
+	{
+		{
+			FScopedUnrealAllocs UEAllocs; // Use UE memory allocator
+			Points.SetNum(VtPoints.size());
+		}
+		int32 i = 0;
+		for (pxr::VtArray<pxr::GfVec3f>::const_iterator it = VtPoints.cbegin(), itEnd = VtPoints.cend(); it != itEnd; ++it)
+		{
+			const pxr::GfVec3f& Pt = *it;
+			Points[i++].Set(Pt[0], Pt[1], Pt[2]);
+		}
+		return true;
+	}
+	return false;
 }
 
 bool

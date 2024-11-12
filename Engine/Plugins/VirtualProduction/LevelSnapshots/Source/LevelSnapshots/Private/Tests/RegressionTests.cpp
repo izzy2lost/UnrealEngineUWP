@@ -17,7 +17,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* FTakeClassDefaultObjectSnapshotArchive used to crash when a class CDO contained a collection of object references. Make sure it does not crash and restores.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersWithObjectReferencesInCDO, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ContainersWithObjectReferencesInCDO", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContainersWithObjectReferencesInCDO, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ContainersWithObjectReferencesInCDO", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FContainersWithObjectReferencesInCDO::RunTest(const FString& Parameters)
 	{
 		AActorWithReferencesInCDO* Actor = nullptr;
@@ -72,7 +72,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*	- Other FBodyInstance properties should still diff and restore correctly
 	*	- After restoration, transient property FCollisionResponse::ResponseToChannels should contain the correct values
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreCollision, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreCollision", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreCollision, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreCollision", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreCollision::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* CustomBlockAllToOverlapAll = nullptr;
@@ -144,7 +144,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Suppose snapshot contains Root > Child and now the hierarchy is Child > Root. This used to cause a crash.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUpdateAttachChildrenInfiniteLoop, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UpdateAttachChildrenInfiniteLoop", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUpdateAttachChildrenInfiniteLoop, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UpdateAttachChildrenInfiniteLoop", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FUpdateAttachChildrenInfiniteLoop::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* Root = nullptr;
@@ -181,7 +181,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Spawn naked AActor and add instanced components. RootComponent needs to be set.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreRootComponent, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreRootComponent", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreRootComponent, "VirtualProduction.LevelSnapshots.Snapshot.Regression.RestoreRootComponent", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreRootComponent::RunTest(const FString& Parameters)
 	{
 		AActor* Actor = nullptr;
@@ -213,7 +213,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	 * Verify that the actor label property is restored
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreActorLabel, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ActorLabelRestores", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreActorLabel, "VirtualProduction.LevelSnapshots.Snapshot.Regression.ActorLabelRestores", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreActorLabel::RunTest(const FString& Parameters)
 	{
 		AActor* KeepActor = nullptr;
@@ -254,7 +254,7 @@ namespace UE::LevelSnapshots::Private::Tests
 
 #if WITH_EDITOR
 	/** Tests that actors implementing AActor::CanDeleteSelectedActor and AActor::IsUserManaged are properly removed. */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUserManagedActors, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UserManagedActors", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUserManagedActors, "VirtualProduction.LevelSnapshots.Snapshot.Regression.UserManagedActors", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FUserManagedActors::RunTest(const FString& Parameters)
 	{
 		int32 NumActorsBeforeModify;
@@ -279,4 +279,67 @@ namespace UE::LevelSnapshots::Private::Tests
 		return true;
 	}
 #endif
+
+	/**
+	 * There used to be a bug in FApplySnapshotFilter::TrackPossibleMapSubobjectProperties would invoke FScriptSetHelper:.GetElementPtr and
+	 * FScriptMapHelper::GetKeyPtr before converting logical indices to internal indices.
+	 * The result was that the following would crash:
+	 * 1. Add an actor that has a UPROPERTY(EditAnywhere, Instanced) TMap<FName, UObject*> property
+	 * 2. Add 3 subobjects to that property
+	 * 3. Remove the middle one
+	 * 4. Diff the snapshot > Crash
+	 */
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstancedSubobjectRemovedFromTMap, "VirtualProduction.LevelSnapshots.Snapshot.Regression.InstancedSubobjectRemovedFromTMap", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	bool FInstancedSubobjectRemovedFromTMap::RunTest(const FString& Parameters)
+	{
+		ASnapshotTestActor* Actor = nullptr;
+		USubobject* Subobject1 = nullptr;
+		USubobject* Subobject2 = nullptr;
+		USubobject* Subobject3 = nullptr;
+		const FName SubobjectName1 = TEXT("Subobject1");
+		const FName SubobjectName2 = TEXT("Subobject2");
+		const FName SubobjectName3 = TEXT("Subobject3");
+		
+		FSnapshotTestRunner()
+			.ModifyWorld([&](UWorld* World)
+			{
+				Actor = ASnapshotTestActor::Spawn(World);
+				Subobject1 = NewObject<USubobject>(Actor, SubobjectName1);
+				Subobject2 = NewObject<USubobject>(Actor, SubobjectName2);
+				Subobject3 = NewObject<USubobject>(Actor, SubobjectName3);
+
+				Subobject1->IntProperty = 1;
+				Subobject2->IntProperty = 2;
+				Subobject3->IntProperty = 3;
+				
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Add(SubobjectName1, Subobject1);
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Add(SubobjectName2, Subobject2);
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Add(SubobjectName3, Subobject3);
+			})
+			.TakeSnapshot()
+			.ModifyWorld([&](UWorld* World)
+			{
+				Actor->EditableInstancedSubobjectMap_OptionalSubobject.Remove(SubobjectName2);
+			})
+			.ApplySnapshot()
+			.ModifyWorld([&](UWorld* World)
+			{
+				const TObjectPtr<USubobject>* Restored1 = Actor->EditableInstancedSubobjectMap_OptionalSubobject.Find(SubobjectName1);
+				const TObjectPtr<USubobject>* Restored2 = Actor->EditableInstancedSubobjectMap_OptionalSubobject.Find(SubobjectName2);
+				const TObjectPtr<USubobject>* Restored3 = Actor->EditableInstancedSubobjectMap_OptionalSubobject.Find(SubobjectName3);
+
+				if (!Restored1 || !Restored2 || !Restored3 || !*Restored1 || !*Restored2 || !*Restored3)
+				{
+					AddError(TEXT("Not all objects where restored"));
+				}
+				else
+				{
+					TestEqual(TEXT("1"), Restored1->Get()->IntProperty, 1);
+					TestEqual(TEXT("2"), Restored2->Get()->IntProperty, 2);
+					TestEqual(TEXT("3"), Restored3->Get()->IntProperty, 3);
+				}
+			});
+
+		return true;
+	}
 }

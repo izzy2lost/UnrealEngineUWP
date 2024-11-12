@@ -2,16 +2,21 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Array.h"
+#include "UObject/NameTypes.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+
+// TraceInsights
 #include "Insights/TaskGraphProfiler/ViewModels/TaskEntry.h"
-#include "Insights/Table/ViewModels/Table.h"
 
-namespace Insights
+namespace UE::Insights { class FTableColumn; }
+
+namespace UE::Insights::TaskGraphProfiler
 {
-
-class FTableColumn;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -69,4 +74,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

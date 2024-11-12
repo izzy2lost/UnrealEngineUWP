@@ -6,6 +6,7 @@
 =============================================================================*/
 #include "GameFramework/Controller.h"
 #include "AI/NavigationSystemBase.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
 #include "NetworkingDistanceConstants.h"
 #include "VisualLogger/VisualLogger.h"
@@ -28,16 +29,27 @@ DEFINE_LOG_CATEGORY(LogPath);
 
 #define LOCTEXT_NAMESPACE "Controller"
 
-namespace ControllerStatics
+namespace UE::Gameplay::CVars
 {
-	static float InvalidControlRotationMagnitude = 8388608.f; // 2^23, largest float when fractions are lost, and where FMod loses meaningful precision.
+	bool bAlwaysNotifyClientOnControllerChange = true;
+	static FAutoConsoleVariableRef CVarAlwaysNotifyClientOnControllerChange(
+		TEXT("Controller.AlwaysNotifyClientOnControllerChange"), bAlwaysNotifyClientOnControllerChange,
+		TEXT("If true, OnRep_Controller and NotifyControllerChanged are always called on the client when a pawn's controller changes.\n")
+		TEXT("If false, use backward compatible controller notification logic that does not handle networking properly."),
+		ECVF_Default);
+
+	float InvalidControlRotationMagnitude = 8388608.f; // 2^23, largest float when fractions are lost, and where FMod loses meaningful precision.
 	static FAutoConsoleVariableRef CVarInvalidControlRotationMagnitude(
 		TEXT("Controller.InvalidControlRotationMagnitude"), InvalidControlRotationMagnitude,
 		TEXT("If any component of an FRotator passed to SetControlRotation is larger than this magnitude, ignore the value. Huge values are usually from uninitialized variables and can cause NaN/Inf to propagate later."),
 		ECVF_Default);
+
+	bool bIsControllerPushBased = false;
+	static FAutoConsoleVariableRef CVarIsControllerPushBased(
+		TEXT("Controller.IsPushBased"), bIsControllerPushBased,
+		TEXT("If true, AController's replicated properties will use push-based networking, and will therefore need to be marked dirty when changed."),
+		ECVF_Default);
 }
-
-
 
 AController::AController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -145,9 +157,9 @@ bool AController::IsValidControlRotation(FRotator CheckRotation) const
 
 	// Really large values can be technically valid but are usually the result of uninitialized values, and those can cause
 	// conversion to FQuat or Vector to fail and generate NaN or Inf.
-	if (FMath::Abs(CheckRotation.Pitch) >= ControllerStatics::InvalidControlRotationMagnitude ||
-		FMath::Abs(CheckRotation.Yaw  ) >= ControllerStatics::InvalidControlRotationMagnitude ||
-		FMath::Abs(CheckRotation.Roll ) >= ControllerStatics::InvalidControlRotationMagnitude)
+	if (FMath::Abs(CheckRotation.Pitch) >= UE::Gameplay::CVars::InvalidControlRotationMagnitude ||
+		FMath::Abs(CheckRotation.Yaw  ) >= UE::Gameplay::CVars::InvalidControlRotationMagnitude ||
+		FMath::Abs(CheckRotation.Roll ) >= UE::Gameplay::CVars::InvalidControlRotationMagnitude)
 	{
 		return false;
 	}
@@ -500,12 +512,22 @@ void AController::AddPawnTickDependency(APawn* NewPawn)
 	}
 }
 
+void AController::SetPawn_Direct(APawn* InPawn)
+{
+	if (UE::Gameplay::CVars::bIsControllerPushBased)
+	{
+		COMPARE_ASSIGN_AND_MARK_PROPERTY_DIRTY(AController, Pawn, InPawn, this);
+		return;
+	}
+
+	Pawn = InPawn;
+}
 
 void AController::SetPawn(APawn* InPawn)
 {
 	RemovePawnTickDependency(Pawn);
 
-	Pawn = InPawn;
+	SetPawn_Direct(InPawn);
 	Character = (Pawn ? Cast<ACharacter>(Pawn) : NULL);
 
 	AttachToPawn(Pawn);
@@ -518,7 +540,7 @@ void AController::SetPawnFromRep(APawn* InPawn)
 	// This function is needed to ensure OnRep_Pawn is called in the case we need to set AController::Pawn
 	// due to APawn::Controller being replicated first. See additional notes in APawn::OnRep_Controller.
 	RemovePawnTickDependency(Pawn);
-	Pawn = InPawn;
+	SetPawn_Direct(InPawn);
 	OnRep_Pawn();
 }
 
@@ -530,6 +552,11 @@ void AController::OnRep_Pawn()
 	{
 		// Set the old controller to NULL, since we are no longer the owner, and can't rely on it replicating to us anymore
 		StrongOldPawn->Controller = nullptr;
+		if (UE::Gameplay::CVars::bAlwaysNotifyClientOnControllerChange)
+		{
+			// This will notify other systems like the game instance
+			StrongOldPawn->OnRep_Controller();
+		}
 	}
 
 	OldPawn = Pawn;
@@ -540,6 +567,17 @@ void AController::OnRep_Pawn()
 	{
 		OnPossessedPawnChanged.Broadcast(StrongOldPawn, Pawn);
 	}
+}
+
+void AController::SetPlayerState(APlayerState* InPlayerState)
+{
+	if (UE::Gameplay::CVars::bIsControllerPushBased)
+	{
+		COMPARE_ASSIGN_AND_MARK_PROPERTY_DIRTY(AController, PlayerState, InPlayerState, this);
+		return;
+	}
+
+	PlayerState = InPlayerState;
 }
 
 void AController::OnRep_PlayerState()
@@ -573,7 +611,7 @@ void AController::Destroyed()
 void AController::CleanupPlayerState()
 {
 	PlayerState->Destroy();
-	PlayerState = NULL;
+	SetPlayerState(NULL);
 }
 
 void AController::InstigatedAnyDamage(float Damage, const class UDamageType* DamageType, class AActor* DamagedActor, class AActor* DamageCauser)
@@ -613,7 +651,7 @@ void AController::InitPlayerState()
 				PlayerStateClassToSpawn = APlayerState::StaticClass();
 			}
 
-			PlayerState = World->SpawnActor<APlayerState>(PlayerStateClassToSpawn, SpawnInfo);
+			SetPlayerState(World->SpawnActor<APlayerState>(PlayerStateClassToSpawn, SpawnInfo));
 	
 			// force a default player name if necessary
 			if (PlayerState && PlayerState->GetPlayerName().IsEmpty())
@@ -760,8 +798,11 @@ void AController::GetLifetimeReplicatedProps( TArray< FLifetimeProperty > & OutL
 {
 	Super::GetLifetimeReplicatedProps( OutLifetimeProps );
 
-	DOREPLIFETIME( AController, PlayerState );
-	DOREPLIFETIME_CONDITION_NOTIFY(AController, Pawn, COND_None, REPNOTIFY_Always);
+	FDoRepLifetimeParams Params;
+	Params.bIsPushBased = UE::Gameplay::CVars::bIsControllerPushBased;
+	DOREPLIFETIME_WITH_PARAMS_FAST(AController, PlayerState, Params);
+	Params.RepNotifyCondition = REPNOTIFY_Always;
+	DOREPLIFETIME_WITH_PARAMS_FAST(AController, Pawn, Params);
 }
 
 bool AController::ShouldParticipateInSeamlessTravel() const

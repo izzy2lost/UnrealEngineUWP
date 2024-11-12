@@ -139,7 +139,7 @@ struct FNegativeSpaceSampleSettings
 		MinSpacing = FMath::Max(0.0, MinSpacing);
 		ReduceRadiusMargin = FMath::Max(0.0, ReduceRadiusMargin);
 		MinRadius = FMath::Max(0.0, MinRadius);
-		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 4096);
+		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 1290);
 	}
 
 	// helper to evaluate OptionalObstacleSDF for local positions
@@ -226,8 +226,8 @@ public:
 		{
 			if (Radius[Idx] < MinRadius)
 			{
-				Radius.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
-				Position.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				Radius.RemoveAtSwap(Idx, EAllowShrinking::No);
+				Position.RemoveAtSwap(Idx, EAllowShrinking::No);
 				--Idx;
 			}
 		}
@@ -275,6 +275,34 @@ public:
 		InitializeFromMesh(SourceMesh, bMergeEdges);
 	}
 
+	struct FPreprocessMeshOptions
+	{
+		// Whether to attempt to merge boundary edges before processing
+		bool bMergeEdges = true;
+
+		// CustomPreprocess takes the mesh to process, and that mesh's bounding box, and updates the mesh in place
+		// Applied after discarding attributes and applying Merge Edges (if enabled)
+		// Can be used e.g. to simplify/repair/solidify the input
+		TUniqueFunction<void(FDynamicMesh3& Mesh, const FAxisAlignedBox3d& Bounds)> CustomPreprocess = nullptr;
+	};
+
+	FConvexDecomposition3(const FDynamicMesh3& SourceMesh, const FPreprocessMeshOptions& Options)
+	{
+		InitializeFromMesh(SourceMesh, Options);
+	}
+
+	/**
+	 * Test whether the input mesh (after preprocessing) is solid. Must be called after initialization, but before decomposition is computed.
+	 */
+	bool IsInputSolid()
+	{
+		if (!ensureMsgf(Decomposition.Num() == 1 && !Decomposition[0].IsCompact(), TEXT("This method must be called after initializing with the input mesh, and before the decomposition has been computed.")))
+		{
+			return false;
+		}
+		return Decomposition[0].InternalGeo.IsClosed();
+	}
+
 	/**
 	 * Initialize from convex hulls allows the caller to only use the hull merging phase of the algorithm
 	 * @param NumHulls			Number of convex hulls in the initial decomposition
@@ -294,6 +322,7 @@ public:
 	GEOMETRYCORE_API void InitializeProximityFromDecompositionBoundingBoxOverlaps(double BoundsExpandByMinDimFactor, double BoundsExpandByMaxDimFactor, double MinBoundsExpand);
 
 	GEOMETRYCORE_API void InitializeFromMesh(const FDynamicMesh3& SourceMesh, bool bMergeEdges);
+	GEOMETRYCORE_API void InitializeFromMesh(const FDynamicMesh3& SourceMesh, const FPreprocessMeshOptions& Options);
 
 	/**
 	 * Initialize convex decomposition with a triangle index mesh
@@ -537,6 +566,7 @@ public:
 	{
 		FConvexPart() {}
 		FConvexPart(const FDynamicMesh3& SourceMesh, bool bMergeEdges, FTransformSRT3d& TransformOut);
+		FConvexPart(const FDynamicMesh3& SourceMesh, const FConvexDecomposition3::FPreprocessMeshOptions& Options, FTransformSRT3d& TransformOut);
 		FConvexPart(TArrayView<const FVector3f> Vertices, TArrayView<const FIntVector3> Faces, bool bMergeEdges, FTransformSRT3d& TransformOut, int32 FaceVertexOffset = 0);
 
 		// Allow direct construction of a compact part (e.g. to allow construction of a pre-existing convex hull)
@@ -637,7 +667,7 @@ public:
 
 	private:
 		// helper to initialize the part from the already-set InternalGeo member; used to support constructors
-		void InitializeFromInternalGeo(bool bMergeEdges, FTransformSRT3d& TransformOut);
+		void InitializeFromInternalGeo(const FConvexDecomposition3::FPreprocessMeshOptions& Preprocess, FTransformSRT3d& TransformOut);
 	};
 
 	// All convex hulls parts in the convex decomposition

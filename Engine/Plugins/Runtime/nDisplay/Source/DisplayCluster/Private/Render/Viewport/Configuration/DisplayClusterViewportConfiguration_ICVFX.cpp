@@ -2,30 +2,31 @@
 
 #include "DisplayClusterViewportConfiguration_ICVFX.h"
 
-#include "DisplayClusterViewportConfiguration.h"
-#include "DisplayClusterViewportConfigurationHelpers.h"
-#include "DisplayClusterViewportConfigurationHelpers_ICVFX.h"
-#include "DisplayClusterViewportConfigurationHelpers_Visibility.h"
-
-#include "DisplayClusterRootActor.h"
+#include "DisplayClusterEnums.h"
 #include "DisplayClusterConfigurationTypes_Viewport.h"
-
-#include "IDisplayClusterProjection.h"
-#include "Render/Projection/IDisplayClusterProjectionPolicy.h"
-#include "Containers/DisplayClusterProjectionCameraPolicySettings.h"
 #include "DisplayClusterProjectionStrings.h"
+#include "DisplayClusterRootActor.h"
+#include "IDisplayClusterProjection.h"
+#include "IPDisplayCluster.h"
 
+#include "Cluster/IPDisplayClusterClusterManager.h"
+#include "Components/DisplayClusterICVFXCameraComponent.h"
+#include "Containers/DisplayClusterProjectionCameraPolicySettings.h"
+
+#include "Misc/DisplayClusterLog.h"
+#include "Misc/DisplayClusterGlobals.h"
+#include "Misc/Parse.h"
+
+#include "Render/Projection/IDisplayClusterProjectionPolicy.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_ICVFX.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Visibility.h"
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
-#include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
-
 #include "Render/Viewport/LightCard/DisplayClusterViewportLightCardManager.h"
-
-#include "Components/DisplayClusterICVFXCameraComponent.h"
-
-#include "Misc/DisplayClusterLog.h"
-#include "Misc/Parse.h"
+#include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,9 +42,9 @@ static FAutoConsoleVariableRef CVarDisplayClusterEnableAlphaChannelRendering(
 ///////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfiguration_ICVFX
 ///////////////////////////////////////////////////////////////////
-bool FDisplayClusterViewportConfiguration_ICVFX::CreateLightcardViewport(FDisplayClusterViewport& BaseViewport)
+bool FDisplayClusterViewportConfiguration_ICVFX::CreateLightcardViewport(FDisplayClusterViewport& BaseViewport, const bool bOverInFrustum)
 {
-	if (FDisplayClusterViewport* LightcardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateLightcardViewport(BaseViewport))
+	if (FDisplayClusterViewport* LightcardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateLightcardViewport(BaseViewport, bOverInFrustum))
 	{
 		// Update lightcard viewport settings
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateLightcardViewportSetting(*LightcardViewport, BaseViewport);
@@ -57,9 +58,9 @@ bool FDisplayClusterViewportConfiguration_ICVFX::CreateLightcardViewport(FDispla
 	return false;
 }
 
-bool FDisplayClusterViewportConfiguration_ICVFX::CreateUVLightcardViewport(FDisplayClusterViewport& BaseViewport)
+bool FDisplayClusterViewportConfiguration_ICVFX::CreateUVLightcardViewport(FDisplayClusterViewport& BaseViewport, const bool bOverInFrustum)
 {
-	if (FDisplayClusterViewport* UVLightCardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateUVLightcardViewport(BaseViewport))
+	if (FDisplayClusterViewport* UVLightCardViewport = FDisplayClusterViewportConfigurationHelpers_ICVFX::GetOrCreateUVLightcardViewport(BaseViewport, bOverInFrustum))
 	{
 		// Update UV LightCard viewport settings
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateLightcardViewportSetting(*UVLightCardViewport, BaseViewport);
@@ -68,7 +69,7 @@ bool FDisplayClusterViewportConfiguration_ICVFX::CreateUVLightcardViewport(FDisp
 		UVLightCardViewport->UpdateConfiguration_ProjectionPolicy();
 
 		// Optimize: re-use UVLightCard viewports with equals OCIO
-		FDisplayClusterViewportConfigurationHelpers_ICVFX::ReuseUVLightCardViewportWithinClusterNode(*UVLightCardViewport);
+		FDisplayClusterViewportConfigurationHelpers_ICVFX::ReuseUVLightCardViewportWithinClusterNode(*UVLightCardViewport, bOverInFrustum);
 
 		return true;
 	}
@@ -127,25 +128,41 @@ void FDisplayClusterViewportConfiguration_ICVFX::Update()
 	if (!EnumHasAnyFlags(TargetViewportsFlags, EDisplayClusterViewportICVFXFlags::DisableLightcard))
 	{
 		// UVLightCard must be enabled in LC manager
-		const bool bUVLightCardEnabled = ViewportManager->LightCardManager->IsUVLightCardEnabled();
+		const bool bUVLightCardOverEnabled = ViewportManager->LightCardManager->IsUVLightCardEnabled(EDisplayClusterUVLightCardType::Over);
+		const bool bUVLightCardUnderEnabled = ViewportManager->LightCardManager->IsUVLightCardEnabled(EDisplayClusterUVLightCardType::Under);
+
+		// per-viewport lightcard use-case
+		const EDisplayClusterViewportICVFXFlags LightcardRenderModeFlags = TargetViewportsFlags & EDisplayClusterViewportICVFXFlags::LightcardRenderModeMask;
+		const bool bLightCardOverEnabled  = LightcardRenderModeFlags != EDisplayClusterViewportICVFXFlags::LightcardAlwaysUnder;
+		const bool bLightCardUnderEnabled = LightcardRenderModeFlags != EDisplayClusterViewportICVFXFlags::LightcardAlwaysOver;
 
 		// Allocate and assign lightcard resources
 		const bool bUseLightCard = StageSettings->Lightcard.ShouldUseLightCard(*StageSettings);
-		const bool bUseUVLightCard = bUVLightCardEnabled && StageSettings->Lightcard.ShouldUseUVLightCard(*StageSettings);
+		const bool bUseUVLightCard = StageSettings->Lightcard.ShouldUseUVLightCard(*StageSettings);
 
 		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& TargetIt : TargetViewports)
 		{
 			// only for support targets
 			if (TargetIt.IsValid() && !EnumHasAnyFlags(TargetIt->GetRenderSettingsICVFX().Flags, EDisplayClusterViewportICVFXFlags::DisableLightcard))
 			{
-				if (bUseLightCard)
+				if (bLightCardOverEnabled && bUseLightCard)
 				{
-					CreateLightcardViewport(*TargetIt);
+					CreateLightcardViewport(*TargetIt, true);
+				}
+				
+				if (bLightCardUnderEnabled && bUseLightCard)
+				{
+					CreateLightcardViewport(*TargetIt, false);
 				}
 
-				if (bUseUVLightCard)
+				if (bUVLightCardOverEnabled && bUseUVLightCard)
 				{
-					CreateUVLightcardViewport(*TargetIt);
+					CreateUVLightcardViewport(*TargetIt, true);
+				}
+
+				if (bUVLightCardUnderEnabled && bUseUVLightCard)
+				{
+					CreateUVLightcardViewport(*TargetIt, false);
 				}
 			}
 		}
@@ -322,8 +339,10 @@ void FDisplayClusterViewportConfiguration_ICVFX::GetAndUpdateStageCameras(const 
 					// Add this target to all cameras visible on it
 					for (FDisplayClusterViewportConfiguration_ICVFXCamera& CameraIt : StageCameras)
 					{
-						if (CameraIt.IsCameraProjectionVisibleOnViewport(TargetIt.Get())
-							&& !CameraIt.GetCameraSettings().HiddenICVFXViewports.ItemNames.Contains(TargetIt->GetId()))
+						const bool bCameraProjectionVisible  = CameraIt.IsCameraProjectionVisibleOnViewport(TargetIt.Get());
+						const bool bIsCameraHiddenOnViewport = CameraIt.GetCameraSettings().HiddenICVFXViewports.ItemNames.Contains(TargetIt->GetId());
+						
+						if (bCameraProjectionVisible && !bIsCameraHiddenOnViewport)
 						{
 							CameraIt.VisibleTargets.Add(TargetIt);
 						}
@@ -332,10 +351,19 @@ void FDisplayClusterViewportConfiguration_ICVFX::GetAndUpdateStageCameras(const 
 			}
 		}
 
+		const bool bIsRunningCluster = GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster;
+		const FString ClusterNodeId  = GDisplayCluster->GetPrivateClusterMgr()->GetNodeId();
+
 		// Create camera resources and initialize target ICVFX viewports
 		for (FDisplayClusterViewportConfiguration_ICVFXCamera& CameraIt : StageCameras)
 		{
-			if (InTargetViewports == nullptr || CameraIt.VisibleTargets.Num() > 0)
+			const FDisplayClusterConfigurationMediaICVFX& MediaSettings = CameraIt.GetCameraSettings().RenderSettings.Media;
+
+			const bool bCameraHasMedia = MediaSettings.bEnable && (
+				MediaSettings.HasAnyMediaInputAssigned(ClusterNodeId, MediaSettings.SplitType) ||
+				MediaSettings.HasAnyMediaOutputAssigned(ClusterNodeId, MediaSettings.SplitType));
+
+			if (InTargetViewports == nullptr || CameraIt.VisibleTargets.Num() > 0 || (bIsRunningCluster && bCameraHasMedia))
 			{
 				CameraIt.Update();
 			}

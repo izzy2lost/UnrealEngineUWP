@@ -18,7 +18,7 @@ public:
 	bool bSyncTakeRecordingTransactions = true;
 
 	UPROPERTY(config,EditAnywhere,BlueprintReadWrite,Category="Multi-user Take Synchronization")
-	bool bTransactTakeMetadata = false;
+	bool bTransactTakeMetadata = true;
 };
 
 USTRUCT()
@@ -27,7 +27,7 @@ struct FTakeRecordSettings
 	GENERATED_BODY();
 
 	UPROPERTY(config,EditAnywhere,Category="Multi-user Client Record Settings")
-	bool bRecordOnClient = true;
+	bool bRecordOnClient = false;
 
 	UPROPERTY(config,EditAnywhere,Category="Multi-user Client Record Settings")
 	bool bTransactSources = true;

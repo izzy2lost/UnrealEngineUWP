@@ -197,29 +197,6 @@ void FNetworkVehicleInputs::ApplyData(UActorComponent* NetworkComponent) const
 				Transmission.SetCurrentGearChangeTime(TransmissionChangeTime);
 			}
 		}
-#if DEBUG_NETWORK_PHYSICS
-		int32 SolverFrame = INDEX_NONE;
-		if (NetworkComponent->GetWorld() && NetworkComponent->GetWorld()->GetPhysicsScene())
-		{
-			if (Chaos::FPhysicsSolver* PhysicsSolver = NetworkComponent->GetWorld()->GetPhysicsScene()->GetSolver())
-			{
-				SolverFrame = PhysicsSolver->GetCurrentFrame();
-			}
-		}
-
-		if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
-		{
-			UE_LOG(LogTemp, Log, TEXT("SERVER | PT | ApplyData | Report replicated inputs at frame %d %d: Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d | VehicleInputs size = %d | ControlInputs size = %d | NetworkInputs = %d"),
-				LocalFrame, SolverFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
-				VehicleInputs.YawInput, VehicleInputs.SteeringInput, VehicleInputs.HandbrakeInput, TransmissionTargetGear, sizeof(FVehicleInputs) * 8, sizeof(FControlInputs) * 8, sizeof(FNetworkVehicleInputs) * 8);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | ApplyData | Report replicated inputs at frame %d %d: Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d"),
-				LocalFrame, SolverFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
-				VehicleInputs.YawInput, VehicleInputs.SteeringInput, VehicleInputs.HandbrakeInput, TransmissionTargetGear);
-		}
-#endif
 	}
 }
 
@@ -241,20 +218,6 @@ void FNetworkVehicleInputs::BuildData(const UActorComponent* NetworkComponent)
 					TransmissionChangeTime = Transmission.GetCurrentGearChangeTime();
 				}
 			}
-#if DEBUG_NETWORK_PHYSICS
-			if(NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
-			{
-				UE_LOG(LogTemp, Log, TEXT("SERVER | PT | BuildData | Extract local inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d"),
-					LocalFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
-					VehicleInputs.YawInput, VehicleInputs.SteeringInput, VehicleInputs.HandbrakeInput, TransmissionTargetGear);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | BuildData | Extract local inputs at frame %d : Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d"),
-					LocalFrame, VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
-					VehicleInputs.YawInput, VehicleInputs.SteeringInput, VehicleInputs.HandbrakeInput, TransmissionTargetGear);
-			}
-#endif
 		}
 	}
 }
@@ -302,6 +265,13 @@ void FNetworkVehicleInputs::DecayData(float DecayAmount)
 	VehicleInputs.RollInput = FMath::Lerp(VehicleInputs.RollInput, 0.0f, DecayAmount);
 	VehicleInputs.SteeringInput = FMath::Lerp(VehicleInputs.SteeringInput, 0.0f, DecayAmount);
 	VehicleInputs.YawInput = FMath::Lerp(VehicleInputs.YawInput, 0.0f, DecayAmount);
+}
+
+const FString FNetworkVehicleInputs::DebugData()
+{
+	return FString::Printf(TEXT("FNetworkVehicleInputs | Throttle = %f Brake = %f Roll = %f Pitch = %f Yaw = %f Steering = %f Handbrake = %f Gear = %d | VehicleInputs size = %zd | ControlInputs size = %zd | NetworkInputs = %zd"),
+			VehicleInputs.ThrottleInput, VehicleInputs.BrakeInput, VehicleInputs.RollInput, VehicleInputs.PitchInput,
+			VehicleInputs.YawInput, VehicleInputs.SteeringInput, VehicleInputs.HandbrakeInput, TransmissionTargetGear, sizeof(FVehicleInputs) * 8, sizeof(FControlInputs) * 8, sizeof(FNetworkVehicleInputs) * 8);
 }
 
 bool FNetworkVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
@@ -354,19 +324,6 @@ void FNetworkVehicleStates::ApplyData(UActorComponent* NetworkComponent) const
 		if (TUniquePtr<Chaos::FSimpleWheeledVehicle>& Vehicle = VehicleSimulation->PVehicle)
 		{
 			Vehicle->GetEngine().SetEngineOmega(EngineOmega);
-
-#if DEBUG_NETWORK_PHYSICS
-			if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
-			{
-				UE_LOG(LogTemp, Log, TEXT("SERVER | PT | ApplyData | Report replicated states at frame %d %d : Omega = %f"),
-					LocalFrame, ServerFrame, EngineOmega);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | ApplyData| Report replicated states at frame %d %d : Omega = %f"),
-					LocalFrame, ServerFrame, EngineOmega);
-			}
-#endif
 		
 			int32 LengthCount = 0;
 			for (int32 WheelIdx = 0, NumWheels = Vehicle->Wheels.Num(); WheelIdx < NumWheels; ++WheelIdx)
@@ -400,18 +357,6 @@ void FNetworkVehicleStates::BuildData(const UActorComponent* NetworkComponent)
 			if (const TUniquePtr<Chaos::FSimpleWheeledVehicle>& Vehicle = VehicleSimulation->PVehicle)
 			{
 				EngineOmega = Vehicle->GetEngine().GetEngineOmega();
-#if DEBUG_NETWORK_PHYSICS
-				if (NetworkComponent->GetWorld()->IsNetMode(NM_ListenServer) || NetworkComponent->GetWorld()->IsNetMode(NM_DedicatedServer))
-				{
-					UE_LOG(LogTemp, Log, TEXT("SERVER | PT | BuildData | Extract local states at frame %d %d : Omega = %f"),
-						LocalFrame, ServerFrame, EngineOmega);
-				}
-				else
-				{
-					UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | BuildData| Extract local states at frame %d %d : Omega = %f"),
-						LocalFrame, ServerFrame, EngineOmega);
-				}
-#endif
 				
 				const int32 NumWheels = Vehicle->Wheels.Num();
 				
@@ -491,4 +436,7 @@ void FNetworkVehicleStates::InterpolateData(const FNetworkPhysicsData& MinData, 
 	}
 }
 
-
+const FString FNetworkVehicleStates::DebugData()
+{
+	return FString::Printf(TEXT("FNetworkVehicleStates | EngineOmega = %f"), EngineOmega);
+}

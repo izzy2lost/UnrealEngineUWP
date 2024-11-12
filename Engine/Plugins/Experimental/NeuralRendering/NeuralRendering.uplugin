@@ -30,7 +30,7 @@
 	],
 	"Plugins": [
 		{
-			"Name": "NNERuntimeRDG",
+			"Name": "NNERuntimeORT",
 			"Enabled": true
 		}
 	]

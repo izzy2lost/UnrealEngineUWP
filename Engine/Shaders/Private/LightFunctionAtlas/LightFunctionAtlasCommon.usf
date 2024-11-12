@@ -23,6 +23,12 @@
 #define FLightFunctionColor float
 #endif
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+#define LightFunctionAtlasSampler	View.SharedBilinearClampedSampler
+#else
+#define LightFunctionAtlasSampler	LightFunctionAtlas.LightFunctionAtlasSampler
+#endif
+
 FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, uint LightFunctionAtlasLightIndex)
 {
 	if (LightFunctionAtlasLightIndex == 0)
@@ -72,6 +78,15 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 		break;
 	}
 
+	case LIGHT_TYPE_RECT:
+	{
+		if (TanOuterAngle > 0.0f)
+		{
+			LightFunctionUV = LightVector.xy / (LightVector.z * TanOuterAngle) * .5f + .5f;
+		}
+		break;
+	}
+
 	//case LIGHT_TYPE_RECT:
 	//case LIGHT_TYPE_DIRECTIONAL:
 	default:
@@ -88,9 +103,9 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 	float2 AtlasUV = Slot_MinUV + saturate(LightFunctionUV) * LightFunctionAtlas.Slot_UVSize.xx;
 
 #if COLORED_LIGHT_FUNCTION_ATLAS
-	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).rgb;
+	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlasSampler, AtlasUV, 0).rgb;
 #else
-	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).x;
+	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlasSampler, AtlasUV, 0).x;
 #endif
 	LightFunctionColor = LightFunctionColor * LightFunctionColor; // Simple Gamma decompression
 

@@ -91,7 +91,7 @@ public:
 		}
 	}
 
-	inline bool AssignD3D11RenderTarget(FRHITexture2D* RenderTargetTexture)
+	inline bool AssignD3D11RenderTarget(FRHITexture* RenderTargetTexture)
 	{
 		if (DeviceContext)
 		{
@@ -186,7 +186,7 @@ bool FDisplayClusterProjectionVIOSOPolicyViewData::UpdateVIOSO(IDisplayClusterVi
 	return false;
 }
 
-bool FDisplayClusterProjectionVIOSOPolicyViewData::RenderVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* ShaderResourceTexture, FRHITexture2D* RenderTargetTexture)
+bool FDisplayClusterProjectionVIOSOPolicyViewData::RenderVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* ShaderResourceTexture, FRHITexture* RenderTargetTexture)
 {
 	check(IsInRenderingThread());
 
@@ -255,7 +255,7 @@ bool FDisplayClusterProjectionVIOSOPolicyViewData::RenderVIOSO_RenderThread(FRHI
 	return false;
 }
 
-bool FDisplayClusterProjectionVIOSOPolicyViewData::InitializeVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* RenderTargetTexture)
+bool FDisplayClusterProjectionVIOSOPolicyViewData::InitializeVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* RenderTargetTexture)
 {
 #if WITH_VIOSO_LIBRARY
 

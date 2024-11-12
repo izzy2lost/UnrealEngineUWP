@@ -5,7 +5,7 @@
 #include "Animation/AnimComposite.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Internationalization/Regex.h"
 #include "PoseSearchDebuggerDatabaseRow.h"
 #include "PoseSearchDebuggerView.h"
@@ -216,8 +216,7 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 			}
 		}
 
-		const FInstancedStruct& DatabaseAssetStruct = Database->GetAnimationAssetStruct(*SearchIndexAsset);
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
 		{
 			const float PlayLength = DatabaseAsset->GetPlayLength();
 			UObject* AnimationAsset = DatabaseAsset->GetAnimationAsset();
@@ -617,7 +616,7 @@ void SDebuggerDatabaseView::PopulateViewRows()
 {
 	ActiveView.Rows.Reset();
 	ContinuingPoseView.Rows.Reset();
-	FilteredDatabaseView.Rows.Empty();
+	FilteredDatabaseView.Rows.Reset();
 
 	const int32 UnfilteredDatabaseRowsNum = UnfilteredDatabaseRows.Num();
 	if (UnfilteredDatabaseRowsNum > 0)

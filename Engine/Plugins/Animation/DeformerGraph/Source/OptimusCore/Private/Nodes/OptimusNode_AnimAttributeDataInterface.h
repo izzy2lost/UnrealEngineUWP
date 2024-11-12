@@ -6,6 +6,7 @@
 
 #include "OptimusNode_AnimAttributeDataInterface.generated.h"
 
+// Deprecated
 UCLASS(Hidden)
 class UOptimusNode_AnimAttributeDataInterface :
 	public UOptimusNode_DataInterface
@@ -22,7 +23,6 @@ public:
 	void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 
-	void RecreateValueContainers();
 
 	virtual void OnDataTypeChanged(FName InTypeName) override;
 

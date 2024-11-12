@@ -150,7 +150,7 @@ FRDGTextureRef CreateCardAtlas(FRDGBuilder& GraphBuilder, const FIntPoint PageAt
 	return GraphBuilder.CreateTexture(CreateInfo, Name);
 }
 
-void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries)
+void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneViewFamily* ViewFamily)
 {
 	const FIntPoint PageAtlasSize = GetPhysicalAtlasSize();
 
@@ -187,10 +187,36 @@ void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenScene
 	FrameTemporaries.FinalLightingAtlas = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(
 			PageAtlasSize,
-			PF_FloatR11G11B10,
+			Lumen::GetLightingDataFormat(),
 			FClearValueBinding::Black,
 			TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
 		), TEXT("Lumen.SceneFinalLighting"));
+
+	const FIntPoint PageAtlasSizeInTiles = PageAtlasSize / Lumen::CardTileSize;
+	FrameTemporaries.TileShadowDownsampleFactorAtlas = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateBufferDesc(
+			sizeof(uint32),
+			PageAtlasSizeInTiles.X * PageAtlasSizeInTiles.Y * Lumen::CardTileShadowDownsampleFactorDwords
+		), TEXT("Lumen.TileShadowDownsampleFactorAtlas"));
+
+	if (LumenSceneDirectLighting::UseStochasticLighting(*ViewFamily))
+	{
+		FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(
+				PageAtlasSize,
+				PF_FloatRGBA,
+				FClearValueBinding::Black,
+				TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
+		), TEXT("Lumen.SceneDirectLighting.DiffuseLightingAndSecondMomentHistory"));
+
+		FrameTemporaries.NumFramesAccumulatedHistoryAtlas = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(
+				PageAtlasSize,
+				PF_G8,
+				FClearValueBinding::Black,
+				TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
+		), TEXT("Lumen.SceneDirectLighting.NumFramesAccumulatedHistory"));
+	}
 }
 
 // Copy captured cards into surface cache. Possibly with compression. Has three paths:
@@ -277,6 +303,8 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 				PermutationVector.Set<FLumenCardCopyPS::FCompress>(true);
 				auto PixelShader = View.ShaderMap->GetShader<FLumenCardCopyPS>(PermutationVector);
 
+				const ERDGPassFlags AdditionalRenderPassFlags = (PassParameters->RenderTargets.GetActiveCount() == 0) ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None;
+
 				FPixelShaderUtils::AddRasterizeToRectsPass<FLumenCardCopyPS>(GraphBuilder,
 					View.ShaderMap,
 					RDG_EVENT_NAME("CompressToSurfaceCache %s", LayerConfig.Name),
@@ -292,7 +320,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 					/*TextureSize*/ CompressedCardCaptureAtlasSize,
 					/*RectUVBufferSRV*/ CardCaptureRectBufferSRV,
 					/*DownsampleFactor*/ 4,
-					/*SkipRenderPass*/ (PassParameters->RenderTargets.GetActiveCount()==0));
+					AdditionalRenderPassFlags);
 			}
 		}
 		else if (PhysicalAtlasCompression == ESurfaceCacheCompression::CopyTextureRegion && LayerConfig.CompressedFormat != PF_Unknown)
@@ -327,6 +355,8 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 				PermutationVector.Set<FLumenCardCopyPS::FCompress>(true);
 				auto PixelShader = View.ShaderMap->GetShader<FLumenCardCopyPS>(PermutationVector);
 
+				const ERDGPassFlags AdditionalRenderPassFlags = (PassParameters->RenderTargets.GetActiveCount() == 0) ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None;
+
 				FPixelShaderUtils::AddRasterizeToRectsPass<FLumenCardCopyPS>(GraphBuilder,
 					View.ShaderMap,
 					RDG_EVENT_NAME("CompressToTemp %s", LayerConfig.Name),
@@ -342,7 +372,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 					/*TextureSize*/ TempAtlasSize,
 					/*RectUVBufferSRV*/ nullptr,
 					/*DownsampleFactor*/ 4,
-					/*SkipRenderPass*/ (PassParameters->RenderTargets.GetActiveCount() == 0));
+					AdditionalRenderPassFlags);
 			}
 
 			// Copy from temporary atlas to surface cache
@@ -355,7 +385,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 					RDG_EVENT_NAME("CopyTempToSurfaceCache %s", LayerConfig.Name),
 					Parameters,
 					ERDGPassFlags::Copy,
-					[&CardPagesToRender, InputTexture = TempAtlas, OutputTexture = Pass.SurfaceCacheAtlas](FRHICommandList& RHICmdList)
+					[&CardPagesToRender, InputTexture = TempAtlas, OutputTexture = Pass.SurfaceCacheAtlas](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					for (int32 PageIndex = 0; PageIndex < CardPagesToRender.Num(); ++PageIndex)
 					{
@@ -432,11 +462,16 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 
 		PassParameters->PS.View = View.ViewUniformBuffer;
 		PassParameters->PS.DiffuseColorBoost = 1.0f / FMath::Max(View.FinalPostProcessSettings.LumenDiffuseColorBoost, 1.0f);
+		const FIntPoint CardCaptureAtlasSizeInTiles = CardCaptureAtlasSize / Lumen::CardTileSize;
+		PassParameters->PS.CardCaptureAtlasSizeInTiles = FUintVector2(CardCaptureAtlasSizeInTiles.X, CardCaptureAtlasSizeInTiles.Y);
+		PassParameters->PS.OutputAtlasWidthInTiles = PhysicalAtlasSize.X / Lumen::CardTileSize;
 		PassParameters->PS.AlbedoCardCaptureAtlas = CardCaptureAtlas.Albedo;
 		PassParameters->PS.EmissiveCardCaptureAtlas = CardCaptureAtlas.Emissive;
 		PassParameters->PS.DirectLightingCardCaptureAtlas = ResampledCardCaptureAtlas.DirectLighting;
 		PassParameters->PS.RadiosityCardCaptureAtlas = ResampledCardCaptureAtlas.IndirectLighting;
 		PassParameters->PS.RadiosityNumFramesAccumulatedCardCaptureAtlas = ResampledCardCaptureAtlas.NumFramesAccumulated;
+		PassParameters->PS.TileShadowDownsampleFactorAtlasForResampling = bResample ? GraphBuilder.CreateSRV(ResampledCardCaptureAtlas.TileShadowDownsampleFactor, PF_R32G32B32A32_UINT) : nullptr;
+		PassParameters->PS.RWTileShadowDownsampleFactorAtlas = GraphBuilder.CreateUAV(FrameTemporaries.TileShadowDownsampleFactorAtlas, PF_R32G32B32A32_UINT);
 
 		FCopyCardCaptureLightingToAtlasPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FCopyCardCaptureLightingToAtlasPS::FIndirectLighting>(bRadiosityEnabled);
@@ -603,7 +638,7 @@ void FDeferredShadingSceneRenderer::ClearLumenSurfaceCacheAtlas(
 					RDG_EVENT_NAME("CopyToSurfaceCache %s", LayerConfig.Name),
 					Parameters,
 					ERDGPassFlags::Copy,
-					[InputTexture = TempAtlas, PhysicalAtlasSize, TempAtlasSize, OutputTexture = Pass.SurfaceCacheAtlas](FRHICommandList& RHICmdList)
+					[InputTexture = TempAtlas, PhysicalAtlasSize, TempAtlasSize, OutputTexture = Pass.SurfaceCacheAtlas](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					const int32 NumTilesX = FMath::DivideAndRoundDown(PhysicalAtlasSize.X / 4, TempAtlasSize.X);
 					const int32 NumTilesY = FMath::DivideAndRoundDown(PhysicalAtlasSize.Y / 4, TempAtlasSize.Y);
@@ -640,4 +675,5 @@ void FDeferredShadingSceneRenderer::ClearLumenSurfaceCacheAtlas(
 	AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
 	AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
 	AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(FrameTemporaries.TileShadowDownsampleFactorAtlas, PF_R32_UINT), 0);
 }

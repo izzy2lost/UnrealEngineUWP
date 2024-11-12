@@ -49,8 +49,17 @@ void FJsonDataBag::Serialize(FJsonSerializerBase& Serializer, bool bFlatObject)
 						{
 							// if we have an array, serialize to string and write raw
 							FString JsonStr;
-							auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&JsonStr);
-							FJsonSerializer::Serialize(JsonValue->AsArray(), Writer);
+							if (NumPrintIndents.IsSet())
+							{
+								auto Writer = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&JsonStr, *NumPrintIndents);
+								FJsonSerializer::Serialize(JsonValue->AsArray(), Writer);
+							}
+							else
+							{
+								auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&JsonStr);
+								FJsonSerializer::Serialize(JsonValue->AsArray(), Writer);
+							}
+							
 							Serializer.WriteIdentifierPrefix(*It.Key);
 							Serializer.WriteRawJSONValue(*JsonStr);
 							break;
@@ -59,8 +68,18 @@ void FJsonDataBag::Serialize(FJsonSerializerBase& Serializer, bool bFlatObject)
 						{
 							// if we have an object, serialize to string and write raw
 							FString JsonStr;
-							auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&JsonStr);
-							FJsonSerializer::Serialize(JsonValue->AsObject().ToSharedRef(), Writer);
+
+							if (NumPrintIndents.IsSet())
+							{
+								auto Writer = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&JsonStr, *NumPrintIndents);
+								FJsonSerializer::Serialize(JsonValue->AsObject().ToSharedRef(), Writer);
+							}
+							else
+							{
+								auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&JsonStr);
+								FJsonSerializer::Serialize(JsonValue->AsObject().ToSharedRef(), Writer);
+							}
+
 							// too bad there's no JsonObject serialization method on FJsonSerializerBase directly :-/
 							Serializer.WriteIdentifierPrefix(*It.Key);
 							Serializer.WriteRawJSONValue(*JsonStr);

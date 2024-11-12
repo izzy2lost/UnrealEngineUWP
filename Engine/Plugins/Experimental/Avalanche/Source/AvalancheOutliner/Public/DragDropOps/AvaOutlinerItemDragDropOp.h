@@ -37,7 +37,7 @@ public:
 	}
 
 	/** Retrieves the Actors found in the DragDropOp, assuming this is of type FAvaOutlinerItemDragDropOp */
-	static void GetDragDropOpActors(TSharedPtr<FDragDropOperation> InDragDropOp, TArray<TWeakObjectPtr<AActor>>& OutActors);
+	AVALANCHEOUTLINER_API void GetDragDropOpActors(TArray<TWeakObjectPtr<AActor>>& OutActors) const;
 
 	/** Called when the FAvaOutlinerItemDragDropOp has been created and Initialized in FAvaOutlinerItemDragDropOp::Init */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnItemDragDropOpInitialized, FAvaOutlinerItemDragDropOp&)

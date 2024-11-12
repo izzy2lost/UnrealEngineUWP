@@ -45,7 +45,7 @@ SDetailsViewBase::SDetailsViewBase() :
 	}
 
 	// RequestForceRefresh is deferred until next tick to avoid the editor locking up for several minutes in one frame when refreshing multiple times
-	PropertyPermissionListChangedDelegate = FPropertyEditorPermissionList::Get().PermissionListUpdatedDelegate.AddLambda([this](TSoftObjectPtr<UStruct> Struct, FName Owner) { RequestForceRefresh(); });
+	PropertyPermissionListChangedDelegate = FPropertyEditorPermissionList::Get().PermissionListUpdatedDelegate.AddLambda([this](TSoftObjectPtr<const UStruct> Struct, FName Owner) { RequestForceRefresh(); });
 	PropertyPermissionListEnabledDelegate = FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddRaw(this, &SDetailsViewBase::RequestForceRefresh);
 }
 
@@ -488,7 +488,7 @@ EVisibility SDetailsViewBase::GetTreeVisibility() const
 		}
 	}
 
-	return EVisibility::Collapsed;
+	return DetailTree->IsPendingRefresh() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SDetailsViewBase::GetScrollBarVisibility() const
@@ -599,10 +599,6 @@ void SDetailsViewBase::UpdatePropertyMaps()
 
 	for(FDetailLayoutData& LayoutData : DetailLayouts)
 	{
-		// Check uniqueness.  It is critical that detail layouts can be destroyed
-		// We need to be able to create a new detail layout and properly clean up the old one in the process
-		check(!LayoutData.DetailLayout.IsValid() || LayoutData.DetailLayout.IsUnique());
-
 		// Allow customizations to perform cleanup as the delete occurs later on
 		for (TSharedPtr<IDetailCustomization>& DetailCustomization : LayoutData.CustomizationClassInstances)
 		{
@@ -759,6 +755,11 @@ void SDetailsViewBase::SetKeyframeHandler( TSharedPtr<class IDetailKeyframeHandl
 void SDetailsViewBase::SetExtensionHandler(TSharedPtr<class IDetailPropertyExtensionHandler> InExtensionHandler)
 {
 	ExtensionHandler = InExtensionHandler;
+}
+
+void SDetailsViewBase::SetChildrenCustomizationHandler(TSharedPtr<IDetailPropertyChildrenCustomizationHandler> InChildrenHandler)
+{
+	ChildrenCustomizationHandler = InChildrenHandler;
 }
 
 void SDetailsViewBase::SetGenericLayoutDetailsDelegate(FOnGetDetailCustomizationInstance OnGetGenericDetails)
@@ -1536,7 +1537,7 @@ void SDetailsViewBase::SaveExpandedItems(TSharedRef<FPropertyNode> StartNode)
 	}
 }
 
-void SDetailsViewBase::RestoreAllExpandedItems()
+void SDetailsViewBase::RestoreAllExpandedItems(TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SDetailsViewBase::RestoreAllExpandedItems);
 
@@ -1551,7 +1552,7 @@ void SDetailsViewBase::RestoreAllExpandedItems()
 	for (TSharedPtr<FComplexPropertyNode>& RootPropertyNode : GetRootNodes())
 	{
 		check(RootPropertyNode.IsValid());
-		RestoreExpandedItems(RootPropertyNode.ToSharedRef());
+		RestoreExpandedItems(RootPropertyNode.ToSharedRef(), OptionalExpansionStates);
 	}
 
 	for (FDetailLayoutData& LayoutData : DetailLayouts)
@@ -1560,12 +1561,17 @@ void SDetailsViewBase::RestoreAllExpandedItems()
 		for (TSharedPtr<FComplexPropertyNode>& ExternalRootPropertyNode : ExternalRootPropertyNodes)
 		{
 			check(ExternalRootPropertyNode.IsValid());
-			RestoreExpandedItems(ExternalRootPropertyNode.ToSharedRef());
+			RestoreExpandedItems(ExternalRootPropertyNode.ToSharedRef(), OptionalExpansionStates);
 		}
 	}
 }
 
 void SDetailsViewBase::RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode)
+{
+	RestoreExpandedItems(StartNode, nullptr);
+}
+
+void SDetailsViewBase::RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode, TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates)
 {
 	if (bRunningDeferredActions)
 	{
@@ -1577,17 +1583,28 @@ void SDetailsViewBase::RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode)
 
 	UStruct* BestBaseStruct = StartNode->FindComplexParent()->GetBaseStructure();
 
-	//while a valid class, and we're either the same as the base class (for multiple actors being selected and base class is AActor) OR we're not down to AActor yet)
-	TArray<FString> DetailPropertyExpansionStrings;
-	for (UStruct* Struct = BestBaseStruct; Struct && ((BestBaseStruct == Struct) || (Struct != AActor::StaticClass())); Struct = Struct->GetSuperStruct())
+	if (OptionalExpansionStates)
 	{
-		GConfig->GetSingleLineArray(TEXT("DetailPropertyExpansion"), *Struct->GetName(), DetailPropertyExpansionStrings, GEditorPerProjectIni);
+		const FStringPrefixTree* PrefixTree = OptionalExpansionStates->Find(BestBaseStruct);
+		if (PrefixTree)
+		{
+			SetExpandedItems(StartNode, *PrefixTree, false);
+		}
 	}
+	else
+	{
+		//while a valid class, and we're either the same as the base class (for multiple actors being selected and base class is AActor) OR we're not down to AActor yet)
+		TArray<FString> DetailPropertyExpansionStrings;
+		for (UStruct* Struct = BestBaseStruct; Struct && ((BestBaseStruct == Struct) || (Struct != AActor::StaticClass())); Struct = Struct->GetSuperStruct())
+		{
+			GConfig->GetSingleLineArray(TEXT("DetailPropertyExpansion"), *Struct->GetName(), DetailPropertyExpansionStrings, GEditorPerProjectIni);
+		}
 
-	FStringPrefixTree PrefixTree;
-	PrefixTree.InsertAll(DetailPropertyExpansionStrings);
+		FStringPrefixTree PrefixTree;
+		PrefixTree.InsertAll(DetailPropertyExpansionStrings);
 
-	SetExpandedItems(StartNode, PrefixTree, false);
+		SetExpandedItems(StartNode, PrefixTree, false);
+	}
 
 	if (BestBaseStruct)
 	{

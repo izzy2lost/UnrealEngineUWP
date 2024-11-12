@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorSoundWave.generated.h"
 
 class ULoudnessNRT;
@@ -12,13 +12,11 @@ class USoundWave;
  * Applies a sampled sound wave movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorSoundWave : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorSoundWave : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("SoundWave");
-
 	UPropertyAnimatorSoundWave();
 
 	PROPERTYANIMATOR_API void SetSampledSoundWave(USoundWave* InSoundWave);
@@ -43,7 +41,10 @@ protected:
 	void OnSampledSoundWaveChanged();
 
 	//~ Begin UPropertyAnimatorFloatBase
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
 	//~ End UPropertyAnimatorFloatBase
 
 	/**

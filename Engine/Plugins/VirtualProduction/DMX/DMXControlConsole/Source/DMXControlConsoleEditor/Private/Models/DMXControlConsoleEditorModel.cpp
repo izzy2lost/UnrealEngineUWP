@@ -18,11 +18,13 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorModel"
 
-void UDMXControlConsoleEditorModel::Initialize(const TSharedPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit>& InToolkit)
+void UDMXControlConsoleEditorModel::Initialize(UDMXControlConsole* InControlConsole)
 {
-	checkf(InToolkit.IsValid(), TEXT("Invalid control console toolkit, can't initialize toolkit correctly."));
-	WeakToolkit = InToolkit;
-	ControlConsole = InToolkit->GetControlConsole();
+	if (!ensureMsgf(InControlConsole, TEXT("Invalid control console, can't initialize editor model correctly.")))
+	{
+		return;
+	}
+	ControlConsole = InControlConsole;
 
 	InitializeEditorLayouts();
 	InitializeEditorData();
@@ -112,18 +114,38 @@ void UDMXControlConsoleEditorModel::UpdateEditorModel()
 void UDMXControlConsoleEditorModel::BindToDMXLibraryChanges()
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-	if (ControlConsoleData && !ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
+	if (!ControlConsoleData)
+	{
+		return;
+	}
+
+	if (!ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
 	{
 		ControlConsoleData->GetOnDMXLibraryChanged().AddUObject(this, &UDMXControlConsoleEditorModel::OnDMXLibraryChanged);
+	}
+
+	if (!ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	{
+		ControlConsoleData->GetOnFaderGroupAdded().AddUObject(this, &UDMXControlConsoleEditorModel::OnFaderGroupAddedToData);
 	}
 }
 
 void UDMXControlConsoleEditorModel::UnbindFromDMXLibraryChanges()
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-	if (ControlConsoleData && ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
+	if (!ControlConsoleData)
+	{
+		return;
+	}
+
+	if (ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
 	{
 		ControlConsoleData->GetOnDMXLibraryChanged().RemoveAll(this);
+	}
+
+	if (ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	{
+		ControlConsoleData->GetOnFaderGroupAdded().RemoveAll(this);
 	}
 }
 
@@ -146,7 +168,8 @@ void UDMXControlConsoleEditorModel::InitializeEditorData() const
 
 void UDMXControlConsoleEditorModel::InitializeEditorLayouts() const
 {
-	if (!ControlConsole.IsValid())
+	const UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
+	if (!ControlConsole.IsValid() || !ControlConsoleData)
 	{
 		return;
 	}
@@ -161,8 +184,13 @@ void UDMXControlConsoleEditorModel::InitializeEditorLayouts() const
 		ControlConsoleLayouts->SetActiveLayout(&ControlConsoleLayouts->GetDefaultLayoutChecked());
 	}
 
+	// Update the Default layout if it's not synched to the Control Console Data
 	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = ControlConsoleLayouts->GetDefaultLayoutChecked();
-	if (DefaultLayout.GetLayoutRows().IsEmpty())
+	const bool bUpdateDefaultLayout = 
+		(!DefaultLayout.GetLayoutRows().IsEmpty() && ControlConsoleData->GetFaderGroupRows().IsEmpty()) ||
+		(DefaultLayout.GetLayoutRows().IsEmpty() && !ControlConsoleData->GetFaderGroupRows().IsEmpty() && ControlConsoleData->GetDMXLibrary());
+
+	if(bUpdateDefaultLayout)
 	{
 		ControlConsoleLayouts->UpdateDefaultLayout();
 		ControlConsoleLayouts->SetActiveLayout(&DefaultLayout);
@@ -205,7 +233,7 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		return;
 	}
 
-	// Clear all the user layouts from patched fader groups
+	// Clear all the user layouts from patched fader group controllers
 	const TArray<UDMXControlConsoleEditorGlobalLayoutBase*>& UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 	for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 	{
@@ -215,8 +243,11 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		}
 
 		UserLayout->PreEditChange(nullptr);
-		constexpr bool bClearOnlyPatchedFaderGroupControllers = true;
-		UserLayout->ClearAll(bClearOnlyPatchedFaderGroupControllers);
+
+		constexpr bool bClearPatchedControllers = true;
+		constexpr bool bClearUnpatchedControllers = false;
+		UserLayout->ClearAll(bClearPatchedControllers, bClearUnpatchedControllers);
+
 		UserLayout->PostEditChange();
 	}
 
@@ -238,7 +269,12 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 	RequestUpdateEditorModel();
 }
 
-void UDMXControlConsoleEditorModel::OnEnginePreExit()
+void UDMXControlConsoleEditorModel::OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup)
+{
+	RequestUpdateEditorModel();
+}
+
+void UDMXControlConsoleEditorModel::OnEnginePreExit() const
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
 	if (ControlConsoleData)

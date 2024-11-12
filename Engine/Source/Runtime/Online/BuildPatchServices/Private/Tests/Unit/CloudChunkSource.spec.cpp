@@ -29,7 +29,7 @@ namespace BuildPatchServices
 {
 	typedef TPlatform<FMockPlatformProcess, FMockPlatformMisc> FMockPlatform;
 }
-BEGIN_DEFINE_SPEC(FCloudChunkSourceSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FCloudChunkSourceSpec, "BuildPatchServices.Unit", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 // Unit.
 TUniquePtr<BuildPatchServices::ICloudChunkSource> CloudChunkSource;
 TUniquePtr<BuildPatchServices::FBuildInstallerSharedContext> InstallerSharedContext;

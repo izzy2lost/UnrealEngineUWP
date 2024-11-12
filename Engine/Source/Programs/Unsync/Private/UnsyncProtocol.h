@@ -18,6 +18,8 @@
 
 namespace unsync {
 
+static constexpr uint32 MAX_BLOCK_SIZE = uint32(1_MB);
+
 enum class EChunkingAlgorithmID : uint64
 {
 	Invalid		   = 0,
@@ -71,11 +73,18 @@ using FBlock256 = TBlock<FHash256>;
 using FGenericBlock = TBlock<FGenericHash>;
 using FGenericBlockArray = std::vector<FGenericBlock>;
 
+// Json formatting helpers
+void FormatJsonBlock(std::wstring& Output, const FGenericBlock& Block);
+void FormatJsonBlock(std::string& Output, const FGenericBlock& Block);
+void FormatJsonBlockArray(std::wstring& Output, const FGenericBlockArray& Blocks);
+void FormatJsonBlockArray(std::string& Output, const FGenericBlockArray& Blocks);
+
 static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR			= 0;
 static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING		= 0xC6BD6CDCEEF79533ull;
 static constexpr uint64 SERIALIZED_SECTION_ID_MACRO_BLOCK			= 0x8390AEBB745E08BCull;
 static constexpr uint64 SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK	= 0x851F32ED3615F0ADull;
-static constexpr uint64 SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL = 0X2C1C72E6B78B1B50ull;
+static constexpr uint64 SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL = 0x2C1C72E6B78B1B50ull;
+static constexpr uint64 SERIALIZED_SECTION_ID_PACK_REFERENCE		= 0x634EA57F1E48DFBDull;
 
 struct FSerializedSectionHeader
 {
@@ -110,6 +119,12 @@ struct FFileRevisionControlSection
 {
 	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL;
 	static constexpr uint64 VERSION = 1;
+};
+
+struct FPackReferenceSection
+{
+	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_PACK_REFERENCE;
+	static constexpr uint64 VERSION = 3;
 };
 
 struct FBlockFileHeader
@@ -178,8 +193,8 @@ struct FRequestBlocksPacket
 struct FBlockPacket
 {
 	FHash128 Hash			  = {};
-	uint64	 DecompressedSize = 0;
-	FBuffer	 CompressedData;
+	uint64	 DecompressedSize = 0; // 0 if data is not compressed
+	FBuffer	 Data;
 };
 
 struct FPatchHeader
@@ -202,6 +217,62 @@ struct FPatchHeader
 	EStrongHashAlgorithmID StrongHashAlgorithmId	 = EStrongHashAlgorithmID::Blake3_128;
 };
 
+struct FPackIndexEntry
+{
+	// Decompressed block hash
+	FHash128 BlockHash		 = {};
+	// Compressed block hash (may be equal to BlockHash to signal uncompressed block)
+	FHash128 CompressedHash	 = {};
+
+	// Offset and size within pack file
+	uint32	 PackBlockOffset = 0;
+	uint32	 PackBlockSize	 = 0;
+};
+static_assert(sizeof(FPackIndexEntry) == 40);
+
+struct FPackIndexHeader
+{
+	static constexpr uint64 MAGIC	= 0xEEC735E03053CC3Full;
+	static constexpr uint64 VERSION = 2;
+
+	uint64 Magic	  = MAGIC;
+	uint64 Version	  = VERSION;
+	uint64 NumEntries = 0;
+};
+static_assert(sizeof(FPackIndexHeader) == 24);
+
+enum class EPackReferenceFlags : uint32 {
+	Default				= 0,
+	HasRawBlocks		= 1 << 0,
+	HasCompressedBlocks = 1 << 1,
+};
+UNSYNC_ENUM_CLASS_FLAGS(EPackReferenceFlags, uint32);
+
+// Basic information about a pack file referenced by a manifest
+struct FPackReference
+{
+	using EFlags = EPackReferenceFlags;
+
+	bool operator==(const FPackReference& Other) const { return 
+		Id == Other.Id && Flags == Other.Flags
+		&& NumUsedBlocks == Other.NumUsedBlocks
+		&& NumTotalBlocks == Other.NumTotalBlocks; }
+	struct Hasher
+	{
+		size_t operator()(const FPackReference& X) const
+		{
+			FHash128::Hasher H;
+			return H(X.Id);
+		}
+	};
+
+	FHash128 Id				= {};
+	EFlags	 Flags			= EFlags::Default;
+	uint32	 NumUsedBlocks	= 0;
+	uint32	 NumTotalBlocks = 0;
+};
+static_assert(sizeof(FPackReference) == 28);
+
 // Protocol V2: support for up to 256bit hashes
 
 struct FBlockRequest256
@@ -217,6 +288,16 @@ struct FBlockPacket256
 	FHash256 Hash;
 	uint64	 DecompressedSize = 0;
 	FBuffer	 CompressedData;
+};
+
+struct FHordeUnsyncBlobHeaderV1
+{
+	static constexpr uint64 MAGIC = 0x4C5C2AABA992610Cull;
+
+	uint64 Magic = 0;
+	uint64 PayloadSize = 0;
+	uint64 DecompressedSize = 0;
+	FHash160 DecompressedHash = {};
 };
 
 }  // namespace unsync

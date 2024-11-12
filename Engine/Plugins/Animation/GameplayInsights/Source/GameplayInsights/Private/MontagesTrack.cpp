@@ -251,7 +251,7 @@ static FLinearColor MakeMontageCurveColor(uint32 InSeed, bool bInLine = false)
 
 TSharedPtr<SWidget> FMontageTrack::GetTimelineViewInternal()
 {
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 	switch(CurveType)
 	{
 	case ECurveType::BlendWeight:

@@ -19,8 +19,8 @@ namespace Jupiter
 		/// </summary>
 		[Required]
 		[Range(15, int.MaxValue)]
-		public int ReplicationPollFrequencySeconds { get; set; } = 15;
-		
+		public int ReplicationPollFrequencySeconds { get; set; } = 60;
+
 		[Required]
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
 		// ReSharper disable once CollectionNeverUpdated.Global
@@ -81,7 +81,8 @@ namespace Jupiter
 
 	public enum ReplicatorVersion
 	{
-		Refs
+		Refs,
+		Blobs
 	}
 
 	public class ServiceCredentialSettings
@@ -110,5 +111,10 @@ namespace Jupiter
 		/// The authentication scheme to use for this token
 		/// </summary>
 		public string SchemeName { get; set; } = "Bearer";
+
+		/// <summary>
+		/// The access token to use if not using OIDC. Can be resolved using a secret string.
+		/// </summary>
+		public string? AccessToken { get; set; } = null;
 	}
 }

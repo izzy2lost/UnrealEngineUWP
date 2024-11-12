@@ -10,6 +10,7 @@
 #include "NiagaraComponentRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemInstance.h"
+#include "String/ParseTokens.h"
 #include "Async/Async.h"
 
 #if WITH_EDITOR
@@ -34,6 +35,11 @@ static FAutoConsoleVariableRef CVarNiagaraComponentRenderPoolInactiveTimeLimit(
 	TEXT("The time in seconds an inactive component can linger in the pool before being destroyed."),
 	ECVF_Default
 );
+
+namespace NiagaraRendererComponentsImpl
+{
+	static const FName NAME_UniqueID("UniqueID");
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -161,7 +167,11 @@ void InvokeSetterFunction(UObject* InRuntimeObject, UFunction* Setter, const uin
 			if (Property->IsInContainer(ParmsSize))
 			{
 				// Check for a default value
-				const FString* DefaultValue = SetterDefaultValues.Find(Property->GetName());
+				FNameBuilder PropertyName(Property->GetFName());
+				FStringView PropertyNameView = PropertyName.ToView();
+				uint32 PropertyNameHash = GetTypeHash(PropertyNameView);
+
+				const FString* DefaultValue = SetterDefaultValues.FindByHash(PropertyNameHash, PropertyNameView);
 				if (DefaultValue)
 				{
 					Property->ImportText_Direct(**DefaultValue, Property->ContainerPtrToValuePtr<uint8>(Params), InRuntimeObject, PPF_None);
@@ -176,7 +186,7 @@ void InvokeSetterFunction(UObject* InRuntimeObject, UFunction* Setter, const uin
 				{
 					// LWC backwards compatibility for old bindings
 					UScriptStruct* ScriptStruct = ((FStructProperty*)Property)->Struct;
-					if (DataSize == sizeof(FVector3f) && Property->ElementSize == sizeof(FVector3d) && ScriptStruct && (ScriptStruct->GetFName() == NAME_Vector || ScriptStruct->GetFName() == NAME_Vector3d))
+					if (DataSize == sizeof(FVector3f) && Property->GetElementSize() == sizeof(FVector3d) && ScriptStruct && (ScriptStruct->GetFName() == NAME_Vector || ScriptStruct->GetFName() == NAME_Vector3d))
 					{
 						FVector3f* Vec3f = (FVector3f*)InData;
 						FVector Vec3d(*Vec3f);
@@ -184,7 +194,7 @@ void InvokeSetterFunction(UObject* InRuntimeObject, UFunction* Setter, const uin
 					}
 					else
 					{
-						const bool bIsValid = ensureMsgf(DataSize == Property->ElementSize, TEXT("Property type does not match for setter function %s::%s (%ibytes != %ibytes"), *InRuntimeObject->GetName(), *Setter->GetName(), DataSize, Property->ElementSize);
+						const bool bIsValid = ensureMsgf(DataSize == Property->GetElementSize(), TEXT("Property type does not match for setter function %s::%s (%ibytes != %ibytes"), *InRuntimeObject->GetName(), *Setter->GetName(), DataSize, Property->GetElementSize());
 						if (bIsValid)
 						{
 							Property->CopyCompleteValue(Property->ContainerPtrToValuePtr<void>(Params), InData);
@@ -414,7 +424,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 	const FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
 	FNiagaraDataSetReaderInt32<FNiagaraBool> EnabledAccessor = FNiagaraDataSetAccessor<FNiagaraBool>::CreateReader(Data, Properties->EnabledBinding.GetDataSetBindableVariable().GetName());
 	FNiagaraDataSetReaderInt32<int32> VisTagAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(Data, Properties->RendererVisibilityTagBinding.GetDataSetBindableVariable().GetName());
-	FNiagaraDataSetReaderInt32<int32> UniqueIDAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(Data, FName("UniqueID"));
+	FNiagaraDataSetReaderInt32<int32> UniqueIDAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(Data, NiagaraRendererComponentsImpl::NAME_UniqueID);
 
 	const bool bIsRendererEnabled = IsRendererEnabled(Properties, Emitter);
 
@@ -672,7 +682,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 				}
 
 				// destroy the component pool slot
-				ComponentPool.RemoveAtSwap(PoolIndex, 1, EAllowShrinking::No);
+				ComponentPool.RemoveAtSwap(PoolIndex, EAllowShrinking::No);
 				--PoolIndex;
 				continue;
 			}
@@ -813,10 +823,10 @@ void FNiagaraRendererComponents::TickPropertyBindings(
 	}
 }
 
-FNiagaraRendererComponents::FComponentPropertyAddress FNiagaraRendererComponents::FindPropertyRecursive(void* BasePointer, UStruct* InStruct, TArray<FString>& InPropertyNames, uint32 Index)
+FNiagaraRendererComponents::FComponentPropertyAddress FNiagaraRendererComponents::FindPropertyRecursive(void* BasePointer, UStruct* InStruct, const TArray<FName>& InPropertyNames, uint32 Index)
 {
 	FComponentPropertyAddress NewAddress;
-	FProperty* Property = FindFProperty<FProperty>(InStruct, *InPropertyNames[Index]);
+	FProperty* Property = FindFProperty<FProperty>(InStruct, InPropertyNames[Index]);
 
 	if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
 	{
@@ -844,8 +854,8 @@ FNiagaraRendererComponents::FComponentPropertyAddress FNiagaraRendererComponents
 
 FNiagaraRendererComponents::FComponentPropertyAddress FNiagaraRendererComponents::FindProperty(const UObject& InObject, const FString& InPropertyPath)
 {
-	TArray<FString> PropertyNames;
-	InPropertyPath.ParseIntoArray(PropertyNames, TEXT("."), true);
+	TArray<FName> PropertyNames;
+	UE::String::ParseTokens(InPropertyPath, TEXT('.'), [&PropertyNames](FStringView Token) { PropertyNames.Emplace(Token); });
 
 	if (IsValid(&InObject) && PropertyNames.Num() > 0)
 	{

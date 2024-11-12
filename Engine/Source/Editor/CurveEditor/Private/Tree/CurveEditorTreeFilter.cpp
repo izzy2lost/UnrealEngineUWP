@@ -7,6 +7,54 @@
 #include "Templates/UnrealTemplate.h"
 
 
+FCurveEditorTreeTextFilterTerm::FMatchResult FCurveEditorTreeTextFilterTerm::FMatchResult::Match(FStringView CandidateString) const
+{
+	// No tokens left - already a total match
+	if (RemainingTokens.Num() == 0)
+	{
+		return FMatchResult(RemainingTokens);
+	}
+
+	FStringView MatchString = RemainingTokens[0].Token;
+	const int32 MatchStartIndex = CandidateString.Find(MatchString, 0, ESearchCase::IgnoreCase);
+
+	if (MatchStartIndex == INDEX_NONE)
+	{
+		return FMatchResult();
+	}
+
+	FMatchResult Result(RemainingTokens.RightChop(1));
+
+	// The token matched! Continue to match chains of tokens separated by a period (.) within the same string
+
+	CandidateString = CandidateString.Left(MatchStartIndex);
+
+	while (Result.RemainingTokens.Num() > 0 && CandidateString.EndsWith('.'))
+	{
+		MatchString = Result.RemainingTokens[0].Token;
+
+		// Remove the period from the end of the candidate string
+		CandidateString = CandidateString.LeftChop(1);
+
+		// Compare the tail
+		if (CandidateString.Right(MatchString.Len()).Compare(MatchString, ESearchCase::IgnoreCase) != 0)
+		{
+			break;
+		}
+
+		// This token matched as well - remove it and keep matching...
+		Result.RemainingTokens = Result.RemainingTokens.RightChop(1);
+	}
+
+	// If there are no more tokens we must have matched them all
+	return Result;
+}
+
+FCurveEditorTreeTextFilterTerm::FMatchResult FCurveEditorTreeTextFilterTerm::Match(FStringView InString) const
+{
+	return FMatchResult(ChildToParentTokens).Match(InString);
+}
+
 
 ECurveEditorTreeFilterType FCurveEditorTreeFilter::RegisterFilterType()
 {

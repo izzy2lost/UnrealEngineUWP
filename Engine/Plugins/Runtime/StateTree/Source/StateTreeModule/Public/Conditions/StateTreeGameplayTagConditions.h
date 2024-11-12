@@ -39,7 +39,17 @@ struct STATETREEMODULE_API FGameplayTagMatchCondition : public FStateTreeConditi
 	
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Tag");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::DarkGrey;
+	}
+#endif
 	/** If true, the tag has to be exactly present, if false then TagContainer will include it's parent tags while matching */
 	UPROPERTY(EditAnywhere, Category = Condition)
 	bool bExactMatch = false;
@@ -100,7 +110,17 @@ struct STATETREEMODULE_API FGameplayTagContainerMatchCondition : public FStateTr
 	
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Tag");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::DarkGrey;
+	}
+#endif
 	UPROPERTY(EditAnywhere, Category = Condition)
 	EGameplayContainerMatchType MatchType = EGameplayContainerMatchType::Any;
 
@@ -138,7 +158,17 @@ struct STATETREEMODULE_API FGameplayTagQueryCondition : public FStateTreeConditi
 	
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Tag");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::DarkGrey;
+	}
+#endif
 	/** Query to match against */
 	UPROPERTY(EditAnywhere, Category = Condition)
 	FGameplayTagQuery TagQuery;

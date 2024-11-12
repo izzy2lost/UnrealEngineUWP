@@ -29,6 +29,7 @@
 #include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 
 #include "EngineUtils.h"
+#include "OpenColorIORendering.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
 #include "UnrealClient.h"
@@ -315,14 +316,22 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	if(RenderSettings.CaptureMode == EDisplayClusterViewportCaptureMode::MoviePipeline)
 	{
 		// Apply visibility settigns to view
-		VisibilitySettings.SetupSceneView(World, InOutView);
+		VisibilitySettings.SetupSceneView(InOutView);
 
 		return;
 	}
 
-	if (OpenColorIO.IsValid())
+	// Always modify rendering parameters if valid OCIO transformation is configured
+	if (OpenColorIO.IsValid() && OpenColorIO->GetConversionSettings().IsValid())
 	{
 		OpenColorIO->SetupSceneView(InOutViewFamily, InOutView);
+	}
+	// When capturing with late OCIO enabled, we still need to modify the OCIO related
+	// rendering parameters even though OCIO is not set. The receivers might have valid OCIO
+	// transformations configured therefore should get a proper input texture.
+	else if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::CaptureLateOCIO))
+	{
+		FOpenColorIORendering::PrepareView(InOutViewFamily, InOutView);
 	}
 
 	if(Contexts[ContextNum].GPUIndex >= 0)
@@ -339,7 +348,6 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	}
 
 	// Disable raytracing for lightcard and chromakey
-#if RHI_RAYTRACING
 	switch (RenderSettings.CaptureMode)
 	{
 	case EDisplayClusterViewportCaptureMode::Chromakey:
@@ -350,10 +358,9 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	default:
 		break;
 	}
-#endif // RHI_RAYTRACING
 
 	// Apply visibility settigns to view
-	VisibilitySettings.SetupSceneView(World, InOutView);
+	VisibilitySettings.SetupSceneView(InOutView);
 
 	// Handle Motion blur parameters
 	CameraMotionBlur.SetupSceneView(Contexts[ContextNum], InOutView);
@@ -507,6 +514,12 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 		return false;
 	}
 
+	if (!VisibilitySettings.IsVisible())
+	{
+		// Exclude viewports that are empty from rendering.
+		return false;
+	}
+
 	if (PostRenderSettings.GenerateMips.IsEnabled())
 	{
 		//Check if current projection policy supports this feature
@@ -600,7 +613,9 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Support custom frustum rendering feature
 	if (!RenderSettings.bDisableCustomFrustumFeature)
 	{
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetId(), RenderSettings.CustomFrustumSettings, CustomFrustumRuntimeSettings, RenderTargetRect);
+		// Creates unique name "DCRA.Viewport"
+		const FString UniqueViewportName = FString::Printf(TEXT("%s.%s"), *Configuration->GetRootActorName(), *GetId());
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(UniqueViewportName, RenderSettings.CustomFrustumSettings, CustomFrustumRuntimeSettings, RenderTargetRect);
 	}
 
 	FIntPoint ContextSize = RenderTargetRect.Size();
@@ -629,10 +644,13 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 		if (FDisplayClusterViewportManager* ViewportManager = Configuration->GetViewportManagerImpl())
 		{
-			if (ViewportManager->LightCardManager->IsUVLightCardEnabled())
+			const EDisplayClusterUVLightCardType UVLightCardType =
+				EnumHasAllFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::OverInFrustum)
+				? EDisplayClusterUVLightCardType::Over : EDisplayClusterUVLightCardType::Under;
+			if (ViewportManager->LightCardManager->IsUVLightCardEnabled(UVLightCardType))
 			{
 				// Custom viewport size from LC Manager
-				ContextSize = ViewportManager->LightCardManager->GetUVLightCardResourceSize();
+				ContextSize = ViewportManager->LightCardManager->GetUVLightCardResourceSize(UVLightCardType);
 
 				// Size must be not null
 				if (ContextSize.GetMin() > 1)
@@ -757,4 +775,16 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateFrameContexts);
 
 	return true;
+}
+
+bool FDisplayClusterViewport::GetOCIOConversionSettings(FOpenColorIOColorConversionSettings& OutOCIOConversionSettings) const
+{
+	// Return OCIO conversion settings if available
+	if (OpenColorIO)
+	{
+		OutOCIOConversionSettings = OpenColorIO->GetConversionSettings();
+		return true;
+	}
+
+	return false;
 }

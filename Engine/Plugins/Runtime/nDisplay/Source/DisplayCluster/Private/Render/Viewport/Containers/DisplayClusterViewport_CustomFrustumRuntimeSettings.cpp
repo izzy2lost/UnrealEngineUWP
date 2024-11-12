@@ -23,14 +23,56 @@ static FAutoConsoleVariableRef CVarDisplayClusterRenderCustomFrustumMaxValue(
 	ECVF_Default
 );
 
+int32 GDisplayClusterRenderCustomFrustumMinSizeValue = 1;
+static FAutoConsoleVariableRef CVarDisplayClusterRenderCustomFrustumMinSizeValue(
+	TEXT("nDisplay.render.custom_frustum.min_percent_size"),
+	GDisplayClusterRenderCustomFrustumMinSizeValue,
+	TEXT("Min size in percent for custom frustum (default 1).\n"),
+	ECVF_Default
+);
+
 namespace UE::DisplayCluster::Viewport::CustomFrustumHelpers
 {
-	/** Clamp percent for custom frustum settings. */
+	/** Clamp percent for a custom frustum settings. */
 	static inline double ClampPercent(double InValue)
 	{
 		const double MaxCustomFrustumValue = double(GDisplayClusterRenderCustomFrustumMaxValue) / 100;
 
 		return FMath::Clamp(InValue, -MaxCustomFrustumValue, MaxCustomFrustumValue);
+	}
+
+	/** Adjusts the overscan values so that the final size is larger than the minimum size.
+	* 
+	* @param InOutFromValue - (in, out) FromValue, where 1 means 100%
+	* @param InOutToValue   - (in, out) ToValue, where 1 means 100%
+	*/
+	static inline void AdjustOverscanValuesToEnforceMinimumSize(double& InOutFromValue, double& InOutToValue)
+	{
+		const double MinSize = FMath::Max(GDisplayClusterRenderCustomFrustumMinSizeValue * 0.01, 0);
+
+		// Expected size in percentage = 100 % + From + To 
+		// 1 means 100 % because all percentages were multiplied by 0.01.
+		const double ExpectedSize = InOutFromValue + InOutToValue + 1;
+
+		// If negative values are used, the size may decrease to zero or less.
+		// The MinSize value is used as a limit.
+		if (ExpectedSize < MinSize)
+		{
+			// Gets the negative values only
+			const double NegativeFromValue = -FMath::Min(InOutFromValue, 0);
+			const double NegativeToValue   = -FMath::Min(InOutToValue, 0);
+
+			// When using negative values, check that the result size is larger than the minimum.
+			const double NegativeRange = NegativeFromValue + NegativeToValue;
+			if (NegativeRange > 0)
+			{
+				// Adjust From and To values to the minimum size.
+				const double AdjustMult = (MinSize - ExpectedSize) / NegativeRange;
+
+				InOutFromValue += NegativeFromValue * AdjustMult;
+				InOutToValue   += NegativeToValue * AdjustMult;
+			}
+		}
 	}
 };
 
@@ -47,16 +89,12 @@ bool FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateProjectionAngle
 {
 	if (InRuntimeSettings.bIsEnabled)
 	{
-		const double Horizontal = InOutRight - InOutLeft;
-		const double Vertical = InOutTop - InOutBottom;
+		const FVector2D SizeFOV(InOutRight - InOutLeft, InOutTop - InOutBottom);
 
-		// Use the inner region of the texture as the base of the frustum.
-		const FIntPoint InnerSize = InRenderTargetSize - InRuntimeSettings.CustomFrustumPixels.Size();
-
-		InOutLeft -= Horizontal * InRuntimeSettings.CustomFrustumPixels.Left / InnerSize.X;
-		InOutRight += Horizontal * InRuntimeSettings.CustomFrustumPixels.Right / InnerSize.X;
-		InOutBottom -= Vertical * InRuntimeSettings.CustomFrustumPixels.Bottom / InnerSize.Y;
-		InOutTop += Vertical * InRuntimeSettings.CustomFrustumPixels.Top / InnerSize.Y;
+		InOutLeft   -= SizeFOV.X * InRuntimeSettings.CustomFrustumPercent.Left;
+		InOutRight  += SizeFOV.X * InRuntimeSettings.CustomFrustumPercent.Right;
+		InOutBottom -= SizeFOV.Y * InRuntimeSettings.CustomFrustumPercent.Bottom;
+		InOutTop    += SizeFOV.Y * InRuntimeSettings.CustomFrustumPercent.Top;
 
 		return true;
 	}
@@ -68,7 +106,8 @@ void FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSe
 	const FString& InViewportId,
 	const FDisplayClusterViewport_CustomFrustumSettings& InCustomFrustumSettings,
 	FDisplayClusterViewport_CustomFrustumRuntimeSettings& InOutRuntimeSettings,
-	FIntRect& InOutRenderTargetRect)
+	FIntRect& InOutRenderTargetRect,
+	const TCHAR* InCustomResourceName)
 {
 	using namespace UE::DisplayCluster::Viewport;
 
@@ -109,18 +148,34 @@ void FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSe
 		return;
 	}
 
+	// Clamp minimum size of frustum
+	CustomFrustumHelpers::AdjustOverscanValuesToEnforceMinimumSize(InOutRuntimeSettings.CustomFrustumPercent.Left,   InOutRuntimeSettings.CustomFrustumPercent.Right);
+	CustomFrustumHelpers::AdjustOverscanValuesToEnforceMinimumSize(InOutRuntimeSettings.CustomFrustumPercent.Bottom, InOutRuntimeSettings.CustomFrustumPercent.Top);
+
 	// Calc pixels from percent
 	InOutRuntimeSettings.CustomFrustumPixels.Left   = FMath::RoundToInt(Size.X * InOutRuntimeSettings.CustomFrustumPercent.Left);
 	InOutRuntimeSettings.CustomFrustumPixels.Right  = FMath::RoundToInt(Size.X * InOutRuntimeSettings.CustomFrustumPercent.Right);
 	InOutRuntimeSettings.CustomFrustumPixels.Top    = FMath::RoundToInt(Size.Y * InOutRuntimeSettings.CustomFrustumPercent.Top);
 	InOutRuntimeSettings.CustomFrustumPixels.Bottom = FMath::RoundToInt(Size.Y * InOutRuntimeSettings.CustomFrustumPercent.Bottom);
 
+	// Quantize the percentage to exactly fit the number of pixels.
+	InOutRuntimeSettings.CustomFrustumPercent.Left   = double(InOutRuntimeSettings.CustomFrustumPixels.Left)   / double(Size.X);
+	InOutRuntimeSettings.CustomFrustumPercent.Right  = double(InOutRuntimeSettings.CustomFrustumPixels.Right)  / double(Size.X);
+	InOutRuntimeSettings.CustomFrustumPercent.Top    = double(InOutRuntimeSettings.CustomFrustumPixels.Top)    / double(Size.Y);
+	InOutRuntimeSettings.CustomFrustumPercent.Bottom = double(InOutRuntimeSettings.CustomFrustumPixels.Bottom) / double(Size.Y);
+
 	// Update RTT size for CustomFrustum when we need to scale target resolution
 	if (InCustomFrustumSettings.bAdaptResolution)
 	{
-		const FIntPoint CustomFrustumSize = Size + InOutRuntimeSettings.CustomFrustumPixels.Size();
-		const FIntPoint ValidCustomFrustumSize = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), CustomFrustumSize), InViewportId, TEXT("CustomFrustum")).Size();
+		const FIntRect NewCustomFrustumRect(
+			FIntPoint(0, 0),
+			Size + InOutRuntimeSettings.CustomFrustumPixels.Size()
+		);
 
-		InOutRenderTargetRect.Max = ValidCustomFrustumSize;
+		// Return new custom frustum rect
+		InOutRenderTargetRect = FDisplayClusterViewportHelpers::GetValidViewportRect(
+			NewCustomFrustumRect,
+			InViewportId,
+			InCustomResourceName ? InCustomResourceName : TEXT("CustomFrustum"));
 	}
 }

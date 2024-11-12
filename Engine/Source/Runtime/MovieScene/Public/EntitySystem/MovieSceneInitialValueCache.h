@@ -294,7 +294,7 @@ private:
 			// Hash only considers the _type_ of the resolved property
 			// which defers the final comparison to the equality operator
 			uint32 Hash = GetTypeHash(InKey.Object);
-			Hash = HashCombine(Hash, InKey.Property.GetIndex());
+			Hash = HashCombine(Hash, static_cast<uint32>(InKey.Property.GetIndex()));
 			return Hash;
 		}
 		friend bool operator==(const FKeyType& A, const FKeyType& B)

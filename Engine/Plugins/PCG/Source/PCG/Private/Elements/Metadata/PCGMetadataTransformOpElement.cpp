@@ -161,7 +161,7 @@ FString UPCGMetadataTransformSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataTransformOperation>())
 	{
-		return FString("Transform: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return FText::Format(NSLOCTEXT("PCGMetadataTransformSettings", "TransformOperation", "Transform: {0}"), EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation))).ToString();
 	}
 	else
 	{
@@ -210,24 +210,22 @@ bool FPCGMetadataTransformElement::DoOperation(PCGMetadataOps::FOperationData& O
 
 	if (PCGMetadataTransfromSettings::IsUnaryOp(Settings->Operation))
 	{
-		DoUnaryOp<FTransform>(OperationData, [Operation = Settings->Operation, Mode = Settings->TransformLerpMode](const FTransform& Value)->FTransform {
+		return DoUnaryOp<FTransform>(OperationData, [Operation = Settings->Operation, Mode = Settings->TransformLerpMode](const FTransform& Value)->FTransform {
 			double DummyDouble = 0.0;
 			return PCGMetadataTransfromSettings::ApplyTransformOperation(Value, FTransform{}, DummyDouble, Operation, Mode);
 			});
 	}
 	else if (PCGMetadataTransfromSettings::IsTernaryOp(Settings->Operation))
 	{
-		DoTernaryOp<FTransform, FTransform, double>(OperationData, [Operation = Settings->Operation, Mode = Settings->TransformLerpMode](const FTransform& Value1, const FTransform& Value2, const double& Ratio)->FTransform {
+		return DoTernaryOp<FTransform, FTransform, double>(OperationData, [Operation = Settings->Operation, Mode = Settings->TransformLerpMode](const FTransform& Value1, const FTransform& Value2, const double& Ratio)->FTransform {
 			return PCGMetadataTransfromSettings::ApplyTransformOperation(Value1, Value2, Ratio, Operation, Mode);
 			});
 	}
 	else
 	{
-		DoBinaryOp<FTransform, FTransform>(OperationData, [Operation = Settings->Operation, Mode = Settings->TransformLerpMode](const FTransform& Value1, const FTransform& Value2)->FTransform {
+		return DoBinaryOp<FTransform, FTransform>(OperationData, [Operation = Settings->Operation, Mode = Settings->TransformLerpMode](const FTransform& Value1, const FTransform& Value2)->FTransform {
 			double DummyDouble = 0.0;
 			return PCGMetadataTransfromSettings::ApplyTransformOperation(Value1, Value2, DummyDouble, Operation, Mode);
 			});
 	}
-
-	return true;
 }

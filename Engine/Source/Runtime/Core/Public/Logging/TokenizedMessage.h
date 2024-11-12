@@ -47,6 +47,7 @@ namespace EMessageToken
 		URL,
 		EdGraph,
 		DynamicText,
+		Fix,
 	};
 }
 
@@ -749,4 +750,77 @@ private:
 
 	/** The default activation method, if any */
 	CORE_API static FOnMessageTokenActivated DefaultMessageTokenActivated;
+};
+
+namespace UE::DataValidation
+{
+struct IFixer;
+}
+
+struct FFixResult
+{
+	bool bIsSuccess = true;
+	FText Message;
+
+	static FFixResult Success(const FText& Message)
+	{
+		return {true, Message};
+	}
+
+	static FFixResult Success()
+	{
+		return {true, FText::GetEmpty()};
+	}
+
+	static FFixResult Failure(const FText& Message)
+	{
+		return {false, Message};
+	}
+
+	// NOTE: No overload for Failure that accepts no message, because in case of an error you
+	// should *always* let the user know what went wrong.
+};
+
+enum class EFixApplicability : uint8 
+{
+	/** Fix hasn't been applied yet but can be applied */
+	CanBeApplied,
+	/** Fix has been applied successfully */
+	Applied,
+	/** Fix was not applied by the user, and instead a different fix was chosen */
+	DidNotApply,
+};
+
+/** A fix action token. These are displayed in a separate list below the log message. */
+class FFixToken : public IMessageToken
+{
+	// The private token allows only members or friends to call MakeShared.
+	struct FPrivateToken { explicit FPrivateToken() = default; };
+
+public:
+	/** Creates an FFixToken out of an IFixer and a fix index. Prefer IFixer::CreateToken over this. */
+	CORE_API static TSharedRef<FFixToken> Create(const FText& InName, TSharedRef<UE::DataValidation::IFixer> InFixer, int32 InFixIndex);
+
+	virtual EMessageToken::Type GetType() const override
+	{
+		return EMessageToken::Fix;
+	}
+
+	TSharedRef<UE::DataValidation::IFixer> GetFixer() const { return Fixer.ToSharedRef(); }
+	int32 GetFixIndex() const { return FixIndex; }
+	void SetFix(TSharedRef<UE::DataValidation::IFixer> InFixer, int32 InFixIndex)
+	{
+		Fixer = InFixer;
+		FixIndex = InFixIndex;
+	}
+
+	FFixToken(FPrivateToken, const FText& InName, TSharedPtr<UE::DataValidation::IFixer> Fixer, int32 FixIndex)
+		: FFixToken(InName, MoveTemp(Fixer), FixIndex)
+	{}
+
+private:
+	CORE_API FFixToken(const FText& InName, TSharedPtr<UE::DataValidation::IFixer> InFixer, int32 InFixIndex);
+
+	TSharedPtr<UE::DataValidation::IFixer> Fixer;
+	int32 FixIndex = INDEX_NONE;
 };

@@ -32,15 +32,21 @@ class UAvaBooleanModifier : public UAvaGeometryBaseModifier
 
 public:
 	/** This is the min depth threshold needed on the mask for it to work properly */
-	inline static constexpr float MinDepth = UE_KINDA_SMALL_NUMBER * 2;
+	static constexpr float MinDepth = UE_KINDA_SMALL_NUMBER * 2;
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Boolean")
 	AVALANCHEMODIFIERS_API void SetMode(EAvaBooleanMode InMode);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Boolean")
 	EAvaBooleanMode GetMode() const
 	{
 		return Mode;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Boolean")
 	AVALANCHEMODIFIERS_API void SetChannel(uint8 InChannel);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Boolean")
 	uint8 GetChannel() const
 	{
 		return Channel;
@@ -92,15 +98,14 @@ protected:
 	void UpdateMaskDelegates();
 	void UpdateMaskVisibility();
 
-	/** When masking target with tool, tool must have a depth */
-	static void MaskActor(const UAvaBooleanModifier* InTool, const UAvaBooleanModifier* InTarget);
+	static void ApplyTool(EAvaBooleanMode InMode, const UE::Geometry::FDynamicMesh3& InModeTool, const UAvaBooleanModifier* InTarget, UE::Geometry::FDynamicMesh3& OutMesh);
 
 	/** Mode to use when shapes are colliding, none means you will be masked otherwise you are masking */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMode", Getter="GetMode", Category="Boolean", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetMode", Getter="GetMode", Category="Boolean", meta=(AllowPrivateAccess="true"))
 	EAvaBooleanMode Mode = EAvaBooleanMode::None;
 
 	/** Channel to only apply this tool on shapes with the same channel */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetChannel", Getter="GetChannel", Category="Boolean", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetChannel", Getter="GetChannel", Category="Boolean", meta=(AllowPrivateAccess="true"))
 	uint8 Channel = 0;
 
 	UPROPERTY(Transient)

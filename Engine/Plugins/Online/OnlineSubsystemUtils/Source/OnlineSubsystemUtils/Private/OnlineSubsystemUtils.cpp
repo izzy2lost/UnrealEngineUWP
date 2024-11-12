@@ -683,7 +683,6 @@ static bool OnlineExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 					else if (FParse::Command(&Cmd, TEXT("SESSIONHOST")))
 					{
 						bool bTestLAN = FParse::Command(&Cmd, TEXT("LAN")) ? true : false;
-						bool bTestPresence = FParse::Command(&Cmd, TEXT("PRESENCE")) ? true : false;
 
 						FOnlineSessionSettings SettingsOverride;
 
@@ -704,19 +703,18 @@ static bool OnlineExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 						}
 
 						// This class deletes itself once done
-						(new FTestSessionInterface(SubName, true))->Test(InWorld, bTestLAN, bTestPresence, false, SettingsOverride);
+						(new FTestSessionInterface(SubName, true))->Test(InWorld, bTestLAN, false, SettingsOverride);
 						bWasHandled = true;
 					}
 					// Spawn the object that will exercise all of the session methods as client
 					else if (FParse::Command(&Cmd, TEXT("SESSIONCLIENT")))
 					{
 						bool bTestLAN = FParse::Command(&Cmd, TEXT("LAN")) ? true : false;
-						bool bTestPresence = FParse::Command(&Cmd, TEXT("PRESENCE")) ? true : false;
 
 						FOnlineSessionSettings SettingsOverride;
 
 						// This class deletes itself once done
-						(new FTestSessionInterface(SubName, false))->Test(InWorld, bTestLAN, bTestPresence, false, SettingsOverride);
+						(new FTestSessionInterface(SubName, false))->Test(InWorld, bTestLAN, false, SettingsOverride);
 						bWasHandled = true;
 					}
 					else if (FParse::Command(&Cmd, TEXT("STARTMATCHMAKING")))
@@ -740,7 +738,7 @@ static bool OnlineExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 						}
 
 						// This class deletes itself once done
-						(new FTestSessionInterface(SubName, false))->Test(InWorld, false, false, true, SettingsOverride);
+						(new FTestSessionInterface(SubName, false))->Test(InWorld, false, true, SettingsOverride);
 						bWasHandled = true;
 					}
 					else if (FParse::Command(&Cmd, TEXT("CLOUD")))

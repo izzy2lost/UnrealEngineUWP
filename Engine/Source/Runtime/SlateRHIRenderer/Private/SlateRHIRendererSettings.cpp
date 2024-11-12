@@ -43,14 +43,19 @@ USlateRHIRendererSettings::USlateRHIRendererSettings()
 
 USlateRHIRendererSettings::~USlateRHIRendererSettings()
 {
-	for (TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : SlatePostSettings)
+	// No need to remove from root during the exit purge as all objects will destroyed regardless of their flags 
+	// and it's not safe to access any other UObjects from UObject destructors
+	if (!GExitPurge)
 	{
-		FSlatePostSettings& PostSetting = SlatePostSetting.Value;
-
-		UObject* SlatePostBuffer = PostSetting.CachedSlatePostRT;
-		if (SlatePostBuffer)
+		for (TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : SlatePostSettings)
 		{
-			SlatePostBuffer->RemoveFromRoot();
+			FSlatePostSettings& PostSetting = SlatePostSetting.Value;
+
+			UObject* SlatePostBuffer = PostSetting.CachedSlatePostRT;
+			if (SlatePostBuffer)
+			{
+				SlatePostBuffer->RemoveFromRoot();
+			}
 		}
 	}
 }

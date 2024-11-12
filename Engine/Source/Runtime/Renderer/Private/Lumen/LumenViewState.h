@@ -8,6 +8,7 @@
 
 #include "RenderGraphResources.h"
 #include "SceneTexturesConfig.h"
+#include "Math/LFSR.h"
 
 const static int32 NumLumenDiffuseIndirectTextures = 2;
 // Must match shader
@@ -182,36 +183,26 @@ public:
 class FReflectionTemporalState
 {
 public:
-	uint32 HistoryFrameIndex;
-	FIntRect HistoryViewRect;
-	FVector4f HistoryScreenPositionScaleBias;
-	FIntPoint HistorySceneTexturesExtent;
-	FIntPoint HistoryEffectiveResolution;
-	uint32 HistorySubstrateMaxClosureCount;
+	TRefCountPtr<IPooledRenderTarget> SpecularAndSecondMomentHistory;
+	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedHistory;
 
-	TRefCountPtr<IPooledRenderTarget> SpecularIndirectHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedRT;
-	TRefCountPtr<IPooledRenderTarget> ResolveVarianceHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> DepthHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> NormalHistoryRT;
+	// Only valid for Front Layer Transparency
+	TRefCountPtr<IPooledRenderTarget> LayerSceneDepthHistory;
+	TRefCountPtr<IPooledRenderTarget> LayerSceneNormalHistory;
 
-	FReflectionTemporalState()
-	{
-		HistoryFrameIndex = 0;
-		HistoryViewRect = FIntRect(0, 0, 0, 0);
-		HistoryScreenPositionScaleBias = FVector4f(0, 0, 0, 0);
-		HistorySceneTexturesExtent = FIntPoint(0,0);
-		HistoryEffectiveResolution = FIntPoint(0,0);
-		HistorySubstrateMaxClosureCount = 0;
-	}
+	uint32 HistoryFrameIndex = 0;
+	FIntRect HistoryViewRect = FIntRect(0, 0, 0, 0);
+	FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+	FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+	FVector4f HistoryGatherUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 
 	void SafeRelease()
 	{
-		SpecularIndirectHistoryRT.SafeRelease();
-		NumFramesAccumulatedRT.SafeRelease();
-		ResolveVarianceHistoryRT.SafeRelease();
-		DepthHistoryRT.SafeRelease();
-		NormalHistoryRT.SafeRelease();
+		SpecularAndSecondMomentHistory.SafeRelease();
+		NumFramesAccumulatedHistory.SafeRelease();
+
+		LayerSceneDepthHistory.SafeRelease();
+		LayerSceneNormalHistory.SafeRelease();
 	}
 
 #if WITH_MGPU
@@ -220,11 +211,11 @@ public:
 		#define TRANSFER_LUMEN_RESOURCE(NAME) \
 			if (NAME) OutTransfers.Add(FTransferResourceParams(NAME->GetRHI(), SourceGPUIndex, DestGPUIndex, false, false))
 
-		TRANSFER_LUMEN_RESOURCE(SpecularIndirectHistoryRT);
-		TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedRT);
-		TRANSFER_LUMEN_RESOURCE(ResolveVarianceHistoryRT);
-		TRANSFER_LUMEN_RESOURCE(DepthHistoryRT);
-		TRANSFER_LUMEN_RESOURCE(NormalHistoryRT);
+		TRANSFER_LUMEN_RESOURCE(SpecularAndSecondMomentHistory);
+		TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedHistory);
+
+		TRANSFER_LUMEN_RESOURCE(LayerSceneDepthHistory);
+		TRANSFER_LUMEN_RESOURCE(LayerSceneNormalHistory);
 
 		#undef TRANSFER_LUMEN_RESOURCE
 	}
@@ -240,11 +231,7 @@ public:
 	FVector Center;
 	float Extent;
 
-	FVector ProbeCoordToWorldCenterBias;
-	float ProbeCoordToWorldCenterScale;
-
-	FVector WorldPositionToProbeCoordBias;
-	float WorldPositionToProbeCoordScale;
+	FVector3f CornerTranslatedWorldSpace;
 
 	float ProbeTMin;
 
@@ -334,8 +321,6 @@ public:
 	FReSTIRGatherTemporalState ReSTIRGatherState;
 	FReflectionTemporalState ReflectionState;
 	FReflectionTemporalState TranslucentReflectionState;
-	TRefCountPtr<IPooledRenderTarget> DepthHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> NormalHistoryRT;
 
 	// Translucency
 	TRefCountPtr<IPooledRenderTarget> TranslucencyVolume0;
@@ -350,8 +335,6 @@ public:
 		ReSTIRGatherState.SafeRelease();
 		ReflectionState.SafeRelease();
 		TranslucentReflectionState.SafeRelease();
-		DepthHistoryRT.SafeRelease();
-		NormalHistoryRT.SafeRelease();
 
 		TranslucencyVolume0.SafeRelease();
 		TranslucencyVolume1.SafeRelease();
@@ -366,7 +349,6 @@ public:
 		#define TRANSFER_LUMEN_RESOURCE(NAME) \
 			if (NAME) OutTransfers.Add(FTransferResourceParams(NAME->GetRHI(), SourceGPUIndex, DestGPUIndex, false, false))
 
-		TRANSFER_LUMEN_RESOURCE(DepthHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume0);
 		TRANSFER_LUMEN_RESOURCE(TranslucencyVolume1);
 

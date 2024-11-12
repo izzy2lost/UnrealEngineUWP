@@ -15,6 +15,7 @@
 #include "Styling/AppStyle.h"
 #include "GameFramework/InputSettings.h"
 #include "Editor.h"								// for FEditorDelegates::OnEnableGestureRecognizerChanged
+#include "Blueprint/UserWidget.h"
 
 #define LOCTEXT_NAMESPACE "UK2Node_InputKey"
 
@@ -362,6 +363,15 @@ void UK2Node_InputKey::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGr
 			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("Key")), *InputKeyEvent->FindPin(TEXT("Key")));
 		}
 	}
+
+	// Widget blueprints require the bAutomaticallyRegisterInputOnConstruction to be set to true in order to receive callbacks
+	CompilerContext.AddPostCDOCompiledStep([](const UObject::FPostCDOCompiledContext& Context, UObject* NewCDO)
+	{
+		if (UUserWidget* Widget = Cast<UUserWidget>(NewCDO))
+		{
+			Widget->bAutomaticallyRegisterInputOnConstruction = true;
+		}
+	});
 }
 
 void UK2Node_InputKey::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const

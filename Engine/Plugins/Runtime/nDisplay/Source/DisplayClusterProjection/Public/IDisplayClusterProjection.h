@@ -62,4 +62,9 @@ public:
 	*
 	*/
 	virtual bool CameraPolicySetCamera(const TSharedPtr<class IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InPolicy, class UCameraComponent* const NewCamera, const struct FDisplayClusterProjectionCameraPolicySettings& CameraSettings) = 0;
+
+	/**
+	* Get camera policy camera
+	*/
+	virtual class UCameraComponent* CameraPolicyGetCameraComponent(const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InPolicy) = 0;
 };

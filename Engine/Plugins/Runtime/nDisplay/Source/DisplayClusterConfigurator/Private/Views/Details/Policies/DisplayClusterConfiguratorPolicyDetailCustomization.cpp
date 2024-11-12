@@ -834,12 +834,55 @@ void FDisplayClusterConfiguratorProjectionCustomization::CreateMPCDIPolicy(UDisp
 	}
 	else if (Setting == TypePFM)
 	{
+		const FString MPCDIProfile = DisplayClusterProjectionStrings::cfg::mpcdi::Profiles::mpcdi_a3d;
+		const TSharedPtr<FPolicyParameterInfoCombo> MPCDIProfilesCombo = MakeShared<FPolicyParameterInfoCombo>(
+			"Profile",
+			DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType,
+			Blueprint,
+			ConfigurationViewports,
+			TArray<FString>{
+				// Note: The MPCDI/PFM configuration currently supports only 2 mpcdi profiles.
+				DisplayClusterProjectionStrings::cfg::mpcdi::Profiles::mpcdi_2d,
+				DisplayClusterProjectionStrings::cfg::mpcdi::Profiles::mpcdi_a3d
+			},
+			& MPCDIProfile,
+			false);
+
+		CustomPolicyParameters.Add(MPCDIProfilesCombo);
+		MPCDIProfilesCombo->SetOnSelectedDelegate(FPolicyParameterInfoCombo::FOnItemSelected::CreateLambda(RefreshPolicy));
+		const FString CurrentMPCDIProfile = MPCDIProfilesCombo->GetOrAddCustomParameterValueText().ToString();
+
 		CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoFile>(
 			"File",
 			DisplayClusterProjectionStrings::cfg::mpcdi::FilePFM,
 			Blueprint,
 			ConfigurationViewports,
 			TArray<FString>{"pfm"}));
+
+		if (CurrentMPCDIProfile == DisplayClusterProjectionStrings::cfg::mpcdi::Profiles::mpcdi_2d)
+		{
+			// Adds additional parameters for the mpcdi 2d profile.
+			// <buffer Xresolution, Yresolution> <region x, y, xsize, ysize>
+
+			CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoResolution>(
+				"Buffer Resolution",
+				DisplayClusterProjectionStrings::cfg::mpcdi::Attributes::Buffer::Resolution,
+				Blueprint,
+				ConfigurationViewports));
+
+			CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoNormalizedVector2D>(
+				"Region Pos",
+				DisplayClusterProjectionStrings::cfg::mpcdi::Attributes::Region::Pos,
+				Blueprint,
+				ConfigurationViewports));
+
+			const FString RegionDefaultSize("X=1, Y=1");
+			CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoNormalizedVector2D>(
+				"Region Size",
+				DisplayClusterProjectionStrings::cfg::mpcdi::Attributes::Region::Size,
+				Blueprint,
+				ConfigurationViewports,&RegionDefaultSize));
+		}
 
 		CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoFile>(
 			"Alpha Mask",

@@ -22,10 +22,16 @@
 #include "Operations/SelectiveTessellate.h"
 #include "Materials/MaterialInterface.h"
 #include "Properties/MeshStatisticsProperties.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 // needed to disable normals recalculation on the underlying asset
 #include "AssetUtils/MeshDescriptionUtil.h"
 #include "Components/StaticMeshComponent.h"
+#include "DynamicSubmesh3.h"
+#include "Selections/GeometrySelection.h"
+#include "Selections/GeometrySelectionUtil.h"
 #include "Engine/StaticMesh.h"
 
 using namespace UE::Geometry;
@@ -300,6 +306,7 @@ namespace DisplaceMeshToolLocals{
 	{
 		int SubdivisionsCount = -1;
 		TSharedPtr<FIndexedWeightMap, ESPMode::ThreadSafe> WeightMap = nullptr;
+		TArray<int> SelectedTriangles;
 
 		// Optional selection parameters
 		TOptional<EDisplaceMeshToolTriangleSelectionType> SelectionType;
@@ -354,7 +361,8 @@ namespace DisplaceMeshToolLocals{
 
 	void FSubdivideMeshOp::CalculateResult(FProgressCancel* ProgressCancel)
 	{
-		int SubdivisionsCount = Parameters.SubdivisionsCount;
+		const int SubdivisionsCount = Parameters.SubdivisionsCount;
+		bool bUsingSelection = Parameters.SelectedTriangles.Num() != ResultMesh->TriangleCount();
 		if (SubdivisionType == EDisplaceMeshToolSubdivisionType::Flat) 
 		{
 			if (Parameters.SelectionType.IsSet()) // user wants to only tessellate a subset of the triangles
@@ -364,7 +372,35 @@ namespace DisplaceMeshToolLocals{
 					Parameters.ActiveMaterialID.IsSet() && 
 					Parameters.ActiveMaterialID.GetValue() != INDEX_NONE)
 				{
-					TUniquePtr<FTessellationPattern> Pattern = FSelectiveTessellate::CreateConcentricRingsPatternFromMaterial(ResultMesh.Get(), SubdivisionsCount, Parameters.ActiveMaterialID.GetValue());;
+					TUniquePtr<FTessellationPattern> Pattern;
+					if (bUsingSelection)
+					{
+						Pattern = FSelectiveTessellate::CreateConcentricRingsPatternFromSelectionAndMaterial(ResultMesh.Get(), SubdivisionsCount, Parameters.ActiveMaterialID.GetValue(), Parameters.SelectedTriangles);
+					}
+					else
+					{
+						Pattern = FSelectiveTessellate::CreateConcentricRingsPatternFromMaterial(ResultMesh.Get(), SubdivisionsCount, Parameters.ActiveMaterialID.GetValue());
+					}
+					
+					FDynamicMesh3 OutMesh;
+					FSelectiveTessellate Tessellator(ResultMesh.Get(), &OutMesh);
+					Tessellator.Progress = ProgressCancel;
+					Tessellator.SetPattern(Pattern.Get());
+
+					VerticesToDisplace = MakeUnique<TArray<int>>();
+					Tessellator.TessInfo.SelectedVertices = VerticesToDisplace.Get();
+					
+					if (ensureMsgf(Tessellator.Validate() == EOperationValidationResult::Ok, TEXT("The tessellator parameters are invalid.")))
+					{
+						if (Tessellator.Compute())
+						{
+							*ResultMesh = MoveTemp(OutMesh);
+						}
+					}
+				} // EDisplaceMeshToolTriangleSelectionType::None but still tessellating only selected geometry
+				else if (bUsingSelection)
+				{
+					TUniquePtr<FTessellationPattern> Pattern =FSelectiveTessellate::CreateConcentricRingsTessellationPattern(ResultMesh.Get(), SubdivisionsCount, Parameters.SelectedTriangles);
 					
 					FDynamicMesh3 OutMesh;
 					FSelectiveTessellate Tessellator(ResultMesh.Get(), &OutMesh);
@@ -890,10 +926,22 @@ namespace DisplaceMeshToolLocals{
 /*
  * ToolBuilder
  */
-USingleSelectionMeshEditingTool* UDisplaceMeshToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+USingleTargetWithSelectionTool* UDisplaceMeshToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<UDisplaceMeshTool>(SceneState.ToolManager);
 }
+
+const FToolTargetTypeRequirements& UDisplaceMeshToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
+
 
 /*
  * Tool
@@ -969,6 +1017,24 @@ void UDisplaceMeshTool::Setup()
 
 	DynamicMeshComponent->SetTangentsType(EDynamicMeshComponentTangentsMode::AutoCalculated);
 	DynamicMeshComponent->SetMesh(UE::ToolTarget::GetDynamicMeshCopy(Target));
+
+	// retrieve the selected triangles
+	TArray<int> TrianglesSelectedInMesh;
+	if (HasGeometrySelection())
+	{
+		const FGeometrySelection& InputSelection = GetGeometrySelection();
+		UE::Geometry::EnumerateSelectionTriangles(InputSelection, *DynamicMeshComponent->GetMesh(),
+			[&](int32 TriangleID){ TrianglesSelectedInMesh.Add(TriangleID); });
+	}
+	else //if the whole object is selected, SelectedTriangles will be all the triangles in the Object
+	{
+		for (int32 TriangleID : DynamicMeshComponent->GetMesh()->TriangleIndicesItr())
+		{
+			TrianglesSelectedInMesh.Add(TriangleID);
+		}
+	}
+	NumTrianglesInSelection = TrianglesSelectedInMesh.Num();
+
 	OriginalMesh.Copy(*DynamicMeshComponent->GetMesh());
 	OriginalMeshSpatial.SetMesh(&OriginalMesh, true);
 
@@ -1054,6 +1120,7 @@ void UDisplaceMeshTool::Setup()
 	SubParameters.SubdivisionsCount = CommonProperties->Subdivisions;
 	SubParameters.WeightMap = ActiveWeightMap;
 	SubParameters.SelectionType = SelectiveTessellationProperties->SelectionType;
+	SubParameters.SelectedTriangles = MoveTemp(TrianglesSelectedInMesh);
 	
 	if (SelectiveTessellationProperties->ActiveMaterial.IsNone() == false) 
 	{
@@ -1148,7 +1215,7 @@ void UDisplaceMeshTool::ValidateSubdivisions()
 	bool bIsInitialized = (Subdivider != nullptr);
 
 	constexpr int MaxTriangles = 3000000;
-	double NumTriangles = OriginalMesh.MaxTriangleID();
+	double NumTriangles = NumTrianglesInSelection;
 	int MaxSubdivisions = (int)(FMath::Sqrt(MaxTriangles/NumTriangles) - 1);
 	if (CommonProperties->Subdivisions > MaxSubdivisions)
 	{

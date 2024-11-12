@@ -4,6 +4,13 @@ using UnrealBuildTool;
 
 public class StateGraphTests : TestModuleRules
 {
+	static StateGraphTests()
+	{
+		TestMetadata = new Metadata();
+		TestMetadata.TestName = "StateGraph";
+		TestMetadata.TestShortName = "State Graph";
+	}
+
 	public StateGraphTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		OptimizeCode = CodeOptimization.Never;
@@ -13,7 +20,5 @@ public class StateGraphTests : TestModuleRules
 				"Core",
 				"StateGraph"
 			});
-
-		UpdateBuildGraphPropertiesFile(new Metadata() { TestName = "StateGraph", TestShortName = "State Graph"});
 	}
 }

@@ -15,6 +15,7 @@
 #include "SAssetEditorViewport.h"
 #include "Styling/StyleColors.h"
 
+class FPreviewProfileController;
 class IStaticMeshEditor;
 class SVerticalBox;
 class UStaticMesh;
@@ -136,6 +137,7 @@ protected:
 	virtual EVisibility OnGetViewportContentVisibility() const override;
 	virtual void BindCommands() override;
 	virtual void OnFocusViewportToSelection() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
 	virtual void PopulateViewportOverlays(TSharedRef<SOverlay> Overlay) override;
 
@@ -187,6 +189,15 @@ private:
 	bool IsShowNaniteFallbackChecked() const;
 
 	bool IsShowNaniteFallbackVisible() const;
+
+	void ToggleShowDistanceField();
+
+	bool IsShowDistanceFieldChecked() const;
+
+	bool IsShowDistanceFieldVisible() const;
+
+	/** Returns the appropriate margin for the overlay, based on the current viewport toolbar configuration */
+	FMargin GetOverlayMargin() const;
 private:
 	
 	/** The parent tab where this viewport resides */
@@ -200,6 +211,8 @@ private:
 
 	/** Editor viewport client */
 	TSharedPtr<class FStaticMeshEditorViewportClient> EditorViewportClient;
+
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	/** Static mesh being edited */
 	TObjectPtr<UStaticMesh> StaticMesh;

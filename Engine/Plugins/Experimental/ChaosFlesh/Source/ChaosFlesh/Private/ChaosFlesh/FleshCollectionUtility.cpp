@@ -8,8 +8,6 @@
 
 #include "ChaosFlesh/ChaosFlesh.h"
 #include "ChaosFlesh/FleshCollection.h"
-
-
 #include "GeometryCollection/TransformCollection.h"
 #include "Misc/Paths.h"
 
@@ -45,40 +43,20 @@ namespace ChaosFlesh
 		}
 	}
 
-	int32 
-	GetMin(const FIntVector3& V) 
+	FIntVector3	GetOrdered(const FIntVector3& V)
 	{
-		return FMath::Min3(V[0], V[1], V[2]);
+		TArray<int32, TInlineAllocator<3>> VA = { V[0], V[1], V[2] };
+		VA.Sort();
+		return FIntVector3(VA[0], VA[1], VA[2]);
 	}
-	int32 
-	GetMid(const FIntVector3& V)
+	FIntVector4	GetOrdered(const FIntVector4& V)
 	{
-		const int32 X = V[0]; const int32 Y = V[1]; const int32 Z = V[2];
-		const int32 XmY = X - Y;
-		const int32 YmZ = Y - Z;
-		const int32 XmZ = X - Z;
-		return (XmY * YmZ > -1 ? Y : XmY * XmZ < 1 ? X : Z);
-	}
-	int32 
-	GetMax(const FIntVector3& V)
-	{
-		return FMath::Max3(V[0], V[1], V[2]);
-	}
-	FIntVector3
-	GetOrdered(const FIntVector3& V)
-	{
-		return FIntVector3(GetMin(V), GetMid(V), GetMax(V));
-	}
-	FIntVector4
-	GetOrdered(const FIntVector4& V)
-	{
-		TArray<int32> VA = { V[0], V[1], V[2], V[3] };
+		TArray<int32, TInlineAllocator<4>> VA = { V[0], V[1], V[2], V[3]};
 		VA.Sort();
 		return FIntVector4(VA[0], VA[1], VA[2], VA[3]);
 	}
 
-	void 
-	GetSurfaceElements(
+	void GetSurfaceElements(
 		const TArray<FIntVector4>& Tets,
 		TArray<FIntVector3>& SurfaceElements,
 		const bool KeepInteriorFaces,

@@ -19,6 +19,8 @@
 void UpdateShaderDevelopmentMode();
 
 void InitRenderGraph();
+void ShutdownRenderGraph();
+
 static void InitPixelRenderCounters();
 
 class FRenderCoreModule : public FDefaultModuleImpl
@@ -32,6 +34,11 @@ public:
 
 		InitRenderGraph();
 		InitPixelRenderCounters();
+	}
+
+	virtual void ShutdownModule() override
+	{
+		ShutdownRenderGraph();
 	}
 };
 
@@ -70,7 +77,7 @@ DEFINE_STAT(STAT_DynamicShadowSetupTime);
 DEFINE_STAT(STAT_RenderQueryResultTime);
 // Use 'stat initviews' to get more detail
 DEFINE_STAT(STAT_InitViewsTime);
-DEFINE_STAT(STAT_GatherRayTracingWorldInstances);
+DEFINE_STAT(STAT_RayTracing_FinishGatherInstances);
 DEFINE_STAT(STAT_InitViewsPossiblyAfterPrepass);
 // Measures the time spent in RenderViewFamily_RenderThread
 // Note that this is not the total rendering thread time, any other rendering commands will not be counted here
@@ -139,7 +146,8 @@ DEFINE_STAT(STAT_CSMSubjects);
 DEFINE_STAT(STAT_CSMStaticMeshReceivers);
 DEFINE_STAT(STAT_CSMStaticPrimitiveReceivers);
 
-DEFINE_STAT(STAT_BindRayTracingPipeline);
+DEFINE_STAT(STAT_CreateRayTracingPipeline);
+DEFINE_STAT(STAT_CreateLumenRayTracingPipeline);
 
 // The ShadowRendering stats group shows what kind of shadows are taking a lot of rendering thread time to render
 // Shadow setup is tracked in the InitViews group
@@ -164,6 +172,7 @@ DEFINE_STAT(STAT_NumShadowedLights);
 DEFINE_STAT(STAT_NumLightFunctionOnlyLights);
 DEFINE_STAT(STAT_NumBatchedLights);
 DEFINE_STAT(STAT_NumLightsInjectedIntoTranslucency);
+DEFINE_STAT(STAT_NumLightsInjectedIntoTranslucencyBatched);
 DEFINE_STAT(STAT_NumLightsUsingStandardDeferred);
 
 DEFINE_STAT(STAT_LightShaftsLights);
@@ -430,11 +439,22 @@ RENDERCORE_API bool IsHDREnabled()
 RENDERCORE_API bool IsHDRAllowed()
 {
 	// HDR can be forced on or off on the commandline. Otherwise we check the cvar r.AllowHDR
-	if (FParse::Param(FCommandLine::Get(), TEXT("hdr")))
+	static uint32 LastCommandLineVersionParsed = FCommandLine::GetCommandLineVersion();
+	static bool bYesHDR = FParse::Param(FCommandLine::Get(), TEXT("hdr"));
+	static bool bNoHDR = FParse::Param(FCommandLine::Get(), TEXT("nohdr"));
+
+	if (LastCommandLineVersionParsed != FCommandLine::GetCommandLineVersion())
+	{
+		LastCommandLineVersionParsed = FCommandLine::GetCommandLineVersion();
+		bYesHDR = FParse::Param(FCommandLine::Get(), TEXT("hdr"));
+		bNoHDR = FParse::Param(FCommandLine::Get(), TEXT("nohdr"));
+	}
+
+	if (bYesHDR)
 	{
 		return true;
 	}
-	else if (FParse::Param(FCommandLine::Get(), TEXT("nohdr")))
+	else if (bNoHDR)
 	{
 		return false;
 	}
@@ -525,20 +545,6 @@ bool HdrHasWindowParamsFromCVars(void* OSWindow, FHDRMetaData& HDRMetaData)
 	return false;
 }
 
-static void HDRGetDeviceAndColorGamut(uint32 DeviceId, uint32 DisplayNitLevel, EDisplayOutputFormat& OutDisplayOutputFormat, EDisplayColorGamut& OutDisplayColorGamut)
-{
-	if (GRHIHDRNeedsVendorExtensions)
-	{
-		// all our implementations of HDR with vendor extensions happen with FP16 / ScRGB. See FD3D11DynamicRHI::EnableHDR / SetHDRMonitorMode*
-		OutDisplayOutputFormat = EDisplayOutputFormat::HDR_ACES_1000nit_ScRGB;
-		OutDisplayColorGamut = EDisplayColorGamut::sRGB_D65;
-	}
-	else
-	{
-		FPlatformMisc::ChooseHDRDeviceAndColorGamut(DeviceId, DisplayNitLevel, OutDisplayOutputFormat, OutDisplayColorGamut);
-	}
-}
-
 RENDERCORE_API void HDRGetMetaData(EDisplayOutputFormat& OutDisplayOutputFormat, EDisplayColorGamut& OutDisplayColorGamut, bool& OutbHDRSupported, 
 								   const FVector2D& WindowTopLeft, const FVector2D& WindowBottomRight, void* OSWindow)
 {
@@ -590,7 +596,7 @@ RENDERCORE_API void HDRGetMetaData(EDisplayOutputFormat& OutDisplayOutputFormat,
 
 	if (OutbHDRSupported)
 	{
-		HDRGetDeviceAndColorGamut(GRHIVendorId, CVarHDRDisplayMaxLuminance.GetValueOnAnyThread(), OutDisplayOutputFormat, OutDisplayColorGamut);
+		FPlatformMisc::ChooseHDRDeviceAndColorGamut(GRHIVendorId, CVarHDRDisplayMaxLuminance.GetValueOnAnyThread(), OutDisplayOutputFormat, OutDisplayColorGamut);
 	}
 
 }
@@ -624,7 +630,7 @@ RENDERCORE_API void HDRConfigureCVars(bool bIsHDREnabled, uint32 DisplayNits, bo
 	// If we are turning it off, we'll reset back to 0/0
 	if (bIsHDREnabled)
 	{
-		HDRGetDeviceAndColorGamut(GRHIVendorId, DisplayNits, OutputDevice, ColorGamut);
+		FPlatformMisc::ChooseHDRDeviceAndColorGamut(GRHIVendorId, DisplayNits, OutputDevice, ColorGamut);
 	}
 
 	//CVarHDRDisplayMaxLuminance is ECVF_SetByCode as it's only a mean of communicating the information from UGameUserSettings to the rest of the engine

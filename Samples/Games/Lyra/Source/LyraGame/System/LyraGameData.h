@@ -15,7 +15,7 @@ class UObject;
  *	Non-mutable data asset that contains global game data.
  */
 UCLASS(BlueprintType, Const, Meta = (DisplayName = "Lyra Game Data", ShortTooltip = "Data asset containing global game data."))
-class ULyraGameData : public UPrimaryDataAsset
+class LYRAGAME_API ULyraGameData : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 

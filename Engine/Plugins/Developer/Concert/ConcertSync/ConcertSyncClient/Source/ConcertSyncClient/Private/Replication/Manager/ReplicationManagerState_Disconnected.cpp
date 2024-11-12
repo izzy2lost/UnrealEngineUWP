@@ -17,12 +17,14 @@ namespace UE::ConcertSyncClient::Replication
 	
 	FReplicationManagerState_Disconnected::FReplicationManagerState_Disconnected(
 		TSharedRef<IConcertClientSession> LiveSession,
-		IConcertClientReplicationBridge* ReplicationBridge,
-			FReplicationManager& Owner
+		IConcertClientReplicationBridge& ReplicationBridge,
+		FReplicationManager& Owner,
+		EConcertSyncSessionFlags SessionFlags
 		)
 		: FReplicationManagerState(Owner)
 		, LiveSession(MoveTemp(LiveSession))
 		, ReplicationBridge(ReplicationBridge)
+		, SessionFlags(SessionFlags)
 	{}
 
 	TFuture<FJoinReplicatedSessionResult> FReplicationManagerState_Disconnected::JoinReplicationSession(FJoinReplicatedSessionArgs Args)
@@ -34,7 +36,7 @@ namespace UE::ConcertSyncClient::Replication
 		
 		TPromise<FJoinReplicatedSessionResult> JoinPromise;
 		TFuture<FJoinReplicatedSessionResult> JoinFuture = JoinPromise.GetFuture();
-		ChangeState(MakeShared<FReplicationManagerState_Handshaking>(MoveTemp(Args), MoveTemp(JoinPromise), LiveSession, ReplicationBridge, GetOwner()));
+		ChangeState(MakeShared<FReplicationManagerState_Handshaking>(MoveTemp(Args), MoveTemp(JoinPromise), LiveSession, ReplicationBridge, GetOwner(), SessionFlags));
 		return JoinFuture;
 	}
 

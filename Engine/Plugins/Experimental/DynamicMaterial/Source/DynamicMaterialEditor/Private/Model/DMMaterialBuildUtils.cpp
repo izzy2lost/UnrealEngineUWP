@@ -1,19 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Model/DMMaterialBuildUtils.h"
-#include "Model/DMMaterialBuildState.h"
-#include "Materials/MaterialExpressionTextureSample.h"
-#include "Materials/MaterialExpressionTextureObjectParameter.h"
-#include "Materials/MaterialExpressionTextureObject.h"
-#include "Materials/MaterialExpressionConstant4Vector.h"
-#include "Materials/MaterialExpressionConstant.h"
-#include "Materials/MaterialExpressionComponentMask.h"
-#include "Materials/MaterialExpressionAppendVector.h"
-#include "Materials/MaterialExpression.h"
-#include "Materials/Material.h"
-#include "MaterialEditingLibrary.h"
-#include "DMPrivate.h"
+
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialStageInput.h"
+#include "DynamicMaterialEditorModule.h"
+#include "MaterialEditingLibrary.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialExpression.h"
+#include "Materials/MaterialExpressionAppendVector.h"
+#include "Materials/MaterialExpressionComponentMask.h"
+#include "Materials/MaterialExpressionConstant.h"
+#include "Materials/MaterialExpressionConstant4Vector.h"
+#include "Materials/MaterialExpressionTextureObject.h"
+#include "Materials/MaterialExpressionTextureObjectParameter.h"
+#include "Materials/MaterialExpressionTextureSample.h"
+#include "Model/DMMaterialBuildState.h"
+#include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
 
 FDMMaterialBuildUtils::FDMMaterialBuildUtils(FDMMaterialBuildState& InBuildState)
 	: BuildState(InBuildState)
@@ -53,7 +57,7 @@ UMaterialExpression* FDMMaterialBuildUtils::CreateExpression(TSubclassOf<UMateri
 }
 
 UMaterialExpression* FDMMaterialBuildUtils::CreateExpressionParameter(TSubclassOf<UMaterialExpression> InExpressionClass, 
-	FName InParameterName, const FString& InComment, UObject* InAsset /*= nullptr*/) const
+	FName InParameterName, EDMMaterialParameterGroup InParameterGroup, const FString& InComment, UObject* InAsset /*= nullptr*/) const
 {
 	check(BuildState.GetDynamicMaterial());
 	check(InExpressionClass.Get());
@@ -70,8 +74,54 @@ UMaterialExpression* FDMMaterialBuildUtils::CreateExpressionParameter(TSubclassO
 	);
 
 	NewExpression->Desc = InComment;
-
 	NewExpression->SetParameterName(InParameterName);
+
+	if (FNameProperty* GroupProperty = CastField<FNameProperty>(NewExpression->GetClass()->FindPropertyByName("Group")))
+	{
+		int32 PropertyIndex;
+		FString PropertyName;
+
+		switch (InParameterGroup)
+		{
+			case EDMMaterialParameterGroup::Property:
+				if (const UDMMaterialProperty* Property = BuildState.GetCurrentMaterialProperty())
+				{
+					const EDMMaterialPropertyType PropertyType = Property->GetMaterialProperty();
+					PropertyIndex = static_cast<int32>(PropertyType);
+					PropertyName = UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(PropertyType).ToString();
+					break;
+				}
+
+				// Error - fall back to hidden group
+				if (!BuildState.GetPreviewObject())
+				{
+					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Missing property for group type."));
+				}
+
+				// Fall through
+
+			case EDMMaterialParameterGroup::NotExposed:
+			default:
+				PropertyIndex = 99;
+				PropertyName = TEXT("Uncategorized");
+				break;
+
+			case EDMMaterialParameterGroup::Global:
+				PropertyIndex = 0;
+				PropertyName = TEXT("Global");
+				break;
+		}
+
+		GroupProperty->SetValue_InContainer(
+			NewExpression, 
+			*FString::Printf(
+				TEXT("%02d - %s"),
+				PropertyIndex,
+				*PropertyName
+			)
+		);
+	}
+
 	BuildState.GetDynamicMaterial()->GetEditorOnlyData()->ExpressionCollection.AddExpression(NewExpression);
 
 	TArray<UMaterialExpression*>& ExpressionList = BuildState.GetDynamicMaterial()->EditorParameters.FindOrAdd(InParameterName);

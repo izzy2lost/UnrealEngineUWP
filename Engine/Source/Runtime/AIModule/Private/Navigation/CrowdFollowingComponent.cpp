@@ -48,27 +48,30 @@ UCrowdFollowingComponent::UCrowdFollowingComponent(const FObjectInitializer& Obj
 
 FVector UCrowdFollowingComponent::GetCrowdAgentLocation() const
 {
-	return MovementComp ? MovementComp->GetActorFeetLocation() : FVector::ZeroVector;
+	return NavMovementInterface.IsValid() ? NavMovementInterface->GetFeetLocation() : FVector::ZeroVector;
 }
 
 FVector UCrowdFollowingComponent::GetCrowdAgentVelocity() const
 {
-	FVector Velocity(MovementComp ? MovementComp->Velocity : FVector::ZeroVector);
+	FVector Velocity(NavMovementInterface.IsValid() ? NavMovementInterface->GetVelocityForNavMovement() : FVector::ZeroVector);
 	Velocity *= (Status == EPathFollowingStatus::Moving) ? 1.0f : 0.25f;
 	return Velocity;
 }
 
 void UCrowdFollowingComponent::GetCrowdAgentCollisions(float& CylinderRadius, float& CylinderHalfHeight) const
 {
-	if (MovementComp && MovementComp->UpdatedComponent)
+	if (NavMovementInterface.IsValid() && NavMovementInterface->GetUpdatedObject())
 	{
-		MovementComp->UpdatedComponent->CalcBoundingCylinder(CylinderRadius, CylinderHalfHeight);
+		if (const USceneComponent* UpdatedComponent = Cast<USceneComponent>(NavMovementInterface->GetUpdatedObject()))
+		{
+			UpdatedComponent->CalcBoundingCylinder(CylinderRadius, CylinderHalfHeight);
+		}
 	}
 }
 
 float UCrowdFollowingComponent::GetCrowdAgentMaxSpeed() const
 {
-	return MovementComp ? MovementComp->GetMaxSpeed() : 0.0f;
+	return NavMovementInterface.IsValid() ? NavMovementInterface->GetMaxSpeedForNavMovement() : 0.0f;
 }
 
 int32 UCrowdFollowingComponent::GetCrowdAgentAvoidanceGroup() const
@@ -336,7 +339,7 @@ void UCrowdFollowingComponent::UpdateCachedDirections(const FVector& NewVelocity
 	}
 
 	// CrowdAgentMoveDirection either direction on path or aligned with current velocity
-	const bool bIsNotFalling = (MovementComp == nullptr || !MovementComp->IsFalling());
+	const bool bIsNotFalling = (NavMovementInterface == nullptr || !NavMovementInterface->IsFalling());
 	if (bIsNotFalling)
 	{
 		if (bUpdateDirectMoveVelocity)
@@ -380,14 +383,14 @@ void UCrowdFollowingComponent::UpdateDestinationForMovingGoal(const FVector& New
 void UCrowdFollowingComponent::ApplyCrowdAgentVelocity(const FVector& NewVelocity, const FVector& DestPathCorner, bool bTraversingLink, bool bIsNearEndOfPath)
 {
 	bCanCheckMovingTooFar = !bTraversingLink && bIsNearEndOfPath;
-	if (IsCrowdSimulationEnabled() && Status == EPathFollowingStatus::Moving && MovementComp)
+	if (IsCrowdSimulationEnabled() && Status == EPathFollowingStatus::Moving && NavMovementInterface.IsValid())
 	{
-		const bool bIsNotFalling = (MovementComp == nullptr || !MovementComp->IsFalling());
+		const bool bIsNotFalling = (NavMovementInterface == nullptr || !NavMovementInterface->IsFalling());
 		if (bAffectFallingVelocity || bIsNotFalling)
 		{
 			UpdateCachedDirections(NewVelocity, DestPathCorner, bTraversingLink);
 
-			const bool bAccelerationBased = MovementComp->UseAccelerationForPathFollowing();
+			const bool bAccelerationBased = NavMovementInterface->UseAccelerationForPathFollowing();
 			if (bAccelerationBased)
 			{
 				const FVector::FReal MaxSpeed = GetCrowdAgentMaxSpeed();
@@ -395,11 +398,11 @@ void UCrowdFollowingComponent::ApplyCrowdAgentVelocity(const FVector& NewVelocit
 				const FVector::FReal SpeedPct = FMath::Clamp(NewSpeed / MaxSpeed, 0., 1.);
 				const FVector MoveInput = FMath::IsNearlyZero(NewSpeed) ? FVector::ZeroVector : ((NewVelocity / NewSpeed) * SpeedPct);
 
-				MovementComp->RequestPathMove(MoveInput);
+				NavMovementInterface->RequestPathMove(MoveInput);
 			}
 			else
 			{
-				MovementComp->RequestDirectMove(NewVelocity, false);
+				NavMovementInterface->RequestDirectMove(NewVelocity, false);
 			}
 		}
 	}
@@ -571,7 +574,7 @@ bool UCrowdFollowingComponent::UpdateMovementComponent(bool bForce)
 {
 	bool bRet = Super::UpdateMovementComponent(bForce);
 
-	AvoidanceInterface = TWeakInterfacePtr<IRVOAvoidanceInterface>(MovementComp);
+	AvoidanceInterface = TWeakInterfacePtr<IRVOAvoidanceInterface>(NavMovementInterface.GetObject());
 
 	return bRet;
 }
@@ -863,7 +866,7 @@ void UCrowdFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 		CurrentDestination.Set(Path->GetBaseActor(), CurrentTargetPt);
 
 		LogPathPartHelper(GetOwner(), NavMeshPath, PathStartIndex, PathPartEndIdx);
-		UE_VLOG_SEGMENT(GetOwner(), LogCrowdFollowing, Log, MovementComp->GetActorFeetLocation(), CurrentTargetPt, FColor::Red, TEXT("path part"));
+		UE_VLOG_SEGMENT(GetOwner(), LogCrowdFollowing, Log, NavMovementInterface->GetFeetLocation(), CurrentTargetPt, FColor::Red, TEXT("path part"));
 		UE_VLOG(GetOwner(), LogCrowdFollowing, Log, TEXT("SetMoveSegment, from:%d segments:%d%s"),
 			PathStartIndex, (PathPartEndIdx - PathStartIndex)+1, bFinalPathPart ? TEXT(" (final)") : TEXT(""));
 
@@ -875,7 +878,7 @@ void UCrowdFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 		// direct paths are not using any steering or avoidance
 		// pathfinding is replaced with simple velocity request 
 
-		const FVector AgentLoc = MovementComp->GetActorFeetLocation();
+		const FVector AgentLoc = NavMovementInterface->GetFeetLocation();
 
 		bFinalPathPart = true;
 		bCheckMovementAngle = true;
@@ -907,7 +910,7 @@ void UCrowdFollowingComponent::UpdatePathSegment()
 		return;
 	}
 
-	if (!Path.IsValid() || MovementComp == NULL)
+	if (!Path.IsValid() || NavMovementInterface == NULL)
 	{
 		OnPathFinished(FPathFollowingResult(EPathFollowingResult::Aborted, FPathFollowingResultFlags::InvalidPath));
 		return;
@@ -930,8 +933,8 @@ void UCrowdFollowingComponent::UpdatePathSegment()
 	}
 
 	// if agent has control over its movement, check finish conditions
-	const FVector CurrentLocation = MovementComp->GetActorFeetLocation();
-	const bool bCanReachTarget = MovementComp->CanStopPathFollowing();
+	const FVector CurrentLocation = NavMovementInterface->GetFeetLocation();
+	const bool bCanReachTarget = NavMovementInterface->CanStopPathFollowing();
 	if (bCanReachTarget && Status == EPathFollowingStatus::Moving)
 	{
 		const FVector GoalLocation = GetCurrentTargetLocation();
@@ -944,20 +947,20 @@ void UCrowdFollowingComponent::UpdatePathSegment()
 		}
 		else if (bFinalPathPart)
 		{
-			const FVector ToTarget = (GoalLocation - MovementComp->GetActorFeetLocation());
+			const FVector ToTarget = (GoalLocation - NavMovementInterface->GetFeetLocation());
 			const bool bMovedTooFar = (bCheckMovementAngle || bCanCheckMovingTooFar) && !CrowdAgentMoveDirection.IsNearlyZero() && FVector::DotProduct(ToTarget, CrowdAgentMoveDirection) < 0.0;
 
 #if ENABLE_VISUAL_LOG
 			if (bMovedTooFar)
 			{
-				const FVector AgentLoc = MovementComp->GetActorFeetLocation();
+				const FVector AgentLoc = NavMovementInterface->GetFeetLocation();
 				UE_VLOG_SEGMENT(GetOwner(), LogCrowdFollowing, Log, AgentLoc, AgentLoc + CrowdAgentMoveDirection * 100.0f, FColor::Cyan, TEXT("moveDir"));
 				UE_VLOG_SEGMENT(GetOwner(), LogCrowdFollowing, Log, AgentLoc, AgentLoc + ToTarget.GetSafeNormal() * 100.0f, FColor::Cyan, TEXT("toTarget"));
 				UE_VLOG(GetOwner(), LogCrowdFollowing, Log, TEXT("Moved too far, dotValue: %.2f (normalized dot: %.2f) velocity:%s (speed:%.0f)"),
 					FVector::DotProduct(ToTarget, CrowdAgentMoveDirection),
 					FVector::DotProduct(ToTarget.GetSafeNormal(), CrowdAgentMoveDirection),
-					*MovementComp->Velocity.ToString(),
-					MovementComp->Velocity.Size()
+					*NavMovementInterface->GetVelocityForNavMovement().ToString(),
+					NavMovementInterface->GetVelocityForNavMovement().Size()
 					);
 			}
 #endif
@@ -1036,14 +1039,14 @@ FVector UCrowdFollowingComponent::GetMoveFocus(bool bAllowStrafe) const
 	// can't really use CurrentDestination here, as it's pointing at end of path part
 	// fallback to looking at point in front of agent
 
-	if (!bAllowStrafe && MovementComp && IsCrowdSimulationEnabled())
+	if (!bAllowStrafe && NavMovementInterface.IsValid() && IsCrowdSimulationEnabled())
 	{
-		const FVector AgentLoc = MovementComp->GetActorLocation();
+		const FVector AgentLoc = NavMovementInterface->GetLocation();
 
 		// if we're not moving, falling, or don't have a crowd agent move direction, set our focus to ahead of the rotation of our owner to keep the same rotation,
 		// otherwise use the Crowd Agent Move Direction to move in the direction we're supposed to be going
-		const FVector ForwardDir = MovementComp->GetOwner() && ((Status != EPathFollowingStatus::Moving) || (MovementComp->IsFalling()) || CrowdAgentMoveDirection.IsNearlyZero()) ?
-			MovementComp->GetOwner()->GetActorForwardVector() :
+		const FVector ForwardDir = NavMovementInterface->GetOwnerAsObject() && ((Status != EPathFollowingStatus::Moving) || (NavMovementInterface->IsFalling()) || CrowdAgentMoveDirection.IsNearlyZero()) ?
+			NavMovementInterface->GetForwardVector() :
 			CrowdAgentMoveDirection.GetSafeNormal2D();
 
 		return AgentLoc + (ForwardDir * FAIConfig::Navigation::FocalPointDistance);
@@ -1118,7 +1121,7 @@ void UCrowdFollowingComponent::OnNavigationInitDone()
 	}
 
 	// set movement component, it will cache MyNavData from its NavAgentProperties
-	SetMovementComponent(MovementComp);
+	SetNavMovementInterface(NavMovementInterface.Get());
 }
 
 void UCrowdFollowingComponent::GetDebugStringTokens(TArray<FString>& Tokens, TArray<EPathFollowingDebugTokens::Type>& Flags) const
@@ -1167,8 +1170,7 @@ void UCrowdFollowingComponent::GetDebugStringTokens(TArray<FString>& Tokens, TAr
 	// get cylinder of moving agent
 	float AgentRadius = 0.0f;
 	float AgentHalfHeight = 0.0f;
-	AActor* MovingAgent = MovementComp->GetOwner();
-	MovingAgent->GetSimpleCollisionCylinder(AgentRadius, AgentHalfHeight);
+	NavMovementInterface->GetSimpleCollisionCylinder(AgentRadius, AgentHalfHeight);
 
 	if (bFinalPathPart)
 	{
@@ -1188,7 +1190,7 @@ void UCrowdFollowingComponent::GetDebugStringTokens(TArray<FString>& Tokens, TAr
 	}
 	else
 	{
-		const FVector CurrentLocation = MovementComp->GetActorFeetLocation();
+		const FVector CurrentLocation = NavMovementInterface->GetFeetLocation();
 
 		// make sure we're not too close to end of path part (poly count can always fail when AI goes off path)
 		const FVector::FReal DistSq = (GetCurrentTargetLocation() - CurrentLocation).SizeSquared();

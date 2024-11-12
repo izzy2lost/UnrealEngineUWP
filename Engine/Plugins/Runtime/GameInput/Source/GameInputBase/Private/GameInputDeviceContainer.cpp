@@ -157,17 +157,17 @@ void FGameInputDeviceContainer::InitalizeDeviceProcessors_Impl()
 		Processors.Emplace(MakeShared<FGameInputRacingWheelProcessor>());
 	}
 
-	// TODO: Implement these kinds of input! 
+	// Arcade sticks
+	if (DeviceKind & AllowedGameInputKinds & GameInputKindArcadeStick)
+	{
+		Processors.Emplace(MakeShared<FGameInputArcadeStickProcessor>());
+	}
 
-	//if (DeviceKind & AllowedGameInputKinds & GameInputKindFlightStick)
-	//{
-
-	//}
-
-	//if (DeviceKind & AllowedGameInputKinds & GameInputKindArcadeStick)
-	//{
-
-	//}
+	// Flight sticks
+	if (DeviceKind & AllowedGameInputKinds & GameInputKindFlightStick)
+	{
+		Processors.Emplace(MakeShared<FGameInputFlightStickProcessor>());
+	}
 }
 
 const GameInputKind FGameInputDeviceContainer::ProcessInput(IGameInput* GameInput, const GameInputKind CurrentSupportedKind, const GameInputKind ProcessedKindsForPlatformUserThisFrame)

@@ -344,19 +344,88 @@ public:
 	}
 
 protected:
+	/** Converts values to text. */
 	virtual void FormatTextAndUpdateParameter() = 0;
 	
-	TSharedRef<SWidget> MakeFloatInputWidget(TSharedRef<TOptional<float>>& ProxyValue, const FText& Label, bool bRotationInDegrees,
-	                                         const FLinearColor& LabelColor, const FLinearColor& LabelBackgroundColor);
+	/** Creates SNumericEntryBox<float> widget instance. */
+	TSharedRef<SWidget> MakeFloatInputWidget(TSharedRef<TOptional<float>>& ProxyValue, const FText& Label,
+											const bool bRotationInDegrees,
+											const FLinearColor& LabelColor, const FLinearColor& LabelBackgroundColor,
+											const float* InMinValue = nullptr, const float* InMaxValue = nullptr);
 
+	/** Returns an optional float value. */
 	TOptional<float> OnGetValue(TSharedRef<TOptional<float>> Value) const
 	{
 		return Value.Get();
 	}
 
-	void OnValueCommitted(float NewValue, ETextCommit::Type CommitType, TSharedRef<TOptional<float>> Value);
+	/** Callback that is called when the value changes. */
+	void OnValueCommitted(float NewValue, ETextCommit::Type CommitType, TSharedRef<TOptional<float>> Value)
+	{
+		*Value = NewValue;
+		FormatTextAndUpdateParameter();
+	}
 
+	/** Reset or set cached value.
+	* This function can be called multiple times when editing a value for a group selection.
+	* In this case, when the values in the group differ, a reset is used.
+	*/
 	static void ResetOrSetCachedValue(TSharedRef<TOptional<float>>& InCachedValue, float InCompareValue)
+	{
+		if (InCachedValue->IsSet() && InCachedValue.Get() != InCompareValue)
+		{
+			InCachedValue->Reset();
+		}
+		else
+		{
+			*InCachedValue = InCompareValue;
+		}
+	};
+};
+
+/**
+ * Policy info for modifying positive int32 reference, typically in a resolution
+ */
+class FPolicyParameterInfoIntReference : public FPolicyParameterInfo
+{
+public:
+	FPolicyParameterInfoIntReference(
+		const FString& InDisplayName,
+		const FString& InKey,
+		UDisplayClusterBlueprint* InBlueprint,
+		const TArray<TWeakObjectPtr<UDisplayClusterConfigurationViewport>>& InConfigurationViewports,
+		const FString* InInitialValue = nullptr) :
+		FPolicyParameterInfo(InDisplayName, InKey, InBlueprint, InConfigurationViewports, InInitialValue)
+	{
+	}
+
+protected:
+	/** Converts values to text. */
+	virtual void FormatTextAndUpdateParameter() = 0;
+
+	/** Creates SNumericEntryBox<int32> widget instance. */
+	TSharedRef<SWidget> MakeIntInputWidget(TSharedRef<TOptional<int32>>& ProxyValue, const FText& Label,
+										const FLinearColor& LabelColor, const FLinearColor& LabelBackgroundColor,
+										const int32* InMinValue = nullptr, const int32* InMaxValue = nullptr);
+
+	/** Returns an optional int32 value. */
+	TOptional<int32> OnGetValue(TSharedRef<TOptional<int32>> Value) const
+	{
+		return Value.Get();
+	}
+
+	/** Callback that is called when the value changes. */
+	void OnValueCommitted(int32 NewValue, ETextCommit::Type CommitType, TSharedRef<TOptional<int32>> Value)
+	{
+		*Value = NewValue;
+		FormatTextAndUpdateParameter();
+	}
+
+	/** Reset or set cached value.
+	* This function can be called multiple times when editing a value for a group selection.
+	* In this case, when the values in the group differ, a reset is used.
+	*/
+	static void ResetOrSetCachedValue(TSharedRef<TOptional<int32>>& InCachedValue, int32 InCompareValue)
 	{
 		if (InCachedValue->IsSet() && InCachedValue.Get() != InCompareValue)
 		{
@@ -506,4 +575,58 @@ private:
 	mutable TSharedRef<TOptional<float>> CachedAngleB;
 
 	static const FString BaseFrustumPlanesString;
+};
+
+/**
+ * Policy info for resolution
+ */
+class FPolicyParameterInfoResolution final : public FPolicyParameterInfoIntReference
+{
+public:
+	FPolicyParameterInfoResolution(
+		const FString& InDisplayName,
+		const FString& InKey,
+		UDisplayClusterBlueprint* InBlueprint,
+		const TArray<TWeakObjectPtr<UDisplayClusterConfigurationViewport>>& InConfigurationViewports);
+
+	// FPolicyParameterInfo
+	virtual void CreateCustomRowWidget(IDetailChildrenBuilder& InDetailWidgetRow) override;
+	// ~FPolicyParameterInfo
+
+private:
+	virtual void FormatTextAndUpdateParameter() override;
+
+private:
+	mutable TSharedRef<TOptional<int32>> CachedX;
+	mutable TSharedRef<TOptional<int32>> CachedY;
+
+	static const FString BaseResolutionString;
+};
+
+/**
+ * Policy information for a normalized vector 2d whose component values must be between 0 and 1.
+ */
+class FPolicyParameterInfoNormalizedVector2D final : public FPolicyParameterInfoFloatReference
+{
+public:
+	FPolicyParameterInfoNormalizedVector2D(
+		const FString& InDisplayName,
+		const FString& InKey,
+		UDisplayClusterBlueprint* InBlueprint,
+		const TArray<TWeakObjectPtr<UDisplayClusterConfigurationViewport>>& InConfigurationViewports,
+		const FString* InDefaultValue = nullptr
+	);
+
+	// FPolicyParameterInfo
+	virtual void CreateCustomRowWidget(IDetailChildrenBuilder& InDetailWidgetRow) override;
+	// ~FPolicyParameterInfo
+
+private:
+	virtual void FormatTextAndUpdateParameter() override;
+
+private:
+	mutable TSharedRef<TOptional<float>> CachedX;
+	mutable TSharedRef<TOptional<float>> CachedY;
+
+	static const FString BaseVectorValueStr;
 };

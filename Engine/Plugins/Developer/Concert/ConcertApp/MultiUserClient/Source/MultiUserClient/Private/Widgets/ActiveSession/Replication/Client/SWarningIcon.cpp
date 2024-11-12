@@ -6,7 +6,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SScaleBox.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SWarningIcon::Construct(const FArguments& InArgs)
 	{

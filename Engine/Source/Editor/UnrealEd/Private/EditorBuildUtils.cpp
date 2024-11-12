@@ -59,6 +59,9 @@
 #include "WorldPartition/WorldPartitionRuntimeVirtualTextureBuilder.h"
 #include "AssetCompilingManager.h"
 #include "ComponentRecreateRenderStateContext.h"
+#include "ShaderCompiler.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstance.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditorBuildUtils, Log, All);
 
@@ -463,8 +466,8 @@ bool FEditorBuildUtils::EditorBuild( UWorld* InWorld, FName Id, const bool bAllo
 		auto Result = CustomBuild.DoBuild.Execute(InWorld, Id);
 
 		bDoBuild = Result != EEditorBuildResult::Skipped;
-		bShouldMapCheck = Result == EEditorBuildResult::Success;
-		bDirtyPersistentLevel = Result == EEditorBuildResult::Success;
+		bShouldMapCheck = Result == EEditorBuildResult::Success && !CustomBuild.bExternalProcess;
+		bDirtyPersistentLevel = Result == EEditorBuildResult::Success && !CustomBuild.bExternalProcess;
 
 		if (Result == EEditorBuildResult::InProgress)
 		{
@@ -560,7 +563,7 @@ bool FEditorBuildUtils::EditorBuild( UWorld* InWorld, FName Id, const bool bAllo
 		GUnrealEd->Exec( InWorld, TEXT("MAP CHECK DONTDISPLAYDIALOG") );
 	}
 
-	if ( bDoBuild )
+	if ( bDoBuild && BuildProgressWidget.IsValid() )
 	{
 		// Display elapsed build time.
 		UE_LOG(LogEditorBuildUtils, Log,  TEXT("Build time %s"), *BuildProgressWidget.Pin()->BuildElapsedTimeText().ToString() );
@@ -1144,10 +1147,11 @@ void FEditorBuildUtils::RegisterCustomBuildType(
 	const FDoEditorBuildDelegate& DoBuild,
 	const FName BuildAllExtensionPoint,
 	const FText& MenuEntryLabel,
-	const FText& MenuSectionLabel)
+	const FText& MenuSectionLabel,
+	bool bExternalProcess)
 {
 	check(!CustomBuildTypes.Contains(Id));
-	CustomBuildTypes.Add(Id, FCustomBuildType(DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel));
+	CustomBuildTypes.Add(Id, FCustomBuildType(DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel, bExternalProcess));
 
 	if (BuildAllExtensionPoint != NAME_None)
 	{
@@ -1164,10 +1168,11 @@ void FEditorBuildUtils::RegisterCustomBuildType(
 	const FDoEditorBuildDelegate& DoBuild,
 	const FName BuildAllExtensionPoint,
 	const FText& MenuEntryLabel,
-	const FText& MenuSectionLabel)
+	const FText& MenuSectionLabel,
+	bool bExternalProcess)
 {
 	check(!CustomBuildTypes.Contains(Id));
-	CustomBuildTypes.Add(Id, FCustomBuildType(CanDoBuild, DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel));
+	CustomBuildTypes.Add(Id, FCustomBuildType(CanDoBuild, DoBuild, BuildAllExtensionPoint, MenuEntryLabel, MenuSectionLabel, bExternalProcess));
 
 	if (BuildAllExtensionPoint != NAME_None)
 	{
@@ -1401,9 +1406,8 @@ void FEditorBuildUtils::TriggerHierarchicalLODBuilder(UWorld* InWorld)
 {
 	if (InWorld->IsPartitionedWorld())
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		TSubclassOf<UWorldPartitionBuilder> WorldPartitionHLODsBuilder = FindObjectChecked<UClass>(nullptr, TEXT("/Script/UnrealEd.WorldPartitionHLODsBuilder"), true);
-		WorldPartitionEditorModule.RunBuilder(WorldPartitionHLODsBuilder, InWorld);
+		IWorldPartitionEditorModule::Get().RunBuilder(WorldPartitionHLODsBuilder, InWorld);
 	}
 	else
 	{
@@ -1416,9 +1420,8 @@ void FEditorBuildUtils::TriggerMinimapBuilder(UWorld* InWorld)
 {
 	if (InWorld->IsPartitionedWorld())
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		TSubclassOf<UWorldPartitionBuilder> WorldPartitionMiniMapBuilder = FindObjectChecked<UClass>(nullptr, TEXT("/Script/UnrealEd.WorldPartitionMiniMapBuilder"), true);
-		WorldPartitionEditorModule.RunBuilder(WorldPartitionMiniMapBuilder, InWorld);
+		IWorldPartitionEditorModule::Get().RunBuilder(WorldPartitionMiniMapBuilder, InWorld);
 	}
 }
 
@@ -1426,9 +1429,8 @@ void FEditorBuildUtils::TriggerLandscapeSplineMeshesBuilder(UWorld* InWorld)
 {
 	if (InWorld->IsPartitionedWorld())
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		TSubclassOf<UWorldPartitionBuilder> WorldPartitionLandscapeSplineMeshesBuilder = FindObjectChecked<UClass>(nullptr, TEXT("/Script/UnrealEd.WorldPartitionLandscapeSplineMeshesBuilder"), true);
-		WorldPartitionEditorModule.RunBuilder(WorldPartitionLandscapeSplineMeshesBuilder, InWorld);
+		IWorldPartitionEditorModule::Get().RunBuilder(WorldPartitionLandscapeSplineMeshesBuilder, InWorld);
 	}
 }
 
@@ -1457,6 +1459,8 @@ EDebugViewShaderMode ViewModeIndexToDebugViewShaderMode(EViewModeIndex SelectedV
 		return DVSM_LODColoration;
 	case VMI_VisualizeGPUSkinCache:
 		return DVSM_VisualizeGPUSkinCache;
+	case VMI_LWCComplexity:
+		return DVSM_LWCComplexity;
 	case VMI_Unknown:
 	default :
 		return DVSM_None;
@@ -1754,46 +1758,68 @@ bool FEditorBuildUtils::EditorBuildVirtualTexture(UWorld* InWorld)
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	};
 
+	FWorldPartitionHelpers::FForEachActorWithLoadingResult ForEachActorWithLoadingResult;
+	if (UWorldPartition* WorldPartition = InWorld->GetWorldPartition())
 	{
-		FWorldPartitionHelpers::FForEachActorWithLoadingResult ForEachActorWithLoadingResult;
-		if (UWorldPartition* WorldPartition = InWorld->GetWorldPartition())
+		FScopedSlowTask BuildTask(1.0f, LOCTEXT("VirtualTextureLoadActors", "Loading Actors"));
+		BuildTask.MakeDialog();
+		UWorldPartitionRuntimeVirtualTextureBuilder::LoadRuntimeVirtualTextureActors(WorldPartition, ForEachActorWithLoadingResult);
+	}
+
+	// We will need to build VTs for both shading paths
+	const ERHIFeatureLevel::Type CurFeatureLevel = InWorld->GetFeatureLevel();
+	const ERHIFeatureLevel::Type AltFeatureLevel = (CurFeatureLevel == ERHIFeatureLevel::ES3_1 ? GMaxRHIFeatureLevel : ERHIFeatureLevel::ES3_1);
+	const EShadingPath CurShadingPath = FSceneInterface::GetShadingPath(CurFeatureLevel);
+	const EShadingPath AltShadingPath = FSceneInterface::GetShadingPath(AltFeatureLevel);
+
+	TArray<URuntimeVirtualTextureComponent*> Components[2];
+	for (TObjectIterator<URuntimeVirtualTextureComponent> It; It; ++It)
+	{
+		if (Module->HasStreamedMips(CurShadingPath, *It))
 		{
-			FScopedSlowTask BuildTask(1.0f, LOCTEXT("VirtualTextureLoadActors", "Loading Actors"));
-			BuildTask.MakeDialog();
-			UWorldPartitionRuntimeVirtualTextureBuilder::LoadRuntimeVirtualTextureActors(WorldPartition, ForEachActorWithLoadingResult);
+			Components[0].Add(*It);
 		}
 
-		// We will need to build VTs for both shading paths
-		const ERHIFeatureLevel::Type CurFeatureLevel = InWorld->GetFeatureLevel();
-		const ERHIFeatureLevel::Type AltFeatureLevel = (CurFeatureLevel == ERHIFeatureLevel::ES3_1 ? GMaxRHIFeatureLevel : ERHIFeatureLevel::ES3_1);
-		const EShadingPath CurShadingPath = FSceneInterface::GetShadingPath(CurFeatureLevel);
-		const EShadingPath AltShadingPath = FSceneInterface::GetShadingPath(AltFeatureLevel);
-
-		TArray<URuntimeVirtualTextureComponent*> Components[2];
-		for (TObjectIterator<URuntimeVirtualTextureComponent> It; It; ++It)
+		if (Module->HasStreamedMips(AltShadingPath, *It))
 		{
-			if (Module->HasStreamedMips(CurShadingPath, *It))
-			{
-				Components[0].Add(*It);
-			}
-
-			if (Module->HasStreamedMips(AltShadingPath, *It))
-			{
-				Components[1].Add(*It);
-			}
+			Components[1].Add(*It);
 		}
-		
-		// Build for a current feature level first
-		if (!BuildVirtualTextureComponents(Module, CurShadingPath, Components[0]))
+	}
+
+	// Build for a current feature level first
+	int32 NumFeatureLevelsToBuild = 0;
+	FScopedSlowTask BuildTask(static_cast<float>((Components[0].IsEmpty() ? 0 : 1) + (Components[1].IsEmpty() ? 0 : 1)));
+	BuildTask.MakeDialog(true);
+
+	auto EnterProgressForFeatureLevel = [&BuildTask](ERHIFeatureLevel::Type InFeatureLevel)
+	{
+		BuildTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("VirtualTextureBuildFeatureLevel", "Building Virtual Textures for {0}"), FText::FromString(LexToString(InFeatureLevel))));
+	};
+
+	EnterProgressForFeatureLevel(CurFeatureLevel);
+	if (!BuildVirtualTextureComponents(Module, CurShadingPath, Components[0]))
+	{
+		return false;
+	}
+
+	// Build for the other feature level if any
+	bool bResult = true;
+	if (Components[1].Num() != 0)
+	{
+		EnterProgressForFeatureLevel(AltFeatureLevel);
+
+		FScopedSlowTask SubBuildTask(3.0f, BuildTask.GetCurrentMessage());
 		{
-			return false;
-		}
-		
-		// Build for others if any
-		bool bResult = true;
-		if (Components[1].Num() != 0)
-		{
+			FText SwitchingFeatureLevelText = FText::Format(LOCTEXT("VirtualTextureSwitchToAltFeatureLevel", "Switching feature level to {0}"), FText::FromString(LexToString(AltFeatureLevel)));
+			SubBuildTask.EnterProgressFrame(1.0f, SwitchingFeatureLevelText);
+
+			UMaterialInterface::SetGlobalRequiredFeatureLevel(AltFeatureLevel, true);
+			UMaterial::AllMaterialsCacheResourceShadersForRendering(/*bUpdateProgressDialog = */true, /*bCacheAllRemainingShaders = */true);
+			UMaterialInstance::AllMaterialsCacheResourceShadersForRendering(/*bUpdateProgressDialog = */true, /*bCacheAllRemainingShaders = */true);
+			CompileGlobalShaderMap(AltFeatureLevel);
+
 			InWorld->ChangeFeatureLevel(AltFeatureLevel);
+
 			// Make sure all assets are finished compiling. Recreate render state after shader compilation complete
 			{
 				UMaterialInterface::SubmitRemainingJobsForWorld(InWorld);
@@ -1801,15 +1827,28 @@ bool FEditorBuildUtils::EditorBuildVirtualTexture(UWorld* InWorld)
 				FAssetCompilingManager::Get().ProcessAsyncTasks();
 				FGlobalComponentRecreateRenderStateContext Context;
 			}
-			bResult = BuildVirtualTextureComponents(Module, AltShadingPath, Components[1]);
+
+			// Flush all rendering commands issued by UpdateAllPrimitiveSceneInfos inside the FGlobalComponentRecreateRenderStateContext. 
+			// Some rendering commands may trigger some shader compilations that we need to be issued and wait for completion before rendering the RVT.
+			FlushRenderingCommands();
+
+			// FGlobalComponentRecreateRenderStateContext can create new shaderJobs, make sure to wait on them.
+			FAssetCompilingManager::Get().FinishAllCompilation();
+			FAssetCompilingManager::Get().ProcessAsyncTasks();
+
 		}
-		
+
+		SubBuildTask.EnterProgressFrame(1.0f);
+		bResult = BuildVirtualTextureComponents(Module, AltShadingPath, Components[1]);
+
 		// Restore world feature level
-		InWorld->ChangeFeatureLevel(CurFeatureLevel);
-		return bResult;
+		{
+			SubBuildTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("VirtualTextureSwitchBackToFeatureLevel", "Switching back feature level to {0}"), FText::FromString(LexToString(CurFeatureLevel))));
+			UMaterialInterface::SetGlobalRequiredFeatureLevel(CurFeatureLevel, /*bShouldCompile = */ false);
+			InWorld->ChangeFeatureLevel(CurFeatureLevel);
+		}
 	}
-	
-	return true;
+	return bResult;
 }
 
 void FEditorBuildUtils::EditorBuildAllLandscape(UWorld* InWorld)

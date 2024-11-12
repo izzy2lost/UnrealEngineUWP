@@ -30,6 +30,7 @@
 #include "Materials/MaterialExpressionMakeMaterialAttributes.h"
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
+#include "Materials/MaterialExpressionGetMaterialAttributes.h"
 #include "Materials/MaterialExpressionSetMaterialAttributes.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureOutput.h"
 #include "Materials/MaterialExpressionStaticSwitchParameter.h"
@@ -46,6 +47,8 @@
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionSingleLayerWaterMaterialOutput.h"
 #include "Materials/MaterialExpressionMultiply.h"
+#include "Materials/MaterialSharedPrivate.h"
+#include "PSOPrecacheMaterial.h"
 
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -83,11 +86,16 @@
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionBreakMaterialAttributes.h"
+#include "Materials/MaterialIRModuleBuilder.h"
 #include "MaterialCachedData.h"
 #include "Misc/OutputDeviceArchiveWrapper.h"
 #include "HAL/FileManager.h"
 #include "BuildSettings.h"
 #include "LocalVertexFactory.h"
+
+#if WITH_ODSC
+#include "ODSC/ODSCManager.h"
+#endif
 
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
@@ -254,8 +262,8 @@ int32 FMaterialResource::CompilePropertyAndSetMaterialProperty(EMaterialProperty
 			}
 			else
 			{
-				FMaterialShadingModelField ShadingModels = Compiler->GetMaterialShadingModels();
-				Ret = Compiler->ShadingModel(ShadingModels.GetFirstShadingModel());
+				// if platform does not support per-pixel shading models, always fallback to DefaultLit
+				Ret = Compiler->ShadingModel(MSM_DefaultLit);
 			}
 			break;
 		case MP_MaterialAttributes:
@@ -439,18 +447,34 @@ public:
 		const FMaterialResource* MaterialResource = Material->GetMaterialResource(Context.Material.GetFeatureLevel());
 		if (MaterialResource && MaterialResource->GetRenderingThreadShaderMap())
 		{
-			if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == GetSubsurfaceProfileParameterName())
+			if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == SubsurfaceProfile::GetSubsurfaceProfileParameterName())
 			{
-				OutValue = GetSubsurfaceProfileId(GetSubsurfaceProfileRT());
+				// Legacy single SubsurfaceProfile (Substrate do not add this one in the material shader)
+				OutValue = SubsurfaceProfile::GetSubsurfaceProfileId(GetSubsurfaceProfileRT());
 				return true;
+			}
+			else if (Type == EMaterialParameterType::Scalar && NumSubsurfaceProfileRT() > 0)
+			{
+				const USubsurfaceProfile* SSProfileOverrideRT = GetSubsurfaceProfileRT();
+				// Substrate general SubsurfaceProfile
+				for (uint32 It = 0, Count = NumSubsurfaceProfileRT(); It < Count; ++It)
+				{
+					const USubsurfaceProfile* SSProfileRT = GetSubsurfaceProfileRT(It);
+					if (ParameterInfo.Name == SubsurfaceProfile::CreateSubsurfaceProfileParameterName(SSProfileRT))
+					{
+						// Set the root material Profile, or the profile overriden by any instances.
+						OutValue = SubsurfaceProfile::GetSubsurfaceProfileId(SSProfileOverrideRT ? SSProfileOverrideRT : SSProfileRT);
+						return true;
+					}
+				}
 			}
 			else if (Type == EMaterialParameterType::Scalar && NumSpecularProfileRT() > 0)
 			{
 				for (uint32 It=0,Count=NumSpecularProfileRT();It<Count;++It)
 				{
-					if (ParameterInfo.Name == SpecularProfileAtlas::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
+					if (ParameterInfo.Name == SpecularProfile::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
 					{
-						OutValue = SpecularProfileAtlas::GetSpecularProfileId(GetSpecularProfileRT(It));
+						OutValue = SpecularProfile::GetSpecularProfileId(GetSpecularProfileRT(It));
 						return true;
 					}
 				}
@@ -521,6 +545,15 @@ static const TCHAR* GDefaultMaterialNames[MD_MAX] =
 	TEXT("engine-ini:/Script/Engine.Engine.DefaultMaterialName")
 };
 
+// Need to know if the default materials have been initialized in case dynamic shader preloading is enabled,
+// we don't want to kick preload shader jobs since they can call GetDefaultMaterial and causing a crash in InitDefaultMaterials.
+static bool bDefaultMaterialInitialized = false;
+
+bool UMaterialInterface::IsDefaultMaterialInitialized()
+{
+	return bDefaultMaterialInitialized;
+}
+
 void UMaterialInterface::InitDefaultMaterials()
 {
 	// Note that this function will (in fact must!) be called recursively. This
@@ -531,8 +564,7 @@ void UMaterialInterface::InitDefaultMaterials()
 	// 
 	// The check for initialization is purely an optimization as initializing
 	// the default materials is only done very early in the boot process.
-	static bool bInitialized = false;
-	if (!bInitialized)
+	if (!bDefaultMaterialInitialized)
 	{
 		SCOPED_BOOT_TIMING("UMaterialInterface::InitDefaultMaterials");
 		check(IsInGameThread());
@@ -568,7 +600,7 @@ void UMaterialInterface::InitDefaultMaterials()
 					)
 				{
 					GDefaultMaterials[Domain] = LoadObject<UMaterial>(nullptr, *ResolvedPath, nullptr, LOAD_DisableDependencyPreloading, nullptr);
-					checkf(GDefaultMaterials[Domain] != nullptr, TEXT("Cannot load default material '%s' from path '%s'"), GDefaultMaterialNames[Domain], *ResolvedPath);
+					checkf(GDefaultMaterials[Domain] != nullptr, TEXT("Cannot load default material '%s' [Domain=%s] from path '%s'"), GDefaultMaterialNames[Domain], *MaterialDomainString((EMaterialDomain)Domain), *ResolvedPath);
 				}
 				if (GDefaultMaterials[Domain])
 				{
@@ -578,12 +610,11 @@ void UMaterialInterface::InitDefaultMaterials()
 		}
 
 		RecursionLevel--;
-		bInitialized = RecursionLevel == 0;
+		bDefaultMaterialInitialized = RecursionLevel == 0;
 
 		// Now precache PSOs for all the default materials after the default materials are marked initialize
 		// PSO precaching can request default materials so they have to marked as initialized to avoid endless recursion
-		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
-		if (bInitialized && PipelineStateCache::IsPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+		if (bDefaultMaterialInitialized && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()))
 		{
 			PrecacheDefaultMaterialPSOs();
 		}
@@ -592,6 +623,12 @@ void UMaterialInterface::InitDefaultMaterials()
 
 void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 {
+	if (!GIsRHIInitialized || (!RHISupportsManualVertexFetch(GMaxRHIShaderPlatform) && !IsPSOShaderPreloadingEnabled()))
+	{
+		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
+		return;
+	}
+		
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPrecacheRequestIDs;
 
 	FPSOPrecacheParams PrecachePSOParams;
@@ -603,15 +640,22 @@ void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 		VFData.VertexFactoryType = *It;
 		AllVertexFactoryTypes.Add(VFData);
 	}
+
+
 	for (int32 Domain = 0; Domain < MD_MAX; ++Domain)
 	{
 		if (GDefaultMaterials[Domain])
 		{
 			PrecachePSOParams.Mobility = EComponentMobility::Static;
-			GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
-
+			if (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled())
+			{
+				GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+			}
 			PrecachePSOParams.Mobility = EComponentMobility::Movable;
-			GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+			if (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled())
+			{
+				GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+			}
 		}
 	}
 }
@@ -730,12 +774,17 @@ static TAutoConsoleVariable<int32> CVarDiscardUnusedQualityLevels(
 	TEXT("1: Discard unused quality levels on load."),
 	ECVF_ReadOnly);
 
+namespace UE::MaterialInterface::Private
+{
+
 void SerializeInlineShaderMaps(
-	const TMap<const ITargetPlatform*, TArray<FMaterialResource*>>* PlatformMaterialResourcesToSavePtr,
 	FArchive& Ar,
 	TArray<FMaterialResource>& OutLoadedResources,
-	const FName& SerializingAsset,
-	uint32* OutOffsetToFirstResource)
+	const FName& SerializingAsset
+#if WITH_EDITOR
+	, const TMap<const ITargetPlatform*, TArray<FMaterialResourceForCooking>>* PlatformMaterialResourcesToSavePtr
+#endif
+)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 	SCOPED_LOADTIMER(SerializeInlineShaderMaps);
@@ -745,16 +794,17 @@ void SerializeInlineShaderMaps(
 
 	if (Ar.IsSaving())
 	{
+#if WITH_EDITOR
 		int32 NumResourcesToSave = 0;
-		const TArray<FMaterialResource*> *MaterialResourcesToSavePtr = NULL;
+		const TArray<FMaterialResourceForCooking> *MaterialResourcesToSavePtr = nullptr;
 		if (Ar.IsCooking() && Ar.IsPersistent() && !Ar.IsObjectReferenceCollector() && !Ar.ShouldSkipBulkData())
 		{
 			check( PlatformMaterialResourcesToSavePtr );
 			auto& PlatformMaterialResourcesToSave = *PlatformMaterialResourcesToSavePtr;
 
 			MaterialResourcesToSavePtr = PlatformMaterialResourcesToSave.Find( Ar.CookingTarget() );
-			check( MaterialResourcesToSavePtr != NULL || (Ar.GetLinker()==NULL) );
-			if (MaterialResourcesToSavePtr!= NULL )
+			check(MaterialResourcesToSavePtr != nullptr || Ar.GetLinker() == nullptr);
+			if (MaterialResourcesToSavePtr!= nullptr )
 			{
 				NumResourcesToSave = MaterialResourcesToSavePtr->Num();
 			}
@@ -766,36 +816,25 @@ void SerializeInlineShaderMaps(
 			&& NumResourcesToSave > 0)
 		{
 			FMaterialResourceMemoryWriter ResourceAr(Ar);
-			const TArray<FMaterialResource*> &MaterialResourcesToSave = *MaterialResourcesToSavePtr;
-			for (int32 ResourceIndex = 0; ResourceIndex < NumResourcesToSave; ResourceIndex++)
+			for (const FMaterialResourceForCooking& ResourceForCooking : *MaterialResourcesToSavePtr)
 			{
-				FMaterialResourceWriteScope Scope(&ResourceAr, *MaterialResourcesToSave[ResourceIndex]);
-				MaterialResourcesToSave[ResourceIndex]->SerializeInlineShaderMap(ResourceAr);
+				FMaterialResource& Resource = *ResourceForCooking.Resource;
+				FMaterialResourceWriteScope Scope(&ResourceAr, Resource);
+				Resource.SerializeInlineShaderMap(ResourceAr);
 			}
 		}
+#else
+		int32 NumResourcesToSave = 0;
+		Ar << NumResourcesToSave;
+#endif
 	}
 	else if (Ar.IsLoading())
 	{
 		int32 NumLoadedResources = 0;
 		Ar << NumLoadedResources;
 
-		if (OutOffsetToFirstResource)
-		{
-			const FLinker* Linker = Ar.GetLinker();
-			int64 Tmp = Ar.Tell() - (Linker ? Linker->Summary.TotalHeaderSize : 0);
-			check(Tmp >= 0 && Tmp <= 0xffffffffLL);
-			*OutOffsetToFirstResource = uint32(Tmp);
-		}
-
 		if (NumLoadedResources > 0)
 		{
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			ERHIFeatureLevel::Type FeatureLevel = GMaxRHIFeatureLevel;
-			EMaterialQualityLevel::Type QualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-			FMaterialResourceProxyReader ResourceAr(Ar, FeatureLevel, QualityLevel);
-			OutLoadedResources.Empty(1);
-			OutLoadedResources[OutLoadedResources.AddDefaulted()].SerializeInlineShaderMap(ResourceAr);
-#else
 			ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
 			EMaterialQualityLevel::Type QualityLevel = EMaterialQualityLevel::Num;
 			OutLoadedResources.Empty(NumLoadedResources);
@@ -805,10 +844,11 @@ void SerializeInlineShaderMaps(
 				FMaterialResource& LoadedResource = OutLoadedResources[OutLoadedResources.AddDefaulted()];
 				LoadedResource.SerializeInlineShaderMap(ResourceAr, SerializingAsset);
 			}
-#endif
 		}
 	}
 }
+
+} // namespace UE::MaterialInterface::Private
 
 void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMaterialResource>& LoadedResources, TArray<FMaterialResource*>& OutMaterialResourcesLoaded)
 {
@@ -832,20 +872,17 @@ void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMateri
 	}
 
 #if WITH_EDITORONLY_DATA
-	const bool bLoadedByCookedMaterial = FPlatformProperties::RequiresCookedData() || Owner->GetOutermost()->bIsCookedForEditor;
+	const bool bLoadingCooked = FPlatformProperties::RequiresCookedData() || Owner->GetOutermost()->bIsCookedForEditor;
 #else
-	const bool bLoadedByCookedMaterial = FPlatformProperties::RequiresCookedData();
+	const bool bLoadingCooked = FPlatformProperties::RequiresCookedData();
 #endif
 	for (FMaterialResource& Resource : LoadedResources)
 	{
-		Resource.RegisterInlineShaderMap(bLoadedByCookedMaterial);
+		Resource.RegisterInlineShaderMap(bLoadingCooked);
 	}
 
 	const bool bDiscardUnusedQualityLevels = CVarDiscardUnusedQualityLevels.GetValueOnAnyThread() != 0;
 	const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-
-	checkf(!(STORE_ONLY_ACTIVE_SHADERMAPS && LoadedResources.Num() > 1),
-		TEXT("STORE_ONLY_ACTIVE_SHADERMAPS is set, but %d shader maps were loaded, expected at most 1"), LoadedResources.Num());
 
 	for (int32 ResourceIndex = 0; ResourceIndex < LoadedResources.Num(); ResourceIndex++)
 	{
@@ -867,6 +904,19 @@ void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMateri
 
 			if (bIncludeShaderMap)
 			{
+#if WITH_ODSC
+				// Check if already have something from ODSC so that we avoid using this shadermap for a few frames and making the request to replace it by something we already have
+				// If some permutations are missing, we will still perform additional requests
+				if (FODSCManager::IsODSCActive())
+				{
+					FMaterialShaderMap* ExistingShaderMap = FODSCManager::FindMaterialShaderMap(Owner->GetPathName(), LoadedShaderMap->GetShaderMapId());
+					if (ExistingShaderMap)
+					{
+						LoadedShaderMap = ExistingShaderMap;
+					}
+				}
+#endif
+
 				FMaterialResource* CurrentResource = FindOrCreateMaterialResource(OutMaterialResourcesLoaded, OwnerMaterial, OwnerMaterialInstance, LoadedFeatureLevel, LoadedQualityLevel);
 				CurrentResource->SetInlineShaderMap(LoadedShaderMap);
 			}
@@ -1017,9 +1067,13 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	BlendableOutputAlpha = false;
 	bIsBlendable = true;
 	PreshaderGap = 0;
+	bDisablePreExposureScale = false;
 	bEnableStencilTest = false;
 	bUsedWithVolumetricCloud = false;
 	bUsedWithHeterogeneousVolumes = false;
+
+	// We default to false=incompatible, and rely onto the automatic detection executed from the HLSLTranslator.
+	bForceCompatibleWithLightFunctionAtlas = false;
 
 	bUseEmissiveForDynamicAreaLighting = false;
 	RefractionDepthBias = 0.0f;
@@ -1032,6 +1086,7 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 
 	RefractionMethod = RM_None;
 	RefractionCoverageMode = RCM_CoverageAccountedFor;
+	PixelDepthOffsetMode = PDOM_AlongCameraVector;
 
 	bAllowVariableRateShading = true;
 
@@ -1060,6 +1115,15 @@ void UMaterial::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 #if WITH_EDITOR
 	GMaterialsWithDirtyUsageFlags.RemoveAnnotation(this);
+	if (ObjectSaveContext.IsCooking())
+	{
+		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+		check(TargetPlatform);
+
+		TArray<FMaterialResourceForCooking>* Resources = CachedMaterialResourcesForCooking.Find(TargetPlatform);
+		UE::MaterialInterface::Private::RecordMaterialDependenciesForCook(ObjectSaveContext,
+			Resources ? *Resources : TArray<FMaterialResourceForCooking>());
+	}
 #endif
 }
 
@@ -1303,7 +1367,7 @@ void UMaterial::OverrideTexture(const UTexture* InTextureToOverride, UTexture* O
 					if (Texture != NULL && Texture == InTextureToOverride)
 					{
 						// Override this texture!
-						Resource->TransientOverrides.SetTextureOverride((EMaterialTextureParameterType)TypeIndex, Parameter.ParameterInfo, OverrideTexture);
+						Resource->TransientOverrides.SetTextureOverride((EMaterialTextureParameterType)TypeIndex, Parameter, OverrideTexture);
 						bShouldRecacheMaterialExpressions = true;
 					}
 				}
@@ -1915,7 +1979,7 @@ void UMaterial::GetDependentFunctions(TArray<UMaterialFunctionInterface*>& Depen
 }
 #endif // WITH_EDITORONLY_DATA
 
-extern FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterial* Material, FBlendableEntry*& Iterator);
+extern FPostProcessMaterialNode* FindExistingBlendablePostProcessNode(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base);
 
 void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float Weight) const
 {
@@ -1932,9 +1996,10 @@ void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float
 		return;
 	}
 
-	FBlendableEntry* Iterator = 0;
+	// Materials that write to UserSceneTexture outputs are automatically non-blendable
+	bool bIsBlendable = Base->bIsBlendable && GetUserSceneTextureOutput(Base) == NAME_None;
 
-	FPostProcessMaterialNode* DestNode = IteratePostProcessMaterialNodes(Dest, Base, Iterator);
+	FPostProcessMaterialNode* DestNode = bIsBlendable ? FindExistingBlendablePostProcessNode(Dest, this, Base) : nullptr;
 
 	// is this the first one of this material?
 	if(!DestNode)
@@ -1949,7 +2014,7 @@ void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float
 
 			InitialMID->CopyScalarAndVectorParameters(*SourceData, View.FeatureLevel);
 
-			FPostProcessMaterialNode InitialNode(InitialMID, Base->BlendableLocation, Base->BlendablePriority, Base->bIsBlendable);
+			FPostProcessMaterialNode InitialNode(InitialMID, GetBlendableLocation(Base), GetBlendablePriority(Base), bIsBlendable);
 
 			// no blending needed on this one
 			FPostProcessMaterialNode* InitialDestNode = Dest.BlendableManager.PushBlendableData(1.0f, InitialNode);
@@ -2054,6 +2119,49 @@ void UMaterial::UpdateTransientExpressionData()
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
+
+static FSubstrateMaterialInfo GetSubstrateMaterialInfo(UMaterialEditorOnlyData* EditorOnly)
+{
+	FSubstrateMaterialInfo Out;
+	if (Substrate::IsSubstrateEnabled() && EditorOnly->FrontMaterial.IsConnected())
+	{
+		check(EditorOnly->FrontMaterial.Expression);
+		if (EditorOnly->FrontMaterial.Expression->IsResultSubstrateMaterial(EditorOnly->FrontMaterial.OutputIndex))
+		{
+			EditorOnly->FrontMaterial.Expression->GatherSubstrateMaterialInfo(Out, EditorOnly->FrontMaterial.OutputIndex);
+		}
+	}
+	return Out;
+}
+
+static void UpdatePropertyConnectedMask(const FSubstrateMaterialInfo& InSubstrateMaterialInfo, FMaterialCachedExpressionData* Out)
+{
+	if (Substrate::IsSubstrateEnabled() && InSubstrateMaterialInfo.IsValid() && Out)
+	{
+		// Mask of all input collected by Substrate BSDF nodes
+		static const uint64 ConnectionMask =
+			  (1ull << MP_BaseColor)
+			| (1ull << MP_Metallic)
+			| (1ull << MP_Specular)
+			| (1ull << MP_Roughness)
+			| (1ull << MP_Anisotropy)
+			| (1ull << MP_EmissiveColor)
+			| (1ull << MP_Normal)
+			| (1ull << MP_Tangent)
+			| (1ull << MP_SubsurfaceColor)
+			| (1ull << MP_CustomData0)
+			| (1ull << MP_CustomData1)
+			| (1ull << MP_Opacity)
+			| (1ull << MP_ShadingModel)
+			| (1ull << MP_DiffuseColor)
+			| (1ull << MP_SpecularColor);
+
+		// Override the cached expression data with collected connection from InSubstrateMaterialInfo, but preserve all other input (e.g., refraction)
+		Out->PropertyConnectedMask &= ~ConnectionMask;
+		Out->PropertyConnectedMask |= InSubstrateMaterialInfo.GetPropertyConnected();
+	}
+}
+
 void UMaterial::UpdateCachedExpressionData()
 {
 	//@note FH: temporary preemptive PostLoad until zenloader load ordering improvements
@@ -2067,7 +2175,7 @@ void UMaterial::UpdateCachedExpressionData()
 
 	FMaterialCachedExpressionData* LocalCachedExpressionData = new FMaterialCachedExpressionData();
 	FMaterialCachedHLSLTree* LocalCachedTree = nullptr;
-	if (IsUsingNewHLSLGenerator())
+	if (IsUsingNewHLSLGenerator() && !IsUsingNewMaterialTranslatorPrototype())
 	{
 		// Relinks function call inputs. Otherwise, we can get invalid inputs and they will cause errors when generating the syntax tree
 		UpdateTransientExpressionData();
@@ -2090,6 +2198,13 @@ void UMaterial::UpdateCachedExpressionData()
 	}
 
 	LocalCachedExpressionData->Validate(*this);
+
+	if (Substrate::IsSubstrateEnabled())
+	{
+		UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
+		FSubstrateMaterialInfo SubstrateMaterialInfo = GetSubstrateMaterialInfo(EditorOnly);
+		UpdatePropertyConnectedMask(SubstrateMaterialInfo, LocalCachedExpressionData);
+	}
 
 	CachedExpressionData.Reset(LocalCachedExpressionData);
 	CachedHLSLTree.Reset(LocalCachedTree);
@@ -2138,6 +2253,18 @@ bool UMaterial::GetRefractionSettings(float& OutBiasValue) const
 {
 	OutBiasValue = RefractionDepthBias;
 	return true;
+}
+
+EBlendableLocation UMaterial::GetBlendableLocation(const UMaterial* Base) const
+{
+	check(Base == this);
+	return BlendableLocation;
+}
+
+int32 UMaterial::GetBlendablePriority(const UMaterial* Base) const
+{
+	check(Base == this);
+	return BlendablePriority;
 }
 
 void UMaterial::GetDependencies(TSet<UMaterialInterface*>& Dependencies) 
@@ -2364,14 +2491,6 @@ void UMaterial::CacheResourceShadersForRendering(bool bRegenerateId, EMaterialSh
 		ReleaseResourcesAndMutateDDCKey();
 	}
 
-	// Resources cannot be deleted before uniform expressions are recached because
-	// UB layouts will be accessed and they are owned by material resources
-	FMaterialResourceDeferredDeletionArray ResourcesToFree;
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	ResourcesToFree = MoveTemp(MaterialResources);
-	MaterialResources.Reset();
-#endif
-
 	if (FApp::CanEverRender())
 	{
 		const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
@@ -2389,54 +2508,36 @@ void UMaterial::CacheResourceShadersForRendering(bool bRegenerateId, EMaterialSh
 			FMaterialResource* CurrentResource = FindOrCreateMaterialResource(MaterialResources, this, nullptr, FeatureLevel, ActiveQualityLevel);
 			check(CurrentResource);
 
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			if (CurrentResource && !CurrentResource->GetGameThreadShaderMap())
-			{
-				// Load the shader map for this resource, if needed
-				FMaterialResource Tmp;
-				FName PackageFileName = GetOutermost()->FileName;
-				UE_CLOG(PackageFileName.IsNone(), LogMaterial, Warning,
-					TEXT("UMaterial::CacheResourceShadersForRendering - Can't reload material resource '%s'. File system based reload is unsupported in this build."),
-					*GetFullName());
-				if (!PackageFileName.IsNone() && ReloadMaterialResource(&Tmp, PackageFileName.ToString(), OffsetToFirstResource, FeatureLevel, ActiveQualityLevel))
-				{
-					CurrentResource->SetInlineShaderMap(Tmp.GetGameThreadShaderMap());
-					CurrentResource->UpdateInlineShaderMapIsComplete();
-				}
-			}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
-
 			ResourcesToCache.Reset();
 			ResourcesToCache.Add(CurrentResource);
 			CacheShadersForResources(ShaderPlatform, ResourcesToCache, PrecompileMode);
 		}
 
+#if WITH_EDITOR
 		FString AdditionalFormatToCache = GCompileMaterialsForShaderFormatCVar->GetString();
 		if (!AdditionalFormatToCache.IsEmpty())
 		{
 			EShaderPlatform AdditionalPlatform = ShaderFormatToLegacyShaderPlatform(FName(*AdditionalFormatToCache));
 			if (AdditionalPlatform != SP_NumPlatforms)
 			{
-				ResourcesToCache.Reset();
-				CacheResourceShadersForCooking(AdditionalPlatform, ResourcesToCache);
-				for (int32 i = 0; i < ResourcesToCache.Num(); ++i)
-				{
-					FMaterialResource* Resource = ResourcesToCache[i];
-					delete Resource;
-				}
-				ResourcesToCache.Reset();
+				TArray<FMaterialResourceForCooking> CookResourcesToCache;
+				CacheResourceShadersForCooking(AdditionalPlatform, CookResourcesToCache);
 			}
 		}
+#endif
 
 		RecacheUniformExpressions(true);
 	}
-
-	FMaterial::DeferredDeleteArray(ResourcesToFree);
 }
 
-void UMaterial::CacheResourceShadersForCooking(EShaderPlatform ShaderPlatform, TArray<FMaterialResource*>& OutCachedMaterialResources, const ITargetPlatform* TargetPlatform, bool bBlocking)
+#if WITH_EDITOR
+void UMaterial::CacheResourceShadersForCooking(EShaderPlatform ShaderPlatform,
+	TArray<FMaterialResourceForCooking>& OutCachedMaterialResources, const ITargetPlatform* TargetPlatform,
+	bool bBlocking)
 {
-	TArray<FMaterialResource*> NewResourcesToCache;	// only new resources need to have CacheShaders() called on them, whereas OutCachedMaterialResources may already contain resources for another shader platform
+	// Only new resources need to have CacheShaders() called on them, whereas OutCachedMaterialResources
+	// may already contain resources for another shader platform
+	TArray<FMaterialResource*> NewResourcesToCache;
 	GetNewResources(ShaderPlatform, NewResourcesToCache);
 
 #if WITH_EDITOR
@@ -2455,8 +2556,13 @@ void UMaterial::CacheResourceShadersForCooking(EShaderPlatform ShaderPlatform, T
 	}
 #endif
 
-	OutCachedMaterialResources.Append(NewResourcesToCache);
+	OutCachedMaterialResources.Reserve(OutCachedMaterialResources.Num() + NewResourcesToCache.Num());
+	for (FMaterialResource* Resource : NewResourcesToCache)
+	{
+		OutCachedMaterialResources.Add({ Resource, ShaderPlatform });
+	}
 }
+#endif // WITH_EDITOR
 
 void UMaterial::GetNewResources(EShaderPlatform ShaderPlatform, TArray<FMaterialResource*>& NewResourcesToCache)
 {
@@ -2663,7 +2769,7 @@ bool UMaterial::IsCompiling() const
 FGraphEventArray UMaterial::PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& InPreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs)
 {
 	FGraphEventArray GraphEvents;
-	if (FApp::CanEverRender() && MaterialResources.Num() > 0 && PipelineStateCache::IsPSOPrecachingEnabled())
+	if (FApp::CanEverRender() && MaterialResources.Num() > 0 && (PipelineStateCache::IsPSOPrecachingEnabled() || IsPSOShaderPreloadingEnabled()))
 	{
 		EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
 		uint32 FeatureLevelsToCompile = GetFeatureLevelsToCompileForRendering();
@@ -2766,20 +2872,15 @@ void UMaterial::Serialize(FArchive& Ar)
 
 	if (Ar.UEVer() >= VER_UE4_PURGED_FMATERIAL_COMPILE_OUTPUTS)
 	{
+		UE::MaterialInterface::Private::SerializeInlineShaderMaps(
+			Ar, LoadedMaterialResources
 #if WITH_EDITOR
-		static_assert(!STORE_ONLY_ACTIVE_SHADERMAPS, "Only discard unused SMs in cooked build");
-		SerializeInlineShaderMaps(&CachedMaterialResourcesForCooking, Ar, LoadedMaterialResources);
+			, NAME_None
+			, &CachedMaterialResourcesForCooking
 #else
-		SerializeInlineShaderMaps(
-			NULL,
-			Ar,
-			LoadedMaterialResources,
-			GetFName()
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			, &OffsetToFirstResource
+			, GetFName()
 #endif
-		);
-#endif
+			);
 	}
 	else
 	{
@@ -2925,6 +3026,21 @@ void UMaterial::Serialize(FArchive& Ar)
 			TranslucencyPass = MTP_BeforeDOF;
 		}
 	}
+
+	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::MaterialPixelDepthOffsetMode)
+	{
+		// All previous material must use the legacy pixel depth offset mode. New material will use the new mode.
+		PixelDepthOffsetMode = PDOM_Legacy;
+	}
+
+	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::SubsurfaceProfileGuid)
+	{
+		// Add the unique legacy profile to the Substrate profile list the first time we load an older asset.
+		if (SubsurfaceProfiles.IsEmpty() && SubsurfaceProfile)
+		{
+			SubsurfaceProfiles.Add(SubsurfaceProfile);
+		}
+	}
 }
 
 void UMaterial::PostDuplicate(bool bDuplicateForPIE)
@@ -2938,9 +3054,10 @@ void UMaterial::PostDuplicate(bool bDuplicateForPIE)
 	}
 }
 
+#if WITH_EDITOR
+
 void UMaterial::BackwardsCompatibilityInputConversion()
 {
-#if WITH_EDITOR
 	if( ShadingModel != MSM_Unlit )
 	{
 		UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
@@ -2976,12 +3093,10 @@ void UMaterial::BackwardsCompatibilityInputConversion()
 			EditorOnly->Specular.Connect( 2, FunctionExpression );
 		}
 	}
-#endif // WITH_EDITOR
 }
 
 void UMaterial::BackwardsCompatibilityVirtualTextureOutputConversion()
 {
-#if WITH_EDITOR
 	// Remove MD_RuntimeVirtualTexture support and replace with an explicit UMaterialExpressionRuntimeVirtualTextureOutput.
 	if (MaterialDomain == MD_RuntimeVirtualTexture)
 	{
@@ -3056,12 +3171,10 @@ void UMaterial::BackwardsCompatibilityVirtualTextureOutputConversion()
 		// Recompile after changes with a guid representing the conversion applied here.
 		ReleaseResourcesAndMutateDDCKey(BackwardsCompatibilityVirtualTextureOutputConversionGuid);
 	}
-#endif // WITH_EDITOR
 }
 
 void UMaterial::BackwardsCompatibilityDecalConversion()
 {
-#if WITH_EDITOR
 	if (GMaterialsThatNeedDecalFix.Get(this))
 	{
 		// Change this guid if you change the conversion code below
@@ -3145,8 +3258,8 @@ void UMaterial::BackwardsCompatibilityDecalConversion()
 		// Recompile after changes with a guid representing the conversion applied here.
 		ReleaseResourcesAndMutateDDCKey(BackwardsCompatibilityDecalConversionGuid);
 	}
-#endif // WITH_EDITOR
 }
+#endif // WITH_EDITOR
 
 static void AddSurfaceSubstrateShadingModelFromMaterialShadingModels(FSubstrateMaterialInfo& OutInfo, const FMaterialShadingModelField& InShadingModels)
 {
@@ -3190,7 +3303,20 @@ EBlendMode ConvertLegacyBlendMode(EBlendMode InBlendMode, FMaterialShadingModelF
 #define SUBSTRATE_MOVE_CONNECTION 0
 #define SUBSTRATE_COPY_CONNECTION 1
 
-void UMaterial::ConvertMaterialToSubstrateMaterial()
+// Current conversion version - This means that the material has run ConvertMaterialToSubstrateMaterial() once, 
+// and its data has been converted.
+static int32 GetSubstrateConversionVersion()	{ return  1; }
+// Default version - This means that:
+//  * The material has run ConvertMaterialToSubstrateMaterial() once, but no conversion was needed 
+//  * Or that the material has been updated/touched since its conversion (e.g., manual edit)
+// In both case, there is no longer needs to rerun ConvertMaterialToSubstrateMaterial()
+static int32 GetSubstrateNoConversionVersion()	{ return  0; }
+// Invalid version - This means that the material has never run ConvertMaterialToSubstrateMaterial()
+static int32 GetSubstrateInvalidVersion()		{ return -1; }
+
+#if WITH_EDITOR
+
+bool UMaterial::ConvertMaterialToSubstrateMaterial(bool bAllowEmptyMaterialUpdate)
 {
 	/*
 	* The data flow for legacy material conversion node that can be used in isolation is as such:
@@ -3208,10 +3334,20 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	* --- Material instance shading model override
 	*     Overridden from the HLSLTranslator when detected by comparing base and instanced materials.
 	*/
-#if WITH_EDITOR
 	if (!Substrate::IsSubstrateEnabled())
 	{
-		return;
+		return false;
+	}
+
+	UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
+
+	// * If the current material has already been converted, skip the conversion. 
+	// * Store the current version of Subtrate's auto-conversion
+	//   This allows to version the conversion, and safely update auto-converted materials if they have been saved.
+	// * If no conversion was needed, the conversion version is set to 0, to avoid rerunning this function
+	if (EditorOnly->SubstrateConversionVersion == GetSubstrateConversionVersion() || EditorOnly->SubstrateConversionVersion == GetSubstrateNoConversionVersion())
+	{
+		return false;
 	}
 
 	// Store current node post from the root node.
@@ -3307,8 +3443,6 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		}
 	};
 
-	UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
-
 	bool bCustomNodesGathered = false;
 	UMaterialExpressionThinTranslucentMaterialOutput* ThinTranslucentOutput = nullptr;
 	UMaterialExpressionSingleLayerWaterMaterialOutput* SingleLayerWaterOutput = nullptr;
@@ -3360,217 +3494,421 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 	const bool bRequireSubsurfacePasses		= ShadingModels.HasShadingModel(MSM_SubsurfaceProfile) || ShadingModels.HasShadingModel(MSM_Subsurface) || ShadingModels.HasShadingModel(MSM_PreintegratedSkin) || ShadingModels.HasShadingModel(MSM_Eye);
 	const bool bRequireNoSubsurfaceProfile	= !bHasShadingModelMixture && (ShadingModel == MSM_Subsurface || ShadingModel == MSM_PreintegratedSkin); // Insure there is no profile, as this would take priority otherwise
 
+	// Empty material (i.e., material without any expression) can be 'patched' with UE4Legacy's MF in order to have correct visuals by default
+	const bool bUpdateEmptyMaterial = bAllowEmptyMaterialUpdate && !bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty();
+
 	bool bInvalidateShader = false;
+	bool bEmptyShader = false;
 	bool bRelinkCustomOutputNodes = false;
 	UMaterialExpressionSubstrateShadingModels* ConvertNode = nullptr;
 	// Connect all the legacy pin into the conversion node
-	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected() && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex)) // M_Rifle cause issues there
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	//First check if this material contains a layer node connection, as that requires different upgrade behavior to convert to the Substrate material layer system
+	bool bLayersMaterial = false;
+	if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected())
 	{
-		UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
-		ConvertAttributeNode->Material = this;
-		SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
-		ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
-
-		// * Copy the material attribute connection to the conversion node.
-		// * Leave the material attribute existing connection plugged to the root node, 
-		//   so that other input (PixelDepthOffset, WorldPositionOffset, ...) get pull 
-		//   from the material attributes node
-		ConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0, SUBSTRATE_COPY_CONNECTION);
-
-		// Reconnect custom output to material attribute conversion node
+		UMaterialExpression* FinalNode = nullptr;
+		UMaterialExpressionMaterialAttributeLayers* LayersNode = nullptr;
+		for(UMaterialExpression* Expression : GetExpressions())
 		{
-			check(ConvertAttributeNode);
-			GatherCustomNodes();
-
-			if (ThinTranslucentOutput)
+			if(Expression->IsA<UMaterialExpressionMaterialAttributeLayers>())
 			{
-				ConnectionTo(*ThinTranslucentOutput->GetInput(0), ConvertAttributeNode, 1);	 // TransmittanceColor
-			}
-			if (SingleLayerWaterOutput)
-			{
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(0), ConvertAttributeNode, 2); // WaterScatteringCoefficients
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(1), ConvertAttributeNode, 3); // WaterAbsorptionCoefficients
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(2), ConvertAttributeNode, 4); // WaterPhaseG
-				ConnectionTo(*SingleLayerWaterOutput->GetInput(3), ConvertAttributeNode, 5); // ColorScaleBehindWater
-			}
-			if (ClearCoatBottomNormalOutput)
-			{
-				ConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), ConvertAttributeNode, 6, SUBSTRATE_COPY_CONNECTION); // ClearCoatNormal
-			}
-			if (TangentOutput)
-			{
-				ConnectionTo(*TangentOutput->GetInput(0), ConvertAttributeNode, 7, SUBSTRATE_COPY_CONNECTION);	// TangentOutput
+				LayersNode = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression);
+				FinalNode = EditorOnly->MaterialAttributes.Expression;
+				bLayersMaterial = true;
+				break;
 			}
 		}
 
-		// Connect converted Substrate data to root node
-		EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
-
-		// Shading Model
-		// * either use the shader graph expression 
-		// * or add a constant shading model
-		if (ShadingModel == MSM_FromMaterialExpression)
+		if(FinalNode && LayersNode)
 		{
-			ConvertAttributeNode->ShadingModelOverride = MSM_FromMaterialExpression;
+			//Separate the layers/blends MAs to Substrate/Non-Substrate respectively and connect to their relevant material output
+			UMaterialExpressionGetMaterialAttributes* GetAttributesNode = NewObject<UMaterialExpressionGetMaterialAttributes>(this);
+			GetAttributesNode->Material = this;
+			GetAttributesNode->MaterialAttributes.Connect(0, FinalNode);
+			EditorOnly->FrontMaterial.Connect(GetAttributesNode->CreateOrGetOutputAttribute(MP_FrontMaterial), GetAttributesNode);
+			EditorOnly->MaterialAttributes.Connect(GetAttributesNode->CreateOrGetOutputAttribute(MP_MaterialAttributes), GetAttributesNode);
+			SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
+
+			//If a non-Substrate default input is connected to the MLA node, convert it.
+			if (LayersNode->Input.IsConnected() && !LayersNode->Input.Expression->IsResultSubstrateMaterial(LayersNode->Input.OutputIndex))
+			{
+				UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+				ConvertAttributeNode->Material = this;
+				ConvertAttributeNode->MaterialAttributes.Connect(LayersNode->Input.OutputIndex, LayersNode->Input.Expression);
+				ConvertAttributeNode->ShadingModelOverride = MSM_DefaultLit;
+
+				UMaterialExpressionSetMaterialAttributes* SetAttributesNode = NewObject<UMaterialExpressionSetMaterialAttributes>(this);
+				SetAttributesNode->Material = this;
+				SetAttributesNode->ConnectInputAttribute(MP_FrontMaterial, ConvertAttributeNode);
+				SetAttributesNode->ConnectInputAttribute(MP_MaterialAttributes, LayersNode->Input.Expression, LayersNode->Input.OutputIndex);
+
+				LayersNode->Input.Connect(0, SetAttributesNode);
+
+				SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
+				ReplaceNodeAndMoveToTheRight(LayersNode, ConvertAttributeNode);
+				SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
+				ReplaceNodeAndMoveToTheRight(LayersNode, SetAttributesNode);			
+			}
+
+			BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
+			RefractionCoverageMode = RCM_CoverageIgnored;
+			bInvalidateShader = true;
 		}
-		else
+	}
+	
+	if(!bLayersMaterial)
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+	{
+		const bool bHasAnySubstrateNodes = HasAnyExpressionsInMaterialAndFunctionsOfType<UMaterialExpressionSubstrateBSDF>();
+		if (bUseMaterialAttributes && EditorOnly->MaterialAttributes.Expression && !EditorOnly->FrontMaterial.IsConnected() && !EditorOnly->MaterialAttributes.Expression->IsResultSubstrateMaterial(EditorOnly->MaterialAttributes.OutputIndex) && !bHasAnySubstrateNodes) // M_Rifle cause issues there
 		{
-			// Store Substrate shading model of the converted material. 
-			check(ShadingModels.CountShadingModels() == 1);
-			ConvertAttributeNode->ShadingModelOverride = ShadingModel;
-		}
-
-		if (MaterialDomain == MD_DeferredDecal)
-		{
-			// For now we don't enforce shading model since it could be driven by expression and we don't have much 
-			// control on this, but only DefaultLit should be supported.
-
-			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
-			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+			UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertAttributeNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
+			EditorOnly->ExpressionCollection.AddExpression(ConvertAttributeNode);
 			ConvertAttributeNode->Material = this;
-			ReplaceNodeAndMoveToTheRight(ConvertAttributeNode, ConvertToDecalNode);
-			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertAttributeNode);
+			SetPosXAndMoveReferenceToTheRight(ConvertAttributeNode);
+			ConvertAttributeNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 
-			EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
-		}
+			// * Copy the material attribute connection to the conversion node.
+			// * Leave the material attribute existing connection plugged to the root node, 
+			//   so that other input (PixelDepthOffset, WorldPositionOffset, ...) get pull 
+			//   from the material attributes node
+			ConnectionTo(EditorOnly->MaterialAttributes, ConvertAttributeNode, 0, SUBSTRATE_COPY_CONNECTION);
 
-		BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
-		RefractionCoverageMode = RCM_CoverageIgnored;
-		bInvalidateShader = true;
-	}
-	else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && GetExpressions().IsEmpty())
-	{
-		// Empty material: Create by default a slab node
-		UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Disney.SMF_UE4Disney"));
-		if (DefaultMF)
-		{
-			DefaultMF->UpdateFromFunctionResource();
-			DefaultMF->PostEditChange();
-			DefaultMF->ConditionalPostLoad();
-
-			UMaterialExpressionMaterialFunctionCall* MFCallNode = NewObject<UMaterialExpressionMaterialFunctionCall>(this);
-			if (MFCallNode->SetMaterialFunction(DefaultMF))
+			// Reconnect custom output to material attribute conversion node
 			{
-				// This is needed for input/output expressions to be set correctly, otherwise compilation will fail.
-				GetExpressionCollection().AddExpression(MFCallNode);
-
-				SetPosXAndMoveReferenceToTheRight(MFCallNode);
-				EditorOnly->FrontMaterial.Connect(0, MFCallNode);
-
-				MFCallNode->UpdateFromFunctionResource();
-				MFCallNode->PostEditChange();
-				MFCallNode->ConditionalPostLoad();
-
-				ColorMatInputConnectionTo(EditorOnly->BaseColor,		MFCallNode, 0, MP_BaseColor);
-				ScalarMatInputConnectionTo(EditorOnly->Metallic,		MFCallNode, 1, MP_Metallic);
-				ScalarMatInputConnectionTo(EditorOnly->Specular,		MFCallNode, 2, MP_Specular);
-				ScalarMatInputConnectionTo(EditorOnly->Roughness,		MFCallNode, 3, MP_Roughness);
-				Vector3MatInputConnectionTo(EditorOnly->Normal,			MFCallNode, 4, MP_Normal);
-				ColorMatInputConnectionTo(EditorOnly->EmissiveColor,	MFCallNode, 5, MP_EmissiveColor);
-				ScalarMatInputConnectionTo(EditorOnly->Opacity,			MFCallNode, 6, MP_Opacity);
-			}
-		}
-		else
-		{
-			// Or if it cannot be found, a slab node
-			UMaterialExpressionSubstrateSlabBSDF* SlabNode = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
-			SlabNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(SlabNode);
-			EditorOnly->FrontMaterial.Connect(0, SlabNode);
-		}
-		bRelinkCustomOutputNodes = false;
-		bInvalidateShader = true;
-	}
-	else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected())
-	{
-		if (MaterialDomain == MD_Surface)
-		{
-			bool bClearCoatConversionDone = false;
-			if (ShadingModel == MSM_ClearCoat)
-			{
+				check(ConvertAttributeNode);
 				GatherCustomNodes();
-				if (ClearCoatBottomNormalOutput)
+
+				if (SingleLayerWaterOutput)
 				{
-					// For this special case, using two slabs to create a clear coat material with separated top and bottom normal. 
-
-					// Create metalness to Slab parameterisation conveersion node
-					UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0* SubstrateMetalnessToDiffuseAlbedoF0 = NewObject<UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0>(this);
-					SetPosXAndMoveReferenceToTheRight(SubstrateMetalnessToDiffuseAlbedoF0);
-					ColorMatInputConnectionTo(EditorOnly->BaseColor, SubstrateMetalnessToDiffuseAlbedoF0, 0, MP_BaseColor);
-					ScalarMatInputConnectionTo(EditorOnly->Metallic, SubstrateMetalnessToDiffuseAlbedoF0, 1, MP_Metallic);
-					ScalarMatInputConnectionTo(EditorOnly->Specular, SubstrateMetalnessToDiffuseAlbedoF0, 2, MP_Specular);
-					
-					// Top slab BSDF as a simple Disney material
-					UMaterialExpressionSubstrateSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
-					BottomSlabBSDF->Material = this;
-					SetPosXAndMoveReferenceToTheRight(BottomSlabBSDF);
-					BottomSlabBSDF->GetInput(0)->Connect(0, SubstrateMetalnessToDiffuseAlbedoF0);
-					BottomSlabBSDF->GetInput(1)->Connect(1, SubstrateMetalnessToDiffuseAlbedoF0);
-					BottomSlabBSDF->GetInput(2)->Connect(2, SubstrateMetalnessToDiffuseAlbedoF0);
-					ScalarMatInputConnectionTo(EditorOnly->Roughness, BottomSlabBSDF, 3, MP_Roughness);
-					ScalarMatInputConnectionTo(EditorOnly->Anisotropy, BottomSlabBSDF, 4, MP_Anisotropy, SUBSTRATE_COPY_CONNECTION);
-					Vector3MatInputConnectionTo(EditorOnly->Tangent, BottomSlabBSDF, 6, MP_Tangent);
-
-					check(ClearCoatBottomNormalOutput);
-					ConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), BottomSlabBSDF, 5, SUBSTRATE_COPY_CONNECTION);// ClearColorBottomNormal -> BottomSlabBSDF.Normal
-
-					// Now weight the top base material by opacity.
-					UMaterialExpressionSubstrateSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
-					TopSlabBSDF->Material = this;
-					TopSlabBSDF->MaterialExpressionEditorX = BottomSlabBSDF->MaterialExpressionEditorX;
-					TopSlabBSDF->MaterialExpressionEditorY = BottomSlabBSDF->MaterialExpressionEditorY + 650;
-					ColorMatInputConnectionTo(EditorOnly->EmissiveColor, TopSlabBSDF, 10, MP_EmissiveColor);
-					ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDF, 3, MP_CustomData0);	// ClearCoatRoughness => Roughness
-					Vector3MatInputConnectionTo(EditorOnly->Normal, TopSlabBSDF, 5, MP_Normal);
-
-					//  The top layer has a hard coded specular value of 0.5 (F0 = 0.04)
-					UMaterialExpressionConstant* ConstantHalf = NewObject<UMaterialExpressionConstant>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantHalf);
-					ConstantHalf->R = 0.5f * 0.08f;
-					TopSlabBSDF->GetInput(1)->Connect(0, ConstantHalf);
-
-					// The original clear coat is a complex assemblage of arbitrary functions that do not always make sense.
-					// To simplify things, we set the top slab BSDF as having a constant Grey scale transmittance.
-					// As for the original, this is achieved with coverage so both transmittance and specular contribution vanishes
-					UMaterialExpressionConstant* ConstantZero = NewObject<UMaterialExpressionConstant>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantZero);
-					ConstantZero->R = 0.0f;
-					TopSlabBSDF->GetInput(0)->Connect(0, ConstantZero);							// BaseColor = 0 to only feature absorption, no scattering
-
-					// Now setup the mean free path with a hard coded transmittance of 0.75 when viewing the surface perpendicularly
-					UMaterialExpressionConstant* Constant075 = NewObject<UMaterialExpressionConstant>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, Constant075);
-					Constant075->R = 0.75f;
-					UMaterialExpressionSubstrateTransmittanceToMFP* TransToMDFP = NewObject<UMaterialExpressionSubstrateTransmittanceToMFP>(this);
-					ReplaceNodeAndMoveToTheRight(TopSlabBSDF, TransToMDFP);
-					TransToMDFP->GetInput(0)->Connect(0, Constant075);
-					TopSlabBSDF->GetInput(7)->Connect(0, TransToMDFP);							// MFP -> MFP
-					TopSlabBSDF->GetInput(13)->Connect(1, TransToMDFP);							// Thickness -> Thickness
-
-					// Now weight the top base material by ClearCoat
-					UMaterialExpressionSubstrateWeight* TopSlabBSDFWithCoverage = NewObject<UMaterialExpressionSubstrateWeight>(this);
-					SetPosXAndMoveReferenceToTheRight(TopSlabBSDFWithCoverage);
-					TopSlabBSDFWithCoverage->GetInput(0)->Connect(0, TopSlabBSDF);												// TopSlabBSDF -> A
-					ScalarMatInputConnectionTo(EditorOnly->ClearCoat, TopSlabBSDFWithCoverage, 1, MP_CustomData0);				// ClearCoat -> Weight
-					ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDFWithCoverage, 1, MP_CustomData1);		// ClearCoat -> Weight
-
-					UMaterialExpressionSubstrateVerticalLayering* VerticalLayering = NewObject<UMaterialExpressionSubstrateVerticalLayering>(this);
-					SetPosXAndMoveReferenceToTheRight(VerticalLayering);
-					VerticalLayering->GetInput(0)->Connect(0, TopSlabBSDFWithCoverage);			// Top -> Top
-					VerticalLayering->GetInput(1)->Connect(0, BottomSlabBSDF);					// Bottom -> Base
-
-					EditorOnly->FrontMaterial.Connect(0, VerticalLayering);
-					bClearCoatConversionDone = true;
-					bRelinkCustomOutputNodes = false;	// We do not want that to happen in this case
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(0), ConvertAttributeNode, 1); // WaterScatteringCoefficients
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(1), ConvertAttributeNode, 2); // WaterAbsorptionCoefficients
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(2), ConvertAttributeNode, 3); // WaterPhaseG
+					ConnectionTo(*SingleLayerWaterOutput->GetInput(3), ConvertAttributeNode, 4); // ColorScaleBehindWater
 				}
 			}
-			
-			if (!bClearCoatConversionDone)
+
+			// If the graph contains a 'tangent output' node and uses 'eye' shading model, we add the custom tangent to the material attribute list
+			const bool bRequireCustomTangent = ShadingModels.HasShadingModel(MSM_Eye) && TangentOutput;
+			if (bRequireCustomTangent)
 			{
+				const FGuid MaterialAttributeGuid = FMaterialAttributeDefinitionMap::GetID(MP_MaterialAttributes);
+				const FGuid CustomEyeTangentGuid = FMaterialAttributeDefinitionMap::GetCustomAttributeID(TEXT("CustomEyeTangent"));
+
+				UMaterialExpressionSetMaterialAttributes* SetAttributesNode = NewObject<UMaterialExpressionSetMaterialAttributes>(this);
+				EditorOnly->ExpressionCollection.AddExpression(SetAttributesNode); // Add the SetAttributesNode to ensure the MaterialAttribute input are correctly tracked & cached
+				SetAttributesNode->Material = this;
+				SetAttributesNode->Inputs[0].Connect(0, EditorOnly->MaterialAttributes.Expression);
+				SetAttributesNode->AttributeSetTypes.Add(CustomEyeTangentGuid);
+				SetAttributesNode->Inputs.Add(*TangentOutput->GetInput(0));
+
+				// Connect to conversion node
+				ConvertAttributeNode->MaterialAttributes.Connect(0, SetAttributesNode);
+
+				// Connect to root node
+				EditorOnly->MaterialAttributes.Connect(0, SetAttributesNode);
+			}
+
+			// Connect converted Substrate data to root node
+			EditorOnly->FrontMaterial.Connect(0, ConvertAttributeNode);
+
+			// Shading Model
+			// * either use the shader graph expression 
+			// * or add a constant shading model
+			if (ShadingModel == MSM_FromMaterialExpression)
+			{
+				ConvertAttributeNode->ShadingModelOverride = MSM_FromMaterialExpression;
+			}
+			else
+			{
+				// Store Substrate shading model of the converted material. 
+				check(ShadingModels.CountShadingModels() == 1);
+				ConvertAttributeNode->ShadingModelOverride = ShadingModel;
+			}
+
+			if (MaterialDomain == MD_DeferredDecal)
+			{
+				// For now we don't enforce shading model since it could be driven by expression and we don't have much 
+				// control on this, but only DefaultLit should be supported.
+
+				// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
+				UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode = NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+				EditorOnly->ExpressionCollection.AddExpression(ConvertToDecalNode);
+				ConvertAttributeNode->Material = this;
+				ReplaceNodeAndMoveToTheRight(ConvertAttributeNode, ConvertToDecalNode);
+				ConvertToDecalNode->DecalMaterial.Connect(0, ConvertAttributeNode);
+
+				EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
+			}
+
+			BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
+			RefractionCoverageMode = RCM_CoverageIgnored;
+			bInvalidateShader = true;
+		}
+		else if (bUpdateEmptyMaterial)
+		{
+			// Empty material: Create by default a slab node
+			UMaterialFunction* DefaultMF = LoadObject<UMaterialFunction>(nullptr, TEXT("/Engine/Functions/Substrate/SMF_UE4Legacy.SMF_UE4Legacy")); 
+			if (DefaultMF)
+			{
+				DefaultMF->UpdateFromFunctionResource();
+				DefaultMF->PostEditChange();
+				DefaultMF->ConditionalPostLoad();
+
+				UMaterialExpressionMaterialFunctionCall* MFCallNode = NewObject<UMaterialExpressionMaterialFunctionCall>(this);
+				if (MFCallNode->SetMaterialFunction(DefaultMF))
+				{
+					// This is needed for input/output expressions to be set correctly, otherwise compilation will fail.
+					EditorOnly->ExpressionCollection.AddExpression(MFCallNode);
+
+					SetPosXAndMoveReferenceToTheRight(MFCallNode);
+					EditorOnly->FrontMaterial.Connect(0, MFCallNode);
+
+					MFCallNode->UpdateFromFunctionResource();
+					MFCallNode->PostEditChange();
+					MFCallNode->ConditionalPostLoad();
+
+					ColorMatInputConnectionTo(EditorOnly->BaseColor,		MFCallNode, 0, MP_BaseColor);
+					ScalarMatInputConnectionTo(EditorOnly->Metallic,		MFCallNode, 1, MP_Metallic);
+					ScalarMatInputConnectionTo(EditorOnly->Specular,		MFCallNode, 2, MP_Specular);
+					ScalarMatInputConnectionTo(EditorOnly->Roughness,		MFCallNode, 3, MP_Roughness);
+					Vector3MatInputConnectionTo(EditorOnly->Normal,			MFCallNode, 4, MP_Normal);
+					ColorMatInputConnectionTo(EditorOnly->EmissiveColor,	MFCallNode, 5, MP_EmissiveColor);
+					ScalarMatInputConnectionTo(EditorOnly->Opacity,			MFCallNode, 6, MP_Opacity);
+				}
+			}
+			else
+			{
+				// Or if it cannot be found, a slab node
+				UMaterialExpressionSubstrateSlabBSDF* SlabNode = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+				EditorOnly->ExpressionCollection.AddExpression(SlabNode);
+				SlabNode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(SlabNode);
+				EditorOnly->FrontMaterial.Connect(0, SlabNode);
+			}
+			bRelinkCustomOutputNodes = false;
+			bInvalidateShader = true;
+			bEmptyShader = true;
+		}
+		else if (!bUseMaterialAttributes && !EditorOnly->FrontMaterial.IsConnected() && !bHasAnySubstrateNodes)
+		{
+			if (MaterialDomain == MD_Surface)
+			{
+				bool bClearCoatConversionDone = false;
+				if (ShadingModel == MSM_ClearCoat)
+				{
+					GatherCustomNodes();
+					if (ClearCoatBottomNormalOutput)
+					{
+						// For this special case, using two slabs to create a clear coat material with separated top and bottom normal. 
+
+						// Create metalness to Slab parameterisation conveersion node
+						UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0* SubstrateMetalnessToDiffuseAlbedoF0 = NewObject<UMaterialExpressionSubstrateMetalnessToDiffuseAlbedoF0>(this);
+						EditorOnly->ExpressionCollection.AddExpression(SubstrateMetalnessToDiffuseAlbedoF0);
+						SetPosXAndMoveReferenceToTheRight(SubstrateMetalnessToDiffuseAlbedoF0);
+						ColorMatInputConnectionTo(EditorOnly->BaseColor, SubstrateMetalnessToDiffuseAlbedoF0, 0, MP_BaseColor);
+						ScalarMatInputConnectionTo(EditorOnly->Metallic, SubstrateMetalnessToDiffuseAlbedoF0, 1, MP_Metallic);
+						ScalarMatInputConnectionTo(EditorOnly->Specular, SubstrateMetalnessToDiffuseAlbedoF0, 2, MP_Specular);
+					
+						// Top slab BSDF as a simple Disney material
+						UMaterialExpressionSubstrateSlabBSDF* BottomSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+						EditorOnly->ExpressionCollection.AddExpression(BottomSlabBSDF);
+						BottomSlabBSDF->Material = this;
+						SetPosXAndMoveReferenceToTheRight(BottomSlabBSDF);
+						BottomSlabBSDF->GetInput(0)->Connect(0, SubstrateMetalnessToDiffuseAlbedoF0);
+						BottomSlabBSDF->GetInput(1)->Connect(1, SubstrateMetalnessToDiffuseAlbedoF0);
+						BottomSlabBSDF->GetInput(2)->Connect(2, SubstrateMetalnessToDiffuseAlbedoF0);
+						ScalarMatInputConnectionTo(EditorOnly->Roughness, BottomSlabBSDF, 3, MP_Roughness);
+						ScalarMatInputConnectionTo(EditorOnly->Anisotropy, BottomSlabBSDF, 4, MP_Anisotropy, SUBSTRATE_COPY_CONNECTION);
+						Vector3MatInputConnectionTo(EditorOnly->Tangent, BottomSlabBSDF, 6, MP_Tangent);
+
+						check(ClearCoatBottomNormalOutput);
+						ConnectionTo(*ClearCoatBottomNormalOutput->GetInput(0), BottomSlabBSDF, 5, SUBSTRATE_COPY_CONNECTION);// ClearColorBottomNormal -> BottomSlabBSDF.Normal
+
+						// Now weight the top base material by opacity.
+						UMaterialExpressionSubstrateSlabBSDF* TopSlabBSDF = NewObject<UMaterialExpressionSubstrateSlabBSDF>(this);
+						EditorOnly->ExpressionCollection.AddExpression(TopSlabBSDF);
+						TopSlabBSDF->Material = this;
+						TopSlabBSDF->MaterialExpressionEditorX = BottomSlabBSDF->MaterialExpressionEditorX;
+						TopSlabBSDF->MaterialExpressionEditorY = BottomSlabBSDF->MaterialExpressionEditorY + 650;
+						ColorMatInputConnectionTo(EditorOnly->EmissiveColor, TopSlabBSDF, 10, MP_EmissiveColor);
+						ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDF, 3, MP_CustomData0);	// ClearCoatRoughness => Roughness
+						Vector3MatInputConnectionTo(EditorOnly->Normal, TopSlabBSDF, 5, MP_Normal);
+
+						//  The top layer has a hard coded specular value of 0.5 (F0 = 0.04)
+						UMaterialExpressionConstant* ConstantHalf = NewObject<UMaterialExpressionConstant>(this);
+						EditorOnly->ExpressionCollection.AddExpression(ConstantHalf);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantHalf);
+						ConstantHalf->R = 0.5f * 0.08f;
+						TopSlabBSDF->GetInput(1)->Connect(0, ConstantHalf);
+
+						// The original clear coat is a complex assemblage of arbitrary functions that do not always make sense.
+						// To simplify things, we set the top slab BSDF as having a constant Grey scale transmittance.
+						// As for the original, this is achieved with coverage so both transmittance and specular contribution vanishes
+						UMaterialExpressionConstant* ConstantZero = NewObject<UMaterialExpressionConstant>(this);
+						EditorOnly->ExpressionCollection.AddExpression(ConstantZero);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, ConstantZero);
+						ConstantZero->R = 0.0f;
+						TopSlabBSDF->GetInput(0)->Connect(0, ConstantZero);							// BaseColor = 0 to only feature absorption, no scattering
+
+						// Now setup the mean free path with a hard coded transmittance of 0.75 when viewing the surface perpendicularly
+						UMaterialExpressionConstant* Constant075 = NewObject<UMaterialExpressionConstant>(this);
+						EditorOnly->ExpressionCollection.AddExpression(Constant075);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, Constant075);
+						Constant075->R = 0.75f;
+						UMaterialExpressionSubstrateTransmittanceToMFP* TransToMDFP = NewObject<UMaterialExpressionSubstrateTransmittanceToMFP>(this);
+						EditorOnly->ExpressionCollection.AddExpression(TransToMDFP);
+						ReplaceNodeAndMoveToTheRight(TopSlabBSDF, TransToMDFP);
+						TransToMDFP->GetInput(0)->Connect(0, Constant075);
+						TopSlabBSDF->GetInput(7)->Connect(0, TransToMDFP);							// MFP -> MFP
+						TopSlabBSDF->GetInput(13)->Connect(1, TransToMDFP);							// Thickness -> Thickness
+
+						// Now weight the top base material by ClearCoat
+						UMaterialExpressionSubstrateWeight* TopSlabBSDFWithCoverage = NewObject<UMaterialExpressionSubstrateWeight>(this);
+						EditorOnly->ExpressionCollection.AddExpression(SubstrateMetalnessToDiffuseAlbedoF0); // Add the SetAttributesNode to ensure the MaterialAttribute input are correctly tracked & cached
+						SetPosXAndMoveReferenceToTheRight(TopSlabBSDFWithCoverage);
+						TopSlabBSDFWithCoverage->GetInput(0)->Connect(0, TopSlabBSDF);												// TopSlabBSDF -> A
+						ScalarMatInputConnectionTo(EditorOnly->ClearCoat, TopSlabBSDFWithCoverage, 1, MP_CustomData0);				// ClearCoat -> Weight
+						ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, TopSlabBSDFWithCoverage, 1, MP_CustomData1);		// ClearCoat -> Weight
+
+						UMaterialExpressionSubstrateVerticalLayering* VerticalLayering = NewObject<UMaterialExpressionSubstrateVerticalLayering>(this);
+						EditorOnly->ExpressionCollection.AddExpression(VerticalLayering);
+						SetPosXAndMoveReferenceToTheRight(VerticalLayering);
+						VerticalLayering->GetInput(0)->Connect(0, TopSlabBSDFWithCoverage);			// Top -> Top
+						VerticalLayering->GetInput(1)->Connect(0, BottomSlabBSDF);					// Bottom -> Base
+
+						EditorOnly->FrontMaterial.Connect(0, VerticalLayering);
+						bClearCoatConversionDone = true;
+						bRelinkCustomOutputNodes = false;	// We do not want that to happen in this case
+					}
+				}
+			
+				if (!bClearCoatConversionDone)
+				{
+					ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
+					EditorOnly->ExpressionCollection.AddExpression(ConvertNode); // Add the SetAttributesNode to ensure the MaterialAttribute input are correctly tracked & cached
+					ConvertNode->Material = this;
+					SetPosXAndMoveReferenceToTheRight(ConvertNode);
+					ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
+					ColorMatInputConnectionTo(EditorOnly->BaseColor, ConvertNode, 0, MP_BaseColor);
+					ScalarMatInputConnectionTo(EditorOnly->Metallic, ConvertNode, 1, MP_Metallic);
+					ScalarMatInputConnectionTo(EditorOnly->Specular, ConvertNode, 2, MP_Specular);
+					ScalarMatInputConnectionTo(EditorOnly->Roughness, ConvertNode, 3, MP_Roughness);
+					ScalarMatInputConnectionTo(EditorOnly->Anisotropy, ConvertNode, 4, MP_Anisotropy);
+					ColorMatInputConnectionTo(EditorOnly->EmissiveColor, ConvertNode, 5, MP_EmissiveColor);
+					Vector3MatInputConnectionTo(EditorOnly->Normal, ConvertNode, 6, MP_Normal, SUBSTRATE_COPY_CONNECTION);
+					Vector3MatInputConnectionTo(EditorOnly->Tangent, ConvertNode, 7, MP_Tangent);
+					ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, ConvertNode, 8, MP_SubsurfaceColor);
+					ScalarMatInputConnectionTo(EditorOnly->ClearCoat, ConvertNode, 9, MP_CustomData0);
+					ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, ConvertNode, 10, MP_CustomData1);
+					ScalarMatInputConnectionTo(EditorOnly->Opacity, ConvertNode, 11, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
+					bRelinkCustomOutputNodes = true;
+			
+					// Shading Model
+					// * either use the shader graph expression 
+					// * or add a constant shading model
+					if (ShadingModel == MSM_FromMaterialExpression)
+					{
+						if (!EditorOnly->ShadingModelFromMaterialExpression.IsConnected())
+						{
+							ConvertNode->ShadingModelOverride = MSM_DefaultLit;
+						}
+						else
+						{
+							// Reconnect the shading model expression. 
+							// Note: assign the expression directly, as using ConvertNode->GetInput(19)->Connect(..) causes the expression to not be assigned
+							ConvertNode->ShadingModel.Connect(EditorOnly->ShadingModelFromMaterialExpression.OutputIndex, EditorOnly->ShadingModelFromMaterialExpression.Expression);
+						}
+
+						// Store Substrate shading model of the converted material. 
+						GatherCustomNodes();
+						if (SingleLayerWaterOutput)
+						{
+							ShadingModels.AddShadingModel(MSM_SingleLayerWater);
+						}
+
+						check(ShadingModels.CountShadingModels() >= 1);
+					}
+					else
+					{
+						ConvertNode->ShadingModelOverride = ShadingModel;
+						check(ShadingModels.CountShadingModels() == 1);
+					}
+
+					EditorOnly->FrontMaterial.Connect(0, ConvertNode);
+				}
+
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_Volume)
+			{
+				UMaterialExpressionSubstrateVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionSubstrateVolumetricFogCloudBSDF>(this);
+				EditorOnly->ExpressionCollection.AddExpression(VolBSDF);
+				VolBSDF->Material = this;
+				SetPosXAndMoveReferenceToTheRight(VolBSDF);
+				ColorMatInputConnectionTo(EditorOnly->BaseColor, VolBSDF, 0, MP_BaseColor);	
+				ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, VolBSDF, 1, MP_SubsurfaceColor);
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, VolBSDF, 2, MP_EmissiveColor);	
+				ScalarMatInputConnectionTo(EditorOnly->AmbientOcclusion, VolBSDF, 3, MP_AmbientOcclusion);
+
+				VolBSDF->bEmissiveOnly = ShadingModel == MSM_Unlit;
+
+				// SUBSTRATE_TODO remove the VolumetricAdvancedOutput node and add the input onto FogCloudBSDF even if only used by the cloud renderer?
+				EditorOnly->FrontMaterial.Connect(0, VolBSDF);
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_LightFunction)
+			{
+				// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
+				ShadingModel = MSM_Unlit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_Unlit);
+
+				// Only Emissive & Opacity are valid input for PostProcess material
+				UMaterialExpressionSubstrateLightFunction* LightFunctionNode = NewObject<UMaterialExpressionSubstrateLightFunction>(this);
+				EditorOnly->ExpressionCollection.AddExpression(LightFunctionNode);
+				LightFunctionNode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(LightFunctionNode);
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, LightFunctionNode, 0, MP_EmissiveColor);
+
+				EditorOnly->FrontMaterial.Connect(0, LightFunctionNode);
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_PostProcess)
+			{
+				// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
+				ShadingModel = MSM_Unlit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_Unlit);
+
+				if (MaterialDomain == MD_PostProcess && !IsPostProcessMaterialOutputingAlpha())
+				{
+					BlendMode = BLEND_Opaque;
+				}
+
+				UMaterialExpressionSubstratePostProcess* PostProcNode = NewObject<UMaterialExpressionSubstratePostProcess>(this);
+				EditorOnly->ExpressionCollection.AddExpression(PostProcNode);
+				PostProcNode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(PostProcNode);
+
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, PostProcNode, 0, MP_EmissiveColor);
+				ScalarMatInputConnectionTo(EditorOnly->Opacity, PostProcNode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
+
+				EditorOnly->FrontMaterial.Connect(0, PostProcNode);
+				bInvalidateShader = true;
+			}
+			else if (MaterialDomain == MD_DeferredDecal)
+			{
+				// Some decal materials don't have their shading mode set correctly to DefaultLit. Since only DefaultLit is supported, forcing it here.
+				ShadingModel = MSM_DefaultLit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_DefaultLit);
+
 				ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
+				EditorOnly->ExpressionCollection.AddExpression(ConvertNode);
 				ConvertNode->Material = this;
 				SetPosXAndMoveReferenceToTheRight(ConvertNode);
-				ConvertNode->SubsurfaceProfile = bRequireNoSubsurfaceProfile ? nullptr : SubsurfaceProfile;
 				ColorMatInputConnectionTo(EditorOnly->BaseColor, ConvertNode, 0, MP_BaseColor);
 				ScalarMatInputConnectionTo(EditorOnly->Metallic, ConvertNode, 1, MP_Metallic);
 				ScalarMatInputConnectionTo(EditorOnly->Specular, ConvertNode, 2, MP_Specular);
@@ -3583,151 +3921,42 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 				ScalarMatInputConnectionTo(EditorOnly->ClearCoat, ConvertNode, 9, MP_CustomData0);
 				ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, ConvertNode, 10, MP_CustomData1);
 				ScalarMatInputConnectionTo(EditorOnly->Opacity, ConvertNode, 11, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-				bRelinkCustomOutputNodes = true;
-			
-				// Shading Model
-				// * either use the shader graph expression 
-				// * or add a constant shading model
-				if (ShadingModel == MSM_FromMaterialExpression)
-				{
-					if (!EditorOnly->ShadingModelFromMaterialExpression.IsConnected())
-					{
-						ConvertNode->ShadingModelOverride = MSM_DefaultLit;
-					}
-					else
-					{
-						// Reconnect the shading model expression. 
-						// Note: assign the expression directly, as using ConvertNode->GetInput(19)->Connect(..) causes the expression to not be assigned
-						ConvertNode->ShadingModel.Connect(EditorOnly->ShadingModelFromMaterialExpression.OutputIndex, EditorOnly->ShadingModelFromMaterialExpression.Expression);
-					}
 
-					// Store Substrate shading model of the converted material. 
-					GatherCustomNodes();
-					if (SingleLayerWaterOutput)
-					{
-						ShadingModels.AddShadingModel(MSM_SingleLayerWater);
-					}
+				// Add constant for the Unlit shading model
+				ConvertNode->ShadingModelOverride = ShadingModel;
+				check(ShadingModels.CountShadingModels() == 1);
 
-					check(ShadingModels.CountShadingModels() >= 1);
-				}
-				else
-				{
-					ConvertNode->ShadingModelOverride = ShadingModel;
-					check(ShadingModels.CountShadingModels() == 1);
-				}
+				// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
+				UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
+				EditorOnly->ExpressionCollection.AddExpression(ConvertToDecalNode);
+				ConvertToDecalNode->Material = this;
+				ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
+				ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
 
-				EditorOnly->FrontMaterial.Connect(0, ConvertNode);
+				EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
+				bInvalidateShader = true;
 			}
-
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_Volume)
-		{
-			UMaterialExpressionSubstrateVolumetricFogCloudBSDF* VolBSDF = NewObject<UMaterialExpressionSubstrateVolumetricFogCloudBSDF>(this);
-			VolBSDF->Material = this;
-			SetPosXAndMoveReferenceToTheRight(VolBSDF);
-			ColorMatInputConnectionTo(EditorOnly->BaseColor, VolBSDF, 0, MP_BaseColor);	
-			ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, VolBSDF, 1, MP_SubsurfaceColor);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, VolBSDF, 2, MP_EmissiveColor);	
-			ScalarMatInputConnectionTo(EditorOnly->AmbientOcclusion, VolBSDF, 3, MP_AmbientOcclusion);
-
-			// SUBSTRATE_TODO remove the VolumetricAdvancedOutput node and add the input onto FogCloudBSDF even if only used by the cloud renderer?
-			EditorOnly->FrontMaterial.Connect(0, VolBSDF);
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_LightFunction)
-		{
-			// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
-			ShadingModel = MSM_Unlit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_Unlit);
-
-			// Only Emissive & Opacity are valid input for PostProcess material
-			UMaterialExpressionSubstrateLightFunction* LightFunctionNode = NewObject<UMaterialExpressionSubstrateLightFunction>(this);
-			LightFunctionNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(LightFunctionNode);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, LightFunctionNode, 0, MP_EmissiveColor);
-
-			EditorOnly->FrontMaterial.Connect(0, LightFunctionNode);
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_PostProcess)
-		{
-			// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
-			ShadingModel = MSM_Unlit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_Unlit);
-
-			if (MaterialDomain == MD_PostProcess && !IsPostProcessMaterialOutputingAlpha())
+			else if (MaterialDomain == MD_UI)
 			{
-				BlendMode = BLEND_Opaque;
+				// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
+				ShadingModel = MSM_Unlit;
+				ShadingModels.ClearShadingModels();
+				ShadingModels.AddShadingModel(MSM_Unlit);
+
+				UMaterialExpressionSubstrateUI* UINode = NewObject<UMaterialExpressionSubstrateUI>(this);
+				EditorOnly->ExpressionCollection.AddExpression(UINode);
+				UINode->Material = this;
+				SetPosXAndMoveReferenceToTheRight(UINode);
+				ColorMatInputConnectionTo(EditorOnly->EmissiveColor, UINode, 0, MP_EmissiveColor);
+				ScalarMatInputConnectionTo(EditorOnly->Opacity, UINode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
+
+				EditorOnly->FrontMaterial.Connect(0, UINode);
+				bInvalidateShader = true;
 			}
 
-			UMaterialExpressionSubstratePostProcess* PostProcNode = NewObject<UMaterialExpressionSubstratePostProcess>(this);
-			PostProcNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(PostProcNode);
-
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, PostProcNode, 0, MP_EmissiveColor);
-			ScalarMatInputConnectionTo(EditorOnly->Opacity, PostProcNode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-
-			EditorOnly->FrontMaterial.Connect(0, PostProcNode);
-			bInvalidateShader = true;
+			BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
+			RefractionCoverageMode = RCM_CoverageIgnored;
 		}
-		else if (MaterialDomain == MD_DeferredDecal)
-		{
-			// Some decal materials don't have their shading mode set correctly to DefaultLit. Since only DefaultLit is supported, forcing it here.
-			ShadingModel = MSM_DefaultLit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_DefaultLit);
-
-			ConvertNode = NewObject<UMaterialExpressionSubstrateShadingModels>(this);
-			ConvertNode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(ConvertNode);
-			ColorMatInputConnectionTo(EditorOnly->BaseColor, ConvertNode, 0, MP_BaseColor);
-			ScalarMatInputConnectionTo(EditorOnly->Metallic, ConvertNode, 1, MP_Metallic);
-			ScalarMatInputConnectionTo(EditorOnly->Specular, ConvertNode, 2, MP_Specular);
-			ScalarMatInputConnectionTo(EditorOnly->Roughness, ConvertNode, 3, MP_Roughness);
-			ScalarMatInputConnectionTo(EditorOnly->Anisotropy, ConvertNode, 4, MP_Anisotropy);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, ConvertNode, 5, MP_EmissiveColor);
-			Vector3MatInputConnectionTo(EditorOnly->Normal, ConvertNode, 6, MP_Normal, SUBSTRATE_COPY_CONNECTION);
-			Vector3MatInputConnectionTo(EditorOnly->Tangent, ConvertNode, 7, MP_Tangent);
-			ColorMatInputConnectionTo(EditorOnly->SubsurfaceColor, ConvertNode, 8, MP_SubsurfaceColor);
-			ScalarMatInputConnectionTo(EditorOnly->ClearCoat, ConvertNode, 9, MP_CustomData0);
-			ScalarMatInputConnectionTo(EditorOnly->ClearCoatRoughness, ConvertNode, 10, MP_CustomData1);
-			ScalarMatInputConnectionTo(EditorOnly->Opacity, ConvertNode, 11, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-
-			// Add constant for the Unlit shading model
-			ConvertNode->ShadingModelOverride = ShadingModel;
-			check(ShadingModels.CountShadingModels() == 1);
-
-			// Now pass through the convert to decal node, which flag the material as SSM_Decal, which will set the domain to Decal.
-			UMaterialExpressionSubstrateConvertToDecal* ConvertToDecalNode= NewObject<UMaterialExpressionSubstrateConvertToDecal>(this);
-			ConvertToDecalNode->Material = this;
-			ReplaceNodeAndMoveToTheRight(ConvertNode, ConvertToDecalNode);
-			ConvertToDecalNode->DecalMaterial.Connect(0, ConvertNode);
-
-			EditorOnly->FrontMaterial.Connect(0, ConvertToDecalNode);
-			bInvalidateShader = true;
-		}
-		else if (MaterialDomain == MD_UI)
-		{
-			// Some materials don't have their shading mode set correctly to Unlit. Since only Unlit is supported, forcing it here.
-			ShadingModel = MSM_Unlit;
-			ShadingModels.ClearShadingModels();
-			ShadingModels.AddShadingModel(MSM_Unlit);
-
-			UMaterialExpressionSubstrateUI* UINode = NewObject<UMaterialExpressionSubstrateUI>(this);
-			UINode->Material = this;
-			SetPosXAndMoveReferenceToTheRight(UINode);
-			ColorMatInputConnectionTo(EditorOnly->EmissiveColor, UINode, 0, MP_EmissiveColor);
-			ScalarMatInputConnectionTo(EditorOnly->Opacity, UINode, 1, MP_Opacity, SUBSTRATE_COPY_CONNECTION);	// We only copy, to keep Opacity on the root node in case BLEND_AlphaComposite is selected.
-
-			EditorOnly->FrontMaterial.Connect(0, UINode);
-			bInvalidateShader = true;
-		}
-
-		BlendMode = ConvertLegacyBlendMode(BlendMode, ShadingModels);
-		RefractionCoverageMode = RCM_CoverageIgnored;
 	}
 
 	if (bRelinkCustomOutputNodes)
@@ -3737,7 +3966,16 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 
 		if (ThinTranslucentOutput)
 		{
-			ConnectionTo(*ThinTranslucentOutput->GetInput(0), ConvertNode, 12);	 // TransmittanceColor
+			FExpressionInput* TransmittanceColorInput = ThinTranslucentOutput->GetInput(0);
+			FExpressionInput* ThinTranslucentSurfaceCoverageInput = ThinTranslucentOutput->GetInput(1);
+			if (TransmittanceColorInput && TransmittanceColorInput->IsConnected())
+			{
+				ConvertNode->TransmittanceColor.Connect(TransmittanceColorInput->OutputIndex, TransmittanceColorInput->Expression);
+			}
+			if (ThinTranslucentSurfaceCoverageInput && ThinTranslucentSurfaceCoverageInput->IsConnected())
+			{
+				ConvertNode->ThinTranslucentSurfaceCoverage.Connect(ThinTranslucentSurfaceCoverageInput->OutputIndex, ThinTranslucentSurfaceCoverageInput->Expression);
+			}
 		}
 		if (SingleLayerWaterOutput)
 		{
@@ -3775,8 +4013,16 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		// We might have moved connections above so update the CachedExpressionData from the EditorOnly connection data (ground truth).
 		UpdateCachedExpressionData();
 	}
-#endif
+
+	// Store the conversion version, only for converted shaders
+	if (bInvalidateShader && !bEmptyShader)
+	{
+		EditorOnly->SubstrateConversionVersion = GetSubstrateConversionVersion();
+	}
+
+	return bInvalidateShader;
 }
+#endif // WITH_EDITOR
 
 TMap<FGuid, UMaterialInterface*> LightingGuidFixupMap;
 
@@ -3918,11 +4164,12 @@ void UMaterial::PostLoad()
 		AssertDefaultMaterialsPostLoaded();
 	}	
 
+#if WITH_EDITOR
 	if ( GIsEditor && GetOuter() == GetTransientPackage() && FCString::Strstr(*GetName(), TEXT("MEStatsMaterial_")))
 	{
 		bIsMaterialEditorStatsMaterial = true;
 	}
-
+#endif // WITH_EDITOR
 
 	if( GetLinkerUEVersion() < VER_UE4_REMOVED_MATERIAL_USED_WITH_UI_FLAG && bUsedWithUI_DEPRECATED == true )
 	{
@@ -3977,11 +4224,16 @@ void UMaterial::PostLoad()
 		bUseFullPrecision_DEPRECATED = false;
 	}
 
-	if (!GIsEditor)
+#if !WITH_EDITOR
+	// Filter out ShadingModels field to a current platform settings
+	FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
+	// Override material shader model if it was filtered out
+	if (!ShadingModels.HasShadingModel(ShadingModel) &&
+		(ShadingModel != MSM_FromMaterialExpression || !AllowPerPixelShadingModels(GMaxRHIShaderPlatform)))
 	{
-		// Filter out ShadingModels field to a current platform settings
-		FilterOutPlatformShadingModels(GMaxRHIShaderPlatform, ShadingModels);
+		ShadingModel = ShadingModels.GetFirstShadingModel();
 	}
+#endif
 
 #if WITH_EDITOR
 	// Create exec flow expressions, if needed
@@ -4004,11 +4256,12 @@ void UMaterial::PostLoad()
 		FPlatformMisc::CreateGuid(StateId);
 	}
 
+#if WITH_EDITOR
+
 	BackwardsCompatibilityInputConversion();
 	BackwardsCompatibilityVirtualTextureOutputConversion();
 	BackwardsCompatibilityDecalConversion();
 
-#if WITH_EDITOR
 	if ( GMaterialsThatNeedSamplerFixup.Get( this ) )
 	{
 		GMaterialsThatNeedSamplerFixup.Clear( this );
@@ -4076,9 +4329,18 @@ void UMaterial::PostLoad()
 	}
 #endif
 
-	// Substrate materials conversion needs to be done after expressions are cached, otherwise material function won't have 
-	// valid inputs in certain cases
-	ConvertMaterialToSubstrateMaterial();
+#if WITH_EDITOR
+	if (Substrate::IsSubstrateEnabled())
+	{
+		// Substrate materials conversion needs to be done after expressions are cached, otherwise material function won't have 
+		// valid inputs in certain cases
+		if (ConvertMaterialToSubstrateMaterial(true /*bAllowEmptyMaterialUpdate*/))
+		{
+			// Call PropagateDataToMaterialProxy in order to propagate Subsurface profiles and specular profiles data to the material proxy
+			PropagateDataToMaterialProxy();
+		}
+	}
+#endif // WITH_EDITOR
 
 	checkf(CachedExpressionData, TEXT("Missing cached expression data for material, should have been either serialized or created during PostLoad"));
 
@@ -4121,9 +4383,7 @@ void UMaterial::PostLoad()
 			ReleaseResourcesAndMutateDDCKey(BackwardsCompatibilityFeatureLevelSM6ConversionGuid);
 		}
 	}
-#endif // #if WITH_EDITOR
 
-#if WITH_EDITOR
 	// Before, refraction was only enabled when the refraction pin was plugged in.
 	// Now it is enabled only when not OFF. Otherwise:
 	//    - if plugged the pin override the physically based material refraction
@@ -4157,20 +4417,7 @@ void UMaterial::PostLoad()
 	STAT(double MaterialLoadTime = 0);
 	{
 		SCOPE_SECONDS_COUNTER(MaterialLoadTime);
-// Daniel: Disable compiling shaders for cooked platforms as the cooker will manually call the BeginCacheForCookedPlatformData function and load balence
-#if 0 && WITH_EDITOR
-		// enable caching in postload for derived data cache commandlet and cook by the book
-		ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
-		if (TPM && (TPM->RestrictFormatsToRuntimeOnly() == false))
-		{
-			TArray<ITargetPlatform*> Platforms = TPM->GetActiveTargetPlatforms();
-			// Cache for all the shader formats that the cooking target requires
-			for (int32 FormatIndex = 0; FormatIndex < Platforms.Num(); FormatIndex++)
-			{
-				BeginCacheForCookedPlatformData(Platforms[FormatIndex]);
-			}
-		}
-#endif
+
 		//Don't compile shaders in post load for dev overhead materials.
 		if (FApp::CanEverRender() && !bIsMaterialEditorStatsMaterial && GAllowCompilationInPostLoad)
 		{
@@ -4197,19 +4444,32 @@ void UMaterial::PostLoad()
 	}
 	INC_FLOAT_STAT_BY(STAT_ShaderCompiling_MaterialLoading,(float)MaterialLoadTime);
 
+#if WITH_EDITOR
 	if( GIsEditor && !IsTemplate() )
 	{
 		// Ensure that the ReferencedTextureGuids array is up to date.
 		UpdateLightmassTextureTracking();
 	}
+#endif // WITH_EDITOR
 
-	if (IsDeferredDecal())
+	
+
+	if(IsPSOShaderPreloadingEnabled())
+	{ 
+		// When dynamic preload shaders is enabled, we need to prelaod some material domains since there is no
+		// code logic within the PSO precaching system.
+		if (IsUIMaterial() || IsDeferredDecal() || (MaterialDomain == MD_LightFunction) || IsPostProcessMaterial())
+		{
+			FGraphEventArray Unused;
+			PreloadMaterialShaderMap(GetMaterialResource(GMaxRHIFeatureLevel), Unused);
+		}
+	}
+	else if (IsDeferredDecal())
 	{
 		FPSOPrecacheParams PSOPrecacheParams;
 		UMaterialInterface::PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
 	}
 
-	//DumpDebugInfo(*GLog);
 }
 
 #if WITH_EDITORONLY_DATA
@@ -4228,11 +4488,11 @@ void UMaterial::DumpDebugInfo(FOutputDevice& OutputDevice) const
 	}
 
 #if WITH_EDITOR
-	for (auto& It : CachedMaterialResourcesForCooking)
+	for (const TPair<const ITargetPlatform*, TArray<FMaterialResourceForCooking>>& It : CachedMaterialResourcesForCooking)
 	{
-		for (FMaterialResource* Resource : It.Value)
+		for (const FMaterialResourceForCooking& ResourceForCooking : It.Value)
 		{
-			Resource->DumpDebugInfo(OutputDevice);
+			ResourceForCooking.Resource->DumpDebugInfo(OutputDevice);
 		}
 	}
 #endif
@@ -4252,14 +4512,14 @@ void UMaterial::SaveShaderStableKeysInner(const class ITargetPlatform* TP, const
 #if WITH_EDITOR
 	FStableShaderKeyAndValue SaveKeyVal(InSaveKeyVal);
 	SaveKeyVal.MaterialDomain = FName(*MaterialDomainString(MaterialDomain));
-	TArray<FMaterialResource*>* MatRes = CachedMaterialResourcesForCooking.Find(TP);
+	TArray<FMaterialResourceForCooking>* MatRes = CachedMaterialResourcesForCooking.Find(TP);
 	if (MatRes)
 	{
-		for (FMaterialResource* Mat : *MatRes)
+		for (const FMaterialResourceForCooking& Mat : *MatRes)
 		{
-			if (Mat)
+			if (Mat.Resource)
 			{
-				Mat->SaveShaderStableKeys(EShaderPlatform::SP_NumPlatforms, SaveKeyVal);
+				Mat.Resource->SaveShaderStableKeys(EShaderPlatform::SP_NumPlatforms, SaveKeyVal);
 			}
 		}
 	}
@@ -4364,20 +4624,15 @@ void UMaterial::PropagateDataToMaterialProxy()
 void UMaterial::BeginCacheForCookedPlatformData( const ITargetPlatform *TargetPlatform )
 {
 	LLM_SCOPE(ELLMTag::Materials);
-	TArray<FName> DesiredShaderFormats;
-	TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
-
-	GetCmdLineFilterShaderFormats(DesiredShaderFormats);
-
-	TArray<FMaterialResource*> *CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
+	TArray<FMaterialResourceForCooking>* CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find(TargetPlatform);
 
 	if (CachedMaterialResourcesForPlatform == nullptr)
 	{
-		CachedMaterialResourcesForCooking.Add( TargetPlatform );
-		CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
+		TArray<FName> DesiredShaderFormats;
+		TargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
+		GetCmdLineFilterShaderFormats(DesiredShaderFormats);
 
-		check(CachedMaterialResourcesForPlatform != nullptr);
-
+		CachedMaterialResourcesForPlatform = &CachedMaterialResourcesForCooking.FindOrAdd(TargetPlatform);
 		if (DesiredShaderFormats.Num())
 		{
 			// Cache for all the shader formats that the cooking target requires
@@ -4395,13 +4650,15 @@ void UMaterial::BeginCacheForCookedPlatformData( const ITargetPlatform *TargetPl
 bool UMaterial::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) 
 {
 	LLM_SCOPE(ELLMTag::Materials);
-	const TArray<FMaterialResource*>* CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
+	const TArray<FMaterialResourceForCooking>* CachedMaterialResourcesForPlatform =
+		CachedMaterialResourcesForCooking.Find(TargetPlatform);
 
-	if (CachedMaterialResourcesForPlatform != nullptr) // this should always succeed if BeginCacheForCookedPlatformData is called first
+	// this should always succeed if BeginCacheForCookedPlatformData is called first
+	if (CachedMaterialResourcesForPlatform != nullptr)
 	{
-		for ( const auto& MaterialResource : *CachedMaterialResourcesForPlatform )
+		for (const FMaterialResourceForCooking& MaterialResource : *CachedMaterialResourcesForPlatform)
 		{
-			if ( MaterialResource->IsCompilationFinished() == false )
+			if (MaterialResource.Resource->IsCompilationFinished() == false)
 			{
 				return false;
 			}
@@ -4413,7 +4670,6 @@ bool UMaterial::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetP
 
 void UMaterial::ClearCachedCookedPlatformData( const ITargetPlatform *TargetPlatform )
 {
-#if WITH_EDITOR
 	if (GIsBuildMachine)
 	{
 		// Dump debug info for the DefaultMaterial.
@@ -4435,24 +4691,33 @@ void UMaterial::ClearCachedCookedPlatformData( const ITargetPlatform *TargetPlat
 			}
 		}
 	}
-#endif
 
-	TArray<FMaterialResource*>* CachedMaterialResourcesForPlatform = CachedMaterialResourcesForCooking.Find( TargetPlatform );
-	if ( CachedMaterialResourcesForPlatform != nullptr)
+	TArray<TRefCountPtr<FMaterialResource>> MaterialsToDelete;
 	{
-		FMaterial::DeferredDeleteArray(*CachedMaterialResourcesForPlatform);
+		TArray<FMaterialResourceForCooking> CachedMaterialResourcesForPlatform;
+		CachedMaterialResourcesForCooking.RemoveAndCopyValue(TargetPlatform, CachedMaterialResourcesForPlatform);
+		MaterialsToDelete.Reserve(CachedMaterialResourcesForPlatform.Num());
+		for (FMaterialResourceForCooking& MaterialToDelete : CachedMaterialResourcesForPlatform)
+		{
+			MaterialsToDelete.Add(MoveTemp(MaterialToDelete.Resource));
+		}
 	}
-	CachedMaterialResourcesForCooking.Remove( TargetPlatform );
+	FMaterial::DeferredDeleteArray(MaterialsToDelete);
 }
 
 void UMaterial::ClearAllCachedCookedPlatformData()
 {
-	for ( auto& It : CachedMaterialResourcesForCooking )
+	TArray<TRefCountPtr<FMaterialResource>> MaterialsToDelete;
+	for (TPair<const ITargetPlatform*, TArray<FMaterialResourceForCooking>>& It : CachedMaterialResourcesForCooking)
 	{
-		TArray<FMaterialResource*>& CachedMaterialResourcesForPlatform = It.Value;
-		FMaterial::DeferredDeleteArray(CachedMaterialResourcesForPlatform);
+		MaterialsToDelete.Reserve(MaterialsToDelete.Num() + It.Value.Num());
+		for (FMaterialResourceForCooking& MaterialToDelete : It.Value)
+		{
+			MaterialsToDelete.Add(MoveTemp(MaterialToDelete.Resource));
+		}
 	}
 	CachedMaterialResourcesForCooking.Empty();
+	FMaterial::DeferredDeleteArray(MaterialsToDelete);
 }
 #endif // WITH_EDITOR
 
@@ -4527,6 +4792,7 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendableLocation) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendablePriority) || 
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendableOutputAlpha) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bDisablePreExposureScale) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bIsBlendable) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bEnableStencilTest) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, StencilCompare) ||
@@ -4536,6 +4802,14 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 			)
 		{
 			return MaterialDomain == MD_PostProcess;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserSceneTexture) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserTextureDivisor) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, ResolutionRelativeToInput))
+		{
+			// "Replacing Tonemapper" blendable location doesn't support a UserSceneTexture output
+			return MaterialDomain == MD_PostProcess && BlendableLocation != BL_ReplacingTonemapper;
 		}
 
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendMode))
@@ -4552,7 +4826,8 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 	
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, ShadingModel))
 		{
-			return !bSubstrateEnabled && MaterialDomain == MD_Surface;
+			// Volume can also use the unlit mode for emissive only volumetric effect (also overridable on material instance)
+			return !bSubstrateEnabled && (MaterialDomain == MD_Surface || MaterialDomain == MD_Volume);
 		}
 
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bIsThinSurface))
@@ -4676,6 +4951,13 @@ void UMaterial::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 	return PostEditChangePropertyInternal(PropertyChangedEvent, EPostEditChangeEffectOnShaders::Default);
 }
 
+static bool IsMaterialAlreadyConvertedToSubstrate(const UMaterial* InMaterial, const UMaterialEditorOnlyData* InEditorOnly)
+{
+	return 
+		InEditorOnly->FrontMaterial.IsConnected() || 
+		InMaterial->HasAnyExpressionsInMaterialAndFunctionsOfType<UMaterialExpressionSubstrateBSDF>();
+}
+
 void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyChangedEvent, const EPostEditChangeEffectOnShaders EffectOnShaders)
 {
 	// PreEditChange is not enforced to be called before PostEditChange.
@@ -4691,6 +4973,25 @@ void UMaterial::PostEditChangePropertyInternal(FPropertyChangedEvent& PropertyCh
 	CancelOutstandingCompilation();
 
 	const UMaterialEditorOnlyData* EditorOnly = GetEditorOnlyData();
+
+	if (Substrate::IsSubstrateEnabled())
+	{
+		// If a modification is made to the material, revert the auto-conversion version, to mark the material as 'edited'
+		const bool bResetConversionVersion = PropertyThatChanged != nullptr || PropertyChangedEvent.ChangeType != EPropertyChangeType::Unspecified;
+		if (bResetConversionVersion && EditorOnly)
+		{
+			GetEditorOnlyData()->ResetSubstrateConversionVersion();
+		}
+
+		// Apply Substrate material conversion if needed.
+		// For imported materials, the conversion won't happen during the PostLoad() phase. 
+		// Usually material importers create material by code, and then calls PostEditChange(), which calls PostEditChangeProperty()
+		// This late conversion ensures that imported materials are converted properly with Substrate.
+		if (!IsMaterialAlreadyConvertedToSubstrate(this, EditorOnly))
+		{
+			ConvertMaterialToSubstrateMaterial(false /*bAllowEmptyMaterialUpdate*/);
+		}
+	}
 
 	// Check for distortion in material 
 	bUsesDistortion = RefractionMethod != RM_None;
@@ -4922,45 +5223,18 @@ void UMaterial::RebuildShadingModelField()
 
 	if (Substrate::IsSubstrateEnabled() && EditorOnly->FrontMaterial.IsConnected())
 	{
-		FSubstrateMaterialInfo SubstrateMaterialInfo;
-		check(EditorOnly->FrontMaterial.Expression);
-		if (EditorOnly->FrontMaterial.Expression->IsResultSubstrateMaterial(EditorOnly->FrontMaterial.OutputIndex))
+		FSubstrateMaterialInfo SubstrateMaterialInfo = GetSubstrateMaterialInfo(EditorOnly);
+		UpdatePropertyConnectedMask(SubstrateMaterialInfo, this->CachedExpressionData.Get());
+
+		if (SubstrateMaterialInfo.IsValid() && SubstrateMaterialInfo.GetSubstrateTreeOutOfStackDepthOccurred())
 		{
-			// Mask of all input collected by Substrate BSDF nodes
-			static const uint64 ConnectionMask = 
-				  (1ull << MP_BaseColor)
-				| (1ull << MP_Metallic)
-				| (1ull << MP_Specular)
-				| (1ull << MP_Roughness)
-				| (1ull << MP_Anisotropy)
-				| (1ull << MP_EmissiveColor)
-				| (1ull << MP_Normal)
-				| (1ull << MP_Tangent)
-				| (1ull << MP_SubsurfaceColor)
-				| (1ull << MP_CustomData0)
-				| (1ull << MP_CustomData1)
-				| (1ull << MP_Opacity)
-				| (1ull << MP_ShadingModel)
-				| (1ull << MP_DiffuseColor)
-				| (1ull << MP_SpecularColor);
-
-			EditorOnly->FrontMaterial.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, EditorOnly->FrontMaterial.OutputIndex);
-
-			// Override the cached expression data with collected connection from SubstrateMaterialInfo, but preserve all other input (e.g., refraction)
-			check(this->CachedExpressionData);
-			this->CachedExpressionData->PropertyConnectedMask &= ~ConnectionMask;
-			this->CachedExpressionData->PropertyConnectedMask |= SubstrateMaterialInfo.GetPropertyConnected();
-
-			if (SubstrateMaterialInfo.GetSubstrateTreeOutOfStackDepthOccurred())
-			{
-				SubstrateMaterialInfo.AddShadingModel(SSM_Unlit);
-				MaterialDomain = EMaterialDomain::MD_Surface;
-				ShadingModel = MSM_Unlit;
-				ShadingModels.AddShadingModel(MSM_Unlit);
-				CancelOutstandingCompilation();
-				UE_LOG(LogMaterial, Error, TEXT("%s: Substrate - Cyclic graph detected when we only support acyclic graph."), *GetName());
-				return;
-			}
+			SubstrateMaterialInfo.AddShadingModel(SSM_Unlit);
+			MaterialDomain = EMaterialDomain::MD_Surface;
+			ShadingModel = MSM_Unlit;
+			ShadingModels.AddShadingModel(MSM_Unlit);
+			CancelOutstandingCompilation();
+			UE_LOG(LogMaterial, Error, TEXT("%s: Substrate - Cyclic graph detected when we only support acyclic graph."), *GetName());
+			return;
 		}
 
 		bool bSanitizeMaterial = false;
@@ -5045,6 +5319,20 @@ void UMaterial::RebuildShadingModelField()
 					bSanitizeMaterial = true;
 				}
 			}
+			else if (SubstrateMaterialInfo.CountShadingModels() == 2 && SubstrateMaterialInfo.HasShadingModel(ESubstrateShadingModel::SSM_Decal))
+			{
+				// If material has SSM_Decal it has to have 'decal' domain and DefaultLit shading model
+				if (MaterialDomain != MD_DeferredDecal || !SubstrateMaterialInfo.HasShadingModel(SSM_DefaultLit))
+				{
+					bSanitizeMaterial = true;
+				}
+
+				// If blend mode is not one of the translucent blend modes, force sanitization
+				if (!(IsTranslucentOnlyBlendMode(BlendMode) || BlendMode == BLEND_AlphaComposite || IsModulateBlendMode(BlendMode)))
+				{
+					bSanitizeMaterial = true;
+				}
+			}
 			else if (SubstrateMaterialInfo.CountShadingModels() > 1 && MaterialDomain == MD_Surface)
 			{
 				// Case with SSS Profile or SSS MFP are already been handled by above cases. Simply fallback onto DefaultLit
@@ -5055,14 +5343,6 @@ void UMaterial::RebuildShadingModelField()
 				else
 				{
 					// For transparent, we will fall back to use DefaultLit worst case with simple volumetric.
-					bSanitizeMaterial = true;
-				}
-			}
-			else if (SubstrateMaterialInfo.CountShadingModels() == 2 && SubstrateMaterialInfo.HasShadingModel(ESubstrateShadingModel::SSM_Decal))
-			{
-				// If material has SSM_Decal it has to have 'decal' domain and DefaultLit shading model
-				if (MaterialDomain != MD_DeferredDecal || !SubstrateMaterialInfo.HasShadingModel(SSM_DefaultLit))
-				{
 					bSanitizeMaterial = true;
 				}
 			}
@@ -5083,25 +5363,21 @@ void UMaterial::RebuildShadingModelField()
 
 		if (bSanitizeMaterial)
 		{
+			const FSubstrateMaterialInfo PreSanitizeSubstrateMaterialInfo = SubstrateMaterialInfo;
 			SubstrateMaterialInfo = FSubstrateMaterialInfo();
 			SubstrateMaterialInfo.AddShadingModel(SSM_DefaultLit);
 
-			if (MaterialDomain == MD_Surface)
-			{
-				// Nothing to do, the node should have added its own type. And if not type but from expression, we are going to generate that below.
-				//AddSurfaceSubstrateShadingModelFromMaterialShadingModel(SubstrateMaterialInfo, ShadingModel);
-			}
-			else if (MaterialDomain == MD_DeferredDecal)
+			if (MaterialDomain == MD_DeferredDecal || PreSanitizeSubstrateMaterialInfo.HasShadingModel(SSM_Decal))
 			{
 				SubstrateMaterialInfo.AddShadingModel(SSM_Decal);
 			}
 			else if (MaterialDomain == MD_LightFunction)
 			{
-				SubstrateMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud);
+				SubstrateMaterialInfo.AddShadingModel(SSM_LightFunction);
 			}
 			else if (MaterialDomain == MD_Volume)
 			{
-				SubstrateMaterialInfo.AddShadingModel(SSM_LightFunction);
+				SubstrateMaterialInfo.AddShadingModel(SSM_VolumetricFogCloud);
 			}
 			else if (MaterialDomain == MD_PostProcess)
 			{
@@ -5114,6 +5390,11 @@ void UMaterial::RebuildShadingModelField()
 			else if (MaterialDomain == MD_RuntimeVirtualTexture)
 			{
 				// TODO
+			}
+			else if (MaterialDomain == MD_Surface)
+			{
+				// Nothing to do, the node should have added its own type. And if not type but from expression, we are going to generate that below.
+				//AddSurfaceSubstrateShadingModelFromMaterialShadingModel(SubstrateMaterialInfo, ShadingModel);
 			}
 		}
 		
@@ -5186,7 +5467,14 @@ void UMaterial::RebuildShadingModelField()
 			else if (SubstrateMaterialInfo.HasOnlyShadingModel(SSM_VolumetricFogCloud))
 			{
 				MaterialDomain = EMaterialDomain::MD_Volume;
-				ShadingModel = MSM_DefaultLit;
+				// Volumetric shading model do support Unlit as an EmissiveOnly mode, on top of the lit mode.
+				TArray<UMaterialExpressionSubstrateVolumetricFogCloudBSDF*> ShadingModelExpressions;
+				GetAllExpressionsInMaterialAndFunctionsOfType(ShadingModelExpressions);
+				for (UMaterialExpressionSubstrateVolumetricFogCloudBSDF* MatExpr : ShadingModelExpressions)
+				{
+					ShadingModel = MatExpr->bEmissiveOnly ? MSM_Unlit : MSM_DefaultLit;
+					break; // We can only keep a single shading model due to an assert in UMaterialInstance::UpdateOverridableBaseProperties which want a single shading model for non material attribute workflow.
+				}
 				BlendMode = EBlendMode::BLEND_Additive;
 			}
 			else if (SubstrateMaterialInfo.HasOnlyShadingModel(SSM_Hair))
@@ -5245,6 +5533,11 @@ void UMaterial::RebuildShadingModelField()
 				// Decal can have multiple shading model
 				MaterialDomain = EMaterialDomain::MD_DeferredDecal;
 				ShadingModel = MSM_DefaultLit;
+
+				if (!(IsTranslucentOnlyBlendMode(BlendMode) || BlendMode == BLEND_AlphaComposite || IsModulateBlendMode(BlendMode)))
+				{
+					BlendMode = BLEND_TranslucentGreyTransmittance;
+				}
 			}
 
 			// Also update the ShadingModels for remaining pipeline operation
@@ -5253,9 +5546,16 @@ void UMaterial::RebuildShadingModelField()
 
 		// Now, reset the subsurface profile (in case it has been removed from any slab before) and set it only if needed.
 		SubsurfaceProfile = nullptr;
-		if ((SubstrateMaterialInfo.HasOnlyShadingModel(SSM_Eye) || SubstrateMaterialInfo.HasOnlyShadingModel(SSM_SubsurfaceProfile)) && SubstrateMaterialInfo.CountSubsurfaceProfiles() > 0)
+		if ((SubstrateMaterialInfo.HasShadingModel(SSM_Eye) || SubstrateMaterialInfo.HasShadingModel(SSM_SubsurfaceProfile)) && SubstrateMaterialInfo.CountSubsurfaceProfiles() > 0)
 		{
-			SubsurfaceProfile = SubstrateMaterialInfo.GetSubsurfaceProfile();
+			SubsurfaceProfile = SubstrateMaterialInfo.GetSubsurfaceProfile(0);
+		}
+
+		// Set subsurface profiles if any
+		SubsurfaceProfiles.SetNum(SubstrateMaterialInfo.CountSubsurfaceProfiles());
+		for (int32 It = 0, Count = SubstrateMaterialInfo.CountSubsurfaceProfiles(); It < Count; ++It)
+		{
+			SubsurfaceProfiles[It] = SubstrateMaterialInfo.GetSubsurfaceProfile(It);
 		}
 
 		// Set specular profile if any
@@ -5419,14 +5719,13 @@ void UMaterial::AddReferencedObjects(UObject* InThis, FReferenceCollector& Colle
 	}
 
 #if WITH_EDITOR
-	for (auto& It : This->CachedMaterialResourcesForCooking)
+	for (TPair<const ITargetPlatform*, TArray<FMaterialResourceForCooking>>& It : This->CachedMaterialResourcesForCooking)
 	{
-		TArray<FMaterialResource*>& CachedMaterialResourcesForPlatform = It.Value;
-		for (FMaterialResource* CurrentResource : CachedMaterialResourcesForPlatform)
+		for (FMaterialResourceForCooking& CurrentResource : It.Value)
 		{
-			if (CurrentResource)
+			if (CurrentResource.Resource)
 			{
-				CurrentResource->AddReferencedObjects(Collector);
+				CurrentResource.Resource->AddReferencedObjects(Collector);
 			}
 		}
 	}
@@ -5493,7 +5792,7 @@ void UMaterial::UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToF
 
 			int32 NumMaterials = 0;
 
-			for( TObjectIterator<UMaterial> It; It; ++It )
+			for (TObjectIterator<UMaterial> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				NumMaterials++;
 			}
@@ -5504,7 +5803,7 @@ void UMaterial::UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToF
 			int32 MaterialIndex = 0;
 
 			// Reinitialize the material shader maps
-			for( TObjectIterator<UMaterial> It; It; ++It )
+			for (TObjectIterator<UMaterial> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				UMaterial* BaseMaterial = *It;
 				UpdateContext.AddMaterial(BaseMaterial);
@@ -5531,110 +5830,6 @@ void UMaterial::UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToF
 	}
 }
 
-void UMaterial::BackupMaterialShadersToMemory(TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData)
-{
-	// Process FMaterialShaderMap's referenced by UObjects (UMaterial, UMaterialInstance)
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
-	{
-		UMaterialInterface* Material = *It;
-		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material);
-		UMaterial* BaseMaterial = Cast<UMaterial>(Material);
-
-		if (MaterialInstance)
-		{
-			if (MaterialInstance->bHasStaticPermutationResource)
-			{
-				TArray<FMaterialShaderMap*> MIShaderMaps;
-				MaterialInstance->GetAllShaderMaps(MIShaderMaps);
-
-				for (int32 ShaderMapIndex = 0; ShaderMapIndex < MIShaderMaps.Num(); ShaderMapIndex++)
-				{
-					FMaterialShaderMap* ShaderMap = MIShaderMaps[ShaderMapIndex];
-
-					if (ShaderMap && !ShaderMapToSerializedShaderData.Contains(ShaderMap))
-					{
-						TArray<uint8>* ShaderData = ShaderMap->BackupShadersToMemory();
-						ShaderMapToSerializedShaderData.Emplace(ShaderMap, ShaderData);
-					}
-				}
-			}
-		}
-		else if (BaseMaterial)
-		{
-			for (FMaterialResource* CurrentResource : BaseMaterial->MaterialResources)
-			{
-				FMaterialShaderMap* ShaderMap = CurrentResource->GetGameThreadShaderMap();
-				if (ShaderMap && !ShaderMapToSerializedShaderData.Contains(ShaderMap))
-				{
-					TArray<uint8>* ShaderData = ShaderMap->BackupShadersToMemory();
-					ShaderMapToSerializedShaderData.Emplace(ShaderMap, ShaderData);
-				}
-			}
-		}
-	}
-
-#if WITH_EDITOR
-	// Process FMaterialShaderMap's referenced by the editor
-	FMaterial::BackupEditorLoadedMaterialShadersToMemory(ShaderMapToSerializedShaderData);
-#endif
-}
-
-void UMaterial::RestoreMaterialShadersFromMemory(const TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData)
-{
-	// Process FMaterialShaderMap's referenced by UObjects (UMaterial, UMaterialInstance)
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
-	{
-		UMaterialInterface* Material = *It;
-		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material);
-		UMaterial* BaseMaterial = Cast<UMaterial>(Material);
-
-		if (MaterialInstance)
-		{
-			if (MaterialInstance->bHasStaticPermutationResource)
-			{
-				TArray<FMaterialShaderMap*> MIShaderMaps;
-				MaterialInstance->GetAllShaderMaps(MIShaderMaps);
-
-				for (int32 ShaderMapIndex = 0; ShaderMapIndex < MIShaderMaps.Num(); ShaderMapIndex++)
-				{
-					FMaterialShaderMap* ShaderMap = MIShaderMaps[ShaderMapIndex];
-
-					if (ShaderMap)
-					{
-						const TUniquePtr<TArray<uint8> >* ShaderData = ShaderMapToSerializedShaderData.Find(ShaderMap);
-
-						if (ShaderData)
-						{
-							ShaderMap->RestoreShadersFromMemory(**ShaderData);
-						}
-					}
-				}
-			}
-		}
-		else if (BaseMaterial)
-		{
-			for(FMaterialResource* CurrentResource : BaseMaterial->MaterialResources)
-			{
-				FMaterialShaderMap* ShaderMap = CurrentResource->GetGameThreadShaderMap();
-				if (ShaderMap)
-				{
-					const TUniquePtr<TArray<uint8>>* ShaderData = ShaderMapToSerializedShaderData.Find(ShaderMap);
-
-					if (ShaderData)
-					{
-						ShaderMap->RestoreShadersFromMemory(**ShaderData);
-					}
-				}
-			}
-		}
-	}
-
-#if WITH_EDITOR
-	// Process FMaterialShaderMap's referenced by the editor
-	FMaterial::RestoreEditorLoadedMaterialShadersFromMemory(ShaderMapToSerializedShaderData);
-#endif // WITH_EDITOR
-}
-
 #if WITH_EDITOR
 void UMaterial::CompileMaterialsForRemoteRecompile(
 	const TArray<UMaterialInterface*>& MaterialsToCompile,
@@ -5645,7 +5840,7 @@ void UMaterial::CompileMaterialsForRemoteRecompile(
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMaterial::CompileMaterialsForRemoteRecompile);
 
 	// Build a map from UMaterial / UMaterialInstance to the resources which are being compiled
-	TMap<FString, TArray<FMaterialResource*> > CompilingResources;
+	TMap<FString, TArray<TRefCountPtr<FMaterialResource>> > CompilingResources;
 
 	// compile the requested materials
 	for (int32 Index = 0; Index < MaterialsToCompile.Num(); Index++)
@@ -5655,15 +5850,27 @@ void UMaterial::CompileMaterialsForRemoteRecompile(
 		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material);
 		UMaterial* BaseMaterial = Cast<UMaterial>(Material);
 
+		TArray<FMaterialResourceForCooking> ResourcesForCooking;
 		if (MaterialInstance && MaterialInstance->bHasStaticPermutationResource)
 		{
-			TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(Material->GetPathName(), TArray<FMaterialResource*>());
-			MaterialInstance->CacheResourceShadersForCooking(ShaderPlatform, ResourceArray, EMaterialShaderPrecompileMode::Default, TargetPlatform, true /* Blocking */);
+			MaterialInstance->CacheResourceShadersForCooking(ShaderPlatform, ResourcesForCooking,
+				EMaterialShaderPrecompileMode::Default, TargetPlatform, true /* Blocking */);
 		}
 		else if (BaseMaterial)
 		{
-			TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(Material->GetPathName(), TArray<FMaterialResource*>());
-			BaseMaterial->CacheResourceShadersForCooking(ShaderPlatform, ResourceArray, TargetPlatform, true /* Blocking */);
+			BaseMaterial->CacheResourceShadersForCooking(ShaderPlatform, ResourcesForCooking,
+				TargetPlatform, true /* Blocking */);
+		}
+
+		if (!ResourcesForCooking.IsEmpty())
+		{
+			TArray<TRefCountPtr<FMaterialResource>>& ResourceArray = CompilingResources.Add(Material->GetPathName(), 
+				TArray<TRefCountPtr<FMaterialResource>>());
+			ResourceArray.Reserve(ResourcesForCooking.Num());
+			for (FMaterialResourceForCooking& ResourceForCooking : ResourcesForCooking)
+			{
+				ResourceArray.Add(MoveTemp(ResourceForCooking.Resource));
+			}
 		}
 	}
 
@@ -5674,21 +5881,21 @@ void UMaterial::CompileMaterialsForRemoteRecompile(
 	// This is code that should be run on the cooker so shouldn't be a big deal.
 	FlushRenderingCommands();
 
-	for(TMap<FString, TArray<FMaterialResource*> >::TIterator It(CompilingResources); It; ++It)
+	for(TMap<FString, TArray<TRefCountPtr<FMaterialResource>> >::TIterator It(CompilingResources); It; ++It)
 	{
-		TArray<FMaterialResource*>& ResourceArray = It.Value();
-		TArray<TRefCountPtr<FMaterialShaderMap> >& OutShaderMapArray = OutShaderMaps.Add(It.Key(), TArray<TRefCountPtr<FMaterialShaderMap> >());
+		TArray<TRefCountPtr<FMaterialResource>>& ResourceArray = It.Value();
+		TArray<TRefCountPtr<FMaterialShaderMap>>& OutShaderMapArray = OutShaderMaps.Add(It.Key(), TArray<TRefCountPtr<FMaterialShaderMap>>());
 
 		for (int32 Index = 0; Index < ResourceArray.Num(); Index++)
 		{
-			FMaterialResource* CurrentResource = ResourceArray[Index];
+			TRefCountPtr<FMaterialResource> CurrentResource = MoveTemp(ResourceArray[Index]);
 			OutShaderMapArray.Add(CurrentResource->GetGameThreadShaderMap());
-			delete CurrentResource;
 		}
 	}
 }
 
-void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayload> ShadersToRecompile, TMap<FString, TArray<TRefCountPtr<class FMaterialShaderMap>>>& OutShaderMaps)
+void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayload> ShadersToRecompile, TMap<FString, TArray<TRefCountPtr<class FMaterialShaderMap>>>& OutShaderMaps, 
+													   TFunction<UMaterialInterface*(const FString&)> ODSCCustomLoadMaterial)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMaterial::CompileODSCMaterialsForRemoteRecompile);
 
@@ -5709,15 +5916,31 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 		TArray<const FVertexFactoryType*> VFTypes;
 		TArray<const FShaderPipelineType*> PipelineTypes;
 		TArray<const FShaderType*> ShaderTypes;
+		FString OriginalMaterialName;
 	};
 	TMap<UMaterialInterface*, FShadersToCompile> CoalescedShadersToCompile;
 
+	TSet<FString> MaterialsFailingToLoad;
 	for (const FODSCRequestPayload& payload : ShadersToRecompile)
 	{
-		UE_LOG(LogShaders, Display, TEXT(""));
-		UE_LOG(LogShaders, Display, TEXT("Material:    %s "), *payload.MaterialName);
+		UE_LOG(LogShaders, Verbose, TEXT(""));
+		UE_LOG(LogShaders, Verbose, TEXT("Material:    %s "), *payload.MaterialName);
 
-		UMaterialInterface* MaterialInterface = LoadObject<UMaterialInterface>(nullptr, *payload.MaterialName);
+		UMaterialInterface* MaterialInterface = nullptr;
+		if (ODSCCustomLoadMaterial)
+		{
+			MaterialInterface = ODSCCustomLoadMaterial(payload.MaterialName);
+		}
+		else
+		{
+			MaterialInterface = LoadObject<UMaterialInterface>(nullptr, *payload.MaterialName);
+		}
+
+		if (!MaterialInterface)
+		{
+			MaterialsFailingToLoad.Add(payload.MaterialName);
+		}
+
 		if (MaterialInterface)
 		{
 			FShadersToCompile& Shaders = CoalescedShadersToCompile.FindOrAdd(MaterialInterface);
@@ -5727,15 +5950,16 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 			Shaders.ShaderPlatform = payload.ShaderPlatform;
 			Shaders.FeatureLevel = payload.FeatureLevel;
 			Shaders.QualityLevel = payload.QualityLevel;
+			Shaders.OriginalMaterialName = payload.MaterialName;
 
 			if (VFType)
 			{
-				UE_LOG(LogShaders, Display, TEXT("VF Type:     %s "), *payload.VertexFactoryName);
+				UE_LOG(LogShaders, Verbose, TEXT("VF Type:     %s "), *payload.VertexFactoryName);
 			}
 
 			if (PipelineType)
 			{
-				UE_LOG(LogShaders, Display, TEXT("Pipeline Type: %s"), *payload.PipelineName);
+				UE_LOG(LogShaders, Verbose, TEXT("Pipeline Type: %s"), *payload.PipelineName);
 
 				Shaders.VFTypes.Add(VFType);
 				Shaders.PipelineTypes.Add(PipelineType);
@@ -5748,7 +5972,7 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 					const FShaderType* ShaderType = FShaderType::GetShaderTypeByName(*ShaderTypeName);
 					if (ShaderType)
 					{
-						UE_LOG(LogShaders, Display, TEXT("\tShader Type: %s"), *ShaderTypeName);
+						UE_LOG(LogShaders, Verbose, TEXT("\tShader Type: %s"), *ShaderTypeName);
 
 						Shaders.VFTypes.Add(VFType);
 						Shaders.PipelineTypes.Add(nullptr);
@@ -5773,7 +5997,7 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 		UMaterialInterface* MaterialInterface = Entry.Key;
 		const FShadersToCompile& Shaders = Entry.Value;
 
-		TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(MaterialInterface->GetPathName(), TArray<FMaterialResource*>());
+		TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(Shaders.OriginalMaterialName, TArray<FMaterialResource*>());
 		FMaterialResource* MaterialResource = MaterialInterface->GetMaterialResource(Shaders.FeatureLevel, Shaders.QualityLevel);
 		check(MaterialResource);
 		check(MaterialResource->GetFeatureLevel() == Shaders.FeatureLevel);
@@ -5797,6 +6021,12 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 			FMaterialResource* CurrentResource = ResourceArray[Index];
 			OutShaderMapArray.Add(CurrentResource->GetGameThreadShaderMap());
 		}
+	}
+
+	// Report errors last to ensure visibility: some messages may have been output during shader compilation
+	for (FString& MaterialFailingToLoad : MaterialsFailingToLoad)
+	{
+		UE_LOG(LogShaders, Warning, TEXT("Failed to load %s, skipping shader reloading"), *MaterialFailingToLoad);
 	}
 }
 #endif // WITH_EDITOR
@@ -5994,6 +6224,24 @@ void UMaterial::GetAllExpressionsForCustomInterpolators(TArray<class UMaterialEx
 				OutExpressions.Add(Expression);
 		}
 	}
+}
+
+bool UMaterial::SupportsShadingModelOverride() const
+{
+	// If the material contains a Substrate's SubstrateShadingModels node, then we can support shading model override
+	bool Out = true;
+	if (Substrate::IsSubstrateEnabled())
+	{
+		for (UMaterialExpression* Expression : GetExpressions())
+		{		
+			if (UMaterialExpressionSubstrateShadingModels* ShadingModelNode = Cast<UMaterialExpressionSubstrateShadingModels>(Expression))
+			{
+				return true;
+			}
+		}
+		Out = false;
+	}
+	return Out;
 }
 #endif // WITH_EDITORONLY_DATA
 
@@ -6278,7 +6526,12 @@ bool UMaterial::RecursiveGetExpressionChain(
 			else
 			{
 				// Follow all properties.
-				Inputs = InExpression->GetInputsView();
+				Inputs.Empty(InExpression->CountInputs());
+				for (FExpressionInputIterator It{ InExpression }; It; ++It)
+				{
+					Inputs.Push(It.Input);
+				}
+
 				InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 			}
 		}
@@ -6296,7 +6549,7 @@ bool UMaterial::RecursiveGetExpressionChain(
 	}
 	else if ((SetMaterialAttributesExp = Cast<UMaterialExpressionSetMaterialAttributes>(InExpression)) != nullptr)
 	{
-		checkf(!SetMaterialAttributesExp->GetInputsView().IsEmpty() && (SetMaterialAttributesExp->GetInputType(0) == MCT_MaterialAttributes), TEXT("There must always be one input at least : the material attribute pin"));
+		checkf(SetMaterialAttributesExp->GetInput(0) && (SetMaterialAttributesExp->GetInputType(0) == MCT_MaterialAttributes), TEXT("There must always be one input at least : the material attribute pin"));
 		// Always add the material attribute input, so that we keep on traversing up the property chain : 
 		Inputs.Add(SetMaterialAttributesExp->GetInput(0));
 		InputsFrequency.Add(InShaderFrequency);
@@ -6326,7 +6579,11 @@ bool UMaterial::RecursiveGetExpressionChain(
 			else
 			{
 				// Follow all properties.
-				Inputs = InExpression->GetInputsView();
+				Inputs.Empty(InExpression->CountInputs());
+				for (FExpressionInputIterator It{ InExpression }; It; ++It)
+				{
+					Inputs.Push(It.Input);
+				}
 				InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 			}
 		}
@@ -6380,16 +6637,21 @@ bool UMaterial::RecursiveGetExpressionChain(
 		}
 
 		// here we assume ALL inputs to the MaterialFunctionCall are active
-		auto ExprInputs = InExpression->GetInputsView();
-		for (int i = 0; i < ExprInputs.Num(); i++)
+		Inputs.Reserve(Inputs.Num() + InExpression->CountInputs());
+		for (FExpressionInputIterator It{ InExpression }; It; ++It)
 		{
-			Inputs.Add(ExprInputs[i]);
-			InputsFrequency.Add(InShaderFrequency);
+			Inputs.Push(It.Input);
+			InputsFrequency.Push(InShaderFrequency);
 		}
 	}
 	else
 	{
-		Inputs = InExpression->GetInputsView();
+		Inputs.Empty(InExpression->CountInputs());
+		for (FExpressionInputIterator It{ InExpression }; It; ++It)
+		{
+			Inputs.Push(It.Input);
+		}
+
 		InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 	}
 
@@ -6483,20 +6745,18 @@ void UMaterial::RecursiveUpdateRealtimePreview( UMaterialExpression* InExpressio
 	}
 
 	// We need to examine our inputs. If any of them need realtime preview, so do we.
-	TArrayView<FExpressionInput*> Inputs = InExpression->GetInputsView();
-	for (int32 InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+	for (FExpressionInputIterator It{ InExpression }; It; ++It)
 	{
-		FExpressionInput* InnerInput = Inputs[InputIdx];
-		if (InnerInput != NULL && InnerInput->Expression != NULL)
+		if (It.Input != NULL && It.Input->Expression != NULL)
 		{
 			// See if we still need to process this expression, and if so do that first.
-			if (InOutExpressionsToProcess.Find(InnerInput->Expression) != INDEX_NONE)
+			if (InOutExpressionsToProcess.Find(It.Input->Expression) != INDEX_NONE)
 			{
-				RecursiveUpdateRealtimePreview(InnerInput->Expression, InOutExpressionsToProcess);
+				RecursiveUpdateRealtimePreview(It.Input->Expression, InOutExpressionsToProcess);
 			}
 
 			// If our input expression needed realtime preview, we do too.
-			if( InnerInput->Expression->bRealtimePreview )
+			if( It.Input->Expression->bRealtimePreview )
 			{
 
 				InExpression->bRealtimePreview = true;
@@ -6630,19 +6890,6 @@ UMaterial::FMaterialCompilationFinished& UMaterial::OnMaterialCompilationFinishe
 
 void UMaterial::AllMaterialsCacheResourceShadersForRendering(bool bUpdateProgressDialog, bool bCacheAllRemainingShaders)
 {
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	TArray<UMaterial*> Materials;
-	for (TObjectIterator<UMaterial> It; It; ++It)
-	{
-		Materials.Add(*It);
-	}
-	Materials.Sort([](const UMaterial& A, const UMaterial& B) { return A.OffsetToFirstResource < B.OffsetToFirstResource; });
-	for (UMaterial* Material : Materials)
-	{
-		Material->CacheResourceShadersForRendering(false);
-		FThreadHeartBeat::Get().HeartBeat();
-	}
-#else
 #if WITH_EDITOR
 	FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "CacheMaterialShadersMessage", "Caching material shaders"), true);
 	if (bUpdateProgressDialog)
@@ -6675,7 +6922,6 @@ void UMaterial::AllMaterialsCacheResourceShadersForRendering(bool bUpdateProgres
 		}
 #endif // WITH_EDITOR
 	}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
 }
 
 /**
@@ -6690,7 +6936,7 @@ static void ListSceneColorMaterials()
 		FString FeatureLevelName;
 		GetFeatureLevelName(FeatureLevel, FeatureLevelName);
 
-		for (TObjectIterator<UMaterialInterface> It; It; ++It)
+		for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UMaterialInterface* Mat = *It;
 			const FMaterial* MatRes = Mat->GetRenderProxy()->GetMaterialNoFallback(FeatureLevel);
@@ -6834,10 +7080,63 @@ bool UMaterial::WritesToRuntimeVirtualTexture() const
 	return GetCachedExpressionData().bHasRuntimeVirtualTextureOutput;
 }
 
+bool UMaterial::HasMeshPaintTexture() const
+{
+	return GetCachedExpressionData().bHasMeshPaintTexture;
+}
+
+bool UMaterial::HasVertexInterpolator() const
+{
+	return GetCachedExpressionData().bHasVertexInterpolator;
+}
+
+bool UMaterial::HasCustomizedUVs() const
+{
+	return GetCachedExpressionData().bHasCustomizedUVs;
+}
+
+bool UMaterial::HasCustomPrimitiveData() const
+{
+	const FMaterialCachedExpressionData& CachedData = GetCachedExpressionData();
+	for (int32 Index : CachedData.ScalarPrimitiveDataIndexValues)
+	{
+		if (Index != INDEX_NONE)
+		{
+			return true;
+		}
+	}
+	for (int32 Index : CachedData.VectorPrimitiveDataIndexValues)
+	{
+		if (Index != INDEX_NONE)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 USubsurfaceProfile* UMaterial::GetSubsurfaceProfile_Internal() const
 {
 	checkSlow(IsInGameThread());
 	return SubsurfaceProfile; 
+}
+
+uint32 UMaterial::NumSubsurfaceProfileRoot_Internal() const
+{
+	return SubsurfaceProfiles.Num();
+}
+
+USubsurfaceProfile* UMaterial::GetSubsurfaceProfileRoot_Internal(uint32 Index) const
+{
+	checkSlow(IsInGameThread());
+	check(Index<uint32(SubsurfaceProfiles.Num()));
+	return SubsurfaceProfiles[Index];
+}
+
+USubsurfaceProfile* UMaterial::GetSubsurfaceProfileOverride_Internal() const
+{
+	checkSlow(IsInGameThread());
+	return nullptr; // No override for root material
 }
 
 uint32 UMaterial::NumSpecularProfile_Internal() const
@@ -6873,6 +7172,16 @@ FDisplacementScaling UMaterial::GetDisplacementScaling() const
 	return DisplacementScaling;
 }
 
+bool UMaterial::IsDisplacementFadeEnabled() const
+{
+	return bEnableDisplacementFade;
+}
+
+FDisplacementFadeRange UMaterial::GetDisplacementFadeRange() const
+{
+	return DisplacementFadeRange;
+}
+
 float UMaterial::GetMaxWorldPositionOffsetDisplacement() const
 {
 	return MaxWorldPositionOffsetDisplacement;
@@ -6899,11 +7208,6 @@ void UMaterial::SetShadingModel(EMaterialShadingModel NewModel)
 bool UMaterial::IsPropertySupported(EMaterialProperty InProperty) const
 {
 	bool bSupported = true;
-
-	if (InProperty == MP_Displacement && !NaniteTessellationSupported())
-	{
-		return false;
-	}
 
 	if (Substrate::IsSubstrateEnabled())
 	{
@@ -7451,6 +7755,11 @@ UMaterialEditorOnlyData::UMaterialEditorOnlyData()
 	AmbientOcclusion.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_AmbientOcclusion).X;
 	Refraction.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Refraction).X;
 	SurfaceThickness.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_SurfaceThickness).X;
+	SubstrateConversionVersion = GetSubstrateInvalidVersion();
 }
 
+void UMaterialEditorOnlyData::ResetSubstrateConversionVersion()
+{
+	SubstrateConversionVersion = GetSubstrateNoConversionVersion();
+}
 #undef LOCTEXT_NAMESPACE

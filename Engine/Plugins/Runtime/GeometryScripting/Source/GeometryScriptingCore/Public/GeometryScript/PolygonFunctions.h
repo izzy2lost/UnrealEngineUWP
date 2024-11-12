@@ -40,23 +40,23 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptPolygonOffsetOptions
 public:
 
 	// How to join / extend corners between two edges
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPolyOffsetJoinType JoinType = EGeometryScriptPolyOffsetJoinType::Square;
 
 	// if JoinType is Miter, limits how far the miter can extend
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	double MiterLimit = 2.0;
 
 	// Whether to apply the offset to both sides of the polygon, i.e. adding an inner hole to any polygon. If false, the offset is only applied to one side.
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bOffsetBothSides = false;
 
 	// Scales the default number of vertices (per radian) used for round joins.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
 	double StepsPerRadianScale = 1.0;
 
 	// Maximum vertices per radian for round joins. Only applied if > 0.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
 	double MaximumStepsPerRadian = 10.0;
 };
 
@@ -68,23 +68,23 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptOpenPathOffsetOptions
 public:
 
 	// How to join / extend corners between two edges
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPolyOffsetJoinType JoinType = EGeometryScriptPolyOffsetJoinType::Square;
 
 	// if JoinType is Miter, limits how far the miter can extend
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	double MiterLimit = 2.0;
 
 	// How the ends of a path should be closed off
-	UPROPERTY(BlueprintReadWrite, Category = Options)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	EGeometryScriptPathOffsetEndType EndType = EGeometryScriptPathOffsetEndType::Square;
 
 	// Scales the default number of vertices (per radian) used for round joins and ends.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "0"))
 	double StepsPerRadianScale = 1.0;
 
 	// Maximum vertices per radian for round joins and ends. Only applied if > 0.
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = "-1"))
 	double MaximumStepsPerRadian = 10.0;
 
 };
@@ -119,7 +119,7 @@ public:
 	 * Set the specified vertex of a Simple Polygon. Returns the index of the added vertex.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|SimplePolygon", meta = (ScriptMethod))
-	static UPARAM(DisplayName = "Vertex Index") int32 AddPolygonVertex(UPARAM(ref) FGeometryScriptSimplePolygon Polygon, FVector2D Position);
+	static UPARAM(DisplayName = "Vertex Index") int32 AddPolygonVertex(UPARAM(ref) FGeometryScriptSimplePolygon& Polygon, FVector2D Position);
 
 	/**
 	 * Returns a vertex's tangent of a Simple Polygon. VertexIndex loops around, so e.g., -1 gives the tangent of the last vertex in the polygon.
@@ -258,7 +258,7 @@ public:
 	 * Add Polygon to a Polygon List, with optional holes. Returns index of the added polygon.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolygonList", meta = (ScriptMethod, AutoCreateRefTerm = "HolePolygons"))
-	static UPARAM(DisplayName = "Polygon Index") int32 AddPolygonToList(UPARAM(ref) FGeometryScriptGeneralPolygonList PolygonList, FGeometryScriptSimplePolygon OuterPolygon, const TArray<FGeometryScriptSimplePolygon>& HolePolygons, bool bFixHoleOrientations = true);
+	static UPARAM(DisplayName = "Polygon Index") int32 AddPolygonToList(UPARAM(ref) FGeometryScriptGeneralPolygonList& PolygonList, FGeometryScriptSimplePolygon OuterPolygon, const TArray<FGeometryScriptSimplePolygon>& HolePolygons, bool bFixHoleOrientations = true);
 
 	/**
 	 * Create a Polygon List from an array of Simple Polygons
@@ -270,7 +270,7 @@ public:
 	 * Append the polygons in 'Polygons to Append' to Polygon List
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolygonList", meta = (ScriptMethod))
-	static void AppendPolygonList(UPARAM(ref) FGeometryScriptGeneralPolygonList PolygonList, FGeometryScriptGeneralPolygonList PolygonsToAppend);
+	static void AppendPolygonList(UPARAM(ref) FGeometryScriptGeneralPolygonList& PolygonList, FGeometryScriptGeneralPolygonList PolygonsToAppend);
 	
 	/** Compute union of all polygons in Polygon List. Also resolves self-intersections within each polygon. */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolygonList", meta = (ScriptMethod))

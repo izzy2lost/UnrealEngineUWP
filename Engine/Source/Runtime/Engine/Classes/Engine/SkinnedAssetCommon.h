@@ -10,7 +10,7 @@
 #include "Components.h"
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "SkeletalMeshReductionSettings.h"
 #include "Animation/SkeletalMeshVertexAttribute.h"
 
@@ -23,6 +23,10 @@ class UMaterialInterface;
 struct FSkelMeshSection;
 struct FSkeletalMeshLODGroupSettings;
 
+
+//This is the total cloth time split up among multiple computation (updating gpu, updating sim, etc...)
+DECLARE_CYCLE_STAT(TEXT("Cloth Total"), STAT_ClothTotalTime, STATGROUP_Physics);
+DECLARE_CYCLE_STAT(TEXT("Cloth Writeback"), STAT_ClothWriteback, STATGROUP_Physics);
 
 UENUM()
 enum class ESkinCacheUsage : uint8
@@ -90,6 +94,25 @@ struct FSectionReference
 		B.Serialize(Ar);
 		return Ar;
 	}
+};
+
+USTRUCT()
+struct FMorphTargetImportedSourceFileInfo
+{
+	GENERATED_USTRUCT_BODY()
+
+	ENGINE_API const FString& GetSourceFilename() const;
+
+	ENGINE_API void SetSourceFilename(const FString& Filename);
+
+private:
+	UPROPERTY(EditAnywhere, Category = MorphTargetInfo)
+	FString SourceFilename;
+	
+	UPROPERTY()
+	FGuid DerivedDataHash;
+
+	friend FArchive& operator<<(FArchive& Ar, FMorphTargetImportedSourceFileInfo& MorphTargetImportedSourceFileInfo);
 };
 
 /** Struct containing information for a particular LOD level, such as materials and info for when to use it. */
@@ -173,6 +196,14 @@ struct FSkeletalMeshLODInfo
 	UPROPERTY(EditAnywhere, Category = SkeletalMeshLODInfo, meta = (UIMin = "0.01", ClampMin = "0.01", UIMax = "10000.0", ClampMax = "10000.0"))
 	float MorphTargetPositionErrorTolerance = 20.0f;
 
+#if WITH_EDITORONLY_DATA
+
+	/** Store the custom import morph target source file. The key of the map is the morph target name and the value is the source file path. */
+	UPROPERTY(VisibleAnywhere, Category = SkeletalMeshLODInfo)
+	TMap<FString, FMorphTargetImportedSourceFileInfo> ImportedMorphTargetSourceFilename;
+
+#endif //WITH_EDITORONLY_DATA
+
 	/** Whether to disable morph targets for this LOD. */
 	UPROPERTY()
 	uint8 bHasBeenSimplified:1;
@@ -214,10 +245,95 @@ struct FSkeletalMeshLODInfo
 	UPROPERTY()
 	uint8 bImportWithBaseMesh:1;
 
+	// Protects access to the build guid.
+	struct FThreadSafeBuildGUID
+	{
+	private:
+		FGuid   BuildGuid;
+		mutable UE::FMutex Mutex;
+	public:
+		FThreadSafeBuildGUID() = default;
+		FThreadSafeBuildGUID(const FGuid& InGuid)
+			: BuildGuid(InGuid)
+		{
+		}
+
+		FThreadSafeBuildGUID(const FThreadSafeBuildGUID& Other)
+		{
+			UE::TUniqueLock OtherLock(Other.Mutex);
+			UE::TUniqueLock Lock(Mutex);
+			BuildGuid = Other.BuildGuid;
+		}
+
+		FThreadSafeBuildGUID& operator=(const FThreadSafeBuildGUID& Other)
+		{
+			if (&Other != this)
+			{
+				UE::TUniqueLock OtherLock(Other.Mutex);
+				UE::TUniqueLock Lock(Mutex);
+				BuildGuid = Other.BuildGuid;
+			}
+			return *this;
+		}
+
+		bool operator==(const FGuid& Other) const
+		{
+			UE::TUniqueLock Lock(Mutex);
+			return BuildGuid == Other;
+		}
+
+		bool operator==(const FThreadSafeBuildGUID& Other) const
+		{
+			if (&Other == this)
+			{
+				return true;
+			}
+
+			UE::TUniqueLock OtherLock(Other.Mutex);
+			UE::TUniqueLock Lock(Mutex);
+			return BuildGuid == Other.BuildGuid;
+		}
+
+		void operator=(const FGuid& Other)
+		{
+			UE::TUniqueLock Lock(Mutex);
+			BuildGuid = Other;
+		}
+
+		void Invalidate()
+		{
+			UE::TUniqueLock Lock(Mutex);
+			BuildGuid.Invalidate();
+		}
+
+		operator FGuid() const
+		{
+			UE::TUniqueLock Lock(Mutex);
+			return BuildGuid;
+		}
+
+		bool IsValid() const
+		{
+			UE::TUniqueLock Lock(Mutex);
+			return BuildGuid.IsValid();
+		}
+
+		FString ToString(EGuidFormats Format = EGuidFormats::Digits) const
+		{
+			UE::TUniqueLock Lock(Mutex);
+			FString Out;
+			BuildGuid.AppendString(Out, Format);
+			return Out;
+		}
+
+		FThreadSafeBuildGUID(FThreadSafeBuildGUID&&) = delete;
+		FThreadSafeBuildGUID& operator=(FThreadSafeBuildGUID&&) = delete;
+	};
+
 	//Temporary build GUID data
 	//We use this GUID to store the LOD Key so we can know if the LOD needs to be rebuilt
 	//This GUID is set when we Cache the render data (build function)
-	FGuid BuildGUID;
+	FThreadSafeBuildGUID BuildGUID;
 
 	ENGINE_API FGuid ComputeDeriveDataCacheKey(const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings);
 #endif
@@ -245,19 +361,19 @@ struct FSkeletalMeshLODInfo
 
 };
 
-//~ Begin Material Interface for USkeletalMesh - contains a material and a shadow casting flag
+//~ Begin Material Interface for USkeletalMesh
 USTRUCT(BlueprintType)
 struct FSkeletalMaterial
 {
 	GENERATED_USTRUCT_BODY()
 
 	FSkeletalMaterial()
-		: MaterialInterface( NULL )
-		, MaterialSlotName( NAME_None )
+		: MaterialInterface(nullptr)
+		, MaterialSlotName(NAME_None)
 #if WITH_EDITORONLY_DATA
 		, bEnableShadowCasting_DEPRECATED(true)
 		, bRecomputeTangent_DEPRECATED(false)
-		, ImportedMaterialSlotName( NAME_None )
+		, ImportedMaterialSlotName(NAME_None)
 #endif
 	{
 
@@ -269,11 +385,11 @@ struct FSkeletalMaterial
 		FName InImportedMaterialSlotName = NAME_None)
 		: MaterialInterface( InMaterialInterface )
 		, MaterialSlotName(InMaterialSlotName)
-#if WITH_EDITORONLY_DATA
+	#if WITH_EDITORONLY_DATA
 		, bEnableShadowCasting_DEPRECATED(true)
 		, bRecomputeTangent_DEPRECATED(false)
 		, ImportedMaterialSlotName(InImportedMaterialSlotName)
-#endif //WITH_EDITORONLY_DATA
+	#endif
 	{
 
 	}
@@ -285,11 +401,11 @@ struct FSkeletalMaterial
 						, FName InImportedMaterialSlotName = NAME_None)
 		: MaterialInterface( InMaterialInterface )
 		, MaterialSlotName(InMaterialSlotName)
-#if WITH_EDITORONLY_DATA
+	#if WITH_EDITORONLY_DATA
 		, bEnableShadowCasting_DEPRECATED(bInEnableShadowCasting)
 		, bRecomputeTangent_DEPRECATED(bInRecomputeTangent)
 		, ImportedMaterialSlotName(InImportedMaterialSlotName)
-#endif //WITH_EDITORONLY_DATA
+	#endif
 	{
 
 	}
@@ -317,7 +433,7 @@ struct FSkeletalMaterial
 	/*This name should be use when we re-import a skeletal mesh so we can order the Materials array like it should be*/
 	UPROPERTY(VisibleAnywhere, Category = SkeletalMesh)
 	FName						ImportedMaterialSlotName;
-#endif //WITH_EDITORONLY_DATA
+#endif
 
 	/** Data used for texture streaming relative to each UV channels. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SkeletalMesh)

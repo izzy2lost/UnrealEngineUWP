@@ -93,6 +93,11 @@ FString UDataRegistrySource::GetDebugString() const
 	return TEXT("InvalidSource");
 }
 
+FSoftObjectPath UDataRegistrySource::GetSourceAssetPath() const
+{
+	return FSoftObjectPath();
+}
+
 bool UDataRegistrySource::IsTransientSource() const
 {
 	return HasAnyFlags(RF_Transient);

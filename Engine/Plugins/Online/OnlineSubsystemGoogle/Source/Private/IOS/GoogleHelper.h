@@ -98,7 +98,7 @@ typedef FOnGoogleSignOutComplete::FDelegate FOnGoogleSignOutCompleteDelegate;
 	FOnGoogleSignOutComplete _OnSignOutComplete;
 };
 
-- (id)initWithServerClientID:(nullable NSString *)ServerClientId;
+- (id)init;
 - (void) Login: (NSArray*) InScopes attemptSilentSignIn:(bool) bAttemptSilentSignIn;
 - (void) Logout;
 

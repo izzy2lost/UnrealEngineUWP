@@ -37,6 +37,7 @@ public:
 		, _OnCheckStateChanged()
 		, _IsChecked( ECheckBoxState::Unchecked )
 		, _HAlign( HAlign_Fill )
+		, _CheckBoxImageVAlign( VAlign_Center )
 		, _CheckBoxContentUsesAutoWidth(true)
 		, _Padding()
 		, _ClickMethod( EButtonClickMethod::DownAndUp )
@@ -75,8 +76,11 @@ public:
 		/** Whether the check box is currently in a checked state */
 		SLATE_ATTRIBUTE( ECheckBoxState, IsChecked )
 
-		/** How the content of the toggle button should align within the given space*/
+		/** How the content of the toggle button should align within the given space */
 		SLATE_ARGUMENT( EHorizontalAlignment, HAlign )
+
+		/** How the image of the checkbox should align vertically within the given space */
+		SLATE_ARGUMENT( EVerticalAlignment, CheckBoxImageVAlign )
 
 		/** Whether or not the content portion of the checkbox should layout using auto-width. When true the content will always be arranged at its desired size as opposed to resizing to the available space. */
 		SLATE_ARGUMENT(bool, CheckBoxContentUsesAutoWidth)
@@ -154,6 +158,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SCheckBox();
+	SLATE_API virtual ~SCheckBox();
 
 	/**
 	 * Construct this widget
@@ -325,8 +330,11 @@ protected:
 	/** Overrides checkbox type in the widget style, if set */
 	TOptional<ESlateCheckBoxType::Type> CheckBoxTypeOverride;
 
-	/** Horiz align setting if in togglebox mode */
+	/** How the content of the toggle button should align within the given space */
 	EHorizontalAlignment HorizontalAlignment;
+
+	/** How the image of the checkbox should align vertically within the given space */
+	EVerticalAlignment CheckBoxImageVAlign;
 
 	/** Whether or not the checkbox content is arranged using auto-width when in checkbox mode. */
 	bool bCheckBoxContentUsesAutoWidth;

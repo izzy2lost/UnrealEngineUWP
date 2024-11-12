@@ -264,11 +264,11 @@ public:
 	}
 
 protected:
-	bool				bSplashIsShown = false;
-	bool				bSplashShowMovie = false;
-	FTexture2DRHIRef	SplashTexture;
-	FTexture2DRHIRef	SplashMovie;
-	FVector			    SplashOffset = FVector::ZeroVector;
-	FVector2D			SplashScale = FVector2D(1.0f, 1.0f);
-	uint32				SplashLayerHandle = 0;
+	bool			bSplashIsShown = false;
+	bool			bSplashShowMovie = false;
+	FTextureRHIRef	SplashTexture;
+	FTextureRHIRef	SplashMovie;
+	FVector			SplashOffset = FVector::ZeroVector;
+	FVector2D		SplashScale = FVector2D(1.0f, 1.0f);
+	uint32			SplashLayerHandle = 0;
 };

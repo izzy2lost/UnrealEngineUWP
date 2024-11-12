@@ -31,6 +31,7 @@ public class HarmonixDspEditor : ModuleRules
 				"HarmonixDsp",
 				"UnrealEd",
 				"Json",
+				"AssetRegistry",
 				"AssetDefinition",
 				"AssetTools",
 				"PropertyEditor",

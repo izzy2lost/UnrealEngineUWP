@@ -13,6 +13,7 @@
 #include "Sound/AudioBus.h"
 #include "Styling/SlateTypes.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/NoExportTypes.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "UObject/StrongObjectPtr.h"
@@ -21,9 +22,39 @@
 #include "AudioMeter.generated.h"
 
 // Forward Declarations
+class SAudioMaterialMeter;
 class SAudioMeter;
 class UWorld;
 
+struct FAudioMaterialMeterStyle;
+
+
+USTRUCT(BlueprintType)
+struct AUDIOWIDGETS_API FAudioMeterDefaultColorStyle : public FSlateWidgetStyle
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+	static const FAudioMeterDefaultColorStyle& GetDefault();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor MeterBackgroundColor = FLinearColor(0.031f, 0.031f, 0.031f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor MeterValueColor = FLinearColor(0.025719f, 0.208333f, 0.069907f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor MeterPeakColor = FLinearColor(0.24349f, 0.708333f, 0.357002f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor MeterClippingColor = FLinearColor(1.0f, 0.0f, 0.112334f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor MeterScaleColor = FLinearColor(0.017642f, 0.017642f, 0.017642f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+	FLinearColor MeterScaleLabelColor = FLinearColor(0.442708f, 0.442708f, 0.442708f, 1.0f);
+};
 
 /**
  * An audio meter widget.
@@ -93,39 +124,39 @@ public:
 public:
 
  	/** Gets the current linear value of the meter. */
- 	UFUNCTION(BlueprintCallable, Category="Behavior")
+ 	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
  
  	/** Sets the current meter values. */
- 	UFUNCTION(BlueprintCallable, Category="Behavior")
+ 	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
  	void SetMeterChannelInfo(const TArray<FMeterChannelInfo>& InMeterChannelInfo);
 
 	/** Sets the background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetBackgroundColor(FLinearColor InValue);
 
 	/** Sets the meter background color */
-	UFUNCTION(BlueprintCallable, Category="Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterBackgroundColor(FLinearColor InValue);
 
 	/** Sets the meter value color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterValueColor(FLinearColor InValue);
 
 	/** Sets the meter peak color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterPeakColor(FLinearColor InValue);
 
 	/** Sets the meter clipping color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterClippingColor(FLinearColor InValue);
 
 	/** Sets the meter scale color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterScaleColor(FLinearColor InValue);
 
 	/** Sets the meter scale color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterScaleLabelColor(FLinearColor InValue);
 
 	// UWidget interface
@@ -157,14 +188,25 @@ namespace AudioWidgets
 	{
 	public:
 		UE_DEPRECATED(5.4, "Use the FAudioMeter constructor that uses Audio::FDeviceId.")
-		FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); // OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); 
 		
-		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); // OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		//** OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.*/
+		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr, const FAudioMeterDefaultColorStyle* AudioMeterColorStyle = nullptr);
+
+		//** Constructs the Meter using AudioMaterialMeter with the given style. OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const FAudioMaterialMeterStyle& AudioMaterialMeterStyle, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
+
 		~FAudioMeter();
 
 		UAudioBus* GetAudioBus() const;
 
 		TSharedRef<SAudioMeter> GetWidget() const;
+
+		template<class T>
+		TSharedRef<T> GetWidget() const
+		{
+			return StaticCastSharedRef<T>(Widget->AsShared());
+		};
 
 		UE_DEPRECATED(5.4, "Use the Init method that uses Audio::FDeviceId.")
 		void Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
@@ -193,7 +235,7 @@ namespace AudioWidgets
 		TStrongObjectPtr<UMeterSettings> Settings;
 
 		/** MetaSound Output Meter widget */
-		TSharedPtr<SAudioMeter> Widget;
+		TSharedPtr<SAudioMeterBase> Widget;
 
 		bool bUseExternalAudioBus = false;
 	};

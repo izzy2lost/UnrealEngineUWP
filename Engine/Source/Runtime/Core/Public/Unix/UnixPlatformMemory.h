@@ -141,6 +141,8 @@ struct FUnixPlatformMemory : public FGenericPlatformMemory
 	//~ End FGenericPlatformMemory Interface
 
 	static CORE_API bool HasForkPageProtectorEnabled();
+
+	static CORE_API bool CanOverallocateVirtualMemory();
 };
 
 typedef FUnixPlatformMemory FPlatformMemory;

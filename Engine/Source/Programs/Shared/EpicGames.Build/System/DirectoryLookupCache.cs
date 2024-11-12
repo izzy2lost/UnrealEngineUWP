@@ -20,6 +20,12 @@ namespace UnrealBuildBase
 			return DirectoryItem.GetItemByDirectoryReference(Directory).Exists;
 		}
 
+		static public bool DirectoryExistsAndContainsFiles(DirectoryReference Directory, SearchOption searchOption = SearchOption.TopDirectoryOnly)
+		{
+			DirectoryItem item = DirectoryItem.GetItemByDirectoryReference(Directory);
+			return item.Exists && item.ContainsFiles(searchOption);
+		}
+
 		static public IEnumerable<FileReference> EnumerateFiles(DirectoryReference Directory)
 		{
 			return DirectoryItem.GetItemByDirectoryReference(Directory).EnumerateFiles().Select(x => x.Location);

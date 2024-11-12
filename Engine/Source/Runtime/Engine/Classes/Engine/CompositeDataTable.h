@@ -44,6 +44,7 @@ class UCompositeDataTable
 	ENGINE_API virtual void EmptyTable() override;
 	ENGINE_API virtual void RemoveRow(FName RowName) override;
 	ENGINE_API virtual void AddRow(FName RowName, const FTableRowBase& RowData) override;
+	ENGINE_API virtual void AddRow(FName RowName, const uint8* RowData, const UScriptStruct* RowType) override;
 
 #if WITH_EDITOR
 	ENGINE_API virtual void CleanBeforeStructChange() override;

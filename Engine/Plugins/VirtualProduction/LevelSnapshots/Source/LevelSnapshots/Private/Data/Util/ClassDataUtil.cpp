@@ -32,7 +32,7 @@ namespace UE::LevelSnapshots::Private
 			return {};
 		}
 
-		UClass* Class = ArchetypeData->ClassPath.TryLoadClass<UObject>();
+		UClass* Class = (*ArchetypeData)->ClassPath.TryLoadClass<UObject>();
 		if (!Class)
 		{
 			return {};
@@ -113,7 +113,7 @@ namespace UE::LevelSnapshots::Private
 	{
 		if (const TOptional<TNonNullPtr<FClassSnapshotData>> ArchetypeData = GetObjectArchetypeData(WorldData, ClassIndex, Cache, FallbackInfo))
 		{
-			SerializeClassDefaultsInto(Object, *ArchetypeData, WorldData);
+			SerializeClassDefaultsInto(Object, **ArchetypeData, WorldData);
 		}
 		else
 		{
@@ -137,7 +137,7 @@ namespace UE::LevelSnapshots::Private
 	{
 		if (const TOptional<TNonNullPtr<FClassSnapshotData>> ArchetypeData = GetObjectArchetypeData(WorldData, ClassIndex, Cache, FallbackInfo))
 		{
-			FApplyClassDefaulDataArchive::RestoreSelectedChangedClassDefaults(*ArchetypeData, WorldData, Object, PropertiesToRestore);
+			FApplyClassDefaulDataArchive::RestoreSelectedChangedClassDefaults(**ArchetypeData, WorldData, Object, PropertiesToRestore);
 		}
 		else
 		{

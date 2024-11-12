@@ -1,17 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
-using EpicGames.BuildGraph;
-using AutomationTool.Tasks;
 
 namespace AutomationTool.Tasks
 {
@@ -24,43 +18,43 @@ namespace AutomationTool.Tasks
 		/// Executable to spawn.
 		/// </summary>
 		[TaskParameter]
-		public string Exe;
+		public string Exe { get; set; }
 
 		/// <summary>
 		/// Arguments for the newly created process.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Working directory for spawning the new task
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string WorkingDir;
+		public string WorkingDir { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Write output to the log
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool LogOutput = true;
+		public bool LogOutput { get; set; } = true;
 
 		/// <summary>
 		/// The minimum exit code, which is treated as an error.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int ErrorLevel = 1;
+		public int ErrorLevel { get; set; } = 1;
 	}
 
 	/// <summary>
@@ -69,77 +63,81 @@ namespace AutomationTool.Tasks
 	public abstract class SpawnTaskBase : BgTaskImpl
 	{
 		/// <summary>
-		/// Execute a command
+		/// ExecuteAsync a command
 		/// </summary>
-		protected static Task<IProcessResult> ExecuteAsync(string Exe, string Arguments, string WorkingDir = null, Dictionary<string, string> EnvVars = null, bool LogOutput = true, int ErrorLevel = 1, string Input = null, ProcessResult.SpewFilterCallbackType SpewFilterCallback = null)
+		protected static Task<IProcessResult> ExecuteAsync(string exe, string arguments, string workingDir = null, Dictionary<string, string> envVars = null, bool logOutput = true, int errorLevel = 1, string input = null, ProcessResult.SpewFilterCallbackType spewFilterCallback = null)
 		{
-			if (WorkingDir != null)
+			if (workingDir != null)
 			{
-				WorkingDir = ResolveDirectory(WorkingDir).FullName;
+				workingDir = ResolveDirectory(workingDir).FullName;
 			}
 
-			CommandUtils.ERunOptions Options = CommandUtils.ERunOptions.Default;
-			if (!LogOutput)
+			CommandUtils.ERunOptions options = CommandUtils.ERunOptions.Default;
+			if (!logOutput)
 			{
-				Options |= CommandUtils.ERunOptions.SpewIsVerbose;
+				options |= CommandUtils.ERunOptions.SpewIsVerbose;
 			}
 
-			IProcessResult Result = CommandUtils.Run(Exe, Arguments, Env: EnvVars, WorkingDir: WorkingDir, Options: Options, Input: Input, SpewFilterCallback: SpewFilterCallback);
-			if (Result.ExitCode < 0 || Result.ExitCode >= ErrorLevel)
+			IProcessResult result = CommandUtils.Run(exe, arguments, Env: envVars, WorkingDir: workingDir, Options: options, Input: input, SpewFilterCallback: spewFilterCallback);
+			if (result.ExitCode < 0 || result.ExitCode >= errorLevel)
 			{
-				throw new AutomationException("{0} terminated with an exit code indicating an error ({1})", Path.GetFileName(Exe), Result.ExitCode);
+				throw new AutomationException("{0} terminated with an exit code indicating an error ({1})", Path.GetFileName(exe), result.ExitCode);
 			}
 
-			return Task.FromResult(Result);
+			return Task.FromResult(result);
 		}
 
 		/// <summary>
 		/// Parses environment from a property and file
 		/// </summary>
-		/// <param name="Environment"></param>
-		/// <param name="EnvironmentFile"></param>
+		/// <param name="environment"></param>
+		/// <param name="environmentFile"></param>
 		/// <returns></returns>
-		protected static Dictionary<string, string> ParseEnvVars(string Environment, string EnvironmentFile)
+		protected static Dictionary<string, string> ParseEnvVars(string environment, string environmentFile)
 		{
-			Dictionary<string, string> EnvVars = new Dictionary<string, string>();
-			if (Environment != null)
+			Dictionary<string, string> envVars = new Dictionary<string, string>();
+			if (environment != null)
 			{
-				ParseEnvironment(Environment, ';', EnvVars);
+				ParseEnvironment(environment, ';', envVars);
 			}
-			if (EnvironmentFile != null)
+			if (!String.IsNullOrEmpty(environmentFile))
 			{
-				ParseEnvironment(FileUtils.ReadAllText(ResolveFile(EnvironmentFile)), '\n', EnvVars);
+				ParseEnvironment(FileUtils.ReadAllText(ResolveFile(environmentFile)), '\n', envVars);
 			}
-			return EnvVars;
+			return envVars;
 		}
 
 		/// <summary>
 		/// Parse environment from a string
 		/// </summary>
-		/// <param name="Environment"></param>
-		/// <param name="Separator"></param>
-		/// <param name="EnvVars"></param>
-		static void ParseEnvironment(string Environment, char Separator, Dictionary<string, string> EnvVars)
+		/// <param name="environment"></param>
+		/// <param name="separator"></param>
+		/// <param name="envVars"></param>
+		static void ParseEnvironment(string environment, char separator, Dictionary<string, string> envVars)
 		{
-			for (int BaseIdx = 0; BaseIdx < Environment.Length;)
+			for (int baseIdx = 0; baseIdx < environment.Length;)
 			{
-				int EqualsIdx = Environment.IndexOf('=', BaseIdx);
-				if (EqualsIdx == -1)
+				int endIdx = environment.IndexOf(separator, baseIdx);
+				if (endIdx == -1)
 				{
-					throw new AutomationException("Missing value in environment variable string '{0}'", Environment);
+					endIdx = environment.Length;
 				}
 
-				int EndIdx = Environment.IndexOf(Separator, EqualsIdx + 1);
-				if (EndIdx == -1)
+				string line = environment.Substring(baseIdx, endIdx - baseIdx);
+				if (!String.IsNullOrWhiteSpace(line))
 				{
-					EndIdx = Environment.Length;
+					int equalsIdx = line.IndexOf('=', StringComparison.Ordinal);
+					if (equalsIdx == -1)
+					{
+						throw new AutomationException("Missing value in environment variable string '{0}'", environment.Substring(baseIdx, endIdx - baseIdx));
+					}
+
+					string name = line.Substring(0, equalsIdx).Trim();
+					string value = line.Substring(equalsIdx + 1).Trim();
+					envVars[name] = value;
 				}
 
-				string Name = Environment.Substring(BaseIdx, EqualsIdx - BaseIdx).Trim();
-				string Value = Environment.Substring(EqualsIdx + 1, EndIdx - (EqualsIdx + 1)).Trim();
-				EnvVars[Name] = Value;
-
-				BaseIdx = EndIdx + 1;
+				baseIdx = endIdx + 1;
 			}
 		}
 	}
@@ -153,34 +151,34 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		SpawnTaskParameters Parameters;
+		readonly SpawnTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a spawn task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public SpawnTask(SpawnTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public SpawnTask(SpawnTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			await ExecuteAsync(Parameters.Exe, Parameters.Arguments, Parameters.WorkingDir, EnvVars: ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile), LogOutput: Parameters.LogOutput, ErrorLevel: Parameters.ErrorLevel);
+			await ExecuteAsync(_parameters.Exe, _parameters.Arguments, _parameters.WorkingDir, envVars: ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile), logOutput: _parameters.LogOutput, errorLevel: _parameters.ErrorLevel);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -205,27 +203,27 @@ namespace AutomationTool.Tasks
 	public static partial class StandardTasks
 	{
 		/// <summary>
-		/// Execute an external program
+		/// ExecuteAsync an external program
 		/// </summary>
-		/// <param name="Exe">Executable to spawn.</param>
-		/// <param name="Arguments">Arguments for the newly created process.</param>
-		/// <param name="WorkingDir">Working directory for spawning the new task.</param>
-		/// <param name="Environment">Environment variables to set.</param>
-		/// <param name="EnvironmentFile">File to read environment from.</param>
-		/// <param name="LogOutput">Write output to the log.</param>
-		/// <param name="ErrorLevel">The minimum exit code which is treated as an error.</param>
-		public static async Task SpawnAsync(string Exe, string Arguments = null, string WorkingDir = null, string Environment = null, string EnvironmentFile = null, bool? LogOutput = null, int? ErrorLevel = null)
+		/// <param name="exe">Executable to spawn.</param>
+		/// <param name="arguments">Arguments for the newly created process.</param>
+		/// <param name="workingDir">Working directory for spawning the new task.</param>
+		/// <param name="environment">Environment variables to set.</param>
+		/// <param name="environmentFile">File to read environment from.</param>
+		/// <param name="logOutput">Write output to the log.</param>
+		/// <param name="errorLevel">The minimum exit code which is treated as an error.</param>
+		public static async Task SpawnAsync(string exe, string arguments = null, string workingDir = null, string environment = null, string environmentFile = null, bool? logOutput = null, int? errorLevel = null)
 		{
-			SpawnTaskParameters Parameters = new SpawnTaskParameters();
-			Parameters.Exe = Exe;
-			Parameters.Arguments = Arguments;
-			Parameters.WorkingDir = WorkingDir;
-			Parameters.Environment = Environment;
-			Parameters.EnvironmentFile = EnvironmentFile;
-			Parameters.LogOutput = LogOutput ?? Parameters.LogOutput;
-			Parameters.ErrorLevel = ErrorLevel ?? Parameters.ErrorLevel;
+			SpawnTaskParameters parameters = new SpawnTaskParameters();
+			parameters.Exe = exe;
+			parameters.Arguments = arguments;
+			parameters.WorkingDir = workingDir;
+			parameters.Environment = environment;
+			parameters.EnvironmentFile = environmentFile;
+			parameters.LogOutput = logOutput ?? parameters.LogOutput;
+			parameters.ErrorLevel = errorLevel ?? parameters.ErrorLevel;
 
-			await ExecuteAsync(new SpawnTask(Parameters));
+			await ExecuteAsync(new SpawnTask(parameters));
 		}
 	}
 }

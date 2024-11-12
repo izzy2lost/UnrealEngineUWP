@@ -9,7 +9,7 @@
 
 class IConcertSyncClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Asks the local client's IConcertClientReplicationManager about the current state of the streams. */
 	class FStreamSynchronizer_LocalClient : public IClientStreamSynchronizer, public FNoncopyable
@@ -23,7 +23,7 @@ namespace UE::MultiUserClient
 		virtual FGuid GetStreamId() const override { return LocalClientStreamId; }
 		virtual const FConcertObjectReplicationMap& GetServerState() const override;
 		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const override;
-		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
+		virtual FOnServerStateChanged& OnServerStreamChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
 	private:

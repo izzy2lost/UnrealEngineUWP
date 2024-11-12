@@ -9,6 +9,7 @@
 #include "LevelInstance/LevelInstancePrivate.h"
 #include "LevelInstance/LevelInstanceComponent.h"
 #include "LevelInstance/LevelInstanceEditorInstanceActor.h"
+#include "LevelInstance/LevelInstanceSettings.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -18,6 +19,8 @@
 #include "Misc/UObjectToken.h"
 
 #endif
+
+#include "WorldPartition/ActorInstanceGuids.h"
 
 #define LOCTEXT_NAMESPACE "LevelInstanceActor"
 
@@ -48,6 +51,10 @@ void FLevelInstanceActorImpl::UnregisterLevelInstance()
 	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
 	{
 		LevelInstanceSubsystem->UnregisterLevelInstance(LevelInstance);
+		if (ULevel* LoadedLevel = LevelInstance->GetLoadedLevel())
+		{
+			FActorInstanceGuid::ReleaseLevelInstanceGuid(LoadedLevel);
+		}
 
 		LevelInstance->UnloadLevelInstance();
 
@@ -83,6 +90,8 @@ bool FLevelInstanceActorImpl::IsLoadingEnabled() const
 
 void FLevelInstanceActorImpl::OnLevelInstanceLoaded()
 {
+	FActorInstanceGuid::SetLevelInstanceGuid(LevelInstance->GetLoadedLevel(), ULevelInstanceSubsystem::GetOwningLevel(LevelInstance->GetLoadedLevel()), LevelInstance->GetLevelInstanceGuid());
+
 #if WITH_EDITOR
 	AActor* Actor = CastChecked<AActor>(LevelInstance);
 	if (!Actor->GetWorld()->IsGameWorld())
@@ -114,6 +123,11 @@ bool FLevelInstanceActorImpl::ResolveSubobject(const TCHAR* SubObjectPath, UObje
 	}
 
 	return false;
+}
+
+bool FLevelInstanceActorImpl::SupportsPropertyOverrides() const
+{
+	return ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled();
 }
 
 bool FLevelInstanceActorImpl::SupportsPartialEditorLoading() const
@@ -310,12 +324,12 @@ void FLevelInstanceActorImpl::EditorGetUnderlyingActors(TSet<AActor*>& OutUnderl
 bool FLevelInstanceActorImpl::IsLockedActor() const
 {
 	AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
-	if (LevelInstanceActor->IsInLevelInstance() && !LevelInstanceActor->IsInEditLevelInstance())
+	if (LevelInstanceActor->IsInLevelInstance() && !LevelInstanceActor->IsInAnyEditLevelInstance())
 	{
 		return true;
 	}
 
-	if (LevelInstance->IsEditing())
+	if (LevelInstance->IsEditing() || LevelInstance->IsEditingPropertyOverrides())
 	{
 		return true;
 	}
@@ -366,6 +380,22 @@ bool FLevelInstanceActorImpl::GetBounds(FBox& OutBounds) const
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
 		{
 			if (LevelInstanceSubsystem->GetLevelInstanceBounds(LevelInstance, OutBounds))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FLevelInstanceActorImpl::GetEditorBounds(FBox& OutBounds) const
+{
+	if (LevelInstance->IsLoadingEnabled())
+	{
+		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
+		{
+			if (LevelInstanceSubsystem->GetLevelInstanceEditorBounds(LevelInstance, OutBounds))
 			{
 				return true;
 			}

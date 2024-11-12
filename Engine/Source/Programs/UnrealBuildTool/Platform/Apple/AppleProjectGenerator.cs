@@ -40,13 +40,21 @@ namespace UnrealBuildTool
 			return new List<string>(0);
 		}
 
-		private class XcrunRunner
+		private sealed class XcrunRunner : IDisposable
 		{
 			private readonly Dictionary<string, IList<string>> CachedIncludePaths = new Dictionary<string, IList<string>>();
 
 			private string CurrentlyProcessedSDK = String.Empty;
 			private Process? XcrunProcess;
 			private bool IsReadingIncludesSection;
+
+			/// <inheritdoc/>
+			public void Dispose()
+			{
+				XcrunProcess?.Kill(true);
+				XcrunProcess?.Dispose();
+				XcrunProcess = null;
+			}
 
 			public IList<string> GetAppleSystemIncludePaths(UnrealArch Architecture, UnrealTargetPlatform Platform, ILogger Logger)
 			{

@@ -131,18 +131,27 @@ void FWeightMapSmoothBrushOp::ApplyStampByVertices(
 	for (int32 BufferIndex = 0; BufferIndex < NumVertices; ++BufferIndex)
 	{
 		const double Diff = OneRingAverages[BufferIndex] - VertexWeightValues[BufferIndex];
+		
+		const int32 VertexIndex = Vertices[BufferIndex];
+		const FVector3d VertexPos = Mesh->GetVertex(VertexIndex);
+
 		if (bApplyRadiusLimit)
 		{
 			const FVector3d& StampPos = Stamp.LocalFrame.Origin;
-			const int32 VertexIndex = Vertices[BufferIndex];
-			const FVector3d VertexPos = Mesh->GetVertex(VertexIndex);
 			const double DistanceSquared = (VertexPos - StampPos).SquaredLength();
 			if (DistanceSquared >= Stamp.Radius * Stamp.Radius)
 			{
 				continue;
 			}
 		}
-		VertexWeightValues[BufferIndex] += Stamp.Power * Diff;
+
+		double FalloffScalar = 1.0;
+		if (this->Falloff)
+		{
+			FalloffScalar = GetFalloff().Evaluate(Stamp, VertexPos);
+		}
+
+		VertexWeightValues[BufferIndex] += FalloffScalar * Stamp.Power * Diff;
 	}
 }
 

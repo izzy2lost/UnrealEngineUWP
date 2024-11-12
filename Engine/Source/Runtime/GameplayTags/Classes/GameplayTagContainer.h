@@ -94,7 +94,7 @@ struct FGameplayTag
 	}
 
 	/**
-	 * Determine if this tag matches TagToCheck, expanding our parent tags
+	 * Determine if this tag matches TagToCheck, expanding out parent tags
 	 * "A.1".MatchesTag("A") will return True, "A".MatchesTag("A.1") will return False
 	 * If TagToCheck is not Valid it will always return False
 	 * 
@@ -115,7 +115,7 @@ struct FGameplayTag
 		{
 			return false;
 		}
-		// Only check check explicit tag list
+		// Only check explicit tag list
 		return TagName == TagToCheck.TagName;
 	}
 
@@ -218,6 +218,8 @@ struct FGameplayTag
 	static GAMEPLAYTAGS_API const FGameplayTag EmptyTag;
 
 protected:
+
+	bool NetSerialize_ForReplayUsingFastReplication(FArchive& Ar, class UPackageMapClient& PackageMapClient);
 
 	/** Intentionally private so only the tag manager can use */
 	GAMEPLAYTAGS_API explicit FGameplayTag(const FName& InTagName);
@@ -883,6 +885,9 @@ public:
 	/** Serialize the tag query */
 	GAMEPLAYTAGS_API void Serialize(FArchive& Ar);
 	
+	/** Sets the user-specified description of this query. */
+	void SetUserDescription(const FString& InUserDescription) { UserDescription = InUserDescription; }
+
 	/** Returns description string. */
 	const FString& GetDescription() const { return UserDescription.IsEmpty() ? AutoDescription : UserDescription; };
 

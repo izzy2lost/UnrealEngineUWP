@@ -3,10 +3,11 @@
 #include "MaterialDesigner/AvaLevelMaterialDesignerExtension.h"
 #include "AvaEditorModule.h"
 #include "AvaMaterialDesignerTextureAssetFactory.h"
+#include "AvaScreenAlignmentUtils.h"
 #include "ContentBrowserModule.h"
 #include "Delegates/IDelegateInstance.h"
-#include "Materials/Material.h"
 #include "Engine/Texture.h"
+#include "Materials/Material.h"
 #include "Styling/SlateIconFinder.h"
 #include "Viewport/AvaLevelViewportExtension.h"
 #include "ViewportClient/IAvaViewportClient.h"
@@ -71,7 +72,7 @@ void FAvaLevelMaterialDesignerExtension::DeinitContentBrowserExtension()
 		{
 			TArray<FContentBrowserMenuExtender_SelectedAssets>& CBMenuExtenderDelegates = ContentBrowserModule->GetAllAssetViewContextMenuExtenders();
 
-			CBMenuExtenderDelegates.RemoveAll([ContentBrowserExtenderDelegateHandle = ContentBrowserExtenderDelegateHandle](const FContentBrowserMenuExtender_SelectedAssets& InDelegate)
+			CBMenuExtenderDelegates.RemoveAll([](const FContentBrowserMenuExtender_SelectedAssets& InDelegate)
 				{
 					return InDelegate.GetHandle() == ContentBrowserExtenderDelegateHandle;
 				});
@@ -107,12 +108,14 @@ void FAvaLevelMaterialDesignerExtension::AddTextureToSene(FAssetData InAssetData
 {
 	const TArray<TSharedPtr<IAvaViewportClient>> LevelViewportClients = FAvaLevelViewportExtension::GetLevelEditorViewportClients();
 
-	if (LevelViewportClients.IsEmpty())
+	if (LevelViewportClients.IsEmpty() || !LevelViewportClients[0].IsValid())
 	{
 		return;
 	}
 
-	UWorld* World = LevelViewportClients[0]->GetViewportWorld();
+	TSharedRef<IAvaViewportClient> LevelViewportClient = LevelViewportClients[0].ToSharedRef();
+
+	UWorld* World = LevelViewportClient->GetViewportWorld();
 
 	if (!World)
 	{
@@ -121,7 +124,7 @@ void FAvaLevelMaterialDesignerExtension::AddTextureToSene(FAssetData InAssetData
 
 	UAvaMaterialDesignerTextureAssetFactory* AssetFactory = NewObject<UAvaMaterialDesignerTextureAssetFactory>(GetTransientPackage());
 	check(AssetFactory);
-	AssetFactory->SetCameraRotation(LevelViewportClients[0]->GetViewportViewTransform().Rotator());
+	AssetFactory->SetCameraRotation(LevelViewportClient->GetViewportViewTransform().Rotator());
 
 	FText ErrorMsg;
 
@@ -131,10 +134,36 @@ void FAvaLevelMaterialDesignerExtension::AddTextureToSene(FAssetData InAssetData
 		return;
 	}
 
+	UTexture* Texture = Cast<UTexture>(InAssetData.GetAsset());
+
+	if (!Texture)
+	{
+		return;
+	}
+
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.bNoFail = true;
 
-	AssetFactory->CreateActor(InAssetData.GetAsset(), World->PersistentLevel.Get(), FTransform::Identity, SpawnParameters);
+	AActor* TextureActor = AssetFactory->CreateActor(Texture, World->PersistentLevel.Get(), FTransform::Identity, SpawnParameters);
+
+	if (!TextureActor)
+	{
+		return;
+	}
+
+	const FVector2D ViewportSize = LevelViewportClient->GetFrustumSizeAtDistance(
+		(LevelViewportClient->GetViewportViewTransform().GetLocation() - TextureActor->GetActorLocation()).Size()
+	);
+
+	if (Texture->GetSurfaceWidth() > ViewportSize.X || Texture->GetSurfaceHeight() > ViewportSize.Y)
+	{
+		FAvaScreenAlignmentUtils::FitActorToScreen(
+			LevelViewportClient,
+			*TextureActor,
+			/* Stretch to fit */ false,
+			/* Align to nearest axis */ true
+		);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

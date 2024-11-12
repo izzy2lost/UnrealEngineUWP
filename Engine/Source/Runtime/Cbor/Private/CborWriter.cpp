@@ -122,10 +122,15 @@ void FCborWriter::WriteValue(double Value)
 
 void FCborWriter::WriteValue(const FString& Value)
 {
+	WriteValue(FStringView(Value));
+}
+
+void FCborWriter::WriteValue(const FStringView& Value)
+{
 	ScopedCborArchiveEndianness ScopedArchiveEndianness(*Stream, Endianness);
 
 	CheckContext(ECborCode::TextString);
-	FTCHARToUTF8 UTF8String(*Value);
+	const FTCHARToUTF8 UTF8String(Value);
 	// Write string header
 	WriteUIntValue(ECborCode::TextString, *Stream, (uint64)UTF8String.Length());
 	// Write string

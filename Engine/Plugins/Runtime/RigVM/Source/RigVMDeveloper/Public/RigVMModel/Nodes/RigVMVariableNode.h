@@ -66,14 +66,16 @@ public:
 	virtual FLinearColor GetNodeColor() const override { return FLinearColor::Blue; }
 	virtual bool IsDefinedAsVarying() const override { return true; }
 
+	// Get the variable name pin
+	URigVMPin* GetVariableNamePin() const;
+
+	// Get the value pin
+	URigVMPin* GetValuePin() const;
+
 private:
 
-	static const FString VariableName;
-	static const FString ValueName;
-
-	URigVMPin* GetVariableNamePin() const;
-	URigVMPin* GetValuePin() const;
-	
+	static const inline TCHAR* VariableName = TEXT("Variable");
+	static const inline TCHAR* ValueName = TEXT("Value");
 
 	friend class URigVMController;
 	friend class URigVMBlueprint;

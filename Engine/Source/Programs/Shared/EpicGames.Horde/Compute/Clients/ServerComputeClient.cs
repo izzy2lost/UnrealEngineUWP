@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Compute.Clients
 	/// <summary>
 	/// Helper class to enlist remote resources to perform compute-intensive tasks.
 	/// </summary>
-	public sealed class ServerComputeClient : IComputeClient
+	public sealed class ServerComputeClient : IComputeClient, IDisposable
 	{
 		/// <summary>
 		/// Length of the nonce sent as part of handshaking between initiator and remote
@@ -115,6 +115,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public const int NonceLength = 64;
 
 		record LeaseInfo(
+			ClusterId Cluster,
 			IReadOnlyList<string> Properties,
 			IReadOnlyDictionary<string, int> AssignedResources,
 			RemoteComputeSocket Socket,
@@ -124,6 +125,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 		class LeaseImpl : IComputeLease
 		{
+			public ClusterId Cluster => _source.Current.Cluster;
 			public IReadOnlyList<string> Properties => _source.Current.Properties;
 			public IReadOnlyDictionary<string, int> AssignedResources => _source.Current.AssignedResources;
 			public RemoteComputeSocket Socket => _source.Current.Socket;
@@ -175,7 +177,7 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 		}
 
-		readonly IHttpClientFactory _httpClientFactory;
+		readonly HttpClient _httpClient;
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly string _sessionId;
 		readonly ILogger _logger;
@@ -184,31 +186,24 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
+		/// <param name="httpClient">Factory for constructing http client instances</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(IHttpClientFactory httpClientFactory, ILogger logger) : this(httpClientFactory, null, logger)
+		public ServerComputeClient(HttpClient httpClient, ILogger logger) : this(httpClient, null, logger)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
+		/// <param name="httpClient">Factory for constructing http client instances</param>
 		/// <param name="sessionId">Arbitrary ID used for identifying this compute client. If not provided, a random one will be generated</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(IHttpClientFactory httpClientFactory, string? sessionId, ILogger logger)
+		public ServerComputeClient(HttpClient httpClient, string? sessionId, ILogger logger)
 		{
-			_httpClientFactory = httpClientFactory;
+			_httpClient = httpClient;
 			_sessionId = sessionId ?? Guid.NewGuid().ToString();
 			_logger = logger;
-			_externalIpResolver = new ExternalIpResolver(_httpClientFactory.CreateClient(HordeHttpClient.HttpClientName));
-		}
-
-		/// <inheritdoc/>
-		public ValueTask DisposeAsync()
-		{
-			Dispose();
-			return new ValueTask();
+			_externalIpResolver = new ExternalIpResolver(_httpClient);
 		}
 
 		/// <inheritdoc/>
@@ -216,9 +211,36 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			_cancellationSource.Dispose();
 		}
-
+		
 		/// <inheritdoc/>
-		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
+		public async Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			AssignComputeRequest request = new()
+			{
+				Requirements = requirements,
+				RequestId = requestId,
+				Connection = connection,
+				Protocol = (int)ComputeProtocol.Latest
+			};
+			
+			using HttpResponseMessage httpResponse = await HordeHttpRequest.PostAsync(_httpClient, "api/v2/compute/_cluster", request, _cancellationSource.Token);
+			if (!httpResponse.IsSuccessStatusCode)
+			{
+				string body = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+				throw new ComputeClientException($"Unable to find suitable cluster. HTTP status code {httpResponse.StatusCode}: {body}");
+			}
+			
+			GetClusterResponse? response = await httpResponse.Content.ReadFromJsonAsync<GetClusterResponse>(HordeHttpClient.JsonSerializerOptions, cancellationToken);
+			if (response == null)
+			{
+				throw new InvalidOperationException();
+			}
+			
+			return response.ClusterId;
+		}
+		
+		/// <inheritdoc/>
+		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
 			try
 			{
@@ -240,19 +262,16 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <inheritdoc/>
 		public async Task DeclareResourceNeedsAsync(ClusterId clusterId, string pool, Dictionary<string, int> resourceNeeds, CancellationToken cancellationToken = default)
 		{
-			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
 			ResourceNeedsMessage request = new() { SessionId = _sessionId, Pool = pool, ResourceNeeds = resourceNeeds };
-			using HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
+			using HttpResponseMessage response = await HordeHttpRequest.PostAsync(_httpClient, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
 			response.EnsureSuccessStatusCode();
 		}
 
-		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
+		async IAsyncEnumerable<LeaseInfo> ConnectAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger workerLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			_logger.LogDebug("Requesting compute resource");
 
 			// Assign a compute worker
-			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
-
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;
 			request.RequestId = requestId;
@@ -265,22 +284,32 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 
 			AssignComputeResponse? response;
-			using (HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
+			string path = clusterId == null ? "api/v2/compute" : $"api/v2/compute/{clusterId}";
+			using (HttpResponseMessage httpResponse = await HordeHttpRequest.PostAsync(_httpClient, path, request, _cancellationSource.Token))
 			{
 				if (httpResponse.StatusCode == HttpStatusCode.NotFound)
 				{
-					throw new NoComputeAgentsFoundException(clusterId, requirements);
+					throw new NoComputeAgentsFoundException(clusterId ?? new ClusterId("null"), requirements);
 				}
 
-				if (httpResponse.StatusCode == HttpStatusCode.ServiceUnavailable)
+				if (httpResponse.StatusCode is HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests)
 				{
-					_logger.LogDebug("No compute resource is available.");
+					_logger.LogDebug("No compute resource is available");
 					yield break;
 				}
 
 				if (httpResponse.StatusCode == HttpStatusCode.Unauthorized)
 				{
-					throw new ComputeClientException($"Bad authentication credentials. Check or refresh token. (HTTP status {httpResponse.StatusCode})");
+					string? content;
+					try
+					{
+						content = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+					}
+					catch
+					{
+						content = "None";
+					}
+					throw new ComputeClientException($"Bad authentication credentials. Check or refresh token. (HTTP status {httpResponse.StatusCode}, response: {content})");
 				}
 
 				if (httpResponse.StatusCode == HttpStatusCode.Forbidden)
@@ -290,6 +319,20 @@ namespace EpicGames.Horde.Compute.Clients
 					{
 						throw new ComputeClientException($"{logEvent.Message} (HTTP status {httpResponse.StatusCode})");
 					}
+				}
+
+				if (httpResponse.StatusCode == HttpStatusCode.InternalServerError)
+				{
+					string? content;
+					try
+					{
+						content = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+					}
+					catch
+					{
+						content = "None";
+					}
+					throw new ComputeClientException($"InternalServerError requesting compute resources: \"{content}\"");
 				}
 
 				httpResponse.EnsureSuccessStatusCode();
@@ -338,11 +381,11 @@ namespace EpicGames.Horde.Compute.Clients
 			// Send the nonce
 			byte[] nonce = StringUtils.ParseHexString(response.Nonce);
 			await socket.SendMessageAsync(nonce, SocketFlags.None, cancellationToken);
-			workerLogger.LogInformation("Connected to {AgentId} ({Ip}) under lease {LeaseId}", response.AgentId, response.Ip, response.LeaseId);
+			workerLogger.LogInformation("Connected to {AgentId} ({Ip}) under lease {LeaseId} (agent version: {AgentVersion})", response.AgentId, response.Ip, response.LeaseId, response.AgentVersion ?? "unknown");
 
 			await using ComputeTransport transport = await CreateTransportAsync(socket, response, cancellationToken);
 			await using RemoteComputeSocket computeSocket = new(transport, (ComputeProtocol)response.Protocol, workerLogger);
-			yield return new LeaseInfo(response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
+			yield return new LeaseInfo(response.ClusterId, response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
 		}
 
 		private static async Task<ComputeTransport> CreateTransportAsync(Socket socket, AssignComputeResponse response, CancellationToken cancellationToken)
@@ -392,7 +435,9 @@ namespace EpicGames.Horde.Compute.Clients
 			await writer.WriteLineAsync(request.ToCharArray(), cancellationToken);
 
 			string exceptionMetadata = $"Connection: {response.ConnectionAddress} Target: {response.Ip}:{response.Port}";
+#pragma warning disable CA2016 // Forward the 'CancellationToken' parameter to methods
 			Task<string?> readTask = reader.ReadLineAsync();
+#pragma warning restore CA2016 // Forward the 'CancellationToken' parameter to methods
 			Task timeoutTask = Task.Delay(15000, cancellationToken);
 			if (await Task.WhenAny(readTask, timeoutTask) == timeoutTask)
 			{

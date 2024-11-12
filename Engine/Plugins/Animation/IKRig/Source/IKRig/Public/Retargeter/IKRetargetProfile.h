@@ -58,4 +58,35 @@ public:
 	// Retarget settings to control global behavior, like Stride Warping (not applied unless bApplyGlobalSettings is true)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=GlobalSettings, meta=(EditCondition="bApplyGlobalSettings"))
 	FRetargetGlobalSettings GlobalSettings;
+
+	void MergeWithOtherProfile(const FRetargetProfile& OtherProfile)
+	{
+		if (OtherProfile.bApplyTargetRetargetPose)
+		{
+			TargetRetargetPoseName = OtherProfile.TargetRetargetPoseName;
+		}
+
+		if (OtherProfile.bApplySourceRetargetPose)
+		{
+			SourceRetargetPoseName = OtherProfile.SourceRetargetPoseName;
+		}
+
+		if (OtherProfile.bApplyChainSettings)
+		{
+			for (const TPair<FName,FTargetChainSettings>& Pair : OtherProfile.ChainSettings)
+			{
+				ChainSettings.Add(Pair.Key, Pair.Value);
+			}
+		}
+
+		if (OtherProfile.bApplyRootSettings)
+		{
+			RootSettings = OtherProfile.RootSettings;
+		}
+
+		if (OtherProfile.bApplyGlobalSettings)
+		{
+			GlobalSettings = OtherProfile.GlobalSettings;
+		}
+	}
 };

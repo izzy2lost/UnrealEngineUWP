@@ -130,6 +130,7 @@ public:
 				uint64 LastAckedBaselineIndex : 2;						// Last acknowledged baseline index which we can use for deltacompresion
 				uint64 PendingBaselineIndex : 2;						// Baseline index pending acknowledgment from client
 				uint64 FlushFlags : 3;									// Flags indicating what we are waiting for when flushing
+				uint64 HasDirtyConditionals : 1;						// If this flag is set, we must update conditionals.
 			};
 		};
 
@@ -150,14 +151,19 @@ public:
 	// Init
 	void Init(const FReplicationParameters& InParameters);
 
+	void Deinit();
+
 	// Update new or existing/destroyed 
 	void UpdateScope(const FNetBitArrayView& ScopedObjects);
 
 	// Force update DirtyChangeMasks and mark objects for flush and/or tearoff depending on flags
 	void ForceUpdateDirtyChangeMasks(const FChangeMaskCache& CachedChangeMasks, EFlushFlags ExtraFlushFlags, bool bMarkForTearOff) { InternalUpdateDirtyChangeMasks(CachedChangeMasks, ExtraFlushFlags, bMarkForTearOff); }
 
-	// Called if an object first being teared off and then explicitly destroyed before it has been removed from scope
-	void NotifyDestroyedObjectPendingTearOff(FInternalNetRefIndex ObjectInternalIndex);
+	// Called if an object first being teared-off/flushed and then explicitly destroyed before it has been removed from scope
+	void NotifyDestroyedObjectPendingEndReplication(FInternalNetRefIndex ObjectInternalIndex);
+
+	// Called to propagate changes to global lifetime conditionals
+	void UpdateDirtyGlobalLifetimeConditionals(TArrayView<FInternalNetRefIndex> ObjectsWithDirtyConditionals);
 
 	// Propagate dirty changemasks
 	void UpdateDirtyChangeMasks(const FChangeMaskCache& CachedChangeMasks) { InternalUpdateDirtyChangeMasks(CachedChangeMasks, EFlushFlags::FlushFlags_None, false); }
@@ -186,6 +192,8 @@ public:
 	// Attachments
 	// Queue NetObjectAttachments, returns whether the attachments was enqueued or not.
 	bool QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments, ENetObjectAttachmentSendPolicyFlags SendFlags);
+
+	bool AreAllReliableAttachmentsSentAndAcked() const;
 
 private:
 	// Various types
@@ -367,6 +375,7 @@ private:
 		WriteObjectFlag_State = 1U,
 		WriteObjectFlag_Attachments = WriteObjectFlag_State << 1U,
 		WriteObjectFlag_HugeObject = WriteObjectFlag_Attachments << 1U,
+		WriteObjectFlag_IsWritingHugeObjectBatch = WriteObjectFlag_HugeObject << 1U,
 	};
 
 	enum class EWriteObjectRetryMode : unsigned
@@ -401,6 +410,9 @@ private:
 	};
 
 private:
+
+	void SetNetObjectListsSize(FInternalNetRefIndex NewMaxInternalIndex);
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 	uint32 GetDefaultFlushFlags() const;
 	uint32 GetFlushStatus(uint32 InternalIndex, const FReplicationInfo& Info, uint32 FlushFlagsToTest = EFlushFlags::FlushFlags_Default) const;
@@ -527,9 +539,6 @@ private:
 
 	void MarkObjectDirty(FInternalNetRefIndex InternalIndex, const char* Caller);
 
-	/* Grow internal buffers to support a given index. */
-	void OnLargestIndexIncrease(uint32 InternalIndex);
-
 private:
 	// Replication parameters
 	FReplicationParameters Parameters;
@@ -557,8 +566,6 @@ private:
 	
 	// Handles logic for all attachments to objects.
 	FNetObjectAttachmentsWriter Attachments;
-
-	FDelegateHandle OnLargestIndexIncreaseHandle;
 
 	// Cached internal systems
 	FReplicationSystemInternal* ReplicationSystemInternal = nullptr;

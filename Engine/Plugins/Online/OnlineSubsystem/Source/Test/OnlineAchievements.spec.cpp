@@ -5,7 +5,7 @@
 #include "Utils/OnlineErrors.data.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlineAchievementsSpec, "OnlineAchievementsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineAchievementsSpec, "OnlineAchievementsInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 IOnlineIdentityPtr OnlineIdentity;
 IOnlineAchievementsPtr OnlineAchievements;
@@ -86,7 +86,7 @@ void FOnlineAchievementsSpec::Define()
 
 										FOnlineAchievementsWritePtr AchievementWriteObject = MakeShareable(new FOnlineAchievementsWrite());
 										FOnlineAchievementsWriteRef AchievementWriter = AchievementWriteObject.ToSharedRef();
-										AchievementWriteObject->SetFloatStat(FName(*TestAchievement), 1.0f);
+										AchievementWriteObject->SetFloatStat(TestAchievement, 1.0f);
 
 										OnlineAchievements->WriteAchievements(*TestAccountId, AchievementWriter, FOnAchievementsWrittenDelegate::CreateLambda([this, &SomeAchievement, AchievementWriteObject, TestAccountId, TestAchievement, TestDone](const FUniqueNetId& WriteAchievementsPlayerId, bool bWriteAchievementsWasSuccessful)
 										{

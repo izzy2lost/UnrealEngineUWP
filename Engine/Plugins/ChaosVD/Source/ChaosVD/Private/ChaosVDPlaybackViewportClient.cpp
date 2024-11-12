@@ -2,27 +2,21 @@
 
 #include "ChaosVDPlaybackViewportClient.h"
 
-#include "ChaosVDEditorSettings.h"
-#include "ChaosVDEngine.h"
-#include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
-#include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSkySphereInterface.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "ComponentVisualizer.h"
 #include "EditorModeManager.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/DirectionalLight.h"
 #include "EngineUtils.h"
 #include "SceneView.h"
 #include "SEditorViewport.h"
 #include "Selection.h"
 #include "UnrealWidget.h"
+#include "Actors/ChaosVDGameFrameInfoActor.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
-#include "Components/ChaosVDParticleDataComponent.h"
-#include "Components/ChaosVDSolverCollisionDataComponent.h"
-#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
+#include "Components/ChaosVDGenericDebugDrawDataComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Widgets/SChaosVDMainTab.h"
@@ -36,34 +30,23 @@ FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<
 		GEngine->OnActorMoving().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleActorMoving);
 	}
 
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnFarClippingOverrideChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
-		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
-
-		HandleViewportSettingsChanged(Settings);
-	}
+	constexpr float DefaultFarClipPlaneOverride = 20000.0f;
+	OverrideFarClipPlane(DefaultFarClipPlaneOverride);
 }
 
 FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 {
-	if (ObjectFocusedDelegateHandle.IsValid())
+	if (FocusRequestDelegateHandle.IsValid())
 	{
 		if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 		{
-			ScenePtr->OnObjectFocused().Remove(ObjectFocusedDelegateHandle);
+			ScenePtr->OnFocusRequest().Remove(FocusRequestDelegateHandle);
 		}
 	}
 
 	if (GEngine)
 	{
 		GEngine->OnActorMoving().RemoveAll(this);
-	}
-	
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnFarClippingOverrideChanged().RemoveAll(this);
-		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
 	}
 }
 
@@ -81,6 +64,8 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 	{
 		return;
 	}
+	
+	const bool bIsShiftKeyDown = Viewport->KeyState(EKeys::LeftShift) || Viewport->KeyState(EKeys::RightShift);
 
 	const FViewportClick Click(&View, this, Key, Event, HitX, HitY);
 
@@ -127,7 +112,7 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 			{
 				if (AChaosVDParticleActor* ClickedActor = ScenePtr->GetParticleActor(MeshDataHandle->GetOwningSolverID(), MeshDataHandle->GetOwningParticleID()))
 				{
-					ScenePtr->SetSelectedObject(ClickedActor);
+					Chaos::VisualDebugger::SelectParticleWithGeometryInstance(ScenePtr.ToSharedRef(), ClickedActor, bIsShiftKeyDown ? MeshDataHandle : nullptr);
 					bClickHandled = true;
 				}
 			}
@@ -156,16 +141,25 @@ void FChaosVDPlaybackViewportClient::SetScene(TWeakPtr<FChaosVDScene> InScene)
 		CVDWorld = ScenePtr->GetUnderlyingWorld();
 		CVDScene = InScene;
 
-		ObjectFocusedDelegateHandle = ScenePtr->OnObjectFocused().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleObjectFocused);
+		FocusRequestDelegateHandle = ScenePtr->OnFocusRequest().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleFocusRequest);
 	}
 }
 
-void FChaosVDPlaybackViewportClient::HandleObjectFocused(UObject* FocusedObject)
+void FChaosVDPlaybackViewportClient::SetCanSelectTranslucentGeometry(bool bCanSelect)
 {
-	if (AActor* FocusedActor = Cast<AActor>(FocusedObject))
-	{
-		FocusViewportOnBox(FocusedActor->GetComponentsBoundingBox(false));
-	}
+	bAllowTranslucentHitProxies = bCanSelect;
+
+	Invalidate();
+}
+
+void FChaosVDPlaybackViewportClient::ToggleCanSelectTranslucentGeometry()
+{
+	SetCanSelectTranslucentGeometry(!bAllowTranslucentHitProxies);
+}
+
+void FChaosVDPlaybackViewportClient::HandleFocusRequest(FBox BoxToFocusOn)
+{
+	FocusViewportOnBox(BoxToFocusOn);
 }
 
 void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
@@ -176,74 +170,79 @@ void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
 		{
 			if (SceneSharedPtr->GetSkySphereActor()->Implements<UChaosVDSkySphereInterface>())
 			{
+				FEditorScriptExecutionGuard AllowEditorScriptGuard;
 				IChaosVDSkySphereInterface::Execute_Refresh(SceneSharedPtr->GetSkySphereActor());
 			}
 		}
 	}
 }
 
-void FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject)
+void FChaosVDPlaybackViewportClient::TrackSelectedObject()
 {
-	if (SettingsObject)
+	if (!bAutoTrackSelectedObject || !ModeTools.IsValid())
 	{
-		OverrideFarClipPlane(SettingsObject->FarClippingOverride);
-		EngineShowFlags.SetMeshEdges(EnumHasAnyFlags(static_cast<EChaosVDGeometryVisibilityFlags>(SettingsObject->GeometryVisibilityFlags), EChaosVDGeometryVisibilityFlags::ShowTriangleEdges));
-		Invalidate();
+		return;
 	}
+
+	FocusOnSelectedObject();
 }
 
-void FChaosVDPlaybackViewportClient::TrackSelectedObject()
+void FChaosVDPlaybackViewportClient::FocusOnSelectedObject()
 {
 	if (const TSharedPtr<FChaosVDScene> CVDSceneSharedPtr = CVDScene.Pin())
 	{
-		if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
-		{
-			if (ModeTools.IsValid() && CVDEditorSettings->TrackingTarget == EChaosVDActorTrackingTarget::SelectedObject)
-			{
-				USelection* CurrentSelection = ModeTools->GetSelectedActors();
+		USelection* CurrentSelection = ModeTools->GetSelectedActors();
 
-				//TODO: Update this if we add multi selection support
-				if (const AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
-				{
-					const FBox ActorBounds = SelectedActor->GetComponentsBoundingBox(false);
-					FocusViewportOnBox(ActorBounds.ExpandBy(CVDEditorSettings->ExpandViewTrackingBy), true);		
-				}
-			}
+		//TODO: Update this if we add multi selection support
+		if (AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
+		{
+			FBox BoxToTrack = SelectedActor->GetComponentsBoundingBox(false);
+			FocusViewportOnBox(BoxToTrack.ExpandBy(TrackingViewDistance), true);
 		}
 	}
 }
 
-bool FChaosVDPlaybackViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
+void FChaosVDPlaybackViewportClient::UpdateMouseDelta()
 {
-	// Each time we requested a re-draw means we move something in the scene, so we need to re-create the cached hit proxy map.
-	if (bNeedsRedraw)
-	{
-		RequestInvalidateHitProxy(Viewport);
-	}
-	
-	return FEditorViewportClient::InputKey(EventArgs);
+	// Make sure we get the camera in the correct position before a mouse drag is handled
+	TrackSelectedObject();
+
+	FEditorViewportClient::UpdateMouseDelta();
+}
+
+void FChaosVDPlaybackViewportClient::HandleCVDSceneUpdated()
+{
+	TrackSelectedObject();
+	Invalidate();
 }
 
 void FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected()
 {
-	// Currently we only have two options, so toggle between them
-	if (UChaosVDEditorSettings* CVDEditorSettings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		CVDEditorSettings->TrackingTarget = CVDEditorSettings->TrackingTarget == EChaosVDActorTrackingTarget::Disabled ? EChaosVDActorTrackingTarget::SelectedObject : EChaosVDActorTrackingTarget::Disabled;
-	}
+	bAutoTrackSelectedObject = !bAutoTrackSelectedObject;
+}
+
+void FChaosVDPlaybackViewportClient::SetAutoTrackingViewDistance(float NewDistance)
+{
+	TrackingViewDistance = NewDistance;
+}
+
+void FChaosVDPlaybackViewportClient::GoToLocation(const FVector& InLocation)
+{
+	FViewportCameraTransform& ViewTransform = GetViewTransform();
+	ViewTransform.SetLocation(InLocation);
+
+	Invalidate();
 }
 
 void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
 	if (View)
 	{
-		// Hack to allow selection of translucent objects (for CVD is all geometry set a Query Only)
+		// Hack to allow CVD control the selection of translucent objects (for CVD is all geometry set as Query Only)
 		// The current setting to allow this behaviour is project wide or on custom hitproxies implementations which we can't use
-		// A proper fix would be have a way to override this per viewport, which could be done by adding a new method to FViewElementDrawer
-		const_cast<FSceneView*>(View)->bAllowTranslucentPrimitivesInHitProxy = true;
+		// A proper fix would be to have a way to override this per viewport, which could be done by adding a new method to FViewElementDrawer
+		const_cast<FSceneView*>(View)->bAllowTranslucentPrimitivesInHitProxy = bAllowTranslucentHitProxies;
 	}
-
-	TrackSelectedObject();
 
 	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = ModeTools.IsValid() ? StaticCastSharedPtr<SChaosVDMainTab>(ModeTools->GetToolkitHost()) : nullptr;
 	if (!MainTabToolkitHost.IsValid())
@@ -255,21 +254,19 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 	{
 		//TODO: Currently we can safely assume that any component in these actors is meant to have a visualizer, but we might need a proper interface for these components in the future
 		TInlineComponentArray<const UActorComponent*> ComponentsToVisualize;
-		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverInfoWithID : ScenePtr->GetSolverInfoActorsMap())
+
+
+		TConstArrayView<TObjectPtr<AChaosVDDataContainerBaseActor>> DataContainerActors = ScenePtr->GetDataContainerActorsView();
+		for (const TObjectPtr<AChaosVDDataContainerBaseActor>& DataContainerActor : DataContainerActors)
 		{
-			if (SolverInfoWithID.Value)
+			if (DataContainerActor)
 			{
 				constexpr bool bIncludeFromChildActors = false;
-				SolverInfoWithID.Value->ForEachComponent(bIncludeFromChildActors, [&ComponentsToVisualize](UActorComponent* Component)
+				DataContainerActor->ForEachComponent(bIncludeFromChildActors, [&ComponentsToVisualize](UActorComponent* Component)
 				{
 					ComponentsToVisualize.Emplace(Component);
 				});
 			}
-		}
-
-		if (const UChaosVDSceneQueryDataComponent* SceneQueryDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
-		{
-			ComponentsToVisualize.Emplace(SceneQueryDataComponent);
 		}
 
 		for (const UActorComponent* Component : ComponentsToVisualize)

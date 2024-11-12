@@ -2,6 +2,7 @@
 
 #include "Dataflow/DataflowSchema.h"
 
+#include "Dataflow/DataflowCoreNodes.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEdNode.h"
@@ -15,10 +16,30 @@
 #include "ToolMenu.h"
 #include "GraphEditorActions.h"
 #include "Dataflow/DataflowSettings.h"
+#include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowSchema)
 
 #define LOCTEXT_NAMESPACE "DataflowNode"
+
+namespace UE::Dataflow::Private
+{
+	static const FName ManagedArrayCollectionType = FName("FManagedArrayCollection");
+	static const FName FloatType = FName("float");
+	static const FName DoubleType = FName("double");
+	static const FName Int32Type = FName("int32");
+	static const FName BoolType = FName("bool");
+	static const FName StringType = FName("FString");
+	static const FName NameType = FName("FName");
+	static const FName TextType = FName("FText");
+	static const FName VectorType = FName("FVector");
+	static const FName TransformType = FName("FTransform");
+	static const FName RotatorType = FName("FRotator");
+	static const FName ArrayType = FName("TArray");
+	static const FName BoxType = FName("FBox");
+	static const FName SphereType = FName("FSphere");
+	static const FName DataflowAnyTypeType = FName("FDataflowAnyType");
+} // namespace UE::Dataflow::Private
 
 UDataflowSchema::UDataflowSchema()
 {
@@ -26,7 +47,7 @@ UDataflowSchema::UDataflowSchema()
 
 void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const
 {
-	if (Context->Node)
+	if (Context->Node && !Context->Pin)
 	{
 		{
 			FToolMenuSection& Section = Menu->AddSection("TestGraphSchemaNodeActions", LOCTEXT("GraphSchemaNodeActions_MenuHeader", "Node Actions"));
@@ -77,7 +98,6 @@ void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphN
 					FToolMenuSection& InSection = PinVisibilityMenu->AddSection("TestGraphSchemaPinVisibility");
 					InSection.AddMenuEntry(FGraphEditorCommands::Get().ShowAllPins);
 					InSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionPins);
-					InSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionNoDefaultPins);
 				}));
 			}
 
@@ -88,17 +108,14 @@ void UDataflowSchema::GetContextMenuActions(class UToolMenu* Menu, class UGraphN
 
 void UDataflowSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
 {
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	if (UE::Dataflow::FNodeFactory* Factory = UE::Dataflow::FNodeFactory::GetInstance())
 	{
-		for (Dataflow::FFactoryParameters NodeParameters : Factory->RegisteredParameters())
+		for (UE::Dataflow::FFactoryParameters NodeParameters : Factory->RegisteredParameters())
 		{
-			if (FDataflowEditorCommands::Get().CreateNodesMap.Contains(NodeParameters.TypeName))
+			if (TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> Action =
+				FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(ContextMenuBuilder.CurrentGraph, NodeParameters.TypeName, NodeParameters.DisplayName))
 			{
-				if (TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> Action =
-					FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(ContextMenuBuilder.OwnerOfTemporaries, NodeParameters.TypeName))
-				{
-					ContextMenuBuilder.AddAction(Action);
-				}
+				ContextMenuBuilder.AddAction(Action);
 			}
 		}
 	}
@@ -166,21 +183,23 @@ const FPinConnectionResponse UDataflowSchema::CanCreateConnection(const UEdGraph
 		PinA = InPinB; PinB = InPinA;
 	}
 
-
 	if (PinA->Direction == EEdGraphPinDirection::EGPD_Output)
 	{
 		if (PinB->Direction == EEdGraphPinDirection::EGPD_Input)
 		{
 			// Make sure the pins are not on the same node
-			if (PinA->GetOwningNode() != PinB->GetOwningNode())
+			UDataflowEdNode* EdNodeA = Cast<UDataflowEdNode>(PinA->GetOwningNode());
+			UDataflowEdNode* EdNodeB = Cast<UDataflowEdNode>(PinB->GetOwningNode());
+
+			if (EdNodeA && EdNodeB && (EdNodeA != EdNodeB))
 			{
-				// Make sure types match. 
-				if (PinA->PinType == PinB->PinType)
+				const bool AIsCompatibleWithB = EdNodeA->PinIsCompatibleWithType(*PinA, PinB->PinType);
+				const bool BIsCompatibleWithA = EdNodeB->PinIsCompatibleWithType(*PinB, PinA->PinType);
+				if (AIsCompatibleWithB || BIsCompatibleWithA)
 				{
 					// cycle checking on connect
-					if (!HasLoopIfConnected(PinA->GetOwningNode(), PinB->GetOwningNode()))
+					if (!HasLoopIfConnected(EdNodeA, EdNodeB))
 					{
-
 						if (PinB->LinkedTo.Num())
 						{
 							return (bSwapped) ?
@@ -224,49 +243,129 @@ FLinearColor UDataflowSchema::GetTypeColor(const FName& Type)
 	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
 	const UDataflowSettings* DataflowSettings = GetDefault<UDataflowSettings>();
 
-	if (Type == FName("FManagedArrayCollection"))
+	if (Type == UE::Dataflow::Private::ManagedArrayCollectionType)
 	{
 		return DataflowSettings->ManagedArrayCollectionPinTypeColor;
 	}
-	else if (Type == FName("float"))
+	else if (Type == UE::Dataflow::Private::FloatType)
 	{
 		return Settings->FloatPinTypeColor;
 	}
-	else if (Type == FName("int32"))
+	else if (Type == UE::Dataflow::Private::DoubleType)
+	{
+		return Settings->DoublePinTypeColor;
+	}
+	else if (Type == UE::Dataflow::Private::Int32Type)
 	{
 		return Settings->IntPinTypeColor;
 	}
-	else if (Type == FName("bool"))
+	else if (Type == UE::Dataflow::Private::BoolType)
 	{
 		return Settings->BooleanPinTypeColor;
 	}
-	else if (Type == FName("FString"))
+	else if (Type == UE::Dataflow::Private::StringType)
 	{
 		return Settings->StringPinTypeColor;
 	}
-	else if (Type == FName("FVector"))
+	else if (Type == UE::Dataflow::Private::NameType)
+	{
+		return Settings->NamePinTypeColor;
+	}
+	else if (Type == UE::Dataflow::Private::TextType)
+	{
+		return Settings->TextPinTypeColor;
+	}
+	else if (Type == UE::Dataflow::Private::VectorType)
 	{
 		return Settings->VectorPinTypeColor;
 	}
-	else if (Type == FName("TArray"))
+	else if (Type == UE::Dataflow::Private::TransformType)
+	{
+		return Settings->TransformPinTypeColor;
+	}
+	else if (Type == UE::Dataflow::Private::RotatorType)
+	{
+		return Settings->RotatorPinTypeColor;
+	}
+	else if (Type == UE::Dataflow::Private::ArrayType)
 	{
 		return DataflowSettings->ArrayPinTypeColor;
 	}
-	else if (Type == FName("FBox"))
+	else if (Type == UE::Dataflow::Private::BoxType)
 	{
 		return DataflowSettings->BoxPinTypeColor;
 	}
-	else if (Type == FName("FSphere"))
+	else if (Type == UE::Dataflow::Private::SphereType)
 	{
 		return DataflowSettings->SpherePinTypeColor;
+	}
+	else if (Type == UE::Dataflow::Private::DataflowAnyTypeType)
+	{
+		return DataflowSettings->DataflowAnyTypePinTypeColor;
 	}
 
 	return Settings->DefaultPinTypeColor;
 }
 
-//void UDataflowSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2D& GraphPosition) const
-//{
-//}
+static void CreateAndConnectNewReRouteNode(UEdGraphPin* FromPin, UEdGraphPin* ToPin, const FVector2D& GraphPosition)
+{
+	const UEdGraphNode* FromNode = FromPin->GetOwningNode();
+	UEdGraph* EdGraph = FromNode->GetGraph();
+
+	// Add the new reroute node and connect it 
+	TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction 
+		= FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(EdGraph, FDataflowReRouteNode::StaticType());
+	if (NewNodeAction)
+	{
+		UEdGraphNode* NewEdNode = NewNodeAction->PerformAction(EdGraph, nullptr, GraphPosition, false);
+		if (NewEdNode)
+		{
+			const FName PinName = "Value";
+			UEdGraphPin* InputPin = NewEdNode->FindPin(PinName, EGPD_Input);
+			UEdGraphPin* OutputPin = NewEdNode->FindPin(PinName, EGPD_Output);
+			if (InputPin && OutputPin)
+			{
+				EdGraph->GetSchema()->TryCreateConnection(FromPin, InputPin);
+				EdGraph->GetSchema()->TryCreateConnection(OutputPin, ToPin);
+			}
+		}
+	}
+}
+
+
+void UDataflowSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin * PinB, const FVector2D & GraphPosition) const
+{
+	CreateAndConnectNewReRouteNode(PinA, PinB, GraphPosition);
+}
+
+void UDataflowSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotifcation) const
+{
+	const FScopedTransaction Transaction(LOCTEXT("BreakPinLinks", "Break Pin Links"));
+	Super::BreakPinLinks(TargetPin, bSendsNodeNotifcation);
+}
+
+bool UDataflowSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
+{
+	check(PinA && PinB);
+	UDataflowEdNode* const DataflowEdNodeA = CastChecked<UDataflowEdNode>(PinA->GetOwningNodeUnchecked());
+	UDataflowEdNode* const DataflowEdNodeB = CastChecked<UDataflowEdNode>(PinB->GetOwningNodeUnchecked());
+	if (ensure(DataflowEdNodeA->IsBound() && DataflowEdNodeB->IsBound()))
+	{
+		const TSharedPtr<FDataflowNode> DataflowNodeA = DataflowEdNodeA->GetDataflowNode();
+		const TSharedPtr<FDataflowNode> DataflowNodeB = DataflowEdNodeB->GetDataflowNode();
+		if (ensure(DataflowNodeA && DataflowNodeB))
+		{
+			// Pausing invalidations is a quick hack while sorting the invalidation callbacks that are causing multiple evaluations
+			DataflowNodeA->PauseInvalidations();
+			DataflowNodeB->PauseInvalidations();
+			const bool bModified = Super::TryCreateConnection(PinA, PinB);
+			DataflowNodeA->ResumeInvalidations();
+			DataflowNodeB->ResumeInvalidations();
+			return bModified;
+		}
+	}
+	return Super::TryCreateConnection(PinA, PinB);
+}
 
 FConnectionDrawingPolicy* UDataflowSchema::CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, class UEdGraph* InGraphObj) const
 {

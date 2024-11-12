@@ -327,3 +327,14 @@ bool FUsdLayerViewModel::IsLayerDirty() const
 {
 	return LayerModel->bIsDirty;
 }
+
+bool FUsdLayerViewModel::CanReload() const
+{
+	return !GetLayer().IsAnonymous();
+}
+
+void FUsdLayerViewModel::Reload()
+{
+	const bool bForce = true;
+	GetLayer().Reload(bForce);
+}

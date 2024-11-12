@@ -92,6 +92,9 @@ struct FPyWrapperArray : public FPyWrapperBase
 	/** Remove the given value from this container (equivalent to 'x.remove(v)' in Python) */
 	static int Remove(FPyWrapperArray* InSelf, PyObject* InValue);
 
+	/** Remove all values from this container (equivalent to 'x.clear()' in Python) */
+	static int Clear(FPyWrapperArray* InSelf);
+
 	/** Reverse this container (equivalent to 'x.reverse()' in Python) */
 	static int Reverse(FPyWrapperArray* InSelf);
 
@@ -112,7 +115,7 @@ struct FPyWrapperArrayMetaData : public FPyWrapperBaseMetaData
 	}
 
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
 };
 
 typedef TPyPtr<FPyWrapperArray> FPyWrapperArrayPtr;

@@ -118,6 +118,8 @@ void FAnimSingleNodeInstanceProxy::InitializeObjects(UAnimInstance* InAnimInstan
 
 	UAnimSingleNodeInstance* AnimSingleNodeInstance = CastChecked<UAnimSingleNodeInstance>(InAnimInstance);
 	CurrentAsset = AnimSingleNodeInstance->CurrentAsset;
+
+	InterpolationOverride = AnimSingleNodeInstance->GetInterpolationOverride();
 }
 
 void FAnimSingleNodeInstanceProxy::ClearObjects()
@@ -169,6 +171,7 @@ void FAnimSingleNodeInstanceProxy::InternalBlendSpaceEvaluatePose(class UBlendSp
 	FAnimationPoseData AnimationPoseData = { OutContext.Pose, OutContext.Curve, OutContext.CustomAttributes };
 
 	FAnimExtractContext ExtractionContext(static_cast<double>(CurrentTime), ShouldExtractRootMotion(), DeltaTimeRecord, bLooping);
+	ExtractionContext.InterpolationOverride = InterpolationOverride;
 
 	if (BlendSpace->IsValidAdditive())
 	{
@@ -182,7 +185,9 @@ void FAnimSingleNodeInstanceProxy::InternalBlendSpaceEvaluatePose(class UBlendSp
 #if WITH_EDITORONLY_DATA
 		if (BlendSpace->PreviewBasePose)
 		{
-			BlendSpace->PreviewBasePose->GetBonePose(AnimationPoseData, FAnimExtractContext(static_cast<double>(PreviewPoseCurrentTime)));
+			FAnimExtractContext Context(static_cast<double>(PreviewPoseCurrentTime));
+			Context.InterpolationOverride = InterpolationOverride;
+			BlendSpace->PreviewBasePose->GetBonePose(AnimationPoseData, Context);
 		}
 		else
 #endif // WITH_EDITORONLY_DATA
@@ -320,6 +325,7 @@ void FAnimNode_SingleNode::Evaluate_AnyThread(FPoseContext& Output)
 			ExtractionContext.bIgnoreRootLock = Proxy->bIgnoreRootLock;
 			ExtractionContext.bExtractRootMotion = Proxy->bIgnoreRootMotion ? false : ExtractionContext.bExtractRootMotion;
 #endif
+			ExtractionContext.InterpolationOverride = Proxy->InterpolationOverride;
 
 			if (Sequence->IsValidAdditive())
 			{
@@ -378,12 +384,15 @@ void FAnimNode_SingleNode::Evaluate_AnyThread(FPoseContext& Output)
 			else*/
 			{
 				// if SkeletalMesh isn't there, we'll need to use skeleton
-				Streamable->GetAnimationPose(OutputAnimationPoseData, FAnimExtractContext(static_cast<double>(Proxy->CurrentTime), Streamable->bEnableRootMotion, Proxy->DeltaTimeRecord, Proxy->bLooping));
+				FAnimExtractContext Context(static_cast<double>(Proxy->CurrentTime), Streamable->bEnableRootMotion, Proxy->DeltaTimeRecord, Proxy->bLooping);
+				Context.InterpolationOverride = Proxy->InterpolationOverride;
+				Streamable->GetAnimationPose(OutputAnimationPoseData, Context);
 			}
 		}
 		else if (UAnimComposite* Composite = Cast<UAnimComposite>(Proxy->CurrentAsset))
 		{
 			FAnimExtractContext ExtractionContext(static_cast<double>(Proxy->CurrentTime), Proxy->ShouldExtractRootMotion(), Proxy->DeltaTimeRecord, Proxy->bLooping);
+			ExtractionContext.InterpolationOverride = Proxy->InterpolationOverride;
 			const FAnimTrack& AnimTrack = Composite->AnimationTrack;
 
 			// find out if this is additive animation
@@ -441,7 +450,9 @@ void FAnimNode_SingleNode::Evaluate_AnyThread(FPoseContext& Output)
 					if (bCanProcessAdditiveAnimationsLocal && Montage->PreviewBasePose && Montage->GetPlayLength() > 0.f)
 					{
 						FAnimationPoseData LocalAnimationPoseData = { LocalSourcePose, LocalSourceCurve, LocalSourceAttributes };
-						Montage->PreviewBasePose->GetBonePose(LocalAnimationPoseData, FAnimExtractContext(static_cast<double>(Proxy->CurrentTime)));
+						FAnimExtractContext Context(static_cast<double>(Proxy->CurrentTime));
+						Context.InterpolationOverride = Proxy->InterpolationOverride;
+						Montage->PreviewBasePose->GetBonePose(LocalAnimationPoseData, Context);
 					}
 					else
 #endif // WITH_EDITORONLY_DATA

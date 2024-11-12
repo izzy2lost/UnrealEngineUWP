@@ -472,9 +472,33 @@ bool FTrackModel::IsDimmed() const
 {
 	UMovieSceneTrack* Track = GetTrack();
 
-	if (Track && Track->IsEvalDisabled())
+	if (Track)
 	{
-		return true;
+		if (Track->IsEvalDisabled())
+		{
+			return true;
+		}
+		if (Track->ConditionContainer.Condition)
+		{
+			FGuid BindingID;
+			FMovieSceneSequenceID SequenceID = MovieSceneSequenceID::Root;
+			if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+			{
+				BindingID = ObjectBindingModel->GetObjectGuid();
+			}
+			if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
+			{
+				SequenceID = SequenceModel->GetSequenceID();
+
+				if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+				{
+					if (!MovieSceneHelpers::EvaluateSequenceCondition(BindingID, SequenceID, Track->ConditionContainer.Condition, Track, SequencerModel->GetSequencer()->GetSharedPlaybackState()))
+					{
+						return true;
+					}
+				}
+			}
+		} 
 	}
 
 	return FOutlinerItemModel::IsDimmed();
@@ -642,6 +666,89 @@ void FTrackModel::SetIsLocked(bool bInIsLocked)
 	}
 }
 
+const UMovieSceneCondition* FTrackModel::GetCondition() const
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (IsValid(Track))
+	{
+		return Track->ConditionContainer.Condition;
+	}
+	return nullptr;
+}
+
+EConditionableConditionState FTrackModel::GetConditionState() const
+{
+	TSharedPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>();
+	TSharedPtr<ISequencer> Sequencer = SequenceModel ? SequenceModel->GetSequencer() : nullptr;
+	if (Sequencer)
+	{
+		FGuid BindingID;
+
+		if (TSharedPtr<IObjectBindingExtension> ParentBinding = FindAncestorOfType<IObjectBindingExtension>())
+		{
+			BindingID = ParentBinding->GetObjectGuid();
+		}
+		UMovieSceneTrack* const Track = GetTrack();
+		if (IsValid(Track))
+		{
+			if (Track->ConditionContainer.Condition)
+			{
+				if (Track->ConditionContainer.Condition->bEditorForceTrue)
+				{
+					return EConditionableConditionState::HasConditionEditorForceTrue;
+				}
+
+				if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, Sequencer->GetFocusedTemplateID(), Track->ConditionContainer.Condition, Track, Sequencer->GetSharedPlaybackState()))
+				{
+					return EConditionableConditionState::HasConditionEvaluatingTrue;
+				}
+				else
+				{
+					return EConditionableConditionState::HasConditionEvaluatingFalse;
+				}
+			}
+		
+			// Special case. If we support multiple rows, and there is only a single row, then we must also check track row metadata for a condition here, as there will be no track row model.
+			if (Track->SupportsMultipleRows() && Track->GetMaxRowIndex() == 0)
+			{
+				if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(GetRowIndex()))
+				{
+					if (TrackRowMetadata->ConditionContainer.Condition)
+					{
+						if (TrackRowMetadata->ConditionContainer.Condition->bEditorForceTrue)
+						{
+							return EConditionableConditionState::HasConditionEditorForceTrue;
+						}
+						else if (MovieSceneHelpers::EvaluateSequenceCondition(BindingID, Sequencer->GetFocusedTemplateID(), TrackRowMetadata->ConditionContainer.Condition, Track, Sequencer->GetSharedPlaybackState()))
+						{
+							return EConditionableConditionState::HasConditionEvaluatingTrue;
+						}
+						else
+						{
+							return EConditionableConditionState::HasConditionEvaluatingFalse;
+						}
+					}
+				}
+			}
+		}
+	}
+	return EConditionableConditionState::None;
+}
+
+void FTrackModel::SetConditionEditorForceTrue(bool bEditorForceTrue)
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (IsValid(Track))
+	{
+		if (Track->ConditionContainer.Condition)
+		{
+			const FScopedTransaction Transaction(NSLOCTEXT("SequencerTrackNode", "ConditionEditorForceTrue", "Set Condition Editor Force True"));
+			Track->ConditionContainer.Condition->Modify();
+			Track->ConditionContainer.Condition->bEditorForceTrue = bEditorForceTrue;
+		}
+	}
+}
+
 bool FTrackModel::CanDrag() const
 {
 	// Can only drag root tracks at the moment
@@ -651,93 +758,97 @@ bool FTrackModel::CanDrag() const
 
 void FTrackModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
-	UMovieSceneTrack* Track = GetTrack();
-	if (!Track)
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
 	{
 		return;
 	}
 
-	TWeakPtr<ISequencer> WeakSequencer = GetEditor()->GetSequencer();
+	const TSharedPtr<FSequencer> Sequencer = EditorViewModel->GetSequencerImpl();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
 
-	const int32 TrackRowIndex = GetRowIndex();
+	UMovieSceneTrack* const Track = GetTrack();
+	if (!IsValid(Track))
+	{
+		return;
+	}
 
 	if (TrackEditor)
 	{
 		TrackEditor->BuildTrackContextMenu(MenuBuilder, Track);
 	}
 
-	if (Track && Track->GetSupportedBlendTypes().Num() > 0)
+	TArray<TWeakObjectPtr<>> WeakTracks;
+	WeakTracks.Add(Track);
+	SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTracks, MenuBuilder, true);
+
+	if (Track->GetSupportedBlendTypes().Num() > 0)
 	{
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("AddSection", "Add Section"),
-			FText(),
-			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder){
-				FSequencerUtilities::PopulateMenu_CreateNewSection(SubMenuBuilder, TrackRowIndex + 1, Track, WeakSequencer);
-			})
-		);	
+		SequencerHelpers::BuildNewSectionMenu(Sequencer, GetRowIndex() + 1, GetTrack(), MenuBuilder);
 	}
 
-	// Add menu items for selecting a blender
-	IMovieSceneBlenderSystemSupport* BlenderSystemSupport = Cast<IMovieSceneBlenderSystemSupport>(Track);
-	if (BlenderSystemSupport)
-	{
-		TArray<TSubclassOf<UMovieSceneBlenderSystem>> BlenderTypes;
-		BlenderSystemSupport->GetSupportedBlenderSystems(BlenderTypes);
+	SequencerHelpers::BuildBlendingMenu(Sequencer, Track, MenuBuilder);
 
-		if (BlenderTypes.Num() > 1)
-		{
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("BlendingAlgorithmSubMenu", "Blending Algorithm"),
-				FText(),
-				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder){
-					FSequencerUtilities::PopulateMenu_BlenderSubMenu(SubMenuBuilder, Track, WeakSequencer);
-				})
-			);
-		}
-	}
+	const TArray<TWeakObjectPtr<>> TrackAreaModels = SequencerHelpers::GetSectionObjectsFromTrackAreaModels(GetTrackAreaModelList());
+	SequencerHelpers::BuildEditSectionMenu(Sequencer, TrackAreaModels, MenuBuilder, true);
 
-	// Find sections in the track to add batch properties for
-	TArray<TWeakObjectPtr<UObject>> TrackSections;
-
-	for (TViewModelPtr<ITrackExtension> TrackExtension : WeakSequencer.Pin()->GetViewModel()->GetSelection()->Outliner.Filter<ITrackExtension>())
-	{
-		for (UMovieSceneSection* Section : TrackExtension->GetSections())
-		{
-			TrackSections.Add(Section);
-		}
-	}
-
-	for (TSharedPtr<FViewModel> TrackAreaModel : GetTrackAreaModelList())
-	{
-		constexpr bool bIncludeThis = true;
-		for (TSharedPtr<FSectionModel> Section : TParentFirstChildIterator<FSectionModel>(TrackAreaModel, bIncludeThis))
-		{
-			if (UMovieSceneSection* SectionObject = Section->GetSection())
-			{
-				TrackSections.AddUnique(SectionObject);
-			}
-		}
-	}
-		
-	if (TrackSections.Num())
-	{
-		MenuBuilder.AddSubMenu(
-			TrackSections.Num() > 1 ? LOCTEXT("BatchEditSections", "Batch Edit Sections") : LOCTEXT("EditSection", "Edit Section"),
-			FText(),
-			FNewMenuDelegate::CreateLambda([this, TrackSections](FMenuBuilder& SubMenuBuilder){
-				FSequencer* Sequencer = static_cast<FSequencer*>(GetEditor()->GetSequencer().Get());
-				SequencerHelpers::AddPropertiesMenu(*Sequencer, SubMenuBuilder, TrackSections);
-			})
-		);
-	}
-
-	TViewModelPtr<FChannelGroupModel> ChannelGroup = TopLevelChannelList.GetHead().ImplicitCast();
-	if (ChannelGroup)
+	if (const TViewModelPtr<FChannelGroupModel> ChannelGroup = TopLevelChannelList.GetHead().ImplicitCast())
 	{
 		ChannelGroup->BuildChannelOverrideMenu(MenuBuilder);
 	}
 
 	FOutlinerItemModel::BuildContextMenu(MenuBuilder);
+}
+
+void FTrackModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
+{
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencer> Sequencer = EditorViewModel->GetSequencerImpl();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	UMovieSceneTrack* const Track = GetTrack();
+	if (!IsValid(Track))
+	{
+		return;
+	}
+
+	if (TrackEditor)
+	{
+		TrackEditor->BuildTrackSidebarMenu(MenuBuilder, Track);
+	}
+
+	TArray<TWeakObjectPtr<>> WeakTracks;
+	WeakTracks.Add(Track);
+	SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTracks, MenuBuilder, false);
+
+
+	if (Track->GetSupportedBlendTypes().Num() > 0)
+	{
+		SequencerHelpers::BuildNewSectionMenu(Sequencer, GetRowIndex() + 1, GetTrack(), MenuBuilder);
+	}
+
+	SequencerHelpers::BuildBlendingMenu(Sequencer, Track, MenuBuilder);
+
+	const TArray<TWeakObjectPtr<>> TrackAreaModels = SequencerHelpers::GetSectionObjectsFromTrackAreaModels(GetTrackAreaModelList());
+	SequencerHelpers::BuildEditSectionMenu(Sequencer, TrackAreaModels, MenuBuilder, false);
+
+	if (const TViewModelPtr<FChannelGroupModel> ChannelGroup = TopLevelChannelList.GetHead().ImplicitCast())
+	{
+		ChannelGroup->BuildChannelOverrideMenu(MenuBuilder);
+	}
+
+	FOutlinerItemModel::BuildSidebarMenu(MenuBuilder);
 }
 
 bool FTrackModel::CanDelete(FText* OutErrorMessage) const

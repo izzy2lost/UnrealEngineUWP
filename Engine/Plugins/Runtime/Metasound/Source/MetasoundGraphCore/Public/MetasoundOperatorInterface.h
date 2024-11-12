@@ -3,11 +3,11 @@
 #pragma once
 
 #include "MetasoundDataReferenceCollection.h"
+#include "MetasoundRenderCost.h"
 #include "MetasoundVertexData.h"
 
 namespace Metasound
 {
-
 	/** IOperator
 	 *
 	 *  IOperator defines the interface for render time operations.  IOperators are created using an INodeOperatorFactory.
@@ -25,6 +25,9 @@ namespace Metasound
 
 			/** Environment settings available. */
 			const FMetasoundEnvironment& Environment;
+
+			/** Object for tracking runtime render cost of a MetaSound */
+			const FGraphRenderCost* GraphRenderCost = nullptr;
 		};
 
 		virtual ~IOperator() {}

@@ -84,7 +84,7 @@ IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_SetBoneTransform)
 	const FRigElementKey Root = Controller->AddBone(TEXT("Root"), FRigElementKey(), FTransform(FVector(1.f, 0.f, 0.f)), true, ERigBoneType::User);
 	const FRigElementKey BoneA = Controller->AddBone(TEXT("BoneA"), Root, FTransform(FVector(1.f, 2.f, 3.f)), true, ERigBoneType::User);
 	const FRigElementKey BoneB = Controller->AddBone(TEXT("BoneB"), BoneA, FTransform(FVector(1.f, 5.f, 3.f)), true, ERigBoneType::User);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 
 	Hierarchy->ResetPoseToInitial(ERigElementType::Bone);
 	Unit.Bone = TEXT("Root");

@@ -6,6 +6,7 @@
 #include "IConcertSyncServer.h"
 #include "IConcertServerEventSink.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/Platform.h"
 
 class IConcertServerSession;
 class FConcertServerWorkspace;
@@ -17,6 +18,7 @@ class FConcertSyncSessionDatabase;
 namespace UE::ConcertSyncServer::Replication
 {
 	class FConcertServerReplicationManager;
+	class IReplicationWorkspace;
 }
 
 struct FConcertSessionFilter;
@@ -55,14 +57,15 @@ public:
 	void OnArchivedSessionRenamedImpl(const IConcertServer& InServer, const FString& InArchivedSessionRoot, const FConcertSessionInfo& InArchivedSessionInfo);
 
 private:
-	void CreateWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
+	
+	TSharedRef<FConcertServerWorkspace> CreateWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroyWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 
 	void CreateSequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroySequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	
-	void CreateReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
-	void DestroyReplicationManager(const TSharedRef<IConcertServerSession>& InLiveSession); 
+	void CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, UE::ConcertSyncServer::Replication::IReplicationWorkspace& InWorkspace UE_LIFETIMEBOUND, EConcertSyncSessionFlags InSessionFlags);
+	void DestroyReplicationManager(const FGuid& SessionId); 
 
 	bool CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams);
 	void DestroyLiveSession(const TSharedRef<IConcertServerSession>& InSession);

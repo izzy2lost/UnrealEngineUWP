@@ -32,6 +32,9 @@ DefinitionWriter::~DefinitionWriter() = default;
 BehaviorWriter::~BehaviorWriter() = default;
 GeometryWriter::~GeometryWriter() = default;
 MachineLearnedBehaviorWriter::~MachineLearnedBehaviorWriter() = default;
+RBFBehaviorWriter::~RBFBehaviorWriter() = default;
+TwistSwingBehaviorWriter::~TwistSwingBehaviorWriter() = default;
+JointBehaviorMetadataWriter::~JointBehaviorMetadataWriter() = default;
 Writer::~Writer() = default;
 
 template<typename TVector, typename TGetter>
@@ -55,7 +58,7 @@ static void copyDescriptor(const DescriptorReader* source, DescriptorWriter* des
     destination->setGender(source->getGender());
     destination->setAge(source->getAge());
     destination->clearMetaData();
-    for (std::uint32_t i = 0u; i < source->getMetaDataCount(); ++i) {
+    for (std::uint32_t i = {}; i < source->getMetaDataCount(); ++i) {
         const auto key = source->getMetaDataKey(i);
         const auto value = source->getMetaDataValue(key);
         destination->setMetaData(key, value);
@@ -92,8 +95,8 @@ static void copyLODIndices(IndicesGetter getIndices,
                            std::uint16_t lodCount,
                            MemoryResource* memRes) {
     Matrix<std::uint16_t> allIndices{memRes};
-    std::uint16_t index = 0u;
-    for (std::uint16_t lod = 0u; lod < lodCount; ++lod) {
+    std::uint16_t index = {};
+    for (std::uint16_t lod = {}; lod < lodCount; ++lod) {
         auto indices = getIndices(lod);
         // Check if these same indices were perhaps already used for previous LODs
         auto found = findIndices(allIndices, indices);
@@ -181,12 +184,12 @@ static void copyDefinition(const DefinitionReader* source, DefinitionWriter* des
 
     Vector<std::uint16_t> jointHierarchy{memRes};
     jointHierarchy.reserve(source->getJointCount());
-    for (std::uint16_t i = 0u; i < source->getJointCount(); ++i) {
+    for (std::uint16_t i = {}; i < source->getJointCount(); ++i) {
         jointHierarchy.push_back(source->getJointParentIndex(i));
     }
     destination->setJointHierarchy(jointHierarchy.data(), static_cast<std::uint16_t>(jointHierarchy.size()));
 
-    for (std::uint16_t i = 0u; i < source->getMeshBlendShapeChannelMappingCount(); ++i) {
+    for (std::uint16_t i = {}; i < source->getMeshBlendShapeChannelMappingCount(); ++i) {
         auto mapping = source->getMeshBlendShapeChannelMapping(i);
         destination->setMeshBlendShapeChannelMapping(i, mapping.meshIndex, mapping.blendShapeChannelIndex);
     }
@@ -501,6 +504,127 @@ static void copyMachineLearnedBehavior(const MachineLearnedBehaviorReader* sourc
     }
 }
 
+static bool hasRBFBehavior(const RBFBehaviorReader* source) {
+    // Heuristic for determining whether source DNA actually has any RBF behavior data
+    return (source->getRBFPoseCount() != 0u) || (source->getRBFSolverCount() != 0u);
+}
+
+static void copyRBFBehavior(const RBFBehaviorReader* source, RBFBehaviorWriter* destination, MemoryResource* memRes) {
+    destination->clearRBFPoses();
+    destination->clearRBFSolverIndices();
+    destination->clearRBFSolvers();
+
+    if (!hasRBFBehavior(source)) {
+        // Source DNA was loaded without RBF behavior layer
+        return;
+    }
+
+    using namespace std::placeholders;
+    copyLODIndices(
+        std::bind(&RBFBehaviorReader::getRBFSolverIndicesForLOD, source, _1),
+        std::bind(&RBFBehaviorWriter::setRBFSolverIndices, destination, _1, _2, _3),
+        std::bind(&RBFBehaviorWriter::setLODRBFSolverMapping, destination, _1, _2),
+        source->getLODCount(),
+        memRes);
+
+    for (std::uint16_t pciPlusOne = source->getRBFPoseControlCount(); pciPlusOne > 0u; --pciPlusOne) {
+        const auto pci = static_cast<std::uint16_t>(pciPlusOne - 1u);
+        destination->setRBFPoseControlName(pci, source->getRBFPoseControlName(pci).data());
+    }
+
+    for (std::uint16_t posePlusOne = source->getRBFPoseCount(); posePlusOne > 0u; --posePlusOne) {
+        const auto pi = static_cast<std::uint16_t>(posePlusOne - 1u);
+        destination->setRBFPoseName(pi, source->getRBFPoseName(pi).data());
+        destination->setRBFPoseScale(pi, source->getRBFPoseScale(pi));
+        const auto inputControlIndices = source->getRBFPoseInputControlIndices(pi);
+        destination->setRBFPoseInputControlIndices(pi, inputControlIndices.data(),
+                                                   static_cast<std::uint16_t>(inputControlIndices.size()));
+        const auto outputControlIndices = source->getRBFPoseOutputControlIndices(pi);
+        destination->setRBFPoseOutputControlIndices(pi, outputControlIndices.data(),
+                                                    static_cast<std::uint16_t>(outputControlIndices.size()));
+        const auto outputControlWeights = source->getRBFPoseOutputControlWeights(pi);
+        destination->setRBFPoseOutputControlWeights(pi, outputControlWeights.data(),
+                                                    static_cast<std::uint16_t>(outputControlWeights.size()));
+    }
+
+    for (std::uint16_t solverPlusOne = source->getRBFSolverCount(); solverPlusOne > 0u; --solverPlusOne) {
+        const auto si = static_cast<std::uint16_t>(solverPlusOne - 1u);
+        destination->setRBFSolverName(si, source->getRBFSolverName(si).data());
+        const auto rawControlIndices = source->getRBFSolverRawControlIndices(si);
+        destination->setRBFSolverRawControlIndices(si, rawControlIndices.data(),
+                                                   static_cast<std::uint16_t>(rawControlIndices.size()));
+        const auto poseIndices = source->getRBFSolverPoseIndices(si);
+        destination->setRBFSolverPoseIndices(si, poseIndices.data(), static_cast<std::uint16_t>(poseIndices.size()));
+        const auto rawControlValues = source->getRBFSolverRawControlValues(si);
+        destination->setRBFSolverRawControlValues(si, rawControlValues.data(),
+                                                  static_cast<std::uint16_t>(rawControlValues.size()));
+        destination->setRBFSolverType(si, source->getRBFSolverType(si));
+        destination->setRBFSolverRadius(si, source->getRBFSolverRadius(si));
+        destination->setRBFSolverAutomaticRadius(si, source->getRBFSolverAutomaticRadius(si));
+        destination->setRBFSolverWeightThreshold(si, source->getRBFSolverWeightThreshold(si));
+        destination->setRBFSolverDistanceMethod(si, source->getRBFSolverDistanceMethod(si));
+        destination->setRBFSolverNormalizeMethod(si, source->getRBFSolverNormalizeMethod(si));
+        destination->setRBFSolverFunctionType(si, source->getRBFSolverFunctionType(si));
+        destination->setRBFSolverTwistAxis(si, source->getRBFSolverTwistAxis(si));
+    }
+}
+
+static void copyJointBehaviorMetaData(const JointBehaviorMetadataReader* source,
+                                      JointBehaviorMetadataWriter* destination,
+                                      MemoryResource*  /*unused*/) {
+    destination->clearJointRepresentations();
+
+    for (std::uint16_t jointPlusOne = source->getJointCount(); jointPlusOne > 0u; --jointPlusOne) {
+        const auto ji = static_cast<std::uint16_t>(jointPlusOne - 1u);
+        destination->setJointTranslationRepresentation(ji, source->getJointTranslationRepresentation(ji));
+        destination->setJointRotationRepresentation(ji, source->getJointRotationRepresentation(ji));
+        destination->setJointScaleRepresentation(ji, source->getJointScaleRepresentation(ji));
+    }
+}
+
+static bool hasTwistSwingBehavior(const TwistSwingBehaviorReader* source) {
+    // Heuristic for determining whether source DNA actually has any TwistSwing behavior data
+    return (source->getTwistCount() != 0u) || (source->getSwingCount() != 0u);
+}
+
+static void copyTwistSwingBehavior(const TwistSwingBehaviorReader* source, TwistSwingBehaviorWriter* destination,
+                                   MemoryResource*  /*unused*/) {
+    destination->clearTwists();
+    destination->clearSwings();
+
+    if (!hasTwistSwingBehavior(source)) {
+        // Source DNA was loaded without twist and swig behavior layer
+        return;
+    }
+
+    for (std::uint16_t twistIndexPlusOne = source->getTwistCount(); twistIndexPlusOne > 0u; --twistIndexPlusOne) {
+        const auto ti = static_cast<std::uint16_t>(twistIndexPlusOne - 1u);
+        destination->setTwistSetupTwistAxis(ti, source->getTwistSetupTwistAxis(ti));
+        const auto twistInputControlIndices = source->getTwistInputControlIndices(ti);
+        destination->setTwistInputControlIndices(ti, twistInputControlIndices.data(),
+                                                 static_cast<std::uint16_t>(twistInputControlIndices.size()));
+        const auto twistOutputJointIndices = source->getTwistOutputJointIndices(ti);
+        destination->setTwistOutputJointIndices(ti, twistOutputJointIndices.data(),
+                                                static_cast<std::uint16_t>(twistOutputJointIndices.size()));
+        const auto twistBlendWeights = source->getTwistBlendWeights(ti);
+        destination->setTwistBlendWeights(ti, twistBlendWeights.data(),
+                                          static_cast<std::uint16_t>(twistBlendWeights.size()));
+    }
+
+    for (std::uint16_t swingIndexPlusOne = source->getSwingCount(); swingIndexPlusOne > 0u; --swingIndexPlusOne) {
+        const auto si = static_cast<std::uint16_t>(swingIndexPlusOne - 1u);
+        destination->setSwingSetupTwistAxis(si, source->getSwingSetupTwistAxis(si));
+        const auto swingInputControlIndices = source->getSwingInputControlIndices(si);
+        destination->setSwingInputControlIndices(si, swingInputControlIndices.data(),
+                                                 static_cast<std::uint16_t>(swingInputControlIndices.size()));
+        const auto swingOutputJointIndices = source->getSwingOutputJointIndices(si);
+        destination->setSwingOutputJointIndices(si, swingOutputJointIndices.data(),
+                                                static_cast<std::uint16_t>(swingOutputJointIndices.size()));
+        const auto swingBlendWeights = source->getSwingBlendWeights(si);
+        destination->setSwingBlendWeights(si, swingBlendWeights.data(), static_cast<std::uint16_t>(swingBlendWeights.size()));
+    }
+}
+
 void Writer::setFrom(const Reader* source, DataLayer layer, UnknownLayerPolicy  /*unused*/, MemoryResource* memRes) {
     // Unknown layers are inaccessible when copying through the public API
     if (source == nullptr) {
@@ -524,6 +648,15 @@ void Writer::setFrom(const Reader* source, DataLayer layer, UnknownLayerPolicy  
     }
     if (contains(bitmask, DataLayerBitmask::MachineLearnedBehavior)) {
         copyMachineLearnedBehavior(source, this, memRes);
+    }
+    if (contains(bitmask, DataLayerBitmask::RBFBehavior)) {
+        copyRBFBehavior(source, this, memRes);
+    }
+    if (contains(bitmask, DataLayerBitmask::JointBehaviorMetadata)) {
+        copyJointBehaviorMetaData(source, this, memRes);
+    }
+    if (contains(bitmask, DataLayerBitmask::TwistSwingBehavior)) {
+        copyTwistSwingBehavior(source, this, memRes);
     }
 }
 

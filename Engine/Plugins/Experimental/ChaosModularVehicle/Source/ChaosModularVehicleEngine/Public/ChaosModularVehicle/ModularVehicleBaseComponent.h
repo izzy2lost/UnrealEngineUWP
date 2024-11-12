@@ -4,7 +4,8 @@
 
 #include "ChaosModularVehicle/ChaosSimModuleManagerAsyncCallback.h"
 #include "SimModule/SimModulesInclude.h"
-#include "ChaosModularVehicle/ModularVehicleInputRate.h"
+#include "SimModule/ModuleInput.h"
+#include "ChaosModularVehicle/InputProducer.h"
 #include "ChaosModularVehicle/ModularVehicleSimulationCU.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Components/PrimitiveComponent.h"
@@ -44,99 +45,6 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularReplicatedState : public FModularVe
 
 };
 
-/** Input Options */
-UENUM()
-enum class EFunctionType : uint8
-{
-	LinearFunction = 0,
-	SquaredFunction,
-	CustomCurve
-};
-
-USTRUCT()
-struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleInputRateConfig
-{
-	GENERATED_USTRUCT_BODY()
-
-	/**
-		* Rate at which the input value rises
-		*/
-	UPROPERTY(EditAnywhere, Category = VehicleInputRate)
-	float RiseRate;
-
-	/**
-	 * Rate at which the input value falls
-	 */
-	UPROPERTY(EditAnywhere, Category = VehicleInputRate)
-	float FallRate;
-
-	/**
-	 * Controller input curve, various predefined options, linear, squared, or user can specify a custom curve function
-	 */
-	UPROPERTY(EditAnywhere, Category = VehicleInputRate)
-	EFunctionType InputCurveFunction;
-
-	/**
-	 * Controller input curve - should be a normalized float curve, i.e. time from 0 to 1 and values between 0 and 1
-	 * This curve is only sued if the InputCurveFunction above is set to CustomCurve
-	 */
-	UPROPERTY(EditAnywhere, Category = VehicleInputRate)
-	FRuntimeFloatCurve UserCurve;
-
-	FModularVehicleInputRateConfig() : RiseRate(5.0f), FallRate(5.0f), InputCurveFunction(EFunctionType::LinearFunction) { }
-
-	/** Change an output value using max rise and fall rates */
-	float InterpInputValue(float DeltaTime, float CurrentValue, float NewValue) const
-	{
-		const float DeltaValue = NewValue - CurrentValue;
-
-		// We are "rising" when DeltaValue has the same sign as CurrentValue (i.e. delta causes an absolute magnitude gain)
-		// OR we were at 0 before, and our delta is no longer 0.
-		const bool bRising = ((DeltaValue > 0.0f) == (CurrentValue > 0.0f)) ||
-			((DeltaValue != 0.f) && (CurrentValue == 0.f));
-
-		const float MaxDeltaValue = DeltaTime * (bRising ? RiseRate : FallRate);
-		const float ClampedDeltaValue = FMath::Clamp(DeltaValue, -MaxDeltaValue, MaxDeltaValue);
-		return CurrentValue + ClampedDeltaValue;
-	}
-
-	float CalcControlFunction(float InputValue)
-	{
-		// user defined curve
-
-		// else use option from drop down list
-		switch (InputCurveFunction)
-		{
-		case EFunctionType::CustomCurve:
-		{
-			if (UserCurve.GetRichCurveConst() && !UserCurve.GetRichCurveConst()->IsEmpty())
-			{
-				float Output = FMath::Clamp(UserCurve.GetRichCurveConst()->Eval(FMath::Abs(InputValue)), 0.0f, 1.0f);
-				return (InputValue < 0.f) ? -Output : Output;
-			}
-			else
-			{
-				return InputValue;
-			}
-		}
-		break;
-		case EFunctionType::SquaredFunction:
-		{
-			return (InputValue < 0.f) ? -InputValue * InputValue : InputValue * InputValue;
-		}
-		break;
-
-		case EFunctionType::LinearFunction:
-		default:
-		{
-			return InputValue;
-		}
-		break;
-
-		}
-
-	}
-};
 
 USTRUCT()
 struct CHAOSMODULARVEHICLEENGINE_API FConstructionData
@@ -144,10 +52,38 @@ struct CHAOSMODULARVEHICLEENGINE_API FConstructionData
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY()
-	UPrimitiveComponent* Component = nullptr;
+	TObjectPtr<UPrimitiveComponent> Component = nullptr;
 
 	UPROPERTY()
 	int32 ConstructionIndex = INDEX_NONE;
+};
+
+
+USTRUCT()
+struct CHAOSMODULARVEHICLEENGINE_API FModuleAnimationSetup
+{
+	GENERATED_USTRUCT_BODY()
+
+	FModuleAnimationSetup(FName BoneNameIn)
+		: BoneName(BoneNameIn)
+		, RotOffset(FRotator::ZeroRotator)
+		, LocOffset(FVector::ZeroVector)
+		, AnimFlags(0)
+	{
+	}
+
+	FModuleAnimationSetup() 
+		: BoneName(NAME_None)
+		, RotOffset(FRotator::ZeroRotator)
+		, LocOffset(FVector::ZeroVector)
+		, AnimFlags(0)
+	{
+	}
+
+	FName BoneName;
+	FRotator RotOffset;
+	FVector LocOffset;
+	uint16 AnimFlags;
 };
 
 
@@ -169,8 +105,13 @@ class CHAOSMODULARVEHICLEENGINE_API UModularVehicleBaseComponent : public UPawnM
 
 	friend class FModularVehicleBuilder;
 public:
+
+	using FInputNameMap = TMap<FName, int>;
+
 	APlayerController* GetPlayerController() const;
 	bool IsLocallyControlled() const;
+	void SetTreeProcessingOrder(ESimTreeProcessingOrder TreeProcessingOrderIn) { TreeProcessingOrder = TreeProcessingOrderIn; }
+	ESimTreeProcessingOrder GetTreeProcessingOrder() { return TreeProcessingOrder; }
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -182,12 +123,9 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void CreateAssociatedSimComponents(const UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
+	void ProduceInput(int32 PhysicsStep, int32 NumSteps);
 
-	void CreateConstraint(Chaos::ISimulationModuleBase* NewModule);
-	void DestroyConstraint(int ConstraintIndex);
-	void DestroyAllConstraints();
-	void EnableConstraint(int ConstraintIndex, bool bEnabled);
+	void CreateAssociatedSimComponents(USceneComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
 
 	void PreTickGT(float DeltaTime);
 	void UpdateState(float DeltaTime);
@@ -209,9 +147,6 @@ public:
 
 	FORCEINLINE const FTransform& GetComponentTransform() const;
 
-	//UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	TArray<FModularVehicleInputRate> InputInterpolationRates;
-
 	/** Use to naturally decelerate linear velocity of objects */
 	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
 	float LinearDamping;
@@ -225,6 +160,10 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
 	bool bSuspensionTraceComplex;
+
+	/** Wheel suspension trace type, defaults to ray trace */
+	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
+	ETraceType TraceType;
 
 	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
 	bool bKeepVehicleAwake;
@@ -240,54 +179,34 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetLocallyControlled(bool bLocallyControlledIn);
 
+	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
+	TSubclassOf<UVehicleInputProducerBase> InputProducerClass;
+
 	// CONTROLS
 	// 
-	/** Set the user input for the vehicle throttle [range 0 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetThrottleInput(float Throttle);
+	//void SetInput(const FName& Name, const FModuleInputValue& Value);
+	void SetInput(const FName& Name, const bool Value);
+	void SetInput(const FName& Name, const double Value);
+	void SetInput(const FName& Name, const FVector2D& Value);
+	void SetInput(const FName& Name, const FVector& Value);
 
-	/** Set the user input for the vehicle boost [range 0 to 1] */
+	// Sets the input producer class and creates an input producer if one doesn't exist.
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetBoostInput(float Boost);
+	void SetInputProducerClass(TSubclassOf<UVehicleInputProducerBase> InInputProducerClass);
 
-	/** Set the user input for the vehicle drift [range 0 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetDriftInput(float Drift);
-
-	/** Increase the vehicle throttle position [throttle range normalized 0 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void IncreaseThrottleInput(float ThrottleDelta);
-
-	/** Decrease the vehicle throttle position  [throttle range normalized 0 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void DecreaseThrottleInput(float ThrottleDelta);
-
-	/** Set the user input for the vehicle Brake [range 0 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetBrakeInput(float Brake);
-
-	/** Set the user input for the vehicle steering [range -1 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetSteeringInput(float Steering);
-
-	/** Set the user input for the vehicle pitch [range -1 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetPitchInput(float Pitch);
-
-	/** Set the user input for the vehicle roll [range -1 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetRollInput(float Roll);
-
-	/** Set the user input for the vehicle yaw [range -1 to 1] */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetYawInput(float Yaw);
-
-	/** Set the user input for handbrake */
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetHandbrakeInput(float Handbrake);
+	TObjectPtr<UVehicleInputProducerBase> GetInputProducer() { return InputProducer; }
 
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetReverseInput(bool Reverse);
+	void SetInputBool(const FName Name, const bool Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
+	void SetInputAxis1D(const FName Name, const double Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
+	void SetInputAxis2D(const FName Name, const FVector2D Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
+	void SetInputAxis3D(const FName Name, const FVector Value);
 
 	/** Set the gear directly */
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
@@ -321,7 +240,7 @@ public:
 	int32 DelayClusteringCount;
 
 	/*** Map simulation component to our vehicle setup data */
-	TMap<TObjectKey<UPrimitiveComponent>, FVehicleComponentData> ComponentToPhysicsObjects;
+	TMap<TObjectKey<USceneComponent>, FVehicleComponentData> ComponentToPhysicsObjects;
 
 	UClusterUnionComponent* ClusterUnionComponent;
 
@@ -337,6 +256,9 @@ public:
 		SuspensionTraceCollisionResponses.SetResponse(Channel, NewResponse);
 	}
 
+	TArray<FModuleAnimationSetup>& AccessModuleAnimationSetups() { return ModuleAnimationSetups; }
+	const TArray<FModuleAnimationSetup>& GetModuleAnimationSetups() const { return ModuleAnimationSetups; }
+
 protected:
 
 	void CreateVehicleSim();
@@ -344,12 +266,19 @@ protected:
 	void UpdatePhysicalProperties();
 	void AddOverlappingComponentsToCluster();
 	void AddGeometryCollectionsFromOwnedActor();
+	void SetupSkeletalAnimationStructure();
+	void AssimilateComponentInputs(TArray<FModuleInputSetup>& OutCombinedInputs);
+	// #TODO reinstate? virtual void GenerateInputModifiers(const TArray<FModuleInputSetup>& CombinedInputConfiguration);
+	// #TODO reinstate? virtual void ApplyInputModifiers(float DeltaTime, const FModuleInputContainer& RawValue);
+
 
 	void ActionTreeUpdates(Chaos::FSimTreeUpdates* NextTreeUpdates);
 
 	void SetCurrentAsyncDataInternal(FModularVehicleAsyncInput* CurInput, int32 InputIdx, FChaosSimModuleManagerAsyncOutput* CurOutput, FChaosSimModuleManagerAsyncOutput* NextOutput, float Alpha, int32 VehicleManagerTimestamp);
+	int32 FindParentsLastSimComponent(const USceneComponent* AttachedComponent);
 
 	IPhysicsProxyBase* GetPhysicsProxy() const;
+
 
 	int32 FindComponentAddOrder(UPrimitiveComponent* InComponent);
 	bool FindAndRemoveNextPendingUpdate(int32 NextIndex, Chaos::FSimTreeUpdates* OutData);
@@ -358,97 +287,9 @@ protected:
 	UPROPERTY(Transient, Replicated)
 	FModularReplicatedState ReplicatedState;
 
-	// What the player has the steering set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawSteeringInput;
-
-	// What the player has the accelerator set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawThrottleInput;
-
-	// What the player has the brake set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawBrakeInput;
-
-	// What the player has the brake set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawHandbrakeInput;
-
-	// What the player has the clutch set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawClutchInput;
-
-	// What the player has the pitch set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawPitchInput;
-
-	// What the player has the roll set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawRollInput;
-
-	// What the player has the yaw set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawYawInput;
-
-	// What the player has the yaw set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawBoostInput;
-
-	// What the player has the yaw set to. Range -1...1
-	UPROPERTY(Transient)
-	float RawDriftInput;
-
 	// latest gear selected
 	UPROPERTY(Transient)
-	int32 RawGearInput;
-
-	// reverse direction enbaled
-	UPROPERTY(Transient)
-	bool RawReverseInput;
-
-	// Steering output to physics system. Range -1...1
-	UPROPERTY(Transient)
-	float SteeringInput;
-
-	// Accelerator output to physics system. Range 0...1
-	UPROPERTY(Transient)
-	float ThrottleInput;
-
-	// Brake output to physics system. Range 0...1
-	UPROPERTY(Transient)
-	float BrakeInput;
-
-	// Handbrake output to physics system. Range 0...1
-	UPROPERTY(Transient)
-	float HandbrakeInput;
-
-	// Clutch output to physics system. Range 0...1
-	UPROPERTY(Transient)
-	float ClutchInput;
-
-	// Body Pitch output to physics system. Range -1...1
-	UPROPERTY(Transient)
-	float PitchInput;
-
-	// Body Roll output to physics system. Range -1...1
-	UPROPERTY(Transient)
-	float RollInput;
-
-	// Body Yaw output to physics system. Range -1...1
-	UPROPERTY(Transient)
-	float YawInput;
-
-	// Boost output to physics system. Range 0...1
-	UPROPERTY(Transient)
-	float BoostInput;
-
-	// Boost output to physics system. Range 0...1
-	UPROPERTY(Transient)
-	float DriftInput;
-
-	// Reverse state
-	UPROPERTY(Transient)
-	bool ReverseInput;
+	int32 GearInput;
 
 	// The currently selected gear
 	UPROPERTY(Transient)
@@ -467,50 +308,20 @@ protected:
 
 public:
 
-	// Rate at which input throttle can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig ThrottleInputRate;
-
-	// Rate at which input brake can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig BrakeInputRate;
-
-	// Rate at which input steering can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig SteeringInputRate;
-
-	// Rate at which input handbrake can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig HandbrakeInputRate;
-
-	// Rate at which input pitch can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig PitchInputRate;
-
-	// Rate at which input roll can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig RollInputRate;
-
-	// Rate at which input yaw can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig YawInputRate;
-
-	// Rate at which input can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig BoostInputRate;
-
-	// Rate at which input can rise and fall
-	UPROPERTY(EditAnywhere, Category = VehicleInput, AdvancedDisplay)
-	FModularVehicleInputRateConfig DriftInputRate;
+	UPROPERTY(EditAnywhere, Category = VehicleInput)
+	TArray<FModuleInputSetup> InputConfig;
+		
+	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
+	TEnumAsByte<ESimTreeProcessingOrder> TreeProcessingOrder = ESimTreeProcessingOrder::LeafFirst;
 
 	UPROPERTY(Transient, Replicated)
 	TArray<FConstructionData> ConstructionDatas;
 
 	/** Pass current state to server */
 	UFUNCTION(reliable, server, WithValidation)
-	void ServerUpdateState(float InSteeringInput, float InThrottleInput, float InBrakeInput
-		, float InHandbrakeInput, int32 InCurrentGear, float InRollInput, float InPitchInput
-		, float InYawInput, float InBoostInput, float InDriftInput, bool InReverseInput);
+	void ServerUpdateState(const FModuleInputContainer& InputsIn, bool KeepAwake);
+
+	void LogInputSetup();
 
 	TArray<AActor*> ActorsToIgnore;
 	EChaosAsyncVehicleDataType CurAsyncType;
@@ -548,9 +359,16 @@ private:
 
 	int32 NextConstructionIndex = 0;
 
-	TArray<FPhysicsConstraintHandle> ConstraintHandles;
 	int32 ClusteringCount = 0;
 
 	bool bIsLocallyControlled;
-};
 
+	TArray<FModuleAnimationSetup> ModuleAnimationSetups;
+
+	FInputNameMap InputNameMap;	// map input name to input container array index
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVehicleInputProducerBase> InputProducer = nullptr;
+
+	FModuleInputContainer InputsContainer;
+};

@@ -83,6 +83,13 @@ static TAutoConsoleVariable<int32> CVarFlushDeferredMipLevelChangeCallbacksBefor
 	TEXT("Whether to flush deferred mip level change callbacks before GC."),
 	ECVF_Default);
 
+static int32 GRenderAssetStreamingEnableStrippingDuplicatePrimitiveComponent = 1;
+static FAutoConsoleVariableRef CVarStreamingEnableStrippingDuplicatePrimitiveComponent(
+	TEXT("r.Streaming.EnableStrippingDuplicatePrimitiveComponent"),
+	GRenderAssetStreamingEnableStrippingDuplicatePrimitiveComponent,
+	TEXT("Move UPrimitiveComponent from static instances to dynamic component manager when primitive is updated."),
+	ECVF_Default);
+
 // TODO: Remove once these calls have been proven safe in production
 static TAutoConsoleVariable<int32> CVarProcessAddedRenderAssetsAfterAsyncWork(
 	TEXT("r.Streaming.ProcessAddedRenderAssetsAfterAsyncWork"),
@@ -184,14 +191,14 @@ FRenderAssetStreamingManager::FRenderAssetStreamingManager()
 
 	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FRenderAssetStreamingManager::OnPreGarbageCollect);
 
-	FCoreDelegates::GetOnPakFileMounted2().AddLambda([this](const IPakFile& PakFile)
+	OnPakFileMounted2Handle = FCoreDelegates::GetOnPakFileMounted2().AddLambda([this](const IPakFile& PakFile)
 	{
 		FScopeLock ScopeLock(&MountedStateDirtyFilesCS);
 		bRecacheAllFiles = true;
 		MountedStateDirtyFiles.Empty();
 	});
 
-	FCoreDelegates::NewFileAddedDelegate.AddLambda([this](const FString& FileName)
+	NewFileAddedDelegateHandle = FCoreDelegates::NewFileAddedDelegate.AddLambda([this](const FString& FileName)
 	{
 		MarkMountedStateDirty(MakeIoFilenameHash(FileName));
 	});
@@ -206,6 +213,8 @@ FRenderAssetStreamingManager::~FRenderAssetStreamingManager()
 
 	RenderAssetInstanceAsyncWork->EnsureCompletion();
 	
+	FCoreDelegates::GetOnPakFileMounted2().Remove(OnPakFileMounted2Handle);
+	FCoreDelegates::NewFileAddedDelegate.Remove(NewFileAddedDelegateHandle);
 	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().RemoveAll(this);
 
 	// Clear the stats
@@ -386,10 +395,10 @@ bool FRenderAssetStreamingManager::StreamOutRenderAssetData( int64 RequiredMemor
 			{
 				// Queue up the process on the render thread and wait for everything to complete.
 				ENQUEUE_RENDER_COMMAND(FlushResourceCommand)(
-					[](FRHICommandList& RHICmdList)
+					[](FRHICommandListImmediate& RHICmdList)
 					{				
-						FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
-						RHIFlushResources();
+						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+						RHICmdList.FlushResources();
 					});
 				FlushRenderingCommands();
 				TempMemoryUsed = 0;
@@ -509,7 +518,7 @@ void FRenderAssetStreamingManager::ProcessRemovedRenderAssets()
 		// This handles the case where the last element was also removed.
 		while (StreamingRenderAssets.IsValidIndex(AssetIndex) && !StreamingRenderAssets[AssetIndex].RenderAsset)
 		{
-			StreamingRenderAssets.RemoveAtSwap(AssetIndex, 1, EAllowShrinking::No);
+			StreamingRenderAssets.RemoveAtSwap(AssetIndex, EAllowShrinking::No);
 		}
 
 		if (StreamingRenderAssets.IsValidIndex(AssetIndex))
@@ -1178,7 +1187,13 @@ void FRenderAssetStreamingManager::NotifyPrimitiveUpdated_Concurrent( const UPri
 	{
 		FScopeLock ScopeLock(&CriticalSection);
 		FStreamingTextureLevelContext LevelContext(EMaterialQualityLevel::Num);
-		DynamicComponentManager.Add(Primitive, LevelContext);
+		if (DynamicComponentManager.Add(Primitive, LevelContext) == EAddComponentResult::Success)
+		{
+			if (GRenderAssetStreamingEnableStrippingDuplicatePrimitiveComponent>0)
+			{
+				RemoveStaticReferences(Primitive);
+			}
+		}
 	}
 
 	STAT(CallbackCycle += (int32)FPlatformTime::Cycles();)
@@ -1764,6 +1779,7 @@ void FRenderAssetStreamingManager::UpdateResourceStreaming( float DeltaTime, boo
 	CSV_CUSTOM_STAT(TextureStreaming, ResidentMeshMem, ((float)DisplayedStats.ResidentMeshMem) / (1024.0f * 1024.0f), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(TextureStreaming, StreamedMeshMem, ((float)DisplayedStats.StreamedMeshMem) / (1024.0f * 1024.0f), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(TextureStreaming, NonStreamingMips, ((float)DisplayedStats.NonStreamingMips) / (1024.0f * 1024.0f), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(TextureStreaming, PendingStreamInData, ((float)DisplayedStats.PendingRequests) / (1024.0f * 1024.0f), ECsvCustomStatOp::Set)
 
 	RenderAssetInstanceAsyncWork->EnsureCompletion();
 

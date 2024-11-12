@@ -2,6 +2,9 @@
 
 #include "InterchangeEditorUtilitiesModule.h"
 
+#include "InterchangeEditorUtilities.h"
+#include "InterchangeManager.h"
+
 
 #define LOCTEXT_NAMESPACE "InterchangeEditorUtilities"
 
@@ -17,6 +20,7 @@ IMPLEMENT_MODULE(FInterchangeEditorUtilitiesModule, InterchangeEditorUtilities)
 
 void FInterchangeEditorUtilitiesModule::StartupModule()
 {
+	UInterchangeManager::GetInterchangeManager().SetEditorUtilities(UInterchangeEditorUtilities::StaticClass());
 }
 
 void FInterchangeEditorUtilitiesModule::ShutdownModule()

@@ -91,6 +91,16 @@ struct TEXTUREGRAPHENGINE_API PromiseUtil
 		});
 	}
 
+	template<typename T>
+	static cti::continuable<T>  OnGameThread(T&& Arg)
+	{
+		if (IsInGameThread())
+			return cti::make_ready_continuable(std::forward<T>(Arg));
+
+		return OnThread(ENamedThreads::GameThread, std::forward<T>(Arg));
+	}
+
+
 	static AsyncInt					OnRenderingThread()
 	{
 		if (IsInRenderingThread())

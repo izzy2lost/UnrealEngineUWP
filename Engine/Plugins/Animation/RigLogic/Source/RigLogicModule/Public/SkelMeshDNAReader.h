@@ -137,6 +137,49 @@ public:
 	TArrayView<const float> GetNeuralNetworkLayerActivationFunctionParameters(uint16 NetIndex, uint16 LayerIndex) const override;
 	TArrayView<const float> GetNeuralNetworkLayerBiases(uint16 NetIndex, uint16 LayerIndex) const override;
 	TArrayView<const float> GetNeuralNetworkLayerWeights(uint16 NetIndex, uint16 LayerIndex) const override;
+	// JointBehaviorMetadataReader
+	ETranslationRepresentation GetJointTranslationRepresentation(uint16 JointIndex) const override;
+	ERotationRepresentation GetJointRotationRepresentation(uint16 JointIndex) const override;
+	EScaleRepresentation GetJointScaleRepresentation(uint16 JointIndex) const override;
+	// RBFBehavior
+	uint16 GetRBFPoseCount() const override;
+	FString GetRBFPoseName(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseJointOutputIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseBlendShapeChannelOutputIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const override;
+	TArrayView<const float> GetRBFPoseJointOutputValues(uint16 PoseIndex) const override;
+	float GetRBFPoseScale(uint16 PoseIndex) const override;
+	uint16 GetRBFPoseControlCount() const override;
+	FString GetRBFPoseControlName(uint16 PoseControlIndex) const override;
+	TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const override;
+	TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const override;
+	uint16 GetRBFSolverCount() const override;
+	uint16 GetRBFSolverIndexListCount() const override;
+	TArrayView<const uint16> GetRBFSolverIndicesForLOD(uint16 LOD) const override;
+	FString GetRBFSolverName(uint16 SolverIndex) const override;
+	TArrayView<const uint16> GetRBFSolverRawControlIndices(uint16 SolverIndex) const override;
+	TArrayView<const uint16> GetRBFSolverPoseIndices(uint16 SolverIndex) const override;
+	TArrayView<const float> GetRBFSolverRawControlValues(uint16 SolverIndex) const override;
+	ERBFSolverType GetRBFSolverType(uint16 SolverIndex) const override;
+	float GetRBFSolverRadius(uint16 SolverIndex) const override;
+	EAutomaticRadius GetRBFSolverAutomaticRadius(uint16 SolverIndex) const override;
+	float GetRBFSolverWeightThreshold(uint16 SolverIndex) const override;
+	ERBFDistanceMethod GetRBFSolverDistanceMethod(uint16 SolverIndex) const override;
+	ERBFNormalizeMethod GetRBFSolverNormalizeMethod(uint16 SolverIndex) const override;
+	ERBFFunctionType GetRBFSolverFunctionType(uint16 SolverIndex) const override;
+	ETwistAxis GetRBFSolverTwistAxis(uint16 SolverIndex) const override;
+	// TwistSwingBehavior
+	uint16 GetTwistCount() const override;
+	ETwistAxis GetTwistSetupTwistAxis(uint16 TwistIndex) const override;
+	TArrayView<const uint16> GetTwistInputControlIndices(uint16 TwistIndex) const override;
+	TArrayView<const uint16> GetTwistOutputJointIndices(uint16 TwistIndex) const override;
+	TArrayView<const float> GetTwistBlendWeights(uint16 TwistIndex) const override;
+	uint16 GetSwingCount() const override;
+	ETwistAxis GetSwingSetupTwistAxis(uint16 SwingIndex) const override;
+	TArrayView<const uint16> GetSwingInputControlIndices(uint16 SwingIndex) const override;
+	TArrayView<const uint16> GetSwingOutputJointIndices(uint16 SwingIndex) const override;
+	TArrayView<const float> GetSwingBlendWeights(uint16 SwingIndex) const override;
 
 	void Unload(EDNADataLayer /*unused*/) override;
 

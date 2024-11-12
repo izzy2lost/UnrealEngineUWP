@@ -10,6 +10,7 @@
 #include "MVVM/Extensions/IRenameableExtension.h"
 #include "MVVM/Extensions/IResizableExtension.h"
 #include "MVVM/Extensions/IDeletableExtension.h"
+#include "MVVM/Extensions/IConditionableExtension.h"
 
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -33,10 +34,11 @@ class SEQUENCER_API FTrackRowModel
 	, public IRenameableExtension
 	, public IResizableExtension
 	, public IDeletableExtension
+	, public IConditionableExtension
 {
 public:
 
-	UE_SEQUENCER_DECLARE_CASTABLE(FTrackRowModel, FMuteSoloOutlinerItemModel, ITrackAreaExtension, ILockableExtension, ITrackExtension, IDeletableExtension, IMutableExtension, ISoloableExtension, IRenameableExtension);
+	UE_SEQUENCER_DECLARE_CASTABLE(FTrackRowModel, FMuteSoloOutlinerItemModel, ITrackAreaExtension, ILockableExtension, ITrackExtension, IDeletableExtension, IMutableExtension, ISoloableExtension, IRenameableExtension, IConditionableExtension);
 
 	explicit FTrackRowModel(UMovieSceneTrack* InTrack, int32 InRowIndex);
 	~FTrackRowModel();
@@ -47,6 +49,7 @@ public:
 
 	/*~ FOutlinerItemModel */
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
+	void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
 	void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels) override;
 
 	/*~ IOutlinerExtension */
@@ -87,6 +90,11 @@ public:
 	/*~ ILockableExtension Interface */
 	ELockableLockState GetLockState() const override;
 	void SetIsLocked(bool bIsLocked) override;
+
+	/*~ IConditionableExtension Interface */
+	const UMovieSceneCondition* GetCondition() const override;
+	EConditionableConditionState GetConditionState() const override;
+	void SetConditionEditorForceTrue(bool bEditorForceTrue) override;
 
 private:
 

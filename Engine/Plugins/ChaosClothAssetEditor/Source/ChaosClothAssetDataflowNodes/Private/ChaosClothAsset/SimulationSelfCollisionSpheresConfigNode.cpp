@@ -10,7 +10,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationSelfCollisionSpheresConfigNode)
 
-FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::FChaosClothAssetSimulationSelfCollisionSpheresConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::FChaosClothAssetSimulationSelfCollisionSpheresConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
@@ -20,12 +20,12 @@ FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::FChaosClothAssetSimula
 void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadius);
-	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadiusCullMultiplier);
+	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadiusCullMultiplier, {}, ECollectionPropertyFlags::Intrinsic); // Need to rebuild the sphere set to see this effect.
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereStiffness);
 	PropertyHelper.SetPropertyString(this, &SelfCollisionSphereSetName, {}, ECollectionPropertyFlags::None);  // Non animatable
 }
 
-void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const
+void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::EvaluateClothCollection(UE::Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const
 {
 	using namespace UE::Chaos::ClothAsset;
 	FCollectionClothConstFacade Cloth(ClothCollection);
@@ -44,7 +44,7 @@ void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::EvaluateClothColl
 	}
 }
 
-void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&SelfCollisionSphereSetName))
 	{

@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnsyncManifest.h"
+#include "UnsyncChunking.h"
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
+#include "UnsyncFilter.h"
 #include "UnsyncHash.h"
 #include "UnsyncHashTable.h"
+#include "UnsyncScheduler.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
 
@@ -177,10 +180,9 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 
 	uint32 NumProcessedFiles = 0;
 
-	FTaskGroup TaskGroup;
-
-	const uint32 MaxConcurrentFiles = 8;  // quickly diminishing returns past 8 concurrent files
-	FSemaphore	 Semaphore(MaxConcurrentFiles);
+	const uint32		MaxConcurrentFiles = 8;	 // quickly diminishing returns past 8 concurrent files
+	FSchedulerSemaphore Semaphore(*GScheduler, MaxConcurrentFiles);
+	FTaskGroup			TaskGroup = GScheduler->CreateTaskGroup(&Semaphore);
 
 	uint64 NumSkippedBlocks = 0;
 	uint64 NumSkippedBytes	= 0;
@@ -202,10 +204,8 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 
 		FPath FilePath = Root / It.first;
 
-		Semaphore.Acquire();
-
 		UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), SizeMb(It.second.Size));
-		auto BlockTask = [&FileManifest, &Semaphore, &Params, FilePath = std::move(FilePath)]()
+		auto BlockTask = [&FileManifest, &Params, FilePath = std::move(FilePath)]()
 		{
 			FNativeFile File(FilePath, EFileMode::ReadOnlyUnbuffered);
 			if (File.IsValid())
@@ -222,7 +222,6 @@ UpdateDirectoryManifestBlocks(FDirectoryManifest& Result, const FPath& Root, con
 							 FilePath.wstring().c_str(),
 							 FormatSystemErrorMessage(File.GetError()).c_str());
 			}
-			Semaphore.Release();
 		};
 
 		if (Params.bAllowThreading)
@@ -283,15 +282,18 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 	FDirectoryManifest Result;
 
 	Result.Algorithm = Params.Algorithm;
+	Result.Version	 = FDirectoryManifest::VERSION;
 
 	FTimePoint TimeBegin = TimePointNow();
 
-	FTaskGroup	 TaskGroup;
-	const uint32 MaxConcurrentFiles = 8;  // quickly diminishing returns past 8 concurrent files
-	FSemaphore	 Semaphore(MaxConcurrentFiles);
+	const uint32		MaxConcurrentFiles = 8;	 // quickly diminishing returns past 8 concurrent files
+	FSchedulerSemaphore Semaphore(*GScheduler, MaxConcurrentFiles);
+	FTaskGroup			TaskGroup = GScheduler->CreateTaskGroup(&Semaphore);
 
 	std::mutex ResultMutex;
 	FPath	   UnsyncDirName = ".unsync";
+
+	FThreadLogConfig MainLogConfig;
 
 	for (const std::filesystem::directory_entry& Dir : RecursiveDirectoryScan(Root))
 	{
@@ -327,31 +329,36 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 		if (Params.bNeedBlocks && Params.BlockSize)
 		{
 			FPath FilePath = Root / RelativePath;
-			auto  File	   = std::make_shared<FNativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
-			if (File->IsValid())
-			{
-				UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)", FilePath.wstring().c_str(), double(File->GetSize()) / (1 << 20));
 
-				Semaphore.Acquire();
-				TaskGroup.run(
-					[&Semaphore, &ResultMutex, &Result, File = std::move(File), Key = std::move(PathKey), &Params]()
+			TaskGroup.run(
+				[&ResultMutex, &Result, &MainLogConfig, FilePath = std::move(FilePath), Key = std::move(PathKey), &Params]()
+				{
+					auto File = std::make_shared<FNativeFile>(FilePath, EFileMode::ReadOnlyUnbuffered);
+
+					if (File->IsValid())
 					{
+						{
+							// Log from worker using parent thread log config
+							FThreadLogConfig::FScope LogConfigScope(MainLogConfig);
+							UNSYNC_VERBOSE(L"Computing blocks for '%ls' (%.2f MB)",
+										   FilePath.wstring().c_str(),
+										   double(File->GetSize()) / (1 << 20));
+						}
+
 						FComputeBlocksResult ComputedBlocks = ComputeBlocks(*File, Params);
 
 						std::lock_guard<std::mutex> LockGuard(ResultMutex);
 
 						std::swap(Result.Files[Key].Blocks, ComputedBlocks.Blocks);
 						std::swap(Result.Files[Key].MacroBlocks, ComputedBlocks.MacroBlocks);
-
-						Semaphore.Release();
-					});
-			}
-			else
-			{
-				UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. %hs",
-							 FilePath.wstring().c_str(),
-							 FormatSystemErrorMessage(File->GetError()).c_str());
-			}
+					}
+					else
+					{
+						UNSYNC_FATAL(L"Failed to open file '%ls' while computing manifest blocks. %hs",
+										FilePath.wstring().c_str(),
+										FormatSystemErrorMessage(File->GetError()).c_str());
+					}
+				});
 		}
 	}
 
@@ -546,6 +553,78 @@ LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, con
 	}
 
 	std::swap(Result, NewDirectoryManifest);
+
+	return true;
+}
+
+FHash256
+ComputeSerializedManifestHash(const FDirectoryManifest& Manifest)
+{
+	FBuffer			 ManifestBuffer;
+	FVectorStreamOut ManifestStream(ManifestBuffer);
+	bool			 bSerializedOk = SaveDirectoryManifest(Manifest, ManifestStream);
+	UNSYNC_ASSERT(bSerializedOk);
+	return HashBlake3Bytes<FHash256>(ManifestBuffer.Data(), ManifestBuffer.Size());
+}
+
+FHash160
+ComputeSerializedManifestHash160(const FDirectoryManifest& Manifest)
+{
+	return ToHash160(ComputeSerializedManifestHash(Manifest));
+}
+
+bool
+MergeManifests(FDirectoryManifest& Existing, const FDirectoryManifest& Other, bool bCaseSensitive)
+{
+	if (!Existing.IsValid())
+	{
+		Existing = Other;
+		return true;
+	}
+
+	if (!AlgorithmOptionsCompatible(Existing.Algorithm, Other.Algorithm))
+	{
+		UNSYNC_ERROR("Trying to merge incompatible manifests (diff algorithm options do not match)");
+		return false;
+	}
+
+	if (bCaseSensitive)
+	{
+		// Trivial case: just replace existing entries
+		for (const auto& OtherFile : Other.Files)
+		{
+			Existing.Files[OtherFile.first] = OtherFile.second;
+		}
+	}
+	else
+	{
+		// Lookup table of lowercase -> original file name used to replace conflicting entries on non-case-sensitive filesystems
+		// TODO: Could potentially add case-sensitive/insensitive entry lookup helper functions to FDirectoryManifest itself in the future
+		std::unordered_map<std::wstring, std::wstring> ExistingFileNamesLowerCase;
+
+		for (auto& ExistingEntry : Existing.Files)
+		{
+			std::wstring FileNameLowerCase = StringToLower(ExistingEntry.first);
+			ExistingFileNamesLowerCase.insert(std::pair<std::wstring, std::wstring>(FileNameLowerCase, ExistingEntry.first));
+		}
+
+		for (const auto& OtherFile : Other.Files)
+		{
+			std::wstring OtherNameLowerCase = StringToLower(OtherFile.first);
+			auto		 LowerCaseEntry		= ExistingFileNamesLowerCase.find(OtherNameLowerCase);
+			if (LowerCaseEntry != ExistingFileNamesLowerCase.end())
+			{
+				// Remove file with conflicting case and add entry from the other manifest instead
+				const std::wstring& ExistingNameOriginalCase = LowerCaseEntry->second;
+				Existing.Files.erase(ExistingNameOriginalCase);
+
+				// Update the lookup table entry to refer to the name we're about to insert
+				ExistingFileNamesLowerCase[LowerCaseEntry->first] = OtherFile.first;
+			}
+
+			Existing.Files[OtherFile.first] = OtherFile.second;
+		}
+	}
 
 	return true;
 }

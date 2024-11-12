@@ -6,12 +6,14 @@
 #include "NNERuntimeBasicCpuModel.h"
 #include "NNEModelData.h"
 
+DEFINE_LOG_CATEGORY(LogNNERuntimeBasicCPU);
+
 // We ask for the memory to be aligned to 64 bytes since this is the
 // largest alignment we ask for inside the ModelData for pointers to
 // various bits of data.
 const uint32 UNNERuntimeBasicCpuImpl::Alignment = 64;
 
-UNNERuntimeBasicCpuImpl::ECanCreateModelDataStatus UNNERuntimeBasicCpuImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeBasicCpuImpl::ECanCreateModelDataStatus UNNERuntimeBasicCpuImpl::CanCreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	if (FileType.Compare("ubnne", ESearchCase::IgnoreCase) != 0)
 	{
@@ -38,14 +40,26 @@ UNNERuntimeBasicCpuImpl::ECanCreateModelDataStatus UNNERuntimeBasicCpuImpl::CanC
 		return ECanCreateModelDataStatus::Fail;
 	}
 
+	// Check model do not have additional data
+	if (!AdditionalFileData.IsEmpty())
+	{
+		return ECanCreateModelDataStatus::Fail;
+	}
+
+	// Check model is not > 2GB
+	if ((TArray<uint8>::SizeType)FileData.Num() != FileData.Num())
+	{
+		return ECanCreateModelDataStatus::Fail;
+	}
+
 	return ECanCreateModelDataStatus::Ok;
 }
 
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeBasicCpuImpl::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeBasicCpuImpl::CreateModelData(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
 	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeBasicCpu cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+		UE_LOG(LogNNERuntimeBasicCPU, Warning, TEXT("Cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
 		return nullptr;
 	}
 
@@ -59,7 +73,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeBasicCpuImpl::CreateModelData(c
 	return MakeShared<UE::NNE::FSharedModelData>(FSharedBuffer::TakeOwnership(ModelData, FileData.Num(), FMemory::Free), Alignment);
 }
 
-FString UNNERuntimeBasicCpuImpl::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+FString UNNERuntimeBasicCpuImpl::GetModelDataIdentifier(const FString& FileType, TConstArrayView64<uint8> FileData, const TMap<FString, TConstArrayView64<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	return FileId.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UE::NNE::RuntimeBasic::FModelCPU::ModelMagicNumber);
 }
@@ -75,7 +89,7 @@ UNNERuntimeBasicCpuImpl::ECanCreateModelCPUStatus UNNERuntimeBasicCpuImpl::CanCr
 		return ECanCreateModelCPUStatus::Fail;
 	}
 
-	TConstArrayView<uint8> Data = SharedData->GetView();
+	TConstArrayView64<uint8> Data = SharedData->GetView();
 
 	// We require at least a magic number and version number
 	if (Data.Num() < 2 * sizeof(uint32))
@@ -106,7 +120,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeBasicCpuImpl::CreateModelCPU(const TOb
 
 	if (CanCreateModelCPU(ModelData) != ECanCreateModelCPUStatus::Ok)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeBasicCpu cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
+		UE_LOG(LogNNERuntimeBasicCPU, Warning, TEXT("Cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
 		return nullptr;
 	}
 

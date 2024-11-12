@@ -41,29 +41,25 @@ TAutoConsoleVariable<int32> CVarD3D11ZeroBufferSizeInMB(
 	);
 
 
-FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LEVEL InFeatureLevel, const FD3D11Adapter& InAdapter) :
-	DXGIFactory1(InDXGIFactory1),
-#if NV_AFTERMATH
-	NVAftermathIMContextHandle(nullptr),
-#endif
-	FeatureLevel(InFeatureLevel),
-	AmdAgsContext(NULL),
+FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LEVEL InFeatureLevel, const FD3D11Adapter& InAdapter)
+	: DXGIFactory1(InDXGIFactory1)
+	, FeatureLevel(InFeatureLevel)
+	, AmdAgsContext(NULL)
 #if INTEL_EXTENSIONS
-	IntelExtensionContext(nullptr),
-	bIntelSupportsUAVOverlap(false),
+	, IntelExtensionContext(nullptr)
+	, bIntelSupportsUAVOverlap(false)
 #endif
-	bCurrentDepthStencilStateIsReadOnly(false),
-	CurrentDepthTexture(NULL),
-	NumSimultaneousRenderTargets(0),
-	NumUAVs(0),
-	SceneFrameCounter(0),
-	PresentCounter(0),
-	ResourceTableFrameCounter(INDEX_NONE),
-	CurrentDSVAccessType(FExclusiveDepthStencil::DepthWrite_StencilWrite),
-	bDiscardSharedConstants(false),	
-	GPUProfilingData(this),
-	Adapter(InAdapter),
-	bAllowVendorDevice(!FParse::Param(FCommandLine::Get(), TEXT("novendordevice")))
+	, bCurrentDepthStencilStateIsReadOnly(false)
+	, CurrentDepthTexture(NULL)
+	, NumSimultaneousRenderTargets(0)
+	, NumUAVs(0)
+	, PresentCounter(0)
+	, CurrentDSVAccessType(FExclusiveDepthStencil::DepthWrite_StencilWrite)
+	, bDiscardSharedConstants(false)
+#if (RHI_NEW_GPU_PROFILER == 0)
+	, GPUProfilingData(this)
+#endif
+	, Adapter(InAdapter)
 {
 	// This should be called once at the start 
 	check(Adapter.IsValid());
@@ -169,6 +165,7 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LE
 	GPixelFormats[ PF_R8G8			].PlatformFormat	= DXGI_FORMAT_R8G8_UNORM;
 	GPixelFormats[ PF_R32G32B32A32_UINT].PlatformFormat = DXGI_FORMAT_R32G32B32A32_UINT;
 	GPixelFormats[ PF_R16G16_UINT   ].PlatformFormat    = DXGI_FORMAT_R16G16_UINT;
+	GPixelFormats[ PF_R16G16_SINT   ].PlatformFormat    = DXGI_FORMAT_R16G16_SINT;
 	GPixelFormats[ PF_R32G32_UINT   ].PlatformFormat    = DXGI_FORMAT_R32G32_UINT;
 
 	GPixelFormats[ PF_BC6H			].PlatformFormat	= DXGI_FORMAT_BC6H_UF16;
@@ -198,7 +195,7 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LE
 	GMaxTextureArrayLayers = D3D11_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
 	GRHIMaxConstantBufferByteSize = MAX_GLOBAL_CONSTANT_BUFFER_BYTE_SIZE;
 	GRHISupportsMSAADepthSampleAccess = true;
-	GRHISupportsRHIThread = !!EXPERIMENTAL_D3D11_RHITHREAD;
+	GRHISupportsRHIThread = true;
 
 	GMaxTextureMipCount = FMath::CeilLogTwo( GMaxTextureDimensions ) + 1;
 	GMaxTextureMipCount = FMath::Min<int32>( MAX_TEXTURE_MIP_COUNT, GMaxTextureMipCount );
@@ -209,6 +206,10 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LE
 	GRHIMaxDispatchThreadGroupsPerDimension.X = D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
 	GRHIMaxDispatchThreadGroupsPerDimension.Y = D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
 	GRHIMaxDispatchThreadGroupsPerDimension.Z = D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
+
+	// All D3D11.1 hardware on Windows 8+ supports binding UAVs to Vertex Shaders.
+	// Enable run-time support if corresponding bit is set in DDSPI.
+	GRHIGlobals.SupportsVertexShaderUAVs = true;
 
 	GRHIGlobals.NeedsShaderUnbinds = true;
 
@@ -246,8 +247,10 @@ void FD3D11DynamicRHI::Shutdown()
 	// Cleanup the D3D device.
 	CleanupD3DDevice();
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 	// Release buffered timestamp queries
 	GPUProfilingData.FrameTiming.ReleaseResource();
+#endif
 
 	// Release the buffer of zeroes.
 	FMemory::Free(ZeroBuffer);
@@ -255,15 +258,49 @@ void FD3D11DynamicRHI::Shutdown()
 	ZeroBufferSize = 0;
 }
 
-void FD3D11DynamicRHI::RHIPushEvent(const TCHAR* Name, FColor Color)
-{ 
-	GPUProfilingData.PushEvent(Name, Color);
-}
+#if WITH_RHI_BREADCRUMBS
+	void FD3D11DynamicRHI::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::D3D11::BeginBreadcrumb(AftermathHandle, Breadcrumb);
+	#endif
 
-void FD3D11DynamicRHI::RHIPopEvent()
-{ 
-	GPUProfilingData.PopEvent(); 
-}
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if RHI_NEW_GPU_PROFILER
+			FlushProfilerStats();
+
+			auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>(Breadcrumb);
+			InsertProfilerTimestamp(&Event.GPUTimestampTOP);
+		#else
+			// @todo dev-pr avoid TCHAR -> ANSI conversion
+			FRHIBreadcrumb::FBuffer Buffer;
+			TCHAR const* Name = Breadcrumb->Name.GetTCHAR(Buffer);
+
+			GPUProfilingData.PushEvent(Name, FColor::White);
+		#endif
+		}
+	}
+
+	void FD3D11DynamicRHI::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if RHI_NEW_GPU_PROFILER
+			FlushProfilerStats();
+
+			auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>(Breadcrumb);
+			InsertProfilerTimestamp(&Event.GPUTimestampBOP);
+		#else
+			GPUProfilingData.PopEvent();
+		#endif
+		}
+
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::D3D11::EndBreadcrumb(AftermathHandle, Breadcrumb);
+	#endif
+	}
+#endif // WITH_RHI_BREADCRUMBS
 
 
 /**
@@ -520,6 +557,24 @@ void FD3D11DynamicRHI::SetupAfterDeviceCreation()
 			UE_LOG(LogD3D11RHI, Log, TEXT("Array index from any shader is supported"));
 		}
 	}
+
+	TimestampCalibration = CalibrateTimers();
+
+#if RHI_NEW_GPU_PROFILER
+	// Register the single graphics GPU queue we have access to in D3D11.
+	UE::RHI::GPUProfiler::FQueue Queue(UE::RHI::GPUProfiler::FQueue::EType::Graphics, 0, 0);
+	UE::RHI::GPUProfiler::InitializeQueues(MakeConstArrayView(&Queue, 1));
+
+	//
+	// Since we can't tell when the GPU is actually executing engine work in D3D11,
+	// just mark the GPU as always busy in the frame. We also push begin/end work
+	// markers in RHIEndFrame either side of the frame boundary.
+	//
+	{
+		auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(FPlatformTime::Cycles64());
+		InsertProfilerTimestamp(&Event.GPUTimestampTOP);
+	}
+#endif
 }
 
 void FD3D11DynamicRHI::UpdateMSAASettings()
@@ -588,23 +643,15 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 		StateCache.SetContext(nullptr);
 
 		// Flush all pending deletes before destroying the device.
-		int32 NumDeletes = 0;
-		do
-		{
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-			NumDeletes = RHICmdList.FlushPendingDeletes();
-			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-		} while (NumDeletes > 0);
+		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 
 		ReleasePooledUniformBuffers();
-		ReleaseCachedQueries();
-
 
 #if WITH_AMD_AGS
 		// Clean up the AMD extensions and shut down the AMD AGS utility library
 		if (AmdAgsContext != NULL)
 		{
-			check(bAllowVendorDevice);
+			check(UE::RHICore::AllowVendorDevice());
 
 			// AGS is holding an extra reference to the immediate context. Release it before calling DestroyDevice.
 			Direct3DDeviceIMContext->Release();
@@ -616,7 +663,7 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 #endif // WITH_AMD_AGS
 
 #if INTEL_EXTENSIONS
-		if (IsRHIDeviceIntel() && bAllowVendorDevice)
+		if (IsRHIDeviceIntel() && UE::RHICore::AllowVendorDevice())
 		{
 			StopIntelExtensions();
 		}
@@ -680,15 +727,6 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 void FD3D11DynamicRHI::RHIFlushResources()
 {
 	// Nothing to do (yet!)
-}
-
-void FD3D11DynamicRHI::RHIAcquireThreadOwnership()
-{
-	// Nothing to do
-}
-void FD3D11DynamicRHI::RHIReleaseThreadOwnership()
-{
-	// Nothing to do
 }
 
 void* FD3D11DynamicRHI::RHIGetNativeDevice()

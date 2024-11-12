@@ -136,7 +136,7 @@ void UMassSmartObjectCandidatesFinderProcessor::Execute(FMassEntityManager& Enti
 #if WITH_MASSGAMEPLAY_DEBUG
 				if (bDisplayDebug)
 				{
-					constexpr float DebugRadius = 10.f;
+					constexpr uint16 DebugRadius = 10;
 					UE_VLOG_LOCATION(&SmartObjectSubsystem, LogSmartObject, Display, SlotLocation, DebugRadius, DebugColor, TEXT("%s"), *LexToString(QueryResult.SmartObjectHandle));
 					UE_VLOG_SEGMENT(&SmartObjectSubsystem, LogSmartObject, Display, SearchOrigin, SlotLocation, DebugColor, TEXT(""));
 				}
@@ -273,7 +273,7 @@ void UMassSmartObjectCandidatesFinderProcessor::Execute(FMassEntityManager& Enti
 							ZoneGraphSubsystem.CalculateLocationAlongLane(RequestLaneHandle, RequestLocation.DistanceAlongLane, RequestLaneLocation);
 							ZoneGraphSubsystem.CalculateLocationAlongLane(RequestLaneHandle, EntryPoint.DistanceAlongLane, EntryPointLaneLocation);
 
-							constexpr float DebugRadius = 10.f;
+							constexpr uint16 DebugRadius = 10;
 							FVector SlotLocation = SmartObjectSubsystem.GetSlotLocation(SlotHandle).Get(EntryPointLaneLocation.Position);
 							UE_VLOG_LOCATION(&SmartObjectSubsystem, LogSmartObject, Display, SlotLocation, DebugRadius, DebugColor, TEXT("%s"), *LexToString(SlotHandle));
 							UE_VLOG_SEGMENT(&SmartObjectSubsystem, LogSmartObject, Display, SlotLocation, EntryPointLaneLocation.Position, DebugColor, TEXT(""));

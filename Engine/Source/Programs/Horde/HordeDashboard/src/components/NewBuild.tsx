@@ -13,6 +13,7 @@ import { JobDetailsV2 } from './jobDetailsV2/JobDetailsViewCommon';
 import dashboard from '../backend/Dashboard';
 import { getHordeStyling } from '../styles/Styles';
 import { Markdown } from '../base/components/Markdown';
+import { NewBuildV2 } from './build/NewBuildV2';
 
 let toolTipId = 0;
 
@@ -207,8 +208,8 @@ class BuildParameters {
 
             const data = p as BoolParameterData;
 
-            let enabledTargets:string[] = [];
-            let disabledTargets:string[] = [];
+            let enabledTargets: string[] = [];
+            let disabledTargets: string[] = [];
 
             if (data.argumentIfEnabled?.toLowerCase().startsWith("-target=")) {
                enabledTargets.push(data.argumentIfEnabled.slice(8));
@@ -222,7 +223,7 @@ class BuildParameters {
 
             if (data.argumentIfDisabled?.toLowerCase().startsWith("-target=")) {
                disabledTargets.push(data.argumentIfDisabled.slice(8));
-            }            
+            }
 
             data.argumentsIfDisabled?.forEach(a => {
                if (a.toLowerCase().startsWith("-target=")) {
@@ -250,7 +251,7 @@ class BuildParameters {
    removeTarget(target: string, updateChanged = true) {
 
       target = target.trim();
-      const unique = new Set<string>(this.targets.filter(t => t !== target));      
+      const unique = new Set<string>(this.targets.filter(t => t !== target));
       this.targets = Array.from(unique);
 
       const parameters: ParameterData[] = [];
@@ -273,8 +274,8 @@ class BuildParameters {
 
             const data = p as BoolParameterData;
 
-            let enabledTargets:string[] = [];
-            let disabledTargets:string[] = [];
+            let enabledTargets: string[] = [];
+            let disabledTargets: string[] = [];
 
             if (data.argumentIfEnabled?.toLowerCase().startsWith("-target=")) {
                enabledTargets.push(data.argumentIfEnabled.slice(8));
@@ -288,7 +289,7 @@ class BuildParameters {
 
             if (data.argumentIfDisabled?.toLowerCase().startsWith("-target=")) {
                disabledTargets.push(data.argumentIfDisabled.slice(8));
-            }    
+            }
 
             data.argumentsIfDisabled?.forEach(a => {
                if (a.toLowerCase().startsWith("-target=")) {
@@ -732,11 +733,16 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
    const [mode, setMode] = useState<"Basic" | "Advanced">("Basic");
    const [showAllTemplates, setShowAllTemplates] = useState<boolean>(false);
    const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+   const [useNewBuildV2, setNewBuildV2] = useState<boolean>(false);
 
    const targetPicker = React.useRef(null)
    const { hordeClasses, modeColors } = getHordeStyling();
 
    const stream = projectStore.streamById(streamId);
+
+   if (useNewBuildV2) {
+      return <NewBuildV2 show={true} streamId={streamId} onClose={onClose} jobKey={jobKey} jobDetails={jobDetails} readOnly={readOnly} />
+   }
 
    if (!show) {
       return null;
@@ -1516,7 +1522,7 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
 
       const submit = async () => {
 
-         if (!!process.env.REACT_APP_HORDE_DEBUG_NEW_JOB) {
+         if (!!import.meta.env.VITE_HORDE_DEBUG_NEW_JOB) {
 
             console.log("Debug Job Submit");
             console.log(JSON.stringify(data));
@@ -1620,7 +1626,6 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
             <Stack verticalAlign="center" style={{ paddingBottom: 32 }}>
                <Spinner size={SpinnerSize.large} />
             </Stack>
-
          </Stack>
       </Modal>
 
@@ -1654,16 +1659,16 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
       switch (param.type) {
 
          case ParameterType.List:
-            estimatedHeight += 52;
+            estimatedHeight += 54;
             break;
          case ParameterType.Bool:
-            estimatedHeight += 18;
+            estimatedHeight += 20;
             break;
          case ParameterType.Text:
-            estimatedHeight += 52;
+            estimatedHeight += 54;
             break;
          case ParameterType.Group:
-            estimatedHeight += 18;
+            estimatedHeight += 20;
             const group = (param as GroupParameterData);
             if (group.children?.length) {
                estimatedHeight += group.children.length * parameterGap;
@@ -1681,7 +1686,7 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
    });
 
    if (!!buildParams.preflight) {
-      estimatedHeight += 28;
+      estimatedHeight += 32;
    }
 
    // target options for picker
@@ -1912,10 +1917,13 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
                            }
                         }).join(" ")} disabled={true} label="Job Arguments" multiline resizable={false} />
                      </Stack>}
-
                   </Stack>
                </Stack>
                <Stack horizontal tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 32, paddingLeft: 8, paddingBottom: 8 } }}>
+                  <Stack>
+                     <DefaultButton text="Use New Dialog" style={{ width: 160 }} onClick={() => setNewBuildV2(true)} />
+                  </Stack>
+
                   <Stack grow />
                   <PrimaryButton text="Start Job" disabled={submitting || !template || readOnly} onClick={() => { onSubmit(); }} />
                   <DefaultButton text="Cancel" disabled={submitting} onClick={() => { close(); }} />

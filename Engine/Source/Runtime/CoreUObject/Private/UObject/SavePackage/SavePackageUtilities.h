@@ -16,6 +16,7 @@
 #include "UObject/UObjectMarks.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SavePackage.h"
+#include "UObject/UObjectGlobals.h"
 
 // This file contains private utilities shared by UPackage::Save and UPackage::Save2 
 
@@ -70,9 +71,7 @@ private:
 
 struct FCanSkipEditorReferencedPackagesWhenCooking
 {
-	bool bCanSkipEditorReferencedPackagesWhenCooking;
 	FCanSkipEditorReferencedPackagesWhenCooking();
-	FORCEINLINE operator bool() const { return bCanSkipEditorReferencedPackagesWhenCooking; }
 };
 
 
@@ -161,7 +160,7 @@ struct FEDLCookChecker
 	void AddPackageWithUnknownExports(FName LongPackageName);
 
 	static void StartSavingEDLCookInfoForVerification();
-	static void Verify(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+	static void Verify(const UE::SavePackageUtilities::FEDLLogRecordCallback& MessageCallback,
 		bool bFullReferencesExpected);
 	static void MoveToCompactBinaryAndClear(FCbWriter& Writer, bool& bOutHasData);
 	static bool AppendFromCompactBinary(FCbFieldView Field);
@@ -350,7 +349,7 @@ ESavePackageResult CreatePayloadSidecarFile(FLinkerSave& Linker, const FPackageP
 	
 void SaveWorldLevelInfo(UPackage* InOuter, FLinkerSave* Linker, FStructuredArchive::FRecord Record);
 EObjectMark GetExcludedObjectMarksForTargetPlatform(const class ITargetPlatform* TargetPlatform);
-void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLikelyCulprit, FString& OutReferencer, FSaveContext* InOptionalSaveContext = nullptr);
+void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& OutMostLikelyCulprit, UObject*& OutReferencer, const FProperty*& OutReferencerProperty, bool& OutIsCulpritArchetype, FSaveContext* InOptionalSaveContext = nullptr);
 	
 /** 
 	* Search 'OutputFiles' for output files that were saved to the temp directory and move those files
@@ -376,10 +375,15 @@ enum class EEditorOnlyObjectFlags
 };
 ENUM_CLASS_FLAGS(EEditorOnlyObjectFlags);
 
-/** Returns result of IsEditorOnlyObjectInternal if Engine:[Core.System]:CanStripEditorOnlyExportsAndImports (ini) is set to true */
-bool IsStrippedEditorOnlyObject(const UObject* InObject, EEditorOnlyObjectFlags Flags);
+#if WITH_EDITORONLY_DATA
+bool CanStripEditorOnlyImportsAndExports();
 
+/** Returns result of IsEditorOnlyObjectInternal if Engine:[Core.System]:CanStripEditorOnlyExportsAndImports (ini) is set to true */
+bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags,
+	TFunctionRef<UE::SavePackageUtilities::EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache);
 bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags);
+#endif
 
 }
 

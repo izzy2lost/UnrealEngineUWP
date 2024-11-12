@@ -74,38 +74,45 @@ void FPresenceEOS::Initialize()
 	check(PresenceHandle != nullptr);
 
 	// Register for friend updates
-	EOS_Presence_AddNotifyOnPresenceChangedOptions Options = { };
-	Options.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PRESENCE_ADDNOTIFYONPRESENCECHANGED_API_LATEST, 1);
-	NotifyPresenceChangedNotificationId = EOS_Presence_AddNotifyOnPresenceChanged(PresenceHandle, &Options, this, [](const EOS_Presence_PresenceChangedCallbackInfo* Data)
+	OnPresenceChangedCallback = MakeUnique<FOnPresenceChangedCallback>(AsWeak());
+	OnPresenceChangedCallback->CallbackLambda = [this](const EOS_Presence_PresenceChangedCallbackInfo* Data)
 	{
-		FPresenceEOS* This = reinterpret_cast<FPresenceEOS*>(Data->ClientData);
-		const FAccountId LocalAccountId = FindAccountId(Data->LocalUserId);
-
-		if (LocalAccountId.IsValid())
+		if (const FAccountId LocalAccountId = FindAccountId(Data->LocalUserId))
 		{
-			This->Services.Get<FAuthEOS>()->ResolveAccountId(LocalAccountId, Data->PresenceUserId)
-				.Next([This, LocalAccountId](const FAccountId& PresenceAccountId)
+			Services.Get<FAuthEOS>()->ResolveAccountId(LocalAccountId, Data->PresenceUserId)
+			.Next([WeakThis = AsWeak(), LocalAccountId](const FAccountId& PresenceAccountId)
+				{
+					if (TSharedPtr<FPresenceEOS> StrongThis = StaticCastSharedPtr<FPresenceEOS>(WeakThis.Pin()))
 					{
 						UE_LOG(LogOnlineServices, Verbose, TEXT("OnEOSPresenceUpdate: LocalAccountId=[%s] PresenceAccountId=[%s]"), *ToLogString(LocalAccountId), *ToLogString(PresenceAccountId));
-						This->UpdateUserPresence(LocalAccountId, PresenceAccountId);
-					});
+						StrongThis->UpdateUserPresence(LocalAccountId, PresenceAccountId);
+					}
+				});
 		}
 		else // In some cases, this delegate will fire before the login process has completed, so we won't be able to find the AccountId just yet. We'll queue that presence update call for after Login has completed
 		{
 			UE_LOG(LogOnlineServices, Verbose, TEXT("OnEOSPresenceUpdate: Account id not found for Epic id [%s]. Will retry after login completes]"), *LexToString(Data->LocalUserId));
 
-			TArray<EOS_EpicAccountId>& PendingPresenceUpdateArray = This->PendingPresenceUpdates.FindOrAdd(Data->LocalUserId);
+			TArray<EOS_EpicAccountId>& PendingPresenceUpdateArray = PendingPresenceUpdates.FindOrAdd(Data->LocalUserId);
 			PendingPresenceUpdateArray.Add(Data->PresenceUserId);
 		}
-	});
+	};
+
+	EOS_Presence_AddNotifyOnPresenceChangedOptions Options = { };
+	Options.ApiVersion = 1;
+	UE_EOS_CHECK_API_MISMATCH(EOS_PRESENCE_ADDNOTIFYONPRESENCECHANGED_API_LATEST, 1);
+	OnPresenceChangedNotificationId = EOS_Presence_AddNotifyOnPresenceChanged(PresenceHandle, &Options, OnPresenceChangedCallback.Get(), OnPresenceChangedCallback->GetCallbackPtr());
 
 	LoginStatusChangedHandle = Services.Get<IAuth>()->OnLoginStatusChanged().Add(this, &FPresenceEOS::HandleAuthLoginStatusChanged);
 }
 
 void FPresenceEOS::PreShutdown()
 {
-	EOS_Presence_RemoveNotifyOnPresenceChanged(PresenceHandle, NotifyPresenceChangedNotificationId);
+	if (OnPresenceChangedNotificationId != EOS_INVALID_NOTIFICATIONID)
+	{
+		EOS_Presence_RemoveNotifyOnPresenceChanged(PresenceHandle, OnPresenceChangedNotificationId);
+	}
+	OnPresenceChangedCallback.Reset();
 
 	LoginStatusChangedHandle.Unbind();
 }
@@ -123,10 +130,13 @@ void FPresenceEOS::HandleAuthLoginStatusChanged(const FAuthLoginStatusChanged& E
 			for (EOS_EpicAccountId& PresenceAccountId : *PendingPresenceUpdateArray)
 			{
 				Services.Get<FAuthEOS>()->ResolveAccountId(LocalAccountId, PresenceAccountId)
-					.Next([this, LocalAccountId](const FAccountId& PresenceAccountId)
+					.Next([WeakThis = AsWeak(), LocalAccountId](const FAccountId& PresenceAccountId)
 						{
-							UE_LOG(LogOnlineServices, Verbose, TEXT("OnEOSPresenceUpdate: LocalAccountId=[%s] PresenceAccountId=[%s]"), *ToLogString(LocalAccountId), *ToLogString(PresenceAccountId));
-							UpdateUserPresence(LocalAccountId, PresenceAccountId);
+							if (TSharedPtr<FPresenceEOS> StrongThis = StaticCastSharedPtr<FPresenceEOS>(WeakThis.Pin()))
+							{
+								UE_LOG(LogOnlineServices, Verbose, TEXT("OnEOSPresenceUpdate: LocalAccountId=[%s] PresenceAccountId=[%s]"), *ToLogString(LocalAccountId), *ToLogString(PresenceAccountId));
+								StrongThis->UpdateUserPresence(LocalAccountId, PresenceAccountId);
+							}
 						});
 			}
 
@@ -692,7 +702,7 @@ void FPresenceEOS::UpdateUserPresence(FAccountId LocalAccountId, FAccountId Pres
 	}
 	else
 	{
-		UE_LOG(LogOnlineServices, Error, TEXT("UpdateUserPresence: CopyPresence Failed %s"), *LexToString(CopyPresenceResult));
+		UE_LOG(LogOnlineServices, Warning, TEXT("UpdateUserPresence: CopyPresence Failed %s"), *LexToString(CopyPresenceResult));
 	}
 
 	if (bPresenceHasChanged)

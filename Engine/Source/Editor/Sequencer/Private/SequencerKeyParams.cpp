@@ -53,6 +53,14 @@ void FKeyOperation::InitializeOperation(FFrameNumber InKeyTime)
 		{
 			UMovieSceneSection* SectionObject = Operation.Section->GetSectionObject();
 			SectionObject->Modify();
+			for (TSharedPtr<IKeyArea> KeyArea : Operation.KeyAreas)
+			{
+				UObject* OwningObject = KeyArea->GetOwningObject();
+				if (OwningObject != SectionObject)
+				{
+					OwningObject->Modify();
+				}
+			}
 			SectionObject->ExpandToFrame(InKeyTime);
 		}
 	}
@@ -166,7 +174,7 @@ void FKeyOperation::FSectionCandidates::FilterOperations(UMovieSceneTrack* Track
 
 				const int32 ThisSectionToKeyIndex = Algo::IndexOfBy(OldOperations, ThisSectionToKey, [](const FKeySectionOperation& In) { return In.Section->GetSectionObject(); });
 				Operations.Add(MoveTemp(OldOperations[ThisSectionToKeyIndex]));
-				OldOperations.RemoveAt(ThisSectionToKeyIndex, 1, EAllowShrinking::No);
+				OldOperations.RemoveAt(ThisSectionToKeyIndex, EAllowShrinking::No);
 			}
 		}
 
@@ -189,7 +197,7 @@ void FKeyOperation::FSectionCandidates::FilterOperations(UMovieSceneTrack* Track
 				{
 					const int32 ThisSectionToKeyIndex = Algo::IndexOfBy(OldOperations, ThisSectionToKey, [](const FKeySectionOperation& In) { return In.Section->GetSectionObject(); });
 					Operations.Add(MoveTemp(OldOperations[ThisSectionToKeyIndex]));
-					OldOperations.RemoveAt(ThisSectionToKeyIndex, 1, EAllowShrinking::No);
+					OldOperations.RemoveAt(ThisSectionToKeyIndex, EAllowShrinking::No);
 				}
 			}
 		}

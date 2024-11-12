@@ -1,12 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "AudioSpectrumAnalyzer.h"
+#include "MetasoundFrontendDocument.h"
 #include "Misc/CoreDefines.h"
 #include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/SoftObjectPath.h"
 
 #include "MetasoundEditorSettings.generated.h"
+
+// Forward Declarations
+class USlateWidgetStyleAsset;
+struct FAudioMaterialKnobStyle;
+struct FAudioMaterialButtonStyle;
+struct FAudioMaterialSliderStyle;
+struct FAudioMaterialMeterStyle;
+struct FMetasoundFrontendDocument;
+
+namespace Metasound::Engine
+{
+	struct FPageResolutionEditorResults;
+} // namespace Metasound::Engine
+
 
 UENUM()
 enum class EMetasoundActiveAnalyzerEnvelopeDirection : uint8
@@ -24,10 +41,27 @@ enum class EMetasoundMemberDefaultWidget : uint8
 };
 
 UENUM()
+enum class EMetasoundBoolMemberDefaultWidget : uint8
+{
+	None,
+	Button
+};
+
+UENUM()
 enum class EMetasoundActiveDetailView : uint8
 {
 	Metasound,
 	General
+};
+
+UENUM()
+enum class EAuditionPageMode : uint8
+{
+	// Sets Audition Page automatically to graph page focused in asset editor
+	Focused,
+
+	// Audition Page is specified by user (does not automatically change when graph page is focused)
+	User
 };
 
 USTRUCT()
@@ -66,25 +100,96 @@ struct FMetasoundAnalyzerAnimationSettings
 	float WireScalarMax = 4.5f;
 };
 
+USTRUCT()
+struct FMetasoundEditorSpectrumAnalyzerSettings
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumAnalyzerBallistics Ballistics = EAudioSpectrumAnalyzerBallistics::Digital;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumAnalyzerType AnalyzerType = EAudioSpectrumAnalyzerType::CQT;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer, meta = (DisplayName = "FFT Size (FFT Analyzer)"))
+	EFFTSize FFTAnalyzerFFTSize = EFFTSize::Max;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer, meta = (DisplayName = "FFT Size (CQT Analyzer)"))
+	EConstantQFFTSizeEnum CQTAnalyzerFFTSize = EConstantQFFTSizeEnum::XXLarge;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumPlotTilt TiltSpectrum = EAudioSpectrumPlotTilt::NoTilt;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumPlotFrequencyAxisPixelBucketMode PixelPlotMode = EAudioSpectrumPlotFrequencyAxisPixelBucketMode::Average;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumPlotFrequencyAxisScale FrequencyScale = EAudioSpectrumPlotFrequencyAxisScale::Logarithmic;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	bool bDisplayFrequencyAxisLabels = false;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	bool bDisplaySoundLevelAxisLabels = false;
+};
+
 UCLASS(config=EditorPerProjectUserSettings)
 class METASOUNDEDITOR_API UMetasoundEditorSettings : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
 public:
-	/** Whether to pin the MetaSound Patch asset type when creating new assets. */
+	// Represents auditioning any platform using the default target/cook settings
+	static const FName DefaultAuditionPlatform;
+
+	// Represents auditioning as the editor, ignoring any explicit target/cook settings
+	static const FName EditorAuditionPlatform;
+
+	/** Whether to pin the MetaSound Patch asset type when creating new assets.
+	  * Requires editor restart for change to take effect.*/
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Patch in Asset Menu", Category = AssetMenu)
 	bool bPinMetaSoundPatchInAssetMenu = false;
 
-	/** Whether to pin the MetaSound Source asset type when creating new assets. */
+	/** Whether to pin the MetaSound Source asset type when creating new assets. 
+	  * Requires editor restart for change to take effect.*/
 	UPROPERTY(EditAnywhere, config, DisplayName = "Pin MetaSound Source in Asset Menu", Category = AssetMenu)
 	bool bPinMetaSoundSourceInAssetMenu = true;
+
+	/** If true, uses editor page/platform audition settings in PIE. If false, uses project's defined values
+	  * (see project 'MetaSound' setting 'TargetPage', which can be manipulated via code/Blueprint.)
+	  */
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)")
+	bool bApplyAuditionSettingsInPIE = true;
 
 	/** Default author title to use when authoring a new
 	  * MetaSound.  If empty, uses machine name by default.
 	  */
-	UPROPERTY(EditAnywhere, config, Category=General)
+	UPROPERTY(EditAnywhere, config, Category = General)
 	FString DefaultAuthor;
+
+	/* Currently set page audition mode. Set by the MetaSound Asset Editor. */
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)", meta = (DisplayName = "Page Audition Mode"))
+	EAuditionPageMode AuditionPageMode = EAuditionPageMode::Focused;
+
+	/** Name of platform to mock when previewing playback. This will limit playback
+	  * to fallback only to paged data that are cooked for the given platform.
+	  * (see project 'MetaSound' Settings --> 'Page Settings' array for order)
+	  * If set to 'Editor', ignores cook settings and allows fallback to all page.
+	  */
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)", meta = (DisplayName = "Page Audition Platform", GetOptions = "MetasoundEditor.MetasoundEditorSettings.GetAuditionPlatformNames"))
+	FName AuditionPlatform = EditorAuditionPlatform;
+
+	/** Name of the page to audition in editor. If unimplemented on the auditioned MetaSound, uses order of cooked pages
+	  * (see project 'MetaSound' Settings --> 'Page Settings' array for order) falling back to lower index-ordered page implemented
+	  * in MetaSound asset.
+	  */
+	UPROPERTY(EditAnywhere, config, Category = "Audition (Experimental)", meta =
+	(
+		EditCondition = "AuditionPageMode == EAuditionPageMode::User",
+		EditConditionHides = true,
+		GetOptions = "MetasoundEditor.MetasoundEditorSettings.GetAuditionPageNames")
+	)
+	FName AuditionPage = Metasound::Frontend::DefaultPageName;
 
 	/** Maps Pin Category To Pin Color */
 	TMap<FName, FLinearColor> CustomPinTypeColors;
@@ -149,6 +254,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = NodeTitleColors)
 	FLinearColor VariableNodeTitleColor;
 
+	/** Settings for metasound output spectrum analyzer widget */
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer, meta = (ShowOnlyInnerProperties))
+	FMetasoundEditorSpectrumAnalyzerSettings SpectrumAnalyzerSettings;
+
 	/** Widget type to show on input nodes by default */
 	UPROPERTY(EditAnywhere, config, Category = General)
 	EMetasoundMemberDefaultWidget DefaultInputWidgetType = EMetasoundMemberDefaultWidget::RadialSlider;
@@ -157,11 +266,59 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = GraphAnimation, meta = (ShowOnlyInnerProperties))
 	FMetasoundAnalyzerAnimationSettings AnalyzerAnimationSettings;
 
-	/** Whether to show a small oscilloscope when hovering audio pins. */
-	UPROPERTY(EditAnywhere, config, DisplayName = "Show Oscilloscope On Audio Pin Mouse Over", Category = Visualization)
-	bool bShowOscilloscopeOnAudioPinMouseOver = false;
-
 	/** Determines which details view to show in Metasounds Editor */
 	UPROPERTY(Transient)
 	EMetasoundActiveDetailView DetailView = EMetasoundActiveDetailView::General;
+
+	/** Whether the AudioMaterialWidgets are used when possible in Metasound Editor*/
+	UPROPERTY(EditAnywhere, config, DisplayName = "Use Audio Material Widgets", Category = "Widget Styling (Experimental)")
+	bool bUseAudioMaterialWidgets = false;
+	
+	/**Override the Knob Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = "Widget Styling (Experimental)", meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Knob Style"))
+	FSoftObjectPath KnobStyleOverride;
+	
+	/**Override the Slider Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = "Widget Styling (Experimental)", meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Slider Style"))
+	FSoftObjectPath SliderStyleOverride;
+
+	/**Override the Button Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = "Widget Styling (Experimental)", meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Button Style"))
+	FSoftObjectPath ButtonStyleOverride;
+	
+	/**Override the Meter Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = "Widget Styling (Experimental)", meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Meter Style"))
+	FSoftObjectPath MeterStyleOverride;
+
+	//UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif // WITH_EDITOR
+	//~UObject
+		
+	/** Get the AudioMaterialKnob Style. If KnobStyleOverride is not set, returns default style.*/
+	const FAudioMaterialKnobStyle* GetKnobStyle() const;
+
+	/** Get the AudioMaterialSlider Style. If SliderStyleOverride is not set, returns default style.*/
+	const FAudioMaterialSliderStyle* GetSliderStyle() const;
+	
+	/** Get the AudioMaterialButton Style. If ButtonStyleOverride is not set, returns default style.*/
+	const FAudioMaterialButtonStyle* GetButtonStyle() const;
+	
+	/** Get the AudioMaterialMeter Style. If MeterStyleOverride is not set, returns default style.*/
+	const FAudioMaterialMeterStyle* GetMeterStyle() const;
+
+	Metasound::Engine::FPageResolutionEditorResults ResolveAuditionPage(const TArray<FGuid>& InPageIDs) const;
+	
+	/** Given the provided AuditionPageID, returns the resolved PageID from the provided array of values based on fallback logic. */
+	FGuid ResolveAuditionPage(const TArray<FGuid>& InPageIDs, const FGuid& InAuditionPageID) const;
+
+	/** Given the provided class input and AuditionPageID, returns the resolved PageID from the provided array of values based on fallback logic. */
+	FGuid ResolveAuditionPage(const FMetasoundFrontendClassInput& InClassInput, const FGuid& InAuditionPageID) const;
+
+	UFUNCTION()
+	static TArray<FName> GetAuditionPageNames();
+
+	UFUNCTION()
+	static TArray<FName> GetAuditionPlatformNames();
 };

@@ -8,15 +8,15 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-class UNNERuntimeRDGDmlImpl;
 class UNNERuntimeRDGHlslImpl;
 
 class FNNERuntimeRDGModule : public IModuleInterface
 {
+private:
+	void RegisterRuntime();
 
 public:
 	TWeakObjectPtr<UNNERuntimeRDGHlslImpl> NNERuntimeRDGHlsl{ nullptr };
-	TWeakObjectPtr<UNNERuntimeRDGDmlImpl> NNERuntimeRDGDml{ nullptr };
 
 	// Begin IModuleInterface
 	virtual void StartupModule() override;

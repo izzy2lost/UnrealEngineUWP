@@ -245,7 +245,7 @@ bool FFieldVariant::IsValidLowLevel() const
 	}
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 bool FFieldVariant::HasMetaData(const FName& Key) const
 {
 	check(Container.Object);
@@ -258,7 +258,7 @@ bool FFieldVariant::HasMetaData(const FName& Key) const
 		return Container.Field->HasMetaData(Key);
 	}
 }
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 /*-----------------------------------------------------------------------------
 FField implementation.
@@ -280,9 +280,9 @@ FField::FField(EInternal InInernal, FFieldClass* InClass)
 	, Owner((FField*)nullptr)
 	, Next(nullptr)
 	, FlagsPrivate(RF_NoFlags)
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	, MetaDataMap(nullptr)
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 {
 }
 
@@ -291,22 +291,22 @@ FField::FField(FFieldVariant InOwner, const FName& InName, EObjectFlags InObject
 	, Next(nullptr)
 	, NamePrivate(InName)
 	, FlagsPrivate(InObjectFlags)
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	, MetaDataMap(nullptr)
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 {
 
 }
 
 FField::~FField()
 {
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	if (MetaDataMap)
 	{
 		delete MetaDataMap;
 		MetaDataMap = nullptr;
 	}
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 }
 
 #if WITH_EDITORONLY_DATA
@@ -414,7 +414,7 @@ void FField::Serialize(FArchive& Ar)
 	Ar << NamePrivate;
 	Ar << (uint32&)FlagsPrivate;
 
-#if WITH_EDITORONLY_DATA	
+#if WITH_METADATA	
 	if (!Ar.IsCooking())
 	{
 		UPackage* Package = GetOutermost();
@@ -441,7 +441,7 @@ void FField::Serialize(FArchive& Ar)
 			}			
 		}		
 	}
-#endif
+#endif // WITH_METADATA
 }
 
 void FField::GetPreloadDependencies(TArray<UObject*>& OutDeps)
@@ -626,130 +626,7 @@ FField* FField::GetTypedOwner(FFieldClass* Target) const
 	return Result;
 }
 
-#if WITH_EDITORONLY_DATA
-FString FField::GetFullGroupName(bool bStartWithOuter) const
-{
-	if (bStartWithOuter)
-	{
-		if (Owner.IsValid())
-		{
-			if (Owner.IsUObject())
-			{
-				return Owner.ToUObject()->GetPathName(Owner.ToUObject()->GetOutermost());
-			}
-			else
-			{
-				return Owner.ToField()->GetPathName(GetOutermost());
-			}
-		}
-		else
-		{
-			return FString();
-		}
-	}
-	else
-	{
-		return GetPathName(GetOutermost());
-	}
-}
-
-struct FFieldDisplayNameHelper
-{
-	static FString Get(const FField& Object)
-	{
-		if (const FProperty* Property = CastField<FProperty>(&Object))
-		{
-			if (auto OwnerStruct = Property->GetOwnerStruct())
-			{
-				return OwnerStruct->GetAuthoredNameForField(Property);
-			}
-		}
-
-		return Object.GetName();
-	}
-};
-
-/**
-* Finds the localized display name or native display name as a fallback.
-*
-* @return The display name for this object.
-*/
-FText FField::GetDisplayNameText() const
-{
-	FText LocalizedDisplayName;
-
-	static const FString Namespace = TEXT("UObjectDisplayNames");
-	static const FName NAME_DisplayName(TEXT("DisplayName"));
-
-	const FString Key = GetFullGroupName(false);
-
-	FString NativeDisplayName;
-	if (const FString* FoundMetaData = FindMetaData(NAME_DisplayName))
-	{
-		NativeDisplayName = *FoundMetaData;
-	}
-	else
-	{
-		NativeDisplayName = FName::NameToDisplayString(FFieldDisplayNameHelper::Get(*this), IsA<FBoolProperty>());
-	}
-
-	if (!(FText::FindText(Namespace, Key, /*OUT*/LocalizedDisplayName, &NativeDisplayName)))
-	{
-		LocalizedDisplayName = FText::FromString(NativeDisplayName);
-	}
-
-	return LocalizedDisplayName;
-}
-
-/**
-* Finds the localized tooltip or native tooltip as a fallback.
-*
-* @return The tooltip for this object.
-*/
-FText FField::GetToolTipText(bool bShortTooltip) const
-{
-	bool bFoundShortTooltip = false;
-	static const FName NAME_Tooltip(TEXT("Tooltip"));
-	static const FName NAME_ShortTooltip(TEXT("ShortTooltip"));
-	FText LocalizedToolTip;
-	FString NativeToolTip;
-
-	if (bShortTooltip)
-	{
-		NativeToolTip = GetMetaData(NAME_ShortTooltip);
-		if (NativeToolTip.IsEmpty())
-		{
-			NativeToolTip = GetMetaData(NAME_Tooltip);
-		}
-		else
-		{
-			bFoundShortTooltip = true;
-		}
-	}
-	else
-	{
-		NativeToolTip = GetMetaData(NAME_Tooltip);
-	}
-
-	const FString Namespace = bFoundShortTooltip ? TEXT("UObjectShortTooltips") : TEXT("UObjectToolTips");
-	const FString Key = GetFullGroupName(false);
-	if (!FText::FindText(Namespace, Key, /*OUT*/LocalizedToolTip, &NativeToolTip))
-	{
-		if (!NativeToolTip.IsEmpty())
-		{
-			static const FString DoxygenSee(TEXT("@see"));
-			static const FString TooltipSee(TEXT("See:"));
-			if (NativeToolTip.ReplaceInline(*DoxygenSee, *TooltipSee) > 0)
-			{
-				NativeToolTip.TrimEndInline();
-			}
-		}
-		LocalizedToolTip = FText::FromString(NativeToolTip);
-	}
-
-	return LocalizedToolTip;
-}
-
+#if WITH_METADATA
 const FString* FField::FindMetaData(const TCHAR* Key) const
 {
 	return FindMetaData(FName(Key, FNAME_Find));
@@ -795,7 +672,7 @@ const FString& FField::GetMetaData(const FName& Key) const
 	return *ValuePtr;
 }
 
-const FText FField::GetMetaDataText(const TCHAR* MetaDataKey, const FString LocalizationNamespace, const FString LocalizationKey) const
+const FText FField::GetMetaDataText(const TCHAR* MetaDataKey, const FTextKey LocalizationNamespace, const FTextKey LocalizationKey) const
 {
 	FString DefaultMetaData;
 
@@ -810,20 +687,15 @@ const FText FField::GetMetaDataText(const TCHAR* MetaDataKey, const FString Loca
 		DefaultMetaData = FName::NameToDisplayString(GetName(), IsA(FBoolProperty::StaticClass()));
 	}
 
-
 	FText LocalizedMetaData;
-	if (!(FText::FindText(LocalizationNamespace, LocalizationKey, /*OUT*/LocalizedMetaData, &DefaultMetaData)))
+	if (!DefaultMetaData.IsEmpty())
 	{
-		if (!DefaultMetaData.IsEmpty())
-		{
-			LocalizedMetaData = FText::AsCultureInvariant(DefaultMetaData);
-		}
+		LocalizedMetaData = FText::AsLocalizable_Advanced(LocalizationNamespace, LocalizationKey, MoveTemp(DefaultMetaData));
 	}
-
 	return LocalizedMetaData;
 }
 
-const FText FField::GetMetaDataText(const FName& MetaDataKey, const FString LocalizationNamespace, const FString LocalizationKey) const
+const FText FField::GetMetaDataText(const FName& MetaDataKey, const FTextKey LocalizationNamespace, const FTextKey LocalizationKey) const
 {
 	FString DefaultMetaData;
 
@@ -838,16 +710,11 @@ const FText FField::GetMetaDataText(const FName& MetaDataKey, const FString Loca
 		DefaultMetaData = FName::NameToDisplayString(GetName(), IsA(FBoolProperty::StaticClass()));
 	}
 
-
 	FText LocalizedMetaData;
-	if (!(FText::FindText(LocalizationNamespace, LocalizationKey, /*OUT*/LocalizedMetaData, &DefaultMetaData)))
+	if (!DefaultMetaData.IsEmpty())
 	{
-		if (!DefaultMetaData.IsEmpty())
-		{
-			LocalizedMetaData = FText::AsCultureInvariant(DefaultMetaData);
-		}
+		LocalizedMetaData = FText::AsLocalizable_Advanced(LocalizationNamespace, LocalizationKey, MoveTemp(DefaultMetaData));
 	}
-
 	return LocalizedMetaData;
 }
 
@@ -949,7 +816,7 @@ void FField::CopyMetaData(const FField* InSourceField, FField* InDestField)
 	}
 }
 
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 void FField::PostDuplicate(const FField& InField)
 {
@@ -988,6 +855,121 @@ FName FField::GenerateFFieldName(FFieldVariant InOwner /** Unused yet */, FField
 }
 
 #if WITH_EDITORONLY_DATA
+FString FField::GetFullGroupName(bool bStartWithOuter) const
+{
+	if (bStartWithOuter)
+	{
+		if (Owner.IsValid())
+		{
+			if (Owner.IsUObject())
+			{
+				return Owner.ToUObject()->GetPathName(Owner.ToUObject()->GetOutermost());
+			}
+			else
+			{
+				return Owner.ToField()->GetPathName(GetOutermost());
+			}
+		}
+		else
+		{
+			return FString();
+		}
+	}
+	else
+	{
+		return GetPathName(GetOutermost());
+	}
+}
+
+struct FFieldDisplayNameHelper
+{
+	static FString Get(const FField& Object)
+	{
+		if (const FProperty* Property = CastField<FProperty>(&Object))
+		{
+			if (auto OwnerStruct = Property->GetOwnerStruct())
+			{
+				return OwnerStruct->GetAuthoredNameForField(Property);
+			}
+		}
+
+		return Object.GetName();
+	}
+};
+
+/**
+* Finds the localized display name or native display name as a fallback.
+*
+* @return The display name for this object.
+*/
+FText FField::GetDisplayNameText() const
+{
+	static const FTextKey Namespace = TEXT("UObjectDisplayNames");
+	static const FName NAME_DisplayName(TEXT("DisplayName"));
+
+	const FString Key = GetFullGroupName(false);
+
+	FString NativeDisplayName;
+	if (const FString* FoundMetaData = FindMetaData(NAME_DisplayName))
+	{
+		NativeDisplayName = *FoundMetaData;
+	}
+	else
+	{
+		NativeDisplayName = FName::NameToDisplayString(FFieldDisplayNameHelper::Get(*this), IsA<FBoolProperty>());
+	}
+
+	return FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeDisplayName));
+}
+
+/**
+* Finds the localized tooltip or native tooltip as a fallback.
+*
+* @return The tooltip for this object.
+*/
+FText FField::GetToolTipText(bool bShortTooltip) const
+{
+	bool bFoundShortTooltip = false;
+	static const FName NAME_Tooltip(TEXT("Tooltip"));
+	static const FName NAME_ShortTooltip(TEXT("ShortTooltip"));
+	FText LocalizedToolTip;
+	FString NativeToolTip;
+
+	if (bShortTooltip)
+	{
+		NativeToolTip = GetMetaData(NAME_ShortTooltip);
+		if (NativeToolTip.IsEmpty())
+		{
+			NativeToolTip = GetMetaData(NAME_Tooltip);
+		}
+		else
+		{
+			bFoundShortTooltip = true;
+		}
+	}
+	else
+	{
+		NativeToolTip = GetMetaData(NAME_Tooltip);
+	}
+
+	const FString Namespace = bFoundShortTooltip ? TEXT("UObjectShortTooltips") : TEXT("UObjectToolTips");
+	const FString Key = GetFullGroupName(false);
+	if (!FText::FindTextInLiveTable_Advanced(Namespace, Key, /*OUT*/LocalizedToolTip, &NativeToolTip))
+	{
+		if (!NativeToolTip.IsEmpty())
+		{
+			static const FString DoxygenSee(TEXT("@see"));
+			static const FString TooltipSee(TEXT("See:"));
+			if (NativeToolTip.ReplaceInline(*DoxygenSee, *TooltipSee) > 0)
+			{
+				NativeToolTip.TrimEndInline();
+			}
+		}
+		LocalizedToolTip = FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeToolTip));
+	}
+
+	return LocalizedToolTip;
+}
 
 FField::FOnConvertCustomUFieldToFField& FField::GetConvertCustomUFieldToFFieldDelegate()
 {
@@ -1196,7 +1178,7 @@ FField* FindFPropertyByPath(const TCHAR* InFieldPath)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFieldCastTest, "UObject.Field Cast", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ServerContext | EAutomationTestFlags::SmokeFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFieldCastTest, "UObject.Field Cast", EAutomationTestFlags::EditorContext | EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ServerContext | EAutomationTestFlags::SmokeFilter)
 
 bool FFieldCastTest::RunTest(const FString& Parameters)
 {

@@ -198,8 +198,10 @@ public:
 	 *
 	 * @param InFilter The compiled filter used to find matching items.
 	 * @param InCallback The function to invoke for each matching item (return true to continue enumeration).
+	 * @param InSink Parameter provided to receive output as either a callback or an array.
 	 */
 	virtual void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback);
+	virtual void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink);
 
 	/**
 	 * Enumerate items that have the given virtual path, optionally filtering by type, and invoking the callback for each matching item.
@@ -208,9 +210,10 @@ public:
 	 * @param InPath The virtual path to find items for.
 	 * @param InItemTypeFilter The types of items we want to find.
 	 * @param InCallback The function to invoke for each matching item (return true to continue enumeration).
+	 * @param InSink Parameter provided to receive output as either a callback or an array.
 	 */
 	virtual void EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback);
-
+	virtual void EnumerateItemsAtPath(const FName InPath, const EContentBrowserItemTypeFilter InItemTypeFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink);
 	
 	/**
 	 * Enumerate the items (folders and/or files) that exist at the given content browser paths.
@@ -256,8 +259,11 @@ public:
 	/**
 	 * Query whether the given virtual folder should be visible in the UI.
 	 * @note This function must be able to answer the question quickly or not at all (and assume visible). It *must not* block doing something like a file system scan.
+	 * @param Path Virtual path of folder e.g. /All/GameData/Stuff
+	 * @param Flags Currently unused
+	 * @param ContentsFilter Optional filter for limiting visibility to only folders with a certain type of contents based on desired view filtering. If this is unset, folders may be visible regardless of their contents or empty status.
 	 */
-	virtual bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags);
+	virtual bool IsFolderVisible(const FName Path, const EContentBrowserIsFolderVisibleFlags Flags, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter);
 
 	/*
 	 * Query whether a folder can be created at the given virtual path, optionally providing error information if it cannot.
@@ -653,6 +659,28 @@ public:
 	virtual bool AppendItemReference(const FContentBrowserItemData& InItem, FString& InOutStr);
 
 	/**
+	 * Attempt to append any object path for the given item to the given string.
+	 * @note Used when copying item object path to the clipboard.
+	 *
+	 * @param InItem The item to query.
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if package name were appended, false otherwise.
+	 */
+	virtual bool AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr);
+
+	/**
+	 * Attempt to append any package name for the given item to the given string.
+	 * @note Used when copying item package name to the clipboard.
+	 *
+	 * @param InItem The item to query.
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if package name were appended, false otherwise.
+	 */
+	virtual bool AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr);
+
+	/**
 	 * Attempt to update the thumbnail associated with the given item.
 	 *
 	 * @param InItems The items to query.
@@ -864,6 +892,7 @@ protected:
 	/**
 	 * Notify a wholesale item data update, for data sources that can't provide delta-updates.
 	 */
+	 UE_DEPRECATED(5.5, "No data source should be able request a full data refresh. On large projects this can quickly destroy the editor performance. To avoid that all data sources should support queueing the required incremental data updates for their items. Look for uses of the function QueueItemDataUpdate for examples.")
 	void NotifyItemDataRefreshed();
 
 	/**

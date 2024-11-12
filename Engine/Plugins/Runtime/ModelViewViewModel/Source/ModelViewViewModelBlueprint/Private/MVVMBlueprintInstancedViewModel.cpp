@@ -294,7 +294,7 @@ void UMVVMBlueprintInstancedViewModelBase::AddOnRepFunction(FProperty* NewProper
 
 void UMVVMBlueprintInstancedViewModelBase::SafeRename(UObject* Object)
 {
-	ERenameFlags RenameFlags = REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors;
+	ERenameFlags RenameFlags = REN_NonTransactional | REN_DoNotDirty | REN_DontCreateRedirectors;
 	FName TrashName = MakeUniqueObjectName(GetTransientPackage(), Object->GetClass(), *FString::Printf(TEXT("TRASH_%s"), *Object->GetName()));
 	Object->Rename(*TrashName.ToString(), GetTransientPackage(), RenameFlags);
 }

@@ -62,14 +62,62 @@ public:
 class FAssetTypeActions_InterchangeBlueprintPipelineBase : public FAssetTypeActions_Blueprint
 {
 public:
+	FAssetTypeActions_InterchangeBlueprintPipelineBase(EAssetTypeCategories::Type InAssetCategory)
+		: AssetCategory(InAssetCategory)
+	{ }
 	// FAssetTypeActions_Blueprint interface
 	virtual UFactory* GetFactoryForBlueprintType(UBlueprint* InBlueprint) const override;
 
 	// IAssetTypeActions Implementation
-	virtual FText GetName() const override { return NSLOCTEXT("FAssetTypeActions_InterchangeGraphInspectorPipeline", "InterchangeGraphInspectorPipelineName", "Interchange Blueprint Pipeline Base"); }
+	virtual FText GetName() const override { return NSLOCTEXT("FAssetTypeActions_InterchangeBlueprintPipelineBase", "InterchangeBlueprintPipelineBaseName", "Interchange Blueprint Pipeline"); }
 	virtual FColor GetTypeColor() const override { return FColor(10, 25, 175); }
 	virtual UClass* GetSupportedClass() const override;
-	virtual uint32 GetCategories() override { return EAssetTypeCategories::Blueprint | EAssetTypeCategories::Misc; }
+	virtual uint32 GetCategories() override { return AssetCategory; }
+
+private:
+	EAssetTypeCategories::Type AssetCategory;
+};
+
+UCLASS(hidecategories = Object, collapsecategories)
+class UInterchangeEditorBlueprintPipelineBaseFactory : public UFactory
+{
+	GENERATED_BODY()
+
+public:
+	UInterchangeEditorBlueprintPipelineBaseFactory();
+
+	// The type of blueprint that will be created
+	UPROPERTY(EditAnywhere, Category = InterchangeEditorBlueprintPipelineBaseFactory)
+	TEnumAsByte<enum EBlueprintType> BlueprintType;
+
+	// The parent class of the created blueprint
+	UPROPERTY(EditAnywhere, Category = InterchangeEditorBlueprintPipelineBaseFactory)
+	TSubclassOf<class UInterchangeEditorPipelineBase> ParentClass;
+
+	//Begin UFactory Interface
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext) override;
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+	//End UFactory Interface	
+};
+
+class FAssetTypeActions_InterchangeEditorBlueprintPipelineBase : public FAssetTypeActions_Blueprint
+{
+public:
+	FAssetTypeActions_InterchangeEditorBlueprintPipelineBase(EAssetTypeCategories::Type InAssetCategory)
+		: AssetCategory(InAssetCategory)
+	{ }
+
+	// FAssetTypeActions_Blueprint interface
+	virtual UFactory* GetFactoryForBlueprintType(UBlueprint* InBlueprint) const override;
+
+	// IAssetTypeActions Implementation
+	virtual FText GetName() const override { return NSLOCTEXT("FAssetTypeActions_InterchangeEditorBlueprintPipelineBase", "InterchangeEditorBlueprintPipelineBaseName", "Interchange Editor Blueprint Pipeline"); }
+	virtual FColor GetTypeColor() const override { return FColor(10, 25, 175); }
+	virtual UClass* GetSupportedClass() const override;
+	virtual uint32 GetCategories() override { return AssetCategory; }
+
+private:
+	EAssetTypeCategories::Type AssetCategory;
 };
 
 UCLASS(hidecategories = Object, collapsecategories)
@@ -82,7 +130,6 @@ public:
 
 	// UFactory Interface
 	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
-	virtual uint32 GetMenuCategories() const override;
 	virtual FText GetDisplayName() const override;
 	virtual bool ConfigureProperties() override;
 	// End of UFactory Interface
@@ -90,17 +137,21 @@ private:
 	UClass* PipelineClass = nullptr;
 };
 
-
-
 class FAssetTypeActions_InterchangePipelineBase : public FAssetTypeActions_Base
 {
 public:
-	// IAssetTypeActions Implementation
+	FAssetTypeActions_InterchangePipelineBase(EAssetTypeCategories::Type InAssetCategory)
+		: AssetCategory(InAssetCategory)
+	{ }
+
 	virtual FText GetName() const override { return NSLOCTEXT("FAssetTypeActions_InterchangePipelineBase", "InterchangePipelineBaseName", "Interchange Pipeline"); }
 	virtual FColor GetTypeColor() const override { return FColor(135, 200, 25); }
 	virtual UClass* GetSupportedClass() const override;
-	virtual uint32 GetCategories() override { return EAssetTypeCategories::Misc; }
+	virtual uint32 GetCategories() override { return AssetCategory; }
 	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<class IToolkitHost> EditWithinLevelEditor = TSharedPtr<IToolkitHost>()) override;
+
+private:
+	EAssetTypeCategories::Type AssetCategory;
 };
 
 UCLASS(hidecategories = Object, collapsecategories)
@@ -113,7 +164,6 @@ public:
 
 	// UFactory Interface
 	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
-	virtual uint32 GetMenuCategories() const override;
 	virtual FText GetDisplayName() const override;
 	virtual bool ConfigureProperties() override;
 	// End of UFactory Interface
@@ -124,10 +174,17 @@ private:
 class FAssetTypeActions_InterchangePythonPipelineBase : public FAssetTypeActions_Base
 {
 public:
+	FAssetTypeActions_InterchangePythonPipelineBase(EAssetTypeCategories::Type InAssetCategory)
+		: AssetCategory(InAssetCategory)
+	{ }
+
 	// IAssetTypeActions Implementation
 	virtual FText GetName() const override { return NSLOCTEXT("InterchangePipelineFactories", "FAssetTypeActions_InterchangePythonPipeline", "Interchange Python Pipeline"); }
 	virtual FColor GetTypeColor() const override { return FColor(135, 200, 25); }
 	virtual UClass* GetSupportedClass() const override;
-	virtual uint32 GetCategories() override { return EAssetTypeCategories::Misc; }
+	virtual uint32 GetCategories() override { return AssetCategory; }
 	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<class IToolkitHost> EditWithinLevelEditor = TSharedPtr<IToolkitHost>()) override;
+
+private:
+	EAssetTypeCategories::Type AssetCategory;
 };

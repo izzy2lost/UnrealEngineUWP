@@ -15,6 +15,7 @@
 
 class UTexture;
 enum class EMaterialParameterType : uint8;
+enum class ETextureCollectionMemberType : uint8;
 struct FMaterialCachedExpressionData;
 struct FMaterialLayersFunctions;
 
@@ -38,6 +39,7 @@ inline void AppendHash(FHasher& Hasher, const FMaterialParameterValue& Value)
 	case EMaterialParameterType::Vector: AppendHash(Hasher, Value.Float); break;
 	case EMaterialParameterType::DoubleVector: AppendHash(Hasher, Value.Double); break;
 	case EMaterialParameterType::Texture: AppendHash(Hasher, Value.Texture); break;
+	case EMaterialParameterType::TextureCollection: AppendHash(Hasher, Value.TextureCollection); break;
 	case EMaterialParameterType::Font: AppendHash(Hasher, Value.Font); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: AppendHash(Hasher, Value.RuntimeVirtualTexture); break;
 	case EMaterialParameterType::SparseVolumeTexture: AppendHash(Hasher, Value.SparseVolumeTexture); break;
@@ -97,6 +99,16 @@ enum class EExternalInput : uint8
 	VertexColor_Ddx,
 	VertexColor_Ddy,
 
+	PositionInstanceSpace,
+	PositionInstanceSpace_NoOffsets,
+	PositionPrimitiveSpace,
+	PositionPrimitiveSpace_NoOffsets,
+
+	PrevPositionInstanceSpace,
+	PrevPositionInstanceSpace_NoOffsets,
+	PrevPositionPrimitiveSpace,
+	PrevPositionPrimitiveSpace_NoOffsets,
+
 	WorldPosition,
 	WorldPosition_NoOffsets,
 	TranslatedWorldPosition,
@@ -139,6 +151,7 @@ enum class EExternalInput : uint8
 	RuntimeVirtualTextureMaxLevel,
 	ResolutionFraction,
 	RcpResolutionFraction,
+	PostVolumeUserFlags,
 
 	CameraVector,
 	LightVector,
@@ -486,6 +499,19 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionPostVolumeUserFlagTest : public FExpression
+{
+public:
+	const FExpression* InputExpression;
+
+	FExpressionPostVolumeUserFlagTest(const FExpression* InInputExpression)
+		: InputExpression(InInputExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 struct DataDrivenShaderPlatformData
 {
 	FName PlatformName;
@@ -620,6 +646,29 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionTextureObjectFromCollection : public FExpression
+{
+public:
+	FExpressionTextureObjectFromCollection(
+		const FExpression* InTextureCollectionExpression,
+		const FExpression* InCollectionIndexExpression,
+		ETextureCollectionMemberType InTextureType)
+		: TextureCollectionExpression(InTextureCollectionExpression)
+		, CollectionIndexExpression(InCollectionIndexExpression)
+		, TextureType(InTextureType)
+	{
+	}
+
+	const FExpression* const TextureCollectionExpression;
+	const FExpression* const CollectionIndexExpression;
+	const ETextureCollectionMemberType TextureType;
+
+	// FExpression
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+	//~FExpression
 };
 
 class FExpressionAntiAliasedTextureMask : public FExpression
@@ -781,15 +830,34 @@ public:
 class FExpressionSceneTexture : public FExpression
 {
 public:
-	FExpressionSceneTexture(const FExpression* InTexCoordExpression, uint32 InSceneTextureId, bool bInFiltered)
+	FExpressionSceneTexture(const FExpression* InTexCoordExpression, uint32 InSceneTextureId, bool bInFiltered, bool bInClamped = false, FName InUserSceneTexture = NAME_None)
 		: TexCoordExpression(InTexCoordExpression)
 		, SceneTextureId(InSceneTextureId)
 		, bFiltered(bInFiltered)
+		, bClamped(bInClamped)
+		, UserSceneTexture(InUserSceneTexture)
 	{}
 
 	const FExpression* TexCoordExpression;
 	uint32 SceneTextureId;
 	bool bFiltered;
+	bool bClamped;
+	FName UserSceneTexture;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionUserSceneTextureSize : public FExpression
+{
+public:
+	FExpressionUserSceneTextureSize(FName InUserSceneTexture, bool bInReciprocal)
+		: UserSceneTexture(InUserSceneTexture)
+		, bReciprocal(bInReciprocal)
+	{}
+
+	FName UserSceneTexture;
+	bool bReciprocal;
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
@@ -1175,6 +1243,20 @@ public:
 	virtual void ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const override;
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
+};
+
+class FExpressionPeriodicWorldOrigin : public FExpression
+{
+public:
+	FExpressionPeriodicWorldOrigin(const FExpression* InScale = nullptr)
+	: Scale(InScale)
+	{}
+
+	const FExpression* Scale;
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+	virtual void ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const override;
 };
 
 struct FVertexInterpolator

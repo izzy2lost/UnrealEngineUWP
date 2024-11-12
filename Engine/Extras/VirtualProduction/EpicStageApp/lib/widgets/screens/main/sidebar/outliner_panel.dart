@@ -26,7 +26,6 @@ import '../../../../models/unreal_transaction_manager.dart';
 import '../../../../models/unreal_types.dart';
 import '../../../../utilities/constants.dart';
 import '../../../../utilities/guarded_refresh_state.dart';
-import '../../../elements/dropdown_button.dart';
 import '../../../elements/place_actor_menu.dart';
 import '../stage_app_main_screen.dart';
 import 'outliner_filter_menu.dart';
@@ -186,7 +185,6 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
   late final OutlinerPanelSettings _outlinerSettings;
 
   final TextEditingController _searchTextController = TextEditingController();
-  final ScrollController _actorListScrollController = ScrollController();
 
   /// Set of actors that we're listening to for any updates (e.g. to class information).
   Set<UnrealObject> _listenedActors = {};
@@ -374,7 +372,7 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                 // List of actors or onboarding placeholder
                 Expanded(
                   child: _filteredActors.isNotEmpty
-                      ? ListView.builder(
+                      ? EpicListView(
                           padding: UnrealTheme.cardListViewPadding,
                           itemCount: _filteredActors.length,
                           itemBuilder: (BuildContext context, int actorIndex) {
@@ -388,7 +386,6 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
                               visibilityStateCallback: (state) => setState(() => _bIsSelectedActorsVisible = state),
                             );
                           },
-                          controller: _actorListScrollController,
                         )
                       : EmptyPlaceholder(
                           message: AppLocalizations.of(context)!.outlinerEmptyMessage,

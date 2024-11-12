@@ -116,6 +116,14 @@ namespace UnrealBuildTool
 		public int ActionStallReportTime = 0;
 
 		/// <summary>
+		/// Number of second of no completed actions to trigger to terminate the queue.
+		/// If zero, force termination not be enabled.
+		/// </summary>
+		[CommandLine("-ActionStallTerminateTime=")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public int ActionStallTerminateTime = 0;
+
+		/// <summary>
 		/// Running status of the action
 		/// </summary>
 		private enum ActionStatus : byte
@@ -252,6 +260,10 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool StopCompilationAfterErrors = false;
 
+		public int CompletedActions => _completedActions;
+		public int CacheHitActions => _cacheHitActions;
+		public int CacheMissActions => _cacheMissActions;
+
 		/// <summary>
 		/// Return true if the queue is done
 		/// </summary>
@@ -261,6 +273,11 @@ namespace UnrealBuildTool
 		///  Action that can be to notify when artifacts have been read for an action
 		/// </summary>
 		public Action<LinkedAction>? OnArtifactsRead = null;
+
+		/// <summary>
+		///  Action that can be to notify when artifacts have been missed
+		/// </summary>
+		public Action<LinkedAction>? OnArtifactsMiss = null;
 
 		/// <summary>
 		/// Collection of available runners
@@ -290,7 +307,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Per-second logging of cpu utilization
 		/// </summary>
-		private List<float> _cpuUtilization = new();
+		private readonly List<float> _cpuUtilization = new();
 
 		/// <summary>
 		/// Collection of all actions remaining to be logged
@@ -313,6 +330,16 @@ namespace UnrealBuildTool
 		private int _completedActions = 0;
 
 		/// <summary>
+		/// Tracks the number of completed actions from cache hits.
+		/// </summary>
+		private int _cacheHitActions = 0;
+
+		/// <summary>
+		/// Tracks the number of unsuccessful actions from cache misses.
+		/// </summary>
+		private int _cacheMissActions = 0;
+
+		/// <summary>
 		/// Flags used to track how StartManyActions should run
 		/// </summary>
 		private int _startManyFlags = 0;
@@ -323,9 +350,14 @@ namespace UnrealBuildTool
 		private int _lastActionChange = 1;
 
 		/// <summary>
-		/// If true, a action stall has been reported for the current change count
+		/// If true, an action stall has been reported for the current change count
 		/// </summary>
 		private bool _lastActionStallReported = false;
+
+		/// <summary>
+		/// If true, the queue has been cancelled due to an action stall
+		/// </summary>
+		private bool _lastActionStallCanceled = false;
 
 		/// <summary>
 		/// Time of the last change to the action count.  This is updated by the timer.
@@ -350,9 +382,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set, artifact cache used to retrieve previously compiled results and save new results
 		/// </summary>
-		private IActionArtifactCache? _actionArtifactCache;
-
-		static ExecuteResults s_copiedFromCacheResults = new(new List<string>(), 0, TimeSpan.Zero, TimeSpan.Zero, "copied from cache");
+		private readonly IActionArtifactCache? _actionArtifactCache;
 
 		/// <summary>
 		/// Construct a new instance of the action queue
@@ -396,25 +426,64 @@ namespace UnrealBuildTool
 
 			if (readArtifacts)
 			{
-				Func<LinkedAction, Func<Task>> runAction = (LinkedAction action) =>
+				Func<Task> runAction(LinkedAction action)
 				{
 					return new Func<Task>(async () =>
 					{
-						bool success = await _actionArtifactCache!.CompleteActionFromCacheAsync(action, CancellationToken);
-						if (success)
+						ActionArtifactResult result = await _actionArtifactCache!.CompleteActionFromCacheAsync(action, CancellationToken);
+						if (result.Success)
 						{
+							ExecuteResults results = new(result.LogLines, 0, TimeSpan.Zero, TimeSpan.Zero, "[Cache]");
+							Interlocked.Increment(ref _cacheHitActions);
+							OnActionCompleted(action, true, results);
 							OnArtifactsRead?.Invoke(action);
-							OnActionCompleted(action, success, s_copiedFromCacheResults);
 						}
 						else
 						{
+							Interlocked.Increment(ref _cacheMissActions);
+							OnArtifactsMiss?.Invoke(action);
 							RequeueAction(action);
 						}
 					});
-				};
+				}
 
 				_runners.Add(new(ImmediateActionQueueRunnerType.Automatic, ActionPhase.ArtifactCheck, runAction, false, maxActionArtifactCacheTasks, 0));
 			}
+
+			// Cancel the queue when Ctrl-C is pressed
+			Console.CancelKeyPress += CancelKeyPress;
+		}
+
+		/// <summary>
+		/// Event handler for the Console.CancelKeyPress event
+		/// </summary>
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
+		private void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+		{
+			Console.CancelKeyPress -= CancelKeyPress;
+
+			if (!CancellationTokenSource.IsCancellationRequested)
+			{
+				Logger.LogWarning("Canceling actions...");
+				CancellationTokenSource.Cancel();
+				e.Cancel = true;
+			}
+
+			// We must do this and can't rely on that there are active processes that are cancelled causing a cascading cancel (force remote actions and no remote workers)
+			int completedActions = 0;
+			lock (Actions)
+			{
+				for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
+				{
+					if (Actions[actionIndex].Status == ActionStatus.Queued)
+					{
+						Actions[actionIndex].Status = ActionStatus.Error;
+						++completedActions;
+					}
+				}
+			}
+			AddCompletedActions(completedActions);
 		}
 
 		/// <summary>
@@ -468,7 +537,7 @@ namespace UnrealBuildTool
 						}
 					}
 
-					if (ActionStallReportTime > 0)
+					if (ActionStallReportTime > 0 || ActionStallTerminateTime > 0)
 					{
 						lock (Actions)
 						{
@@ -482,14 +551,18 @@ namespace UnrealBuildTool
 							}
 
 							// Otherwise, if we haven't already generated a report, test for a timeout in seconds and generate one on timeout.
-							else if (!_lastActionStallReported && (DateTime.Now - _lastActionChangeTime).TotalSeconds > ActionStallReportTime)
+							else if (ActionStallReportTime > 0 && !_lastActionStallReported && (DateTime.Now - _lastActionChangeTime).TotalSeconds > ActionStallReportTime)
 							{
 								_lastActionStallReported = true;
 								GenerateStallReport();
 							}
+							else if (ActionStallTerminateTime > 0 && !_lastActionStallCanceled && (DateTime.Now - _lastActionChangeTime).TotalSeconds > ActionStallTerminateTime)
+							{
+								_lastActionStallCanceled = true;
+								CancelStalledActions();
+							}
 						}
 					}
-
 				}, null, 1000, 1000);
 			}
 
@@ -508,6 +581,23 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Get the number of actions that were run, and how many succeeded or failed
+		/// </summary>
+		/// <param name="totalActions">Out parameter, the total number of actions</param>
+		/// <param name="succeededActions">Out parameter, the number of successful actions</param>
+		/// <param name="failedActions">Out parameter, the number of failed actions</param>
+		/// <param name="cacheHitActions">Out parameter, the number of cache hit actions</param>
+		/// <param name="cacheMissActions">Out parameter, the number of cache miss actions</param>
+		public void GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions)
+		{
+			totalActions = Actions.Length;
+			succeededActions = Actions.Where(x => x.Results?.ExitCode == 0).Count();
+			failedActions = Actions.Where(x => x.Results != null && x.Results.ExitCode != 0).Count();
+			cacheHitActions = _cacheHitActions;
+			cacheMissActions = _cacheMissActions;
+		}
+
+		/// <summary>
 		/// Return an enumeration of ready compile tasks.  This is not executed under a lock and 
 		/// does not modify the state of any actions.
 		/// </summary>
@@ -516,7 +606,7 @@ namespace UnrealBuildTool
 		{
 			for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
 			{
-				var actionState = Actions[actionIndex];
+				ActionState actionState = Actions[actionIndex];
 				if (actionState.Status == ActionStatus.Queued &&
 					actionState.Phase == ActionPhase.Compile &&
 					GetActionReadyState(actionState) == ActionReadyState.Ready)
@@ -560,7 +650,7 @@ namespace UnrealBuildTool
 						{
 							_lastActionChange++;
 						}
-						
+
 						// Otherwise if nothing was found, remember that we have already scanned at this change.
 						else if ((runAction == null || action == null) && runner != null)
 						{
@@ -576,7 +666,7 @@ namespace UnrealBuildTool
 					{
 						try
 						{
-							runAction().Wait();
+							runAction().Wait(CancellationToken);
 						}
 						catch (Exception ex)
 						{
@@ -589,7 +679,7 @@ namespace UnrealBuildTool
 						{
 							try
 							{
-								runAction().Wait();
+								runAction().Wait(CancellationToken);
 							}
 							catch (Exception ex)
 							{
@@ -765,7 +855,7 @@ namespace UnrealBuildTool
 			int old = Interlocked.Or(ref _startManyFlags, Running | ScanRequested);
 			if (old == 0)
 			{
-				for(; ; )
+				for (; ; )
 				{
 
 					// Clear the changed flag since we are about to scan
@@ -790,11 +880,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void Dispose()
 		{
-			if (_cpuUtilizationTimer != null)
-			{
-				_cpuUtilizationTimer.Dispose();
-			}
+			Console.CancelKeyPress -= CancelKeyPress;
+			_cpuUtilizationTimer?.Dispose();
+			_cpuUtilizationTimer = null;
+			CancellationTokenSource.Dispose();
 			ProcessGroup.Dispose();
+			ProgressWriter.Dispose();
 		}
 
 		/// <summary>
@@ -874,10 +965,7 @@ namespace UnrealBuildTool
 					lock (_actionsToLog)
 					{
 						_actionsToLog.Add(action.SortIndex);
-						if (_actionsToLogTask == null)
-						{
-							_actionsToLogTask = Task.Run(LogActions);
-						}
+						_actionsToLogTask ??= Task.Run(LogActions);
 					}
 				}
 
@@ -944,7 +1032,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Returns the number of queued actions left (not including ArtifactCheck actions)
+		/// Returns the number of queued actions left (including queued actions that will do artifact check first)
 		/// Note, this method is lockless and will not always return accurate count
 		/// </summary>
 		/// <param name="filterFunc">Optional function to filter out actions. Return false if action should not be included</param>
@@ -955,11 +1043,11 @@ namespace UnrealBuildTool
 			for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
 			{
 
-				if (Actions[actionIndex].Status != ActionStatus.Queued || Actions[actionIndex].Phase != ActionPhase.Compile)
+				if (Actions[actionIndex].Status != ActionStatus.Queued)
 				{
 					continue;
 				}
-					
+
 				if (filterFunc != null && !filterFunc(Actions[actionIndex].Action))
 				{
 					continue;
@@ -1050,7 +1138,7 @@ namespace UnrealBuildTool
 				// Canceled
 				if (exitCode == Int32.MaxValue)
 				{
-					Logger.LogInformation("[{CompletedActions}/{TotalActions}] {Description} canceled", completedActions, totalActions, description);
+					//Logger.LogInformation("[{CompletedActions}/{TotalActions}] {Description} canceled", completedActions, totalActions, description);
 					return;
 				}
 
@@ -1112,12 +1200,12 @@ namespace UnrealBuildTool
 				s_previousLineLength = message.Length;
 
 				_writeToolOutput(message);
-				if (logLines != null)
+				if (logLines != null && action.bShouldOutputLog)
 				{
 					foreach (string Line in logLines.Skip(action.bShouldOutputStatusDescription ? 0 : 1))
 					{
 						// suppress library creation messages when writing compact output
-						if (CompactOutput && Line.StartsWith("   Creating library ") && Line.EndsWith(".exp"))
+						if (CompactOutput && Line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && Line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase))
 						{
 							continue;
 						}
@@ -1209,7 +1297,7 @@ namespace UnrealBuildTool
 			}
 
 			IEnumerable<int> CompletedActions = Enumerable.Range(0, Actions.Length)
-				.Where(x => Actions[x].Results != null && Actions[x].Results!.ExecutionTime > TimeSpan.Zero)
+				.Where(x => Actions[x].Results != null && Actions[x].Results!.ExecutionTime > TimeSpan.Zero && Actions[x].Results!.ExitCode != Int32.MaxValue)
 				.OrderByDescending(x => Actions[x].Results!.ExecutionTime)
 				.Take(20);
 
@@ -1320,6 +1408,13 @@ namespace UnrealBuildTool
 				}
 				Logger.LogInformation("Queue Counts: Queued = {Queued}, Running = {Running}, Finished = {Finished}, Error = {Error}", queued, running, finished, error);
 			}
+		}
+
+		private void CancelStalledActions()
+		{
+			GenerateStallReport();
+			Logger.LogInformation("Action stall terminate time exceeded, canceling remaining actions...");
+			CancellationTokenSource.Cancel();
 		}
 	}
 }

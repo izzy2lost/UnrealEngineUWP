@@ -24,5 +24,6 @@ public:
 		return Categories;
 	}
 	virtual TSharedPtr<SWidget> GetThumbnailOverlay(const FAssetData& InAssetData) const override { return nullptr; }
+	virtual bool GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const override { return false; }
 	// UAssetDefinition End
 };

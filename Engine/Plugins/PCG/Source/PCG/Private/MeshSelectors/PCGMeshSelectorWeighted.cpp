@@ -22,7 +22,8 @@ namespace PCGMeshSelectorWeighted
 		TArray<FPCGMeshInstanceList>& InstanceLists,
 		bool bUseMaterialOverrides,
 		const TArray<TSoftObjectPtr<UMaterialInterface>>& InMaterialOverrides,
-		bool bInReverseCulling)
+		bool bInReverseCulling,
+		const UPCGPointData* InPointData)
 	{
 		check(InstanceLists.Num() > 0);
 
@@ -42,6 +43,7 @@ namespace PCGMeshSelectorWeighted
 		FPCGMeshInstanceList& NewInstanceList = InstanceLists.Emplace_GetRef();
 		NewInstanceList.Descriptor = InstanceLists[0].Descriptor;
 		NewInstanceList.Descriptor.bReverseCulling = bInReverseCulling;
+		NewInstanceList.PointData = InPointData;
 
 		if (bUseMaterialOverrides)
 		{
@@ -143,7 +145,8 @@ bool UPCGMeshSelectorWeighted::SelectInstances(
 			}
 
 			TArray<FPCGMeshInstanceList>& PickEntry = MeshInstances.Emplace_GetRef();
-			PickEntry.Emplace_GetRef(Entry.Descriptor);
+			FPCGMeshInstanceList& MeshInstanceList = PickEntry.Emplace_GetRef(Entry.Descriptor);
+			MeshInstanceList.PointData = InPointData;
 
 			TotalWeight += Entry.Weight;
 			CumulativeWeights.Add(TotalWeight);
@@ -221,9 +224,9 @@ bool UPCGMeshSelectorWeighted::SelectInstances(
 			if(RandomPick < MeshInstances.Num())
 			{
 				const bool bNeedsReverseCulling = (Point.Transform.GetDeterminant() < 0);
-				FPCGMeshInstanceList& InstanceList = PCGMeshSelectorWeighted::GetInstanceList(MeshInstances[RandomPick], bUseAttributeMaterialOverrides, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bNeedsReverseCulling);
+				FPCGMeshInstanceList& InstanceList = PCGMeshSelectorWeighted::GetInstanceList(MeshInstances[RandomPick], bUseAttributeMaterialOverrides, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bNeedsReverseCulling, InPointData);
 				InstanceList.Instances.Emplace(Point.Transform);
-				InstanceList.InstancesMetadataEntry.Emplace(Point.MetadataEntry);
+				InstanceList.InstancesIndices.Emplace(CurrentPointIndex - 1); // - 1 because it is already incremented.
 
 				const TSoftObjectPtr<UStaticMesh>& Mesh = InstanceList.Descriptor.StaticMesh;
 
@@ -330,7 +333,7 @@ void UPCGMeshSelectorWeighted::PostEditChangeProperty(FPropertyChangedEvent& Pro
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FSoftISMComponentDescriptor, StaticMesh))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FPCGSoftISMComponentDescriptor, StaticMesh))
 	{
 		RefreshDisplayNames();
 	}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TraceInsightsModule.h"
+
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -12,31 +13,37 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
+
+// TraceAnalysis
 #include "Trace/StoreClient.h"
 #include "Trace/StoreService.h"
+
+// TraceServices
 #include "TraceServices/ITraceServicesModule.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/ITraceInsightsCoreModule.h"
+
+// TraceInsights
 #include "Insights/ContextSwitches/ContextSwitchesProfilerManager.h"
 #include "Insights/CookProfiler/CookProfilerManager.h"
 #include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
-#include "Insights/IUnrealInsightsModule.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 #include "Insights/Log.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/Tests/InsightsTestRunner.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/Widgets/SStartPageWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_LOG_CATEGORY(TraceInsights);
 
-LLM_DEFINE_TAG(Insights);
+namespace UE::Insights
+{
 
 IMPLEMENT_MODULE(FTraceInsightsModule, TraceInsights);
 
@@ -49,6 +56,8 @@ FString FTraceInsightsModule::UnrealInsightsLayoutIni;
 void FTraceInsightsModule::StartupModule()
 {
 	LLM_SCOPE_BYTAG(Insights);
+
+	ITraceInsightsCoreModule& TraceInsightsCoreModule = FModuleManager::LoadModuleChecked<ITraceInsightsCoreModule>("TraceInsightsCore");
 
 	ITraceServicesModule& TraceServicesModule = FModuleManager::LoadModuleChecked<ITraceServicesModule>("TraceServices");
 	TraceAnalysisService = TraceServicesModule.GetAnalysisService();
@@ -63,13 +72,13 @@ void FTraceInsightsModule::StartupModule()
 	RegisterComponent(FInsightsManager::CreateInstance(TraceAnalysisService.ToSharedRef(), TraceModuleService.ToSharedRef()));
 
 	// Register other default components.
-	RegisterComponent(FTimingProfilerManager::CreateInstance());
-	RegisterComponent(FLoadingProfilerManager::CreateInstance());
-	RegisterComponent(FNetworkingProfilerManager::CreateInstance());
-	RegisterComponent(FMemoryProfilerManager::CreateInstance());
-	RegisterComponent(Insights::FTaskGraphProfilerManager::CreateInstance());
-	RegisterComponent(Insights::FContextSwitchesProfilerManager::CreateInstance());
-	RegisterComponent(Insights::FCookProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::TimingProfiler::FTimingProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::LoadingProfiler::FLoadingProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::NetworkingProfiler::FNetworkingProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::MemoryProfiler::FMemoryProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::TaskGraphProfiler::FTaskGraphProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::ContextSwitches::FContextSwitchesProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::CookProfiler::FCookProfilerManager::CreateInstance());
 	RegisterComponent(Insights::FTableImportTool::CreateInstance());
 
 #if !WITH_EDITOR
@@ -106,10 +115,10 @@ void FTraceInsightsModule::ShutdownModule()
 #define INSIGHTS_CHECK_SHARED_REFERENCES 1
 #if INSIGHTS_CHECK_SHARED_REFERENCES
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
-	auto TimingInsightsWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	auto AssetLoadingInsightsWindow = FLoadingProfilerManager::Get()->GetProfilerWindow();
-	auto NetworkingInsightsWindow0 = FNetworkingProfilerManager::Get()->GetProfilerWindow(0);
-	auto MemoryInsightsWindow = FMemoryProfilerManager::Get()->GetProfilerWindow();
+	auto TimingInsightsWindow = UE::Insights::TimingProfiler::FTimingProfilerManager::Get()->GetProfilerWindow();
+	auto AssetLoadingInsightsWindow = UE::Insights::LoadingProfiler::FLoadingProfilerManager::Get()->GetProfilerWindow();
+	auto NetworkingInsightsWindow0 = UE::Insights::NetworkingProfiler::FNetworkingProfilerManager::Get()->GetProfilerWindow(0);
+	auto MemoryInsightsWindow = UE::Insights::MemoryProfiler::FMemoryProfilerManager::Get()->GetProfilerWindow();
 #endif
 
 	// Unregister components. Shutdown in the reverse order they were registered.
@@ -175,25 +184,16 @@ void FTraceInsightsModule::UnregisterComponent(TSharedPtr<IInsightsComponent> Co
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+TSharedPtr<::Insights::IInsightsManager> FTraceInsightsModule::GetInsightsManager()
+{
+	return FInsightsManager::Get();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FTraceInsightsModule::CreateDefaultStore()
 {
-#if WITH_TRACE_STORE
-	const FString StoreDir = FPaths::ProjectSavedDir() / TEXT("TraceSessions");
-
-	// Create the Store Service.
-	UE::Trace::FStoreService::FDesc StoreServiceDesc;
-	StoreServiceDesc.StoreDir = *StoreDir;
-	StoreServiceDesc.RecorderPort = 1981;
-	StoreServiceDesc.ThreadCount = 2;
-	StoreService.Reset(UE::Trace::FStoreService::Create(StoreServiceDesc));
-
-	if (StoreService.IsValid())
-	{
-		ConnectToStore(TEXT("127.0.0.1"), StoreService->GetPort());
-	}
-#else
 	ConnectToStore(TEXT("127.0.0.1"));
-#endif // WITH_TRACE_STORE
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -253,95 +253,6 @@ void FTraceInsightsModule::UnregisterTabSpawners()
 	for (int32 ComponentIndex = Components.Num() - 1; ComponentIndex >= 0; --ComponentIndex)
 	{
 		Components[ComponentIndex]->UnregisterMajorTabs();
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FTraceInsightsModule::CreateSessionBrowser(const FCreateSessionBrowserParams& Params)
-{
-	RegisterTabSpawners();
-
-	//////////////////////////////////////////////////
-	// Create the main window.
-
-	const bool bEmbedTitleAreaContent = false;
-
-	// Get desktop metrics. It also ensures the correct metrics will be used later in SWindow.
-	FDisplayMetrics DisplayMetrics;
-	FSlateApplication::Get().GetDisplayMetrics(DisplayMetrics);
-	const float DPIScaleFactor = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(
-		static_cast<float>(DisplayMetrics.PrimaryDisplayWorkAreaRect.Left),
-		static_cast<float>(DisplayMetrics.PrimaryDisplayWorkAreaRect.Top));
-
-	const FVector2D ClientSize(960.0f * DPIScaleFactor, 640.0f * DPIScaleFactor);
-
-	TSharedRef<SWindow> RootWindow = SNew(SWindow)
-		.Title(NSLOCTEXT("TraceInsightsModule", "UnrealInsightsBrowserAppName", "Unreal Insights Session Browser"))
-		.CreateTitleBar(!bEmbedTitleAreaContent)
-		.SupportsMaximize(true)
-		.SupportsMinimize(true)
-		.IsInitiallyMaximized(false)
-		.IsInitiallyMinimized(false)
-		.SizingRule(ESizingRule::UserSized)
-		.AutoCenter(EAutoCenter::PreferredWorkArea)
-		.ClientSize(ClientSize)
-		.AdjustInitialSizeAndPositionForDPIScale(false);
-
-	//RootWindow->GetTitleBar()->SetAllowMenuBar(true);
-
-	const bool bShowRootWindowImmediately = false;
-	FSlateApplication::Get().AddWindow(RootWindow, bShowRootWindowImmediately);
-
-	FGlobalTabmanager::Get()->SetRootWindow(RootWindow);
-	FGlobalTabmanager::Get()->SetAllowWindowMenuBar(true);
-
-	FSlateNotificationManager::Get().SetRootWindow(RootWindow);
-
-	//////////////////////////////////////////////////
-	// Setup the window's content.
-
-	TSharedRef<FTabManager::FLayout> DefaultLayout = FTabManager::NewLayout("TraceSessionBrowserLayout_v1.1");
-	DefaultLayout->AddArea
-	(
-		FTabManager::NewPrimaryArea()
-		->Split
-		(
-			FTabManager::NewStack()
-			->AddTab(FInsightsManagerTabs::TraceStoreTabId, ETabState::OpenedTab)
-			->AddTab(FInsightsManagerTabs::ConnectionTabId, ETabState::OpenedTab)
-			//->AddTab(FInsightsManagerTabs::LauncherTabId, ETabState::ClosedTab)
-			->SetForegroundTab(FInsightsManagerTabs::TraceStoreTabId)
-		)
-	);
-
-	AddAreaForWidgetReflector(DefaultLayout, Params.bAllowDebugTools);
-
-	// Load layout from ini file.
-	PersistentLayout = FLayoutSaveRestore::LoadFromConfig(UnrealInsightsLayoutIni, DefaultLayout);
-
-	// Restore application layout.
-	const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::Never;
-	TSharedPtr<SWidget> Content = FGlobalTabmanager::Get()->RestoreFrom(PersistentLayout.ToSharedRef(), RootWindow, bEmbedTitleAreaContent, OutputCanBeNullptr);
-	RootWindow->SetContent(Content.ToSharedRef());
-	RootWindow->GetOnWindowClosedEvent().AddRaw(this, &FTraceInsightsModule::OnWindowClosedEvent);
-
-	//////////////////////////////////////////////////
-	// Show the window.
-
-	RootWindow->ShowWindow();
-	const bool bForceWindowToFront = true;
-	RootWindow->BringToFront(bForceWindowToFront);
-
-	//////////////////////////////////////////////////
-	// Set up command line parameter forwarding.
-
-	TSharedPtr<class STraceStoreWindow> TraceStoreWnd = FInsightsManager::Get()->GetTraceStoreWindow();
-	if (TraceStoreWnd.IsValid())
-	{
-		TraceStoreWnd->SetEnableAutomaticTesting(Params.bInitializeTesting);
-		TraceStoreWnd->SetEnableDebugTools(Params.bAllowDebugTools);
-		TraceStoreWnd->SetStartProcessWithStompMalloc(Params.bStartProcessWithStompMalloc);
 	}
 }
 
@@ -503,7 +414,6 @@ void FTraceInsightsModule::UnregisterMajorTabConfig(const FName& InMajorTabId)
 	TabConfigs.Remove(InMajorTabId);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FOnRegisterMajorTabExtensions& FTraceInsightsModule::OnRegisterMajorTabExtension(const FName& InMajorTabId)
@@ -630,24 +540,6 @@ void FTraceInsightsModule::ScheduleCommand(const FString& InCmd)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTraceInsightsModule::RunAutomationTest(const FString& InCmd)
-{
-#if !UE_BUILD_SHIPPING && !WITH_EDITOR
-	FString ActualCmd = InCmd;
-	ActualCmd.TrimCharInline(TEXT('\"'), nullptr);
-	ActualCmd.TrimCharInline(TEXT('\''), nullptr);
-
-	if (ActualCmd.StartsWith(TEXT("Automation RunTests")))
-	{
-		FInsightsTestRunner::Get()->ScheduleCommand(ActualCmd);
-		FInsightsTestRunner::Get()->RunTests();
-		return;
-	}
-#endif
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 bool FTraceInsightsModule::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 {
 	for (TSharedRef<IInsightsComponent>& Component : Components)
@@ -680,3 +572,5 @@ void FTraceInsightsModule::HandleCodeAccessorOpenFileFailed(const FString& Filen
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

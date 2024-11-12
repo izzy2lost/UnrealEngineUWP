@@ -4,9 +4,14 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
+// TraceServices
 #include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +51,7 @@ typedef TWeakPtr<class FNetStatsCounterNode> FNetStatsCounterNodeWeak;
 /**
  * Class used to store information about a net stats counter node (used in SNetStatsCountersView).
  */
-class FNetStatsCounterNode : public Insights::FBaseTreeNode
+class FNetStatsCounterNode : public FBaseTreeNode
 {
 	INSIGHTS_DECLARE_RTTI(FNetStatsCounterNode, FBaseTreeNode)
 
@@ -111,3 +116,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

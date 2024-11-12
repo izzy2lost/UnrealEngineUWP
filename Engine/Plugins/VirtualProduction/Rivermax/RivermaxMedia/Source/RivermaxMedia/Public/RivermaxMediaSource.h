@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "TimeSynchronizableMediaSource.h"
+#include "CaptureCardMediaSource.h"
 
 #include "MediaIOCoreDefinitions.h"
 #include "RivermaxTypes.h"
@@ -24,41 +24,55 @@ enum class ERivermaxMediaSourcePixelFormat : uint8
 };
 
 /**
- * Player mode to be used.
+ * Player mode to be used. Deprecated in UE5.5
  */
 UENUM()
-enum class ERivermaxPlayerMode : uint8
+enum class ERivermaxPlayerMode_DEPRECATED : uint8
 {
 	Latest, // Uses latest sample available
-	Framelock // Uses incoming samples frame number to match with local engine frame number. Should be used with nDisplay
+	Framelock, // Uses incoming samples frame number to match with local engine frame number. Should be used with nDisplay
 };
 
 /**
  * Media source for Rivermax streams.
  */
 UCLASS(BlueprintType, hideCategories=(Platforms,Object), meta=(MediaIOCustomLayout="Rivermax", DisplayName = "NVIDIA Rivermax Source"))
-class RIVERMAXMEDIA_API URivermaxMediaSource : public UTimeSynchronizableMediaSource
+class RIVERMAXMEDIA_API URivermaxMediaSource : public UCaptureCardMediaSource
 {
 	GENERATED_BODY()
 
 public:
 
+	URivermaxMediaSource();
+
+public:
+
+#if WITH_EDITORONLY_DATA
 	/**
 	 * Player mode to be used.
 	 * Latest : Default mode. Will use latest available at render time. No alignment.
 	 * Framelock : Will match sample's frame number with engine frame number. Meant to be used for UE-UE contexts like for nDisplay
 	 *           : Will wait for an expected to arrive before moving with render
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
-	ERivermaxPlayerMode PlayerMode = ERivermaxPlayerMode::Latest;
+	UE_DEPRECATED(5.5, "This property has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Sample Evaluation Type and Framelock instead"))
+	ERivermaxPlayerMode_DEPRECATED PlayerMode_DEPRECATED = ERivermaxPlayerMode_DEPRECATED::Latest;
 
 	/** 
 	 * If true, when looking for the sample to render, the current frame number will be looked for.
 	 * If expected frame hasn't been received, waiting will occur.
 	 * If false, player will look for one frame behind
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player", meta = (EditCondition = "PlayerMode == ERivermaxPlayerMode::Framelock"))
-	bool bUseZeroLatency  = true;
+	UE_DEPRECATED(5.5, "This property has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Frame Delay under Synchronization category"))
+	bool bUseZeroLatency_DEPRECATED = true;
+
+
+	/** Whether the video input is in sRGB color space.If true, sRGBToLinear will be done on incoming pixels before writing to media texture */
+	UE_DEPRECATED(5.5, "This property has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Override Source Encoding instead"))
+	bool bIsSRGBInput_DEPRECATED = false;
+#endif
 
 	/** If false, use the default source buffer size. If true, a specific resolution will be used. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Media", meta = (InlineEditConditionToggle))
@@ -94,10 +108,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Options")
 	int32 Port = 50000;
 
-	/** Whether the video input is in sRGB color space.If true, sRGBToLinear will be done on incoming pixels before writing to media texture */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Video")
-	bool bIsSRGBInput = false;
-
 	/** Whether to use GPUDirect if available (Memcopy from NIC to GPU directly bypassing system memory) if available */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Video")
 	bool bUseGPUDirect = true;
@@ -109,6 +119,9 @@ public:
 	virtual FString GetMediaOption(const FName& Key, const FString& DefaultValue) const override;
 	virtual bool HasMediaOption(const FName& Key) const override;
 	//~ End IMediaOptions interface
+
+	virtual void PostLoad() override;
+	void Serialize(FArchive& Ar) override;
 
 public:
 	//~ Begin UMediaSource interface

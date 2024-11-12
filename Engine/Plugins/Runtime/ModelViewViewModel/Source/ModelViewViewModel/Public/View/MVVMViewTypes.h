@@ -24,7 +24,7 @@ struct FMVVMViewClass_FieldId
 
 public:
 	FMVVMViewClass_FieldId() = default;
-	FMVVMViewClass_FieldId(UE::FieldNotification::FFieldId InFieldId)
+	explicit FMVVMViewClass_FieldId(UE::FieldNotification::FFieldId InFieldId)
 	{
 		FieldName = InFieldId.GetName();
 		FieldIndex = InFieldId.GetIndex();
@@ -107,7 +107,7 @@ struct FMVVMViewClass_BindingKey
 
 public:
 	FMVVMViewClass_BindingKey() = default;
-	FMVVMViewClass_BindingKey(int32 InIndex)
+	explicit FMVVMViewClass_BindingKey(int32 InIndex)
 		: Index(InIndex)
 	{}
 	bool IsValid() const
@@ -142,7 +142,7 @@ struct FMVVMViewClass_EvaluateBindingKey
 
 public:
 	FMVVMViewClass_EvaluateBindingKey() = default;
-	FMVVMViewClass_EvaluateBindingKey(int32 InIndex)
+	explicit FMVVMViewClass_EvaluateBindingKey(int32 InIndex)
 		: Index(InIndex)
 	{}
 	bool IsValid() const
@@ -177,7 +177,7 @@ struct FMVVMViewClass_EventKey
 
 public:
 	FMVVMViewClass_EventKey() = default;
-	FMVVMViewClass_EventKey(int32 InIndex)
+	explicit FMVVMViewClass_EventKey(int32 InIndex)
 		: Index(InIndex)
 	{}
 	bool IsValid() const
@@ -199,6 +199,42 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "View")
 	int32 Index = INDEX_NONE;
 };
+
+/**
+ * Key that identify the FMVVMViewClass_Condition.
+ */
+USTRUCT()
+struct FMVVMViewClass_ConditionKey
+{
+	GENERATED_BODY()
+
+	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+
+public:
+	FMVVMViewClass_ConditionKey() = default;
+	explicit FMVVMViewClass_ConditionKey(int32 InIndex)
+		: Index(InIndex)
+	{}
+	bool IsValid() const
+	{
+		return Index != INDEX_NONE;
+	}
+
+	int32 GetIndex() const
+	{
+		return Index;
+	}
+
+	bool operator== (const FMVVMViewClass_ConditionKey& Other) const
+	{
+		return Index == Other.Index;
+	}
+
+private:
+	UPROPERTY(VisibleAnywhere, Category = "View")
+	int32 Index = INDEX_NONE;
+};
+
 
 /**
  * Key that identify the FMVVMView_Source.

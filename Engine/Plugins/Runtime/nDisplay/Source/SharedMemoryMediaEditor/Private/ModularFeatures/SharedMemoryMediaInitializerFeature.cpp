@@ -1,34 +1,58 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "ModularFeatures/SharedMemoryMediaInitializerFeature.h"
 
 #include "SharedMemoryMediaOutput.h"
 #include "SharedMemoryMediaSource.h"
 
 
-bool FSharedMemoryMediaInitializerFeature::IsMediaSubjectSupported(const UObject* MediaSubject)
+bool FSharedMemoryMediaInitializerFeature::IsMediaObjectSupported(const UObject* MediaObject)
 {
-	if (MediaSubject)
+	if (MediaObject)
 	{
-		return MediaSubject->IsA<USharedMemoryMediaSource>() || MediaSubject->IsA<USharedMemoryMediaOutput>();
+		return MediaObject->IsA<USharedMemoryMediaSource>() || MediaObject->IsA<USharedMemoryMediaOutput>();
 	}
 
 	return false;
 }
 
-static constexpr const TCHAR* GetMediaPrefix(const IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType OwnerType)
+bool FSharedMemoryMediaInitializerFeature::AreMediaObjectsCompatible(const UObject* MediaSource, const UObject* MediaOutput)
+{
+	if (MediaSource && MediaOutput)
+	{
+		return MediaSource->IsA<USharedMemoryMediaSource>() && MediaOutput->IsA<USharedMemoryMediaOutput>();
+	}
+
+	return false;
+}
+
+bool FSharedMemoryMediaInitializerFeature::GetSupportedMediaPropagationTypes(const UObject* MediaSource, const UObject* MediaOutput, EMediaStreamPropagationType& OutPropagationTypes)
+{
+	if (!IsMediaObjectSupported(MediaSource) ||
+		!IsMediaObjectSupported(MediaOutput) ||
+		!AreMediaObjectsCompatible(MediaSource, MediaOutput))
+	{
+		return false;
+	}
+
+	OutPropagationTypes =
+		EMediaStreamPropagationType::LocalUnicast |
+		EMediaStreamPropagationType::LocalMulticast;
+
+	return true;
+}
+
+static constexpr const TCHAR* GetMediaPrefix(const FMediaObjectOwnerInfo::EMediaObjectOwnerType OwnerType)
 {
 	switch (OwnerType)
 	{
-	case IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::ICVFXCamera:
+	case FMediaObjectOwnerInfo::EMediaObjectOwnerType::ICVFXCamera:
 		return TEXT("icam");
 
-	case IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Viewport:
+	case FMediaObjectOwnerInfo::EMediaObjectOwnerType::Viewport:
 		return TEXT("vp");
 
-	case IDisplayClusterModularFeatureMediaInitializer::FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Backbuffer:
+	case FMediaObjectOwnerInfo::EMediaObjectOwnerType::Backbuffer:
 		return TEXT("node");
 
 	default:
@@ -36,17 +60,17 @@ static constexpr const TCHAR* GetMediaPrefix(const IDisplayClusterModularFeature
 	}
 }
 
-void FSharedMemoryMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos)
+void FSharedMemoryMediaInitializerFeature::InitializeMediaObjectForTile(UObject* MediaObject, const FMediaObjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos)
 {
 	const FString UniqueName = FString::Printf(TEXT("%s@%s_tile_%d:%d"), GetMediaPrefix(OnwerInfo.OwnerType), *OnwerInfo.OwnerName, TilePos.X, TilePos.Y);
 
-	if (USharedMemoryMediaSource* SMMediaSource = Cast<USharedMemoryMediaSource>(MediaSubject))
+	if (USharedMemoryMediaSource* SMMediaSource = Cast<USharedMemoryMediaSource>(MediaObject))
 	{
 		SMMediaSource->UniqueName   = UniqueName;
 		SMMediaSource->bZeroLatency = true;
 		SMMediaSource->Mode         = ESharedMemoryMediaSourceMode::Framelocked;
 	}
-	else if (USharedMemoryMediaOutput* SMMediaOutput = Cast<USharedMemoryMediaOutput>(MediaSubject))
+	else if (USharedMemoryMediaOutput* SMMediaOutput = Cast<USharedMemoryMediaOutput>(MediaObject))
 	{
 		SMMediaOutput->UniqueName   = UniqueName;
 		SMMediaOutput->bInvertAlpha = true;
@@ -55,17 +79,17 @@ void FSharedMemoryMediaInitializerFeature::InitializeMediaSubjectForTile(UObject
 	}
 }
 
-void FSharedMemoryMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo)
+void FSharedMemoryMediaInitializerFeature::InitializeMediaObjectForFullFrame(UObject* MediaObject, const FMediaObjectOwnerInfo& OnwerInfo)
 {
 	const FString UniqueName = FString::Printf(TEXT("%s@%s"), GetMediaPrefix(OnwerInfo.OwnerType), *OnwerInfo.OwnerName);
 
-	if (USharedMemoryMediaSource* SMMediaSource = Cast<USharedMemoryMediaSource>(MediaSubject))
+	if (USharedMemoryMediaSource* SMMediaSource = Cast<USharedMemoryMediaSource>(MediaObject))
 	{
 		SMMediaSource->UniqueName   = UniqueName;
 		SMMediaSource->bZeroLatency = true;
 		SMMediaSource->Mode         = ESharedMemoryMediaSourceMode::Framelocked;
 	}
-	else if (USharedMemoryMediaOutput* SMMediaOutput = Cast<USharedMemoryMediaOutput>(MediaSubject))
+	else if (USharedMemoryMediaOutput* SMMediaOutput = Cast<USharedMemoryMediaOutput>(MediaObject))
 	{
 		SMMediaOutput->UniqueName   = UniqueName;
 		SMMediaOutput->bInvertAlpha = true;

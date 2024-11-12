@@ -47,6 +47,9 @@
 #include "UnrealEdMisc.h"
 #include "Editor/UnrealEdEngine.h"
 #include "TextureResource.h"
+#include "EditorModeManager.h"
+#include "Components/PrimitiveComponent.h"
+#include "SequencerSelectabilityTool.h"
 
 const FEditorModeID FSequencerEdMode::EM_SequencerMode(TEXT("EM_SequencerMode"));
 
@@ -155,10 +158,13 @@ struct FTrackTransforms
 
 FSequencerEdMode::FSequencerEdMode()
 {
-	FSequencerEdModeTool* SequencerEdModeTool = new FSequencerEdModeTool(this);
+	DefaultTool = MakeShared<FSequencerEdModeTool>(this);
+	SelectabilityTool = MakeShared<FSequencerSelectabilityTool>(FOnGetWorld::CreateRaw(this, &FSequencerEdMode::GetWorld)
+		, FOnIsObjectSelectableInViewport::CreateRaw(this, &FSequencerEdMode::IsObjectSelectableInViewport));
 
-	Tools.Add( SequencerEdModeTool );
-	SetCurrentTool( SequencerEdModeTool );
+	Tools.Add(DefaultTool.Get());
+	Tools.Add(SelectabilityTool.Get());
+	SetCurrentTool(DefaultTool.Get());
 
 	bDrawMeshTrails = CVarDrawMeshTrails->GetBool();
 	CVarDrawMeshTrails.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateLambda([this](IConsoleVariable* Var) 
@@ -199,30 +205,23 @@ bool FSequencerEdMode::IsCompatibleWith(FEditorModeID OtherModeID) const
 
 bool FSequencerEdMode::InputKey( FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event )
 {
-	TSharedPtr<ISequencer> ActiveSequencer;
-
-	for (TWeakPtr<ISequencer> WeakSequencer : Sequencers)
+	if (Event != IE_Released)
 	{
-		ActiveSequencer = WeakSequencer.Pin();
-		if (ActiveSequencer.IsValid())
+		if (const TSharedPtr<ISequencer> ActiveSequencer = GetFirstActiveSequencer())
 		{
-			break;
+			FModifierKeysState KeyState = FSlateApplication::Get().GetModifierKeys();
+
+			if (ActiveSequencer->GetCommandBindings(ESequencerCommandBindings::Shared).Get()->ProcessCommandBindings(Key, KeyState, (Event == IE_Repeat) ))
+			{
+				return true;
+			}
+			if (IsPressingMoveTimeSlider(Viewport)) //this is needed to make sure we get all of the processed mouse events, for some reason the above may not return true
+			{
+				return true;
+			}
 		}
 	}
 
-	if (ActiveSequencer.IsValid() && Event != IE_Released)
-	{
-		FModifierKeysState KeyState = FSlateApplication::Get().GetModifierKeys();
-
- 		if (ActiveSequencer->GetCommandBindings(ESequencerCommandBindings::Shared).Get()->ProcessCommandBindings(Key, KeyState, (Event == IE_Repeat) ))
-		{
-			return true;
-		}
-		if (IsPressingMoveTimeSlider(Viewport)) //this is needed to make sure we get all of the processed mouse events, for some reason the above may not return true
-		{
-			return true;
-		}
-	}
 	return FEdMode::InputKey(ViewportClient, Viewport, Key, Event);
 }
 
@@ -247,14 +246,9 @@ bool FSequencerEdMode::IsPressingMoveTimeSlider(FViewport* InViewport) const
 //just get the first one.
 USequencerSettings* FSequencerEdMode:: GetSequencerSettings() const
 {
-	TSharedPtr<FSequencer> ActiveSequencer;
-	for (TWeakPtr<FSequencer> WeakSequencer : Sequencers)
+	if (const TSharedPtr<ISequencer> ActiveSequencer = GetFirstActiveSequencer())
 	{
-		ActiveSequencer = WeakSequencer.Pin();
-		if (ActiveSequencer.IsValid())
-		{
-			return ActiveSequencer->GetSequencerSettings();
-		}
+		return ActiveSequencer->GetSequencerSettings();
 	}
 	return nullptr;
 }
@@ -275,9 +269,21 @@ bool FSequencerEdMode::IsDoingDrag(FViewport* InViewport) const
 	const bool bIsAltKeyDown = InViewport->KeyState(EKeys::LeftAlt) || InViewport->KeyState(EKeys::RightAlt);
 	EAxisList::Type CurrentAxis = GetCurrentWidgetAxis();
 
-	//if shfit is down we still want to drag
+	//if shift is down we still want to drag
 
 	return LeftMouseButtonDown && (CurrentAxis == EAxisList::None) && !bIsCtrlKeyDown  && !bIsAltKeyDown && (SequencerSettings ? SequencerSettings->GetLeftMouseDragDoesMarquee() : false);
+}
+
+TSharedPtr<ISequencer> FSequencerEdMode::GetFirstActiveSequencer() const
+{
+	for (const TWeakPtr<ISequencer> SequencerWeak : Sequencers)
+	{
+		if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+		{
+			return Sequencer;
+		}
+	}
+	return nullptr;
 }
 
 bool FSequencerEdMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
@@ -370,15 +376,7 @@ bool FSequencerEdMode::InputDelta(FEditorViewportClient* InViewportClient, FView
 
 bool FSequencerEdMode::ProcessCapturedMouseMoves(FEditorViewportClient* InViewportClient, FViewport* InViewport, const TArrayView<FIntPoint>& CapturedMouseMoves)
 {
-	TSharedPtr<FSequencer> ActiveSequencer;
-	for (TWeakPtr<FSequencer> WeakSequencer : Sequencers)
-	{
-		ActiveSequencer = WeakSequencer.Pin();
-		if (ActiveSequencer.IsValid())
-		{
-			break;
-		}
-	}
+	const TSharedPtr<ISequencer> ActiveSequencer = GetFirstActiveSequencer();
 	const bool bTimeChange = IsPressingMoveTimeSlider(InViewport);
 	if (CapturedMouseMoves.Num() > 0)
 	{
@@ -455,12 +453,56 @@ bool FSequencerEdMode::ProcessCapturedMouseMoves(FEditorViewportClient* InViewpo
 	return false;
 }
 
-//Currently this is handled by the processed mouse events above, but don't fully trust ed modes this so leaving around for now
-bool FSequencerEdMode::MouseMove(FEditorViewportClient* ViewportClient, FViewport* InViewport, int32 X, int32 Y)
+bool FSequencerEdMode::HandleClick(FEditorViewportClient* InViewportClient, HHitProxy *InHitProxy, const FViewportClick &InClick)
 {
-	return false;
+	if (SelectabilityTool->IsSelectionLimited())
+	{
+		return SelectabilityTool->HandleClick(InViewportClient, InHitProxy, InClick);
+	}
+
+	return FEdMode::HandleClick(InViewportClient, InHitProxy, InClick);
 }
 
+bool FSequencerEdMode::BoxSelect(FBox& InBox, bool InSelect)
+{
+	if (SelectabilityTool->IsSelectionLimited())
+	{
+		return SelectabilityTool->BoxSelect(InBox, InSelect);
+	}
+
+	return FEdMode::BoxSelect(InBox, InSelect);
+}
+
+bool FSequencerEdMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorViewportClient* InViewportClient, bool InSelect)
+{
+	if (SelectabilityTool->IsSelectionLimited())
+	{
+		return SelectabilityTool->FrustumSelect(InFrustum, InViewportClient, InSelect);
+	}
+
+	return FEdMode::FrustumSelect(InFrustum, InViewportClient, InSelect);
+}
+
+bool FSequencerEdMode::GetCursor(EMouseCursor::Type& OutCursor) const
+{
+	if (SelectabilityTool->GetCursorForHovered(OutCursor))
+	{
+		return true;
+	}
+
+	return FEdMode::GetCursor(OutCursor);
+}
+
+bool FSequencerEdMode::MouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InX, int32 InY)
+{
+	if (InViewportClient && InViewportClient->Viewport && SelectabilityTool->IsSelectionLimited())
+	{
+		HHitProxy* const HitResult = InViewportClient->Viewport->GetHitProxy(InX, InY);
+		SelectabilityTool->UpdateHoverFromHitProxy(HitResult);
+	}
+
+	return FEdMode::MouseMove(InViewportClient, InViewport, InX, InY);
+}
 
 void FSequencerEdMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 {
@@ -488,7 +530,7 @@ void FSequencerEdMode::Render(const FSceneView* View, FViewport* Viewport, FPrim
 #endif
 }
 
-void FSequencerEdMode::DrawHUD(FEditorViewportClient* ViewportClient,FViewport* Viewport,const FSceneView* View,FCanvas* Canvas)
+void FSequencerEdMode::DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
 {
 	FEdMode::DrawHUD(ViewportClient,Viewport,View,Canvas);
 
@@ -505,6 +547,11 @@ void FSequencerEdMode::DrawHUD(FEditorViewportClient* ViewportClient,FViewport* 
 		FVector2D MaxPos(1.f, .9f);
 		FIntRect SubtitleRegion(FMath::TruncToInt(SizeX * MinPos.X), FMath::TruncToInt(SizeY * MinPos.Y), FMath::TruncToInt(SizeX * MaxPos.X), FMath::TruncToInt(SizeY * MaxPos.Y));
 		FSubtitleManager::GetSubtitleManager()->DisplaySubtitles( Canvas, SubtitleRegion, ViewportClient->GetWorld()->GetAudioTimeSeconds() );
+	}
+
+	if (SelectabilityTool->IsSelectionLimited())
+	{
+		SelectabilityTool->DrawHUD(ViewportClient, Viewport, View, Canvas);
 	}
 }
 
@@ -965,6 +1012,28 @@ void FSequencerEdMode::DrawAudioTracks(FPrimitiveDrawInterface* PDI)
 		}
 	}
 }
+
+bool FSequencerEdMode::IsViewportSelectionLimited() const
+{
+	return SelectabilityTool.IsValid() && SelectabilityTool->IsSelectionLimited();
+}
+
+void FSequencerEdMode::EnableSelectabilityTool(const bool bInEnabled)
+{
+	SelectabilityTool->EnableLimitedSelection(bInEnabled);
+
+	SetCurrentTool(bInEnabled ? SelectabilityTool->GetID() : DefaultTool->GetID());
+}
+
+bool FSequencerEdMode::IsObjectSelectableInViewport(UObject* const InObject) const
+{
+	if (const TSharedPtr<ISequencer> Sequencer = GetFirstActiveSequencer())
+	{
+		return Sequencer->IsObjectSelectableInViewport(InObject);
+	}
+	return true;
+}
+
 
 FSequencerEdModeTool::FSequencerEdModeTool(FSequencerEdMode* InSequencerEdMode) :
 	SequencerEdMode(InSequencerEdMode)

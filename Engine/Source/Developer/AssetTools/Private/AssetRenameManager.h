@@ -58,12 +58,18 @@ public:
 	/** Filters packages list depending on if it actually has soft object paths pointing to the specific object being renamed */
 	bool CheckPackageForSoftObjectReferences(UPackage* Package, const TMap<FSoftObjectPath, FSoftObjectPath>& AssetRedirectorMap, TMap<FSoftObjectPath, TArray<UObject*>>& OutReferencingObjects) const;
 
+	/** If this returns false, then ExpandAssetsRenameDataWithTheirVariants would just return a copy of its input */
+	bool CanExpandAssetsRenameDataWithTheirVariants(const TArray<FAssetRenameData>& InAssetsAndNames) const;
+
 private:
-	/** Callback used by DiscoverintAssetsDialog to call FixrefrencesAndRename */
-	void FixReferencesAndRenameCallback(TArray<FAssetRenameData> AssetsAndNames, bool bAutoCheckout, bool bWithDialog) const;
+	/** Callback used by DiscoverintAssetsDialog to call RenameAssetsAndVariants */
+	void RenameAssetsAndVariantsCallback(TArray<FAssetRenameData> InAssetsRenameData, bool bAutoCheckout, bool bWithDialog) const;
+
+	/** Check if renaming these assets should also rename localized variants assets (or source asset) */
+	bool RenameAssetsAndVariants(const TArray<FAssetRenameData>& InAssetsRenameData, bool bAutoCheckout, bool bWithDialog) const;
 
 	/** Attempts to load and fix redirector references for the supplied assets */
-	bool FixReferencesAndRename(const TArray<FAssetRenameData>& AssetsAndNames, bool bAutoCheckout, bool bWithDialog) const;
+	bool FixReferencesAndRename(const TArray<FAssetRenameData>& AssetsAndNames, bool bAutoCheckout, bool bWithDialog, FScopedSlowTask& RenamingSlowTask) const;
 
 	/**
 	 * Get lists of assets with references from CDOs
@@ -78,7 +84,7 @@ private:
 	void PopulateAssetReferencers(TArray<FAssetRenameDataWithReferencers>& AssetsToPopulate) const;
 
 	/** Updates the source control status of the packages containing the assets to rename */
-	bool UpdatePackageStatus(const TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const;
+	bool UpdatePackageStatus(TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const;
 
 	/**
 	 * Loads all referencing packages to assets in AssetsToRename, finds assets whose references can
@@ -115,16 +121,22 @@ private:
 	void SetupPublicAssets(TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const;
 
 	/** Performs the asset rename after the user has selected to proceed */
-	void PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const;
+	void PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, FScopedSlowTask& RenamingSlowTask) const;
 
 	/** Performs the asset rename after the user has selected to proceed, also saving the provided referencing packages at the same time */
-	void PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, const TArray<UPackage*>& ReferencingPackagesToSave) const;
+	void PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, const TArray<UPackage*>& ReferencingPackagesToSave, FScopedSlowTask& RenamingSlowTask) const;
 
 	/** Saves all the referencing packages and updates SCC state */
 	void SaveReferencingPackages(const TArray<UPackage*>& ReferencingPackagesToSave) const;
 
+	/** Prematurely interrupt the rename process for the given reason */
+	void RenameInterrupted(const TArray<FAssetRenameData>& AssetsToRename, const FText& InterruptionReason, bool bWithDialog) const;
+
 	/** Report any failures that may have happened during the rename. Return the number of failures */
 	int32 ReportFailures(const TArray<FAssetRenameDataWithReferencers>& AssetsToRename, bool bWithDialog) const;
+
+	/** Internal check to know if we should look for localized variants */
+	bool RequiresCheckingForVariants(const TArray<FAssetRenameData>& InAssetsToRename, TArray<FAssetRenameData>& OutAssetsAndVariants, TArray<FAssetRenameData>& OutAssetsToCheckForVariants) const;
 
 	/** Called when a package is dirtied, clears the cache */
 	void OnMarkPackageDirty(UPackage* Pkg, bool bWasDirty);

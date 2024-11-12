@@ -28,3 +28,11 @@ FString USequencerViewModelStructExtensions::GetLabel(const FSequencerViewModelS
 	TViewModelPtr<IOutlinerExtension> Outliner = ViewModel.WeakViewModel.ImplicitPin();
 	return Outliner ? Outliner->GetLabel().ToString() : FString();
 }
+
+FString USequencerViewModelStructExtensions::GetPath(const FSequencerViewModelScriptingStruct& ViewModel)
+{
+	using namespace UE::Sequencer;
+
+	TViewModelPtr<IOutlinerExtension> Outliner = ViewModel.WeakViewModel.ImplicitPin();
+	return Outliner ? Outliner->GetPathName(Outliner.AsModel()) : FString();
+}

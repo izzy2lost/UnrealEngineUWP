@@ -87,6 +87,7 @@ public class ModifyStageContext
 	public bool bStageUAT = false;
 	public bool bIsForExternalDistribution = false;
 	public bool bStagePython = false;
+	public bool bStageTargetFiles = false;
 
 	public ConfigHelper ConfigHelper;
 
@@ -1006,8 +1007,11 @@ public class MakeCookedEditor : BuildCommand
 		// we already cooked assets, so remove assets we may have found, except for the Uncook ones
 		Context.UFSFilesToStage.RemoveAll(x => x.GetExtension() == ".uasset");
 
-		// don't need the .target files
-		Context.NonUFSFilesToStage.RemoveAll(x => x.GetExtension() == ".target");
+		if (!Context.bStageTargetFiles)
+		{
+			// don't need the .target files
+			Context.NonUFSFilesToStage.RemoveAll(x => x.GetExtension() == ".target");
+		}
 
 		if (!Context.bStageShaderDirs)
 		{
@@ -1036,17 +1040,9 @@ public class MakeCookedEditor : BuildCommand
 		return CommandUtils.CombinePaths(ProjectFile.Directory.FullName, "Releases", ReleaseVersionName, ReleaseTargetName);
 	}
 
-	private ProjectParams GetParams()
+	protected virtual ProjectParams MakeParams(string DLCName, string BasedOnReleaseVersion)
 	{
-		// setup DLC defaults, then ask project if it should 
-		string DLCName;
-		string BasedOnReleaseVersion;
-		TargetType ReleaseType;
-		SetupDLCMode(ProjectFile, out DLCName, out BasedOnReleaseVersion, out ReleaseType);
-		bool bIsDLC = DLCName != null;
-
-		var Params = new ProjectParams
-		(
+		return new ProjectParams(
 			Command: this
 			, RawProjectPath: ProjectFile
 
@@ -1056,8 +1052,19 @@ public class MakeCookedEditor : BuildCommand
 			, DedicatedServer: bIsCookedCooker
 			, NoClient: bIsCookedCooker
 			, OptionalContent: true
-
 		);
+	}
+
+	private ProjectParams GetParams()
+	{
+		// setup DLC defaults, then ask project if it should 
+		string DLCName;
+		string BasedOnReleaseVersion;
+		TargetType ReleaseType;
+		SetupDLCMode(ProjectFile, out DLCName, out BasedOnReleaseVersion, out ReleaseType);
+		bool bIsDLC = DLCName != null;
+
+		ProjectParams Params = MakeParams(DLCName, BasedOnReleaseVersion);
 
 		// cook the cooked editor targetplatorm as the "client"
 		//Params.ClientCookedTargets.Add("CrashReportClientEditor");

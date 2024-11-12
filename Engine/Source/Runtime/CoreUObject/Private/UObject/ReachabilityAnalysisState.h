@@ -187,7 +187,7 @@ struct TDefaultPayloadOps
 
 	inline static void Append(const PayloadType& InSource, PayloadType& OutDest)
 	{
-		OutDest += InSource;
+		OutDest.Append(InSource);
 	}
 };
 

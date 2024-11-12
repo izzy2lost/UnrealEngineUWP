@@ -100,7 +100,7 @@ static void ConvertRawDataToFColor(VkFormat VulkanFormat, uint32 DestWidth, uint
 		break;
 
 	case VK_FORMAT_R16G16B16A16_UNORM:
-		ConvertRawR16G16B16A16DataToFColor(DestWidth, DestHeight, In, SrcPitch, Dest);
+		ConvertRawR16G16B16A16DataToFColor(DestWidth, DestHeight, In, SrcPitch, Dest, bLinearToGamma);
 		break;
 
 	case VK_FORMAT_B8G8R8A8_UNORM:
@@ -166,7 +166,7 @@ void FVulkanDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rec
 	Device->PrepareForCPURead();
 
 	// Figure out the size of the buffer required to hold the requested pixels
-	const uint32 PixelByteSize = GetNumBitsPerPixel(Surface.StorageFormat) / 8;
+	const uint32 PixelByteSize = VulkanRHI::GetNumBitsPerPixel(Surface.StorageFormat) / 8;
 	checkf(GPixelFormats[TextureRHI->GetFormat()].Supported && (PixelByteSize > 0), TEXT("Trying to read from unsupported format."));
 	const uint32 BufferSize = NumRequestedPixels * PixelByteSize;
 
@@ -522,18 +522,6 @@ void FVulkanDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI, FIntR
 	Device->GetImmediateContext().GetCommandBufferManager()->PrepareForNewActiveCommandBuffer();
 }
 
-VkSurfaceTransformFlagBitsKHR FVulkanCommandListContext::GetSwapchainQCOMRenderPassTransform() const
-{
-	TArray<FVulkanViewport*>& viewports = RHI->GetViewports();
-	if (viewports.Num() == 0)
-	{
-		return VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	}
-
-	// check(viewports.Num() == 1);
-	return viewports[0]->GetSwapchainQCOMRenderPassTransform();
-}
-
 VkFormat FVulkanCommandListContext::GetSwapchainImageFormat() const
 {
 	TArray<FVulkanViewport*>& viewports = RHI->GetViewports();
@@ -595,7 +583,7 @@ void FVulkanCommandListContext::RHIBeginRenderPass(const FRHIRenderPassInfo& InI
 	}
 
 	RenderPassInfo = InInfo;
-	RHIPushEvent(InName ? InName : TEXT("<unnamed RenderPass>"), FColor::Green);
+
 	if (InInfo.NumOcclusionQueries > 0)
 	{
 		BeginOcclusionQueryBatch(CmdBuffer, InInfo.NumOcclusionQueries);
@@ -708,8 +696,6 @@ void FVulkanCommandListContext::RHIEndRenderPass()
 	check(CurrentRenderPass);
 	CurrentRenderPass = nullptr;
 
-	RHIPopEvent();
-
 	// Sync point for passes with occlusion queries
 	if (bHasOcclusionQueries && GSubmitOcclusionBatchCmdBufferCVar.GetValueOnAnyThread())
 	{
@@ -738,7 +724,6 @@ struct FRenderPassCompatibleHashableStruct
 	uint8							MultiViewCount;
 	uint8							NumSamples;
 	uint8							SubpassHint;
-	VkSurfaceTransformFlagBitsKHR	QCOMRenderPassTransform;
 	// +1 for Depth, +1 for Stencil, +1 for Fragment Density
 	VkFormat						Formats[MaxSimultaneousRenderTargets + 3];
 	uint16							AttachmentsToResolve;
@@ -783,6 +768,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	, NumColorAttachments(0)
 	, bHasDepthStencil(false)
 	, bHasResolveAttachments(false)
+	, bHasDepthStencilResolve(false)
 	, bHasFragmentDensityAttachment(false)
 	, NumSamples(0)
 	, NumUsedClearValues(0)
@@ -803,11 +789,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 			FVulkanTexture* Texture = ResourceCast(RTView.Texture);
 			check(Texture);
 			const FRHITextureDesc& TextureDesc = Texture->GetDesc();
-
-			if (InDevice.GetImmediateContext().IsSwapchainImage(RTView.Texture))
-			{
-				QCOMRenderPassTransform = InDevice.GetImmediateContext().GetSwapchainQCOMRenderPassTransform();
-			}
 
 			if (bSetExtent)
 			{
@@ -889,24 +870,15 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		CurrDesc.loadOp = RenderTargetLoadActionToVulkan(RTInfo.DepthStencilRenderTarget.DepthLoadAction);
 		CurrDesc.stencilLoadOp = RenderTargetLoadActionToVulkan(RTInfo.DepthStencilRenderTarget.StencilLoadAction);
 		bFoundClearOp = bFoundClearOp || (CurrDesc.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR || CurrDesc.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_CLEAR);
-		if (CurrDesc.samples == VK_SAMPLE_COUNT_1_BIT)
-		{
-			CurrDesc.storeOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.DepthStoreAction);
-			CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.GetStencilStoreAction());
+		CurrDesc.storeOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.DepthStoreAction);
+		CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(RTInfo.DepthStencilRenderTarget.GetStencilStoreAction());
 
-			// Removed this temporarily as we need a way to determine if the target is actually memoryless
-			/*if (EnumHasAllFlags(Texture->UEFlags, TexCreate_Memoryless))
-			{
-				ensure(CurrDesc.storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
-				ensure(CurrDesc.stencilStoreOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
-			}*/
-		}
-		else
+		// Removed this temporarily as we need a way to determine if the target is actually memoryless
+		/*if (EnumHasAllFlags(Texture->UEFlags, TexCreate_Memoryless))
 		{
-			// Never want to store MSAA depth/stencil
-			CurrDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			CurrDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		}
+			ensure(CurrDesc.storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
+			ensure(CurrDesc.stencilStoreOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
+		}*/
 
 		const VkImageLayout DepthLayout = RTInfo.DepthStencilRenderTarget.GetDepthStencilAccess().IsDepthWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
 		const VkImageLayout StencilLayout = RTInfo.DepthStencilRenderTarget.GetDepthStencilAccess().IsStencilWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
@@ -920,6 +892,25 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		DepthReference.attachment = NumAttachmentDescriptions;
 		DepthReference.layout = DepthLayout;
 		StencilReference.stencilLayout = StencilLayout;
+
+		// Use depth/stencil resolve target only if we're MSAA
+		const bool bDepthStencilResolve = (RTInfo.DepthStencilRenderTarget.DepthStoreAction == ERenderTargetStoreAction::EMultisampleResolve) || (RTInfo.DepthStencilRenderTarget.GetStencilStoreAction() == ERenderTargetStoreAction::EMultisampleResolve);
+		if (GRHISupportsDepthStencilResolve && bDepthStencilResolve && CurrDesc.samples > VK_SAMPLE_COUNT_1_BIT && RTInfo.DepthStencilResolveRenderTarget.Texture)
+		{
+			Desc[NumAttachmentDescriptions + 1] = Desc[NumAttachmentDescriptions];
+			Desc[NumAttachmentDescriptions + 1].samples = VK_SAMPLE_COUNT_1_BIT;
+			Desc[NumAttachmentDescriptions + 1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			Desc[NumAttachmentDescriptions + 1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			DepthStencilResolveReference.attachment = NumAttachmentDescriptions + 1;
+			DepthStencilResolveReference.layout = DepthLayout;
+			// NumColorAttachments was incremented after the last color attachment
+			ensureMsgf(NumColorAttachments < 16, TEXT("Must have room for depth resolve bit"));
+			CompatibleHashInfo.AttachmentsToResolve |= (uint16)(1 << NumColorAttachments);
+			++NumAttachmentDescriptions;
+			bHasDepthStencilResolve = true;
+		}
 
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets] = CurrDesc.loadOp;
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilLoadOp;
@@ -948,7 +939,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		}
 	}
 
-	if (GRHISupportsAttachmentVariableRateShading && GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled && RTInfo.ShadingRateTexture)
+	if (GRHISupportsAttachmentVariableRateShading && RTInfo.ShadingRateTexture)
 	{
 		FVulkanTexture* Texture = ResourceCast(RTInfo.ShadingRateTexture);
 		check(Texture->GetFormat() == GRHIVariableRateShadingImageFormat);
@@ -983,8 +974,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	SubpassHint = ESubpassHint::None;
 	CompatibleHashInfo.SubpassHint = 0;
 
-	CompatibleHashInfo.QCOMRenderPassTransform = QCOMRenderPassTransform;
-
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;
 
@@ -1000,6 +989,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	, NumColorAttachments(0)
 	, bHasDepthStencil(false)
 	, bHasResolveAttachments(false)
+	, bHasDepthStencilResolve(false)
 	, bHasFragmentDensityAttachment(false)
 	, NumSamples(0)
 	, NumUsedClearValues(0)
@@ -1021,12 +1011,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		FVulkanTexture* Texture = ResourceCast(ColorEntry.RenderTarget);
 		check(Texture);
 		const FRHITextureDesc& TextureDesc = Texture->GetDesc();
-
-		if (InDevice.GetImmediateContext().IsSwapchainImage(ColorEntry.RenderTarget))
-		{
-			QCOMRenderPassTransform = InDevice.GetImmediateContext().GetSwapchainQCOMRenderPassTransform();
-		}
-		check(QCOMRenderPassTransform == VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR || NumAttachmentDescriptions == 0);
 
 		if (bSetExtent)
 		{
@@ -1094,7 +1078,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		++NumAttachmentDescriptions;
 		++NumColorAttachments;
 	}
-
+	bool bMultiViewDepthStencil = false;
 	if (RPInfo.DepthStencilRenderTarget.DepthStencilTarget)
 	{
 		VkAttachmentDescription& CurrDesc = Desc[NumAttachmentDescriptions];
@@ -1102,7 +1086,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		FVulkanTexture* Texture = ResourceCast(RPInfo.DepthStencilRenderTarget.DepthStencilTarget);
 		check(Texture);
 		const FRHITextureDesc& TextureDesc = Texture->GetDesc();
-
+		bMultiViewDepthStencil = (Texture->GetNumberOfArrayLevels() > 1) && !Texture->GetDesc().IsTextureCube();
 		CurrDesc.samples = static_cast<VkSampleCountFlagBits>(RPInfo.DepthStencilRenderTarget.DepthStencilTarget->GetNumSamples());
 		// CustomResolveSubpass can have targets with a different NumSamples
 		ensure(!NumSamples || CurrDesc.samples == NumSamples || RPInfo.SubpassHint == ESubpassHint::CustomResolveSubpass);
@@ -1111,12 +1095,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		CurrDesc.loadOp = RenderTargetLoadActionToVulkan(GetLoadAction(GetDepthActions(RPInfo.DepthStencilRenderTarget.Action)));
 		CurrDesc.stencilLoadOp = RenderTargetLoadActionToVulkan(GetLoadAction(GetStencilActions(RPInfo.DepthStencilRenderTarget.Action)));
 		bFoundClearOp = bFoundClearOp || (CurrDesc.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR || CurrDesc.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_CLEAR);
-		if (CurrDesc.samples != VK_SAMPLE_COUNT_1_BIT)
-		{
-			// Can't resolve MSAA depth/stencil
-			ensure(GetStoreAction(GetDepthActions(RPInfo.DepthStencilRenderTarget.Action)) != ERenderTargetStoreAction::EMultisampleResolve);
-			ensure(GetStoreAction(GetStencilActions(RPInfo.DepthStencilRenderTarget.Action)) != ERenderTargetStoreAction::EMultisampleResolve);
-		}
 
 		CurrDesc.storeOp = RenderTargetStoreActionToVulkan(GetStoreAction(GetDepthActions(RPInfo.DepthStencilRenderTarget.Action)));
 		CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(GetStoreAction(GetStencilActions(RPInfo.DepthStencilRenderTarget.Action)));
@@ -1147,11 +1125,27 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		// happen from UNDEFINED anyhow.
 		if (CurrentDepthLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 		{
+			// Unused image aspects with a LoadOp but undefined layout should just remain untouched
+			if (!RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil.IsUsingDepth() &&
+				InDevice.GetOptionalExtensions().HasEXTLoadStoreOpNone &&
+				(CurrDesc.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD))
+			{
+				CurrDesc.loadOp = VK_ATTACHMENT_LOAD_OP_NONE_KHR;
+			}
+
 			check(CurrDesc.storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
 			CurrDesc.finalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
 		}
 		if (CurrentStencilLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 		{
+			// Unused image aspects with a LoadOp but undefined layout should just remain untouched
+			if (!RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil.IsUsingStencil() &&
+				InDevice.GetOptionalExtensions().HasEXTLoadStoreOpNone &&
+				(CurrDesc.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD))
+			{
+				CurrDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_NONE_KHR;
+			}
+
 			check(CurrDesc.stencilStoreOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
 			StencilDesc.stencilFinalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
 		}
@@ -1160,7 +1154,22 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		DepthReference.layout = CurrentDepthLayout;
 		StencilReference.stencilLayout = CurrentStencilLayout;
 
-		++NumAttachmentDescriptions;
+		if (GRHISupportsDepthStencilResolve && CurrDesc.samples > VK_SAMPLE_COUNT_1_BIT && RPInfo.DepthStencilRenderTarget.ResolveTarget)
+		{
+			Desc[NumAttachmentDescriptions + 1] = Desc[NumAttachmentDescriptions];
+			Desc[NumAttachmentDescriptions + 1].samples = VK_SAMPLE_COUNT_1_BIT;
+			Desc[NumAttachmentDescriptions + 1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			Desc[NumAttachmentDescriptions + 1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			DepthStencilResolveReference.attachment = NumAttachmentDescriptions + 1;
+			DepthStencilResolveReference.layout = CurrentDepthLayout;
+			// NumColorAttachments was incremented after the last color attachment
+			ensureMsgf(NumColorAttachments < 16, TEXT("Must have room for depth resolve bit"));
+			CompatibleHashInfo.AttachmentsToResolve |= (uint16)(1 << NumColorAttachments);
+			++NumAttachmentDescriptions;
+			bHasDepthStencilResolve = true;
+		}
 
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets] = CurrDesc.loadOp;
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilLoadOp;
@@ -1170,6 +1179,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		FullHashInfo.InitialLayout[MaxSimultaneousRenderTargets + 1] = CurrentStencilLayout;
 		CompatibleHashInfo.Formats[MaxSimultaneousRenderTargets] = CurrDesc.format;
 
+		++NumAttachmentDescriptions;
 
 		bHasDepthStencil = true;
 
@@ -1200,7 +1210,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		Extent.Extent3D.depth = 1;
 	}
 
-	if (GRHISupportsAttachmentVariableRateShading && GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled && RPInfo.ShadingRateTexture)
+	if (GRHISupportsAttachmentVariableRateShading && RPInfo.ShadingRateTexture)
 	{
 		FVulkanTexture* Texture = ResourceCast(RPInfo.ShadingRateTexture);
 		check(Texture->GetFormat() == GRHIVariableRateShadingImageFormat);
@@ -1235,12 +1245,10 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 	SubpassHint = RPInfo.SubpassHint;
 	CompatibleHashInfo.SubpassHint = (uint8)RPInfo.SubpassHint;
 
-	CompatibleHashInfo.QCOMRenderPassTransform = QCOMRenderPassTransform;
-
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;
-
-	if (MultiViewCount > 1 && !bMultiviewRenderTargets)
+	// Depth prepass has no color RTs but has a depth attachment that must be multiview
+	if (MultiViewCount > 1 && !bMultiviewRenderTargets && !(NumColorRenderTargets == 0 && bMultiViewDepthStencil))
 	{
 		UE_LOG(LogVulkan, Error, TEXT("Non multiview textures on a multiview layout!"));
 	}
@@ -1256,6 +1264,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 	, NumColorAttachments(0)
 	, bHasDepthStencil(false)
 	, bHasResolveAttachments(false)
+	, bHasDepthStencilResolve(false)
 	, bHasFragmentDensityAttachment(false)
 	, NumSamples(0)
 	, NumUsedClearValues(0)
@@ -1329,41 +1338,53 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 		{
 			bFoundClearOp = true;
 		}
-		if (CurrDesc.samples == VK_SAMPLE_COUNT_1_BIT)
-		{
-			CurrDesc.storeOp = RenderTargetStoreActionToVulkan(Initializer.DepthTargetStoreAction);
-			CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(Initializer.StencilTargetStoreAction);
-		}
-		else
-		{
-			// Never want to store MSAA depth/stencil
-			CurrDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			CurrDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		}
+		CurrDesc.storeOp = RenderTargetStoreActionToVulkan(Initializer.DepthTargetStoreAction);
+		CurrDesc.stencilStoreOp = RenderTargetStoreActionToVulkan(Initializer.StencilTargetStoreAction);
+
+		const VkImageLayout DepthLayout = Initializer.DepthStencilAccess.IsDepthWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+		const VkImageLayout StencilLayout = Initializer.DepthStencilAccess.IsStencilWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
 
 		// If the initial != final we need to change the FullHashInfo and use FinalLayout
-		CurrDesc.initialLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-		CurrDesc.finalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-		StencilDesc.stencilInitialLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-		StencilDesc.stencilFinalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+		CurrDesc.initialLayout = DepthLayout;
+		CurrDesc.finalLayout = DepthLayout;
+		StencilDesc.stencilInitialLayout = StencilLayout;
+		StencilDesc.stencilFinalLayout = StencilLayout;
 
 		DepthReference.attachment = NumAttachmentDescriptions;
-		DepthReference.layout = Initializer.DepthStencilAccess.IsDepthWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
-		StencilReference.stencilLayout = Initializer.DepthStencilAccess.IsStencilWrite() ? VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+		DepthReference.layout = DepthLayout;
+		StencilReference.stencilLayout = StencilLayout;
+
+		const bool bDepthStencilResolve = (Initializer.DepthTargetStoreAction == ERenderTargetStoreAction::EMultisampleResolve) || (Initializer.StencilTargetStoreAction == ERenderTargetStoreAction::EMultisampleResolve);
+		if (bDepthStencilResolve && GRHISupportsDepthStencilResolve && CurrDesc.samples > VK_SAMPLE_COUNT_1_BIT)
+		{
+			Desc[NumAttachmentDescriptions + 1] = Desc[NumAttachmentDescriptions];
+			Desc[NumAttachmentDescriptions + 1].samples = VK_SAMPLE_COUNT_1_BIT;
+			Desc[NumAttachmentDescriptions + 1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			Desc[NumAttachmentDescriptions + 1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			Desc[NumAttachmentDescriptions + 1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			DepthStencilResolveReference.attachment = NumAttachmentDescriptions + 1;
+			DepthStencilResolveReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			// NumColorAttachments was incremented after the last color attachment
+			ensureMsgf(NumColorAttachments < 16, TEXT("Must have room for depth resolve bit"));
+			CompatibleHashInfo.AttachmentsToResolve |= (uint16)(1 << NumColorAttachments);
+			++NumAttachmentDescriptions;
+			bHasDepthStencilResolve = true;
+		}
 
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets] = CurrDesc.loadOp;
 		FullHashInfo.LoadOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilLoadOp;
 		FullHashInfo.StoreOps[MaxSimultaneousRenderTargets] = CurrDesc.storeOp;
 		FullHashInfo.StoreOps[MaxSimultaneousRenderTargets + 1] = CurrDesc.stencilStoreOp;
-		FullHashInfo.InitialLayout[MaxSimultaneousRenderTargets] = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-		FullHashInfo.InitialLayout[MaxSimultaneousRenderTargets + 1] = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+		FullHashInfo.InitialLayout[MaxSimultaneousRenderTargets] = DepthLayout;
+		FullHashInfo.InitialLayout[MaxSimultaneousRenderTargets + 1] = StencilLayout;
 		CompatibleHashInfo.Formats[MaxSimultaneousRenderTargets] = CurrDesc.format;
 
 		++NumAttachmentDescriptions;
 		bHasDepthStencil = true;
 	}
 
-	if (Initializer.bHasFragmentDensityAttachment)
+	if (Initializer.bHasFragmentDensityAttachment && Initializer.bAllowVariableRateShading)
 	{
 		VkAttachmentDescription& CurrDesc = Desc[NumAttachmentDescriptions];
 		FMemory::Memzero(CurrDesc);
@@ -1396,26 +1417,6 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(const FGraphicsPipelineStat
 
 	SubpassHint = Initializer.SubpassHint;
 	CompatibleHashInfo.SubpassHint = (uint8)Initializer.SubpassHint;
-
-	FVulkanCommandListContext& ImmediateContext = GVulkanRHI->GetDevice()->GetImmediateContext();
-
-	if (GVulkanRHI->GetDevice()->GetOptionalExtensions().HasQcomRenderPassTransform)
-	{
-		VkFormat SwapchainImageFormat = ImmediateContext.GetSwapchainImageFormat();
-		if (Desc[0].format == SwapchainImageFormat)
-		{
-			// Potential Swapchain RenderPass
-			QCOMRenderPassTransform = ImmediateContext.GetSwapchainQCOMRenderPassTransform();
-		}
-		// TODO: add some checks to detect potential Swapchain pass
-		else if (SwapchainImageFormat == VK_FORMAT_UNDEFINED)
-		{
-			// WA: to have compatible RP created with VK_RENDER_PASS_CREATE_TRANSFORM_BIT_QCOM flag
-			QCOMRenderPassTransform = VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR;
-		}
-	}
-
-	CompatibleHashInfo.QCOMRenderPassTransform = QCOMRenderPassTransform;
 
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;

@@ -152,25 +152,28 @@ TArray<FInterchangeUserDefinedAttributeInfo> UInterchangeUserDefinedAttributesAP
 	int32 LeftChopIndex = UserDefinedAttributeValuePostKey.Len();
 	int32 AddDelegateRightChopIndex = UserDefinedAttributeDelegateKey.Len();
 
-	for (UE::Interchange::FAttributeKey& AttributeKey : AttributeKeys)
+	for (const UE::Interchange::FAttributeKey& AttributeKey : AttributeKeys)
 	{
-		const FString AttributeKeyString = AttributeKey.ToString();
-		if (AttributeKeyString.StartsWith(UserDefinedAttributeBaseKey) && AttributeKeyString.EndsWith(UserDefinedAttributeValuePostKey))
+		if (AttributeKey.Key.StartsWith(UserDefinedAttributeBaseKey) && AttributeKey.Key.EndsWith(UserDefinedAttributeValuePostKey))
 		{
 			bool RequiresDelegate = false;
-			FString UserDefinedAttributeName = AttributeKeyString.RightChop(RightChopIndex).LeftChop(LeftChopIndex);
+
+			FStringView UserDefinedAttributeName = FStringView(AttributeKey.Key);
+			UserDefinedAttributeName.RemovePrefix(RightChopIndex);
+			UserDefinedAttributeName.RemoveSuffix(LeftChopIndex);
+
 			if (UserDefinedAttributeName.StartsWith(UserDefinedAttributeDelegateKey))
 			{
-				UserDefinedAttributeName = UserDefinedAttributeName.RightChop(AddDelegateRightChopIndex);
+				UserDefinedAttributeName.RemovePrefix(AddDelegateRightChopIndex);
 				RequiresDelegate = true;
 			}
+
 			FInterchangeUserDefinedAttributeInfo& UserDefinedAttributeInfo = UserDefinedAttributeInfos.AddDefaulted_GetRef();
 			UserDefinedAttributeInfo.Type = InterchangeNode->GetAttributeType(AttributeKey);
 			UserDefinedAttributeInfo.Name = UserDefinedAttributeName;
 			UserDefinedAttributeInfo.RequiresDelegate = RequiresDelegate;
 
-			//Get the optional payload key
-			const FString StorageBaseKey = UserDefinedAttributeBaseKey + UserDefinedAttributeName;
+			// Get the optional payload key
 			const UE::Interchange::FAttributeKey UserDefinedPayloadKey = MakeUserDefinedPropertyPayloadKey(UserDefinedAttributeName, RequiresDelegate);
 			if (InterchangeNode->HasAttribute(UserDefinedPayloadKey))
 			{
@@ -180,6 +183,7 @@ TArray<FInterchangeUserDefinedAttributeInfo> UInterchangeUserDefinedAttributesAP
 			}
 		}
 	}
+
 	return UserDefinedAttributeInfos;
 }
 
@@ -380,9 +384,20 @@ void UInterchangeUserDefinedAttributesAPI::AddApplyAndFillDelegatesToFactory(UIn
 	}
 }
 
+UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyValueKey(const FStringView UserDefinedAttributeName, bool RequiresDelegate)
+{
+	return MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate);
+}
+
 UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyValueKey(const FString& UserDefinedAttributeName, bool RequiresDelegate)
 {
 	return MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate);
+}
+
+UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyPayloadKey(const FStringView UserDefinedAttributeName, bool RequiresDelegate)
+{
+	const bool bGeneratePayloadKey = true;
+	return MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate, bGeneratePayloadKey);
 }
 
 UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyPayloadKey(const FString& UserDefinedAttributeName, bool RequiresDelegate)
@@ -409,16 +424,33 @@ bool UInterchangeUserDefinedAttributesAPI::HasAttribute(const UInterchangeBaseNo
 	return false;
 }
 
-UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyKey(const FString& UserDefinedAttributeName, bool RequiresDelegate, bool GeneratePayloadKey /*= false*/)
-{ 
-	//Create a unique Key for this user defined attribute
-	FString Prefix = UserDefinedAttributeBaseKey;
+UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyKey(const FStringView UserDefinedAttributeName, bool RequiresDelegate, bool GeneratePayloadKey /*= false*/)
+{
+	// Create a unique Key for this user defined attribute
+	FStringBuilderBase StringBuilder;
+	
+	StringBuilder.Append(UserDefinedAttributeBaseKey);
+
 	if (RequiresDelegate)
 	{
-		Prefix = Prefix + UserDefinedAttributeDelegateKey;
+		StringBuilder.Append(UserDefinedAttributeDelegateKey);
 	}
 
-	const FString Suffix = GeneratePayloadKey ? UserDefinedAttributePayLoadPostKey : UserDefinedAttributeValuePostKey;
+	StringBuilder.Append(UserDefinedAttributeName);
 
-	return UE::Interchange::FAttributeKey(Prefix + UserDefinedAttributeName + Suffix);
+	if (GeneratePayloadKey)
+	{
+		StringBuilder.Append(UserDefinedAttributePayLoadPostKey);
+	}
+	else
+	{
+		StringBuilder.Append(UserDefinedAttributeValuePostKey);
+	}
+
+	return UE::Interchange::FAttributeKey(StringBuilder.ToView());
+}
+
+UE::Interchange::FAttributeKey UInterchangeUserDefinedAttributesAPI::MakeUserDefinedPropertyKey(const FString& UserDefinedAttributeName, bool RequiresDelegate, bool GeneratePayloadKey /*= false*/)
+{
+	return MakeUserDefinedPropertyKey(FStringView(UserDefinedAttributeName), RequiresDelegate, GeneratePayloadKey);
 }

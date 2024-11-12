@@ -204,18 +204,21 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 	float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 
 	uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), GBuffer.Depth);
-	uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-	uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-	uint DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, 0);
+	uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+	uint CaptureDataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 #else
-	uint DataStartIndex = 0;
+	uint CaptureDataStartIndex = 0;
 	uint NumCulledReflectionCaptures = 0;
 #endif
 
+#if USE_ENERGY_CONSERVATION
 	const FBxDFEnergyTerms EnergyTerms = ComputeGGXSpecEnergyTerms(GBuffer.Roughness, NoV, GBuffer.SpecularColor);
+#endif
 
 	//Top of regular reflection or bottom layer of clear coat.
-	Color.rgb += View.PreExposure * GatherRadiance(Color.a, TranslatedWorldPosition, R, GBuffer.Roughness, BentNormal, IndirectIrradiance, GBuffer.ShadingModelID, NumCulledReflectionCaptures, DataStartIndex);
+	Color.rgb += View.PreExposure * GatherRadiance(Color.a, TranslatedWorldPosition, R, GBuffer.Roughness, BentNormal, IndirectIrradiance, GBuffer.ShadingModelID, NumCulledReflectionCaptures, CaptureDataStartIndex);
 
 	BRANCH
 	if( GBuffer.ShadingModelID == SHADINGMODELID_CLEAR_COAT)
@@ -233,7 +236,7 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 
 		// TODO EnvBRDF should have a mask param
 		#if USE_ENERGY_CONSERVATION
-		Color.rgb *= EnergyTerms.E * (1 - ClearCoat);
+		Color.rgb *= EnergyTerms.E;
 		#else
 		// Hack: Ensures when clear coat is >0, grazing angle does not get too much energy, 
 		//       but preserve response at normal incidence 
@@ -261,7 +264,7 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 		Color.a *= SpecularOcclusion;
 
 		float3 TopLayerR = 2 * dot( V, N ) * N - V;
-		Color.rgb += View.PreExposure * GatherRadiance(Color.a, TranslatedWorldPosition, TopLayerR, ClearCoatRoughness, BentNormal, IndirectIrradiance, GBuffer.ShadingModelID, NumCulledReflectionCaptures, DataStartIndex);
+		Color.rgb += View.PreExposure * GatherRadiance(Color.a, TranslatedWorldPosition, TopLayerR, ClearCoatRoughness, BentNormal, IndirectIrradiance, GBuffer.ShadingModelID, NumCulledReflectionCaptures, CaptureDataStartIndex);
 
 	}
 	else
@@ -389,9 +392,8 @@ void ReflectionEnvironmentSkyLighting(
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
-		float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
 		float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-		float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
+		float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 		float3 V = -CameraToPixel;
 
 		// Sample the ambient occlusion that is dynamically generated every frame.
@@ -400,10 +402,19 @@ void ReflectionEnvironmentSkyLighting(
 	#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 		const float TopLayerSpecularContributionFactor = 1.0f;
 	#else
-		const float4 SSRReflection = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
-		// SSR is computed for the top level by averaging BSDF components.
-		// This is the top level specular contribution factor according to areas.
-		const float TopLayerSpecularContributionFactor = 1.0f - SSRReflection.a;
+		float4 SSRReflection = 0.0f.xxxx;
+		float TopLayerSpecularContributionFactor = 1.0f;
+
+		#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_TILED_SSR
+		if (IsSSRTileUsed(PixelPos, SSRTiledViewRes, SSRTileMaskBuffer))
+		#endif
+		{
+			SSRReflection = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
+
+			// SSR is computed for the top level by averaging BSDF components.
+			// This is the top level specular contribution factor according to areas.
+			TopLayerSpecularContributionFactor = 1.0f - SSRReflection.a;
+		}
 
 		// A reduction of SSR contribution is needed when there is haziness because we only consider SSR for the sharpest lobe.
 		FSSRContribution SSRContribution = InitSSRContribution();
@@ -416,7 +427,8 @@ void ReflectionEnvironmentSkyLighting(
 	
 	#if APPLY_SKY_SHADOWING
 		// Sample DFAO only once
-		FUpsampleDFAOOutput UpsampleDFAOOutput = UpsampleDFAO(BufferUV, SceneDepth);
+		const float2 BentNormalUV = (SvPosition.xy - View.ViewRectMin.xy) * View.BufferSizeAndInvSize.zw;
+		FUpsampleDFAOOutput UpsampleDFAOOutput = UpsampleDFAO(BentNormalUV, SceneDepth);
 	#endif
 	
 		float CombinedScreenAndMaterialAO = SubstrateGetAO(SubstratePixelHeader) * AmbientOcclusion;
@@ -426,9 +438,10 @@ void ReflectionEnvironmentSkyLighting(
 		float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 	
 		uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), SceneDepth);
-		uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-		uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-		uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+		FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, 0);
+		uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+		uint CaptureDataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 	#else
 		uint CaptureDataStartIndex = 0;
 		uint NumCulledReflectionCaptures = 0;
@@ -488,7 +501,7 @@ void ReflectionEnvironmentSkyLighting(
 			AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, SubstrateEnvLight.bPostProcessSubsurface, BSDF_GETISTOPLAYER(BSDF));
 		}
 
-		OutColor = SubstrateLighting.SceneColor;
+		OutColor = SubstrateLighting.SceneColor * (REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE ? 1.0f : View.PreExposure);
 		#if REFLECTION_SOURCE_TYPE != REFLECTION_SOURCE_LUMEN_STANDALONE
 		OutColor += ApplySSRContribution(SSRContribution, SSRReflection);
 		#endif
@@ -496,6 +509,9 @@ void ReflectionEnvironmentSkyLighting(
 		#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 		OutOpaqueRoughRefractionSceneColor += SubstrateLighting.OpaqueRoughRefractionSceneColor;
 		OutSubSurfaceSceneColor += SubstrateLighting.SubSurfaceSceneColor;
+
+		OutOpaqueRoughRefractionSceneColor.rgb *= View.PreExposure;
+		OutSubSurfaceSceneColor.rgb *= View.PreExposure;
 		#endif
 	}
 

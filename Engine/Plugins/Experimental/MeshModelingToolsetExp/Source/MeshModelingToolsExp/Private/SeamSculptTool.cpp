@@ -79,7 +79,9 @@ void USeamSculptTool::Setup()
 	MeshTransform = FTransform3d(TargetComponent->GetWorldTransform());
 	InputMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(*PreviewMesh->GetMesh());
 	FMeshNormals::QuickComputeVertexNormals(*InputMesh);
-	NormalOffset = InputMesh->GetBounds(true).MinDim() * 0.001;
+	FAxisAlignedBox3d MeshBounds = InputMesh->GetBounds(true);
+	NormalOffset = MeshBounds.MinDim() * 0.001;
+	MeshMaxDim = MeshBounds.MaxDim();
 
 	// disable shadows
 	//PreviewMesh->GetRootComponent()->bCastDynamicShadow = false;
@@ -129,7 +131,7 @@ void USeamSculptTool::OnShutdown(EToolShutdownType ShutdownType)
 
 		GetToolManager()->BeginUndoTransaction(LOCTEXT("SeamSculptTransactionName", "UV Seam Edit"));
 
-		UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Target, ResultMesh, true);
+		UE::ToolTarget::CommitDynamicMeshUpdate(Target, ResultMesh, true);
 
 		GetToolManager()->EndUndoTransaction();
 	}
@@ -151,7 +153,7 @@ void USeamSculptTool::OnBeginDrag(const FRay& Ray)
 {
 	UBaseBrushTool::OnBeginDrag(Ray);
 
-	if (IsInBrushStroke() && CurrentSnapVertex >= 0)
+	if (CurrentSnapVertex >= 0)
 	{
 		CaptureState = EActiveCaptureState::DrawNewPath;
 		DrawPathStartVertex = CurrentSnapVertex;
@@ -188,12 +190,9 @@ void USeamSculptTool::OnUpdateDrag(const FRay& Ray)
 
 void USeamSculptTool::OnEndDrag(const FRay& Ray)
 {
-	// Capture brush stroke state prior to invoking Super::OnEndDrag
-	const bool bWasInBrushStroke = IsInBrushStroke();
-	
 	UBaseBrushTool::OnEndDrag(Ray);
 
-	if (bWasInBrushStroke && CaptureState == EActiveCaptureState::DrawNewPath)
+	if (CaptureState == EActiveCaptureState::DrawNewPath)
 	{
 		CreateSeamAlongPath();
 		CurDrawPath.Reset();
@@ -234,6 +233,27 @@ void USeamSculptTool::UpdateCurrentDrawPath()
 
 	const FDynamicMesh3* Mesh = PreviewMesh->GetPreviewDynamicMesh();
 	TMeshDijkstra<FDynamicMesh3> PathFinder(Mesh);
+
+	if (Settings->PathSimilarityWeight > 0 && MeshMaxDim > 0)
+	{
+		PathFinder.bEnableDistanceWeighting = true;
+
+		FLine3d DirectLine = FLine3d::FromPoints(Mesh->GetVertex(DrawPathStartVertex), Mesh->GetVertex(CurrentSnapVertex));
+		PathFinder.GetWeightedDistanceFunc = [this, Mesh, DirectLine](int32 FromVid, int32 ToVid, int32 SeedVid, double EuclideanDistance)
+		{
+			double SimilarityMetric = SquaredDistanceFromLineIntegratedAlongSegment(
+				DirectLine, FSegment3d(Mesh->GetVertex(FromVid), Mesh->GetVertex(ToVid)));
+
+			// We want the relative path weights to not change if the mesh is uniformly scaled by a positive scalar s.
+			//  Our similarity metric is proportional to s^3, so divide by max dim squared to make it proportional
+			//  to s like EuclideanDistance, so that the final result is just scaled by s. We don't do cube root 
+			//  because our adjustment needs to be distributive, to avoid being sensitive to path tesselation.
+			SimilarityMetric /= (MeshMaxDim * MeshMaxDim);
+
+			return EuclideanDistance + Settings->PathSimilarityWeight * SimilarityMetric;
+		};
+	}
+
 	TArray<TMeshDijkstra<FDynamicMesh3>::FSeedPoint> SeedPoints;
 	SeedPoints.Add({ DrawPathStartVertex, DrawPathStartVertex, 0 });
 	if ( PathFinder.ComputeToTargetPoint(SeedPoints, CurrentSnapVertex) )

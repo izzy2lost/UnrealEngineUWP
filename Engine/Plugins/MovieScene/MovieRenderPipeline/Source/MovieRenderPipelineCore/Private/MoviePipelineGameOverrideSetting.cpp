@@ -9,6 +9,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineGameOverrideSetting)
 
+static TAutoConsoleVariable<int32> CVarMoviePipelineVTNaniteAutoLOD(
+	TEXT("MoviePipeline.EnableVTInvalidateOnNaniteLOD"),
+	1,
+	TEXT("If true, the Movie Pipeline Game Overrides will automatically apply 'r.Nanite.VSMInvalidateOnLODDelta' during renders.\n"),
+	ECVF_Default);
+
 void UMoviePipelineGameOverrideSetting::SetupForPipelineImpl(UMoviePipeline* InPipeline)
 {
 	// Store the cvar values and apply the ones from this setting
@@ -23,6 +29,19 @@ void UMoviePipelineGameOverrideSetting::TeardownForPipelineImpl(UMoviePipeline* 
 	ApplyCVarSettings(false);
 }
 
+
+void UMoviePipelineGameOverrideSetting::PostLoad()
+{
+	Super::PostLoad();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (const UClass* GameModeOverrideClass = GameModeOverride.Get())
+	{
+		SoftGameModeOverride = GameModeOverrideClass;
+		GameModeOverride = nullptr;
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
 
 void UMoviePipelineGameOverrideSetting::ApplyCVarSettings(const bool bOverrideValues)
 {
@@ -82,14 +101,14 @@ void UMoviePipelineGameOverrideSetting::ApplyCVarSettings(const bool bOverrideVa
 
 	if (bUseHighQualityShadows)
 	{
-		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_INT(PreviousShadowDistanceScale, TEXT("r.Shadow.DistanceScale"), ShadowDistanceScale, bOverrideValues);
+		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_FLOAT(PreviousShadowDistanceScale, TEXT("r.Shadow.DistanceScale"), ShadowDistanceScale, bOverrideValues);
 		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_INT(PreviousShadowQuality, TEXT("r.ShadowQuality"), 5, bOverrideValues);
 		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_FLOAT(PreviousShadowRadiusThreshold, TEXT("r.Shadow.RadiusThreshold"), ShadowRadiusThreshold, bOverrideValues);
 	}
 
 	if (bOverrideViewDistanceScale)
 	{
-		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_INT(PreviousViewDistanceScale, TEXT("r.ViewDistanceScale"), ViewDistanceScale, bOverrideValues);
+		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_FLOAT(PreviousViewDistanceScale, TEXT("r.ViewDistanceScale"), ViewDistanceScale, bOverrideValues);
 	}
 
 	if (bDisableGPUTimeout)
@@ -140,6 +159,13 @@ void UMoviePipelineGameOverrideSetting::ApplyCVarSettings(const bool bOverrideVa
 	// Water skips water info texture when the world's game viewport rendering is disabled so we need to prevent this from happening.
 	MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_INT_IF_EXIST(PreviousSkipWaterInfoTextureRenderWhenWorldRenderingDisabled, TEXT("r.Water.SkipWaterInfoTextureRenderWhenWorldRenderingDisabled"), 0, bOverrideValues);
 
+	// This is only a temporary cvar while it's experimental so it's not exposed to the UI, but exposed as a cvar
+	// so that users can turn it off in the event that it causes issues.
+	if (CVarMoviePipelineVTNaniteAutoLOD.GetValueOnGameThread())
+	{
+		MOVIEPIPELINE_STORE_AND_OVERRIDE_CVAR_INT(PreviousNaniteVSMInvalidateOnLODDelta, TEXT("r.Nanite.VSMInvalidateOnLODDelta"), 1, bOverrideValues);
+	}
+
 	// Must come after the above cvars so that if one of those cvars is also specified by the Scalability level, then we restore to the value in the original scalability level
 	// not the value we cached in the Cinematic level (if applied).
 	if (bCinematicQualitySettings)
@@ -162,26 +188,26 @@ void UMoviePipelineGameOverrideSetting::BuildNewProcessCommandLineArgsImpl(TArra
 	// transition into the correct map which will then use the GameModeOverride setting.
 	if (bCinematicQualitySettings)
 	{
-		InOutDeviceProfileCvars.Add(TEXT("sg.ViewDistanceQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.AntiAliasingQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.ShadowQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.GlobalIlluminationQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.ReflectionQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.PostProcessQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.TextureQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.EffectsQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.FoliageQuality=4"));
-		InOutDeviceProfileCvars.Add(TEXT("sg.ShadingQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.ViewDistanceQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.AntiAliasingQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.ShadowQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.GlobalIlluminationQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.ReflectionQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.PostProcessQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.TextureQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.EffectsQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.FoliageQuality=4"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("sg.ShadingQuality=4"));
 	}
 
 	switch (TextureStreaming)
 	{
 	case EMoviePipelineTextureStreamingMethod::FullyLoad:
-		InOutDeviceProfileCvars.Add(TEXT("r.Streaming.FramesForFullUpdate=0"));
-		InOutDeviceProfileCvars.Add(TEXT("r.Streaming.FullyLoadUsedTextures=1"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.Streaming.FramesForFullUpdate=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.Streaming.FullyLoadUsedTextures=1"));
 		break;
 	case EMoviePipelineTextureStreamingMethod::Disabled:
-		InOutDeviceProfileCvars.Add(TEXT("r.TextureStreaming=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.TextureStreaming=0"));
 		break;
 	default:
 		// We don't change their texture streaming settings.
@@ -190,58 +216,64 @@ void UMoviePipelineGameOverrideSetting::BuildNewProcessCommandLineArgsImpl(TArra
 
 	if (bUseLODZero)
 	{
-		InOutDeviceProfileCvars.Add(TEXT("r.ForceLOD=0"));
-		InOutDeviceProfileCvars.Add(TEXT("r.SkeletalMeshLODBias=-10"));
-		InOutDeviceProfileCvars.Add(TEXT("r.ParticleLODBias=-10"));
-		InOutDeviceProfileCvars.Add(TEXT("foliage.DitheredLOD=0"));
-		InOutDeviceProfileCvars.Add(TEXT("foliage.ForceLOD=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.ForceLOD=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.SkeletalMeshLODBias=-10"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.ParticleLODBias=-10"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("foliage.DitheredLOD=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("foliage.ForceLOD=0"));
 	}
 
 	if (bDisableHLODs)
 	{
 		// It's a command and not an integer cvar (despite taking 1/0)
-		InOutExecCmds.Add(TEXT("r.HLOD 0"));
+		InOutExecCmds.AddUnique(TEXT("r.HLOD 0"));
 	}
 
 	if (bUseHighQualityShadows)
 	{
-		InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.Shadow.DistanceScale=%d"), ShadowDistanceScale));
-		InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.Shadow.RadiusThreshold=%f"), ShadowRadiusThreshold));
-		InOutDeviceProfileCvars.Add(TEXT("r.ShadowQuality=5"));
+		InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.Shadow.DistanceScale=%d"), ShadowDistanceScale));
+		InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.Shadow.RadiusThreshold=%f"), ShadowRadiusThreshold));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.ShadowQuality=5"));
 	}
 
 	if (bOverrideViewDistanceScale)
 	{
-		InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.ViewDistanceScale=%d"), ViewDistanceScale));
+		InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.ViewDistanceScale=%d"), ViewDistanceScale));
 	}
 
 	if (bDisableGPUTimeout)
 	{
-		InOutDeviceProfileCvars.Add(TEXT("r.D3D12.GPUTimeout=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.D3D12.GPUTimeout=0"));
 	}
 
 	if (bFlushStreamingManagers)
 	{
-		InOutDeviceProfileCvars.Add(TEXT("r.Streaming.SyncStatesWhenBlocking=1"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("r.Streaming.SyncStatesWhenBlocking=1"));
 	}
 	
 #if WITH_EDITOR
 	{
-		InOutDeviceProfileCvars.Add(TEXT("GeometryCache.Streamer.BlockTillFinishStreaming=1"));
-		InOutDeviceProfileCvars.Add(TEXT("GeometryCache.Streamer.ShowNotification=0"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("GeometryCache.Streamer.BlockTillFinishStreaming=1"));
+		InOutDeviceProfileCvars.AddUnique(TEXT("GeometryCache.Streamer.ShowNotification=0"));
 	}
 #endif
 
 	{
-		InOutDeviceProfileCvars.Add(FString::Printf(TEXT("a.URO.Enable=%d"), 0));
+		InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("a.URO.Enable=%d"), 0));
 	}
 
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("au.NeverMuteNonRealtimeAudioDevices=%d"), 1));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.SkyLight.RealTimeReflectionCapture.TimeSlice=%d"), 0));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.VolumetricRenderTarget=%d"), 1));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.VolumetricRenderTarget.Mode=%d"), 3));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("wp.Runtime.BlockOnSlowStreaming=%d"), 0));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("p.Chaos.ImmPhys.MinStepTime=%d"), 0));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.SkipRedundantTransformUpdate=%d"), 0));
-	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("p.ChaosCloth.UseTimeStepSmoothing=%d"), 0));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("au.NeverMuteNonRealtimeAudioDevices=%d"), 1));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.SkyLight.RealTimeReflectionCapture.TimeSlice=%d"), 0));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.VolumetricRenderTarget=%d"), 1));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.VolumetricRenderTarget.Mode=%d"), 3));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("wp.Runtime.BlockOnSlowStreaming=%d"), 0));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("p.Chaos.ImmPhys.MinStepTime=%d"), 0));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.SkipRedundantTransformUpdate=%d"), 0));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("p.ChaosCloth.UseTimeStepSmoothing=%d"), 0));
+	InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.Water.SkipWaterInfoTextureRenderWhenWorldRenderingDisabled=%d"), 0));
+
+	if (CVarMoviePipelineVTNaniteAutoLOD.GetValueOnGameThread())
+	{
+		InOutDeviceProfileCvars.AddUnique(FString::Printf(TEXT("r.Nanite.VSMInvalidateOnLODDelta=%d"), 1));
+	}
 }

@@ -72,9 +72,9 @@ struct UEContentConfiguration: CompositorLayerConfiguration {
 		//configuration.colorFormat = .rgba16Float
 		configuration.colorFormat = .bgra8Unorm_srgb
 		
-		//configuration.depthFormat = .depth32Float  			//PF_R32_FLOAT   			// This is correct for mobile forward
-		configuration.depthFormat = .depth32Float_stencil8 		//PF_DepthStencil   // This is correct for deferred
-//PFSWITCH
+		//configuration.depthFormat = .depth32Float  			//PF_R32_FLOAT   	
+		configuration.depthFormat = .depth32Float_stencil8 		//PF_DepthStencil 
+
 		
 		configuration.defaultDepthRange = [Float.greatestFiniteMagnitude, 0.1]
 	}
@@ -96,6 +96,15 @@ class HostingViewFactory: NSObject
 @main
 struct UESwiftApp: App {
 	
+#if UE_SDK_VERSION_1
+	// VisionOS 1.x only supports full immersion style in Metal rendering apps.
+	@State private var style: ImmersionStyle = .full
+#else
+	// VisonOS 2+ also supported mixed immersion.
+	@State private var style: ImmersionStyle = .full
+	//@State private var style: ImmersionStyle = .mixed
+#endif
+	
 	@UIApplicationDelegateAdaptor(IOSAppDelegate.self) var delegate
 	
 	var body: some Scene
@@ -115,8 +124,16 @@ struct UESwiftApp: App {
 					FSwiftAppBootstrap.KickoffWithCompositingLayer(layerRenderer)
 			}
 		}
+
+#if UE_SDK_VERSION_1
 		//.upperLimbVisibility(.hidden)
 		.upperLimbVisibility(.visible)
+#else
+		//.upperLimbVisibility(.hidden)
+		//.upperLimbVisibility(.visible)
+		.upperLimbVisibility(.automatic) // Depth occlusion based hand fading, VisionOS 2+ only
+#endif
+		.immersionStyle(selection: $style, in: .mixed, .full)
 	}
 }
 

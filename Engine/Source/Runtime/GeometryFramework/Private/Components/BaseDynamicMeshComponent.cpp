@@ -22,13 +22,18 @@ void UBaseDynamicMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName PropName = PropertyChangedEvent.GetPropertyName();
-	if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, bEnableRaytracing))  )
+	if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, bEnableRaytracing)) || 
+		 (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, DrawPath)) )
 	{
 		OnRenderingStateChanged(true);
 	}
 	else if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, bEnableViewModeOverrides))  )
 	{
 		OnRenderingStateChanged(false);
+	}
+	else if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, DistanceFieldMode))  )
+	{
+		OnNewDistanceFieldMode();
 	}
 }
 #endif
@@ -119,6 +124,40 @@ bool UBaseDynamicMeshComponent::GetEnableRaytracing() const
 	return bEnableRaytracing;
 }
 
+void UBaseDynamicMeshComponent::SetDistanceFieldMode(EDynamicMeshComponentDistanceFieldMode NewDistFieldMode)
+{
+	if (DistanceFieldMode != NewDistFieldMode)
+	{
+		DistanceFieldMode = NewDistFieldMode;
+		OnNewDistanceFieldMode();
+	}
+}
+
+EDynamicMeshComponentDistanceFieldMode UBaseDynamicMeshComponent::GetDistanceFieldMode() const
+{
+	return DistanceFieldMode;
+}
+
+void UBaseDynamicMeshComponent::OnNewDistanceFieldMode()
+{
+	// no-op in base class, does not directly support distance field
+}
+
+
+
+void UBaseDynamicMeshComponent::SetMeshDrawPath(EDynamicMeshDrawPath NewDrawPath)
+{
+	if (DrawPath != NewDrawPath)
+	{
+		DrawPath = NewDrawPath;
+		OnRenderingStateChanged(true);
+	}
+}
+
+EDynamicMeshDrawPath UBaseDynamicMeshComponent::GetMeshDrawPath() const
+{
+	return DrawPath;
+}
 
 
 void UBaseDynamicMeshComponent::SetColorOverrideMode(EDynamicMeshComponentColorOverrideMode NewMode)
@@ -206,6 +245,55 @@ FMaterialRelevance UBaseDynamicMeshComponent::GetMaterialRelevance(ERHIFeatureLe
 		Result |= SecondaryRenderMaterial->GetRelevance_Concurrent(InFeatureLevel);
 	}
 	return Result;
+}
+
+// Note Dynamic Meshes don't really have named material slots, so we generate slot names from material + index
+namespace UE::Private::DynamicMeshMaterialSlotNameHelper
+{
+	static FName GetMaterialSlotName(const UMaterialInterface* Mat, int32 MaterialIndex)
+	{
+		return FName(FString::Printf(TEXT("%s_%d"), *((Mat) ? Mat->GetName() : TEXT("Material")), MaterialIndex));
+	}
+}
+TArray<FName> UBaseDynamicMeshComponent::GetMaterialSlotNames() const
+{
+	using namespace UE::Private::DynamicMeshMaterialSlotNameHelper;
+	TArray<FName> ToRet;
+	const int32 NumMaterials = GetNumMaterials();
+	ToRet.Reserve(NumMaterials);
+	for (int32 Idx = 0; Idx < NumMaterials; ++Idx)
+	{
+		ToRet.Add(GetMaterialSlotName(GetMaterial(Idx), Idx));
+	}
+	return ToRet;
+}
+
+bool UBaseDynamicMeshComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
+{
+	using namespace UE::Private::DynamicMeshMaterialSlotNameHelper;
+	const int32 NumMaterials = GetNumMaterials();
+	for (int32 Idx = 0; Idx < NumMaterials; ++Idx)
+	{
+		if (MaterialSlotName == GetMaterialSlotName(GetMaterial(Idx), Idx))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+UMaterialInterface* UBaseDynamicMeshComponent::GetMaterialByName(FName MaterialSlotName) const
+{
+	using namespace UE::Private::DynamicMeshMaterialSlotNameHelper;
+	const int32 NumMaterials = GetNumMaterials();
+	for (int32 Idx = 0; Idx < BaseMaterials.Num(); ++Idx)
+	{
+		if (MaterialSlotName == GetMaterialSlotName(GetMaterial(Idx), Idx))
+		{
+			return GetMaterial(Idx);
+		}
+	}
+	return nullptr;
 }
 
 void UBaseDynamicMeshComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* Material)

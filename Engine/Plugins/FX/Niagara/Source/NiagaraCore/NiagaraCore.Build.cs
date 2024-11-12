@@ -6,6 +6,8 @@ public class NiagaraCore : ModuleRules
 {
     public NiagaraCore(ReadOnlyTargetRules Target) : base(Target)
     {
+	    UnsafeTypeCastWarningLevel = WarningLevel.Error;
+	    
         PrivateDependencyModuleNames.AddRange(
             new string[] {
                 "Core",

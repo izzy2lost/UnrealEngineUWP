@@ -13,7 +13,6 @@ public class StormSyncImport : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"MessageLog",
 				"RenderCore",
 				"Slate",
 				"SlateCore",
@@ -28,6 +27,7 @@ public class StormSyncImport : ModuleRules
 				new string[]
 				{
 					"EditorFramework",
+					"MessageLog",
 					"SourceControl",
 					"StormSyncEditor",
 					"UnrealEd",

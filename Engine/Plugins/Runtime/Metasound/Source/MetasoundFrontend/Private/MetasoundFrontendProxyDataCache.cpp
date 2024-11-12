@@ -7,6 +7,7 @@
 #include "Containers/Map.h"
 #include "CoreGlobals.h"
 #include "IAudioProxyInitializer.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendLiteral.h"
@@ -28,51 +29,51 @@ namespace Metasound
 				IDataTypeRegistry& DataRegistry = IDataTypeRegistry::Get();
 				TArray<UObject*> UObjectArray;
 
-				ForEachLiteral(InDocElement, [&InCache, &DataRegistry, &UObjectArray](const FName& InDataType, const FMetasoundFrontendLiteral& InLiteral)
+				auto CreateProxies = [&InCache, &DataRegistry, &UObjectArray](const FName& InDataType, const FMetasoundFrontendLiteral& InLiteral)
+				{
+					EMetasoundFrontendLiteralType LiteralType = InLiteral.GetType();
+					if (LiteralType == EMetasoundFrontendLiteralType::UObject)
 					{
-						EMetasoundFrontendLiteralType LiteralType = InLiteral.GetType();
-						if (LiteralType == EMetasoundFrontendLiteralType::UObject)
+						UObject* Object = nullptr;
+						InLiteral.TryGet(Object);
+						if (Object)
 						{
-							UObject* Object = nullptr;
-							InLiteral.TryGet(Object);
+							if (!InCache.Contains(Object))
+							{
+								InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(InDataType, Object));
+							}
+						}
+					}
+					else if (LiteralType == EMetasoundFrontendLiteralType::UObjectArray)
+					{
+						FName ElementDataTypeName = CreateElementTypeNameFromArrayTypeName(InDataType);
+						UObjectArray.Reset();
+						InLiteral.TryGet(UObjectArray);
+						for (UObject* Object : UObjectArray)
+						{
 							if (Object)
 							{
 								if (!InCache.Contains(Object))
 								{
-									InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(InDataType, Object));
-								}
-							}
-						}
-						else if (LiteralType == EMetasoundFrontendLiteralType::UObjectArray)
-						{
-							FName ElementDataTypeName = CreateElementTypeNameFromArrayTypeName(InDataType);
-							UObjectArray.Reset();
-							InLiteral.TryGet(UObjectArray);
-							for (UObject* Object : UObjectArray)
-							{
-								if (Object)
-								{
-									if (!InCache.Contains(Object))
-									{
-										InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(ElementDataTypeName, Object));
-									}
+									InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(ElementDataTypeName, Object));
 								}
 							}
 						}
 					}
-				);
+				};
+				ForEachLiteral(InDocElement, CreateProxies);
 			}
 		}
 
 		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_Document)	
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_Document)
 			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InDocument);
 		}
 
 		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_GraphClass)	
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_GraphClass)
 			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InGraphClass);
 		}
 

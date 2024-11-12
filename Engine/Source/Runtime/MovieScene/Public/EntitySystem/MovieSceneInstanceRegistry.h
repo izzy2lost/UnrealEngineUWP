@@ -8,11 +8,12 @@
 #include "Containers/SparseArray.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "EntitySystem/MovieSceneSequenceInstance.h"
+#include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "EntitySystem/MovieSceneComponentDebug.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "MovieSceneSequenceID.h"
 
 
-class FMovieSceneEntitySystemRunner;
 class UMovieSceneCompiledDataManager;
 class UMovieSceneEntitySystemLinker;
 class UMovieSceneCompiledDataManager;
@@ -87,7 +88,6 @@ struct FInstanceRegistry
 	MOVIESCENE_API FRootInstanceHandle AllocateRootInstance(
 			UMovieSceneSequence& InRootSequence,
 			UObject* InPlaybackContext = nullptr,
-			TSharedPtr<FMovieSceneEntitySystemRunner> InRunner = nullptr,
 			UMovieSceneCompiledDataManager* InCompiledDataManager = nullptr);
 
 	MOVIESCENE_API FInstanceHandle AllocateSubInstance(
@@ -136,12 +136,11 @@ private:
  */
 struct MOVIESCENE_API FScopedVolatilityManagerSuppression
 {
-	FScopedVolatilityManagerSuppression(FInstanceRegistry* InInstanceRegistry, FRootInstanceHandle InRootInstanceHandle);
+	FScopedVolatilityManagerSuppression(TSharedPtr<FSharedPlaybackState> PlaybackState);
 	~FScopedVolatilityManagerSuppression();
 
 private:
-	FInstanceRegistry* InstanceRegistry;
-	FRootInstanceHandle RootInstanceHandle;
+	TWeakPtr<FSharedPlaybackState> WeakPlaybackState;
 	TUniquePtr<FCompiledDataVolatilityManager> PreviousVolatilityManager;
 };
 

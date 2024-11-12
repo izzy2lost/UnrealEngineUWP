@@ -10,6 +10,7 @@
 			<Sign Files="#FilesToSign" Tag="#BinariesWin64"/>
 			<Log Message="Files:" Files="#BinariesWin64"/>
 		</Node>
+		<Artifact Name="Binaries (Win64)" Type="p4-binaries" Tag="#BinariesWin64"/>
 	</Agent>
 
 	<Agent Name="DotNetPerforceLib Mac" Type="Mac">
@@ -20,6 +21,7 @@
 			<Compile Target="DotNetPerforceLib" Configuration="Shipping" Platform="Mac" Tag="#BinariesMac"/>
 			<Log Message="Files:" Files="#BinariesMac"/>
 		</Node>
+		<Artifact Name="Binaries (Mac)" Type="p4-binaries" Tag="#BinariesMac"/>
 	</Agent>
 
 	<Agent Name="DotNetPerforceLib Linux" Type="Linux">
@@ -30,15 +32,9 @@
 			<Compile Target="DotNetPerforceLib" Configuration="Shipping" Platform="Linux" Tag="#BinariesLinux"/>
 			<Log Message="Files:" Files="#BinariesLinux"/>
 		</Node>
-	</Agent>
-	
-	<Agent Name="DotNetPerforceLib Submit" Type="Win64">
-		<Node Name="Submit DotNetPerforceLib Binaries" Requires="#BinariesWin64;#BinariesMac;#BinariesLinux">
-			<Tag Files="#BinariesWin64;#BinariesMac;#BinariesLinux" Filter="Engine/Binaries/DotNET/EpicGames.Perforce.Native/..." With="#FilesToSubmit"/>
-			<Submit Files="#FilesToSubmit" Description="Rebuilt DotNetPerforceLib binaries for CL $(Change)\n\n#okforgithub public\n#jira none\n#submittool bypass"/>
-		</Node>
+		<Artifact Name="Binaries (Linux)" Type="p4-binaries" Tag="#BinariesLinux"/>
 	</Agent>
 
-	<Aggregate Name="DotNetPerforceLib" Requires="Submit DotNetPerforceLib Binaries"/>
+	<Aggregate Name="DotNetPerforceLib" Requires="#BinariesWin64;#BinariesMac;#BinariesLinux"/>
 
 </BuildGraph>

@@ -9,7 +9,9 @@
 namespace UE::MovieScene
 {
 
-FSharedPlaybackState::FSharedPlaybackState()
+FSharedPlaybackState::FSharedPlaybackState(UMovieSceneEntitySystemLinker* InLinker)
+	: WeakLinker(InLinker)
+	, PreAnimatedState(InLinker, FRootInstanceHandle())
 {
 }
 
@@ -18,9 +20,10 @@ FSharedPlaybackState::FSharedPlaybackState(
 		const FSharedPlaybackStateCreateParams& CreateParams)
 	: WeakRootSequence(&InRootSequence)
 	, WeakPlaybackContext(CreateParams.PlaybackContext)
-	, WeakRunner(CreateParams.Runner)
+	, WeakLinker(CreateParams.Linker)
 	, CompiledDataManager(CreateParams.CompiledDataManager)
 	, RootInstanceHandle(CreateParams.RootInstanceHandle)
+	, PreAnimatedState(CreateParams.Linker, CreateParams.RootInstanceHandle)
 {
 	if (CompiledDataManager)
 	{
@@ -28,11 +31,11 @@ FSharedPlaybackState::FSharedPlaybackState(
 	}
 }
 
-UMovieSceneEntitySystemLinker* FSharedPlaybackState::GetLinker() const
+TSharedPtr<FMovieSceneEntitySystemRunner> FSharedPlaybackState::GetRunner() const
 {
-	if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = WeakRunner.Pin())
+	if (UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get())
 	{
-		return Runner->GetLinker();
+		return Linker->GetRunner();
 	}
 	return nullptr;
 }
@@ -57,6 +60,23 @@ UMovieSceneSequence* FSharedPlaybackState::GetSequence(FMovieSceneSequenceIDRef 
 		const FMovieSceneSequenceHierarchy* Hierarchy = GetHierarchy();
 		const FMovieSceneSubSequenceData*   SubData   = Hierarchy ? Hierarchy->FindSubData(InSequenceID) : nullptr;
 		return SubData ? SubData->GetSequence() : nullptr;
+	}
+}
+
+TArrayView<TWeakObjectPtr<>> FSharedPlaybackState::FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID) const
+{
+	if (FMovieSceneEvaluationState* EvaluationState = FindCapability<FMovieSceneEvaluationState>())
+	{
+		return EvaluationState->FindBoundObjects(ObjectBindingID, SequenceID, SharedThis(this));
+	}
+	return TArrayView<TWeakObjectPtr<>>();
+}
+
+void FSharedPlaybackState::ClearObjectCaches()
+{
+	if (FMovieSceneEvaluationState* EvaluationState = FindCapability<FMovieSceneEvaluationState>())
+	{
+		EvaluationState->ClearObjectCaches(SharedThis(this));
 	}
 }
 

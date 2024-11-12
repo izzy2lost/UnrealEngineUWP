@@ -56,16 +56,26 @@ void FAssetTypeActions_IKRetargeter::ExtendIKRigMenuToMakeRetargeter()
 		UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
 		if (Context)
 		{
-			TArray<UObject*> SelectedObjects = Context->GetSelectedObjects();
-			if (SelectedObjects.Num() > 0)
+			if (Context->SelectedAssets.Num() > 0)
 			{
 				InSection.AddMenuEntry(
 					"CreateRetargeter",
 					LOCTEXT("CreateIKRetargeter", "Create IK Retargeter"),
 					LOCTEXT("CreateIKRetargeter_ToolTip", "Creates an IK Retargeter using this IK Rig as the source."),
 					FSlateIcon(FIKRigEditorStyle::Get().GetStyleSetName(), "IKRig", "ClassIcon.IKRigDefinition"),
-					FExecuteAction::CreateLambda([SelectedObjects]()
+					FExecuteAction::CreateLambda([InSelectedAssets = Context->SelectedAssets]()
 					{
+						TArray<UObject*> SelectedObjects;
+						SelectedObjects.Reserve(InSelectedAssets.Num());
+
+						for (const FAssetData& Asset : InSelectedAssets)
+						{
+							if (UObject* LoadedAsset = Asset.GetAsset())
+							{
+								SelectedObjects.Add(LoadedAsset);
+							}
+						}
+
 						for (UObject* SelectedObject : SelectedObjects)
 						{
 							CreateNewIKRetargeterFromIKRig(SelectedObject);

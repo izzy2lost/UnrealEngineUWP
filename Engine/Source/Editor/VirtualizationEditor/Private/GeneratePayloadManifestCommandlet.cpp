@@ -8,15 +8,28 @@
 #include "Misc/PackagePath.h"
 #include "Misc/Paths.h"
 #include "UObject/PackageTrailer.h"
+#include "VirtualizationExperimentalUtilities.h"
+
+ENUM_CLASS_FLAGS(UGeneratePayloadManifestCommandlet::EPayloadFilter);
 
 class FSpreadSheet
 {
 public:
+
 	bool OpenNewSheet()
 	{
+		if (NumSheets == 0)
+		{
+			if (!CleanupExistingFiles())
+			{
+				return false;
+			}
+		}
+
 		Ar.Reset();
 
-		const TStringBuilder<512> CSVPath = GetFilePath(++NumSheets);
+		TStringBuilder<512> CSVPath;
+		CreateFilePath(++NumSheets, CSVPath);
 
 		Ar = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(CSVPath.ToString()));
 		if (Ar.IsValid())
@@ -63,7 +76,10 @@ public:
 
 		for (int32 Index = 0; Index < NumSheets; ++Index)
 		{
-			Output << LINE_TERMINATOR << GetFilePath(Index);
+			TStringBuilder<512> Path;
+			CreateFilePath(Index, Path);
+
+			Output << LINE_TERMINATOR << Path;
 		}
 
 		return Output.ToString();
@@ -71,9 +87,29 @@ public:
 
 private:
 
-	static TStringBuilder<512> GetFilePath(int32 Index)
+	bool CleanupExistingFiles()
 	{
-		return WriteToString<512>(FPaths::ProjectSavedDir(), TEXT("PayloadManifest/sheet"), Index, TEXT(".csv"));
+		int32 SheetToDelete = 1;
+		TStringBuilder<512> Path;
+		CreateFilePath(SheetToDelete, Path);
+
+		while (IFileManager::Get().FileExists(Path.ToString()))
+		{
+			if (!IFileManager::Get().Delete(Path.ToString()))
+			{
+				return false;
+			}
+
+			CreateFilePath(++SheetToDelete, Path);
+		}
+
+		return true;
+	}
+
+	static void CreateFilePath(int32 Index, FStringBuilderBase& Path)
+	{
+		Path.Reset();
+		Path << FPaths::ProjectSavedDir() << TEXT("PayloadManifest/sheet") << Index << TEXT(".csv");
 	}
 
 	// With any values above these we had trouble importing the finished cvs into various spread sheet programs
@@ -129,20 +165,43 @@ int32 UGeneratePayloadManifestCommandlet::Main(const FString& Params)
 				{
 					PackageTrailerCount++;
 
-					Trailer.ForEachPayload([&Sheet, &PackagePath, &PayloadCount, bLocalOnly = bLocalOnly](const FIoHash& Id, uint64 SizeOnDisk, uint64 RawSize, UE::EPayloadAccessMode Mode, UE::Virtualization::EPayloadFilterReason Filter)->void
+					Trailer.ForEachPayload([&Sheet, &PackagePath, &PayloadCount, OutputFilter = Filter](const FIoHash& Id, uint64 SizeOnDisk, uint64 RawSize, UE::EPayloadAccessMode Mode, UE::Virtualization::EPayloadFilterReason Reason)->void
 						{
-							if (bLocalOnly && Mode != UE::EPayloadAccessMode::Local)
+							if (Mode != UE::EPayloadAccessMode::Virtualized)
 							{
-								return;
+								if (EnumHasAllFlags(OutputFilter, EPayloadFilter::VirtualizedOnly))
+								{
+									return;
+								}
+
+								Reason = UE::Virtualization::Utils::FixFilterFlags(PackagePath, SizeOnDisk, Reason);
+
+								if (EnumHasAllFlags(OutputFilter, EPayloadFilter::PendingOnly) && Reason != UE::Virtualization::EPayloadFilterReason::None)
+								{
+									return;
+								}
+
+								if (EnumHasAllFlags(OutputFilter, EPayloadFilter::FilteredOnly) && Reason == UE::Virtualization::EPayloadFilterReason::None)
+								{
+									return;
+								}
+							}
+							else
+							{
+								if (EnumHasAnyFlags(OutputFilter, EPayloadFilter::LocalOnly))
+								{
+									return;
+								}
 							}
 
 							PayloadCount++;
 
 							TAnsiStringBuilder<256> LineBuilder;
-							LineBuilder << PackagePath << "," << Id << "," << SizeOnDisk << "," << RawSize << "," << Mode << "," << *LexToString(Filter) <<"\n";
+							LineBuilder << PackagePath << "," << Id << "," << SizeOnDisk << "," << RawSize << "," << Mode << "," << *LexToString(Reason) <<"\n";
 							
 							Sheet.PrintRow(LineBuilder);
 						});
+
 				}
 			}
 
@@ -170,7 +229,37 @@ bool UGeneratePayloadManifestCommandlet::ParseCmdline(const FString& Params)
 
 	ParseCommandLine(*Params, Tokens, Switches);
 
-	bLocalOnly = Switches.Contains(TEXT("LocalOnly"));
+	auto ApplyFilter = [this, &Switches](const TCHAR* FilterName, EPayloadFilter FilterType)->bool
+		{
+			if (Switches.Contains(FilterName))
+			{
+				if (Filter != EPayloadFilter::None)
+				{
+					UE_LOG(LogVirtualization, Error, TEXT("Comandlet cannot have multiple filters active at the same time"));
+					return false;
+				}
+
+				Filter = FilterType;
+			}
+
+			return true;
+		};
+
+	TPair<const TCHAR*, EPayloadFilter> Filters[] =
+	{ 
+		{TEXT("LocalOnly"), EPayloadFilter::LocalOnly},
+		{TEXT("PendingOnly"), EPayloadFilter::PendingOnly},
+		{TEXT("FilteredOnly"), EPayloadFilter::FilteredOnly},
+		{TEXT("VirtualizedOnly"), EPayloadFilter::VirtualizedOnly}
+	};
+
+	for (const TPair<const TCHAR*, EPayloadFilter>& It : Filters)
+	{
+		if (!ApplyFilter(It.Key, It.Value))
+		{
+			return false;
+		}
+	}
 
 	return true;
 }

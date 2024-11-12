@@ -39,7 +39,7 @@ static FLegacyFOptionPropertyCustomVersion LegacyFOptionPropertyCustomVersion;
 static const FString InitString = TEXT("__INIT__");
 
 FOptionalProperty::FOptionalProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FProperty(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
 
@@ -62,6 +62,17 @@ void FOptionalProperty::SetValueProperty(FProperty* InValueProperty)
 	check(!ValueProperty);
 	check(InValueProperty);
 	ValueProperty = InValueProperty;
+}
+
+bool FOptionalProperty::HasIntrusiveUnsetOptionalState() const
+{
+	// TOptional<TOptional<T>> doesn't have an intrusive unset state even if the innermost type does.
+	return false;
+}
+
+bool FOptionalProperty::SameType(const FProperty* Other) const
+{
+	return Super::SameType(Other) && ValueProperty && ValueProperty->SameType(CastFieldChecked<FOptionalProperty>(Other)->ValueProperty);
 }
 
 void FOptionalProperty::AddReferencedObjects(FReferenceCollector& Collector)
@@ -150,10 +161,13 @@ void FOptionalProperty::LinkInternal(FArchive& Ar)
 	ValueProperty->Link(Ar);
 	
 	// After ValueProperty's size has been computed, compute the size of this property.
-	ElementSize = CalcSize();
+	SetElementSize(CalcSize());
 
-	// Optional properties can always be initialized by zeroing memory.
-	PropertyFlags |= CPF_ZeroConstructor;
+	// Standard non-intrusive optional properties can always be initialized by zeroing memory.
+	if (!ValueProperty->HasIntrusiveUnsetOptionalState())
+	{
+		PropertyFlags |= CPF_ZeroConstructor;
+	}
 
 	// Propagate CPF_NoDestructor, CPF_IsPlainOldData, and CPF_HasGetValueTypeHash from the value property.
 	PropertyFlags |= (ValueProperty->PropertyFlags & (CPF_NoDestructor|CPF_IsPlainOldData|CPF_HasGetValueTypeHash));
@@ -429,9 +443,9 @@ void FOptionalProperty::ClearValueInternal(void* Data) const
 
 void FOptionalProperty::InitializeValueInternal(void* Data) const
 {
-	if (IsValueNonNullablePointer())
+	if (ValueProperty->HasIntrusiveUnsetOptionalState())
 	{
-		ValueProperty->InitializeValue(Data);
+		ValueProperty->InitializeIntrusiveUnsetOptionalValue(Data);
 	}
 	else
 	{
@@ -442,6 +456,25 @@ void FOptionalProperty::InitializeValueInternal(void* Data) const
 void FOptionalProperty::DestroyValueInternal(void* Data) const
 {
 	MarkUnset(Data);
+	if (ValueProperty->HasIntrusiveUnsetOptionalState())
+	{
+		ValueProperty->DestroyValue(Data);
+	}
+}
+
+bool FOptionalProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(ValueProperty);
+	return ValueProperty->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FOptionalProperty::FinishDestroyInternal( void* Data ) const
+{
+	check(ValueProperty);
+	if (void* Value = GetValuePointerForReplaceIfSet(Data))
+	{
+		ValueProperty->FinishDestroy(Value);
+	}
 }
 
 void FOptionalProperty::InstanceSubobjects(void* Data, void const* DefaultData, UObject* InOwner, struct FObjectInstancingGraph* InstanceGraph)
@@ -478,6 +511,12 @@ EConvertFromTypeResult FOptionalProperty::ConvertFromType(const FPropertyTag& Ta
 				return EConvertFromTypeResult::Converted;
 			}
 			ValueTag.SetType(Tag.GetType().GetParameter(0));
+
+			// Mimic FPropertyTag::SerializeTaggedProperty storing bool values in the tag because implementations of ConvertFromType expect it there.
+			if (ValueTag.Type == NAME_BoolProperty)
+			{
+				*MaybeValueSlot << ValueTag.BoolVal;
+			}
 		}
 
 		FStructuredArchive::FSlot ValueSlot = MaybeValueSlot.Get(Slot);
@@ -515,17 +554,13 @@ EConvertFromTypeResult FOptionalProperty::ConvertFromType(const FPropertyTag& Ta
 	void* Data = ContainerPtrToValuePtr<void>(ContainerData, Tag.ArrayIndex);
 	const void* Defaults = DefaultsStruct ? ContainerPtrToValuePtrForDefaults<void>(DefaultsStruct, DefaultsContainer, Tag.ArrayIndex) : nullptr;
 	
-	bool bIsValueNonNullablePointer;
+	bool bIsValueNonNullablePointer = ValueProperty->HasAllPropertyFlags(CPF_NonNullable);
 	if (FPropertyOptionVersion < FLegacyFOptionPropertyCustomVersion::RemoveIsValueNonNullablePointerHack)
 	{
 		bIsValueNonNullablePointer =
 			  ValueProperty->IsA<FClassProperty>() ? false
 			: ValueProperty->IsA<FObjectProperty>() ? true
 			: (ValueProperty->GetPropertyFlags() & CPF_NonNullable) != 0;
-	}
-	else
-	{
-		bIsValueNonNullablePointer = IsValueNonNullablePointer();
 	}
 
 	if (bIsValueNonNullablePointer && FPropertyOptionVersion < FLegacyFOptionPropertyCustomVersion::AlwaysSavingIsSetForFObjectProperty)
@@ -659,4 +694,31 @@ bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) con
 	const FProperty* LocalValueProperty = ValueProperty;
 	check(LocalValueProperty);
 	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter(0));
+}
+
+EPropertyVisitorControlFlow FOptionalProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto && IsSet(Data.PropertyData))
+	{
+		checkf(ValueProperty, TEXT("Expecting a valid property value"));
+
+		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ValueProperty));
+		RetVal = ValueProperty->Visit(Path, Data, InFunc);
+	}
+	return RetVal;
+}
+
+void* FOptionalProperty::ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const
+{
+	if (Info.Property == ValueProperty && IsSet(Data))
+	{
+		return Data;
+	}
+
+	return nullptr;
 }

@@ -42,6 +42,8 @@ struct TEXTUREGRAPHENGINE_API JobArgBindInfo
 class TEXTUREGRAPHENGINE_API JobArg
 {
 protected:
+	bool							bIgnoreDesc = false;/// Whether to ignore the descriptor for this argument
+														/// when combining descriptors during merge
 	bool							bIgnoreHash = false;/// Whether to ignore this argument in hash calculation or not
 	bool							bUnbound = false;	/// Sometimes you need to add an argument for hashing calculation 
 														/// and not necessarily binding to a BlobTransform
@@ -72,6 +74,9 @@ public:
 
 	FORCEINLINE bool				Unbounded() const { return bUnbound; }
 	FORCEINLINE void 				WithUnbounded(bool unbounded) { bUnbound = unbounded; }
+
+	FORCEINLINE bool				IgnoreDesc() const { return bIgnoreDesc; }
+	FORCEINLINE void 				WithIgnoreDesc(bool ignoreDesc) { bIgnoreDesc = ignoreDesc; }
 };
 
 typedef std::shared_ptr<JobArg>		JobArgPtr;
@@ -102,6 +107,9 @@ protected:
 
 	bool							bBindNeighborTiles = false;			/// Bind the tile and the rign of neighbors in order to be able to go fetch border information OUT of the current tile bound
 
+	bool							bBindArrayOfTiles = false;			/// Bind ALL the tiles contained in this arg, filling the array of UTextures before execution of the job.
+
+
 	TiledBlobPtr					GetRootBlob(JobArgBindInfo JobBindInfo) const;
 
 public:
@@ -111,6 +119,8 @@ public:
 	virtual							~JobArg_Blob() override;
 	virtual void					SetHandleTiles(bool bInCanHandleTiles);
 	virtual bool					CanHandleTiles() const override;
+	JobArg_Blob&					WithNotHandleTiles(); // equivalent to call  SetHandleTiles(false)
+
 
 	virtual void					SetForceNonTiledTransform(bool bInForceNonTiledTransform);
 	virtual bool					ForceNonTiledTransform() const override;
@@ -120,6 +130,9 @@ public:
 
 	JobArg_Blob&					WithNeighborTiles();
 	bool							IsNeighborTiles() const;
+
+	JobArg_Blob&					WithArrayOfTiles();
+	bool							IsArrayOfTiles() const;
 
 	virtual AsyncJobArgResultPtr	Bind(JobArgBindInfo JobBindInfo) override;
 	virtual AsyncJobArgResultPtr	Unbind(JobArgBindInfo JobBindInfo) override;
@@ -386,6 +399,12 @@ public:
 //All tiles of blob combined in a single blob (through SRV in shader)
 //Blob can be fetched in HLSL using GetFullBlob(inout float 4) method. See AdjustUVGeneric.usf and TiledFetch_Combined.ush for help
 #define ARG_COMBINEDBLOB(v, n)				std::make_shared<JobArg_Blob_Combined>(v, n)	//With Custom SRV
+
+FORCEINLINE JobArgPtr				WithIgnoreDesc(JobArgPtr Arg, bool bIgnoreDesc = true)
+{
+	Arg->WithIgnoreDesc(bIgnoreDesc);
+	return Arg;
+}
 
 FORCEINLINE JobArgPtr				WithIgnoreHash(JobArgPtr Arg, bool bIgnoreHash = true)
 {

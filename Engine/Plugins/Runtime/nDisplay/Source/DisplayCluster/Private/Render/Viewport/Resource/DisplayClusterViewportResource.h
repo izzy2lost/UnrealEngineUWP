@@ -72,7 +72,7 @@ public:
 	{ }
 
 	/** Get current RHI resource. */
-	virtual FRHITexture2D* GetViewportResourceRHI_RenderThread() const
+	virtual FRHITexture* GetViewportResourceRHI_RenderThread() const
 	{
 		return nullptr;
 	}
@@ -120,10 +120,10 @@ public:
 
 protected:
 	/** Helper function: create RTT texture. */
-	void ImplInitDynamicRHI_RenderTargetResource2D(FTexture2DRHIRef& OutRenderTargetTextureRHI, FTexture2DRHIRef& OutTextureRHI);
+	void ImplInitDynamicRHI_RenderTargetResource2D(FTextureRHIRef& OutRenderTargetTextureRHI, FTextureRHIRef& OutTextureRHI);
 
 	/** Helper function: create 2D texture. */
-	void ImplInitDynamicRHI_TextureResource2D(FTexture2DRHIRef& OutTextureRHI);
+	void ImplInitDynamicRHI_TextureResource2D(FTextureRHIRef& OutTextureRHI);
 
 protected:
 	// Settings used by this resource

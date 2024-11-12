@@ -372,7 +372,7 @@ private:
 	void GetSortedKeyHandlessAndPositionsForModel(FCurveModel& InCurveModel, TArray<FKeyHandlePositionPair>& OutSortedKeyHandlesAndPositions)
 	{
 		TArray<FKeyHandle> KeyHandles;
-		InCurveModel.GetKeys(*CurveEditor.Get(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+		InCurveModel.GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 
 		TArray<FKeyPosition> KeyPositions;
 		KeyPositions.AddDefaulted(KeyHandles.Num());
@@ -655,7 +655,7 @@ private:
 			{
 				// If there's a single key, add the new key at the same value, but time + 1.
 				TArray<FKeyHandle> KeyHandles;
-				CurveModelForAdd->GetKeys(*CurveEditor.Get(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+				CurveModelForAdd->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 				
 				TArray<FKeyPosition> KeyPositions;
 				KeyPositions.AddDefaulted();
@@ -1549,7 +1549,7 @@ FReply FNiagaraDataInterfaceCurveDetailsBase::CurveTemplateSelected(TWeakObjectP
 				if (CurveModel != nullptr)
 				{
 					TArray<FKeyHandle> KeyHandles;
-					CurveModel->GetKeys(*CurveEditor.Get(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+					CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 					CurveModel->RemoveKeys(KeyHandles);
 
 					const FRichCurve& FloatCurve = FloatCurveAsset->FloatCurve;

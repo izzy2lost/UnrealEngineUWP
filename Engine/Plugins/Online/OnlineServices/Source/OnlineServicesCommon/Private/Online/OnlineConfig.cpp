@@ -28,7 +28,7 @@ const TCHAR* ParseField(const TCHAR* InStr, TMap<FString, FString>& OutMap)
 	if (*Str)
 	{
 		int32 Len = UE_PTRDIFF_TO_INT32(Str - Start);
-		FString FieldName(Len, Start);
+		FString FieldName = FString::ConstructFromPtrSize(Start, Len);
 
 		Str++;
 		Start = Str;
@@ -44,7 +44,7 @@ const TCHAR* ParseField(const TCHAR* InStr, TMap<FString, FString>& OutMap)
 			}
 
 			Len = UE_PTRDIFF_TO_INT32(Str - Start);
-			FString FieldValue(Len, Start);
+			FString FieldValue= FString::ConstructFromPtrSize(Start, Len);
 
 			OutMap.Emplace(MoveTemp(FieldName), MoveTemp(FieldValue));
 			Str++;
@@ -84,7 +84,7 @@ const TCHAR* ParseField(const TCHAR* InStr, TMap<FString, FString>& OutMap)
 			Str++;
 
 			Len = UE_PTRDIFF_TO_INT32(Str - Start);
-			FString FieldValue(Len, Start);
+			FString FieldValue = FString::ConstructFromPtrSize(Start, Len);
 
 			OutMap.Emplace(MoveTemp(FieldName), MoveTemp(FieldValue));
 		}
@@ -94,7 +94,7 @@ const TCHAR* ParseField(const TCHAR* InStr, TMap<FString, FString>& OutMap)
 			Str = FAsciiSet::Skip(Str, StringChars);
 				
 			Len = UE_PTRDIFF_TO_INT32(Str - Start);
-			FString FieldValue(Len, Start);
+			FString FieldValue = FString::ConstructFromPtrSize(Start, Len);
 
 			OutMap.Emplace(MoveTemp(FieldName), MoveTemp(FieldValue));
 		}
@@ -217,7 +217,7 @@ TArray<FString> FOnlineConfigStructGConfig::CreateValueArray(const FString& InCo
 					}
 
 					const int32 Len = UE_PTRDIFF_TO_INT32(Str - Start);
-					FString FieldValue(Len, Start);
+					FString FieldValue = FString::ConstructFromPtrSize(Start, Len);
 					Result.Emplace(MoveTemp(FieldValue));
 					Str++;
 				}
@@ -227,7 +227,7 @@ TArray<FString> FOnlineConfigStructGConfig::CreateValueArray(const FString& InCo
 					Str = FAsciiSet::Skip(Str, StringChars);
 
 					const int32 Len = UE_PTRDIFF_TO_INT32(Str - Start);
-					FString FieldValue(Len, Start);
+					FString FieldValue = FString::ConstructFromPtrSize(Start, Len);
 					Result.Emplace(MoveTemp(FieldValue));
 				}
 

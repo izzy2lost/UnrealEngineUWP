@@ -117,6 +117,7 @@ void SSingleProperty::Construct( const FArguments& InArgs )
 	NamePlacement = InArgs._NamePlacement;
 	NotifyHook = InArgs._NotifyHook;
 	PropertyFont = InArgs._PropertyFont;
+	bShouldHideResetToDefault = InArgs._bShouldHideResetToDefault;
 
 	PropertyUtilities = MakeShareable( new FSinglePropertyUtilities( SharedThis( this ), InArgs._bShouldHideAssetThumbnail ) );
 
@@ -211,7 +212,6 @@ bool SSingleProperty::GeneratePropertyCustomization()
 		//bIsAcceptableProperty &= !( Property->IsA( FArrayProperty::StaticClass() ) || (Property->ArrayDim > 1 && ValueNode->GetArrayIndex() == INDEX_NONE) );
 		// not a struct property unless its a built in type like a vector
 		//bIsAcceptableProperty &= ( !Property->IsA( FStructProperty::StaticClass() ) || PropertyEditorHelpers::IsBuiltInStructProperty( Property ) );
-		PropertyHandle = PropertyEditorHelpers::GetPropertyHandle(ValueNode.ToSharedRef(), NotifyHook, PropertyUtilities);
 	}
 
 	if( bIsAcceptableProperty )
@@ -220,6 +220,8 @@ bool SSingleProperty::GeneratePropertyCustomization()
 
 		TSharedRef< FPropertyEditor > PropertyEditor = FPropertyEditor::Create( ValueNode.ToSharedRef(), TSharedPtr< IPropertyUtilities >( PropertyUtilities ).ToSharedRef() );
 		ValueNode->SetDisplayNameOverride( NameOverride );
+		
+		PropertyHandle = PropertyEditorHelpers::GetPropertyHandle(ValueNode.ToSharedRef(), NotifyHook, PropertyUtilities);
 
 		TSharedPtr<SHorizontalBox> HorizontalBox;
 
@@ -270,7 +272,7 @@ bool SSingleProperty::GeneratePropertyCustomization()
 			];			
 		}
 
-		if (!PropertyEditor->GetPropertyHandle()->HasMetaData(TEXT("NoResetToDefault")))
+		if (!PropertyEditor->GetPropertyHandle()->HasMetaData(TEXT("NoResetToDefault")) && !bShouldHideResetToDefault)
 		{
 			HorizontalBox->AddSlot()
 			.Padding( 2.0f )
@@ -283,6 +285,12 @@ bool SSingleProperty::GeneratePropertyCustomization()
 	}
 	else
 	{
+		if (ValueNode.IsValid())
+		{
+			// Still create a PropertyHandle, though it may not be fully initialized as the ValueNode will not have had children rebuilt
+			PropertyHandle = PropertyEditorHelpers::GetPropertyHandle(ValueNode.ToSharedRef(), NotifyHook, PropertyUtilities);
+		}
+		
 		ChildSlot
 		[
 			SNew(STextBlock)
@@ -298,7 +306,7 @@ bool SSingleProperty::GeneratePropertyCustomization()
 }
 
 
-void SSingleProperty::SetOnPropertyValueChanged( FSimpleDelegate& InOnPropertyValueChanged )
+void SSingleProperty::SetOnPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged )
 {
 	if( HasValidProperty() )
 	{

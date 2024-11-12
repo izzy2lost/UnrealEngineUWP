@@ -254,7 +254,15 @@ namespace HarmonixMetasound::Nodes::MorphingLFO
 			MusicTimingInfo.Tempo = LastTempo;
 			MusicTimingInfo.Speed = LastSpeed;
 			MusicTimingInfo.Timestamp = (*Inputs.MidiClock)->GetMusicTimestampAtBlockOffset(StartSample);
-			MusicTimingInfo.TimeSignature = (*Inputs.MidiClock)->GetBarMap().GetTimeSignatureAtBar(MusicTimingInfo.Timestamp.Bar);
+			const FTimeSignature* TimeSigPtr = (*Inputs.MidiClock)->GetSongMapEvaluator().GetTimeSignatureAtBar(MusicTimingInfo.Timestamp.Bar);
+			if (!TimeSigPtr)
+			{
+				MusicTimingInfo.TimeSignature = FTimeSignature(4, 4);
+			}
+			else
+			{
+				MusicTimingInfo.TimeSignature = *TimeSigPtr;
+			}
 			LFO.Advance(NumSamples, *Outputs.LFO.Get(), &MusicTimingInfo);
 		}
 		else
@@ -288,7 +296,15 @@ namespace HarmonixMetasound::Nodes::MorphingLFO
 			MusicTimingInfo.Tempo = LastTempo;
 			MusicTimingInfo.Speed = LastSpeed;
 			MusicTimingInfo.Timestamp = (*Inputs.MidiClock)->GetMusicTimestampAtBlockOffset(StartSample);
-			MusicTimingInfo.TimeSignature = (*Inputs.MidiClock)->GetBarMap().GetTimeSignatureAtBar(MusicTimingInfo.Timestamp.Bar);
+			const FTimeSignature* TimeSigPtr = (*Inputs.MidiClock)->GetSongMapEvaluator().GetTimeSignatureAtBar(MusicTimingInfo.Timestamp.Bar);
+			if (!TimeSigPtr)
+			{
+				MusicTimingInfo.TimeSignature = FTimeSignature(4, 4);
+			}
+			else
+			{
+				MusicTimingInfo.TimeSignature = *TimeSigPtr;
+			}
 			LFO.Advance(Output, NumSamples, &MusicTimingInfo);
 		}
 		else

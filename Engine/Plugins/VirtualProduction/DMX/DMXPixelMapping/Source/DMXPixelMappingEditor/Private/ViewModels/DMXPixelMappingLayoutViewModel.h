@@ -3,8 +3,8 @@
 #pragma once
 
 #include "EditorUndoClient.h"
-
 #include "Engine/TimerHandle.h"
+
 #include "DMXPixelMappingLayoutViewModel.generated.h"
 
 struct FDMXPixelMappingLayoutToken;
@@ -15,8 +15,6 @@ class UDMXPixelMappingLayoutScript;
 class UDMXPixelMappingMatrixComponent;
 class UDMXPixelMappingOutputComponent;
 class UDMXPixelMappingRendererComponent;
-class UDMXPixelMappingScreenComponent;
-
 
 enum class EDMXPixelMappingLayoutViewModelMode
 {
@@ -25,7 +23,6 @@ enum class EDMXPixelMappingLayoutViewModelMode
 	LayoutMatrixComponentChildren,
 	LayoutNone
 };
-
 
 /** Model for the Layout View */
 UCLASS(Transient)
@@ -116,10 +113,6 @@ private:
 	/** The Renderer Component currently in use */
 	UPROPERTY()
 	TWeakObjectPtr<UDMXPixelMappingRendererComponent> RendererComponent;
-
-	/** The Screen Components currently in use */
-	UPROPERTY()
-	TArray<TWeakObjectPtr<UDMXPixelMappingScreenComponent>> ScreenComponents;
 
 	/** The Fixture Group Components currently in use */
 	UPROPERTY()

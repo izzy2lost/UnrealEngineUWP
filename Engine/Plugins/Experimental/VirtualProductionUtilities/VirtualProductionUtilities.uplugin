@@ -33,11 +33,6 @@
 			"Name": "VPBookmarkEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostDefault"
-		},
-		{
-			"Name": "VPMaterialsEditor",
-			"Type": "Editor",
-			"LoadingPhase": "PostDefault"
 		}
 	],
 	"Plugins": [
@@ -79,6 +74,14 @@
 		},
 		{
 			"Name": "XRBase",
+			"Enabled": true
+		},
+		{
+			"Name": "CineCameraSceneCapture",
+			"Enabled": true
+		},
+		{
+			"Name": "InlineMaterialInstance",
 			"Enabled": true
 		}
 	]

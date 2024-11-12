@@ -4,6 +4,7 @@
 #include "ConcertLogGlobal.h"
 
 #include "Misc/PackageName.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ConcertSyncSessionTypes)
 
@@ -210,7 +211,6 @@ FText FConcertSyncConnectionActivitySummary::CreateDisplayTextForUser(const FTex
 	Arguments.Add(TEXT("UserName"), ActivitySummaryUtil::ToRichTextBold(InUserDisplayName, InUseRichText));
 	return FText::Format(FormatPattern, Arguments);
 }
-
 
 FConcertSyncLockActivitySummary FConcertSyncLockActivitySummary::CreateSummaryForEvent(const FConcertSyncLockEvent& InEvent)
 {
@@ -828,6 +828,133 @@ FText FConcertSyncPackageActivitySummary::CreateDisplayTextForUser(const FText I
 	Arguments.Add(TEXT("PackageName"), ActivitySummaryUtil::ToRichTextBold(PackageName, InUseRichText));
 	Arguments.Add(TEXT("NewPackageName"), ActivitySummaryUtil::ToRichTextBold(NewPackageName, InUseRichText));
 	return FText::Format(FormatPattern, Arguments);
+}
+
+namespace UE::ConcertSyncCore::ActivitySummary::Private
+{
+	static FText CreateDisplayText_LeaveReplication(const FConcertSyncReplicationActivitySummary& Summary, const bool bInUseRichText)
+	{
+		FConcertSyncReplicationSummary_LeaveReplication Content;
+		const bool bRead = Summary.GetSummaryData(Content);
+		if (!bRead)
+		{
+			return LOCTEXT("CreateDisplayText.LeftActivity.NoData", "No data.");
+		}
+			
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("NumObjects"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Content.OwnedObjects.Num()), bInUseRichText));
+		return FText::Format(LOCTEXT("CreateDisplayText.LeftActivity.Fmt", "Stopped replicating {NumObjects} {NumObjects}|plural(one=object, other=objects)."), Arguments);
+	}
+	static FText CreateDisplayTextForUser_LeaveReplication(const FConcertSyncReplicationActivitySummary& Summary, const FText InUserDisplayName, const bool InUseRichText)
+	{
+		FConcertSyncReplicationSummary_LeaveReplication Content;
+		const bool bRead = Summary.GetSummaryData(Content);
+		if (!bRead)
+		{
+			return LOCTEXT("CreateDisplayTextForUser.LeftActivity.NoData", "No data.");
+		}
+			
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("UserName"), ActivitySummaryUtil::ToRichTextBold(InUserDisplayName, InUseRichText));
+		Arguments.Add(TEXT("NumObjects"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Content.OwnedObjects.Num()), InUseRichText));
+		return FText::Format(LOCTEXT("CreateDisplayTextForUser.LeftActivity.Fmt", "{UserName} stopped replicating {NumObjects} {NumObjects}|plural(one=object, other=objects)."), Arguments);
+	}
+
+	static FText SelectText(bool bMuted, bool bUnmuted, const FText& MutedOnly, const FText& UnmutedOnly, const FText& MutedAndUnmuted)
+	{
+		if (bMuted && bUnmuted)
+		{
+			return MutedAndUnmuted;
+		}
+
+		if (bMuted)
+		{
+			return MutedOnly;
+		}
+
+		if (bUnmuted)
+		{
+			return UnmutedOnly;
+		}
+
+		return LOCTEXT("CreateDisplayText.Mute.None", "No changes");
+	}
+	
+	static FText CreateDisplayText_Mute(const FConcertSyncReplicationActivitySummary& Summary, const bool bInUseRichText)
+	{
+		FConcertSyncReplicationSummary_Mute Content;
+		const bool bRead = Summary.GetSummaryData(Content);
+		if (!bRead)
+		{
+			return LOCTEXT("CreateDisplayText.LeftActivity.NoData", "No data.");
+		}
+		const FConcertReplication_ChangeMuteState_Request& Request = Content.Request;
+			
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("NumMuted"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Request.ObjectsToMute.Num()), bInUseRichText));
+		Arguments.Add(TEXT("NumUnmuted"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Request.ObjectsToUnmute.Num()), bInUseRichText));
+		
+		const FText TextToFormat = SelectText(
+			!Request.ObjectsToMute.IsEmpty(),
+			!Request.ObjectsToUnmute.IsEmpty(),
+			LOCTEXT("CreateDisplayText.MutedOnly.Fmt", "Paused {NumMuted} {NumMuted}|plural(one=object, other=objects)."),
+			LOCTEXT("CreateDisplayText.UnmutedOnly.Fmt", "Resumed {NumUnmuted} {NumUnmuted}|plural(one=object, other=objects)."),
+			LOCTEXT("CreateDisplayText.MutedAndUnmuted.Fmt", "Paused {NumObjects} and resumed {NumUnmuted} objects.")
+			);
+		return FText::Format(TextToFormat, Arguments);
+	}
+	static FText CreateDisplayTextForUser_Mute(const FConcertSyncReplicationActivitySummary& Summary, const FText InUserDisplayName, const bool bInUseRichText)
+	{
+		FConcertSyncReplicationSummary_Mute Content;
+		const bool bRead = Summary.GetSummaryData(Content);
+		if (!bRead)
+		{
+			return LOCTEXT("CreateDisplayText.LeftActivity.NoData", "No data.");
+		}
+		const FConcertReplication_ChangeMuteState_Request& Request = Content.Request;
+			
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("NumMuted"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Request.ObjectsToMute.Num()), bInUseRichText));
+		Arguments.Add(TEXT("NumUnmuted"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Request.ObjectsToUnmute.Num()), bInUseRichText));
+		Arguments.Add(TEXT("UserName"), ActivitySummaryUtil::ToRichTextBold(InUserDisplayName, bInUseRichText));
+		
+		const FText TextToFormat = SelectText(
+			!Request.ObjectsToMute.IsEmpty(),
+			!Request.ObjectsToUnmute.IsEmpty(),
+			LOCTEXT("CreateDisplayTextForUser.MutedOnly.Fmt", "{UserName} paused {NumMuted} {NumMuted}|plural(one=object, other=objects)."),
+			LOCTEXT("CreateDisplayTextForUser.UnmutedOnly.Fmt", "{UserName} resumed {NumUnmuted} {NumUnmuted}|plural(one=object, other=objects)."),
+			LOCTEXT("CreateDisplayTextForUser.MutedAndUnmuted.Fmt", "{UserName} paused {NumObjects} and resumed {NumUnmuted} objects.")
+			);
+		return FText::Format(TextToFormat, Arguments);
+	}
+}
+
+FText FConcertSyncReplicationActivitySummary::CreateDisplayText(const bool InUseRichText) const
+{
+	using namespace UE::ConcertSyncCore::ActivitySummary::Private;
+	
+	static_assert(static_cast<uint8>(EConcertSyncReplicationActivityType::Count) == 3, "If you added an EConcertSyncReplicationActivityType entry, update this switch");
+	switch (ActivityType)
+	{
+	case EConcertSyncReplicationActivityType::LeaveReplication: return CreateDisplayText_LeaveReplication(*this, InUseRichText);
+	case EConcertSyncReplicationActivityType::Mute: return CreateDisplayText_Mute(*this, InUseRichText);
+	case EConcertSyncReplicationActivityType::None: [[fallthrough]];
+		default: checkNoEntry(); return FConcertSyncActivitySummary::CreateDisplayText(InUseRichText);
+	}
+}
+
+FText FConcertSyncReplicationActivitySummary::CreateDisplayTextForUser(const FText InUserDisplayName, const bool InUseRichText) const
+{
+	using namespace UE::ConcertSyncCore::ActivitySummary::Private;
+	
+	static_assert(static_cast<uint8>(EConcertSyncReplicationActivityType::Count) == 3, "If you added an EConcertSyncReplicationActivityType entry, update this switch");
+	switch (ActivityType)
+	{
+	case EConcertSyncReplicationActivityType::LeaveReplication: return CreateDisplayTextForUser_LeaveReplication(*this, InUserDisplayName, InUseRichText);
+	case EConcertSyncReplicationActivityType::Mute: return CreateDisplayTextForUser_Mute(*this, InUserDisplayName, InUseRichText);
+	case EConcertSyncReplicationActivityType::None: [[fallthrough]];
+	default: checkNoEntry(); return FConcertSyncActivitySummary::CreateDisplayText(InUseRichText);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

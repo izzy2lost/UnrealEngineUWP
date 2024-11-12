@@ -361,7 +361,7 @@ bool FFilePackageStoreBackend::GetPackageRedirectInfo(FPackageId PackageId, FNam
 	{
 		OutSourcePackageName = FindRedirect->Get<0>();
 		OutRedirectedToPackageId = FindRedirect->Get<1>();
-		UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from %s to 0x%llx"), *OutSourcePackageName.ToString(), OutRedirectedToPackageId.Value());
+		UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from %s to 0x%s"), *OutSourcePackageName.ToString(), *LexToString(OutRedirectedToPackageId));
 		return true;
 	}
 	
@@ -376,7 +376,7 @@ bool FFilePackageStoreBackend::GetPackageRedirectInfo(FPackageId PackageId, FNam
 			{
 				OutSourcePackageName = *FindLocalizedPackageSourceName;
 				OutRedirectedToPackageId = LocalizedPackageId;
-				UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from localized package %s to 0x%llx"), *OutSourcePackageName.ToString(), OutRedirectedToPackageId.Value());
+				UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from localized package %s to 0x%s"), *OutSourcePackageName.ToString(), *LexToString(OutRedirectedToPackageId));
 				return true;
 			}
 		}
@@ -399,6 +399,9 @@ void FFilePackageStoreBackend::Mount(FIoContainerHeader* ContainerHeader, uint32
 			return A.Order > B.Order;
 		});
 	bNeedsContainerUpdate = true;
+
+	UE_LOG(LogFilePackageStore, Log, TEXT("Mounting container: Id=%s, Order=%u, NumPackages=%d"),
+		*LexToString(ContainerHeader->ContainerId), Order, ContainerHeader->PackageIds.Num());
 }
 
 void FFilePackageStoreBackend::Unmount(const FIoContainerHeader* ContainerHeader)
@@ -648,6 +651,7 @@ void FFilePackageStoreBackend::Update()
 
 				MountedContainer.NumMountedPackages = NumNewPackages;
 				ContainerHeader->PackageIds.Empty();
+				ContainerHeader->SoftPackageReferences.Empty();
 			}
 
 			
@@ -704,6 +708,9 @@ void FFilePackageStoreBackend::Update()
 		PackageEntries = FPackageIdMap(MoveTemp(Pairs));
 
 		bNeedsContainerUpdate = false;	
+
+		UE_LOG(LogFilePackageStore, Log, TEXT("Updated: NewPackages=%u, OldPackages=%u, TotalPackages=%u"),
+			TotalNewPackages, TotalOldPackages, PackageEntries.GetCapacity());
 	}
 }
 

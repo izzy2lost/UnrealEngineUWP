@@ -2,18 +2,39 @@
 
 #include "Elements/Common/TypedElementQueryConditions.h"
 
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "UObject/Class.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage::Queries
 {
-	FQueryConditions::FQueryConditions(FColumnBase Column)
-		: ColumnCount(1)
+	FEditorStorageQueryConditionCompileContext::FEditorStorageQueryConditionCompileContext(IEditorDataStorageProvider* InDataStorage)
+		: DataStorage(InDataStorage)
 	{
-		Columns[0] = Column.TypeInfo;
 	}
 
-	void FQueryConditions::AppendToString(FString& Output) const
+	const UScriptStruct* FEditorStorageQueryConditionCompileContext::GenerateDynamicColumn(
+		const FDynamicColumnDescription& Description) const
 	{
+		return DataStorage->GenerateDynamicColumn(Description);
+	}
+
+	FConditions::FConditions()
+	{
+		Identifiers.Init(NAME_None, MaxColumnCount);
+	}
+
+	FConditions::FConditions(FColumnBase Column)
+		: ColumnCount(1)
+	{
+		Identifiers.Init(NAME_None, MaxColumnCount);
+		Columns[0] = Column.TypeInfo;
+		Identifiers[0] = Column.Identifier;
+	}
+
+	void FConditions::AppendToString(FString& Output) const
+	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		if (TokenCount > 0)
 		{
 			Output += "{ ";
@@ -60,8 +81,10 @@ namespace TypedElementDataStorage
 		}
 	}
 
-	bool FQueryConditions::Verify(TConstArrayView<FColumnBase> AvailableColumns) const
+	bool FConditions::Verify(TConstArrayView<FColumnBase> AvailableColumns) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return VerifyBootstrap(
 			[&AvailableColumns](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
 			{
@@ -76,10 +99,13 @@ namespace TypedElementDataStorage
 			});
 	}
 
-	bool FQueryConditions::Verify(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns, TConstArrayView<FColumnBase> AvailableColumns,
+	bool FConditions::Verify(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns, TConstArrayView<FColumnBase> AvailableColumns,
 		bool AvailableColumnsAreSorted) const
 	{
 		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount can be larger than 64.");
+
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		uint64 Matches = 0;
 		bool Result = AvailableColumnsAreSorted
 			? VerifyBootstrap(
@@ -109,15 +135,18 @@ namespace TypedElementDataStorage
 					}
 					return false;
 				});
-				if (Result)
-				{
-					ConvertColumnBitToArray(MatchedColumns, Matches);
-				}
-				return Result;
+		if (Result)
+		{
+			ConvertColumnBitToArray(MatchedColumns, Matches);
+		}
+		return Result;
 	}
 
-	bool FQueryConditions::Verify(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns, bool AvailableColumnsAreSorted) const
+	bool FConditions::Verify(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns,
+		bool AvailableColumnsAreSorted) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return AvailableColumnsAreSorted
 			? VerifyBootstrap(
 				[&AvailableColumns](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
@@ -135,10 +164,14 @@ namespace TypedElementDataStorage
 				});
 	}
 
-	bool FQueryConditions::Verify(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns,
-		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns, bool AvailableColumnsAreSorted) const
+	bool FConditions::Verify(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns,
+		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns,
+		bool AvailableColumnsAreSorted) const
 	{
-		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount can be larger than 64.");
+		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount cannot be larger than 64.");
+		
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		uint64 Matches = 0;
 		bool Result = AvailableColumnsAreSorted
 			? VerifyBootstrap(
@@ -160,15 +193,17 @@ namespace TypedElementDataStorage
 				{
 					return AvailableColumns.Find(Column) != INDEX_NONE;
 				});
-				if (Result)
-				{
-					ConvertColumnBitToArray(MatchedColumns, Matches);
-				}
-				return Result;
+		if (Result)
+		{
+			ConvertColumnBitToArray(MatchedColumns, Matches);
+		}
+		return Result;
 	}
 
-	bool FQueryConditions::Verify(TSet<TWeakObjectPtr<const UScriptStruct>> AvailableColumns) const
+	bool FConditions::Verify(TSet<TWeakObjectPtr<const UScriptStruct>> AvailableColumns) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return VerifyBootstrap(
 			[&AvailableColumns](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
 			{
@@ -176,12 +211,14 @@ namespace TypedElementDataStorage
 			});
 	}
 
-	bool FQueryConditions::Verify(ContainsCallback Callback) const
+	bool FConditions::Verify(ContainsCallback Callback) const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return VerifyBootstrap(Callback);
 	}
 
-	uint8_t FQueryConditions::MinimumColumnMatchRequired() const
+	uint8_t FConditions::MinimumColumnMatchRequired() const
 	{
 		if (TokenCount > 0)
 		{
@@ -198,17 +235,52 @@ namespace TypedElementDataStorage
 		}
 	}
 
-	TConstArrayView<TWeakObjectPtr<const UScriptStruct>> FQueryConditions::GetColumns() const
+	TConstArrayView<TWeakObjectPtr<const UScriptStruct>> FConditions::GetColumns() const
 	{
+		checkf(bIsCompiled, TEXT("Query Conditions must call Compile() before you can use them"));
+		
 		return TConstArrayView<TWeakObjectPtr<const UScriptStruct>>(Columns, ColumnCount);
 	}
 
-	bool FQueryConditions::IsEmpty() const
+	bool FConditions::IsEmpty() const
 	{
 		return ColumnCount == 0;
 	}
 
-	void FQueryConditions::AppendName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo) const
+	FConditions& FConditions::Compile(const IQueryConditionCompileContext& CompileContext)
+	{
+		if(bIsCompiled)
+		{
+			return *this;
+		}
+
+		// Resolve all dynamic columns by generating their UScriptStruct
+		for (uint8_t ColumnIndex = 0; ColumnIndex < ColumnCount; ++ColumnIndex)
+		{
+			if(Identifiers[ColumnIndex] != NAME_None)
+			{
+				const UScriptStruct* ResolvedDynamicColumn = CompileContext.GenerateDynamicColumn(
+					FDynamicColumnDescription
+						{
+							.TemplateType = Columns[ColumnIndex].Get(),
+							.Identifier = Identifiers[ColumnIndex]
+						});
+				
+				Columns[ColumnIndex] = ResolvedDynamicColumn;
+			}
+		}
+
+		bIsCompiled = true;
+
+		return *this;
+	}
+
+	bool FConditions::IsCompiled() const
+	{
+		return bIsCompiled;
+	}
+
+	void FConditions::AppendName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo) const
 	{
 #if WITH_EDITORONLY_DATA
 		static FName DisplayNameName(TEXT("DisplayName"));
@@ -221,17 +293,17 @@ namespace TypedElementDataStorage
 #endif
 	}
 
-	bool FQueryConditions::EntersScopeNext(uint8_t Index) const
+	bool FConditions::EntersScopeNext(uint8_t Index) const
 	{
 		return Index < (TokenCount - 1) && Tokens[Index + 1] == Token::ScopeOpen;
 	}
 
-	bool FQueryConditions::EntersScope(uint8_t Index) const
+	bool FConditions::EntersScope(uint8_t Index) const
 	{
 		return Tokens[Index] == Token::ScopeOpen;
 	}
 
-	bool FQueryConditions::Contains(TWeakObjectPtr<const UScriptStruct> ColumnType, const TArray<FColumnBase>& AvailableColumns) const
+	bool FConditions::Contains(TWeakObjectPtr<const UScriptStruct> ColumnType, const TArray<FColumnBase>& AvailableColumns) const
 	{
 		for (const FColumnBase& Column : AvailableColumns)
 		{
@@ -243,7 +315,7 @@ namespace TypedElementDataStorage
 		return false;
 	}
 
-	bool FQueryConditions::VerifyBootstrap(ContainsCallback Contains) const
+	bool FConditions::VerifyBootstrap(ContainsCallback Contains) const
 	{
 		if (TokenCount > 0)
 		{
@@ -255,13 +327,14 @@ namespace TypedElementDataStorage
 		{
 			return Contains(0, Columns[0]);
 		}
+		// If there are no columns in the condition, everything passes it
 		else
 		{
-			return false;
+			return true;
 		}
 	}
 
-	bool FQueryConditions::VerifyRange(uint8_t& TokenIndex, uint8_t& ColumnIndex, ContainsCallback Contains) const
+	bool FConditions::VerifyRange(uint8_t& TokenIndex, uint8_t& ColumnIndex, ContainsCallback Contains) const
 	{
 		auto Init = [&]()
 		{
@@ -319,7 +392,7 @@ namespace TypedElementDataStorage
 		return Result;
 	}
 
-	void FQueryConditions::ConvertColumnBitToArray(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns, uint64 ColumnBits) const
+	void FConditions::ConvertColumnBitToArray(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns, uint64 ColumnBits) const
 	{
 		uint64 Index = 0;
 		while (ColumnBits)
@@ -333,7 +406,7 @@ namespace TypedElementDataStorage
 		}
 	}
 
-	uint8_t FQueryConditions::MinimumColumnMatchRequiredRange(uint8_t& Front) const
+	uint8_t FConditions::MinimumColumnMatchRequiredRange(uint8_t& Front) const
 	{
 		uint8_t Result = EntersScope(Front) ? MinimumColumnMatchRequiredRange(++Front) : 1;
 		for (; Front < TokenCount; ++Front)
@@ -374,12 +447,13 @@ namespace TypedElementDataStorage
 		return Result;
 	}
 
-	void FQueryConditions::AppendQuery(FQueryConditions& Target, const FQueryConditions& Source)
+	void FConditions::AppendQuery(FConditions& Target, const FConditions& Source)
 	{
 		checkf(Target.ColumnCount + Source.ColumnCount < MaxColumnCount, TEXT("Too many columns in the query."));
 		for (uint8_t Index = 0; Index < Source.ColumnCount; ++Index)
 		{
 			Target.Columns[Target.ColumnCount + Index] = Source.Columns[Index];
+			Target.Identifiers[Target.ColumnCount + Index] = Source.Identifiers[Index];
 		}
 
 		checkf(Target.TokenCount + Source.TokenCount < MaxTokenCount, TEXT("Too many operations in the query. Try simplifying your query."));
@@ -392,87 +466,91 @@ namespace TypedElementDataStorage
 		Target.TokenCount += Source.TokenCount;
 	}
 
-	FQueryConditions operator&&(const FQueryConditions& Lhs, FColumnBase Rhs)
+	FConditions operator&&(const FConditions& Lhs, FColumnBase Rhs)
 	{
-		FQueryConditions Result = Lhs;
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::And;
+		FConditions Result = Lhs;
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::And;
 		return Result;
 	}
 
-	FQueryConditions operator&&(const FQueryConditions& Lhs, const FQueryConditions& Rhs)
+	FConditions operator&&(const FConditions& Lhs, const FConditions& Rhs)
 	{
-		FQueryConditions Result;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeOpen;
-		FQueryConditions::AppendQuery(Result, Lhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeClose;
+		FConditions Result;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeOpen;
+		FConditions::AppendQuery(Result, Lhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeClose;
 
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::And;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::And;
 
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeOpen;
-		FQueryConditions::AppendQuery(Result, Rhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeClose;
-
-		return Result;
-	}
-
-	FQueryConditions operator&&(FColumnBase Lhs, FColumnBase Rhs)
-	{
-		FQueryConditions Result(Lhs);
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::And;
-		return Result;
-	}
-
-	FQueryConditions operator&&(FColumnBase Lhs, const FQueryConditions& Rhs)
-	{
-		FQueryConditions Result(Lhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::And;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeOpen;
-		FQueryConditions::AppendQuery(Result, Rhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeClose;
-		return Result;
-	}
-
-	FQueryConditions operator||(const FQueryConditions& Lhs, FColumnBase Rhs)
-	{
-		FQueryConditions Result = Lhs;
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::Or;
-		return Result;
-	}
-
-	FQueryConditions operator||(const FQueryConditions& Lhs, const FQueryConditions& Rhs)
-	{
-		FQueryConditions Result;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeOpen;
-		FQueryConditions::AppendQuery(Result, Lhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeClose;
-
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::Or;
-
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeOpen;
-		FQueryConditions::AppendQuery(Result, Rhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeClose;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeOpen;
+		FConditions::AppendQuery(Result, Rhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeClose;
 
 		return Result;
 	}
 
-	FQueryConditions operator||(FColumnBase Lhs, FColumnBase Rhs)
+	FConditions operator&&(FColumnBase Lhs, FColumnBase Rhs)
 	{
-		FQueryConditions Result(Lhs);
-		Result.Columns[Result.ColumnCount++] = Rhs.TypeInfo;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::Or;
+		FConditions Result(Lhs);
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::And;
 		return Result;
 	}
 
-	FQueryConditions operator||(FColumnBase Lhs, const FQueryConditions& Rhs)
+	FConditions operator&&(FColumnBase Lhs, const FConditions& Rhs)
 	{
-		FQueryConditions Result(Lhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::Or;
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeOpen;
-		FQueryConditions::AppendQuery(Result, Rhs);
-		Result.Tokens[Result.TokenCount++] = FQueryConditions::Token::ScopeClose;
+		FConditions Result(Lhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::And;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeOpen;
+		FConditions::AppendQuery(Result, Rhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeClose;
 		return Result;
 	}
-} // namespace TypedElementDataStorage
+
+	FConditions operator||(const FConditions& Lhs, FColumnBase Rhs)
+	{
+		FConditions Result = Lhs;
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::Or;
+		return Result;
+	}
+
+	FConditions operator||(const FConditions& Lhs, const FConditions& Rhs)
+	{
+		FConditions Result;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeOpen;
+		FConditions::AppendQuery(Result, Lhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeClose;
+
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::Or;
+
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeOpen;
+		FConditions::AppendQuery(Result, Rhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeClose;
+
+		return Result;
+	}
+
+	FConditions operator||(FColumnBase Lhs, FColumnBase Rhs)
+	{
+		FConditions Result(Lhs);
+		Result.Columns[Result.ColumnCount] = Rhs.TypeInfo;
+		Result.Identifiers[Result.ColumnCount++] = Rhs.Identifier;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::Or;
+		return Result;
+	}
+
+	FConditions operator||(FColumnBase Lhs, const FConditions& Rhs)
+	{
+		FConditions Result(Lhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::Or;
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeOpen;
+		FConditions::AppendQuery(Result, Rhs);
+		Result.Tokens[Result.TokenCount++] = FConditions::Token::ScopeClose;
+		return Result;
+	}
+} // namespace UE::Editor::DataStorage::Queries

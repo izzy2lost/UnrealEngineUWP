@@ -33,6 +33,7 @@ enum class EMeshResult
 	Failed_CollapseTriangle = 26,
 	Failed_NotABoundaryEdge = 27,
 	Failed_SameOrientation = 28,
+	Failed_CollapseQuad = 29,
 
 	Failed_WouldCreateBowtie = 30,
 	Failed_VertexAlreadyExists = 31,

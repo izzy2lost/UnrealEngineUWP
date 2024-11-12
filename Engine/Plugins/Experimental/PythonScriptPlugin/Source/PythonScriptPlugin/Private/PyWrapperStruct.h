@@ -253,7 +253,7 @@ class IPyWrapperInlineStructFactory
 {
 public:
 	/** Get the name of the Unreal struct this factory is for */
-	virtual FName GetStructName() const = 0;
+	virtual FTopLevelAssetPath GetStructName() const = 0;
 
 	/** Get the size of the Python object that should be constructed (in bytes) */
 	virtual int32 GetPythonObjectSizeBytes() const = 0;
@@ -281,9 +281,9 @@ private:
 	};
 
 public:
-	virtual FName GetStructName() const override
+	virtual FTopLevelAssetPath GetStructName() const override
 	{
-		return TBaseStructure<InlineType>::Get()->GetFName();
+		return TBaseStructure<InlineType>::Get()->GetStructPathName();
 	}
 
 	virtual int32 GetPythonObjectSizeBytes() const override
@@ -329,8 +329,11 @@ struct FPyWrapperStructMetaData : public FPyWrapperBaseMetaData
 	/** Check to see if the struct is deprecated, and optionally return its deprecation message */
 	static bool IsStructDeprecated(FPyWrapperStruct* Instance, FString* OutDeprecationMessage = nullptr);
 
+	/** Add object references from this type meta-data to the given collector */
+	virtual void AddTypeReferencedObjects(FReferenceCollector& Collector) override;
+
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
 
 	/** Get the reflection meta data type object associated with this wrapper type if there is one or nullptr if not. */
 	virtual const UField* GetMetaType() const override
@@ -369,7 +372,7 @@ typedef TPyPtr<FPyWrapperStruct> FPyWrapperStructPtr;
 
 /** An Unreal struct that was generated from a Python type */
 UCLASS()
-class UPythonGeneratedStruct : public UScriptStruct, public IPythonResourceOwner
+class UPythonGeneratedStruct final : public UScriptStruct, public IPythonResourceOwner
 {
 	GENERATED_BODY()
 
@@ -379,12 +382,19 @@ public:
 	//~ UObject interface
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void BeginDestroy() override;
+	virtual bool IsAsset() const override
+	{
+		return false;
+	}
 
 	//~ UStruct interface
 	virtual void InitializeStruct(void* Dest, int32 ArrayDim = 1) const override;
 
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
+
+	/** Unregister this type from FPyWrapperTypeRegistry */
+	void UnregisterGeneratedType();
 
 	/** Generate an Unreal struct from the given Python type */
 	static UPythonGeneratedStruct* GenerateStruct(PyTypeObject* InPyType);

@@ -7,12 +7,16 @@
 #include "ChaosClothAsset/ClothSimulationContext.h"
 #include "ChaosClothAsset/ClothSimulationMesh.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
+#include "ChaosClothAsset/CollisionSources.h"
 #include "ChaosCloth/ChaosClothingSimulationCloth.h"
 #include "ChaosCloth/ChaosClothingSimulationCollider.h"
 #include "ChaosCloth/ChaosClothingSimulationConfig.h"
 #include "ChaosCloth/ChaosClothingSimulationSolver.h"
 #include "ChaosCloth/ChaosClothVisualization.h"
+#include "Engine/SkinnedAssetCommon.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsField/PhysicsFieldComponent.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "ClothingSimulation.h"
 
 #if INTEL_ISPC
@@ -33,7 +37,7 @@ namespace UE::Chaos::ClothAsset
 	static_assert(sizeof(ispc::FVector3f) == sizeof(FVector3f), "sizeof(ispc::FVector3f) != sizeof(FVector3f)");
 	static_assert(sizeof(ispc::FTransform) == sizeof(::Chaos::FRigidTransform3), "sizeof(ispc::FTransform) != sizeof(::Chaos::FRigidTransform3)");
 
-	bool bTransformClothSimulData_ISPC_Enabled = true;
+	bool bTransformClothSimulData_ISPC_Enabled = CHAOS_TRANSFORM_CLOTH_SIMUL_DATA_ISPC_ENABLED_DEFAULT;
 	FAutoConsoleVariableRef CVarTransformClothSimukDataISPCEnabled(TEXT("p.ChaosClothAsset.TransformClothSimulData.ISPC"), bTransformClothSimulData_ISPC_Enabled, TEXT("Whether to use ISPC optimizations when transforming simulation data back to reference bone space."));
 #endif
 
@@ -79,6 +83,7 @@ namespace UE::Chaos::ClothAsset
 		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 		{
 			FScopeCycleCounterUObject ContextScope(ClothSimulationProxy.ClothComponent.GetSkinnedAsset());
+			SCOPE_CYCLE_COUNTER(STAT_ClothTotalTime);
 			CSV_SCOPED_TIMING_STAT(Animation, Cloth);
 
 			ClothSimulationProxy.Tick();
@@ -91,6 +96,7 @@ namespace UE::Chaos::ClothAsset
 	FClothSimulationProxy::FClothSimulationProxy(const UChaosClothComponent& InClothComponent)
 		: ClothComponent(InClothComponent)
 		, ClothSimulationContext(MakeUnique<FClothSimulationContext>())
+		, CollisionSourcesProxy(MakeUnique<FCollisionSourcesProxy>(InClothComponent.GetCollisionSources()))
 		, Solver(nullptr)
 		, Visualization(nullptr)
 		, MaxDeltaTime(UPhysicsSettings::Get()->MaxPhysicsDeltaTime)
@@ -105,7 +111,9 @@ namespace UE::Chaos::ClothAsset
 		// Use new SoftsEvolution, not PBDEvolution.
 		constexpr bool bUseLegacySolver = false;
 		Solver = MakeUnique<::Chaos::FClothingSimulationSolver>(Configs[SolverConfigIndex].Get(), bUseLegacySolver);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Visualization = MakeUnique<::Chaos::FClothVisualization>(Solver.Get());
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Need a valid context to initialize the mesh
 		constexpr bool bIsInitialization = true;
@@ -114,6 +122,8 @@ namespace UE::Chaos::ClothAsset
 
 		// Setup startup transforms
 		constexpr bool bNeedsReset = true;
+		const FReal LocalSpaceScale = 1. / FMath::Max(ClothSimulationContext->SolverGeometryScale, UE_SMALL_NUMBER);
+		Solver->SetLocalSpaceScale(LocalSpaceScale, bNeedsReset);
 		Solver->SetLocalSpaceLocation((FVec3)ClothSimulationContext->ComponentTransform.GetLocation(), bNeedsReset);
 		Solver->SetLocalSpaceRotation((FQuat)ClothSimulationContext->ComponentTransform.GetRotation());
 
@@ -129,18 +139,15 @@ namespace UE::Chaos::ClothAsset
 		FString DebugName;
 #if !UE_BUILD_SHIPPING
 		DebugName = ClothComponent.GetOwner() ?
-			FString::Format(TEXT("{0}|{1}"), { ClothComponent.GetOwner()->GetName(), ClothComponent.GetName() }) :
+			FString::Format(TEXT("{0}|{1}"), { ClothComponent.GetOwner()->GetActorNameOrLabel(), ClothComponent.GetName() }) :
 			ClothComponent.GetName();
 #endif
 		const int32 MeshIndex = Meshes.Emplace(MakeUnique<FClothSimulationMesh>(*ClothSimulationModel, *ClothSimulationContext, DebugName));
 
 		// Create collider simulation thread object
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		const FReferenceSkeleton* const ReferenceSkeleton = &ClothAsset->GetRefSkeleton();
-		const int32 ColliderIndex = ClothComponent.GetPhysicsAsset() ? Colliders.Emplace(MakeUnique<FClothingSimulationCollider>(ClothComponent.GetPhysicsAsset(), ReferenceSkeleton)) : INDEX_NONE;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		//Colliders[ColliderIndex]->SetCollisionData(&ExternalCollisionData);  // TODO: External collision data
+		const int32 ColliderIndex = Colliders.Emplace(MakeUnique<FClothingSimulationCollider>(ClothComponent.GetPhysicsAsset(), ReferenceSkeleton));
+		Colliders[ColliderIndex]->SetCollisionData(&CollisionSourcesProxy->GetCollisionData());
 
 		// Create cloth config simulation thread object
 		const int32 ClothConfigIndex = Configs.Emplace(MakeUnique<FClothingSimulationConfig>(ClothComponent.GetPropertyCollections()));
@@ -150,9 +157,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const int32 ClothIndex = Cloths.Emplace(MakeUnique<FClothingSimulationCloth>(
 			Configs[ClothConfigIndex].Get(),
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			Meshes[MeshIndex].Get(),
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ColliderIndex != INDEX_NONE ? TArray<FClothingSimulationCollider*>({ Colliders[ColliderIndex].Get() }) : TArray<FClothingSimulationCollider*>(),
 			GroupId));
 
@@ -173,32 +178,102 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		CompleteParallelSimulation_GameThread();
 	}
+	
+	void FClothSimulationProxy::PreSolveProxy(const float DeltaTime)
+	{
+		SetupSimulationData(DeltaTime);
+	}
 
-	bool FClothSimulationProxy::Tick_GameThread(float DeltaTime)
+	bool FClothSimulationProxy::SetupSimulationData(float DeltaTime)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
 
 		// Fill a new context, note the context is also needed when the simulation is suspended
 		constexpr bool bIsInitializationFalse = false;
 		FillSimulationContext(DeltaTime, bIsInitializationFalse);
-		Solver->SetEnableSolver(ShouldEnableSolver(Solver->GetEnableSolver()));
 
+		// Check that the render mesh current LOD isn't just fully skinned
+		const int32 LodIndex = ClothSimulationContext->LodIndex;
+		const UChaosClothAsset* const ClothAsset = ClothComponent.GetClothAsset();
+		if (!ClothAsset ||
+			!ClothAsset->GetResourceForRendering() ||
+			!ClothAsset->GetResourceForRendering()->LODRenderData.IsValidIndex(LodIndex) ||
+			!ClothAsset->GetResourceForRendering()->LODRenderData[LodIndex].HasClothData())
+		{
+			return false; // Not Simulating
+		}
+
+		// Check whether the solver should be enabled for caching purpose
+		const bool bShouldEnableSolver = ShouldEnableSolver(Solver->GetEnableSolver());
+		Solver->SetEnableSolver(bShouldEnableSolver);
+
+		// Prepare the solver task
 		const bool bUseCache = ClothSimulationContext->CacheData.HasData();
 		const bool bCreateParallelTask = (DeltaTime > 0.f && !ClothComponent.IsSimulationSuspended()) || bUseCache;
 		if (bCreateParallelTask)
 		{
-			InitializeConfigs();
+			if (bShouldEnableSolver)
+			{
+				// Update the config properties
+				InitializeConfigs();
 
-			// Start the the cloth simulation thread
-			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);
+				// Update world forces
+				if (UWorld* const World = ClothComponent.GetWorld())
+				{
+					if (UPhysicsFieldComponent* const PhysicsField = World->PhysicsField)
+					{
+						const FBox BoundingBox = CalculateBounds_AnyThread().GetBox().TransformBy(ClothComponent.GetComponentTransform());
+
+						PhysicsField->FillTransientCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetTransientCommands());
+						PhysicsField->FillPersistentCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetPersistentCommands());
+					}
+				}
+
+				// Update external collision sources
+				CollisionSourcesProxy->ExtractCollisionData();
+			}
 
 			return true;  // Simulating
 		}
 
 		// It still needs to write back to the GT cache as the context has changed
-		WriteSimulationData();
+		UpdateClothLODs();
+		if (ClothComponent.IsSimulationEnabled())
+		{
+			WriteSimulationData();
+		}
+		else
+		{
+			CurrentSimulationData.Reset();
+		}
 
 		return false;  // Not simulating
+	}
+
+	bool FClothSimulationProxy::PreSimulate_GameThread(float DeltaTime)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
+
+		const bool bIsSimulating = SetupSimulationData(DeltaTime);
+		if(bIsSimulating && ClothSimulationContext->CacheData.HasData())
+		{
+			// Start the the cloth simulation thread only when reading cache
+			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);
+		}
+		return bIsSimulating;
+	}
+
+	bool FClothSimulationProxy::Tick_GameThread(float DeltaTime)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
+
+		const bool bIsSimulating = SetupSimulationData(DeltaTime);
+		if(bIsSimulating)
+		{
+			// Start the the cloth simulation thread
+			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);
+		}
+		return bIsSimulating;
 	}
 
 	void FClothSimulationProxy::Tick()
@@ -214,9 +289,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return;
 		}
 		// Filter delta time to smoothen time variations and prevent unwanted vibrations
+		static IConsoleVariable* const UseTimeStepSmoothingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("p.ChaosCloth.UseTimeStepSmoothing"));
+		const bool bUseTimeStepSmoothing = UseTimeStepSmoothingCVar ? UseTimeStepSmoothingCVar->GetBool() : true;
 		const Softs::FSolverReal DeltaTime = (Softs::FSolverReal)ClothSimulationContext->DeltaTime;
 		const Softs::FSolverReal PrevDeltaTime = Solver->GetDeltaTime() > 0.f ? Solver->GetDeltaTime() : DeltaTime;
-		const Softs::FSolverReal SmoothedDeltaTime = PrevDeltaTime + (DeltaTime - PrevDeltaTime) * (Softs::FSolverReal)DeltaTimeDecay;
+		const Softs::FSolverReal SmoothedDeltaTime = PrevDeltaTime + (DeltaTime - PrevDeltaTime) * (bUseTimeStepSmoothing ? (Softs::FSolverReal)DeltaTimeDecay : 1.f);
 
 		const double StartTime = FPlatformTime::Seconds();
 		const float PrevSimulationTime = SimulationTime;  // Copy the atomic to prevent a re-read
@@ -304,6 +381,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		static const TConsoleVariableData<bool>* const DebugDrawBackstopsCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawBackstops"));
 		static const TConsoleVariableData<bool>* const DebugDrawBackstopDistancesCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawBackstopDistances"));
 		static const TConsoleVariableData<bool>* const DebugDrawMaxDistancesCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawMaxDistances"));
+		static const TConsoleVariableData<bool>* const DebugDrawMaxDistanceValuesCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawMaxDistanceValues"));
 		static const TConsoleVariableData<bool>* const DebugDrawAnimDriveCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawAnimDrive"));
 		static const TConsoleVariableData<bool>* const DebugDrawEdgeConstraintCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawEdgeConstraint"));
 		static const TConsoleVariableData<bool>* const DebugDrawBendingConstraintCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawBendingConstraint"));
@@ -311,6 +389,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		static const TConsoleVariableData<bool>* const DebugDrawWindForcesCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawWindForces"));
 		static const TConsoleVariableData<bool>* const DebugDrawSelfCollisionCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawSelfCollision"));
 		static const TConsoleVariableData<bool>* const DebugDrawSelfIntersectionCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawSelfIntersection"));
+		static const TConsoleVariableData<bool>* const DebugDrawParticleIndicesCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawParticleIndices"));
+		static const TConsoleVariableData<bool>* const DebugDrawElementIndicesCVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("p.ChaosCloth.DebugDrawElementIndices"));
 
 		if (DebugDrawLocalSpaceCVar && DebugDrawLocalSpaceCVar->GetValueOnAnyThread()) { Visualization->DrawLocalSpace(); }
 		if (DebugDrawBoundsCVar && DebugDrawBoundsCVar->GetValueOnAnyThread()) { Visualization->DrawBounds(); }
@@ -322,8 +402,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (DebugDrawPointNormalsCVar && DebugDrawPointNormalsCVar->GetValueOnAnyThread()) { Visualization->DrawPointNormals(); }
 		if (DebugDrawCollisionCVar && DebugDrawCollisionCVar->GetValueOnAnyThread()) { Visualization->DrawCollision(); }
 		if (DebugDrawBackstopsCVar && DebugDrawBackstopsCVar->GetValueOnAnyThread()) { Visualization->DrawBackstops(); }
-		if (DebugDrawBackstopDistancesCVar && DebugDrawBackstopDistancesCVar->GetValueOnAnyThread()) { Visualization->DrawMaxDistances(); }
+		if (DebugDrawBackstopDistancesCVar && DebugDrawBackstopDistancesCVar->GetValueOnAnyThread()) { Visualization->DrawBackstopDistances(); }
 		if (DebugDrawMaxDistancesCVar && DebugDrawMaxDistancesCVar->GetValueOnAnyThread()) { Visualization->DrawMaxDistances(); }
+		if (DebugDrawMaxDistanceValuesCVar && DebugDrawMaxDistanceValuesCVar->GetValueOnAnyThread()) { Visualization->DrawMaxDistanceValues(); }
 		if (DebugDrawAnimDriveCVar && DebugDrawAnimDriveCVar->GetValueOnAnyThread()) { Visualization->DrawAnimDrive(); }
 		if (DebugDrawEdgeConstraintCVar && DebugDrawEdgeConstraintCVar->GetValueOnAnyThread()) { Visualization->DrawEdgeConstraint(); }
 		if (DebugDrawBendingConstraintCVar && DebugDrawBendingConstraintCVar->GetValueOnAnyThread()) { Visualization->DrawBendingConstraint(); }
@@ -331,6 +412,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (DebugDrawWindForcesCVar && DebugDrawWindForcesCVar->GetValueOnAnyThread()) { Visualization->DrawWindAndPressureForces(); }
 		if (DebugDrawSelfCollisionCVar && DebugDrawSelfCollisionCVar->GetValueOnAnyThread()) { Visualization->DrawSelfCollision(); }
 		if (DebugDrawSelfIntersectionCVar && DebugDrawSelfIntersectionCVar->GetValueOnAnyThread()) { Visualization->DrawSelfIntersection(); }
+		if (DebugDrawParticleIndicesCVar && DebugDrawParticleIndicesCVar->GetValueOnAnyThread()) { Visualization->DrawParticleIndices(); }
+		if (DebugDrawElementIndicesCVar && DebugDrawElementIndicesCVar->GetValueOnAnyThread()) { Visualization->DrawElementIndices(); }
 #endif  // #if CHAOS_DEBUG_DRAW
 	}
 
@@ -354,6 +437,37 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
+	void FClothSimulationProxy::UpdateClothLODs()
+	{
+		using namespace ::Chaos;
+
+		bool bAnyLODsChanged = false;
+		for (const TUniquePtr<FClothingSimulationCloth>& Cloth : Cloths)
+		{
+			const int32 AssetIndex = Cloth->GetGroupId();
+
+			if (!Cloth->GetMesh())
+			{
+				continue;  // Invalid or empty cloth
+			}
+
+			// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
+			const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
+			if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
+			{
+				if (!ClothComponent.IsSimulationEnabled())
+				{
+					// Mark the cloth as needing to be reset so it doesn't both proxy-deforming lod transitions.
+					Cloth->Reset();
+				}
+				bAnyLODsChanged = true;
+			}
+		}
+		if (bAnyLODsChanged)
+		{
+			Solver->Update(Softs::FSolverReal(0.));  // Update for LOD switching, but do not simulate
+		}
+	}
 
 	void FClothSimulationProxy::WriteSimulationData()
 	{
@@ -362,6 +476,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CSV_SCOPED_TIMING_STAT(Animation, Cloth);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FClothSimulationProxy_WriteSimulationData);
 		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_WriteSimulationData);
+		SCOPE_CYCLE_COUNTER(STAT_ClothWriteback)
 
 		USkinnedMeshComponent* LeaderPoseComponent = nullptr;
 		if (ClothComponent.LeaderPoseComponent.IsValid())
@@ -390,6 +505,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Get the solver's local space
 		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation(); // Note: Since the ReferenceSpaceTransform can be suspended with the simulation, it is important that the suspended local space location is used too in order to get the simulation data back into reference space
+		const FReal LocalSpaceScale = Solver->GetLocalSpaceScale();
 
 		// Retrieve the component's bones transforms
 		const TArray<FTransform>& ComponentSpaceTransforms = LeaderPoseComponent ? LeaderPoseComponent->GetComponentSpaceTransforms() : ClothComponent.GetComponentSpaceTransforms();
@@ -406,13 +522,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+			// This should be handled by calling UpdateClothLODs when not ticking/simulating.
 			const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
-			{
-				Solver->Update(Softs::FSolverReal(0.));  // Update for LOD switching, but do not simulate
-			}
+			ensure(LODIndex == Cloth->GetLODIndex(Solver.Get()));
 
 			if (Cloth->GetParticleRangeId(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
 			{
@@ -463,6 +575,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					(ispc::FVector3f*)Data.Positions.GetData(),
 					(ispc::FVector3f*)Data.Normals.GetData(),
 					(ispc::FTransform&)ReferenceSpaceTransform,
+					LocalSpaceScale,
 					Data.Positions.Num());
 			}
 			else
@@ -470,15 +583,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				for (int32 Index = 0; Index < Data.Positions.Num(); ++Index)
 				{
-					Data.Positions[Index] = FVec3f(ReferenceSpaceTransform.InverseTransformPosition(FVec3(Data.Positions[Index])));
+					Data.Positions[Index] = FVec3f(ReferenceSpaceTransform.InverseTransformPosition(LocalSpaceScale * FVec3(Data.Positions[Index])));
 					Data.Normals[Index] = FVec3f(ReferenceSpaceTransform.InverseTransformVector(FVec3(-Data.Normals[Index])));
 				}
 			}
 
 			// Set the current LOD these data apply to, so that the correct deformer mappings can be applied
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			Data.LODIndex = Cloth->GetMesh()->GetOwnerLODIndex(LODIndex);  // The owner component LOD index can be different to the cloth mesh LOD index
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
@@ -505,12 +616,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FBoxSphereBounds Bounds = Solver->CalculateBounds();
 
 			// The component could be moving while the simulation is suspended so getting the bounds
-			// in world space isn't good enough and the bounds origin needs to be continuously updated
+			// in world space isn't good enough and the bounds origin needs to be continuously updated.
+			// 
+			// This converts the bounds back to component space. Do not apply LocalSpaceScale, which may not match component space.
+			// TODO: this will not apply the component's actual scale either.
 			Bounds = Bounds.TransformBy(FTransform((FQuat)Solver->GetLocalSpaceRotation(), (FVector)Solver->GetLocalSpaceLocation()).Inverse());
 
 			return Bounds;
 		}
 		return FBoxSphereBounds(ForceInit);
+	}
+
+	const::Chaos::FClothVisualizationNoGC* FClothSimulationProxy::GetClothVisualization() const
+	{
+		return Visualization.Get();
 	}
 
 	void FClothSimulationProxy::InitializeConfigs()

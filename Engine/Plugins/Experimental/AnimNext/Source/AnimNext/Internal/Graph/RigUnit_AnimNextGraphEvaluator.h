@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "RigUnit_AnimNextBase.h"
 #include "AnimNextExecuteContext.h"
-
 #include "RigUnit_AnimNextGraphEvaluator.generated.h"
 
 // Represents an argument to a FRigUnit_AnimNextGraphEvaluator entry point
@@ -41,7 +41,7 @@ struct FAnimNextGraphEvaluatorExecuteDefinition
  * It performs the animation graph update and evaluation through the data provided in the execution context.
  * It also holds all latent/lazy pins that the graph references in the editor.
  */
-USTRUCT(meta=(DisplayName="Animation Runtime Output", Category="Events", NodeColor="1, 0, 0"))
+USTRUCT(meta=(Hidden, DisplayName="Animation Runtime Output", Category="Events", NodeColor="1, 0, 0"))
 struct ANIMNEXT_API FRigUnit_AnimNextGraphEvaluator : public FRigUnit_AnimNextBase
 {
 	GENERATED_BODY()

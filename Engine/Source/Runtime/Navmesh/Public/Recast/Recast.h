@@ -245,6 +245,15 @@ enum rcRegionPartitioning
 	RC_REGION_CHUNKY,		///< monotone partitioning on small chunks
 };
 
+//@UE BEGIN
+/// Specifies the size of borders around the heightfield. 
+struct rcBorderSize
+{
+	int low;	///< Size of the border in the negative direction of the axis [Limit: >= 0] [Units: vx]
+	int high;	///< Size of the border in the positive direction of the axis [Limit: >= 0] [Units: vx]
+};
+//@UE END
+
 /// Specifies a configuration to use when performing Recast builds.
 /// @ingroup recast
 struct rcConfig
@@ -258,8 +267,8 @@ struct rcConfig
 	/// The width/height size of tile's on the xz-plane. [Limit: >= 0] [Units: vx]
 	int tileSize;
 	
-	/// The size of the non-navigable border around the heightfield. [Limit: >=0] [Units: vx]
-	int borderSize;
+	/// The size of the non-navigable border around the heightfield.
+	rcBorderSize borderSize;													//@UE														
 
 	/// The xz-plane cell size to use for fields. [Limit: > 0] [Units: wu] 
 	rcReal cs;
@@ -292,11 +301,6 @@ struct rcConfig
 	
 	/// The maximum allowed length for contour edges along the border of the mesh. [Limit: >=0] [Units: vx] 
 	int maxEdgeLen;
-
-	/// Maximum vertical deviation between raw contour points to allow merging points. [Limit: >=0] [Units: vx]
-	/// Use a low value (2-5) to allow more precise contours (also see SimplificationElevationFactor).
-	/// Use very high value to deactivate (Recast behavior).
-	int maxVerticalMergeError;	// UE
 	
 	/// The maximum distance a simplified contour's border edges should deviate 
 	/// the original raw contour. [Limit: >=0] [Units: wu]
@@ -444,7 +448,7 @@ struct rcCompactHeightfield
 	int spanCount;				///< The number of spans in the heightfield.
 	int walkableHeight;			///< The walkable height used during the build of the field.  (See: rcConfig::walkableHeight)
 	int walkableClimb;			///< The walkable climb used during the build of the field. (See: rcConfig::walkableClimb)
-	int borderSize;				///< The AABB border size used during the build of the field. (See: rcConfig::borderSize)
+	rcBorderSize borderSize;	///< The AABB border size used during the build of the field. (See: rcConfig::borderSize)		//@UE
 	unsigned short maxDistance;	///< The maximum distance value of any span within the field. 
 	unsigned short maxRegions;	///< The maximum region id of any span within the field. 
 	rcReal bmin[3];				///< The minimum bounds in world space. [(x, y, z)]
@@ -502,15 +506,15 @@ struct rcContour
 /// @ingroup recast
 struct rcContourSet
 {
-	rcContour* conts;	///< An array of the contours in the set. [Size: #nconts]
-	int nconts;			///< The number of contours in the set.
-	rcReal bmin[3];  	///< The minimum bounds in world space. [(x, y, z)]
-	rcReal bmax[3];		///< The maximum bounds in world space. [(x, y, z)]
-	rcReal cs;			///< The size of each cell. (On the xz-plane.)
-	rcReal ch;			///< The height of each cell. (The minimum increment along the y-axis.)
-	int width;			///< The width of the set. (Along the x-axis in cell units.) 
-	int height;			///< The height of the set. (Along the z-axis in cell units.) 
-	int borderSize;		///< The AABB border size used to generate the source data from which the contours were derived.
+	rcContour* conts;			///< An array of the contours in the set. [Size: #nconts]
+	int nconts;					///< The number of contours in the set.
+	rcReal bmin[3];  			///< The minimum bounds in world space. [(x, y, z)]
+	rcReal bmax[3];				///< The maximum bounds in world space. [(x, y, z)]
+	rcReal cs;					///< The size of each cell. (On the xz-plane.)
+	rcReal ch;					///< The height of each cell. (The minimum increment along the y-axis.)
+	int width;					///< The width of the set. (Along the x-axis in cell units.) 
+	int height;					///< The height of the set. (Along the z-axis in cell units.) 
+	rcBorderSize borderSize;	///< The AABB border size used to generate the source data from which the contours were derived.		//@UE
 };
 
 // @UE BEGIN
@@ -544,7 +548,7 @@ struct rcPolyMesh
 	rcReal bmax[3];			///< The maximum bounds in world space. [(x, y, z)]
 	rcReal cs;				///< The size of each cell. (On the xz-plane.)
 	rcReal ch;				///< The height of each cell. (The minimum increment along the y-axis.)
-	int borderSize;			///< The AABB border size used to generate the source data from which the mesh was derived.
+	rcBorderSize borderSize;///< The AABB border size used to generate the source data from which the mesh was derived.		//@UE
 };
 
 /// Contains triangle meshes that represent detailed height data associated 
@@ -1310,7 +1314,7 @@ NAVMESH_API bool rcBuildRegions(rcContext* ctx, rcCompactHeightfield& chf,
 ///  								be merged with larger regions. [Limit: >=0] [Units: vx] 
 ///  @returns True if the operation completed successfully.
 NAVMESH_API bool rcBuildRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf,
-							const int borderSize, const int minRegionArea, const int mergeRegionArea);
+							const rcBorderSize borderSize, const int minRegionArea, const int mergeRegionArea);		//@UE
 
 /// Builds region data for the heightfield using simple monotone partitioning.
 ///  @ingroup recast 
@@ -1325,7 +1329,7 @@ NAVMESH_API bool rcBuildRegionsMonotone(rcContext* ctx, rcCompactHeightfield& ch
 ///	 @param[in]		chunkSize		Size of subregion [Units: vx]
 ///  @returns True if the operation completed successfully.
 NAVMESH_API bool rcBuildRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
-						  const int borderSize, const int minRegionArea, const int mergeRegionArea,
+						  const rcBorderSize borderSize, const int minRegionArea, const int mergeRegionArea,		//@UE
 						  const int chunkSize);
 
 /// Sets the neighbor connection data for the specified direction.
@@ -1388,7 +1392,7 @@ inline int rcGetDirOffsetY(int dir)
 ///  @param[out]	lset		The resulting layer set. (Must be pre-allocated.)
 ///  @returns True if the operation completed successfully.
 NAVMESH_API bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
-							  const int borderSize, const int walkableHeight,
+							  const rcBorderSize borderSize, const int walkableHeight,		//@UE
 							  rcHeightfieldLayerSet& lset);
 
 /// Builds a layer set from the specified compact heightfield.
@@ -1402,7 +1406,7 @@ NAVMESH_API bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& 
 ///  @param[out]	lset		The resulting layer set. (Must be pre-allocated.)
 ///  @returns True if the operation completed successfully.
 NAVMESH_API bool rcBuildHeightfieldLayersMonotone(rcContext* ctx, rcCompactHeightfield& chf,
-									  const int borderSize, const int walkableHeight,
+									  const rcBorderSize borderSize, const int walkableHeight,		//@UE
 									  rcHeightfieldLayerSet& lset);
 
 /// Builds a layer set from the specified compact heightfield.
@@ -1417,7 +1421,7 @@ NAVMESH_API bool rcBuildHeightfieldLayersMonotone(rcContext* ctx, rcCompactHeigh
 ///  @param[out]	lset		The resulting layer set. (Must be pre-allocated.)
 ///  @returns True if the operation completed successfully.
 NAVMESH_API bool rcBuildHeightfieldLayersChunky(rcContext* ctx, rcCompactHeightfield& chf,
-									const int borderSize, const int walkableHeight,
+									const rcBorderSize borderSize, const int walkableHeight,		//@UE
 									const int chunkSize,
 									rcHeightfieldLayerSet& lset);
 

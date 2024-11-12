@@ -27,7 +27,7 @@ struct FBlackboardEntry
 #endif // WITH_EDITORONLY_DATA
 
 	/** key type and additional properties */
-	UPROPERTY(EditAnywhere, Instanced, Category=Blackboard)
+	UPROPERTY(EditAnywhere, Instanced, Category = Blackboard, meta = (AllowEditInlineCustomization))
 	TObjectPtr<UBlackboardKeyType> KeyType;
 
 	/** if set to true then this field will be synchronized across all instances of this blackboard */

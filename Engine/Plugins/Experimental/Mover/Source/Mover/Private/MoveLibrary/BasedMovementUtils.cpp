@@ -408,7 +408,7 @@ void UBasedMovementUtils::UpdateSimpleBasedMovement(UMoverComponent* TargetMover
 					const bool bSweep = true;
 					FHitResult MoveHitResult;
 
-					bool bDidMove = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, WorldDeltaLocation, WorldTargetQuat, bSweep, MoveComponentFlags, &MoveHitResult, ETeleportType::None);
+					bool bDidMove = UMovementUtils::TryMoveUpdatedComponent_Internal(FMovingComponentSet(TargetMoverComp), WorldDeltaLocation, WorldTargetQuat, bSweep, MoveComponentFlags, &MoveHitResult, ETeleportType::None);
 					
 					const FVector NewWorldLocation = UpdatedComponent->GetComponentLocation();
 
@@ -425,23 +425,73 @@ void UBasedMovementUtils::UpdateSimpleBasedMovement(UMoverComponent* TargetMover
 						CurrentBaseInfo.ContactLocalPosition -= UnachievedLocalDelta;
 					}
 
-					// Read, edit, write out the sync state based on the move results
-					FMoverSyncState PendingSyncState;
-					if (TargetMoverComp->BackendLiaisonComp->ReadPendingSyncState(OUT PendingSyncState))
-					{
-						if (FMoverDefaultSyncState* DefaultSyncState = PendingSyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
-						{
-							FVector Velocity = DefaultSyncState->GetVelocity_WorldSpace();
-							DefaultSyncState->SetTransforms_WorldSpace(UpdatedComponent->GetComponentLocation(),
-								UpdatedComponent->GetComponentRotation(),
-								Velocity,
-								CurrentBaseInfo.MovementBase.Get(), CurrentBaseInfo.BoneName);
+					// Propagate the movement changes to the backend's state, if supported
 
-							TargetMoverComp->BackendLiaisonComp->WritePendingSyncState(PendingSyncState);
+					// Note that this is occurring out-of-band with the movement simulation, in order to support based movement regardless of update order or
+					// whether the movement base is also simulated through Mover.
+
+					FMoverSyncState PendingSimSyncState;
+					if (TargetMoverComp->BackendLiaisonComp->ReadPendingSyncState(OUT PendingSimSyncState))
+					{
+						// Modify the PENDING sync state that has not yet been committed to simulation history nor replicated
+						if (FMoverDefaultSyncState* PendingMoverState = PendingSimSyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+						{
+							FTransform OldSyncTransformWs = PendingMoverState->GetTransform_WorldSpace();
+							FTransform NewSyncTransformWs = UpdatedComponent->GetComponentTransform();
+
+							PendingMoverState->SetTransforms_WorldSpace(
+								NewSyncTransformWs.GetLocation(),
+								NewSyncTransformWs.GetRotation().Rotator(),
+								PendingMoverState->GetVelocity_WorldSpace(),	// keep same velocity and base
+								PendingMoverState->GetMovementBase(), PendingMoverState->GetMovementBaseBoneName());
+
+							TargetMoverComp->BackendLiaisonComp->WritePendingSyncState(PendingSimSyncState);	// writes pending Simulation state
+
+							// If smoothing, modify presentation-related states as well so that the visual offset location stays anchored to the movement base
+							if (TargetMoverComp->SmoothingMode != EMoverSmoothingMode::None)
+							{
+								const FTransform OldToNewTransform = NewSyncTransformWs.GetRelativeTransform(OldSyncTransformWs);
+
+								// Modify the PRESENTATION sync state that we're smoothing TO
+								FMoverSyncState PresentationSyncState;
+								if (TargetMoverComp->BackendLiaisonComp->ReadPresentationSyncState(OUT PresentationSyncState))
+								{
+									if (FMoverDefaultSyncState* PresentationMoverState = PresentationSyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+									{
+										OldSyncTransformWs = PresentationMoverState->GetTransform_WorldSpace();
+										NewSyncTransformWs = OldToNewTransform * OldSyncTransformWs;
+
+										PresentationMoverState->SetTransforms_WorldSpace(
+											NewSyncTransformWs.GetLocation(),
+											NewSyncTransformWs.GetRotation().Rotator(),
+											PresentationMoverState->GetVelocity_WorldSpace(),	// keep same velocity and base
+											PresentationMoverState->GetMovementBase(), PresentationMoverState->GetMovementBaseBoneName());
+
+										TargetMoverComp->BackendLiaisonComp->WritePresentationSyncState(PresentationSyncState);
+									}
+								}
+
+								// Modify the PREV PRESENTATION sync state that we're smoothing FROM
+								FMoverSyncState PrevPresentationSyncState;
+								if (TargetMoverComp->BackendLiaisonComp->ReadPrevPresentationSyncState(OUT PrevPresentationSyncState))
+								{
+									if (FMoverDefaultSyncState* PrevPresentationMoverState = PrevPresentationSyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+									{
+										OldSyncTransformWs = PrevPresentationMoverState->GetTransform_WorldSpace();
+										NewSyncTransformWs = OldToNewTransform * OldSyncTransformWs;
+
+										PrevPresentationMoverState->SetTransforms_WorldSpace(
+											NewSyncTransformWs.GetLocation(),
+											NewSyncTransformWs.GetRotation().Rotator(),
+											PrevPresentationMoverState->GetVelocity_WorldSpace(),	// keep same velocity and base
+											PrevPresentationMoverState->GetMovementBase(), PrevPresentationMoverState->GetMovementBaseBoneName());
+
+										TargetMoverComp->BackendLiaisonComp->WritePrevPresentationSyncState(PrevPresentationSyncState);	
+									}
+								}
+							}
 						}
 					}
-
-
 				}
 
 				SimBlackboard->Set(CommonBlackboard::LastAppliedDynamicMovementBase, CurrentBaseInfo);
@@ -484,3 +534,4 @@ FName FMoverDynamicBasedMovementTickFunction::DiagnosticContext(bool bDetailed)
 	}
 	return FName(TEXT("FMoverDynamicBasedMovementTickFunction"));
 }
+

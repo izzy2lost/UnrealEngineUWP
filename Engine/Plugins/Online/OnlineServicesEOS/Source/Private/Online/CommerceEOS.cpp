@@ -77,6 +77,10 @@ TOnlineAsyncOpHandle<FCommerceQueryOffers> FCommerceEOS::QueryOffers(FCommerceQu
 			const FCommerceQueryOffers::Params& Params = Op.GetParams();
 			EOS_Ecom_QueryOffersOptions Options = { };
 			Options.ApiVersion = 1;
+			FTCHARToUTF8 Utf8OverrideCatalogNamespace(*Params.OverrideCatalogNamespace);
+			if (!Params.OverrideCatalogNamespace.IsEmpty()) {
+				Options.OverrideCatalogNamespace = Utf8OverrideCatalogNamespace.Get();
+			}
 			UE_EOS_CHECK_API_MISMATCH(EOS_ECOM_QUERYOFFERS_API_LATEST, 1);
 			Options.LocalUserId = GetEpicAccountIdChecked(Params.LocalAccountId);
 			EOS_Async(EOS_Ecom_QueryOffers, EcomHandle, Options, MoveTemp(Promise));
@@ -150,6 +154,11 @@ TOnlineAsyncOpHandle<FCommerceQueryOffersById> FCommerceEOS::QueryOffersById(FCo
 
 TOnlineResult<FCommerceGetOffers> FCommerceEOS::GetOffers(FCommerceGetOffers::Params&& Params)
 {
+	if (!Services.Get<FAuthEOS>()->IsLoggedIn(Params.LocalAccountId))
+	{
+		return TOnlineResult<FCommerceGetOffers>(Errors::NotLoggedIn());
+	}
+
 	if(CachedOffers.Contains(Params.LocalAccountId))
 	{
 		return TOnlineResult<FCommerceGetOffers>({CachedOffers.FindChecked(Params.LocalAccountId)});
@@ -159,6 +168,11 @@ TOnlineResult<FCommerceGetOffers> FCommerceEOS::GetOffers(FCommerceGetOffers::Pa
 
 TOnlineResult<FCommerceGetOffersById> FCommerceEOS::GetOffersById(FCommerceGetOffersById::Params&& Params)
 {
+	if (!Services.Get<FAuthEOS>()->IsLoggedIn(Params.LocalAccountId))
+	{
+		return TOnlineResult<FCommerceGetOffersById>(Errors::NotLoggedIn());
+	}
+
 	if (CachedOffers.Contains(Params.LocalAccountId))
 	{
 		return TOnlineResult<FCommerceGetOffersById>({ CachedOffers.FindChecked(Params.LocalAccountId).FilterByPredicate(
@@ -189,12 +203,14 @@ TOnlineAsyncOpHandle<FCommerceCheckout> FCommerceEOS::Checkout(FCommerceCheckout
 		if (!Services.Get<FAuthEOS>()->IsLoggedIn(Params.LocalAccountId))
 		{
 			Op.SetError(Errors::NotLoggedIn());
+			Promise.SetValue(nullptr);
 			return;
 		}
 		EOS_EpicAccountId LocalUserEasId = GetEpicAccountId(Params.LocalAccountId);
 		if (!EOS_EpicAccountId_IsValid(LocalUserEasId))
 		{
 			Op.SetError(Errors::NotLoggedIn());
+			Promise.SetValue(nullptr);
 			return;
 		}
 
@@ -208,10 +224,10 @@ TOnlineAsyncOpHandle<FCommerceCheckout> FCommerceEOS::Checkout(FCommerceCheckout
 		{
 			Utf8CheckoutIds.Emplace(*Offer.OfferId);
 
-			EosCheckoutEntries.AddDefaulted();
-			EosCheckoutEntries.Last().ApiVersion = 1;
+			EOS_Ecom_CheckoutEntry& CheckoutEntry = EosCheckoutEntries.AddDefaulted_GetRef();
+			CheckoutEntry.ApiVersion = 1;
 			UE_EOS_CHECK_API_MISMATCH(EOS_ECOM_CHECKOUTENTRY_API_LATEST, 1);
-			EosCheckoutEntries.Last().OfferId = Utf8CheckoutIds.Last().Get();
+			CheckoutEntry.OfferId = Utf8CheckoutIds.Last().Get();
 		}
 
 		EOS_Ecom_CheckoutOptions Options = { };
@@ -228,7 +244,7 @@ TOnlineAsyncOpHandle<FCommerceCheckout> FCommerceEOS::Checkout(FCommerceCheckout
 		EOS_EResult Result = Data->ResultCode;
 		if (Result != EOS_EResult::EOS_Success)
 		{
-			UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_Checkout: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_Checkout: failed with error (%s)"), *LexToString(Data->ResultCode));
 			Op.SetError(Errors::FromEOSResult(Result));
 			return;
 		}
@@ -273,7 +289,7 @@ TOnlineAsyncOpHandle<FCommerceQueryTransactionEntitlements> FCommerceEOS::QueryT
 			EOS_EResult CopyTransactionResult = EOS_Ecom_CopyTransactionById(EcomHandle, &CopyTransactionOptions, &OutTransaction);
 			if (CopyTransactionResult != EOS_EResult::EOS_Success)
 			{
-				UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_CopyTransactionById: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(CopyTransactionResult)));
+				UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_CopyTransactionById: failed with error (%s)"), *LexToString(CopyTransactionResult));
 				Op.SetError(Errors::FromEOSResult(CopyTransactionResult));
 				return;
 			}
@@ -352,7 +368,7 @@ TOnlineAsyncOpHandle<FCommerceQueryEntitlements> FCommerceEOS::QueryEntitlements
 			const EOS_EResult Result = Data->ResultCode;
 			if (Result != EOS_EResult::EOS_Success)
 			{
-				UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_QueryEntitlements: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+				UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_QueryEntitlements: failed with error (%s)"), *LexToString(Data->ResultCode));
 				Op.SetError(Errors::FromEOSResult(Result));
 				return;
 			}
@@ -378,7 +394,7 @@ TOnlineAsyncOpHandle<FCommerceQueryEntitlements> FCommerceEOS::QueryEntitlements
 				EOS_EResult CopyResult = EOS_Ecom_CopyEntitlementByIndex(EcomHandle, &CopyOptions, &EosEntitlement);
 				if (CopyResult != EOS_EResult::EOS_Success && CopyResult != EOS_EResult::EOS_Ecom_EntitlementStale)
 				{
-					UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_CopyEntitlementByIndex: failed with error (%s) (proceeding with operation)"), ANSI_TO_TCHAR(EOS_EResult_ToString(CopyResult)));
+					UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_CopyEntitlementByIndex: failed with error (%s) (proceeding with operation)"), *LexToString(CopyResult));
 					continue;
 				}
 
@@ -399,6 +415,11 @@ TOnlineAsyncOpHandle<FCommerceQueryEntitlements> FCommerceEOS::QueryEntitlements
 
 TOnlineResult<FCommerceGetEntitlements> FCommerceEOS::GetEntitlements(FCommerceGetEntitlements::Params&& Params)
 {
+	if (!Services.Get<FAuthEOS>()->IsLoggedIn(Params.LocalAccountId))
+	{
+		return TOnlineResult<FCommerceGetEntitlements>(Errors::NotLoggedIn());
+	}
+
 	if (!CachedEntitlements.Contains(Params.LocalAccountId))
 	{
 		return TOnlineResult<FCommerceGetEntitlements>(Errors::NotFound());
@@ -416,12 +437,20 @@ TOnlineAsyncOpHandle<FCommerceRedeemEntitlement> FCommerceEOS::RedeemEntitlement
 		if (!Services.Get<FAuthEOS>()->IsLoggedIn(Params.LocalAccountId))
 		{
 			Op.SetError(Errors::NotLoggedIn());
+			Promise.SetValue(nullptr);
 			return;
 		}
 		EOS_EpicAccountId LocalUserEasId = GetEpicAccountId(Params.LocalAccountId);
 		if (!EOS_EpicAccountId_IsValid(LocalUserEasId))
 		{
 			Op.SetError(Errors::NotLoggedIn());
+			Promise.SetValue(nullptr);
+			return;
+		}
+		if (Params.Quantity != 1)
+		{
+			Op.SetError(Errors::InvalidParams());
+			Promise.SetValue(nullptr);
 			return;
 		}
 
@@ -441,7 +470,7 @@ TOnlineAsyncOpHandle<FCommerceRedeemEntitlement> FCommerceEOS::RedeemEntitlement
 		EOS_EResult Result = Data->ResultCode;
 		if (Result != EOS_EResult::EOS_Success)
 		{
-			UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_RedeemEntitlements: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_RedeemEntitlements: failed with error (%s)"), *LexToString(Data->ResultCode));
 			Op.SetError(Errors::FromEOSResult(Result));
 			return;
 		}
@@ -486,7 +515,7 @@ TOnlineAsyncOpHandle<FCommerceRetrieveS2SToken> FCommerceEOS::RetrieveS2SToken(F
 			EOS_EResult Result = Data->ResultCode;
 			if (Result != EOS_EResult::EOS_Success)
 			{
-				UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_QueryOwnershipToken: failed with error (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+				UE_LOG(LogOnlineServices, Error, TEXT("EOS_Ecom_QueryOwnershipToken: failed with error (%s)"), *LexToString(Data->ResultCode));
 				Op.SetError(Errors::FromEOSResult(Result));
 				return;
 			}

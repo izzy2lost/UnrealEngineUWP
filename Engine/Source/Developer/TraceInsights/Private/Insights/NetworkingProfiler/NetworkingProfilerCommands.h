@@ -3,10 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/Commands.h"
 
 class FMenuBuilder;
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -100,3 +104,7 @@ protected:
 	/** Reference to the global instance of the profiler manager. */
 	class FNetworkingProfilerManager* This;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

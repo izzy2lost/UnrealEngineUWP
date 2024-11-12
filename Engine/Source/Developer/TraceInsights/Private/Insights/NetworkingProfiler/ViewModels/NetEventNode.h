@@ -3,10 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceServices
 #include "TraceServices/Model/NetProfiler.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +50,7 @@ typedef TWeakPtr<class FNetEventNode> FNetEventNodeWeak;
 /**
  * Class used to store information about a timer node (used in the SNetStatsView).
  */
-class FNetEventNode : public Insights::FBaseTreeNode
+class FNetEventNode : public FBaseTreeNode
 {
 	INSIGHTS_DECLARE_RTTI(FNetEventNode, FBaseTreeNode)
 
@@ -105,3 +110,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

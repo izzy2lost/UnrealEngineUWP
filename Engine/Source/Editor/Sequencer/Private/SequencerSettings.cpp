@@ -4,6 +4,7 @@
 #include "KeyParams.h"
 #include "ISequencer.h"
 #include "SSequencer.h"
+#include "Misc/ConsoleVariables.h"
 #include "MVVM/ViewModels/ViewDensity.h"
 
 USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitializer )
@@ -37,6 +38,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bLinkCurveEditorTimeRange = false;
 	bSynchronizeCurveEditorSelection = true;
 	bIsolateCurveEditorToSelection = true;
+	bCurveEditorVisible = true;
 	LoopMode = ESequencerLoopMode::SLM_NoLoop;
 	bSnapKeysAndSectionsToPlayRange = false;
 	bResetPlayheadWhenNavigating = false;
@@ -46,6 +48,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bLeftMouseDragDoesMarquee = false;
 	ZeroPadFrames = 0;
 	JumpFrameIncrement = FFrameNumber(5);
+	TimeWarpDisplay = ESequencerTimeWarpDisplay::Both;
 	bShowLayerBars = true;
 	bShowKeyBars = true;
 	bInfiniteKeyAreas = false;
@@ -55,6 +58,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	KeyAreaHeightWithCurves = SequencerLayoutConstants::KeyAreaHeight;
 	bDeleteKeysWhenTrimming = true;
 	bDisableSectionsAfterBaking = true;
+	MarkedFrameColor = FLinearColor(0.f, 1.f, 1.f, 0.4f);
 	bCleanPlaybackMode = true;
 	bActivateRealtimeViewports = true;
 	bEvaluateSubSequencesInIsolation = false;
@@ -67,7 +71,10 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	TreeViewWidth = 0.3f;
 	bShowTickLines = true;
 	bShowSequencerToolbar = true;
+	bShowMarkedFrames = true;
 	ViewDensity = "Relaxed";
+	AssetBrowserWidth = 500.f;
+	AssetBrowserHeight = 300.f;
 
 	SectionColorTints.Add(FColor(88, 102, 142, 255)); // blue
 	SectionColorTints.Add(FColor(99, 137, 132, 255)); // blue-green
@@ -540,6 +547,15 @@ void USequencerSettings::IsolateCurveEditorToSelection(bool bInIsolateCurveEdito
 	}
 }
 
+void USequencerSettings::SetCurveEditorVisible(bool bInCurveEditorVisible)
+{
+	if (bCurveEditorVisible != bInCurveEditorVisible)
+	{
+		bCurveEditorVisible = bInCurveEditorVisible;
+		SaveConfig();
+	}
+}
+
 uint8 USequencerSettings::GetZeroPadFrames() const
 {
 	return ZeroPadFrames;
@@ -565,6 +581,20 @@ void USequencerSettings::SetJumpFrameIncrement(FFrameNumber InJumpFrameIncrement
 	if (JumpFrameIncrement != InJumpFrameIncrement)
 	{
 		JumpFrameIncrement = InJumpFrameIncrement;
+		SaveConfig();
+	}
+}
+
+ESequencerTimeWarpDisplay USequencerSettings::GetTimeWarpDisplayMode() const
+{
+	return TimeWarpDisplay;
+}
+
+void USequencerSettings::SetTimeWarpDisplayMode(ESequencerTimeWarpDisplay InTimeWarpDisplay)
+{
+	if (TimeWarpDisplay != InTimeWarpDisplay)
+	{
+		TimeWarpDisplay = InTimeWarpDisplay;
 		SaveConfig();
 	}
 }
@@ -664,6 +694,20 @@ void USequencerSettings::SetShowSequencerToolbar(bool bInShowSequencerToolbar)
 	if(bShowSequencerToolbar != bInShowSequencerToolbar)
 	{
 		bShowSequencerToolbar = bInShowSequencerToolbar;
+		SaveConfig();
+	}
+}
+
+bool USequencerSettings::GetShowMarkedFrames() const
+{
+	return bShowMarkedFrames;
+}
+
+void USequencerSettings::SetShowMarkedFrames(bool bInShowMarkedFrames)
+{
+	if (bShowMarkedFrames != bInShowMarkedFrames)
+	{
+		bShowMarkedFrames = bInShowMarkedFrames;
 		SaveConfig();
 	}
 }
@@ -792,6 +836,20 @@ void USequencerSettings::SetDisableSectionsAfterBaking(bool bInDisableSectionsAf
 	if (bDisableSectionsAfterBaking != bInDisableSectionsAfterBaking)
 	{
 		bDisableSectionsAfterBaking = bInDisableSectionsAfterBaking;
+		SaveConfig();
+	}
+}
+
+FLinearColor USequencerSettings::GetMarkedFrameColor() const
+{
+	return MarkedFrameColor;
+}
+
+void USequencerSettings::SetMarkedFrameColor(const FLinearColor& InMarkedFrameColor)
+{
+	if (MarkedFrameColor != InMarkedFrameColor)
+	{
+		MarkedFrameColor = InMarkedFrameColor;
 		SaveConfig();
 	}
 }
@@ -1005,29 +1063,34 @@ void USequencerSettings::SetViewDensity(FName InViewDensity)
 	}
 }
 
-bool USequencerSettings::IsTrackFilterEnabled(const FString& TrackFilter) const
+void USequencerSettings::SetAssetBrowserWidth(float InAssetBrowserWidth)
 {
-	return TrackFilters.Contains(TrackFilter);
+	if (InAssetBrowserWidth != AssetBrowserWidth)
+	{
+		AssetBrowserWidth = InAssetBrowserWidth;
+		SaveConfig();
+	}
 }
 
-void USequencerSettings::SetTrackFilterEnabled(const FString & TrackFilter, bool bEnabled)
+void USequencerSettings::SetAssetBrowserHeight(float InAssetBrowserHeight)
 {
-	if (bEnabled)
+	if (InAssetBrowserHeight != AssetBrowserHeight)
 	{
-		if (!TrackFilters.Contains(TrackFilter))
-		{
-			TrackFilters.Add(TrackFilter);
-			SaveConfig();
-		}
+		AssetBrowserHeight = InAssetBrowserHeight;
+		SaveConfig();
 	}
-	else
-	{
-		if (TrackFilters.Contains(TrackFilter))
-		{
-			TrackFilters.Remove(TrackFilter);
-			SaveConfig();
-		}
-	}
+}
+
+FSidebarState& USequencerSettings::GetSidebarState()
+{
+	return SidebarState.FindOrAdd(GetFName());
+}
+
+void USequencerSettings::SetSidebarState(const FSidebarState& InSidebarState)
+{
+	FSidebarState& State = SidebarState.FindOrAdd(GetFName());
+	State = InSidebarState;
+	SaveConfig();
 }
 
 void USequencerSettings::SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InColumnVisibilitySettings)
@@ -1037,4 +1100,105 @@ void USequencerSettings::SetOutlinerColumnVisibility(const TArray<FColumnVisibil
 		ColumnVisibilitySettings = InColumnVisibilitySettings;
 		SaveConfig();
 	}
+}
+
+FSequencerFilterBarConfig& USequencerSettings::FindOrAddTrackFilterBar(const FName InIdentifier, const bool bInSaveConfig)
+{
+	FSequencerFilterBarConfig& FilterBarSettings = TrackFilterBars.FindOrAdd(InIdentifier);
+
+	if (bInSaveConfig)
+	{
+		SaveConfig();
+	}
+
+	return FilterBarSettings;
+}
+
+FSequencerFilterBarConfig* USequencerSettings::FindTrackFilterBar(const FName InIdentifier)
+{
+	return TrackFilterBars.Find(InIdentifier);
+}
+
+bool USequencerSettings::RemoveTrackFilterBar(const FName InIdentifier)
+{
+	const int32 RemovedCount = TrackFilterBars.Remove(InIdentifier) > 0;
+	SaveConfig();
+	return RemovedCount > 0;
+}
+
+bool USequencerSettings::GetIncludePinnedInFilter() const
+{
+	return bIncludePinnedInFilter;
+}
+
+void USequencerSettings::SetIncludePinnedInFilter(const bool bInIncludePinned)
+{
+	bIncludePinnedInFilter = bInIncludePinned;
+	SaveConfig();
+}
+
+bool USequencerSettings::GetAutoExpandNodesOnFilterPass() const
+{
+	return bAutoExpandNodesOnFilterPass;
+}
+
+void USequencerSettings::SetAutoExpandNodesOnFilterPass(const bool bInIncludeParents)
+{
+	bAutoExpandNodesOnFilterPass = bInIncludeParents;
+	SaveConfig();
+}
+
+bool USequencerSettings::GetUseFilterSubmenusForCategories() const
+{
+	return bUseFilterSubmenusForCategories;
+}
+
+void USequencerSettings::SetUseFilterSubmenusForCategories(const bool bInUseFilterSubmenusForCategories)
+{
+	bUseFilterSubmenusForCategories = bInUseFilterSubmenusForCategories;
+	SaveConfig();
+}
+
+bool USequencerSettings::IsFilterBarVisible() const
+{
+	return bFilterBarVisible;
+}
+
+void USequencerSettings::SetFilterBarVisible(const bool bInVisible)
+{
+	bFilterBarVisible = bInVisible;
+	SaveConfig();
+}
+
+EFilterBarLayout USequencerSettings::GetFilterBarLayout() const
+{
+	return LastFilterBarLayout;
+}
+
+void USequencerSettings::SetFilterBarLayout(const EFilterBarLayout InLayout)
+{
+	LastFilterBarLayout = InLayout;
+	SaveConfig();
+}
+
+float USequencerSettings::GetLastFilterBarSizeCoefficient() const
+{
+	return LastFilterBarSizeCoefficient;
+}
+
+void USequencerSettings::SetLastFilterBarSizeCoefficient(const float bInSizeCoefficient)
+{
+	LastFilterBarSizeCoefficient = bInSizeCoefficient;
+	SaveConfig();
+}
+
+void USequencerSettings::SetThumbnailCaptureSettings(const FSequencerThumbnailCaptureSettings& InNewValue)
+{
+	ThumbnailCaptureSettings = InNewValue;
+	SaveConfig();
+}
+
+bool USequencerSettings::ShouldShowThumbnailCaptureSettings()
+{
+	return UE::Sequencer::CVarEnableRelevantThumbnails.GetValueOnGameThread();
 }

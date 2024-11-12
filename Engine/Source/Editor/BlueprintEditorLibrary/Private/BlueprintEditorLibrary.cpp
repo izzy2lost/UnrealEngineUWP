@@ -2,6 +2,8 @@
 
 #include "BlueprintEditorLibrary.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "BlueprintEditorModule.h"
 #include "BlueprintEditor.h"
 #include "AnimGraphNode_Base.h"
@@ -19,6 +21,7 @@
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
 #include "Engine/Blueprint.h"
+#include "Engine/SimpleConstructionScript.h"
 #include "HAL/PlatformCrt.h"
 #include "HAL/PlatformMath.h"
 #include "Internationalization/Text.h"
@@ -28,9 +31,12 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/Kismet2NameValidators.h"
 #include "Kismet2/KismetEditorUtilities.h"
+#include "KismetCompilerModule.h"
 #include "Logging/LogCategory.h"
+#include "Logging/StructuredLog.h"
 #include "Math/Vector2D.h"
 #include "Misc/AssertionMacros.h"
+#include "PackageTools.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Templates/Casts.h"
 #include "Templates/SubclassOf.h"
@@ -553,6 +559,11 @@ void UBlueprintEditorLibrary::ReparentBlueprint(UBlueprint* Blueprint, UClass* N
 
 	Blueprint->ParentClass = NewParentClass;
 
+	if (Blueprint->SimpleConstructionScript != nullptr)
+	{
+		Blueprint->SimpleConstructionScript->ValidateSceneRootNodes();
+	}
+
 	FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
 	FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
@@ -657,6 +668,11 @@ UClass* UBlueprintEditorLibrary::GeneratedClass(UBlueprint* BlueprintObj)
 {
 	if (BlueprintObj)
 	{
+		if(BlueprintObj->GeneratedClass == nullptr)
+		{
+			UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Blueprint %s does not have a generated class - consider compiling it"), *BlueprintObj->GetPathName());
+			return nullptr;
+		}
 		return BlueprintObj->GeneratedClass->GetAuthoritativeClass();
 	}
 	return nullptr;
@@ -684,6 +700,79 @@ void UBlueprintEditorLibrary::SetBlueprintVariableExposeOnSpawn(UBlueprint* Blue
 	{
 		FBlueprintEditorUtils::RemoveBlueprintVariableMetaData(Blueprint, VariableName, NULL, FBlueprintMetadata::MD_ExposeOnSpawn);
 	} 
+}
+
+UBlueprint* UBlueprintEditorLibrary::CreateBlueprintAssetWithParent(const FString& AssetPath, UClass* ParentClass)
+{
+	if(!ParentClass)
+	{
+		UE_LOGFMT(LogBlueprintEditorLib, Warning, "Cannot create a blueprint asset with null parent class");
+		return nullptr;
+	}
+	
+	// do not allow inheritance of function library blueprints or native function libraries that already have functions
+	// bIsValidFunctionLibrary provides a carve out for UEditorFunctionLibrary and similar sentinel types:
+	const bool bIsFunctionLibrary = ParentClass->IsChildOf(UBlueprintFunctionLibrary::StaticClass());
+	const bool bIsValidFunctionLibrary = bIsFunctionLibrary && (ParentClass->Children == nullptr && ParentClass->HasAnyClassFlags(CLASS_Native));
+	if(bIsFunctionLibrary && !bIsValidFunctionLibrary)
+	{
+		UE_LOGFMT(LogBlueprintEditorLib, Warning, "Cannot create a blueprint asset from a function library: {ClassPath}", ParentClass->GetPathName());
+		return nullptr;
+	}
+
+	// Validate base blueprint logic - this enforces 'blueprintable/notblueprintable'
+	if(!bIsValidFunctionLibrary && !FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass))
+	{
+		UE_LOGFMT(LogBlueprintEditorLib, Warning, "Not allowed to create blueprint for class: {ClassPath} - is it Blueprintable or IsBlueprintBase?", ParentClass->GetPathName());
+		return nullptr;
+	}
+
+	// interface classes require special handling - reject them:
+	if(ParentClass->HasAnyClassFlags(CLASS_Interface))
+	{
+		UE_LOGFMT(LogBlueprintEditorLib, Warning, "Cannot create a blueprint asset from an interface: {ClassPath}", ParentClass->GetPathName());
+		return nullptr;
+	}
+
+	const FString PackageName = UPackageTools::SanitizePackageName(AssetPath);
+	UPackage* Existing = FindObject<UPackage>(nullptr, *PackageName);
+	if(Existing)
+	{
+		UE_LOGFMT(LogBlueprintEditorLib, Warning, "Cannot create a blueprint asset because an asset with this name already exists: {PackageName}", PackageName);
+		return nullptr;
+	}
+
+	UPackage* Pkg = CreatePackage(*PackageName);
+	if(!Pkg)
+	{	
+		UE_LOGFMT(LogBlueprintEditorLib, Warning, "Create Package Failed: {PackageName}", PackageName);
+		return nullptr;
+	}
+
+	FName BPName = FPackageName::GetShortFName(PackageName);
+	
+	UClass* BlueprintClass = nullptr;
+	UClass* BlueprintGeneratedClass = nullptr;
+	IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
+	KismetCompilerModule.GetBlueprintTypesForClass(ParentClass, BlueprintClass, BlueprintGeneratedClass);
+	
+	UBlueprint* BP = FKismetEditorUtilities::CreateBlueprint(
+		ParentClass, 
+		Pkg, 
+		BPName, 
+		bIsFunctionLibrary ? BPTYPE_FunctionLibrary : BPTYPE_Normal, 
+		BlueprintClass, 
+		BlueprintGeneratedClass);
+	ensure(BP); // FKismetEditorUtilities::CreateBlueprint does not return null, if it does we should clean up the UPackage - somehow
+
+	Pkg->SetIsExternallyReferenceable(true);
+
+	// Notify the asset registry
+	FAssetRegistryModule::AssetCreated(BP);
+
+	// Mark the package dirty...
+	Pkg->MarkPackageDirty();
+	return BP;
 }
 
 void UBlueprintEditorLibrary::SetBlueprintVariableExposeToCinematics(UBlueprint* Blueprint, const FName& VariableName, bool bExposeToCinematics)
@@ -719,4 +808,192 @@ void UBlueprintEditorLibrary::SetBlueprintVariableInstanceEditable(UBlueprint* B
 	
 	FBlueprintEditorUtils::SetBlueprintOnlyEditableFlag(Blueprint, VariableName, !bInstanceEditable);
 }
+
+bool UBlueprintEditorLibrary::Generic_AddMemberVariableWithValue(UBlueprint* Blueprint, FName MemberName, const uint8* DefaultValuePtr, const FProperty* DefaultValueProp)
+{
+	if(!Blueprint)
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Attempted to add member variable to null blueprint"));
+		return false;	
+	}
+
+	const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+	FEdGraphPinType PinType;
+	if( !Schema->ConvertPropertyToPinType(DefaultValueProp, PinType) )
+	{
+		return false;
+	}
+
+	FName VarName = FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, MemberName.ToString(), Blueprint->SkeletonGeneratedClass);
+	return FBlueprintEditorUtils::AddMemberVariable(Blueprint, VarName, PinType);
+}
+
+DEFINE_FUNCTION(UBlueprintEditorLibrary::execAddMemberVariableWithValue)
+{
+	P_GET_OBJECT(UBlueprint, Blueprint);
+	P_GET_PROPERTY(FNameProperty, MemberName);
+	
+	Stack.StepCompiledIn<FProperty>(nullptr);
+	const FProperty* DefaultValueProp = Stack.MostRecentProperty;
+	const uint8* DefaultValuePtr = Stack.MostRecentPropertyAddress;
+	P_FINISH;
+
+	if (!DefaultValueProp || !DefaultValuePtr)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AccessViolation,
+			LOCTEXT("AddMemberVariable_MissingValue", "Failed to resolve default value and property type from AddMemberVariable.")
+		);
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+
+	*(bool*)RESULT_PARAM = P_THIS->Generic_AddMemberVariableWithValue(Blueprint, MemberName, DefaultValuePtr, DefaultValueProp);
+}
+
+bool UBlueprintEditorLibrary::AddMemberVariable(UBlueprint* Blueprint, FName MemberName, const FEdGraphPinType& VariableType)
+{
+	if(!Blueprint)
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Attempted to add member variable to null blueprint"));
+		return false;	
+	}
+
+	return FBlueprintEditorUtils::AddMemberVariable(
+		Blueprint, 
+		FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, MemberName.ToString(), Blueprint->SkeletonGeneratedClass),
+		VariableType);
+}
+
+FEdGraphPinType UBlueprintEditorLibrary::GetBasicTypeByName(FName TypeName)
+{
+	FEdGraphPinType Result;
+	const TSet<FName> PrimitiveTypes = {
+		UEdGraphSchema_K2::PC_Boolean, 
+		UEdGraphSchema_K2::PC_Byte,
+		UEdGraphSchema_K2::PC_Int,
+		UEdGraphSchema_K2::PC_Int64,
+		UEdGraphSchema_K2::PC_Real,
+		UEdGraphSchema_K2::PC_Name,
+		UEdGraphSchema_K2::PC_String,
+		UEdGraphSchema_K2::PC_Text,
+	};
+	if(!PrimitiveTypes.Contains(TypeName))
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Primitive type: %s not recognized, defaulting to int"), *TypeName.ToString());
+		TypeName = UEdGraphSchema_K2::PC_Int;
+	}
+	Result.PinCategory = TypeName;
+	if(TypeName == UEdGraphSchema_K2::PC_Real)
+	{
+		Result.PinSubCategory = UEdGraphSchema_K2::PC_Double;
+	}
+	return Result;
+}
+	
+FEdGraphPinType UBlueprintEditorLibrary::GetStructType(const UScriptStruct* StructType)
+{
+	if(	StructType == nullptr || 
+		!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(StructType))
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Struct type: %s not allowed, defaulting to int"), StructType ? *StructType->GetPathName() : TEXT("null"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+	
+	FEdGraphPinType Result;
+	Result.PinCategory = UEdGraphSchema_K2::PC_Struct;
+	// the struct here is notionally const, and via PinSubCategoryObject should be extremely rare if they exist:
+	Result.PinSubCategoryObject = const_cast<UScriptStruct*>(StructType);
+	return Result;
+}
+	
+FEdGraphPinType UBlueprintEditorLibrary::GetClassReferenceType(const UClass* ClassType)
+{
+	if(	ClassType == nullptr || 
+		!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(ClassType))
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Class type: %s not allowed, defaulting to int"), ClassType ? *ClassType->GetPathName() : TEXT("null"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+	
+	FEdGraphPinType Result;
+	Result.PinCategory = UEdGraphSchema_K2::PC_Class;
+	// the class here is notionally const, and via PinSubCategoryObject should be extremely rare if they exist:
+	Result.PinSubCategoryObject = const_cast<UClass*>(ClassType);
+	return Result;
+}
+	
+FEdGraphPinType UBlueprintEditorLibrary::GetObjectReferenceType(const UClass* ObjectType)
+{
+	if(	ObjectType == nullptr || 
+		!UEdGraphSchema_K2::IsAllowableBlueprintVariableType(ObjectType))
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Object reference type: %s not allowed, defaulting to int"), ObjectType ? *ObjectType->GetPathName() : TEXT("null"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+	
+	FEdGraphPinType Result;
+	Result.PinCategory = UEdGraphSchema_K2::PC_Object;
+	// the struct here is notionally const, and via PinSubCategoryObject should be extremely rare if they exist:
+	Result.PinSubCategoryObject = const_cast<UClass*>(ObjectType);
+	return Result;
+}
+	
+FEdGraphPinType UBlueprintEditorLibrary::GetArrayType(const FEdGraphPinType& ContainedType)
+{
+	if(ContainedType.IsContainer())
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Containers cannot be nested directly, an intermediate struct type must be created. Defaulting to int"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+
+	FEdGraphPinType Result = ContainedType;
+	Result.ContainerType = EPinContainerType::Array;
+	return Result;
+}
+	
+FEdGraphPinType UBlueprintEditorLibrary::GetSetType(const FEdGraphPinType& ContainedType)
+{
+	if(ContainedType.IsContainer())
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Containers cannot be nested directly, an intermediate struct type must be created. Defaulting to int"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+
+	if(!FBlueprintEditorUtils::HasGetTypeHash(ContainedType))
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Key type must be hashable. Defaulting to int"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+
+	FEdGraphPinType Result= ContainedType;
+	Result.ContainerType = EPinContainerType::Set;
+	return Result;
+}
+	
+FEdGraphPinType UBlueprintEditorLibrary::GetMapType(const FEdGraphPinType& KeyType,const FEdGraphPinType& ValueType)
+{
+	if(KeyType.IsContainer())
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Containers cannot be used as a key type, an intermediate struct type must be created. Defaulting to int"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+
+	if(ValueType.IsContainer())
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Containers cannot be as a value type, an intermediate struct type must be created. Defaulting to int"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+
+	if(!FBlueprintEditorUtils::HasGetTypeHash(KeyType))
+	{
+		UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Key type must be hashable. Defaulting to int"));
+		return GetBasicTypeByName(UEdGraphSchema_K2::PC_Int);
+	}
+
+	FEdGraphPinType Result = KeyType;
+	Result.ContainerType = EPinContainerType::Map;
+	Result.PinValueType = FEdGraphTerminalType::FromPinType(ValueType);
+	return Result;
+}
+
 #undef LOCTEXT_NAMESPACE	// "BlueprintEditorLibrary"

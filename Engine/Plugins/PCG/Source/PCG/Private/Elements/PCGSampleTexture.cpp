@@ -7,6 +7,7 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGTextureData.h"
 #include "Helpers/PCGAsync.h"
+#include "Helpers/PCGHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGSampleTextureElement"
@@ -15,13 +16,14 @@ TArray<FPCGPinProperties> UPCGSampleTextureSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 
-	PinProperties.Emplace(PCGSampleTextureConstants::InputPointLabel,
+	FPCGPinProperties& InputPin = PinProperties.Emplace_GetRef(PCGSampleTextureConstants::InputPointLabel,
 		EPCGDataType::Point,
 		/*bAllowMultipleConnections=*/true,
 		/*bAllowMultipleData=*/true);
+	InputPin.SetRequiredPin();
 
 	PinProperties.Emplace(PCGSampleTextureConstants::InputTextureLabel,
-		EPCGDataType::Texture,
+		EPCGDataType::BaseTexture,
 		/*bAllowMultipleConnections=*/false,
 		/*bAllowMultipleData=*/false);
 
@@ -56,6 +58,8 @@ bool FPCGSampleTextureElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
+	auto DensityMergeFunc = PCGHelpers::GetDensityMergeFunction(Settings->DensityMergeFunction);
+
 	for (int i = 0; i < PointInputs.Num(); ++i)
 	{
 		const UPCGPointData* PointData = Cast<UPCGPointData>(PointInputs[i].Data);
@@ -89,10 +93,10 @@ bool FPCGSampleTextureElement::ExecuteInternal(FPCGContext* Context) const
 			}
 		}
 
-		UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutPointData->InitializeFromData(PointData);
 
-		auto ProcessPoint = [Settings, BaseTextureData, &InputAccessor, &InputKeys, &InputPoints, OutPointData](int32 Index, FPCGPoint& OutPoint)
+		auto ProcessPoint = [Settings, BaseTextureData, &InputAccessor, &InputKeys, &InputPoints, &DensityMergeFunc, OutPointData](int32 Index, FPCGPoint& OutPoint)
 		{
 			OutPoint = InputPoints[Index];
 
@@ -107,11 +111,42 @@ bool FPCGSampleTextureElement::ExecuteInternal(FPCGContext* Context) const
 					OutSamplePosition.Y = FMath::Clamp(OutSamplePosition.Y, 0.0, 1.0);
 				}
 
-				return BaseTextureData->SamplePointLocal(FVector2D(OutSamplePosition), OutPoint.Color, OutPoint.Density);
+				float SampleDensity = 1.0f;
+				if (BaseTextureData->SamplePointLocal(FVector2D(OutSamplePosition), OutPoint.Color, SampleDensity))
+				{
+					float ComputedDensity = DensityMergeFunc(OutPoint.Density, SampleDensity);
+
+					if (Settings->bClampOutputDensity)
+					{
+						ComputedDensity = FMath::Clamp(ComputedDensity, 0.0f, 1.0f);
+					}
+
+					OutPoint.Density = ComputedDensity;
+					return true;
+				}
+				else
+				{
+					return false;
+				}
 			}
 			else
 			{
-				return BaseTextureData->SamplePoint(OutPoint.Transform, OutPoint.GetLocalBounds(), OutPoint, OutPointData->Metadata);
+				if (BaseTextureData->SamplePoint(OutPoint.Transform, OutPoint.GetLocalBounds(), OutPoint, OutPointData->Metadata))
+				{
+					float ComputedDensity = DensityMergeFunc(InputPoints[Index].Density, OutPoint.Density);
+
+					if (Settings->bClampOutputDensity)
+					{
+						ComputedDensity = FMath::Clamp(ComputedDensity, 0.0f, 1.0f);
+					}
+
+					OutPoint.Density = ComputedDensity;
+					return true;
+				}
+				else
+				{
+					return false;
+				}
 			}
 		};
 

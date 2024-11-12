@@ -290,14 +290,6 @@ void FNiagaraShaderScript::AddReferencedObjects(FReferenceCollector& Collector)
 {
 }
 
-void  FNiagaraShaderScript::DiscardShaderMap()
-{
-	if (GameThreadShaderMap)
-	{
-		//GameThreadShaderMap->DiscardSerializedShaders();
-	}
-}
-
 void FNiagaraShaderScript::ReleaseShaderMap()
 {
 	if (GameThreadShaderMap)
@@ -352,7 +344,8 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 				{
 					GameThreadShaderMap->AssociateWithAsset(BaseVMScript->GetOutermost()->GetFName());
 				}
-				GameThreadShaderMap->Serialize(Ar);
+				FShaderSerializeContext Ctx(Ar);
+				GameThreadShaderMap->Serialize(Ctx);
 			}
 			//else if (GameThreadShaderMap != nullptr && !GameThreadShaderMap->CompiledSuccessfully())
 			//{
@@ -369,7 +362,9 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 			if (bValid)
 			{
 				FNiagaraShaderMapRef LoadedShaderMap = new FNiagaraShaderMap();
-				bool bLoaded = LoadedShaderMap->Serialize(Ar, true, true);
+				FShaderSerializeContext Ctx(Ar);
+				Ctx.bLoadingCooked = true;
+				bool bLoaded = LoadedShaderMap->Serialize(Ctx);
 
 				// Toss the loaded shader data if this is a server only instance
 				//@todo - don't cook it in the first place
@@ -379,10 +374,6 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 					GameThreadShaderMap->GetResource()->SetOwnerName(GetOwnerFName());
 
 					UpdateCachedData_PostCompile(true);
-				}
-				else
-				{
-					//LoadedShaderMap->DiscardSerializedShaders();
 				}
 			}
 		}
@@ -542,12 +533,17 @@ void FNiagaraShaderScript::UpdateCachedData_PostCompile(bool bCalledFromSerializ
 			// Note: this function can be called for different shader platforms so only precache if it's for the platform we are running
 			if (GMaxRHIShaderPlatform == GameThreadShaderMap->GetShaderPlatform())
 			{
-				if (IsResourcePSOPrecachingEnabled() || IsComponentPSOPrecachingEnabled())
+				if (IsPSOShaderPreloadingEnabled())
+				{
+					FGraphEventArray PreloadEvent;
+					GameThreadShaderMap->GetResource()->PreloadShader(Shader->GetResourceIndex(), PreloadEvent);
+				}
+				else if (IsResourcePSOPrecachingEnabled() || IsComponentPSOPrecachingEnabled())
 				{
 					check(NiagaraShader->GetFrequency() == SF_Compute);
 					FRHIShader* RHIShader = GameThreadShaderMap->GetResource()->GetShader(Shader->GetResourceIndex());
 					FRHIComputeShader* RHIComputeShader = static_cast<FRHIComputeShader*>(RHIShader);
-					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader);
+					PipelineStateCache::PrecacheComputePipelineState(RHIComputeShader, TEXT("NiagaraCompute"));
 				}
 			}
 		}

@@ -12,6 +12,8 @@
 
 #define LOCTEXT_NAMESPACE "AssetActions_GeometryCollection"
 
+bool bCanEditGeometryCollection = true;
+FAutoConsoleVariableRef CVarGeometryCollectionIsEditable(TEXT("p.Chaos.GC.IsEditable"), bCanEditGeometryCollection, TEXT("Whether to allow edits of the geometry collection"));
 
 namespace UE::GeometryCollection
 {
@@ -49,6 +51,16 @@ UThumbnailInfo* UAssetDefinition_GeometryCollection::LoadThumbnailInfo(const FAs
 	return UE::Editor::FindOrCreateThumbnailInfo(InAsset.GetAsset(), USceneThumbnailInfo::StaticClass());
 }
 
+FAssetOpenSupport UAssetDefinition_GeometryCollection::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	if (bCanEditGeometryCollection)
+	{
+		return Super::GetAssetOpenSupport(OpenSupportArgs);
+	}
+	return FAssetOpenSupport(EAssetOpenMethod::View, false);
+}
+
+
 EAssetCommandResult UAssetDefinition_GeometryCollection::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
 	TArray<UGeometryCollection*> GeometryCollectionObjects = OpenArgs.LoadObjects<UGeometryCollection>();
@@ -63,8 +75,11 @@ EAssetCommandResult UAssetDefinition_GeometryCollection::OpenAssets(const FAsset
 			if (FDataflowEditorToolkit::HasDataflowAsset(GeometryCollection))
 			{
 				UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+				
 				UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
-				AssetEditor->Initialize({ GeometryCollection });
+				const TSubclassOf<AActor> ActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
+					TEXT("/GeometryCollectionPlugin/BP_GeometryCollectionPreview.BP_GeometryCollectionPreview_C"), nullptr, LOAD_None, nullptr);
+				AssetEditor->Initialize({ GeometryCollection }, ActorClass);
 				return EAssetCommandResult::Handled;
 			}
 

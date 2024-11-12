@@ -50,7 +50,15 @@ namespace ContentBrowserClassData
 
 	CONTENTBROWSERCLASSDATASOURCE_API bool AppendItemReference(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr);
 
+	CONTENTBROWSERCLASSDATASOURCE_API bool AppendItemObjectPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr);
+
+	CONTENTBROWSERCLASSDATASOURCE_API bool AppendItemPackageName(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr);
+
 	CONTENTBROWSERCLASSDATASOURCE_API bool AppendClassFileItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr);
+
+	CONTENTBROWSERCLASSDATASOURCE_API bool AppendObjectPathFileItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr);
+
+	CONTENTBROWSERCLASSDATASOURCE_API bool AppendPackageNameItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr);
 
 	CONTENTBROWSERCLASSDATASOURCE_API bool GetItemPhysicalPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& OutDiskPath);
 

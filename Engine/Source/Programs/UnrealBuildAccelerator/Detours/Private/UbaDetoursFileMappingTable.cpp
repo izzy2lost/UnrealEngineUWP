@@ -4,6 +4,10 @@
 #include "UbaDirectoryTable.h"
 #include "UbaPathUtils.h"
 
+#if PLATFORM_WINDOWS
+#include "Windows/UbaDetoursUtilsWin.h"
+#endif
+
 namespace uba
 {
 	MappedFileTable::MappedFileTable(MemoryBlock& memoryBlock) : m_memoryBlock(memoryBlock), m_lookup(&memoryBlock)
@@ -14,6 +18,7 @@ namespace uba
 	{
 		m_mem = mem;
 		m_lookup.reserve(tableCount + 100);
+		m_memoryBlock.ReserveNoLock(tableCount*(sizeof(GrowingUnorderedMap<StringKey, FileInfo>::value_type)+16), TC(""));
 		ParseNoLock(tableSize);
 	}
 
@@ -78,7 +83,7 @@ namespace uba
 		u32 mappedFileTableSize = reader.ReadU32();
 		u32 directoryTableSize = u32(reader.ReadU32());
 		pcs.Leave();
-		DEBUG_LOG_PIPE(L"CreateFile", L"%ls (%ls)", (access == 0 ? L"ATTRIB" : ((access & GENERIC_WRITE) ? L"WRITE" : L"READ")), fileName);
+		DEBUG_LOG_PIPE(L"CreateFile", L"%ls (%ls)", (access == 0 ? L"ATTRIB" : ((access & AccessFlag_Write) ? L"WRITE" : L"READ")), fileName);
 
 		if (lock)
 			g_mappedFileTable.Parse(mappedFileTableSize);
@@ -152,16 +157,68 @@ namespace uba
 
 	void Rpc_UpdateTables()
 	{
+		u32 directoryTableSize;
+		u32 fileMappingTableSize;
+		{
+			TimerScope ts(g_stats.updateTables);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_UpdateTables);
+			writer.Flush();
+			BinaryReader reader;
+			directoryTableSize = reader.ReadU32();
+			fileMappingTableSize = reader.ReadU32();
+
+#if PLATFORM_WINDOWS
+			if (u32 tempFileCount = reader.ReadU32())
+			{
+				SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, _);
+				while (tempFileCount--)
+				{
+					StringKey fileNameKey = reader.ReadStringKey();
+					u64 fileSize = reader.ReadU64();
+					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
+					if (findIt == g_mappedFileTable.m_lookup.end())
+						continue;
+					FileInfo& info = findIt->second;
+					UBA_ASSERT(info.memoryFile);
+					if (!info.memoryFile)
+						continue;
+					info.memoryFile->writtenSize = fileSize;
+					if (fileSize <= info.memoryFile->committedSize)
+						continue;
+					UBA_ASSERT(info.memoryFile->committedSize == 0);
+					info.memoryFile->EnsureCommitted(DetouredHandle(HandleType_File), fileSize);
+				}
+			}
+#endif
+			DEBUG_LOG_PIPE(L"UpdateTables", L"");
+		}
+		g_directoryTable.ParseDirectoryTable(directoryTableSize);
+		g_mappedFileTable.Parse(fileMappingTableSize);
+	}
+
+	void Rpc_GetParentWrittenFiles()
+	{
 		TimerScope ts(g_stats.updateTables);
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
-		writer.WriteByte(MessageType_UpdateTables);
+		writer.WriteByte(MessageType_GetParentWrittenFiles);
 		writer.Flush();
 		BinaryReader reader;
-		u32 directoryTableSize = reader.ReadU32();
-		pcs.Leave();
-		g_directoryTable.ParseDirectoryTable(directoryTableSize);
-		DEBUG_LOG_PIPE(L"UpdateTables", L"");
+
+		u32 count = reader.ReadU32();
+		while (count--)
+		{
+			StringKey key = reader.ReadStringKey();
+			auto insres = g_mappedFileTable.m_lookup.try_emplace(key);
+			FileInfo& info = insres.first->second;
+			StringBuffer<> name;
+			reader.ReadString(name);
+			u64 fileSize = reader.ReadU64();
+			info.name = g_mappedFileTable.m_memoryBlock.Strdup(name.data);
+			info.size = fileSize;
+		}
 	}
 
 	u32 Rpc_GetEntryOffset(const StringKey& entryNameKey, const tchar* entryName, u64 entryNameLen, bool checkIfDir)
@@ -180,7 +237,11 @@ namespace uba
 			return dirTableOffset;
 
 		const tchar* lastPathSeparator = TStrrchr(entryName, PathSeparator);
-		UBA_ASSERTF(lastPathSeparator, TC("No path separator found in %s"), TStrlen(entryName) > 0 ? entryName : TC("(NULL)"));
+		if (!lastPathSeparator)
+		{
+			UBA_ASSERTF(lastPathSeparator, TC("No path separator found in %s"), TStrlen(entryName) > 0 ? entryName : TC("(NULL)"));
+			return ~u32(0);
+		}
 
 		#if PLATFORM_WINDOWS
 		UBA_ASSERT(wcsncmp(entryName, g_systemTemp.data, g_systemTemp.count) != 0);
@@ -210,13 +271,16 @@ namespace uba
 		return findIt->second;
 	}
 
-	void Rpc_GetFullFileName(const tchar*& path, u64& pathLen, StringBufferBase& tempBuf, bool useVirtualName)
+	void Rpc_GetFullFileName(const tchar*& path, u64& pathLen, StringBufferBase& tempBuf, bool useVirtualName, const tchar* const* loaderPaths)
 	{
 		StringKey fileNameKey;
-		bool isAbsolute = IsWindows ? (pathLen > 1 && path[1] == ':') : (pathLen > 0 && path[0] == '/');
-		if (isAbsolute)
+		StringBuffer<> temp2;
+		if (IsAbsolutePath(path))
 		{
 			FixPath(tempBuf, path);
+			temp2.Append(tempBuf);
+			path = temp2.data;
+
 			if (CaseInsensitiveFs)
 				tempBuf.MakeLower();
 			fileNameKey = ToStringKey(tempBuf);
@@ -232,6 +296,12 @@ namespace uba
 			writer.WriteByte(MessageType_GetFullFileName);
 			writer.WriteString(path);
 			writer.WriteStringKey(fileNameKey);
+			u16& bytes = *(u16*)writer.AllocWrite(2);
+			auto pos = writer.GetPosition();
+			if (loaderPaths)
+				for (auto i=loaderPaths; *i; ++i)
+					writer.WriteString(*i);
+			bytes = u16(writer.GetPosition() - pos);
 			writer.Flush();
 			BinaryReader reader;
 			reader.ReadString(tempBuf);

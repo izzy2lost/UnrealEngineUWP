@@ -6,8 +6,13 @@ public class AudioCaptureWasapi : ModuleRules
 {
 	public AudioCaptureWasapi(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateDependencyModuleNames.Add("Core");
-		PrivateDependencyModuleNames.Add("AudioCaptureCore");
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"Core",
+				"AudioCaptureCore",
+				"AudioPlatformSupportWasapi"
+			}
+		);
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{

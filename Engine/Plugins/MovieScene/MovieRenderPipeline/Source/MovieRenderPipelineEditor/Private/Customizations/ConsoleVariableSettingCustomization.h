@@ -17,6 +17,9 @@
 
 #define LOCTEXT_NAMESPACE "SMoviePipelineEditor"
 
+/** Delegate that gets the menu widget associated with a specific cvar. */
+DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<SWidget>, FGetCVarMenu, const FString&);
+
 /** Customize how properties in UMoviePipelineConsoleVariableSetting appear in the details panel. */
 class FConsoleVariablesSettingDetailsCustomization : public IDetailCustomization
 {
@@ -24,6 +27,63 @@ public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
 	{
 		return MakeShared<FConsoleVariablesSettingDetailsCustomization>();
+	}
+
+	static void AddConsoleVariablePresetRowsToGroup(const TScriptInterface<IMovieSceneConsoleVariableTrackInterface>& InCVarPreset, IDetailGroup& InGroup, IDetailLayoutBuilder* InDetailBuilder, const TAttribute<bool>& InRowEnabledAttr, const FGetCVarMenu& InGetCVarMenuDelegate)
+	{
+		static const FText ConsoleVariableDisabledText = LOCTEXT("DisabledConsoleVariable", "This console variable is disabled.");
+		
+		constexpr bool bOnlyIncludeChecked = false;
+		TArray<TTuple<FString, FString>> CVars;
+		InCVarPreset->GetConsoleVariablesForTrack(bOnlyIncludeChecked, CVars);
+
+		// Show every console variable that's included in this preset; each console variable gets its own row
+		for (const TTuple<FString, FString>& CVar : CVars)
+		{
+			InGroup.AddWidgetRow()
+			.IsEnabled(InRowEnabledAttr)
+			.WholeRowContent()
+			[
+				SNew(SHorizontalBox)
+        		
+				+ SHorizontalBox::Slot()
+				.Padding(5, 0)
+				.FillWidth(0.75f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.IsEnabled(InCVarPreset->IsConsoleVariableEnabled(CVar.Key))
+					.Font(InDetailBuilder->GetDetailFont())
+					.Text(FText::FromString(CVar.Key))
+					.ToolTipText(!InCVarPreset->IsConsoleVariableEnabled(CVar.Key) ? ConsoleVariableDisabledText : FText::GetEmpty())
+				]
+        		
+				+ SHorizontalBox::Slot()
+				.Padding(0, 0)
+				.FillWidth(0.25f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SEditableTextBox)
+					.IsEnabled(false)
+					.Font(InDetailBuilder->GetDetailFont())
+					.Text(FText::FromString(CVar.Value))
+				]
+        		
+				+ SHorizontalBox::Slot()
+				.Padding(5, 0)
+				.AutoWidth()
+				[
+					SNew(SComboButton)
+					.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+					.ForegroundColor(FSlateColor::UseForeground())
+					.HasDownArrow(true)
+					.MenuContent()
+					[
+						InGetCVarMenuDelegate.Execute(CVar.Key)
+					]
+				]
+			];
+		}
 	}
 
 protected:
@@ -97,66 +157,21 @@ protected:
 			return;
 		}
 
-		const bool bOnlyIncludeChecked = false;
-		TArray<TTuple<FString, FString>> CVars;
-		CVarPreset->GetConsoleVariablesForTrack(bOnlyIncludeChecked, CVars);
-
-		// Show every console variable that's included in this preset; each console variable gets its own row
-		for (const TTuple<FString, FString>& CVar : CVars)
+		constexpr bool bRowEnabledAttr = true;
+		AddConsoleVariablePresetRowsToGroup(CVarPreset, Group, DetailLayout, bRowEnabledAttr, FGetCVarMenu::CreateLambda([CVarSetting](const FString& InCVarName)
 		{
 			// Each console variable gets a menu that allows the user to create an override outside of the preset
 			FMenuBuilder CreateOverrideMenu(true, nullptr, nullptr, true);
-			FUIAction AddOverrideAction(
-				FExecuteAction::CreateLambda([CVar, CVarSetting]()
+			const FUIAction AddOverrideAction(
+				FExecuteAction::CreateLambda([InCVarName, CVarSetting]()
 				{
-					CVarSetting->AddConsoleVariable(CVar.Key, 0.f);
+					CVarSetting->AddConsoleVariable(InCVarName, 0.f);
 				})
 			);
 			CreateOverrideMenu.AddMenuEntry(ConsoleVariableOverrideText, FText::GetEmpty(), FSlateIcon(), AddOverrideAction);
-			
-			Group.AddWidgetRow()
-			.WholeRowContent()
-			[
-				SNew(SHorizontalBox)
-				
-				+ SHorizontalBox::Slot()
-				.Padding(5, 0)
-				.FillWidth(0.75f)
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.IsEnabled(CVarPreset->IsConsoleVariableEnabled(CVar.Key))
-					.Font(DetailLayout->GetDetailFont())
-					.Text(FText::FromString(CVar.Key))
-					.ToolTipText(!CVarPreset->IsConsoleVariableEnabled(CVar.Key) ? ConsoleVariableDisabledText : FText::GetEmpty())
-				]
-				
-				+ SHorizontalBox::Slot()
-				.Padding(0, 0)
-				.FillWidth(0.25f)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SEditableTextBox)
-					.IsEnabled(false)
-					.Font(DetailLayout->GetDetailFont())
-					.Text(FText::FromString(CVar.Value))
-				]
-				
-				+ SHorizontalBox::Slot()
-				.Padding(5, 0)
-				.AutoWidth()
-				[
-					SNew(SComboButton)
-					.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-					.ForegroundColor(FSlateColor::UseForeground())
-					.HasDownArrow(true)
-					.MenuContent()
-					[
-						CreateOverrideMenu.MakeWidget()
-					]
-				]
-			];
-		}
+
+			return CreateOverrideMenu.MakeWidget();
+		}));
 	}
 };
 

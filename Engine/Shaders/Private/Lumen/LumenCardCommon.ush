@@ -121,6 +121,8 @@ struct FLumenCardPageData
 
 	// Increments each time the page has Radiosity updated, needs to be consecutive for the sample pattern
 	uint IndirectLightingTemporalIndex;
+	// Increments each time the page has direct lighting updated. Only used to rotate through the texels in a quad when using adaptive shadow rays currently
+	uint DirectLightingTemporalIndex;
 };
 
 RWStructuredBuffer<float4> RWLumenCardPageDataBuffer;
@@ -153,6 +155,7 @@ FLumenCardPageData GetLumenCardPageData(uint CardPageId)
 	CardPageData.LastDirectLightingUpdateFrameIndex = asuint(Vector4.x);
 	CardPageData.LastIndirectLightingUpdateFrameIndex = asuint(Vector4.y);
 	CardPageData.IndirectLightingTemporalIndex = asuint(Vector4.z);
+	CardPageData.DirectLightingTemporalIndex = asuint(Vector4.w);
 
 	// Derived properties
 	CardPageData.bMapped = CardPageData.SizeInTexels.x > 0;
@@ -171,7 +174,7 @@ void SetCardPageUpdateData(uint CardPageId, FLumenCardPageData CardPageData)
 	Vector4.x = CardPageData.LastDirectLightingUpdateFrameIndex;
 	Vector4.y = CardPageData.LastIndirectLightingUpdateFrameIndex;
 	Vector4.z = CardPageData.IndirectLightingTemporalIndex;
-	Vector4.w = 0;
+	Vector4.w = CardPageData.DirectLightingTemporalIndex;
 
 	uint BaseOffset = CardPageId * LUMEN_CARD_PAGE_DATA_STRIDE;
 	RWLumenCardPageDataBuffer[BaseOffset + 4] = asfloat(Vector4);
@@ -191,6 +194,7 @@ struct FCardVSToPS
 #define LUMEN_INVALID_CARD_INDEX 0xFFFFFFFF
 #define LUMEN_INVALID_HEIGHTFIELD_OBJECT_INDEX 0xFFFFFFFF
 #define LUMEN_INVALID_MESH_CARDS_INDEX 0xFFFFFFFF
+#define LUMEN_INVALID_SCENE_INSTANCE_INDEX 0xFFFFFFFF
 
 struct FLumenMeshCardsData
 {
@@ -285,20 +289,25 @@ float3 GetCardLocalPosition(float3 CardLocalExtent, float2 CardUV, float Depth)
 	return LocalPosition;
 }
 
-void GetCardLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
+void GetCardLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, float2 CardTileDepthRange, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
 {
 	float2 CardUVMin = lerp(CardPage.CardUVRect.xw, CardPage.CardUVRect.zy, UVMin);
 	float2 CardUVMax = lerp(CardPage.CardUVRect.xw, CardPage.CardUVRect.zy, UVMax);
-	float3 CardPageLocalBoxMin = GetCardLocalPosition(Card.LocalExtent, CardUVMin, 1.0f);
-	float3 CardPageLocalBoxMax = GetCardLocalPosition(Card.LocalExtent, CardUVMax, 0.0f);
+	float3 CardPageLocalBoxMin = GetCardLocalPosition(Card.LocalExtent, CardUVMin, CardTileDepthRange.y);
+	float3 CardPageLocalBoxMax = GetCardLocalPosition(Card.LocalExtent, CardUVMax, CardTileDepthRange.x);
 
 	CardPageLocalCenter = 0.5f * (CardPageLocalBoxMax + CardPageLocalBoxMin);
 	CardPageLocalExtent = 0.5f * (CardPageLocalBoxMax - CardPageLocalBoxMin);
 }
 
+void GetCardLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
+{
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, float2(0, 1), CardPageLocalCenter, CardPageLocalExtent);
+}
+
 void GetCardPageLocalBBox(FLumenCardPageData CardPage, FLumenCardData Card, out float3 CardPageLocalCenter, out float3 CardPageLocalExtent)
 {
-	GetCardLocalBBox(CardPage, Card, 0, 1, CardPageLocalCenter, CardPageLocalExtent);
+	GetCardLocalBBox(CardPage, Card, 0, 1, float2(0, 1), CardPageLocalCenter, CardPageLocalExtent);
 }
 
 float3 GetCardWorldPosition(FLumenCardData Card, float2 CardUV, float Depth)
@@ -336,4 +345,44 @@ uint GetMeshCardsIndexFromSceneInstanceIndex(uint SceneInstanceIndex)
 {
 	const uint MeshCardsIndex = LumenCardScene.SceneInstanceIndexToMeshCardsIndexBuffer.Load(4 * SceneInstanceIndex);
 	return MeshCardsIndex;
+}
+
+struct FLumenSceneDebugData
+{
+	bool bValid;
+	uint MeshIndex;
+	uint CardIndex;
+	uint CardPageIndex;
+	float2 PhysicalAtlasUV;
+};
+
+FLumenSceneDebugData InitLumenSceneDebugData()
+{
+	FLumenSceneDebugData Out = (FLumenSceneDebugData)0;
+	Out.MeshIndex = LUMEN_INVALID_MESH_CARDS_INDEX;
+	Out.CardIndex = LUMEN_INVALID_CARD_INDEX;
+	Out.CardPageIndex = LUMEN_INVALID_CARD_INDEX;
+	Out.bValid = false;
+	return Out;
+}
+
+void WriteDebugData(FLumenSceneDebugData In, RWStructuredBuffer<uint> OutBuffer)
+{
+	OutBuffer[0] = In.CardIndex;
+	OutBuffer[1] = In.CardPageIndex;
+	OutBuffer[2] = asuint(In.PhysicalAtlasUV.x);
+	OutBuffer[3] = asuint(In.PhysicalAtlasUV.y);
+	OutBuffer[4] = In.MeshIndex;
+}
+
+FLumenSceneDebugData ReadDebugData(StructuredBuffer<uint> InBuffer)
+{
+	FLumenSceneDebugData Out;
+	Out.CardIndex = InBuffer[0];
+	Out.CardPageIndex = InBuffer[1];
+	Out.PhysicalAtlasUV  = float2(asfloat(InBuffer[2]), asfloat(InBuffer[3]));
+	Out.MeshIndex = InBuffer[4];
+
+	Out.bValid = Out.CardIndex != LUMEN_INVALID_CARD_INDEX;
+	return Out;
 }

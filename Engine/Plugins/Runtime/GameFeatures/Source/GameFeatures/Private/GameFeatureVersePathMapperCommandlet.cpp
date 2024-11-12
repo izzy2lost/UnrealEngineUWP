@@ -159,12 +159,22 @@ namespace GameFeatureVersePathMapper
 		return FString::Format(*ChunkPatternFormat, FStringFormatNamedArguments{ {TEXT("Chunk"), Chunk} });
 	}
 
-	static TArray<int32> GetAlwaysResidentChunks()
+	static TArray<int32> GetAlwaysResidentChunks(const FString& IniPlatformName)
 	{
 		TArray<int32> AlwaysResidentChunks;
 
 		TArray<FString> AlwaysResidentChunksStr;
+#if WITH_EDITOR
+		FConfigCacheIni* ConfigCache = FConfigCacheIni::ForPlatform(FName(IniPlatformName));
+		if (!ConfigCache)
+		{
+			UE_LOGFMT(LogGameFeatureVersePathMapper, Warning, "Failed to find config for {PlatformName}", *IniPlatformName);
+			ConfigCache = GConfig;
+		}
+		if (!ConfigCache->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentChunks"), AlwaysResidentChunksStr, GInstallBundleIni))
+#else
 		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentChunks"), AlwaysResidentChunksStr, GInstallBundleIni))
+#endif
 		{
 			AlwaysResidentChunks.Empty(1);
 			AlwaysResidentChunks.Add(0);
@@ -181,14 +191,26 @@ namespace GameFeatureVersePathMapper
 		return AlwaysResidentChunks;
 	}
 
-	static TArray<FString> GetAlwaysResidentBundles()
+	static TArray<FString> GetAlwaysResidentBundles(const FString& IniPlatformName)
 	{
 		TArray<FString> AlwaysResidentBundles;
+#if WITH_EDITOR
+		FConfigCacheIni* ConfigCache = FConfigCacheIni::ForPlatform(FName(IniPlatformName));
+		if (!ConfigCache)
+		{
+			UE_LOGFMT(LogGameFeatureVersePathMapper, Warning, "Failed to find config for {PlatformName}", *IniPlatformName);
+			ConfigCache = GConfig;
+		}
+		if (!ConfigCache->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentBundles"), AlwaysResidentBundles, GInstallBundleIni))
+		{
+			AlwaysResidentBundles.Empty();
+		}
+#else
 		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentBundles"), AlwaysResidentBundles, GInstallBundleIni))
 		{
 			AlwaysResidentBundles.Empty();
 		}
-
+#endif
 		return AlwaysResidentBundles;
 	}
 
@@ -250,7 +272,6 @@ namespace GameFeatureVersePathMapper
 			}
 			AssetData.PackageName.ToString(PackagePathBuilder);
 			FStringView PackageRoot = FPathViews::GetMountPointNameFromPath(PackagePathBuilder);
-
 			GFPChunks.Emplace(PackageRoot, ChunkId);
 
 			return true;
@@ -265,7 +286,7 @@ namespace GameFeatureVersePathMapper
 	{
 		return FindGFPChunksImpl([&DevAR](const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback)
 		{
-			DevAR.EnumerateAssets(Filter, {}, Callback);
+			DevAR.EnumerateAssets(Filter, {}, Callback, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnmountedPaths | UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets);
 		});
 	}
 
@@ -274,7 +295,7 @@ namespace GameFeatureVersePathMapper
 		const IAssetRegistry& AR = IAssetRegistry::GetChecked();
 		return FindGFPChunksImpl([&AR](const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback)
 		{
-			AR.EnumerateAssets(Filter, Callback);
+			AR.EnumerateAssets(Filter, Callback, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnmountedPaths);
 		});
 	}
 
@@ -319,7 +340,7 @@ namespace GameFeatureVersePathMapper
 		}
 
 		VisitedPlugins.FindChecked(Plugin) = EVisitState::Visited;
-		if (bIncludeVirtualNodes || !PluginInfo.GfpUri.IsEmpty()) // An empty URI means this is virtual node that only exists for verse path resolution
+		if (bIncludeVirtualNodes || !PluginInfo.GfpUri.IsEmpty()) // An empty URI means this is virtual node that only exists for Verse path resolution
 		{
 			AddOutput(Plugin, PluginInfo.GfpUri);
 		}
@@ -381,9 +402,16 @@ namespace GameFeatureVersePathMapper
 		const FString GameFeatureRootVersePath = UGameFeatureVersePathMapperCommandlet::GetGameFeatureRootVersePath();
 		const FString ChunkPatternFormat = GetChunkPatternFormat();
 
-		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks();
-		const TArray<FString> AlwaysResidentBundles = GetAlwaysResidentBundles();
+		const FString& IniPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : FPlatformProperties::IniPlatformName();
+		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks(IniPlatformName);
+		const TArray<FString> AlwaysResidentBundles = GetAlwaysResidentBundles(IniPlatformName);
 
+		FString TargetPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : FPlatformMisc::GetUBTPlatform();
+		if (TargetPlatformName.Equals(TEXT("Windows"), ESearchCase::IgnoreCase))
+		{
+			// legacy change of windows -> win64 as that's how SupportedTargetPlatforms expects windows.
+			TargetPlatformName = TEXT("Win64");
+		}
 		FGameFeatureVersePathLookup Output;
 		for (const TPair<FString, int32>& Pair : GFPChunks)
 		{
@@ -397,13 +425,19 @@ namespace GameFeatureVersePathMapper
 			FStringView PluginNameView(Plugin->GetName());
 			FName PluginName(PluginNameView);
 
+			// Skip plugins that won't be enabled on the platform.
+			if (!Plugin->GetDescriptor().SupportsTargetPlatform(TargetPlatformName))
+			{
+				continue;
+			}
+
 			Output.VersePathToGfpMap.Add(FPaths::Combine(GameFeatureRootVersePath, PluginNameView), PluginName);
 
-			// Add a virtual GFP to support plugin specified verse paths
+			// Add a virtual GFP to support plugin specified Verse paths
 			if (!Plugin->GetVersePath().IsEmpty() && 
 				Plugin->GetVersePath() != AppDomain) // Filter out references to the root path, we don't wan't to allow resolving all content (and we don't register sub-paths)
 			{
-				// Add a virtual GFP with this verse path that depends on this GFP
+				// Add a virtual GFP with this Verse path that depends on this GFP
 				FName& VirtualGFPName = Output.VersePathToGfpMap.FindOrAdd(Plugin->GetVersePath());
 				if (VirtualGFPName.IsNone())
 				{
@@ -437,6 +471,21 @@ namespace GameFeatureVersePathMapper
 				if (!GFPChunks.Contains(Dependency.Name))
 				{
 					// Dependency is not a GFP
+					continue;
+				}
+
+				if (!Dependency.IsSupportedTargetPlatform(TargetPlatformName))
+				{
+					continue;
+				}
+				TSharedPtr<IPlugin> DepPlugin = PluginMan.FindPlugin(Dependency.Name);
+				if (!DepPlugin)
+				{
+					UE_LOGFMT(LogGameFeatureVersePathMapper, Error, "Could not find uplugin dependency {PluginName}", Dependency.Name);
+					continue;
+				}
+				if (!DepPlugin->GetDescriptor().SupportsTargetPlatform(TargetPlatformName))
+				{
 					continue;
 				}
 

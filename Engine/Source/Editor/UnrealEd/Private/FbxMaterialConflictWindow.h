@@ -90,7 +90,7 @@ public:
 
 	EVisibility CollapsePreviewVisibility()
 	{
-		return bIsPreviewConflict ? EVisibility::Collapsed : EVisibility::All;
+		return bIsPreviewConflict ? EVisibility::Collapsed : EVisibility::Visible;
 	}
 
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override

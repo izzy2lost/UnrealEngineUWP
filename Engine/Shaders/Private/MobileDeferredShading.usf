@@ -22,15 +22,12 @@
 #include "LightFunctionCommon.ush"
 #endif
 #include "LightDataUniforms.ush"
+#include "LightShaderParameters.ush"
 
 #ifndef USE_HAIR_COMPLEX_TRANSMITTANCE
 #define USE_HAIR_COMPLEX_TRANSMITTANCE 0
 #endif
 #include "HairStrands/HairStrandsEnvironmentLightingCommon.ush"
-
-#ifndef IS_SPOT_LIGHT 
-#define IS_SPOT_LIGHT 0 
-#endif 
 
 float4x4 TranslatedWorldToLight;
 float2 LightFunctionParameters2;
@@ -78,7 +75,7 @@ half3 SkyLightDiffuseMobile(FGBufferData GBuffer, half3 DiffuseColor, half3 V, i
 	if (GBuffer.ShadingModelID == SHADINGMODELID_HAIR)
 	{
 		const half3 N = GBuffer.WorldNormal;
-		DiffuseColor += EvaluateEnvHair(GBuffer, V, N, SkyDiffuseLookUpNormal);
+		DiffuseColor = EvaluateEnvHair(GBuffer, V, N, SkyDiffuseLookUpNormal);
 	}
 
 	if (GBuffer.ShadingModelID == SHADINGMODELID_CLOTH)
@@ -91,7 +88,7 @@ half3 SkyLightDiffuseMobile(FGBufferData GBuffer, half3 DiffuseColor, half3 V, i
 	half3 DiffuseLookup = GetSkySHDiffuseSimple(SkyDiffuseLookUpNormal) * View.SkyLightColor.rgb;
 
 	// And accumulate the lighting
-	Lighting += DiffuseLookup  * DiffuseColor;
+	Lighting += DiffuseLookup  * DiffuseColor * GBuffer.GBufferAO;
 
 #if ALLOW_STATIC_LIGHTING
 	IndirectIrradiance += Luminance(DiffuseLookup);
@@ -102,6 +99,7 @@ half3 SkyLightDiffuseMobile(FGBufferData GBuffer, half3 DiffuseColor, half3 V, i
 
 void ReflectionEnvironmentSkyLighting(
 	FGBufferData GBuffer,
+	half4 SvPosition,
 	half3 CameraVector,
 	float3 TranslatedWorldPosition,
 	half3 ReflectionVector,
@@ -110,7 +108,7 @@ void ReflectionEnvironmentSkyLighting(
 {
 	half IndirectIrradiance = GBuffer.IndirectIrradiance;
 
-#if ENABLE_DYNAMIC_SKY_LIGHT
+#if ENABLE_SKY_LIGHT
 
 	half3 N = GBuffer.WorldNormal;
 	half3 V = -CameraVector;
@@ -124,10 +122,11 @@ void ReflectionEnvironmentSkyLighting(
 
 	const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
 	LightAccumulator_Add(DirectLighting, SkyLighting, SkyLighting, 1.0f, bNeedsSeparateSubsurfaceLightAccumulation);
-#endif // ENABLE_DYNAMIC_SKY_LIGHT 
+#endif // ENABLE_SKY_LIGHT 
 
 	// IBL
 	AccumulateReflection(GBuffer
+		, SvPosition
 		, CameraVector
 		, TranslatedWorldPosition
 		, ReflectionVector
@@ -170,22 +169,29 @@ void MobileDirectionalLightPS(
 #if ENABLE_CLUSTERED_LIGHTS
 	{
 		const uint EyeIndex = 0;
-		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 		half4 LocalLightDynamicShadowFactors = 1.0f;
-		AccumulateLightGridLocalLighting(CulledLightGridData, GBuffer, TranslatedWorldPosition, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, DirectLighting);
+		AccumulateLightGridLocalLighting(CulledLightGridHeader, GBuffer, TranslatedWorldPosition, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, DirectLighting);
 	}
+#endif
+
+	half GatheredAmbientOcclusion = 1;
+#if ENABLE_AMBIENT_OCCLUSION
+	GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy).r;
+	GatheredAmbientOcclusion = lerp(1.0, GatheredAmbientOcclusion, MobileBasePass.AmbientOcclusionStaticFraction);
+	GBuffer.GBufferAO *= GatheredAmbientOcclusion;
 #endif
 
 	// Directional light
 	half4 DynamicShadowFactors = 1.0f;
 	float DirectionalLightShadow = 1.0f;
-	AccumulateDirectionalLighting(GBuffer, TranslatedWorldPosition, CameraVector, ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting);
+	AccumulateDirectionalLighting(GBuffer, TranslatedWorldPosition, CameraVector, ScreenPosition, SvPosition, DynamicShadowFactors, DirectionalLightShadow, DirectLighting, 0);
 	// LightFunction should only affect direct lighting result
 	DirectLighting.TotalLight *= ComputeLightFunctionMultiplier(TranslatedWorldPosition);
 
-#if ENABLE_CLUSTERED_REFLECTION || ENABLE_SKY_LIGHT || ENABLE_PLANAR_REFLECTION
+#if ENABLE_CLUSTERED_REFLECTION || ENABLE_SKY_LIGHT || ENABLE_PLANAR_REFLECTION || MOBILE_SSR_ENABLED
 	// If we have a single directional light, apply relfection and sky contrubution here
-	ReflectionEnvironmentSkyLighting(GBuffer, CameraVector, TranslatedWorldPosition, ReflectionVector, GridIndex, DirectLighting);
+	ReflectionEnvironmentSkyLighting(GBuffer, SvPosition, CameraVector, TranslatedWorldPosition, ReflectionVector, GridIndex, DirectLighting);
 #endif
 
 	half3 Color = DirectLighting.TotalLight;
@@ -197,7 +203,8 @@ void MobileDirectionalLightPS(
 	OutProxyAdditive.rgb = Color;
 #else
 	OutColor.rgb = Color;
-	OutColor.a = 1;
+	// Blend is enabled only for static skylights
+	OutColor.a = GatheredAmbientOcclusion;
 #endif
 }
 
@@ -209,6 +216,45 @@ Texture2D		LocalLightShadowTexture;
 SamplerState	LocalLightShadowSampler;
 float4			LocalLightShadowBufferSize;
 #endif
+
+FDeferredLightData InitDeferredLightFromLightParameters(FLightShaderParameters In, uint InLightType)
+{
+	FDeferredLightData Out = (FDeferredLightData)0;
+	Out.TranslatedWorldPosition	= In.TranslatedWorldPosition;
+	Out.InvRadius				= In.InvRadius;
+	Out.Color					= In.Color;
+	Out.FalloffExponent			= In.FalloffExponent;
+	Out.Direction				= In.Direction;
+	Out.Tangent					= In.Tangent;
+	Out.SpotAngles				= In.SpotAngles;
+	Out.SpecularScale			= In.SpecularScale;
+	Out.DiffuseScale			= In.DiffuseScale;
+	Out.SourceRadius			= In.SourceRadius;
+	Out.SoftSourceRadius		= In.SoftSourceRadius;
+	Out.SourceLength			= In.SourceLength;
+	
+	Out.RectLightData.BarnCosAngle				= In.RectLightBarnCosAngle;
+	Out.RectLightData.BarnLength				= In.RectLightBarnLength;
+	Out.RectLightData.AtlasData.AtlasUVOffset	= In.RectLightAtlasUVOffset;
+	Out.RectLightData.AtlasData.AtlasUVScale	= In.RectLightAtlasUVScale;
+	Out.RectLightData.AtlasData.AtlasMaxLevel	= In.RectLightAtlasMaxLevel;
+
+	Out.IESAtlasIndex			= In.IESAtlasIndex;
+	Out.LightFunctionAtlasLightIndex = In.LightFunctionAtlasLightIndex;
+	Out.bAffectsTranslucentLighting = In.bAffectsTranslucentLighting;
+	
+	Out.bInverseSquared			= In.FalloffExponent == 0;
+	Out.bRadialLight			= true;
+	Out.bSpotLight				= InLightType == LIGHT_TYPE_SPOT;
+	Out.bRectLight				= InLightType == LIGHT_TYPE_RECT;
+	Out.HairTransmittance		= InitHairTransmittanceData();
+
+#if SUPPORT_SPOTLIGHTS_SHADOW
+	Out.ShadowedBits			= 1;
+	Out.ShadowMapChannelMask	= 1.f;
+#endif
+	return Out;
+}
 
 void MobileRadialLightPS(
 	float4 InScreenPosition : TEXCOORD0,
@@ -234,16 +280,16 @@ void MobileRadialLightPS(
 	half3 CameraVector = normalize(TranslatedWorldPosition);
 			
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
-	FDeferredLightData LightData = InitDeferredLightFromUniforms(IS_SPOT_LIGHT ? LIGHT_TYPE_SPOT : LIGHT_TYPE_POINT);
-	
+	FDeferredLightData LightData = InitDeferredLightFromLightParameters(GetRootLightShaderParameters(), RADIAL_LIGHT_TYPE);
+		
 	// Affect the light color by any other shadow/transmittance before the lighting is evaluated
 	{
-		half Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, DeferredLightUniforms.TranslatedWorldPosition, -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
+		half Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 		LightData.Color *= Attenuation;
 	}
 
 	half Shadow = 1.0;
-#if SUPPORT_SPOTLIGHTS_SHADOW && IS_SPOT_LIGHT
+#if SUPPORT_SPOTLIGHTS_SHADOW
 	float3 ToLight = LightData.TranslatedWorldPosition - TranslatedWorldPosition;
 	float3 LocalPosition = -ToLight;
 	float DistanceSqr = dot(ToLight, ToLight);
@@ -278,9 +324,7 @@ void MobileRadialLightPS(
 		Settings.TransitionScale = SpotLightSoftTransitionScale * lerp(SpotLightReceiverDepthBias, 1.0, NoL);
 
 		Shadow = MobileShadowPCF(ShadowUVs, Settings);
-
 		Shadow = saturate((Shadow - 0.5) * SpotLightShadowSharpen + 0.5f);
-
 		Shadow = lerp(1.0f, Square(Shadow), SpotLightFadeFraction);
 	}
 #endif
@@ -288,14 +332,13 @@ void MobileRadialLightPS(
 	half4 LightAttenuation = half4(1, 1, Shadow, Shadow);
 
 	float SurfaceShadow = 0;
-	DirectLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, LightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+	DirectLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, LightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 
 	half3 Color = DirectLighting.TotalLight * ComputeLightFunctionMultiplier(TranslatedWorldPosition);
-	
 	// MobileHDR applies PreExposure in tonemapper
 	Color *= View.PreExposure;
-
 	Color = SafeGetOutColor(Color);
+
 #if USE_GLES_FBF_DEFERRED
 	OutProxyAdditive.rgb = Color;
 #else
@@ -328,9 +371,16 @@ void MobileReflectionEnvironmentSkyLightingPS(
 
 	float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 	uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), GBuffer.Depth);
+
+	half GatheredAmbientOcclusion = 1;
+#if ENABLE_AMBIENT_OCCLUSION
+	GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy).r;
+	GatheredAmbientOcclusion = lerp(1.0, GatheredAmbientOcclusion, MobileBasePass.AmbientOcclusionStaticFraction);
+	GBuffer.GBufferAO *= GatheredAmbientOcclusion;
+#endif
 	
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
-	ReflectionEnvironmentSkyLighting(GBuffer, CameraVector, TranslatedWorldPosition, ReflectionVector, GridIndex, DirectLighting);
+	ReflectionEnvironmentSkyLighting(GBuffer, SvPosition, CameraVector, TranslatedWorldPosition, ReflectionVector, GridIndex, DirectLighting);
 	half3 ReflectionAndSky = DirectLighting.TotalLight;
 
 	ReflectionAndSky *= View.PreExposure;
@@ -339,6 +389,7 @@ void MobileReflectionEnvironmentSkyLightingPS(
 	OutProxyAdditive.rgb = ReflectionAndSky.rgb;
 #else
 	OutColor.rgb = ReflectionAndSky.rgb;
-	OutColor.a = 1;
+	// Blend is enabled only for static skylights
+	OutColor.a = GatheredAmbientOcclusion;
 #endif
 }

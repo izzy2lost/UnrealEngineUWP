@@ -222,7 +222,7 @@ void ULevelActorContainer::CreateCluster()
 		if (UE_LOG_ACTIVE(LogLevelActorContainer, Verbose))
 		{
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-			FString ExtraDetail = FString::Printf(TEXT(", %d verse cells"), Cluster.MutableCells.Num());
+			FString ExtraDetail = FString::Printf(TEXT(", %d Verse cells"), Cluster.MutableCells.Num());
 #else
 			FString ExtraDetail;
 #endif

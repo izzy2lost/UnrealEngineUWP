@@ -16,6 +16,23 @@ bool FAndroidApplication::bWindowSizeChanged = false;
 
 FAndroidApplication* FAndroidApplication::_application = nullptr;
 
+TAutoConsoleVariable<bool> CVarAndroidSupportsTimestampQueries(
+	TEXT("r.Android.SupportsTimestampQueries"),
+	0,
+	TEXT("State of Android (GLES and Vulkan) timestamp queries support on an Android device\n")
+	TEXT("  0 = unsupported\n")
+	TEXT("  1 = supported."),
+	ECVF_SetByDeviceProfile);
+
+TAutoConsoleVariable<bool> CVarAndroidSupportsDynamicResolution(
+	TEXT("r.Android.SupportsDynamicResolution"),
+	0,
+	TEXT("State of DynamicResolution (GLES and Vulkan) support on an Android device\n")
+	TEXT("  0 = unsupported\n")
+	TEXT("  1 = supported."),
+	ECVF_SetByDeviceProfile
+);
+
 FAndroidApplication* FAndroidApplication::CreateAndroidApplication()
 {
 	return new FAndroidApplication();
@@ -83,6 +100,7 @@ void FAndroidApplication::PollGameDeviceState( const float TimeDelta )
 		FDisplayMetrics DisplayMetrics;
 		FDisplayMetrics::RebuildDisplayMetrics(DisplayMetrics);
 		BroadcastDisplayMetricsChanged(DisplayMetrics);
+		FCoreDelegates::OnSafeFrameChangedEvent.Broadcast();
 
 		// the cursor needs to compute the proper slate scaling factor each time the display metrics change
 		TSharedPtr<FAndroidCursor> AndroidCursor = StaticCastSharedPtr<FAndroidCursor>(Cursor);
@@ -136,6 +154,17 @@ bool FAndroidApplication::IsGamepadAttached() const
 	}
 
 	return false;
+}
+
+bool FAndroidApplication::GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const
+{
+	if (Windows.IsEmpty()) return false;
+
+	const TSharedPtr<FAndroidWindow>& Window = Windows[0];
+
+	if (!Window.IsValid()) return false;
+
+	return Window->GetNativeWindowResolution(OutWidth, OutHeight);
 }
 
 void FDisplayMetrics::RebuildDisplayMetrics( FDisplayMetrics& OutDisplayMetrics )

@@ -15,6 +15,7 @@ namespace EpicGames.Core.Telemetry
 	{
 		/// <summary>
 		/// When services can be used, utilize this helper to get this policy that handles retries
+		/// ex. ServicesCollection.AddHttpClient&lt;TelemetryService&gt;().AddPolicyHandler(HttpClientDefaults.GetPolicy());
 		/// </summary>
 		/// <returns>The retry policy</returns>
 		public static Polly.Retry.AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy()

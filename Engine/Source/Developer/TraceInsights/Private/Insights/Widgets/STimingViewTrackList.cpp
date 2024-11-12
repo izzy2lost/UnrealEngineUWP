@@ -11,7 +11,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Views/SHeaderRow.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/Widgets/STimingView.h"
 
@@ -27,7 +27,7 @@ class STimingViewTrackListEntry : public STableRow<TSharedPtr<FBaseTimingTrack>>
 public:
 	SLATE_BEGIN_ARGS(STimingViewTrackListEntry) {}
 
-	SLATE_ARGUMENT(TSharedPtr<STimingView>, TimingView)
+	SLATE_ARGUMENT(TSharedPtr<UE::Insights::TimingProfiler::STimingView>, TimingView)
 	SLATE_ARGUMENT(ETimingTrackLocation, TrackLocation)
 	SLATE_ARGUMENT(TSharedPtr<FBaseTimingTrack>, Track)
 
@@ -92,7 +92,7 @@ public:
 	}
 
 	// The widget containing the track we represent
-	TWeakPtr<STimingView> TimingView;
+	TWeakPtr<UE::Insights::TimingProfiler::STimingView> TimingView;
 
 	// The location of the track we represent
 	ETimingTrackLocation TrackLocation;
@@ -108,7 +108,7 @@ public:
 // STimingViewTrackList
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingViewTrackList::Construct(const FArguments& InArgs, const TSharedRef<STimingView>& InTimingView, ETimingTrackLocation InTrackLocation)
+void STimingViewTrackList::Construct(const FArguments& InArgs, const TSharedRef<UE::Insights::TimingProfiler::STimingView>& InTimingView, ETimingTrackLocation InTrackLocation)
 {
 	TimingView = InTimingView;
 	TrackLocation = InTrackLocation;
@@ -117,7 +117,6 @@ void STimingViewTrackList::Construct(const FArguments& InArgs, const TSharedRef<
 
 	ListView = SNew(SListView<TSharedPtr<FBaseTimingTrack>>)
 		.IsFocusable(true)
-		.ItemHeight(20.0f)
 		.SelectionMode(ESelectionMode::None)
 		.ListItemsSource(&FilteredTracks)
 		.OnGenerateRow(this, &STimingViewTrackList::OnGenerateRow);

@@ -14,22 +14,11 @@ namespace LumenRadianceCache
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FRadianceCacheMarkParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<uint>, RWRadianceProbeIndirectionTexture)
-		SHADER_PARAMETER_ARRAY(FVector4f, PackedWorldPositionToRadianceProbeCoord, [MaxClipmaps])
-		SHADER_PARAMETER_ARRAY(FVector4f, PackedRadianceProbeCoordToWorldPosition, [MaxClipmaps])
+		SHADER_PARAMETER_ARRAY(FVector4f, ClipmapCornerTWSAndCellSizeForMark, [MaxClipmaps])
 		SHADER_PARAMETER(uint32, RadianceProbeClipmapResolutionForMark)
 		SHADER_PARAMETER(uint32, NumRadianceProbeClipmapsForMark)
 		SHADER_PARAMETER(float, InvClipmapFadeSizeForMark)
 	END_SHADER_PARAMETER_STRUCT()
-}
-
-inline void SetWorldPositionToRadianceProbeCoord(FVector4f& PackedParams, const FVector3f& BiasForMark, const float ScaleForMark)
-{
-	PackedParams = FVector4f(BiasForMark, ScaleForMark);
-}
-
-inline void SetRadianceProbeCoordToWorldPosition(FVector4f& PackedParams, const FVector3f& BiasForMark, const float ScaleForMark)
-{
-	PackedParams = FVector4f(BiasForMark, ScaleForMark);
 }
 
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FMarkUsedRadianceCacheProbes, FRDGBuilder&, const FViewInfo&, const LumenRadianceCache::FRadianceCacheMarkParameters&);
@@ -121,27 +110,8 @@ namespace LumenRadianceCache
 		bool bPropagateGlobalLightingChange,
 		ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
-	void RenderLumenHardwareRayTracingRadianceCache(
-		FRDGBuilder& GraphBuilder,
-		const FScene* Scene,
-		const FSceneTextureParameters& SceneTextures,
-		const FViewInfo& View,
-		const FLumenCardTracingParameters& TracingParameters,
-		const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
-		FRadianceCacheConfiguration Configuration,
-		int32 MaxNumProbes,
-		int32 MaxProbeTraceTileResolution,
-		FRDGBufferRef ProbeTraceData,
-		FRDGBufferRef ProbeTraceTileData,
-		FRDGBufferRef ProbeTraceTileAllocator,
-		FRDGBufferRef TraceProbesIndirectArgs,
-		FRDGBufferRef HardwareRayTracingRayAllocatorBuffer,
-		FRDGBufferRef RadianceCacheHardwareRayTracingIndirectArgs,
-		FRDGTextureUAVRef RadianceProbeAtlasTextureUAV,
-		FRDGTextureUAVRef DepthProbeTextureUAV,
-		ERDGPassFlags ComputePassFlags);
-
 	ERDGPassFlags GetLumenSceneLightingComputePassFlags(const FEngineShowFlags& EngineShowFlags);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 }
 
 extern void MarkUsedProbesForVisualize(FRDGBuilder& GraphBuilder, const FViewInfo& View, const class LumenRadianceCache::FRadianceCacheMarkParameters& RadianceCacheMarkParameters, ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);

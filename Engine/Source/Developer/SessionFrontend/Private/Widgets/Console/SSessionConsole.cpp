@@ -99,7 +99,6 @@ void SSessionConsole::Construct(const FArguments& InArgs, TSharedRef<ISessionMan
 									.Padding(0.0f)
 									[
 										SAssignNew(LogListView, SListView<TSharedPtr<FSessionLogMessage>>)
-											.ItemHeight(24.0f)
 											.ListItemsSource(&LogMessages)
 											.SelectionMode(ESelectionMode::Multi)
 											.OnGenerateRow(this, &SSessionConsole::HandleLogListGenerateRow)

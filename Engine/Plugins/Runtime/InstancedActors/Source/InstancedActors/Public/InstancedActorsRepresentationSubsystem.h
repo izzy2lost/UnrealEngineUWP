@@ -14,7 +14,12 @@ class UInstancedActorsRepresentationSubsystem : public UMassRepresentationSubsys
 protected:
 	//~ Begin USubsystem Overrides
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 	//~ End USubsystem Overrides
+
+	void OnSettingsChanged();
+
+	FDelegateHandle OnSettingsChangedHandle;
 };
 
 template<>

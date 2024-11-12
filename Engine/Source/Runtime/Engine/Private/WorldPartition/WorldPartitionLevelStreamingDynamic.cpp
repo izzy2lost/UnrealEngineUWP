@@ -17,6 +17,7 @@
 #include "ContentStreaming.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
+#include "LevelUtils.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "World"
@@ -61,12 +62,14 @@ void UWorldPartitionLevelStreamingDynamic::Initialize(const UWorldPartitionRunti
 #if WITH_EDITOR
 	check(ChildPackages.Num() == 0);
 
-	UnsavedActorsContainer = InCell.UnsavedActorsContainer;
+	UnsavedActorsContainer = InCell.UnsavedActorsContainer; 
 
 	Initialize(CellOuterWorld, InCell.GetPackages());
 #else
 	OuterWorldPartition = CellOuterWorld->GetWorldPartition();
 #endif
+
+	LevelColor = InCell.GetCellDebugColor();
 
 	UpdateShouldSkipMakingVisibilityTransactionRequest();
 }
@@ -174,8 +177,8 @@ void UWorldPartitionLevelStreamingDynamic::CreateRuntimeLevel()
 	RuntimeLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(StreamingCell.Get(), World, GetWorldAsset().ToString());
 	check(RuntimeLevel);
 
-	// Force world partition level/actor packages not to be reused
-	RuntimeLevel->SetForceCantReuseUnloadedButStillAround(true);
+	// Force world partition level/actor packages to be trashed at cleanup
+	FWorldPartitionLevelHelper::SetForcePackageTrashingAtCleanup(RuntimeLevel, true);
 
 	// Make sure Actor Folders is disabled on generated runtime levels to avoid any problems with duplicate folders that
 	// can be caused by level instances injecting their actors, which can cause duplicate folders (which only happens during PIE).
@@ -306,11 +309,6 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 			CreateRuntimeLevel();
 			check(RuntimeLevel);
 
-			if (const UWorldPartitionRuntimeLevelStreamingCell* RuntimeLevelStreamingCell = StreamingCell.Get())
-			{
-				LevelColor = RuntimeLevelStreamingCell->GetCellDebugColor();
-			}
-
 			UPackage* CellLevelPackage = RuntimeLevel->GetPackage();
 			check(CellLevelPackage);
 			check(UWorld::FindWorldInPackage(CellLevelPackage));
@@ -331,8 +329,10 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 						UE_LOG(LogStreaming, Display, TEXT("UWorldPartitionLevelStreamingDynamic::RequestLevel(%s) is flushing async loading"), *WorldAssetPackageName);
 					}
 
-					// Finish all async loading.
-					FlushAsyncLoading();
+					// Finish all async loading. Since we will clear our requests upon completion of all loads, 
+					// we take a copy so FlushAsyncLoading won't touch an invalidated array view
+					TArray<int32> LocalRequestIDs = AsyncRequestIDs;
+					FlushAsyncLoading(LocalRequestIDs);
 				}
 				else
 				{
@@ -435,7 +435,7 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 		// Add the duplicated actors to the corresponding cell level
 		for (auto& ActorPair : ActorContainerDup->Actors)
 		{
-			ActorPair.Value->Rename(nullptr, RuntimeLevel, REN_ForceNoResetLoaders);
+			ActorPair.Value->Rename(nullptr, RuntimeLevel);
 		}
 
 		ActorContainerDup->MarkAsGarbage();
@@ -465,10 +465,10 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 			.SetActorPackages(ChildPackagesToLoad)
 			.SetPackageReferencer(&PackageReferencer)
 			.SetCompletionCallback(FinalizeLoading)
-			.SetLoadAsync(World->IsGameWorld())
+			.SetLoadAsync(World->IsGameWorld(), &AsyncRequestIDs)
 			.SetInstancingContext(MoveTemp(InstancingContext));
 
-		FWorldPartitionLevelHelper::LoadActors(Params);
+		FWorldPartitionLevelHelper::LoadActors(MoveTemp(Params));
 	}
 	else
 	{
@@ -476,6 +476,22 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 	}
 
 	return bLoadRequestInProgress;
+}
+
+void UWorldPartitionLevelStreamingDynamic::OnCurrentStateChanged(ELevelStreamingState InPrevState, ELevelStreamingState InNewState)
+{
+	Super::OnCurrentStateChanged(InPrevState, InNewState);
+
+	if (GetWorld()->IsPlayInEditor())
+	{
+		if (InNewState == ELevelStreamingState::LoadedVisible)
+		{
+			for (AActor* Actor : GetLoadedLevel()->Actors)
+			{
+				FWorldPartitionLevelHelper::ApplyConstructionScriptPropertyOverridesFromAnnotation(Actor);
+			}
+		}
+	}
 }
 
 void UWorldPartitionLevelStreamingDynamic::FinalizeRuntimeLevel()
@@ -518,6 +534,8 @@ void UWorldPartitionLevelStreamingDynamic::FinalizeRuntimeLevel()
 			// Remap Runtime Level's SoftObjectPaths
 			FWorldPartitionLevelHelper::RemapLevelSoftObjectPaths(RuntimeLevel, OuterWorldPartition.Get());
 		}
+
+		OuterWorldPartition->ApplyRuntimeCellsTransformerStack(RuntimeLevel);
 	}
 
 	SetLoadedLevel(RuntimeLevel);

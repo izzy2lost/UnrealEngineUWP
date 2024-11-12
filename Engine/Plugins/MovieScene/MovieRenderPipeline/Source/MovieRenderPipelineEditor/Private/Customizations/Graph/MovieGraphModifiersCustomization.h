@@ -6,6 +6,7 @@
 #include "Graph/MovieGraphSharedWidgets.h"
 
 class UMovieGraphCollectionNode;
+class UMovieGraphModifierNode;
 
 /** Customize how the Modifier node appears in the details panel. */
 class FMovieGraphModifiersCustomization final : public IDetailCustomization
@@ -22,6 +23,12 @@ protected:
 private:
 	static const FSlateBrush* GetCollectionRowIcon(const FName CollectionName);
 	static FText GetCollectionRowText(const FName CollectionName);
+
+	/** Gets the selected modifier node that this customization is displaying. */
+	TWeakObjectPtr<UMovieGraphModifierNode> GetSelectedModifierNode() const;
+	
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
 
 private:
 	/** The details builder associated with the customization. */

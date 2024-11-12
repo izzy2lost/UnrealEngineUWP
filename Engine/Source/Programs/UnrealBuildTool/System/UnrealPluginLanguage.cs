@@ -332,10 +332,10 @@ namespace UnrealBuildTool
 	 * If you must remove files (like development-only files from distribution builds) you can
 	 * use this node:
 	 * 
-	 *	<deleteFiles filespec=""/>
+	 *	<deleteFiles filespec="" recursive=""/>
 	 *	
-	 * It is restricted to only removing files from the BuildDir.  Here is example usage to remove
-	 * the Oculus Signature Files (osig) from the assets directory:
+	 * It is restricted to only removing files from the BuildDir. If recursive is true it will search all subfolders.
+	 * Here is example usage to remove the Oculus Signature Files (osig) from the assets directory:
 	 * 
 	 *	<deleteFiles filespec="assets/oculussig_*"/>
 	 *	
@@ -487,13 +487,26 @@ namespace UnrealBuildTool
 	 * 
 	 */
 
+	// Helper struct to initialize aliased namespaces
+	struct AliasedXMLNamespace
+	{
+		public string Alias { get; set; }
+		public string Url { get; set; }
+
+		public override string ToString()
+		{
+			return String.Format("xmlns:{0}=\"{1}\"", Alias, Url);
+		}
+	}
+
 	class UnrealPluginLanguage
 	{
 		/** The merged XML program to run */
 		private XDocument XDoc;
 
 		/** XML namespace */
-		private XNamespace XMLNameSpace;
+		private XNamespace XMLDefaultNameSpace;
+		private Dictionary<string, XNamespace> XMLNameSpaceAliases = new Dictionary<string, XNamespace>();
 		private string XMLRootDefinition;
 
 		private UnrealTargetPlatform TargetPlatform;
@@ -550,7 +563,8 @@ namespace UnrealBuildTool
 		private string? LastError;
 		private ILogger Logger;
 
-		public UnrealPluginLanguage(FileReference? InProjectFile, List<string> InXMLFiles, List<string> InArchitectures, string InXMLNameSpace, string InRootDefinition, UnrealTargetPlatform InTargetPlatform, ILogger InLogger)
+		// First entry in InXMLNameSpaceAliases will be used as default namespace
+		public UnrealPluginLanguage(FileReference? InProjectFile, List<string> InXMLFiles, List<string> InArchitectures, List<AliasedXMLNamespace>? InXMLNameSpaceAliases, UnrealTargetPlatform InTargetPlatform, ILogger InLogger)
 		{
 			ProjectFile = InProjectFile;
 			Logger = InLogger;
@@ -560,14 +574,30 @@ namespace UnrealBuildTool
 			Contexts = new Dictionary<string, UPLContext>();
 			GlobalContext = new UPLContext("", "", "");
 			ContextIndex = 0;
+			
+			if (InXMLNameSpaceAliases != null && InXMLNameSpaceAliases.Count > 0)
+			{
+				XMLDefaultNameSpace = InXMLNameSpaceAliases[0].Url;
 
-			XMLNameSpace = InXMLNameSpace;
-			XMLRootDefinition = InRootDefinition;
+				StringBuilder RootNamespaces = new StringBuilder();
+				foreach (AliasedXMLNamespace AliasToNamespace in InXMLNameSpaceAliases)
+				{
+					XMLNameSpaceAliases[AliasToNamespace.Alias] = AliasToNamespace.Url;
+					RootNamespaces.AppendFormat("xmlns:{0}=\"{1}\" ", AliasToNamespace.Alias, AliasToNamespace.Url);
+				}
+
+				XMLRootDefinition = String.Join(" ", RootNamespaces);
+			}
+			else
+			{
+				XMLDefaultNameSpace = "";
+				XMLRootDefinition = "";
+			}
 			TargetPlatform = InTargetPlatform;
 
 			string PathPrefix = Path.GetFileName(Directory.GetCurrentDirectory()).Equals("Source") ? ".." : "Engine";
 
-			XDoc = XDocument.Parse("<root " + InRootDefinition + "></root>");
+			XDoc = XDocument.Parse("<root " + XMLRootDefinition + "></root>");
 			foreach (string Basename in InXMLFiles)
 			{
 				string Filename = Path.Combine(PathPrefix, Basename.Replace("\\", "/"));
@@ -595,7 +625,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public String? GetLastError() { return LastError; }
+		public string? GetLastError() { return LastError; }
 
 		public bool GetTrace() { return bGlobalTrace; }
 		public void SetTrace() { bGlobalTrace = true; }
@@ -658,10 +688,7 @@ namespace UnrealBuildTool
 
 		public void SaveXML(string Filename)
 		{
-			if (XDoc != null)
-			{
-				XDoc.Save(Filename);
-			}
+			XDoc?.Save(Filename);
 		}
 
 		private string DumpContext(UPLContext Context)
@@ -911,10 +938,7 @@ namespace UnrealBuildTool
 
 		private ConfigCacheIni_UPL GetConfigCacheIni_UPL(string baseIniName)
 		{
-			if (ConfigCache == null)
-			{
-				ConfigCache = new Dictionary<string, ConfigCacheIni_UPL>();
-			}
+			ConfigCache ??= new Dictionary<string, ConfigCacheIni_UPL>();
 			ConfigCacheIni_UPL? config = null;
 			if (!ConfigCache.TryGetValue(baseIniName, out config))
 			{
@@ -991,13 +1015,13 @@ namespace UnrealBuildTool
 
 					// remove any read only flags and keep timestamp
 					FileInfo DestFileInfo = new FileInfo(DestFilename);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(Filename));
 				}
 			}
 		}
 
-		private static void DeleteFiles(string Filespec, ILogger Logger)
+		private static void DeleteFiles(string Filespec, bool Recursive, ILogger Logger)
 		{
 			string BaseDir = Path.GetDirectoryName(Filespec)!;
 			string Mask = Path.GetFileName(Filespec);
@@ -1007,7 +1031,7 @@ namespace UnrealBuildTool
 				return;
 			}
 
-			string[] Files = Directory.GetFiles(BaseDir, Mask, SearchOption.TopDirectoryOnly);
+			string[] Files = Directory.GetFiles(BaseDir, Mask, Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
 			foreach (string Filename in Files)
 			{
 				File.SetAttributes(Filename, FileAttributes.Normal);
@@ -1016,19 +1040,29 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private void AddAttribute(XElement Element, string Name, string Value)
+		XNamespace? TrimNamespaceAliasFromName(ref string Name)
 		{
-			XAttribute? Attribute;
 			int Index = Name.IndexOf(":");
 			if (Index >= 0)
 			{
+				XNamespace? Namespace;
+				string NamespaceAlias = Name.Substring(0, Index);
+				if (!XMLNameSpaceAliases.TryGetValue(NamespaceAlias, out Namespace))
+				{
+					Namespace = XMLDefaultNameSpace;
+				}
 				Name = Name.Substring(Index + 1);
-				Attribute = Element.Attribute(XMLNameSpace + Name);
+				return Namespace;
 			}
 			else
 			{
-				Attribute = Element.Attribute(Name);
+				return null;
 			}
+		}
+		private void AddAttribute(XElement Element, string Name, string Value)
+		{
+			XNamespace? XMLNameSpace = TrimNamespaceAliasFromName(ref Name);
+			XAttribute? Attribute = Element.Attribute(XMLNameSpace != null? XMLNameSpace + Name : Name);
 
 			if (Attribute != null)
 			{
@@ -1036,35 +1070,16 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				if (Index >= 0)
-				{
-					Element.Add(new XAttribute(XMLNameSpace + Name, Value));
-				}
-				else
-				{
-					Element.Add(new XAttribute(Name, Value));
-				}
+				Element.Add(new XAttribute(XMLNameSpace != null ? XMLNameSpace + Name : Name, Value));
 			}
 		}
 
 		private void RemoveAttribute(XElement Element, string Name)
 		{
-			XAttribute? Attribute;
-			int Index = Name.IndexOf(":");
-			if (Index >= 0)
-			{
-				Name = Name.Substring(Index + 1);
-				Attribute = Element.Attribute(XMLNameSpace + Name);
-			}
-			else
-			{
-				Attribute = Element.Attribute(Name);
-			}
+			XNamespace? XMLNameSpace = TrimNamespaceAliasFromName(ref Name);
+			XAttribute? Attribute = Element.Attribute(XMLNameSpace != null ? XMLNameSpace + Name : Name);
 
-			if (Attribute != null)
-			{
-				Attribute.Remove();
-			}
+			Attribute?.Remove();
 		}
 
 		private void AddElements(XElement Target, XElement Source)
@@ -1392,14 +1407,14 @@ namespace UnrealBuildTool
 
 					case "addPermission":
 						{
-							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLNameSpace, "name");
+							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLDefaultNameSpace, "name");
 							if (Name != null)
 							{
 								// make sure it isn't already added
 								bool bFound = false;
 								foreach (XElement Element in XMLWork.Descendants("uses-permission"))
 								{
-									XAttribute? Attribute = Element.Attribute(XMLNameSpace + "name");
+									XAttribute? Attribute = Element.Attribute(XMLDefaultNameSpace + "name");
 									if (Attribute != null)
 									{
 										if (Attribute.Value == Name)
@@ -1429,12 +1444,12 @@ namespace UnrealBuildTool
 
 					case "removePermission":
 						{
-							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLNameSpace, "name");
+							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLDefaultNameSpace, "name");
 							if (Name != null)
 							{
 								foreach (XElement Element in XMLWork.Descendants("uses-permission"))
 								{
-									XAttribute? Attribute = Element.Attribute(XMLNameSpace + "name");
+									XAttribute? Attribute = Element.Attribute(XMLDefaultNameSpace + "name");
 									if (Attribute != null)
 									{
 										if (Attribute.Value == Name)
@@ -1450,14 +1465,14 @@ namespace UnrealBuildTool
 
 					case "addFeature":
 						{
-							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLNameSpace, "name");
+							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLDefaultNameSpace, "name");
 							if (Name != null)
 							{
 								// make sure it isn't already added
 								bool bFound = false;
 								foreach (XElement Element in XMLWork.Descendants("uses-feature"))
 								{
-									XAttribute? Attribute = Element.Attribute(XMLNameSpace + "name");
+									XAttribute? Attribute = Element.Attribute(XMLDefaultNameSpace + "name");
 									if (Attribute != null)
 									{
 										if (Attribute.Value == Name)
@@ -1487,12 +1502,12 @@ namespace UnrealBuildTool
 
 					case "removeFeature":
 						{
-							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLNameSpace, "name");
+							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLDefaultNameSpace, "name");
 							if (Name != null)
 							{
 								foreach (XElement Element in XMLWork.Descendants("uses-feature"))
 								{
-									XAttribute? Attribute = Element.Attribute(XMLNameSpace + "name");
+									XAttribute? Attribute = Element.Attribute(XMLDefaultNameSpace + "name");
 									if (Attribute != null)
 									{
 										if (Attribute.Value == Name)
@@ -1508,14 +1523,14 @@ namespace UnrealBuildTool
 
 					case "addLibrary":
 						{
-							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLNameSpace, "name");
+							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLDefaultNameSpace, "name");
 							if (Name != null)
 							{
 								// make sure it isn't already added
 								bool bFound = false;
 								foreach (XElement Element in XMLWork.Descendants("uses-library"))
 								{
-									XAttribute? Attribute = Element.Attribute(XMLNameSpace + "name");
+									XAttribute? Attribute = Element.Attribute(XMLDefaultNameSpace + "name");
 									if (Attribute != null)
 									{
 										if (Attribute.Value == Name)
@@ -1545,12 +1560,12 @@ namespace UnrealBuildTool
 
 					case "removeLibrary":
 						{
-							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLNameSpace, "name");
+							string? Name = GetAttributeWithNamespace(CurrentContext, Node, XMLDefaultNameSpace, "name");
 							if (Name != null)
 							{
 								foreach (XElement Element in XMLWork.Descendants("uses-library"))
 								{
-									XAttribute? Attribute = Element.Attribute(XMLNameSpace + "name");
+									XAttribute? Attribute = Element.Attribute(XMLDefaultNameSpace + "name");
 									if (Attribute != null)
 									{
 										if (Attribute.Value == Name)
@@ -1786,7 +1801,7 @@ namespace UnrealBuildTool
 
 										// remove any read only flags and keep timestamp
 										FileInfo DestFileInfo = new FileInfo(Dst);
-										DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+										DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 										File.SetLastWriteTimeUtc(Dst, File.GetLastWriteTimeUtc(Src));
 									}
 								}
@@ -1814,6 +1829,7 @@ namespace UnrealBuildTool
 					case "deleteFiles":
 						{
 							string? Filespec = GetAttribute(CurrentContext, Node, "filespec");
+							bool bRecursive = StringToBool(GetAttribute(CurrentContext, Node, "recursive", true, false, "false"));
 							if (Filespec != null)
 							{
 								if (Filespec.Contains(':') || Filespec.Contains(".."))
@@ -1823,7 +1839,7 @@ namespace UnrealBuildTool
 								else
 								{
 									// force relative to BuildDir (and only from global context so someone doesn't try to be clever)
-									DeleteFiles(Path.Combine(GlobalContext.StringVariables["BuildDir"], Filespec), Logger);
+									DeleteFiles(Path.Combine(GlobalContext.StringVariables["BuildDir"], Filespec), bRecursive, Logger);
 								}
 							}
 						}
@@ -2326,17 +2342,8 @@ namespace UnrealBuildTool
 									}
 								}
 
-								XAttribute? Attribute;
-								int Index = Name.IndexOf(":");
-								if (Index >= 0)
-								{
-									Name = Name.Substring(Index + 1);
-									Attribute = Element.Attribute(XMLNameSpace + Name);
-								}
-								else
-								{
-									Attribute = Element.Attribute(Name);
-								}
+								XNamespace? XMLNameSpace = TrimNamespaceAliasFromName(ref Name);
+								XAttribute? Attribute = Element.Attribute(XMLNameSpace != null ? XMLNameSpace + Name : Name);
 
 								CurrentContext.StringVariables[Result] = (Attribute != null) ? Attribute.Value : "";
 							}
@@ -2590,7 +2597,8 @@ namespace UnrealBuildTool
 							{
 								if (Value != null)
 								{
-									XElement NewElement = new XElement(Value);
+									XNamespace? XMLNameSpace = TrimNamespaceAliasFromName(ref Value);
+									XElement NewElement = new XElement(XMLNameSpace != null ? XMLNameSpace + Value : Value);
 									if (Text != null)
 									{
 										NewElement.Value = Text;
@@ -2638,7 +2646,7 @@ namespace UnrealBuildTool
 			GlobalContext.IntVariables["EnginePatchVersion"] = Version.PatchVersion;
 			GlobalContext.IntVariables["EngineChangelist"] = Version.Changelist;
 			GlobalContext.StringVariables["EngineVersion"] = Version.MajorVersion.ToString() + "." + Version.MinorVersion.ToString() + "." + Version.PatchVersion.ToString();
-			GlobalContext.StringVariables["EngineBranchName"] = (Version.BranchName != null) ? Version.BranchName : "";
+			GlobalContext.StringVariables["EngineBranchName"] = Version.BranchName ?? "";
 
 			if (GlobalContext.StringVariables["EngineDir"].Length < 1)
 			{
@@ -2661,14 +2669,14 @@ namespace UnrealBuildTool
 			{
 				if (bPerArchBuildDir)
 				{
-					String ActiveArch = Arch;
+					string ActiveArch = Arch;
 					if (ArchRemapping != null && ArchRemapping.ContainsKey(ActiveArch))
 					{
 						ActiveArch = ArchRemapping[ActiveArch];
 					}
-					String ArchBuildDirectory = Path.Combine(GlobalContext.StringVariables["BuildDir"], ActiveArch.Replace("-", "_"));
-					String ArchBuildDir = ArchBuildDirectory.Replace("\\", "/");
-					String ArchAbsBuildDir = Path.GetFullPath(ArchBuildDir).Replace("\\", "/");
+					string ArchBuildDirectory = Path.Combine(GlobalContext.StringVariables["BuildDir"], ActiveArch.Replace("-", "_"));
+					string ArchBuildDir = ArchBuildDirectory.Replace("\\", "/");
+					string ArchAbsBuildDir = Path.GetFullPath(ArchBuildDir).Replace("\\", "/");
 
 					// add it to all the architecture contexts (overrides global context)
 					for (int Index = 1; Index <= ContextIndex; Index++)
@@ -3025,11 +3033,11 @@ namespace UnrealBuildTool
 			if (Result)
 			{
 				// C# Boolean type expects "False" or "True" but since we're not case sensitive, we need to suppor that manually
-				if (String.Compare(TextValue, "true", true) == 0 || String.Compare(TextValue, "1") == 0)
+				if (String.Equals(TextValue, "true", StringComparison.CurrentCultureIgnoreCase) || String.Equals(TextValue, "1"))
 				{
 					Value = true;
 				}
-				else if (String.Compare(TextValue, "false", true) == 0 || String.Compare(TextValue, "0") == 0)
+				else if (String.Equals(TextValue, "false", StringComparison.CurrentCultureIgnoreCase) || String.Equals(TextValue, "0"))
 				{
 					Value = false;
 				}
@@ -3222,7 +3230,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void ParseIniFile(FileReference Filename, ILogger Logger)
 		{
-			String[]? IniLines = null;
+			string[]? IniLines = null;
 			List<Command>? Commands = null;
 			if (!FileCache.ContainsKey(Filename.FullName))
 			{
@@ -3403,7 +3411,7 @@ namespace UnrealBuildTool
 						IniValues? Value;
 						if (CurrentSection.TryGetValue(Key, out Value))
 						{
-							int ExistingIndex = Value.FindIndex(X => (String.Compare(SingleValue, X, true) == 0));
+							int ExistingIndex = Value.FindIndex(X => (String.Equals(SingleValue, X, StringComparison.CurrentCultureIgnoreCase)));
 							if (ExistingIndex >= 0)
 							{
 								Value.RemoveAt(ExistingIndex);

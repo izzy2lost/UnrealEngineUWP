@@ -717,7 +717,6 @@ public:
  * 
  * TODO: 
  *  - a custom variant for toruses specifically (would be faster)
- *  - Mitering cross sections support?
  */
 class /*GEOMETRYCORE_API*/ FGeneralizedCylinderGenerator : public FSweepGeneratorBase
 {
@@ -738,6 +737,29 @@ public:
 	// 2D uniform scale of the CrossSection, interpolated along the Path (via arc length) from StartScale to EndScale
 	double StartScale = 1.0;
 	double EndScale = 1.0;
+
+	// Maximum factor by which mitering can expand the cross section at sharp turns, to give the appearance of a consistent cross section width. Only used if > 1.0.
+	// Note: If PathFrames are specified, then bAlignFramesToSampledTangents must be true for mitering to be performed.
+	// (Similar to the MiterLimit concept in SVG / CSS)
+	double MiterLimit = 1.0;
+
+	// Whether to align the frames to the path tangents. Only relevant if PathFrames is specified.
+	bool bAlignFramesToSampledTangents = false;
+
+	// Configure settings to support mitering -- i.e., scaling the cross sections as needed to maintain consistent cross section size through sharp corners, up to the specified scale limit
+	void EnableMitering(double InMiterLimit = 10)
+	{
+		MiterLimit = InMiterLimit;
+		bAlignFramesToSampledTangents = true;
+	}
+
+	// Set the MiterLimit based on the maximum turn angle at which a correct miter should be applied. For turns sharper than this angle, the cross section will appear to shrink at the turn.
+	// @param MiterAngleLimitInDeg Maximum turn angle for correct mitering; should be >= 0 and < 180
+	void SetMiterLimitByAngle(double MiterAngleLimitInDeg)
+	{
+		MiterAngleLimitInDeg = FMath::Clamp(MiterAngleLimitInDeg, 0, 180 - FMathd::ZeroTolerance);
+		MiterLimit = 1.0/FMath::Sin(MiterAngleLimitInDeg * FMathd::DegToRad * .5);
+	}
 
 	// When true, the generator attempts to scale UV's in a way that preserves scaling across different mesh
 	// results, aiming for 1.0 in UV space to be equal to UnitUVInWorldCoordinates in world space. This in
@@ -819,19 +841,46 @@ public:
 		{
 			FVector3d C = Path[PathIdx];
 			FVector3d X, Y;
-			if (bHaveExplicitFrames == false)
+			FMatrix2d MiterPosScale = FMatrix2d::Identity();
+			if (bHaveExplicitFrames)
 			{
-				FVector3d Tangent = UE::Geometry::CurveUtil::Tangent<double, FVector3d>(Path, PathIdx, bLoop);
-				CrossSectionFrame.AlignAxis(2, Tangent);
-				X = CrossSectionFrame.X();
-				Y = CrossSectionFrame.Y();
-			}
-			else
-			{
+				CrossSectionFrame = PathFrames[PathIdx];
 				C = PathFrames[PathIdx].Origin;
-				X = PathFrames[PathIdx].X();
-				Y = PathFrames[PathIdx].Y();
 			}
+			if (!bHaveExplicitFrames || bAlignFramesToSampledTangents)
+			{
+				FVector3d ToPrev, ToNext;
+				UE::Geometry::CurveUtil::GetVectorsToPrevNext<double, FVector3d>(Path, PathIdx, ToPrev, ToNext, true, bLoop);
+
+				FVector3d Tangent = Normalized(-ToPrev + ToNext);
+				CrossSectionFrame.AlignAxis(2, Tangent);
+				if (MiterLimit > 1)
+				{
+					// only miter if neither neighbor vector is exactly zero
+					if (!ToPrev.IsZero() && !ToNext.IsZero())
+					{
+						FVector3d TurnDir = ToPrev + ToNext;
+						FVector2d ScaleAlong = (FVector2d)CrossSectionFrame.ToFrameVector(TurnDir);
+						double ScaleAmount = 1.0;
+						if (ScaleAlong.Normalize())
+						{
+							double CosTwoTheta = ToPrev.Dot(ToNext);
+							double SqrScale = 2.0 / (1.0 - CosTwoTheta);
+							if (!FMath::IsFinite(SqrScale) || SqrScale > MiterLimit * MiterLimit)
+							{
+								ScaleAmount = MiterLimit;
+							}
+							else
+							{
+								ScaleAmount = FMath::Sqrt(SqrScale);
+							}
+							MiterPosScale = FMatrix2d::AxisScale(ScaleAlong, ScaleAmount, false /* axis was already normalized */);
+						}
+					}
+				}
+			}
+			X = CrossSectionFrame.X();
+			Y = CrossSectionFrame.Y();
 
 			double T = FMathd::Clamp((AccumArcLength / TotalPathArcLength), 0.0, 1.0);
 			double UniformScale = (bApplyScaling) ? FMathd::Lerp(StartScale, EndScale, T) : 1.0;
@@ -839,8 +888,11 @@ public:
 
 			for (int SubIdx = 0; SubIdx < XNum; SubIdx++)
 			{
-				FVector2d XP = UniformScale * PathScaling * CrossSection[SubIdx];
+				FVector2d XP = MiterPosScale * (UniformScale * PathScaling * CrossSection[SubIdx]);
 				FVector2d XN = XNormals[SubIdx];
+				// Note: Arguably, one could apply an inverse mitering scale to the normals, and then re-normalize, here ...
+				// However, it's better to think about these normals an average from the two unscaled cross sections that are meeting at the cross section plane,
+				// and in that model they won't be affected by the miter scale
 				Vertices[SubIdx + PathIdx * XNum] = C + X * XP.X + Y * XP.Y;
 				Normals[SubIdx + PathIdx * XNum] = (FVector3f)(X * XN.X + Y * XN.Y);
 			}

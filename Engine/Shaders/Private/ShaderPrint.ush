@@ -31,9 +31,9 @@
 // On platform supporting diagnostic buffer, shader print data are stored into the diagnostic buffer which is always 
 // bound. This allows to access shader print functionality in any shader without explicit shader binding
 #define SHADER_PRINT_USE_DIAGNOSTIC_BUFFER (PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER && (PIXELSHADER || COMPUTESHADER || RAYGENSHADER) && !SHADER_PRINT_USE_GLOBAL_RESOURCE && SHADER_PRINT_EXPERIMENTAL_DIAGNOSTIC_BUFFER)
-// Offset to the ShaderPrint parameters
-#define SHADER_PRINT_DIAGNOSTIC_BUFFER_PARAMETERS_OFFSET 6u
-// Offset to the ShaderPrint entries
+// Offset to the ShaderPrint parameters (see FD3D12DiagnosticBuffer in D3D12Device.h , 6 uint x 64 lanes + 2 uints for BreadCrumbMarker) in Uints
+#define SHADER_PRINT_DIAGNOSTIC_BUFFER_PARAMETERS_OFFSET (6u * 64u + 2u)
+// Offset to the ShaderPrint entries in Uints (12 uints for storing constant parameters)
 #define SHADER_PRINT_DIAGNOSTIC_BUFFER_ENTRY_OFFSET (SHADER_PRINT_DIAGNOSTIC_BUFFER_PARAMETERS_OFFSET + 12u)
 
 // Global buffers for ShaderPrint collection.
@@ -77,7 +77,7 @@ void PackShaderPrintConfig(FShaderPrintConfig In)
 	UEDiagnosticBuffer[Offset+7] = In.MaxCharacterCount;
 	UEDiagnosticBuffer[Offset+8] = In.MaxSymbolCount;
 	UEDiagnosticBuffer[Offset+9] = In.MaxStateCount;
-	UEDiagnosticBuffer[Offset+10]= In.MaxLineCount;
+	UEDiagnosticBuffer[Offset+10]= (In.MaxLineCount << 1) | (In.bIsDrawLocked ? 1 : 0);
 	UEDiagnosticBuffer[Offset+11]= In.MaxTriangleCount;
 }
 
@@ -96,7 +96,8 @@ FShaderPrintConfig UnpackShaderPrintConfig()
 	Out.MaxCharacterCount		= UEDiagnosticBuffer[Offset+7];
 	Out.MaxSymbolCount			= UEDiagnosticBuffer[Offset+8];
 	Out.MaxStateCount			= UEDiagnosticBuffer[Offset+9];
-	Out.MaxLineCount			= UEDiagnosticBuffer[Offset+10];
+	Out.MaxLineCount			= UEDiagnosticBuffer[Offset+10] >> 1;
+	Out.bIsDrawLocked			= (UEDiagnosticBuffer[Offset+10] & 1) != 0;
 	Out.MaxTriangleCount		= UEDiagnosticBuffer[Offset+11];
 
 	// Dummy write to avoid the pass to be culled when using explicit ShaderPrint parameter bindings
@@ -141,6 +142,7 @@ FShaderPrintConfig InitShaderPrintContextConfig()
 	Config.MaxStateCount = ShaderPrintData.MaxStateCount;
 	Config.MaxLineCount = ShaderPrintData.MaxLineCount;
 	Config.MaxTriangleCount = ShaderPrintData.MaxTriangleCount;
+	Config.bIsDrawLocked = ShaderPrintData.IsDrawLocked;
 	return Config;
 #endif
 }
@@ -168,7 +170,7 @@ FShaderPrintContext InitShaderPrintContext(bool bActive, uint2 InStartCoord)
 FShaderPrintContext InitShaderPrintContextAtCursor(uint2 InCurrentCoord, uint2 InStartCoord) 
 {
 	FShaderPrintConfig Config = InitShaderPrintContextConfig();
-	const bool bActive = all(InCurrentCoord == Config.CursorCoord);
+	const bool bActive = all(int2(InCurrentCoord) == Config.CursorCoord);
 	return InitShaderPrintContext(bActive, float2(InStartCoord) / float2(Config.Resolution));
 }
 
@@ -187,9 +189,17 @@ int2 GetCursorPos()
 {
 	return GetCursorPos(InitShaderPrintContext());
 }
-void AddFilledTriangleWS(float3 Pos0, float3 Pos1, float3 Pos2, float4 Color)
+void AddFilledTriangleTWS(float3 Pos0, float3 Pos1, float3 Pos2, float4 Color)
 {
 	AddFilledTriangleTWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Color); 
+}
+void AddFilledTriangleWS(float3 Pos0, float3 Pos1, float3 Pos2, float4 Color)
+{
+	AddFilledTriangleWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Color); 
+}
+void AddFilledQuadTWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
+{ 
+	AddFilledQuadTWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
 }
 void AddFilledQuadWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
 { 
@@ -231,6 +241,10 @@ void AddQuadWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color)
 {
 	AddQuadWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
 }
+void AddQuadTWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
+{
+	AddQuadTWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
+}
 void AddQuad(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
 {
 	AddQuad(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
@@ -255,6 +269,10 @@ void AddCrossWS(float3 Pos, float Size, float4 Color)
 {
 	AddCrossWS(InitShaderPrintContext(), Pos, Size, Color);
 }
+void AddCrossTWS(float3 Pos, float Size, float4 Color) 
+{
+	AddCrossTWS(InitShaderPrintContext(), Pos, Size, Color);
+}
 void AddCross(float3 Pos, float Size, float4 Color) 
 {
 	AddCross(InitShaderPrintContext(), Pos, Size, Color);
@@ -274,6 +292,22 @@ void AddReferentialWS(float3 Pos, float3 TangentZ, float Scale = 1)
 void AddReferentialWS(float3 Pos, float3 T, float3 B, float3 N, float Scale = 1)
 {
 	AddReferentialWS(InitShaderPrintContext(), Pos, T, B, N, Scale);
+}
+void AddReferentialTWS(float3 Pos, float3x3 InM, float Scale = 1)
+{
+	AddReferentialTWS(InitShaderPrintContext(), Pos, InM, Scale);
+}
+void AddReferentialTWS(float4x4 InM, float Scale = 1) 
+{
+	AddReferentialTWS(InitShaderPrintContext(), InM, Scale);
+}
+void AddReferentialTWS(float3 Pos, float3 TangentZ, float Scale = 1) 
+{
+	AddReferentialTWS(InitShaderPrintContext(), Pos, TangentZ, Scale);
+}
+void AddReferentialTWS(float3 Pos, float3 T, float3 B, float3 N, float Scale = 1)
+{
+	AddReferentialTWS(InitShaderPrintContext(), Pos, T, B, N, Scale);
 }
 void AddReferential(float3 Pos, float3x3 InM, float Scale = 1) 
 {
@@ -295,6 +329,10 @@ void AddLineTriangleWS(float3 P0, float3 P1, float3 P2, float4 Color)
 {
 	AddLineTriangleWS(InitShaderPrintContext(), P0, P1, P2, Color);
 }
+void AddLineTriangleTWS(float3 P0, float3 P1, float3 P2, float4 Color) 
+{
+	AddLineTriangleTWS(InitShaderPrintContext(), P0, P1, P2, Color);
+}
 void AddLineTriangle(float3 P0, float3 P1, float3 P2, float4 Color) 
 {
 	AddLineTriangle(InitShaderPrintContext(), P0, P1, P2, Color);
@@ -302,6 +340,10 @@ void AddLineTriangle(float3 P0, float3 P1, float3 P2, float4 Color)
 void AddOBBWS(float3 Min, float3 Max, float4 Color, float4x4 Transform)
 {
 	AddOBBWS(InitShaderPrintContext(), Min, Max, Color, Transform);
+}
+void AddOBBTWS(float3 Min, float3 Max, float4 Color, float4x4 Transform)
+{
+	AddOBBTWS(InitShaderPrintContext(), Min, Max, Color, Transform);
 }
 void AddOBB(float3 Min, float3 Max, float4 Color, float4x4 Transform) 
 {

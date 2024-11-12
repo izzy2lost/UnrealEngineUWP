@@ -200,6 +200,17 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnChatRoomMemberUpdate, const FUniqueNet
 typedef FOnChatRoomMemberUpdate::FDelegate FOnChatRoomMemberUpdateDelegate;
 
 /**
+* Delegate used when a chat message is sent to a chat room
+*
+* @param UserId the user that made the request
+* @param RoomId room that was requested
+* @param bWasSuccessful true if the async action completed without error, false if there was an error
+* @param Error string representing the error condition
+*/
+DECLARE_MULTICAST_DELEGATE_FourParams(FOnChatRoomMessageSent, const FUniqueNetId& /*UserId*/, const FChatRoomId& /*RoomId*/, bool /*bWasSuccessful*/, const FString& /*Error*/);
+typedef FOnChatRoomMessageSent::FDelegate FOnChatRoomMessageSentDelegate;
+
+/**
  * Delegate used when a chat message is received from a chat room
  *
  * @param UserId user currently in the room
@@ -208,6 +219,17 @@ typedef FOnChatRoomMemberUpdate::FDelegate FOnChatRoomMemberUpdateDelegate;
  */
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnChatRoomMessageReceived, const FUniqueNetId& /*UserId*/, const FChatRoomId& /*RoomId*/, const TSharedRef<FChatMessage>& /*ChatMessage*/);
 typedef FOnChatRoomMessageReceived::FDelegate FOnChatRoomMessageReceivedDelegate;
+
+/**
+* Delegate used when a private chat message is sent to another user
+*
+* @param UserId the user that made the request
+* @param RecipientId the user the message was sent to
+* @param bWasSuccessful true if the async action completed without error, false if there was an error
+* @param Error string representing the error condition
+*/
+DECLARE_MULTICAST_DELEGATE_FourParams(FOnChatPrivateMessageSent, const FUniqueNetId& /*UserId*/, const FUniqueNetId& /*RecipientId*/, bool /*bWasSuccessful*/, const FString& /*Error*/);
+typedef FOnChatPrivateMessageSent::FDelegate FOnChatPrivateMessageSentDelegate;
 
 /**
  * Delegate used when a private chat message is received from another user
@@ -393,7 +415,9 @@ public:
 	DEFINE_ONLINE_DELEGATE_THREE_PARAM(OnChatRoomMemberJoin, const FUniqueNetId&, const FChatRoomId&, const FUniqueNetId&);
 	DEFINE_ONLINE_DELEGATE_THREE_PARAM(OnChatRoomMemberExit, const FUniqueNetId&, const FChatRoomId&, const FUniqueNetId&);
 	DEFINE_ONLINE_DELEGATE_THREE_PARAM(OnChatRoomMemberUpdate, const FUniqueNetId&, const FChatRoomId&, const FUniqueNetId&);
+	DEFINE_ONLINE_DELEGATE_FOUR_PARAM(OnChatRoomMessageSent, const FUniqueNetId&, const FChatRoomId&, bool, const FString&);
 	DEFINE_ONLINE_DELEGATE_THREE_PARAM(OnChatRoomMessageReceived, const FUniqueNetId&, const FChatRoomId&, const TSharedRef<FChatMessage>&);
+	DEFINE_ONLINE_DELEGATE_FOUR_PARAM(OnChatPrivateMessageSent, const FUniqueNetId&, const FUniqueNetId&, bool, const FString&);
 	DEFINE_ONLINE_DELEGATE_TWO_PARAM(OnChatPrivateMessageReceived, const FUniqueNetId&, const TSharedRef<FChatMessage>&);
 };
 

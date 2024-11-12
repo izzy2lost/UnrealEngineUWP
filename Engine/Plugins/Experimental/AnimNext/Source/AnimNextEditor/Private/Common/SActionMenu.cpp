@@ -6,16 +6,18 @@
 #include "Framework/Application/SlateApplication.h"
 #include "IDocumentation.h"
 #include "SSubobjectEditor.h"
-#include "Graph/AnimNextGraph_EdGraphSchema.h"
+#include "AnimNextEdGraphSchema.h"
+#include "RigVMHost.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Text/STextBlock.h"
 #include "SGraphPalette.h"
 #include "RigVMCore/RigVMRegistry.h"
+#include "RigVMModel/RigVMClient.h"
+#include "RigVMModel/RigVMSchema.h"
 #include "Units/RigUnit.h"
-#include "Widgets/SToolTip.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "UncookedOnlyUtils.h"
+#include "RigVMBlueprintGeneratedClass.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditor"
 
@@ -24,10 +26,12 @@ namespace UE::AnimNext::Editor
 
 void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuBuilder) const
 {
+	// Disable reporting as the schema's SupportsX functions will output errors
+	RigVMController->EnableReporting(false);
+
 	for(const FRigVMFunction& Function : FRigVMRegistry::Get().GetFunctions())
 	{
-		const UScriptStruct* FunctionContext = Function.GetExecuteContextStruct();
-		if (FunctionContext == nullptr || !AllowedExecuteContexts.Contains(FunctionContext))
+		if (RigVMSchema == nullptr || !RigVMSchema->SupportsUnitFunction(RigVMController, &Function))
 		{
 			continue;
 		}
@@ -38,9 +42,25 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 			continue;
 		}
 
+		// skip deprecated units
+		if(Function.Struct->HasMetaData(FRigVMStruct::DeprecatedMetaName))
+		{
+			continue;
+		}
+
+		// skip hidden units
+		if(Function.Struct->HasMetaData(FRigVMStruct::HiddenMetaName))
+		{
+			continue;
+		}
+
 		FString CategoryMetadata, DisplayNameMetadata, MenuDescSuffixMetadata;
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::CategoryMetaName, &CategoryMetadata);
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::DisplayNameMetaName, &DisplayNameMetadata);
+		if(DisplayNameMetadata.IsEmpty())
+		{
+			DisplayNameMetadata = Function.GetMethodName().ToString();
+		}
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::MenuDescSuffixMetaName, &MenuDescSuffixMetadata);
 		if (!MenuDescSuffixMetadata.IsEmpty())
 		{
@@ -60,18 +80,7 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 
 	for (const FRigVMDispatchFactory* Factory : FRigVMRegistry::Get().GetFactories())
 	{
-		// See if the factory allows our execute contexts
-		bool bAllowed = true;
-		for(const UScriptStruct* AllowedExecuteContext : AllowedExecuteContexts)
-		{
-			if (!Factory->SupportsExecuteContextStruct(AllowedExecuteContext))
-			{
-				bAllowed = false;
-				break;
-			}
-		}
-
-		if(bAllowed)
+		if (RigVMSchema == nullptr || !RigVMSchema->SupportsDispatchFactory(RigVMController, Factory))
 		{
 			continue;
 		}
@@ -82,12 +91,64 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 			continue;
 		}
 
+		// skip deprecated factories
+		if(Factory->GetScriptStruct()->HasMetaData(FRigVMStruct::DeprecatedMetaName))
+		{
+			continue;
+		}
+
+		// skip hidden factories
+		if(Factory->GetScriptStruct()->HasMetaData(FRigVMStruct::HiddenMetaName))
+		{
+			continue;
+		}
+
 		FText NodeCategory = FText::FromString(Factory->GetCategory());
 		FText MenuDesc = FText::FromString(Factory->GetNodeTitle(FRigVMTemplateTypeMap()));
 		FText ToolTip = Factory->GetNodeTooltip(FRigVMTemplateTypeMap());
 
 		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_DispatchFactory>(Template->GetNotation(), NodeCategory, MenuDesc, ToolTip));
 	};
+
+	if (URigVMFunctionLibrary* LocalFunctionLibrary = RigVMClientHost->GetLocalFunctionLibrary())
+	{
+		const FSoftObjectPath LocalLibrarySoftPath = LocalFunctionLibrary->GetFunctionHostObjectPath();
+
+		TArray<URigVMLibraryNode*> Functions = LocalFunctionLibrary->GetFunctions();
+		for (URigVMLibraryNode* FunctionLibraryNode : Functions)
+		{
+			if (LocalFunctionLibrary->IsFunctionPublic(FunctionLibraryNode->GetFName()))	// Public functions will be added when processing asset registry exports
+			{
+				continue;
+			}
+			const FText NodeCategory = FText::FromString(FunctionLibraryNode->GetNodeCategory());
+			const FText MenuDesc = FText::FromString(FunctionLibraryNode->GetName());
+			const FText ToolTip = FunctionLibraryNode->GetToolTipText();
+
+			MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Function>(FunctionLibraryNode, NodeCategory, MenuDesc, ToolTip));
+		}
+	}
+
+	TMap<FAssetData, FRigVMGraphFunctionHeaderArray> FunctionExports;
+	AnimNext::UncookedOnly::FUtils::GetExportedFunctionsFromAssetRegistry(UE::AnimNext::AnimNextPublicGraphFunctionsExportsRegistryTag, FunctionExports);
+	AnimNext::UncookedOnly::FUtils::GetExportedFunctionsFromAssetRegistry(UE::AnimNext::ControlRigAssetPublicGraphFunctionsExportsRegistryTag, FunctionExports);
+
+	for (const auto& Export : FunctionExports.Array())
+	{
+		for (const FRigVMGraphFunctionHeader& FunctionHeader : Export.Value.Headers)
+		{
+			if (FunctionHeader.LibraryPointer.IsValid())
+			{
+				const FText NodeCategory = FText::FromString(FunctionHeader.Category);
+				const FText MenuDesc = FText::FromString(FunctionHeader.NodeTitle);
+				const FText ToolTip = FunctionHeader.GetTooltip();
+
+				MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Function>(FunctionHeader, NodeCategory, MenuDesc, ToolTip));
+			}
+		}
+	}
+
+	RigVMController->EnableReporting(true);
 }
 
 SActionMenu::~SActionMenu()
@@ -96,15 +157,25 @@ SActionMenu::~SActionMenu()
 	OnCloseReasonCallback.ExecuteIfBound(bActionExecuted, false, !DraggedFromPins.IsEmpty());
 }
 
-void SActionMenu::Construct(const FArguments& InArgs)
+void SActionMenu::Construct(const FArguments& InArgs, UEdGraph* InGraph)
 {
-	Graph = InArgs._Graph;
+	check(InGraph);
+
+	Graph = InGraph;
 	DraggedFromPins = InArgs._DraggedFromPins;
 	NewNodePosition = InArgs._NewNodePosition;
 	OnClosedCallback = InArgs._OnClosedCallback;
 	bAutoExpandActionMenu = InArgs._AutoExpandActionMenu;
 	OnCloseReasonCallback = InArgs._OnCloseReason;
-	AllowedExecuteContexts = InArgs._AllowedExecuteContexts;
+
+	RigVMClientHost = Graph->GetImplementingOuter<IRigVMClientHost>();
+	check(RigVMClientHost);
+	RigVMHost = Graph->GetTypedOuter<URigVMHost>();
+	check(RigVMHost);
+	RigVMController = RigVMClientHost->GetRigVMClient()->GetController(Graph);
+	check(RigVMController);
+	RigVMSchema = RigVMController->GetGraph()->GetSchema();
+	check(RigVMSchema);
 
 	SBorder::Construct(SBorder::FArguments()
 		.BorderImage(FAppStyle::Get().GetBrush("Menu.Background"))

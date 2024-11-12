@@ -32,7 +32,7 @@
 #include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/Function.h"
-
+#include "Containers/StringConv.h"
 #include "Apple/PreAppleSystemHeaders.h"
 
 #if !PLATFORM_TVOS && !PLATFORM_VISIONOS
@@ -45,10 +45,13 @@
 #import <mach-o/dyld.h>
 #include <netinet/in.h>
 #include <SystemConfiguration/SystemConfiguration.h>
+#if UE_WITH_STORE_KIT
 #import <StoreKit/StoreKit.h>
-#if !PLATFORM_VISIONOS
-#import <UserNotifications/UserNotifications.h>
 #endif
+
+#import <UserNotifications/UserNotifications.h>
+
+#include <sys/sysctl.h> // sysctlbyname
 
 #include "Apple/PostAppleSystemHeaders.h"
 
@@ -66,6 +69,11 @@ void (* GMemoryWarningHandler)(const FGenericMemoryWarningContext& Context) = NU
 
 /** global for showing the splash screen */
 bool GShowSplashScreen = true;
+
+#if !UE_BUILD_SHIPPING
+/** global for showing debug console */
+bool GDebugConsoleOpen = false;
+#endif
 
 static int32 GetFreeMemoryMB()
 {
@@ -88,6 +96,17 @@ void FIOSPlatformMisc::PlatformInit()
 	Limit.rlim_max = RLIM_INFINITY;
 	int32 Result = setrlimit(RLIMIT_NOFILE, &Limit);
 	check(Result == 0);
+
+	// Check for required entitlements
+	TArray<FString> RequiredEntitlements;
+	GConfig->GetArray(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("RequiredEntitlements"), RequiredEntitlements, GEngineIni);
+	for (const FString& Entitlement : RequiredEntitlements)
+	{
+		if (!FIOSPlatformMisc::IsEntitlementEnabled(TCHAR_TO_ANSI(*Entitlement)))
+		{
+			UE_LOG(LogInit, Fatal, TEXT("App does not have required entitlement %s."), *Entitlement);
+		}
+	}
 
 	// Identity.
 	UE_LOG(LogInit, Log, TEXT("Computer: %s"), FPlatformProcess::ComputerName() );
@@ -346,10 +365,15 @@ void FIOSPlatformMisc::SetDeviceOrientation(EDeviceScreenOrientation NewDeviceOr
 void FIOSPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllowedDeviceOrientation)
 {
 	AllowedDeviceOrientation = NewAllowedDeviceOrientation;
-
+	
 #if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	[IOSAppDelegate GetDelegate].IOSView->SupportedInterfaceOrientations = GetUIInterfaceOrientationMask(NewAllowedDeviceOrientation);
 #endif
+	
+	dispatch_async(dispatch_get_main_queue(), ^
+	{
+		[[IOSAppDelegate GetDelegate].IOSController setNeedsUpdateOfSupportedInterfaceOrientations];
+	});
 }
 
 bool FIOSPlatformMisc::HasPlatformFeature(const TCHAR* FeatureName)
@@ -902,8 +926,11 @@ bool FIOSPlatformMisc::GetDiskTotalAndFreeSpace(const FString& InPath, uint64& T
 
 void FIOSPlatformMisc::RequestStoreReview()
 {
-#if !PLATFORM_TVOS
+#if UE_WITH_STORE_KIT && !PLATFORM_TVOS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Deprecated for iOS18.0 & visionOS 2.0.  To be replaced with Swift only StoreKit::RequestReviewAction call (UE-228925)
     [SKStoreReviewController requestReviewInScene:[[[[UIApplication sharedApplication] delegate] window] windowScene]];
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 }
 
@@ -1210,7 +1237,7 @@ void FIOSPlatformMisc::RegisterForRemoteNotifications()
 	}
 
     dispatch_async(dispatch_get_main_queue(), ^{
-#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && NOTIFICATIONS_ENABLED
+#if !PLATFORM_TVOS && NOTIFICATIONS_ENABLED
 		UNUserNotificationCenter *Center = [UNUserNotificationCenter currentNotificationCenter];
 		[Center requestAuthorizationWithOptions:(UNAuthorizationOptionBadge | UNAuthorizationOptionSound | UNAuthorizationOptionAlert)
 							  completionHandler:^(BOOL granted, NSError * _Nullable error) {
@@ -1223,9 +1250,10 @@ void FIOSPlatformMisc::RegisterForRemoteNotifications()
 									  int32 types = (int32)granted;
                                       if (granted)
                                       {
-                                          UIApplication* application = [UIApplication sharedApplication];
-                                          [application registerForRemoteNotifications];
-                                          
+										  dispatch_sync(dispatch_get_main_queue(), ^{
+											  UIApplication* application = [UIApplication sharedApplication];
+											  [application registerForRemoteNotifications];  
+										  });
                                       }
 									  FFunctionGraphTask::CreateAndDispatchWhenReady([types]()
 																					 {
@@ -1245,7 +1273,7 @@ bool FIOSPlatformMisc::IsRegisteredForRemoteNotifications()
 
 bool FIOSPlatformMisc::IsAllowedRemoteNotifications()
 {
-#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && NOTIFICATIONS_ENABLED
+#if !PLATFORM_TVOS && NOTIFICATIONS_ENABLED
 	checkf(false, TEXT("For min iOS version >= 10 use FIOSLocalNotificationService::CheckAllowedNotifications."));
 	return true;
 #else
@@ -1258,6 +1286,44 @@ void FIOSPlatformMisc::UnregisterForRemoteNotifications()
 
 }
 
+FIOSPlatformMisc::EIOSAuthNotificationStatus FIOSPlatformMisc::GetNotificationAuthorizationStatus()
+{
+	dispatch_semaphore_t Semaphore = dispatch_semaphore_create(0);
+	static EIOSAuthNotificationStatus CurrentAuthStatus = Unknown;
+	dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
+		[[UNUserNotificationCenter currentNotificationCenter] getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings* Settings)
+		{
+			switch (Settings.authorizationStatus)
+			{
+				case UNAuthorizationStatusNotDetermined:
+					CurrentAuthStatus = NotDetermined;
+					break;
+				case UNAuthorizationStatusDenied:
+					CurrentAuthStatus = Denied;
+					break;
+				case UNAuthorizationStatusAuthorized:
+					CurrentAuthStatus = Authorized;
+					break;
+				case UNAuthorizationStatusProvisional:
+					CurrentAuthStatus = Provisional;
+					break;
+#if !PLATFORM_TVOS
+				case UNAuthorizationStatusEphemeral:
+					CurrentAuthStatus = Ephemeral;
+					break;
+#endif
+				default:
+					CurrentAuthStatus = Unknown;
+			}
+			dispatch_semaphore_signal(Semaphore);
+		}];
+	});
+
+	// wait for a result, but timeout after 1s
+	dispatch_semaphore_wait(Semaphore, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC));
+    dispatch_release(Semaphore);
+	return CurrentAuthStatus;
+}
 
 // See for more information about the Blobs
 // https://opensource.apple.com/source/xnu/xnu-4570.61.1/osfmk/kern/cs_blobs.h.auto.html
@@ -1303,7 +1369,7 @@ extern NSString *EntitlementsData(void)
     // verify that it's a 64bit app
     if (executableHeader->magic != MH_MAGIC_64)
     {
-        UE_LOG(LogIOS, Error, TEXT("Executable is NOT 64bit. Entitlement retrieval not supported."));
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("Executable is NOT 64bit. Entitlement retrieval not supported.\n"));
         return nil;
     }
     uintptr_t cursor = (uintptr_t)executableHeader + sizeof(struct mach_header_64);
@@ -1316,7 +1382,7 @@ extern NSString *EntitlementsData(void)
         switch (segmentCommand->cmd)
         {
             case LC_CODE_SIGNATURE:
-                UE_LOG(LogIOS, Log, TEXT("LC_CODE_SIGNATURE found"));
+				FPlatformMisc::LowLevelOutputDebugString(TEXT("LC_CODE_SIGNATURE found\n"));
                 break;
             default:
                 continue;
@@ -1327,7 +1393,7 @@ extern NSString *EntitlementsData(void)
         FILE* file = fopen(ImageName, "rb");
         if (file == NULL)
         {
-            UE_LOG(LogIOS, Error, TEXT("Could not open binary file"));
+			FPlatformMisc::LowLevelOutputDebugString(TEXT("Could not open binary file\n"));
             return nil;
         }
         CS_MultiBlob multiBlob;
@@ -1422,17 +1488,17 @@ extern bool IsEntitlementPresentInEmbeddedProvision(const char *EntitlementsToFi
             
             if(trueptr == NULL && falseptr == NULL)
             {
-                UE_LOG(LogIOS, Error, TEXT("Unexpected Behaviour. The entitlement key is found but its value is not set."));
+				FPlatformMisc::LowLevelOutputDebugString(TEXT("Unexpected Behaviour. The entitlement key is found but its value is not set.\n"));
                 return false;
             }
             if(trueptr && falseptr == NULL)  // only true
             {
-                UE_LOG(LogIOS, Log, TEXT("Entitlements found in embedded mobile provision file."));
+				FPlatformMisc::LowLevelOutputDebugString(TEXT("Entitlements found in embedded mobile provision file.\n"));
                 return true;
             }
             if(trueptr == NULL && falseptr) // only false
             {
-                UE_LOG(LogIOS, Log, TEXT("Entitlements found but set to false."));
+				FPlatformMisc::LowLevelOutputDebugString(TEXT("Entitlements found but set to false.\n"));
                 return false;
             }
             return (trueptr < falseptr); // return true if true comes before false
@@ -1462,7 +1528,7 @@ bool FIOSPlatformMisc::IsEntitlementEnabled(const char * EntitlementToCheck)
 
     if ([CleanedEntitlementData rangeOfString: (@"%s", EntitlementsToFind)].location == NSNotFound)
     {
-        UE_LOG(LogIOS, Log, TEXT("Entitlements not found in binary Mach-O header. Looking at the embedded mobile provision file."));
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("Entitlements not found in binary Mach-O header. Looking at the embedded mobile provision file.\n"));
         return IsEntitlementPresentInEmbeddedProvision(EntitlementToCheck);
     }
     else
@@ -1483,13 +1549,14 @@ void FIOSPlatformMisc::GetValidTargetPlatforms(TArray<FString>& TargetPlatformNa
 #endif
 }
 
-ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
+static inline ENetworkConnectionType CheckNetworkConnectionType()
 {
 	struct sockaddr_in ZeroAddress;
 	FMemory::Memzero(&ZeroAddress, sizeof(ZeroAddress));
 	ZeroAddress.sin_len = sizeof(ZeroAddress);
 	ZeroAddress.sin_family = AF_INET;
 	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SCNetworkReachabilityRef ReachabilityRef = SCNetworkReachabilityCreateWithAddress(kCFAllocatorDefault, (const struct sockaddr*)&ZeroAddress);
 	SCNetworkReachabilityFlags ReachabilityFlags;
 	bool bFlagsAvailable = SCNetworkReachabilityGetFlags(ReachabilityRef, &ReachabilityFlags);
@@ -1509,6 +1576,7 @@ ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
         bHasActiveCellConnection = bReachable && (ReachabilityFlags & kSCNetworkReachabilityFlagsIsWWAN) != 0;
         bInAirplaneMode = ReachabilityFlags == 0;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
     if (bHasActiveWiFiConnection)
     {
@@ -1523,6 +1591,24 @@ ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
         return ENetworkConnectionType::AirplaneMode;
     }
     return ENetworkConnectionType::None;
+}
+
+ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
+{
+	static TOptional<ENetworkConnectionType> ConnectionType = {};
+	static double LastCheckTime = 0;
+
+	const double CurrentTime = FPlatformTime::Seconds();
+	const double CheckInterval = 0.2;
+
+	if (!ConnectionType.IsSet() || CurrentTime >= LastCheckTime + CheckInterval)
+	{
+		ConnectionType = CheckNetworkConnectionType();
+		LastCheckTime = CurrentTime;
+	}
+
+	ensure(ConnectionType.IsSet());
+	return ConnectionType.GetValue();
 }
 
 bool FIOSPlatformMisc::HasActiveWiFiConnection()
@@ -1588,6 +1674,29 @@ FString FIOSPlatformMisc::GetBuildNumber()
 	NSDictionary* infoDictionary = [[NSBundle mainBundle]infoDictionary];
 	FString BuildString = FString(infoDictionary[@"CFBundleVersion"]);
 	return BuildString;
+}
+
+bool FIOSPlatformMisc::IsBackgroundAppRefreshAvailable()
+{
+	return (UIBackgroundRefreshStatusAvailable == [[UIApplication sharedApplication] backgroundRefreshStatus]);
+}
+
+void FIOSPlatformMisc::OpenAppNotificationSettings()
+{
+	dispatch_async(dispatch_get_main_queue(), ^{
+		NSURL * SettingsUrl = [[NSURL alloc]initWithString:UIApplicationOpenNotificationSettingsURLString];
+		[[UIApplication sharedApplication]openURL:SettingsUrl options:@{} completionHandler:nil];
+		[SettingsUrl release];
+	});
+}
+
+void FIOSPlatformMisc::OpenAppCustomSettings()
+{
+	dispatch_async(dispatch_get_main_queue(), ^{
+		NSURL * SettingsUrl = [[NSURL alloc]initWithString:UIApplicationOpenSettingsURLString];
+		[[UIApplication sharedApplication]openURL:SettingsUrl options:@{} completionHandler:nil];
+		[SettingsUrl release];
+	});
 }
 
 bool FIOSPlatformMisc::RequestDeviceCheckToken(TFunction<void(const TArray<uint8>&)> QuerySucceededFunc, TFunction<void(const FString&, const FString&)> QueryFailedFunc)
@@ -1896,57 +2005,59 @@ void FIOSPlatformMisc::GPUAssert()
 {
     // make this a fatal error that ends here not in the log
     // changed to 3 from NULL because clang noticed writing to NULL and warned about it
-    *(int32 *)13 = 123;
+	UE_FORCE_CRASH_AT_OFFSET(13);
 }
 
 void FIOSPlatformMisc::MetalAssert()
 {
     // make this a fatal error that ends here not in the log
     // changed to 3 from NULL because clang noticed writing to NULL and warned about it
-    *(int32 *)7 = 123;
+	UE_FORCE_CRASH_AT_OFFSET(7);
+}
+
+struct FCPUFeatures
+{
+	// CRC instructions support is available on Apple A10 and beyond.
+	bool bHasCrc : 1 = false;
+	// AES instructions support is available on Apple A7  and beyond.
+	// A8 is minspec, so assuming it is always available.
+	bool bHasAes : 1 = true;
+
+	FCPUFeatures()
+	{
+		int32 Value = 0;
+		size_t Size = sizeof(Value);
+		// https://developer.apple.com/documentation/kernel/1387446-sysctlbyname/determining_instruction_set_characteristics
+		if (sysctlbyname("hw.optional.armv8_crc32", &Value, &Size, nullptr, 0) == 0)
+		{
+			bHasCrc = Value != 0;
+		}
+		// AES support could be checked by hw.optional.arm.FEAT_AES.
+	}
+};
+
+static FCPUFeatures DetectCPUFeatures()
+{
+	static FCPUFeatures Features;
+	return Features;
 }
 
 bool FIOSPlatformMisc::CPUHasHwCrcSupport()
 {
-	// HW CRC instructions support is available on Apple A10+
-	static int HwCrcSupported = -1;
-	if (HwCrcSupported == -1)
-	{
-		HwCrcSupported = 0;
-		
-		const FString DeviceIDString = GetIOSDeviceIDString();
-		if (DeviceIDString.StartsWith(TEXT("iPod")))
-		{
-			const int Major = FCString::Atoi(&DeviceIDString[4]);
-			//iPod Touch 6 and lower don't support hw CRC32
-			HwCrcSupported = Major > 7;
-		}
-		else if (DeviceIDString.StartsWith(TEXT("iPad")))
-		{
-			// get major revision number
-			const int Major = FCString::Atoi(&DeviceIDString[4]);
-
-			//iPad 5, iPad Pro and lower
-			HwCrcSupported = Major > 6;
-		}
-		else if (DeviceIDString.StartsWith(TEXT("iPhone")))
-		{
-			const int Major = FCString::Atoi(&DeviceIDString[6]);
-			
-			// iPhone 6S, iPhone SE and below
-			HwCrcSupported = Major > 9;
-		}
-		else if (DeviceIDString.StartsWith(TEXT("AppleTV")))
-		{
-			const int Major = FCString::Atoi(&DeviceIDString[7]);
-			
-			// Apple TV
-			HwCrcSupported = Major > 5;
-		}
-	}
-
-	return HwCrcSupported == 1;
+	return DetectCPUFeatures().bHasCrc;
 }
+
+bool FIOSPlatformMisc::CPUHasHwAesSupport()
+{
+	return DetectCPUFeatures().bHasAes;
+}
+
+#if !UE_BUILD_SHIPPING
+bool FIOSPlatformMisc::IsConsoleOpen()
+{
+	return GDebugConsoleOpen;
+}
+#endif
 
 static FCriticalSection EnsureLock;
 static bool bReentranceGuard = false;

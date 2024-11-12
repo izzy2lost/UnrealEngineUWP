@@ -565,7 +565,7 @@ TSharedRef< class IPropertyTable > FPropertyTableColumn::GetTable() const
 bool FPropertyTableColumn::CanSortBy() const
 {
 	TWeakObjectPtr< UObject > Object = DataSource->AsUObject();
-	FProperty* Property = nullptr;
+	const FProperty* Property = nullptr;
 
 	TSharedPtr< FPropertyPath > Path = DataSource->AsPropertyPath();
 	if ( Path.IsValid() )
@@ -576,11 +576,11 @@ bool FPropertyTableColumn::CanSortBy() const
 	return ( Property != nullptr );
 }
 
-TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FProperty* Property, EColumnSortMode::Type SortMode)
+TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(const FProperty* Property, EColumnSortMode::Type SortMode)
 {
 	if (Property->IsA(FEnumProperty::StaticClass()))
 	{
-		FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
+		const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -593,7 +593,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FByteProperty::StaticClass()))
 	{
-		FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
+		const FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -606,7 +606,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FIntProperty::StaticClass()))
 	{
-		FIntProperty* IntProperty = CastField<FIntProperty>(Property);
+		const FIntProperty* IntProperty = CastField<FIntProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -619,7 +619,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FBoolProperty::StaticClass()))
 	{
-		FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property);
+		const FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -632,7 +632,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FFloatProperty::StaticClass()))
 	{
-		FFloatProperty* FloatProperty(CastField< FFloatProperty >(Property));
+		const FFloatProperty* FloatProperty(CastField< FFloatProperty >(Property));
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -645,7 +645,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FDoubleProperty::StaticClass()))
 	{
-		FDoubleProperty* DoubleProperty(CastField< FDoubleProperty >(Property));
+		const FDoubleProperty* DoubleProperty(CastField< FDoubleProperty >(Property));
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -658,7 +658,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FNameProperty::StaticClass()))
 	{
-		FNameProperty* NameProperty = CastField<FNameProperty>(Property);
+		const FNameProperty* NameProperty = CastField<FNameProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -671,7 +671,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FStrProperty::StaticClass()))
 	{
-		FStrProperty* StrProperty = CastField<FStrProperty>(Property);
+		const FStrProperty* StrProperty = CastField<FStrProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -684,7 +684,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (Property->IsA(FObjectPropertyBase::StaticClass()) && !Property->HasAnyPropertyFlags(CPF_InstancedReference))
 	{
-		FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property);
+		const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -697,7 +697,7 @@ TSharedPtr<FCompareRowByColumnBase> FPropertyTableColumn::GetPropertySorter(FPro
 	}
 	else if (IsSupportedStructProperty(Property))
 	{
-		FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+		const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
 
 		if (SortMode == EColumnSortMode::Ascending)
 		{
@@ -733,7 +733,7 @@ void FPropertyTableColumn::Sort( TArray< TSharedRef< class IPropertyTableRow > >
 	}
 
 	UObject* PrimaryObject = DataSource->AsUObject().Get();
-	FProperty* PrimaryProperty = nullptr;
+	const FProperty* PrimaryProperty = nullptr;
 	TSharedPtr< FPropertyPath > PrimaryPath = DataSource->AsPropertyPath();
 	if (PrimaryPath.IsValid())
 	{
@@ -741,7 +741,7 @@ void FPropertyTableColumn::Sort( TArray< TSharedRef< class IPropertyTableRow > >
 	}
 
 	UObject* SecondaryObject = nullptr;
-	FProperty* SecondaryProperty = nullptr;
+	const FProperty* SecondaryProperty = nullptr;
 	if(SecondarySortColumn.IsValid())
 	{
 		SecondaryObject = SecondarySortColumn->GetDataSource()->AsUObject().Get();

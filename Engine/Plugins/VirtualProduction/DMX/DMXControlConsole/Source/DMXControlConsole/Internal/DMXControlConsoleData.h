@@ -8,6 +8,7 @@
 
 #include "DMXControlConsoleData.generated.h"
 
+class UDMXControlConsoleCueStack;
 class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleFaderGroupController;
 class UDMXControlConsoleFaderGroupRow;
@@ -38,11 +39,14 @@ class DMXCONTROLCONSOLE_API UDMXControlConsoleData
 	friend UDMXControlConsoleFaderGroupRow;
 
 public:
+	/** Constructor */
+	UDMXControlConsoleData();
+
 	/** Adds a Fader Group Row to this DMX Control Console */
 	UDMXControlConsoleFaderGroupRow* AddFaderGroupRow(const int32 RowIndex);
 
 	/** Removes a Fader Group Row from this DMX Control Console */
-	void DeleteFaderGroupRow(const TObjectPtr<UDMXControlConsoleFaderGroupRow>& FaderGroupRow);
+	void DeleteFaderGroupRow(UDMXControlConsoleFaderGroupRow* FaderGroupRow);
 
 	/** Gets this DMX Control Console's Fader Group Rows array */
 	const TArray<UDMXControlConsoleFaderGroupRow*>& GetFaderGroupRows() const { return FaderGroupRows; }
@@ -56,8 +60,11 @@ public:
 	/** Generates sorted Fader Groups based on the DMX Control Console's current DMX Library */
 	void GenerateFromDMXLibrary();
 
-	/** Gets this DMX Control Console's DMXLibrary */
+	/** Gets this DMX Control Console's DMX Library */
 	UDMXLibrary* GetDMXLibrary() const { return CachedWeakDMXLibrary.Get(); }
+
+	/** Gets this DMX Control Console's Cue Stack */
+	UDMXControlConsoleCueStack* GetCueStack() const { return CueStack; }
 
 	/** Sends DMX on this DMX Control Console on tick */
 	void StartSendingDMX();
@@ -65,13 +72,14 @@ public:
 	/** Stops DMX on this DMX Control Console on tick */
 	void StopSendingDMX();
 
+	/** Puses DMX data sending on this DMX Control Console*/
+	void PauseSendingDMX();
+
 	/** Gets if DMX is sending DMX data or not */
 	bool IsSendingDMX() const { return bSendDMX; }
 
-#if WITH_EDITOR
-	/** Sets if the console can send DMX in Editor */
-	void SetSendDMXInEditorEnabled(bool bSendDMXInEditorEnabled) { bSendDMXInEditor = bSendDMXInEditorEnabled; }
-#endif // WITH_EDITOR 
+	/** Gets if DMX data sending is paused or not */
+	bool IsPausedDMX() const { return bPauseDMX; }
 
 	/** Sets the stop DMX mode for this control console */
 	void SetStopDMXMode(EDMXControlConsoleStopDMXMode NewStopDMXMode);
@@ -156,6 +164,10 @@ private:
 	UPROPERTY()
 	TWeakObjectPtr<UDMXLibrary> CachedWeakDMXLibrary;
 
+	/** The Cue Stack for this DMX Control Console */
+	UPROPERTY()
+	TObjectPtr<UDMXControlConsoleCueStack> CueStack;
+
 	/** DMX Control Console's Fader Group Rows array */
 	UPROPERTY()
 	TArray<TObjectPtr<UDMXControlConsoleFaderGroupRow>> FaderGroupRows;
@@ -166,12 +178,10 @@ private:
 	/** True when this object is ticking */
 	bool bSendDMX = false;
 
+	/** True when sending DMX is paused */
+	bool bPauseDMX = false;
+
 	/** The stop DMX mode currently in use by the console */
 	UPROPERTY()
 	EDMXControlConsoleStopDMXMode StopDMXMode = EDMXControlConsoleStopDMXMode::DoNotSendValues;
-
-#if WITH_EDITORONLY_DATA
-	/** True if the Control Console ticks in Editor */
-	bool bSendDMXInEditor = true;
-#endif // WITH_EDITORONLY_DATA
 };

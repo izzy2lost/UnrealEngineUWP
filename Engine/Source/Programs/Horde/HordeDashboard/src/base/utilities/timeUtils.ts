@@ -10,9 +10,11 @@ export const displayTimeZone = () => {
     return dashboard.displayUTC ? "UTC" : localTimeZone;
 }
 
-type HordeTime = {
+export type HordeTime = {
     display: string;
     server: string;
+    displayNice?: string;
+    serverNice?: string;
 }
 
 export const msecToElapsed = (millisec: number, includeMinutes: boolean = true, includeSeconds: boolean = true): string => {
@@ -119,12 +121,14 @@ export const getStepETA = (step: StepData, job: JobData): HordeTime => {
 
     end = roundTime(end, moment.duration(5, "minutes"));
 
-    const serverETA = moment.utc(end).tz(serverTimeZone).format(format);
-    const displayETA = moment.utc(end).tz(displayTimeZone()).format(format);
+    const serverETA = moment.utc(end).tz(serverTimeZone);
+    const displayETA = moment.utc(end).tz(displayTimeZone());
 
     return {
-        display: displayETA,
-        server: serverETA
+        display: displayETA.format(format),
+        server: serverETA.format(format),
+        displayNice: getNiceTime(displayETA.toDate()),
+        serverNice: getNiceTime(serverETA.toDate())
     };
 
 };
@@ -133,18 +137,27 @@ export const getStepFinishTime = (step: StepData): HordeTime => {
 
     let displayFinish = "";
     let serverFinish = "";
+    let displayNice: string | undefined;
+    let serverNice: string | undefined;
 
     const format = dashboard.display24HourClock ? "HH:mm:ss z" : "LT z";
 
     if (step.finishTime) {
         const end = moment(step.finishTime);
-        displayFinish = moment.utc(end).tz(displayTimeZone()).format(format);
-        serverFinish = moment.utc(end).tz(serverTimeZone).format(format);
+        const dfinish = moment.utc(end).tz(displayTimeZone());
+        const sfinish = moment.utc(end).tz(serverTimeZone);
+
+        displayFinish = dfinish.format(format);
+        serverFinish = sfinish.format(format);
+        displayNice = getNiceTime(dfinish.toDate());
+        serverNice = getNiceTime(sfinish.toDate());
     }
 
     return {
         display: displayFinish,
-        server: serverFinish
+        server: serverFinish,
+        displayNice: displayNice,
+        serverNice: serverFinish
     };
 };
 
@@ -152,18 +165,28 @@ export const getStepStartTime = (step: StepData): HordeTime => {
 
     let displayStart = "";
     let serverStart = "";
+    let displayNice: string | undefined;
+    let serverNice: string | undefined;
 
     const format = dashboard.display24HourClock ? "HH:mm:ss z" : "LT z";
 
     if (step.startTime) {
         const end = moment(step.startTime);
-        displayStart = moment.utc(end).tz(displayTimeZone()).format(format);
-        serverStart = moment.utc(end).tz(serverTimeZone).format(format);
+        const dstart = moment.utc(end).tz(displayTimeZone());
+        const sstart = moment.utc(end).tz(serverTimeZone);
+
+        displayStart = dstart.format(format);
+        serverStart = sstart.format(format);
+        displayNice = getNiceTime(dstart.toDate());
+        serverNice = getNiceTime(sstart.toDate());
+
     }
 
     return {
         display: displayStart,
-        server: serverStart
+        server: serverStart,
+        displayNice: displayNice,
+        serverNice: serverNice
     };
 };
 

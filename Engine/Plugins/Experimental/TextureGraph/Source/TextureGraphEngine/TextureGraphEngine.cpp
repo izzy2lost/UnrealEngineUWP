@@ -35,7 +35,7 @@ void FTextureGraphEngineModule::StartupModule()
 bool FTextureGraphEngineModule::MapShaders()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	FString fullModuleDir = MODULE_DIR;
+	FString fullModuleDir = FPaths::Combine(FPaths::EngineDir(), MODULE_DIR);
 	bool added = false;
 
 	FString rightSanitized;
@@ -92,11 +92,6 @@ FString FTextureGraphEngineModule::GetParentPluginName()
 	return _pluginName;
 }
 
-void FTextureGraphEngineModule::ShutdownModule()
-{
-	FShaderType::Uninitialize();
-}
-
 IMPLEMENT_MODULE(FTextureGraphEngineModule, TextureGraphEngine)
 
 //////////////////////////////////////////////////////////////////////////
@@ -144,9 +139,8 @@ void TextureGraphEngine::InitEngineInternal()
 	/// Init some of the stock textures that we keep
 	//TextureHelper::InitStockTextures();
 
-#if 0 // Disabling for the time being
+	// Allocate the render doc manager (wether or not render doc define is enabled)
 	RenderDocMgrObj = std::make_unique<TextureGraphEditor::RenderDocManager>();
-#endif 
 
 	MixMgrObj = std::make_unique<::MixManager>();
 
@@ -192,9 +186,8 @@ TextureGraphEngine::~TextureGraphEngine()
 	/// This is to control the order of destruction
 	TextureHelper::FreeStockTextures();
 
-#if 0 // Disabling for the time being
+	// No more render doc manager
 	RenderDocMgrObj = nullptr;
-#endif 
 
 	MaterialMgrObj = nullptr;
 	MixMgrObj = nullptr;
@@ -301,9 +294,17 @@ void TextureGraphEngine::FirstRunInit()
 	
 	MaterialMgrObj = TStrongObjectPtr<UMaterialManager>(UMaterialManager::CreateNew<UMaterialManager>());
 	
+#if WITH_EDITOR
+	// No need to run during command-let execution
+	if (!GEditor || !FSlateApplication::IsInitialized() || !FApp::CanEverRender())
+	{
+		return;
+	}
+
 	// If the engine is not set to run, then we don't do anything here. Not even initialise it (to void any 
 	// initialisation issues that we might get with people who don't really use the TextureGraph)
 	TextureHelper::InitStockTextures();
+#endif /// WITH_EDITOR
 }
 
 

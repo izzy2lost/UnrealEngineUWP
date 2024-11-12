@@ -32,5 +32,7 @@ public:
 
 	TSharedPtr<FUICommandInfo> ExportSequence;
 
+	TSharedPtr<FUICommandInfo> SpawnSequencePlayer;
+
 	TSharedPtr<FUICommandInfo> StaggerLayerBars;
 };

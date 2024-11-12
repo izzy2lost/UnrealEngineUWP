@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ScopedSessionDatabase.h"
+#include "ScopedSessionDatabaseWithEndpoint.h"
 
 namespace UE::ConcertSyncTests
 {
@@ -12,10 +12,10 @@ namespace UE::ConcertSyncTests
 	class FActivityBuilder
 	{
 		TArray<FActivityID> Activities;
-		FScopedSessionDatabase& SessionDatabase;
+		FScopedSessionDatabaseWithEndpoint& SessionDatabase;
 	public:
 
-		FActivityBuilder(FScopedSessionDatabase& SessionDatabase, uint32 ActivityCount)
+		FActivityBuilder(FScopedSessionDatabaseWithEndpoint& SessionDatabase, uint32 ActivityCount)
 			: SessionDatabase(SessionDatabase)
 		{
 			Activities.SetNumUninitialized(ActivityCount);

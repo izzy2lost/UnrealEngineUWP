@@ -47,6 +47,8 @@ enum class EPCGChangeType : uint8
 	Structural = 1 << 5,
 	/** Anything related to generation grids - changing grid size or adding/removing grid size nodes. */
 	GenerationGrid = 1 << 6,
+	/** Change to any shader source code. */
+	ShaderSource = 1 << 7,
 };
 ENUM_CLASS_FLAGS(EPCGChangeType);
 
@@ -73,9 +75,10 @@ enum class EPCGDataType : uint32
 
 	Volume = 1 << 7,
 	Primitive = 1 << 8,
+	DynamicMesh = 1 << 10,
 
 	/** Simple concrete data. */
-	Concrete = Point | PolyLine | Surface | Volume | Primitive,
+	Concrete = Point | PolyLine | Surface | Volume | Primitive | DynamicMesh,
 
 	/** Boolean operations like union, difference, intersection. */
 	Composite = 1 << 9 UMETA(Hidden),
@@ -117,7 +120,8 @@ enum class EPCGExclusiveDataType : uint8
 	Settings UMETA(Hidden),
 	Other,
 	Any,
-	PointOrParam
+	PointOrParam,
+	DynamicMesh
 };
 
 namespace PCGPinConstants
@@ -184,6 +188,21 @@ namespace PCGFeatureSwitches
 {
 	extern PCG_API TAutoConsoleVariable<bool> CVarCheckSamplerMemory;
 	extern PCG_API TAutoConsoleVariable<float> CVarSamplerMemoryThreshold;
+
+	namespace Helpers
+	{
+		/** Checks the cvar for allowed physical and virtual memory ratio to be used with samplers. */
+		PCG_API uint64 GetAvailableMemoryForSamplers();
+	}
+}
+
+namespace PCGSystemSwitches
+{
+#if WITH_EDITOR
+	extern PCG_API TAutoConsoleVariable<bool> CVarPausePCGExecution;
+	extern TAutoConsoleVariable<bool> CVarGlobalDisableRefresh;
+	extern TAutoConsoleVariable<bool> CVarDirtyLoadAsPreviewOnLoad;
+#endif
 }
 
 /** Describes space referential for operations that create data */
@@ -193,6 +212,17 @@ enum class EPCGCoordinateSpace : uint8
 	World UMETA(DisplayName = "Global"),
 	OriginalComponent,
 	LocalComponent
+};
+
+UENUM(BlueprintType)
+enum class EPCGStringMatchingOperator : uint8
+{
+	/** Will return a match only if the two strings compared are the same */
+	Equal,
+	/** Will return a match if the first string contains the second */
+	Substring,
+	/** Will return a match if the first string matches the pattern defined by the second (including wildcards) */
+	Matches
 };
 
 /** Describes one or more target execution grids. */
@@ -212,9 +242,20 @@ enum class EPCGHiGenGrid : uint32
 	Grid512 = 512 UMETA(DisplayName = "51200"),
 	Grid1024 = 1024 UMETA(DisplayName = "102400"),
 	Grid2048 = 2048 UMETA(DisplayName = "204800"),
-	
+	Grid4096 = 4096 UMETA(Hidden),
+	Grid8192 = 8192 UMETA(Hidden),
+	Grid16384 = 16384 UMETA(Hidden),
+	Grid32768 = 32768 UMETA(Hidden),
+	Grid65536 = 65536 UMETA(Hidden),
+	Grid131072 = 131072 UMETA(Hidden),
+	Grid262144 = 262144 UMETA(Hidden),
+	Grid524288 = 524288 UMETA(Hidden),
+	Grid1048576 = 1048576 UMETA(Hidden),
+	Grid2097152 = 2097152 UMETA(Hidden),
+	Grid4194304 = 4194304 UMETA(Hidden),
+
 	GridMin = Grid4 UMETA(Hidden),
-	GridMax = Grid2048 UMETA(Hidden),
+	GridMax = Grid4194304 UMETA(Hidden),
 
 	// Should execute once rather than executing on any grid
 	Unbounded = 1u << 31,
@@ -228,9 +269,6 @@ namespace PCGHiGenGrid
 
 	// Alias for array which is allocated on the stack (we have a strong idea of the max required elements).
 	using FSizeArray = TArray<uint32, TInlineAllocator<PCGHiGenGrid::NumGridValues>>;
-
-	// Alias for grid size to guid map allocated on the stack, which is unlikely to have a large number of elements.
-	using FSizeToGuidMap = TMap<uint32, FGuid, TInlineSetAllocator<32>>;
 
 	PCG_API bool IsValidGridSize(uint32 InGridSize);
 	PCG_API bool IsValidGrid(EPCGHiGenGrid InGrid);
@@ -247,7 +285,9 @@ enum class EPCGAttachOptions : uint32
 {
 	NotAttached UMETA(Tooltip="Actor will not be attached to the target actor nor placed in an actor folder"),
 	Attached UMETA(Tooltip="Actor will be attached to the target actor in the given node"),
-	InFolder UMETA(Tooltip="Actor will be placed in an actor folder containing the name of the target actor.")
+	InFolder UMETA(Tooltip="Actor will be placed in an actor folder containing the name of the target actor."),
+	InGraphFolder UMETA(Tooltip="Actor will be placed in a folder named after the top graph it was generated from."),
+	InGeneratedFolder UMETA(Tooltip="Actor will be placed in the PCG_Generated folder.")
 };
 
 UENUM()
@@ -345,3 +385,69 @@ namespace PCGQualityHelpers
 	/** Get the pin label associated with the current 'pcg.Quality' value. If the quality level is invalid, it will return the default pin label. */
 	PCG_API FName GetQualityPinLabel();
 }
+
+USTRUCT(meta=(Deprecated = "5.5"))
+struct UE_DEPRECATED(5.5, "FPCGPartitionActorRecord is deprecated.") FPCGPartitionActorRecord
+{
+	GENERATED_BODY()
+		
+	/** Unique ID for the grid this actor belongs to. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	FGuid GridGuid;
+
+	/** The grid size this actor lives on. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	uint32 GridSize = 0;
+
+	/** The specific grid cell this actor lives in. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	FIntVector GridCoords = FIntVector::ZeroValue;
+
+	bool operator==(const FPCGPartitionActorRecord& InOther) const;
+	friend uint32 GetTypeHash(const FPCGPartitionActorRecord& In);
+};
+
+UENUM(BlueprintType)
+enum class EPCGDensityMergeOperation : uint8
+{
+	/** D = B */
+	Set,
+	/** D = A */
+	Ignore,
+	/** D = min(A, B) */
+	Minimum,
+	/** D = max(A, B) */
+	Maximum,
+	/** D = A + B */
+	Add,
+	/** D = A - B */
+	Subtract,
+	/** D = A * B */
+	Multiply,
+	/** D = A / B */
+	Divide
+};
+
+UENUM(BlueprintType)
+enum class EPCGGenerationStatus : uint8
+{
+	Completed,
+	Aborted
+};
+
+// Enable to debug if some PCG Elements are creating some data that should be pre-created by the graph PreGraph element
+#define PCG_EXECUTION_CACHE_VALIDATION_ENABLED 0
+
+#if PCG_EXECUTION_CACHE_VALIDATION_ENABLED
+
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_SCOPE(PCGComponent) TGuardValue<bool> ValidationCreateScope(PCGComponent->bCanCreateExecutionCache, true);
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_ORIGINAL_SCOPE(PCGComponent) TGuardValue<bool> ValidationCreateOriginalScope(PCGComponent->GetOriginalComponent()->bCanCreateExecutionCache, PCGComponent->bCanCreateExecutionCache);
+#define PCG_EXECUTION_CACHE_VALIDATION_CHECK(PCGComponent) ensureAlways(PCGComponent->bCanCreateExecutionCache || PCGComponent->CurrentGenerationTask == InvalidPCGTaskId);
+
+#else
+
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_SCOPE(PCGComponent)
+#define PCG_EXECUTION_CACHE_VALIDATION_CREATE_ORIGINAL_SCOPE(PCGComponent)
+#define PCG_EXECUTION_CACHE_VALIDATION_CHECK(PCGComponent)
+
+#endif // PCG_EXECUTION_CACHE_VALIDATION_ENABLED

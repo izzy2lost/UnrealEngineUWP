@@ -2,11 +2,16 @@
 
 #include "Insights/Tests/TimingProfilerTests.h"
 
-#include "TraceServices/Model/Threads.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 
-#include "Insights/Common/Stopwatch.h"
+// TraceServices
+#include "TraceServices/Model/Threads.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/Tests/InsightsTestUtils.h"
 
@@ -16,9 +21,9 @@ DEFINE_LOG_CATEGORY(TimingProfilerTests);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if !WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
+#if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateTest, "System.Insights.Trace.Analysis.TimingInsights.Enumerate", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateTest, "System.Insights.Analysis.TimingInsights.Enumerate", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FEnumerateTest::RunTest(const FString& Parameters)
 {
 	FInsightsTestUtils Utils(this);
@@ -48,7 +53,7 @@ bool FEnumerateTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumeratePerformanceTest, "System.Insights.Trace.Analysis.TimingInsights.EnumeratePerformance", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::PerfFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumeratePerformanceTest, "System.Insights.Analysis.TimingInsights.EnumeratePerformance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FEnumeratePerformanceTest::RunTest(const FString& Parameters)
 {
 	FInsightsTestUtils Utils(this);
@@ -88,7 +93,7 @@ bool FEnumeratePerformanceTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateFastTest, "System.Insights.Analysis.TimingInsights.EnumerateFast", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumerateFastTest, "System.Insights.Analysis.TimingInsights.EnumerateFast", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FEnumerateFastTest::RunTest(const FString& Parameters)
 {
 	FInsightsTestUtils Utils(this);
@@ -118,13 +123,13 @@ bool FEnumerateFastTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateEventsToFile, "System.Insights.Analysis.TimingInsights.EnumerateEventsToFile", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateEventsToFile, "System.Insights.Trace.Analysis.TimingInsights.EnumerateEventsToFile", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateEventsToFile::RunTest(const FString& Parameters)
 {
 	double SessionTime = 0.0;
 	uint32 TimelineIndex = (uint32)-1;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid() && TraceServices::ReadTimingProfilerProvider(*Session.Get()))
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -159,13 +164,13 @@ bool EnumerateEventsToFile::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateScopesToFile, "System.Insights.Trace.Analysis.TimingInsights.EnumerateScopesToFile", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateScopesToFile, "System.Insights.Trace.Analysis.TimingInsights.EnumerateScopesToFile", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateScopesToFile::RunTest(const FString& Parameters)
 {
 	double SessionTime = 0.0;
 	uint32 TimelineIndex = (uint32)-1;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid() && TraceServices::ReadTimingProfilerProvider(*Session.Get()))
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -200,7 +205,7 @@ bool EnumerateScopesToFile::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate10K, "System.Insights.Trace.Analysis.TimingInsights.Enumerate10K", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate10K, "System.Insights.Trace.Analysis.TimingInsights.Enumerate10K", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool InsightsEnumerate10K::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -213,7 +218,7 @@ bool InsightsEnumerate10K::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate100K, "System.Insights.Trace.Analysis.TimingInsights.Enumerate100K", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(InsightsEnumerate100K, "System.Insights.Trace.Analysis.TimingInsights.Enumerate100K", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool InsightsEnumerate100K::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -226,7 +231,7 @@ bool InsightsEnumerate100K::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncAllTracks, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAsyncAllTracks", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncAllTracks, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAsyncAllTracks", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByEndTimeAsyncAllTracks::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -239,7 +244,7 @@ bool EnumerateByEndTimeAsyncAllTracks::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncGameThreadTrack, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAsyncGameThreadTrack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncGameThreadTrack, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAsyncGameThreadTrack", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByEndTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -252,7 +257,7 @@ bool EnumerateByEndTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks10sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAllTracks10sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks10sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAllTracks10sIntervals", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByEndTimeAllTracks10sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -265,7 +270,7 @@ bool EnumerateByEndTimeAllTracks10sIntervals::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks5sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAllTracks5sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAllTracks5sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByEndTimeAllTracks5sIntervals", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByEndTimeAllTracks5sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -282,7 +287,7 @@ bool EnumerateByEndTimeAllTracks5sIntervals::RunTest(const FString& Parameters)
 ////////////////////////////Enumerate Async Ordered by Start Time Tests/////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncAllTracks, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAsyncAllTracks", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncAllTracks, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAsyncAllTracks", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByStartTimeAsyncAllTracks::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -295,7 +300,7 @@ bool EnumerateByStartTimeAsyncAllTracks::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncGameThreadTrack, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAsyncGameThreadTrack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncGameThreadTrack, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAsyncGameThreadTrack", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByStartTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -308,7 +313,7 @@ bool EnumerateByStartTimeAsyncGameThreadTrack::RunTest(const FString& Parameters
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks10sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAllTracks10sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks10sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAllTracks10sIntervals", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByStartTimeAllTracks10sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -321,7 +326,7 @@ bool EnumerateByStartTimeAllTracks10sIntervals::RunTest(const FString& Parameter
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks5sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAllTracks5sIntervals", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAllTracks5sIntervals, "System.Insights.Trace.Analysis.TimingInsights.EnumerateByStartTimeAllTracks5sIntervals", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool EnumerateByStartTimeAllTracks5sIntervals::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
@@ -333,19 +338,19 @@ bool EnumerateByStartTimeAllTracks5sIntervals::RunTest(const FString& Parameters
 
 	return !HasAnyErrors();
 }
-#endif //!WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
+#endif //WITH_AUTOMATION_TESTS
 
 void FTimingProfilerTests::RunEnumerateBenchmark(const FEnumerateTestParams& InParams, FCheckValues& OutCheckValues)
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
 	uint32 TimelineIndex = (uint32)-1;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid() && TraceServices::ReadTimingProfilerProvider(*Session.Get()))
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -393,13 +398,13 @@ void FTimingProfilerTests::RunEnumerateAsyncBenchmark(const FEnumerateTestParams
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ASYNC ENUMERATE BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
 	uint32 TimelineIndex = (uint32)-1;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid() && TraceServices::ReadTimingProfilerProvider(*Session.Get()))
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -430,7 +435,7 @@ void FTimingProfilerTests::RunEnumerateAsyncBenchmark(const FEnumerateTestParams
 					{
 						TaskCheckValues.AddDefaulted(NumTasks);
 					};
-					Params.Callback = [&TaskCheckValues, SessionTime](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+					Params.EventRangeCallback = [&TaskCheckValues, SessionTime](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
 					{
 						EventEndTime = FMath::Min(EventEndTime, SessionTime);
 						TaskCheckValues[TaskIndex].TotalEventDuration += EventEndTime - EventStartTime;
@@ -467,13 +472,13 @@ void FTimingProfilerTests::RunEnumerateAllTracksBenchmark(const FEnumerateTestPa
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ENUMERATE ALL TRACKS BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
 	uint32 TimelineIndex = (uint32)-1;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid() && TraceServices::ReadTimingProfilerProvider(*Session.Get()))
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -526,13 +531,13 @@ void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateT
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ASYNC ENUMERATE ALL TRACKS BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
 	uint32 TimelineIndex = (uint32)-1;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid() && TraceServices::ReadTimingProfilerProvider(*Session.Get()))
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -567,7 +572,7 @@ void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateT
 							{
 								TaskCheckValues.AddDefaulted(NumTasks);
 							};
-							Params.Callback = [&OutCheckValues, &TaskCheckValues](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+							Params.EventRangeCallback = [&OutCheckValues, &TaskCheckValues](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
 							{
 								EventEndTime = FMath::Min(EventEndTime, OutCheckValues.SessionDuration);
 								TaskCheckValues[TaskIndex].TotalEventDuration += EventEndTime - EventStartTime;
@@ -604,7 +609,7 @@ void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateT
 
 uint32 FTimingProfilerTests::GetTimelineIndex(const TCHAR* InName)
 {
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	const TraceServices::ITimingProfilerProvider& TimingProfilerProvider = *TraceServices::ReadTimingProfilerProvider(*Session.Get());
 	const TraceServices::IThreadProvider& ThreadProvider = TraceServices::ReadThreadProvider(*Session.Get());
 	uint32 TimelineIndex = (uint32)-1;

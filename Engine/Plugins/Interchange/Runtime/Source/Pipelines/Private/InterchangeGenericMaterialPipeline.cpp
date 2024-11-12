@@ -31,6 +31,7 @@
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionOneMinus.h"
+#include "Materials/MaterialExpressionRotator.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
 #include "Materials/MaterialExpressionConstant.h"
@@ -60,6 +61,7 @@
 #include "Templates/SubclassOf.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+#include "InterchangeManager.h"
 
 #if UE_BUILD_DEBUG
 #include "HAL/PlatformFileManager.h"
@@ -129,7 +131,7 @@ namespace UE::Interchange::InterchangeGenericMaterialPipeline::Private
 			TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions01/Texturing/FlattenNormal.FlattenNormal'"),
 			TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions02/Utility/MakeFloat3.MakeFloat3'"),
 			TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions02/Texturing/CustomRotator.CustomRotator'"),
-			TEXT("MaterialFunction'/Interchange/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'"),
+			TEXT("MaterialFunction'/InterchangeAssets/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'"),
 		};
 
 		static const bool bRequiredPackagesLoaded = ArePackagesLoaded(RequiredPackages);
@@ -215,12 +217,16 @@ namespace UE::Interchange::InterchangeGenericMaterialPipeline::Private
 		{
 			FPackageName::QueryRootContentPaths(ScanPaths);
 		}
-		else
+		else if (!BasePath.StartsWith(TEXT("/Temp"), ESearchCase::IgnoreCase)) //We must exclude Temp path to avoid asset registry scan path warnings
 		{
 			ScanPaths.Add(BasePath);
 		}
-		const bool bForceRescan = false;
-		AssetRegistry.ScanPathsSynchronous(ScanPaths, bForceRescan);
+
+		if (!ScanPaths.IsEmpty())
+		{
+			constexpr bool bForceRescan = false;
+			AssetRegistry.ScanPathsSynchronous(ScanPaths, bForceRescan);
+		}
 
 
 		FARFilter Filter;
@@ -582,6 +588,11 @@ UInterchangeGenericMaterialPipeline::UInterchangeGenericMaterialPipeline()
 	TexturePipeline = CreateDefaultSubobject<UInterchangeGenericTexturePipeline>("TexturePipeline");
 }
 
+FString UInterchangeGenericMaterialPipeline::GetPipelineCategory(UClass* AssetClass)
+{
+	return TEXT("Materials");
+}
+
 void UInterchangeGenericMaterialPipeline::PreDialogCleanup(const FName PipelineStackName)
 {
 	if (TexturePipeline)
@@ -589,7 +600,11 @@ void UInterchangeGenericMaterialPipeline::PreDialogCleanup(const FName PipelineS
 		TexturePipeline->PreDialogCleanup(PipelineStackName);
 	}
 
-	SaveSettings(PipelineStackName);
+	//Save only pipeline if we are a stand alone pipeline (not a sub object of another pipeline)
+	if (IsStandAlonePipeline())
+	{
+		SaveSettings(PipelineStackName);
+	}
 }
 
 bool UInterchangeGenericMaterialPipeline::IsSettingsAreValid(TOptional<FText>& OutInvalidReason) const
@@ -602,24 +617,26 @@ bool UInterchangeGenericMaterialPipeline::IsSettingsAreValid(TOptional<FText>& O
 	return Super::IsSettingsAreValid(OutInvalidReason);
 }
 
-void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ContextParams);
 
 	if (TexturePipeline)
 	{
-		TexturePipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		TexturePipeline->AdjustSettingsForContext(ContextParams);
 	}
 #if WITH_EDITOR
 	TArray<FString> HideCategories;
-	bool bIsObjectAMaterial = !ReimportAsset ? false : ReimportAsset->IsA(UMaterialInterface::StaticClass());
-	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+	bool bIsObjectAMaterial = !ContextParams.ReimportAsset ? false : ContextParams.ReimportAsset->IsA(UMaterialInterface::StaticClass());
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bImportMaterials = false;
-		HideCategories.Add(TEXT("Materials"));
+		HideCategories.Add(UInterchangeGenericMaterialPipeline::GetPipelineCategory(nullptr));
 		SearchLocation = EInterchangeMaterialSearchLocation::DoNotSearch;
 	}
 
@@ -629,7 +646,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 		{
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
 		}
-		if (!bIsObjectAMaterial && ImportType == EInterchangePipelineContext::AssetReimport)
+		if (!bIsObjectAMaterial && ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
 		{
 			//When we re-import we hide all setting but search location, so we can find existing materials.
 			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bImportMaterials));
@@ -681,13 +698,29 @@ void UInterchangeGenericMaterialPipeline::FilterPropertiesFromTranslatedData(UIn
 	}
 }
 
-bool UInterchangeGenericMaterialPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+bool UInterchangeGenericMaterialPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 {
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bImportMaterials))
+	{
+		return true;
+	}
+
 	if (TexturePipeline && TexturePipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
 	{
 		return true;
 	}
 	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+void UInterchangeGenericMaterialPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	if (TexturePipeline)
+	{
+		TexturePipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
+
+	PipelineSupportAssetClasses.Add(UMaterial::StaticClass());
+	PipelineSupportAssetClasses.Add(UMaterialInstance::StaticClass());
 }
 
 #endif //WITH_EDITOR
@@ -758,7 +791,8 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 	}
 
 	// Can't import materials at runtime, fall back to instances
-	if (FApp::IsGame() && MaterialImport == EInterchangeMaterialImportOption::ImportAsMaterials)
+	UInterchangeEditorUtilitiesBase* EditorUtilities = UInterchangeManager::GetInterchangeManager().GetEditorUtilities();
+	if ((EditorUtilities && EditorUtilities->IsRuntimeOrPIE()) && MaterialImport == EInterchangeMaterialImportOption::ImportAsMaterials)
 	{
 		MaterialImport = EInterchangeMaterialImportOption::ImportAsMaterialInstances;
 	}
@@ -823,14 +857,14 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 				if (UMaterialInterface* ExistingMaterial = UE::Interchange::InterchangeGenericMaterialPipeline::Private::FindExistingMaterialFromSearchLocation(MaterialName, ContentBasePath, ClosureSearchLocation))
 				{
 					//Make sure we have the correct type of material (can be material instance) before setting the custom object reference.
-					if ((MaterialBaseFactoryNode->IsA<UInterchangeMaterialInstanceFactoryNode>() && ExistingMaterial->IsA<UMaterialInstance>())
-						|| (MaterialBaseFactoryNode->IsA<UInterchangeMaterialFactoryNode>() && ExistingMaterial->IsA<UMaterial>()))
-					{
-						MaterialBaseFactoryNode->SetCustomReferenceObject(ExistingMaterial);
-						//No need to import an existing material
-						MaterialBaseFactoryNode->SetCustomIsMaterialImportEnabled(false);
-						MaterialBaseFactoryNode->SetEnabled(false);
-					}
+					const bool bIsMaterial = MaterialBaseFactoryNode->IsA<UInterchangeMaterialFactoryNode>() && ExistingMaterial->IsA<UMaterial>();
+					const bool bIsMaterialinstance = MaterialBaseFactoryNode->IsA<UInterchangeMaterialInstanceFactoryNode>() && ExistingMaterial->IsA<UMaterialInstance>();
+
+					MaterialBaseFactoryNode->SetCustomReferenceObject(ExistingMaterial);
+					//Reimport can only be done on material instances
+					const bool bEnableReimport = !bIsMaterial && bIsMaterialinstance;
+					MaterialBaseFactoryNode->SetCustomIsMaterialImportEnabled(bEnableReimport);
+					MaterialBaseFactoryNode->SetEnabled(bEnableReimport);
 				}
 			}
 		});
@@ -883,7 +917,7 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 		MaterialFactoryNode->SetDisplayLabel(MaterialNode->GetAssetName());
 		MaterialFactoryNode->SetCustomParent(ParentPath);
 
-		const UClass* MaterialClass = FApp::IsGame() ? UMaterialInstanceDynamic::StaticClass() : UMaterialInstanceConstant::StaticClass();
+		const UClass* MaterialClass = (EditorUtilities && EditorUtilities->IsRuntimeOrPIE()) ? UMaterialInstanceDynamic::StaticClass() : UMaterialInstanceConstant::StaticClass();
 		MaterialFactoryNode->SetCustomInstanceClassName(MaterialClass->GetPathName());
 
 		TArray<FString> Inputs;
@@ -1057,8 +1091,9 @@ bool UInterchangeGenericMaterialPipeline::HasThinTranslucency(const UInterchange
 	using namespace UE::Interchange::Materials::ThinTranslucent;
 
 	const bool bHasTransmissionColorInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::TransmissionColor);
+	const bool bHasSurfaceCoverageInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::SurfaceCoverage);
 
-	return bHasTransmissionColorInput;
+	return bHasTransmissionColorInput || bHasSurfaceCoverageInput;
 }
 
 bool UInterchangeGenericMaterialPipeline::IsMetalRoughModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const
@@ -1187,7 +1222,7 @@ bool UInterchangeGenericMaterialPipeline::HandlePhongModel(const UInterchangeSha
 	if (IsPhongModel(ShaderGraphNode))
 	{
 		// ConvertFromDiffSpec function call
-		const FString MaterialFunctionPath = TEXT("MaterialFunction'/Interchange/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'");
+		const FString MaterialFunctionPath = TEXT("MaterialFunction'/InterchangeAssets/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'");
 		UInterchangeMaterialExpressionFactoryNode* FunctionCallExpression = CreateExpressionWithMaterialFunction(BaseNodeContainer, MaterialFactoryNode, TEXT("DiffSpecFunc"), MaterialFunctionPath);
 
 		const FString FunctionCallExpressionUid = FunctionCallExpression->GetUniqueID();
@@ -1512,6 +1547,24 @@ bool UInterchangeGenericMaterialPipeline::HandleThinTranslucent(const UInterchan
 		}
 	}
 
+	// Surface Coverage
+	{
+		const bool bHasInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::SurfaceCoverage);
+
+		if(bHasInput)
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> ExpressionFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Parameters::SurfaceCoverage.ToString(), MaterialFactoryNode->GetUniqueID());
+
+			if(ExpressionFactoryNode.Get<0>())
+			{
+				MaterialFactoryNode->ConnectOutputToSurfaceCoverage(ExpressionFactoryNode.Get<0>()->GetUniqueID(), ExpressionFactoryNode.Get<1>());
+			}
+
+			bShadingModelHandled = true;
+		}
+	}
+
 	if (bShadingModelHandled)
 	{
 		MaterialFactoryNode->SetCustomBlendMode(EBlendMode::BLEND_Translucent);
@@ -1730,6 +1783,22 @@ void UInterchangeGenericMaterialPipeline::HandleCommonParameters(const UIntercha
 				UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(IORLerp, GET_MEMBER_NAME_CHECKED(UMaterialExpressionLinearInterpolate, Alpha).ToString(), IORFresnel->GetUniqueID());
 
 				MaterialFactoryNode->ConnectToRefraction(IORLerp->GetUniqueID());
+			}
+		}
+	}
+
+	// Displacement
+	{
+		const bool bHasDisplacementInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::Displacement);
+
+		if(bHasDisplacementInput)
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> DisplacementExpressionFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Parameters::Displacement.ToString(), MaterialFactoryNode->GetUniqueID());
+
+			if(DisplacementExpressionFactoryNode.Get<0>())
+			{
+				MaterialFactoryNode->ConnectOutputToDisplacement(DisplacementExpressionFactoryNode.Get<0>()->GetUniqueID(), DisplacementExpressionFactoryNode.Get<1>());
 			}
 		}
 	}
@@ -2281,6 +2350,58 @@ void UInterchangeGenericMaterialPipeline::HandleMaskNode(const UInterchangeShade
 	}
 }
 
+void UInterchangeGenericMaterialPipeline::HandleRotatorNode(const UInterchangeShaderNode* ShaderNode, UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode, UInterchangeMaterialExpressionFactoryNode* RotatorFactoryNode)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+	RotatorFactoryNode->SetCustomExpressionClassName(UMaterialExpressionRotator::StaticClass()->GetName());
+
+	// Coordinate
+	{
+		TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> CoordinateExpression =
+			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderNode, Rotator::Inputs::Coordinate.ToString(), RotatorFactoryNode->GetUniqueID());
+		if(CoordinateExpression.Get<0>())
+		{
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(RotatorFactoryNode, GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, Coordinate).ToString(),
+																  CoordinateExpression.Get<0>()->GetUniqueID(), CoordinateExpression.Get<1>());
+		}
+	}
+
+	// Time
+	{
+		TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> TimeExpression =
+			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderNode, Rotator::Inputs::Time.ToString(), RotatorFactoryNode->GetUniqueID());
+		if(TimeExpression.Get<0>())
+		{
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(RotatorFactoryNode, GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, Time).ToString(),
+																  TimeExpression.Get<0>()->GetUniqueID(), TimeExpression.Get<1>());
+		}
+	}
+
+	// CenterX
+	if(float CenterX; ShaderNode->GetFloatAttribute(Rotator::Attributes::CenterX.ToString(), CenterX))
+	{
+		const FName CenterXMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, CenterX);
+		RotatorFactoryNode->AddFloatAttribute(CenterXMemberName.ToString(), CenterX);
+		RotatorFactoryNode->AddApplyAndFillDelegates<float>(CenterXMemberName.ToString(), UMaterialExpressionRotator::StaticClass(), CenterXMemberName);
+	}
+
+	// CenterY
+	if(float CenterY; ShaderNode->GetFloatAttribute(Rotator::Attributes::CenterY.ToString(), CenterY))
+	{
+		const FName CenterYMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, CenterY);
+		RotatorFactoryNode->AddFloatAttribute(CenterYMemberName.ToString(), CenterY);
+		RotatorFactoryNode->AddApplyAndFillDelegates<float>(CenterYMemberName.ToString(), UMaterialExpressionRotator::StaticClass(), CenterYMemberName);
+	}
+
+	// Speed
+	if(float Speed; ShaderNode->GetFloatAttribute(Rotator::Attributes::Speed.ToString(), Speed))
+	{
+		const FName SpeedMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, Speed);
+		RotatorFactoryNode->AddFloatAttribute(SpeedMemberName.ToString(), Speed);
+		RotatorFactoryNode->AddApplyAndFillDelegates<float>(SpeedMemberName.ToString(), UMaterialExpressionRotator::StaticClass(), SpeedMemberName);
+	}
+}
+
 void UInterchangeGenericMaterialPipeline::HandleTimeNode(const UInterchangeShaderNode* ShaderNode, UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode, UInterchangeMaterialExpressionFactoryNode* TimeFactoryNode)
 {
 	using namespace UE::Interchange::Materials::Standard::Nodes;
@@ -2613,7 +2734,6 @@ void UInterchangeGenericMaterialPipeline::HandleStaticBooleanParameterNode(const
 	StaticBoolParameterFactoryNode->SetDisplayLabel(ShaderNode->GetDisplayLabel());
 }
 
-
 UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateMaterialExpressionForShaderNode(UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode,
 	const UInterchangeShaderNode* ShaderNode, const FString& ParentUid)
 {
@@ -2675,6 +2795,10 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 	else if(*ShaderType == Nodes::NormalFromHeightMap::Name)
 	{
 		HandleNormalFromHeightMapNode(ShaderNode, MaterialFactoryNode, MaterialExpression);
+	}
+	else if(*ShaderType == Nodes::Rotator::Name)
+	{
+		HandleRotatorNode(ShaderNode, MaterialFactoryNode, MaterialExpression);
 	}
 	else if(*ShaderType == Nodes::Swizzle::Name)
 	{
@@ -3012,6 +3136,8 @@ UInterchangeMaterialFactoryNode* UInterchangeGenericMaterialPipeline::CreateMate
 {
 	UInterchangeMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeMaterialFactoryNode>( CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialFactoryNode::StaticClass()) );
 
+	UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(ShaderGraphNode, MaterialFactoryNode, false);
+
 	if(HandleSubstrate(ShaderGraphNode, MaterialFactoryNode))
 	{
 		return MaterialFactoryNode;
@@ -3064,6 +3190,8 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 	UInterchangeMaterialInstanceFactoryNode* MaterialInstanceFactoryNode =
 		Cast<UInterchangeMaterialInstanceFactoryNode>( CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialInstanceFactoryNode::StaticClass()) );
 
+	UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(ShaderGraphNode, MaterialInstanceFactoryNode, false);
+
 	TFunction<void(const FString&)> ChooseParent = [this, MaterialInstanceFactoryNode, ShaderGraphNode](const FString& Model) -> void
 	{
 		FString ParentRootName;
@@ -3089,7 +3217,7 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 			ParentRootName = TEXT("PBRSurfaceMaterial_");
 		}
 
-		const FString ParentAssetPath = TEXT("/Interchange/Materials/") + ParentRootName + Model + TEXT(".") + ParentRootName + Model;
+		const FString ParentAssetPath = TEXT("/InterchangeAssets/Materials/") + ParentRootName + Model + TEXT(".") + ParentRootName + Model;
 		MaterialInstanceFactoryNode->SetCustomParent(ParentAssetPath);
 	};
 
@@ -3107,20 +3235,20 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 	}
 	else if (IsPhongModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/PhongSurfaceMaterial.PhongSurfaceMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/PhongSurfaceMaterial.PhongSurfaceMaterial"));
 	}
 	else if (IsLambertModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/LambertSurfaceMaterial.LambertSurfaceMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/LambertSurfaceMaterial.LambertSurfaceMaterial"));
 	}
 	else if (IsUnlitModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/UnlitMaterial.UnlitMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/UnlitMaterial.UnlitMaterial"));
 	}
 	else
 	{
 		// Default to PBR
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/PBRSurfaceMaterial.PBRSurfaceMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/PBRSurfaceMaterial.PBRSurfaceMaterial"));
 	}
 
 #if WITH_EDITOR
@@ -3429,6 +3557,30 @@ bool UInterchangeGenericMaterialPipeline::HandleSubstrate(const UInterchangeShad
 			if(OpacityMaskFactoryNode.Get<0>())
 			{
 				UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), OpacityMaskFactoryNode.Get<0>()->GetUniqueID(), OpacityMaskFactoryNode.Get<1>());
+			}
+		}
+
+		if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, SubstrateMaterial::Parameters::Displacement))
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> DisplacementFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, SubstrateMaterial::Parameters::Displacement.ToString(), MaterialFactoryNode->GetUniqueID());
+			ensure(DisplacementFactoryNode.Get<0>());
+
+			if(DisplacementFactoryNode.Get<0>())
+			{
+				UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, SubstrateMaterial::Parameters::Displacement.ToString(), DisplacementFactoryNode.Get<0>()->GetUniqueID(), DisplacementFactoryNode.Get<1>());
+			}
+		}
+
+		if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, SubstrateMaterial::Parameters::Occlusion))
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> OcclusionFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, SubstrateMaterial::Parameters::Occlusion.ToString(), MaterialFactoryNode->GetUniqueID());
+			ensure(OcclusionFactoryNode.Get<0>());
+
+			if(OcclusionFactoryNode.Get<0>())
+			{
+				UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, SubstrateMaterial::Parameters::Occlusion.ToString(), OcclusionFactoryNode.Get<0>()->GetUniqueID(), OcclusionFactoryNode.Get<1>());
 			}
 		}
 

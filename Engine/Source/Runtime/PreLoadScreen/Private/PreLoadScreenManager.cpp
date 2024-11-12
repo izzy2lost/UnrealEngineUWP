@@ -273,11 +273,25 @@ void FPreLoadScreenManager::HandleEngineLoadingPlay()
 		IPreLoadScreen* PreLoadScreen = GetActivePreLoadScreen();
 		if (PreLoadScreen)
 		{
-			PreLoadScreen->OnPlay(MainWindow.Pin());
+			TSharedPtr<SWindow> MainWindowPtr = MainWindow.Pin();
+			PreLoadScreen->OnPlay(MainWindowPtr);
+
+			// The screen size may have changed between the VirtualRenderWindow creation and now
+			TOptional<UE::Slate::FDeprecateVector2DResult> NewScreenSize;
 
 			if (PreLoadScreen->GetWidget().IsValid() && VirtualRenderWindow.IsValid())
 			{
 				VirtualRenderWindow->SetContent(PreLoadScreen->GetWidget().ToSharedRef());
+
+				if (MainWindowPtr.IsValid())
+				{
+					const UE::Slate::FDeprecateVector2DResult CurrentScreenSize = MainWindowPtr->GetClientSizeInScreen();
+					if (VirtualRenderWindow->GetClientSizeInScreen() != CurrentScreenSize)
+					{
+						NewScreenSize.Emplace(CurrentScreenSize);
+						VirtualRenderWindow->SetCachedSize(CurrentScreenSize);
+					}
+				}
 			}
 
 			//Need to update bIsResponsibleForRendering as a PreLoadScreen may not have updated it before this point
@@ -285,6 +299,12 @@ void FPreLoadScreenManager::HandleEngineLoadingPlay()
 			{
 				bIsResponsibleForRendering = true;
 				IsResponsibleForRenderingDelegate.Broadcast(bIsResponsibleForRendering);
+
+				if (NewScreenSize.IsSet() && FSlateApplication::IsInitialized() && MainWindowPtr.IsValid()) //MainWindowPtr should be valid if we get there, but... better safe than sorry.
+				{
+					// Force the viewport to resize before rendering
+					FSlateApplication::Get().GetRenderer()->UpdateFullscreenState(MainWindowPtr.ToSharedRef(), (uint32)NewScreenSize.GetValue().X, (uint32)NewScreenSize.GetValue().Y);
+				}
 			}
 		}
 
@@ -366,7 +386,6 @@ void FPreLoadScreenManager::RenderTick_RenderThread()
 		if (MainWindow.IsValid() && VirtualRenderWindow.IsValid() && !PinnedActivePreloadScreen->IsDone())
 		{
 			GFrameNumberRenderThread++;
-			GRHICommandList.GetImmediateCommandList().BeginFrame();
 			PinnedActivePreloadScreen->RenderTick(DeltaTime);
 			GRHICommandList.GetImmediateCommandList().EndFrame();
 			GRHICommandList.GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
@@ -526,7 +545,6 @@ void FPreLoadScreenManager::EarlyPlayRenderFrameTick()
 					if (FPreLoadScreenManager::bRenderingEnabled && PinnedActivePreloadScreen && !bHasRenderPreLoadScreenFrame_RenderThread)
 					{
 						GFrameNumberRenderThread++;
-						GRHICommandList.GetImmediateCommandList().BeginFrame();
 
 						bHasRenderPreLoadScreenFrame_RenderThread = true;
 						PinnedActivePreloadScreen->RenderTick(SlateDeltaTime);

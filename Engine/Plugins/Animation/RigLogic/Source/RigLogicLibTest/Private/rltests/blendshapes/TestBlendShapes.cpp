@@ -32,7 +32,11 @@ TEST_P(BlendShapesTest, Calculate) {
 
     pma::AlignedMemoryResource amr;
 
-    auto inputInstanceFactory = ControlsFactory::getInstanceFactory(0, static_cast<std::uint16_t>(blendShapeInputs.size()), 0, 0);
+    auto inputInstanceFactory = ControlsFactory::getInstanceFactory(0,
+                                                                    static_cast<std::uint16_t>(blendShapeInputs.size()),
+                                                                    0,
+                                                                    0,
+                                                                    0);
     auto inputInstance = inputInstanceFactory(&amr);
     auto inputBuffer = inputInstance->getInputBuffer();
     std::copy(blendShapeInputs.begin(), blendShapeInputs.end(), inputBuffer.begin());

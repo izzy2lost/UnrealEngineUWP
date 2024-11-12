@@ -9,13 +9,15 @@
 
 #include "Animation/SkeletalMeshActor.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
 
 #include "Nodes/InterchangeBaseNodeContainer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeSkeletalMeshActorFactory)
 
 
-UObject* UInterchangeSkeletalMeshActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& /*FactoryNode*/, const UInterchangeBaseNodeContainer& /*NodeContainer*/, const FImportSceneObjectsParams& /*Params*/)
+UObject* UInterchangeSkeletalMeshActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& /*FactoryNode*/, const UInterchangeBaseNodeContainer& /*NodeContainer*/, const FImportSceneObjectsParams& Params)
 {
 	ASkeletalMeshActor* SkeletalMeshActor = Cast<ASkeletalMeshActor>(&SpawnedActor);
 
@@ -26,9 +28,24 @@ UObject* UInterchangeSkeletalMeshActorFactory::ProcessActor(AActor& SpawnedActor
 
 	if (USkeletalMeshComponent* SkeletalMeshComponent = SkeletalMeshActor->GetSkeletalMeshComponent())
 	{
-		SkeletalMeshComponent->UnregisterComponent();
+		if (USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset())
+		{
+			if (Params.ImportAssets.Contains(SkeletalMesh))
+			{
+#if WITH_EDITOR
+				//If we are importing the skeletal mesh, we need to use a async build scope to unregister the component to avoid a deadlock
+				FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
+#endif
+				SkeletalMeshComponent->UnregisterComponent();
+			}
+			else
+			{
+				SkeletalMeshComponent->UnregisterComponent();
+			}
+			
 
-		return SkeletalMeshComponent;
+			return SkeletalMeshComponent;
+		}
 	}
 
 	return nullptr;

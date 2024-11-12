@@ -69,11 +69,6 @@ DECLARE_DELEGATE_OneParam( FOnItemDestroyed, const TSharedPtr<FAssetViewItem>& /
 class SAssetListItem;
 class SAssetTileItem;
 
-namespace FAssetViewModeUtils 
-{
-	FReply OnViewModeKeyDown( const TSet< TSharedPtr<FAssetViewItem> >& SelectedItems, const FKeyEvent& InKeyEvent );
-}
-
 struct FAssetViewItemHelper
 {
 public:
@@ -90,7 +85,6 @@ class SAssetTileView : public STileView<TSharedPtr<FAssetViewItem>>
 {
 public:
 	virtual bool SupportsKeyboardFocus() const override { return true; }
-	virtual FReply OnKeyDown( const FGeometry& InGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
 };
 
@@ -99,7 +93,6 @@ class SAssetListView : public SListView<TSharedPtr<FAssetViewItem>>
 {
 public:
 	virtual bool SupportsKeyboardFocus() const override { return true; }
-	virtual FReply OnKeyDown( const FGeometry& InGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 };
 
@@ -108,7 +101,6 @@ class SAssetColumnView : public SListView<TSharedPtr<FAssetViewItem>>
 {
 public:
 	virtual bool SupportsKeyboardFocus() const override { return true; }
-	virtual FReply OnKeyDown( const FGeometry& InGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 };
 
@@ -237,6 +229,9 @@ protected:
 	/** Gets the text for the source control text block in the tooltip */
 	FText GetSourceControlText() const;
 
+	/** Gets the text detailing all the modified external packages (and their contained objects) */
+	FText GetExternalPackagesText() const;
+
 	/** Helper function for CreateToolTipWidget. Gets the user description for the asset, if it exists. */
 	FText GetAssetUserDescription() const;
 
@@ -266,6 +261,9 @@ protected:
 
 	/** Returns the width at which the name label will wrap the name */
 	virtual float GetNameTextWrapWidth() const { return 0.0f; }
+
+	/** Caches the ExternalPackagesText */
+	void CacheDirtyExternalPackageInfo();
 
 protected:
 	/** Data for a cached display tag for this item (used in the tooltip, and also as the display string in column views) */
@@ -353,6 +351,9 @@ protected:
 
 	/** Whether the item has a valid scc state brush (not empty) */
 	bool bHasCCStateBrush = false;
+
+	bool bShouldSaveExternalPackages = false;
+	FString CachedDirtyPackagesList;
 
 	/** Delegate handle for the HandleSourceControlStateChanged function callback */
 	FDelegateHandle SourceControlStateChangedDelegateHandle;
@@ -596,6 +597,8 @@ class SAssetTileItem : public SAssetViewItem
 public:
 	SLATE_BEGIN_ARGS( SAssetTileItem )
 		: _ThumbnailPadding(0)
+		/** Default Size of the Small Thumbnail Size */
+		, _ThumbnailDimension(64)
 		, _ThumbnailLabel( EThumbnailLabel::ClassName )
 		, _ThumbnailHintColorAndOpacity( FLinearColor( 0.0f, 0.0f, 0.0f, 0.0f ) )
 		, _AllowThumbnailHintLabel(true)
@@ -615,10 +618,13 @@ public:
 		/** How much padding to allow around the thumbnail */
 		SLATE_ARGUMENT( float, ThumbnailPadding )
 
-		/** The contents of the label displayed on the thumbnail */
+		/** The Actual Thumbnail dimension based on the  */
+		SLATE_ATTRIBUTE(float, ThumbnailDimension)
+
+		/** The contents of the label displayed on the thumbnail EThumbnailSize */
 		SLATE_ARGUMENT( EThumbnailLabel::Type, ThumbnailLabel )
 
-		/**  */
+		/** Thumbnail Color for Hint */
 		SLATE_ATTRIBUTE( FLinearColor, ThumbnailHintColorAndOpacity )
 
 		/** Whether the thumbnail should ever show it's hint label */
@@ -731,6 +737,8 @@ protected:
 	const FSlateBrush* GetFolderBackgroundShadowImage() const;
 
 	const FSlateBrush* GetNameAreaBackgroundImage() const;
+	const FSlateBrush* GetAssetAreaOverlayBackgroundImage() const;
+	FSlateColor GetChipBackgroundColor() const;
 	FSlateColor GetNameAreaTextColor() const;
 
 	FOptionalSize GetNameAreaMaxDesiredHeight() const;
@@ -740,6 +748,11 @@ protected:
 	/** Gets the visibility of the SCC icons */
 	EVisibility GetSCCIconVisibility() const;
 
+	/** Get the visibility for the name area, collapsed if Tiny */
+	EVisibility GetNameAreaVisibility() const;
+
+	/** Return the size of the class text at the bottom, based on the current ThumbnailSize */
+	FOptionalSize GetSourceControlIconSize() const;
 
 private:
 	/** If false, the tooltip will not be displayed */
@@ -750,6 +763,9 @@ private:
 
 	/** The width of the item. Used to enforce a square thumbnail. */
 	TAttribute<float> ItemWidth;
+
+	/** Actual size that the thumbnail should have */
+	TAttribute<float> ThumbnailDimension;
 
 	/** Max name height for each thumbnail size */
 	static float AssetNameHeights[(int32)EThumbnailSize::MAX];

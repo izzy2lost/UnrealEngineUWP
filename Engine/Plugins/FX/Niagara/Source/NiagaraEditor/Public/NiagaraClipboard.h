@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Curves/RichCurve.h"
 #include "NiagaraMessages.h"
 #include "NiagaraScriptVariable.h"
 #include "NiagaraTypes.h"
@@ -10,6 +11,8 @@
 #include "UObject/SoftObjectPtr.h"
 #include "NiagaraClipboard.generated.h"
 
+class UNiagaraHierarchyCategory;
+class IPropertyHandle;
 class UNiagaraDataInterface;
 class UNiagaraScript;
 class UNiagaraRendererProperties;
@@ -82,6 +85,9 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraClipboardFunction> Dynamic;
+
+	UPROPERTY()
+	TArray<TObjectPtr<const UNiagaraClipboardFunctionInput>> ChildrenInputs;
 
 	NIAGARAEDITOR_API bool CopyValuesFrom(const UNiagaraClipboardFunctionInput* InOther);
 
@@ -179,6 +185,64 @@ struct FNiagaraClipboardScriptVariable
 		return OriginalChangeId == OtherVariable.OriginalChangeId;
 	}
 };
+
+USTRUCT()
+struct FNiagaraClipboardCurveCollection
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FRichCurve> Curves;
+};
+
+USTRUCT()
+struct FNiagaraClipboardPortableValue
+{
+	GENERATED_BODY()
+
+	class FErrorPipe : public FOutputDevice
+	{
+	public:
+
+		int32 NumErrors;
+
+		FErrorPipe()
+			: FOutputDevice()
+			, NumErrors(0)
+		{
+		}
+
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
+		{
+			NumErrors++;
+		}
+	};
+
+	FNiagaraClipboardPortableValue()
+		: ValueString(FString())
+	{
+	}
+
+	bool IsValid() const { return ValueString.IsEmpty() == false; } // ValueType != ENiagaraClipboardPortableValueType::None; }
+
+	void Reset()
+	{
+		*this = FNiagaraClipboardPortableValue();
+	}
+
+	static FNiagaraClipboardPortableValue NIAGARAEDITOR_API CreateFromStructValue(const UScriptStruct& TargetStruct, uint8* StructMemory);
+	static FNiagaraClipboardPortableValue NIAGARAEDITOR_API CreateFromTypedValue(const FNiagaraTypeDefinition& InType, const FNiagaraVariant& InValue);
+	static FNiagaraClipboardPortableValue NIAGARAEDITOR_API CreateFromPropertyHandle(const IPropertyHandle& InPropertyHandle);
+
+	NIAGARAEDITOR_API bool TryUpdateStructValue(const UScriptStruct& TargetStruct, uint8* StructMemory) const;
+	NIAGARAEDITOR_API bool CanUpdateTypedValue(const FNiagaraTypeDefinition& InTargetInputType) const;
+	NIAGARAEDITOR_API bool TryUpdateTypedValue(const FNiagaraTypeDefinition& InTargetInputType, FNiagaraVariant& InValue) const;
+	NIAGARAEDITOR_API bool TryUpdatePropertyHandle(IPropertyHandle& InTargetPropertyHandle) const;
+
+	UPROPERTY()
+	FString ValueString;
+};
+
 UCLASS(MinimalAPI)
 class UNiagaraClipboardContent : public UObject
 {
@@ -192,7 +256,7 @@ public:
 
 	UPROPERTY()
 	TArray<TObjectPtr<const UNiagaraClipboardFunctionInput>> FunctionInputs;
-
+	
 	UPROPERTY()
 	TArray<TObjectPtr<const UNiagaraClipboardRenderer>> Renderers;
 
@@ -201,6 +265,9 @@ public:
 
 	UPROPERTY()
 	TArray<FNiagaraClipboardScriptVariable> ScriptVariables;
+
+	UPROPERTY()
+	TArray<TObjectPtr<const UObject>> StatelessModules;
 
 	/** We expect nodes to be exported into this string using FEdGraphUtilities::ExportNodesToText */
 	UPROPERTY()
@@ -212,6 +279,9 @@ public:
 
 	UPROPERTY()
 	FNiagaraStackNoteData StackNote;
+
+	UPROPERTY()
+	TArray<FNiagaraClipboardPortableValue> PortableValues;
 };
 
 class FNiagaraClipboard

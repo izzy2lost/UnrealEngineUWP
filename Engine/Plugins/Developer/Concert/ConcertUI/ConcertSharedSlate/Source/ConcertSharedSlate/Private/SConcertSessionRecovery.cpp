@@ -28,6 +28,7 @@ void SConcertSessionRecovery::Construct(const FArguments& InArgs)
 	ActivityViewOptions->bEnableLockActivityFiltering = InArgs._IsLockActivityFilteringEnabled;
 	ActivityViewOptions->bEnablePackageActivityFiltering = InArgs._IsPackageActivityFilteringEnabled;
 	ActivityViewOptions->bEnableTransactionActivityFiltering = InArgs._IsTransactionActivityFilteringEnabled;
+	ActivityViewOptions->bEnableReplicationActivityFiltering = InArgs._IsReplicationActivityFilteringEnabled;
 	ActivityViewOptions->bEnableIgnoredActivityFiltering = InArgs._IsIgnoredActivityFilteringEnabled;
 	
 	SAssignNew(ActivityView, SConcertSessionActivities)
@@ -41,6 +42,7 @@ void SConcertSessionRecovery::Construct(const FArguments& InArgs)
 		.LockActivitiesVisibility(ActivityViewOptions.Get(), &FConcertSessionActivitiesOptions::GetLockActivitiesVisibility)
 		.PackageActivitiesVisibility(ActivityViewOptions.Get(), &FConcertSessionActivitiesOptions::GetPackageActivitiesVisibility)
 		.TransactionActivitiesVisibility(ActivityViewOptions.Get(), &FConcertSessionActivitiesOptions::GetTransactionActivitiesVisibility)
+		.ReplicationActivitiesVisibility(ActivityViewOptions.Get(), &FConcertSessionActivitiesOptions::GetReplicationActivitiesVisibility)
 		.IgnoredActivitiesVisibility(ActivityViewOptions.Get(), &FConcertSessionActivitiesOptions::GetIgnoredActivitiesVisibility)
 		.DetailsAreaVisibility(InArgs._DetailsAreaVisibility)
 		.NoActivitiesReasonText(InArgs._NoActivitiesReasonText);

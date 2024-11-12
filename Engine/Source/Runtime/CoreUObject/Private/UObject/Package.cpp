@@ -3,6 +3,7 @@
 #include "UObject/Package.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "Cooker/CookDependency.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssetRegistryInterface.h"
@@ -32,7 +33,7 @@ UPackage::FOnPackageSavedWithContext UPackage::PackageSavedWithContextEvent;
  *  Use Package->IsDirty() to get the updated dirty state of the package */
 UPackage::FOnPackageDirtyStateChanged UPackage::PackageDirtyStateChangedEvent;
 /** 
- * Delegate to notify subscribers when a package is marked as dirty via UObjectBaseUtilty::MarkPackageDirty 
+ * Delegate to notify subscribers when a package is marked as dirty via UObjectBaseUtility::MarkPackageDirty 
  * Note: Unlike FOnPackageDirtyStateChanged, this is always called, even when the package is already dirty
  * Use bWasDirty to check the previous dirty state of the package
  * Use Package->IsDirty() to get the updated dirty state of the package
@@ -74,8 +75,11 @@ void UPackage::PostInitProperties()
 	SetLinkerPackageVersion(GPackageFileUEVersion);
 	SetLinkerLicenseeVersion(GPackageFileLicenseeUEVersion);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	SetMetaData(nullptr);
+#endif // WITH_METADATA
+
+#if WITH_EDITORONLY_DATA
 	// Always generate a new unique PersistentGuid, required for new disk packages.
 	// For existing disk packages it will be replaced with the existing PersistentGuid when loading the package summary.
 	// For existing script packages it will be replaced in ConstructUPackage with the CRC of the generated code files.
@@ -88,7 +92,7 @@ void UPackage::PostInitProperties()
 	bLoadedByEditorPropertiesOnly = !HasAnyFlags(RF_ClassDefaultObject) && !HasAnyPackageFlags(PKG_CompiledIn) && (IsRunningCommandlet());
 
 	bIsDynamicPIEPackagePending = false;
-#endif
+#endif // WITH_EDITORONLY_DATA
 }
 
 
@@ -229,9 +233,7 @@ TArray<UPackage*> UPackage::GetExternalPackages() const
  */
 UMetaData* UPackage::GetMetaData()
 {
-	checkf(!FPlatformProperties::RequiresCookedData(), TEXT("MetaData is only allowed in the Editor."));
-
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UMetaData* LocalMetaData = MetaData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -260,7 +262,7 @@ UMetaData* UPackage::GetMetaData()
 	return LocalMetaData;
 #else
 	return nullptr;
-#endif
+#endif // WITH_METADATA
 }
 
 /**
@@ -287,11 +289,6 @@ const FPackagePath& UPackage::GetLoadedPath() const
 void UPackage::SetLoadedPath(const FPackagePath& InPackagePath)
 {
 	LoadedPath = InPackagePath;
-#if !UE_STRIP_DEPRECATED_PROPERTIES
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FileName = InPackagePath.GetPackageFName();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif
 }
 
 /** Tags generated objects with flags */
@@ -299,14 +296,14 @@ void UPackage::TagSubobjects(EObjectFlags NewFlags)
 {
 	Super::TagSubobjects(NewFlags);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (MetaData)
 	{
 		MetaData->SetFlags(NewFlags);
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif
+#endif // WITH_METADATA
 }
 
 /**
@@ -329,7 +326,7 @@ bool UPackage::IsFullyLoaded() const
 		return false;
 	}
 
-	if (HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		// If it's in the middle of an async load, don't make any changes and respect the current 'false' value of bHasBeenFullyLoaded
 		return false;
@@ -383,16 +380,6 @@ bool UPackage::IsPostLoadThreadSafe() const
 }
 
 #if WITH_EDITORONLY_DATA
-void FixupPackageEditorOnlyFlag(FName PackageThatGotEditorOnlyFlagCleared, bool bRecursive);
-
-void UPackage::SetLoadedByEditorPropertiesOnly(bool bIsEditorOnly, bool bRecursive /*= false*/)
-{
-	const bool bWasEditorOnly = bLoadedByEditorPropertiesOnly.exchange(bIsEditorOnly);
-	if (bWasEditorOnly && !bIsEditorOnly)
-	{
-		FixupPackageEditorOnlyFlag(GetFName(), bRecursive);
-	}
-}
 
 FIoHash UPackage::GetSavedHash()
 {
@@ -421,17 +408,22 @@ void UPackage::SetSavedHash(const FIoHash& InSavedHash)
 
 #endif
 
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+#if WITH_METADATA
+
+void DeclareIntrinsicUPackageMembers()
+{
+	UE::GC::DeclareIntrinsicMembers(UPackage::StaticClass(), { UE_GC_MEMBER(UPackage, MetaData) });
+}
+
 IMPLEMENT_CORE_INTRINSIC_CLASS(UPackage, UObject,
 	{
-		UE::GC::DeclareIntrinsicMembers(Class, { UE_GC_MEMBER(UPackage, MetaData) });
+		DeclareIntrinsicUPackageMembers();
 	}
 );
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 #else
 IMPLEMENT_CORE_INTRINSIC_CLASS(UPackage, UObject,
 	{
 	}
 );
-#endif
+#endif // WITH_METADATA

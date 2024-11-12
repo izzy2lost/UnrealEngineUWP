@@ -4,7 +4,7 @@
 
 #include "AvaTransitionSequenceEnums.generated.h"
 
-UENUM()
+UENUM(BlueprintType, DisplayName="Motion Design Sequence Wait Type")
 enum class EAvaTransitionSequenceWaitType : uint8
 {
 	None UMETA(Hidden),
@@ -16,7 +16,7 @@ enum class EAvaTransitionSequenceWaitType : uint8
 	WaitUntilStop,
 };
 
-UENUM()
+UENUM(BlueprintType, DisplayName="Motion Design Sequence Query Type")
 enum class EAvaTransitionSequenceQueryType : uint8
 {
 	None UMETA(Hidden),

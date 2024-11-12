@@ -10,4 +10,7 @@ ArrayView<float> BlendShapesNullOutputInstance::getOutputBuffer() {
     return {};
 }
 
+void BlendShapesNullOutputInstance::resetOutputBuffer() {
+}
+
 }  // namespace rl4

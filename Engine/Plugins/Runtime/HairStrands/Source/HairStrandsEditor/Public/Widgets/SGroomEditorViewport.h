@@ -60,6 +60,8 @@ public:
 	bool IsLODModelSelected(int32 InLODSelection) const;
 	void OnSetLODModel(int32 InLODSelection);
 
+	TSharedPtr<class FAdvancedPreviewScene> GetAdvancedPreviewScene() { return AdvancedPreviewScene; }
+
 protected:
 
 	/** SEditorViewport interface */

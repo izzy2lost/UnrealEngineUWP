@@ -31,6 +31,10 @@
 
 namespace UVEditorModeToolkitLocals
 {
+	TAutoConsoleVariable<bool> CVarAddDebugTools(
+		TEXT("modeling.UVEditor.AddDebugTools"),
+		false,
+		TEXT("Enable UV tools that can be useful for debugging (currently just the \"Unset UVs\" tool."));
 }
 
 FUVEditorModeToolkit::FUVEditorModeToolkit()
@@ -311,6 +315,18 @@ TSharedRef<SWidget> FUVEditorModeToolkit::CreateGridSettingsWidget()
 	return CreateDisplaySettingsWidget(Mode->GetGridSettingsObject());
 }
 
+TSharedRef<SWidget> FUVEditorModeToolkit::CreateUnwrappedUXSettingsWidget()
+{
+	UUVEditorMode* Mode = Cast<UUVEditorMode>(GetScriptableEditorMode());
+	return CreateDisplaySettingsWidget(Mode->GetUnwrappedUXSettingsObject());
+}
+
+TSharedRef<SWidget> FUVEditorModeToolkit::CreateLivePreviewUXSettingsWidget()
+{
+	UUVEditorMode* Mode = Cast<UUVEditorMode>(GetScriptableEditorMode());
+	return CreateDisplaySettingsWidget(Mode->GetLivePreviewUXSettingsObject());
+}
+
 TSharedRef<SWidget> FUVEditorModeToolkit::CreateUDIMSettingsWidget()
 {
 	UUVEditorMode* Mode = Cast<UUVEditorMode>(GetScriptableEditorMode());
@@ -453,12 +469,19 @@ FText FUVEditorModeToolkit::GetToolPaletteDisplayName(FName Palette) const
 
 void FUVEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBuilder& ToolbarBuilder)
 {
+	using namespace UVEditorModeToolkitLocals;
+
 	const FUVEditorCommands& Commands = FUVEditorCommands::Get();
 
 	if (PaletteIndex == ToolsTabName)
 	{
 		ToolbarBuilder.AddToolBarButton(Commands.SewAction);
 		ToolbarBuilder.AddToolBarButton(Commands.SplitAction);
+		ToolbarBuilder.AddToolBarButton(Commands.MakeIslandAction);
+		if (CVarAddDebugTools.GetValueOnGameThread())
+		{
+			ToolbarBuilder.AddToolBarButton(Commands.UnsetUVsAction);
+		}
 
 		ToolbarBuilder.AddToolBarButton(Commands.BeginLayoutTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginTransformTool);
@@ -469,6 +492,8 @@ void FUVEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBu
 		ToolbarBuilder.AddToolBarButton(Commands.BeginSeamTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginParameterizeMeshTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginRecomputeUVsTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginBrushSelectTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginUVSnapshotTool);
 	}
 }
 

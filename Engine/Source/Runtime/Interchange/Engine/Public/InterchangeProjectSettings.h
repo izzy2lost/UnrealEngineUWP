@@ -56,7 +56,7 @@ struct FInterchangeImportSettings
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	TSoftClassPtr <UInterchangePipelineConfigurationBase> ImportDialogClass;
 
-	/** If enabled, the import option dialog will show when interchange import or re-import.*/
+	/** If enabled, the import option dialog will show when interchange import.*/
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	bool bShowImportDialog = true;
 };
@@ -95,7 +95,43 @@ struct FInterchangeContentImportSettings : public FInterchangeImportSettings
 	TMap<EInterchangeTranslatorAssetType, FName> DefaultPipelineStackOverride;
 
 	/** This tell interchange if the import dialog should show or not when importing a particular type of asset.*/
-	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="bShowImportDialog"))
+	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="bShowImportDialogAtReimport"))
+	TMap<EInterchangeTranslatorAssetType, FInterchangeDialogOverride> ShowImportDialogOverride;
+};
+
+USTRUCT()
+struct FInterchangeGroup
+{
+	GENERATED_BODY()
+
+	enum EUsedGroupStatus : uint8
+	{
+		NotSet,
+		SetAndValid,
+		SetAndInvalid
+	};
+
+	/** Specifies a different pipeline stack for Interchange to use by default when importing specific types of assets. */
+	UPROPERTY(EditAnywhere, Category = "InterchangeGroup")
+	FName DisplayName;
+
+	/** This tell interchange if the import dialog should show or not when importing a particular type of asset.*/
+	UPROPERTY(VisibleAnywhere, Category = "InterchangeGroup", meta = (IgnoreForMemberInitializationTest, EditCondition = "false", EditConditionHides))
+	FGuid UniqueID = FGuid::NewGuid();
+
+	/** Specifies which pipeline stack Interchange should use by default. */
+	UPROPERTY(EditAnywhere, Category = "Pipeline")
+	FName DefaultPipelineStack = NAME_None;
+
+	/** Specifies a different pipeline stack for Interchange to use by default when importing specific types of assets. */
+	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta = (DisplayAfter = "DefaultPipelineStack"))
+	TMap<EInterchangeTranslatorAssetType, FName> DefaultPipelineStackOverride;
+
+	UPROPERTY(EditAnywhere, Category = "DialogOverride")
+	bool bShowImportDialog = true;
+
+	/** This tell interchange if the import dialog should show or not when importing a particular type of asset.*/
+	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta = (DisplayAfter = "bShowImportDialog"))
 	TMap<EInterchangeTranslatorAssetType, FInterchangeDialogOverride> ShowImportDialogOverride;
 };
 
@@ -134,6 +170,24 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Generic Pipeline Class")
 	TSoftClassPtr <UInterchangePipelineBase> GenericPipelineClass;
+
+	/**
+	 * Optional, the pipeline asset converters will duplicate to create interchange import data pipeline.
+	 * If not set, converters will duplicate a pipeline class CDO of there choice.
+	 */
+	UPROPERTY(EditAnywhere, config, Category = "Converters", meta = (AllowedClasses = "/Script/InterchangeCore.InterchangePipelineBase, /Script/InterchangeEngine.InterchangeBlueprintPipelineBase, /Script/InterchangeEngine.InterchangePythonPipelineAsset"))
+	FSoftObjectPath ConverterDefaultPipeline;
+
+	/**
+	* Groups that define PerTransalatorPipelines that user can select to use.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = "Groups", meta = (NoElementDuplicate))
+	TArray<FInterchangeGroup> InterchangeGroups;
+
+private:
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };
 
 class FInterchangeProjectSettingsUtils
@@ -147,5 +201,48 @@ public:
 	static INTERCHANGEENGINE_API FName GetDefaultPipelineStackName(const bool bIsSceneImport, const UInterchangeSourceData& SourceData);
 	static INTERCHANGEENGINE_API void SetDefaultPipelineStackName(const bool bIsSceneImport, const UInterchangeSourceData& SourceData, const FName StackName);
 
-	static INTERCHANGEENGINE_API bool ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const UInterchangeSourceData& SourceData);
+	static INTERCHANGEENGINE_API bool ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const bool bReImport, const UInterchangeSourceData& SourceData);
+
+	static INTERCHANGEENGINE_API const FInterchangeGroup& GetUsedGroup(FInterchangeGroup::EUsedGroupStatus& UsedGroupStatus);
+
+	static INTERCHANGEENGINE_API TArray<FName> GetGroupNames();
+};
+
+UCLASS(config = EditorPerProjectUserSettings, meta = (DisplayName = Interchange), MinimalAPI)
+class UInterchangeEditorSettings : public UDeveloperSettings
+{
+	GENERATED_BODY()
+
+public:
+	/** If enabled, the import option dialog will show when interchange re-import.*/
+	UPROPERTY(EditAnywhere, config, Category = "Show Dialog")
+	bool bShowImportDialogAtReimport = false;
+
+	const FGuid& GetUsedGroupUID() const { return UsedGroupUID; }
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Groups")
+	const FName& GetUsedGroupName() const { return UsedGroupName; }
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Groups")
+	void SetUsedGroupName(const FName& InUsedGroupName);
+
+	void UpdateUsedGroupName();
+
+private:
+	/** If enabled, the import option dialog will show when interchange re-import.*/
+	UPROPERTY(EditAnywhere, Transient, Category = "Group Used", meta = (GetOptions = "GetSelectableItems", AllowPrivateAccess = "true"))
+	FName UsedGroupName;
+
+	UPROPERTY(EditAnywhere, Category = "Group Used", config, meta = (IgnoreForMemberInitializationTest, EditCondition = "false", EditConditionHides))
+	FGuid UsedGroupUID;
+
+	UFUNCTION()
+	TArray<FName> GetSelectableItems() const;
+
+	void UpdateUsedGroupUIDFromGroupName();
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostInitProperties() override;
+#endif
 };

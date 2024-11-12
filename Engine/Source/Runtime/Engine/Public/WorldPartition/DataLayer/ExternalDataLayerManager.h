@@ -75,20 +75,19 @@ private:
 	// Used in editor
 	UActorDescContainerInstance* RegisterExternalDataLayerActorDescContainer(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 	bool UnregisterExternalDataLayerActorDescContainer(const UExternalDataLayerAsset* InExternalDataLayerAsset);
-	bool OnActorExternalDataLayerAssetChanged(AActor* InActor);
+	bool ValidateOnActorExternalDataLayerAssetChanged(AActor* InActor);
 	bool RegisterExternalDataLayerInstance(UExternalDataLayerInstance* InExternalDataLayerInstance);
 	bool UnregisterExternalDataLayerInstance(UExternalDataLayerInstance* InExternalDataLayerInstance);
-	const UExternalDataLayerAsset* GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath);
+	const UExternalDataLayerAsset* GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath) const;
 	const UExternalDataLayerAsset* GetActorEditorContextCurrentExternalDataLayer() const;
 	AWorldDataLayers* GetWorldDataLayers(const UExternalDataLayerAsset* InExternalDataLayerAsset, bool bInAllowCreate = false) const;
-	bool OnActorPreSpawnInitialization(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset);
 	FString GetActorPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset, const ULevel* InDestinationLevel, const FString& InActorPath) const;
-	bool SetupActorPackageForExternalDataLayerAsset(AActor* InActor, const UExternalDataLayerAsset* InExternalDataLayerAsset);
 	URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObjectUsingStreamingGeneration(const UExternalDataLayerAsset* InExternalDataLayerAsset);
+	bool HasInjectedExternalDataLayerAssets() const { return InjectedExternalDataLayerAssets.Num() > 0; }
 
 	// Used for PIE/-game
-	void OnBeginPlay();
-	void OnEndPlay();
+	void PrepareEditorGameWorld();
+	void ShutdownEditorGameWorld();
 
 	//~ Begin Cooking
 	UWorldPartitionRuntimeCell* GetCellForCookPackage(const FString& InCookPackageName) const;
@@ -119,11 +118,14 @@ private:
 #endif
 
 	friend class FDataLayerMode;
+	friend class FDataLayerEditorModule;
+	friend class FExternalDataLayerHelper;
 	friend class AWorldDataLayers;
 	friend class UWorldPartition;
 	friend class UExternalDataLayerInstance;
 	friend class UDataLayerEditorSubsystem;
 	friend class ULevelInstanceSubsystem;
+	friend class UContentBundleEditingSubmodule;
 	friend class UWorldPartitionRuntimeLevelStreamingCell;
 	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 };

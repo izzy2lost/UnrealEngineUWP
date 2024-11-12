@@ -12,30 +12,37 @@ inline FIntPoint ToIntPoint( const FVector3f& V )
 }
 
 template< typename FWritePixel >
-void RasterizeTri( const FVector3f Verts[3], const FIntRect& ScissorRect, uint32 SubpixelDilate, FWritePixel WritePixel )
+void RasterizeTri( const FVector3f Verts[3], const FIntRect& ScissorRect, uint32 SubpixelDilate, bool bBackFaceCull, FWritePixel WritePixel )
 {
-	constexpr uint32 SubpixelBits		= 8;
-	constexpr uint32 SubpixelSamples	= 1 << SubpixelBits;
-
-	FVector3f v01 = Verts[1] - Verts[0];
-	FVector3f v02 = Verts[2] - Verts[0];
-
-	float DetXY = v01.X * v02.Y - v01.Y * v02.X;
-	if( DetXY >= 0.0f )
-	{
-		// Backface cull
-		// If not culling, need to swap verts to correct winding for rest of code
-		return;
-	}
-
-	FVector2f GradZ;
-	GradZ.X = ( v01.Z * v02.Y - v01.Y * v02.Z ) / DetXY;
-	GradZ.Y = ( v01.X * v02.Z - v01.Z * v02.X ) / DetXY;
+	constexpr uint32 SubpixelBits = 8;
+	constexpr uint32 SubpixelSamples = 1 << SubpixelBits;
 
 	// 24.8 fixed point
 	FIntPoint Vert0 = ToIntPoint( Verts[0] * SubpixelSamples );
 	FIntPoint Vert1 = ToIntPoint( Verts[1] * SubpixelSamples );
 	FIntPoint Vert2 = ToIntPoint( Verts[2] * SubpixelSamples );
+
+	// 12.8 fixed point
+	FIntPoint Edge01 = Vert0 - Vert1;
+	FIntPoint Edge12 = Vert1 - Vert2;
+	FIntPoint Edge20 = Vert2 - Vert0;
+
+	int64 DetXY = Edge01.Y * Edge20.X - Edge01.X * Edge20.Y;
+	bool bBackFace = DetXY >= 0;
+	if( bBackFace )
+	{
+		if( bBackFaceCull )
+		{
+			return;
+		}
+		else
+		{
+			// Swap winding order
+			Edge01 *= -1;
+			Edge12 *= -1;
+			Edge20 *= -1;
+		}
+	}
 
 	// Bounding rect
 	FIntRect RectSubpixel( Vert0, Vert0 );
@@ -52,11 +59,6 @@ void RasterizeTri( const FVector3f Verts[3], const FIntRect& ScissorRect, uint32
 	// Cull when no pixels covered
 	if( RectPixel.IsEmpty() )
 		return;
-
-	// 12.8 fixed point
-	FIntPoint Edge01 = Vert0 - Vert1;
-	FIntPoint Edge12 = Vert1 - Vert2;
-	FIntPoint Edge20 = Vert2 - Vert0;
 
 	// Rebase off MinPixel with half pixel offset
 	// 12.8 fixed point
@@ -90,39 +92,103 @@ void RasterizeTri( const FVector3f Verts[3], const FIntRect& ScissorRect, uint32
 		return int32( C >> SubpixelBits );
 	};
 
-	int32 C0 = EdgeC( Edge01, Vert0 );
-	int32 C1 = EdgeC( Edge12, Vert1 );
-	int32 C2 = EdgeC( Edge20, Vert2 );
-	float Z0 = Verts[0].Z - ( GradZ.X * (float)Vert0.X + GradZ.Y * (float)Vert0.Y ) / (float)SubpixelSamples;
+	int32 C0 = EdgeC( Edge12, Vert1 );
+	int32 C1 = EdgeC( Edge20, Vert2 );
+	int32 C2 = EdgeC( Edge01, Vert0 );
 	
 	int32 CY0 = C0;
 	int32 CY1 = C1;
 	int32 CY2 = C2;
-	float ZY = Z0;
 
 	for( int32 y = RectPixel.Min.Y; y < RectPixel.Max.Y; y++ )
 	{
 		int32 CX0 = CY0;
 		int32 CX1 = CY1;
 		int32 CX2 = CY2;
-		float ZX = ZY;
 
 		for( int32 x = RectPixel.Min.X; x < RectPixel.Max.X; x++ )
 		{
 			if( ( CX0 | CX1 | CX2 ) >= 0 )
 			{
-				WritePixel( x, y, ZX );
+				FIntPoint p = ( FIntPoint(x,y) - RectPixel.Min ) * SubpixelSamples;
+				FVector2f p0 = Vert0 - p;
+				FVector2f p1 = Vert1 - p;
+				FVector2f p2 = Vert2 - p;
+				// Not perspective correct
+				FVector3f Barycentrics(
+					(float)Edge12.Y * p1.X - (float)Edge12.X * p1.Y,
+					(float)Edge20.Y * p2.X - (float)Edge20.X * p2.Y,
+					(float)Edge01.Y * p0.X - (float)Edge01.X * p0.Y );
+				Barycentrics /= Barycentrics[0] + Barycentrics[1] + Barycentrics[2];
+
+				float Depth =
+					Verts[0].Z * Barycentrics[0] +
+					Verts[1].Z * Barycentrics[1] +
+					Verts[2].Z * Barycentrics[2];
+
+				WritePixel( x, y, Depth, Barycentrics );
 			}
 
-			CX0 -= Edge01.Y;
-			CX1 -= Edge12.Y;
-			CX2 -= Edge20.Y;
-			ZX += GradZ.X;
+			CX0 -= Edge12.Y;
+			CX1 -= Edge20.Y;
+			CX2 -= Edge01.Y;
 		}
 
-		CY0 += Edge01.X;
-		CY1 += Edge12.X;
-		CY2 += Edge20.X;
-		ZY += GradZ.Y;
+		CY0 += Edge12.X;
+		CY1 += Edge20.X;
+		CY2 += Edge01.X;
+	}
+}
+
+template< typename FWriteVoxel >
+void VoxelizeTri( const FVector3f Triangle[3], FIntVector3 ScissorMin, FIntVector3 ScissorMax, FWriteVoxel WriteVoxel )
+{
+	// 6-separating voxelization
+	{
+		FIntRect Scissor(
+			ScissorMin.X, ScissorMin.Y,
+			ScissorMax.X, ScissorMax.Y );
+
+		RasterizeTri( Triangle, Scissor, 0, false,
+			[&]( int32 x, int32 y, float fz, const FVector3f& Barycentrics )
+			{
+				int32 z = FMath::RoundToInt( fz );
+				if( ScissorMin.Z <= z && z < ScissorMax.Z )
+					WriteVoxel( x, y, z, Barycentrics );
+			} );
+	}
+	{
+		FVector3f TriangleYZX[3];
+		for( int i = 0; i < 3; i++ )
+			TriangleYZX[i] = FVector3f( Triangle[i].Y, Triangle[i].Z, Triangle[i].X );
+
+		FIntRect Scissor(
+			ScissorMin.Y, ScissorMin.Z,
+			ScissorMax.Y, ScissorMax.Z );
+
+		RasterizeTri( TriangleYZX, Scissor, 0, false,
+			[&]( int32 y, int32 z, float fx, const FVector3f& Barycentrics )
+			{
+				int32 x = FMath::RoundToInt( fx );
+				if( ScissorMin.X <= x && x < ScissorMax.X )
+					WriteVoxel( x, y, z, Barycentrics );
+			} );
+	}
+	{
+		FVector3f TriangleZXY[3];
+		for( int i = 0; i < 3; i++ )
+			TriangleZXY[i] = FVector3f( Triangle[i].Z, Triangle[i].X, Triangle[i].Y );
+
+		FIntRect Scissor(
+			ScissorMin.Z, ScissorMin.X,
+			ScissorMax.Z, ScissorMax.X );
+
+		RasterizeTri( TriangleZXY, Scissor, 0, false,
+			[&]( int32 z, int32 x, float fy, const FVector3f& Barycentrics )
+			{
+				int32 y = FMath::RoundToInt( fy );
+				if( ScissorMin.Y <= y && y < ScissorMax.Y )
+					WriteVoxel( x, y, z, Barycentrics );
+			} );
 	}
 }

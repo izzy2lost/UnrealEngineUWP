@@ -15,7 +15,6 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Trace/StoreClient.h"
 #include "Stats/Stats.h"
-#include "ObjectPropertyTrace.h"
 #include "SMontageView.h"
 #include "AnimCurvesTrack.h"
 #include "InertializationsTrack.h"
@@ -35,7 +34,7 @@
 #include "GameplayInsightsStyle.h"
 #include "SSubobjectInstanceEditor.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
-
+#include "ObjectPropertyTrace.h"
 #endif
 
 #if WITH_ENGINE
@@ -51,7 +50,7 @@ void FGameplayInsightsModule::StartupModule()
 	LLM_SCOPE_BYNAME(TEXT("Insights/GameplayInsights"));
 
 	IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &GameplayTraceModule);
-	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, &GameplayTimingViewExtender);
+	IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &GameplayTimingViewExtender);
 
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(TEXT("GameplayInsights"), 0.0f, [this](float DeltaTime)
 	{
@@ -193,28 +192,8 @@ void FGameplayInsightsModule::StartupModule()
 			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 			if (!UnrealInsightsModule.GetStoreClient())
 			{
-#if WITH_TRACE_STORE
-				UE_LOG(LogCore, Display, TEXT("GameplayInsights module auto-connecting to internal trace server..."));
-				// Create the Store Service.
-				FString StoreDir = FPaths::ProjectSavedDir() / TEXT("TraceSessions");
-				UE::Trace::FStoreService::FDesc StoreServiceDesc;
-				StoreServiceDesc.StoreDir = *StoreDir;
-				StoreServiceDesc.RecorderPort = 0; // Let system decide port
-				StoreServiceDesc.ThreadCount = 2;
-				StoreService = TSharedPtr<UE::Trace::FStoreService>(UE::Trace::FStoreService::Create(StoreServiceDesc));
-
-				FCoreDelegates::OnPreExit.AddLambda([this]() {
-					StoreService.Reset();
-				});
-
-				// Connect to our newly created store and setup the insights module
-				UnrealInsightsModule.ConnectToStore(TEXT("localhost"), StoreService->GetPort());
-				UE::Trace::SendTo(TEXT("localhost"), StoreService->GetRecorderPort());
-#else
 				UE_LOG(LogCore, Display, TEXT("GameplayInsights module auto-connecting to local trace server..."));
 				UnrealInsightsModule.ConnectToStore(TEXT("127.0.0.1"));
-#endif // WITH_TRACE_STORE
-
 				UnrealInsightsModule.CreateSessionViewer(false);
 			}
 		});
@@ -227,19 +206,11 @@ void FGameplayInsightsModule::StartupModule()
 	FOnRegisterMajorTabExtensions& TimingProfilerExtension = UnrealInsightsModule.OnRegisterMajorTabExtension(FInsightsManagerTabs::TimingProfilerTabId);
 	TimingProfilerExtension.AddRaw(this, &FGameplayInsightsModule::RegisterTimingProfilerLayoutExtensions);
 #endif
-
-#if OBJECT_PROPERTY_TRACE_ENABLED
-	FObjectPropertyTrace::Init();
-#endif
 }
 
 void FGameplayInsightsModule::ShutdownModule()
 {
 	LLM_SCOPE_BYNAME(TEXT("Insights/GameplayInsights"));
-
-#if OBJECT_PROPERTY_TRACE_ENABLED
-	FObjectPropertyTrace::Destroy();
-#endif
 
 #if WITH_EDITOR
 	IAnimationBlueprintEditorModule* AnimationBlueprintEditorModule = FModuleManager::GetModulePtr<IAnimationBlueprintEditorModule>("AnimationBlueprintEditor");
@@ -257,7 +228,7 @@ void FGameplayInsightsModule::ShutdownModule()
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 
 	IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &GameplayTraceModule);
-	IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, &GameplayTimingViewExtender);
+	IModularFeatures::Get().UnregisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &GameplayTimingViewExtender);
 }
 
 TSharedRef<SDockTab> FGameplayInsightsModule::SpawnTimingProfilerDocumentTab(const FTabManager::FSearchPreference& InSearchPreference)

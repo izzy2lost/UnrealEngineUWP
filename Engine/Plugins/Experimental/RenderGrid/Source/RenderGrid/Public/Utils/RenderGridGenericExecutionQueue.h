@@ -100,8 +100,6 @@ namespace UE::RenderGrid::Private
 		virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
 		virtual bool IsTickableWhenPaused() const override { return true; }
 		virtual bool IsTickableInEditor() const override { return true; }
-		virtual bool IsTickable() const override { return true; }
-		virtual bool IsAllowedToTick() const override { return true; }
 		virtual TStatId GetStatId() const override
 		{
 			RETURN_QUICK_DECLARE_CYCLE_STAT(FRenderGridGenericExecutionQueue, STATGROUP_Tickables);

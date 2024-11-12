@@ -3,6 +3,7 @@
 #include "ModularRigModel.h"
 #include "ModularRigController.h"
 #include "ModularRig.h"
+#include "AssetRegistry/AssetData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigModel)
 
@@ -42,7 +43,7 @@ const FRigConnectorElement* FRigModuleReference::FindPrimaryConnector(const URig
 				const FString ModulePath = InHierarchy->GetModulePath(Connector->GetKey());
 				if(!ModulePath.IsEmpty())
 				{
-					if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+					if(ModulePath.Equals(MyModulePath, ESearchCase::IgnoreCase))
 					{
 						return Connector;
 					}
@@ -65,7 +66,7 @@ TArray<const FRigConnectorElement*> FRigModuleReference::FindConnectors(const UR
 			const FString ModulePath = InHierarchy->GetModulePath(Connector->GetKey());
 			if(!ModulePath.IsEmpty())
 			{
-				if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+				if(ModulePath.Equals(MyModulePath, ESearchCase::IgnoreCase))
 				{
 					Connectors.Add(Connector);
 				}
@@ -257,6 +258,32 @@ bool FModularRigModel::IsModuleParentedTo(const FRigModuleReference* InChildModu
 	}
 
 	return false;
+}
+
+TArray<const FRigModuleReference*> FModularRigModel::FindModuleInstancesOfClass(const FString& InModuleClassPath) const
+{
+	TArray<const FRigModuleReference*> Result;
+	ForEachModule([&Result, InModuleClassPath](const FRigModuleReference* Module) -> bool
+	{
+		FString PackageName = Module->Class.ToSoftObjectPath().GetAssetPathString();
+		PackageName.RemoveFromEnd(TEXT("_C"));
+		if (PackageName == InModuleClassPath)
+		{
+			Result.Add(Module);
+		}
+		return true;
+	});
+	return Result;
+}
+
+TArray<const FRigModuleReference*> FModularRigModel::FindModuleInstancesOfClass(const FAssetData& InModuleAsset) const
+{
+	return FindModuleInstancesOfClass(InModuleAsset.GetObjectPathString());
+}
+
+TArray<const FRigModuleReference*> FModularRigModel::FindModuleInstancesOfClass(TSoftClassPtr<UControlRig> InClass) const
+{
+	return FindModuleInstancesOfClass(*InClass.ToString());
 }
 
 FString FModularRigModel::GetParentPath(const FString& InPath) const

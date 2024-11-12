@@ -157,6 +157,8 @@ void CompressBaseColorNormalRoughnessCS(
 	float2 TexelUVSize = 1.f / float2(SourceRect.zw);
 	float2 SampleUV = (float2(SamplePos) + 0.5f) * TexelUVSize;
 
+	// Note that this format uses non sRGB BaseColor format with manual encode/decode.
+	// So that we don't use _SRGB forms of the block compression functions below.
 	float3 BlockBaseColor[16];
 	ReadBlockRGB(RenderTexture0, TextureSampler0, SampleUV, TexelUVSize, BlockBaseColor);
 
@@ -168,7 +170,7 @@ void CompressBaseColorNormalRoughnessCS(
 	OutCompressTexture0_64bit[ThreadId.xy + DestPos0] = PackRG32(CompressBlock_ETC2_RGB(BlockBaseColor));
 	OutCompressTexture1_128bit[ThreadId.xy + DestPos1] = CompressBlock_ETC2_RGBA(BlockNormalXRougnnessY, BlockNormalZ);
 #else
-	OutCompressTexture0_64bit[ThreadId.xy + DestPos0] = PackRG32(CompressBC1Block_SRGB(BlockBaseColor));
+	OutCompressTexture0_64bit[ThreadId.xy + DestPos0] = PackRG32(CompressBC1Block(BlockBaseColor));
 	OutCompressTexture1_128bit[ThreadId.xy + DestPos1] = CompressBC3Block(BlockNormalXRougnnessY, BlockNormalZ);
 #endif
 
@@ -306,6 +308,45 @@ void CopyBaseColorNormalSpecularMaskYCoCgPS(
 	OutColor0 = float4(YCoCg.yz, 0, YCoCg.x);
 	OutColor1 = float4(NormalXYMask.xy, 0, 1);
 	OutColor2 = float4(RoughnessSpecularNormalZ, NormalXYMask.z);
+}
+
+/** Compress 4 channel mask to BC3. */
+[numthreads(8,8,1)]
+void CompressMask4CS(
+	uint3 ThreadId : SV_DispatchThreadID)
+{
+	if (any(ThreadId.xy * 4 >= SourceRect.zw))
+	{
+		return;
+	}
+
+	uint2 SamplePos = SourceRect.xy + ThreadId.xy * 4;
+	float2 TexelUVSize = 1.f / float2(SourceRect.zw);
+	float2 SampleUV = (float2(SamplePos) + 0.5f) * TexelUVSize;
+
+	float3 BlockXYZ[16];
+	ReadBlockRGB(RenderTexture0, TextureSampler0, SampleUV, TexelUVSize, BlockXYZ);
+
+	float BlockW[16];
+	ReadBlockX(RenderTexture1, TextureSampler0, SampleUV, TexelUVSize, BlockW);
+
+#if ETC_PROFILE
+	OutCompressTexture0_128bit[ThreadId.xy + DestPos0] = CompressBlock_ETC2_RGBA(BlockXYZ, BlockW);
+#else
+	OutCompressTexture0_128bit[ThreadId.xy + DestPos0] = CompressBC3Block(BlockXYZ, BlockW);
+#endif
+}
+
+/** Copy path used when we disable texture compression, because we need to keep the same final channel layout. */
+void CopyMask4PS(
+	in float4 InPosition : SV_POSITION, 
+	in noperspective float2 InTexCoord : TEXCOORD0, 
+	out float4 OutColor0 : SV_Target0)
+{
+	float3 MaskXYZ = RenderTexture0.SampleLevel(TextureSampler0, InTexCoord, 0).xyz;
+	float MaskW = RenderTexture1.SampleLevel(TextureSampler1, InTexCoord, 0).x;
+	
+	OutColor0 = float4(MaskXYZ, MaskW);
 }
 
 /** Compress displacement to a single BC4 target. */

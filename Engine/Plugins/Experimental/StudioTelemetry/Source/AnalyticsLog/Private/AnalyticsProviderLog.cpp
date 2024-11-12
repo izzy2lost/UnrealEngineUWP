@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnalyticsProviderLog.h"
+
 #include "Analytics.h"
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "Tasks/Pipe.h"
 
 FAnalyticsProviderLog::FAnalyticsProviderLog(const FAnalyticsProviderConfigurationDelegate& GetConfigValue)
 {
@@ -26,10 +28,16 @@ FAnalyticsProviderLog::FAnalyticsProviderLog(const FAnalyticsProviderConfigurati
 	// Create the full output path
 	FString FilePath = FolderPath / FileName;
 	FileWriter = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*FilePath, FILEWRITE_EvenIfReadOnly));
+
+	if (FileWriter.IsValid())
+	{
+		WriterPipe = MakeUnique<UE::Tasks::FPipe>(TEXT("FAnalyticsProviderLog_Writer"));
+	}
 }
 
 FAnalyticsProviderLog::~FAnalyticsProviderLog()
 {
+
 }
 
 bool FAnalyticsProviderLog::SetSessionID(const FString& InSessionID)
@@ -80,6 +88,8 @@ FAnalyticsEventAttribute FAnalyticsProviderLog::GetDefaultEventAttribute(int Att
 
 bool FAnalyticsProviderLog::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAnalyticsProviderLog::StartSession);
+
 	RecordEvent(TEXT("StartSession"), Attributes);
 
 	return true;
@@ -87,20 +97,33 @@ bool FAnalyticsProviderLog::StartSession(const TArray<FAnalyticsEventAttribute>&
 
 void FAnalyticsProviderLog::EndSession()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAnalyticsProviderLog::EndSession);
+
 	RecordEvent(TEXT("EndSession"));
 
-	if (FileWriter)
+	if (WriterPipe.IsValid())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FAnalyticsProviderLog::EndSession::ClosePipe);
+		WriterPipe->WaitUntilEmpty();
+		WriterPipe.Reset();
+	}
+
+	if (FileWriter.IsValid())
 	{
 		FileWriter->Flush();
 		FileWriter->Close();
+
+		FileWriter.Reset();
 	}
 }
 
 void FAnalyticsProviderLog::RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {	
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAnalyticsProviderLog::RecordEvent);
+
 	static uint32 RecordId(0);
 
-	if (FileWriter)
+	if (FileWriter.IsValid() && WriterPipe.IsValid())
 	{
 		TStringBuilder<1024> Builder;
 
@@ -131,7 +154,16 @@ void FAnalyticsProviderLog::RecordEvent(const FString& EventName, const TArray<F
 			}
 		}
 
-		FileWriter->Logf(TEXT("%s}"),Builder.ToString());
-		FileWriter->Flush();
+		Builder.Append(TEXT("}"));
+
+		FString FinalOutput = Builder.ToString();
+
+		WriterPipe->Launch(TEXT("FAnalyticsProviderLog_WriteJob"), [this, FinalOutput = MoveTemp(FinalOutput)]()
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FAnalyticsProviderLog_WriteJob);
+				
+				FileWriter->Logf(TEXT("%s"), *FinalOutput);
+				FileWriter->Flush();
+			});
 	}
 }

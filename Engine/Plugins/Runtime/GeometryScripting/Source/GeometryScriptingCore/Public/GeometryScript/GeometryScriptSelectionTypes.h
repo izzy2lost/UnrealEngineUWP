@@ -8,6 +8,9 @@
 
 namespace UE::Geometry { struct FGeometrySelection; }
 
+//~ Note that Edge selections are represented by triangle, index-in-triangle pairs,
+//~ so each non-boundary edge can be represented in the selection twice (once per 'half edge').
+//~ Currently, our convention is to store both representations in the selection.
 /**
  * Type of index stored in a FGeometryScriptMeshSelection
  */
@@ -15,6 +18,7 @@ UENUM(BlueprintType)
 enum class EGeometryScriptMeshSelectionType : uint8
 {
 	Vertices = 0,
+	Edges = 3,
 	Triangles = 1,
 	Polygroups = 2 UMETA(DisplayName = "PolyGroups")
 };
@@ -22,8 +26,10 @@ enum class EGeometryScriptMeshSelectionType : uint8
 /**
  * Type of Conversion to apply to a FGeometryScriptMeshSelection
  */
+
 UENUM(BlueprintType)
-enum class EGeometryScriptMeshSelectionConversionType : uint8
+enum class UE_DEPRECATED(5.5, "This enum is unused, and may be removed in the future. To convert selection types, we use EGeometryScriptMeshSelectionType to specify the desired result type.")
+	EGeometryScriptMeshSelectionConversionType : uint8
 {
 	NoConversion = 0,
 	ToVertices = 1,
@@ -80,8 +86,34 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshSelection
 	bool IsEmpty() const;
 
 	EGeometryScriptMeshSelectionType GetSelectionType() const;
+
+	// Note that for edge selections, this can return more elements than expected because both can be redundantly represented
+	// i.e. an edge can be in the selection once per 'half edge', since it is represented by triangle/index-in-triangle pair.
+	// Call GetNumUniqueValidSelected(Mesh) to get the number of unique elements in the selection
 	int32 GetNumSelected() const;
+	// Return the number of valid, unique elements in the selection; e.g., with no double-counting of selected edges
+	int32 GetNumUniqueSelected(const UE::Geometry::FDynamicMesh3& Mesh) const;
 	void DebugPrint() const;
+
+	static bool ConvertIndexTypeToSelectionType(EGeometryScriptIndexType IndexType, EGeometryScriptMeshSelectionType& OutSelectionType)
+	{
+		switch (IndexType)
+		{
+		case EGeometryScriptIndexType::Triangle:
+			OutSelectionType = EGeometryScriptMeshSelectionType::Triangles;
+			return true;
+		case EGeometryScriptIndexType::Edge:
+			OutSelectionType = EGeometryScriptMeshSelectionType::Edges;
+			return true;
+		case EGeometryScriptIndexType::Vertex:
+			OutSelectionType = EGeometryScriptMeshSelectionType::Vertices;
+			return true;
+		case EGeometryScriptIndexType::PolygroupID:
+			OutSelectionType = EGeometryScriptMeshSelectionType::Polygroups;
+			return true;
+		}
+		return false;
+	}
 
 	/** 
 	 * Combine SelectionB with current selection, updating current selection, using CombineMode to control how combining happens
@@ -112,6 +144,16 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshSelection
 	 */
 	void ProcessByVertexID(const UE::Geometry::FDynamicMesh3& Mesh,
 		TFunctionRef<void(int32)> PerVertexFunc,
+		bool bProcessAllVertsIfSelectionEmpty = false) const;
+
+	/**
+	 * Call PerEdgeFunc for each EdgeID in the Selection.
+	 * For Vertex Selections, Vertex Edge one-rings are enumerated and accumulated in a TSet.
+	 * For Triangle Selections, Triangle Edges are enumerated and accumulated in a TSet.
+	 * For PolyGroup Selections, a full mesh iteration is used to find all Triangle Edges in the groups (accumulated in a TSet)
+	 */
+	void ProcessByEdgeID(const UE::Geometry::FDynamicMesh3& Mesh,
+		TFunctionRef<void(int32)> PerEdgeFunc,
 		bool bProcessAllVertsIfSelectionEmpty = false) const;
 
 

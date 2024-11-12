@@ -54,7 +54,7 @@ class SPropertyNameColumnHeader : public SColumnHeader
 			
 		if( PropertyTableRow->GetDataSource()->AsPropertyPath().IsValid() )
 		{	
-			const TWeakFieldPtr< FProperty > Property = PropertyTableRow->GetDataSource()->AsPropertyPath()->GetLeafMostProperty().Property;
+			const TWeakFieldPtr< const FProperty > Property = PropertyTableRow->GetDataSource()->AsPropertyPath()->GetLeafMostProperty().Property;
 			PropertyName = UEditorEngine::GetFriendlyName( Property.Get() );
 		}
 

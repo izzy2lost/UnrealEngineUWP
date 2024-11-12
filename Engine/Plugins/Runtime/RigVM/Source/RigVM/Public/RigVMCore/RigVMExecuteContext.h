@@ -19,6 +19,7 @@
 #include "RigVMCore/RigVMProfilingInfo.h"
 #include "RigVMCore/RigVMNameCache.h"
 #include "RigVMCore/RigVMMemoryStorageStruct.h"
+#include "RigVMCore/RigVMTraitScope.h"
 #include "RigVMLog.h"
 #include "RigVMDrawInterface.h"
 #include "RigVMDrawContainer.h"
@@ -38,6 +39,8 @@ struct FRigVMDispatchFactory;
 struct FRigVMExecuteContext;
 struct FRigVMExtendedExecuteContext;
 struct FRigVMLogSettings;
+
+extern RIGVM_API TAutoConsoleVariable<bool> CVarRigVMReportAllMessages;
 
 USTRUCT()
 struct RIGVM_API FRigVMSlice
@@ -241,12 +244,21 @@ struct RIGVM_API FRigVMRuntimeSettings
 	}
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FRigVMExecuteContextFixLayout
+{
+	virtual ~FRigVMExecuteContextFixLayout() = default;
+};
+
 /**
  * The execute context is used for mutable nodes to
  * indicate execution order.
  */
 USTRUCT(BlueprintType, meta=(DisplayName="Execute Context"))
-struct FRigVMExecuteContext
+struct FRigVMExecuteContext 
+#if CPP
+	: public FRigVMExecuteContextFixLayout
+#endif
 {
 	GENERATED_BODY()
 
@@ -258,6 +270,9 @@ struct FRigVMExecuteContext
 		, DeltaTime(0.0)
 		, AbsoluteTime(0.0)
 		, FramesPerSecond(1.0 / 60.0)
+#if WITH_EDITOR
+		, bHostBeingDebugged(false)
+#endif
 		, RuntimeSettings()
 		, NameCache(nullptr)
 #if WITH_EDITOR
@@ -269,6 +284,7 @@ struct FRigVMExecuteContext
 		, OwningComponent(nullptr)
 		, OwningActor(nullptr)
 		, World(nullptr)
+		, Traits()
 	{
 	}
 
@@ -321,11 +337,19 @@ struct FRigVMExecuteContext
 	double GetFramesPerSecond() const { return FramesPerSecond; } 
 	void SetFramesPerSecond(double InFramesPerSecond) { FramesPerSecond = InFramesPerSecond; }
 
+#if WITH_EDITOR
+	bool IsHostBeingDebugged() const { return bHostBeingDebugged; }
+	void SetHostBeingDebugged(bool InIsHostBeingDebugged) { bHostBeingDebugged = InIsHostBeingDebugged; }
+#endif
+
 	/** The current transform going from rig (global) space to world space */
 	const FTransform& GetToWorldSpaceTransform() const { return ToWorldSpaceTransform; };
 
 	/** The current component this VM is owned by */
 	const USceneComponent* GetOwningComponent() const { return OwningComponent; }
+	
+	/** The current component this VM is owned by */
+	USceneComponent* GetMutableOwningComponent() const { return const_cast<USceneComponent*>(OwningComponent); }
 
 	/** The current actor this VM is owned by */
 	const AActor* GetOwningActor() const { return OwningActor; }
@@ -400,6 +424,10 @@ struct FRigVMExecuteContext
 		{
 			Log->Report(InLogSettings, InFunctionName, InInstructionIndex, InMessage);
 		}
+		else if(CVarRigVMReportAllMessages.GetValueOnAnyThread())
+		{
+			Logf(InLogSettings, TEXT("Instruction[%d] '%s': '%s'"), InstructionIndex, *InFunctionName.ToString(), *InMessage);
+		}
 	}
 #endif
 
@@ -409,6 +437,20 @@ struct FRigVMExecuteContext
 	const FRigVMDrawContainer* GetDrawContainer() const { return DrawContainerPtr; }
 	FRigVMDrawContainer* GetDrawContainer() { return DrawContainerPtr; }
 	void SetDrawContainer(FRigVMDrawContainer* InDrawContainer) { DrawContainerPtr = InDrawContainer; }
+
+	TArrayView<const FRigVMTraitScope> GetTraits() const
+	{
+		if(Traits.IsEmpty())
+		{
+			return TArrayView<const FRigVMTraitScope>();
+		}
+		return TArrayView<const FRigVMTraitScope>(Traits.GetData(), Traits.Num());
+	}
+
+	TArrayView<FRigVMTraitScope> GetTraits()
+	{
+		return TArrayView<FRigVMTraitScope>(Traits.GetData(), Traits.Num());
+	}
 
 	virtual void Initialize()
 	{
@@ -455,6 +497,10 @@ protected:
 
 	double FramesPerSecond;
 
+#if WITH_EDITOR
+	bool bHostBeingDebugged;
+#endif
+
 	FRigVMRuntimeSettings RuntimeSettings;
 
 	mutable FRigVMNameCache* NameCache;
@@ -477,6 +523,11 @@ protected:
 	/** The world this VM is running in */
 	const UWorld* World;
 
+	/** The traits accessible to the current instruction */
+	TArray<FRigVMTraitScope> Traits;
+
+	/** Additional memory handles for each trait */
+	TArray<FRigVMMemoryHandle> AdditionalTraitMemoryHandles;
 
 #if UE_RIGVM_DEBUG_EXECUTION
 public:

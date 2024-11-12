@@ -2,6 +2,7 @@
 
 #include "LevelSequenceEditorBlueprintLibrary.h"
 
+#include "Filters/ISequencerTrackFilters.h"
 #include "ISequencer.h"
 #include "MVVM/ViewModels/ChannelModel.h"
 #include "MVVM/ViewModels/SectionModel.h"
@@ -634,7 +635,15 @@ void ULevelSequenceEditorBlueprintLibrary::RefreshCurrentLevelSequence()
 		CurrentSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::Unknown);
 	}
 }
-	
+
+void ULevelSequenceEditorBlueprintLibrary::ForceUpdate()
+{
+	if (CurrentSequencer.IsValid())
+	{
+		CurrentSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::RefreshAllImmediately);
+	}
+}
+
 TArray<UObject*> ULevelSequenceEditorBlueprintLibrary::GetBoundObjects(FMovieSceneObjectBindingID ObjectBinding)
 {
 	TArray<UObject*> BoundObjects;
@@ -718,35 +727,38 @@ void ULevelSequenceEditorBlueprintLibrary::SetLockLevelSequence(bool bLock)
 
 bool ULevelSequenceEditorBlueprintLibrary::IsTrackFilterEnabled(const FText& TrackFilterName)
 {
-	if (CurrentSequencer.IsValid())
-	{
-		TSharedPtr<ISequencer> Sequencer = CurrentSequencer.Pin();
+	return IsTrackFilterActive(TrackFilterName);
+}
 
-		return Sequencer->IsTrackFilterEnabled(TrackFilterName);
+bool ULevelSequenceEditorBlueprintLibrary::IsTrackFilterActive(const FText& TrackFilterName)
+{
+	if (const TSharedPtr<ISequencer> Sequencer = CurrentSequencer.Pin())
+	{
+		return Sequencer->GetFilterInterface()->IsFilterActiveByDisplayName(TrackFilterName.ToString());
 	}
 	return false;
 }
 
 void ULevelSequenceEditorBlueprintLibrary::SetTrackFilterEnabled(const FText& TrackFilterName, bool bEnabled)
 {
-	if (CurrentSequencer.IsValid())
-	{
-		TSharedPtr<ISequencer> Sequencer = CurrentSequencer.Pin();
+	return SetTrackFilterActive(TrackFilterName, bEnabled);
+}
 
-		Sequencer->SetTrackFilterEnabled(TrackFilterName, bEnabled);
+void ULevelSequenceEditorBlueprintLibrary::SetTrackFilterActive(const FText& TrackFilterName, bool bActive)
+{
+	if (const TSharedPtr<ISequencer> Sequencer = CurrentSequencer.Pin())
+	{
+		Sequencer->GetFilterInterface()->SetFilterActiveByDisplayName(TrackFilterName.ToString(), bActive);
 	}
 }
 
 TArray<FText> ULevelSequenceEditorBlueprintLibrary::GetTrackFilterNames()
 {
-	if (CurrentSequencer.IsValid())
+	if (const TSharedPtr<ISequencer> Sequencer = CurrentSequencer.Pin())
 	{
-		TSharedPtr<ISequencer> Sequencer = CurrentSequencer.Pin();
-
-		return Sequencer->GetTrackFilterNames();
+		return Sequencer->GetFilterInterface()->GetFilterDisplayNames();
 	}
-
-	return TArray<FText>();
+	return {};
 }
 
 bool ULevelSequenceEditorBlueprintLibrary::HasCustomColorForChannel(UClass* Class, const FString& Identifier)

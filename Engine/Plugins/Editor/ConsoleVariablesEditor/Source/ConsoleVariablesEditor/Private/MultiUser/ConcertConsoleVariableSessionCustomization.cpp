@@ -2,6 +2,7 @@
 
 #include "ConcertConsoleVariableSessionCustomization.h"
 
+#include "ConsoleVariablesEditorStyle.h"
 #include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
 #include "Framework/Views/ITypedTableView.h"
@@ -59,7 +60,11 @@ public:
 		SyncClient = MoveTemp(InSyncClient);
 		ClientSession = MoveTemp(InClientSession);
 		ClientSetting = MoveTemp(InClientInfo);
-		SMultiColumnTableRow<TSharedPtr<FConcertCVarDetails>>::Construct(FSuperRowType::FArguments(), InOwnerTableView);
+		SMultiColumnTableRow<TSharedPtr<FConcertCVarDetails>>::Construct(
+			FSuperRowType::FArguments()
+			.Style(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.AlternatingRow")),
+			InOwnerTableView
+		);
 
 		SetToolTipText(MakeAttributeSP(this, &SConsoleVariableSessionRow::GetRowToolTip));
 	}
@@ -76,9 +81,10 @@ public:
 				.VAlign(VAlign_Center)
 				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
 				[
-					SNew(SImage)
-					.Image_Static(SConsoleVariableSessionRow::GetAvatarBrush)
+					SNew(STextBlock)
+					.Font(this, &SConsoleVariableSessionRow::GetAvatarFont)
 					.ColorAndOpacity(this, &SConsoleVariableSessionRow::GetAvatarColor)
+					.Text(FEditorFontGlyphs::Square)
 				]
 
 				// The client display name.
@@ -209,9 +215,28 @@ public:
 		return FText();
 	}
 
-	static const FSlateBrush* GetAvatarBrush()
+	FSlateFontInfo GetAvatarFont() const
 	{
-		return FAppStyle::Get().GetBrush("Icons.Toolbar.Stop");
+		static const FName ButtonIconSyle = TEXT("FontAwesome.10");
+		// This font is used to render a small square box filled with the avatar color.
+		FSlateFontInfo ClientIconFontInfo = FAppStyle::Get().GetFontStyle(ButtonIconSyle);
+		ClientIconFontInfo.Size = 8;
+		ClientIconFontInfo.OutlineSettings.OutlineSize = 1;
+
+		TSharedPtr<FConcertCVarDetails> ClientSettingPin = ClientSetting.Pin();
+		if (ClientSettingPin.IsValid())
+		{
+			FConcertSessionClientInfo& Client = ClientSettingPin->Details;
+			FLinearColor ClientOutlineColor = Client.ClientInfo.AvatarColor * 0.6f; // Make the font outline darker.
+			ClientOutlineColor.A = Client.ClientInfo.AvatarColor.A; // Put back the original alpha.
+			ClientIconFontInfo.OutlineSettings.OutlineColor = ClientOutlineColor;
+		}
+		else
+		{
+			ClientIconFontInfo.OutlineSettings.OutlineColor = FLinearColor(0.75, 0.75, 0.75); // This is an arbitrary color.
+		}
+
+		return ClientIconFontInfo;
 	}
 
 	FSlateColor GetAvatarColor() const
@@ -279,6 +304,17 @@ void FConcertConsoleVariableSessionCustomization::PopulateClientList()
 		FConcertCVarDetails Local = GetLocalSessionConcertClientAsSetting(Settings,Session);
 
 		Clients.Emplace(MakeShared<FConcertCVarDetails>(MoveTemp(Local)));
+
+		for (int32 DuplicateIndex = 0; DuplicateIndex < 5; ++DuplicateIndex)
+		{
+			auto DupeCliant = MakeShared<FConcertCVarDetails>(Local);
+			DupeCliant->Details.ClientInfo.AvatarColor = FLinearColor::MakeRandomSeededColor(DuplicateIndex);
+			DupeCliant->Details.ClientEndpointId = FGuid::NewGuid();
+			DupeCliant->Details.ClientInfo.DisplayName = DupeCliant->Details.ClientEndpointId.ToString();
+
+			Clients.Emplace(DupeCliant);
+		}
+
 		for (FConcertCVarDetails const& Client : Settings->RemoteDetails)
 		{
 			Clients.Emplace(MakeShared<FConcertCVarDetails>(Client));
@@ -341,7 +377,8 @@ void FConcertConsoleVariableSessionCustomization::SettingChange(const FConcertCV
 
 void FConcertConsoleVariableSessionCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
-	IDetailCategoryBuilder& Settings = DetailLayout.EditCategory(TEXT("Multi-user Console Variable Settings"));
+	IDetailCategoryBuilder& Settings = DetailLayout.EditCategory(TEXT("MultiUserClientTransaction"));
+	Settings.SetDisplayName(LOCTEXT("MultiUserClientTransaction", "Multi-User Client Transaction"));
 
 	TSharedPtr<IPropertyHandle> SettingsProperty = DetailLayout.GetProperty(
 		GET_MEMBER_NAME_CHECKED(UConcertCVarConfig, LocalSettings));
@@ -354,7 +391,7 @@ void FConcertConsoleVariableSessionCustomization::CustomizeDetails(IDetailLayout
 
 	PopulateClientList();
 	{
-		FDetailWidgetRow& Row = Settings.AddCustomRow(LOCTEXT("MultiUserSettings", "Multi-user Client Settings"));
+		FDetailWidgetRow& Row = Settings.AddCustomRow(LOCTEXT("MultiUserSettings", "Multi-User Client Settings"));
 		auto HandleGenerateRow = [this](TSharedPtr<FConcertCVarDetails> InClientInfo,
 									const TSharedRef<STableViewBase>& OwnerTable) -> TSharedRef<ITableRow>
 		{
@@ -371,7 +408,6 @@ void FConcertConsoleVariableSessionCustomization::CustomizeDetails(IDetailLayout
 		Row.WholeRowContent()
 		[
 			SAssignNew(ClientsListViewWeak,SListView<TSharedPtr<FConcertCVarDetails>>)
-			.ItemHeight(20.0f)
 			.SelectionMode(ESelectionMode::None)
 			.ListItemsSource(&Clients)
 			.OnGenerateRow_Lambda(HandleGenerateRow)

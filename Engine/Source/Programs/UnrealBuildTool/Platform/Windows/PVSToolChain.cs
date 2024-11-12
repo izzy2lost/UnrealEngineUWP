@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -13,6 +10,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using UnrealBuildBase;
 
 namespace UnrealBuildTool
@@ -423,7 +423,7 @@ namespace UnrealBuildTool
 			FileReference[] InputFiles = InputFileLines.Select(x => x.Trim()).Where(x => x.Length > 0).Select(x => new FileReference(x)).ToArray();
 
 			// Read the ignore file
-			string[] IgnoreFileLines = IgnoredFile != null ? FileReference.ReadAllLines(IgnoredFile) : new string[] { };
+			string[] IgnoreFileLines = IgnoredFile != null ? FileReference.ReadAllLines(IgnoredFile) : Array.Empty<string>();
 			DirectoryReference[] IgnoredDirectories = IgnoreFileLines.Select(x => x.Trim()).Where(x => x.Length > 0).Select(x => new DirectoryReference(x)).ToArray();
 
 			// Create the combined output file, and print the diagnostics to the log
@@ -434,7 +434,7 @@ namespace UnrealBuildTool
 			{
 				foreach (FileReference InputFile in InputFiles)
 				{
-					string[] Lines = File.ReadAllLines(InputFile.FullName);
+					string[] Lines = FileReference.ReadAllLines(InputFile);
 					for (int LineIdx = 0; LineIdx < Lines.Length; LineIdx++)
 					{
 						string Line = Lines[LineIdx];
@@ -491,7 +491,6 @@ namespace UnrealBuildTool
 							{
 								Logger.LogWarning(KnownLogEvents.Compiler, "{Path}({LineNumber}): warning {WarningCode}: {WarningMessage}", LogValue.SourceFile(file, FileName), LineNumber, ErrorInfo.Code, ErrorInfo.Message);
 							}
-
 						}
 						catch (Exception Ex)
 						{
@@ -641,6 +640,22 @@ namespace UnrealBuildTool
 			Lines.Add(String.Format("Using PVS-Studio {0} at {1} with analysis mode {2} ({3})", AnalyzerVersion, AnalyzerFile, (uint)Settings.ModeFlags, Settings.ModeFlags.ToString()));
 		}
 
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(ProjectFile.Directory))))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+			yield return DirectoryItem.GetItemByDirectoryReference(AnalyzerFile.Directory);
+		}
+  
+		public override void SetEnvironmentVariables()
+		{
+			Target.WindowsPlatform.Environment?.SetEnvironmentVariables();
+		}
+			 
 		static Version GetAnalyzerVersion(FileReference AnalyzerPath)
 		{
 			string Output = String.Empty;
@@ -768,7 +783,7 @@ namespace UnrealBuildTool
 			}
 
 			// Ignore generated files
-			if (InputFiles.All(x => x.Location.GetFileName().EndsWith(".gen.cpp")))
+			if (InputFiles.All(x => x.Location.GetFileName().EndsWith(".gen.cpp") || CompileEnvironment.FileMatchesExtraGeneratedCPPTypes(x.Location.GetFileName())))
 			{
 				return new CPPOutput();
 			}
@@ -779,8 +794,8 @@ namespace UnrealBuildTool
 			// Preprocess the source files with the regular toolchain
 			CppCompileEnvironment PreprocessCompileEnvironment = new CppCompileEnvironment(CompileEnvironment);
 			PreprocessCompileEnvironment.bPreprocessOnly = true;
-			PreprocessCompileEnvironment.bEnableUndefinedIdentifierWarnings = false; // Not sure why THIRD_PARTY_INCLUDES_START doesn't pick this up; the _Pragma appears in the preprocessed output. Perhaps in preprocess-only mode the compiler doesn't respect these?
-			PreprocessCompileEnvironment.AdditionalArguments += " /wd4005 /wd4828";
+			PreprocessCompileEnvironment.UndefinedIdentifierWarningLevel = WarningLevel.Off; // Not sure why THIRD_PARTY_INCLUDES_START doesn't pick this up; the _Pragma appears in the preprocessed output. Perhaps in preprocess-only mode the compiler doesn't respect these?
+			PreprocessCompileEnvironment.AdditionalArguments += " /wd4005 /wd4828 /wd5105";
 			PreprocessCompileEnvironment.Definitions.Add("PVS_STUDIO");
 
 			List<IExternalAction> PreprocessActions = new List<IExternalAction>();
@@ -876,9 +891,15 @@ namespace UnrealBuildTool
 					ConfigFileContents.Append("report-disabled-rules=yes\n");
 				}
 
+				// TODO: Investigate into this disabled error
 				if (SourceFileItem.Location.IsUnderDirectory(Unreal.RootDirectory))
 				{
 					ConfigFileContents.AppendFormat("errors-off=V1102\n");
+				}
+
+				foreach (string error in CompileEnvironment.StaticAnalyzerPVSDisabledErrors.OrderBy(x => x))
+				{
+					ConfigFileContents.AppendFormat($"errors-off={error}\n");
 				}
 
 				int Timeout = (int)(Settings.AnalysisTimeoutFlag == AnalysisTimeoutFlags.No_timeout ? 0 : Settings.AnalysisTimeoutFlag);
@@ -891,7 +912,7 @@ namespace UnrealBuildTool
 
 				if (AnalyzerVersion.CompareTo(new Version("7.30")) >= 0)
 				{
-					ConfigFileContents.Append("new-output-format=yes\n"); ;
+					ConfigFileContents.Append("new-output-format=yes\n");
 				}
 
 				string BaseFileName = PreprocessedFileItem.Location.GetFileName();
@@ -915,12 +936,8 @@ namespace UnrealBuildTool
 				Arguments.Add($"--cfg \"{ConfigFileItem.AbsolutePath}\"");
 				Arguments.Add($"--i-file=\"{PreprocessedFileItem.AbsolutePath}\"");
 				Arguments.Add($"--analysis-mode {(uint)Settings.ModeFlags}");
-
-				if (LicenseFile != null)
-				{
-					Arguments.Add($"--lic-file \"{LicenseFile}\"");
-					AnalyzeAction.PrerequisiteItems.Add(FileItem.GetItemByFileReference(LicenseFile));
-				}
+				Arguments.Add($"--lic-name \"{ApplicationSettings?.UserName}\" --lic-key \"{ApplicationSettings?.SerialNumber}\"");
+	
 				AnalyzeAction.CommandArguments = String.Join(' ', Arguments);
 
 				AnalyzeAction.PrerequisiteItems.Add(ConfigFileItem);
@@ -931,7 +948,6 @@ namespace UnrealBuildTool
 				AnalyzeAction.bCanExecuteRemotely = true;
 				AnalyzeAction.bCanExecuteRemotelyWithSNDBS = false;
 				AnalyzeAction.bCanExecuteRemotelyWithXGE = false;
-				AnalyzeAction.bCanExecuteInUBA = true;
 
 				Result.ObjectFiles.AddRange(AnalyzeAction.ProducedItems);
 			}
@@ -969,13 +985,10 @@ namespace UnrealBuildTool
 			FileItem InputFileListItem = MakefileBuilder.CreateIntermediateTextFile(OutputFile.ChangeExtension(".input"), InputFiles.Select(x => x.FullName));
 			FileItem IgnoredFileListeItem = MakefileBuilder.CreateIntermediateTextFile(OutputFile.ChangeExtension(".ignored"), SystemIncludePaths.Select(x => x.FullName));
 
-			Action AnalyzeAction = MakefileBuilder.CreateAction(ActionType.Compile);
-			AnalyzeAction.ActionType = ActionType.PostBuildStep;
+			string Arguments = $"-Input=\"{InputFileListItem.Location}\" -Output=\"{OutputFile}\" -Ignored=\"{IgnoredFileListeItem.Location}\" -PrintLevel={Target.StaticAnalyzerPVSPrintLevel} -AnalyzerVersion={AnalyzerVersion}";
+
+			Action AnalyzeAction = MakefileBuilder.CreateRecursiveAction<PVSGatherMode>(ActionType.PostBuildStep, Arguments);
 			AnalyzeAction.CommandDescription = "Process PVS-Studio Results";
-			AnalyzeAction.CommandPath = Unreal.DotnetPath;
-			AnalyzeAction.CommandArguments = $"\"{Unreal.UnrealBuildToolDllPath}\" -Mode=PVSGather -Input=\"{InputFileListItem.Location}\" -Output=\"{OutputFile}\" -Ignored=\"{IgnoredFileListeItem.Location}\"" +
-																				$" -PrintLevel={Target.StaticAnalyzerPVSPrintLevel} -AnalyzerVersion={AnalyzerVersion}";
-			AnalyzeAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			AnalyzeAction.PrerequisiteItems.Add(InputFileListItem);
 			AnalyzeAction.PrerequisiteItems.Add(IgnoredFileListeItem);
 			AnalyzeAction.PrerequisiteItems.UnionWith(Makefile.OutputItems);
@@ -983,7 +996,6 @@ namespace UnrealBuildTool
 			AnalyzeAction.ProducedItems.Add(FileItem.GetItemByFileReference(OutputFile));
 			AnalyzeAction.ProducedItems.Add(FileItem.GetItemByPath(OutputFile.FullName + "_does_not_exist")); // Force the gather step to always execute
 			AnalyzeAction.DeleteItems.UnionWith(AnalyzeAction.ProducedItems);
-			AnalyzeAction.bCanExecuteInUBA = false;
 
 			Makefile.OutputItems.AddRange(AnalyzeAction.ProducedItems);
 		}

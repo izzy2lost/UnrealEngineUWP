@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 struct FGraphConfig
@@ -102,4 +102,4 @@ private:
 	FReportConfig(const FReportConfig&) = delete;
 };
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

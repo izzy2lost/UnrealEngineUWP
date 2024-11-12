@@ -45,15 +45,18 @@ bool FWebAPIPropertyViewModel::HasCodeText() const
 		return IWebAPIViewModel::HasCodeText();
 	}
 
-	if(Property->Type.HasTypeInfo() && !Property->Type.TypeInfo->Model.IsNull())
+	if(Property->Type.HasTypeInfo())
 	{
-		if(const TObjectPtr<UWebAPIModel> AsModel = Cast<UWebAPIModel>(Property->Type.TypeInfo->Model.Get()))
+		if(const UObject* PropertyModel = Property->Type.TypeInfo->GetModel())
 		{
-			return !AsModel->GeneratedCodeText.IsEmpty();
-		}
-		else if(const TObjectPtr<UWebAPIEnum> AsEnum = Cast<UWebAPIEnum>(Property->Type.TypeInfo->Model.Get()))
-		{
-			return !AsEnum->GeneratedCodeText.IsEmpty();
+			if(const UWebAPIModel* AsModel = Cast<UWebAPIModel>(PropertyModel))
+			{
+				return !AsModel->GeneratedCodeText.IsEmpty();
+			}
+			else if(const UWebAPIEnum* AsEnum = Cast<UWebAPIEnum>(PropertyModel))
+			{
+				return !AsEnum->GeneratedCodeText.IsEmpty();
+			}
 		}
 	}
 
@@ -67,15 +70,18 @@ FText FWebAPIPropertyViewModel::GetCodeText() const
 		return IWebAPIViewModel::GetCodeText();
 	}
 
-	if(Property->Type.HasTypeInfo() && !Property->Type.TypeInfo->Model.IsNull())
+	if(Property->Type.HasTypeInfo())
 	{
-		if(const TObjectPtr<UWebAPIModel> AsModel = Cast<UWebAPIModel>(Property->Type.TypeInfo->Model.Get()))
+		if(const UObject* PropertyModel = Property->Type.TypeInfo->GetModel())
 		{
-			return FText::FromString(AsModel->GeneratedCodeText);
-		}
-		else if(const TObjectPtr<UWebAPIEnum> AsEnum = Cast<UWebAPIEnum>(Property->Type.TypeInfo->Model.Get()))
-		{
-			return FText::FromString(AsEnum->GeneratedCodeText);
+			if(const UWebAPIModel* AsModel = Cast<UWebAPIModel>(PropertyModel))
+			{
+				return FText::FromString(AsModel->GeneratedCodeText);
+			}
+			else if(const UWebAPIEnum* AsEnum = Cast<UWebAPIEnum>(PropertyModel))
+			{
+				return FText::FromString(AsEnum->GeneratedCodeText);
+			}
 		}
 	}
  
@@ -114,9 +120,12 @@ void FWebAPIPropertyViewModel::Initialize()
 	const FString Description = Property->Description;
 	const FWebAPITypeNameVariant Type = Property->Type;
 
-	if(Type.HasTypeInfo() && Type.TypeInfo->bIsNested && !Type.TypeInfo->Model.IsNull())
+	if(Type.HasTypeInfo() && Type.TypeInfo->bIsNested)
 	{
-		NestedModel = UE::WebAPI::Details::CreateViewModel(AsShared(), Type.TypeInfo->Model.Get());
+		if(UObject* PropertyModel = Type.TypeInfo->GetModel())
+		{
+			NestedModel = UE::WebAPI::Details::CreateViewModel(SharedThis(this), PropertyModel);
+		}
 	}
 
 	FString DebugLabel;
@@ -124,9 +133,9 @@ void FWebAPIPropertyViewModel::Initialize()
 	bool bIsTypeResolved = true;
 	if(Type.HasTypeInfo() && !Type.TypeInfo->bIsBuiltinType)
 	{
-		bIsTypeResolved = !Type.TypeInfo->Model.IsNull();
+		bIsTypeResolved = Type.TypeInfo->GetModel() != nullptr;
 	}
-	
+
 	if(!bIsTypeResolved)
 	{
 		DebugLabel = TEXT(" (Unresolved)");

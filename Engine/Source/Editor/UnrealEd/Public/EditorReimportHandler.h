@@ -63,7 +63,7 @@ public:
 	 *
 	 * @return	true if the object was handled by one of the reimport handlers; false otherwise
 	 */
-	UNREALED_API virtual bool Reimport( UObject* Obj, bool bAskForNewFileIfMissing = false, bool bShowNotification = true, FString PreferredReimportFile = TEXT(""), FReimportHandler* SpecifiedReimportHandler = nullptr, int32 SourceFileIndex = INDEX_NONE, bool bForceNewFile = false, bool bAutomated = false);
+	UNREALED_API virtual bool Reimport( UObject* Obj, bool bAskForNewFileIfMissing = false, bool bShowNotification = true, FString PreferredReimportFile = TEXT(""), FReimportHandler* SpecifiedReimportHandler = nullptr, int32 SourceFileIndex = INDEX_NONE, bool bForceNewFile = false, bool bAutomated = false, bool bInForceShowDialog = false);
 
 	/**
 	 * Attempt to reimport the specified object from its source by giving registered reimport
@@ -78,7 +78,7 @@ public:
 	 *
 	 * @return	FAssetImportResultRef
 	 */
-	UNREALED_API virtual UE::Interchange::FAssetImportResultRef ReimportAsync(UObject* Obj, bool bAskForNewFileIfMissing = false, bool bShowNotification = true, FString PreferredReimportFile = TEXT(""), FReimportHandler* SpecifiedReimportHandler = nullptr, int32 SourceFileIndex = INDEX_NONE, bool bForceNewFile = false, bool bAutomated = false);
+	UNREALED_API virtual UE::Interchange::FAssetImportResultRef ReimportAsync(UObject* Obj, bool bAskForNewFileIfMissing = false, bool bShowNotification = true, FString PreferredReimportFile = TEXT(""), FReimportHandler* SpecifiedReimportHandler = nullptr, int32 SourceFileIndex = INDEX_NONE, bool bInForceNewFile = false, bool bAutomated = false, bool bForceShowDialog = false);
 
 	/**
 	 * Attemp to reimport all specified objects. This function will verify that all source file exist and ask the user
@@ -316,7 +316,20 @@ public:
 		return false;
 	}
 
+	/** Sets force show dialog, when True dialog will prompts even if the show dialog setting is false. */
+	virtual void SetForceShowDialog(const bool InbForceShowDialog)
+	{
+		bForceShowDialog = InbForceShowDialog;
+	}
+
+	/** When True dialog prompts will prompts even if the show dialog setting is false. */
+	virtual bool IsForceShowDialog() const
+	{
+		return bForceShowDialog;
+	}
+
 protected:
 	FString PreferredReimportPath;
 	bool bAutomatedReimport;
+	bool bForceShowDialog = false;
 };

@@ -33,6 +33,7 @@ struct FRecastInternalDebugData : public duDebugDraw
 	double BuildTime = 0.;
 	double BuildCompressedLayerTime = 0.;
 	double BuildNavigationDataTime = 0.;
+	double BuildLinkTime = 0;
 
 	uint32 TriangleCount = 0;
 	unsigned char Resolution = 0;
@@ -64,10 +65,10 @@ struct FRecastInternalDebugData : public duDebugDraw
 		vertex(pos[0], pos[1], pos[2], color, uv[0], uv[1]);
 	}
 
-	virtual void vertex(const FVector::FReal x, const FVector::FReal y, const FVector::FReal z, unsigned int color, const FVector::FReal u, const FVector::FReal v) override;
+	NAVIGATIONSYSTEM_API virtual void vertex(const FVector::FReal x, const FVector::FReal y, const FVector::FReal z, unsigned int color, const FVector::FReal u, const FVector::FReal v) override;
 
-	virtual void text(const FVector::FReal x, const FVector::FReal y, const FVector::FReal z, const char* text) override;
+	NAVIGATIONSYSTEM_API virtual void text(const FVector::FReal x, const FVector::FReal y, const FVector::FReal z, const char* text) override;
 
-	virtual void end() override;
+	NAVIGATIONSYSTEM_API virtual void end() override;
 };
 #endif // WITH_RECAST

@@ -38,7 +38,7 @@ void FAnimNode_TransitionPoseEvaluator::Initialize_AnyThread(const FAnimationIni
 
 void FAnimNode_TransitionPoseEvaluator::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) 
 {
-	if (!CachedBonesCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
+	if (!CachedBonesCounter.IsSynchronized_All(Context.AnimInstanceProxy->GetCachedBonesCounter()))
 	{
 		CachedBonesCounter.SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
 
@@ -53,7 +53,7 @@ void FAnimNode_TransitionPoseEvaluator::CacheBones_AnyThread(const FAnimationCac
 
 void FAnimNode_TransitionPoseEvaluator::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
-	if (!CachedBonesCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
+	if (!CachedBonesCounter.IsSynchronized_All(Context.AnimInstanceProxy->GetCachedBonesCounter()))
 	{
 		CachedBonesCounter.SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
 
@@ -90,7 +90,7 @@ void FAnimNode_TransitionPoseEvaluator::GatherDebugData(FNodeDebugData& DebugDat
 bool FAnimNode_TransitionPoseEvaluator::InputNodeNeedsUpdate(const FAnimationUpdateContext& Context) const
 {
 	// EM_Standard mode always updates and EM_DelayedFreeze mode only updates if there are cache frames remaining
-	return (EvaluatorMode == EEvaluatorMode::EM_Standard) || ((EvaluatorMode == EEvaluatorMode::EM_DelayedFreeze) && (CacheFramesRemaining > 0)) || !CachedBonesCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter());
+	return (EvaluatorMode == EEvaluatorMode::EM_Standard) || ((EvaluatorMode == EEvaluatorMode::EM_DelayedFreeze) && (CacheFramesRemaining > 0)) || !CachedBonesCounter.IsSynchronized_All(Context.AnimInstanceProxy->GetCachedBonesCounter());
 }
 
 bool FAnimNode_TransitionPoseEvaluator::InputNodeNeedsEvaluate() const

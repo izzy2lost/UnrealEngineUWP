@@ -2,27 +2,23 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Modules/ModuleInterface.h"
+#include "CoreTypes.h"
+
+#include "Containers/Array.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
+#include "Internationalization/Text.h"
+#include "Modules/ModuleInterface.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
 
 class FExtender;
 class FWorkspaceItem;
 
-namespace UE
-{
-namespace Trace
-{
-	class FStoreClient;
-}
-}
-
-namespace TraceServices
-{
-	class IAnalysisSession;
-}
+namespace UE::Trace { class FStoreClient; }
+namespace TraceServices { class IAnalysisSession; }
+namespace Insights { class IInsightsManager; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -30,16 +26,19 @@ namespace TraceServices
 struct TRACEINSIGHTS_API FInsightsManagerTabs
 {
 	static const FName StartPageTabId; // DEPRECATED
-	static const FName TraceStoreTabId;
-	static const FName ConnectionTabId;
-	static const FName LauncherTabId;
+	static const FName TraceStoreTabId; // DEPRECATED: see FInsightsFrontendTabs::TraceStoreTabId
+	static const FName ConnectionTabId; // DEPRECATED: see FInsightsFrontendTabs::ConnectionTabId
+	static const FName LauncherTabId; // DEPRECATED
+
 	static const FName SessionInfoTabId;
 	static const FName TimingProfilerTabId;
 	static const FName LoadingProfilerTabId;
-	static const FName NetworkingProfilerTabId;
 	static const FName MemoryProfilerTabId;
+	static const FName NetworkingProfilerTabId;
+
 	static const FName AutomationWindowTabId;
 	static const FName MessageLogTabId;
+	static const FName TraceControlTabId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -138,16 +137,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/** Contains parameters that are passed to the CreateSessionBrowser function to control specific behaviors. */
-struct TRACEINSIGHTS_API FCreateSessionBrowserParams
-{
-	bool bAllowDebugTools = false;
-	bool bInitializeTesting = false;
-	bool bStartProcessWithStompMalloc = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /** Called back to register common layout extensions */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnRegisterMajorTabExtensions, FInsightsMajorTabExtender& /*MajorTabExtender*/);
 
@@ -162,6 +151,10 @@ class TRACEINSIGHTS_API IInsightsComponent;
 class TRACEINSIGHTS_API IUnrealInsightsModule : public IModuleInterface
 {
 public:
+	virtual ~IUnrealInsightsModule()
+	{
+	}
+
 	/**
 	 * Registers an IInsightsComponent. The component will Initialize().
 	 */
@@ -194,9 +187,16 @@ public:
 	 *
 	 * @param InStoreHost The host of the store to connect to.
 	 * @param InStorePort The port of the store to connect to.
-	 * @return If connected succesfully or not.
+	 * @return If connected successfully or not.
 	 */
 	virtual bool ConnectToStore(const TCHAR* InStoreHost, uint32 InStorePort=0) = 0;
+
+	//////////////////////////////////////////////////
+
+	/**
+	 * Gets the Insights manager.
+	*/
+	virtual TSharedPtr<::Insights::IInsightsManager> GetInsightsManager() = 0;
 
 	//////////////////////////////////////////////////
 
@@ -215,9 +215,9 @@ public:
 
 	/**
 	 * Starts analysis of the last live session. Called when the application starts in "Viewer" mode.
-	 * On failure, if InRetryTime is > 0, retry connecting every frame for RetryTime seconds 
-	 * 
-	 * @param InRetryTime How many seconds to retry connecting asyncronously
+	 * On failure, if InRetryTime is > 0, retry connecting every frame for RetryTime seconds.
+	 *
+	 * @param InRetryTime How many seconds to retry connecting asynchronously
 	 */
 	virtual void StartAnalysisForLastLiveSession(float InRetryTime = 1.0f) = 0;
 
@@ -263,17 +263,12 @@ public:
 	virtual void SetUnrealInsightsLayoutIni(const FString& InIniPath) = 0;
 
 	/**
-	 * Called when the application starts in "Browser" mode.
-	 */
-	virtual void CreateSessionBrowser(const FCreateSessionBrowserParams& Params) = 0;
-
-	/**
 	 * Called when the application starts in "Viewer" mode.
 	 */
 	virtual void CreateSessionViewer(bool bAllowDebugTools = false) = 0;
 
 	/**
-	 * Called when the application shutsdown.
+	 * Called when the application shuts-down.
 	 */
 	virtual void ShutdownUserInterface() = 0;
 
@@ -281,11 +276,6 @@ public:
 	* Called to schedule a command to run after session analysis is complete. Intended for running Automation RunTests commands.
 	*/
 	virtual void ScheduleCommand(const FString& InCmd) = 0;
-
-	/**
-	* Called to run automation test in Insights.
-	*/
-	virtual void RunAutomationTest(const FString& InCmd) = 0;
 
 	/**
 	* Called to initialize testing in stand alone Insights.
@@ -306,7 +296,7 @@ public:
 	/** Initializes this component. Called by TraceInsights module when this component is registered. */
 	virtual void Initialize(IUnrealInsightsModule& Module) = 0;
 
-	/** Shutsdown this component. Called by TraceInsights module when this component is unregistered. */
+	/** Shuts-down this component. Called by TraceInsights module when this component is unregistered. */
 	virtual void Shutdown() = 0;
 
 	/* Allows this component to register major tabs. */

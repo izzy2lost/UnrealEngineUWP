@@ -40,6 +40,7 @@ TSharedPtr<IAnalyticsProviderET> FAnalyticsET::CreateAnalyticsProviderET(const F
 		ConfigValues.APIEndpointET = GetConfigValue.Execute(Config::GetKeyNameForAPIEndpoint(), true);
 		ConfigValues.AppVersionET = GetConfigValue.Execute(Config::GetKeyNameForAppVersion(), false);
 		ConfigValues.UseLegacyProtocol = FCString::ToBool(*GetConfigValue.Execute(Config::GetKeyNameForUseLegacyProtocol(), false));
+		ConfigValues.APIUnixSocketPathET = GetConfigValue.Execute(Config::GetKeyNameForAPIUnixSocketPath(), false);
 
 		if (ConfigValues.AppVersionET.IsEmpty())
 		{

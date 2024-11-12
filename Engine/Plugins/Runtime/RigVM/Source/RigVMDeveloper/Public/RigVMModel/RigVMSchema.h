@@ -55,6 +55,9 @@ public:
 	// Returns true if a graph supports a given external variable
 	virtual bool SupportsExternalVariable(URigVMController* InController, const FRigVMExternalVariable* InExternalVariable) const;
 
+	// Returns true if a graph supports pin categories / node layouts
+	virtual bool SupportsNodeLayouts(const URigVMGraph* InGraph) const;
+
 	// Returns true if the pin for a given struct should be unfolded into subpins for a graph
 	virtual bool ShouldUnfoldStruct(URigVMController* InController, const UStruct* InStruct) const;
 

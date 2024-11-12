@@ -46,10 +46,14 @@ if defined use_opencv_contrib (
 
 echo Deleting existing build directories...
 if exist x64 rd /s /q x64
+if exist arm64 rd /s /q arm64
 
 :: Create x64 directory
 IF NOT EXIST x64 (
 	md x64
+)
+IF NOT EXIST arm64 (
+	md arm64
 )
 
 pushd x64
@@ -57,7 +61,7 @@ pushd x64
 echo Configuring x64 build...
 
 cmake^
- -G "Visual Studio 16 2019"^
+ -G "Visual Studio 17 2022"^
  -A x64^
  -C "%~dp0\cmake_options.txt"^
  -DCMAKE_INSTALL_PREFIX=%~dp0^
@@ -71,6 +75,28 @@ echo Building x64 Debug build...
 cmake.exe --build . --config Debug --target INSTALL -- /m:4
 
 :: x64/..
+popd
+
+pushd arm64
+
+echo Configuring arm64 build... [INTRINSICS NOT WORKING, NEON CAN'T BE FOUND FOR SOME REASON!]
+
+cmake^
+ -G "Visual Studio 17 2022"^
+ -A arm64^
+ -C "%~dp0\cmake_options.txt"^
+ -DCMAKE_INSTALL_PREFIX=%~dp0^
+ -DOPENCV_EXTRA_MODULES_PATH=%EXTRA_MODULES_PATH%^
+ -DCPU_BASELINE=NEON^
+ "..\%opencv_src%"
+
+echo Building arm64 Release build...
+cmake.exe --build . --config Release --target INSTALL -- /m:4
+
+echo Building arm64 Debug build...
+cmake.exe --build . --config Debug --target INSTALL -- /m:4
+
+:: arm64/..
 popd
 
 echo Moving outputs to destination folders...
@@ -97,9 +123,26 @@ move /y x64\bin\Debug\opencv_*.*     %bin_path%\Win64
 move /y x64\lib\Release\opencv_*.lib %lib_path%\Win64
 move /y x64\lib\Debug\opencv_*.lib   %lib_path%\Win64
 
+echo %bin_path%\WinArm64
+echo %lib_path%\WinArm64
+
+IF NOT EXIST %bin_path%\WinArm64 (
+	md %bin_path%\WinArm64
+)
+
+IF NOT EXIST %lib_path%\WinArm64 (
+	md %lib_path%\WinArm64
+)
+
+move /y arm64\bin\Release\opencv_*.*   %bin_path%\WinArm64
+move /y arm64\bin\Debug\opencv_*.*     %bin_path%\WinArm64
+move /y arm64\lib\Release\opencv_*.lib %lib_path%\WinArm64
+move /y arm64\lib\Debug\opencv_*.lib   %lib_path%\WinArm64
+
 echo Cleaning up...
 
 rd /s /q x64
+rem rd /s /q arm64
 
 :: build/..
 popd

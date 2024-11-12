@@ -74,7 +74,6 @@
 #include "Slate/SGameLayerManager.h"
 #include "FoliageType.h"
 #include "IVREditorModule.h"
-#include "ShowFlagMenuCommands.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "BufferVisualizationMenuCommands.h"
@@ -102,6 +101,12 @@
 #include "SWorldPartitionViewportWidget.h"
 #include "LevelViewportLayout.h"
 #include "EditorViewportTabContent.h"
+#include "EditorViewportCommands.h"
+#include "FunctionalUIScreenshotTest.h"
+#include "SkeletalRenderPublic.h"
+#include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
+#include "ViewportToolbar/LevelViewportContext.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 static const FName LevelEditorName("LevelEditor");
 static FAutoConsoleCommand EnableInViewportMenu(TEXT("Editor.EnableInViewportMenu"), TEXT("Enables the new in-viewport property menu"), FConsoleCommandDelegate::CreateStatic(&SLevelViewport::EnableInViewportMenu));
@@ -1425,7 +1430,6 @@ void SLevelViewport::BindCommands()
 
 	BindOptionCommands( UICommandListRef );
 	BindViewCommands( UICommandListRef );
-	BindShowCommands( UICommandListRef );
 	BindDropCommands( UICommandListRef );
 
 	if ( ParentLevelEditor.IsValid() )
@@ -1639,7 +1643,7 @@ void SLevelViewport::BindShowCommands( FUICommandList& OutCommandList )
 		LevelViewportCommands.UseDefaultShowFlags,
 		FExecuteAction::CreateSP( this, &SLevelViewport::OnUseDefaultShowFlags, false ) );
 
-	FShowFlagMenuCommands::Get().BindCommands(OutCommandList, Client);
+	SEditorViewport::BindShowCommands( OutCommandList );
 
 	// Show Volumes
 	{
@@ -1883,6 +1887,15 @@ bool SLevelViewport::IsMaximized() const
 	return true;
 }
 
+bool SLevelViewport::CanMaximize() const
+{
+	if (TSharedPtr<FLevelViewportLayout> PinnedParentLayout = ParentLayout.Pin())
+	{
+		return PinnedParentLayout->IsMaximizeSupported();
+	}
+	return false;
+}
+
 TSharedRef<FEditorViewportClient> SLevelViewport::MakeEditorViewportClient() 
 {
 	return LevelViewportClient.ToSharedRef();
@@ -1890,16 +1903,24 @@ TSharedRef<FEditorViewportClient> SLevelViewport::MakeEditorViewportClient()
 
 TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 {
+	const TSharedRef<SLevelViewportToolBar> OldViewportToolbar =
+		SNew(SLevelViewportToolBar)
+			.Viewport(SharedThis(this))
+			.Visibility_Lambda(
+				[this]() -> EVisibility
+				{
+					if (!UE::UnrealEd::ShowOldViewportToolbars())
+					{
+						return EVisibility::Collapsed;
+					}
 
-	// Build our toolbar level toolbar
-	TSharedRef< SLevelViewportToolBar > ToolBar =
-		SNew( SLevelViewportToolBar )
-		.Viewport( SharedThis( this ) )
-		.Visibility( this, &SLevelViewport::GetToolBarVisibility )
-		.IsEnabled( FSlateApplication::Get().GetNormalExecutionAttribute() );
+					return GetToolBarVisibility();
+				}
+			)
+			.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 
-
-	return 
+	return
+		// clang-format off
 		SNew(SVerticalBox)
 		.Visibility( EVisibility::SelfHitTestInvisible )
 		+SVerticalBox::Slot()
@@ -1907,7 +1928,7 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 		.Padding(0, 1.0f, 0, 0)
 		.VAlign(VAlign_Top)
 		[
-			ToolBar
+			OldViewportToolbar
 		]
 		+SVerticalBox::Slot()
 		.VAlign(VAlign_Top)
@@ -1917,6 +1938,232 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			.Viewport( SharedThis( this ) )
 			.Visibility(this, &SLevelViewport::GetLockedIconVisibility)
 		];
+	// clang-format on
+}
+
+TSharedPtr<SWidget> SLevelViewport::BuildViewportToolbar()
+{
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	{
+		const FName LevelEditorViewportToolbarName = "LevelEditor.ViewportToolbar";
+
+		if (!UToolMenus::Get()->IsMenuRegistered(LevelEditorViewportToolbarName))
+		{
+			UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+				LevelEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+			);
+
+			ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
+			// Add the left-aligned part of the viewport toolbar.
+			{
+				FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+
+				// Add the "Transforms" sub menu.
+				{
+					FToolMenuEntry TransformsSubmenu = UE::UnrealEd::CreateViewportToolbarTransformsSection();
+					TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					LeftSection.AddEntry(TransformsSubmenu);
+				}
+
+				// Add the "Selection" sub menu.
+				{
+					FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectSection();
+					SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					LeftSection.AddEntry(SelectionSubmenu);
+				}
+
+				// Add the "Snapping" sub menu.
+				{
+					FToolMenuEntry SnappingSubmenu = UE::UnrealEd::CreateViewportToolbarSnappingSubmenu();
+					SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					LeftSection.AddEntry(SnappingSubmenu);
+				}
+			}
+
+			// Add the right-aligned part of the viewport toolbar.
+			{
+				// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
+				// default-positioned submenus external code might add.
+				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+				RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+				// Add the "View Modes" sub menu.
+				{
+					// Stay backward-compatible with the old viewport toolbar.
+					{
+						// Create our grandparent menu.
+						if (!UToolMenus::Get()->IsMenuRegistered("UnrealEd.ViewportToolbar.View"))
+						{
+							UToolMenus::Get()->RegisterMenu("UnrealEd.ViewportToolbar.View");
+						}
+
+						// Create our parent menu.
+						if (!UToolMenus::Get()->IsMenuRegistered("LevelEditor.LevelViewportToolbar.View"))
+						{
+							UToolMenus::Get()->RegisterMenu(
+								"LevelEditor.LevelViewportToolbar.View", "UnrealEd.ViewportToolbar.View"
+							);
+						}
+
+						// Create our menu.
+						UToolMenus::Get()->RegisterMenu(
+							"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View"
+						);
+					}
+
+					// Add the level editor specific entries.
+					UE::LevelEditor::ExtendViewModesSubmenu("LevelEditor.ViewportToolbar.ViewModes");
+
+					// Create and add the submenu entry to make the menu we just created and extended appear in the
+					// viewport toolbar itself.
+					FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+					ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(ViewModesSubmenu);
+				}
+
+				// Add the "Camera" submenu.
+				{
+
+					const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+					const FName ParentSubmenuName = "LevelEditor.ViewportToolbar.Camera";
+					const FName SubmenuName = "LevelEditor.ViewportToolbar.CameraOptions";
+
+					// Create our grandparent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+					}
+
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+					}
+
+					// Create our menu.
+					UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+					// Extending using both Level Editor specific and UnrealEd generic entries
+					UE::LevelEditor::ExtendCameraSubmenu(SubmenuName);
+					UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
+
+					FToolMenuEntry CameraSubmenu = UE::LevelEditor::CreateLevelViewportToolbarCameraSubmenu();
+					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(CameraSubmenu);
+				}
+
+				// Add the "Show" submenu.
+				{
+					// Stay backward-compatible with the old viewport toolbar.
+					{
+						if (!UToolMenus::Get()->IsMenuRegistered("LevelEditor.LevelViewportToolbar.Show"))
+						{
+							UToolMenus::Get()->RegisterMenu("LevelEditor.LevelViewportToolbar.Show");
+						}
+						UToolMenus::Get()->RegisterMenu(
+							"LevelEditor.ViewportToolbar.Show", "LevelEditor.LevelViewportToolbar.Show"
+						);
+					}
+
+					FToolMenuEntry ShowSubmenu = UE::LevelEditor::CreateViewportToolbarShowSubmenu();
+					ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(ShowSubmenu);
+				}
+
+				// Add the "Performance & Scalability" submenu.
+				{
+					FToolMenuEntry PerfSubmenu = UE::LevelEditor::CreateViewportToolbarPerformanceAndScalabilitySubmenu();
+					PerfSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(PerfSubmenu);
+				}
+
+				// Add the "Settings" submenu.
+				{
+					FToolMenuEntry SettingsSubmenu = UE::LevelEditor::CreateLevelEditorViewportToolbarSettingsSubmenu();
+					SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(SettingsSubmenu);
+				}
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+		// Note that these extenders can now leak between submenus of the viewport toolbar.
+		{
+			// Stay backward-compatible with legacy view menu extenders.
+			ViewportToolbarContext.AddExtender(UE::LevelEditor::GetViewModesLegacyExtenders());
+
+			FLevelEditorModule& LevelEditorModule =
+				FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+
+			TSharedRef<FUICommandList> CommandListRef = GetCommandList().ToSharedRef();
+
+			// Stay backward-compatible with legacy show menu extenders.
+			{
+				TSharedPtr<FExtender> Extenders = LevelEditorModule.AssembleExtenders(
+					CommandListRef, LevelEditorModule.GetAllLevelViewportShowMenuExtenders()
+				);
+				ViewportToolbarContext.AddExtender(Extenders);
+			}
+
+			// Stay backward-compatible with legacy view menu extenders
+			{
+				TSharedPtr<FExtender> ViewMenuExtenders = LevelEditorModule.AssembleExtenders(
+					CommandListRef, LevelEditorModule.GetAllLevelEditorToolbarViewMenuExtenders()
+				);
+				ViewportToolbarContext.AddExtender(ViewMenuExtenders);
+			}
+
+			// Stay backward-compatible with legacy options menu extenders
+			{
+				TSharedPtr<FExtender> ViewMenuExtenders = LevelEditorModule.AssembleExtenders(
+					CommandListRef, LevelEditorModule.GetAllLevelViewportOptionsMenuExtenders()
+				);
+
+				if (ViewMenuExtenders.IsValid())
+				{
+					ViewportToolbarContext.AddExtender(ViewMenuExtenders);
+				}
+			}
+		}
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+			ContextObject->Viewport = SharedThis(this);
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+
+		// Add the level editor viewport toolbar context.
+		{
+			ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
+			ContextObject->LevelViewport = SharedThis(this);
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+
+	// clang-format off
+	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
+	.Visibility_Lambda(
+		[this]() -> EVisibility
+		{
+			if (!UE::UnrealEd::ShowNewViewportToolbars())
+			{
+				return EVisibility::Collapsed;
+			}
+
+			return GetToolBarVisibility();
+		}
+	)
+	[
+		UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", ViewportToolbarContext)
+	];
+	// clang-format on
+
+	return NewViewportToolbar;
 }
 
 void SLevelViewport::OnUndo()
@@ -2044,21 +2291,18 @@ void SLevelViewport::OnTakeHighResScreenshot()
 
 void SLevelViewport::ToggleGameView()
 {
-	if( LevelViewportClient->IsPerspective() )
+	bool bGameViewEnable = !LevelViewportClient->IsInGameView();
+
+	// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
+	LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
+
+	LevelViewportClient->SetGameView(bGameViewEnable);
+
+	if (!bGameViewEnable)
 	{
-		bool bGameViewEnable = !LevelViewportClient->IsInGameView();
-
-		// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
-		LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
-
-		LevelViewportClient->SetGameView(bGameViewEnable);
-
-		if (!bGameViewEnable)
-		{
-			// LevelViewportClient->bShowWidget is set to "false" when entering game mode
-			// Need to turn it back to "true" when exiting game mode
-			LevelViewportClient->ShowWidget(true);
-		}
+		// LevelViewportClient->bShowWidget is set to "false" when entering game mode
+		// Need to turn it back to "true" when exiting game mode
+		LevelViewportClient->ShowWidget(true);
 	}
 }
 
@@ -2529,6 +2773,11 @@ void SLevelViewport::OnActorLockToggleFromMenu(AActor* Actor)
 			LockActorInternal(Actor);
 		}
 	}
+}
+
+void SLevelViewport::OnActorLockToggleFromMenu()
+{
+	OnActorUnlock();
 }
 
 bool SLevelViewport::IsActorLocked(const TWeakObjectPtr<AActor> Actor) const
@@ -4681,9 +4930,9 @@ void SLevelViewport::RemoveActorPreview( int32 PreviewIndex, AActor* Actor, cons
 	}
 }
 
-void SLevelViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget)
+void SLevelViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget, int32 ZOrder)
 {
-	ViewportOverlay->AddSlot()
+	ViewportOverlay->AddSlot(ZOrder)
 	[
 		OverlaidWidget
 	];

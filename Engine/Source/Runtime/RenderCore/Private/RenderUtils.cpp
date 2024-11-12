@@ -11,6 +11,7 @@
 #include "PipelineStateCache.h"
 #include "RenderResource.h"
 #include "RHI.h"
+#include "RHIResourceUtils.h"
 #include "Shader.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -19,7 +20,7 @@
 #include "Animation/MeshDeformerProvider.h"
 #include "Interfaces/ITargetPlatform.h"
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "RHIShaderFormatDefinitions.inl"
 #endif
@@ -41,41 +42,15 @@ FAutoConsoleVariableRef CVarAllowTranslucencyShadowsInProject(
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
-int32 GRayTracingEnableInGame = 1;
-FAutoConsoleVariableRef CVarRayTracingEnableInGame(
-	TEXT("r.RayTracing.EnableInGame"),
-	GRayTracingEnableInGame,
-	TEXT("Controls the default state of ray tracing effects when running the game. This setting is overridden by its counterpart in GameUserSettings.ini (if it exists) to allow control through in-game UI. ")
-	TEXT("(default = 1)"),
-	ECVF_ReadOnly
-);
-
-int32 GRayTracingEnableInEditor = 1;
-FAutoConsoleVariableRef CVarRayTracingEnableInEditor(
-	TEXT("r.RayTracing.EnableInEditor"),
-	GRayTracingEnableInEditor,
-	TEXT("Controls whether ray tracing effects are available by default when running the editor. This can be useful to improve editor performance when only some people require ray tracing features. ")
-	TEXT("(default = 1)"),
-	ECVF_ReadOnly
-);
-
-static int32 GRayTracingEnableOnDemand = 0;
+static int32 GRayTracingEnableOnDemand = 1;
 static FAutoConsoleVariableRef CVarRayTracingEnableOnDemand(
 	TEXT("r.RayTracing.EnableOnDemand"),
 	GRayTracingEnableOnDemand,
 	TEXT("Controls whether ray tracing features can be toggled on demand at runtime without restarting the game (experimental).\n")
-	TEXT("Requires r.RayTracing=1 and will override GameUserSettings in game. Requires r.RayTracing.EnableInEditor=1 in editor. Has a small performance and memory overhead.\n")
-	TEXT(" 0: off (default)\n")
+	TEXT("Requires r.RayTracing=1. Has a small performance and memory overhead.\n")
+	TEXT(" 0: off\n")
 	TEXT(" 1: on"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-static int32 GRayTracingRequireSM6 = 1;
-static FAutoConsoleVariableRef CVarRayTracingRequireSM6(
-	TEXT("r.RayTracing.RequireSM6"),
-	GRayTracingRequireSM6,
-	TEXT("Whether ray tracing shaders and features should only be available when targetting and running SM6. If disabled, ray tracing shaders will also be available when running in SM5 mode. (default = 1, allow only SM6)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly
-);
 
 const uint16 GCubeIndices[12*3] =
 {
@@ -347,6 +322,7 @@ EPixelFormatChannelFlags GetPixelFormatValidChannels(EPixelFormat InPixelFormat)
 		EPixelFormatChannelFlags::RG,		// PF_ASTC_8x8_NORM_RG
 		EPixelFormatChannelFlags::RG,		// PF_ASTC_10x10_NORM_RG
 		EPixelFormatChannelFlags::RG,		// PF_ASTC_12x12_NORM_RG
+		EPixelFormatChannelFlags::RG,		// PF_R16G16_SINT
 	};
 	static_assert(UE_ARRAY_COUNT(PixelFormatToChannelFlags) == (uint8)PF_MAX, "Missing pixel format");
 	return (InPixelFormat < PF_MAX) ? PixelFormatToChannelFlags[(uint8)InPixelFormat] : EPixelFormatChannelFlags::None;
@@ -498,6 +474,16 @@ RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Plat
 	return false;
 }
 
+RENDERCORE_API bool MobileAllowFramebufferFetch(const FStaticShaderPlatform Platform)
+{
+	if (Platform == SP_OPENGL_ES3_1_ANDROID)
+	{
+		const static IConsoleVariable* CVarAllowFramebufferFetchOpenGL = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AllowFramebufferFetchOpenGL"));
+		return CVarAllowFramebufferFetchOpenGL->GetBool();
+	}
+	return true;
+}
+
 RENDERCORE_API bool SupportsTextureCubeArray(ERHIFeatureLevel::Type FeatureLevel)
 {
 	return FeatureLevel >= ERHIFeatureLevel::SM5 
@@ -558,6 +544,12 @@ RENDERCORE_API bool IsMobileAmbientOcclusionEnabled(const FStaticShaderPlatform 
 	return IsMobilePlatform(Platform) && GMobileAmbientOcclusionPlatformMask[(int)Platform];
 }
 
+RENDERCORE_API bool AreMobileScreenSpaceReflectionsEnabled(const FStaticShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> MobileScreenSpaceReflectionsIniValue(TEXT("r.Mobile.ScreenSpaceReflections"));
+	return IsMobilePlatform(Platform) && MobileScreenSpaceReflectionsIniValue.Get(Platform);
+}
+
 RENDERCORE_API bool IsMobileDistanceFieldEnabled(const FStaticShaderPlatform Platform)
 {
 	return IsMobilePlatform(Platform) && FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields(Platform) && IsUsingDistanceFields(Platform);
@@ -568,6 +560,18 @@ RENDERCORE_API bool IsMobileMovableSpotlightShadowsEnabled(const FStaticShaderPl
 	return FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(Platform);
 }
 
+RENDERCORE_API bool IsMobileCapsuleShadowsEnabled(const FStaticShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> MobileCapsuleShadowsIniValue(TEXT("r.Mobile.EnableCapsuleShadows"));
+	return IsMobilePlatform(Platform) && MobileCapsuleShadowsIniValue.Get(Platform);
+}
+
+RENDERCORE_API bool IsMobileCapsuleDirectShadowsEnabled(const FStaticShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> MobileCapsuleDirectShadowsIniValue(TEXT("r.Mobile.EnableCapsuleDirectShadows"));
+	return IsMobilePlatform(Platform) && IsMobileCapsuleShadowsEnabled(Platform) && MobileCapsuleDirectShadowsIniValue.Get(Platform);
+}
+
 RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> MobileForwardEnableClusteredReflectionsIniValue(TEXT("r.Mobile.Forward.EnableClusteredReflections"));
@@ -576,9 +580,11 @@ RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderP
 
 RENDERCORE_API bool MobileUsesShadowMaskTexture(const FStaticShaderPlatform Platform)
 {
+	const bool bMoveablePointOrSpotLightShadowsEnabled = (IsMobileMovableSpotlightShadowsEnabled(Platform) || FReadOnlyCVARCache::EnablePointLightShadows(Platform)) && MobileForwardEnableLocalLights(Platform);
+	const bool bMobileCapsuleShadowsEnabled = IsMobileCapsuleDirectShadowsEnabled(Platform);
 	// Only distance field shadow needs to render shadow mask texture on mobile deferred, normal shadows need to be rendered separately because of handling lighting channels.
 	// Besides distance field shadow, with clustered lighting and shadow of local light enabled, shadows will render to shadow mask texture on mobile forward, lighting channels are handled in base pass shader.
-	return IsMobileDistanceFieldEnabled(Platform) || (!IsMobileDeferredShadingEnabled(Platform) && IsMobileMovableSpotlightShadowsEnabled(Platform) && MobileForwardEnableLocalLights(Platform));
+	return IsMobileDistanceFieldEnabled(Platform) || (!IsMobileDeferredShadingEnabled(Platform) && (bMobileCapsuleShadowsEnabled || bMoveablePointOrSpotLightShadowsEnabled));
 }
 
 // Whether to support more than 4 color attachments for GBuffer 
@@ -714,6 +720,10 @@ RENDERCORE_API ShaderPlatformMaskType GSimpleSkyDiffusePlatformMask;
 // Safe to use to make cook-time decisions, such as whether to compile ray tracing shaders.
 RENDERCORE_API ShaderPlatformMaskType GRayTracingPlatformMask;
 
+// Specifies whether ray tracing shaders *can* be used on a particular platform.
+// This takes into account whether RT is globally enabled for the project and specifically enabled on a target platform.
+RENDERCORE_API ShaderPlatformMaskType GRayTracingShadersPlatformMask;
+
 // Specifies whether ray tracing *is* enabled on the current running system (in current game or editor process).
 // This takes into account additional factors, such as concrete current GPU/OS/Driver capability, user-set game graphics options, etc.
 // Only safe to make run-time decisions, such as whether to build acceleration structures and render ray tracing effects.
@@ -760,6 +770,7 @@ RENDERCORE_API void RenderUtilsInit()
 	GSimpleSkyDiffusePlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 	GVelocityEncodeDepthPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 	GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+	GRayTracingShadersPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 
 	static IConsoleVariable* MobileAmbientOcclusionCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AmbientOcclusion"));
 	GMobileAmbientOcclusionPlatformMask.Init(MobileAmbientOcclusionCVar && MobileAmbientOcclusionCVar->GetInt(), EShaderPlatform::SP_NumPlatforms);
@@ -768,10 +779,10 @@ RENDERCORE_API void RenderUtilsInit()
 	ITargetPlatformManagerModule* TargetPlatformManager = GetTargetPlatformManager();
 	if (TargetPlatformManager)
 	{
-		for (ITargetPlatform* TargetPlatform : TargetPlatformManager->GetTargetPlatforms())
+		for (ITargetPlatformSettings* TargetPlatformSettings : TargetPlatformManager->GetTargetPlatformSettings())
 		{
 			TArray<FName> PlatformPossibleShaderFormats;
-			TargetPlatform->GetAllPossibleShaderFormats(PlatformPossibleShaderFormats);
+			TargetPlatformSettings->GetAllPossibleShaderFormats(PlatformPossibleShaderFormats);
 
 			for (FName Format : PlatformPossibleShaderFormats)
 			{
@@ -791,27 +802,29 @@ RENDERCORE_API void RenderUtilsInit()
 						continue;
 					}
 
-					GForwardShadingPlatformMask[ShaderPlatformIndex] = TargetPlatform->UsesForwardShading();
+					GForwardShadingPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->UsesForwardShading();
 
-					GDBufferPlatformMask[ShaderPlatformIndex] = IsMobilePlatform(ShaderPlatformToEdit) ? (TargetPlatform->UsesMobileDBuffer() && !IsMobileDeferredShadingEnabled(ShaderPlatformToEdit)) : TargetPlatform->UsesDBuffer();
+					GDBufferPlatformMask[ShaderPlatformIndex] = IsMobilePlatform(ShaderPlatformToEdit) ? (TargetPlatformSettings->UsesMobileDBuffer() && !IsMobileDeferredShadingEnabled(ShaderPlatformToEdit)) : TargetPlatformSettings->UsesDBuffer();
 
-					GSelectiveBasePassOutputsPlatformMask[ShaderPlatformIndex] = TargetPlatform->UsesSelectiveBasePassOutputs();
+					GSelectiveBasePassOutputsPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->UsesSelectiveBasePassOutputs();
 
-					GDistanceFieldsPlatformMask[ShaderPlatformIndex] = TargetPlatform->UsesDistanceFields();
+					GDistanceFieldsPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->UsesDistanceFields();
 
-					GSimpleSkyDiffusePlatformMask[ShaderPlatformIndex] = TargetPlatform->ForcesSimpleSkyDiffuse();
+					GSimpleSkyDiffusePlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->ForcesSimpleSkyDiffuse();
 
-					GVelocityEncodeDepthPlatformMask[ShaderPlatformIndex] = TargetPlatform->VelocityEncodeDepth();
+					GVelocityEncodeDepthPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->VelocityEncodeDepth();
 
-					GMobileAmbientOcclusionPlatformMask[ShaderPlatformIndex] = TargetPlatform->UsesMobileAmbientOcclusion();
+					GMobileAmbientOcclusionPlatformMask[ShaderPlatformIndex] = TargetPlatformSettings->UsesMobileAmbientOcclusion();
 				}
 			}
 
 
-			if (TargetPlatform->UsesRayTracing())
+			if (TargetPlatformSettings->UsesRayTracing())
 			{
 				TArray<FName> PlatformRayTracingShaderFormats;
-				TargetPlatform->GetRayTracingShaderFormats(PlatformRayTracingShaderFormats);
+				TargetPlatformSettings->GetRayTracingShaderFormats(PlatformRayTracingShaderFormats);
+
+				const bool bRayTracingShadersEnabled = TargetPlatformSettings->GetRayTracingMode() == ERayTracingRuntimeMode::Full;
 
 				for (FName FormatName : PlatformRayTracingShaderFormats)
 				{
@@ -825,6 +838,9 @@ RENDERCORE_API void RenderUtilsInit()
 					{
 						uint32 ShaderPlatformIndex = static_cast<uint32>(ShaderPlatform);
 						GRayTracingPlatformMask[ShaderPlatformIndex] = true;
+						GRayTracingShadersPlatformMask[ShaderPlatformIndex] = FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(ShaderPlatform)
+							? true
+							: bRayTracingShadersEnabled;
 					}
 				}
 			}
@@ -841,6 +857,11 @@ RENDERCORE_API void RenderUtilsInit()
 	if (RayTracingCVar && RayTracingCVar->GetInt() && GRHISupportsRayTracing)
 	{
 		GRayTracingPlatformMask.Init(true, EShaderPlatform::SP_NumPlatforms);
+
+		if (GRHISupportsRayTracingShaders)
+		{
+			GRayTracingShadersPlatformMask.Init(true, EShaderPlatform::SP_NumPlatforms);
+		}
 	}
 
 	// Load runtime values from and *.ini file used by a current platform
@@ -860,10 +881,31 @@ RENDERCORE_API void RenderUtilsInit()
 				GDistanceFieldsPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
 			}
 
-			bool bRayTracing = false;
-			if (PlatformIniFile.GetBool(*CategoryName, TEXT("bEnableRayTracing"), bRayTracing) && !bRayTracing)
 			{
-				GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+				FString RayTracingModeString;
+				GConfig->GetString(FPlatformProperties::GetRuntimeSettingsClassName(), TEXT("RayTracingMode"), RayTracingModeString, GEngineIni);
+
+				if (RayTracingModeString.Equals(TEXT("Inline"), ESearchCase::IgnoreCase))
+				{
+					GRayTracingShadersPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+				}
+				else if (RayTracingModeString.Equals(TEXT("Full"), ESearchCase::IgnoreCase))
+				{
+					// nothing
+				}
+				else if (RayTracingModeString.Equals(TEXT("Disabled"), ESearchCase::IgnoreCase))
+				{
+					GRayTracingShadersPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+					GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+				}
+				else
+				{
+					bool bRayTracing = false;
+					if (PlatformIniFile.GetBool(*CategoryName, TEXT("bEnableRayTracing"), bRayTracing) && !bRayTracing)
+					{
+						GRayTracingPlatformMask.Init(false, EShaderPlatform::SP_NumPlatforms);
+					}
+				}
 			}
 		}
 	}
@@ -873,8 +915,7 @@ RENDERCORE_API void RenderUtilsInit()
 	// - Ray tracing must be enabled for the project
 	// - Skin cache must be enabled for the project
 	// - Current GPU, OS and driver must support ray tracing
-	// - User is running the Editor and r.RayTracing.EnableInEditor=1 
-	//   *OR* running the game with ray tracing enabled in graphics options
+	// - r.RayTracing.Enable = 1
 
 	// When ray tracing is enabled, we must load additional shaders and build acceleration structures for meshes.
 	// For this reason it is only possible to enable RT at startup and changing the state requires restart.
@@ -910,56 +951,25 @@ RENDERCORE_API void RenderUtilsInit()
 			}
 			else
 			{
-				DesiredRayTracingMode = ERayTracingMode::Enabled;
+				// if not using EnableOnDemand, check r.Raytracing.Enable during initialization (changing the cvar at runtime will have no effect)
+				static const auto RayTracingEnableCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Raytracing.Enable"));
+
+				if (RayTracingEnableCVar && RayTracingEnableCVar->GetValueOnAnyThread() != 0)
+				{
+					DesiredRayTracingMode = ERayTracingMode::Enabled;
+				}
 			}
 		}
 
 		const bool bRayTracingAllowedOnCurrentPlatform = (GRayTracingPlatformMask[(int)GMaxRHIShaderPlatform]);
 		if (GRHISupportsRayTracing && bRayTracingAllowedOnCurrentPlatform)
 		{
-			if (GIsEditor)
-			{
-				// Ray tracing is enabled for the project and we are running on RT-capable machine,
-				// therefore the core ray tracing features are also enabled, so that required shaders
-				// are loaded, acceleration structures are built, etc.
-				GRayTracingMode = (GRayTracingEnableInEditor != 0) ? DesiredRayTracingMode : ERayTracingMode::Disabled;
+			GRayTracingMode = DesiredRayTracingMode;
 
-				UE_LOG(LogRendererCore, Log, TEXT("Ray tracing is %s for the editor. Reason: r.RayTracing=%d and r.RayTracing.EnableInEditor=%d."),
-					GetRayTracingModeName(GRayTracingMode),
-					RayTracingInt,
-					GRayTracingEnableInEditor);
-			}
-			else
-			{
-				// If user preference exists in game settings file, the bRayTracingEnabled will be set based on its value.
-				// Otherwise the current value is preserved.
-				bool bUseRayTracing = false;
-				if (GRayTracingEnableOnDemand == 1)
-				{
-					GRayTracingMode = DesiredRayTracingMode;
-
-					UE_LOG(LogRendererCore, Log, TEXT("Ray tracing is %s for the game. Reason: r.RayTracing=%d and r.RayTracing.EnableOnDemand=1."),
-						GetRayTracingModeName(GRayTracingMode),
-						RayTracingInt);
-				}
-				else if (GConfig->GetBool(TEXT("RayTracing"), TEXT("r.RayTracing.EnableInGame"), bUseRayTracing, GGameUserSettingsIni))
-				{
-					GRayTracingMode = bUseRayTracing ? DesiredRayTracingMode : ERayTracingMode::Disabled;
-
-					UE_LOG(LogRendererCore, Log, TEXT("Ray tracing is %s for the game. Reason: game user setting r.RayTracing.EnableInGame=%d."),
-						GetRayTracingModeName(GRayTracingMode),
-						(int)bUseRayTracing);
-				}
-				else
-				{
-					GRayTracingMode = GRayTracingEnableInGame != 0 ? DesiredRayTracingMode : ERayTracingMode::Disabled;
-
-					UE_LOG(LogRendererCore, Log, TEXT("Ray tracing is %s for the game. Reason: CVar r.RayTracing=%d, and r.RayTracing.EnableInGame game user setting does not exist (using default from CVar: %d)."),
-						GetRayTracingModeName(GRayTracingMode),
-						RayTracingInt,
-						GRayTracingEnableInGame);
-				}
-			}
+			UE_LOG(LogRendererCore, Log, TEXT("Ray tracing is %s. Reason: r.RayTracing=%d and r.RayTracing.EnableOnDemand=%d."),
+				GetRayTracingModeName(GRayTracingMode),
+				RayTracingInt,
+				GRayTracingEnableOnDemand);
 
 			// Sanity check: skin cache is *required* for ray tracing.
 			// It can be dynamically enabled only when its shaders have been compiled.
@@ -972,6 +982,15 @@ RENDERCORE_API void RenderUtilsInit()
 				UE_LOG(LogRendererCore, Fatal, TEXT("Ray tracing requires skin cache to be enabled. Set r.SkinCache.CompileShaders=1."));
 			}
 
+			const bool bRayTracingShadersAllowedOnCurrentPlatform = GRayTracingShadersPlatformMask[(int)GMaxRHIShaderPlatform];
+			if (GRHISupportsRayTracingShaders && bRayTracingShadersAllowedOnCurrentPlatform)
+			{
+				UE_LOG(LogRendererCore, Log, TEXT("Ray tracing shaders are enabled."));
+			}
+			else
+			{
+				UE_LOG(LogRendererCore, Log, TEXT("Ray tracing shaders are disabled."));
+			}
 		}
 		else
 		{
@@ -1000,7 +1019,7 @@ public:
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
 		const int32 NumVerts = 8;
-		TResourceArray<FVector4f, VERTEXBUFFER_ALIGNMENT> Verts;
+		TArray<FVector4f> Verts;
 		Verts.SetNumUninitialized(NumVerts);
 
 		for (uint32 Z = 0; Z < 2; Z++)
@@ -1021,11 +1040,8 @@ public:
 			}
 		}
 
-		uint32 Size = Verts.GetResourceDataSize();
-
 		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FUnitCubeVertexBuffer"), &Verts);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FUnitCubeVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 	}
 };
 
@@ -1037,18 +1053,8 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
-		
-		int32 NumIndices = UE_ARRAY_COUNT(GCubeIndices);
-		Indices.AddUninitialized(NumIndices);
-		FMemory::Memcpy(Indices.GetData(), GCubeIndices, NumIndices * sizeof(uint16));
-
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(uint16);
-
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FUnitCubeIndexBuffer"), &Indices);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FUnitCubeIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(GCubeIndices));
 	}
 };
 
@@ -1062,17 +1068,14 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		const int32 NumVerts = 2;
-		TResourceArray<FVector3f, VERTEXBUFFER_ALIGNMENT> Verts;
-		Verts.SetNumUninitialized(NumVerts);
-		Verts[0] = FVector3f(-0.5f, -0.5f, -0.5f);
-		Verts[1] = FVector3f(0.5f, 0.5f, 0.5f);
-
-		uint32 Size = Verts.GetResourceDataSize();
+		const FVector3f Vertices[] =
+		{
+			FVector3f(-0.5f, -0.5f, -0.5f),
+			FVector3f( 0.5f,  0.5f,  0.5f),
+		};
 
 		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FUnitCubeAABBVertexBuffer"), &Verts);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FUnitCubeAABBVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 	}
 };
 #endif // RHI_RAYTRACING
@@ -1280,37 +1283,17 @@ bool NaniteAtomicsSupported()
 	return bAtomicsSupported;
 }
 
-bool NaniteComputeMaterialsSupported()
+bool NaniteWorkGraphMaterialsSupported()
 {
-	static const auto AllowComputeMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowComputeMaterials"));
-	static const bool bAllowComputeMaterials = (AllowComputeMaterials && AllowComputeMaterials->GetValueOnAnyThread() != 0);
-	return bAllowComputeMaterials;
-}
-
-bool NaniteLegacyMaterialsSupported()
-{
-	static const auto AllowLegacyMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowLegacyMaterials"));
-	static const bool bAllowLegacyMaterials = (AllowLegacyMaterials && AllowLegacyMaterials->GetValueOnAnyThread() != 0);
-	return bAllowLegacyMaterials;
-}
-
-bool UseNaniteComputeMaterials()
-{
-	static const auto UseComputeMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ComputeMaterials"));
-	return NaniteComputeMaterialsSupported() && !IsVulkanPlatform(GMaxRHIShaderPlatform) && !IsMetalPlatform(GMaxRHIShaderPlatform) /* TODO: Support CS derivatives */ && (UseComputeMaterials && UseComputeMaterials->GetValueOnRenderThread() != 0);
+	static const auto AllowWorkGraphMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowWorkGraphMaterials"));
+	static const bool bAllowWorkGraphMaterials = (AllowWorkGraphMaterials && AllowWorkGraphMaterials->GetValueOnAnyThread() != 0);
+	return bAllowWorkGraphMaterials;
 }
 
 bool UseNaniteFastTileClear()
 {
 	static const IConsoleVariable* CVarNaniteFastTileClear = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.FastTileClear"));
-	return NaniteComputeMaterialsSupported() && (CVarNaniteFastTileClear && CVarNaniteFastTileClear->GetInt() != 0);
-}
-
-bool NaniteTessellationSupported()
-{
-	static const auto AllowTessellation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowTessellation"));
-	static const bool bAllowTessellation = (AllowTessellation && AllowTessellation->GetValueOnAnyThread() != 0);
-	return bAllowTessellation;
+	return (CVarNaniteFastTileClear && CVarNaniteFastTileClear->GetInt() != 0);
 }
 
 bool NaniteSplineMeshesSupported()
@@ -1320,11 +1303,25 @@ bool NaniteSplineMeshesSupported()
 	return bAllowSplineMeshes;
 }
 
+bool NaniteSkinnedMeshesSupported()
+{
+	static const auto AllowSkinnedMeshes = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowSkinnedMeshes"));
+	static const bool bAllowSkinnedMeshes = (AllowSkinnedMeshes && AllowSkinnedMeshes->GetValueOnAnyThread() != 0);
+	return bAllowSkinnedMeshes;
+}
+
 bool UseNaniteTessellation()
 {
 	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
+	static const auto ProgrammableVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ProgrammableRaster"));
+	static const auto ComputeRasterVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ComputeRasterization"));
+
 	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnAnyThread() != 0);
-	return bTessellation && NaniteTessellationSupported();
+	const bool bProgrammable = (ProgrammableVar && ProgrammableVar->GetValueOnAnyThread() != 0);
+	const bool bComputeRaster = (ComputeRasterVar && ComputeRasterVar->GetValueOnAnyThread() != 0);
+
+	// Tessellation requires programmable and compute raster
+	return bTessellation && ProgrammableVar && bComputeRaster;
 }
 
 bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport, bool bCheckForProjectSetting)
@@ -1364,11 +1361,16 @@ bool UseNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport /*= t
 	return bNaniteEnabled && DoesRuntimeSupportNanite(ShaderPlatform, bCheckForAtomicSupport, bCheckForProjectSetting);
 }
 
-bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform, const FStaticFeatureLevel FeatureLevel)
+bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform)
 {
 	static const auto EnableVirtualSMCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shadow.Virtual.Enable"));
 	const bool bVirtualShadowMapsEnabled = EnableVirtualSMCVar ? (EnableVirtualSMCVar->GetInt() != 0) : false;
 	return bVirtualShadowMapsEnabled && DoesRuntimeSupportNanite(ShaderPlatform, true /* check for atomics */, false /* check project setting */);
+}
+
+bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform, const FStaticFeatureLevel FeatureLevel)
+{
+	return UseVirtualShadowMaps(ShaderPlatform);
 }
 
 bool DoesPlatformSupportVirtualShadowMaps(EShaderPlatform Platform)
@@ -1453,8 +1455,8 @@ RENDERCORE_API bool DoesRuntimeSupportOnePassPointLightShadows(EShaderPlatform P
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Shadow.DetectVertexShaderLayerAtRuntime"));
 
-	return RHISupportsVertexShaderLayer(Platform)
-		|| (CVar->GetValueOnAnyThread() != 0 && GRHISupportsArrayIndexFromAnyShader != 0);
+	return (RHISupportsVertexShaderLayer(Platform)
+		|| (CVar->GetValueOnAnyThread() != 0 && GRHISupportsArrayIndexFromAnyShader != 0));
 }
 
 bool IsForwardShadingEnabled(const FStaticShaderPlatform Platform)
@@ -1507,6 +1509,11 @@ bool IsWaterDistanceFieldShadowEnabled(const FStaticShaderPlatform Platform)
 	static const auto CVarWaterSingleLayerShaderSupportDistanceFieldShadow = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.SingleLayer.ShadersSupportDistanceFieldShadow"));
 	const bool bWaterSingleLayerShaderSupportDistanceFieldShadow = CVarWaterSingleLayerShaderSupportDistanceFieldShadow && (CVarWaterSingleLayerShaderSupportDistanceFieldShadow->GetInt() > 0);
 	return !IsForwardShadingEnabled(Platform) && IsUsingDistanceFields(Platform) && bWaterSingleLayerShaderSupportDistanceFieldShadow;
+}
+
+bool IsWaterSeparateMainDirLightEnabled(const FStaticShaderPlatform Platform)
+{
+	return IsWaterDistanceFieldShadowEnabled(Platform) || IsWaterVirtualShadowMapFilteringEnabled(Platform);
 }
 
 bool UseGPUScene(const FStaticShaderPlatform Platform, const FStaticFeatureLevel FeatureLevel)
@@ -1579,13 +1586,23 @@ bool IsRayTracingEnabledForProject(EShaderPlatform ShaderPlatform)
 	}
 }
 
+bool AreRayTracingShadersEnabledForProject(EShaderPlatform ShaderPlatform)
+{
+	if (RHISupportsRayTracing(ShaderPlatform) && RHISupportsRayTracingShaders(ShaderPlatform))
+	{
+		return GRayTracingShadersPlatformMask[(int)ShaderPlatform];
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool ShouldCompileRayTracingShadersForProject(EShaderPlatform ShaderPlatform)
 {
 	if (RHISupportsRayTracingShaders(ShaderPlatform))
 	{
-		const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
-
-		return IsRayTracingEnabledForProject(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);		
+		return IsRayTracingEnabledForProject(ShaderPlatform) && AreRayTracingShadersEnabledForProject(ShaderPlatform) && IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6);
 	}
 	else
 	{
@@ -1597,7 +1614,6 @@ bool ShouldCompileRayTracingCallableShadersForProject(EShaderPlatform ShaderPlat
 {
 	return RHISupportsRayTracingCallableShaders(ShaderPlatform) && ShouldCompileRayTracingShadersForProject(ShaderPlatform);
 }
-
 
 bool IsRayTracingEnabled()
 {
@@ -1630,14 +1646,24 @@ bool IsRayTracingAllowed()
 
 bool IsRayTracingEnabled(EShaderPlatform ShaderPlatform)
 {
-	const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
-
-	return IsRayTracingEnabled() && RHISupportsRayTracing(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);
+	return IsRayTracingEnabled() && RHISupportsRayTracing(ShaderPlatform) && IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6);
 }
 
 ERayTracingMode GetRayTracingMode()
 {
 	return IsRayTracingAllowed() ? GRayTracingMode : ERayTracingMode::Disabled;
+}
+
+bool IsRayTracingUsingReferenceBasedResidency()
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.RayTracing.UseReferenceBasedResidency"));
+
+	return CVar && CVar->GetValueOnAnyThread();
+}
+
+bool IsRayTracingEnableOnDemandSupported()
+{
+	return GRayTracingEnableOnDemand != 0;
 }
 
 bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
@@ -1650,6 +1676,16 @@ bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
 		return CVar.Get(Platform) > 0;
 	}
 
+	return false;
+}
+
+bool RenderRectLightsAsSpotLights(const FStaticFeatureLevel FeatureLevel)
+{
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		static const auto CVarRenderRectLightAsSpotLight = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.Forward.RenderRectLightsAsSpotLights"));
+		return (CVarRenderRectLightAsSpotLight && CVarRenderRectLightAsSpotLight->GetValueOnAnyThread() != 0);
+	}
 	return false;
 }
 
@@ -1743,13 +1779,13 @@ static TAutoConsoleVariable<int32> CVarSubstrateBytesPerPixel(
 	TEXT("r.Substrate.BytesPerPixel"),
 	80,
 	TEXT("Substrate allocated byte per pixel to store materials data. Higher value means more complex material can be represented."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateClosuresPerPixel(
 	TEXT("r.Substrate.ClosuresPerPixel"),
 	8,	// Similar to SUBSTRATE_MAX_CLOSURE_COUNT
 	TEXT("Substrate closure count per pixel can be constrained. That is usefull to reduce the number of byte written durting the base pass, but also to limit the number of closures in Forward. Higher value means more complex material can be represented."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateBackCompatibility(
 	TEXT("r.SubstrateBackCompatibility"),
@@ -1767,13 +1803,13 @@ static TAutoConsoleVariable<int32> CVarSubstrateSheenQuality(
 	TEXT("r.Substrate.SheenQuality"),
 	1,
 	TEXT("Define Substrate sheen quality (1: Disney-based sheen, 2: Charlie-based sheen, ). r.Substrate.ShadingQuality=2 forces SheenQuality to 2. This variable is read-only."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateShadingQuality(
 	TEXT("r.Substrate.ShadingQuality"),
 	1,
 	TEXT("Define Substrate shading quality (1: accurate lighting, 2: approximate lighting). This variable is read-only."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDBufferPass(
 	TEXT("r.Substrate.DBufferPass"),
@@ -1786,7 +1822,7 @@ static TAutoConsoleVariable<int32> CVarMaterialRoughDiffuse(
 	TEXT("r.Material.RoughDiffuse"),
 	0,
 	TEXT("Enable rough diffuse material."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateRoughDiffuse(
 	TEXT("r.Substrate.RoughDiffuse"),
@@ -1798,7 +1834,7 @@ static TAutoConsoleVariable<int32> CVarSubstrateGlints(
 	TEXT("r.Substrate.Glints"),
 	1,
 	TEXT("Enable Glint support for Substrate slabs. If changed, shaders needs to be recompiled."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview);
 
 static TAutoConsoleVariable<int32> CVarSubstrateGlintsLUT(
 	TEXT("r.Substrate.Glints.LUT"),
@@ -1822,7 +1858,7 @@ static TAutoConsoleVariable<int32> CVarSubstrateSpecularProfile(
 	TEXT("r.Substrate.SpecularProfile"),
 	1,
 	TEXT("Enable Specular Profile support for Substrate slabs. If changed, shaders needs to be recompiled."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_Preview | ECVF_MobileShaderChange);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDebugAdvancedVisualizationShaders(
 	TEXT("r.Substrate.Debug.AdvancedVisualizationShaders"),
@@ -1870,8 +1906,38 @@ namespace Substrate
 	uint32 GetClosurePerPixel(EShaderPlatform InPlatform)
 	{
 		// Variant for shader compilation per platform
-		static FShaderPlatformCachedIniValue<int32> CVarClosureBudget(TEXT("r.Substrate.ClosuresPerPixel"));
-		return uint32(FMath::Max(0, CVarClosureBudget.Get(InPlatform)));
+		const TCHAR* CVarName = TEXT("r.Substrate.ClosuresPerPixel");
+		const TCHAR* ClosureName = TEXT("MaxClosuresPerPixel");
+		static FShaderPlatformCachedIniValue<int32> CVarClosureBudget(CVarName);
+		int32 OutClosurePerPixel = CVarClosureBudget.Get(InPlatform);
+
+		// Override r.Substrate.ClosuresPerPixel with ShaderFormat/MaxClosuresPerPixel for supporting sm5/sm6 differences
+		#if WITH_EDITORONLY_DATA
+		const FName ShaderFormatName = LegacyShaderPlatformToShaderFormat(InPlatform);
+		if (ITargetPlatform* TargetPlatform = GetTargetPlatformManager()->FindTargetPlatformWithSupport(TEXT("ShaderFormat"), ShaderFormatName))
+		{
+			if (FConfigCacheIni* PlatformConfig = TargetPlatform->GetConfigSystem())
+			{
+				const FString ShaderFormatStr = ShaderFormatName.ToString();
+				int32 ConfigClosurePerPixel = 0;
+				if (PlatformConfig->GetInt(*ShaderFormatStr, ClosureName, ConfigClosurePerPixel, GEngineIni))
+				{
+					OutClosurePerPixel = FMath::Min(OutClosurePerPixel, ConfigClosurePerPixel);
+				}
+			}
+		}
+		#else
+		static int32 ConfigClosurePerPixel = 0;
+		if (GConfig && ConfigClosurePerPixel == 0)
+		{
+			const FString ShaderFormatStr = LegacyShaderPlatformToShaderFormat(InPlatform).ToString();
+			const bool bExists = GConfig->GetInt(*ShaderFormatStr, ClosureName, ConfigClosurePerPixel, GEngineIni);
+			ConfigClosurePerPixel = bExists ? ConfigClosurePerPixel : OutClosurePerPixel;
+		}		
+		OutClosurePerPixel = FMath::Min(OutClosurePerPixel, ConfigClosurePerPixel);
+		#endif
+
+		return uint32(FMath::Max(1, OutClosurePerPixel));
 	}
 
 	uint32 GetNormalQuality()
@@ -1932,7 +1998,11 @@ namespace Substrate
 	bool IsGlintEnabled(EShaderPlatform InPlatform)
 	{
 		static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Substrate.Glints"));
-		return IsSubstrateEnabled() && CVar.Get(InPlatform);
+		// Force disable glint on ES31/SM4 platforms as it causes compilation error (e.g. too large local light unroll in forward shaders).
+		// Usually this effect is explicitly disabled in XXXPlatform.ini files. However when running preview (e.g. -featureleveles31), 
+		// these settings are not taken into account causing compilation issue.
+		const bool bSupported = FDataDrivenShaderPlatformInfo::GetMaxFeatureLevel(InPlatform) >= ERHIFeatureLevel::SM5;
+		return IsSubstrateEnabled() && CVar.Get(InPlatform) && bSupported;
 	}
 
 	uint32 GlintLUTIndex()
@@ -2013,8 +2083,22 @@ bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Supported"));
 	const bool bLumenSupported = CVar->GetInt() != 0;
 
+	EShaderPlatform ParentPreviewPlatform = SP_NumPlatforms;
+	#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform))
+		{
+			ParentPreviewPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(Platform);
+		}
+	}
+	#endif // WITH_EDITOR
+
+	const bool bMetalSM5 = Platform == SP_METAL_SM5 || ParentPreviewPlatform == SP_METAL_SM5;
+	const bool bVulkanSM5 = Platform == SP_VULKAN_SM5 || Platform == SP_VULKAN_SM5_ANDROID || ParentPreviewPlatform == SP_VULKAN_SM5 || ParentPreviewPlatform == SP_VULKAN_SM5_ANDROID;
 	return (bSkipProjectCheck || bLumenSupported)
 		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
+		&& (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM6) || bVulkanSM5 || bMetalSM5) // Android and Mac can't rely on SM6 yet, but want to run Lumen
 		&& !IsForwardShadingEnabled(Platform);
 }
 
@@ -2041,4 +2125,26 @@ bool ForwardShadingForcesSkyLightCubemapBlending(const FStaticShaderPlatform Pla
 {
 	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"));
 	return CVar.Get(Platform) > 0;
+}
+
+bool HardwareVariableRateShadingSupportedByPlatform(EShaderPlatform ShaderPlatform)
+{
+	const static auto SupportVRSCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VRS.Support"));
+	if (SupportVRSCVar && SupportVRSCVar->GetValueOnAnyThread() != 0)
+	{
+		return FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(ShaderPlatform);
+	}
+
+	return false;
+}
+
+static TAutoConsoleVariable<int32> CVarSupportExpFogMatchesVolumetricFog(
+	TEXT("r.SupportExpFogMatchesVolumetricFog"),
+	0,
+	TEXT("When enabled, the height fog scattering/ambient/emissive/phase will match the volumetric fog better."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+bool DoesProjectSupportExpFogMatchesVolumetricFog()
+{
+	return CVarSupportExpFogMatchesVolumetricFog.GetValueOnAnyThread() > 0;
 }

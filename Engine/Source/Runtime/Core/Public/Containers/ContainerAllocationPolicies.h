@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Containers/ContainerHelpers.h"
+#include "Containers/ContainerAllocationPolicies.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/UnrealMemory.h"
 #include "Math/NumericLimits.h"
@@ -108,25 +109,52 @@ struct FArraySlackTrackingHeader
 #define CONTAINER_INITIAL_ALLOC_ZERO_SLACK 1 // ON
 #endif
 
+#if defined(UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR) && !defined(UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR)
+	#error If UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR is defined you must also define UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR
+#endif
+
+#if defined(UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR) && !defined(UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR)
+	#error If UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR is defined you must also define UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR
+#endif
+
+#ifndef UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR
+	#if AGGRESSIVE_MEMORY_SAVING
+		#define UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR 1
+	#else
+		#define UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR 3
+	#endif
+#endif
+
+#ifndef UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR
+	#if AGGRESSIVE_MEMORY_SAVING
+		#define UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR 4
+	#else
+		#define UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR 8
+	#endif
+#endif
+static_assert(UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR > 0, "UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR must be greater than 0");
+static_assert(UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR > UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR, "UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR must be greater than UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR");
+
+
 class FDefaultBitArrayAllocator;
 
 template<int IndexSize> class TSizedDefaultAllocator;
 using FDefaultAllocator = TSizedDefaultAllocator<32>;
 
 template <typename SizeType>
-FORCEINLINE SizeType DefaultCalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
+FORCEINLINE SizeType DefaultCalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
 	SizeType Retval;
-	checkSlow(NumElements < NumAllocatedElements);
+	checkSlow(NewMax < CurrentMax);
 
 	// If the container has too much slack, shrink it to exactly fit the number of elements.
-	const SizeType CurrentSlackElements = NumAllocatedElements - NumElements;
-	const SIZE_T CurrentSlackBytes = (NumAllocatedElements - NumElements)*BytesPerElement;
+	const SizeType CurrentSlackElements = CurrentMax - NewMax;
+	const SIZE_T CurrentSlackBytes = (CurrentMax - NewMax)*BytesPerElement;
 	const bool bTooManySlackBytes = CurrentSlackBytes >= 16384;
-	const bool bTooManySlackElements = 3 * NumElements < 2 * NumAllocatedElements;
-	if ((bTooManySlackBytes || bTooManySlackElements) && (CurrentSlackElements > 64 || !NumElements)) //  hard coded 64 :-(
+	const bool bTooManySlackElements = 3 * NewMax < 2 * CurrentMax;
+	if ((bTooManySlackBytes || bTooManySlackElements) && (CurrentSlackElements > 64 || !NewMax)) //  hard coded 64 :-(
 	{
-		Retval = NumElements;
+		Retval = NewMax;
 		if (Retval > 0)
 		{
 			if (bAllowQuantize)
@@ -137,53 +165,46 @@ FORCEINLINE SizeType DefaultCalculateSlackShrink(SizeType NumElements, SizeType 
 	}
 	else
 	{
-		Retval = NumAllocatedElements;
+		Retval = CurrentMax;
 	}
 
 	return Retval;
 }
 
 template <typename SizeType>
-FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
+FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
 #if !defined(AGGRESSIVE_MEMORY_SAVING)
 	#error "AGGRESSIVE_MEMORY_SAVING must be defined"
 #endif
 #if AGGRESSIVE_MEMORY_SAVING
 	const SIZE_T FirstGrow = 1;
+	const SIZE_T ConstantGrow = 0;
 #else
 	const SIZE_T FirstGrow = 4;
 	const SIZE_T ConstantGrow = 16;
 #endif
 
 	SizeType Retval;
-	checkSlow(NumElements > NumAllocatedElements && NumElements > 0);
+	checkSlow(NewMax > CurrentMax && NewMax > 0);
 
 	SIZE_T Grow = FirstGrow; // this is the amount for the first alloc
 
 #if CONTAINER_INITIAL_ALLOC_ZERO_SLACK
-	if (NumAllocatedElements)
+	if (CurrentMax)
 	{
 		// Allocate slack for the array proportional to its size.
-#if AGGRESSIVE_MEMORY_SAVING
-		Grow = SIZE_T(NumElements) + SIZE_T(NumElements) / 4;
-#else
-		Grow = SIZE_T(NumElements) + 3 * SIZE_T(NumElements) / 8 + ConstantGrow;
-#endif
+		Grow = SIZE_T(NewMax) + UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR * SIZE_T(NewMax) / UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR + ConstantGrow;
 	}
-	else if (SIZE_T(NumElements) > Grow)
+	else if (SIZE_T(NewMax) > Grow)
 	{
-		Grow = SIZE_T(NumElements);
+		Grow = SIZE_T(NewMax);
 	}
 #else
-	if (NumAllocatedElements || SIZE_T(NumElements) > Grow)
+	if (CurrentMax || SIZE_T(NewMax) > Grow)
 	{
 		// Allocate slack for the array proportional to its size.
-#if AGGRESSIVE_MEMORY_SAVING
-		Grow = SIZE_T(NumElements) + SIZE_T(NumElements) / 4;
-#else
-		Grow = SIZE_T(NumElements) + 3 * SIZE_T(NumElements) / 8 + ConstantGrow;
-#endif
+		Grow = SIZE_T(NewMax) + UE_CONTAINER_SLACK_GROWTH_FACTOR_NUMERATOR * SIZE_T(NewMax) / UE_CONTAINER_SLACK_GROWTH_FACTOR_DENOMINATOR + ConstantGrow;
 	}
 #endif
 	
@@ -196,7 +217,7 @@ FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NumElements, SizeType Nu
 		Retval = (SizeType)Grow;
 	}
 	// NumElements and MaxElements are stored in 32 bit signed integers so we must be careful not to overflow here.
-	if (NumElements > Retval)
+	if (NewMax > Retval)
 	{
 		Retval = TNumericLimits<SizeType>::Max();
 	}
@@ -205,15 +226,15 @@ FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NumElements, SizeType Nu
 }
 
 template <typename SizeType>
-FORCEINLINE SizeType DefaultCalculateSlackReserve(SizeType NumElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
+FORCEINLINE SizeType DefaultCalculateSlackReserve(SizeType NewMax, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
-	SizeType Retval = NumElements;
-	checkSlow(NumElements > 0);
+	SizeType Retval = NewMax;
+	checkSlow(NewMax > 0);
 	if (bAllowQuantize)
 	{
 		Retval = (SizeType)(FMemory::QuantizeSize(SIZE_T(Retval) * SIZE_T(BytesPerElement), Alignment) / BytesPerElement);
 		// NumElements and MaxElements are stored in 32 bit signed integers so we must be careful not to overflow here.
-		if (NumElements > Retval)
+		if (NewMax > Retval)
 		{
 			Retval = TNumericLimits<SizeType>::Max();
 		}
@@ -290,118 +311,118 @@ public:
 
 		/**
 		 * Resizes the container's allocation.
-		 * @param PreviousNumElements - The number of elements that were stored in the previous allocation.
-		 * @param NumElements - The number of elements to allocate space for.
+		 * @param CurrentNum - The number of elements that are currently constructed at the front of the allocation.
+		 * @param NewMax - The number of elements to allocate space for.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
 		void ResizeAllocation(
-			SizeType PreviousNumElements,
-			SizeType NumElements,
+			SizeType CurrentNum,
+			SizeType NewMax,
 			SIZE_T NumBytesPerElement
 		);
 
 		/**
 		 * Resizes the container's allocation.
-		 * @param PreviousNumElements - The number of elements that were stored in the previous allocation.
-		 * @param NumElements - The number of elements to allocate space for.
+		 * @param CurrentNum - The number of elements that are currently constructed at the front of the allocation.
+		 * @param NewMax - The number of elements to allocate space for.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 * @param AlignmentOfElement - The alignment of the element type.
 		 *
 		 * @note  This overload only exists if TAllocatorTraits<Allocator>::SupportsElementAlignment == true.
 		 */
 		void ResizeAllocation(
-			SizeType PreviousNumElements,
-			SizeType NumElements,
+			SizeType CurrentNum,
+			SizeType NewMax,
 			SIZE_T NumBytesPerElement,
 			uint32 AlignmentOfElement
 		);
 
 		/**
 		 * Calculates the amount of slack to allocate for an array that has just grown or shrunk to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
+		 * @param NewMax - The number of elements to allocate space for.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
 		SizeType CalculateSlackReserve(
-			SizeType NumElements,
+			SizeType NewMax,
 			SIZE_T NumBytesPerElement
 		) const;
 
 		/**
 		 * Calculates the amount of slack to allocate for an array that has just grown or shrunk to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
+		 * @param NewMax - The number of elements to allocate space for.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 * @param AlignmentOfElement - The alignment of the element type.
 		 *
 		 * @note  This overload only exists if TAllocatorTraits<Allocator>::SupportsElementAlignment == true.
 		 */
 		SizeType CalculateSlackReserve(
-			SizeType NumElements,
+			SizeType NewMax,
 			SIZE_T NumBytesPerElement,
 			uint32 AlignmentOfElement
 		) const;
 
 		/**
 		 * Calculates the amount of slack to allocate for an array that has just shrunk to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
-		 * @param CurrentNumSlackElements - The current number of elements allocated.
+		 * @param NewMax - The number of elements to allocate space for.
+		 * @param CurrentMax - The number of elements for which space is currently allocated.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
 		SizeType CalculateSlackShrink(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+			SizeType NewMax,
+			SizeType CurrentMax,
 			SIZE_T NumBytesPerElement
 			) const;
 
 		/**
 		 * Calculates the amount of slack to allocate for an array that has just shrunk to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
-		 * @param CurrentNumSlackElements - The current number of elements allocated.
+		 * @param NewMax - The number of elements to allocate space for.
+		 * @param CurrentMax - The number of elements for which space is currently allocated.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 * @param AlignmentOfElement - The alignment of the element type.
 		 *
 		 * @note  This overload only exists if TAllocatorTraits<Allocator>::SupportsElementAlignment == true.
 		 */
 		SizeType CalculateSlackShrink(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+			SizeType NewMax,
+			SizeType CurrentMax,
 			SIZE_T NumBytesPerElement,
 			uint32 AlignmentOfElement
 		) const;
 
 		/**
 		 * Calculates the amount of slack to allocate for an array that has just grown to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
-		 * @param CurrentNumSlackElements - The current number of elements allocated.
+		 * @param NewMax - The number of elements to allocate space for.
+		 * @param CurrentMax - The number of elements for which space is currently allocated.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
 		SizeType CalculateSlackGrow(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+			SizeType NewMax,
+			SizeType CurrentMax,
 			SIZE_T NumBytesPerElement
 		) const;
 
 		/**
 		 * Calculates the amount of slack to allocate for an array that has just grown to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
-		 * @param CurrentNumSlackElements - The current number of elements allocated.
+		 * @param NewMax - The number of elements to allocate space for.
+		 * @param CurrentMax - The number of elements for which space is currently allocated.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 * @param AlignmentOfElement - The alignment of the element type.
 		 *
 		 * @note  This overload only exists if TAllocatorTraits<Allocator>::SupportsElementAlignment == true.
 		 */
 		SizeType CalculateSlackGrow(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+			SizeType NewMax,
+			SizeType CurrentMax,
 			SIZE_T NumBytesPerElement,
 			uint32 AlignmentOfElement
 		) const;
 
 		/**
 		 * Returns the size of any requested heap allocation currently owned by the allocator.
-		 * @param NumAllocatedElements - The number of elements allocated by the container.
+		 * @param CurrentMax - The number of elements for which space is currently allocated.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const;
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const;
 
 		/** Returns true if the allocator has made any heap allocations */
 		bool HasAllocation() const;
@@ -486,45 +507,45 @@ public:
 			return Data;
 		}
 		void ResizeAllocation(
-			SizeType PreviousNumElements,
-			SizeType NumElements,
+			SizeType CurrentNum,
+			SizeType NewMax,
 			SIZE_T NumBytesPerElement
 			)
 		{
 			// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
-			if (Data || NumElements)
+			if (Data || NewMax)
 			{
 				static_assert(sizeof(int32) <= sizeof(SIZE_T), "SIZE_T is expected to be larger than int32");
 
 				// Check for under/overflow
-				if (UNLIKELY(NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
+				if (UNLIKELY(NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
 				{
-					UE::Core::Private::OnInvalidAlignedHeapAllocatorNum(NumElements, NumBytesPerElement);
+					UE::Core::Private::OnInvalidAlignedHeapAllocatorNum(NewMax, NumBytesPerElement);
 				}
 
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
-				Data = (FScriptContainerElement*)FArraySlackTrackingHeader::Realloc(Data, NumElements, NumBytesPerElement, Alignment > alignof(FArraySlackTrackingHeader) ? Alignment : alignof(FArraySlackTrackingHeader));
+				Data = (FScriptContainerElement*)FArraySlackTrackingHeader::Realloc(Data, NewMax, NumBytesPerElement, Alignment > alignof(FArraySlackTrackingHeader) ? Alignment : alignof(FArraySlackTrackingHeader));
 #else
-				Data = (FScriptContainerElement*)FMemory::Realloc( Data, NumElements*NumBytesPerElement, Alignment );
+				Data = (FScriptContainerElement*)FMemory::Realloc( Data, NewMax*NumBytesPerElement, Alignment );
 #endif
 			}
 		}
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true, Alignment);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return NumAllocatedElements * NumBytesPerElement;
+			return CurrentMax * NumBytesPerElement;
 		}
 
 		bool HasAllocation() const
@@ -676,84 +697,84 @@ public:
 		{
 			return Data;
 		}
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement)
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement)
 		{
 			// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
-			if (Data || NumElements)
+			if (Data || NewMax)
 			{
 				static_assert(sizeof(SizeType) <= sizeof(SIZE_T), "SIZE_T is expected to handle all possible sizes");
 
 				// Check for under/overflow
-				bool bInvalidResize = NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32;
+				bool bInvalidResize = NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32;
 				if constexpr (sizeof(SizeType) == sizeof(SIZE_T))
 				{
-					bInvalidResize = bInvalidResize || (SIZE_T)(USizeType)NumElements > (SIZE_T)TNumericLimits<SizeType>::Max() / NumBytesPerElement;
+					bInvalidResize = bInvalidResize || (SIZE_T)(USizeType)NewMax > (SIZE_T)TNumericLimits<SizeType>::Max() / NumBytesPerElement;
 				}
 				if (UNLIKELY(bInvalidResize))
 				{
-					UE::Core::Private::OnInvalidSizedHeapAllocatorNum(IndexSize, NumElements, NumBytesPerElement);
+					UE::Core::Private::OnInvalidSizedHeapAllocatorNum(IndexSize, NewMax, NumBytesPerElement);
 				}
 
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
-				Data = (FScriptContainerElement*)FArraySlackTrackingHeader::Realloc(Data, NumElements, NumBytesPerElement, 0);
+				Data = (FScriptContainerElement*)FArraySlackTrackingHeader::Realloc(Data, NewMax, NumBytesPerElement, 0);
 #else
-				Data = (FScriptContainerElement*)BaseMallocType::Realloc( Data, NumElements*NumBytesPerElement );
+				Data = (FScriptContainerElement*)BaseMallocType::Realloc( Data, NewMax*NumBytesPerElement );
 #endif
 			}
 		}
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement)
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement)
 		{
 			// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
-			if (Data || NumElements)
+			if (Data || NewMax)
 			{
 				static_assert(sizeof(SizeType) <= sizeof(SIZE_T), "SIZE_T is expected to handle all possible sizes");
 
 				// Check for under/overflow
-				bool bInvalidResize = NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32;
+				bool bInvalidResize = NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32;
 				if constexpr (sizeof(SizeType) == sizeof(SIZE_T))
 				{
-					bInvalidResize = bInvalidResize || ((SIZE_T)(USizeType)NumElements > (SIZE_T)TNumericLimits<SizeType>::Max() / NumBytesPerElement);
+					bInvalidResize = bInvalidResize || ((SIZE_T)(USizeType)NewMax > (SIZE_T)TNumericLimits<SizeType>::Max() / NumBytesPerElement);
 				}
 				if (UNLIKELY(bInvalidResize))
 				{
-					UE::Core::Private::OnInvalidSizedHeapAllocatorNum(IndexSize, NumElements, NumBytesPerElement);
+					UE::Core::Private::OnInvalidSizedHeapAllocatorNum(IndexSize, NewMax, NumBytesPerElement);
 				}
 
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
-				Data = (FScriptContainerElement*)FArraySlackTrackingHeader::Realloc(Data, NumElements, NumBytesPerElement, AlignmentOfElement > alignof(FArraySlackTrackingHeader) ? AlignmentOfElement : alignof(FArraySlackTrackingHeader));
+				Data = (FScriptContainerElement*)FArraySlackTrackingHeader::Realloc(Data, NewMax, NumBytesPerElement, AlignmentOfElement > alignof(FArraySlackTrackingHeader) ? AlignmentOfElement : alignof(FArraySlackTrackingHeader));
 #else
-				Data = (FScriptContainerElement*)BaseMallocType::Realloc( Data, NumElements*NumBytesPerElement, AlignmentOfElement );
+				Data = (FScriptContainerElement*)BaseMallocType::Realloc( Data, NewMax*NumBytesPerElement, AlignmentOfElement );
 #endif
 			}
 		}
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true);
 		}
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true, (uint32)AlignmentOfElement);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true, (uint32)AlignmentOfElement);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true, (uint32)AlignmentOfElement);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true, (uint32)AlignmentOfElement);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true, (uint32)AlignmentOfElement);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true, (uint32)AlignmentOfElement);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return NumAllocatedElements * NumBytesPerElement;
+			return CurrentMax * NumBytesPerElement;
 		}
 
 		bool HasAllocation() const
@@ -805,10 +826,12 @@ public:
 };
 
 // Define the ResizeAllocation functions with the regular allocator as exported to avoid bloat
-extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<32, FMemory>::ForAnyElementType::ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement);
-extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<32, FMemory>::ForAnyElementType::ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement);
-extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<64, FMemory>::ForAnyElementType::ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement);
-extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<64, FMemory>::ForAnyElementType::ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement);
+#if !IS_MERGEDMODULES
+extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<32, FMemory>::ForAnyElementType::ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement);
+extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<32, FMemory>::ForAnyElementType::ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement);
+extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<64, FMemory>::ForAnyElementType::ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement);
+extern template CORE_API FORCENOINLINE void TSizedHeapAllocator<64, FMemory>::ForAnyElementType::ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement);
+#endif
 
 template <uint8 IndexSize>
 struct TAllocatorTraits<TSizedHeapAllocator<IndexSize>> : TAllocatorTraitsBase<TSizedHeapAllocator<IndexSize>>
@@ -883,15 +906,15 @@ public:
 			return GetInlineElements();
 		}
 
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax,SIZE_T NumBytesPerElement)
 		{
 			// Check if the new allocation will fit in the inline data area.
-			if(NumElements <= NumInlineElements)
+			if(NewMax <= NumInlineElements)
 			{
 				// If the old allocation wasn't in the inline data area, relocate it into the inline data area.
 				if(SecondaryData.GetAllocation())
 				{
-					RelocateConstructItems<ElementType>((void*)InlineData, (ElementType*)SecondaryData.GetAllocation(), PreviousNumElements);
+					RelocateConstructItems<ElementType>((void*)InlineData, (ElementType*)SecondaryData.GetAllocation(), CurrentNum);
 
 					// Free the old indirect allocation.
 					SecondaryData.ResizeAllocation(0,0,NumBytesPerElement);
@@ -902,49 +925,49 @@ public:
 				if(!SecondaryData.GetAllocation())
 				{
 					// Allocate new indirect memory for the data.
-					SecondaryData.ResizeAllocation(0,NumElements,NumBytesPerElement);
+					SecondaryData.ResizeAllocation(0,NewMax,NumBytesPerElement);
 
 					// Move the data out of the inline data area into the new allocation.
-					RelocateConstructItems<ElementType>((void*)SecondaryData.GetAllocation(), GetInlineElements(), PreviousNumElements);
+					RelocateConstructItems<ElementType>((void*)SecondaryData.GetAllocation(), GetInlineElements(), CurrentNum);
 				}
 				else
 				{
 					// Reallocate the indirect data for the new size.
-					SecondaryData.ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement);
+					SecondaryData.ResizeAllocation(CurrentNum, NewMax, NumBytesPerElement);
 				}
 			}
 		}
 
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
-			return NumElements <= NumInlineElements ?
+			return NewMax <= NumInlineElements ?
 				NumInlineElements :
-				SecondaryData.CalculateSlackReserve(NumElements, NumBytesPerElement);
+				SecondaryData.CalculateSlackReserve(NewMax, NumBytesPerElement);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
-			return NumElements <= NumInlineElements ?
+			return NewMax <= NumInlineElements ?
 				NumInlineElements :
-				SecondaryData.CalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement);
+				SecondaryData.CalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			// Also, when computing slack growth, don't count inline elements -- the slack algorithm has a special
 			// case to save memory on the initial heap allocation, versus subsequent reallocations, and we don't
 			// want the inline elements to be treated as if they were the first heap allocation.
-			return NumElements <= NumInlineElements ?
+			return NewMax <= NumInlineElements ?
 				NumInlineElements :
-				SecondaryData.CalculateSlackGrow(NumElements, NumAllocatedElements <= NumInlineElements ? 0 : NumAllocatedElements, NumBytesPerElement);
+				SecondaryData.CalculateSlackGrow(NewMax, CurrentMax <= NumInlineElements ? 0 : CurrentMax, NumBytesPerElement);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			if (NumAllocatedElements > NumInlineElements)
+			if (CurrentMax > NumInlineElements)
 			{
-				return SecondaryData.GetAllocatedSize(NumAllocatedElements, NumBytesPerElement);
+				return SecondaryData.GetAllocatedSize(CurrentMax, NumBytesPerElement);
 			}
 			return 0;
 		}
@@ -1004,7 +1027,9 @@ using TInlineAllocator64 = TSizedInlineAllocator<NumInlineElements, 64, Secondar
 /**
  * Implements a variant of TInlineAllocator with a secondary heap allocator that is allowed to store a pointer to its inline elements.
  * This allows caching a pointer to the elements which avoids any conditional logic in GetAllocation(), but prevents the allocator being trivially relocatable.
- * All UE4 allocators typically rely on elements being trivially relocatable, so instances of this allocator cannot be used in other containers.
+ * All UE allocators typically rely on elements being trivially relocatable, so instances of this allocator cannot be used in other containers.
+ *
+ * NOTE: instances of this allocator - or containers which use them - are non-trivially-relocatable, but the allocator still expects elements themselves to be trivially-relocatable.
  */
 template <uint32 NumInlineElements>
 class TNonRelocatableInlineAllocator
@@ -1059,7 +1084,7 @@ public:
 			if (Other.HasAllocation())
 			{
 				Data = Other.Data;
-				Other.Data = nullptr;
+				Other.Data = Other.GetInlineElements();
 			}
 			else
 			{
@@ -1074,15 +1099,15 @@ public:
 			return Data;
 		}
 
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax,SIZE_T NumBytesPerElement)
 		{
 			// Check if the new allocation will fit in the inline data area.
-			if(NumElements <= NumInlineElements)
+			if(NewMax <= NumInlineElements)
 			{
 				// If the old allocation wasn't in the inline data area, relocate it into the inline data area.
 				if(HasAllocation())
 				{
-					RelocateConstructItems<ElementType>(GetInlineElements(), Data, PreviousNumElements);
+					RelocateConstructItems<ElementType>(GetInlineElements(), Data, CurrentNum);
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
 					FArraySlackTrackingHeader::Free(Data);
 #else
@@ -1097,47 +1122,47 @@ public:
 				{
 					// Reallocate the indirect data for the new size.
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
-					Data = (ElementType*)FArraySlackTrackingHeader::Realloc(Data, (int32)NumElements, (int32)NumBytesPerElement, 0);
+					Data = (ElementType*)FArraySlackTrackingHeader::Realloc(Data, (int32)NewMax, (int32)NumBytesPerElement, 0);
 #else
-					Data = (ElementType*)FMemory::Realloc(Data, NumElements*NumBytesPerElement);
+					Data = (ElementType*)FMemory::Realloc(Data, NewMax*NumBytesPerElement);
 #endif
 				}
 				else
 				{
 					// Allocate new indirect memory for the data.
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
-					Data = (ElementType*)FArraySlackTrackingHeader::Realloc(nullptr, (int32)NumElements, (int32)NumBytesPerElement, 0);
+					Data = (ElementType*)FArraySlackTrackingHeader::Realloc(nullptr, (int32)NewMax, (int32)NumBytesPerElement, 0);
 #else
-					Data = (ElementType*)FMemory::Realloc(nullptr, NumElements*NumBytesPerElement);
+					Data = (ElementType*)FMemory::Realloc(nullptr, NewMax*NumBytesPerElement);
 #endif
 
 					// Move the data out of the inline data area into the new allocation.
-					RelocateConstructItems<ElementType>(Data, GetInlineElements(), PreviousNumElements);
+					RelocateConstructItems<ElementType>(Data, GetInlineElements(), CurrentNum);
 				}
 			}
 		}
 
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
-			return (NumElements <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true);
+			return (NewMax <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true);
 		}
 
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
-			return (NumElements <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true);
+			return (NewMax <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true);
 		}
 
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
-			return (NumElements <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true);
+			return (NewMax <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return HasAllocation()? (NumAllocatedElements * NumBytesPerElement) : 0;
+			return HasAllocation() ? (CurrentMax * NumBytesPerElement) : 0;
 		}
 
 		FORCEINLINE bool HasAllocation() const
@@ -1230,32 +1255,32 @@ public:
 			return GetInlineElements();
 		}
 
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax,SIZE_T NumBytesPerElement)
 		{
 			// Ensure the requested allocation will fit in the inline data area.
-			check(NumElements >= 0 && NumElements <= NumInlineElements);
+			check(NewMax >= 0 && NewMax <= NumInlineElements);
 		}
 
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
 			// Ensure the requested allocation will fit in the inline data area.
-			check(NumElements <= NumInlineElements);
+			check(NewMax <= NumInlineElements);
 			return NumInlineElements;
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			// Ensure the requested allocation will fit in the inline data area.
-			check(NumAllocatedElements <= NumInlineElements);
+			check(CurrentMax <= NumInlineElements);
 			return NumInlineElements;
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			// Ensure the requested allocation will fit in the inline data area.
-			check(NumElements <= NumInlineElements);
+			check(CurrentMax <= NumInlineElements);
 			return NumInlineElements;
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			return 0;
 		}

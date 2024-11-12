@@ -11,6 +11,8 @@
 
 #include "GeometryMaskSubsystem.generated.h"
 
+class UGeometryMaskWorldSubsystem;
+
 using FOnGeometryMaskResourceCreated = TMulticastDelegate<void(const UGeometryMaskCanvasResource*)>;
 using FOnGeometryMaskResourceDestroyed = TMulticastDelegate<void(const UGeometryMaskCanvasResource*)>;
 
@@ -41,7 +43,9 @@ public:
 	/** Called when a canvas resource is destroyed. */
 	FOnGeometryMaskResourceDestroyed& OnGeometryMaskResourceDestroyed() { return OnGeometryMaskResourceDestroyedDelegate; }
 
-private:	
+private:
+	void UpdateLevel(const ULevel* InLevel, UGeometryMaskWorldSubsystem* InWorldSubsystem, FSceneViewFamily& InViewFamily);
+
 	/** Find and assign the next available resource to the given canvas. */
 	void AssignResourceToCanvas(UGeometryMaskCanvas* InCanvas);
 

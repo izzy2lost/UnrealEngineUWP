@@ -33,7 +33,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionMeshNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionMeshNodes()
@@ -57,7 +57,7 @@ namespace Dataflow
 }
 
 
-void FPointsToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FPointsToMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh) || Out->IsA<int32>(&TriangleCount))
 	{
@@ -87,7 +87,7 @@ void FPointsToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 }
 
 
-void FBoxToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBoxToMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh) || Out->IsA<int32>(&TriangleCount))
 	{
@@ -110,7 +110,7 @@ void FBoxToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 }
 
 
-void FMeshInfoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshInfoDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FString>(&InfoString))
 	{
@@ -128,7 +128,7 @@ void FMeshInfoDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 }
 
 
-void FMeshToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshToCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -162,7 +162,7 @@ void FMeshToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-void FCollectionToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCollectionToMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 #if WITH_EDITORONLY_DATA
 	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh))
@@ -213,34 +213,37 @@ void FCollectionToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-void FStaticMeshToMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FStaticMeshToMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 #if WITH_EDITORONLY_DATA
-	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh))
+	if (Out->IsA(&Mesh))
 	{
-		if (FMeshDescription* MeshDescription = bUseHiRes ? StaticMesh->GetHiResMeshDescription() : StaticMesh->GetMeshDescription(LODLevel))
+		if (StaticMesh)
 		{
-			TObjectPtr<UDynamicMesh> NewMesh = NewObject<UDynamicMesh>();
-			NewMesh->Reset();
-
-			UE::Geometry::FDynamicMesh3& DynMesh = NewMesh->GetMeshRef();
+			if (FMeshDescription* MeshDescription = bUseHiRes ? StaticMesh->GetHiResMeshDescription() : StaticMesh->GetMeshDescription(LODLevel))
 			{
-				FMeshDescriptionToDynamicMesh ConverterToDynamicMesh;
-				ConverterToDynamicMesh.Convert(MeshDescription, DynMesh);
-			}
+				TObjectPtr<UDynamicMesh> NewMesh = NewObject<UDynamicMesh>();
+				NewMesh->Reset();
 
-			SetValue(Context, NewMesh, &Mesh);
-		}
-		else
-		{
-			SetValue(Context, TObjectPtr<UDynamicMesh>(NewObject<UDynamicMesh>()), &Mesh);
+				UE::Geometry::FDynamicMesh3& DynMesh = NewMesh->GetMeshRef();
+				{
+					FMeshDescriptionToDynamicMesh ConverterToDynamicMesh;
+					ConverterToDynamicMesh.Convert(MeshDescription, DynMesh);
+				}
+
+				SetValue(Context, NewMesh, &Mesh);
+			}
+			else
+			{
+				SetValue(Context, TObjectPtr<UDynamicMesh>(NewObject<UDynamicMesh>()), &Mesh);
+			}
 		}
 	}
 #endif
 }
 
 
-void FMeshAppendDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshAppendDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh))
 	{
@@ -278,7 +281,7 @@ void FMeshAppendDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 }
 
 
-void FMeshBooleanDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshBooleanDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh))
 	{
@@ -330,7 +333,7 @@ void FMeshBooleanDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FMeshCopyToPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMeshCopyToPointsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TObjectPtr<UDynamicMesh>>(&Mesh))
 	{
@@ -377,7 +380,7 @@ void FMeshCopyToPointsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-void FGetMeshDataDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetMeshDataDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<int32>(&VertexCount))
 	{

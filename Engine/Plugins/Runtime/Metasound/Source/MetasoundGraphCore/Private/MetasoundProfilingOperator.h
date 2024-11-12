@@ -24,17 +24,25 @@ namespace Metasound
 			, ResetFunction(Operator->GetResetFunction())
 			, ExecuteFunction(Operator->GetExecuteFunction())
 			, PostExecuteFunction(Operator->GetPostExecuteFunction())
+			, InsightsResetEventSpecId(0)
+			, InsightsExecuteEventSpecId(0)
+			, InsightsPostExecuteEventSpecId(0)
 		{
 			check(Operator);
 			const FNodeClassMetadata& NodeMetadata = Node->GetMetadata();
-			FString BaseEventName = NodeMetadata.ClassName.GetName().ToString();
-			if (NodeMetadata.ClassName.GetName().IsNone())
+			FName BaseEventName = NodeMetadata.ClassName.GetName();
+			if (BaseEventName.IsNone())
 			{
-				BaseEventName = Node->GetInstanceName().ToString();
+				BaseEventName = Node->GetInstanceName();
 			}
-			InsightsResetEventName = FString::Printf(TEXT("%s_RESET"), *BaseEventName);
-			InsightsExecuteEventName = FString::Printf(TEXT("%s_EXECUTE"), *BaseEventName);
-			InsightsPostExecuteEventName = FString::Printf(TEXT("%s_POSTEXECUTE"), *BaseEventName);
+			
+			BaseEventName.AppendString(InsightsResetEventName);
+			InsightsExecuteEventName = InsightsResetEventName;
+			InsightsPostExecuteEventName = InsightsResetEventName;
+
+			InsightsResetEventName.Append(TEXT("_RESET"));
+			InsightsExecuteEventName.Append(TEXT("_EXECUTE"));
+			InsightsPostExecuteEventName.Append(TEXT("_POSTEXECUTE"));
 		}
 
 		virtual ~FProfilingOperator() = default;
@@ -86,5 +94,8 @@ namespace Metasound
 		FString               InsightsResetEventName;
 		FString               InsightsExecuteEventName;
 		FString               InsightsPostExecuteEventName;
+		uint32                InsightsResetEventSpecId;
+		uint32                InsightsExecuteEventSpecId;
+		uint32                InsightsPostExecuteEventSpecId;
 	};
 }

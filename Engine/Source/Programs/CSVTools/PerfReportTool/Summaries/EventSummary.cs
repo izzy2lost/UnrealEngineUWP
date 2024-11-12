@@ -54,6 +54,11 @@ namespace PerfSummaries
 				}
 			}
 
+			// Sort descending
+			eventCountsDict = eventCountsDict
+				.OrderBy(pair  => -pair.Value)
+				.ToDictionary(x => x.Key, x => x.Value);
+
 			// Output HTML
 			if (bWriteHtml && eventCountsDict.Count > 0)
 			{

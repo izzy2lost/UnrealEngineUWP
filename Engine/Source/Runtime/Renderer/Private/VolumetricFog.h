@@ -10,6 +10,8 @@
 #include "SceneView.h"
 #include "SceneRendering.h"
 
+extern int32 GetVolumetricFogGridPixelSize();
+
 // Grid size for resource allocation to be independent of dynamic resolution
 extern FIntVector GetVolumetricFogResourceGridSize(const FViewInfo& View, int32& OutVolumetricFogGridPixelSize);
 // Grid size for the view rectangle within the allocated resource
@@ -26,4 +28,4 @@ extern bool DoesPlatformSupportVolumetricFogVoxelization(const FStaticShaderPlat
 extern bool ShouldRenderVolumetricFog(const FScene* Scene, const FSceneViewFamily& ViewFamily);
 extern const FProjectedShadowInfo* GetShadowForInjectionIntoVolumetricFog(const FVisibleLightInfo& VisibleLightInfo);
 
-extern bool LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const FVisibleLightInfo& VisibleLightInfo);
+extern bool LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const FVisibleLightInfo& VisibleLightInfo, const FScene& InScene);

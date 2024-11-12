@@ -72,4 +72,4 @@ void FAvalancheRemoteControlEditorModule::UnregisterCustomizations()
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FAvalancheRemoteControlEditorModule, AvalancheRemoteControlComponentsEditor)
+IMPLEMENT_MODULE(FAvalancheRemoteControlEditorModule, AvalancheRemoteControlEditor)

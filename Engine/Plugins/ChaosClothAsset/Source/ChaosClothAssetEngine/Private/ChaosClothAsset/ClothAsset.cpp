@@ -13,6 +13,7 @@
 #include "Animation/AnimationAsset.h"
 #endif
 #include "Engine/RendererSettings.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Features/IModularFeatures.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -21,6 +22,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/Package.h"
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
 #if WITH_EDITOR
 #include "IMeshBuilderModule.h"
 #include "DerivedDataCacheInterface.h"
@@ -40,6 +42,17 @@ FAutoConsoleVariableRef CVarClothCollectionOnlyCookPropertyFacade(
 	TEXT("p.ClothCollectionOnlyCookPropertyFacade"),
 	bClothCollectionOnlyCookPropertyFacade,
 	TEXT("Default setting for culling propertys on the cloth collection during the cook. Default[false]"));
+
+
+const TCHAR* MinLodQualityLevelCVarName = TEXT("p.ClothAsset.MinLodQualityLevel");
+const TCHAR* MinLodQualityLevelScalabilitySection = TEXT("ViewDistanceQuality");
+int32 MinLodQualityLevel = -1;
+FAutoConsoleVariableRef CVarClothAssetMinLodQualityLevel(
+	MinLodQualityLevelCVarName,
+	MinLodQualityLevel,
+	TEXT("The quality level for the Min stripping LOD. \n"),
+	FConsoleVariableDelegate::CreateStatic(&UChaosClothAsset::OnLodStrippingQualityLevelChanged),
+	ECVF_Scalability);
 	
 ::Chaos::FChaosArchive& Serialize(::Chaos::FChaosArchive& Ar, TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections)
 {
@@ -137,7 +150,9 @@ TArray<TSharedRef<FManagedArrayCollection>> TrimOnCook(const FString InAssetName
 
 UChaosClothAsset::UChaosClothAsset(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, MinQualityLevelLOD(0)
 	, DisableBelowMinLodStripping(FPerPlatformBool(false))
+	, MinLod(0)
 #if WITH_EDITORONLY_DATA
 	, MeshModel(MakeShareable(new FSkeletalMeshModel()))
 #endif
@@ -154,6 +169,8 @@ UChaosClothAsset::UChaosClothAsset(const FObjectInitializer& ObjectInitializer)
 	constexpr bool bRebuildModels = false;
 	constexpr bool bRebindMeshes = false;
 	SetReferenceSkeleton(nullptr, bRebuildModels, bRebindMeshes);
+
+	MinQualityLevelLOD.SetQualityLevelCVarForCooking(UE::Chaos::ClothAsset::Private::MinLodQualityLevelCVarName, UE::Chaos::ClothAsset::Private::MinLodQualityLevelScalabilitySection);
 }
 
 UChaosClothAsset::UChaosClothAsset(FVTableHelper& Helper)
@@ -192,14 +209,12 @@ FMatrix UChaosClothAsset::GetComposedRefPoseMatrix(FName InBoneName) const
 	return LocalPose;
 }
 
-
 void UChaosClothAsset::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
 
 	bool bCooked = Ar.IsCooking();
 	Ar << bCooked;
-
 
 	if (bCooked && Ar.IsSaving())
 	{
@@ -216,7 +231,7 @@ void UChaosClothAsset::Serialize(FArchive& Ar)
 
 	Ar << GetRefSkeleton();
 
-	if (bCooked && !IsTemplate() && !Ar.IsCountingMemory())
+	if (bCooked && !IsTemplate() && !Ar.IsCountingMemory())  // Counting of these resources are done in GetResourceSizeEx, so skip these when counting memory
 	{
 		if (Ar.IsLoading())
 		{
@@ -246,8 +261,75 @@ void UChaosClothAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 		ReregisterComponents();
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+	InvalidateDataflowContents();
 }
 #endif // #if WITH_EDITOR
+
+void UChaosClothAsset::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
+{
+	Super::GetResourceSizeEx(CumulativeResourceSize);
+
+	if (GetResourceForRendering())
+	{
+		GetResourceForRendering()->GetResourceSizeEx(CumulativeResourceSize);
+	}
+
+	if (ClothSimulationModel)
+	{
+		ClothSimulationModel->GetResourceSizeEx(CumulativeResourceSize);
+	}
+
+#if !UE_BUILD_SHIPPING
+	FString MemoryReport;
+	MemoryReport.Appendf(TEXT("---- Memory report for Cloth Asset [%s] ----"), *this->GetName());
+
+	FResourceSizeEx RenderDataResourceSize;
+	if (GetResourceForRendering())
+	{
+		for (int32 LodIndex = 0; LodIndex < GetResourceForRendering()->LODRenderData.Num(); ++LodIndex)
+		{
+			FResourceSizeEx LODRenderDataResourceSize;
+			GetResourceForRendering()->LODRenderData[LodIndex].GetResourceSizeEx(LODRenderDataResourceSize);
+			MemoryReport.Appendf(TEXT("\n LODRenderData LOD%d size: %ld bytes"), LodIndex, LODRenderDataResourceSize.GetTotalMemoryBytes());
+		}
+
+		GetResourceForRendering()->GetResourceSizeEx(RenderDataResourceSize);
+	}
+	MemoryReport.Appendf(TEXT("\n Total RenderData size: %ld bytes"), RenderDataResourceSize.GetTotalMemoryBytes());
+
+	FResourceSizeEx ClothSimulationModelResourceSize;
+	if (ClothSimulationModel)
+	{
+		for (int32 LodIndex = 0; LodIndex < ClothSimulationModel->GetNumLods(); ++LodIndex)
+		{
+			FResourceSizeEx ClothSimulationLodModelResourceSize;
+			ClothSimulationModel->ClothSimulationLodModels[LodIndex].GetResourceSizeEx(ClothSimulationLodModelResourceSize);
+
+			const FName Tag(*FString::Printf(TEXT("ClothSimulationLodModel[%d]"), LodIndex));
+			MemoryReport.Appendf(TEXT("\n ClothSimulationLodModel LOD%d size: %ld bytes"), LodIndex, ClothSimulationLodModelResourceSize.GetTotalMemoryBytes());
+		}
+
+		ClothSimulationModel->GetResourceSizeEx(ClothSimulationModelResourceSize);
+	}
+	MemoryReport.Appendf(TEXT("\n Total ClothSimulationModel size: %ld bytes"), ClothSimulationModelResourceSize.GetTotalMemoryBytes());
+
+	const int64 TotalResourceSize = RenderDataResourceSize.GetTotalMemoryBytes() + ClothSimulationModelResourceSize.GetTotalMemoryBytes();
+	MemoryReport.Appendf(
+		TEXT("\n Total resource size for Cloth Asset [%s]: %ld bytes (%.3f MB)"),
+		*this->GetName(),
+		TotalResourceSize,
+		(float)TotalResourceSize / (1024.f * 1024.f));
+
+	const int64 TotalSize = CumulativeResourceSize.GetTotalMemoryBytes();
+	MemoryReport.Appendf(
+		TEXT("\n Total size for Cloth Asset [%s]: %ld bytes (%.3f MB)"),
+		*this->GetName(),
+		TotalSize,
+		(float)TotalSize / (1024.f * 1024.f));
+
+	UE_LOG(LogChaosClothAsset, Display, TEXT("\n%s"), *MemoryReport);
+#endif
+}
 
 void UChaosClothAsset::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 {
@@ -315,6 +397,15 @@ void UChaosClothAsset::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Conte
 	BuildClothSimulationModel();  // TODO: Cache ClothSimulationModel?
 
 	BuildMeshModel();
+
+	// Convert PerPlatForm data to PerQuality if perQuality data have not been serialized.
+	// Also test default value, since PerPlatformData can have Default !=0 and no PerPlatform data overrides.
+	const bool bConvertMinLODData = (MinQualityLevelLOD.PerQuality.Num() == 0 && MinQualityLevelLOD.Default == 0) && (MinLod.PerPlatform.Num() != 0 || MinLod.Default != 0);
+	if (IsMinLodQualityLevelEnable() && bConvertMinLODData)
+	{
+		constexpr bool bRequireAllPlatformsKnownTrue = true;
+		MinQualityLevelLOD.ConvertQualityLevelDataUsingCVar(MinLod.PerPlatform, MinLod.Default, bRequireAllPlatformsKnownTrue);
+	}
 #endif // #if WITH_EDITOR
 }
 
@@ -493,17 +584,6 @@ void UChaosClothAsset::CalculateBounds()
 	Bounds = FBoxSphereBounds(BoundingBox);
 }
 
-void UChaosClothAsset::UpdateSkeleton(bool bRebuildClothSimulationModel)
-{
-	CalculateInvRefMatrices();
-
-	if (bRebuildClothSimulationModel)
-	{
-		// Rebuild simulation model  // TODO: How does this work with skinning
-		BuildClothSimulationModel();
-	}
-}
-
 void UChaosClothAsset::Build(TArray<FChaosClothAssetLodTransitionDataCache>* InOutTransitionCache)
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -667,17 +747,53 @@ FString UChaosClothAsset::GetAsyncPropertyName(uint64 Property) const
 	return StaticEnum<EClothAssetAsyncProperties>()->GetNameByValue(Property).ToString();
 }
 
+bool UChaosClothAsset::IsMinLodQualityLevelEnable() const
+{
+	return (GEngine && GEngine->UseClothAssetMinLODPerQualityLevels);
+}
+
+void UChaosClothAsset::OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable) 
+{
+#if WITH_EDITOR || PLATFORM_DESKTOP
+	if (GEngine && GEngine->UseClothAssetMinLODPerQualityLevels)
+	{
+		for (TObjectIterator<UChaosClothAsset> It; It; ++It)
+		{
+			UChaosClothAsset* ClothAsset = *It;
+			if (ClothAsset && ClothAsset->GetQualityLevelMinLod().PerQuality.Num() > 0)
+			{
+				FSkinnedMeshComponentRecreateRenderStateContext Context(ClothAsset, false);
+			}
+		}
+	}
+#endif
+}
+
 int32 UChaosClothAsset::GetMinLodIdx(bool bForceLowestLODIndex) const
 {
-	// #TODO Add quality level controls alongside per-platform taking precedence when enabled
-	return GetMinLod().GetValue();
+	if (IsMinLodQualityLevelEnable())
+	{
+		return bForceLowestLODIndex ? GetQualityLevelMinLod().GetLowestValue() : GetQualityLevelMinLod().GetValue(UE::Chaos::ClothAsset::Private::MinLodQualityLevel);
+	}
+	else
+	{
+		return GetMinLod().GetValue();
+	}
 }
 
 int32 UChaosClothAsset::GetPlatformMinLODIdx(const ITargetPlatform* InTargetPlatform) const
 {
-	// #TODO Add quality level controls alongside per-platform taking precedence when enabled
 #if WITH_EDITOR
-	return GetMinLod().GetValueForPlatform(*InTargetPlatform->IniPlatformName());
+	check(InTargetPlatform);
+	if (IsMinLodQualityLevelEnable())
+	{
+		// get all supported quality level from scalability + engine ini files
+		return GetQualityLevelMinLod().GetValueForPlatform(InTargetPlatform);
+	}
+	else
+	{
+		return GetMinLod().GetValueForPlatform(*InTargetPlatform->IniPlatformName());
+	}
 #else
 	return 0;
 #endif
@@ -904,17 +1020,6 @@ void UChaosClothAsset::ReregisterComponents()
 	}
 }
 
-void UChaosClothAsset::BindSimMeshToRootBone()
-{
-	using namespace UE::Chaos::ClothAsset;
-	check(GetClothCollections().Num());
-
-	for (TSharedRef<FManagedArrayCollection>& ClothCollection : GetClothCollections())
-	{
-		FClothGeometryTools::BindMeshToRootBone(ClothCollection, true, false);
-	}
-}
-
 #if WITH_EDITORONLY_DATA
 
 void UChaosClothAsset::SetPreviewSceneSkeletalMesh(USkeletalMesh* Mesh)
@@ -940,3 +1045,42 @@ UAnimationAsset* UChaosClothAsset::GetPreviewSceneAnimation() const
 }
 
 #endif
+
+TObjectPtr<UDataflowBaseContent> UChaosClothAsset::CreateDataflowContent()
+{
+	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = UE::DataflowContextHelpers::CreateNewDataflowContent<UDataflowSkeletalContent>(this);
+
+	SkeletalContent->SetDataflowOwner(this);
+	SkeletalContent->SetTerminalAsset(this);
+
+	WriteDataflowContent(SkeletalContent);
+	
+	return SkeletalContent;
+}
+
+void UChaosClothAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+		SkeletalContent->SetDataflowAsset(DataflowAsset);
+		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
+
+#if WITH_EDITORONLY_DATA
+		SkeletalContent->SetAnimationAsset(GetPreviewSceneAnimation());
+		SkeletalContent->SetSkeletalMesh(GetPreviewSceneSkeletalMesh());
+#endif
+	}
+}
+
+void UChaosClothAsset::ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+#if WITH_EDITORONLY_DATA
+		PreviewSceneAnimation = SkeletalContent->GetAnimationAsset();
+		PreviewSceneSkeletalMesh = SkeletalContent->GetSkeletalMesh();
+#endif
+	}
+}
+
+

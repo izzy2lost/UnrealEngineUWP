@@ -2,42 +2,52 @@
 
 #include "Graph/GC_GraphInstanceComponent.h"
 
-#include "DecoratorBase/ExecutionContext.h"
-#include "DecoratorInterfaces/IGarbageCollection.h"
+#include "TraitCore/ExecutionContext.h"
+#include "TraitInterfaces/IGarbageCollection.h"
 
 namespace UE::AnimNext
 {
-	void FGCGraphInstanceComponent::Register(FAnimNextGraphInstance& GraphInstance, const FWeakDecoratorPtr& DecoratorPtr)
+	FGCGraphInstanceComponent::FGCGraphInstanceComponent(FAnimNextGraphInstance& InOwnerInstance)
+		: FGraphInstanceComponent(InOwnerInstance)
 	{
-		DecoratorsWithReferences.Add(FEntry(GraphInstance, DecoratorPtr));
 	}
 
-	void FGCGraphInstanceComponent::Unregister(const FWeakDecoratorPtr& DecoratorPtr)
+	void FGCGraphInstanceComponent::Register(const FWeakTraitPtr& InTraitPtr)
 	{
-		const int32 EntryIndex = DecoratorsWithReferences.IndexOfByPredicate(
-			[&DecoratorPtr](const FEntry& Entry)
+		TraitsWithReferences.Add(InTraitPtr);
+	}
+
+	void FGCGraphInstanceComponent::Unregister(const FWeakTraitPtr& InTraitPtr)
+	{
+		const int32 EntryIndex = TraitsWithReferences.IndexOfByPredicate(
+			[&InTraitPtr](const FWeakTraitPtr& TraitPtr)
 			{
-				return Entry.DecoratorPtr == DecoratorPtr;
+				return TraitPtr == InTraitPtr;
 			});
 
 		if (ensure(EntryIndex != INDEX_NONE))
 		{
-			DecoratorsWithReferences.RemoveAtSwap(EntryIndex);
+			TraitsWithReferences.RemoveAtSwap(EntryIndex);
 		}
 	}
 
 	void FGCGraphInstanceComponent::AddReferencedObjects(FReferenceCollector& Collector) const
 	{
 		FExecutionContext Context;
-		TDecoratorBinding<IGarbageCollection> GCDecorator;
+		FTraitStackBinding TraitStack;
+		TTraitBinding<IGarbageCollection> GCTrait;
 
 		// TODO: If we kept the entries sorted by graph instance, we could re-use the execution context
-		for (const FEntry& Entry : DecoratorsWithReferences)
+		for (const FWeakTraitPtr& TraitPtr : TraitsWithReferences)
 		{
-			Context.BindTo(Entry.GraphInstance);
-			ensure(Context.GetInterface(Entry.DecoratorPtr, GCDecorator));
+			Context.BindTo(TraitPtr);
 
-			GCDecorator.AddReferencedObjects(Context, Collector);
+			if (Context.GetStack(TraitPtr, TraitStack))
+			{
+				ensure(TraitStack.GetInterface(GCTrait));
+
+				GCTrait.AddReferencedObjects(Context, Collector);
+			}
 		}
 	}
 }

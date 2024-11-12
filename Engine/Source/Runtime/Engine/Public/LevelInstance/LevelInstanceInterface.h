@@ -8,6 +8,7 @@
 #include "LevelInstance/LevelInstanceTypes.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
+#include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
 #include "LevelInstanceInterface.generated.h"
 
 class ULevelInstanceComponent;
@@ -46,7 +47,9 @@ class ILevelInstanceInterface
 	virtual bool IsLoadingEnabled() const = 0;
 
 #if WITH_EDITOR
-
+	virtual bool SupportsPropertyOverrides() const { return false; }
+		
+	virtual ULevelInstancePropertyOverrideAsset* GetPropertyOverrideAsset() const { return nullptr; }
 
 	virtual ULevelInstanceComponent* GetLevelInstanceComponent() const = 0;
 
@@ -55,6 +58,8 @@ class ILevelInstanceInterface
 	virtual ELevelInstanceRuntimeBehavior GetDefaultRuntimeBehavior() const = 0;
 
 	virtual TSubclassOf<AActor> GetEditorPivotClass() const { return nullptr; }
+	
+	virtual void AdjustPivotOnCreation() { }
 
 	ENGINE_API virtual bool SupportsPartialEditorLoading() const;
 #endif
@@ -88,13 +93,19 @@ class ILevelInstanceInterface
 
 #if WITH_EDITOR
 	ENGINE_API virtual void OnEdit();
+	ENGINE_API virtual void OnEditPropertyOverrides();
 
 	virtual void OnEditChild() {}
 
 	ENGINE_API virtual void OnCommit(bool bChanged);
+	ENGINE_API virtual void OnCommitPropertyOverrides(bool bChanged);
 
 	virtual void OnCommitChild(bool bChanged) {}
 	
+	ENGINE_API bool IsInAnyEditMode() const { return IsEditing() || IsEditingPropertyOverrides(); }
+
+	ENGINE_API bool IsEditingPropertyOverrides() const;
+
 	ENGINE_API virtual bool IsEditing() const;
 	
 	ENGINE_API virtual bool HasChildEdit() const;
@@ -106,13 +117,21 @@ class ILevelInstanceInterface
 	ENGINE_API virtual bool HasDirtyChildren() const;
 	
 	ENGINE_API virtual bool CanEnterEdit(FText* OutReason = nullptr) const;
+
+	ENGINE_API bool CanEnterEditPropertyOverrides(FText* OutReason = nullptr) const;
 	
 	ENGINE_API virtual bool EnterEdit(AActor* ContextActor = nullptr);
+
+	ENGINE_API bool EnterEditPropertyOverrides(AActor* ContextActor = nullptr);
 	
 	ENGINE_API virtual bool CanExitEdit(bool bDiscardEdits = false, FText* OutReason = nullptr) const;
+
+	ENGINE_API bool CanExitEditPropertyOverrides(bool bDiscardEdits = false, FText* OutReason = nullptr) const;
 	
 	ENGINE_API virtual bool ExitEdit(bool bDiscardEdits = false);
-	
+
+	ENGINE_API bool ExitEditPropertyOverrides(bool bDiscardEdits = false);
+			
 	ENGINE_API virtual bool SetCurrent();
 	
 	ENGINE_API virtual bool MoveActorsTo(const TArray<AActor*>& ActorsToMove);
@@ -141,4 +160,9 @@ class ILevelInstanceInterface
 
 	ENGINE_API virtual void UpdateLevelInstanceFromWorldAsset();
 
+#if WITH_EDITOR
+private:
+	friend class ULevelInstanceSubsystem;
+	virtual void SetPropertyOverrideAsset(ULevelInstancePropertyOverrideAsset* InPropertyOverride) {}
+#endif
 };

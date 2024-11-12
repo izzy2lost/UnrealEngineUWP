@@ -10,6 +10,9 @@
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "ToolDataVisualizer.h"
+#include "ToolSetupUtil.h"
+#include "Drawing/PreviewGeometryActor.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Selections/GeometrySelectionUtil.h"
 #include "Util/ColorConstants.h"
 
@@ -17,7 +20,7 @@
 
 static TAutoConsoleVariable<int32> CVarGeometrySelectionManager_FullSelectionHoverHighlights(
 	TEXT("modeling.Selection.FullHoverHighlights"),
-	0,
+	1,
 	TEXT("Use full selection hover highlights instead of simplified highlights")
 );
 
@@ -33,6 +36,7 @@ void UGeometrySelectionManager::Initialize( UInteractiveToolsContext* ToolsConte
 {
 	ToolsContext = ToolsContextIn;
 	TransactionsAPI = TransactionsAPIIn;
+	PreviewGeometry = NewObject<UPreviewGeometry>(this);
 }
 
 void UGeometrySelectionManager::RegisterSelectorFactory(TUniquePtr<IGeometrySelectorFactory> Factory)
@@ -47,6 +51,8 @@ void UGeometrySelectionManager::Shutdown()
 	OnSelectionModified.Clear();
 	ToolsContext = nullptr;
 	TransactionsAPI = nullptr;
+
+	DisconnectPreviewGeometry();
 
 	for (TSharedPtr<FGeometrySelectionTarget> Target : ActiveTargetReferences)
 	{
@@ -77,26 +83,100 @@ public:
 	/** Makes the change to the object */
 	virtual void Apply(UObject* Object) override
 	{
-		if (FromElementType != ToElementType)
+		// do the (default) red selectable lines/verts need to be rebuilt?
+		// - ex: when moving from object mode to tri/vert/edge mode, or moving between vert and edge/face mode,
+		//		 or between triangle and polygroup topology
+		bool bRebuildSelectable = false;
+
+		UGeometrySelectionManager* GeoSelectionManager = CastChecked<UGeometrySelectionManager>(Object);
+
+		// removes existing Line/Point/Triangle Sets when moving between vertex and face/edge modes during redo
+		if (
+			(((ToElementType == EGeometryElementType::Vertex) && (FromElementType == EGeometryElementType::Edge || FromElementType == EGeometryElementType::Face))
+			|| ((ToElementType == EGeometryElementType::Edge || ToElementType == EGeometryElementType::Face) && (FromElementType == EGeometryElementType::Vertex)))
+			&& (ToTopologyMode != UGeometrySelectionManager::EMeshTopologyMode::None)
+		)
 		{
-			CastChecked<UGeometrySelectionManager>(Object)->SetSelectionElementTypeInternal(ToElementType);
+			GeoSelectionManager->RemoveAllSets();
+			bRebuildSelectable = true;
 		}
+
 		if (FromTopologyMode != ToTopologyMode)
 		{
-			CastChecked<UGeometrySelectionManager>(Object)->SetMeshTopologyModeInternal(ToTopologyMode);
+			// when changing to Object mode, lines or verts need to be cleared
+			if (ToTopologyMode == UGeometrySelectionManager::EMeshTopologyMode::None)
+			{
+				GeoSelectionManager->RemoveAllSets();
+			}
+			// in all other cases of changing topology modes, the lines/verts need to be rebuilt
+			// uses a flag to preserve order of Removing Sets->Setting Element Type/Topo Mode -> Rebuild (when applicable for each step)
+			else
+			{
+				bRebuildSelectable = true;
+			}
+			GeoSelectionManager->SetMeshTopologyModeInternal(ToTopologyMode);
 		}
+		
+		if (FromElementType != ToElementType)
+		{
+			GeoSelectionManager->SetSelectionElementTypeInternal(ToElementType);
+		}
+
+		// if applicable, rebuilds lines/verts
+		if (bRebuildSelectable)
+		{
+			GeoSelectionManager->RebuildSelectable();
+		}
+				
 	}
 
 	/** Reverts change to the object */
 	virtual void Revert(UObject* Object) override
 	{
-		if (FromElementType != ToElementType)
+		// do the (default) red selectable lines/verts need to be rebuilt?
+		// - ex: when moving from object mode to tri/vert/edge mode, or moving between vert and edge/face mode
+		//		 or between triangle and polygroup topology
+		bool bRebuildSelectable = false;
+
+		UGeometrySelectionManager* GeoSelectionManager = CastChecked<UGeometrySelectionManager>(Object);
+
+		// removes existing Line/Point/Triangle Sets when moving between vertex and face/edge modes during undo
+		if (
+			(((ToElementType == EGeometryElementType::Vertex) && (FromElementType == EGeometryElementType::Edge || FromElementType == EGeometryElementType::Face))
+			|| ((ToElementType == EGeometryElementType::Edge || ToElementType == EGeometryElementType::Face) && (FromElementType == EGeometryElementType::Vertex)))
+			&& (FromTopologyMode != UGeometrySelectionManager::EMeshTopologyMode::None)
+		)
 		{
-			CastChecked<UGeometrySelectionManager>(Object)->SetSelectionElementTypeInternal(FromElementType);
+			GeoSelectionManager->RemoveAllSets();
+			bRebuildSelectable = true;
+			
 		}
+
 		if (FromTopologyMode != ToTopologyMode)
 		{
-			CastChecked<UGeometrySelectionManager>(Object)->SetMeshTopologyModeInternal(FromTopologyMode);
+			// when changing to Object mode, lines or verts need to be cleared
+			if (FromTopologyMode == UGeometrySelectionManager::EMeshTopologyMode::None)
+			{
+				GeoSelectionManager->RemoveAllSets();
+			}
+			// in all other cases of changing topology modes, the lines/verts need to be rebuilt
+			// uses a flag to preserve order of Removing Sets->Setting Element Type/Topo Mode -> Rebuild (when applicable for each step)
+			else
+			{
+				bRebuildSelectable = true;
+			}
+			GeoSelectionManager->SetMeshTopologyModeInternal(FromTopologyMode);
+		}
+		
+		if (FromElementType != ToElementType)
+		{
+			GeoSelectionManager->SetSelectionElementTypeInternal(FromElementType);
+		}
+
+		// if applicable, rebuilds lines/verts
+		if (bRebuildSelectable)
+		{
+			GeoSelectionManager->RebuildSelectable();
 		}
 	}
 
@@ -125,7 +205,7 @@ void UGeometrySelectionManager::SetSelectionElementTypeInternal(EGeometryElement
 			Target->SelectionEditor->UpdateQueryConfig(GetCurrentSelectionQueryConfig(), bEnableTopologyFilter);
 		}
 
-		MarkRenderCachesDirty();
+		MarkRenderCachesDirty(false);
 		ClearActivePreview();
 	}
 }
@@ -205,6 +285,96 @@ void UGeometrySelectionManager::SetMeshTopologyMode(EMeshTopologyMode NewTopolog
 	}
 }
 
+void UGeometrySelectionManager::RebuildSelectable() const
+{
+	for (int32 k = 0; k < ActiveTargetReferences.Num(); ++k)
+	{
+		CreateOrUpdateAllSets(CachedSelectableRenderElements[k], UnselectedParams);
+	}
+}
+
+
+void UGeometrySelectionManager::SetMeshSelectionTypeAndMode(EGeometryElementType NewElementType, EMeshTopologyMode NewTopologyMode, bool bConvertSelection)
+{
+	if (MeshTopologyMode != NewTopologyMode || SelectionElementType != NewElementType)
+	{
+		bool bHasSelection = HasSelection();
+
+		// If we're converting selections, save the old one; we will re-add it after changing the mode
+		TArray<FGeometrySelection> OldTypeSelections;
+		if (bHasSelection && bConvertSelection)
+		{
+			for (TSharedPtr<FGeometrySelectionTarget> Target : ActiveTargetReferences)
+			{
+				OldTypeSelections.Add(Target->Selection);
+			}
+		}
+
+		ClearSelection();
+
+		// clear preview geometry sets when in Object selection mode
+		if (NewTopologyMode == EMeshTopologyMode::None && PreviewGeometry)
+		{
+			RemoveAllSets();
+		}
+
+		// removes existing Line/Point/Triangle Sets when moving between vertex and face/edge modes
+		bool bRebuildSelectable = false;
+		if (
+			(((NewElementType == EGeometryElementType::Vertex) && (SelectionElementType == EGeometryElementType::Edge || SelectionElementType == EGeometryElementType::Face))
+			|| ((NewElementType == EGeometryElementType::Edge || NewElementType == EGeometryElementType::Face) && (SelectionElementType == EGeometryElementType::Vertex)))
+			&& (NewTopologyMode != EMeshTopologyMode::None)
+		) // ensure lines not rebuilt when changing to object mode
+		{
+			RemoveAllSets();
+			bRebuildSelectable = true;
+		}
+
+		GetTransactionsAPI()->BeginUndoTransaction(LOCTEXT("ChangeElementMethod", "Change Selection Method"));
+
+		// We have to undo/redo the change to the selection type because if we want to 'undo' this later and restore
+		// the current selection, we need the active element type to be correct. Note that it goes *after* the Clear
+		// so that when we undo, we change to the correct type before we restore
+		TUniquePtr<FGeometrySelectionManager_SelectionTypeChange> TypeChange = MakeUnique<FGeometrySelectionManager_SelectionTypeChange>();
+		TypeChange->FromElementType = SelectionElementType;
+		TypeChange->ToElementType = NewElementType;
+		TypeChange->FromTopologyMode = MeshTopologyMode;
+		TypeChange->ToTopologyMode = NewTopologyMode;
+		GetTransactionsAPI()->AppendChange(this, MoveTemp(TypeChange), LOCTEXT("ChangeElementMethod", "Change Selection Method"));
+
+		SetSelectionElementTypeInternal(NewElementType);
+		SetMeshTopologyModeInternal(NewTopologyMode);
+
+		if (bRebuildSelectable)
+		{
+			RebuildSelectable();
+		}
+
+		if (bHasSelection && bConvertSelection && ensure(ActiveTargetReferences.Num() == OldTypeSelections.Num()))
+		{
+			for (int32 TargetIdx = 0; TargetIdx < ActiveTargetReferences.Num(); ++TargetIdx)
+			{
+				// Add back the old selection, converted to the new mode/type
+				TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[TargetIdx];
+				FGeometrySelection InitialSelection = Target->Selection;
+				FGeometrySelectionDelta AfterDelta;
+				Target->Selector->UpdateSelectionFromSelection(OldTypeSelections[TargetIdx], true, *Target->SelectionEditor, FGeometrySelectionUpdateConfig{EGeometrySelectionChangeType::Replace}, &AfterDelta);
+				if (!AfterDelta.IsEmpty())
+				{
+					TUniquePtr<FGeometrySelectionReplaceChange> NewSelectionChange = MakeUnique<FGeometrySelectionReplaceChange>();
+					NewSelectionChange->Identifier = Target->TargetIdentifier;
+					NewSelectionChange->After = Target->Selection;
+					NewSelectionChange->Before = InitialSelection;
+					GetTransactionsAPI()->AppendChange(this, MoveTemp(NewSelectionChange), LOCTEXT("ConvertSelection", "Convert Selection"));
+				}
+			}
+		}
+
+		GetTransactionsAPI()->EndUndoTransaction();
+
+		OnSelectionModified.Broadcast();
+	}
+}
 
 
 EGeometryTopologyType UGeometrySelectionManager::GetSelectionTopologyType() const
@@ -313,7 +483,27 @@ bool UGeometrySelectionManager::HasActiveTargets() const
 	return (ActiveTargetReferences.Num() > 0);
 }
 
-
+bool UGeometrySelectionManager::ValidateSelectionState() const
+{
+	for (const TSharedPtr<FGeometrySelectionTarget>& Target : ActiveTargetReferences)
+	{
+		if (!Target.IsValid())
+		{
+			return false;
+		}
+		// if we have a stale target/selection object, selection state is not valid
+		// Note: it is ok for the object to be explicitly null, just not stale
+		if (Target->SelectionIdentifer.TargetObject.IsStale())
+		{
+			return false;
+		}
+		if (Target->TargetIdentifier.TargetObject.IsStale())
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 void UGeometrySelectionManager::ClearActiveTargets()
 {
@@ -496,7 +686,6 @@ TArray<FGeometryIdentifier> UGeometrySelectionManager::GetCurrentTargetIdentifie
 
 void UGeometrySelectionManager::SetTargetsOnUndoRedo(TArray<FGeometryIdentifier> NewTargets)
 {
-	check(HasSelection() == false);
 	ClearActiveTargets();
 	for (FGeometryIdentifier Identifier : NewTargets)
 	{
@@ -656,7 +845,7 @@ void UGeometrySelectionManager::ClearSelection(bool bSaveSelectionBeforeClear)
 
 	GetTransactionsAPI()->EndUndoTransaction();
 
-	MarkRenderCachesDirty();
+	MarkRenderCachesDirty(false);
 	OnSelectionModified.Broadcast();
 }
 
@@ -696,7 +885,7 @@ void UGeometrySelectionManager::UpdateSelectionViaRaycast(
 		GetTransactionsAPI()->AppendChange(this, MoveTemp(DeltaChange), LOCTEXT("UpdateSelectionViaRaycast", "Change Selection"));
 		GetTransactionsAPI()->EndUndoTransaction();
 
-		MarkRenderCachesDirty();
+		MarkRenderCachesDirty(false);
 		OnSelectionModified.Broadcast();
 	}
 	else if (ResultOut.bSelectionMissed && UpdateConfig.ChangeType == EGeometrySelectionChangeType::Replace)
@@ -739,7 +928,7 @@ void UGeometrySelectionManager::UpdateSelectionViaConvex(
 		GetTransactionsAPI()->AppendChange(this, MoveTemp(DeltaChange), LOCTEXT("UpdateSelectionViaConvex", "Change Selection"));
 		GetTransactionsAPI()->EndUndoTransaction();
 
-		MarkRenderCachesDirty();
+		MarkRenderCachesDirty(false);
 		OnSelectionModified.Broadcast();
 	}
 	else if (ResultOut.bSelectionMissed && UpdateConfig.ChangeType == EGeometrySelectionChangeType::Replace)
@@ -784,7 +973,7 @@ bool UGeometrySelectionManager::BeginTrackedSelectionChange(FGeometrySelectionUp
 
 	if (bClearOnBegin && InitialTrackedDelta.IsEmpty() == false)
 	{
-		MarkRenderCachesDirty();
+		MarkRenderCachesDirty(false);
 		OnSelectionModified.Broadcast();
 	}
 
@@ -814,7 +1003,7 @@ void UGeometrySelectionManager::AccumulateSelectionUpdate_Raycast(
 		ActiveTrackedDelta.Added.Append( ResultOut.SelectionDelta.Added );
 		ActiveTrackedDelta.Removed.Append( ResultOut.SelectionDelta.Removed );
 
-		MarkRenderCachesDirty();
+		MarkRenderCachesDirty(false);
 		OnSelectionModified.Broadcast();
 	}
 }
@@ -869,7 +1058,7 @@ bool UGeometrySelectionManager::SetSelectionForComponent(UPrimitiveComponent* Co
 				NewSelectionChange->Before = InitialSelection;
 				GetTransactionsAPI()->AppendChange(this, MoveTemp(NewSelectionChange), LOCTEXT("NewSelection", "New Selection"));
 
-				MarkRenderCachesDirty();
+				MarkRenderCachesDirty(false);
 				OnSelectionModified.Broadcast();
 			}
 			return true;
@@ -929,7 +1118,7 @@ bool UGeometrySelectionManager::RestoreSavedSelection()
 					NewSelectionChange->Before = InitialSelection;
 					GetTransactionsAPI()->AppendChange(this, MoveTemp(NewSelectionChange), LOCTEXT("RestoreSelection", "Restore Selection"));
 
-					MarkRenderCachesDirty();
+					MarkRenderCachesDirty(false);
 					OnSelectionModified.Broadcast();
 				}
 				bFound = true;
@@ -982,8 +1171,60 @@ bool UGeometrySelectionManager::UpdateSelectionPreviewViaRaycast(
 	if ( ! UE::Geometry::AreSelectionsIdentical(NewPreview.PreviewSelection, ActivePreviewSelection) )
 	{
 		ActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
-		CachedPreviewRenderElements.Reset();
-		MarkRenderCachesDirty();
+		
+		// Initialize [Un]SelectedActivePreviewSelection(s) so that they are of the correct Topology and Geometry type, then clear them
+		SelectedActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
+		UnselectedActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
+		SelectedActivePreviewSelection.Reset();
+		UnselectedActivePreviewSelection.Reset();
+
+		if (MeshTopologyMode == EMeshTopologyMode::Polygroup)
+		{
+			// Get all polygroup IDs in current preview selection
+			TSet<uint32> SelectedGroupIDs;
+			for (const uint64 ID : Target->Selection.Selection)
+			{
+				SelectedGroupIDs.Add(FGeoSelectionID(ID).TopologyID);
+			}
+
+			// Get GroupID of active preview selection (hovered items)
+			for (const uint64 ID : ActivePreviewSelection.Selection)
+			{
+				const uint32 TopoID = FGeoSelectionID(ID).TopologyID;
+
+				// add to selection according to if an element with the GroupID is already selected
+				if (SelectedGroupIDs.Contains(TopoID))
+				{
+					SelectedActivePreviewSelection.Selection.Add(ID);
+				}
+				else
+				{
+					UnselectedActivePreviewSelection.Selection.Add(ID);
+				}
+			}
+		}
+		// Triangle Topology mode is more straightforward
+		else if (MeshTopologyMode == EMeshTopologyMode::Triangle)
+		{
+			for (const uint64 ID : ActivePreviewSelection.Selection)
+			{
+				if (Target->Selection.Selection.Contains(ID))
+				{
+					SelectedActivePreviewSelection.Selection.Add(ID);
+				}
+				else
+				{
+					UnselectedActivePreviewSelection.Selection.Add(ID);
+				}
+			}
+		}
+		CachedSelectedPreviewRenderElements.Reset();
+		CachedUnselectedPreviewRenderElements.Reset();
+
+		RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::PreviewCachesDirty;
+
+		RemoveSets(HoverOverSelectedParams.Identifiers);
+		RemoveSets(HoverOverUnselectedParams.Identifiers);
 	}
 
 	return (ActivePreviewSelection.IsEmpty() == false);
@@ -1113,7 +1354,7 @@ void UGeometrySelectionManager::UpdateTransformation(
 		}
 	}
 
-	bSelectionRenderCachesDirty = true;
+	RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::SelectionCachesDirty;
 }
 
 void UGeometrySelectionManager::EndTransformation()
@@ -1135,7 +1376,7 @@ void UGeometrySelectionManager::EndTransformation()
 
 	GetTransactionsAPI()->EndUndoTransaction();
 
-	bSelectionRenderCachesDirty = true;
+	RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::SelectionCachesDirty;
 }
 
 
@@ -1196,6 +1437,8 @@ void UGeometrySelectionManager::ExecuteSelectionCommand(UGeometrySelectionEditCo
 		// q: we could clear the selection here, and pass the Handle a copy. Perhaps safer?
 		UInteractiveCommandResult* ResultPtr = nullptr;
 		SelectionArguments->SelectionHandle = FGeometrySelectionHandle{ Target->Selector->GetIdentifier(), &Target->Selection, Target->Selector.Get() };
+		SelectionArguments->ElementType = SelectionElementType;
+		SelectionArguments->TopologyMode = GetSelectionTopologyType();
 		SelectionArguments->SetTransactionsAPI(TransactionsAPI);
 		Command->ExecuteCommand(SelectionArguments, &ResultPtr);
 
@@ -1226,8 +1469,8 @@ void UGeometrySelectionManager::ExecuteSelectionCommand(UGeometrySelectionEditCo
 
 	GetTransactionsAPI()->EndUndoTransaction();
 
-	// assume this is true for now
-	MarkRenderCachesDirty();
+	// assume marking render caches (except selectable) is true for now
+	MarkRenderCachesDirty(false);
 	OnSelectionModified.Broadcast();
 }
 
@@ -1274,7 +1517,7 @@ void UGeometrySelectionManager::ApplyChange(IGeometrySelectionChange* Change)
 
 			if (ApplyDelta.IsEmpty() == false)
 			{
-				MarkRenderCachesDirty();
+				MarkRenderCachesDirty(false);
 				OnSelectionModified.Broadcast();
 			}
 
@@ -1303,7 +1546,7 @@ void UGeometrySelectionManager::RevertChange(IGeometrySelectionChange* Change)
 
 			if (RevertDelta.IsEmpty() == false)
 			{
-				MarkRenderCachesDirty();
+				MarkRenderCachesDirty(false);
 				OnSelectionModified.Broadcast();
 			}
 
@@ -1318,6 +1561,8 @@ void UGeometrySelectionManager::OnTargetGeometryModified(IGeometrySelector* Sele
 	CachedSelectableRenderElements.Reset();
 	
 	CachedSelectableRenderElements.SetNum(ActiveTargetReferences.Num());
+
+	RemoveSets(UnselectedParams.Identifiers);
 	
 	MarkRenderCachesDirty();
 	ClearActivePreview();
@@ -1331,16 +1576,21 @@ void UGeometrySelectionManager::UpdateSelectionRenderCacheOnTargetChange()
 	
 	CachedSelectionRenderElements.SetNum(ActiveTargetReferences.Num());
 	CachedSelectableRenderElements.SetNum(ActiveTargetReferences.Num());
+
+	RemoveSets(SelectedParams.Identifiers);
+	RemoveSets(UnselectedParams.Identifiers);
 	
 	MarkRenderCachesDirty();
 	ClearActivePreview();
 }
 
-void UGeometrySelectionManager::MarkRenderCachesDirty()
+void UGeometrySelectionManager::MarkRenderCachesDirty(bool bMarkSelectableDirty)
 {
-	bSelectionRenderCachesDirty = true;
-	bSelectableRenderCachesDirty = true;
-	bPreviewRenderCachesDirty = true;
+	if (bMarkSelectableDirty)
+	{
+		RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::UnselectedCachesDirty;
+	}
+	RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::PreviewCachesDirty | EEnumerateRenderCachesDirtyFlags::SelectionCachesDirty;
 }
 
 void UGeometrySelectionManager::RebuildSelectionRenderCaches()
@@ -1353,18 +1603,83 @@ void UGeometrySelectionManager::RebuildSelectionRenderCaches()
 void UGeometrySelectionManager::ClearActivePreview()
 {
 	ActivePreviewSelection.Reset();
-	CachedPreviewRenderElements.Reset();
-	bSelectableRenderCachesDirty = true;
-	bPreviewRenderCachesDirty = true;
+	SelectedActivePreviewSelection.Reset();
+	UnselectedActivePreviewSelection.Reset();
+	CachedSelectedPreviewRenderElements.Reset();
+	CachedUnselectedPreviewRenderElements.Reset();
+	
+	RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::PreviewCachesDirty;
+
+	RemoveSets(HoverOverSelectedParams.Identifiers);
+	RemoveSets(HoverOverUnselectedParams.Identifiers);
+}
+
+
+void UGeometrySelectionManager::RemoveAllSets() const
+{
+	if(!ensure(PreviewGeometry))
+	{
+		return;
+	}
+	PreviewGeometry->RemoveAllLineSets();
+	PreviewGeometry->RemoveAllPointSets();
+	PreviewGeometry->RemoveAllTriangleSets();
+}
+
+void UGeometrySelectionManager::RemoveSets(const TArrayView<FString>& SetIdentifiers) const
+{
+	
+	if (PreviewGeometry)
+	{
+		PreviewGeometry->RemoveLineSet(SetIdentifiers[1]);
+		PreviewGeometry->RemovePointSet(SetIdentifiers[0]);
+		PreviewGeometry->RemoveTriangleSet(SetIdentifiers[2]);
+	}
+}
+
+void UGeometrySelectionManager::CreateOrUpdateAllSets(const FGeometrySelectionElements& Elements, const FMeshElementSelectionParams SelectionParams) const
+{
+
+	UWorld* World = GetWorld();
+	if (World && !PreviewGeometry->ParentActor)
+	{
+		PreviewGeometry->CreateInWorld(World, FTransform::Identity);
+	}
+
+	if(SelectionElementType == EGeometryElementType::Edge || SelectionElementType == EGeometryElementType::Face)
+	{
+		PreviewGeometry->CreateOrUpdateLineSet(SelectionParams.Identifiers[1], Elements.Segments.Num(), [&](int32 j, TArray<FRenderableLine>& LinesOut)
+		{
+		const FSegment3d Seg = Elements.Segments[j];
+		LinesOut.Add(FRenderableLine(Seg.StartPoint(), Seg.EndPoint(),  SelectionParams.Color,  SelectionParams.LineThickness, SelectionParams.DepthBias));
+		}, 1);
+	
+		PreviewGeometry->CreateOrUpdateTriangleSet(SelectionParams.Identifiers[2], Elements.Triangles.Num(), [&](int32 k, TArray<FRenderableTriangle>& TrianglesOut)
+			{
+			const FTriangle3d Triangle = Elements.Triangles[k];
+			const FVector3d Normal = Triangle.Normal();
+			FRenderableTriangleVertex A(Triangle.V[0], FVector2D(0,0), Normal, SelectionParams.Color);
+			FRenderableTriangleVertex B(Triangle.V[1], FVector2D(1,0), Normal, SelectionParams.Color);
+			FRenderableTriangleVertex C(Triangle.V[2], FVector2D(1,1), Normal, SelectionParams.Color);
+			TrianglesOut.Add(FRenderableTriangle(SelectionParams.SelectionFillColor, A, B, C));
+			},1 );
+	}
+	else if (SelectionElementType == EGeometryElementType::Vertex)
+	{
+		PreviewGeometry->CreateOrUpdatePointSet(SelectionParams.Identifiers[0], Elements.Points.Num(), [&](int32 k, TArray<FRenderablePoint>& PointsOut)
+		{
+		const FVector3d Point = Elements.Points[k];
+		PointsOut.Add(FRenderablePoint(Point, SelectionParams.Color, SelectionParams.PointSize, SelectionParams.DepthBias));
+		});
+	}
 }
 
 void UGeometrySelectionManager::RebuildSelectionRenderCache()
 {
-	if (bSelectionRenderCachesDirty == false)
+	if ((RenderCachesDirtyFlags & EEnumerateRenderCachesDirtyFlags::SelectionCachesDirty) == EEnumerateRenderCachesDirtyFlags::None)
 	{
 		return;
 	}
-
 	check(ActiveTargetReferences.Num() == CachedSelectionRenderElements.Num());
 	for (int32 k = 0; k < ActiveTargetReferences.Num(); ++k)
 	{
@@ -1372,15 +1687,16 @@ void UGeometrySelectionManager::RebuildSelectionRenderCache()
 		
 		FGeometrySelectionElements& SelectionElements = CachedSelectionRenderElements[k];
 		SelectionElements.Reset();
-		Target->Selector->AccumulateSelectionElements(Target->Selection, SelectionElements, true, false);
+		Target->Selector->AccumulateSelectionElements(Target->Selection, SelectionElements, true, EEnumerateSelectionMapping::Default);
+		CreateOrUpdateAllSets(SelectionElements, SelectedParams);
 	}
 
-	bSelectionRenderCachesDirty = false;
+	RenderCachesDirtyFlags &= ~EEnumerateRenderCachesDirtyFlags::SelectionCachesDirty;
 }
 
 void UGeometrySelectionManager::RebuildSelectableRenderCache()
 {
-	if (bSelectableRenderCachesDirty == false || MeshTopologyMode == EMeshTopologyMode::None)
+	if ((RenderCachesDirtyFlags & EEnumerateRenderCachesDirtyFlags::UnselectedCachesDirty) == EEnumerateRenderCachesDirtyFlags::None || MeshTopologyMode == EMeshTopologyMode::None)
 	{
 		return;
 	}
@@ -1395,49 +1711,45 @@ void UGeometrySelectionManager::RebuildSelectableRenderCache()
 		
 		Target->Selector->AccumulateElementsFromPredicate(AllElements, true, false, MeshTopologyMode == EMeshTopologyMode::Polygroup, [Target, this](EGeometryElementType Type, FGeoSelectionID ID)
 		{
-			uint64 EncodedID = ID.Encoded();
-
 			// Selectable faces are not displayed directly, just implicitly via displayed edges.
 			if (Type == EGeometryElementType::Face)
 			{
 				return false;
 			}
 			
-			// Exclude selected elements from selectable elements
-			if (Target->Selection.ElementType == Type && Target->Selection.Selection.Contains(EncodedID))
-			{
-				return false;
-			}
-
-			// Exclude hovered elements from selectable elements
-			if (ActivePreviewSelection.ElementType == Type && ActivePreviewSelection.Selection.Contains(EncodedID))
-			{
-				return false;
-			}
-			
 			return true;
 		});
+		CreateOrUpdateAllSets(AllElements, UnselectedParams);
 	}
 
-	bSelectableRenderCachesDirty = false;
+	RenderCachesDirtyFlags &= ~EEnumerateRenderCachesDirtyFlags::UnselectedCachesDirty;
 }
 
 void UGeometrySelectionManager::RebuildPreviewRenderCache()
 {
-	if (bPreviewRenderCachesDirty == false || ActiveTargetReferences.Num() == 0)
+	if ((RenderCachesDirtyFlags & EEnumerateRenderCachesDirtyFlags::PreviewCachesDirty) == EEnumerateRenderCachesDirtyFlags::None || ActiveTargetReferences.Num() == 0)
 	{
 		return;
 	}
 
-	const bool bUseSimplifiedPreviewHighlight = (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0);
+	// defaults to off/false; when off, will show outlines and fill color when hovering. When on/true, will only show outlines
 	const TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[0];
 	
 	if (ActivePreviewSelection.IsEmpty() == false)
 	{
-		Target->Selector->AccumulateSelectionElements(ActivePreviewSelection, CachedPreviewRenderElements, true, bUseSimplifiedPreviewHighlight);
+		EEnumerateSelectionMapping MappingFlags = EEnumerateSelectionMapping::Default | EEnumerateSelectionMapping::FacesToEdges;
+		if (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0)
+		{
+			// Unset FacesToFaces flag if full hover highlights are disabled
+			MappingFlags &= ~EEnumerateSelectionMapping::FacesToFaces;
+		}
+		
+		Target->Selector->AccumulateSelectionElements(SelectedActivePreviewSelection, CachedSelectedPreviewRenderElements, true, MappingFlags);
+		Target->Selector->AccumulateSelectionElements(UnselectedActivePreviewSelection, CachedUnselectedPreviewRenderElements, true, MappingFlags);
+		CreateOrUpdateAllSets(CachedSelectedPreviewRenderElements, HoverOverSelectedParams);
+		CreateOrUpdateAllSets(CachedUnselectedPreviewRenderElements, HoverOverUnselectedParams);
 	}
-	
-	bPreviewRenderCachesDirty = false;
+	RenderCachesDirtyFlags &= ~EEnumerateRenderCachesDirtyFlags::PreviewCachesDirty;
 }
 
 
@@ -1473,31 +1785,83 @@ void UGeometrySelectionManager::DebugRender(IToolsContextRenderAPI* RenderAPI)
 
 		return;
 	}
-
-	//const UMaterialInterface* TriangleMaterial = ToolSetupUtil::GetSelectionMaterial(FLinearColor(1.0f, 0, 0, 0.5f), nullptr, 0.5f);
-
 	if (!this->ToolsContext->ToolManager->HasAnyActiveTool())
 	{
 		RebuildSelectionRenderCaches();
-		
-		for ( const FGeometrySelectionElements& Elements : CachedSelectionRenderElements )
-		{
-			ToolSelectionUtil::DebugRender(RenderAPI, Elements, 4.f, LinearColors::Gold3f(), 10.f, LinearColors::Gold3f(), 6.f);
-		}
-
-		if (MeshTopologyMode != EMeshTopologyMode::None)
-		{
-			for ( const FGeometrySelectionElements& Elements : CachedSelectableRenderElements )
-			{
-				ToolSelectionUtil::DebugRender(RenderAPI, Elements, 2.f, LinearColors::Red3f(), 8.f, LinearColors::Red3f(), 5.f);
-			}
-		}
-		
-		ToolSelectionUtil::DebugRender(RenderAPI, CachedPreviewRenderElements, 4.f, LinearColors::Green3f(), 10.f, LinearColors::Green3f(), 7.f);
+	}
+	else
+	{
+		// disables PreviewGeometry when in a tool
+		RemoveAllSets();
+		RenderCachesDirtyFlags |= EEnumerateRenderCachesDirtyFlags::UnselectedCachesDirty;
 	}
 }
 
+void UGeometrySelectionManager::SetSelectionColors(const FLinearColor UnselectedCol, const FLinearColor HoverOverSelectedCol, const FLinearColor HoverOverUnselectedCol, const FLinearColor GeometrySelectedCol)
+{
+	UnselectedParams.Color = UnselectedCol.ToFColor(true);
+	HoverOverSelectedParams.Color = HoverOverSelectedCol.ToFColor(true);
+	HoverOverUnselectedParams.Color = HoverOverUnselectedCol.ToFColor(true);
+	SelectedParams.Color = GeometrySelectedCol.ToFColor(true);
 
+	// on initial set up of Materials used for selection colors material (typically when entering modeling mode)
+	if (UnselectedParams.SelectionFillColor == nullptr) // if one is null, they all will be
+	{
+		auto SetMaterial = [this] (FMeshElementSelectionParams& Params, const FLinearColor Color)
+		{
+			Params.SelectionFillColor =
+				ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, Color, Params.DepthBias, Color.A);
+		};
+
+		SetMaterial(UnselectedParams, UnselectedCol);
+		SetMaterial(HoverOverUnselectedParams, HoverOverUnselectedCol);
+		SetMaterial(SelectedParams, GeometrySelectedCol);
+
+		// to avoid flickering, this version of GetCustomTwoSidedDeptOffsetMaterial (without opacity parameter) must be called for HoverOverSelected
+		HoverOverSelectedParams.SelectionFillColor =
+			ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, HoverOverSelectedCol, HoverOverSelectedParams.DepthBias);
+	}
+	// setting colors after initialization of Materials (typically using color customization in editor preferences)
+	else
+	{
+		auto SetColorAndOpacity = [](const FMeshElementSelectionParams& Params, const FLinearColor Color)
+		{
+			Params.SelectionFillColor->SetScalarParameterValue("Opacity", Color.A); // no effect for HoverOverSelected
+			Params.SelectionFillColor->SetVectorParameterValue("Color", Color);
+		};
+
+		SetColorAndOpacity(UnselectedParams, UnselectedCol);
+		SetColorAndOpacity(HoverOverSelectedParams, HoverOverSelectedCol);
+		SetColorAndOpacity(HoverOverUnselectedParams, HoverOverUnselectedCol);
+		SetColorAndOpacity(SelectedParams, GeometrySelectedCol);
+	}
+
+	// ensures that when color is changed in Editor Preferences, colors are immediately updated in the UI
+	auto UpdateAllSetsColor = [this](const FMeshElementSelectionParams& Params)
+	{
+		UPointSetComponent* PointSet = PreviewGeometry->FindPointSet(Params.Identifiers[0]);
+		ULineSetComponent* LineSet = PreviewGeometry->FindLineSet(Params.Identifiers[1]);
+		UTriangleSetComponent* TriSet = PreviewGeometry->FindTriangleSet(Params.Identifiers[2]);
+		if (PointSet) {	PointSet->SetAllPointsColor(Params.Color); }
+		if (LineSet) { LineSet->SetAllLinesColor(Params.Color); }
+		if (TriSet) { TriSet->SetAllTrianglesColor(Params.Color); }
+	};
+
+	UpdateAllSetsColor(UnselectedParams);
+	UpdateAllSetsColor(HoverOverSelectedParams);
+	UpdateAllSetsColor(HoverOverUnselectedParams);
+	UpdateAllSetsColor(SelectedParams);
+}
+
+void UGeometrySelectionManager::DisconnectPreviewGeometry()
+{
+	if (PreviewGeometry)
+	{
+		RemoveAllSets();
+		PreviewGeometry->Disconnect();
+		PreviewGeometry = nullptr;
+	}
+}
 
 
 #undef LOCTEXT_NAMESPACE

@@ -279,7 +279,7 @@ struct TCustomPropertyRegistration : ICustomPropertyRegistration
 		}
 	}
 
-private:
+protected:
 
 	/** */
 	TArray<TCustomPropertyAccessor<PropertyTraits>, TInlineAllocator<InlineSize>> CustomAccessors;

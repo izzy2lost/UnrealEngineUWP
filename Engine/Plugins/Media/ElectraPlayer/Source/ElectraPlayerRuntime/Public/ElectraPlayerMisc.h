@@ -7,8 +7,8 @@
 #include "Stats/Stats.h"
 
 /** Log category for the ElectraPlayer module. */
-DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayer, Log, All);
-DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayerStats, Log, All);
+ELECTRAPLAYERRUNTIME_API DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayer, Log, All);
+ELECTRAPLAYERRUNTIME_API DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayerStats, Log, All);
 
 /** CSV Profiler */
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(ELECTRAPLAYERRUNTIME_API, MediaStreaming);

@@ -665,6 +665,13 @@ public:
 	AIMODULE_API void AddRotatorFilter(UObject* Owner, FName PropertyName);
 	AIMODULE_API void AddStringFilter(UObject* Owner, FName PropertyName);
 	AIMODULE_API void AddNameFilter(UObject* Owner, FName PropertyName);
+	AIMODULE_API void AddStructFilter(UObject* Owner, FName PropertyName, const UScriptStruct* AllowedStruct);
+
+	template<typename T>
+	void AddStructFilter(UObject* Owner, FName PropertyName)
+	{
+		AddStructFilter(Owner, PropertyName, TBaseStructure<T>::Get());
+	}
 
 	FORCEINLINE bool IsNone() const { return bNoneIsAllowedValue && GetSelectedKeyID() == FBlackboard::InvalidKey; }
 	FORCEINLINE bool IsSet() const { return GetSelectedKeyID() != FBlackboard::InvalidKey; }

@@ -17,8 +17,9 @@ namespace UE::PoseSearch
  */
 struct POSESEARCH_API FAnimationAssetSampler
 {
-	FAnimationAssetSampler(TObjectPtr<const UAnimationAsset> InAnimationAsset = nullptr, const FTransform& InRootTransformOrigin = FTransform::Identity, const FVector& InBlendParameters = FVector::ZeroVector, int32 InRootTransformSamplingRate = 30);
-	void Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin = FTransform::Identity, const FVector& InBlendParameters = FVector::ZeroVector, int32 InRootTransformSamplingRate = 30);
+	enum { DefaultRootTransformSamplingRate = 30 };
+	FAnimationAssetSampler(TObjectPtr<const UAnimationAsset> InAnimationAsset = nullptr, const FTransform& InRootTransformOrigin = FTransform::Identity, const FVector& InBlendParameters = FVector::ZeroVector, int32 InRootTransformSamplingRate = DefaultRootTransformSamplingRate, bool bPreProcessRootTransform = true);
+	void Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin = FTransform::Identity, const FVector& InBlendParameters = FVector::ZeroVector, int32 InRootTransformSamplingRate = DefaultRootTransformSamplingRate, bool bPreProcessRootTransform = true);
 
 	bool IsInitialized() const;
 	float GetPlayLength() const;
@@ -34,6 +35,7 @@ struct POSESEARCH_API FAnimationAssetSampler
 
 	// Extracts pose for this asset at a given Time
 	void ExtractPose(float Time, FCompactPose& OutPose) const;
+	void ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve) const;
 
 	// Extracts root transform at the given time, using the extremities of the sequence to extrapolate beyond the 
 	// sequence limits when Time is less than zero or greater than the sequence length.
@@ -41,7 +43,7 @@ struct POSESEARCH_API FAnimationAssetSampler
 
 	// Extracts notify states inheriting from UAnimNotifyState_PoseSearchBase present in the sequence at Time.
 	// The function does not empty NotifyStates before adding new notifies!
-	void ExtractPoseSearchNotifyStates(float Time, TFunction<bool(UAnimNotifyState_PoseSearchBase*)> ProcessPoseSearchBase) const;
+	void ExtractPoseSearchNotifyStates(float Time, const TFunction<bool(UAnimNotifyState_PoseSearchBase*)>& ProcessPoseSearchBase) const;
 	
 	TConstArrayView<FAnimNotifyEvent> GetAllAnimNotifyEvents() const;
 
@@ -51,13 +53,16 @@ struct POSESEARCH_API FAnimationAssetSampler
 
 	static float GetPlayLength(const UAnimationAsset* AnimAsset, const FVector& BlendParameters = FVector::ZeroVector);
 
+	void SetRootTransformOrigin(const FTransform& InRootTransformOrigin) { RootTransformOrigin = InRootTransformOrigin; }
+	const FTransform& GetRootTransformOrigin() const { return RootTransformOrigin; }
+
 protected:
 	TWeakObjectPtr<const UAnimationAsset> AnimationAssetPtr;
 	FTransform RootTransformOrigin = FTransform::Identity;
 
 	// members used to sample blend spaces only!
 	FVector BlendParameters = FVector::ZeroVector;
-	int32 RootTransformSamplingRate = 30;
+	int32 RootTransformSamplingRate = DefaultRootTransformSamplingRate;
 	float CachedPlayLength = 0.f;
 	TArray<FTransform> AccumulatedRootTransform;
 

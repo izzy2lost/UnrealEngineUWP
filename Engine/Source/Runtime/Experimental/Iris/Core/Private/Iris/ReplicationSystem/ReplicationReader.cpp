@@ -37,7 +37,7 @@
 
 #define UE_LOG_REPLICATIONREADER_CONN_WARNING(Format, ...) UE_LOG(LogIris, Warning, TEXT("Conn: %u ") Format, Parameters.ConnectionId, ##__VA_ARGS__)
 
-CSV_DEFINE_CATEGORY(IrisClient, true);
+CSV_DECLARE_CATEGORY_EXTERN(IrisClient);
 
 namespace UE::Net::Private
 {
@@ -59,6 +59,15 @@ static FAutoConsoleVariableRef CVarColdResolvingRetryTimeMS(
 	TEXT("net.Iris.ColdResolvingRetryTimeMS"),
 	ColdResolvingRetryTimeMS,
 	TEXT("Resolve unresolved cold references after this many milliseconds."));
+
+// When true, the function UpdateObjectReferenceTracking_Fast() is used and UpdateObjectReferenceTracking()
+// otherwise. Once UpdateObjectReferenceTracking_Fast() has been tested sufficiently it will become the only
+// version of this function and the cvar removed.
+static bool bUseOptObjectRefTracking = false;
+static FAutoConsoleVariableRef CVarUseOptObjectRefTracking(
+	TEXT("net.Iris.UseOptObjectRefTracking"),
+	bUseOptObjectRefTracking,
+	TEXT("Use a more optimized version of FReplicationReader::UpdateObjectReferenceTracking()."));
 
 static bool bExecuteReliableRPCsBeforeApplyState = true;
 static FAutoConsoleVariableRef CVarExecuteReliableRPCsBeforeApplyState(
@@ -91,6 +100,8 @@ static FAutoConsoleVariableRef CvarResolvedObjectsDispatchDebugging(
 	TEXT("Debug logging of resolved object state dispatching. Default is false."));
 
 static const FName NetError_FailedToFindAttachmentQueue("Failed to find attachment queue");
+
+//------------------------------------------------------------------------
 
 class FResolveAndCollectUnresolvedAndResolvedReferenceCollector
 {
@@ -142,6 +153,24 @@ private:
 	FReferenceInfoArray ResolvedReferenceInfos;
 	bool bIncludeInitState = false;
 };
+
+//------------------------------------------------------------------------
+
+struct FReplicationReader::FDispatchObjectInfo
+{
+	FInternalNetRefIndex InternalIndex = FNetRefHandleManager::InvalidInternalIndex;
+	FChangeMaskStorageOrPointer ChangeMaskOrPointer;
+	uint32 bIsInitialState : 1 = false;
+	uint32 bHasState : 1 = false;
+	uint32 bHasAttachments : 1 = false;
+	uint32 bDestroy : 1 = false;
+	uint32 bTearOff : 1 = false;
+	uint32 bDeferredEndReplication : 1 = false;
+	uint32 bShouldCallSubObjectCreatedFromReplication : 1 = false;
+	uint32 bDynamicObjectCreated : 1 = false;
+};
+
+//------------------------------------------------------------------------
 
 // Helper class to deal with management of ObjectsToDispatch allocations from our temporary allocator
 class FReplicationReader::FObjectsToDispatchArray
@@ -195,6 +224,8 @@ private:
 	uint32 Capacity;		
 };
 
+//------------------------------------------------------------------------
+
 FReplicationReader::FReplicatedObjectInfo::FReplicatedObjectInfo()
 : InternalIndex(FNetRefHandleManager::InvalidInternalIndex)
 , Value(0U)
@@ -202,6 +233,48 @@ FReplicationReader::FReplicatedObjectInfo::FReplicatedObjectInfo()
 	FMemory::Memzero(StoredBaselines);
 	LastStoredBaselineIndex = FDeltaCompressionBaselineManager::InvalidBaselineIndex;
 	PrevStoredBaselineIndex = FDeltaCompressionBaselineManager::InvalidBaselineIndex;
+}
+
+bool FReplicationReader::FReplicatedObjectInfo::RemoveUnresolvedHandleCount(FNetRefHandle RefHandle)
+{
+	int16* HandleCount = UnresolvedHandleCount.Find(RefHandle);
+	if (ensureMsgf(HandleCount != nullptr, TEXT("Unresolved handle counter could not be found for %s"), ToCStr(RefHandle.ToString())))
+	{
+		int16& HandleCountRef = (*HandleCount);
+
+		ensure(HandleCountRef > 0);
+
+		HandleCountRef--;
+
+		if (HandleCountRef <= 0)
+		{
+			UnresolvedHandleCount.Remove(RefHandle);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool FReplicationReader::FReplicatedObjectInfo::RemoveResolvedDynamicHandleCount(FNetRefHandle RefHandle)
+{
+	int16* HandleCount = ResolvedDynamicHandleCount.Find(RefHandle);
+	if (ensureMsgf(HandleCount != nullptr, TEXT("Resolved dynamic handle counter could not be found for% s"), ToCStr(RefHandle.ToString())))
+	{
+		int16& HandleCountRef = (*HandleCount);
+
+		ensure(HandleCountRef > 0);
+
+		HandleCountRef--;
+
+		if (HandleCountRef <= 0)
+		{
+			ResolvedDynamicHandleCount.Remove(RefHandle);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 FReplicationReader::FReplicationReader()
@@ -219,15 +292,14 @@ FReplicationReader::FReplicationReader()
 
 FReplicationReader::~FReplicationReader()
 {
-	Deinit();
+	checkf(ReplicatedObjects.IsEmpty(), TEXT("Possible leak detected in FReplicationReader. Nothing should be registered after Deinit()"));
+	checkf(PendingBatches.PendingBatches.IsEmpty(), TEXT("Possible leak detected in FReplicationReader. Nothing should be registered after Deinit()"));
 }
 
 void FReplicationReader::Init(const FReplicationParameters& InParameters)
 {
 	// Store copy of parameters
 	Parameters = InParameters;
-
-	ResolveContext.ConnectionId = InParameters.ConnectionId;
 
 	// Cache internal systems
 	ReplicationSystemInternal = Parameters.ReplicationSystem->GetReplicationSystemInternal();
@@ -236,6 +308,10 @@ void FReplicationReader::Init(const FReplicationParameters& InParameters)
 	NetBlobHandlerManager = &ReplicationSystemInternal->GetNetBlobHandlerManager();
 	ObjectReferenceCache = &ReplicationSystemInternal->GetObjectReferenceCache();
 	ReplicationBridge = Parameters.ReplicationSystem->GetReplicationBridge();
+
+	// Init resolve context
+	ResolveContext.ConnectionId = InParameters.ConnectionId;
+	ResolveContext.RemoteNetTokenStoreState = Parameters.ReplicationSystem->GetNetTokenStore()->GetRemoteNetTokenStoreState(InParameters.ConnectionId);
 
 	// Find out if there's a PartialNetObjectAttachmentHandler so we can re-assemble split blobs
 	if (const UPartialNetObjectAttachmentHandler* Handler = ReplicationSystemInternal->GetNetBlobManager().GetPartialNetObjectAttachmentHandler())
@@ -269,6 +345,7 @@ void FReplicationReader::Deinit()
 			}
 		}		
 	}
+	PendingBatches.PendingBatches.Empty();
 
 	// Cleanup any allocation stored in the per object info
 	for (auto& ObjectIt : ReplicatedObjects)
@@ -608,11 +685,13 @@ uint32 FReplicationReader::ReadObjectsInBatch(FNetSerializationContext& Context,
 	return ReadObjectCount;
 }
 
-uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
+uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context, uint32 ReadObjectFlags)
 {
 	FNetBitStreamReader& Reader = *Context.GetBitStreamReader();
 
 	UE_NET_TRACE_SCOPE(Batch, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+
+	UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ReadObjectBatch"));
 
 	// Special handling for destruction infos
 	if (const bool bIsDestructionInfo = Reader.ReadBool())
@@ -626,7 +705,14 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 #if UE_NET_USE_READER_WRITER_SENTINEL
 		ReadAndVerifySentinelBits(&Reader, TEXT("DestructionInfo"), 8);
 #endif
-		
+
+		if (Context.HasErrorOrOverflow())
+		{
+			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read destruction info. \n%s"), *Context.PrintReadJournal());
+			Context.SetError(GNetError_BitStreamError);
+			return 0U;
+		}
+
 		return 1U;
 	}
 
@@ -643,11 +729,14 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 	uint32 BatchSize = 0U;
 	// Read Batch size
 	{
-		const uint32 NumBitsUsedForBatchSize = Parameters.NumBitsUsedForBatchSize;
+		const uint32 NumBitsUsedForBatchSize = (ReadObjectFlags & EReadObjectFlag::ReadObjectFlag_IsReadingHugeObjectBatch) == 0U ? Parameters.NumBitsUsedForBatchSize : Parameters.NumBitsUsedForHugeObjectBatchSize;
 
 		UE_NET_TRACE_SCOPE(BatchSize, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		BatchSize = Reader.ReadBits(NumBitsUsedForBatchSize);
 	}
+
+	// Store the current handle if we encounter errors
+	Context.SetErrorHandleContext(IncompleteHandle);
 
 	if (Context.HasErrorOrOverflow() || BatchSize > Reader.GetBitsLeft())
 	{
@@ -681,6 +770,7 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		ObjectReferenceCache->ReadExports(Context, &TempMustBeMappedReferences);
 		if (Context.HasErrorOrOverflow())
 		{
+			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read exports for handle: %s.\n%s"), *IncompleteHandle.ToString(), *Context.PrintReadJournal());
 			return 0U;
 		}
 
@@ -708,7 +798,7 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 	FPendingBatchData* PendingBatchData = ObjectReferenceCache->ShouldAsyncLoad() ? UpdateUnresolvedMustBeMappedReferences(IncompleteHandle, TempMustBeMappedReferences) : nullptr;
 	if (PendingBatchData)
 	{
-		UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::ReadObjectBatch Handle %s will be defered as it has unresolved must be mapped references"), *IncompleteHandle.ToString());				
+		UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::ReadObjectBatch Handle %s will be defered as it has unresolved must be mapped references"), *IncompleteHandle.ToString());
 
 		UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		UE_NET_TRACE_SCOPE(QueuedBatch, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
@@ -732,6 +822,9 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 
 		if (Context.HasErrorOrOverflow())
 		{
+			// Log error, this is something we cannot recover from.
+			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read object batch data chunk for handle:%s \n%s"), ToCStr(IncompleteHandle.ToString()), *Context.PrintReadJournal());
+
 			return 0U;
 		}
 
@@ -745,11 +838,8 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		{
 			if (Context.GetError() == GNetError_BrokenNetHandle)
 			{
-				const uint32 ErrorType = 1; //TBD
-				ReplicationBridge->ReportErrorWithNetRefHandle(ErrorType, IncompleteHandle, Parameters.ConnectionId);
+				ReplicationBridge->SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError::ReplicationDisabled, IncompleteHandle, Parameters.ConnectionId);
  
-				// $TODO: Report this to the server so it knows that the state of data in the batch is unknown
-
 				// Log error and try to recover, if get more incoming data for an object in the broken state we will skip it.
 				UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read object batch handle: %s skipping batch data"), ToCStr(IncompleteHandle.ToString()));
 					
@@ -766,6 +856,13 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 			
 			return 0U;
 		}
+	}
+
+	if (!ensure(Reader.GetPosBits() == BatchEndOrStartOfExportsPos))
+	{
+		UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObjectsInBatch Did not read the expected number of bits when reading batch: %s. \n%s"), *IncompleteHandle.ToString(), *Context.PrintReadJournal());
+		Context.SetError(GNetError_BitStreamOverflow, true);
+		return 0U;
 	}
 
 	// Skip to the end as we already have read any exports
@@ -800,6 +897,12 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 
 	UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 
+	// Store the current handle in case we encounter errors
+	if (IncompleteHandle != BatchHandle)
+	{
+		Context.SetErrorHandleContext(IncompleteHandle);
+	}
+
 	//UE_LOG_REPLICATIONREADER(TEXT("FReplicationReader::Read Object with %s InitialState: %u"), *IncompleteHandle.ToString(), bIsInitialState ? 1u : 0u);
 
 	bool bHasErrors = false;
@@ -810,6 +913,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	if (bIsInitialState)
 	{
 		UE_NET_TRACE_SCOPE(CreationInfo, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+
+		UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ReadCreationInfo"));
 
 		// SubObject data for initial state
 		FNetRefHandle RootObjectOfSubObject;
@@ -824,7 +929,9 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 				UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Invalid subobjectowner handle. %s"), ToCStr(IncompleteOwnerHandle.ToString()));
 				const FName& NetError = (Reader.IsOverflown() ? GNetError_BitStreamOverflow : GNetError_InvalidNetHandle);
 				Context.SetError(NetError);
-				return;			
+
+				bHasErrors = true;
+				goto ErrorHandling;
 			}
 
 			RootObjectOfSubObject = NetRefHandleManager->GetReplicatedObjectDataNoCheck(RootObjectInternalIndex).RefHandle;
@@ -843,18 +950,13 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Bitstream corrupted."));
 			const FName& NetError = (Reader.IsOverflown() ? GNetError_BitStreamOverflow : GNetError_BitStreamError);
 			Context.SetError(NetError);
-			return;
+
+			bHasErrors = true;
+			goto ErrorHandling;
 		}
 	
 		// Get Bridge
 		FReplicationBridgeSerializationContext BridgeContext(Context, Parameters.ConnectionId);
-
-		CSV_CUSTOM_STAT(IrisClient, ClientObjectCreate, 1, ECsvCustomStatOp::Accumulate);
-		if (!bIsSubObject)
-		{
-			CSV_CUSTOM_STAT(IrisClient, ClientObjectCreateRoot, 1, ECsvCustomStatOp::Accumulate);
-		}
-
 		const FReplicationBridgeCreateNetRefHandleResult CreateResult = ReplicationBridge->CallCreateNetRefHandleFromRemote(RootObjectOfSubObject, IncompleteHandle, BridgeContext);
 		FNetRefHandle NetRefHandle = CreateResult.NetRefHandle;
 		if (!NetRefHandle.IsValid())
@@ -879,11 +981,22 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		FReplicatedObjectInfo& ObjectInfo = StartReplication(InternalIndex);
 
 		ObjectInfo.bIsDeltaCompressionEnabled = bIsDeltaCompressed;
+
+#if IRIS_CLIENT_PROFILER_ENABLE
+		if (UE::Net::FClientProfiler::IsCapturing())
+		{
+			UObject* Object = NetRefHandleManager->GetReplicatedObjectInstance(InternalIndex);
+			if (Object)
+			{
+				UE::Net::FClientProfiler::RecordObjectCreate(Object->GetClass()->GetFName(), bIsSubObject);
+			}
+		}
+#endif
 	}
 	else
 	{
 		bHasErrors = Context.HasErrorOrOverflow();
-		UE_CLOG(bHasErrors, LogIris, Error, TEXT("FReplicationReader::ReadObject ErrorOrOverFlow after reading object header"))
+		UE_CLOG(bHasErrors, LogIris, Error, TEXT("FReplicationReader::ReadObject ErrorOrOverFlow after reading object header %s"), *Context.PrintReadJournal())
 
 		if (bHasErrors || !IncompleteHandle.IsValid())
 		{
@@ -920,6 +1033,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	{
 		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
 
+		UE_ADD_READ_JOURNAL_ENTRY(Context, ObjectData.Protocol ? ObjectData.Protocol->DebugName->Name : TEXT("OOB"));
+
 		// Add entry in our received data as we postpone state application until we have received all data in order to be able to properly resolve references
 		FDispatchObjectInfo& Info = ObjectsToDispatchArray->AddPendingDispatchObjectInfo(TempLinearAllocator);
 
@@ -931,6 +1046,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 
 		if (bHasState)
 		{
+			UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("State"));
+
 			if (IsObjectIndexForOOBAttachment(InternalIndex) || bIsReplicatedDestroyForInvalidObject)
 			{
 				bHasErrors = true;
@@ -1004,6 +1121,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		ENetObjectAttachmentType AttachmentType = ENetObjectAttachmentType::Normal;
 		if (bHasAttachments)
 		{
+			UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("Attachments"));
+
 			if (IsObjectIndexForOOBAttachment(InternalIndex))
 			{
 				bHasErrors = bIsReplicatedDestroyForInvalidObject;
@@ -1051,7 +1170,7 @@ ErrorHandling:
 	if (bHasErrors)
 	{
 		Context.SetErrorHandleContext(IncompleteHandle);
-		UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read replicated object with %s. Error '%s'."), *IncompleteHandle.ToString(), (Context.HasError() ? ToCStr(Context.GetError().ToString()) : TEXT("BitStream Overflow")));
+		UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read replicated object with Handle: %s. Error '%s'. %s"), *IncompleteHandle.ToString(), (Context.HasError() ? ToCStr(Context.GetError().ToString()) : TEXT("BitStream Overflow")), *Context.PrintReadJournal());
 	}
 }
 
@@ -1203,6 +1322,166 @@ void FReplicationReader::UpdateObjectReferenceTracking(FReplicatedObjectInfo* Re
 	}
 }
 
+void FReplicationReader::UpdateObjectReferenceTracking_Fast(FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView ChangeMask, bool bIncludeInitState, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles, const FObjectReferenceTracker& NewUnresolvedReferences, const FObjectReferenceTracker& NewMappedDynamicReferences)
+{
+	IRIS_PROFILER_SCOPE(FReplicationReader_UpdateObjectReferenceTracking);
+
+	/*
+	 * As we store references per changemask we need to construct a set of all unresolved references and
+	 * compare with the new set of unresolved references. The new set is found by first updating the 
+	 * references that were found in the changemask.
+	 */
+	{
+		// Try to avoid dynamic allocations during the update of the UnresolvedObjectReferences.
+		ReplicationInfo->UnresolvedObjectReferences.Reserve(ReplicationInfo->UnresolvedObjectReferences.Num() + NewUnresolvedReferences.Num());
+		ReplicationInfo->UnresolvedHandleCount.Reserve(ReplicationInfo->UnresolvedObjectReferences.Num() + NewUnresolvedReferences.Num());
+
+		// Replace each entry in UnresolvedObjectReferences for the given changemask
+		auto UpdateUnresolvedReferencesForChange = [ReplicationInfo, &NewUnresolvedReferences, &OutNewResolvedRefHandles, this](uint32 ChangeBit)
+		{
+			FObjectReferenceTracker& UnresolvedObjectReferences = ReplicationInfo->UnresolvedObjectReferences;
+
+			bool bUnresolvedHandleCountShrink = false;
+
+			for (FObjectReferenceTracker::TKeyIterator It = UnresolvedObjectReferences.CreateKeyIterator(ChangeBit); It; ++It)
+			{
+				const FNetRefHandle RefHandle = It.Value();
+
+				const bool bInNewUnresolved = (NewUnresolvedReferences.FindPair(ChangeBit, RefHandle) != nullptr);
+				if (!bInNewUnresolved)
+				{
+					It.RemoveCurrent();
+
+					if (ReplicationInfo->RemoveUnresolvedHandleCount(RefHandle))
+					{
+						bUnresolvedHandleCountShrink = true;
+							
+						// Store new resolved handles so we can update partially resolved references properly
+						OutNewResolvedRefHandles.Add(RefHandle);
+
+						// Remove from tracking
+						const uint32 OwnerInternalIndex = ReplicationInfo->InternalIndex;
+						UnresolvedHandleToDependents.Remove(RefHandle, OwnerInternalIndex);
+						RemoveFromUnresolvedCache(RefHandle);
+						UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::UpdateObjectReferenceTracking Removing unresolved reference %s for %s (OwnerInternalIndex=%d)"), ToCStr(RefHandle.ToString()), ToCStr(NetRefHandleManager->GetNetRefHandleFromInternalIndex(OwnerInternalIndex).ToString()), OwnerInternalIndex);
+					}
+				}
+			}
+
+			for (FObjectReferenceTracker::TConstKeyIterator It = NewUnresolvedReferences.CreateConstKeyIterator(ChangeBit); It; ++It)
+			{
+				const FNetRefHandle RefHandle = It.Value();
+				const bool bInCurrUnresolved = (UnresolvedObjectReferences.FindPair(ChangeBit, RefHandle) != nullptr);
+
+				if (!bInCurrUnresolved)
+				{
+					UnresolvedObjectReferences.Add(ChangeBit, RefHandle);
+
+					int16& HandleCount = ReplicationInfo->UnresolvedHandleCount.FindOrAdd(RefHandle, 0);
+
+					HandleCount++;
+
+					// Add to tracking
+					const uint32 OwnerInternalIndex = ReplicationInfo->InternalIndex;
+
+					// Calling TMultiMap::Add() as this is O(1) performance as oppossed to TMultiMap::AddUnique() which is O(n). This does 
+					// mean that UnresolvedHandleToDependents can contain duplicate (RefHandle, OwnerInternalIndex) pairs but is handled
+					// gracefully by the rest of the code. It does mean that TMultiMap::Remove() must be called instead of TMultiMap::RemoveSingle()
+					// to remove all pairs.
+					UnresolvedHandleToDependents.Add(RefHandle, OwnerInternalIndex);
+					UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::UpdateObjectReferenceTracking Adding unresolved reference %s for %s (OwnerInternalIndex=%d)"), ToCStr(RefHandle.ToString()), ToCStr(NetRefHandleManager->GetNetRefHandleFromInternalIndex(OwnerInternalIndex).ToString()), OwnerInternalIndex);
+				}
+			}
+
+			if (bUnresolvedHandleCountShrink)
+			{
+				ReplicationInfo->UnresolvedHandleCount.Shrink();
+			}
+		};
+
+		ChangeMask.ForAllSetBits(UpdateUnresolvedReferencesForChange);
+		if (bIncludeInitState)
+		{
+			UpdateUnresolvedReferencesForChange(FakeInitChangeMaskOffset);
+		}
+
+		// Update ReplicationInfo with the status of unresolved references
+		ReplicationInfo->bHasUnresolvedReferences = ReplicationInfo->UnresolvedHandleCount.Num() > 0;
+		ReplicationInfo->bHasUnresolvedInitialReferences = ReplicationInfo->UnresolvedObjectReferences.Find(FakeInitChangeMaskOffset) != nullptr;
+	}
+
+	// Update tracking for resolved dynamic references
+	if (bRemapDynamicObjects)
+	{
+		// Try to avoid dynamic allocations during the update of the ResolvedDynamicObjectReferences.
+		ReplicationInfo->ResolvedDynamicObjectReferences.Reserve(ReplicationInfo->ResolvedDynamicObjectReferences.Num() + NewMappedDynamicReferences.Num());
+		ReplicationInfo->ResolvedDynamicHandleCount.Reserve(ReplicationInfo->ResolvedDynamicObjectReferences.Num() + NewMappedDynamicReferences.Num());
+
+		// Replace each entry in ResolvedDynamicObjectReferences for the given changemask
+		auto UpdateResolvedReferencesForChange = [ReplicationInfo, &NewMappedDynamicReferences, this](uint32 ChangeBit)
+		{
+			FObjectReferenceTracker& ResolvedDynamicObjectReferences = ReplicationInfo->ResolvedDynamicObjectReferences;
+
+			bool bResolvedDynamicObjectReferenceShrink = false;
+
+			for (FObjectReferenceTracker::TKeyIterator It = ResolvedDynamicObjectReferences.CreateKeyIterator(ChangeBit); It; ++It)
+			{
+				const FNetRefHandle RefHandle = It.Value();
+
+				const bool bInNewResolved = (NewMappedDynamicReferences.FindPair(ChangeBit, RefHandle) != nullptr);
+				if (!bInNewResolved)
+				{
+					It.RemoveCurrent();
+
+					if (ReplicationInfo->RemoveResolvedDynamicHandleCount(RefHandle))
+					{
+						bResolvedDynamicObjectReferenceShrink = true;
+
+						// Remove from tracking
+						const uint32 OwnerInternalIndex = ReplicationInfo->InternalIndex;
+						ResolvedDynamicHandleToDependents.Remove(RefHandle, OwnerInternalIndex);
+						UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::UpdateObjectReferenceTracking Removing resolved dynamic reference %s for %s"), ToCStr(RefHandle.ToString()), ToCStr(NetRefHandleManager->GetNetRefHandleFromInternalIndex(OwnerInternalIndex).ToString()));
+					}
+				}
+			}
+
+			for (FObjectReferenceTracker::TConstKeyIterator It = NewMappedDynamicReferences.CreateConstKeyIterator(ChangeBit); It; ++It)
+			{
+				const FNetRefHandle RefHandle = It.Value();
+				const bool bInCurrResolved = (ResolvedDynamicObjectReferences.FindPair(ChangeBit, RefHandle) != nullptr);
+
+				if (!bInCurrResolved)
+				{
+					ResolvedDynamicObjectReferences.Add(ChangeBit, RefHandle);
+
+					int16& HandleCount = ReplicationInfo->ResolvedDynamicHandleCount.FindOrAdd(RefHandle, 0);
+
+					HandleCount++;
+
+					// Add to tracking
+					const uint32 OwnerInternalIndex = ReplicationInfo->InternalIndex;
+
+					// Calling TMultiMap::Add() as this is O(1) performance as oppossed to TMultiMap::AddUnique() which is O(n). This does 
+					// mean that UnresolvedHandleToDependents can contain duplicate (RefHandle, OwnerInternalIndex) pairs but is handled
+					// gracefully by the rest of the code. It does mean that TMultiMap::Remove() must be called instead of TMultiMap::RemoveSingle()
+					// to remove all pairs.
+					ResolvedDynamicHandleToDependents.Add(RefHandle, OwnerInternalIndex);
+					UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::UpdateObjectReferenceTracking Adding resolved dynamic reference %s for %s"), ToCStr(RefHandle.ToString()), ToCStr(NetRefHandleManager->GetNetRefHandleFromInternalIndex(OwnerInternalIndex).ToString()));
+				}
+			}
+
+			if (bResolvedDynamicObjectReferenceShrink)
+			{
+				ReplicationInfo->ResolvedDynamicHandleCount.Shrink();
+			}
+		};
+
+		ChangeMask.ForAllSetBits(UpdateResolvedReferencesForChange);
+		// Intentionally leaving out init state. It seems weird to call rep notifies and update init only properties after
+		// the initial state has already been applied.
+	}
+}
+
 void FReplicationReader::RemoveUnresolvedObjectReferenceInReplicationInfo(FReplicatedObjectInfo* ReplicationInfo, FNetRefHandle Handle)
 {
 	for (FObjectReferenceTracker::TIterator It = ReplicationInfo->UnresolvedObjectReferences.CreateIterator(); It; ++It)
@@ -1211,6 +1490,11 @@ void FReplicationReader::RemoveUnresolvedObjectReferenceInReplicationInfo(FRepli
 		if (RefHandle == Handle)
 		{
 			It.RemoveCurrent();
+
+			if (bUseOptObjectRefTracking)
+			{
+				ReplicationInfo->RemoveUnresolvedHandleCount(RefHandle);
+			}
 		}
 	}
 }
@@ -1223,6 +1507,11 @@ void FReplicationReader::RemoveResolvedObjectReferenceInReplicationInfo(FReplica
 		if (RefHandle == Handle)
 		{
 			It.RemoveCurrent();
+
+			if (bUseOptObjectRefTracking)
+			{
+				ReplicationInfo->RemoveResolvedDynamicHandleCount(RefHandle);
+			}
 		}
 	}
 }
@@ -1234,6 +1523,8 @@ bool FReplicationReader::MoveResolvedObjectReferenceToUnresolvedInReplicationInf
 	bool bHasUnresolvedInitialReferences = ReplicationInfo->bHasUnresolvedInitialReferences;
 	FNetBitArrayView UnresolvedChangeMask = FChangeMaskUtil::MakeChangeMask(ReplicationInfo->UnresolvedChangeMaskOrPointer, ReplicationInfo->ChangeMaskBitCount);
 	FObjectReferenceTracker& UnresolvedObjectReferences = ReplicationInfo->UnresolvedObjectReferences;
+	TMap<FNetRefHandle, int16>& UnresolvedHandleCount = ReplicationInfo->UnresolvedHandleCount;
+	TMap<FNetRefHandle, int16>& ResolvedDynamicHandleCount = ReplicationInfo->ResolvedDynamicHandleCount;
 	for (FObjectReferenceTracker::TIterator It = ReplicationInfo->ResolvedDynamicObjectReferences.CreateIterator(); It; ++It)
 	{
 		const FNetRefHandle RefHandle = It->Value;
@@ -1255,9 +1546,20 @@ bool FReplicationReader::MoveResolvedObjectReferenceToUnresolvedInReplicationInf
 			// At this point we'd like to skip iteration to the next key as a handle can only be found once per changemask.
 			It.RemoveCurrent();
 
+			if (bUseOptObjectRefTracking)
+			{
+				ReplicationInfo->RemoveResolvedDynamicHandleCount(UnresolvableHandle);
+			}
+
 			// This handle should only have existed once in the ResolvedDynamicObjectReferences map and should not be able to
 			// already exist in the UnresolvedObjectReferences map, so no need to call AddUnique.
 			UnresolvedObjectReferences.Add(ChangemaskOffset, UnresolvableHandle);
+			
+			if (bUseOptObjectRefTracking)
+			{
+				int16& UnresolvableHandleCount = UnresolvedHandleCount.FindOrAdd(UnresolvableHandle, 0);
+				UnresolvableHandleCount++;
+			}
 
 			UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::MoveResolvedObjectReferenceToUnresolvedInReplicationInfo Moving from resolved to unresolved reference %s for %s"), ToCStr(UnresolvableHandle.ToString()), ToCStr(NetRefHandleManager->GetNetRefHandleFromInternalIndex(ReplicationInfo->InternalIndex).ToString()));
 		}
@@ -1279,21 +1581,23 @@ void FReplicationReader::CleanupReferenceTracking(FReplicatedObjectInfo* ObjectI
 	{
 		// Remove from tracking
 		FNetRefHandle Handle = Element.Value;
-		UnresolvedHandleToDependents.RemoveSingle(Handle, ObjectIndex);
+		UnresolvedHandleToDependents.Remove(Handle, ObjectIndex);
 		RemoveFromUnresolvedCache(Handle);
 		UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::CleanupReferenceTracking Removing unresolved reference %s for %s"), *Handle.ToString(), *(NetRefHandleManager->GetNetRefHandleFromInternalIndex(ObjectIndex).ToString()));
 	}
 	ObjectInfo->UnresolvedObjectReferences.Reset();
+	ObjectInfo->UnresolvedHandleCount.Reset();
 
 	// Remove from resolved dynamic references
 	for (FObjectReferenceTracker::ElementType Element : ObjectInfo->ResolvedDynamicObjectReferences)
 	{
 		// Remove from tracking
 		const FNetRefHandle Handle = Element.Value;
-		ResolvedDynamicHandleToDependents.RemoveSingle(Handle, ObjectIndex);
+		ResolvedDynamicHandleToDependents.Remove(Handle, ObjectIndex);
 		UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::CleanupReferenceTracking Removing resolved dynamic reference %s for %s"), *Handle.ToString(), *(NetRefHandleManager->GetNetRefHandleFromInternalIndex(ObjectIndex).ToString()));
 	}
 	ObjectInfo->ResolvedDynamicObjectReferences.Reset();
+	ObjectInfo->ResolvedDynamicHandleCount.Reset();
 
 	// Remove from attachment resolve
 	ObjectsWithAttachmentPendingResolve.Remove(ObjectIndex);
@@ -1301,10 +1605,12 @@ void FReplicationReader::CleanupReferenceTracking(FReplicatedObjectInfo* ObjectI
 
 void FReplicationReader::BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking(const FResolveAndCollectUnresolvedAndResolvedReferenceCollector& Collector, FNetBitArrayView CollectorChangeMask, FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView& OutUnresolvedChangeMask, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles)
 {
-	OutUnresolvedChangeMask.Reset();
+	OutUnresolvedChangeMask.ClearAllBits();
 	bool bHasUnresolvedInitReferences = false;
 
-	FObjectReferenceTracker UnresolvedReferences;
+	UnresolvedReferencesCache.Reset();
+	MappedDynamicReferencesCache.Reset();
+	
 	for (const auto& RefInfo : Collector.GetUnresolvedReferences())
 	{
 		const FNetSerializerChangeMaskParam& ChangeMaskInfo = RefInfo.ChangeMaskInfo;
@@ -1318,21 +1624,27 @@ void FReplicationReader::BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracki
 		}
 
 		const uint32 BitOffset = (ChangeMaskInfo.BitCount > 0U ? ChangeMaskInfo.BitOffset : FakeInitChangeMaskOffset);
-		UnresolvedReferences.AddUnique(BitOffset, RefInfo.Reference.GetRefHandle());
+		UnresolvedReferencesCache.AddUnique(BitOffset, RefInfo.Reference.GetRefHandle());
 	}
 
-	FObjectReferenceTracker MappedDynamicReferences;
 	for (const auto& RefInfo : Collector.GetResolvedReferences())
 	{
 		if (RefInfo.Reference.GetRefHandle().IsDynamic())
 		{
 			const uint32 BitOffset = (RefInfo.ChangeMaskInfo.BitCount > 0U ? RefInfo.ChangeMaskInfo.BitOffset : FakeInitChangeMaskOffset);
-			MappedDynamicReferences.AddUnique(BitOffset, RefInfo.Reference.GetRefHandle());
+			MappedDynamicReferencesCache.AddUnique(BitOffset, RefInfo.Reference.GetRefHandle());
 		}
 	}
 
 	// Update object specific
-	UpdateObjectReferenceTracking(ReplicationInfo, CollectorChangeMask, Collector.IsInitStateIncluded(), OutNewResolvedRefHandles, UnresolvedReferences, MappedDynamicReferences);
+	if (bUseOptObjectRefTracking)
+	{
+		UpdateObjectReferenceTracking_Fast(ReplicationInfo, CollectorChangeMask, Collector.IsInitStateIncluded(), OutNewResolvedRefHandles, UnresolvedReferencesCache, MappedDynamicReferencesCache);
+	}
+	else
+	{
+		UpdateObjectReferenceTracking(ReplicationInfo, CollectorChangeMask, Collector.IsInitStateIncluded(), OutNewResolvedRefHandles, UnresolvedReferencesCache, MappedDynamicReferencesCache);
+	}
 }
 
 void FReplicationReader::ResolveAndDispatchUnresolvedReferencesForObject(FNetSerializationContext& Context, uint32 InternalIndex)
@@ -1382,7 +1694,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferencesForObject(FNetSer
 		BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking(Collector, TempUnresolvedChangeMask, ReplicationInfo, UnresolvedChangeMask, NewResolvedRefHandles);
 
 		// Re-purpose temp changemask for members that has resolved references.
-		TempChangeMask.Reset();
+		TempChangeMask.ClearAllBits();
 		FNetBitArrayView ResolvedChangeMask = TempChangeMask;
 
 		// Merge in partially resolved changes
@@ -1461,7 +1773,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferencesForObject(FNetSer
 		{
 			// $IRIS: $TODO: Figure out how to handle this, currently we do not crash but we probably want to
 			// handle this properly by accumulating changemask for later instantiation
-			UE_LOG(LogIris, Warning, TEXT("Cannot dispatch state data for not instantiated %s"), *ObjectData.RefHandle.ToString());
+			UE_LOG(LogIris, Verbose, TEXT("Cannot dispatch state data for not instantiated %s"), *ObjectData.RefHandle.ToString());
 		}
 	}
 
@@ -1510,16 +1822,15 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			}
 		}
 
-		// In the last pass, RPC`s and cleanup cached data
+		// In the last pass, RPC's and cleanup cached data
 		for (FPostDispatchObjectInfo& PostDispatchObjectInfo : MakeArrayView(PostDispatchObjectInfos, NumObjectsPendingPostDistpatch))
 		{
 			FDispatchObjectInfo& Info = *PostDispatchObjectInfo.Info;
 
-			// If object was created this frame it`s initial state is now applied
+			// If the object was created this frame it's initial state is now applied
 			if (Info.bHasState && Info.bIsInitialState)
 			{
-				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(Info.InternalIndex);
-				ReplicationBridge->CallPostApplyInitialState(ObjectData.RefHandle);
+				ReplicationBridge->CallPostApplyInitialState(Info.InternalIndex);
 			}
 
 			// Dispatch attachment and enqueue for later resolving
@@ -1564,7 +1875,7 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 		PostDispatchObjectInfo.DequantizeAndApplyContext = nullptr;
 		PostDispatchObjectInfo.AttachmentDispatchedFlags = ENetObjectAttachmentDispatchFlags::None;
 
-		// For SubObjects we call must call this method after applying state data for the owner, in order to remain backwards compatible.
+		// For SubObjects we call this method after applying state data for the owner, in order to remain backwards compatible.
 		if (Info.bShouldCallSubObjectCreatedFromReplication)
 		{
 			if (ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex)
@@ -1683,7 +1994,7 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			{
 				// $IRIS: $TODO: Figure out how to handle this, currently we do not crash but we probably want to
 				// handle this properly by accumulating changemask for later instantiation
-				UE_LOG(LogIris, Warning, TEXT("Cannot dispatch state data for not instantiated %s"), *(ObjectData.RefHandle.ToString()));
+				UE_LOG(LogIris, Verbose, TEXT("Cannot dispatch state data for not instantiated %s"), *(ObjectData.RefHandle.ToString()));
 			}
 		}
 
@@ -1781,6 +2092,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferences()
 		ResolveAndDispatchUnresolvedReferencesForObject(Context, InternalIndex);
 	}
 
+#if IRIS_CLIENT_PROFILER_ENABLE
 	CSV_CUSTOM_STAT(IrisClient, HotUnresolvedHandleCache, HotUnresolvedHandleCache.Num(), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(IrisClient, ColdUnresolvedHandleCache, ColdUnresolvedHandleCache.Num(), ECsvCustomStatOp::Set);
 
@@ -1793,10 +2105,11 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferences()
 		VisitedUnresolvedHandles.GetAllocatedSize() +
 		InternalObjectsToResolve.GetAllocatedSize());
 	CSV_CUSTOM_STAT(IrisClient, UnresolvedHandleBufferSizes, TotalCacheSize, ECsvCustomStatOp::Set);
+#endif
 
 	if (NumHandlesPendingResolveLastUpdate != VisitedUnresolvedHandles.Num() || ObjectsWithAttachmentPendingResolve.Num() > 0)
 	{
-		UE_LOG_REPLICATIONREADER(TEXT("FReplicationReader::ResolveAndDispatchUnresolvedReferences NetHandles pending: %u Attachments pending: %u)"), UpdatedHandles.Num(), ObjectsWithAttachmentPendingResolve.Num());
+		UE_LOG_REPLICATIONREADER(TEXT("FReplicationReader::ResolveAndDispatchUnresolvedReferences NetHandles pending: %u Attachments pending: %u)"), VisitedUnresolvedHandles.Num(), ObjectsWithAttachmentPendingResolve.Num());
 		NumHandlesPendingResolveLastUpdate = VisitedUnresolvedHandles.Num();
 	}
 }
@@ -1829,7 +2142,10 @@ void FReplicationReader::UpdateUnresolvableReferenceTracking()
 			for (const uint32 DependentObjectIndex : Dependents)
 			{
 				FReplicatedObjectInfo* ReplicationInfo = GetReplicatedObjectInfo(DependentObjectIndex);
-				RemoveUnresolvedObjectReferenceInReplicationInfo(ReplicationInfo, DestroyedHandle);
+				if (ensureMsgf(ReplicationInfo != nullptr, TEXT("Unable to find torn off unresolved replicated object info for %s"), *NetRefHandleManager->PrintObjectFromIndex(InternalIndex)))
+				{
+					RemoveUnresolvedObjectReferenceInReplicationInfo(ReplicationInfo, DestroyedHandle);
+				}
 			}
 		}
 
@@ -1846,7 +2162,10 @@ void FReplicationReader::UpdateUnresolvableReferenceTracking()
 				for (const uint32 DependentObjectIndex : Dependents)
 				{
 					FReplicatedObjectInfo* ReplicationInfo = GetReplicatedObjectInfo(DependentObjectIndex);
-					RemoveResolvedObjectReferenceInReplicationInfo(ReplicationInfo, DestroyedHandle);
+					if (ensureMsgf(ReplicationInfo != nullptr, TEXT("Unable to find torn off resolved replicated object info for %s"), *NetRefHandleManager->PrintObjectFromIndex(InternalIndex)))
+					{
+						RemoveResolvedObjectReferenceInReplicationInfo(ReplicationInfo, DestroyedHandle);
+					}
 				}
 			}
 			else
@@ -1854,9 +2173,12 @@ void FReplicationReader::UpdateUnresolvableReferenceTracking()
 				for (const uint32 DependentObjectIndex : Dependents)
 				{
 					FReplicatedObjectInfo* ReplicationInfo = GetReplicatedObjectInfo(DependentObjectIndex);
-					if (MoveResolvedObjectReferenceToUnresolvedInReplicationInfo(ReplicationInfo, DestroyedHandle))
+					if (ensureMsgf(ReplicationInfo != nullptr, TEXT("Unable to find resolved replicated object info for %s"), *NetRefHandleManager->PrintObjectFromIndex(InternalIndex)))
 					{
-						UnresolvedHandleToDependents.Add(DestroyedHandle, DependentObjectIndex);
+						if (MoveResolvedObjectReferenceToUnresolvedInReplicationInfo(ReplicationInfo, DestroyedHandle))
+						{
+							UnresolvedHandleToDependents.Add(DestroyedHandle, DependentObjectIndex);
+						}
 					}
 				}
 			}
@@ -1877,7 +2199,7 @@ void FReplicationReader::DispatchEndReplication(FNetSerializationContext& Contex
 }
 
 
-void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 ObjectBatchCountToRead)
+void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 ObjectBatchCountToRead, uint32 ReadObjectFlags)
 {
 	IRIS_PROFILER_SCOPE(ReplicationReader_ReadObjects);
 
@@ -1885,11 +2207,11 @@ void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 O
 	
 	while (ObjectBatchCountToRead && !Context.HasErrorOrOverflow())
 	{
-		ReadObjectBatch(Context);
+		ReadObjectBatch(Context, ReadObjectFlags);
 		--ObjectBatchCountToRead;
 	}
 
-	UE_CLOG(Context.HasErrorOrOverflow(), LogIris, Error, TEXT("Overflow: %c Error: %s Bit stream bits left: %u position: %u"), TEXT("YN")[Context.HasError()], ToCStr(Context.GetError().ToString()), Reader.GetBitsLeft(), Reader.GetPosBits())
+	UE_CLOG(Context.HasErrorOrOverflow(), LogIris, Error, TEXT("Overflow: %c Error: %s Bit stream bits left: %u position: %u %s"), TEXT("YN")[Context.HasError()], ToCStr(Context.GetError().ToString()), Reader.GetBitsLeft(), Reader.GetPosBits(), *Context.PrintReadJournal())
 	ensure(!Context.HasErrorOrOverflow());
 }
 
@@ -1933,7 +2255,8 @@ void FReplicationReader::ProcessHugeObjectAttachment(FNetSerializationContext& C
 	// Reserve space for more dispatch infos as needed, we allocate some extra to account for subobjects etc
 	ObjectsToDispatchArray->Grow(HugeObjectHeader.ObjectCount + ObjectsToDispatchSlackCount, TempLinearAllocator);
 
-	ReadObjects(HugeObjectSerializationContext, HugeObjectHeader.ObjectCount);
+	const uint32 ReadObjectFlags = EReadObjectFlag::ReadObjectFlag_IsReadingHugeObjectBatch;
+	ReadObjects(HugeObjectSerializationContext, HugeObjectHeader.ObjectCount, ReadObjectFlags);
 	if (HugeObjectSerializationContext.HasErrorOrOverflow())
 	{
 		Context.SetError(GNetError_BitStreamError);
@@ -2216,7 +2539,8 @@ void FReplicationReader::Read(FNetSerializationContext& Context)
 		return;
 	}
 
-	ReadObjects(Context, ObjectBatchCountToRead);
+	const uint32 ReadObjectFlags = 0U;
+	ReadObjects(Context, ObjectBatchCountToRead, ReadObjectFlags);
 	if (Context.HasErrorOrOverflow())
 	{
 		return;
@@ -2224,11 +2548,6 @@ void FReplicationReader::Read(FNetSerializationContext& Context)
 
 	// Assemble and deserialize huge object if present
 	ProcessHugeObject(Context);
-	if (Context.HasErrorOrOverflow())
-	{
-		return;
-	}
-
 	if (Context.HasErrorOrOverflow())
 	{
 		return;
@@ -2364,9 +2683,4 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 	ReplicationInfo->bHasAttachments = bHasUnresolvedReferences;
 }
 
-void FReplicationReader::SetRemoteNetTokenStoreState(FNetTokenStoreState* InRemoteTokenStoreState)
-{
-	ResolveContext.RemoteNetTokenStoreState = InRemoteTokenStoreState;
-}
-
-}
+} // end namespace UE::Net::Private

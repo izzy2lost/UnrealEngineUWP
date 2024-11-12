@@ -575,6 +575,7 @@ namespace UE::VirtualCamera::Private
 		}
 		
 		const FIntRect QueryRect(MinX, MinY, MaxX + 1, MaxY + 1);
+		Viewport.InvalidateHitProxy();
 		Viewport.GetHitProxyMap(QueryRect, Result);
 		return { TestSizeX, TestSizeY, Result };
 	}
@@ -711,6 +712,19 @@ void UVCamBlueprintFunctionLibrary::SetPlaybackSpeed(float Value)
 		Sequencer.Pin()->SetPlaybackSpeed(Value);
 	}
 #endif
+}
+
+bool UVCamBlueprintFunctionLibrary::IsAssetDirty(const FAssetData& AssetData)
+{
+	if (AssetData.IsAssetLoaded())
+	{
+		UPackage* Package = AssetData.GetPackage();
+		if (Package && Package->IsDirty())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 #if WITH_EDITOR

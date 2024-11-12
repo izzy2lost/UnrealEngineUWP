@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "FLocalClientStreamDiffer"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FStreamChangeTracker::FStreamChangeTracker(
 		IClientStreamSynchronizer& InStreamSynchronizer,
@@ -21,12 +21,12 @@ namespace UE::MultiUserClient
 		, OnModifyReplicationMapDelegate(MoveTemp(InOnModifyReplicationMapDelegate))
 	{
 		check(InStreamWithInProgressChangesAttribute.IsBound() || InStreamWithInProgressChangesAttribute.IsSet());
-		StreamSynchronizer.OnServerStateChanged().AddRaw(this, &FStreamChangeTracker::RefreshChangesCache);
+		StreamSynchronizer.OnServerStreamChanged().AddRaw(this, &FStreamChangeTracker::RefreshChangesCache);
 	}
 
 	FStreamChangeTracker::~FStreamChangeTracker()
 	{
-		StreamSynchronizer.OnServerStateChanged().RemoveAll(this);
+		StreamSynchronizer.OnServerStreamChanged().RemoveAll(this);
 	}
 
 	void FStreamChangeTracker::RefreshChangesCache()

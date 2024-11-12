@@ -2,10 +2,13 @@
 
 #include "MemTagNodeHelper.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 
-#define LOCTEXT_NAMESPACE "MemTagNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemTagNode"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // MemTagNode Type Helper
@@ -90,5 +93,7 @@ FText MemTagNodeGroupingHelper::ToDescription(const EMemTagNodeGroupingMode Grou
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

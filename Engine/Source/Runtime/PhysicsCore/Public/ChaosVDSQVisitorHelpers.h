@@ -25,6 +25,12 @@
 	Chaos::VisualDebugger::TraceHelpers::FillCVDHitDataHelper(Hit, HitType, CVDSQVisitStepData);
 #endif
 
+/** Sets a reject reason to the current scene query being recorded - Compiled out if we don't have CVD support */
+#ifndef CVD_SET_SQ_SHAPE_REJECT_REASON
+	#define CVD_SET_SQ_SHAPE_REJECT_REASON(Reason) \
+			CVDSQVisitStepData.RejectReason = Reason;
+#endif
+
 namespace Chaos::VisualDebugger::TraceHelpers
 {
 	template <class THitType>
@@ -90,5 +96,8 @@ namespace Chaos::VisualDebugger::TraceHelpers
 	#endif
 	#ifndef CVD_FILL_HIT_DATA_HELPER
 		#define CVD_FILL_HIT_DATA_HELPER(Hit, HitType)
+	#endif
+	#ifndef CVD_SET_SQ_SHAPE_REJECT_REASON
+		#define CVD_SET_SQ_SHAPE_REJECT_REASON(RejectReason)
 	#endif
 #endif

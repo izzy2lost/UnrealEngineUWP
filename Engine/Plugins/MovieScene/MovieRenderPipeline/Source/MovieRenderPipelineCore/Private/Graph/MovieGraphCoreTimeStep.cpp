@@ -16,11 +16,22 @@
 #include "Interfaces/Interface_PostProcessVolume.h"
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/MiscTrace.h"
+#include "MoviePipelineUtils.h"
+#include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 
 UMovieGraphCoreTimeStep::UMovieGraphCoreTimeStep()
 {
 	// This set up our internal state to pick up on the first temporal sub-sample in the pattern
 	ResetForEndOfOutputFrame();
+}
+
+void UMovieGraphCoreTimeStep::Shutdown()
+{
+	// Clear out the evaluated config during shutdown. It's a strong object ptr, so references to it should be removed to ensure everything
+	// gets cleaned up properly.
+	CurrentFrameData.EvaluatedConfig.Reset();
+	
+	Super::Shutdown();
 }
 
 void UMovieGraphCoreTimeStep::TickProducingFrames()
@@ -77,12 +88,16 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		
 		// Get ready to begin tracking relative shot frame count
 		CurrentTimeStepData.ShotOutputFrameNumber = -1;
+		
+		FFrameTime EvalTime = CurrentCameraCut->ShotInfo.CurrentTimeInRoot;
 
+		// Seeks the external data source to match. This is done before setting up for renders
+		// so that Spawnables, etc. will be spawned.
+		GetOwningGraph()->GetDataSourceInstance()->InitializeShot(CurrentCameraCut, EvalTime);
+		
 		// Sets up the render state, etc.
 		GetOwningGraph()->SetupShot(CurrentCameraCut);
 
-		// Seeks the external data source to match
-		GetOwningGraph()->GetDataSourceInstance()->InitializeShot(CurrentCameraCut);
 
 		// Generate render layers from the evaluated graph
 		GetOwningGraph()->CreateLayersInRenderLayerSubsystem(CurrentTimeStepData.EvaluatedConfig);
@@ -171,7 +186,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 
 	// We only automatically advance the CurrentOutputFrameRange during Rendering, or when warm-up frames
 	// are counting down (if we're not going to emulate motion blur).
-	const bool bIncrementBecauseRenderingState = CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering;
+	const bool bIncrementBecauseRenderingState = CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering || CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::CoolingDown;
 	const bool bIncrementBecauseWarmUpState = CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::WarmingUp && !CurrentCameraCut->ShotInfo.bEmulateFirstFrameMotionBlur;
 	bool bIncrementInternalCounters = bIncrementBecauseRenderingState || bIncrementBecauseWarmUpState;
 	
@@ -313,6 +328,21 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 			// if this would put us beyond our range of time this shot is supposed to represent.
 			if (CurrentFrameData.CurrentOutputFrameRange.GetUpperBoundValue() > CurrentCameraCut->ShotInfo.TotalOutputRangeRoot.GetUpperBoundValue())
 			{
+				// We've reached the end of the sequence. We're going 
+				// to transition into the Cooling Down state (which we may 
+				// immediately leave if there are no cooling down frames 
+				// to actually render).
+				CurrentCameraCut->ShotInfo.State = EMovieRenderShotState::CoolingDown;
+			}
+		}
+
+		// If we've run past the end of the sequence, we'll be in the CoolingDown state now.
+		if (CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::CoolingDown)
+		{
+			// We may or may not actually have any CoolingDown frames to process. If there's no frames left,
+			// then we'll move to the Finished state and tear-down the render process for this frame.
+			if (CurrentCameraCut->ShotInfo.NumEngineCoolDownFramesRemaining <= 0)
+			{
 				// We're going to spend this frame tearing down the shot (not rendering anything), next frame
 				// we'll re-enter this loop and pick up the start of the next shot.
 				ResetForEndOfOutputFrame();
@@ -324,6 +354,36 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 				CurrentCameraCut->ShotInfo.State = EMovieRenderShotState::Finished;
 				GetOwningGraph()->TeardownShot(CurrentCameraCut);
 				return;
+			}
+			else
+			{
+				// Only jump backwards in time if there's actually a cooldown frames to run.
+				// Cooling down repeats the last frame of the render entirely, spatial and temporal samples included. This is because 
+				// we want to generate good looking images to send to the denoiser (to denoise the normal final frames), so we need to
+				// generate them like they would have been in the normal render.
+				//CurrentFrameData.CurrentOutputFrameRange = CurrentFrameData.LastOutputFrameRange;
+				//CurrentFrameData.LastSampleRange = CurrentFrameData.LastOutputFrameRange;
+
+				// Go back FrameCount output frame for the current output frame range, and FrameCount+1 output frame for the last output frame.
+				FFrameTime UpperBound = EndOfPreviousFrame.GetValue() - CurrentFrameMetrics.FrameTimePerOutputFrame;
+				FFrameTime NewStartTime = UpperBound;
+				CurrentFrameData.LastOutputFrameRange = TRange<FFrameTime>(UpperBound - CurrentFrameMetrics.FrameTimePerOutputFrame, UpperBound);
+				CurrentFrameData.LastSampleRange = CurrentFrameData.LastOutputFrameRange;
+				CurrentFrameData.CurrentOutputFrameRange = TRange<FFrameTime>(NewStartTime, NewStartTime + CurrentFrameMetrics.FrameTimePerOutputFrame);
+
+				// Update CurrentFrameData.RangeShutterOpen and CurrentFrameData.RangeShutterClosed
+				UpdateShutterRanges();
+				// Update CurrentFrameData.TemporalRanges
+				UpdateTemporalRanges();
+
+				// We're going backwards so we need to flag the jump
+				bShouldJump = true;
+
+				// Cooldown frames 
+				// ToDo: We need to separate the idea of "should we send this to the output merger" (false during cooldown)
+				// and "should we render and schedule a readback" (true during cooldown)
+				CurrentTimeStepData.bDiscardOutput = false;
+				CurrentCameraCut->ShotInfo.NumEngineCoolDownFramesRemaining--;
 			}
 		}
 	}
@@ -344,7 +404,16 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	{
 		FrameDeltaTime = CurrentFrameData.TemporalRanges[0].Size<FFrameTime>();
 	}
-	// ToDo: Propagate delta time multipliers to cloth
+
+	// Cloth needs to increase the number of iterations when solving during the "long"
+	// frame of MRQ (shutter closed time).
+	{
+		double Ratio = FrameDeltaTime.FloorToFrame().Value / (double)CurrentFrameMetrics.FrameTimePerTemporalSample.FloorToFrame().Value;
+
+		// Slomo can end up trying to do less than one iteration, we don't want that.	
+		int32 DivisionMultiplier = FMath::Max(FMath::FloorToInt(Ratio), 1);
+		UE::MoviePipeline::SetSkeletalMeshClothSubSteps(DivisionMultiplier, GetWorld(), GetOwningGraph()->GetClothSimCache());
+	}
 
 	// Because we know what time range we're supposed to represent, we can just assign the CurrentTimeInRoot absolutely,
 	// instead of accumulating delta times.
@@ -389,19 +458,42 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		// the wrong one. Because temporal sub-sampling isn't centered around a frame (the centering is done via the final eval time) we can just subtract TSI*TPS to get our centered value.
 		const FFrameTime CenteringOffset = CurrentFrameData.TemporalSampleIndex * CurrentFrameMetrics.FrameTimePerTemporalSample;
 		FFrameTime CenteredFrameTime = CurrentCameraCut->ShotInfo.CurrentTimeInRoot - CenteringOffset;
+		FFrameTime ShotCenteredFrameTime = CenteredFrameTime * CurrentCameraCut->ShotInfo.OuterToInnerTransform;
 	
 		const FFrameRate SourceFrameRate = GetOwningGraph()->GetDataSourceInstance()->GetDisplayRate();
 		const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, SourceFrameRate);
 		const FFrameRate TickResolution = GetOwningGraph()->GetDataSourceInstance()->GetTickResolution();
 
-		constexpr bool bDropFrame = false;
-		CurrentTimeStepData.RootFrameNumber = FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+		// Enable DF timecodes if the framerate is 29.97 and the user requested DF timecodes
+		const FFrameRate TwentyNineNineSeven = FFrameRate(30000, 1001);
+		const bool bDropFrame = OutputSetting->bDropFrameTimecode && (EffectiveFrameRate == TwentyNineNineSeven);
+
+		// If using a custom timecode start, the frame number for the root and shot need to be changed
+		const FFrameNumber RootFrameNumber = OutputSetting->bOverride_CustomTimecodeStart
+			? CurrentTimeStepData.OutputFrameNumber + OutputSetting->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value
+			: FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+		const FFrameNumber ShotFrameNumber = OutputSetting->bOverride_CustomTimecodeStart
+			? CurrentTimeStepData.OutputFrameNumber + OutputSetting->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value
+			: FFrameRate::TransformTime(ShotCenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+
+		CurrentTimeStepData.RootFrameNumber = RootFrameNumber;
 		CurrentTimeStepData.RootTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.RootFrameNumber, EffectiveFrameRate, bDropFrame);
 
 		// Calculate metrics for the shot as well
-		CenteredFrameTime = CenteredFrameTime * CurrentCameraCut->ShotInfo.OuterToInnerTransform;
-		CurrentTimeStepData.ShotFrameNumber = FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+		CurrentTimeStepData.ShotFrameNumber = ShotFrameNumber;
 		CurrentTimeStepData.ShotTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.ShotFrameNumber, EffectiveFrameRate, bDropFrame);
+
+		// Update the lightweight tick info in the module for other modules (Niagara) to have information
+		// about the temporal data for better simulation. We do this here since we calculated the effective
+		// frame rate above.
+		{
+			FMoviePipelineLightweightTickInfo TickInfo;
+			TickInfo.bIsActive = true;
+			TickInfo.TemporalSampleCount = CurrentTimeStepData.TemporalSampleCount;
+			TickInfo.TemporalSampleIndex = CurrentTimeStepData.TemporalSampleIndex;
+			TickInfo.SequenceFPS = EffectiveFrameRate.AsDecimal();
+			FMovieRenderPipelineCoreModule::SetTickInfo(TickInfo);
+		}
 	}
 
 	// Set our time step for the next frame. We use the undilated delta time for the Custom Timestep as the engine will
@@ -537,8 +629,7 @@ void UMovieGraphCoreTimeStep::ResetForEndOfOutputFrame()
 
 bool UMovieGraphCoreTimeStep::IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const
 {
-	// ToDo: This needs to come from the config (once we have TemporalSampleCount there)
-	return false;
+	return GetTemporalSampleCountFromConfig(InConfig) > 1;
 }
 
 void UMovieGraphCoreTimeStep::UpdateFrameMetrics()
@@ -755,5 +846,23 @@ bool UMovieGraphEngineTimeStep::UpdateTimeStep(UEngine* /*InEngine*/)
 
 	// Return false so the engine doesn't run its own logic to overwrite FApp timings.
 	return false;
+}
+
+int32 UMovieGraphCoreTimeStep::GetTemporalSampleCountFromConfig(UMovieGraphEvaluatedConfig* InConfig) const
+{
+	if (!ensure(InConfig))
+	{
+		return 1;
+	}
+
+	constexpr bool bIncludeCDOs = true;
+	const UMovieGraphSamplingMethodNode* SamplingMethod =
+		InConfig->GetSettingForBranch<UMovieGraphSamplingMethodNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
+	if (SamplingMethod->TemporalSampleCount <= 0)
+	{
+		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Sampling Method > Temporal Sample Count was zero, this is not allowed. Forcing value to 1!"));
+	}
+
+	return FMath::Max(SamplingMethod->TemporalSampleCount, 1);
 }
 

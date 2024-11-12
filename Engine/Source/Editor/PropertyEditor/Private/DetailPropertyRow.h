@@ -41,6 +41,7 @@ public:
 	virtual FDetailWidgetRow& CustomWidget( bool bShowChildren = false ) override;
 	virtual FDetailWidgetDecl* CustomNameWidget() override;
 	virtual FDetailWidgetDecl* CustomValueWidget() override;
+	virtual FDetailWidgetDecl* CustomResetToDefaultWidget() override;
 	virtual void GetDefaultWidgets( TSharedPtr<SWidget>& OutNameWidget, TSharedPtr<SWidget>& OutValueWidget, bool bAddWidgetDecoration = false) override;
 	virtual void GetDefaultWidgets( TSharedPtr<SWidget>& OutNameWidget, TSharedPtr<SWidget>& OutValueWidget, FDetailWidgetRow& Row, bool bAddWidgetDecoration = false) override;
 
@@ -88,8 +89,11 @@ public:
 	/** @return The widget row that should be displayed for this property row */
 	FDetailWidgetRow GetWidgetRow();
 
-	/** returns only the widget for editing this property. Use GetWidgetRow to get the full row with property name */
+	/** @return properties being customized */
 	TArrayView<TSharedPtr<IPropertyHandle>> GetPropertyHandles() const;
+
+	/** @return the filter text associated with this row, if any */
+	FText GetFilterTextString() const;
 
 	/**
 	 * @return The property node for this row
@@ -102,7 +106,7 @@ public:
 	TSharedPtr<FComplexPropertyNode> GetExternalRootNode() const { return ExternalRootNode; }
 
 	/**
-	 * @return The property node for this row
+	 * @return The property editor for this row
 	 */
 	TSharedPtr<FPropertyEditor> GetPropertyEditor() { return PropertyEditor; }
 
@@ -126,6 +130,7 @@ public:
 	static void MakeExternalPropertyRowCustomization(TSharedPtr<FStructOnScope> StructData, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, struct FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters);
 	static void MakeExternalPropertyRowCustomization(TSharedPtr<IStructureDataProvider> StructDataProvider, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, struct FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters);
 	static void MakeExternalPropertyRowCustomization(const TArray<UObject*>& InObjects, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, struct FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters);
+	static void MakeChildPropertyRowCustomization(TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<IStructureDataProvider> StructDataProvider, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, struct FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters, const FText& DisplayNameOverride = FText());
 
 private:
 	/**

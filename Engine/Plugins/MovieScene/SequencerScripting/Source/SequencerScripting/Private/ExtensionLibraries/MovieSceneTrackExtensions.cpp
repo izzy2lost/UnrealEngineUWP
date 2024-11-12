@@ -152,8 +152,9 @@ FColor UMovieSceneTrackExtensions::GetColorTint(UMovieSceneTrack* Track)
 
 #if WITH_EDITORONLY_DATA
 	return Track->GetColorTint(); 
-#endif
+#else
 	return FColor();
+#endif
 }
 
 void UMovieSceneTrackExtensions::SetColorTint(UMovieSceneTrack* Track, const FColor& ColorTint) 

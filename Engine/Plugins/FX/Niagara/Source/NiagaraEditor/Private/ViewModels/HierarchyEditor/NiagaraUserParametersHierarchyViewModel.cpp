@@ -25,7 +25,7 @@ UObject* FNiagaraHierarchyUserParameterViewModel::GetDataForEditing()
 	FNiagaraVariable ContainedVariable = HierarchyUserParameter->GetUserParameter();
 	UNiagaraUserParametersHierarchyViewModel* UserParametersHierarchyViewModel = Cast<UNiagaraUserParametersHierarchyViewModel>(GetHierarchyViewModel());
 	UserParametersHierarchyViewModel->GetSystemViewModel()->GetSystem().GetExposedParameters().RedirectUserVariable(ContainedVariable);
-	TObjectPtr<UNiagaraScriptVariable> ScriptVariable = FNiagaraEditorUtilities::GetScriptVariableForUserParameter(ContainedVariable, UserParametersHierarchyViewModel->GetSystemViewModel());
+	TObjectPtr<UNiagaraScriptVariable> ScriptVariable = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(ContainedVariable, UserParametersHierarchyViewModel->GetSystemViewModel());
 	return ScriptVariable.Get();
 }
 
@@ -33,7 +33,7 @@ bool FNiagaraHierarchyUserParameterViewModel::DoesExternalDataStillExist(const U
 {
 	const UNiagaraHierarchyUserParameterRefreshContext* UserParameterRefreshContext = CastChecked<UNiagaraHierarchyUserParameterRefreshContext>(Context);
 	const UNiagaraSystem* System = UserParameterRefreshContext->GetSystem();
-	return FNiagaraEditorUtilities::FindScriptVariableForUserParameter(GetData()->GetPersistentIdentity().Guids[0], *System) != nullptr;
+	return FNiagaraEditorUtilities::UserParameters::FindScriptVariableForUserParameter(GetData()->GetPersistentIdentity().Guids[0], *System) != nullptr;
 }
 
 TSharedRef<FNiagaraSystemViewModel> UNiagaraUserParametersHierarchyViewModel::GetSystemViewModel() const
@@ -109,7 +109,7 @@ void UNiagaraUserParametersHierarchyViewModel::PrepareSourceItems(UNiagaraHierar
 	{
 		FNiagaraVariable RedirectedUserParameter = UserParameter;
 		GetSystemViewModel()->GetSystem().GetExposedParameters().RedirectUserVariable(RedirectedUserParameter);
-		TObjectPtr<UNiagaraScriptVariable> ScriptVariable = FNiagaraEditorUtilities::GetScriptVariableForUserParameter(RedirectedUserParameter, GetSystemViewModel());
+		TObjectPtr<UNiagaraScriptVariable> ScriptVariable = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(RedirectedUserParameter, GetSystemViewModel());
 		
 		if(UNiagaraHierarchyItemBase** ExistingChild = OldChildren.FindByPredicate([ScriptVariable](UNiagaraHierarchyItemBase* ItemBase)
 		{

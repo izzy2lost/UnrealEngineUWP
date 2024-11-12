@@ -13,7 +13,49 @@ namespace UE
 	{
 		namespace Private
 		{
-			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit)
+			FString GetFileAxisDirection(FbxAxisSystem FileAxisSystem)
+			{
+				FString AxisDirection;
+				int32 Sign = 1;
+				switch (FileAxisSystem.GetUpVector(Sign))
+				{
+					case FbxAxisSystem::eXAxis:
+						{
+							AxisDirection += TEXT("X");
+						}
+						break;
+					case FbxAxisSystem::eYAxis:
+						{
+							AxisDirection += TEXT("Y");
+						}
+						break;
+					case FbxAxisSystem::eZAxis:
+						{
+							AxisDirection += TEXT("Z");
+						}
+						break;
+				}
+
+				//Negative sign mean down instead of up
+				AxisDirection += Sign == 1 ? TEXT("-UP") : TEXT("-DOWN");
+
+				switch (FileAxisSystem.GetCoorSystem())
+				{
+					case FbxAxisSystem::eLeftHanded:
+						{
+							AxisDirection += TEXT(" (LH)");
+						}
+						break;
+					case FbxAxisSystem::eRightHanded:
+						{
+							AxisDirection += TEXT(" (RH)");
+						}
+						break;
+				}
+				return AxisDirection;
+			}
+
+			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, FString& FileSystemDirection, FString& FileUnitSystem, FbxAMatrix& AxisConversionInverseMatrix)
 			{
 				if (!ensure(SDKScene))
 				{
@@ -26,29 +68,15 @@ namespace UE
 				//Set the original framerate from the current fbx file
 				float FbxFramerate = FbxTime::GetFrameRate(TimeMode);
 
-				int32 AnimStackCount = SDKScene->GetSrcObjectCount<FbxAnimStack>();
-				for (int32 AnimStackIndex = 0; AnimStackIndex < AnimStackCount; AnimStackIndex++)
-				{
-					FbxAnimStack* CurrentAnimStack = SDKScene->GetSrcObject<FbxAnimStack>(AnimStackIndex);
-					int32 NumLayers = CurrentAnimStack->GetMemberCount();
-					for (int LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
-					{
-						FbxAnimLayer* AnimLayer = (FbxAnimLayer*)CurrentAnimStack->GetMember(LayerIndex);
+				//Apply any curve filter here, we currently do not apply any
+				//The unroll curve filter was apply in legacy fbx importer if there was more then one FbxAnimStack.
+				//The unroll curve filter can obliterate curve keys if for example a key do a complete rotation (360 degree in euler)
 
-						// always apply unroll filter
-						FbxAnimCurveFilterUnroll UnrollFilter;
-						UnrollFilter.Reset();
-						ApplyUnroll(SDKScene->GetRootNode(), AnimLayer, &UnrollFilter);
-					}
-				}
-
+				FbxAxisSystem FileAxisSystem = SDKScene->GetGlobalSettings().GetAxisSystem();
+				FileSystemDirection = GetFileAxisDirection(FileAxisSystem);
 
 				if (bConvertScene)
 				{
-					//Set the original file information
-					FbxAxisSystem FileAxisSystem = SDKScene->GetGlobalSettings().GetAxisSystem();
-
-
 					//UE is: z up, front x, left handed
 					FbxAxisSystem::EUpVector UpVector = FbxAxisSystem::EUpVector::eZAxis;
 					FbxAxisSystem::EFrontVector FrontVector = (FbxAxisSystem::EFrontVector)(bForceFrontXAxis ? FbxAxisSystem::eParityEven : -FbxAxisSystem::eParityOdd);
@@ -59,13 +87,24 @@ namespace UE
 					{
 						FbxRootNodeUtility::RemoveAllFbxRoots(SDKScene);
 						UnrealImportAxis.ConvertScene(SDKScene);
+
+						FbxAMatrix SourceMatrix;
+						FileAxisSystem.GetMatrix(SourceMatrix);
+						FbxAMatrix UnrealMatrix;
+						UnrealImportAxis.GetMatrix(UnrealMatrix);
+
+						FbxAMatrix AxisConversionMatrix;
+						AxisConversionMatrix = SourceMatrix.Inverse() * UnrealMatrix;
+						AxisConversionInverseMatrix = AxisConversionMatrix.Inverse();
 					}
 				}
 
+				FbxSystemUnit OriginalFileUnitSystem = SDKScene->GetGlobalSettings().GetSystemUnit();
+				FileUnitSystem = FString(UTF8_TO_TCHAR(OriginalFileUnitSystem.GetScaleFactorAsString(false).Buffer()));
+
 				if (bConvertSceneUnit)
 				{
-					FbxSystemUnit FileUnitSystem = SDKScene->GetGlobalSettings().GetSystemUnit();
-					if (FileUnitSystem != FbxSystemUnit::cm)
+					if (OriginalFileUnitSystem != FbxSystemUnit::cm)
 					{
 						FbxSystemUnit::cm.ConvertScene(SDKScene);
 					}
@@ -113,36 +152,6 @@ namespace UE
 			FString FFbxConvert::MakeString(const ANSICHAR* Name)
 			{
 				return FString(UTF8_TO_TCHAR(Name));
-			}
-
-			void FFbxConvert::ApplyUnroll(FbxNode* Node, FbxAnimLayer* Layer, FbxAnimCurveFilterUnroll* UnrollFilter)
-			{
-				if (!ensure(Node) || !ensure(Layer) || !ensure(UnrollFilter))
-				{
-					return;
-				}
-
-				FbxAnimCurveNode* lCN = Node->LclRotation.GetCurveNode(Layer);
-				if (lCN)
-				{
-					FbxAnimCurve* lRCurve[3];
-					lRCurve[0] = lCN->GetCurve(0);
-					lRCurve[1] = lCN->GetCurve(1);
-					lRCurve[2] = lCN->GetCurve(2);
-
-
-					// Set bone rotation order
-					EFbxRotationOrder RotationOrder = eEulerXYZ;
-					Node->GetRotationOrder(FbxNode::eSourcePivot, RotationOrder);
-					UnrollFilter->SetRotationOrder((FbxEuler::EOrder)(RotationOrder));
-
-					UnrollFilter->Apply(lRCurve, 3);
-				}
-
-				for (int32 i = 0; i < Node->GetChildCount(); i++)
-				{
-					ApplyUnroll(Node->GetChild(i), Layer, UnrollFilter);
-				}
 			}
 		}//ns Private
 	}//ns Interchange

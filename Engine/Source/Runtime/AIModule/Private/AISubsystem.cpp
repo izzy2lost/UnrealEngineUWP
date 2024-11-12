@@ -43,6 +43,14 @@ UWorld* UAISubsystem::GetWorld() const
 	return GetWorldFast();
 }
 
+void UAISubsystem::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	// Make sure the tick is completely disabled
+	SetTickableTickType(ETickableTickType::Never);
+}
+
 ETickableTickType UAISubsystem::GetTickableTickType() const
 {
 	return (HasAnyFlags(RF_ClassDefaultObject) || AISystem == nullptr)

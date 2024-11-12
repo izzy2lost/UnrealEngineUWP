@@ -12,6 +12,7 @@
 #include "LevelUtils.h"
 #include "Engine/Level.h"
 #include "Engine/LevelStreaming.h"
+#include "UnrealEngine.h"
 #include "Engine/World.h"
 #include "WorldPartition/WorldPartitionLevelHelper.h"
 #include "Misc/EditorPathHelper.h"
@@ -109,28 +110,56 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 		Result = ResolveActorWithinLevel(*this, Level);
 	}
 
+	if (Result)
+	{
+		return FResolveResultData(Result);
+	}
+
+#if WITH_EDITORONLY_DATA
+
+	const UPackage* ContextPackage = Params.Context ? Params.Context->GetOutermost() : nullptr;
+	const int32     PIEInstanceID  = ContextPackage ? ContextPackage->GetPIEInstanceID() : INDEX_NONE;
+
+	// The Actor Fragment is explicit about providing a resolution context for its bindings. We never want to resolve to objects
+	// with a different PIE instance ID, even if the current callstack is being executed inside a different GPlayInEditorID
+	// scope. Since ResolveObject will always call FixupForPIE in editor based on GPlayInEditorID, we always override the current
+	// GPlayInEditorID to be the current PIE instance of the provided context.
+	FTemporaryPlayInEditorIDOverride PIEGuard(PIEInstanceID);
+
 	// Finally fallback to just trying to resolve the path directly
+	auto ResolvePathWithPIEHandling = [PIEInstanceID](const FSoftObjectPath& PathPtr)
+	{
+		// If we are resolving within a PIE instance, fixup the PIE instance on the path first
+		if (PIEInstanceID != INDEX_NONE)
+		{
+			FSoftObjectPath PIEPath = PathPtr;
+			PIEPath.FixupForPIE(PIEInstanceID);
+			return PIEPath.ResolveObject();
+		}
+		return PathPtr.ResolveObject();
+	};
+
+	Result = ResolvePathWithPIEHandling(Path);
+
 	if (!Result)
 	{
-#if WITH_EDITORONLY_DATA
-		UPackage* ContextPackage = Params.Context ? Params.Context->GetOutermost() : nullptr;
-		if (ContextPackage)
+		// If the path failed to resolve, attempt to fixup redirectors on the path to handle cases
+		//     where this path hasn't been saved yet, but references things that have (and have been redirected)
+		FSoftObjectPath TempPath = Path;
+		TempPath.PreSavePath();
+
+		if (TempPath != Path)
 		{
-			// If we are resolving within a PIE instance, fixp the PIE instance on the path first
-			const int32 PIEInstanceID = ContextPackage->GetPIEInstanceID();
-			if (PIEInstanceID != INDEX_NONE)
-			{
-				FSoftObjectPath PIEPath = Path;
-				PIEPath.FixupForPIE(PIEInstanceID);
-
-				Result = PIEPath.ResolveObject();
-				return FResolveResultData(Result);
-			}
+			Result = ResolvePathWithPIEHandling(TempPath);
 		}
-#endif
-
-		Result = Path.ResolveObject();
 	}
+
+#else  // WITH_EDITORONLY_DATA
+
+	// By default we just resolve the path directly
+	Result = Path.ResolveObject();
+
+#endif // WITH_EDITORONLY_DATA
 
 	return FResolveResultData(Result);
 }

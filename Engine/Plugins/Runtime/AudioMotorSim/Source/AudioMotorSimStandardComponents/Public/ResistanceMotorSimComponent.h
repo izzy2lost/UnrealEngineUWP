@@ -13,15 +13,15 @@ class UResistanceMotorSimComponent : public UAudioMotorSimComponent
 public:
 
 	// How much to increase surface friction when driving straight up. Scales linearly based on driving angle.
-	UPROPERTY(EditAnywhere, Category = "Resistance")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resistance")
 	float UpSpeedMaxFriction = 1.f;
 
 	// Minimum speed to apply this extra resistance
-	UPROPERTY(EditAnywhere, Category = "Resistance", meta = (ClampMin = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resistance", meta = (ClampMin = "1.0"))
 	float MinSpeed = 100.f;
 
 	// Additional friction to add based on lateral speed
-	UPROPERTY(EditAnywhere, Category = "Resistance")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resistance")
 	FRuntimeFloatCurve SideSpeedFrictionCurve;
 	
 	virtual void Update(FAudioMotorSimInputContext& Input, FAudioMotorSimRuntimeContext& RuntimeInfo) override;

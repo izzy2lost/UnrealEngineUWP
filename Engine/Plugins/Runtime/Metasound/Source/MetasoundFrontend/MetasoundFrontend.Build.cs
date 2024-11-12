@@ -21,18 +21,12 @@ namespace UnrealBuildTool.Rules
 					"Serialization",
 					"SignalProcessing",
 					"MetasoundGraphCore"
-
-				}
-			);
-
-			PrivateDependencyModuleNames.AddRange
-			(
-				new string[]
-				{
 				}
 			);
 
 			PublicDefinitions.Add("WITH_METASOUND_FRONTEND=1");
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

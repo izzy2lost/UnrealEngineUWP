@@ -58,6 +58,11 @@ protected:
 	/** Handler for "Edit parent class" button */
 	FReply OnEditParentClassClicked(TObjectPtr<UObject> EditClass) const;
 
+	/** Check if the details panel has editing enabled, checks both the asset editor open method to see if we are opened in edit mode and
+	 *  the delegate a user can supply using SetPropertyEditingEnabledDelegate
+	 */
+	bool IsPropertyEditingEnabled() const;
+
 private:
 	/** Create the properties tab and its content */
 	UNREALED_API TSharedRef<SDockTab> SpawnPropertiesTab( const FSpawnTabArgs& Args );
@@ -79,6 +84,9 @@ private:
 
 	/** The objects open within this editor */
 	TArray<UObject*> EditingObjects;
+
+	/** User provided delegate to check if property editing is enabled in the details panel */
+	FIsPropertyEditingEnabled IsPropertyEditingEnabledDelegate;
 
 public:
 	/** The name given to all instances of this type of editor */

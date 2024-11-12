@@ -24,6 +24,60 @@ public:
 };
 
 UENUM(BlueprintType)
+enum class EGeometryScriptUVLayoutType : uint8
+{
+	/** Apply Scale and Translation properties to all UV values */
+	Transform,
+	/** Uniformly scale and translate each UV island individually to pack it into the unit square, i.e. fit between 0 and 1 with overlap */
+	Stack,
+	/** Uniformly scale and translate UV islands collectively to pack them into the unit square, i.e. fit between 0 and 1 with no overlap */
+	Repack,
+	/** Scale and translate UV islands to normalize the UV islands' area to match an average texel density. */
+	Normalize
+};
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptLayoutUVsOptions
+{
+	GENERATED_BODY()
+public:
+	/** Type of layout applied to input UVs */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	EGeometryScriptUVLayoutType LayoutType = EGeometryScriptUVLayoutType::Repack;
+
+	/** Expected resolution of the output textures; this controls spacing left between UV islands to avoid interpolation artifacts */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int TextureResolution = 1024;
+
+	/** Uniform scale applied to UVs after packing */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float Scale = 1;
+
+	/** Translation applied to UVs after packing, and after scaling */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	FVector2D Translation = FVector2D(0, 0);
+
+	/** Force the Repack layout type to preserve existing scaling of UV islands. Note, this might lead to the packing not fitting within a unit square, and therefore is disabled by default. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bPreserveScale = false;
+
+	/** Force the Repack layout type to preserve existing rotation of UV islands. Note, this might lead to the packing not being as space efficient as possible, and therefore is disabled by default. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bPreserveRotation = false;
+
+	/** Allow the Repack layout type to flip the orientation when rotating UV islands to save space. Note that this may cause problems for downstream operations, and therefore is disabled by default. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bAllowFlips = false;
+
+	/** Enable UDIM aware layout and keep islands within their originating UDIM tiles when laying out.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bEnableUDIMLayout = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (DisplayName = "Per UDIM Texture Resolution"))
+	TMap<int32, int32> UDIMResolutions;
+};
+
+UENUM(BlueprintType)
 enum class EGeometryScriptUVFlattenMethod : uint8
 {
 	ExpMap = 0,
@@ -140,6 +194,40 @@ public:
 
 
 
+UENUM(BlueprintType)
+enum class EGeometryScriptTexelDensityMode : uint8
+{
+	ApplyToIslands,
+	ApplyToWhole,
+	Normalize
+};
+
+USTRUCT(Blueprintable)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptUVTexelDensityOptions
+{
+	GENERATED_BODY()
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	EGeometryScriptTexelDensityMode TexelDensityMode = EGeometryScriptTexelDensityMode::ApplyToIslands;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float TargetWorldUnits = 100;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float TargetPixelCount = 1024;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float TextureResolution = 1024;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bEnableUDIMLayout = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (DisplayName = "Per UDIM Texture Resolution"))
+	TMap<int32, int32> UDIMResolutions;
+};
+
+
 UCLASS(meta = (ScriptName = "GeometryScript_UVs"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_MeshUVFunctions : public UBlueprintFunctionLibrary
 {
@@ -227,6 +315,25 @@ public:
 		int32 TriangleID, 
 		FIntVector& TriangleUVElements,
 		bool& bHaveValidUVs);
+
+
+	/**
+	 * Convert Selection to an Edge selection, and set or remove UV seams along all of the selected edges
+	 * @param TargetMesh The mesh to update
+	 * @param UVChannel The UV Channel to update
+	 * @param Selection Which edges to operate on
+	 * @param bInsertSeams Whether to insert new seams. If false, removes existing seams instead.
+	 * @param bDeferChangeNotifications If true, no mesh change notification will be sent. Set to true if performing many changes in a loop.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta = (ScriptMethod, DisplayName = "Set UV Seams Along Selected Edges"))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SetUVSeamsAlongSelectedEdges(
+		UDynamicMesh* TargetMesh,
+		UPARAM(DisplayName = "UV Channel") int UVChannel,
+		FGeometryScriptMeshSelection Selection,
+		bool bInsertSeams = true,
+		bool bDeferChangeNotifications = false,
+		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
 	 * Returns the UV Position for a given UV Element ID in the specified UV Channel.
@@ -338,6 +445,19 @@ public:
 
 
 	/**
+	* Rescales UVs in the UV Channel for a Mesh to match a specified texel density, described by the options passed in. Supports
+	* processing on a subset of UVs via a non-empty Selection.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta=(ScriptMethod, AdvancedDisplay = "UDIMResolutions"))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	ApplyTexelDensityUVScaling( 
+		UDynamicMesh* TargetMesh, 
+		UPARAM(DisplayName = "UV Channel") int UVSetIndex,
+		FGeometryScriptUVTexelDensityOptions Options,
+		FGeometryScriptMeshSelection Selection,
+		UGeometryScriptDebug* Debug = nullptr );
+
+	/**
 	* Recomputes UVs in the UV Channel for a Mesh based on different types of well-defined UV islands, such as existing UV islands, PolyGroups, 
 	* or a subset of the mesh based on a non-empty Selection.
 	*/
@@ -360,6 +480,18 @@ public:
 		UPARAM(DisplayName = "UV Channel") int UVSetIndex,
 		FGeometryScriptRepackUVsOptions RepackOptions,
 		UGeometryScriptDebug* Debug = nullptr );
+
+	/**
+	* Packs the existing UV islands in the specified UV Channel into standard UV space based on the Repack Options.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	LayoutMeshUVs(
+		UDynamicMesh* TargetMesh,
+		UPARAM(DisplayName = "UV Channel") int UVSetIndex,
+		FGeometryScriptLayoutUVsOptions LayoutOptions,
+		FGeometryScriptMeshSelection Selection,
+		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
 	* Computes new UVs for the specified UV Channel using PatchBuilder method in the Options, and optionally packs.

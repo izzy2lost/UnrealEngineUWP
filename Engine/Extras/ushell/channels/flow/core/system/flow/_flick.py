@@ -102,7 +102,8 @@ def Opt(type_value, *args):
 
 #-------------------------------------------------------------------------------
 class _ArgOptBox(object):
-    def __init__(self, items):
+    def __init__(self, parent, items):
+        super().__setattr__("_parent", parent)
         super().__setattr__("_items", items)
 
     def __iter__(self):
@@ -117,6 +118,11 @@ class _ArgOptBox(object):
 
     def is_default(self, name):
         return self._items[name][1]
+
+    def get_type(self, name):
+        arg_info = getattr(self._parent, name, None)
+        if isinstance(arg_info, _ArgOptBase):
+            return arg_info.get_type()
 
 
 
@@ -136,9 +142,7 @@ class Cmd(object):
     def _print_help(self, short=False):
         # Description
         if not short:
-            for line in self.get_desc().split("\n"):
-                line = line[:4].strip() + line[4:]
-                print(line)
+            print(self.get_desc(pretty=80))
             print()
 
         # Usage
@@ -178,16 +182,24 @@ class Cmd(object):
         col_o = max(len(x[0]) for x in opts)
         col_0 = max(col_a, col_o)
 
-        once = True
-        for name, desc in args:
-            if once:
-                print("\nARGS:")
-                once = False
-            print("  %-*s" % (col_0, name), desc)
+        import textwrap
+        width = max(40, 80 - col_0 - 4) # 3 = leader + separator = 2 + 2
+        def print_param(name, desc):
+            print("  %-*s  " % (col_0, name), end="")
+            leader = ""
+            wrapper = textwrap.TextWrapper(width=width, subsequent_indent="  ")
+            for line in wrapper.wrap(desc):
+                print(leader, line, sep="")
+                leader = leader or (" " * (col_0 + 4))
+
+        if args:
+            print("\nARGS:")
+            for name, desc in args:
+                print_param(name, desc)
 
         print("\nOPTIONS:")
         for name, desc in opts:
-            print("  %-*s" % (col_0, name), desc)
+            print_param(name, desc)
 
     def _call_main(self):
         ret = self.main()
@@ -209,6 +221,9 @@ class Cmd(object):
 
         # Parses an opt-type from input stream
         def parse_opt(arg, in_args_iter):
+            if not arg.startswith("--"):
+                raise ValueError((arg,))
+
             # Parse "--opt_name[=value]"
             opt_name, value = (*arg[2:].split("=", 1), None)[:2]
 
@@ -235,8 +250,8 @@ class Cmd(object):
         positionals = []
         in_args_iter = iter(in_args)
         for arg in in_args_iter:
-            if arg.startswith("--"):
-                if len(arg) == 2:
+            if arg.startswith("-"):
+                if arg == "--":
                     positionals.append("--")
                     positionals.extend(in_args_iter)
                     break
@@ -288,11 +303,43 @@ class Cmd(object):
         return self.__name__
 
     @classmethod
-    def get_desc(self):
+    def get_desc(self, *, pretty=False):
         it = (x.__doc__ for x in self.__mro__ if x.__doc__ and x != object)
-        return "\n\n".join(it)
+        if not int(pretty):
+            return "\n\n".join(it)
 
-    def invoke(self, in_args):
+        desc = []
+        for lines in it:
+            lines = lines.strip().splitlines()
+            it = (len(x) - len(x.lstrip()) for x in lines[1:] if x.lstrip())
+            to_trim = min(it, default=0)
+            desc.append(lines[0])
+            desc += list(x[to_trim:] for x in lines[1:])
+            desc.append("")
+
+        if type(pretty) != int:
+            return "\n".join(desc[:-1])
+
+        import textwrap
+        leadless_n = 0
+        paras = []
+        for line in desc:
+            next_n = (leadless_n + 1) if line and line[0] != " " else 0
+            if next_n > 1:
+                paras[-1] += " " + line
+                leadless_n = next_n
+                continue
+
+            if next_n < leadless_n:
+                para = paras.pop()
+                paras += textwrap.wrap(para, width=pretty)
+
+            paras.append(line)
+            leadless_n = next_n
+
+        return "\n".join(paras[:-1])
+
+    def invoke(self, in_args, *, invoke_path=""):
         self.validate()
 
         def read_in_args():
@@ -326,7 +373,8 @@ class Cmd(object):
             out_type = argopt.get_type().__name__
             on_error(f"Unable to convert '{value}' to type '{out_type}'")
 
-        self.args = _ArgOptBox(args_out)
+        self.args = _ArgOptBox(self, args_out)
+        self._invoke_path = invoke_path
 
         return self._call_main()
 
@@ -360,7 +408,7 @@ class Cmd(object):
             return
 
         if hasattr(completer, "__call__"):
-            self.args = _ArgOptBox(args_out)
+            self.args = _ArgOptBox(self, args_out)
             completer = completer(prefix)
 
         if completer:

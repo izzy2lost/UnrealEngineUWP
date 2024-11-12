@@ -682,7 +682,7 @@ void UAnimStreamable::RequestCompressedDataForChunk(const FString& ChunkDDCKey, 
 		const FString FinalDDCKey = FDerivedDataCacheInterface::BuildCacheKey(AnimCompressor->GetPluginName(), AnimCompressor->GetVersionString(), *AnimCompressor->GetPluginSpecificCacheKeySuffix());
 
 		// For debugging DDC/Compression issues		
-		const bool bSkipDDC = false;
+		bool bSkipDDC = false;
 
 		const int32 ChunkNumFrames = FrameEnd - FrameStart;
 		Chunk.StartTime = SamplingFrameRate.AsSeconds(static_cast<int32>(FrameStart));

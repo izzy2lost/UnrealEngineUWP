@@ -157,6 +157,9 @@ namespace Audio
 		/** The number of channels supported by the audio device */
 		int32 NumChannels;
 
+		/** The number of channels above the base stereo or 7.1 channels supported by the audio device */
+		int32 NumDirectOutChannels;
+
 		/** The sample rate of the audio device */
 		int32 SampleRate;
 
@@ -179,6 +182,7 @@ namespace Audio
 			Name = TEXT("Unknown");
 			DeviceId = TEXT("Unknown");
 			NumChannels = 0;
+			NumDirectOutChannels = 0;
 			SampleRate = 0;
 			Format = EAudioMixerStreamDataFormat::Unknown;
 			OutputChannelArray.Reset();
@@ -199,12 +203,6 @@ namespace Audio
 
 		bool IsMainAudioMixer() const { return bIsMainAudioMixer; }
 
-		/** Called by FWindowsMMNotificationClient to bypass notifications for audio device changes: */
-		AUDIOMIXERCORE_API static bool ShouldIgnoreDeviceSwaps();
-
-		/** Called by FWindowsMMNotificationClient to toggle logging for audio device changes: */
-		AUDIOMIXERCORE_API static bool ShouldLogDeviceSwaps();
-		
 		/** Called by AudioMixer to see if we should do a multithreaded device swap */
 		AUDIOMIXERCORE_API static bool ShouldUseThreadedDeviceSwap();
 
@@ -508,6 +506,9 @@ namespace Audio
 		/** Submit the given buffer to the platform's output audio device. */
 		virtual void SubmitBuffer(const uint8* Buffer) {};
 
+		/** Submit a buffer that is to be output directly through a discreet device channel. */
+		virtual void SubmitDirectOutBuffer(const int32 InDirectOutIndex, const Audio::FAlignedFloatBuffer& InBuffer) {};
+
 		/** Allows platforms to filter the requested number of frames to render. Some platforms only support specific frame counts. */
 		virtual int32 GetNumFrames(const int32 InNumReqestedFrames) { return InNumReqestedFrames; }
 
@@ -747,6 +748,8 @@ public:
 
 	/** Creates a new instance of the audio device implemented by the module. */
 	virtual bool IsAudioMixerModule() const { return false; }
+	/** Does this class of device support multiclient access to the driver */
+	virtual bool IsAudioDeviceClassMulticlient() const { return true; }
 	virtual FAudioDevice* CreateAudioDevice() { return nullptr; }
 	virtual Audio::IAudioMixerPlatformInterface* CreateAudioMixerPlatformInterface() { return nullptr; }
 };

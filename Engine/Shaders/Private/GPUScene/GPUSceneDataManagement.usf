@@ -5,8 +5,7 @@
 #include "../InstanceCulling/InstanceCullingLoadBalancer.ush"
 
 /**
- * Each thread loops over a range on instances loaded from a buffer. The instance bounds are projected to all cached virtual shadow map address space 
- * and any overlapped pages are marked as invalid.
+ * Clear instances - set their primitive ID and set them to hidden.
  */
 [numthreads(NUM_THREADS_PER_GROUP, 1, 1)]
 void GPUSceneSetInstancePrimitiveIdCS(uint3 GroupId : SV_GroupID, int GroupThreadIndex : SV_GroupIndex)
@@ -18,6 +17,8 @@ void GPUSceneSetInstancePrimitiveIdCS(uint3 GroupId : SV_GroupID, int GroupThrea
 		return;
 	}
 
-	uint InstanceId = WorkSetup.Item.InstanceDataOffset + uint(WorkSetup.LocalItemIndex);
-	WriteInstancePrimitiveId(InstanceId, WorkSetup.Item.Payload);
+	const uint InstanceId = WorkSetup.Item.InstanceDataOffset + uint(WorkSetup.LocalItemIndex);
+	const uint PrimitiveId = WorkSetup.Item.Payload;
+	const uint InstanceFlags = INSTANCE_SCENE_DATA_FLAG_HIDDEN;
+	WriteInstancePrimitiveIdAndFlags(InstanceId, PrimitiveId, InstanceFlags);
 }

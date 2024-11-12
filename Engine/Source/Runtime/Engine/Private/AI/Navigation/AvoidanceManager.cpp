@@ -159,7 +159,7 @@ int32 UAvoidanceManager::GetNewAvoidanceUID()
 	if (NewKeyPool.Num())
 	{
 		NewUID = NewKeyPool[NewKeyPool.Num() - 1];
-		NewKeyPool.RemoveAt(NewKeyPool.Num() - 1, 1, EAllowShrinking::No);
+		NewKeyPool.RemoveAt(NewKeyPool.Num() - 1, EAllowShrinking::No);
 	}
 	return NewUID;
 }
@@ -447,8 +447,6 @@ FVector UAvoidanceManager::GetAvoidanceVelocity_Internal(const FNavAvoidanceData
 			FVector PointAWorld = inAvoidanceData.Center;
 			FVector PointBRelative = OtherObject.Center - PointAWorld;
 			FVector TowardB, SidewaysFromB;
-			FVector VelAdjustment;
-			FVector VelAfterAdjustment;
 			float RadiusB = OtherObject.Radius + inAvoidanceData.Radius;
 
 			PointBRelative.Z = 0.0f;

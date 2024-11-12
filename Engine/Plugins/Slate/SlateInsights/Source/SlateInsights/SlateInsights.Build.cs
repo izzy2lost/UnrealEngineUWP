@@ -18,6 +18,7 @@ namespace UnrealBuildTool.Rules
 				"TraceAnalysis",
 				"TraceServices",
 				"TraceInsights",
+				"TraceInsightsCore",
 				"AssetRegistry",
 				"ApplicationCore",
 				"SourceCodeAccess",

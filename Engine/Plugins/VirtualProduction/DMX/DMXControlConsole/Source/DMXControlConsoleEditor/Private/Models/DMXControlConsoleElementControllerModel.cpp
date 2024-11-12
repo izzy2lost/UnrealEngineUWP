@@ -3,17 +3,24 @@
 #include "DMXControlConsoleElementControllerModel.h"
 
 #include "Algo/AllOf.h"
+#include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
+#include "DMXControlConsoleFixturePatchFunctionFader.h"
 #include "DMXControlConsoleRawFader.h"
 #include "IDMXControlConsoleFaderGroupElement.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
+#include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
+#include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Models/DMXControlConsoleEditorModel.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleElementControllerModel"
 
 namespace UE::DMX::Private
 {
-	FDMXControlConsoleElementControllerModel::FDMXControlConsoleElementControllerModel(const TWeakObjectPtr<UDMXControlConsoleElementController> InWeakElementController)
+	FDMXControlConsoleElementControllerModel::FDMXControlConsoleElementControllerModel(const TWeakObjectPtr<UDMXControlConsoleElementController> InWeakElementController, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 		: WeakElementController(InWeakElementController)
+		, WeakEditorModel(InWeakEditorModel)
 	{}
 
 	UDMXControlConsoleElementController* FDMXControlConsoleElementControllerModel::GetElementController() const
@@ -58,6 +65,71 @@ namespace UE::DMX::Private
 			});
 
 		return bHasOnlyMatrixCellElements ? Cast<UDMXControlConsoleFixturePatchMatrixCell>(Elements[0].GetObject()) : nullptr;
+	}
+
+	TArray<UDMXControlConsoleElementController*> FDMXControlConsoleElementControllerModel::GetMatchingAttributeElementControllers(bool bSameOwnerControllerOnly) const
+	{
+		TArray<UDMXControlConsoleElementController*> MatchingAttributeElementControllers;
+
+		const UDMXControlConsoleElementController* ThisController = GetElementController();
+		const UDMXControlConsoleFaderBase* FirstFader = GetFirstAvailableFader();
+
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleLayouts() : nullptr;
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ThisController || !FirstFader || !ActiveLayout)
+		{
+			return MatchingAttributeElementControllers;
+		}
+
+		// Find all controllers that match this controller's attribute (or name, if no attribute is available)
+		FName AttributeNameToSelect = *FirstFader->GetFaderName();
+		if (const UDMXControlConsoleFixturePatchFunctionFader* FirstFunctionFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(FirstFader))
+		{
+			AttributeNameToSelect = FirstFunctionFader->GetAttributeName().Name;
+		}
+
+		const UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = ThisController->GetOwnerFaderGroupControllerChecked();
+		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
+		for (UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
+		{
+			if (!FaderGroupController)
+			{
+				continue;
+			}
+
+			if (bSameOwnerControllerOnly && FaderGroupController != &OwnerFaderGroupController)
+			{
+				continue;
+			}
+
+			const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetAllElementControllers();
+			for (UDMXControlConsoleElementController* ElementController : ElementControllers)
+			{
+				if (!ElementController)
+				{
+					continue;
+				}
+
+				const TArray<UDMXControlConsoleFaderBase*> Faders = ElementController->GetFaders();
+				if (Faders.IsEmpty())
+				{
+					continue;
+				}
+
+				FName AttributeName = *Faders[0]->GetFaderName();
+				if (const UDMXControlConsoleFixturePatchFunctionFader* FunctionFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(Faders[0]))
+				{
+					AttributeName = FunctionFader->GetAttributeName().Name;
+				}
+
+				if (AttributeName == AttributeNameToSelect)
+				{
+					MatchingAttributeElementControllers.Add(ElementController);
+				}
+			}
+		}
+
+		return MatchingAttributeElementControllers;
 	}
 
 	FString FDMXControlConsoleElementControllerModel::GetRelativeControllerName() const
@@ -144,6 +216,70 @@ namespace UE::DMX::Private
 		return static_cast<float>(FirstFader->GetMaxValue());
 	}
 
+	EDMXGDTFPhysicalUnit FDMXControlConsoleElementControllerModel::GetPhysicalUnit() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return EDMXGDTFPhysicalUnit::None;
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return EDMXGDTFPhysicalUnit::None;
+		}
+
+		return FirstFader->GetPhysicalUnit();
+	}
+
+	double FDMXControlConsoleElementControllerModel::GetPhysicalValue() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return GetRelativeValue();
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return GetRelativeValue();
+		}
+
+		return FirstFader->GetPhysicalValue();
+	}
+
+	double FDMXControlConsoleElementControllerModel::GetPhysicalFrom() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return GetRelativeValue();
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return GetRelativeValue();
+		}
+
+		return FirstFader->GetPhysicalFrom();
+	}
+
+	double FDMXControlConsoleElementControllerModel::GetPhysicalTo() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return GetRelativeValue();
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return GetRelativeValue();
+		}
+
+		return FirstFader->GetPhysicalTo();
+	}
+
 	bool FDMXControlConsoleElementControllerModel::HasSingleElement() const
 	{
 		return WeakElementController.IsValid() && WeakElementController->GetElements().Num() == 1;
@@ -170,6 +306,35 @@ namespace UE::DMX::Private
 			});
 
 		return bHasUniformDataType;
+	}
+
+	bool FDMXControlConsoleElementControllerModel::HasUniformPhysicalUnit() const
+	{
+		if (!WeakElementController.IsValid() || WeakElementController->GetElements().IsEmpty())
+		{
+			return false;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = WeakElementController->GetFaders();
+		if (Faders.IsEmpty())
+		{
+			return false;
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(Faders[0]);
+		if (!FirstFader)
+		{
+			return false;
+		}
+
+		const bool bHasUniformPhysicalUnit = Algo::AllOf(Faders,
+			[FirstFader](const UDMXControlConsoleFaderBase* Fader)
+			{
+				const UDMXControlConsoleFixturePatchFunctionFader* FunctionFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(Fader);
+				return FunctionFader && FunctionFader->GetPhysicalUnit() == FirstFader->GetPhysicalUnit();
+			});
+
+		return bHasUniformPhysicalUnit;
 	}
 
 	bool FDMXControlConsoleElementControllerModel::HasUniformValue() const

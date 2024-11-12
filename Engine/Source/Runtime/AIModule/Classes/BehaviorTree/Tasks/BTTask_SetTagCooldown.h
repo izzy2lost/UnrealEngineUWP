@@ -5,6 +5,7 @@
 #include "UObject/ObjectMacros.h"
 #include "GameplayTagContainer.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTTask_SetTagCooldown.generated.h"
 
 /**
@@ -21,12 +22,12 @@ class UBTTask_SetTagCooldown : public UBTTaskNode
 	FGameplayTag CooldownTag;
 
 	/** True if we are adding to any existing duration, false if we are setting the duration (potentially invalidating an existing end time). */
-	UPROPERTY(Category = Decorator, EditAnywhere)
-	bool bAddToExistingDuration;
+	UPROPERTY(Category = Cooldown, EditAnywhere, DisplayName = AddToExistingDuration)
+	FValueOrBBKey_Bool bAddToExistingDuration;
 
 	/** Value we will add or set to the Cooldown tag when this task runs. */
 	UPROPERTY(Category = Cooldown, EditAnywhere)
-	float CooldownDuration;
+	FValueOrBBKey_Float CooldownDuration;
 
 	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	AIMODULE_API virtual FString GetStaticDescription() const override;

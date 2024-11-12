@@ -43,6 +43,7 @@ class FGenerateRayMarchingTiles : public FGlobalShader
 
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
+		SHADER_PARAMETER(int32, DownsampleFactor)
 
 		// Debug Output
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<Volumes::FRayMarchingDebug>, RWRayMarchingDebugBuffer)
@@ -118,10 +119,8 @@ void GenerateRayMarchingTiles(
 	FRDGBufferRef& VoxelsPerTileBuffer
 )
 {
-	uint32 GroupCountX = FMath::DivideAndRoundUp(View.ViewRect.Size().X, FGenerateRayMarchingTiles::GetThreadGroupSize2D());
-	uint32 GroupCountY = FMath::DivideAndRoundUp(View.ViewRect.Size().Y, FGenerateRayMarchingTiles::GetThreadGroupSize2D());
-	FIntVector GroupCount = FIntVector(GroupCountX, GroupCountY, 1);
-	uint32 NumTiles = GroupCountX * GroupCountY;
+	FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(HeterogeneousVolumes::GetScaledViewRect(View.ViewRect), FGenerateRayMarchingTiles::GetThreadGroupSize2D());
+	uint32 NumTiles = GroupCount.X * GroupCount.Y;
 
 	NumRayMarchingTilesBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1),
@@ -177,6 +176,7 @@ void GenerateRayMarchingTiles(
 
 		// Dispatch data
 		PassParameters->GroupCount = GroupCount;
+		PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
 
 		// Debug
 		PassParameters->RWRayMarchingDebugBuffer = GraphBuilder.CreateUAV(RayMarchingDebugBuffer);
@@ -209,7 +209,8 @@ class FRenderLightingCacheWithPreshadingCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FRenderLightingCacheWithPreshadingCS, FGlobalShader);
 
 	class FLightingCacheMode : SHADER_PERMUTATION_INT("DIM_LIGHTING_CACHE_MODE", 2);
-	using FPermutationDomain = TShaderPermutationDomain<FLightingCacheMode>;
+	class FUseAdaptiveVolumetricShadowMap : SHADER_PERMUTATION_BOOL("DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP");
+	using FPermutationDomain = TShaderPermutationDomain<FLightingCacheMode, FUseAdaptiveVolumetricShadowMap>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
@@ -229,6 +230,7 @@ class FRenderLightingCacheWithPreshadingCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumeShadowingShaderParameters, VolumeShadowingShaderParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSamplingParameters, VirtualShadowMapSamplingParameters)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 
 		// Volume structures
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSparseVoxelUniformBufferParameters, SparseVoxelUniformBuffer)
@@ -291,12 +293,13 @@ class FRenderSingleScatteringWithPreshadingCS : public FGlobalShader
 	class FApplyShadowTransmittanceDim : SHADER_PERMUTATION_BOOL("DIM_APPLY_SHADOW_TRANSMITTANCE");
 	class FVoxelCullingDim : SHADER_PERMUTATION_BOOL("DIM_VOXEL_CULLING");
 	class FSparseVoxelTracingDim : SHADER_PERMUTATION_BOOL("DIM_SPARSE_VOXEL_TRACING");
-	class FUseTransmittanceVolume : SHADER_PERMUTATION_BOOL("DIM_USE_TRANSMITTANCE_VOLUME");
+	//class FUseTransmittanceVolume : SHADER_PERMUTATION_BOOL("DIM_USE_TRANSMITTANCE_VOLUME");
 	class FUseInscatteringVolume : SHADER_PERMUTATION_BOOL("DIM_USE_INSCATTERING_VOLUME");
 	class FUseLumenGI : SHADER_PERMUTATION_BOOL("DIM_USE_LUMEN_GI");
 	class FWriteVelocity : SHADER_PERMUTATION_BOOL("DIM_WRITE_VELOCITY");
+	class FUseAdaptiveVolumetricShadowMap : SHADER_PERMUTATION_BOOL("DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP");
 	class FDebugDim : SHADER_PERMUTATION_BOOL("DIM_DEBUG");
-	using FPermutationDomain = TShaderPermutationDomain<FApplyShadowTransmittanceDim, FVoxelCullingDim, FSparseVoxelTracingDim, FUseTransmittanceVolume, FUseInscatteringVolume, FUseLumenGI, FWriteVelocity, FDebugDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FApplyShadowTransmittanceDim, FVoxelCullingDim, FSparseVoxelTracingDim, FUseInscatteringVolume, FUseLumenGI, FWriteVelocity, FUseAdaptiveVolumetricShadowMap, FDebugDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
@@ -315,6 +318,7 @@ class FRenderSingleScatteringWithPreshadingCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumeShadowingShaderParameters, VolumeShadowingShaderParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSamplingParameters, VirtualShadowMapSamplingParameters)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 
 		// Atmosphere
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FFogUniformParameters, FogStruct)
@@ -341,6 +345,7 @@ class FRenderSingleScatteringWithPreshadingCS : public FGlobalShader
 
 		// Indirect args
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER(int32, DownsampleFactor)
 
 		// Output
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWLightingTexture)
@@ -353,6 +358,31 @@ class FRenderSingleScatteringWithPreshadingCS : public FGlobalShader
 	)
 	{
 		return DoesPlatformSupportHeterogeneousVolumes(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugDim>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		if (PermutationVector.Get<FVoxelCullingDim>() != HeterogeneousVolumes::UseSparseVoxelPerTileCulling())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FSparseVoxelTracingDim>() != HeterogeneousVolumes::UseSparseVoxelPipeline())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		if (PermutationVector.Get<FUseInscatteringVolume>() != HeterogeneousVolumes::UseLightingCacheForInscattering())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	static void ModifyCompilationEnvironment(
@@ -389,7 +419,7 @@ void RenderLightingCacheWithPreshadingCompute(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -469,7 +499,8 @@ void RenderLightingCacheWithPreshadingCompute(
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 			PassParameters->VirtualShadowMapId = -1;
 		}
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
+		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
 
 		// Output
 		PassParameters->RWLightingCacheTexture = GraphBuilder.CreateUAV(LightingCacheTexture);
@@ -488,9 +519,11 @@ void RenderLightingCacheWithPreshadingCompute(
 		PassName = FString::Printf(TEXT("RenderLightingCacheWithPreshadingCS [%s] (Light = %s)"), *ModeName, *LightName);
 	}
 #endif // WANTS_DRAW_MESH_EVENTS
+	bool bUseAVSM = HeterogeneousVolumes::UseAdaptiveVolumetricShadowMapForSelfShadowing(HeterogeneousVolumeInterface->GetPrimitiveSceneProxy());
 
 	FRenderLightingCacheWithPreshadingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderLightingCacheWithPreshadingCS::FLightingCacheMode>(HeterogeneousVolumes::GetLightingCacheMode() - 1);
+	PermutationVector.Set<FRenderLightingCacheWithPreshadingCS::FUseAdaptiveVolumetricShadowMap>(bUseAVSM);
 	TShaderRef<FRenderLightingCacheWithPreshadingCS> ComputeShader = View.ShaderMap->GetShader<FRenderLightingCacheWithPreshadingCS>(PermutationVector);
 
 	FIntVector GroupCount = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor);
@@ -510,7 +543,7 @@ void RenderSingleScatteringWithPreshadingCompute(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -586,7 +619,8 @@ void RenderSingleScatteringWithPreshadingCompute(
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 			PassParameters->VirtualShadowMapId = -1;
 		}
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
+		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
 
 		TRDGUniformBufferRef<FFogUniformParameters> FogBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 		PassParameters->FogStruct = FogBuffer;
@@ -629,6 +663,7 @@ void RenderSingleScatteringWithPreshadingCompute(
 
 		// Dispatch data
 		PassParameters->IndirectArgs = NumRayMarchingTilesBuffer;
+		PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
 
 		// Output
 		PassParameters->RWLightingTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeTexture);
@@ -644,15 +679,17 @@ void RenderSingleScatteringWithPreshadingCompute(
 	{
 		FSceneRenderer::GetLightNameForDrawEvent(LightSceneInfo->Proxy, LightName);
 	}
+	bool bUseAVSM = HeterogeneousVolumes::UseAdaptiveVolumetricShadowMapForSelfShadowing(HeterogeneousVolumeInterface->GetPrimitiveSceneProxy());
 
 	FRenderSingleScatteringWithPreshadingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FApplyShadowTransmittanceDim>(bApplyShadowTransmittance);
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FVoxelCullingDim>(HeterogeneousVolumes::UseSparseVoxelPerTileCulling());
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FSparseVoxelTracingDim>(HeterogeneousVolumes::UseSparseVoxelPipeline());
-	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FUseTransmittanceVolume>(HeterogeneousVolumes::UseLightingCacheForTransmittance());
+	//PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FUseTransmittanceVolume>(HeterogeneousVolumes::UseLightingCacheForTransmittance());
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FUseInscatteringVolume>(HeterogeneousVolumes::UseLightingCacheForInscattering());
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FUseLumenGI>(HeterogeneousVolumes::UseIndirectLighting() && View.GetLumenTranslucencyGIVolume().Texture0 != nullptr);
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FWriteVelocity>(bWriteVelocity);
+	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FUseAdaptiveVolumetricShadowMap>(bUseAVSM);
 	PermutationVector.Set<FRenderSingleScatteringWithPreshadingCS::FDebugDim>(HeterogeneousVolumes::GetDebugMode() != 0);
 	TShaderRef<FRenderSingleScatteringWithPreshadingCS> ComputeShader = View.ShaderMap->GetShader<FRenderSingleScatteringWithPreshadingCS>(PermutationVector);
 	FComputeShaderUtils::AddPass(
@@ -669,8 +706,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -730,7 +766,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -770,7 +806,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingCompute(
 			GraphBuilder,
 			// Scene
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light
 			bApplyEmissionAndTransmittance,
@@ -803,8 +839,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -866,7 +901,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 				GraphBuilder,
 				// Scene data
 				Scene,
-				View,
+				View, ViewIndex,
 				SceneTextures,
 				// Light data
 				bApplyEmissionAndTransmittance,
@@ -896,7 +931,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingCompute(
 			GraphBuilder,
 			// Scene
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light
 			bApplyEmissionAndTransmittance,
@@ -929,8 +964,7 @@ void RenderWithPreshadingCompute(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -978,8 +1012,7 @@ void RenderWithPreshadingCompute(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1005,8 +1038,7 @@ void RenderWithPreshadingCompute(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1032,8 +1064,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1045,6 +1076,8 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 	const TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters>& SparseVoxelUniformBuffer,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	// Ray tracing data
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Output
 	FRDGTextureRef& HeterogeneousVolumeRadiance
 )
@@ -1091,7 +1124,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -1108,6 +1141,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Ray tracing data
 			Scene->HeterogeneousVolumesRayTracingScene,
+			RayTracingGeometries,
 			// Transmittance volume
 			LightingCacheTexture
 		);
@@ -1127,7 +1161,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -1144,6 +1178,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Ray tracing data
 			Scene->HeterogeneousVolumesRayTracingScene,
+			RayTracingGeometries,
 			// Transmittance volume
 			LightingCacheTexture,
 			// Output
@@ -1158,8 +1193,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1171,6 +1205,8 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 	const TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters>& SparseVoxelUniformBuffer,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	// Ray tracing data
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Output
 	FRDGTextureRef& HeterogeneousVolumeRadiance
 )
@@ -1219,7 +1255,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 				GraphBuilder,
 				// Scene data
 				Scene,
-				View,
+				View, ViewIndex,
 				SceneTextures,
 				// Light data
 				bApplyEmissionAndTransmittance,
@@ -1236,6 +1272,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 				SparseVoxelUniformBuffer,
 				// Ray tracing data
 				Scene->HeterogeneousVolumesRayTracingScene,
+				RayTracingGeometries,
 				// Transmittance volume
 				LightingCacheTexture
 			);
@@ -1245,7 +1282,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			// Scene data
 			Scene,
-			View,
+			View, ViewIndex,
 			SceneTextures,
 			// Light data
 			bApplyEmissionAndTransmittance,
@@ -1262,6 +1299,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Ray tracing data
 			Scene->HeterogeneousVolumesRayTracingScene,
+			RayTracingGeometries,
 			// Transmittance volume
 			LightingCacheTexture,
 			// Output
@@ -1276,8 +1314,7 @@ void RenderWithPreshadingHardwareRayTracing(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1297,7 +1334,7 @@ void RenderWithPreshadingHardwareRayTracing(
 	RDG_EVENT_SCOPE(GraphBuilder, "Hardware Ray Tracing");
 
 	// WARNING: Currently works, but I'm skeptical if all RHI resources have the correct lifetime management
-	TArray<FRayTracingGeometryRHIRef> RayTracingGeometries;
+	TArray<FRayTracingGeometryRHIRef, SceneRenderingAllocator> RayTracingGeometries = GraphBuilder.AllocArray<FRayTracingGeometryRHIRef>();
 	TArray<FMatrix> RayTracingTransforms;
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "Acceleration Structure Build");
@@ -1336,8 +1373,7 @@ void RenderWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1348,6 +1384,8 @@ void RenderWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Transmittance acceleration
 			LightingCacheTexture,
+			// Ray tracing data
+			RayTracingGeometries,
 			// Output
 			HeterogeneousVolumeRadiance
 		);
@@ -1358,8 +1396,7 @@ void RenderWithPreshadingHardwareRayTracing(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1370,23 +1407,12 @@ void RenderWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Transmittance acceleration
 			LightingCacheTexture,
+			// Ray tracing data
+			RayTracingGeometries,
 			// Output
 			HeterogeneousVolumeRadiance
 		);
 	}
-
-	// Tear-down ray tracing scene
-	AddPass(GraphBuilder,
-		RDG_EVENT_NAME("ReleaseRayTracingResources"),
-		[&RayTracingScene = Scene->HeterogeneousVolumesRayTracingScene](FRHICommandListImmediate& RHICmdList)
-		{
-		if (RayTracingScene.IsCreated())
-			{
-				RHICmdList.ClearRayTracingBindings(RayTracingScene.GetRHIRayTracingScene());
-			}
-		}
-	);
-
 #endif // RHI_RAYTRACING
 }
 
@@ -1502,8 +1528,7 @@ void RenderWithPreshading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
-	FViewInfo& View,
+	FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1519,7 +1544,9 @@ void RenderWithPreshading(
 )
 {
 	// Determine baking voxel resolution
+	float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
 	FIntVector VolumeResolution = HeterogeneousVolumes::GetVolumeResolution(HeterogeneousVolumeInterface);
+	// TODO: Modify volume resolution by LODFactor??
 
 	// Create baked material grids
 	uint32 NumMips = FMath::Log2(float(FMath::Min(FMath::Min(VolumeResolution.X, VolumeResolution.Y), VolumeResolution.Z))) + 1;
@@ -1640,9 +1667,9 @@ void RenderWithPreshading(
 		SparseVoxelUniformBufferParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
 		SparseVoxelUniformBufferParameters->MaxShadowTraceDistance = HeterogeneousVolumes::GetMaxShadowTraceDistance();
 		SparseVoxelUniformBufferParameters->StepSize = HeterogeneousVolumes::GetStepSize();
-		SparseVoxelUniformBufferParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor();
+		SparseVoxelUniformBufferParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor() * LODFactor;
 		SparseVoxelUniformBufferParameters->ShadowStepSize = HeterogeneousVolumes::GetShadowStepSize();
-		SparseVoxelUniformBufferParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor();
+		SparseVoxelUniformBufferParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 		SparseVoxelUniformBufferParameters->bApplyHeightFog = HeterogeneousVolumes::ShouldApplyHeightFog();
 		SparseVoxelUniformBufferParameters->bApplyVolumetricFog = HeterogeneousVolumes::ShouldApplyVolumetricFog();
 	}
@@ -1656,8 +1683,7 @@ void RenderWithPreshading(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1681,8 +1707,7 @@ void RenderWithPreshading(
 			// Scene data
 			SceneTextures,
 			Scene,
-			ViewFamily,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,

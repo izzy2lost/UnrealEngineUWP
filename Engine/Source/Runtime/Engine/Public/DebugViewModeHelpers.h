@@ -7,10 +7,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#include "SceneTypes.h"
-#endif
 
 #define WITH_DEBUG_VIEW_MODES (WITH_EDITOR || !(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 
@@ -40,6 +36,7 @@ enum EDebugViewShaderMode
 	DVSM_VirtualTexturePendingMips,	// Visualize the pending virtual texture mips.
 	DVSM_LODColoration,				// Visualize primitive LOD .
 	DVSM_VisualizeGPUSkinCache,		// Visualize various properties of Skin Cache.
+	DVSM_LWCComplexity,				// Visualize usage of LWC functions in materials.
 	DVSM_MAX
 };
 

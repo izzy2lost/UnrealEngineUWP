@@ -34,10 +34,14 @@ set(src
 	Private/UnsyncAuth.h
 	Private/UnsyncBuffer.cpp
 	Private/UnsyncBuffer.h
+	Private/UnsyncChunking.cpp
+	Private/UnsyncChunking.h
 	Private/UnsyncCmdDiff.cpp
 	Private/UnsyncCmdDiff.h
 	Private/UnsyncCmdHash.cpp
 	Private/UnsyncCmdHash.h
+	Private/UnsyncCmdInfo.cpp
+	Private/UnsyncCmdInfo.h
 	Private/UnsyncCmdLogin.cpp
 	Private/UnsyncCmdLogin.h
 	Private/UnsyncCmdMount.cpp
@@ -57,12 +61,18 @@ set(src
 	Private/UnsyncCompression.h
 	Private/UnsyncCore.cpp
 	Private/UnsyncCore.h
+	Private/UnsyncDiff.cpp
+	Private/UnsyncDiff.h
 	Private/UnsyncError.h
 	Private/UnsyncFile.cpp
 	Private/UnsyncFile.h
+	Private/UnsyncFilter.cpp
+	Private/UnsyncFilter.h
 	Private/UnsyncHash.cpp
 	Private/UnsyncHash.h
 	Private/UnsyncHashTable.h
+	Private/UnsyncHorde.cpp
+	Private/UnsyncHorde.h
 	Private/UnsyncHttp.cpp
 	Private/UnsyncHttp.h
 	Private/UnsyncJupiter.cpp
@@ -78,6 +88,8 @@ set(src
 	Private/UnsyncMiniCb.h
 	Private/UnsyncMount.cpp
 	Private/UnsyncMount.h
+	Private/UnsyncPack.cpp
+	Private/UnsyncPack.h
 	Private/UnsyncPool.h
 	Private/UnsyncProgress.cpp
 	Private/UnsyncProgress.h
@@ -90,10 +102,14 @@ set(src
 	Private/UnsyncScan.h
 	Private/UnsyncScavenger.cpp
 	Private/UnsyncScavenger.h
+	Private/UnsyncScheduler.cpp
+	Private/UnsyncScheduler.h
 	Private/UnsyncSerialization.cpp
 	Private/UnsyncSerialization.h
 	Private/UnsyncSocket.cpp
 	Private/UnsyncSocket.h
+	Private/UnsyncSource.cpp
+	Private/UnsyncSource.h
 	Private/UnsyncTarget.cpp
 	Private/UnsyncTarget.h
 	Private/UnsyncTest.cpp
@@ -103,6 +119,8 @@ set(src
 	Private/UnsyncUtil.cpp
 	Private/UnsyncUtil.h
 	Private/UnsyncVarInt.h
+	Private/UnsyncVersion.cpp
+	Private/UnsyncVersion.h
 )
 
 # Add third party code
@@ -157,7 +175,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	target_compile_definitions(unsync PRIVATE
 		UNSYNC_PLATFORM_WINDOWS=1
 		UNSYNC_PLATFORM_UNIX=0
-		UNSYNC_USE_CONCRT=1
 		WIN32_LEAN_AND_MEAN=1
 		NOMINMAX=1
 	)
@@ -165,7 +182,6 @@ else()
 	target_compile_definitions(unsync PRIVATE 
 		UNSYNC_PLATFORM_UNIX=1
 		UNSYNC_PLATFORM_WINDOWS=0
-		UNSYNC_USE_CONCRT=0
 	)
 endif()
 

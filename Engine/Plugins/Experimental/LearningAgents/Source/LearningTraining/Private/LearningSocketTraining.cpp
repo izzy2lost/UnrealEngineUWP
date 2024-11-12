@@ -11,22 +11,16 @@
 
 namespace UE::Learning::SocketTraining
 {
-	ETrainerResponse WaitForConnection(FSocket& Socket, const float Timeout)
+	ETrainerResponse WaitForConnection(FSocket& Socket, FSubprocess* Process, const FInternetAddr& Addr, const float Timeout)
 	{
 		float WaitTime = 0.0f;
-		const float SleepTime = 0.001f;
+		const float SleepTime = 0.001f; // 1 millisecond
 
-		while (true)
+		while (!Process || Process->Update())
 		{
-			if (Socket.GetConnectionState() == ESocketConnectionState::SCS_ConnectionError)
+			if (Socket.Connect(Addr))
 			{
-				UE_LOG(LogLearning, Error, TEXT("Socket refused connection..."));
-				return ETrainerResponse::Unexpected;
-			}
-
-			if (Socket.GetConnectionState() == ESocketConnectionState::SCS_Connected)
-			{
-				break;
+				return ETrainerResponse::Success;
 			}
 			else
 			{
@@ -40,44 +34,48 @@ namespace UE::Learning::SocketTraining
 			}
 		}
 
-		return ETrainerResponse::Success;
+		return ETrainerResponse::Unexpected;
 	}
 
-	ETrainerResponse RecvWithTimeout(FSocket& Socket, uint8* Bytes, const int32 ByteNum, const float Timeout)
+	ETrainerResponse RecvWithTimeout(FSocket& Socket, FSubprocess* Process, uint8* Bytes, const int32 ByteNum, const float Timeout)
 	{
 		float WaitTime = 0.0f;
-		const float SleepTime = 0.001f;
 
 		int32 BytesRead = 0;
 		int32 TotalBytesRead = 0;
 
-		while (true)
+		while (!Process || Process->Update())
 		{
-			if (Socket.Recv(Bytes + TotalBytesRead, ByteNum - TotalBytesRead, BytesRead))
+			if (Socket.Wait(ESocketWaitConditions::WaitForRead, FTimespan(1000))) // 1 millisecond
 			{
-				TotalBytesRead += BytesRead;
-
-				if (TotalBytesRead == ByteNum)
+				if (Socket.Recv(Bytes + TotalBytesRead, ByteNum - TotalBytesRead, BytesRead))
 				{
-					return ETrainerResponse::Success;
+					TotalBytesRead += BytesRead;
+
+					if (TotalBytesRead == ByteNum)
+					{
+						return ETrainerResponse::Success;
+					}
 				}
 			}
 
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			WaitTime += 0.001f; // 1 millisecond
 
 			if (WaitTime > Timeout)
 			{
 				return ETrainerResponse::Timeout;
 			}
 		}
+
+		return ETrainerResponse::Unexpected;
 	}
 
 	ETrainerResponse RecvNetwork(
 		FSocket& Socket,
+		const int32 NetworkId,
 		ULearningNeuralNetworkData& OutNetwork,
+		FSubprocess* Process,
 		TLearningArrayView<1, uint8> OutNetworkBuffer,
-		const ESignal NetworkSignal,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -94,7 +92,7 @@ namespace UE::Learning::SocketTraining
 
 		while (true)
 		{
-			Response = RecvWithTimeout(Socket, &Signal, 1, Timeout);
+			Response = RecvWithTimeout(Socket, Process, &Signal, 1, Timeout);
 			if (Response != ETrainerResponse::Success) { return Response; }
 
 			if (Signal == (uint8)ESignal::RecvComplete)
@@ -107,7 +105,7 @@ namespace UE::Learning::SocketTraining
 				continue;
 			}
 
-			if (Signal != (uint8)NetworkSignal)
+			if (Signal != (uint8)ESignal::RecvNetwork)
 			{
 				return ETrainerResponse::Unexpected;
 			}
@@ -115,7 +113,12 @@ namespace UE::Learning::SocketTraining
 			break;
 		}
 
-		Response = RecvWithTimeout(Socket, OutNetworkBuffer.GetData(), OutNetworkBuffer.Num(), Timeout);
+		int32 Id = -1;
+		Response = RecvWithTimeout(Socket, Process, (uint8*)&Id, sizeof(int32), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+		checkf(Id == NetworkId, TEXT("Received unexpected network id!"))
+
+		Response = RecvWithTimeout(Socket, Process, OutNetworkBuffer.GetData(), OutNetworkBuffer.Num(), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		bool bSuccess = false;
@@ -144,70 +147,106 @@ namespace UE::Learning::SocketTraining
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
 
-	ETrainerResponse SendWithTimeout(FSocket& Socket, const uint8* Bytes, const int32 ByteNum, const float Timeout)
+	ETrainerResponse SendWithTimeout(FSocket& Socket, FSubprocess* Process, const uint8* Bytes, const int32 ByteNum, const float Timeout)
 	{
 		float WaitTime = 0.0f;
-		const float SleepTime = 0.001f;
 
 		int32 BytesSent = 0;
 		int32 TotalBytesSent = 0;
 
-		while (true)
+		while (!Process || Process->Update())
 		{
-			if (Socket.Send(Bytes + TotalBytesSent, ByteNum - TotalBytesSent, BytesSent))
+			if (Socket.Wait(ESocketWaitConditions::WaitForWrite, FTimespan(1000))) // 1 millisecond
 			{
-				TotalBytesSent += BytesSent;
-
-				if (TotalBytesSent == ByteNum)
+				if (Socket.Send(Bytes + TotalBytesSent, ByteNum - TotalBytesSent, BytesSent))
 				{
-					return ETrainerResponse::Success;
+					TotalBytesSent += BytesSent;
+
+					if (TotalBytesSent == ByteNum)
+					{
+						return ETrainerResponse::Success;
+					}
 				}
 			}
 
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			WaitTime += 0.001f; // 1 millisecond
 
 			if (WaitTime > Timeout)
 			{
 				return ETrainerResponse::Timeout;
 			}
 		}
+
+		return ETrainerResponse::Unexpected;
 	}
 
-	ETrainerResponse SendConfig(FSocket& Socket, const FString& ConfigString, const float Timeout)
+	ETrainerResponse SendConfig(
+		FSocket& Socket,
+		const FString& ConfigString,
+		FSubprocess* Process,
+		const float Timeout,
+		const ELogSetting LogSettings)
 	{
+		if (LogSettings != ELogSetting::Silent)
+		{
+			UE_LOG(LogLearning, Display, TEXT("Sending config..."));
+		}
+
 		const uint8 Signal = (uint8)ESignal::SendConfig;
-		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
+		ETrainerResponse Response = SendWithTimeout(Socket, Process, &Signal, 1, Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		const FTCHARToUTF8 UTF8String(*ConfigString);
 		const int32 ConfigLength = UTF8String.Length();
 		
-		Response = SendWithTimeout(Socket, (uint8*)&ConfigLength, sizeof(int32), Timeout);
+		Response = SendWithTimeout(Socket, Process, (uint8*)&ConfigLength, sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 		
-		Response = SendWithTimeout(Socket, (uint8*)UTF8String.Get(), UTF8String.Length(), Timeout);
+		Response = SendWithTimeout(Socket, Process, (uint8*)UTF8String.Get(), UTF8String.Length(), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		return ETrainerResponse::Success;
 	}
 
-	ETrainerResponse SendStop(FSocket& Socket, const float Timeout)
+	ETrainerResponse SendStop(FSocket& Socket, FSubprocess* Process, const float Timeout)
 	{
 		const uint8 Signal = (uint8)ESignal::SendStop;
-		return SendWithTimeout(Socket, &Signal, 1, Timeout);
+		return SendWithTimeout(Socket, Process, &Signal, 1, Timeout);
 	}
 
-	bool HasPolicyOrCompleted(FSocket& Socket)
+	bool HasNetworkOrCompleted(FSocket& Socket, FSubprocess* Process)
 	{
+		// If we're monitoring a process, then has it has exited?
+		if (Process && !Process->Update())
+		{
+			return false;
+		}
+
 		uint32 PendingDataSize;
-		return Socket.HasPendingData(PendingDataSize);
+		bool bHasPendingData = Socket.HasPendingData(PendingDataSize);
+
+		uint8 Signal = (uint8)ESignal::Invalid;
+		int32 BytesRead = 0;
+		if (bHasPendingData)
+		{ 
+			Socket.Recv(&Signal, 1, BytesRead, ESocketReceiveFlags::Type::Peek);
+
+			if (Signal == (uint8)ESignal::RecvPing)
+			{
+				// Consume the ping
+				Socket.Recv(&Signal, 1, BytesRead);
+				return false;
+			}
+		}
+
+		return Signal == (uint8)ESignal::RecvComplete || Signal == (uint8)ESignal::RecvNetwork;
 	}
 
 	ETrainerResponse SendNetwork(
 		FSocket& Socket,
 		TLearningArrayView<1, uint8> NetworkBuffer,
-		const ESignal NetworkSignal,
+		FSubprocess* Process,
+		const int32 NetworkId,
 		const ULearningNeuralNetworkData& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
@@ -233,11 +272,14 @@ namespace UE::Learning::SocketTraining
 			}
 		}
 
-		const uint8 Signal = (uint8)NetworkSignal;
-		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
+		const uint8 Signal = (uint8)ESignal::SendNetwork;
+		ETrainerResponse Response = SendWithTimeout(Socket, Process, &Signal, 1, Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, NetworkBuffer.GetData(), NetworkBuffer.Num(), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)&NetworkId, sizeof(int32), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		Response = SendWithTimeout(Socket, Process, NetworkBuffer.GetData(), NetworkBuffer.Num(), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		return bSuccess ? Response : ETrainerResponse::Unexpected;
@@ -245,7 +287,9 @@ namespace UE::Learning::SocketTraining
 
 	ETrainerResponse SendExperience(
 		FSocket& Socket,
+		const int32 ReplayBufferId,
 		const FReplayBuffer& ReplayBuffer,
+		FSubprocess* Process,
 		const float Timeout,
 		const ELogSetting LogSettings)
 	{
@@ -254,45 +298,74 @@ namespace UE::Learning::SocketTraining
 			UE_LOG(LogLearning, Display, TEXT("Pushing Experience..."));
 		}
 
-		const int32 EpisodeNum = ReplayBuffer.GetEpisodeNum();
-		const int32 StepNum = ReplayBuffer.GetStepNum();
-
 		const uint8 Signal = (uint8)ESignal::SendExperience;
-		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
+		ETrainerResponse Response = SendWithTimeout(Socket, Process, &Signal, 1, Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)&EpisodeNum, sizeof(int32), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
-		
-		Response = SendWithTimeout(Socket, (const uint8*)&StepNum, sizeof(int32), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
-		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeStarts().GetData(), ReplayBuffer.GetEpisodeStarts().Num() * sizeof(int32), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
-		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeLengths().GetData(), ReplayBuffer.GetEpisodeLengths().Num() * sizeof(int32), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
-		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeCompletionModes().GetData(), ReplayBuffer.GetEpisodeCompletionModes().Num() * sizeof(ECompletionMode), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
-		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeFinalObservations().GetData(), ReplayBuffer.GetEpisodeFinalObservations().Num() * sizeof(float), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
-		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetEpisodeFinalMemoryStates().GetData(), ReplayBuffer.GetEpisodeFinalMemoryStates().Num() * sizeof(float), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)&ReplayBufferId, sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetObservations().GetData(), ReplayBuffer.GetObservations().Num() * sizeof(float), Timeout);
+		const int32 EpisodeNum = ReplayBuffer.GetEpisodeNum();
+		Response = SendWithTimeout(Socket, Process, (const uint8*)&EpisodeNum, sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetActions().GetData(), ReplayBuffer.GetActions().Num() * sizeof(float), Timeout);
+		const int32 StepNum = ReplayBuffer.GetStepNum();
+		Response = SendWithTimeout(Socket, Process, (const uint8*)&StepNum, sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 		
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetMemoryStates().GetData(), ReplayBuffer.GetMemoryStates().Num() * sizeof(float), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetEpisodeStarts().GetData(), ReplayBuffer.GetEpisodeStarts().Num() * sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
+		
+		Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetEpisodeLengths().GetData(), ReplayBuffer.GetEpisodeLengths().Num() * sizeof(int32), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+		
+		if (ReplayBuffer.HasCompletions())
+		{
+			Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetEpisodeCompletionModes().GetData(), ReplayBuffer.GetEpisodeCompletionModes().Num() * sizeof(ECompletionMode), Timeout);
+			if (Response != ETrainerResponse::Success) { return Response; }
+		}
+		
+		if (ReplayBuffer.HasFinalObservations())
+		{
+			for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+			{
+				Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetEpisodeFinalObservations(Index).GetData(), ReplayBuffer.GetEpisodeFinalObservations(Index).Num() * sizeof(float), Timeout);
+				if (Response != ETrainerResponse::Success) { return Response; }
+			}
+		}
+		
+		if (ReplayBuffer.HasFinalMemoryStates())
+		{
+			for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+			{
+				Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetEpisodeFinalMemoryStates(Index).GetData(), ReplayBuffer.GetEpisodeFinalMemoryStates(Index).Num() * sizeof(float), Timeout);
+				if (Response != ETrainerResponse::Success) { return Response; }
+			}
+		}
 
-		Response = SendWithTimeout(Socket, (const uint8*)ReplayBuffer.GetRewards().GetData(), ReplayBuffer.GetRewards().Num() * sizeof(float), Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
+		for (int32 Index = 0; Index < ReplayBuffer.GetObservationsNum(); Index++)
+		{
+			Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetObservations(Index).GetData(), ReplayBuffer.GetObservations(Index).Num() * sizeof(float), Timeout);
+			if (Response != ETrainerResponse::Success) { return Response; }
+		}
+		
+		for (int32 Index = 0; Index < ReplayBuffer.GetActionsNum(); Index++)
+		{
+			Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetActions(Index).GetData(), ReplayBuffer.GetActions(Index).Num() * sizeof(float), Timeout);
+			if (Response != ETrainerResponse::Success) { return Response; }
+		}
+		
+		for (int32 Index = 0; Index < ReplayBuffer.GetMemoryStatesNum(); Index++)
+		{
+			Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetMemoryStates(Index).GetData(), ReplayBuffer.GetMemoryStates(Index).Num() * sizeof(float), Timeout);
+			if (Response != ETrainerResponse::Success) { return Response; }
+		}
+
+		for (int32 Index = 0; Index < ReplayBuffer.GetRewardsNum(); Index++)
+		{
+			Response = SendWithTimeout(Socket, Process, (const uint8*)ReplayBuffer.GetRewards(Index).GetData(), ReplayBuffer.GetRewards(Index).Num() * sizeof(float), Timeout);
+			if (Response != ETrainerResponse::Success) { return Response; }
+		}
 
 		return ETrainerResponse::Success;
 	}
@@ -303,6 +376,7 @@ namespace UE::Learning::SocketTraining
 		const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 		const TLearningArrayView<2, const float> ObservationExperience,
 		const TLearningArrayView<2, const float> ActionExperience,
+		FSubprocess* Process,
 		const float Timeout,
 		const ELogSetting LogSettings)
 	{
@@ -315,25 +389,25 @@ namespace UE::Learning::SocketTraining
 		const int32 StepNum = ObservationExperience.Num<0>();
 
 		const uint8 Signal = (uint8)ESignal::SendExperience;
-		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
+		ETrainerResponse Response = SendWithTimeout(Socket, Process, &Signal, 1, Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)&EpisodeNum, sizeof(int32), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)&EpisodeNum, sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)&StepNum, sizeof(int32), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)&StepNum, sizeof(int32), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)EpisodeStartsExperience.GetData(), EpisodeStartsExperience.Num() * sizeof(float), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)EpisodeStartsExperience.GetData(), EpisodeStartsExperience.Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)EpisodeLengthsExperience.GetData(), EpisodeLengthsExperience.Num() * sizeof(float), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)EpisodeLengthsExperience.GetData(), EpisodeLengthsExperience.Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)ObservationExperience.GetData(), ObservationExperience.Num() * sizeof(float), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)ObservationExperience.GetData(), ObservationExperience.Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		Response = SendWithTimeout(Socket, (const uint8*)ActionExperience.GetData(), ActionExperience.Num() * sizeof(float), Timeout);
+		Response = SendWithTimeout(Socket, Process, (const uint8*)ActionExperience.GetData(), ActionExperience.Num() * sizeof(float), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		return ETrainerResponse::Success;

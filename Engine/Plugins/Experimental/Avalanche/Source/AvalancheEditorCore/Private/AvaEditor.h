@@ -35,7 +35,7 @@ protected:
 
 	void ForEachExtension(TFunctionRef<void(const TSharedRef<IAvaEditorExtension>&)> InFunc) const;
 
-	void RecordActivationChangedEvent();
+	void NotifySceneActivationEvent();
 
 	//~ Begin IAvaEditor
 	virtual void Activate(TSharedPtr<IToolkitHost> InOverrideToolkitHost = nullptr) override;
@@ -53,6 +53,7 @@ protected:
 	virtual TSharedPtr<FTabManager> GetTabManager() const override;
 	virtual FEditorModeTools* GetEditorModeTools() const override;
 	virtual UWorld* GetWorld() const override;
+	virtual void OnSceneObjectChanged() override;
 	virtual UObject* GetSceneObject(EAvaEditorObjectQueryType InQueryType) const override;
 	virtual void RegisterTabSpawners() override;
 	virtual void UnregisterTabSpawners() override;

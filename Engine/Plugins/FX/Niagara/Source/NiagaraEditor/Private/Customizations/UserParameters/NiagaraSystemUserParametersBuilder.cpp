@@ -17,6 +17,7 @@
 #include "NiagaraSystemEditorData.h"
 #include "NiagaraUserRedirectionParameterStore.h"
 #include "SNiagaraParameterEditor.h"
+#include "ViewModels/Stack/NiagaraStackViewModel.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SNiagaraDebugger.h"
 #include "Widgets/SNiagaraParameterName.h"
@@ -101,6 +102,9 @@ void FNiagaraSystemUserParameterBuilder::AddCustomMenuActionsForParameter(FDetai
 	FUIAction RenameAction(FExecuteAction::CreateSP(this, &FNiagaraSystemUserParameterBuilder::RequestRename, UserParameter));
 	WidgetRow.AddCustomContextMenuAction(RenameAction, LOCTEXT("RenameParameterAction", "Rename"), LOCTEXT("RenameParameterActionTooltip", "Rename this user parameter"));
 
+	FUIAction DuplicateAction(FExecuteAction::CreateSP(this, &FNiagaraSystemUserParameterBuilder::RequestDuplication, UserParameter));
+	WidgetRow.AddCustomContextMenuAction(DuplicateAction, LOCTEXT("DuplicateParameterAction", "Duplicate"), LOCTEXT("DuplicateParameterActionTooltip", "Duplicate this user parameter"));
+	
 	FUIAction DeleteAction(FExecuteAction::CreateSP(this, &FNiagaraSystemUserParameterBuilder::DeleteParameter, UserParameter));
 	WidgetRow.AddCustomContextMenuAction(DeleteAction, LOCTEXT("DeleteParameterAction", "Delete"), LOCTEXT("DeleteParameterActionTooltip", "Delete this user parameter"));
 }
@@ -392,7 +396,7 @@ TSharedRef<SWidget> FNiagaraSystemUserParameterBuilder::CreateUserParameterNameW
 	UserParamToWidgetMap.Add(UserParameter, ParameterName);
 
 	TAttribute<FText> Tooltip = FText::GetEmpty();
-	if(UNiagaraScriptVariable* ScriptVariable = FNiagaraEditorUtilities::GetScriptVariableForUserParameter(UserParameter, *GetSystem()))
+	if(UNiagaraScriptVariable* ScriptVariable = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(UserParameter, *GetSystem()))
 	{
 		Tooltip = TAttribute<FText>::CreateLambda([ScriptVariable]
 		{
@@ -443,6 +447,17 @@ void FNiagaraSystemUserParameterBuilder::RenameParameter(FNiagaraVariable UserPa
 	{		
 		SystemViewModel.Pin()->RenameParameter(UserParameter, NewName, ENiagaraGetGraphParameterReferencesMode::AllGraphs);
 	}
+
+	Rebuild();
+}
+
+void FNiagaraSystemUserParameterBuilder::RequestDuplication(FNiagaraVariable UserParameter)
+{
+	FNiagaraVariable DuplicatedParameter = FNiagaraEditorUtilities::UserParameters::DuplicateUserParameter(UserParameter,*System.Get());
+	if(DuplicatedParameter.IsValid())
+	{
+		RequestRename(DuplicatedParameter);
+	}
 }
 
 FReply FNiagaraSystemUserParameterBuilder::GenerateParameterDragDropOp(const FGeometry& Geometry, const FPointerEvent& MouseEvent, FNiagaraVariable UserParameter) const
@@ -471,7 +486,7 @@ void FNiagaraSystemUserParameterBuilder::OnParameterEditorValueChanged(FNiagaraV
 		return;
 	}
 	
-	FScopedTransaction ScopedTransaction(ChangedUserParameterTransactionText);
+	FScopedTransaction ScopedTransaction(ChangedUserParameterTransactionText, GIsTransacting == false);
 	SystemAsset->Modify();
 
 	// we forward the change in the parameter editor into the display data. NotifyPostChange will take care of forwarding the change into the user parameter store.
@@ -526,7 +541,14 @@ void FNiagaraSystemUserParameterBuilder::OnObjectAssetChanged(const FAssetData& 
 FString FNiagaraSystemUserParameterBuilder::GetObjectAssetPathForUserParameter(FNiagaraVariable UserParameter) const
 {
 	ensure(UserParameter.GetType().IsUObject() && UserParameter.GetType().IsDataInterface() == false);
-	if(UObject* Object = GetCurrentParameterValue(UserParameter).GetUObject())
+	FNiagaraVariant Variant = GetCurrentParameterValue(UserParameter);
+
+	if(Variant.IsValid() == false)
+	{
+		return FString();
+	}
+	
+	if(UObject* Object = Variant.GetUObject())
 	{
 		return Object->GetPathName();
 	}

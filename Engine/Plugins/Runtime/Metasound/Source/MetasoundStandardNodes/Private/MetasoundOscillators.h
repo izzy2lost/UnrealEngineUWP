@@ -375,9 +375,13 @@ namespace Metasound
 			float operator()(float InPhase, float, const FGeneratorArgs&) const
 			{
 				const TArray<float>& WaveTable = GetWaveTable();
-				int32 LastIndex = WaveTable.Num() - 1;
-				int32 TableIndex = (int32)(InPhase * (float)(LastIndex));
-				TableIndex = FMath::Wrap(TableIndex, 0, LastIndex);
+				int32 NumEntries = WaveTable.Num();
+				float FractionalPhase = FMath::Wrap(InPhase, 0.0f, 1.0f);
+				int32 TableIndex = (int32)(FractionalPhase * NumEntries + 0.5f);
+				if (TableIndex >= NumEntries)
+				{
+					TableIndex = 0;
+				}
 				return WaveTable[TableIndex];
 			}
 		};

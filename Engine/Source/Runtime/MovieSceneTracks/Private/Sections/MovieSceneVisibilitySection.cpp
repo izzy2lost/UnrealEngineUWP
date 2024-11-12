@@ -10,6 +10,7 @@
 #include "MovieScene.h"
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneTracksComponentTypes.h"
+#include "Tracks/MovieScenePropertyTrack.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneVisibilitySection)
 
@@ -44,13 +45,18 @@ void UMovieSceneVisibilitySection::ImportEntityImpl(UMovieSceneEntitySystemLinke
 
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 	FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
+	UMovieScenePropertyTrack* OuterPropertyTrack = GetTypedOuter<UMovieScenePropertyTrack>();
 
-	OutImportedEntity->AddBuilder(
-		FEntityBuilder()
-		.AddConditional(BuiltInComponents->GenericObjectBinding, Params.GetObjectBindingID(), Params.GetObjectBindingID().IsValid())
-		.AddTag(TrackComponents->Tags.Visibility)
-		.Add(BuiltInComponents->BoolResult, EntityIDToVisibility(Params.EntityID))
-	);
+	if (OuterPropertyTrack)
+	{
+		OutImportedEntity->AddBuilder(
+			FEntityBuilder()
+			.AddConditional(BuiltInComponents->GenericObjectBinding, Params.GetObjectBindingID(), Params.GetObjectBindingID().IsValid())
+			.AddTag(TrackComponents->Tags.Visibility)
+			.Add(BuiltInComponents->BoolResult, EntityIDToVisibility(Params.EntityID))
+			.Add(BuiltInComponents->PropertyBinding, OuterPropertyTrack->GetPropertyBinding())
+		);
+	}
 }
 
 bool UMovieSceneVisibilitySection::PopulateEvaluationFieldImpl(const TRange<FFrameNumber>& EffectiveRange, const FMovieSceneEvaluationFieldEntityMetaData& InMetaData, FMovieSceneEntityComponentFieldBuilder* OutFieldBuilder)

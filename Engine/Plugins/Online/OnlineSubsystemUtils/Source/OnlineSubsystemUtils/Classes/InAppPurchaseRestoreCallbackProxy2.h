@@ -66,8 +66,6 @@ private:
 	/** Triggers the In-App Purchase Restore Transaction for the specifed user */
 	void Trigger(const TArray<FInAppPurchaseProductRequest2>& ConsumableProductFlags, class APlayerController* PlayerController);
 
-	UE_DEPRECATED(5.3, "Use ::PurchaseStatusFromOnlineError instead")
-	EInAppPurchaseStatus PurchaseStatusFromOnlineError(const FOnlineError& OnlineError);
 private:
 
 	bool bWasSuccessful;

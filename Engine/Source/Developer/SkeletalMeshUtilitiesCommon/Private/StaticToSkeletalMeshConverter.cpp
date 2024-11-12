@@ -5,9 +5,11 @@
 #if WITH_EDITOR
 
 #include "Animation/Skeleton.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
+#include "InterchangeHelper.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "LODUtilities.h"
 #include "MeshDescription.h"
@@ -217,7 +219,7 @@ static bool AddLODFromMeshDescription(
 
 	IMeshUtilities::MeshBuildOptions BuildOptions;
 	BuildOptions.TargetPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
-	BuildOptions.FillOptions(InSkeletalMesh->GetLODInfoArray().Last().BuildSettings);
+	BuildOptions.FillOptions(InSkeletalMesh->GetLODInfo(InSkeletalMesh->GetLODNum() - 1)->BuildSettings);
 
 	TArray<FText> WarningMessages;
 	if (!InMeshUtilities.BuildSkeletalMesh(SkeletalMeshModel, InSkeletalMesh->GetPathName(), InSkeletalMesh->GetRefSkeleton(), LODInfluences, LODWedges, LODFaces, LODPoints, LODPointToRawMap, BuildOptions, &WarningMessages, nullptr))
@@ -261,6 +263,29 @@ static bool AddLODFromStaticMeshSourceModel(
 		FSkeletalMeshAttributes SkeletalMeshAttributes(SkeletalMeshGeometry);
 		SkeletalMeshAttributes.Register();
 		
+		// Fill Bones data.
+		const FReferenceSkeleton RefSkeleton = InSkeletalMesh->GetRefSkeleton();
+		const int32 NumRefBones = InSkeletalMesh->GetRefSkeleton().GetRawBoneNum();
+		
+		FSkeletalMeshAttributes::FBoneArray& Bones = SkeletalMeshAttributes.Bones();
+		Bones.Reset(NumRefBones);
+	
+		FSkeletalMeshAttributes::FBoneNameAttributesRef BoneNames = SkeletalMeshAttributes.GetBoneNames();
+		FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = SkeletalMeshAttributes.GetBoneParentIndices();
+		FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = SkeletalMeshAttributes.GetBonePoses();
+		
+		for (int Index = 0; Index < NumRefBones; ++Index)
+		{
+			const FMeshBoneInfo& BoneInfo = RefSkeleton.GetRawRefBoneInfo()[Index];
+			const FTransform& BoneTransform = RefSkeleton.GetRawRefBonePose()[Index];
+
+			const FBoneID BoneID = SkeletalMeshAttributes.CreateBone();
+
+			BoneNames.Set(BoneID, BoneInfo.Name);
+			BoneParentIndices.Set(BoneID, BoneInfo.ParentIndex);
+			BonePoses.Set(BoneID, BoneTransform);
+		}
+		
 		// Full binding to the root bone.
 		FSkinWeightsVertexAttributesRef SkinWeights = SkeletalMeshAttributes.GetVertexSkinWeights();
 		UE::AnimationCore::FBoneWeight RootInfluence(InBoneIndex, 1.0f);
@@ -270,6 +295,32 @@ static bool AddLODFromStaticMeshSourceModel(
 		{
 			SkinWeights.Set(VertexID, RootBinding);
 		}
+
+		// Convert weird static mesh inverse sRGB gamma to linear.
+		// FIXME: Remove once static mesh color space has been fixed to be linear again.
+		TVertexInstanceAttributesRef<FVector4f> VertexInstanceColors = SkeletalMeshAttributes.GetVertexInstanceColors();
+		auto ConvertLinearToSRGBGamma = [](float V)
+		{
+			V = FMath::Clamp(V, 0.0f, 1.0f);
+			if (V <= 0.0031308)
+			{
+				return V * 12.92f;
+			}
+			else
+			{
+				return 1.055f * FMath::Pow(V, 1.0f / 2.4f) - 0.055f;
+			}
+		};
+		
+		for (FVertexInstanceID VertexInstanceID: SkeletalMeshGeometry.VertexInstances().GetElementIDs())
+		{
+			FLinearColor VertexColor = VertexInstanceColors.Get(VertexInstanceID);
+			VertexColor.R = ConvertLinearToSRGBGamma(VertexColor.R);
+			VertexColor.G = ConvertLinearToSRGBGamma(VertexColor.G);
+			VertexColor.B = ConvertLinearToSRGBGamma(VertexColor.B);
+			VertexInstanceColors.Set(VertexInstanceID, VertexColor);
+		}
+		
 
 		if (!AddLODFromMeshDescription(MoveTemp(SkeletalMeshGeometry), InSkeletalMesh, InMeshUtilities))
 		{
@@ -380,7 +431,8 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromStaticMesh(
 	{
 		FSkeletalMaterial Material(
 			StaticMaterial.MaterialInterface,
-			StaticMaterial.MaterialSlotName);
+			StaticMaterial.MaterialSlotName,
+			StaticMaterial.ImportedMaterialSlotName);
 		
 		Materials.Add(Material);
 	}
@@ -398,6 +450,14 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromStaticMesh(
 	InSkeletalMesh->SetPositiveBoundsExtension(InStaticMesh->GetPositiveBoundsExtension());
 	InSkeletalMesh->SetNegativeBoundsExtension(InStaticMesh->GetNegativeBoundsExtension());
 
+	//Create some import data so we can re-import this new skeletalmesh
+	UAssetImportData* OriginalAssetImportData = InStaticMesh->GetAssetImportData();
+	if (OriginalAssetImportData)
+	{
+		UAssetImportData* DuplicateAssetImportData = DuplicateObject<UAssetImportData>(OriginalAssetImportData, InSkeletalMesh);
+		DuplicateAssetImportData->ConvertAssetImportDataToNewOwner(InSkeletalMesh);
+		InSkeletalMesh->SetAssetImportData(DuplicateAssetImportData);
+	}
 	return true;
 }
 
@@ -475,6 +535,16 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromMeshDescriptions(
 	// than materials in any of the LODs. Not the best system, but the best we have for now.
 	InSkeletalMesh->SetMaterials(TArray<FSkeletalMaterial>{InMaterials});
 
+	TSet<FName> ValidMaterialSlotNames;
+	for (int32 Index = 0; Index < InMaterials.Num(); Index++)
+	{
+		const FSkeletalMaterial& Material = InMaterials[Index];
+		if (!Material.MaterialSlotName.IsNone())
+		{
+			ValidMaterialSlotNames.Add(Material.MaterialSlotName);
+		}
+	}
+	
 	// This ensures that the render data gets built before we return, by calling PostEditChange when we fall out of scope.
 	{
 		FScopedSkeletalMeshPostEditChange ScopedPostEditChange( InSkeletalMesh );
@@ -500,6 +570,22 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromMeshDescriptions(
 			SkeletalLODInfo.BuildSettings.bRecomputeTangents = bInRecomputeTangents;
 
 			FMeshDescription ClonedDescription(*MeshDescription);
+
+			// Fix up the material slot names on the mesh to match the ones in the material list. If the name is
+			// either NAME_None, or doesn't exist in the material list, we use the group index to index into the
+			// material list to resolve the name.
+			FSkeletalMeshAttributes Attributes(ClonedDescription);
+			TPolygonGroupAttributesRef<FName> MaterialSlotNamesAttribute = Attributes.GetPolygonGroupMaterialSlotNames();
+			for (FPolygonGroupID PolygonGroupID: ClonedDescription.PolygonGroups().GetElementIDs())
+			{
+				if (!ValidMaterialSlotNames.Contains(MaterialSlotNamesAttribute.Get(PolygonGroupID)))
+				{
+					int32 MaterialIndex = PolygonGroupID.GetValue();
+					MaterialIndex = FMath::Clamp(MaterialIndex, 0, InMaterials.Num() - 1);
+					MaterialSlotNamesAttribute.Set(PolygonGroupID, InMaterials[MaterialIndex].MaterialSlotName);
+				}
+			}
+			
 			if (!AddLODFromMeshDescription(MoveTemp(ClonedDescription), InSkeletalMesh, MeshUtilities))
 			{
 				// If we didn't get a model for LOD index 0, we don't have a mesh. Bail out.

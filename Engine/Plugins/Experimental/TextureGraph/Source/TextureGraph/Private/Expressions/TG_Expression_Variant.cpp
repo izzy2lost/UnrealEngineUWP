@@ -93,6 +93,8 @@ void UTG_Expression_Variant::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
+	//CommonVariantType = EvalExpressionCommonVariantType();
+
 	switch (CommonVariantType)
 	{
 	case FTG_Variant::EType::Scalar:
@@ -111,6 +113,11 @@ void UTG_Expression_Variant::Evaluate(FTG_EvaluationContext* InContext)
 	case FTG_Variant::EType::Texture:
 	{
 		Output.EditTexture() = EvaluateTexture(InContext).RasterBlob;
+		break;
+	}
+	default:
+	{
+		Output.EditScalar() = 0.0f;
 		break;
 	}
 	}

@@ -28,7 +28,7 @@ struct FRigVMDispatchFactory;
 struct FRigVMTemplate;
 struct FRigVMDispatchContext;
 struct FRigVMUserDefinedTypeResolver;
-struct FRigVMRegistry;
+struct FRigVMRegistry_NoLock;
 
 typedef TMap<FName, TRigVMTypeIndex> FRigVMTemplateTypeMap;
 
@@ -103,7 +103,7 @@ struct RIGVM_API FRigVMTemplateArgumentType
 
 	RIGVM_API friend FORCEINLINE uint32 GetTypeHash(const FRigVMTemplateArgumentType& InType)
 	{
-		return GetTypeHash(InType.CPPType);
+		return GetTypeHash(InType.CPPType.ToString());
 	}
 
 	FName GetCPPTypeObjectPath() const
@@ -205,13 +205,19 @@ struct RIGVM_API FRigVMTemplateArgument
 	ERigVMPinDirection GetDirection() const { return Direction; }
 
 	// returns true if this argument supports a given type across a set of permutations
-	bool SupportsTypeIndex(TRigVMTypeIndex InTypeIndex, TRigVMTypeIndex* OutTypeIndex = nullptr) const;
+	bool SupportsTypeIndex(TRigVMTypeIndex InTypeIndex, TRigVMTypeIndex* OutTypeIndex = nullptr, const bool bLockRegistry = true) const;
+	bool SupportsTypeIndex_NoLock(TRigVMTypeIndex InTypeIndex, TRigVMTypeIndex* OutTypeIndex = nullptr) const;
 
 	// returns the flat list of types (including duplicates) of this argument
-	void GetAllTypes(TArray<TRigVMTypeIndex>& OutTypes) const;
-	
-	TRigVMTypeIndex GetTypeIndex(const int32 InIndex) const;
+	void GetAllTypes(TArray<TRigVMTypeIndex>& OutTypes, const bool bLockRegistry = true) const;
+	void GetAllTypes_NoLock(TArray<TRigVMTypeIndex>& OutTypes) const;
+
+	TRigVMTypeIndex GetTypeIndex(const int32 InIndex, const bool bLockRegistry = true) const;
+	TRigVMTypeIndex GetTypeIndex_NoLock(const int32 InIndex) const;
+	TOptional<TRigVMTypeIndex> TryToGetTypeIndex(const int32 InIndex, const bool bLockRegistry = true) const;
+	TOptional<TRigVMTypeIndex> TryToGetTypeIndex_NoLock(const int32 InIndex) const;
 	int32 GetNumTypes() const;
+	int32 GetNumTypes_NoLock() const;
 	void AddTypeIndex(const TRigVMTypeIndex InTypeIndex);
 	void RemoveType(const int32 InIndex);
 	void ForEachType(TFunction<bool(const TRigVMTypeIndex InType)>&& InCallback) const;
@@ -259,18 +265,22 @@ struct RIGVM_API FRigVMTemplateArgument
 #endif
 	
 	// returns true if an argument is singleton (same type for all variants)
-	bool IsSingleton(const TArray<int32>& InPermutationIndices = TArray<int32>()) const;
+	bool IsSingleton(const TArray<int32>& InPermutationIndices = TArray<int32>(), const bool bLockRegistry = true) const;
+	bool IsSingleton_NoLock(const TArray<int32>& InPermutationIndices = TArray<int32>()) const;
 
 	// returns true if this argument is an execute
 	bool IsExecute() const;
-
+	bool IsExecute_NoLock(const FRigVMRegistry_NoLock& InRegistry) const;
+	
 	// returns true if the argument uses an array container
-	EArrayType GetArrayType() const;
+	EArrayType GetArrayType(const bool bLockRegistry = true) const;
+	EArrayType GetArrayType_NoLock() const;
 
-	RIGVM_API friend uint32 GetTypeHash(const FRigVMTemplateArgument& InArgument);
+	RIGVM_API friend uint32 GetTypeHash_NoLock(const FRigVMTemplateArgument& InArgument);
 
 	// Get the map of types to permutation indices
-	const TArray<int32>& GetPermutations(const TRigVMTypeIndex InType) const;
+	const TArray<int32>& GetPermutations(const TRigVMTypeIndex InType, bool bLockRegistry = true) const;
+	const TArray<int32>& GetPermutations_NoLock(const TRigVMTypeIndex InType) const;
 	void InvalidatePermutations(const TRigVMTypeIndex InType);
 
 protected:
@@ -285,21 +295,28 @@ protected:
 	bool bUseCategories = false;
 	TArray<ETypeCategory> TypeCategories;
 	TFunction<bool(const TRigVMTypeIndex&)> FilterType;
-
-	FRigVMTemplateArgument(FProperty* InProperty);
+	mutable TOptional<EArrayType> CachedArrayType;
 
 	// constructor from a property. this forces the type to be created
-	FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegistry& InRegistry);
+	FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegistry_NoLock& InRegistry);
 
-	void EnsureValidExecuteType(FRigVMRegistry& InRegistry);
+	// static make function using a lock to create it
+	static FRigVMTemplateArgument Make(FProperty* InProperty);
+
+	// static make function using a lock to create it
+	static FRigVMTemplateArgument Make_NoLock(FProperty* InProperty);
+	static FRigVMTemplateArgument Make_NoLock(FProperty* InProperty, FRigVMRegistry_NoLock& InRegistry);
+
+	void EnsureValidExecuteType_NoLock(FRigVMRegistry_NoLock& InRegistry);
 	void UpdateTypeToPermutations();
 
 	friend struct FRigVMTemplate;
 	friend struct FRigVMDispatchFactory;
 	friend class URigVMController;
-	friend struct FRigVMRegistry;
+	friend struct FRigVMRegistry_NoLock;
 	friend struct FRigVMStructUpgradeInfo;
 	friend class URigVMCompiler;
+	friend class FRigVMTypeCacheScope_NoLock;
 
 private:
 	struct CategoryViews
@@ -389,6 +406,9 @@ public:
 	// Returns the name of the template
 	FName GetName() const;
 
+	// Returns the name to use for a node
+	FName GetNodeName() const;
+
 	// returns true if this template can merge another one
 	bool Merge(const FRigVMTemplate& InOther);
 
@@ -411,7 +431,7 @@ public:
 	const FRigVMExecuteArgument* FindExecuteArgument(const FName& InArgumentName, const FRigVMDispatchContext& InContext) const;
 
 	// returns the top level execute context struct this template uses
-	const UScriptStruct* GetExecuteContextStruct() const;
+	const UScriptStruct* GetExecuteContextStruct(bool bLockRegistry = true) const;
 
 	// returns true if this template supports a given execute context struct
 	bool SupportsExecuteContextStruct(const UScriptStruct* InExecuteContextStruct) const;
@@ -423,41 +443,44 @@ public:
 	int32 NumPermutations() const { return Permutations.Num(); }
 
 	// returns the first / primary permutation of the template
-	const FRigVMFunction* GetPrimaryPermutation() const;
+	const FRigVMFunction* GetPrimaryPermutation(bool bLockRegistry = true) const;
 
 	// returns a permutation given an index
-	const FRigVMFunction* GetPermutation(int32 InIndex) const;
+	const FRigVMFunction* GetPermutation(int32 InIndex, bool bLockRegistry = true) const;
 
 	// returns a permutation given an index and creates it using the backing factory if needed
-	const FRigVMFunction* GetOrCreatePermutation(int32 InIndex);
+	const FRigVMFunction* GetOrCreatePermutation(int32 InIndex, bool bLockRegistry = true);
 
 	// returns true if a given function is a permutation of this template
-	bool ContainsPermutation(const FRigVMFunction* InPermutation) const;
+	bool ContainsPermutation(const FRigVMFunction* InPermutation, bool bLockRegistry = true) const;
+	bool ContainsPermutation_NoLock(const FRigVMFunction* InPermutation) const;
 
 	// returns the index of the permutation within the template of a given function (or INDEX_NONE)
 	int32 FindPermutation(const FRigVMFunction* InPermutation) const;
 
 	// returns the index of the permutation within the template of a given set of types
-	int32 FindPermutation(const FTypeMap& InTypes) const;
+	int32 FindPermutation(const FTypeMap& InTypes, bool bLockRegistry = true) const;
 
 	// returns true if the template was able to resolve to single permutation
-	bool FullyResolve(FTypeMap& InOutTypes, int32& OutPermutationIndex) const;
+	bool FullyResolve(FTypeMap& InOutTypes, int32& OutPermutationIndex, bool bLockRegistry = true) const;
 
 	// returns true if the template was able to resolve to at least one permutation
-	bool Resolve(FTypeMap& InOutTypes, TArray<int32> & OutPermutationIndices, bool bAllowFloatingPointCasts) const;
+	bool Resolve(FTypeMap& InOutTypes, TArray<int32> & OutPermutationIndices, bool bAllowFloatingPointCasts, bool bLockRegistry = true) const;
 
 	// Will return the hash of the input type map, if it is a valid type map. Otherwise, will return 0.
 	// It is only a valid type map if it includes all arguments, and non of the types is a wildcard.
 	uint32 GetTypesHashFromTypes(const FTypeMap& InTypes) const;
 
 	// returns true if the template was able to resolve to at least one permutation
-	bool ContainsPermutation(const FTypeMap& InTypes) const;
+	bool ContainsPermutation(const FTypeMap& InTypes, bool bLockRegistry = true) const;
+	bool ContainsPermutation_NoLock(const FTypeMap& InTypes) const;
 
 	// returns true if the template can resolve an argument to a new type
-	bool ResolveArgument(const FName& InArgumentName, const TRigVMTypeIndex InTypeIndex, FTypeMap& InOutTypes) const;
+	bool ResolveArgument(const FName& InArgumentName, const TRigVMTypeIndex InTypeIndex, FTypeMap& InOutTypes, bool bLockRegistry = true) const;
 
 	// returns the types for a specific permutation
-	FRigVMTemplateTypeMap GetTypesForPermutation(const int32 InPermutationIndex) const;
+	FRigVMTemplateTypeMap GetTypesForPermutation(const int32 InPermutationIndex, const bool bLockRegistry = true) const;
+	FRigVMTemplateTypeMap GetTypesForPermutation_NoLock(const int32 InPermutationIndex) const;
 
 	// returns true if a given argument is valid for a template
 	static bool IsValidArgumentForTemplate(const ERigVMPinDirection InDirection);
@@ -478,7 +501,7 @@ public:
 	FTypeMap GetArgumentTypesFromString(const FString& InTypeString, const FRigVMUserDefinedTypeResolver* InTypeResolver = nullptr) const;
 
 	// converts the types provided to a string (like "A:float,B:int32")
-	static FString GetStringFromArgumentTypes(const FTypeMap& InTypes); 
+	static FString GetStringFromArgumentTypes(const FTypeMap& InTypes, bool bLockRegistry = true); 
 
 #if WITH_EDITOR
 
@@ -511,7 +534,10 @@ public:
 	FRigVMTemplate_NewArgumentTypeDelegate& OnNewArgumentType() { return Delegates.NewArgumentTypeDelegate; }
 
 	// Returns the factory this template was created by
-	const FRigVMDispatchFactory* GetDispatchFactory() const
+	const FRigVMDispatchFactory* GetDispatchFactory(const bool bLockRegistry = true) const;
+
+	// Returns the factory this template was created by
+	const FRigVMDispatchFactory* GetDispatchFactory_NoLock() const
 	{
 		return UsesDispatch() ? Delegates.GetDispatchFactoryDelegate.Execute() : nullptr;
 	}
@@ -527,6 +553,7 @@ public:
 	void UpdateTypesHashToPermutation(const int32 InPermutation);
 
 	RIGVM_API friend uint32 GetTypeHash(const FRigVMTemplate& InTemplate);
+	RIGVM_API friend uint32 GetTypeHash_NoLock(const FRigVMTemplate& InTemplate);
 
 private:
 
@@ -544,6 +571,10 @@ private:
 	const FRigVMFunction* GetPermutation_NoLock(int32 InIndex) const;
 	const FRigVMFunction* GetOrCreatePermutation_NoLock(int32 InIndex);
 
+	FTypeMap GetArgumentTypesFromString_Impl(const FString& InTypeString, const FRigVMUserDefinedTypeResolver* InTypeResolver, bool bLockRegistry) const;
+
+	uint32 ComputeTypeHash() const;
+
 	int32 Index;
 	FName Notation;
 	TArray<FRigVMTemplateArgument> Arguments;
@@ -554,8 +585,30 @@ private:
 
 	FRigVMTemplateDelegates Delegates;
 
-	friend struct FRigVMRegistry;
+	friend struct FRigVMRegistry_NoLock;
 	friend class URigVMController;
 	friend class URigVMLibraryNode;
 	friend struct FRigVMDispatchFactory;
+};
+
+class FRigVMTypeCacheScope_NoLock
+{
+public:
+	FRigVMTypeCacheScope_NoLock();
+	FRigVMTypeCacheScope_NoLock(const FRigVMTemplateArgument& InArgument);
+	~FRigVMTypeCacheScope_NoLock();
+
+	bool IsValid() const { return Argument != nullptr; }
+	const FRigVMTypeCacheScope_NoLock& UpdateIfRequired(const FRigVMTemplateArgument& InArgument);
+	int32 GetNumTypes_NoLock() const;
+	TRigVMTypeIndex GetTypeIndex_NoLock(int32 InIndex) const;
+	
+private:
+
+	void UpdateTypesIfRequired() const;
+
+	const FRigVMTemplateArgument* Argument;
+	bool bShouldCopyTypes;
+	mutable TOptional<int32> NumTypes;
+	mutable TOptional<TArray<TRigVMTypeIndex>> Types;
 };

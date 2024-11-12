@@ -31,6 +31,8 @@ public:
 	virtual void* Realloc(void* Ptr, SIZE_T NewSize, uint32 Alignment) override;
 	virtual void* TryRealloc(void* Ptr, SIZE_T NewSize, uint32 Alignment) override;
 	virtual void Free(void* Ptr) override;
+	virtual void* MallocZeroed(SIZE_T Count, uint32 Alignment) override;
+	virtual void* TryMallocZeroed(SIZE_T Count, uint32 Alignment) override;
 	virtual bool GetAllocationSize(void *Original, SIZE_T &SizeOut) override;
 	virtual void Trim(bool bTrimThreadCaches) override;
 

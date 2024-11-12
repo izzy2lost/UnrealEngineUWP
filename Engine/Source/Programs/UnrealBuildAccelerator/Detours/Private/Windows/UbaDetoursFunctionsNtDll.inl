@@ -1,5 +1,39 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+bool IsContentWrite(u32 desiredAccess, u32 createDisposition)
+{
+	if (desiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA | GENERIC_WRITE))
+		return true;
+	if (createDisposition == FILE_CREATE || createDisposition == FILE_OVERWRITE || createDisposition == FILE_OVERWRITE_IF)
+		return true;
+	return false;
+}
+
+bool IsContentRead(u32 desiredAccess, u32 createDisposition)
+{
+	return (desiredAccess & (GENERIC_READ | FILE_READ_DATA)) != 0;
+}
+
+bool IsContentUse(u32 desiredAccess, u32 createDisposition)
+{
+	return IsContentRead(desiredAccess, createDisposition) || IsContentWrite(desiredAccess, createDisposition);
+}
+
+bool IsWrite(u32 desiredAccess, u32 createDisposition)
+{
+	return IsContentWrite(desiredAccess, createDisposition) || (desiredAccess & (FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA)) != 0;
+}
+
+u8 GetFileAccessFlags(DWORD desiredAccess, u32 createDisposition)
+{
+	u8 access = 0;
+	if (IsContentRead(desiredAccess, createDisposition))
+		access |= AccessFlag_Read;
+	if (IsWrite(desiredAccess, createDisposition))
+		access |= AccessFlag_Write;
+	return access;
+}
+
 const wchar_t* ToString(NTSTATUS s) { return NT_SUCCESS(s) ? L"Success" : L"Error"; }
 
 struct FILE_FS_DEVICE_INFORMATION
@@ -34,7 +68,26 @@ NTSTATUS Detoured_NtQueryVolumeInformationFile(HANDLE FileHandle, PIO_STATUS_BLO
 			}
 		}
 		TrueHandle = dh.trueHandle;
-		UBA_ASSERTF(TrueHandle != INVALID_HANDLE_VALUE, L"NtQueryVolumeInformationFile using class %u not handled (%ls)", FsInformationClass, HandleToName(FileHandle));
+		if (TrueHandle == INVALID_HANDLE_VALUE)
+		{
+			if (FsInformationClass == 1) // FileFsVolumeInformation
+			{
+				// TODO This code path is here to handle nodejs queries..
+				
+				auto& info = *(FILE_FS_VOLUME_INFORMATION*)FsInformation;
+				UBA_ASSERT(dh.dirTableOffset != ~0u);
+				DirectoryTable::EntryInformation entryInfo;
+				g_directoryTable.GetEntryInformation(entryInfo, dh.dirTableOffset);
+				UBA_ASSERT(entryInfo.attributes != 0);
+				info.VolumeCreationTime.QuadPart = 0;
+				info.VolumeSerialNumber = entryInfo.volumeSerial;
+				info.VolumeLabelLength = 0;
+				info.SupportsObjects = false;
+				info.VolumeLabel[0] = 0;
+				return STATUS_SUCCESS;
+			}
+			UBA_ASSERTF(false, L"NtQueryVolumeInformationFile using class %u not handled %ls (%ls)", FsInformationClass, dh.fileObject->fileInfo->name, dh.fileObject->fileInfo->originalName);
+		}
 	}
 	else if (isListDirectoryHandle(FileHandle))
 	{
@@ -114,30 +167,53 @@ NTSTATUS Detoured_NtQueryInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoS
 	if (isDetouredHandle(FileHandle))
 	{
 		auto& dh = asDetouredHandle(FileHandle);
-		/*
-		if (FileInformationClass == 9) // FileNameInformation
+		TrueHandle = dh.trueHandle;
+
+		if (TrueHandle == INVALID_HANDLE_VALUE)
 		{
-			const wchar_t* name = dh.fileObject->fileInfo->originalName;
-			auto& info = *(FILE_NAME_INFORMATION*)FileInformation;
-			info.FileName[0] = '\\';
-			info.FileNameLength = 2;
-			//return STATUS_SUCCESS;
-			u32 nameLen = u32(wcslen(name));
-			//UBA_ASSERT(info.FileNameLength/2 > nameLen);
-			//memcpy(info.FileName, name, nameLen*2+2);
-			//info.FileNameLength = nameLen;
-			memcpy(info.FileName, L"\\\\", 4);
-			info.FileNameLength = 2;
-			return STATUS_SUCCESS;
-		}
-		else
-		*/
-		{
-			TrueHandle = dh.trueHandle;
-			UBA_ASSERTF(TrueHandle != INVALID_HANDLE_VALUE, L"NtQueryInformationFile (%u) failed using detoured handle %ls (%ls)", FileInformationClass, dh.fileObject->fileInfo->name, dh.fileObject->fileInfo->originalName);
+			if (FileInformationClass == 18) // FileAllInformation 
+			{
+				UBA_ASSERT(dh.dirTableOffset != ~0u);
+				DirectoryTable::EntryInformation entryInfo;
+				g_directoryTable.GetEntryInformation(entryInfo, dh.dirTableOffset);
+				UBA_ASSERT(entryInfo.attributes != 0);
+
+				// TODO This code path is here to handle nodejs queries.. Is not properly implemented and miss things
+				auto& info = *(FILE_ALL_INFORMATION*)FileInformation;
+				info.BasicInformation.CreationTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.LastAccessTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.LastWriteTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.ChangeTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.FileAttributes = entryInfo.attributes;
+				info.StandardInformation.AllocationSize.QuadPart = entryInfo.size;
+				info.StandardInformation.EndOfFile.QuadPart = entryInfo.size;
+				info.StandardInformation.NumberOfLinks = 0;
+				info.StandardInformation.DeletePending = false;
+				info.StandardInformation.Directory = false;
+				info.InternalInformation.IndexNumber.QuadPart = entryInfo.fileIndex;
+				return STATUS_SUCCESS;
+			}
+
+			//if (FileInformationClass == 9) // FileNameInformation
+			//{
+			//	const wchar_t* name = dh.fileObject->fileInfo->originalName;
+			//	auto& info = *(FILE_NAME_INFORMATION*)FileInformation;
+			//	info.FileName[0] = '\\';
+			//	info.FileNameLength = 2;
+			//	//return STATUS_SUCCESS;
+			//	u32 nameLen = u32(wcslen(name));
+			//	//UBA_ASSERT(info.FileNameLength/2 > nameLen);
+			//	//memcpy(info.FileName, name, nameLen*2+2);
+			//	//info.FileNameLength = nameLen;
+			//	memcpy(info.FileName, L"\\\\", 4);
+			//	info.FileNameLength = 2;
+			//	return STATUS_SUCCESS;
+			//}
+			UBA_ASSERTF(false, L"NtQueryInformationFile (%u) failed using detoured handle %ls (%ls)", FileInformationClass, dh.fileObject->fileInfo->name, dh.fileObject->fileInfo->originalName);
 		}
 	}
 
+	TimerScope ts(g_kernelStats.getFileInfo);
 	auto res = True_NtQueryInformationFile(TrueHandle, IoStatusBlock, FileInformation, Length, FileInformationClass);
 	DEBUG_LOG_TRUE(L"NtQueryInformationFile", L"(%u) %llu (%ls) -> %ls", FileInformationClass, uintptr_t(FileHandle), HandleToName(FileHandle), ToString(res));
 	return res;
@@ -393,8 +469,23 @@ NTSTATUS Detoured_NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoSta
 			return STATUS_SUCCESS;
 		}
 	}
+
+	TimerScope ts(g_kernelStats.setFileInfo);
 	auto res = True_NtSetInformationFile(trueHandle, IoStatusBlock, FileInformation, Length, FileInformationClass);
 	DEBUG_LOG_TRUE(L"NtSetInformationFile", L"(%u) %llu (%ls) -> %ls", FileInformationClass, uintptr_t(FileHandle), HandleToName(FileHandle), ToString(res));
+	return res;
+}
+
+NTSTATUS NTAPI Detoured_NtSetInformationObject(HANDLE ObjectHandle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG Length)
+{
+	if (isDetouredHandle(ObjectHandle))
+	{
+		DetouredHandle& h = asDetouredHandle(ObjectHandle);
+		ObjectHandle = h.trueHandle;
+		UBA_ASSERT(ObjectHandle != INVALID_HANDLE_VALUE);
+	}
+	auto res = True_NtSetInformationObject(ObjectHandle, ObjectInformationClass, ObjectInformation, Length);
+	DEBUG_LOG_TRUE(L"NtSetInformationObject", L"(%u) %llu (%ls) -> %ls", ObjectInformationClass, uintptr_t(ObjectHandle), HandleToName(ObjectHandle), ToString(res));
 	return res;
 }
 
@@ -464,7 +555,7 @@ NTSTATUS NTAPI Local_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCESS
 	ULONG ShareAccess, ULONG CreateDisposition, ULONG CreateOptions, PVOID EaBuffer, ULONG EaLength)
 {
 #if 0
-	if (DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA) || (CreateDisposition & (FILE_CREATE | FILE_OVERWRITE)))
+	if (IsContentWrite(DesiredAccess, CreateDisposition))
 	{
 		StringBuffer<> b;
 		b.Append(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length / 2);
@@ -472,6 +563,8 @@ NTSTATUS NTAPI Local_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCESS
 			Rpc_WriteLogf(L"[%ls] WRITTEN: %ls", g_rulesIndex ? GetApplicationRules()[g_rulesIndex].app : wcsrchr(g_virtualApplication.data, '\\') + 1, ObjectAttributes->ObjectName->Buffer);
 	}
 #endif
+
+	TimerScope ts(g_kernelStats.createFile);
 
 	//if (!Contains(ObjectAttributes->ObjectName->Buffer, L".dll") && !Contains(ObjectAttributes->ObjectName->Buffer, L".mui"))
 	//Rpc_WriteLogf(L"NtCreateFile: %ls", ObjectAttributes->ObjectName->Buffer);
@@ -497,7 +590,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	HANDLE rootDir = ObjectAttributes->RootDirectory;
 	{
 		const wchar_t* buf = ObjectAttributes->ObjectName->Buffer;
-		u64 bufBytes = ObjectAttributes->ObjectName->Length;
+		u32 bufChars = ObjectAttributes->ObjectName->Length / 2;
 
 		if (suppressCreateFileDetour)
 		{
@@ -506,14 +599,12 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		{
 			suppressCreateFileDetour = true;
 		}
-		else if (wcsncmp(buf, L"\\Device", 7) == 0)
+		else if ((bufChars >= 7u && wcsncmp(buf, L"\\Device", 7u) == 0) || (bufChars >= 10u && wcsncmp(buf, L"\\Global??\\", 10u) == 0)) // \Global is for FilterConnectCommunicationPort and friends
 		{
 			suppressCreateFileDetour = true;
 		}
 		else if (createFileName)
 		{
-			if (StartsWith(createFileName, L"\\\\?\\"))
-				createFileName += 4;
 			if (!FixPath(fileName, createFileName))
 				UBA_ASSERTF(false, L"FixPath failed for string '%ls'", createFileName);
 			if (fileName.StartsWith(L"\\\\.\\pipe"))
@@ -524,7 +615,9 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		}
 		else if (memcmp(buf, L"\\??\\", 8) == 0)
 		{
-			if (!FixPath(fileName, buf + 4))
+			if (g_isRunningWine && StartsWith(buf+4, L"pipe\\")) // This is where CreatePipe on wine ends up
+				suppressCreateFileDetour = true;
+			else if (!FixPath(fileName, buf + 4))
 				UBA_ASSERTF(false, L"FixPath failed for string '%ls'", buf + 4);
 		}
 		else
@@ -534,14 +627,14 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 				if (isDetouredHandle(ObjectAttributes->RootDirectory))
 				{
 					auto& dh = asDetouredHandle(ObjectAttributes->RootDirectory);
-					fileName.Append(dh.fileObject->fileInfo->originalName).EnsureEndsWithSlash().Append(buf, bufBytes / 2);
+					fileName.Append(dh.fileObject->fileInfo->originalName).EnsureEndsWithSlash().Append(buf, bufChars);
 					rootDir = dh.trueHandle;
 					ObjectAttributes->RootDirectory = nullptr;
 				}
 				else if (isListDirectoryHandle(ObjectAttributes->RootDirectory))
 				{
 					auto& lh = asListDirectoryHandle(ObjectAttributes->RootDirectory);
-					fileName.Append(lh.originalName).EnsureEndsWithSlash().Append(buf, bufBytes / 2);
+					fileName.Append(lh.originalName).EnsureEndsWithSlash().Append(buf, bufChars);
 					ObjectAttributes->RootDirectory = nullptr;
 				}
 				else
@@ -553,7 +646,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			}
 			else
 			{
-				fileName.Append(buf, bufBytes / 2);
+				fileName.Append(buf, bufChars);
 				if (fileName.StartsWith(L"\\DosDevices")) // Something used in msbuild.. 
 					suppressCreateFileDetour = true;
 			}
@@ -589,17 +682,14 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	u32 dirTableOffset = ~u32(0);
 
+	//UBA_ASSERT(CreateDisposition != FILE_SUPERSEDE);
 	bool isDeleteOnClose = (CreateOptions & FILE_DELETE_ON_CLOSE) != 0; // clang is using CreateFile with DeleteOnClose to delete files after build errors
-	bool failIfNotExists = (CreateDisposition & (FILE_CREATE | FILE_OVERWRITE | FILE_OVERWRITE_IF)) == FILE_OVERWRITE;// || CreateDisposition == FILE_OPEN;
+	bool TODO_DELETE_failIfNotExists = false;//(CreateDisposition & (FILE_CREATE | FILE_OVERWRITE | FILE_OVERWRITE_IF)) == FILE_OVERWRITE;// || CreateDisposition == FILE_OPEN;
 
-	DWORD dwDesiredAccess = DesiredAccess & (GENERIC_WRITE | GENERIC_READ | GENERIC_EXECUTE);
-	if (DesiredAccess & FILE_READ_DATA)
-		dwDesiredAccess |= GENERIC_READ;
-	if (DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA) || (CreateDisposition & (FILE_CREATE | FILE_OVERWRITE)))
-		dwDesiredAccess |= GENERIC_WRITE;
-
-	bool isWrite = (dwDesiredAccess & GENERIC_WRITE) != 0;
-	bool keepInMemory = (KeepInMemory(fileName.data, fileName.count) && dwDesiredAccess) || IsOutputFile(fileName.data, fileName.count, dwDesiredAccess, isDeleteOnClose);
+	bool useContent = IsContentUse(DesiredAccess, CreateDisposition);
+	bool isWrite = IsWrite(DesiredAccess, CreateDisposition);
+	//bool keepInMemory = (KeepInMemory(fileName) && (useContent || NeedsSharedMemory(fileName.data))) || IsOutputFile(fileName, isWrite, isDeleteOnClose);
+	bool keepInMemory = KeepInMemory(fileName) || IsOutputFile(fileName, isWrite, isDeleteOnClose);
 
 #if UBA_DEBUG_LOG_ENABLED
 	const wchar_t* isWriteStr = isWrite ? L" WRITE" : L""; (void)isWriteStr;
@@ -622,12 +712,16 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	{
 		ObjectAttributes->RootDirectory = rootDir;
 		NTSTATUS res = Local_NtCreateFile(IsCreateFunc, hFileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
-		DEBUG_LOG_TRUE(funcName, L"(NODETOUR)%ls %llu (%.*ls) -> %ls", isWriteStr, uintptr_t(*hFileHandle), ObjectAttributes->ObjectName->Length / 2, ObjectAttributes->ObjectName->Buffer, ToString(res));
-
+		if (NT_ERROR(res))
+			*hFileHandle = INVALID_HANDLE_VALUE;
+		DEBUG_LOG_TRUE(funcName, L"(NODETOUR)%ls %llu (%.*ls) -> %ls (%u)", isWriteStr, uintptr_t(*hFileHandle), ObjectAttributes->ObjectName->Length / 2, ObjectAttributes->ObjectName->Buffer, ToString(res), res);
 		if (NT_ERROR(res))
 			return res;
-		if (!isSystemFile && !isWrite && !t_disallowDetour)
+
+		if (!isSystemOrTempFile && !isWrite && !t_disallowDetour && fileName[fileName.count-1] != ':')
 			TrackInput(fileName.data);
+		else
+			SkipTrackInput(fileName.data);
 		return res;
 	}
 
@@ -642,7 +736,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			// This is an optimization where we populate directory table and use that to figure out if file exists or not..
 			// .. in msvc's case it doesn't matter much because these tables are already up to date when msvc use CreateFile.
 			// .. clang otoh is using CreateFile with tooons of different paths trying to open files.. in remote worker case this becomes super expensive
-			if ((!isWrite || failIfNotExists) && !isSystemOrTempFile) // We need to skip SystemTemp.. lots of stuff going on there.
+			if ((!isWrite || TODO_DELETE_failIfNotExists) && !isSystemOrTempFile) // We need to skip SystemTemp.. lots of stuff going on there.
 			{
 				CHECK_PATH(fileNameLower.data);
 				fileNameKey = ToStringKey(fileNameLower);
@@ -689,11 +783,11 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 				bool isWriteAttributes = (DesiredAccess & FILE_WRITE_ATTRIBUTES) != 0;
 
-				if (allowEarlyOut && dwDesiredAccess == 0 && !isWriteAttributes)
+				if (allowEarlyOut && !useContent && !isWriteAttributes)
 				{
 					auto dh = new DetouredHandle(HandleType_File);
 					dh->fileObject = new FileObject();
-					dh->fileObject->desiredAccess = dwDesiredAccess;
+					dh->fileObject->desiredAccess = DesiredAccess;
 					dh->dirTableOffset = dirTableOffset;
 
 					FileInfo* tempFileInfo = new FileInfo();
@@ -718,6 +812,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	{
 		if (isWrite || !g_allowListDirectoryHandle)
 		{
+			TimerScope ts(g_kernelStats.createFile);
 			UBA_ASSERT(!g_runningRemote);
 			NTSTATUS res = True_NtCreateFile(hFileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
 
@@ -815,7 +910,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		info.name = info.originalName;
 		if (!keepInMemory && !isSystemOrTempFile)
 		{
-			u8 access = GetFileAccessFlags(dwDesiredAccess);
+			u8 access = GetFileAccessFlags(DesiredAccess, CreateDisposition);
 			wchar_t newFileName[512];
 			Rpc_CreateFileW(lpFileName, fileNameKey, access, newFileName, sizeof_array(newFileName), size, closeId, false);
 			info.name = g_memoryBlock.Strdup(newFileName);
@@ -824,31 +919,35 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 		info.size = size;
 		info.fileNameKey = fileNameKey;
-		info.lastDesiredAccess = dwDesiredAccess;
+		info.lastDesiredAccess = DesiredAccess;
 	}
 	else
 	{
+		g_objFilesPreloader.Wait(fileNameKey); // Wait for on-going preload if existing
+
 		if (!info.originalName)
 			info.originalName = g_memoryBlock.Strdup(fileName.data);
-		if (isWrite) //(info.lastDesiredAccess != dwDesiredAccess)
+		if (isWrite)
 		{
+			bool lastWasWrite = IsContentWrite(info.lastDesiredAccess, 0);
 			UBA_ASSERT(!info.isFileMap);
-			bool shouldReport = !(info.lastDesiredAccess & GENERIC_WRITE) || info.deleted;
+			bool shouldReport = !lastWasWrite || info.deleted || isDeleteOnClose;
 			shouldReport = shouldReport && !keepInMemory;
 			if (shouldReport)
 			{
 				u64 size = InvalidValue;
 				info.deleted = false;
 				wchar_t newFileName[1024];
-				u8 access = GetFileAccessFlags(dwDesiredAccess);
+				u8 access = GetFileAccessFlags(DesiredAccess, CreateDisposition);
 				Rpc_CreateFileW(lpFileName, fileNameKey, access, newFileName, sizeof_array(newFileName), size, closeId, false);
 				info.name = g_memoryBlock.Strdup(newFileName);
 				//info.size = size; // TODO: Should this be set?
 				lpFileName = info.name;
 			}
-			if (dwDesiredAccess == 0 || info.lastDesiredAccess == 0)
+			bool lastUseContent = IsContentUse(info.lastDesiredAccess, 0);
+			if (!useContent || !lastUseContent)
 				lpFileName = info.name;
-			info.lastDesiredAccess |= dwDesiredAccess;
+			info.lastDesiredAccess |= DesiredAccess;
 		}
 		else if (info.deleted)
 		{
@@ -871,10 +970,17 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	auto TrackFileInput = [&]()
 		{
-			if (!info.tracked && dwDesiredAccess && (dwDesiredAccess & GENERIC_WRITE) == 0)
+			if (!keepInMemory && useContent && !isWrite)
 			{
-				info.tracked = true;
-				TrackInput(fileName.data);
+				if (!info.tracked)
+				{
+					info.tracked = true;
+					TrackInput(fileName.data);
+				}
+			}
+			else
+			{
+				SkipTrackInput(fileName.data);
 			}
 		};
 
@@ -885,7 +991,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		UBA_ASSERT(!lpFileName[2]);
 
 		bool isDir = lpFileName[1] == 'd';
-		if (isDir && dwDesiredAccess != 0)
+		if (isDir && useContent)
 			return STATUS_FILE_IS_A_DIRECTORY;
 
 		MemoryFile& mf = g_emptyMemoryFile;
@@ -894,7 +1000,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		DetouredHandle* dh = new DetouredHandle(HandleType_File);
 		dh->dirTableOffset = dirTableOffset;
 		dh->fileObject = new FileObject();
-		dh->fileObject->desiredAccess = dwDesiredAccess;
+		dh->fileObject->desiredAccess = DesiredAccess;
 		dh->fileObject->closeId = closeId;
 		dh->fileObject->fileInfo = &info;
 		UBA_ASSERT(!isDeleteOnClose);
@@ -913,7 +1019,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		if (!handleStrEnd)
 		{
 			UBA_ASSERT(handleStrEnd);
-			return STATUS_OBJECT_NAME_NOT_FOUND;
+			return STATUS_UNSUCCESSFUL;
 		}
 		HANDLE mappingHandle = (HANDLE)StringToValue(handleStr, handleStrEnd - handleStr);
 		const wchar_t* mappingOffsetStr = handleStrEnd + 1;
@@ -921,13 +1027,17 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		info.trueFileMapOffset = mappingOffset;
 
 		info.isFileMap = true;
-		True_DuplicateHandle(g_hostProcess, mappingHandle, GetCurrentProcess(), &info.trueFileMapHandle, 0, FALSE, DUPLICATE_SAME_ACCESS);
-		UBA_ASSERTF(info.trueFileMapHandle, L"Can't duplicate handle 0x%llx (%ls) for file %ls", uintptr_t(mappingHandle), lpFileName, info.originalName);
+		if (!True_DuplicateHandle(g_hostProcess, mappingHandle, GetCurrentProcess(), &info.trueFileMapHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
+		{
+			Rpc_WriteLogf(L"Can't duplicate handle 0x%llx (%ls) for file %ls", uintptr_t(mappingHandle), lpFileName, info.originalName);
+			UBA_ASSERTF(info.trueFileMapHandle, L"Can't duplicate handle 0x%llx (%ls) for file %ls", uintptr_t(mappingHandle), lpFileName, info.originalName);
+			return STATUS_UNSUCCESSFUL;
+		}
 		DetouredHandle* dh = new DetouredHandle(HandleType_File);
 		UBA_ASSERT(info.size != InvalidValue);
 		dh->dirTableOffset = dirTableOffset;
 		dh->fileObject = new FileObject();
-		dh->fileObject->desiredAccess = dwDesiredAccess;
+		dh->fileObject->desiredAccess = DesiredAccess;
 		dh->fileObject->closeId = closeId;
 		dh->fileObject->fileInfo = &info;
 		UBA_ASSERT(!isDeleteOnClose);
@@ -941,19 +1051,17 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	if (keepInMemory || info.memoryFile)
 	{
-		auto fileObject = new FileObject();
-		DetouredHandle* dh = new DetouredHandle(HandleType_File);
-		dh->fileObject = fileObject;
+		#if UBA_DEBUG_LOG_ENABLED
+		const wchar_t* memoryType = L"MEMORY";
+		#endif
 
 		if (!info.memoryFile)
 		{
 			if (NeedsSharedMemory(fileName.data))
 			{
-				if (isWrite)
-				{
-					info.memoryFile = new MemoryFile(false, FileTypeMaxSize(fileName, isSystemOrTempFile));
-				}
-				else
+				#if UBA_DEBUG_LOG_ENABLED
+				memoryType = L"SHAREDMEMORY";
+				#endif
 				{
 					TimerScope ts(g_stats.openTempFile);
 					SCOPED_WRITE_LOCK(g_communicationLock, pcs);
@@ -968,14 +1076,20 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 					pcs.Leave();
 					if (mappingHandle)
 					{
-						info.memoryFile = new MemoryFile();
+						info.memoryFile = new MemoryFile(nullptr, false);
 						MemoryFile& mf = *info.memoryFile;
 						True_DuplicateHandle(g_hostProcess, (HANDLE)mappingHandle, GetCurrentProcess(), &mf.mappingHandle, 0, FALSE, DUPLICATE_SAME_ACCESS);
 						UBA_ASSERTF(mf.mappingHandle, L"DuplicateHandle failed when opening temp file %ls (%u)", fileName.data, GetLastError());
 						mf.writtenSize = mappingHandleSize;
-						mf.baseAddress = (u8*)True_MapViewOfFile(mf.mappingHandle, FILE_MAP_READ, 0, 0, mappingHandleSize);
+						TimerScope ts2(g_kernelStats.mapViewOfFile);
+						mf.baseAddress = (u8*)True_MapViewOfFile(mf.mappingHandle, FILE_MAP_READ | FILE_MAP_ALL_ACCESS, 0, 0, mappingHandleSize);
 						UBA_ASSERTF(mf.baseAddress, L"MapViewOfFile failed when opening temp file %ls (%u)", fileName.data, GetLastError());
-						mf.committedSize = mappingHandleSize;
+						//mf.committedSize = mappingHandleSize;
+						mf.reserveSize = FileTypeMaxSize(fileName, isSystemOrTempFile);
+					}
+					else if (isWrite)
+					{
+						info.memoryFile = new MemoryFile(false, FileTypeMaxSize(fileName, isSystemOrTempFile));
 					}
 					else
 					{
@@ -986,18 +1100,18 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			}
 			else
 			{
-				if (g_rules->IsThrowAway(fileName.data, fileName.count))
+				if (g_rules->IsThrowAway(fileName, g_runningRemote))
 				{
 					//isDeleteOnClose = true;
 				}
 				else if (CreateDisposition == FILE_OPEN)
 				{
 					*hFileHandle = INVALID_HANDLE_VALUE;
-					DEBUG_LOG_DETOURED(funcName, L"NOTFOUND (%ls) -> Error", fileName.data);
-					return STATUS_OBJECT_NAME_NOT_FOUND;
+					DEBUG_LOG_DETOURED(funcName, L"ALREADYEXISTS (%ls) -> Error", fileName.data);
+					return STATUS_OBJECT_NAME_EXISTS;//STATUS_OBJECT_NAME_NOT_FOUND;
 				}
 
-				bool isLocal = !IsOutputFile(fileName.data, fileName.count, dwDesiredAccess, isDeleteOnClose);
+				bool isLocal = !IsOutputFile(fileName, isWrite, isDeleteOnClose);
 				//UBA_ASSERTF(CreateDisposition != FILE_OPEN || Contains(fileName.data, L"vctip_"), TC("Unsupported disposition %u for file %s"), CreateDisposition, fileName.data);
 				info.memoryFile = new MemoryFile(isLocal, FileTypeMaxSize(fileName, isSystemOrTempFile));
 			}
@@ -1011,10 +1125,21 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			info.memoryFile->volumeSerial = 1;
 			info.memoryFile->fileIndex = InterlockedDecrement(&g_memoryFileIndexCounter);
 		}
+		else
+		{
+			#if UBA_DEBUG_LOG_ENABLED
+			if (!info.memoryFile->isLocalOnly)
+				memoryType = L"SHAREDMEMORY";
+			#endif
+		}
+
 		_.Leave();
 
+		auto fileObject = new FileObject();
+		DetouredHandle* dh = new DetouredHandle(HandleType_File);
+		dh->fileObject = fileObject;
 		dh->dirTableOffset = dirTableOffset;
-		dh->fileObject->desiredAccess = dwDesiredAccess;
+		dh->fileObject->desiredAccess = DesiredAccess;
 		dh->fileObject->closeId = closeId;
 		dh->fileObject->fileInfo = &info;
 		dh->fileObject->deleteOnClose = isDeleteOnClose;
@@ -1022,7 +1147,23 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 		TrackFileInput();
 
-		DEBUG_LOG_DETOURED(funcName, L"(MEMORY)%ls %llu (%ls) (%ls) -> Success", isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
+		DEBUG_LOG_DETOURED(funcName, L"(%s)%ls %llu (%ls) (%ls) -> Success", memoryType, isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
+		return STATUS_SUCCESS;
+	}
+
+	if (lpFileName[0] == ':')
+	{
+		auto fileObject = new FileObject();
+		DetouredHandle* dh = new DetouredHandle(HandleType_File);
+		dh->fileObject = fileObject;
+		dh->dirTableOffset = dirTableOffset;
+		dh->fileObject->desiredAccess = DesiredAccess;
+		dh->fileObject->closeId = closeId;
+		dh->fileObject->fileInfo = &info;
+		dh->fileObject->deleteOnClose = isDeleteOnClose;
+		*hFileHandle = makeDetouredHandle(dh);
+
+		DEBUG_LOG_DETOURED(funcName, L"(PRELOAD)%ls %llu (%ls) (%ls) -> Success", isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
 		return STATUS_SUCCESS;
 	}
 
@@ -1040,7 +1181,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	UNICODE_STRING str;
 	str.Buffer = temp.data;
 	str.Length = u16(temp.count * 2);
-	str.MaximumLength = str.Length;
+	str.MaximumLength = str.Length + 2;
 	ObjectAttributes->ObjectName = &str;
 	// TODO!!! THIS NEEDS TO set the ObjectAttributes->ObjectName->Buffer and ObjectAttributes->ObjectName->Length;
 	//wcscpy_s(ObjectAttributes->ObjectName->Buffer + 4, ObjectAttributes->ObjectName->MaximumLength/2 - 8, lpFileName);
@@ -1057,7 +1198,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			info.lastDesiredAccess = lastDesiredAccess;
 			Rpc_UpdateCloseHandle(L"", closeId, false, L"", 0, 0, false);
 		}
-		DEBUG_LOG_TRUE(funcName, L"%ls (%ls) (%ls) -> %ls", isWriteStr, lpFileName, (fileName.data != lpFileName ? fileName.data : L""), ToString(res));
+		DEBUG_LOG_TRUE(funcName, L"%ls (%ls) (%ls) -> %ls (0x%x)", isWriteStr, lpFileName, (fileName.data != lpFileName ? fileName.data : L""), ToString(res), res);
 		return res;
 	}
 	if (!canDetour)
@@ -1073,12 +1214,12 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	dh->trueHandle = *hFileHandle;
 	dh->dirTableOffset = dirTableOffset;
 	dh->fileObject = new FileObject();
-	dh->fileObject->desiredAccess = dwDesiredAccess;
+	dh->fileObject->desiredAccess = DesiredAccess;
 	dh->fileObject->closeId = closeId;
 	dh->fileObject->fileInfo = &info;
 	dh->fileObject->deleteOnClose = isDeleteOnClose;
 	*hFileHandle = makeDetouredHandle(dh);
-	DEBUG_LOG_TRUE(funcName, L"%ls %llu (%ls) -> %ls", isWriteStr, uintptr_t(*hFileHandle), tempFileName, ToString(res));
+	DEBUG_LOG_TRUE(funcName, L"%ls %llu (%ls)%s -> %ls", isWriteStr, uintptr_t(*hFileHandle), tempFileName, isDeleteOnClose ? TC(" DeleteOnClose") : TC(""), ToString(res));
 	return res;
 }
 
@@ -1138,7 +1279,10 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 	DETOURED_CALL(NtClose);
 
 	if (handle == INVALID_HANDLE_VALUE || handle == PseudoHandle)
+	{
+		TimerScope ts(g_kernelStats.closeHandle);
 		return True_NtClose(handle);
+	}
 
 	if (isListDirectoryHandle(handle))
 	{
@@ -1159,6 +1303,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 
 	if (!isDetouredHandle(handle))
 	{
+		TimerScope ts(g_kernelStats.closeHandle);
 		auto res = True_NtClose(handle);
 		DEBUG_LOG_TRUE(L"NtClose", L"%llu (%ls) -> %ls", uintptr_t(handle), HandleToName(handle), ToString(res));
 		return res;
@@ -1166,17 +1311,19 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 
 	DetouredHandle& dh = asDetouredHandle(handle);
 
-	if (dh.type == HandleType_Std)
-		return STATUS_SUCCESS;
-
 	NTSTATUS res = STATUS_SUCCESS;
 
 	if (dh.trueHandle != INVALID_HANDLE_VALUE)
+	{
+		TimerScope ts(g_kernelStats.closeFile);
 		res = True_NtClose(dh.trueHandle);
+	}
 
 	FileObject* fo = dh.fileObject;
 	if (!fo)
 	{
+		if (dh.type >= HandleType_StdErr) // TODO: This might leak if handle is duplicated.. but ignore for now
+			return res;
 		DEBUG_LOG_TRUE(L"NtClose", L"%llu (%ls) -> %ls", uintptr_t(handle), HandleToName(handle), ToString(res));
 		delete& dh;
 		return res;
@@ -1198,7 +1345,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 	wchar_t temp[512];
 	if (fi.memoryFile)
 	{
-		if ((fo->desiredAccess & GENERIC_WRITE))
+		if (IsWrite(fo->desiredAccess, 0))
 		{
 			// TODO: There are race conditions in this code. There could be other file handles accessing the same piece of memory (allthough unlikely)
 			u64 alignedWritten = AlignUp(fi.memoryFile->writtenSize, 64 * 1024);
@@ -1229,7 +1376,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 		mappingWritten = fi.memoryFile->writtenSize;
 
 		u32 orginalNameLen = TStrlen(fi.originalName);
-		if (IsOutputFile(fi.originalName, orginalNameLen, fo->desiredAccess, fo->deleteOnClose) && !g_rules->IsThrowAway(fi.originalName, orginalNameLen))
+		if (IsOutputFile(StringView(fi.originalName, orginalNameLen), IsWrite(fo->desiredAccess, 0), fo->deleteOnClose) && !g_rules->IsThrowAway(StringView(fi.originalName, orginalNameLen), g_runningRemote))
 		{
 			// Need to report this file to host so it can be tracked in directory table
 			if (!fi.memoryFile->isReported)
@@ -1242,6 +1389,9 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 				StringBuffer<> fixedName;
 				FixPath(fixedName, fileName);
 				StringKey fileNameKey = fi.fileNameKey;
+				if (!fo->newName.empty())
+					fileNameKey = ToStringKeyLower(fixedName);
+
 				u64 size;
 				Rpc_CreateFileW(fixedName.data, fileNameKey, AccessFlag_Write, temp, sizeof_array(temp), size, fo->closeId, true);
 			}
@@ -1268,8 +1418,9 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 			}
 
 		}
-		else if (NeedsSharedMemory(fi.originalName) && (fo->desiredAccess & GENERIC_WRITE))
+		else if (NeedsSharedMemory(fi.originalName) && IsWrite(fo->desiredAccess, 0))
 		{
+			UBA_ASSERT(!fi.memoryFile->isLocalOnly);
 			StringBuffer<> fixedName;
 			FixPath(fixedName, path);
 
@@ -1376,6 +1527,39 @@ NTSTATUS NTAPI Detoured_NtReadFile(HANDLE FileHandle, HANDLE Event, PIO_APC_ROUT
 	DETOURED_CALL(NtReadFile);
 	UBA_ASSERT(!isDetouredHandle(FileHandle));
 	return True_NtReadFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key);
+}
+
+NTSTATUS NTAPI Detoured_NtAlpcCreatePort(PHANDLE PortHandle, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes)
+{
+	//DEBUG_LOG_TRUE(L"NtAlpcCreatePort", L"");
+	return True_NtAlpcCreatePort(PortHandle, ObjectAttributes, PortAttributes);
+}
+
+NTSTATUS NTAPI Detoured_NtAlpcConnectPort(PHANDLE PortHandle, PUNICODE_STRING PortName, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes, DWORD ConnectionFlags, PSID RequiredServerSid, PPORT_MESSAGE ConnectionMessage, PSIZE_T ConnectMessageSize, PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes, PALPC_MESSAGE_ATTRIBUTES InMessageAttributes, PLARGE_INTEGER Timeout)
+{
+	//DEBUG_LOG_TRUE(L"NtAlpcConnectPort", L"");
+	return True_NtAlpcConnectPort(PortHandle, PortName, ObjectAttributes, PortAttributes, ConnectionFlags, RequiredServerSid, ConnectionMessage, ConnectMessageSize, OutMessageAttributes, InMessageAttributes, Timeout);
+}
+
+NTSTATUS NTAPI Detoured_NtAlpcCreatePortSection(HANDLE PortHandle, ULONG Flags, HANDLE SectionHandle, SIZE_T SectionSize, PHANDLE AlpcSectionHandle, PSIZE_T ActualSectionSize)
+{
+	//DEBUG_LOG_TRUE(L"NtAlpcCreatePortSection", L"");
+	return True_NtAlpcCreatePortSection(PortHandle, Flags, SectionHandle, SectionSize, AlpcSectionHandle, ActualSectionSize);
+}
+
+NTSTATUS NTAPI Detoured_NtAlpcSendWaitReceivePort(HANDLE PortHandle, DWORD Flags, PPORT_MESSAGE SendMessage_, PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes, PPORT_MESSAGE ReceiveMessage, PSIZE_T BufferLength, PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes, PLARGE_INTEGER Timeout)
+{
+	//u64 size = 0;
+	//if (SendMessage_)
+	//	size = SendMessage_->u1.s1.DataLength;
+	//DEBUG_LOG_TRUE(L"NtAlpcSendWaitReceivePort", L"%llu", size);
+	return True_NtAlpcSendWaitReceivePort(PortHandle, Flags, SendMessage_, SendMessageAttributes, ReceiveMessage, BufferLength, ReceiveMessageAttributes, Timeout);
+}
+
+NTSTATUS NTAPI Detoured_NtAlpcDisconnectPort(HANDLE PortHandle, ULONG Flags)
+{
+	//DEBUG_LOG_TRUE(L"NtAlpcDisconnectPort", L"");
+	return True_NtAlpcDisconnectPort(PortHandle, Flags);
 }
 
 NTSTATUS NTAPI Detoured_ZwQueryDirectoryFile(HANDLE FileHandle, HANDLE Event, PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext, PIO_STATUS_BLOCK IoStatusBlock, PVOID FileInformation, ULONG Length,

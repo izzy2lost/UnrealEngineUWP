@@ -16,14 +16,32 @@ struct FStaticMeshInstanceVisualizationDesc;
 struct FStreamableHandle;
 struct FMassISMCSharedData;
 class UInstancedActorsData;
+class UWorld;
+class UServerInstancedActorsSpawnerSubsystem;
+class UClientInstancedActorsSpawnerSubsystem;
+class UMassActorSpawnerSubsystem;
+class UInstancedActorsSubsystem;
 
 enum class EInstancedActorsBulkLOD : uint8
 {
-	Detailed, // this wil make Mass calculate LOD individually for every instance
+	Detailed, // this will make Mass calculate LOD individually for every instance
 	Medium,
 	Low,
 	Off,
 	MAX
+};
+
+enum class EInstancedActorsBulkLODMask : uint8
+{
+	None = 0,
+
+	Detailed = 1 << int(EInstancedActorsBulkLOD::Detailed),
+	Medium = 1 << int(EInstancedActorsBulkLOD::Medium),
+	Low = 1 << int(EInstancedActorsBulkLOD::Low),
+	Off = 1 << int(EInstancedActorsBulkLOD::Off),
+
+	NotDetailed = Medium | Low | Off,
+	All = 0xFF
 };
 
 enum class EInstancedActorsFragmentFlags : uint8
@@ -37,6 +55,18 @@ enum class EInstancedActorsFragmentFlags : uint8
 };
 ENUM_CLASS_FLAGS(EInstancedActorsFragmentFlags);
 
+namespace UE::InstancedActors::Utils
+{
+	INSTANCEDACTORS_API TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(const UWorld& World);
+	INSTANCEDACTORS_API UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(const UWorld& World);
+	INSTANCEDACTORS_API UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(const UWorld& World);
+	/** 
+	 * Calls either GetServerInstancedActorsSpawnerSubsystem or GetClientInstancedActorsSpawnerSubsystem, depending on 
+	 * given UWorld's net mode.
+	 */
+	INSTANCEDACTORS_API UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(const UWorld& World);
+	INSTANCEDACTORS_API UInstancedActorsSubsystem* GetInstancedActorsSubsystem(const UWorld& World);
+}
 
 // FInstancedActorsTagSet -> FInstancedActorsTagSet
 /** An immutable hashed tag container used to categorize / partition instances */
@@ -275,6 +305,8 @@ struct FInstancedActorsDataSharedFragment : public FMassSharedFragment
 	TWeakObjectPtr<UInstancedActorsData> InstanceData;
 
 	EInstancedActorsBulkLOD BulkLOD = EInstancedActorsBulkLOD::MAX;
+
+	double LastTickTime = 0.0;
 };
 
 USTRUCT()

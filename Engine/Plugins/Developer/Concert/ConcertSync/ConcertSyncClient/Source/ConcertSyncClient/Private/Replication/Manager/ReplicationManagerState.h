@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "ReplicationManagerUtils.h"
 #include "Replication/IConcertClientReplicationManager.h"
+#include "Replication/Manager/Utils/ReplicationManagerUtils.h"
+#include "Replication/Messages/Muting.h"
 
 namespace UE::ConcertSyncClient::Replication
 {
@@ -28,10 +29,21 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override { return MakeFulfilledPromise<FConcertReplication_ChangeStream_Response>().GetFuture(); }
 		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const override { return EAuthorityEnumerationResult::NoAuthorityAvailable; }
 		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override { return {}; }
+		virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const override { return ESyncControlEnumerationResult::NoneAvailable; }
+		virtual uint32 NumSyncControlledObjects() const override { return 0; }
+		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override { return false; }
+		virtual TFuture<FConcertReplication_ChangeMuteState_Response> ChangeMuteState(FConcertReplication_ChangeMuteState_Request) override { return MakeFulfilledPromise<FConcertReplication_ChangeMuteState_Response>(FConcertReplication_ChangeMuteState_Response{ EConcertReplicationMuteErrorCode::Rejected }).GetFuture(); };
+		virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request) override { return MakeFulfilledPromise<FConcertReplication_QueryMuteState_Response>().GetFuture(); }
+		virtual TFuture<FConcertReplication_RestoreContent_Response> RestoreContent(FConcertReplication_RestoreContent_Request Request) override { return MakeFulfilledPromise<FConcertReplication_RestoreContent_Response>().GetFuture(); }
+		virtual TFuture<FConcertReplication_PutState_Response> PutClientState(FConcertReplication_PutState_Request Request) override { return MakeFulfilledPromise<FConcertReplication_PutState_Response>().GetFuture(); }
 		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override { return OnPreStreamsChangedDelegate; } 
 		virtual FOnPostStreamsChanged& OnPostStreamsChanged() override { return OnPostStreamsChangedDelegate; }
 		virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() override { return OnPreAuthorityChangedDelegate; }
 		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override { return OnPostAuthorityChangedDelegate; }
+		virtual FSyncControlChanged& OnPreSyncControlChanged() override { return OnPreSyncControlChangedDelegate; }
+		virtual FSyncControlChanged& OnPostSyncControlChanged() override { return OnPostSyncControlChangedDelegate; }
+		virtual FOnRemoteEditApplied& OnPreRemoteEditApplied() override { return OnPreRemoteEditAppliedDelegate; }
+		virtual FOnRemoteEditApplied& OnPostRemoteEditApplied() override { return OnPostRemoteEditAppliedDelegate; }
 		//~ End IConcertClientReplicationManager Interface
 
 	protected:
@@ -40,6 +52,10 @@ namespace UE::ConcertSyncClient::Replication
 		FOnPostStreamsChanged OnPostStreamsChangedDelegate;
 		FOnPreAuthorityChanged OnPreAuthorityChangedDelegate;
 		FOnPostAuthorityChanged OnPostAuthorityChangedDelegate;
+		FSyncControlChanged OnPreSyncControlChangedDelegate;
+		FSyncControlChanged OnPostSyncControlChangedDelegate;
+		FOnRemoteEditApplied OnPreRemoteEditAppliedDelegate;
+		FOnRemoteEditApplied OnPostRemoteEditAppliedDelegate;
 
 		/**
 		 * Subclasses can change the state with this function.

@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Devices
 	[TypeConverter(typeof(StringIdTypeConverter<DevicePlatformId, DevicePlatformIdConverter>))]
 	[StringIdConverter(typeof(DevicePlatformIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<DevicePlatformId, DevicePlatformIdConverter>))]
-	public record struct DevicePlatformId(StringId Id)
+	public readonly record struct DevicePlatformId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

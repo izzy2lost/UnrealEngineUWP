@@ -2,22 +2,22 @@
 
 #include "MVR/DMXMVRSceneActor.h"
 
+#include "Algo/Find.h"
+#include "Algo/RemoveIf.h"
+#include "Components/SceneComponent.h"
+#include "DatasmithAssetUserData.h"
 #include "DMXMVRFixtureActorInterface.h"
 #include "DMXRuntimeLog.h"
+#include "DMXRuntimeMainStreamObjectVersion.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Game/DMXComponent.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
-#include "MVR/DMXMVRFixtureActorLibrary.h"
 #include "MVR/DMXMVRAssetUserData.h"
+#include "MVR/DMXMVRFixtureActorLibrary.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-
-#include "DatasmithAssetUserData.h"
-#include "EngineUtils.h"
-#include "Algo/Find.h"
-#include "Algo/RemoveIf.h"
-#include "Components/SceneComponent.h"
-#include "Engine/World.h"
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
@@ -28,7 +28,7 @@
 ADMXMVRSceneActor::ADMXMVRSceneActor()
 {
 #if WITH_EDITOR
-	if (HasAnyFlags(RF_ClassDefaultObject))
+	if (IsTemplate())
 	{
 		return;
 	}
@@ -51,10 +51,13 @@ ADMXMVRSceneActor::ADMXMVRSceneActor()
 	AddInstanceComponent(MVRSceneRoot);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Allow destruct complex deprecated members
 ADMXMVRSceneActor::~ADMXMVRSceneActor()
 {
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 #if WITH_EDITOR
-	if (HasAnyFlags(RF_ClassDefaultObject))
+	if (IsTemplate())
 	{
 		return;
 	}
@@ -71,6 +74,24 @@ ADMXMVRSceneActor::~ADMXMVRSceneActor()
 		GEditor->GetEditorSubsystem<UImportSubsystem>()->OnAssetPostImport.RemoveAll(this);
 	}
 #endif // WITH_EDITOR
+}
+
+void ADMXMVRSceneActor::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID);
+	
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		// Upgrade from actors per Fixture Type instead of per GDTF 
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXMVRSceneActorSpawnsActorsPerFixtureType)
+		{
+			UpgradeToFixtureTypeToActorClasses();
+		}
+	}
+#endif 
 }
 
 void ADMXMVRSceneActor::PostLoad()
@@ -105,9 +126,9 @@ void ADMXMVRSceneActor::PreEditChange(FProperty* PropertyAboutToChange)
 {
 	Super::PreEditChange(PropertyAboutToChange);
 
-	if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(FDMXMVRSceneGDTFToActorClassPair, ActorClass))
+	if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(FDMXMVRSceneFixtureTypeToActorClassPair, ActorClass))
 	{
-		GDTFToDefaultActorClasses_PreEditChange = GDTFToDefaultActorClasses;
+		FixtureTypeToActorClasses_PreEditChange = FixtureTypeToActorClasses;
 	}
 }
 #endif // WITH_EDITOR
@@ -119,9 +140,9 @@ void ADMXMVRSceneActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXMVRSceneGDTFToActorClassPair, ActorClass))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXMVRSceneFixtureTypeToActorClassPair, ActorClass))
 	{
-		HandleDefaultActorClassForGDTFChanged();
+		HandleDefaultActorClassForFixtureTypeChanged();
 	}
 }
 #endif // WITH_EDITOR
@@ -230,7 +251,8 @@ void ADMXMVRSceneActor::RefreshFromDMXLibrary()
 	// Spawn newly added and if requested, previously deleted actors
 	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 	{
-		if (FixturePatchToSpawnedActorMap.Contains(FixturePatch))
+		if (!FixturePatch ||
+			FixturePatchToSpawnedActorMap.Contains(FixturePatch))
 		{
 			continue;
 		}
@@ -241,7 +263,19 @@ void ADMXMVRSceneActor::RefreshFromDMXLibrary()
 			continue;
 		}
 
-		UClass* ActorClass = MVRFixtureActorLibrary->FindMostAppropriateActorClassForPatch(FixturePatch);
+		const UDMXEntityFixtureType* FixtureType = FixturePatch->GetFixtureType();
+		if (!FixtureType)
+		{
+			continue;
+		}
+
+		const FDMXMVRSceneFixtureTypeToActorClassPair* FixtureTypeToActorClassPairPtr = 
+			Algo::FindBy(FixtureTypeToActorClasses, FixtureType, &FDMXMVRSceneFixtureTypeToActorClassPair::FixtureType);
+
+		UClass* ActorClass = FixtureTypeToActorClassPairPtr ? 
+			(*FixtureTypeToActorClassPairPtr).ActorClass.LoadSynchronous() : 
+			MVRFixtureActorLibrary->FindMostAppropriateActorClassForPatch(FixturePatch);
+
 		if (!ActorClass)
 		{
 			continue;
@@ -249,12 +283,8 @@ void ADMXMVRSceneActor::RefreshFromDMXLibrary()
 
 		const FGuid& MVRFixtureUUID = FixturePatch->GetMVRFixtureUUID();
 		const UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID);
-		if (!FixtureNode)
-		{
-			continue;
-		}
+		const FTransform Transform = FixtureNode ? FixtureNode->GetTransformAbsolute() : FTransform::Identity;
 
-		const FTransform Transform = FixtureNode->GetTransformAbsolute();
 		SpawnMVRActor(ActorClass, FixturePatch, Transform);
 	}
 
@@ -277,17 +307,47 @@ void ADMXMVRSceneActor::RefreshFromDMXLibrary()
 
 			const FGuid& MVRFixtureUUID = FixturePatch->GetMVRFixtureUUID();
 			const UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription->FindFixtureNode(MVRFixtureUUID);
-			if (!FixtureNode)
-			{
-				continue;
-			}
+			const FTransform Transform = FixtureNode ? FixtureNode->GetTransformAbsolute() : FTransform::Identity;
 
-			const FTransform Transform = FixtureNode->GetTransformAbsolute();
 			RelatedActor->SetActorTransform(Transform);
 		}
 	}
 
-	UpdateGDTFToDefaultActorClasses(MVRFixtureActorLibrary);
+	UpdateFixtureTypeToDefaultActorClasses(MVRFixtureActorLibrary);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+TArray<AActor*> ADMXMVRSceneActor::GetActorsSpawnedForFixtureType(const UDMXEntityFixtureType* FixtureType) const
+{
+	// DEPRECATED 5.5
+	TArray<AActor*> Result;
+	if (!FixtureType)
+	{
+		return Result;
+	}
+
+	for (const TSoftObjectPtr<AActor>& SoftActorPtr : RelatedActors)
+	{
+		if (!SoftActorPtr.IsValid())
+		{
+			continue;
+		}
+		AActor* Actor = SoftActorPtr.Get();
+
+		UDMXEntityFixturePatch* FixturePatch = GetFixturePatchFromActor(Actor);
+		if (!FixturePatch || !FixturePatch->GetFixtureType())
+		{
+			continue;
+		}
+
+		if (FixturePatch->GetFixtureType() == FixtureType)
+		{
+			Result.Add(Actor);
+		}
+	}
+
+	return Result;
 }
 #endif // WITH_EDITOR
 
@@ -314,7 +374,7 @@ TArray<AActor*> ADMXMVRSceneActor::GetActorsSpawnedForGDTF(const UDMXImportGDTF*
 			continue;
 		}
 
-		if (FixturePatch->GetFixtureType()->DMXImport == GDTF)
+		if (FixturePatch->GetFixtureType()->GDTFSource == GDTF)
 		{
 			Result.Add(Actor);
 		}
@@ -343,46 +403,34 @@ void ADMXMVRSceneActor::EnsureMVRUUIDsForRelatedActors()
 	}
 }
 
-void ADMXMVRSceneActor::UpdateGDTFToDefaultActorClasses(const TSharedRef<FDMXMVRFixtureActorLibrary>& MVRFixtureActorLibrary)
+#if WITH_EDITOR
+void ADMXMVRSceneActor::UpdateFixtureTypeToDefaultActorClasses(const TSharedRef<FDMXMVRFixtureActorLibrary>& MVRFixtureActorLibrary)
 {
 	const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
 	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 	{
-		const UDMXEntityFixtureType* FixtureType = FixturePatch->GetFixtureType();
-		if (FixtureType && FixtureType->DMXImport)
+		UDMXEntityFixtureType* FixtureType = FixturePatch->GetFixtureType();
+		if (FixtureType)
 		{
-			const FDMXMVRSceneGDTFToActorClassPair* ExistingGDTFToActorClassPairPtr = Algo::FindByPredicate(GDTFToDefaultActorClasses, [FixtureType](const FDMXMVRSceneGDTFToActorClassPair& GDTFToActorClassPair)
+			const FDMXMVRSceneFixtureTypeToActorClassPair* ExistingFixtureTypeToActorClassPairPtr = Algo::FindByPredicate(FixtureTypeToActorClasses, [FixtureType](const FDMXMVRSceneFixtureTypeToActorClassPair& FixtureTypeToActorClassPair)
 				{
-					return GDTFToActorClassPair.GDTF == FixtureType->DMXImport;
+					return FixtureTypeToActorClassPair.FixtureType == FixtureType;
 				});
-			if (ExistingGDTFToActorClassPairPtr)
+			if (ExistingFixtureTypeToActorClassPairPtr)
 			{
 				continue;
 			}
 
 			UClass* ActorClass = MVRFixtureActorLibrary->FindMostAppropriateActorClassForPatch(FixturePatch);
-			FDMXMVRSceneGDTFToActorClassPair GDTFToActorClassPair;
-			GDTFToActorClassPair.GDTF = FixtureType->DMXImport;
-			GDTFToActorClassPair.ActorClass = ActorClass;
+			FDMXMVRSceneFixtureTypeToActorClassPair FixtureTypeToActorClassPair;
+			FixtureTypeToActorClassPair.FixtureType = FixtureType;
+			FixtureTypeToActorClassPair.ActorClass = ActorClass;
 
-			GDTFToDefaultActorClasses.Add(GDTFToActorClassPair);
+			FixtureTypeToActorClasses.Add(FixtureTypeToActorClassPair);
 		}
 	}
-
-	// Remove those GDTFs that are no longer used by any actor
-	GDTFToDefaultActorClasses.SetNum(Algo::RemoveIf(GDTFToDefaultActorClasses, [this](const FDMXMVRSceneGDTFToActorClassPair& GDTFToActorClassPair)
-		{
-			const TSoftObjectPtr<AActor>* ActorThatUsesGDTF = Algo::FindByPredicate(RelatedActors, [this, GDTFToActorClassPair](const TSoftObjectPtr<AActor>& Actor)
-				{
-					const UDMXEntityFixturePatch* FixturePatch = Actor.IsValid() ? GetFixturePatchFromActor(Actor.Get()) : nullptr;
-					const UDMXEntityFixtureType* FixtureType = FixturePatch ? FixturePatch->GetFixtureType() : nullptr;
-					const UDMXImport* GDTF = FixtureType ? FixtureType->DMXImport : nullptr;
-					
-					return GDTFToActorClassPair.GDTF == GDTF;
-				});
-			return ActorThatUsesGDTF == nullptr;
-		}));
 }
+#endif // WITH_EDITOR
 
 #if WITH_EDITOR
 void ADMXMVRSceneActor::OnMapChange(uint32 MapEventFlags)
@@ -449,22 +497,22 @@ void ADMXMVRSceneActor::OnAssetPostImport(UFactory* InFactory, UObject* ActorAdd
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
-void ADMXMVRSceneActor::HandleDefaultActorClassForGDTFChanged()
+void ADMXMVRSceneActor::HandleDefaultActorClassForFixtureTypeChanged()
 {
 	// Handle element changes, but not add/remove
-	if (GDTFToDefaultActorClasses_PreEditChange.Num() != GDTFToDefaultActorClasses.Num())
+	if (FixtureTypeToActorClasses_PreEditChange.Num() != FixtureTypeToActorClasses.Num())
 	{
 		return;
 	}
 
 	int32 IndexOfChangedElement = INDEX_NONE;
-	for (const FDMXMVRSceneGDTFToActorClassPair& GDTFToDefaultActorClassPair : GDTFToDefaultActorClasses)
+	for (const FDMXMVRSceneFixtureTypeToActorClassPair& FixtureTypeToActorClassPair : FixtureTypeToActorClasses)
 	{
-		IndexOfChangedElement = GDTFToDefaultActorClasses_PreEditChange.IndexOfByPredicate([&GDTFToDefaultActorClassPair](const FDMXMVRSceneGDTFToActorClassPair& GDTFToActorClassPair)
+		IndexOfChangedElement = FixtureTypeToActorClasses_PreEditChange.IndexOfByPredicate([&FixtureTypeToActorClassPair](const FDMXMVRSceneFixtureTypeToActorClassPair& OtherFixtureTypeoActorClassPair)
 			{
 				return
-					GDTFToActorClassPair.GDTF == GDTFToDefaultActorClassPair.GDTF &&
-					GDTFToActorClassPair.ActorClass != GDTFToDefaultActorClassPair.ActorClass;
+					OtherFixtureTypeoActorClassPair.FixtureType == FixtureTypeToActorClassPair.FixtureType &&
+					OtherFixtureTypeoActorClassPair.ActorClass != FixtureTypeToActorClassPair.ActorClass;
 			});
 
 		if (IndexOfChangedElement != INDEX_NONE)
@@ -478,7 +526,7 @@ void ADMXMVRSceneActor::HandleDefaultActorClassForGDTFChanged()
 		return;
 	}
 
-	const TSubclassOf<AActor> Class = GDTFToDefaultActorClasses[IndexOfChangedElement].ActorClass.Get();
+	const TSubclassOf<AActor> Class = FixtureTypeToActorClasses[IndexOfChangedElement].ActorClass.Get();
 	if (!Class.Get())
 	{
 		return;
@@ -495,7 +543,7 @@ void ADMXMVRSceneActor::HandleDefaultActorClassForGDTFChanged()
 		UDMXEntityFixturePatch* FixturePatch = GetFixturePatchFromActor(Actor);
 		if (FixturePatch && 
 			FixturePatch->GetFixtureType() && 
-			FixturePatch->GetFixtureType()->DMXImport == GDTFToDefaultActorClasses[IndexOfChangedElement].GDTF)
+			FixturePatch->GetFixtureType() == FixtureTypeToActorClasses[IndexOfChangedElement].FixtureType)
 		{
 			ReplaceMVRActor(Actor, Class);
 		}
@@ -517,9 +565,9 @@ AActor* ADMXMVRSceneActor::SpawnMVRActor(const TSubclassOf<AActor>&ActorClass, U
 		return nullptr;
 	}
 
-	if (!FixturePatch->GetFixtureType() || !FixturePatch->GetFixtureType()->DMXImport)
+	if (!FixturePatch->GetFixtureType())
 	{
-		UE_LOG(LogDMXRuntime, Warning, TEXT("Cannot spawn fixture for Fixture Patch '%s'. It's Fixture Type does not source from a GDTF."), *FixturePatch->Name);
+		UE_LOG(LogDMXRuntime, Warning, TEXT("Cannot spawn fixture for Fixture Patch '%s'. Fixture Patch has no Fixture Type set."), *FixturePatch->Name);
 		return nullptr;
 	}
 
@@ -563,6 +611,8 @@ AActor* ADMXMVRSceneActor::SpawnMVRActor(const TSubclassOf<AActor>&ActorClass, U
 	UDMXMVRAssetUserData::SetMVRAssetUserDataValueForKey(*NewFixtureActor, UDMXMVRAssetUserData::MVRFixtureUUIDMetaDataKey, MVRFixtureUUID.ToString());
 	SetFixturePatchOnActor(NewFixtureActor, FixturePatch);
 	RelatedActors.Add(NewFixtureActor);
+
+	DeletedMVRFixtureUUIDs.Remove(FixturePatch->GetMVRFixtureUUID());
 
 #if WITH_EDITOR
 	PostEditChange();
@@ -632,5 +682,88 @@ AActor* ADMXMVRSceneActor::ReplaceMVRActor(AActor* ActorToReplace, const TSubcla
 	}
 
 	return nullptr;
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void ADMXMVRSceneActor::UpgradeToFixtureTypeToActorClasses()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (!DMXLibrary)
+	{
+		return;
+	}
+
+	const TArray<UDMXEntityFixtureType*> FixtureTypes = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixtureType>();
+	
+	TArray<UDMXEntityFixtureType*> PreviouslyIgnoredFixtureTypes;
+	for (UDMXEntityFixtureType* FixtureType : FixtureTypes)
+	{
+		if (!FixtureType)
+		{
+			continue;
+		}
+
+		const FDMXMVRSceneGDTFToActorClassPair* GDTFToActorClassPairPtr  = Algo::FindByPredicate(GDTFToDefaultActorClasses_DEPRECATED,
+			[&FixtureType](const FDMXMVRSceneGDTFToActorClassPair& GDTFToActorClassPair)
+			{
+				return
+					GDTFToActorClassPair.ActorClass &&
+					!GDTFToActorClassPair.GDTF.IsNull() &&
+					GDTFToActorClassPair.GDTF == FixtureType->GDTFSource;
+			});
+
+		if (GDTFToActorClassPairPtr)
+		{
+			FDMXMVRSceneFixtureTypeToActorClassPair FixtureTypeToActorClassPair;
+			FixtureTypeToActorClassPair.FixtureType = FixtureType;
+			FixtureTypeToActorClassPair.ActorClass = GDTFToActorClassPairPtr->ActorClass;
+
+			FixtureTypeToActorClasses.Add(FixtureTypeToActorClassPair);
+		}
+		else
+		{
+			PreviouslyIgnoredFixtureTypes.Add(FixtureType);
+		}
+	}
+
+	// Early out if possible to avoid any overhead
+	if (PreviouslyIgnoredFixtureTypes.IsEmpty())
+	{
+		return;
+	}
+
+	const TSharedRef<FDMXMVRFixtureActorLibrary> MVRFixtureActorLibrary = MakeShared<FDMXMVRFixtureActorLibrary>();
+	const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+
+	TArray<const UDMXEntityFixtureType*> UpgradedFixtureTypes;
+	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
+	{
+		const UDMXEntityFixtureType* FixtureType = FixturePatch ? FixturePatch->GetFixtureType() : nullptr;
+		if (!FixturePatch || !FixtureType)
+		{
+			continue;
+		}
+
+		if (PreviouslyIgnoredFixtureTypes.Contains(FixtureType))
+		{
+			// Treat previously ignored Fixture Types as deleted from the Level
+			DeletedMVRFixtureUUIDs.Add(FixturePatch->GetMVRFixtureUUID());
+
+			if (!UpgradedFixtureTypes.Contains(FixtureType))
+			{
+				// Upgrade to use Fixture Types which don't have a GDTF set
+				FDMXMVRSceneFixtureTypeToActorClassPair FixtureTypeToActorClassPair;
+				FixtureTypeToActorClassPair.FixtureType = FixtureType;
+				FixtureTypeToActorClassPair.ActorClass = MVRFixtureActorLibrary->FindMostAppropriateActorClassForPatch(FixturePatch);
+
+				FixtureTypeToActorClasses.Add(FixtureTypeToActorClassPair);
+
+				UpgradedFixtureTypes.Add(FixtureType);
+			}
+		}
+	}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR

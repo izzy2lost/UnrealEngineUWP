@@ -3,11 +3,14 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 
 #include "Algo/BinarySearch.h"
+#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementMetaData.h"
 #include "GenericPlatform/GenericPlatformMath.h"
 
-namespace TypedElementQueryBuilder
+namespace UE::Editor::DataStorage::Queries
 {
+	using namespace UE::Editor::DataStorage;
+
 	const UScriptStruct* Type(FTopLevelAssetPath Name)
 	{
 		const UScriptStruct* StructInfo = TypeOptional(Name);
@@ -37,7 +40,7 @@ namespace TypedElementQueryBuilder
 	// DependsOn
 	//
 
-	FDependency::FDependency(ITypedElementDataStorageInterface::FQueryDescription* Query)
+	FDependency::FDependency(FQueryDescription* Query)
 		: Query(Query)
 	{
 	}
@@ -46,7 +49,7 @@ namespace TypedElementQueryBuilder
 	{
 		checkf(Target, TEXT("The Dependency section in the Typed Elements query builder doesn't support nullptrs as Read-Only input."));
 		Query->DependencyTypes.Emplace(Target);
-		Query->DependencyFlags.Emplace(ITypedElementDataStorageInterface::EQueryDependencyFlags::ReadOnly);
+		Query->DependencyFlags.Emplace(EQueryDependencyFlags::ReadOnly);
 		Query->CachedDependencies.AddDefaulted();
 		return *this;
 	}
@@ -69,7 +72,7 @@ namespace TypedElementQueryBuilder
 	{
 		checkf(Target, TEXT("The Dependency section in the Typed Elements query builder doesn't support nullptrs as Read/Write input."));
 		Query->DependencyTypes.Emplace(Target);
-		Query->DependencyFlags.Emplace(ITypedElementDataStorageInterface::EQueryDependencyFlags::None);
+		Query->DependencyFlags.Emplace(EQueryDependencyFlags::None);
 		Query->CachedDependencies.AddDefaulted();
 		return *this;
 	}
@@ -88,19 +91,23 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FDependency& FDependency::SubQuery(TypedElementQueryHandle Handle)
+	FDependency& FDependency::SubQuery(QueryHandle Handle)
 	{
+		checkf(Query->Callback.ExecutionMode != EExecutionMode::ThreadedChunks,
+			TEXT("TEDS sub-queries can not be added to queries with a callback that process chunks in parallel."));
 		Query->Subqueries.Add(Handle);
 		return *this;
 	}
 	
-	FDependency& FDependency::SubQuery(TConstArrayView<TypedElementQueryHandle> Handles)
+	FDependency& FDependency::SubQuery(TConstArrayView<QueryHandle> Handles)
 	{
+		checkf(Query->Callback.ExecutionMode != EExecutionMode::ThreadedChunks,
+			TEXT("TEDS sub-queries can not be added to queries with a callback that process chunks in parallel."));
 		Query->Subqueries.Insert(Handles.GetData(), Handles.Num(), Query->Subqueries.Num());
 		return *this;
 	}
 
-	ITypedElementDataStorageInterface::FQueryDescription&& FDependency::Compile()
+	FQueryDescription&& FDependency::Compile()
 	{
 		return MoveTemp(*Query);
 	}
@@ -110,17 +117,16 @@ namespace TypedElementQueryBuilder
 	 * Simple Query
 	 */
 
-	FSimpleQuery::FSimpleQuery(ITypedElementDataStorageInterface::FQueryDescription* Query)
+	FSimpleQuery::FSimpleQuery(FQueryDescription* Query)
 		: Query(Query)
 	{
-		Query->bSimpleQuery = true;
 	}
 
 	FSimpleQuery& FSimpleQuery::All(const UScriptStruct* Target)
 	{
 		if (Target)
 		{
-			Query->ConditionTypes.Add(ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleAll);
+			Query->ConditionTypes.Add(FQueryDescription::EOperatorType::SimpleAll);
 			Query->ConditionOperators.AddZeroed_GetRef().Type = Target;
 		}
 		return *this;
@@ -139,11 +145,50 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	FSimpleQuery& FSimpleQuery::All(const FValueTag& Tag, const FName& Value)
+	{
+		Query->ValueTags.Emplace(
+			FQueryDescription::FValueTagData
+			{
+				.Tag = Tag,
+				.MatchValue = Value
+			});
+		return *this;
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum)
+	{
+		return All(FValueTag(Enum.GetFName()));
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum, int64 Value)
+	{
+		const FName ValueName = Enum.GetNameByValue(Value);
+		if (ValueName == NAME_None)
+		{
+			UE_LOG(LogEditorDataStorage, Warning, TEXT("Invalid value '%lld' for enum '%s'"), Value, *Enum.GetName());
+			return *this;
+		}
+		return All(FValueTag(Enum.GetFName()), ValueName);
+	}
+	
+	FSimpleQuery& FSimpleQuery::All(const FDynamicColumnDescription& Description)
+	{
+		Query->DynamicConditionDescriptions.Add(Description);
+		Query->DynamicConditionOperations.Add(FQueryDescription::EOperatorType::SimpleAll);
+		return *this;
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const FValueTag& Tag)
+	{
+		return All(Tag, NAME_None);
+	}
+
 	FSimpleQuery& FSimpleQuery::Any(const UScriptStruct* Target)
 	{
 		if (Target)
 		{
-			Query->ConditionTypes.Add(ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleAny);
+			Query->ConditionTypes.Add(FQueryDescription::EOperatorType::SimpleAny);
 			Query->ConditionOperators.AddZeroed_GetRef().Type = Target;
 		}
 		return *this;
@@ -162,11 +207,18 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	FSimpleQuery& FSimpleQuery::Any(const FDynamicColumnDescription& Description)
+	{
+		Query->DynamicConditionDescriptions.Add(Description);
+		Query->DynamicConditionOperations.Add(FQueryDescription::EOperatorType::SimpleAny);
+		return *this;
+	}
+
 	FSimpleQuery& FSimpleQuery::None(const UScriptStruct* Target)
 	{
 		if (Target)
 		{
-			Query->ConditionTypes.Add(ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleNone);
+			Query->ConditionTypes.Add(FQueryDescription::EOperatorType::SimpleNone);
 			Query->ConditionOperators.AddZeroed_GetRef().Type = Target;
 		}
 		return *this;
@@ -185,24 +237,36 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	FSimpleQuery& FSimpleQuery::None(const FDynamicColumnDescription& Description)
+	{
+		Query->DynamicConditionDescriptions.Add(Description);
+		Query->DynamicConditionOperations.Add(FQueryDescription::EOperatorType::SimpleNone);
+		return *this;
+	}
+
 	FDependency FSimpleQuery::DependsOn()
 	{
 		return FDependency{ Query };
 	}
 
-	ITypedElementDataStorageInterface::FQueryDescription&& FSimpleQuery::Compile()
+	FQueryDescription&& FSimpleQuery::Compile()
 	{
 		Query->Callback.BeforeGroups.Shrink();
 		Query->Callback.AfterGroups.Shrink();
 		Query->SelectionTypes.Shrink();
 		Query->SelectionAccessTypes.Shrink();
-		for (TypedElementDataStorage::FColumnMetaData& Metadata : Query->SelectionMetaData)
+		for (FColumnMetaData& Metadata : Query->SelectionMetaData)
 		{
 			Metadata.Shrink();
 		}
 		Query->SelectionMetaData.Shrink();
 		Query->ConditionTypes.Shrink();
 		Query->ConditionOperators.Shrink();
+		Query->DynamicConditionDescriptions.Shrink();
+		Query->DynamicConditionOperations.Shrink();
+		Query->DynamicSelectionAccessTypes.Shrink();
+		Query->DynamicSelectionMetaData.Shrink();
+		Query->DynamicSelectionTypes.Shrink();
 		Query->DependencyTypes.Shrink();
 		Query->DependencyFlags.Shrink();
 		Query->CachedDependencies.Shrink();
@@ -215,12 +279,12 @@ namespace TypedElementQueryBuilder
 	/**
 	 * FProcessor
 	 */
-	FProcessor::FProcessor(ITypedElementDataStorageInterface::EQueryTickPhase Phase, FName Group)
+	FProcessor::FProcessor(EQueryTickPhase Phase, FName Group)
 		: Phase(Phase)
 		, Group(Group)
 	{}
 
-	FProcessor& FProcessor::SetPhase(ITypedElementDataStorageInterface::EQueryTickPhase NewPhase)
+	FProcessor& FProcessor::SetPhase(EQueryTickPhase NewPhase)
 	{
 		Phase = NewPhase;
 		return *this;
@@ -244,9 +308,15 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FProcessor& FProcessor::ForceToGameThread(bool bForce)
+	FProcessor& FProcessor::SetExecutionMode(EExecutionMode Mode)
 	{
-		bForceToGameThread = bForce;
+		ExecutionMode = Mode;
+		return *this;
+	}
+
+	FProcessor& FProcessor::MakeActivatable(FName Name)
+	{
+		ActivationName = Name;
 		return *this;
 	}
 
@@ -272,9 +342,15 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FObserver& FObserver::ForceToGameThread(bool bForce)
+	FObserver& FObserver::SetExecutionMode(EExecutionMode Mode)
 	{
-		bForceToGameThread = bForce;
+		ExecutionMode = Mode;
+		return *this;
+	}
+
+	FObserver& FObserver::MakeActivatable(FName Name)
+	{
+		ActivationName = Name;
 		return *this;
 	}
 
@@ -283,7 +359,7 @@ namespace TypedElementQueryBuilder
 	 * FPhaseAmble
 	 */
 
-	FPhaseAmble::FPhaseAmble(ELocation InLocation, ITypedElementDataStorageInterface::EQueryTickPhase InPhase)
+	FPhaseAmble::FPhaseAmble(ELocation InLocation, EQueryTickPhase InPhase)
 		: Phase(InPhase)
 		, Location(InLocation)
 	{}
@@ -294,15 +370,21 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FPhaseAmble& FPhaseAmble::SetPhase(ITypedElementDataStorageInterface::EQueryTickPhase NewPhase)
+	FPhaseAmble& FPhaseAmble::SetPhase(EQueryTickPhase NewPhase)
 	{
 		Phase = NewPhase;
 		return *this;
 	}
 
-	FPhaseAmble& FPhaseAmble::ForceToGameThread(bool bForce)
+	FPhaseAmble& FPhaseAmble::SetExecutionMode(EExecutionMode Mode)
 	{
-		bForceToGameThread = bForce;
+		ExecutionMode = Mode;
+		return *this;
+	}
+
+	FPhaseAmble& FPhaseAmble::MakeActivatable(FName Name)
+	{
+		ActivationName = Name;
 		return *this;
 	}
 
@@ -313,15 +395,15 @@ namespace TypedElementQueryBuilder
 
 	Select::Select()
 	{
-		Query.Action = ITypedElementDataStorageInterface::FQueryDescription::EActionType::Select;
+		Query.Action = FQueryDescription::EActionType::Select;
 	}
 	
 	Select& Select::ReadOnly(const UScriptStruct* Target)
 	{
 		checkf(Target, TEXT("The Select section in the Typed Elements query builder doesn't support nullptrs as Read-Only input."));
 		Query.SelectionTypes.Emplace(Target);
-		Query.SelectionAccessTypes.Emplace(ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly);
-		Query.SelectionMetaData.Emplace(Target, TypedElementDataStorage::FColumnMetaData::EFlags::None);
+		Query.SelectionAccessTypes.Emplace(EQueryAccessType::ReadOnly);
+		Query.SelectionMetaData.Emplace(Target, FColumnMetaData::EFlags::None);
 		
 		return *this;
 	}
@@ -340,12 +422,46 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	Select& Select::ReadOnly(const FDynamicColumnDescription& Description)
+	{
+		Query.DynamicSelectionTypes.Emplace(Description);
+		Query.DynamicSelectionAccessTypes.Emplace(EQueryAccessType::ReadOnly);
+		Query.DynamicSelectionMetaData.Emplace(FColumnMetaData::EFlags::None);
+		return *this;
+	}
+
+	Select& Select::ReadOnly(const UScriptStruct* Target, EOptional Optional)
+	{
+		checkf(Target, TEXT("The Select section in the Typed Elements query builder doesn't support nullptrs as Read-Only input."));
+		Query.SelectionTypes.Emplace(Target);
+		Query.SelectionAccessTypes.Emplace(Optional == EOptional::Yes
+			? EQueryAccessType::OptionalReadOnly
+			: EQueryAccessType::ReadOnly);
+		Query.SelectionMetaData.Emplace(Target, FColumnMetaData::EFlags::None);
+
+		return *this;
+	}
+
+	Select& Select::ReadOnly(TConstArrayView<const UScriptStruct*> Targets, EOptional Optional)
+	{
+		int32 NewCount = Query.SelectionTypes.Num() + Targets.Num();
+		Query.SelectionTypes.Reserve(NewCount);
+		Query.SelectionAccessTypes.Reserve(NewCount);
+		Query.SelectionMetaData.Reserve(NewCount);
+
+		for (const UScriptStruct* Target : Targets)
+		{
+			ReadOnly(Target, Optional);
+		}
+		return *this;
+	}
+
 	Select& Select::ReadWrite(const UScriptStruct* Target)
 	{
 		checkf(Target, TEXT("The Select section in the Typed Elements query builder doesn't support nullptrs as Read/Write input."));
 		Query.SelectionTypes.Emplace(Target);
-		Query.SelectionAccessTypes.Emplace(ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite);
-		Query.SelectionMetaData.Emplace(Target, TypedElementDataStorage::FColumnMetaData::EFlags::IsMutable);
+		Query.SelectionAccessTypes.Emplace(EQueryAccessType::ReadWrite);
+		Query.SelectionMetaData.Emplace(Target, FColumnMetaData::EFlags::IsMutable);
 		return *this;
 	}
 
@@ -363,6 +479,14 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
+	Select& Select::ReadWrite(const FDynamicColumnDescription& Descirption)
+	{
+		Query.DynamicSelectionTypes.Emplace(Descirption);
+		Query.DynamicSelectionAccessTypes.Emplace(EQueryAccessType::ReadWrite);
+		Query.DynamicSelectionMetaData.Emplace(FColumnMetaData::EFlags::IsMutable);
+		return *this;
+	}
+
 	FSimpleQuery Select::Where()
 	{
 		return FSimpleQuery{ &Query };
@@ -373,7 +497,7 @@ namespace TypedElementQueryBuilder
 		return FDependency{ &Query };
 	}
 
-	ITypedElementDataStorageInterface::FQueryDescription&& Select::Compile()
+	FQueryDescription&& Select::Compile()
 	{
 		return MoveTemp(Query);
 	}
@@ -385,7 +509,7 @@ namespace TypedElementQueryBuilder
 
 	Count::Count()
 	{
-		Query.Action = ITypedElementDataStorageInterface::FQueryDescription::EActionType::Count;
+		Query.Action = FQueryDescription::EActionType::Count;
 	}
 
 	FSimpleQuery Count::Where()
@@ -397,4 +521,4 @@ namespace TypedElementQueryBuilder
 	{
 		return FDependency{ &Query };
 	}
-}
+} // namespace UE::Editor::DataStorage::Queries

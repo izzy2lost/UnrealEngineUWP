@@ -17,9 +17,9 @@
 #include "MovieSceneSequence.h"
 
 class FSequencer;
-class FSequencerTrackFilter;
+class FSequencerFilterBar;
 class FSequencerTrackFilterCollection;
-class FSequencerTrackFilter_LevelFilter;
+class FSequencerTrackFilter_Level;
 class ISequencerTrackEditor;
 class UMovieScene;
 class UMovieSceneFolder;
@@ -65,9 +65,6 @@ public:
 	 */
 	TArray<UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>> GetRootNodes() const;
 
-	/** @return Whether or not there is an active filter */
-	bool HasActiveFilter() const;
-
 	/** 
 	 * Checks if filters should be updated on track value changes, and if so updates them.
 	 * @return Whether the filtered node list was modified
@@ -96,7 +93,7 @@ public:
 	 *
 	 * @param InFilter	The filter terms
 	 */
-	void FilterNodes( const FString& InFilter );
+	void SetTextFilterString( const FString& InFilter );
 
 	/** Called when the active MovieScene's node group colletion has been modifed */
 	void NodeGroupsCollectionChanged();
@@ -177,20 +174,6 @@ public:
 	 */
 	TSharedPtr<FSectionModel> GetSectionModel(const UMovieSceneSection* Section) const;
 
-	void AddFilter(TSharedPtr<FSequencerTrackFilter> TrackFilter);
-	int32 RemoveFilter(TSharedPtr<FSequencerTrackFilter> TrackFilter);
-	void RemoveAllFilters();
-	bool IsTrackFilterActive(TSharedPtr<FSequencerTrackFilter> TrackFilter) const;
-
-	void AddLevelFilter(const FString& LevelName);
-	void RemoveLevelFilter(const FString& LevelName);
-	bool IsTrackLevelFilterActive(const FString& LevelName) const;
-
-private:
-
-	/** Returns whether this NodeTree should only display selected nodes */
-	bool ShowSelectedNodesOnly() const;
-
 private:
 
 	/**
@@ -216,25 +199,11 @@ private:
 	/** Symbolic root node that contains the actual displayed root nodes as children */
 	UE::Sequencer::FViewModelPtr RootNode;
 
-	/** Set of all filtered nodes */
-	TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>> FilteredNodes;
-	/** Active filter string if any */
-	FString FilterString;
 	/** Sequencer interface */
 	FSequencer& Sequencer;
 	/** A multicast delegate which is called whenever the node tree has been updated. */
 	FOnUpdated OnUpdatedDelegate;
 
-	/** Active track filters */
-	TSharedPtr<FSequencerTrackFilterCollection> TrackFilters;
-	
-	/** Level based track filtering */
-	TSharedPtr<FSequencerTrackFilter_LevelFilter> TrackFilterLevelFilter;
-
-	/** The total number of DisplayNodes in the tree, both displayed and hidden */
-	uint32 DisplayNodeCount;
-
 	bool bFilterUpdateRequested;
 	bool bFilteringOnNodeGroups;
 };
-

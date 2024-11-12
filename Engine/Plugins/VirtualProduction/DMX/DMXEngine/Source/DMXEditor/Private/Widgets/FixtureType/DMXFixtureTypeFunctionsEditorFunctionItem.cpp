@@ -3,10 +3,10 @@
 #include "DMXFixtureTypeFunctionsEditorFunctionItem.h"
 
 #include "DMXAttribute.h"
+#include "DMXAttributeToDefaultPhyiscalProperties.h"
 #include "DMXEditor.h"
 #include "DMXRuntimeUtils.h"
 #include "Library/DMXEntityFixtureType.h"
-
 #include "ScopedTransaction.h"
 
 
@@ -112,6 +112,8 @@ FDMXAttributeName FDMXFixtureTypeFunctionsEditorFunctionItem::GetAttributeName()
 
 void FDMXFixtureTypeFunctionsEditorFunctionItem::SetAttributeName(const FDMXAttributeName& AttributeName) const
 {
+	using namespace UE::DMX;
+
 	if (ensureMsgf(FixtureType.IsValid() && FixtureType->Modes.IsValidIndex(ModeIndex) && FixtureType->Modes[ModeIndex].Functions.IsValidIndex(FunctionIndex), TEXT("Invalid Fixture Type, Mode or Function in FDMXFixtureTypeFunctionsEditorFunctionItem.")))
 	{
 		const FScopedTransaction SetAttributeNamelTransaction(LOCTEXT("SetAttributeNamelTransaction", "Set Fixture Function Attribute Name"));
@@ -119,6 +121,8 @@ void FDMXFixtureTypeFunctionsEditorFunctionItem::SetAttributeName(const FDMXAttr
 
 		FDMXFixtureFunction& Function = FixtureType->Modes[ModeIndex].Functions[FunctionIndex];
 		Function.Attribute = AttributeName;
+
+		FDMXAttributeToDefaultPhyiscalProperties::ResetToDefaultPhysicalProperties(Function);
 
 		FixtureType->PostEditChange();
 	}

@@ -242,6 +242,21 @@ bool ULiveLinkBlueprintLibrary::IsLiveLinkSubjectEnabled(const FLiveLinkSubjectN
 	}
 	return false;
 }
+
+ELiveLinkSubjectState ULiveLinkBlueprintLibrary::GetLiveLinkSubjectState(const FLiveLinkSubjectName SubjectName)
+{
+	IModularFeatures& ModularFeatures = IModularFeatures::Get();
+
+	if (!ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+	{
+		return ELiveLinkSubjectState::Unknown;
+	}
+
+	ILiveLinkClient& LiveLinkClient = ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+	
+	return LiveLinkClient.GetSubjectState(SubjectName);
+}
+
 void ULiveLinkBlueprintLibrary::SetLiveLinkSubjectEnabled(const FLiveLinkSubjectKey SubjectKey, bool bEnabled)
 {
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();

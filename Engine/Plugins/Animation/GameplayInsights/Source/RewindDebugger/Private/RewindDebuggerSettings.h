@@ -45,6 +45,10 @@ public:
 	/** If enabled, start recording information at the start of PIE */
 	UPROPERTY(EditAnywhere, Config, Category = Other)
 	bool bShouldAutoRecordOnPIE;
+	
+	/** Playback speed multiplier */
+	UPROPERTY(EditAnywhere, Config, Category = Other)
+	float PlaybackRate = 1.0;
 
 	/** If enabled, show empty tracks on Rewind Debugger Timeline*/
 	UPROPERTY(EditAnywhere, Config, Category = Filters)
@@ -54,7 +58,8 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = Filters)
 	TArray<FName> HiddenTrackTypes;
 
-	/** The track types listed here will be hidden from the track tree view */
+	
+	//** Currently selected target actor's name */
 	UPROPERTY(Config)
 	FString DebugTargetActor;
 	

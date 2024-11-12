@@ -7,6 +7,8 @@
 #include "DynamicMesh/MeshNormals.h"
 
 // Smoothing operators
+#include "DynamicSubmesh3.h"
+#include "Selections/GeometrySelectionUtil.h"
 #include "SmoothingOps/IterativeSmoothingOp.h"
 #include "SmoothingOps/CotanSmoothingOp.h"
 
@@ -15,6 +17,15 @@
 using namespace UE::Geometry;
 
 #define LOCTEXT_NAMESPACE "USmoothMeshTool"
+
+/*
+ * Tool Builder
+ */
+ 
+USingleTargetWithSelectionTool* USmoothMeshToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+{
+	return NewObject<USmoothMeshTool>(SceneState.ToolManager);
+}
 
 /*
  * Tool
@@ -79,6 +90,23 @@ TUniquePtr<FDynamicMeshOperator> USmoothMeshTool::MakeNewOperator()
 	
 	const FDynamicMesh3* Mesh = &GetInitialMesh();
 
+	bool bUsingSelection = false;
+
+	UE::Geometry::FDynamicSubmesh3 SubmeshToSmooth;
+	
+	if (HasGeometrySelection())
+	{
+		// retrieves all triangles in the current selected geometry
+		TSet<int> TrianglesSelected;
+		const FGeometrySelection& InputSelection = GetGeometrySelection();
+		UE::Geometry::EnumerateSelectionTriangles(InputSelection, *Mesh,
+		[&](int32 TriangleID){TrianglesSelected.Add(TriangleID); });
+
+		// creates a Submesh from the selection
+		SubmeshToSmooth = FDynamicSubmesh3(Mesh,TrianglesSelected.Array());
+		bUsingSelection = true;
+	}
+
 	FSmoothingOpBase::FOptions Options;
 	Options.BaseNormals = this->GetInitialVtxNormals();
 
@@ -99,7 +127,14 @@ TUniquePtr<FDynamicMeshOperator> USmoothMeshTool::MakeNewOperator()
 		Options.bSmoothBoundary = IterativeProperties->bSmoothBoundary;
 		Options.bUniform = true;
 		Options.bUseImplicit = false;
-		MeshOp = MakeUnique<FIterativeSmoothingOp>(Mesh, Options);
+		if (bUsingSelection)
+		{
+			MeshOp = MakeUnique<FIterativeSmoothingOp>(Mesh, Options, SubmeshToSmooth);
+		}
+		else
+		{
+			MeshOp = MakeUnique<FIterativeSmoothingOp>(Mesh, Options);
+		}
 		break;
 
 	case ESmoothMeshToolSmoothType::Diffusion:
@@ -108,7 +143,14 @@ TUniquePtr<FDynamicMeshOperator> USmoothMeshTool::MakeNewOperator()
 		Options.Iterations = DiffusionProperties->Steps;
 		Options.bUniform = DiffusionProperties->bPreserveUVs == false;
 		Options.bUseImplicit = true;
-		MeshOp = MakeUnique<FIterativeSmoothingOp>(Mesh, Options);
+		if (bUsingSelection)
+		{
+			MeshOp = MakeUnique<FIterativeSmoothingOp>(Mesh, Options, SubmeshToSmooth);
+		}
+		else
+		{
+			MeshOp = MakeUnique<FIterativeSmoothingOp>(Mesh, Options);
+		}
 		break;
 
 	case ESmoothMeshToolSmoothType::Implicit:
@@ -122,7 +164,14 @@ TUniquePtr<FDynamicMeshOperator> USmoothMeshTool::MakeNewOperator()
 		Options.bUniform = ImplicitProperties->bPreserveUVs == false;
 		Options.bUseImplicit = true;
 		Options.NormalOffset = ImplicitProperties->VolumeCorrection;
-		MeshOp = MakeUnique<FCotanSmoothingOp>(Mesh, Options);
+		if (bUsingSelection)
+		{
+			MeshOp = MakeUnique<FCotanSmoothingOp>(Mesh, Options, SubmeshToSmooth);
+		}
+		else
+		{
+			MeshOp = MakeUnique<FCotanSmoothingOp>(Mesh, Options);
+		}
 		}
 		break;
 	}

@@ -122,7 +122,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeve
 		// Warning: *** [Warning:Validation-1(UNASSIGNED-CoreValidation-Shader-OutputNotConsumed)] fragment shader writes to output location 0 with no matching attachment
 		return VK_FALSE;
 	}
-	else if (!FCStringAnsi::Strcmp(CallbackData->pMessageIdName, "VUID-VkSwapchainCreateInfoKHR-imageExtent-01274"))
+	else if (!FCStringAnsi::Strcmp(CallbackData->pMessageIdName, "VUID-VkSwapchainCreateInfoKHR-imageExtent-01274")||
+		     !FCStringAnsi::Strcmp(CallbackData->pMessageIdName, "VUID-VkSwapchainCreateInfoKHR-pNext-07781"))
 	{
 		// Warning: *** [Error:Validation341838324(VUID-VkSwapchainCreateInfoKHR-imageExtent-01274)] vkCreateSwapChainKHR() called with imageExtent = (8,8), which is outside the bounds returned by vkGetPhysicalDeviceSurfaceCapabilitiesKHR(): currentExtent = (0,0), minImageExtent = (0,0), maxImageExtent = (0,0).
 		return VK_FALSE;
@@ -1206,11 +1207,14 @@ void FWrapLayer::CreateImage(VkResult Result, VkDevice Device, const VkImageCrea
 	if (Result == VK_RESULT_MAX_ENUM)
 	{
 #if VULKAN_ENABLE_DUMP_LAYER
-		DevicePrintfBegin(Device, FString::Printf(TEXT("vkCreateImage(Info=0x%p, OutImage=0x%p)"), CreateInfo, Image));
-		DebugLog += FString::Printf(TEXT("%sVkImageCreateInfo: Flags=%d, ImageType=%s, Format=%s, MipLevels=%d, ArrayLayers=%d, Samples=%s\n"), Tabs, CreateInfo->flags, *GetVkImageTypeString(CreateInfo->imageType),
-			*GetVkFormatString(CreateInfo->format), CreateInfo->mipLevels, CreateInfo->arrayLayers, *GetSampleCountString(CreateInfo->samples));
-		DebugLog += FString::Printf(TEXT("%s\tExtent=(%s) Tiling=%s, Usage=%s, Initial=%s\n"), Tabs, *GetExtentString(CreateInfo->extent),
-			*GetVkImageTilingString(CreateInfo->tiling), *GetImageUsageString(CreateInfo->usage), *GetVkImageLayoutString(CreateInfo->initialLayout));
+		DevicePrintfBegin(Device, FString::Printf(TEXT("vkCreateImage(CreateInfo=0x%p, OutImage=0x%p)"), CreateInfo, Image));
+		if (CreateInfo)
+		{
+			DebugLog += FString::Printf(TEXT("%sVkImageCreateInfo: Flags=%d, ImageType=%s, Format=%s, MipLevels=%d, ArrayLayers=%d, Samples=%s\n"), Tabs, CreateInfo->flags, *GetVkImageTypeString(CreateInfo->imageType),
+				*GetVkFormatString(CreateInfo->format), CreateInfo->mipLevels, CreateInfo->arrayLayers, *GetSampleCountString(CreateInfo->samples));
+			DebugLog += FString::Printf(TEXT("%s\tExtent=(%s) Tiling=%s, Usage=%s, Initial=%s\n"), Tabs, *GetExtentString(CreateInfo->extent),
+				*GetVkImageTilingString(CreateInfo->tiling), *GetImageUsageString(CreateInfo->usage), *GetVkImageLayoutString(CreateInfo->initialLayout));
+		}
 		FlushDebugWrapperLog();
 #endif
 	}
@@ -2240,6 +2244,16 @@ void FWrapLayer::GetPhysicalDeviceFormatProperties(VkResult Result, VkPhysicalDe
 	{
 #if VULKAN_ENABLE_DUMP_LAYER
 		PrintfBegin(FString::Printf(TEXT("vkGetPhysicalDeviceFormatProperties(PhysicalDevice=0x%p, Format=%d, FormatProperties=0x%p)[...]"), PhysicalDevice, (int32)Format, FormatProperties));
+#endif
+	}
+}
+
+void FWrapLayer::GetPhysicalDeviceFormatProperties2(VkResult Result, VkPhysicalDevice PhysicalDevice, VkFormat Format, VkFormatProperties2* FormatProperties)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBegin(FString::Printf(TEXT("vkGetPhysicalDeviceFormatProperties2(PhysicalDevice=0x%p, Format=%d, FormatProperties2=0x%p)[...]"), PhysicalDevice, (int32)Format, FormatProperties));
 #endif
 	}
 }
@@ -3605,6 +3619,16 @@ void FWrapLayer::GetPhysicalDeviceQueueFamilyProperties(VkResult Result, VkPhysi
 	}
 }
 
+void FWrapLayer::GetPhysicalDeviceQueueFamilyProperties2(VkResult Result, VkPhysicalDevice PhysicalDevice, uint32* QueueFamilyPropertyCount, VkQueueFamilyProperties2* QueueFamilyProperties)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("vkGetPhysicalDeviceQueueFamilyProperties2(PhysicalDevice=0x%p, QueueFamilyPropertyCount=0x%p, QueueFamilyProperties2=0x%p)[...]"), PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties));
+#endif
+	}
+}
+
 void FWrapLayer::GetImageMemoryRequirements2(VkResult Result, VkDevice Device, const VkImageMemoryRequirementsInfo2* Info, VkMemoryRequirements2* MemoryRequirements)
 {
 	if (Result == VK_RESULT_MAX_ENUM)
@@ -4052,7 +4076,6 @@ void FWrapLayer::CreateWin32SurfaceKHR(VkResult Result, VkInstance Instance, con
 }
 #endif
 
-#if VULKAN_RHI_RAYTRACING
 void FWrapLayer::CreateAccelerationStructureKHR(VkResult Result, VkDevice Device, const VkAccelerationStructureCreateInfoKHR* CreateInfo, const VkAllocationCallbacks* Allocator, VkAccelerationStructureKHR* AccelerationStructure)
 {
 	if (Result == VK_RESULT_MAX_ENUM)
@@ -4244,7 +4267,7 @@ void FWrapLayer::CmdCopyAccelerationStructureKHR(VkResult Result, VkCommandBuffe
 #endif
 	}
 }
-#endif // VULKAN_RHI_RAYTRACING
+
 
 void FWrapLayer::GetBufferDeviceAddressKHR(VkResult Result, VkDevice Device, const VkBufferDeviceAddressInfo* Info)
 {
@@ -4547,6 +4570,37 @@ void FWrapLayer::QueueSubmit2KHR(VkResult Result, VkQueue Queue, uint32_t Submit
 	}
 }
 
+void FWrapLayer::CreateSamplerYcbcrConversion(VkResult Result, VkDevice Device, const VkSamplerYcbcrConversionCreateInfo* CreateInfo, const VkAllocationCallbacks* Allocator, VkSamplerYcbcrConversion* YcbcrConversion)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("CreateSamplerYcbcrConversion(Device=0x%p, CreateInfo=0x%p, Allocator=0x%p, YcbcrConversion=0x%p))"), Device, CreateInfo, Allocator, YcbcrConversion));
+#endif
+	}
+}
+
+void FWrapLayer::DestroySamplerYcbcrConversion(VkResult Result, VkDevice Device, VkSamplerYcbcrConversion YcbcrConversion, const VkAllocationCallbacks* Allocator)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("DestroySamplerYcbcrConversion(Device=0x%p, YcbcrConversion=0x%p, Allocator=0x%p))"), Device, YcbcrConversion, Allocator));
+#endif
+	}
+}
+
+#if PLATFORM_ANDROID
+void FWrapLayer::GetAndroidHardwareBufferPropertiesANDROID(VkResult Result, VkDevice Device, const struct AHardwareBuffer* Buffer, VkAndroidHardwareBufferPropertiesANDROID* Properties)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("GetAndroidHardwareBufferPropertiesANDROID(Device=0x%p, Buffer=0x%p, Properties=0x%p))"), Device, Buffer, Properties));
+#endif
+	}
+}
+#endif
 
 #if VULKAN_ENABLE_IMAGE_TRACKING_LAYER
 namespace VulkanRHI

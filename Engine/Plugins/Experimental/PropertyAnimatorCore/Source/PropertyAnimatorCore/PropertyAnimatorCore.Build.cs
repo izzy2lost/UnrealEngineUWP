@@ -13,24 +13,28 @@ public class PropertyAnimatorCore : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"StructUtils"
-			});
+				"MovieScene"
+			}
+		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"ApplicationCore",
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
-				"StructUtils"
-			});
+				"Json"
+			}
+		);
 
 		if (Target.Type == TargetRules.TargetType.Editor)
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]
-			{
-				"UnrealEd"
-			});
+				{
+					"UnrealEd"
+				}
+			);
 		}
 
 		ShortName = "PropAnimCore";

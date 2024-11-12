@@ -71,7 +71,7 @@ namespace Audio
 				float Gain = 0.f;
 			};
 
-			virtual ~FBaseChannelFormatConverter() = default;
+			SIGNALPROCESSING_API virtual ~FBaseChannelFormatConverter();
 
 			/** Return the input format handled by this converter. */
 			SIGNALPROCESSING_API const FInputFormat& GetInputFormat() const override;

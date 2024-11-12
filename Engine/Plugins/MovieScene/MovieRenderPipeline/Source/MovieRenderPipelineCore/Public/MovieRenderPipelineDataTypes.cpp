@@ -33,6 +33,19 @@ void FMoviePipelineCameraCutInfo::CalculateWorkMetrics()
 	WorkMetrics.TotalEngineWarmUpFrameCount = NumEngineWarmUpFramesRemaining;
 }
 
+FMoviePipelineConsoleVariableEntry::FMoviePipelineConsoleVariableEntry(const FString& InName, const float InValue, const bool bInIsEnabled)
+	: Name(InName)
+	, Value(InValue)
+	, bIsEnabled(bInIsEnabled)
+{
+
+}
+
+FMoviePipelineConsoleVariableEntry::FMoviePipelineConsoleVariableEntry()
+	: Value(0), bIsEnabled(true)
+{
+}
+
 void FMoviePipelineCameraCutInfo::SetNextStateAfter(const EMovieRenderShotState InCurrentState)
 {
 	switch (InCurrentState)

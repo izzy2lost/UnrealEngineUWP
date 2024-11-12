@@ -23,7 +23,7 @@ public:
 	 * with diagnostics for unexpected differences.
 	 */
 	static void AnalyzeHiddenDependencies(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
-		TMap<FPackageData*, EInstigator>&& UnsolicitedForPackage, TSet<FPackageData*>& SaveReferences,
+		TMap<FPackageData*, EInstigator>&& UnsolicitedForPackage, TMap<FPackageData*, EInstigator>& SaveReferences,
 		TConstArrayView<const ITargetPlatform*> ReachablePlatforms, bool bOnlyEditorOnlyDebug,
 		bool bHiddenDependenciesDebug);
 

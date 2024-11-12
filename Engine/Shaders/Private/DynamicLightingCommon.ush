@@ -4,6 +4,8 @@
 	DynamicLightingCommon.usf: Contains functions shared by dynamic light shaders.
 =============================================================================*/
 
+#pragma once
+
 #include "LargeWorldCoordinates.ush"
 
 float3 GetDeferredLightTranslatedWorldPosition()
@@ -61,37 +63,6 @@ float SpotAttenuation(float3 L, float3 SpotDirection, float2 SpotAngles)
 {
 	float ConeAngleFalloff = Square(SpotAttenuationMask(L, SpotDirection, SpotAngles));
 	return ConeAngleFalloff;
-}
-
-/** Calculates radial and spot attenuation. */
-float CalcLightAttenuation(float3 TranslatedWorldPosition, out float3 WorldLightVector)
-{
-	WorldLightVector = DeferredLightUniforms.Direction;
-	float DistanceAttenuation = 1;
-
-#if RADIAL_ATTENUATION
-	WorldLightVector = GetDeferredLightTranslatedWorldPosition() - TranslatedWorldPosition;
-	float DistanceSqr = dot( WorldLightVector, WorldLightVector );
-
-	// TODO Line segment falloff
-
-	// Sphere falloff (technically just 1/d2 but this avoids inf)
-	DistanceAttenuation = 1 / ( DistanceSqr + 1 );
-	
-	float LightRadiusMask = Square( saturate( 1 - Square( DistanceSqr * DeferredLightUniforms.InvRadius * DeferredLightUniforms.InvRadius ) ) );
-	DistanceAttenuation *= LightRadiusMask;
-	if (DeferredLightUniforms.FalloffExponent > 0.f)
-	{
-		DistanceAttenuation = RadialAttenuation(WorldLightVector * DeferredLightUniforms.InvRadius, DeferredLightUniforms.FalloffExponent);
-	}
-#endif
-
-	float SpotFalloff = 1;
-	#if RADIAL_ATTENUATION
-		SpotFalloff = SpotAttenuation( normalize(WorldLightVector), -DeferredLightUniforms.Direction, DeferredLightUniforms.SpotAngles);
-	#endif
-
-	return SpotFalloff * DistanceAttenuation;
 }
 
 float3 GetNormalizedLightVector(float3 TranslatedWorldPosition)

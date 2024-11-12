@@ -465,7 +465,6 @@ void FFontEditor::PostUndo(bool bSuccess)
 void FFontEditor::NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
 {
 	static const FName FontCacheTypePropertyName = GET_MEMBER_NAME_CHECKED(UFont, FontCacheType);
-	static const FName FontRasterizationModePropertyName = GET_MEMBER_NAME_CHECKED(UFont, FontRasterizationMode);
 	static const FName CompositeFontPropertyName = GET_MEMBER_NAME_CHECKED(UFont, CompositeFont);
 	static const FName TexturePageWidthName = GET_MEMBER_NAME_CHECKED(FFontImportOptionsData, TexturePageWidth);
 	static const FName TexturePageMaxHeightName = GET_MEMBER_NAME_CHECKED(FFontImportOptionsData, TexturePageMaxHeight);
@@ -511,13 +510,6 @@ void FFontEditor::NotifyPostChange( const FPropertyChangedEvent& PropertyChanged
 				break;
 			}
 		}
-	}
-
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == FontRasterizationModePropertyName)
-	{
-		// Show / hide SdfFont category of properties
-		UpdateLayout();
-		FontProperties->ForceRefresh();
 	}
 
 	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == DistanceFieldScaleFactorName)
@@ -1152,22 +1144,6 @@ bool FFontEditor::GetIsPropertyVisible(const FPropertyAndParent& PropertyAndPare
 {
 	static const FName CategoryFName = "Category";
 	const FString& CategoryValue = PropertyAndParent.Property.GetMetaData(CategoryFName);
-
-	// If SDF feature is disabled, hide all SDF-related settings
-	if (!IsSlateSdfTextFeatureEnabled())
-	{
-		if (PropertyAndParent.Property.GetFName() == GET_MEMBER_NAME_CHECKED(UFont, FontRasterizationMode) ||
-			PropertyAndParent.Property.GetFName() == GET_MEMBER_NAME_CHECKED(UFont, SdfSettings))
-		{
-			return false;
-		}
-	}
-
-	// Hide SDF settings if font rasterization mode is not MSDF
-	if (!Font->IsSdfFont() && PropertyAndParent.Property.GetFName() == GET_MEMBER_NAME_CHECKED(UFont, SdfSettings))
-	{
-		return false;
-	}
 
 	// We need to hide the properties associated with the category that we're not currently using (either Offline or Runtime)
 	const FString CategoryToExclude = (Font->FontCacheType == EFontCacheType::Offline) ? TEXT("RuntimeFont") : TEXT("OfflineFont");

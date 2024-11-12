@@ -11,6 +11,7 @@ struct FCompactPose;
 namespace UE::PoseSearch
 {
 
+// @todo: make a memstack allocator version of FMirrorDataCache
 struct POSESEARCH_API FMirrorDataCache
 {
 	FMirrorDataCache();

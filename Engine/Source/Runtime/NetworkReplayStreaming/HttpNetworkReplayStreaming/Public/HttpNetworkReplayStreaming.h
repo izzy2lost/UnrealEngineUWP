@@ -218,7 +218,7 @@ HTTPNETWORKREPLAYSTREAMING_API const TCHAR* LexToString(EHttpReplayResult Enum);
 /**
  * Http network replay streaming manager
  */
-class HTTPNETWORKREPLAYSTREAMING_API FHttpNetworkReplayStreamer : public INetworkReplayStreamer
+class FHttpNetworkReplayStreamer : public INetworkReplayStreamer
 {
 	using FHttpReplayResult = UE::Net::TNetResult<EHttpReplayResult>;
 

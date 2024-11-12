@@ -3,6 +3,7 @@
 #include "Misc/RedirectCollector.h"
 #include "Algo/Transform.h"
 #include "Misc/CoreDelegates.h"
+#include "UObject/CoreRedirects.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -10,10 +11,13 @@
 #include "UObject/UnrealType.h"
 #include "UObject/ObjectRedirector.h"
 #include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/SoftObjectPath.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/FileManager.h"
+#include "Misc/AutomationTest.h"
 
 #if WITH_EDITOR
 
@@ -27,6 +31,35 @@ FAutoConsoleCommand CVarResolveAllSoftObjects(
 		GRedirectCollector.ResolveAllSoftObjectPaths();
 	})
 );
+
+void RedirectCollectorDumpAllAssetRedirects();
+
+FAutoConsoleCommand CVarRedirectCollectorDumpAllAssetRedirects(
+	TEXT("redirectcollector.DumpAllAssetRedirects"),
+	TEXT("Prints all tracked redirectors to the log."),
+	FConsoleCommandDelegate::CreateStatic(&RedirectCollectorDumpAllAssetRedirects)
+);
+
+void RedirectCollectorDumpAllAssetRedirects()
+{
+	UE::TDynamicUniqueLock<FCriticalSection> ScopeLock(GRedirectCollector.AcquireLock());
+	const TMap<FSoftObjectPath, FSoftObjectPath>& Redirects = GRedirectCollector.GetObjectPathRedirectionMapUnderLock(ScopeLock);
+	FString FullyQualifiedFileName = FPaths::ProfilingDir() + FString::Printf(TEXT("AllRedirects (%s).csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")));
+	TUniquePtr<FArchive> OutputFile(IFileManager::Get().CreateFileWriter(*FullyQualifiedFileName));
+	if (OutputFile.IsValid())
+	{
+		TAnsiStringBuilder<4096> StringBuilder;
+
+		for (const TPair<FSoftObjectPath, FSoftObjectPath>& Pair : Redirects)
+		{
+			StringBuilder	<< WriteToAnsiString<256>(Pair.Key.ToString()).ToString() 
+							<< TEXT(",") 
+							<< WriteToAnsiString<256>(Pair.Value.ToString()).ToString()
+							<< LINE_TERMINATOR;
+		}
+		OutputFile->Serialize(StringBuilder.GetData(), StringBuilder.Len());
+	}
+}
 
 void FRedirectCollector::OnSoftObjectPathLoaded(const FSoftObjectPath& ObjectPath, FArchive* InArchive)
 {
@@ -81,7 +114,7 @@ void FRedirectCollector::CollectSavedSoftPackageReferences(FName ReferencingPack
 	TArray<FSoftObjectPathProperty, TInlineAllocator<4>> SoftObjectPathArray;
 	Algo::Transform(PackageNames, SoftObjectPathArray, [ReferencingPackage, bEditorOnlyReferences](const FName& PackageName)
 		{
-			return FSoftObjectPathProperty(FSoftObjectPath(PackageName, NAME_None, FString()), NAME_None, bEditorOnlyReferences);
+			return FSoftObjectPathProperty(FSoftObjectPath::ConstructFromPackageAsset(PackageName, NAME_None), NAME_None, bEditorOnlyReferences);
 		});
 
 	FScopeLock ScopeLock(&CriticalSection);
@@ -117,7 +150,8 @@ void FRedirectCollector::ResolveAllSoftObjectPaths(FName FilterPackage)
 				UE_LOG(LogRedirectors, Verbose, TEXT("    Resolved to '%s'"), *Dest.ToString());
 				if (Dest.ToString() != ToLoad)
 				{
-					ObjectPathRedirectionMap.Add(ToLoadPath, Dest);
+					AddObjectPathRedirectionInternal(ToLoadPath, Dest);
+					FCoreRedirects::RecordAddedObjectRedirector(ToLoadPath, Dest);
 				}
 			}
 			else
@@ -220,6 +254,39 @@ void FRedirectCollector::OnStartupPackageLoadComplete()
 	TrackingReferenceTypesState = ETrackingReferenceTypesState::Disabled;
 }
 
+void FRedirectCollector::GetAllSourcePathsForTargetPath(const FSoftObjectPath& TargetPath, TArray<FSoftObjectPath>& OutSourcePaths) const
+{
+	FScopeLock ScopeLock(&CriticalSection);
+
+	OutSourcePaths.Reset();
+	if (const ObjectPathSourcesArray* Sources = ObjectPathRedirectionReverseMap.Find(TargetPath))
+	{
+		OutSourcePaths = *Sources;
+	}
+}
+
+void FRedirectCollector::AddObjectPathRedirectionInternal(const FSoftObjectPath& Source, const FSoftObjectPath& Destination)
+{
+	if (FSoftObjectPath* ExistingDestination = ObjectPathRedirectionMap.Find(Source))
+	{
+		// We are replacing a redirect not adding one. 
+		// That means we need to remove an old reverse lookup and add a new one
+		if (ObjectPathSourcesArray* ReverseLookupArray = ObjectPathRedirectionReverseMap.Find(*ExistingDestination))
+		{
+			ReverseLookupArray->Remove(Source);
+		}
+
+		*ExistingDestination = Destination;
+	}
+	else
+	{
+		ObjectPathRedirectionMap.Add(Source, Destination);
+	}
+
+	ObjectPathSourcesArray& ReverseLookupArray = ObjectPathRedirectionReverseMap.FindOrAdd(Destination);
+	ReverseLookupArray.AddUnique(Source);
+}
+
 bool FRedirectCollector::ShouldTrackPackageReferenceTypes()
 {
 	// Called from within CriticalSection
@@ -246,11 +313,31 @@ void FRedirectCollector::AddAssetPathRedirection(const FSoftObjectPath& Original
 	{
 		// If RedirectedPath points back to OriginalPath, remove that to avoid a circular reference
 		// This can happen when renaming assets in the editor but not actually dropping redirectors because it was new
-		ObjectPathRedirectionMap.Remove(RedirectedPath);
+		TryRemoveObjectPathRedirectionInternal(RedirectedPath);
 	}
 
 	// This replaces an existing mapping, can happen in the editor if things are renamed twice
-	ObjectPathRedirectionMap.Add(OriginalPath, RedirectedPath);
+	AddObjectPathRedirectionInternal(OriginalPath, RedirectedPath);
+	FCoreRedirects::RecordAddedObjectRedirector(OriginalPath, RedirectedPath);
+}
+
+bool FRedirectCollector::TryRemoveObjectPathRedirectionInternal(const FSoftObjectPath& Source)
+{
+	FSoftObjectPath Destination;
+	bool bRemoved = ObjectPathRedirectionMap.RemoveAndCopyValue(Source, Destination);
+	if (bRemoved)
+	{
+		FCoreRedirects::RecordRemovedObjectRedirector(Source, Destination);
+		if (ObjectPathSourcesArray* ReverseArray = ObjectPathRedirectionReverseMap.Find(Destination))
+		{
+			ReverseArray->RemoveSingleSwap(Source);
+			if (ReverseArray->Num() == 0)
+			{
+				ObjectPathRedirectionReverseMap.Remove(Destination);
+			}
+		}
+	}
+	return bRemoved;
 }
 
 void FRedirectCollector::AddAssetPathRedirection(FName OriginalPath, FName RedirectedPath)
@@ -264,12 +351,7 @@ void FRedirectCollector::RemoveAssetPathRedirection(const FSoftObjectPath& Origi
 {
 	FScopeLock ScopeLock(&CriticalSection);
 
-	FSoftObjectPath* Found = ObjectPathRedirectionMap.Find(OriginalPath);
-
-	if (ensureMsgf(Found, TEXT("Cannot remove redirection from %s, it was not registered"), *OriginalPath.ToString()))
-	{
-		ObjectPathRedirectionMap.Remove(OriginalPath);
-	}
+	TryRemoveObjectPathRedirectionInternal(OriginalPath);
 }
 
 void FRedirectCollector::RemoveAssetPathRedirection(FName OriginalPath)
@@ -329,5 +411,58 @@ FSoftObjectPath FRedirectCollector::GetAssetPathRedirection(const FSoftObjectPat
 }
 
 FRedirectCollector GRedirectCollector;
+#if WITH_AUTOMATION_WORKER
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRedirectCollectorReverseLookupTest, "System.Core.Misc.RedirectCollector.ReverseLookup", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+bool FRedirectCollectorReverseLookupTest::RunTest(const FString& Parameters)
+{
+	FScopeLock ScopeLock(&GRedirectCollector.CriticalSection);
+	bool bSuccess = true;
+
+	// Validate that every forward redirect has a corresponding reverse redirect
+	for (const TPair<FSoftObjectPath, FSoftObjectPath>& ForwardRedirect : GRedirectCollector.ObjectPathRedirectionMap)
+	{
+		bool bFoundReverseEntry = false;
+		if (const FRedirectCollector::ObjectPathSourcesArray* Sources =
+			GRedirectCollector.ObjectPathRedirectionReverseMap.Find(ForwardRedirect.Value))
+		{
+			if (Sources->Contains(ForwardRedirect.Key))
+			{
+				bFoundReverseEntry = true;
+			}
+		}
+
+		if (!bFoundReverseEntry)
+		{
+			bSuccess = false;
+			AddError(FString::Printf(TEXT("Failed to find matching reverse lookup for redirect %s --> %s"),
+				*ForwardRedirect.Key.ToString(), *ForwardRedirect.Value.ToString()));
+		}
+	}
+
+	// Validate that every reverse redirect has a corresponding forward redirect
+	for (const TPair<FSoftObjectPath, FRedirectCollector::ObjectPathSourcesArray>& ReverseRedirectList : GRedirectCollector.ObjectPathRedirectionReverseMap)
+	{
+		for (const FSoftObjectPath& Source : ReverseRedirectList.Value)
+		{
+			bool bFoundForwardEntry = false;
+			if (const FSoftObjectPath* Target = GRedirectCollector.ObjectPathRedirectionMap.Find(Source))
+			{
+				if (*Target == ReverseRedirectList.Key)
+				{
+					bFoundForwardEntry = true;
+				}
+			}
+
+			if (!bFoundForwardEntry)
+			{
+				bSuccess = false;
+				AddError(FString::Printf(TEXT("Failed to find matching reverse lookup for redirect %s --> %s"),
+					*Source.ToString(), *ReverseRedirectList.Key.ToString()));
+			}
+		}
+	}
+	return bSuccess;
+}
+#endif // WITH_AUTOMATION_WORKER
 #endif // WITH_EDITOR

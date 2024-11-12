@@ -8,6 +8,7 @@
 #include "DisplayClusterLightCardActor.h"
 #include "DisplayClusterLightCardEditorHelper.h"
 #include "DisplayClusterRootActor.h"
+#include "DisplayClusterRootActorContainers.h"
 #include "Engine/Canvas.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "IDisplayClusterScenePreview.h"
@@ -175,13 +176,13 @@ void FStageAppRouteHandler::FPerRendererData::SetPreviewSettings(const FRCWebSoc
 
 bool FStageAppRouteHandler::FPerRendererData::GetSceneViewInitOptions(FSceneViewInitOptions& ViewInitOptions, bool bApplyActorRotation)
 {
-	ADisplayClusterRootActor* RootActor = GetRootActor();
-	if (!RootActor)
+	ADisplayClusterRootActor* RootActorProxy = GetRootActorProxy();
+	if (!RootActorProxy)
 	{
 		return false;
 	}
 
-	USceneComponent* ViewOriginComponent = RootActor->GetCommonViewPoint();
+	USceneComponent* ViewOriginComponent = RootActorProxy->GetCommonViewPoint();
 	if (!ViewOriginComponent)
 	{
 		return false;
@@ -200,7 +201,7 @@ bool FStageAppRouteHandler::FPerRendererData::GetSceneViewInitOptions(FSceneView
 	{
 		if (bApplyActorRotation)
 		{
-			Rotation = FRotator(RootActor->GetActorRotation().Quaternion() * PreviewSettings.Rotation.Quaternion());
+			Rotation = FRotator(RootActorProxy->GetActorRotation().Quaternion() * PreviewSettings.Rotation.Quaternion());
 		}
 		else
 		{
@@ -396,6 +397,42 @@ void FStageAppRouteHandler::RegisterRoute(TUniquePtr<FRemoteControlWebsocketRout
 	Routes.Emplace(MoveTemp(Route));
 }
 
+ADisplayClusterRootActor* FStageAppRouteHandler::FPerRendererData::GetRootActorProxy() const
+{
+	// In this application we will always use RootActorProxy, so the function below will always return a proxy.
+	// (see EDisplayClusterScenePreviewFlags::UseRootActorProxy flag)
+	return IDisplayClusterScenePreview::Get().GetRendererRootActorOrProxy(RendererId);
+}
+
+void FStageAppRouteHandler::SetRendererRootActorPath(const int32 RendererId, const FString& RootActorPath)
+{
+	// Use custom settings for root actor.
+	FDisplayClusterRootActorPropertyOverrides PropertyOverrides;
+	{
+		PropertyOverrides.bPreviewICVFXFrustums = false;
+		PropertyOverrides.bEnablePreviewTechvis = false;
+		PropertyOverrides.bPreviewEnableOverlayMaterial = false;
+		PropertyOverrides.bFreezePreviewRender = false;
+
+		PropertyOverrides.bPreviewEnablePostProcess = true;
+		PropertyOverrides.bPreviewEnable = true;
+
+		PropertyOverrides.PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor;
+	}
+
+	IDisplayClusterScenePreview::Get().SetRendererRootActorPath(RendererId, RootActorPath, PropertyOverrides,
+		// When we use preview rendering for an external request with settings different from those used in the scene,
+		// need to create a new DCRA actor and use it as a proxy for custom rendering.
+		EDisplayClusterScenePreviewFlags::UseRootActorProxy
+		// Move the RootActorProxy to the same position as in the scene to match the position of the StageActors in world space.
+		| EDisplayClusterScenePreviewFlags::ProxyFollowSceneRootActor
+		// Also proxy must render preview each frame
+		| EDisplayClusterScenePreviewFlags::ProxyTickPreviewRenderer
+		// Automatically update the renderer with stage actors belonging to the root actor in scene.
+		| EDisplayClusterScenePreviewFlags::AutoUpdateStageActors
+	);
+}
+
 void FStageAppRouteHandler::HandleWebSocketNDisplayPreviewRendererCreate(const FRemoteControlWebSocketMessage& WebSocketMessage)
 {
 	FRCWebSocketNDisplayPreviewRendererCreateBody Body;
@@ -409,12 +446,9 @@ void FStageAppRouteHandler::HandleWebSocketNDisplayPreviewRendererCreate(const F
 	const int32 RendererId = PreviewModule.CreateRenderer();
 	PerRendererDataMapsByClientId.FindOrAdd(WebSocketMessage.ClientId).Emplace(RendererId, RendererId);
 
-	PreviewModule.SetRendererUsePostProcessTexture(RendererId, true);
-
 	if (!Body.RootActorPath.IsEmpty())
 	{
-		PreviewModule.SetRendererRootActorPath(RendererId, Body.RootActorPath, true);
-		BeginForceRootActorPreview(RendererId);
+		SetRendererRootActorPath(RendererId, Body.RootActorPath);
 	}
 
 	ChangePreviewRendererSettings(WebSocketMessage.ClientId, RendererId, Body.Settings);
@@ -436,11 +470,7 @@ void FStageAppRouteHandler::HandleWebSocketNDisplayPreviewRendererSetRoot(const 
 		return;
 	}
 
-	EndForceRootActorPreview(Body.RendererId);
-
-	IDisplayClusterScenePreview::Get().SetRendererRootActorPath(Body.RendererId, Body.RootActorPath, true);
-
-	BeginForceRootActorPreview(Body.RendererId);
+	SetRendererRootActorPath(Body.RendererId, Body.RootActorPath);
 }
 
 void FStageAppRouteHandler::HandleWebSocketNDisplayPreviewRendererConfigure(const FRemoteControlWebSocketMessage& WebSocketMessage)
@@ -479,7 +509,6 @@ void FStageAppRouteHandler::HandleWebSocketNDisplayPreviewRendererDestroy(const 
 		// Check that this client created the renderer
 		if (PerRendererDataMap->Remove(Body.RendererId) > 0)
 		{
-			EndForceRootActorPreview(Body.RendererId);
 			IDisplayClusterScenePreview::Get().DestroyRenderer(Body.RendererId);
 		}
 	}
@@ -1046,7 +1075,6 @@ void FStageAppRouteHandler::HandleClientDisconnected(FGuid ClientId)
 		{
 			EndActorDrag(PerRendererDataPair.Value, ClientId, PerRendererDataPair.Key, true);
 
-			EndForceRootActorPreview(PerRendererDataPair.Key);
 			PreviewModule.DestroyRenderer(PerRendererDataPair.Key);
 		}
 
@@ -1195,27 +1223,6 @@ void FStageAppRouteHandler::EndActorDrag(FPerRendererData& PerRendererData, cons
 
 		RemoteControlModule->SendWebsocketMessage(ClientId, Payload);
 	}
-}
-
-void FStageAppRouteHandler::BeginForceRootActorPreview(int32 RendererId)
-{
-#if WITH_EDITOR
-	if (ADisplayClusterRootActor* RootActor = IDisplayClusterScenePreview::Get().GetRendererRootActor(RendererId))
-	{
-		// Force the new root actor to render previews so the app always gets a render of it
-		RootActor->AddPreviewEnableOverride(reinterpret_cast<uint8*>(this));
-	}
-#endif
-}
-
-void FStageAppRouteHandler::EndForceRootActorPreview(int32 RendererId)
-{
-#if WITH_EDITOR
-	if (ADisplayClusterRootActor* RootActor = IDisplayClusterScenePreview::Get().GetRendererRootActor(RendererId))
-	{
-		RootActor->RemovePreviewEnableOverride(reinterpret_cast<uint8*>(this));
-	};
-#endif
 }
 
 #undef LOCTEXT_NAMESPACE

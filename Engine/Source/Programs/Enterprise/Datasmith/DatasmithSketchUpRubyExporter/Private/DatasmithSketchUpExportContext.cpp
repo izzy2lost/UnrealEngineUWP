@@ -87,6 +87,7 @@ void FExportContext::Populate()
 	// Setup root Node, based on Model
 	Model = MakeShared<FModel>(*ModelDefinition);
 	RootNode = MakeShared<FNodeOccurence>(*Model);
+	RootNode->WorldTransformSource = WorldTransform;
 	RootNode->WorldTransform = WorldTransform;
 	RootNode->EffectiveLayerRef = DefaultLayerRef;
 	// Name and label for root loose mesh actors
@@ -175,19 +176,26 @@ bool FExportContext::Update(bool bModifiedHint)
 	}
 
 	// Invalidate occurrences for changed instances first
+	// These methods analyse the state of entities and make invalidation state of different relevant properties up to date
+	// to use further to actually update the exported data
 	Model->UpdateEntityProperties(*this);
 	ComponentInstances.UpdateProperties();
 	Images.UpdateProperties();
 
+	// Update visibility and transformations for occurrences after all properties were checked for invalidation
 	// Update occurrences visibility(before updating meshes to make sure to skip updating unused meshes)
 	RootNode->UpdateVisibility(*this);
+	// Update occurrences transformations before updating definitions to find out what to do with geometry for different occurrences
+	// e.g. make instanced meshes or bake separate meshes for occurrences with unsupported transformations
+	// after visibility pass - visibility information is needed to make decision on mesh baking
+	RootNode->UpdateTransformations(*this);
 
 	// Update Datasmith Meshes after their usage was refreshed(in visibility update) and before node hierarchy update(where Mesh Actors are updated for meshes)
 	ModelDefinition->UpdateDefinition(*this);
 	ComponentDefinitions.Update();
 	Images.Update();
 
-	// ComponentInstances will invalidate occurrences 
+	// ComponentInstances will invalidate occurrences
 	Model->UpdateEntityGeometry(*this);
 	ComponentInstances.UpdateGeometry();
 
@@ -197,9 +205,12 @@ bool FExportContext::Update(bool bModifiedHint)
 	Materials.Update();
 
 	// Wait for mesh export to complete
-	for(TFuture<bool>& Task: MeshExportTasks)
+	for(TSharedFuture<bool>& Task: MeshExportTasks)
 	{
-		Task.Get();
+		if (!Task.Get())
+		{
+			DatasmithSketchUpUtils::ToRuby::LogWarn(TEXT("A mesh failed to export, see UnrealDatasmithSketchUp/log.txt"));
+		}
 	}
 	MeshExportTasks.Reset();
 
@@ -432,8 +443,6 @@ bool FLayerCollection::IsLayerVisible(SULayerRef LayerRef)
 	return Found ? *Found : true;
 }
 
-
-
 SULayerRef FLayerCollection::GetLayer(FLayerIDType LayerId)
 {
 	size_t LayerCount = 0;
@@ -457,6 +466,13 @@ SULayerRef FLayerCollection::GetLayer(FLayerIDType LayerId)
 FLayerIDType FLayerCollection::GetLayerId(SULayerRef LayerRef)
 {
 	return DatasmithSketchUpUtils::GetEntityID(SULayerToEntity(LayerRef));
+}
+
+bool FLayerCollection::IsDefault(FLayerIDType LayerID)
+{
+	SULayerRef DefaultLayerRef = SU_INVALID;
+	SUModelGetDefaultLayer(Context.ModelRef, &DefaultLayerRef);
+	return LayerID == GetLayerId(DefaultLayerRef);
 }
 
 void FComponentDefinitionCollection::PopulateFromModel(SUModelRef InModelRef)

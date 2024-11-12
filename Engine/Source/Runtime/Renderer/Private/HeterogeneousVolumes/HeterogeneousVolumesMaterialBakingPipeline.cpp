@@ -21,6 +21,7 @@ class FHeterogeneousVolumesBakeMaterialCS : public FMeshMaterialShader
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 
 		// Object data
 		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
@@ -136,6 +137,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 
 		// Object data
 		// TODO: Convert to relative-local space
@@ -171,8 +173,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 		RDG_EVENT_NAME("HeterogeneousVolumesBakedMaterialCS"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		// Why is scene explicitly copied??
-		[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material, GroupCount](FRHIComputeCommandList& RHICmdList)
+		[PassParameters, Scene, &View, MaterialRenderProxy, &Material, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FHeterogeneousVolumesBakeMaterialCS::FPermutationDomain PermutationVector;
 			TShaderRef<FHeterogeneousVolumesBakeMaterialCS> ComputeShader = Material.GetShader<FHeterogeneousVolumesBakeMaterialCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
@@ -180,7 +181,7 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 			if (!ComputeShader.IsNull())
 			{
 				FMeshDrawShaderBindings ShaderBindings;
-				UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+				UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 				UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
 			}

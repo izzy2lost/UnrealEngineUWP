@@ -19,6 +19,17 @@ template <typename ItemType> class STreeView;
 struct GRAPHEDITOR_API FGraphActionNode : TSharedFromThis<FGraphActionNode>
 {
 public:
+	// We need to declare our copy constructors so that we can disable
+	// deprecation warnings around them for ClangEditor - when all of
+	// the deprecated members are deleted we can remove these:
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FGraphActionNode(const FGraphActionNode& Node) = delete;
+	FGraphActionNode& operator=(const FGraphActionNode& Node) = delete;
+	FGraphActionNode(FGraphActionNode&& Node) = delete;
+	FGraphActionNode& operator=(FGraphActionNode&& Node) = delete;
+	~FGraphActionNode() = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	/** */
 	static const int32 INVALID_SECTION_ID = 0;
 
@@ -26,7 +37,9 @@ public:
 	int32 const SectionID;
 	/** Identifies the menu group that this node belongs to (defaults to zero) */
 	int32 const Grouping;
-	/** A set of actions to execute when this node is picked from a menu */
+	/** An action to execute when this node is picked from a menu */
+	TSharedPtr<FEdGraphSchemaAction> const Action;
+	UE_DEPRECATED(5.5, "!! WARNING: This array is no longer populated!! FGraphActionNode::Actions array only functioned with a single Action (GetPrimaryAction), access via Action")
 	TArray< TSharedPtr<FEdGraphSchemaAction> > const Actions;
 
 	/** */
@@ -46,23 +59,32 @@ public:
 
 	/**
 	 * Inserts a new action node (and any accompanying category nodes) based off
-	 * the provided ActionSet. 
+	 * the provided Action. 
 	 *
 	 * NOTE: This does NOT insert the node in a sorted manner. Call SortChildren() 
 	 *       separately or use AddChildAlphabetical
 	 * 
-	 * @param  ActionSet	A list of actions that you want the node to execute when picked.
+	 * @param  Action	An action that you want the node to execute when picked.
 	 * @return The new action node.
 	 */
+	TSharedPtr<FGraphActionNode> AddChild(const TSharedPtr<FEdGraphSchemaAction>& Action);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup has been deprecated, use TSharedPtr<FEdGraphSchemaAction> directly")
 	TSharedPtr<FGraphActionNode> AddChild(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Inserts a new action node (and any required category nodes) based off
-	 * the provided ActionSet. Inserts in alphabetical order.
+	 * the provided Action. Inserts in alphabetical order.
 	 *
-	 * @param  ActionSet	A list of actions that you want the node to execute when picked.
+	 * @param  Action	An action that you want the node to execute when picked.
+	 * @return The new action node.
 	 */
-	void AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
+	TSharedPtr<FGraphActionNode> AddChildAlphabetical(const TSharedPtr<FEdGraphSchemaAction>& Action);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup has been deprecated, use TSharedPtr<FEdGraphSchemaAction> directly")
+	TSharedPtr<FGraphActionNode> AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TSharedPtr<FGraphActionNode> AddSection(int32 Grouping, int32 InSectionID);
 
@@ -101,6 +123,9 @@ public:
 	 * @param  OutLeafArray	The array to fill out with decendent leaf nodes.
 	 */
 	void GetLeafNodes(TArray< TSharedPtr<FGraphActionNode> >& OutLeafArray) const;
+
+	/** Returns the number of leaf nodes */
+	int32 GetTotalLeafNodes() const;
 
 	/**
 	 * Takes the tree view and expands its elements for each child.
@@ -194,6 +219,8 @@ public:
 	 */
 	bool IsRenameRequestPending() const;
 
+	/** Returns the 'linearized' index of the node, including category nodes, useful for getting displayed position */
+	int32 GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node) const;
 private:
 	/**
 	 *
@@ -206,11 +233,11 @@ private:
 	/**
 	 * Constructor for action nodes. Private so that users go through AddChild().
 	 *
-	 * @param  ActionList
+	 * @param  InAction
 	 * @param  Grouping
 	 * @param  SectionID
 	 */
-	FGraphActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > const& ActionList, int32 Grouping, int32 SectionID);
+	FGraphActionNode(const TSharedPtr<FEdGraphSchemaAction>& InAction, int32 InGrouping, int32 InSectionID);
 
 	/**
 	 *
@@ -235,10 +262,10 @@ private:
 	/**
 	 *
 	 *
-	 * @param  ActionList
+	 * @param  ActionNode
 	 * @return
 	 */
-	static TSharedPtr<FGraphActionNode> NewActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > const& ActionList);
+	static TSharedPtr<FGraphActionNode> NewActionNode(TSharedPtr<FEdGraphSchemaAction> const& ActionNode);
 
 	/**
 	 *
@@ -278,8 +305,11 @@ private:
 	 */
 	void InsertChild(TSharedPtr<FGraphActionNode> NodeToAdd);
 
-	void AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent);
+	void AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent, bool bInsertAlphabetically);
 	void InsertChildAlphabetical(TSharedPtr<FGraphActionNode> NodeToAdd);
+
+	/** Recursive implementation helper for GetLinearizedIndex */
+	int32 GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node, int32& Iter) const;
 private:
 	/** The category or action name (depends on what type of node this is) */
 	FText DisplayText;
@@ -298,5 +328,7 @@ private:
 
 	friend struct FGraphActionNodeImpl;
 	/** For sorting, when we don't alphabetically sort (so menu items don't jump around). */
-	int32 InsertOrder;	
+	int32 InsertOrder;
+	/** Root entry only, counts the total leaf entries in this tree */
+	int32 TotalLeafs;
 };

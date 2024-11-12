@@ -206,7 +206,7 @@ bool FStructurePropertyNode::GetReadAddressUncached(const FPropertyNode& InPrope
 		}
 	}
 
-	if (bAllTheSame && OutAddresses)
+	if (OutAddresses)
 	{
 		for (TSharedPtr<FStructOnScope>& Instance : Instances)
 		{
@@ -298,7 +298,8 @@ EPropertyDataValidationResult FStructurePropertyNode::EnsureDataIsValid()
 	if (GetBaseStructure() != CachedBaseStruct)
 	{
 		RebuildChildren();
-		return EPropertyDataValidationResult::ChildrenRebuilt;
+		// Invalidate the object to prevent EditCondition evaluating on old nodes.
+		return EPropertyDataValidationResult::ObjectInvalid;
 	}
 	
 	return FPropertyNode::EnsureDataIsValid();

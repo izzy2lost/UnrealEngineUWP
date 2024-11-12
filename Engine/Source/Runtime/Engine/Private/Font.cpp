@@ -388,25 +388,3 @@ void UFont::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 		}
 	}
 }
-
-bool UFont::IsSdfFont() const
-{
-	switch (FontRasterizationMode)
-	{
-		case EFontRasterizationMode::Msdf:
-			return IsSlateSdfTextFeatureEnabled();
-		default:
-			return false;
-	}
-}
-
-EFontRasterizationMode UFont::GetFontRasterizationMode() const
-{
-	switch (FontRasterizationMode)
-	{
-		case EFontRasterizationMode::Msdf:
-			return IsSlateSdfTextFeatureEnabled() ? EFontRasterizationMode::Msdf : EFontRasterizationMode::Bitmap;
-		default:
-			return FontRasterizationMode;
-	}
-}

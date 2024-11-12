@@ -91,10 +91,12 @@ namespace UE::Chaos::ClothAsset
 		{
 			TSharedRef<IPropertyHandle> ChildHandle = SortedChildHandles[ChildIndex];
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (IsOverrideProperty(ChildHandle))
 			{
 				continue;  // Skip overrides
 			}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			// Propagate metadata to child properties so that it's reflected in the nested, individual spin boxes
 			ChildHandle->SetInstanceMetaData(TEXT("UIMin"), StructPropertyHandle->GetMetaData(TEXT("UIMin")));
@@ -171,64 +173,7 @@ namespace UE::Chaos::ClothAsset
 						});
 			}
 		}
-		if (PropertyClass == FStrProperty::StaticClass())
-		{
-			// Manage override property values (properties ending with _Override)
-			TWeakPtr<IPropertyHandle> OverrideHandleWeakPtr;
-
-			for (int32 ChildIndex = 0; ChildIndex < SortedChildHandles.Num(); ++ChildIndex)
-			{
-				const bool bLastChild = SortedChildHandles.Num() - 1 == ChildIndex;
-				const TSharedRef<IPropertyHandle>& ChildHandle = SortedChildHandles[ChildIndex];
-
-				if (IsOverridePropertyOf(ChildHandle, PropertyHandle))
-				{
-					OverrideHandleWeakPtr = ChildHandle;
-					break;
-				}
-			}
-
-			TWeakPtr<IPropertyHandle> HandleWeakPtr = PropertyHandle;
-			return
-				SNew(SEditableTextBox)
-				.ToolTipText(PropertyHandle->GetToolTipText())
-				.Text_Lambda([HandleWeakPtr, OverrideHandleWeakPtr]() -> FText
-					{
-						FString Text;
-						if (const TSharedPtr<IPropertyHandle> OverrideHandlePtr = OverrideHandleWeakPtr.Pin())
-						{
-							OverrideHandlePtr->GetValue(Text);
-						}
-						if (Text == UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden)
-						{
-							Text.Empty();  // GetValue seems to concatenate the text if the string isn't emptied first
-							if (const TSharedPtr<IPropertyHandle> HandlePtr = HandleWeakPtr.Pin())
-							{
-								HandlePtr->GetValue(Text);
-							}
-						}
-						return FText::FromString(Text);
-
-					})
-				.OnTextCommitted_Lambda([HandleWeakPtr](const FText& Text, ETextCommit::Type)
-					{
-						if (const TSharedPtr<IPropertyHandle> HandlePtr = HandleWeakPtr.Pin())
-						{
-							HandlePtr->SetValue(Text.ToString(), EPropertyValueSetFlags::DefaultFlags);
-						}
-					})
-				.IsEnabled_Lambda([OverrideHandleWeakPtr]() -> bool
-					{
-						FString Text;
-						if (const TSharedPtr<IPropertyHandle> OverrideHandlePtr = OverrideHandleWeakPtr.Pin())
-						{
-							OverrideHandlePtr->GetValue(Text);
-						}
-						return Text == UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;
-					})
-				.Font(IPropertyTypeCustomizationUtils::GetRegularFont());
-		}
-		return SNullWidget::NullWidget;
+		return FConnectableValueCustomization::MakeChildWidget(StructurePropertyHandle, PropertyHandle);
 	}
 
 	TSharedRef<SWidget> FWeightedValueCustomization::MakeFloatWidget(
@@ -266,7 +211,7 @@ namespace UE::Chaos::ClothAsset
 				{
 					if (bIsUsingSlider)
 					{
-						WeakHandlePtr.Pin()->SetValue(Value, EPropertyValueSetFlags::InteractiveChange);
+						WeakHandlePtr.Pin()->SetValue(Value, EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
 					}
 				})
 			.OnBeginSliderMovement_Lambda([this]()

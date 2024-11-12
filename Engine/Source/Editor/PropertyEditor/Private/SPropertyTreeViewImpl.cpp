@@ -170,7 +170,7 @@ void SPropertyTreeViewImpl::Construct(const FArguments& InArgs)
 	FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddSP(this, &SPropertyTreeViewImpl::RequestRefresh);
 }
 
-void SPropertyTreeViewImpl::OnPermissionListUpdated(TSoftObjectPtr<UStruct>, FName)
+void SPropertyTreeViewImpl::OnPermissionListUpdated(TSoftObjectPtr<const UStruct>, FName)
 {
 	RequestRefresh();
 }
@@ -253,7 +253,6 @@ void SPropertyTreeViewImpl::ConstructPropertyTree()
 
 			SAssignNew( FavoritesTree, SPropertyTree )
 				.Visibility( this, &SPropertyTreeViewImpl::OnGetFavoritesVisibility )
-				.ItemHeight( PropertyTreeConstants::ItemHeight )
 				.TreeItemsSource( &TopLevelFavorites )
 				.OnGetChildren( this, &SPropertyTreeViewImpl::OnGetChildFavoritesForPropertyNode )
 				.OnGenerateRow( this, &SPropertyTreeViewImpl::OnGenerateRowForPropertyTree )
@@ -275,7 +274,6 @@ void SPropertyTreeViewImpl::ConstructPropertyTree()
 			.Padding( 0.0f, PaddingAfterFilter, 0.0f, 0.0f )
 		[
 			SAssignNew( PropertyTree, SPropertyTree )
-				.ItemHeight( PropertyTreeConstants::ItemHeight )
 				.TreeItemsSource( &TopLevelPropertyNodes )
 				.OnGetChildren( this, &SPropertyTreeViewImpl::OnGetChildrenForPropertyNode )
 				.OnGenerateRow( this, &SPropertyTreeViewImpl::OnGenerateRowForPropertyTree )

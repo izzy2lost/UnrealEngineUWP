@@ -6,7 +6,7 @@
 #include "VCamPixelStreamingSessionLogic.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	void FPixelStreamingVCamModule::StartupModule()
 	{
@@ -49,7 +49,7 @@ namespace UE::PixelStreamingVCam::Private
 			UVCamPixelStreamingSession::StaticClass(),
 			FOutputProviderLogicFactoryDelegate::CreateLambda([](const FOutputProviderLogicCreationArgs& Args)
 				{
-					return MakeShared<FVCamPixelStreamingSessionLogic>();
+					return MakeShared<FVCamPixelStreamingSessionLogic>(Args);
 				})
 		);
 
@@ -131,4 +131,4 @@ namespace UE::PixelStreamingVCam::Private
 	}
 }
 
-IMPLEMENT_MODULE(UE::PixelStreamingVCam::Private::FPixelStreamingVCamModule, PixelStreamingVCam);
+IMPLEMENT_MODULE(UE::PixelStreamingVCam::FPixelStreamingVCamModule, PixelStreamingVCam);

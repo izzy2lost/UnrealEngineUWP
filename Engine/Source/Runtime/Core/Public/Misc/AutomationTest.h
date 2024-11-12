@@ -9,6 +9,7 @@
 #include "Containers/Queue.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
+#include "Containers/StringView.h"
 #include "CoreTypes.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateBase.h"
@@ -39,6 +40,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Optional.h"
 #include "Misc/OutputDevice.h"
+#include "Misc/TextFilterExpressionEvaluator.h"
 #include "Misc/Timespan.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
@@ -48,7 +50,10 @@
 #include <atomic>
 
 CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogLatentCommands, Log, All);
+CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogAutomationTestFramework, Log, All);
+
 class FAutomationTestBase;
+class FAutomationTestTags;
 
 #ifndef WITH_AUTOMATION_TESTS
 	#define WITH_AUTOMATION_TESTS (WITH_DEV_AUTOMATION_TESTS || WITH_PERF_AUTOMATION_TESTS)
@@ -75,76 +80,66 @@ class FAutomationTestBase;
 * Flags for specifying automation test requirements/behavior
 * Update GetTestFlagsMap when updating this enum.
 */
-struct EAutomationTestFlags
+enum class EAutomationTestFlags
 {
-	enum Type
-	{
-		None = 0x00000000,
-		//~ Application context required for the test
-		// Test is suitable for running within the editor
-		EditorContext = 0x00000001,
-		// Test is suitable for running within the client
-		ClientContext = 0x00000002,
-		// Test is suitable for running within the server
-		ServerContext = 0x00000004,
-		// Test is suitable for running within a commandlet
-		CommandletContext = 0x00000008,
-		ApplicationContextMask = EditorContext | ClientContext | ServerContext | CommandletContext,
+	None = 0x00000000,
+	//~ Application context required for the test
+	// Test is suitable for running within the editor
+	EditorContext = 0x00000001,
+	// Test is suitable for running within the client
+	ClientContext = 0x00000002,
+	// Test is suitable for running within the server
+	ServerContext = 0x00000004,
+	// Test is suitable for running within a commandlet
+	CommandletContext = 0x00000008,
+	// Test is suitable for running within program application (not editor, nor game)
+	ProgramContext = 0x00000010,
 
-		//~ Features required for the test - not specifying means it is valid for any feature combination
-		// Test requires a non-null RHI to run correctly
-		NonNullRHI = 0x00000100,
-		// Test requires a user instigated session
-		RequiresUser = 0x00000200,
-		FeatureMask = NonNullRHI | RequiresUser,
+	//~ Features required for the test - not specifying means it is valid for any feature combination
+	// Test requires a non-null RHI to run correctly
+	NonNullRHI = 0x00000100,
+	// Test requires a user instigated session
+	RequiresUser = 0x00000200,
 
-		//~ One-off flag to allow for fast disabling of tests without commenting code out
-		// Temp disabled and never returns for a filter
-		Disabled = 0x00010000,
+	//~ One-off flag to allow for fast disabling of tests without commenting code out
+	// Temp disabled and never returns for a filter
+	Disabled = 0x00010000,
 
-		//~ Priority of the test
-		// The highest priority possible. Showstopper/blocker.
-		CriticalPriority			= 0x00100000,
-		// High priority. Major feature functionality etc. 
-		HighPriority				= 0x00200000,
-		// Mask for High on SetMinimumPriority
-		HighPriorityAndAbove		= CriticalPriority | HighPriority,
-		// Medium Priority. Minor feature functionality, major generic content issues.
-		MediumPriority				= 0x00400000,
-		// Mask for Medium on SetMinimumPriority
-		MediumPriorityAndAbove		= CriticalPriority | HighPriority | MediumPriority,
-		// Low Priority. Minor content bugs. String errors. Etc.
-		LowPriority					= 0x00800000,
-		PriorityMask = CriticalPriority | HighPriority | MediumPriority | LowPriority,
+	//~ Priority of the test
+	// The highest priority possible. Showstopper/blocker.
+	CriticalPriority			= 0x00100000,
+	// High priority. Major feature functionality etc. 
+	HighPriority				= 0x00200000,
+	// Medium Priority. Minor feature functionality, major generic content issues.
+	MediumPriority				= 0x00400000,
+	// Low Priority. Minor content bugs. String errors. Etc.
+	LowPriority					= 0x00800000,
 
-		//~ Speed of the test
-		//Super Fast Filter
-		SmokeFilter					= 0x01000000,
-		//Engine Level Test
-		EngineFilter				= 0x02000000,
-		//Product Level Test
-		ProductFilter				= 0x04000000,
-		//Performance Test
-		PerfFilter					= 0x08000000,
-		//Stress Test
-		StressFilter				= 0x10000000,
-		//Negative Test. For tests whose correct expected outcome is failure.
-		NegativeFilter				= 0x20000000,
-		FilterMask = SmokeFilter | EngineFilter | ProductFilter | PerfFilter | StressFilter | NegativeFilter
-	};
-
-	static CORE_API const TMap<FString, Type>& GetTestFlagsMap();
-
-	static const Type FromString(FString Name)
-	{
-		static auto FlagMap = GetTestFlagsMap();
-		if (FlagMap.Contains(Name))
-		{
-			return FlagMap[Name];
-		}
-		return Type::None;
-	}
+	//~ Speed of the test
+	//Super Fast Filter
+	SmokeFilter					= 0x01000000,
+	//Engine Level Test
+	EngineFilter				= 0x02000000,
+	//Product Level Test
+	ProductFilter				= 0x04000000,
+	//Performance Test
+	PerfFilter					= 0x08000000,
+	//Stress Test
+	StressFilter				= 0x10000000,
+	//Negative Test. For tests whose correct expected outcome is failure.
+	NegativeFilter				= 0x20000000,
 };
+
+ENUM_CLASS_FLAGS(EAutomationTestFlags)
+
+inline constexpr EAutomationTestFlags EAutomationTestFlags_ApplicationContextMask = EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::ProgramContext;
+inline constexpr EAutomationTestFlags EAutomationTestFlags_FeatureMask            = EAutomationTestFlags::NonNullRHI | EAutomationTestFlags::RequiresUser;
+inline constexpr EAutomationTestFlags EAutomationTestFlags_HighPriorityAndAbove   = EAutomationTestFlags::CriticalPriority | EAutomationTestFlags::HighPriority;
+inline constexpr EAutomationTestFlags EAutomationTestFlags_MediumPriorityAndAbove = EAutomationTestFlags::CriticalPriority | EAutomationTestFlags::HighPriority | EAutomationTestFlags::MediumPriority;
+inline constexpr EAutomationTestFlags EAutomationTestFlags_PriorityMask           = EAutomationTestFlags::CriticalPriority | EAutomationTestFlags::HighPriority | EAutomationTestFlags::MediumPriority | EAutomationTestFlags::LowPriority;
+inline constexpr EAutomationTestFlags EAutomationTestFlags_FilterMask             = EAutomationTestFlags::SmokeFilter | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::PerfFilter | EAutomationTestFlags::StressFilter | EAutomationTestFlags::NegativeFilter;
+
+CORE_API const TMap<FString, EAutomationTestFlags>& EAutomationTestFlags_GetTestFlagsMap();
 
 /** Flags for indicating the matching type to use for an expected message */
 namespace EAutomationExpectedMessageFlags
@@ -275,24 +270,28 @@ class FAutomationTestInfo
 public:
 
 	// Default constructor
-	FAutomationTestInfo( )
-		: TestFlags( 0 )
-		, NumParticipantsRequired( 0 )
-		, NumDevicesCurrentlyRunningTest( 0 )
-	{}
+	FAutomationTestInfo() = default;
 
 	/**
 	 * Constructor
 	 *
 	 * @param	InDisplayName - Name used in the UI
+	 * @param	InFullTestPath - Dot-separated pathname to hierarchically display in the UI, which should be unique
 	 * @param	InTestName - The test command string
-	 * @param	InTestFlag - Test flags
+	 * @param	InTestFlags - Test flags
+	 * @param	InNumParticipantsRequired - Number of workers to run test
 	 * @param	InParameterName - optional parameter. e.g. asset name
+	 * @param	InSourceFile - Filesystem path to the source file which defines the test
+	 * @param	InSourceFileLine - Line number in the source file which defines the test
+	 * @param	InAssetPath - Filesystem path to the UAsset file which defines the test
+	 * @param	InOpenCommand - An exec command to open the test
+	 * @param	InTestTags - Tag metadata concatenated into one string
 	 */
-	FAutomationTestInfo(const FString& InDisplayName, const FString& InFullTestPath, const FString& InTestName, const uint32 InTestFlags, const int32 InNumParticipantsRequired, const FString& InParameterName = FString(), const FString& InSourceFile = FString(), int32 InSourceFileLine = 0, const FString& InAssetPath = FString(), const FString& InOpenCommand = FString())
+	FAutomationTestInfo(const FString& InDisplayName, const FString& InFullTestPath, const FString& InTestName, const EAutomationTestFlags InTestFlags, const int32 InNumParticipantsRequired, const FString& InParameterName = FString(), const FString& InSourceFile = FString(), int32 InSourceFileLine = 0, const FString& InAssetPath = FString(), const FString& InOpenCommand = FString(),  const FString& InTestTags = FString())
 		: DisplayName( InDisplayName )
 		, FullTestPath( InFullTestPath )
 		, TestName( InTestName )
+		, TestTags( InTestTags )
 		, TestParameter( InParameterName )
 		, SourceFile( InSourceFile )
 		, SourceFileLine( InSourceFileLine )
@@ -301,7 +300,8 @@ public:
 		, TestFlags( InTestFlags )
 		, NumParticipantsRequired( InNumParticipantsRequired )
 		, NumDevicesCurrentlyRunningTest( 0 )
-	{}
+	{
+	}
 
 public:
 
@@ -310,7 +310,7 @@ public:
 	 *
 	 * @Param InTestFlags - the child test flag to add.
 	 */
-	void AddTestFlags( const uint32 InTestFlags)
+	void AddTestFlags( const EAutomationTestFlags InTestFlags)
 	{
 		TestFlags |= InTestFlags;
 	}
@@ -343,6 +343,16 @@ public:
 	FString GetTestName() const
 	{
 		return TestName;
+	}
+
+	/**
+	 * Get the tags associated with this test.
+	 *
+	 * @return The concatenated test tags.
+	 */
+	FString GetTestTags() const
+	{
+		return TestTags;
 	}
 
 	/**
@@ -400,7 +410,7 @@ public:
 	 *
 	 * @return the test type.
 	 */
-	const uint32 GetTestFlags() const
+	const EAutomationTestFlags GetTestFlags() const
 	{
 		return TestFlags;
 	}
@@ -471,6 +481,9 @@ private:
 	/** Test name used to run the test */
 	FString TestName;
 
+	/** Tags defined on this test */
+	FString TestTags;
+
 	/** Parameter - e.g. an asset name or map name */
 	FString TestParameter;
 
@@ -487,13 +500,13 @@ private:
 	FString OpenCommand;
 
 	/** The test flags. */
-	uint32 TestFlags;
+	EAutomationTestFlags TestFlags = EAutomationTestFlags::None;
 
 	/** The number of participants this test requires */
-	uint32 NumParticipantsRequired;
+	uint32 NumParticipantsRequired = 0;
 
 	/** The number of devices which have been given this test to run */
-	uint32 NumDevicesCurrentlyRunningTest;
+	uint32 NumDevicesCurrentlyRunningTest = 0;
 };
 
 
@@ -994,6 +1007,47 @@ public:
 	CORE_API bool UnregisterAutomationTest( const FString& InTestNameToUnregister );
 
 	/**
+	 * Register tag metadata for a test into the framework.
+	 * 
+	 * @param	InTestNameToRegister	FullName of the test to associate with tags
+	 * @param	InTestTagsToRegister	Concatenated string of tags to register
+	 * 
+	 * @return	true if tags for the test successfully registered; false if tags were already registered for the test
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	CORE_API bool RegisterAutomationTestTags(const FString& InTestNameToRegister, const FString& InTestTagsToRegister);
+
+	/**
+	 * Unregister tags for a automation test from the framework.
+	 * 
+	 * @param	InTestNameToUnregister	FullName of the test to remove tags from
+	 * 
+	 * @return true if test tags were successfully unregistered; false if tags for a test with that name was not found in the framework.
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	CORE_API bool UnregisterAutomationTestTags(const FString& InTestNameToUnregister);
+
+	/**
+	 * Helper to register tags for a individual test enumerated by a Complex test
+	 *
+	 * @param	InTest					The Complex test to associate with
+	 * @param	InBeautifiedTestName	The name of the individual test
+	 * @param	InTestTagsToRegister	Concatenated string of tags to register
+	 *
+	 * @return true if test tags were successfully unregistered; false if tags for a test with that name was not found in the framework.
+	 */
+	CORE_API bool RegisterComplexAutomationTestTags(const FAutomationTestBase* InTest, const FString& InBeautifiedTestName, const FString& InTestTagsToRegister);
+
+	/**
+	 * Fetch the tags associated with a test
+	 * 
+	 * @param	InTestName	Name of the test to find tags for
+	 * 
+	 * @return	a string of all concatenated tags; empty string if test is not registered
+	 */
+	CORE_API FString GetTagsForAutomationTest(const FString& InTestName);
+
+	/**
 	 * Enqueues a latent command for execution on a subsequent frame
 	 *
 	 * @param NewCommand - The new command to enqueue for deferred execution
@@ -1085,6 +1139,17 @@ public:
 	CORE_API void GetValidTestNames( TArray<FAutomationTestInfo>& TestInfo ) const;
 
 	/**
+	 * Collects all registered tests with associated tags matching the pattern
+	 * 
+	 * @param	OutTestNames	Array that will be modified to contain only the set of matching tests
+	 * @param	TagPattern		An "Advanced Search Syntax" query to select matching tags from the registered tests
+	 * 
+	 * @see FTextFilterExpressionEvaluator
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	CORE_API void GetTestFullNamesMatchingTagPattern(TArray<FString>& OutTestNames, const FString& TagPattern) const;
+
+	/**
 	 * Whether the testing framework should allow content to be tested or not.  Intended to block developer directories.
 	 * @param Path - Full path to the content in question
 	 * @return - Whether this content should have tests performed on it
@@ -1099,7 +1164,7 @@ public:
 	/**
 	* Sets which set of tests to pull from.
 	*/
-	CORE_API void SetRequestedTestFilter(const uint32 InRequestedTestFlags);
+	CORE_API void SetRequestedTestFilter(const EAutomationTestFlags InRequestedTestFlags);
 	
 
 	/**
@@ -1367,6 +1432,9 @@ private:
 	/** Mapping of automation test names to their respective object instances */
 	TMap<FString, FAutomationTestBase*> AutomationTestClassNameToInstanceMap;
 
+	/** Mapping of full test names to their registered tags */
+	TMap<FString, FString> TestFullNameToTagDataMap;
+
 	/** Queue of deferred commands */
 	TQueue< TSharedPtr<IAutomationLatentCommand> > LatentCommands;
 
@@ -1374,7 +1442,7 @@ private:
 	TQueue< TSharedPtr<IAutomationNetworkCommand> > NetworkCommands;
 
 	/** Whether we are currently executing smoke tests for startup/commandlet to minimize log spam */
-	uint32 RequestedTestFilter;
+	EAutomationTestFlags RequestedTestFilter;
 
 	/** Time when the test began executing */
 	double StartTime;
@@ -1410,6 +1478,57 @@ private:
 
 	TMap<FString, FOnTestSectionEvent> OnEnteringTestSectionEvent;
 	TMap<FString, FOnTestSectionEvent> OnLeavingTestSectionEvent;
+
+	/**
+	 * Evaluate whether a tag string matches the pattern string
+	 * 
+	 * @param	Tags		Concatenated string of all tags defined for a test
+	 * @param	TagPattern	A query pattern
+	 * @see FTextFilterExpressionEvaluator
+	 */
+	bool TagsMatchPattern(const FString& Tags, const FString& TagPattern) const;
+
+	/** Cached filter context */
+	TSharedPtr<FTextFilterExpressionEvaluator> TagFilter;
+};
+
+/** Wrapper class to simplify tag registration */
+class FAutomationTestTags
+{
+public:
+	/**
+	 * Register tags for test by its fully defined name, which will unregister when this object leaves scope
+	 * 
+	 * @param	InTestFullName	The unique path-name identifying this test
+	 * @param	InTags			A string defining all concatenated tags to register
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	FAutomationTestTags(const FString& InTestFullName, const FString& InTags)
+	{
+		LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+		TestFullName = InTestFullName;
+		bool Registered = FAutomationTestFramework::Get().RegisterAutomationTestTags( InTestFullName, InTags );
+		if (!Registered)
+		{
+			UE_LOG(LogAutomationTestFramework, Warning, TEXT("Tag registration already exists for test '%s', existing value was not overridden"), *TestFullName);
+		}
+	}
+
+	/**
+	 * No-op default ctor performs no registration
+	 */
+	FAutomationTestTags() {}
+
+	~FAutomationTestTags()
+	{
+		if (!TestFullName.IsEmpty())
+		{
+			//ignore failure to unregister due to already being unregistered
+			FAutomationTestFramework::Get().UnregisterAutomationTestTags(TestFullName);
+		}
+	}
+private:
+	FString TestFullName;
 };
 
 /** Simple abstract base class for all automation tests */
@@ -1421,21 +1540,10 @@ public:
 	 *
 	 * @param	InName	Name of the test
 	 */
-	FAutomationTestBase( const FString& InName, const bool bInComplexTask )
-		: bComplexTask( bInComplexTask )
-	{
-		LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
-		TestName = InName;
-		// Register the newly created automation test into the automation testing framework
-		FAutomationTestFramework::Get().RegisterAutomationTest( InName, this );
-	}
+	CORE_API FAutomationTestBase( const FString& InName, const bool bInComplexTask );
 
 	/** Destructor */
-	virtual ~FAutomationTestBase() 
-	{ 
-		// Unregister the automation test from the automation testing framework
-		FAutomationTestFramework::Get().UnregisterAutomationTest( TestName );
-	}
+	CORE_API virtual ~FAutomationTestBase() ;
 
 	/** Log flags */
 	static CORE_API bool bSuppressLogWarnings;
@@ -1448,7 +1556,7 @@ public:
 	 *
 	 * @return	Automation test flags associated with the test
 	 */
-	virtual uint32 GetTestFlags() const = 0;
+	virtual EAutomationTestFlags GetTestFlags() const = 0;
 
 	/** Gets the C++ name of the test. */
 	FString GetTestName() const { return TestName; }
@@ -1596,18 +1704,6 @@ public:
 	 * Return the last success state for this test
 	 */
 	CORE_API bool GetLastExecutionSuccessState();
-
-	/**
-	 * [Deprecated] Use AddError(msg) instead to change the state of the test to a failure
-	 */
-	UE_DEPRECATED(5.1, "Use AddError(msg) instead to change the state of the test to a failure.")
-	void SetSuccessState(bool bSuccessful) { }
-
-	/**
-	 * [Deprecated] Return the last success state for this test
-	 */
-	UE_DEPRECATED(5.1, "Use GetLastExecutionSuccessState instead.")
-	bool GetSuccessState() { return GetLastExecutionSuccessState(); }
 
 	/**
 	 * Populate the provided execution info object with the execution info contained within the test. Not particularly efficient,
@@ -1843,8 +1939,31 @@ public:
 	CORE_API bool TestEqual(const TCHAR* What, const FColor Actual, const FColor Expected);
 	CORE_API bool TestEqual(const TCHAR* What, const FLinearColor Actual, const FLinearColor Expected);
 	CORE_API bool TestEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestEqual(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+	CORE_API bool TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestNotEqual(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestNotEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
+	CORE_API bool TestEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	UE_DEPRECATED(5.5, "Use TestEqual instead (string tests are case insensitive by default)")
+	CORE_API bool TestEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+	UE_DEPRECATED(5.5, "Use TestNotEqual instead (string tests are case insensitive by default)")
 	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	UE_DEPRECATED(5.5, "Use TestNotEqual instead (string tests are case insensitive by default)")
+	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	UE_DEPRECATED(5.5, "Use TestNotEqual instead (string tests are case insensitive by default)")
+	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+
+	CORE_API bool TestEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+	CORE_API bool TestNotEqualSensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestNotEqualSensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestNotEqualSensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
 
 	bool TestEqual(const FString& What, const int32 Actual, const int32 Expected)
 	{
@@ -1886,34 +2005,86 @@ public:
 		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
+	bool TestEqual(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
 	{
-		return TestEqualInsensitive(What, *Actual, Expected);
+		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const FString& What, const FString& Actual, const TCHAR* Expected)
+	bool TestEqual(const FString& What, FStringView Actual, FStringView Expected)
 	{
-		return TestEqualInsensitive(*What, *Actual, Expected);
+		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
+	bool TestEqual(const FString& What, FStringView Actual, FUtf8StringView Expected)
 	{
-		return TestEqualInsensitive(What, Actual, *Expected);
+		// This overload is here because there are some tests that have raw string literals as the expected value.
+		FString Tmp(Expected);
+		return TestEqual(*What, Actual, Tmp);
 	}
 
-	bool TestEqual(const FString& What, const TCHAR* Actual, const FString& Expected)
+	bool TestEqual(const FString& What, FUtf8StringView Actual, FStringView Expected)
 	{
-		return TestEqualInsensitive(*What, Actual, *Expected);
+		// This overload is here because there are some tests that have raw string literals as the Actual value.
+		FString Tmp(Actual);
+		return TestEqual(*What, Tmp, Expected);
 	}
 
-	bool TestEqual(const TCHAR* What, const FString& Actual, const FString& Expected)
+	bool TestEqualSensitive(const FString& What, const TCHAR* Actual, const TCHAR* Expected)
 	{
-		return TestEqualInsensitive(What, *Actual, *Expected);
+		return TestEqualSensitive(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const FString& What, const FString& Actual, const FString& Expected)
+	bool TestEqualSensitive(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
 	{
-		return TestEqualInsensitive(*What, *Actual, *Expected);
+		return TestEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestEqualSensitive(const FString& What, FStringView Actual, FStringView Expected)
+	{
+		return TestEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestEqualSensitive(const FString& What, FStringView Actual, FUtf8StringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the expected value.
+		FString Tmp(Expected);
+		return TestEqualSensitive(*What, Actual, Tmp);
+	}
+
+	bool TestEqualSensitive(const FString& What, FUtf8StringView Actual, FStringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the Actual value.
+		FString Tmp(Actual);
+		return TestEqualSensitive(*What, Tmp, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, const TCHAR* Actual, const TCHAR* Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FUtf8StringView Actual, FUtf8StringView Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FStringView Actual, FStringView Expected)
+	{
+		return TestNotEqualSensitive(*What, Actual, Expected);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FStringView Actual, FUtf8StringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the expected value.
+		FString Tmp(Expected);
+		return TestNotEqualSensitive(*What, Actual, Tmp);
+	}
+
+	bool TestNotEqualSensitive(const FString& What, FUtf8StringView Actual, FStringView Expected)
+	{
+		// This overload is here because there are some tests that have raw string literals as the Actual value.
+		FString Tmp(Actual);
+		return TestNotEqualSensitive(*What, Tmp, Expected);
 	}
 
 	/**
@@ -1973,6 +2144,108 @@ public:
 		return TestNearlyEqual(*What, Actual, Expected, Tolerance);
 	}
 
+	CORE_API bool TestLessThan(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestLessThan(const TCHAR* What, const int64 Actual, const int64 Expected);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const int64 Actual, const int64 Expected);
+	CORE_API bool TestLessEqual(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestLessEqual(const TCHAR* What, const int64 Actual, const int64 Expected);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const int64 Actual, const int64 Expected);
+#if PLATFORM_64BITS
+	CORE_API bool TestLessThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+	CORE_API bool TestLessEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+#endif
+	CORE_API bool TestLessThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestLessThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestLessEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestLessEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+
+	bool TestLessThan(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestLessThan(*What, Actual, Expected);
+	}
+
+	bool TestLessThan(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestLessThan(*What, Actual, Expected);
+	}
+
+	bool TestGreaterThan(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestGreaterThan(*What, Actual, Expected);
+	}
+
+	bool TestGreaterThan(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestGreaterThan(*What, Actual, Expected);
+	}
+
+	bool TestLessEqual(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestLessEqual(*What, Actual, Expected);
+	}
+
+	bool TestLessEqual(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestLessEqual(*What, Actual, Expected);
+	}
+
+	bool TestGreaterEqual(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestGreaterEqual(*What, Actual, Expected);
+	}
+
+	bool TestGreaterEqual(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestGreaterEqual(*What, Actual, Expected);
+	}
+
+	bool TestLessThan(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestLessThan(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterThan(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterThan(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestLessEqual(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestLessEqual(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterEqual(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterEqual(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterEqual(*What, Actual, Expected, Tolerance);
+	}
 
 	/**
 	 * Logs an error if the specified Boolean value is not false.
@@ -1980,7 +2253,7 @@ public:
 	 * @param What - Description text for the test.
 	 * @param Value - The value to test.
 	 *
-	 * @see TestFalse
+	 * @see TestTrue
 	 */
 	CORE_API bool TestFalse(const TCHAR* What, bool Value);
 
@@ -2039,6 +2312,19 @@ public:
 		return TestNotEqual(*Description, Actual, Expected);
 	}
 
+	CORE_API bool TestNotEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestNotEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+
+	bool TestNotEqual(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestNotEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestNotEqual(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestNotEqual(*What, Actual, Expected, Tolerance);
+	}
+
 	/**
 	 * Logs an error if the specified pointer is NULL.
 	 *
@@ -2064,13 +2350,13 @@ public:
 	}
 
 	/**
-	 * Logs an error if the two values are the same object in memory.
+	 * Logs an error if the two values reference the same object in memory.
 	 *
 	 * @param Description - Description text for the test.
-	 * @param A - The first value.
-	 * @param B - The second value.
+	 * @param A - The first reference.
+	 * @param B - The second reference.
 	 *
-	 * @see TestSame
+	 * @see TestSame, TestNotSamePtr
 	 */
 	template<typename ValueType>
 	FORCEINLINE bool TestNotSame(const TCHAR* Description, const ValueType& Actual, const ValueType& Expected)
@@ -2089,6 +2375,39 @@ public:
 	}
 
 	/**
+	 * Logs an error if the two pointers point to the same object in memory.
+	 *
+	 * @param Description - Description text for the test.
+	 * @param A - The first pointer.
+	 * @param B - The second pointer.
+	 *
+	 * @see TestNotSamePtr, TestSame
+	 */
+	template<typename ValueType>
+	FORCEINLINE bool TestNotSamePtr(const TCHAR* Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		if (nullptr == Actual)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Actual value is nullptr."), Description));
+		}
+		if (nullptr == Expected)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Expected value is nullptr, which may be unintended. If intentional consider instead using TestNotNull()."), Description));
+		}
+		if (Actual == Expected)
+		{
+			AddError(FString::Printf(TEXT("%s: The two pointers are the same."), Description));
+			return false;
+		}
+		return true;
+	}
+
+	template<typename ValueType> bool TestNotSamePtr(const FString& Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		return TestNotSamePtr(*Description, Actual, Expected);
+	}
+
+	/**
 	 * Logs an error if the specified pointer is not NULL.
 	 *
 	 * @param Description - Description text for the test.
@@ -2104,13 +2423,13 @@ public:
 	}
 
 	/**
-	 * Logs an error if the two values are not the same object in memory.
+	 * Logs an error if the two values do not reference the same object in memory.
 	 *
 	 * @param Description - Description text for the test.
-	 * @param Actual - The actual value.
-	 * @param Expected - The expected value.
+	 * @param Actual - The actual reference.
+	 * @param Expected - The expected reference.
 	 *
-	 * @see TestNotSame
+	 * @see TestNotSame, TestSamePtr
 	 */
 	template<typename ValueType>
 	FORCEINLINE bool TestSame(const TCHAR* Description, const ValueType& Actual, const ValueType& Expected)
@@ -2126,6 +2445,39 @@ public:
 	template<typename ValueType> bool TestSame(const FString& Description, const ValueType& Actual, const ValueType& Expected)
 	{
 		return TestSame(*Description, Actual, Expected);
+	}
+
+	/**
+	 * Logs an error if the two pointers do not point to the same object in memory.
+	 *
+	 * @param Description - Description text for the test.
+	 * @param Actual - The actual pointer.
+	 * @param Expected - The expected pointer.
+	 *
+	 * @see TestNotSamePtr, TestNotSame
+	 */
+	template<typename ValueType>
+	FORCEINLINE bool TestSamePtr(const TCHAR* Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		if (nullptr == Actual)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Actual value is nullptr."), Description));
+		}
+		if (nullptr == Expected)
+		{
+			AddWarning(FString::Printf(TEXT("%s: Expected value is nullptr, which may be unintended. If intentional consider instead using TestNull()."), Description));
+		}
+		if (Actual != Expected)
+		{
+			AddError(FString::Printf(TEXT("%s: The two pointers are not the same."), Description));
+			return false;
+		}
+		return true;
+	}
+
+	template<typename ValueType> bool TestSamePtr(const FString& Description, const ValueType* Actual, const ValueType* Expected)
+	{
+		return TestSamePtr(*Description, Actual, Expected);
 	}
 
 	/**
@@ -2192,7 +2544,7 @@ protected:
 	virtual void SetTestContext(FString Context) { TestParameterContext = Context; }
 
 	/** Extracts a combined EAutomationTestFlags value from a string representation using tag notation "[Filter_1]...[Filter_n][Tag_1]...[Tag_m]" */
-	CORE_API uint32 ExtractAutomationTestFlags(FString InTagNotation);
+	CORE_API EAutomationTestFlags ExtractAutomationTestFlags(FString InTagNotation);
 
 protected:
 
@@ -2232,6 +2584,14 @@ private:
 	 * @param	bSuccessful	true to mark the test successful, false to mark the test as failed
 	 */
 	CORE_API void InternalSetSuccessState(bool bSuccessful);
+
+	/**
+	 * Returns a string description of the value stored in the passed string view in a form suitable for error messages.
+	 * Proper string values will be output with quotation marks e.g. "value".
+	 * Null will be represented as nullptr.
+	 */
+	FString GetStringValueToDisplay(FStringView Value) const;
+	FString GetStringValueToDisplay(FUtf8StringView Value) const;
 
 	/* Log messages to be expected while processing this test.*/
 	TSet<FAutomationExpectedMessage> ExpectedMessages;
@@ -2486,9 +2846,9 @@ private:
 				}
 
 				bDone = false;
-				Predicate(FDoneDelegate::CreateSP(this, &FUntilDoneLatentCommand::Done));
 				bIsRunning = true;
 				StartedRunning = FDateTime::UtcNow();
+				Predicate(FDoneDelegate::CreateSP(this, &FUntilDoneLatentCommand::Done));
 			}
 
 			if (bDone)
@@ -2560,12 +2920,12 @@ private:
 					return true;
 				}
 
+				FScopeLock CriticalSection(&ActionCS);
 				bDone = false;
+				StartedRunning = FDateTime::UtcNow();
 				Future = Async(Execution, [this]() {
 					Predicate(FDoneDelegate::CreateRaw(this, &FAsyncUntilDoneLatentCommand::Done));
 				});
-
-				StartedRunning = FDateTime::UtcNow();
 			}
 
 			if (bDone)
@@ -2587,6 +2947,7 @@ private:
 
 		void Done()
 		{
+			FScopeLock CriticalSection(&ActionCS);
 			if (Future.IsValid())
 			{
 				bDone = true;
@@ -2595,6 +2956,7 @@ private:
 
 		void Reset()
 		{
+			FScopeLock CriticalSection(&ActionCS);
 			// Reset the done for the next potential run of this command
 			bDone = false;
 			Future.Reset();
@@ -2611,6 +2973,7 @@ private:
 		FThreadSafeBool bDone;
 		FDateTime StartedRunning;
 		TFuture<void> Future;
+		FCriticalSection ActionCS;
 	};
 
 	class FAsyncLatentCommand : public IAutomationLatentCommand
@@ -2638,13 +3001,13 @@ private:
 					return true;
 				}
 
+				FScopeLock CriticalSection(&ActionCS);
 				bDone = false;
+				StartedRunning = FDateTime::UtcNow();
 				Future = Async(Execution, [this]() {
 					Predicate();
 					Done();
 				});
-
-				StartedRunning = FDateTime::UtcNow();
 			}
 
 			if (bDone)
@@ -2666,6 +3029,7 @@ private:
 
 		void Done()
 		{
+			FScopeLock CriticalSection(&ActionCS);
 			if (Future.IsValid())
 			{
 				bDone = true;
@@ -2674,6 +3038,7 @@ private:
 
 		void Reset()
 		{
+			FScopeLock CriticalSection(&ActionCS);
 			// Reset the done for the next potential run of this command
 			bDone = false;
 			Future.Reset();
@@ -2690,6 +3055,7 @@ private:
 		FThreadSafeBool bDone;
 		FDateTime StartedRunning;
 		TFuture<void> Future;
+		FCriticalSection ActionCS;
 	};
 
 	struct FSpecIt
@@ -3212,6 +3578,9 @@ protected:
 		RootDefinitionScope.Reset();
 		DefinitionScopeStack.Empty();
 		bHasBeenDefined = false;
+
+		RootDefinitionScope = MakeShareable(new FSpecDefinitionScope());
+		DefinitionScopeStack.Push(RootDefinitionScope.ToSharedRef());
 	}
 
 private:
@@ -3574,8 +3943,11 @@ class EXPORT_API CommandName : public IAutomationLatentCommandWithRetriesAndDela
 }
 
 //macro to simply the syntax for enqueueing a latent command
+#if WITH_AUTOMATION_TESTS
 #define ADD_LATENT_AUTOMATION_COMMAND(ClassDeclaration) FAutomationTestFramework::Get().EnqueueLatentCommand(MakeShareable(new ClassDeclaration));
-
+#else
+#define ADD_LATENT_AUTOMATION_COMMAND(ClassDeclaration) 
+#endif
 
 //declare the class
 #define START_NETWORK_AUTOMATION_COMMAND(ClassDeclaration)	\
@@ -3612,16 +3984,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:TBaseClass( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
 		virtual bool IsStressTest() const { return false; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -3644,16 +4016,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:TBaseClass( InName, true ) { \
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::SmokeFilter)); } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::SmokeFilter)); } \
 		virtual bool IsStressTest() const { return true; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -3670,16 +4042,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:TBaseClass( InName, false ) { \
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::EditorContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::SmokeFilter)); } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return ((TFlags) & ~(EAutomationTestFlags::EditorContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::SmokeFilter)); } \
 		virtual uint32 GetRequiredDeviceNum() const override { return NumParticipants; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
 		virtual int32 GetTestSourceFileLine() const override { return LineNumber; } \
@@ -3699,16 +4071,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		:FBDDAutomationTestBase( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!((((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
 		virtual bool IsStressTest() const { return false; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
@@ -3726,16 +4098,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		: FAutomationSpecBase( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
         using FAutomationSpecBase::GetTestSourceFileName; \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
         using FAutomationSpecBase::GetTestSourceFileLine; \
@@ -3753,16 +4125,16 @@ public: \
 	public: \
 		TClass( const FString& InName ) \
 		: FAutomationSpecBase( InName, false ) {\
-			static_assert((TFlags)&EAutomationTestFlags::ApplicationContextMask, "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
-			static_assert(	(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::SmokeFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::EngineFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::ProductFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::PerfFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::StressFilter) || \
-							(((TFlags)&EAutomationTestFlags::FilterMask) == EAutomationTestFlags::NegativeFilter), \
+			static_assert(!!((TFlags) & EAutomationTestFlags_ApplicationContextMask), "AutomationTest has no application flag.  It shouldn't run.  See AutomationTest.h."); \
+			static_assert(	!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::SmokeFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::EngineFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::ProductFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::PerfFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::StressFilter) || \
+							!!(((TFlags) & EAutomationTestFlags_FilterMask) == EAutomationTestFlags::NegativeFilter), \
 							"All AutomationTests must have exactly 1 filter type specified.  See AutomationTest.h."); \
 		} \
-		virtual uint32 GetTestFlags() const override { return TFlags; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return TFlags; } \
 		using FAutomationSpecBase::GetTestSourceFileName; \
 		virtual FString GetTestSourceFileName() const override { return FileName; } \
 		using FAutomationSpecBase::GetTestSourceFileLine; \
@@ -3770,6 +4142,12 @@ public: \
 	protected: \
 		virtual FString GetBeautifiedTestName() const override { return PrettyName; } \
 		virtual void Define() override;
+
+#define REGISTER_SIMPLE_AUTOMATION_TEST_TAGS( TClass, PrettyName, TagsString ) \
+	namespace\
+	{\
+		FAutomationTestTags TClass##AutomationTagsInstance(PrettyName, TagsString);\
+	}
 
 #if WITH_AUTOMATION_WORKER
 	#define IMPLEMENT_SIMPLE_AUTOMATION_TEST( TClass, PrettyName, TFlags ) \
@@ -3871,11 +4249,12 @@ public: \
 
 
 /**
- * Macros to make it easy to test state with one-liners: they will run the appropriate
- * test method and, if the test fail, with execute `return false;`, which (if placed in
+ * Macros for early exit one-liners: they will run the appropriate
+ * test method and on failure also execute `return false;`, which (if placed in
  * the main test case method) will stop the test immediately.
  *
  * The error logging is already handled by the test method being called.
+ * EXPR variants automatically generate a `What` description string.
  *
  * As a result, you can easily test things that, if wrong, would potentially crash the test:
  *
@@ -3915,6 +4294,12 @@ public: \
 		return false;\
 	}
 
+#define UTEST_NEARLY_EQUAL(What, Actual, Expected, Tolerance)\
+	if (!TestNearlyEqual(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
 #define UTEST_NEARLY_EQUAL_EXPR(Actual, Expected, Tolerance)\
 	if (!TestNearlyEqual(TEXT(#Actual), Actual, Expected, Tolerance))\
 	{\
@@ -3922,25 +4307,49 @@ public: \
 	}
 
 #define UTEST_EQUAL_INSENSITIVE(What, Actual, Expected)\
-	if (!TestEqualInsensitive(What, Actual, Expected))\
+	if (!TestEqual(What, Actual, Expected))\
 	{\
 		return false;\
 	}
 
 #define UTEST_EQUAL_INSENSITIVE_EXPR(Actual, Expected)\
-	if (!TestEqualInsensitive(TEXT(#Actual), Actual, Expected))\
+	if (!TestEqual(TEXT(#Actual), Actual, Expected))\
 	{\
 		return false;\
 	}
 
 #define UTEST_NOT_EQUAL_INSENSITIVE(What, Actual, Expected)\
-	if (!TestNotEqualInsensitive(What, Actual, Expected))\
+	if (!TestNotEqual(What, Actual, Expected))\
 	{\
 		return false;\
 	}
 
 #define UTEST_NOT_EQUAL_INSENSITIVE_EXPR(Actual, Expected)\
-	if (!TestNotEqualInsensitive(TEXT(#Actual), Actual, Expected))\
+	if (!TestNotEqual(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_EQUAL_SENSITIVE(What, Actual, Expected)\
+	if (!TestEqualSensitive(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_EQUAL_SENSITIVE_EXPR(Actual, Expected)\
+	if (!TestEqualSensitive(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_EQUAL_SENSITIVE(What, Actual, Expected)\
+	if (!TestNotEqualSensitive(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_EQUAL_SENSITIVE_EXPR(Actual, Expected)\
+	if (!TestNotEqualSensitive(TEXT(#Actual), Actual, Expected))\
 	{\
 		return false;\
 	}
@@ -3953,6 +4362,102 @@ public: \
 
 #define UTEST_NOT_EQUAL_EXPR(Actual, Expected)\
 	if (!TestNotEqual(FString::Printf(TEXT("%s != %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS(What, Actual, Expected)\
+	if (!TestLessThan(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EXPR(Actual, Expected)\
+	if (!TestLessThan(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestLessThan(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestLessThan(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER(What, Actual, Expected)\
+	if (!TestGreaterThan(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EXPR(Actual, Expected)\
+	if (!TestGreaterThan(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestGreaterThan(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestGreaterThan(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL(What, Actual, Expected)\
+	if (!TestLessEqual(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL_EXPR(Actual, Expected)\
+	if (!TestLessEqual(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestLessEqual(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestLessEqual(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL(What, Actual, Expected)\
+	if (!TestGreaterEqual(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL_EXPR(Actual, Expected)\
+	if (!TestGreaterEqual(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestGreaterEqual(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestGreaterEqual(TEXT(#Actual), Actual, Expected, Tolerance))\
 	{\
 		return false;\
 	}
@@ -3977,6 +4482,30 @@ public: \
 
 #define UTEST_NOT_SAME_EXPR(Actual, Expected)\
 	if (!TestNotSame(FString::Printf(TEXT("%s != %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_SAME_PTR(What, Actual, Expected)\
+	if (!TestSamePtr(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_SAME_PTR_EXPR(Actual, Expected)\
+	if (!TestSamePtr(FString::Printf(TEXT("%s == %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_SAME_PTR(What, Actual, Expected)\
+	if (!TestNotSamePtr(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NOT_SAME_PTR_EXPR(Actual, Expected)\
+	if (!TestNotSamePtr(FString::Printf(TEXT("%s != %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
 	{\
 		return false;\
 	}
@@ -4052,7 +4581,8 @@ public: \
 	if (!TestNotNull(TEXT(#Pointer), Pointer))\
 	{\
 		return false;\
-	}
+	}\
+	CA_ASSUME(Pointer);
 
 //////////////////////////////////////////////////
 // Basic Latent Commands

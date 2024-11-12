@@ -41,7 +41,7 @@ void SReadOnlyHierarchyView::Construct(const FArguments& InArgs, const UWidgetBl
 	if (InArgs._ShowSearch)
 	{
 		ContentBox->AddSlot()
-			.Padding(2)
+			.Padding(2.0f)
 			.AutoHeight()
 			[
 				SAssignNew(SearchBox, SSearchBox)

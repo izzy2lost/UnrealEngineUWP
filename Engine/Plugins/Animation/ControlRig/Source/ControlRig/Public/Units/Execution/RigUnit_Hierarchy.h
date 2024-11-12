@@ -29,6 +29,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParent : public FRigUnit_HierarchyBas
 	FRigUnit_HierarchyGetParent()
 	{
 		Child = Parent = FRigElementKey(NAME_None, ERigElementType::Bone);
+		bDefaultParent = true;
 		CachedChild = CachedParent = FCachedRigElement();
 	}
 
@@ -37,6 +38,10 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParent : public FRigUnit_HierarchyBas
 
 	UPROPERTY(meta = (Input, ExpandByDefault))
 	FRigElementKey Child;
+
+	/** When true, it will return the default parent, regardless of whether the parent incluences the element or not  */
+	UPROPERTY(meta = (Input))
+	bool bDefaultParent;
 
 	UPROPERTY(meta = (Output))
 	FRigElementKey Parent;
@@ -109,6 +114,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParentsItemArray : public FRigUnit_Hi
 		CachedParents = FRigElementKeyCollection();
 		bIncludeChild = false;
 		bReverse = false;
+		bDefaultParent = true;
 	}
 
 	RIGVM_METHOD()
@@ -122,6 +128,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParentsItemArray : public FRigUnit_Hi
 
 	UPROPERTY(meta = (Input))
 	bool bReverse;
+
+	UPROPERTY(meta = (Input))
+	bool bDefaultParent;
 
 	UPROPERTY(meta = (Output))
 	TArray<FRigElementKey> Parents;
@@ -234,6 +243,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetSiblingsItemArray : public FRigUnit_H
 		CachedItem = FCachedRigElement();
 		CachedSiblings = FRigElementKeyCollection();
 		bIncludeItem = false;
+		bDefaultSiblings = true;
 	}
 
 	RIGVM_METHOD()
@@ -244,6 +254,11 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetSiblingsItemArray : public FRigUnit_H
 
 	UPROPERTY(meta = (Input))
 	bool bIncludeItem;
+
+	/** When true, it will return all siblings, regardless of whether the parent is active or not.
+	 * When false, will return only the siblings which are influenced by the same parent */
+	UPROPERTY(meta = (Input))
+	bool bDefaultSiblings;
 
 	UPROPERTY(meta = (Output))
 	TArray<FRigElementKey> Siblings;
@@ -808,4 +823,66 @@ struct CONTROLRIG_API FRigUnit_PoseLoop : public FRigUnit_HierarchyBaseMutable
 
 	UPROPERTY(meta = (Output))
 	FControlRigExecuteContext Completed;
+};
+
+USTRUCT(BlueprintType)
+struct FRigUnit_HierarchyCreatePoseItemArray_Entry
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyCreatePoseItemArray_Entry()
+	: Item(NAME_None, ERigElementType::Bone)
+	, LocalTransform(FTransform::Identity)
+	, GlobalTransform(FTransform::Identity)
+	, UseEulerAngles(false)
+	, EulerAngles(FVector::ZeroVector)
+	, CurveValue(0.f)
+	{
+	}
+
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FRigElementKey Item;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FTransform LocalTransform;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FTransform GlobalTransform;
+
+	// in case of a control this can be used to drive the preferred euler angles
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	bool UseEulerAngles;
+
+	// in case of a control this can be used to drive the preferred euler angles
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FVector EulerAngles;
+
+	// in case of a curve this can be used to drive the curve value
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	float CurveValue;
+};
+
+
+/**
+ * Creates the hierarchy's pose
+ */
+USTRUCT(meta=(DisplayName="Create Pose Cache", Keywords="Hierarchy,Pose,State,MakePoseCache,NewPoseCache,EmptyPoseCache", Varying, Category = "Pose Cache"))
+struct CONTROLRIG_API FRigUnit_HierarchyCreatePoseItemArray : public FRigUnit_HierarchyBase
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyCreatePoseItemArray()
+	{
+		Pose = FRigPose();
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	// The entries to create
+	UPROPERTY(meta = (Input))
+	TArray<FRigUnit_HierarchyCreatePoseItemArray_Entry> Entries;
+
+	UPROPERTY(meta = (Output))
+	FRigPose Pose;
 };

@@ -27,13 +27,14 @@ struct FRTLightingData
 	float3 Direction;
 	float  FalloffExponent;
 	float3 LightColor;
-	float  SpecularScale;
+	uint   DiffuseSpecularScale;
 	float3 Tangent;
 	float  SourceRadius;
 	float2 SpotAngles;
 	float  SourceLength;
 	float  SoftSourceRadius;
-	float2 DistanceFadeMAD;
+	uint   DistanceFadeMAD;
+	float  IndirectLightScale;
 	float  RectLightBarnCosAngle;
 	float  RectLightBarnLength;
 	float2 RectLightAtlasUVOffset;
@@ -42,27 +43,28 @@ struct FRTLightingData
 HLSL_STATIC_ASSERT(sizeof(FRTLightingData) == 128, "Ray tracing light structure should be kept as small as possible");
 
 // #dxr_todo: Unify this with FRTLightingData ?
-struct FPathTracingLight {
+struct FPathTracingLight
+{
 	float3  TranslatedWorldPosition;
 	float3  Normal;
-	float3  dPdu;
-	float3  dPdv;
+	float3  Tangent;
 	float3  Color;
 	float2  Dimensions; // Radius,Length or RectWidth,RectHeight or Sin(Angle/2),0 depending on light type
-	float2  Shaping;    // Barndoor controls for RectLights, Cone angles for spots lights
-	float   SpecularScale;
+	float2  Shaping;    // Barndoor controls for RectLights, Cone angles for spot lights
+	uint    DiffuseSpecularScale;
 	float   Attenuation;
 	float   FalloffExponent; // for non-inverse square decay lights only
 	float   VolumetricScatteringIntensity;  // scale for volume contributions
-	int     IESAtlasIndex;
+	float   IESAtlasIndex;
 	uint    Flags; // see defines PATHTRACER_FLAG_*
 	uint    MissShaderIndex;  // used to implement light functions
 	float2  RectLightAtlasUVScale;  // Rect. light atlas UV transformation
 	float2  RectLightAtlasUVOffset; // Rect. light atlas UV transformation
 };
-HLSL_STATIC_ASSERT(sizeof(FPathTracingLight) == 120, "Path tracing light structure should be kept as small as possible");
+HLSL_STATIC_ASSERT(sizeof(FPathTracingLight) == 108, "Path tracing light structure should be kept as small as possible");
 
-struct FPathTracingPackedPathState {
+struct FPathTracingPackedPathState
+{
 	uint      RandSeqSampleIndex;
 	uint      RandSeqSampleSeed;
 	float3    Radiance;

@@ -10,12 +10,13 @@ class FTabManager;
 class FWorkspaceItem;
 class IConcertSyncClient;
 class SDockTab;
+class SWidgetSwitcher;
 class SWindow;
+
+namespace UE::MultiUserClient::Replication { class FMultiUserReplicationManager; }
 
 namespace UE::MultiUserClient
 {
-	class FMultiUserReplicationManager;
-	
 	/**
 	 * Displayed when the client is connected to an active session.
 	 * Manages the child content in tabs.
@@ -24,24 +25,21 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		static const FName OverviewTabId;
+		static const FName SessionOverviewTabId;
 		static const FName ReplicationTabId;
 
 		SLATE_BEGIN_ARGS(SActiveSessionRoot)
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		void Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<Replication::FMultiUserReplicationManager> InReplicationManager);
 
 	private:
 
-		TSharedPtr<IConcertSyncClient> ConcertSyncClient;
-		/** Holds the child content: SActiveSessionOverviewTab and SReplicationControlsTab. */
-		TSharedPtr<FTabManager> TabManager;
-		
-		void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FWorkspaceItem>& AppMenuGroup, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
-		TSharedRef<SDockTab> SpawnTab_Overview(const FSpawnTabArgs& Args);
-		TSharedRef<SDockTab> SpawnTab_ReplicationControls(const FSpawnTabArgs& Args, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		/** This switches "tabs" when a button in the "tab" area is changed. */
+		TSharedPtr<SWidgetSwitcher> TabSwitcher;
+
+		TSharedRef<SWidget> CreateTabArea();
 	};
 }
 

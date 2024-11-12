@@ -35,7 +35,7 @@ struct VIRTUALCAMERA_API FVCamTraceHitProxyQueryParams
 
 	/** Components on these actors should not be considered. */
 	UPROPERTY(EditAnywhere, BlueprintreadWrite, Category = "VirtualCamera")
-	TArray<AActor*> IgnoredActors;
+	TArray<TObjectPtr<AActor>> IgnoredActors;
 };
 
 USTRUCT(BlueprintType)
@@ -242,6 +242,10 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	static bool MultiTraceHitProxyOnViewport(const FVector2D& InScreenPosition, EVCamTargetViewportID InTargetViewport, FVCamTraceHitProxyQueryParams InQueryParams, TArray<FVCamTraceHitProxyResult>& Result);
+
+	/* Checks if the asset is dirty */
+	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
+	static bool IsAssetDirty(const FAssetData& AssetData);
 
 private:
 

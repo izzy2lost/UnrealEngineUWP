@@ -5,6 +5,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/TypeCompatibleBytes.h"
+#include "VerseVM/VVMArrayBase.h"
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentType.h"
@@ -13,7 +14,7 @@
 
 namespace Verse
 {
-inline const VEmergentType* VCell::GetEmergentType() const
+inline VEmergentType* VCell::GetEmergentType() const
 {
 	return FHeap::EmergentTypeOffsetToPtr(EmergentTypeOffset);
 }

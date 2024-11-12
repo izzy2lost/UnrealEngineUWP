@@ -4,9 +4,11 @@
 
 #include "CoreMinimal.h"
 
+#include "ChaosFlesh/ChaosDeformableSolverGroups.h"
 #include "ChaosFlesh/FleshCollection.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowEngineTypes.h"
+#include "Dataflow/DataflowContent.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ObjectMacros.h"
 
@@ -49,8 +51,8 @@ private:
 * UObject wrapper for the FFleshAsset
 *
 */
-UCLASS(customconstructor)
-class CHAOSFLESHENGINE_API UFleshAsset : public UObject
+UCLASS(BlueprintType, customconstructor)
+class CHAOSFLESHENGINE_API UFleshAsset : public UObject, public IDataflowContentOwner
 {
 	GENERATED_UCLASS_BODY()
 	friend class FFleshAssetEdit;
@@ -80,6 +82,12 @@ public:
 	UFleshAsset(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 
+#if WITH_EDITOR
+	/** Post edit change property */
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif //if WITH_EDITOR
+
+
 	/**Editing the collection should only be through the edit object.*/
 	void SetCollection(FFleshCollection* InCollection);
 	const FFleshCollection* GetCollection() const { return FleshCollection.Get(); }
@@ -95,6 +103,12 @@ public:
 
 	void Serialize(FArchive& Ar);
 
+	//~ Begin IDataflowContentOwner interface
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) override;
+	//~ End IDataflowContentOwner interface
+	
 	//
 	// Dataflow
 	//
@@ -110,10 +124,10 @@ public:
 	//
 	// SkeletalMesh
 	//
-	UPROPERTY(EditAnywhere, Category = "Animation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<USkeletalMesh> SkeletalMesh;
 
-	UPROPERTY(EditAnywhere, Category = "Animation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	TObjectPtr<USkeleton> Skeleton;
 
 	/**
@@ -136,6 +150,82 @@ public:
 	/** Information for thumbnail rendering */
 	UPROPERTY()
 	TObjectPtr<class UThumbnailInfo> ThumbnailInfo;
+
+	/*
+	* The following PreviewScene properties are modeled after PreviewSkeletalMesh in USkeleton
+	*	- they are inside WITH_EDITORONLY_DATA because they are not used at game runtime
+	*	- TSoftObjectPtrs since that will make it possible to avoid loading these assets until the PreviewScene asks for them
+	*	- DuplicateTransient so that if you copy a ClothAsset it won't copy these preview properties
+	*	- AssetRegistrySearchable makes it so that if the user searches the name of a PreviewScene asset in the Asset Browser
+	*/
+
+	/** Animation asset used in this asset */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	TSoftObjectPtr<UAnimationAsset> PreviewAnimationAsset = nullptr;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverTimingGroup PreviewSolverTiming;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverEvolutionGroup PreviewSolverEvolution;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverCollisionsGroup PreviewSolverCollisions;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverConstraintsGroup PreviewSolverConstraints;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverForcesGroup PreviewSolverForces;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverDebuggingGroup PreviewSolverDebugging;
+
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FSolverMuscleActivationGroup PreviewSolverMuscleActivation;
+	
 #endif // WITH_EDITORONLY_DATA
 
 };
+
+
+/** 
+ * Dataflow content owning dataflow and solver properties that will be used to evaluate the graph
+ */
+UCLASS()
+class CHAOSFLESHENGINE_API  UDataflowFleshContent : public UDataflowSkeletalContent
+{
+	GENERATED_BODY()
+
+public:
+	UDataflowFleshContent();
+	virtual ~UDataflowFleshContent() override {}
+
+	//~ UObject interface
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
+	/** Set all the preview actor exposed properties */
+	virtual void SetActorProperties(TObjectPtr<AActor>& PreviewActor) const override;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverTimingGroup SolverTiming;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverEvolutionGroup SolverEvolution;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverCollisionsGroup SolverCollisions;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverConstraintsGroup SolverConstraints;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverForcesGroup SolverForces;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverDebuggingGroup SolverDebugging;
+
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	FSolverMuscleActivationGroup SolverMuscleActivation;
+};
+

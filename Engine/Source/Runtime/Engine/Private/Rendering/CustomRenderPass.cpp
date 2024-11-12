@@ -23,11 +23,6 @@ void FCustomRenderPassBase::BeginPass(FRDGBuilder& GraphBuilder)
 		{
 			IRenderCaptureProvider::Get().BeginCapture(&RHICommandListLocal, IRenderCaptureProvider::ECaptureFlags_Launch, FileName);
 		});
-
-		if (!DebugName.IsEmpty())
-		{
-			GraphBuilder.BeginEventScope(RDG_EVENT_NAME("%s", *DebugName));
-		}
 	}
 
 	OnBeginPass(GraphBuilder);
@@ -50,11 +45,6 @@ void FCustomRenderPassBase::EndPass(FRDGBuilder & GraphBuilder)
 	// End the optional render capture after this pass has run :
 	if ((RenderCaptureType == ERenderCaptureType::Capture) || (RenderCaptureType == ERenderCaptureType::EndCapture))
 	{
-		if (!DebugName.IsEmpty())
-		{
-			GraphBuilder.EndEventScope();
-		}
-
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("EndCapture"),
 			ERDGPassFlags::None,
@@ -73,6 +63,14 @@ ESceneCaptureSource FCustomRenderPassBase::GetSceneCaptureSource() const
 		return SCS_DeviceDepth;
 	else if (RenderOutput == ERenderOutput::SceneColorAndDepth)
 		return SCS_SceneColorSceneDepth;
+	else if (RenderOutput == ERenderOutput::SceneColorAndAlpha)
+		return SCS_SceneColorHDR;
+	else if (RenderOutput == ERenderOutput::SceneColorNoAlpha)
+		return SCS_SceneColorHDRNoAlpha;
+	else if (RenderOutput == ERenderOutput::BaseColor)
+		return SCS_BaseColor;
+	else if (RenderOutput == ERenderOutput::Normal)
+		return SCS_Normal;
 	else
 		return SCS_MAX;
 }

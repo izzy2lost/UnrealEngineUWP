@@ -29,6 +29,7 @@
 #include "Debug/DebugDrawService.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/WorldSettings.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "Async/ParallelFor.h"
 #include "Algo/ForEach.h"
 #include "Misc/HashBuilder.h"
@@ -36,9 +37,21 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "LevelEditorViewport.h"
+#include "LevelUtils.h"
+#include "WorldPartition/WorldPartitionPropertyOverride.h"
+#endif
+
+#if !UE_BUILD_SHIPPING
+#include "Engine/Engine.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/WorldPartitionSubsystem.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionSubsystem)
+
+DECLARE_CYCLE_STAT(TEXT("Update Streaming State"), STAT_WorldPartitionUpdateStreamingState, STATGROUP_WorldPartition);
+DECLARE_CYCLE_STAT(TEXT("Update Streaming State (External)"), STAT_WorldPartitionUpdateStreamingStateExternal, STATGROUP_WorldPartition);
+CSV_DEFINE_CATEGORY(WorldPartition, (!UE_BUILD_SHIPPING));
 
 extern int32 GBlockOnSlowStreaming;
 static const FName NAME_WorldPartitionRuntimeHash("WorldPartitionRuntimeHash");
@@ -180,13 +193,56 @@ static FAutoConsoleVariableRef CVarUdateStreamingStateTimeLimit(
 	ECVF_Default
 );
 
+#if !UE_BUILD_SHIPPING
+TMap<FName, int32> UWorldPartitionSubsystem::OverriddenLoadingRanges;
+uint32 UWorldPartitionSubsystem::OverriddenLoadingRangesEpoch = 0;
+static const TCHAR* GOverrideLoadingRangeCommandName = TEXT("wp.Runtime.OverrideRuntimeLoadingRange");
+static FDelegateHandle OnWorldPartitionSubsystemDeinitializedFDelegateHandle;
+FAutoConsoleCommand UWorldPartitionSubsystem::OverrideLoadingRangeCommand(
+	GOverrideLoadingRangeCommandName,
+	TEXT("Sets runtime loading range. Args -grid=[Name] -range=[Range]"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
+	{
+		FString ArgString = FString::Join(InArgs, TEXT(" "));
+		FName OverrideGridName;
+		int32 OverrideLoadingRange = -1;
+		FParse::Value(*ArgString, TEXT("grid="), OverrideGridName);
+		FParse::Value(*ArgString, TEXT("range="), OverrideLoadingRange);
+
+		if (!OnWorldPartitionSubsystemDeinitializedFDelegateHandle.IsValid())
+		{
+			OnWorldPartitionSubsystemDeinitializedFDelegateHandle = UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized.AddLambda([](UWorldPartitionSubsystem* InWorldPartitionSubsystem, UWorld* InWorld)
+			{
+				if (InWorld && InWorld->IsGameWorld())
+				{
+					OverriddenLoadingRanges.Reset();
+				}
+			});
+		}
+
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (World && World->IsGameWorld())
+			{
+				if (UWorld::HasSubsystem<UWorldPartitionSubsystem>(World))
+				{
+					FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideLoadingRangeCommandName, InArgs);
+					UWorldPartitionSubsystem::SetOverrideLoadingRange(OverrideGridName, OverrideLoadingRange);
+					break;
+				}
+			}
+		}
+	})
+);
+#endif
+
 TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemInitialized;
 TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized;
 
 UWorldPartitionSubsystem::UWorldPartitionSubsystem()
-: StreamingSourcesHash(0)
-, NumWorldPartitionServerStreamingEnabled(0)
-, ServerClientsVisibleLevelsHash(0)
+	: NumWorldPartitionServerStreamingEnabled(0)
+	, ServerClientsVisibleLevelsHash(0)
 {}
 
 UWorldPartition* UWorldPartitionSubsystem::GetWorldPartition()
@@ -404,13 +460,6 @@ void UWorldPartitionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 #endif
 
-	if (UWorldPartition* WorldPartition = GetWorld()->GetWorldPartition())
-	{
-		if (WorldPartition->IsInitialized())
-		{
-			OnWorldPartitionInitialized(WorldPartition);
-		}
-	}
 	GetWorld()->OnWorldPartitionInitialized().AddUObject(this, &UWorldPartitionSubsystem::OnWorldPartitionInitialized);
 	GetWorld()->OnWorldPartitionUninitialized().AddUObject(this, &UWorldPartitionSubsystem::OnWorldPartitionUninitialized);
 	if (GetWorld()->IsGameWorld())
@@ -469,6 +518,36 @@ void UWorldPartitionSubsystem::ForEachWorldPartition(TFunctionRef<bool(UWorldPar
 	}
 }
 
+#if !UE_BUILD_SHIPPING
+void UWorldPartitionSubsystem::SetOverrideLoadingRange(FName Name, int32 LoadingRange)
+{
+	if (LoadingRange >= 0)
+	{
+		OverriddenLoadingRanges.Add(Name, LoadingRange);
+	}
+	else
+	{
+		OverriddenLoadingRanges.Remove(Name);
+	}
+	OverriddenLoadingRangesEpoch++;
+}
+
+bool UWorldPartitionSubsystem::GetOverrideLoadingRange(FName Name, int32& LoadingRange)
+{
+	if (int32* OverriddenLoadingRange = OverriddenLoadingRanges.Find(Name))
+	{
+		LoadingRange = *OverriddenLoadingRange;
+		return true;
+	}
+	return false;
+}
+
+uint32 UWorldPartitionSubsystem::GetOverriddenLoadingRangesEpoch()
+{
+	return OverriddenLoadingRangesEpoch;
+}
+#endif
+
 void UWorldPartitionSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
 {
 	if (RegisteredWorldPartitions.IsEmpty())
@@ -484,6 +563,11 @@ void UWorldPartitionSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWo
 			GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurge = GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeForWP;
 			GLevelStreamingForceGCAfterLevelStreamedOut = 0;
 		}
+	}
+
+	if (bHasBegunPlay)
+	{
+		InWorldPartition->OnBeginPlay();
 	}
 
 	check(!RegisteredWorldPartitions.Contains(InWorldPartition));
@@ -578,35 +662,6 @@ void UWorldPartitionSubsystem::UpdateLoadingAndPendingLoadStreamingLevels(const 
 		WorldPartitionLoadingAndPendingLoadStreamingLevels.Remove(InStreamingLevel);
 	}
 }
-
-int32 UWorldPartitionSubsystem::GetMaxCellsToLoad(const UWorld* InWorld)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionSubsystem::GetMaxCellsToLoad);
-	int32 MaxCellsToLoad = MAX_int32;
-	if (!IsServer(InWorld) && !InWorld->GetIsInBlockTillLevelStreamingCompleted() && (GMaxLoadingStreamingCells > 0))
-	{
-		if (UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(InWorld))
-		{
-			MaxCellsToLoad = GMaxLoadingStreamingCells;
-			for (auto It = WorldPartitionSubsystem->WorldPartitionLoadingAndPendingLoadStreamingLevels.CreateIterator(); It; ++It)
-			{
-				const ULevelStreaming* InStreamingLevel = It->Get();
-				if (IsLoadingOrPendingLoadStreamingLevel(InStreamingLevel))
-				{
-					if (!--MaxCellsToLoad)
-					{
-						break;
-					}
-				}
-				else
-				{
-					It.RemoveCurrent();
-				}
-			}
-		}
-	}
-	return MaxCellsToLoad;
-};
 
 void UWorldPartitionSubsystem::OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InStreamingLevel, ULevel* LevelIfLoaded, ELevelStreamingState PreviousState, ELevelStreamingState NewState)
 {
@@ -899,7 +954,7 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 
 	StreamingSources.Reset();
 
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 	bool bIsUsingReplayStreamingSources = false;
 	if (AWorldPartitionReplay::IsPlaybackEnabled(World))
 	{
@@ -926,17 +981,24 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 				bAllowPlayerControllerStreamingSources = false;
 			}
 #endif
-			TArray<FWorldPartitionStreamingSource> ProviderStreamingSources;
-			for (IWorldPartitionStreamingSourceProvider* StreamingSourceProvider : GetStreamingSourceProviders())
+
 			{
-				if (bAllowPlayerControllerStreamingSources || !Cast<APlayerController>(StreamingSourceProvider->GetStreamingSourceOwner()))
+				// This will include game-sepcific code called from GetStreamingSourceProviders if IsStreamingSourceProviderFiltered is bound, and also GetStreamingSources calls.
+				SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreamingStateExternal);
+				CSV_SCOPED_TIMING_STAT(WorldPartition, GetStreamingSourceProviders);
+
+				TArray<FWorldPartitionStreamingSource> ProviderStreamingSources;
+				for (IWorldPartitionStreamingSourceProvider* StreamingSourceProvider : GetStreamingSourceProviders())
 				{
-					ProviderStreamingSources.Reset();
-					if (StreamingSourceProvider->GetStreamingSources(ProviderStreamingSources))
+					if (bAllowPlayerControllerStreamingSources || !Cast<APlayerController>(StreamingSourceProvider->GetStreamingSourceOwner()))
 					{
-						for (FWorldPartitionStreamingSource& ProviderStreamingSource : ProviderStreamingSources)
+						ProviderStreamingSources.Reset();
+						if (StreamingSourceProvider->GetStreamingSources(ProviderStreamingSources))
 						{
-							StreamingSources.Add(MoveTemp(ProviderStreamingSource));
+							for (FWorldPartitionStreamingSource& ProviderStreamingSource : ProviderStreamingSources)
+							{
+								StreamingSources.Add(MoveTemp(ProviderStreamingSource));
+							}
 						}
 					}
 				}
@@ -1017,24 +1079,53 @@ void UWorldPartitionSubsystem::GetStreamingSources(const UWorldPartition* InWorl
 #endif
 
 	// Transform to Local
-	if (OutStreamingSources.Num())
+	if (OutStreamingSources.Num() && InWorldPartition->HasInstanceTransform())
 	{
 		const FTransform WorldToLocal = InWorldPartition->GetInstanceTransform().Inverse();
 		for (FWorldPartitionStreamingSource& StreamingSource : OutStreamingSources)
 		{
 			StreamingSource.Location = WorldToLocal.TransformPosition(StreamingSource.Location);
 			StreamingSource.Rotation = WorldToLocal.TransformRotation(StreamingSource.Rotation.Quaternion()).Rotator();
+			StreamingSource.Velocity = WorldToLocal.TransformVector(StreamingSource.Velocity);
 		}
 	}
 }
 
-DECLARE_CYCLE_STAT(TEXT("World Partition Update Streaming"), STAT_WorldPartitionUpdateStreaming, STATGROUP_Engine);
-
-void UWorldPartitionSubsystem::UpdateStreamingState()
+void UWorldPartitionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
-	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreaming);
+	Super::OnWorldBeginPlay(InWorld);
+
+	bHasBegunPlay = true;
+	for (UWorldPartition* RegisteredWorldPartition : RegisteredWorldPartitions)
+	{
+		RegisteredWorldPartition->OnBeginPlay();
+	}
+}
+
+void UWorldPartitionSubsystem::OnUpdateStreamingState()
+{
+	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreamingState);
 
 	UWorldPartitionSubsystem::UpdateStreamingStateInternal(GetWorld());
+}
+
+void UWorldPartitionSubsystem::OnWorldComponentsUpdated(UWorld& World)
+{
+	Super::OnWorldComponentsUpdated(World);
+
+#if WITH_EDITOR
+	// While Cooking Cells will get initialized for Save and UpdateWorldComponents will get called rerunning ConstructionScripts, we then want to apply Post Construction Script Overrides on Actors
+	if (IsRunningCookCommandlet())
+	{
+		for (AActor* Actor : World.PersistentLevel->Actors)
+		{
+			if (IsValid(Actor))
+			{
+				FWorldPartitionLevelHelper::ApplyConstructionScriptPropertyOverridesFromAnnotation(Actor);
+			}
+		}
+	}
+#endif
 }
 
 bool UWorldPartitionSubsystem::IncrementalUpdateStreamingState()
@@ -1099,6 +1190,11 @@ void UWorldPartitionSubsystem::UpdateStreamingStateInternal(const UWorld* InWorl
 		return;
 	}
 
+	ON_SCOPE_EXIT
+	{
+		WorldPartitionSubsystem->OnStreamingStateUpdated().Broadcast();
+	};
+
 	TArray<TObjectPtr<UWorldPartition>> RegisteredWorldPartitionsCopy;
 	auto GetRegisteredWorldPartitionsCopy = [&RegisteredWorldPartitionsCopy, InWorldPartition, WorldPartitionSubsystem]()
 	{
@@ -1122,7 +1218,8 @@ void UWorldPartitionSubsystem::UpdateStreamingStateInternal(const UWorld* InWorl
 	const bool bServerStreamingEnabled = bIsServer && WorldPartitionSubsystem && WorldPartitionSubsystem->HasAnyWorldPartitionServerStreamingEnabled();
 	const int32 WorldPartitionUpdateCount = InWorldPartition ? 1 : WorldPartitionSubsystem->RegisteredWorldPartitions.Num();
 
-	const bool bForceDisableIncrementalUpdate = IsHighPriorityLoading(InWorld) || !InWorld->bMatchStarted || InWorld->IsInSeamlessTravel() || InWorld->GetIsInBlockTillLevelStreamingCompleted();
+	const bool bIsInBlockTillLevelStreamingCompleted = InWorld->GetIsInBlockTillLevelStreamingCompleted();
+	const bool bForceDisableIncrementalUpdate = IsHighPriorityLoading(InWorld) || !InWorld->bMatchStarted || InWorld->IsInSeamlessTravel() || bIsInBlockTillLevelStreamingCompleted;
 	const bool bIncrementalUpdate = (GUpdateStreamingStateTimeLimit > 0.f) &&
 									(WorldPartitionUpdateCount > 1) &&
 									!bForceDisableIncrementalUpdate &&
@@ -1167,7 +1264,33 @@ void UWorldPartitionSubsystem::UpdateStreamingStateInternal(const UWorld* InWorl
 	}
 
 	// Compute maximum number of cells to load
-	int32 MaxCellsToLoad = GetMaxCellsToLoad(World);
+	int32 MaxCellsToLoad = MAX_int32;
+	
+	if (WorldPartitionSubsystem)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GetMaxCellsToLoad);
+
+		if (!bIsServer && !bIsInBlockTillLevelStreamingCompleted && (GMaxLoadingStreamingCells > 0))
+		{
+			MaxCellsToLoad = GMaxLoadingStreamingCells;
+
+			for (auto It = WorldPartitionSubsystem->WorldPartitionLoadingAndPendingLoadStreamingLevels.CreateIterator(); It; ++It)
+			{
+				const ULevelStreaming* InStreamingLevel = It->Get();
+				if (IsLoadingOrPendingLoadStreamingLevel(InStreamingLevel))
+				{
+					if (!--MaxCellsToLoad)
+					{
+						break;
+					}
+				}
+				else
+				{
+					It.RemoveCurrent();
+				}
+			}
+		}
+	}
 
 	// Process cells to activate
 	{

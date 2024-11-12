@@ -83,7 +83,7 @@ namespace EpicGames.Core
 				{
 					throw new InvalidOperationException($"{knownType} is not derived from {typeof(T)}");
 				}
-				foreach (JsonDiscriminatorAttribute discriminatorAttribute in knownType.GetCustomAttributes(typeof(JsonDiscriminatorAttribute), true))
+				foreach (JsonDiscriminatorAttribute discriminatorAttribute in knownType.GetCustomAttributes(typeof(JsonDiscriminatorAttribute), true).OfType<JsonDiscriminatorAttribute>())
 				{
 					_discriminatorToType.Add(discriminatorAttribute.Name, knownType);
 				}

@@ -66,15 +66,6 @@ public:
 		SetShaderValue(BatchedParameters, MinZ, VolumeBounds.MinZ);
 	}
 
-	template <typename TRHICommandList>
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(TRHICommandList& RHICmdList, const FVolumeBounds& VolumeBounds, const FIntVector& VolumeResolution)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, VolumeBounds, VolumeResolution);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-	}
-
 private:
 	LAYOUT_FIELD(FShaderParameter, UVScaleBias);
 	LAYOUT_FIELD(FShaderParameter, MinZ);
@@ -95,15 +86,6 @@ public:
 		SetShaderValue(BatchedParameters, MinZ, MinZValue);
 	}
 
-	template <typename TRHICommandList>
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(TRHICommandList& RHICmdList, int32 MinZValue)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters(BatchedParameters, MinZValue);
-		RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundGeometryShader(), BatchedParameters);
-	}
-
 private:
 	LAYOUT_FIELD(FShaderParameter, MinZ);
 };
@@ -112,10 +94,10 @@ private:
 extern ENGINE_API void RasterizeToVolumeTexture(FRHICommandList& RHICmdList, FVolumeBounds VolumeBounds);
 
 /** Vertex buffer used for rendering into a volume texture. */
-class ENGINE_API FVolumeRasterizeVertexBuffer : public FVertexBuffer
+class FVolumeRasterizeVertexBuffer : public FVertexBuffer
 {
 public:
-	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
+	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 };
 
 extern ENGINE_API TGlobalResource<FVolumeRasterizeVertexBuffer> GVolumeRasterizeVertexBuffer;

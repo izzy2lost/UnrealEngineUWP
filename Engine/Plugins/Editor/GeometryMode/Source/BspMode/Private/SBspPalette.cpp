@@ -89,8 +89,7 @@ void SBspPalette::Construct( const FArguments& InArgs )
 	ListViewWidget = 
 		SNew(SBspBuilderListView)
 		.ListItemsSource(&BspModeModule.GetBspBuilderTypes())
-		.OnGenerateRow(this, &SBspPalette::MakeListViewWidget)
-		.ItemHeight(35);
+		.OnGenerateRow(this, &SBspPalette::MakeListViewWidget);
 
 	ChildSlot
 	[

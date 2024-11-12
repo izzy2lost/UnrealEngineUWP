@@ -33,8 +33,6 @@ namespace UE::AnimNext
 		, CurrentLOD(InCurrentLOD)
 		, EvaluationFlags(InEvaluationFlags)
 	{
-		CurveFilter.SetFilterMode(UE::Anim::ECurveFilterMode::DisallowAll);
-
 		//const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll);
 		//if(USkeleton* Skeleton = const_cast<USkeleton*>(InReferencePose.Skeleton.Get())) // const_cast because the bone container takes a mutable reference
 		{

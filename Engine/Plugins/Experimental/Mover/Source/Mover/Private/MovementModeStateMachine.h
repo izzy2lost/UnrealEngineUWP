@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 #include "MovementMode.h"
+#include "InstantMovementEffect.h"
 #include "MovementModeStateMachine.generated.h"
 
 struct FProposedMove;
@@ -50,6 +51,7 @@ public:
 	void ClearQueuedMode();
 
 	void OnSimulationTick(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, UMoverBlackboard* SimBlackboard, const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FMoverTickEndData& OutputState);
+ 	void OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState);
 	void OnSimulationRollback(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
 	FName GetCurrentModeName() const { return CurrentModeName; }
@@ -59,7 +61,13 @@ public:
 	const UBaseMovementMode* FindMovementMode(FName ModeName) const;
 
 	void QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Move);
+	
+ 	void QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> Effect);
 
+	FMovementModifierHandle QueueMovementModifier(TSharedPtr<FMovementModifierBase> Modifier);
+
+ 	void CancelModifierFromHandle(FMovementModifierHandle ModifierHandle);
+ 	
 protected:
 
 	virtual void PostInitProperties() override;
@@ -76,10 +84,23 @@ protected:
 	/** Moves that are queued to be added to the simulation at the start of the next sim subtick */
 	TArray<TSharedPtr<FLayeredMoveBase>> QueuedLayeredMoves;
 
+ 	/** Effects that are queued to be applied to the simulation at the start of the next sim subtick or at the end of this tick */
+ 	TArray<TSharedPtr<FInstantMovementEffect>> QueuedInstantEffects;
+
+ 	/** Modifiers that are queued to be added to the simulation at the start of the next sim subtick */
+ 	TArray<TSharedPtr<FMovementModifierBase>> QueuedMovementModifiers;
+
+ 	/** Modifiers that are to be canceled at the start of the next sim subtick */
+ 	TArray<FMovementModifierHandle> ModifiersToCancel;
+ 	
 private:
 	void ConstructDefaultModes();
 	void AdvanceToNextMode();
 	void FlushQueuedMovesToGroup(FLayeredMoveGroup& Group);
+ 	void FlushQueuedModifiersToGroup(FMovementModifierGroup& ModifierGroup);
+ 	void FlushModifierCancellationsToGroup(FMovementModifierGroup& ActiveModifierGroup);
+ 	void RollbackModifiers(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState);
+ 	bool ApplyInstantEffects(FApplyMovementEffectParams& ApplyEffectParams, FMoverSyncState& OutputState);
 	AActor* GetOwnerActor() const;
 };
 

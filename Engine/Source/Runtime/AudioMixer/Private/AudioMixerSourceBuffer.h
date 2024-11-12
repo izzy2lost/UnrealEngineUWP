@@ -50,12 +50,13 @@ namespace Audio
 	{
 		FDeviceId AudioDeviceID = 0;
 		uint64 AudioComponentID = 0;
-		uint32 InstanceID = 0;
+		uint64 InstanceID = 0;
 		int32 SampleRate = 0;
 		int32 AudioMixerNumOutputFrames = 0;
 		FMixerBuffer* Buffer = nullptr;
 		USoundWave* SoundWave = nullptr;
 		ELoopingMode LoopingMode = ELoopingMode::LOOP_Never;
+		float StartTime = 0.0f;
 		bool bIsSeeking = false;
 		bool bForceSyncDecode = false;
 		bool bIsPreviewSound = false;
@@ -128,6 +129,9 @@ namespace Audio
 		double GetCPUCoreUtilization() const;
 #endif // ENABLE_AUDIO_DEBUG
 
+		// Returns the runtime render cost
+		float GetRelativeRenderCost() const;
+
 	private:
 		FMixerSourceBuffer(FMixerSourceBufferInitArgs& InArgs, TArray<FAudioParameter>&& InDefaultParams);
 
@@ -155,6 +159,7 @@ namespace Audio
 		Audio::EBufferType::Type BufferType;
 		int32 NumPrecacheFrames;
 		Audio::FDeviceId AuioDeviceID;
+		uint64 InstanceID;
 		TArray<uint8> CachedRealtimeFirstBuffer;
 		FName WaveName;
 		uint64 AsyncTaskStartTimeInCycles=0;
@@ -164,6 +169,9 @@ namespace Audio
 		std::atomic<double> CPUCoreUtilization = 0.0;
 		void UpdateCPUCoreUtilization(double InCPUTime, double InAudioTime);
 #endif // ENABLE_AUDIO_DEBUG
+
+		std::atomic<float> RelativeRenderCost = 1.0f;
+		void SetRelativeRenderCost(float InRelativeRenderCost);
 
 		mutable FCriticalSection SoundWaveCritSec;
 		mutable FCriticalSection DecodeTaskCritSec;

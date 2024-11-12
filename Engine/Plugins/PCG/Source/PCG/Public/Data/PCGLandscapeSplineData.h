@@ -35,6 +35,8 @@ public:
 	virtual float GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const override;
 	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const override;
 	virtual FVector::FReal GetDistanceAtSegmentStart(int SegmentIndex) const override;
+	virtual FVector GetLocationAtAlpha(float Alpha) const override;
+	virtual FTransform GetTransformAtAlpha(float Alpha) const override;
 	//~End UPCGPolyLineData interface
 
 	//~Begin UPCGSpatialDataWithPointCache interface
@@ -45,7 +47,7 @@ public:
 	virtual FBox GetBounds() const override;
 	virtual bool SamplePoint(const FTransform& Transform, const FBox& Bounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 	/** Recompute the reparameterization of the spline by distance. */
@@ -61,8 +63,3 @@ protected:
 	/** Reparameterization of the spline by distance. Useful to query the InputKey at arbitrary distance. */
 	FInterpCurveFloat ReparamTable;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGProjectionData.h"
-#endif

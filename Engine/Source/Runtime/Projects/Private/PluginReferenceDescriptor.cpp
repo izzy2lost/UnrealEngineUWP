@@ -435,7 +435,31 @@ void FPluginReferenceDescriptor::UpdateArray(FJsonObject& JsonObject, const TCHA
 		JsonObject, ArrayName, Plugins, 
 		FPluginRefJsonArrayUpdater::FGetElementKey::CreateStatic(PluginReferenceDescriptor::GetPluginRefKey),
 		FPluginRefJsonArrayUpdater::FTryGetJsonObjectKey::CreateStatic(PluginReferenceDescriptor::TryGetPluginRefJsonObjectKey),
-		FPluginRefJsonArrayUpdater::FUpdateJsonObject::CreateStatic(PluginReferenceDescriptor::UpdatePluginRefJsonObject));
+		FPluginRefJsonArrayUpdater::FUpdateJsonObject::CreateStatic(PluginReferenceDescriptor::UpdatePluginRefJsonObject),
+		FPluginRefJsonArrayUpdater::FSortArray::CreateLambda([&Plugins](TArray<TSharedPtr<FJsonValue>>& NewJsonValues) {
+			// Sort the json array to match the same order as the plugin array. Without the sort, new entries are appended at the end
+			for (int32 StartIndex = 0; StartIndex < Plugins.Num(); ++StartIndex)
+			{
+				const FString PluginRefKey = PluginReferenceDescriptor::GetPluginRefKey(Plugins[StartIndex]);
+				for (int32 Index = StartIndex; Index < NewJsonValues.Num(); ++Index)
+				{
+					const TSharedPtr<FJsonObject>* ExistingJsonValueAsObject;
+					if (NewJsonValues[Index]->TryGetObject(ExistingJsonValueAsObject))
+					{
+						FString ElementKey;
+						if (PluginReferenceDescriptor::TryGetPluginRefJsonObjectKey(**ExistingJsonValueAsObject, ElementKey))
+						{
+							if (ElementKey == PluginRefKey)
+							{
+								NewJsonValues.Swap(StartIndex, Index);
+								break;
+							}
+						}
+					}
+				}
+			}
+		})
+	);
 }
 
 #if WITH_EDITOR

@@ -3,6 +3,8 @@
 #pragma once
 
 #include "SequenceTree/IAvaSequenceItem.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 class FAvaSequencer;
 

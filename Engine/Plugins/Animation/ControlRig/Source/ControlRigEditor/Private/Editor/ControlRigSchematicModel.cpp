@@ -617,7 +617,7 @@ void FControlRigSchematicModel::HandleModularRigModified(EModularRigNotification
 						if(const FSchematicGraphNode* ConnectorNode = FindElementKeyNode(ConnectorKey))
 						{
 							const FString NameString = ConnectorKey.Name.ToString();
-							if(NameString.StartsWith(InModule->GetNamespace(), ESearchCase::CaseSensitive))
+							if(NameString.StartsWith(InModule->GetNamespace(), ESearchCase::IgnoreCase))
 							{
 								const FString LocalName = NameString.Mid(InModule->GetNamespace().Len());
 								if(!LocalName.Contains(UModularRig::NamespaceSeparator))

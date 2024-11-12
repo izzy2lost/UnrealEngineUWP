@@ -148,7 +148,5 @@ class MESHMODELINGTOOLSEXP_API UOffsetMeshToolBuilder : public UBaseMeshProcessi
 {
 	GENERATED_BODY()
 public:
-	virtual UBaseMeshProcessingTool* MakeNewToolInstance(UObject* Outer) const {
-		return NewObject<UOffsetMeshTool>(Outer);
-	}
+	virtual USingleTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 };

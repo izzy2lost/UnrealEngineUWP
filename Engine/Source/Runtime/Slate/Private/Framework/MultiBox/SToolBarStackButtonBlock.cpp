@@ -491,6 +491,17 @@ bool SToolBarStackButtonBlock::IsEnabled() const
 
 EVisibility SToolBarStackButtonBlock::GetVisibility() const
 {
+	// Let the visibility override take prescedence here.
+	// However, if it returns Visible, let the other methods have a chance to change that.
+	if (MultiBlock->GetVisibilityOverride().IsSet())
+	{
+		const EVisibility OverrideVisibility = MultiBlock->GetVisibilityOverride().Get();
+		if (OverrideVisibility != EVisibility::Visible)
+		{
+			return OverrideVisibility;
+		}
+	}
+
 	const FUIAction& UIAction = MultiBlock->GetDirectActions();
 	if (UIAction.IsActionVisibleDelegate.IsBound())
 	{

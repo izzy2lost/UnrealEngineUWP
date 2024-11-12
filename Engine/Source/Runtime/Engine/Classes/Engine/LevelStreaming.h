@@ -267,6 +267,9 @@ protected:
 	/** Whether the streaming level can safely skip making visible transaction request from the client to the server */
 	uint8 bSkipClientUseMakingVisibleTransactionRequest:1;
 
+	/** IDs used to track the underlying async load requests for the level */
+	TArray<int32> AsyncRequestIDs;
+
 private:
 	/** What the current streamed state of the streaming level is */
 	ELevelStreamingState CurrentState;
@@ -455,6 +458,12 @@ public:
 		return (LoadedLevel || PendingUnloadLevel);
 	}
 
+	/** Returns the RequestIDs for the async load requests required to load the level. These IDs are cleared during OnLoadingFinished */
+	const TArray<int32>& GetAsyncRequestIDs() const
+	{
+		return AsyncRequestIDs; 
+	}
+
 	/** Returns if the streaming level has requested to be unloaded and removed. */
 	UFUNCTION(BlueprintPure, Category = LevelStreaming)
 	bool GetIsRequestingUnloadAndRemoval() const { return bIsRequestingUnloadAndRemoval; }
@@ -633,6 +642,9 @@ public:
 	/** If true level streaming can reuse an unloaded level that wasn't GC'd yet. */
 	static ENGINE_API bool ShouldReuseUnloadedButStillAroundLevels(const ULevel* InLevel);
 
+	/** Whether incremental removal of a streaming level can be done while there's a pending visible streaming level being processed. */
+	static ENGINE_API bool AllowIncrementalRemovalWhilePendingVisibility();
+
 	/** 
 	 * Traverses all streaming level objects in the persistent world and in all inner worlds and calls appropriate delegate for streaming objects that refer specified level 
 	 *
@@ -686,6 +698,9 @@ protected:
 
 	/** Called by SetLoadedLevel */
 	virtual void OnLevelLoadedChanged(ULevel* Level) {}
+
+	/** Called when the current state changes */
+	virtual void OnCurrentStateChanged(ELevelStreamingState OldState, ELevelStreamingState NewState) {}
 
 	/** Called by RequestLevel to detect existing streaming level with same world asset */
 	bool ValidateUniqueWorldAsset(UWorld* PersistentWorld);
@@ -779,7 +794,3 @@ private:
 	friend class UEngine;
 	friend class UWorld;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

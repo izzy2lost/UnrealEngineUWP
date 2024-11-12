@@ -14,22 +14,6 @@
 class IDetailCategoryBuilder;
 class FInstanceDataObjectFixupPanel;
 
-/**
- * 
- */
-class INSTANCEDATAOBJECTFIXUPTOOL_API FInstanceDataObjectFixupDetailCustomization : public IDetailCustomization, public TSharedFromThis<FInstanceDataObjectFixupDetailCustomization>
-{
-public:
-	FInstanceDataObjectFixupDetailCustomization(const TSharedRef<FInstanceDataObjectFixupPanel>& DiffPanel);
-	virtual ~FInstanceDataObjectFixupDetailCustomization() override;
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
-
-private:
-	bool IsHidden(const TSharedPtr<IPropertyHandle>& PropertyHandle) const;
-	void CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder);
-	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
-};
-
 class INSTANCEDATAOBJECTFIXUPTOOL_API FInstanceDataObjectNameWidgetOverride : public FDetailsNameWidgetOverrideCustomization
 {
 public:
@@ -54,17 +38,4 @@ private:
 		DisplayRegularName = 0,
 		DisplayRedirectMenu = 1
 	};
-};
-
-class INSTANCEDATAOBJECTFIXUPTOOL_API FHideLoosePropertiesCustomization : public IDetailCustomization, public TSharedFromThis<FInstanceDataObjectFixupDetailCustomization>
-{
-public:
-	FHideLoosePropertiesCustomization() = default;
-	virtual ~FHideLoosePropertiesCustomization() override;
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
-
-	static void CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder);
-
-private:
-	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
 };

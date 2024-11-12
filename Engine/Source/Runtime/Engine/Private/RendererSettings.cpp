@@ -2,7 +2,7 @@
 
 #include "Engine/RendererSettings.h"
 #include "GPUSkinVertexFactory.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "HAL/PlatformFile.h"
 #include "SceneManagement.h"
 #include "Misc/App.h"
@@ -15,13 +15,13 @@
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"
 #include "Misc/App.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/MessageDialog.h"
 #include "HAL/PlatformFileManager.h"
 
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "Misc/ConfigCacheIni.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #endif
@@ -32,6 +32,7 @@ extern UNREALED_API class UEditorEngine* GEditor;
 
 #define LOCTEXT_NAMESPACE "RendererSettings"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 namespace EAlphaChannelMode
 {
 	EAlphaChannelMode::Type FromInt(int32 InAlphaChannelMode)
@@ -39,6 +40,7 @@ namespace EAlphaChannelMode
 		return static_cast<EAlphaChannelMode::Type>(FMath::Clamp(InAlphaChannelMode, (int32)Disabled, (int32)AllowThroughTonemapper));
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 namespace EDefaultBackBufferPixelFormat
 {
@@ -88,6 +90,7 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	GPUSimulationTextureSizeY = 1024;
 	bEnableRayTracing = 0;
 	bUseHardwareRayTracingForLumen = 0;
+	bEnableMegaLights = 0;
 	bEnableRayTracingShadows = 0;
 	bEnablePathTracing = 0;
 	bEnableRayTracingTextureLOD = 0;
@@ -98,7 +101,16 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	GreenChromaticityCoordinate = FVector2D::ZeroVector;
 	BlueChromaticityCoordinate = FVector2D::ZeroVector;
 	WhiteChromaticityCoordinate = FVector2D::ZeroVector;
+	bUseLegacyLuminanceFactors = false;
 	bEnableVirtualTextureOpacityMask = false;
+	bEnableVirtualTexturePostProcessing = false;
+
+#if WITH_EDITOR
+	if (IsTemplate())
+	{
+		PreInitPropertiesFixup();
+	}
+#endif // #if WITH_EDITOR
 }
 
 void URendererSettings::PostInitProperties()
@@ -158,6 +170,82 @@ void UpdateDependentPropertyInConfigFile(URendererSettings* RendererSettings, FN
 	if (!bIsWriteable)
 	{
 		FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*FullPath, true);
+	}
+}
+
+void URendererSettings::PreInitPropertiesFixup()
+{
+	int32 PropagateAlphaIntValue = 0;
+	if (GConfig->GetInt(TEXT("/Script/Engine.RendererSettings"), TEXT("r.PostProcessing.PropagateAlpha"), PropagateAlphaIntValue, GEngineIni))
+	{
+		constexpr int32 LegacyAllowThroughTonemapper = 2;
+		if (PropagateAlphaIntValue == LegacyAllowThroughTonemapper)
+		{
+			UE_LOG(LogEngine, Warning, TEXT("r.PostProcessing.PropagateAlpha config value under /Script/Engine.RendererSettings was automatically converted from 2 to True, please version the change."));
+
+			bEnableAlphaChannelInPostProcessing = true;
+			UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableAlphaChannelInPostProcessing));
+		}
+	}
+}
+
+void URendererSettings::FixAntiAliasingOnShadingPathChange(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, MobileShadingPath))
+	{
+		if (MobileShadingPath == EMobileShadingPath::Forward)
+		{
+			// Nop
+		}
+		else // When we disable forward shading we need to change AA method
+		{
+			if (MobileAntiAliasing == EMobileAntiAliasingMethod::MSAA)
+			{
+				MobileAntiAliasing = EMobileAntiAliasingMethod::None;
+				UE_LOG(LogTemp, Warning, TEXT("Disabling Mobile AA because MSAA is not compatible with Mobile Deferred Shading"));
+			}
+		}
+		UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing));
+		ExportValuesToConsoleVariables(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing)));
+	}
+	// On desktop going from deferred to forward we force MSAA. After that, the AA method is blocked by the edit condition in metadata.
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bForwardShading))
+	{
+		if (bForwardShading)
+		{
+			DefaultFeatureAntiAliasing = EAntiAliasingMethod::AAM_MSAA;
+		}
+		else // When we disable forward shading we need to change AA method
+		{
+			DefaultFeatureAntiAliasing = EAntiAliasingMethod::AAM_None;
+			UE_LOG(LogTemp, Warning, TEXT("Disabling AA because MSAA is not compatible with Deferred Shading"));
+		}
+		UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, DefaultFeatureAntiAliasing));
+		ExportValuesToConsoleVariables(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, DefaultFeatureAntiAliasing)));
+	}
+
+	// MSAA can't be selected if deferred shading is active
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing))
+	{
+		if (MobileAntiAliasing == EMobileAntiAliasingMethod::MSAA && MobileShadingPath == EMobileShadingPath::Deferred)
+		{
+			MobileAntiAliasing = EMobileAntiAliasingMethod::None;
+			UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing));
+			ExportValuesToConsoleVariables(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, MobileAntiAliasing)));
+
+			UE_LOG(LogTemp, Error, TEXT("MSAA can't be used with Mobile Deferred Rendering. Resetting Mobile AA to None."));
+		}
+	}
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, DefaultFeatureAntiAliasing))
+	{
+		if (DefaultFeatureAntiAliasing == EAntiAliasingMethod::AAM_MSAA && !bForwardShading)
+		{
+			DefaultFeatureAntiAliasing = EAntiAliasingMethod::AAM_None;
+			UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, DefaultFeatureAntiAliasing));
+			ExportValuesToConsoleVariables(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, DefaultFeatureAntiAliasing)));
+			
+			UE_LOG(LogTemp, Error, TEXT("MSAA can't be used with Deferred Rendering. Resetting AA to None."));
+		}
 	}
 }
 
@@ -279,7 +367,7 @@ void URendererSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		{
 			if (bEnableSubstrate)
 			{
-				FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("Substrate Experimental", "Warning: Substrate is experimental. Be aware that any materials saved when Substrate is enabled won't be rendered correctly if Substrate is disabled later on."));
+				FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("Substrate Beta", "Warning: Substrate is in a Beta state. Be aware that any materials saved when Substrate is enabled won't be rendered correctly if Substrate is disabled later on."));
 			}
 		}
 
@@ -329,6 +417,17 @@ void URendererSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 		{
 			CheckForMissingShaderModels();
 		}
+
+		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bSupportHardwareVariableRateShading))
+		{
+			if (!bSupportHardwareVariableRateShading)
+			{
+				FoveationLevel = EFixedFoveationLevels::Disabled;
+				UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, FoveationLevel));
+			}
+		}
+
+		FixAntiAliasingOnShadingPathChange(PropertyChangedEvent);
 	}
 }
 
@@ -353,6 +452,7 @@ bool URendererSettings::CanEditChange(const FProperty* InProperty) const
 
 	// the following settings can only be edited if ray tracing is enabled
 	if ((InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnablePathTracing)) ||
+		(InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableMegaLights)) ||
 		(InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableRayTracingShadows)) ||
 		(InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableRayTracingTextureLOD)))
 	{
@@ -399,10 +499,7 @@ void URendererSettings::CheckForMissingShaderModels()
 {
 	// Don't show the SM6 toasts on non-Windows/Linux platforms to avoid confusion around platform requirements.
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
-	static IConsoleVariable* RayTracingRequireSM6CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.RequireSM6"));
-	const bool bRayTracingRequireSM6 = bEnableRayTracing && RayTracingRequireSM6CVar && RayTracingRequireSM6CVar->GetBool();
-
-	if (GIsEditor && (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps || bRayTracingRequireSM6))
+	if (GIsEditor && (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps || bEnableRayTracing))
 	{
 		auto CopySM6Format = [](const TCHAR* ShaderFormatName, const TArray<FString>& SrcArray, TArray<FString>& DstArray)
 		{
@@ -495,7 +592,7 @@ void URendererSettings::CheckForMissingShaderModels()
 				LOCTEXT("VirtualShadowMapsAndRayTracingNeedsSM6", "Shader Model 6 (SM6) is required to use Virtual Shadow Maps and Ray Tracing.")
 			};
 
-			const uint32 FeatureNeedsSM6Index = (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps && bRayTracingRequireSM6) ? 2 : (bRayTracingRequireSM6 ? 1 : 0);
+			const uint32 FeatureNeedsSM6Index = (ShadowMapMethod == EShadowMapMethod::VirtualShadowMaps && bEnableRayTracing) ? 2 : (bEnableRayTracing ? 1 : 0);
 
 			if (bProjectMissingD3DSM6)
 			{

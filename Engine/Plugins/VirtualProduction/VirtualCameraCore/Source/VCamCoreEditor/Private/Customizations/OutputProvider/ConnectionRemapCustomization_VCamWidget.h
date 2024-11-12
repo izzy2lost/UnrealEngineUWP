@@ -5,7 +5,7 @@
 #include "Customization/IConnectionRemapCustomization.h"
 #include "UI/VCamConnectionStructs.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FConnectionRemapCustomization_VCamWidget : public IConnectionRemapCustomization
 	{

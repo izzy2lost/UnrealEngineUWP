@@ -285,7 +285,8 @@ public:
 			return EImageFormat::HDR;
 		}
 		else if ( FCString::Stricmp(Name,TEXT("tiff")) == 0 ||
-			 FCString::Stricmp(Name,TEXT("tif")) == 0 )
+			 FCString::Stricmp(Name,TEXT("tif")) == 0 ||
+			FCString::Stricmp(Name, TEXT("tx")) == 0)
 		{
 			return EImageFormat::TIFF;
 		}
@@ -295,7 +296,6 @@ public:
 		}
 		else
 		{
-			UE_LOG(LogImageWrapper,Warning,TEXT("GetImageFormatFromExtension not found : %s\n"),Name);
 			return EImageFormat::Invalid;
 		}
 	}
@@ -386,6 +386,8 @@ public:
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ImageWrapper.Decompress);
 
+		OutImage = FImage();
+
 		EImageFormat ImageFormat = DetectImageFormat(InCompressedData,InCompressedSize);
 		if ( ImageFormat == EImageFormat::Invalid )
 		{
@@ -416,9 +418,42 @@ public:
 		return true;
 	}
 
+	virtual bool DecompressImage(const void* InCompressedData, int64 InCompressedSize, FDecompressedImageOutput& OutDecompressedImage) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ImageWrapper.Decompress);
+
+		OutDecompressedImage = FDecompressedImageOutput();
+
+		EImageFormat ImageFormat = DetectImageFormat(InCompressedData, InCompressedSize);
+		if (ImageFormat == EImageFormat::Invalid)
+		{
+			return false;
+		}
+
+		TSharedPtr<IImageWrapper> ImageWrapper = CreateImageWrapper(ImageFormat);
+		if (!ImageWrapper.IsValid())
+		{
+			return false;
+		}
+
+		if (!ImageWrapper->SetCompressed(InCompressedData, InCompressedSize))
+		{
+			return false;
+		}
+
+		if (!ImageWrapper->GetRawImage(OutDecompressedImage))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
 	virtual bool CompressImage(TArray64<uint8> & OutData, EImageFormat ToFormat, const FImageView & InImage, int32 Quality) override
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ImageWrapper.Compress);
+
+		OutData.Empty();
 
 		TSharedPtr<IImageWrapper> ImageWrapper = CreateImageWrapper(ToFormat);
 		if ( ! ImageWrapper.IsValid() )

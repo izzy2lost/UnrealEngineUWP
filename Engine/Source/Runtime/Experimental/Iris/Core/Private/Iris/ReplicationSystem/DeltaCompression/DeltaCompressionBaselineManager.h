@@ -36,7 +36,8 @@ struct FDeltaCompressionBaselineManagerInitParams
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	FReplicationStateStorage* ReplicationStateStorage = nullptr;
 	UReplicationSystem* ReplicationSystem = nullptr;
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxNetObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxDeltaCompressedObjectCount = 0;
 };
 
@@ -60,6 +61,10 @@ public:
 	~FDeltaCompressionBaselineManager();
 
 	void Init(FDeltaCompressionBaselineManagerInitParams& InitParams);
+	void Deinit();
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
 
 	void PreSendUpdate(FDeltaCompressionBaselineManagerPreSendUpdateParams& UpdateParams);
 	void PostSendUpdate(FDeltaCompressionBaselineManagerPostSendUpdateParams& UpdateParams);
@@ -164,7 +169,7 @@ private:
 		uint32 CreatedBaselineCount = 0;
 	};
 
-	void Deinit();
+private:
 
 	void UpdateScope();
 	void UpdateDirtyStateMasks(const FChangeMaskCache* ChangeMaskCache);

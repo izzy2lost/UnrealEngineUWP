@@ -48,6 +48,7 @@ ACameraRig_Crane::ACameraRig_Crane(const FObjectInitializer& ObjectInitializer)
 		PreviewMesh_CraneBase = CreateOptionalDefaultSubobject<UStaticMeshComponent>(TEXT("PreviewMesh_CraneBase"));
 		if (PreviewMesh_CraneBase)
 		{
+			PreviewMesh_CraneBase->SetCanEverAffectNavigation(false);
 			PreviewMesh_CraneBase->SetStaticMesh(CraneBaseMesh.Object);
 			PreviewMesh_CraneBase->SetIsVisualizationComponent(true);
 			PreviewMesh_CraneBase->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
@@ -61,6 +62,7 @@ ACameraRig_Crane::ACameraRig_Crane(const FObjectInitializer& ObjectInitializer)
 		PreviewMesh_CraneArm = CreateOptionalDefaultSubobject<UStaticMeshComponent>(TEXT("PreviewMesh_CraneArm"));
 		if (PreviewMesh_CraneArm)
 		{
+			PreviewMesh_CraneArm->SetCanEverAffectNavigation(false);
 			PreviewMesh_CraneArm->SetStaticMesh(CraneArmMesh.Object);
 			PreviewMesh_CraneArm->SetIsVisualizationComponent(true);
 			PreviewMesh_CraneArm->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
@@ -77,6 +79,7 @@ ACameraRig_Crane::ACameraRig_Crane(const FObjectInitializer& ObjectInitializer)
 		PreviewMesh_CraneMount = CreateOptionalDefaultSubobject<UStaticMeshComponent>(TEXT("PreviewMesh_CraneMount"));
 		if (PreviewMesh_CraneMount)
 		{
+			PreviewMesh_CraneMount->SetCanEverAffectNavigation(false);
 			PreviewMesh_CraneMount->SetStaticMesh(CraneArmMount.Object);
 			PreviewMesh_CraneMount->SetIsVisualizationComponent(true);
 			PreviewMesh_CraneMount->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
@@ -93,6 +96,7 @@ ACameraRig_Crane::ACameraRig_Crane(const FObjectInitializer& ObjectInitializer)
 		PreviewMesh_CraneCounterWeight = CreateOptionalDefaultSubobject<UStaticMeshComponent>(TEXT("PreviewMesh_CraneCounterWeight"));
 		if (PreviewMesh_CraneCounterWeight)
 		{
+			PreviewMesh_CraneCounterWeight->SetCanEverAffectNavigation(false);
 			PreviewMesh_CraneCounterWeight->SetStaticMesh(CraneArmCW.Object);
 			PreviewMesh_CraneCounterWeight->SetIsVisualizationComponent(true);
 			PreviewMesh_CraneCounterWeight->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);

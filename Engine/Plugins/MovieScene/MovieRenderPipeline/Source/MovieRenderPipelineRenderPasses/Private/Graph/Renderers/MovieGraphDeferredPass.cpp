@@ -43,10 +43,15 @@ void FMovieGraphDeferredPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 	RenderDataIdentifier.RendererName = InRenderPassNode->GetRendererName();
 	RenderDataIdentifier.SubResourceName = TEXT("beauty");
 	
-	UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = InRenderer->GetCameraInfo(LayerData.CameraIdentifier);
-	RenderDataIdentifier.CameraName =  CameraInfo.CameraName;
+	RenderDataIdentifier.CameraName =  InLayer.CameraName;
 
 	SceneViewState.Allocate(InRenderer->GetWorld()->GetFeatureLevel());
+
+	// The InRenderPassNode is not initialized with user's config. Use InLayer to 
+	// initialize the frames to delay for post submission.
+	UMovieGraphRenderPassNode* RenderPassNode = InLayer.RenderPassNode.Get();
+	FramesToDelayPostSubmission = RenderPassNode ? RenderPassNode->GetCoolingDownFrameCount() : 0;
+	RemainingCooldownReadbackFrames = FramesToDelayPostSubmission;
 }
 
 void FMovieGraphDeferredPass::Teardown()
@@ -72,11 +77,10 @@ void FMovieGraphDeferredPass::GatherOutputPasses(UMovieGraphEvaluatedConfig* InC
 		{
 			if (AdditionalPass.bEnabled)
 			{
-				UMaterialInterface* Material = AdditionalPass.Material.LoadSynchronous();
-				if (Material)
+				if (const UMaterialInterface* Material = AdditionalPass.Material.LoadSynchronous())
 				{
 					FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
-					Identifier.SubResourceName = Material->GetName();
+					Identifier.SubResourceName = AdditionalPass.Name.IsEmpty() ? Material->GetName() : AdditionalPass.Name;
 					OutExpectedPasses.Add(Identifier);
 				}
 			}
@@ -97,6 +101,24 @@ FName FMovieGraphDeferredPass::GetBranchName() const
 {
 	return LayerData.BranchName;
 }
+
+bool FMovieGraphDeferredPass::ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
+{
+	TObjectPtr<UMovieGraphDefaultRenderer> GraphRenderer = GetRenderer().Get();
+	if (!GraphRenderer)
+	{
+		return false;
+	}
+
+	if (UMovieGraphPipeline* Pipeline = GraphRenderer->GetOwningGraph())
+	{
+		// The deferred renderer should attempt to discard anything that isn't from the rendering state, as we don't need any data from
+		// the warm-up or cool-down phases of the shot.
+		return Pipeline->GetActiveShotList()[Pipeline->GetCurrentShotIndex()]->ShotInfo.State != EMovieRenderShotState::Rendering;
+	}
+	return false;
+}
+
 
 UMovieGraphImagePassBaseNode* FMovieGraphDeferredPass::GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const
 {
@@ -124,40 +146,36 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	}
 
 	UMovieGraphImagePassBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
-	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples();
-	const bool bIsRenderingState = InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering;
+	
+	// We can only write rendered frames to disk right now (warm-up/cool-down indexes aren't propagated so files overwrite each other).
+	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples() && InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering;
+	const bool bIsRenderingState = InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering ||
+									InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::CoolingDown;
 	int32 NumSpatialSamples = FMath::Max(1, bIsRenderingState ? ParentNodeThisFrame->GetNumSpatialSamples() : ParentNodeThisFrame->GetNumSpatialSamplesDuringWarmUp());
 
 	const ESceneCaptureSource SceneCaptureSource = ParentNodeThisFrame->GetDisableToneCurve() ? ESceneCaptureSource::SCS_FinalColorHDR : ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	const EAntiAliasingMethod AntiAliasingMethod = ParentNodeThisFrame->GetAntiAliasingMethod();
 	float OverscanFraction = 0.f;
+	bool bOverrideCameraOverscan = false;
 	const float TileOverlapPadRatio = 0.0f; // No tiling support right now
 
 	// Camera nodes are optional
 	const bool bIncludeCDOs = false;
+	bool bRenderAllCameras = false;
 	const UMovieGraphCameraSettingNode* CameraNode = InTimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(LayerData.BranchName, bIncludeCDOs);
 	if (CameraNode)
 	{
 		OverscanFraction = FMath::Clamp(CameraNode->OverscanPercentage / 100.f, 0.f, 1.f);
+		bRenderAllCameras = CameraNode->bRenderAllCameras;
+		bOverrideCameraOverscan = CameraNode->bOverride_OverscanPercentage;
 	}
-	
-	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig);
+
 	// ToDo: When tiling is used, this should be the size of the per-tile backbuffer
+	const float CameraOverscan = GetRenderer()->GetCameraOverscan(LayerData.CameraIndex);
+	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, CameraOverscan);
 	FIntPoint BackbufferResolution = AccumulatorResolution;
-	// ToDo: This math probably needs the per-tile, pre-overlapped size? 
-	FIntPoint OverlappedPad = FIntPoint(FMath::CeilToInt(BackbufferResolution.X * TileOverlapPadRatio), FMath::CeilToInt(BackbufferResolution.Y * TileOverlapPadRatio));
-	// Calculate a backbuffer
-	UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams RenderTargetInitParams;
-	{
-		RenderTargetInitParams.Size = BackbufferResolution;
-
-		// OCIO: Since this is a manually created Render target we don't need Gamma to be applied.
-		// We use this render target to render to via a display extension that utilizes Display Gamma
-		// which has a default value of 2.2 (DefaultDisplayGamma), therefore we need to set Gamma on this render target to 2.2 to cancel out any unwanted effects.
-		RenderTargetInitParams.TargetGamma = FOpenColorIORendering::DefaultDisplayGamma;
-		RenderTargetInitParams.PixelFormat = EPixelFormat::PF_FloatRGBA;
-	}
-
+	
+	DefaultRenderer::FRenderTargetInitParams RenderTargetInitParams = GetRenderTargetInitParams(InTimeData, AccumulatorResolution);
 	UTextureRenderTarget2D* RenderTarget = GraphRenderer->GetOrCreateViewRenderTarget(RenderTargetInitParams, RenderDataIdentifier);
 	FRenderTarget* RenderTargetResource = RenderTarget->GameThread_GetRenderTargetResource();
 	check(RenderTargetResource);
@@ -182,17 +200,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		}
 		 
 		// These are the parameters of our camera 
-		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo;
-
-		// ToDo: Get this from the renderer based on LayerData.CameraIdentifier for eventual multi-camera support
-		APlayerController* LocalPlayerController = GraphRenderer->GetWorld()->GetFirstPlayerController();
-		// CameraAnim override
-		if (LocalPlayerController->PlayerCameraManager)
-		{
-			CameraInfo.ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
-			CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
-		}
-
+		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetRenderer()->GetCameraInfo(LayerData.CameraIndex);
 
 		CameraInfo.bAllowCameraAspectRatio = true;
 		CameraInfo.TilingParams.TileSize = BackbufferResolution;
@@ -203,25 +211,32 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		CameraInfo.SamplingParams.TemporalSampleCount = InTimeData.TemporalSampleCount;
 		CameraInfo.SamplingParams.SpatialSampleIndex = SpatialIndex;
 		CameraInfo.SamplingParams.SpatialSampleCount = NumSpatialSamples;
-		CameraInfo.OverscanFraction = OverscanFraction;
 		CameraInfo.ProjectionMatrixJitterAmount = FVector2D((SpatialShiftAmount.X) * 2.0f / (float)BackbufferResolution.X, SpatialShiftAmount.Y * -2.0f / (float)BackbufferResolution.Y);
+		CameraInfo.bUseCameraManagerPostProcess = !bRenderAllCameras;
+		
+		if (bOverrideCameraOverscan)
+		{
+			CameraInfo.ViewInfo.ClearOverscan();
+			CameraInfo.ViewInfo.ApplyOverscan(OverscanFraction);
+		}
+		else
+		{
+			// Current overscan is different from originally cached value, indicating an animated overscan value, so output a warning message
+			if (CameraInfo.ViewInfo.GetOverscan() != CameraOverscan)
+			{
+				GetRenderer()->WarnAboutAnimatedOverscan(CameraOverscan);
+			}
+		}
 
+		// ToDo: This math probably needs the per-tile, pre-overlapped size? 
+		FIntPoint OverlappedPad = FIntPoint(FMath::CeilToInt(BackbufferResolution.X * TileOverlapPadRatio), FMath::CeilToInt(BackbufferResolution.Y * TileOverlapPadRatio));
+		
 		// For this particular tile, what is the offset into the output image
 		FIntPoint OverlappedOffset = FIntPoint(CameraInfo.TilingParams.TileIndexes.X * BackbufferResolution.X - OverlappedPad.X, CameraInfo.TilingParams.TileIndexes.Y * BackbufferResolution.Y - OverlappedPad.Y);
 		
 		// Move the final render by this much in the accumulator to counteract the offset put into the view matrix.
 		// Note that when bAllowSpatialJitter is false, SpatialShiftX/Y will always be zero.
 		FVector2D OverlappedSubpixelShift = FVector2D(0.5f - SpatialShiftAmount.X, 0.5f - SpatialShiftAmount.Y);
-		
-		FMatrix ProjectionMatrix = CalculateProjectionMatrix(CameraInfo);
-		float DoFSensorScale = 1.f;
-
-		// Modify the perspective matrix to do an off center projection, with overlap for high-res tiling
-		const bool bOrthographic = CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Orthographic;
-		ModifyProjectionMatrixForTiling(CameraInfo.TilingParams, bOrthographic, ProjectionMatrix, DoFSensorScale);
-		
-		CameraInfo.ProjectionMatrix = ProjectionMatrix;
-		CameraInfo.DoFSensorScale = DoFSensorScale;
 
 		// The Scene View Family must be constructed first as the FSceneView needs it to be constructed
 		UE::MovieGraph::Rendering::FViewFamilyInitData ViewFamilyInitData;
@@ -234,11 +249,23 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		ViewFamilyInitData.AntiAliasingMethod = AntiAliasingMethod;
 		ViewFamilyInitData.ShowFlags = ParentNodeThisFrame->GetShowFlags();
 		ViewFamilyInitData.ViewModeIndex = ParentNodeThisFrame->GetViewModeIndex();
-		
-		TSharedRef<FSceneViewFamilyContext> ViewFamily = CreateSceneViewFamily(ViewFamilyInitData, CameraInfo);
-		 
-		// Now we can construct a View to go within this family.
+		ViewFamilyInitData.ProjectionMode = CameraInfo.ViewInfo.ProjectionMode;
+
+		TSharedRef<FSceneViewFamilyContext> ViewFamily = CreateSceneViewFamily(ViewFamilyInitData);
 		FSceneViewInitOptions SceneViewInitOptions = CreateViewInitOptions(CameraInfo, ViewFamily.ToSharedPtr().Get(), SceneViewState);
+		
+		
+		CalculateProjectionMatrix(CameraInfo, SceneViewInitOptions, BackbufferResolution, AccumulatorResolution);
+	
+		// Modify the perspective matrix to do an off center projection, with overlap for high-res tiling
+		const bool bOrthographic = CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Orthographic;
+		ModifyProjectionMatrixForTiling(CameraInfo.TilingParams, bOrthographic, SceneViewInitOptions.ProjectionMatrix, CameraInfo.DoFSensorScale);
+		
+		// Scale the DoF sensor scale to counteract overscan, otherwise the size of Bokeh changes when you have Overscan enabled.
+		// This needs to come after we modify it for Tiling.
+		CameraInfo.DoFSensorScale *= 1.0 + CameraInfo.ViewInfo.GetOverscan();
+		 
+		// Construct a View to go within this family.
 		FSceneView* NewView = CreateSceneView(SceneViewInitOptions, ViewFamily, CameraInfo);
 		
 		// Then apply Movie Render Queue specific overrides to the ViewFamily, and then to the SceneView.
@@ -258,6 +285,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			// Take our per-frame Traversal Context and update it with context specific to this sample.
 			FMovieGraphTraversalContext UpdatedTraversalContext = InFrameTraversalContext;
 			UpdatedTraversalContext.Time = InTimeData;
+			UpdatedTraversalContext.Time.SpatialSampleIndex = SpatialIndex;
+			UpdatedTraversalContext.Time.SpatialSampleCount = NumSpatialSamples;
 			UpdatedTraversalContext.RenderDataIdentifier = RenderDataIdentifier;
 
 			SampleState.TraversalContext = MoveTemp(UpdatedTraversalContext);
@@ -269,41 +298,49 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverlappedPad = OverlappedPad;
 			SampleState.OverlappedOffset = OverlappedOffset;
 			SampleState.OverlappedSubpixelShift = OverlappedSubpixelShift;
-			SampleState.OverscanFraction = OverscanFraction;
+			SampleState.OverscanFraction = CameraInfo.ViewInfo.GetOverscan();
 			SampleState.bAllowOCIO = ParentNodeThisFrame->GetAllowOCIO();
+			SampleState.bAllowsCompositing = ParentNodeThisFrame->GetAllowsCompositing();
 			SampleState.SceneCaptureSource = SceneCaptureSource;
 			SampleState.CompositingSortOrder = 10;
 		}
 
+		ApplyMovieGraphOverridesToSampleState(SampleState);
+
 		if (UMovieGraphImagePassBaseNode* ParentNode = GetParentNode(InFrameTraversalContext.Time.EvaluatedConfig))
 		{
+			TSet<UMaterialInterface*> HighPrecisionMaterials;
+
 			for (const FMoviePipelinePostProcessPass& PostProcessPass : ParentNode->GetAdditionalPostProcessMaterials())
 			{
-				if (PostProcessPass.bEnabled)
+				UMaterialInterface* Material = PostProcessPass.Material.LoadSynchronous();
+				
+				if (!PostProcessPass.bEnabled || !Material)
 				{
-					UMaterialInterface* Material = PostProcessPass.Material.LoadSynchronous();
-					if (Material)
-					{
-						NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(Material);
-					}
+					continue;
 				}
-			}
-
-			for (UMaterialInterface* VisMaterial : NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials)
-			{
+				
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
 				
-				FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
-				Identifier.SubResourceName = VisMaterial->GetName();
+				NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(Material);
 				
-				UE::MovieGraph::FMovieGraphSampleState PassSampleState = SampleState;
+				if (PostProcessPass.bHighPrecisionOutput)
+				{
+					HighPrecisionMaterials.Add(Material);
+					BufferPipe->bIsExpecting32BitPixelData = true;
+				}
+				
+				FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
+				Identifier.SubResourceName = PostProcessPass.Name.IsEmpty() ? Material->GetName() : PostProcessPass.Name;
+				
+				FMovieGraphSampleState PassSampleState = SampleState;
 				PassSampleState.TraversalContext.RenderDataIdentifier = Identifier;
 				
 				// Give a lower priority to materials so they show up after the main pass in multi-layer exrs.
 				PassSampleState.CompositingSortOrder = SampleState.CompositingSortOrder + 1;
 				BufferPipe->AddEndpoint(MakeForwardingEndpoint(PassSampleState, InTimeData));
 
-				NewView->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);
+				NewView->FinalPostProcessSettings.BufferVisualizationPipes.Add(Material->GetFName(), BufferPipe);
 			}
 		}
 
@@ -317,21 +354,93 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		// Submit the renderer to be rendered
 		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.ToSharedPtr().Get());
 
-		// If this was just to contribute to the history buffer, no need to go any further.
-		bool bDiscardOutput = InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo);
+		ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+			[RenderTargetResource](FRHICommandListImmediate& RHICmdList) mutable
+			{
+				// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+				RHICmdList.Transition(FRHITransitionInfo(RenderTargetResource->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+			});
+
+
+		// If this was just to contribute to the history buffer, no need to go any further. Never discard if we're writing individual samples, though.
+		bool bDiscardOutput = (InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo)) && !SampleState.bWriteSampleToDisk;
 		if (bDiscardOutput)
 		{
 			continue;
 		}
+
+		// Example Assumptions: 2 frame denoise temporal denoise with 8 temporal sub-samples. 
+		// If you're using Cooldown Frames, we can get into a scenario where due to the particular render pass settings,
+		// you don't need all the cooldown frames. If you're using Path Tracer's "Use Reference Motion Blur" then the 
+		// above Discard is true for everything but the last sample. This means that we needed 8 Cool Down _samples_ to 
+		// produce the two output frames (matching the 2 frame delay in the PT denoiser).
+		// But if Use Reference Motion Blur is off, then the first two samples of the cool-down are enough to finish flushing
+		// the PT denoiser, and the remaining 14 end up confusing the system because it gets data it doesn't think it should.
+		if(InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::CoolingDown)
+		{
+			// When we're cooling down, we track the number of times we actually
+			// go to do a readback (ie: pass the above bShouldDiscardOutput check)
+			// and once we reach the number needed to actually flush the PT denoiser
+			// we stop submitting.
+			if (RemainingCooldownReadbackFrames == 0)
+			{
+				continue;
+			}
+			RemainingCooldownReadbackFrames--;
+		}
 		
-		// Readback + Accumulate.
-		PostRendererSubmission(SampleState, RenderTargetInitParams, Canvas, CameraInfo);
+		// Post-submission is a little bit complicated to allow supporting temporal denoisers in the Path Tracer.
+		// When using the denoiser with a sample frame count of 2, for a frame to be produced it must look 2 frames
+		// backwards, and 2 frames forwards, ie: to denoise Frame 5, we need to have rendered 3, 4, 5, 6, and 7.
+		// The complication for this is that when we request a render and then immediately schedule a readback, when the
+		// readback is completed the image will be the denoised result from a previous frame. ie: If on frame 5 you schedule
+		// the readback, the result that will be copied to the CPU is the data from Frame 3.
+		//
+		// To resolve these issues, we capture the PostRendererSubmission and place it in a FIFO queue, and then when we schedule
+		// a readback, we provide the old captured state, ie: on Frame 5 we provide Frame 3's data, and that will line up with the
+		// image data actually generated on Frame 3 (which is what is returned by the GPU). A slight complication to this is that
+		// PostRendererSubmission can no longer depend on any member state (since that would be using old data in combination with new),
+		// but the one exception to this is that the current FCanvas is provided since it's only a wrapper for drawing letterboxing anyways.
+		//
+		// Under non-path-tracer temporal denoiser cases, this should effectively work out to be a no-op, the queue will dequeue immediately.
+
+		FMovieGraphPostRendererSubmissionParams Params;
+		Params.SampleState = SampleState;
+		Params.RenderTargetInitParams = RenderTargetInitParams;
+		Params.CameraInfo = CameraInfo;
+
+		// Push the current frame into our FIFO queue
+		SubmissionQueue.Enqueue(Params);
+
+		// When we first start rendering we don't want to schedule a readback (as there isn't actually finished data to read back)
+		// so we skip the first few frames. When we get to the end of a shot, we'll be in a cool-down period where we render extra
+		// frames to allow finishing the denoising on the previous "real" frames. Those frames can't have discard output set on them,
+		// otherwise we won't actually read back the end of the "real" frames. This means the queue will be left with some extra data
+		// in it (for the cool-down frames which were calculated and submitted but never themselves get read back) but that's okay.
+		if (FramesToDelayPostSubmission == 0)
+		{
+			// Now we schedule a readback using the oldest data.
+			FMovieGraphPostRendererSubmissionParams PostParamsToUse;
+			if (SubmissionQueue.Dequeue(PostParamsToUse))
+			{
+				// It's okay that we use the current FCanvas here as it's just a vessel to draw letterboxing based on state captured by the params.
+				PostRendererSubmission(PostParamsToUse.SampleState, PostParamsToUse.RenderTargetInitParams, Canvas, PostParamsToUse.CameraInfo);
+			}
+			else
+			{
+				UE_LOG(LogMovieRenderPipeline, Error, TEXT("De-queue post-submission parameters failed. Attempted to send a frame to post-render submission, but no frames were available in the FIFO queue."));
+			}
+		}
+		else
+		{
+			FramesToDelayPostSubmission--;
+		}
 	}
 }
 
 void FMovieGraphDeferredPass::PostRendererSubmission(
 	const UE::MovieGraph::FMovieGraphSampleState& InSampleState,
-	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo)
+	const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
 {
 	TObjectPtr<UMovieGraphDefaultRenderer> GraphRenderer = GetRenderer().Get();
 	if (!GraphRenderer)
@@ -341,10 +450,9 @@ void FMovieGraphDeferredPass::PostRendererSubmission(
 
 	// Draw letterboxing
 	// ToDo: Multi-camera support
-	APlayerCameraManager* PlayerCameraManager = GraphRenderer->GetWorld()->GetFirstPlayerController()->PlayerCameraManager;
-	if(PlayerCameraManager && PlayerCameraManager->GetCameraCacheView().bConstrainAspectRatio)
+	if(InCameraInfo.ViewInfo.bConstrainAspectRatio)
 	{
-		const FMinimalViewInfo CameraCache = PlayerCameraManager->GetCameraCacheView();
+		const FMinimalViewInfo CameraCache = InCameraInfo.ViewInfo;
 		
 		// Taking overscan into account.
 		const FIntPoint FullOutputSize = InSampleState.AccumulatorResolution;

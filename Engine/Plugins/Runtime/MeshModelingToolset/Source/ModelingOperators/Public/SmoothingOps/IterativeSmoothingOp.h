@@ -15,6 +15,9 @@ class MODELINGOPERATORS_API  FIterativeSmoothingOp : public FSmoothingOpBase
 public:
 	FIterativeSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn);
 
+	// Support for smoothing only selected geometry
+	FIterativeSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn,  const FDynamicSubmesh3& Submesh);
+
 	~FIterativeSmoothingOp() override {};
 
 	// Apply smoothing. results in an updated ResultMesh

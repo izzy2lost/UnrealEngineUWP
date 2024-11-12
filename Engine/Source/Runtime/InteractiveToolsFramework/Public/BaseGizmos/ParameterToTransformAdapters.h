@@ -323,12 +323,17 @@ class UGizmoUniformScaleParameterSource : public UGizmoBaseVec2ParameterSource
 public:
 
 	/**
-	 * Optional position constraint function. Called during interaction with the new transform origin.
-	 * To snap the transform to a new position, return as second value, and return true from your lambda.
-	 * Note that returned snap point will be projected onto the current translation origin/axis.
-	 * @return true if constraint point was found and should be used, false to ignore
+	 * Optional scale axis delta constraint function. This can be used to snap/constrain the "scale delta" value,
+	 * for example to snap it to fixed increments along the axis. 
+	 * @return true if constrained delta was found and should be used, false to ignore
 	 */
-	//TUniqueFunction<bool(const FVector&, FVector&)> PositionConstraintFunction = [](const FVector&, FVector&) { return false; };
+	TUniqueFunction<bool(double ScaleAxisDelta, double& SnappedScaleAxisDelta)> ScaleAxisDeltaConstraintFunction = [](double, double&) { return false; };
+	/**
+	 * Optional scale constraint function. Called during interaction with the scale delta
+	 * To snap the scale delta, return the snapped value
+	 * @return The snapped value of the scale delta
+	 */
+	TUniqueFunction<double(const double&)> ScaleConstraintFunction = [](const double& DeltaScale) { return DeltaScale; };
 
 
 	virtual FVector2D GetParameter() const override
@@ -419,12 +424,17 @@ class UGizmoAxisScaleParameterSource : public UGizmoBaseFloatParameterSource
 public:
 
 	/**
-	 * Optional position constraint function. Called during interaction with the new transform origin.
-	 * To snap the transform to a new position, return as second value, and return true from your lambda.
-	 * Note that returned snap point will be projected onto the current translation origin/axis.
-	 * @return true if constraint point was found and should be used, false to ignore
+	 * Optional scale axis delta constraint function. This can be used to snap/constrain the "scale delta" value,
+	 * for example to snap it to fixed increments along the axis. 
+	 * @return true if constrained delta was found and should be used, false to ignore
 	 */
-	//TUniqueFunction<bool(const float&, float&)> ScaleConstraintFunction = [](const float&, float&) { return false; };
+	TUniqueFunction<bool(const double& ScaleAxisDelta, double& SnappedScaleAxisDelta)> ScaleAxisDeltaConstraintFunction = [](const double&, double&) { return false; };
+	/**
+	 * Optional scale constraint function. Called during interaction with the scale delta
+	 * To snap the scale delta, return the snapped value
+	 * @return The snapped value of the scale delta
+	 */
+	TUniqueFunction<double(const double&)> ScaleConstraintFunction = [](const double& DeltaScale) { return DeltaScale; };
 
 	virtual float GetParameter() const override
 	{
@@ -518,6 +528,21 @@ public:
 	 * @return true if constraint point was found and should be used, false to ignore
 	 */
 	TUniqueFunction<bool(const FVector&, FVector&)> PositionConstraintFunction = [](const FVector&, FVector&) { return false; };
+
+	/**
+	 * Optional scale axis delta constraint function. This can be used to snap/constrain the "scale delta" value,
+	 * for example to snap it to fixed increments along the axis. 
+	 * The Axis[X/Y]DeltaConstraintFunctions are used separately for the X and Y axes of the scale translation
+	 * @return true if constrained delta was found and should be used, false to ignore
+	 */
+	TUniqueFunction<bool(double ScaleAxisDelta, double& SnappedScaleAxisDelta)> ScaleAxisXDeltaConstraintFunction = [](double, double&) { return false; };
+	TUniqueFunction<bool(double ScaleAxisDelta, double& SnappedScaleAxisDelta)> ScaleAxisYDeltaConstraintFunction = [](double, double&) { return false; };
+	/**
+	 * Optional scale constraint function. Called during interaction with the scale delta
+	 * To snap the scale delta, return the snapped value
+	 * @return The snapped value of the scale delta as a FVector2D containing the snapped values for the X and Y axes of the scale translation
+	 */
+	TUniqueFunction<FVector2D(const FVector2D&)> ScaleConstraintFunction = [](const FVector2D& DeltaScale) { return DeltaScale; };
 
 
 	virtual FVector2D GetParameter() const override

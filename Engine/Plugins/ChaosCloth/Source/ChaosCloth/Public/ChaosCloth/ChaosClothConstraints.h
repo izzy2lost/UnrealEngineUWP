@@ -18,11 +18,6 @@ namespace Chaos
 	class FClothConstraints final
 	{
 	public:
-		UE_DEPRECATED(5.3, "ETetherMode has been replaced with bUseGeodesicTethers.")
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		typedef Softs::FPBDLongRangeConstraints::EMode ETetherMode;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 		FClothConstraints();
 		~FClothConstraints();
 
@@ -86,15 +81,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			Softs::FSolverReal MeshScale,
 			bool bEnabled);
 
-		UE_DEPRECATED(5.3, "Use AddRules() with WeightMaps, VertexSets, FaceSets, FaceIntMap, and optional PatternData instead.")
-		void AddRules(
-			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
-			const FTriangleMesh& TriangleMesh,
-			const TArray<TConstArrayView<FRealSingle>>& WeightMapArray,
-			const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
-			Softs::FSolverReal MeshScale,
-			bool bEnabled);
-
 		void Update(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
@@ -102,18 +88,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const TMap<FString, const TSet<int32>*>& FaceSets,
 			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 			Softs::FSolverReal MeshScale,
-			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
+			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.,
+			const FRotation3& LocalSpaceRotation = FRotation3::Identity,
+			const FRotation3& ReferenceSpaceRotation = FRotation3::Identity);
 
 		UE_DEPRECATED(5.4, "Use Update() with WeightMaps, VertexSets, FaceSets, and FaceIntMaps instead.")
 		void Update(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-			Softs::FSolverReal MeshScale,
-			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
-
-		UE_DEPRECATED(5.3, "Use Update() with WeightMaps, VertexSets, FaceSets, and FaceIntMaps instead.")
-		void Update(
-			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			Softs::FSolverReal MeshScale,
 			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
 

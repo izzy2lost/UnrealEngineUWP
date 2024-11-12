@@ -136,6 +136,7 @@ struct GAMEPLAYABILITIES_API FActiveGameplayCueContainer : public FFastArraySeri
 	TArray< FActiveGameplayCue >	GameplayCues;
 
 	void SetOwner(UAbilitySystemComponent* InOwner);
+	UAbilitySystemComponent* GetOwner() const;
 
 	/** Should this container only replicate in minimal replication mode */
 	bool bMinimalReplication;
@@ -229,6 +230,9 @@ struct GAMEPLAYABILITIES_API FMinimalGameplayCueReplicationProxy
 
 	bool operator==(const FMinimalGameplayCueReplicationProxy& Other) const { return LastSourceArrayReplicationKey == Other.LastSourceArrayReplicationKey; }
 	bool operator!=(const FMinimalGameplayCueReplicationProxy& Other) const { return !(*this == Other); }
+
+	bool operator==(const FActiveGameplayCueContainer& Other) const { return LastSourceArrayReplicationKey == Other.ArrayReplicationKey; }
+	bool operator!=(const FActiveGameplayCueContainer& Other) const { return !(*this == Other); }
 
 private:
 #if UE_WITH_IRIS

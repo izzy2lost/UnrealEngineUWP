@@ -23,7 +23,7 @@ bool UBTDecorator_IsBBEntryOfClass::CalculateRawConditionValue(UBehaviorTreeComp
 	{
 		UObject* KeyValue = MyBlackboard->GetValue<UBlackboardKeyType_Object>(BlackboardKey.GetSelectedKeyID());
 
-		return KeyValue != nullptr && KeyValue->GetClass()->IsChildOf(TestClass);
+		return KeyValue != nullptr && KeyValue->GetClass()->IsChildOf(TestClass.GetValue(*MyBlackboard));
 	}
 
 	return false;
@@ -61,7 +61,7 @@ FString UBTDecorator_IsBBEntryOfClass::GetStaticDescription() const
 	{
 		const FString KeyName = EntryInfo->EntryName.ToString();
 
-		BlackboardDesc = FString::Printf(TEXT("Check if %s is of class %s"), *KeyName, *GetNameSafe(TestClass));
+		BlackboardDesc = FString::Printf(TEXT("Check if %s is of class %s"), *KeyName, *TestClass.ToString());
 	}
 
 	return BlackboardDesc;

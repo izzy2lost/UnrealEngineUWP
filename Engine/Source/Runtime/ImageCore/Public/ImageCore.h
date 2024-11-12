@@ -78,6 +78,7 @@ namespace ERawImageFormat
 	IMAGECORE_API bool GetFormatFromString(FUtf8StringView InString, Type& OutFormat);
 	
 	IMAGECORE_API bool IsHDR(Type Format);
+	IMAGECORE_API bool HasAlphaChannel(Type Format);
 	
 	// Get one pixel of Format type from PixelData and return in Linear color
 	IMAGECORE_API const FLinearColor GetOnePixelLinear(const void * PixelData,Type Format,EGammaSpace Gamma);
@@ -216,6 +217,8 @@ struct FImageInfo
 	FORCEINLINE int64 GetWidth()  const { return SizeX; }
 	FORCEINLINE int64 GetHeight() const { return SizeY; }
 	
+	FORCEINLINE int64 GetStrideBytes()  const { return SizeX * GetBytesPerPixel(); }
+
 	FORCEINLINE EGammaSpace GetGammaSpace() const
 	{
 		// Gamma is ignored unless GetFormatNeedsGammaSpace, so make sure it is Linear
@@ -230,11 +233,11 @@ struct FImageInfo
 		checkSlow( X >= 0 && X < SizeX );
 		checkSlow( Y >= 0 && Y < SizeY );
 		checkSlow( Slice >= 0 && Slice < NumSlices );
-
+		
 		int64 Offset = Slice * GetSliceNumPixels();
 		Offset += Y * (int64)SizeX;
 		Offset += X;
-		// Offset is now is pixels
+		// Offset is now in pixels
 		Offset *= GetBytesPerPixel();
 
 		return Offset;
@@ -458,6 +461,10 @@ public:
 
 
 public:
+
+	// Free FImage.RawData
+	//	if bAsyncDetached free is done on a Task, not immediately, but the RawData member is empty upon return
+	IMAGECORE_API void FreeData(bool bAsyncDetached);
 
 	// Swap the contents of this FImage with another
 	IMAGECORE_API void Swap(FImage & Other);
@@ -708,6 +715,135 @@ struct FSharedImage : public FImage, public FThreadSafeRefCountedObject
 	virtual ~FSharedImage() = default;
 };
 
+/**
+ * Structure for raw image data used for Image formats that support Mip Maps.
+ */
+struct FMipMapImage
+{
+	struct FMipInfo
+	{
+		/** Size of the mip image in Pixels*/
+		int32 Width = 0;
+
+		/** Size of the mip image in Pixels*/
+		int32 Height = 0;
+
+		/** Offset into RawData */
+		int64 Offset = 0;
+
+		/** Size of the mip image in Bytes*/
+		int64 Size = 0;
+	};
+
+	/** Raw image data. */
+	TArray64<uint8> RawData;
+
+	/** Holds information about the sub images some image formats support. */
+	TArray<FMipInfo> SubImages;
+
+	/** Format in which the images is stored. */
+	ERawImageFormat::Type Format = ERawImageFormat::BGRA8;
+
+	/** The gamma space the image is stored in. */
+	EGammaSpace GammaSpace = EGammaSpace::sRGB;
+
+public:
+	/**
+	 * Initializes the Mip Map Image with parameters with uninitialized SubImages.
+	 * 
+	 * @param InFormat Raw Image Format
+	 * @param InGammaSpace Gamma Space
+	 */
+	IMAGECORE_API void Init(ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace);
+
+	/**
+	 * Initializes the Mip Map Image with reserving space for mip maps.
+	 *
+	 * @param InFormat Raw Image Format
+	 * @param InGammaSpace Gamma Space
+	 */
+	IMAGECORE_API void Init(int32 MipZeroWidth, int32 MipZeroHeight, int32 NumMips, ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace);
+
+	/**
+	 * Copies the image to a destination image with the specified format.
+	 *
+	 * @param DestImage - The destination image.  Will be allocated.  Any existing contents are replaced.
+	 * @param DestFormat - The destination image format.
+	 * @param DestSRGB - Whether the destination image is in SRGB format.
+	 */
+	IMAGECORE_API void CopyTo(FMipMapImage& DestImage, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace);
+
+	void CopyTo(FMipMapImage& DestImage)
+	{
+		CopyTo(DestImage, Format, GammaSpace);
+	}
+
+	/**
+	 * In - place format change
+	 * does nothing if already in the desired format
+	 */ 
+	IMAGECORE_API void ChangeFormat(ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace);
+
+
+	FORCEINLINE bool IsValid() const
+	{
+		bool bMipInfoValid = true;
+		for (const FMipInfo& MipInfo : SubImages)
+		{
+			bMipInfoValid &= (MipInfo.Width > 0 && MipInfo.Height > 0 && MipInfo.Size > 0);
+		}
+
+		if (!bMipInfoValid) return false;
+		if (Format == ERawImageFormat::Invalid) return false;
+		if (GammaSpace == EGammaSpace::Invalid) return false;
+		if (!GetFormatNeedsGammaSpace(Format) && GammaSpace != EGammaSpace::Linear) return false;
+		return true;
+	}
+
+	FORCEINLINE bool GetMipDimensions(int32 MipLevel, int32& OutWidth, int32& OutHeight) const
+	{
+		if (!SubImages.IsValidIndex(MipLevel))
+		{
+			OutWidth = 0;
+			OutHeight = 0;
+			return false;
+		}
+
+		OutWidth = SubImages[MipLevel].Width;
+		OutHeight = SubImages[MipLevel].Height;
+		return true;
+	}
+
+	FORCEINLINE int32 GetMipCount() const 
+	{
+		return SubImages.Num();
+	}
+
+	IMAGECORE_API FImageView GetMipImage(int32 MipLevel)
+	{
+		check(SubImages.IsValidIndex(MipLevel));
+		return FImageView(static_cast<void*>(RawData.GetData() + SubImages[MipLevel].Offset), SubImages[MipLevel].Width, SubImages[MipLevel].Height, 1, Format, GammaSpace);
+	}
+
+	IMAGECORE_API void AddMipImage(TArray64<uint8>&& Buffer, int32 Width, int32 Height)
+	{
+		FMipInfo MipInfo;
+		{
+			MipInfo.Width = Width;
+			MipInfo.Height = Height;
+			MipInfo.Offset = RawData.Num();
+			MipInfo.Size = Width * Height * ERawImageFormat::GetBytesPerPixel(Format);
+		}
+		SubImages.Add(MipInfo);
+		RawData.Append(MoveTemp(Buffer));
+	}
+
+	FORCEINLINE int64 GetNumPixels()
+	{
+		return (RawData.Num() / ERawImageFormat::GetBytesPerPixel(Format));
+	}
+
+};
 
 
 /* Functions
@@ -859,14 +995,31 @@ IMAGECORE_API void TransformToWorkingColorSpace(const FImageView& InLinearImage,
 		Triangle, 
 		Bilinear = Triangle, // synonym
 		CubicGaussian, // smooth Mitchell B=1,C=0, B-spline, Gaussian-like
-		CubicSharp, // sharp interpolating cubic, Catmull-ROM (has negative lobes)
+		CubicSharp, // sharp interpolating cubic, Catmull-Rom (has negative lobes) (Mitchell B=0)
 		CubicMitchell, // compromise between sharp and smooth cubic, Mitchell-Netrevalli filter with B=1/3, C=1/3 (has negative lobes)
 		AdaptiveSharp,  // sharper adaptive filter; uses CubicSharp for upsample and CubicMitchell for downsample, nop for same size
 		AdaptiveSmooth,  // smoother adaptive filter; uses CubicMitchell for upsample and CubicGaussian for downsample, nop for same size
 
+		MitchellOneQuarter, // B=1/4 ("Robidoux")
+		MitchellOneSixth, // B=1/6
+		MitchellNegOneSixth, // B=-1/6 , over-sharpening
+		MitchellNegOneThird, // B=-1/3 , over-sharpening
+		Lanczos4, // sharp
+		Lanczos5, // very sharp, often ringy
+
+		// cubic Mitchells in order of B: (from highest B to lowest; eg. smoothest to sharpest)
+		// CubicGaussian  // B = 1
+		// CubicMitchell // B = 1/3
+		// MitchellOneQuarter // B = 1/4
+		// MitchellOneSixth // B = 1/6
+		// CubicSharp  // B = 0
+		// MitchellNegOneSixth // B = -1/6
+		// MitchellNegOneThird // B = -1/3
+
 		WithoutFlagsMask = 63,
 		Flag_WrapX = 64,  // default edge mode is clamp; set these to wrap instead
-		Flag_WrapY = 128
+		Flag_WrapY = 128,
+		Flag_AlphaWeighted = 256 // weight RGB by A in the filter; that is, convert non-premultiplied RGBA input to premultiplied for filtering, then convert back
 	};
 	ENUM_CLASS_FLAGS(EResizeImageFilter);
 

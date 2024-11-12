@@ -14,6 +14,6 @@ public:
 
 	virtual void RegisterCommands() override;
 
-	TSharedPtr<FUICommandInfo> RenameSelectedActors;
-	TSharedPtr<FUICommandInfo> RenameSharedClassActors;
+	TSharedPtr<FUICommandInfo> BatchRenameObject;
+	TSharedPtr<FUICommandInfo> BatchRenameSharedClassActors;
 };

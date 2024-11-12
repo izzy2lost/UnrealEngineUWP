@@ -2,11 +2,12 @@
 
 #if WITH_TESTS
 #include "Engine/Engine.h"
-#include "Engine/World.h"
 #include "Tests/TestHarnessAdapter.h"
 #endif	// WITH_TESTS
 
+#include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "WorldMetricCollection.h"
 #include "WorldMetricsLog.h"
 #include "WorldMetricsSubsystem.h"
 #include "WorldMetricsTestTypes.h"
@@ -333,6 +334,96 @@ void TestSingleMetricSingleExtensionAcquireRelease(UWorld* World)
 	TestZeroState(World);
 }
 
+void TestMultipleMetricsSingleExtensionAcquireReleaseChildExtension(UWorld* World)
+{
+	TestZeroState(World);
+
+	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
+
+	UMockWorldMetricA* MetricA = Subsystem->AddMetric<UMockWorldMetricA>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(MetricA));
+
+	UMockWorldMetricB* MetricB = Subsystem->AddMetric<UMockWorldMetricB>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(MetricB));
+
+	REQUIRE_MESSAGE(
+		TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
+
+	const UMockWorldMetricsExtensionBase* ExtensionA = nullptr;
+	const UMockWorldMetricsExtensionBase* ExtensionB = nullptr;
+	const UMockWorldMetricsExtensionBase* ExtensionC = nullptr;
+
+	// Create lambda to handle acquiring/releasing other extensions when an extension is initialized/deinitialized.
+	auto ExtensionInitializeDeinitializeHandler = [&ExtensionC](UWorldMetricsExtension* Extension, bool bInitialize)
+	{
+		// B acquires C.
+		if (Extension->IsA<UMockWorldMetricsExtensionB>())
+		{
+			if (bInitialize)
+			{
+				ExtensionC = Extension->GetOwner().AcquireExtension<UMockWorldMetricsExtensionC>(Extension);
+			}
+			else
+			{
+				Extension->GetOwner().ReleaseExtension<UMockWorldMetricsExtensionC>(Extension);
+			}
+		}
+	};
+
+	// TGuardValue to make sure the static OnInitializeDeinitialize delegate is unbound on scope exit.
+	TGuardValue InitializeDeinitializeScope(
+		UMockWorldMetricsExtensionBase::OnInitializeDeinitialize,
+		UMockWorldMetricsExtensionBase::FInitializeDeinitializeDelegate::CreateLambda(ExtensionInitializeDeinitializeHandler));
+
+	// Acquire Extension A for Metric A.
+	{
+		ExtensionA = MetricA->GetOwner().AcquireExtension<UMockWorldMetricsExtensionA>(MetricA);
+		REQUIRE_MESSAGE(TEXT("Acquire Test Extension A failed."), ExtensionA);
+		REQUIRE_MESSAGE(TEXT("Test Extension A initialization failed"), ExtensionA->InitializeCount == 1);
+
+		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have extensions."), Subsystem->HasAnyExtension());
+		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have 1 extension."), Subsystem->NumExtensions() == 1);
+	}
+
+	// Acquire Extension B (and C, transitively) for Metric B.
+	{
+		ExtensionB = MetricB->GetOwner().AcquireExtension<UMockWorldMetricsExtensionB>(MetricB);
+		REQUIRE_MESSAGE(TEXT("Acquire Test Extension B failed."), ExtensionB);
+		REQUIRE_MESSAGE(TEXT("Test Extension B initialization failed"), ExtensionB->InitializeCount == 1);
+
+		REQUIRE_MESSAGE(TEXT("Acquire Test Extension C failed."), ExtensionC);
+		REQUIRE_MESSAGE(TEXT("Test Extension C initialization failed"), ExtensionC->InitializeCount == 1);
+
+		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have extensions."), Subsystem->HasAnyExtension());
+		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have 3 extensions."), Subsystem->NumExtensions() == 3);
+	}
+
+	// Release extension for Metric A.
+	{
+		REQUIRE_MESSAGE(
+			TEXT("Test Extension release failed."),
+			MetricA->GetOwner().ReleaseExtension<UMockWorldMetricsExtensionA>(MetricA));
+		REQUIRE_MESSAGE(
+			TEXT("Test Extension deinitialization failed after release."), ExtensionA->DeinitializeCount == 1);
+	}
+
+	// Release extension for Metric B.
+	{
+		REQUIRE_MESSAGE(
+			TEXT("Test Extension B release failed."),
+			MetricB->GetOwner().ReleaseExtension<UMockWorldMetricsExtensionB>(MetricB));
+		REQUIRE_MESSAGE(
+			TEXT("Test Extension B deinitialization failed after release."), ExtensionB->DeinitializeCount == 1);
+		REQUIRE_MESSAGE(
+			TEXT("Test Extension C deinitialization failed after release."), ExtensionC->DeinitializeCount == 1);
+	}
+
+	Subsystem->RemoveMetric(MetricB);
+	Subsystem->RemoveMetric(MetricA);
+
+	TestZeroState(World);
+}
+
 void TestMultipleMetricsSingleExtensionAcquireRelease(UWorld* World, bool bRandomized)
 {
 	TestZeroState(World);
@@ -560,6 +651,108 @@ void TestMultipleMetricIteration(UWorld* World, bool bRandomized)
 	TestZeroState(World);
 }
 
+void TestMetricCollection(UWorld* World, bool bRandomized)
+{
+	TestZeroState(World);
+
+	constexpr int32 NumMetrics = 8;
+
+	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
+
+	TArray<TSubclassOf<UMockWorldMetricBase>> MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+
+	FWorldMetricCollection Collection;
+	Collection.Initialize(World);
+
+	// Add
+	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : MetricClasses)
+	{
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Add' failure."), Collection.Add(MetricClass));
+	}
+
+	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !Collection.IsEmpty());
+	REQUIRE_MESSAGE(TEXT("Unexpected metrics count mismatch."), Collection.Num() == MetricClasses.Num());
+
+	// Contains/Get
+	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : MetricClasses)
+	{
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Contains' failure."), Collection.Contains(MetricClass));
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Get' failure."), Collection.Get(MetricClass) != nullptr);
+	}
+
+	// Iteration (const)
+	{
+		int32 CheckCount = 0;
+		int32 FooClassCount = 0;
+		int32 BarClassCount = 0;
+		Collection.ForEach(
+			[&](const UWorldMetricInterface* Metric)
+			{
+				++CheckCount;
+				if (Metric->IsA<UMockWorldMetricFooBase>())
+				{
+					++FooClassCount;
+				}
+				if (Metric->IsA<UMockWorldMetricBarBase>())
+				{
+					++BarClassCount;
+				}
+				return true;
+			});
+		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == NumMetrics);
+
+		CheckCount = 0;
+		Collection.ForEach<UMockWorldMetricFooBase>(
+			[&](const UMockWorldMetricFooBase* MockMetric)
+			{
+				++CheckCount;
+				return true;
+			});
+		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == FooClassCount);
+
+		CheckCount = 0;
+		Collection.ForEach<UMockWorldMetricBarBase>(
+			[&](const UMockWorldMetricBarBase* MockMetric)
+			{
+				++CheckCount;
+				return true;
+			});
+		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == BarClassCount);
+	}
+
+	// Enable state
+	REQUIRE_MESSAGE(TEXT("Unexpected existing metrics in WorldMetricsSubsystem"), !Subsystem->HasAnyMetric());
+	Collection.Enable(true);
+	REQUIRE_MESSAGE(TEXT("Unexpected non-existing metrics in WorldMetricsSubsystem"), Subsystem->HasAnyMetric());
+	REQUIRE_MESSAGE(TEXT("Unexpected number of metrics in WorldMetricsSubsystem."), Subsystem->NumMetrics() == NumMetrics);
+	Collection.Enable(false);
+	REQUIRE_MESSAGE(TEXT("Unexpected existing metrics in WorldMetricsSubsystem"), !Subsystem->HasAnyMetric());
+
+	// Remove
+	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : MetricClasses)
+	{
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Remove' failure."), Collection.Remove(MetricClass));
+	}
+
+	REQUIRE_MESSAGE(TEXT("Unexpected populated metrics collection."), Collection.IsEmpty());
+
+	// Add
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Add<UMockWorldMetricA>' failure."), Collection.Add<UMockWorldMetricA>());
+
+	// Contains
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Contains<UMockWorldMetricA>' failure."), Collection.Contains<UMockWorldMetricA>());
+
+	// Get
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Get<UMockWorldMetricA>' failure."), Collection.Get<UMockWorldMetricA>() != nullptr);
+
+	// Remove
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Remove<UMockWorldMetricA>' failure."), Collection.Remove<UMockWorldMetricA>());
+
+	Collection.Reset();
+
+	TestZeroState(World);
+}
+
 void TestAll(UWorld* World)
 {
 	TestZeroState(World);
@@ -575,6 +768,7 @@ void TestAll(UWorld* World)
 	TestSingleMetricSingleExtensionAcquireRelease(World);
 	TestMultipleMetricsSingleExtensionAcquireRelease(World, false);
 	TestMultipleMetricsSingleExtensionAcquireRelease(World, true);
+	TestMultipleMetricsSingleExtensionAcquireReleaseChildExtension(World);
 	TestMultipleMetricsMultipleExtensionAcquireRelease(World, false);
 	TestMultipleMetricsMultipleExtensionAcquireRelease(World, true);
 
@@ -583,6 +777,10 @@ void TestAll(UWorld* World)
 	TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval(World, false);
 	TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval(World, true);
 	TestSingleMetricOrphanExtensionAutoRemoval(World);
+
+	// Collection
+	TestMetricCollection(World, true);
+	TestMetricCollection(World, false);
 }
 
 }  // namespace UE::WorldMetrics::Private
@@ -611,6 +809,7 @@ static void ScopedWorldTest(EWorldType::Type WorldType, TFunctionRef<void(UWorld
 
 	WorldTest(World);
 
+	World->EndPlay(EEndPlayReason::Quit);
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(bInformEngineOfWorld);
 }
@@ -681,6 +880,19 @@ TEST_CASE_NAMED(
 }
 
 TEST_CASE_NAMED(
+	WorldMetricsTestMultipleMetricsSingleExtensionAcquireReleaseChildExtension,
+	"WorldMetrics::TestMultipleMetricsSingleExtensionAcquireReleaseChildExtension",
+	"[WorldMetrics][Core][EngineFilter]")
+{
+	Private::ScopedWorldTest(
+		EWorldType::Editor,
+		[this](UWorld* World)
+		{
+			Private::TestMultipleMetricsSingleExtensionAcquireReleaseChildExtension(World);
+		});
+}
+
+TEST_CASE_NAMED(
 	WorldMetricsTestMultipleMetricsMultipleExtensionAcquireRelease,
 	"WorldMetrics::TestMultipleMetricsMultipleExtensionAcquireRelease",
 	"[WorldMetrics][Core][EngineFilter]")
@@ -726,6 +938,21 @@ TEST_CASE_NAMED(
 	Private::ScopedWorldTest(
 		EWorldType::Editor, [this](UWorld* World) { Private::TestSingleMetricOrphanExtensionAutoRemoval(World); });
 }
+
+TEST_CASE_NAMED(
+	TestMetricCollection,
+	"WorldMetrics::TestMetricCollection",
+	"[WorldMetrics][Core][EngineFilter]")
+{
+	Private::ScopedWorldTest(
+		EWorldType::Editor,
+		[this](UWorld* World)
+		{
+			Private::TestMetricCollection(World, true);
+			Private::TestMetricCollection(World, false);
+		});
+}
+
 
 }  // namespace UE::WorldMetrics
 

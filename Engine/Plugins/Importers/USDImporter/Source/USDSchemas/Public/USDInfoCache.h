@@ -26,27 +26,33 @@ namespace UsdUtils
 	struct FUsdPrimMaterialSlot;
 }
 
+struct FUsdInfoCacheImpl;
+
 /**
  * Caches information about a specific USD Stage
  */
 class USDSCHEMAS_API FUsdInfoCache
 {
 public:
-	struct FUsdInfoCacheImpl;
-
 	FUsdInfoCache();
-	FUsdInfoCache(const FUsdInfoCache& Other);
 	virtual ~FUsdInfoCache();
+
+	void CopyImpl(const FUsdInfoCache& Other);
 
 	bool Serialize(FArchive& Ar);
 
 	// Returns whether we contain any info about prim at 'Path' at all
 	bool ContainsInfoAboutPrim(const UE::FSdfPath& Path) const;
 
+	// Retrieves the children of a prim from the cached information
+	TArray<UE::FSdfPath> GetChildren(const UE::FSdfPath& ParentPath) const;
+
 	// Returns a list of all prims we have generic info about
+	UE_DEPRECATED(5.5, "No longer used")
 	TSet<UE::FSdfPath> GetKnownPrims() const;
 
 	void RebuildCacheForSubtree(const UE::FUsdPrim& Prim, FUsdSchemaTranslationContext& Context);
+	void RebuildCacheForSubtrees(const TArray<UE::FSdfPath>& SubtreeRoots, FUsdSchemaTranslationContext& Context);
 
 	void Clear();
 	bool IsEmpty();
@@ -69,9 +75,6 @@ public:
 	TSet<UE::FSdfPath> GetAuxiliaryPrims(const UE::FSdfPath& MainPrimPath) const;
 
 public:
-	// Returns the set of paths to all prims that have a material:binding relationship to the particular material at
-	// 'Path', if any.
-	// Returns a copy for thread safety.
 	TSet<UE::FSdfPath> GetMaterialUsers(const UE::FSdfPath& Path) const;
 	bool IsMaterialUsed(const UE::FSdfPath& Path) const;
 
@@ -85,57 +88,73 @@ public:
 	TOptional<TArray<UsdUtils::FUsdPrimMaterialSlot>> GetSubtreeMaterialSlots(const UE::FSdfPath& Path);
 
 	// Returns true if Path could potentially be collapsed as a Geometry Cache asset
+	UE_DEPRECATED(5.5, "No longer used")
 	bool IsPotentialGeometryCacheRoot(const UE::FSdfPath& Path) const;
 
 public:
+	// Marks/checks if the provided path to a prototype prim is already being translated.
+	// This is used during scene translation with instanceables, so that the schema translators can early out
+	// in case they have been created to translate multiple instances of the same prototype
+	void ResetTranslatedPrototypes();
+	bool IsPrototypeTranslated(const UE::FSdfPath& PrototypePath);
+	void MarkPrototypeAsTranslated(const UE::FSdfPath& PrototypePath);
+
+public:
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	void LinkAssetToPrim(const UE::FSdfPath& Path, UObject* Asset);
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	void UnlinkAssetFromPrim(const UE::FSdfPath& Path, UObject* Asset);
 
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<TWeakObjectPtr<UObject>> RemoveAllAssetPrimLinks(const UE::FSdfPath& Path);
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<UE::FSdfPath> RemoveAllAssetPrimLinks(const UObject* Asset);
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	void RemoveAllAssetPrimLinks();
 
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<TWeakObjectPtr<UObject>> GetAllAssetsForPrim(const UE::FSdfPath& Path) const;
 
 	template<typename T = UObject>
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	T* GetSingleAssetForPrim(const UE::FSdfPath& Path) const
 	{
-		TArray<TWeakObjectPtr<UObject>> Assets = GetAllAssetsForPrim(Path);
-
-		// Search back to front so that if we generate a new version of an asset type we prefer
-		// returning that
-		for (int32 Index = Assets.Num() - 1; Index >= 0; --Index)
-		{
-			if (T* CastAsset = Cast<T>(Assets[Index].Get()))
-			{
-				return CastAsset;
-			}
-		}
-
 		return nullptr;
 	}
 
 	template<typename T>
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<T*> GetAssetsForPrim(const UE::FSdfPath& Path) const
 	{
-		TArray<TWeakObjectPtr<UObject>> Assets = GetAllAssetsForPrim(Path);
-
-		TArray<T*> CastAssets;
-		CastAssets.Reserve(Assets.Num());
-
-		for (const TWeakObjectPtr<UObject>& Asset : Assets)
-		{
-			if (T* CastAsset = Cast<T>(Asset.Get()))
-			{
-				CastAssets.Add(CastAsset);
-			}
-		}
-
-		return CastAssets;
+		return {};
 	}
 
-	TArray<UE::FSdfPath> GetPrimsForAsset(UObject* Asset) const;
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
+	TArray<UE::FSdfPath> GetPrimsForAsset(const UObject* Asset) const;
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TMap<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>> GetAllAssetPrimLinks() const;
+
+private:
+	friend class FUsdGeomXformableTranslator;
+	friend class FUsdGeometryCacheTranslator;
+
+	// Returns true if every prim on the subtree below RootPath (including the RootPath prim itself) returns true for
+	// CanBeCollapsed(), according to their own schema translators.
+	//
+	// WARNING: This is intended for internal use, and exclusively during the actual info cache build process as it will
+	// need to query the prim/stage directly. Calling it after the info cache build may yield back an empty optional,
+	// meaning it is unknown at this point whether the prim CanBeCollapsed or not.
+	//
+	// In general, you shouldn't call this, but just use "IsPathCollapsed" or "DoesPathCollapseChildren" instead.
+	TOptional<bool> CanXformableSubtreeBeCollapsed(const UE::FSdfPath& RootPath, FUsdSchemaTranslationContext& Context) const;
+
+	// Analogous to the function above, this overload of IsPotentialGeometryCacheRoot is meant for internal use, and exists because
+	// during the info cache build (in some contexts) we can fill in this geometry cache information on-demand, for better performance.
+	bool IsPotentialGeometryCacheRoot(const UE::FUsdPrim& Prim) const;
 
 private:
 	TUniquePtr<FUsdInfoCacheImpl> Impl;

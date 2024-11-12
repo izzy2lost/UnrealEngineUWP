@@ -2,24 +2,24 @@
 
 #include "Sequencer/MovieSceneDMXLibrarySection.h"
 
+#include "Channels/MovieSceneChannelEditorData.h"
+#include "Channels/MovieSceneChannelProxy.h"
 #include "DMXConversions.h"
 #include "DMXProtocolCommon.h"
 #include "DMXRuntimeLog.h"
 #include "DMXRuntimeMainStreamObjectVersion.h"
 #include "DMXSubsystem.h"
+#include "Evaluation/Blending/MovieSceneBlendType.h"
 #include "Interfaces/IDMXProtocol.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXPortManager.h"
 #include "IO/DMXTrace.h"
-#include "Library/DMXLibrary.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
-
-#include "Channels/MovieSceneChannelProxy.h"
-#include "Channels/MovieSceneChannelEditorData.h"
-#include "Evaluation/Blending/MovieSceneBlendType.h"
-
+#include "Library/DMXLibrary.h"
+#include "UObject/Package.h"
+#include "Algo/Find.h"
 
 DECLARE_LOG_CATEGORY_CLASS(MovieSceneDMXLibrarySectionLog, Log, All);
 
@@ -159,7 +159,7 @@ FDMXCachedFunctionChannelInfo::FDMXCachedFunctionChannelInfo(const TArray<FDMXFi
 	
 	// Valid patch
 	UDMXEntityFixturePatch* FixturePatch = FixturePatchChannel.Reference.GetFixturePatch();
-	if (FixturePatch == nullptr || !FixturePatch->IsValidLowLevelFast())
+	if (!FixturePatch || !FixturePatch->IsValidLowLevelFast())
 	{
 		UE_LOG(MovieSceneDMXLibrarySectionLog, Error, TEXT("%hs: A Fixture Patch is null."), __FUNCTION__);
 		return;
@@ -173,15 +173,15 @@ FDMXCachedFunctionChannelInfo::FDMXCachedFunctionChannelInfo(const TArray<FDMXFi
 
 	// Try to access the active mode
 	const UDMXEntityFixtureType* FixtureType = FixturePatch->GetFixtureType();
-	if (FixtureType == nullptr || !FixtureType->IsValidLowLevelFast())
+	if (!FixtureType || !FixtureType->IsValidLowLevelFast())
 	{
-		UE_LOG(MovieSceneDMXLibrarySectionLog, Error, TEXT("%S: Patch %s has invalid Fixture Type template."), __FUNCTION__, *FixturePatch->GetDisplayName());
+		UE_LOG(MovieSceneDMXLibrarySectionLog, Error, TEXT("%hs: Patch %s has invalid Fixture Type template."), __FUNCTION__, *FixturePatch->GetDisplayName());
 		return;
 	}
 
 	if (FixturePatchChannel.ActiveMode >= FixtureType->Modes.Num())
 	{
-		UE_LOG(MovieSceneDMXLibrarySectionLog, Error, TEXT("%S: Patch track %s ActiveMode is invalid."), __FUNCTION__, *FixturePatch->GetDisplayName());
+		UE_LOG(MovieSceneDMXLibrarySectionLog, Error, TEXT("%hs: Patch track %s ActiveMode is invalid."), __FUNCTION__, *FixturePatch->GetDisplayName());
 		return;
 	}
 
@@ -203,8 +203,8 @@ FDMXCachedFunctionChannelInfo::FDMXCachedFunctionChannelInfo(const TArray<FDMXFi
 		const bool bMissingFunction = !AttributeNameChannelMap.Contains(FunctionChannel.AttributeName) || !CellAttributePtr;
 		if (!CellAttributePtr || bMissingFunction)
 		{
-			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%S: Function with attribute %s from %s doesn't have a counterpart Fixture Function."), __FUNCTION__, *FunctionChannel.AttributeName.ToString(), *FixturePatch->GetDisplayName());
-			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%S: Further attributes may be missing. Warnings ommited to avoid overflowing the log."), __FUNCTION__);
+			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%hs: Function with attribute %s from %s doesn't have a counterpart Fixture Function."), __FUNCTION__, *FunctionChannel.AttributeName.ToString(), *FixturePatch->GetDisplayName());
+			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%hs: Further attributes may be missing. Warnings ommited to avoid overflowing the log."), __FUNCTION__);
 
 			return;
 		}
@@ -226,7 +226,7 @@ FDMXCachedFunctionChannelInfo::FDMXCachedFunctionChannelInfo(const TArray<FDMXFi
 
 		if (!FunctionPtr)
 		{
-			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%S: Function with attribute %s from %s doesn't have a counterpart Fixture Function."), __FUNCTION__, *FunctionChannel.AttributeName.ToString(), *FixturePatch->GetDisplayName());
+			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%hs: Function with attribute %s from %s doesn't have a counterpart Fixture Function."), __FUNCTION__, *FunctionChannel.AttributeName.ToString(), *FixturePatch->GetDisplayName());
 
 			return;
 		}
@@ -611,6 +611,8 @@ FDMXFixturePatchChannel* UMovieSceneDMXLibrarySection::GetPatchChannel(UDMXEntit
 
 void UMovieSceneDMXLibrarySection::RebuildPlaybackCache() const
 {
+	
+
 	CachedOutputPorts.Reset();
 	CachedChannelsToEvaluate.Reset();
 	CachedChannelsToInitialize.Reset();
@@ -672,7 +674,6 @@ void UMovieSceneDMXLibrarySection::EvaluateAndSendDMX(const FFrameTime& FrameTim
 			if (FixtureFunctionChannelPtr->Channel.Evaluate(FrameTime, ChannelValue))
 			{
 				TArray<uint8> ByteArr;
-
 				if (bUseNormalizedValues)
 				{
 					DMXSubsystem->NormalizedValueToBytes(ChannelValue, InfoForChannelToEvaluate.GetSignalFormat(), ByteArr, InfoForChannelToEvaluate.ShouldUseLSBMode());
@@ -757,23 +758,47 @@ void UMovieSceneDMXLibrarySection::SendDMXForChannelsToInitialize() const
 
 void UMovieSceneDMXLibrarySection::UpdateChannelProxy(bool bResetDefaultChannelValues /*= false*/)
 {
+	// Rebuild caches for the relevant DMX Libraries in this section. 
+	// By this the DMXFixture digital twins receives the initial DMX values regardless of loading order during engine startup.
+	UDMXSubsystem* Subsystem = UDMXSubsystem::GetDMXSubsystem_Callable();
+	TArray<TSoftObjectPtr<UDMXLibrary>> DMXLibraries = Subsystem->GetDMXLibraries();
+	TArray<TSoftObjectPtr<UDMXLibrary>> RelevantDMXLibraries;
+
+	Algo::TransformIf(DMXLibraries, RelevantDMXLibraries,
+		[this](const TSoftObjectPtr<UDMXLibrary>& DMXLibrary)
+		{
+			return DMXLibrary.IsValid() && Algo::FindBy(FixturePatchChannels, DMXLibrary, [](const FDMXFixturePatchChannel& Channel) { return Channel.DMXLibrary.Get(); }) != nullptr;
+		},
+		[](const TSoftObjectPtr<UDMXLibrary>& DMXLibrary)
+		{
+			return DMXLibrary;
+		});
+
+	for (const TSoftObjectPtr<UDMXLibrary>& DMXLibrary : RelevantDMXLibraries)
+	{
+		DMXLibrary.Get()->ForEachEntityOfType<UDMXEntityFixturePatch>([](UDMXEntityFixturePatch* Patch)
+			{
+				Patch->RebuildCache();
+			});
+	}
+
 	FMovieSceneChannelProxyData ChannelProxyData;
 	TArray<int32> InvalidPatchChannelIndices;
-
+	
 	int32 PatchChannelIndex = 0; // Safer because the ranged for ensures the array length isn't changed
 	for (FDMXFixturePatchChannel& PatchChannel : FixturePatchChannels)
 	{
 		if (!IsValid(PatchChannel.DMXLibrary))
 		{
-			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%S: Missing library for sequence section."), __FUNCTION__);
+			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%hs: Missing library for sequence section."), __FUNCTION__);
 		}
 
 		PatchChannel.UpdateNumberOfChannels(bResetDefaultChannelValues);
 
-		const UDMXEntityFixturePatch* Patch = PatchChannel.Reference.GetFixturePatch();
-		if (Patch == nullptr || !Patch->IsValidLowLevelFast())
+		UDMXEntityFixturePatch* Patch = PatchChannel.Reference.GetFixturePatch();
+		if (!IsValid(Patch))
 		{
-			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%S: Ignoring null Patch. Presumably the library changed and patches were removed or changed. This is not supported."), __FUNCTION__);
+			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%hs: Ignoring null Patch. Presumably the library changed and patches were removed or changed. This is not supported."), __FUNCTION__);
 			InvalidPatchChannelIndices.Add(PatchChannelIndex);
 			continue;
 		}
@@ -786,7 +811,7 @@ void UMovieSceneDMXLibrarySection::UpdateChannelProxy(bool bResetDefaultChannelV
 			// This will give users the impression that the Patch isn't added, but it is,
 			// which prevents the user from adding it again. So, to mitigate that, we remove
 			// the Patch from the track section.
-			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%S: Ignoring patch without functions %s"), __FUNCTION__, *Patch->GetDisplayName());
+			UE_LOG(MovieSceneDMXLibrarySectionLog, Warning, TEXT("%hs: Ignoring patch without functions %s"), __FUNCTION__, *Patch->GetDisplayName());
 			InvalidPatchChannelIndices.Add(PatchChannelIndex);
 			continue;
 		}

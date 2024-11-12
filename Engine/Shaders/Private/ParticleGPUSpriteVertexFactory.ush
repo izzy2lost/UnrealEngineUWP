@@ -117,6 +117,8 @@ struct FVertexFactoryIntermediates
 	float3 ParticleTranslatedWorldPosition;
 	/** The position of the vertex in translated world space. */
 	float3 VertexWorldPosition;
+	/** The position of the vertex in local instance space. */
+	float3 PositionInstanceSpace;
 
 #if USE_PARTICLE_LIGHTING_OFFSET
 	float3 LightingPositionOffset;
@@ -187,7 +189,7 @@ void GetSpriteTangents(
 	float3 CameraUp = lerp(-ResolvedViewUp, EmitterDynamicUniforms.AxisLockUp.xyz, EmitterDynamicUniforms.AxisLockUp.w);
 
 	// Determine the vector from the particle to the camera and the particle's movement direction.
-	float3 CameraDirection	= SafeNormalize(ResolvedView.TranslatedWorldCameraOrigin - ParticleTranslatedWorldPosition.xyz);
+	float3 CameraDirection	= -GetCameraVectorFromTranslatedWorldPosition(ResolvedView, ParticleTranslatedWorldPosition.xyz);
 	float3 RightVector = CameraRight.xyz;
 	float3 UpVector = CameraUp.xyz;
 
@@ -195,8 +197,7 @@ void GetSpriteTangents(
 	if (EmitterUniforms.CameraFacingBlend.x > 0.f)
 	{
 		// Blend between PSA_FacingCamera and PSA_Square over distance
-		float3 CameraVector = ResolvedView.TranslatedWorldCameraOrigin.xyz - ParticleTranslatedWorldPosition.xyz;
-		float CameraDistanceSq = dot(CameraVector, CameraVector);
+		float CameraDistanceSq = GetDistanceToCameraFromViewVectorSqr(ResolvedView.TranslatedWorldCameraOrigin.xyz - ParticleTranslatedWorldPosition.xyz);
 		float AlignmentMode = saturate(CameraDistanceSq * EmitterUniforms.CameraFacingBlend.y - EmitterUniforms.CameraFacingBlend.z);
 
 		float3 CameraFacingRight = SafeNormalize(cross(CameraDirection, float3(0,0,1)));
@@ -352,6 +353,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates( FVertexFactoryInput I
 	Intermediates.SceneData = VF_GPUSCENE_GET_INTERMEDIATES(Input);
 	Intermediates.ParticleTranslatedWorldPosition = ParticleTranslatedWorldPosition;
 	Intermediates.VertexWorldPosition = VertexWorldPosition;
+	Intermediates.PositionInstanceSpace = PositionSample.xyz;
 
 #if USE_SPHERICAL_NORMALS
 	// Recenter the particle position for GENERATE_SPHERICAL_PARTICLE_NORMALS to use the right center.
@@ -501,6 +503,9 @@ FMaterialPixelParameters GetMaterialPixelParameters( FVertexFactoryInterpolantsV
 	return Result;
 }
 
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates);
+
 /**
  * Computes material parameters for a given vertex.
  * @param Input - Attributes for this vertex.
@@ -509,11 +514,27 @@ FMaterialPixelParameters GetMaterialPixelParameters( FVertexFactoryInterpolantsV
  * @param TangentToLocal - The tangent basis for this vertex.
  * @returns per-vertex material parameters.
  */
-FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, float3x3 TangentToLocal)
+FMaterialVertexParameters GetMaterialVertexParameters(
+	FVertexFactoryInput Input, 
+	FVertexFactoryIntermediates Intermediates, 
+	float3 WorldPosition, 
+	float3x3 TangentToLocal,
+	bool bIsPreviousFrame = false)
 {
 	FMaterialVertexParameters Result = MakeInitializedMaterialVertexParameters();
 	Result.SceneData = Intermediates.SceneData;
+	
 	Result.WorldPosition = WorldPosition;
+	if (bIsPreviousFrame)
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetPreviousInstanceSpacePosition(Input, Intermediates);
+	}
+	else
+	{
+		Result.PositionInstanceSpace = VertexFactoryGetInstanceSpacePosition(Input, Intermediates);
+	}
+	Result.PositionPrimitiveSpace = Result.PositionInstanceSpace; // No support for instancing, so instance == primitive
+
 	Result.VertexColor = 1;
 	Result.TangentToWorld = mul(TangentToLocal, GetLocalToWorld3x3()); 
 	Result.Particle.MacroUV = EmitterDynamicUniforms.MacroUVParameters;
@@ -596,6 +617,11 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 float4 VertexFactoryGetWorldPosition( FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates )
 {
 	return float4(Intermediates.VertexWorldPosition,1);
+}
+
+float3 VertexFactoryGetInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.PositionInstanceSpace;
 }
 
 float4 VertexFactoryGetRasterizedWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float4 TranslatedWorldPosition)
@@ -730,6 +756,11 @@ float4 VertexFactoryGetPreviousWorldPosition( FVertexFactoryInput Input, FVertex
 	float3 Position = Intermediates.VertexWorldPosition;
 	Position.xyz -= Intermediates.ParticleVelocity.xyz * EmitterUniforms.UseVelocityForMotionBlur;
 	return float4(Position, 1);
+}
+
+float3 VertexFactoryGetPreviousInstanceSpacePosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.PositionInstanceSpace;
 }
 
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)

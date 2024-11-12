@@ -43,6 +43,8 @@ SCanvas::SCanvas()
 	bCanSupportFocus = false;
 }
 
+SCanvas::~SCanvas() = default;
+
 void SCanvas::Construct( const SCanvas::FArguments& InArgs )
 {
 	Children.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));

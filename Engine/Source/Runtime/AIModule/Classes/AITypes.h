@@ -521,6 +521,7 @@ struct FAIMoveRequest
 	FAIMoveRequest& SetAcceptanceRadius(float Radius) { AcceptanceRadius = Radius; return *this; }
 	FAIMoveRequest& SetUserData(const FCustomMoveSharedPtr& InUserData) { UserData = InUserData; return *this; }
 	FAIMoveRequest& SetUserFlags(int32 InUserFlags) { UserFlags = InUserFlags; return *this; }
+	FAIMoveRequest& SetStartFromPreviousPath(const bool bInStartFromPreviousPath) { bStartFromPreviousPath = bInStartFromPreviousPath; return *this; }
 
 	/** the request should be either set up to move to a location, of go to a valid actor */
 	bool IsValid() const { return bInitialized && (!bMoveToActor || GoalActor.IsValid()); }
@@ -548,6 +549,7 @@ struct FAIMoveRequest
 	const FCustomMoveSharedPtr& GetUserData() const { return UserData; }
 	int32 GetUserFlags() const { return UserFlags; }
 
+	AIMODULE_API const bool ShouldStartFromPreviousPath() const { return bStartFromPreviousPath; }
 	AIMODULE_API void SetGoalActor(const AActor* InGoalActor);
 	AIMODULE_API void SetGoalLocation(const FVector& InGoalLocation);
 
@@ -586,6 +588,9 @@ protected:
 
 	/** pathfinding: goal location will be projected on navigation data before use */
 	uint32 bProjectGoalOnNavigation : 1;
+
+	/** pathfinding: the request will start from the end of the previous path (if any), and the generated path will be merged with the remaining points of the previous path */
+	uint32 bStartFromPreviousPath : 1;
 
 	/** pathfollowing: acceptance radius needs to be increased by agent radius (stop on overlap vs exact point) */
 	uint32 bReachTestIncludesAgentRadius : 1;

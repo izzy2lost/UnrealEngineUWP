@@ -1,10 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RigUnit_AnimNextGraphEvaluator.h"
-#include "DecoratorBase/EntryPointHandle.h"
+#include "AnimNextGraphState.h"
+#include "TraitCore/EntryPointHandle.h"
 #include "AnimNextGraphEntryPoint.generated.h"
 
 USTRUCT()
@@ -16,8 +16,12 @@ struct FAnimNextGraphEntryPoint
 	UPROPERTY()
 	FName EntryPointName;
 
-	// This is a handle to the root decorator for a graph
+	// This is a handle to the root trait for a graph
 	UPROPERTY()
-	FAnimNextEntryPointHandle RootDecoratorHandle;
+	FAnimNextEntryPointHandle RootTraitHandle;
+
+	// Default state for this entry point
+	UPROPERTY()
+	FAnimNextGraphState DefaultState;
 };
 

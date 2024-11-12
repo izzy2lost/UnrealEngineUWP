@@ -20,13 +20,18 @@
 #include "WorldPartition/WorldPartitionEditorSettings.h"
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/HLOD/SWorldPartitionBuildHLODsDialog.h"
+#include "WorldPartition/HLOD/HLODEditorSubsystem.h"
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerUID.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 
 #include "LevelEditor.h"
 #include "LevelEditorViewport.h"
+#include "SLevelViewport.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
+#include "Editor/AssetReferenceFilter.h"
 #include "Engine/Level.h"
 
 #include "Misc/FileHelper.h"
@@ -247,12 +252,16 @@ void FWorldPartitionEditorModule::StartupModule()
 			}
 		}
 	});
+
+	IAssetReferenceFilter::OnIsCrossPluginReferenceAllowed().BindRaw(this, &FWorldPartitionEditorModule::OnIsCrossPluginReferenceAllowed);
 }
 
 void FWorldPartitionEditorModule::ShutdownModule()
 {
 	FWorldPartitionClassDescRegistry().Get().Uninitialize();
 	FWorldPartitionClassDescRegistry().Get().TearDown();
+
+	IAssetReferenceFilter::OnIsCrossPluginReferenceAllowed().Unbind();
 
 	if (!IsRunningGame())
 	{
@@ -281,6 +290,25 @@ void FWorldPartitionEditorModule::ShutdownModule()
 	}
 
 	FEditorDelegates::OnEditorInitialized.Remove(EditorInitializedHandle);
+}
+
+bool FWorldPartitionEditorModule::OnIsCrossPluginReferenceAllowed(const FAssetData& ReferencingAssetData, const FAssetData& ReferencedAssetData)
+{
+	// Allow External Data Layer Actor (ReferencingAssetData) from a plugin X to reference its world (ReferencedAssetData) from a plugin Y
+	const UClass* ReferencedAssetDataClass = ReferencedAssetData.GetClass();
+	if (ReferencedAssetDataClass && ReferencedAssetDataClass->IsChildOf<UWorld>())
+	{
+		const FString ReferencingAssetPath = ReferencingAssetData.PackagePath.ToString();
+		FExternalDataLayerUID ReferencingExternalDataLayerUID;
+		if (FExternalDataLayerHelper::IsExternalDataLayerPath(ReferencingAssetPath, &ReferencingExternalDataLayerUID); ReferencingExternalDataLayerUID.IsValid())
+		{
+			// Use referencing asset's optional outer path name (if any) to build its package name and compare it with the referenced package name
+			const FString ReferencingOptionalOuterPackageName = FSoftObjectPath(ReferencingAssetData.GetOptionalOuterPathName().ToString()).GetLongPackageName();
+			return ReferencingOptionalOuterPackageName == ReferencedAssetData.PackageName.ToString();
+		}
+	}
+
+	return false;
 }
 
 void FWorldPartitionEditorModule::RegisterMenus()
@@ -332,126 +360,129 @@ bool FWorldPartitionEditorModule::IsEditingContentBundle(const FGuid& ContentBun
 	return ContentBundleEditorSubsystem && ContentBundleEditorSubsystem->IsEditingContentBundle(ContentBundleGuid);
 }
 
+bool FWorldPartitionEditorModule::GetActiveLevelViewportCameraInfo(FVector& CameraLocation, FRotator& CameraRotation)
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	TSharedPtr<ILevelEditor> LevelEditor = LevelEditorModule.GetFirstLevelEditor();
+	if (LevelEditor.IsValid())
+	{
+		TSharedPtr<SLevelViewport> LevelViewport = LevelEditor->GetActiveViewportInterface();
+		if (LevelViewport.IsValid())
+		{
+			const FLevelEditorViewportClient& LevelViewportClient = LevelViewport->GetLevelViewportClient();
+			CameraLocation = LevelViewportClient.GetViewLocation();
+			CameraRotation = LevelViewportClient.GetViewRotation();			
+			return true;
+		}
+	}
+
+	return false;
+}
+
 int32 FWorldPartitionEditorModule::GetPlacementGridSize() const
 {
 	// Currently shares setting with Foliage. Can be changed when exposed.
-	return GetDefault<UWorldPartitionEditorSettings>()->InstancedFoliageGridSize;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetInstancedFoliageGridSize();
 }
 
 int32 FWorldPartitionEditorModule::GetInstancedFoliageGridSize() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->InstancedFoliageGridSize;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetInstancedFoliageGridSize();
 }
 
 int32 FWorldPartitionEditorModule::GetMinimapLowQualityWorldUnitsPerPixelThreshold() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->MinimapLowQualityWorldUnitsPerPixelThreshold;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetMinimapLowQualityWorldUnitsPerPixelThreshold();
 }
 
 bool FWorldPartitionEditorModule::GetEnableLoadingInEditor() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetEnableLoadingInEditor();
 }
 
 void FWorldPartitionEditorModule::SetEnableLoadingInEditor(bool bInEnableLoadingInEditor)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor = bInEnableLoadingInEditor;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetEnableLoadingInEditor(bInEnableLoadingInEditor);
 }
 
 bool FWorldPartitionEditorModule::GetEnableStreamingGenerationLogOnPIE() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bEnableStreamingGenerationLogOnPIE;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetEnableStreamingGenerationLogOnPIE();
 }
 
 void FWorldPartitionEditorModule::SetEnableStreamingGenerationLogOnPIE(bool bEnableStreamingGenerationLogOnPIE)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableStreamingGenerationLogOnPIE = bEnableStreamingGenerationLogOnPIE;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetEnableStreamingGenerationLogOnPIE(bEnableStreamingGenerationLogOnPIE);
 }
 
 bool FWorldPartitionEditorModule::GetDisablePIE() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetDisablePIE();
 }
 
 void FWorldPartitionEditorModule::SetDisablePIE(bool bInDisablePIE)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bDisablePIE = bInDisablePIE;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetDisablePIE(bInDisablePIE);
 }
 
 bool FWorldPartitionEditorModule::GetDisableBugIt() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bDisableBugIt;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetDisableBugIt();
 }
 
 void FWorldPartitionEditorModule::SetDisableBugIt(bool bInDisableBugIt)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bDisableBugIt = bInDisableBugIt;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetDisableBugIt(bInDisableBugIt);
 }
 
 bool FWorldPartitionEditorModule::GetAdvancedMode() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bAdvancedMode;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetAdvancedMode();
 }
 
 void FWorldPartitionEditorModule::SetAdvancedMode(bool bInAdvancedMode)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bAdvancedMode = bInAdvancedMode;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetAdvancedMode(bInAdvancedMode);
 }
 
 bool FWorldPartitionEditorModule::GetShowHLODsInEditor() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bShowHLODsInEditor;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetShowHLODsInEditor();
 }
 
 void FWorldPartitionEditorModule::SetShowHLODsInEditor(bool bInShowHLODsInEditor)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsInEditor != bInShowHLODsInEditor)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsInEditor = bInShowHLODsInEditor;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetShowHLODsInEditor(bInShowHLODsInEditor);
 }
 
 bool FWorldPartitionEditorModule::GetShowHLODsOverLoadedRegions() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bShowHLODsOverLoadedRegions;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetShowHLODsOverLoadedRegions();
 }
 
 void FWorldPartitionEditorModule::SetShowHLODsOverLoadedRegions(bool bInShowHLODsOverLoadedRegions)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsOverLoadedRegions != bInShowHLODsOverLoadedRegions)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->bShowHLODsOverLoadedRegions = bInShowHLODsOverLoadedRegions;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetShowHLODsOverLoadedRegions(bInShowHLODsOverLoadedRegions);
 }
 
 double FWorldPartitionEditorModule::GetHLODInEditorMinDrawDistance() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->HLODMinDrawDistance;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetHLODMinDrawDistance();
 }
 
 void FWorldPartitionEditorModule::SetHLODInEditorMinDrawDistance(double InMinDrawDistance)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMinDrawDistance != InMinDrawDistance)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMinDrawDistance = InMinDrawDistance;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetHLODMinDrawDistance(InMinDrawDistance);
 }
 
 double FWorldPartitionEditorModule::GetHLODInEditorMaxDrawDistance() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->HLODMaxDrawDistance;
+	return GetDefault<UWorldPartitionEditorSettings>()->GetHLODMaxDrawDistance();
 }
 
 void FWorldPartitionEditorModule::SetHLODInEditorMaxDrawDistance(double InMaxDrawDistance)
 {
-	if (GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMaxDrawDistance != InMaxDrawDistance)
-	{
-		GetMutableDefault<UWorldPartitionEditorSettings>()->HLODMaxDrawDistance = InMaxDrawDistance;
-		GetMutableDefault<UWorldPartitionEditorSettings>()->SaveConfig();
-	}
+	GetMutableDefault<UWorldPartitionEditorSettings>()->SetHLODMaxDrawDistance(InMaxDrawDistance);
 }
 
 bool FWorldPartitionEditorModule::IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason) const
@@ -489,6 +520,16 @@ bool FWorldPartitionEditorModule::IsHLODInEditorAllowed(UWorld* InWorld, FText* 
 	}
 
 	return true;
+}
+
+bool FWorldPartitionEditorModule::WriteHLODStats(const FWriteHLODStatsParams& Params) const
+{
+	UWorldPartitionHLODEditorSubsystem* HLODEditorSubsystem = Params.World->GetSubsystem<UWorldPartitionHLODEditorSubsystem>();
+	if (ensure(HLODEditorSubsystem))
+	{
+		return HLODEditorSubsystem->WriteHLODStats(Params);
+	}
+	return false;
 }
 
 void FWorldPartitionEditorModule::OnConvertMap()
@@ -698,7 +739,7 @@ bool FWorldPartitionEditorModule::ConvertMap(const FString& InLongPackageName)
 	}
 
 	UWorldPartitionConvertOptions* DefaultConvertOptions = GetMutableDefault<UWorldPartitionConvertOptions>();
-	DefaultConvertOptions->CommandletClass = GetDefault<UWorldPartitionEditorSettings>()->CommandletClass;
+	DefaultConvertOptions->CommandletClass = GetDefault<UWorldPartitionEditorSettings>()->GetCommandletClass();
 	DefaultConvertOptions->bInPlace = false;
 	DefaultConvertOptions->bSkipStableGUIDValidation = false;
 	DefaultConvertOptions->LongPackageName = InLongPackageName;

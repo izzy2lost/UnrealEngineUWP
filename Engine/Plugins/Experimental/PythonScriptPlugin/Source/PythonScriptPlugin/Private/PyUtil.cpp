@@ -18,21 +18,23 @@
 #include "PyWrapperFieldPath.h"
 #include "PyWrapperTypeRegistry.h"
 
+#include "HAL/FileManager.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "Misc/DefaultValueHelper.h"
+#include "Misc/MessageDialog.h"
+#include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Misc/ScopeExit.h"
-#include "Misc/MessageDialog.h"
-#include "Misc/DefaultValueHelper.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
-#include "HAL/FileManager.h"
-#include "UObject/Package.h"
-#include "UObject/UnrealType.h"
-#include "UObject/EnumProperty.h"
-#include "UObject/TextProperty.h"
-#include "UObject/StructOnScope.h"
-#include "UObject/PropertyPortFlags.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "Templates/Casts.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/Package.h"
+#include "UObject/PropertyPortFlags.h"
+#include "UObject/StructOnScope.h"
+#include "UObject/TextProperty.h"
+#include "UObject/UnrealType.h"
 
 #if WITH_EDITOR
 #include "EditorSubsystem.h"
@@ -96,6 +98,29 @@ FString PyObjectToUEStringRepr(PyObject* InPyObj)
 	return PyObjectToUEString(InPyObj);
 }
 
+FEvalStack& FEvalStack::Get()
+{
+	static FEvalStack Instance;
+	return Instance;
+}
+
+void FEvalStack::PushContext(FEvalContext&& Context)
+{
+	Stack.Push(MoveTemp(Context));
+}
+
+void FEvalStack::PopContext()
+{
+	Stack.Pop();
+}
+
+const FEvalStack::FEvalContext* FEvalStack::GetCurrentContext() const
+{
+	return Stack.Num() > 0
+		? &Stack.Top()
+		: nullptr;
+}
+
 FPropValueOnScope::FPropValueOnScope(FConstPropOnScope&& InProp)
 	: Prop(MoveTemp(InProp))
 {
@@ -140,7 +165,7 @@ const FProperty* FPropValueOnScope::GetProp() const
 void* FPropValueOnScope::GetValue(const int32 InArrayIndex) const
 {
 	check(InArrayIndex >= 0 && InArrayIndex < Prop->ArrayDim);
-	return ((uint8*)Value) + (Prop->ElementSize * InArrayIndex);
+	return ((uint8*)Value) + (Prop->GetElementSize() * InArrayIndex);
 }
 
 FFixedArrayElementOnScope::FFixedArrayElementOnScope(const FProperty* InProp)
@@ -639,7 +664,7 @@ int ValidateContainerLenParam(PyObject* InPyObj, int32 &OutLen, const char* InPy
 
 	if (OutLen < 0)
 	{
-		SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("'len' must be positive"), UTF8_TO_TCHAR(InPythonArgName)));
+		SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("'%s' must be positive"), UTF8_TO_TCHAR(InPythonArgName)));
 		return -1;
 	}
 
@@ -650,7 +675,7 @@ int ValidateContainerIndexParam(const Py_ssize_t InIndex, const Py_ssize_t InLen
 {
 	if (InIndex < 0 || InIndex >= InLen)
 	{
-		SetPythonError(PyExc_IndexError, InErrorCtxt, *FString::Printf(TEXT("Index %d is out-of-bounds (len: %d) for property '%s' (%s)"), InIndex, InLen, *InProp->GetName(), *InProp->GetClass()->GetName()));
+		SetPythonError(PyExc_IndexError, InErrorCtxt, *FString::Printf(TEXT("Index %zd is out-of-bounds (len: %zd) for property '%s' (%s)"), InIndex, InLen, *InProp->GetName(), *InProp->GetClass()->GetName()));
 		return -1;
 	}
 
@@ -666,23 +691,32 @@ UObject* NewObject(UClass* InObjClass, UObject* InObjectOuter, const FName InObj
 {
 	if (InObjClass)
 	{
-		if (InObjClass->IsChildOf(UEngineSubsystem::StaticClass()))
+		if (InObjClass->IsChildOf<UBlueprintFunctionLibrary>())
+		{
+			// Starting with UE 5.5, generates a warning/deprecation message.
+			SetPythonWarning(PyExc_DeprecationWarning, InErrorCtxt, *FString::Printf(TEXT("Creating an instance of a BlueprintFunctionLibrary has been deprecated since UE 5.5 and will be removed in the future. Call its classmethods directly on the class, eg, 'unreal.%s.foo()'."), *PyGenUtil::GetClassPythonName(InObjClass)));
+
+			// For UE 5.7 or later, generate an hard error.
+			//SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("Cannot create an instance of a BlueprintFunctionLibrary. Call its classmethods directly on the class, eg, 'unreal.%s.foo()'."), *PyGenUtil::GetClassPythonName(InObjClass)));
+			//return nullptr;
+		}
+		else if (InObjClass->IsChildOf<UEngineSubsystem>())
 		{
 			// Starting with UE 5.2, generates a warning/deprecation message.
-			SetPythonWarning(PyExc_DeprecationWarning, InErrorCtxt, *FString::Printf(TEXT("Engine subsystems creation is deprecated and will be removed in UE 5.3. Use 'unreal.get_engine_subsystem(unreal.%s)' to get an instance of the subsystem."), *PyGenUtil::GetClassPythonName(InObjClass)));
+			SetPythonWarning(PyExc_DeprecationWarning, InErrorCtxt, *FString::Printf(TEXT("Creating an instance of an Engine subsystem has been deprecated since UE 5.2 and will be removed in the future. Use 'unreal.get_engine_subsystem(unreal.%s)' to get the subsystem instance."), *PyGenUtil::GetClassPythonName(InObjClass)));
 
 			// For UE 5.3 or later, generate an hard error.
-			//SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("Engine subsystems cannot be created. Use 'unreal.get_engine_subsystem(unreal.%s)' to get an instance of the subsystem."), *PyGenUtil::GetClassPythonName(InObjClass)));
+			//SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("Cannot create an instance of an Engine subsystem. Use 'unreal.get_engine_subsystem(unreal.%s)' to get the subsystem instance."), *PyGenUtil::GetClassPythonName(InObjClass)));
 			//return nullptr;
 		}
 #if WITH_EDITOR
-		else if (InObjClass->IsChildOf(UEditorSubsystem::StaticClass()))
+		else if (InObjClass->IsChildOf<UEditorSubsystem>())
 		{
 			// Starting with UE 5.2, generates a warning/deprecation message.
-			SetPythonWarning(PyExc_DeprecationWarning, InErrorCtxt, *FString::Printf(TEXT("Editor subsystems creation is deprecated and will be removed in UE 5.3. Use 'unreal.get_editor_subsystem(unreal.%s)' to get an instance of the subsystem."), *PyGenUtil::GetClassPythonName(InObjClass)));
+			SetPythonWarning(PyExc_DeprecationWarning, InErrorCtxt, *FString::Printf(TEXT("Creating an instance of an Editor subsystem has been deprecated since UE 5.2 and will be removed in the future. Use 'unreal.get_editor_subsystem(unreal.%s)' to get the subsystem instance."), *PyGenUtil::GetClassPythonName(InObjClass)));
 
 			// For UE 5.3 or later, generate an hard error.
-			//SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("Editor subsystems cannot be created. Use 'unreal.get_editor_subsystem(unreal.%s)' to get an instance of the subsystem."), *PyGenUtil::GetClassPythonName(InObjClass)));
+			//SetPythonError(PyExc_Exception, InErrorCtxt, *FString::Printf(TEXT("Cannot create an instance of an Editor subsystem. Use 'unreal.get_editor_subsystem(unreal.%s)' to get the subsystem instance."), *PyGenUtil::GetClassPythonName(InObjClass)));
 			//return nullptr;
 		}
 #endif
@@ -791,7 +825,7 @@ PyObject* GetPropertyValue(const UStruct* InStruct, const void* InStructData, co
 	Py_RETURN_NONE;
 }
 
-int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FProperty* InProp, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt)
+int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FProperty* InProp, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt, const TConstArrayView<void*>& InArchetypeInstStructData)
 {
 	if (!InValue)
 	{
@@ -832,7 +866,7 @@ int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InVa
 			return -1;
 		}
 
-		if (!PyConversion::NativizeProperty_InContainer(InValue, InProp, InStructData, 0, InChangeNotify))
+		if (!PyConversion::NativizeProperty_InContainer(InValue, InProp, InStructData, 0, InArchetypeInstStructData, InChangeNotify))
 		{
 			SetPythonError(PyExc_TypeError, InErrorCtxt, *FString::Printf(TEXT("Failed to convert type '%s' to property '%s' (%s) for attribute '%s' on '%s'"), *GetFriendlyTypename(InValue), *InProp->GetName(), *InProp->GetClass()->GetName(), UTF8_TO_TCHAR(InAttributeName), *InStruct->GetName()));
 			return -1;
@@ -1239,6 +1273,95 @@ FString GetCleanTypename(PyTypeObject* InPyType)
 FString GetCleanTypename(PyObject* InPyObj)
 {
 	return GetCleanTypename(PyType_Check(InPyObj) ? (PyTypeObject*)InPyObj : Py_TYPE(InPyObj));
+}
+
+void GetGeneratedTypeOuterAndName(PyTypeObject* InPyType, UObject*& OutOuter, FString& OutName)
+{
+	OutOuter = GetPythonTypeContainer();
+	OutName = GetCleanTypename(InPyType);
+
+	FString TypeFilename;
+
+	// Favor "inspect.getfile" if possible, as this will return the correct information for files executed via an import
+	if (FPyObjectPtr PyInspectModule = FPyObjectPtr::StealReference(PyImport_ImportModule("inspect")))
+	{
+		PyObject* PyInspectDict = PyModule_GetDict(PyInspectModule);
+		if (PyObject* PyGetFileFunc = PyDict_GetItemString(PyInspectDict, "getfile"))
+		{
+			if (FPyObjectPtr PyGetFileResult = FPyObjectPtr::StealReference(PyObject_CallFunctionObjArgs(PyGetFileFunc, InPyType, nullptr)))
+			{
+				TypeFilename = PyObjectToUEString(PyGetFileResult);
+			}
+			else
+			{
+				// Clear any exception information if getfile failed
+				PyErr_Clear();
+			}
+		}
+	}
+
+	// If "inspect.getfile" failed then try and access the current "__file__", as that will work for files being directly executed (ie, not an import)
+	if (TypeFilename.IsEmpty())
+	{
+		// Note: This doesn't use PyEval_GetGlobals() as that will return the result for the current "frame", which may be from an intermediate file (eg, unreal_core.py due to the unreal.uthing() decorator)
+		if (const FEvalStack::FEvalContext* CurrentContext = FEvalStack::Get().GetCurrentContext())
+		{
+			if (PyObject* PyGlobalsFile = PyDict_GetItemString(CurrentContext->GlobalDict, "__file__"))
+			{
+				TypeFilename = PyObjectToUEString(PyGlobalsFile);
+			}
+		}
+	}
+
+	// Normalize the found path for consistency (as the absolute path may vary)
+	if (!TypeFilename.IsEmpty())
+	{
+		FString TypePackageName;
+
+		FPaths::NormalizeFilename(TypeFilename);
+		if (!FPackageName::TryConvertFilenameToLongPackageName(TypeFilename, TypePackageName))
+		{
+			if (FPaths::IsUnderDirectory(TypeFilename, FPaths::EngineDir()))
+			{
+				FPaths::MakePathRelativeTo(TypeFilename, *FPaths::EngineDir());
+				TypePackageName = FPaths::Combine(TEXTVIEW("/Engine"), TypeFilename);
+			}
+			else if (FPaths::IsUnderDirectory(TypeFilename, FPaths::ProjectDir()))
+			{
+				FPaths::MakePathRelativeTo(TypeFilename, *FPaths::ProjectDir());
+				TypePackageName = FPaths::Combine(TEXTVIEW("/Game"), TypeFilename);
+			}
+		}
+			
+		if (TypePackageName.IsEmpty())
+		{
+			// This filename is something we can't resolve into a stable package path
+			// Just hash it into the type name to try and keep things unique
+			TypeFilename.ToLowerInline(); // To produce a case-insensitive hash
+			OutName += TStringBuilder<12>().Appendf(TEXT("_0x%08X"), FCrc::StrCrc32(*TypeFilename));
+		}
+		else
+		{
+			// Remove any remaining extension and add the "_PY" suffix
+			TypePackageName = FPaths::ChangeExtension(TypePackageName, TEXT(""));
+			TypePackageName += TEXTVIEW("_PY");
+
+			// This filename resolved into a stable package path, so put the generated type in that package
+			UPackage* TypePackage = FindObject<UPackage>(nullptr, *TypePackageName);
+			if (!TypePackage)
+			{
+				TypePackage = NewObject<UPackage>(nullptr, *TypePackageName, RF_Public | RF_Transient);
+				TypePackage->SetPackageFlags(PKG_ContainsScript);
+			}
+			OutOuter = TypePackage;
+		}
+	}
+}
+
+FString GetGeneratedTypeDisplayName(PyTypeObject* InPyType)
+{
+	FString CleanName = GetCleanTypename(InPyType);
+	return FName::NameToDisplayString(CleanName, /*bIsBool*/false);
 }
 
 FString GetErrorContext(PyTypeObject* InPyType)

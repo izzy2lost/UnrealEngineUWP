@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EntitySystem/MovieSceneEvaluationHookSystem.h"
+
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
-#include "EntitySystem/MovieSceneSpawnablesSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "EntitySystem/MovieSceneSpawnablesSystem.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSource.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
@@ -41,11 +43,12 @@ struct FEvaluationHookUpdater
 			}
 
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandles[Index]);
+			FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceInstance.GetContext().GetRootToSequenceTransform().Inverse();
 
 			FMovieSceneEvaluationHookEvent NewEvent;
 			NewEvent.Hook          = Hooks[Index];
 			NewEvent.Type          = EEvaluationHookEvent::Update;
-			NewEvent.RootTime      = EvalTimes[Index] * SequenceInstance.GetContext().GetSequenceToRootSequenceTransform();
+			NewEvent.RootTime      = SequenceToRootTransform.TryTransformTime(EvalTimes[Index], SequenceInstance.GetContext().GetRootToSequenceWarpCounter()).Get(FFrameTime());
 			NewEvent.RootInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 			NewEvent.SequenceID    = SequenceInstance.GetSequenceID();
 			NewEvent.bRestoreState = bRestoreState;
@@ -100,6 +103,7 @@ void UMovieSceneEvaluationHookSystem::OnSchedulePersistentTasks(UE::MovieScene::
 	.Read(Components->EvaluationHook)
 	.Read(Components->EvalTime)
 	.Write(Components->EvaluationHookFlags)
+	.SetDesiredThread(Linker->EntityManager.GetDispatchThread())
 	.Schedule_PerAllocation<FEvaluationHookUpdater>(&Linker->EntityManager, TaskScheduler, this, Linker->GetInstanceRegistry());
 }
 
@@ -107,11 +111,7 @@ void UMovieSceneEvaluationHookSystem::OnRun(FSystemTaskPrerequisites& InPrerequi
 {
 	using namespace UE::MovieScene;
 
-	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
-	if (!ensure(Runner))
-	{
-		return;
-	}
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
 	ESystemPhase CurrentPhase = Runner->GetCurrentPhase();
 	if (CurrentPhase == ESystemPhase::Instantiation)
@@ -127,6 +127,7 @@ void UMovieSceneEvaluationHookSystem::OnRun(FSystemTaskPrerequisites& InPrerequi
 		.Read(Components->EvaluationHook)
 		.Read(Components->EvalTime)
 		.Write(Components->EvaluationHookFlags)
+		.SetDesiredThread(Linker->EntityManager.GetDispatchThread())
 		.Dispatch_PerAllocation<FEvaluationHookUpdater>(&Linker->EntityManager, InPrerequisites, &Subsequents, this, Linker->GetInstanceRegistry());
 	}
 	else if (HasEvents())
@@ -152,11 +153,12 @@ void UMovieSceneEvaluationHookSystem::UpdateHooks()
 		for (int32 Index = 0; Index < Num; ++Index)
 		{
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandles[Index]);
+			FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceInstance.GetContext().GetRootToSequenceTransform().Inverse();
 
 			FMovieSceneEvaluationHookEvent NewEvent;
 			NewEvent.Hook          = Hooks[Index];
 			NewEvent.Type          = EEvaluationHookEvent::Begin;
-			NewEvent.RootTime      = EvalTimes[Index] * SequenceInstance.GetContext().GetSequenceToRootSequenceTransform();
+			NewEvent.RootTime      = SequenceToRootTransform.TryTransformTime(EvalTimes[Index], SequenceInstance.GetContext().GetRootToSequenceWarpCounter()).Get(FFrameTime());
 			NewEvent.RootInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 			NewEvent.SequenceID    = SequenceInstance.GetSequenceID();
 			NewEvent.bRestoreState = bRestoreState;
@@ -173,11 +175,12 @@ void UMovieSceneEvaluationHookSystem::UpdateHooks()
 		for (int32 Index = 0; Index < Num; ++Index)
 		{
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandles[Index]);
+			FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceInstance.GetContext().GetRootToSequenceTransform().Inverse();
 
 			FMovieSceneEvaluationHookEvent NewEvent;
 			NewEvent.Hook          = Hooks[Index];
 			NewEvent.Type          = EEvaluationHookEvent::End;
-			NewEvent.RootTime      = EvalTimes[Index] * SequenceInstance.GetContext().GetSequenceToRootSequenceTransform();
+			NewEvent.RootTime      = SequenceToRootTransform.TryTransformTime(EvalTimes[Index], SequenceInstance.GetContext().GetRootToSequenceWarpCounter()).Get(FFrameTime());
 			NewEvent.RootInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 			NewEvent.SequenceID    = SequenceInstance.GetSequenceID();
 			NewEvent.bRestoreState = bRestoreState;
@@ -239,9 +242,8 @@ void UMovieSceneEvaluationHookSystem::TriggerAllEvents()
 	{
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Pair.Key.InstanceHandle);
 
-		IMovieScenePlayer* Player      = SequenceInstance.GetPlayer();
 		FMovieSceneContext RootContext = SequenceInstance.GetContext();
-		TSharedRef<const FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+		TSharedRef<FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
 		FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = Linker->PreAnimatedState.GetEvaluationHookMetaData();
 
 		for (const FMovieSceneEvaluationHookEvent& Event : Pair.Value.Events)
@@ -264,13 +266,13 @@ void UMovieSceneEvaluationHookSystem::TriggerAllEvents()
 			switch (Event.Type)
 			{
 				case EEvaluationHookEvent::Begin:
-					Event.Hook.Interface->Begin(Player, Params);
+					Event.Hook.Interface->Begin(SharedPlaybackState, Params);
 					break;
 				case EEvaluationHookEvent::Update:
-					Event.Hook.Interface->Update(Player, Params);
+					Event.Hook.Interface->Update(SharedPlaybackState, Params);
 					break;
 				case EEvaluationHookEvent::End:
-					Event.Hook.Interface->End(Player, Params);
+					Event.Hook.Interface->End(SharedPlaybackState, Params);
 					if (EvaluationHookMetaData)
 					{
 						EvaluationHookMetaData->StopTrackingCaptureSource(Event.Hook.Interface.GetObject(), Event.RootInstanceHandle, Event.SequenceID);
@@ -278,7 +280,7 @@ void UMovieSceneEvaluationHookSystem::TriggerAllEvents()
 					break;
 
 				case EEvaluationHookEvent::Trigger:
-					Event.Hook.Interface->Trigger(Player, Params);
+					Event.Hook.Interface->Trigger(SharedPlaybackState, Params);
 					break;
 			}
 		}

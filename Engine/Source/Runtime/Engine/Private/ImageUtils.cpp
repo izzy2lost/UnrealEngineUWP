@@ -44,7 +44,7 @@ static IImageWrapperModule * GetOrLoadImageWrapperModule()
 
 		if ( ImageWrapperModule == nullptr )
 		{
-			UE_LOG(LogImageUtils,Warning,TEXT("Not on GameThread, cannot load ImageWrapper.  Do on main thread in startup."));
+			UE_LOG(LogImageUtils,Error,TEXT("Not on GameThread, cannot load ImageWrapper.  Do on main thread in startup."));
 
 			// LoadModule needs to be done on the Game thread as part of your initialization
 			//   before any thread tries to run this code
@@ -67,13 +67,12 @@ bool FImageUtils::SaveImageAutoFormat(const TCHAR * FileName, const FImageView &
 	}
 
 	EImageFormat ToFormat = ImageWrapperModule->GetDefaultOutputFormat(InImage.Format);
-	if ( ToFormat == EImageFormat::Invalid )
-	{
-		return false;
-	}
+	check( ToFormat != EImageFormat::Invalid );
 	
+	bool bHasExtension = FCString::Strchr(FileName,TEXT('.')) != nullptr;
+
 	FString Scratch;
-	if ( ImageWrapperModule->GetImageFormatFromExtension(FileName) != ToFormat )
+	if ( !bHasExtension || ImageWrapperModule->GetImageFormatFromExtension(FileName) != ToFormat )
 	{
 		const TCHAR * Extension = ImageWrapperModule->GetExtension(ToFormat);
 		
@@ -105,6 +104,12 @@ bool FImageUtils::LoadImage(const TCHAR * Filename, FImage & OutImage)
 
 bool FImageUtils::SaveImageByExtension(const TCHAR * Filename, const FImageView & InImage, int32 Quality)
 {
+	// if no extension provided, add one :
+	if ( FCString::Strchr(Filename,TEXT('.')) == nullptr )
+	{
+		return SaveImageAutoFormat(Filename,InImage,Quality);
+	}
+
 	TArray64<uint8> Buffer;
 	if ( !  CompressImage(Buffer, Filename, InImage,Quality) )
 	{
@@ -135,22 +140,17 @@ bool FImageUtils::CompressImage(TArray64<uint8> & OutData, const TCHAR * ToForma
 	{
 		return false;
 	}
-
 	
-	EImageFormat ToFormat;
+	EImageFormat ToFormat = EImageFormat::Invalid;
 	
-	if ( ToFormatExtension == nullptr )
-	{
-		ToFormat = ImageWrapperModule->GetDefaultOutputFormat(InImage.Format);
-	}
-	else
+	if ( ToFormatExtension != nullptr )
 	{
 		ToFormat = ImageWrapperModule->GetImageFormatFromExtension(ToFormatExtension);
 	}
 
 	if ( ToFormat == EImageFormat::Invalid )
 	{
-		return false;
+		ToFormat = ImageWrapperModule->GetDefaultOutputFormat(InImage.Format);
 	}
 
 	return ImageWrapperModule->CompressImage(OutData,ToFormat,InImage,Quality);

@@ -83,9 +83,6 @@ private:
 	/** Implementation of parameter reading for the case when we initialize from an PFM file. */
 	bool ImplGetPFMConfig();
 
-	/** Implementation of MPCDI attribute reading for the case when we initialize from a PFM file. */
-	bool ImplGetMPCDIAttributes();
-
 private:
 	// The projection policy parameters used to read this configuration
 	const TMap<FString, FString>& ConfigParameters;

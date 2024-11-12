@@ -2,9 +2,10 @@
 
 #include "PerforceSourceControlModule.h"
 
-#include "Misc/App.h"
-#include "PerforceSourceControlOperations.h"
 #include "Features/IModularFeatures.h"
+#include "Misc/App.h"
+#include "PerforceConnection.h"
+#include "PerforceSourceControlOperations.h"
 #include "PerforceSourceControlSettings.h"
 
 #define LOCTEXT_NAMESPACE "PerforceSourceControl"

@@ -160,25 +160,37 @@ class UAvaPatternModifier : public UAvaGeometryBaseModifier
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Pattern")
 	AVALANCHEMODIFIERS_API void SetLayout(EAvaPatternModifierLayout InLayout);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Pattern")
 	EAvaPatternModifierLayout GetLayout() const
 	{
 		return Layout;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Pattern")
 	AVALANCHEMODIFIERS_API void SetLineLayoutOptions(const FAvaPatternModifierLineLayoutOptions& InOptions);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Pattern")
 	const FAvaPatternModifierLineLayoutOptions& GetLineLayoutOptions() const
 	{
 		return LineLayoutOptions;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Pattern")
 	AVALANCHEMODIFIERS_API void SetGridLayoutOptions(const FAvaPatternModifierGridLayoutOptions& InOptions);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Pattern")
 	const FAvaPatternModifierGridLayoutOptions& GetGridLayoutOptions() const
 	{
 		return GridLayoutOptions;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Pattern")
 	AVALANCHEMODIFIERS_API void SetCircleLayoutOptions(const FAvaPatternModifierCircleLayoutOptions& InOptions);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Pattern")
 	const FAvaPatternModifierCircleLayoutOptions& GetCircleLayoutOptions() const
 	{
 		return CircleLayoutOptions;
@@ -206,19 +218,19 @@ protected:
 	UE::Geometry::FTransformSRT3d GetGridLayoutRowTransformChange() const;
 	UE::Geometry::FTransformSRT3d GetCircleLayoutTransformChange(int32 Idx) const;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLayout", Getter="GetLayout", Category="Pattern", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetLayout", Getter="GetLayout", Category="Pattern", meta=(AllowPrivateAccess="true"))
 	EAvaPatternModifierLayout Layout = EAvaPatternModifierLayout::Line;
 
 	/** Line layout options */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLineLayoutOptions", Getter="GetLineLayoutOptions", Category="Pattern", meta=(EditCondition="Layout == EAvaPatternModifierLayout::Line", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetLineLayoutOptions", Getter="GetLineLayoutOptions", Category="Pattern", meta=(EditCondition="Layout == EAvaPatternModifierLayout::Line", EditConditionHides, AllowPrivateAccess="true"))
 	FAvaPatternModifierLineLayoutOptions LineLayoutOptions;
 
 	/** Grid layout options */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetGridLayoutOptions", Getter="GetGridLayoutOptions", Category="Pattern", meta=(EditCondition="Layout == EAvaPatternModifierLayout::Grid", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetGridLayoutOptions", Getter="GetGridLayoutOptions", Category="Pattern", meta=(EditCondition="Layout == EAvaPatternModifierLayout::Grid", EditConditionHides, AllowPrivateAccess="true"))
 	FAvaPatternModifierGridLayoutOptions GridLayoutOptions;
 
 	/** Circle layout options */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCircleLayoutOptions", Getter="GetCircleLayoutOptions", Category="Pattern", meta=(EditCondition="Layout == EAvaPatternModifierLayout::Circle", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetCircleLayoutOptions", Getter="GetCircleLayoutOptions", Category="Pattern", meta=(EditCondition="Layout == EAvaPatternModifierLayout::Circle", EditConditionHides, AllowPrivateAccess="true"))
 	FAvaPatternModifierCircleLayoutOptions CircleLayoutOptions;
 
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)

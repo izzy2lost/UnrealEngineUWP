@@ -16,6 +16,7 @@ export class ExclusiveCheckout extends FunctionalTest {
 
 		const mainClient = this.getClient('Main', 'testuser1')
 		await P4Util.addFileAndSubmit(mainClient, 'test.uasset', 'Dummy content', true)
+		await P4Util.addFileAndSubmit(mainClient, 'test2.uasset', 'Dummy content', true)
 		
 		this.releaseUser2Client = this.getClient('Release', 'testuser2')
 		await Promise.all([
@@ -26,8 +27,10 @@ export class ExclusiveCheckout extends FunctionalTest {
 	}
 
 	run() {
-		// second user commits change in Release well first user has file in main checked out
-		return P4Util.editFileAndSubmit(this.releaseUser2Client, 'test.uasset', 'New content')
+		// second user commits change in Release while first user has file in main checked out
+		P4Util.editFile(this.releaseUser2Client, 'test.uasset', 'New content')
+		P4Util.editFile(this.releaseUser2Client, 'test2.uasset', 'New content')
+		return P4Util.submit(this.releaseUser2Client, "Submit by second user")
 	}
 
 	verify() {

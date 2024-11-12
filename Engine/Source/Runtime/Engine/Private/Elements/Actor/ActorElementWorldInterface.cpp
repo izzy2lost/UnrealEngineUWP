@@ -3,6 +3,7 @@
 #include "Elements/Actor/ActorElementWorldInterface.h"
 
 #include "Elements/Actor/ActorElementData.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Component/ComponentElementData.h"
 #include "Engine/World.h"
 
@@ -226,11 +227,42 @@ TArray<FTypedElementHandle> UActorElementWorldInterface::GetSelectionElementsFro
 	return {};
 }
 
-bool UActorElementWorldInterface::FindSuitableTransformAlongPath_WorldSweep(const UWorld* InWorld, const FVector& InPathStart, const FVector& InPathEnd, const FCollisionShape& InTestShape, TArrayView<const FTypedElementHandle> InElementsToIgnore, FCollisionQueryParams& InOutParams, FTransform& OutSuitableTransform)
+bool UActorElementWorldInterface::AddIgnoredElementToCollisionQueryParams(const FTypedElementHandle& InElementHandle, FCollisionQueryParams& InOutParams, bool bAlsoIgnoreSubElements)
 {
-	for (const FTypedElementHandle& ElementToIgnore : InElementsToIgnore)
+	AActor* Actor = ActorElementDataUtil::GetActorFromHandle(InElementHandle, /*bSilent*/true);
+	if (!Actor)
 	{
-		AddIgnoredCollisionQueryElement(ElementToIgnore, InOutParams);
+		return false;
+	}
+
+	TArray<UObject*> IgnoredSourceObjects{ Actor };
+
+	if (bAlsoIgnoreSubElements)
+	{
+		TArray<AActor*> ChildActors;
+		Actor->GetAllChildActors(ChildActors);
+		IgnoredSourceObjects.Append(ChildActors);
+	}
+
+	InOutParams.AddIgnoredSourceObjects(IgnoredSourceObjects);
+	return true;
+}
+
+bool UActorElementWorldInterface::FindSuitableTransformAlongPath_WorldSweep(const UWorld* InWorld, 
+	const FVector& InPathStart, const FVector& InPathEnd, 
+	const FCollisionShape& InTestShape, TArrayView<const FTypedElementHandle> InElementsToIgnore, 
+	FCollisionQueryParams& InOutParams, FTransform& OutSuitableTransform)
+{
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	if (ensure(Registry))
+	{
+		for (const FTypedElementHandle& ElementToIgnore : InElementsToIgnore)
+		{
+			if (ITypedElementWorldInterface* WorldInterface = Registry->GetElementInterface<ITypedElementWorldInterface>(ElementToIgnore))
+			{
+				WorldInterface->AddIgnoredElementToCollisionQueryParams(ElementToIgnore, InOutParams);
+			}
+		}
 	}
 
 	FHitResult Hit(1.0f);
@@ -254,19 +286,18 @@ bool UActorElementWorldInterface::FindSuitableTransformAlongPath_WorldSweep(cons
 
 void UActorElementWorldInterface::AddIgnoredCollisionQueryElement(const FTypedElementHandle& InElementHandle, FCollisionQueryParams& InOutParams)
 {
-	if (const AActor* Actor = ActorElementDataUtil::GetActorFromHandle(InElementHandle, /*bSilent*/true))
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	if (!ensure(Registry))
 	{
-		InOutParams.AddIgnoredActor(Actor);
 		return;
 	}
 
-	if (const UActorComponent* Component = ComponentElementDataUtil::GetComponentFromHandle(InElementHandle, /*bSilent*/true))
+	if (ITypedElementWorldInterface* WorldInterface = Registry->GetElementInterface<ITypedElementWorldInterface>(InElementHandle))
 	{
-		if (const UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(Component))
-		{
-			InOutParams.AddIgnoredComponent(PrimComponent);
-		}
-		return;
+		// Preserving legacy behavior, where we didn't add child elements:
+		const bool bAlsoIgnoreSubElements = false;
+
+		WorldInterface->AddIgnoredElementToCollisionQueryParams(InElementHandle, InOutParams, bAlsoIgnoreSubElements);
 	}
 }
 

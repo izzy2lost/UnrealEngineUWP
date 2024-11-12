@@ -30,6 +30,7 @@ public class TakeRecorderSources : ModuleRules
 				"TakeRecorder",
 				"TakeMovieScene",
 				"UnrealEd",
+				"Sequencer"
 			}
 		);
 

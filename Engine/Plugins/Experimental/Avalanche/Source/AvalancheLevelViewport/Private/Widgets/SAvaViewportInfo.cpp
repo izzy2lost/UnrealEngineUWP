@@ -391,7 +391,7 @@ FText SAvaViewportInfo::GetZoomLevel() const
 
 	if (VisibleArea.IsValid())
 	{
-		const int32 Percentage = FMath::RoundToInt(VisibleArea.GetVisibleAreaFraction() * 100.f);
+		const int32 Percentage = FMath::RoundToInt(100.f / VisibleArea.GetVisibleAreaFraction());
 
 		return FText::Format(
 			LOCTEXT("PercentFormat", "{0}%"),

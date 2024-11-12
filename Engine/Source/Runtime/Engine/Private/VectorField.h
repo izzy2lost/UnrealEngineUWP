@@ -39,7 +39,7 @@ class FVectorFieldResource : public FRenderResource
 public:
 
 	/** The volume texture containing the vector field. */
-	FTexture3DRHIRef VolumeTextureRHI;
+	FTextureRHIRef VolumeTextureRHI;
 	/** Size of the vector field (X). */
 	int32 SizeX;
 	/** Size of the vector field (Y). */

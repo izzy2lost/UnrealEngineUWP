@@ -56,13 +56,13 @@ template<typename RealType, int ElementSize>
 class TDynamicMeshAttributeChange
 {
 public:
-	void SaveInitialElement(const TDynamicMeshOverlay<RealType,ElementSize>* Overlay, int ElementID);
-	void SaveInitialTriangle(const TDynamicMeshOverlay<RealType,ElementSize>* Overlay, int TriangleID);
+	GEOMETRYCORE_API void SaveInitialElement(const TDynamicMeshOverlay<RealType,ElementSize>* Overlay, int ElementID);
+	GEOMETRYCORE_API void SaveInitialTriangle(const TDynamicMeshOverlay<RealType,ElementSize>* Overlay, int TriangleID);
 
-	void StoreFinalElement(const TDynamicMeshOverlay<RealType, ElementSize>* Overlay, int ElementID);
-	void StoreFinalTriangle(const TDynamicMeshOverlay<RealType, ElementSize>* Overlay, int TriangleID);
+	GEOMETRYCORE_API void StoreFinalElement(const TDynamicMeshOverlay<RealType, ElementSize>* Overlay, int ElementID);
+	GEOMETRYCORE_API void StoreFinalTriangle(const TDynamicMeshOverlay<RealType, ElementSize>* Overlay, int TriangleID);
 
-	bool Apply(TDynamicMeshOverlay<RealType, ElementSize>* Overlay, bool bRevert) const;
+	GEOMETRYCORE_API bool Apply(TDynamicMeshOverlay<RealType, ElementSize>* Overlay, bool bRevert) const;
 
 protected:
 	struct FChangeElement
@@ -86,14 +86,12 @@ protected:
 	TArray<RealType> NewElementData;
 	TArray<FChangeTriangle> NewTriangles;
 
-	void ApplyReplaceChange(TDynamicMeshOverlay<RealType,ElementSize>* Overlay,
+	GEOMETRYCORE_API void ApplyReplaceChange(TDynamicMeshOverlay<RealType,ElementSize>* Overlay,
 		const TArray<FChangeTriangle>& RemoveTris,
 		const TArray<FChangeElement>& InsertElements,
 		const TArray<RealType>& InsertElementData,
 		const TArray<FChangeTriangle>& InsertTris) const;
 };
-
-
 
 /** Standard UV overlay change type - 2-element float */
 typedef TDynamicMeshAttributeChange<float,2> FDynamicMeshUVChange;

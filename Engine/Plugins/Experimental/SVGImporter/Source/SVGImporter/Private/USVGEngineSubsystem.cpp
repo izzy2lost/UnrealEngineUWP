@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 
 FOnSVGActorSplit USVGEngineSubsystem::OnSVGActorSplitDelegate;
+FOnSVGShapesUpdated USVGEngineSubsystem::OnSVGShapesUpdatedDelegate;
 
 USVGEngineSubsystem* USVGEngineSubsystem::Get()
 {

@@ -229,7 +229,7 @@ namespace UnrealBuildTool
 		/// <param name="Key">Out: The definition name</param>
 		/// <param name="Value">Out: The definition value or null if it has none</param>
 		/// <returns>Pair representing macro name and value.</returns>
-		private void SplitDefinitionAndValue(string Definition, out String Key, out String Value)
+		private void SplitDefinitionAndValue(string Definition, out string Key, out string Value)
 		{
 			int EqualsIndex = Definition.IndexOf('=');
 			if (EqualsIndex >= 0)
@@ -249,7 +249,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="Module">The module to add</param>
 		/// <param name="CompileEnvironment">Compile environment for this module</param>
-		public virtual void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public virtual void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
 			AddIntelliSensePreprocessorDefinitions(CompileEnvironment.Definitions);
 			AddIntelliSenseIncludePaths(SystemIncludePaths, CompileEnvironment.SystemIncludePaths);

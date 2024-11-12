@@ -23,13 +23,18 @@ namespace UE
 namespace Geometry
 {
 
-
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FPolygroupRemeshFixLayout
+{
+public:
+	virtual ~FPolygroupRemeshFixLayout() = default;
+};
 
 /**
  * PolygroupRemesh -- remesh only considering polygroup features (topological corners and bends on polygroup edges)
  * This can help clean up low poly meshes that have extra vertices along straight edges e.g. after mesh Boolean operations
  */
-class DYNAMICMESH_API FPolygroupRemesh
+class DYNAMICMESH_API FPolygroupRemesh : public FPolygroupRemeshFixLayout
 {
 public:
 

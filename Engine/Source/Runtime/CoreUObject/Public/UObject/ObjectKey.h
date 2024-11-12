@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
 #include "UObject/WeakObjectPtr.h"
 
 #include <type_traits>
@@ -37,8 +38,8 @@ public:
 		}
 	}
 	template <
-		typename U,
-		decltype(ImplicitConv<const UObject*>(std::declval<U>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, const UObject*>)
 	>
 	FORCEINLINE FObjectKey(U Object)
 		: FObjectKey(ImplicitConv<const UObject*>(Object))
@@ -134,7 +135,7 @@ public:
 	}
 
 	/** Hash function */
-	friend uint32 GetTypeHash(const FObjectKey& Key)
+	[[nodiscard]] friend uint32 GetTypeHash(const FObjectKey& Key)
 	{
 		return HashCombine(Key.ObjectIndex, Key.ObjectSerialNumber);
 	}
@@ -163,8 +164,8 @@ public:
 
 	/** Construct from an object pointer */
 	template <
-		typename U,
-		decltype(ImplicitConv<const InElementType*>(std::declval<U>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, const InElementType*>)
 	>
 	FORCEINLINE TObjectKey(U Object)
 		: ObjectKey(ImplicitConv<const InElementType*>(Object))
@@ -208,7 +209,7 @@ public:
 	}
 
 	//** Hash function */
-	friend uint32 GetTypeHash(const TObjectKey& Key)
+	[[nodiscard]] friend uint32 GetTypeHash(const TObjectKey& Key)
 	{
 		return GetTypeHash(Key.ObjectKey);
 	}

@@ -74,7 +74,6 @@ public:
 	UEdGraphPin* GetInputDMXFixturePatchPin() const;
 	UEdGraphPin* GetOutputAttributesMapPin() const;
 	UEdGraphPin* GetOutputIsSuccessPin() const;
-	UEdGraphPin* GetThenPin() const;
 
 	/** Expose DMX function pins from fixture patch active mode */
 	void ExposeAttributes();

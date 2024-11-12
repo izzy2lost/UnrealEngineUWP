@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Dataflow/DataflowCollectionAttributeKeyNodes.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "UDynamicMesh.h"
@@ -13,6 +14,11 @@
 
 #include "GeometryCollectionNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 class FGeometryCollection;
 class UGeometryCollection;
@@ -38,14 +44,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FManagedArrayCollection Collection;
 
-	FGetCollectionFromAssetDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetCollectionFromAssetDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&CollectionAsset);
 		RegisterOutputConnection(&Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -76,7 +82,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "GeometryGroupIndicesOut2"))
 		TArray<FString> GeometryGroupGuidsOut2;
 
-	FAppendCollectionAssetsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FAppendCollectionAssetsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection1);
@@ -86,7 +92,7 @@ public:
 		RegisterOutputConnection(&GeometryGroupGuidsOut2);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -94,9 +100,9 @@ public:
 /**
  *
  * Description for this node
- *
+ * DEPRECATED - use Print node ( core nodes ) 
  */
-USTRUCT()
+USTRUCT(meta = (Deprecated = "5.5"))
 struct FPrintStringDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -118,13 +124,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Print", meta = (DataflowInput));
 	FString String = FString("");
 
-	FPrintStringDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FPrintStringDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&String);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -132,9 +138,9 @@ public:
 /**
  *
  * Description for this node
- *
- */
-USTRUCT()
+ * DEPRECATED - use Print node ( core nodes ) 
+  */
+USTRUCT(meta=(Deprecated = "5.5"))
 struct FLogStringDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -147,13 +153,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Print", meta = (DataflowInput));
 	FString String = FString("");
 
-	FLogStringDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FLogStringDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&String);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -171,7 +177,7 @@ struct FBoundingBoxDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FBoundingBoxDataflowNode, "BoundingBox", "Utilities|Box", "")
-	DATAFLOW_NODE_RENDER_TYPE(FName("FBox"), "BoundingBox")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FName("FBox"), "BoundingBox")
 
 public:
 	UPROPERTY(meta = (DataflowInput))
@@ -180,14 +186,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FBox BoundingBox = FBox(ForceInit);
 
-	FBoundingBoxDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBoundingBoxDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&BoundingBox);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -246,14 +252,14 @@ public:
 		return Size.X;
 	}
 
-	FGetBoxLengthsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetBoxLengthsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Boxes);
 		RegisterOutputConnection(&Lengths);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -289,7 +295,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float Volume = 0.0;
 
-	FExpandBoundingBoxDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FExpandBoundingBoxDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&BoundingBox);
@@ -300,7 +306,7 @@ public:
 		RegisterOutputConnection(&Volume);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -332,7 +338,7 @@ public:
 	float Z = 0.f;
 
 
-	FExpandVectorDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FExpandVectorDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Vector);
@@ -341,7 +347,7 @@ public:
 		RegisterOutputConnection(&Z);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -366,7 +372,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FString String = FString("");
 
-	FStringAppendDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FStringAppendDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&String1);
@@ -374,7 +380,7 @@ public:
 		RegisterOutputConnection(&String);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -398,14 +404,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 Hash = 0;
 
-	FHashStringDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FHashStringDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&String);
 		RegisterOutputConnection(&Hash);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -430,14 +436,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 Hash = 0;
 
-	FHashVectorDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FHashVectorDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Vector);
 		RegisterOutputConnection(&Hash);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -466,7 +472,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TArray<FBox> BoundingBoxes;
 
-	FGetBoundingBoxesFromCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetBoundingBoxesFromCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -474,7 +480,7 @@ public:
 		RegisterOutputConnection(&BoundingBoxes);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -497,14 +503,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 RootIndex = INDEX_NONE;
 
-	FGetRootIndexFromCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetRootIndexFromCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&RootIndex);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -534,7 +540,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TArray<FVector> Centroids = TArray<FVector>();
 
-	FGetCentroidsFromCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetCentroidsFromCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -542,7 +548,7 @@ public:
 		RegisterOutputConnection(&Centroids);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -571,7 +577,7 @@ struct FTransformCollectionDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FTransformCollectionDataflowNode, "TransformCollection", "Math|Transform", "")
-	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FGeometryCollection::StaticType(),  "Collection")
 
 public:
 	/** Output mesh */
@@ -614,14 +620,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "General");
 	bool bInvertTransformation = false;
 
-	FTransformCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FTransformCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -636,21 +642,21 @@ struct FBakeTransformsInCollectionDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FBakeTransformsInCollectionDataflowNode, "BakeTransformsInCollection", "Math|Transform", "")
-	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FGeometryCollection::StaticType(),  "Collection")
 
 public:
 	/** Collection to bake transforms in */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FBakeTransformsInCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBakeTransformsInCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -665,7 +671,7 @@ struct FTransformMeshDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FTransformMeshDataflowNode, "TransformMesh", "Math|Transform", "")
-	DATAFLOW_NODE_RENDER_TYPE(FName("FDynamicMesh3"), "Mesh")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender",FName("FDynamicMesh3"), "Mesh")
 
 public:
 	/** Output mesh */
@@ -708,14 +714,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "General");
 	bool bInvertTransformation = false;
 
-	FTransformMeshDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FTransformMeshDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Mesh);
 		RegisterOutputConnection(&Mesh, &Mesh);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -761,7 +767,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput));
 	bool Result = false;
 
-	FCompareIntDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCompareIntDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&IntA);
@@ -769,7 +775,7 @@ public:
 		RegisterOutputConnection(&Result);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -802,7 +808,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput));
 	bool Result = false;
 
-	FCompareFloatDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCompareFloatDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FloatA);
@@ -810,7 +816,7 @@ public:
 		RegisterOutputConnection(&Result);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -845,7 +851,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TObjectPtr<UDynamicMesh> Mesh;
 
-	FBranchMeshDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBranchMeshDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&MeshA);
@@ -854,7 +860,7 @@ public:
 		RegisterOutputConnection(&Mesh);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -887,7 +893,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FManagedArrayCollection ChosenCollection;
 
-	FBranchCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBranchCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&TrueCollection);
@@ -896,7 +902,7 @@ public:
 		RegisterOutputConnection(&ChosenCollection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -922,14 +928,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FString String;
 
-	FGetSchemaDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetSchemaDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&String);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -965,7 +971,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Removal", meta = (DataflowInput))
 	bool bClusterCrumbling = false;
 
-	FRemoveOnBreakDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRemoveOnBreakDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -977,7 +983,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1020,7 +1026,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
-	FSetAnchorStateDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSetAnchorStateDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -1028,7 +1034,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1118,7 +1124,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	FProximityDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FProximityDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -1127,7 +1133,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1152,7 +1158,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Pivot", meta = (DataflowInput))
 	FTransform Transform;
 
-	FCollectionSetPivotDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FCollectionSetPivotDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -1160,7 +1166,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1249,7 +1255,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute", meta = (DisplayName = "Number of Elements"));
 	int32 NumElements = 0;
 
-	FAddCustomCollectionAttributeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FAddCustomCollectionAttributeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -1257,7 +1263,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1290,14 +1296,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput));
 	int32 NumElements = 0;
 
-	FGetNumElementsInCollectionGroupDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FGetNumElementsInCollectionGroupDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&NumElements);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1318,6 +1324,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** Input to drive the Attribute and Group name */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKey;
+
 	/** Standard group names */
 	UPROPERTY(EditAnywhere, Category = "Attribute", meta = (DisplayName = "Group"))
 	EStandardGroupNameEnum GroupName = EStandardGroupNameEnum::Dataflow_EStandardGroupNameEnum_Transform;
@@ -1331,37 +1341,42 @@ public:
 	FString AttrName = FString("");
 
 	/** Bool type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Bool Array"));
 	TArray<bool> BoolAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Float Array"));
 	TArray<float> FloatAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Double Array"));
 	TArray<double> DoubleAttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Int32 Array"));
 	TArray<int32> Int32AttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "String Array"));
 	TArray<FString> StringAttributeData;
 
 	/** Vector3f type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Vector3f Array"));
 	TArray<FVector3f> Vector3fAttributeData;
 
 	/** Vector3d type attribute data */
-	UPROPERTY(meta = (DataflowOutput));
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Vector3d Array"));
 	TArray<FVector3d> Vector3dAttributeData;
 
-	FGetCollectionAttributeDataTypedDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	/** Vector3d type attribute data */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "Linear Color Array"));
+	TArray<FLinearColor> LinearColorAttributeData;
+
+	FGetCollectionAttributeDataTypedDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&AttributeKey);
 		RegisterOutputConnection(&BoolAttributeData);
 		RegisterOutputConnection(&FloatAttributeData);
 		RegisterOutputConnection(&DoubleAttributeData);
@@ -1369,9 +1384,10 @@ public:
 		RegisterOutputConnection(&StringAttributeData);
 		RegisterOutputConnection(&Vector3fAttributeData);
 		RegisterOutputConnection(&Vector3dAttributeData);
+		RegisterOutputConnection(&LinearColorAttributeData);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1392,6 +1408,10 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
+	/** Input to drive the Attribute and Group name */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "AttributeKey"))
+	FCollectionAttributeKey AttributeKey;
+
 	/** Standard group names */
 	UPROPERTY(EditAnywhere, Category = "Attribute", meta = (DisplayName = "Group"))
 	EStandardGroupNameEnum GroupName = EStandardGroupNameEnum::Dataflow_EStandardGroupNameEnum_Transform;
@@ -1405,37 +1425,42 @@ public:
 	FString AttrName = FString("");
 
 	/** Bool type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Bool Array"));
 	TArray<bool> BoolAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Float Array"));
 	TArray<float> FloatAttributeData;
 
 	/** Float type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Double Array"));
 	TArray<double> DoubleAttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Int32 Array"));
 	TArray<int32> Int32AttributeData;
 
 	/** Int type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "String Array"));
 	TArray<FString> StringAttributeData;
 
 	/** Vector3f type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Vector3f Array"));
 	TArray<FVector3f> Vector3fAttributeData;
 
 	/** Vector3d type attribute data */
-	UPROPERTY(meta = (DataflowInput));
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Vector3d Array"));
 	TArray<FVector3d> Vector3dAttributeData;
 
-	FSetCollectionAttributeDataTypedDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	/** LinearColor type attribute data */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Linear Color Array"));
+	TArray<FLinearColor> LinearColorAttributeData;
+
+	FSetCollectionAttributeDataTypedDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&AttributeKey);
 		RegisterInputConnection(&BoolAttributeData);
 		RegisterInputConnection(&FloatAttributeData);
 		RegisterInputConnection(&DoubleAttributeData);
@@ -1443,51 +1468,11 @@ public:
 		RegisterInputConnection(&StringAttributeData);
 		RegisterInputConnection(&Vector3fAttributeData);
 		RegisterInputConnection(&Vector3dAttributeData);
+		RegisterInputConnection(&LinearColorAttributeData);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-
-};
-
-
-/**
- *
- * 
- *
- */
-USTRUCT()
-struct FSetVertexColorInCollectionFromVertexSelectionDataflowNode : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FSetVertexColorInCollectionFromVertexSelectionDataflowNode, "SetVertexColorInCollectionFromVertexSelection", "Collection|Utilities", "")
-
-public:
-	/** Collection */
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
-	FManagedArrayCollection Collection;
-
-	/**  */
-	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelection", DataflowIntrinsic))
-	FDataflowVertexSelection VertexSelection;
-
-	/**  */
-	UPROPERTY(EditAnywhere, Category = "Color")
-	FLinearColor SelectedColor = FLinearColor(FColor::Yellow);
-
-	/**  */
-	UPROPERTY(EditAnywhere, Category = "Color", meta = (DisplayName = "NonSelected Color"))
-	FLinearColor NonSelectedColor = FLinearColor(FColor::Blue);
-
-	FSetVertexColorInCollectionFromVertexSelectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
-		: FDataflowNode(InParam, InGuid)
-	{
-		RegisterInputConnection(&Collection);
-		RegisterInputConnection(&VertexSelection);
-		RegisterOutputConnection(&Collection, &Collection);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1513,53 +1498,16 @@ public:
 	TArray<int32> VertexList;
 
 
-	FSelectionToVertexListDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSelectionToVertexListDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&VertexSelection);
 		RegisterOutputConnection(&VertexList);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
-
-/**
- *
- *
- *
- */
-USTRUCT()
-struct FSetVertexColorInCollectionFromFloatArrayDataflowNode : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FSetVertexColorInCollectionFromFloatArrayDataflowNode, "SetVertexColorInCollectionFromFloatArray", "Collection|Utilities", "")
-
-public:
-	/** Collection */
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
-	FManagedArrayCollection Collection;
-
-	/**  */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
-	TArray<float> FloatArray;
-
-	/**  */
-	UPROPERTY(EditAnywhere, Category = "Color")
-	float Scale = 1.f;
-
-	FSetVertexColorInCollectionFromFloatArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
-		: FDataflowNode(InParam, InGuid)
-	{
-		RegisterInputConnection(&Collection);
-		RegisterInputConnection(&FloatArray);
-		RegisterOutputConnection(&Collection, &Collection);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-
-};
-
 
 /**
  *
@@ -1582,7 +1530,7 @@ public:
 	UPROPERTY(meta = ( DataflowOutput, DisplayName = "Out Transform"));
 	FTransform OutTransform = FTransform::Identity;
 
-	FMultiplyTransformDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FMultiplyTransformDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&InLeftTransform);
@@ -1590,7 +1538,7 @@ public:
 		RegisterOutputConnection(&OutTransform);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1612,14 +1560,14 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "OutTransform"));
 	FTransform OutTransform = FTransform::Identity;
 
-	FInvertTransformDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FInvertTransformDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&InTransform);
 		RegisterOutputConnection(&OutTransform);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -1650,7 +1598,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	float ReturnValue = 0.f;
 
-	FBranchFloatDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBranchFloatDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&A);
@@ -1659,7 +1607,7 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1691,7 +1639,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 ReturnValue = 0;
 
-	FBranchIntDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBranchIntDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&A);
@@ -1700,12 +1648,24 @@ public:
 		RegisterOutputConnection(&ReturnValue);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
+// Example to deprecate a Dataflow node
+ //USTRUCT(meta = (Deprecated = "5.1"))
+ //struct FLogStringDataflowNode : public FDataflowNode
 
-namespace Dataflow
+ // Example to version up a Dataflow node, the type name needs to be versioned up
+ // Important: don't change the display name!
+  //USTRUCT()
+  //struct FLogStringDataflowNode_v3 : public FDataflowNode
+
+// Example of experimental Dataflow node
+ //USTRUCT(meta = (Experimental))
+ //struct FLogStringDataflowNode_v2 : public FDataflowNode
+
+namespace UE::Dataflow
 {
 	void GeometryCollectionEngineNodes();
 }

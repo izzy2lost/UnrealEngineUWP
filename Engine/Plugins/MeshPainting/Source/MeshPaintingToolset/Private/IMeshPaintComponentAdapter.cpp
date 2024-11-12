@@ -45,7 +45,6 @@ static bool IsTextureSuitableForTexturePainting(const TWeakObjectPtr<UTexture> T
 {
 	return (TexturePtr.Get() != nullptr &&
 		!TexturePtr->IsNormalMap() &&
-		!TexturePtr->VirtualTextureStreaming &&
 		!TexturePtr->HasHDRSource() && // Currently HDR textures are not supported to paint on.
 		TexturePtr->Source.IsValid() &&
 		TexturePtr->Source.GetBytesPerPixel() > 0 && // Textures' sources must have a known count of bytes per pixel
@@ -86,6 +85,10 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 						{
 							// Store the uv channel, this is set when the texture is selected. 
 							PaintableTexture.UVChannelIndex = TextureCoords->CoordinateIndex;
+						}
+						else
+						{
+							PaintableTexture.UVChannelIndex = TextureSample->ConstCoordinate;
 						}
 
 						// Handle texture parameter expressions
@@ -136,6 +139,13 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 			// This prevents an infinite loop when `Material` isn't a material instance.
 			break;
 		}
+	}
+
+	// If the component has a mesh paint texture, then add it here.
+	if (UTexture* MeshPaintTexture = MeshComponent->GetMeshPaintTexture())
+	{
+		const int32 CoordinateIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
+		InOutTextureList.AddUnique(FPaintableTexture(MeshPaintTexture, CoordinateIndex, true));
 	}
 }
 
@@ -398,7 +408,7 @@ namespace UE::MeshPaintingToolset
 		return *this;
 	}
 
-	void FDefaultTextureOverride::ApplyOrRemoveTextureOverride(const UMeshComponent* InMeshComponent, const UTexture* SourceTexture, UTexture* OverrideTexture) const
+	void FDefaultTextureOverride::ApplyOrRemoveTextureOverride(UMeshComponent* InMeshComponent, const UTexture* SourceTexture, UTexture* OverrideTexture) const
 	{
 		check(IsInGameThread());
 
@@ -418,11 +428,17 @@ namespace UE::MeshPaintingToolset
 			{
 				// Keep track of the material overridden
 				Private::FGlobalTextureOverrideState::RegisterMaterialOverride(this, MaterialToCheck, SourceTexture, OverrideTexture, FeatureLevel);
-
 			}
 
 			++MaterialIndex;
 			MaterialToCheck = InMeshComponent->GetMaterial(MaterialIndex);
+		}
+
+		// Check to see if the source texture is the special mesh paint texture on the component.
+		// But always apply setting override to nullptr which can happen after the SourceTexture is cleared from the component.
+		if (InMeshComponent->GetMeshPaintTexture() == SourceTexture || !OverrideTexture)
+		{
+			InMeshComponent->SetMeshPaintTextureOverride(OverrideTexture);
 		}
 	}
 

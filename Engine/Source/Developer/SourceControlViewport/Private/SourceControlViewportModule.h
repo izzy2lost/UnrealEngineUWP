@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FSourceControlViewportOutlineMenu;
+class FSourceControlViewportMenu;
 class FSourceControlViewportToolTips;
 
 class FSourceControlViewportModule : public IModuleInterface
@@ -16,9 +16,9 @@ public:
 	virtual void ShutdownModule() override;
 
 	/**
-	 * Gets a reference to the source control outline menu module instance.
+	 * Gets a reference to the source control viewport module instance.
 	 *
-	 * @return A reference to the source control outline menu module.
+	 * @return A reference to the source control viewport module.
 	 */
 	static FSourceControlViewportModule& Get()
 	{
@@ -33,6 +33,10 @@ public:
 	}
 
 private:
-	TSharedPtr<FSourceControlViewportOutlineMenu> ViewportOutlineMenu;
+	void HandleCVarChanged(IConsoleVariable* Variable);
+	void UpdateSettings();
+
+private:
+	TSharedPtr<FSourceControlViewportMenu> ViewportMenu;
 	TSharedPtr<FSourceControlViewportToolTips> ViewportToolTips;
 };

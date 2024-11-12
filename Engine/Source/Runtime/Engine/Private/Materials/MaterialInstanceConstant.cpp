@@ -222,7 +222,7 @@ void UMaterialInstanceConstant::UpdateCachedData()
 
 		CachedHLSLTree = MoveTemp(LocalCachedTree);
 
-		if (bUsingNewHLSLGenerator && bHasStaticPermutationResource)
+		if (bUsingNewHLSLGenerator && bHasStaticPermutationResource && CachedHLSLTree.IsValid())
 		{
 			// Find the values of all overridden parameters including those overridden by parent instances. This is needed
 			// for correct HLSL tree preparation where static parameter values can affect the final result. We cannot call

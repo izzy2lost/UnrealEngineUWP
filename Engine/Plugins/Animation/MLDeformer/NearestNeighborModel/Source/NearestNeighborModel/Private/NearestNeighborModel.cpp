@@ -54,6 +54,7 @@ namespace UE::NearestNeighborModel
 		{
 			BeforeCustomVersionWasAdded = 0,
 			AddTrainedBasis = 1,
+			DeprecateNumEpochs = 2,
 	
 			VersionPlusOne,
 			LatestVersion = VersionPlusOne - 1
@@ -294,34 +295,6 @@ namespace UE::NearestNeighborModel
 		}
 
 #if WITH_EDITORONLY_DATA
-		TArray<FInt32Range> GetMeshVertRanges(const USkeletalMesh& SkelMesh)
-		{
-			constexpr int32 LODIndex = 0;
-
-			if (!SkelMesh.HasMeshDescription(LODIndex))
-			{
-				return {};
-			}
-
-			const FMeshDescription* MeshDescription = SkelMesh.GetMeshDescription(LODIndex);
-			const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
-
-			if (!MeshAttributes.HasSourceGeometryParts())
-			{
-				return {};
-			}
-
-			TArray<FInt32Range> MeshVertRanges;
-			MeshVertRanges.Reserve(MeshAttributes.GetNumSourceGeometryParts());
-			const FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef PartOffsetAndCountRef = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
-			for (const FSourceGeometryPartID GeometryPartID: MeshAttributes.SourceGeometryParts().GetElementIDs())
-			{
-				TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(GeometryPartID);
-				MeshVertRanges.Emplace(OffsetAndCount[0], OffsetAndCount[0] + OffsetAndCount[1]);
-			}
-			return MeshVertRanges;
-		}
-
 		TArray<FName> GetVertexFloatAttributeNames(const USkeletalMesh& SkelMesh)
 		{
 			constexpr int32 LODIndex = 0;
@@ -1167,6 +1140,10 @@ UNearestNeighborModel::UNearestNeighborModel(const FObjectInitializer& ObjectIni
 {
 #if WITH_EDITORONLY_DATA
 	SetVizSettings(ObjectInitializer.CreateEditorOnlyDefaultSubobject<UNearestNeighborModelVizSettings>(this, TEXT("VizSettings")));
+
+	// Add two layers of 128 units on default.
+	HiddenLayerDims.Add(128);
+	HiddenLayerDims.Add(128);
 #endif
 }
 
@@ -1182,7 +1159,7 @@ void UNearestNeighborModel::GetAssetRegistryTags(FAssetRegistryTagsContext Conte
 	Super::GetAssetRegistryTags(Context);
 
 	#if WITH_EDITORONLY_DATA
-		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumEpochs", FString::FromInt(NumEpochs), FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumIterations", FString::FromInt(NumIterations), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.BatchSize", FString::FromInt(BatchSize), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumHiddenLayers", FString::FromInt(HiddenLayerDims.Num()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.LearningRate", FString::Printf(TEXT("%f"), LearningRate), FAssetRegistryTag::TT_Numerical));
@@ -1210,9 +1187,8 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		Property->GetFName() == UMLDeformerModel::GetBoneIncludeListPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetCurveIncludeListPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetMaxTrainingFramesPropertyName() ||
-		Property->GetFName() == UMLDeformerModel::GetDeltaCutoffLengthPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetHiddenLayerDimsPropertyName() ||
-		Property->GetFName() == UNearestNeighborModel::GetNumEpochsPropertyName() ||
+		Property->GetFName() == UNearestNeighborModel::GetNumIterationsPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetBatchSizePropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetLearningRatePropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetEarlyStopEpochsPropertyName())
@@ -1236,7 +1212,7 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 			FString MapString;
 			if (GetSkeletalMesh())
 			{
-				const TArray<FInt32Range> Ranges = UE::NearestNeighborModel::Private::GetMeshVertRanges(*GetSkeletalMesh());
+				const TArray<FInt32Range> Ranges = GetMeshVertRanges(*GetSkeletalMesh());
 				const int32 MeshIndex = Section->GetMeshIndex(); 
 				if (Ranges.IsValidIndex(MeshIndex))
 				{
@@ -1362,19 +1338,8 @@ void UNearestNeighborModel::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITORONLY_DATA
-	UpdateNetworkInputDim();
-	UpdateNetworkOutputDim();
 
-	UpdateFileCache();
-
-	for (FSection* Section : Sections)
-	{
-		if (Section)
-		{
-			Section->SetModel(this);
-		}
-	}
-
+	// Apply any upgrades
 	if (IsBeforeCustomVersionWasAdded())
 	{
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS 
@@ -1386,6 +1351,7 @@ void UNearestNeighborModel::PostLoad()
 			check(Section);
 			Section->InitFromClothPartData(ClothPartData_DEPRECATED[Index]);
 		}
+		bUsePCA = true;
 		UpdateForTraining();
 		UpdateForInference();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1394,6 +1360,25 @@ void UNearestNeighborModel::PostLoad()
 	if (IsBeforeTrainedBasisAdded())
 	{
 		bUsePCA = true;
+	}
+
+	if (IsBeforeDeprecateNumEpochs())
+	{
+		NumIterations = 20000;
+	}
+
+	// Update data set at runtime.
+	UpdateNetworkInputDim();
+	UpdateNetworkOutputDim();
+
+	UpdateFileCache();
+
+	for (FSection* Section : Sections)
+	{
+		if (Section)
+		{
+			Section->SetModel(this);
+		}
 	}
 #endif
 }
@@ -1409,6 +1394,11 @@ const UNearestNeighborModelSection* UNearestNeighborModel::GetSectionPtr(int32 I
 }
 
 const UNearestNeighborModelSection& UNearestNeighborModel::GetSection(int32 Index) const
+{
+	return *Sections[Index];
+}
+
+UNearestNeighborModelSection& UNearestNeighborModel::GetSection(int32 Index)
 {
 	return *Sections[Index];
 }
@@ -1508,6 +1498,38 @@ float UNearestNeighborModel::GetRBFSigma() const
 	return RBFSigma;
 }
 
+
+#if WITH_EDITORONLY_DATA
+TArray<FInt32Range> UNearestNeighborModel::GetMeshVertRanges(const USkeletalMesh& SkelMesh)
+{
+	constexpr int32 LODIndex = 0;
+
+	if (!SkelMesh.HasMeshDescription(LODIndex))
+	{
+		return {};
+	}
+
+	const FMeshDescription* MeshDescription = SkelMesh.GetMeshDescription(LODIndex);
+	const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+
+	if (!MeshAttributes.HasSourceGeometryParts())
+	{
+		return {};
+	}
+
+	TArray<FInt32Range> MeshVertRanges;
+	MeshVertRanges.Reserve(MeshAttributes.GetNumSourceGeometryParts());
+	const FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef PartOffsetAndCountRef = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+	for (const FSourceGeometryPartID GeometryPartID: MeshAttributes.SourceGeometryParts().GetElementIDs())
+	{
+		TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(GeometryPartID);
+		MeshVertRanges.Emplace(OffsetAndCount[0], OffsetAndCount[0] + OffsetAndCount[1]);
+	}
+	return MeshVertRanges;
+}
+#endif
+
+
 #if WITH_EDITOR
 UNearestNeighborModelSection* UNearestNeighborModel::OnSectionAdded(int32 NewIndex)
 {
@@ -1527,11 +1549,6 @@ UNearestNeighborModelSection* UNearestNeighborModel::OnSectionAdded(int32 NewInd
 	}
 	Sections[NewIndex] = Section;
 	return Section;
-}
-
-UNearestNeighborModelSection& UNearestNeighborModel::GetSection(int32 Index)
-{
-	return *Sections[Index];
 }
 
 FDateTime UNearestNeighborModel::GetNetworkLastWriteTime() const
@@ -1610,7 +1627,7 @@ const FMLDeformerGeomCacheTrainingInputAnim* UNearestNeighborModel::GetNearestNe
 void UNearestNeighborModel::UpdatePCACoeffStarts()
 {
 	uint32 Acc = 0;
-	PCACoeffStarts.Reserve(Sections.Num());
+	PCACoeffStarts.Reset(Sections.Num());
 	for(const FSection* Section : Sections)
 	{
 		PCACoeffStarts.Add(Acc);
@@ -1659,6 +1676,12 @@ bool UNearestNeighborModel::IsBeforeTrainedBasisAdded() const
 {
 	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
 	return Version < FNearestNeighborModelCustomVersion::AddTrainedBasis;
+}
+
+bool UNearestNeighborModel::IsBeforeDeprecateNumEpochs() const
+{
+	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
+	return Version < FNearestNeighborModelCustomVersion::DeprecateNumEpochs;
 }
 
 UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::CheckHiddenLayerDims()
@@ -1750,6 +1773,11 @@ const TArray<float>& UNearestNeighborModel::GetVertexWeightSum() const
 
 void UNearestNeighborModel::NormalizeVertexWeights()
 {
+	if (GetNumBaseMeshVerts() == 0)
+	{
+		return;
+	}
+
 	VertexWeightSum.Init(0.f, GetNumBaseMeshVerts());
 	for (const FSection* Section : Sections)
 	{
@@ -1958,7 +1986,16 @@ bool UNearestNeighborModel::LoadOptimizedNetworkFromFile(const FString& Filename
 	}
 	return false;
 }
-#endif
+
+void UNearestNeighborModel::RemoveAllSections()
+{
+	for (TObjectPtr<UNearestNeighborModelSection>& Section : Sections)
+	{
+		Section->ConditionalBeginDestroy();
+	}
+	Sections.Empty();
+}
+#endif	// WITH_EDITOR
 
 int32 UNearestNeighborModel::GetNumNetworkOutputs() const
 {

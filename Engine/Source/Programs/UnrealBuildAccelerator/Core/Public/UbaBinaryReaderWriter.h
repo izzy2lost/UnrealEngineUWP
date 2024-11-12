@@ -16,8 +16,8 @@ namespace uba
 		inline void WriteU32(u32 value);
 		inline void WriteU64(u64 value);
 		inline void WriteString(const tchar* str);
-		inline void WriteString(const tchar* str, u64 strLen);
-		inline void WriteString(const StringBufferBase& str);
+		inline void WriteString(const tchar* str, u64 len);
+		inline void WriteString(const StringView& str);
 		inline void WriteStringf(const tchar* format, ...);
 		inline void WriteString(const TString& str);
 		inline void WriteStringKey(const StringKey& g);
@@ -25,6 +25,10 @@ namespace uba
 		inline void WriteCasKey(const CasKey& casKey);
 		inline void Write7BitEncoded(u64 value);
 		inline void WriteBool(bool value) { WriteByte(value ? 1 : 0); }
+
+		template<typename CharType>
+		inline void WriteUtf8String(const CharType* str, u64 len);
+
 		inline u8* AllocWrite(u64 bytes);
 		inline u64 GetPosition() const { return u64(m_pos - m_begin); }
 		inline u64 GetCapacityLeft() const { return u64(m_end - m_pos); }
@@ -64,6 +68,7 @@ namespace uba
 		inline CasKey ReadCasKey();
 		inline bool ReadBool() { return ReadByte() != 0; }
 		inline u64 Read7BitEncoded();
+		template<typename CharType> inline CharType ReadUtf8Char();
 		inline u32 PeekU32();
 		inline u64 PeekU64();
 		inline void Skip(u64 size) { m_pos += size; }
@@ -87,13 +92,14 @@ namespace uba
 	struct StackBinaryReader : BinaryReader
 	{
 		StackBinaryReader() : BinaryReader(buffer, 0, Capacity) { *buffer = 0; }
-		void Reset() { m_pos = m_begin; m_end = buffer + Capacity; }
+		StackBinaryReader& Reset() { m_pos = m_begin; m_end = buffer + Capacity; return *this; }
 		u8 buffer[Capacity];
 	};
 
 	// Implementations
 
 	#define UBA_ASSERT_WRITE(size) UBA_ASSERTF(m_pos + size <= m_end, TC("BinaryWriter overflow. Written: %llu, Capacity: %llu, Trying to write: %llu"), u64(m_pos - m_begin), u64(m_end - m_begin), u64(size))
+	#define UBA_ASSERT_READ(size) UBA_ASSERTF(m_pos + size <= m_end, TC("BinaryReader overflow. Read: %llu, Size: %llu, Trying to read: %llu"), u64(m_pos - m_begin), u64(m_end - m_begin), u64(size))
 
 	void BinaryWriter::WriteByte(u8 value)
 	{
@@ -115,10 +121,11 @@ namespace uba
 		WriteString(str, u64(TStrlen(str)));
 	}
 
-	inline u64 GetWrittenBytes(const tchar* str, u64 strlen)
+	template<typename CharType>
+	inline u64 GetUtf8WrittenBytes(const CharType* str, u64 strlen)
 	{
 		u64 actualBytes = 0;
-		for (const tchar* i = str, *e = str + strlen; i != e; ++i)
+		for (const CharType* i = str, *e = str + strlen; i != e; ++i)
 		{
 			u16 c = u16(*i);
 			if (c < 128)
@@ -142,22 +149,24 @@ namespace uba
 		return count;
 	}
 
-	inline u64 GetStringWriteSize(const tchar* str)
+	inline u64 GetStringWriteSize(const tchar* str, u64 len)
 	{
-		u64 actualBytes = GetWrittenBytes(str, TStrlen(str));
-		return Get7BitEncodedCount(actualBytes) + actualBytes;
+		#if PLATFORM_WINDOWS
+		u64 actualBytes = GetUtf8WrittenBytes(str, len);
+		#else
+		u64 actualBytes = len;
+		#endif
+		return Get7BitEncodedCount(len) + actualBytes;
 	}
 
-	void BinaryWriter::WriteString(const tchar* str, u64 strLen)
+	template<typename CharType>
+	void BinaryWriter::WriteUtf8String(const CharType* str, u64 len)
 	{
 		UBA_ASSERT(str);
 
-		#if PLATFORM_WINDOWS
-		Write7BitEncoded(strLen);
+		UBA_ASSERT_WRITE(GetUtf8WrittenBytes(str, len));
 
-		UBA_ASSERT_WRITE(GetWrittenBytes(str, strLen));
-
-		for (const tchar* i = str, *e = str + strLen; i != e; ++i)
+		for (const CharType* i = str, *e = str + len; i != e; ++i)
 		{
 			int c = *i;
 			if (c < 128)
@@ -174,13 +183,23 @@ namespace uba
 				*m_pos++ = u8((c % 64) + 128);
 			}
 		}
+	}
+
+	void BinaryWriter::WriteString(const tchar* str, u64 len)
+	{
+		UBA_ASSERT(str);
+
+		Write7BitEncoded(len);
+
+		#if PLATFORM_WINDOWS
+		UBA_ASSERT_WRITE(GetUtf8WrittenBytes(str, len));
+		WriteUtf8String(str, len);
 		#else
-		Write7BitEncoded(strLen);
-		WriteBytes(str, strLen);
+		WriteBytes(str, len);
 		#endif
 	}
 
-	void BinaryWriter::WriteString(const StringBufferBase& str)
+	void BinaryWriter::WriteString(const StringView& str)
 	{
 		WriteString(str.data, str.count);
 	}
@@ -250,7 +269,7 @@ namespace uba
 
 	void BinaryWriter::Write7BitEncoded(u64 value)
 	{
-		UBA_ASSERT_WRITE(5);
+		UBA_ASSERT_WRITE(Get7BitEncodedCount(value));
 		do
 		{
 			u8 HasMoreBytes = (u8)((value > u64(0x7F)) << 7);
@@ -269,6 +288,7 @@ namespace uba
 
 	void BinaryReader::ReadBytes(void* data, u64 size)
 	{
+		UBA_ASSERT_READ(size);
 		memcpy(data, m_pos, size);
 		m_pos += size;
 	}
@@ -276,11 +296,13 @@ namespace uba
 
 	u8 BinaryReader::ReadByte()
 	{
+		UBA_ASSERT_READ(sizeof(u8));
 		return *m_pos++;
 	}
 
 	u16 BinaryReader::ReadU16()
 	{
+		UBA_ASSERT_READ(sizeof(u16));
 		u16 value = *(u16*)m_pos;
 		m_pos += sizeof(u16);
 		return value;
@@ -288,6 +310,7 @@ namespace uba
 
 	u32 BinaryReader::ReadU32()
 	{
+		UBA_ASSERT_READ(sizeof(u32));
 		u32 value = *(u32*)m_pos;
 		m_pos += sizeof(u32);
 		return value;
@@ -295,6 +318,7 @@ namespace uba
 
 	u64 BinaryReader::ReadU64()
 	{
+		UBA_ASSERT_READ(sizeof(u64));
 		u64 value = *(u64*)m_pos;
 		m_pos += sizeof(u64);
 		return value;
@@ -314,18 +338,21 @@ namespace uba
 		u64 left = charLen;
 		while (left--)
 		{
+			UBA_ASSERT_READ(1);
 			u8 a = *m_pos++;
 			if (a <= 127)
 			{
 				*it++ = a;
 				continue;
 			}
+			UBA_ASSERT_READ(1);
 			u8 b = *m_pos++;
 			if (a >= 192 && a <= 223)
 			{
 				*it++ = (a-192)*64 + (b-128);
 				continue;
 			}
+			UBA_ASSERT_READ(1);
 			u8 c = *m_pos++;
 			if (a >= 224 && a <= 239)
 			{
@@ -372,6 +399,7 @@ namespace uba
 
 	Guid BinaryReader::ReadGuid()
 	{
+		UBA_ASSERT_READ(sizeof(Guid));
 		u64 g[2];
 		g[0] = *(u64*)m_pos;
 		g[1] = ((u64*)m_pos)[1];
@@ -381,6 +409,7 @@ namespace uba
 
 	StringKey BinaryReader::ReadStringKey()
 	{
+		UBA_ASSERT_READ(sizeof(StringKey));
 		StringKey k;
 		k.a = *(u64*)m_pos;
 		k.b = ((u64*)m_pos)[1];
@@ -390,6 +419,7 @@ namespace uba
 
 	CasKey BinaryReader::ReadCasKey()
 	{
+		UBA_ASSERT_READ(sizeof(CasKey));
 		CasKey k;
 		k.a = *(u64*)m_pos;
 		k.b = ((u64*)m_pos)[1];
@@ -405,12 +435,41 @@ namespace uba
 		bool hasMoreBytes;
 		do
 		{
+			UBA_ASSERT_READ(1);
 			u8 value = *m_pos++;
 			hasMoreBytes = value & 0x80;
 			result |= u64(value & 0x7f) << (byteIndex * 7);
 			++byteIndex;
 		} while (hasMoreBytes);
 		return result;
+	}
+
+	template<typename CharType>
+	CharType BinaryReader::ReadUtf8Char()
+	{
+		UBA_ASSERT_READ(1);
+		u8 a = *m_pos++;
+		if (a <= 127)
+			return CharType(a);
+
+		UBA_ASSERT_READ(1);
+		u8 b = *m_pos++;
+		if (a >= 192 && a <= 223)
+			return CharType((a-192)*64 + (b-128));
+
+		UBA_ASSERT_READ(1);
+		u8 c = *m_pos++;
+		if (a >= 224 && a <= 239)
+			return CharType((a-224)*4096 + (b-128)*64 + (c-128));
+
+		if (a >= 240 && a <= 253)
+		{
+			UBA_ASSERT(false); // Wide chars cannot exceed 16 bits
+			return CharType(~0);
+		}
+
+		UBA_ASSERT(false); // Wide chars cannot exceed 16 bits
+		return CharType(~0);
 	}
 
 	u32 BinaryReader::PeekU32()

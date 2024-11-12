@@ -61,12 +61,27 @@ public:
 	const TArray<EDrawMaterialAttributeTarget>& GetAvailableMaterialAttributeIds() const { return AvailableMaterialAttributeIds; }
 	const TArray<FName>& GetAvailableMaterialAttributeNames() const { return AvailableMaterialAttributeNames; }
 
+	static FName CPPTypeNameFromMaterialParamType(EMaterialParameterType InMatType);
+
 protected:
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> MaterialInstance; // A local Instance Material is recreated for the Material member
+	// A local per Instance Material is recreated from the reference material assigned through SetMaterialInternal
+	UPROPERTY(Transient, DuplicateTransient)
+	TObjectPtr<UMaterialInstanceDynamic> MaterialInstance = nullptr;
 
 	TArray<EDrawMaterialAttributeTarget>	AvailableMaterialAttributeIds; // The set of material properties available for rendering
 	TArray<FName>							AvailableMaterialAttributeNames; // same with the attribute names
+
+	// Arg to Material Param Info array records the map of arg name to the corresponding Material Param
+	struct FArgToMaterialParamInfo
+	{
+		FName ArgName;
+		FName MatParamName;
+		FGuid MatParamGuid;
+		EMaterialParameterType MatType = EMaterialParameterType::None;
+
+		bool operator== (const FName& InArgName) const { return ArgName == InArgName; }
+	};
+	mutable TArray<FArgToMaterialParamInfo> ArgToMatParams; // mutable because it is populated in the BuildSignatureDynamically()
 
 	virtual void Initialize() override;
 
@@ -74,7 +89,7 @@ protected:
 
 	TiledBlobPtr CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const FString& InName, const FString& InMaterialPath, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget);
 	TiledBlobPtr CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const RenderMaterial_BPPtr& InRenderMaterial, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget);
-	void LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterial* InMaterial, BufferDescriptor InDescriptor);
+	void LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterialInterface* InMaterial, BufferDescriptor InDescriptor);
 
 	virtual void CopyVarGeneric(const FTG_Argument& Arg, FTG_Var* InVar, bool CopyVarToArg);
 	virtual void SetMaterialInternal(UMaterialInterface* InMaterial);
@@ -83,7 +98,7 @@ protected:
 	virtual TObjectPtr<UMaterialInterface> GetMaterial() const { return nullptr;}
 
 private:
-	void AddSignatureParam(TArray<FMaterialParameterInfo> OutParameterInfoScalar, FName CPPTypeName, FTG_Signature::FInit& SignatureInit, bool IsScalar = false) const;
+	void AddSignatureParam(const TArray<FMaterialParameterInfo>& OutParameterInfo, const TArray<FGuid>& OutParameterIds, EMaterialParameterType MatType, FTG_Signature::FInit& SignatureInit) const;
 
 	static EDrawMaterialAttributeTarget ConvertEMaterialPropertyToEDrawMaterialAttributeTarget(EMaterialProperty InMaterialProperty);
 };

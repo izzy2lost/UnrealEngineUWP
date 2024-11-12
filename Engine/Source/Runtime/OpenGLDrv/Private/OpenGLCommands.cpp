@@ -69,14 +69,6 @@ namespace OpenGLConsoleVariables
 		TEXT("Maximum amount of data to send to glBufferSubData in one call"),
 		ECVF_ReadOnly
 		);
-
-	int32 bBindlessTexture = 0;
-	static FAutoConsoleVariableRef CVarBindlessTexture(
-		TEXT("OpenGL.BindlessTexture"),
-		bBindlessTexture,
-		TEXT("If true, use GL_ARB_bindless_texture over traditional glBindTexture/glBindSampler."),
-		ECVF_ReadOnly
-		);
 	
 	int32 bRebindTextureBuffers = 0;
 	static FAutoConsoleVariableRef CVarRebindTextureBuffers(
@@ -91,7 +83,12 @@ namespace OpenGLConsoleVariables
 		bUseBufferDiscard,
 		TEXT("If true, use dynamic buffer orphaning hint.")
 		);
-	
+	int32 bUseUnsynchronizedBufferMapping =1;
+	static FAutoConsoleVariableRef CVarUseUnsynchronizedBufferMapping(
+		TEXT("OpenGL.UseUnsynchronizedBufferMapping"),
+		bUseUnsynchronizedBufferMapping,
+		TEXT("If true, use GL_MAP_UNSYNCHRONIZED_BIT when mapping write only buffers.")
+	);
 	int32 bUsePersistentMappingStagingBuffer= 1;
 	static FAutoConsoleVariableRef CVarUsePersistentMappingStagingBuffer(
 		TEXT("OpenGL.UsePersistentMappingStagingBuffer"),
@@ -557,12 +554,6 @@ void FOpenGLDynamicRHI::SetupTexturesForDraw( FOpenGLContextState& ContextState,
 {
 	VERIFY_GL_SCOPE();
 	SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLTextureBindTime);
-	
-	// Skip texture setup when running bindless texture, it is done with program setup
-	if (FOpenGL::SupportsBindlessTexture() && OpenGLConsoleVariables::bBindlessTexture)
-	{
-		return;
-	}
 
 	int32 MaxProgramTexture = 0;
 	const TBitArray<>& NeededBits = ShaderState->GetTextureNeeds(MaxProgramTexture);
@@ -915,7 +906,7 @@ void FOpenGLDynamicRHI::RHISetUniformBufferDynamicOffset(FUniformBufferStaticSlo
 		SF_Pixel
 	};
 
-	FOpenGLShader* Shaders[2] =
+	FRHIShader* Shaders[2] =
 	{
 		PendingState.BoundShaderState->GetVertexShader(),
 		PendingState.BoundShaderState->GetPixelShader()
@@ -924,17 +915,17 @@ void FOpenGLDynamicRHI::RHISetUniformBufferDynamicOffset(FUniformBufferStaticSlo
 	for (int32 ShaderIdx = 0; ShaderIdx < UE_ARRAY_COUNT(ShaderStages); ++ShaderIdx)
 	{
 		EShaderFrequency Stage = ShaderStages[ShaderIdx];
-		FOpenGLShader* Shader = Shaders[ShaderIdx];
+		FRHIShader* Shader = Shaders[ShaderIdx];
 		if (Shader == nullptr)
 		{
 			continue;
 		}
 
-		TArray<FUniformBufferStaticSlot>& StaticSlots = Shader->StaticSlots;
+		TArray<FUniformBufferStaticSlot> const& StaticSlots = Shader->GetStaticSlots();
 
 		for (int32 BufferIndex = 0; BufferIndex < StaticSlots.Num(); ++BufferIndex)
 		{
-			const FUniformBufferStaticSlot Slot = StaticSlots[BufferIndex];
+			FUniformBufferStaticSlot const& Slot = StaticSlots[BufferIndex];
 			if (InSlot == Slot)
 			{
 				FRHIUniformBuffer* Buffer = PendingState.BoundUniformBuffers[Stage][BufferIndex];
@@ -1108,6 +1099,13 @@ struct FOpenGLResourceBinder
 	{
 		RHI.InternalSetSamplerStates(FirstTextureUnit + Index, FOpenGLDynamicRHI::ResourceCast(Sampler));
 	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+		checkNoEntry();
+	}
+#endif
 };
 
 void FOpenGLDynamicRHI::SetShaderParametersCommon(EShaderFrequency ShaderFrequency, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters)
@@ -2152,7 +2150,7 @@ void FOpenGLDynamicRHI::CommitComputeShaderConstants(FOpenGLComputeShader* Compu
 {
 	VERIFY_GL_SCOPE();
 
-	const int32 Stage = CrossCompiler::SHADER_STAGE_COMPUTE;
+	const CrossCompiler::EShaderStage Stage = CrossCompiler::SHADER_STAGE_COMPUTE;
 	FOpenGLShaderParameterCache& StageShaderParameters = PendingState.ShaderParameters[Stage];
 
 	StageShaderParameters.CommitPackedUniformBuffers(ComputeShader->LinkedProgram, Stage, PendingState.BoundUniformBuffers[Stage], ComputeShader->UniformBuffersCopyInfo);
@@ -2171,7 +2169,6 @@ FORCEINLINE void FOpenGLDynamicRHI::SetResourcesFromTables(ShaderType* Shader)
 	UE::RHICore::SetResourcesFromTables(
 		FOpenGLResourceBinder(*this, Frequency, true)
 		, *Shader
-		, Shader->Bindings.ShaderResourceTable
 		, PendingState.DirtyUniformBuffers[Frequency]
 		, PendingState.BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION
@@ -2306,7 +2303,7 @@ void FOpenGLDynamicRHI::RHIDrawPrimitive(uint32 BaseVertexIndex,uint32 NumPrimit
 	GLsizei NumElements = 0;
 	FindPrimitiveType(PrimitiveType, NumPrimitives, DrawMode, NumElements);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
 	if (NumInstances == 1)
 	{
 		SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLDrawPrimitiveDriverTime);
@@ -2329,7 +2326,7 @@ void FOpenGLDynamicRHI::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, 
 		VERIFY_GL_SCOPE();
 
 		check(ArgumentBufferRHI);
-		GPUProfilingData.RegisterGPUWork(0);
+		RegisterGPUWork(0);
 
 		FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 		BindPendingFramebuffer(ContextState);
@@ -2376,7 +2373,7 @@ void FOpenGLDynamicRHI::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIB
 		VERIFY_GL_SCOPE();
 
 		FOpenGLBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
-		GPUProfilingData.RegisterGPUWork(1);
+		RegisterGPUWork(1);
 
 		check(ArgumentsBufferRHI);
 
@@ -2493,7 +2490,7 @@ void FOpenGLDynamicRHI::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int3
 	GLenum IndexType = IndexBuffer->GetStride() == sizeof(uint32) ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
 	StartIndex *= IndexBuffer->GetStride() == sizeof(uint32) ? sizeof(uint32) : sizeof(uint16);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, NumElements * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, NumElements * NumInstances);
 	if (NumInstances > 1)
 	{
 		SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLDrawPrimitiveDriverTime);
@@ -2524,7 +2521,7 @@ void FOpenGLDynamicRHI::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferR
 		VERIFY_GL_SCOPE();
 
 		FOpenGLBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
-		GPUProfilingData.RegisterGPUWork(1);
+		RegisterGPUWork(1);
 
 		check(ArgumentBufferRHI);
 
@@ -2647,7 +2644,7 @@ void FOpenGLDynamicRHI::RHIClearMRT(const bool* bClearColorArray,int32 NumClearC
 	bool bPrevScissorEnabled = PendingState.bScissorEnabled;
 
 	bool bScissorChanged = false;
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 	BindPendingFramebuffer(ContextState);
 
@@ -2723,16 +2720,13 @@ void FOpenGLDynamicRHI::RHIClearMRT(const bool* bClearColorArray,int32 NumClearC
 // Blocks the CPU until the GPU catches up and goes idle.
 void FOpenGLDynamicRHI::RHIBlockUntilGPUIdle()
 {
-	// Not really supported
-}
-
-void FOpenGLDynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
-	RunOnGLRenderContextThread([&]()
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
 	{
 		FOpenGL::Flush();
-		RHIPollOcclusionQueries();
 	});
+	
+	// @todo dev-pr use a render query to determine when the GPU is done
 }
 
 /**
@@ -2754,7 +2748,7 @@ void FOpenGLDynamicRHI::ApplyStaticUniformBuffers(TRHIShader* Shader)
 		auto* ProxyShader = ResourceCast(Shader);
 		check(ProxyShader);
 
-		UE::RHICore::ApplyStaticUniformBuffers(Shader, ProxyShader->StaticSlots, ProxyShader->Bindings.ShaderResourceTable.ResourceTableLayoutHashes, GlobalUniformBuffers,
+		UE::RHICore::ApplyStaticUniformBuffers(Shader, GlobalUniformBuffers,
 			[this, ShaderFrequency](int32 BufferIndex, FRHIUniformBuffer* Buffer)
 			{
 				BindUniformBuffer(ShaderFrequency, BufferIndex, Buffer);
@@ -2776,7 +2770,7 @@ void FOpenGLDynamicRHI::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState* G
 	}
 
 	RHISetBoundShaderState(
-		RHICreateBoundShaderState_internal(
+		RHICreateBoundShaderState_Internal(
 			PsoInit.BoundShaderState.VertexDeclarationRHI,
 			PsoInit.BoundShaderState.VertexShaderRHI,
 			PsoInit.BoundShaderState.PixelShaderRHI,
@@ -2811,7 +2805,7 @@ void FOpenGLDynamicRHI::RHISetComputeShader(FRHIComputeShader* ComputeShaderRHI)
 		return;
 	}
 
-	PendingState.CurrentComputeShader = ComputeShaderRHI;
+	PendingState.CurrentComputeShader = ResourceCast(ComputeShaderRHI);
 
 	ApplyStaticUniformBuffers(ComputeShaderRHI);
 }
@@ -2825,18 +2819,13 @@ void FOpenGLDynamicRHI::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint3
 
 	VERIFY_GL_SCOPE();
 		
-	FRHIComputeShader* ComputeShaderRHI = PendingState.CurrentComputeShader;
-	check(ComputeShaderRHI);
+	FOpenGLComputeShader* ComputeShader = PendingState.CurrentComputeShader;
+	check(ComputeShader);
+	LinkComputeProgram(ComputeShader);
 
-	FOpenGLComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
-
-	if (ComputeShader->LinkedProgram == nullptr)
-	{
-		ComputeShader->LinkedProgram = GetLinkedComputeProgram(ComputeShaderRHI);
-	}
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
+	RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
 
 	BindPendingComputeShaderState(ContextState, ComputeShader);
 	CommitComputeResourceTables(ComputeShader);
@@ -2852,21 +2841,16 @@ void FOpenGLDynamicRHI::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint3
 void FOpenGLDynamicRHI::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
 	VERIFY_GL_SCOPE();
-		
-	FRHIComputeShader* ComputeShaderRHI = PendingState.CurrentComputeShader;
-	check(ComputeShaderRHI);
 
-	FOpenGLComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
-	if (ComputeShader->LinkedProgram == nullptr)
-	{
-		ComputeShader->LinkedProgram = GetLinkedComputeProgram(ComputeShaderRHI);
-	}
+	FOpenGLComputeShader* ComputeShader = PendingState.CurrentComputeShader;
+	check(ComputeShader);
+	LinkComputeProgram(ComputeShader);
 
 	FOpenGLBuffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
 
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(1, 1, 1));	
+	RegisterGPUDispatch(FIntVector(1, 1, 1));	
 
 	BindPendingComputeShaderState(ContextState, ComputeShader);
 
@@ -2878,15 +2862,13 @@ void FOpenGLDynamicRHI::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBuf
 	
 	CommitComputeShaderConstants(ComputeShader);
 	
-	FOpenGL::MemoryBarrier(GL_ALL_BARRIER_BITS);
-
 	glBindBuffer( GL_DISPATCH_INDIRECT_BUFFER, ArgumentBuffer->Resource);
 	
+	FOpenGL::MemoryBarrier(GL_ALL_BARRIER_BITS);
 	FOpenGL::DispatchComputeIndirect(ArgumentOffset);
+	FOpenGL::MemoryBarrier(GL_ALL_BARRIER_BITS);
 
 	glBindBuffer( GL_DISPATCH_INDIRECT_BUFFER, 0);
-	
-	FOpenGL::MemoryBarrier(GL_ALL_BARRIER_BITS);
 }
 
 void FOpenGLDynamicRHI::RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data)
@@ -2917,11 +2899,6 @@ void FOpenGLDynamicRHI::RHISetDepthBounds(float MinDepth, float MaxDepth)
 	}
 }
 
-void FOpenGLDynamicRHI::RHISubmitCommandsHint()
-{
-	FOpenGL::Flush();
-}
-
 IRHICommandContext* FOpenGLDynamicRHI::RHIGetDefaultContext()
 {
 	return this;
@@ -2933,28 +2910,23 @@ IRHIComputeContext* FOpenGLDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipelin
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FOpenGLDynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+void FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
-	// "Context" will always be the default context, since we don't implement parallel execution.
-	// OpenGL uses an immediate context, so there's nothing to do here. Executed commands will have already reached the driver.
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		// "Context" will always be the default context, since we don't implement parallel execution.
+		check(Context == this);
+	}
 
-	// Returning nullptr indicates that we don't want RHISubmitCommandLists to be called.
-	return nullptr;
+	// Clear some context state
+	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
+	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
 }
 
-void FOpenGLDynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FOpenGLDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
-}
-
-void FOpenGLDynamicRHI::RHIInvalidateCachedState()
-{
-	RenderingContextState = FOpenGLContextState();
-	SharedContextState = FOpenGLContextState();
-
-	GLint NumUAVUnits = FMath::Max(FOpenGL::GetMaxCombinedUAVUnits(), FOpenGL::GetMaxComputeUAVUnits());
-
-	RenderingContextState.InitializeResources(FOpenGL::GetMaxCombinedTextureImageUnits(), NumUAVUnits);
-	SharedContextState.InitializeResources(FOpenGL::GetMaxCombinedTextureImageUnits(), NumUAVUnits);
+	// Periodically poll for completed queries
+	FOpenGLRenderQuery::PollQueryResults();
 }
 
 void FOpenGLDynamicRHI::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI, FRHIStagingBuffer* DestinationStagingBufferRHI, uint32 InOffset, uint32 InNumBytes)
@@ -3015,12 +2987,12 @@ void FOpenGLDynamicRHI::RHIPostExternalCommandsReset()
 	if((int)RCS.ElementArrayBufferBound >= 0) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, RCS.ElementArrayBufferBound);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, RCS.PixelUnpackBufferBound);
 	glBindBuffer(GL_UNIFORM_BUFFER, RCS.UniformBufferBound);
-	SCS.BlendState = RCS.BlendState = InvalidContextState.BlendState;
+	SCS.BlendState = RCS.BlendState = {};
 	glActiveTexture(GL_TEXTURE0);
 	SCS.ActiveTexture = RCS.ActiveTexture = 0;
-	SCS.RasterizerState = RCS.RasterizerState = InvalidContextState.RasterizerState;
+	SCS.RasterizerState = RCS.RasterizerState = {};
 	UpdateRasterizerStateInOpenGLContext(RCS);
-	SCS.ActiveStreamMask = RCS.ActiveStreamMask = InvalidContextState.ActiveStreamMask;
+	SCS.ActiveStreamMask = RCS.ActiveStreamMask = 0;
 	for (GLuint UniformBufferIndex = 0; UniformBufferIndex < CrossCompiler::NUM_SHADER_STAGES * OGL_MAX_UNIFORM_BUFFER_BINDINGS; UniformBufferIndex++)
 	{
 		SCS.UniformBuffers[UniformBufferIndex] = FOpenGLCachedUniformBuffer_Invalid;	// that'll enforce state update on next cache test

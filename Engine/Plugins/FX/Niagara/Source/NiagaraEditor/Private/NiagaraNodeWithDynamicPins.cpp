@@ -398,6 +398,12 @@ void UNiagaraNodeWithDynamicPins::GetNodeContextMenuActions(UToolMenu* Menu, UGr
 
 void UNiagaraNodeWithDynamicPins::AddParameter(FNiagaraVariable Parameter, TEnumAsByte<EEdGraphPinDirection> Direction)
 {
+	// discard return pin, so the function can be used as delegate
+	AddParameterPin(Parameter, Direction);
+}
+
+UEdGraphPin* UNiagaraNodeWithDynamicPins::AddParameterPin(FNiagaraVariable Parameter, TEnumAsByte<EEdGraphPinDirection> Direction)
+{
 	if (this->IsA<UNiagaraNodeParameterMapBase>())
 	{
 		// Parameter map type nodes create new parameters when adding pins.
@@ -416,15 +422,18 @@ void UNiagaraNodeWithDynamicPins::AddParameter(FNiagaraVariable Parameter, TEnum
 		Graph->AddParameter(Parameter);
 
 		Modify();
-		UEdGraphPin* Pin = this->RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
+		return this->RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
 	}
-	else
-	{
-		RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
-	}
+	return RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
 }
 
 void UNiagaraNodeWithDynamicPins::AddParameter(const UNiagaraScriptVariable* ScriptVar, TEnumAsByte<EEdGraphPinDirection> Direction)
+{
+	// discard return pin, so the function can be used as delegate
+	AddParameterPin(ScriptVar, Direction);
+}
+
+UEdGraphPin* UNiagaraNodeWithDynamicPins::AddParameterPin(const UNiagaraScriptVariable* ScriptVar, TEnumAsByte<EEdGraphPinDirection> Direction)
 {
 	const FNiagaraVariable& Parameter = ScriptVar->Variable;
 	if (this->IsA<UNiagaraNodeParameterMapBase>())
@@ -439,12 +448,9 @@ void UNiagaraNodeWithDynamicPins::AddParameter(const UNiagaraScriptVariable* Scr
 		Graph->AddParameter(ScriptVar);
 
 		Modify();
-		UEdGraphPin* Pin = this->RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
+		return this->RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
 	}
-	else
-	{
-		RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
-	}
+	return RequestNewTypedPin(Direction, Parameter.GetType(), Parameter.GetName());
 }
 
 void UNiagaraNodeWithDynamicPins::AddExistingParameter(FNiagaraVariable Parameter, const UEdGraphPin* AddPin)

@@ -317,6 +317,23 @@ void FPyOnlineDocsWriter::GenerateFiles(const FString& InPythonStubPath)
 	FString Commandline = FCommandLine::Get();
 	bool bUseSphinx = bIsEnginePython && Commandline.Contains(TEXT("-NoHTML")) == false;
 
+	// Validate the unreal generated stub file before we let Sphinx try and process it
+	{
+		FString PyCommandStr;
+
+		// We do this as a subprocess call to the Python interpreter to avoid the generated stub file from breaking the log redirection that the non-stub unreal module configures
+		PyCommandStr.Append(TEXT("import subprocess\n"));
+		PyCommandStr.Appendf(TEXT("subprocess.check_call(['%s', '%s'])\n"), *PythonPath, *PythonStubDestPath);
+
+		UE_LOG(LogPython, Display, TEXT("Validating the unreal generated stub file..."));
+		if (!IPythonScriptPlugin::Get()->ExecPythonCommand(*PyCommandStr))
+		{
+			UE_LOG(LogPython, Error, TEXT("The unreal generated stub file failed to import. Aborting!"));
+			return;
+		}
+		UE_LOG(LogPython, Display, TEXT("  ... finished validating file."));
+	}
+
 	if (bUseSphinx)
 	{
 		// Call Sphinx to generate online Python API docs. (Default)
@@ -345,23 +362,6 @@ void FPyOnlineDocsWriter::GenerateFiles(const FString& InPythonStubPath)
 			UE_LOG(LogPython, Display, TEXT("Installing Sphinx..."));
 			IPythonScriptPlugin::Get()->ExecPythonCommand(*PyCommandStr);
 			UE_LOG(LogPython, Display, TEXT("  ... finished installing Sphinx."));
-		}
-
-		// Validate the unreal generated stub file before we let Sphinx try and process it
-		{
-			FString PyCommandStr;
-
-			// We do this as a subprocess call to the Python interpreter to avoid the generated stub file from breaking the log redirection that the non-stub unreal module configures
-			PyCommandStr.Append(TEXT("import subprocess\n"));
-			PyCommandStr.Appendf(TEXT("subprocess.check_call(['%s', '%s'])\n"), *PythonPath, *PythonStubDestPath);
-
-			UE_LOG(LogPython, Display, TEXT("Validating the unreal generated stub file..."));
-			if (!IPythonScriptPlugin::Get()->ExecPythonCommand(*PyCommandStr))
-			{
-				UE_LOG(LogPython, Error, TEXT("The unreal generated stub file failed to import. Aborting!"));
-				return;
-			}
-			UE_LOG(LogPython, Display, TEXT("  ... finished validating file."));
 		}
 
 		// Run Sphinx to build the docs

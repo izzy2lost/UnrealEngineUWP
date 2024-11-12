@@ -63,18 +63,25 @@ namespace Metasound
 		/** Variant of node class. */
 		const FName& GetVariant() const;
 
+		/** The full name of the Node formatted Namespace.Name and optionally appended with .Variant if valid */
+		const FString ToString() const;
+
 		/** Namespace and name of the node class. */
-		const FName& GetScopedName() const;
+		UE_DEPRECATED(5.4, "Use FormatScopedName functions to generate")
+		const FName GetScopedName() const;
 
 		/** Namespace, name and variant of the node class. */
-		const FName& GetFullName() const;
+		UE_DEPRECATED(5.4, "Use FormatFullName functions to generate")
+		const FName GetFullName() const;
 
 		/** Whether or not this instance of a node class name is a valid name.*/
 		bool IsValid() const;
 
 		static FName FormatFullName(const FName& InNamespace, const FName& InName, const FName& InVariant);
-
 		static FName FormatScopedName(const FName& InNamespace, const FName& InName);
+
+		static void FormatFullName(FNameBuilder& InBuilder, const FName& InNamespace, const FName& InName, const FName& InVariant);
+		static void FormatScopedName(FNameBuilder& InBuilder, const FName& InNamespace, const FName& InName);
 
 		/** Invalid form of node class name (i.e. empty namespace, name, and variant)*/
 		static const FNodeClassName InvalidNodeClassName;
@@ -89,12 +96,10 @@ namespace Metasound
 		FName Namespace;
 		FName Name;
 		FName Variant;
-		FName ScopedName;
-		FName FullName;
 	};
 
 	/** Provides metadata for a given node. */
-	struct METASOUNDGRAPHCORE_API FNodeClassMetadata
+	struct FNodeClassMetadata
 	{
 		/** Name of class. Used for registration and lookup. */
 		FNodeClassName ClassName;
@@ -133,11 +138,7 @@ namespace Metasound
 		bool bDeprecated = false;
 
 		/** Returns an empty FNodeClassMetadata object. */
-		static const FNodeClassMetadata& GetEmpty()
-		{
-			static const FNodeClassMetadata EmptyInfo;
-			return EmptyInfo;
-		}
+		static METASOUNDGRAPHCORE_API const FNodeClassMetadata& GetEmpty();
 	};
 
 	/** INodeBase

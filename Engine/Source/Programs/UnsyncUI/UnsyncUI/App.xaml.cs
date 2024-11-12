@@ -16,6 +16,12 @@ namespace UnsyncUI
 	/// </summary>
 	public partial class App : Application
     {
+		public App() : base()
+		{
+			Dispatcher.UnhandledException += (sender, args) => UnhandledException(sender, args.Exception.ToString());
+			AppDomain.CurrentDomain.UnhandledException += (sender, args) => UnhandledException(sender, args.ExceptionObject.ToString());
+		}
+
 		public new static App Current => Application.Current as App;
 
 		public Config Config { get; private set; }
@@ -24,7 +30,9 @@ namespace UnsyncUI
 		public string DefaultSearchTerms { get; private set; } = "";
 
 		internal bool EnableExperimentalFeatures = false;
-		internal bool EnableUserAuthentication = true;
+		internal bool EnableUserAuthentication = false;
+
+		internal Dictionary<string, string> Variables = new Dictionary<string, string>();
 
 		internal string ApplicationLog { get; private set; } = "";
 
@@ -70,6 +78,8 @@ namespace UnsyncUI
 		{
 			string configFile = e.Args.Length > 0 ? e.Args[0] : "unsyncui.xml";
 
+			List<string> VariableKeys = new List<string> { "ProjectFile", "ProjectName", "ProjectDir" };
+
 			for (int i=1; i<e.Args.Length; ++i)
 			{
 				bool isLast = i + 1 == e.Args.Length;
@@ -83,30 +93,45 @@ namespace UnsyncUI
 				{
 					EnableExperimentalFeatures = true;
 				}
+				else
+				{
+					string argLower = arg.ToLower();
+					foreach (string key in VariableKeys)
+					{
+						string keyLower = key.ToLower();
+						if ((argLower == $"--{keyLower}" || argLower == $"-{keyLower}") && !isLast)
+						{
+							string value = e.Args[i + 1];
+							Variables.Add(key, value);
+							++i;
+						}
+					}
+				}
+			}
+
+			// Derive project name from project file if one is not specified explicitly
+			if (!Variables.ContainsKey("ProjectName") && Variables.ContainsKey("ProjectFile"))
+			{
+				string ProjectFile = Variables["ProjectFile"];
+				string ProjectName = Path.GetFileNameWithoutExtension(ProjectFile);
+				if (!string.IsNullOrWhiteSpace(ProjectName))
+				{
+					Variables["ProjectName"] = ProjectName;
+				}
+			}
+
+			// Derive project directory from project file if one is not specified explicitly
+			if (!Variables.ContainsKey("ProjectDir") && Variables.ContainsKey("ProjectFile"))
+			{
+				string ProjectFile = Variables["ProjectFile"];
+				string ProjectDir = Path.GetDirectoryName(ProjectFile);
+				if (!string.IsNullOrWhiteSpace(ProjectDir))
+				{
+					Variables["ProjectDir"] = ProjectDir;
+				}
 			}
 
 			var oldWorkingDir = Environment.CurrentDirectory;
-
-			if (File.Exists(configFile))
-			{
-				// Move the working dir into the same as the config file.
-				// This allows relative paths to automatically be relative to the config.
-				var workingDir = Path.GetDirectoryName(Path.GetFullPath(configFile));
-				Environment.CurrentDirectory = workingDir;
-
-				try
-				{
-					Config = new Config(configFile);
-				}
-				catch (Exception ex)
-				{
-					MessageBox.Show($"Failed to load configuration from \"{configFile}\". {ex}");
-				}
-			}
-			else if (e.Args.Length > 0)
-			{
-				MessageBox.Show($"The configuration file \"{configFile}\" does not exist. Projects will not be available.");
-			}
 
 			string toolName = "unsync.exe";
 
@@ -130,17 +155,47 @@ namespace UnsyncUI
 				UnsyncPath = oldWorkingDirTool;
 			}
 
-			if (UnsyncPath == null || !File.Exists(UnsyncPath))
+			if (File.Exists(configFile))
 			{
-				string name = UnsyncPath ?? toolName;
-				MessageBox.Show($"Failed to find \"{name}\".");
-				Shutdown();
+				// Move the working dir into the same as the config file.
+				// This allows relative paths to automatically be relative to the config.
+				var workingDir = Path.GetDirectoryName(Path.GetFullPath(configFile));
+				Environment.CurrentDirectory = workingDir;
+
+				try
+				{
+					Config = new Config(configFile, UnsyncPath, Variables);
+				}
+				catch (Exception ex)
+				{
+					MessageBox.Show($"Failed to load configuration from \"{configFile}\".\n\n{ex}", "Fatal error");
+					Shutdown(1);
+				}
+			}
+			else if (e.Args.Length > 0)
+			{
+				MessageBox.Show($"The configuration file \"{configFile}\" does not exist. Projects will not be available.");
 			}
 
 			UserConfig = UserPreferences.Load();
 
 			if (Config != null)
 			{
+				/*
+				if (Config.RootProxy != null)
+				{
+					App.Current.LogMessage($"Unsync server address: {Config.RootProxy.Path}");
+					EnableUserAuthentication = true;
+				}
+				else
+				{
+					App.Current.LogMessage($"Unsync server address is not configured");
+					EnableUserAuthentication = false;
+				}
+				*/
+
+				EnableUserAuthentication = true;
+
 				Config.UnsyncPath = UnsyncPath;
 				Config.EnableExperimentalFeatures = EnableExperimentalFeatures;
 				Config.EnableUserAuthentication = EnableUserAuthentication;
@@ -151,8 +206,17 @@ namespace UnsyncUI
 
 		protected override void OnExit(ExitEventArgs e)
 		{
-			UserConfig.Save();
+			if (UserConfig != null)
+			{
+				UserConfig.Save();
+			}
 			base.OnExit(e);
+		}
+
+		static void UnhandledException(object sender, string e)
+		{
+			MessageBox.Show($"Unhandled exception:\n{e}", "Fatal error", MessageBoxButton.OK, MessageBoxImage.Error);
+			Environment.Exit(1);
 		}
 	}
 

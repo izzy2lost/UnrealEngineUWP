@@ -25,61 +25,12 @@
 
 #define LOCTEXT_NAMESPACE "FOutputProviderCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	namespace Private
 	{
 		/** Static because IDetailCustomization is destroyed when details panel is refreshed */
 		static FTargetConnectionDisplaySettings DisplaySettings;
-		
-		class SPropertyEditorButton : public SCompoundWidget
-		{
-		public:
-
-			SLATE_BEGIN_ARGS( SPropertyEditorButton ) 
-				: _Text( )
-				, _Image( FAppStyle::GetBrush("Default") )
-			{}
-				SLATE_ATTRIBUTE( FText, Text )
-				SLATE_ARGUMENT(const FSlateBrush*, Image )
-				SLATE_EVENT(FSimpleDelegate, OnClickAction)
-			SLATE_END_ARGS()
-
-			void Construct( const FArguments& InArgs )
-			{
-				OnClickAction = InArgs._OnClickAction;
-
-				ChildSlot
-				[
-					SNew(SBox)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.WidthOverride(22)
-					.HeightOverride(22)
-					.ToolTipText(InArgs._Text)
-					[
-						SNew(SButton)
-						.ButtonStyle( FAppStyle::Get(), "SimpleButton" )
-						.OnClicked( this, &SPropertyEditorButton::OnClick )
-						.ContentPadding(0)
-						[ 
-							SNew( SImage )
-							.Image( InArgs._Image )
-							.ColorAndOpacity( FSlateColor::UseForeground() )
-						]
-					]
-				]; 
-			}
-			
-		private:
-			FSimpleDelegate OnClickAction;
-			
-			FReply OnClick()
-			{
-				OnClickAction.ExecuteIfBound();
-				return FReply::Handled();
-			}
-		};
 		
 		struct FWidgetDisplayInfo
 		{
@@ -115,26 +66,76 @@ namespace UE::VCamCoreEditor::Private
 			return TargetDisplayInfo;
 		}
 
-		static UObject* GetBlueprintFrom(TWeakObjectPtr<UVCamWidget> WidgetToBrowseTo)
+		static void SetToolTipForAllChildren(SWidget& Widget, const TAttribute<FText>& TooltipAttribute)
 		{
-			if (WidgetToBrowseTo.IsValid())
+			Widget.SetToolTipText(TooltipAttribute);
+			FChildren* Children = Widget.GetChildren();
+			if (!Children)
 			{
-				TArray<FAssetData> AssetDatas;
-				UWidgetTree* WidgetTree = Cast<UWidgetTree>(WidgetToBrowseTo->GetOuter());
-				UUserWidget* OwningWidget = WidgetTree ? Cast<UUserWidget>(WidgetTree->GetOuter()) : nullptr;
-				UObject* Blueprint = OwningWidget ? OwningWidget->GetClass()->ClassGeneratedBy : nullptr;
-				return Blueprint;
+				return;
 			}
-			return nullptr;
+
+			Children->ForEachWidget([&TooltipAttribute](SWidget& ChildWidget)
+			{
+				SetToolTipForAllChildren(ChildWidget, TooltipAttribute);
+			});
 		}
 
-		static void BrowseToWidgetSource(TWeakObjectPtr<UVCamWidget> WidgetToBrowseTo)
+		static FText GetActivationNameTooltip(TSharedRef<IPropertyHandle> PropertyHandle, const TWeakObjectPtr<UVCamOutputProviderBase>& WeakOutputProvider)
 		{
-			if (UObject* Blueprint = GetBlueprintFrom(WidgetToBrowseTo))
+			FText ActivationReason;
+			if (UVCamOutputProviderBase* OutputProviderBase = WeakOutputProvider.Get();
+				OutputProviderBase && !OutputProviderBase->IsActivationChangeAllowedWithReason(!OutputProviderBase->IsActive(), ActivationReason))
 			{
-				TArray<UObject*> ObjectsToFocus { Blueprint };
-				GEditor->SyncBrowserToObjects(ObjectsToFocus);
+				return ActivationReason.IsEmpty() ? LOCTEXT("NotAllowed", "Cannot toggle activation") : ActivationReason;
 			}
+
+			const FProperty* Property = PropertyHandle->GetProperty();
+			return Property ? PropertyHandle->GetProperty()->GetToolTipText() : FText::GetEmpty();
+		}
+		
+		static FText GetActivationValueTooltip(TSharedRef<IPropertyHandle> PropertyHandle, const TWeakObjectPtr<UVCamOutputProviderBase>& WeakOutputProvider)
+		{
+			FText ActivationReason;
+			if (UVCamOutputProviderBase* OutputProviderBase = WeakOutputProvider.Get();
+				OutputProviderBase && !OutputProviderBase->IsActivationChangeAllowedWithReason(!OutputProviderBase->IsActive(), ActivationReason))
+			{
+				return ActivationReason.IsEmpty() ? LOCTEXT("NotAllowed", "Cannot toggle activation") : ActivationReason;
+			}
+				
+			FText TooltipText;
+			if( PropertyHandle->GetValueAsFormattedText(TooltipText) == FPropertyAccess::MultipleValues )
+			{
+				return LOCTEXT("MultipleValues", "Multiple Values");
+			}
+			return TooltipText;
+		}
+
+		static void OverrideIsActiveProperty(
+			IDetailLayoutBuilder& DetailBuilder,
+			IDetailCategoryBuilder& Category,
+			TWeakObjectPtr<UVCamOutputProviderBase> WeakOutputProvider
+			)
+		{
+			const TSharedRef<IPropertyHandle> PropertyHandle = DetailBuilder.GetProperty(UVCamOutputProviderBase::GetIsActivePropertyName());
+			const TSharedRef<SWidget> NameWidget = PropertyHandle->CreatePropertyNameWidget();
+			const TSharedRef<SWidget> ValueWidget = PropertyHandle->CreatePropertyValueWidget();
+			
+			const TAttribute<FText> NameTooltipTextAttr = TAttribute<FText>::CreateLambda([PropertyHandle, WeakOutputProvider]
+			{
+				return GetActivationNameTooltip(PropertyHandle, WeakOutputProvider);
+			});
+			const TAttribute<FText> ValueTooltipTextAttr = TAttribute<FText>::CreateLambda([PropertyHandle, WeakOutputProvider]
+			{
+				return GetActivationValueTooltip(PropertyHandle, WeakOutputProvider);
+			});
+			SetToolTipForAllChildren(*NameWidget, NameTooltipTextAttr);
+			SetToolTipForAllChildren(*ValueWidget, ValueTooltipTextAttr);
+			
+			Category.AddProperty(PropertyHandle)
+				.CustomWidget()
+				.NameContent() [ NameWidget ]
+				.ValueContent()[ ValueWidget ];
 		}
 	}
 	
@@ -174,23 +175,21 @@ namespace UE::VCamCoreEditor::Private
 		}
 
 		// Important properties should show before widgets, then ...
-		IDetailCategoryBuilder& FirstCategory = DetailBuilder.EditCategory(TEXT("Primary"));
-		FirstCategory.SetSortOrder(0);
-		FirstCategory.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetIsActivePropertyName()));
-		FirstCategory.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetTargetViewportPropertyName()));
-		FirstCategory.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetUMGClassPropertyName()));
+		IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(TEXT("Output"));
+		Category.SetSortOrder(0);
+		Private::OverrideIsActiveProperty(DetailBuilder, Category, CustomizedOutputProvider);
+		Category.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetTargetViewportPropertyName()));
+		Category.AddProperty(DetailBuilder.GetProperty(UVCamOutputProviderBase::GetUMGClassPropertyName()));
 
 		// ... the widgets should show after important properties, and ...
 		RebuildWidgetData();
 		if (!EditableWidgets.IsEmpty())
 		{
-			IDetailCategoryBuilder& CategoryBuilder = DetailBuilder.EditCategory(TEXT("Widgets"), LOCTEXT("Widget", "Widgets"));
-			CategoryBuilder.SetSortOrder(1);
-			IDetailGroup& WidgetGroup = CategoryBuilder.AddGroup(TEXT("Widgets"), LOCTEXT("WidgetsLabel", "Widgets"));
+			IDetailGroup& WidgetGroup = Category.AddGroup(TEXT("Widgets"), LOCTEXT("WidgetsLabel", "Widgets"));
 			ExtendWidgetsRow(DetailBuilder, WidgetGroup);
 			GenerateWidgetRows(WidgetGroup, DetailBuilder);
 		}
-
+		
 		// ... all other properties should be shown after widgets
 	}
 
@@ -312,28 +311,9 @@ namespace UE::VCamCoreEditor::Private
 					SNew(STextBlock)
 					.Text(RowDisplayName)
 					.Font(DetailBuilder.GetDetailFont())
-				]
-				.ValueContent()
-				[
-					CreateControlWidgets(Widget)
 				];
 			WidgetData->Customization->Customize({ DetailBuilder, WidgetGroup, WidgetData->RemapUtils.ToSharedRef(), Widget, Private::DisplaySettings });
 		}
-	}
-	
-	TSharedRef<SHorizontalBox> FOutputProviderLayoutCustomization::CreateControlWidgets(const TWeakObjectPtr<UVCamWidget>& Widget) const
-	{
-		return SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				PropertyCustomizationHelpers::MakeBrowseButton(
-					FSimpleDelegate::CreateStatic(&Private::BrowseToWidgetSource, Widget),
-					LOCTEXT("Browse", "Browse to the Blueprint which owns this widget"),
-					TAttribute<bool>::CreateLambda([Widget]() { return Widget.IsValid(); })
-				)
-
-			];
 	}
 	
 	void FOutputProviderLayoutCustomization::OnActivationChanged(bool bNewIsActivated)

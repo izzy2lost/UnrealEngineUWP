@@ -409,7 +409,7 @@ void FParticleSystemWorldManager::UnregisterComponent(UParticleSystemComponent* 
 				PSC->SetManagerHandle(INDEX_NONE);
 			}
 
-			PendingRegisterPSCs.RemoveAtSwap(Handle, 1, EAllowShrinking::No);
+			PendingRegisterPSCs.RemoveAtSwap(Handle, EAllowShrinking::No);
 
 			//Update handle for moved PCS.
 			if (PendingRegisterPSCs.IsValidIndex(Handle))
@@ -500,8 +500,8 @@ void FParticleSystemWorldManager::RemovePSC(int32 PSCIndex)
 
 	TickList.Remove(PSCIndex);
 
-	ManagedPSCs.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
-	PSCTickData.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
+	ManagedPSCs.RemoveAtSwap(PSCIndex, EAllowShrinking::No);
+	PSCTickData.RemoveAtSwap(PSCIndex, EAllowShrinking::No);
 
 	if (ManagedPSCs.IsValidIndex(PSCIndex))
 	{
@@ -517,8 +517,8 @@ void FParticleSystemWorldManager::RemovePSC(int32 PSCIndex)
 	}
 #else
 
-	ManagedPSCs.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
-	PSCTickData.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
+	ManagedPSCs.RemoveAtSwap(PSCIndex, EAllowShrinking::No);
+	PSCTickData.RemoveAtSwap(PSCIndex, EAllowShrinking::No);
 
 	if (ManagedPSCs.IsValidIndex(PSCIndex))
 	{
@@ -705,7 +705,8 @@ void FParticleSystemWorldManager::Tick(ETickingGroup TickGroup, float DeltaTime,
 
 	SCOPE_CYCLE_COUNTER(STAT_PSCMan_Tick);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
-	
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_CascadeSystemWorldManager);
+
 	//Do some book keeping in the first tick group, PrePhysics.
 	int32 BuildListStart = ManagedPSCs.Num();
 	if (TickGroup == TG_PrePhysics)
@@ -902,7 +903,7 @@ void FParticleSystemWorldManager::FTickList::Remove(int32 Handle)
 	FPSCTickData& TickData = Owner->GetTickData(Handle);
 	check(TickList.IsValidIndex(TickData.TickListHandle));
 
-	TickList.RemoveAtSwap(TickData.TickListHandle, 1, EAllowShrinking::No);
+	TickList.RemoveAtSwap(TickData.TickListHandle, EAllowShrinking::No);
 
 	if (TickList.IsValidIndex(TickData.TickListHandle))
 	{

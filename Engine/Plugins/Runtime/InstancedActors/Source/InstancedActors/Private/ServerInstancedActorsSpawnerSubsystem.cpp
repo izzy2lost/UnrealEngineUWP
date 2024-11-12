@@ -17,16 +17,10 @@ bool UServerInstancedActorsSpawnerSubsystem::ShouldCreateSubsystem(UObject* Oute
 		return false;
 	}
 
-	// do not instantiate if configured to use a different (sub)class
-	if (GET_INSTANCEDACTORS_CONFIG_VALUE(ServerActorSpawnerSubsystemClass) != GetClass())
-	{
-		return false;
-	}
-
 	// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 	// authoritative actor spawning.
 	UWorld* World = Cast<UWorld>(Outer);
-	return (World != nullptr && World->GetNetMode() == NM_DedicatedServer);
+	return (World != nullptr && World->GetNetMode() != NM_Client);
 }
 
 bool UServerInstancedActorsSpawnerSubsystem::ReleaseActorToPool(AActor* Actor)
@@ -56,7 +50,7 @@ ESpawnRequestStatus UServerInstancedActorsSpawnerSubsystem::SpawnActor(FConstStr
 
 	UWorld* World = GetWorld();
 	check(World);
-	check(World->GetNetMode() == NM_DedicatedServer);
+	check(World->GetNetMode() != NM_Client);
 
 	const FMassActorSpawnRequest& SpawnRequest = SpawnRequestView.Get<const FMassActorSpawnRequest>();
 	UInstancedActorsData* InstanceData = UInstancedActorsData::GetInstanceDataForEntity(*EntityManager, SpawnRequest.MassAgent);
@@ -75,29 +69,36 @@ ESpawnRequestStatus UServerInstancedActorsSpawnerSubsystem::SpawnActor(FConstStr
 	InOutSpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	OutSpawnedActor = World->SpawnActor<AActor>(SpawnRequest.Template, SpawnRequest.Transform, InOutSpawnParameters);
-	// @todo this is a temporary solution, the whole idea is yucky and needs to be reimplemented.
-	// Before this addition TransientActorBeingSpawned was only being set in Juno's custom 
-	// InOutSpawnParameters.CustomPreSpawnInitalization delegate
-	TransientActorBeingSpawned = OutSpawnedActor;
+	if (ensureMsgf(OutSpawnedActor, TEXT("Failed to spawn actor of class %s"), *GetNameSafe(SpawnRequest.Template.Get())))
+	{
+		// @todo this is a temporary solution, the whole idea is yucky and needs to be reimplemented.
+		// Before this addition TransientActorBeingSpawned was only being set in Juno's custom 
+		// InOutSpawnParameters.CustomPreSpawnInitalization delegate
+		TransientActorBeingSpawned = OutSpawnedActor;
 
-	// Add an UInstancedActorsComponent if one isn't present and ensure replication is enabled to replicate the InstanceHandle 
-	// to clients for Mass entity matchup in UInstancedActorsComponent::OnRep_InstanceHandle
-	UInstancedActorsComponent* InstancedActorComponent = OutSpawnedActor->GetComponentByClass<UInstancedActorsComponent>();
-	if (InstancedActorComponent)
-	{
-		// If the component is set to replicate by default, we assume AddComponentTypesAllowListedForReplication has 
-		// already been performed.
-		if (!InstancedActorComponent->GetIsReplicated())
+		// Add an UInstancedActorsComponent if one isn't present and ensure replication is enabled to replicate the InstanceHandle 
+		// to clients for Mass entity matchup in UInstancedActorsComponent::OnRep_InstanceHandle
+		UInstancedActorsComponent* InstancedActorComponent = OutSpawnedActor->GetComponentByClass<UInstancedActorsComponent>();
+		if (InstancedActorComponent)
 		{
-			InstancedActorComponent->SetIsReplicated(true);
+			// If the component is set to replicate by default, we assume AddComponentTypesAllowListedForReplication has 
+			// already been performed.
+			if (!InstancedActorComponent->GetIsReplicated())
+			{
+				InstancedActorComponent->SetIsReplicated(true);
+			}
 		}
-	}
-	else
-	{
-		// No exising UInstancedActorsComponent class or subclass, add a new UInstancedActorsComponent
-		InstancedActorComponent = NewObject<UInstancedActorsComponent>(OutSpawnedActor);
-		InstancedActorComponent->SetIsReplicated(true);
-		InstancedActorComponent->RegisterComponent();
+		else
+		{
+			// No existing UInstancedActorsComponent class or subclass, add a new UInstancedActorsComponent
+			InstancedActorComponent = NewObject<UInstancedActorsComponent>(OutSpawnedActor);
+			if (OutSpawnedActor->GetIsReplicated() == false)
+			{
+				OutSpawnedActor->SetReplicates(true);
+			}
+			InstancedActorComponent->SetIsReplicated(true);
+			InstancedActorComponent->RegisterComponent();
+		}
 	}
 	
 	return IsValid(OutSpawnedActor) ? ESpawnRequestStatus::Succeeded : ESpawnRequestStatus::Failed;

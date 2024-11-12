@@ -20,14 +20,32 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+
+namespace UE::Interchange::Private::ObjectDeletionUtils
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPreCompletion::DoTask)
+	static void PurgeObject(UObject* Object)
+	{
+		if (Object)
+		{
+			Object->ClearFlags(RF_Standalone | RF_Public | RF_Transactional);
+			Object->ClearInternalFlags(EInternalObjectFlags::Async);
+			Object->SetFlags(RF_Transient);
+			Object->MarkAsGarbage();
+			Object->UObject::Rename(nullptr, GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors);
+		}
+	}
+}
+
+void UE::Interchange::FTaskPreCompletion_GameThread::Execute()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPreCompletion_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(PreCompletion)
 #endif
 	
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+	
+	check(IsInGameThread());
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	check(AsyncHelper.IsValid());
@@ -71,7 +89,6 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
 			{
 				Arguments.ImportedObject = ImportedObject;
-				// Should we assert if there is no factory node?
 				Arguments.FactoryNode = ObjectInfo.FactoryNode;
 				Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
 				Arguments.bIsReimport = ObjectInfo.bIsReimport;
@@ -89,7 +106,7 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			Message->AssetType = ImportedObject->GetClass();
 
 			//Clear any async flag from the created asset and all its subobjects
-			const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+			const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async;
 			ImportedObject->ClearInternalFlags(AsyncFlags);
 
 			TArray<UObject*> ImportedSubobjects;
@@ -128,7 +145,7 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 		}
 
 #if WITH_EDITOR
-		//Second iteration to call PostEditChange
+		//Second iteration to call BuildObject
 		for (const FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedObjects)
 		{
 			UObject* ImportedObject = ObjectInfo.ImportedObject;
@@ -136,7 +153,13 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			{
 				continue;
 			}
-			ImportedObject->PostEditChange();
+			//The base class of the factory will call posteditchange, but other factory can instead simply build
+			//the asset asynchronously and the post edit change will be call later
+			Arguments.ImportedObject = ImportedObject;
+			Arguments.FactoryNode = ObjectInfo.FactoryNode;
+			Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
+			Arguments.bIsReimport = ObjectInfo.bIsReimport;
+			ObjectInfo.Factory->BuildObject_GameThread(Arguments, ObjectInfo.bPostEditChangeCalled);
 		}
 #endif //WITH_EDITOR
 
@@ -152,12 +175,6 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			if (bIsAsset)
 			{
 				AsyncHelper->AssetImportResult->AddImportedObject(ImportedObject);
-
-				if (!AsyncHelper->TaskData.ReimportObject)
-				{
-					//Notify the asset registry, only when we have created the asset
-					FAssetRegistryModule::AssetCreated(ImportedObject);
-				}
 			}
 			else
 			{
@@ -176,14 +193,15 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 }
 
 
-void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskCompletion_GameThread::Execute()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskCompletion::DoTask)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskCompletion_GameThread::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(Completion)
 #endif
 
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+	check(IsInGameThread());
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
 	check(AsyncHelper.IsValid());
@@ -199,16 +217,58 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 			{
 				for (const FImportAsyncHelper::FImportedObjectInfo& AssetInfo : AssetInfos)
 				{
-					UObject* Asset = AssetInfo.ImportedObject;
-					if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
+					if (UObject* Asset = AssetInfo.ImportedObject)
 					{
-						UInterchangeManager::GetInterchangeManager().OnAssetPostReimport.Broadcast(Asset);
+						if (!AsyncHelper->TaskData.ReimportObject)
+						{
+							//Notify the asset registry, only when we have created the asset
+							FAssetRegistryModule::AssetCreated(Asset);
+						}
+						else if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
+						{
+							UInterchangeManager::GetInterchangeManager().OnAssetPostReimport.Broadcast(Asset);
+						}
+						//We broadcast this event for both import and reimport.
+						UInterchangeManager::GetInterchangeManager().OnAssetPostImport.Broadcast(Asset);
 					}
-					//We broadcast this event for both import and reimport.
-					UInterchangeManager::GetInterchangeManager().OnAssetPostImport.Broadcast(Asset);
+				}
+
+				//Do a second pass for the post broadcast pipeline call
+				for (const FImportAsyncHelper::FImportedObjectInfo& AssetInfo : AssetInfos)
+				{
+					if (UObject* Asset = AssetInfo.ImportedObject)
+					{
+						for (UInterchangePipelineBase* PipelineBase : AsyncHelper->Pipelines)
+						{
+							PipelineBase->ScriptedExecutePostBroadcastPipeline(AsyncHelper->BaseNodeContainers[SourceIndex].Get()
+								, AssetInfo.FactoryNode ? AssetInfo.FactoryNode->GetUniqueID() : FString()
+								, Asset
+								, AssetInfo.bIsReimport);
+						}
+					}
 				}
 
 				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import completed [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
+			});
+
+		//Iterate the Scene Actors
+		AsyncHelper->IterateImportedSceneObjectsPerSourceIndex([AsyncHelper](int32 SourceIndex, const TArray<FImportAsyncHelper::FImportedObjectInfo>& AssetInfos)
+			{
+				for (const FImportAsyncHelper::FImportedObjectInfo& SceneObjectInfo : AssetInfos)
+				{
+					if (AActor* Actor = Cast<AActor>(SceneObjectInfo.ImportedObject))
+					{
+						for (UInterchangePipelineBase* PipelineBase : AsyncHelper->Pipelines)
+						{
+							PipelineBase->ScriptedExecutePostBroadcastPipeline(AsyncHelper->BaseNodeContainers[SourceIndex].Get()
+								, SceneObjectInfo.FactoryNode ? SceneObjectInfo.FactoryNode->GetUniqueID() : FString()
+								, Actor
+								, SceneObjectInfo.bIsReimport);
+						}
+					}
+				}
+
+				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import cancelled [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
 			});
 	}
 	else
@@ -218,15 +278,10 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 			{
 				for (const FImportAsyncHelper::FImportedObjectInfo& AssetInfo : AssetInfos)
 				{
-					UObject* Asset = AssetInfo.ImportedObject;
-					if (Asset)
-					{
-						//Make any created asset go away
-						Asset->ClearFlags(RF_Standalone | RF_Public | RF_Transactional);
-						Asset->ClearInternalFlags(EInternalObjectFlags::Async);
-						Asset->SetFlags(RF_Transient);
-						Asset->MarkAsGarbage();
-					}
+					using namespace UE::Interchange::Private::ObjectDeletionUtils;
+
+					//Make any created asset go away
+					PurgeObject(AssetInfo.ImportedObject);
 				}
 			});
 

@@ -9,7 +9,7 @@
 #include "Tests/Framework/AvaTestUtils.h"
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersVisibility, "Avalanche.Modifiers.Visibility",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	AAvaTestDynamicMeshActor* ParentActor;
 	TArray<AAvaTestDynamicMeshActor*> ChildrenActors;

@@ -3,6 +3,7 @@
 #pragma once
 #include "CoreTypes.h"
 #include "Iris/ReplicationSystem/NetBlob/NetBlob.h"
+#include "Net/Core/NetToken/NetToken.h"
 
 namespace UE::Net
 {
@@ -19,10 +20,11 @@ namespace UE::Net
 class FShrinkWrapNetBlob final : public FNetBlob
 {
 public:
-	IRISCORE_API FShrinkWrapNetBlob(const TRefCountPtr<FNetBlob>& OriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount);
+	IRISCORE_API FShrinkWrapNetBlob(FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& OriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount);
 
 private:
-	virtual TArrayView<const FNetObjectReference> GetExports() const override final;
+	virtual TArrayView<const FNetObjectReference> GetNetObjectReferenceExports() const override final;
+	virtual TArrayView<const FNetToken> GetNetTokenExports() const override final;
 	virtual void SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const override final;
 	virtual void DeserializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) override final;
 
@@ -32,6 +34,7 @@ private:
 	void InternalSerialize(FNetSerializationContext& Context) const;
 
 	TRefCountPtr<FNetBlob> OriginalBlob;
+	TArray<FNetToken, TInlineAllocator<4>> NetTokenExportsArray;
 	TArray<uint32> SerializedBlob;
 	uint32 SerializedBlobBitCount;
 };
@@ -39,10 +42,11 @@ private:
 class FShrinkWrapNetObjectAttachment final : public FNetBlob
 {
 public:
-	IRISCORE_API FShrinkWrapNetObjectAttachment(const TRefCountPtr<FNetObjectAttachment>& OriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount);
+	IRISCORE_API FShrinkWrapNetObjectAttachment(FNetSerializationContext& Context, const TRefCountPtr<FNetObjectAttachment>& OriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount);
 
 private:
-	virtual TArrayView<const FNetObjectReference> GetExports() const override final;
+	virtual TArrayView<const FNetObjectReference> GetNetObjectReferenceExports() const override final;
+	virtual TArrayView<const FNetToken> GetNetTokenExports() const override final;
 	virtual void SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const override final;
 	virtual void DeserializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) override final;
 
@@ -52,6 +56,7 @@ private:
 	void InternalSerialize(FNetSerializationContext& Context) const;
 
 	TRefCountPtr<FNetObjectAttachment> OriginalBlob;
+	TArray<FNetToken, TInlineAllocator<4>> NetTokenExportsArray;
 	TArray<uint32> SerializedBlob;
 	uint32 SerializedBlobBitCount;
 };

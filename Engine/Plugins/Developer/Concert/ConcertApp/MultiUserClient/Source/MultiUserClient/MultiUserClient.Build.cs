@@ -58,6 +58,7 @@ namespace UnrealBuildTool.Rules
 						"Sequencer",
 						"ToolMenus",
 						"UnrealEd",
+						"WorldBrowser",
 						"WorkspaceMenuStructure",
 					}
 				);

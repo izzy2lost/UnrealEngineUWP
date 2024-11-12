@@ -118,6 +118,16 @@ void UWebAPITypeInfo::SetNested(const FWebAPITypeNameVariant& InNester)
 	ContainingType = InNester;
 }
 
+UObject* UWebAPITypeInfo::GetModel() const
+{
+	if (Model.IsNull())
+	{
+		return nullptr;
+	}
+
+	return Model.LoadSynchronous();
+}
+
 bool operator==(const UWebAPITypeInfo& A, const UWebAPITypeInfo& B)
 {
 	return (A.Name + A.Suffix) == (B.Name + B.Suffix)

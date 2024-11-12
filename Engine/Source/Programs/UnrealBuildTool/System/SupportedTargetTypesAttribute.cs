@@ -8,20 +8,20 @@ namespace UnrealBuildTool
 	/// Attribute which can be applied to a TargetRules-dervied class to indicate which target types it supports
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-	public class SupportedTargetTypesAttribute : Attribute
+	public sealed class SupportedTargetTypesAttribute : Attribute
 	{
 		/// <summary>
 		/// Array of supported target types
 		/// </summary>
-		public readonly TargetType[] TargetTypes;
+		public TargetType[] TargetTypes { get; }
 
 		/// <summary>
 		/// Initialize the attribute with a list of target types
 		/// </summary>
-		/// <param name="TargetTypes">Variable-length array of target type arguments</param>
-		public SupportedTargetTypesAttribute(params TargetType[] TargetTypes)
+		/// <param name="targetTypes">Variable-length array of target type arguments</param>
+		public SupportedTargetTypesAttribute(params TargetType[] targetTypes)
 		{
-			this.TargetTypes = TargetTypes;
+			TargetTypes = targetTypes;
 		}
 	}
 }

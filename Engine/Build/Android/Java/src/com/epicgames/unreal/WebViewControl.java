@@ -1,51 +1,35 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 package com.epicgames.unreal;
 
-import android.os.Build;
-import android.os.Bundle;
 import android.content.Context;
-
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.KeyEvent;
-import android.webkit.ConsoleMessage;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
-import android.webkit.JsResult;
-import android.webkit.JsPromptResult;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
-import android.graphics.Paint;
-import android.graphics.Color;
-import android.webkit.WebBackForwardList;
-import java.io.ByteArrayInputStream;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-
-import android.util.Log;
-import android.opengl.*;
-import android.view.Surface;	
 import android.graphics.Canvas;
-import android.graphics.SurfaceTexture;
-
-import android.opengl.*;
-import android.widget.LinearLayout;
-import android.util.AttributeSet;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-
-import android.opengl.GLES11Ext;
+import android.graphics.Color;
+import android.opengl.EGL14;
+import android.opengl.EGLConfig;
+import android.opengl.EGLContext;
+import android.opengl.EGLDisplay;
+import android.opengl.EGLSurface;
 import android.opengl.GLES20;
-import android.opengl.Matrix;
+import android.util.AttributeSet;
+import android.util.Log;
 import android.os.SystemClock;
-import android.view.MotionEvent;
 import android.os.Message;
-
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.ConsoleMessage;
+import android.webkit.JsResult;
+import android.webkit.JsPromptResult;
+import android.webkit.WebBackForwardList;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import java.io.ByteArrayInputStream;
 
 
 // Simple layout to apply absolute positioning for the WebView
@@ -98,7 +82,7 @@ class WebViewControl
 		public float VOffset;
 	}
 
-	public WebViewControl(long inNativePtr, int width, int height, boolean swizzlePixels, boolean vulkanRenderer, final boolean bEnableRemoteDebugging, final boolean bUseTransparency, final boolean bEnableDomStorage, final boolean bShouldUseBitmapRender)
+	public WebViewControl(long inNativePtr, int width, int height, boolean swizzlePixels, boolean vulkanRenderer, final boolean bEnableRemoteDebugging, final boolean bUseTransparency, final boolean bEnableDomStorage, final boolean bShouldUseBitmapRender, final String userAgentApplication)
 	{
 		final WebViewControl w = this;
 
@@ -128,16 +112,14 @@ class WebViewControl
 			@Override
 			public void run()
 			{
-				// enable remote debugging if requested and supported by the current platform
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
-				{
-					WebView.setWebContentsDebuggingEnabled(bEnableRemoteDebugging && !GameActivity.Get().nativeIsShippingBuild());
-				}
+				WebView.setWebContentsDebuggingEnabled(bEnableRemoteDebugging && !GameActivity.Get().nativeIsShippingBuild());
 				
 				// create the WebView
 				webView = new GLWebView(GameActivity.Get());
 				webView.setWebViewClient(new ViewClient());
 				webView.setWebChromeClient(new ChromeClient());
+				String UserAgent = WebSettings.getDefaultUserAgent(GameActivity.Get()) + " " + userAgentApplication;
+				webView.getSettings().setUserAgentString(UserAgent);
 				webView.getSettings().setJavaScriptEnabled(true);
 				webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
 				webView.getSettings().setAllowFileAccess( true );
@@ -146,10 +128,7 @@ class WebViewControl
 				webView.getSettings().setAllowUniversalAccessFromFileURLs(true);
 				webView.getSettings().setSupportMultipleWindows(true);
 				webView.getSettings().setDomStorageEnabled(bEnableDomStorage);
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-				{
-					webView.getSettings().setMixedContentMode(0); // 0 = MIXED_CONTENT_ALWAYS_ALLOW
-				}
+				webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
 				webView.getSettings().setCacheMode( WebSettings.LOAD_DEFAULT );
 				webView.getSettings().setLoadWithOverviewMode(true);
@@ -254,15 +233,7 @@ class WebViewControl
 			{
 				if(webView != null)
 				{
-					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
-					{
-						webView.evaluateJavascript(script, null);
-					}
-					else
-					{
-						// This is executed directly here instead of setting NextURL as otherwise calling ExecuteJavascript would only be possible once per tick.
-						webView.loadUrl("javascript:"+script);
-					}
+					webView.evaluateJavascript(script, null);
 				}
 			}
 		});
@@ -832,7 +803,7 @@ class WebViewControl
 				if (RendererString.contains("Adreno (TM) "))
 				{
 					int AdrenoVersion = Integer.parseInt(RendererString.substring(12));
-					if (AdrenoVersion < 400 || android.os.Build.VERSION.SDK_INT < 22)
+					if (AdrenoVersion < 400)
 					{
 						GameActivity.Log.debug("WebViewControl: disabled shared GL context on " + RendererString);
 						mUseOwnContext = false;

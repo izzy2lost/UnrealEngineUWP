@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGCommon.h"
+#include "Grid/PCGGridDescriptor.h"
 #include "UObject/WeakObjectPtr.h"
 
 class APCGPartitionActor;
@@ -44,6 +45,9 @@ public:
 	void OnOriginalComponentRegistered(UPCGComponent* InOriginalComponent);
 	void OnOriginalComponentUnregistered(UPCGComponent* InOriginalComponent);
 
+	/** Destroy all runtime gen partition actors (both generated and pooled). Executed in next tick. */
+	void FlushAllGeneratedActors() { bActorFlushRequested = true; }
+
 protected:
 	struct FGridGenerationKey : TTuple<uint32, FIntVector, UPCGComponent*>
 	{
@@ -53,6 +57,8 @@ protected:
 		uint32 GetGridSize() const { return Get<0>(); }
 		FIntVector GetGridCoords() const { return Get<1>(); }
 		UPCGComponent* GetOriginalComponent() const { return Get<2>(); }
+
+		FPCGGridDescriptor GetGridDescriptor() const;
 	};
 
 	/** Returns true if the scheduler should tick this frame. */
@@ -88,16 +94,13 @@ protected:
 	/** Grabs an empty RuntimeGen PA from the PartitionActorPool and initializes it at the given GridSize and GridCoords. If no PAs are available in the pool,
 	* the pool capacity will double and new PAs will be created.
 	*/
-	APCGPartitionActor* GetPartitionActorFromPool(uint32 GridSize, const FIntVector& GridCoords);
+	APCGPartitionActor* GetPartitionActorFromPool(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords);
 
 	/** Adds Count new RuntimeGen PAs to the Runtime PA pool. */
 	void AddPartitionActorPoolCount(int32 Count);
 
 	/** Destroy all pooled partition actors and rebuild with the NewPoolSize. */
 	void ResetPartitionActorPoolToSize(uint32 NewPoolSize);
-
-	/** Create grid guids for the given component (if necessary). Only succeeds on partitioned original components. */
-	void CreateGridGuidsForComponent(UPCGComponent* InComponent);
 
 private:
 	/** Tracks the generated components managed by the RuntimeGenScheduler. For local components, this generation key will hold the original component.
@@ -127,6 +130,9 @@ private:
 
 	bool bPoolingWasEnabledLastFrame = true;
 	uint32 BasePoolSizeLastFrame = 0;
+
+	/** Requests to flush all actors are deferred so they can be handled at a known time during tick. */
+	bool bActorFlushRequested = false;
 
 	/** Track the existence of runtime gen components to avoid unnecessary computation when there is no work to do. */
 	bool bAnyRuntimeGenComponentsExist = false;

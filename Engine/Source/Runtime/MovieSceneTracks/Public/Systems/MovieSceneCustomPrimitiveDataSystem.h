@@ -72,6 +72,9 @@ private:
 
 	/** Holds pre-animated values for custom primitive data entries */
 	TSharedPtr<UE::MovieScene::FPreAnimatedCustomPrimitiveDataEntryStorage> ScalarParameterStorage;
+
+	UE::MovieScene::FEntityGroupingPolicyKey GroupingKey;
+
 public:
 
 	UPROPERTY()

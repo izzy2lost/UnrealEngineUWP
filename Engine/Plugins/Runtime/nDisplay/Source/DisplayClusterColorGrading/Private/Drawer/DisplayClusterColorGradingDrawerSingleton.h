@@ -31,7 +31,7 @@ public:
 	virtual void DockColorGradingDrawer() override;
 
 	/** Refreshes the UI of any open color grading drawers */
-	virtual void RefreshColorGradingDrawers(bool bPreserveDrawerState) override;
+	virtual void RefreshColorGradingDrawers() override;
 
 private:
 	/** Creates a new drawer widget to place in a drawer or in a tab */
@@ -65,6 +65,6 @@ private:
 	/** A weak pointer to the active color grading drawer that is open */
 	TWeakPtr<SDisplayClusterColorGradingDrawer> ColorGradingDrawer;
 
-	/** The drawer state when the last instance of the color grading drawer was dismissed */
-	TOptional<FDisplayClusterColorGradingDrawerState> PreviousDrawerState;
+	/** The color grading panel state when the last instance of the color grading drawer was dismissed */
+	TOptional<FColorGradingPanelState> PreviousColorGradingPanelState;
 };

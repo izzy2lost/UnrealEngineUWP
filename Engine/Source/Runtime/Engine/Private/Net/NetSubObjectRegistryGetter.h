@@ -70,6 +70,22 @@ public:
 	{
 		InActor->BuildReplicatedComponentsInfo();
 	}
+
+	static uint32 CountReplicatedSubObjectsOfActor(AActor* InActor)
+	{
+		// Start with the actor's subobjects;
+		uint32 NumReplicatedObjects = (uint32)InActor->ReplicatedSubObjects.Num();
+		// Add the replicated components
+		NumReplicatedObjects += (uint32)InActor->ReplicatedComponentsInfo.Num();
+
+		// Finally add the subobjects of the replicated components	
+		for (const UE::Net::FReplicatedComponentInfo& ReplicatedComponentInfo : InActor->ReplicatedComponentsInfo)
+		{
+			NumReplicatedObjects += (uint32)ReplicatedComponentInfo.SubObjects.Num();
+		}
+
+		return NumReplicatedObjects;
+	}
 };
 
 }

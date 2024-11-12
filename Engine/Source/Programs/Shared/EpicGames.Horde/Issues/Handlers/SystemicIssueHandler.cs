@@ -9,13 +9,16 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular systemic error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class SystemicIssueHandler : IssueHandler
 	{
 		/// <summary>
 		///  Known systemic errors
 		/// </summary>
 		static readonly HashSet<EventId> s_knownSystemic = new HashSet<EventId> { KnownLogEvents.Horde, KnownLogEvents.Horde_InvalidPreflight };
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

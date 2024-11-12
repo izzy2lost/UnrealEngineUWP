@@ -8,7 +8,6 @@
 #include "SPluginTileList.h"
 #include "Widgets/SToolTip.h"
 #include "Framework/Docking/TabManager.h"
-#include "UnrealEdMisc.h"
 #include "Interfaces/IPluginManager.h"
 #include "PluginStyle.h"
 #include "Widgets/Navigation/SBreadcrumbTrail.h"
@@ -23,6 +22,7 @@
 #include "Styling/StyleColors.h"
 #include "SWarningOrErrorBox.h"
 #include "Widgets/Views/SListView.h" // IWYU pragma: keep
+#include "Misc/ConfigCacheIni.h"
 
 #define LOCTEXT_NAMESPACE "PluginsEditor"
 
@@ -39,6 +39,8 @@ SPluginBrowser::~SPluginBrowser()
 
 void SPluginBrowser::Construct( const FArguments& Args )
 {
+	OnRestartClicked = Args._OnRestartClicked;
+
 	// Get the root directories which contain plugins
 	TArray<FString> WatchDirectoryNames;
 	WatchDirectoryNames.Add(FPaths::EnginePluginsDir());
@@ -145,19 +147,25 @@ void SPluginBrowser::Construct( const FArguments& Args )
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
-			// Add Plugin button
 			SNew(SHorizontalBox)
 
+			// Add Plugin button
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Left)
-			.Padding(FMargin(12, 7, 18, 7))
+			.Padding(FMargin(12, 7, 0, 7))
 			.AutoWidth()
 			[
 				SNew(SButton)
 				.ToolTip(SNew(SToolTip).Text(LOCTEXT("NewPluginEnabled", "Click here to open the Plugin Creator dialog.")))
-				.OnClicked(this, &SPluginBrowser::HandleNewPluginButtonClicked)
 				.ContentPadding(FMargin(0, 5.f, 0, 4.f))
+				.OnClicked(this, &SPluginBrowser::HandleNewPluginButtonClicked)
+				.IsEnabled_Static([]()
+				{
+					bool bCreateEnabled = true;
+					GConfig->GetBool(TEXT("EditorSettings"), TEXT("bCanCreatePluginsFromBrowser"), bCreateEnabled, GEditorIni);
+					return bCreateEnabled;
+				})
 				.Content()
 				[
 					SNew(SHorizontalBox)
@@ -177,6 +185,43 @@ void SPluginBrowser::Construct( const FArguments& Args )
 						SNew(STextBlock)
 						.TextStyle(FAppStyle::Get(), "SmallButtonText")
 						.Text(LOCTEXT("NewPluginLabel", "Add"))
+					]
+				]
+			]
+
+			// Plugin Directories button
+			+SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Left)
+			.Padding(FMargin(7, 7, 18, 7))
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.ToolTip(SNew(SToolTip).Text(LOCTEXT("PluginDirectoriesTooltip", "Click here to configure additional plugin search directories.")))
+				.OnClicked_Static([]() -> FReply
+				{
+					FGlobalTabmanager::Get()->TryInvokeTab(FPluginBrowserModule::ExternalDirectoriesTabName);
+					return FReply::Handled();
+				})
+				.ContentPadding(FMargin(0, 5.f, 0, 4.f))
+				.Content()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SImage)
+						.Image(FPluginStyle::Get()->GetBrush("Plugins.TabIcon"))
+					]
+					+ SHorizontalBox::Slot()
+					.Padding(FMargin(3, 0, 0, 0))
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.TextStyle(FAppStyle::Get(), "SmallButtonText")
+						.Text(LOCTEXT("PluginDirectoriesLabel", "Plugin Directories"))
 					]
 				]
 			]
@@ -275,12 +320,12 @@ void SPluginBrowser::Construct( const FArguments& Args )
 				.Padding(FMargin(18.0f, 20.0f, 18.0f, 16.0f))
 				[
 					SNew(SWarningOrErrorBox)
-					.Visibility(this, &SPluginBrowser::HandleRestartEditorNoticeVisibility)
+					.Visibility(this, &SPluginBrowser::HandleRestartNoticeVisibility)
 					.MessageStyle(EMessageStyle::Warning)
 					.Message(LOCTEXT("PluginSettingsRestartNotice", "You must restart Unreal Editor for your changes to take effect."))
 					[
 						SNew(SButton)
-						.OnClicked(this, &SPluginBrowser::HandleRestartEditorButtonClicked)
+						.OnClicked(this, &SPluginBrowser::HandleRestartButtonClicked)
 						.TextStyle(FAppStyle::Get(), "NormalText")
 						.Text(LOCTEXT("PluginSettingsRestartEditor", "Restart Now"))
 					]
@@ -306,16 +351,19 @@ void SPluginBrowser::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	}
 }
 
-EVisibility SPluginBrowser::HandleRestartEditorNoticeVisibility() const
+EVisibility SPluginBrowser::HandleRestartNoticeVisibility() const
 {
-	return FPluginBrowserModule::Get().HasPluginsPendingEnable() ? EVisibility::Visible : EVisibility::Collapsed;
+	return FPluginBrowserModule::Get().ShowPendingRestart() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FReply SPluginBrowser::HandleRestartEditorButtonClicked() const
+FReply SPluginBrowser::HandleRestartButtonClicked() const
 {
-	const bool bWarn = false;
-	FUnrealEdMisc::Get().RestartEditor(bWarn);
-	return FReply::Handled();
+	if (ensure(OnRestartClicked.IsBound()))
+	{
+		return OnRestartClicked.Execute();
+	}
+
+	return FReply::Unhandled();
 }
 
 void SPluginBrowser::SearchBox_OnPluginSearchTextChanged( const FText& NewText )

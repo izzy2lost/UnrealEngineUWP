@@ -14,6 +14,7 @@ DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.UpdateDefor
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.TickComponent"), STAT_ChaosDeformable_UDeformableSolverComponent_TickComponent, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.Reset"), STAT_ChaosDeformable_UDeformableSolverComponent_Reset, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.AddDeformableProxy"), STAT_ChaosDeformable_UDeformableSolverComponent_AddDeformableProxy, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.RemoveDeformableProxy"), STAT_ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.Simulate"), STAT_ChaosDeformable_UDeformableSolverComponent_Simulate, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.UpdateFromGameThread"), STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.UpdateFromSimulation"), STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation, STATGROUP_Chaos);
@@ -28,7 +29,7 @@ FAutoConsoleVariableRef CVarChaosEngineDeformableSolverbEnabled(TEXT("p.Chaos.De
 
 UDeformableSolverComponent::UDeformableSolverComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, Solver()
+	, FleshSolverProxy()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	bTickInEditor = false;
@@ -90,9 +91,14 @@ void UDeformableSolverComponent::UpdateTickGroup()
 UDeformableSolverComponent::FDeformableSolver::FGameThreadAccess
 UDeformableSolverComponent::GameThreadAccess()
 {
-	return FDeformableSolver::FGameThreadAccess(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+	return FDeformableSolver::FGameThreadAccess(FleshSolverProxy.Solver.Get(), Chaos::Softs::FGameThreadAccessor());
 }
 
+UDeformableSolverComponent::FDeformableSolver::FPhysicsThreadAccess
+UDeformableSolverComponent::PhysicsThreadAccess()
+{
+	return FDeformableSolver::FPhysicsThreadAccess(FleshSolverProxy.Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
+}
 
 bool UDeformableSolverComponent::IsSimulatable() const
 {
@@ -108,6 +114,8 @@ bool UDeformableSolverComponent::IsSimulating(UDeformablePhysicsComponent* InCom
 	}
 	return false;
 }
+
+
 
 
 void UDeformableSolverComponent::UpdateDeformableEndTickState(bool bRegister)
@@ -149,7 +157,10 @@ void UDeformableSolverComponent::UpdateDeformableEndTickState(bool bRegister)
 void UDeformableSolverComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	Reset();
+	if(!SimulationAsset.DataflowAsset)
+	{
+		BuildSimulationProxy();
+	}
 }
 
 void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -163,21 +174,28 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 
 		UpdateDeformableEndTickState(IsSimulatable());
 
-		UpdateFromGameThread(DeltaTime);
-
-		if (SolverTiming.bDoThreadedAdvance)
+		// We only run the simulation if no dataflow solver has been defined
+		if(!SimulationAsset.DataflowAsset)
 		{
-			// see FParallelClothCompletionTask
-			FGraphEventArray Prerequisites;
-			Prerequisites.Add(ParallelDeformableTask);
-			FGraphEventRef DeformableCompletionEvent = TGraphTask<FParallelDeformableTask>::CreateTask(&Prerequisites, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(this, DeltaTime);
-			ThisTickFunction->GetCompletionHandle()->DontCompleteUntil(DeformableCompletionEvent);
-		}
-		else
-		{
-			Simulate(DeltaTime);
+			if(bSimulationTicking)
+			{
+				WriteToSimulation(DeltaTime, false);
 
-			UpdateFromSimulation(DeltaTime);
+				if (SolverTiming.bDoThreadedAdvance)
+				{
+					// see FParallelClothCompletionTask
+					FGraphEventArray Prerequisites;
+					Prerequisites.Add(ParallelDeformableTask);
+					FGraphEventRef DeformableCompletionEvent = TGraphTask<FParallelDeformableTask>::CreateTask(&Prerequisites, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(this, DeltaTime);
+					ThisTickFunction->GetCompletionHandle()->DontCompleteUntil(DeformableCompletionEvent);
+				}
+				else
+				{
+					Simulate(DeltaTime);
+
+					ReadFromSimulation(DeltaTime, false);
+				}
+			}
 		}
 	}
 }
@@ -185,16 +203,28 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 void UDeformableSolverComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
+	if(!SimulationAsset.DataflowAsset)
+	{
+		ResetSimulationProxy();
+	}
 }
 
-void UDeformableSolverComponent::Reset()
+void UDeformableSolverComponent::ResetSimulationProperties(const FSolverTimingGroup& TimingGroup, const FSolverEvolutionGroup& EvolutionGroup,
+		FSolverCollisionsGroup CollisionsGroup, FSolverConstraintsGroup ConstraintsGroup, FSolverForcesGroup ForcesGroup,
+		FSolverDebuggingGroup DebuggingGroup, FSolverMuscleActivationGroup MuscleActivationGroup)
 {
-	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_Reset);
-	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_Reset);
+	SolverTiming = TimingGroup;
+	SolverEvolution = EvolutionGroup;
+	SolverCollisions = CollisionsGroup;
+	SolverConstraints = ConstraintsGroup;
+	SolverForces = ForcesGroup;
+	SolverDebugging = DebuggingGroup;
+	SolverMuscleActivation = MuscleActivationGroup;
 
-	if (GChaosEngineDeformableCVarParams.bEnableDeformableSolver)
+	if(FleshSolverProxy.IsValid())
 	{
-		Solver.Reset(new FDeformableSolver({
+		FDeformableSolver::FPhysicsThreadAccess PhysicsThreadSolver = PhysicsThreadAccess();
+		PhysicsThreadSolver.Reset(Chaos::Softs::FDeformableSolverProperties(
 			SolverTiming.NumSubSteps
 			, SolverTiming.NumSolverIterations
 			, SolverTiming.FixTimeStep
@@ -202,7 +232,6 @@ void UDeformableSolverComponent::Reset()
 			, SolverDebugging.CacheToFile
 			, SolverConstraints.bEnableKinematics
 			, SolverCollisions.bUseFloor
-			, SolverCollisions.bDoSelfCollision
 			, false /*SolverCollisions.SolverGridBasedCollisions.bUseGridBasedConstraints*/
 			, 25. /*SolverCollisions.SolverGridBasedCollisions.GridDx*/
 			, SolverEvolution.SolverQuasistatics.bDoQuasistatics
@@ -217,10 +246,64 @@ void UDeformableSolverComponent::Reset()
 			, SolverConstraints.GaussSeidelConstraints.bUseSOR
 			, SolverConstraints.GaussSeidelConstraints.OmegaSOR
 			, SolverConstraints.GaussSeidelConstraints.bUseGSNeohookean
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSearchRadius
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSpringStiffness
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bAllowSliding
-		}));
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bDoSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.bDoInComponentSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.NRingExcluded
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.CollisionSearchRadius
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.SpringCollisionStiffness
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bAllowSliding
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.bDoSphereRepulsion
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionRadius
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionStiffness
+			, SolverMuscleActivation.bDoMuscleActivation
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bCollideWithFullmesh
+			, SolverConstraints.GaussSeidelConstraints.bEnableDynamicSprings
+		));
+	}
+}
+
+void UDeformableSolverComponent::BuildSimulationProxy()
+{
+	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_Reset);
+	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_Reset);
+
+	if (GChaosEngineDeformableCVarParams.bEnableDeformableSolver)
+	{
+		FleshSolverProxy.Solver = MakeUnique<Chaos::Softs::FDeformableSolver>(Chaos::Softs::FDeformableSolverProperties(
+			SolverTiming.NumSubSteps
+			, SolverTiming.NumSolverIterations
+			, SolverTiming.FixTimeStep
+			, SolverTiming.TimeStepSize
+			, SolverDebugging.CacheToFile
+			, SolverConstraints.bEnableKinematics
+			, SolverCollisions.bUseFloor
+			, false /*SolverCollisions.SolverGridBasedCollisions.bUseGridBasedConstraints*/
+			, 25. /*SolverCollisions.SolverGridBasedCollisions.GridDx*/
+			, SolverEvolution.SolverQuasistatics.bDoQuasistatics
+			, SolverForces.YoungModulus
+			, SolverConstraints.CorotatedConstraints.bDoBlended
+			, SolverConstraints.CorotatedConstraints.BlendedZeta
+			, SolverForces.Damping
+			, SolverForces.bEnableGravity
+			, SolverConstraints.CorotatedConstraints.bEnableCorotatedConstraint
+			, SolverConstraints.bEnablePositionTargets
+			, SolverConstraints.GaussSeidelConstraints.bUseGaussSeidelConstraints
+			, SolverConstraints.GaussSeidelConstraints.bUseSOR
+			, SolverConstraints.GaussSeidelConstraints.OmegaSOR
+			, SolverConstraints.GaussSeidelConstraints.bUseGSNeohookean
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bDoSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.bDoInComponentSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.NRingExcluded
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.CollisionSearchRadius
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.SpringCollisionStiffness
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bAllowSliding
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.bDoSphereRepulsion
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionRadius
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionStiffness
+			, SolverMuscleActivation.bDoMuscleActivation
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bCollideWithFullmesh
+			, SolverConstraints.GaussSeidelConstraints.bEnableDynamicSprings
+		));
 
 		for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)
 		{
@@ -235,14 +318,44 @@ void UDeformableSolverComponent::Reset()
 	}
 }
 
+void UDeformableSolverComponent::ResetSimulationProxy()
+{
+	for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)
+	{
+		if( DeformableComponent )
+		{
+			if (IsSimulating(DeformableComponent))
+			{
+				RemoveDeformableProxy(DeformableComponent);
+			}
+		}
+	}
+	FleshSolverProxy.Solver.Reset();
+}
+
+void UDeformableSolverComponent::RemoveDeformableProxy(UDeformablePhysicsComponent* InComponent)
+{
+	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy);
+	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy);
+
+	if (FleshSolverProxy.Solver && IsSimulating(InComponent))
+	{
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
+		if (!GameThreadSolver.HasObject(InComponent))
+		{
+			InComponent->RemoveProxy(GameThreadSolver);
+		}
+	}
+}
+
 void UDeformableSolverComponent::AddDeformableProxy(UDeformablePhysicsComponent* InComponent)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_AddDeformableProxy);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_AddDeformableProxy);
 
-	if (Solver && IsSimulating(InComponent))
+	if (FleshSolverProxy.Solver && IsSimulating(InComponent))
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 		if (!GameThreadSolver.HasObject(InComponent))
 		{
 			InComponent->AddProxy(GameThreadSolver);
@@ -255,22 +368,25 @@ void UDeformableSolverComponent::Simulate(float DeltaTime)
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_Simulate);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_Simulate);
 
-	if (Solver)
+	if (FleshSolverProxy.Solver)
 	{
 		// @todo(accessor) : Should be coming from the threading class. 
-		FDeformableSolver::FPhysicsThreadAccess PhysicsThreadSolver(Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
-		PhysicsThreadSolver.Simulate(DeltaTime);
+		FDeformableSolver::FPhysicsThreadAccess PhysicsThreadSolver = PhysicsThreadAccess();
+		if(!SimulationAsset.DataflowAsset)
+		{
+			PhysicsThreadSolver.Simulate(DeltaTime);
+		}
 	}
 }
 
-void UDeformableSolverComponent::UpdateFromGameThread(float DeltaTime)
+void UDeformableSolverComponent::WriteToSimulation(float DeltaTime, const bool bAsyncTask)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread);
 
-	if (Solver)
+	if (FleshSolverProxy.Solver)
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 
 		Chaos::Softs::FDeformableDataMap DataMap;
 		for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)
@@ -292,14 +408,14 @@ void UDeformableSolverComponent::UpdateFromGameThread(float DeltaTime)
 	}
 }
 
-void UDeformableSolverComponent::UpdateFromSimulation(float DeltaTime)
+void UDeformableSolverComponent::ReadFromSimulation(float DeltaTime, const bool bAsyncTask)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation);
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation);
 
-	if (Solver)
+	if (FleshSolverProxy.Solver)
 	{
-		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		FDeformableSolver::FGameThreadAccess GameThreadSolver = GameThreadAccess();
 		TUniquePtr<FDeformablePackage> Output(nullptr);
 		while (TUniquePtr<FDeformablePackage> SolverOutput = GameThreadSolver.PullOutputPackage())
 		{
@@ -324,6 +440,30 @@ void UDeformableSolverComponent::UpdateFromSimulation(float DeltaTime)
 		}
 	}
 }
+
+#if WITH_EDITOR
+
+bool UDeformableSolverComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, SimulationAsset))
+	{
+		static const auto CVarEnableSimulationDataflow = IConsoleManager::Get().FindConsoleVariable(TEXT("p.Dataflow.EnableSimulation"));
+		return CVarEnableSimulationDataflow->GetBool();
+	}
+
+	return true;
+}
+
+#endif
+
+
 
 
 

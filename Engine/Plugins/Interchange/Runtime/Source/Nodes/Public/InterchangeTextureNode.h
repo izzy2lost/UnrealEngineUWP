@@ -41,6 +41,27 @@ enum class EInterchangeTextureFilterMode : uint8
 	Default
 };
 
+UENUM(BlueprintType)
+enum class EInterchangeTextureColorSpace : uint8
+{
+	TCS_None = 0 UMETA(DisplayName = "None", ToolTip = "No explicit color space definition."),
+	TCS_sRGB = 1 UMETA(DisplayName = "sRGB / Rec709", ToolTip = "sRGB / Rec709 (BT.709) color primaries, with D65 white point."),
+	TCS_Rec2020 = 2 UMETA(DisplayName = "Rec2020", ToolTip = "Rec2020 (BT.2020) primaries with D65 white point."),
+	TCS_ACESAP0 = 3 UMETA(DIsplayName = "ACES AP0", ToolTip = "ACES AP0 wide gamut primaries, with D60 white point."),
+	TCS_ACESAP1 = 4 UMETA(DIsplayName = "ACES AP1 / ACEScg", ToolTip = "ACES AP1 / ACEScg wide gamut primaries, with D60 white point."),
+	TCS_P3DCI = 5 UMETA(DisplayName = "P3DCI", ToolTip = "P3 (Theater) primaries, with DCI Calibration white point."),
+	TCS_P3D65 = 6 UMETA(DisplayName = "P3D65", ToolTip = "P3 (Display) primaries, with D65 white point."),
+	TCS_REDWideGamut = 7 UMETA(DisplayName = "RED Wide Gamut", ToolTip = "RED Wide Gamut primaries, with D65 white point."),
+	TCS_SonySGamut3 = 8 UMETA(DisplayName = "Sony S-Gamut3", ToolTip = "Sony S-Gamut/S-Gamut3 primaries, with D65 white point."),
+	TCS_SonySGamut3Cine = 9 UMETA(DisplayName = "Sony S-Gamut3 Cine", ToolTip = "Sony S-Gamut3 Cine primaries, with D65 white point."),
+	TCS_AlexaWideGamut = 10 UMETA(DisplayName = "Alexa Wide Gamut", ToolTip = "Alexa Wide Gamut primaries, with D65 white point."),
+	TCS_CanonCinemaGamut = 11 UMETA(DisplayName = "Canon Cinema Gamut", ToolTip = "Canon Cinema Gamut primaries, with D65 white point."),
+	TCS_GoProProtuneNative = 12 UMETA(DisplayName = "GoPro Protune Native", ToolTip = "GoPro Protune Native primaries, with D65 white point."),
+	TCS_PanasonicVGamut = 13 UMETA(DisplayName = "Panasonic V-Gamut", ToolTip = "Panasonic V-Gamut primaries, with D65 white point."),
+	TCS_Custom = 99 UMETA(DisplayName = "Custom", ToolTip = "User defined color space and white point."),
+	TCS_MAX,
+};
+
 UCLASS(BlueprintType, Abstract)
 class INTERCHANGENODES_API UInterchangeTextureNode : public UInterchangeBaseNode
 {
@@ -148,9 +169,22 @@ public:
 		IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(Filter, EInterchangeTextureFilterMode)
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Texture")
+	bool GetCustomColorSpace(EInterchangeTextureColorSpace& AttributeValue) const
+	{
+		IMPLEMENT_NODE_ATTRIBUTE_GETTER(ColorSpace, EInterchangeTextureColorSpace);
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Texture")
+	bool SetCustomColorSpace(const EInterchangeTextureColorSpace& AttributeValue)
+	{
+		IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ColorSpace, EInterchangeTextureColorSpace)
+	}
+
 private:
 
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(SRGB)
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(bFlipGreenChannel)
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(Filter)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ColorSpace)
 };

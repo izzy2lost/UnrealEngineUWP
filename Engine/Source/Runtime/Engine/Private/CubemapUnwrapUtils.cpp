@@ -137,13 +137,6 @@ void FCubemapTexturePropertiesVS::SetParameters(FRHIBatchedShaderParameters& Bat
 	SetShaderValue(BatchedParameters, Transform, (FMatrix44f)TransformValue);
 }
 
-void FCubemapTexturePropertiesVS::SetParameters(FRHICommandList& RHICmdList, const FMatrix& TransformValue)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, TransformValue);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
-}
-
 FCubemapTexturePropertiesPS::FCubemapTexturePropertiesPS() = default;
 
 FCubemapTexturePropertiesPS::FCubemapTexturePropertiesPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -199,13 +192,6 @@ void FCubemapTexturePropertiesPS::SetParameters(FRHIBatchedShaderParameters& Bat
 	}
 }
 
-void FCubemapTexturePropertiesPS::SetParameters(FRHICommandList& RHICmdList, const FTexture* InTexture, const FMatrix& InColorWeightsValue, float InMipLevel, float InSliceIndex, bool bInIsTextureCubeArray, const FMatrix44f& InViewMatrix, bool bInShowLongLatUnwrap, float InGammaValue, bool bInUsePointSampling)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, InTexture, InColorWeightsValue, InMipLevel, InSliceIndex, bInIsTextureCubeArray, InViewMatrix, bInShowLongLatUnwrap, InGammaValue, bInUsePointSampling);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
 void FMipLevelBatchedElementParameters::BindShaders(FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& GraphicsPSOInit, ERHIFeatureLevel::Type InFeatureLevel, const FMatrix& InTransform, const float InGamma, const FMatrix& ColorWeights, const FTexture* Texture)
 {
 	GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
@@ -249,13 +235,6 @@ void FIESLightProfilePS::SetParameters(FRHIBatchedShaderParameters& BatchedParam
 {
 	SetTextureParameter(BatchedParameters, IESTexture, IESTextureSampler, Texture);
 	SetShaderValue(BatchedParameters, BrightnessInLumens, InBrightnessInLumens);
-}
-
-void FIESLightProfilePS::SetParameters(FRHICommandList& RHICmdList, const FTexture* Texture, float InBrightnessInLumens)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, Texture, InBrightnessInLumens);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
 }
 
 void FIESLightProfileBatchedElementParameters::BindShaders( FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& GraphicsPSOInit, ERHIFeatureLevel::Type InFeatureLevel, const FMatrix& InTransform, const float InGamma, const FMatrix& ColorWeights, const FTexture* Texture )

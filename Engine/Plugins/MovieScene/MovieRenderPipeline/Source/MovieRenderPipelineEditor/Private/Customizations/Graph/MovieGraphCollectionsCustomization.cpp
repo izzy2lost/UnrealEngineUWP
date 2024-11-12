@@ -238,6 +238,18 @@ void FMovieGraphConditionGroupQueryBuilder::GenerateChildContent(IDetailChildren
 		.ShowPropertyButtons(false)
 		.OverrideResetToDefault(FResetToDefaultOverride::Hide())
 		.CustomWidget()
+		.AddCustomContextMenuAction(FUIAction(
+			FExecuteAction::CreateLambda([this, QueryIndex]()
+			{
+				if (WeakConditionGroup.IsValid())
+				{
+					const FScopedTransaction Transaction(LOCTEXT("DuplicateConditionGroupQuery_Transaction", "Duplicate Condition Group Query"));
+					WeakConditionGroup->DuplicateQuery(QueryIndex);
+				}
+			})),
+			LOCTEXT("DuplicateConditionGroupQuery", "Duplicate"),
+			LOCTEXT("DuplicateConditionGroupQueryTooltip", "Duplicate this condition."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate"))
 		.FilterString(Query->GetClass()->GetDisplayNameText())
 		.NameContent()
 		.HAlign(HAlign_Fill)
@@ -853,6 +865,11 @@ TArray<UClass*>* SMovieGraphCollectionTreeQueryTypeSelectorWidget::GetAvailableQ
 				QueryTypes.Add(Class);
 			}
 		}
+
+		QueryTypes.Sort([](const UClass& InClass1, const UClass& InClass2)
+		{
+			return InClass1.GetName().Compare(InClass2.GetName(), ESearchCase::IgnoreCase) < 0;
+		});
 	}
 
 	return &QueryTypes;

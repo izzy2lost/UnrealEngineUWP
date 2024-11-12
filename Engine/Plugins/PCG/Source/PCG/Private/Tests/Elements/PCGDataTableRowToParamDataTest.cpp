@@ -56,7 +56,7 @@ CCC,"C Name","C String","333","3333","3.3","3.33","(X=3.0,Y=3.0)","(X=3.0,Y=3.0,
 	// this is because sometimes conversion occurs as PCG can't represent all types
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FName,FName>(*this, RowData, *Params, TEXT("Name"), TEXT("B Name"));
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<FString,FString>(*this, RowData, *Params, TEXT("String"), TEXT("B String"));
-	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<int32,int64>(*this, RowData, *Params, TEXT("I32"), 222);
+	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<int32,int32>(*this, RowData, *Params, TEXT("I32"), 222);
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<int64,int64>(*this, RowData, *Params, TEXT("I64"), 2222);
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<float,double>(*this, RowData, *Params, TEXT("F32"), 2.2);
 	bSuccess |= PCGDataTableRowToParamDataTestHelpers::TestAttribute<double,double>(*this, RowData, *Params, TEXT("F64"), 2.22);

@@ -10,19 +10,21 @@
 #include "Logging/MessageLog.h"
 #include "MessageLogModule.h"
 #include "Rendering/DrawElements.h"
+#include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/Images/SImage.h"
-#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SScrollBar.h"
-#include "SlateOptMacros.h"
-#include "Templates/SharedPointer.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
@@ -31,7 +33,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SPacketContentView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SPacketContentView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1172,7 +1177,7 @@ void SPacketContentView::UpdateHoveredEvent()
 			Tooltip.AddNameValueTextLine(TEXT("Net Id:"), FText::AsNumber(ObjectInstance.NetObjectId).ToString());
 			Tooltip.AddNameValueTextLine(TEXT("Type Id:"), FString::Printf(TEXT("0x%016" UINT64_x_FMT), ObjectInstance.TypeId));
 			Tooltip.AddNameValueTextLine(TEXT("Obj. LifeTime:"), FString::Format(TEXT("from {0} to {1}"),
-				{ TimeUtils::FormatTimeAuto(ObjectInstance.LifeTime.Begin), TimeUtils::FormatTimeAuto(ObjectInstance.LifeTime.End) }));
+				{ FormatTimeAuto(ObjectInstance.LifeTime.Begin), FormatTimeAuto(ObjectInstance.LifeTime.End)}));
 		}
 
 		Tooltip.AddNameValueTextLine(TEXT("Offset:"), FString::Format(TEXT("bit {0}"), { FText::AsNumber(Event.BitOffset).ToString() }));
@@ -1313,7 +1318,7 @@ int32 SPacketContentView::OnPaint(const FPaintArgs& Args, const FGeometry& Allot
 	const bool bShouldDisplayDebugInfo = FInsightsManager::Get()->IsDebugInfoEnabled();
 	if (bShouldDisplayDebugInfo)
 	{
-		const FSlateBrush* WhiteBrush = FInsightsStyle::Get().GetBrush("WhiteBrush");
+		const FSlateBrush* WhiteBrush = FAppStyle::Get().GetBrush("WhiteBrush");
 		FSlateFontInfo SummaryFont = FAppStyle::Get().GetFontStyle("SmallFont");
 
 		const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
@@ -1349,7 +1354,7 @@ int32 SPacketContentView::OnPaint(const FPaintArgs& Args, const FGeometry& Allot
 		DrawContext.DrawText
 		(
 			DbgX, DbgY,
-			FString::Printf(TEXT("U: %llu ms    D: %llu ms + %llu ms = %llu ms (%d fps)"),
+			FString::Printf(TEXT("U: %" UINT64_FMT " ms    D: %" UINT64_FMT " ms + %" UINT64_FMT " ms = %" UINT64_FMT " ms (%" INT64_FMT " fps)"),
 				AvgUpdateDurationMs, // average duration of UpdateState calls
 				AvgDrawDurationMs, // drawing time
 				AvgOnPaintDurationMs - AvgDrawDurationMs, // other overhead to OnPaint calls
@@ -1797,5 +1802,7 @@ void SPacketContentView::AdjustForSplitContent()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

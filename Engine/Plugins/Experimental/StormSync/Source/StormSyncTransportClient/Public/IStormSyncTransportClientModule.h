@@ -37,8 +37,11 @@ public:
 		static const FName ModuleName = "StormSyncTransportClient";
 		return FModuleManager::Get().IsModuleLoaded(ModuleName);
 	}
+
+	/** Start transport client endpoint */
+	virtual void StartClientEndpoint(const FString& InEndpointFriendlyName) = 0;
 	
-	/** Create a local transport endpoint */
+	UE_DEPRECATED(5.5, "Use StartClientEndpoint() instead.")
 	virtual TSharedPtr<IStormSyncTransportClientLocalEndpoint> CreateClientLocalEndpoint(const FString& InEndpointFriendlyName) const = 0;
 	
 	/** Returns Message Address UID for client endpoint if it is currently running, empty string otherwise */

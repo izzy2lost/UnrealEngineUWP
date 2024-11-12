@@ -18,12 +18,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="TG_GraphParams")
 	TObjectPtr<class UTG_Graph> TextureGraph;
 
-	bool CheckCyclicDependency(const UTextureGraph* InTextureGraph) const;
 	void GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGraphs) const;
+	
+	bool CheckRecursiveDependency(const UTextureGraph* InTextureGraph) const;
 	
 public:
 
-	bool IsDependent(const UTextureGraph* TextureGraph) const;
+	bool IsDependentOn(const UTextureGraph* TextureGraph) const;
+	bool HasCyclicDependency() const;
 	
 	// Construct the script giving it its name Initialize to a default one output script
 	virtual void Construct(FString Name);
@@ -46,6 +48,7 @@ public:
 	void PostMeshLoad() override;
 
 	void TriggerUpdate(bool Tweaking);
+	void FlushInvalidations();
 
 	void UpdateGlobalTGSettings();
 

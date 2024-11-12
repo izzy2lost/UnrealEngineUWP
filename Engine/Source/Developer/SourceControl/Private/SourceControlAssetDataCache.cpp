@@ -38,6 +38,12 @@ void FSourceControlAssetDataCache::Startup()
 		{
 			if (UPackage* Package = ChangedActor->GetPackage())
 			{
+				// Transient packages should not be saved, therefore we can skip the asset data cache update for them to mitigate the perf impact of this call 
+				if (Package->HasAnyFlags(RF_Transient))
+				{
+					return;
+				}
+
 				FString Filename = USourceControlHelpers::PackageFilename(Package);
 				ISourceControlModule::Get().GetAssetDataCache().ClearAssetData(Filename);
 			}

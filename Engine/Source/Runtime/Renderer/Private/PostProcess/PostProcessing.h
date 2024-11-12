@@ -9,6 +9,7 @@
 #include "PostProcess/PostProcessInputs.h"
 
 enum class EReflectionsMethod;
+enum class EDiffuseIndirectMethod;
 
 class FScreenPassVS;
 class FViewInfo;
@@ -35,7 +36,7 @@ void AddPostProcessingPasses(
 	const FViewInfo& View, int32 ViewIndex,
 	FSceneUniformBuffer& SceneUniformBuffer,
 	bool bAnyLumenActive,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	EReflectionsMethod ReflectionsMethod,
 	const FPostProcessingInputs& Inputs,
 	const Nanite::FRasterResults* NaniteRasterResults,
@@ -54,6 +55,7 @@ struct FMobilePostProcessingInputs
 {
 	TRDGUniformBufferRef<FMobileSceneTextureUniformParameters> SceneTextures = nullptr;
 	FRDGTextureRef ViewFamilyTexture = nullptr;
+	FRDGTextureRef ViewFamilyDepthTexture = nullptr;
 	bool bRequiresMultiPass = false;
 
 	void Validate() const
@@ -63,7 +65,7 @@ struct FMobilePostProcessingInputs
 	}
 };
 
-void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, const FViewInfo& View, FSceneUniformBuffer &SceneUniformBuffer, const FMobilePostProcessingInputs& Inputs, FInstanceCullingManager& InstanceCullingManager);
+void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, const FViewInfo& View, int32 ViewIndex, FSceneUniformBuffer &SceneUniformBuffer, const FMobilePostProcessingInputs& Inputs, FInstanceCullingManager& InstanceCullingManager);
 
 void AddBasicPostProcessPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View);
 

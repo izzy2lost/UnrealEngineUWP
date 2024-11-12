@@ -6,6 +6,7 @@
 #include "LightRendering.h"
 #include "LocalVertexFactory.h"
 #include "MeshPassUtils.h"
+#include "PostProcess/PostProcessing.h"
 #include "PixelShaderUtils.h"
 #include "RayTracingDefinitions.h"
 #include "RayTracingInstance.h"
@@ -24,11 +25,116 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousLightingCacheBoundsCulling(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousLightingLiveShadingScreenTileClassification(
+	TEXT("r.HeterogeneousVolumes.LiveShading.ScreenTileClassification"),
+	0,
+	TEXT("Enables screen tile classification for increased occupancy (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesSupportOverlappingVolumes(
+	TEXT("r.HeterogeneousVolumes.SupportOverlappingVolumes"),
+	0,
+	TEXT("Enables support for overlapping volumes (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesUseExistenceMask(
+	TEXT("r.HeterogeneousVolumes.UseExistenceMask"),
+	1,
+	TEXT("Creates an evaluation mask which culls operations to the areas with non-zero extinction (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowsUseCameraSceneDepth(
+	TEXT("r.HeterogeneousVolumes.Shadows.UseCameraSceneDepth"),
+	0,
+	TEXT("Culls Camera AVSM by SceneDepth (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarHeterogeneousVolumesShadowsNearClippingDistance(
+	TEXT("r.HeterogeneousVolumes.Shadows.NearClippingDistance"),
+	1.0,
+	TEXT("Near clipping plane distance for shadow projection (Default = 1.0)"),
+	ECVF_RenderThreadSafe
+);
+
+#if 0
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesBilinearInterpolation(
+	TEXT("r.HeterogeneousVolumes.BilinearInterpolation"),
+	1,
+	TEXT("Enables bilinear interpolation when querying AVSM (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesAdaptiveMarching(
+	TEXT("r.HeterogeneousVolumes.AdaptiveMarching"),
+	0,
+	TEXT("Enables adaptive marching (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+#endif
+
 namespace HeterogeneousVolumes
 {
 	bool ShouldBoundsCull()
 	{
 		return CVarHeterogeneousLightingCacheBoundsCulling.GetValueOnRenderThread() != 0;
+	}
+
+	bool ShouldUseScreenTileClassification()
+	{
+		return CVarHeterogeneousLightingLiveShadingScreenTileClassification.GetValueOnRenderThread() != 0;
+	}
+
+	bool SupportsOverlappingVolumes()
+	{
+		return ShouldCompositeHeterogeneousVolumesWithTranslucency() &&
+			(CVarHeterogeneousVolumesSupportOverlappingVolumes.GetValueOnRenderThread() != 0);
+	}
+
+	bool UseExistenceMask()
+	{
+		return CVarHeterogeneousVolumesUseExistenceMask.GetValueOnRenderThread() != 0;
+	}
+#if 0
+	bool UseBilinearInterpolation()
+	{
+		return CVarHeterogeneousVolumesBilinearInterpolation.GetValueOnRenderThread() != 0;
+	}
+	bool ShouldAdaptiveMarch()
+	{
+		return CVarHeterogeneousVolumesAdaptiveMarching.GetValueOnRenderThread() != 0;
+	}
+#endif
+
+	bool ShadowsUseCameraSceneDepth()
+	{
+		return CVarHeterogeneousVolumesShadowsUseCameraSceneDepth.GetValueOnRenderThread() != 0;
+	}
+
+	float GetShadowNearClippingDistance()
+	{
+		return FMath::Max(CVarHeterogeneousVolumesShadowsNearClippingDistance.GetValueOnRenderThread(), 0.1);
+	}
+
+	enum class EAVSMSampleMode
+	{
+		Disabled,
+		Performance,
+		Quality
+	};
+
+	EAVSMSampleMode GetAVSMSampleMode(bool bEnabled)
+	{
+		EAVSMSampleMode SampleMode = EAVSMSampleMode::Disabled;
+		if (bEnabled)
+		{
+			SampleMode = HeterogeneousVolumes::GetShadowMaxSampleCount() > 16 ? EAVSMSampleMode::Quality : EAVSMSampleMode::Performance;
+		}
+
+		return SampleMode;
 	}
 }
 
@@ -111,8 +217,10 @@ class FRenderLightingCacheWithLiveShadingCS : public FMeshMaterialShader
 	DECLARE_SHADER_TYPE(FRenderLightingCacheWithLiveShadingCS, MeshMaterial);
 
 	class FLightingCacheMode : SHADER_PERMUTATION_INT("DIM_LIGHTING_CACHE_MODE", 2);
-	class FUseAdaptiveVolumetricShadowMap : SHADER_PERMUTATION_BOOL("DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP");
-	using FPermutationDomain = TShaderPermutationDomain<FLightingCacheMode, FUseAdaptiveVolumetricShadowMap>;
+	class FAVSMSampleMode : SHADER_PERMUTATION_INT("AVSM_SAMPLE_MODE", 3);
+	class FUseExistenceMask : SHADER_PERMUTATION_INT("USE_EXISTENCE_MASK", 2);
+	class FIsOfflineRender : SHADER_PERMUTATION_INT("IS_OFFLINE_RENDER", 2);
+	using FPermutationDomain = TShaderPermutationDomain<FLightingCacheMode, FAVSMSampleMode, FUseExistenceMask, FIsOfflineRender>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
@@ -151,12 +259,14 @@ class FRenderLightingCacheWithLiveShadingCS : public FMeshMaterialShader
 		SHADER_PARAMETER(float, StepFactor)
 		SHADER_PARAMETER(int, MaxStepCount)
 		SHADER_PARAMETER(int, bJitter)
+		SHADER_PARAMETER(int, StochasticFilteringMode)
 
 		// Volume data
 		SHADER_PARAMETER(FIntVector, VoxelResolution)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightingCacheParameters, LightingCache)
 		SHADER_PARAMETER(FIntVector, VoxelMin)
 		SHADER_PARAMETER(FIntVector, VoxelMax)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture3D<float>, ExistenceMaskTexture)
 
 		// Output
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWLightingCacheTexture)
@@ -226,26 +336,62 @@ class FRenderLightingCacheWithLiveShadingCS : public FMeshMaterialShader
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FRenderLightingCacheWithLiveShadingCS, TEXT("/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesLiveShadingPipeline.usf"), TEXT("RenderLightingCacheWithLiveShadingCS"), SF_Compute);
 
+namespace HeterogeneousVolumes
+{
+	struct FScreenTile
+	{
+		int32 Id;
+	};
+} // namespace
+
+namespace HeterogeneousVolumes {
+	enum EDispatchMode
+	{
+		DirectDispatch,
+		IndirectDispatch
+	};
+} // namespace HeterogeneousVolumes
+
+template <HeterogeneousVolumes::EDispatchMode DispatchMode>
 class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FRenderSingleScatteringWithLiveShadingCS, MeshMaterial);
 
-	class FUseTransmittanceVolume : SHADER_PERMUTATION_BOOL("DIM_USE_TRANSMITTANCE_VOLUME");
+	//class FUseTransmittanceVolume : SHADER_PERMUTATION_BOOL("DIM_USE_TRANSMITTANCE_VOLUME");
 	class FUseInscatteringVolume : SHADER_PERMUTATION_BOOL("DIM_USE_INSCATTERING_VOLUME");
 	class FUseLumenGI : SHADER_PERMUTATION_BOOL("DIM_USE_LUMEN_GI");
 	class FWriteVelocity : SHADER_PERMUTATION_BOOL("DIM_WRITE_VELOCITY");
-	class FUseAdaptiveVolumetricShadowMap : SHADER_PERMUTATION_BOOL("DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP");
+	class FAVSMSampleMode : SHADER_PERMUTATION_INT("AVSM_SAMPLE_MODE", 3);
+	class FSupportOverlappingVolumes : SHADER_PERMUTATION_BOOL("SUPPORT_OVERLAPPING_VOLUMES");
+	//class FAdaptiveMarch : SHADER_PERMUTATION_INT("ADAPTIVE_MARCH", 2);
+	//class FBilinearInterpolation : SHADER_PERMUTATION_INT("AVSM_BILINEAR_INTERPOLATION", 2);
+	class FIsOfflineRender : SHADER_PERMUTATION_INT("IS_OFFLINE_RENDER", 2);
 	class FApplyFogInscattering : SHADER_PERMUTATION_INT("APPLY_FOG_INSCATTERING", 3);
-	using FPermutationDomain = TShaderPermutationDomain<FUseTransmittanceVolume, FUseInscatteringVolume, FUseLumenGI, FWriteVelocity, FUseAdaptiveVolumetricShadowMap, FApplyFogInscattering>;
+	class FUseAnalyticDerivatives : SHADER_PERMUTATION_BOOL("USE_ANALYTIC_DERIVATIVES");
+	using FPermutationDomain = TShaderPermutationDomain<
+		//FUseTransmittanceVolume, 
+		FUseInscatteringVolume, 
+		FUseLumenGI, 
+		FWriteVelocity, 
+		FApplyFogInscattering, 
+		FAVSMSampleMode, 
+		FSupportOverlappingVolumes,
+		FIsOfflineRender,
+		FUseAnalyticDerivatives
+		//FBilinearInterpolation,
+		//FAdaptiveMarch
+	>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		// Light data
+		SHADER_PARAMETER(int, bHoldout)
 		SHADER_PARAMETER(int, bApplyEmissionAndTransmittance)
 		SHADER_PARAMETER(int, bApplyDirectLighting)
 		SHADER_PARAMETER(int, bApplyShadowTransmittance)
@@ -260,6 +406,8 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumeShadowingShaderParameters, VolumeShadowingShaderParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSamplingParameters, VirtualShadowMapSamplingParameters)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
+
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMaps, AVSMs)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 
 		// Atmosphere
@@ -281,18 +429,28 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 		SHADER_PARAMETER(FIntVector, VoxelResolution)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightingCacheParameters, LightingCache)
 
+		SHADER_PARAMETER(FIntVector, AmbientOcclusionResolution)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, AmbientOcclusionTexture)
+
 		// Ray data
 		SHADER_PARAMETER(float, MaxTraceDistance)
 		SHADER_PARAMETER(float, StepSize)
 		SHADER_PARAMETER(float, StepFactor)
 		SHADER_PARAMETER(int, MaxStepCount)
 		SHADER_PARAMETER(int, bJitter)
+		SHADER_PARAMETER(int, StochasticFilteringMode)
 
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
+		SHADER_PARAMETER(int32, DownsampleFactor)
+
+		// Optional indirect dispatch data
+		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<HeterogeneousVolumes::FScreenTile>, ScreenTileBuffer)
 
 		// Output
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWLightingTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWHoldoutTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWVelocityTexture)
 		//SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<Volumes::FDebugOutput>, RWDebugOutputBuffer)
 	END_SHADER_PARAMETER_STRUCT()
@@ -320,7 +478,7 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 	)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		if (PermutationVector.Get<FApplyFogInscattering>() == 0)
+		if (PermutationVector.template Get<FApplyFogInscattering>() == 0)
 		{
 			return false;
 		}
@@ -332,9 +490,9 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
 		// Remap Off to Stochastic and turn off individual fog modes
-		if (PermutationVector.Get<FApplyFogInscattering>() == 0)
+		if (PermutationVector.template Get<FApplyFogInscattering>() == 0)
 		{
-			PermutationVector.Set<FApplyFogInscattering>(2);
+			PermutationVector.template Set<FApplyFogInscattering>(2);
 		}
 
 		return PermutationVector;
@@ -370,9 +528,15 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 	LAYOUT_FIELD(FRenderLightingCacheLooseBindings, ShaderLooseBindings);
 };
 
-IMPLEMENT_MATERIAL_SHADER_TYPE(, FRenderSingleScatteringWithLiveShadingCS, TEXT("/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesLiveShadingPipeline.usf"), TEXT("RenderSingleScatteringWithLiveShadingCS"), SF_Compute);
+typedef FRenderSingleScatteringWithLiveShadingCS<HeterogeneousVolumes::DirectDispatch> FRenderSingleScatteringWithLiveShadingDirectCS;
+//typedef FRenderSingleScatteringWithLiveShadingCS<HeterogeneousVolumes::IndirectDispatch> FRenderSingleScatteringWithLiveShadingIndirectCS;
+typedef FRenderSingleScatteringWithLiveShadingCS<HeterogeneousVolumes::DirectDispatch> FRenderSingleScatteringWithLiveShadingIndirectCS;
 
-template<bool bWithLumen, typename ComputeShaderType>
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FRenderSingleScatteringWithLiveShadingDirectCS, TEXT("/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesLiveShadingPipeline.usf"), TEXT("RenderSingleScatteringWithLiveShadingCS"), SF_Compute);
+//IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FRenderSingleScatteringWithLiveShadingIndirectCS, TEXT("/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesLiveShadingPipeline.usf"), TEXT("RenderSingleScatteringWithLiveShadingIndirectCS"), SF_Compute);
+
+template<bool bWithLumen, HeterogeneousVolumes::EDispatchMode DispatchMode, typename ComputeShaderType>
 void AddComputePass(
 	FRDGBuilder& GraphBuilder,
 	TShaderRef<ComputeShaderType>& ComputeShader,
@@ -381,7 +545,9 @@ void AddComputePass(
 	const FMaterialRenderProxy* MaterialRenderProxy,
 	const FMaterial& Material,
 	const FString& PassName,
-	FIntVector GroupCount
+	FIntVector GroupCount,
+	FRDGBufferRef IndirectArgsBuffer,
+	uint32 IndirectArgOffset
 )
 {
 	//ClearUnusedGraphResources(ComputeShader, PassParameters);
@@ -390,7 +556,7 @@ void AddComputePass(
 		RDG_EVENT_NAME("%s", *PassName),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRHIComputeCommandList& RHICmdList)
+		[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount, IndirectArgsBuffer, IndirectArgOffset](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FMeshMaterialShaderElementData ShaderElementData;
 			ShaderElementData.InitializeMeshMaterialData();
@@ -414,7 +580,14 @@ void AddComputePass(
 				ShaderBindings.Finalize(&PassShaders);
 			}
 
-			UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+			if constexpr (DispatchMode == HeterogeneousVolumes::EDispatchMode::IndirectDispatch)
+			{
+				UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgOffset);
+			}
+			else
+			{
+				UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+			}
 		}
 	);
 }
@@ -423,7 +596,7 @@ static void RenderLightingCacheWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -454,6 +627,38 @@ static void RenderLightingCacheWithLiveShading(
 	TUniformBufferRef<FDeferredLightUniformStruct> DeferredLightUB = CreateUniformBufferImmediate(DeferredLightUniform, UniformBuffer_SingleDraw);
 	float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
 
+	FIntVector LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor);
+
+	FRDGTextureRef ExistenceMaskTexture = nullptr;
+	RenderExistenceMaskWithLiveShading(
+		GraphBuilder,
+		// Scene data
+		Scene,
+		View,
+		SceneTextures,
+		// Object data
+		HeterogeneousVolumeInterface,
+		DefaultMaterialRenderProxy,
+		PersistentPrimitiveIndex,
+		LocalBoxSphereBounds,
+		LightingCacheResolution,
+		// Output
+		ExistenceMaskTexture
+	);
+
+	FRDGTextureRef DilatedExistenceTexture;
+	DilateExistenceMask(
+		GraphBuilder,
+		// Scene data
+		Scene,
+		View,
+		// Existence texture data
+		ExistenceMaskTexture,
+		LightingCacheResolution,
+		// Output
+		DilatedExistenceTexture
+	);
+
 	FRenderLightingCacheWithLiveShadingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRenderLightingCacheWithLiveShadingCS::FParameters>();
 	{
 		// Scene data
@@ -462,7 +667,7 @@ static void RenderLightingCacheWithLiveShading(
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 
 		// Light data
-		check(LightSceneInfo != nullptr)
+		check(LightSceneInfo != nullptr);
 		PassParameters->bApplyEmissionAndTransmittance = bApplyEmissionAndTransmittance;
 		PassParameters->bApplyDirectLighting = bApplyDirectLighting;
 		PassParameters->bApplyShadowTransmittance = bApplyShadowTransmittance;
@@ -487,10 +692,11 @@ static void RenderLightingCacheWithLiveShading(
 
 		// Transmittance volume
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
-		PassParameters->LightingCache.LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor);
+		PassParameters->LightingCache.LightingCacheResolution = LightingCacheResolution;
 		PassParameters->LightingCache.LightingCacheVoxelBias = HeterogeneousVolumeInterface->GetShadowBiasFactor();
 		//PassParameters->LightingCache.LightingCacheTexture = GraphBuilder.CreateSRV(LightingCacheTexture);
 		PassParameters->LightingCache.LightingCacheTexture = FRDGSystemTextures::Get(GraphBuilder).VolumetricBlack;
+		PassParameters->ExistenceMaskTexture = GraphBuilder.CreateSRV(DilatedExistenceTexture);
 
 		// Ray data
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
@@ -501,6 +707,7 @@ static void RenderLightingCacheWithLiveShading(
 		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetMaxStepCount();
 		PassParameters->bJitter = HeterogeneousVolumes::ShouldJitter();
+		PassParameters->StochasticFilteringMode = static_cast<int32>(HeterogeneousVolumes::GetStochasticFilteringMode());
 
 		// Shadow data
 		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
@@ -523,7 +730,7 @@ static void RenderLightingCacheWithLiveShading(
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 			PassParameters->VirtualShadowMapId = -1;
 		}
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
 
 		// Output
@@ -590,9 +797,9 @@ static void RenderLightingCacheWithLiveShading(
 
 		FVector LocalLightMinUV = (LocalLightMin - LightingCacheMin) / (LightingCacheMax - LightingCacheMin);
 		FVector LocalLightMaxUV = (LocalLightMax - LightingCacheMin) / (LightingCacheMax - LightingCacheMin);
-		FVector LightingCacheResolution = FVector(PassParameters->LightingCache.LightingCacheResolution);
-		PassParameters->VoxelMin = ClampVector(FloorVector(LocalLightMinUV * LightingCacheResolution), FIntVector::ZeroValue, PassParameters->VoxelMax);
-		PassParameters->VoxelMax = ClampVector(CeilVector(LocalLightMaxUV * LightingCacheResolution), FIntVector::ZeroValue, PassParameters->VoxelMax);
+		FVector LightingCacheResolutionVector = FVector(PassParameters->LightingCache.LightingCacheResolution);
+		PassParameters->VoxelMin = ClampVector(FloorVector(LocalLightMinUV * LightingCacheResolutionVector), FIntVector::ZeroValue, PassParameters->VoxelMax);
+		PassParameters->VoxelMax = ClampVector(CeilVector(LocalLightMaxUV * LightingCacheResolutionVector), FIntVector::ZeroValue, PassParameters->VoxelMax);
 	}
 
 	FIntVector GroupCount = PassParameters->VoxelMax - PassParameters->VoxelMin + FIntVector(1);
@@ -605,19 +812,202 @@ static void RenderLightingCacheWithLiveShading(
 
 	FRenderLightingCacheWithLiveShadingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderLightingCacheWithLiveShadingCS::FLightingCacheMode>(HeterogeneousVolumes::GetLightingCacheMode() - 1);
-	PermutationVector.Set<FRenderLightingCacheWithLiveShadingCS::FUseAdaptiveVolumetricShadowMap>(bUseAVSM);
+	PermutationVector.Set<FRenderLightingCacheWithLiveShadingCS::FAVSMSampleMode>(static_cast<int32>(HeterogeneousVolumes::GetAVSMSampleMode(bUseAVSM)));
+	PermutationVector.Set<FRenderLightingCacheWithLiveShadingCS::FUseExistenceMask>(HeterogeneousVolumes::UseExistenceMask());
+	PermutationVector.Set<FRenderLightingCacheWithLiveShadingCS::FIsOfflineRender>(View.bIsOfflineRender);
 	TShaderRef<FRenderLightingCacheWithLiveShadingCS> ComputeShader = Material.GetShader<FRenderLightingCacheWithLiveShadingCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 	if (!ComputeShader.IsNull())
 	{
-		AddComputePass<false>(GraphBuilder, ComputeShader, PassParameters, Scene, MaterialRenderProxy, Material, PassName, GroupCount);
+		FRDGBufferRef IndirectArgsBuffer = GSystemTextures.GetDefaultBuffer(GraphBuilder, 4);
+		AddComputePass<false, HeterogeneousVolumes::EDispatchMode::DirectDispatch>(
+			GraphBuilder,
+			ComputeShader,
+			PassParameters,
+			Scene,
+			MaterialRenderProxy,
+			Material,
+			PassName,
+			GroupCount,
+			IndirectArgsBuffer,
+			0
+		);
 	}
 }
 
-static void RenderSingleScatteringWithLiveShading(
+IMPLEMENT_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMaps, "AVSMs");
+
+FAdaptiveVolumetricShadowMapParameters GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(
+	const TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters>& UniformBuffer
+)
+{
+	FAdaptiveVolumetricShadowMapParameters Parameters;
+	{
+		Parameters.NumShadowMatrices = UniformBuffer->GetParameters()->NumShadowMatrices;
+		for (int32 i = 0; i < Parameters.NumShadowMatrices; ++i)
+		{
+			Parameters.TranslatedWorldToShadow[i] = UniformBuffer->GetParameters()->TranslatedWorldToShadow[i];
+		}
+		Parameters.TranslatedWorldOrigin = UniformBuffer->GetParameters()->TranslatedWorldOrigin;
+		Parameters.TranslatedWorldPlane = UniformBuffer->GetParameters()->TranslatedWorldPlane;
+		Parameters.Resolution = UniformBuffer->GetParameters()->Resolution;
+		Parameters.MaxSampleCount = UniformBuffer->GetParameters()->MaxSampleCount;
+		Parameters.bIsEmpty = UniformBuffer->GetParameters()->bIsEmpty;
+		Parameters.bIsDirectionalLight = UniformBuffer->GetParameters()->bIsDirectionalLight;
+		Parameters.LinkedListBuffer = UniformBuffer->GetParameters()->LinkedListBuffer;
+		Parameters.IndirectionBuffer = UniformBuffer->GetParameters()->IndirectionBuffer;
+		Parameters.SampleBuffer = UniformBuffer->GetParameters()->SampleBuffer;
+	}
+
+	return Parameters;
+}
+
+TRDGUniformBufferRef<FAdaptiveVolumetricShadowMaps> CreateAdaptiveVolumetricShadowMapUniformBuffers(
+	FRDGBuilder& GraphBuilder,
+	FSceneViewState* ViewState,
+	const FLightSceneInfo* LightSceneInfo
+)
+{
+	FAdaptiveVolumetricShadowMaps* UniformBufferParameters = GraphBuilder.AllocParameters<FAdaptiveVolumetricShadowMaps>();
+	{
+		UniformBufferParameters->AVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, ViewState, LightSceneInfo));
+		UniformBufferParameters->CameraAVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(HeterogeneousVolumes::GetAdaptiveVolumetricCameraMapUniformBuffer(GraphBuilder, ViewState));
+	}
+
+	return GraphBuilder.CreateUniformBuffer(UniformBufferParameters);
+}
+
+class FScreenTileClassificationCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FScreenTileClassificationCS);
+	SHADER_USE_PARAMETER_STRUCT(FScreenTileClassificationCS, FGlobalShader);
+
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		// Scene data
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
+
+		// Object data
+		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
+		SHADER_PARAMETER(FMatrix44f, WorldToLocal)
+		SHADER_PARAMETER(FVector3f, LocalBoundsOrigin)
+		SHADER_PARAMETER(FVector3f, LocalBoundsExtent)
+
+		// Ray data
+		SHADER_PARAMETER(float, MaxTraceDistance)
+
+		// Dispatch data
+		SHADER_PARAMETER(FIntVector, GroupCount)
+		SHADER_PARAMETER(int32, DownsampleFactor)
+
+		// Output
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWNumScreenTilesBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<HeterogeneousVolumes::FScreenTile>, RWScreenTileBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(
+		const FGlobalShaderPermutationParameters& Parameters
+	)
+	{
+		return DoesPlatformSupportHeterogeneousVolumes(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(
+		const FGlobalShaderPermutationParameters& Parameters,
+		FShaderCompilerEnvironment& OutEnvironment
+	)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_1D"), GetThreadGroupSize1D());
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_2D"), GetThreadGroupSize2D());
+
+		// This shader takes a very long time to compile with FXC, so we pre-compile it with DXC first and then forward the optimized HLSL to FXC.
+		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+	}
+
+	static int32 GetThreadGroupSize1D() { return GetThreadGroupSize2D() * GetThreadGroupSize2D(); }
+	static int32 GetThreadGroupSize2D() { return 8; }
+};
+
+IMPLEMENT_GLOBAL_SHADER(FScreenTileClassificationCS, "/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesLiveShadingGlobalPipeline.usf", "ScreenTileClassificationCS", SF_Compute);
+
+static void ScreenTileClassification(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
 	const FScene* Scene,
 	const FViewInfo& View,
+	const FSceneTextures& SceneTextures,
+	// Object data
+	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
+	// Output
+	FRDGBufferRef& ScreenTileIndirectArgsBuffer,
+	FRDGBufferRef& ScreenTileBuffer
+)
+{
+	FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(HeterogeneousVolumes::GetScaledViewRect(View.ViewRect), FRenderSingleScatteringWithLiveShadingIndirectCS::GetThreadGroupSize2D());
+	int32 NumTiles = GroupCount.X * GroupCount.Y;
+
+	FRDGBufferRef NumScreenTilesBuffer = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1),
+		TEXT("HeterogeneousVolume.NumScreenTilesBuffer")
+	);
+	// TODO: Initialize elsewhere??
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(NumScreenTilesBuffer, PF_R32_UINT), 0);
+
+	ScreenTileBuffer = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateStructuredDesc(sizeof(HeterogeneousVolumes::FScreenTile), NumTiles),
+		TEXT("HeterogeneousVolume.ScreenTileBuffer")
+	);
+
+	FScreenTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenTileClassificationCS::FParameters>();
+	{
+		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
+
+		// Object data
+		// TODO: Convert to relative-local space
+		//FVector3f ViewOriginHigh = FDFVector3(View.ViewMatrices.GetViewOrigin()).High;
+		//FMatrix44f RelativeLocalToWorld = FDFMatrix::MakeToRelativeWorldMatrix(ViewOriginHigh, HeterogeneousVolumeInterface->GetLocalToWorld()).M;
+		FMatrix InstanceToLocal = HeterogeneousVolumeInterface->GetInstanceToLocal();
+		FMatrix LocalToWorld = HeterogeneousVolumeInterface->GetLocalToWorld();
+		PassParameters->LocalToWorld = FMatrix44f(InstanceToLocal * LocalToWorld);
+		PassParameters->WorldToLocal = PassParameters->LocalToWorld.Inverse();
+
+		FMatrix LocalToInstance = InstanceToLocal.Inverse();
+		FBoxSphereBounds InstanceBoxSphereBounds = HeterogeneousVolumeInterface->GetLocalBounds().TransformBy(LocalToInstance);
+		PassParameters->LocalBoundsOrigin = FVector3f(InstanceBoxSphereBounds.Origin);
+		PassParameters->LocalBoundsExtent = FVector3f(InstanceBoxSphereBounds.BoxExtent);
+
+		// Ray data
+		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
+
+		// Dispatch data
+		PassParameters->GroupCount = GroupCount;
+		PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
+
+		PassParameters->RWNumScreenTilesBuffer = GraphBuilder.CreateUAV(NumScreenTilesBuffer, PF_R32_UINT);
+		PassParameters->RWScreenTileBuffer = GraphBuilder.CreateUAV(ScreenTileBuffer);
+	}
+
+	FScreenTileClassificationCS::FPermutationDomain PermutationVector;
+	TShaderRef<FScreenTileClassificationCS> ComputeShader = View.ShaderMap->GetShader<FScreenTileClassificationCS>(PermutationVector);
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("ScreenTileClassificationCS"),
+		ComputeShader,
+		PassParameters,
+		GroupCount
+	);
+
+	ScreenTileIndirectArgsBuffer = NumScreenTilesBuffer;
+}
+
+template <HeterogeneousVolumes::EDispatchMode DispatchMode>
+void RenderSingleScatteringWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View, int32 ViewIndex,
 	const FSceneTextures& SceneTextures,
 	// Light data
 	bool bApplyEmissionAndTransmittance,
@@ -635,18 +1025,35 @@ static void RenderSingleScatteringWithLiveShading(
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	FRDGTextureRef AmbientOcclusionTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeTexture
+	FRDGTextureRef& HeterogeneousVolumeRadianceTexture,
+	FRDGTextureRef& HeterogeneousVolumeHoldoutTexture
 )
 {
+	typedef FRenderSingleScatteringWithLiveShadingCS<DispatchMode> FRenderSingleScatteringWithLiveShadingDispatchTypeCS;
+
 	const FMaterialRenderProxy* MaterialRenderProxy = nullptr;
 	const FMaterial& Material = DefaultMaterialRenderProxy->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialRenderProxy);
 	MaterialRenderProxy = MaterialRenderProxy ? MaterialRenderProxy : DefaultMaterialRenderProxy;
 	check(Material.GetMaterialDomain() == MD_Volume);
 
-	uint32 GroupCountX = FMath::DivideAndRoundUp(View.ViewRect.Size().X, FRenderSingleScatteringWithLiveShadingCS::GetThreadGroupSize2D());
-	uint32 GroupCountY = FMath::DivideAndRoundUp(View.ViewRect.Size().Y, FRenderSingleScatteringWithLiveShadingCS::GetThreadGroupSize2D());
-	FIntVector GroupCount = FIntVector(GroupCountX, GroupCountY, 1);
+	FRDGBufferRef NumScreenTilesBuffer;
+	FRDGBufferRef ScreenTileBuffer;
+	if (DispatchMode == HeterogeneousVolumes::IndirectDispatch)
+	{
+		ScreenTileClassification(
+			GraphBuilder,
+			Scene,
+			View,
+			SceneTextures,
+			HeterogeneousVolumeInterface,
+			NumScreenTilesBuffer,
+			ScreenTileBuffer
+		);
+	}
+
+	FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(HeterogeneousVolumes::GetScaledViewRect(View.ViewRect), FRenderSingleScatteringWithLiveShadingDispatchTypeCS::GetThreadGroupSize2D());
 
 	// Note must be done in the same scope as we add the pass otherwise the UB lifetime will not be guaranteed
 	FDeferredLightUniformStruct DeferredLightUniform;
@@ -656,18 +1063,21 @@ static void RenderSingleScatteringWithLiveShading(
 	}
 	TUniformBufferRef<FDeferredLightUniformStruct> DeferredLightUB = CreateUniformBufferImmediate(DeferredLightUniform, UniformBuffer_SingleDraw);
 
+	bool bUseAVSM = HeterogeneousVolumes::UseAdaptiveVolumetricShadowMapForSelfShadowing(HeterogeneousVolumeInterface->GetPrimitiveSceneProxy());
 	bool bWriteVelocity = HeterogeneousVolumes::ShouldWriteVelocity() && HasBeenProduced(SceneTextures.Velocity);
-	FRenderSingleScatteringWithLiveShadingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRenderSingleScatteringWithLiveShadingCS::FParameters>();
+	typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FParameters>();
 	{
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 		// Light data
 		float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
+		PassParameters->bHoldout = HeterogeneousVolumes::IsHoldout(HeterogeneousVolumeInterface);
 		PassParameters->bApplyEmissionAndTransmittance = bApplyEmissionAndTransmittance;
 		PassParameters->bApplyDirectLighting = bApplyDirectLighting;
 		PassParameters->bApplyShadowTransmittance = bApplyShadowTransmittance;
@@ -708,6 +1118,7 @@ static void RenderSingleScatteringWithLiveShading(
 		PassParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor() * LODFactor;
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetMaxStepCount();
 		PassParameters->bJitter = HeterogeneousVolumes::ShouldJitter();
+		PassParameters->StochasticFilteringMode = static_cast<int32>(HeterogeneousVolumes::GetStochasticFilteringMode());
 
 		// Shadow data
 		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
@@ -729,8 +1140,15 @@ static void RenderSingleScatteringWithLiveShading(
 		{
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 		}
-		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
-		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
+		if (HeterogeneousVolumes::SupportsOverlappingVolumes())
+		{
+			PassParameters->AVSMs = CreateAdaptiveVolumetricShadowMapUniformBuffers(GraphBuilder, View.ViewState, LightSceneInfo);
+		}
+		else
+		{
+			PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
+		}
 
 		TRDGUniformBufferRef<FFogUniformParameters> FogBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 		PassParameters->FogStruct = FogBuffer;
@@ -757,16 +1175,37 @@ static void RenderSingleScatteringWithLiveShading(
 		}
 		else
 		{
-			PassParameters->LightingCache.LightingCacheResolution = FIntVector::ZeroValue;
-			PassParameters->LightingCache.LightingCacheVoxelBias = 0.0f;
+			if (bUseAVSM)
+			{
+				PassParameters->LightingCache.LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor);
+				PassParameters->LightingCache.LightingCacheVoxelBias = HeterogeneousVolumeInterface->GetShadowBiasFactor();
+			}
+			else
+			{
+				PassParameters->LightingCache.LightingCacheResolution = FIntVector::ZeroValue;
+				PassParameters->LightingCache.LightingCacheVoxelBias = 0.0f;
+			}
 			PassParameters->LightingCache.LightingCacheTexture = FRDGSystemTextures::Get(GraphBuilder).VolumetricBlack;
 		}
 
+		PassParameters->AmbientOcclusionResolution = HeterogeneousVolumes::GetAmbientOcclusionResolution(HeterogeneousVolumeInterface, LODFactor);
+		PassParameters->AmbientOcclusionTexture = AmbientOcclusionTexture;
+
 		// Dispatch data
 		PassParameters->GroupCount = GroupCount;
+		PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
+		if (DispatchMode == HeterogeneousVolumes::IndirectDispatch)
+		{
+			PassParameters->IndirectArgs = NumScreenTilesBuffer;
+			PassParameters->ScreenTileBuffer = GraphBuilder.CreateSRV(ScreenTileBuffer);
+		}
 
 		// Output
-		PassParameters->RWLightingTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeTexture);
+		PassParameters->RWLightingTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeRadianceTexture);
+		if (IsPrimitiveAlphaHoldoutEnabled(GetFeatureLevelShadingPath(View.GetFeatureLevel())))
+		{
+			PassParameters->RWHoldoutTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeHoldoutTexture);
+		}
 		if (bWriteVelocity)
 		{
 			PassParameters->RWVelocityTexture = GraphBuilder.CreateUAV(SceneTextures.Velocity);
@@ -787,20 +1226,23 @@ static void RenderSingleScatteringWithLiveShading(
 	}
 #endif // WANTS_DRAW_MESH_EVENTS
 
-	bool bUseAVSM = HeterogeneousVolumes::UseAdaptiveVolumetricShadowMapForSelfShadowing(HeterogeneousVolumeInterface->GetPrimitiveSceneProxy());
-
-	FRenderSingleScatteringWithLiveShadingCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FUseTransmittanceVolume>(HeterogeneousVolumes::UseLightingCacheForTransmittance() && PassParameters->bApplyShadowTransmittance);
-	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FUseInscatteringVolume>(HeterogeneousVolumes::UseLightingCacheForInscattering());
-	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FUseLumenGI>(HeterogeneousVolumes::UseIndirectLighting() && View.GetLumenTranslucencyGIVolume().Texture0 != nullptr);
-	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FWriteVelocity>(bWriteVelocity);
-	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FUseAdaptiveVolumetricShadowMap>(bUseAVSM);
-	PermutationVector.Set<FRenderSingleScatteringWithLiveShadingCS::FApplyFogInscattering>(static_cast<int32>(HeterogeneousVolumes::GetApplyFogInscattering()));
-	PermutationVector = FRenderSingleScatteringWithLiveShadingCS::RemapPermutation(PermutationVector);
-	TShaderRef<FRenderSingleScatteringWithLiveShadingCS> ComputeShader = Material.GetShader<FRenderSingleScatteringWithLiveShadingCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+	typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FPermutationDomain PermutationVector;
+	//PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FUseTransmittanceVolume>(HeterogeneousVolumes::UseLightingCacheForTransmittance() && PassParameters->bApplyShadowTransmittance);
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FUseInscatteringVolume>(HeterogeneousVolumes::UseLightingCacheForInscattering());
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FUseLumenGI>(HeterogeneousVolumes::UseIndirectLighting() && View.GetLumenTranslucencyGIVolume().Texture0 != nullptr);
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FWriteVelocity>(bWriteVelocity);
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FAVSMSampleMode>(static_cast<int32>(HeterogeneousVolumes::GetAVSMSampleMode(bUseAVSM)));
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FSupportOverlappingVolumes>(HeterogeneousVolumes::SupportsOverlappingVolumes());
+	//PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FBilinearInterpolation>(static_cast<int32>(HeterogeneousVolumes::UseBilinearInterpolation()));
+	//PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FAdaptiveMarch>(static_cast<int32>(HeterogeneousVolumes::ShouldAdaptiveMarch()));
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FIsOfflineRender>(View.bIsOfflineRender);
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FApplyFogInscattering>(static_cast<int32>(HeterogeneousVolumes::GetApplyFogInscattering()));
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FUseAnalyticDerivatives>(HeterogeneousVolumes::UseAnalyticDerivatives());
+	PermutationVector = FRenderSingleScatteringWithLiveShadingDispatchTypeCS::RemapPermutation(PermutationVector);
+	TShaderRef<FRenderSingleScatteringWithLiveShadingDispatchTypeCS> ComputeShader = Material.GetShader<FRenderSingleScatteringWithLiveShadingDispatchTypeCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 	if (!ComputeShader.IsNull())
 	{
-		AddComputePass<true>(GraphBuilder, ComputeShader, PassParameters, Scene, MaterialRenderProxy, Material, PassName, GroupCount);
+		AddComputePass<true, DispatchMode>(GraphBuilder, ComputeShader, PassParameters, Scene, MaterialRenderProxy, Material, PassName, GroupCount, PassParameters->IndirectArgs, 0);
 	}
 }
 
@@ -808,7 +1250,7 @@ static void RenderWithTransmittanceVolumePipeline(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -819,8 +1261,10 @@ static void RenderWithTransmittanceVolumePipeline(
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	FRDGTextureRef AmbientOcclusionTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 )
 {
 	// Light culling
@@ -865,7 +1309,7 @@ static void RenderWithTransmittanceVolumePipeline(
 				GraphBuilder,
 				// Scene data
 				Scene,
-				View,
+				View, ViewIndex,
 				SceneTextures,
 				// Light data
 				bApplyEmissionAndTransmittance,
@@ -885,32 +1329,68 @@ static void RenderWithTransmittanceVolumePipeline(
 				LightingCacheTexture
 			);
 		}
-
-		RenderSingleScatteringWithLiveShading(
-			GraphBuilder,
-			// Scene data
-			Scene,
-			View,
-			SceneTextures,
-			// Light data
-			bApplyEmissionAndTransmittance,
-			bApplyDirectLighting,
-			bApplyShadowTransmittance,
-			LightType,
-			LightSceneInfo,
-			// Shadow data
-			VisibleLightInfo,
-			VirtualShadowMapArray,
-			// Object data
-			HeterogeneousVolumeInterface,
-			MaterialRenderProxy,
-			PersistentPrimitiveIndex,
-			LocalBoxSphereBounds,
-			// Transmittance acceleration
-			LightingCacheTexture,
-			// Output
-			HeterogeneousVolumeRadiance
-		);
+#if 0
+		if (HeterogeneousVolumes::ShouldUseScreenTileClassification())
+		{
+			RenderSingleScatteringWithLiveShading<HeterogeneousVolumes::IndirectDispatch>(
+				GraphBuilder,
+				// Scene data
+				Scene,
+				View, ViewIndex,
+				SceneTextures,
+				// Light data
+				bApplyEmissionAndTransmittance,
+				bApplyDirectLighting,
+				bApplyShadowTransmittance,
+				LightType,
+				LightSceneInfo,
+				// Shadow data
+				VisibleLightInfo,
+				VirtualShadowMapArray,
+				// Object data
+				HeterogeneousVolumeInterface,
+				MaterialRenderProxy,
+				PersistentPrimitiveIndex,
+				LocalBoxSphereBounds,
+				// Transmittance acceleration
+				LightingCacheTexture,
+				AmbientOcclusionTexture,
+				// Output
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
+			);
+		}
+		else
+#endif
+		{
+			RenderSingleScatteringWithLiveShading<HeterogeneousVolumes::DirectDispatch>(
+				GraphBuilder,
+				// Scene data
+				Scene,
+				View, ViewIndex,
+				SceneTextures,
+				// Light data
+				bApplyEmissionAndTransmittance,
+				bApplyDirectLighting,
+				bApplyShadowTransmittance,
+				LightType,
+				LightSceneInfo,
+				// Shadow data
+				VisibleLightInfo,
+				VirtualShadowMapArray,
+				// Object data
+				HeterogeneousVolumeInterface,
+				MaterialRenderProxy,
+				PersistentPrimitiveIndex,
+				LocalBoxSphereBounds,
+				// Transmittance acceleration
+				LightingCacheTexture,
+				AmbientOcclusionTexture,
+				// Output
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
+			);
+		}
 	}
 }
 
@@ -918,7 +1398,7 @@ static void RenderWithInscatteringVolumePipeline(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -929,68 +1409,74 @@ static void RenderWithInscatteringVolumePipeline(
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	FRDGTextureRef AmbientOcclusionTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 )
 {
-	// Light culling
-	TArray<FLightSceneInfoCompact, TInlineAllocator<64>> LightSceneInfoCompact;
-	for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
+	bool bRenderLightingCache = !HeterogeneousVolumes::IsHoldout(HeterogeneousVolumeInterface);
+	if (bRenderLightingCache)
 	{
-		if (LightIt->AffectsPrimitive(HeterogeneousVolumeInterface->GetBounds(), HeterogeneousVolumeInterface->GetPrimitiveSceneProxy()))
+		// Light culling
+		TArray<FLightSceneInfoCompact, TInlineAllocator<64>> LightSceneInfoCompact;
+		for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
 		{
-			LightSceneInfoCompact.Add(*LightIt);
-		}
-	}
-
-	// Light loop:
-	int32 NumPasses = LightSceneInfoCompact.Num();
-	for (int32 PassIndex = 0; PassIndex < NumPasses; ++PassIndex)
-	{
-		bool bApplyEmissionAndTransmittance = (PassIndex == (NumPasses - 1));
-		bool bApplyDirectLighting = !LightSceneInfoCompact.IsEmpty();
-		bool bApplyShadowTransmittance = false;
-
-		uint32 LightType = 0;
-		FLightSceneInfo* LightSceneInfo = nullptr;
-		const FVisibleLightInfo* VisibleLightInfo = nullptr;
-		if (bApplyDirectLighting)
-		{
-			LightType = LightSceneInfoCompact[PassIndex].LightType;
-			LightSceneInfo = LightSceneInfoCompact[PassIndex].LightSceneInfo;
-			check(LightSceneInfo != nullptr);
-
-			bApplyDirectLighting = (LightSceneInfo != nullptr);
-			if (LightSceneInfo)
+			if (LightIt->AffectsPrimitive(HeterogeneousVolumeInterface->GetBounds(), HeterogeneousVolumeInterface->GetPrimitiveSceneProxy()))
 			{
-				VisibleLightInfo = &VisibleLightInfos[LightSceneInfo->Id];
-				bApplyShadowTransmittance = LightSceneInfo->Proxy->CastsVolumetricShadow();
+				LightSceneInfoCompact.Add(*LightIt);
 			}
 		}
 
-		RenderLightingCacheWithLiveShading(
-			GraphBuilder,
-			// Scene data
-			Scene,
-			View,
-			SceneTextures,
-			// Light data
-			bApplyEmissionAndTransmittance,
-			bApplyDirectLighting,
-			bApplyShadowTransmittance,
-			LightType,
-			LightSceneInfo,
-			// Shadow data
-			VisibleLightInfo,
-			VirtualShadowMapArray,
-			// Object data
-			HeterogeneousVolumeInterface,
-			MaterialRenderProxy,
-			PersistentPrimitiveIndex,
-			LocalBoxSphereBounds,
-			// Output
-			LightingCacheTexture
-		);
+		// Light loop:
+		int32 NumPasses = LightSceneInfoCompact.Num();
+		for (int32 PassIndex = 0; PassIndex < NumPasses; ++PassIndex)
+		{
+			bool bApplyEmissionAndTransmittance = (PassIndex == (NumPasses - 1));
+			bool bApplyDirectLighting = !LightSceneInfoCompact.IsEmpty();
+			bool bApplyShadowTransmittance = false;
+
+			uint32 LightType = 0;
+			FLightSceneInfo* LightSceneInfo = nullptr;
+			const FVisibleLightInfo* VisibleLightInfo = nullptr;
+			if (bApplyDirectLighting)
+			{
+				LightType = LightSceneInfoCompact[PassIndex].LightType;
+				LightSceneInfo = LightSceneInfoCompact[PassIndex].LightSceneInfo;
+				check(LightSceneInfo != nullptr);
+
+				bApplyDirectLighting = (LightSceneInfo != nullptr);
+				if (LightSceneInfo)
+				{
+					VisibleLightInfo = &VisibleLightInfos[LightSceneInfo->Id];
+					bApplyShadowTransmittance = LightSceneInfo->Proxy->CastsVolumetricShadow();
+				}
+			}
+
+			RenderLightingCacheWithLiveShading(
+				GraphBuilder,
+				// Scene data
+				Scene,
+				View, ViewIndex,
+				SceneTextures,
+				// Light data
+				bApplyEmissionAndTransmittance,
+				bApplyDirectLighting,
+				bApplyShadowTransmittance,
+				LightType,
+				LightSceneInfo,
+				// Shadow data
+				VisibleLightInfo,
+				VirtualShadowMapArray,
+				// Object data
+				HeterogeneousVolumeInterface,
+				MaterialRenderProxy,
+				PersistentPrimitiveIndex,
+				LocalBoxSphereBounds,
+				// Output
+				LightingCacheTexture
+			);
+		}
 	}
 
 	// Direct volume integrator
@@ -1002,32 +1488,68 @@ static void RenderWithInscatteringVolumePipeline(
 		uint32 LightType = 0;
 		FLightSceneInfo* LightSceneInfo = nullptr;
 		const FVisibleLightInfo* VisibleLightInfo = nullptr;
-
-		RenderSingleScatteringWithLiveShading(
-			GraphBuilder,
-			// Scene data
-			Scene,
-			View,
-			SceneTextures,
-			// Light data
-			bApplyEmissionAndTransmittance,
-			bApplyDirectLighting,
-			bApplyShadowTransmittance,
-			LightType,
-			LightSceneInfo,
-			// Shadow data
-			VisibleLightInfo,
-			VirtualShadowMapArray,
-			// Object data
-			HeterogeneousVolumeInterface,
-			MaterialRenderProxy,
-			PersistentPrimitiveIndex,
-			LocalBoxSphereBounds,
-			// Transmittance acceleration
-			LightingCacheTexture,
-			// Output
-			HeterogeneousVolumeRadiance
-		);
+#if 0
+		if (HeterogeneousVolumes::ShouldUseScreenTileClassification())
+		{
+			RenderSingleScatteringWithLiveShading<HeterogeneousVolumes::IndirectDispatch>(
+				GraphBuilder,
+				// Scene data
+				Scene,
+				View, ViewIndex,
+				SceneTextures,
+				// Light data
+				bApplyEmissionAndTransmittance,
+				bApplyDirectLighting,
+				bApplyShadowTransmittance,
+				LightType,
+				LightSceneInfo,
+				// Shadow data
+				VisibleLightInfo,
+				VirtualShadowMapArray,
+				// Object data
+				HeterogeneousVolumeInterface,
+				MaterialRenderProxy,
+				PersistentPrimitiveIndex,
+				LocalBoxSphereBounds,
+				// Transmittance acceleration
+				LightingCacheTexture,
+				AmbientOcclusionTexture,
+				// Output
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
+			);
+		}
+		else
+#endif
+		{
+			RenderSingleScatteringWithLiveShading<HeterogeneousVolumes::DirectDispatch>(
+				GraphBuilder,
+				// Scene data
+				Scene,
+				View, ViewIndex,
+				SceneTextures,
+				// Light data
+				bApplyEmissionAndTransmittance,
+				bApplyDirectLighting,
+				bApplyShadowTransmittance,
+				LightType,
+				LightSceneInfo,
+				// Shadow data
+				VisibleLightInfo,
+				VirtualShadowMapArray,
+				// Object data
+				HeterogeneousVolumeInterface,
+				MaterialRenderProxy,
+				PersistentPrimitiveIndex,
+				LocalBoxSphereBounds,
+				// Transmittance acceleration
+				LightingCacheTexture,
+				AmbientOcclusionTexture,
+				// Output
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
+			);
+		}
 	}
 }
 
@@ -1035,7 +1557,7 @@ void RenderWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FScene* Scene,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	// Shadow data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
 	const FVirtualShadowMapArray& VirtualShadowMapArray,
@@ -1047,16 +1569,33 @@ void RenderWithLiveShading(
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 )
 {
+	FRDGTextureRef AmbientOcclusionTexture;
+	RenderAmbientOcclusionWithLiveShading(
+		GraphBuilder,
+		// Scene data
+		Scene,
+		View,
+		SceneTextures,
+		// Object data
+		HeterogeneousVolumeInterface,
+		MaterialRenderProxy,
+		PersistentPrimitiveIndex,
+		LocalBoxSphereBounds,
+		// Output
+		AmbientOcclusionTexture
+	);
+
 	if (HeterogeneousVolumes::UseLightingCacheForInscattering())
 	{
 		RenderWithInscatteringVolumePipeline(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1067,8 +1606,10 @@ void RenderWithLiveShading(
 			LocalBoxSphereBounds,
 			// Transmittance acceleration
 			LightingCacheTexture,
+			AmbientOcclusionTexture,
 			// Output
-			HeterogeneousVolumeRadiance
+			HeterogeneousVolumeRadiance,
+			HeterogeneousVolumeHoldout
 		);
 	}
 	else
@@ -1077,7 +1618,7 @@ void RenderWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			View,
+			View, ViewIndex,
 			// Shadow data
 			VisibleLightInfos,
 			VirtualShadowMapArray,
@@ -1088,24 +1629,54 @@ void RenderWithLiveShading(
 			LocalBoxSphereBounds,
 			// Transmittance acceleration
 			LightingCacheTexture,
+			AmbientOcclusionTexture,
 			// Output
-			HeterogeneousVolumeRadiance
+			HeterogeneousVolumeRadiance,
+			HeterogeneousVolumeHoldout
 		);
 	}
 }
+
+class FRenderShadowMapLooseBindings
+{
+	DECLARE_TYPE_LAYOUT(FRenderShadowMapLooseBindings, NonVirtual);
+
+public:
+	void Bind(const FShaderParameterMap& ParameterMap)
+	{
+		SceneDepthTextureBinding.Bind(ParameterMap, TEXT("SceneDepthTexture"));
+	}
+
+	template<typename TPassParameters>
+	void SetParameters(FMeshDrawSingleShaderBindings& ShaderBindings, const TPassParameters* PassParameters)
+	{
+		ShaderBindings.AddTexture(
+			SceneDepthTextureBinding,
+			FShaderResourceParameter(),
+			TStaticSamplerState<SF_Point>::GetRHI(),
+			PassParameters->SceneTextures.SceneDepthTexture->GetRHI()
+		);
+	}
+
+	LAYOUT_FIELD(FShaderResourceParameter, SceneDepthTextureBinding);
+};
+IMPLEMENT_TYPE_LAYOUT(FRenderShadowMapLooseBindings);
 
 class FRenderVolumetricShadowMapForLightWithLiveShadingCS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FRenderVolumetricShadowMapForLightWithLiveShadingCS, MeshMaterial);
 
 	class FUseAVSMCompression : SHADER_PERMUTATION_BOOL("USE_AVSM_COMPRESSION");
-	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression>;
+	class FUseCameraSceneDepth : SHADER_PERMUTATION_BOOL("USE_CAMERA_SCENE_DEPTH");
+	class FUseAnalyticDerivatives : SHADER_PERMUTATION_BOOL("USE_ANALYTIC_DERIVATIVES");
+	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression, FUseCameraSceneDepth, FUseAnalyticDerivatives>;
 
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		// Volumetric Shadow Map data
@@ -1138,6 +1709,7 @@ class FRenderVolumetricShadowMapForLightWithLiveShadingCS : public FMeshMaterial
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
 		SHADER_PARAMETER(int, ShadowDebugTweak)
+		SHADER_PARAMETER(int, CameraDownsampleFactor)
 
 		// Output
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, RWVolumetricShadowLinkedListAllocatorBuffer)
@@ -1200,7 +1772,7 @@ class FRenderVolumetricShadowMapForLightWithLiveShadingCS : public FMeshMaterial
 	static int32 GetThreadGroupSize2D() { return 8; }
 	static int32 GetThreadGroupSize3D() { return 4; }
 
-	LAYOUT_FIELD(FRenderLightingCacheLooseBindings, ShaderLooseBindings);
+	LAYOUT_FIELD(FRenderShadowMapLooseBindings, ShaderLooseBindings);
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FRenderVolumetricShadowMapForLightWithLiveShadingCS, TEXT("/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesLiveShadingShadows.usf"), TEXT("RenderVolumetricShadowMapForLightWithLiveShadingCS"), SF_Compute);
@@ -1267,6 +1839,7 @@ void CollectHeterogeneousVolumeMeshBatchesForLight(
 				for (int32 MeshBatchIndex = 0; MeshBatchIndex < MeshBatches.Num(); ++MeshBatchIndex)
 				{
 					const FMeshBatchAndRelevance& MeshBatch = MeshBatches[MeshBatchIndex];
+					check(MeshBatch.PrimitiveSceneProxy);
 					bool bIsShadowCast = MeshBatch.PrimitiveSceneProxy->IsShadowCast(ProjectedShadowInfo->ShadowDepthView);
 
 					// TODO: Is material determiniation too expensive?
@@ -1292,19 +1865,20 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	uint32 LightType,
 	const FLightSceneInfo* LightSceneInfo,
 	const FVisibleLightInfo* VisibleLightInfo,
 	// Shadow data
+	HeterogeneousVolumes::FLODInfo LODInfo,
 	const FVector3f& TranslatedWorldOrigin,
 	int32 NumShadowMatrices,
 	FMatrix44f* TranslatedWorldToShadow,
 	FMatrix44f* ShadowToTranslatedWorld,
 	FIntPoint ShadowMapResolution,
 	uint32 MaxSampleCount,
+	bool bUseCameraSceneDepth,
 	// Volume
 	const FVolumetricMeshBatch& VolumetricMeshBatch,
 	// Dispatch
@@ -1336,6 +1910,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		// Scene data
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures);
+		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
@@ -1374,7 +1949,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
 
 		// Ray Data
-		float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
+		float LODFactor = HeterogeneousVolumes::CalcLODFactor(LODInfo, HeterogeneousVolumeInterface);
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetShadowStepSize();
 		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
@@ -1385,6 +1960,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		PassParameters->GroupCount = GroupCount;
 		//PassParameters->ShadowDebugTweak = CVarHeterogeneousVolumesShadowDebugTweak.GetValueOnRenderThread();
 		PassParameters->ShadowDebugTweak = 0;
+		PassParameters->CameraDownsampleFactor = HeterogeneousVolumes::GetCameraDownsampleFactor();
 
 		// Output
 		PassParameters->RWVolumetricShadowLinkedListAllocatorBuffer = GraphBuilder.CreateUAV(VolumetricShadowLinkedListAllocatorBuffer, PF_R32_UINT);
@@ -1408,6 +1984,8 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 
 	FRenderVolumetricShadowMapForLightWithLiveShadingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithLiveShadingCS::FUseAVSMCompression>(HeterogeneousVolumes::UseAVSMCompression());
+	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithLiveShadingCS::FUseCameraSceneDepth>(bUseCameraSceneDepth && HeterogeneousVolumes::ShadowsUseCameraSceneDepth());
+	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithLiveShadingCS::FUseAnalyticDerivatives>(HeterogeneousVolumes::UseAnalyticDerivatives());
 	TShaderRef<FRenderVolumetricShadowMapForLightWithLiveShadingCS> ComputeShader = Material.GetShader<FRenderVolumetricShadowMapForLightWithLiveShadingCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 	if (!ComputeShader.IsNull())
 	{
@@ -1415,35 +1993,24 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 			RDG_EVENT_NAME("%s", *PassName),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRHIComputeCommandList& RHICmdList)
+			[ComputeShader, PassParameters, Scene, MaterialRenderProxy, &Material, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 			{
-#if 1
-				FMeshDrawShaderBindings ShaderBindings;
-		UE::MeshPassUtils::SetupComputeBindings(ComputeShader, Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
-#else
 				FMeshMaterialShaderElementData ShaderElementData;
-		ShaderElementData.InitializeMeshMaterialData();
+				ShaderElementData.InitializeMeshMaterialData();
 
-		FMeshProcessorShaders PassShaders;
-		PassShaders.ComputeShader = ComputeShader;
+				FMeshProcessorShaders PassShaders;
+				PassShaders.ComputeShader = ComputeShader;
 
-		FMeshDrawShaderBindings ShaderBindings;
-		ShaderBindings.Initialize(PassShaders);
-		{
-			FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute);
-			ComputeShader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderElementData, SingleShaderBindings);
-			//ComputeShader->ShaderLooseBindings.SetParameters(SingleShaderBindings, PassParameters);
-			SingleShaderBindings.AddTexture(
-				ComputeShader->ShaderLooseBindings.SceneDepthTextureBinding,
-				FShaderResourceParameter(),
-				TStaticSamplerState<SF_Point>::GetRHI(),
-				PassParameters->SceneTextures.SceneDepthTexture->GetRHI()
-			);
-			ShaderBindings.Finalize(&PassShaders);
-		}
-#endif
+				FMeshDrawShaderBindings ShaderBindings;
+				ShaderBindings.Initialize(PassShaders);
+				{
+					FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute);
+					ComputeShader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderElementData, SingleShaderBindings);
+					ComputeShader->ShaderLooseBindings.SetParameters(SingleShaderBindings, PassParameters);
+					ShaderBindings.Finalize(&PassShaders);
+				}
 
-		UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+				UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
 			}
 		);
 	}
@@ -1456,7 +2023,6 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	uint32 LightType,
@@ -1498,20 +2064,6 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 		return false;
 	}
 
-	// Adjust shadow resolution based on minimum MipLevel
-	float LODValue = FMath::CeilLogTwo(ShadowMapResolution.X);
-	for (auto VolumetricMeshBatch : HeterogeneousVolumesMeshBatches)
-	{
-		int32 VolumeCount = VolumetricMeshBatch.Mesh->Elements.Num();
-		for (int32 VolumeIndex = 0; VolumeIndex < VolumeCount; ++VolumeIndex)
-		{
-			const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface = (IHeterogeneousVolumeInterface*)VolumetricMeshBatch.Mesh->Elements[VolumeIndex].UserData;
-			LODValue = FMath::Min(LODValue, HeterogeneousVolumes::CalcLOD(View, HeterogeneousVolumeInterface));
-		}
-	}
-	float LODFactor = HeterogeneousVolumes::CalcLODFactor(LODValue);
-	ShadowMapResolution /= LODFactor;
-
 	// Build shadow transform
 	NumShadowMatrices = ProjectedShadowInfo->OnePassShadowViewProjectionMatrices.Num();
 	FMatrix44f ShadowToTranslatedWorld[6];
@@ -1544,7 +2096,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			PI / 4.0f,
 			ShadowMapResolution.X,
 			ShadowMapResolution.Y,
-			1.0,
+			HeterogeneousVolumes::GetShadowNearClippingDistance(),
 			LightSceneInfo->Proxy->GetRadius()
 		);
 
@@ -1605,6 +2157,20 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 	float W = -FVector3f::DotProduct(TranslatedWorldOrigin, FVector3f(LightDirection));
 	TranslatedWorldPlane = FVector4f(LightDirection.X, LightDirection.Y, LightDirection.Z, W);
 
+	FVector PreViewTranslation = View.ViewMatrices.GetPreViewTranslation();
+	HeterogeneousVolumes::FLODInfo LODInfo;
+	LODInfo.WorldSceneBounds = WorldVolumeBounds;
+	LODInfo.WorldOrigin = FVector(TranslatedWorldOrigin) - PreViewTranslation;
+	LODInfo.ViewRect = FIntRect(0, 0, ShadowMapResolution.X, ShadowMapResolution.Y);
+
+	FMatrix WorldToTranslatedWorldMatrix = FTranslationMatrix(PreViewTranslation);
+	FMatrix WorldToShadowMatrix = WorldToTranslatedWorldMatrix * FMatrix(TranslatedWorldToShadow[0]);
+	GetViewFrustumBounds(LODInfo.WorldShadowFrustum, WorldToShadowMatrix, true);
+	LODInfo.FOV = PI / 4.0f;
+	LODInfo.NearClippingDistance = HeterogeneousVolumes::GetShadowNearClippingDistance();
+	LODInfo.DownsampleFactor = 1.0;
+	LODInfo.bIsPerspective = (LightType != LightType_Directional);
+
 	// Iterate over shadow-casting volumes
 	bool bHasShadowCastingVolume = false;
 	if (!HeterogeneousVolumesMeshBatches.IsEmpty())
@@ -1622,23 +2188,25 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			TEXT("HeterogeneousVolume.VolumetricShadowLinkedListBuffer")
 		);
 
+		bool bUseCameraSceneDepth = false;
 		RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Light Info
 			LightType,
 			LightSceneInfo,
 			VisibleLightInfo,
 			// Shadow Info
+			LODInfo,
 			TranslatedWorldOrigin,
 			NumShadowMatrices,
 			TranslatedWorldToShadow,
 			ShadowToTranslatedWorld,
 			ShadowMapResolution,
 			MaxSampleCount,
+			bUseCameraSceneDepth,
 			// Volume
 			*VolumeMeshBatchItr,
 			// Dispatch
@@ -1660,19 +2228,20 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 				GraphBuilder,
 				SceneTextures,
 				Scene,
-				ViewFamily,
 				View,
 				// Light Info
 				LightType,
 				LightSceneInfo,
 				VisibleLightInfo,
 				// Shadow Info
+				LODInfo,
 				TranslatedWorldOrigin,
 				NumShadowMatrices,
 				TranslatedWorldToShadow,
 				ShadowToTranslatedWorld,
 				ShadowMapResolution,
 				MaxSampleCount,
+				bUseCameraSceneDepth,
 				// Volume
 				*VolumeMeshBatchItr,
 				// Dispatch
@@ -1711,7 +2280,6 @@ void RenderAdaptiveVolumetricShadowMapWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View,
 	// Light data
 	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos
@@ -1757,7 +2325,7 @@ void RenderAdaptiveVolumetricShadowMapWithLiveShading(
 			}
 
 			TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters> AdaptiveVolumetricShadowMapUniformBuffer;
-			bool bCreateShadowMap = bShouldRenderShadowMaps && bCastsVolumetricShadow && bDynamicallyShadowed && !ShouldRenderRayTracingShadowsForLight(LightSceneInfoCompact[PassIndex]);
+			bool bCreateShadowMap = bShouldRenderShadowMaps && bCastsVolumetricShadow && bDynamicallyShadowed && !ShouldRenderRayTracingShadowsForLight(*View.Family, LightSceneInfoCompact[PassIndex]);
 			if (bCreateShadowMap)
 			{
 				FString LightName;
@@ -1792,7 +2360,6 @@ void RenderAdaptiveVolumetricShadowMapWithLiveShading(
 					// Scene data
 					SceneTextures,
 					Scene,
-					ViewFamily,
 					View,
 					// Light data
 					LightType,
@@ -1865,7 +2432,6 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 	// Scene data
 	const FSceneTextures& SceneTextures,
 	FScene* Scene,
-	const FSceneViewFamily& ViewFamily,
 	FViewInfo& View
 )
 {
@@ -1893,8 +2459,10 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 		ShadowMapResolution.Y = FMath::Max(ShadowMapResolution.Y / DownsampleFactor, 1);
 
 		// Transform
+		const FMatrix ProjectionMatrix = View.ViewMatrices.GetProjectionMatrix();
+		float FOV = FMath::Atan(1.0f / ProjectionMatrix.M[0][0]);
 		FMatrix ViewToClip = FPerspectiveMatrix(
-			FMath::DegreesToRadians(View.FOV * 0.5),
+			FOV,
 			ShadowMapResolution.X,
 			ShadowMapResolution.Y,
 			1.0,
@@ -1933,27 +2501,41 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 			TEXT("HeterogeneousVolume.VolumetricShadowLinkedListBuffer")
 		);
 
+		HeterogeneousVolumes::FLODInfo LODInfo;
+		LODInfo.WorldSceneBounds = WorldVolumeBounds;
+		LODInfo.WorldOrigin = FVector(TranslatedWorldOrigin);
+		LODInfo.ViewRect = FIntRect(0, 0, ShadowMapResolution.X, ShadowMapResolution.Y);
+		FVector PreViewTranslation = View.ViewMatrices.GetPreViewTranslation();
+		FMatrix WorldToTranslatedWorldMatrix = FTranslationMatrix(PreViewTranslation);
+		GetViewFrustumBounds(LODInfo.WorldShadowFrustum, WorldToTranslatedWorldMatrix * FMatrix(TranslatedWorldToShadow[0]), true);
+		LODInfo.FOV = FOV;
+		LODInfo.NearClippingDistance = HeterogeneousVolumes::GetShadowNearClippingDistance();
+		LODInfo.DownsampleFactor = HeterogeneousVolumes::GetCameraDownsampleFactor();
+		LODInfo.bIsPerspective = true;
+
 		// Build a camera shadow for one volume
 		int32 LightType = 0;
 		FLightSceneInfo* LightSceneInfo = nullptr;
 		FVisibleLightInfo* VisibleLightInfo = nullptr;
+		bool bUseCameraSceneDepth = true;
 		RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
 			Scene,
-			ViewFamily,
 			View,
 			// Light Info
 			LightType,
 			LightSceneInfo,
 			VisibleLightInfo,
 			// Shadow Info
+			LODInfo,
 			TranslatedWorldOrigin,
 			NumShadowMatrices,
 			TranslatedWorldToShadow,
 			ShadowToTranslatedWorld,
 			ShadowMapResolution,
 			MaxSampleCount,
+			bUseCameraSceneDepth,
 			// Volume
 			*VolumeMeshBatchItr,
 			// Dispatch
@@ -1976,19 +2558,20 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 				GraphBuilder,
 				SceneTextures,
 				Scene,
-				ViewFamily,
 				View,
 				// Light Info
 				LightType,
 				LightSceneInfo,
 				VisibleLightInfo,
 				// Shadow Info
+				LODInfo,
 				TranslatedWorldOrigin,
 				NumShadowMatrices,
 				TranslatedWorldToShadow,
 				ShadowToTranslatedWorld,
 				ShadowMapResolution,
 				MaxSampleCount,
+				bUseCameraSceneDepth,
 				// Volume
 				*VolumeMeshBatchItr,
 				// Dispatch

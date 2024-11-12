@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/SStateTreeDebuggerInstanceTree.h"
 #include "RewindDebuggerTrack.h"
@@ -35,7 +35,7 @@ TSharedRef<ITableRow> SStateTreeDebuggerInstanceTree::GenerateTreeRow(TSharedPtr
 	return SNew(STableRow<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>, OwnerTable)
 		[
 			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot().AutoWidth().Padding(2)
+			+SHorizontalBox::Slot().AutoWidth().Padding(2.f)
 			[
 				LayeredIcons
 			]
@@ -97,7 +97,6 @@ void SStateTreeDebuggerInstanceTree::Construct(const FArguments& InArgs)
 	InstanceTracks = InArgs._InstanceTracks;
 
 	TreeView = SNew(STreeView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>)
-				.ItemHeight(20.0f)
 				.TreeItemsSource(InstanceTracks)
 				.OnGenerateRow(this, &SStateTreeDebuggerInstanceTree::GenerateTreeRow)
 				.OnGetChildren_Lambda([](const TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& Item, TArray<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>& OutChildren)
@@ -159,4 +158,4 @@ void SStateTreeDebuggerInstanceTree::Refresh()
 	}
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

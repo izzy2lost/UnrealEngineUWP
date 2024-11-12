@@ -7,7 +7,7 @@
 #include "Misc/CoreMiscDefines.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	bool IsEmulatedAnalogStickPressOrReleaseKey(const FKeyEvent& InKeyEvent)
 	{

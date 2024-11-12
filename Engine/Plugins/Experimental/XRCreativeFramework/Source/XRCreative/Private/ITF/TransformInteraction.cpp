@@ -13,56 +13,11 @@
 #include "InteractiveGizmoManager.h"
 
 
-class FXRCreativeTransformGizmoActorFactory : public FCombinedTransformGizmoActorFactory
-{
-public:
-	FXRCreativeTransformGizmoActorFactory(UGizmoViewContext* InGizmoViewContext)
-		: FCombinedTransformGizmoActorFactory(InGizmoViewContext)
-	{
-		ensure(InGizmoViewContext);
-	}
-
-	virtual ACombinedTransformGizmoActor* CreateNewGizmoActor(UWorld* World) const override
-	{
-		ACombinedTransformGizmoActor* GizmoActor = nullptr;
-
-		switch (EnableElements)
-		{
-		case ETransformGizmoSubElements::FullTranslateRotateScale:
-			GizmoActor = World->SpawnActor<AXRCreativeTRSGizmoActor>(FVector::ZeroVector, FRotator::ZeroRotator, FActorSpawnParameters());
-			break;
-		case ETransformGizmoSubElements::TranslateRotateUniformScale:
-			GizmoActor = World->SpawnActor<AXRCreativeTRUSGizmoActor>(FVector::ZeroVector, FRotator::ZeroRotator, FActorSpawnParameters());
-			break;
-		case ETransformGizmoSubElements::StandardTranslateRotate:
-			GizmoActor = World->SpawnActor<AXRCreativeTRGizmoActor>(FVector::ZeroVector, FRotator::ZeroRotator, FActorSpawnParameters());
-			break;
-		default:
-			ensure(false); // Unexpected case, not handled above, fall back to parent default behavior
-			return FCombinedTransformGizmoActorFactory::CreateNewGizmoActor(World);
-		}
-
-		TInlineComponentArray<UGizmoBaseComponent*> GizmoComponents;
-		GizmoActor->GetComponents(GizmoComponents);
-		for (UGizmoBaseComponent* GizmoComp : GizmoComponents)
-		{
-			GizmoComp->PixelHitDistanceThreshold = 14.0f;
-			GizmoComp->SetGizmoViewContext(GizmoViewContext);
-			GizmoComp->NotifyExternalPropertyUpdates();
-		}
-
-		return GizmoActor;
-	}
-};
-
-
-//////////////////////////////////////////////////////////////////////////
-
-
 const FString UXRCreativeTransformInteraction::GizmoBuilderIdentifier("XRCreativeGizmo");
 
 
 void UXRCreativeTransformInteraction::Initialize(
+	TSharedRef<FCombinedTransformGizmoActorFactory> InGizmoActorFactory,
 	UTypedElementSelectionSet* InSelectionSet,
 	UInteractiveGizmoManager* InGizmoManager,
 	TUniqueFunction<bool()> InGizmoEnabledCallback)
@@ -70,12 +25,10 @@ void UXRCreativeTransformInteraction::Initialize(
 	check(InSelectionSet && IsValid(InSelectionSet));
 	check(InGizmoManager && IsValid(InGizmoManager));
 
+	GizmoActorFactory = InGizmoActorFactory;
 	WeakSelectionSet = InSelectionSet;
 	WeakGizmoManager = InGizmoManager;
 	GizmoEnabledCallback = MoveTemp(InGizmoEnabledCallback);
-
-	UGizmoViewContext* GizmoViewContext = InGizmoManager->GetContextObjectStore()->FindContext<UGizmoViewContext>();
-	GizmoActorFactory = MakeShared<FXRCreativeTransformGizmoActorFactory>(GizmoViewContext);
 
 	UXRCreativeGizmoBuilder* GizmoBuilder = NewObject<UXRCreativeGizmoBuilder>();
 	GizmoBuilder->GizmoActorBuilder = GizmoActorFactory;
@@ -190,6 +143,10 @@ void UXRCreativeTransformInteraction::UpdateGizmoTargets(const UTypedElementSele
 	GizmoActorFactory->EnableElements = GizmoElements;
 	TransformGizmo = CastChecked<UCombinedTransformGizmo>(GizmoManager->CreateGizmo(GizmoBuilderIdentifier, FString(), this));
 	TransformGizmo->SetActiveTarget(TransformProxy);
+
+	AXRCreativeCombinedTransformGizmoActor* NewGizmoActor =
+		CastChecked<AXRCreativeCombinedTransformGizmoActor>(TransformGizmo->GetGizmoActor());
+	NewGizmoActor->WeakGizmoManager = GizmoManager;
 
 	// optionally ignore coordinate system setting
 	//TransformGizmo->bUseContextCoordinateSystem = false;

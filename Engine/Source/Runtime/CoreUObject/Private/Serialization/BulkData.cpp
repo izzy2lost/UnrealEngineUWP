@@ -30,6 +30,10 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
+const FBulkDataCookedIndex FBulkDataCookedIndex::Default;
+
+//////////////////////////////////////////////////////////////////////////////
+
 FStringBuilderBase& LexToString(EBulkDataFlags Flags, FStringBuilderBase& Sb)
 {
 	#define TEST_AND_ADD_FLAG(Sb, Flags, Contains)\
@@ -67,7 +71,9 @@ FStringBuilderBase& LexToString(EBulkDataFlags Flags, FStringBuilderBase& Sb)
 	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_LazyLoadable);
 	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_UsesIoDispatcher);
 	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_DataIsMemoryMapped);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_HasAsyncReadPending);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_AlwaysAllowDiscard);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_BadDataVersion);
@@ -166,19 +172,6 @@ bool TryMemoryMapBulkData(
 	int64 Offset,
 	int64 Size,
 	FIoMappedRegion& OutRegion);
-
-/** Start load the internal bulk data payload. */ 
-bool StartAsyncLoad(
-	FBulkData* Owner,
-	const FBulkMetaData& BulkMeta,
-	const FIoChunkId& BulkChunkId,
-	int64 Offset,
-	int64 Size,
-	EAsyncIOPriorityAndFlags Priority,
-	TFunction<void(TIoStatusOr<FIoBuffer>)>&& Callback);
-
-/** Flush pending async load. */
-void FlushAsyncLoad(FBulkData* BulkData);
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -282,9 +275,16 @@ FString GetDebugNameFromArchive(FArchive& Ar)
 
 bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaData& OutMetaData, int64& OutDuplicateOffset)
 {
+	check(Ar.IsLoading());
+
+	// Ensure all fields are initialized.
+	//
+	// Note that this will reset the lock status as well, so callers may want to first check that 
+	// the bulk data is unlocked before the lock state is lost.
+	OutMetaData = FBulkMetaData();
+
 	if (Ar.IsError())
 	{
-		OutMetaData = FBulkMetaData();
 		return false;
 	}
 
@@ -296,14 +296,12 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 		// Note that setting the error flag on the archive is not enough to stop the package from being loaded so for now we 
 		// need to fatal error to prevent the process from continuing to use the corrupted package.
 		UE_LOG(LogSerialization, Fatal, TEXT("Bulkdata error when serializing '%s', could not serialize FBulkMetaResource correctly"), *GetDebugNameFromArchive(Ar));
-		OutMetaData = FBulkMetaData();
 		return false;
 	}
 
 	if (Resource.ElementCount > 0)
 	{
-		// TODO: This would be a good use case for FGuardedInt64 once it is moved to core
-		FGuardedInt64 MetadataSize = FGuardedInt64(Resource.ElementCount) * ElementSize;
+		const FGuardedInt64 MetadataSize = FGuardedInt64(Resource.ElementCount) * ElementSize;
 		if (MetadataSize.IsValid())
 		{
 			OutMetaData.SetSize(MetadataSize.Get(0));
@@ -320,8 +318,7 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 				*GetDebugNameFromArchive(Ar),
 				Resource.ElementCount,
 				ElementSize);
-
-			OutMetaData = FBulkMetaData();
+			
 			return false;
 		}
 	}
@@ -330,12 +327,12 @@ bool FBulkMetaData::FromSerialized(FArchive& Ar, int64 ElementSize, FBulkMetaDat
 	OutMetaData.SetOffset(Resource.Offset);
 	OutMetaData.SetFlags(Resource.Flags);
 
-	check(Resource.ElementCount <= 0 || OutMetaData.GetSize() == Resource.ElementCount * ElementSize);
+	check(Resource.ElementCount < 0 || OutMetaData.GetSize() == Resource.ElementCount * ElementSize);
 	check(OutMetaData.GetOffset() == Resource.Offset);
 	check(OutMetaData.GetFlags() == Resource.Flags);
 
 #if !USE_RUNTIME_BULKDATA
-	check(Resource.ElementCount <= 0 || OutMetaData.GetSizeOnDisk() == Resource.SizeOnDisk);
+	check(Resource.ElementCount < 0 || OutMetaData.GetSizeOnDisk() == Resource.SizeOnDisk);
 #endif
 
 	OutDuplicateOffset = Resource.DuplicateOffset;
@@ -624,7 +621,6 @@ FBulkData::~FBulkData()
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FBulkData::~FBulkData"), STAT_UBD_Destructor, STATGROUP_Memory);
 
 	check(IsUnlocked());
-	FlushAsyncLoading();
 
 	// Free memory.
 	FreeData();
@@ -858,7 +854,8 @@ bool FBulkData::IsBulkDataLoaded() const
 
 bool FBulkData::IsAsyncLoadingComplete() const
 {
-	return (GetBulkDataFlags() & BULKDATA_HasAsyncReadPending) == 0;
+	// This call no longer returns anything useful as ::StartAsyncLoading was removed in UE 5.5
+	return true;
 }
 
 bool FBulkData::IsAvailableForUse() const
@@ -884,9 +881,6 @@ void FBulkData::GetCopy( void** Dest, bool bDiscardInternalCopy )
 
 	check( IsUnlocked() );
 	check( Dest );
-
-	// Make sure any async loads have completed and moved the data into BulkData
-	FlushAsyncLoading();
 
 	const int64 BulkDataSize = GetBulkDataSize();
 
@@ -1093,7 +1087,6 @@ bool FBulkData::UnloadBulkData()
 #if WITH_EDITOR
 	if (IsUnlocked())
 	{
-		FlushAsyncLoading();
 		FreeData();
 		return true;
 	}
@@ -1162,60 +1155,6 @@ void FBulkData::ForceBulkDataResident()
 #endif // WITH_EDITOR
 }
 
-bool FBulkData::StartAsyncLoading()
-{
-	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FBulkData::StartAsyncLoading"), STAT_UBD_StartSerializingBulkData, STATGROUP_Memory);
-
-	if (!IsAsyncLoadingComplete())
-	{
-		return true; // Early out if an asynchronous load is already in progress.
-	}
-
-	if (IsBulkDataLoaded())
-	{
-		return false; // Early out if we do not need to actually load any data
-	}
-
-	if (!CanLoadFromDisk())
-	{
-		return false; // Early out if we cannot load from disk
-	}
-
-	checkf(IsUnlocked(), TEXT("Attempting to modify a BulkData object that is locked"));
-	check(GetBulkDataSize() > 0);
-	check(BulkChunkId.IsValid());
-	
-	BulkMeta.SetLockStatus(LOCKSTATUS_ReadWriteLock); // Bulkdata is effectively locked while streaming!
-	SetBulkDataFlags(BULKDATA_HasAsyncReadPending);
-	FPlatformMisc::MemoryBarrier();
-
-	return UE::BulkData::Private::StartAsyncLoad(
-		this,
-		BulkMeta,
-		BulkChunkId,
-		BulkMeta.GetOffset(), 
-		BulkMeta.GetSize(),
-		AIOP_Low,
-		[this](TIoStatusOr<FIoBuffer> Result)
-	{
-		if (Result.IsOk())
-		{
-			FIoBuffer Buffer = Result.ConsumeValueOrDie();
-			Buffer.EnsureOwned();
-			DataAllocation.SetData(this, Buffer.Release().ConsumeValueOrDie());
-		}
-		else
-		{
-			UE_LOG(LogSerialization, Error, TEXT("Async load bulk data '%s' FAILED, reason '%s'"), *LexToString(BulkChunkId), GetIoErrorText(Result.Status().GetErrorCode()));
-			RemoveBulkData();
-		}
-
-		FPlatformMisc::MemoryBarrier();
-		BulkMeta.SetLockStatus(LOCKSTATUS_Unlocked);
-		ClearBulkDataFlags(BULKDATA_HasAsyncReadPending);
-	});
-}
-
 /**
  * Sets the passed in bulk data flags.
  *
@@ -1241,14 +1180,14 @@ uint32 FBulkData::GetBulkDataFlags() const
 	return BulkMeta.GetFlags();
 }
 
-/**
- * Sets the passed in bulk data alignment.
- *
- * @param BulkDataAlignmentToSet	Bulk data alignment to set
- */
-void FBulkData::SetBulkDataAlignment(uint16 BulkDataAlignmentToSet)
+#if WITH_EDITOR
+
+void FBulkData::SetCookedIndex(FBulkDataCookedIndex Index)
 {
+	CookedIndex = Index;
 }
+
+#endif //WITH_EDITOR
 
 /**
 * Gets the current bulk data alignment.
@@ -1322,7 +1261,12 @@ void FBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAttemptFileMapping
 	
 	check(!bAttemptFileMapping || Ar.IsLoading()); // makes no sense to map unless we are loading
 
-	if (Ar.SerializeBulkData(*this, FBulkDataSerializationParams {Owner, ElementSize, FileRegionType, bAttemptFileMapping}))
+#if !WITH_EDITOR
+	FBulkDataCookedIndex CookedIndex;	// Dummy value to pass into ::SerializeBulkData, as this is the editor we will only
+										// ever be loading and so this value will not be used.
+#endif //!WITH_EDITOR
+
+	if (Ar.SerializeBulkData(*this, FBulkDataSerializationParams {Owner, ElementSize, FileRegionType, bAttemptFileMapping, CookedIndex }))
 	{
 		// Just early out when the archive overrides the serialization of bulk data
 		return;
@@ -1487,15 +1431,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	BulkMeta.SetSizeOnDisk(InBulkDataSizeOnDisk);
 }
 #endif
-
-FCustomVersionContainer FBulkData::GetCustomVersions(FArchive& InlineArchive) const
-{
-	FPackageFileVersion OutUEVersion;
-	int32 OutLicenseeUEVersion;
-	FCustomVersionContainer OutCustomVersions;
-	GetBulkDataVersions(InlineArchive, OutUEVersion, OutLicenseeUEVersion, OutCustomVersions);
-	return OutCustomVersions;
-}
 
 void FBulkData::GetBulkDataVersions(FArchive& InlineArchive, FPackageFileVersion& OutUEVersion,
 	int32& OutLicenseeUEVersion, FCustomVersionContainer& OutCustomVersions) const
@@ -1680,44 +1615,11 @@ IBulkDataIORequest* FBulkData::CreateStreamingRequest(int64 OffsetInBulkData, in
 		UserSuppliedMemory).Release();
 }
 
-IBulkDataIORequest* FBulkData::CreateStreamingRequestForRange(const BulkDataRangeArray& RangeArray, EAsyncIOPriorityAndFlags Priority, FBulkDataIORequestCallBack* CompleteCallback)
-{	
-	check(RangeArray.Num() > 0);
-
-	const FBulkData& Start = *(RangeArray[0]);
-	const FBulkData& End = *(RangeArray[RangeArray.Num()-1]);
-	const int64 ReadOffset = Start.GetBulkDataOffsetInFile();
-	const int64 ReadSize = (End.GetBulkDataOffsetInFile() + End.GetBulkDataSize()) - ReadOffset;
-	
-	check(ReadSize > 0);
-
-	checkf(
-		Start.IsUsingIODispatcher() == false || Start.IsInSeparateFile(),
-		TEXT("Create bulkdata stream request from package '%s' FAILED, inline bulk data cannot be streamed from I/O store"),
-		*LexToString(Start.BulkChunkId));
-
-	checkf(
-		Start.IsUsingIODispatcher() == false || (End.IsInSeparateFile() && Start.BulkChunkId == End.BulkChunkId),
-		TEXT("Create bulk data stream request FAILED, range spans from package '%s' to package '%s'"),
-		*LexToString(Start.BulkChunkId), *LexToString(End.BulkChunkId));
-
-	return UE::BulkData::Private::CreateStreamingRequest(
-		Start.BulkMeta,
-		Start.BulkChunkId,
-		ReadOffset,
-		ReadSize,
-		Priority,
-		CompleteCallback,
-		nullptr).Release();
-}
-
 /**
  * Loads the bulk data if it is not already loaded.
  */
 void FBulkData::MakeSureBulkDataIsLoaded()
 {
-	FlushAsyncLoading();
-
 	if (IsBulkDataLoaded())
 	{
 		return;
@@ -1735,15 +1637,6 @@ void FBulkData::MakeSureBulkDataIsLoaded()
 	if (TryLoadDataIntoMemory(FIoBuffer(FIoBuffer::Wrap, Dest, BulkDataSize)) == false)
 	{
 		DataAllocation.Free(this);
-	}
-}
-
-void FBulkData::FlushAsyncLoading()
-{
-	if (IsAsyncLoadingComplete() == false)
-	{
-		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FBulkData::FlushAsyncLoading"), STAT_UBD_WaitForAsyncLoading, STATGROUP_Memory);
-		UE::BulkData::Private::FlushAsyncLoad(this);
 	}
 }
 
@@ -1812,107 +1705,6 @@ bool FBulkData::TryLoadDataIntoMemory(FIoBuffer Dest)
 bool FBulkData::CanDiscardInternalData() const
 {	
 	return BulkMeta.HasAnyFlags(static_cast<EBulkDataFlags>(BULKDATA_AlwaysAllowDiscard | BULKDATA_SingleUse)) || CanLoadFromDisk();
-}
-
-void FUntypedBulkData::SerializeElements(FArchive& Ar, void* Data)
-{
-	for (int64 ElementIndex = 0, Count = GetElementCount(); ElementIndex < Count; ++ElementIndex)
-	{
-		SerializeElement(Ar, Data, ElementIndex);
-	}
-}
-
-void FUntypedBulkData::SerializeBulkData(FArchive& Ar, void* Data, int64 DataSize, EBulkDataFlags InBulkDataFlags)
-{
-	SCOPED_LOADTIMER(BulkData_SerializeBulkData);
-
-	// skip serializing of unused data
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (InBulkDataFlags & BULKDATA_Unused)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	{
-		return;
-	}
-
-	// Skip serialization for bulk data of zero length
-	if (DataSize == 0)
-	{
-		return;
-	}
-
-	// Allow backward compatible serialization by forcing bulk serialization off if required. Saving also always uses single
-	// element serialization so errors or oversight when changing serialization code is recoverable.
-	bool bSerializeInBulk = true;
-	if (RequiresSingleElementSerialization(Ar) 
-	// Set when serialized like a lazy array.
-	|| (InBulkDataFlags & BULKDATA_ForceSingleElementSerialization)
-	// We use bulk serialization even when saving 1 byte types (texture & sound bulk data) as an optimization for those.
-	|| (Ar.IsSaving() && (GetElementSize() > 1)))
-	{
-		bSerializeInBulk = false;
-	}
-
-	// Raw serialize the bulk data without any possibility for potential endian conversion.
-	if (bSerializeInBulk)
-	{
-		// Serialize data compressed.
-		if (InBulkDataFlags & BULKDATA_SerializeCompressed)
-		{
-			Ar.SerializeCompressed(Data, DataSize,
-				GetDecompressionFormat(InBulkDataFlags), COMPRESS_NoFlags, false);
-		}
-		// Uncompressed/ regular serialization.
-		else
-		{
-			Ar.Serialize(Data, DataSize);
-		}
-	}
-	// Serialize an element at a time via the virtual SerializeElement function potentially allowing and dealing with 
-	// endian conversion. Dealing with compression makes this a bit more complex as SerializeCompressed expects the 
-	// full data to be compressed en block and not piecewise.
-	else
-	{
-		// Serialize data compressed.
-		if (InBulkDataFlags & BULKDATA_SerializeCompressed)
-		{
-			// Loading, data is compressed in archive and needs to be decompressed.
-			if (Ar.IsLoading())
-			{
-				TUniquePtr<uint8[]> SerializedData = MakeUnique<uint8[]>(DataSize);
-
-				// Serialize data with passed in archive and compress.
-				Ar.SerializeCompressed(SerializedData.Get(), DataSize,
-					GetDecompressionFormat(InBulkDataFlags), COMPRESS_NoFlags, false);
-
-				// Initialize memory reader with uncompressed data array and propagate forced byte swapping
-				FLargeMemoryReader MemoryReader(SerializedData.Get(), DataSize, ELargeMemoryReaderFlags::Persistent);
-				MemoryReader.SetByteSwapping(Ar.ForceByteSwapping());
-
-				// Serialize each element individually via memory reader.
-				SerializeElements(MemoryReader, Data);
-			}
-			// Saving, data is uncompressed in memory and needs to be compressed.
-			else if (Ar.IsSaving())
-			{
-				// Initialize memory writer with blank data array and propagate forced byte swapping
-				FLargeMemoryWriter MemoryWriter(GetBulkDataSize(), true);
-				MemoryWriter.SetByteSwapping(Ar.ForceByteSwapping());
-
-				// Serialize each element individually via memory writer.
-				SerializeElements(MemoryWriter, Data);
-
-				// Serialize data with passed in archive and compress.
-				Ar.SerializeCompressed(MemoryWriter.GetData(), DataSize,
-					GetDecompressionFormat(InBulkDataFlags), COMPRESS_NoFlags, false);
-			}
-		}
-		// Uncompressed/ regular serialization.
-		else
-		{
-			// We can use the passed in archive if we're not compressing the data.
-			SerializeElements(Ar, Data);
-		}
-	}
 }
 
 void FFormatContainer::Serialize(FArchive& Ar, UObject* Owner, const TArray<FName>* FormatsToSave, bool bSingleUse, uint16 InAlignment, bool bInline, bool bMapped)

@@ -623,7 +623,7 @@ namespace Audio
 			const int32 NumSamplesPushed = ConnectedOutput.PushAudio(InBuffer, InNumSamples);
 			if (NumSamplesPushed == INDEX_NONE)
 			{
-				ConnectedOutputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				ConnectedOutputs.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 			else
 			{

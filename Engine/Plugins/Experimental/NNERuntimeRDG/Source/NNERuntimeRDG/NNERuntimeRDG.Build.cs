@@ -10,9 +10,6 @@ public class NNERuntimeRDG : ModuleRules
 	{
 		CppStandard = CppStandardVersion.Cpp17;
 
-		// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
-		PCHUsage = PCHUsageMode.NoPCHs;
-
 		PublicDependencyModuleNames.AddRange(new string[] 
 		{ 
 			"Core", 
@@ -22,25 +19,14 @@ public class NNERuntimeRDG : ModuleRules
 			"RenderCore"
 		});
 
-        PrivateDependencyModuleNames.AddRange(new string[]
-        {
-            "NNE",
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"NNE",
 			"NNEHlslShaders",
-            "RHI",
+			"RHI",
 			"Projects",
 			"TraceLog"
 		});
-
-        if (Target.Platform == UnrealTargetPlatform.Win64)
-		{
-			PrivateDependencyModuleNames.Add("D3D12RHI");
-			PrivateDependencyModuleNames.Add("DirectML");
-
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "DirectML");
-
-			PublicDefinitions.Add("NNE_USE_DIRECTML");
-		}
 
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{	
@@ -52,12 +38,33 @@ public class NNERuntimeRDG : ModuleRules
 			PrivateDependencyModuleNames.Add("VulkanRHI");
 		}
 
-		if ((Target.Type == TargetType.Editor || Target.Type == TargetType.Program) &&
-			(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.Mac)
-			)
+		if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 		{
-			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
-			PrivateDependencyModuleNames.Add("NNEUtilities");
+			// Supported platforms (editor)
+			if ( Target.Platform == UnrealTargetPlatform.Win64 || 
+				Target.Platform == UnrealTargetPlatform.Linux || 
+				Target.Platform == UnrealTargetPlatform.Mac
+			)
+			{
+				PublicDefinitions.Add("WITH_NNE_RUNTIME_HLSL");
+				PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
+				PrivateDependencyModuleNames.Add("NNERuntimeRDGUtils");
+			}
 		}
+		else
+		{
+			// Supported platforms (standalone)
+			// NOTE: To add a supported platform:
+			// - either here or in a NNERuntimeRDG_*.Build.cs extension, set WITH_NNE_RUNTIME_HLSL for Game/Client target type,
+			// - set bSupportsNNEShaders=true in DataDrivenPlatformInfo.ini for the platform - shader format pair.
+			if ( Target.Platform == UnrealTargetPlatform.Win64 || 
+				 Target.Platform == UnrealTargetPlatform.Mac
+			   )
+			{
+				PublicDefinitions.Add("WITH_NNE_RUNTIME_HLSL");
+			}
+		}
+
+		PublicDefinitions.Add("NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT=4");
 	}
 }

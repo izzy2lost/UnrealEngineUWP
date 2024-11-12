@@ -306,7 +306,10 @@ void FCacheStoreReplay::WorkerCreated(const FMultiprocessCreatedContext& Context
 
 void FCacheStoreReplay::WorkerDetached(const FMultiprocessDetachedContext& Context)
 {
-	WorkerIdToState.FindOrAdd(Context.Id) = false;
+	if (!Context.bAbnormalDetach)
+	{
+		WorkerIdToState.FindOrAdd(Context.Id) = false;
+	}
 }
 
 void FCacheStoreReplay::MergeWorkerReplays()
@@ -322,7 +325,7 @@ void FCacheStoreReplay::MergeWorkerReplays()
 		WorkerReplayPath.Appendf(TEXT(".worker%d.tmp"), WorkerId);
 		if (Worker.Value)
 		{
-			UE_LOG(LogDerivedDataCache, Error,
+			UE_LOG(LogDerivedDataCache, Warning,
 				TEXT("Replay: Skipped replay file '%s' because its worker has not detached."), *WorkerReplayPath);
 			continue;
 		}

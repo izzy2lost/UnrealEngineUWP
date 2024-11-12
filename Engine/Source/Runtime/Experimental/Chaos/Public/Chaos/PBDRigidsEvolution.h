@@ -774,8 +774,16 @@ public:
 
 	FUniqueIdx GenerateUniqueIdx()
 	{
-		//NOTE: this should be thread safe since evolution has already been initialized on GT
-		return Particles.GetUniqueIndices().GenerateUniqueIdx();
+		// NOTE: this should be thread safe since evolution has already been initialized on GT
+		FUniqueIdx Result;
+		
+		// This uses thread safe atomics, so we have to do it in the open.
+		UE_AUTORTFM_OPEN { Result = Particles.GetUniqueIndices().GenerateUniqueIdx(); };
+
+		// But if we abort, we need to release the now unused index.
+		AutoRTFM::OnAbort([this, Result] { this->ReleaseUniqueIdx(Result); });
+
+		return Result;
 	}
 
 	void ReleaseUniqueIdx(FUniqueIdx UniqueIdx)

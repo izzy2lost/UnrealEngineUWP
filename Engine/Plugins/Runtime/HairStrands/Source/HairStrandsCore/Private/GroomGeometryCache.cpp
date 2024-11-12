@@ -53,6 +53,7 @@
 				FCachedGeometry::Section OutSection;
 				OutSection.PositionBuffer = TrackProxy->PositionBuffers[PositionIndex].GetBufferSRV();
 				OutSection.UVsBuffer = TrackProxy->TextureCoordinatesBuffer.GetBufferSRV();
+				OutSection.TangentBuffer = TrackProxy->TangentZBuffer.GetBufferSRV();
 				OutSection.TotalVertexCount = TrackProxy->MeshData->Positions.Num();
 				OutSection.IndexBuffer = TrackProxy->IndexBuffer.GetBufferSRV();
 				OutSection.TotalIndexCount = TrackProxy->IndexBuffer.NumValidIndices;
@@ -64,6 +65,7 @@
 				OutSection.SectionIndex = SectionIdx;
 				OutSection.LODIndex = 0;
 				OutSection.UVsChannelOffset = 0;
+				OutSection.TangentFormat = 1u;
 			
 				if (OutSection.PositionBuffer && OutSection.IndexBuffer)
 				{

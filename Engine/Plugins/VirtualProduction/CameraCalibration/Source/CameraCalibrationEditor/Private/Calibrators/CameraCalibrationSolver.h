@@ -56,7 +56,10 @@ enum class ECalibrationFlags : uint32
 	FixFocalLength = 1 << 2,     /** The solver will not optimize the focal length */
 	FixPrincipalPoint = 1 << 3,  /** The solver will not optimize the principal point */
 	FixExtrinsics = 1 << 4,      /** The solver will not optimize the camera extrinsics */
-	FixZeroDistortion = 1 << 5   /** The solver will fix all distortion values at 0 */
+	FixDistortion = 1 << 5,      /** The solver will fix all distortion values at 0 */
+	FixAspectRatio = 1 << 6,     /** The solver will respect the input aspect ratio when solving for Fx and Fy */
+	SolveTargetOffset = 1 << 7,  /** The solver will solve for an offset for each image's input 3D object points */
+	GroupCameraPoses = 1 << 8    /** The solver will group sets of images together that share the same camera pose */
 };
 
 /** 
@@ -76,7 +79,9 @@ public:
 		const FIntPoint ImageSize,
 		const FVector2D& FocalLength,
 		const FVector2D& ImageCenter,
+		const TArray<float>& DistortionParameters,
 		const TArray<FTransform>& CameraPoses,
+		const TArray<FTransform>& TargetPoses,
 		TSubclassOf<ULensModel> LensModel,
 		double PixelAspect,
 		ECalibrationFlags SolverFlags);
@@ -102,7 +107,9 @@ public:
 		const FIntPoint ImageSize,
 		const FVector2D& FocalLength,
 		const FVector2D& ImageCenter,
+		const TArray<float>& DistortionParameters,
 		const TArray<FTransform>& CameraPoses,
+		const TArray<FTransform>& TargetPoses,
 		TSubclassOf<ULensModel> LensModel,
 		double PixelAspect,
 		ECalibrationFlags SolverFlags) PURE_VIRTUAL(ULensDistortionSolver::Solve_Implementation, return FDistortionCalibrationResult(););
@@ -135,7 +142,7 @@ protected:
   * The implementation is largely based on the implementation of calibrateCamera from OpenCV: https://github.com/opencv/opencv
   */
 
-UCLASS()
+UCLASS(meta = (DisplayName="OpenCV Solver"))
 class ULensDistortionSolverOpenCV : public ULensDistortionSolver
 {
 	GENERATED_BODY()
@@ -151,7 +158,9 @@ public:
 		const FIntPoint ImageSize,
 		const FVector2D& FocalLength,
 		const FVector2D& ImageCenter,
+		const TArray<float>& DistortionParameters,
 		const TArray<FTransform>& CameraPoses,
+		const TArray<FTransform>& TargetPoses,
 		TSubclassOf<ULensModel> LensModel,
 		double PixelAspect,
 		ECalibrationFlags SolverFlags) override;
@@ -184,6 +193,9 @@ private:
 	void ProjectPoints(
 		const TSubclassOf<ULensModel> LensModel,
 		const cv::Mat& ObjectPoints,
+		const FTransform& TargetPose,
+		const cv::Mat& ObjectPointOffsetRotation,
+		const cv::Mat& ObjectPointOffsetTranslation,
 		const cv::Mat& Rotation,
 		const cv::Mat& Translation,
 		const cv::Mat& CameraMatrix,
@@ -195,6 +207,9 @@ private:
 	void ProjectPoints(
 		const TSubclassOf<ULensModel> LensModel,
 		const cv::Mat& ObjectPoints,
+		const FTransform& TargetPose,
+		const cv::Mat& ObjectPointOffsetRotation,
+		const cv::Mat& ObjectPointOffsetTranslation,
 		const cv::Mat& Rotation,
 		const cv::Mat& Translation,
 		const cv::Mat& CameraMatrix,
@@ -219,6 +234,9 @@ private:
 	/** Project the input object points to 2D using the input camera intrinsics, extrinsics, and spherical distortion parameters */
 	void ProjectPointsSpherical(
 		const cv::Mat& ObjectPoints,
+		const FTransform& TargetPose,
+		const cv::Mat& ObjectPointOffsetRotation,
+		const cv::Mat& ObjectPointOffsetTranslation,
 		const cv::Mat& Rotation,
 		const cv::Mat& Translation,
 		const cv::Mat& CameraMatrix,
@@ -241,8 +259,13 @@ private:
 		cv::Mat& JacTranslation,
 		cv::Mat& JacFocalLength,
 		cv::Mat& JacImageCenter,
+		cv::Mat& JacObjectPointOffsetRotation,
+		cv::Mat& JacObjectPointOffsetTranslation,
 		cv::Mat& JacDistortion,
 		ECalibrationFlags SolverFlags);
+
+	/** Find the unique set of camera poses and the index into that set for each image */
+	void FindUniqueCameraPoses(const TArray<FTransform>& InCameraPoses, TArray<FTransform>& OutUniqueCameraPoses, TArray<int32>& OutUniquePoseIndices);
 
 #endif	// WITH_OPENCV
 };

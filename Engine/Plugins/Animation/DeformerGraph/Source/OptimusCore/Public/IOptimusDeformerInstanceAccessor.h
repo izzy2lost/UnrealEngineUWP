@@ -23,5 +23,4 @@ class IOptimusDeformerInstanceAccessor
 
 public:
 	virtual void SetDeformerInstance(UOptimusDeformerInstance* InInstance) = 0;
-	virtual UOptimusDeformerInstance* GetDeformerInstance() const = 0;
 };

@@ -16,7 +16,7 @@
 #include "VisualizeTexture.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "Lumen/Lumen.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 #include "ScenePrivate.h"
 #include "Substrate/Substrate.h"
 
@@ -424,7 +424,7 @@ void ComputeDistanceFieldNormal(
 			RDG_EVENT_NAME("ComputeNormal"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, PassParameters, DFAOViewSize](FRHICommandList& RHICmdList)
+			[&View, PassParameters, DFAOViewSize](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(0, 0, 0.0f, DFAOViewSize.X, DFAOViewSize.Y, 1.0f);
 
@@ -678,8 +678,8 @@ bool SupportsDistanceFieldAO(ERHIFeatureLevel::Type FeatureLevel, EShaderPlatfor
 		// Pre-GCN AMD cards have a driver bug that prevents the global distance field from being generated correctly
 		// Better to disable entirely than to display garbage
 		&& !GRHIDeviceIsAMDPreGCNArchitecture
-		// Intel HD 4000 hangs in the RHICreateTexture3D call to allocate the large distance field atlas, and virtually no Intel cards can afford it anyway
-		&& !GRHIDeviceIsIntegrated
+		// In case of iGPU we use the maximum feature level to differentiate between older and newer more capable iGPU
+		&& (!GRHIDeviceIsIntegrated || GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM6)
 		&& DoesPlatformSupportDistanceFieldAO(ShaderPlatform)
 		&& IsUsingDistanceFields(ShaderPlatform);
 }
@@ -728,9 +728,9 @@ bool FSceneRenderer::ShouldPrepareDistanceFieldScene() const
 		return false;
 	}
 
-	if (GRHIDeviceIsIntegrated)
+	if (GRHIDeviceIsIntegrated && GMaxRHIFeatureLevel < ERHIFeatureLevel::SM6)
 	{
-		// Intel HD 4000 hangs in the RHICreateTexture3D call to allocate the large distance field atlas, and virtually no Intel cards can afford it anyway
+		// In case of iGPU we use the maximum feature level to differentiate between older and newer more capable iGPU
 		return false;
 	}
 
@@ -777,14 +777,14 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 	const bool bShouldPrepareForAO = SupportsDistanceFieldAO(Scene->GetFeatureLevel(), Scene->GetShaderPlatform())
 		&& (ShouldPrepareForDistanceFieldAO() || bShouldPrepareForMaterialsOrNiagara);
 
-	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(*Views[0].Family);
+	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(ViewFamily);
 
-	// TODO: Should check any light actually uses Many Lights
-	const bool bShouldPrepareForManyLights = ManyLights::IsUsingGlobalSDF();
+	// TODO: Should check any light actually uses Mega Lights
+	const bool bShouldPrepareForMegaLights = MegaLights::IsUsingGlobalSDF(ViewFamily);
 
 	const bool bShouldPrepareForVisualization = ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField;
 
-	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForManyLights || bShouldPrepareForVisualization);
+	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForMegaLights || bShouldPrepareForVisualization);
 }
 
 void FDeferredShadingSceneRenderer::RenderDFAOAsIndirectShadowing(
@@ -813,8 +813,7 @@ bool FDeferredShadingSceneRenderer::ShouldRenderDistanceFieldLighting() const
 	{
 		const FViewInfo& View = Views[ViewIndex];
 
-		if (!SupportsDistanceFieldAO(View.GetFeatureLevel(), View.GetShaderPlatform())
-			|| !View.IsPerspectiveProjection())
+		if (!SupportsDistanceFieldAO(View.GetFeatureLevel(), View.GetShaderPlatform()))
 		{
 			bSupportsDistanceFieldAO = false;
 			break;

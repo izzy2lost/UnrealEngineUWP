@@ -99,7 +99,7 @@ public:
 };
 
 //////////////////////////////////////////////////////////////////////////
-// FMovementSettingsInput
+// FMovementSettingsInputs
 
 // Data block containing movement settings inputs that are networked from client to server.
 // This is useful if settings changes need to be predicted on the client and synced on the server.
@@ -140,6 +140,51 @@ public:
 
 template<>
 struct TStructOpsTypeTraits< FMovementSettingsInputs > : public TStructOpsTypeTraitsBase2< FMovementSettingsInputs >
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithCopy = true
+	};
+};
+
+
+//////////////////////////////////////////////////////////////////////////
+// FMoverAIInputs
+
+// Data block containing ROV Velocity that is networked from server to clients.
+// Also supports rewind/resimulation of the data.
+USTRUCT(BlueprintType)
+struct MOVER_API FMoverAIInputs : public FMoverDataStructBase
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+	// ROV Velocity calculated on the Server
+	UPROPERTY(BlueprintReadWrite, Category = Mover)
+	FVector RVOVelocityDelta;
+
+	FMoverAIInputs()
+		: RVOVelocityDelta(ForceInitToZero)
+	{
+	}
+
+	virtual ~FMoverAIInputs() {}
+
+	// @return newly allocated copy of this FMoverAIInputs. Must be overridden by child classes
+	virtual FMoverDataStructBase* Clone() const override;
+
+	virtual bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess) override;
+
+	virtual UScriptStruct* GetScriptStruct() const override { return StaticStruct(); }
+
+	virtual void ToString(FAnsiStringBuilderBase& Out) const override;
+
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override { Super::AddReferencedObjects(Collector); }
+};
+
+template<>
+struct TStructOpsTypeTraits< FMoverAIInputs > : public TStructOpsTypeTraitsBase2< FMoverAIInputs >
 {
 	enum
 	{

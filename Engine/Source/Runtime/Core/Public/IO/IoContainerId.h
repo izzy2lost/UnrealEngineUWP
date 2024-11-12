@@ -8,6 +8,8 @@
 
 class FArchive;
 class FStructuredArchiveSlot;
+class FCbFieldView;
+class FCbWriter;
 
 /**
  * Container ID.
@@ -54,7 +56,13 @@ public:
 
 	CORE_API friend FArchive& operator<<(FArchive& Ar, FIoContainerId& ContainerId);
 
-	CORE_API friend void operator<<(FStructuredArchiveSlot Slot, FIoContainerId& Value);
+	CORE_API friend void operator<<(FStructuredArchiveSlot Slot, FIoContainerId& ContainerId);
+
+	CORE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FIoContainerId& ContainerId);
+
+	CORE_API friend FString LexToString(const FIoContainerId& ContainerId);
+
+	CORE_API friend bool LoadFromCompactBinary(FCbFieldView Field, FIoContainerId& OutContainerId);
 
 private:
 	inline explicit FIoContainerId(const uint64 InId)
@@ -64,4 +72,3 @@ private:
 
 	uint64 Id = InvalidId;
 };
-

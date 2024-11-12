@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "HAL/Platform.h"
+#include "RenderGraphEvent.h"
+#include "RHIBreadcrumbs.h"
 
 class FRDGBuilder;
 class FRHICommandList;
@@ -32,5 +34,11 @@ namespace RenderCaptureInterface
 		bool bEvent;
 		FRHICommandList* RHICommandList;
 		FRDGBuilder* GraphBuilder;
+#if RDG_EVENTS
+		TOptional<TRDGEventScopeGuard<FRDGScope_RHI>> RDGEvent;
+#endif
+#if WITH_RHI_BREADCRUMBS
+		TUniquePtr<TOptional<FRHIBreadcrumbEventManual>> RHIBreadcrumb;
+#endif
 	};
 }

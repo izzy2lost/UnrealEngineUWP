@@ -110,7 +110,7 @@ protected:
 	virtual void OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
-	
+
 protected:
 	// Viewport client
 	TSharedPtr<class FAnimationViewportClient> LevelViewportClient;
@@ -226,10 +226,10 @@ public:
 	virtual void RemoveNotification(const TWeakPtr<SWidget>& InContainingWidget) override;
 	virtual void AddToolbarExtender(FName MenuToExtend, FMenuExtensionDelegate MenuBuilderDelegate) override;
 	virtual FPersonaViewportKeyDownDelegate& GetKeyDownDelegate() override { return OnKeyDownDelegate; }
-	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) override;
+	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE ) override;
 	virtual void RemoveOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) override;
 
-	
+
 	/** SWidget interface */
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -337,7 +337,7 @@ private:
 
 	/** Handlers for the disable post process flag */
 	void OnToggleDisablePostProcess();
-	bool CanDisablePostProcess();
+	bool CanDisablePostProcess() const;
 	bool IsDisablePostProcessChecked();
 
 	/** Show non retargeted animation. */
@@ -368,6 +368,12 @@ private:
 
 	/** Function to check whether bone names are displayed or not */
 	bool IsShowingBoneNames() const;
+
+	/** Function to show/hide bone colors */
+	void OnShowBoneColors();
+
+	/** Function to check whether bone's are using multiple colors */
+	bool IsShowingBoneColors() const;
 	
 	/** Function to show/hide selected bone weight */
 	void OnShowOverlayNone();
@@ -417,13 +423,14 @@ private:
 	/** Function to check whether mesh info is displayed or not */
 	bool IsShowingMeshInfo(int32 DisplayInfoMode) const;
 
+	/** Function to show/hide timecode display. */
+	void OnToggleShowTimecode();
+
+	/** Function to check whether timecode is displayed or not */
+	bool IsShowTimecode() const;
+
 	/** Toggles floor alignment in the preview scene */
 	void OnToggleAutoAlignFloor();
-
-	/** Called to toggle showing of reference pose on current preview mesh */
-	void ShowRetargetBasePose();
-	bool CanShowRetargetBasePose() const;
-	bool IsShowRetargetBasePoseEnabled() const;
 
 	/** Called to toggle showing of the bounds of the current preview mesh */
 	void ShowBound();
@@ -518,6 +525,16 @@ private:
 
 	/** Whether the supplied mode can be used */
 	bool CanUseProcessRootMotionMode(EProcessRootMotionMode Mode) const;
+
+	void SetVisualizeRootMotionMode(EVisualizeRootMotionMode Mode);
+	bool IsVisualizeRootMotionModeSet(EVisualizeRootMotionMode Mode) const;
+	bool CanVisualizeRootMotion() const;
+
+	void ToggleNotificationVisualizations();
+	bool IsNotificationVisualizationsEnabled() const;
+
+	void ToggleAssetUserDataVisualizations();
+	bool IsAssetUserDataVisualizationsEnabled() const;
 
 private:
 	/** Selected Turn Table speed  */

@@ -430,8 +430,8 @@ void FWaterBooleanUtils::ClusterExclusionVolumes(
 			}
 			ClusterBounds[MergeTo].Contain(ClusterBounds[MergeFrom]);
 
-			VolumeClustersOut.RemoveAtSwap(MergeFrom, 1, EAllowShrinking::No);
-			ClusterBounds.RemoveAtSwap(MergeFrom, 1, EAllowShrinking::No);
+			VolumeClustersOut.RemoveAtSwap(MergeFrom, EAllowShrinking::No);
+			ClusterBounds.RemoveAtSwap(MergeFrom, EAllowShrinking::No);
 		}
 
 	} while (MergeFrom >= 0);

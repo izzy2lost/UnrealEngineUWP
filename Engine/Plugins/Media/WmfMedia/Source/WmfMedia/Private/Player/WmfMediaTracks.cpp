@@ -595,7 +595,9 @@ void FWmfMediaTracks::FlushSamples()
 
 IMediaSamples::EFetchBestSampleResult FWmfMediaTracks::FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
 {
-	EFetchBestSampleResult Ret = VideoSampleQueue.FetchBestSampleForTimeRange(TimeRange, OutSample, bReverse, bConsistentResult) ? EFetchBestSampleResult::Ok : EFetchBestSampleResult::NoSample;
+	EMediaSampleQueueFetchResult FetchRes =	VideoSampleQueue.FetchBestSampleForTimeRange(TimeRange, OutSample, bReverse, bConsistentResult);
+	EFetchBestSampleResult Ret = FetchRes == EMediaSampleQueueFetchResult::Found ? EFetchBestSampleResult::Ok :
+								 FetchRes == EMediaSampleQueueFetchResult::None ? EFetchBestSampleResult::NoSample : EFetchBestSampleResult::PurgedToEmpty;
 
 	Session->RequestMoreVideoData();
 
@@ -1512,7 +1514,7 @@ bool FWmfMediaTracks::AddStreamToTracks(uint32 StreamIndex, bool IsVideoDevice, 
 
 	for (DWORD TypeIndex = 0; TypeIndex < NumMediaTypes; ++TypeIndex)
 	{
-		OutInfo += FString::Printf(TEXT("\tFormat %i\n"), TypeIndex);
+		OutInfo += FString::Printf(TEXT("\tFormat %u\n"), (uint32)TypeIndex);
 
 		// get media type
 		TComPtr<IMFMediaType> MediaType;

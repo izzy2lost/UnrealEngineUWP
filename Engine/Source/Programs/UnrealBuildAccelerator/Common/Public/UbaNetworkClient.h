@@ -24,10 +24,11 @@ namespace uba
 		LogWriter& logWriter;
 		u32 sendSize = SendDefaultSize;
 		u32 receiveTimeoutSeconds = 0;
+		u32 workerCount = 0; // Zero means logical processor count will be used
 		const u8* cryptoKey128 = nullptr;
 	};
 
-	class NetworkClient final : public WorkManagerImpl
+	class NetworkClient : public WorkManagerImpl
 	{
 	public:
 		NetworkClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info = {}, const tchar* name = TC("UbaClient"));
@@ -36,7 +37,7 @@ namespace uba
 		bool Connect(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, bool* timedOut = nullptr);
 		void Disconnect();
 
-		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort);
+		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort, const tchar* ip = TC("0.0.0.0"));
 		bool SetConnectionCount(u32 count);
 		bool SendKeepAlive();
 
@@ -82,7 +83,7 @@ namespace uba
 		static void DisconnectCallback(void* context, const Guid& connectionUid, void* connection);
 		static bool ReceiveResponseHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
 		static bool ReceiveResponseBody(void* context, bool recvError, u8* headerData, void* bodyContext, u8* bodyData, u32 bodySize);
-		void OnDisconnected(Connection& connection);
+		void OnDisconnected(Connection& connection, u32 reason);
 		bool Send(NetworkMessage& message, void* response, u32 responseCapacity, bool async);
 		void ReturnMessageId(u16 id);
 		const tchar* SetGetPrefix(const tchar* originalPrefix);
@@ -127,5 +128,8 @@ namespace uba
 		Timer m_decryptTimer;
 
 		friend NetworkMessage;
+
+		NetworkClient(const NetworkClient&) = delete;
+		NetworkClient& operator=(const NetworkClient&) = delete;
 	};
 }

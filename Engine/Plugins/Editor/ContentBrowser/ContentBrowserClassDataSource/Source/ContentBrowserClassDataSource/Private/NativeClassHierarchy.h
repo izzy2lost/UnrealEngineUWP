@@ -6,7 +6,6 @@
 #include "HAL/PlatformTime.h"
 
 enum class EPluginLoadedFrom;
-enum class EReloadCompleteReason;
 
 /**
  * Type of hierarchy node
@@ -156,10 +155,31 @@ public:
 	FNativeClassHierarchy();
 	~FNativeClassHierarchy();
 
-	/** Get the delegate called when classes are added or removed from this class hierarchy */
-	FSimpleMulticastDelegate& OnClassHierarchyUpdated()
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNodesChanged, const TArrayView<TSharedRef<const FNativeClassHierarchyNode>>)
+
+	/** Get the delegate called when folders are added to this class hierarchy */
+	FOnNodesChanged& OnFoldersAdded()
 	{
-		return ClassHierarchyUpdatedDelegate;
+		return FoldersAddedDelegate;
+	}
+
+	/** Get the delegate called when classes are added to this class hierarchy */
+	FOnNodesChanged& OnClassesAdded()
+	{
+		return ClassesAddedDelegate;
+	}
+
+	/** Get the delegate called when folders are removed to this class hierarchy */
+	FOnNodesChanged& OnFoldersRemoved()
+	{
+		return FoldersRemovedDelegate;
+	}
+
+	/** Get the delegate called when classes are removed to this class hierarchy */
+	FOnNodesChanged& OnClassesRemoved()
+	{
+		return ClassesRemovedDelegate;
 	}
 
 	/**
@@ -241,7 +261,7 @@ public:
 	 * 
 	 * @return true if the class path could be resolved and OutClassPath was filled in, false otherwise
 	 */
-	bool GetClassPath(const UClass* InClass, FString& OutClassPath, FNativeClassHierarchyGetClassPathCache& InCache, const bool bIncludeClassName = true) const;
+	bool GetClassPath(const UClass* InClass, FString& OutClassPath, TSet<FName>& InGameModuleCache, const bool bIncludeClassName = true) const;
 
 	/**
 	 * Test if root node passes given rules
@@ -254,18 +274,20 @@ public:
 	bool RootNodePassesFilter(const FName InRootName, const bool bIncludeEngineClasses, const bool bIncludePluginClasses) const;
 
 private:
-	struct FAddClassMetrics
+	struct FClassChanges
 	{
-		FAddClassMetrics()
-			: StartTime(FPlatformTime::Seconds())
-			, NumClassesAdded(0)
-			, NumFoldersAdded(0)
+		FClassChanges()
 		{
 		}
 
-		double StartTime;
-		int32 NumClassesAdded;
-		int32 NumFoldersAdded;
+		void Reset()
+		{
+			ClassesModified.Reset();
+			FoldersModified.Reset();
+		}
+
+		TArray<TSharedRef<const FNativeClassHierarchyNode>> ClassesModified;
+		TArray<TSharedRef<const FNativeClassHierarchyNode>> FoldersModified;
 	};
 
 	/**
@@ -339,9 +361,18 @@ private:
 	 *
 	 * @param InClass - The class that is to be added
 	 * @param InGameModules - The list of modules that belong to the "/Classes_Game" root
-	 * @param AddClassMetrics - Metrics to update as new classes and folders are added (used to report population performance)
+	 * @param FClassChanges - Track the new classes and folders that were added.
 	 */
-	void AddClass(UClass* InClass, const TSet<FName>& InGameModules, FAddClassMetrics& AddClassMetrics);
+	void AddClass(UClass* InClass, const TSet<FName>& InGameModules, FClassChanges& ClassChanges);
+
+	/**
+	 * Remove a single class to the known class hierarchy, removing any empty folders left
+	 *
+	 * @param InClass - The class that is to be removed
+	 * @param InGameModules - The list of modules that belong to the "/Classes_Game" root
+	 * @param FClassChanges - Track the classes and folders that were removed.
+	 */
+	void RemoveClass(UClass* InClass, TSet<FName>& InGameModules, FClassChanges& ClassChanges);
 
 	/**
 	 * Called when we're notified that a module has changed status
@@ -352,11 +383,14 @@ private:
 	void OnModulesChanged(FName InModuleName, EModuleChangeReason InModuleChangeReason);
 
 	/**
-	 * Called when we're notified that a module has been reloaded
-	 *
-	 * @param Reason - The reason why the module was reloaded
+	 * Called when we're notified that a reloaded module has reinstanced some classes.
 	 */
-	void OnReloadComplete(EReloadCompleteReason Reason);
+	void OnReloadReinstancingComplete();
+
+	/**
+	 * Called when we're notified that a reloaded module has some new classes.
+	 */
+	 void OnReloadClassesAdded(const TArray<UClass*>& InAddedClasses);
 
 	/**
 	 * Given a class, work out which module it belongs to
@@ -383,9 +417,20 @@ private:
 	 */
 	static TSet<FName> GetGameModules();
 
+	void PopulateClassChanges(const TSharedPtr<FNativeClassHierarchyNode>& InNode, FClassChanges& OutClassChanges);
+
 	/** Root level nodes corresponding to the root folders used by the Content Browser, eg) Classes_Engine, Classes_Game, etc */
 	TMap<FName, TSharedPtr<FNativeClassHierarchyNode>> RootNodes;
 
-	/** Delegate called when the class hierarchy is updated */
-	FSimpleMulticastDelegate ClassHierarchyUpdatedDelegate;
+	/** Delegate called when the class hierarchy as added some new folders */
+	FOnNodesChanged FoldersAddedDelegate;
+
+	/** Delegate called when the class hierarchy as added some new classes */
+	FOnNodesChanged ClassesAddedDelegate;
+
+	/** Delegate called when the class hierarchy as removed some folders */
+	FOnNodesChanged FoldersRemovedDelegate;
+
+	/** Delegate called when the class hierarchy as removed some classes */
+	FOnNodesChanged ClassesRemovedDelegate;
 };

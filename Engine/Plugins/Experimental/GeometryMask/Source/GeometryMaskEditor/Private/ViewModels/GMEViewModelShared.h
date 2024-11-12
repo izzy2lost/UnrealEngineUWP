@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -36,8 +36,7 @@ protected:
 };
 
 class FGMEListViewModelBase
-	: public TSharedFromThis<FGMEListViewModelBase>
-	, public FGMETickableViewModelBase
+	: public FGMETickableViewModelBase
 {
 protected:
 	// Private token only allows members or friends to call MakeShared

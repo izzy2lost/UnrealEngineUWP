@@ -19,6 +19,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/ObjectPtr.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 class UClass;
 class UEnum;
@@ -123,6 +124,12 @@ private:
 	 */
 	COREUOBJECT_API void AddObject(FName Name, EInternalObjectFlags InSetInternalFlags, int32 InInternalIndex = -1, int32 InSerialNumber = 0);
 
+	/**
+	 * Checks to see if the object appears to be valid when being destroyed
+	 * @return true if this appears to be a valid object
+	 */
+	COREUOBJECT_API bool IsValidLowLevelForDestruction() const;
+
 public:
 	/**
 	 * Checks to see if the object appears to be valid
@@ -186,6 +193,12 @@ public:
 	*/
 	COREUOBJECT_API void MarkAsReachable() const;
 
+	/** Increments ref-count on the object. Should always be paired with RAII (i.e. TStrongObjectPtr). */
+	COREUOBJECT_API void AddRef() const;
+
+	/** Release ref-count on the object. */
+	COREUOBJECT_API void ReleaseRef() const;
+
 protected:
 	/**
 	 * Set the object flags directly
@@ -225,7 +238,23 @@ public:
 			return;
 		}
 
-		FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
+		UE_AUTORTFM_OPEN
+		{
+			FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
+		};
+
+		// If we abort we undo setting the flags we just set.
+		AutoRTFM::OnAbort([this, OldFlags, FlagsToAdd]
+			{
+				int32 MaskFlags = OldFlags;
+
+				// Now just extract out the old flags that mattered (the ones we were setting).
+				MaskFlags &= FlagsToAdd;
+				// And unmask the flags we didn't mention.
+				MaskFlags |= ~FlagsToAdd;
+
+				FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, MaskFlags);
+			});
 	}
 
 	/**
@@ -242,7 +271,21 @@ public:
 			return;
 		}
 
-		FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
+		UE_AUTORTFM_OPEN 
+		{
+			FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
+		};
+
+		// If we abort we undo clearing the flags we just unset.
+		AutoRTFM::OnAbort([this, OldFlags, FlagsToClear]
+			{
+				int32 MaskFlags = OldFlags;
+
+				// Now just extract out the old flags that mattered (the ones we were setting).
+				MaskFlags &= FlagsToClear;
+
+				FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, MaskFlags);
+			});
 	}
 
 	static void PrefetchClass(UObject* Object) { FPlatformMisc::Prefetch(Object, offsetof(UObjectBase, ClassPrivate)); }
@@ -252,7 +295,15 @@ private:
 	FORCEINLINE int32 GetFlagsInternal() const
 	{
 		static_assert(sizeof(int32) == sizeof(ObjectFlags), "Flags must be 32-bit for atomics.");
-		return FPlatformAtomics::AtomicRead_Relaxed((int32*)&ObjectFlags);
+
+		int32 Result = 0;
+
+		UE_AUTORTFM_OPEN
+		{
+			Result = FPlatformAtomics::AtomicRead_Relaxed((int32*)&ObjectFlags);
+		};
+
+		return Result;
 	}
 
 	/** Flags used to track and report various object states. This needs to be 8 byte aligned on 32-bit
@@ -463,6 +514,9 @@ COREUOBJECT_API void RegisterCompiledInInfo(UPackage* (*InOuterRegister)(), cons
  * Register compiled in information for multiple classes, structures, and enumerations
  */
 COREUOBJECT_API void RegisterCompiledInInfo(const TCHAR* PackageName, const FClassRegisterCompiledInInfo* ClassInfo, size_t NumClassInfo, const FStructRegisterCompiledInInfo* StructInfo, size_t NumStructInfo, const FEnumRegisterCompiledInInfo* EnumInfo, size_t NumEnumInfo);
+
+/** Must be called to register ProcessNewlyLoadedUObjects with the module manager */
+COREUOBJECT_API void RegisterProcessNewlyLoadedUObjects();
 
 /** Must be called after a module has been loaded that contains UObject classes */
 COREUOBJECT_API void ProcessNewlyLoadedUObjects(FName Package = NAME_None, bool bCanProcessNewlyLoadedObjects = true);

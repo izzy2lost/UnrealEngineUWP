@@ -5,6 +5,7 @@
 #include "AvaSequenceController.h"
 #include "AvaSequencePlayer.h"
 #include "AvaSequenceVersion.h"
+#include "AvaTag.h"
 #include "Director/AvaSequenceDirector.h"
 #include "Director/AvaSequenceDirectorBlueprint.h"
 #include "EngineUtils.h"
@@ -36,9 +37,8 @@ namespace UE::AvaSequence::Private
 	{
 	public:
 		FTransientPlayer(UAvaSequence& InSequence)
-			: Runner(MakeShared<FMovieSceneEntitySystemRunner>())
 		{
-			Template.Initialize(InSequence, *this, nullptr, Runner);
+			Template.Initialize(InSequence, *this, nullptr);
 			State.AssignSequence(MovieSceneSequenceID::Root, InSequence, *this);
 		}
 
@@ -51,8 +51,6 @@ namespace UE::AvaSequence::Private
 		//~ End IMovieScenePlayer
 
 	private:
-		TSharedRef<FMovieSceneEntitySystemRunner> Runner;
-
 		FMovieSceneRootEvaluationTemplateInstance Template;
 	};
 }
@@ -109,10 +107,9 @@ void UAvaSequence::SetLabel(FName InLabel)
 	Label = InLabel;
 }
 
-FAvaTag UAvaSequence::GetSequenceTag() const
+FAvaTagHandle UAvaSequence::GetSequenceTag() const
 {
-	const FAvaTag* ResolvedTag = Tag.GetTag();
-	return ResolvedTag ? *ResolvedTag : FAvaTag();
+	return Tag;
 }
 
 void UAvaSequence::SetSequenceTag(const FAvaTagHandle& InSequenceTag)
@@ -432,7 +429,7 @@ TArray<UObject*> UAvaSequence::GetBoundObjects(UObject* InPlaybackContext) const
 	for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
 	{
 		TArray<UObject*, TInlineAllocator<1>> BoundObject;
-		LocateBoundObjects(Binding.GetObjectGuid(), UE::UniversalObjectLocator::FResolveParams(InPlaybackContext), BoundObject);
+		LocateBoundObjects(Binding.GetObjectGuid(), UE::UniversalObjectLocator::FResolveParams(InPlaybackContext), MovieSceneHelpers::CreateTransientSharedPlaybackState(InPlaybackContext, MovieScene->GetTypedOuter<UMovieSceneSequence>()), BoundObject);
 		OutObjects.Append(BoundObject);
 	}
 
@@ -506,6 +503,11 @@ UObject* UAvaSequence::GetParentObject(UObject* InObject) const
 	return InObject
 		? InObject->GetTypedOuter<AActor>()
 		: nullptr;
+}
+
+bool UAvaSequence::CanAnimateObject(UObject& InObject) const
+{
+	return Super::CanAnimateObject(InObject) || InObject.GetTypedOuter<AActor>();
 }
 
 void UAvaSequence::Serialize(FArchive& Ar)
@@ -620,17 +622,11 @@ FGuid UAvaSequence::FindGuidFromObject(UObject* InObject)
 }
 
 #if WITH_EDITOR
-void UAvaSequence::OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename)
+void UAvaSequence::OnOuterWorldRenamed(UObject* InNewOuter)
 {
-	if (!DirectorBlueprint)
+	if (DirectorBlueprint)
 	{
-		return;
-	}
-
-	UAvaSequenceDirectorBlueprint* Director = CastChecked<UAvaSequenceDirectorBlueprint>(DirectorBlueprint);
-	if (!Director->OnOuterWorldRenamed(InName, InNewOuter, InFlags))
-	{
-		bOutShouldFailRename = true;
+		DirectorBlueprint->Rename(*GetDirectorBlueprintName(), InNewOuter, REN_DontCreateRedirectors);
 	}
 }
 #endif
@@ -661,7 +657,7 @@ void UAvaSequence::OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bI
 
 		InOutObject->Rename(*ObjectName.ToString()
 			, GetTransientPackage()
-			, REN_ForceNoResetLoaders | REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+			, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 	};
 
 #if WITH_EDITORONLY_DATA

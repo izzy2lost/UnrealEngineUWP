@@ -27,6 +27,7 @@ void SAssetDropTarget::Construct(const FArguments& InArgs )
 
 	SDropTarget::Construct(
 		SDropTarget::FArguments()
+		.bOnlyRecognizeOnDragEnter(InArgs._bOnlyRecognizeOnDragEnter)
 		.OnDropped(this, &SAssetDropTarget::OnDropped)
 		[
 			InArgs._Content.Widget

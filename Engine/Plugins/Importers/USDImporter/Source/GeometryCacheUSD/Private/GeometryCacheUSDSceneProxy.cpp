@@ -30,7 +30,7 @@ bool FGeomCacheTrackUsdProxy::UpdateMeshData(float Time, bool bLooping, int32& I
 		}
 		return bResult;
 	}
-	return false;
+	return FGeomCacheTrackProxy::UpdateMeshData(Time, bLooping, InOutMeshSampleIndex, OutMeshData);
 }
 
 bool FGeomCacheTrackUsdProxy::GetMeshData(int32 SampleIndex, FGeometryCacheMeshData& OutMeshData)
@@ -41,7 +41,7 @@ bool FGeomCacheTrackUsdProxy::GetMeshData(int32 SampleIndex, FGeometryCacheMeshD
 	{
 		return UsdTrack->GetMeshData(SampleIndex, OutMeshData);
 	}
-	return false;
+	return FGeomCacheTrackProxy::GetMeshData(SampleIndex, OutMeshData);
 }
 
 bool FGeomCacheTrackUsdProxy::IsTopologyCompatible(int32 SampleIndexA, int32 SampleIndexB)
@@ -55,13 +55,17 @@ bool FGeomCacheTrackUsdProxy::IsTopologyCompatible(int32 SampleIndexA, int32 Sam
 
 		return NumVerticesA == NumVerticesB;
 	}
-	return false;
+	return FGeomCacheTrackProxy::IsTopologyCompatible(SampleIndexA, SampleIndexB);
 }
 
 const FVisibilitySample& FGeomCacheTrackUsdProxy::GetVisibilitySample(float Time, const bool bLooping) const
 {
-	// Assume the track is visible for its whole duration
-	return FVisibilitySample::VisibleSample;
+	if (UGeometryCacheTrackUsd* UsdTrack = Cast<UGeometryCacheTrackUsd>(Track))
+	{
+		// Assume the track is visible for its whole duration
+		return FVisibilitySample::VisibleSample;
+	}
+	return FGeomCacheTrackProxy::GetVisibilitySample(Time, bLooping);
 }
 
 void FGeomCacheTrackUsdProxy::FindSampleIndexesFromTime(
@@ -86,5 +90,9 @@ void FGeomCacheTrackUsdProxy::FindSampleIndexesFromTime(
 			Swap(OutFrameIndex, OutNextFrameIndex);
 			InInterpolationFactor = 1.0f - InInterpolationFactor;
 		}
+	}
+	else
+	{
+		FGeomCacheTrackProxy::FindSampleIndexesFromTime(Time, bLooping, bIsPlayingBackwards, OutFrameIndex, OutNextFrameIndex, InInterpolationFactor);
 	}
 }

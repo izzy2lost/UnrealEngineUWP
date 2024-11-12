@@ -95,7 +95,7 @@ public:
 	virtual bool IsInGameView() const = 0;
 	
 	/** Adds a widget overlaid over the viewport */
-	virtual void AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget) = 0;
+	virtual void AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget, int32 ZOrder=INDEX_NONE) = 0;
 
 	/** Removes a widget that was previously overlaid on to this viewport */
 	virtual void RemoveOverlayWidget(TSharedRef<SWidget> OverlaidWidget) = 0;

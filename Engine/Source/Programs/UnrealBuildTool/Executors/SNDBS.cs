@@ -216,6 +216,11 @@ namespace UnrealBuildTool
 			return true;
 		}
 
+		private TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent;
+
 		/// <inheritdoc/>
 		public override Task<bool> ExecuteActionsAsync(IEnumerable<LinkedAction> ActionsToExecute, ILogger Logger, IActionArtifactCache? actionArtifactCache)
 		{
@@ -272,11 +277,9 @@ namespace UnrealBuildTool
 					if (a.bIsGCCCompiler)
 					{
 						// Look for any prerequisite actions that produce .pch files and add any .cpp files they depend on
-						var ExplicitInputFiles = Job["explicit_input_files"] as List<Dictionary<string, object>>;
+						List<Dictionary<string, object>>? ExplicitInputFiles = Job["explicit_input_files"] as List<Dictionary<string, object>>;
 
-						if (ExplicitInputFiles != null)
-						{
-							ExplicitInputFiles.AddRange(a.PrerequisiteActions
+						ExplicitInputFiles?.AddRange(a.PrerequisiteActions
 								.Where(Prereq => Prereq.ProducedItems.Any(Produced => Produced.AbsolutePath.EndsWith(".gch")))
 								.SelectMany(Prereq => Prereq.PrerequisiteItems, (_, PrereqFile) => PrereqFile.AbsolutePath)
 								.Where(Path => Path.EndsWith(".cpp"))
@@ -284,7 +287,6 @@ namespace UnrealBuildTool
 								{
 									["filename"] = Path
 								}));
-						}
 					}
 
 					string CommandDescription = String.IsNullOrWhiteSpace(a.CommandDescription) ? a.ActionType.ToString() : a.CommandDescription;
@@ -353,6 +355,7 @@ namespace UnrealBuildTool
 				try
 				{
 					// Start the process, redirecting stdout/stderr if requested.
+					DateTime startTimeUTC = DateTime.UtcNow;
 					Process LocalProcess = new Process();
 					LocalProcess.StartInfo = SnDbsStartInfo;
 					bool bShouldRedirectOuput = EventHandlerWrapper != null;
@@ -377,7 +380,10 @@ namespace UnrealBuildTool
 
 					// Wait until the process is finished and return whether it all the tasks successfully executed.
 					LocalProcess.WaitForExit();
-					return LocalProcess.ExitCode == 0;
+					bool result = LocalProcess.ExitCode == 0;
+
+					telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, NumActions, -1, -1, 0, 0, DateTime.UtcNow);
+					return result;
 				}
 				catch (Exception Ex)
 				{
@@ -453,28 +459,29 @@ vc_major_version=14
 use_surrogate=true
 force_synchronous_pdb_writes=true
 error_report_mode=prompt
+response_file_content_pattern=\s--\s"".*?cl\.exe""\s(.*)
 
 [group]
-server={VC_COMPILER_DIR}\mspdbsrv.exe
+server={VC_TOOLCHAIN_DIR}\mspdbsrv.exe
 
 [files]
 main=cl-filter.exe
-file01={VC_COMPILER_DIR}\c1.dll
-file01={VC_COMPILER_DIR}\c1ui.dll
-file02={VC_COMPILER_DIR}\c1xx.dll
-file03={VC_COMPILER_DIR}\c2.dll
-file04={VC_COMPILER_DIR}\mspdb140.dll
-file05={VC_COMPILER_DIR}\mspdbcore.dll
-file06={VC_COMPILER_DIR}\mspdbsrv.exe
-file07={VC_COMPILER_DIR}\mspft140.dll
-file08={VC_COMPILER_DIR}\vcmeta.dll
-file09={VC_COMPILER_DIR}\*\clui.dll
-file10={VC_COMPILER_DIR}\*\mspft140ui.dll
-file11={VC_COMPILER_DIR}\localespc.dll
-file12={VC_COMPILER_DIR}\cppcorecheck.dll
-file13={VC_COMPILER_DIR}\experimentalcppcorecheck.dll
-file14={VC_COMPILER_DIR}\espxengine.dll
-file15={VC_COMPILER_DIR}\c1.exe
+file01={VC_TOOLCHAIN_DIR}\c1.dll
+file01={VC_TOOLCHAIN_DIR}\c1ui.dll
+file02={VC_TOOLCHAIN_DIR}\c1xx.dll
+file03={VC_TOOLCHAIN_DIR}\c2.dll
+file04={VC_TOOLCHAIN_DIR}\mspdb140.dll
+file05={VC_TOOLCHAIN_DIR}\mspdbcore.dll
+file06={VC_TOOLCHAIN_DIR}\mspdbsrv.exe
+file07={VC_TOOLCHAIN_DIR}\mspft140.dll
+file08={VC_TOOLCHAIN_DIR}\vcmeta.dll
+file09={VC_TOOLCHAIN_DIR}\*\clui.dll
+file10={VC_TOOLCHAIN_DIR}\*\mspft140ui.dll
+file11={VC_TOOLCHAIN_DIR}\localespc.dll
+file12={VC_TOOLCHAIN_DIR}\cppcorecheck.dll
+file13={VC_TOOLCHAIN_DIR}\experimentalcppcorecheck.dll
+file14={VC_TOOLCHAIN_DIR}\espxengine.dll
+file15={VC_TOOLCHAIN_DIR}\c1.exe
 
 [output-file-patterns]
 outputfile01=\s*""([^ "",]+\.cpp\.txt)\""
@@ -507,25 +514,25 @@ force_synchronous_pdb_writes=true
 error_report_mode=prompt
 
 [group]
-server={VC_COMPILER_DIR}\mspdbsrv.exe
+server={VC_TOOLCHAIN_DIR}\mspdbsrv.exe
 
 [files]
-main={VC_COMPILER_DIR}\cl.exe
-file01={VC_COMPILER_DIR}\c1.dll
-file01={VC_COMPILER_DIR}\c1ui.dll
-file02={VC_COMPILER_DIR}\c1xx.dll
-file03={VC_COMPILER_DIR}\c2.dll
-file04={VC_COMPILER_DIR}\mspdb140.dll
-file05={VC_COMPILER_DIR}\mspdbcore.dll
-file06={VC_COMPILER_DIR}\mspdbsrv.exe
-file07={VC_COMPILER_DIR}\mspft140.dll
-file08={VC_COMPILER_DIR}\vcmeta.dll
-file09={VC_COMPILER_DIR}\*\clui.dll
-file10={VC_COMPILER_DIR}\*\mspft140ui.dll
-file11={VC_COMPILER_DIR}\localespc.dll
-file12={VC_COMPILER_DIR}\cppcorecheck.dll
-file13={VC_COMPILER_DIR}\experimentalcppcorecheck.dll
-file14={VC_COMPILER_DIR}\espxengine.dll
+main={VC_TOOLCHAIN_DIR}\cl.exe
+file01={VC_TOOLCHAIN_DIR}\c1.dll
+file01={VC_TOOLCHAIN_DIR}\c1ui.dll
+file02={VC_TOOLCHAIN_DIR}\c1xx.dll
+file03={VC_TOOLCHAIN_DIR}\c2.dll
+file04={VC_TOOLCHAIN_DIR}\mspdb140.dll
+file05={VC_TOOLCHAIN_DIR}\mspdbcore.dll
+file06={VC_TOOLCHAIN_DIR}\mspdbsrv.exe
+file07={VC_TOOLCHAIN_DIR}\mspft140.dll
+file08={VC_TOOLCHAIN_DIR}\vcmeta.dll
+file09={VC_TOOLCHAIN_DIR}\*\clui.dll
+file10={VC_TOOLCHAIN_DIR}\*\mspft140ui.dll
+file11={VC_TOOLCHAIN_DIR}\localespc.dll
+file12={VC_TOOLCHAIN_DIR}\cppcorecheck.dll
+file13={VC_TOOLCHAIN_DIR}\experimentalcppcorecheck.dll
+file14={VC_TOOLCHAIN_DIR}\espxengine.dll
 
 [output-file-patterns]
 outputfile01=\s*""([^ "",]+\.cpp\.txt\.json)\""
@@ -554,7 +561,7 @@ filter06=concrt140*.dll",
 use_cache=no
 
 [files]
-main={VC_COMPILER_DIR}\mspdbsrv.exe
+main={VC_TOOLCHAIN_DIR}\mspdbsrv.exe
 
 [openmp]
 omp=true

@@ -2,7 +2,7 @@
 
 #include "OpenColorIOConfiguration.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Containers/SortedMap.h"
 #include "EngineAnalytics.h"
 #include "Engine/VolumeTexture.h"
@@ -793,46 +793,6 @@ void UOpenColorIOConfiguration::OnToastCallback(bool bInReloadColorspaces)
 	}
 }
 
-
-FOpenColorIOEditorConfigurationInspector::FOpenColorIOEditorConfigurationInspector(const UOpenColorIOConfiguration& InConfiguration)
-	: Configuration(InConfiguration)
-{
-}
-
-int32 FOpenColorIOEditorConfigurationInspector::GetNumColorSpaces() const
-{
-	return Configuration.GetConfigWrapper()->GetNumColorSpaces();
-}
-
-FString FOpenColorIOEditorConfigurationInspector::GetColorSpaceName(int32 Index) const
-{
-	return Configuration.GetConfigWrapper()->GetColorSpaceName(Index);
-}
-
-FString FOpenColorIOEditorConfigurationInspector::GetColorSpaceFamilyName(const TCHAR* InColorSpaceName) const
-{
-	return Configuration.GetConfigWrapper()->GetColorSpaceFamilyName(InColorSpaceName);
-}
-
-int32 FOpenColorIOEditorConfigurationInspector::GetNumDisplays() const
-{
-	return Configuration.GetConfigWrapper()->GetNumDisplays();
-}
-
-FString FOpenColorIOEditorConfigurationInspector::GetDisplayName(int32 Index) const
-{
-	return Configuration.GetConfigWrapper()->GetDisplayName(Index);
-}
-
-int32 FOpenColorIOEditorConfigurationInspector::GetNumViews(const TCHAR* InDisplayName) const
-{
-	return Configuration.GetConfigWrapper()->GetNumViews(InDisplayName);
-}
-
-FString FOpenColorIOEditorConfigurationInspector::GetViewName(const TCHAR* InDisplayName, int32 Index) const
-{
-	return Configuration.GetConfigWrapper()->GetViewName(InDisplayName, Index);
-}
 #endif //WITH_EDITOR
 
 

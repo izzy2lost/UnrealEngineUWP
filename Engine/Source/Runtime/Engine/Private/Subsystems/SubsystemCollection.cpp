@@ -3,6 +3,7 @@
 #include "Subsystems/SubsystemCollection.h"
 
 #include "Subsystems/Subsystem.h"
+#include "UObject/Interface.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/Package.h"
 #include "Modules/ModuleManager.h"
@@ -48,6 +49,12 @@ FSubsystemCollectionBase::FSubsystemCollectionBase(UClass* InBaseType)
 
 USubsystem* FSubsystemCollectionBase::GetSubsystemInternal(UClass* SubsystemClass) const
 {
+	// It does not make sense to get a subsystem by null class.
+	if (!ensure(SubsystemClass))
+	{
+		return nullptr;
+	}
+	
 #if WITH_EDITOR && UE_BUILD_SHIPPING
 	TStringBuilder<200> DebugSubsystemClassName;
 	if (SubsystemClass && IsEngineExitRequested())
@@ -64,10 +71,10 @@ USubsystem* FSubsystemCollectionBase::GetSubsystemInternal(UClass* SubsystemClas
 	}
 	else
 	{
-		const TArray<USubsystem*>& SystemPtrs = GetSubsystemArrayInternal(SubsystemClass);
-		if (SystemPtrs.Num() > 0)
+		const FSubsystemCollectionBase::FSubsystemArray& SystemPtrs = FindAndPopulateSubsystemArrayInternal(SubsystemClass);
+		if (SystemPtrs.Subsystems.Num() > 0)
 		{
-			return SystemPtrs[0];
+			return SystemPtrs.Subsystems[0];
 		}
 	}
 
@@ -76,29 +83,60 @@ USubsystem* FSubsystemCollectionBase::GetSubsystemInternal(UClass* SubsystemClas
 
 const TArray<USubsystem*>& FSubsystemCollectionBase::GetSubsystemArrayInternal(UClass* SubsystemClass) const
 {
-	if (!SubsystemArrayMap.Contains(SubsystemClass))
-	{
-		TArray<USubsystem*>& NewList = SubsystemArrayMap.Add(SubsystemClass);
-
-		PopulateSubsystemArrayInternal(SubsystemClass, NewList);
-
-		return NewList;
-	}
-
-	const TArray<USubsystem*>& List = SubsystemArrayMap.FindChecked(SubsystemClass);
-	return List;
+	FSubsystemArray& List = FindAndPopulateSubsystemArrayInternal(SubsystemClass);
+	return List.Subsystems;
 }
 
-void FSubsystemCollectionBase::PopulateSubsystemArrayInternal(UClass* SubsystemClass, TArray<USubsystem*>& SubsystemArray) const
+TArray<USubsystem*> FSubsystemCollectionBase::GetSubsystemArrayCopy(UClass* SubsystemClass) const
 {
-	check(SubsystemArray.Num() == 0);
-	for (auto Iter = SubsystemMap.CreateConstIterator(); Iter; ++Iter)
+	FSubsystemArray& List = FindAndPopulateSubsystemArrayInternal(SubsystemClass);
+	return List.Subsystems;
+}
+
+void FSubsystemCollectionBase::ForEachSubsystem(TFunctionRef<void(USubsystem*)> Operation) const
+{
+	TGuardValue<bool> Guard{bIterating, true};
+	for (auto It = SubsystemMap.CreateConstIterator(); It; ++It)
 	{
-		UClass* KeyClass = Iter.Key();
-		if (KeyClass->IsChildOf(SubsystemClass))
+		Operation(It->Value);
+	}	
+}
+
+FSubsystemCollectionBase::FSubsystemArray& FSubsystemCollectionBase::FindAndPopulateSubsystemArrayInternal(UClass* SubsystemClass) const
+{
+	const bool bIsInterface = SubsystemClass->IsChildOf<UInterface>();
+	if (!SubsystemArrayMap.Contains(SubsystemClass))
+	{
+		TUniquePtr<FSubsystemArray>& NewList = SubsystemArrayMap.Emplace(SubsystemClass, MakeUnique<FSubsystemArray>());
+		for (auto Iter = SubsystemMap.CreateConstIterator(); Iter; ++Iter)
 		{
-			SubsystemArray.Add(Iter.Value());
+			UClass* KeyClass = Iter.Key();
+			if ((!bIsInterface && KeyClass->IsChildOf(SubsystemClass)) || 
+				(bIsInterface && KeyClass->ImplementsInterface(SubsystemClass)))
+			{
+				NewList->Subsystems.Add(Iter.Value());
+			}
 		}
+		return *NewList;
+	}
+
+	const TUniquePtr<FSubsystemArray>& List = SubsystemArrayMap.FindChecked(SubsystemClass);
+	return *List;
+}
+
+void FSubsystemCollectionBase::ForEachSubsystemOfClass(UClass* SubsystemClass, TFunctionRef<void(USubsystem*)> Operation) const
+{
+	if (SubsystemClass == nullptr)
+	{
+		SubsystemClass = USubsystem::StaticClass();
+	}
+
+	const FSubsystemArray& List = FindAndPopulateSubsystemArrayInternal(SubsystemClass);
+
+	TGuardValue<bool> IterationGuard{List.bIsIterating, true};
+	for (int32 i=0; i < List.Subsystems.Num(); ++i)
+	{
+		Operation(List.Subsystems[i]);
 	}
 }
 
@@ -175,22 +213,28 @@ void FSubsystemCollectionBase::Deinitialize()
 {
 	//non-thread-safe use of Global lists, must be from GameThread:
 	check(IsInGameThread());
+	check(!bIterating);
 
 	// already Deinitialize'd :
 	if (Outer == nullptr)
 	{
 		return;
 	}
-
+	
 	// Remove static tracking 
 	GlobalSubsystemCollections.Remove(this);
 	if (GlobalSubsystemCollections.IsEmpty())
 	{
 		FSubsystemModuleWatcher::DeinitializeModuleWatcher();
 	}
+	
+	// Check not iterating any lists
+	for (TPair<UClass*, TUniquePtr<FSubsystemArray>>& Pair : SubsystemArrayMap)
+	{
+		UE_CLOG(Pair.Value->bIsIterating, LogSubsystemCollection, Fatal, TEXT("FSubsystemCollectionBase::Deinitialize called while iterating subsystems of type %s"), *Pair.Key->GetPathName());
+	}
 
 	// Deinit and clean up existing systems
-	SubsystemArrayMap.Empty();
 	for (auto Iter = SubsystemMap.CreateIterator(); Iter; ++Iter)
 	{
 		UClass* KeyClass = Iter.Key();
@@ -201,6 +245,8 @@ void FSubsystemCollectionBase::Deinitialize()
 			Subsystem->InternalOwningSubsystem = nullptr;
 		}
 	}
+
+	SubsystemArrayMap.Empty();
 	SubsystemMap.Empty();
 	Outer = nullptr;
 }
@@ -258,11 +304,14 @@ USubsystem* FSubsystemCollectionBase::AddAndInitializeSubsystem(UClass* Subsyste
 				Subsystem->Initialize(*this);
 				
 				// Add this new subsystem to any existing maps of base classes to lists of subsystems
-				for (TPair<UClass*, TArray<USubsystem*>>& Pair : SubsystemArrayMap)
+				// Not calling FatalErrorIfIteratingSubsystems because adding to the end of the array is safe for index-based iteration
+				for (TPair<UClass*, TUniquePtr<FSubsystemArray>>& Pair : SubsystemArrayMap)
 				{
-					if (SubsystemClass->IsChildOf(Pair.Key))
+					const bool bIsInterface = Pair.Key->IsChildOf<UInterface>();
+					if ((!bIsInterface && SubsystemClass->IsChildOf(Pair.Key)) || 
+						(bIsInterface && SubsystemClass->ImplementsInterface(Pair.Key)))
 					{
-						Pair.Value.Add(Subsystem);
+						Pair.Value->Subsystems.Add(Subsystem);
 					}
 				}
 
@@ -281,16 +330,22 @@ USubsystem* FSubsystemCollectionBase::AddAndInitializeSubsystem(UClass* Subsyste
 void FSubsystemCollectionBase::RemoveAndDeinitializeSubsystem(USubsystem* Subsystem)
 {
 	check(Subsystem);
+	check(!bIterating);
 	USubsystem* SubsystemFound = SubsystemMap.FindAndRemoveChecked(Subsystem->GetClass());
 	check(Subsystem == SubsystemFound);
 
 	const UClass* SubsystemClass = Subsystem->GetClass();
 
-	for (auto& Pair : SubsystemArrayMap)
+	for (TPair<UClass*, TUniquePtr<FSubsystemArray>>& Pair : SubsystemArrayMap)
 	{
-		if (SubsystemClass->IsChildOf(Pair.Key))
+		const bool bIsInterface = Pair.Key->IsChildOf<UInterface>();
+		if ((!bIsInterface && SubsystemClass->IsChildOf(Pair.Key)) || 
+			(bIsInterface && SubsystemClass->ImplementsInterface(Pair.Key)))
 		{
-			Pair.Value.Remove(Subsystem);
+			UE_CLOG(Pair.Value->bIsIterating, LogSubsystemCollection, Fatal, TEXT("Attempted to deinitialize subsystem %s while iterating subsystems of type %s"),
+				*Subsystem->GetPathName(),
+				*Pair.Key->GetPathName());
+			Pair.Value->Subsystems.Remove(Subsystem);
 		}
 	}
 

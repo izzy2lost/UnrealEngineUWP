@@ -19,6 +19,51 @@
 class FTraceAuxiliary
 {
 public:
+	/** 
+	* This enum is serialized and sent via the trace service.
+	* Do not change the values or modify the order. Only add new values to the end.
+	* Should be kept in sync with FTraceStatus::ETraceSystemStatus from ITraceController.h
+	*/
+	enum class ETraceSystemStatus : uint8
+	{
+		NotAvailable, // Disabled at compile time.
+		Available,
+		TracingToServer,
+		TracingToFile,
+
+		NumValues, // This must be the last value.
+	};
+
+	enum class EEnumerateResult : uint8
+	{
+		Continue,
+		Stop,
+	};
+
+	struct FChannelPreset
+	{
+		FChannelPreset(const TCHAR* InName,const TCHAR* InChannels, bool bInIsReadOnly)
+			: Name(InName)
+			, ChannelList(InChannels)
+			, bIsReadOnly(bInIsReadOnly)
+		{
+		}
+
+		/**
+		 * Do not store these pointers.
+		 */
+		const TCHAR* Name;
+		const TCHAR* ChannelList;
+
+		/**
+		* A preset should be read-only if it contains any read-only channels.
+		* A read-only preset can only be enabled using the command line when starting the application.
+		*/
+		bool bIsReadOnly = false;
+	};
+
+	typedef TFunctionRef<EEnumerateResult(const FChannelPreset& Preset)> PresetCallback;
+
 	// In no logging configurations all log categories are of type FNoLoggingCategory, which has no relation with
 	// FLogCategoryBase. In order to not need to conditionally set the argument alias the type here.
 #if NO_LOGGING
@@ -52,17 +97,17 @@ public:
 	/** Callback whenever a trace is started */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnTraceStarted, FTraceAuxiliary::EConnectionType TraceType, const FString& TraceDestination);
 
-	/** 
-	* Callback whenever a trace recording is stopped. 
-	* TraceType tells what kind of trace it is.
-	* TraceDestination will be either the the filename and path for a file trace or the network connection for a network trace
-	*/
+	/**
+	 * Callback whenever a trace recording is stopped.
+	 * TraceType tells what kind of trace it is.
+	 * TraceDestination will be either the filename and path for a file trace or the network connection for a network trace
+	 */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnTraceStopped, FTraceAuxiliary::EConnectionType TraceType, const FString& TraceDestination);
 
 	/**
-	* Callback whenever a trace snapshot is saved.
-	* Path is the file system path of the snapshot file.
-	*/
+	 * Callback whenever a trace snapshot is saved.
+	 * Path is the file system path of the snapshot file.
+	 */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnSnapshotSaved, FTraceAuxiliary::EConnectionType TraceType, const FString& TraceDestination);
 
 	struct FOptions
@@ -99,8 +144,8 @@ public:
 	static CORE_API bool Pause();
 
 	/**
-	* @return True if trace was paused and the list of channels to resume exists.
-	*/
+	 * @return True if trace was paused and the list of channels to resume exists.
+	 */
 	static CORE_API bool IsPaused();
 
 	/**
@@ -113,7 +158,7 @@ public:
 	 * @param FilePath Path to the file to write the snapshot to. If it is null or empty a file path will be generated.
 	 */
 	static CORE_API bool WriteSnapshot(const TCHAR* FilePath);
-	
+
 	/**
 	 * Write tailing memory state to a trace server.
 	 * @param FilePath Path to the file to write the snapshot to. If it is null or empty a file path will be generated.
@@ -147,12 +192,26 @@ public:
 	 *  Enable previously selected channels. This method can be called multiple times
 	 *  as channels can be announced on module loading.
 	 */
-	static CORE_API void EnableChannels();
+	static CORE_API void EnableCommandlineChannels();
 
 	/**
-	* Disable channels to stop recording traces with them.
-	* @param Channels List of channels (or a preset) to disable. If null it will disable all active channels.
-	*/
+	 * Enable channels to emit events belonging to this category.
+	 * @note Note that presets cannot be used when specifying channel ids.
+	 * @param ChannelIds List of channels (or a preset) to enable. 
+	 */
+	static CORE_API void EnableChannels(TConstArrayView<uint32> ChannelIds);
+
+	/**
+	 * Disable channels to mute events belonging to this category.
+	 * @note Note that presets cannot be used when specifying channel ids.
+	 * @param ChannelIds List of channels (or a preset) to disable. 
+	 */
+	static CORE_API void DisableChannels(TConstArrayView<uint32> ChannelIds);
+
+	/**
+	 * Disable channels to stop recording traces with them.
+	 * @param Channels List of channels (or a preset) to disable. If null it will disable all active channels.
+	 */
 	static CORE_API void DisableChannels(const TCHAR* Channels = nullptr);
 
 	/**
@@ -160,19 +219,18 @@ public:
 	 *  Contains either a file path or network address. Points to an empty string if tracing is disabled.
 	 */
 	UE_DEPRECATED(5.3, "Use GetTraceDestinationString instead.")
-	static CORE_API const TCHAR*	GetTraceDestination();
-	
+	static CORE_API const TCHAR* GetTraceDestination();
+
 	/**
 	 *  Returns the destination string that is currently being traced to.
 	 *  Contains either a file path or network address. Empty if tracing is disabled.
 	 */
 	static CORE_API FString GetTraceDestinationString();
-	
+
 	/**
 	 *  Returns whether the trace system is currently connected to a trace sink (file or network)
 	 */
-	static CORE_API bool	IsConnected();
-
+	static CORE_API bool IsConnected();
 
 	/**
 	 * Returns whether the trace system is currently connected. If connected writes the session/trace identifiers.
@@ -183,20 +241,35 @@ public:
 	static CORE_API bool IsConnected(FGuid& OutSessionGuid, FGuid& OutTraceGuid);
 
 	/**
-	*  Returns the current connection type.
-	*/
+	 * Returns the current connection type.
+	 */
 	static CORE_API EConnectionType GetConnectionType();
 
 	/**
-	 *  Adds a comma separated list of currently active channels to the passed in StringBuilder
+	 * Adds a comma separated list of currently active channels to the passed in StringBuilder
 	 */
-	static CORE_API void	GetActiveChannelsString(FStringBuilderBase& String);
+	static CORE_API void GetActiveChannelsString(FStringBuilderBase& String);
 
 	/**
 	 * Used when process is panicking. Stops all tracing immediately to avoid further allocations. Process is not
 	 * expected to continue after this call.
 	 */
-	 static CORE_API void Panic();
+	static CORE_API void Panic();
+
+	/**
+	 * Get the settings used to initialize TraceLog
+	 */
+	static CORE_API struct UE::Trace::FInitializeDesc const* GetInitializeDesc();
+
+	/**
+	* Enumerate the channel presets that are defined in code.
+	*/
+	static CORE_API void EnumerateFixedChannelPresets(PresetCallback Callback);
+
+	/**
+	* Enumerate the channel presets that are defined in BaseEngine.ini, under the [Trace.ChannelPresets] section.
+	*/
+	static CORE_API void EnumerateChannelPresetsFromSettings(PresetCallback Callback);
 
 	/**
 	 * Delegate that triggers when a connection is established. Gives subscribers a chance to trace events that appear
@@ -204,10 +277,9 @@ public:
 	 *  * Only NoSync event types can be emitted.
 	 *  * Important events should not be emitted. They will appear after the events in the tail.
 	 *  * Callback is issued from a worker thread. User is responsible to synchronize shared resources.
-	 * 
-	 * @note This is an advanced feature to avoid using important events in cases where event data can be
-	 *		 recalled easily.
-	 *		 
+	 *
+	 * @note This is an advanced feature to avoid using important events in cases where event data can be recalled easily.
+	 *
 	 * @param Callback Delegate to call on new connections.
 	 */
 	static CORE_API FOnConnection OnConnection;
@@ -229,7 +301,11 @@ public:
 	 * The path to the snapshot file is passed to the delegate.
 	 */
 	static CORE_API FOnSnapshotSaved OnSnapshotSaved;
-	
+
+	/**
+	 * Returns the current status of the trace system.
+	 */
+	static CORE_API ETraceSystemStatus GetTraceSystemStatus();
 };
 
 #if UE_TRACE_SERVER_CONTROLS_ENABLED
@@ -241,10 +317,11 @@ class FTraceServerControls
 {
 public:
 	/**
-	 * Launch the server using the "fork" command. This spins off an separate running process.	 * 
+	 * Launch the server using the "fork" command. This spins off a separate running process.
 	 * @return True if the server was successfully started or already running.
 	 */
 	static CORE_API bool Start();
+
 	/**
 	 * Stop any running instance of the server.
 	 * @return True if the stop command was successful. False otherwise.

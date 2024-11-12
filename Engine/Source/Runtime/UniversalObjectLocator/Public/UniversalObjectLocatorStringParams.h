@@ -25,7 +25,7 @@ ENUM_CLASS_FLAGS(EParseStringFlags)
 struct FParseStringParams
 {
 	/** Parse flags */
-	EParseStringFlags Flags;
+	EParseStringFlags Flags = EParseStringFlags::None;
 
 	bool NeedsErrorMessaging() const
 	{

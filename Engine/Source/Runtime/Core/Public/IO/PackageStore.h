@@ -15,7 +15,7 @@
 #include "UObject/NameTypes.h"
 
 class FArchive;
-class FCbObject;
+class FCbObjectView;
 class FCbWriter;
 class FStructuredArchiveSlot;
 
@@ -74,6 +74,8 @@ struct FPackageStoreEntryResource
 	TArray<FSHAHash> ShaderMapHashes;
 	/** Editor data imported package IDs. */
 	TArray<FPackageId> OptionalSegmentImportedPackageIds;
+	/** Soft package references. */
+	TArray<FPackageId> SoftPackageReferences;
 
 	/** Returns the package ID. */
 	FPackageId GetPackageId() const
@@ -96,7 +98,7 @@ struct FPackageStoreEntryResource
 	
 	CORE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageStoreEntryResource& PackageStoreEntry);
 	
-	CORE_API static FPackageStoreEntryResource FromCbObject(const FCbObject& Obj);
+	CORE_API static FPackageStoreEntryResource FromCbObject(FCbObjectView Obj);
 };
 
 /**

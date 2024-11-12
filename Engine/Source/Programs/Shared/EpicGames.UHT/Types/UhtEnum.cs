@@ -152,9 +152,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new enumeration
 		/// </summary>
+		/// <param name="headerFile">Header being parsed</param>
 		/// <param name="outer">Outer type</param>
 		/// <param name="lineNumber">Line number of declaration</param>
-		public UhtEnum(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		public UhtEnum(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 			MetaData.KeyConversion = this;
 			EnumValues = new List<UhtEnumValue>();

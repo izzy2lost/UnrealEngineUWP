@@ -8,64 +8,40 @@
 
 #include "NiagaraStatelessModule_ScaleMeshSizeBySpeed.generated.h"
 
+// Applies a modifier to mesh scale based on the velocity of the particle
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Scale Mesh Size By Speed"))
 class UNiagaraStatelessModule_ScaleMeshSizeBySpeed : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
 
-	struct FModuleBuiltData
-	{
-		float			VelocityNorm = 0.0f;
-		FUintVector2	ScaleDistribution = FUintVector2::ZeroValue;
-	};
+	static constexpr float DefaultVelocity = 1000.0f;
 
 public:
 	using FParameters = NiagaraStateless::FScaleMeshSizeBySpeedModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (ClampMin = "0.01", UIMin = "0.01"))
-	float VelocityThreshold = 1000.0f;
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (ClampMin = "0.01", UIMin = "0.01", DisableRangeDistribution))
+	FNiagaraDistributionRangeFloat VelocityThreshold = FNiagaraDistributionRangeFloat(DefaultVelocity);
 
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Scale", DisableRangeDistribution, DisableBindingDistribution))
-	FNiagaraDistributionVector3 ScaleDistribution = FNiagaraDistributionVector3(1.0f);
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (ClampMin = "0.01", UIMin = "0.01", DisableRangeDistribution))
+	FNiagaraDistributionRangeVector3 MinScaleFactor = FNiagaraDistributionRangeVector3(FVector3f(1.0f, 1.0f, 1.0f));
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
-	{
-		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
-		if (IsModuleEnabled())
-		{
-			BuiltData->VelocityNorm = VelocityThreshold > 0.0f ? 1.0f / (VelocityThreshold * VelocityThreshold) : 0.0f;
-			if (ScaleDistribution.IsCurve() && ScaleDistribution.Values.Num() > 1)
-			{
-				BuiltData->ScaleDistribution.X = BuildContext.AddStaticData(ScaleDistribution.Values);
-				BuiltData->ScaleDistribution.Y = ScaleDistribution.Values.Num() - 1;
-			}
-			else
-			{
-				const FVector3f Values[] = { FVector3f::One(), ScaleDistribution.Values.Num() > 0 ? ScaleDistribution.Values[0] : FVector3f::One() };
-				BuiltData->ScaleDistribution.X = BuildContext.AddStaticData(Values);
-				BuiltData->ScaleDistribution.Y = 1;
-			}
-		}
-	}
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (ClampMin = "0.01", UIMin = "0.01", DisableRangeDistribution))
+	FNiagaraDistributionRangeVector3 MaxScaleFactor = FNiagaraDistributionRangeVector3(FVector3f(2.0f, 2.0f, 2.0f));
 
-	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
-	{
-		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	bool bSampleScaleFactorByCurve = false;
 
-		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		Parameters->ScaleMeshSizeBySpeed_VelocityNorm		= ModuleBuiltData->VelocityNorm;
-		Parameters->ScaleMeshSizeBySpeed_ScaleDistribution	= ModuleBuiltData->ScaleDistribution;
-	}
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisableRangeDistribution, DisableBindingDistribution, EditCondition = "bSampleScaleFactorByCurve", EditConditionHides))
+	FNiagaraDistributionFloat SampleFactorCurve = FNiagaraDistributionFloat({0.0f, 1.0f});
+
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
+	virtual void BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const override;
+	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override;
 
 #if WITH_EDITOR
 	virtual bool CanDisableModule() const override { return true; }
 #endif
 #if WITH_EDITORONLY_DATA
-	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override
-	{
-		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
-		OutVariables.AddUnique(StatelessGlobals.ScaleVariable);
-		OutVariables.AddUnique(StatelessGlobals.PreviousScaleVariable);
-	}
+	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override;
 #endif
 };

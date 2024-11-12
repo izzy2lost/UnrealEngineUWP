@@ -85,7 +85,7 @@ FRigUnit_IsItemInCurrentNameSpace_Execute()
 	Result = false;
 	if(!CurrentNameSpace.IsEmpty() && !ItemNameSpace.IsEmpty())
 	{
-		Result = ItemNameSpace.Equals(CurrentNameSpace, ESearchCase::CaseSensitive); 
+		Result = ItemNameSpace.Equals(CurrentNameSpace, ESearchCase::IgnoreCase); 
 	}
 }
 
@@ -129,7 +129,7 @@ FRigUnit_GetItemsInNameSpace_Execute()
 					const FName ItemNameSpace = Hierarchy->GetNameSpaceFName(Key);
 					if(!ItemNameSpace.IsNone())
 					{
-						if(ItemNameSpace.IsEqual(NameSpaceName, ENameCase::CaseSensitive))
+						if(ItemNameSpace.IsEqual(NameSpaceName, ENameCase::IgnoreCase))
 						{
 							Collection.AddUnique(Key);
 						}

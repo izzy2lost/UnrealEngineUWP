@@ -233,16 +233,25 @@ bool FPerfCounters::ProcessStatsRequest(const FHttpServerRequest& Request, const
 
 bool FPerfCounters::ProcessExecRequest(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
-	FStringOutputDevice StringOutDevice;
-	bool bExecCommandSuccess = false;
 	const FString* ExecCmd = Request.QueryParams.Find(TEXT("C"));
 	if (ExecCmd)
 	{
-		StringOutDevice.SetAutoEmitLineTerminator(true);
-
 		if (ExecCmdCallback.IsBound())
 		{
-			bExecCommandSuccess = ExecCmdCallback.Execute(*ExecCmd, StringOutDevice);
+			FStringOutputDevice StringOutDevice;
+			StringOutDevice.SetAutoEmitLineTerminator(true);
+
+			const bool bExecCommandSuccess = ExecCmdCallback.Execute(*ExecCmd, StringOutDevice);
+			if (bExecCommandSuccess)
+			{
+				auto Response = FHttpServerResponse::Create(StringOutDevice, TEXT("text/text"));
+				OnComplete(MoveTemp(Response));
+			}
+			else
+			{
+				auto Response = FHttpServerResponse::Error(EHttpServerResponseCodes::NotSupported, StringOutDevice);
+				OnComplete(MoveTemp(Response));
+			}
 		}
 		else
 		{
@@ -255,18 +264,6 @@ bool FPerfCounters::ProcessExecRequest(const FHttpServerRequest& Request, const 
 	{
 		auto Response = FHttpServerResponse::Error(EHttpServerResponseCodes::NotSupported,
 			TEXT("exec missing query command (c=MyCommand)"));
-		OnComplete(MoveTemp(Response));
-	}
-
-
-	if (bExecCommandSuccess)
-	{
-		auto Response = FHttpServerResponse::Create(StringOutDevice, TEXT("text/text"));
-		OnComplete(MoveTemp(Response));
-	}
-	else
-	{
-		auto Response = FHttpServerResponse::Error(EHttpServerResponseCodes::NotSupported, StringOutDevice);
 		OnComplete(MoveTemp(Response));
 	}
 

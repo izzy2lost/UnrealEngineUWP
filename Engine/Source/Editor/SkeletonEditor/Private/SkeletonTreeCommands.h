@@ -60,6 +60,9 @@ public:
 	/** Hide parents on filter */
 	TSharedPtr< FUICommandInfo > HideParentsWhenFiltering;
 
+	/** Show bone numbers */
+	TSharedPtr< FUICommandInfo > ShowBoneIndex;
+
 	/** Add a socket to the skeleton */
 	TSharedPtr< FUICommandInfo > AddSocket;
 

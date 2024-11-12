@@ -22,6 +22,23 @@ namespace CSVStats
 			return commandLine;
 		}
 
+		public static bool IsParamName(string str)
+		{
+			if (str.Length == 0)
+			{
+				return false;
+			}
+			if (str[0] != '-')
+			{
+				return false;
+			}
+			if ( Double.TryParse(str, System.Globalization.NumberStyles.Any, System.Globalization.NumberFormatInfo.InvariantInfo, out _) )
+			{
+				return false;
+			}
+			return true;
+		}
+
 		private List<string> GetArgList(string inCommandLine)
 		{
 			List<string> args = new List<string>();
@@ -98,18 +115,18 @@ namespace CSVStats
 			for (int i = 0; i < args.Length; i++)
 			{
 				string arg = args[i];
-				if (arg[0] == '-')
+				if (IsParamName(arg))
 				{
 					string val = "1";
 
 					// If there's a value, read it
-					if (i < args.Length - 1 && args[i + 1][0] != '-')
+					if (i < args.Length - 1 && !IsParamName(args[i+1]))
 					{
 						bool first = true;
 						for (int j = i + 1; j < args.Length; j++)
 						{
 							string str = args[j];
-							if (str.Length > 0 && str[0] == '-')
+							if (str.Length > 0 && IsParamName(str))
 								break;
 							if (first)
 							{
@@ -152,9 +169,21 @@ namespace CSVStats
 			return defaultValue;
 		}
 
-		public bool GetBoolArg(string key)
+		public bool GetBoolArg(string key, bool defaultValue)
 		{
-			return CommandLineArgs.ContainsKey(key.ToLower());
+			if ( CommandLineArgs.ContainsKey(key.ToLower()) )
+			{
+				string value = CommandLineArgs[key.ToLower()];
+				if (value == "1")
+				{
+					return true;
+				}
+				if (value == "0")
+				{
+					return false;
+				}
+			}
+			return defaultValue;
 		}
 
 		public bool? GetOptionalBoolArg(string key)
@@ -248,9 +277,9 @@ namespace CSVStats
 			return commandLine.GetFloatArg(key, defaultValue);
 		}
 
-		protected bool GetBoolArg(string key)
+		protected bool GetBoolArg(string key, bool defaultValue=false)
         {
-			return commandLine.GetBoolArg(key);
+			return commandLine.GetBoolArg(key, defaultValue);
         }
 
 		protected bool? GetOptionalBoolArg(string key)

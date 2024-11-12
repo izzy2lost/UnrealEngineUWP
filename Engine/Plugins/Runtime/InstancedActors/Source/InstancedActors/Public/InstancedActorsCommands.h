@@ -6,6 +6,29 @@
 #include "MassCommands.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
+namespace UE::InstancedActors
+{
+	/**
+	 * Returns the bitset indicating all the gate-tags of the processors we want to run on Detailed-LOD entities
+	 * (i.e. not the Batched-LOD ones). These tags are switched by UInstancedActorsStationaryLODBatchProcessor
+	 * Modifying the bitset is the way for project-specific code to influence what gets executed.
+	 */
+	INSTANCEDACTORS_API FMassTagBitSet& GetDetailedLODTags();
+
+	/** Adds GetDetailedLODTags() to an entity, effectively enabling DetailedLOD processing on it */
+	struct FEnableDetailedLODCommand : public FMassCommandChangeTags
+	{
+		using Super = FMassCommandChangeTags;
+		FEnableDetailedLODCommand();
+	};
+
+	/** Removes GetDetailedLODTags() from an entity, effectively enabling BatchLOD processing on it */
+	struct FEnableBatchLODCommand : public FMassCommandChangeTags
+	{
+		using Super = FMassCommandChangeTags;
+		FEnableBatchLODCommand();
+	};
+}
 
 /** 
  * Note: TManagerType is always expected to be AInstancedActorsManager, but is declared as 

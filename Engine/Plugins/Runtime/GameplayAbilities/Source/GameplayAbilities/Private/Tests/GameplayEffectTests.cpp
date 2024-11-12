@@ -94,7 +94,7 @@ public:
 		SourceComponent = SourceActor->GetAbilitySystemComponent();
 		SourceComponent->GetSet<UAbilitySystemTestAttributeSet>()->Health = StartingHealth;
 		SourceComponent->GetSet<UAbilitySystemTestAttributeSet>()->MaxHealth = StartingHealth;
-		SourceComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana = StartingMana;
+		SourceComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana = FGameplayAttributeData(StartingMana);
 		SourceComponent->GetSet<UAbilitySystemTestAttributeSet>()->MaxMana = StartingMana;
 
 		// set up the destination actor
@@ -102,7 +102,7 @@ public:
 		DestComponent = DestActor->GetAbilitySystemComponent();
 		DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Health = StartingHealth;
 		DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->MaxHealth = StartingHealth;
-		DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana = StartingMana;
+		DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana = FGameplayAttributeData(StartingMana);
 		DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->MaxMana = StartingMana;
 	}
 
@@ -166,7 +166,7 @@ public: // the tests
 	void Test_ManaBuff()
 	{
 		const float BuffValue = 30.f;
-		const float StartingMana = DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana;
+		const float StartingMana = DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue();
 
 		FActiveGameplayEffectHandle BuffHandle;
 
@@ -180,7 +180,7 @@ public: // the tests
 		}
 
 		// check that the value changed
-		Test->TestEqual(TEXT("Mana Buffed"), DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana, StartingMana + BuffValue);
+		Test->TestEqual(TEXT("Mana Buffed"), DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue(), StartingMana + BuffValue);
 
 		// remove the effect
 		{
@@ -188,7 +188,85 @@ public: // the tests
 		}
 
 		// check that the value changed back
-		Test->TestEqual(TEXT("Mana Restored"), DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana, StartingMana);
+		Test->TestEqual(TEXT("Mana Restored"), DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue(), StartingMana);
+	}
+
+	void Test_AttributeAggregators()
+	{
+		constexpr float BuffValue = 2.0f;
+		const float ManaBaseValue = DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetBaseValue();
+
+		// Define a common lambda for applying a GE with a specific GameplayModOp
+		auto ApplyGameplayModOp = [this, BuffValue](EGameplayModOp::Type GameplayModOp)
+		{
+			CONSTRUCT_CLASS(UGameplayEffect, DamageBuffEffect);
+			AddModifier(DamageBuffEffect, GET_FIELD_CHECKED(UAbilitySystemTestAttributeSet, Mana), GameplayModOp, FScalableFloat(BuffValue));
+			DamageBuffEffect->DurationPolicy = EGameplayEffectDurationType::Infinite;
+
+			return SourceComponent->ApplyGameplayEffectToTarget(DamageBuffEffect, DestComponent, 1.f);
+		};
+
+		// Define a common lambda for testing if an op applied correctly
+		auto TestGameplayModOp = [this, &ApplyGameplayModOp, BuffValue](EGameplayModOp::Type GameplayModOp)
+		{
+			const float PrevValue = DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue();
+			const float ExpectedValue = FAggregator::StaticExecModOnBaseValue(PrevValue, GameplayModOp, BuffValue);
+
+			FActiveGameplayEffectHandle AGEHandle = ApplyGameplayModOp(GameplayModOp);
+			const float CurrentValue = DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue();
+			Test->TestEqual(FString::Printf(TEXT("Attribute GameplayModOp %s"), *UEnum::GetValueAsString(GameplayModOp)), CurrentValue, ExpectedValue);
+			
+			return AGEHandle;
+		};
+
+		// Test all of the ops (order matters here due to the implementation of the above StaticExecModOnBaseValue)
+		FActiveGameplayEffectHandle AdditiveHandle = TestGameplayModOp(EGameplayModOp::Additive);
+		FActiveGameplayEffectHandle MultiplicativeHandle = TestGameplayModOp(EGameplayModOp::Multiplicitive);
+		FActiveGameplayEffectHandle DivisionHandle = TestGameplayModOp(EGameplayModOp::Division);
+		FActiveGameplayEffectHandle CompoundHandle = TestGameplayModOp(EGameplayModOp::MultiplyCompound);
+		FActiveGameplayEffectHandle FinalAddHandle = TestGameplayModOp(EGameplayModOp::AddFinal);
+
+		// Test the override quickly here before testing the aggregation is as expected
+		{
+			FActiveGameplayEffectHandle OverrideHandle = TestGameplayModOp(EGameplayModOp::Override);
+			DestComponent->RemoveActiveGameplayEffect(OverrideHandle);
+		}
+
+		Test->TestEqual(TEXT("Mana BaseValue is Unchanged"), DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetBaseValue(), ManaBaseValue);
+
+		// Add some compounding GameplayEffects and manually test our equation to see if it's all compounded correctly.
+		{
+			FActiveGameplayEffectHandle BaseAdd2 = ApplyGameplayModOp(EGameplayModOp::Additive);
+			FActiveGameplayEffectHandle BaseMultiply2 = ApplyGameplayModOp(EGameplayModOp::Multiplicitive);
+			FActiveGameplayEffectHandle Compound2 = ApplyGameplayModOp(EGameplayModOp::MultiplyCompound);
+			FActiveGameplayEffectHandle FinalAdd2 = ApplyGameplayModOp(EGameplayModOp::AddFinal);
+			
+			// ExpectedResult = ((BaseValue + Additive) * Multiplicative / Division * CompoundMultiply) + FinalAdd;
+			// Multiplicative and Division Compound as: 1.0f + ForEachValue(Value - 1.0f). E.g. two applications of 1.5 = 2.
+			// CompoundMultiply Compounds as: 1.0f *= ForEachValue(Value) e.g. two applications of 1.5 = 2.25.
+			constexpr float X = BuffValue;
+			const float ExpectedResult = ((ManaBaseValue + X + X) * (1.0f + (X - 1.0f) + (X - 1.0f)) / (1.0f + (X - 1.0f)) * (X * X)) + X + X;
+			const float CurrentValue = DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue();
+			Test->TestEqual(TEXT("Aggregation Equation Works as Expected"), CurrentValue, ExpectedResult);
+
+			// Remove the compounding GE's
+			DestComponent->RemoveActiveGameplayEffect(FinalAdd2);
+			DestComponent->RemoveActiveGameplayEffect(Compound2);
+			DestComponent->RemoveActiveGameplayEffect(BaseMultiply2);
+			DestComponent->RemoveActiveGameplayEffect(BaseAdd2);
+		}
+
+		// Remove the base GE's
+		{
+			DestComponent->RemoveActiveGameplayEffect(FinalAddHandle);
+			DestComponent->RemoveActiveGameplayEffect(CompoundHandle);
+			DestComponent->RemoveActiveGameplayEffect(DivisionHandle);
+			DestComponent->RemoveActiveGameplayEffect(MultiplicativeHandle);
+			DestComponent->RemoveActiveGameplayEffect(AdditiveHandle);
+		}
+
+		// check that the value changed back
+		Test->TestEqual(TEXT("Mana Restored to BaseValue"), DestComponent->GetSet<UAbilitySystemTestAttributeSet>()->Mana.GetCurrentValue(), ManaBaseValue);
 	}
 
 	void Test_PeriodicDamage()
@@ -488,7 +566,7 @@ public: // the tests
 				Test->TestEqual(TEXT("  OwnerTagCount"), DestComponent->GetTagCount(UE::GameplayTags::GameplayCue_Test), ExpectedOwnerTagCount);
 
 				// Now try to remove it
-				DestComponent->RemoveActiveGameplayEffect(ActiveGEHandle);
+				DestComponent->RemoveActiveGameplayEffect_NoReturn(ActiveGEHandle);
 
 				Test->TestFalse(TEXT("  IsGameplayCueActive (After RemoveActiveEffects)"), DestComponent->IsGameplayCueActive(UE::GameplayTags::GameplayCue_Test));
 				Test->TestEqual(TEXT("  OnRemove Calls"), GCNotify_Test_CDO->NumOnRemoveCalls, ExpectedOnRemove);
@@ -547,7 +625,7 @@ public: // the tests
 					for (int Index = 0; Index < ExpectedOnActive; ++Index)
 					{
 						Test->TestEqual(TEXT("  IsGameplayCueActive before RemoveActiveEffects Unstack"), DestComponent->IsGameplayCueActive(UE::GameplayTags::GameplayCue_Test), (ExpectedOnActive > 0));
-						DestComponent->RemoveActiveGameplayEffect(ActiveGEHandle, StacksToRemove);
+						DestComponent->RemoveActiveGameplayEffect_NoReturn(ActiveGEHandle, StacksToRemove);
 					}
 				}
 				else
@@ -712,13 +790,14 @@ public:
 		ADD_TEST(Test_InstantDamage);
 		ADD_TEST(Test_InstantDamageRemap);
 		ADD_TEST(Test_ManaBuff);
+		ADD_TEST(Test_AttributeAggregators);
 		ADD_TEST(Test_PeriodicDamage);
 		ADD_TEST(Test_StackLimit);
 		ADD_TEST(Test_SetByCallerStackingDuration);
 		ADD_TEST(Test_GameplayCues);
 	}
 
-	virtual uint32 GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; }
+	virtual EAutomationTestFlags GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; }
 	virtual bool IsStressTest() const { return false; }
 	virtual uint32 GetRequiredDeviceNum() const override { return 1; }
 
@@ -774,6 +853,7 @@ protected:
 		}
 		GFrameCounter = InitialFrameCounter;
 
+		World->EndPlay(EEndPlayReason::Quit);
 		GEngine->DestroyWorldContext(World);
 		World->DestroyWorld(false);
 

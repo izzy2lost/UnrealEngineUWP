@@ -9,13 +9,33 @@ void UTG_Expression_InputParam::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	// if Graph changes catch it first
 	if (PropertyChangedEvent.GetPropertyName() == FName(TEXT("IsConstant")))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("InputParam  Expression Parameter/Constant PostEditChangeProperty."));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("InputParam  Expression Parameter/Constant PostEditChangeProperty."));
 		NotifySignatureChanged();
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif
+
+FTG_SignaturePtr UTG_Expression_InputParam::BuildInputParameterSignature() const
+{
+	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
+	return MakeShared<FTG_Signature>(SignatureInit);
+};
+
+FTG_SignaturePtr UTG_Expression_InputParam::BuildInputConstantSignature() const
+{
+	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
+	for (auto& Arg : SignatureInit.Arguments)
+	{
+		if (Arg.IsInput() && Arg.IsParam())
+		{
+			Arg.ArgumentType = Arg.ArgumentType.Unparamed();
+			Arg.ArgumentType.SetNotConnectable();
+		}
+	}
+	return MakeShared<FTG_Signature>(SignatureInit);
+};
 
 void UTG_Expression_InputParam::SetbIsConstant(bool InIsConstant)
 {

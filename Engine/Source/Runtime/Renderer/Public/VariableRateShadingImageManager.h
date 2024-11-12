@@ -90,7 +90,7 @@ public:
 	 * Prepare VRS images and store them for later access.
 	 * Should be run exactly once in Render(), before attempting to get any VRS images for that frame.
 	 */
-	void PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures);
+	void PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bLumenEnabled = false);
 
 	/**
 	 * Returns true if any generator among the given types is enabled, false otherwise.
@@ -103,12 +103,21 @@ public:
 	static bool IsHardwareVRSSupported();
 	static bool IsSoftwareVRSSupported();
 
-	bool IsHardwareVRSEnabled();
-	bool IsSoftwareVRSEnabled();
+	RENDERER_API bool IsPipelineVRSEnabled() const;
+	RENDERER_API bool IsAttachmentVRSEnabled() const;
 
-	bool IsVRSEnabledForFrame();
-	bool IsHardwareVRSEnabledForFrame();
-	bool IsSoftwareVRSEnabledForFrame();
+	RENDERER_API bool IsVRSEnabledForFrame()  const;
+	RENDERER_API bool IsHardwareVRSEnabledForFrame() const;
+	RENDERER_API bool IsSoftwareVRSEnabledForFrame() const;
+
+	UE_DEPRECATED(5.5, "IsHardwareVRSEnabled() is deprecated, please use IsHardwareVRSEnabledForFrame() instead.")
+	bool IsHardwareVRSEnabled() { return IsHardwareVRSEnabledForFrame(); };
+
+	UE_DEPRECATED(5.5, "IsSoftwareVRSEnabled() is deprecated, please use IsSoftwareVRSEnabledForFrame() instead.")
+	bool IsSoftwareVRSEnabled() { return IsSoftwareVRSEnabledForFrame(); };
+
+	bool GetNeedStaticMeshUpdate() const;
+	void SetNeedStaticMeshUpdate(bool bInNeedStaticMeshUpdate);
 
 	static bool IsVRSCompatibleWithView(const FViewInfo& View);
 	static bool IsVRSCompatibleWithOutputType(const EDisplayOutputFormat& DisplayOutputFormat);
@@ -131,13 +140,19 @@ private:
 	FRWLock	GeneratorsMutex;
 
 	FRDGTextureRef CombineShadingRateImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, TArray<FRDGTextureRef> Sources);
-	FRDGTextureRef GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex = 0, EVRSImageType ImageType = EVRSImageType::Full, bool bGetSoftwareImage = false);
+	FRDGTextureRef GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex = 0, bool bGetSoftwareImage = false);
+
+	UE_DEPRECATED(5.5, "This version of GetForceRateImage is deprecated, please use GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex, bool bGetSoftwareImage) instead.")
+	FRDGTextureRef GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex = 0,
+		EVRSImageType ImageType = EVRSImageType::Full, bool bGetSoftwareImage = false) { return GetForceRateImage(GraphBuilder, ViewFamily, RateIndex, bGetSoftwareImage); };
 
 	EVRSImageType GetImageTypeFromPassType(EVRSPassType PassType);
 
 	bool bHardwareVRSEnabledForFrame = false;
 	bool bSoftwareVRSEnabledForFrame = false;
 	int32 VRSForceRateForFrame = -1;
+
+	bool bNeedStaticMeshUpdate = false;
 };
 
 ENUM_CLASS_FLAGS(FVariableRateShadingImageManager::EVRSSourceType);

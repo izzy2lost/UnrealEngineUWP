@@ -25,7 +25,7 @@ void SFilterPresetList::Construct( const FArguments& InArgs )
 	OnHighlightPreset = InArgs._OnHighlightPreset;
 
 	FilterBox = SNew(SWrapBox)
-		.UseAllottedWidth(true);
+		.UseAllottedSize(true);
 
 	LoadSettings(FTraceFilteringModule::TraceFiltersIni);
 	

@@ -121,8 +121,8 @@ namespace UE::ConcertReplicationScriptingEditor
 
 	void SConcertPropertyChainPicker::RefreshPropertiesDisplayedInTree()
 	{
-		TSet<FConcertPropertyChain> Properties;
-		FSoftClassPath ClassPath = SelectedClass;
+		ConcertSharedSlate::FPropertyAssignmentEntry Entry { .Class = SelectedClass };
+		TSet<FConcertPropertyChain>& Properties = Entry.PropertiesToDisplay;
 		
 		if (SelectedClass)
 		{
@@ -133,15 +133,15 @@ namespace UE::ConcertReplicationScriptingEditor
 			});
 		}
 
-		// If not class is selected, the widget will display the NoItemsContent ("Select a class").
-		TreeView->RefreshPropertyData(Properties, ClassPath);
+		// If no class is selected, the widget will display the NoItemsContent ("Select a class").
+		TreeView->RefreshPropertyData({ Entry });
 	}
 
 	void SConcertPropertyChainPicker::OnPropertySelected(const FConcertPropertyChain& ConcertPropertyChain, bool bIsSelected)
 	{
 		OnSelectedPropertiesChangedDelegate.ExecuteIfBound(ConcertPropertyChain, bIsSelected);
 
-		// The checkbox state may have changed request a resort.
+		// The checkbox state may have changed so request a resort.
 		TreeView->RequestResortForColumn(PropertySelectionCheckboxColumnId);
 	}
 }

@@ -3,19 +3,56 @@
 #include "StateTreeEditorData.h"
 #include "StateTree.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeDelegates.h"
+#include "StateTreeEditorModule.h"
 #include "StateTreeEvaluatorBase.h"
+#include "StateTreeNodeClassCache.h"
+#include "StateTreePropertyFunctionBase.h"
+#include "StateTreePropertyHelpers.h"
 #include "StateTreeTaskBase.h"
 #include "Algo/LevenshteinDistance.h"
-#include "StateTreeEditorModule.h"
-#include "StateTreePropertyHelpers.h"
+#include "Customizations/StateTreeEditorNodeUtils.h"
+#include "Modules/ModuleManager.h"
 
 #if WITH_EDITOR
-#include "Engine/UserDefinedStruct.h"
 #include "StructUtilsDelegates.h"
+#include "StructUtils/UserDefinedStruct.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEditorData)
+
+#define LOCTEXT_NAMESPACE "StateTreeEditor"
+
+namespace UE::StateTree::Editor
+{
+	const FString GlobalStateName(TEXT("Global"));
+	const FString PropertyFunctionStateName(TEXT("Property Functions"));
+	const FName ParametersNodeName(TEXT("Parameters"));
+
+	bool IsPropertyFunctionOwnedByNode(FGuid NodeID, FGuid PropertyFuncID, const FStateTreeEditorPropertyBindings& EditorBindings)
+	{
+		for (const FStateTreePropertyPathBinding& Binding : EditorBindings.GetBindings())
+		{
+			const FGuid TargetID = Binding.GetTargetPath().GetStructID();			
+			if (TargetID == NodeID)
+			{
+				return true;
+			}
+
+			FConstStructView NodeView = Binding.GetPropertyFunctionNode();
+			if (const FStateTreeEditorNode* Node = NodeView.GetPtr<const FStateTreeEditorNode>())
+			{
+				if (Node->ID == PropertyFuncID)
+				{
+					PropertyFuncID = TargetID;
+				}
+			}
+		}
+
+		return false;
+	}
+}
 
 UStateTreeEditorData::UStateTreeEditorData()
 {
@@ -25,6 +62,8 @@ UStateTreeEditorData::UStateTreeEditorData()
 	DefaultColor.DisplayName = TEXT("Default Color");
 
 	Colors.Add(MoveTemp(DefaultColor));
+
+	EditorBindings.SetBindingsOwner(this);
 }
 
 void UStateTreeEditorData::PostInitProperties()
@@ -37,6 +76,7 @@ void UStateTreeEditorData::PostInitProperties()
 	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UStateTreeEditorData::OnObjectsReinstanced);
 	OnUserDefinedStructReinstancedHandle = UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTreeEditorData::OnUserDefinedStructReinstanced);
 	OnParametersChangedHandle = UE::StateTree::Delegates::OnParametersChanged.AddUObject(this, &UStateTreeEditorData::OnParametersChanged);
+	OnStateParametersChangedHandle = UE::StateTree::Delegates::OnStateParametersChanged.AddUObject(this, &UStateTreeEditorData::OnStateParametersChanged);
 #endif
 }
 
@@ -58,6 +98,11 @@ void UStateTreeEditorData::BeginDestroy()
 	{
 		UE::StateTree::Delegates::OnParametersChanged.Remove(OnParametersChangedHandle);
 		OnParametersChangedHandle.Reset();
+	}
+	if (OnStateParametersChangedHandle.IsValid())
+	{
+		UE::StateTree::Delegates::OnStateParametersChanged.Remove(OnStateParametersChangedHandle);
+		OnStateParametersChangedHandle.Reset();
 	}
 	
 	Super::BeginDestroy();
@@ -139,6 +184,16 @@ void UStateTreeEditorData::OnParametersChanged(const UStateTree& StateTree)
 	}
 }
 
+void UStateTreeEditorData::OnStateParametersChanged(const UStateTree& StateTree, const FGuid StateID)
+{
+	if (const UStateTree* OwnerStateTree = GetTypedOuter<UStateTree>())
+	{
+		if (OwnerStateTree == &StateTree)
+		{
+			UpdateBindingsInstanceStructs();
+		}
+	}
+}
 
 void UStateTreeEditorData::PostLoad()
 {
@@ -159,6 +214,7 @@ void UStateTreeEditorData::PostLoad()
 	FixObjectNodes();
 	FixDuplicateIDs();
 	UpdateBindingsInstanceStructs();
+	CallPostLoadOnNodes();
 }
 
 void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
@@ -195,11 +251,6 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 				const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberProperty->GetFName().ToString());
 				if (Evaluators.IsValidIndex(ArrayIndex))
 				{
-					if (FStateTreeEvaluatorBase* Eval = Evaluators[ArrayIndex].Node.GetMutablePtr<FStateTreeEvaluatorBase>())
-					{
-						Eval->Name = FName(Eval->Name.ToString() + TEXT(" Duplicate"));
-					}
-					
 					const FGuid OldStructID = Evaluators[ArrayIndex].ID;
 					Evaluators[ArrayIndex].ID = FGuid::NewGuid();
 					EditorBindings.CopyBindings(OldStructID, Evaluators[ArrayIndex].ID);
@@ -210,11 +261,6 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 				const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberProperty->GetFName().ToString());
 				if (GlobalTasks.IsValidIndex(ArrayIndex))
 				{
-					if (FStateTreeTaskBase* Task = GlobalTasks[ArrayIndex].Node.GetMutablePtr<FStateTreeTaskBase>())
-					{
-						Task->Name = FName(Task->Name.ToString() + TEXT(" Duplicate"));
-					}
-					
 					const FGuid OldStructID = GlobalTasks[ArrayIndex].ID;
 					GlobalTasks[ArrayIndex].ID = FGuid::NewGuid();
 					EditorBindings.CopyBindings(OldStructID, GlobalTasks[ArrayIndex].ID);
@@ -240,9 +286,14 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 			UE::StateTree::Delegates::OnGlobalDataChanged.Broadcast(*StateTree);
 		}
 
+		// Notify that the color data has changed
+		if (MemberName == GET_MEMBER_NAME_CHECKED(UStateTreeEditorData, Colors))
+		{
+			UE::StateTree::Delegates::OnVisualThemeChanged.Broadcast(*StateTree);
+		}
 	}
 
-	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent);
+	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent, *this);
 }
 #endif // WITH_EDITOR
 
@@ -272,6 +323,12 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 	const UStateTree* StateTree = GetTypedOuter<UStateTree>();
 	checkf(StateTree, TEXT("UStateTreeEditorData should only be allocated within a UStateTree"));
 
+	FStateTreeBindableStructDesc TargetStructDesc;
+	bool bIsTargetPropertyFunction = false;
+	if (GetStructByID(TargetStructID, TargetStructDesc))
+	{
+		bIsTargetPropertyFunction = TargetStructDesc.DataSource == EStateTreeBindableStructSource::PropertyFunction;
+	}
 
 	EStateTreeVisitor BaseProgress = VisitGlobalNodes([&OutStructDescs, TargetStructID]
 		(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
@@ -286,10 +343,9 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 		return EStateTreeVisitor::Continue;
 	});
 
-
 	if (BaseProgress == EStateTreeVisitor::Continue)
 	{
-		TArray<FStateTreeBindableStructDesc> TaskDescs;
+		TArray<FStateTreeBindableStructDesc, TInlineAllocator<32>> BindableDescs;
 
 		for (const UStateTreeState* State : Path)
 		{
@@ -298,21 +354,67 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 				continue;
 			}
 			
-			const EStateTreeVisitor StateProgress = VisitStateNodes(*State, [&OutStructDescs, &TaskDescs, TargetStructID]
+			const EStateTreeVisitor StateProgress = VisitStateNodes(*State, [&OutStructDescs, &BindableDescs, &Path, TargetStructID, bIsTargetPropertyFunction, this]
 				(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
 				{
 					// Stop iterating as soon as we find the target node.
 					if (Desc.ID == TargetStructID)
 					{
-						OutStructDescs.Append(TaskDescs);
+						OutStructDescs.Append(BindableDescs);
 						return EStateTreeVisitor::Break;
 					}
 
 					// Not at target yet, collect all bindable source accessible so far.
-					if (Desc.DataSource == EStateTreeBindableStructSource::Task
-						|| Desc.DataSource == EStateTreeBindableStructSource::State)
+					switch (Desc.DataSource)
 					{
-						TaskDescs.Add(Desc);
+						case EStateTreeBindableStructSource::StateParameter:
+						case EStateTreeBindableStructSource::Task:
+						case EStateTreeBindableStructSource::StateEvent:
+							BindableDescs.Add(Desc);
+							break;
+
+						case EStateTreeBindableStructSource::TransitionEvent:
+						{
+							// Checking if BindableStruct's owning Transition contains the Target.
+							if (State == Path.Last())
+							{
+								for (const FStateTreeTransition& Transition : State->Transitions)
+								{
+									bool bFoundOwningTransition = false;
+									for (const FStateTreeEditorNode& ConditionNode : Transition.Conditions)
+									{
+										if (ConditionNode.ID == TargetStructID
+											|| (bIsTargetPropertyFunction && UE::StateTree::Editor::IsPropertyFunctionOwnedByNode(ConditionNode.ID, TargetStructID, EditorBindings)))
+										{
+											if (Transition.GetEventID() == Desc.ID)
+											{
+												BindableDescs.Add(Desc);
+											}
+
+											bFoundOwningTransition = true;
+											break;
+										}
+									}
+
+									if (bFoundOwningTransition)
+									{
+										break;
+									}
+								}
+							}
+							break;
+						}
+
+						case EStateTreeBindableStructSource::PropertyFunction:
+						{
+							if (State == Path.Last())
+							{
+								if (UE::StateTree::Editor::IsPropertyFunctionOwnedByNode(TargetStructID, Desc.ID, EditorBindings))
+								{
+									BindableDescs.Add(Desc);
+								}
+							}
+						}
 					}
 							
 					return EStateTreeVisitor::Continue;
@@ -324,11 +426,6 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 			}
 		}
 	}
-	
-	OutStructDescs.StableSort([](const FStateTreeBindableStructDesc& A, const FStateTreeBindableStructDesc& B)
-	{
-		return (uint8)A.DataSource < (uint8)B.DataSource;
-	});
 }
 
 FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const
@@ -344,7 +441,7 @@ FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct
 	{
 		if (Desc.Struct->IsChildOf(ObjectType))
 		{
-			Candidates.Emplace(Desc.Name, Desc.Struct, FStateTreeDataHandle(), EStateTreeBindableStructSource::Context, Desc.ID);
+			Candidates.Emplace(UE::StateTree::Editor::GlobalStateName, Desc.Name, Desc.Struct, FStateTreeDataHandle(), EStateTreeBindableStructSource::Context, Desc.ID);
 		}
 	}
 
@@ -369,7 +466,7 @@ FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct
 			return 1.0f;
 		}
 		const float WorstCase = static_cast<float>(Name.Len() + CandidateName.Len());
-		return 1.0f - (Algo::LevenshteinDistance(Name, CandidateName) / WorstCase);
+		return 1.0f - (static_cast<float>(Algo::LevenshteinDistance(Name, CandidateName)) / WorstCase);
 	};
 	
 	const FString ObjectNameLowerCase = ObjectNameHint.ToLower();
@@ -388,6 +485,132 @@ FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct
 	}
 	
 	return Candidates[HighestScoreIndex];
+}
+
+EStateTreeVisitor UStateTreeEditorData::EnumerateBindablePropertyFunctionNodes(TFunctionRef<EStateTreeVisitor(const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const
+{
+	if (Schema == nullptr)
+	{
+		return EStateTreeVisitor::Continue;
+	}
+
+	FStateTreeEditorModule& EditorModule = FModuleManager::GetModuleChecked<FStateTreeEditorModule>(TEXT("StateTreeEditorModule"));
+	FStateTreeNodeClassCache* ClassCache = EditorModule.GetNodeClassCache().Get();
+	check(ClassCache);
+
+	TArray<TSharedPtr<FStateTreeNodeClassData>> StructNodes;	
+	ClassCache->GetStructs(FStateTreePropertyFunctionBase::StaticStruct(), StructNodes);
+	for (const TSharedPtr<FStateTreeNodeClassData>& NodeClassData : StructNodes)
+	{
+		if (const UScriptStruct* NodeStruct = NodeClassData->GetScriptStruct())
+		{
+			if (NodeStruct == FStateTreePropertyFunctionBase::StaticStruct() || NodeStruct->HasMetaData(TEXT("Hidden")))
+			{
+				continue;
+			}
+
+			if (Schema->IsStructAllowed(NodeStruct))
+			{
+				if (const UStruct* InstanceDataStruct = NodeClassData->GetInstanceDataStruct())
+				{
+					FStateTreeBindableStructDesc Desc;
+					Desc.Struct = InstanceDataStruct;
+					Desc.ID = FGuid::NewDeterministicGuid(NodeStruct->GetName());
+					Desc.DataSource = EStateTreeBindableStructSource::PropertyFunction;
+					Desc.Name = FName(NodeStruct->GetDisplayNameText().ToString());
+					Desc.StatePath = UE::StateTree::Editor::PropertyFunctionStateName;
+					Desc.Category = NodeStruct->GetMetaData(TEXT("Category"));
+
+					if (InFunc(NodeStruct, Desc, FStateTreeDataView(InstanceDataStruct, nullptr)) == EStateTreeVisitor::Break)
+					{
+						return EStateTreeVisitor::Break;
+					}
+				}
+			}
+		}
+	}
+
+	return EStateTreeVisitor::Continue;
+}
+
+bool UStateTreeEditorData::CanCreateParameter(const FGuid StructID) const
+{
+	if (RootParameters.ID == StructID)
+	{
+		return true;
+	}
+
+	bool bFoundStructID = false;
+
+	VisitHierarchy([&StructID, &bFoundStructID](UStateTreeState& State, UStateTreeState* ParentState)->EStateTreeVisitor
+	{
+		if (State.Parameters.ID == StructID)
+		{
+			bFoundStructID = true;
+			return EStateTreeVisitor::Break;
+		}
+		return EStateTreeVisitor::Continue;
+	});
+
+	return bFoundStructID;
+}
+
+void UStateTreeEditorData::CreateParameters(const FGuid StructID, TArrayView<FStateTreeEditorPropertyCreationDesc> InOutCreationDescs)
+{
+	if (InOutCreationDescs.IsEmpty())
+	{
+		return;
+	}
+
+	auto CreateProperties = [&InOutCreationDescs](FInstancedPropertyBag& PropertyBag)
+	{
+		TArray<FPropertyBagPropertyDesc, TInlineAllocator<1>> PropertyDescs;
+		PropertyDescs.Reserve(InOutCreationDescs.Num());
+
+		// Generate unique names for the incoming property descs to avoid changing the existing properties in the bag
+		for (FStateTreeEditorPropertyCreationDesc& CreationDesc : InOutCreationDescs)
+		{
+			int32 Index = CreationDesc.PropertyDesc.Name.GetNumber();
+			while (PropertyBag.FindPropertyDescByName(CreationDesc.PropertyDesc.Name))
+			{
+				CreationDesc.PropertyDesc.Name = FName(CreationDesc.PropertyDesc.Name, Index++);
+			}
+			PropertyDescs.Add(CreationDesc.PropertyDesc);
+		}
+
+		PropertyBag.AddProperties(PropertyDescs);
+
+		for (const FStateTreeEditorPropertyCreationDesc& CreationDesc : InOutCreationDescs)
+		{
+			// Attempt to copy the value from the Source Property / Addr to Property Desc
+			// There could be Type Mismatches if the Descs don't match the Source Property, but attempt to do it on all property descs
+			if (CreationDesc.SourceProperty && CreationDesc.SourceContainerAddress)
+			{
+				PropertyBag.SetValue(CreationDesc.PropertyDesc.Name, CreationDesc.SourceProperty, CreationDesc.SourceContainerAddress);
+			}
+		}
+	};
+
+	const UStateTree* StateTree = GetTypedOuter<UStateTree>();
+	checkf(StateTree, TEXT("UStateTreeEditorData should only be allocated within a UStateTree"));
+
+	if (RootParameters.ID == StructID)
+	{
+		CreateProperties(RootParameters.Parameters);
+		UE::StateTree::Delegates::OnParametersChanged.Broadcast(*StateTree);
+		return;
+	}
+
+	VisitHierarchy([&StructID, &CreateProperties, StateTree](UStateTreeState& State, UStateTreeState* ParentState)->EStateTreeVisitor
+	{
+		if (State.Parameters.ID == StructID)
+		{
+			CreateProperties(State.Parameters.Parameters);
+			UE::StateTree::Delegates::OnStateParametersChanged.Broadcast(*StateTree, State.ID);
+			return EStateTreeVisitor::Break;
+		}
+		return EStateTreeVisitor::Continue;
+	});
 }
 
 bool UStateTreeEditorData::GetStructByID(const FGuid StructID, FStateTreeBindableStructDesc& OutStructDesc) const
@@ -499,7 +722,7 @@ void UStateTreeEditorData::ReparentStates()
 		if (State.GetOuter() != ExpectedOuter)
 		{
 			UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Fixing outer on state %s."), *TreeData->GetFullName(), *GetNameSafe(&State));
-			State.Rename(nullptr, ExpectedOuter, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+			State.Rename(nullptr, ExpectedOuter, REN_DontCreateRedirectors | REN_DoNotDirty);
 		}
 		
 		State.Parent = ParentState;
@@ -524,7 +747,7 @@ void UStateTreeEditorData::FixObjectInstance(TSet<UObject*>& SeenObjects, UObjec
 			if (Node.InstanceObject->GetOuter() != &Outer)
 			{
 				UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Fixing outer on node instance %s."), *GetFullName(), *GetNameSafe(Node.InstanceObject));
-				Node.InstanceObject->Rename(nullptr, &Outer, REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders);
+				Node.InstanceObject->Rename(nullptr, &Outer, REN_DontCreateRedirectors | REN_DoNotDirty);
 			}
 		}
 		SeenObjects.Add(Node.InstanceObject);
@@ -579,6 +802,38 @@ void UStateTreeEditorData::FixObjectNodes()
 	{
 		FixObjectInstance(SeenObjects, *this, Node);
 	}
+}
+
+FText UStateTreeEditorData::GetNodeDescription(const FStateTreeEditorNode& Node, const EStateTreeNodeFormatting Formatting) const
+{
+	if (const FStateTreeNodeBase* NodePtr = Node.Node.GetPtr<FStateTreeNodeBase>())
+	{
+		// If the node has name override, return it.
+		if (!NodePtr->Name.IsNone())
+		{
+			return FText::FromName(NodePtr->Name);
+		}
+
+		// If the node has automatic description, return it.
+		const FStateTreeBindingLookup BindingLookup(this);
+		const FStateTreeDataView InstanceData = Node.GetInstance();
+		if (InstanceData.IsValid())
+		{
+			
+			const FText Description = NodePtr->GetDescription(Node.ID, InstanceData, BindingLookup, Formatting);
+			if (!Description.IsEmpty())
+			{
+				return Description;
+			}
+		}
+
+		// As last resort, return node's display name.
+		check(Node.Node.GetScriptStruct());
+		return Node.Node.GetScriptStruct()->GetDisplayNameText();
+	}
+
+	// The node is not initialized.
+	return LOCTEXT("EmptyNode", "None");
 }
 
 void UStateTreeEditorData::FixDuplicateIDs()
@@ -736,16 +991,51 @@ void UStateTreeEditorData::UpdateBindingsInstanceStructs()
 	}
 }
 
+void UStateTreeEditorData::CallPostLoadOnNodes()
+{
+	for (FStateTreeEditorNode& EvaluatorEditorNode : Evaluators)
+	{
+		if (FStateTreeNodeBase* EvaluatorNode = EvaluatorEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(EvaluatorEditorNode, *this);
+			EvaluatorNode->PostLoad(EvaluatorEditorNode.GetInstance());
+		}
+	}
+
+	for (FStateTreeEditorNode& GlobalTaskEditorNode : GlobalTasks)
+	{
+		if (FStateTreeNodeBase* GlobalTaskNode = GlobalTaskEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(GlobalTaskEditorNode, *this);
+			GlobalTaskNode->PostLoad(GlobalTaskEditorNode.GetInstance());
+		}
+	}
+}
+
 EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& State, TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FGuid& ID, const FName& Name, const EStateTreeNodeType NodeType, const UScriptStruct* NodeStruct, const UStruct* InstanceStruct)> InFunc) const
 {
 	bool bContinue = true;
+
+	auto VisitFuncNodes = [&InFunc, &State, this](const FGuid StructID, const FName NodeName)
+	{
+		const FString StatePath = FString::Printf(TEXT("%s/%s"), *State.GetPath(), *NodeName.ToString());
+		return VisitStructBoundPropertyFunctions(StructID, StatePath, [&InFunc, &State](const FStateTreeEditorNode& EditorNode, const FStateTreeBindableStructDesc& Desc, FStateTreeDataView Value)
+		{
+			return InFunc(&State, EditorNode.ID, EditorNode.GetName(), EStateTreeNodeType::PropertyFunction, EditorNode.Node.GetScriptStruct(), EditorNode.GetInstance().GetStruct());
+		});
+	};
 
 	if (bContinue)
 	{
 		// Enter conditions
 		for (const FStateTreeEditorNode& Node : State.EnterConditions)
 		{
-			if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
+			if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+				break;
+			}
+			else if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
 			{
 				if (InFunc(&State, Node.ID, Node.Node.GetScriptStruct()->GetFName(), EStateTreeNodeType::EnterCondition, Node.Node.GetScriptStruct(), Cond->GetInstanceDataType()) == EStateTreeVisitor::Break)
 				{
@@ -760,7 +1050,12 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		// Tasks
 		for (const FStateTreeEditorNode& Node : State.Tasks)
 		{
-			if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
+			if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+				break;
+			}
+			else if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
 			{
 				if (InFunc(&State, Node.ID, Task->Name, EStateTreeNodeType::Task, Node.Node.GetScriptStruct(), Task->GetInstanceDataType()) == EStateTreeVisitor::Break)
 				{
@@ -774,7 +1069,11 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	{
 		if (const FStateTreeTaskBase* Task = State.SingleTask.Node.GetPtr<FStateTreeTaskBase>())
 		{
-			if (InFunc(&State, State.SingleTask.ID, Task->Name, EStateTreeNodeType::Task, State.SingleTask.Node.GetScriptStruct(), Task->GetInstanceDataType()) == EStateTreeVisitor::Break)
+			if (VisitFuncNodes(State.SingleTask.ID, State.SingleTask.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+			}
+			else if (InFunc(&State, State.SingleTask.ID, Task->Name, EStateTreeNodeType::Task, State.SingleTask.Node.GetScriptStruct(), Task->GetInstanceDataType()) == EStateTreeVisitor::Break)
 			{
 				bContinue = false;
 			}
@@ -788,7 +1087,12 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		{
 			for (const FStateTreeEditorNode& Node : Transition.Conditions)
 			{
-				if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
+				if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+					break;
+				}
+				else if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
 				{
 					if (InFunc(&State, Node.ID, Node.Node.GetScriptStruct()->GetFName(), EStateTreeNodeType::TransitionCondition, Node.Node.GetScriptStruct(), Cond->GetInstanceDataType()) == EStateTreeVisitor::Break)
 					{
@@ -805,7 +1109,11 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		if (State.Type != EStateTreeStateType::Subtree
 			&& State.Parameters.Parameters.IsValid())
 		{
-			if (InFunc(&State, State.Parameters.ID, State.Name, EStateTreeNodeType::StateParameters, nullptr, State.Parameters.Parameters.GetPropertyBagStruct()) == EStateTreeVisitor::Break)
+			if (VisitFuncNodes(State.Parameters.ID, UE::StateTree::Editor::ParametersNodeName) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+			}
+			else if (InFunc(&State, State.Parameters.ID, State.Name, EStateTreeNodeType::StateParameters, nullptr, State.Parameters.Parameters.GetPropertyBagStruct()) == EStateTreeVisitor::Break)
 			{
 				bContinue = false;
 			}
@@ -815,41 +1123,113 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	return bContinue ? EStateTreeVisitor::Continue : EStateTreeVisitor::Break;
 }
 
-
 EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& State, TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const
 {
+	auto VisitFuncNodes = [&InFunc, &State, this](const FGuid StructID, const FName NodeName)
+	{
+		const FString StatePath = FString::Printf(TEXT("%s/%s"), *State.GetPath(), *NodeName.ToString());
+		return VisitStructBoundPropertyFunctions(StructID, StatePath, [&InFunc, &State](const FStateTreeEditorNode& EditorNode, const FStateTreeBindableStructDesc& Desc, FStateTreeDataView Value)
+		{
+			return InFunc(&State, Desc, Value);
+		});
+	};
+
 	bool bContinue = true;
 
+	const FString StatePath = State.GetPath();
+	
 	if (bContinue)
 	{
 		// Bindable state parameters
 		if (State.Parameters.Parameters.IsValid())
 		{
-			FStateTreeBindableStructDesc Desc;
-			Desc.Struct = State.Parameters.Parameters.GetPropertyBagStruct();
-			Desc.Name = State.Name;
-			Desc.ID = State.Parameters.ID;
-			Desc.DataSource = EStateTreeBindableStructSource::State;
+			if (VisitFuncNodes(State.Parameters.ID, UE::StateTree::Editor::ParametersNodeName) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+			}
+			else
+			{
+				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePath;
+				Desc.Struct = State.Parameters.Parameters.GetPropertyBagStruct();
+				Desc.Name = FName("Parameters");
+				Desc.ID = State.Parameters.ID;
+				Desc.DataSource = EStateTreeBindableStructSource::StateParameter;
 
-			if (InFunc(&State, Desc, FStateTreeDataView(const_cast<FInstancedPropertyBag&>(State.Parameters.Parameters).GetMutableValue())) == EStateTreeVisitor::Break)
+				if (InFunc(&State, Desc, FStateTreeDataView(const_cast<FInstancedPropertyBag&>(State.Parameters.Parameters).GetMutableValue())) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+				}
+			}
+		}
+	}
+
+	const FString StatePathWithConditions = StatePath + TEXT("/EnterConditions");
+	
+	if (bContinue)
+	{
+		if (State.bHasRequiredEventToEnter )
+		{
+			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = StatePathWithConditions;
+			Desc.Struct = FStateTreeEvent::StaticStruct();
+			Desc.Name = FName("Enter Event");
+			Desc.ID = State.GetEventID();
+			Desc.DataSource = EStateTreeBindableStructSource::StateEvent;
+
+			if (InFunc(&State, Desc, FStateTreeDataView(FStructView::Make(const_cast<UStateTreeState&>(State).RequiredEventToEnter.GetTemporaryEvent()))) == EStateTreeVisitor::Break)
 			{
 				bContinue = false;
 			}
 		}
 	}
-	
+
 	if (bContinue)
 	{
 		// Enter conditions
 		for (const FStateTreeEditorNode& Node : State.EnterConditions)
 		{
-			if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
+			if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+				break;
+			}
+			else if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
 			{
 				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithConditions;
 				Desc.Struct = Cond->GetInstanceDataType();
-				Desc.Name = Cond->Name;
+				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
 				Desc.DataSource = EStateTreeBindableStructSource::Condition;
+
+				if (InFunc(&State, Desc, Node.GetInstance()) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+					break;
+				}
+			}
+		}
+	}
+	if (bContinue)
+	{
+		const FString StatePathWithConsiderations = StatePath + TEXT("/Considerations");
+		// Utility Considerations
+		for (const FStateTreeEditorNode& Node : State.Considerations)
+		{
+			if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+				break;
+			}
+			else if (const FStateTreeConsiderationBase* Consideration = Node.Node.GetPtr<FStateTreeConsiderationBase>())
+			{
+				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithConsiderations;
+				Desc.Struct = Consideration->GetInstanceDataType();
+				Desc.Name = Node.GetName();
+				Desc.ID = Node.ID;
+				Desc.DataSource = EStateTreeBindableStructSource::Consideration;
 
 				if (InFunc(&State, Desc, Node.GetInstance()) == EStateTreeVisitor::Break)
 				{
@@ -864,11 +1244,17 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		// Tasks
 		for (const FStateTreeEditorNode& Node : State.Tasks)
 		{
-			if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
+			if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+			{
+				bContinue = false;
+				break;
+			}
+			else if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
 			{
 				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePath;
 				Desc.Struct = Task->GetInstanceDataType();
-				Desc.Name = Task->Name;
+				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
 				Desc.DataSource = EStateTreeBindableStructSource::Task;
 
@@ -884,15 +1270,23 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	{
 		if (const FStateTreeTaskBase* Task = State.SingleTask.Node.GetPtr<FStateTreeTaskBase>())
 		{
-			FStateTreeBindableStructDesc Desc;
-			Desc.Struct = Task->GetInstanceDataType();
-			Desc.Name = Task->Name;
-			Desc.ID = State.SingleTask.ID;
-			Desc.DataSource = EStateTreeBindableStructSource::Task;
-
-			if (InFunc(&State, Desc, State.SingleTask.GetInstance()) == EStateTreeVisitor::Break)
+			if (VisitFuncNodes(State.SingleTask.ID, State.SingleTask.GetName()) == EStateTreeVisitor::Break)
 			{
 				bContinue = false;
+			}
+			else
+			{
+				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePath;
+				Desc.Struct = Task->GetInstanceDataType();
+				Desc.Name = State.SingleTask.GetName();
+				Desc.ID = State.SingleTask.ID;
+				Desc.DataSource = EStateTreeBindableStructSource::Task;
+
+				if (InFunc(&State, Desc, State.SingleTask.GetInstance()) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+				}
 			}
 		}
 
@@ -900,15 +1294,40 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	if (bContinue)
 	{
 		// Transitions
-		for (const FStateTreeTransition& Transition : State.Transitions)
+		for (int32 TransitionIndex = 0; TransitionIndex < State.Transitions.Num(); TransitionIndex++)
 		{
+			const FStateTreeTransition& Transition = State.Transitions[TransitionIndex];
+			const FString StatePathWithTransition = StatePath + FString::Printf(TEXT("/Transition[%d]"), TransitionIndex);
+
+			if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
+			{
+				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithTransition;
+				Desc.Struct = FStateTreeEvent::StaticStruct();
+				Desc.Name = FName(TEXT("Transition Event"));
+				Desc.ID = Transition.GetEventID();
+				Desc.DataSource = EStateTreeBindableStructSource::TransitionEvent;
+
+				if (InFunc(&State, Desc, FStateTreeDataView(FStructView::Make(const_cast<FStateTreeTransition&>(Transition).RequiredEvent.GetTemporaryEvent()))) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+					break;
+				}
+			}
+
 			for (const FStateTreeEditorNode& Node : Transition.Conditions)
 			{
-				if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
+				if (VisitFuncNodes(Node.ID, Node.GetName()) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+					break;
+				}
+				else if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
 				{
 					FStateTreeBindableStructDesc Desc;
+					Desc.StatePath = StatePathWithTransition;
 					Desc.Struct = Cond->GetInstanceDataType();
-					Desc.Name = Cond->Name;
+					Desc.Name = Node.GetName();
 					Desc.ID = Node.ID;
 					Desc.DataSource = EStateTreeBindableStructSource::Condition;
 
@@ -925,6 +1344,40 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	return bContinue ? EStateTreeVisitor::Continue : EStateTreeVisitor::Break;
 }
 
+EStateTreeVisitor UStateTreeEditorData::VisitStructBoundPropertyFunctions(FGuid StructID, const FString& StatePath, TFunctionRef<EStateTreeVisitor(const FStateTreeEditorNode& EditorNode, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const
+{
+	TArray<const FStateTreePropertyPathBinding*> Bindings;
+	EditorBindings.GetPropertyBindingsFor(StructID, Bindings);
+
+	for (const FStateTreePropertyPathBinding* Binding : Bindings)
+	{
+		const FConstStructView FunctionNodeView = Binding->GetPropertyFunctionNode();
+		if (const FStateTreeEditorNode* FunctionNode = FunctionNodeView.GetPtr<const FStateTreeEditorNode>())
+		{
+			if (VisitStructBoundPropertyFunctions(FunctionNode->ID, StatePath, InFunc) == EStateTreeVisitor::Break)
+			{
+				return EStateTreeVisitor::Break;
+			}
+
+			FStateTreeBindableStructDesc Desc;
+			Desc.Struct = FunctionNode->GetInstance().GetStruct();
+			if (const UStruct* NodeStruct = FunctionNode->Node.GetScriptStruct())
+			{
+				Desc.ID = FunctionNode->ID;
+				Desc.DataSource = EStateTreeBindableStructSource::PropertyFunction;
+				Desc.Name = FName(NodeStruct->GetDisplayNameText().ToString());
+				Desc.StatePath = FString::Printf(TEXT("%s/%s"), *StatePath, *UE::StateTree::Editor::PropertyFunctionStateName);
+
+				if (InFunc(*FunctionNode, Desc, FunctionNode->GetInstance()) == EStateTreeVisitor::Break)
+				{
+					return EStateTreeVisitor::Break;
+				}
+			}
+		}
+	}
+
+	return EStateTreeVisitor::Continue;
+}
 
 EStateTreeVisitor UStateTreeEditorData::VisitHierarchy(TFunctionRef<EStateTreeVisitor(UStateTreeState& State, UStateTreeState* ParentState)> InFunc) const
 {
@@ -986,6 +1439,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 	// Root parameters
 	{
 		FStateTreeBindableStructDesc Desc;
+		Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 		Desc.Struct = RootParameters.Parameters.GetPropertyBagStruct();
 		Desc.Name = FName(TEXT("Parameters"));
 		Desc.ID = RootParameters.ID;
@@ -1003,6 +1457,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		for (const FStateTreeExternalDataDesc& ContextDesc : Schema->GetContextDataDescs())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 			Desc.Struct = ContextDesc.Struct;
 			Desc.Name = ContextDesc.Name;
 			Desc.ID = ContextDesc.ID;
@@ -1016,14 +1471,29 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		}
 	}
 
+	auto VisitFuncNodesFunc = [&InFunc, this](const FStateTreeEditorNode& Node)
+	{
+		const FString StatePath = FString::Printf(TEXT("%s/%s"), *UE::StateTree::Editor::GlobalStateName, *Node.GetName().ToString());
+		return VisitStructBoundPropertyFunctions(Node.ID, StatePath, [&InFunc](const FStateTreeEditorNode& EditorNode, const FStateTreeBindableStructDesc& Desc, FStateTreeDataView Value)
+		{
+			return InFunc(nullptr, Desc, Value);
+		});
+	};
+
 	// Evaluators
 	for (const FStateTreeEditorNode& Node : Evaluators)
 	{
+		if (VisitFuncNodesFunc(Node) == EStateTreeVisitor::Break)
+		{
+			return EStateTreeVisitor::Break;
+		}
+
 		if (const FStateTreeEvaluatorBase* Evaluator = Node.Node.GetPtr<FStateTreeEvaluatorBase>())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 			Desc.Struct = Evaluator->GetInstanceDataType();
-			Desc.Name = Evaluator->Name;
+			Desc.Name = Node.GetName();
 			Desc.ID = Node.ID;
 			Desc.DataSource = EStateTreeBindableStructSource::Evaluator;
 
@@ -1037,11 +1507,17 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 	// Global tasks
 	for (const FStateTreeEditorNode& Node : GlobalTasks)
 	{
+		if (VisitFuncNodesFunc(Node) == EStateTreeVisitor::Break)
+		{
+			return EStateTreeVisitor::Break;
+		}
+
 		if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 			Desc.Struct = Task->GetInstanceDataType();
-			Desc.Name = Task->Name;
+			Desc.Name = Node.GetName();
 			Desc.ID = Node.ID;
 			Desc.DataSource = EStateTreeBindableStructSource::GlobalTask;
 
@@ -1070,10 +1546,15 @@ EStateTreeVisitor UStateTreeEditorData::VisitAllNodes(TFunctionRef<EStateTreeVis
 		return EStateTreeVisitor::Break;
 	}
 
-	return VisitHierarchyNodes(InFunc);
+	if (VisitHierarchyNodes(InFunc) == EStateTreeVisitor::Break)
+	{
+		return EStateTreeVisitor::Break;
+	}
+
+	return EStateTreeVisitor::Continue;
 }
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 bool UStateTreeEditorData::HasAnyBreakpoint(const FGuid ID) const
 {
 	return Breakpoints.ContainsByPredicate([ID](const FStateTreeEditorBreakpoint& Breakpoint) { return Breakpoint.ID == ID; });
@@ -1120,7 +1601,7 @@ bool UStateTreeEditorData::RemoveBreakpoint(const FGuid ID, const EStateTreeBrea
 	return Index != INDEX_NONE;
 }
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UStateTreeEditorData::AddPropertyBinding(const FStateTreeEditorPropertyPath& SourcePath, const FStateTreeEditorPropertyPath& TargetPath)
@@ -1128,3 +1609,5 @@ void UStateTreeEditorData::AddPropertyBinding(const FStateTreeEditorPropertyPath
 	EditorBindings.AddPropertyBinding(UE::StateTree::Private::ConvertEditorPath(SourcePath), UE::StateTree::Private::ConvertEditorPath(TargetPath));
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+#undef LOCTEXT_NAMESPACE

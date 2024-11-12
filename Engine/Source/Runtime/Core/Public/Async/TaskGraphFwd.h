@@ -6,11 +6,8 @@
 
 #pragma once
 
+#include "TaskGraphDefinitions.h"
 #include "Templates/RefCounting.h"
-
-#if !defined(TASKGRAPH_NEW_FRONTEND)
-#define TASKGRAPH_NEW_FRONTEND 0
-#endif
 
 class FBaseGraphTask;
 

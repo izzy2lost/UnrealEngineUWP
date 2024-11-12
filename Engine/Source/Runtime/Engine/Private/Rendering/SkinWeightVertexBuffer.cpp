@@ -5,7 +5,7 @@
 #include "EngineUtils.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 #include "SkeletalMeshLegacyCustomVersions.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Rendering/RenderCommandPipes.h"
@@ -152,30 +152,19 @@ void FSkinWeightLookupVertexBuffer::ReleaseRHI()
 	FVertexBuffer::ReleaseRHI();
 }
 
-FBufferRHIRef FSkinWeightLookupVertexBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListImmediate::Get());
-}
-
-FBufferRHIRef FSkinWeightLookupVertexBuffer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList CommandList;
-	return CreateRHIBuffer(*CommandList);
-}
-
-void FSkinWeightLookupVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FSkinWeightLookupVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI && IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(VertexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FSkinWeightLookupVertexBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FSkinWeightLookupVertexBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, nullptr);
+		Batcher.EnqueueReplace(VertexBufferRHI, nullptr);
 	}
 }
 
@@ -400,30 +389,19 @@ FBufferRHIRef FSkinWeightDataVertexBuffer::CreateRHIBuffer(FRHICommandListBase& 
 	return FRenderResource::CreateRHIBuffer(RHICmdList, WeightData, NumBoneWeights, BUF_Static | BUF_ShaderResource | BUF_SourceCopy, TEXT("FSkinWeightDataVertexBuffer"));
 }
 
-FBufferRHIRef FSkinWeightDataVertexBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListImmediate::Get());
-}
-
-FBufferRHIRef FSkinWeightDataVertexBuffer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList CommandList;
-	return CreateRHIBuffer(*CommandList);
-}
-
-void FSkinWeightDataVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FSkinWeightDataVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI && IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(VertexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FSkinWeightDataVertexBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FSkinWeightDataVertexBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, nullptr);
+		Batcher.EnqueueReplace(VertexBufferRHI, nullptr);
 	}
 }
 
@@ -709,20 +687,6 @@ FSkinWeightRHIInfo FSkinWeightVertexBuffer::CreateRHIBuffer(FRHICommandListBase&
 	FSkinWeightRHIInfo RHIInfo;
 	RHIInfo.DataVertexBufferRHI = DataVertexBuffer.CreateRHIBuffer(RHICmdList);
 	RHIInfo.LookupVertexBufferRHI = LookupVertexBuffer.CreateRHIBuffer(RHICmdList);
-	return RHIInfo;
-}
-
-FSkinWeightRHIInfo FSkinWeightVertexBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListImmediate::Get());
-}
-
-FSkinWeightRHIInfo FSkinWeightVertexBuffer::CreateRHIBuffer_Async()
-{
-	FSkinWeightRHIInfo RHIInfo;
-	FRHIAsyncCommandList CommandList;
-	RHIInfo.DataVertexBufferRHI = DataVertexBuffer.CreateRHIBuffer(*CommandList);
-	RHIInfo.LookupVertexBufferRHI = LookupVertexBuffer.CreateRHIBuffer(*CommandList);
 	return RHIInfo;
 }
 

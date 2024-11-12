@@ -47,7 +47,7 @@ void UGridPathFollowingComponent::OnPathUpdated()
 
 void UGridPathFollowingComponent::UpdatePathSegment()
 {
-	const FVector CurrentLocation = MovementComp ? MovementComp->GetActorFeetLocation() : FVector::ZeroVector;
+	const FVector CurrentLocation = NavMovementInterface.IsValid() ? NavMovementInterface->GetFeetLocation() : FVector::ZeroVector;
 	UpdateActiveGrid(CurrentLocation);
 
 	if (HasActiveGrid() && bHasGridPath)
@@ -173,12 +173,12 @@ void UGridPathFollowingComponent::ResumeMove(FAIRequestID RequestID)
 {
 	if (RequestID.IsEquivalent(GetCurrentRequestId()) && RequestID.IsValid())
 	{
-		const FVector CurrentLocation = MovementComp ? MovementComp->GetActorFeetLocation() : FVector::ZeroVector;
+		const FVector CurrentLocation = NavMovementInterface.IsValid() ? NavMovementInterface->GetFeetLocation() : FVector::ZeroVector;
 		UpdateActiveGrid(CurrentLocation);
 
 		if (HasActiveGrid())
 		{
-			UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u) is on grid"), RequestID);
+			UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u) is on grid"), RequestID.GetID());
 			Status = EPathFollowingStatus::Moving;
 		}
 		else

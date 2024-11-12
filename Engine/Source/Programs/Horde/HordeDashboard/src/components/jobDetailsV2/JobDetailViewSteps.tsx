@@ -1,11 +1,11 @@
-import { CollapseAllVisibility, ConstrainMode, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, IColumn, Icon, IDetailsListProps, ProgressIndicator, SelectionMode, Stack, Text } from "@fluentui/react";
+import { CollapseAllVisibility, ConstrainMode, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, DirectionalHint, IColumn, Icon, IDetailsListProps, ProgressIndicator, SelectionMode, Stack, Text, TooltipHost } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { BatchData, GetBatchResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, NodeData, StepData } from "../../backend/Api";
+import { BatchData, GetBatchResponse, JobStepBatchError, JobStepBatchState, JobStepOutcome, JobStepState, StepData } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { ISideRailLink } from "../../base/components/SideRail";
-import { getBatchInitElapsed, getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepPercent, getStepStartTime, getStepTimingDelta } from "../../base/utilities/timeUtils";
+import { getBatchInitElapsed, getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepPercent, getStepStartTime, getStepTimingDelta, HordeTime } from "../../base/utilities/timeUtils";
 import { HistoryModal } from "../HistoryModal";
 import { getBatchText, getStepStatusMessage } from "../JobDetailCommon";
 import { StepStatusIcon } from "../StatusIcon";
@@ -20,7 +20,6 @@ const depSideRail: ISideRailLink = { text: "Dependencies", url: "rail_dependenci
 type StepItem = {
    step?: StepData;
    batch?: BatchData;
-   node?: NodeData;
    agentId?: string;
    agentRow?: boolean;
    agentType?: string;
@@ -54,9 +53,12 @@ class StepsDataView extends JobDataView {
 
 }
 
+let stepToolTipId = 0;
+
 JobDetailsV2.registerDataView("StepsDataView", (details: JobDetailsV2) => new StepsDataView(details));
 
 const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataView, step?: StepData, batch?: GetBatchResponse, column: string }> = observer(({ jobDetails, dataView, column, step, batch }) => {
+
 
    dataView.subscribe();
 
@@ -69,13 +71,19 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
    }
 
    if (step && column === "Progress") {
+
       if (step.state === JobStepState.Running && !step.abortRequested) {
          return <Stack horizontalAlign={"center"}> {step.startTime && !step.finishTime && <ProgressIndicator percentComplete={getStepPercent(step)} barHeight={2} styles={{ root: { paddingTop: 2, width: 120 } }} />}</Stack>;
       }
 
-      const message = getStepStatusMessage(step);
+      const retries = jobDetails.getStepRetries(step.id);
+      const retry = retries.length > 1 ? retries[retries.length - 1] : undefined;
 
-      return <Stack horizontal horizontalAlign={"center"} tokens={{ childrenGap: 0, padding: 0 }}><Text>{message}</Text></Stack>;
+      if (retry && retry.id !== step.id) {
+         return <Stack horizontal horizontalAlign={"center"} tokens={{ childrenGap: 0, padding: 0 }} style={{ fontSize: "13px" }}><Link to={`/job/${jobDetails.jobId!}?step=${retry.id}`}>{`Retried - ${getStepStatusMessage(retry)}`}</Link></Stack>;
+      }
+
+      return <Stack horizontal horizontalAlign={"center"} tokens={{ childrenGap: 0, padding: 0 }}><Text>{getStepStatusMessage(step)}</Text></Stack>;
    }
 
 
@@ -104,7 +112,7 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
 
    if (step && column === "ETA") {
 
-      let eta = {
+      let eta:HordeTime = {
          display: "",
          server: ""
       };
@@ -113,7 +121,7 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
          return null;
       }
 
-      let finished = { display: "", server: "" };
+      let finished:HordeTime = { display: "", server: "" };
 
       eta = getStepETA(step, jobDetails.jobData!);
 
@@ -122,6 +130,8 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
       if (finished.display) {
          eta.display = finished.display;
          eta.server = finished.server;
+         eta.displayNice = finished.displayNice;
+         eta.serverNice = finished.serverNice;
       }
 
       let time = eta.display;
@@ -131,16 +141,16 @@ const RenderDynamic: React.FC<{ jobDetails: JobDetailsV2, dataView: StepsDataVie
       const color = !step.finishTime ? etaColor : undefined;
 
       // Open Sans tilde rendering issue at 13px, and not rendering at all at other px: https://github.com/google/fonts/issues/399, do not change from 12px
-      return <Stack horizontalAlign={"end"}>
+      return <TooltipHost content={eta.displayNice} directionalHint={DirectionalHint.leftCenter} id={`step_unique_tooltip_${stepToolTipId++}`}><Stack horizontalAlign={"end"}>
          <Stack horizontal tokens={{ childrenGap: 2 }}>
             {!!time && !step.finishTime && <Text style={{ color: color, fontSize: "11px", paddingTop: 2 }}>~</Text>}
             <Text style={{ color: color, fontSize: "13px" }}>
                {time}
             </Text>
          </Stack>
-      </Stack>;
+      </Stack>
+      </TooltipHost>;
    };
-
 
    return null;
 
@@ -312,10 +322,9 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          if (!started.display || !started.server) {
             return null;
          } else {
-            return <Stack horizontalAlign={"end"}><Text style={{ fontSize: "13px" }}>{started.display}</Text></Stack>;
+            return <TooltipHost content={started.displayNice ?? started.display} directionalHint={DirectionalHint.leftCenter} id={`step_unique_tooltip_${stepToolTipId++}`}><Stack horizontalAlign={"end"}><Text style={{ fontSize: "13px" }}>{started.display}</Text></Stack></TooltipHost>;
          }
       };
-
 
       const stepName = jobDetails.getStepName(step.id) ?? "Unnown Step Name";
       const stepUrl = `/job/${jobId}?step=${step.id}`;
@@ -395,21 +404,14 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
    if (stepId) {
 
-      const nodes: NodeData[] = [];
-
       const getStepsRecursive = (stepId: string) => {
-
-         const stepNode = jobDetails.nodeByStepId(stepId);
-
-         if (!stepNode || nodes.find(n => stepNode === n)) {
+         const rstep = jobDetails.stepById(stepId);
+         if (!rstep) {
             return;
          }
-
-         nodes.push(stepNode);
-
-         [stepNode.inputDependencies, stepNode.orderDependencies].flat().forEach(name => {
-            const s = jobDetails.stepByName(name);
-            if (s) {
+         [rstep.inputDependencies, rstep.orderDependencies].flat().forEach(id => {
+            const s = jobDetails.stepById(id);
+            if (s && !stepFilter.find(s => s.id === id)) {
                stepFilter.push(s);
                getStepsRecursive(s.id);
             }
@@ -422,14 +424,6 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
       if (step) {
          stepFilter.push(step);
       }
-
-      /*
-      if (singleStep) {
-         const step = jobDetails.stepById(stepId);
-         if (step) {
-            stepFilter.push(step);
-         }
-      }*/
 
       if (!stepFilter.length) {
          return null;
@@ -455,10 +449,9 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
             return;
          }
 
-         const g = jobDetails.groups[b.groupIdx];
-         const p = jobDetails.stream!.agentTypes[g.agentType];
+         const p = jobDetails.stream!.agentTypes[b.agentType];
 
-         if (!p || g.agentType !== agentType || p.pool !== agentPool) {
+         if (!p || b.agentType !== agentType || p.pool !== agentPool) {
             return;
          }
       }
@@ -491,9 +484,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
             filter = false;
 
-            const node = jobDetails.nodeByStepId(step.id);
-
-            if (label.includedNodes.indexOf(node?.name ?? "") !== -1) {
+            if (label.steps.indexOf(step?.id ?? "") !== -1) {
                filter = true;
             }
 
@@ -508,22 +499,20 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          return;
       }
 
-      const group = jobDetails.groups[b.groupIdx];
-      const pool = jobDetails.stream?.agentTypes[group?.agentType!];
+      const pool = jobDetails.stream?.agentTypes[b?.agentType!];
 
       items.push({
          agentId: b.agentId,
          batch: b,
          agentRow: true,
-         agentType: group?.agentType.toUpperCase(),
+         agentType: b.agentType.toUpperCase(),
          agentPool: pool?.pool?.toUpperCase(),
       });
 
       steps.forEach(stepData => {
          const id = stepData.id;
          items.push({
-            step: jobDetails.stepById(id),
-            node: jobDetails.nodeByStepId(id),
+            step: jobDetails.stepById(id)
          });
       });
    });
@@ -533,17 +522,20 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
    }
 
    // get the current groups based on filtering
-   const groups: Set<number> = new Set();
+   const stepBatches: Set<string> = new Set();
    items.forEach(item => {
       const step = item.step;
       if (!step) {
          return;
       }
-      groups.add(jobDetails.getStepGroupIndex(step.id));
+
+      const b = jobDetails.jobData?.batches?.find(b => b.steps.findIndex(s => s.id === step.id) !== -1);
+      if (b)
+         stepBatches.add(b.id);
    });
 
    let batches = jobBatches.filter(b => {
-      if ((groups.size && !groups.has(b.groupIdx)) || b.steps.length || b.error === JobStepBatchError.None) {
+      if ((stepBatches.size && !stepBatches.has(b.id)) || b.steps.length || b.error === JobStepBatchError.None) {
          return false;
       }
       return true;
@@ -555,14 +547,13 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          return;
       }
 
-      const group = jobDetails.groups[b.groupIdx];
-      const pool = jobDetails.stream?.agentTypes[group?.agentType!];
+      const pool = jobDetails.stream?.agentTypes[b?.agentType!];
 
       const nitem = {
          agentId: b.agentId,
          batch: b,
          agentRow: true,
-         agentType: group?.agentType.toUpperCase(),
+         agentType: b?.agentType.toUpperCase(),
          agentPool: pool?.pool?.toUpperCase(),
       };
 
@@ -692,8 +683,7 @@ export const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string)
          return undefined;
       }
 
-      const group = jobDetails.groups[batch!.groupIdx];
-      const agentType = group?.agentType;
+      const agentType = batch.agentType;
       const agentPool = jobDetails.stream?.agentTypes[agentType!]?.pool;
       return getBatchText({ batch: batch, agentType: agentType, agentPool: agentPool });
 
@@ -718,7 +708,7 @@ export const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string)
          aborted = "The job was canceled";
          aborted += ` by ${jobData.abortedByUserInfo.name}.`;
       } else {
-         aborted = "The step was canceled";
+         aborted = "This step was canceled by Horde";
       }
       text.push(aborted);
    } else if (step.state === JobStepState.Skipped) {

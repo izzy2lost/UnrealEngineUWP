@@ -492,6 +492,11 @@ void ALandmassManagerBase::TogglePreviewMode_Implementation(bool bEnablePreviewM
 
 }
 
+void ALandmassManagerBase::SetCaptureBoundaryNormals(bool bInCaptureBoundaryNormals)
+{
+	bCaptureBoundaryNormals = bInCaptureBoundaryNormals;
+}
+
 void ALandmassManagerBase::MoveBrushUp(ALandmassActor* BrushToMove)
 {
 	int32 BrushIndex = LandmassBrushes.Find(BrushToMove);

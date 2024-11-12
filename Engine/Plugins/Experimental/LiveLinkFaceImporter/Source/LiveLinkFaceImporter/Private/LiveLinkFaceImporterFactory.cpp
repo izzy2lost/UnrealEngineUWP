@@ -218,7 +218,7 @@ bool ULiveLinkFaceImporterFactory::FactoryCanImport(const FString& Filename)
 
 UObject* ULiveLinkFaceImporterFactory::FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn)
 {
-	const FString FileContent(BufferEnd - Buffer, Buffer);
+	const FString FileContent = FString::ConstructFromPtrSize(Buffer, BufferEnd - Buffer);
 	TArray<FString> LineArray;
 	TArray<FString> KeyArray;
 	FString OutLogMessage;

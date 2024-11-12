@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
@@ -14,7 +14,6 @@
 
 namespace UE::AnimNext
 {
-	struct FParamTypeHandle;
 	struct FParamHelpers;
 }
 
@@ -62,7 +61,6 @@ public:
 	using EValueType = ::EPropertyBagPropertyType;
 	using EContainerType = ::EPropertyBagContainerType;
 
-	friend struct UE::AnimNext::FParamTypeHandle;
 	friend struct UE::AnimNext::FParamHelpers;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
@@ -71,8 +69,6 @@ public:
 	/** Construct a parameter type from the passed in value, container and object type. */
 	FAnimNextParamType(EValueType InValueType, EContainerType InContainerType = EContainerType::None, const UObject* InValueTypeObject = nullptr);
 
-	/** Construct a parameter type from the passed in FRigVMTemplateArgumentType. */
-	static FAnimNextParamType FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType);
 private:
 	/** Pointer to object that defines the Enum, Struct, or Class. */
 	UPROPERTY()
@@ -101,7 +97,7 @@ private:
 		{
 			ParameterType.ValueType = EValueType::Byte;
 		}
-		else if constexpr (std::is_same_v<ParamType, int32>)
+		else if constexpr (std::is_same_v<ParamType, int32> || std::is_same_v<ParamType, int>)
 		{
 			ParameterType.ValueType = EValueType::Int32;
 		}
@@ -162,7 +158,7 @@ private:
 			if constexpr (std::is_same_v<ParamType, TObjectPtr<UClass>>)
 			{
 				ParameterType.ValueType = EValueType::Class;
-				ParameterType.ValueTypeObject = ParamType::ElementType::StaticClass();
+				ParameterType.ValueTypeObject = UObject::StaticClass();
 			}
 			else
 			{
@@ -224,9 +220,6 @@ public:
 		return ParameterType;
 	}
 
-	/** Get a parameter type handle that represents this type */
-	UE::AnimNext::FParamTypeHandle GetHandle() const;
-
 	/** Get the pointer to the object that defines the Enum, Struct, or Class. */
 	const UObject* GetValueTypeObject() const
 	{
@@ -284,6 +277,15 @@ public:
 	/** Get a type from a string */
 	static FAnimNextParamType FromString(const FString& InString);
 
+	/** Get a FRigVMTemplateArgumentType from this type */
+	FRigVMTemplateArgumentType ToRigVMTemplateArgument() const;
+	
+	/** Construct a parameter type from the passed in FRigVMTemplateArgumentType. */
+	static FAnimNextParamType FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType);
+
+	/** Construct a parameter type from the passed in FProperty. */
+	static FAnimNextParamType FromProperty(const FProperty* InProperty);
+
 	/** Equality operator */
 	friend bool operator==(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS)
 	{
@@ -301,13 +303,19 @@ public:
 	{
 		return HashCombineFast(GetTypeHash((uint32)InType.ValueType | ((uint32)InType.ContainerType << 8)), GetTypeHash(InType.ValueTypeObject));
 	}
-	
+
+	/** @return whether this type is explicitly none */
+	bool IsNone() const
+	{
+		return ValueType == EValueType::None && ContainerType == EContainerType::None && !ValueTypeObject;
+	}
+
 	/** @return whether this type actually describes a type */
 	bool IsValid() const
 	{
 		const bool bHasValidValueType = ValueType != EValueType::None;
 		const bool bHasValidContainerType = (ContainerType == EContainerType::None) || (bHasValidValueType && ContainerType != EContainerType::None);
-		const bool bHasValidObjectType = (ValueType < EValueType::Enum) || (ValueType >= EValueType::Enum && ValueType <= EValueType::SoftClass && IsValidObject());
+		const bool bHasValidObjectType = ((ValueType < EValueType::Enum) || ValueType == EValueType::UInt32 || ValueType == EValueType::UInt64) || (ValueType >= EValueType::Enum && ValueType <= EValueType::SoftClass && IsValidObject());
 		return bHasValidValueType && bHasValidContainerType && bHasValidObjectType;
 	}
 

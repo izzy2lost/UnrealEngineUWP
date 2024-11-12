@@ -25,6 +25,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	TArray<FBoneReference> CollectedBones;
 
+	UPROPERTY(EditAnywhere, Category = Settings)
+	TArray<FName> CollectedCurves;
+
 	// if true, the pose history will be initialized with a ref pose at the location and orientation of the AnimInstance.
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bInitializeWithRefPose = false;
@@ -37,9 +40,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bStoreScales = false;
 
-	// time in seconds to recover to the reference skeleton root bone from any eventual root bone modification. if zero the behaviour will be disabled (Experimental)
+	// time in seconds to recover to the reference skeleton root bone transform by RootBoneTranslationRecoveryRatio and RootBoneRotationRecoveryRatio
+	// from any eventual root bone modification. if zero the behaviour will be disabled
+	// Experimental, this feature might be removed without warning, not for production use
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0"))
 	float RootBoneRecoveryTime = 0.f;
+
+	// ratio to recover to the reference skeleton root bone translation from any eventual root bone modification. zero for no recovery, 1 for full recovery
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0", ClampMax="1", EditCondition = "RootBoneRecoveryTime > 0", EditConditionHides))
+	float RootBoneTranslationRecoveryRatio = 1.f;
+
+	// ratio to recover to the reference skeleton root bone rotation from any eventual root bone modification. zero for no recovery, 1 for full recovery
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0", ClampMax="1", EditCondition = "RootBoneRecoveryTime > 0", EditConditionHides))
+	float RootBoneRotationRecoveryRatio = 1.f;
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
@@ -49,7 +62,8 @@ public:
 	FLinearColor DebugColor = FLinearColor::Red;
 #endif // WITH_EDITORONLY_DATA
 
-	// if true Trajectory the pose history node will generate the trajectory using the TrajectoryData parameters instead of relying on the input Trajectory (Experimental)
+	// if true Trajectory the pose history node will generate the trajectory using the TrajectoryData parameters instead of relying on the input Trajectory
+	// Experimental, this feature might be removed without warning, not for production use
 	UPROPERTY(EditAnywhere, Category = Experimental)
 	bool bGenerateTrajectory = false;
 
@@ -78,6 +92,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = Experimental, meta=(EditCondition="bGenerateTrajectory", EditConditionHides))
 	FPoseSearchTrajectoryData TrajectoryData;
 
+	bool bCacheBones = false;
+
 	// FAnimNode_Base interface
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
@@ -88,9 +104,13 @@ public:
 
 	const UE::PoseSearch::FPoseHistory& GetPoseHistory() const { return PoseHistory; }
 	UE::PoseSearch::FPoseHistory& GetPoseHistory() { return PoseHistory; }
+	void GenerateTrajectory(const UAnimInstance* InAnimInstance);
 
 protected:
+	TArray<FBoneIndexType> GetRequiredBones(const FAnimInstanceProxy* AnimInstanceProxy) const;
+
 	UE::PoseSearch::FPoseHistory PoseHistory;
+	bool bIsTrajectoryGeneratedBeforePreUpdate = false;
 };
 
 USTRUCT(BlueprintInternalUseOnly)

@@ -10,6 +10,7 @@
 #include "Behavior/IAvaTransitionBehavior.h"
 #include "Conditions/AvaTransitionSceneMatchCondition.h"
 #include "Conditions/AvaTransitionTypeMatchCondition.h"
+#include "DetailCategoryBuilder.h"
 #include "Editor.h"
 #include "IAvaTransitionEditorModule.h"
 #include "IRemoteControlUIModule.h"
@@ -31,15 +32,15 @@ namespace UE::AvaEditor::Private
 	{
 		TStateTreeEditorNode<FAvaTransitionSceneMatchCondition>& ConditionNode = InState.AddEnterCondition<FAvaTransitionSceneMatchCondition>();
 
-		FAvaTransitionSceneMatchCondition& Condition = ConditionNode.GetNode();
+		FAvaTransitionSceneMatchCondition::FInstanceDataType& Condition = ConditionNode.GetInstanceData();
 
 		Condition.SceneComparisonType  = InComparisonType;
-		ConditionNode.ConditionOperand = EStateTreeConditionOperand::Or;
+		ConditionNode.ExpressionOperand = EStateTreeExpressionOperand::Or;
 	}
 
 	void AddTransitionCondition(UStateTreeState& InState, EAvaTransitionType InTransitionType)
 	{
-		FAvaTransitionTypeMatchCondition& Condition = InState.AddEnterCondition<FAvaTransitionTypeMatchCondition>().GetNode();
+		FAvaTransitionTypeMatchCondition::FInstanceDataType& Condition = InState.AddEnterCondition<FAvaTransitionTypeMatchCondition>().GetInstanceData();
 		Condition.TransitionType = InTransitionType;
 	}
 
@@ -51,7 +52,7 @@ namespace UE::AvaEditor::Private
 
 	FAvaSequencePlayParams& AddPlayTask(UStateTreeState& InState, const FAvaTagHandle& InSequenceTag)
 	{
-		FAvaTransitionPlaySequenceTask& PlayTask = InState.AddTask<FAvaTransitionPlaySequenceTask>().GetNode();
+		FAvaTransitionPlaySequenceTask::FInstanceDataType& PlayTask = InState.AddTask<FAvaTransitionPlaySequenceTask>().GetInstanceData();
 
 		PlayTask.QueryType   = EAvaTransitionSequenceQueryType::Tag;
 		PlayTask.SequenceTag = InSequenceTag;
@@ -123,6 +124,20 @@ void FAvaTransitionExtension::Deactivate()
 	CloseTransitionEditor();
 }
 
+FName FAvaTransitionExtension::GetCategoryName() const
+{
+	return TEXT("TransitionLogic");
+}
+
+void FAvaTransitionExtension::ExtendSettingsCategory(IDetailCategoryBuilder& InCategoryBuilder)
+{
+	if (IAvaTransitionBehavior* TransitionBehavior = GetTransitionBehavior())
+	{
+		InCategoryBuilder.SetDisplayName(LOCTEXT("CategoryDisplayName", "Transition Logic"));
+		InCategoryBuilder.AddExternalObjectProperty({ &TransitionBehavior->AsUObject() }, TEXT("StateTreeReference"));
+	}
+}
+
 void FAvaTransitionExtension::ExtendToolbarMenu(UToolMenu& InMenu)
 {
 	FToolMenuSection& Section = InMenu.FindOrAddSection(DefaultSectionName);
@@ -191,7 +206,7 @@ void FAvaTransitionExtension::BuildDefaultTransitionTree(UAvaTransitionTreeEdito
 			UStateTreeState& WaitState = ChangeIn.AddChildState(TEXT("Wait for change out"));
 			SetStateCompletedResult(WaitState, EStateTreeTransitionType::NextSelectableState);
 
-			FAvaTransitionWaitForLayerTask& WaitTask = WaitState.AddTask<FAvaTransitionWaitForLayerTask>().GetNode();
+			FAvaTransitionWaitForLayerTask::FInstanceDataType& WaitTask = WaitState.AddTask<FAvaTransitionWaitForLayerTask>().GetInstanceData();
 			WaitTask.LayerType = EAvaTransitionLayerCompareType::Same;
 
 			UStateTreeState& PlayChangeInState = ChangeIn.AddChildState(TEXT("Play change in"));

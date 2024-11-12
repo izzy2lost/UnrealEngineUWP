@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
 		{
 			PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",
@@ -17,7 +19,6 @@ namespace UnrealBuildTool.Rules
 					"MassEntity",
 					"MassCommon",
 					"MassSimulation",
-					"StructUtils",
 					"ZoneGraph",
 				}
 			);
@@ -30,6 +31,11 @@ namespace UnrealBuildTool.Rules
 						"Slate"
 					}
 				);
+
+				PublicDependencyModuleNames.Add("MassEntityEditor");
+				// here for communication with MassTraitRepository
+				PrivateIncludePathModuleNames.Add("MassGameplayEditor");
+				DynamicallyLoadedModuleNames.Add("MassGameplayEditor");
 			}
 		}
 	}

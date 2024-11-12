@@ -46,10 +46,22 @@ UUMGSequenceTickManager::UUMGSequenceTickManager(const FObjectInitializer& Init)
 	: Super(Init)
 	, bIsTicking(false)
 {
-	if (!HasAnyFlags(RF_ClassDefaultObject))
-	{
-		Runner = MakeShared<FMovieSceneEntitySystemRunner>();
-	}
+}
+
+void UUMGSequenceTickManager::Initialize(UObject* Owner)
+{
+	Linker = UMovieSceneEntitySystemLinker::FindOrCreateLinker(Owner, UE::MovieScene::EEntitySystemLinkerRole::UMG, TEXT("UMGAnimationEntitySystemLinker"));
+	check(Linker);
+	Runner = Linker->GetRunner();
+
+	FSlateApplication& SlateApp = FSlateApplication::Get();
+	FDelegateHandle PreTickHandle = SlateApp.OnPreTick().AddUObject(this, &UUMGSequenceTickManager::TickWidgetAnimations);
+	check(PreTickHandle.IsValid());
+	SlateApplicationPreTickHandle = PreTickHandle;
+
+	FDelegateHandle PostTickHandle = SlateApp.OnPostTick().AddUObject(this, &UUMGSequenceTickManager::HandleSlatePostTick);
+	check(PostTickHandle.IsValid());
+	SlateApplicationPostTickHandle = PostTickHandle;
 }
 
 void UUMGSequenceTickManager::AddWidget(UUserWidget* InWidget)
@@ -114,6 +126,12 @@ void UUMGSequenceTickManager::TickWidgetAnimations(float DeltaSeconds)
 
 	if (bIsTicking)
 	{
+		return;
+	}
+
+	if (IsUnreachable() || HasAnyFlags(RF_BeginDestroyed) || Linker == nullptr || Linker->IsUnreachable() || Linker->HasAnyFlags(RF_BeginDestroyed))
+	{
+		// Speculatively ignore any kinds of updates if any of the required objects are in the process of being torn down
 		return;
 	}
 
@@ -238,11 +256,8 @@ void UUMGSequenceTickManager::TickWidgetAnimations(float DeltaSeconds)
 
 void UUMGSequenceTickManager::ForceFlush()
 {
-	if (Runner->IsAttachedToLinker())
-	{
-		Runner->Flush(UE::UMG::GAnimationBudgetMs);
-		RunLatentActions();
-	}
+	Runner->Flush(UE::UMG::GAnimationBudgetMs);
+	RunLatentActions();
 }
 
 void UUMGSequenceTickManager::HandleSlatePostTick(float DeltaSeconds)
@@ -254,7 +269,7 @@ void UUMGSequenceTickManager::HandleSlatePostTick(float DeltaSeconds)
 	}
 
 	// Only tick widgets at the end of the frame if our runner has completely finished, and we still have updates
-	if (UE::UMG::GFlushUMGAnimationsAtEndOfFrame && Runner->IsAttachedToLinker() && Runner->HasQueuedUpdates() && !Runner->IsCurrentlyEvaluating())
+	if (UE::UMG::GFlushUMGAnimationsAtEndOfFrame && Runner->HasQueuedUpdates() && !Runner->IsCurrentlyEvaluating())
 	{
 		SCOPE_CYCLE_COUNTER(MovieSceneEval_FlushEndOfFrameAnimations);
 
@@ -316,19 +331,7 @@ UUMGSequenceTickManager* UUMGSequenceTickManager::Get(UObject* PlaybackContext)
 	if (!TickManager)
 	{
 		TickManager = NewObject<UUMGSequenceTickManager>(Owner, TickManagerName);
-
-		TickManager->Linker = UMovieSceneEntitySystemLinker::FindOrCreateLinker(Owner, UE::MovieScene::EEntitySystemLinkerRole::UMG, TEXT("UMGAnimationEntitySystemLinker"));
-		check(TickManager->Linker);
-		TickManager->Runner->AttachToLinker(TickManager->Linker);
-
-		FSlateApplication& SlateApp = FSlateApplication::Get();
-		FDelegateHandle PreTickHandle = SlateApp.OnPreTick().AddUObject(TickManager, &UUMGSequenceTickManager::TickWidgetAnimations);
-		check(PreTickHandle.IsValid());
-		TickManager->SlateApplicationPreTickHandle = PreTickHandle;
-
-		FDelegateHandle PostTickHandle = SlateApp.OnPostTick().AddUObject(TickManager, &UUMGSequenceTickManager::HandleSlatePostTick);
-		check(PostTickHandle.IsValid());
-		TickManager->SlateApplicationPostTickHandle = PostTickHandle;
+		TickManager->Initialize(Owner);
 	}
 	return TickManager;
 }

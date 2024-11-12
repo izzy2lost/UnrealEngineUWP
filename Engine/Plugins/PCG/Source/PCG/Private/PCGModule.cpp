@@ -5,41 +5,31 @@
 #include "PCGContext.h"
 #include "PCGElement.h"
 
+#include "Interfaces/IPluginManager.h"
 #include "Modules/ModuleManager.h"
 
 #if WITH_EDITOR
 #include "Elements/PCGDifferenceElement.h"
-#include "ISettingsModule.h"
-#include "ShowFlags.h"
 #include "Tests/Determinism/PCGDeterminismNativeTests.h"
 #include "Tests/Determinism/PCGDifferenceDeterminismTest.h"
+
+#include "ISettingsModule.h"
+#include "ShaderCore.h"
+#include "ShowFlags.h"
+#include "Misc/Paths.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "FPCGModule"
 
-class FPCGModule final : public IModuleInterface
+FPCGModule& FPCGModule::GetPCGModuleChecked()
 {
-public:
-	//~ IModuleInterface implementation
+	return FModuleManager::GetModuleChecked<FPCGModule>(TEXT("PCG"));
+}
 
-#if WITH_EDITOR
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-#endif
-
-	virtual bool SupportsDynamicReloading() override
-	{
-		return true;
-	}
-
-	//~ End IModuleInterface implementation
-
-private:
-#if WITH_EDITOR
-	void RegisterNativeElementDeterminismTests();
-	void DeregisterNativeElementDeterminismTests();
-#endif
-};
+bool FPCGModule::IsPCGModuleLoaded()
+{
+	return FModuleManager::Get().IsModuleLoaded(TEXT("PCG"));
+}
 
 #if WITH_EDITOR
 void FPCGModule::StartupModule()
@@ -49,6 +39,9 @@ void FPCGModule::StartupModule()
 	RegisterNativeElementDeterminismTests();
 
 	FEngineShowFlags::RegisterCustomShowFlag(PCGEngineShowFlags::Debug, /*DefaultEnabled=*/true, EShowFlagGroup::SFG_Developer, LOCTEXT("ShowFlagDisplayName", "PCG Debug"));
+
+	const FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("PCG"))->GetBaseDir(), TEXT("Shaders"));
+	AddShaderSourceDirectoryMapping(TEXT("/Plugin/PCG"), PluginShaderDir);
 }
 
 void FPCGModule::ShutdownModule()
@@ -68,7 +61,6 @@ void FPCGModule::DeregisterNativeElementDeterminismTests()
 {
 	PCGDeterminismTests::FNativeTestRegistry::DeregisterTestFunction(UPCGDifferenceSettings::StaticClass());
 }
-
 #endif
 
 IMPLEMENT_MODULE(FPCGModule, PCG);

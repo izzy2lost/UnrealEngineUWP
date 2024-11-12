@@ -9,9 +9,10 @@ namespace AudioWidgets
 		const float InTimeWindowMs, 
 		const float InMaxTimeWindowMs, 
 		const float InAnalysisPeriodMs, 
-		const EAudioPanelLayoutType InPanelLayoutType)
-		: OscilloscopePanelStyle(FAudioOscilloscopePanelStyle::GetDefault())
+		const EAudioPanelLayoutType InPanelLayoutType,
+		const FAudioOscilloscopePanelStyle* InOscilloscopePanelStyle)
 	{
+		OscilloscopePanelStyle = InOscilloscopePanelStyle ? *InOscilloscopePanelStyle : FAudioOscilloscopePanelStyle::GetDefault();
 		CreateAudioBus(InNumChannels);
 		CreateDataProvider(InAudioDeviceId, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs, InPanelLayoutType);
 		CreateOscilloscopeWidget(InNumChannels, InPanelLayoutType);
@@ -35,11 +36,16 @@ namespace AudioWidgets
 		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InAudioDeviceId, AudioBus.Get(), NumChannelsToProvide, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 	}
 
-	void FAudioOscilloscope::CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType)
+	void FAudioOscilloscope::CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType, const FAudioOscilloscopePanelStyle* InOscilloscopePanelStyle)
 	{
 		check(AudioSamplesDataProvider);
 
 		const FFixedSampledSequenceView SequenceView = AudioSamplesDataProvider->GetDataView();
+
+		if (InOscilloscopePanelStyle)
+		{
+			OscilloscopePanelStyle = *InOscilloscopePanelStyle;
+		}
 
 		if (!OscilloscopePanelWidget.IsValid())
 		{

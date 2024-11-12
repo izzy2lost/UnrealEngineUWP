@@ -59,10 +59,10 @@ fi
 
 # hardcoded versions for compatibility with non-Turnkey manual running
 if [[ -z "${PLATFORMS_VERSION}" ]]; then
-    PLATFORMS_VERSION="android-33"
+    PLATFORMS_VERSION="android-34"
 fi
 if [[ -z "${BUILDTOOLS_VERSION}" ]]; then
-    BUILDTOOLS_VERSION="33.0.1"
+    BUILDTOOLS_VERSION="34.0.0"
 fi
 if [[ -z "${CMAKE_VERSION}" ]]; then
     CMAKE_VERSION="3.22.1"

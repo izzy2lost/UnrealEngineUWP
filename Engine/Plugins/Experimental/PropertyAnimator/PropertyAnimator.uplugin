@@ -28,10 +28,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "PropertyAnimatorCore",
 			"Enabled": true
 		},

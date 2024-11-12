@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "InteractiveToolBuilder.h"
 #include "BaseTools/SingleClickTool.h"

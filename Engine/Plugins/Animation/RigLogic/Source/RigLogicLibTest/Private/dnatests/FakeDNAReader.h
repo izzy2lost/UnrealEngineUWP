@@ -541,6 +541,166 @@ class FakeDNAReader : public Reader {
             return {};
         }
 
+        std::uint16_t getRBFPoseCount() const override {
+            return {};
+        }
+
+        StringView getRBFPoseName(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseJointOutputIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseBlendShapeChannelOutputIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseAnimatedMapOutputIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<float> getRBFPoseJointOutputValues(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        float getRBFPoseScale(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        std::uint16_t getRBFPoseControlCount() const override {
+            return {};
+        }
+
+        StringView getRBFPoseControlName(std::uint16_t poseControlIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseInputControlIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFPoseOutputControlIndices(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<float> getRBFPoseOutputControlWeights(std::uint16_t poseIndex) const override {
+            return {};
+        }
+
+        std::uint16_t getRBFSolverCount() const override {
+            return {};
+        }
+
+        std::uint16_t getRBFSolverIndexListCount() const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFSolverIndicesForLOD(std::uint16_t lod) const override {
+            return {};
+        }
+
+        StringView getRBFSolverName(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFSolverRawControlIndices(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getRBFSolverPoseIndices(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<float> getRBFSolverRawControlValues(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        RBFSolverType getRBFSolverType(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        float getRBFSolverRadius(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        AutomaticRadius getRBFSolverAutomaticRadius(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        float getRBFSolverWeightThreshold(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        RBFDistanceMethod getRBFSolverDistanceMethod(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        RBFNormalizeMethod getRBFSolverNormalizeMethod(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        RBFFunctionType getRBFSolverFunctionType(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        TwistAxis getRBFSolverTwistAxis(std::uint16_t solverIndex) const override {
+            return {};
+        }
+
+        TranslationRepresentation getJointTranslationRepresentation(std::uint16_t jointIndex) const override {
+            return {};
+        }
+
+        RotationRepresentation getJointRotationRepresentation(std::uint16_t jointIndex) const override {
+            return {};
+        }
+
+        ScaleRepresentation getJointScaleRepresentation(std::uint16_t jointIndex) const override {
+            return {};
+        }
+
+        std::uint16_t getTwistCount() const override {
+            return {};
+        }
+
+        TwistAxis getTwistSetupTwistAxis(std::uint16_t twistIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getTwistInputControlIndices(std::uint16_t twistIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getTwistOutputJointIndices(std::uint16_t twistIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<float> getTwistBlendWeights(std::uint16_t twistIndex) const override {
+            return {};
+        }
+
+        std::uint16_t getSwingCount() const override {
+            return {};
+        }
+
+        TwistAxis getSwingSetupTwistAxis(std::uint16_t swingIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getSwingInputControlIndices(std::uint16_t swingIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<std::uint16_t> getSwingOutputJointIndices(std::uint16_t swingIndex) const override {
+            return {};
+        }
+
+        ConstArrayView<float> getSwingBlendWeights(std::uint16_t swingIndex) const override {
+            return {};
+        }
+
         void unload(DataLayer layer) override {
         }
 

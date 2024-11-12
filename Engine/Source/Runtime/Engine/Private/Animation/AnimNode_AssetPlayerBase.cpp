@@ -81,6 +81,7 @@ UE::Anim::FAnimSyncParams FAnimNode_AssetPlayerBase::GetSyncParams(bool bRequest
 	const FName SyncGroupName = GetGroupName();
 	FName GroupNameToUse = SyncGroupName;
 	EAnimSyncMethod MethodToUse = GetGroupMethod();
+	bool bOverridePositionWhenJoiningSyncGroupAsLeader = GetOverridePositionWhenJoiningSyncGroupAsLeader();
 	
 	// Skip sync based on roles.
 	{
@@ -105,5 +106,5 @@ UE::Anim::FAnimSyncParams FAnimNode_AssetPlayerBase::GetSyncParams(bool bRequest
 		}
 	}
 
-	return UE::Anim::FAnimSyncParams(GroupNameToUse, SyncGroupRole, MethodToUse);
+	return UE::Anim::FAnimSyncParams(GroupNameToUse, SyncGroupRole, MethodToUse, bOverridePositionWhenJoiningSyncGroupAsLeader);
 }

@@ -57,11 +57,11 @@ namespace Trace {
 
 ////////////////////////////////////////////////////////////////////////////////
 UE_TRACE_EVENT_BEGIN(Memory, Init, NoSync|Important)
+	UE_TRACE_EVENT_FIELD(uint64, PageSize) // new in UE 5.5
 	UE_TRACE_EVENT_FIELD(uint32, MarkerPeriod)
 	UE_TRACE_EVENT_FIELD(uint8, Version)
 	UE_TRACE_EVENT_FIELD(uint8, MinAlignment)
 	UE_TRACE_EVENT_FIELD(uint8, SizeShift)
-	UE_TRACE_EVENT_FIELD(uint8, Mode) // unused
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(Memory, Marker)
@@ -132,6 +132,13 @@ UE_TRACE_EVENT_BEGIN(Memory, ReallocFreeSystem)
 	UE_TRACE_EVENT_FIELD(uint32, CallstackId)
 UE_TRACE_EVENT_END()
 
+UE_TRACE_EVENT_BEGIN(Memory, MemorySwapOp)
+	UE_TRACE_EVENT_FIELD(uint64, Address) // page fault real address
+	UE_TRACE_EVENT_FIELD(uint32, CallstackId)
+	UE_TRACE_EVENT_FIELD(uint32, CompressedSize)
+	UE_TRACE_EVENT_FIELD(uint8,  SwapOp)
+UE_TRACE_EVENT_END()
+
 UE_TRACE_EVENT_BEGIN(Memory, HeapSpec, NoSync|Important)
 	UE_TRACE_EVENT_FIELD(HeapId, Id)
 	UE_TRACE_EVENT_FIELD(HeapId, ParentId)
@@ -184,6 +191,8 @@ private:
 	virtual bool ValidateHeap() override                                    { return InnerMalloc->ValidateHeap(); }
 	virtual bool GetAllocationSize(void* Address, SIZE_T &SizeOut) override { return InnerMalloc->GetAllocationSize(Address, SizeOut); }
 	virtual void SetupTLSCachesOnCurrentThread() override                   { return InnerMalloc->SetupTLSCachesOnCurrentThread(); }
+	virtual void MarkTLSCachesAsUsedOnCurrentThread() override              { InnerMalloc->MarkTLSCachesAsUsedOnCurrentThread(); }
+	virtual void MarkTLSCachesAsUnusedOnCurrentThread() override            { InnerMalloc->MarkTLSCachesAsUnusedOnCurrentThread(); }
 	virtual void OnMallocInitialized() override                             { InnerMalloc->OnMallocInitialized(); }
 	virtual void OnPreFork() override                                       { InnerMalloc->OnPreFork(); }
 	virtual void OnPostFork() override                                      { InnerMalloc->OnPostFork(); }
@@ -281,8 +290,9 @@ static FUndestructed<FTraceMalloc> GTraceMalloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename ArgCharType>
-static bool MemoryTrace_ShouldEnable(int32 ArgC, const ArgCharType* const* ArgV)
+static EMemoryTraceInit MemoryTrace_ShouldEnable(int32 ArgC, const ArgCharType* const* ArgV)
 {
+	EMemoryTraceInit Mode = EMemoryTraceInit::Disabled;
 	for (int32 ArgIndex = 1; ArgIndex < ArgC; ArgIndex++)
 	{
 		const ArgCharType* Arg = ArgV[ArgIndex];
@@ -310,9 +320,28 @@ static bool MemoryTrace_ShouldEnable(int32 ArgC, const ArgCharType* const* ArgV)
 				{
 					ChannelsOrPresets.FindChar(',', CommaPos);
 					TStringView<ArgCharType> Channel = ChannelsOrPresets.SubStr(0, CommaPos == INDEX_NONE ? ChannelsOrPresets.Len() : CommaPos);
-					if (Channel.Equals("memalloc", ESearchCase::IgnoreCase) || Channel.Equals("memory", ESearchCase::IgnoreCase))
+					if (Channel.Equals("memalloc", ESearchCase::IgnoreCase))
 					{
-						return true;
+						Mode |= EMemoryTraceInit::AllocEvents;
+					}
+					else if (Channel.Equals("callstack", ESearchCase::IgnoreCase))
+					{
+						Mode |= EMemoryTraceInit::Callstacks;
+					}
+					else if (Channel.Equals("memtag", ESearchCase::IgnoreCase))
+					{
+						Mode |= EMemoryTraceInit::Tags;
+					}
+					else if (Channel.Left(6).Equals("memory", ESearchCase::IgnoreCase))
+					{
+						if (Channel.Equals("memory", ESearchCase::IgnoreCase))
+						{
+							return EMemoryTraceInit::Full;
+						}
+						else if (Channel.Equals("memory_light", ESearchCase::IgnoreCase))
+						{
+							return EMemoryTraceInit::Light;
+						}
 					}
 					ChannelsOrPresets.RightChopInline(Channel.Len() + 1);
 				}
@@ -323,12 +352,19 @@ static bool MemoryTrace_ShouldEnable(int32 ArgC, const ArgCharType* const* ArgV)
 		}
 	}
 
-	return false;
+	return Mode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc)
+FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc, EMemoryTraceInit Mode)
 {
+	// If allocation events are not desired we don't need to do anything, even
+	// if user has enabled only callstacks it will be enabled later. 
+	if (!EnumHasAnyFlags(Mode, EMemoryTraceInit::AllocEvents))
+	{
+		return InMalloc;
+	}
+	
 	// Some OSes (i.e. Windows) will terminate all threads except the main
 	// one as part of static deinit. However we may receive more memory
 	// trace events that would get lost as Trace's worker thread has been
@@ -342,9 +378,14 @@ FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc)
 
 	// Both tag and callstack tracing need to use the wrapped trace malloc
 	// so we can break out tracing memory overhead (and not cause recursive behaviour).
-	MemoryTrace_InitTags(&GTraceMalloc);
-	CallstackTrace_Create(&GTraceMalloc);
-
+	if (EnumHasAnyFlags(Mode, EMemoryTraceInit::Tags))
+	{
+		MemoryTrace_InitTags(&GTraceMalloc);
+	}
+	if (EnumHasAnyFlags(Mode, EMemoryTraceInit::Callstacks))
+	{
+		CallstackTrace_Create(&GTraceMalloc);
+	}
 
 	static FUndestructed<FMallocWrapper> SMallocWrapper;
 	SMallocWrapper.Construct(InMalloc);
@@ -355,23 +396,15 @@ FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc)
 ////////////////////////////////////////////////////////////////////////////////
 FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc, int32 ArgC, const WIDECHAR* const* ArgV)
 {
-	if (!MemoryTrace_ShouldEnable(ArgC, ArgV))
-	{
-		return nullptr;
-	}
-
-	return MemoryTrace_CreateInternal(InMalloc);
+	const EMemoryTraceInit Mode = MemoryTrace_ShouldEnable(ArgC, ArgV);
+	return MemoryTrace_CreateInternal(InMalloc, Mode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 FMalloc* MemoryTrace_CreateInternal(FMalloc* InMalloc, int32 ArgC, const ANSICHAR* const* ArgV)
 {
-	if (!MemoryTrace_ShouldEnable(ArgC, ArgV))
-	{
-		return nullptr;
-	}
-
-	return MemoryTrace_CreateInternal(InMalloc);
+	const EMemoryTraceInit Mode = MemoryTrace_ShouldEnable(ArgC, ArgV);
+	return MemoryTrace_CreateInternal(InMalloc, Mode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,7 +413,10 @@ void MemoryTrace_Initialize()
 	// At this point we initialized the system to allow tracing.
 	GTraceAllowed = true;
 
+	const FPlatformMemoryConstants& MemoryConstants = FPlatformMemory::GetConstants();
+
 	UE_TRACE_LOG(Memory, Init, MemAllocChannel)
+		<< Init.PageSize(MemoryConstants.PageSize)
 		<< Init.MarkerPeriod(MarkerSamplePeriod + 1)
 		<< Init.Version(MemoryTraceVersion)
 		<< Init.MinAlignment(uint8(MIN_ALIGNMENT))
@@ -593,6 +629,23 @@ void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap, uint32 ExternalCal
 			break;
 		}
 	}
+
+	MemoryTrace_UpdateInternal();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void MemoryTrace_SwapOp(uint64 PageAddress, EMemoryTraceSwapOperation SwapOperation, uint32 CompressedSize, uint32 CallstackId)
+{
+	if (!GTraceAllowed)
+	{
+		return;
+	}
+
+	UE_TRACE_LOG(Memory, MemorySwapOp, MemAllocChannel)
+		<< MemorySwapOp.Address(PageAddress)
+		<< MemorySwapOp.CallstackId(CallstackId)
+		<< MemorySwapOp.CompressedSize(CompressedSize)
+		<< MemorySwapOp.SwapOp((uint8)SwapOperation);
 
 	MemoryTrace_UpdateInternal();
 }

@@ -10,6 +10,7 @@
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceActorImpl.h"
 #include "LevelInstance/LevelInstanceActorGuid.h"
+#include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "LevelInstanceActor.generated.h"
 
@@ -24,8 +25,11 @@ public:
 protected:
 #if WITH_EDITORONLY_DATA
 	/** Level LevelInstance */
-	UPROPERTY(EditAnywhere, Category = Level, Meta = (NoCreate, DisplayName="Level"))
+	UPROPERTY(EditAnywhere, Category = Level, Meta = (NoCreate, DisplayName="Level", DisableLevelInstancePropertyOverride))
 	TSoftObjectPtr<UWorld> WorldAsset;
+
+	UPROPERTY(VisibleAnywhere, Category = Override, meta = (EditInline, NoResetToDefault, EditCondition="PropertyOverrides != nullptr", EditConditionHides))
+	TObjectPtr<ULevelInstancePropertyOverrideAsset> PropertyOverrides;
 #endif
 	UPROPERTY(VisibleAnywhere, Category = Default)
 	TObjectPtr<ULevelInstanceComponent> LevelInstanceComponent;
@@ -41,7 +45,7 @@ protected:
 
 public:
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = Level, AdvancedDisplay, Meta = (DisplayName="Level Behavior"))
+	UPROPERTY(EditAnywhere, Category = Level, AdvancedDisplay, Meta = (DisplayName="Level Behavior", DisableLevelInstancePropertyOverride))
 	ELevelInstanceRuntimeBehavior DesiredRuntimeBehavior;
 #endif
 
@@ -71,6 +75,9 @@ public:
 	virtual ELevelInstanceRuntimeBehavior GetDefaultRuntimeBehavior() const override { return ELevelInstanceRuntimeBehavior::Partitioned; }
 	ENGINE_API virtual TSubclassOf<AActor> GetEditorPivotClass() const override;
 	ENGINE_API virtual bool SupportsPartialEditorLoading() const override;
+
+	ENGINE_API virtual bool SupportsPropertyOverrides() const override;
+	ENGINE_API ULevelInstancePropertyOverrideAsset* GetPropertyOverrideAsset() const override;
 	// End ILevelInstanceInterface
 			
 	// UObject overrides
@@ -78,6 +85,7 @@ public:
 	ENGINE_API virtual void PostEditUndo() override;
 	ENGINE_API virtual void PostEditUndo(TSharedPtr<ITransactionObjectAnnotation> TransactionAnnotation) override;
 	ENGINE_API virtual void PostLoad() override;
+	ENGINE_API virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 	ENGINE_API virtual void PreEditChange(FProperty* PropertyThatWillChange) override;
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -95,13 +103,14 @@ public:
 	ENGINE_API virtual void PushSelectionToProxies() override;
 	ENGINE_API virtual void PushLevelInstanceEditingStateToProxies(bool bInEditingState) override;
 	ENGINE_API virtual FBox GetComponentsBoundingBox(bool bNonColliding = false, bool bIncludeFromChildActors = false) const override;
-	ENGINE_API virtual FBox GetStreamingBounds() const override;
+	ENGINE_API virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 	ENGINE_API virtual bool IsLockLocation() const override;
 	ENGINE_API virtual bool IsActorLabelEditable() const override;
 	ENGINE_API virtual bool GetReferencedContentObjects(TArray<UObject*>& Objects) const override;
 	ENGINE_API virtual bool GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& SoftObjects) const override;
 	ENGINE_API virtual bool OpenAssetEditor() override;
 	ENGINE_API virtual bool EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const override;	
+	ENGINE_API virtual bool IsEditorOnly() const override;
 	ENGINE_API virtual bool IsUserManaged() const override;
 	ENGINE_API virtual bool ShouldExport() override;
 	ENGINE_API virtual bool SupportsSubRootSelection() const override { return true; }
@@ -111,6 +120,7 @@ public:
 	static ENGINE_API FOnLevelInstanceActorPostLoad OnLevelInstanceActorPostLoad;
 
 private:
+	ENGINE_API virtual void SetPropertyOverrideAsset(ULevelInstancePropertyOverrideAsset* InPropertyOverrideAsset) override;
 	ENGINE_API virtual bool ShouldCookWorldAsset() const;
 #endif
 };

@@ -26,6 +26,8 @@
 DECLARE_STATS_GROUP(TEXT("VirtualHeightfieldMesh"), STATGROUP_VirtualHeightfieldMesh, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("VirtualHeightfieldMesh SubmitWork"), STAT_VirtualHeightfieldMesh_SubmitWork, STATGROUP_VirtualHeightfieldMesh);
 
+DECLARE_GPU_STAT(VirtualHeightfieldMesh);
+
 DECLARE_LOG_CATEGORY_EXTERN(LogVirtualHeightfieldMesh, Warning, All);
 DEFINE_LOG_CATEGORY(LogVirtualHeightfieldMesh);
 
@@ -115,7 +117,7 @@ namespace VirtualHeightfieldMesh
 
 struct FOcclusionResults
 {
-	FTexture2DRHIRef OcclusionTexture;
+	FTextureRHIRef OcclusionTexture;
 	FIntPoint TextureSize;
 	int32 NumTextureMips;
 	TArray<bool> UploadData;
@@ -1182,8 +1184,7 @@ namespace VirtualHeightfieldMesh
 void FVirtualHeightfieldMeshRendererExtension::SubmitWork(FRDGBuilder& GraphBuilder)
 {
 	SCOPE_CYCLE_COUNTER(STAT_VirtualHeightfieldMesh_SubmitWork);
-	DECLARE_GPU_STAT(VirtualHeightfieldMesh)
-	RDG_EVENT_SCOPE(GraphBuilder, "VirtualHeightfieldMesh");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, VirtualHeightfieldMesh, "VirtualHeightfieldMesh");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualHeightfieldMesh);
 
 	// Sort work so that we can batch by proxy/view

@@ -6,9 +6,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "D3D11Resources.h"
 #include "RenderResource.h"
 #include "RenderUtils.h"
+#include "RHIResources.h"
+#include "Windows/D3D11ThirdParty.h"
+#include "DXGIUtilities.h"
 
 /** A D3D event query resource. */
 class FD3D11EventQuery
@@ -61,12 +64,11 @@ public:
 	/** Presents the swap chain. 
 	 * Returns true if Present was done by Engine.
 	 */
-	D3D11RHI_API bool Present(bool bLockToVsync);
+	D3D11RHI_API bool Present(IRHICommandContext& RHICmdContext, bool bLockToVsync);
 
 	// Accessors.
 	FIntPoint GetSizeXY() const { return FIntPoint(SizeX, SizeY); }
 	FD3D11Texture* GetBackBuffer() const { return BackBuffer; }
-	EColorSpaceAndEOTF GetPixelColorSpace() const { return PixelColorSpace; }
 
 	virtual void WaitForFrameEventCompletion() override
 	{
@@ -80,9 +82,9 @@ public:
 
 	IDXGISwapChain* GetSwapChain() const { return SwapChain; }
 
-	virtual void* GetNativeSwapChain() const override { return GetSwapChain(); }
-	virtual void* GetNativeBackBufferTexture() const override { return GetBackBuffer()->GetD3D11Texture2D(); }
-	virtual void* GetNativeBackBufferRT() const override { return GetBackBuffer()->GetRenderTargetView(0, 0); }
+	virtual void* GetNativeSwapChain() const override;
+	virtual void* GetNativeBackBufferTexture() const override;
+	virtual void* GetNativeBackBufferRT() const override;
 
 	virtual void SetCustomPresent(FRHICustomPresent* InCustomPresent) override
 	{
@@ -95,17 +97,7 @@ public:
 
 	static DXGI_FORMAT GetRenderTargetFormat(EPixelFormat PixelFormat)
 	{
-		DXGI_FORMAT	DXFormat = (DXGI_FORMAT)GPixelFormats[PixelFormat].PlatformFormat;
-		switch(DXFormat)
-		{
-		case DXGI_FORMAT_B8G8R8A8_TYPELESS:		return DXGI_FORMAT_B8G8R8A8_UNORM;
-		case DXGI_FORMAT_BC1_TYPELESS:			return DXGI_FORMAT_BC1_UNORM;
-		case DXGI_FORMAT_BC2_TYPELESS:			return DXGI_FORMAT_BC2_UNORM;
-		case DXGI_FORMAT_BC3_TYPELESS:			return DXGI_FORMAT_BC3_UNORM;
-		case DXGI_FORMAT_R16_TYPELESS:			return DXGI_FORMAT_R16_UNORM;
-		case DXGI_FORMAT_R8G8B8A8_TYPELESS:		return DXGI_FORMAT_R8G8B8A8_UNORM;
-		default: 								return DXFormat;
-		}
+		return UE::DXGIUtilities::GetSwapChainFormat(PixelFormat);
 	}
 
 protected:
@@ -116,13 +108,20 @@ protected:
 	D3D11RHI_API uint32 GetSwapChainFlags();
 
 	/** Presents the frame synchronizing with DWM. */
-	D3D11RHI_API void PresentWithVsyncDWM();
+	D3D11RHI_API void PresentWithVsyncDWM(IRHICommandContext& RHICmdContext);
 
 	/**
 	 * Presents the swap chain checking the return result. 
 	 * Returns true if Present was done by Engine.
 	 */
-	D3D11RHI_API bool PresentChecked(int32 SyncInterval);
+	D3D11RHI_API bool PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval);
+
+	/** Enable HDR meta data transmission and set the necessary color space. */
+	void EnableHDR();
+
+	/** Disable HDR meta data transmission and set the necessary color space. */
+	void ShutdownHDR();
+
 
 	FD3D11DynamicRHI* D3DRHI;
 	uint64 LastFlipTime;
@@ -138,7 +137,6 @@ protected:
 	uint32 PresentFailCount;
 	TAtomic<uint32> ValidState;
 	EPixelFormat PixelFormat;
-	EColorSpaceAndEOTF PixelColorSpace;
 	EDisplayColorGamut DisplayColorGamut;
 	EDisplayOutputFormat DisplayOutputFormat;
 	bool bIsFullscreen;

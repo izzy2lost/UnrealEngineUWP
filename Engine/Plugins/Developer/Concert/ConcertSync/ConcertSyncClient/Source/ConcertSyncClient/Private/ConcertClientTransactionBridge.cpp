@@ -17,6 +17,7 @@
 #include "UObject/Package.h"
 #include "LevelInstance/LevelInstanceActor.h"
 #include "LevelInstance/LevelInstanceComponent.h"
+#include "Components/PrimitiveComponent.h"
 
 #if WITH_EDITOR
 	#include "Editor.h"
@@ -122,13 +123,16 @@ void DeselectActorsAndActorComponents(const TArray<AActor*>& DeletedActors, cons
 #endif
 }
 
-ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FTransactionFilterDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage)
+ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FOnFilterTransactionDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage, const FTransactionObjectEvent& InTransactionEvent)
 {
+	ensure(InObject && InChangedPackage);
+	const FConcertTransactionFilterArgs FilterArgs(InObject, InChangedPackage, InTransactionEvent);
+	
 	for (const auto& Item : CustomFilters)
 	{
-		if(Item.Value.IsBound())
+		if (Item.Value.IsBound())
 		{
-			ETransactionFilterResult Result = Item.Value.Execute(InObject, InChangedPackage);
+			ETransactionFilterResult Result = Item.Value.Execute(FilterArgs);
 			if (Result != ETransactionFilterResult::UseDefault)
 			{
 				return Result;
@@ -138,7 +142,7 @@ ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FTransactionFilterD
 	return ETransactionFilterResult::UseDefault;
 }
 
-ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FTransactionFilterDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage)
+ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FOnFilterTransactionDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage, const FTransactionObjectEvent& InTransactionEvent)
 {
 	// An object is persistent if neither it nor any of its outers are transient
 	auto IsObjectPersistent = [](const UObject* Obj)
@@ -153,13 +157,33 @@ ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FTransactionF
 		return true;
 	};
 
-	ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyCustomFilter(CustomFilters, InObject, InChangedPackage);
+	auto WasObjectPersistent = [&IsObjectPersistent](const EObjectFlags OriginalFlags, const FName OriginalOuterPathName)
+	{
+		if (!EnumHasAnyFlags(OriginalFlags, RF_Transient))
+		{
+			if (UObject* OriginalOuter = FSoftObjectPath(FNameBuilder(OriginalOuterPathName).ToView()).ResolveObject();
+				OriginalOuter && IsObjectPersistent(OriginalOuter))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyCustomFilter(CustomFilters, InObject, InChangedPackage, InTransactionEvent);
 	if (FilterResult != ETransactionFilterResult::UseDefault)
 	{
 		return FilterResult;
 	}
-	// Ignore transient packages and objects, compiled in package are not considered Multi-user content.
-	if (!InChangedPackage || InChangedPackage == GetTransientPackage() || InChangedPackage->HasAnyPackageFlags(PKG_CompiledIn) || !IsObjectPersistent(InObject))
+
+	// Ignore compiled in package, as they are not considered Multi-user content.
+	if (!InChangedPackage || InChangedPackage->HasAnyPackageFlags(PKG_CompiledIn))
+	{
+		return ETransactionFilterResult::ExcludeObject;
+	}
+
+	// Ignore transient packages and objects, unless the object was previously persistent
+	if ((InChangedPackage == GetTransientPackage() || !IsObjectPersistent(InObject)) && !WasObjectPersistent(InTransactionEvent.GetOriginalObjectFlags(), InTransactionEvent.GetOriginalObjectOuterPathName()))
 	{
 		return ETransactionFilterResult::ExcludeObject;
 	}
@@ -275,7 +299,7 @@ struct FEditorTransactionNotification
 					DeltaChange.ChangedProperties.Add(PropertyData.PropertyName);
 				}
 				TransactionObjectEvent = FTransactionObjectEvent(TransactionContext.TransactionId, TransactionContext.OperationId, ETransactionObjectEventType::UndoRedo, ETransactionObjectChangeCreatedBy::TransactionRecord,
-					FTransactionObjectChange{ InObjectUpdate.ObjectId.ToTransactionObjectId(), MoveTemp(DeltaChange) }, InTransactionAnnotation);
+					FTransactionObjectChange{ InObjectUpdate.ObjectId.ToTransactionObjectId(), (EObjectFlags)InObjectUpdate.ObjectId.ObjectPersistentFlags, MoveTemp(DeltaChange) }, InTransactionAnnotation);
 			}
 			GUnrealEd->HandleObjectTransacted(InTransactionObject, TransactionObjectEvent);
 		}
@@ -365,7 +389,7 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 			}
 
 			// Find or create the object
-			TransactionObjectRef = ConcertSyncClientUtil::GetObject(ObjectUpdate.ObjectId, ObjectUpdate.ObjectData.NewName, ObjectUpdate.ObjectData.NewOuterPathName, ObjectUpdate.ObjectData.NewExternalPackageName, ObjectUpdate.ObjectData.bAllowCreate);
+			TransactionObjectRef = ConcertSyncClientUtil::GetObject(ObjectUpdate.ObjectId, ObjectUpdate.ObjectData.NewName, ObjectUpdate.ObjectData.NewOuterPathName, ObjectUpdate.ObjectData.NewExternalPackageName, ObjectUpdate.ObjectData.SourceObject, ObjectUpdate.ObjectData.bAllowCreate);
 			bObjectsDeleted |= (ObjectUpdate.ObjectData.bIsPendingKill || TransactionObjectRef.NeedsGC());
 
 			if (TransactionObjectRef.Obj)
@@ -452,7 +476,7 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 	}
 
 #if WITH_EDITOR
-	UObject* PrimaryObject = InEvent.PrimaryObjectId.ObjectName.IsNone() ? nullptr : ConcertSyncClientUtil::GetObject(InEvent.PrimaryObjectId, FName(), FName(), FName(), /*bAllowCreate*/false).Obj;
+	UObject* PrimaryObject = InEvent.PrimaryObjectId.ObjectName.IsNone() ? nullptr : ConcertSyncClientUtil::GetObject(InEvent.PrimaryObjectId, FName(), FName(), FName(), FSoftObjectPath(), /*bAllowCreate*/false).Obj;
 	FEditorTransactionNotification EditorTransactionNotification(FTransactionContext(InEvent.TransactionId, InEvent.OperationId, LOCTEXT("ConcertTransactionEvent", "Concert Transaction Event"), TEXT("Concert Transaction Event"), PrimaryObject));
 	if (!bIsSnapshot)
 	{
@@ -493,7 +517,10 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 			const bool bLevelIsDirty = Level ? Level->GetPackage()->IsDirty() : false;
 
 			// Transaction annotations require us to invoke the redo flow (even for snapshots!) as that's the only thing that can apply the annotation
-			TransactionObject->PreEditUndo();
+			{
+				TGuardValue<bool> IsTransactingGuard(GIsTransacting, true);
+				TransactionObject->PreEditUndo();
+			}
 
 			// Levels are immune from dirty changes when using external objects.  See ULevel::PreEditUndo() If we
 			// modified any dirty flags as a result of the PreEditUndo then restore it back here as if it didn't happen.
@@ -513,6 +540,7 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 			{
 				if (bIsSnapshot)
 				{
+					TGuardValue<bool> IsTransactingGuard(GIsTransacting, true);
 					// Prevent FlushRenderingCommands from running when in -game. It can cause performance issues / hitching during user interaction.
 					TGuardValue<bool> ShouldFlushRenderingCommands(GFlushRenderingCommandsOnPreEditChange, GIsEditor);					
 					TransactionObject->PreEditChange(TransactionProp);
@@ -539,6 +567,8 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 		{
 			continue;
 		}
+
+		TransactionObject->Modify();
 
 		// Apply the new data
 		if (ObjectUpdate.ObjectData.SerializedData.Num() > 0)
@@ -598,6 +628,7 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 			{
 				if (bIsSnapshot)
 				{
+					TGuardValue<bool> IsTransactingGuard(GIsTransacting, true);
 					TransactionObject->PostEditChange();
 				}
 
@@ -611,10 +642,12 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 		if (TransactionAnnotation)
 		{
 			// Transaction annotations require us to invoke the redo flow (even for snapshots!) as that's the only thing that can apply the annotation
+			TGuardValue<bool> IsTransactingGuard(GIsTransacting, true);
 			TransactionObject->PostEditUndo(TransactionAnnotation);
 		}
 		else if (!bIsSnapshot)
 		{
+			TGuardValue<bool> IsTransactingGuard(GIsTransacting, true);
 			TransactionObject->PostEditUndo();
 		}
 
@@ -866,6 +899,10 @@ UClass* GetModifiedClass(UObject* InObject)
 	if (Cast<USceneComponent>(InObject))
 	{
 		return USceneComponent::StaticClass();
+	}
+	if (Cast<UPrimitiveComponent>(InObject))
+	{
+		return UPrimitiveComponent::StaticClass();
 	}
 	return nullptr;
 }
@@ -1162,7 +1199,7 @@ void FConcertClientTransactionBridge::HandleObjectTransacted(UObject* InObject, 
 	}
 
 	UPackage* ChangedPackage = InObject->GetOutermost();
-	ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyTransactionFilters(TransactionFilters, InObject, ChangedPackage);
+	const ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyTransactionFilters(TransactionFilters, InObject, ChangedPackage, InTransactionEvent);
 	FOngoingTransaction* TrackedTransaction = OngoingTransactions.Find(InTransactionEvent.GetOperationId());
 
 	// TODO: This needs to send both editor-only and non-editor-only payload
@@ -1312,13 +1349,11 @@ void FConcertClientTransactionBridge::OnEndFrame()
 	}
 }
 
-void FConcertClientTransactionBridge::RegisterTransactionFilter(FName FilterName, FTransactionFilterDelegate FilterHandle)
+void FConcertClientTransactionBridge::RegisterTransactionFilter(FName FilterName, FOnFilterTransactionDelegate FilterDelegate)
 {
 	LLM_SCOPE_BYTAG(Concert_ConcertClientTransactionBridge);
-
 	check(TransactionFilters.Find(FilterName) == nullptr);
-
-	TransactionFilters.Add(FilterName) = MoveTemp(FilterHandle);
+	TransactionFilters.Add(FilterName, MoveTemp(FilterDelegate));
 }
 
 void FConcertClientTransactionBridge::UnregisterTransactionFilter(FName FilterName)

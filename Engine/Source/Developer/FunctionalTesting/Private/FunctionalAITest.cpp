@@ -7,6 +7,7 @@
 #include "FunctionalTestingManager.h"
 #include "NavigationSystem.h"
 #include "AI/Navigation/NavAreaBase.h"
+#include "AI/Navigation/NavigationElement.h"
 #include "AIController.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "NavMesh/RecastNavMesh.h"
@@ -131,7 +132,7 @@ void AFunctionalAITestBase::OnTimeout()
 					DebugAreaNames += TEXT(',');
 				}
 
-				UE_LOG(LogFunctionalTest, Log, TEXT("> modifier, owner:%s areas:%s"), *GetNameSafe(Element.GetOwner()), *DebugAreaNames);
+				UE_LOG(LogFunctionalTest, Log, TEXT("> modifier, owner:%s areas:%s"), *Element.GetSourceElement()->GetName(), *DebugAreaNames);
 			}
 		});
 	}
@@ -501,7 +502,7 @@ void AFunctionalAITest::RemoveSpawnSetIfPredicate(TFunctionRef<bool(FAITestSpawn
 	{
 		if (Predicate(SpawnSets[Index]))
 		{
-			SpawnSets.RemoveAt(Index, 1, EAllowShrinking::No);
+			SpawnSets.RemoveAt(Index, EAllowShrinking::No);
 			bRemovedEntry = true;
 		}
 	}

@@ -19,6 +19,7 @@
 #include "MovieGraphUtils.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
+#include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "MovieGraphConfig"
 
@@ -32,7 +33,9 @@ bool UMovieGraphMember::SetMemberName(const FString& InNewName)
 	FText UnusedError;
 	if (CanRename(FText::FromString(InNewName), UnusedError))
 	{
+		Modify();
 		Name = InNewName;
+		
 		return true;
 	}
 
@@ -67,6 +70,141 @@ bool UMovieGraphMember::CanRename(const FText& InNewName, FText& OutError) const
 bool UMovieGraphVariable::IsGlobal() const
 {
 	return IsA<UMovieGraphGlobalVariable>();
+}
+
+const FString& UMovieGraphVariable::GetCategory() const
+{
+	return Category;
+}
+
+void UMovieGraphVariable::SetCategory(const FString& InNewCategory)
+{
+	// Sets this variable to have a specific category with Pre/Post change events sent properly
+	auto SetCategoryWithEvents = [this](const FString& NewCategory)
+	{
+#if WITH_EDITOR
+		FProperty* CategoryProperty = FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UMovieGraphVariable, Category));
+		PreEditChange(CategoryProperty);
+
+		Modify();
+#endif
+
+		// The category needs to be put through NameToDisplayString() to prevent a host of category-matching issues in the graph's action menu that
+		// cannot be controlled/changed on the MRG side. For example, when dragging/dropping a category, the provided category in DroppedOnCategory()
+		// will be the *display name* of the category, not the variable's actual category. Sometimes the display name and actual category can differ,
+		// (for example, if the variable category was set to "Test1", the display name would be "Test 1"). To mitigate all of these mismatch issues,
+		// just put all categories through NameToDisplayString(), which is how the display name is generated. The ReplaceInline() fixes a weird issue
+		// with NameToDisplayString().
+		constexpr bool bIsBool = false;
+		Category = FName::NameToDisplayString(NewCategory, bIsBool);
+		Category.ReplaceInline(TEXT("| "), TEXT("|"), ESearchCase::CaseSensitive);
+
+#if WITH_EDITOR
+		FPropertyChangedEvent PropertyUpdate(CategoryProperty);
+		PostEditChangeProperty(PropertyUpdate);
+#endif	// WITH_EDITOR
+	};
+
+	// Nothing to do if the category didn't change
+	if (Category == InNewCategory)
+	{
+		return;
+	}
+	
+	const TArray<UMovieGraphVariable*> GraphVariables = GetOwningGraph()->GetVariables();
+	
+	// Make sure the variable goes in the correct position in the array when changing the category. Variables need to remain sorted by their category,
+	// otherwise other operations (eg, moving a variable up/down in the array) will not work as expected when variables are categorized.
+
+	// First, get all the categories that are present.
+	TArray<FString> Categories;
+	Algo::Transform(GraphVariables, Categories, [](const UMovieGraphVariable* Variable) { return Variable->GetCategory(); });
+
+	// Second, if the newly-set category already exists, then just move the variable to be immediately after the last variable within the category.
+	if (Categories.Contains(InNewCategory))
+	{
+		const int32 LastIndex = GraphVariables.FindLastByPredicate([&InNewCategory](const UMovieGraphVariable* GraphVariable)
+		{
+			return GraphVariable->GetCategory() == InNewCategory;
+		});
+
+		if (LastIndex != INDEX_NONE)
+		{
+			GetOwningGraph()->MoveVariableToIndex(this, LastIndex + 1);
+		}
+	}
+
+	// Otherwise, if the newly-set category does not exist, the situation is a bit more complex.
+	else
+	{
+		// If moving the variable into category "Foo|Bar|Baz", generate all potential root categories (Foo, Foo|Bar, and Foo|Bar|Baz).
+		TArray<FString> CategoryParts;
+		InNewCategory.ParseIntoArray(CategoryParts, TEXT("|"));
+		TArray<FString> CategoryCandidates;
+		for (int32 CategoryIndex = 0; CategoryIndex < CategoryParts.Num(); ++CategoryIndex)
+		{
+			if (CategoryIndex == 0)
+			{
+				CategoryCandidates.Add(CategoryParts[0]);
+			}
+			else
+			{
+				CategoryCandidates.Add(CategoryCandidates.Last() + TEXT("|") + CategoryParts[CategoryIndex]);
+			}
+		}
+
+		// Find the variable with the closest matching category. For example, if setting the category to "Foo|Bar|Baz", if no variable was set in either
+		// "Foo|Bar|Baz" or "Foo|Bar", "Foo" would be the closest matching category. Candidates are iterated in reverse because the deepest category
+		// should be matched first if possible ("Foo|Bar|Baz" in this example).
+		int32 BestIndex = INDEX_NONE;
+		for (int32 CategoryIndex = CategoryCandidates.Num() - 1; CategoryIndex >= 0; --CategoryIndex)
+		{
+			const FString CurrentCategory = CategoryCandidates[CategoryIndex];
+
+			BestIndex = GraphVariables.IndexOfByPredicate([&CurrentCategory](const UMovieGraphVariable* GraphVariable)
+			{
+				return GraphVariable->GetCategory() == CurrentCategory;
+			});
+
+			if (BestIndex != INDEX_NONE)
+			{
+				break;
+			}
+		}
+
+		// If there are variables with a matching root set already, move the variable to be immediately before the variable with a matching category.
+		if (BestIndex != INDEX_NONE)
+		{
+			GetOwningGraph()->MoveVariableToIndex(this, BestIndex);
+		}
+		else
+		{
+			// Find the last variable with any category set, and move it to be after that. New categories go to the end.
+			BestIndex = GraphVariables.FindLastByPredicate([](const UMovieGraphVariable* GraphVariable)
+			{
+				return !GraphVariable->GetCategory().IsEmpty();
+			});
+			
+			if (BestIndex == INDEX_NONE)
+			{
+				// If ALL categories are currently empty (meaning no variables have a category set yet) then move this variable to be the first
+				// in the array.
+				GetOwningGraph()->MoveVariableToIndex(this, 0);
+			}
+			else if (BestIndex == (GraphVariables.Num() - 1))
+			{
+				// ALL variables have a category set, so move to the very end.
+				GetOwningGraph()->MoveVariableToIndex(this, GraphVariables.Num());
+			}
+			else
+			{
+				// Move to after the last variable with a category set 
+				GetOwningGraph()->MoveVariableToIndex(this, BestIndex + 1);
+			}
+		}
+	}
+	
+	SetCategoryWithEvents(InNewCategory);
 }
 
 bool UMovieGraphVariable::IsDeletable() const
@@ -730,11 +868,13 @@ UMovieGraphVariable* UMovieGraphConfig::AddVariable(const FName InCustomBaseName
 	return NewVariable;
 }
 
-UMovieGraphInput* UMovieGraphConfig::AddInput()
+UMovieGraphInput* UMovieGraphConfig::AddInput(const FText& InBaseName)
 {
 	static const FText InputBaseName = LOCTEXT("InputBaseName", "Input");
 
-	UMovieGraphInput* NewInput = AddMember<UMovieGraphInput>(Inputs, FName(*InputBaseName.ToString()));
+	const FText NewInputName = !InBaseName.IsEmpty() ? InBaseName : InputBaseName;
+	
+	UMovieGraphInput* NewInput = AddMember<UMovieGraphInput>(Inputs, FName(*NewInputName.ToString()));
 	InputNode->UpdatePins();
 	
 #if WITH_EDITOR
@@ -744,11 +884,13 @@ UMovieGraphInput* UMovieGraphConfig::AddInput()
 	return NewInput;
 }
 
-UMovieGraphOutput* UMovieGraphConfig::AddOutput()
+UMovieGraphOutput* UMovieGraphConfig::AddOutput(const FText& InBaseName)
 {
 	static const FText OutputBaseName = LOCTEXT("OutputBaseName", "Output");
 	
-	UMovieGraphOutput* NewOutput = AddMember<UMovieGraphOutput>(Outputs, FName(*OutputBaseName.ToString()));
+	const FText NewOutputName = !InBaseName.IsEmpty() ? InBaseName : OutputBaseName;
+	
+	UMovieGraphOutput* NewOutput = AddMember<UMovieGraphOutput>(Outputs, FName(*NewOutputName.ToString()));
 	OutputNode->UpdatePins();
 
 #if WITH_EDITOR
@@ -839,6 +981,30 @@ bool UMovieGraphConfig::DeleteMember(UMovieGraphMember* MemberToDelete)
 	}
 
 	return false;
+}
+
+UMovieGraphVariable* UMovieGraphConfig::DuplicateVariable(UMovieGraphVariable* InVariableToDuplicate)
+{
+	if (!InVariableToDuplicate)
+	{
+		return nullptr;
+	}
+
+	Modify();
+
+	// AddVariable() does lots of heavy lifting to make sure variables are added/named correctly. Instead of duplicating lots of that boilerplate
+	// here, just manually copy over the value/category/etc from the source variable. DuplicateObject() would work too, but has its own set of
+	// clean-up procedures that are needed.
+	UMovieGraphVariable* NewVariable = AddVariable(FName(InVariableToDuplicate->GetMemberName()));
+	if (NewVariable)
+	{
+		NewVariable->SetValueType(InVariableToDuplicate->GetValueType(), const_cast<UObject*>(InVariableToDuplicate->GetValueTypeObject()));
+		NewVariable->SetValueSerializedString(InVariableToDuplicate->GetValueSerializedString());
+		NewVariable->SetCategory(InVariableToDuplicate->GetCategory());
+		NewVariable->Description = InVariableToDuplicate->Description;
+	}
+	
+	return NewVariable;
 }
 
 bool UMovieGraphConfig::DeleteVariableMember(UMovieGraphVariable* VariableMemberToDelete)
@@ -1151,6 +1317,162 @@ void UMovieGraphConfig::GetOutputDirectory(FString& OutOutputDirectory) const
 	}
 }
 
+void UMovieGraphConfig::MoveVariableBefore(UMovieGraphVariable* InTargetVariable, UMovieGraphVariable* InBeforeVariable)
+{
+	const int32 TargetVariableIndex = Variables.Find(InTargetVariable);
+	const int32 BeforeVariableIndex = Variables.Find(InBeforeVariable);
+	if ((TargetVariableIndex == INDEX_NONE) || (BeforeVariableIndex == INDEX_NONE) || (TargetVariableIndex == BeforeVariableIndex))
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	Modify();
+	InTargetVariable->Modify();
+#endif
+
+	// Moving the target before another variable means that the target should inherit the other variable's category
+	InTargetVariable->Category = InBeforeVariable->Category;
+
+	Variables.RemoveSingle(InTargetVariable);
+	if (BeforeVariableIndex < TargetVariableIndex)
+	{
+		Variables.Insert(InTargetVariable, BeforeVariableIndex);
+	}
+	else
+	{
+		Variables.Insert(InTargetVariable, BeforeVariableIndex - 1);
+	}
+
+#if WITH_EDITOR
+	if (OnGraphVariablesChangedDelegate.IsBound())
+	{
+		OnGraphVariablesChangedDelegate.Broadcast();
+	}
+#endif
+}
+
+void UMovieGraphConfig::MoveVariableToIndex(UMovieGraphVariable* InTargetVariable, int32 NewIndex)
+{
+	if (!InTargetVariable)
+	{
+		return;
+	}
+	
+	// Check if the index is valid. IsValidIndex() won't work here because we may want to insert at one-past-the-end, where IsValidIndex() will
+	// return false.
+	const bool bIsValidIndex = (NewIndex >= 0) && (NewIndex <= Variables.Num());
+	if (!bIsValidIndex)
+	{
+		return;
+	}
+	
+	const int32 CurrentIndex = Variables.Find(InTargetVariable);
+	if ((CurrentIndex == NewIndex) || (CurrentIndex == INDEX_NONE))
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	Modify();
+#endif
+
+	Variables.RemoveAt(CurrentIndex);
+	if (NewIndex < CurrentIndex)
+	{
+		Variables.Insert(InTargetVariable, NewIndex);
+	}
+	else
+	{
+		Variables.Insert(InTargetVariable, NewIndex - 1);
+	}
+}
+
+void UMovieGraphConfig::MoveCategoryBefore(const FString& InCategoryToMove, const FString& InCategoryBefore)
+{
+	// Determines if a variable is part of the given category. Matches by exact category, or if the variable is a child under the given category
+	// (eg, if "Foo" is the provided category, and the variable's category is "Foo|Bar", the variable would be a match).
+	auto VariableBelongsToCategory = [](const UMovieGraphVariable* InVariable, const FString& InCategory)
+	{
+		if (!InVariable)
+		{
+			return false;
+		}
+		
+		const FString ParentCategoryPrefix = FString::Format(TEXT("{0}|"), {InCategory});
+		const FString& VariableCategory = InVariable->GetCategory();
+		
+		return (VariableCategory == InCategory) || VariableCategory.StartsWith(ParentCategoryPrefix);
+	};
+	
+	// If dragging a category into a subcategory (eg, Foo|Bar) we have to use the root category (Foo) as the category to move before. Variable
+	// reparenting via category moves is not supported currently.
+	FString CategoryBefore = InCategoryBefore;
+	if (CategoryBefore.Contains(TEXT("|")))
+	{
+		TArray<FString> CategoryParts;
+		CategoryBefore.ParseIntoArray(CategoryParts, TEXT("|"));
+
+		if (!CategoryParts.IsEmpty())
+		{
+			CategoryBefore = CategoryParts[0];
+		}
+	}
+	
+	// Cache all variables that will be moved
+	const TArray<UMovieGraphVariable*> SourceVariables = Variables.FilterByPredicate([&InCategoryToMove, &VariableBelongsToCategory](const UMovieGraphVariable* InVariable)
+	{
+		return VariableBelongsToCategory(InVariable, InCategoryToMove);
+	});
+
+	// Ensure that a "before" variable can be found before removing the "from" variables
+	const TObjectPtr<UMovieGraphVariable>* BeforeVariable = Variables.FindByPredicate([&CategoryBefore, &VariableBelongsToCategory](const TObjectPtr<UMovieGraphVariable>& InVariable)
+	{
+		return VariableBelongsToCategory(InVariable, CategoryBefore);
+	});
+	if (!BeforeVariable)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	Modify();
+#endif
+
+	// Remove all the variables that will be moved
+	Variables.RemoveAll([&InCategoryToMove, &VariableBelongsToCategory](const UMovieGraphVariable* InVariable)
+	{
+		return VariableBelongsToCategory(InVariable, InCategoryToMove);
+	});
+
+	// Find the first variable that marks the variable to be "before" variable
+	int32 BeforeVariableIndex = INDEX_NONE;
+	for (int32 VariableIndex = 0; VariableIndex < Variables.Num(); ++VariableIndex)
+	{
+		if (VariableBelongsToCategory(Variables[VariableIndex], CategoryBefore))
+		{
+			BeforeVariableIndex = VariableIndex;
+			break;
+		}
+	}
+
+	// If found, move all "from" variables to be immediately before the "before" variable.
+	if (BeforeVariableIndex != INDEX_NONE)
+	{
+		for (int32 SourceVariableIndex = 0; SourceVariableIndex < SourceVariables.Num(); ++ SourceVariableIndex)
+		{
+			Variables.Insert(SourceVariables[SourceVariableIndex], BeforeVariableIndex + SourceVariableIndex);
+		}
+	}
+
+#if WITH_EDITOR
+	if (OnGraphVariablesChangedDelegate.IsBound())
+	{
+		OnGraphVariablesChangedDelegate.Broadcast();
+	}
+#endif
+}
+
 void UMovieGraphConfig::InitializeFlattenedNode(UMovieGraphNode* InNode)
 {
 	// We go through each of the bOverride_ properties on this new instance and set
@@ -1433,12 +1755,16 @@ bool UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 		const UMovieGraphSettingNode* NodeAsSetting = CastChecked<UMovieGraphSettingNode>(Node);
 		const FString& NodeInstanceName = NodeAsSetting->GetNodeInstanceName();
 		
-		UMovieGraphNode* ExistingNode = OutBranchConfig.GetNodeByClassExactMatch(Node->GetClass(), NodeInstanceName);
+		UMovieGraphSettingNode* ExistingNode = Cast<UMovieGraphSettingNode>(OutBranchConfig.GetNodeByClassExactMatch(Node->GetClass(), NodeInstanceName));
 		if (!ExistingNode)
 		{
 			// Create a new instance of this node inside our flattened eval graph
-			ExistingNode = NewObject<UMovieGraphNode>(InOwningConfig, Node->GetClass());
+			ExistingNode = NewObject<UMovieGraphSettingNode>(InOwningConfig, Node->GetClass());
 			OutBranchConfig.NamedNodes.FindOrAdd(NodeInstanceName).NodeInstances.Add(ExistingNode);
+
+			// This shouldn't be abused by nodes, but in some very rare cases the flattened node needs to be "primed" before being put through the
+			// evaluation process.
+			ExistingNode->PrepareForFlattening(NodeAsSetting);
 
 			// Set all of the boolean edit condition values to false, so we can use "true" to indicate
 			// that the value was overridden already during traversal.
@@ -1610,7 +1936,13 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 
 	OutError.Empty();
 
-	UMovieGraphEvaluatedConfig* NewContext = NewObject<UMovieGraphEvaluatedConfig>(this);
+	// Create the evaluated config with the transient package as the outer. The transient package is used here in order to avoid some potentially
+	// tricky GC-related issues. Evaluated configs are frequently held via TStrongObjectPtr, which means they're added to the root set. This will cause
+	// everything in the evaluated config's outer chain to not be GC'd until the strong object ptr is deleted. If there's an issue in the pipeline
+	// somewhere that causes the strong object ptr to not be cleaned up when expected, it can cause a cascade that causes multiple objects (the outers)
+	// to not be GC'd in a timely manner, leading to issues like the PIE world not being GC'd (since the pipeline has the PIE world as the outer). Avoid
+	// these (unlikely) issues altogether by using the transient package as the outer.
+	UMovieGraphEvaluatedConfig* NewContext = NewObject<UMovieGraphEvaluatedConfig>(GetTransientPackage(), NAME_None, RF_Transient);
 
 	if (OutputNode)
 	{

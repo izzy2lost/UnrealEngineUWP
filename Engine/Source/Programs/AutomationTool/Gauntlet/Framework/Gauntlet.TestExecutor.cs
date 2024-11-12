@@ -8,6 +8,7 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using System.Drawing;
 using EpicGames.Core;
+using Gauntlet.Utils;
 
 namespace Gauntlet
 {
@@ -122,7 +123,8 @@ namespace Gauntlet
 		/// <summary>
 		/// Executes the provided tests. Currently tests are executed synchronously
 		/// </summary>
-		/// <param name="Context"></param>
+		/// <param name="InOptions"></param>
+		/// <param name="RequiredTests"></param>
 		public bool ExecuteTests(TestExecutorOptions InOptions, IEnumerable<ITestNode> RequiredTests)
 		{
 			Options = InOptions;
@@ -162,6 +164,11 @@ namespace Gauntlet
 			Dictionary<string, int> TestIterationsFailed = new Dictionary<string, int>();
 			Dictionary<string, int> TestIterationsPassedWithWarnings = new Dictionary<string, int>();
 
+			// Clean up local log files
+			if (Directory.Exists(ProcessUtils.LocalLogsPath))
+			{
+				SystemHelpers.Delete(new DirectoryInfo(ProcessUtils.LocalLogsPath), true, true);
+			}
 
 			for (CurrentTestPass = 0; CurrentTestPass < Options.TestIterations; CurrentTestPass++)
 			{
@@ -272,7 +279,6 @@ namespace Gauntlet
 									if (TimeWaiting >= Options.Wait)
 									{
 										Log.Error(KnownLogEvents.Gauntlet_DeviceEvent, "Test {TestName} has been waiting to run resource-free for {Time:00} seconds. Removing from wait list", Node, TimeWaiting);
-										DevicePool.Instance.ReportDeviceReservationState();
 										Node.AddTestEvent(new UnrealTestEvent(EventSeverity.Error, "Insufficient devices found", new List<string> {string.Format("Test {0} was unable to find enough devices after trying for {1:00} seconds.", Node, TimeWaiting), "This is not a test-related failure."}));
 										PendingTests[i] = null;
 										NodeInfo.TimeSetupBegan = NodeInfo.TimeSetupEnded = NodeInfo.TimeTestEnded = DateTime.Now;
@@ -550,12 +556,13 @@ namespace Gauntlet
 			
 			return FailedTestCount == 0 && !IsCancelled;
 		}
-		
+
 		/// <summary>
 		/// Executes a single test
 		/// </summary>
-		/// <param name="Test">Test to execute</param>
-		/// <param name="Context">The context to execute this test under</param>
+		/// <param name="TestInfo">Test to execute</param>
+		/// <param name="Pass"></param>
+		/// <param name="NumPasses"></param>
 		/// <returns></returns>
 		private bool StartTest(TestExecutionInfo TestInfo, int Pass, int NumPasses)
 		{

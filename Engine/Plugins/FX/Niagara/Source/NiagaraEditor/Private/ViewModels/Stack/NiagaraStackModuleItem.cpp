@@ -32,7 +32,7 @@
 #include "ViewModels/NiagaraScratchPadViewModel.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraStackModuleItemLinkedInputCollection.h"
 #include "ViewModels/Stack/NiagaraStackModuleItemOutputCollection.h"
@@ -59,7 +59,6 @@ TArray<ENiagaraScriptUsage> UsagePriority = { // Ordered such as the highest pri
 UNiagaraStackModuleItem::UNiagaraStackModuleItem()
 	: FunctionCallNode(nullptr)
 	, bCanRefresh(false)
-	, InputCollection(nullptr)
 	, bIsModuleScriptReassignmentPending(false)
 {
 }
@@ -147,23 +146,29 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 		FunctionCallNode->GetGraph() != nullptr && 
 		FunctionCallNode->GetGraph()->Nodes.Contains(FunctionCallNode))
 	{
+		bool bDiscardInputRoot = LastRefreshVersionCache != FunctionCallNode->SelectedScriptVersion;
+		LastRefreshVersionCache = FunctionCallNode->SelectedScriptVersion; 
+
 		// Determine if meta-data requires that we add our own refresh button here.
 		if (FunctionCallNode->HasValidScriptAndGraph())
 		{
 			bCanRefresh = true;
 		}
-		
-		if (InputCollection == nullptr)
+
+		if(bDiscardInputRoot)
 		{
-			TArray<FString> InputParameterHandlePath;
-			InputCollection = NewObject<UNiagaraStackFunctionInputCollection>(this);
-			InputCollection->Initialize(CreateDefaultChildRequiredData(), *FunctionCallNode, *FunctionCallNode, GetStackEditorDataKey());
+			InputRoot = nullptr;
+		}
+		
+		if(InputRoot == nullptr)
+		{
+			InputRoot = NewObject<UNiagaraStackScriptHierarchyRoot>(this);
+			InputRoot->Initialize(CreateDefaultChildRequiredData(), *FunctionCallNode, *FunctionCallNode, GetStackEditorDataKey());
 		}
 
 		// NiagaraNodeAssignments should not display OutputCollection and LinkedInputCollection as they effectively handle this through their InputCollection 
 		if (!FunctionCallNode->IsA<UNiagaraNodeAssignment>())
 		{
-
 			if (LinkedInputCollection == nullptr)
 			{
 				LinkedInputCollection = NewObject<UNiagaraStackModuleItemLinkedInputCollection>(this);
@@ -177,20 +182,17 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 				OutputCollection->Initialize(CreateDefaultChildRequiredData(), *FunctionCallNode);
 				OutputCollection->AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackModuleItem::FilterOutputCollectionChild));
 			}
-
-			InputCollection->SetShouldDisplayLabel(GetStackEditorData().GetShowOutputs() || GetStackEditorData().GetShowLinkedInputs());
-
-			NewChildren.Add(InputCollection);
+			
+			InputRoot->SetShouldDisplayLabel(GetStackEditorData().GetShowOutputs() || GetStackEditorData().GetShowLinkedInputs());
+			NewChildren.Add(InputRoot);
+			
 			NewChildren.Add(LinkedInputCollection);
 			NewChildren.Add(OutputCollection);
 		
 		}
 		else
 		{
-			// We do not show the expander arrow for InputCollections of NiagaraNodeAssignments as they only have this one collection
-			InputCollection->SetShouldDisplayLabel(false);
-
-			NewChildren.Add(InputCollection);
+			NewChildren.Add(InputRoot);
 
 			UNiagaraNodeAssignment* AssignmentNode = CastChecked<UNiagaraNodeAssignment>(FunctionCallNode);
 			if (AssignmentNode->GetAssignmentTargets().Num() == 0)
@@ -253,13 +255,6 @@ const UNiagaraStackModuleItem::FCollectedUsageData& UNiagaraStackModuleItem::Get
 		}
 
 
-		if (InputCollection)
-		{
-			if (InputCollection->GetCollectedUsageData().bHasReferencedParameterRead)
-				CachedCollectedUsageData.GetValue().bHasReferencedParameterRead = true;
-			if (InputCollection->GetCollectedUsageData().bHasReferencedParameterWrite)
-				CachedCollectedUsageData.GetValue().bHasReferencedParameterWrite = true;
-		}
 
 		if (OutputCollection)
 		{
@@ -855,32 +850,36 @@ UNiagaraStackEntry::FStackIssueFixDelegate UNiagaraStackModuleItem::GetUpgradeVe
 	{
 		return FStackIssueFixDelegate();
 	}
-	return FStackIssueFixDelegate::CreateLambda([this]()
+	return FStackIssueFixDelegate::CreateLambda([WeakModule=MakeWeakObjectPtr(this)]()
     {
-        FScopedTransaction ScopedTransaction(LOCTEXT("UpgradeVersionFix", "Change module version"));
+	    UNiagaraStackModuleItem* Item = WeakModule.Get();
+		if (!Item)
+		{
+			return;
+		}
+		
+	    FScopedTransaction ScopedTransaction(LOCTEXT("UpgradeVersionFix", "Change module version"));
+		TStrongObjectPtr ModuleItem(Item); // gc lock
         FNiagaraScriptVersionUpgradeContext UpgradeContext;
-		UpgradeContext.CreateClipboardCallback = [this](UNiagaraClipboardContent* ClipboardContent)
+		UpgradeContext.CreateClipboardCallback = [ModuleItem](UNiagaraClipboardContent* ClipboardContent)
 	    {
-	        RefreshChildren();
-	        Copy(ClipboardContent);
+	        ModuleItem->RefreshChildren();
+	        ModuleItem->Copy(ClipboardContent);
 	        if (ClipboardContent->Functions.Num() > 0)
 	        {
 	            ClipboardContent->FunctionInputs = ClipboardContent->Functions[0]->Inputs;
 	            ClipboardContent->Functions.Empty();
 	        }
 	    };
-        UpgradeContext.ApplyClipboardCallback = [this](UNiagaraClipboardContent* ClipboardContent, FText& OutWarning) { Paste(ClipboardContent, OutWarning); };
-		UpgradeContext.ConstantResolver = GetEmitterViewModel().IsValid() ?
-	        FCompileConstantResolver(GetEmitterViewModel()->GetEmitter(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*FunctionCallNode)) :
-	        FCompileConstantResolver(&GetSystemViewModel()->GetSystem(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*FunctionCallNode));
-        FunctionCallNode->ChangeScriptVersion(FunctionCallNode->FunctionScript->GetExposedVersion().VersionGuid, UpgradeContext, true);
-        if (FunctionCallNode->RefreshFromExternalChanges())
-        {
-            FunctionCallNode->GetNiagaraGraph()->NotifyGraphNeedsRecompile();
-            GetSystemViewModel()->ResetSystem();
-        }
+        UpgradeContext.ApplyClipboardCallback = [ModuleItem](UNiagaraClipboardContent* ClipboardContent, FText& OutWarning) { ModuleItem->Paste(ClipboardContent, OutWarning); };
+		UpgradeContext.ConstantResolver = ModuleItem->GetEmitterViewModel().IsValid() ?
+	        FCompileConstantResolver(ModuleItem->GetEmitterViewModel()->GetEmitter(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*ModuleItem->FunctionCallNode)) :
+	        FCompileConstantResolver(&ModuleItem->GetSystemViewModel()->GetSystem(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*ModuleItem->FunctionCallNode));
+        FGuid NewScriptVersion = ModuleItem->FunctionCallNode->FunctionScript->GetExposedVersion().VersionGuid;
+        ModuleItem->FunctionCallNode->ChangeScriptVersion(NewScriptVersion, UpgradeContext, true);
+        ModuleItem->Refresh();
 
-		ReportScriptVersionChange();
+		ModuleItem->ReportScriptVersionChange();
     });
 }
 
@@ -1431,7 +1430,7 @@ void UNiagaraStackModuleItem::ReassignModuleScript(UNiagaraScript* ModuleScript)
 			if (ConversionUtility )
 			{
 				FText ConvertMessage;
-				bool bConverted = ConversionUtility->Convert(OldScript, OldClipboardContent, ModuleScript, InputCollection, NewClipboardContent, FunctionCallNode, ConvertMessage);
+				bool bConverted = ConversionUtility->Convert(OldScript, OldClipboardContent, ModuleScript, InputRoot, NewClipboardContent, FunctionCallNode, ConvertMessage);
 				if (!ConvertMessage.IsEmptyOrWhitespace())
 				{
 					// Notify the end-user about the convert message, but continue the process as they could always undo.
@@ -1531,17 +1530,17 @@ void UNiagaraStackModuleItem::ChangeScriptVersion(FGuid NewScriptVersion)
 
 void UNiagaraStackModuleItem::SetInputValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs)
 {
-	InputCollection->SetValuesFromClipboardFunctionInputs(ClipboardFunctionInputs);
+	InputRoot->SetValuesFromClipboardFunctionInputs(ClipboardFunctionInputs);
 }
 
 void UNiagaraStackModuleItem::GetParameterInputs(TArray<UNiagaraStackFunctionInput*>& OutResult) const
 {
-	return InputCollection->GetChildInputs(OutResult);
+	InputRoot->GetChildInputs(OutResult);
 }
 
 TArray<UNiagaraStackFunctionInput*> UNiagaraStackModuleItem::GetInlineParameterInputs() const
 {
-	return InputCollection->GetInlineParameterInputs();
+	return InputRoot->GetInlineParameters();
 }
 
 bool UNiagaraStackModuleItem::TestCanCutWithMessage(FText& OutMessage) const
@@ -1609,8 +1608,10 @@ void UNiagaraStackModuleItem::Copy(UNiagaraClipboardContent* ClipboardContent) c
 
 	ClipboardFunction->DisplayName = GetAlternateDisplayName().Get(FText::GetEmpty());
 
-	InputCollection->ToClipboardFunctionInputs(ClipboardFunction, MutableView(ClipboardFunction->Inputs));
+	InputRoot->ToClipboardFunctionInputs(ClipboardFunction, MutableView(ClipboardFunction->Inputs));
 	ClipboardContent->Functions.Add(ClipboardFunction);
+
+	OnCopyPasteDelegate.ExecuteIfBound();
 }
 
 bool UNiagaraStackModuleItem::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
@@ -1756,7 +1757,17 @@ bool UNiagaraStackModuleItem::OpenSourceAsset() const
 		if (ModuleFunctionCall.FunctionScript->IsAsset() || GbShowNiagaraDeveloperWindows > 0)
 		{
 			ModuleFunctionCall.FunctionScript->VersionToOpenInEditor = ModuleFunctionCall.SelectedScriptVersion;
-			return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ToRawPtr(ModuleFunctionCall.FunctionScript));
+
+			UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+
+			if(AssetEditorSubsystem->CanOpenEditorForAsset(ToRawPtr(ModuleFunctionCall.FunctionScript), EAssetTypeActivationOpenedMethod::Edit, nullptr))
+			{
+				return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets({ToRawPtr(ModuleFunctionCall.FunctionScript)}, EAssetTypeActivationOpenedMethod::Edit);
+			}
+			else if(AssetEditorSubsystem->CanOpenEditorForAsset(ToRawPtr(ModuleFunctionCall.FunctionScript), EAssetTypeActivationOpenedMethod::View, nullptr))
+			{
+				return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets({ToRawPtr(ModuleFunctionCall.FunctionScript)}, EAssetTypeActivationOpenedMethod::View);
+			}			
 		}
 		else if (IsScratchModule())
 		{

@@ -26,10 +26,26 @@ FToolElementRegistrationArgs::FToolElementRegistrationArgs( FName InStyleClassNa
 	StyleClassName(InStyleClassName)
 {
 }
-	
+
+FToolElementRegistrationArgs::FToolElementRegistrationArgs( UE::DisplayBuilders::FBuilderKey InBuilderKey ) :
+	ToolElementType(EToolElement::Section)
+	, StyleClassName( InBuilderKey.ToName() )
+	, BuilderKey( InBuilderKey )
+{
+}
+
 TSharedPtr<SWidget> FToolElementRegistrationArgs::GenerateWidget()
 {
 	return nullptr;
+}
+
+TSharedRef<SWidget> FToolElementRegistrationArgs::GenerateWidgetSharedRef()
+{
+	if (TSharedPtr<SWidget> Widget = GenerateWidget())
+	{
+		return Widget.ToSharedRef();
+	}
+	return SNullWidget::NullWidget;
 }
 
 FToolElementRegistrationKey::FToolElementRegistrationKey(FName InName, EToolElement InToolElementType ) :

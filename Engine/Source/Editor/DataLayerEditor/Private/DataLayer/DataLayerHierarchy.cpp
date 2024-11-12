@@ -57,8 +57,7 @@ FDataLayerHierarchy::FDataLayerHierarchy(FDataLayerMode* Mode, const TWeakObject
 		GEngine->OnLevelActorListChanged().AddRaw(this, &FDataLayerHierarchy::OnLevelActorListChanged);
 	}
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().AddRaw(this, &FDataLayerHierarchy::OnWorldPartitionCreated);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().AddRaw(this, &FDataLayerHierarchy::OnWorldPartitionCreated);
 
 	if (World.IsValid())
 	{
@@ -93,8 +92,7 @@ FDataLayerHierarchy::~FDataLayerHierarchy()
 		GEngine->OnLevelActorListChanged().RemoveAll(this);
 	}
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().RemoveAll(this);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().RemoveAll(this);
 
 	if (RepresentingWorld.IsValid())
 	{

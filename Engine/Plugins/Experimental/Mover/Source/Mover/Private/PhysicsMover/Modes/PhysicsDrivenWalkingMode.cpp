@@ -13,6 +13,7 @@
 #include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
 #include "MoverComponent.h"
+#include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
@@ -138,7 +139,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 	const float FloorSweepDistance = TargetHeight + CommonLegacySettings->MaxStepHeight;
 	const float ShrinkRadius = 1.0f;
 	const float QueryRadius = FMath::Max(PawnRadius - ShrinkRadius, 0.0f);
-	UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
+	UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
 		QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 	if (!OutFloorResult.bBlockingHit)
@@ -163,7 +164,7 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 	{
 		// Collision should prevent movement. Just try to find ground at start of movement
 		const float ShrinkMultiplier = 0.75f;
-		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), DeltaPos, UpdatedPrimitive, UpDir,
+		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), FVector::ZeroVector, UpdatedPrimitive, UpDir,
 			ShrinkMultiplier * QueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
@@ -212,11 +213,11 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		}
 		else
 		{
-			NewQueryRadius = 0.75f * QueryRadius;
+			NewQueryRadius = 0.25f * QueryRadius;
 			NewDeltaPos = DeltaPos - DP * HorizSurfaceDir;
 		}
 
-		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
+		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
 			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
@@ -234,9 +235,9 @@ void UPhysicsDrivenWalkingMode::FloorCheck(const FMoverDefaultSyncState& SyncSta
 		// Try a query at the start of the movement to find a walkable surface and prevent movement
 
 		NewDeltaPos = FVector::ZeroVector;
-		NewQueryRadius = 0.75f * QueryRadius;
+		NewQueryRadius = 0.25f * QueryRadius;
 
-		UPhysicsMovementUtils::FloorSweep(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
+		UPhysicsMovementUtils::FloorSweep_Internal(SyncState.GetLocation_WorldSpace(), NewDeltaPos, UpdatedPrimitive, UpDir,
 			NewQueryRadius, FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, TargetHeight, OutFloorResult, OutWaterResult);
 
 		OutFloorResult.bWalkableFloor = OutFloorResult.bWalkableFloor && CanStepUpOnHitSurface(OutFloorResult);
@@ -263,11 +264,11 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 {
 	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
+	UPrimitiveComponent* UpdatedPrimitive = Params.MovingComps.UpdatedPrimitive.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 
-	const FVector UpDir = GetMoverComponent()->GetUpDirection();
+	const FVector UpDir = MoverComp->GetUpDirection();
 
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
@@ -276,14 +277,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if ((ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 	if (!SimBlackboard)
 	{
 		OutputSyncState = *StartingSyncState;
@@ -314,7 +308,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming)
 	{
-		SwitchToState(DefaultModeNames::Swimming, Params, OutputState);
+		SwitchToState(CommonLegacySettings->SwimmingMovementModeName, Params, OutputState);
 	}
 	else if (FloorResult.IsWalkableFloor())
 	{
@@ -322,7 +316,12 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		
 		FVector TargetVelocity = StartingSyncState->GetVelocity_WorldSpace();
 		FVector TargetPosition = StartingSyncState->GetLocation_WorldSpace();
-		if (FloorResult.bWalkableFloor)
+		if (bHandleVerticalLandingSeparately && FVector::Parallel(StartingSyncState->GetVelocity_WorldSpace().GetSafeNormal(), UpDir))
+		{
+			TargetVelocity = FMath::Lerp(StartingSyncState->GetVelocity_WorldSpace(), ProposedMove.LinearVelocity.ProjectOnToNormal(UpDir), FractionalVelocityToTarget);
+			TargetPosition = StartingSyncState->GetLocation_WorldSpace() - UpDir * (FloorResult.FloorDist - TargetHeight);
+		}
+		else
 		{
 			const FVector ProposedMovePlaneVelocity = ProposedMove.LinearVelocity - ProposedMove.LinearVelocity.ProjectOnToNormal(PrevGroundNormal);
 			const FVector StartingMovePlaneVelocity = StartingSyncState->GetVelocity_WorldSpace() - StartingSyncState->GetVelocity_WorldSpace().ProjectOnToNormal(PrevGroundNormal);
@@ -352,7 +351,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 		const float ProjectedRelativeVerticalVelocity = FloorResult.HitResult.ImpactNormal.Dot(ProjectedVelocity - ProjectedGroundVelocity);
 		const float VerticalVelocityLimit = 2.0f / DeltaSeconds;
-		if (ProjectedRelativeVerticalVelocity > VerticalVelocityLimit)
+		if ((ProjectedRelativeVerticalVelocity > VerticalVelocityLimit) && (ProjectedVelocity.Z > VerticalVelocityLimit))
 		{
 			bIsLiftingOffSurface = true;
 		}
@@ -391,16 +390,14 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		// Target orientation
 		// This is always applied regardless of whether the character is supported
 		FRotator TargetOrientation = StartingSyncState->GetOrientation_WorldSpace();
-		if (!ProposedMove.AngularVelocity.IsZero())
+		if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity)) 
 		{
 			TargetOrientation += (ProposedMove.AngularVelocity * DeltaSeconds);
 		}
 
 		if (bIsSupported)
 		{
-			OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
 			OutputState.MovementEndState.RemainingMs = 0.0f;
-
 			OutputSyncState.MoveDirectionIntent = ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector;
 			OutputSyncState.SetTransforms_WorldSpace(
 				TargetPosition,
@@ -411,33 +408,14 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		else
 		{
 			// Blocking hit but not supported
-			SwitchToState(DefaultModeNames::Falling, Params, OutputState);
+			SwitchToState(CommonLegacySettings->AirMovementModeName, Params, OutputState);
 		}
 	}
 	else
 	{
 		// No water or floor not found
-		SwitchToState(DefaultModeNames::Falling, Params, OutputState);
+		SwitchToState(CommonLegacySettings->AirMovementModeName, Params, OutputState);
 	}
-}
-
-bool UPhysicsDrivenWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-	OutputSyncState.SetTransforms_WorldSpace(TeleportPos,
-		TeleportRot,
-		PriorVelocity,
-		nullptr); // no movement base
-
-	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-	{
-		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-	}
-
-	return true;
 }
 
 void UPhysicsDrivenWalkingMode::SwitchToState(const FName& StateName, const FSimulationTickParams& Params, FMoverTickEndData& OutputState)

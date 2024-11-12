@@ -33,12 +33,15 @@ struct FConservativeStackExitFrame;
 struct FHandshakeContext;
 struct FHardHandshakeContext;
 struct FIOContext;
+struct FIOContextScope;
 struct FRunningContext;
 struct FStoppedWorld;
 struct FThreadLocalContextHolder;
 struct FTransaction;
 struct VCell;
 struct VValue;
+struct VFailureContext;
+struct VTask;
 
 template <typename T>
 struct TWriteBarrier;
@@ -67,6 +70,22 @@ enum class EContextLifecycleState
 	// FIOContext::Create() or FRunningContext::Create() - so from the user's perspective, this context
 	// really is live.
 	LiveAndInUse
+};
+
+// Context variables stashed in the context during native C++ code invocation from the VM
+struct FNativeContext
+{
+	VFailureContext* FailureContext;
+	VTask* Task;
+
+	bool IsValid() const
+	{
+		checkSlow(!FailureContext == !Task); // Either both must be present or both absent
+		return FailureContext != nullptr;
+	}
+
+	COREUOBJECT_API void Start(FRunningContext Context) const;
+	COREUOBJECT_API void Commit(FRunningContext Context) const;
 };
 
 // One must have a FContext to talk to Verse VM objects on some thread. Each thread should only have one
@@ -364,19 +383,36 @@ struct FContextImpl
 		return HeapRole;
 	}
 
-	FTransaction* CurrentTransaction()
+	FTransaction* CurrentTransaction() const
 	{
 		return _CurrentTransaction;
 	}
+
 	void SetCurrentTransaction(FTransaction* Transaction)
 	{
 		_CurrentTransaction = Transaction;
 	}
 
+	const FNativeContext& NativeContext() const
+	{
+		return _NativeContext;
+	}
+
+	// Run the functor in the same transaction with the given native context stashed in this context
+	// TFunctor is ()->void
+	template <typename TFunctor>
+	void RunInNativeContext(VFailureContext* FailureContext, VTask* Task, const TFunctor& F);
+
+	// Run the functor in a new transaction with a fresh native context stashed in this context
+	// TFunctor is ()->void
+	template <typename TFunctor>
+	void TransactInNewNativeContext(const TFunctor& F);
+
 private:
 	friend struct FAccessContext;
 	friend struct FAllocationContext;
 	friend struct FIOContext;
+	friend struct FIOContextScope;
 	friend class FHeap;
 	friend struct FRunningContext;
 	friend struct FScopedThreadContext;
@@ -454,6 +490,8 @@ private:
 
 	COREUOBJECT_API void ClearManualStackScanRequestWhileHoldingLock();
 
+	COREUOBJECT_API FNativeContext MakeNewNativeContext();
+
 	EContextLifecycleState LifecycleState = EContextLifecycleState::Free;
 
 	static constexpr TState HasAccessBit = 1;
@@ -519,6 +557,7 @@ private:
 	FConservativeStackExitFrame* TopExitFrame = nullptr;
 
 	FTransaction* _CurrentTransaction = nullptr;
+	FNativeContext _NativeContext{};
 
 	EContextHeapRole HeapRole;
 

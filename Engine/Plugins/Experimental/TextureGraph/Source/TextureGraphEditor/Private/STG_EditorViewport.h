@@ -27,7 +27,7 @@ class STG_EditorViewport : public SAssetEditorViewport, public FGCObject, public
 public:
 	SLATE_BEGIN_ARGS(STG_EditorViewport)
 	{}
-	SLATE_ARGUMENT(TWeakPtr<ITG_Editor>, TG_Editor)
+	SLATE_ARGUMENT(UTextureGraph*, InTextureGraph)
 		SLATE_END_ARGS()
 
 
@@ -37,7 +37,8 @@ private:
 	FName									RenderModeName;	///Current Selected render mode name
 	TArray<FName>							RenderModesList;
 	TSharedPtr<class FEditorViewportClient> EditorViewportClient;	/// Editor viewport client
-	TWeakPtr<ITG_Editor>					TG_EditorPtr;			/// Pointer back to the TS Asset Editor tool that owns us
+	TObjectPtr<UTextureGraph>				TextureGraphPtr;		/// Pointer to the Texture Graph being shown
+	
 	EViewModeIndex							CurrentViewMode;		/// The currently selected view mode
 	TSharedPtr<FAdvancedPreviewScene>		PreviewScene;			/// The scene for this viewport
 	TObjectPtr<UMeshComponent>				PreviewMeshComponent;	/// Component for the preview mesh
@@ -47,7 +48,7 @@ private:
 	TSharedPtr<class STG_EditorViewportRenderModeToolBar>
 											RenderModeToolBar;
 
-	TSharedPtr<TG_RenderModeManager> RenderModeMgr;
+	TSharedPtr<TG_RenderModeManager>		RenderModeMgr;
 	
 protected:
 	void									GenerateRenderModesList();
@@ -55,8 +56,9 @@ protected:
 	virtual FReply							OnDrop( const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent ) override;
 public:
 	void									Construct(const FArguments& InArgs);
+	void									SetTextureGraph(const TObjectPtr<UTextureGraph>& InTextureGraph){ TextureGraphPtr = InTextureGraph; }
 
-											STG_EditorViewport();
+	STG_EditorViewport();
 	virtual									~STG_EditorViewport() override;
 
 	void									RefreshViewport();
@@ -78,7 +80,6 @@ public:
 	void									UpdateRenderMode();
 	FText									GetRenderModeName() { return FText::FromName(RenderModeName); }
 	FName									GetRenderModeFName() { return RenderModeName; }
-	TWeakPtr<ITG_Editor>					GetEditorPtr() { return TG_EditorPtr;}
 
 	void									InitPreviewMesh();
 

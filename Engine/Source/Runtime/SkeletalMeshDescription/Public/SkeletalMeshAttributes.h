@@ -95,8 +95,11 @@ public:
 	// Skin Weights Methods
 	//
 
-	/// Returns the list of all registered skin weight profile names on this mesh.
-	SKELETALMESHDESCRIPTION_API TArray<FName> GetSkinWeightProfileNames() const;
+	/** Returns the list of all registered skin weight profile names on this mesh.
+	 *  \param bInUserDefinedOnly Only return user-defined profiles, not the default profile.
+	 *  \return The list of the profile names.
+	 */
+	SKELETALMESHDESCRIPTION_API TArray<FName> GetSkinWeightProfileNames(const bool bInUserDefinedOnly = false) const;
 	
 	/// Returns \c true if the given identifier is a valid profile name. If the name is empty, or matches the default profile,
 	/// then the profile name is considered invalid. 
@@ -135,6 +138,10 @@ public:
 	/// normal vector for this vertex instance.
 	/// If the morph was not registered to include normals, this will return an invalid attribute. 
 	SKELETALMESHDESCRIPTION_API TVertexInstanceAttributesConstRef<FVector3f> GetVertexInstanceMorphNormalDelta(const FName InMorphTargetName) const;
+
+	SKELETALMESHDESCRIPTION_API bool HasMorphTargetPositionsAttribute(const FName InMorphTargetName) const;
+
+	SKELETALMESHDESCRIPTION_API bool HasMorphTargetNormalsAttribute(const FName InMorphTargetName) const;
 	
 	//
 	// Bones Methods
@@ -253,6 +260,11 @@ public:
 	/// it will be listed in GetSkinWeightProfileNames(). Returns \c true if the profile was successfully registered.
 	/// Returns \c false if the attribute was already registered or if IsValidSkinWeightProfileName() returned false.
 	SKELETALMESHDESCRIPTION_API bool RegisterSkinWeightAttribute(const FName InProfileName);
+
+	/// Unregister an existing skin weight profile with the given name
+	/// Returns \c true if theprofile was successfully unregistered.
+	/// Returns \c false if the attribute wasn't registered or if \c InProfileName is empty.
+	SKELETALMESHDESCRIPTION_API bool UnregisterSkinWeightAttribute(const FName InProfileName);
 
 	/// Returns the skin weight profile given by its name. NAME_None corresponds to the default profile.
 	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesRef GetVertexSkinWeights(const FName InProfileName = NAME_None);

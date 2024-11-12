@@ -1,14 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma autortfm
-
 #include "Catch2Includes.h"
 #include <AutoRTFM/AutoRTFM.h>
 #include <thread>
 #include <atomic>
 #include <vector>
 #include <cstring>
+#include <cmath>
 #include "Logging/LogMacros.h"
+
+#if PLATFORM_CPU_X86_FAMILY
+#include <immintrin.h>
+#endif // PLATFORM_CPU_X86_FAMILY
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAutoRTFMTests, Display, All)
 DEFINE_LOG_CATEGORY(LogAutoRTFMTests)
@@ -33,7 +36,7 @@ TEST_CASE("Tests.UE_LOG")
 // This test ensures that if you have STM and non-STM modifying data that is
 // adjacent in memory, the STM code won't lose modifications to data that
 // happens to fall into the same STM line.
-TEST_CASE("stm.no_trashing_non_stm")
+TEST_CASE("stm.no_trashing_non_stm", "[.multi-threaded-test]")
 {
 	// A hit-count - lets us ensure each thread is launched and running before
 	// we kick off the meat of the test.
@@ -286,3 +289,191 @@ TEST_CASE("stm.memset")
 		REQUIRE(42 == (unsigned)Datas[i]);
 	}
 }
+
+TEST_CASE("libc.isnan(float)")
+{
+	float X = 0.0f;
+	float Y = NAN;
+	bool bXIsNaN = true;
+	bool bYIsNaN = false;
+	auto Transaction = AutoRTFM::Transact([&]()
+	{
+		bXIsNaN = std::isnan(X);
+		bYIsNaN = std::isnan(Y);
+	});
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Transaction);
+	REQUIRE(false == bXIsNaN);
+	REQUIRE(true == bYIsNaN);
+}
+
+TEST_CASE("libc.isnan(double)")
+{
+	double X = 0.0;
+	double Y = NAN;
+	bool bXIsNaN = true;
+	bool bYIsNaN = false;
+	auto Transaction = AutoRTFM::Transact([&]()
+	{
+		bXIsNaN = std::isnan(X);
+		bYIsNaN = std::isnan(Y);
+	});
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Transaction);
+	REQUIRE(false == bXIsNaN);
+	REQUIRE(true == bYIsNaN);
+}
+
+TEST_CASE("Tests.RetryNonNested")
+{
+	// We only run this test if we are retrying non-nested transactions (it proves we retried!).
+	if (!AutoRTFM::ForTheRuntime::ShouldRetryNonNestedTransactions())
+	{
+		return;
+	}
+
+	unsigned Count = 0;
+
+	AutoRTFM::Commit([&]
+	{
+		AutoRTFM::Open([&]
+		{
+			Count++;
+		});
+	});
+
+	REQUIRE(2 == Count);
+}
+
+#if PLATFORM_CPU_X86_FAMILY
+template<int WhichMaskOff>
+void AVXDoMaskedStore(double* Vector)
+{
+	__m256i Mask = _mm256_setr_epi64x(0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull);
+	Mask = _mm256_insert_epi64(Mask, 0x0000000000000000ull, WhichMaskOff);
+	__m256d Val = _mm256_setr_pd(101.0, 102.0, 103.0, 104.0);
+	_mm256_maskstore_pd(Vector, Mask, Val);
+}
+
+TEST_CASE("Tests.AVXMaskedStore")
+{
+	auto RequireVectorsEqual = [](double* VectorPtr, __m256d Rhs) -> void
+	{
+		AutoRTFM::Open([&]()
+		{
+			__m256d Lhs = _mm256_load_pd(VectorPtr);
+			__m256 CmpResult = _mm256_castpd_ps(_mm256_cmp_pd(Lhs, Rhs, 0));
+			int Result = _mm256_movemask_ps(CmpResult);
+			REQUIRE(Result == 0xFF);
+		});
+	};
+
+	{
+		double Vector[4] = {1.0, 2.0, 3.0, 4.0};
+		auto TransactResult = AutoRTFM::Transact([&]()
+		{
+			// do a masked store to Vector
+			AVXDoMaskedStore<0>(&Vector[0]);
+
+			RequireVectorsEqual(&Vector[0], _mm256_setr_pd(1.0, 102.0, 103.0, 104.0));
+
+			// we overwrite the non-written value in the Open before we abort, to ensure
+			// that the runtime only rolls back elements that the masked write wrote to
+			AutoRTFM::Open([&]() { Vector[0] = 99.0; });
+
+    		AutoRTFM::AbortTransaction();
+		});
+
+		REQUIRE(TransactResult == AutoRTFM::ETransactionResult::AbortedByRequest);
+		RequireVectorsEqual(&Vector[0], _mm256_setr_pd(99.0, 2.0, 3.0, 4.0));
+	}
+
+	{
+		double Vector[4] = {1.0, 2.0, 3.0, 4.0};
+		auto TransactResult = AutoRTFM::Transact([&]()
+		{
+			// do a masked store to Vector
+			AVXDoMaskedStore<1>(&Vector[0]);
+
+			RequireVectorsEqual(&Vector[0], _mm256_setr_pd(101.0, 2.0, 103.0, 104.0));
+
+			// we overwrite the non-written value in the Open before we abort, to ensure
+			// that the runtime only rolls back elements that the masked write wrote to
+			AutoRTFM::Open([&]() { Vector[1] = 99.0; });
+
+    		AutoRTFM::AbortTransaction();
+		});
+
+		REQUIRE(TransactResult == AutoRTFM::ETransactionResult::AbortedByRequest);
+		RequireVectorsEqual(&Vector[0], _mm256_setr_pd(1.0, 99.0, 3.0, 4.0));
+	}
+
+	{
+		double Vector[4] = {1.0, 2.0, 3.0, 4.0};
+		auto TransactResult = AutoRTFM::Transact([&]()
+		{
+			// do a masked store to Vector
+			AVXDoMaskedStore<2>(&Vector[0]);
+
+			RequireVectorsEqual(&Vector[0], _mm256_setr_pd(101.0, 102.0, 3.0, 104.0));
+
+			// we overwrite the non-written value in the Open before we abort, to ensure
+			// that the runtime only rolls back elements that the masked write wrote to
+			AutoRTFM::Open([&]() { Vector[2] = 99.0; });
+
+    		AutoRTFM::AbortTransaction();
+		});
+
+		REQUIRE(TransactResult == AutoRTFM::ETransactionResult::AbortedByRequest);
+		RequireVectorsEqual(&Vector[0], _mm256_setr_pd(1.0, 2.0, 99.0, 4.0));
+	}
+
+	{
+		double Vector[4] = {1.0, 2.0, 3.0, 4.0};
+		auto TransactResult = AutoRTFM::Transact([&]()
+		{
+			// do a masked store to Vector
+			AVXDoMaskedStore<3>(&Vector[0]);
+
+			RequireVectorsEqual(&Vector[0], _mm256_setr_pd(101.0, 102.0, 103.0, 4.0));
+
+			// we overwrite the non-written value in the Open before we abort, to ensure
+			// that the runtime only rolls back elements that the masked write wrote to
+			AutoRTFM::Open([&]() { Vector[3] = 99.0; });
+
+    		AutoRTFM::AbortTransaction();
+		});
+
+		REQUIRE(TransactResult == AutoRTFM::ETransactionResult::AbortedByRequest);
+		RequireVectorsEqual(&Vector[0], _mm256_setr_pd(1.0, 2.0, 3.0, 99.0));
+	}
+}
+#endif // PLATFORM_CPU_X86_FAMILY
+
+#if PLATFORM_WINDOWS
+
+TEST_CASE("Tests.__local_stdio_printf_options")
+{
+	unsigned __int64* NonTransactional = __local_stdio_printf_options();
+	unsigned __int64* Transactional = nullptr;
+
+	AutoRTFM::Commit([&]
+		{
+			Transactional = __local_stdio_printf_options();
+		});
+
+	REQUIRE(NonTransactional == Transactional);
+}
+
+TEST_CASE("Tests.__local_stdio_scanf_options")
+{
+	unsigned __int64* NonTransactional = __local_stdio_scanf_options();
+	unsigned __int64* Transactional = nullptr;
+
+	AutoRTFM::Commit([&]
+		{
+			Transactional = __local_stdio_scanf_options();
+		});
+
+	REQUIRE(NonTransactional == Transactional);
+}
+
+#endif // PLATFORM_WINDOWS

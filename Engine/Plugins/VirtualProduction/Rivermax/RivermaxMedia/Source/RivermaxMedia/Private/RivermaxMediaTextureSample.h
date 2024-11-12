@@ -4,153 +4,149 @@
 
 #include "IMediaTextureSample.h"
 
-#include "IMediaSamples.h"
+#include "IRivermaxInputStream.h"
+#include "MediaIOCoreTextureSampleBase.h"
+#include "MediaIOCoreSamples.h"
 #include "MediaShaders.h"
 #include "RivermaxMediaSource.h"
-#include "Templates/PimplPtr.h"
 #include "Templates/SharedPointer.h"
 
-
+class FEvent;
 
 namespace UE::RivermaxMedia
 {
+	/**
+	 * Implements a media texture sample for RivermaxMediaPlayer.  
+	 */
+	class FRivermaxMediaTextureSample : public FMediaIOCoreTextureSampleBase, public UE::RivermaxCore::IRivermaxVideoSample, public TSharedFromThis<FRivermaxMediaTextureSample>
+	{
+	public:
+		FRivermaxMediaTextureSample();
+		virtual ~FRivermaxMediaTextureSample() override;
 
-class FRivermaxMediaTextureSampleConverter;
-class FRivermaxMediaPlayer;
+		//~ Begin IMediaTextureSample interface
+		virtual bool IsCacheable() const override;
+		virtual const FMatrix& GetYUVToRGBMatrix() const override;
 
-/** Used to setup the configuration of a sample */
-struct FSampleConfigurationArgs
-{
-	/** Player that produced the sample */
-	TSharedPtr<FRivermaxMediaPlayer> Player;
+	#if WITH_ENGINE
+		virtual IMediaTextureSampleConverter* GetMediaTextureSampleConverter() override;
+	#endif
+		//~ End IMediaTextureSample interface
 
-	/** Width of the sample in pixels */
-	uint32 Width = 0;
+		//~ Begin FMediaIOCoreTextureSampleBase interface
+		virtual bool InitializeJITR(const FMediaIOCoreSampleJITRConfigurationArgs& Args) override;
+		virtual void CopyConfiguration(const TSharedPtr<FMediaIOCoreTextureSampleBase>& SourceSample) override;
+		//~ End FMediaIOCoreTextureSampleBase interface
 
-	/** Height of the sample in pixels */
-	uint32 Height = 0;
+		/** Initialized a RDG buffer based on the description required. Only useful for gpudirect functionality */
+		void InitializeGPUBuffer(const FIntPoint& InResolution, ERivermaxMediaSourcePixelFormat InSampleFormat, bool bSupportsGPUDirect);
 
-	/** Pixel format of the sample */
-	ERivermaxMediaSourcePixelFormat SampleFormat = ERivermaxMediaSourcePixelFormat::RGB_10bit;
+		/** Returns the incoming sample format */
+		ERivermaxMediaSourcePixelFormat GetInputFormat() const;
+		void SetInputFormat(ERivermaxMediaSourcePixelFormat InFormat);
 
-	/** Timestamp of the sample */
-	FTimespan Time = 0;
+		// Inherited via IRivermaxVideoSample
+		virtual TRefCountPtr<FRDGPooledBuffer> GetGPUBuffer() const override;
+		virtual uint8* GetVideoBufferRawPtr(uint32 VideoBufferSize) override;
 
-	/** Frame rate at which samples are created */
-	FFrameRate FrameRate = {24, 1};
+		virtual void InitializePoolable() override {};
+		virtual void ShutdownPoolable() override 
+		{
+			// This means that the sample is being held and managed by the Player
+			FScopeLock Lock(&StateChangeCriticalSecion);
 
-	/** Whether sample is in SRGB space and needs to be converted to linear */
-	bool bInIsSRGBInput = false;
-};
+			// When this sample is returned back to the pool, it means that it is done rendering and is released from sample container.
+			SetAwaitingForGPUTransfer(false);
+			SetReceptionState(IRivermaxSample::ESampleState::ReadyForReception);
+			if (SampleConversionFence.IsValid())
+			{
+				SampleConversionFence->Clear();
+			}
 
-/**
- * Implements a media texture sample for RivermaxMediaPlayer.  
- */
-class FRivermaxMediaTextureSample : public IMediaTextureSample, public TSharedFromThis<FRivermaxMediaTextureSample>
-{
-public:
+			LockedMemory = nullptr;
+			MarkRenderingComplete();
+		};
 
-	FRivermaxMediaTextureSample();
+		virtual bool IsReadyForReuse() override
+		{
+			return !IsBeingRendered();
+		}
 
-	//~ Begin IMediaTextureSample interface
-	const void* GetBuffer() override;
-	virtual FIntPoint GetDim() const override;
-	virtual FTimespan GetDuration() const override;
-	virtual EMediaTextureSampleFormat GetFormat() const override;
-	virtual FIntPoint GetOutputDim() const override;
-	virtual uint32 GetStride() const override;
-	virtual FMediaTimeStamp GetTime() const override;
-	virtual bool IsCacheable() const override;
-	virtual const FMatrix& GetYUVToRGBMatrix() const override;
-	virtual bool IsOutputSrgb() const override;
+		/** 
+		* Attempts to lock this sample for rendering. 
+		* Returns true if sample is ok to be rendered. 
+		* Returns false if sample is already being rendered. 
+		*/
+		bool TryLockForRendering()
+		{
+			FScopeLock Lock(&StateChangeCriticalSecion);
+			if (bIsPendingRendering)
+			{
+				// sample is already being rendered.
+				return false;
+			}
+			else
+			{
+				bIsPendingRendering = true;
+				return true;
+			}
+		};
 
-#if WITH_ENGINE
-	virtual IMediaTextureSampleConverter* GetMediaTextureSampleConverter() override;
-	virtual FRHITexture* GetTexture() const override;
-#endif
-	//~ End IMediaTextureSample interface
+		/** 
+		* Marks that this sample can be rendered again if need be.
+		*/
+		void MarkRenderingComplete()
+		{
+			FScopeLock Lock(&StateChangeCriticalSecion);
+			bIsPendingRendering = false;
+		};
 
-	bool ConfigureSample(const FSampleConfigurationArgs& Args);
+		bool IsBeingRendered()
+		{
+			FScopeLock Lock(&StateChangeCriticalSecion);
+			return bIsPendingRendering;
+		};
 
-	/** Initialized a RDG buffer based on the description required. Only useful for gpudirect functionality */
-	void InitializeGPUBuffer(const FIntPoint& InResolution, ERivermaxMediaSourcePixelFormat InSampleFormat);
-	
-	/** Returns RDG allocated buffer */
-	TRefCountPtr<FRDGPooledBuffer> GetGPUBuffer() const;
+		FEvent* GetSampleReceivedEvent() 
+		{
+			return SampleReceivedEvent;
+		}
 
-	void SetBuffer(TRefCountPtr<FRDGPooledBuffer> NewBuffer);
+	public:
+		/** Locked memory of gpu buffer when uploading */
+		void* LockedMemory = nullptr;
 
-	/** Returns an uninitialized buffer of size InBufferSize */
-	void* RequestBuffer(uint32 InBufferSize);
+		/** Write fence enqueued after sample conversion to know when it's ready to be reused */
+		FGPUFenceRHIRef SampleConversionFence;
 
-	/** Returns the player that created this sample */
-	TSharedPtr<FRivermaxMediaPlayer> GetPlayer() const;
+	private:
+		/** This event isued to wait for the sample to be fully received.*/
+		FEvent* SampleReceivedEvent = nullptr;
 
-	/** Returns the incoming sample format */
-	ERivermaxMediaSourcePixelFormat GetInputFormat() const;
+		/** True when queued for rendering. Will be false once fence has been written, after shader usage. */
+		std::atomic<bool> bIsPendingRendering = false;
 
-	/** Whether this samples is coming as srgb and needs to be converted to linear during buffer conversion */
-	bool NeedsSRGBToLinearConversion() const;
+	private:
 
-private:
+		/** Format in the rivermax realm */
+		ERivermaxMediaSourcePixelFormat InputFormat = ERivermaxMediaSourcePixelFormat::YUV422_8bit;
 
-	/** Texture converted used to handle incoming 2110 formats and convert them to RGB textures the engine handles */
-	TPimplPtr<FRivermaxMediaTextureSampleConverter> Converter;
-	
-	/** Pooled buffer used for gpudirect functionality. Received content will already be on GPU when received from NIC */
-	TRefCountPtr<FRDGPooledBuffer> GPUBuffer;
+		/** Texture stride */
+		uint32 Stride = 0;
 
-	/** Player that created this sample */
-	TWeakPtr<FRivermaxMediaPlayer> WeakPlayer;
+		/** Pooled buffer used for gpudirect functionality. Received content will already be on GPU when received from NIC */
+		TRefCountPtr<FRDGPooledBuffer> GPUBuffer;
 
-	/** Player time for this sample to be evaluated at */
-	FTimespan Time;
+	private:
+		friend class FRivermaxMediaPlayer;
 
-	/** Texture stride */
-	uint32 Stride = 0;
+		/** The start of the reception marked by the first chunk received by rivermax. */
+		FTimespan FrameReceptionStart = 0;
 
-	/** Texture dimensions */
-	FIntPoint Dimension = FIntPoint::ZeroValue;
+		/** The end of the reception marked by the last processed packet. */
+		FTimespan FrameReceptionEnd = 0;
+	};
 
-	/** Sample format. */
-	EMediaTextureSampleFormat SampleFormat = EMediaTextureSampleFormat::CharBGRA;
-
-	/** Format in the rivermax realm */
-	ERivermaxMediaSourcePixelFormat InputFormat;
-
-	/** Duration for which the sample is valid. */
-	FTimespan Duration;
-
-	/** Whether the sample is in sRGB space and requires an explicit conversion to linear */
-	bool bIsInputSRGB = false;
-
-	/** System memory buffer to be used by converter when not using gpudirect */
-	TArray<uint8, TAlignedHeapAllocator<4096>> Buffer;
-};
-
-/** This is the mostly empty media samples that only carries a single sample per frame,
- *  that the player provides.
- */
-class FRivermaxMediaTextureSamples : public IMediaSamples
-{
-public:
-	FRivermaxMediaTextureSamples() = default;
-	FRivermaxMediaTextureSamples(const FRivermaxMediaTextureSamples&) = delete;
-	FRivermaxMediaTextureSamples& operator=(const FRivermaxMediaTextureSamples&) = delete;
-
-public:
-
-	//~ Begin IMediaSamples interface
-
-	virtual bool FetchVideo(TRange<FTimespan> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample) override;
-	virtual bool PeekVideoSampleTime(FMediaTimeStamp& TimeStamp) override;
-	virtual void FlushSamples() override;
-
-	//~ End IMediaSamples interface
-
-public:
-
-	TSharedPtr<FRivermaxMediaTextureSample, ESPMode::ThreadSafe> CurrentSample;
-};
-
+	class FRivermaxMediaTextureSamplePool : public TMediaObjectPool<FRivermaxMediaTextureSample> { };
 }
+

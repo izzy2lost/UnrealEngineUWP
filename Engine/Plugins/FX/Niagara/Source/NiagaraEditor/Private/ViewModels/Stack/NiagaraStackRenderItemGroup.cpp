@@ -13,6 +13,7 @@
 #include "NiagaraClipboard.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraEditorSettings.h"
+#include "NiagaraStackEditorData.h"
 
 #include "ScopedTransaction.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -78,7 +79,8 @@ public:
 		for (const FNiagaraRendererCreationInfo& RendererCreationInfo : RendererCreationInfos)
 		{
 			FSoftClassPath SoftClassPath(RendererCreationInfo.RendererClassPath.ToString());
-			if (NiagaraEditorSettings->IsVisibleClass(SoftClassPath.ResolveClass()) && RenderersOwner->IsRenderCreationInfoSupported(RendererCreationInfo))
+			UClass* RendererClass = SoftClassPath.ResolveClass();
+			if (NiagaraEditorSettings->IsVisibleClass(RendererClass) && RenderersOwner->SupportsRendererClass(RendererClass))
 			{
 				OutAddActions.Add(MakeShared<FRenderItemGroupAddAction>(RendererCreationInfo));
 			}
@@ -159,14 +161,21 @@ void UNiagaraStackRenderItemGroup::Paste(const UNiagaraClipboardContent* Clipboa
 	{
 		for (const UNiagaraClipboardRenderer* ClipboardRenderer : ClipboardContent->Renderers)
 		{
-			if (ClipboardRenderer != nullptr && ClipboardRenderer->RendererProperties != nullptr)
+			if (!ClipboardRenderer || !ClipboardRenderer->RendererProperties)
 			{
-				UNiagaraRendererProperties* NewRenderer = ClipboardRenderer->RendererProperties->StaticDuplicateWithNewMergeId(RenderersOwner->GetOwnerObject());
-				RenderersOwner->AddRenderer(NewRenderer);
-				if(ClipboardRenderer->StackNoteData.IsValid())
-				{
-					GetStackEditorData().AddOrReplaceStackNote(FNiagaraStackGraphUtilities::StackKeys::GenerateStackRendererEditorDataKey(*NewRenderer), ClipboardRenderer->StackNoteData);
-				}
+				continue;
+			}
+
+			if (!RenderersOwner->SupportsRendererClass(ClipboardRenderer->RendererProperties->GetClass()))
+			{
+				continue;
+			}
+
+			UNiagaraRendererProperties* NewRenderer = ClipboardRenderer->RendererProperties->StaticDuplicateWithNewMergeId(RenderersOwner->GetOwnerObject());
+			RenderersOwner->AddRenderer(NewRenderer);
+			if(ClipboardRenderer->StackNoteData.IsValid())
+			{
+				GetStackEditorData().AddOrReplaceStackNote(FNiagaraStackGraphUtilities::StackKeys::GenerateStackRendererEditorDataKey(*NewRenderer), ClipboardRenderer->StackNoteData);
 			}
 		}
 	}

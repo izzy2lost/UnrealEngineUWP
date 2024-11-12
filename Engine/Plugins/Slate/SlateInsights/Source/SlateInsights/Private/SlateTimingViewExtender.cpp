@@ -10,7 +10,7 @@ namespace UE
 namespace SlateInsights
 {
 
-void FSlateTimingViewExtender::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FSlateTimingViewExtender::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData == nullptr)
@@ -26,7 +26,7 @@ void FSlateTimingViewExtender::OnBeginSession(Insights::ITimingViewSession& InSe
 	}
 }
 
-void FSlateTimingViewExtender::OnEndSession(Insights::ITimingViewSession& InSession)
+void FSlateTimingViewExtender::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData != nullptr)
@@ -37,7 +37,7 @@ void FSlateTimingViewExtender::OnEndSession(Insights::ITimingViewSession& InSess
 	PerSessionDataMap.Remove(&InSession);
 }
 
-void FSlateTimingViewExtender::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FSlateTimingViewExtender::Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData != nullptr)
@@ -46,7 +46,7 @@ void FSlateTimingViewExtender::Tick(Insights::ITimingViewSession& InSession, con
 	}
 }
 
-void FSlateTimingViewExtender::ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
+void FSlateTimingViewExtender::ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if (PerSessionData != nullptr)

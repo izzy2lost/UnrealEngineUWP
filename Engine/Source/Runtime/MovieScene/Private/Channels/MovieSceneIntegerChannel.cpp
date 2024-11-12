@@ -45,6 +45,14 @@ bool FMovieSceneIntegerChannel::SerializeFromMismatchedTag(const FPropertyTag& T
 
 bool FMovieSceneIntegerChannel::Evaluate(FFrameTime InTime, int32& OutValue) const
 {
+	double InterpValue = 0.;
+	bool bReturnValue = EvaluateInterp(InTime, InterpValue);
+	OutValue = FMath::FloorToInt(InterpValue);
+	return bReturnValue;
+}
+
+bool FMovieSceneIntegerChannel::EvaluateInterp(FFrameTime InTime, double& OutValue) const
+{
 	if (Times.Num())
 	{
 		const FFrameNumber MinFrame = Times[0];
@@ -70,7 +78,7 @@ bool FMovieSceneIntegerChannel::Evaluate(FFrameTime InTime, int32& OutValue) con
 				return false;
 			}
 
-			if (PostInfinityExtrap == RCCE_Constant || PreInfinityExtrap == RCCE_Linear)
+			if (PostInfinityExtrap == RCCE_Constant || PostInfinityExtrap == RCCE_Linear)
 			{
 				OutValue = Values.Last();
 				return true;
@@ -101,8 +109,24 @@ bool FMovieSceneIntegerChannel::Evaluate(FFrameTime InTime, int32& OutValue) con
 			}
 		}
 
-		const int32 Index = FMath::Max(0, Algo::UpperBound(Times, Params.Time)-1);
-		OutValue = Values[Index] + (int32)(Params.ValueOffset + 0.5);
+		const int32 Index = FMath::Max(0, Algo::UpperBound(Times, Params.Time) - 1);
+
+		if (bInterpolateLinearKeys && Index < Times.Num() - 1)
+		{
+			const double LowerValue = Values[Index];
+			const double UpperValue = Values[Index+1];
+			const double LowerTime = FFrameTime(Times[Index]).AsDecimal();
+			const double UpperTime = FFrameTime(Times[Index+1]).AsDecimal();
+
+			const double Interp = (Params.Time.AsDecimal() - LowerTime) / (UpperTime - LowerTime);
+
+			const double Value = FMath::Lerp(LowerValue, UpperValue, Interp);
+			OutValue = Value + Params.ValueOffset + 0.5;
+		}
+		else
+		{
+			OutValue = Values[Index] + (int32)(Params.ValueOffset + 0.5);
+		}
 		return true;
 	}
 	else if (bHasDefaultValue)

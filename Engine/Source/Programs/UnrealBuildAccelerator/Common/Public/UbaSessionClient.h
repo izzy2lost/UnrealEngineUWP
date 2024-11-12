@@ -41,13 +41,14 @@ namespace uba
 		void SendSummary(const Function<void(Logger&)>& extraInfo);
 		void SetIsTerminating(const tchar* reason = TC("Terminating"), u64 delayMs = 0); // Session stores pointer directly. Can't be temporary
 		void SetMaxProcessCount(u32 count);
+		void SetAllowSpawn(bool allow);
 
 		u64 GetBestPing();
 
 	private:
 		bool RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool storeUncompressed, bool allowProxy = true);
 
-		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
+		virtual bool PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
 		virtual void* GetProcessEnvironmentVariables() override;
 		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg) override;
 		virtual bool DeleteFile(DeleteFileResponse& out, const DeleteFileMessage& msg) override;
@@ -55,15 +56,20 @@ namespace uba
 		virtual bool MoveFile(MoveFileResponse& out, const MoveFileMessage& msg) override;
 		virtual bool Chmod(ChmodResponse& out, const ChmodMessage& msg) override;
 		virtual bool CreateDirectory(CreateDirectoryResponse& out, const CreateDirectoryMessage& msg) override;
+		virtual bool RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg) override;
 		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg) override;
+		virtual bool GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg) override;
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey) override;
 		virtual bool WriteFilesToDisk(ProcessImpl& process, WrittenFile** files, u32 fileCount) override;
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error) override;
 		virtual void PrintSessionStats(Logger& logger) override;
 		virtual bool GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode, BinaryReader& statsReader) override;
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer) override;
+		virtual bool SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer) override;
+		virtual bool HostRun(BinaryReader& reader, BinaryWriter& writer) override;
 		virtual bool FlushWrittenFiles(ProcessImpl& process) override;
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats) override;
+		virtual bool LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType) override;
 		virtual void TraceSessionUpdate() override;
 
 		struct InternalProcessStartInfo;
@@ -71,8 +77,7 @@ namespace uba
 
 		bool GetCasKeyForFile(CasKey& out, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey);
 		bool ReadModules(List<ModuleInfo>& outModules, u32 processId, const tchar* application);
-		bool EnsureApplicationEnvironment(StringBufferBase& out, u32 processId, const tchar* application);
-		bool EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir);
+		bool EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir, const u8* loaderPaths, u32 loaderPathsSize);
 		bool WriteBinFile(StringBufferBase& out, const tchar* binaryName, const CasKey& casKey, const KeyToString& applicationDir, u32 fileAttributes);
 		bool SendFiles(ProcessImpl& process, Timer& sendFiles);
 		bool SendFile(WrittenFile& source, const tchar* destination, u32 processId, bool keepMappingInMemory);
@@ -84,9 +89,11 @@ namespace uba
 		void BuildEnvironmentVariables(BinaryReader& reader);
 		bool SendProcessAvailable(Vector<InternalProcessStartInfo>& out, float availableWeight);
 		void SendReturnProcess(u32 processId, const tchar* reason);
+		bool SendProcessInputs(ProcessImpl& process);
+		bool SendProcessFinished(ProcessImpl& process, u32 exitCode);
 		void SendPing(u64 memAvail, u64 memTotal);
 		void SendLogFileToServer(ProcessImpl& pi);
-		void GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments);
+		void GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments, u32 processId);
 		u32 CountLogLines(ProcessImpl& process);
 		void WriteLogLines(BinaryWriter& writer, ProcessImpl& process);
 
@@ -119,8 +126,9 @@ namespace uba
 		Atomic<u64> m_terminationTime;
 		Atomic<u32> m_maxProcessCount;
 
+		struct ApplicationEnvironment { ReaderWriterLock lock; TString virtualApplication; TString realApplication; };
 		ReaderWriterLock m_handledApplicationEnvironmentsLock;
-		UnorderedSet<TString> m_handledApplicationEnvironments;
+		UnorderedMap<TString, ApplicationEnvironment> m_handledApplicationEnvironments;
 
 		ReaderWriterLock m_binFileLock;
 		UnorderedMap<TString, CasKey> m_writtenBinFiles;
@@ -136,6 +144,7 @@ namespace uba
 
 		ReaderWriterLock m_directoryTableLock;
 		u32 m_directoryTableMemPos = 0;
+		bool m_directoryTableError = false;
 		struct ActiveUpdateDirectoryEntry;
 		ActiveUpdateDirectoryEntry* m_firstEmptyWait = nullptr;
 		ActiveUpdateDirectoryEntry* m_firstReadWait = nullptr;
@@ -143,6 +152,7 @@ namespace uba
 		Event m_waitToSendEvent;
 		Thread m_loopThread;
 		Atomic<bool> m_loop;
+		Atomic<bool> m_allowSpawn;
 
 		Function<void(const ProcessHandle&)> m_processFinished;
 
@@ -151,5 +161,8 @@ namespace uba
 		Atomic<u64> m_bestPing;
 		u64 m_lastPing = 0;
 		u64 m_lastPingSendTime = 0;
+
+		UnorderedMap<CasKey, Vector<u8>> m_hostRunCache;
+		ReaderWriterLock m_hostRunCacheLock;
 	};
 }

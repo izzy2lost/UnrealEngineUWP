@@ -4,7 +4,23 @@
 
 #include "AudioMixer.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
-#if PLATFORM_WINDOWS
+
+// Notes on how the headers and libs are used in UE XAudio2 implementation:
+//   Intel Windows:
+//     Use the MS XAudio2.9 redist header/library/DLL to guarantee 2.9 on any Windows version
+//   Arm64 Windows:
+//     Must use the system XAudio2_9.dll. We could use the Win10 SDK's verison of xaudio2.h, however
+//     UE includes a copy of the DirectX SDK headers, which will interfere with finding the SDK version.
+//     The redist header is usable, however, even tho we are not using the redist libraries. We do not 
+//     need to manually load the DLL because linking with the SDK arm64 .lib, without a DELAYLOAD, 
+//     will make the OS automatically load the DLL correctly.
+//   Consoles:
+//     Similar to the Arm64 above, except the copy of DirectX SDK headers are not used, so consoles
+//     can use the xaudio2.h from the SDK
+#define USE_REDIST_HEADER PLATFORM_WINDOWS
+#define USE_REDIST_LIB PLATFORM_WINDOWS && !PLATFORM_CPU_ARM_FAMILY
+
+#if USE_REDIST_HEADER
 #include <xaudio2redist.h>
 #else
 #include <xaudio2.h>
@@ -13,7 +29,8 @@
 
 #include "Async/Future.h"
 
-#if PLATFORM_WINDOWS
+
+#if USE_REDIST_LIB
 #pragma comment(lib,"xaudio2_9redist.lib")
 #endif
 
@@ -54,7 +71,8 @@ namespace Audio
 
 	};
 
-	class FMixerPlatformXAudio2 : public IAudioMixerPlatformInterface
+	class FMixerPlatformXAudio2 : public IAudioMixerPlatformInterface,
+								  public IXAudio2EngineCallback
 	{
 
 	public:
@@ -81,7 +99,7 @@ namespace Audio
 		virtual void ResumePlaybackOnNewDevice() override;
 		virtual FAudioPlatformDeviceInfo GetPlatformDeviceInfo() const override;
 		virtual void SubmitBuffer(const uint8* Buffer) override;
-		virtual bool DisablePCMAudioCaching() const override;
+		virtual bool DisablePCMAudioCaching() const override;		
 		virtual FString GetDefaultDeviceName() override;
 		virtual FAudioPlatformSettings GetPlatformSettings() const override;
 		virtual void OnHardwareUpdate() override;
@@ -101,7 +119,12 @@ namespace Audio
 		//~ End IAudioMixerDeviceChangedListener
 
 	private:
-	
+		//~ Begin IXAudio2EngineCallback
+		virtual void OnCriticalError(HRESULT Error) override;
+		virtual void OnProcessingPassStart() override;
+		virtual void OnProcessingPassEnd() override;
+		//~ End IXAudio2EngineCallback
+			
 		struct FXAudio2AsyncCreateResult
 		{
 			IXAudio2* XAudio2System = nullptr;
@@ -124,7 +147,6 @@ namespace Audio
 		void Resume();
 
 		// Handle to XAudio2DLL
-		FName DllName;
 		HMODULE XAudio2Dll;
 
 		FDelegateHandle DeactiveHandle;

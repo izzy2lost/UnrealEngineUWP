@@ -107,6 +107,7 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	HeterogeneousVolumeData.LightingDownsampleFactor = InComponent->LightingDownsampleFactor;
 	HeterogeneousVolumeData.MipBias = InComponent->StreamingMipBias;
 	HeterogeneousVolumeData.bPivotAtCentroid = InComponent->bPivotAtCentroid;
+	HeterogeneousVolumeData.bHoldout = InComponent->bHoldout;
 
 	// Initialize vertex buffer data for a quad
 	StaticMeshVertexBuffers.PositionVertexBuffer.Init(4);
@@ -387,6 +388,28 @@ void UHeterogeneousVolumeComponent::PostLoad()
 	}
 }
 
+void UHeterogeneousVolumeComponent::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	MaterialInstanceDynamic = nullptr;
+	if (UMaterialInterface* MaterialInterface = GetHeterogeneousVolumeMaterial())
+	{
+		MaterialInstanceDynamic = CreateOrCastToMID(MaterialInterface);
+	}
+}
+
+void UHeterogeneousVolumeComponent::PostReinitProperties()
+{
+	Super::PostReinitProperties();
+
+	MaterialInstanceDynamic = nullptr;
+	if (UMaterialInterface* MaterialInterface = GetHeterogeneousVolumeMaterial())
+	{
+		MaterialInstanceDynamic = CreateOrCastToMID(MaterialInterface);
+	}
+}
+
 USparseVolumeTexture* UHeterogeneousVolumeComponent::GetSparseVolumeTexture(UMaterialInterface* MaterialInterface, int32 ParameterIndex, FName* OutParamName)
 {
 	USparseVolumeTexture* SparseVolumeTexture = nullptr;
@@ -554,6 +577,26 @@ void UHeterogeneousVolumeComponent::GetUsedMaterials(TArray<UMaterialInterface*>
 	}
 }
 
+bool UHeterogeneousVolumeComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
+{
+	return GetMaterialIndex(MaterialSlotName) >= 0;
+}
+
+int32 UHeterogeneousVolumeComponent::GetMaterialIndex(FName MaterialSlotName) const
+{
+	TArray<UMaterialInterface*> Materials;
+	GetUsedMaterials(Materials);
+	for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
+	{
+		if (Materials[MaterialIndex]->GetFName() == MaterialSlotName)
+		{
+			return MaterialIndex;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
 void UHeterogeneousVolumeComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* Material)
 {
 	Super::SetMaterial(ElementIndex, Material);
@@ -572,6 +615,16 @@ void UHeterogeneousVolumeComponent::SetMaterial(int32 ElementIndex, UMaterialInt
 void UHeterogeneousVolumeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Forcibly update the MID if it's not initialized
+	if (!MaterialInstanceDynamic)
+	{
+		UMaterialInterface* MaterialInterface = GetHeterogeneousVolumeMaterial();
+		if (MaterialInterface)
+		{
+			MaterialInstanceDynamic = CreateOrCastToMID(MaterialInterface);
+		}
+	}
 
 	if (ShouldRender() && MaterialInstanceDynamic)
 	{

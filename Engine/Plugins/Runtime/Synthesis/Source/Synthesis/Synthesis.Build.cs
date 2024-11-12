@@ -31,6 +31,8 @@ namespace UnrealBuildTool.Rules
 			{
 				PrivateDependencyModuleNames.Add("AudioSynesthesiaCore");
 			}
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

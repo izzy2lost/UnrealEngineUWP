@@ -116,7 +116,7 @@ const FRigConnectorElement* FRigConnectionRuleInput::FindPrimaryConnector(FText*
 			if(Connector->IsPrimary())
 			{
 				const FName ConnectorNameSpace = Hierarchy->GetNameSpaceFName(Connector->GetKey());
-				if(!ConnectorNameSpace.IsNone() && ConnectorNameSpace.IsEqual(ModuleNameSpace, ENameCase::CaseSensitive))
+				if(!ConnectorNameSpace.IsNone() && ConnectorNameSpace.IsEqual(ModuleNameSpace, ENameCase::IgnoreCase))
 				{
 					PrimaryConnector = Connector;
 					return false; // stop the search
@@ -152,7 +152,7 @@ TArray<const FRigConnectorElement*> FRigConnectionRuleInput::FindSecondaryConnec
 			if(Connector->IsSecondary() && Connector->IsOptional() == bOptional)
 			{
 				const FName ConnectorNameSpace = Hierarchy->GetNameSpaceFName(Connector->GetKey());
-				if(!ConnectorNameSpace.IsNone() && ConnectorNameSpace.IsEqual(ModuleNameSpace, ENameCase::CaseSensitive))
+				if(!ConnectorNameSpace.IsNone() && ConnectorNameSpace.IsEqual(ModuleNameSpace, ENameCase::IgnoreCase))
 				{
 					SecondaryConnectors.Add(Connector);
 				}

@@ -6,9 +6,13 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDInfoCache.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMemory.h"
+#endif	  // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "USDMetadataImportOptions.h"
+#include "USDPrimLinkCache.h"
 #include "USDSkeletalDataConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -111,12 +115,20 @@ public:
 
 	void Unregister(const FRegisteredSchemaTranslatorHandle& TranslatorHandle);
 
+	int32 GetExternalSchemaTranslatorCount();
+
 protected:
 	FRegisteredSchemaTranslatorHandle Register(const FString& SchemaName, FCreateTranslator CreateFunction);
 
 	FSchemaTranslatorsStack* FindSchemaTranslatorStack(const FString& SchemaName);
 
 	TArray<TPair<FString, FSchemaTranslatorsStack>> RegisteredSchemaTranslators;
+
+private:
+	// Small machinery that lets us collect basic analytics about how many custom schema translators are being used in this session
+	friend class FUsdSchemasModule;
+	void ResetExternalTranslatorCount();
+	int32 ExternalSchemaTranslatorCount = 0;
 };
 
 class FRegisteredSchemaTranslator
@@ -128,37 +140,16 @@ public:
 	FCreateTranslator CreateFunction;
 };
 
-class USDSCHEMAS_API FUsdRenderContextRegistry
+class UE_DEPRECATED(5.5, "Use the render context functions in USDMaterialUtils.h instead.") USDSCHEMAS_API FUsdRenderContextRegistry
 {
 public:
 	FUsdRenderContextRegistry();
 
-	void Register(const FName& RenderContextToken)
-	{
-		RegisteredRenderContexts.Add(RenderContextToken);
-	}
-	void Unregister(const FName& RenderContextToken)
-	{
-		RegisteredRenderContexts.Remove(RenderContextToken);
-	}
-
-	const TSet<FName>& GetRenderContexts() const
-	{
-		return RegisteredRenderContexts;
-	}
-	const FName& GetUniversalRenderContext() const
-	{
-		return UniversalRenderContext;
-	}
-	const FName& GetUnrealRenderContext() const
-	{
-		return UnrealRenderContext;
-	}
-
-protected:
-	TSet<FName> RegisteredRenderContexts;
-	FName UniversalRenderContext;
-	FName UnrealRenderContext;
+	void Register(const FName& RenderContextToken);
+	void Unregister(const FName& RenderContextToken);
+	const TSet<FName>& GetRenderContexts() const;
+	const FName& GetUniversalRenderContext() const;
+	const FName& GetUnrealRenderContext() const;
 };
 
 struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsdSchemaTranslationContext>
@@ -170,10 +161,16 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	FUsdSchemaTranslationContext& operator=(const FUsdSchemaTranslationContext& Other) = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	UE_DEPRECATED(5.5, "Use the constructor that receives an UUsdAssetCache3 instead")
 	explicit FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache2& InAssetCache);
+
+	explicit FUsdSchemaTranslationContext(const UE::FUsdStage& InStage, UUsdAssetCache3& InAssetCache);
 
 	/** True if we're a context created by the USDStageImporter to fully import to persistent assets and actors */
 	bool bIsImporting = false;
+
+	/** True if we're just re-adding animations onto the LevelSequence, and not creating/updating components */
+	bool bIsJustRepopulatingLevelSequence = false;
 
 	/**
 	 * True if we're building the InfoCache assigned to this context. This usually means we shouldn't query it for information, and should instead
@@ -208,6 +205,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** Describes what to add to the root bone animation within generated AnimSequences, if anything */
 	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
 
+	/** How geometry caches are handled in the stage workflow */
+	EGeometryCacheImport GeometryCacheImport = EGeometryCacheImport::Never;
+
 	/** Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide" */
 	int32 SubdivisionLevel = 0;
 
@@ -217,10 +217,23 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	int32 NaniteTriangleThreshold;
 
 	/** Where the translated assets will be stored */
+	TStrongObjectPtr<UUsdAssetCache3> UsdAssetCache;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	/** Where the translated assets will be stored */
+	UE_DEPRECATED(5.5, "Use the 'UsdAssetCache' member instead, which is of the new UUsdAssetCache3 type")
 	TStrongObjectPtr<UUsdAssetCache2> AssetCache;
 
 	/** Caches various information about prims that are expensive to query */
+	UE_DEPRECATED(5.5, "Use the 'UsdInfoCache' member instead, which is of the new UUsdInfoCache type")
 	TSharedPtr<FUsdInfoCache> InfoCache;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	/** Caches various information about prims that are expensive to query */
+	FUsdInfoCache* UsdInfoCache;
+
+	/** Caches which assets were generated from which USD prims */
+	FUsdPrimLinkCache* PrimLinkCache;
 
 	/** Bounding box cache used for the USD stage in case we have to spawn bounds components */
 	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;
@@ -251,6 +264,12 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	EUsdDefaultKind KindsToCollapse = EUsdDefaultKind::Component | EUsdDefaultKind::Subcomponent;
 
 	/**
+	 * Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).
+	 * Disable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims.
+	 */
+	bool bUsePrimKindsForCollapsing = true;
+
+	/**
 	 * If enabled, when multiple mesh prims are collapsed into a single static mesh, identical material slots are merged into one slot.
 	 * Otherwise, material slots are simply appended to the list.
 	 */
@@ -261,6 +280,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	 * that asset is generated, and the asset is shared by the components generated for both prims.
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
+	bool bShareAssetsForIdenticalPrims = true;
+
+	UE_DEPRECATED(5.5, "This property has been renamed to 'Share Assets for Identical Prims'")
 	bool bReuseIdenticalAssets = true;
 
 	/**
@@ -286,8 +308,17 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** If true, means we will try generating Sparse Volume Textures */
 	bool bAllowParsingSparseVolumeTextures = true;
 
+	/** If true, means we will try generating SoundWave assets from sound files referenced by UsdMediaSpatialAudio prims */
+	bool bAllowParsingSounds = true;
+
 	/** Skip the import of materials that aren't being used by any prim on the stage */
 	bool bTranslateOnlyUsedMaterials = false;
+
+	/**
+	 * We set material overrides within UsdGeomXformableTranslator::UpdateComponents when this flag is set. Since that is a non-trivial
+	 * amount of computation, this flag can be disabled for situations where material overrides shouldn't change (e.g. animating components)
+	 */
+	bool bAllowRecomputingMaterialOverrides = true;
 
 	/** Groom group interpolation settings */
 	TArray<FHairGroupsInterpolation> GroomInterpolationSettings;
@@ -378,6 +409,26 @@ public:
 	{
 		return false;
 	}
+
+	/**
+	 * This checks if the current prim is an instance, and if so, whether its
+	 * prototype is already being translated. Returns false otherwise.
+	 *
+	 * WARNING: In case this prim is an instance but the prototype is not being translated yet,
+	 * running this check will also mark that prototype as being currently translated on the info cache!
+	 *
+	 * The intent here is that the first schema translator that calls this for a prototype
+	 * will "own" the translation for that prototype, and any subsequent calls by other schema translators
+	 * with the same prototype will just return true so they can early out.
+	 */
+	bool ShouldSkipInstance() const;
+
+	/**
+	 * If this prim is a prototype or an instance proxy, returns the prototype path (or the path to the
+	 * analogue prim in the prototype's hierarchy).
+	 * If this prim is just a regular non-instance prim, this just returns our PrimPath member.
+	 */
+	UE::FSdfPath GetPrototypePrimPath() const;
 
 	UE::FUsdPrim GetPrim() const
 	{

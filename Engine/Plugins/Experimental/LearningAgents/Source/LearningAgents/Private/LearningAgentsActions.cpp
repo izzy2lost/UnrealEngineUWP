@@ -538,7 +538,7 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyNullAction(ULe
 	return { Schema->ActionSchema.CreateNull(Tag) };
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyContinuousAction(ULearningAgentsActionSchema* Schema, const int32 Size, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyContinuousAction(ULearningAgentsActionSchema* Schema, const int32 Size, const float Scale, const FName Tag)
 {
 	if (!Schema)
 	{
@@ -552,12 +552,18 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyContinuousActi
 		return FLearningAgentsActionSchemaElement();
 	}
 
+	if (Scale < UE_SMALL_NUMBER)
+	{
+		UE_LOG(LogLearning, Error, TEXT("SpecifyContinuousAction: Invalid Scale for Continuous Action '%f', must be greater than '%f'."), Scale, UE_SMALL_NUMBER);
+		return FLearningAgentsActionSchemaElement();
+	}
+
 	if (Size == 0)
 	{
 		UE_LOG(LogLearning, Warning, TEXT("SpecifyContinuousAction: Specifying zero-sized Continuous Action."));
 	}
 
-	return { Schema->ActionSchema.CreateContinuous({ Size }, Tag) };
+	return { Schema->ActionSchema.CreateContinuous({ Size, Scale }, Tag) };
 }
 
 FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyExclusiveDiscreteAction(ULearningAgentsActionSchema* Schema, const int32 Size, const TArray<float>& PriorProbabilities, const FName Tag)
@@ -1101,27 +1107,32 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyBoolAction(ULe
 	return SpecifyExclusiveDiscreteActionFromArrayView(Schema, 2, { 1.0f - PriorProbability, PriorProbability }, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyFloatAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyFloatAction(ULearningAgentsActionSchema* Schema, const float FloatScale, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 1, Tag);
+	return SpecifyContinuousAction(Schema, 1, FloatScale, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyLocationAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyLocationAction(ULearningAgentsActionSchema* Schema, const float LocationScale, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 3, Tag);
+	return SpecifyContinuousAction(Schema, 3, LocationScale, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyRotationAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyRotationAction(ULearningAgentsActionSchema* Schema, const float RotationScale, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 3, Tag);
+	return SpecifyContinuousAction(Schema, 3, RotationScale, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyScaleAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyScaleAction(ULearningAgentsActionSchema* Schema, const float ScaleScale, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 3, Tag);
+	return SpecifyContinuousAction(Schema, 3, ScaleScale, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyTransformAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyTransformAction(
+	ULearningAgentsActionSchema* Schema, 
+	const float LocationScale ,
+	const float RotationScale,
+	const float ScaleScale,
+	const FName Tag)
 {
 	return SpecifyStructActionFromArrayViews(Schema,
 		{
@@ -1130,26 +1141,26 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyTransformActio
 			TEXT("Scale")
 		},
 		{
-			SpecifyLocationAction(Schema),
-			SpecifyRotationAction(Schema),
-			SpecifyScaleAction(Schema)
+			SpecifyLocationAction(Schema, LocationScale),
+			SpecifyRotationAction(Schema, RotationScale),
+			SpecifyScaleAction(Schema, ScaleScale)
 		}, 
 		Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyAngleAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyAngleAction(ULearningAgentsActionSchema* Schema, const float AngleScale, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 1, Tag);
+	return SpecifyContinuousAction(Schema, 1, AngleScale, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyVelocityAction(ULearningAgentsActionSchema* Schema, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyVelocityAction(ULearningAgentsActionSchema* Schema, const float VelocityScale, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 3, Tag);
+	return SpecifyContinuousAction(Schema, 3, VelocityScale, Tag);
 }
 
 FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyDirectionAction(ULearningAgentsActionSchema* Schema, const FName Tag)
 {
-	return SpecifyContinuousAction(Schema, 3, Tag);
+	return SpecifyContinuousAction(Schema, 3, 1.0f, Tag);
 }
 
 void ULearningAgentsActions::LogAction(const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element)
@@ -1534,36 +1545,36 @@ FLearningAgentsActionObjectElement ULearningAgentsActions::MakeBoolAction(ULearn
 	return MakeExclusiveDiscreteAction(Object, bValue ? 1 : 0, Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeFloatAction(ULearningAgentsActionObject* Object, const float Value, const float FloatScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeFloatAction(ULearningAgentsActionObject* Object, const float Value, const FName Tag)
 {
-	return MakeContinuousActionFromArrayView(Object, { Value / FMath::Max(FloatScale, UE_SMALL_NUMBER) }, Tag);
+	return MakeContinuousActionFromArrayView(Object, { Value }, Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeLocationAction(ULearningAgentsActionObject* Object, const FVector Location, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeLocationAction(ULearningAgentsActionObject* Object, const FVector Location, const FTransform RelativeTransform, const FName Tag)
 {
 	const FVector LocalLocation = RelativeTransform.InverseTransformPosition(Location);
 
 	return MakeContinuousActionFromArrayView(Object, {
-		(float)LocalLocation.X / FMath::Max(LocationScale, UE_SMALL_NUMBER),
-		(float)LocalLocation.Y / FMath::Max(LocationScale, UE_SMALL_NUMBER),
-		(float)LocalLocation.Z / FMath::Max(LocationScale, UE_SMALL_NUMBER) }, Tag);
+		(float)LocalLocation.X,
+		(float)LocalLocation.Y,
+		(float)LocalLocation.Z }, Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeRotationAction(ULearningAgentsActionObject* Object, const FRotator Rotation, const FRotator RelativeRotation, const float RotationScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeRotationAction(ULearningAgentsActionObject* Object, const FRotator Rotation, const FRotator RelativeRotation, const FName Tag)
 {
-	return MakeRotationActionFromQuat(Object, FQuat::MakeFromRotator(Rotation), FQuat::MakeFromRotator(RelativeRotation), RotationScale, Tag);
+	return MakeRotationActionFromQuat(Object, FQuat::MakeFromRotator(Rotation), FQuat::MakeFromRotator(RelativeRotation), Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeRotationActionFromQuat(ULearningAgentsActionObject* Object, const FQuat Rotation, const FQuat RelativeRotation, const float RotationScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeRotationActionFromQuat(ULearningAgentsActionObject* Object, const FQuat Rotation, const FQuat RelativeRotation, const FName Tag)
 {
 	FQuat LocalRotation = RelativeRotation.Inverse() * Rotation;
 	LocalRotation.EnforceShortestArcWith(FQuat::Identity);
 	const FVector RotationVector = LocalRotation.ToRotationVector();
 
 	return MakeContinuousActionFromArrayView(Object, {
-		(float)RotationVector.X / FMath::Max(FMath::DegreesToRadians(RotationScale), UE_SMALL_NUMBER),
-		(float)RotationVector.Y / FMath::Max(FMath::DegreesToRadians(RotationScale), UE_SMALL_NUMBER),
-		(float)RotationVector.Z / FMath::Max(FMath::DegreesToRadians(RotationScale), UE_SMALL_NUMBER),
+		(float)FMath::RadiansToDegrees(RotationVector.X),
+		(float)FMath::RadiansToDegrees(RotationVector.Y),
+		(float)FMath::RadiansToDegrees(RotationVector.Z),
 		}, Tag);
 }
 
@@ -1580,10 +1591,8 @@ FLearningAgentsActionObjectElement ULearningAgentsActions::MakeScaleAction(ULear
 		}, Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeTransformAction(ULearningAgentsActionObject* Object, const FTransform Transform, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeTransformAction(ULearningAgentsActionObject* Object, const FTransform Transform, const FTransform RelativeTransform, const FName Tag)
 {
-	const FTransform LocalTransform = Transform * RelativeTransform.Inverse();
-
 	return MakeStructActionFromArrayViews(Object,
 		{
 			TEXT("Location"),
@@ -1591,32 +1600,31 @@ FLearningAgentsActionObjectElement ULearningAgentsActions::MakeTransformAction(U
 			TEXT("Scale")
 		},
 		{
-			MakeLocationAction(Object, LocalTransform.GetLocation(), FTransform::Identity, LocationScale),
-			MakeRotationActionFromQuat(Object, LocalTransform.GetRotation(), FQuat::Identity),
-			MakeScaleAction(Object, LocalTransform.GetScale3D(), FVector::OneVector)
+			MakeLocationAction(Object, Transform.GetLocation(), RelativeTransform),
+			MakeRotationActionFromQuat(Object, Transform.GetRotation(), RelativeTransform.GetRotation()),
+			MakeScaleAction(Object, Transform.GetScale3D(), RelativeTransform.GetScale3D())
 		},
 		Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeAngleAction(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle, const float AngleScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeAngleAction(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle, const FName Tag)
 {
-	return MakeAngleActionRadians(Object, FMath::DegreesToRadians(Angle), FMath::DegreesToRadians(RelativeAngle), FMath::DegreesToRadians(AngleScale), Tag);
+	return MakeContinuousActionFromArrayView(Object, { FMath::FindDeltaAngleDegrees(RelativeAngle, Angle) }, Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeAngleActionRadians(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle, const float AngleScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeAngleActionRadians(ULearningAgentsActionObject* Object, const float Angle, const float RelativeAngle, const FName Tag)
 {
-	const float LocalAngle = FMath::FindDeltaAngleRadians(RelativeAngle, Angle);
-	return MakeContinuousActionFromArrayView(Object, { LocalAngle / FMath::Max(AngleScale, UE_SMALL_NUMBER) }, Tag);
+	return MakeAngleAction(Object, FMath::RadiansToDegrees(Angle), FMath::RadiansToDegrees(RelativeAngle), Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeVelocityAction(ULearningAgentsActionObject* Object, const FVector Velocity, const FTransform RelativeTransform, const float VelocityScale, const FName Tag)
+FLearningAgentsActionObjectElement ULearningAgentsActions::MakeVelocityAction(ULearningAgentsActionObject* Object, const FVector Velocity, const FTransform RelativeTransform, const FName Tag)
 {
 	const FVector LocalVelocity = RelativeTransform.InverseTransformVectorNoScale(Velocity);
 
 	return MakeContinuousActionFromArrayView(Object, {
-		(float)LocalVelocity.X / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		(float)LocalVelocity.Y / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		(float)LocalVelocity.Z / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
+		(float)LocalVelocity.X,
+		(float)LocalVelocity.Y,
+		(float)LocalVelocity.Z,
 		}, Tag);
 }
 
@@ -2056,6 +2064,52 @@ bool ULearningAgentsActions::GetStructAction(TMap<FName, FLearningAgentsActionOb
 		OutElements.Add(SubElementNames[ElementIdx], SubElements[ElementIdx]);
 	}
 
+	return true;
+}
+
+bool ULearningAgentsActions::GetStructActionElement(FLearningAgentsActionObjectElement& OutElement, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName ElementName, const FName Tag)
+{
+	if (!Object)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Object is nullptr."));
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	if (!Object->ActionObject.IsValid(Element.ObjectElement))
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Invalid Action Object."));
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	if (Object->ActionObject.GetTag(Element.ObjectElement) != Tag)
+	{
+		UE_LOG(LogLearning, Warning, TEXT("GetStructActionElement: Action tag does not match. Action is '%s' but asked for '%s'."), *Object->ActionObject.GetTag(Element.ObjectElement).ToString(), *Tag.ToString());
+	}
+
+	if (Object->ActionObject.GetType(Element.ObjectElement) != UE::Learning::Action::EType::And)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Action '%s' type does not match. Action is '%s' but asked for '%s'."),
+			*Object->ActionObject.GetTag(Element.ObjectElement).ToString(),
+			UE::Learning::Agents::Action::Private::GetActionTypeString(Object->ActionObject.GetType(Element.ObjectElement)),
+			UE::Learning::Agents::Action::Private::GetActionTypeString(UE::Learning::Action::EType::And));
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	const UE::Learning::Action::FObjectAndParameters Parameters = Object->ActionObject.GetAnd(Element.ObjectElement);
+
+	const int32 ElementIdx = Parameters.ElementNames.Find(ElementName);
+
+	if (ElementIdx == INDEX_NONE)
+	{
+		UE_LOG(LogLearning, Error, TEXT("GetStructActionElement: Element '%s' not found."), *ElementName.ToString());
+		OutElement = FLearningAgentsActionObjectElement();
+		return false;
+	}
+
+	OutElement = { Parameters.Elements[ElementIdx] };
 	return true;
 }
 
@@ -2736,7 +2790,6 @@ bool ULearningAgentsActions::GetFloatAction(
 	float& OutValue, 
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
-	const float FloatScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2744,14 +2797,11 @@ bool ULearningAgentsActions::GetFloatAction(
 	const FVector VisualLoggerLocation,
 	const FLinearColor VisualLoggerColor)
 {
-	float OutValuesData;
-	if (!GetContinuousActionToArrayView(MakeArrayView(&OutValuesData, 1), Object, Element, Tag))
+	if (!GetContinuousActionToArrayView(MakeArrayView(&OutValue, 1), Object, Element, Tag))
 	{
 		OutValue = 0.0f;
 		return false;
 	}
-
-	OutValue = OutValuesData * FloatScale;
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
@@ -2760,12 +2810,10 @@ bool ULearningAgentsActions::GetFloatAction(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f]\nScale: [% 6.2f]\nValue: [% 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValue: [% 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			OutValuesData,
-			FloatScale,
 			OutValue);
 	}
 #endif
@@ -2778,7 +2826,6 @@ bool ULearningAgentsActions::GetLocationAction(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const FTransform RelativeTransform, 
-	const float LocationScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2793,7 +2840,7 @@ bool ULearningAgentsActions::GetLocationAction(
 		return false;
 	}
 
-	const FVector LocalLocation = LocationScale * FVector(OutValues[0], OutValues[1], OutValues[2]);
+	const FVector LocalLocation = FVector(OutValues[0], OutValues[1], OutValues[2]);
 	OutLocation = RelativeTransform.TransformPosition(LocalLocation);
 	
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
@@ -2821,12 +2868,10 @@ bool ULearningAgentsActions::GetLocationAction(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nLocation: [% 6.1f % 6.1f % 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nLocation: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			OutValues[0], OutValues[1], OutValues[2],
-			LocationScale,
 			LocalLocation.X, LocalLocation.Y, LocalLocation.Z,
 			OutLocation.X, OutLocation.Y, OutLocation.Z);
 	}
@@ -2840,7 +2885,6 @@ bool ULearningAgentsActions::GetRotationAction(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const FRotator RelativeRotation, 
-	const float RotationScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2850,7 +2894,7 @@ bool ULearningAgentsActions::GetRotationAction(
 	const FLinearColor VisualLoggerColor)
 {
 	FQuat OutRotationQuat;
-	if (!GetRotationActionAsQuat(OutRotationQuat, Object, Element, FQuat::MakeFromRotator(RelativeRotation), RotationScale, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerRotationLocation, VisualLoggerLocation, VisualLoggerColor))
+	if (!GetRotationActionAsQuat(OutRotationQuat, Object, Element, FQuat::MakeFromRotator(RelativeRotation), Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerRotationLocation, VisualLoggerLocation, VisualLoggerColor))
 	{
 		OutRotation = FRotator::ZeroRotator;
 		return false;
@@ -2865,7 +2909,6 @@ bool ULearningAgentsActions::GetRotationActionAsQuat(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const FQuat RelativeRotation, 
-	const float RotationScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2881,7 +2924,7 @@ bool ULearningAgentsActions::GetRotationActionAsQuat(
 		return false;
 	}
 
-	const FVector LocalRotationVector = FMath::DegreesToRadians(RotationScale) * FVector(OutValues[0], OutValues[1], OutValues[2]);
+	const FVector LocalRotationVector = FVector(FMath::DegreesToRadians(OutValues[0]), FMath::DegreesToRadians(OutValues[1]), FMath::DegreesToRadians(OutValues[2]));
 	const FQuat LocalRotation = FQuat::MakeFromRotationVector(LocalRotationVector);
 	OutRotation = RelativeRotation * LocalRotation;
 
@@ -2898,12 +2941,10 @@ bool ULearningAgentsActions::GetRotationActionAsQuat(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Rotation Vector: [% 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocal Rotation Vector: [% 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			OutValues[0], OutValues[1], OutValues[2],
-			RotationScale,
 			LocalRotationVector.X, LocalRotationVector.Y, LocalRotationVector.Z,
 			LocalRotation.X, LocalRotation.Y, LocalRotation.Z, LocalRotation.W,
 			OutRotation.X, OutRotation.Y, OutRotation.Z, OutRotation.W);
@@ -2918,7 +2959,6 @@ bool ULearningAgentsActions::GetScaleAction(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const FVector RelativeScale, 
-	const float Scale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2933,7 +2973,7 @@ bool ULearningAgentsActions::GetScaleAction(
 		return false;
 	}
 
-	const FVector LocalScaleVector = UE::Learning::Agents::Action::Private::VectorExp(Scale * FVector(OutValues[0], OutValues[1], OutValues[2]));
+	const FVector LocalScaleVector = UE::Learning::Agents::Action::Private::VectorExp(FVector(OutValues[0], OutValues[1], OutValues[2]));
 	OutScale = RelativeScale * LocalScaleVector;
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
@@ -2943,12 +2983,10 @@ bool ULearningAgentsActions::GetScaleAction(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Scale: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocal Scale: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			OutValues[0], OutValues[1], OutValues[2],
-			Scale,
 			LocalScaleVector.X, LocalScaleVector.Y, LocalScaleVector.Z,
 			OutScale.X, OutScale.Y, OutScale.Z);
 	}
@@ -2962,9 +3000,6 @@ bool ULearningAgentsActions::GetTransformAction(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const FTransform RelativeTransform, 
-	const float LocationScale, 
-	const float RotationScale, 
-	const float ScaleScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -2981,21 +3016,21 @@ bool ULearningAgentsActions::GetTransformAction(
 	}
 
 	FVector OutLocation;
-	if (!GetLocationAction(OutLocation, Object, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Location"))], RelativeTransform, LocationScale))
+	if (!GetLocationAction(OutLocation, Object, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Location"))], RelativeTransform))
 	{
 		OutTransform = FTransform::Identity;
 		return false;
 	}
 
 	FQuat OutRotation;
-	if (!GetRotationActionAsQuat(OutRotation, Object, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Rotation"))], RelativeTransform.GetRotation(), RotationScale))
+	if (!GetRotationActionAsQuat(OutRotation, Object, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Rotation"))], RelativeTransform.GetRotation()))
 	{
 		OutTransform = FTransform::Identity;
 		return false;
 	}
 
 	FVector OutScale;
-	if (!GetScaleAction(OutScale, Object, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Scale"))], RelativeTransform.GetScale3D(), ScaleScale))
+	if (!GetScaleAction(OutScale, Object, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Scale"))], RelativeTransform.GetScale3D()))
 	{
 		OutTransform = FTransform::Identity;
 		return false;
@@ -3016,13 +3051,10 @@ bool ULearningAgentsActions::GetTransformAction(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation Scale: [% 6.1f]\nRotation Scale: [% 6.1f]\nScale Scale: [% 6.1f]\nLocation: [% 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation: [% 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			LocationScale,
-			RotationScale,
-			ScaleScale,
 			OutLocation.X, OutLocation.Y, OutLocation.Z,
 			OutRotation.X, OutRotation.Y, OutRotation.Z, OutRotation.W,
 			OutScale.X, OutScale.Y, OutScale.Z);
@@ -3037,7 +3069,6 @@ bool ULearningAgentsActions::GetAngleAction(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const float RelativeAngle, 
-	const float AngleScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -3046,14 +3077,13 @@ bool ULearningAgentsActions::GetAngleAction(
 	const FVector VisualLoggerLocation,
 	const FLinearColor VisualLoggerColor)
 {
-	float OutValue = 0.0f;
-	if (!GetContinuousActionToArrayView(MakeArrayView(&OutValue, 1), Object, Element, Tag))
+	float LocalAngle = 0.0f;
+	if (!GetContinuousActionToArrayView(MakeArrayView(&LocalAngle, 1), Object, Element, Tag))
 	{
 		OutAngle = 0.0f;
 		return false;
 	}
 
-	const float LocalAngle = AngleScale * OutValue;
 	OutAngle = RelativeAngle + LocalAngle;
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
@@ -3071,12 +3101,10 @@ bool ULearningAgentsActions::GetAngleAction(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f]\nScale: [% 6.2f]\nLocal Angle: [% 6.1f]\nAngle: [% 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocal Angle: [% 6.1f]\nAngle: [% 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			OutValue,
-			AngleScale,
 			LocalAngle,
 			OutAngle);
 	}
@@ -3090,7 +3118,6 @@ bool ULearningAgentsActions::GetAngleActionRadians(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const float RelativeAngle, 
-	const float AngleScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -3099,7 +3126,7 @@ bool ULearningAgentsActions::GetAngleActionRadians(
 	const FVector VisualLoggerLocation,
 	const FLinearColor VisualLoggerColor)
 {
-	if (!GetAngleAction(OutAngle, Object, Element, FMath::RadiansToDegrees(RelativeAngle), FMath::RadiansToDegrees(AngleScale), Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerAngleLocation, VisualLoggerLocation, VisualLoggerColor))
+	if (!GetAngleAction(OutAngle, Object, Element, FMath::RadiansToDegrees(RelativeAngle), Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerAngleLocation, VisualLoggerLocation, VisualLoggerColor))
 	{
 		OutAngle = 0.0f;
 		return false;
@@ -3114,7 +3141,6 @@ bool ULearningAgentsActions::GetVelocityAction(
 	const ULearningAgentsActionObject* Object, 
 	const FLearningAgentsActionObjectElement Element, 
 	const FTransform RelativeTransform, 
-	const float VelocityScale, 
 	const FName Tag,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
@@ -3130,7 +3156,7 @@ bool ULearningAgentsActions::GetVelocityAction(
 		return false;
 	}
 
-	const FVector LocalVelocity = VelocityScale * FVector(OutValues[0], OutValues[1], OutValues[2]);
+	const FVector LocalVelocity = FVector(OutValues[0], OutValues[1], OutValues[2]);
 	OutVelocity = RelativeTransform.TransformVector(LocalVelocity);
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
@@ -3152,12 +3178,10 @@ bool ULearningAgentsActions::GetVelocityAction(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Velocity: [% 6.1f % 6.1f % 6.1f]\nVelocity: [% 6.1f % 6.1f % 6.1f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocal Velocity: [% 6.1f % 6.1f % 6.1f]\nVelocity: [% 6.1f % 6.1f % 6.1f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
-			OutValues[0], OutValues[1], OutValues[2],
-			VelocityScale,
 			LocalVelocity.X, LocalVelocity.Y, LocalVelocity.Z,
 			OutVelocity.X, OutVelocity.Y, OutVelocity.Z);
 	}

@@ -50,6 +50,11 @@ FText UAssetDefinition_NiagaraScript::GetAssetDisplayName(const FAssetData& Asse
 	return Super::GetAssetDisplayName(AssetData);
 }
 
+FAssetOpenSupport UAssetDefinition_NiagaraScript::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	return FAssetOpenSupport(OpenSupportArgs.OpenMethod,OpenSupportArgs.OpenMethod == EAssetOpenMethod::Edit || OpenSupportArgs.OpenMethod == EAssetOpenMethod::View); 
+}
+
 EAssetCommandResult UAssetDefinition_NiagaraScript::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
 	for (UNiagaraScript* Script : OpenArgs.LoadObjects<UNiagaraScript>())

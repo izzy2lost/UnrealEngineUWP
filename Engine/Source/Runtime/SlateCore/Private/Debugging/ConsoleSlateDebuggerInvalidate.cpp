@@ -289,13 +289,25 @@ int32 FConsoleSlateDebuggerInvalidate::GetInvalidationPriority(EInvalidateWidget
 		return 50;
 	}
 
-	if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Prepass | EInvalidateWidgetReason::Layout | EInvalidateWidgetReason::ChildOrder | EInvalidateWidgetReason::Visibility | EInvalidateWidgetReason::RenderTransform))
+	if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::ChildOrder))
+	{
+		return 45;
+	}
+	if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Prepass))
 	{
 		return 40;
 	}
-	else if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Volatility))
+	if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Layout))
+	{
+		return 35;
+	}
+	if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Visibility | EInvalidateWidgetReason::RenderTransform))
 	{
 		return 30;
+	}
+	else if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Volatility))
+	{
+		return 25;
 	}
 	else if (EnumHasAnyFlags(InvalidationInfo, EInvalidateWidgetReason::Paint))
 	{
@@ -319,25 +331,17 @@ const FLinearColor& FConsoleSlateDebuggerInvalidate::GetColor(const FInvalidatio
 		return DrawRootScreenPositionColor;
 	}
 
-	if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Prepass))
+	if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::ChildOrder))
+	{
+		return DrawWidgetChildOrderColor;
+	}
+	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Prepass))
 	{
 		return DrawWidgetPrepassColor;
 	}
 	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Layout))
 	{
 		return DrawWidgetLayoutColor;
-	}
-	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Paint))
-	{
-		return DrawWidgetPaintColor;
-	}
-	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Volatility))
-	{
-		return DrawWidgetVolatilityColor;
-	}
-	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::ChildOrder))
-	{
-		return DrawWidgetChildOrderColor;
 	}
 	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::RenderTransform))
 	{
@@ -346,6 +350,14 @@ const FLinearColor& FConsoleSlateDebuggerInvalidate::GetColor(const FInvalidatio
 	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Visibility))
 	{
 		return DrawWidgetVisibilityColor;
+	}
+	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Volatility))
+	{
+		return DrawWidgetVolatilityColor;
+	}
+	else if (EnumHasAnyFlags(InvalidationInfo.WidgetReason, EInvalidateWidgetReason::Paint))
+	{
+		return DrawWidgetPaintColor;
 	}
 
 	check(false);
@@ -477,7 +489,10 @@ void FConsoleSlateDebuggerInvalidate::HandleWidgetInvalidated(const FSlateDebugg
 		// Is this invalidation is more important for the display?
 		//Z->C[RenderTransform] to B->C[Layout]
 		//NB we use < instead of <= so only the first incoming invalidation will be considered 
-		FoundInvalidated->UpdateInvalidationReason(Args, InvalidationPriority);
+		if (FoundInvalidated->InvalidationPriority < InvalidationPriority)
+		{
+			FoundInvalidated->UpdateInvalidationReason(Args, InvalidationPriority);
+		}
 	}
 	else
 	{
@@ -746,7 +761,7 @@ void FConsoleSlateDebuggerInvalidate::HandlePaintDebugInfo(const FPaintArgs& InA
 			InOutDrawElements
 			, InOutLayerId
 			, InAllottedGeometry.ToPaintGeometry(FVector2f(1.f, 1.f), FSlateLayoutTransform(TextElementLocation))
-			, FString::Printf(TEXT("Slate Performance Threshold Reached: %d"), LastPerformanceThresholdFrameCount)
+			, FString::Printf(TEXT("Slate Performance Threshold Reached: %" UINT64_FMT), LastPerformanceThresholdFrameCount)
 			, NormalFontInfo
 			, ESlateDrawEffect::None
 			, FLinearColor::Red);

@@ -11,8 +11,11 @@
 DEFINE_LOG_CATEGORY(LogNanite);
 DEFINE_GPU_STAT(NaniteDebug);
 
-IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(Nanite);
-IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FNaniteUniformParameters, "Nanite", Nanite);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(NaniteRaster);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FNaniteRasterUniformParameters, "NaniteRaster", NaniteRaster);
+
+IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(NaniteShading);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FNaniteShadingUniformParameters, "NaniteShading", NaniteShading);
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(NaniteRayTracing);
 IMPLEMENT_STATIC_AND_SHADER_UNIFORM_BUFFER_STRUCT(FNaniteRayTracingUniformParameters, "NaniteRayTracing", NaniteRayTracing);
@@ -96,6 +99,7 @@ void SetCullingViewOverrides(FViewInfo const* InCullingView, Nanite::FPackedView
 		// We bake the view lod scales into ScreenMultiple since the two things are always used together.
 		const float LODDistanceScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * InCullingView->LODDistanceFactor;
 		InOutParams.CullingViewScreenMultiple /= LODDistanceScale;
+		InOutParams.CullingViewMinRadiusTestFactorSq = FMath::Square(InCullingView->LODDistanceFactor * InOutParams.MinBoundsRadius);
 	}
 	else
 	{
@@ -144,6 +148,7 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	PackedView.ViewOriginHighZ				= AbsoluteViewOrigin.High.Z;
 	PackedView.RangeBasedCullingDistance	= Params.RangeBasedCullingDistance;
 	PackedView.CullingViewScreenMultiple	= CullingViewScreenMulitple;
+	PackedView.CullingViewMinRadiusTestFactorSq	= Params.bUseCullingViewOverrides ? Params.CullingViewMinRadiusTestFactorSq : FMath::Square(Params.ViewLODDistanceFactor * Params.MinBoundsRadius);
 
 	PackedView.PrevTranslatedWorldToView	= FMatrix44f(Params.PrevViewMatrices.GetOverriddenTranslatedViewMatrix()); // LWC_TODO: Precision loss? (and below)
 	PackedView.PrevTranslatedWorldToClip	= FMatrix44f(Params.PrevViewMatrices.GetTranslatedViewProjectionMatrix());
@@ -176,7 +181,6 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 
 	check(Params.StreamingPriorityCategory <= NANITE_STREAMING_PRIORITY_CATEGORY_MASK);
 	PackedView.StreamingPriorityCategory_AndFlags = (Params.Flags << NANITE_NUM_STREAMING_PRIORITY_CATEGORY_BITS) | Params.StreamingPriorityCategory;
-	PackedView.MinBoundsRadiusSq = Params.MinBoundsRadius * Params.MinBoundsRadius;
 	PackedView.UpdateLODScales(NaniteMaxPixelsPerEdge, NaniteMinPixelsPerEdgeHW);
 
 	PackedView.TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ.X = Params.TargetLayerIndex;
@@ -190,7 +194,16 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	PackedView.TranslatedGlobalClipPlane = FVector4f(TranslatedPlane.X, TranslatedPlane.Y, TranslatedPlane.Z, -TranslatedPlane.W);
 	
 	PackedView.InstanceOcclusionQueryMask = Params.InstanceOcclusionQueryMask;
-	PackedView.LightingChannelMask = Params.LightingChannelMask;
+	PackedView.LightingChannelMask = 
+		((uint8)(Params.bUseLightingChannelMask ? 0b1000 : 0)) | // 4th bit is toggle
+		((uint8)(Params.LightingChannelMask & 0b0111)); // 3 first bits are mask
+
+	const FMatrix& FirstPersonTransform = Params.ViewMatrices.GetFirstPersonTransform();
+	PackedView.FirstPersonTransformRowsExceptRow2Z.X =	uint32(FFloat16(FirstPersonTransform.M[0][0]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[0][1]).Encoded) << 16u);	// Row0 XY
+	PackedView.FirstPersonTransformRowsExceptRow2Z.Y =	uint32(FFloat16(FirstPersonTransform.M[0][2]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[1][0]).Encoded) << 16u);	// Row0 Z and Row1 X
+	PackedView.FirstPersonTransformRowsExceptRow2Z.Z =	uint32(FFloat16(FirstPersonTransform.M[1][1]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[1][2]).Encoded) << 16u);	// Row1 YZ
+	PackedView.FirstPersonTransformRowsExceptRow2Z.W =	uint32(FFloat16(FirstPersonTransform.M[2][0]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[2][1]).Encoded) << 16u);	// Row2 XY
+	PackedView.FirstPersonTransformRow2Z =				uint32(FFloat16(FirstPersonTransform.M[2][2]).Encoded);																		// Row2 Z
 	
 	return PackedView;
 

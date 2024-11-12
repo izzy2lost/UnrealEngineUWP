@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Message.h"
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "HAL/Platform.h" // for PLATFORM_BREAK
 #include "Platform.h"
@@ -26,9 +27,9 @@ extern FStatistics	GTraceStatistics;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-UE_TRACE_EVENT_BEGIN($Trace, ThreadTiming, NoSync)
-	UE_TRACE_EVENT_FIELD(uint64, BaseTimestamp)
-UE_TRACE_EVENT_END()
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, ThreadTiming, NoSync)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint64, BaseTimestamp)
+UE_TRACE_MINIMAL_EVENT_END()
 
 
 
@@ -66,6 +67,7 @@ static FWriteBuffer* Writer_NextBufferInternal(FWriteBuffer* CurrentBuffer)
 		// Allocating memory results in so many trace events that there is
 		// insufficient space to store them. We can't allocate more space, because
 		// that would result in more traced events, and so on...
+		UE_TRACE_MESSAGE(WriterError, "Redirect buffer full, trace will be corrupt!");
 		PLATFORM_BREAK();
 	}
 #endif
@@ -94,7 +96,7 @@ static FWriteBuffer* Writer_NextBufferInternal(FWriteBuffer* CurrentBuffer)
 		NextBuffer->ThreadId = uint16(Writer_GetThreadId());
 		NextBuffer->PrevTimestamp = TimeGetTimestamp();
 
-		UE_TRACE_LOG($Trace, ThreadTiming, TraceLogChannel)
+		UE_TRACE_MINIMAL_LOG($Trace, ThreadTiming, TraceLogChannel)
 			<< ThreadTiming.BaseTimestamp(NextBuffer->PrevTimestamp - GStartCycle);
 
 		// Add this next buffer to the active list.
@@ -315,12 +317,13 @@ void Writer_EndThreadBuffer()
 		return;
 	}
 
-	int32 EtxOffset = int32(PTRINT((uint8*)GTlsWriteBuffer - GTlsWriteBuffer->Cursor));
-	AtomicStoreRelaxed(&(GTlsWriteBuffer->EtxOffset), EtxOffset);
+	const PTRINT CurrentCursor = AtomicLoadRelaxed(GTlsWriteBuffer->Cursor);
+	int32 EtxOffset = int32(PTRINT((uint8*)GTlsWriteBuffer - CurrentCursor));
+	AtomicStoreRelease(&(GTlsWriteBuffer->EtxOffset), EtxOffset);
 }
 
 } // namespace Private
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

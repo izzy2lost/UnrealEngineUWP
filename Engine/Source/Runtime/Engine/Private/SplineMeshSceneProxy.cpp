@@ -161,7 +161,7 @@ bool FSplineMeshSceneProxy::GetCollisionMeshElement(int32 LODIndex, int32 BatchI
 }
 
 #if RHI_RAYTRACING
-void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (CVarRayTracingSplineMeshes.GetValueOnRenderThread() == 0  || !bSupportRayTracing)
 	{
@@ -171,12 +171,12 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 	checkf(!DynamicRayTracingGeometries.IsEmpty(), TEXT("DynamicRayTracingGeometries has not been initialized correctly"));
 
 	ESceneDepthPriorityGroup PrimitiveDPG = GetStaticDepthPriorityGroup();
-	const int32 LODIndex = FMath::Max(GetLOD(Context.ReferenceView), (int32)GetCurrentFirstLODIdx_RenderThread());
+	const int32 LODIndex = FMath::Max(GetLOD(Collector.GetReferenceView()), (int32)GetCurrentFirstLODIdx_RenderThread());
 	const FStaticMeshLODResources& LODModel = RenderData->LODResources[LODIndex];
 
 	FRayTracingGeometry& Geometry = DynamicRayTracingGeometries[LODIndex];
 
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
+	FRayTracingInstance RayTracingInstance;
 
 	const int32 NumBatches = GetNumMeshBatches();
 	const int32 NumRayTracingMaterialEntries = LODModel.Sections.Num() * NumBatches;
@@ -199,7 +199,7 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 					MeshBatch.MaterialRenderProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
 					MeshBatch.VertexFactory = &RenderData->LODVertexFactories[LODIndex].VertexFactory;
 				}
-
+				MeshBatch.ReverseCulling = bReverseCulling;
 				MeshBatch.SegmentIndex = SectionIndex;
 				MeshBatch.MeshIdInPrimitive = SectionIndex;
 			}
@@ -220,7 +220,7 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 
 	if (RenderData->LODVertexFactories[LODIndex].VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 	{
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
+		Collector.AddRayTracingGeometryUpdate(
 			FRayTracingDynamicGeometryUpdateParams
 			{
 				CachedRayTracingMaterials, // TODO: this copy can be avoided if FRayTracingDynamicGeometryUpdateParams supported array views
@@ -240,6 +240,8 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 		RayTracingInstance.Geometry->Initializer.Segments.Num(),
 		CachedRayTracingMaterials.Num(),
 		LODIndex);
+
+	Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 }
 #endif // RHI_RAYTRACING
 
@@ -345,14 +347,14 @@ ERayTracingPrimitiveFlags FNaniteSplineMeshSceneProxy::GetCachedRayTracingInstan
 	return FPrimitiveSceneProxy::GetCachedRayTracingInstance(OutRayTracingInstance);
 }
 
-void FNaniteSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FNaniteSplineMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (CVarRayTracingSplineMeshes.GetValueOnRenderThread() == 0)
 	{
 		return;
 	}
 
-	return Nanite::FSceneProxy::GetDynamicRayTracingInstances(Context, OutRayTracingInstances);
+	return Nanite::FSceneProxy::GetDynamicRayTracingInstances(Collector);
 }
 
 void FNaniteSplineMeshSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const

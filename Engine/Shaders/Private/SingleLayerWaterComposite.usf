@@ -21,6 +21,20 @@
 #include "ReflectionEnvironmentComposite.ush"
 #include "Substrate/SubstrateEvaluation.ush"
 
+#if GENERATE_FROXELS
+
+
+#define FROXEL_HASH_BUFFER_SIZE 64
+#define FROXEL_HASH_THREAD_GROUP_SIZE 64
+#define FROXEL_SHARED_HASH_BUFFER_VAR GroupShared_FroxelHashBuffer
+
+groupshared uint GroupShared_FroxelHashBuffer[FROXEL_HASH_BUFFER_SIZE];
+
+#include "Froxel/FroxelBuild.ush"
+
+
+#endif
+
 #ifndef THREADGROUP_SIZE
 	#define THREADGROUP_SIZE 1
 #endif
@@ -103,8 +117,8 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			float3 Reflection = 0.0f;
 
 			// TODO MAKE COMMON WITH ReflectionEnvironment?
-			float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
-			float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
+			float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), View.ScreenToTranslatedWorld).xyz;
+			float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 			float3 ReflectionVector = reflect(CameraToPixel, WorldNormal);
 			float IndirectIrradiance = 0.0;
 			float IndirectSpecularOcclusion = 1.0f;
@@ -115,9 +129,10 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 				float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 
 				uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), WaterDepth);
-				uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-				uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+				FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, 0);
+				uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+				uint CaptureDataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 			#else
 				uint NumCulledReflectionCaptures = 0;
 				uint CaptureDataStartIndex = 0;
@@ -131,9 +146,9 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			// Point lobe in off-specular peak direction
 			R = GetOffSpecularPeakReflectionDir(N, R, SafeRoughness);
 			const bool bCompositeSkylight = true;
-			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylight(
+			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylightTWS(
 				1,
-				WorldPosition,
+				TranslatedWorldPosition,
 				R,
 				SafeRoughness,
 				IndirectIrradiance,
@@ -190,9 +205,10 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 				float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 
 				uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), WaterDepth);
-				uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-				uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+				FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, 0);
+				uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+				uint CaptureDataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 			#else
 				uint NumCulledReflectionCaptures = 0;
 				uint CaptureDataStartIndex = 0;
@@ -206,7 +222,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			// Point lobe in off-specular peak direction
 			R = GetOffSpecularPeakReflectionDir(N, R, GBuffer.Roughness);
 			const bool bCompositeSkylight = true;
-			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylight(
+			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylightTWS(
 				1,
 				TranslatedWorldPosition,
 				R,
@@ -275,6 +291,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 
 #if USE_WATER_PRE_PASS_STENCIL
 Texture2D<uint2> WaterDepthStencilTexture;
+Texture2D<float> WaterDepthTexture;
 #endif
 
 int2 TiledViewRes;
@@ -310,10 +327,10 @@ bool DoesPixelContainWater(uint2 PixelPos)
 [numthreads(SLW_TILE_SIZE_XY, SLW_TILE_SIZE_XY, 1)]
 void WaterTileCatergorisationMarkCS(uint3 ThreadId : SV_DispatchThreadID, uint3 GroupId : SV_GroupID, uint3 GroupThreadId : SV_GroupThreadID)
 {
+	const uint GroupThreadIndex = GroupThreadId.y * SLW_TILE_SIZE_XY + GroupThreadId.x;
 #if 0
 	// Slow reference path
-	const int LinearIndex = GroupThreadId.y * SLW_TILE_SIZE_XY + GroupThreadId.x;
-	if (LinearIndex < 1)
+	if (GroupThreadIndex < 1u)
 	{
 		bool bContainsWater = false;
 		for (uint i = 0; i < SLW_TILE_SIZE_XY; ++i)
@@ -335,10 +352,11 @@ void WaterTileCatergorisationMarkCS(uint3 ThreadId : SV_DispatchThreadID, uint3 
 
 #else
 
+	uint2 PixelPos = ThreadId.xy + View.ViewRectMin.xy;
 	bool bContainsWater = false;
 	if(ThreadId.x < uint(View.BufferSizeAndInvSize.x) && ThreadId.y < uint(View.BufferSizeAndInvSize.y))
 	{
-		bContainsWater = bContainsWater || DoesPixelContainWater(ThreadId.xy + View.ViewRectMin.xy);
+		bContainsWater = DoesPixelContainWater(PixelPos);
 	}
 
 	bool bWriteTile = false;
@@ -365,42 +383,41 @@ void WaterTileCatergorisationMarkCS(uint3 ThreadId : SV_DispatchThreadID, uint3 
 
 #else
 
-	const int LinearIndex = GroupThreadId.y * SLW_TILE_SIZE_XY + GroupThreadId.x;
-	ContainsWater[LinearIndex] = bContainsWater;
+	ContainsWater[GroupThreadIndex] = bContainsWater;
 	GroupMemoryBarrierWithGroupSync();
 
-	if (LinearIndex < 32) // 8*8 = 64 elements to merge
+	if (GroupThreadIndex < 32) // 8*8 = 64 elements to merge
 	{
-		ContainsWater[LinearIndex] = ContainsWater[LinearIndex] || ContainsWater[LinearIndex + 32];
+		ContainsWater[GroupThreadIndex] = ContainsWater[GroupThreadIndex] || ContainsWater[GroupThreadIndex + 32];
 	}
 	GroupMemoryBarrierWithGroupSync();
-	if (LinearIndex < 16)
+	if (GroupThreadIndex < 16)
 	{
-		ContainsWater[LinearIndex] = ContainsWater[LinearIndex] || ContainsWater[LinearIndex + 16];
+		ContainsWater[GroupThreadIndex] = ContainsWater[GroupThreadIndex] || ContainsWater[GroupThreadIndex + 16];
 	}
 	GroupMemoryBarrierWithGroupSync();
 
 	// The smallest wave size is 16 on Intel hardware. So now we can do simple math operations without group sync.
 	// EDIT: for some reason group sync is needed until the end, otherwise some pixels are missing...
 
-	if (LinearIndex < 8)
+	if (GroupThreadIndex < 8)
 	{
-		ContainsWater[LinearIndex] = ContainsWater[LinearIndex] || ContainsWater[LinearIndex + 8];
+		ContainsWater[GroupThreadIndex] = ContainsWater[GroupThreadIndex] || ContainsWater[GroupThreadIndex + 8];
 	}
 	GroupMemoryBarrierWithGroupSync();
-	if (LinearIndex < 4)
+	if (GroupThreadIndex < 4)
 	{
-		ContainsWater[LinearIndex] = ContainsWater[LinearIndex] || ContainsWater[LinearIndex + 4];
+		ContainsWater[GroupThreadIndex] = ContainsWater[GroupThreadIndex] || ContainsWater[GroupThreadIndex + 4];
 	}
 	GroupMemoryBarrierWithGroupSync();
-	if (LinearIndex < 2)
+	if (GroupThreadIndex < 2)
 	{
-		ContainsWater[LinearIndex] = ContainsWater[LinearIndex] || ContainsWater[LinearIndex + 2];
+		ContainsWater[GroupThreadIndex] = ContainsWater[GroupThreadIndex] || ContainsWater[GroupThreadIndex + 2];
 	}
 	GroupMemoryBarrierWithGroupSync();
-	if (LinearIndex < 1)
+	if (GroupThreadIndex < 1)
 	{
-		bWriteTile = ContainsWater[LinearIndex] || ContainsWater[LinearIndex + 1];
+		bWriteTile = ContainsWater[GroupThreadIndex] || ContainsWater[GroupThreadIndex + 1];
 	}
 
 #endif
@@ -412,6 +429,27 @@ void WaterTileCatergorisationMarkCS(uint3 ThreadId : SV_DispatchThreadID, uint3 
 		InterlockedOr(TileMaskBufferOut[MaskLinearIndex / 32U], 1U << (MaskLinearIndex % 32U));
 	}
 #endif
+
+#if GENERATE_FROXELS
+	// Need to get value that's valid for the whole group
+#if COMPILER_SUPPORTS_WAVE_VOTE
+	if (bAnyWaterPixels != 0)
+#endif
+	{
+		float DeviceZ = 0.0f;
+		BRANCH
+		if (bContainsWater)
+		{
+			DeviceZ = WaterDepthTexture.Load(uint3(PixelPos, 0)).x;
+		}
+		// One group per 8x8 tile
+		const uint2 GroupTileOffset = GroupId.xy;
+		// Only one 8x8 tile per group
+		const uint LocalLinearTileId = 0;
+		HashBuildFroxelsFromDeviceZ(DeviceZ, GroupThreadIndex, LocalLinearTileId, GroupTileOffset);
+	}
+#endif
+
 } 
 
 uint VertexCountPerInstanceIndirect;

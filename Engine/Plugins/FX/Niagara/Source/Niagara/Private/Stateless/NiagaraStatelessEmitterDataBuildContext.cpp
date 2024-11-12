@@ -1,11 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
+#include "Stateless/NiagaraStatelessParticleSimExecData.h"
 
+#include "NiagaraDataSetCompiledData.h"
 #include "NiagaraParameterBinding.h"
 #include "NiagaraParameterStore.h"
+#include "NiagaraParameterStore.h"
 
-uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<float> FloatData)
+void FNiagaraStatelessEmitterDataBuildContext::PreModuleBuild(int32 InShaderParameterOffset)
+{
+	ModuleBuiltDataOffset = BuiltData.Num();
+	ShaderParameterOffset = InShaderParameterOffset;
+	++RandomSeedOffest;
+}
+
+uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<float> FloatData) const
 {
 	for (int32 i=0; i <= StaticFloatData.Num() - FloatData.Num(); ++i)
 	{
@@ -21,27 +31,27 @@ uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<f
 	return OutIndex;
 }
 
-uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FVector2f> FloatData)
+uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FVector2f> FloatData) const
 {
 	return AddStaticData(MakeArrayView(reinterpret_cast<const float*>(FloatData.GetData()), FloatData.Num() * 2));
 }
 
-uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FVector3f> FloatData)
+uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FVector3f> FloatData) const
 {
 	return AddStaticData(MakeArrayView(reinterpret_cast<const float*>(FloatData.GetData()), FloatData.Num() * 3));
 }
 
-uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FVector4f> FloatData)
+uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FVector4f> FloatData) const
 {
 	return AddStaticData(MakeArrayView(reinterpret_cast<const float*>(FloatData.GetData()), FloatData.Num() * 4));
 }
 
-uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FLinearColor> FloatData)
+uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<FLinearColor> FloatData) const
 {
 	return AddStaticData(MakeArrayView(reinterpret_cast<const float*>(FloatData.GetData()), FloatData.Num() * 4));
 }
 
-int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraVariableBase& Variable)
+int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraVariableBase& Variable) const
 {
 	int32 DataOffset = INDEX_NONE;
 	if (Variable.IsValid())
@@ -54,7 +64,7 @@ int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagar
 	return DataOffset;
 }
 
-int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraParameterBinding& Binding)
+int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraParameterBinding& Binding) const
 {
 	int32 DataOffset = INDEX_NONE;
 	if (Binding.ResolvedParameter.IsValid())
@@ -67,7 +77,7 @@ int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagar
 	return DataOffset;
 }
 
-int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraParameterBindingWithValue& Binding)
+int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraParameterBindingWithValue& Binding) const
 {
 	int32 DataOffset = INDEX_NONE;
 	if (Binding.ResolvedParameter.IsValid())
@@ -87,4 +97,19 @@ int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagar
 	}
 
 	return DataOffset;
+}
+
+void FNiagaraStatelessEmitterDataBuildContext::AddParticleSimulationExecSimulate(TFunction<void(const NiagaraStateless::FParticleSimulationContext&)> Func) const
+{
+	if (!ParticleExecData)
+	{
+		return;
+	}
+
+	ParticleExecData->SimulateFunctions.Emplace(MoveTemp(Func), ModuleBuiltDataOffset, ShaderParameterOffset, RandomSeedOffest);
+}
+
+int32 FNiagaraStatelessEmitterDataBuildContext::FindParticleVariableIndex(const FNiagaraVariableBase& Variable) const
+{
+	return ParticleDataSet.Variables.IndexOfByKey(Variable);
 }

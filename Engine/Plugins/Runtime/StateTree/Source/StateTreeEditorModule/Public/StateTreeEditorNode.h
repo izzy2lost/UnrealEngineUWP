@@ -13,6 +13,7 @@ enum class EStateTreeNodeType : uint8
 	Task,
 	TransitionCondition,
 	StateParameters,
+	PropertyFunction,
 };
 
 /**
@@ -31,16 +32,14 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorNode
 		ID = FGuid();
 	}
 
-	FName GetName() const
-	{
-		if (const FStateTreeNodeBase* NodePtr = Node.GetPtr<FStateTreeNodeBase>())
-		{
-			return NodePtr->Name;
-		}
-		return FName();
-	}
+	/**
+	 * This is used to name nodes for runtime, as well as for error reporting.
+	 * If the node has a specified name, used that, or else of return the display name of the node.
+	 * @return name of the node.
+	 */
+	FName GetName() const;
 
-	const FStateTreeDataView GetInstance() const
+	FStateTreeDataView GetInstance() const
 	{
 		return InstanceObject ? FStateTreeDataView(InstanceObject) : FStateTreeDataView(const_cast<FInstancedStruct&>(Instance));
 	}
@@ -63,10 +62,27 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorNode
 	FGuid ID;
 
 	UPROPERTY(EditDefaultsOnly, Category = Node)
-	uint8 ConditionIndent = 0;
+	uint8 ExpressionIndent = 0;
 
 	UPROPERTY(EditDefaultsOnly, Category = Node)
-	EStateTreeConditionOperand ConditionOperand = EStateTreeConditionOperand::And; 
+	EStateTreeExpressionOperand ExpressionOperand = EStateTreeExpressionOperand::And;
+
+#if WITH_EDITOR
+	UE_DEPRECATED(5.5, "Use ExpressionIndent instead.")
+	uint8 ConditionIndent = 0;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use ExpressionOperand instead.")
+	EStateTreeConditionOperand ConditionOperand = EStateTreeConditionOperand::And;
+
+	FStateTreeEditorNode() = default;
+	FStateTreeEditorNode(const FStateTreeEditorNode&) = default;
+	FStateTreeEditorNode(FStateTreeEditorNode&&) = default;
+	FStateTreeEditorNode& operator=(const FStateTreeEditorNode&) = default;
+	FStateTreeEditorNode& operator=(FStateTreeEditorNode&&) = default;
+	~FStateTreeEditorNode() = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif //WITH_EDITOR
 };
 
 template <typename T>

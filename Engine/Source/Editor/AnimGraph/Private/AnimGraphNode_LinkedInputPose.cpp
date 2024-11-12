@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimGraphNode_LinkedInputPose.h"
+#include "AnimBlueprintExtension_LinkedInputPose.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "GraphEditorSettings.h"
 #include "BlueprintActionFilter.h"
@@ -549,6 +550,12 @@ void UAnimGraphNode_LinkedInputPose::OnCopyTermDefaultsToDefaultObject(IAnimBlue
 	DestinationNode->Graph = TrueNode->GetGraph()->GetFName();
 }
 
+void UAnimGraphNode_LinkedInputPose::GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const
+{
+	Super::GetRequiredExtensions(OutExtensions);
+	OutExtensions.Add(UAnimBlueprintExtension_LinkedInputPose::StaticClass());
+}
+
 TSharedRef<SWidget> UAnimGraphNode_LinkedInputPose::MakeNameWidget(IDetailLayoutBuilder& DetailBuilder)
 {
 	TSharedPtr<IPropertyHandle> NamePropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimGraphNode_LinkedInputPose, Node.Name), GetClass());
@@ -688,6 +695,74 @@ void UAnimGraphNode_LinkedInputPose::GetOutputLinkAttributes(FNodeAttributeArray
 	{
 		OutAttributes.Add(InDesc.Name);
 	});
+}
+
+void UAnimGraphNode_LinkedInputPose::AnalyzeLinks(TArrayView<UAnimGraphNode_Base*> InAnimNodes)
+{
+	Node.bIsOutputLinked = false;
+
+	// Find root nodes
+	TArray<UAnimGraphNode_Base*> RootSet;
+	for (UAnimGraphNode_Base* InNode : InAnimNodes)
+	{
+		if (InNode->IsNodeRootSet())
+		{
+			RootSet.Add(InNode);
+		}
+	}
+
+	struct FNodeVisitorDownPoseWires
+	{
+		TSet<UEdGraphNode*> VisitedNodes;
+		const UAnimationGraphSchema* Schema;
+
+		FNodeVisitorDownPoseWires()
+		{
+			Schema = GetDefault<UAnimationGraphSchema>();
+		}
+
+		// Traverse root set looking for this node
+		bool TraverseNodes(UEdGraphNode* CurrentNode, UAnimGraphNode_LinkedInputPose* SearchedNode)
+		{
+			VisitedNodes.Add(CurrentNode);
+
+			// Follow every exec output pin
+			for (int32 i = 0; i < CurrentNode->Pins.Num(); ++i)
+			{
+				UEdGraphPin* MyPin = CurrentNode->Pins[i];
+
+				if ((MyPin->Direction == EGPD_Input) && (Schema->IsPosePin(MyPin->PinType)))
+				{
+					for (int32 j = 0; j < MyPin->LinkedTo.Num(); ++j)
+					{
+						UEdGraphPin* OtherPin = MyPin->LinkedTo[j];
+						UEdGraphNode* OtherNode = OtherPin->GetOwningNode();
+						if (!VisitedNodes.Contains(OtherNode))
+						{
+							// Found ?
+							if (OtherNode == SearchedNode || TraverseNodes(OtherNode, SearchedNode))
+							{
+								return true;
+							}
+						}
+					}
+				}
+			}
+			return false;
+		}
+	};
+
+	FNodeVisitorDownPoseWires Visitor;
+
+	// Search every root node
+	for (UAnimGraphNode_Base* RootNode : RootSet)
+	{
+		if (Visitor.TraverseNodes(RootNode, this))
+		{
+			Node.bIsOutputLinked = true;
+			break;
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

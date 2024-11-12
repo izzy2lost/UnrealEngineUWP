@@ -47,6 +47,23 @@ public abstract class BaseLinuxPlatform : Platform
 		return Devices.ToArray();
 	}
 
+	public override void PersistSdkRootVar()
+	{
+		string UeSdksRoot = Environment.GetEnvironmentVariable("UE_SDKS_ROOT");
+		if (UeSdksRoot != null)
+		{
+			base.PersistSdkRootVar();
+			string AutoSdkFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".autosdk");
+			if (!File.Exists(AutoSdkFile))
+			{
+				using (StreamWriter wr = new StreamWriter(AutoSdkFile))
+				{
+					wr.WriteLine(UeSdksRoot);
+				}
+			}
+		}
+	}
+
 	public override void GetFilesToDeployOrStage(ProjectParams Params, DeploymentContext SC)
 	{
 		if (SC.bStageCrashReporter)
@@ -123,7 +140,8 @@ public abstract class BaseLinuxPlatform : Platform
 						List<StagedFileReference> StagePaths = SC.FilesToStage.NonUFSFiles.Where(x => x.Value == Executable.Path).Select(x => x.Key).ToList();
 						foreach (StagedFileReference StagePath in StagePaths)
 						{
-							StageBootstrapExecutable(SC, BootstrapExeName + Extension, FullExecutablePath, StagePath.Name, BootstrapArguments);
+							StagedFileReference RemappedStagePath = DeploymentContext.ApplyDirectoryRemap(SC, StagePath);
+							StageBootstrapExecutable(SC, BootstrapExeName + Extension, FullExecutablePath, RemappedStagePath.Name, BootstrapArguments);
 						}
 					}
 				}

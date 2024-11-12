@@ -2,6 +2,7 @@
 
 #include "Data/PCGTextureData.h"
 
+#include "PCGContext.h"
 #include "PCGTextureReadback.h"
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGAsync.h"
@@ -16,19 +17,39 @@
 
 namespace PCGTextureSamplingHelpers
 {
-	bool IsTextureCPUAccessible(UTexture2D* Texture)
+	TOptional<bool> IsTextureCPUAccessible(UTexture2D* Texture)
 	{
+		if (!Texture)
+		{
+			return false;
+		}
+
+#if WITH_EDITOR
+		if (!Texture->IsAsyncCacheComplete())
+		{
+			return {};
+		}
+#endif
+
 		FTexturePlatformData* PlatformData = Texture ? Texture->GetPlatformData() : nullptr;
+
 		return PlatformData && PlatformData->GetHasCpuCopy();
 	}
 
-	bool CanGPUTextureBeCPUAccessed(UTexture2D* Texture)
+	TOptional<bool> CanGPUTextureBeCPUAccessed(UTexture2D* Texture)
 	{
 		// SRGB textures need to be GPU sampled.
 		if (!Texture || Texture->SRGB)
 		{
 			return false;
 		}
+
+#if WITH_EDITOR
+		if (!Texture->IsAsyncCacheComplete())
+		{
+			return {};
+		}
+#endif
 
 		FTexturePlatformData* PlatformData = Texture->GetPlatformData();
 
@@ -160,6 +181,32 @@ namespace PCGTextureSamplingHelpers
 	}
 }
 
+void UPCGBaseTextureData::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DensityFunction != EPCGTextureDensityFunction::Multiply)
+	{
+		bUseDensitySourceChannel = false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+EPCGTextureDensityFunction UPCGBaseTextureData::GetDensityFunctionEquivalent() const
+{
+	return bUseDensitySourceChannel ? EPCGTextureDensityFunction::Multiply : EPCGTextureDensityFunction::Ignore;
+}
+
+void UPCGBaseTextureData::SetDensityFunctionEquivalent(EPCGTextureDensityFunction InDensityFunction)
+{
+	bUseDensitySourceChannel = (InDensityFunction != EPCGTextureDensityFunction::Ignore);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 FBox UPCGBaseTextureData::GetBounds() const
 {
 	return Bounds;
@@ -201,7 +248,7 @@ bool UPCGBaseTextureData::SamplePoint(const FTransform& InTransform, const FBox&
 	if (PCGTextureSamplingHelpers::Sample<FLinearColor>(Position2D, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 	{
 		OutPoint.Color = Color;
-		OutPoint.Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
+		OutPoint.Density = bUseDensitySourceChannel ? PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel) : 1.0f;
 		return OutPoint.Density > 0 || bKeepZeroDensityPoints;
 	}
 	else
@@ -218,7 +265,7 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 	// or based on a given texel size
 	FBox2D LocalSurfaceBounds(FVector2D(-1.0f, -1.0f), FVector2D(1.0f, 1.0f));
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 
 	// Early out for invalid data
@@ -257,7 +304,7 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 
 		if (PCGTextureSamplingHelpers::Sample<FLinearColor>(LocalCoordinate, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 		{
-			const float Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
+			const float Density = bUseDensitySourceChannel ? PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel) : 1.0f;
 			if (Density > 0 || bKeepZeroDensityPoints)
 			{
 				FVector LocalPosition(LocalCoordinate, 0);
@@ -280,12 +327,12 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 
 bool UPCGBaseTextureData::IsValid() const
 {
-	return Height > 0 && Width > 0;
+	return Height > 0 && Width > 0 && !ColorData.IsEmpty();
 }
 
 bool UPCGBaseTextureData::SamplePointLocal(const FVector2D& LocalPosition, FVector4& OutColor, float& OutDensity) const
 {
-	if (!ensure(Width > 0 && Height > 0))
+	if (!IsValid())
 	{
 		return false;
 	}
@@ -297,7 +344,7 @@ bool UPCGBaseTextureData::SamplePointLocal(const FVector2D& LocalPosition, FVect
 	const FLinearColor OutSample = PCGTextureSamplingHelpers::SampleInternal<FLinearColor>(Pos, Width, Height, Filter, [this](int32 Index) { return ColorData[Index]; });
 
 	OutColor = OutSample;
-	OutDensity = (DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(OutSample, ColorChannel);
+	OutDensity = bUseDensitySourceChannel ? PCGTextureSamplingHelpers::SampleFloatChannel(OutSample, ColorChannel) : 1.0f;
 	
 	return OutDensity > 0.0 || bKeepZeroDensityPoints;
 }
@@ -306,7 +353,7 @@ void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureDat
 {
 	CopyBaseSurfaceData(NewTextureData);
 
-	NewTextureData->DensityFunction = DensityFunction;
+	NewTextureData->bUseDensitySourceChannel = bUseDensitySourceChannel;
 	NewTextureData->ColorChannel = ColorChannel;
 	NewTextureData->TexelSize = TexelSize;
 	NewTextureData->bUseAdvancedTiling = bUseAdvancedTiling;
@@ -321,9 +368,35 @@ void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureDat
 	NewTextureData->Width = Width;
 }
 
-void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback, bool bCreateCPUDuplicateEditorOnly)
+void UPCGTextureData::InitializeInternal(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, bool* bOutInitializeCompleted, bool bCreateCPUDuplicateEditorOnly)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize);
+
+	auto SetInitCompleted = [bOutInitializeCompleted](bool bIsDone)
+	{
+		if (bOutInitializeCompleted)
+		{
+			*bOutInitializeCompleted = bIsDone;
+		}
+	};
+
+	if (bSuccessfullyInitialized)
+	{
+		SetInitCompleted(true);
+		return;
+	}
+
+	if (!InTexture)
+	{
+		SetInitCompleted(true);
+		return;
+	}
+
+	if (bReadbackFromGPUInitiated)
+	{
+		SetInitCompleted(false);
+		return;
+	}
 
 	Texture = InTexture;
 	TextureIndex = InTextureIndex;
@@ -336,9 +409,19 @@ void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, con
 	Bounds += FVector(1.0f, 1.0f, 0.0f);
 	Bounds = Bounds.TransformBy(Transform);
 
-	if (!InTexture)
+	// Prioritize initializing from a CPU texture when the provided texture is marked as CPU accessible
+	TOptional<bool> InitializedFromCPUTexture = InitializeFromCPUTexture();
+	if (!InitializedFromCPUTexture.IsSet())
 	{
-		PostInitializeCallback();
+		// Wait until we can determine this.
+		SetInitCompleted(false);
+		return;
+	}
+
+	if (*InitializedFromCPUTexture)
+	{
+		bSuccessfullyInitialized = true;
+		SetInitCompleted(true);
 		return;
 	}
 
@@ -349,44 +432,90 @@ void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, con
 		UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
 		if (!Texture2D)
 		{
-			UTexture2DArray* Texture2DArray = CastChecked<UTexture2DArray>(Texture);
-			Texture2D = Texture2DArray->SourceTextures.IsValidIndex(TextureIndex) ? Texture2DArray->SourceTextures[TextureIndex] : nullptr;
+			if (UTexture2DArray* Texture2DArray = Cast<UTexture2DArray>(Texture))
+			{
+				Texture2D = Texture2DArray->SourceTextures.IsValidIndex(TextureIndex) ? Texture2DArray->SourceTextures[TextureIndex] : nullptr;
+			}
+			else
+			{
+				SetInitCompleted(true);
+				return;
+			}
 		}
 
-		if (Texture2D && !PCGTextureSamplingHelpers::IsTextureCPUAccessible(Texture2D) && !PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(Texture2D))
+		TOptional<bool> CanGPUTextureBeCPUAccessed = PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(Texture2D);
+		if (!CanGPUTextureBeCPUAccessed.IsSet())
 		{
+			// Wait until we can ascertain this.
+			SetInitCompleted(false);
+			return;
+		}
+
+		TOptional<bool> IsCPUAccessible = PCGTextureSamplingHelpers::IsTextureCPUAccessible(Texture2D);
+		if (!IsCPUAccessible.IsSet())
+		{
+			// Wait until we can ascertain this.
+			SetInitCompleted(false);
+			return;
+		}
+
+		if (Texture2D && !DuplicateTexture && !*CanGPUTextureBeCPUAccessed && !*IsCPUAccessible)
+		{
+			// Duplicate texture and change access flags (editor only). This duplicate texture will be used by the normal logic below.
 			FObjectDuplicationParameters DuplicationParams(Texture2D, /*Outer=*/this);
 			DuplicateTexture = CastChecked<UTexture2D>(StaticDuplicateObjectEx(DuplicationParams));
+			DuplicateTexture->PreEditChange(nullptr);
 			DuplicateTexture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
 			DuplicateTexture->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap; // Allows the texture to be in a non-compressed format (B8G8R8A8), which is necessary to convince the data to remain CPU-side.
 			DuplicateTexture->SRGB = false;
-			DuplicateTexture->UpdateResource();
+			DuplicateTexture->PostEditChange();
 		}
 	}
 #endif
 
-	// Prioritize initializing from a CPU texture when the provided texture is marked as CPU accessible
-	if (InitializeFromCPUTexture())
+#if WITH_EDITOR
+	// Try reading the texture back from CPU-accessible memory if possible.
+	TOptional<bool> InitGPUTextureFromCPU = InitializeGPUTextureFromCPU();
+	if (!InitGPUTextureFromCPU)
 	{
-		PostInitializeCallback();
+		// Not ready.
+		SetInitCompleted(false);
+		return;
+	}
+
+	if (*InitGPUTextureFromCPU)
+	{
+		bSuccessfullyInitialized = true;
+		SetInitCompleted(true);
+		return;
+	}
+#endif
+
+	// Finally try the GPU -> CPU readback path. We don't flag success yet though - this will be done when the readback data arrives.
+	SetInitCompleted(InitializeFromGPUTexture());
+
+	return;
+}
+
+bool UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, bool bCreateCPUDuplicateEditorOnly)
+{
+	bool bInitializeDone = false;
+	InitializeInternal(InTexture, InTextureIndex, InTransform, &bInitializeDone, bCreateCPUDuplicateEditorOnly);
+	return bInitializeDone;
+}
+
+void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& InPostInitializeCallback, bool bCreateCPUDuplicateEditorOnly)
+{
+	bool bInitializeDone = false;
+	InitializeInternal(InTexture, InTextureIndex, InTransform, &bInitializeDone, bCreateCPUDuplicateEditorOnly);
+
+	if (bInitializeDone)
+	{
+		InPostInitializeCallback();
 	}
 	else
 	{
-#if WITH_EDITOR
-		// Try reading the texture back from CPU-accessible memory if possible.
-		if (InitializeGPUTextureFromCPU())
-		{
-			PostInitializeCallback();
-			return;
-		}
-#endif
-
-		if (!InitializeFromGPUTexture(PostInitializeCallback))
-		{
-			UE_LOG(LogPCG, Error, TEXT("PCGTextureData failed to initialize texture '%s'"), *Texture->GetFName().ToString());
-
-			PostInitializeCallback();
-		}
+		PostInitializeCallback = InPostInitializeCallback;
 	}
 }
 
@@ -398,9 +527,9 @@ void UPCGTextureData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 	AddUIDToCrc(Ar);
 }
 
-UPCGSpatialData* UPCGTextureData::CopyInternal() const
+UPCGSpatialData* UPCGTextureData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGTextureData* NewTextureData = NewObject<UPCGTextureData>();
+	UPCGTextureData* NewTextureData = FPCGContext::NewObject_AnyThread<UPCGTextureData>(Context);
 
 	CopyBaseTextureData(NewTextureData);
 
@@ -409,7 +538,7 @@ UPCGSpatialData* UPCGTextureData::CopyInternal() const
 	return NewTextureData;
 }
 
-bool UPCGTextureData::InitializeFromCPUTexture()
+TOptional<bool> UPCGTextureData::InitializeFromCPUTexture()
 {
 	if (!Texture.IsValid())
 	{
@@ -422,6 +551,14 @@ bool UPCGTextureData::InitializeFromCPUTexture()
 	{
 		return false;
 	}
+
+#if WITH_EDITOR
+	if (!Texture2D->IsAsyncCacheComplete())
+	{
+		// Wait until texture ready before interrogating it for access options.
+		return {};
+	}
+#endif
 
 	FSharedImageConstRef CPUTextureRef = Texture2D->GetCPUCopy();
 	if (!CPUTextureRef.IsValid())
@@ -534,12 +671,18 @@ bool UPCGTextureData::InitializeFromCPUTexture()
 	return true;
 }
 
-bool UPCGTextureData::InitializeFromGPUTexture(const TFunction<void()>& PostInitializeCallback)
+bool UPCGTextureData::InitializeFromGPUTexture()
 {
 	if (!Texture.IsValid())
 	{
+		return true;
+	}
+
+	if (bReadbackFromGPUInitiated)
+	{
 		return false;
 	}
+	bReadbackFromGPUInitiated = true;
 
 #if WITH_EDITOR
 	// Force a wait on any incomplete async texture compilation and caching operations
@@ -573,9 +716,17 @@ bool UPCGTextureData::InitializeFromGPUTexture(const TFunction<void()>& PostInit
 		Params.SourceDimensions = FIntPoint(PlatformData->SizeX, PlatformData->SizeY);
 		Params.SourceTextureIndex = TextureIndex;
 
-		FPCGTextureReadbackInterface::Dispatch(Params, [this, PlatformData, PostInitializeCallback](void* OutBuffer, int32 ReadbackWidth, int32 ReadbackHeight)
+		TWeakObjectPtr<UPCGTextureData> ThisWeakPtr(this);
+
+		FPCGTextureReadbackInterface::Dispatch(Params, [ThisWeakPtr, PlatformData](void* OutBuffer, int32 ReadbackWidth, int32 ReadbackHeight)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize::DispatchCallback);
+
+			UPCGTextureData* This = ThisWeakPtr.IsValid() ? ThisWeakPtr.Get() : nullptr;
+			if (!This)
+			{
+				return;
+			}
 
 			const int32 PixelCount = ReadbackWidth * ReadbackHeight;
 
@@ -583,41 +734,48 @@ bool UPCGTextureData::InitializeFromGPUTexture(const TFunction<void()>& PostInit
 			{
 				UE_LOG(LogPCG, Error,
 					TEXT("PCGTextureData readback has different dimensions than the source texture '%s'. Expected (%d, %d), received (%d, %d)."),
-					*Texture->GetFName().ToString(),
+					*This->Texture->GetFName().ToString(),
 					PlatformData->SizeX, PlatformData->SizeY,
 					ReadbackWidth, ReadbackHeight);
 			}
 
 			if (const FColor* FormattedImageData = reinterpret_cast<const FColor*>(OutBuffer))
 			{
-				Width = ReadbackWidth;
-				Height = ReadbackHeight;
-				ColorData.SetNum(PixelCount);
+				This->Width = ReadbackWidth;
+				This->Height = ReadbackHeight;
+				This->ColorData.SetNum(PixelCount);
 
 				for (int32 D = 0; D < PixelCount; ++D)
 				{
-					ColorData[D] = FormattedImageData[D].ReinterpretAsLinear();
+					This->ColorData[D] = FormattedImageData[D].ReinterpretAsLinear();
 				}
 			}
 			else
 			{
-				UE_LOG(LogPCG, Error, TEXT("PCGTextureData unable to get readback results from '%s'"), *Texture->GetFName().ToString());
+				UE_LOG(LogPCG, Error, TEXT("PCGTextureData unable to get readback results from '%s'"), *This->Texture->GetFName().ToString());
 			}
 
-			PostInitializeCallback();
+			This->bSuccessfullyInitialized = true;
+
+			// Deprecated in 5.5, should be removed when the deprecated Initialize() function is removed.
+			if (This->PostInitializeCallback)
+			{
+				This->PostInitializeCallback();
+			}
 		});
 	}
 	else
 	{
 		UE_LOG(LogPCG, Error, TEXT("PCGTextureData failed to acquire texture resource for '%s'"), *Texture->GetFName().ToString());
-		return false;
+		return true;
 	}
 
-	return true;
+	// Not complete - wait for readback result.
+	return false;
 }
 
 #if WITH_EDITOR
-bool UPCGTextureData::InitializeGPUTextureFromCPU()
+TOptional<bool> UPCGTextureData::InitializeGPUTextureFromCPU()
 {
 	// There's a bit of a mix of texture types in this class currently, due to some functionality for readback being 2D-only.
 	UTexture2D* TextureAs2D = Cast<UTexture2D>(Texture.Get());
@@ -630,18 +788,46 @@ bool UPCGTextureData::InitializeGPUTextureFromCPU()
 	}
 
 	UTexture2D* TextureForReadback = nullptr;
-	if (TextureAs2D && PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(TextureAs2D))
+	TOptional<bool> bCanGPUTextureBeCPUAccessed = PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(TextureAs2D);
+	if (!bCanGPUTextureBeCPUAccessed)
+	{
+		return {};
+	}
+
+	if (TextureAs2D && *bCanGPUTextureBeCPUAccessed)
 	{
 		TextureForReadback = TextureAs2D;
 	}
-	else if (PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(DuplicateTexture))
+	else
 	{
-		TextureForReadback = DuplicateTexture;
+		TOptional<bool> bCanGPUTextureBeCPUAccessedDupe = PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(DuplicateTexture);
+		if (!bCanGPUTextureBeCPUAccessedDupe)
+		{
+			return {};
+		}
+
+		if (*bCanGPUTextureBeCPUAccessedDupe)
+		{
+			TextureForReadback = DuplicateTexture;
+		}
 	}
+
+	if (!TextureForReadback)
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	if (!TextureForReadback->IsAsyncCacheComplete())
+	{
+		return {};
+	}
+#endif
 
 	FTexturePlatformData* PlatformData = TextureForReadback ? TextureForReadback->GetPlatformData() : nullptr;
 	if (!PlatformData)
 	{
+		UE_LOG(LogPCG, Warning, TEXT("GetPlatformData failed"));
 		return false;
 	}
 

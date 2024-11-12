@@ -292,7 +292,7 @@ namespace Metasound
 	{
 		const FGraph& Graph = static_cast<const FGraph&>(InParams.Node);
 
-		FBuildGraphOperatorParams BuildParams { Graph, InParams.OperatorSettings, InParams.InputData, InParams.Environment};
+		FBuildGraphOperatorParams BuildParams = FBuildGraphOperatorParams::FromBuildOperatorParams(Graph, InParams);
 
 		if (nullptr != InParams.Builder)
 		{

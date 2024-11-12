@@ -13,6 +13,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/App.h"
+#include "Misc/ConfigUtilities.h"
 
 #include "MoviePlayerProxy.h"
 
@@ -38,6 +39,13 @@ DEFINE_LOG_CATEGORY(LogHotfixManager);
 #define HOTFIX_BRANCH_VERSION_TAG TEXT("Branch-")
 
 FName NAME_HotfixManager(TEXT("HotfixManager"));
+
+static TAutoConsoleVariable<int32> CVarUseNewDynamicLayersForHotfix(
+	TEXT("ini.UseNewDynamicLayersForHotfix"),
+	0,
+	TEXT("If true, use the new dynamic layers that load/unload configs, specifically for Hotfixes"),
+	ECVF_Default);
+
 
 class FPakFileVisitor : public IPlatformFile::FDirectoryVisitor
 {
@@ -177,9 +185,14 @@ UOnlineHotfixManager::UOnlineHotfixManager() :
 #endif
 	GameContentPath = FString() / FApp::GetProjectName() / TEXT("Content");
 
-	if (!UObject::IsGarbageEliminationEnabled())
+	if (this != GetClass()->GetDefaultObject())
 	{
-		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
+		if (!UObject::IsGarbageEliminationEnabled())
+		{
+			FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
+		}
+
+		UE::DynamicConfig::HotfixPluginForBranch.AddUObject(this, &UOnlineHotfixManager::HotfixDynamicBranch);
 	}
 }
 
@@ -648,7 +661,7 @@ void UOnlineHotfixManager::FilterHotfixFiles()
 	{
 		if (!WantsHotfixProcessing(HotfixFileList[Idx]))
 		{
-			HotfixFileList.RemoveAt(Idx, 1, EAllowShrinking::No);
+			HotfixFileList.RemoveAt(Idx, EAllowShrinking::No);
 			Idx--;
 		}
 	}
@@ -926,6 +939,17 @@ FString UOnlineHotfixManager::BuildConfigCacheKey(const FString& IniName)
 	return GConfig->GetConfigFilename(*IniNameNoExtension);
 }
 
+FConfigBranch* UOnlineHotfixManager::GetBranch(const FString& IniName)
+{
+	const FString StrippedIniName(GetStrippedConfigFileName(IniName));
+	const FString StrippedIniNameNoExtension = FPaths::GetBaseFilename(StrippedIniName);
+
+	// find the branch by basename or full filename
+	FConfigBranch* Branch = GConfig->FindBranch(*StrippedIniNameNoExtension, StrippedIniNameNoExtension);
+	
+	return Branch;
+}
+
 FConfigFile* UOnlineHotfixManager::GetConfigFile(const FString& IniName)
 {
 	const FString StrippedIniName(GetStrippedConfigFileName(IniName));
@@ -971,6 +995,28 @@ bool UOnlineHotfixManager::HotfixIniFile(const FString& FileName, const FString&
 {
 	// Flush async loading before modifying GConfig.
 	FlushAsyncLoading();
+	
+	static bool bUseNewDynamicLayers = CVarUseNewDynamicLayersForHotfix->GetInt() != 0;
+	if (bUseNewDynamicLayers)
+	{
+		FName Tag = *BuildConfigCacheKey(FileName);
+		UE::DynamicConfig::PerformDynamicConfig(Tag, [this, Tag, FileName, IniData](FConfigModificationTracker* ChangeTracker)
+		{
+			FConfigBranch* Branch = GetBranch(FileName);
+			if (Branch)
+			{
+				ChangeTracker->CVars.Add(TEXT("ConsoleVariables")).CVarPriority = (int)ECVF_SetByHotfix;
+				Branch->AddDynamicLayerStringToHierarchy(FileName, IniData, Tag, DynamicLayerPriority::Hotfix, ChangeTracker);
+			}
+			else
+			{
+				UE_LOG(LogHotfixManager, Log, TEXT("Storing ini data for pending hotfix file %s"), *FileName);
+				DynamicHotfixContents.Add(*FileName, IniData);
+			}
+		});
+		
+		return true;
+	}
 
 	FConfigFile* ConfigFile = GetConfigFile(FileName);
 	// Store the original file so we can undo this later
@@ -1193,13 +1239,42 @@ UOnlineHotfixManager::FConfigFileBackup& UOnlineHotfixManager::BackupIniFile(con
 	FConfigFileBackup& NewBackup = IniBackups[AddAt];
 	NewBackup.IniName = BackupIniName;
 	NewBackup.ConfigData = *ConfigFile;
-	// There's a lack of deep copy related to the SourceConfigFile so null it out
-	NewBackup.ConfigData.SourceConfigFile = nullptr;
 	return NewBackup;
 }
 
 void UOnlineHotfixManager::RestoreBackupIniFiles()
 {
+	static bool bUseNewDynamicLayers = CVarUseNewDynamicLayersForHotfix->GetInt() != 0;
+	if (bUseNewDynamicLayers)
+	{
+		// @todo branch - would be nice to have a way to know nothing was backed up yet, with Branch mode, so we can skip the FlushAsyncLoading call when there's nothing to do
+		// Flush async loading before modifying GConfig.
+		FlushAsyncLoading();
+
+		// when just unloading, we don't need an actual tag
+		UE::DynamicConfig::PerformDynamicConfig(NAME_None, [this](FConfigModificationTracker* ChangeTracker)
+		{
+			for (const FCloudFileHeader& FileHeader : ChangedHotfixFileList)
+			{
+				if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+				{
+					FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
+					FConfigCacheIni::RemoveTagFromAllBranches(Tag, ChangeTracker);
+				}
+			}
+			for (const FCloudFileHeader& FileHeader : RemovedHotfixFileList)
+			{
+				if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+				{
+					FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
+					FConfigCacheIni::RemoveTagFromAllBranches(Tag, ChangeTracker);
+				}
+			}
+		});
+		
+		return;
+	}
+
 	if (IniBackups.Num() == 0)
 	{
 		return;
@@ -1294,9 +1369,6 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 {
 	UE_LOG(LogHotfixManager, Display, TEXT("Checking for assets to be patched using data from 'AssetHotfix' section in the Game .ini file"));
 
-	// Flush async loading before modifying GConfig.
-	FlushAsyncLoading();
-
 	int32 TotalPatchableAssets = 0;
 	AssetsHotfixedFromIniFiles.Reset();
 
@@ -1304,6 +1376,9 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 	const FConfigSection* AssetHotfixConfigSection = GConfig->GetSection(TEXT("AssetHotfix"), false, GGameIni);
 	if (AssetHotfixConfigSection != nullptr)
 	{
+		// Flush async loading before modifying GConfig.
+		FlushAsyncLoading();
+
 		// These are the asset types we support patching right now
 		UClass* const PatchableAssetClasses[] = 
 		{ 
@@ -1483,6 +1558,11 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 
 void UOnlineHotfixManager::ReloadConfigsFromIniFiles()
 {
+	if (HotfixFileList.IsEmpty())
+	{
+		return;
+	}
+
 	FlushAsyncLoading();
 
 	TArray<FString> ClassesToReload;
@@ -1902,6 +1982,36 @@ UWorld* UOnlineHotfixManager::GetWorld() const
 void UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets()
 {
 	AssetsHotfixedFromIniFiles.RemoveAllSwap([](const UObject* Obj) { return !IsValid(Obj); });
+}
+
+void UOnlineHotfixManager::HotfixDynamicBranch(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker)
+{
+	FConfigBranch* BranchToHotfix = GConfig->FindBranch(Branch, FString());
+	if (BranchToHotfix)
+	{
+		// Check in dynamic hotfix contents that we can find a given ini file and apply it as a dynamic layer
+		const auto TryApplyHotfix = [&](const FString Prefix)
+		{
+			const FString HotfixFileName = Prefix + Tag.ToString() + Branch.ToString() + TEXT(".ini");
+			const FString* IniContents = DynamicHotfixContents.Find(*HotfixFileName);
+
+			if (IniContents)
+			{
+				UE_LOG(LogHotfixManager, Log, TEXT("HotfixDynamicBranch: applying hotfix %s for tag %s on branch %s"), *HotfixFileName, *Tag.ToString(), *Branch.ToString());
+				if (!BranchToHotfix->AddDynamicLayerStringToHierarchy(HotfixFileName, *IniContents, Tag, DynamicLayerPriority::Hotfix, ModificationTracker))
+				{
+					UE_LOG(LogHotfixManager, Warning, TEXT("HotfixDynamicBranch: failed to apply hotfix"));
+				}
+			}
+		};
+
+		const FString PlatformName = FPlatformProperties::IniPlatformName();
+
+		// Valid hotfix filenames: $Plugin$Branch.ini, Default$Plugin$Branch.ini, $Platform$PluginBranch.ini
+		TryApplyHotfix(FString());
+		TryApplyHotfix("Default");
+		TryApplyHotfix(PlatformName);
+	}
 }
 
 void UOnlineHotfixManager::ReloadObjectsAffectedByConfigFile(const FString& IniDataFileName, const FString& IniData, const FString& ConfigFilename, TArray<FString>& ReloadedClassesPathNames, bool bUseLoadConfig)

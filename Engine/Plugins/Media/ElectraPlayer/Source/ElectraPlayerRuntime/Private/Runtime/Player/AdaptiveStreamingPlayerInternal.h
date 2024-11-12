@@ -46,6 +46,10 @@
 #define INTERR_REBUFFER_SHALL_THROW_ERROR		0x200
 
 
+// Set this to `1` to signal no data availability right at the start of a seek (and initial playback) and at the end.
+// Set to `0` to only notify about mid-playback state changes.
+#define NOTIFY_DATA_AVAILABILITY_AT_START_AND_END 0
+
 
 namespace Electra
 {
@@ -55,10 +59,18 @@ class FAdaptiveStreamingPlayer;
 class IAdaptiveStreamingWrappedRenderer : public IMediaRenderer
 {
 public:
+	struct FEnqueuedSampleInfo
+	{
+		FTimeValue PTS;
+		FTimeValue Duration;
+	};
+
 	virtual ~IAdaptiveStreamingWrappedRenderer() = default;
 	virtual FTimeValue GetEnqueuedSampleDuration() = 0;
-	virtual int32 GetNumEnqueuedSamples(FTimeValue* OutOptionalDuration) = 0;
+	virtual int32 GetNumEnqueuedSamples(TArray<FEnqueuedSampleInfo>* OutOptionalSampleInfos) = 0;
 
+	virtual void AlwaysEmitSamplesWhenPaused(bool bEmitAlways) = 0;
+	virtual void SetPlaybackRate(double InCurrentPlaybackRate, double InIntendedPlaybackRate, bool bInCurrentlyPaused) = 0;
 	virtual void DisableHoldbackOfFirstRenderableVideoFrame(bool bDisableHoldback) = 0;
 
 	virtual FTimeRange GetSupportedRenderRateScale() = 0;
@@ -85,7 +97,7 @@ public:
 		if (Clk)
 		{
 			FTimeValue Now(MEDIAutcTime::Current());
-			FMediaCriticalSection::ScopedLock lock(Lock);
+			FScopeLock lock(&Lock);
 			Clk->RenderTime = CurrentRenderTime;
 			Clk->LastSystemBaseTime = Now;
 			Clk->RunningTimeOffset.SetToZero();
@@ -98,7 +110,7 @@ public:
 		if (Clk)
 		{
 			FTimeValue Now(MEDIAutcTime::Current());
-			FMediaCriticalSection::ScopedLock lock(Lock);
+			FScopeLock lock(&Lock);
 			FTimeValue diff = !bIsPaused ? Now - Clk->LastSystemBaseTime : FTimeValue::GetZero();
 			FTimeValue r(Clk->RenderTime);
 			r += Clk->RunningTimeOffset + diff;
@@ -110,7 +122,7 @@ public:
 	void Start()
 	{
 		FTimeValue Now(MEDIAutcTime::Current());
-		FMediaCriticalSection::ScopedLock lock(Lock);
+		FScopeLock lock(&Lock);
 		if (bIsPaused)
 		{
 			for(int32 i = 0; i < FMEDIA_STATIC_ARRAY_COUNT(Clock); ++i)
@@ -124,7 +136,7 @@ public:
 	void Stop()
 	{
 		FTimeValue Now(MEDIAutcTime::Current());
-		FMediaCriticalSection::ScopedLock lock(Lock);
+		FScopeLock lock(&Lock);
 		if (!bIsPaused)
 		{
 			bIsPaused = true;
@@ -175,9 +187,9 @@ private:
 		return Clk;
 	}
 
-	FMediaCriticalSection		Lock;
-	FClock			Clock[3];
-	bool			bIsPaused;
+	FCriticalSection Lock;
+	FClock Clock[3];
+	bool bIsPaused;
 };
 
 
@@ -217,6 +229,10 @@ struct FPlaybackState
 		bPlayrangeHasChanged = false;
 		bLoopStateHasChanged = false;
 		bShouldPlayOnLiveEdge = false;
+		for(int32 i=0; i<UE_ARRAY_COUNT(CurrentSegmentDownloadTimeRange); ++i)
+		{
+			CurrentSegmentDownloadTimeRange[i].Reset();
+		}
 	}
 
 	mutable FCriticalSection				Lock;
@@ -247,6 +263,7 @@ struct FPlaybackState
 	TArray<FTrackMetadata>					AudioTracks;
 	TArray<FTrackMetadata>					SubtitleTracks;
 	TArray<FTimespan>						SeekablePositions;
+	FTimeRange								CurrentSegmentDownloadTimeRange[4];	// 0=video, 1=audio, 2=subtitiles, 3=UNSUPPORTED
 
 
 	void SetSeekableRange(const FTimeRange& TimeRange)
@@ -591,6 +608,22 @@ struct FPlaybackState
 	{
 		FScopeLock lock(&Lock);
 		return EndPlaybackAtTime;
+	}
+
+	FTimeRange GetCurrentDownloadRequestTimeRange(EStreamType InStreamType)
+	{
+		FScopeLock lock(&Lock);
+		return CurrentSegmentDownloadTimeRange[StreamTypeToArrayIndex(InStreamType)];
+	}
+	void SetCurrentDownloadRequestTimeRange(EStreamType InStreamType, const FTimeRange& InRange)
+	{
+		FScopeLock lock(&Lock);
+		CurrentSegmentDownloadTimeRange[StreamTypeToArrayIndex(InStreamType)] = InRange;
+	}
+	void ClearCurrentDownloadRequestTimeRange(EStreamType InStreamType)
+	{
+		FScopeLock lock(&Lock);
+		CurrentSegmentDownloadTimeRange[StreamTypeToArrayIndex(InStreamType)].Reset();
 	}
 
 };
@@ -1022,6 +1055,7 @@ public:
 
 	void Initialize(const FParamDict& Options) override;
 	void ModifyOptions(const FParamDict& InOptionsToSetOrChange, const FParamDict& InOptionsToClear) override;
+	virtual FVariantValue GetMediaInfo(FName InKey) const override;
 
 	void SetInitialStreamAttributes(EStreamType StreamType, const FStreamSelectionAttributes& InitialSelection) override;
 	void EnableFrameAccurateSeeking(bool bEnabled) override;
@@ -1065,6 +1099,8 @@ public:
 	void SelectTrackByAttributes(EStreamType StreamType, const FStreamSelectionAttributes& Attributes) override;
 	void DeselectTrack(EStreamType StreamType) override;
 	bool IsTrackDeselected(EStreamType StreamType) override;
+
+	void QueryStreamBufferInfo(FStreamBufferInfo& OutStreamBufferInfo, EStreamType InStreamType) override;
 
 	void SuspendOrResumeDecoders(bool bSuspend, const FParamDict& InOptions) override;
 
@@ -1857,7 +1893,6 @@ private:
 			//       triggered while already processing a seek due to the asynchronous processing of the request.
 			//PendingRequest.Reset();
 			ActiveRequest.Reset();
-			LastFinishedRequest.Reset();
 			PlayrangeOnRequest.Reset();
 			bForScrubbing = false;
 			bScrubPrerollDone = false;
@@ -1865,22 +1900,14 @@ private:
 
 		void SetFinished()
 		{
-			LastFinishedRequest = ActiveRequest;
 			ActiveRequest.Reset();
 		}
 
-		void InvalidateLastFinished()
-		{
-			LastFinishedRequest.Reset();
-		}
-
-		bool	bForScrubbing = false;
-		bool	bScrubPrerollDone = false;
-		bool	bIsPlayStart = true;
-		int32	NumSeekToCallsSinceLastSeen = 0;
+		bool bForScrubbing = false;
+		bool bScrubPrerollDone = false;
+		bool bIsPlayStart = true;
 
 		TOptional<FSeekParam> ActiveRequest;
-		TOptional<FSeekParam> LastFinishedRequest;
 
 		mutable FCriticalSection Lock;
 		// The pending request must be accessed under lock since it is written to by the main thread and read from the worker thread!
@@ -1980,11 +2007,12 @@ private:
 			// Do NOT reset the active metadata, but the time it became valid!
 			ActiveSince.SetToInvalid();
 		}
-		void AddEntry(const FTimeValue& InValidFrom, const TSharedPtrTS<UtilsMP4::FMetadataParser>& InMetadata)
+		void AddEntry(const FTimeValue& InValidFrom, const TSharedPtrTS<UtilsMP4::FMetadataParser>& InMetadata, bool bInTriggerInternalRefresh)
 		{
 			FEntry& e = NextEntries.Emplace_GetRef();
 			e.ValidFrom = InValidFrom.IsValid() ? InValidFrom : FTimeValue::GetZero();
 			e.Metadata = InMetadata;
+			e.bTriggerInternalRefresh = bInTriggerInternalRefresh;
 			NextEntries.StableSort([](const FEntry& a, const FEntry& b)
 			{
 				const FTimeValue& t1 = a.ValidFrom;
@@ -1994,7 +2022,13 @@ private:
 				return (s1 == s2 && t1 < t2) || (s1 < s2);
 			});
 		}
-		bool Handle(const FTimeValue& InAtTime);
+		enum class EResult
+		{
+			NoChange,
+			Changed,
+			ChangedAndUpdate
+		};
+		EResult Handle(const FTimeValue& InAtTime);
 		TSharedPtrTS<UtilsMP4::FMetadataParser> GetActive() const
 		{
 			return ActiveMetadata;
@@ -2004,6 +2038,7 @@ private:
 		{
 			FTimeValue ValidFrom;
 			TSharedPtrTS<UtilsMP4::FMetadataParser> Metadata;
+			bool bTriggerInternalRefresh = false;
 		};
 		TArray<FEntry> NextEntries;
 		TSharedPtrTS<UtilsMP4::FMetadataParser> ActiveMetadata;
@@ -2288,6 +2323,7 @@ private:
 	FPlayerSequenceState												CurrentPlaybackSequenceState;
 
 	uint32																CurrentPlaybackSequenceID[4]; // 0=video, 1=audio, 2=subtitiles, 3=UNSUPPORTED
+	FTimeRange															CurrentSegmentDownloadTimeRange[4];
 
 	FVideoRenderer														VideoRender;
 	FAudioRenderer														AudioRender;
@@ -2298,10 +2334,10 @@ private:
 	TArray<TWeakPtrTS<IAdaptiveStreamingPlayerSubtitleReceiver>>		SubtitleReceivers;
 
 
-	FMediaCriticalSection												MetricListenerCriticalSection;
+	FCriticalSection													MetricListenerCriticalSection;
 	TArray<IAdaptiveStreamingPlayerMetrics*, TInlineAllocator<4>>		MetricListeners;
 
-	FMediaCriticalSection												DiagnosticsCriticalSection;
+	mutable FCriticalSection											DiagnosticsCriticalSection;
 	FBufferStats														VideoBufferStats;
 	FBufferStats														AudioBufferStats;
 	FBufferStats														TextBufferStats;

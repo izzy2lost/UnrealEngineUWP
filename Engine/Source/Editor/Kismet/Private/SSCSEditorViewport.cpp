@@ -38,10 +38,12 @@
 #include "SlotBase.h"
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
+#include "ToolMenus.h"
 #include "Types/WidgetActiveTimerDelegate.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SCompoundWidget.h"
@@ -51,6 +53,128 @@ class FDragDropEvent;
 class SDockTab;
 class SWidget;
 struct FGeometry;
+
+#define LOCTEXT_NAMESPACE "SSCSEditorViewportToolBar"
+
+namespace UE::SCSEditor::Private
+{
+
+void CreateCameraSpeedMenu(UToolMenu* InMenu, TWeakPtr<FSCSEditorViewportClient> InWeakViewportClient)
+{
+	FToolMenuSection& PositioningSection =
+		InMenu->FindOrAddSection("Positioning", LOCTEXT("PositioningLabel", "Positioning"));
+
+	PositioningSection.AddSubMenu(
+		"CameraSpeed",
+		LOCTEXT("CameraSpeedSubMenu", "Camera Speed"),
+		LOCTEXT("CameraSpeedSubMenu_ToolTip", "Camera Speed related actions"),
+		FNewToolMenuDelegate::CreateLambda(
+			[InWeakViewportClient](UToolMenu* InMenu)
+			{
+				// It seems like the speed settings can only be set via the mouse wheel for BP editor.
+				// The other slider values (see legacy toolbar) are not actually changing speed.
+
+				// Taken from legacy toolbar values
+				constexpr int32 MinSpeed = 1;
+				constexpr int32 MaxSpeed = 8;
+
+				FToolMenuEntry CameraSpeedSlider = UnrealEd::CreateNumericEntry(
+					"CameraSpeed",
+					LOCTEXT("CameraSpeedLabel", "Camera Speed"),
+					LOCTEXT("CameraSpeedTooltip", "Camera Speed"),
+					FCanExecuteAction(),
+					UnrealEd::FNumericEntryExecuteActionDelegate::CreateLambda(
+						[InWeakViewportClient](float InValue)
+						{
+							if (TSharedPtr<FSCSEditorViewportClient> LevelViewport = InWeakViewportClient.Pin())
+							{
+								// TODO: properly implement
+								//LevelViewport->SetCameraSpeedSetting(InValue);
+							}
+						}
+					),
+					TAttribute<float>::CreateLambda(
+						[InWeakViewportClient]() -> float
+						{
+							// TODO: properly implement
+							/*if (TSharedPtr<FSCSEditorViewportClient> LevelViewport = InWeakViewportClient.Pin())
+							{
+								return LevelViewport->GetCameraSpeedSetting();
+							}*/
+
+							return 1;
+						}
+					),
+					MinSpeed,
+					MaxSpeed,
+					0
+				);
+
+				InMenu->AddMenuEntry("CameraSpeed", CameraSpeedSlider);
+			}
+		),
+		false,
+		FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.ToggleActorPilotCameraView"))
+	);
+}
+
+void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName, TSharedPtr<FSCSEditorViewportClient> InViewportClient)
+{
+	UToolMenu* const Submenu = UToolMenus::Get()->ExtendMenu(InCameraOptionsSubmenuName);
+
+	TWeakPtr<FSCSEditorViewportClient> WeakViewportClient = InViewportClient;
+	Submenu->AddDynamicSection(
+		"EditorCameraExtensionDynamicSection",
+		FNewToolMenuDelegate::CreateLambda(
+			[WeakViewportClient](UToolMenu* InDynamicMenu)
+			{
+				UUnrealEdViewportToolbarContext* const EditorViewportContext =
+					InDynamicMenu->FindContext<UUnrealEdViewportToolbarContext>();
+				if (!EditorViewportContext)
+				{
+					return;
+				}
+
+				const TSharedPtr<SEditorViewport> EditorViewport = EditorViewportContext->Viewport.Pin();
+				if (!EditorViewport)
+				{
+					return;
+				}
+
+				FToolMenuSection& PositioningSection =
+					InDynamicMenu->FindOrAddSection("Positioning", LOCTEXT("PositioningLabel", "Positioning"));
+
+				// Camera Speed Submenu
+				{
+					CreateCameraSpeedMenu(InDynamicMenu, WeakViewportClient);
+				}
+
+				PositioningSection.AddMenuEntry(FBlueprintEditorCommands::Get().ResetCamera);
+			}
+		)
+	);
+}
+
+bool IsViewModeSupported(EViewModeIndex InViewModeIndex)
+{
+	switch (InViewModeIndex)
+	{
+	case VMI_Unlit:
+	case VMI_Lit:
+	case VMI_BrushWireframe:
+	case VMI_CollisionVisibility:
+		return true;
+	default:
+		return false;
+	}
+}
+
+bool DoesViewModeMenuShowSection(UE::UnrealEd::EHidableViewModeMenuSections)
+{
+	return false;
+}
+
+} // namespace UE::SCSEditor::Private
 
 /*-----------------------------------------------------------------------------
    SSCSEditorViewportToolBar
@@ -146,7 +270,9 @@ public:
 	{
 		if(EditorViewport.IsValid())
 		{
-			return GetCameraMenuLabelFromViewportType(EditorViewport.Pin()->GetViewportClient()->GetViewportType());
+			return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(
+				EditorViewport.Pin()->GetViewportClient()->GetViewportType()
+			);
 		}
 
 		return NSLOCTEXT("BlueprintEditor", "CameraMenuTitle_Default", "Camera");
@@ -300,10 +426,205 @@ TSharedRef<FEditorViewportClient> SSCSEditorViewport::MakeEditorViewportClient()
 
 TSharedPtr<SWidget> SSCSEditorViewport::MakeViewportToolbar()
 {
-	return 
+	TSharedRef<SSCSEditorViewportToolBar> OldViewportToolbar =
 		SNew(SSCSEditorViewportToolBar)
-		.EditorViewport(SharedThis(this))
-		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
+			.EditorViewport(SharedThis(this))
+			.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute())
+			.Visibility_Lambda(
+				[]()
+				{
+					return UE::UnrealEd::ShowOldViewportToolbars() ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+			);
+
+	// clang-format off
+	return 
+		SNew(SVerticalBox)
+		.Visibility( EVisibility::SelfHitTestInvisible )
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0, 1.0f, 0, 0)
+		.VAlign(VAlign_Top)
+		[
+			OldViewportToolbar
+		];
+	// clang-format on
+}
+
+TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
+{
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	const FName ViewportToolbarMenuName = "SCSEditor.ViewportToolbar";
+	if (!UToolMenus::Get()->IsMenuRegistered(ViewportToolbarMenuName))
+	{
+		UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+			ViewportToolbarMenuName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+		);
+
+		ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
+		// Add the left-aligned part of the viewport toolbar.
+		{
+			FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+
+			// Add the "Transforms" sub menu.
+			{
+				FToolMenuEntry TransformsSubmenu = UE::UnrealEd::CreateViewportToolbarTransformsSection();
+				TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(TransformsSubmenu);
+			}
+
+			// Add the "Selection" sub menu.
+			{
+				FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectSection();
+				SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SelectionSubmenu);
+			}
+
+			// Add the "Snapping" sub menu.
+			{
+				FToolMenuEntry SnappingSubmenu = UE::UnrealEd::CreateViewportToolbarSnappingSubmenu();
+				SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SnappingSubmenu);
+			}
+		}
+
+		// Add the right-aligned part of the viewport toolbar.
+		{
+			// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
+			// default-positioned submenus external code might add.
+			FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+			RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+			// Add the "Camera" submenu.
+			{
+				const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+				const FName ParentSubmenuName = "SCSEditor.ViewportToolbar.Camera";
+				const FName SubmenuName = "SCSEditor.ViewportToolbar.CameraOptions";
+
+				// Create our grandparent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+				}
+
+				// Create our parent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+				}
+
+				// Create our menu.
+				UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+				UE::SCSEditor::Private::ExtendCameraSubmenu(SubmenuName, ViewportClient);
+
+				FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+				CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(CameraSubmenu);
+			}
+
+			// TODO: Filter this menu with IsViewModeSupportedDelegate (see further down in this file) and remove the
+			// "Exposure" section.
+
+			// Add the "View Modes" sub menu.
+			{
+				// Stay backward-compatible with the old viewport toolbar.
+				{
+					const FName ParentSubmenuName = "UnrealEd.ViewportToolbar.View";
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(ParentSubmenuName);
+					}
+
+					// Register our ToolMenu here first, before we create the submenu, so we can set our parent.
+					UToolMenus::Get()->RegisterMenu("SCSEditor.ViewportToolbar.ViewModes", ParentSubmenuName);
+				}
+
+				FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+				ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(ViewModesSubmenu);
+			}
+
+			// Add the "Show" submenu.
+			{
+				FToolMenuEntry ShowSubmenu = FToolMenuEntry::InitSubMenu(
+					"Show",
+					LOCTEXT("ShowLabel", "Show"),
+					LOCTEXT("ShowTooltip", "Show or hide elements from the viewport"),
+					FNewToolMenuDelegate::CreateLambda(
+						[](UToolMenu* Submenu) -> void
+						{
+							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
+							UnnamedSection.AddMenuEntry(FBlueprintEditorCommands::Get().ShowFloor);
+							UnnamedSection.AddMenuEntry(FBlueprintEditorCommands::Get().ShowGrid);
+						}
+					)
+				);
+
+				ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(ShowSubmenu);
+			}
+
+			// Add the "Performance & Scalability" submenu.
+			{
+				FToolMenuEntry PerfSubmenu = FToolMenuEntry::InitSubMenu(
+					"PerformanceAndScalability",
+					LOCTEXT("PerformanceAndScalabilityLabel", "Performance and Scalability"),
+					LOCTEXT("PerformanceAndScalabilityTooltip", "Performance and Scalability tooltip"),
+					FNewToolMenuDelegate::CreateLambda(
+						[](UToolMenu* Submenu) -> void
+						{
+							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
+							UnnamedSection.AddEntry(UE::UnrealEd::CreateToggleRealtimeEntry());
+						}
+					)
+				);
+
+				PerfSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PerfSubmenu);
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+			ContextObject->Viewport = SharedThis(this);
+
+			// Setup the callback to filter available view modes
+			ContextObject->IsViewModeSupported =
+				UE::UnrealEd::IsViewModeSupportedDelegate::CreateStatic(&UE::SCSEditor::Private::IsViewModeSupported);
+
+			// Setup the callback to hide/show specific sections
+			ContextObject->DoesViewModeMenuShowSection = UE::UnrealEd::DoesViewModeMenuShowSectionDelegate::CreateStatic(
+				&UE::SCSEditor::Private::DoesViewModeMenuShowSection
+			);
+
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+
+	// clang-format off
+	TSharedRef<SWidget> NewViewportToolbar =
+		SNew(SBox)
+		[
+			UToolMenus::Get()->GenerateWidget(ViewportToolbarMenuName, ViewportToolbarContext)
+		]
+		.Visibility_Lambda(
+			[]()
+			{
+				return UE::UnrealEd::ShowNewViewportToolbars() ? EVisibility::Visible : EVisibility::Collapsed;
+			}
+		);
+	// clang-format on
+
+	return NewViewportToolbar;
 }
 
 void SSCSEditorViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
@@ -481,3 +802,5 @@ EActiveTimerReturnType SSCSEditorViewport::DeferredUpdatePreview(double InCurren
 	bIsActiveTimerRegistered = false;
 	return EActiveTimerReturnType::Stop;
 }
+
+#undef LOCTEXT_NAMESPACE

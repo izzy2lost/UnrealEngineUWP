@@ -11,10 +11,22 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FLazyObjectProperty)
 
-FLazyObjectProperty::FLazyObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FLazyObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+FLazyObjectProperty::FLazyObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: TFObjectPropertyBase(InOwner, InName, InObjectFlags)
 {
 }
+
+FLazyObjectProperty::FLazyObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FLazyObjectPropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FLazyObjectProperty::FLazyObjectProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FLazyObjectProperty::GetCPPType(FString* ExtendedTypeText/*=NULL*/, uint32 CPPExportFlags/*=0*/) const
 {
@@ -105,14 +117,14 @@ bool FLazyObjectProperty::Identical( const void* A, const void* B, uint32 PortFl
 	return bResult;
 }
 
-TObjectPtr<UObject> FLazyObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
-{
-	return TObjectPtr<UObject>(GetPropertyValue(PropertyValueAddress).Get());
-}
-
 UObject* FLazyObjectProperty::GetObjectPropertyValue(const void* PropertyValueAddress) const
 {
 	return GetPropertyValue(PropertyValueAddress).Get();
+}
+
+TObjectPtr<UObject> FLazyObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
+{
+	return TObjectPtr<UObject>(GetPropertyValue(PropertyValueAddress).Get());
 }
 
 UObject* FLazyObjectProperty::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
@@ -122,28 +134,31 @@ UObject* FLazyObjectProperty::GetObjectPropertyValue_InContainer(const void* Con
 	return Result;
 }
 
-void FLazyObjectProperty::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
+TObjectPtr<UObject> FLazyObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
-	{
-		SetPropertyValue(PropertyValueAddress, TCppType(Value));
-	}
-	else
-	{
-		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FLazyObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
 }
 
-void FLazyObjectProperty::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+void FLazyObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
-	if (Value || !HasAnyPropertyFlags(CPF_NonNullable))
-	{
-		SetWrappedUObjectPtrValues<FLazyObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
-	}
-	else
-	{
-		UE_LOG(LogProperty, Verbose /*Warning*/, TEXT("Trying to assign null object value to non-nullable \"%s\""), *GetFullName());
-	}
+	SetPropertyValue(PropertyValueAddress, TCppType(Value));
+}
+
+void FLazyObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
+{
+	SetPropertyValue(PropertyValueAddress, TCppType(Ptr));
+}
+
+void FLazyObjectProperty::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+{
+	SetWrappedUObjectPtrValues<FLazyObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
+}
+
+void FLazyObjectProperty::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	SetWrappedUObjectPtrValues<FLazyObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
 }
 
 bool FLazyObjectProperty::AllowCrossLevel() const

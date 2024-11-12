@@ -19,7 +19,6 @@
 #include "Widgets/SNiagaraSystemScript.h"
 #include "Widgets/SNiagaraSystemViewport.h"
 #include "Widgets/SNiagaraParameterPanel.h"
-#include "Widgets/SNiagaraSpreadsheetView.h"
 #include "Widgets/SNiagaraDebugger.h"
 #include "NiagaraEditorCommands.h"
 #include "NiagaraEditorStyle.h"
@@ -427,11 +426,9 @@ void FNiagaraSystemToolkit::SetupCommands()
 	GetToolkitCommands()->MapAction(
 		FNiagaraEditorCommands::Get().ToggleStatPerformance,
 		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ToggleStatPerformance),
-		FCanExecuteAction::CreateLambda([this]()
-		{
-			return System && System->SupportsStatScopedPerformanceMode();
-		}),
-		FIsActionChecked::CreateSP(this, &FNiagaraSystemToolkit::IsStatPerformanceChecked));
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FNiagaraSystemToolkit::IsStatPerformanceChecked),
+		FIsActionButtonVisible::CreateSP(this, &FNiagaraSystemToolkit::SupportsStatPerformance));
 	GetToolkitCommands()->MapAction(
         FNiagaraEditorCommands::Get().ClearStatPerformance,
         FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ClearStatPerformance));
@@ -1008,10 +1005,20 @@ void FNiagaraSystemToolkit::OnToggleBoundsSetFixedBounds_System()
 	SystemViewModel->UpdateSystemFixedBounds();
 }
 
+bool FNiagaraSystemToolkit::SupportsStatPerformance() const
+{
+#if STATS
+	return SystemViewModel->GetSystem().SupportsStatScopedPerformanceMode();
+#else
+	return false;
+#endif
+}
+
+
 void FNiagaraSystemToolkit::ClearStatPerformance()
 {
 #if STATS
-	SystemViewModel->GetSystem().GetStatData().ClearStatCaptures();
+	SystemViewModel->ClearSystemStats();
 	SystemViewModel->ClearEmitterStats();
 #endif
 }
@@ -1145,6 +1152,17 @@ void FNiagaraSystemToolkit::UpdateOriginalEmitter()
 
 		// Restore RF_Standalone and RF_Public on the original emitter, as it had been removed from the preview emitter so that it could be GC'd.
 		Source->SetFlags(RF_Standalone | RF_Public);
+
+		// clear out any resolved data on the scripts for the emitter so that we don't reference anything connected to the transient system
+		Source->ForEachVersionData([&](const FVersionedNiagaraEmitterData& EmitterData)
+		{
+			TArray<UNiagaraScript*> AllSourceScripts;
+			EmitterData.GetScripts(AllSourceScripts, true);
+			for (UNiagaraScript* SourceScript : AllSourceScripts)
+			{
+				SourceScript->ClearResolvedData();
+			}
+		});
 
 		Source->PostEditChange();
 

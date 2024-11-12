@@ -517,6 +517,9 @@ void FReflectionEnvironmentSceneData::Reset(FScene* Scene)
 			bRegisteredReflectionCapturesHasChanged = true;
 			AllocatedReflectionCaptureStateHasChanged = false;
 
+			ReflectionCaptureUniformBuffer.SafeRelease();
+			MobileReflectionCaptureUniformBuffer.SafeRelease();
+
 			RegisteredReflectionCaptures.Empty();
 			RegisteredReflectionCapturePositionAndRadius.Empty();
 			CubemapArray.Reset();
@@ -530,9 +533,10 @@ void FReflectionEnvironmentSceneData::Reset(FScene* Scene)
 
 void FReflectionEnvironmentCubemapArray::ResizeCubemapArrayGPU(uint32 InMaxCubemaps, int32 InCubemapSize, const TArray<int32>& IndexRemapping)
 {
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 	check(InMaxCubemaps > 0);
 	check(InCubemapSize > 0);
-	check(IsInRenderingThread());
 	check(IsInitialized());
 	check(InCubemapSize == CubemapSize);
 
@@ -542,7 +546,6 @@ void FReflectionEnvironmentCubemapArray::ResizeCubemapArrayGPU(uint32 InMaxCubem
 	int OldMaxCubemaps = MaxCubemaps;
 	MaxCubemaps = InMaxCubemaps;
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 	InitRHI(RHICmdList);
 
 	FTextureRHIRef TexRef = OldReflectionEnvs->GetRHI();

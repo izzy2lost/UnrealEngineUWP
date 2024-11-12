@@ -45,43 +45,34 @@ static FExpressionInput* GetExpressionInputByName(UMaterialExpression* Expressio
 	check(Expression);
 	FExpressionInput* Result = nullptr;
 
-	TArrayView<FExpressionInput*> Inputs = Expression->GetInputsView();
-
 	// Return first input if no name specified
 	if (InputName.IsNone())
 	{
-		if (Inputs.Num() > 0)
-		{
-			return Inputs[0];
-		}
+		return Expression->GetInput(0);
 	}
-	else
+
+	// Get all inputs. Get name of each input, see if its the one we want
+	for (FExpressionInputIterator It{ Expression }; It; ++It)
 	{
-		// Get all inputs
-		// Get name of each input, see if its the one we want
-		for (int InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+		FName TestName;
+		if (UMaterialExpressionMaterialFunctionCall* FuncCall = Cast<UMaterialExpressionMaterialFunctionCall>(Expression))
 		{
-			FName TestName;
-			if (UMaterialExpressionMaterialFunctionCall* FuncCall = Cast<UMaterialExpressionMaterialFunctionCall>(Expression))
-			{
-				// If a function call, don't want to compare string with type postfix
-				TestName = FuncCall->GetInputNameWithType(InputIdx, false);
-			}
-			else
-			{
-				const FName ExpressionInputName = Expression->GetInputName(InputIdx);
-				TestName = UMaterialGraphNode::GetShortenPinName(ExpressionInputName);
-			}
+			// If a function call, don't want to compare string with type postfix
+			TestName = FuncCall->GetInputNameWithType(It.Index, false);
+		}
+		else
+		{
+			const FName ExpressionInputName = Expression->GetInputName(It.Index);
+			TestName = UMaterialGraphNode::GetShortenPinName(ExpressionInputName);
+		}
 
-			if (TestName == InputName)
-			{
-				Result = Inputs[InputIdx];
-				break;
-			}
+		if (TestName == InputName)
+		{
+			return It.Input;
 		}
 	}
 
-	return Result;
+	return nullptr;
 }
 
 static int32 GetExpressionOutputIndexByName(UMaterialExpression* Expression, const FName OutputName)
@@ -184,9 +175,9 @@ namespace MaterialEditingLibraryImpl
 
 		MaterialExpressionsToLayout.Add( MaterialExpression ) = MoveTemp( LayoutInfo );
 
-		for ( FExpressionInput* ExpressionInput : MaterialExpression->GetInputsView() )
+		for (FExpressionInputIterator It{ MaterialExpression }; It; ++It)
 		{
-			LayoutMaterialExpression( ExpressionInput->Expression, MaterialExpression, MaterialExpressionsToLayout, Row, Depth + 1 );
+			LayoutMaterialExpression( It->Expression, MaterialExpression, MaterialExpressionsToLayout, Row, Depth + 1 );
 		}
 	}
 
@@ -420,12 +411,11 @@ static void BreakLinksToExpression(TConstArrayView<TObjectPtr<UMaterialExpressio
 		// Don't check myself, though that shouldn't really matter...
 		if (TestExp != Expression)
 		{
-			TArrayView<FExpressionInput*> Inputs = TestExp->GetInputsView();
-			for (FExpressionInput* Input : Inputs)
+			for (FExpressionInputIterator It{ TestExp }; It; ++It)
 			{
-				if (Input->Expression == Expression)
+				if (It->Expression == Expression)
 				{
-					Input->Expression = nullptr;
+					It->Expression = nullptr;
 				}
 			}
 		}
@@ -710,13 +700,13 @@ void UMaterialEditingLibrary::RecompileMaterial(UMaterial* Material)
 			FEditorSupportDelegates::RedrawAllViewports.Broadcast();
 
 			// Force particle components to update their view relevance.
-			for (TObjectIterator<UParticleSystemComponent> It; It; ++It)
+			for (TObjectIterator<UParticleSystemComponent> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				It->bIsViewRelevanceDirty = true;
 			}
 
 			// Update parameter names on any child material instances
-			for (TObjectIterator<UMaterialInstance> It; It; ++It)
+			for (TObjectIterator<UMaterialInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				if (It->Parent == Material)
 				{
@@ -853,23 +843,24 @@ TArray<FString> UMaterialEditingLibrary::GetMaterialExpressionInputNames(UMateri
 {
 	TArray<FString> InputNames;
 
-	TArrayView<FExpressionInput*> Inputs = MaterialExpression->GetInputsView();
-	for (int32 InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+	for (FExpressionInputIterator It{ MaterialExpression }; It; ++It)
 	{
 		FName Name;
 		if (UMaterialExpressionMaterialFunctionCall* FuncCall = Cast<UMaterialExpressionMaterialFunctionCall>(MaterialExpression))
 		{
 			// If a function call, don't want to compare string with type postfix
-			Name = FuncCall->GetInputNameWithType(InputIdx, false);
+			Name = FuncCall->GetInputNameWithType(It.Index, false);
 		}
 		else
 		{
-			const FName ExpressionInputName = MaterialExpression->GetInputName(InputIdx);
+			const FName ExpressionInputName = MaterialExpression->GetInputName(It.Index);
 			Name = UMaterialGraphNode::GetShortenPinName(ExpressionInputName);
 		}
 
+
 		InputNames.Add(Name.ToString());
 	}
+
 	return InputNames;
 }
 
@@ -877,18 +868,16 @@ TArray<int32> UMaterialEditingLibrary::GetMaterialExpressionInputTypes(UMaterial
 {
 	TArray<int32> InputTypes;
 
-	TArrayView<FExpressionInput*> Inputs = MaterialExpression->GetInputsView();
-	for (int32 InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+	for (FExpressionInputIterator It{ MaterialExpression }; It; ++It)
 	{
-		FExpressionInput* Input = Inputs[InputIdx];
-		UMaterialExpression* Expression = Input != nullptr ? Input->Expression : nullptr;
+		UMaterialExpression* Expression = It->Expression;
 		if (Expression != nullptr)
 		{
-			InputTypes.Add(Expression->GetOutputType(Input->OutputIndex));
+			InputTypes.Add(Expression->GetOutputType(It->OutputIndex));
 		}
 		else
 		{
-			InputTypes.Add(MaterialExpression->GetInputType(InputIdx));
+			InputTypes.Add(MaterialExpression->GetInputType(It.Index));
 		}
 	}
 	return InputTypes;
@@ -899,9 +888,9 @@ TArray<UMaterialExpression*> UMaterialEditingLibrary::GetInputsForMaterialExpres
 	TArray<UMaterialExpression*> MaterialExpressions;
 	if (Material)
 	{
-		for (const FExpressionInput* Input : MaterialExpression->GetInputsView())
+		for (FExpressionInputIterator It{ MaterialExpression }; It; ++It)
 		{
-			MaterialExpressions.Add(Input->Expression);
+			MaterialExpressions.Add(It->Expression);
 		}
 	}
 
@@ -911,13 +900,13 @@ TArray<UMaterialExpression*> UMaterialEditingLibrary::GetInputsForMaterialExpres
 bool UMaterialEditingLibrary::GetInputNodeOutputNameForMaterialExpression(UMaterialExpression* MaterialExpression, UMaterialExpression* InputNode, FString& OutputName)
 {
 	OutputName = TEXT("");
-	for (const FExpressionInput* Input : MaterialExpression->GetInputsView())
+	for (FExpressionInputIterator It{ MaterialExpression }; It; ++It)
 	{
-		if (Input->Expression == InputNode)
+		if (It->Expression == InputNode)
 		{
-			if(Input->OutputIndex != INDEX_NONE && Input->OutputIndex < InputNode->Outputs.Num())
+			if(It->OutputIndex != INDEX_NONE && It->OutputIndex < InputNode->Outputs.Num())
 			{
-				FExpressionOutput& Output = InputNode->Outputs[Input->OutputIndex];
+				FExpressionOutput& Output = InputNode->Outputs[It->OutputIndex];
 				OutputName = GetExpressionOutputName(Output);
 				return true;
 			}
@@ -1000,7 +989,7 @@ void UMaterialEditingLibrary::UpdateMaterialFunction(UMaterialFunctionInterface*
 				TRACE_CPUPROFILER_EVENT_SCOPE(UpdateAllMaterialInstances)
 
 				// Go through all function instances in memory and recompile them if they are children
-				for (TObjectIterator<UMaterialFunctionInstance> It; It; ++It)
+				for (TObjectIterator<UMaterialFunctionInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 				{
 					UMaterialFunctionInstance* FunctionInstance = *It;
 

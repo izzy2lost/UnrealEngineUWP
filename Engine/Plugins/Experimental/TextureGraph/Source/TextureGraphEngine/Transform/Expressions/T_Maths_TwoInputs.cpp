@@ -16,6 +16,7 @@ IMPLEMENT_GLOBAL_SHADER(FSH_Subtract, "/Plugin/TextureGraph/Expressions/Expressi
 IMPLEMENT_GLOBAL_SHADER(FSH_Dot, "/Plugin/TextureGraph/Expressions/Expression_Maths_TwoInputs.usf", "FSH_Dot", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FSH_Cross, "/Plugin/TextureGraph/Expressions/Expression_Maths_TwoInputs.usf", "FSH_Cross", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FSH_Pow, "/Plugin/TextureGraph/Expressions/Expression_Maths_TwoInputs.usf", "FSH_Pow", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FSH_Step, "/Plugin/TextureGraph/Expressions/Expression_Maths_TwoInputs.usf", "FSH_Step", SF_Pixel);
 
 IMPLEMENT_GLOBAL_SHADER(FSH_IfThenElse, "/Plugin/TextureGraph/Expressions/Expression_IfThenElse.usf", "FSH_IfThenElse_GT_Component", SF_Pixel);
 
@@ -97,6 +98,11 @@ TiledBlobPtr T_Maths_TwoInputs::CreateCross(MixUpdateCyclePtr Cycle, BufferDescr
 TiledBlobPtr T_Maths_TwoInputs::CreatePow(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Operand1, TiledBlobPtr Operand2)
 {
 	return CreateGenericMathOp<FSH_Pow>(Cycle, DesiredOutputDesc, TargetId, Operand1, Operand2, "T_Pow");
+}
+
+TiledBlobPtr T_Maths_TwoInputs::CreateStep(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Operand1, TiledBlobPtr Operand2)
+{
+	return CreateGenericMathOp<FSH_Step>(Cycle, DesiredOutputDesc, TargetId, Operand1, Operand2, "T_Step");
 }
 
 RenderMaterial_FXPtr GetIfThenElseMaterial(EIfThenElseOperator Operator, EIfThenElseType Type)

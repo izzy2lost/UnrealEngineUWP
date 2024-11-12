@@ -44,6 +44,9 @@ public:
 	float GearChangeTime;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Attributes)
+	float GearHysteresisTime;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Attributes)
 	float TransmissionEfficiency;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Attributes)

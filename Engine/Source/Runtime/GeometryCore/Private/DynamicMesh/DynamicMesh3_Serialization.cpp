@@ -12,11 +12,7 @@ namespace FDynamicMesh3Serialization_Local
 enum EDynamicMeshSerializationVersion
 {
 	InitialVersion = 1,
-	CompactAndCompress = 2,
-
-	// ----- new versions to be added above this line -------------------------------------------------
-	VersionPlusOne,
-	LatestVersion = VersionPlusOne - 1
+	CompactAndCompress = 2
 };
 
 // Encapsulates our serialization options, and selects the serialization variant for a given set of options. 

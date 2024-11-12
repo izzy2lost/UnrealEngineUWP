@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { ContextualLogger } from "../common/logger";
-import { Change, PerforceContext } from "../common/perforce";
+import { P4_FORCE, Change, PerforceContext, Workspace } from "../common/perforce";
 import { gatesSame, GateEventContext, GateInfo } from "./branch-interfaces"
 import { DAYS_OF_THE_WEEK, CommonOptionFields, IntegrationWindowPane } from "./branchdefs"
 import { BotEventTriggers } from "./events"
@@ -93,6 +95,15 @@ async function getRequestedGateCl(context: GateContext, previousGateInfo?: GateI
 	return result
 }
 
+function readFileToString(filename: string) {
+	try {
+		return fs.readFileSync(filename, 'utf8');
+	}
+	catch (e) {
+		return null;
+	}
+}
+
 type EventTriggersAndStuff = GateEventContext & {
 	eventTriggers: BotEventTriggers
 }
@@ -108,6 +119,20 @@ export class Gate {
 	constructor(	private eventContext: EventTriggersAndStuff | DummyEventTriggers,
 					private context: GateContext, private persistence?: Context) {
 		this.loadFromPersistence()
+	}
+
+	static gateUpdateWorkspacePrefix: string
+	static gateUpdateDirectory: string
+
+	static init(gateUpdateWorkspacePrefix: string, gateUpdatesDirectory: string, logger: ContextualLogger) {
+		this.gateUpdateWorkspacePrefix = gateUpdateWorkspacePrefix
+
+		let workspaceDir : string = path.resolve(gateUpdatesDirectory);
+		if (!fs.existsSync(workspaceDir)) {
+			logger.info(`Creating local branchspec directory ${workspaceDir}`)
+			fs.mkdirSync(workspaceDir);
+		}
+		this.gateUpdateDirectory = workspaceDir
 	}
 
 	bypass = false
@@ -370,8 +395,7 @@ export class Gate {
 		//	- integration window is preventing catching up to the next gate
 
 		if (this.currentGateInfo) {
-			// should show last cl in queue on web page, null means caught up
-			return this.lastCl >= this.currentGateInfo.cl ? 'waiting for CIS' : null
+			return this.lastCl >= this.currentGateInfo.cl ? this.currentGateInfo.link ? 'waiting for CIS' : 'paused at gate' : null
 		}
 
 		// null means no gate
@@ -381,6 +405,8 @@ export class Gate {
 	applyStatus(outStatus: { [key: string]: any }) {
 		// for now, just equivalent of what was there before
 		// @todo info about intermediate gate
+
+		outStatus.num_changes_remaining = this.numChangesRemaining
 
 		const mostRecentGate = this.getMostRecentGate()
 		if (mostRecentGate) {
@@ -407,6 +433,75 @@ export class Gate {
 		if (this.bypass) {
 			outStatus.windowBypass = true
 		}
+	}
+
+	async setGateCl(value: number, culprit: string, reason: string) {
+
+		const lastGoodCLPath = this.context.options.lastGoodCLPath
+		if (typeof lastGoodCLPath !== "string" ) {
+			this.context.logger.error('Cannot set a Gate CL if lastGoodCLPath is not a perforce path')
+			return null
+		}
+	
+		const prevCl = await getRequestedGateCl(this.context)
+		if (prevCl == null) {
+			this.context.logger.error('Cannot set a Gate CL if lastGoodCLPath is not a perforce path')
+			return null
+		}
+	
+		if (value == prevCl.cl) {
+			this.context.logger.info('Not updating gate file as requested CL ${value} matches current value')
+			return prevCl.cl
+		}
+
+		const stream = await this.context.p4!.getStreamName(lastGoodCLPath);
+		if (typeof stream === 'string') {
+			if (!(await this.context.p4!.stream(stream))) {
+				this.context.logger.error(`Unable to find stream '${stream}'`)
+				return null
+			}
+		}
+		else {
+			this.context.logger.error(stream.message)
+			return null
+		}
+	
+		const workspace: Workspace = {
+			name: `${Gate.gateUpdateWorkspacePrefix}-${stream.substring(2).replace("/","_")}`,
+			directory: Gate.gateUpdateDirectory
+		}
+	
+		const p4 = this.context.p4!
+	
+		const workspaceQueryResult = await p4.find_workspace_by_name(workspace.name)
+		if (workspaceQueryResult.length === 0) {
+			await p4.newWorkspace(workspace.name, {
+				Stream: stream,
+				Root: workspace.directory
+			})
+		}
+	
+		const syncResult = await p4.sync(workspace, lastGoodCLPath, {opts:[P4_FORCE]})
+		if (!syncResult || syncResult.length != 1) {
+			this.context.logger.error(`Unable to sync ${lastGoodCLPath} in workspace ${workspace.name}`)
+			return null
+		}
+		const realFilepath = syncResult[0]['clientFile']
+	
+		let fileContents = readFileToString(realFilepath)
+		if (!fileContents) {
+			this.context.logger.error(`Unable to read file ${realFilepath}`)
+			return null
+		}
+	
+		fileContents = fileContents.replace(`${prevCl.cl}`,`${value}`)
+	
+		const cl = await p4.new_cl(workspace, `${culprit} updating gate file to ${value}. Reason: ${reason}`)
+		await p4.edit(workspace, cl, lastGoodCLPath)
+		fs.writeFileSync(realFilepath, fileContents, "utf8")
+		await p4.submit(workspace, cl)
+	
+		return prevCl.cl
 	}
 
 	logSummary() {
@@ -701,13 +796,13 @@ export async function runTests(parentLogger: ContextualLogger) {
 		const [et, gate] = makeTestGate(1, options)
 		await gate.tick()
 		assert(et.beginCalls + et.endCalls === 0, 'no events yet')
-		assert(!gate.isGateOpen() && gate.getGateClosedMessage()!.includes('CIS'), 'gate closed')
+		assert(!gate.isGateOpen() && gate.getGateClosedMessage()! == 'paused at gate', 'gate closed')
 
 		// nothing should happen here - CL 2 has been committed but gate prevents it being integrated
 		gate.preIntegrate(2)
 		await gate.tick()
 		assert(et.beginCalls + et.endCalls === 0, 'no events yet')
-		assert(!gate.isGateOpen() && gate.getGateClosedMessage()!.includes('CIS'), 'gate closed')
+		assert(!gate.isGateOpen() && gate.getGateClosedMessage()! == 'paused at gate', 'gate closed')
 
 		// gate is now > 1 so we can 
 		options.lastGoodCLPath = exact ? 2 : 3
@@ -789,7 +884,7 @@ export async function runTests(parentLogger: ContextualLogger) {
 		}
 
 		assert(et.beginCalls === 1 && et.endCalls === 1, 'caught up')
-		assert(!gate.isGateOpen() && gate.getGateClosedMessage()!.includes('CIS'), 'gate closed')
+		assert(!gate.isGateOpen() && gate.getGateClosedMessage()! == 'paused at gate', 'gate closed')
 	}
 
 	const queueNoWindow = async (middleIntegration: boolean) => {
@@ -896,7 +991,7 @@ export async function runTests(parentLogger: ContextualLogger) {
 		gate.preIntegrate(7)
 		setLastCl(gate, 7)
 		assert(et.beginCalls === 1 && et.endCalls === 1, 'caught up')
-		assert(!gate.isGateOpen() && gate.getGateClosedMessage()!.includes('CIS'), 'gate closed')
+		assert(!gate.isGateOpen() && gate.getGateClosedMessage()! == 'paused at gate', 'gate closed')
 
 	})()
 

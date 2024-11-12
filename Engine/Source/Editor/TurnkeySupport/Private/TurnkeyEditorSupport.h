@@ -23,6 +23,7 @@ public:
 
 	static bool ShowOKCancelDialog(FText Message, FText Title);
 	static void ShowRestartToast();
+	static void ShowRebuildToast();
 	static bool CheckSupportedPlatforms(FName IniPlatformName);
 	static void ShowInstallationHelp(FName IniPlatformName, FString DocLink);
 	static bool IsPIERunning();

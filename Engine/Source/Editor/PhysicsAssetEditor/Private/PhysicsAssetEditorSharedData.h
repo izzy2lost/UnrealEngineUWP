@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Math/Axis.h"
 #include "PreviewScene.h"
 #include "PhysicsAssetUtils.h"
 #include "PhysicsEngine/ConstraintInstance.h"
@@ -28,6 +29,25 @@ struct FScopedBulkSelection
 
 	TSharedPtr<FPhysicsAssetEditorSharedData> SharedData;
 };
+
+// BodyData
+//
+// A structure to keep track of editor only per physics body settings.
+//
+struct FBodyData
+{
+public:
+	FBodyData();
+
+	bool IsCoMAxisFixedInComponentSpace(const EAxis::Type InAxis) const;
+	void SetCoMAxisFixedInComponentSpace(const EAxis::Type InAxis, const bool bValue);
+
+private:
+	int32 GetBitFlag(const EAxis::Type InAxis) const;
+
+	int32 CoMAxisFixedInComponentSpaceFlags;
+};
+
 
 /*-----------------------------------------------------------------------------
    FPhysicsAssetEditorSharedData
@@ -55,10 +75,14 @@ public:
 		int32 PrimitiveIndex;
 		FTransform WidgetTM;
 		FTransform ManipulateTM;
+		FVector CoMPosition; 
 
-		FSelection(int32 GivenBodyIndex, EAggCollisionShape::Type GivenPrimitiveType, int32 GivenPrimitiveIndex) :
-			Index(GivenBodyIndex), PrimitiveType(GivenPrimitiveType), PrimitiveIndex(GivenPrimitiveIndex),
-			WidgetTM(FTransform::Identity), ManipulateTM(FTransform::Identity)
+		FSelection(int32 GivenBodyIndex, EAggCollisionShape::Type GivenPrimitiveType, int32 GivenPrimitiveIndex) 
+			: Index(GivenBodyIndex)
+			, PrimitiveType(GivenPrimitiveType)
+			, PrimitiveIndex(GivenPrimitiveIndex)
+			, WidgetTM(FTransform::Identity)
+			, ManipulateTM(FTransform::Identity)
 		{
 		}
 
@@ -76,6 +100,9 @@ public:
 
 	/** Accessor for mesh view mode, allows access for simulation and non-simulation modes */
 	EPhysicsAssetEditorMeshViewMode GetCurrentMeshViewMode(bool bSimulation);
+
+	/** Accessor for Center of Mass view mode, allows access for simulation and non-simulation modes */
+	EPhysicsAssetEditorCenterOfMassViewMode GetCurrentCenterOfMassViewMode(const bool bSimulation) const;
 
 	/** Accessor for collision view mode, allows access for simulation and non-simulation modes */
 	EPhysicsAssetEditorCollisionViewMode GetCurrentCollisionViewMode(bool bSimulation);
@@ -139,11 +166,18 @@ public:
 	/** Gets whether the active constraint is locked */
 	bool IsAngularConstraintLocked(EPhysicsAssetEditorConstraintType Constraint) const;
 
+	/** Center of Mass editing */
+	void ClearSelectedCoMs();
+	void SetSelectedCoM(const FSelection& InSelectedCoM, const bool bSelected);
+	void SetSelectedCoMs(const TArray<FSelection>& InSelectedElements, const bool bSelected);
+	bool IsCoMSelected(const int32 BodyIndex) const;
+
 	/** Collision geometry editing */
 	void ClearSelectedBody();
 	void SetSelectedBody(const FSelection& Body, bool bSelected);
 	void SetSelectedBodies(const TArray<FSelection>& Bodies, bool bSelected);
 	bool IsBodySelected(const FSelection& Body) const;
+	bool IsBodySelected(const int32 BodyIndex) const;
 	void ToggleSelectionType(bool bIgnoreUserConstraints = true);
 	void ToggleShowSelected();
 	bool IsBodyHidden(const int32 BodyIndex) const;
@@ -181,6 +215,7 @@ public:
 	void CopyBodyProperties();
 	void CopyConstraintProperties();
 	void PasteBodyProperties();
+	void CopyBodyName();
 	bool WeldSelectedBodies(bool bWeld = true);
 	void Mirror();
 
@@ -203,6 +238,9 @@ public:
 
 	/** Handle clicking on a body */
 	void HitBone(int32 BodyIndex, EAggCollisionShape::Type PrimType, int32 PrimIndex, bool bGroupSelect);
+
+	/** Handle clicking on a Center of Mass marker */
+	void HitCoM(const int32 BodyIndex, const bool bGroupSelect);
 
 	/** Handle clikcing on a constraint */
 	void HitConstraint(int32 ConstraintIndex, bool bGroupSelect);
@@ -254,6 +292,12 @@ public:
 	void SetShowCom(bool InValue);
 	bool GetShowCom() const;
 
+	/** Returns the correct location to draw a CoM marker in the viewport */
+	FVector GetCOMRenderPosition(const int32 BodyIndex) const;
+
+	bool IsCoMAxisFixedInComponentSpace(const int32 BodyIndex, const EAxis::Type InAxis) const;
+	void SetCoMAxisFixedInComponentSpace(const int32 BodyIndex, const EAxis::Type InAxis, const bool bValue);
+
 private:
 	/** Initializes a constraint setup */
 	void InitConstraintSetup(UPhysicsConstraintTemplate* ConstraintSetup, int32 ChildBodyIndex, int32 ParentBodyIndex);
@@ -279,12 +323,15 @@ private:
 	/** Checks and parses clipboard data */
 	static bool ParseClipboard(UPhysicsAsset*& OutAsset, FString& OutObjectType, UObject*& OutObject);
 
-	/** Gneerate a new unique name for a constraint */
+	/** Generate a new unique name for a constraint */
 	FString MakeUniqueNewConstraintName();
+
+	/** Clears all the selected objects */
+	void ClearSelected();
 
 public:
 	/** Callback for handling selection changes */
-	DECLARE_EVENT_TwoParams(FPhysicsAssetEditorSharedData, FSelectionChanged, const TArray<FSelection>&, const TArray<FSelection>&);
+	DECLARE_EVENT_ThreeParams(FPhysicsAssetEditorSharedData, FSelectionChanged, const TArray<FSelection>&, const TArray<FSelection>&, const TArray<FSelection>&);
 	FSelectionChanged SelectionChangedEvent;
 
 	/** Callback for handling changes to the bone/body/constraint hierarchy */
@@ -327,9 +374,15 @@ public:
 	/** List of bodies that don't collide with the currently selected collision body */
 	TArray<int32> NoCollisionBodies;
 
+	/** Center of Mass editing */
+	TArray<FSelection> SelectedCoMs;
+
 	/** Bone info */
 	TArray<FBoneVertInfo> DominantWeightBoneInfos;
 	TArray<FBoneVertInfo> AnyWeightBoneInfos;
+
+	/** Editor only data for each physics body. */
+	TArray<FBodyData> EditorBodyData;
 
 	TArray<FSelection> SelectedBodies;
 
@@ -337,6 +390,12 @@ public:
 	{
 		int32 Count = SelectedBodies.Num();
 		return Count ? &SelectedBodies[Count - 1] : NULL;
+	}
+
+	FSelection* GetSelectedCoM()
+	{
+		int32 Count = SelectedCoMs.Num();
+		return Count ? &SelectedCoMs[Count - 1] : NULL;
 	}
 
 	/** Constraint editing */
@@ -361,6 +420,8 @@ public:
 
 	/** Manipulation (rotate, translate, scale) */
 	bool bManipulating;
+
+	bool bShouldUpdatedSelectedCoMs = false;
 
 	/** when true, we dont broadcast every selection change - allows for bulk changes without so much overhead */
 	bool bSuspendSelectionBroadcast;

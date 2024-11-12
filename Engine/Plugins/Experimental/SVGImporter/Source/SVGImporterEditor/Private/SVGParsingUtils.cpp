@@ -41,7 +41,7 @@ int32 ParseDecimals(TArray<FString>& OutArray, const FString& Data, bool InCullE
 				if (CurrDotIndex != INDEX_NONE)
 				{
 					const int32 CurrFloatEndIndex = i - 1;
-					new (OutArray) FString(CurrFloatEndIndex - CurrFloatBeginIndex, Start + CurrFloatBeginIndex);
+					OutArray.Add(FString::ConstructFromPtrSize(Start + CurrFloatBeginIndex, CurrFloatEndIndex - CurrFloatBeginIndex));
 
 					// go for the next one
 					CurrFloatBeginIndex = i;
@@ -57,7 +57,7 @@ int32 ParseDecimals(TArray<FString>& OutArray, const FString& Data, bool InCullE
 		if (!InCullEmpty || SubstringLength != 0)
 		{
 			// ... add new string from substring beginning up to the beginning of this delimiter.
-			new (OutArray) FString(Start + CurrFloatBeginIndex);
+			OutArray.Add(Start + CurrFloatBeginIndex);
 		}
 	}
 
@@ -237,7 +237,7 @@ int32 FSVGParsingUtils::ParseIntoCommandsArrayKeepDelimiters(const FString& InSo
 
 				if (CmdStringLength != 0)
 				{
-					new (OutArray) FString(CmdEndIndex - CmdBeginIndex, Start + CmdBeginIndex);
+					OutArray.Add(FString::ConstructFromPtrSize(Start + CmdBeginIndex, CmdEndIndex - CmdBeginIndex));
 				}
 
 				// Next cmd begins at the end of this cmd

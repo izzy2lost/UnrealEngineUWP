@@ -2,11 +2,11 @@
   "FileVersion": 3,
   "Version": 1,
   "VersionName": "1.0",
-  "FriendlyName": "Code Quality Unreal Test Plugin",
-  "Description": "Simplified testing classes for Unreal Engine",
+  "FriendlyName": "Code Quality Tests Unreal Test Plugin",
+  "Description": "Tests for the CQTest Unreal Engine module",
   "Category": "Testing",
-  "CreatedBy": "Code Quality",
-  "CreatedByURL": "",
+  "CreatedBy": "Epic Games, Inc.",
+  "CreatedByURL": "https://epicgames.com",
   "DocsURL": "",
   "MarketplaceURL": "",
   "SupportURL": "",
@@ -14,11 +14,6 @@
   "IsBetaVersion": false,
   "Installed": false,
   "Modules": [
-		{
-			"Name": "CQTest",
-			"Type": "DeveloperTool",
-			"LoadingPhase": "Default"
-		},
 		{
 			"Name": "CQTestTests",
 			"Type": "DeveloperTool",

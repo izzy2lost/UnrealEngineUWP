@@ -26,6 +26,12 @@ enum class ECalibratedMusicTimebase : uint8
 	 * Tells you what you should be drawing right now so it appears *in sync with the music.* (when properly calibrated).
 	 * Useful for synchronizing animations, ui, and other visuals to the music.
 	 */
-	VideoRenderTime
+	VideoRenderTime,
+
+	/*
+	 * Tells you exactly where the audio renderer is right now. NOTE: Un-smoothed, jittery,
+	 * raw position of the audio rendering. Only useful for debugging!
+	 */
+	RawAudioRenderTime
 };
-ENUM_RANGE_BY_FIRST_AND_LAST(ECalibratedMusicTimebase, ECalibratedMusicTimebase::AudioRenderTime, ECalibratedMusicTimebase::VideoRenderTime);
+ENUM_RANGE_BY_FIRST_AND_LAST(ECalibratedMusicTimebase, ECalibratedMusicTimebase::AudioRenderTime, ECalibratedMusicTimebase::RawAudioRenderTime);

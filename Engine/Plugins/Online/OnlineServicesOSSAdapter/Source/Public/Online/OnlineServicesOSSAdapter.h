@@ -15,7 +15,7 @@ class ONLINESERVICESOSSADAPTER_API FOnlineServicesOSSAdapter : public FOnlineSer
 public:
 	using Super = FOnlineServicesCommon;
 
-	FOnlineServicesOSSAdapter(EOnlineServices InServicesType, const FString& InConfigName, FName InInstanceName, IOnlineSubsystem* InSubsystem);
+	FOnlineServicesOSSAdapter(EOnlineServices InServicesType, const FString& InServiceConfigName, FName InInstanceName, IOnlineSubsystem* InSubsystem);
 
 	virtual void RegisterComponents() override;
 	virtual void Initialize() override;

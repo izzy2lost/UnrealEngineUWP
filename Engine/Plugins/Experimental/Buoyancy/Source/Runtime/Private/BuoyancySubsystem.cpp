@@ -16,6 +16,7 @@
 #include "WaterSubsystem.h"
 #include "WaterBodyManager.h"
 #include "WaterSplineComponent.h"
+#include "BakedShallowWaterSimulationComponent.h"
 #include "Chaos/PhysicsObject.h"
 #include "PBDRigidsSolver.h"
 #include "Chaos/PBDRigidsEvolutionGBF.h"
@@ -23,6 +24,16 @@
 #include "Chaos/DebugDrawQueue.h"
 #include "Templates/SharedPointer.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
+#include "Chaos/GeometryParticlesfwd.h"
+
+#include "Chaos/ParticleHandle.h"
+#include "Chaos/DebugDrawQueue.h"
+#include "Chaos/CastingUtilities.h"
+#include "Chaos/Utilities.h"
+#include "Chaos/PBDRigidsEvolutionGBF.h"
+#include "Chaos/Collision/CollisionFilter.h"
+#include "Chaos/Collision/CollisionUtil.h"
+#include "Chaos/Sphere.h"
 
 //
 // CVars
@@ -36,11 +47,19 @@ FAutoConsoleVariableRef CVarBuoyancyCallbackDataEnabled(TEXT("p.Buoyancy.Callbac
 bool bBuoyancyCallbackDataParticleValidation = true;
 FAutoConsoleVariableRef CVarBuoyancyCallbackDataParticleValidation(TEXT("p.Buoyancy.CallbackData.ParticleValidation"), bBuoyancyCallbackDataParticleValidation, TEXT(""));
 
-#if ENABLE_DRAW_DEBUG
 bool bBuoyancyDebugDraw = false;
+#if ENABLE_DRAW_DEBUG
 FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuoyancyDebugDraw, TEXT(""));
 #endif
 
+
+int32 bUseShallowWaterSimulation = 1;
+static FAutoConsoleVariableRef CVarUseShallowWaterSimulation(
+	TEXT("p.Buoyancy.bUseShallowWaterSimulation"),
+	bUseShallowWaterSimulation,
+	TEXT("new buoancy method"),
+	ECVF_Scalability
+);
 
 //
 // Logging
@@ -48,6 +67,24 @@ FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuo
 
 DEFINE_LOG_CATEGORY(LogBuoyancySubsystem);
 
+
+//
+// Console Commands
+//
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+static FAutoConsoleCommandWithWorld BuoyancyLogMemory(
+	TEXT("p.Buoyancy.LogMemory"),
+	TEXT("Log how much memory is being used by the buoyancy subsystem"),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (UBuoyancySubsystem* BuoyancySubsystem = World != nullptr ? World->GetSubsystem<UBuoyancySubsystem>() : nullptr)
+		{
+			const int32 AllocatedSize = BuoyancySubsystem->GetAllocatedSize();
+			UE_LOG(LogBuoyancySubsystem, Warning, TEXT("Buoyancy Subsystem Allocated Bytes: %d"), AllocatedSize);
+		}
+	}));
+#endif // WITH_BUOYANCY_MEMORY_TRACKING
 
 //
 // Buoyancy Subsystem
@@ -95,6 +132,13 @@ bool UBuoyancySubsystem::SetEnabledWithUpdatedNetModeCallback(const bool bEnable
 
 	return bEnabledResult;
 }
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+SIZE_T UBuoyancySubsystem::GetAllocatedSize() const
+{
+	return SimCallback_AllocatedSize;
+}
+#endif
 
 void UBuoyancySubsystem::CreateSimCallback()
 {
@@ -286,6 +330,11 @@ void UBuoyancySubsystem::UpdateSplineData()
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_UpdateWaterBodiesList)
 
+	if (bWaterObjectsChanged == false)
+	{
+		return;
+	}
+
 	if (SplineData == nullptr)
 	{
 		return;
@@ -293,25 +342,36 @@ void UBuoyancySubsystem::UpdateSplineData()
 
 	if (FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(GetWorld()))
 	{
+		// Clear the flag to rebuild water object data
 		bWaterObjectsChanged = false;
+
+		// Clear out existing old water object data
+		//
+		// NOTE: the "false" argument here prevents a resize, since we're just going to
+		// repopulate the underlying sparse array again immediately anyway.
+		SplineData->ClearData_GT(false);
 
 		// Loop over every registered water body
 		WaterBodyManager->ForEachWaterBodyComponent(GetWorld(), [this](UWaterBodyComponent* WaterBodyComponent)
 		{
 			// Get the metadata object if there is one, and the spline component
 			UWaterSplineMetadata* SplineMetadata = WaterBodyComponent->GetWaterSplineMetadata();
+			UBakedShallowWaterSimulationComponent *BakedSim = WaterBodyComponent->GetBakedShallowWaterSimulation();
+			
 			if (UWaterSplineComponent* SplineComponent = WaterBodyComponent->GetWaterSpline())
 			{
 				// Copy out water spline data into a shared ptr, to be associated with all
 				// child particles and marshaled to PT.
 				const Chaos::FRigidTransform3 WaterTransform = WaterBodyComponent->GetComponentTransform();
 				const TOptional<FInterpCurveFloat> EmptyOptionalFloat;
+				const TOptional<FShallowWaterSimulationGrid> EmptyOptionalSimGrid;
 				TSharedPtr<FBuoyancyWaterSplineData> WaterSplineData = MakeShared<FBuoyancyWaterSplineData>(
 					WaterTransform,
 					SplineComponent->SplineCurves.Position,
 					WaterBodyComponent->GetWaterBodyType(),
 					SplineMetadata ? SplineMetadata->RiverWidth : EmptyOptionalFloat,
-					SplineMetadata ? SplineMetadata->WaterVelocityScalar : EmptyOptionalFloat
+					SplineMetadata ? SplineMetadata->WaterVelocityScalar : EmptyOptionalFloat,
+					bUseShallowWaterSimulation && WaterBodyComponent->UseBakedSimulationForQueriesAndPhysics() ? BakedSim->SimulationData : EmptyOptionalSimGrid
 				);
 
 				// Go over each physics object in each primitive component which was generated
@@ -369,6 +429,7 @@ void UBuoyancySubsystem::ProcessSurfaceTouchCallbacks()
 
 	while (Chaos::TSimCallbackOutputHandle<FBuoyancySubsystemSimCallbackOutput> AsyncOutput = SimCallback->PopFutureOutputData_External())
 	{
+		// Process surface touches
 		for (const FBuoyancySubsystemSimCallbackOutput::FSurfaceTouch& SurfaceTouch : AsyncOutput->SurfaceTouches)
 		{
 			// Skip if we mask out this touch type
@@ -433,6 +494,14 @@ void UBuoyancySubsystem::ProcessSurfaceTouchCallbacks()
 			DispatchEvent(WaterActor);
 			DispatchEvent(RigidComponent->GetOwner());
 		}
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+		// Process changes to tracking of memory allocated on physics thread
+		if (AsyncOutput->AllocatedSize.IsSet())
+		{
+			SimCallback_AllocatedSize = *AsyncOutput->AllocatedSize;
+		}
+#endif
 	}
 }
 
@@ -482,6 +551,17 @@ void FBuoyancySubsystemSimCallbackInput::Reset()
 void FBuoyancySubsystemSimCallbackOutput::Reset()
 {
 	SurfaceTouches.Reset();
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+	AllocatedSize.Reset();
+#endif
+}
+
+SIZE_T FBuoyancySubsystemSimCallback::GetAllocatedSize() const
+{
+	return
+		BuoyancyParticleData.GetAllocatedSize() +
+		SplineKeyCache.GetAllocatedSize();
 }
 
 void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
@@ -512,9 +592,9 @@ void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 			// filtering options. It might be desirable to instead add a mechanism to
 			// suppress events for one frame instead, or to remove only the data which
 			// relate to water particles which have been removed.
-			Interactions.Reset();
-			SubmersionMetaData.Reset();
-			PrevSubmersionMetaData.Reset();
+			BuoyancyParticleData.Interactions.Reset();
+			BuoyancyParticleData.SubmersionMetaData.Reset();
+			BuoyancyParticleData.PrevSubmersionMetaData.Reset();
 		}
 
 		if (Input->BuoyancySettings.IsValid())
@@ -578,15 +658,18 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 		return;
 	}
 
-	// Get the evolution
-	Chaos::FPBDRigidsEvolution* Evolution = nullptr;
-	if (Chaos::FPhysicsSolverBase* SolverBase = GetSolver())
+	// Get the solver
+	Chaos::FPhysicsSolverBase* SolverBase = GetSolver();
+	if (SolverBase == nullptr)
 	{
-		// Why does cast-checked return a ref? That makes me think
-		// it's not actually doing a check...
-		Chaos::FPBDRigidsSolver& PBDSolver = SolverBase->CastChecked();
-		Evolution = PBDSolver.GetEvolution();
+		return;
 	}
+	// Why does cast-checked return a ref? That makes me think
+	// it's not actually doing a check...
+	Chaos::FPBDRigidsSolver& PBDSolver = SolverBase->CastChecked();
+
+	// Get the evolution
+	Chaos::FPBDRigidsEvolution* Evolution = PBDSolver.GetEvolution();
 	if (Evolution == nullptr)
 	{
 		return;
@@ -595,17 +678,17 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	// SparseArray implements move semantics, so these swaps should amount to pointer swaps.
 	// This way array memories stick around even when reset/swapped so we don't do many
 	// new allocations.
-	Swap(Submersions, PrevSubmersions);
-	Swap(SubmersionMetaData, PrevSubmersionMetaData);
+	Swap(BuoyancyParticleData.Submersions, BuoyancyParticleData.PrevSubmersions);
+	Swap(BuoyancyParticleData.SubmersionMetaData, BuoyancyParticleData.PrevSubmersionMetaData);
 
 	// Clear arrays for the following phases, but keep their memory allocated
-	Interactions.Reset();
-	Submersions.Reset();
-	SubmergedShapes.Reset();
-	SubmersionMetaData.Reset();
+	BuoyancyParticleData.Interactions.Reset();
+	BuoyancyParticleData.Submersions.Reset();
+	BuoyancyParticleData.SubmergedShapes.Reset();
+	BuoyancyParticleData.SubmersionMetaData.Reset();
 
 	// Build list of "submersions"
-	TrackInteractions(*Evolution, MidPhaseAccessor);
+	TrackInteractions(PBDSolver, *Evolution, MidPhaseAccessor);
 
 	// Process the list of interactions that we built from the midphases
 	ProcessInteractions(*Evolution);
@@ -613,62 +696,72 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	// Apply buoyant forces resulting from submersions
 	ApplyBuoyantForces(*Evolution);
 
+	// #todo(dmp): need to generate callback info from shallow water interactions
 	// Generate async outputs for callback data
 	GenerateCallbackData();
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+	// Generate async outputs for allocation data
+	GenerateAllocationData();
+#endif
 }
 
 void FBuoyancySubsystemSimCallback::TrackInteractions(
+	Chaos::FPBDRigidsSolver& PBDSolver,
 	Chaos::FPBDRigidsEvolution& Evolution,
 	Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_VisitMidphases)
 
-	//
-	// This right here is the ugliest bit of the subsystem,
-	// since it loops needlessly over all midphases. It is
-	// tempting to think that this is the one most deserving
-	// of optimization, but the extra iterations here are far
-	// from the slowest part!
-	//
-
-	// Loop over all midphases
-	MidPhaseAccessor.VisitMidPhases([this, &Evolution](Chaos::FMidPhaseModifier& MidPhase)
+	// The spline userdatapt manager contains a PT array of all water splines indexed on
+	// water particle unique index. Therefore, we can use it to loop over all water body
+	// particles and check their midphases.
+	SplineData->VisitAllData_PT([this, &PBDSolver, &Evolution, &MidPhaseAccessor](Chaos::FUniqueIdx ParticleIdx, const TSharedPtr<FBuoyancyWaterSplineData>& WaterData)
 	{
-		// Make sure we have two valid particles
-		Chaos::FGeometryParticleHandle* WaterParticle;
-		Chaos::FGeometryParticleHandle* OtherParticle;
-		MidPhase.GetParticles(&WaterParticle, &OtherParticle);
-		if (WaterParticle == nullptr ||
-			OtherParticle == nullptr)
+		// If the WaterData shared ptr is invalid, skip this one
+		if (WaterData.IsValid() == false)
 		{
 			return;
 		}
 
-		// Get spline data for particle 0. If it exists, then it's water.
-		// If it doesn't exist, then try the other particle.
-		const TSharedPtr<FBuoyancyWaterSplineData>* WaterSpline = SplineData->GetData_PT(*WaterParticle);
-		if (WaterSpline == nullptr || !WaterSpline->IsValid())
+		// Get water body particle proxy from index
+		Chaos::FSingleParticlePhysicsProxy* ParticleProxy = PBDSolver.GetParticleProxy_PT(ParticleIdx);
+		if (ParticleProxy == nullptr || ParticleProxy->GetMarkedDeleted())
 		{
-			// Swap the particles and try again
-			Swap(WaterParticle, OtherParticle);
-			WaterSpline = SplineData->GetData_PT(*WaterParticle);
-			if (WaterSpline == nullptr || !WaterSpline->IsValid())
+			return;
+		}
+
+		// Get water body particle handle from proxy
+		Chaos::FGeometryParticleHandle* WaterParticle = ParticleProxy->GetHandle_LowLevel();
+		if (WaterParticle == nullptr)
+		{
+			return;
+		}
+
+		// Get all midphases which involve this particle
+		Chaos::FMidPhaseModifierParticleRange MidPhases = MidPhaseAccessor.GetMidPhases(WaterParticle);
+
+		// Loop over all midphases
+		for (auto& MidPhase : MidPhases)
+		{
+			// Make sure we have two valid particles
+			Chaos::FGeometryParticleHandle* OtherParticle = MidPhase.GetOtherParticle(WaterParticle);
+			if (WaterParticle == nullptr ||
+				OtherParticle == nullptr)
 			{
-				// Neither particle has a water spline data, so give up.
-				// This is not a water interaction
-				return;
+				continue;
 			}
-		}
 
-		// Make sure the non-water particle is backed by a rigid
-		Chaos::FPBDRigidParticleHandle* RigidParticle = OtherParticle->CastToRigidParticle();
-		if (RigidParticle == nullptr)
-		{
-			return;
-		}
+			// Make sure the non-water particle is backed by a rigid
+			Chaos::FPBDRigidParticleHandle* RigidParticle = OtherParticle->CastToRigidParticle();
+			if (RigidParticle == nullptr)
+			{
+				continue;
+			}
 
-		// Finally... we know for sure this is a midphase that we wanna process
-		TrackInteraction(Evolution, WaterParticle, RigidParticle, *WaterSpline->Get(), MidPhase);
+			// Finally... we know for sure this is a midphase that we wanna process
+			TrackInteraction(Evolution, WaterParticle, RigidParticle, *WaterData.Get(), MidPhase);
+		}
 	});
 }
 
@@ -687,9 +780,30 @@ void FBuoyancySubsystemSimCallback::TrackInteraction(
 		// Always disable midphases with water
 		MidPhase.Disable();
 	}
-
-	float ClosestSplineKey;
-	FVector ClosestPoint;
+	
+	// #todo(dmp): ideally for shallow water, we'd be sampling the body a bit more to tell if anything other than the center is interacting with water
+	float ClosestSplineKey = 0;
+	FVector ClosestPoint = FVector(0, 0, 0);
+	
+	if (WaterSpline.ShouldSampleFromShallowWaterSimulation())
+	{
+		// eval shallow water - closest point is just the current point adjusted upward in Z
+		const FVector ParticlePos = RigidParticle->XCom();
+		FVector WaterVelocity;
+		float WaterHeight;
+		float WaterDepth;
+		WaterSpline.ShallowWaterSimData->SampleShallowWaterSimulationAtPosition(ParticlePos, WaterVelocity, WaterHeight, WaterDepth);
+		ClosestPoint = ParticlePos;
+		ClosestPoint.Z = WaterHeight;
+		
+		// if there is no water here, then return.  This is an approximation that there is water underneath this rigid that might cause interaction
+		// ideally, we'd multisample this since we can lose some water interactions this way
+		if (WaterDepth < 1e-5)
+		{
+			return;
+		}
+	}
+	else
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_SplineEvaluation)
 
@@ -718,33 +832,22 @@ void FBuoyancySubsystemSimCallback::TrackInteraction(
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_AddInteraction)
 
-		// Create the interaction struct
-		FBuoyancyInteraction BuoyancyInteraction
-		{
+		// If this particle already has a list of interactions, add to it. Otherwise
+		// make a new one.
+		// #todo(dmp): we should split out the interaction data here to be for shallow water or not
+		BuoyancyParticleData.GetInteractions(*RigidParticle).Add({
 			RigidParticle,
 			WaterParticle,
 			WaterSpline,
 			ClosestSplineKey,
 			ClosestPoint,
-		};
-
-		// If this particle already has a list of interactions, add to it. Otherwise
-		// make a new one.
-		const int32 RigidParticleIndex = RigidParticle->UniqueIdx().Idx;
-		if (Interactions.IsValidIndex(RigidParticleIndex) == false)
-		{
-			Interactions.Insert(RigidParticleIndex, { BuoyancyInteraction });
-		}
-		else
-		{
-			Interactions[RigidParticleIndex].Add(BuoyancyInteraction);
-		}
+		});
 	}
 }
 
 void FBuoyancySubsystemSimCallback::ProcessInteractions(Chaos::FPBDRigidsEvolution& Evolution)
 {
-	for (TArray<FBuoyancyInteraction, TInlineAllocator<MaxNumBuoyancyInteractions>>& ParticleInteractions : Interactions)
+	for (FBuoyancyInteractionArray& ParticleInteractions : BuoyancyParticleData.Interactions)
 	{
 		// Sort this particle's water interactions by water level - highest to lowest
 		ParticleInteractions.Sort([](const FBuoyancyInteraction& A, const FBuoyancyInteraction& B)
@@ -754,8 +857,92 @@ void FBuoyancySubsystemSimCallback::ProcessInteractions(Chaos::FPBDRigidsEvoluti
 
 		// Process each interaction
 		for (FBuoyancyInteraction& Interaction : ParticleInteractions)
+		{						
+			// #todo(dmp): we do not want to allow multiple shallow water sims interacting with a single particle for now.
+			// #todo(dmp): correctly handle when a particle can overlap shallow water and other water bodies at the same time
+			// in order to do this, we must unite the integration methods for shallow water and spline based water bodies
+			// and rework the submersion data structures.
+			if (Interaction.WaterSpline.ShouldSampleFromShallowWaterSimulation())
+			{
+				ProcessInteractionShallowWater(Evolution, Interaction);
+			}
+			else
+			{
+				ProcessInteraction(Evolution, Interaction);
+			}
+		}
+	}
+}
+
+void FBuoyancySubsystemSimCallback::ProcessInteractionShallowWater(Chaos::FPBDRigidsEvolution& Evolution, FBuoyancyInteraction& Interaction)
+{		
+	const Chaos::FReal DeltaSeconds = GetDeltaTime_Internal();
+		
+	if (!Interaction.WaterSpline.ShallowWaterSimData.IsSet())
+	{
+		return;
+	}
+
+	FShallowWaterSimulationGrid DefaultShallowWaterSimulationGrid;
+	const FShallowWaterSimulationGrid& ShallowWaterSimData = Interaction.WaterSpline.ShallowWaterSimData.Get(DefaultShallowWaterSimulationGrid);
+
+	float TotalSubmergedVol;
+	Chaos::FVec3 TotalSubmergedCoM;
+	Chaos::FVec3 TotalWorldForce;
+	Chaos::FVec3 TotalWorldTorque;
+		
+	// #todo(dmp): abstract out the ShallowWaterSimData to generic class so we can sample other velocity sources (ie: splines, constant value, etc)
+	BuoyancyAlgorithms::ComputeSubmergedVolumeAndForcesForParticle(BuoyancyParticleData,
+		Interaction.RigidParticle, Interaction.WaterParticle,
+		ShallowWaterSimData,
+		Evolution, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag,
+		TotalSubmergedVol, TotalSubmergedCoM, TotalWorldForce, TotalWorldTorque);
+
+	// Apply forces to the particle
+	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_ShallowWaterIntegrateForces)
+
+		Chaos::FConstGenericParticleHandle RigidGeneric(Interaction.RigidParticle);
+
+#if ENABLE_DRAW_DEBUG
+		if (bBuoyancyDebugDraw)
 		{
-			ProcessInteraction(Evolution, Interaction);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(TotalSubmergedCoM, 20, 10, FColor::Green, false, -1.f, -1, 2.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(RigidGeneric->PCom(), 20, 10, FColor::Blue, false, -1.f, -1, 2.0f);
+
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(RigidGeneric->PCom(), RigidGeneric->PCom() + TotalWorldForce, 20, FColor::Blue, false, -1.f, -1, 2.f);
+		}
+#endif
+
+		// #todo(dmp): if we do this integration to accelerations per shape, then each shape can have different densities per shape.
+		// This will change to integrate the accumulated accelerations instead of forces
+
+		// Use inertia to convert forces to accelerations
+		const Chaos::FVec3 LinearAccel = RigidGeneric->InvM() * TotalWorldForce;
+
+		const Chaos::FMatrix33 WorldInvI = Chaos::Utilities::ComputeWorldSpaceInertia(RigidGeneric->RCom(), RigidGeneric->ConditionedInvI());
+		const Chaos::FVec3 AngularAccel = WorldInvI * TotalWorldTorque;
+
+		// Integrate to get delta velocities
+		Chaos::FVec3 DeltaV = LinearAccel * DeltaSeconds;
+		Chaos::FVec3 DeltaW = AngularAccel * DeltaSeconds;
+	
+		// Clamp delta velocities
+		DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
+		DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
+
+		// Compute new velocity
+		const Chaos::FVec3 NewV = Interaction.RigidParticle->GetV() + DeltaV;
+		const Chaos::FVec3 NewW = Interaction.RigidParticle->GetW() + DeltaW;
+
+		// Apply the deltas
+		Interaction.RigidParticle->SetV(NewV);
+		Interaction.RigidParticle->SetW(NewW);
+	
+		// Wake up the body??
+		if (BuoyancySettings->bKeepAwake)
+		{
+			Evolution.SetParticleObjectState(Interaction.RigidParticle, Chaos::EObjectStateType::Dynamic);
 		}
 	}
 }
@@ -853,9 +1040,6 @@ void FBuoyancySubsystemSimCallback::ProcessInteraction(Chaos::FPBDRigidsEvolutio
 				PrevPoint = SplinePoint;
 			}
 
-			// Draw water velocity at the surface point
-			//Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(SurfacePoint, SurfacePoint + WaterVel, 20.f, FColor::Yellow, false, -1.f, -1, 3.f);
-
 			// Draw water surface normal at the surface point
 			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(SurfacePoint, SurfacePoint + (WaterN * 100.f), 20.f, FColor::Green, false, -1.f, -1, 3.f);
 		}
@@ -866,7 +1050,7 @@ void FBuoyancySubsystemSimCallback::ProcessInteraction(Chaos::FPBDRigidsEvolutio
 	float SubmergedVol;
 	Chaos::FVec3 SubmergedCoM;
 	float TotalVol;
-	if (BuoyancyAlgorithms::ComputeSubmergedVolume(Evolution, Interaction.RigidParticle, Interaction.WaterParticle, Interaction.ClosestPoint, WaterN, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedShapes, SubmergedVol, SubmergedCoM, TotalVol))
+	if (BuoyancyAlgorithms::ComputeSubmergedVolume(BuoyancyParticleData, Evolution, Interaction.RigidParticle, Interaction.WaterParticle, Interaction.ClosestPoint, WaterN, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedVol, SubmergedCoM, TotalVol))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_BuildSubmersions)
 
@@ -874,43 +1058,41 @@ void FBuoyancySubsystemSimCallback::ProcessInteraction(Chaos::FPBDRigidsEvolutio
 		// approximate submerged center of mass, and apply the buoyancy force there.
 		if (SubmergedVol > SMALL_NUMBER)
 		{
-			const int32 RigidParticleIndex = Interaction.RigidParticle->UniqueIdx().Idx;
-
 			// Get the water velocity at this point
 			const FVector WaterVel
 				= Interaction.WaterSpline.Velocity.IsSet()
 				? Interaction.WaterSpline.Velocity->Eval(Interaction.ClosestSplineKey) * ClosestPosDerivative.GetSafeNormal()
 				: Chaos::FVec3::ZeroVector;
 
-			// If this particle was already marked submerged, add to its existing submersion
-			if (Submersions.IsValidIndex(RigidParticleIndex))
+			// Get the submersion for this particle. If it's new, the particle ptr will be null.
+			// If it's not new, make sure the particle ptr is the right particle.
+			FBuoyancySubmersion& Submersion = BuoyancyParticleData.GetSubmersion(*Interaction.RigidParticle);
+			if (Submersion.Particle != nullptr)
 			{
-				FBuoyancySubmersion& Submersion = Submersions[RigidParticleIndex];
 				ensureMsgf(Submersion.Particle == Interaction.RigidParticle, TEXT("Something went wrong - there's a particle index mismatch in the Submersions sparse array"));
-
-				// Get the weighted-average CoM
-				// NOTE: The unchecked division should be safe since we already
-				// know SubmergedVol > SMALL_NUMBER
-				const float TotalSubmergedVol = Submersion.Vol + SubmergedVol;
-				Submersion.CoM = ((Submersion.CoM * Submersion.Vol) + (SubmergedCoM * SubmergedVol)) / TotalSubmergedVol;
-
-				// Sum the volumes
-				Submersion.Vol = TotalSubmergedVol;
-
-				// Get the weighted-average slerped water surface norm
-				const float VolRatio = SubmergedVol / TotalSubmergedVol;
-				const FQuat NormRot = FQuat::FindBetweenNormals(Submersion.Norm, WaterN);
-				Submersion.Norm = NormRot.Slerp(FQuat::Identity, NormRot, VolRatio).GetUpVector();
-
-				// Blend water velocities
-				Submersion.Vel = FMath::Lerp(Submersion.Vel, WaterVel, VolRatio);
 			}
 
-			// If this particle was not yet submerged, make a new submersion for it
-			else
-			{
-				Submersions.Insert(RigidParticleIndex, { Interaction.RigidParticle, SubmergedVol, SubmergedCoM, WaterVel, WaterN });
-			}
+			Submersion.Particle = Interaction.RigidParticle;
+
+			Chaos::FSingleParticlePhysicsProxy* RigidProxy = static_cast<Chaos::FSingleParticlePhysicsProxy*>(Submersion.Particle->PhysicsProxy());
+			Submersion.SyncTimestamp = RigidProxy->GetSyncTimestamp();
+
+			// Get the weighted-average CoM
+			// NOTE: The unchecked division should be safe since we already
+			// know SubmergedVol > SMALL_NUMBER
+			const float TotalSubmergedVol = Submersion.Vol + SubmergedVol;
+			Submersion.CoM = ((Submersion.CoM * Submersion.Vol) + (SubmergedCoM * SubmergedVol)) / TotalSubmergedVol;
+
+			// Sum the volumes
+			Submersion.Vol = TotalSubmergedVol;
+
+			// Get the weighted-average slerped water surface norm
+			const float VolRatio = SubmergedVol / TotalSubmergedVol;
+			const FQuat NormRot = FQuat::FindBetweenNormals(Submersion.Norm, WaterN);
+			Submersion.Norm = NormRot.Slerp(FQuat::Identity, NormRot, VolRatio).GetUpVector();
+
+			// Blend water velocities
+			Submersion.Vel = FMath::Lerp(Submersion.Vel, WaterVel, VolRatio);
 
 			// If this is a surface touch record it for callback, if 
 			if (BuoyancySettings->SurfaceTouchCallbackFlags != 0 &&
@@ -919,7 +1101,6 @@ void FBuoyancySubsystemSimCallback::ProcessInteraction(Chaos::FPBDRigidsEvolutio
 				SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_BuildSubmersionCallbackData)
 
 				// Proceed only if this CoM is moving fast enough to generate events
-				const FBuoyancySubmersion& Submersion = Submersions[RigidParticleIndex];
 				const Chaos::FVec3 CoMDiff = Submersion.CoM - Interaction.RigidParticle->XCom();
 				const Chaos::FVec3 CoMVel = Interaction.RigidParticle->GetV() + Chaos::FVec3::CrossProduct(Interaction.RigidParticle->GetW(), CoMDiff);
 				const float CoMVelSq = Chaos::FVec3::DotProduct(CoMVel, CoMVel);
@@ -929,16 +1110,13 @@ void FBuoyancySubsystemSimCallback::ProcessInteraction(Chaos::FPBDRigidsEvolutio
 				if (CoMVelSq > MinVelSq)
 				{
 					// If we don't have a metadata for this particle yet, add one
-					if (!SubmersionMetaData.IsValidIndex(RigidParticleIndex))
-					{
-						SubmersionMetaData.Insert(RigidParticleIndex, FBuoyancySubmersionMetaData());
-					}
-					FBuoyancySubmersionMetaData& MetaData = SubmersionMetaData[RigidParticleIndex];
+					FBuoyancySubmersionMetaData& MetaData = BuoyancyParticleData.GetSubmersionMetaData(*Interaction.RigidParticle);
 
 					// If we haven't already maxed out on water contacts, add one
 					if (MetaData.WaterContacts.Num() < FBuoyancySubmersionMetaData::MaxNumWaterContacts)
 					{
-						MetaData.WaterContacts.Add({ Interaction.WaterParticle, SubmergedVol, SubmergedCoM, CoMVel });
+						Chaos::FSingleParticlePhysicsProxy* WaterProxy = static_cast<Chaos::FSingleParticlePhysicsProxy*>(Interaction.WaterParticle->PhysicsProxy());
+						MetaData.WaterContacts.Add({ Interaction.WaterParticle, WaterProxy->GetSyncTimestamp(), SubmergedVol, SubmergedCoM, CoMVel});
 					}
 				}
 			}
@@ -957,7 +1135,7 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 	const Chaos::FPerParticleGravity* PerParticleGravity = &Evolution.GetGravityForces();
 
 	// Apply all buoyant forces
-	for (const FBuoyancySubmersion& Submersion : Submersions)
+	for (const FBuoyancySubmersion& Submersion : BuoyancyParticleData.Submersions)
 	{
 		// Figure out the gravity level of the particle
 		const int32 GravityGroupIndex = Submersion.Particle->GravityGroupIndex();
@@ -990,7 +1168,7 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 
 namespace
 {
-	bool IsParticleValid(Chaos::FGeometryParticleHandle* ParticleHandle)
+	bool IsParticleValid(Chaos::FGeometryParticleHandle* ParticleHandle, TSharedPtr<FProxyTimestampBase, ESPMode::ThreadSafe> SyncTimestamp)
 	{
 		if (bBuoyancyCallbackDataParticleValidation == false)
 		{
@@ -1002,13 +1180,23 @@ namespace
 			return false;
 		}
 
+		if (SyncTimestamp.IsValid() == false)
+		{
+			return false;
+		}
+
+		if (SyncTimestamp->bDeleted)
+		{
+			return false;
+		}
+
 		IPhysicsProxyBase* Proxy = ParticleHandle->PhysicsProxy();
 		if (Proxy == nullptr)
 		{
 			return false;
 		}
 
-		if (Proxy->GetMarkedDeleted())
+		if (!ensureMsgf(Proxy->GetSyncTimestamp() == SyncTimestamp, TEXT("particle's sync timestamp doesn't match the sync timestamp that was passed to the particle validity check!")))
 		{
 			return false;
 		}
@@ -1024,6 +1212,11 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 		return;
 	}
 
+	// Get refs to internal sparse arrays of submersion data
+	TSparseArray<FBuoyancySubmersion>& PrevSubmersions = BuoyancyParticleData.PrevSubmersions;
+	TSparseArray<FBuoyancySubmersionMetaData>& MetaDatas = BuoyancyParticleData.SubmersionMetaData;
+	TSparseArray<FBuoyancySubmersionMetaData>& PrevMetaDatas = BuoyancyParticleData.PrevSubmersionMetaData;
+
 	// Generate callback data if we're into that sort of thing
 	const uint8 CallbackFlags = BuoyancySettings->SurfaceTouchCallbackFlags;
 	if (CallbackFlags != 0)
@@ -1035,18 +1228,18 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 
 		// Process every surface touch and queue up some of them to return
 		// to game thread for callback dispatch
-		Output.SurfaceTouches.Reserve(SubmersionMetaData.Num() * FBuoyancySubmersionMetaData::MaxNumWaterContacts);
-		for (auto Iter = SubmersionMetaData.CreateIterator(); Iter; ++Iter)
+		Output.SurfaceTouches.Reserve(MetaDatas.Num() * FBuoyancySubmersionMetaData::MaxNumWaterContacts);
+		for (auto Iter = MetaDatas.CreateIterator(); Iter; ++Iter)
 		{
 			const FBuoyancySubmersionMetaData& MetaData = *Iter;
 			const int32 ObjectIndex = Iter.GetIndex();
-			const FBuoyancySubmersion& Submersion = Submersions[ObjectIndex];
+			const FBuoyancySubmersion& Submersion = BuoyancyParticleData.Submersions[ObjectIndex];
 
 			// Mark this as a new or continuing contact based on whether or
 			// not we have a bit from the previous-submersions array.
 			const bool bPrevSubmerged =
-				PrevSubmersionMetaData.IsValidIndex(ObjectIndex) &&
-				PrevSubmersionMetaData.IsAllocated(ObjectIndex);
+				PrevMetaDatas.IsValidIndex(ObjectIndex) &&
+				PrevMetaDatas.IsAllocated(ObjectIndex);
 			const EBuoyancyEventFlags TouchFlag
 				= bPrevSubmerged
 				? EBuoyancyEventFlags::Continue
@@ -1057,7 +1250,7 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 			// bother doing this work if we're tracking removals
 			if (bPrevSubmerged && (CallbackFlags & EBuoyancyEventFlags::End) != 0)
 			{
-				PrevSubmersionMetaData.RemoveAt(ObjectIndex);
+				PrevMetaDatas.RemoveAt(ObjectIndex);
 			}
 
 			// Only continue if we're tracking this touch type
@@ -1066,7 +1259,7 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 				continue;
 			}
 
-			if (!ensureMsgf(IsParticleValid(Submersion.Particle), TEXT("Submersion data for buoyancy callback includes invalid submerged particle handle")))
+			if (!ensureMsgf(IsParticleValid(Submersion.Particle, Submersion.SyncTimestamp.Pin()), TEXT("Submersion data for buoyancy callback includes invalid submerged particle handle")))
 			{
 				continue;
 			}
@@ -1074,7 +1267,7 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 			// Build up output of new and continuing surface touches
 			for (const FBuoyancySubmersionMetaData::FWaterContact& WaterContact : MetaData.WaterContacts)
 			{
-				if (!ensureMsgf(IsParticleValid(WaterContact.Water), TEXT("Submersion data for buoyancy callback includes invalid water body particle handle")))
+				if (!ensureMsgf(IsParticleValid(WaterContact.Water, WaterContact.SyncTimestamp.Pin()), TEXT("Submersion data for buoyancy callback includes invalid water body particle handle")))
 				{
 					continue;
 				}
@@ -1097,20 +1290,20 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 		// loses contact, not just when one part of it loses contact.
 		if ((CallbackFlags & EBuoyancyEventFlags::End) != 0)
 		{
-			for (auto Iter = PrevSubmersionMetaData.CreateIterator(); Iter; ++Iter)
+			for (auto Iter = PrevMetaDatas.CreateIterator(); Iter; ++Iter)
 			{
 				const FBuoyancySubmersionMetaData& MetaData = *Iter;
 				const int32 ObjectIndex = Iter.GetIndex();
 				const FBuoyancySubmersion& Submersion = PrevSubmersions[ObjectIndex];
 
-				if (!ensureMsgf(IsParticleValid(Submersion.Particle), TEXT("Previous frame submersion data for buoyancy callback includes invalid submerged particle handle")))
+				if (!IsParticleValid(Submersion.Particle, Submersion.SyncTimestamp.Pin()))
 				{
 					continue;
 				}
 
 				for (const FBuoyancySubmersionMetaData::FWaterContact& WaterContact : MetaData.WaterContacts)
 				{
-					if (!ensureMsgf(IsParticleValid(WaterContact.Water), TEXT("Previous frame submersion data for buoyancy callback includes invalid water body particle handle")))
+					if (!IsParticleValid(WaterContact.Water, WaterContact.SyncTimestamp.Pin()))
 					{
 						continue;
 					}
@@ -1128,3 +1321,27 @@ void FBuoyancySubsystemSimCallback::GenerateCallbackData()
 		}
 	}
 }
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+void FBuoyancySubsystemSimCallback::GenerateAllocationData()
+{
+	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_GenerateAllocationData)
+
+	// NOTE: For now I'm guarding this inside WITH_BUOYANCY_MEMORY_TRACKING.
+	// The current use case for the game thread GetAllocatedSize is a console
+	// command which is editor-only. If this is to become useful
+	// more generally, we can find a way to do it without relying on
+	// continual calls to GetAllocatedSize().
+	const uint32 NewAllocatedSize = GetAllocatedSize();
+	if (AllocatedSize != NewAllocatedSize)
+	{
+		// If the number of allocated bytes has changed, update our cached num bytes
+		AllocatedSize = NewAllocatedSize;
+
+		// Get the async output struct to write to
+		FBuoyancySubsystemSimCallbackOutput& Output = GetProducerOutputData_Internal();
+		Output.AllocatedSize = AllocatedSize;
+	}
+}
+#endif
+

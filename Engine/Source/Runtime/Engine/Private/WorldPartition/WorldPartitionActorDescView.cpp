@@ -78,13 +78,12 @@ bool FWorldPartitionActorDescView::GetIsSpatiallyLoaded() const
 		return false;
 	}
 
-	bool bIsSpatiallyLoaded = ActorDesc->GetIsSpatiallyLoaded();
-	if (bIsSpatiallyLoaded && ParentView)
+	if (ParentView)
 	{
-		bIsSpatiallyLoaded = ParentView->GetIsSpatiallyLoaded();
+		return ParentView->GetIsSpatiallyLoaded();
 	}
-
-	return bIsSpatiallyLoaded;
+	
+	return ActorDesc->GetIsSpatiallyLoaded();
 }
 
 bool FWorldPartitionActorDescView::GetActorIsHLODRelevant() const
@@ -99,9 +98,9 @@ FSoftObjectPath FWorldPartitionActorDescView::GetHLODLayer() const
 		return FSoftObjectPath();
 	}
 
-	if (RuntimedHLODLayer.IsSet())
+	if (RuntimeHLODLayer.IsSet())
 	{
-		return RuntimedHLODLayer.GetValue();
+		return RuntimeHLODLayer.GetValue();
 	}
 
 	return ActorDesc->GetHLODLayer();
@@ -309,7 +308,7 @@ void FWorldPartitionActorDescView::SetForcedNoHLODLayer()
 
 void FWorldPartitionActorDescView::SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer)
 {
-	RuntimedHLODLayer = InHLODLayer;
+	RuntimeHLODLayer = InHLODLayer;
 }
 
 AActor* FWorldPartitionActorDescView::GetActor() const

@@ -4,7 +4,7 @@
 #include "PathTracingAdaptiveUtils.ush"
 
 
-RWBuffer<int> NextActivePaths;
+RWBuffer<uint> NextActivePaths;
 RWBuffer<uint> NumPathStates;
 int2 TileTextureOffset;
 uint2 DispatchDim;
@@ -20,8 +20,8 @@ void PathTracingAdaptiveStartCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		return;
 	}
 
-	int LinearPixelIndex = DispatchIdx.x + DispatchDim.x * DispatchIdx.y;
-	if (LinearPixelIndex == 0)
+	uint PathIndex = DispatchIdx.x + 65536 * DispatchIdx.y;
+	if (PathIndex == 0)
 	{
 		// write other dimensions for indirect dispatch
 		NumPathStates[1] = 1;
@@ -34,6 +34,6 @@ void PathTracingAdaptiveStartCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		// This pixel needs more samples, allocate a path state for it
 		uint PathStateIndex;
 		InterlockedAdd(NumPathStates[0], 1, PathStateIndex);
-		NextActivePaths[PathStateIndex] = LinearPixelIndex;
+		NextActivePaths[PathStateIndex] = PathIndex;
 	}
 }

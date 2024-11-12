@@ -189,8 +189,10 @@ half3 DotSH3(FThreeBandSHVectorRGB A,FThreeBandSHVector B)
 
 FTwoBandSHVector GetLuminance(FTwoBandSHVectorRGB InRGBVector)
 {
+	half3 LF = (half3) LuminanceFactors();
+	
 	FTwoBandSHVector Out;
-	Out.V = InRGBVector.R.V * 0.3f + InRGBVector.G.V * 0.59f + InRGBVector.B.V * 0.11f;
+	Out.V = InRGBVector.R.V * LF.x + InRGBVector.G.V * LF.y + InRGBVector.B.V * LF.z;
 	return Out;
 }
 

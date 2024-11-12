@@ -124,17 +124,22 @@ bool Allocate(uint Size, uint BufferSize, uint AllocatorEntry, out uint OutOffse
 	return true;
 }
 
+uint Align16(uint Value)
+{
+	return (Value + 15) & ~15;
+}
+
 bool AllocateVertexAndIndexRanges(uint VertexSize, uint IndexSize, out uint OutVertexOffset, out uint OutIndexOffset)
 {
 	// allocate vertex range
-	if (!Allocate(VertexSize, VertexBufferSize, 0, OutVertexOffset))
+	if (!Allocate(Align16(VertexSize), VertexBufferSize, 0, OutVertexOffset))
 	{
 		OutIndexOffset = 0;
 		return false;
 	}
 
 	// allocate index range
-	if (!Allocate(IndexSize, IndexBufferSize, 1, OutIndexOffset))
+	if (!Allocate(Align16(IndexSize), IndexBufferSize, 1, OutIndexOffset))
 	{
 		return false;
 	}
@@ -393,7 +398,7 @@ void StreamOutClusterCommon(FCluster Cluster, FCandidateCluster CandidateCluster
 #if NANITE_HIERARCHY_TRAVERSAL
 
 RWCoherentByteAddressBuffer NodesAndClusterBatches;
-RWCoherentByteAddressBuffer CandididateClusters;
+RWCoherentByteAddressBuffer CandidateClusters;
 
 struct FCountTrianglesClusterSegmentProcessor
 {
@@ -474,13 +479,13 @@ struct FNaniteTraversalStreamOutCallback
 		CandidateCluster.RequestIndex = CandidateNode.RequestIndex;
 		CandidateCluster.PageIndex = HierarchyNodeSlice.ChildStartReference >> NANITE_MAX_CLUSTERS_PER_PAGE_BITS;
 		CandidateCluster.ClusterIndex = ClusterIndex;
-		StoreCandidateClusterCoherentNoCheckRT(CandididateClusters, StoreIndex, CandidateCluster);	//TODO: NoCheck to fix issue compilation issue with FXC
+		StoreCandidateClusterCoherentNoCheckRT(CandidateClusters, StoreIndex, CandidateCluster);	//TODO: NoCheck to fix issue compilation issue with FXC
 	}
 
 	uint4 LoadPackedCluster(uint CandidateIndex)
 	{
 		checkSlow(CandidateIndex < MaxCandidateClusters);
-		return uint4(CandididateClusters.Load3(CandidateIndex * GetCandidateClusterSizeRT()), 0u);
+		return uint4(CandidateClusters.Load3(CandidateIndex * GetCandidateClusterSizeRT()), 0u);
 	}
 
 	bool IsNodeDataReady(uint4 RawData)

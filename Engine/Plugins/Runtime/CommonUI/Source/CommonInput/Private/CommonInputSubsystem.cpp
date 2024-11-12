@@ -80,7 +80,10 @@ void UCommonInputSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	CurrentInputType = LastInputType = Settings->GetDefaultInputType();
 
 	CommonInputPreprocessor = MakeInputProcessor();
-	FSlateApplication::Get().RegisterInputPreProcessor(CommonInputPreprocessor, 0);
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().RegisterInputPreProcessor(CommonInputPreprocessor, EInputPreProcessorType::PreGame);
+	}
 
 	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UCommonInputSubsystem::Tick), 0.1f);
 
@@ -142,7 +145,8 @@ bool UCommonInputSubsystem::GetInputTypeFilter(ECommonInputType InputType) const
 
 void UCommonInputSubsystem::AddOrRemoveInputTypeLock(FName InReason, ECommonInputType InInputType, bool bAddLock)
 {
-	if (bAddLock)
+	// Make sure the input is supported before locking it, otherwise remove it if it exists
+	if (bAddLock && PlatformSupportsInputType(InInputType))
 	{
 		ECommonInputType& CurrentValue = CurrentInputLocks.FindOrAdd(InReason);
 		CurrentValue = InInputType;
@@ -175,10 +179,12 @@ void UCommonInputSubsystem::AddOrRemoveInputTypeLock(FName InReason, ECommonInpu
 		CurrentInputLock = (ECommonInputType)ComputedInputLock;
 	}
 
+	const ECommonInputType PreviousInput = CurrentInputType;
+
 	// If a lock was put in place, lock the current input type.
 	CurrentInputType = LockInput(LastInputType);
 
-	if (CurrentInputType != LastInputType)
+	if (CurrentInputType != PreviousInput)
 	{
 		BroadcastInputMethodChanged();
 	}
@@ -315,9 +321,12 @@ void UCommonInputSubsystem::SetCurrentInputType(ECommonInputType NewInputType)
 					{
 						SlateApplication.UsePlatformCursorForCursorUser(bEnableGamepadPlatformCursor);
 					}
+					SlateApplication.SetGameAllowsFakingTouchEvents(false);
 					break;
 				case ECommonInputType::Touch:
 					UE_LOG(LogCommonInput, Log, TEXT("UCommonInputSubsystem::SetCurrentInputType(): Using Touch"));
+					SlateApplication.SetGameAllowsFakingTouchEvents(true);
+					SlateApplication.SetGameIsFakingTouchEvents(LocalPlayer && LocalPlayer->ViewportClient && LocalPlayer->ViewportClient->GetUseMouseForTouch());
 					break;
 				case ECommonInputType::MouseAndKeyboard:
 				default:				
@@ -326,6 +335,7 @@ void UCommonInputSubsystem::SetCurrentInputType(ECommonInputType NewInputType)
 					{
 						SlateApplication.UsePlatformCursorForCursorUser(true);
 					}
+					SlateApplication.SetGameAllowsFakingTouchEvents(false);
 					break;
 				}
 
@@ -384,19 +394,6 @@ bool UCommonInputSubsystem::ShouldShowInputKeys() const
 bool UCommonInputSubsystem::Tick(float DeltaTime)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UCommonInputSubsystem_Tick);
-
-	// Keep the CommonInputPreprocessor on top. Input swap and input filtering (e.g. "Ignore Gamepad Input")
-	// both start to break down if narrow game preprocessors temporarily get in front of it.
-	// This is a workaround to avoid a bigger intervention in the SlateApplication API for managing preprocessors.
-	if (CommonInputPreprocessor.IsValid() && FSlateApplication::IsInitialized())
-	{
-		FSlateApplication& SlateApplication = FSlateApplication::Get();
-		if (SlateApplication.FindInputPreProcessor(CommonInputPreprocessor) != 0)
-		{
-			SlateApplication.UnregisterInputPreProcessor(CommonInputPreprocessor);
-			SlateApplication.RegisterInputPreProcessor(CommonInputPreprocessor, 0);
-		}
-	}
 	
 	return true; //repeat ticking
 }
@@ -525,7 +522,7 @@ bool UCommonInputSubsystem::PlatformSupportsInputType(ECommonInputType InInputTy
 		case ECommonInputType::Touch:
 		{
 			bPlatformSupportsInput &= !UE_COMMONINPUT_FORCE_TOUCH_SUPPORT_DISABLED;
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 			// Support touch testing (testing with UseMouseForTouch setting enabled or with URemote in the editor) until touch is supported on desktop
 			bPlatformSupportsInput = true;
 #endif

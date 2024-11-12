@@ -20,7 +20,7 @@ class PARTY_API USocialPartyChatRoom : public USocialChatRoom
 public:
 	virtual void Initialize(USocialUser* InSocialUser, const FChatRoomId& InChannelId, ESocialChannelType InSourceChannelType);
 
-private:
-	void HandlePartyMemberLeft(EMemberExitedReason Reason);
-	void HandlePartyMemberJoined(UPartyMember& NewMember);
+protected:
+	virtual void HandlePartyMemberLeft(EMemberExitedReason Reason);
+	virtual void HandlePartyMemberJoined(UPartyMember& NewMember);
 };

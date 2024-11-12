@@ -81,6 +81,11 @@ void UCommonActivatableWidgetContainerBase::RemoveWidget(UCommonActivatableWidge
 		{
 			ReleaseWidget(CachedWidget.ToSharedRef());
 		}
+		else
+		{
+			GeneratedWidgetsPool.Release(&WidgetToRemove, true);
+			WidgetList.Remove(&WidgetToRemove);
+		}
 	}
 }
 
@@ -122,8 +127,9 @@ void UCommonActivatableWidgetContainerBase::ReleaseSlateResources(bool bReleaseC
 	MyInputGuard.Reset();
 	MySwitcher.Reset();
 	ReleasedWidgets.Empty();
+	WidgetList.Reset();
 
-	GeneratedWidgetsPool.ReleaseAllSlateResources();
+	GeneratedWidgetsPool.ReleaseAll(true);
 }
 
 void UCommonActivatableWidgetContainerBase::OnWidgetRebuilt()

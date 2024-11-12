@@ -25,6 +25,8 @@ FWorldPartitionHLODEditorData::FWorldPartitionHLODEditorData(UWorldPartition* In
 	{
 		OnActorDescContainerInstanceRegistered(InContainerInstance);
 	});	
+
+	ExternalDirtyActorsTracker = MakeUnique<FExternalDirtyActorsTracker>(WorldPartition->GetWorld()->PersistentLevel, this);
 }
 
 FWorldPartitionHLODEditorData::~FWorldPartitionHLODEditorData()
@@ -199,18 +201,29 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 
 		return true;
 	});
-	
+
+	TSet<const FWorldPartitionActorDescInstance*> ProcessedActors;
+
 	// Gather Pinned Actors bounds
 	if (WorldPartition->PinnedActors)
 	{
-		TSet<const FWorldPartitionActorDescInstance*> InProcessedActors;
-
 		for (const FWorldPartitionHandle& PinnedActor : WorldPartition->PinnedActors->GetActors())
 		{
 			if (PinnedActor.IsValid())
 			{
-				GatherLoadedActorsBounds(LoadedBounds, InProcessedActors, *PinnedActor, WorldPartition->GetActorDescContainerInstance());
+				GatherLoadedActorsBounds(LoadedBounds, ProcessedActors, *PinnedActor, WorldPartition->GetActorDescContainerInstance());
 			}
+		}
+	}
+	
+	// Gather Dirty Actors bounds
+	for (FExternalDirtyActorsTracker::MapType::TConstIterator MapIt(ExternalDirtyActorsTracker->GetDirtyActors()); MapIt; ++MapIt)
+	{
+		const TWeakObjectPtr<AActor>& Actor = MapIt.Key();
+		if (Actor.IsValid())
+		{
+			FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(Actor->GetActorGuid());
+			GatherLoadedActorsBounds(LoadedBounds, ProcessedActors, ActorDescInstance, WorldPartition->GetActorDescContainerInstance());
 		}
 	}
 
@@ -223,7 +236,20 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 		{
 			FBox HLODSceneNodeBox = HLODSceneNode->Bounds.GetBox();
 
-			const bool bHasAnyIntersectingLoadedRegion = Algo::AnyOf(LoadedBounds, [&HLODSceneNodeBox](const FBoundsWithVolume& Bounds) { return Bounds.Box.Intersect(HLODSceneNodeBox); });
+			// Perform an overlap test that exclude shared edges. For example, this prevents neighbor landscape HLODs actors that are
+			// perfectly matching landscape proxy bounds from being hidden when a landscape proxy is pinned.
+			const bool bHasAnyIntersectingLoadedRegion = Algo::AnyOf(LoadedBounds, [&HLODSceneNodeBox](const FBoundsWithVolume& Bounds) 
+			{
+				const FBox BoxOverlap = Bounds.Box.Overlap(HLODSceneNodeBox);
+				if (!BoxOverlap.IsValid)
+				{
+					return false;
+				}
+
+				const FVector OverlapSize = BoxOverlap.GetSize();
+				return OverlapSize.X > UE_THRESH_POINTS_ARE_NEAR && OverlapSize.Y > UE_THRESH_POINTS_ARE_NEAR;
+			});
+
 			if (bHasAnyIntersectingLoadedRegion)
 			{
 				HLODSceneNode->HasIntersectingLoadedRegion = StateUpdate;

@@ -11,7 +11,7 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogPropertyEditorPermissionList, Log, All);
 
 /** Struct, OwnerName */
-DECLARE_MULTICAST_DELEGATE_TwoParams(FPermissionListUpdated, TSoftObjectPtr<UStruct>, FName);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FPermissionListUpdated, TSoftObjectPtr<const UStruct>, FName);
 
 /**
  * A hierarchical set of rules that can be used to PermissionList all properties of specific Structs without
@@ -40,7 +40,9 @@ enum class EPropertyPermissionListRules : uint8
 
 struct FPropertyPermissionListEntry
 {
-    FNamePermissionList PermissionList;
+	FNamePermissionList PermissionList;
+	// When the permission list does not contain any AllowList, DenyList or DenyListAll it needs an AdditionalOwnerName to be tracked here so stays alive without being removed
+	TArray<FName> AdditionalOwnerNames;
 	EPropertyPermissionListRules Rules = EPropertyPermissionListRules::UseExistingPermissionList;
 };
 
@@ -48,9 +50,12 @@ class PROPERTYEDITOR_API FPropertyPermissionList
 {
 public:
 	/** Add a set of rules for a specific base UStruct to determine which properties are visible in all details panels */
-	void AddPermissionList(TSoftObjectPtr<UStruct> Struct, const FNamePermissionList& PermissionList, EPropertyPermissionListRules Rules = EPropertyPermissionListRules::UseExistingPermissionList);
+	UE_DEPRECATED(5.5, "Call AddPermissionList with additional required arguments instead.")
+	void AddPermissionList(TSoftObjectPtr<const UStruct> Struct, const FNamePermissionList& PermissionList, const EPropertyPermissionListRules Rules = EPropertyPermissionListRules::UseExistingPermissionList);
+	/** Add a set of rules for a specific base UStruct to determine which properties are visible in all details panels */
+	void AddPermissionList(TSoftObjectPtr<const UStruct> Struct, const FNamePermissionList& PermissionList, const EPropertyPermissionListRules Rules, const TConstArrayView<FName> InAdditionalOwnerNames);
 	/** Remove a set of rules for a specific base UStruct to determine which properties are visible in all details panels */
-	void RemovePermissionList(TSoftObjectPtr<UStruct> Struct);
+	void RemovePermissionList(TSoftObjectPtr<const UStruct> Struct);
 	/** Remove all rules */
 	void ClearPermissionList();
 
@@ -58,19 +63,19 @@ public:
 	void UnregisterOwner(const FName Owner);
 
 	/** Add a specific property to a UStruct's AllowList */
-	void AddToAllowList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner);
+	void AddToAllowList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner);
 	/** Add a list of properties to a UStruct's AllowList */
-	void AddToAllowList(TSoftObjectPtr<UStruct> Struct, const TArray<FName>& PropertyNames, const FName Owner);
+	void AddToAllowList(TSoftObjectPtr<const UStruct> Struct, const TArray<FName>& PropertyNames, const FName Owner);
 	/** Remove a specific property from a UStruct's AllowList */
-	void RemoveFromAllowList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner);
+	void RemoveFromAllowList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner);
 	/** Add a specific property to a UStruct's DenyList */
-	void AddToDenyList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner);
+	void AddToDenyList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner);
 	/** Remove a specific property from a UStruct's DenyList */
-    void RemoveFromDenyList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner);
+	void RemoveFromDenyList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner);
 
 	/** When the PermissionList or DenyList for any struct was added to or removed from. */
-    FPermissionListUpdated PermissionListUpdatedDelegate;
-    
+	FPermissionListUpdated PermissionListUpdatedDelegate;
+
 	/** When the entire PermissionList is enabled or disabled */
 	FSimpleMulticastDelegate PermissionListEnabledDelegate;
 
@@ -101,7 +106,7 @@ public:
 	bool IsSpecificPropertyDenyListed(const UStruct* ObjectStruct, FName PropertyName) const;
 
 	/** Gets a read-only copy of the original, un-flattened PermissionList. */
-	const TMap<TSoftObjectPtr<UStruct>, FPropertyPermissionListEntry>& GetRawPermissionList() const { return RawPropertyPermissionList; }
+	const TMap<TSoftObjectPtr<const UStruct>, FPropertyPermissionListEntry>& GetRawPermissionList() const { return RawPropertyPermissionList; }
 
 	/** Clear CachedPropertyPermissionList to cause the PermissionListed property list to be regenerated next time it's queried */
 	void ClearCache();
@@ -116,20 +121,20 @@ protected:
 private:
 	bool Tick(float DeltaTime);
 	void RegisterOnBlueprintCompiled();
-	void ClearCacheAndBroadcast(TSoftObjectPtr<UStruct> ObjectStruct = nullptr, FName OwnerName = NAME_None);
-	
+	void ClearCacheAndBroadcast(TSoftObjectPtr<const UStruct> ObjectStruct = nullptr, FName OwnerName = NAME_None);
+
 	/** Whether DoesPropertyPassFilter should perform its PermissionList check or always return true */
 	bool bEnablePermissionList = false;
-	
+
 	/** Stores assigned PermissionLists from AddPermissionList(), which are later flattened and stored in CachedPropertyPermissionList. */
-	TMap<TSoftObjectPtr<UStruct>, FPropertyPermissionListEntry> RawPropertyPermissionList;
+	TMap<TSoftObjectPtr<const UStruct>, FPropertyPermissionListEntry> RawPropertyPermissionList;
 
 	/** Handle for our tick function */
 	FTSTicker::FDelegateHandle OnTickHandle;
 
 	struct FPermissionListUpdate
 	{
-		TSoftObjectPtr<UStruct> ObjectStruct;
+		TSoftObjectPtr<const UStruct> ObjectStruct;
 		FName OwnerName;
 	};
 	friend bool operator==(const FPermissionListUpdate& A, const FPermissionListUpdate& B);

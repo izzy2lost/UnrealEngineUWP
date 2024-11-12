@@ -9,6 +9,7 @@
 
 #include "ToolMenus.h"
 #include "GameFramework/Actor.h"
+#include "Misc/Optional.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
 
@@ -52,7 +53,11 @@ public:
 	virtual const UPCGGraph* GetPCGGraph() const { return nullptr; }
 	virtual bool IsLoopIteration() const { return false; }
 
+	virtual void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+
 protected:
+	virtual FPCGStack* GetMutablePCGStack() { return nullptr; }
+
 	TWeakPtr<FPCGEditorGraphDebugObjectItem> Parent;
 	TSet<TSharedPtr<FPCGEditorGraphDebugObjectItem>> Children;
 	bool bIsExpanded = false;
@@ -75,6 +80,8 @@ public:
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
 
 protected:
+	virtual FPCGStack* GetMutablePCGStack() override { return &PCGStack; }
+
 	TWeakObjectPtr<AActor> Actor = nullptr;
 
 	FPCGStack PCGStack;
@@ -103,7 +110,11 @@ public:
 	virtual bool IsDebuggable() const override { return bIsDebuggable; }
 	virtual const UPCGGraph* GetPCGGraph() const override { return PCGGraph.Get(); }
 
+	virtual void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap) override;
+
 protected:
+	virtual FPCGStack* GetMutablePCGStack() override { return &PCGStack; }
+
 	TWeakObjectPtr<UPCGComponent> PCGComponent = nullptr;
 	TWeakObjectPtr<const UPCGGraph> PCGGraph = nullptr;
 
@@ -135,6 +146,8 @@ public:
 	virtual const UPCGGraph* GetPCGGraph() const override { return PCGGraph.Get(); }
 
 protected:
+	virtual FPCGStack* GetMutablePCGStack() override { return &PCGStack; }
+
 	TWeakObjectPtr<const UPCGNode> PCGNode = nullptr;
 	TWeakObjectPtr<const UPCGGraph> PCGGraph = nullptr;
 
@@ -170,6 +183,8 @@ public:
 	virtual const UPCGGraph* GetPCGGraph() const override { return Cast<UPCGGraph>(LoopedPCGGraph.Get()); }
 
 protected:
+	virtual FPCGStack* GetMutablePCGStack() override { return &PCGStack; }
+
 	int32 LoopIndex = INDEX_NONE;
 	TWeakObjectPtr<const UObject> LoopedPCGGraph = nullptr;
 
@@ -219,12 +234,15 @@ public:
 
 	void SetDebugObjectSelection(const FPCGStack& FullStack);
 
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+
 private:
 	void SelectedDebugObject_OnClicked() const;
 	bool IsSelectDebugObjectButtonEnabled() const;
 
 	void SetDebugObjectFromSelection_OnClicked();
-	bool IsSetDebugObjectFromSelectionButtonEnabled() const;
+	bool IsSetDebugObjectFromSelectionButtonEnabled() const { return IsSetDebugObjectFromSelectionEnabled.IsSet() && IsSetDebugObjectFromSelectionEnabled.GetValue(); }
+	void UpdateIsSetDebugObjectFromSelectionEnabled();
 
 	void RefreshTree();
 	void SortTreeItems(bool bIsAscending = true, bool bIsRecursive = true);
@@ -238,6 +256,7 @@ private:
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InPropertyChain);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 	void OnObjectConstructed(UObject* InObject);
+	void OnEditorSelectionChanged(UObject* InObject);
 
 	UPCGGraph* GetPCGGraph() const;
 
@@ -267,6 +286,9 @@ private:
 	/** Set true to avoid broadcasting debug object change notifications when setting the object from code. */
 	bool bDisableDebugObjectChangeNotification = false;
 
+	/** Latest value for IsSetDebugObjectFromSelectionButtonEnabled */
+	TOptional<bool> IsSetDebugObjectFromSelectionEnabled;
+
 	/** Used to retain item expansion state across tree refreshes. */
 	TSet<FPCGStack> ExpandedStacks;
 
@@ -283,5 +305,5 @@ private:
 	/** The previous stack that the user selected. */
 	FPCGStack PreviouslySelectedStack;
 
-	const UPCGNode* PCGNodeBeingInspected = nullptr;
+	TWeakObjectPtr<const UPCGNode> PCGNodeBeingInspected = nullptr;
 };

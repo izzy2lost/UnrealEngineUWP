@@ -2,31 +2,28 @@
 
 #include "Factories/DMXLibraryFromMVRImporter.h"
 
+#include "Algo/Find.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetToolsModule.h"
 #include "DMXEditorLog.h"
-#include "DMXInitializeFixtureTypeFromGDTFHelper.h"
+#include "DMXGDTFToFixtureTypeConverter.h"
 #include "DMXZipper.h"
 #include "Factories/DMXGDTFFactory.h"
 #include "Factories/DMXLibraryFromMVRImportOptions.h"
-#include "Library/DMXEntityFixtureType.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Interfaces/IMainFrameModule.h"
+#include "Layout/SlateRect.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXGDTFAssetImportData.h"
 #include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
 #include "MVR/DMXMVRAssetImportData.h"
 #include "MVR/DMXMVRGeneralSceneDescription.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-#include "Widgets/SDMXLibraryFromMVRImportOptions.h"
-
-#include "AssetToolsModule.h"
 #include "ObjectTools.h"
+#include "Widgets/SDMXLibraryFromMVRImportOptions.h"
 #include "XmlFile.h"
-#include "Algo/Find.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Interfaces/IMainFrameModule.h"
-#include "Layout/SlateRect.h"
-#include "Misc/MessageDialog.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXLibraryFromMVRImporter"
 
@@ -126,7 +123,7 @@ bool FDMXLibraryFromMVRImporter::LoadMVRFile(const FString& InFilename)
 	}
 
 	// Create the General Scene Description
-	GeneralSceneDescription = CreateGeneralSsceneDescription(GetTransientPackage());
+	GeneralSceneDescription = CreateGeneralSceneDescription(GetTransientPackage());
 	if (!GeneralSceneDescription)
 	{
 		UE_LOG(LogDMXEditor, Error, TEXT("Cannot read General Scene Description from MVR '%s'. File is not a valid MVR."), *Filename);
@@ -197,6 +194,8 @@ void FDMXLibraryFromMVRImporter::Reimport(UDMXLibrary* InDMXLibrary, UDMXLibrary
 
 void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, const TArray<UDMXImportGDTF*>& GDTFAssets)
 {
+	using namespace UE::DMX::GDTF;
+
 	check(DMXLibrary);
 	check(Zip.IsValid());
 	check(GeneralSceneDescription);
@@ -221,7 +220,7 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 
 		UDMXEntityFixtureType* const* ExistingFixtureTypePtr = Algo::FindByPredicate(FixtureTypes, [GDTF](const UDMXEntityFixtureType* FixtureType)
 			{
-				return FixtureType->DMXImport == GDTF;
+				return FixtureType->GDTFSource == GDTF;
 			});
 		if (ExistingFixtureTypePtr)
 		{
@@ -234,13 +233,10 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 			FixtureTypeConstructionParams.ParentDMXLibrary = DMXLibrary;
 
 			UDMXEntityFixtureType* NewFixtureType = UDMXEntityFixtureType::CreateFixtureTypeInLibrary(FixtureTypeConstructionParams, FPaths::GetBaseFilename(GDTFFilename));
-			const bool bAdvancedImportSuccess = FDMXInitializeFixtureTypeFromGDTFHelper::GenerateModesFromGDTF(*NewFixtureType, *GDTF);
-			if (!bAdvancedImportSuccess)
-			{
-				UE_LOG(LogDMXEditor, Warning, TEXT("Failed to initialize Fixture Type '%s', falling back to legacy method that doesn't support matrix fixtures."), *NewFixtureType->GetName());
-				NewFixtureType->SetModesFromDMXImport(GDTF);
-			}
-			NewFixtureType->DMXImport = GDTF;
+			NewFixtureType->GDTFSource = GDTF;
+
+			constexpr bool bUpdateFixtureTypeName = true;
+			FDMXGDTFToFixtureTypeConverter::ConvertGDTF(*NewFixtureType, *GDTF, bUpdateFixtureTypeName);
 
 			GDTFSpecToFixtureTypeMap.Add(GDTFFilename, NewFixtureType);
 		}
@@ -266,6 +262,11 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 	// Update or create new Fixture Patches for the MVR Fixtures
 	for (const UDMXMVRFixtureNode* FixtureNode : FixtureNodes)
 	{
+		if (!FixtureNode)
+		{
+			continue;
+		}
+
 		// Find the GDTF Filename, irregardless if it has the .gdtf extension
 		FString GDTFFilename = FixtureNode->GDTFSpec;
 		if (!GDTFSpecToFixtureTypeMap.Contains(GDTFFilename))
@@ -300,6 +301,12 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 
 		if (ActiveModeIndex != INDEX_NONE)
 		{
+			const int32 DesiredFixtureID = [FixtureNode]()
+				{
+					int32 Value;
+					return LexTryParseString(Value, *FixtureNode->FixtureID) ? Value : 1;
+				}();
+
 			UDMXEntityFixturePatch* const* ExistingFixturePatchPtr = Algo::FindByPredicate(FixturePatches, [FixtureNode](const UDMXEntityFixturePatch* FixturePatch)
 				{
 					return FixturePatch->GetMVRFixtureUUID() == FixtureNode->UUID;
@@ -310,6 +317,7 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 				UDMXEntityFixturePatch& ExistingFixturePatch = **ExistingFixturePatchPtr;
 
 				ExistingFixturePatch.SetFixtureType(FixtureType);
+				ExistingFixturePatch.GenerateFixtureID(DesiredFixtureID);
 				ExistingFixturePatch.SetActiveModeIndex(ActiveModeIndex);
 				ExistingFixturePatch.SetUniverseID(FixtureNode->GetUniverseID());
 				ExistingFixturePatch.SetStartingChannel(FixtureNode->GetStartingChannel());
@@ -324,8 +332,10 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 				FixturePatchConstructionParams.UniverseID = FixtureNode->GetUniverseID();
 				FixturePatchConstructionParams.StartingAddress = FixtureNode->GetStartingChannel();
 				FixturePatchConstructionParams.MVRFixtureUUID = FixtureNode->UUID;
+				FixturePatchConstructionParams.DefaultTransform = FixtureNode->GetTransformAbsolute();
 
 				UDMXEntityFixturePatch* FixturePatch = UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FixturePatchConstructionParams, FixtureNode->Name);
+				FixturePatch->GenerateFixtureID(DesiredFixtureID);
 				FixturePatch->EditorColor = FixtureTypeToColorMap.FindChecked(FixtureType);
 			}
 		}
@@ -343,7 +353,7 @@ void FDMXLibraryFromMVRImporter::AddReferencedObjects(FReferenceCollector& Colle
 	Collector.AddReferencedObject(GeneralSceneDescription);
 }
 
-UDMXMVRGeneralSceneDescription* FDMXLibraryFromMVRImporter::CreateGeneralSsceneDescription(UObject* Outer) const
+UDMXMVRGeneralSceneDescription* FDMXLibraryFromMVRImporter::CreateGeneralSceneDescription(UObject* Outer) const
 {
 	if (!Zip.IsValid())
 	{
@@ -360,7 +370,7 @@ UDMXMVRGeneralSceneDescription* FDMXLibraryFromMVRImporter::CreateGeneralSsceneD
 	// Content is NOT null-terminated; we need to specify lengths here.
 	const FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(XMLData.GetData()), XMLData.Num());
 
-	const TSharedRef<FXmlFile> GeneralSceneDescriptionXml = MakeShared<FXmlFile>(FString(TCHARData.Length(), TCHARData.Get()), EConstructMethod::ConstructFromBuffer);
+	const TSharedRef<FXmlFile> GeneralSceneDescriptionXml = MakeShared<FXmlFile>(FString::ConstructFromPtrSize(TCHARData.Get(), TCHARData.Length()), EConstructMethod::ConstructFromBuffer);
 
 	UDMXMVRGeneralSceneDescription* NewGeneralSceneDescription = UDMXMVRGeneralSceneDescription::CreateFromXmlFile(GeneralSceneDescriptionXml, Outer, NAME_None);
 

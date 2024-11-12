@@ -3,6 +3,8 @@
 #pragma once
 
 #include "IItemSourceModel.h"
+
+#include "Containers/Array.h"
 #include "Misc/Attribute.h"
 
 namespace UE::ConcertSharedSlate

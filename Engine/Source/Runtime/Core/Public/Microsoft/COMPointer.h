@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include <Unknwn.h>
 #include "Misc/AssertionMacros.h"
+#include <Unknwn.h>
 
 #ifdef TEXT_PASTE
 	#undef TEXT

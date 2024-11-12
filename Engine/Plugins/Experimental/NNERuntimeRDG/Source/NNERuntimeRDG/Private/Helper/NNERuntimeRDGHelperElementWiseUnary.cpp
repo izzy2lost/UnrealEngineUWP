@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGHelperElementWiseUnary.h"
-#include "NNETensor.h"
+
 #include "Math/UnrealMathUtility.h"
+#include "NNETensor.h"
+#include "NNETypes.h"
 
 namespace UE::NNERuntimeRDG::Internal::CPUHelper::ElementWiseUnary
 {
@@ -133,14 +135,33 @@ namespace UE::NNERuntimeRDG::Internal::CPUHelper::ElementWiseUnary
 
 		if (Tensor.HasPreparedData() && (Tensor.GetVolume() <= MaxItemInInputTensors))
 		{
-			TConstArrayView<float> TensorData = Tensor.GetPreparedData<float>();
-			TArray<float> OutputData;
-			OutputData.Reserve(TensorData.Num());
-			for (float elem : TensorData)
+			switch (Tensor.GetDataType())
 			{
-				OutputData.Add(Apply<OpType>(elem, Alpha, Beta, Gamma));
+				case ENNETensorDataType::Float:
+				{
+					TConstArrayView<float> TensorData = Tensor.GetPreparedData<float>();
+					TArray<float> OutputData;
+					OutputData.Reserve(TensorData.Num());
+					for (float elem : TensorData)
+					{
+						OutputData.Add(Apply<OpType>(elem, Alpha, Beta, Gamma));
+					}
+					OutputTensor.SetPreparedData<float>(OutputData);
+				} break;
+				case ENNETensorDataType::Half:
+				{
+					TConstArrayView<FFloat16> TensorData = Tensor.GetPreparedData<FFloat16>();
+					TArray<FFloat16> OutputData;
+					OutputData.Reserve(TensorData.Num());
+					for (FFloat16 elem : TensorData)
+					{
+						OutputData.Add(Apply<OpType>(elem, Alpha, Beta, Gamma));
+					}
+					OutputTensor.SetPreparedData<FFloat16>(OutputData);
+				} break;
+				default:
+					break;
 			}
-			OutputTensor.SetPreparedData<float>(OutputData);
 		}
 	}
 

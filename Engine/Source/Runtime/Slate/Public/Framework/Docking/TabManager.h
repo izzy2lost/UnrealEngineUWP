@@ -776,6 +776,8 @@ class FTabManager : public TSharedFromThis<FTabManager>
 				void ShowWindows();
 				void HideWindows();
 
+				void SetCanDoDeferredLayoutSave(bool bInCanDoDeferredLayoutSave);
+
 			private:
 				FTabManager& TabManager;
 				
@@ -1247,6 +1249,9 @@ protected:
 
 		/* Prevent or allow Drag operation. */
 		bool bCanDoDragOperation = true;
+
+		/** Whether or not this tab manager can perform deferred layout saves at this time; used internally to disable layout saves during drag operations */
+		bool bCanDoDeferredLayoutSave = true;
 
 		/** Whether or not this tab manager puts any registered menus in the windows menu bar area */
 		bool bAllowPerWindowMenu = false;

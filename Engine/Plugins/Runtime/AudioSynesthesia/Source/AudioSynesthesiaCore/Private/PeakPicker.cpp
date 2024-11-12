@@ -14,7 +14,7 @@ namespace Audio
 		Settings.NumPreMean = FMath::Max(1, Settings.NumPreMean);
 		Settings.NumPostMean = FMath::Max(1, Settings.NumPostMean);
 		Settings.NumWait = FMath::Max(1, Settings.NumWait);
-		Settings.MeanDelta = FMath::Clamp(Settings.MeanDelta, 1e-6f, INFINITY);
+		Settings.MeanDelta = FMath::Clamp(Settings.MeanDelta, 1e-6f, std::numeric_limits<float>::infinity());
 	}
 
 	void FPeakPicker::PickPeaks(TArrayView<const float> InData, TArray<int32>& OutPeakIndices)

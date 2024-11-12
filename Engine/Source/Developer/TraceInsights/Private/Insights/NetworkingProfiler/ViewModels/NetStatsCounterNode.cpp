@@ -2,10 +2,13 @@
 
 #include "NetStatsCounterNode.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
 
-#define LOCTEXT_NAMESPACE "FNetStatsCounterNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::FNetStatsCounterNode"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 INSIGHTS_IMPLEMENT_RTTI(FNetStatsCounterNode)
 
@@ -65,5 +68,7 @@ void FNetStatsCounterNode::SetAggregatedStats(const FNetProfilerAggregatedStatsC
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

@@ -24,6 +24,12 @@ public:
 	virtual FString GetNodeTitle() const override;
 	virtual FLinearColor GetNodeColor() const override;
 	virtual FText GetToolTipText() const override;
+	virtual FName GetDisplayNameForPin(const FString& InPinPath) const override;
+	virtual FString GetCategoryForPin(const FString& InPinPath) const override;
+	virtual int32 GetIndexInCategoryForPin(const FString& InPinPath) const override;
+	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
+	virtual TArray<FString> GetPinCategories() const override;
+	virtual FRigVMNodeLayout GetNodeLayout(bool bIncludeEmptyCategories) const override;
 	// end URigVMNode interface
 
 	// URigVMLibraryNode interface
@@ -57,12 +63,18 @@ public:
 
 	const FRigVMGraphFunctionData* GetReferencedFunctionData(bool bLoadIfNecessary = true) const;
 
+	TArray<FRigVMTag> GetVariantTags() const;
+
+protected:
+
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const override;
 	
 private:
 
-	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 	bool RequiresVariableRemappingInternal(TArray<FRigVMExternalVariable>& InnerVariables) const;
-	virtual TArray<int32> GetInstructionsForVMImpl(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy = FRigVMASTProxy()) const override; 
+	virtual TArray<int32> GetInstructionsForVMImpl(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy = FRigVMASTProxy()) const override;
+	const URigVMPin* FindReferencedPin(const URigVMPin* InPin) const;
+	const URigVMPin* FindReferencedPin(const FString& InPinPath) const;
 
 	//void SetReferencedFunctionData(FRigVMGraphFunctionData* Data);
 

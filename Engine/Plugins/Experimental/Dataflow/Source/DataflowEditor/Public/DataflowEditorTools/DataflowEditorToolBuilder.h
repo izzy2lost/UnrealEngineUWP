@@ -7,11 +7,12 @@
 
 #include "DataflowEditorToolBuilder.generated.h"
 
-namespace Dataflow
-{
-	enum class EDataflowPatternVertexType : uint8;
+namespace UE::Dataflow {
+	class IDataflowConstructionViewMode;
 }
-
+struct FToolBuilderState;
+class UDataflowContextObject;
+class UInteractiveTool;
 
 UINTERFACE(MinimalAPI)
 class UDataflowEditorToolBuilder : public UInterface
@@ -27,9 +28,18 @@ class IDataflowEditorToolBuilder
 public:
 
 	/** Returns all Construction View modes that this tool can operate in. The first element should be the preferred mode to switch to if necessary. */
-	virtual void GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const = 0;
+	virtual void GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const UE::Dataflow::IDataflowConstructionViewMode*>& Modes) const = 0;
 
 	/** Returns whether or not view can be set to wireframe when this tool is active.. */
 	virtual bool CanSetConstructionViewWireframeActive() const { return true; }
+
+	/** Returns true if the tool can keep running when the SceneState changes */
+	virtual bool CanSceneStateChange(const UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState) const { return false; }
+
+	/** Respond to SceneState changing */
+	virtual void SceneStateChanged(UInteractiveTool* ActiveTool, const FToolBuilderState& SceneState) 
+	{ 
+		checkf(CanSceneStateChange(ActiveTool, SceneState), TEXT("Current tool cannot handle changing scene state while running"));
+	};
 };
 

@@ -40,7 +40,7 @@ public:
 	class FStyle : public FSlateStyleSet
 	{
 	public:
-		FStyle(const TWeakObjectPtr< UEditorStyleSettings >& InSettings);
+		FStyle();
 		~FStyle();
 
 		void Initialize();
@@ -139,20 +139,17 @@ public:
 
 		FSlateBrush* WindowTitleOverride;
 
-		TWeakObjectPtr< UEditorStyleSettings > Settings;
-
 		FDelegateHandle SettingChangedHandler;
 	};
 
-	static TSharedRef<class FStarshipEditorStyle::FStyle> Create(const TWeakObjectPtr< UEditorStyleSettings >& InCustomization)
+	static TSharedRef<class FStarshipEditorStyle::FStyle> Create()
 	{
-		TSharedRef<class FStarshipEditorStyle::FStyle> NewStyle = MakeShareable(new FStarshipEditorStyle::FStyle(InCustomization));
+		TSharedRef<class FStarshipEditorStyle::FStyle> NewStyle = MakeShareable(new FStarshipEditorStyle::FStyle());
 		NewStyle->Initialize();
 
 		return NewStyle;
 	}
 
 	static TSharedPtr<FStarshipEditorStyle::FStyle> StyleInstance;
-	static TWeakObjectPtr<UEditorStyleSettings> Settings;
 	static FName StyleSetName;
 };

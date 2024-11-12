@@ -14,8 +14,8 @@ class IMemoryReadStream;
 template <typename T> class TAtomic;
 
 // Define global current platform default to current platform.  
-// DEPRECATED, USE NAME_Zlib
-#define COMPRESS_Default			COMPRESS_ZLIB
+// DEPRECATED, USE NAME_Zlib - was deprecated in 2018, leaving for grep until 5.6 or so.
+//#define COMPRESS_Default			COMPRESS_ZLIB
 
 /**
  * Chunk size serialization code splits data into. The loading value CANNOT be changed without resaving all
@@ -27,6 +27,15 @@ template <typename T> class TAtomic;
 
 struct FCompression
 {
+	/**
+	* CompressionData is per-compressor data passed through this API and is interpreted by the codecs.
+	* For builtins:
+	*	NAME_Zlib	BitWindow
+	*	NAME_LZ4	Unused
+	*	NAME_Gzip	Unused
+	*	NAME_Oodle	Unused
+	*/
+
 	/** Time spent compressing data in cycles. */
 	CORE_API static TAtomic<uint64> CompressorTimeCycles;
 	/** Number of bytes before compression.		*/
@@ -44,29 +53,41 @@ struct FCompression
 	CORE_API static uint32 GetCompressorVersion(FName FormatName);
 
 	/**
-	 * Thread-safe abstract compression routine to query memory requirements for a compression operation.
+	 * Thread-safe abstract compression routine to query buffer requirements for a compression operation.
 	 * This is the minimize size to allocate the buffer for CompressMemory (encoding).
 	 * Use GetMaximumCompressedSize at decode to know how large a compressed buffer may be.
 	 *
+	 * Despite the name, this has nothing to do with how much memory will be allocated during compression.
+	 * 
 	 * @param	FormatName					Name of the compression format
 	 * @param	UncompressedSize			Size of uncompressed data in bytes
-	 * @param	Flags						Flags to control what method to use and optionally control memory vs speed
-	 * @param	CompressionData				Additional compression parameter (specifies BitWindow value for ZLIB compression format)
-	 * @return The maximum possible bytes needed for compression of data buffer of size UncompressedSize
-	 */
-	CORE_API static int32 CompressMemoryBound(FName FormatName, int32 UncompressedSize, ECompressionFlags Flags=COMPRESS_NoFlags, int32 CompressionData=0);
+	 * @param	CompressionData				Additional compression parameter - see comments a top of FCompression struct.
+	 * @param	OutBufferSizeRequired		The maximum possible bytes needed for compression of a data buffer of the given size.
+	 * @return  false if the bounds couldn't be determined - e.g. the format is unknown or the size isn't supported by the format.
+	*/
+	CORE_API static bool CompressMemoryBound(FName InFormatName, int64& OutBufferSizeRequired, int64 InUncompressedSizeBytes, uintptr_t InCompressionData = 0);
+
+	// Thunks to the 64 bit, prefer that as this can only Fatal on error!
+	CORE_API static int32 CompressMemoryBound(FName FormatName, int32 UncompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, int32 CompressionData = 0);
 	
 	/**
-	 * Thread-safe abstract compression routine to query maximum compressed size that could be made.
+	 * Thread-safe abstract compression routine to query maximum compressed size that could be made. This is used for making buffers that could hold
+	 * any compressed buffer that started uncompressed with the given size. It's distinct from the buffer needed to compress! If you are calling CompressMemory then
+	 * you need to pass a buffer sized based on CompressMemoryBound!
+	 * 
 	 * CompressMemoryBound is strictly greater equal GetMaximumCompressedSize.
 	 *
 	 * @param	FormatName					Name of the compression format
-	 * @param	UncompressedSize			Size of uncompressed data in bytes
-	 * @param	Flags						Flags to control what method to use and optionally control memory vs speed
-	 * @param	CompressionData				Additional compression parameter (specifies BitWindow value for ZLIB compression format)
-	 * @return The maximum possible size of valid compressed data made by this format
+	 * @param	OutMaxCompressedSize		The maximum possible size of valid compressed data made by this format
+	 * @param	InUncompressedSizeBytes		Size of uncompressed data in bytes	 
+	 * @param	CompressionData				Additional compression parameter - see comments a top of FCompression struct.
+	 * @return success
 	 */
-	CORE_API static int32 GetMaximumCompressedSize(FName FormatName, int32 UncompressedSize, ECompressionFlags Flags=COMPRESS_NoFlags, int32 CompressionData=0);
+	CORE_API static bool GetMaximumCompressedSize(FName InFormatName, int64& OutMaxCompressedSize, int64 InUncompressedSizeBytes, uintptr_t InCompressionData=0);
+
+	// Thunks to the 64 bit version, prefer that as this can only Fatal on error!
+	UE_DEPRECATED(5.5, "Use the 64 bit version")
+	CORE_API static int32 GetMaximumCompressedSize(FName FormatName, int32 UncompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, int32 CompressionData = 0);
 
 	/**
 	 * Thread-safe abstract compression routine. Compresses memory from uncompressed buffer and writes it to compressed
@@ -80,17 +101,19 @@ struct FCompression
 	 * @param	UncompressedBuffer			Buffer containing uncompressed data
 	 * @param	UncompressedSize			Size of uncompressed data in bytes
 	 * @param	Flags						Flags to control what method to use and optionally control memory vs speed
-	 * @param	CompressionData				Additional compression parameter (specifies BitWindow value for ZLIB compression format)
+	 * @param	CompressionData				Additional compression parameter - see comments a top of FCompression struct.
 	 * @return true if compression succeeds, false if it fails because CompressedBuffer was too small or other reasons
 	 */
-	CORE_API static bool CompressMemory(FName FormatName, void* CompressedBuffer, int32& CompressedSize, const void* UncompressedBuffer, int32 UncompressedSize, ECompressionFlags Flags=COMPRESS_NoFlags, int32 CompressionData=0);
+	CORE_API static bool CompressMemory(FName FormatName, void* CompressedBuffer, int64& CompressedSize, const void* UncompressedBuffer, int64 UncompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, uintptr_t CompressionData = 0);
+
+	// Thunks to 64 bit CompressMemory, favor that.
+	CORE_API static bool CompressMemory(FName FormatName, void* CompressedBuffer, int32& CompressedSize, const void* UncompressedBuffer, int32 UncompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, int32 CompressionData = 0);
 	
 	/**
-	* Same as CompressMemory but evaluates if the compression gain is worth the runtime decode time
-	* returns false if the size saving is not worth it (also if CompressedSize >= UncompressedSize)
-	* if false is returned, send the data uncompressed instead
+	* Same as CompressMemory but evaluates if the compression gain is worth the runtime decode time.
 	 *
 	 * @param	FormatName					Name of the compression format
+	 * @param	bOutWasCompressed [out]		Whether the compression was worth it. The data is still compressed.
 	 * @param	MinBytesSaved				Minimum amount of bytes which should be saved when performing compression, otherwise false is returned
 	 * @param	MinPercentSaved				Minimum percentage of the buffer which should be saved when performing compression, otherwise false is returned
 	 * @param	CompressedBuffer			Buffer compressed data is going to be written to
@@ -98,10 +121,13 @@ struct FCompression
 	 * @param	UncompressedBuffer			Buffer containing uncompressed data
 	 * @param	UncompressedSize			Size of uncompressed data in bytes
 	 * @param	Flags						Flags to control what method to use and optionally control memory vs speed
-	 * @param	CompressionData				Additional compression parameter (specifies BitWindow value for ZLIB compression format)
+	 * @param	CompressionData				Additional compression parameter - see comments a top of FCompression struct.
 	 * @return true if compression succeeds, false if it fails because CompressedBuffer was too small or other reasons
 	 */
-	CORE_API static bool CompressMemoryIfWorthDecompressing(FName FormatName, int32 MinBytesSaved, int32 MinPercentSaved, void* CompressedBuffer, int32& CompressedSize, const void* UncompressedBuffer, int32 UncompressedSize, ECompressionFlags Flags=COMPRESS_NoFlags, int32 CompressionData=0);
+	CORE_API static bool CompressMemoryIfWorthDecompressing(FName FormatName, bool& bOutWasCompressed, int64 MinBytesSaved, int32 MinPercentSaved, void* CompressedBuffer, int64& CompressedSize, const void* UncompressedBuffer, int64 UncompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, uintptr_t CompressionData = 0);
+
+	// 32 bit thunk. This legacy function doens't separate bOutWasCompressed vs general compress failure and will return false in both cases.
+	CORE_API static bool CompressMemoryIfWorthDecompressing(FName FormatName, int32 MinBytesSaved, int32 MinPercentSaved, void* CompressedBuffer, int32& CompressedSize, const void* UncompressedBuffer, int32 UncompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, int32 CompressionData = 0);
 
 	/**
 	 * Thread-safe abstract decompression routine. Uncompresses memory from compressed buffer and writes it to uncompressed
@@ -116,9 +142,15 @@ struct FCompression
 	 * @param	CompressionData				Additional decompression parameter (specifies BitWindow value for ZLIB compression format)
 	 * @return true if compression succeeds, false if it fails because CompressedBuffer was too small or other reasons
 	 */
-	CORE_API static bool UncompressMemory(FName FormatName, void* UncompressedBuffer, int32 UncompressedSize, const void* CompressedBuffer, int32 CompressedSize, ECompressionFlags Flags=COMPRESS_NoFlags, int32 CompressionData=0);
+	CORE_API static bool UncompressMemory(FName FormatName, void* UncompressedBuffer, int64 UncompressedSize, const void* CompressedBuffer, int64 CompressedSize, ECompressionFlags Flags=COMPRESS_NoFlags, uintptr_t CompressionData=0);
 
-	CORE_API static bool UncompressMemoryStream(FName FormatName, void* UncompressedBuffer, int32 UncompressedSize, IMemoryReadStream* Stream, int64 StreamOffset, int32 CompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, int32 CompressionData = 0);
+	/**
+	* Wraps UncompressMemory to provide access with a IMemoryReadStream interface, attempting to avoid copying in to a contiguous buffer doe decompression
+	* if the format supports it. **If not, a CompressedSize temp buffer will be allocated.**
+	*/
+	CORE_API static bool UncompressMemoryStream(FName FormatName, void* UncompressedBuffer, int64 UncompressedSize, IMemoryReadStream* Stream, int64 StreamOffset, int64 CompressedSize, ECompressionFlags Flags = COMPRESS_NoFlags, uintptr_t CompressionData = 0);
+
+
 	/**
 	 * Returns a string which can be used to identify if a format has become out of date
 	 *
@@ -126,7 +158,6 @@ struct FCompression
 	 * @return	unique DDC key string which will be different when the format is changed / updated
 	 */
 	CORE_API static FString GetCompressorDDCSuffix(FName FormatName);
-
 
 	/**
 	 * Checks to see if a format will be usable, so that a fallback can be used
@@ -140,6 +171,8 @@ struct FCompression
 	 */
 	CORE_API static bool VerifyCompressionFlagsValid(int32 InCompressionFlags);
 
+	// deprecating this because we "should", but all internal references to these flags were deprecated in 4.21 so hopefully no one is using them anymore!
+	UE_DEPRECATED(5.5, "Use the direct FName instead e.g NAME_Oodle")
 	CORE_API static FName GetCompressionFormatFromDeprecatedFlags(ECompressionFlags DeprecatedFlags);
 
 private:

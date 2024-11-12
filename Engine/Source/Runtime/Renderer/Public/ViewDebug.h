@@ -5,6 +5,9 @@
 #include "CoreMinimal.h"
 #include "Misc/ScopeRWLock.h"
 #include "PrimitiveSceneInfo.h"
+#include "PrimitiveComponentId.h"
+#include "Components/ComponentInterfaces.h"
+#include "GameFramework/Actor.h"
 
 #if !UE_BUILD_SHIPPING // TODO: Decide whether or not the struct should be entirely stripped out of shipping
 
@@ -44,17 +47,18 @@ public:
 	 */
 	struct FPrimitiveInfo
 	{
-		UObject* Owner;
+		TWeakObjectPtr<UObject> Owner;
 		FPrimitiveComponentId ComponentId;
 		IPrimitiveComponent* ComponentInterface;
+		TWeakObjectPtr<UObject> ComponentUObject;
 		FPrimitiveSceneInfo* PrimitiveSceneInfo;
-		TArray<UMaterialInterface*> Materials;
 		FString Name;
-		uint32 DrawCount;
-		int32 TriangleCount;
-		int32 LOD;
+		FPrimitiveStats Stats;
+		TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+		TWeakObjectPtr<UMaterialInterface> OverlayMaterial;
+		int32 LODAtLastCapture;
 
-		bool operator<(const FPrimitiveInfo& Other) const
+		RENDERER_API bool operator<(const FPrimitiveInfo& Other) const
 		{
 			// Sort by name to group similar assets together, then by exact primitives so we can ignore duplicates
 			const int32 NameCompare = Name.Compare(Other.Name);
@@ -65,6 +69,82 @@ public:
 
 			return PrimitiveSceneInfo < Other.PrimitiveSceneInfo;
 		}
+
+		RENDERER_API bool IsPrimitiveValid() const
+		{
+			bool bValid = true;
+			bValid &= Owner.IsValid();
+			bValid &= ComponentInterface != nullptr;
+			if (bValid)
+			{
+				bValid &= ComponentUObject.IsValid();
+				if (bValid)
+				{
+					bValid &= !ComponentInterface->IsUnreachable();
+				}
+			}
+			return bValid;
+		}
+
+		RENDERER_API FORCEINLINE bool HasLODs() const
+		{
+			return !Stats.LODStats.IsEmpty();
+		}
+
+		RENDERER_API FORCEINLINE bool IsLODIndexValid(int32 LOD) const
+		{
+			return LOD >= 0 && LOD < Stats.LODStats.Num();
+		}
+
+		RENDERER_API int32 ComputeCurrentLODIndex(int32 PlayerIndex = 0, int32 ViewIndex = 0) const;
+
+		RENDERER_API FORCEINLINE FPrimitiveLODStats* GetCurrentLOD(int32 PlayerIndex = 0, int32 ViewIndex = 0)
+		{
+			int32 LOD = ComputeCurrentLODIndex(PlayerIndex, ViewIndex);
+			if (!IsLODIndexValid(LOD)) LOD = LODAtLastCapture;
+			return IsLODIndexValid(LOD) ? &Stats.LODStats[LOD] : nullptr;
+		}
+
+		RENDERER_API FORCEINLINE const FPrimitiveLODStats* GetCurrentLOD(int32 PlayerIndex = 0, int32 ViewIndex = 0) const
+		{
+			int32 LOD = ComputeCurrentLODIndex(PlayerIndex, ViewIndex);
+			if (!IsLODIndexValid(LOD)) LOD = LODAtLastCapture;
+			return IsLODIndexValid(LOD) ? &Stats.LODStats[LOD] : nullptr;
+		}
+
+		RENDERER_API FORCEINLINE FPrimitiveLODStats* GetLOD(int32 LOD)
+		{
+			return IsLODIndexValid(LOD) ? &Stats.LODStats[LOD] : nullptr;
+		}
+
+		RENDERER_API FORCEINLINE const FPrimitiveLODStats* GetLOD(int32 LOD) const
+		{
+			return IsLODIndexValid(LOD) ? &Stats.LODStats[LOD] : nullptr;
+		}
+
+		RENDERER_API FORCEINLINE UMaterialInterface* GetMaterial(uint16 Index) const
+		{
+			return Index < Materials.Num() ? Materials[Index].Get() : nullptr;
+		}
+
+		RENDERER_API FORCEINLINE int32 GetNumLODs() const
+		{
+			return Stats.LODStats.Num();
+		}
+
+		RENDERER_API FORCEINLINE FString GetOwnerName() const
+		{
+			if (const AActor* Actor = Cast<AActor>(Owner))
+			{
+				return Actor->GetHumanReadableName();
+			}
+			return ComponentInterface->GetOwnerName();
+		}
+
+		RENDERER_API FORCEINLINE FVector GetPrimitiveLocation() const
+		{
+			return ComponentInterface->GetTransform().GetLocation();
+		}
 	};
 
 private:
@@ -73,28 +153,36 @@ private:
 	bool bIsOutdated;
 	bool bShouldUpdate;
 	bool bShouldCaptureSingleFrame;
+	bool bShouldClearCapturedData;
 
 	FOnUpdateViewDebugInfo OnUpdate;
 
 	mutable FRWLock Lock;
 	
-	TArray<FPrimitiveInfo> Primitives;
+	TMap<FPrimitiveComponentId, FPrimitiveInfo> Primitives;
 
-	RENDERER_API void ProcessPrimitive(FPrimitiveSceneInfo* PrimitiveSceneInfo, const FViewInfo& View, FScene* Scene, const IPrimitiveComponent* DebugComponent);
+	RENDERER_API void ProcessPrimitive(FPrimitiveSceneInfo* PrimitiveSceneInfo, const FViewInfo& View, FScene* Scene, IPrimitiveComponent* DebugComponent);
 
 	RENDERER_API void CaptureNextFrame();
 
 	RENDERER_API void EnableLiveCapture();
 
 	RENDERER_API void DisableLiveCapture();
-
-	static RENDERER_API void DumpPrimitives(FScene* Scene, const FViewCommands& ViewCommands);
+	
+	RENDERER_API void ClearCaptureData();
 
 public:
 	RENDERER_API void ProcessPrimitives(FScene* Scene, const FViewInfo& View, const FViewCommands& ViewCommands);
 
 	/**
-	 * Writes the currently stored information out to a CSV file.
+	 * Writes the draw call count of all currently tracked primitives to a csv file.
+	 * The file will be stored in /Saved/Profiling/Primitives/...
+	 */
+	RENDERER_API void DumpDrawCallsToCSV();
+
+	/**
+	 * Writes detailed information about all currently tracked primitives to a csv file.
+	 * The file will be stored in /Saved/Profiling/Primitives/...
 	 */
 	RENDERER_API void DumpToCSV() const;
 
@@ -107,7 +195,7 @@ public:
 	{
 		const FPrimitiveSceneInfo* LastPrimitiveSceneInfo = nullptr;
 		FRWScopeLock ScopeLock(Lock, SLT_ReadOnly);
-		for (const FPrimitiveInfo& Primitive : Primitives)
+		for (const auto& [PrimitiveId, Primitive] : Primitives)
 		{
 			if (Primitive.PrimitiveSceneInfo != LastPrimitiveSceneInfo)
 			{
@@ -135,12 +223,12 @@ public:
 		return OnUpdate.AddRaw(UserObject, Func);
 	}
 
-	FDelegateHandle AddUpdateHandler(void (*Func)())
+	RENDERER_API FDelegateHandle AddUpdateHandler(void (*Func)())
 	{
 		return OnUpdate.AddStatic(Func);
 	}
 
-	void RemoveUpdateHandler(const FDelegateHandle& Handle)
+	RENDERER_API void RemoveUpdateHandler(const FDelegateHandle& Handle)
 	{
 		OnUpdate.Remove(Handle);
 	}

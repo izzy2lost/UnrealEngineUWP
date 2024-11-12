@@ -84,7 +84,7 @@ public:
 		if (RemainingPath.FindChar(TEXT('/'), /*out*/ DirectorySeparatorIndex))
 		{
 			check(DirectorySeparatorIndex > 0);
-			const FString DirectoryName(DirectorySeparatorIndex, RemainingPath.GetData());
+			const FString DirectoryName = FString::ConstructFromPtrSize(RemainingPath.GetData(), DirectorySeparatorIndex);
 
 			TSharedPtr<FDomainPathNode>& ChildFolder = SubFolders.FindOrAdd(DirectoryName);
 			if (!ChildFolder.IsValid())
@@ -170,6 +170,8 @@ void FDomainDatabase::RebuildFromScratch()
 	GameDomain.Reset();
 	NeverCookDomain.Reset();
 	DomainsDefinedByPlugins.Reset();
+	PluginDomains.Reset();
+
 	SpecificAssetPackageDomains.Reset();
 
 	// Create the built-in domains
@@ -242,7 +244,6 @@ void FDomainDatabase::RebuildFromScratch()
 	}
 
 	// Create the domains for plugins that contain content
-	DomainsDefinedByPlugins.Reset();
 	TArray<TSharedRef<IPlugin>> EnabledPlugins = IPluginManager::Get().GetEnabledPlugins();
 	for (const TSharedRef<IPlugin>& Plugin : EnabledPlugins)
 	{
@@ -373,6 +374,7 @@ void FDomainDatabase::BuildDomainFromPlugin(TSharedRef<IPlugin> Plugin)
 	DomainsDefinedByPlugins.Add(NewDomainName);
 
 	TSharedPtr<FDomainData> Domain = FindOrAddDomainByName(NewDomainName);
+	PluginDomains.Add(Domain);
 
 	Domain->Reset();
 	Domain->DomainRootPaths.Add(Plugin->GetMountedAssetPath());
@@ -464,6 +466,7 @@ void FDomainDatabase::BuildUnrestrictedDomainFromPlugin(TSharedRef<IPlugin> Plug
 	DomainsDefinedByPlugins.Add(NewDomainName);
 
 	TSharedPtr<FDomainData> Domain = FindOrAddDomainByName(NewDomainName);
+	PluginDomains.Add(Domain);
 
 	Domain->Reset();
 	Domain->DomainRootPaths.Add(Plugin->GetMountedAssetPath());

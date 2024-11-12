@@ -26,6 +26,8 @@ FArchiveObjectCrc32::FArchiveObjectCrc32()
 	SetIsSaving(true);
 }
 
+FArchiveObjectCrc32::~FArchiveObjectCrc32() = default;
+
 void FArchiveObjectCrc32::Serialize(void* Data, int64 Length)
 {
 	MemoryWriter.Serialize(Data, Length);

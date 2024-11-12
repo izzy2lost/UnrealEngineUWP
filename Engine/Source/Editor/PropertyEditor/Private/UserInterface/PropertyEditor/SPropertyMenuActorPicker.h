@@ -17,11 +17,13 @@ public:
 		, _AllowClear(true)
 		, _AllowPickingLevelInstanceContent(false)
 		, _ActorFilter()
+		, _DisplayUseSelected(true)
 	{}
 		SLATE_ARGUMENT( AActor*, InitialActor )
 		SLATE_ARGUMENT( bool, AllowClear )
 		SLATE_ARGUMENT( bool, AllowPickingLevelInstanceContent )
 		SLATE_ARGUMENT( FOnShouldFilterActor, ActorFilter )
+		SLATE_ARGUMENT(bool, DisplayUseSelected)
 		SLATE_EVENT( FOnActorSelected, OnSet )
 		SLATE_EVENT( FSimpleDelegate, OnClose )
 		SLATE_EVENT( FSimpleDelegate, OnUseSelected )
@@ -98,4 +100,7 @@ private:
 
 	/** Delegate for using the currently selected actor */
 	FSimpleDelegate OnUseSelected;
+
+	/* Whether to display the 'Use Selected' item*/
+	bool bDisplayUseSelected;
 };

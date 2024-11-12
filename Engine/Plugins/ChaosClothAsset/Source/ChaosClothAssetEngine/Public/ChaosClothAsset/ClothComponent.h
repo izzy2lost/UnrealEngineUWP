@@ -3,10 +3,18 @@
 #pragma once
 
 #include "Components/SkinnedMeshComponent.h"
+#include "Dataflow/Interfaces/DataflowPhysicsSolver.h"
 #include "ClothComponent.generated.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 class UChaosClothAsset;
 class UChaosClothComponent;
+class UChaosClothAssetInteractor;
 struct FManagedArrayCollection;
 
 namespace Chaos::Softs
@@ -18,6 +26,7 @@ namespace UE::Chaos::ClothAsset
 {
 	class FClothSimulationProxy;
 	class FClothComponentCacheAdapter;
+	class FCollisionSources;
 }
 
 /**
@@ -28,7 +37,7 @@ UCLASS(
 	Meta = (BlueprintSpawnableComponent, ToolTip = "Chaos cloth component."),
 	DisplayName = "Chaos cloth component",
 	HideCategories = (Object, "Mesh|SkeletalAsset", Constraints, Advanced, Cooking, Collision, Navigation))
-class CHAOSCLOTHASSETENGINE_API UChaosClothComponent : public USkinnedMeshComponent
+class CHAOSCLOTHASSETENGINE_API UChaosClothComponent : public USkinnedMeshComponent, public IDataflowPhysicsSolverInterface
 {
 	GENERATED_BODY()	
 public:
@@ -82,13 +91,43 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Simulation Enable"))
 	bool IsSimulationEnabled() const;
 
-	/** Reset all cloth simulation config properties to the values stored in the original cloth asset. */
+	/** Reset all cloth simulation config properties to the values stored in the original cloth asset.*/
 	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Config Property"))
 	void ResetConfigProperties();
 
 	/** Hard reset the cloth simulation by recreating the proxy. */
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "ClothComponent", Meta = (DisplayName = "Hard Reset Simulation", Keywords = "Chaos Cloth Recreate Simulation Proxy"))
 	void RecreateClothSimulationProxy();
+
+	/** Get the current interactor for the cloth outfit associated with this cloth component. 
+	 * Interact with solver-level properties as well as all cloth assets within the cloth outfit (once multi-asset outfits exist).*/
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent")
+	UChaosClothAssetInteractor* GetClothOutfitInteractor();
+
+	/**
+	 * Add a collision source for the cloth on this component.
+	 * Each cloth tick, the collision defined by the physics asset, transformed by the bones in the source component, will be applied to the simulation.
+	 * @param SourceComponent The component to extract collision transforms from.
+	 * @param SourcePhysicsAsset The physics asset that defines the collision primitives (that will be transformed by the SourceComponent's bones).
+	 * @param bUseSphylsOnly Whether to only use spheres and capsules from the collision sources (which is faster and matches the legacy behavior).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void AddCollisionSource(USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset, bool bUseSphylsOnly = false);
+
+	/** Remove a cloth collision source matching the specified component and physics asset, */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void RemoveCollisionSource(const USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset);
+
+	/** Remove all cloth collision sources matching the specified component. */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void RemoveCollisionSources(const USkinnedMeshComponent* SourceComponent);
+
+	/** Remove all cloth collision sources. */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void ResetCollisionSources();
+
+	/** Return all collision sources currently assigned to this component. */
+	UE::Chaos::ClothAsset::FCollisionSources& GetCollisionSources() const { return *CollisionSources; }
 
 	/**
 	 * Return the property collections holding the runtime properties for this cloth component (one per LOD).
@@ -101,6 +140,12 @@ public:
 	}
 
 	const UE::Chaos::ClothAsset::FClothSimulationProxy* GetClothSimulationProxy() const { return ClothSimulationProxy.Get(); }
+
+	/** This scale is applied to all cloth geometry (e.g., cloth meshes and collisions) in order to simulate in a different scale space than world.This scale is not applied to distance-based simulation parameters such as MaxDistance.
+	* This property is currently only read by the cloth solver when creating cloth actors, but may become animatable in the future.
+	*/
+	float GetClothGeometryScale() const { return ClothGeometryScale; }
+	void SetClothGeometryScale(float Scale) { ClothGeometryScale = Scale; }
 
 #if WITH_EDITOR
 	/** Update config properties from the asset. Will only update existing values.*/
@@ -120,6 +165,7 @@ protected:
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif // WITH_EDITOR
 	//~ End UObject Interface
 
@@ -142,7 +188,23 @@ protected:
 	virtual void GetUpdateClothSimulationData_AnyThread(TMap<int32, FClothSimulData>& OutClothSimulData, FMatrix& OutLocalToWorld, float& OutBlendWeight) override;
 	virtual void SetSkinnedAssetAndUpdate(USkinnedAsset* InSkinnedAsset, bool bReinitPose = true) override;
 	virtual void GetAdditionalRequiredBonesForLeader(int32 LODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const override;
+	virtual void FinalizeBoneTransform() override;
+	virtual FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& Delegate) override;
+	virtual void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle) override;
 	//~ End USkinnedMeshComponent Interface
+
+	// Begin IDataflowPhysicsSolverInterface overrides
+	virtual FString GetSimulationName() const override {return GetName();};
+	virtual FDataflowSimulationAsset& GetSimulationAsset() override {return SimulationAsset;};
+	virtual const FDataflowSimulationAsset& GetSimulationAsset() const override {return SimulationAsset;};
+	virtual FDataflowSimulationProxy* GetSimulationProxy() override;
+	virtual const FDataflowSimulationProxy* GetSimulationProxy() const  override;
+	virtual void BuildSimulationProxy() override;
+	virtual void ResetSimulationProxy() override;
+	virtual void WriteToSimulation(const float DeltaTime, const bool bAsyncTask) override;
+	virtual void ReadFromSimulation(const float DeltaTime, const bool bAsyncTask) override;
+	virtual void PreProcessSimulation(const float DeltaTime) override;
+	// End IDataflowPhysicsSolverInterface overrides
 
 	/** Override this function for setting up custom simulation proxies when the component is registered. */
 	virtual TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> CreateClothSimulationProxy();
@@ -167,6 +229,10 @@ private:
 	uint8 bSimulateInEditor : 1;
 #endif
 
+	/* Solver dataflow asset used to advance in time */
+	UPROPERTY(EditAnywhere, Category = ClothComponent, meta=(EditConditionHides), AdvancedDisplay)
+	FDataflowSimulationAsset SimulationAsset;
+	
 	/** If enabled, and the parent is another Skinned Mesh Component (e.g. another Cloth Component, Poseable Mesh Component, Skeletal Mesh Component, ...etc.), use its pose. */
 	UPROPERTY(EditAnywhere, Category = ClothComponent)
 	uint8 bUseAttachedParentAsPoseComponent : 1;
@@ -199,12 +265,27 @@ private:
 	UPROPERTY(Interp, Category = ClothComponent)
 	float BlendWeight = 1.f;
 
+	/** This scale is applied to all cloth geometry (e.g., cloth meshes and collisions) in order to simulate in a different scale space than world.This scale is not applied to distance-based simulation parameters such as MaxDistance.
+	* This property is currently only read by the cloth solver when creating cloth actors, but may become animatable in the future.
+	*/
+	UPROPERTY(EditAnywhere, Category = ClothComponent, meta = (UIMin = 0.0, UIMax = 10.0, ClampMin = 0.0, ClampMax = 10000.0))
+	float ClothGeometryScale = 1.f;
+
 #if WITH_EDITOR
 	bool bTickOnceInEditor = false;
 #endif
 
+	UPROPERTY(Transient)
+	TObjectPtr<UChaosClothAssetInteractor> ClothOutfitInteractor;
+
 	TArray<TSharedPtr<FManagedArrayCollection>> PropertyCollections;
-	TArray<TUniquePtr<::Chaos::Softs::FCollectionPropertyFacade>> CollectionPropertyFacades;
+	TArray<TSharedPtr<::Chaos::Softs::FCollectionPropertyFacade>> CollectionPropertyFacades;
 
 	TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> ClothSimulationProxy;
+
+	// Multicaster fired when this component bone transforms are finalized
+	FOnBoneTransformsFinalizedMultiCast OnBoneTransformsFinalizedMC;
+
+	// External sources for collision
+	TUniquePtr<UE::Chaos::ClothAsset::FCollisionSources> CollisionSources;
 };

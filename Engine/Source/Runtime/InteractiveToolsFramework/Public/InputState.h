@@ -160,24 +160,29 @@ struct FDeviceButtonState
 	UPROPERTY(transient, BlueprintReadWrite, Category = DeviceButtonState)
 	bool bReleased;
 
+	/** Was the button double clicked this frame. This should happen only once per "double click" */
+	UPROPERTY(Transient, BlueprintReadWrite, Category = DeviceButtonState)
+	bool bDoubleClicked;
+
 	FDeviceButtonState()
 	{
 		Button = FKey();
-		bPressed = bDown = bReleased = false;
+		bPressed = bDown = bReleased = bDoubleClicked = false;
 	}
 
 	FDeviceButtonState(const FKey& ButtonIn)
 	{
 		Button = ButtonIn;
-		bPressed = bDown = bReleased = false;
+		bPressed = bDown = bReleased = bDoubleClicked = false;
 	}
 
 	/** Update the states of this button */
-	void SetStates(bool bPressedIn, bool bDownIn, bool bReleasedIn)
+	void SetStates(bool bPressedIn, bool bDownIn, bool bReleasedIn, bool bDoubleClickedIn = false)
 	{
 		bPressed = bPressedIn;
 		bDown = bDownIn;
 		bReleased = bReleasedIn;
+		bDoubleClicked = bDoubleClickedIn;
 	}
 };
 

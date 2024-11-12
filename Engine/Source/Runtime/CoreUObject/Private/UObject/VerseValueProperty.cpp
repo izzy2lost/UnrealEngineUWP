@@ -3,139 +3,152 @@
 #include "UObject/VerseValueProperty.h"
 #include "UObject/GarbageCollectionSchema.h"
 #include "UObject/VerseTypes.h"
+#include "VerseVM/VVMAbstractVisitor.h"
+#include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMRestValue.h"
+#include "VerseVM/VVMStructuredArchiveVisitor.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 
-IMPLEMENT_FIELD(FVerseValueProperty)
-
-FVerseValueProperty::FVerseValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FProperty(InOwner, InName, InObjectFlags)	
-{
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	ElementSize = sizeof(TCppType);
-#endif
-}
 
-FVerseValueProperty::FVerseValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, CPF_HasGetValueTypeHash)
+namespace UE::Private
 {
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	ElementSize = sizeof(TCppType);
-#endif
+	struct FVerseObjectReferenceScan : public Verse::FAbstractVisitor
+	{
+		UE_NONCOPYABLE(FVerseObjectReferenceScan);
+
+		FVerseObjectReferenceScan(FArchive& InAr)
+			: Ar(InAr)
+		{
+		}
+
+		virtual void VisitNonNull(Verse::VCell*& InCell, const TCHAR* ElementName) override
+		{
+			AddCell(InCell);
+		}
+
+		virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override
+		{
+			Ar << InObject;
+		}
+
+		template<typename VValueType>
+		static void Scan(FArchive& InAr, VValueType& Value)
+		{
+			FVerseObjectReferenceScan Scanner(InAr);
+			Scanner.Visit(Value, TEXT(""));
+			while (!Scanner.Stack.IsEmpty())
+			{
+				Verse::VCell* CurrentCell = Scanner.Stack.Pop();
+				CurrentCell->VisitReferences(Scanner);
+			}
+		}
+
+	private:
+		void AddCell(Verse::VCell* InCell)
+		{
+			bool bIsAlreadyInSet;
+			Scanned.Add(InCell, &bIsAlreadyInSet);
+			if (!bIsAlreadyInSet)
+			{
+				Stack.Add(InCell);
+			}
+		}
+
+		FArchive& Ar;
+		TSet<Verse::VCell*> Scanned;
+		TArray<Verse::VCell*> Stack;
+	};
 }
 
-void FVerseValueProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const
+FVValueProperty::FVValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
-	uint8 ScratchValue = 0;
-	Slot << ScratchValue;
 }
 
-FString FVerseValueProperty::GetCPPType(FString* ExtendedTypeText, uint32 CPPExportFlags) const
+FVValueProperty::FVValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
+	: Super(InOwner, Prop)
 {
-	return TEXT("TCppType");
 }
 
-FString FVerseValueProperty::GetCPPMacroType(FString& ExtendedTypeText) const
+FVRestValueProperty::FVRestValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+{
+}
+
+FVRestValueProperty::FVRestValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+template <typename T>
+FString TProperty_Verse<T>::GetCPPMacroType(FString& ExtendedTypeText) const
 {
 	ExtendedTypeText = FString();
 	return FString();
 }
 
-FString FVerseValueProperty::GetCPPTypeForwardDeclaration() const
+template <typename T>
+bool TProperty_Verse<T>::Identical(const void* A, const void* B, uint32 PortFlags) const
 {
-	return FString();
+	check(A);
+
+	if (nullptr == B) // if the comparand is NULL, we just call this no-match
+	{
+		return false;
+	}
+
+	const TCppType* Lhs = reinterpret_cast<const TCppType*>(A);
+	const TCppType* Rhs = reinterpret_cast<const TCppType*>(B);
+	return *Lhs == *Rhs;
 }
 
-void FVerseValueProperty::ExportText_Internal(FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
+template <typename T>
+void TProperty_Verse<T>::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const
+{
+	TCppType& LocalValue = *reinterpret_cast<TCppType*>(Value);
+	FArchive& Ar = Slot.GetUnderlyingArchive();
+	if (Ar.IsSaving() || Ar.IsLoading())
+	{
+		Verse::FStructuredArchiveVisitor::Serialize(Slot, LocalValue);
+	}
+	else
+	{
+		UE::Private::FVerseObjectReferenceScan::Scan(Ar, LocalValue); 
+		Slot.EnterStream();
+	}
+}
+
+template <typename T>
+void TProperty_Verse<T>::ExportText_Internal(FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
 {
 	check(false);
 	return;
 }
 
-const TCHAR* FVerseValueProperty::ImportText_Internal(const TCHAR* InBuffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* Parent, int32 PortFlags, FOutputDevice* ErrorText) const
+template <typename T>
+const TCHAR* TProperty_Verse<T>::ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const
 {
 	check(false);
 	return TEXT("");
 }
 
-void FVerseValueProperty::LinkInternal(FArchive& Ar)
+template <typename T>
+bool TProperty_Verse<T>::ContainsObjectReference(TArray<const FStructProperty*>& EncounteredStructProps, EPropertyObjectReferenceType InReferenceType/* = EPropertyObjectReferenceType::Strong*/) const
 {
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-	PropertyFlags |= CPF_NoDestructor | CPF_ZeroConstructor;
-#endif
-}
-
-bool FVerseValueProperty::Identical(const void* A, const void* B, uint32 PortFlags) const
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	const TCppType* Lhs = reinterpret_cast<const TCppType*>(A);
-	const TCppType* Rhs = reinterpret_cast<const TCppType*>(B);
-	return *Lhs == *Rhs;
-#else
 	return true;
-#endif
 }
 
-void FVerseValueProperty::CopyValuesInternal(void* Dest, void const* Source, int32 Count) const
+template <typename T>
+void TProperty_Verse<T>::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
 {
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	TCppType* Lhs = reinterpret_cast<TCppType*>(Dest);
-	const TCppType* Rhs = reinterpret_cast<const TCppType*>(Source);
-	for (; Count-- > 0; ++Lhs, ++Rhs)
+	for (int32 Idx = 0, Num = FProperty::ArrayDim; Idx < Num; ++Idx)
 	{
-		*Lhs = *Rhs;
+		Schema.Add(UE::GC::DeclareMember(DebugPath, BaseOffset + FProperty::GetOffset_ForGC() + Idx * sizeof(TCppType), UE::GC::EMemberType::VerseValue));
 	}
-#endif
 }
 
-void FVerseValueProperty::ClearValueInternal(void* Data) const
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	TCppType* Value = reinterpret_cast<TCppType*>(Data);
-	Value->Reset(0);
-#endif
-}
+IMPLEMENT_FIELD(FVValueProperty)
+IMPLEMENT_FIELD(FVRestValueProperty)
 
-void FVerseValueProperty::InitializeValueInternal(void* Data) const
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	new (Data) TCppType(0);
-#endif
-}
-
-void FVerseValueProperty::DestroyValueInternal(void* Data) const
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	TCppType* Value = reinterpret_cast<TCppType*>(Data);
-	Value->~TCppType();
-#endif
-}
-
-int32 FVerseValueProperty::GetMinAlignment() const
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	static_assert(alignof(TCppType) == alignof(uintptr_t));
-	return alignof(TCppType);
-#else
-	return alignof(uintptr_t);
-#endif
-}
-
-bool FVerseValueProperty::ContainsObjectReference(TArray<const FStructProperty*>& EncounteredStructProps, EPropertyObjectReferenceType InReferenceType) const
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	return true;
-#else
-	return false;
-#endif
-}
-
-void FVerseValueProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
-{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	for (int32 Idx = 0, Num = ArrayDim; Idx < Num; ++Idx)
-	{
-		Schema.Add(UE::GC::DeclareMember(DebugPath, BaseOffset + GetOffset_ForGC() + Idx * sizeof(TCppType), UE::GC::EMemberType::VerseValue));
-	}
-#endif
-}
+#endif // WITH_VERSE_VM

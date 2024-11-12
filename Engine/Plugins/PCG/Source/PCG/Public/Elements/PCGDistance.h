@@ -2,7 +2,6 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "Elements/PCGPointProcessingElementBase.h"
 
 #include "PCGDistance.generated.h"
 
@@ -81,14 +80,19 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	PCGDistanceShape TargetShape = PCGDistanceShape::SphereBounds;
 
+	/** If this option is on, each source will be tested against its respective target (for a N:N operation). Source and Target num must be the same (or 1).  */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bCheckSourceAgainstRespectiveTarget = false;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use OutputAttribute selector instead."))
 	FName AttributeName_DEPRECATED = PCGDistanceConstants::DefaultOutputAttributeName;
 #endif // WITH_EDITORONLY_DATA
 };
 
-class FPCGDistanceElement : public FPCGPointProcessingElementBase
+class FPCGDistanceElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

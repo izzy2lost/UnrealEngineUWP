@@ -16,6 +16,7 @@
 #include "Materials/MaterialExpressionStaticSwitch.h"
 #include "Materials/MaterialExpressionComment.h"
 #include "Materials/MaterialExpressionComposite.h"
+#include "Materials/MaterialExpressionTextureCollectionParameter.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSampleParameter.h"
@@ -30,17 +31,20 @@
 #include "Materials/MaterialExpressionRerouteBase.h"
 #include "Materials/MaterialExpressionExecBegin.h"
 #include "Materials/MaterialExpressionExecEnd.h"
+#include "Materials/MaterialInstanceConstant.h"
 
 #include "DebugViewModeHelpers.h"
 #include "Toolkits/ToolkitManager.h"
 #include "MaterialEditor.h"
 #include "MaterialExpressionClasses.h"
+#include "MaterialInstanceEditor.h"
 #include "Materials/MaterialInstance.h"
 #include "MaterialUtilities.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Templates/UniquePtr.h"
 #include "Materials/MaterialFunctionInstance.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "MaterialEditor/PreviewMaterial.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditorUtilities"
 
@@ -471,6 +475,7 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 	// If it's a material parameter it must be visible so add it to the list
 	UMaterialExpressionParameter* Param = Cast<UMaterialExpressionParameter>( MaterialExpressionKey.Expression );
 	UMaterialExpressionTextureSampleParameter* TexParam = Cast<UMaterialExpressionTextureSampleParameter>( MaterialExpressionKey.Expression );
+	UMaterialExpressionTextureCollectionParameter* TextureCollectionParam = Cast<UMaterialExpressionTextureCollectionParameter>( MaterialExpressionKey.Expression );
 	UMaterialExpressionRuntimeVirtualTextureSampleParameter* RuntimeVirtualTexParam = Cast<UMaterialExpressionRuntimeVirtualTextureSampleParameter>(MaterialExpressionKey.Expression);
 	UMaterialExpressionSparseVolumeTextureSampleParameter* SparseVolumeTexParam = Cast<UMaterialExpressionSparseVolumeTextureSampleParameter>(MaterialExpressionKey.Expression);
 	UMaterialExpressionFontSampleParameter* FontParam = Cast<UMaterialExpressionFontSampleParameter>( MaterialExpressionKey.Expression );
@@ -482,6 +487,10 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 	else if (TexParam)
 	{
 		ParameterInfo.Name = TexParam->ParameterName;
+	}
+	else if (TextureCollectionParam)
+	{
+		ParameterInfo.Name = TextureCollectionParam->ParameterName;
 	}
 	else if (RuntimeVirtualTexParam)
 	{
@@ -496,7 +505,7 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 		ParameterInfo.Name = FontParam->ParameterName;
 	}
 		
-	if (Param || TexParam || FontParam || RuntimeVirtualTexParam || SparseVolumeTexParam)
+	if (Param || TexParam || TextureCollectionParam || FontParam || RuntimeVirtualTexParam || SparseVolumeTexParam)
 	{
 		VisibleExpressions.AddUnique(ParameterInfo);
 	}
@@ -631,10 +640,9 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 		else
 		{
 			// Retrieve the expression input and then start parsing its children
-			for (int32 i = 0; i < MaterialExpressionKey.Expression->GetInputsView().Num(); i++)
+			for (FExpressionInputIterator It{ MaterialExpressionKey.Expression }; It; ++It)
 			{
-				FExpressionInput* Input = MaterialExpressionKey.Expression->GetInputsView()[i];
-				GetVisibleMaterialParametersFromExpression(FMaterialExpressionKey(Input->Expression, Input->OutputIndex), MaterialInstance, VisibleExpressions, FunctionStack);
+				GetVisibleMaterialParametersFromExpression(FMaterialExpressionKey(It->Expression, It->OutputIndex), MaterialInstance, VisibleExpressions, FunctionStack);
 			}
 
 			TArray<FExpressionExecOutputEntry> ExpressionExecOutputs;
@@ -737,10 +745,9 @@ bool FMaterialEditorUtilities::HasCompatibleConnection(UClass* ExpressionClass, 
 		UMaterialExpression* DefaultExpression = CastChecked<UMaterialExpression>(ExpressionClass->GetDefaultObject());
 		if (TestDirection == EGPD_Output)
 		{
-			int32 NumInputs = DefaultExpression->GetInputsView().Num();
-			for (int32 Index = 0; Index < NumInputs; ++Index)
+			for (FExpressionInputIterator It{ DefaultExpression }; It; ++It)
 			{
-				uint32 InputType = DefaultExpression->GetInputType(Index);
+				uint32 InputType = DefaultExpression->GetInputType(It.Index);
 				if (CanConnectMaterialValueTypes(InputType, TestType))
 				{
 					return true;
@@ -884,6 +891,66 @@ void FMaterialEditorUtilities::OpenSelectedParentEditor(UMaterialFunctionInterfa
 		{
 			// Show function editor
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(InMaterialFunction);
+		}
+	}
+}
+
+void FMaterialEditorUtilities::RefreshPostProcessPreviewMaterials(UMaterialInterface* ExcludeMaterialInterface, bool bRedrawOnly)
+{
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
+	for (UObject* EditedAsset : EditedAssets)
+	{
+		UPreviewMaterial* EditedPreviewMaterial = Cast<UPreviewMaterial>(EditedAsset);
+		if (EditedPreviewMaterial && EditedPreviewMaterial != ExcludeMaterialInterface)
+		{
+			UMaterial* EditedMaterial = EditedPreviewMaterial->GetMaterial();
+			if (EditedMaterial->IsPostProcessMaterial())
+			{
+				TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+				for (IAssetEditorInstance* Editor : Editors)
+				{
+					if (Editor->GetEditorName() == FName("MaterialEditor"))
+					{
+						FMaterialEditor* MaterialEditor = (FMaterialEditor*)Editor;
+						if (bRedrawOnly)
+						{
+							MaterialEditor->RefreshPreviewViewport();
+						}
+						else
+						{
+							// Calling "SetPreviewMaterial" will refresh the other editor
+							MaterialEditor->SetPreviewMaterial(EditedPreviewMaterial);
+						}
+					}
+				}
+			}
+		}
+
+		UMaterialInstanceConstant* EditedMaterialInstance = Cast<UMaterialInstanceConstant>(EditedAsset);
+		if (EditedMaterialInstance && EditedMaterialInstance != ExcludeMaterialInterface)
+		{
+			UMaterial* BaseMaterial = EditedMaterialInstance->GetBaseMaterial();
+			if (BaseMaterial && BaseMaterial->IsPostProcessMaterial())
+			{
+				TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
+				for (IAssetEditorInstance* Editor : Editors)
+				{
+					if (Editor->GetEditorName() == FName("MaterialInstanceEditor"))
+					{
+						FMaterialInstanceEditor* MaterialEditor = (FMaterialInstanceEditor*)Editor;
+						if (bRedrawOnly)
+						{
+							MaterialEditor->RefreshPreviewViewport();
+						}
+						else
+						{
+							// Calling "SetPreviewMaterial" will refresh the other editor
+							MaterialEditor->SetPreviewMaterial(EditedMaterialInstance);
+						}
+					}
+				}
+			}
 		}
 	}
 }

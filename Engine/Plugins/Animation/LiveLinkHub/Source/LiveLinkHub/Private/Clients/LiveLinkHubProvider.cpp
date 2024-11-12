@@ -5,27 +5,75 @@
 #include "Algo/Transform.h"
 #include "Async/Async.h"
 #include "Clients/LiveLinkHubClientsModel.h"
-#include "Clients/LiveLinkHubProvider.h"
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "Containers/ObservableArray.h"
 #include "CoreMinimal.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Editor.h"
 #include "HAL/CriticalSection.h"
+#include "INetworkMessagingExtension.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubMessages.h"
-#include "LiveLinkHubSettings.h"
 #include "LiveLinkSettings.h"
 #include "MessageEndpointBuilder.h"
 #include "Misc/ScopeLock.h"
 #include "Session/LiveLinkHubSession.h"
 #include "Session/LiveLinkHubSessionManager.h"
-#include "Subjects/LiveLinkHubSubjectSessionConfig.h"
+#include "Settings/LiveLinkHubSettings.h"
 #include "TimerManager.h"
 
 
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.LiveLinkHubProvider"
+
+namespace LiveLinkHubProviderUtils
+{
+	static INetworkMessagingExtension* GetMessagingStatistics()
+	{
+		IModularFeatures& ModularFeatures = IModularFeatures::Get();
+
+		if (IsInGameThread())
+		{
+			if (ModularFeatures.IsModularFeatureAvailable(INetworkMessagingExtension::ModularFeatureName))
+			{
+				return &ModularFeatures.GetModularFeature<INetworkMessagingExtension>(INetworkMessagingExtension::ModularFeatureName);
+			}
+		}
+		else
+		{
+			IModularFeatures::FScopedLockModularFeatureList ScopedLockModularFeatureList;
+
+			if (ModularFeatures.IsModularFeatureAvailable(INetworkMessagingExtension::ModularFeatureName))
+			{
+				return &ModularFeatures.GetModularFeature<INetworkMessagingExtension>(INetworkMessagingExtension::ModularFeatureName);
+			}
+		}
+
+
+		ensureMsgf(false, TEXT("Feature %s is unavailable"), *INetworkMessagingExtension::ModularFeatureName.ToString());
+		return nullptr;
+	}
+
+	FString GetIPAddress(const FMessageAddress& ClientAddress)
+	{
+		FString IPAddress;
+		if (INetworkMessagingExtension* Statistics = GetMessagingStatistics())
+		{
+			const FGuid NodeId = Statistics->GetNodeIdFromAddress(ClientAddress);
+			IPAddress = NodeId.IsValid() ? Statistics->GetLatestNetworkStatistics(NodeId).IPv4AsString : FString();
+
+			int32 PortIndex = INDEX_NONE;
+			IPAddress.FindChar(TEXT(':'), PortIndex);
+
+			// Cut off the port from the end.
+			if (PortIndex != INDEX_NONE)
+			{
+				IPAddress.LeftInline(PortIndex);
+			}
+		}
+		return IPAddress;
+	}
+}
 
 
 FLiveLinkHubProvider::FLiveLinkHubProvider(const TSharedRef<ILiveLinkHubSessionManager>& InSessionManager)
@@ -179,6 +227,8 @@ void FLiveLinkHubProvider::HandleHubConnectMessage(const FLiveLinkHubConnectMess
 	{
 		// Actually added a new entry in the map.
 		FLiveLinkHubUEClientInfo NewClient{Message.ClientInfo};
+		NewClient.IPAddress = LiveLinkHubProviderUtils::GetIPAddress(ConnectionAddress);
+
 		const FLiveLinkHubClientId NewClientId = NewClient.Id;
 		{
 			FWriteScopeLock Locker(ClientsMapLock);
@@ -404,28 +454,28 @@ void FLiveLinkHubProvider::SetClientEnabled(FLiveLinkHubClientId Client, bool bI
 	}
 }
 
-bool FLiveLinkHubProvider::IsSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject) const
+bool FLiveLinkHubProvider::IsSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName) const
 {
 	FReadScopeLock Locker(ClientsMapLock);
 	if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
 	{
-		return !ClientInfoPtr->DisabledSubjects.Contains(Subject.SubjectName);
+		return !ClientInfoPtr->DisabledSubjects.Contains(SubjectName);
 	}
 	return false;
 }
 
-void FLiveLinkHubProvider::SetSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject, bool bInEnable)
+void FLiveLinkHubProvider::SetSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName, bool bInEnable)
 {
 	FWriteScopeLock Locker(ClientsMapLock);
 	if (FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
 	{
 		if (bInEnable)
 		{
-			ClientInfoPtr->DisabledSubjects.Remove(Subject.SubjectName);
+			ClientInfoPtr->DisabledSubjects.Remove(SubjectName);
 		}
 		else
 		{
-			ClientInfoPtr->DisabledSubjects.Add(Subject.SubjectName);
+			ClientInfoPtr->DisabledSubjects.Add(SubjectName);
 		}
 	}
 }

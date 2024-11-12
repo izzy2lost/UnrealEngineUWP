@@ -12,19 +12,16 @@ namespace DatasmithSolidworks
 {
 	public class FBody
 	{
-		public List<FBodyFace> Faces { get; set; } = new List<FBodyFace>();
 		public Body2 Body { get; private set; } = null;
 		public FBoundingBox Bounds { get; private set; }
 
 		public class FBodyFace
 		{
 			public Face2 Face { get; private set; } = null;
-			public FBody ParentBody { get; private set; } = null;
 
-			public FBodyFace(Face2 InFace, FBody InParentBody)
+			public FBodyFace(Face2 InFace)
 			{
 				Face = InFace;
-				ParentBody = InParentBody;
 			}
 
 			public FTriangleStrip ExtractGeometry()
@@ -51,56 +48,6 @@ namespace DatasmithSolidworks
 			Bounds.Add(new FVec3(BoundsArray[0], BoundsArray[1], BoundsArray[2]));
 			Bounds.Add(new FVec3(BoundsArray[3], BoundsArray[4], BoundsArray[5]));
 
-#if true
-			object[] ArrFaces = Body.GetFaces();
-
-			if (ArrFaces != null)
-			{
-				foreach (object ObjFace in ArrFaces)
-				{
-					Faces.Add(new FBodyFace(ObjFace as Face2, this));
-				}
-			}
-#else
-			// Get body faces
-			dynamic Face = Body.GetFirstFace() as Face2;
-			while (Face != null)
-			{
-				
-				Face = Face.GetNextFace() as Face2;
-			}
-#endif
-		}
-
-		static private List<FBody> FetchBodies(EnumBodies2 InEnumerator)
-		{
-			
-			List<FBody> Bodies = new List<FBody>();
-
-			if (InEnumerator == null)
-			{
-				return Bodies;
-			}
-
-			try
-			{
-				Body2 Body = null;
-				do
-				{
-					int Fetched = 0;
-					InEnumerator.Next(1, out Body, ref Fetched);
-					if (Body != null && Body.Visible && !Body.IsTemporaryBody())
-					{
-						Bodies.Add(new FBody(Body));
-					}
-				} while (Body != null);
-			}
-			catch
-			{
-				Debug.Assert(false);
-			}
-
-			return Bodies;
 		}
 
 		public static ConcurrentBag<FBody> FetchBodies(object[] ObjSolidBodies, object[] ObjSheetBodies)

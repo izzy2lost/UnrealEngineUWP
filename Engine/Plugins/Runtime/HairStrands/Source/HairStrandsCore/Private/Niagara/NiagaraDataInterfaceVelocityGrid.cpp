@@ -85,20 +85,21 @@ void FNDIVelocityGridData::Release()
 {
 	if (CurrentGridBuffer)
 	{
-		BeginReleaseResource(CurrentGridBuffer);
 		ENQUEUE_RENDER_COMMAND(DeleteResourceA)(
 			[ParamPointerToRelease = CurrentGridBuffer](FRHICommandListImmediate& RHICmdList)
 		{
+			ParamPointerToRelease->ReleaseResource();
 			delete ParamPointerToRelease;
 		});
 		CurrentGridBuffer = nullptr;
 	}
 	if (DestinationGridBuffer)
 	{
-		BeginReleaseResource(DestinationGridBuffer);
+
 		ENQUEUE_RENDER_COMMAND(DeleteResourceB)(
 			[ParamPointerToRelease = DestinationGridBuffer](FRHICommandListImmediate& RHICmdList)
 		{
+			ParamPointerToRelease->ReleaseResource();
 			delete ParamPointerToRelease;
 		});
 		DestinationGridBuffer = nullptr;

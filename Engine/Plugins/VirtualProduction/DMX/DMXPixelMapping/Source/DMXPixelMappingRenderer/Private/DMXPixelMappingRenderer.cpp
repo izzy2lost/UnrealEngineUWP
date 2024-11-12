@@ -23,15 +23,15 @@
 
 namespace DMXPixelMappingRenderer
 {
-	static constexpr auto RenderPassName = TEXT("RenderPixelMapping");
-	static constexpr auto RenderPassHint = TEXT("Render Pixel Mapping");
+	static constexpr TCHAR RenderPassName[] = TEXT("RenderPixelMapping");
+	static constexpr TCHAR RenderPassHint[] = TEXT("Render Pixel Mapping");
 };
 
 #if WITH_EDITOR
 namespace DMXPixelMappingRenderer
 {
-	static constexpr auto RenderPreviewPassName = TEXT("PixelMappingPreview");
-	static constexpr auto RenderPreviewPassHint = TEXT("Pixel Mapping Preview");
+	static constexpr TCHAR RenderPreviewPassName[] = TEXT("PixelMappingPreview");
+	static constexpr TCHAR RenderPreviewPassHint[] = TEXT("Pixel Mapping Preview");
 };
 
 DECLARE_GPU_STAT_NAMED(DMXPixelMappingPreviewStat, DMXPixelMappingRenderer::RenderPreviewPassHint);
@@ -285,8 +285,8 @@ void FDMXPixelMappingRenderer::RenderPreview(const FTextureResource* TextureReso
 	[this, TextureResource, DownsampleResource, PixelPreviewParamSet = MoveTemp(InPixelPreviewParamSet)]
 	(FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, DMXPixelMappingPreviewStat, "PixelMappingPreview");
 		SCOPED_GPU_STAT(RHICmdList, DMXPixelMappingPreviewStat);
-		SCOPED_DRAW_EVENTF(RHICmdList, DMXPixelMappingPreviewStat, DMXPixelMappingRenderer::RenderPreviewPassName);
 
 		const FTextureRHIRef DownsampleTextureRef = DownsampleResource->TextureRHI;
 		const FTextureRHIRef RenderTargetRef = TextureResource->TextureRHI;
@@ -367,14 +367,14 @@ void FDMXPixelMappingRenderer::RenderPreview(const FTextureResource* TextureReso
 }
 #endif // WITH_EDITOR
 
-void FDMXPixelMappingRenderer::RenderTextureToRectangle(const FTextureResource* InTextureResource, const FTexture2DRHIRef InRenderTargetTexture, FVector2D InSize, bool bSRGBSource) const
+void FDMXPixelMappingRenderer::RenderTextureToRectangle(const FTextureResource* InTextureResource, const FTextureRHIRef InRenderTargetTexture, FVector2D InSize, bool bSRGBSource) const
 {
 	check(IsInGameThread());
 
 	struct FRenderContext
 	{
 		const FTextureResource* TextureResource = nullptr;
-		const FTexture2DRHIRef Texture2DRHI = nullptr;
+		const FTextureRHIRef Texture2DRHI = nullptr;
 		FVector2D ViewportSize;
 		bool bSRGBSource;
 	};

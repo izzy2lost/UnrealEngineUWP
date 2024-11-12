@@ -3,7 +3,6 @@
 #include "MeshApproximationTool/SMeshApproximationDialog.h"
 #include "Editor.h"
 #include "Styling/AppStyle.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/Selection.h"
 #include "MeshApproximationTool/MeshApproximationTool.h"
 #include "Modules/ModuleManager.h"

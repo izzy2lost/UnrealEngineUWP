@@ -4,12 +4,11 @@
 
 #include "VulkanRHIPrivate.h"
 
-#if VULKAN_RHI_RAYTRACING
-
 #include "RayTracingBuiltInResources.h"
 
 class FVulkanCommandListContext;
 class FVulkanResourceMultiBuffer;
+struct FVulkanRayTracingGeometryParameters;
 
 class FVulkanRayTracingPlatform
 {
@@ -27,7 +26,9 @@ struct FVulkanHitGroupSystemParameters
 	uint32 BindlessHitGroupSystemIndexBuffer;
 	uint32 BindlessHitGroupSystemVertexBuffer;
 
-	uint32 BindlessUniformBuffers[16];
+	uint32 BindlessUniformBuffers[32];
+
+	// *** Globals start here ***
 };
 
 
@@ -59,17 +60,19 @@ struct FVkRtBLASBuildData
 	VkAccelerationStructureBuildSizesInfoKHR SizesInfo;
 };
 
-class FVulkanRayTracingShaderTable : VulkanRHI::FDeviceChild
+class FVulkanRayTracingShaderTable : public FRHIShaderBindingTable, public VulkanRHI::FDeviceChild
 {
 public:
-	FVulkanRayTracingShaderTable(FVulkanDevice* Device);
+	FVulkanRayTracingShaderTable(FRHICommandListBase& RHICmdList, FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer);
 	~FVulkanRayTracingShaderTable();
 
-	void Init(const FVulkanRayTracingScene* Scene, const FVulkanRayTracingPipelineState* Pipeline);
+	void ReleaseLocalBuffers();
 
 	const VkStridedDeviceAddressRegionKHR* GetRegion(EShaderFrequency Frequency);
 
 	void SetSlot(EShaderFrequency Frequency, uint32 DstSlot, uint32 SrcHandleIndex, TConstArrayView<uint8> SrcHandleData);
+
+	void CommitRayGenShader(FVulkanCommandListContext& Context, EShaderFrequency ShaderFrequency, uint32 SrcHandleIndex, TConstArrayView<uint8> SrcHandleData);
 
 	template <typename T>
 	void SetLocalShaderParameters(EShaderFrequency Frequency, uint32 RecordIndex, uint32 InOffsetWithinRootSignature, const T& Parameters)
@@ -79,7 +82,21 @@ public:
 
 	void SetLocalShaderParameters(EShaderFrequency Frequency, uint32 RecordIndex, uint32 OffsetWithinRecord, const void* InData, uint32 InDataSize);
 
+	void SetLooseParameterData(EShaderFrequency Frequency, uint32 RecordIndex, const void* InData, uint32 InDataSize)
+	{
+		if (InData && InDataSize)
+		{
+			// Place the loose parameter data after the FVulkanHitGroupSystemParameters in the shader record
+			const uint32 LooseParameterDataOffset = Align(sizeof(FVulkanHitGroupSystemParameters), 4);
+			SetLocalShaderParameters(Frequency, RecordIndex, LooseParameterDataOffset, InData, InDataSize);
+		}
+	}
+
+	void SetInlineGeometryParameters(uint32 SegmentIndex, const void* InData, uint32 InDataSize);
+
 	void Commit(FVulkanCommandListContext& Context);
+	
+	virtual FRHIShaderResourceView* GetOrCreateInlineBufferSRV(FRHICommandListBase& RHICmdList) override final;
 
 	void AddUBRef(FRHIUniformBuffer* UB)
 	{
@@ -90,6 +107,21 @@ public:
 	{
 		return ReferencedUniformBuffers;
 	}
+
+	ERayTracingHitGroupIndexingMode GetHitGroupIndexingMode() const
+	{
+		return HitGroupIndexingMode;
+	}
+
+	ERayTracingShaderBindingMode GetShaderBindingMode() const
+	{
+		return ShaderBindingMode;
+	}
+
+	// Ray tracing shader bindings can be processed in parallel.
+	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
+	// Scaling beyond 5 total threads does not yield any speedup in practice (RHI thread + 4 parallel workers).
+	static constexpr uint32 MaxBindingWorkers = 1; // :todo-jn:
 
 private:
 
@@ -116,11 +148,20 @@ private:
 
 	FVulkanShaderTableAllocation& GetAlloc(EShaderFrequency Frequency);
 	static void ReleaseLocalBuffer(FVulkanDevice* Device, FVulkanShaderTableAllocation& Alloc);
+	
+	ERayTracingShaderBindingMode ShaderBindingMode = ERayTracingShaderBindingMode::Disabled;
+	ERayTracingHitGroupIndexingMode HitGroupIndexingMode = ERayTracingHitGroupIndexingMode::Allow;
 
+	UE::FMutex RaygenMutex;
 	FVulkanShaderTableAllocation Raygen;
 	FVulkanShaderTableAllocation Miss;
 	FVulkanShaderTableAllocation HitGroup;
 	FVulkanShaderTableAllocation Callable;
+		
+	// Buffer that contains per-hitrecord index and vertex buffer binding data
+	TArray<uint8> InlineGeometryParameterData;
+	TRefCountPtr<FVulkanResourceMultiBuffer> InlineGeometryParameterBuffer;
+	FShaderResourceViewRHIRef InlineGeometryParameterSRV;
 
 	TArray<TRefCountPtr<FRHIUniformBuffer>> ReferencedUniformBuffers;
 
@@ -138,8 +179,7 @@ public:
 	FVulkanRayTracingGeometry(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer, FVulkanDevice* InDevice);
 	~FVulkanRayTracingGeometry();
 
-	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override { return Address; }	
-	virtual void SetInitializer(const FRayTracingGeometryInitializer& Initializer) final override;
+	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override { return Address; }
 
 	void Swap(FVulkanRayTracingGeometry& Other);
 
@@ -151,6 +191,8 @@ public:
 
 	void SetupHitGroupSystemParameters();
 	void ReleaseBindlessHandles();
+
+	void SetupInlineGeometryParameters(uint32 GeometrySegmentIndex, FVulkanRayTracingGeometryParameters& Parameters) const;
 
 	VkAccelerationStructureKHR Handle = VK_NULL_HANDLE;
 	VkDeviceAddress Address = 0;
@@ -170,48 +212,40 @@ public:
 
 class FVulkanRayTracingScene : public FRHIRayTracingScene, public VulkanRHI::FDeviceChild
 {
-public:
-	// Ray tracing shader bindings can be processed in parallel.
-	// Each concurrent worker gets its own dedicated descriptor cache instance to avoid contention or locking.
-	// Scaling beyond 5 total threads does not yield any speedup in practice (RHI thread + 4 parallel workers).
-	static constexpr uint32 MaxBindingWorkers = 1; // :todo-jn:
+	friend FVulkanCommandListContext;
 
-	FVulkanRayTracingScene(FRayTracingSceneInitializer2 Initializer, FVulkanDevice* InDevice);
+public:
+	FVulkanRayTracingScene(FRayTracingSceneInitializer Initializer, FVulkanDevice* InDevice);
 	~FVulkanRayTracingScene();
 
-	const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
-	uint32 GetLayerBufferOffset(uint32 LayerIndex) const override final { return Layers[LayerIndex].BufferOffset; }
+	const FRayTracingSceneInitializer& GetInitializer() const override final { return Initializer; }
 
 	void BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffset);
-	void BuildAccelerationStructure(
-		FVulkanCommandListContext& CommandContext, 
-		FVulkanResourceMultiBuffer* ScratchBuffer, uint32 ScratchOffset, 
-		FVulkanResourceMultiBuffer* InstanceBuffer, uint32 InstanceOffset);
 
-	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) override final
+	void CommitShaderTables(FVulkanCommandListContext& Context)
 	{
-		if (!PerInstanceGeometryParameterSRV.IsValid())
+		for (auto& Pair : ShaderTables)
 		{
-			PerInstanceGeometryParameterSRV = RHICmdList.CreateShaderResourceView(PerInstanceGeometryParameterBuffer, FRHIViewDesc::CreateBufferSRV().SetType(FRHIViewDesc::EBufferType::Structured));
+			Pair.Value->Commit(Context);
 		}
-
-		return PerInstanceGeometryParameterSRV.GetReference();
 	}
 
-	FVulkanRayTracingShaderTable* FindOrCreateShaderTable(const FVulkanRayTracingPipelineState* Pipeline);
-
-	inline uint32 GetHitRecordBaseIndex(uint32 InstanceIndex, uint32 SegmentIndex) const 
-	{
-		return (Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Initializer.ShaderSlotsPerGeometrySegment;
-	}
+	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline);
 
 	inline bool IsBuilt() const
 	{
 		return bBuilt;
 	}
 
-private:
-	const FRayTracingSceneInitializer2 Initializer;
+	using FRHIRayTracingAccelerationStructure::SizeInfo;
+
+	const FRayTracingSceneInitializer Initializer;
+
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
+	// One entry per instance
+	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
 
 	// Native TLAS handles are owned by SRV objects in Vulkan RHI.
 	// D3D12 and other RHIs allow creating TLAS SRVs from any GPU address at any point
@@ -221,26 +255,18 @@ private:
 	// the lifetime of the scene object may be different from the lifetime of the buffer.
 	// Many VkAccelerationStructureKHR-s may be created, pointing at the same buffer.
 
-	struct FLayerData
-	{
-		TUniquePtr<FVulkanView> View;
-		uint32 BufferOffset;
-		uint32 ScratchBufferOffset;
-	};
+	TUniquePtr<FVulkanView> View;
 
-	TArray<FLayerData> Layers;
+	uint32 NumInstances = 0;
 	
 	TRefCountPtr<FVulkanResourceMultiBuffer> AccelerationStructureBuffer;
-
-	// Buffer that contains per-instance index and vertex buffer binding data
-	TRefCountPtr<FVulkanResourceMultiBuffer> PerInstanceGeometryParameterBuffer;
-	FShaderResourceViewRHIRef PerInstanceGeometryParameterSRV;
 	
-	TMap<const FVulkanRayTracingPipelineState*, FVulkanRayTracingShaderTable*> ShaderTables;
-
-	void BuildPerInstanceGeometryParameterBuffer(FVulkanCommandListContext& CommandContext);
+	TMap<const FVulkanRayTracingPipelineState*, TRefCountPtr<FVulkanRayTracingShaderTable>> ShaderTables;
 
 	bool bBuilt = false;
+
+private:
+	UE::FMutex Mutex;
 };
 
 
@@ -258,7 +284,7 @@ public:
 	}
 
 	int32 GetShaderIndex(const FVulkanRayTracingShader* Shader) const;
-	const FVulkanRayTracingShader* GetShader(EShaderFrequency Frequency, int32 ShaderIndex) const;
+	const FVulkanRayTracingShader* GetVulkanShader(EShaderFrequency Frequency, int32 ShaderIndex) const;
 	const TArray<uint8>& GetShaderHandles(EShaderFrequency Frequency) const;
 
 private:
@@ -279,6 +305,7 @@ private:
 	VkPipeline Pipeline = VK_NULL_HANDLE;
 
 public:
+	UE_DEPRECATED(5.5, "bAllowHitGroupIndexing is now stored in the ShaderBindingTable.")
 	bool bAllowHitGroupIndexing = true;
 
 	friend FVulkanCommandListContext;
@@ -318,14 +345,19 @@ public:
 
 	void Update(FVulkanCommandListContext& InCommandContext);
 
+	bool IsUsingCmdBuffer(FVulkanCmdBuffer* CmdBuffer);
+
 private:
 
 	FCriticalSection CS;
 	TArray<FVulkanRayTracingGeometry*> PendingRequests;
-	TArray<FVulkanRayTracingGeometry*> ActiveRequests;
 	TArray<VkAccelerationStructureKHR> ActiveBLASes;
+
+	// Keep references on FVulkanRayTracingGeometry until lifetime issue is found (this prevents cancellation)
+	TArray<TRefCountPtr<FVulkanRayTracingGeometry>> ActiveRequests;
+	FVulkanCmdBuffer* ActiveRequestsCmdBuffer = nullptr;
+	uint64 ActiveRequestsFenceCounter = MAX_uint64;
 
 	FVulkanRayTracingCompactedSizeQueryPool* QueryPool = nullptr;
 };
 
-#endif // VULKAN_RHI_RAYTRACING

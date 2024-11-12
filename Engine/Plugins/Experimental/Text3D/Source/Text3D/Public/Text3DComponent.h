@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Components/SceneComponent.h"
-#include "CoreMinimal.h"
 #include "BevelType.h"
 #include "Mesh.h"
 #include "UObject/ObjectMacros.h"
@@ -34,6 +33,15 @@ enum class EText3DHorizontalTextAlignment : uint8
 };
 
 UENUM()
+enum class EText3DMaxWidthHandling : uint8
+{
+	/** Scales the text to meet the max width */
+	Scale			UMETA(DisplayName = "Scale"),
+	/** First wraps the text (if possible) and then scales to meet the max width */
+	WrapAndScale	UMETA(DisplayName = "Wrap and Scale"),
+};
+
+UENUM()
 enum class EText3DModifyFlags : uint8
 {
 	None = 0,
@@ -44,6 +52,21 @@ enum class EText3DModifyFlags : uint8
 	All = Layout | Geometry | Unfreeze
 };
 ENUM_CLASS_FLAGS(EText3DModifyFlags)
+
+struct FText3DWordStatistics
+{
+	/** Actual range taking into account whitespaces */
+	FTextRange ActualRange;
+
+	/** Render range not taking into account whitespaces */
+	FTextRange RenderRange;
+};
+
+struct FText3DStatistics
+{
+	TArray<FText3DWordStatistics> Words;
+	int32 WhiteSpaces;
+};
 
 UCLASS(ClassGroup = (Text3D), PrioritizeCategories = "Text Layout Geometry Materials", meta = (BlueprintSpawnableComponent))
 class TEXT3D_API UText3DComponent : public USceneComponent
@@ -213,6 +236,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D", meta = (DeprecatedFunction, DeprecationMessage = "Set the property directly"))
 	void SetMaxWidth(const float Value);
 
+	/** Get the Maximum Width Handling - Whether to wrap before scaling when the text size reaches the max width */
+	EText3DMaxWidthHandling GetMaxWidthHandling() const;
+
+	/** Set the Maximum Width Handling - Whether to wrap before scaling when the text size reaches the max width */
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D", meta = (DeprecatedFunction, DeprecationMessage = "Set the property directly"))
+	void SetMaxWidthHandling(const EText3DMaxWidthHandling Value);
+
 	/** Whether a maximum height is specified */
 	bool HasMaxHeight() const;
 
@@ -275,7 +305,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D")
 	FVector GetTextScale();
 
-
 	/** Get the typeface */
 	FName GetTypeface() const { return  Typeface; }
 
@@ -284,6 +313,11 @@ public:
 
 	/** Manually update the geometry, ignoring RefreshOnChange (but still accounting for the Freeze flag) */
 	void Rebuild();
+
+	const FText3DStatistics& GetStatistics() const
+	{
+		return Statistics;
+	}
 
 protected:
 	/** Whether to allow automatic refresh/mesh generation */
@@ -299,15 +333,15 @@ protected:
 	float Extrude;
 
 	/** Size of bevel */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Geometry", meta = (EditCondition = "!bOutline", ClampMin = 0, AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Geometry", meta = (EditCondition = "!bOutline && Extrude > 0", ClampMin = 0, AllowPrivateAccess = "true"))
 	float Bevel;
 
 	/** Bevel Type */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Geometry", meta = (EditCondition = "!bOutline", AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Geometry", meta = (EditCondition = "!bOutline && Extrude > 0", AllowPrivateAccess = "true"))
 	EText3DBevelType BevelType;
 
 	/** Bevel Segments (Defines the amount of tesselation for the bevel part) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Geometry", meta = (EditCondition = "!bOutline", ClampMin = 1, ClampMax = 15, AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Geometry", meta = (EditCondition = "!bOutline && Extrude > 0", ClampMin = 1, ClampMax = 15, AllowPrivateAccess = "true"))
 	int32 BevelSegments;
 
 	/** Generate Outline */
@@ -323,15 +357,15 @@ protected:
 	TObjectPtr<UMaterialInterface> FrontMaterial;
 
 	/** Material for the bevel part */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Materials", meta = (EditCondition = "!bOutline", AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Materials", meta = (EditCondition = "!bOutline && Extrude > 0 && Bevel > 0", EditConditionHides, AllowPrivateAccess = "true"))
 	TObjectPtr<UMaterialInterface> BevelMaterial;
 
 	/** Material for the extruded part */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Materials", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Materials", meta = (EditCondition = "Extrude > 0", EditConditionHides, AllowPrivateAccess = "true"))
 	TObjectPtr<UMaterialInterface> ExtrudeMaterial;
 
 	/** Material for the back part */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Materials", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Materials", meta = (EditCondition = "Extrude > 0", EditConditionHides, AllowPrivateAccess = "true"))
 	TObjectPtr<UMaterialInterface> BackMaterial;
 
 	/** Text font */
@@ -373,6 +407,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "HasMaxHeight", Setter = "SetHasMaxHeight", Category = "Layout", meta = (InlineEditConditionToggle, AllowPrivateAccess = "true"))
 	bool bHasMaxHeight;
 
+	/** Dictates how to handle the text if it exceeds the max width */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Layout", meta = (HideEditConditionToggle, EditCondition="bHasMaxWidth", AllowPrivateAccess = "true"))
+	EText3DMaxWidthHandling MaxWidthHandling;
+
 	/** Sets a maximum height to the 3D Text */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Layout", meta = (EditCondition = "bHasMaxHeight", ClampMin = 1, AllowPrivateAccess = "true"))
 	float MaxHeight;
@@ -394,7 +432,6 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Text3D")
 	FText GetFormattedText() const;
 
-protected:
 	UFUNCTION()
 	TArray<FName> GetTypefaceNames() const;
 
@@ -458,13 +495,16 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> CharacterMeshes;
 
+	/** Text statistics cached since last text generation */
+	FText3DStatistics Statistics;
+
 	/** Allocates, or shrinks existing components to match the input number. Returns false if nothing modified. */
 	bool AllocateGlyphs(int32 Num);
 
 	/** Slot based Material accessors. */
 	UMaterialInterface* GetMaterial(const EText3DGroupType Type) const;
 	void SetMaterial(const EText3DGroupType Type, UMaterialInterface* Material);
-	void UpdateMaterial(const EText3DGroupType Type, UMaterialInterface* Material);
+	void OnMaterialChanged();
 
 	/** Validation and context sensitive limits applied to the current bevel value. */
 	void CheckBevel();
@@ -477,7 +517,6 @@ private:
 	void BuildTextMeshInternal(const bool& bCleanCache);
 
 	/** Layout functionality. */
-	void CalculateTextWidth();
 	float GetTextHeight() const;
 	void CalculateTextScale();
 	FVector GetLineLocation(int32 LineIndex);
@@ -493,4 +532,6 @@ private:
 	bool IsTypefaceAvailable(FName InTypeface) const;
 	TArray<FTypefaceEntry> GetAvailableTypefaces() const;
 	void RefreshTypeface();
+
+	void UpdateStatistics();
 };

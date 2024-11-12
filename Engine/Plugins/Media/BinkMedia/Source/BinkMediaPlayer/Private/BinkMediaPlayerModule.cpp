@@ -17,7 +17,7 @@ DEFINE_LOG_CATEGORY(LogBink);
 
 TSharedPtr<FBinkMovieStreamer, ESPMode::ThreadSafe> MovieStreamer;
 
-TArray< FTexture2DRHIRef > BinkActiveTextureRefs;
+TArray< FTextureRHIRef > BinkActiveTextureRefs;
 
 #if BINKPLUGIN_UE4_EDITOR
 class UFactory;
@@ -227,6 +227,7 @@ struct FBinkMediaPlayerModule : IModuleInterface, FTickableGameObject
 				GEngine->GameViewport->OnDrawn().Remove(overlayHook);
 			}
 		}
+		MovieStreamer.Reset();
 #if BINKPLUGIN_UE4_EDITOR
 		FEditorDelegates::BeginPIE.RemoveAll(this);
 		FEditorDelegates::EndPIE.RemoveAll(this);

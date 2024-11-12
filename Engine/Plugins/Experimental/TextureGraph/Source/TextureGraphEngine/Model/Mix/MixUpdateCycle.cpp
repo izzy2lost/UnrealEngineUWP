@@ -138,7 +138,7 @@ JobPtrW MixUpdateCycle::AddJob(int32 InTargetId, JobUPtr JobObj)
 	/// If the job is fully culled, then we don't need to do anything
 	if (JobS->CheckCulled(RunInfo))
 	{
-		UE_LOG(LogBatch, Log, TEXT("MixUpdateCycle::AddJob  Job [%llu]: IsCulled"), Batch->GetBatchId());
+		UE_LOG(LogBatch, VeryVerbose, TEXT("MixUpdateCycle::AddJob  Job [%llu]: IsCulled"), Batch->GetBatchId());
 	}
 
 	SceneTargetUpdatePtr Target = Targets[InTargetId];

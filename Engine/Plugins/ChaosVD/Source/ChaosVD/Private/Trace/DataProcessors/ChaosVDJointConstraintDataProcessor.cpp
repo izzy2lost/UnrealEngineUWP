@@ -7,12 +7,14 @@
 
 
 FChaosVDJointConstraintDataProcessor::FChaosVDJointConstraintDataProcessor()
-	: IChaosVDDataProcessor(FChaosVDJointConstraint::WrapperTypeName)
+	: FChaosVDDataProcessorBase(FChaosVDJointConstraint::WrapperTypeName)
 {
 }
 
 bool FChaosVDJointConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{
@@ -24,13 +26,10 @@ bool FChaosVDJointConstraintDataProcessor::ProcessRawData(const TArray<uint8>& I
 
 	if (bSuccess)
 	{
-		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-		if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(JointConstraint->SolverID))
+		FChaosVDStepData* CurrentSolverStage = ProviderSharedPtr->GetCurrentSolverStageDataForCurrentFrame(JointConstraint->SolverID, EChaosVDSolverStageAccessorFlags::None);
+		if (ensureMsgf(CurrentSolverStage, TEXT("A Joint Constraint was traced without a valid step scope")))
 		{
-			if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A Joint Constraint was traced without a valid step scope")))
-			{
-				FrameData->SolverSteps.Last().RecordedJointConstraints.Add(JointConstraint);
-			}
+			CurrentSolverStage->RecordedJointConstraints.Add(JointConstraint);
 		}
 	}
 

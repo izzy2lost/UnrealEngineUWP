@@ -175,6 +175,12 @@ public:
 	virtual void SetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr)
 	{ }
 
+	/* Returns true if this projection policy should use post-processes from the ViewPoint component. **/
+	virtual bool ShouldUseViewPointComponentPostProcesses(IDisplayClusterViewport* InViewport) const
+	{
+		return true;
+	}
+
 	/** Projection policy can override PP
 	* 
 	* @param InViewport - a owner viewport
@@ -185,7 +191,7 @@ public:
 	/** Calculate view projection data
 	* 
 	* @param InViewport        - a owner viewport
-	* @param ViewIdx           - Index of view that is being processed for this viewport
+	* @param InContextNum      - Index of view that is being processed for this viewport
 	* @param InOutViewLocation - (in/out) View location with ViewOffset (i.e. left eye pre-computed location)
 	* @param InOutViewRotation - (in/out) View rotation
 	* @param ViewOffset        - Offset applied ot a camera location that gives us InOutViewLocation (i.e. right offset in world to compute right eye location)
@@ -200,12 +206,24 @@ public:
 	/** Gets projection matrix
 	* 
 	* @param InViewport   - a owner viewport
-	* @param ViewIdx      - Index of view that is being processed for this viewport
+	* @param InContextNum - Index of view that is being processed for this viewport
 	* @param OutPrjMatrix - (out) projection matrix
 	*
 	* @return - True if success
 	*/
 	virtual bool GetProjectionMatrix(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FMatrix& OutPrjMatrix) = 0;
+
+	/** Returns true if the frustum has been rotated to fit the context size.
+	* 
+	* @param InViewport   - a owner viewport
+	* @param InContextNum - Index of view that is being processed for this viewport
+	* 
+	* @return true is success.
+	*/
+	virtual bool IsFrustumRotatedToFitContextSize(IDisplayClusterViewport* InViewport, const uint32 InContextNum)
+	{
+		return false;
+	}
 
 	/**
 	* Returns if a policy provides warp&blend feature

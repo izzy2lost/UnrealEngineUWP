@@ -22,6 +22,7 @@
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/WorldPartitionEditorLoaderAdapter.h"
+#include "WorldPartition/WorldPartitionRuntimeCellTransformer.h"
 #include "ExternalDirtyActorsTracker.h"
 #include "PackageSourceControlHelper.h"
 #include "CookPackageSplitter.h"
@@ -113,6 +114,27 @@ public:
 };
 #endif
 
+/** Holds an instance of a runtime cell transformer. */
+USTRUCT()
+struct FRuntimeCellTransformerInstance
+{
+	GENERATED_USTRUCT_BODY()
+
+#if WITH_EDITORONLY_DATA
+	inline void PreTransform(ULevel* InLevel) const { if (Instance) { Instance->PreTransform(InLevel); } }
+	inline void Transform(ULevel* InLevel) const { if (Instance) { Instance->Transform(InLevel); } }
+	inline void PostTransform(ULevel* InLevel) const { if (Instance) { Instance->PostTransform(InLevel); } }
+
+	/** Runtime cell transformer class */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay)
+	TSubclassOf<UWorldPartitionRuntimeCellTransformer> Class;
+
+	/** Transformer object instance */
+	UPROPERTY(VisibleAnywhere, Category = WorldPartitionSetup, Instanced, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault))
+	TObjectPtr<UWorldPartitionRuntimeCellTransformer> Instance;
+#endif
+};
+
 UCLASS(AutoExpandCategories=(WorldPartition), MinimalAPI)
 class UWorldPartition final : public UObject, public FActorDescContainerInstanceCollection, public IWorldPartitionCookPackageGenerator
 {
@@ -158,8 +180,9 @@ private:
 	ENGINE_API void OnPreBeginPIE(bool bStartSimulate);
 	ENGINE_API void OnPrePIEEnded(bool bWasSimulatingInEditor);
 	ENGINE_API void OnCancelPIE();
-	ENGINE_API void OnBeginPlay();
-	ENGINE_API void OnEndPlay();
+
+	ENGINE_API void PrepareEditorGameWorld();
+	ENGINE_API void ShutdownEditorGameWorld();
 
 	// WorldDeletegates Events
 	ENGINE_API void OnWorldRenamed(UWorld* RenamedWorld);
@@ -174,13 +197,18 @@ private:
 	ENGINE_API void InitializeActorDescContainerEditorStreaming(UActorDescContainerInstance* InActorDescContainer);
 #endif
 
+	ENGINE_API void OnBeginPlay();
+
 public:
 	ENGINE_API const FTransform& GetInstanceTransform() const;
 	//~ End UActorDescContainer Interface
 
+	FORCEINLINE bool HasInstanceTransform() const { return InstanceTransform.IsSet(); }
+
 	//~ Begin UObject Interface
 #if WITH_EDITOR
 	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
+	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif //WITH_EDITOR
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	ENGINE_API virtual UWorld* GetWorld() const override;
@@ -222,7 +250,8 @@ public:
 			return *this;
 		}
 		FGenerateStreamingParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
-		FGenerateStreamingParams& SetOutputLogPath(const FString& InOutputLogPath) { OutputLogPath = InOutputLogPath; return *this; }
+		FGenerateStreamingParams& SetOutputLogType(const FString& InOutputLogType) { OutputLogType = InOutputLogType; return *this; }
+		FGenerateStreamingParams& SetFilteredClasses(const TArray<TSubclassOf<AActor>>& InFilteredClasses) { FilteredClasses = InFilteredClasses; return *this; }
 
 		UE_DEPRECATED(5.4, "Use constructor receiving a ContainerInstanceCollection instead")
 		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) { return *this; }
@@ -232,8 +261,9 @@ public:
 		
 	private:
 
+		TArray<TSubclassOf<AActor>> FilteredClasses;
 		FStreamingGenerationContainerInstanceCollection ContainerInstanceCollection;
-		TOptional<const FString> OutputLogPath;
+		TOptional<const FString> OutputLogType;
 		IStreamingGenerationErrorHandler* ErrorHandler;
 
 		friend class UWorldPartition;
@@ -264,7 +294,10 @@ public:
 	ENGINE_API TUniquePtr<IStreamingGenerationContext> GenerateStreamingGenerationContext(const FGenerateStreamingParams& InParams, FGenerateStreamingContext& InContext);
 
 	ENGINE_API void FlushStreaming();
-	ENGINE_API URuntimeHashExternalStreamingObjectBase* FlushStreamingToExternalStreamingObject(const FString& ExternalStreamingObjectName);
+	ENGINE_API URuntimeHashExternalStreamingObjectBase* FlushStreamingToExternalStreamingObject();
+
+	UE_DEPRECATED(5.5, "FlushStreamingToExternalStreamingObject(const FString& ) is deprecated, use FlushStreamingToExternalStreamingObject() instead")
+	URuntimeHashExternalStreamingObjectBase* FlushStreamingToExternalStreamingObject(const FString& ExternalStreamingObjectName) { return FlushStreamingToExternalStreamingObject(); }
 
 	// Event when world partition was enabled/disabled in the world
 	DECLARE_MULTICAST_DELEGATE_OneParam(FWorldPartitionChangedEvent, UWorld*);
@@ -302,6 +335,8 @@ public:
 
 	ENGINE_API FBox GetEditorWorldBounds() const;
 	ENGINE_API FBox GetRuntimeWorldBounds() const;
+
+	ENGINE_API void ApplyRuntimeCellsTransformerStack(ULevel* InLevel);
 	
 	UHLODLayer* GetDefaultHLODLayer() const { return DefaultHLODLayer; }
 	void SetDefaultHLODLayer(UHLODLayer* InDefaultHLODLayer) { DefaultHLODLayer = InDefaultHLODLayer; }
@@ -450,16 +485,13 @@ public:
 	ENGINE_API bool CanStream() const;
 	ENGINE_API bool IsServer() const;
 	ENGINE_API bool IsServerStreamingEnabled() const;
+	ENGINE_API bool IsContentBundleEnabled() const { return !bDisableContentBundles; }
 	ENGINE_API bool IsServerStreamingOutEnabled() const;
 	ENGINE_API bool UseMakingVisibleTransactionRequests() const;
 	ENGINE_API bool UseMakingInvisibleTransactionRequests() const;
 
 	ENGINE_API bool IsMainWorldPartition() const;
 
-private:
-	ENGINE_API void Tick(float DeltaSeconds);
-
-public:
 	ENGINE_API bool CanAddCellToWorld(const IWorldPartitionCell* InCell) const;
 	ENGINE_API bool IsStreamingCompleted(const TArray<FWorldPartitionStreamingSource>* InStreamingSources) const;
 	ENGINE_API bool IsStreamingCompleted(EWorldPartitionRuntimeCellState QueryState, const TArray<FWorldPartitionStreamingQuerySource>& QuerySources, bool bExactState) const;
@@ -526,6 +558,12 @@ public:
 #if WITH_EDITOR
 	UActorDescContainerInstance* GetActorDescContainerInstance() const { return ActorDescContainerInstance; }
 
+	void SetContainerInstanceClass(TSubclassOf<UActorDescContainerInstance> InContainerInstanceClass)
+	{
+		check(!IsInitialized());
+		ContainerInstanceClass = InContainerInstanceClass;
+	}
+
 	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstanceBreakable.")
 	void ForEachActorDescContainerBreakable(TFunctionRef<bool(UActorDescContainer*)> Func) {}
 	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstanceBreakable.")
@@ -559,17 +597,31 @@ private:
 	uint8 bAllowShowingHLODsInEditor : 1;
 #endif
 
+	/** if set to true, this removes any content bundles from this world and also removes content bundle editing */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay)
+	uint8 bDisableContentBundles : 1;
+
 	TObjectPtr<UWorld> World;
 
 #if WITH_EDITOR
 	bool bForceGarbageCollection;
 	bool bForceGarbageCollectionPurge;
+	bool bForceRefreshAlwaysLoaded;
+	bool bForceRefreshEditor;
 	bool bEnablingStreamingJustified;
 	bool bIsPIE;
 	int32 NumUserCreatedLoadedRegions;
 #endif
 
 #if WITH_EDITORONLY_DATA
+	/** Runtime cells transform stack objects */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup)
+	TArray<FRuntimeCellTransformerInstance> RuntimeCellsTransformerStack;
+
+	/** Runtime cells transform stack objects execution stats */
+	float RuntimeCellsTransformerStackDumpTime = 0.0f;
+	TMap<UClass*, TPair<double, int32>> RuntimeCellsTransformerStackTimes;
+
 	// Default HLOD layer
 	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, meta = (DisplayName = "Default HLOD Layer", EditCondition="bEnableStreaming", EditConditionHides, HideEditConditionToggle))
 	TObjectPtr<class UHLODLayer> DefaultHLODLayer;
@@ -590,13 +642,15 @@ private:
 		FWorldPartitionExternalDirtyActorsTracker(UWorldPartition* InWorldPartition);
 
 		//~ Begin TExternalDirtyActorsTracker interface
-		virtual bool OnAddDirtyActor(const TWeakObjectPtr<AActor> InActor) override { return !!GUndo; }
 		virtual void OnRemoveNonDirtyActor(const TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue) override;
 		virtual void Tick(float InDeltaTime) override;
 		//~ End TExternalDirtyActorsTracker interface
 
+		void SetNonDirtyTrackingDisabled(bool bInIsNonDirtyTrackingDisabled) { bIsNonDirtyTrackingDisabled = bInIsNonDirtyTrackingDisabled; }
+		bool IsNonDirtyTrackingDisabled() const { return bIsNonDirtyTrackingDisabled; }
 	private:
-		TArray<TPair<TWeakObjectPtr<AActor>, FWorldPartitionReference>> NonDirtyActors;
+		TSet<TPair<TWeakObjectPtr<AActor>, FWorldPartitionReference>> NonDirtyActors;
+		bool bIsNonDirtyTrackingDisabled = false;
 	};
 
 	TUniquePtr<FWorldPartitionExternalDirtyActorsTracker> ExternalDirtyActorsTracker;
@@ -606,9 +660,23 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UActorDescContainerInstance> ActorDescContainerInstance;
 
+	UPROPERTY(Transient)
+	TSubclassOf<UActorDescContainerInstance> ContainerInstanceClass;
 public:
 	TOptional<bool> bOverrideEnableStreamingInEditor;
 
+	friend class FDisableNonDirtyActorTrackingScope;
+
+	// Use scope around actor package save calls to prevent newly created spatial actors from being pinned (actors will get unloaded instead)
+	class FDisableNonDirtyActorTrackingScope
+	{
+	public:
+		ENGINE_API FDisableNonDirtyActorTrackingScope(UWorldPartition* InWorldPartition, bool bInDisableTracking);
+		ENGINE_API ~FDisableNonDirtyActorTrackingScope();
+	private:
+		UWorldPartition* WorldPartition = nullptr;
+		bool bPreviousValue = false;
+	};
 private:
 #endif
 
@@ -652,19 +720,22 @@ private:
 	static ENGINE_API FAutoConsoleVariableRef CVarEnableServerStreamingOut;
 	static ENGINE_API FAutoConsoleVariableRef CVarUseMakingVisibleTransactionRequests;
 	static ENGINE_API FAutoConsoleVariableRef CVarUseMakingInvisibleTransactionRequests;
-
-	ENGINE_API void OnWorldMatchStarting();
 	
-#if WITH_EDITOR
-	ENGINE_API void OnLevelActorDeleted(AActor* Actor);
-	ENGINE_API void OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot);
-#endif
+	ENGINE_API void OnWorldMatchStarting();
+	ENGINE_API void OnWorldPreBeginPlay();
+	ENGINE_API void OnStreamingStateUpdated();
+	ENGINE_API void Tick(float DeltaSeconds);
+	void OnPreChangeStreamingContent();
+	int32 GetUpdateStreamingStateEpoch() const;
 
 	// Delegates registration
 	ENGINE_API void RegisterDelegates();
 	ENGINE_API void UnregisterDelegates();	
 
 #if WITH_EDITOR
+	ENGINE_API void OnLevelActorDeleted(AActor* Actor);
+	ENGINE_API void OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot);
+
 	void HashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void UnhashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void OnContentBundleRemovedContent(const FContentBundleEditor* ContentBundle);
@@ -694,6 +765,50 @@ public:
 	}
 #endif
 
+public:
+	/**
+	 * Experimental: World Asset Streaming can be used to inject streaming levels into the runtime grids dynamically, with one level of HLODs support.
+	 */
+	struct FRegisterWorldAssetStreamingParams
+	{
+		FRegisterWorldAssetStreamingParams() 
+		{}
+
+		TSoftObjectPtr<UWorld> WorldAsset;
+		FName TargetGrid;
+
+		TSoftObjectPtr<UWorld> WorldAssetHLOD;
+		FName TargetGridHLOD;
+
+		FGuid Guid;
+		FTransform Transform;
+		FBox Bounds;
+		int32 Priority = 0;
+		FString CellInstanceSuffix;
+		bool bBoundsPlacement = false;
+
+		bool IsValid() const
+		{
+			return !WorldAsset.IsNull() && !TargetGrid.IsNone() && Guid.IsValid() && Bounds.IsValid;
+		}
+
+		FRegisterWorldAssetStreamingParams& SetWorldAsset(const TSoftObjectPtr<UWorld>& InWorldAsset) { WorldAsset = InWorldAsset; return *this; }
+		FRegisterWorldAssetStreamingParams& SetTargetGrid(const FName& InTargetGrid) { TargetGrid = InTargetGrid; return *this; }
+		FRegisterWorldAssetStreamingParams& SetWorldAssetHLOD(const TSoftObjectPtr<UWorld>& InWorldAssetHLOD) { WorldAssetHLOD = InWorldAssetHLOD; return *this; }
+		FRegisterWorldAssetStreamingParams& SetTargetGridHLOD(const FName& InTargetGridHLOD) { TargetGridHLOD = InTargetGridHLOD; return *this; }
+		FRegisterWorldAssetStreamingParams& SetGuid(const FGuid InGuid) { Guid = InGuid; return *this; }
+		FRegisterWorldAssetStreamingParams& SetTransform(const FTransform InTransform) { Transform = InTransform; return *this; }
+		FRegisterWorldAssetStreamingParams& SetBounds(const FBox& InBounds) { Bounds = InBounds; return *this; }
+		FRegisterWorldAssetStreamingParams& SetPriority(const int32& InPriority) { Priority = InPriority; return *this; }
+		FRegisterWorldAssetStreamingParams& SetCellInstanceSuffix(const FString& InCellInstanceSuffix) { CellInstanceSuffix = InCellInstanceSuffix; return *this; }
+		FRegisterWorldAssetStreamingParams& SetBoundsPlacement(bool bInBoundsPlacement) { bBoundsPlacement = bInBoundsPlacement; return *this; }
+	};
+
+	ENGINE_API bool SupportsWorldAssetStreaming(const FName& InTargetGrid);
+	ENGINE_API FGuid RegisterWorldAssetStreaming(const FRegisterWorldAssetStreamingParams& InParams);
+	ENGINE_API bool UnregisterWorldAssetStreaming(const FGuid& InWorldAssetStreamingGuid);
+	ENGINE_API TArray<UWorldPartitionRuntimeCell*> GetWorldAssetStreamingCells(const FGuid& InWorldAssetStreamingGuid);
+
 private:
 
 #if WITH_EDITORONLY_DATA
@@ -706,6 +821,7 @@ private:
 #endif
 	class AWorldPartitionReplay* Replay;
 
+	friend struct FWorldPartitionStreamingContext;
 	friend class AWorldPartitionReplay;
 	friend class UWorldPartitionSubsystem;
 	friend class UExternalDataLayerManager;

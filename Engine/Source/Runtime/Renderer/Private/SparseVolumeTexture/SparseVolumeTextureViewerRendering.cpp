@@ -101,6 +101,8 @@ DECLARE_GPU_STAT(SparseVolumeTextureViewer);
 
 void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, FSceneTextures& SceneTextures)
 {
+#if WITH_EDITORONLY_DATA // The SparseVolumeTexture viewer is only supported in editor builds
+
 	FScene* Scene = SceneRenderer.Scene;
 
 	if (Scene->SparseVolumeTextureViewers.Num() == 0)
@@ -108,7 +110,7 @@ void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRen
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SparseVolumeTextureViewer");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SparseVolumeTextureViewer, "SparseVolumeTextureViewer");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SparseVolumeTextureViewer);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SparseVolumeTextureViewer);
 
@@ -189,7 +191,7 @@ void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRen
 				{},
 				PsPassParameters,
 				ERDGPassFlags::Raster,
-				[PsPassParameters, VertexShader, PixelShader, ViewportRect, VsDepthAsDeviceZ](FRHICommandList& RHICmdListLambda)
+				[PsPassParameters, VertexShader, PixelShader, ViewportRect, VsDepthAsDeviceZ](FRDGAsyncTask, FRHICommandList& RHICmdListLambda)
 				{
 					RHICmdListLambda.SetViewport(ViewportRect.Min.X, ViewportRect.Min.Y, 0.0f, ViewportRect.Max.X, ViewportRect.Max.Y, 1.0f);
 
@@ -216,4 +218,5 @@ void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRen
 		}
 	}
 
+#endif // WITH_EDITORONLY_DATA
 }

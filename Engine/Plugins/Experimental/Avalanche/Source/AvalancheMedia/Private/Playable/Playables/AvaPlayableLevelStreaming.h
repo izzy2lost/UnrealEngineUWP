@@ -3,15 +3,14 @@
 #pragma once
 
 #include "AvaMediaDefines.h"
+#include "Engine/LevelStreaming.h"
 #include "Playable/AvaPlayable.h"
 #include "AvaPlayableLevelStreaming.generated.h"
 
 class AActor;
 class AAvaScene;
-class ULevel;
-class ULevelStreaming;
+class UAvaPlayableTransition;
 class ULevelStreamingDynamic;
-enum class ELevelStreamingState : uint8;
 
 UCLASS(NotBlueprintable, BlueprintType, ClassGroup = "Motion Design Playable",
 	meta = (DisplayName = "Motion Design Level Streaming Playable"))
@@ -23,16 +22,17 @@ public:
 	virtual bool LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, bool bInInitiallyVisible) override;
 	virtual bool UnloadAsset() override;
 	virtual const FSoftObjectPath& GetSourceAssetPath() const override { return SourceLevel.ToSoftObjectPath(); }
-	virtual EAvaPlayableStatus GetPlayableStatus() const override;
+	virtual EAvaPlayableStatus GetPlayableStatus() const override { return PlayableStatus; }
 	virtual IAvaSceneInterface* GetSceneInterface() const override;
-	virtual bool ApplyCamera() override;
 	virtual bool GetShouldBeVisible() const override;
 	virtual void SetShouldBeVisible(bool bInShouldBeVisible) override;
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override;
 
 protected:
 	virtual bool InitPlayable(const FPlayableCreationInfo& InPlayableInfo) override;
 	virtual void OnPlay() override;
 	virtual void OnEndPlay() override;
+	virtual void OnRemoteControlValuesApplied() override;
 	//~ End UAvaPlayable
 
 	//~ Begin UObject
@@ -42,8 +42,13 @@ protected:
 public:
 	ULevelStreamingDynamic* GetLevelStreaming() const { return LevelStreaming; }
 
+	void SetShouldBeHidden(bool bInShouldBeHidden) { bShouldBeHidden = bInShouldBeHidden; }
+	bool GetShouldBeHidden() const { return bShouldBeHidden; }
+
 protected:
 	bool LoadLevel(const TSoftObjectPtr<UWorld>& InSourceLevel, bool bInInitiallyVisible);
+
+	void HandleTransitionEvent(UAvaPlayable* InPlayable, UAvaPlayableTransition* InTransition, EAvaPlayableTransitionEventFlags InTransitionFlags);
 
 	void OnLevelStreamingStateChanged(UWorld* InWorld
 		, const ULevelStreaming* InLevelStreaming
@@ -51,7 +56,10 @@ protected:
 		, ELevelStreamingState InPreviousState
 		, ELevelStreamingState InNewState);
 
-	void OnLevelStreamingPlayableStatusChanged(UAvaPlayableLevelStreaming* InSubPlayable);
+	void OnLevelStreamingStateChanged_Synchronized(ELevelStreamingState InNewState);	
+
+	void UpdatePlayableStatus(ELevelStreamingState InNewState);
+	void NotifyPlayableStatusChanged();
 	
 	void BindDelegates();
 	void UnbindDelegates();
@@ -89,6 +97,11 @@ protected:
 	TObjectPtr<AAvaScene> Scene; 
 
 	bool bLoadSubPlayables = false;
+
+	EAvaPlayableStatus PlayableStatus = EAvaPlayableStatus::Unloaded;
+
+	/** Keep track of the synchronized level streaming state. */
+	ELevelStreamingState SynchronizedLevelStreamingState = ELevelStreamingState::Unloaded;
 	
 	/**
 	 * Dependent playables loaded from secondary streaming levels.
@@ -105,4 +118,10 @@ protected:
 	TSet<TObjectKey<UAvaPlayableLevelStreaming>> ParentPlayables;
 
 	bool bOnPlayQueued = false;
+	
+	/** Enter Playables should be hidden until the transition has started. */
+	bool bWaitingForShowPlayable = true;
+
+	/** If true, all primitives from the playable will hidden. */
+	bool bShouldBeHidden = false;
 };

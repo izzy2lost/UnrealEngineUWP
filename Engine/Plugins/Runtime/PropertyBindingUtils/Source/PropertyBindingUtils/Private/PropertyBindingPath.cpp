@@ -2,13 +2,13 @@
 #include "PropertyBindingPath.h"
 #include "UObject/EnumProperty.h"
 #include "Misc/EnumerateRange.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 #if WITH_EDITOR
 #include "UObject/CoreRedirects.h"
 #include "UObject/Package.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"
 #include "UObject/Field.h"
 #endif
@@ -354,7 +354,7 @@ bool FPropertyBindingPath::ResolveIndirectionsWithValue(const FPropertyBindingDa
 				return false;
 			}
 			ArrayIndex = FMath::Max(0, Segment->GetArrayIndex());
-			Offset = Property->GetOffset_ForInternal() + Property->ElementSize * ArrayIndex;
+			Offset = Property->GetOffset_ForInternal() + Property->GetElementSize() * ArrayIndex;
 		}
 
 		FPropertyBindingPathIndirection& Indirection = OutIndirections.AddDefaulted_GetRef();

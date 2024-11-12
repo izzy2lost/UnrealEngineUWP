@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Containers/Array.h"
 #include "PrimitiveComponentId.h"
 #include "Templates/RefCounting.h"
+#include "Templates/Function.h"
 
 class UWorld;
 class FSceneInterface;
@@ -12,20 +14,46 @@ class FPrimitiveSceneProxy;
 class UMaterialInterface;
 class HHitProxy;
 
+struct FPrimitiveLODStats
+{
+	int32 LODIndex = 0;
+	uint32 Sections = 1;
+	uint32 Triangles = 0;
+	bool bIsOptionalLOD = false;
+	bool bIsAvailable = true;
+	SIZE_T TotalResourceSize = 0;
+	TArray<uint16> MaterialIndices;
+	
+	FPrimitiveLODStats(int32 InLOD) :
+		LODIndex(InLOD)
+	{
+	}
+
+	FPrimitiveLODStats(const FPrimitiveLODStats& Other) = default;
+	FPrimitiveLODStats(FPrimitiveLODStats&& Other) = default;
+
+	FPrimitiveLODStats& operator=(const FPrimitiveLODStats& RHS) = default;
+	FPrimitiveLODStats& operator=(FPrimitiveLODStats&& RHS) = default;
+
+	FORCEINLINE int32 GetDrawCount() const
+	{
+		return Sections * MaterialIndices.Num();
+	}
+};
+
 /** 
 * Structure used to report some primitive stats in debugging tools
 */
 struct FPrimitiveStats
-{	
-	FPrimitiveStats(int32 InForLOD) :
-		ForLOD(InForLOD)
-	{
-	}
-
-	const int32 ForLOD = 0;
-	int32 NbTriangles = 0;
+{
+	TArray<FPrimitiveLODStats> LODStats;
 };
 
+struct FComponentInterfaceImplementation
+{
+	UClass*	Class;
+	TFunction<void*(UObject*)> Resolver;
+};
 
 class IPrimitiveComponent
 {
@@ -50,6 +78,7 @@ public:
 	virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const = 0;
 	virtual UObject*	GetUObject() = 0;
 	virtual const UObject*	GetUObject() const = 0;
+	virtual void PrecachePSOs() = 0;
 
 	// helper to obtain typed UObjects 
 	template<class T> 
@@ -70,6 +99,15 @@ public:
 	virtual HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) = 0;
 #endif
 	virtual HHitProxy* CreatePrimitiveHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) = 0;
+	
+	ENGINE_API static void AddImplementer(const FComponentInterfaceImplementation& Implementer);
+
+protected:
+
+	template<class T> 
+	friend class TComponentInterfaceIterator;
+
+	ENGINE_API static TArray<FComponentInterfaceImplementation> Implementers;
 };
 
 class IStaticMeshComponent
@@ -77,6 +115,7 @@ class IStaticMeshComponent
 public:
 #if WITH_EDITOR
 	virtual void OnMeshRebuild(bool bRenderDataChanged) = 0;
+	virtual void PreStaticMeshCompilation() = 0;
 	virtual void PostStaticMeshCompilation() = 0;
 #endif
 	virtual UStaticMesh* GetStaticMesh() const = 0;
@@ -87,6 +126,16 @@ public:
 		// use the non-const version and return it as a const object to avoid duplicating the code in implementers
 		return (const_cast<IStaticMeshComponent*>(this))->GetPrimitiveComponentInterface();
 	}
+	
+	ENGINE_API static void AddImplementer(const FComponentInterfaceImplementation& Implementer);
+
+protected:
+
+	template<class T> 
+	friend class TComponentInterfaceIterator;
+
+	ENGINE_API static TArray<FComponentInterfaceImplementation> Implementers;
+	
 };
 
 

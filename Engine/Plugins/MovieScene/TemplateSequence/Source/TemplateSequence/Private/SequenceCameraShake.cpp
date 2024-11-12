@@ -10,7 +10,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SequenceCameraShake)
 
 #if !IS_MONOLITHIC
-	UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
+UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 #endif
 
 USequenceCameraShakePattern::USequenceCameraShakePattern(const FObjectInitializer& ObjInit)
@@ -108,6 +108,11 @@ void USequenceCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatter
 	const float BlendWeight = State.Scrub(Params.AbsoluteTime);
 	if (State.IsPlaying())
 	{
+		if (Player->GetPlaybackStatus() != EMovieScenePlayerStatus::Playing)
+		{
+			Player->Play(bRandomSegment, bRandomSegment);
+		}
+
 		const FFrameRate InputRate = Player->GetInputRate();
 		const FFrameTime NewPosition = Params.AbsoluteTime * PlayRate * InputRate;
 		UpdateCamera(NewPosition, Params.POV, OutResult);
@@ -164,10 +169,14 @@ void USequenceCameraShakePattern::UpdateCamera(FFrameTime NewPosition, const FMi
 		return;
 	}
 
+	if (!ensure(Player) || !Player->IsValid())
+	{
+		return;
+	}
+
 	using namespace UE::MovieScene;
 
 	check(CameraStandIn);
-	check(Player);
 
 	UMovieSceneEntitySystemLinker* Linker = Player->GetEvaluationTemplate().GetEntitySystemLinker();
 	CameraStandIn->Reset(InPOV, Linker);

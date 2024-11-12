@@ -4,6 +4,7 @@
 
 #include "Algo/BinarySearch.h"
 #include "Algo/IsSorted.h"
+#include "Containers/AllowShrinking.h"
 
 template<typename T>
 class TIoPriorityQueue
@@ -135,7 +136,7 @@ public:
 		T* Next;
 	};
 
-	bool IsEmpty()
+	bool IsEmpty() const
 	{
 		return InternalQueues.IsEmpty();
 	}
@@ -301,7 +302,7 @@ private:
 	void RemoveQueueAtIndex(int32 Index)
 	{
 		FreeInternalQueue(InternalQueues[Index]);
-		InternalQueues.RemoveAt(Index, 1, EAllowShrinking::No);
+		InternalQueues.RemoveAt(Index, EAllowShrinking::No);
 	}
 
 	TInternalQueue* AllocInternalQueue(int32 Priority)

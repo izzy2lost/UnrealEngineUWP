@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma autortfm
-
 #include "Catch2Includes.h"
 #include <AutoRTFM/AutoRTFM.h>
 #include "Templates/SharedPointer.h"
@@ -157,10 +155,12 @@ TEST_CASE("SharedPointer.NestedTransactionWithPlacementNewlyAllocated")
 		{
 			AutoRTFM::Commit([&]
 				{
-					void* const Memory = MakeMemoryForT<TSharedPtr<int, ESPMode::ThreadSafe>>();
-					TSharedPtr<int, ESPMode::ThreadSafe>* const Foo = new (Memory) TSharedPtr<int, ESPMode::ThreadSafe>(new int(13));
-					TSharedPtr<int, ESPMode::ThreadSafe> Copy = *Foo;
+					using Ptr = TSharedPtr<int, ESPMode::ThreadSafe>;
+					void* const Memory = MakeMemoryForT<Ptr>();
+					Ptr* const Foo = new (Memory) Ptr(new int(13));
+					Ptr Copy = *Foo;
 					Result = *Copy;
+					reinterpret_cast<Ptr*>(Foo)->~Ptr();
 					free(Memory);
 				});
 		});
@@ -185,4 +185,46 @@ TEST_CASE("SharedPointer.AbortNestedTransactionWithPlacementNewlyAllocated")
 		});
 
 	REQUIRE(42 == Result);
+}
+
+TEST_CASE("SharedPointer.OnCommitCapturesSharedPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		AutoRTFM::OnCommit([Shared] {});
+		AutoRTFM::AbortTransaction();
+	});
+}
+
+TEST_CASE("SharedPointer.OnCommitCapturesWeakPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		TWeakPtr<int> Weak{Shared};
+		AutoRTFM::OnCommit([Weak] {});
+		AutoRTFM::AbortTransaction();
+	});
+}
+
+TEST_CASE("SharedPointer.OnAbortCapturesSharedPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		AutoRTFM::OnAbort([Shared] {});
+		AutoRTFM::AbortTransaction();
+	});
+}
+
+TEST_CASE("SharedPointer.OnAbortCapturesWeakPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		TWeakPtr<int> Weak{Shared};
+		AutoRTFM::OnAbort([Weak] {});
+		AutoRTFM::AbortTransaction();
+	});
 }

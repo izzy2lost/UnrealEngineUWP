@@ -54,6 +54,8 @@ public:
 
 	CONTROLFLOWS_API void SetProfilerEventStarted();
 
+	[[nodiscard]] const TWeakPtr<FControlFlow>& GetParent() const { return Parent; }
+
 protected:
 	friend class FControlFlow;
 	friend class FControlFlowSubTaskBase;

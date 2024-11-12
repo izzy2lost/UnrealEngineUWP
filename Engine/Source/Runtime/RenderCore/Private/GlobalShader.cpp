@@ -6,14 +6,15 @@
 
 #include "GlobalShader.h"
 
+#include "Containers/StaticBitArray.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreMisc.h"
 #include "Misc/Paths.h"
 #include "Serialization/MemoryWriter.h"
-#include "Misc/CoreMisc.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Interfaces/ITargetPlatformManagerModule.h"
-#include "Containers/StaticBitArray.h"
 #include "ShaderCodeLibrary.h"
+#include "ShaderSerialization.h"
 
 /** The global shader map. */
 FGlobalShaderMap* GGlobalShaderMap[SP_NumPlatforms] = {};
@@ -153,27 +154,45 @@ private:
 	struct FPlatformInfo
 	{
 		FName Name;
-		bool bInitializedFromConfig = false;
+		bool bInitialized = false;
 		FShaderDefines ShaderDefines;
 	};
 	
-	static TMap<FName, FPlatformInfo> ConfigDefines;
+	static TArray<FPlatformInfo> ConfigDefines;
+	static TStaticArray<const FPlatformInfo*, EShaderPlatform::SP_NumPlatforms> PerPlatformConfigs;
 	static TStaticBitArray<EShaderPlatform::SP_NumPlatforms> ErrorCheckedPlatforms;
 
 	static const FPlatformInfo* GetPlatformInfoAndErrorCheck(EShaderPlatform ShaderPlatform, FName& OutShaderFormat)
 	{
 		OutShaderFormat = LegacyShaderPlatformToShaderFormat(ShaderPlatform);
+		
+		const TArray<ITargetPlatform*> AllPlatforms = GetTargetPlatformManagerRef().GetTargetPlatforms();
+		if (AllPlatforms.Num() != ConfigDefines.Num())
+		{
+			// if the number of platforms has changed since this was last called, we need to resize the array 
+			// and reset PerPlatformConfigs since the pointers will now be invalid.
+			ConfigDefines.SetNum(AllPlatforms.Num());
+			for (uint16 SpIndex = 0; SpIndex < EShaderPlatform::SP_NumPlatforms; ++SpIndex)
+			{
+				PerPlatformConfigs[SpIndex] = nullptr;
+			}
+		}
+
+		if (PerPlatformConfigs[ShaderPlatform] != nullptr)
+		{
+			return PerPlatformConfigs[ShaderPlatform];
+		}
 
 		// Search for all target platforms that support this shader platform
-		TArray<FName, TInlineAllocator<16>> IniPlatforms;
-		for(const ITargetPlatform* TP : GetTargetPlatformManagerRef().GetTargetPlatforms())
+		TArray<const ITargetPlatform*, TInlineAllocator<16>> IniPlatforms;
+		for(const ITargetPlatform* TP : AllPlatforms)
 		{
 			check(TP);
 			TArray<FName> PlatformShaderFormats;
 			TP->GetAllPossibleShaderFormats(PlatformShaderFormats);
 			if (PlatformShaderFormats.Contains(OutShaderFormat))
 			{
-				IniPlatforms.AddUnique(FName(TP->IniPlatformName()));
+				IniPlatforms.AddUnique(TP);
 			}
 		}
 		
@@ -183,15 +202,20 @@ private:
 			return nullptr;
 		}
 		
-		// first add all platforms to populate the map :
+		// first add all platforms to populate the array
 		for (int32 PlatformIndex = 0; PlatformIndex < IniPlatforms.Num(); ++PlatformIndex)
 		{
-			FPlatformInfo& Platform = ConfigDefines.FindOrAdd(IniPlatforms[PlatformIndex]);
+			int32 PlatformOrdinal = IniPlatforms[PlatformIndex]->GetPlatformOrdinal();
+			if (ConfigDefines.Num() < PlatformOrdinal + 1)
+			{
+				ConfigDefines.SetNum(PlatformOrdinal + 1);
+			}
+			FPlatformInfo& Platform = ConfigDefines[PlatformOrdinal];
 
-			if (!Platform.bInitializedFromConfig)
+			if (!Platform.bInitialized)
 			{
 				InitializePlatform(Platform, IniPlatforms[PlatformIndex]);
-				check( Platform.bInitializedFromConfig );
+				check(Platform.bInitialized);
 			}
 		}
 
@@ -203,31 +227,28 @@ private:
 			{
 				// This shader platform is shared by multiple target platforms that can be configured independently. We need to make sure all config defines
 				// match up, and that no platform-specific defines exist that might introduce shader compiler output that diverges between target platforms
-								
-				// pointer to Platform0 is safe to hold now because all are added first :
-				const FPlatformInfo * Platform0 = ConfigDefines.Find(IniPlatforms[0]);
-				check( Platform0 != nullptr );
+				const FPlatformInfo& Platform0 = ConfigDefines[IniPlatforms[0]->GetPlatformOrdinal()];
+				check(Platform0.bInitialized);
 
 				for (int32 PlatformIndex = 1; PlatformIndex < IniPlatforms.Num(); ++PlatformIndex)
 				{
-					const FPlatformInfo * OtherPlatform = ConfigDefines.Find(IniPlatforms[PlatformIndex]);
-					check( OtherPlatform != nullptr );
+					const FPlatformInfo& OtherPlatform = ConfigDefines[IniPlatforms[PlatformIndex]->GetPlatformOrdinal()];
+					check(OtherPlatform.bInitialized);
 
-					ErrorCheckPlatformsForShaderFormat(*Platform0, *OtherPlatform, OutShaderFormat);
+					ErrorCheckPlatformsForShaderFormat(Platform0, OtherPlatform, OutShaderFormat);
 				}
 			}
 		}
 		
-		// reget the pointer to IniPlatforms[0] after all Map adds are done, to return out :
-		// note returned pointer is not safe if any more adds are done
-		const FPlatformInfo * Platform = ConfigDefines.Find(IniPlatforms[0]);
-
-		return Platform;
+		const FPlatformInfo& Platform = ConfigDefines[IniPlatforms[0]->GetPlatformOrdinal()];
+		PerPlatformConfigs[ShaderPlatform] = &Platform;
+		return &Platform;
 	}
 
-	static void InitializePlatform(FPlatformInfo& Platform, FName PlatformName)
+	static void InitializePlatform(FPlatformInfo& Platform, const ITargetPlatform* TP)
 	{
-		if (FConfigCacheIni* ConfigCache = FConfigCacheIni::ForPlatform(PlatformName))
+		Platform.Name = FName(TP->IniPlatformName());
+		if (FConfigCacheIni* ConfigCache = FConfigCacheIni::ForPlatform(Platform.Name))
 		{
 			TArray<FString> DefineStrings;
 			ConfigCache->GetArray(TEXT("GlobalShaderDefines"), TEXT("Definitions"), DefineStrings, GEngineIni);
@@ -279,11 +300,9 @@ private:
 
 					Define->Value = DefineValue;
 				}
-			}			
-		}		
-
-		Platform.Name = PlatformName;
-		Platform.bInitializedFromConfig = true;
+			}
+		}
+		Platform.bInitialized = true;
 	}
 
 	static void ErrorCheckPlatformsForShaderFormat(const FPlatformInfo& PlatformA, const FPlatformInfo& PlatformB, FName ShaderFormat)
@@ -350,7 +369,8 @@ private:
 	}
 };
 
-TMap<FName, FGlobalShaderConfigDefines::FPlatformInfo> FGlobalShaderConfigDefines::ConfigDefines;
+TArray<FGlobalShaderConfigDefines::FPlatformInfo> FGlobalShaderConfigDefines::ConfigDefines;
+TStaticArray<const FGlobalShaderConfigDefines::FPlatformInfo*, EShaderPlatform::SP_NumPlatforms> FGlobalShaderConfigDefines::PerPlatformConfigs;
 TStaticBitArray<EShaderPlatform::SP_NumPlatforms> FGlobalShaderConfigDefines::ErrorCheckedPlatforms;
 
 /** Used to identify the global shader map in compile queues. */
@@ -368,7 +388,7 @@ FGlobalShaderMapId::FGlobalShaderMapId(EShaderPlatform Platform, const ITargetPl
 	IniPlatformName = FName(TargetPlatform->IniPlatformName());
 
 	LayoutParams.InitializeForPlatform(TargetPlatform);
-	const EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags(LayoutParams);
+	const EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags();
 	TArray<FShaderType*> ShaderTypes;
 	TArray<const FShaderPipelineType*> ShaderPipelineTypes;
 
@@ -396,9 +416,11 @@ FGlobalShaderMapId::FGlobalShaderMapId(EShaderPlatform Platform, const ITargetPl
 		}
 	}
 
-	for (TLinkedList<FShaderPipelineType*>::TIterator ShaderPipelineIt(FShaderPipelineType::GetTypeList()); ShaderPipelineIt; ShaderPipelineIt.Next())
+	const TArray<FShaderPipelineType*>& SortedMaterialPipelineTypes = FShaderPipelineType::GetSortedTypes(FShaderType::EShaderTypeForDynamicCast::Global);
+
+	for (FShaderPipelineType* Pipeline : SortedMaterialPipelineTypes)
 	{
-		const FShaderPipelineType* Pipeline = *ShaderPipelineIt;
+		check(Pipeline);
 		if (Pipeline->IsGlobalTypePipeline())
 		{
 			int32 NumStagesNeeded = 0;
@@ -437,8 +459,6 @@ FGlobalShaderMapId::FGlobalShaderMapId(EShaderPlatform Platform, const ITargetPl
 		Dependencies.Add(Dependency);
 	}
 
-	// Shader pipeline dependencies
-	ShaderPipelineTypes.Sort(FCompareShaderPipelineNameTypes());
 	for (int32 TypeIndex = 0; TypeIndex < ShaderPipelineTypes.Num(); TypeIndex++)
 	{
 		const FShaderPipelineType* Pipeline = ShaderPipelineTypes[TypeIndex];
@@ -509,52 +529,6 @@ void FGlobalShaderType::SetupCompileEnvironment(EShaderPlatform Platform, int32 
 }
 #endif // WITH_EDITOR
 
-void BackupGlobalShaderMap(FGlobalShaderBackupData& OutGlobalShaderBackup)
-{
-#if 0
-	for (int32 i = (int32)ERHIFeatureLevel::ES2_REMOVED; i < (int32)ERHIFeatureLevel::Num; ++i)
-	{
-		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform((ERHIFeatureLevel::Type)i);
-		if (ShaderPlatform < EShaderPlatform::SP_NumPlatforms && GGlobalShaderMap[ShaderPlatform] != nullptr)
-		{
-			TUniquePtr<TArray<uint8>> ShaderData = MakeUnique<TArray<uint8>>();
-			FMemoryWriter Ar(*ShaderData);
-			GGlobalShaderMap[ShaderPlatform]->SerializeInline(Ar, true, true, false, nullptr);
-			//GGlobalShaderMap[ShaderPlatform]->RegisterSerializedShaders(false);
-			GGlobalShaderMap[ShaderPlatform]->Empty();
-			OutGlobalShaderBackup.FeatureLevelShaderData[i] = MoveTemp(ShaderData);
-		}
-	}
-
-	// Remove cached references to global shaders
-	for (TLinkedList<FGlobalBoundShaderStateResource*>::TIterator It(FGlobalBoundShaderStateResource::GetGlobalBoundShaderStateList()); It; It.Next())
-	{
-		BeginUpdateResourceRHI(*It);
-	}
-#endif
-	check(0);
-}
-
-void RestoreGlobalShaderMap(const FGlobalShaderBackupData& GlobalShaderBackup)
-{
-#if 0
-	for (int32 i = (int32)ERHIFeatureLevel::ES2_REMOVED; i < (int32)ERHIFeatureLevel::Num; ++i)
-	{
-		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform((ERHIFeatureLevel::Type)i);		
-		if (GlobalShaderBackup.FeatureLevelShaderData[i] != nullptr
-			&& ShaderPlatform < EShaderPlatform::SP_NumPlatforms
-			&& GGlobalShaderMap[ShaderPlatform] != nullptr)
-		{
-			FMemoryReader Ar(*GlobalShaderBackup.FeatureLevelShaderData[i]);
-			GGlobalShaderMap[ShaderPlatform]->SerializeInline(Ar, true, true, false, nullptr);
-			//GGlobalShaderMap[ShaderPlatform]->RegisterSerializedShaders(false);
-		}
-	}
-#endif
-	check(0);
-}
-
-
 FGlobalShaderMap* GetGlobalShaderMap(EShaderPlatform Platform)
 {
 	// If the global shader map hasn't been created yet
@@ -565,7 +539,8 @@ FGlobalShaderMap* GetGlobalShaderMap(EShaderPlatform Platform)
 FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromArchive(FArchive& Ar)
 {
 	FGlobalShaderMapSection* Section = new FGlobalShaderMapSection();
-	if (Section->Serialize(Ar))
+	FShaderSerializeContext Ctx(Ar);
+	if (Section->Serialize(Ctx))
 	{
 		return Section;
 	}
@@ -573,9 +548,22 @@ FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromArchive(FArchive& Ar
 	return nullptr;
 }
 
-bool FGlobalShaderMapSection::Serialize(FArchive& Ar)
+#if WITH_EDITOR
+FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromCache(FShaderCacheLoadContext& Ctx)
 {
-	return Super::Serialize(Ar, true, false);
+	FGlobalShaderMapSection* Section = new FGlobalShaderMapSection();
+	if (Section->Serialize(Ctx))
+	{
+		return Section;
+	}
+	delete Section;
+	return nullptr;
+}
+#endif
+
+bool FGlobalShaderMapSection::Serialize(FShaderSerializeContext& Ctx)
+{
+	return Super::Serialize(Ctx);
 }
 
 TShaderRef<FShader> FGlobalShaderMapSection::GetShader(FShaderType* ShaderType, int32 PermutationId) const
@@ -588,6 +576,16 @@ FShaderPipelineRef FGlobalShaderMapSection::GetShaderPipeline(const FShaderPipel
 {
 	FShaderPipeline* Pipeline = GetContent()->GetShaderPipeline(PipelineType);
 	return Pipeline ? FShaderPipelineRef(Pipeline, *this) : FShaderPipelineRef();
+}
+
+void FGlobalShaderMapSection::GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const
+{
+	GetContent()->GetShaderList(*this, OutShaders);
+}
+
+void FGlobalShaderMapSection::GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const
+{
+	GetContent()->GetShaderPipelineList(*this, OutShaderPipelines, FShaderPipeline::EAll);
 }
 
 FGlobalShaderMap::FGlobalShaderMap(EShaderPlatform InPlatform)
@@ -654,12 +652,8 @@ bool FGlobalShaderMap::IsEmpty() const
 
 bool FGlobalShaderMap::IsComplete(const ITargetPlatform* TargetPlatform) const
 {
-	// TODO: store these in the shadermap before it's start to be compiled?
-	FPlatformTypeLayoutParameters LayoutParams;
-	LayoutParams.InitializeForPlatform(TargetPlatform);
-	const EShaderPermutationFlags PermutationFlags = GetShaderPermutationFlags(LayoutParams);
-
 	FGlobalShaderMapId ShaderMapId(Platform, TargetPlatform);
+	const EShaderPermutationFlags PermutationFlags = ShaderMapId.GetShaderPermutationFlags();
 
 	// traverse all global shader types
 	for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())
@@ -787,7 +781,8 @@ void FGlobalShaderMap::SaveToGlobalArchive(FArchive& Ar)
 
 	for (const auto& It : SectionMap)
 	{
-		It.Value->Serialize(Ar);
+		FShaderSerializeContext Ctx(Ar);
+		It.Value->Serialize(Ctx);
 	}
 }
 

@@ -11,10 +11,6 @@
 #pragma once
 
 #include "UObject/ObjectMacros.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "ProfilingDebugging/RealtimeGPUProfiler.h"
-#include "RHIDefinitions.h"
-#endif
 #include "RHIFeatureLevel.h"
 
 #include "SceneUtils.generated.h"
@@ -64,9 +60,8 @@ inline bool IsTemporalAccumulationBasedMethod(EAntiAliasingMethod AntiAliasingMe
 
 /** True if Alpha Propagate is enabled for the mobile renderer. */
 ENGINE_API bool IsMobilePropagateAlphaEnabled(EShaderPlatform Platform);
-
-ENGINE_API EMobileHDRMode GetMobileHDRMode();
-
+ENGINE_API bool IsMobileTonemapSubpassEnabled(EShaderPlatform Platform, bool bMultiViewRendering);
+ENGINE_API bool IsMobileTonemapSubpassEnabledInline(EShaderPlatform Platform, bool bMultiViewRendering, uint32 NumMSAASamples);
 ENGINE_API bool IsMobileColorsRGB();
 
 ENGINE_API EAntiAliasingMethod GetDefaultAntiAliasingMethod(const FStaticFeatureLevel InFeatureLevel);

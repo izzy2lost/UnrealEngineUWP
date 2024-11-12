@@ -34,6 +34,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPostProcessMaterialParameters, )
 	SHADER_PARAMETER(FVector2f, SceneWithoutSingleLayerWaterInvTextureSize)
 	SHADER_PARAMETER(uint32, ManualStencilReferenceValue)
 	SHADER_PARAMETER(uint32, ManualStencilTestMask)
+	SHADER_PARAMETER(uint32, UserSceneTextureSceneColorInput)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -48,6 +49,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 FScreenPassTexture AddPostProcessMaterialChain(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
+	int32 ViewIndex,
 	const FPostProcessMaterialInputs& Inputs,
 	const FPostProcessMaterialChain& MaterialChain,
 	EPostProcessMaterialInput MaterialInput = EPostProcessMaterialInput::SceneColor);

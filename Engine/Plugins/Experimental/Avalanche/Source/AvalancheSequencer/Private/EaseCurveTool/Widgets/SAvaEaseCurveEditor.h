@@ -46,6 +46,8 @@ public:
 		, _ExtendedGridColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.5f))
 		, _CurveThickness(2.5f)
 		, _CurveColor(FLinearColor::White)
+		, _ShowEqualValueKeyError(false)
+		, _IsEaseCurveSelection(true)
 	{
 		_Clipping = EWidgetClipping::ClipToBounds;
 	}
@@ -66,7 +68,9 @@ public:
 		SLATE_ARGUMENT(FLinearColor, ExtendedGridColor)
 		SLATE_ARGUMENT(float, CurveThickness)
 		SLATE_ARGUMENT(FLinearColor, CurveColor)
-		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EOperation, Operation)
+		SLATE_ATTRIBUTE(EAvaEaseCurveToolOperation, Operation)
+		SLATE_ATTRIBUTE(bool, ShowEqualValueKeyError)
+		SLATE_ATTRIBUTE(bool, IsEaseCurveSelection)
 
 		SLATE_ATTRIBUTE(FText, StartText)
 		SLATE_ATTRIBUTE(FText, StartTooltipText)
@@ -199,6 +203,7 @@ protected:
 
 	/* Generates the line(s) for rendering between KeyIndex and the following key. */
 	void CreateLinesForSegment(const ERichCurveInterpMode InInterpMode
+		, const ERichCurveTangentMode InTangentMode
 		, const TPair<float, float>& InStartKeyTimeValue, const TPair<float, float>& InEndKeyTimeValue
 		, TArray<FVector2D>& OutLinePoints, TArray<FLinearColor>& OutLineColors
 		, const FTrackScaleInfo& InScaleInfo) const;
@@ -222,7 +227,7 @@ protected:
 	void SetOutputMinMax(const float InNewMin, const float InNewMax);
 
 	bool HitTestCurves(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
-	FSelectedTangent HitTestTangentHandle(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
+	FSelectedTangent HitTestTangentHandles(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
 	bool HitTestKey(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent, const FVector2D& InInputPosition) const;
 
 	TObjectPtr<UAvaEaseCurve> EaseCurve;
@@ -245,7 +250,9 @@ protected:
 	FLinearColor ExtendedGridColor;
 	float CurveThickness = 1.f;
 	FLinearColor CurveColor;
-	TAttribute<FAvaEaseCurveTool::EOperation> Operation;
+	TAttribute<EAvaEaseCurveToolOperation> Operation;
+	TAttribute<bool> ShowEqualValueKeyError;
+	TAttribute<bool> IsEaseCurveSelection;
 
 	TAttribute<FText> StartText;
 	TAttribute<FText> StartTooltipText;

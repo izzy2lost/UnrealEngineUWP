@@ -2,32 +2,34 @@
 
 #include "Properties/PropertyAnimatorCoreContext.h"
 
-#include "InstancedStruct.h"
-#include "Properties/PropertyAnimatorCoreGroupBase.h"
+#include "Containers/Ticker.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogPropertyAnimatorCoreContext, Log, All);
+
 TArray<FPropertyAnimatorCoreData> UPropertyAnimatorCoreContext::ResolveProperty(bool bInForEvaluation) const
 {
 	TArray<FPropertyAnimatorCoreData> ResolvedProperties;
 
-	if (UPropertyAnimatorCoreResolver* Resolver = AnimatedProperty.GetPropertyResolver())
+	if (UPropertyAnimatorCoreResolver* PropertyResolver = GetResolver())
 	{
-		Resolver->ResolveProperties(AnimatedProperty, ResolvedProperties);
+		PropertyResolver->ResolveProperties(AnimatedProperty, ResolvedProperties, bInForEvaluation);
 	}
 	else
 	{
 		ResolvedProperties.Add(AnimatedProperty);
 	}
 
-	if (bInForEvaluation && Group)
-	{
-		Group->ManageProperties(this, ResolvedProperties);
-	}
-
 	return ResolvedProperties;
+}
+
+FName UPropertyAnimatorCoreContext::GetAnimatedPropertyName()
+{
+	return GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty);
 }
 
 UPropertyAnimatorCoreBase* UPropertyAnimatorCoreContext::GetAnimator() const
@@ -49,18 +51,14 @@ UPropertyAnimatorCoreHandlerBase* UPropertyAnimatorCoreContext::GetHandler() con
 	return HandlerWeak.Get();
 }
 
-void UPropertyAnimatorCoreContext::SetGroup(UPropertyAnimatorCoreGroupBase* InGroup)
+UPropertyAnimatorCoreResolver* UPropertyAnimatorCoreContext::GetResolver() const
 {
-	if (InGroup && InGroup->IsPropertySupported(this))
+	if (Resolver)
 	{
-		Group = InGroup;
-		GroupName = InGroup->GetFName();
+		return Resolver;
 	}
-	else
-	{
-		Group = nullptr;
-		GroupName = NAME_None;
-	}
+
+	return AnimatedProperty.GetPropertyResolver();
 }
 
 bool UPropertyAnimatorCoreContext::IsResolvable() const
@@ -82,6 +80,16 @@ void UPropertyAnimatorCoreContext::SetAnimated(bool bInAnimated)
 
 	bAnimated = bInAnimated;
 	OnAnimatedChanged();
+}
+
+void UPropertyAnimatorCoreContext::SetMagnitude(float InMagnitude)
+{
+	Magnitude = FMath::Clamp(InMagnitude, 0.f, 1.f);
+}
+
+void UPropertyAnimatorCoreContext::SetTimeOffset(double InOffset)
+{
+	TimeOffset = InOffset;
 }
 
 void UPropertyAnimatorCoreContext::SetMode(EPropertyAnimatorCoreMode InMode)
@@ -110,29 +118,29 @@ void UPropertyAnimatorCoreContext::SetConverterClass(TSubclassOf<UPropertyAnimat
 	}
 }
 
-void UPropertyAnimatorCoreContext::SetGroupName(FName InGroupName)
-{
-	if (GroupName.IsEqual(InGroupName))
-	{
-		return;
-	}
-
-	const TArray<FName> GroupNames = GetSupportedGroupNames();
-	if (!GroupNames.Contains(InGroupName))
-	{
-		return;
-	}
-
-	GroupName = InGroupName;
-	OnGroupNameChanged();
-}
-
 void UPropertyAnimatorCoreContext::PostLoad()
 {
 	Super::PostLoad();
 
 	CheckEditMode();
 	CheckEditConverterRule();
+	CheckEditResolver();
+
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float InDelta)
+	{
+		// Restore before regenerating new property path
+		Restore();
+
+		if (AnimatedProperty.IsResolvable())
+		{
+			DeltaPropertyValues.Reset();
+			OriginalPropertyValues.Reset();
+		}
+
+		AnimatedProperty.GeneratePropertyPath();
+
+		return false;
+	}));
 }
 
 #if WITH_EDITOR
@@ -167,12 +175,98 @@ void UPropertyAnimatorCoreContext::PostEditChangeProperty(FPropertyChangedEvent&
 	{
 		OnAnimatedChanged();
 	}
-	else if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreContext, GroupName))
-	{
-		OnGroupNameChanged();
-	}
 }
 #endif
+
+bool UPropertyAnimatorCoreContext::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
+{
+	TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> ObjectArchive = InValue->AsMutableObject();
+
+	if (!ObjectArchive)
+	{
+		return false;
+	}
+
+	bool bAnimatedArchive = bAnimated;
+	ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bAnimatedArchive);
+	SetAnimated(bAnimatedArchive);
+
+	if (bEditMagnitude)
+	{
+		double MagnitudeArchive = Magnitude;
+		ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), MagnitudeArchive);
+		SetMagnitude(MagnitudeArchive);
+
+		double TimeOffsetArchive = TimeOffset;
+		ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), TimeOffsetArchive);
+		SetTimeOffset(TimeOffsetArchive);
+	}
+
+	if (bEditMode)
+	{
+		int64 ModeArchive = static_cast<int64>(Mode);
+		ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), ModeArchive);
+		SetMode(static_cast<EPropertyAnimatorCoreMode>(ModeArchive));
+	}
+
+	if (Resolver)
+	{
+		if (ObjectArchive->Has(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), EPropertyAnimatorCorePresetArchiveType::Object))
+		{
+			TSharedPtr<FPropertyAnimatorCorePresetArchive> ResolverArchive;
+			ObjectArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), ResolverArchive);
+			Resolver->ImportPreset(InPreset, ResolverArchive.ToSharedRef());
+		}
+	}
+
+	return true;
+}
+
+bool UPropertyAnimatorCoreContext::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
+{
+	TSharedRef<FPropertyAnimatorCorePresetObjectArchive> ContextArchive = InPreset->GetArchiveImplementation()->CreateObject();
+	OutValue = ContextArchive;
+
+	ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, bAnimated), bAnimated);
+
+	if (bEditMagnitude)
+	{
+		ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Magnitude), Magnitude);
+		ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, TimeOffset), TimeOffset);
+	}
+
+	if (bEditMode)
+	{
+		ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Mode), static_cast<uint64>(Mode));
+	}
+
+	ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, AnimatedProperty), AnimatedProperty.GetPropertyLocatorPath());
+
+	if (Resolver)
+	{
+		TSharedPtr<FPropertyAnimatorCorePresetArchive> ResolverArchive;
+		if (Resolver->ExportPreset(InPreset, ResolverArchive) && ResolverArchive.IsValid())
+		{
+			ContextArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorCoreContext, Resolver), ResolverArchive.ToSharedRef());
+		}
+	}
+
+	return true;
+}
+
+void UPropertyAnimatorCoreContext::OnAnimatedPropertyLinked()
+{
+	bEditMagnitude = AnimatedProperty.IsA<FNumericProperty>() || AnimatedProperty.HasA<FNumericProperty>();
+
+	if (const UPropertyAnimatorCoreResolver* PropertyResolver = AnimatedProperty.GetPropertyResolver())
+	{
+		if (!PropertyResolver->GetClass()->HasAnyClassFlags(CLASS_Abstract | CLASS_Transient))
+		{
+			bEditResolver = true;
+			Resolver = NewObject<UPropertyAnimatorCoreResolver>(this, PropertyResolver->GetClass());
+		}
+	}
+}
 
 void UPropertyAnimatorCoreContext::OnModeChanged()
 {
@@ -187,17 +281,36 @@ void UPropertyAnimatorCoreContext::OnModeChanged()
 	}
 }
 
-void UPropertyAnimatorCoreContext::OnGroupNameChanged()
+bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 {
-	if (const UPropertyAnimatorCoreBase* Animator = GetAnimator())
-	{
-		const TObjectPtr<UPropertyAnimatorCoreGroupBase>* PropertyGroup = Animator->PropertyGroups.FindByPredicate([this](const UPropertyAnimatorCoreGroupBase* InGroup)
-		{
-			return InGroup && InGroup->GetFName() == GroupName;
-		});
+	AActor* NewOwningActor = InNewOwner ? InNewOwner : GetTypedOuter<AActor>();
+	const UObject* CurrentOwningActor = AnimatedProperty.GetOwningActor();
 
-		SetGroup(PropertyGroup ? PropertyGroup->Get() : nullptr);
+	if (CurrentOwningActor == NewOwningActor)
+	{
+		return true;
 	}
+
+	const bool bFound = IsValid(NewOwningActor);
+
+	// Try to resolve property owner on new owning actor
+	UObject* NewOwner = FPropertyAnimatorCoreData(NewOwningActor, AnimatedProperty.GetPropertyLocatorPath()).GetOwner();
+
+	const FProperty* MemberProperty = AnimatedProperty.GetMemberProperty();
+	UClass* PropertyOwningClass = MemberProperty->GetOwnerClass();
+
+	if (bFound
+		&& IsValid(NewOwner)
+		&& NewOwner->GetClass()->IsChildOf(PropertyOwningClass)
+		&& FindFProperty<FProperty>(NewOwner->GetClass(), AnimatedProperty.GetMemberPropertyName()))
+	{
+		SetAnimatedPropertyOwner(NewOwner);
+		return true;
+	}
+
+	UE_LOG(LogPropertyAnimatorCoreContext, Warning, TEXT("Could not resolve property owner %s on actor %s"), *AnimatedProperty.GetPathHash(), NewOwningActor ? *NewOwningActor->GetActorNameOrLabel() : TEXT("Invalid"))
+
+	return false;
 }
 
 void UPropertyAnimatorCoreContext::ConstructInternal(const FPropertyAnimatorCoreData& InProperty)
@@ -205,6 +318,7 @@ void UPropertyAnimatorCoreContext::ConstructInternal(const FPropertyAnimatorCore
 	AnimatedProperty = InProperty;
 	CheckEditMode();
 	CheckEditConverterRule();
+	CheckEditResolver();
 	SetMode(EPropertyAnimatorCoreMode::Additive);
 	OnAnimatedPropertyLinked();
 }
@@ -239,6 +353,11 @@ void UPropertyAnimatorCoreContext::CheckEditMode()
 void UPropertyAnimatorCoreContext::CheckEditConverterRule()
 {
 	bEditConverterRule = ConverterRule.IsValid();
+}
+
+void UPropertyAnimatorCoreContext::CheckEditResolver()
+{
+	bEditResolver = AnimatedProperty.IsResolvable();
 }
 
 void* UPropertyAnimatorCoreContext::GetConverterRulePtr(const UScriptStruct* InStruct)
@@ -323,27 +442,6 @@ void UPropertyAnimatorCoreContext::Save()
 	}
 }
 
-TArray<FName> UPropertyAnimatorCoreContext::GetSupportedGroupNames() const
-{
-	TArray<FName> GroupNames
-	{
-		NAME_None
-	};
-
-	if (UPropertyAnimatorCoreBase* Animator = GetAnimator())
-	{
-		for (const UPropertyAnimatorCoreGroupBase* PropertyGroup : Animator->PropertyGroups)
-		{
-			if (PropertyGroup && PropertyGroup->IsPropertySupported(this))
-			{
-				GroupNames.Add(PropertyGroup->GetFName());
-			}
-		}
-	}
-
-	return GroupNames;
-}
-
 void UPropertyAnimatorCoreContext::OnAnimatedChanged()
 {
 	if (!bAnimated)
@@ -352,7 +450,7 @@ void UPropertyAnimatorCoreContext::OnAnimatedChanged()
 	}
 }
 
-void UPropertyAnimatorCoreContext::SetEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues)
+void UPropertyAnimatorCoreContext::CommitEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues)
 {
 	if (!IsAnimated())
 	{

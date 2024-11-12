@@ -205,29 +205,29 @@ private:
 			FName PackageName = Manager.PackageRegistry.Get(PackageId);
 			if (Package.Status == EPackageStatus::Cooked)
 			{
-				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX was already cooked"), PackageId.ValueForDebugging());
+				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%s was already cooked"), *LexToString(PackageId));
 				OutEntry = Package.Entry;
 				return EPackageStoreEntryStatus::Ok;
 			}
 			else if (Package.Status == EPackageStatus::Failed)
 			{
-				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to cook package 0x%llX '%s'"), PackageId.ValueForDebugging(), *PackageName.ToString());
+				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to cook package 0x%s '%s'"), *LexToString(PackageId), *PackageName.ToString());
 				return EPackageStoreEntryStatus::Missing;
 			}
 			else if (Package.Status == EPackageStatus::Cooking)
 			{
-				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX was already cooking"), PackageId.ValueForDebugging());
+				UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%s was already cooking"), *LexToString(PackageId));
 				return EPackageStoreEntryStatus::Pending;
 			}
 			if (PackageName.IsNone())
 			{
-				UE_LOG(LogCookOnTheFly, Warning, TEXT("Received cook request for unknown package 0x%llX"), PackageId.ValueForDebugging());
+				UE_LOG(LogCookOnTheFly, Warning, TEXT("Received cook request for unknown package 0x%s"), *LexToString(PackageId));
 				return EPackageStoreEntryStatus::Missing;
 			}
 			FString Filename;
 			if (FPackageName::TryConvertLongPackageNameToFilename(PackageName.ToString(), Filename))
 			{
-				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Cooking package 0x%llX '%s'"), PackageId.ValueForDebugging(), *PackageName.ToString());
+				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Cooking package 0x%s '%s'"), *LexToString(PackageId), *PackageName.ToString());
 				Package.Status = EPackageStatus::Cooking;
 				const bool bEnqueued = InCookOnTheFlyServer.EnqueueCookRequest(UE::Cook::FCookPackageRequest{ PlatformName, Filename });
 				check(bEnqueued);
@@ -235,7 +235,7 @@ private:
 			}
 			else
 			{
-				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to cook package 0x%llX '%s' (File not found)"), PackageId.ValueForDebugging(), *PackageName.ToString());
+				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to cook package 0x%s '%s' (File not found)"), *LexToString(PackageId), *PackageName.ToString());
 				Package.Status = EPackageStatus::Failed;
 				return EPackageStoreEntryStatus::Missing;
 			}
@@ -246,20 +246,20 @@ private:
 			FPackage& Package = GetPackage(PackageId);
 			if (Package.Status != EPackageStatus::Cooked && Package.Status != EPackageStatus::Failed)
 			{
-				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Skipping recook of package 0x%llX '%s' that was not cooked"), PackageId.ValueForDebugging(), *PackageName.ToString());
+				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Skipping recook of package 0x%s '%s' that was not cooked"), *LexToString(PackageId), *PackageName.ToString());
 				return;
 			}
 			FString Filename;
 			if (FPackageName::TryConvertLongPackageNameToFilename(PackageName.ToString(), Filename))
 			{
-				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Recooking package 0x%llX '%s'"), PackageId.ValueForDebugging(), *PackageName.ToString());
+				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Recooking package 0x%s '%s'"), *LexToString(PackageId), *PackageName.ToString());
 				Package.Status = EPackageStatus::Cooking;
 				const bool bEnqueued = InCookOnTheFlyServer.EnqueueCookRequest(UE::Cook::FCookPackageRequest{ PlatformName, Filename });
 				check(bEnqueued);
 			}
 			else
 			{
-				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to recook package 0x%llX '%s' (File not found)"), PackageId.ValueForDebugging(), *PackageName.ToString());
+				UE_LOG(LogCookOnTheFly, Warning, TEXT("Failed to recook package 0x%s '%s' (File not found)"), *LexToString(PackageId), *PackageName.ToString());
 				Package.Status = EPackageStatus::Failed;
 			}
 		}
@@ -278,7 +278,7 @@ private:
 
 		void MarkAsCooked(FPackageId PackageId, const FPackageStoreEntryResource& Entry, UE::ZenCookOnTheFly::Messaging::FCompletedPackages& OutCompletedPackages)
 		{
-			UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%llX cooked"), PackageId.ValueForDebugging());
+			UE_LOG(LogCookOnTheFly, Verbose, TEXT("0x%s cooked"), *LexToString(PackageId));
 			FPackage& Package = GetPackage(PackageId);
 			Package.Status = EPackageStatus::Cooked;
 			Package.Entry = Entry;
@@ -407,7 +407,7 @@ private:
 	virtual void OnPackageGenerated(const FName& PackageName) override
 	{
 		FPackageId PackageId = FPackageId::FromName(PackageName);
-		UE_LOG(LogCookOnTheFly, Verbose, TEXT("Package 0x%llX '%s' generated"), PackageId.ValueForDebugging(), *PackageName.ToString());
+		UE_LOG(LogCookOnTheFly, Verbose, TEXT("Package 0x%s '%s' generated"), *LexToString(PackageId), *PackageName.ToString());
 		PackageRegistry.Add(PackageName);
 	}
 
@@ -643,7 +643,7 @@ private:
 
 		for (const FPackageId& PackageId : CookRequest.PackageIds)
 		{
-			UE_LOG(LogCookOnTheFly, Verbose, TEXT("Received cook request 0x%llX"), PackageId.ValueForDebugging());
+			UE_LOG(LogCookOnTheFly, Verbose, TEXT("Received cook request 0x%s"), *LexToString(PackageId));
 
 			FPackageStoreEntryResource Entry;
 			EPackageStoreEntryStatus PackageStatus = EPackageStoreEntryStatus::Pending;

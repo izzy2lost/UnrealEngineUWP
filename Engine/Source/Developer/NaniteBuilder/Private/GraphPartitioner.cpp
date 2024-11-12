@@ -6,8 +6,10 @@
 #include "EngineLogs.h"
 #include "HAL/PlatformMemory.h"
 
-FGraphPartitioner::FGraphPartitioner( uint32 InNumElements )
+FGraphPartitioner::FGraphPartitioner( uint32 InNumElements, int32 InMinPartitionSize, int32 InMaxPartitionSize )
 	: NumElements( InNumElements )
+	, MinPartitionSize( InMinPartitionSize )
+	, MaxPartitionSize( InMaxPartitionSize )
 {
 	Indexes.AddUninitialized( NumElements );
 	for( uint32 i = 0; i < NumElements; i++ )
@@ -29,17 +31,14 @@ FGraphPartitioner::FGraphData* FGraphPartitioner::NewGraph( uint32 NumAdjacency 
 	return Graph;
 }
 
-void FGraphPartitioner::Partition( FGraphData* Graph, int32 InMinPartitionSize, int32 InMaxPartitionSize )
+void FGraphPartitioner::Partition( FGraphData* Graph )
 {
-	MinPartitionSize = InMinPartitionSize;
-	MaxPartitionSize = InMaxPartitionSize;
-
-	const int32 TargetPartitionSize = ( MinPartitionSize + MaxPartitionSize ) / 2;
-	const int32 TargetNumPartitions = FMath::DivideAndRoundUp( Graph->Num, TargetPartitionSize );
-
-	if( TargetNumPartitions > 1 )
+	if( Graph->Num <= MaxPartitionSize )
 	{
 		PartitionIDs.AddUninitialized( NumElements );
+
+		const int32 TargetPartitionSize = ( MinPartitionSize + MaxPartitionSize ) / 2;
+		const int32 TargetNumPartitions = FMath::DivideAndRoundUp( Graph->Num, TargetPartitionSize );
 
 		idx_t NumConstraints = 1;
 		idx_t NumParts = TargetNumPartitions;
@@ -56,15 +55,15 @@ void FGraphPartitioner::Partition( FGraphData* Graph, int32 InMinPartitionSize, 
 		//int r = METIS_PartGraphRecursive(
 		int r = METIS_PartGraphKway(
 			&Graph->Num,
-			&NumConstraints,			// number of balancing constraints
+			&NumConstraints,				// number of balancing constraints
 			Graph->AdjacencyOffset.GetData(),
 			Graph->Adjacency.GetData(),
-			NULL,						// Vert weights
-			NULL,						// Vert sizes for computing the total communication volume
+			NULL,							// Vert weights
+			NULL,							// Vert sizes for computing the total communication volume
 			Graph->AdjacencyCost.GetData(),	// Edge weights
 			&NumParts,
-			NULL,						// Target partition weight
-			NULL,						// Allowed load imbalance tolerance
+			NULL,							// Target partition weight
+			NULL,							// Allowed load imbalance tolerance
 			Options,
 			&EdgesCut,
 			PartitionIDs.GetData()
@@ -129,13 +128,12 @@ void FGraphPartitioner::BisectGraph( FGraphData* Graph, FGraphData* ChildGraphs[
 	ChildGraphs[0] = nullptr;
 	ChildGraphs[1] = nullptr;
 
-	auto AddPartition =
-		[ this ]( int32 Offset, int32 Num )
-		{
-			FRange& Range = Ranges[ NumPartitions++ ];
-			Range.Begin	= Offset;
-			Range.End	= Offset + Num;
-		};
+	auto AddPartition = [ this ]( int32 Offset, int32 Num )
+	{
+		FRange& Range = Ranges[ NumPartitions++ ];
+		Range.Begin	= Offset;
+		Range.End	= Offset + Num;
+	};
 
 	if( Graph->Num <= MaxPartitionSize )
 	{
@@ -173,15 +171,15 @@ void FGraphPartitioner::BisectGraph( FGraphData* Graph, FGraphData* ChildGraphs[
 
 	int r = METIS_PartGraphRecursive(
 		&Graph->Num,
-		&NumConstraints,			// number of balancing constraints
+		&NumConstraints,					// number of balancing constraints
 		Graph->AdjacencyOffset.GetData(),
 		Graph->Adjacency.GetData(),
-		NULL,						// Vert weights
-		NULL,						// Vert sizes for computing the total communication volume
-		Graph->AdjacencyCost.GetData(),	// Edge weights
+		NULL,								// Vert weights
+		NULL,								// Vert sizes for computing the total communication volume
+		Graph->AdjacencyCost.GetData(),		// Edge weights
 		&NumParts,
-		PartitionWeights,			// Target partition weight
-		NULL,						// Allowed load imbalance tolerance
+		PartitionWeights,					// Target partition weight
+		NULL,								// Allowed load imbalance tolerance
 		Options,
 		&EdgesCut,
 		PartitionIDs.GetData() + Graph->Offset
@@ -231,10 +229,11 @@ void FGraphPartitioner::BisectGraph( FGraphData* Graph, FGraphData* ChildGraphs[
 		Num[0] = Split - Graph->Offset;
 		Num[1] = Graph->Offset + Graph->Num - Split;
 				
-		check( Num[0] > 1 );
-		check( Num[1] > 1 );
+		check( Num[0] > 0 );
+		check( Num[1] > 0 );
 
-		if( Num[0] <= MaxPartitionSize && Num[1] <= MaxPartitionSize )
+		if( Num[0] <= MaxPartitionSize &&
+			Num[1] <= MaxPartitionSize )
 		{
 			AddPartition( Graph->Offset,	Num[0] );
 			AddPartition( Split,			Num[1] );
@@ -295,11 +294,8 @@ void FGraphPartitioner::RecursiveBisectGraph( FGraphData* Graph )
 	}
 }
 
-void FGraphPartitioner::PartitionStrict( FGraphData* Graph, int32 InMinPartitionSize, int32 InMaxPartitionSize, bool bThreaded )
+void FGraphPartitioner::PartitionStrict( FGraphData* Graph, bool bThreaded )
 {
-	MinPartitionSize = InMinPartitionSize;
-	MaxPartitionSize = InMaxPartitionSize;
-
 	PartitionIDs.AddUninitialized( NumElements );
 	SwappedWith.AddUninitialized( NumElements );
 
@@ -309,89 +305,29 @@ void FGraphPartitioner::PartitionStrict( FGraphData* Graph, int32 InMinPartition
 	NumPartitions = 0;
 
 	if( bThreaded && NumPartitionsExpected > 4 )
-	{	
-		extern CORE_API int32 GUseNewTaskBackend;
-		if (GUseNewTaskBackend)
+	{
+		TLocalWorkQueue<FGraphData> LocalWork(Graph);
+		LocalWork.Run(MakeYCombinator([this, &LocalWork](auto Self, FGraphData* Graph) -> void
 		{
-			TLocalWorkQueue<FGraphData> LocalWork(Graph);
-			LocalWork.Run(MakeYCombinator([this, &LocalWork](auto Self, FGraphData* Graph) -> void
+			FGraphData* ChildGraphs[2];
+			BisectGraph( Graph, ChildGraphs );
+			delete Graph;
+
+			if( ChildGraphs[0] && ChildGraphs[1] )
 			{
-				FGraphData* ChildGraphs[2];
-				BisectGraph( Graph, ChildGraphs );
-				delete Graph;
-
-				if( ChildGraphs[0] && ChildGraphs[1] )
+				// Only spawn add a worker thread if remaining work is expected to be large enough
+				if (ChildGraphs[0]->Num > 256)
 				{
-					// Only spawn add a worker thread if remaining work is expected to be large enough
-					if (ChildGraphs[0]->Num > 256)
-					{
-						LocalWork.AddTask(ChildGraphs[0]);
-						LocalWork.AddWorkers(1);
-					}
-					else
-					{
-						Self(ChildGraphs[0]);
-					}
-					Self(ChildGraphs[1]);
+					LocalWork.AddTask(ChildGraphs[0]);
+					LocalWork.AddWorkers(1);
 				}
-			}));
-		}
-		else
-		{
-			const ENamedThreads::Type DesiredThread = IsInGameThread() ? ENamedThreads::AnyThread : ENamedThreads::AnyBackgroundThreadNormalTask;
-
-			class FBuildTask
-			{
-			public:
-				FBuildTask( FGraphPartitioner* InPartitioner, FGraphData* InGraph, ENamedThreads::Type InDesiredThread)
-					: Partitioner( InPartitioner )
-					, Graph( InGraph )
-					, DesiredThread( InDesiredThread )
-				{}
-
-				void DoTask( ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionEvent )
+				else
 				{
-					FGraphData* ChildGraphs[2];
-					Partitioner->BisectGraph( Graph, ChildGraphs );
-					delete Graph;
-
-					if( ChildGraphs[0] && ChildGraphs[1] )
-					{
-						if( ChildGraphs[0]->Num > 256 )
-						{
-							FGraphEventRef Task = TGraphTask< FBuildTask >::CreateTask().ConstructAndDispatchWhenReady( Partitioner, ChildGraphs[0], DesiredThread);
-							MyCompletionEvent->DontCompleteUntil( Task );
-						}
-						else
-						{
-							FBuildTask( Partitioner, ChildGraphs[0], DesiredThread).DoTask( CurrentThread, MyCompletionEvent );
-						}
-
-						FBuildTask( Partitioner, ChildGraphs[1], DesiredThread).DoTask( CurrentThread, MyCompletionEvent );
-					}
+					Self(ChildGraphs[0]);
 				}
-
-				static FORCEINLINE TStatId GetStatId()
-				{
-					RETURN_QUICK_DECLARE_CYCLE_STAT(FBuildTask, STATGROUP_ThreadPoolAsyncTasks);
-				}
-
-				static FORCEINLINE ESubsequentsMode::Type	GetSubsequentsMode()	{ return ESubsequentsMode::TrackSubsequents; }
-
-				FORCEINLINE ENamedThreads::Type GetDesiredThread() const
-				{
-					return DesiredThread;
-				}
-
-			private:
-				FGraphPartitioner*  Partitioner;
-				FGraphData*         Graph;
-				ENamedThreads::Type DesiredThread;
-			};
-
-			FGraphEventRef BuildTask = TGraphTask< FBuildTask >::CreateTask( nullptr ).ConstructAndDispatchWhenReady( this, Graph, DesiredThread);
-			FTaskGraphInterface::Get().WaitUntilTaskCompletes( BuildTask );
-		}
+				Self(ChildGraphs[1]);
+			}
+		}));
 	}
 	else
 	{

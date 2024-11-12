@@ -42,6 +42,8 @@ namespace UE::NeuralMorphModel
 		virtual TSharedPtr<SMLDeformerInputWidget> CreateInputWidget() override;
 		virtual void OnPostInputAssetChanged() override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
+		virtual bool GetSupportsPerTrainingInputAnimVertexMask() const override	{ return true; }
+		virtual void UpdateTrainingDeviceList() override;
 		// ~END FMLDeformerEditorModel overrides.
 
 		// FMLDeformerMorphModelEditorModel overrides.
@@ -127,13 +129,10 @@ namespace UE::NeuralMorphModel
 		 */
 		void GenerateBoneGroupMaskInfo(int32 InputInfoBoneGroupIndex, int32 HierarchyDepth);
 
-		/**
-		 * Apply the mask info to the mask buffer of floats.
-		 * @param SkeletalMesh The skeletal mesh that the mask relates to.
-		 * @param MaskInfo The mask info object to apply to the float mask buffer.
-		 * @param ItemMaskBuffer The mask buffer for this item. This should be an array view of size NumBaseMeshVerts.
-		 */
-		void ApplyMaskInfoToMaskBuffer(const USkeletalMesh* SkeletalMesh, const FNeuralMorphMaskInfo& MaskInfo, TArrayView<float> ItemMaskBuffer);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+		UE_DEPRECATED(5.5, "Please use the FMLDeformerMorphModelEditorModel::ApplyMaskInfoToBuffer that takes an FMLDeformerMaskInfo as mask info type.")
+		void ApplyMaskInfoToMaskBuffer(const USkeletalMesh* SkeletalMesh, const FNeuralMorphMaskInfo& MaskInfo, TArrayView<float> ItemMaskBuffer) {}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 		/**
 		 * Set the mask visualization item index. This specifies which item (bone, curve, bone group, curve group) to visualize the mask for.

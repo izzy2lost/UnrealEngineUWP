@@ -16,8 +16,12 @@
 #include "CurveEditorTypes.h"
 #include "Tree/ICurveEditorTreeItem.h"
 
+class UMovieSceneSection;
 class UMovieSceneSequence;
+class UMovieSceneTrack;
+class FBoolProperty;
 class FSequencer;
+class IDetailsView;
 
 namespace UE
 {
@@ -67,11 +71,12 @@ public:
 	/*~ IDimmableExtension */
 	bool IsDimmed() const override;
 
-protected:
-
 	/** Get context menu contents. */
 	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder);
-	virtual void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder);
+
+	virtual void BuildSidebarMenu(FMenuBuilder& MenuBuilder);
+
+protected:
 
 	/** Set identifier for computing node paths */
 	void SetIdentifier(FName InNewIdentifier);
@@ -82,7 +87,11 @@ protected:
 	/** Set expansion state without saving it in the movie-scene data */
 	void SetExpansionWithoutSaving(bool bInIsExpanded);
 
-	void BuildSectionColorTintsContextMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildSectionColorTintsMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder, const TArray<UMovieSceneTrack*>& InTracks);
+	virtual void BuildTrackRowOptionsMenu(FMenuBuilder& MenuBuilder);
 
 private:
 
@@ -102,6 +111,13 @@ private:
 
 	ECheckBoxState SelectedModelsMuteState() const;
 	void ToggleSelectedModelsMuted();
+
+	TArray<UMovieSceneSection*> GetSelectedSections() const;
+	TArray<UMovieSceneTrack*> GetSelectedTracks() const;
+	TArray<TPair<UMovieSceneTrack*, int32>> GetSelectedTrackRows() const;
+
+	void AddEvalOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator = nullptr);
+	void AddDisplayOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator = nullptr);
 
 private:
 

@@ -36,16 +36,25 @@ enum class EUnlinkEverythingMode
  */
 struct FEntityLedger
 {
+	UE_DEPRECATED(5.5, "Please call the version that takes OutPerTickConditionalEntities and ConditionResultCache")
+	MOVIESCENE_API void UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities);
+	
 	/**
 	 * To be called any time this ledger's instance is to be evaluated with a different set of entities - updates the set of entities that are required for the current evaluation environment
 	 *
-	 * @param Linker         The linker that owns this ledger
-	 * @param ImportParams   Basis for import parameters
-	 * @param EntityField    Possibly null if NewEntities is empty- an entity field containing structural information about the sequence
-	 * @param NewEntities    A set specifying all the entities required for the next evaluation. Specifying an empty set will unlink all existing entities.
+	 * @param Linker					The linker that owns this ledger
+	 * @param ImportParams				Basis for import parameters
+	 * @param EntityField				Possibly null if NewEntities is empty- an entity field containing structural information about the sequence
+	 * @param NewEntities				A set specifying all the entities required for the next evaluation. Specifying an empty set will unlink all existing entities.
+	 * @param OutConditionalEntities    Output set returning conditional entities that require re-evaluating in between full updates.
+	 * @param ConditionResultCache      Cache of previous condition results, to be used and potentially modified during any condition checking in updating entities.
 	 */
-	MOVIESCENE_API void UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities);
+	MOVIESCENE_API void UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache);
 
+	
+	UE_DEPRECATED(5.5, "Please call the version that takes ConditionResultCache")
+	MOVIESCENE_API void UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities);
+	
 	/**
 	 * Update any one-shot entities for the current frame
 	 *
@@ -53,13 +62,29 @@ struct FEntityLedger
 	 * @param ImportParams   Basis for import parameters
 	 * @param EntityField    Possibly null if NewEntities is empty- an entity field containing structural information about the sequence
 	 * @param NewEntities    A set specifying all the entities required for the next evaluation. Specifying an empty set will unlink all existing entities.
+	 * @param ConditionResultCache      Cache of previous condition results, to be used and potentially modified during any condition checking in updating entities.
 	 */
-	MOVIESCENE_API void UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities);
+	MOVIESCENE_API void UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities, TMap<uint32, bool>& ConditionResultCache);
+
+	/**
+	 * Update any conditional entities for the current frame
+	 *
+	 * @param Linker				The linker that owns this ledger
+	 * @param ImportParams			Basis for import parameters
+	 * @param EntityField			Possibly null if NewEntities is empty- an entity field containing structural information about the sequence
+	 * @param ConditionalEntities   A set specifying any conditional entities that need to be checked again and possibly imported or removed.
+	 */
+	MOVIESCENE_API void UpdateConditionalEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& ConditionalEntities);
 
 	/**
 	 * Invalidate any and all entities that are currently being tracked, causing new linker entities to be created on the next evaluation, and ones to become unlinked (preserving any components with the preserve flag)
 	 */
 	MOVIESCENE_API void Invalidate();
+
+	/*
+	* Check whether the ledger has been invalidated.
+	*/
+	MOVIESCENE_API bool IsInvalidated() const { return bInvalidated;}
 
 public:
 
@@ -83,14 +108,25 @@ public:
 	 */
 	MOVIESCENE_API void FindImportedEntities(TWeakObjectPtr<UObject> EntityOwner, TArray<FMovieSceneEntityID>& OutEntityIDs) const;
 
+	/*
+	* Checks to see whether we can currently import the requested entity, evaluating any conditions that may exist first.
+	*/
+	MOVIESCENE_API bool CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache, bool bUpdatingPerTickEntities=false);
+
+	
+	UE_DEPRECATED(5.5, "Please call the version that takes OutPerTickConditionalEntities and ConditionResultCache")
+	MOVIESCENE_API void ImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query);
+
 	/**
 	 * Indicate that the specified field entity is currently being evaluated
 	 *
 	 * @param Linker         The linker To import into
 	 * @param InstanceHandle A handle to the sequence instance that the entity relates to (relating to Linker->GetInstanceRegistry())
 	 * @param Entity         The field entity that is being imported
+	 * @param OutConditionalEntities    Output set returning conditional entities that require re-evaluating in between full updates.
+	 * @param ConditionResultCache      Cache of previous condition results, to be used and potentially modified during any condition checking in updating entities.
 	 */
-	MOVIESCENE_API void ImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query);
+	MOVIESCENE_API void ImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache);
 
 	/**
 	 * Unlink all imported linker entities and their children, whilst maintaining the map of imported entities

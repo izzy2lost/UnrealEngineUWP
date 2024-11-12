@@ -46,7 +46,7 @@
 #include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/Stack/NiagaraStackViewModel.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraStackInputCategory.h"
 #include "ViewModels/Stack/NiagaraStackObject.h"
@@ -131,6 +131,13 @@ void UNiagaraStackFunctionInput::Initialize(
 	OwningFunctionCallNode = &InInputFunctionCallNode;
 	OwningFunctionCallInitialScript = OwningFunctionCallNode->FunctionScript;
 	OwningAssignmentNode = Cast<UNiagaraNodeAssignment>(OwningFunctionCallNode.Get());
+	
+	TOptional<FGuid> VariableGuid = OwningFunctionCallNode->GetFunctionScriptSource()->NodeGraph->GetScriptVariableGuid(FNiagaraVariable(InInputType, InInputParameterHandle));
+	if(VariableGuid.IsSet())
+	{
+		UNiagaraHierarchyRoot* HierarchyScriptParameterRoot = OwningFunctionCallNode->GetFunctionScriptSource()->NodeGraph->GetScriptParameterHierarchyRoot();
+		HierarchyScriptParameter = Cast<UNiagaraHierarchyScriptParameter>(HierarchyScriptParameterRoot->FindChildWithIdentity(FNiagaraHierarchyIdentity({VariableGuid.GetValue()}, {}), true));
+	}
 
 	UNiagaraSystem& ParentSystem = GetSystemViewModel()->GetSystem();
 	FVersionedNiagaraEmitter ParentEmitter = GetEmitterViewModel().IsValid() ? GetEmitterViewModel()->GetEmitter() : FVersionedNiagaraEmitter();
@@ -183,6 +190,8 @@ void UNiagaraStackFunctionInput::Initialize(
 	MessageLogGuid = GetSystemViewModel()->GetMessageLogGuid();
 
 	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackFunctionInput::FilterInlineChildren));
+	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackFunctionInput::FilterForVisibleCondition));
+	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackFunctionInput::FilterForIsInlineEditConditionToggle));
 }
 
 void UNiagaraStackFunctionInput::FinalizeInternal()
@@ -313,12 +322,29 @@ void UNiagaraStackFunctionInput::Copy(UNiagaraClipboardContent* ClipboardContent
 	if (ClipboardInput != nullptr)
 	{
 		ClipboardContent->FunctionInputs.Add(ClipboardInput);
+		FNiagaraClipboardPortableValue InputPortableValue;
+		if (ClipboardInput->ValueMode == ENiagaraClipboardFunctionInputValueMode::Local)
+		{
+			FNiagaraVariant LocalValue;
+			LocalValue.SetBytes(ClipboardInput->Local.GetData(), ClipboardInput->Local.Num());
+			InputPortableValue = FNiagaraClipboardPortableValue::CreateFromTypedValue(InputType, LocalValue);
+		}
+		else if (ClipboardInput->ValueMode == ENiagaraClipboardFunctionInputValueMode::Data)
+		{
+			FNiagaraVariant DataValue;
+			DataValue.SetDataInterface(ClipboardInput->Data);
+			InputPortableValue = FNiagaraClipboardPortableValue::CreateFromTypedValue(InputType, DataValue);
+		}
+		if (InputPortableValue.IsValid())
+		{
+			ClipboardContent->PortableValues.Add(InputPortableValue);
+		}
 	}
 }
 
 bool UNiagaraStackFunctionInput::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
 {
-	if (ClipboardContent->FunctionInputs.Num() == 0 || GetIsEnabledAndOwnerIsEnabled() == false)
+	if ((ClipboardContent->FunctionInputs.Num() == 0 && ClipboardContent->PortableValues.Num() == 0) || GetIsEnabledAndOwnerIsEnabled() == false)
 	{
 		// Empty clipboard, or disabled don't allow paste, but be silent.
 		return false;
@@ -353,11 +379,28 @@ bool UNiagaraStackFunctionInput::TestCanPasteWithMessage(const UNiagaraClipboard
 		}
 		return false;
 	}
-	else
+	else if (ClipboardContent->FunctionInputs.Num() > 1)
 	{
 		OutMessage = LOCTEXT("CantPasteMultipleInputs", "Can't paste multiple inputs onto a single input.");
 		return false;
 	}
+	else if (ClipboardContent->PortableValues.Num() == 1)
+	{
+		if (ClipboardContent->PortableValues[0].IsValid())
+		{
+			if (ClipboardContent->PortableValues[0].CanUpdateTypedValue(InputType))
+			{
+				OutMessage = LOCTEXT("PasteValueMessage", "Paste the value from the clipboard here.");
+				return true;
+			}
+			else
+			{
+				OutMessage = LOCTEXT("UnsupportedPortableValueMessage", "Pasting the copied value to this input is unsupported.");
+				return false;
+			}
+		}
+	}
+	return false;
 }
 
 FText UNiagaraStackFunctionInput::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
@@ -365,20 +408,79 @@ FText UNiagaraStackFunctionInput::GetPasteTransactionText(const UNiagaraClipboar
 	return LOCTEXT("PasteInputTransactionText", "Paste Niagara inputs");
 }
 
+void UNiagaraStackFunctionInput::PasteFunctionInput(const UNiagaraClipboardFunctionInput* ClipboardInput)
+{
+	// For the main input (could be a parent input), the user is intentional about copy pasting, so we only require assignable types
+	if (FNiagaraEditorUtilities::AreTypesAssignable(ClipboardInput->InputType, InputType))
+	{
+		SetValueFromClipboardFunctionInput(*ClipboardInput);
+	}
+	// or alternatively check for a conversion script
+	else
+	{
+		SetClipboardContentViaConversionScript(*ClipboardInput);
+	}
+
+	OnCopyPasteDelegate.ExecuteIfBound();
+	
+	// For children inputs we are more strict and require name & type match as the user is less intentional about it when pasting
+	if(ClipboardInput->ChildrenInputs.Num() > 0)
+	{
+		TArray<UNiagaraStackFunctionInput*> StackChildrenInputs;
+		GetUnfilteredChildrenOfType(StackChildrenInputs, false);
+		for(const UNiagaraClipboardFunctionInput* ClipboardChildInput : ClipboardInput->ChildrenInputs)
+		{
+			if(ClipboardChildInput == nullptr)
+			{
+				continue;
+			}
+			
+			for(UNiagaraStackFunctionInput* StackChildInput : StackChildrenInputs)
+			{
+				if(StackChildInput->GetInputType() == ClipboardChildInput->GetTypeDef() &&
+					StackChildInput->GetInputParameterHandle().GetName() == ClipboardChildInput->InputName)
+				{
+					StackChildInput->PasteFunctionInput(ClipboardChildInput);
+				}
+			}
+		}
+	}
+}
+
 void UNiagaraStackFunctionInput::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
 {
-	if (ensureMsgf(ClipboardContent != nullptr && ClipboardContent->FunctionInputs.Num() == 1, TEXT("Clipboard must not be null, and must contain a single input.  Call TestCanPasteWithMessage to validate")))
+	if (ensureMsgf(ClipboardContent != nullptr && (ClipboardContent->FunctionInputs.Num() == 1 || ClipboardContent->PortableValues.Num() == 1),
+		TEXT("Clipboard must not be null, and must contain a single input or portable value.  Call TestCanPasteWithMessage to validate")))
 	{
-		if (const UNiagaraClipboardFunctionInput* ClipboardInput = ClipboardContent->FunctionInputs[0])
+		
+		if (ClipboardContent->FunctionInputs.Num() == 1)
 		{
-			if (FNiagaraEditorUtilities::AreTypesAssignable(ClipboardInput->InputType, InputType))
+			if (const UNiagaraClipboardFunctionInput* ClipboardInput = ClipboardContent->FunctionInputs[0])
 			{
-				SetValueFromClipboardFunctionInput(*ClipboardInput);	
+				PasteFunctionInput(ClipboardInput);
 			}
-			else
+		}
+		else if (ClipboardContent->PortableValues.Num() == 1)
+		{
+			FNiagaraVariant InputValue;
+			if (ClipboardContent->PortableValues[0].TryUpdateTypedValue(InputType, InputValue))
 			{
-				SetClipboardContentViaConversionScript(*ClipboardInput);
-			}			
+				const UNiagaraClipboardFunctionInput* ClipboardInput = nullptr;
+				if (InputValue.GetMode() == ENiagaraVariantMode::Bytes)
+				{
+					TArray<uint8> ValueBytes;
+					ValueBytes.Append(InputValue.GetBytes(), InputValue.GetNumBytes());
+					ClipboardInput = UNiagaraClipboardFunctionInput::CreateLocalValue(GetTransientPackage(), NAME_None, InputType, TOptional<bool>(), ValueBytes);
+				}
+				else if (InputValue.GetMode() == ENiagaraVariantMode::DataInterface)
+				{
+					ClipboardInput = UNiagaraClipboardFunctionInput::CreateDataValue(GetTransientPackage(), NAME_None, InputType, TOptional<bool>(), InputValue.GetDataInterface());
+				}
+				if (ClipboardInput != nullptr)
+				{
+					SetValueFromClipboardFunctionInput(*ClipboardInput);
+				}
+			}
 		}
 	}
 }
@@ -418,16 +520,16 @@ FNiagaraHierarchyIdentity UNiagaraStackFunctionInput::DetermineSummaryIdentity()
 	return Identity;
 }
 
+bool UNiagaraStackFunctionInput::GetCanExpand() const
+{
+	// If we are in local mode, we want to always be expanded (by setting GetCanExpand == false), to ensure potential children inputs always show up 
+	return GetValueMode() != EValueMode::Local;
+}
+
 TArray<UNiagaraStackFunctionInput*> UNiagaraStackFunctionInput::GetChildInputs() const
 {
-	TArray<UNiagaraStackFunctionInputCollection*> DynamicInputCollections;
-	GetUnfilteredChildrenOfType(DynamicInputCollections);
 	TArray<UNiagaraStackFunctionInput*> ChildInputs;
-	for (UNiagaraStackFunctionInputCollection* DynamicInputCollection : DynamicInputCollections)
-	{
-		DynamicInputCollection->GetChildInputs(ChildInputs);
-	}
-	
+	GetUnfilteredChildrenOfType(ChildInputs, true);	
 	return ChildInputs;
 }
 
@@ -438,12 +540,7 @@ TOptional<FNiagaraVariableMetaData> UNiagaraStackFunctionInput::GetInputMetaData
 
 void UNiagaraStackFunctionInput::GetFilteredChildInputs(TArray<UNiagaraStackFunctionInput*>& OutFilteredChildInputs) const
 {
-	TArray<UNiagaraStackFunctionInputCollection*> DynamicInputCollections;
-	GetUnfilteredChildrenOfType(DynamicInputCollections);
-	for (UNiagaraStackFunctionInputCollection* DynamicInputCollection : DynamicInputCollections)
-	{
-		DynamicInputCollection->GetFilteredChildInputs(OutFilteredChildInputs);
-	}
+	GetFilteredChildrenOfType(OutFilteredChildInputs, true);
 }
 
 UNiagaraStackObject* UNiagaraStackFunctionInput::GetChildDataObject() const
@@ -469,6 +566,18 @@ void UNiagaraStackFunctionInput::GetCurrentChangeIds(FGuid& OutOwningGraphChange
 bool UNiagaraStackFunctionInput::FilterInlineChildren(const UNiagaraStackEntry& Child) const
 {
 	return GbEnableExperimentalInlineDynamicInputs == 0 || GetInlineDisplayMode() == ENiagaraStackEntryInlineDisplayMode::None;
+}
+
+bool UNiagaraStackFunctionInput::FilterForVisibleCondition(const UNiagaraStackEntry& Child) const
+{
+	const UNiagaraStackFunctionInput* StackFunctionInputChild = Cast<UNiagaraStackFunctionInput>(&Child);
+	return StackFunctionInputChild == nullptr || StackFunctionInputChild->GetShouldPassFilterForVisibleCondition();
+}
+
+bool UNiagaraStackFunctionInput::FilterForIsInlineEditConditionToggle(const UNiagaraStackEntry& Child) const
+{
+	const UNiagaraStackFunctionInput* StackFunctionInputChild = Cast<UNiagaraStackFunctionInput>(&Child);
+	return StackFunctionInputChild == nullptr || StackFunctionInputChild->GetIsInlineEditConditionToggle() == false;
 }
 
 void UNiagaraStackFunctionInput::ReportScriptVersionChange() const
@@ -765,7 +874,44 @@ void UNiagaraStackFunctionInput::RefreshChildrenInternal(const TArray<UNiagaraSt
             }
         ));
 	}
+	
+	if(HierarchyScriptParameter.IsValid())
+	{
+		TArray<UNiagaraHierarchyScriptParameter*> ChildScriptParameters;
+		HierarchyScriptParameter->GetChildrenOfType(ChildScriptParameters);
+		
+		for(UNiagaraHierarchyScriptParameter* ChildScriptParameter : ChildScriptParameters)
+		{
+			FNiagaraVariable InputVariable = ChildScriptParameter->GetVariable();
 
+			if(ScriptInstanceData.UsedInputs.Contains(InputVariable) == false)
+			{
+				continue;
+			}
+			
+			UNiagaraStackFunctionInput* InputChild = FindCurrentChildOfTypeByPredicate<UNiagaraStackFunctionInput>(CurrentChildren, [&](UNiagaraStackFunctionInput* CurrentInput) 
+			{ 
+				return CurrentInput->GetInputParameterHandle() == FNiagaraParameterHandle(InputVariable.GetName()) && CurrentInput->GetInputType() == ChildScriptParameter->GetVariable().GetType() && &CurrentInput->GetInputFunctionCallNode() == OwningFunctionCallNode;
+			});
+
+			if (InputChild == nullptr)
+			{
+				EStackParameterBehavior Behavior = ChildScriptParameter->GetScriptVariable()->GetIsStaticSwitch() ? EStackParameterBehavior::Static : EStackParameterBehavior::Dynamic;
+				InputChild = NewObject<UNiagaraStackFunctionInput>(this);
+				InputChild->Initialize(CreateDefaultChildRequiredData(), *OwningModuleNode, *OwningFunctionCallNode,
+					InputVariable.GetName(), InputVariable.GetType(), Behavior, GetOwnerStackItemEditorDataKey());
+			}
+			
+			InputChild->SetScriptInstanceData(ScriptInstanceData);
+			FGuid VariableGuid = ChildScriptParameter->GetScriptVariable()->Metadata.GetVariableGuid();
+			// Would be nice if eventually inputs could easily access the cache so that they don't rely on the parent pushing data in to determine visibility
+			// If we let inputs use GetStackFunctionInputs & GetStackFunctionStaticSwitchPins there is a noticeable perf decrease, due to the static switch as they are less cached
+			InputChild->SetIsHidden(ScriptInstanceData.PerInputInstanceData[VariableGuid].bIsHidden);
+				
+			NewChildren.Add(InputChild);	
+		}
+	}
+	
 	if (InputValues.Mode == EValueMode::Expression && SupportsCustomExpressions() == false)
 	{
 		NewIssues.Add(FStackIssue(
@@ -781,16 +927,16 @@ void UNiagaraStackFunctionInput::RefreshChildrenInternal(const TArray<UNiagaraSt
 		FVersionedNiagaraScriptData* ScriptData = InputValues.DynamicNode->GetScriptData();
 		if (ScriptData != nullptr)
 		{
-			UNiagaraStackFunctionInputCollection* DynamicInputEntry = FindCurrentChildOfTypeByPredicate<UNiagaraStackFunctionInputCollection>(CurrentChildren,
-				[this](UNiagaraStackFunctionInputCollection* CurrentFunctionInputEntry)
+			UNiagaraStackScriptHierarchyRoot* DynamicInputEntry = FindCurrentChildOfTypeByPredicate<UNiagaraStackScriptHierarchyRoot>(CurrentChildren,
+				[this](UNiagaraStackScriptHierarchyRoot* CurrentFunctionInputEntry)
 			{
-				return CurrentFunctionInputEntry->GetInputFunctionCallNode() == InputValues.DynamicNode.Get() &&
-					CurrentFunctionInputEntry->GetModuleNode() == OwningModuleNode.Get();
+				return &CurrentFunctionInputEntry->GetOwningFunctionCallNode() == InputValues.DynamicNode.Get() &&
+					&CurrentFunctionInputEntry->GetOwningModuleNode() == OwningModuleNode.Get();
 			});
 
 			if (DynamicInputEntry == nullptr)
 			{
-				DynamicInputEntry = NewObject<UNiagaraStackFunctionInputCollection>(this);
+				DynamicInputEntry = NewObject<UNiagaraStackScriptHierarchyRoot>(this);
 				DynamicInputEntry->Initialize(CreateDefaultChildRequiredData(), *OwningModuleNode, *InputValues.DynamicNode.Get(), GetOwnerStackItemEditorDataKey());
 				DynamicInputEntry->SetShouldDisplayLabel(false);
 			}
@@ -1100,8 +1246,10 @@ FString UNiagaraStackFunctionInput::ResolveDisplayNameArgument(const FString& In
 		Material->GetAllExpressionsInMaterialAndFunctionsOfType<UMaterialExpression>(Expressions);
 		for (UMaterialExpression* Expression : Expressions)
 		{
-			TArrayView<FExpressionInput*> ExpressionInputs = Expression->GetInputsView();
-			ExpressionInputsToProcess.Append(ExpressionInputs);
+			for (FExpressionInputIterator It{ Expression}; It; ++It)
+			{
+				ExpressionInputsToProcess.Push(It.Input);
+			}
 		}
 	}
 
@@ -2290,8 +2438,22 @@ void UNiagaraStackFunctionInput::ResetToBase()
 	{
 		TSharedRef<FNiagaraScriptMergeManager> MergeManager = FNiagaraScriptMergeManager::Get();
 
-		FVersionedNiagaraEmitter BaseEmitter = GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetParent();
+		UNiagaraScript* OwningScript = nullptr;
+		FVersionedNiagaraEmitterData* EmitterData = GetEmitterViewModel()->GetEmitter().GetEmitterData();
 		UNiagaraNodeOutput* OutputNode = FNiagaraStackGraphUtilities::GetEmitterOutputNodeForStackNode(*OwningFunctionCallNode.Get());
+		if (ensure(OutputNode))
+		{
+			OwningScript = EmitterData->GetScript(OutputNode->GetUsage(), OutputNode->GetUsageId());
+		}
+
+		if (!OwningScript)
+		{
+			return;
+		}
+
+		FVersionedNiagaraEmitter BaseEmitter = EmitterData->GetParent();
+		TArray<FNiagaraVariable> OriginalRapidIterationParameters;
+		OwningScript->RapidIterationParameters.GetParameters(OriginalRapidIterationParameters);
 
 		FScopedTransaction ScopedTransaction(LOCTEXT("ResetInputToBaseTransaction", "Reset this input to match the parent emitter."));
 		FNiagaraScriptMergeManager::FApplyDiffResults Results = MergeManager->ResetModuleInputToBase(
@@ -2307,11 +2469,26 @@ void UNiagaraStackFunctionInput::ResetToBase()
 			// If resetting to the base succeeded, an unknown number of rapid iteration parameters may have been added.  To fix
 			// this copy all of the owning scripts rapid iteration parameters to all other affected scripts.
 			// TODO: Either the merge should take care of this directly, or at least provide more information about what changed.
-			UNiagaraScript* OwningScript = GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetScript(OutputNode->GetUsage(), OutputNode->GetUsageId());
 			TArray<FNiagaraVariable> OwningScriptRapidIterationParameters;
 			OwningScript->RapidIterationParameters.GetParameters(OwningScriptRapidIterationParameters);
-			if (OwningScriptRapidIterationParameters.Num() > 0)
+
+			// we also need to check if we've removed any RI parameters, and if so pass that forward to the affected scripts as well
+			TArray<FNiagaraVariable> RemovedVariables = OriginalRapidIterationParameters;
+			RemovedVariables.SetNum(Algo::RemoveIf(RemovedVariables, [&OwningScriptRapidIterationParameters](const FNiagaraVariable& Var) -> bool
 			{
+				return OwningScriptRapidIterationParameters.Contains(Var);
+			}));
+			
+			if (!OwningScriptRapidIterationParameters.IsEmpty() || !RemovedVariables.IsEmpty())
+			{
+				auto ContainsStaticVariable = [](const FNiagaraVariable& Variable) -> bool
+				{
+					return Variable.GetType().IsStatic();
+				};
+
+				const bool bChangeRequiresRecompile = OwningScriptRapidIterationParameters.ContainsByPredicate(ContainsStaticVariable)
+					|| RemovedVariables.ContainsByPredicate(ContainsStaticVariable);
+
 				for (TWeakObjectPtr<UNiagaraScript> AffectedScript : AffectedScripts)
 				{
 					if (AffectedScript.Get() != OwningScript)
@@ -2322,6 +2499,21 @@ void UNiagaraStackFunctionInput::ResetToBase()
 							bool bAddParameterIfMissing = true;
 							AffectedScript->RapidIterationParameters.SetParameterData(
 								OwningScript->RapidIterationParameters.GetParameterData(OwningScriptRapidIterationParameter), OwningScriptRapidIterationParameter, bAddParameterIfMissing);
+						}
+
+						for (FNiagaraVariable& RemovedVariable : RemovedVariables)
+						{
+							AffectedScript->RapidIterationParameters.RemoveParameter(RemovedVariable);
+						}
+					}
+
+					// we mark the graphs associated with the scripts as dirty to also ensure that they 
+					if (bChangeRequiresRecompile)
+					{
+						UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(AffectedScript->GetLatestSource());
+						if (Source && Source->NodeGraph)
+						{
+							Source->NodeGraph->NotifyGraphNeedsRecompile();
 						}
 					}
 				}
@@ -2617,13 +2809,13 @@ void UNiagaraStackFunctionInput::ReassignDynamicInputScript(UNiagaraScript* Dyna
 
 			UNiagaraClipboardContent* NewClipboardContent = UNiagaraClipboardContent::Create();
 			Copy(NewClipboardContent);
-			TArray<UNiagaraStackFunctionInputCollection*> DynamicInputCollections;
-			GetUnfilteredChildrenOfType(DynamicInputCollections);
+			TArray<UNiagaraStackScriptHierarchyRoot*> DynamicInputRoots;
+			GetUnfilteredChildrenOfType(DynamicInputRoots);
 
-			if (ConversionUtility && DynamicInputCollections.Num() == 0)
+			if (ConversionUtility && DynamicInputRoots.Num() == 0)
 			{
 				FText ConvertMessage;
-				bool bConverted = ConversionUtility->Convert(OldScript, OldClipboardContent, DynamicInputScript, DynamicInputCollections[0], NewClipboardContent, InputValues.DynamicNode.Get(), ConvertMessage);
+				bool bConverted = ConversionUtility->Convert(OldScript, OldClipboardContent, DynamicInputScript, DynamicInputRoots[0], NewClipboardContent, InputValues.DynamicNode.Get(), ConvertMessage);
 				if (!ConvertMessage.IsEmptyOrWhitespace())
 				{
 					// Notify the end-user about the convert message, but continue the process as they could always undo.
@@ -2854,11 +3046,11 @@ const UNiagaraClipboardFunctionInput* UNiagaraStackFunctionInput::ToClipboardFun
 	{
 		ClipboardInput = UNiagaraClipboardFunctionInput::CreateDynamicValue(InOuter, InputName, InputType, bEditConditionValue, InputValues.DynamicNode->GetFunctionName(), InputValues.DynamicNode->FunctionScript, InputValues.DynamicNode->SelectedScriptVersion);
 
-		TArray<UNiagaraStackFunctionInputCollection*> DynamicInputCollections;
-		GetUnfilteredChildrenOfType(DynamicInputCollections);
-		for (UNiagaraStackFunctionInputCollection* DynamicInputCollection : DynamicInputCollections)
+		TArray<UNiagaraStackScriptHierarchyRoot*> DynamicInputRoots;
+		GetUnfilteredChildrenOfType(DynamicInputRoots);
+		for (UNiagaraStackScriptHierarchyRoot* DynamicInputRoot : DynamicInputRoots)
 		{
-			DynamicInputCollection->ToClipboardFunctionInputs(ClipboardInput->Dynamic, MutableView(ClipboardInput->Dynamic->Inputs));
+			DynamicInputRoot->ToClipboardFunctionInputs(ClipboardInput->Dynamic, MutableView(ClipboardInput->Dynamic->Inputs));
 		}
 
 		break;
@@ -2873,6 +3065,20 @@ const UNiagaraClipboardFunctionInput* UNiagaraStackFunctionInput::ToClipboardFun
 		ensureMsgf(false, TEXT("A new value mode was added without adding support for copy paste."));
 		break;
 	}
+
+	OnCopyPasteDelegate.ExecuteIfBound();
+
+	if(ClipboardInput)
+	{
+		TArray<UNiagaraStackFunctionInput*> ChildInputs;
+		GetFilteredChildrenOfType(ChildInputs, false);
+		
+		for(UNiagaraStackFunctionInput* ChildInput : ChildInputs)
+		{
+			const_cast<UNiagaraClipboardFunctionInput*>(ClipboardInput)->ChildrenInputs.Add(ChildInput->ToClipboardFunctionInput(const_cast<UNiagaraClipboardFunctionInput*>(ClipboardInput)));
+		}
+	}
+
 	return ClipboardInput;
 }
 
@@ -2948,11 +3154,11 @@ void UNiagaraStackFunctionInput::SetValueFromClipboardFunctionInput(const UNiaga
 					}
 					SetDynamicInput(NewDynamicInputScript, ClipboardFunctionInput.Dynamic->FunctionName, ClipboardFunctionInput.Dynamic->ScriptVersion);
 
-					TArray<UNiagaraStackFunctionInputCollection*> DynamicInputCollections;
-					GetUnfilteredChildrenOfType(DynamicInputCollections);
-					for (UNiagaraStackFunctionInputCollection* DynamicInputCollection : DynamicInputCollections)
+					TArray<UNiagaraStackScriptHierarchyRoot*> DynamicInputRoots;
+					GetUnfilteredChildrenOfType(DynamicInputRoots);
+					for (UNiagaraStackScriptHierarchyRoot* DynamicInputRoot : DynamicInputRoots)
 					{
-						DynamicInputCollection->SetValuesFromClipboardFunctionInputs(ClipboardFunctionInput.Dynamic->Inputs);
+						DynamicInputRoot->SetValuesFromClipboardFunctionInputs(ClipboardFunctionInput.Dynamic->Inputs);
 					}
 				}
 			}
@@ -2971,6 +3177,12 @@ void UNiagaraStackFunctionInput::SetValueFromClipboardFunctionInput(const UNiaga
 	TSharedRef<FNiagaraSystemViewModel> CachedSysViewModel = GetSystemViewModel();
 	if (CachedSysViewModel->GetSystemStackViewModel())
 		CachedSysViewModel->GetSystemStackViewModel()->InvalidateCachedParameterUsage();
+
+	// If we pasted into a static parameter, make sure to refresh children as this can cause new inputs to pop up as we might be in the middle of pasting multiple inputs
+	if(IsStaticParameter())
+	{
+		RefreshChildren();
+	}
 }
 
 bool UNiagaraStackFunctionInput::IsScratchDynamicInput() const

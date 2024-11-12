@@ -12,7 +12,7 @@
 namespace UE::WebAPI::OpenAPI
 {
 	template <>
-	FString FWebAPIOpenAPISchemaConverter::GetDefaultJsonTypeForStorage<EWebAPIParameterStorage>(const EWebAPIParameterStorage& InStorage)
+	inline FString FWebAPIOpenAPISchemaConverter::GetDefaultJsonTypeForStorage<EWebAPIParameterStorage>(const EWebAPIParameterStorage& InStorage)
 	{
 		static TMap<EWebAPIParameterStorage, FString> StorageToJsonType = {
 			{ EWebAPIParameterStorage::Body, TEXT("object") },
@@ -26,7 +26,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	FString FWebAPIOpenAPISchemaConverter::GetDefaultJsonTypeForStorage<EWebAPIResponseStorage>(const EWebAPIResponseStorage& InStorage)
+	inline FString FWebAPIOpenAPISchemaConverter::GetDefaultJsonTypeForStorage<EWebAPIResponseStorage>(const EWebAPIResponseStorage& InStorage)
 	{
 		static TMap<EWebAPIResponseStorage, FString> StorageToJsonType = {
 			{ EWebAPIResponseStorage::Body, TEXT("object") },
@@ -123,7 +123,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	TSharedPtr<OpenAPI::V3::FSchemaObject> FWebAPIOpenAPISchemaConverter::ResolveReference<OpenAPI::V3::FSchemaObject>(const FString& InDefinitionName)
+	inline TSharedPtr<OpenAPI::V3::FSchemaObject> FWebAPIOpenAPISchemaConverter::ResolveReference<OpenAPI::V3::FSchemaObject>(const FString& InDefinitionName)
 	{
 		if(!InputSchema->Components.IsValid())
 		{
@@ -143,7 +143,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	TSharedPtr<OpenAPI::V3::FParameterObject> FWebAPIOpenAPISchemaConverter::ResolveReference<OpenAPI::V3::FParameterObject>(const FString& InDefinitionName)
+	inline TSharedPtr<OpenAPI::V3::FParameterObject> FWebAPIOpenAPISchemaConverter::ResolveReference<OpenAPI::V3::FParameterObject>(const FString& InDefinitionName)
 	{
 		if(!InputSchema->Components.IsValid())
 		{
@@ -163,7 +163,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	TSharedPtr<OpenAPI::V3::FResponseObject> FWebAPIOpenAPISchemaConverter::ResolveReference<V3::FResponseObject>(const FString& InDefinitionName)
+	inline TSharedPtr<OpenAPI::V3::FResponseObject> FWebAPIOpenAPISchemaConverter::ResolveReference<V3::FResponseObject>(const FString& InDefinitionName)
 	{
 		if(!InputSchema->Components.IsValid())
 		{
@@ -183,7 +183,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	TSharedPtr<OpenAPI::V3::FSecuritySchemeObject> FWebAPIOpenAPISchemaConverter::ResolveReference<V3::FSecuritySchemeObject>(const FString& InDefinitionName)
+	inline TSharedPtr<OpenAPI::V3::FSecuritySchemeObject> FWebAPIOpenAPISchemaConverter::ResolveReference<V3::FSecuritySchemeObject>(const FString& InDefinitionName)
 	{
 		if(!InputSchema->Components.IsValid())
 		{
@@ -203,7 +203,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	TSharedPtr<OpenAPI::V3::FRequestBodyObject> FWebAPIOpenAPISchemaConverter::ResolveReference<V3::FRequestBodyObject>(const FString& InDefinitionName)
+	inline TSharedPtr<OpenAPI::V3::FRequestBodyObject> FWebAPIOpenAPISchemaConverter::ResolveReference<V3::FRequestBodyObject>(const FString& InDefinitionName)
 	{
 		if (const Json::TJsonReference<OpenAPI::V3::FRequestBodyObject>* FoundDefinition = InputSchema->Components->RequestBodies.Find(InDefinitionName))
 		{
@@ -255,13 +255,13 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	bool FWebAPIOpenAPISchemaConverter::IsArray(const TSharedPtr<UE::WebAPI::OpenAPI::V3::FSchemaObject>& InSchema)
+	inline bool FWebAPIOpenAPISchemaConverter::IsArray(const TSharedPtr<UE::WebAPI::OpenAPI::V3::FSchemaObject>& InSchema)
 	{
 		return InSchema->Type.Get(TEXT(""))	== TEXT("array");
 	}
 
 	template <>
-	bool FWebAPIOpenAPISchemaConverter::IsArray(const TSharedPtr<UE::WebAPI::OpenAPI::V3::FParameterObject>& InSchema)
+	inline bool FWebAPIOpenAPISchemaConverter::IsArray(const TSharedPtr<UE::WebAPI::OpenAPI::V3::FParameterObject>& InSchema)
 	{
 		FString FoundDefinitionName;
 		return InSchema->Schema.IsSet()
@@ -271,7 +271,7 @@ namespace UE::WebAPI::OpenAPI
 
 	template <typename SchemaType, typename ModelType>
 	bool FWebAPIOpenAPISchemaConverter::ConvertModelBase(const TSharedPtr<SchemaType>& InSchema,
-														const TObjectPtr<ModelType>& OutModel)
+														ModelType* OutModel)
 	{
 		static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V3::FSchemaObjectBase>::Value, "Type is not derived from OpenAPI::V3::FSchemaObjectBase.");
 
@@ -305,7 +305,7 @@ namespace UE::WebAPI::OpenAPI
 		DstEnum->Name = EnumTypeName;
 		DstEnum->Description = InSrcSchema->Description.Get(TEXT(""));
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = Cast<UWebAPIModelBase>(DstEnum);
+		UWebAPIModelBase* ModelBase = Cast<UWebAPIModelBase>(DstEnum);
 		if (!ConvertModelBase(InSrcSchema, ModelBase))
 		{
 			return nullptr;
@@ -324,25 +324,25 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	bool FWebAPIOpenAPISchemaConverter::ConvertProperty<OpenAPI::V3::FParameterObject>(
+	inline bool FWebAPIOpenAPISchemaConverter::ConvertProperty<OpenAPI::V3::FParameterObject>(
 		const FWebAPITypeNameVariant& InModelName,
 		const FWebAPINameVariant& InPropertyName,
 		const TSharedPtr<OpenAPI::V3::FParameterObject>& InParameter,
 		const FString& InDefinitionName,
-		const TObjectPtr<UWebAPIProperty>& OutProperty)
+		UWebAPIProperty* OutProperty)
 	{
 		const FString DefinitionName = !InDefinitionName.IsEmpty()
 										? InDefinitionName
 										: ProviderSettings.MakeNestedPropertyTypeName(InModelName, InPropertyName);
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = OutProperty;
+		UWebAPIModelBase* ModelBase = OutProperty;
 		if (!ConvertModelBase(InParameter, ModelBase))
 		{
 			return false;
 		}
 
 		OutProperty->bIsArray = IsArray(InParameter);
-		
+
 		OutProperty->Name = FWebAPINameInfo(NameTransformer(InPropertyName.ToString()), InPropertyName.GetJsonName(), OutProperty->Type);				
 		OutProperty->Name = ResolvePropertyName(OutProperty, InModelName, {});
 		OutProperty->bIsRequired = InParameter->bRequired.Get(false);
@@ -367,7 +367,7 @@ namespace UE::WebAPI::OpenAPI
 				}
 				EnumTypeName.TypeInfo->SetName(EnumName);
 
-				const TObjectPtr<UWebAPIEnum>& Enum = ConvertEnum(Schema, EnumTypeName);
+				const UWebAPIEnum* Enum = ConvertEnum(Schema, EnumTypeName);
 
 				const FText LogMessage = FText::FormatNamed(
 					LOCTEXT("AddedImplicitEnumForPropertyOfModel", "Implicit enum created for property \"{PropertyName}\" of model \"{ModelName}\"."),
@@ -379,7 +379,7 @@ namespace UE::WebAPI::OpenAPI
 				Enum->Name.TypeInfo->JsonName = InPropertyName.GetJsonName();
 
 				OutProperty->Type = Enum->Name;
-				OutProperty->Type.TypeInfo->Model = Enum;
+				OutProperty->Type.TypeInfo->SetModel(Enum);
 			}
 		}
 
@@ -391,7 +391,7 @@ namespace UE::WebAPI::OpenAPI
 														const FWebAPINameVariant& InPropertyName,
 														const TSharedPtr<SchemaType>& InSchema,
 														const FString& InDefinitionName,
-														const TObjectPtr<UWebAPIProperty>& OutProperty)
+														UWebAPIProperty* OutProperty)
 	{
 		static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V3::FSchemaObjectBase>::Value, "Type is not derived from OpenAPI::V3::FSchemaObjectBase.");
 
@@ -416,7 +416,7 @@ namespace UE::WebAPI::OpenAPI
 		OutProperty->Type = ResolveType<SchemaType>(ItemSchema, DefinitionName);
 		check(OutProperty->Type.IsValid());
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = OutProperty;
+		UWebAPIModelBase* ModelBase = OutProperty;
 		if (!ConvertModelBase(ItemSchema, ModelBase))
 		{
 			return false;
@@ -435,7 +435,7 @@ namespace UE::WebAPI::OpenAPI
 			const FWebAPITypeNameVariant EnumTypeName = OutProperty->Type;
 			EnumTypeName.TypeInfo->SetName(ProviderSettings.MakeNestedPropertyTypeName(InModelName, InPropertyName));
 
-			const TObjectPtr<UWebAPIEnum>& Enum = ConvertEnum(InSchema, EnumTypeName);
+			const UWebAPIEnum* Enum = ConvertEnum(InSchema, EnumTypeName);
 
 			const FText LogMessage = FText::FormatNamed(
 				LOCTEXT("AddedImplicitEnumForPropertyOfModel", "Implicit enum created for property \"{PropertyName}\" of model \"{ModelName}\"."),
@@ -444,12 +444,12 @@ namespace UE::WebAPI::OpenAPI
 			MessageLog->LogInfo(LogMessage, FWebAPIOpenAPIProvider::LogName);
 
 			Enum->Name.TypeInfo->DebugString += LogMessage.ToString();
-			
+
 			Enum->Name.TypeInfo->JsonName = InPropertyName.GetJsonName();
 			Enum->Name.TypeInfo->SetNested(InModelName);
 
 			OutProperty->Type = Enum->Name;
-			OutProperty->Type.TypeInfo->Model = Enum;
+			OutProperty->Type.TypeInfo->SetModel(Enum);
 		}
 		// Add struct as it's own model, and reference it as this properties type
 		else if (OutProperty->Type.ToString(true).IsEmpty())
@@ -461,7 +461,7 @@ namespace UE::WebAPI::OpenAPI
 			ModelTypeName.TypeInfo->Prefix = TEXT("F");
 			ModelTypeName.TypeInfo->SetNested(InModelName);
 
-			const TObjectPtr<UWebAPIModel>& Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.HasTypeInfo() ? ModelTypeName.TypeInfo.Get() : nullptr);
+			UWebAPIModel* Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.HasTypeInfo() ? ModelTypeName.TypeInfo.Get() : nullptr);
 			ConvertModel(InSchema, {}, Model);
 
 			const FText LogMessage = FText::FormatNamed(
@@ -476,7 +476,7 @@ namespace UE::WebAPI::OpenAPI
 			Model->Name.TypeInfo->JsonType = UWebAPIStaticTypeRegistry::ToFromJsonType;
 
 			OutProperty->Type = Model->Name;
-			OutProperty->Type.TypeInfo->Model = Model;
+			OutProperty->Type.TypeInfo->SetModel(Model);
 		}
 		
 		OutProperty->Name = ResolvePropertyName(OutProperty, InModelName);
@@ -484,7 +484,7 @@ namespace UE::WebAPI::OpenAPI
 		return true;
 	}
 
-		template <typename SchemaType>
+	template <typename SchemaType>
 	TObjectPtr<UWebAPIProperty> FWebAPIOpenAPISchemaConverter::ConvertProperty(const TSharedPtr<SchemaType>& InSrcSchema, const TObjectPtr<UWebAPIModel>& InModel, const FWebAPINameVariant& InPropertyName, const FString& InDefinitionName)
 	{
 		static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V3::FSchemaObjectBase>::Value, "Type is not derived from OpenAPI::V3::FSchemaObjectBase.");
@@ -509,7 +509,7 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <typename SchemaType>
-	bool FWebAPIOpenAPISchemaConverter::ConvertModel(const TSharedPtr<SchemaType>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, const TObjectPtr<UWebAPIModel>& OutModel)
+	bool FWebAPIOpenAPISchemaConverter::ConvertModel(const TSharedPtr<SchemaType>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, UWebAPIModel* OutModel)
 	{
 		static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V3::FSchemaObjectBase>::Value, "Type is not derived from OpenAPI::V3::FSchemaObjectBase.");
 
@@ -518,7 +518,7 @@ namespace UE::WebAPI::OpenAPI
 		{
 			ModelTypeName = InModelTypeName;
 		}
-		else if(OutModel->Name.HasTypeInfo())
+		else if(OutModel && OutModel->Name.HasTypeInfo())
 		{
 			ModelTypeName = OutModel->Name;
 		}
@@ -548,7 +548,7 @@ namespace UE::WebAPI::OpenAPI
 
 		const TObjectPtr<UWebAPIModel>& Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = Model;
+		UWebAPIModelBase* ModelBase = Model;
 		if (!ConvertModelBase(InSrcSchema, ModelBase))
 		{
 			return false;
@@ -580,14 +580,14 @@ namespace UE::WebAPI::OpenAPI
 	}
 
 	template <>
-	bool FWebAPIOpenAPISchemaConverter::ConvertModel<OpenAPI::V3::FParameterObject>(const TSharedPtr<OpenAPI::V3::FParameterObject>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, const TObjectPtr<UWebAPIModel>& OutModel)
+	inline bool FWebAPIOpenAPISchemaConverter::ConvertModel<OpenAPI::V3::FParameterObject>(const TSharedPtr<OpenAPI::V3::FParameterObject>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, UWebAPIModel* OutModel)
 	{
 		FWebAPITypeNameVariant ModelTypeName;
 		if(InModelTypeName.IsValid() && InModelTypeName.HasTypeInfo())
 		{
 			ModelTypeName = InModelTypeName;
 		}
-		else if(OutModel->Name.HasTypeInfo())
+		else if(OutModel && OutModel->Name.HasTypeInfo())
 		{
 			ModelTypeName = OutModel->Name;
 		}
@@ -615,9 +615,9 @@ namespace UE::WebAPI::OpenAPI
 			return false;
 		}
 
-		const TObjectPtr<UWebAPIModel>& Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
+		UWebAPIModel* Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = Model;
+		UWebAPIModelBase* ModelBase = Model;
 		if (!ConvertModelBase(InSrcSchema, ModelBase))
 		{
 			return false;
@@ -652,7 +652,7 @@ namespace UE::WebAPI::OpenAPI
 				TEXT("F"));
 		}
 		
-		const TObjectPtr<UWebAPIModel>& Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
+		UWebAPIModel* Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
 		if(ConvertModel(InSrcSchema, ModelTypeName, Model))
 		{
 			return Model;

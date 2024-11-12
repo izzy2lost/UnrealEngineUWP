@@ -635,7 +635,7 @@ void FConcertSyncObjectRewriter::RewriteProperty(const FProperty* InProp)
 
 	for (int32 Idx = 0; Idx < InProp->ArrayDim; ++Idx)
 	{
-		InProp->SerializeItem(FStructuredArchiveFromArchive(*this).GetSlot(), (uint8*)TmpPropData + (InProp->ElementSize * Idx));
+		InProp->SerializeItem(FStructuredArchiveFromArchive(*this).GetSlot(), (uint8*)TmpPropData + (InProp->GetElementSize() * Idx));
 	}
 
 	InProp->DestroyValue(TmpPropData);
@@ -656,7 +656,9 @@ FArchive& FConcertSyncObjectRewriter::operator<<(UObject*& Obj)
 	{
 		OnObjectSerialized(ObjPath);
 		RewriteData(OffsetBeforeObjectRead, OffsetAfterObjectRead - OffsetBeforeObjectRead, ObjPath);
-		Obj = StaticFindObject(UObject::StaticClass(), nullptr, *ObjPath.ToString());
+
+		const FSoftObjectPath OutputObjPath = GetOutputObjectPath(ObjPath);
+		Obj = StaticFindObject(UObject::StaticClass(), nullptr, *OutputObjPath.ToString());
 	}
 
 	return *this;
@@ -706,7 +708,7 @@ FArchive& FConcertSyncObjectRewriter::operator<<(FSoftObjectPath& AssetPtr)
 	{
 		OnObjectSerialized(ObjPath);
 		RewriteData(OffsetBeforeObjectRead, OffsetAfterObjectRead - OffsetBeforeObjectRead, ObjPath);
-		AssetPtr = ObjPath;
+		AssetPtr = GetOutputObjectPath(ObjPath);
 	}
 
 	return *this;

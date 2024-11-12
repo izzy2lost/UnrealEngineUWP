@@ -29,6 +29,7 @@ namespace UE::Sequencer
 	class FTrackModel;
 	class IObjectSchema;
 	class IOutlinerColumn;
+	class IOutlinerIndicatorBuilder;
 } // namespace UE::Sequencer
 
 enum class ECurveEditorTreeFilterType : uint32;
@@ -62,6 +63,9 @@ DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<UE::Sequencer::FTrackModel>, FOnCrea
 
 /** A delegate which will create an outliner column */
 DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerColumn>, FOnCreateOutlinerColumn);
+
+/** A delegate which will create an outliner indicator item */
+DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerIndicatorBuilder>, FOnCreateOutlinerIndicator);
 
 /** A delegate that is executed when adding menu content. */
 DECLARE_DELEGATE_OneParam(FOnGetContextMenuContent, FMenuBuilder& /*MenuBuilder*/);
@@ -147,11 +151,23 @@ struct FSequencerHostCapabilities
 	/** Do we support rendering to a movie */
 	bool bSupportsRenderMovie;
 
+	/** Do we support adding content from the content browser */
+	bool bSupportsAddFromContentBrowser;
+
+	/** Do we support the sidebar widget */
+	bool bSupportsSidebar;
+
+	/** Do we support selectability options in the viewport */
+	bool bSupportsViewportSelectability;
+
 	FSequencerHostCapabilities()
 		: bSupportsSaveMovieSceneAsset(false)
 		, bSupportsCurveEditor(false)
 		, bSupportsRecording(false)
 		, bSupportsRenderMovie(false)
+		, bSupportsAddFromContentBrowser(false)
+		, bSupportsSidebar(false)
+		, bSupportsViewportSelectability(false)
 	{}
 };
 
@@ -258,8 +274,22 @@ public:
 	 */
 	virtual void UnregisterOutlinerColumn(FDelegateHandle InHandle) = 0;
 
+	/**
+	 * Registers a delegate that will create an outliner indicator item
+	 *
+	 * @param InCreator Delegate to register
+	 * @return A handle to the newly added delegate
+	 */
+	virtual FDelegateHandle RegisterOutlinerIndicator(FOnCreateOutlinerIndicator InCreator) = 0;
 
-	/** 
+	/**
+	 * Unregisters a previously registered delegate for creating an outliner indicator item
+	 *
+	 * @param InHandle Handle to the delegate to unregister
+	 */
+	virtual void UnregisterOutlinerIndicator(FDelegateHandle InHandle) = 0;
+
+	/**
 	 * Registers a delegate that will be called when a sequencer is created
 	 *
 	 * @param InOnSequencerCreated	Delegate to register.
@@ -341,11 +371,25 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() const = 0;
 
 	/**
-	 * Get the extensibility manager for toolbars.
+	 * Get the extensibility manager for the view options menu.
+	 *
+	 * @return Toolbar extensibility manager.
+	 */
+	virtual TSharedPtr<FExtensibilityManager> GetViewMenuExtensibilityManager() const = 0;
+
+	/**
+	 * Get the extensibility manager for the actions menu.
 	 *
 	 * @return Toolbar extensibility manager.
 	 */
 	virtual TSharedPtr<FExtensibilityManager> GetActionsMenuExtensibilityManager() const = 0;
+
+	/**
+	 * Get the extensibility manager for the sidebar.
+	 *
+	 * @return Sidebar extensibility manager.
+	 */
+	virtual TSharedPtr<FExtensibilityManager> GetSidebarExtensibilityManager() const = 0;
 
 	/**
 	 * Get the sequencer customization manager, which handles editor customizations applied based on

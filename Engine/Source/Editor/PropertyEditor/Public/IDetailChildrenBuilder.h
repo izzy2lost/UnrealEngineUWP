@@ -12,6 +12,7 @@ class IDetailCustomNodeBuilder;
 class IDetailGroup;
 class IDetailPropertyRow;
 class IPropertyHandle;
+class IStructureDataProvider;
 class SWidget;
 
 /**
@@ -90,9 +91,11 @@ public:
 	 *
 	 * @param ChildStructure	The structure to add
 	 * @param PropertyName		Optional name of a property inside the Child structure to add.  If this is empty, the entire structure will be added
-	 * @param UniqueIdName		Optional identifier that uniquely identifies this structure among other structures of the same type.  If this is empty, saving and restoring expansion state of this structure may not work
+	 * @param Params		    Optional identifier that uniquely identifies this structure among other structures of the same type.  If this is empty, saving and restoring expansion state of this structure may not work
 	 */
 	virtual IDetailPropertyRow* AddExternalStructureProperty(TSharedRef<FStructOnScope> ChildStructure, FName PropertyName, const FAddPropertyParams& Params = FAddPropertyParams()) = 0;
+	virtual IDetailPropertyRow* AddExternalStructureProperty(TSharedPtr<IStructureDataProvider> ChildStructure, FName PropertyName, const FAddPropertyParams& Params = FAddPropertyParams()) = 0;
+	virtual IDetailPropertyRow* AddChildStructureProperty(TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<IStructureDataProvider> ChildStructure, FName PropertyName, const FAddPropertyParams& Params = FAddPropertyParams(), const FText& DisplayNameOverride = FText()) = 0;
 
 	/**
 	 * Adds a custom structure as a child
@@ -101,6 +104,8 @@ public:
 	 * @param UniqueIdName		Optional identifier that uniquely identifies this structure among other structures of the same type.  If this is empty, saving and restoring expansion state of this structure may not work
 	 */
 	virtual IDetailPropertyRow* AddExternalStructure(TSharedRef<FStructOnScope> ChildStructure, FName UniqueIdName = NAME_None) = 0;
+	virtual IDetailPropertyRow* AddExternalStructure(TSharedPtr<IStructureDataProvider> ChildStructure, FName UniqueIdName = NAME_None) = 0;
+	virtual IDetailPropertyRow* AddChildStructure(TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<IStructureDataProvider> ChildStructure, FName UniqueIdName = NAME_None, const FText& DisplayNameOverride = FText()) = 0;
 
 	/**
 	 * Adds all the properties of an external structure as a children
@@ -110,6 +115,8 @@ public:
 	 */
 	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedRef<FStructOnScope> ChildStructure) = 0;
 
+	virtual TArray<TSharedPtr<IPropertyHandle>> AddAllExternalStructureProperties(TSharedPtr<IStructureDataProvider> ChildStructure) = 0;
+	
 	/**
 	 * Generates a value widget from a customized struct
 	 * If the customized struct has no value widget an empty widget will be returned

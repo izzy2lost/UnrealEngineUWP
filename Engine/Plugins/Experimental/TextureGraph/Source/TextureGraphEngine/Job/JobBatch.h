@@ -20,7 +20,7 @@ typedef GenericTaskPriorityQueue<std::shared_ptr<Job>, DeviceNativeTask_CompareS
 
 struct FInvalidationDetails;
 
-DECLARE_LOG_CATEGORY_EXTERN(LogBatch, Log, Log);
+DECLARE_LOG_CATEGORY_EXTERN(LogBatch, Log, All);
 
 //////////////////////////////////////////////////////////////////////////
 /// JobBatch: A series of jobs put together that need to execute at the 

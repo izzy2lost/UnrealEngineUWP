@@ -6,6 +6,7 @@
 #include "Misc/Attribute.h"
 #include "Styling/ISlateStyle.h"
 #include "Framework/Commands/UICommandInfo.h"
+#include "Types/SlateStructs.h"
 #include "MultiBoxDefs.generated.h"
 
 class SToolTip;
@@ -65,7 +66,7 @@ class FMultiBoxSettings
 {
 public:
 
-	DECLARE_DELEGATE_RetVal_ThreeParams( TSharedRef< SToolTip >, FConstructToolTip, const TAttribute<FText>& /*ToolTipText*/, const TSharedPtr<SWidget>& /*OverrideContent*/, const TSharedPtr<const FUICommandInfo>& /*Action*/ );
+	DECLARE_DELEGATE_RetVal_FourParams( TSharedRef< SToolTip >, FConstructToolTip, const TAttribute<FText>& /*ToolTipText*/, const TSharedPtr<SWidget>& /*OverrideContent*/, const TSharedPtr<const FUICommandInfo>& /*Action*/, bool /*ShowActionShortcut*/);
 
 	/** Access to whether multiboxes use small icons or default sized icons */
 	static SLATE_API TAttribute<bool> UseSmallToolBarIcons;
@@ -76,7 +77,7 @@ public:
 
 	SLATE_API FMultiBoxSettings();
 
-	static SLATE_API TSharedRef< SToolTip > ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action );
+	static SLATE_API TSharedRef< SToolTip > ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action, bool ShowActionShortcut = true );
 
 	static SLATE_API void ResetToolTipConstructor();
 };
@@ -137,3 +138,27 @@ namespace EMultiBlockLocation
 		return StyleName;
 	}
 }
+
+/** Contains various Style parameters and overrides. Not all are applicable to a given entry */
+struct FMenuEntryStyleParams
+{
+	FMenuEntryStyleParams() = default;
+
+	/** If true, removes the padding from the left of the widget that lines it up with other menu items */
+	bool bNoIndent = false;
+
+	/** Horizontal alignment for this widget in its parent container. Note: only applies to toolbars */
+	EHorizontalAlignment HorizontalAlignment = HAlign_Fill;
+
+	/** (Optional) Vertical alignment for this widget in its parent container */
+	TOptional<EVerticalAlignment> VerticalAlignment;
+
+	/** (Optionally) override the size rule, where the default is generally Auto */
+	TOptional<FSizeParam::ESizeRule> SizeRule;
+
+	/** (Optionally) override the minimum size. This will apply to the width or height, depending on the menu orientation */
+	TOptional<float> MinSize;
+
+	/** (Optionally) override the maximum size. This will apply to the width or height, depending on the menu orientation */
+	TOptional<float> MaxSize;
+};

@@ -219,10 +219,6 @@ public:
 	/** Set TransformPolicy attribute */
 	SLATE_API void SetTransformPolicy(TAttribute<ETextTransformPolicy> InTransformPolicy);
 
-	/** Get TransformPolicy attribute */
-	UE_DEPRECATED(5.0, "GetTransformPolicy is not accessible anymore since it's attribute value may not have been updated yet.")
-	ETextTransformPolicy GetTransformPolicy() const { return GetTransformPolicyImpl(); }
-
 	/** Sets the overflow policy for this text block */
 	SLATE_API void SetOverflowPolicy(TOptional<ETextOverflowPolicy> InOverflowPolicy);
 

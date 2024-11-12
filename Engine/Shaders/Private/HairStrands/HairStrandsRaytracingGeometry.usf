@@ -71,7 +71,7 @@ void SetInvalidSegment(uint InVertexIndex)
 {
 #if PERMUTATION_PROCEDURAL_PRIMITIVE
 	const float NaN = asfloat(0x7FC00000);
-	for (int i = 0; i < RaytracingProceduralSplits; i++)
+	for (uint i = 0; i < RaytracingProceduralSplits; i++)
 		SetAABB(RaytracingProceduralSplits * InVertexIndex + i, NaN, NaN);
 #else
 	const uint BasePoint = InVertexIndex * 4;
@@ -215,7 +215,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 
 				float4 SplitA = A;
 				float SumArea = 0.0;
-				for (int i = 0; i < RaytracingProceduralSplits; i++)
+				for (uint i = 0; i < RaytracingProceduralSplits; i++)
 				{
 					float4 SplitB = lerp(A, B, float(i + 1) / float(RaytracingProceduralSplits));
 					float3 Lo = min(SplitA.xyz - SplitA.w, SplitB.xyz - SplitB.w);
@@ -232,7 +232,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 					float3 Lo = min(A.xyz - A.w, B.xyz - B.w);
 					float3 Hi = max(A.xyz + A.w, B.xyz + B.w);
 					SetAABB(RaytracingProceduralSplits * VertexIndex0 + 0, Lo, Hi);
-					for (int i = 1; i < RaytracingProceduralSplits; i++)
+					for (uint i = 1; i < RaytracingProceduralSplits; i++)
 					{
 						const float NaN = asfloat(0x7FC00000);
 						SetAABB(RaytracingProceduralSplits * VertexIndex0 + i, NaN, NaN);

@@ -19,7 +19,7 @@ namespace UE::ConcertSharedSlate
 		struct FBuildArgs
 		{
 			TSharedPtr<FText> HighlightText;
-			TTreeItemType RowItem;
+			const TTreeItemType& RowItem;
 		};
 		
 		virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const = 0;

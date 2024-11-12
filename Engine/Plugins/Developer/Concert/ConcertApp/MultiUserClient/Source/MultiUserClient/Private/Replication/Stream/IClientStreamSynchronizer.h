@@ -8,7 +8,7 @@
 struct FConcertStreamFrequencySettings;
 struct FConcertObjectReplicationMap;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Keeps track of a client's registered streams.
@@ -31,8 +31,24 @@ namespace UE::MultiUserClient
 
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when the result of GetServerState has been updated. */
-		virtual FOnServerStateChanged& OnServerStateChanged() = 0;
+		virtual FOnServerStateChanged& OnServerStreamChanged() = 0;
 		
 		virtual ~IClientStreamSynchronizer() = default;
+	};
+
+	/** Util base class for implementing the events */
+	class FStreamSynchronizer_Base
+		: public IClientStreamSynchronizer
+	{
+	public:
+
+		//~ Begin IClientStreamSynchronizer Interface
+		virtual FOnServerStateChanged& OnServerStreamChanged() override { return OnServerStateChangedDelegate; }
+		//~ End IClientStreamSynchronizer Interface
+
+	protected:
+
+		/** Triggered by subclasses when the authority state changes. */
+		FOnServerStateChanged OnServerStateChangedDelegate;
 	};
 }

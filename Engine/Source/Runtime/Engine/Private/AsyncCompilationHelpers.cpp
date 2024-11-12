@@ -136,6 +136,8 @@ namespace AsyncCompilationHelpers
 			return FText::Format(LOCTEXT("WaitingOnFinishCompilationWithCount", "Waiting for {AssetType} to be ready {Done}/{Total} ({ObjectName}) ..."), Args);
 		};
 
+		const double MaxProcessingTimeSeconds = 0.016f;
+		double StartTimeSeconds = FPlatformTime::Seconds();
 		int32 NumDone = 0;
 		TBitArray<> JobsToFinish(true, Num);
 		TBitArray<> LoggedSlowTask(false, Num);
@@ -174,41 +176,47 @@ namespace AsyncCompilationHelpers
 				It.SetWord(WordJobState);
 			}
 
-			// SN-DBS jobs (which make use of the http service) needs to be ticked
-			// from the game-thread to avoid starvation while we wait for other
-			// async tasks to finish.
-			if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())
-			{
-				const bool bLimitExecutionTime = true;
-				const bool bBlockOnGlobalShaderCompletion = false;
-				GShaderCompilingManager->ProcessAsyncResults(bLimitExecutionTime, bBlockOnGlobalShaderCompletion);
-			}
-
-			if(NumDone >= Num)
+			if (NumDone >= Num)
 			{
 				break;
 			}
 
-			if (SlowTask.IsSet())
+			// We still have jobs inflight, so find an incomplete job and wait on it so we can be signalled if it ends before our timeout. 
+			int IncompleteJobIndex = JobsToFinish.Find(true);
+			check(IncompleteJobIndex != INDEX_NONE);
+			ICompilable& IncompleteJob = Getter(IncompleteJobIndex);
+
+			// If this job completes, we will clean it up on the next loop iteration
+			float ElapsedTimeSeconds = float(FPlatformTime::Seconds() - StartTimeSeconds);
+			if (!IncompleteJob.WaitCompletionWithTimeout(MaxProcessingTimeSeconds - ElapsedTimeSeconds))
 			{
-				int IncompleteJobIndex = JobsToFinish.Find(true);
-				check(IncompleteJobIndex != INDEX_NONE);
-
-				ICompilable& IncompleteJob = Getter(IncompleteJobIndex);
-				FText Progress = FormatProgress(NumDone, Num, IncompleteJob.GetName());
-
-				// Avoid spamming task progress while waiting
-				if (!LoggedSlowTask[IncompleteJobIndex])
+				// Progress the slow task so the editor may remain responsive
+				if (SlowTask.IsSet())
 				{
-					UE_LOG_REF(LogCategory, Display, TEXT("%s"), *Progress.ToString());
-					LoggedSlowTask[IncompleteJobIndex] = true;
+					FText Progress = FormatProgress(NumDone, Num, IncompleteJob.GetName());
+
+					// Avoid spamming task progress while waiting
+					if (!LoggedSlowTask[IncompleteJobIndex])
+					{
+						UE_LOG_REF(LogCategory, Display, TEXT("%s"), *Progress.ToString());
+						LoggedSlowTask[IncompleteJobIndex] = true;
+					}
+
+					SlowTask->EnterProgressFrame(0.0f, Progress);
 				}
 
-				SlowTask->EnterProgressFrame(0.0f, Progress);
-			}
+				// SN-DBS jobs (which make use of the http service) needs to be ticked
+				// from the game-thread to avoid starvation while we wait for other
+				// async tasks to finish.
+				if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())
+				{
+					const bool bLimitExecutionTime = true;
+					const bool bBlockOnGlobalShaderCompletion = false;
+					GShaderCompilingManager->ProcessAsyncResults(bLimitExecutionTime, bBlockOnGlobalShaderCompletion);
+				}
 
-			// Jobs are still in flight so give them some time to complete
-			FPlatformProcess::Sleep(0.016);
+				StartTimeSeconds = FPlatformTime::Seconds();
+			}
 		}
 
 		SaveStallStack(FPlatformTime::Cycles64() - StartTime);

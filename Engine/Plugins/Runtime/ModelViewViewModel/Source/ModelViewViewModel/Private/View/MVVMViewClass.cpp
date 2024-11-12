@@ -26,6 +26,35 @@
 
 #define LOCTEXT_NAMESPACE "MVVMViewClass"
 
+namespace UE::MVVM::Private
+{
+UMVVMViewModelBase* GetGlobalCollectionViewModel(UUserWidget* InUserWidget, const FMVVMViewModelContext& GlobalViewModelInstance, UMVVMViewModelCollectionObject*& Collection)
+{
+	Collection = nullptr;
+	UMVVMViewModelBase* FoundViewModelInstance = nullptr;
+	if (GlobalViewModelInstance.IsValid())
+	{
+		if (const UWorld* World = InUserWidget->GetWorld())
+		{
+			if (const UGameInstance* GameInstance = World->GetGameInstance())
+			{
+				Collection = GameInstance->GetSubsystem<UMVVMGameSubsystem>()->GetViewModelCollection();
+				if (Collection)
+				{
+					FoundViewModelInstance = Collection->FindViewModelInstance(GlobalViewModelInstance);
+				}
+			}
+		}
+	}
+
+	if (FoundViewModelInstance != nullptr)
+	{
+		ensureMsgf(FoundViewModelInstance->IsA(GlobalViewModelInstance.ContextClass), TEXT("The Global View Model Instance is not of the expected type."));
+	}
+	return FoundViewModelInstance;
+}
+} // namespace
+
 ///////////////////////////////////////////////////////////////////////
 // 
 ///////////////////////////////////////////////////////////////////////
@@ -103,18 +132,7 @@ UObject* FMVVMViewClass_Source::GetOrCreateInstance(const UMVVMViewClass* InView
 	else if (GlobalViewModelInstance.IsValid())
 	{
 		UMVVMViewModelCollectionObject* Collection = nullptr;
-		UMVVMViewModelBase* FoundViewModelInstance = nullptr;
-		if (const UWorld* World = InUserWidget->GetWorld())
-		{
-			if (const UGameInstance* GameInstance = World->GetGameInstance())
-			{
-				Collection = GameInstance->GetSubsystem<UMVVMGameSubsystem>()->GetViewModelCollection();
-				if (Collection)
-				{
-					FoundViewModelInstance = Collection->FindViewModelInstance(GlobalViewModelInstance);
-				}
-			}
-		}
+		UMVVMViewModelBase* FoundViewModelInstance = UE::MVVM::Private::GetGlobalCollectionViewModel(InUserWidget, GlobalViewModelInstance, Collection);
 
 		if (FoundViewModelInstance != nullptr)
 		{
@@ -152,6 +170,13 @@ void FMVVMViewClass_Source::ReleaseInstance(const UObject* ViewModel, const UMVV
 	{
 		Resolver->DestroyInstance(ViewModel, View);
 	}
+}
+
+TScriptInterface<INotifyFieldValueChanged> FMVVMViewClass_Source::GetGlobalCollectionViewModel(UUserWidget* InUserWidget) const
+{
+	UMVVMViewModelCollectionObject* Collection = nullptr;
+	UMVVMViewModelBase* FoundViewModelInstance = UE::MVVM::Private::GetGlobalCollectionViewModel(InUserWidget, GlobalViewModelInstance, Collection);
+	return FoundViewModelInstance ? TScriptInterface<INotifyFieldValueChanged>(FoundViewModelInstance) : TScriptInterface<INotifyFieldValueChanged>();
 }
 
 #if UE_WITH_MVVM_DEBUGGING
@@ -276,6 +301,21 @@ FString FMVVMViewClass_Source::ToString(const UMVVMViewClass* ViewClass, FToStri
 		{
 			AddPipe();
 			StringBuilder << TEXT("IsViewModel");
+		}
+		if ((Flags & (uint16)EFlags::IsViewModelInstanceExposed) != 0)
+		{
+			AddPipe();
+			StringBuilder << TEXT("EditDefaultOnly");
+		}
+		if (RequireGlobalViewModelCollectionUpdate())
+		{
+			AddPipe();
+			StringBuilder << TEXT("GlobalCollectionAutoUpdate");
+		}
+		if (AlwaysExecuteBindingsOnSetSource())
+		{
+			AddPipe();
+			StringBuilder << TEXT("AlwaysExecuteBindingsOnSetSource");
 		}
 	}
 
@@ -500,7 +540,7 @@ FString FMVVMViewClass_Binding::ToString(const UMVVMViewClass* ViewClass, FToStr
 	{
 		AddNewLine();
 		StringBuilder << TEXT("Sources: 0x");
-		StringBuilder << FString::Printf(TEXT("%x"), SourceBitField);
+		StringBuilder << FString::Printf(TEXT("%" UINT64_x_FMT), SourceBitField);
 	}
 
 	if (Args.bAddFlags)
@@ -707,7 +747,7 @@ void UMVVMViewClass::Construct(UUserWidget* UserWidget)
 #if WITH_EDITOR
 	if (GEditor)
 	{
-		BluerpintCompiledHandle = GEditor->OnBlueprintCompiled().AddUObject(this, &UMVVMViewClass::HandleBlueprintCompiled);
+		BlueprintCompiledHandle = GEditor->OnBlueprintCompiled().AddUObject(this, &UMVVMViewClass::HandleBlueprintCompiled);
 	}
 #endif
 }
@@ -723,10 +763,10 @@ void UMVVMViewClass::Destruct(UUserWidget* UserWidget)
 	}
 
 #if WITH_EDITOR
-	if (GEditor && BluerpintCompiledHandle.IsValid())
+	if (GEditor && BlueprintCompiledHandle.IsValid())
 	{
-		GEditor->OnBlueprintCompiled().Remove(BluerpintCompiledHandle);
-		BluerpintCompiledHandle.Reset();
+		GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
+		BlueprintCompiledHandle.Reset();
 	}
 #endif
 }
@@ -734,10 +774,10 @@ void UMVVMViewClass::Destruct(UUserWidget* UserWidget)
 #if WITH_EDITOR
 void UMVVMViewClass::BeginDestroy()
 {
-	if (GEditor && BluerpintCompiledHandle.IsValid())
+	if (GEditor && BlueprintCompiledHandle.IsValid())
 	{
-		GEditor->OnBlueprintCompiled().Remove(BluerpintCompiledHandle);
-		BluerpintCompiledHandle.Reset();
+		GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
+		BlueprintCompiledHandle.Reset();
 	}
 	Super::BeginDestroy();
 }

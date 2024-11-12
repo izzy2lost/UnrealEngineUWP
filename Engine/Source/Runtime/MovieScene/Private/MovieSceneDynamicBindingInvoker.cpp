@@ -12,16 +12,7 @@
 #include "MovieSceneSequence.h"
 #include "MovieSceneSpawnable.h"
 #include "UObject/UnrealType.h"
-
-FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieScenePossessable& Possessable)
-{
-	return ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Possessable.GetGuid(), Possessable.DynamicBinding);
-}
-
-FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieSceneSpawnable& Spawnable)
-{
-	return ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Spawnable.GetGuid(), Spawnable.DynamicBinding);
-}
+#include "MovieScene.h"
 
 FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding)
 {
@@ -53,9 +44,9 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 	if (!DirectorInstance)
 	{
 #if !NO_LOGGING
-		UE_LOG(LogMovieScene, Warning, 
-				TEXT("%s: Failed to resolve dynamic binding '%s' because no director instance was available."), 
-				*Sequence->GetName(), *DynamicBindingFunc->GetName());
+		UE_LOG(LogMovieScene, Warning,
+			TEXT("%s: Failed to resolve dynamic binding '%s' because no director instance was available."),
+			*Sequence->GetName(), *DynamicBindingFunc->GetName());
 #endif
 		// Fallback to default behavior.
 		return FMovieSceneDynamicBindingResolveResult();
@@ -70,24 +61,22 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 	if (!bIsGameWorld && !DynamicBindingFunc->HasMetaData(NAME_CallInEditor))
 	{
 		UE_LOG(LogMovieScene, Verbose,
-				TEXT("%s: Refusing to resolve dynamic binding '%s' in editor world because function '%s' has 'Call in Editor' set to false."),
-				*Sequence->GetName(), *LexToString(InGuid), *DynamicBindingFunc->GetName());
+			TEXT("%s: Refusing to resolve dynamic binding '%s' in editor world because function '%s' has 'Call in Editor' set to false."),
+			*Sequence->GetName(), *LexToString(InGuid), *DynamicBindingFunc->GetName());
 		// Fallback to default behavior.
 		return FMovieSceneDynamicBindingResolveResult();
 	}
 #endif // WITH_EDITOR
 
 	UE_LOG(LogMovieScene, VeryVerbose,
-			TEXT("%s: Resolving dynamic binding '%s' with function '%s'."),
-			*Sequence->GetName(), *LexToString(InGuid), *DynamicBindingFunc->GetName());
+		TEXT("%s: Resolving dynamic binding '%s' with function '%s'."),
+		*Sequence->GetName(), *LexToString(InGuid), *DynamicBindingFunc->GetName());
 
 	FMovieSceneDynamicBindingResolveParams ResolveParams;
 	ResolveParams.ObjectBindingID = InGuid;
 	ResolveParams.Sequence = Sequence;
 	ResolveParams.RootSequence = SharedPlaybackState->GetRootSequence();
-	FMovieSceneDynamicBindingResolveResult Result = InvokeDynamicBinding(DirectorInstance, DynamicBinding, ResolveParams);
-
-	return Result;
+	return InvokeDynamicBinding(DirectorInstance, DynamicBinding, ResolveParams);
 }
 
 FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeDynamicBinding(UObject* DirectorInstance, const FMovieSceneDynamicBinding& DynamicBinding, const FMovieSceneDynamicBindingResolveParams& ResolveParams)
@@ -97,7 +86,7 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 	// Do some basic checks.
 	UFunction* DynamicBindingFunc = DynamicBinding.Function.Get();
 	if (!ensure(DynamicBindingFunc))
-	{ 
+	{
 		return Result;
 	}
 
@@ -113,7 +102,7 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 	{
 		FProperty* LocalProp = *It;
 		checkSlow(LocalProp);
-		if (!LocalProp->HasAnyPropertyFlags(CPF_ZeroConstructor))
+		if (!LocalProp->HasAnyPropertyFlags(CPF_ZeroConstructor) && LocalProp->HasAllPropertyFlags(CPF_Parm))
 		{
 			LocalProp->InitializeValue_InContainer(Parameters);
 		}
@@ -121,11 +110,11 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 		if (LocalProp->HasAnyPropertyFlags(CPF_ReturnParm))
 		{
 			ensureMsgf(ReturnProp == nullptr,
-					TEXT("Found more than one return parameter in dynamic binding resolver function!"));
+				TEXT("Found more than one return parameter in dynamic binding resolver function!"));
 			ReturnProp = CastFieldChecked<FStructProperty>(LocalProp);
 		}
 	}
-	
+
 	// Set the resolve parameter struct if we need to pass it to the function.
 	if (FProperty* ResolveParamsProp = DynamicBinding.ResolveParamsProperty.Get())
 	{
@@ -151,7 +140,13 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 	// Destroy parameters.
 	for (TFieldIterator<FProperty> It(DynamicBindingFunc); It; ++It)
 	{
-		It->DestroyValue_InContainer(Parameters);
+		FProperty* LocalProp = *It;
+		checkSlow(LocalProp);
+
+		if (LocalProp->HasAllPropertyFlags(CPF_Parm))
+		{
+			It->DestroyValue_InContainer(Parameters);
+		}
 	}
 
 	return Result;

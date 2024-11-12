@@ -302,6 +302,19 @@ void FDynamicMesh3::RemoveUnusedVertices()
 	UpdateChangeStamps(true, true);
 }
 
+bool FDynamicMesh3::HasUnusedVertices() const
+{
+	for (int32 VID = 0; VID < MaxVertexID(); ++VID)
+	{
+		// If vertex exists but is not referenced by any triangles
+		if (VertexRefCounts.GetRefCount(VID) == 1)
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
 
 
 void FDynamicMesh3::CompactInPlace(FCompactMaps* CompactInfo)
@@ -418,7 +431,7 @@ void FDynamicMesh3::CompactInPlace(FCompactMaps* CompactInfo)
 		VertexUVs->Resize(VertexCount() * 2);
 	}
 
-	// [TODO] VertexEdgeLists!!!
+	VertexEdgeLists.Compact(VertexCount());
 
 	/** shift triangles **/
 
@@ -1270,6 +1283,12 @@ bool FDynamicMesh3::SplitVertexWouldLeaveIsolated(int VertexID, const TArrayView
 
 EMeshResult FDynamicMesh3::CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t, FEdgeCollapseInfo* OutCollapseInfo) const
 {
+	return CanCollapseEdgeInternal(vKeep, vRemove, collapse_t, FCollapseEdgeOptions(),OutCollapseInfo);
+}
+
+EMeshResult UE::Geometry::FDynamicMesh3::CanCollapseEdgeInternal(int vKeep, int vRemove, double collapse_t, 
+	const FCollapseEdgeOptions& Options, FEdgeCollapseInfo* OutCollapseInfo) const
+{
 	if (IsVertex(vKeep) == false || IsVertex(vRemove) == false)
 	{
 		return EMeshResult::Failed_NotAnEdge;
@@ -1311,10 +1330,12 @@ EMeshResult FDynamicMesh3::CanCollapseEdgeInternal(int vKeep, int vRemove, doubl
 		bIsBoundaryEdge = true;
 	}
 
-	// We cannot collapse if edge lists of a and b share vertices other
-	//  than c and d  (because then we will make a triangle [x b b].
-	//  Unfortunately I cannot see a way to do this more efficiently than brute-force search
-	//  [TODO] if we had tri iterator for a, couldn't we check each tri for b  (skipping t0 and t1) ?
+	// We cannot collapse if there is some other vertex x that is connected to both a and b,
+	//  and either xa or xb is an interior edge. In other words, if there are more than two
+	//  triangles that have edge xa or xb, then after collapsing a to b, we'll end up with more
+	//  than two triangles trying to share edge xb, which is disallowed.
+	// Additionally, depending on options, we might not even allow such a collapse even if the
+	//  both edges are boundary edges.
 	int edges_a_count = VertexEdgeLists.GetCount(a);
 	int eac = InvalidID, ead = InvalidID, ebc = InvalidID, ebd = InvalidID;
 	for (int eid_a : VertexEdgeLists.Values(a))
@@ -1338,18 +1359,19 @@ EMeshResult FDynamicMesh3::CanCollapseEdgeInternal(int vKeep, int vRemove, doubl
 		{
 			if (GetOtherEdgeVertex(eid_b, b) == vax)
 			{
-				return EMeshResult::Failed_InvalidNeighbourhood;
+				if (!Options.bAllowHoleCollapse || !IsBoundaryEdge(eid_b) || !IsBoundaryEdge(eid_a))
+				{
+					return EMeshResult::Failed_InvalidNeighbourhood;
+				}
+				break;
 			}
 		}
 	}
 
-	// I am not sure this tetrahedron case will detect bowtie vertices.
-	// But the single-triangle case does
-
-	// We cannot collapse if we have a tetrahedron. In this case a has 3 nbr edges,
+	// We may not allow collapse if we have a tetrahedron. In this case a has 3 nbr edges,
 	//  and edge cd exists. But that is not conclusive, we also have to check that
 	//  cd is an internal edge, and that each of its tris contain a or b
-	if (edges_a_count == 3 && bIsBoundaryEdge == false)
+	if (!Options.bAllowTetrahedronCollapse && edges_a_count == 3 && bIsBoundaryEdge == false)
 	{
 		int edc = FindEdge(d, c);
 		if (edc != InvalidID)
@@ -1378,16 +1400,34 @@ EMeshResult FDynamicMesh3::CanCollapseEdgeInternal(int vKeep, int vRemove, doubl
 		}
 	}
 
-	// TODO: it's unclear how this case would ever be encountered; check if it is needed
-	//
-	// cannot collapse an edge where both vertices are boundary vertices
-	// because that would create a bowtie
+	// We might not allow collapsing an edge where both vertices are boundary vertices
+	//  because that would sometimes create a bowtie
 	//
 	// NOTE: potentially scanning all edges here...couldn't we
 	//  pick up eac/bc/ad/bd as we go? somehow?
-	if (bIsBoundaryEdge == false && IsBoundaryVertex(a) && IsBoundaryVertex(b))
+	if (!Options.bAllowCollapsingInternalEdgeWithBoundaryVertices && !bIsBoundaryEdge
+		&& IsBoundaryVertex(a) && IsBoundaryVertex(b))
 	{
 		return EMeshResult::Failed_InvalidNeighbourhood;
+	}
+
+	// If we're allowing internal edge collapse with boundary vertices, we open the possibility
+	//  to another place where we would end up collapsing away an entire component- a quad. As
+	//  with single and double sided triangles, we currently disallow collapse in this case.
+	// Note that if we ever add an option to allow this, we have to deal with the possibility
+	//  that our kept vert (vKeep) may not actually survive a collapse.
+	if (Options.bAllowCollapsingInternalEdgeWithBoundaryVertices && !bIsBoundaryEdge
+		&& IsBoundaryEdge(eac) && IsBoundaryEdge(ead))
+	{
+		ebc = FindEdgeFromTri(b, c, t0);
+		if (IsBoundaryEdge(ebc))
+		{
+			ebd = FindEdgeFromTri(b, d, t1);
+			if (IsBoundaryEdge(ebd))
+			{
+				return EMeshResult::Failed_CollapseQuad;
+			}
+		}
 	}
 
 	if (OutCollapseInfo)
@@ -1409,15 +1449,24 @@ EMeshResult FDynamicMesh3::CanCollapseEdgeInternal(int vKeep, int vRemove, doubl
 
 EMeshResult FDynamicMesh3::CanCollapseEdge(int vKeep, int vRemove, double collapse_t) const
 {
-	return CanCollapseEdgeInternal(vKeep, vRemove, collapse_t, nullptr);
+	return CanCollapseEdgeInternal(vKeep, vRemove, 0, FCollapseEdgeOptions(), nullptr);
 }
 
+EMeshResult FDynamicMesh3::CanCollapseEdge(int vKeep, int vRemove, const FCollapseEdgeOptions& Options) const
+{
+	return CanCollapseEdgeInternal(vKeep, vRemove, 0, Options, nullptr);
+}
 
 EMeshResult FDynamicMesh3::CollapseEdge(int vKeep, int vRemove, double collapse_t, FEdgeCollapseInfo& CollapseInfo)
 {
+	return CollapseEdge(vKeep, vRemove, collapse_t, FCollapseEdgeOptions(), CollapseInfo);
+}
+
+EMeshResult FDynamicMesh3::CollapseEdge(int vKeep, int vRemove, double collapse_t, const FCollapseEdgeOptions& Options, FEdgeCollapseInfo& CollapseInfo)
+{
 	CollapseInfo = FEdgeCollapseInfo();
 
-	const EMeshResult CanCollapseResult = CanCollapseEdgeInternal(vKeep, vRemove, collapse_t, &CollapseInfo);
+	const EMeshResult CanCollapseResult = CanCollapseEdgeInternal(vKeep, vRemove, collapse_t, Options, &CollapseInfo);
 	if (CanCollapseResult != EMeshResult::Ok)
 	{
 		return CanCollapseResult;
@@ -1494,12 +1543,34 @@ EMeshResult FDynamicMesh3::CollapseEdge(int vKeep, int vRemove, double collapse_
 		}
 		else
 		{
-			if (ReplaceEdgeVertex(eid, a, b) == -1)
+			// This is some edge oa, not in a triangle with ab, that we can in most cases change to be ob. However it's
+			//  possible that ob already exists as a boundary edge, and we need to instead weld the triangle incident to
+			//  oa to that edge. This situation is only permitted by CanCollapseEdgeInternal if bAllowHoleCollapse
+			//  is true and eid is a boundary edge.
+			int32 ExistingEdge = InvalidID;
+			if (Options.bAllowHoleCollapse && IsBoundaryEdge(eid) && (ExistingEdge = FindEdge(o, b)) != InvalidID)
 			{
-				checkfSlow(false, TEXT("FDynamicMesh3::CollapseEdge: failed at remove case else"));
-				return EMeshResult::Failed_UnrecoverableError;
+				int32 WeldedTriangle = GetEdgeT(eid).A;
+				if (ReplaceTriangleEdge(WeldedTriangle, eid, ExistingEdge) == -1
+					|| ReplaceEdgeTriangle(ExistingEdge, InvalidID, WeldedTriangle) == -1)
+				{
+					checkfSlow(false, TEXT("FDynamicMesh3::CollapseEdge: failed at remove case else"));
+					return EMeshResult::Failed_UnrecoverableError;
+				}
+				// Edge (o,a) should no longer exist
+				VertexEdgeLists.Remove(o, eid);
+				EdgeRefCounts.Decrement(eid);
+				checkSlow(EdgeRefCounts.IsValid(eid) == false);
 			}
-			VertexEdgeLists.Insert(b, eid);
+			else
+			{
+				if (ReplaceEdgeVertex(eid, a, b) == -1)
+				{
+					checkfSlow(false, TEXT("FDynamicMesh3::CollapseEdge: failed at remove case else"));
+					return EMeshResult::Failed_UnrecoverableError;
+				}
+				VertexEdgeLists.Insert(b, eid);
+			}
 		}
 
 		// [TODO] perhaps we can already have unique tri list because of the manifold-nbrhood check we need to do...
@@ -1585,6 +1656,46 @@ EMeshResult FDynamicMesh3::CollapseEdge(int vKeep, int vRemove, double collapse_
 			}
 		}
 
+		// If both bd and ad were boundary edges, or both bc and ac, then the edge bd/bc will have
+		//  no incident triangles and will need to be deleted. In that case, if vert c/d was not 
+		//  kept alive by some bowtie, that vertex will also need deleting. 
+		// This cannot happen if bAllowCollapsingInternalEdgeWithBoundaryVertices is false, and it
+		//  cannot happen for a boundary ab edge because that would require a single triangle, which
+		//  we currently disallow collapsing.
+		if (Options.bAllowCollapsingInternalEdgeWithBoundaryVertices)
+		{
+			if (GetEdgeT(ebc).A == InvalidID)
+			{
+				VertexEdgeLists.Remove(b, ebc);
+				EdgeRefCounts.Decrement(ebc);
+				if (VertexRefCounts.GetRefCount(c) == 1)
+				{
+					VertexEdgeLists.Clear(c);
+					VertexRefCounts.Decrement(c);
+				}
+				else
+				{
+					// The vert must still be part of a bowtie. Still need to remove the deleted edge.
+					VertexEdgeLists.Remove(c, ebc);
+				}
+			}
+			if (GetEdgeT(ebd).A == InvalidID)
+			{
+				VertexEdgeLists.Remove(b, ebd);
+				VertexEdgeLists.Remove(d, ebd);
+				EdgeRefCounts.Decrement(ebd);
+				if (VertexRefCounts.GetRefCount(d) == 1)
+				{
+					VertexEdgeLists.Clear(d);
+					VertexRefCounts.Decrement(d);
+				}
+				else
+				{
+					// The vert must still be part of a bowtie. Still need to remove the deleted edge.
+					VertexEdgeLists.Remove(d, ebd);
+				}
+			}
+		}
 	}
 	else
 	{
@@ -1664,9 +1775,15 @@ EMeshResult FDynamicMesh3::CollapseEdge(int vKeep, int vRemove, double collapse_
 
 
 
-EMeshResult FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation)
+EMeshResult FDynamicMesh3::MergeEdges(int KeepEdgeID, int DiscardEdgeID, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation)
+{
+	return MergeEdges(KeepEdgeID, DiscardEdgeID, 0, MergeInfo, bCheckValidOrientation);
+}
+
+EMeshResult UE::Geometry::FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, double InterpolationT, FMergeEdgesInfo& MergeInfo, bool bCheckValidOrientation)
 {
 	MergeInfo = FMergeEdgesInfo();
+	MergeInfo.InterpolationT = InterpolationT;
 
 	if (IsEdge(eKeep) == false || IsEdge(eDiscard) == false)
 	{
@@ -1729,6 +1846,16 @@ EMeshResult FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, FMergeEdgesInfo& 
 	{
 		return EMeshResult::Failed_InvalidNeighbourhood;
 	}
+	// the un-matched edge vertices, a/d and b/c, should also not be directly connected
+	// (unless the edges share a vertex, in which case they are always connected by one of the two merge edges)
+	if (a != c && b != d && FindEdge(a, d) != InvalidID)
+	{
+		return EMeshResult::Failed_InvalidNeighbourhood;
+	}
+	if (a != c && b != d && FindEdge(b, c) != InvalidID)
+	{
+		return EMeshResult::Failed_InvalidNeighbourhood;
+	}
 
 	// if vertices at either end already share a common neighbour vertex, and we
 	// do the merge, that would create duplicate edges. This is something like the
@@ -1775,9 +1902,32 @@ EMeshResult FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, FMergeEdgesInfo& 
 		}
 	}
 
+	auto ApplyInterpolation = [this, InterpolationT](int32 KeepVid, int32 RemoveVid)
+	{
+		SetVertex(KeepVid, Lerp(GetVertex(KeepVid), GetVertex(RemoveVid), InterpolationT));
+		if (HasVertexUVs())
+		{
+			SetVertexUV(KeepVid, Lerp(GetVertexUV(KeepVid), GetVertexUV(RemoveVid), (float)InterpolationT));
+		}
+		if (HasVertexNormals())
+		{
+			SetVertexNormal(KeepVid, Normalized(Lerp(GetVertexNormal(KeepVid), GetVertexNormal(RemoveVid), (float)InterpolationT)));
+		}
+		if (HasVertexColors())
+		{
+			SetVertexColor(KeepVid, Lerp(GetVertexColor(KeepVid), GetVertexColor(RemoveVid), (float)InterpolationT));
+		}
+	};
+
 	// [TODO] this acts on each interior tri twice. could avoid using vtx-tri iterator?
 	if (a != c)
 	{
+		if (InterpolationT != 0)
+		{
+			// Do the interpolation before we remove c
+			ApplyInterpolation(a, c);
+		}
+
 		// replace c w/ a in edges and tris connected to c, and move edges to a
 		for (int eid : VertexEdgeLists.Values(c))
 		{
@@ -1819,6 +1969,12 @@ EMeshResult FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, FMergeEdgesInfo& 
 
 	if (d != b)
 	{
+		if (InterpolationT != 0)
+		{
+			// Do the interpolation before we remove d
+			ApplyInterpolation(b, d);
+		}
+
 		// replace d w/ b in edges and tris connected to d, and move edges to b
 		for (int eid : VertexEdgeLists.Values(d))
 		{
@@ -1946,11 +2102,125 @@ EMeshResult FDynamicMesh3::MergeEdges(int eKeep, int eDiscard, FMergeEdgesInfo& 
 }
 
 
+EMeshResult UE::Geometry::FDynamicMesh3::MergeVertices(int KeepVid, int DiscardVid, double InterpolationT, 
+	const FMergeVerticesOptions& Options, FMergeVerticesInfo& MergeInfo)
+{
+	MergeInfo = FMergeVerticesInfo();
+	MergeInfo.InterpolationT = InterpolationT;
+	MergeInfo.KeptVertex = KeepVid;
+	MergeInfo.RemovedVertex = DiscardVid;
 
+	if (!IsVertex(KeepVid) || !IsVertex(DiscardVid))
+	{
+		return EMeshResult::Failed_NotAVertex;
+	}
+	if (KeepVid == DiscardVid)
+	{
+		return EMeshResult::Failed_VertexAlreadyExists;
+	}
 
+	// See if we can resolve this as an edge collapse. 
+	// Note that this should be checked before trying to resolve as an edge weld because edge welding
+	//  will currently fail if there is an edge connecting the removed and kept vert (i.e. welding two
+	//  sides of a single triangle hole will fail, but collapse of the intervening edge will succeed
+	//  with our permissiveness options).
+	if (FindEdge(KeepVid, DiscardVid) != InvalidID)
+	{
+		FCollapseEdgeOptions CollapseOptions;
+		CollapseOptions.bAllowCollapsingInternalEdgeWithBoundaryVertices = true;
+		CollapseOptions.bAllowHoleCollapse = true;
+		CollapseOptions.bAllowTetrahedronCollapse = true;
+		MergeInfo.EdgeCollapseInfo.Emplace();
+		return CollapseEdge(KeepVid, DiscardVid, InterpolationT, CollapseOptions, MergeInfo.EdgeCollapseInfo.GetValue());
+	}
 
+	// See if we can resolve this as an edge weld
+	for (int32 KeepAdjacentEid : VertexEdgeLists.Values(KeepVid))
+	{
+		int32 KeepAdjacentVid = GetOtherEdgeVertex(KeepAdjacentEid, KeepVid);
+		
+		// See if the adjacent vert is also adjacent to DiscardVid
+		for (int32 DiscardAdjacentEid : VertexEdgeLists.Values(DiscardVid))
+		{
+			if (GetOtherEdgeVertex(DiscardAdjacentEid, DiscardVid) == KeepAdjacentVid)
+			{
+				// We've found a V shape (a vertex adjacent to both of the vertices we're working with).
+				//  Neither of the edges in the V shape can be a non boundary edge, else the merge would
+				//  create a non-manifold edge- we do this check ourselves so that we return Failed_InvalidNeighbourhood
+				//  instead of Failed_NotABoundaryEdge.
+				if (!IsBoundaryEdge(KeepAdjacentEid) || !IsBoundaryEdge(DiscardAdjacentEid))
+				{
+					return EMeshResult::Failed_InvalidNeighbourhood;
+				}
+				// The MergeEdges operation will do the other neighbor checks for us
 
+				MergeInfo.MergeEdgesInfo.Emplace();
+				return MergeEdges(KeepAdjacentEid, DiscardAdjacentEid, InterpolationT, MergeInfo.MergeEdgesInfo.GetValue(), false);
+			}
+		}// end for each adjacent vid to KeepVid
+	}//end V shape search
 
+	// If we got to here, the vertices are at least three edges apart, and we're creating a bowtie.
+
+	if (!Options.bAllowNonBoundaryBowtieCreation
+		&& (!IsBoundaryVertex(KeepVid) || !IsBoundaryVertex(DiscardVid)))
+	{
+		return EMeshResult::Failed_WouldCreateBowtie;
+	}
+
+	// Apply interpolation first, before removing DiscardVid
+	if (InterpolationT != 0)
+	{
+		SetVertex(KeepVid, Lerp(GetVertex(KeepVid), GetVertex(DiscardVid), InterpolationT));
+		if (HasVertexUVs())
+		{
+			SetVertexUV(KeepVid, Lerp(GetVertexUV(KeepVid), GetVertexUV(DiscardVid), (float)InterpolationT));
+		}
+		if (HasVertexNormals())
+		{
+			SetVertexNormal(KeepVid, Normalized(Lerp(GetVertexNormal(KeepVid), GetVertexNormal(DiscardVid), (float)InterpolationT)));
+		}
+		if (HasVertexColors())
+		{
+			SetVertexColor(KeepVid, Lerp(GetVertexColor(KeepVid), GetVertexColor(DiscardVid), (float)InterpolationT));
+		}
+	}
+
+	// Replace DiscardVid w/ KeepVid in edges and tris connected to DiscardVid, and move edges to KeepVid
+	for (int Eid : VertexEdgeLists.Values(DiscardVid))
+	{
+		ReplaceEdgeVertex(Eid, DiscardVid, KeepVid);
+		short ReplaceCount = 0;
+		const FEdge Edge = Edges[Eid];
+		if (ReplaceTriangleVertex(Edge.Tri[0], DiscardVid, KeepVid) >= 0)
+		{
+			ReplaceCount++;
+		}
+		if (Edge.Tri[1] != InvalidID)
+		{
+			if (ReplaceTriangleVertex(Edge.Tri[1], DiscardVid, KeepVid) >= 0)
+			{
+				ReplaceCount++;
+			}
+		}
+		VertexEdgeLists.Insert(KeepVid, Eid);
+		if (ReplaceCount > 0)
+		{
+			VertexRefCounts.Increment(KeepVid, ReplaceCount);
+			VertexRefCounts.Decrement(DiscardVid, ReplaceCount);
+		}
+	}
+	VertexEdgeLists.Clear(DiscardVid);
+	VertexRefCounts.Decrement(DiscardVid);
+
+	if (HasAttributes())
+	{
+		Attributes()->OnMergeVertices(MergeInfo);
+	}
+
+	UpdateChangeStamps(true, true);
+	return EMeshResult::Ok;
+}
 
 
 EMeshResult FDynamicMesh3::PokeTriangle(int TriangleID, const FVector3d& BaryCoordinates, FPokeTriangleInfo& PokeResult)

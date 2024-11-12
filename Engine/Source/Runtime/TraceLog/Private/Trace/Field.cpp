@@ -2,7 +2,7 @@
 
 #include "Trace/Detail/Field.h" // :(
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Trace/Detail/Writer.inl"
 
@@ -139,4 +139,4 @@ void Field_WriteStringWide(uint32 Index, const WIDECHAR* String, int32 Length)
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

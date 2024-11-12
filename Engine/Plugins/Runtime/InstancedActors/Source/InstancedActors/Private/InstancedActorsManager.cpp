@@ -7,6 +7,7 @@
 #include "InstancedActorsIteration.h"
 #include "InstancedActorsModifierVolumeComponent.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsSettings.h"
 #include "InstancedActorsSubsystem.h"
 #include "InstancedActorsRepresentationActorManagement.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
@@ -27,6 +28,9 @@
 #include "MassRepresentationSubsystem.h"
 #include "Math/NumericLimits.h"
 
+#if UE_WITH_IRIS
+#include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
+#endif
 
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Detailed Instance Count"), STAT_DetailedInstanceCount, STATGROUP_InstancedActorsRendering);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Medium Instance Count"), STAT_MediumInstanceCount, STATGROUP_InstancedActorsRendering);
@@ -136,23 +140,49 @@ namespace UE::InstancedActors
 //-----------------------------------------------------------------------------
 AInstancedActorsManager::AInstancedActorsManager()
 {
+	InstancedActorsDataClass = UInstancedActorsData::StaticClass();
 	bReplicateUsingRegisteredSubObjectList = true;
 	bReplicates = true;
 	SetNetDormancy(DORM_DormantAll);
 	// @todo need default implementation of GUID and set it here via SetSavedActorGUID
 }
 
+#if UE_WITH_IRIS
+void AInstancedActorsManager::BeginReplication()
+{
+	Super::BeginReplication();
+
+	// This actor is configured to use spatial prioritization in Iris. If it's too far from
+	// a player's position it will replicate to their client less frequently. This becomes a 
+	// problem when destroying instanced actors because the client needs to receive both
+	// the actor destruction notification and instanced actor destruction notification
+	// at the same time. If the aren't received at the same time then the instanced actor's
+	// mesh may still be visible for a period of time after destroying the actor.
+	//
+	// Fixing the priority to 1.0 means that it will always have the maximum priority and
+	// replicated at the maximum configured frequency.
+	UE::Net::FReplicationSystemUtil::SetStaticPriority(this, 1.0f);
+}
+#endif
+
 void AInstancedActorsManager::BeginPlay()
 {
-	Super::BeginPlay();
-
-	TRACE_CPUPROFILER_EVENT_SCOPE("AInstancedActorsManager::BeginPlay");
-
-	UE_LOG(LogInstancedActors, Verbose, TEXT("%s (%d instances) BeginPlay"), *GetPathName(), GetNumValidInstances());
-
 	UWorld* World = GetWorld();
 	check(World);
 
+#if WITH_EDITORONLY_DATA
+	if (bIsEditorOnlyActor && World && World->IsPlayInEditor())
+	{
+		Destroy();
+		return;
+	}
+#endif
+
+	Super::BeginPlay();
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(AInstancedActorsManager::BeginPlay);
+
+	UE_LOG(LogInstancedActors, Verbose, TEXT("%s (%d instances) BeginPlay"), *GetPathName(), GetNumValidInstances());
 	UMassEntitySubsystem* EntitySubsystem = World->GetSubsystem<UMassEntitySubsystem>();
 	if (!ensure(EntitySubsystem))
 	{
@@ -160,6 +190,10 @@ void AInstancedActorsManager::BeginPlay()
 		return;
 	}
 	MassEntityManager = EntitySubsystem->GetMutableEntityManager().AsShared();
+
+	// the main reason for not supporting pre-BeginPlay registration is that we cache the InstanceBounds here and the
+	// bounds are used during manager's registraiton to place it on the 2d hashmap
+	checkf(ManagerHandle.IsValid() == false, TEXT("We don't expect IAMs to be registered before their BeginPlay."));
 
 	// Cache world instance bounds
 	//
@@ -169,7 +203,7 @@ void AInstancedActorsManager::BeginPlay()
 
 	// Register with IA subsystem if it's available already, otherwise the subsystem will
 	// collect this manager when it initializes later and call OnAddedToSubsystem
-	UInstancedActorsSubsystem* PreinitializedInstancedActorSubsystem = World->GetSubsystem<UInstancedActorsSubsystem>();
+	UInstancedActorsSubsystem* PreinitializedInstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	if (PreinitializedInstancedActorSubsystem)
 	{
 		// Register manager with subsystem now, which will immediately call OnAddedToSubsystem
@@ -179,7 +213,27 @@ void AInstancedActorsManager::BeginPlay()
 
 void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InInstancedActorSubsystem, FInstancedActorsManagerHandle InManagerHandle)
 {
-	checkf(!IsValid(InstancedActorSubsystem), TEXT("Manager %s has already been added to a UInstancedActorsSubsystem"), *GetPathName());
+	if (IsValid(InstancedActorSubsystem) && (InstancedActorSubsystem != &InInstancedActorSubsystem))
+	{
+		// we need to unregister from the previous subsystem first
+		DespawnAllEntities();
+		// and let registered modifiers go
+		RemoveAllModifierVolumes();
+		
+		// Since the old IASubsystem is part of a different exemplar world, to be safe we should release the IADs' references to their
+		// exemplar actors, since they were spawned under that old world
+		for (TObjectPtr<UInstancedActorsData>& InstanceData : PerActorClassInstanceData)
+		{
+			check(InstanceData);
+			InstanceData->ExemplarActorData.Reset();
+		}
+
+		InstancedActorSubsystem->RemoveManager(ManagerHandle);
+		InstancedActorSubsystem = nullptr;
+		ManagerHandle.Reset();
+	}
+	
+	checkf(!IsValid(InstancedActorSubsystem), TEXT("Manager %s has already been added to a %s"), *GetPathName(), *InstancedActorSubsystem->GetName());
 	checkf(!ManagerHandle.IsValid(), TEXT("Manager %s has already been added to a UInstancedActorsSubsystem"), *GetPathName());
 	check(InManagerHandle.IsValid());
 
@@ -191,7 +245,8 @@ void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InIn
 	InstancedActorSubsystem->ForEachModifierVolume(InstanceBounds, [this](UInstancedActorsModifierVolumeComponent& ModifierVolume)
 		{
 			AddModifierVolume(ModifierVolume);
-			return true; });
+			return true; 
+		});
 
 	if (UE::InstancedActors::CVars::bDeferSpawnEntities)
 	{
@@ -206,6 +261,12 @@ void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InIn
 void AInstancedActorsManager::InitializeModifyAndSpawnEntities()
 {
 	check(IsValid(InstancedActorSubsystem));
+
+	if (InstancedActorLocationQuery.IsEmpty())
+	{
+		InstancedActorLocationQuery.AddRequirement<FInstancedActorsFragment>(EMassFragmentAccess::ReadOnly);
+		InstancedActorLocationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	}
 
 	// Debug draw managers as they load
 #if WITH_INSTANCEDACTORS_DEBUG
@@ -249,15 +310,12 @@ void AInstancedActorsManager::InitializeModifyAndSpawnEntities()
 
 void AInstancedActorsManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// DespawnEntities for all PerActorClassInstanceData
-	if (HasSpawnedEntities())
+	DespawnAllEntities();
+
+	for (TObjectPtr<UInstancedActorsData>& InstanceData : PerActorClassInstanceData)
 	{
-		for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
-		{
-			// Reconstruct instance data from Mass then destroy all Mass entities
-			InstanceData->DespawnEntities();
-		}
-		bHasSpawnedEntities = false;
+		check(InstanceData);
+		InstanceData->Deinitialize();
 	}
 
 	// Deregister with UInstancedActorsSubsystem
@@ -474,8 +532,10 @@ void AInstancedActorsManager::SerializeInstancePersistenceData(FStructuredArchiv
 	int32 NumPersistedIACs = 0;
 	if (InstanceData)
 	{
-		const AActor& ExemplarActor = GetInstancedActorSubsystemChecked().GetOrCreateExemplarActor(InstanceData->ActorClass);
-		ExemplarActor.ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [&](UInstancedActorsComponent* InstancedActorComponent)
+		TSharedPtr<UE::InstancedActors::FExemplarActorData> ExemplarActorData = GetInstancedActorSubsystemChecked().GetOrCreateExemplarActor(InstanceData->ActorClass);
+		const AActor* const ExemplarActor = ExemplarActorData->Actor.Get();
+		check(ExemplarActor);
+		ExemplarActor->ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [&](UInstancedActorsComponent* InstancedActorComponent)
 			{
 				// Skip IAC's that don't want / need serialization. When writing this ensures we don't waste space by writing empty entries.
 				if (InstancedActorComponent->ShouldSerializeInstancePersistenceData(UnderlyingArchive, InstanceData, TimeDelta))
@@ -581,7 +641,7 @@ void AInstancedActorsManager::SerializeInstancePersistenceData(FStructuredArchiv
 }
 
 #if WITH_EDITOR
-FBox AInstancedActorsManager::GetStreamingBounds() const
+void AInstancedActorsManager::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
 	UWorld* World = GetWorld();
 	check(World);
@@ -589,15 +649,10 @@ FBox AInstancedActorsManager::GetStreamingBounds() const
 	if (World->IsPartitionedWorld())
 	{
 		UActorPartitionSubsystem::FCellCoord CellCoord = UActorPartitionSubsystem::FCellCoord::GetCellCoord(GetActorLocation(), GetLevel(), GetGridSize());
-		return UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, GetGridSize());
+		OutRuntimeBounds = OutEditorBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, GetGridSize());
 	}
-	else
-	{
-		constexpr double BoundsMin = TNumericLimits<double>::Lowest();
-		constexpr double BoundsMax = TNumericLimits<double>::Max();
-		FBox LocalCellBounds = { FVector(BoundsMin), FVector(BoundsMax) };
-		return LocalCellBounds;
-	}
+
+	OutRuntimeBounds = OutEditorBounds = FBox(FVector(-HALF_WORLD_MAX), FVector(HALF_WORLD_MAX));
 }
 
 uint32 AInstancedActorsManager::GetDefaultGridSize(UWorld* InWorld) const
@@ -615,6 +670,24 @@ void AInstancedActorsManager::SetGridGuid(const FGuid& InGuid)
 	ManagerGridGuid = InGuid;
 }
 
+UInstancedActorsData* AInstancedActorsManager::CreateNextInstanceActorData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags)
+{
+	check(InstancedActorsDataClass);
+
+	const FString InstanceDataNameStr = FString::Printf(TEXT("InstancedActorsData_%s"), *ActorClass->GetFName().ToString());
+	UInstancedActorsData* NewInstanceData = NewObject<UInstancedActorsData>(this, InstancedActorsDataClass, FName(InstanceDataNameStr));
+	// @todo it's conceivable the NextInstanceDataID will overflow. We need to use some handle system in place instead. 
+	NewInstanceData->ID = NextInstanceDataID++;
+	NewInstanceData->ActorClass = ActorClass;
+	NewInstanceData->Tags = InstanceTags;
+	check(Algo::NoneOf(PerActorClassInstanceData, [NewInstanceData](UInstancedActorsData* InstanceData)
+		{
+			return InstanceData->ID == NewInstanceData->ID;
+		}));
+
+	return NewInstanceData;
+}
+
 UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags)
 {
 	checkf(HasActorBegunPlay() == false, TEXT("AInstancedActorsManager doesn't yet support runtime addition of instances"));
@@ -630,41 +703,44 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 		return **InstanceData;
 	}
 
-	UInstancedActorsData* NewInstanceData = NewObject<UInstancedActorsData>(this);
-	// @todo it's conceivable the NextInstanceDataID will overflow. We need to use some handle system in place instead. 
-	NewInstanceData->ID = NextInstanceDataID++;
-	NewInstanceData->ActorClass = ActorClass;
-	NewInstanceData->Tags = InstanceTags;
-	check(Algo::NoneOf(PerActorClassInstanceData, [NewInstanceData](UInstancedActorsData* InstanceData)
-		{ 
-			return InstanceData->ID == NewInstanceData->ID; 
-		}));
-
+	UInstancedActorsData* NewInstanceData = CreateNextInstanceActorData(ActorClass, InstanceTags);
 	PerActorClassInstanceData.Add(NewInstanceData);
 
 	// Get or create exemplar actor to derive entities from
 	UWorld* World = GetWorld();
 	check(World);
-	UInstancedActorsSubsystem* EditorInstancedActorSubsystem = World->GetSubsystem<UInstancedActorsSubsystem>();
+	UInstancedActorsSubsystem* EditorInstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	check(EditorInstancedActorSubsystem);
-	const AActor& ExemplarActor = EditorInstancedActorSubsystem->GetOrCreateExemplarActor(ActorClass);
+	// @todo For performance reasons it would be helpful to be able to cache this into UInstancedActorsData::ExemplarActorData
+	// This would mean that undo-ing a conversion of actors to IAM in Editor will not clear or destroy the exemplar actor/map entry,
+	// which is the reason for the sanity-check of the actor ptr in UInstancedActorsSubsystem::GetOrCreateExemplarActor().
+	// We need to also investigate why converting the IAM to actors (destroying the IAM) does not seem to trigger GC on the UInstancedActorsData
+	TSharedPtr<UE::InstancedActors::FExemplarActorData> ExemplarActorData = EditorInstancedActorSubsystem->GetOrCreateExemplarActor(ActorClass);
+	const AActor* const ExemplarActor = ExemplarActorData->Actor.Get();
+	check(ExemplarActor);
 
 	// Create stand-in 'editor only' ISMC's to preview instances in the level editor. These will be stripped
 	// out at cook time and in PostLoad for game worlds (PIE)
-	FInstancedActorsVisualizationDesc DefaultVisualiation = EditorInstancedActorSubsystem->CreateVisualDescriptionFromActor(ExemplarActor);
+	FInstancedActorsVisualizationDesc DefaultVisualiation = EditorInstancedActorSubsystem->CreateVisualDescriptionFromActor(*ExemplarActor);
 	CreateISMComponents(DefaultVisualiation, NewInstanceData->SharedSettings, NewInstanceData->EditorPreviewISMComponents, /*bEditorPreviewISMCs*/ true);
 
+	// Add EditorPreviewISMComponents to the known ISMComponent-to-InstanceData map (ISMComponentToInstanceDataMap)
+	// so that we can identify Instanced Actors instances by ISM instance id coming from one of the EditorPreviewISMComponents
+	// (like when the instance is clicked in the editor). 
+	// @see ActorInstanceHandleFromFSMInstanceId 
+	RegisterInstanceDatasComponents(*NewInstanceData, NewInstanceData->EditorPreviewISMComponents);
+
 	// Cache asset bounds for use during instance population
-	NewInstanceData->AssetBounds = CalculateBounds(ActorClass);
-	ensure(NewInstanceData->AssetBounds.IsValid);
+	NewInstanceData->CachedLocalBounds = CalculateBounds(ActorClass);
+	ensure(NewInstanceData->CachedLocalBounds.IsValid);
 
 	return *NewInstanceData;
 }
 
 void AInstancedActorsManager::PreRegisterAllComponents()
 {
-	// This whole loop is pointless without editor only data, EditorPreviewISMComponents is editor only.
-#if WITH_EDITORONLY_DATA
+	Super::PreRegisterAllComponents();
+
 	for (UInstancedActorsData* InstanceData : PerActorClassInstanceData)
 	{
 		// Modify the ISMCs here since the components might have been serialized before this change.
@@ -676,11 +752,12 @@ void AInstancedActorsManager::PreRegisterAllComponents()
 			ISMComponent->bHasPerInstanceHitProxies = true;
 		}
 
-		// Add EditorPreviewISMComponents to ISMComponentToInstanceDataMap for ISMC and instance index to instance handle
-		// resolution in ActorInstanceHandleFromFSMInstanceId.
+		// Add EditorPreviewISMComponents to the known ISMComponent-to-InstanceData map (ISMComponentToInstanceDataMap)
+		// so that we can identify Instanced Actors instances by ISM instance id coming from one of the EditorPreviewISMComponents
+		// (like when the instance is clicked in the editor). 
+		// @see ActorInstanceHandleFromFSMInstanceId 
 		RegisterInstanceDatasComponents(*InstanceData, InstanceData->EditorPreviewISMComponents);
 	}
-#endif
 }
 
 FInstancedActorsInstanceHandle AInstancedActorsManager::AddActorInstance(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, bool bWorldSpace, const FInstancedActorsTagSet& InstanceTags)
@@ -736,6 +813,20 @@ void AInstancedActorsManager::RuntimeRemoveAllInstances()
 	}
 }
 
+void AInstancedActorsManager::DespawnAllEntities()
+{
+	// DespawnEntities for all PerActorClassInstanceData
+	if (HasSpawnedEntities())
+	{
+		for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
+		{
+			// Reconstruct instance data from Mass then destroy all Mass entities
+			InstanceData->DespawnEntities();
+		}
+		bHasSpawnedEntities = false;
+	}
+}
+
 bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation) const
 {
 	FScopedInstancedActorsIterationContext IterationContext;
@@ -754,10 +845,6 @@ bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation, 
 	{
 		check(MassEntityManager.IsValid());
 
-		FMassEntityQuery InstancedActorLocationQuery;
-		InstancedActorLocationQuery.AddRequirement<FInstancedActorsFragment>(EMassFragmentAccess::ReadOnly);
-		InstancedActorLocationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-
 		for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
 		{
 			// InstancedActorDataPredicate filter PerActorClassInstanceData
@@ -765,7 +852,7 @@ bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation, 
 			if (InstancedActorDataPredicate.IsSet())
 			{
 				const bool bPassedPredicate = ::Invoke(*InstancedActorDataPredicate, *InstanceData);
-				if (UNLIKELY(!bPassedPredicate))
+				if (!bPassedPredicate)
 				{
 					continue;
 				}
@@ -800,7 +887,8 @@ bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation, 
 						{
 							return;
 						}
-					} });
+					}
+				});
 
 			if (!bContinue)
 			{
@@ -889,7 +977,7 @@ bool AInstancedActorsManager::ForEachInstance<FSphere>(const FSphere& QueryBound
 			}
 
 			// More expensive bounds test.
-			const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass);
+			const FBox& InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds;
 			const FSphere TransformedSphere = QueryBounds.TransformBy(InstanceTransform.Inverse());
 			if (FMath::SphereAABBIntersection(TransformedSphere, InstancedActorBounds))
 			{
@@ -912,7 +1000,7 @@ bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBounds, FIn
 			}
 
 			// More expensive bounds test.
-			const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+			const FBox InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds.TransformBy(InstanceTransform);
 			if (QueryBounds.Intersect(InstancedActorBounds))
 			{
 				return Operation(InstanceHandle, InstanceTransform, IterationContext);
@@ -925,6 +1013,130 @@ bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBounds, FIn
 // Instantiate FBox and FSphere implementations
 template bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBounds, AInstancedActorsManager::FInstanceOperationFunc Operation) const;
 template bool AInstancedActorsManager::ForEachInstance<FSphere>(const FSphere& QueryBounds, AInstancedActorsManager::FInstanceOperationFunc Operation) const;
+
+template<>
+UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstanceInsideBounds<FBox>(const FBox& QueryBounds
+	, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
+{
+	if (QueryBounds.IsInside(InstanceTransform.GetLocation()))
+	{
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapLocation;
+	}
+
+	// More expensive bounds test.
+	const FBox InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds.TransformBy(InstanceTransform);
+	if (QueryBounds.Intersect(InstancedActorBounds))
+	{
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapBounds;
+	}
+
+	return UE::InstancedActors::EInsideBoundsTestResult::NotInside;
+}
+
+template<>
+UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstanceInsideBounds<FSphere>(const FSphere& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
+{
+	if (QueryBounds.IsInside(InstanceTransform.GetLocation()))
+	{
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapLocation;
+	}
+
+	// More expensive bounds test.
+	const FBox& InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds;
+	const FSphere TransformedSphere = QueryBounds.TransformBy(InstanceTransform.Inverse());
+	if (FMath::SphereAABBIntersection(TransformedSphere, InstancedActorBounds))
+	{
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapBounds;
+	}
+
+	return UE::InstancedActors::EInsideBoundsTestResult::NotInside;
+}
+
+bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSubclassOf<AActor> ActorClass
+	, const bool bTestActorsIfSpawned, const EInstancedActorsBulkLODMask AllowedLODs) const
+{
+	using UE::InstancedActors::EInsideBoundsTestResult;
+
+	ensure(ActorClass);
+	check(InstancedActorSubsystem);
+
+	FScopedInstancedActorsIterationContext IterationContext;
+	bool bHasInstance = false;
+
+	auto InstancedActorDataMask = TOptional<AInstancedActorsManager::FInstancedActorDataPredicateFunc>([=](const UInstancedActorsData& InstancedActorData)
+		{
+			return ((int(AllowedLODs) & (1 << int(InstancedActorData.GetBulkLOD()))) != 0)
+				&& InstancedActorData.ActorClass->IsChildOf(ActorClass);
+		});
+
+	struct FQueryBounds
+	{
+		FBox QueryBounds;
+		FVector Center;
+		FVector Extent;
+		FCollisionShape CollistionShape;
+
+		FQueryBounds(const FBox& InQueryBounds)
+			: QueryBounds(InQueryBounds)
+		{
+			InQueryBounds.GetCenterAndExtents(Center, Extent);
+			CollistionShape = FCollisionShape::MakeBox(Extent);
+		}
+	};
+	FQueryBounds CachedQueryBounds(InQueryBounds);
+
+	ForEachInstance([Manager = this, CachedQueryBounds, ActorClass, &bHasInstance, InstancedActorSubsystem=InstancedActorSubsystem, bTestActorsIfSpawned](const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform, FInstancedActorsIterationContext& IterationContext)
+		{
+			const EInsideBoundsTestResult OverlapResult = Manager->IsInstanceInsideBounds(CachedQueryBounds.QueryBounds, InstanceHandle, InstanceTransform);
+			
+			// the only case we care about, representation bounds overlap without overlapping the actual instance location
+			if (OverlapResult == EInsideBoundsTestResult::OverlapBounds && bTestActorsIfSpawned)
+			{
+				// we want to check if the given entity has an actor representation, and if so then test the actor itself
+				UInstancedActorsData& OwningInstanceData = InstanceHandle.GetInstanceActorDataChecked();
+				if (AActor* Actor = Manager->GetActorForInstance(OwningInstanceData, InstanceHandle.GetIndex()))
+				{
+					bHasInstance = false;
+
+					TArray<UPrimitiveComponent*> OutComponents;
+					Actor->GetComponents(UPrimitiveComponent::StaticClass(), OutComponents, /*bIncludeFromChildActors=*/true);
+					for (UPrimitiveComponent* Component : OutComponents)
+					{
+						if (Component->OverlapComponent(CachedQueryBounds.Center, FQuat::Identity, CachedQueryBounds.CollistionShape))
+						{
+							bHasInstance = true;
+							break;
+						}
+					}
+				}
+				else
+				{
+					// if the bounds overlap but there's no actor we need to say it's a hit, since we cannot rule that out.
+					bHasInstance = true;
+				}
+			}
+			else 
+			{
+				bHasInstance = (OverlapResult != EInsideBoundsTestResult::NotInside);
+			}
+				
+			UE_IFVLOG
+			(
+				if (bHasInstance || OverlapResult == EInsideBoundsTestResult::OverlapBounds)
+				{
+					const FBox InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds.TransformBy(InstanceTransform);
+					UE_VLOG_BOX(Manager, LogInstancedActors, Log, InstancedActorBounds, bHasInstance ? FColor::Red : FColor::Green
+						, TEXT("Instance of class %s"), *GetNameSafe(InstanceHandle.InstancedActorData->ActorClass));
+				}
+			);
+
+			const bool bContinue = !bHasInstance;
+			return bContinue;
+		}
+		, IterationContext, InstancedActorDataMask);
+
+	return bHasInstance;
+}
 
 void AInstancedActorsManager::AuditInstances(FOutputDevice& Ar, bool bDebugDraw, float DebugDrawDuration) const
 {
@@ -956,8 +1168,10 @@ void AInstancedActorsManager::AuditInstances(FOutputDevice& Ar, bool bDebugDraw,
 
 #if WITH_EDITOR
 		// Draw streaming bounds
-		FBox StreamingBounds = GetStreamingBounds();
-		DrawDebugBox(World, StreamingBounds.GetCenter(), StreamingBounds.GetExtent(), FColor::Orange, /*bPersistentLines*/ DebugDrawDuration == -1.0f, DebugDrawDuration);
+		FBox RuntimeBounds;
+		FBox EditorBounds;
+		GetStreamingBounds(RuntimeBounds, EditorBounds);
+		DrawDebugBox(World, RuntimeBounds.GetCenter(), RuntimeBounds.GetExtent(), FColor::Orange, /*bPersistentLines*/ DebugDrawDuration == -1.0f, DebugDrawDuration);
 #endif // WITH_EDITOR
 	}
 #endif // UE_ENABLE_DEBUG_DRAWING
@@ -1131,6 +1345,21 @@ void AInstancedActorsManager::RemoveModifierVolume(UInstancedActorsModifierVolum
 	PendingModifierVolumeModifiers.RemoveAtSwap(ModifierVolumeIndex);
 
 	ModifierVolume.OnRemovedFromManager(*this);
+}
+
+void AInstancedActorsManager::RemoveAllModifierVolumes()
+{
+	for (TWeakObjectPtr<UInstancedActorsModifierVolumeComponent> WeakVolumeComponent : ModifierVolumes)
+	{
+		if (UInstancedActorsModifierVolumeComponent* VolumeComponent = WeakVolumeComponent.Get())
+		{
+			VolumeComponent->OnRemovedFromManager(*this);
+		}
+	}
+	
+	ModifierVolumes.Reset();
+	PendingModifierVolumes.Reset();
+	PendingModifierVolumeModifiers.Reset();
 }
 
 void AInstancedActorsManager::TryRunPendingModifiers()
@@ -1388,7 +1617,7 @@ int32 AInstancedActorsManager::ConvertCollisionIndexToInstanceIndex(int32 InInde
 	return INDEX_NONE;
 }
 
-AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, const bool bEnsureOnMissingInstanceDataOrMassEntity)
+AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, const bool bEnsureOnMissingInstanceDataOrMassEntity) const
 {
 #if WITH_EDITOR
 	const UWorld* World = GetWorld();
@@ -1396,7 +1625,7 @@ AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& H
 	{
 		// In Editor non-game worlds the manager only creates preview ISM components which
 		// are not fully setup with Mass so we simply return this manager as the instance's actor.
-		return this;
+		return const_cast<AInstancedActorsManager*>(this);
 	}
 #endif // WITH_EDITOR
 
@@ -1414,7 +1643,7 @@ AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& H
 	{
 		// On clients, where we don't spawn actors directly, we simply return this manager as the
 		// instance's actor.
-		return this;
+		return const_cast<AInstancedActorsManager*>(this);
 	}
 
 	const int32 CompositeIndex = Handle.GetInstanceIndex();
@@ -1460,16 +1689,31 @@ AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& H
 	return nullptr;
 }
 
+AActor* AInstancedActorsManager::GetActorForInstance(const UInstancedActorsData& InstanceData, const int32 InstancedActorIndex) const
+{
+	const FMassEntityHandle EntityHandle = InstanceData.GetEntityHandleForIndex(InstancedActorIndex);
+	// note that it's possible that InstancedActorIndex points at a no-longer-valid entity
+	if (EntityHandle.IsValid())
+	{
+		const FMassEntityManager& EntityManager = GetMassEntityManagerChecked();
+		if (FMassActorFragment* ActorFragment = EntityManager.GetFragmentDataPtr<FMassActorFragment>(EntityHandle))
+		{
+			return ActorFragment->GetMutable();
+		}
+	}
+	return nullptr;
+}
+
 AActor* AInstancedActorsManager::FindActor(const FActorInstanceHandle& Handle)
 {
 	FMassEntityView EntityView;
-	return FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity*/ false);
+	return FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity=*/false);
 }
 
 AActor* AInstancedActorsManager::FindOrCreateActor(const FActorInstanceHandle& Handle)
 {
 	FMassEntityView EntityView;
-	AActor* Actor = FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity*/ true);
+	AActor* Actor = FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity=*/true);
 
 	// Create missing actor from Mass if we have a valid EntityView
 	if (Actor == nullptr && EntityView.IsValid())
@@ -1613,14 +1857,16 @@ bool AInstancedActorsManager::SetSMInstanceTransform(const FSMInstanceId& Instan
 #endif
 
 	// Don't allow people to move an IA outside of this IAMs streaming bounds.
-	const FBox StreamingBounds = GetStreamingBounds();
+	FBox RuntimeBounds;
+	FBox EditorBounds;
+	GetStreamingBounds(RuntimeBounds, EditorBounds);
 	FTransform WorldTransform = bWorldSpace ? InstanceTransform : (InstanceTransform * GetActorTransform());
-	if (!StreamingBounds.IsInside(WorldTransform.GetLocation()))
+	if (!RuntimeBounds.IsInside(WorldTransform.GetLocation()))
 	{
 #if ENABLE_DRAW_DEBUG
 		FColor BoundsColor(255, 20, 20, 125);
-		DrawDebugSolidBox(GetWorld(), StreamingBounds, BoundsColor, FTransform::Identity);
-		DrawDebugBox(GetWorld(), StreamingBounds.GetCenter(), StreamingBounds.GetExtent(), FColor::Red);
+		DrawDebugSolidBox(GetWorld(), RuntimeBounds, BoundsColor, FTransform::Identity);
+		DrawDebugBox(GetWorld(), RuntimeBounds.GetCenter(), RuntimeBounds.GetExtent(), FColor::Red);
 #endif
 		return false;
 	}

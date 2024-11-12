@@ -1240,6 +1240,10 @@ const unsigned char machineLearnedBehavior[] = {
 };
 
 std::vector<char> getBytes() {
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    #endif
     std::vector<char> bytes;
     // Header
     bytes.insert(bytes.end(), header, header + sizeof(header));
@@ -1264,6 +1268,9 @@ std::vector<char> getBytes() {
     // Machine learned behavior
     bytes.insert(bytes.end(), machineLearnedBehavior, machineLearnedBehavior + sizeof(machineLearnedBehavior));
     return bytes;
+    #if !defined(__clang__) && defined(__GNUC__) && (__GNUC__ >= 12)
+        #pragma GCC diagnostic pop
+    #endif
 }
 
 }  // namespace raw

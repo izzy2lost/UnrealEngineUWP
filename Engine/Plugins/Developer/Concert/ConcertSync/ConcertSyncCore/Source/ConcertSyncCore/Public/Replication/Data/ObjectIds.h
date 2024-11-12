@@ -56,5 +56,14 @@ struct FConcertReplicatedObjectId : public FConcertObjectInStreamID
 	}
 };
 
+USTRUCT()
+struct FConcertObjectInStreamArray
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FConcertObjectInStreamID> Objects;
+};
+
 CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertObjectInStreamID& StreamObject);
 CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertReplicatedObjectId& StreamObject);

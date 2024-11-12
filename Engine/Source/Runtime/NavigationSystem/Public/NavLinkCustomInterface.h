@@ -52,7 +52,7 @@ class INavLinkCustomInterface
 	virtual FNavLinkAuxiliaryId GetAuxiliaryId() const { return FNavLinkAuxiliaryId::Invalid; }
 
 	UE_DEPRECATED(5.3, "LinkIds are now based on a FNavLinkId. Call GetId() instead. This function only returns Invalid Id.")
-	virtual uint32 GetLinkId() const final { return FNavLinkId::Invalid.GetId(); }
+	virtual uint32 GetLinkId() const final { return static_cast<uint32>(FNavLinkId::Invalid.GetId()); }
 
 	/** Get unique ID number for custom link
 	 *  Owner should get its unique ID by calling INavLinkCustomInterface::GetUniqueId() and store it

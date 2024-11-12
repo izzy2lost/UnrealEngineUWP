@@ -2,70 +2,97 @@
 
 #pragma once
 
-#include "AnimNextComponentParameter.h"
+#include "AnimNextPublicVariablesProxy.h"
 #include "Components/ActorComponent.h"
-#include "Scheduler/AnimNextSchedule.h"
-#include "Scheduler/ScheduleHandle.h"
+#include "Module/AnimNextModule.h"
+#include "Module/ModuleHandle.h"
+#include "Param/ParamType.h"
+#include "TraitCore/TraitEvent.h"
+#include "Variables/IAnimNextVariableProxyHost.h"
+
 #include "AnimNextComponent.generated.h"
 
-class UAnimNextSchedule;
 struct FAnimNextComponentInstanceData;
+class UAnimNextComponentWorldSubsystem;
+
+namespace UE::AnimNext
+{
+	struct FProxyVariablesContext;
+};
 
 namespace UE::AnimNext::UncookedOnly
 {
 	struct FUtils;
 }
 
-UENUM()
-enum class EAnimNextParameterScopeOrdering : uint8
-{
-	// Value will be pushed before the scope, allowing the static scope to potentially override the value
-	Before,
-
-	// Value will be pushed after the scope, potentially overriding the static scope
-	After,
-};
-
 UCLASS(MinimalAPI, meta = (BlueprintSpawnableComponent))
-class UAnimNextComponent : public UActorComponent
+class UAnimNextComponent : public UActorComponent, public IAnimNextVariableProxyHost
 {
 	GENERATED_BODY()
 
 	// UActorComponent interface
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	// IAnimNextVariableProxyHost interface
+	virtual void FlipPublicVariablesProxy(const UE::AnimNext::FProxyVariablesContext& InContext) override;
+
+#if WITH_EDITOR
+	// Called back to refresh any cached data on module compilation
+	void OnModuleCompiled();
+#endif
+
+	// (Re-)create the public variable proxy
+	void CreatePublicVariablesProxy();
+
+	// (Re-)create the public variable proxy
+	void DestroyPublicVariablesProxy();
 
 public:
-	// Sets a parameter's value in the supplied scope.
-	// @param    Scope    Scopes corresponding to an existing scope in a schedule, or "None". Passing "None" will apply the parameter to the whole schedule.
-	// @param    Ordering Where to apply the parameter in relation to the supplied scope. Ignored for scope "None".
-	// @param    Name     The name of the parameter to apply
-	// @param    Value    The value to set the parameter to
+	// Sets a module variable's value.
+	// @param    Name     The name of the variable to set
+	// @param    Value    The value to set the variable to
 	UFUNCTION(BlueprintCallable, Category = "AnimNext", CustomThunk, meta = (CustomStructureParam = Value, UnsafeDuringActorConstruction))
-	void SetParameterInScope(UPARAM(meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope")) FName Scope, EAnimNextParameterScopeOrdering Ordering, UPARAM(meta = (CustomWidget = "ParamName")) FName Name, int32 Value);
+	ANIMNEXT_API void SetVariable(UPARAM(meta = (CustomWidget = "VariableName")) FName Name, int32 Value);
 
 	// Enable or disable this component's update
 	UFUNCTION(BlueprintCallable, Category = "AnimNext")
-	void Enable(bool bEnabled);
-	
+	ANIMNEXT_API void SetEnabled(bool bEnabled);
+
+	// Queues an input trait event
+	// Input events will be processed in the next graph update after they are queued
+	ANIMNEXT_API void QueueInputTraitEvent(FAnimNextTraitEventPtr Event);
+
 private:
-	DECLARE_FUNCTION(execSetParameterInScope);
+	DECLARE_FUNCTION(execSetVariable);
 
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
+	friend class UAnimNextComponentWorldSubsystem;
 
-	// The execution schedule that this component will run
-	UPROPERTY(EditAnywhere, Category="Schedule")
-	TObjectPtr<UAnimNextSchedule> Schedule = nullptr;
+	// The AnimNext module that this component will run
+	UPROPERTY(EditAnywhere, Category="Module")
+	TObjectPtr<UAnimNextModule> Module = nullptr;
 
-	// Parameters to apply on schedule/component registration
-	UPROPERTY(Instanced, EditAnywhere, Category = "Parameters")
-	TArray<TObjectPtr<UAnimNextComponentParameter>> Parameters;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimNextComponentWorldSubsystem> Subsystem = nullptr;
+	
+	// Handle to the registered module
+	UE::AnimNext::FModuleHandle ModuleHandle;
 
-	// How to initialize the schedule
-	UPROPERTY(EditAnywhere, Category="Schedule")
-	EAnimNextScheduleInitMethod InitMethod = EAnimNextScheduleInitMethod::InitializeAndPauseInEditor;
+	// Lock for public variables proxy
+	FRWLock PublicVariablesLock;
 
-	// Handle to the registered results/schedule
-	UE::AnimNext::FScheduleHandle SchedulerHandle;
+	// Proxy public variables
+	UPROPERTY()
+	FAnimNextPublicVariablesProxy PublicVariablesProxy;
+
+	// Map from name->proxy variable index
+	TMap<FName, int32> PublicVariablesProxyMap;
+
+	// How to initialize the module
+	UPROPERTY(EditAnywhere, Category="Module")
+	EAnimNextModuleInitMethod InitMethod = EAnimNextModuleInitMethod::InitializeAndPauseInEditor;
 };

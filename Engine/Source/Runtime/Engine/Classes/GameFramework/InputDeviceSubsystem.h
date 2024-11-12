@@ -135,13 +135,13 @@ public:
 	//~ Begin UEngineSubsystem interface
 	ENGINE_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	ENGINE_API virtual void Deinitialize() override;
-	ENGINE_API virtual bool ShouldCreateSubsystem(UObject* Outer) const;
+	ENGINE_API virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	//~ End UEngineSubsystem interface
 	
 	//~ Begin FTickableGameObject interface	
 	ENGINE_API virtual UWorld* GetTickableGameObjectWorld() const override;
 	ENGINE_API virtual ETickableTickType GetTickableTickType() const override;
-	ENGINE_API virtual bool IsAllowedToTick() const override;
+	ENGINE_API virtual bool IsTickable() const override;
 	ENGINE_API virtual bool IsTickableInEditor() const override;
 	ENGINE_API virtual TStatId GetStatId() const override;
 	ENGINE_API virtual void Tick(float InDeltaTime) override;
@@ -195,6 +195,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input Devices")
 	ENGINE_API FHardwareDeviceIdentifier GetMostRecentlyUsedHardwareDevice(const FPlatformUserId InUserId) const;
 
+	/**
+	 * Returns the most recently used FInputDeviceId for the given platform user id.
+	 * 
+	 * This will be INPUTDEVICEID_NONE if there is no known device for the given user.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input Devices", meta = (ReturnDisplayName = "Latest Device Id"))
+	ENGINE_API FInputDeviceId GetMostRecentlyUsedInputDeviceId(const FPlatformUserId InUserId) const;
+	
 	UFUNCTION(BlueprintCallable, Category = "Input Devices")
 	ENGINE_API FHardwareDeviceIdentifier GetInputDeviceHardwareIdentifier(const FInputDeviceId InputDevice) const;
 
@@ -252,8 +260,25 @@ protected:
 	/** A map of an input device to it's most recent hardware device identifier */
 	TMap<FInputDeviceId, FHardwareDeviceIdentifier> LatestInputDeviceIdentifiers;
 
+	/**
+	 * Data store about the input device that was most recently used by a specific FPlatformUserId
+	 */
+	struct FLatestInputDeviceData
+	{
+		/** The input device ID of the latest device used */
+		FInputDeviceId LatestDeviceId = INPUTDEVICEID_NONE;
+
+		/** The latest hardware device ID for the input device last used by the platform user. */
+		FHardwareDeviceIdentifier HardwareDeviceId = FHardwareDeviceIdentifier::Invalid;
+
+		bool operator==(const FLatestInputDeviceData& Other) const
+		{
+			return LatestDeviceId == Other.LatestDeviceId && HardwareDeviceId == Other.HardwareDeviceId;
+		}
+	};
+	
 	/** A map of platform user's to their most recent hardware device identifier */
-	TMap<FPlatformUserId, FHardwareDeviceIdentifier> LatestUserDeviceIdentifiers;
+	TMap<FPlatformUserId, FLatestInputDeviceData> LatestUserDeviceIdentifiers;
 
 	/** An input processor that is used to determine the most recently used hardware device for each user*/
 	TSharedPtr<class FInputDeviceSubsystemProcessor> InputPreprocessor;

@@ -97,4 +97,17 @@ struct FStateTreeMoveToTask : public FStateTreeAIActionTaskBase
 
 	GAMEPLAYSTATETREEMODULE_API virtual UAITask_MoveTo* PrepareMoveToTask(FStateTreeExecutionContext& Context, AAIController& Controller, UAITask_MoveTo* ExistingTask, FAIMoveRequest& MoveRequest) const;
 	GAMEPLAYSTATETREEMODULE_API virtual EStateTreeRunStatus PerformMoveTask(FStateTreeExecutionContext& Context, AAIController& Controller) const;
+
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Movement");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::Grey;
+	}
+#endif // WITH_EDITOR
+
 };

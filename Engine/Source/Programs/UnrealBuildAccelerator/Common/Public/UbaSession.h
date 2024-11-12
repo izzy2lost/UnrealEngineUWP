@@ -22,6 +22,7 @@ namespace uba
 	class Storage;
 	class WorkManager;
 	struct ProcessStartInfo;
+	struct ProcessStartInfoHolder;
 	struct ProcessStats;
 	struct InitMessage;
 	struct InitResponse;
@@ -39,8 +40,12 @@ namespace uba
 	struct ChmodMessage;
 	struct GetFullFileNameMessage;
 	struct GetFullFileNameResponse;
+	struct GetLongPathNameMessage;
+	struct GetLongPathNameResponse;
 	struct CreateDirectoryMessage;
 	struct CreateDirectoryResponse;
+	struct RemoveDirectoryMessage;
+	struct RemoveDirectoryResponse;
 	struct ListDirectoryMessage;
 	struct ListDirectoryResponse;
 	struct WrittenFile;
@@ -54,7 +59,7 @@ namespace uba
 
 		void PrintSummary(Logger& logger); // Print summary stats of session
 		void RefreshDirectory(const tchar* dirName); // Tell uba a directory on disk has been changed by some other system while session is running
-		void RegisterNewFile(const tchar* filePath); // Tell uba a new file on disk has been added by some other system while session is running
+		bool RegisterNewFile(const tchar* filePath); // Tell uba a new file on disk has been added by some other system while session is running
 		void RegisterDeleteFile(const tchar* filePath); // Tell uba a file on disk has been deleted by some other system while session is running
 
 		using CustomServiceFunction = Function<u32(Process& handle, const void* recv, u32 recvSize, void* send, u32 sendCapacity)>;
@@ -63,13 +68,20 @@ namespace uba
 		using GetNextProcessFunction = Function<bool(Process& handle, NextProcessInfo& outNextProcess, u32 prevExitCode)>;
 		void RegisterGetNextProcess(GetNextProcessFunction&& function); // Register a custom service (that can be communicated with from the remote agents)
 
-		const tchar* GetId();			// Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
-		u32 GetActiveProcessCount();	// Current active processes running inside session
-		Storage& GetStorage();		// Storage (only used when remote machines are connected)
-		Logger& GetLogger();			// Logger used for logging 
-		LogWriter& GetLogWriter();		// LogWriter used by logger
+		const tchar* GetId(); // Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
+		u32 GetActiveProcessCount(); // Current active processes running inside session
+		Storage& GetStorage(); // Storage (only used when remote machines are connected)
+		MutableLogger& GetLogger(); // Logger used for logging 
+		LogWriter& GetLogWriter(); // LogWriter used by logger
+		Trace& GetTrace(); // Trace written to be session
+		const ApplicationRules* GetRules(const ProcessStartInfo& si); // Get application rules used for process
+		const tchar* GetTempPath(); // Path for temp files used for current session
+		const tchar* GetRootDir(); // Root dir for session files
+		bool ShouldStoreObjFilesCompressed() { return m_storeObjFilesCompressed; }
 
 		virtual ~Session();
+
+		u32 CreateProcessId();
 
 	protected:
 		Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote, WorkManager* workManager = nullptr);
@@ -86,7 +98,7 @@ namespace uba
 		void StopTraceThread();
 		u32 GetDirectoryTableSize();
 		u32 GetFileMappingSize();
-		u32 GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const;
+		u32 GetMemoryMapAlignment(const StringView& fileName) const;
 
 		SessionStats& Stats();
 
@@ -94,20 +106,20 @@ namespace uba
 		bool GetBinaryModules(Vector<BinaryModule>& out, const tchar* application);
 		void Free(Vector<BinaryModule>& v);
 		bool IsRarelyRead(ProcessImpl& process, const StringBufferBase& fileName) const;
-		bool IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const;
+		bool IsRarelyReadAfterWritten(ProcessImpl& process, const StringView& fileName) const;
 		bool IsKnownSystemFile(const tchar* applicationName);
-		bool ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen);
-		u32 WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset);
+		bool ShouldWriteToDisk(const StringView& fileName);
+		u32 WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32* outTableOffset = nullptr);
 		u32 AddFileMapping(StringKey fileNameKey, const tchar* fileName, const tchar* newFileName, u64 fileSize = InvalidValue);
 		
 		struct MemoryMap { StringBuffer<128> name; u64 size = 0; };
 		bool CreateMemoryMapFromFile(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, bool isCompressed, u64 alignment);
 		bool CreateMemoryMapFromView(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, u64 alignment);
 
-		bool RegisterCreateFileForWrite(StringKey fileNameKey, const tchar* fileName, u64 fileNameLen, bool registerRealFile, u64 fileSize = 0, u64 lastWriteTime = 0);
-		u32 RegisterDeleteFile(StringKey fileNameKey, const tchar* fileName);
+		bool RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize = 0, u64 lastWriteTime = 0, bool invalidateStorage = true);
+		u32 RegisterDeleteFile(StringKey fileNameKey, const StringView& fileName);
 
-		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);
+		virtual bool PrepareProcess(ProcessStartInfoHolder& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);
 		virtual void* GetProcessEnvironmentVariables();
 		virtual void PrintSessionStats(Logger& logger);
 
@@ -119,28 +131,35 @@ namespace uba
 		virtual bool MoveFile(MoveFileResponse& out, const MoveFileMessage& msg);
 		virtual bool Chmod(ChmodResponse& out, const ChmodMessage& msg);
 		virtual bool CreateDirectory(CreateDirectoryResponse& out, const CreateDirectoryMessage& msg);
+		virtual bool RemoveDirectory(RemoveDirectoryResponse& out, const RemoveDirectoryMessage& msg);
 		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg);
+		virtual bool GetLongPathName(GetLongPathNameResponse& out, const GetLongPathNameMessage& msg);
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey);
 		virtual bool WriteFilesToDisk(ProcessImpl& process, WrittenFile** files, u32 fileCount);
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error);
 		virtual bool GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode, BinaryReader& statsReader);
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer);
+		virtual bool SHGetKnownFolderPath(Process& process, BinaryReader& reader, BinaryWriter& writer);
+		virtual bool HostRun(BinaryReader& reader, BinaryWriter& writer);
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size);
 		virtual bool FlushWrittenFiles(ProcessImpl& process);
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats);
+		virtual bool LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType);
 
 		static constexpr CasKey CasKeyIsDirectory = { ~u64(0), ~u64(0), ~u32(0) };
 
 		void AddEnvironmentVariableNoLock(const tchar* key, const tchar* value);
 		bool WriteDirectoryEntriesInternal(DirectoryTable::Directory& dir, const StringKey& dirKey, const tchar* dirPath, bool isRefresh, u32& outTableOffset);
 		void WriteDirectoryEntriesRecursive(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset);
-		bool CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports);
+		bool CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports, const char* const* loaderPaths);
 		bool CreateProcessJobObject();
 		void GetSystemInfo(StringBufferBase& out);
 		bool GetMemoryInfo(u64& outAvailable, u64& outTotal);
 		void WriteSummary(BinaryWriter& writer, const Function<void(Logger& logger)>& summaryFunc);
 		float UpdateCpuLoad();
 
+		bool ExtractSymbolsFromObjectFile(const CloseFileMessage& msg, const tchar* fileName, u64 fileSize);
+		
 		void ThreadTraceLoop();
 		virtual void TraceSessionUpdate();
 
@@ -162,13 +181,18 @@ namespace uba
 		bool m_runningRemote;
 		bool m_disableCustomAllocator;
 		bool m_allowMemoryMaps;
+		bool m_allowKeepFilesInMemory;
+		bool m_allowOutputFiles;
+		bool m_allowSpecialApplications;
+		bool m_suppressLogging;
 		bool m_shouldWriteToDisk;
 		bool m_detailedTrace;
+		bool m_traceChildProcesses;
 		bool m_logToFile;
+		bool m_storeObjFilesCompressed;
 
 		u64 m_keepOutputFileMemoryMapsThreshold;
 
-		u32 m_uid;
 		Atomic<u32> m_processIdCounter;
 
 		MemoryBlock m_directoryTableMemory;
@@ -229,6 +253,8 @@ namespace uba
 		HANDLE m_processJobObject = NULL;
 		#endif
 
+		Vector<u8> m_environmentMemory;
+
 		ReaderWriterLock m_environmentVariablesLock;
 		Vector<tchar> m_environmentVariables;
 		UnorderedSet<const tchar*, HashStringNoCase, EqualStringNoCase> m_localEnvironmentVariables;
@@ -239,7 +265,9 @@ namespace uba
 		friend class ProcessImpl;
 	};
 
-	void GetNameFromArguments(StringBufferBase& out, const tchar* arguments, bool addCounterSuffix);
+	void GenerateNameForProcess(StringBufferBase& out, const tchar* arguments, u32 counterSuffix);
+	bool GetZone(StringBufferBase& outZone);
+
 
 	using FileAccess = u8;
 
@@ -371,6 +399,8 @@ namespace uba
 		ProcessImpl& process;
 		StringBuffer<> fileName;
 		StringKey fileNameKey;
+		const u8* loaderPaths = nullptr;
+		u32 loaderPathsSize = 0;
 	};
 
 	struct GetFullFileNameResponse
@@ -378,6 +408,18 @@ namespace uba
 		StringBuffer<> fileName;
 		StringBuffer<> virtualFileName;
 		u32 mappedFileTableSize = 0;
+	};
+
+	struct GetLongPathNameMessage
+	{
+		ProcessImpl& process;
+		StringBuffer<> fileName;
+	};
+
+	struct GetLongPathNameResponse
+	{
+		StringBuffer<> fileName;
+		u32 errorCode = ~0u;
 	};
 
 	struct CreateDirectoryMessage
@@ -388,8 +430,22 @@ namespace uba
 
 	struct CreateDirectoryResponse
 	{
-		bool result;
-		u32 errorCode;
+		bool result = false;
+		u32 errorCode = 0;
+		u32 directoryTableSize = 0;
+	};
+
+	struct RemoveDirectoryMessage
+	{
+		StringKey nameKey;
+		StringBuffer<> name;
+	};
+
+	struct RemoveDirectoryResponse
+	{
+		bool result = false;
+		u32 errorCode = 0;
+		u32 directoryTableSize = 0;
 	};
 
 	struct ListDirectoryMessage
@@ -423,7 +479,6 @@ namespace uba
 		TString description;
 		TString logFile;
 	};
-
 }
 
 template<> struct std::hash<uba::ProcessHandle> { size_t operator()(const uba::ProcessHandle& g) const { return g.GetHash(); } };

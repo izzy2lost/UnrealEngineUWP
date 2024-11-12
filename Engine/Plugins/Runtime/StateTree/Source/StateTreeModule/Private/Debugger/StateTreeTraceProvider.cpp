@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/StateTreeTraceProvider.h"
 #include "Debugger/StateTreeDebugger.h"
@@ -145,6 +145,18 @@ bool FStateTreeTraceProvider::GetAssetFromDebugId(const FStateTreeIndex16 AssetD
 	return ExistingPair != nullptr;
 }
 
+bool FStateTreeTraceProvider::GetAssetFromInstanceId(const FStateTreeInstanceDebugId InstanceId, TWeakObjectPtr<const UStateTree>& WeakStateTree) const
+{
+	if (const uint32* IndexPtr = InstanceIdToDebuggerEntryTimelines.Find(InstanceId))
+	{
+		check(Descriptors.Num() == EventsTimelines.Num());
+		WeakStateTree = Descriptors[*IndexPtr].StateTree;
+		return true;
+	}
+
+	return false;
+}
+
 void FStateTreeTraceProvider::GetInstances(TArray<UE::StateTreeDebugger::FInstanceDescriptor>& OutInstances) const
 {
 	OutInstances = Descriptors;
@@ -152,4 +164,4 @@ void FStateTreeTraceProvider::GetInstances(TArray<UE::StateTreeDebugger::FInstan
 
 #undef LOCTEXT_NAMESPACE
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

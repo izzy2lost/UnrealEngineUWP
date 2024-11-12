@@ -5,7 +5,9 @@ import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArtifactContextType, JobState, JobStepOutcome, JobStepState, StepData } from '../../backend/Api';
+import { getSiteConfig } from '../../backend/Config';
 import dashboard from '../../backend/Dashboard';
+import { getHordeStyling } from '../../styles/Styles';
 import { EditJobModal } from '../EditJobModal';
 import { useQuery } from '../JobDetailCommon';
 import { NewBuild } from '../NewBuild';
@@ -13,11 +15,10 @@ import { NotificationDropdown } from '../NotificationDropdown';
 import { PauseStepModal } from '../StepPauseModal';
 import { JobArtifactsModal } from '../artifacts/ArtifactsModal';
 import { BisectionCreateModal } from '../bisection/CreateModal';
+import { NewBuildV2 } from '../build/NewBuildV2';
 import { AbortJobModal } from './AbortJobModal';
 import { JobDetailsV2 } from './JobDetailsViewCommon';
 import { RetryStepsModal, StepRetryModal, StepRetryType } from './StepRetryModal';
-import { getSiteConfig } from '../../backend/Config';
-import { getHordeStyling } from '../../styles/Styles';
 
 enum ParameterState {
    Hidden,
@@ -39,6 +40,9 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
    const stepId = query.get("step") ? query.get("step")! : undefined;
    const batchFilter = query.get("batch");
+   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion")! : "1";
+
+   newBuildVersion = "2";
 
    // subscribe
    if (dashboard.updated) { }
@@ -52,23 +56,47 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
    }
 
    const abortDisabled = jobData.state === JobState.Complete;
-   const runAgainDisabled = false; /*jobDetails.jobdata?.state !== JobState.Complete*/
 
-   const failedSteps = jobDetails.getSteps().filter(s => {
+   const seenSteps = new Set<string>();
+   const runningSteps = new Set<string>();
 
-      if (!s.finishTime || (s.state !== JobStepState.Aborted && s.outcome !== JobStepOutcome.Failure)) {
+   let failedSteps = jobDetails.getSteps().reverse().filter(s => {
+
+      if (!s.allowRetry) {
          return false;
       }
 
-      const retries = jobDetails.getStepRetries(s.id);
-      const retryNumber = jobDetails.getStepRetryNumber(s.id);
-      if (retries.length && retryNumber < (retries.length - 1)) {
+      if (seenSteps.has(s.name) || runningSteps.has(s.name)) {
+         return false;
+      }
+
+      seenSteps.add(s.name);
+
+      if (s.state === JobStepState.Running || s.state === JobStepState.Waiting || s.state === JobStepState.Ready) { 
+         runningSteps.add(s.name);
+         return false;
+      }
+
+      if (s.state === JobStepState.Completed && s.outcome == JobStepOutcome.Success) 
+      {
          return false;
       }
 
       return true;
 
-   });
+   }).reverse();
+
+   const allSteps = jobDetails.getSteps();
+   failedSteps = failedSteps.sort((a, b) => {
+
+      const idxA = allSteps.findIndex((c) => a.name === c.name);
+      const idxB = allSteps.findIndex((c) => b.name === c.name);
+
+      return idxA - idxB;
+   })
+
+   
+
    const retryFailedStepsDisabled = !failedSteps.length;
 
    const pinned = dashboard.jobPinned(jobId);
@@ -118,7 +146,6 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
    opsList.push({
       key: 'jobops_runagain',
       text: "Run Again",
-      disabled: runAgainDisabled,
       iconProps: { iconName: "Duplicate" },
       onClick: () => { setParametersState(ParameterState.Clone); }
    });
@@ -151,12 +178,15 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
       return null;
    }
 
+   let showNewBuildV1 = newBuildVersion !== "2" && (parametersState === ParameterState.Parameters || parametersState === ParameterState.Clone);
+   let showNewBuildV2 = newBuildVersion === "2" && (parametersState === ParameterState.Parameters || parametersState === ParameterState.Clone);
+
    return <Stack>
       {retryStepsShown && <RetryStepsModal stepIds={failedSteps.map(s => s.id)} jobDetails={jobDetails} onClose={() => { setRetryStepsShown(false); }} />}
       <AbortJobModal jobDetails={jobDetails} show={abortShown} onClose={() => { setAbortShown(false); }} />
       <EditJobModal jobData={jobDetails.jobData} show={editShown} onClose={() => { setEditShown(false); }} />
-      <NewBuild streamId={jobDetails.stream!.id} jobDetails={jobDetails} readOnly={parametersState === ParameterState.Parameters}
-         show={parametersState === ParameterState.Parameters || parametersState === ParameterState.Clone}
+      {showNewBuildV1 && <NewBuild streamId={jobDetails.stream!.id} jobDetails={jobDetails} readOnly={parametersState === ParameterState.Parameters}
+         show={true}
          onClose={(newJobId) => {
             setParametersState(ParameterState.Hidden);
             if (newJobId) {
@@ -166,7 +196,20 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
                   navigate(`/job/${jobId}`, { replace: true });
                }
             }
-         }} />
+         }} />}
+
+      {showNewBuildV2 && <NewBuildV2 streamId={jobDetails.stream!.id} jobDetails={jobDetails} readOnly={parametersState === ParameterState.Parameters}
+         show={true}
+         onClose={(newJobId) => {
+            setParametersState(ParameterState.Hidden);
+            if (newJobId) {
+               navigate(`/job/${newJobId}`);
+            } else {
+               if (query.get("newbuild")) {
+                  navigate(`/job/${jobId}`, { replace: true });
+               }
+            }
+         }} />}
 
       <Stack horizontal>
          <Stack grow />
@@ -209,20 +252,15 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 });
 
 const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = observer(({ jobDetails, stepId }) => {
-   
+
    const { hordeClasses } = getHordeStyling();
 
    const navigate = useNavigate();
 
    const query = useQuery();
-   const artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
+   let artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
    const artifactPath = !!query.get("artifactPath") ? query.get("artifactPath")! : undefined;
-
-   const jobData = jobDetails.jobData;
-
-   if (!jobData?.useArtifactsV2) {
-      return null;
-   }
+   const artifactId = !!query.get("artifactId") ? query.get("artifactId")! : undefined;
 
    // subscribe
    if (dashboard.updated) { }
@@ -244,10 +282,15 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
       atypes.set(a.type, c);
    });
 
+   let artifact = stepArtifacts?.find(a => a.id === artifactId);
+   if (!artifactContext && artifact) {
+      artifactContext = artifact.type;
+   }
+   
    const opsList: IContextualMenuItem[] = [];
 
    const baseUrl = window.location.pathname + window.location.search;
-   
+
 
    opsList.push({
       key: 'stepops_artifacts_step',
@@ -280,7 +323,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
          text: c.description ?? c.name,
          iconProps: { iconName: "Clean" },
          onClick: () => { navigate(`${baseUrl}&artifactContext=${c.type}`, { replace: true }) }
-      });   
+      });
    })
 
    const opsItems: ICommandBarItemProps[] = [
@@ -335,9 +378,8 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
       return null;
    }
 
-   const node = jobDetails.nodeByStepId(stepId);
 
-   const canRunDisabled = !node?.allowRetry || !!step.retriedByUserInfo || !!jobData.abortedByUserInfo;
+   const canRunDisabled = !step?.allowRetry || !!step.retriedByUserInfo || !!jobData.abortedByUserInfo;
    const canTryFix = jobDetails.template?.allowPreflights;
    let canBisect = (step.outcome === JobStepOutcome.Failure || step.outcome === JobStepOutcome.Warnings) && !!jobDetails.template?.allowPreflights;
 
@@ -422,7 +464,7 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
 
       let args = "RunUAT.bat BuildGraph ";
 
-      args += `-Target="${node!.name}" `;
+      args += `-Target="${step!.name}" `;
 
       args += jobData!.arguments!.map(a => {
 
@@ -442,10 +484,10 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
    }
 
    return <Stack>
-      {!!shown.pauseShown && <PauseStepModal streamId={jobDetails.stream!.id} stepName={node!.name} templateName={jobDetails.template!.name} onClose={() => setShown({ pauseShown: false })} />}
+      {!!shown.pauseShown && <PauseStepModal streamId={jobDetails.stream!.id} stepName={step!.name} templateName={jobDetails.template!.name} onClose={() => setShown({ pauseShown: false })} />}
       {!!shown.retryShown && <StepRetryModal stepId={stepId} jobDetails={jobDetails} type={runType} show={true} onClose={() => { setShown({}); }} />}
       {!!shown.abortShown && <AbortJobModal stepId={stepId} jobDetails={jobDetails} show={true} onClose={() => { setShown({}); }} />}
-      {!!shown.bisectShown && <BisectionCreateModal jobId={jobId} nodeName={node?.name ?? "Unknown Node"} onClose={(response) => {
+      {!!shown.bisectShown && <BisectionCreateModal jobId={jobId} nodeName={step?.name ?? "Unknown Node"} onClose={(response) => {
          if (response) {
             jobDetails.bisectionUpdated();
          }

@@ -143,8 +143,6 @@ void SEventsTree::Construct( const FArguments& InArgs )
 			[
 				// List of all events for the selected thread
 				SAssignNew( EventsListView, STreeView< TSharedPtr< FVisualizerEvent > > )
-				// List view items are this tall
-				.ItemHeight( 12 )
 				// Tell the list view where to get its source data
 				.TreeItemsSource( &SelectedEventsView )
 				// When the list view needs to generate a widget for some data item, use this method

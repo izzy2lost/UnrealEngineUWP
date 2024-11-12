@@ -1,28 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MeshPaintHelpers.h"
+
 #include "ComponentReregisterContext.h"
-#include "IMeshPaintComponentAdapter.h"
-#include "MeshPaintAdapterFactory.h"
-#include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/Texture2D.h"
-#include "Rendering/SkeletalMeshLODModel.h"
-#include "StaticMeshComponentLODInfo.h"
-#include "StaticMeshAttributes.h"
-#include "Rendering/SkeletalMeshRenderData.h"
-#include "Rendering/SkeletalMeshModel.h"
+#include "IMeshPaintComponentAdapter.h"
+#include "MeshPaintAdapterFactory.h"
 #include "MeshVertexPaintingTool.h"
+#include "Rendering/SkeletalMeshLODModel.h"
+#include "Rendering/SkeletalMeshModel.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "StaticMeshAttributes.h"
+#include "StaticMeshComponentLODInfo.h"
+#include "TexturePaintToolset.h"
+#include "VT/MeshPaintVirtualTexture.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshPaintHelpers)
 
 extern void PropagateVertexPaintToSkeletalMesh(USkeletalMesh* SkeletalMesh, int32 LODIndex);
 
 UMeshPaintingSubsystem::UMeshPaintingSubsystem()
-	:	bNeedsRecache(true),
-		bSelectionHasMaterialValidForTexturePaint(false)
+	: bNeedsRecache(true)
+	, bSelectionSupportsVertexPaint(false)
+	, bSelectionSupportsTextureColorPaint(false)
+	, bSelectionSupportsTextureAssetPaint(false)
 {
 
 }
@@ -74,13 +79,73 @@ void UMeshPaintingSubsystem::RemoveComponentInstanceVertexColors(UStaticMeshComp
 	}
 }
 
+UTexture* UMeshPaintingSubsystem::CreateMeshPaintTexture(UObject* Outer,  uint32 TextureSize)
+{
+	const uint32 AlignedTextureSize = MeshPaintVirtualTexture::GetAlignedTextureSize(TextureSize);
+	const uint32 TextureNumMips = FMath::FloorLog2(AlignedTextureSize) + 1;
+
+	UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(Outer);
+	NewTexture->Source.Init(AlignedTextureSize, AlignedTextureSize, 1, TextureNumMips, TSF_BGRA8);
+	NewTexture->UpdateResource();
+
+	return NewTexture;
+}
+
+void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent)
+{
+	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() == nullptr && StaticMeshComponent->CanMeshPaintTextureColors())
+	{
+		StaticMeshComponent->Modify();
+
+		const uint32 TextureSize = StaticMeshComponent->GetMeshPaintTextureResolution();
+		const uint32 TextureNumMips = FMath::FloorLog2(TextureSize) + 1;
+
+		UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+		NewTexture->Source.Init(TextureSize, TextureSize, 1, TextureNumMips, TSF_BGRA8);
+		NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+		NewTexture->UpdateResource();
+
+		StaticMeshComponent->SetMeshPaintTexture(NewTexture);
+	}
+}
+
+void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent, FImageView const& InImage)
+{
+	if (StaticMeshComponent != nullptr)
+	{
+		StaticMeshComponent->Modify();
+
+		UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+		NewTexture->Source.Init(InImage);
+		NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+		NewTexture->UpdateResource();
+
+		StaticMeshComponent->SetMeshPaintTexture(NewTexture);
+	}
+}
+
+void UMeshPaintingSubsystem::RemoveComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent)
+{
+	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() != nullptr)
+	{
+		// Mark the mesh component as modified
+		StaticMeshComponent->Modify();
+
+		StaticMeshComponent->SetMeshPaintTexture(nullptr);
+	}
+}
 
 bool UMeshPaintingSubsystem::PropagateColorsToRawMesh(UStaticMesh* StaticMesh, int32 LODIndex, FStaticMeshComponentLODInfo& ComponentLODInfo)
 {
-	check(ComponentLODInfo.OverrideVertexColors);
-	check(StaticMesh->IsSourceModelValid(LODIndex));
-	check(StaticMesh->GetRenderData());
-	check(StaticMesh->GetRenderData()->LODResources.IsValidIndex(LODIndex));
+	if (!ComponentLODInfo.OverrideVertexColors ||
+		!StaticMesh ||
+		!StaticMesh->IsSourceModelValid(LODIndex) ||
+		!StaticMesh->GetRenderData() ||
+		!StaticMesh->GetRenderData()->LODResources.IsValidIndex(LODIndex) ||
+		StaticMesh->GetOutermost()->bIsCookedForEditor)
+	{
+		return false;
+	}
 
 	bool bPropagatedColors = false;
 	FStaticMeshSourceModel& SrcModel = StaticMesh->GetSourceModel(LODIndex);
@@ -595,6 +660,23 @@ uint32 UMeshPaintingSubsystem::GetVertexColorBufferSize(UMeshComponent* MeshComp
 	return SizeInBytes;
 }
 
+uint32 UMeshPaintingSubsystem::GetMeshPaintTextureResourceSize(UMeshComponent* MeshComponent)
+{
+	if (UTexture* Texture = MeshComponent->GetMeshPaintTexture())
+	{
+		// Check that the texture has finished compilation before reading platform data.
+		if (!Texture->IsDefaultTexture())
+		{
+			FTexturePlatformData** PlatformDataPtr = Texture->GetRunningPlatformData();
+			if (PlatformDataPtr != nullptr && *PlatformDataPtr != nullptr)
+			{
+				return (*PlatformDataPtr)->GetPayloadSize(0);
+			}
+		}
+	}
+	return 0;
+}
+
 TArray<FVector> UMeshPaintingSubsystem::GetVerticesForLOD( const UStaticMesh* StaticMesh, int32 LODIndex)
 {
 	checkf(StaticMesh != nullptr, TEXT("Invalid static mesh ptr"));
@@ -861,9 +943,10 @@ void UMeshPaintingSubsystem::ApplyFillWithMask(FColor& InOutColor, const FColor&
 
 void UMeshPaintingSubsystem::ForceRenderMeshLOD(UMeshComponent* Component, int32 LODIndex)
 {
+	// This seems dangerous. What if we save the actor while in forced LOD mode? What if we are stomping an art intended forced LOD?
 	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
 	{
-		StaticMeshComponent->ForcedLodModel = LODIndex + 1;
+		StaticMeshComponent->SetForcedLodModel(LODIndex + 1);
 	}
 	else if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Component))
 	{
@@ -1066,16 +1149,13 @@ bool UMeshPaintingSubsystem::DoesMeshComponentContainPerLODColors(const UMeshCom
 	}
 	else if (const USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponent))
 	{
-		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
-		if (SkeletalMesh)
+		if (const USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset())
 		{
-			const TArray<FSkeletalMeshLODInfo>& LODInfo = SkeletalMesh->GetLODInfoArray();
 			// Only check LOD level 1 and above
-			const int32 NumLODs = SkeletalMesh->GetLODNum();
-			for (int32 LODIndex = 1; LODIndex < NumLODs; ++LODIndex)
+			for (int32 LODIndex = 1, NumLODs = SkeletalMesh->GetLODNum(); LODIndex < NumLODs; ++LODIndex)
 			{
-				const FSkeletalMeshLODInfo& Info = LODInfo[LODIndex];
-				if (Info.bHasPerLODVertexColors)
+				const FSkeletalMeshLODInfo* Info = SkeletalMesh->GetLODInfo(LODIndex);
+				if (Info->bHasPerLODVertexColors)
 				{
 					bPerLODColors = true;
 					break;
@@ -1122,6 +1202,12 @@ FColor UMeshPaintingSubsystem::PickVertexColorFromTextureData(const uint8* MipDa
 
 		VertexColor.DWColor() &= ColorMask.DWColor();
 	}
+
+	// Vertex color is linear
+ 	if (Texture->SRGB)
+ 	{
+ 		VertexColor = FLinearColor(VertexColor).ToFColor(false);
+ 	}
 
 	return VertexColor;
 }
@@ -1521,17 +1607,53 @@ bool UMeshPaintingSubsystem::FindHitResult(const FRay Ray, FHitResult& BestTrace
 	return BestTraceResult.Distance != FLT_MAX;
 }
 
-bool UMeshPaintingSubsystem::SelectionContainsValidAdapters() const
+void UMeshPaintingSubsystem::UpdatePaintSupportState()
 {
-	for (const auto& MeshAdapterPair : ComponentToAdapterMap)
+	bSelectionSupportsVertexPaint = false;
+	bSelectionSupportsTextureColorPaint = false;
+	bSelectionSupportsTextureAssetPaint = false;
+
+	for (TWeakObjectPtr<UMeshComponent> MeshComponentWeak : SelectedMeshComponents)
 	{
-		if (MeshAdapterPair.Value && MeshAdapterPair.Value->IsValid())
+		if (UMeshComponent* MeshComponent = MeshComponentWeak.Get())
 		{
-			return true;
+			TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter = GetAdapterForComponent(MeshComponent);
+			if (!MeshAdapter.IsValid())
+			{
+				MeshAdapter = FMeshPaintComponentAdapterFactory::CreateAdapterForMesh(MeshComponent, 0);
+				if (MeshAdapter)
+				{
+					AddToComponentToAdapterMap(MeshComponent, MeshAdapter);
+				}
+			}
+
+			if (MeshAdapter)
+			{
+				bSelectionSupportsVertexPaint |= MeshAdapter->SupportsVertexPaint();
+
+				const bool bSupportsTextureColorPaint = MeshAdapter->SupportsTextureColorPaint();
+				const bool bSupportsTextureAssetPaint = MeshAdapter->SupportsTexturePaint();
+
+				if (bSupportsTextureColorPaint || bSupportsTextureAssetPaint)
+				{
+					// Collect PaintableTextures. This if for both TextureColor painting (MeshPaintTextures on components) and TextureAsset painting (Textures ref'd in materials).
+					int32 DummyDefaultIndex = INDEX_NONE;
+					TArray<FPaintableTexture> PaintableTextures;
+					UTexturePaintToolset::RetrieveTexturesForComponent(MeshComponent, MeshAdapter.Get(), DummyDefaultIndex, PaintableTextures);
+
+					for (FPaintableTexture const& PaintableTexture : PaintableTextures)
+					{
+						// The bIsMeshTexture tells us which mode the paintable texture works with.
+						bSelectionSupportsTextureColorPaint |= bSupportsTextureColorPaint && PaintableTexture.bIsMeshTexture;
+						bSelectionSupportsTextureAssetPaint |= bSupportsTextureAssetPaint && !PaintableTexture.bIsMeshTexture;
+					}
+				}
+			}
 		}
 	}
 
-	return false;
+	// Texture Asset painting only supports single component select.
+	bSelectionSupportsTextureAssetPaint &= SelectedMeshComponents.Num() == 1;
 }
 
 TArray<FPerComponentVertexColorData> UMeshPaintingSubsystem::GetCopiedColorsByComponent() const
@@ -1542,6 +1664,19 @@ TArray<FPerComponentVertexColorData> UMeshPaintingSubsystem::GetCopiedColorsByCo
 void UMeshPaintingSubsystem::SetCopiedColorsByComponent(TArray<FPerComponentVertexColorData>& InCopiedColors)
 {
 	CopiedColorsByComponent = InCopiedColors;
+}
+
+FImage const& UMeshPaintingSubsystem::GetCopiedTexture() const
+{
+	return CopiedTextureData;
+}
+
+void UMeshPaintingSubsystem::SetCopiedTexture(UTexture* InTexture)
+{
+	if (InTexture != nullptr)
+	{
+		InTexture->Source.GetMipImage(CopiedTextureData, 0);
+	}
 }
 
 void UMeshPaintingSubsystem::CacheSelectionData(const int32 PaintLODIndex, const int32 UVChannel)

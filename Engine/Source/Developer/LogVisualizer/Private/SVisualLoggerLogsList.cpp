@@ -104,7 +104,6 @@ void SVisualLoggerLogsList::Construct(const FArguments& InArgs, const TSharedRef
 	ChildSlot
 	[
 		SAssignNew(LogsLinesWidget, SListView<TSharedPtr<FLogEntryItem> >)
-		.ItemHeight(20)
 		.ListItemsSource(&CachedLogEntryLines)
 		.SelectionMode(ESelectionMode::Multi)
 		.OnSelectionChanged(this, &SVisualLoggerLogsList::LogEntryLineSelectionChanged)

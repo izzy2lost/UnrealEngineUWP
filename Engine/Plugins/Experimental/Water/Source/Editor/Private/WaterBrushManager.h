@@ -142,16 +142,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Transient, meta=(Category="Debug"))
 	TMap<TObjectPtr<UCurveFloat>,FWaterBodyBrushCache> BrushCurveRTCache;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FVector WorldSize;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FIntPoint LandscapeRTRes;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FIntPoint LandscapeQuads;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FTransform LandscapeTransform;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category="Debug"))
@@ -185,11 +185,11 @@ public:
 	bool bNeedsForceUpdate = false;
 
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.1, "This material is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone).")
+	UE_DEPRECATED(all, "This material is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone).")
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> FinalizeVelocityHeightMaterial_DEPRECATED = nullptr;
 
-	UE_DEPRECATED(5.1, "This material instance is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone).")
+	UE_DEPRECATED(all, "This material instance is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone).")
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> FinalizeVelocityHeightMID_DEPRECATED = nullptr;
 #endif // WITH_EDITORONLY_DATA
@@ -270,7 +270,7 @@ private:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool AllocateRTs();
 	virtual void SetMPCParams();
-	virtual void UpdateTransform(const FTransform& Transform);
+
 	virtual bool SetupRiverSplineRenderMIDs(const FBrushActorRenderContext& BrushActorRenderContext, bool bRestoreMIDs, TArray<UMaterialInterface*>& InOutMIDs);
 	virtual void CaptureMeshDepth(const TArrayView<UStaticMeshComponent*>& MeshComponents);
 	virtual void CacheBrushDistanceField(const FBrushActorRenderContext& BrushActorRenderContext);

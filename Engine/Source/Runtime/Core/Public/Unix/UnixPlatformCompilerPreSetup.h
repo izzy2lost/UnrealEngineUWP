@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "Clang/ClangPlatformCompilerPreSetup.h"
-
 #ifndef PRAGMA_DISABLE_DEPRECATED_REGISTER_WARNINGS
 	#define PRAGMA_DISABLE_DEPRECATED_REGISTER_WARNINGS \
 		_Pragma("clang diagnostic push") \
@@ -52,3 +50,5 @@
 // Rationale: we don't want to suppress those as there are plans to address them (e.g. UE-12341), but breaking builds due to these warnings is very expensive
 // since they cannot be caught by all compilers that we support. They are deemed to be relatively safe to be ignored, at least until all SDKs/toolchains start supporting them.
 #pragma clang diagnostic warning "-Wparentheses-equality"
+
+#include "Clang/ClangPlatformCompilerPreSetup.h"

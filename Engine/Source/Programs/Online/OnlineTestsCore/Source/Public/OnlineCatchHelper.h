@@ -20,6 +20,7 @@
 #include <catch2/interfaces/catch_interfaces_registry_hub.hpp>
 #include <catch2/catch_active_test.hpp>
 #include <string>
+
 using namespace UE::Online;
 
 class OnlineTestBase : public Catch::ITestInvoker
@@ -36,41 +37,38 @@ public:
 	/* Unloads all necessary services for the current test run */
 	static void UnloadServiceModules();
 
-	FTestPipeline& GetLoginPipeline(uint32 NumUsersToLogin = 1) const;
+#if ONLINETESTS_USEEXTERNAUTH
+	/* Returning accounts to the pool */
+	static bool ReturnAccounts(int32 TemplateRequestedNum = -1);
+#endif
 
+	FTestPipeline& GetLoginPipeline(std::initializer_list<std::reference_wrapper<FAccountId>> AccountIds) const;
+
+	FTestPipeline& GetLoginPipeline(uint32 UserNumToLogin, std::initializer_list<std::reference_wrapper<FAccountId>> AccountIds) const;
 
 	typedef UE::Online::FAccountId FAccountId;
 public:
-	/* Creates a login pipeline and logs in user as many users as FAccountIds passed in, immediately assigns FAccountIds to the passed in arguments.
-		This function relies on FAuthLoginStep to be executed by RunToCompletion(...) so will flush any queued steps in the test. */
-	FTestPipeline& GetLoginPipelineArray(std::initializer_list<std::reference_wrapper<FAccountId>> AccountIdsArr) const;
-	/* Creates a login pipeline and logs in user, immediately assigns FAccountIds to the passed in arguments for one account */
-	FTestPipeline& GetLoginPipeline(FAccountId& OutAccountId) const;
-	/* Creates a login pipeline and logs in user, immediately assigns FAccountIds to the passed in arguments for two accounts */
-	FTestPipeline& GetLoginPipeline(FAccountId& OutAccountId, FAccountId& OutAccountId2 ) const;
-	/* Creates a login pipeline and logs in user, immediately assigns FAccountIds to the passed in arguments for three accounts */
-	FTestPipeline& GetLoginPipeline(FAccountId& OutAccountId, FAccountId& OutAccountId2, FAccountId& OutAccountId3) const;
-	/* Creates a login pipeline and logs in user, immediately assigns FAccountIds to the passed in arguments for four accounts */
-	FTestPipeline& GetLoginPipeline(FAccountId& OutAccountId, FAccountId& OutAccountId2, FAccountId& OutAccountId3, FAccountId& OutAccountId4) const;
-	/* Creates a login pipeline and logs in user, immediately assigns FAccountIds to the passed in arguments for five accounts */
-	FTestPipeline& GetLoginPipeline(FAccountId& OutAccountId, FAccountId& OutAccountId2, FAccountId& OutAccountId3, FAccountId& OutAccountId4, FAccountId& OutAccountId5) const;
 
 	/* Attempts to assgin OutAccountId to what LocalUserId is logged in as. */
 	void AssignLoginUsers(int32 LocalUserId, FAccountId& OutAccountId) const;
+
+#if ONLINETESTS_USEEXTERNAUTH
+	TArray<FString> GetExternalAuthAccountIds(int32 TemplateRequestedNum) const;
+#endif
 
 	FTestPipeline& GetPipeline() const;
 protected:
 
 	OnlineTestBase();
 
-	/* Helper function to delete current accounts on the TestDataService and wait for it to finish */
-	bool DeleteAccountsForCurrentTemplate() const;
+	/* Helper function to delete accounts from TestDataService */
+	bool DeleteAccounts(int32 TemplateRequestedNum = -1) const;
 
 	/* Helper function to destroy the current OnlineService module which stores some state that maybe needs to be reset */
 	void DestroyCurrentServiceModule() const;
 
 	/* Proxy function to the DestroyCurrentServiceModule() */
-	bool ResetAccountStatus() const;
+	bool ResetAccountStatus(int32 TemplateRequestedNum = -1) const;
 
 	/* Returns the name of the service we're currently testing */
 	FString GetService() const;
@@ -80,20 +78,21 @@ protected:
 // If you define a custom credentials path you must define these in your own Auth.cpp file
 #if ONLINETESTS_USEEXTERNAUTH
 	// This will provide a paramters to pass to the OSS Auth interface.
-	UE::Online::FAuthLogin::Params CustomCredentials(int LocalUserNum) const;
+	TArray<UE::Online::FAuthLogin::Params> CustomCredentials(int32 LocalUserNum, int32 NumUsers) const;
 
 	// When called should "reset" accounts to default state for Stats, Achivements, Lobbies and other
 	// stateful interfaces to work.
-	bool CustomResetAccounts() const;
+	bool CustomResetAccounts(int32 TemplateRequestedNum) const;
 
 	// When called will *remove* the account from the underlying service.
 	// This is generally called to test new-user login or first-time setup.
 	// To be called rare-ly.
-	bool CustomDeleteAccounts() const;
-#endif
+	bool CustomDeleteAccounts(int32 TemplateRequestedNum) const;
 
-	UE::Online::FAuthLogin::Params GetIniCredentials(int LocalUserNum) const;
-	UE::Online::FAuthLogin::Params GetCredentials(int LocalUserNum) const;
+#endif
+	TArray<UE::Online::FAuthLogin::Params> GetIniCredentials(int32 LocalUserNum) const;
+
+	TArray<UE::Online::FAuthLogin::Params> GetCredentials(int32 LocalUserNum, int32 NumUsers) const;
 
 	/* Returns the ini login category name for the configured service */
 	FString GetLoginCredentialCategory() const;
@@ -111,6 +110,7 @@ private:
 	mutable FTestDriver Driver;
 	mutable TSharedPtr<FTestPipeline> Pipeline;
 	mutable uint32 NumLocalUsers = -1;
+	mutable uint32 UserNumToLogout = -1;
 };
 
 typedef OnlineTestBase* (*OnlineTestConstructor)();

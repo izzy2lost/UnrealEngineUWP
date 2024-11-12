@@ -61,19 +61,23 @@ const TSharedRef< SWidget > FSequencerSpawnableColumn::ConstructRowWidget(FScene
 const FSlateBrush* FSequencerSpawnableColumn::GetSpawnableIcon( FSceneOutlinerTreeItemRef TreeItem ) const
 {
 	static const FSlateBrush* SpawnedBrush  = FAppStyle::Get().GetBrush("Sequencer.SpawnableIconOverlay");
+	static const FSlateBrush* ReplaceableBrush = FAppStyle::Get().GetBrush("Sequencer.ReplaceableIconOverlay");
 	static const FSlateBrush* NoSpawnedBrush  = FAppStyle::Get().GetBrush("NoBrush");
 
 	bool bIsSpawned = false;
+	bool bIsPreviewActor = false;
 	{
 		static const FName SequencerActorTag(TEXT("SequencerActor"));
+		static const FName SequencerPreviewActorTag(TEXT("SequencerPreviewActor"));
 		if (const FActorTreeItem* ActorItem = (*TreeItem).CastTo<FActorTreeItem>())
 		{
 			AActor* Actor = ActorItem->Actor.Get();
 			bIsSpawned = Actor && Actor->ActorHasTag(SequencerActorTag);
+			bIsPreviewActor = Actor && Actor->ActorHasTag(SequencerPreviewActorTag);
 		}
 	}
 
-	return bIsSpawned ? SpawnedBrush : NoSpawnedBrush;
+	return bIsPreviewActor ? ReplaceableBrush : bIsSpawned ? SpawnedBrush : NoSpawnedBrush;
 }
 
 }// End Sequencer namespace

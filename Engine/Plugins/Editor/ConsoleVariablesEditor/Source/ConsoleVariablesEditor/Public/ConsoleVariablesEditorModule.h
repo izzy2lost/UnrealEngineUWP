@@ -6,6 +6,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Modules/ModuleInterface.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "ConsoleVariablesEditorProjectSettings.h"
 
 struct FAssetData;
 struct FConsoleVariablesEditorCommandInfo;
@@ -34,7 +35,7 @@ public:
 	void SavePresetAs() const;
 	void SaveSpecificPresetAs(const TObjectPtr<UConsoleVariablesAsset> Preset) const;
 	void OpenConsoleVariablesDialogWithPreset(const TObjectPtr<UConsoleVariablesAsset> Preset) const;
-	void OpenConsoleVariablesDialogWithAssetSelected(const FAssetData& InAssetData) const;
+	void OpenConsoleVariablesDialogWithAssetSelected(const FAssetData& InAssetData, const EConsoleVariablesEditorPresetImportMode InImportMode = EConsoleVariablesEditorPresetImportMode::UseDefault) const;
 
 	/** Find all console variables and cache their startup values */
 	void QueryAndBeginTrackingConsoleVariables();

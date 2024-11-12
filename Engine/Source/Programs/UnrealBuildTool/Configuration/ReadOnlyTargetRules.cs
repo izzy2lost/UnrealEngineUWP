@@ -81,6 +81,7 @@ namespace UnrealBuildTool
 
 		public string? OutputFile => Inner.OutputFile;
 
+		[Obsolete("Deprecated in UE5.5 - No longer used in engine.")]
 		public bool bUsesSteam => Inner.bUsesSteam;
 
 		public bool bUsesCEF3 => Inner.bUsesCEF3;
@@ -95,6 +96,8 @@ namespace UnrealBuildTool
 
 		public UnrealTargetConfiguration UndecoratedConfiguration => Inner.UndecoratedConfiguration;
 
+		public string DecoratedSeparator => Inner.DecoratedSeparator;
+
 		public bool bAllowHotReload => Inner.bAllowHotReload;
 
 		public bool bBuildAllModules => Inner.bBuildAllModules;
@@ -106,6 +109,8 @@ namespace UnrealBuildTool
 		public IReadOnlyList<string> DisablePlugins => Inner.DisablePlugins;
 
 		public IReadOnlyList<string> OptionalPlugins => Inner.OptionalPlugins;
+
+		public bool bAllowEnginePluginsEnabledByDefault => Inner.bAllowEnginePluginsEnabledByDefault;
 
 		public WarningLevel DisablePluginsConflictWarningLevel => Inner.DisablePluginsConflictWarningLevel;
 
@@ -129,7 +134,10 @@ namespace UnrealBuildTool
 
 		public bool bUseVerseBPVM => Inner.bUseVerseBPVM;
 
+		public bool bUseVerseVM => !bUseVerseBPVM || Inner.GlobalDefinitions.Contains("WITH_VERSE_VM=1") || Inner.GlobalDefinitions.Contains("WITH_VERSE_VM=WITH_COREUOBJECT");
+
 		public bool bUseAutoRTFMCompiler => Inner.bUseAutoRTFMCompiler;
+		public bool bUseAutoRTFMVerifier => Inner.bUseAutoRTFMVerifier;
 
 		[Obsolete("Deprecated in UE5.1 - No longer used as Chaos is always enabled.")]
 		public bool bCompileChaos => Inner.bCompileChaos;
@@ -165,7 +173,11 @@ namespace UnrealBuildTool
 
 		public bool bUseGameplayDebuggerCore => Inner.bUseGameplayDebuggerCore;
 
+		public bool bCompileIoStoreOnDemand => Inner.bCompileIoStoreOnDemand;
+
 		public bool bUseIris => Inner.bUseIris;
+
+		public bool bTrackRHIResourceInfoForTest => Inner.bTrackRHIResourceInfoForTest;
 
 		[Obsolete("Deprecated in UE5.4 - No longer used.")]
 		public bool bCompileIntelMetricsDiscovery => Inner.bCompileIntelMetricsDiscovery;
@@ -200,6 +212,8 @@ namespace UnrealBuildTool
 
 		public bool bEnableTrace => Inner.bEnableTrace;
 
+		public bool bForceEnableTrace => Inner.bForceEnableTrace;
+
 		public bool bCompileAgainstEditor => Inner.bCompileAgainstEditor;
 
 		public bool bCompileRecast => Inner.bCompileRecast;
@@ -216,11 +230,15 @@ namespace UnrealBuildTool
 
 		public bool bForceEnableRTTI => Inner.bForceEnableRTTI;
 
+		public bool bEnablePrivateBuildInformation => Inner.bEnablePrivateBuildInformation;
+
 		public bool bEnablePIE => Inner.bEnablePIE;
 
 		public bool bEnableStackProtection => Inner.bEnableStackProtection;
 
 		public bool bUseInlining => Inner.bUseInlining;
+
+		public bool bWithClientCode => Inner.bWithClientCode;
 
 		public bool bWithServerCode => Inner.bWithServerCode;
 
@@ -309,6 +327,8 @@ namespace UnrealBuildTool
 
 		public bool bBuildAdditionalConsoleApp => Inner.bBuildAdditionalConsoleApp;
 
+		public bool bBuildConsoleAppOnly => Inner.bBuildConsoleAppOnly;
+
 		public bool bDisableSymbolCache => Inner.bDisableSymbolCache;
 
 		public bool bUseUnityBuild => Inner.bUseUnityBuild;
@@ -340,7 +360,10 @@ namespace UnrealBuildTool
 		public WarningLevel ShadowVariableWarningLevel => Inner.ShadowVariableWarningLevel;
 
 		public WarningLevel UnsafeTypeCastWarningLevel => Inner.UnsafeTypeCastWarningLevel;
+		
+		public WarningLevel UndefinedIdentifierWarningLevel => Inner.UndefinedIdentifierWarningLevel;
 
+		[Obsolete("Deprecated in UE5.5 - Replace with ModuleRules.UndefinedIdentifierWarningLevel")]
 		public bool bUndefinedIdentifierErrors => Inner.bUndefinedIdentifierErrors;
 
 		public WarningLevel PCHPerformanceIssueWarningLevel => Inner.PCHPerformanceIssueWarningLevel;
@@ -350,6 +373,8 @@ namespace UnrealBuildTool
 		public WarningLevel ModuleIncludePrivateWarningLevel => Inner.ModuleIncludePrivateWarningLevel;
 
 		public WarningLevel ModuleIncludeSubdirectoryWarningLevel => Inner.ModuleIncludeSubdirectoryWarningLevel;
+
+		public bool bShowIncludes => Inner.bShowIncludes;
 
 		public bool bWarningsAsErrors => Inner.bWarningsAsErrors;
 
@@ -397,6 +422,8 @@ namespace UnrealBuildTool
 
 		public bool bWithAssembly => Inner.bWithAssembly;
 
+		public bool bAllowUbaCompression => Inner.bAllowUbaCompression;
+
 		public StaticAnalyzer StaticAnalyzer => Inner.StaticAnalyzer;
 
 		public StaticAnalyzerOutputType StaticAnalyzerOutputType => Inner.StaticAnalyzerOutputType;
@@ -418,6 +445,8 @@ namespace UnrealBuildTool
 		public bool bAllowLTCG => Inner.bAllowLTCG;
 
 		public bool bPreferThinLTO => Inner.bPreferThinLTO;
+
+		public bool bCompressDebugFile => Inner.bCompressDebugFile;
 
 		public bool bPGOProfile => Inner.bPGOProfile;
 
@@ -500,6 +529,8 @@ namespace UnrealBuildTool
 
 		public bool bLegacyParentIncludePaths => Inner.bLegacyParentIncludePaths;
 
+		public bool bDisableEngineDeprecations => Inner.bDisableEngineDeprecations;
+
 		public CppStandardVersion CppStandardEngine => Inner.CppStandardEngine;
 
 		public CppStandardVersion CppStandard => Inner.CppStandard;
@@ -513,6 +544,16 @@ namespace UnrealBuildTool
 		public string? BuildVersion => Inner.BuildVersion;
 
 		public TargetLinkType LinkType => Inner.LinkType;
+
+		public bool bStripExports => Inner.bStripExports;
+
+		public bool bMergeModules => Inner.bMergeModules;
+
+		public IReadOnlyList<string> MergePlugins => Inner.MergePlugins;
+
+		public IReadOnlyDictionary<string, IEnumerable<string>> MergePluginsShared => Inner.MergePluginsShared.ToDictionary(k => k.Key, v => v.Value.AsEnumerable());
+
+		public IReadOnlyList<string> MergePluginsLaunch => Inner.MergePluginsLaunch;
 
 		public IReadOnlyList<string> GlobalDefinitions => Inner.GlobalDefinitions.AsReadOnly();
 
@@ -655,7 +696,7 @@ namespace UnrealBuildTool
 			{
 				if (!_bWithAutomationTestsPrivate.HasValue)
 				{
-					bool bCompileDevTests = Configuration != UnrealTargetConfiguration.Shipping;
+					bool bCompileDevTests = (Configuration != UnrealTargetConfiguration.Test && Configuration != UnrealTargetConfiguration.Shipping);
 					bool bCompilePerfTests = bCompileDevTests;
 
 					if (bForceCompileDevelopmentAutomationTests)

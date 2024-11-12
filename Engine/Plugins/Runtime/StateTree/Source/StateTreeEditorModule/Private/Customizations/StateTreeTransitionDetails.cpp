@@ -8,13 +8,22 @@
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
 #include "ScopedTransaction.h"
+#include "StateTreeDescriptionHelpers.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
+#include "StateTreeEditorNodeUtils.h"
+#include "StateTreeEditorStyle.h"
 #include "StateTreePropertyHelpers.h"
 #include "StateTreeTypes.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SButton.h"
+#include "TextStyleDecorator.h"
+#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -45,7 +54,7 @@ void FStateTreeTransitionDetails::CustomizeHeader(TSharedRef<IPropertyHandle> St
 
 	TriggerProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, Trigger));
 	PriorityProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, Priority));
-	EventTagProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, EventTag));
+	RequiredEventProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, RequiredEvent));
 	StateProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, State));
 	DelayTransitionProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, bDelayTransition));
 	DelayDurationProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeTransition, DelayDuration));
@@ -58,26 +67,77 @@ void FStateTreeTransitionDetails::CustomizeHeader(TSharedRef<IPropertyHandle> St
 		.WholeRowContent()
 		.VAlign(VAlign_Center)
 		[
-			SNew(SHorizontalBox)
-			// Description
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			.VAlign(VAlign_Center)
+			// Border to capture mouse clicks on the row (used for right click menu).
+			SAssignNew(RowBorder, SBorder)
+			.BorderImage(FStyleDefaults::GetNoBrush())
+			.Padding(0)
+			.OnMouseButtonDown(this, &FStateTreeTransitionDetails::OnRowMouseDown)
+			.OnMouseButtonUp(this, &FStateTreeTransitionDetails::OnRowMouseUp)
 			[
-				SNew(STextBlock)
-				.Text(this, &FStateTreeTransitionDetails::GetDescription)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				StructPropertyHandle->CreateDefaultPropertyButtonWidgets()
-			]
-			+ SHorizontalBox::Slot()
-			.HAlign(HAlign_Right)
-			.FillWidth(1.0f)
-			[
-				UE::StateTreeEditor::DebuggerExtensions::CreateTransitionWidget(StructPropertyHandle, EditorData)
+
+				SNew(SHorizontalBox)
+
+				// Icon
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(0, 0, 4, 0))
+				[
+					SNew(SImage)
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+					.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Goto"))
+				]
+
+				// Description
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(0, 1, 0, 0))
+				[
+					SNew(SRichTextBlock)
+					.Text(this, &FStateTreeTransitionDetails::GetDescription)
+					.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Normal"))
+					.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Normal")))
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Bold")))
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("i"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Italic")))
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Subdued")))
+				]
+				// Debug and property widgets
+				+ SHorizontalBox::Slot()
+				.FillContentWidth(1.0f, 0.0f) // grow, no shrinking
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.Padding(FMargin(8, 0, 2, 0))
+				[
+					SNew(SHorizontalBox)
+					// Debugger labels
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						UE::StateTreeEditor::DebuggerExtensions::CreateTransitionWidget(StructPropertyHandle, EditorData)
+					]
+					
+					// Options
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(SComboButton)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.OnGetMenuContent(this, &FStateTreeTransitionDetails::GenerateOptionsMenu)
+						.ToolTipText(LOCTEXT("ItemActions", "Item actions"))
+						.HasDownArrow(false)
+						.ContentPadding(FMargin(4.f, 2.f))
+						.ButtonContent()
+						[
+							SNew(SImage)
+							.Image(FAppStyle::GetBrush("Icons.ChevronDown"))
+							.ColorAndOpacity(FSlateColor::UseForeground())
+						]
+					]
+				]
 			]
 		]
 		.CopyAction(FUIAction(FExecuteAction::CreateSP(this, &FStateTreeTransitionDetails::OnCopyTransition)))
@@ -87,7 +147,7 @@ void FStateTreeTransitionDetails::CustomizeHeader(TSharedRef<IPropertyHandle> St
 void FStateTreeTransitionDetails::CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	check(TriggerProperty);
-	check(EventTagProperty);
+	check(RequiredEventProperty);
 	check(DelayTransitionProperty);
 	check(DelayDurationProperty);
 	check(DelayRandomVarianceProperty);
@@ -114,7 +174,7 @@ void FStateTreeTransitionDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 	StructBuilder.AddProperty(TriggerProperty.ToSharedRef());
 
 	// Show event only when the trigger is set to Event. 
-	StructBuilder.AddProperty(EventTagProperty.ToSharedRef())
+	StructBuilder.AddProperty(RequiredEventProperty.ToSharedRef())
 		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([WeakSelf]()
 		{
 			if (const TSharedPtr<FStateTreeTransitionDetails> Self = WeakSelf.Pin())
@@ -146,26 +206,163 @@ void FStateTreeTransitionDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 	constexpr bool bShowChildren = true;
 	ConditionsRow.CustomWidget(bShowChildren)
 		.RowTag(ConditionsProperty->GetProperty()->GetFName())
-		.NameContent()
-		.VAlign(VAlign_Center)
+		.WholeRowContent()
 		[
 			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
+
+			// Condition text
+			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(0.0f, 2.0f))
+			.AutoWidth()
 			[
 				SNew(STextBlock)
 				.Text(ConditionsProperty->GetPropertyDisplayName())
 				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
-		]
-		.ValueContent()
-		.VAlign(VAlign_Center)
-		.HAlign(HAlign_Right)
-		[
-			SNew(SBox) // Empty, suppress noisy array details.
+
+			// Conditions button
+			+SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+				.Padding(FMargin(0, 0, 3, 0))
+				[
+					UE::StateTreeEditor::EditorNodeUtils::CreateAddNodePickerComboButton(
+						LOCTEXT("TransitionConditionAddTooltip", "Add new Transition Condition"),
+						UE::StateTree::Colors::Grey,
+						ConditionsProperty,
+						PropUtils.ToSharedRef())
+				]
+			]
 		];
+}
+
+FReply FStateTreeTransitionDetails::OnRowMouseDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
+}
+
+FReply FStateTreeTransitionDetails::OnRowMouseUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
+		FSlateApplication::Get().PushMenu(
+			RowBorder.ToSharedRef(),
+			WidgetPath,
+			GenerateOptionsMenu(),
+			MouseEvent.GetScreenSpacePosition(),
+			FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+
+		return FReply::Handled();
+	}
+	
+	return FReply::Unhandled();
+}
+
+TSharedRef<SWidget> FStateTreeTransitionDetails::GenerateOptionsMenu()
+{
+	FMenuBuilder MenuBuilder(/*ShouldCloseWindowAfterMenuSelection*/true, /*CommandList*/nullptr);
+
+	MenuBuilder.BeginSection(FName("Edit"), LOCTEXT("Edit", "Edit"));
+
+	// Copy
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("CopyItem", "Copy"),
+		LOCTEXT("CopyItemTooltip", "Copy this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Copy"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeTransitionDetails::OnCopyTransition),
+			FCanExecuteAction()
+		));
+
+	// Paste
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("PasteItem", "Paste"),
+		LOCTEXT("PasteItemTooltip", "Paste into this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Paste"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeTransitionDetails::OnPasteTransition),
+			FCanExecuteAction()
+		));
+
+	// Duplicate
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DuplicateItem", "Duplicate"),
+		LOCTEXT("DuplicateItemTooltip", "Duplicate this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Duplicate"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeTransitionDetails::OnDuplicateTransition),
+			FCanExecuteAction()
+		));
+
+	// Delete
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DeleteItem", "Delete"),
+		LOCTEXT("DeleteItemTooltip", "Delete this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeTransitionDetails::OnDeleteTransition),
+			FCanExecuteAction()
+		));
+
+	// Delete
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DeleteAllItems", "Delete all"),
+		LOCTEXT("DeleteAllItemsTooltip", "Delete all items"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeTransitionDetails::OnDeleteAllTransitions),
+			FCanExecuteAction()
+		));
+
+	MenuBuilder.EndSection();
+
+	// Append debugger items.
+	UE::StateTreeEditor::DebuggerExtensions::AppendTransitionMenuItems(MenuBuilder, StructProperty, GetEditorData());
+
+	return MenuBuilder.MakeWidget();
+}
+
+void FStateTreeTransitionDetails::OnDeleteTransition() const
+{
+	const int32 Index = StructProperty->GetArrayIndex();
+	if (const TSharedPtr<IPropertyHandle> ParentHandle = StructProperty->GetParentHandle())
+	{
+		if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ParentHandle->AsArray())
+		{
+			ArrayHandle->DeleteItem(Index);
+		}
+	}
+}
+
+void FStateTreeTransitionDetails::OnDeleteAllTransitions() const
+{
+	if (const TSharedPtr<IPropertyHandle> ParentHandle = StructProperty->GetParentHandle())
+	{
+		if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ParentHandle->AsArray())
+		{
+			ArrayHandle->EmptyArray();
+		}
+	}
+}
+
+void FStateTreeTransitionDetails::OnDuplicateTransition() const
+{
+	const int32 Index = StructProperty->GetArrayIndex();
+	if (const TSharedPtr<IPropertyHandle> ParentHandle = StructProperty->GetParentHandle())
+	{
+		if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ParentHandle->AsArray())
+		{
+			ArrayHandle->DuplicateItem(Index);
+		}
+	}
 }
 
 EStateTreeTransitionTrigger FStateTreeTransitionDetails::GetTrigger() const
@@ -193,55 +390,14 @@ bool FStateTreeTransitionDetails::GetDelayTransition() const
 FText FStateTreeTransitionDetails::GetDescription() const
 {
 	check(StateProperty);
-	if (StateProperty->GetNumPerObjectValues() != 1)
+
+	const FStateTreeTransition* Transition = UE::StateTree::PropertyHelpers::GetStructPtr<FStateTreeTransition>(StructProperty);
+	if (!Transition)
 	{
 		return LOCTEXT("MultipleSelected", "Multiple Selected");
 	}
 
-	EStateTreeTransitionTrigger Trigger = GetTrigger();
-	FText TriggerText = UEnum::GetDisplayValueAsText(Trigger);
-
-	if (Trigger == EStateTreeTransitionTrigger::OnEvent)
-	{
-		FGameplayTag EventTag;
-		UE::StateTree::PropertyHelpers::GetStructValue<FGameplayTag>(EventTagProperty, EventTag);
-		TriggerText = FText::Format(LOCTEXT("TransitionOnEvent", "On Event {0}"), FText::FromName(EventTag.GetTagName()));
-	}
-	
-	FText TargetText;
-	TArray<void*> RawData;
-	StateProperty->AccessRawData(RawData);
-	check(RawData.Num() > 0);
-	
-	const FStateTreeStateLink* State = static_cast<FStateTreeStateLink*>(RawData[0]);
-	if (State != nullptr)
-	{
-		switch (State->LinkType)
-		{
-		case EStateTreeTransitionType::None:
-			TargetText = LOCTEXT("TransitionNone", "None");
-			break;
-		case EStateTreeTransitionType::Succeeded:
-			TargetText = LOCTEXT("TransitionTreeSucceeded", "Tree Succeeded");
-			break;
-		case EStateTreeTransitionType::Failed:
-			TargetText = LOCTEXT("TransitionTreeFailed", "Tree Failed");
-			break;
-		case EStateTreeTransitionType::NextState:
-			TargetText = LOCTEXT("TransitionNextState", "Next State");
-			break;
-		case EStateTreeTransitionType::NextSelectableState:
-			TargetText = LOCTEXT("TransitionNextSelectableState", "Next Selectable State");
-			break;
-		case EStateTreeTransitionType::GotoState:
-			{
-				TargetText = FText::Format(LOCTEXT("TransitionGotoState", "Go to State {0}"), FText::FromName(State->Name));
-			}
-			break;
-		}
-	}
-
-	return FText::Format(LOCTEXT("TransitionDesc", "{0} {1}"), TriggerText, TargetText);
+	return UE::StateTree::Editor::GetTransitionDesc(GetEditorData(), *Transition, EStateTreeNodeFormatting::RichText);
 }
 
 void FStateTreeTransitionDetails::OnCopyTransition() const

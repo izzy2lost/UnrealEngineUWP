@@ -2,22 +2,26 @@
 
 #include "ActorModifierCoreEditorModule.h"
 
+#include "ActorModifierCoreBlueprint.h"
+#include "KismetCompilerModule.h"
 #include "Modifiers/ActorModifierCoreStack.h"
+#include "Modifiers/Blueprints/ActorModifierCoreBlueprintBase.h"
 #include "Modifiers/Customizations/ActorModifierCoreEditorDetailCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 
 void FActorModifierCoreEditorModule::StartupModule()
 {
-	RegisterCustomizations();
+	RegisterDetailCustomizations();
+	RegisterBlueprintCustomizations();
 }
 
 void FActorModifierCoreEditorModule::ShutdownModule()
 {
-	UnregisterCustomizations();
+	UnregisterDetailCustomizations();
 }
 
-void FActorModifierCoreEditorModule::RegisterCustomizations() const
+void FActorModifierCoreEditorModule::RegisterDetailCustomizations() const
 {
 	// Register custom layouts
 	static FName PropertyEditor("PropertyEditor");
@@ -27,7 +31,7 @@ void FActorModifierCoreEditorModule::RegisterCustomizations() const
 		, FOnGetDetailCustomizationInstance::CreateStatic(&FActorModifierCoreEditorDetailCustomization::MakeInstance));
 }
 
-void FActorModifierCoreEditorModule::UnregisterCustomizations() const
+void FActorModifierCoreEditorModule::UnregisterDetailCustomizations() const
 {
 	// Unregister custom layouts
 	static FName PropertyEditor("PropertyEditor");
@@ -36,6 +40,12 @@ void FActorModifierCoreEditorModule::UnregisterCustomizations() const
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
 		PropertyModule.UnregisterCustomClassLayout(UActorModifierCoreStack::StaticClass()->GetFName());
 	}
+}
+
+void FActorModifierCoreEditorModule::RegisterBlueprintCustomizations()
+{
+	IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
+	KismetCompilerModule.OverrideBPTypeForClass(UActorModifierCoreBlueprintBase::StaticClass(), UActorModifierCoreBlueprint::StaticClass());
 }
 
 IMPLEMENT_MODULE(FActorModifierCoreEditorModule, ActorModifierCoreEditor)

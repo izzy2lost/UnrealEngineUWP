@@ -34,6 +34,15 @@ public class TextureGraphEngine : ModuleRules
         bUseRTTI = true;
         bEnableExceptions = true;
 
+		// Disable Clang analysis due to a crash in clang-cl
+		if (Target.StaticAnalyzer != StaticAnalyzer.None
+			&& Target.Platform.IsInGroup(UnrealPlatformGroup.Microsoft)
+			&& Target.WindowsPlatform.Compiler.IsClang())
+		{
+			// https://developercommunity.visualstudio.com/t/clang-cl---analyze-crash-with-thread-i/10746623
+			bDisableStaticAnalysis = true;
+		}
+
 		//PublicDefinitions.Add("WITH_MALLOC_STOMP=1");
 
 		PrivateDependencyModuleNames.AddRange(new string[] 
@@ -77,14 +86,20 @@ public class TextureGraphEngine : ModuleRules
 			PublicDependencyModuleNames.AddRange(new string[]
             {
                 "UnrealEd",
+                "AssetTools"
 			});
 		}
 
 		AddDefaultIncludePaths();
 
-		string ModDirLiteral = ModuleDirectory.Replace('\\', '/');
+		if (!ModuleDirectory.StartsWith(EngineDirectory))
+			throw new BuildException("TextureGraphEngine module directory must be under engine");
+
+		string ModuleRelativeToEngineDir = ModuleDirectory.Substring(EngineDirectory.Length + 1);
+
+		string ModDirLiteral = ModuleRelativeToEngineDir.Replace('\\', '/');
 		string defModuleName = "MODULE_DIR \"" + ModDirLiteral + "\"=";
-		PublicDefinitions.Add(defModuleName);
+		PrivateDefinitions.Add(defModuleName);
 	}
 
 }

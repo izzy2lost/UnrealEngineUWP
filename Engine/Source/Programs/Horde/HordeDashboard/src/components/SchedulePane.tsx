@@ -3,7 +3,7 @@ import { mergeStyleSets, Stack } from '@fluentui/react';
 import { DetailsList, DetailsListLayoutMode, DetailsRow, IColumn, IDetailsListProps, SelectionMode } from '@fluentui/react/lib/DetailsList';
 import moment from 'moment-timezone';
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import backend from '../backend';
 import { GetJobResponse, GetTemplateRefResponse, JobState } from '../backend/Api';
 import dashboard from '../backend/Dashboard';
@@ -27,9 +27,10 @@ type ScheduleItem = {
 
 const scheduledJobs = new Map<string, GetJobResponse | null>();
 
-export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = ({ templates }) => {
+export const SchedulePane: React.FC<{ streamId: string, templates: GetTemplateRefResponse[] }> = ({ streamId, templates }) => {
 
    let [updated, setUpdated] = useState(new Date().getTime());
+   const navigate = useNavigate();
 
    const ids = new Set<string>();
 
@@ -54,7 +55,7 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
    })
 
    if (ids.size) {
-      backend.getJobsByIds(Array.from(ids.values()), { filter: "id,createTime,state" }, false).then(response => {
+      backend.getJobsByIds(Array.from(ids.values()), { filter: "id,createTime,state" }).then(response => {
          response.forEach(j => {
             scheduledJobs.set(j.id, j);
          });
@@ -76,7 +77,8 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
       { key: 'schedule_column7', name: 'time_4', minWidth: 100, maxWidth: 100, isResizable: false },
       { key: 'schedule_column8', name: 'time_5', minWidth: 100, maxWidth: 100, isResizable: false },
       { key: 'schedule_column9', name: 'time_6', minWidth: 100, maxWidth: 100, isResizable: false },
-      { key: 'schedule_column10', name: 'space', minWidth: 2, isResizable: false }
+      { key: 'schedule_column10', name: 'audit', minWidth: 56, maxWidth: 56, isResizable: false },
+      { key: 'schedule_column11', name: 'space', minWidth: 2, isResizable: false }
 
    ];
 
@@ -94,7 +96,7 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
          let gateTemplate = templates.find(t => t.id === templateId);
 
 
-         return <Stack horizontalAlign="start" verticalFill verticalAlign="center" tokens={{ childrenGap: 4 }}>
+         return <Stack horizontalAlign="start" verticalFill verticalAlign="center" tokens={{ childrenGap: 4 }} style={{paddingLeft: 12}}>
             <Stack style={{ fontWeight: 600 }}>{name}</Stack>
             {!!gateTemplate && <Stack tokens={{ childrenGap: 4 }}>
                <Stack horizontal tokens={{ childrenGap: 8 }}>
@@ -108,6 +110,16 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
             </Stack>
             }
          </Stack>;
+      }
+
+      if (name === "audit") {
+         return <Link to={`/audit/template/${encodeURIComponent(streamId)}/${encodeURIComponent(template.id)}`}>
+            <Stack horizontalAlign="end" verticalFill verticalAlign="center" tokens={{ childrenGap: 4 }}>
+            <Stack tokens={{ childrenGap: 4 }}>
+               <Stack >View Log</Stack>
+            </Stack>
+         </Stack>
+         </Link>
       }
 
       if (name.startsWith("time_")) {
@@ -174,10 +186,10 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
 
          let background: string | undefined;
          if (props.itemIndex % 2 === 0) {
-            background  =  dashboard.darktheme ? "#1D2021" : "#FAF9F9";
+            background = dashboard.darktheme ? "#1D2021" : "#FAF9F9";
          }
 
-         return <DetailsRow {...nprops} styles={{root: {background: background}}}/>
+         return <DetailsRow {...nprops} styles={{ root: { background: background } }} />
 
       }
       return null;

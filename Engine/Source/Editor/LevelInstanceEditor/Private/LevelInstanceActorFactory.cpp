@@ -3,7 +3,7 @@
 #include "LevelInstanceActorFactory.h"
 #include "LevelInstanceEditorSettings.h"
 #include "LevelInstance/LevelInstanceInterface.h"
-#include "Settings/EditorExperimentalSettings.h"
+#include "LevelInstance/LevelInstanceSettings.h"
 
 ULevelInstanceActorFactory::ULevelInstanceActorFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -14,15 +14,18 @@ ULevelInstanceActorFactory::ULevelInstanceActorFactory(const FObjectInitializer&
 void ULevelInstanceActorFactory::PostSpawnActor(UObject* Asset, AActor* NewActor)
 {
 	ILevelInstanceInterface* LevelInstanceInterface = CastChecked<ILevelInstanceInterface>(NewActor);
-	LevelInstanceInterface->SetWorldAsset(Asset);
-	LevelInstanceInterface->LoadLevelInstance();
+	if (UWorld* WorldAsset = Cast<UWorld>(Asset))
+	{
+		LevelInstanceInterface->SetWorldAsset(WorldAsset);
+		LevelInstanceInterface->LoadLevelInstance();
+	}
 }
 
 bool ULevelInstanceActorFactory::CanCreateActorFrom(const FAssetData& AssetData, FText& OutErrorMsg)
 {
-	if (!GetDefault<UEditorExperimentalSettings>()->bLevelInstance)
+	if (GetDefault<ULevelInstanceSettings>()->IsLevelInstanceDisabled())
 	{
-		OutErrorMsg = NSLOCTEXT("LevelInstanceActorFactory", "ExperimentalSettings", "Level Instance must be enabled in experimental settings.");
+		OutErrorMsg = NSLOCTEXT("LevelInstanceActorFactory", "LevelInstanceDisabled", "Level Instance support is disabled.");
 		return false;
 	}
 

@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Storage
 
 		static readonly Version s_currentVersion = Enum.GetValues(typeof(Version)).Cast<Version>().Max();
 
-		struct LocatorCollection : IReadOnlyList<BlobLocator>
+		readonly struct LocatorCollection : IReadOnlyList<BlobLocator>
 		{
 			public readonly JaggedReadOnlyMemoryArray Array;
 

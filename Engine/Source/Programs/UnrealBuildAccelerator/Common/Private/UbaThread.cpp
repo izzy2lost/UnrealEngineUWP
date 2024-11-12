@@ -94,6 +94,7 @@ namespace uba
 
 	bool Thread::Wait(u32 milliseconds, Event* wakeupEvent)
 	{
+		SCOPED_READ_LOCK(m_funcLock, readLock);
 		if (!m_handle)
 			return true;
 
@@ -110,7 +111,6 @@ namespace uba
 			if (WaitForSingleObject(m_handle, milliseconds) == WAIT_TIMEOUT)
 				return false;
 		}
-		CloseHandle(m_handle);
 #else
 		if (!m_finished.IsSet(milliseconds))
 			return false;
@@ -118,6 +118,17 @@ namespace uba
 		int res = pthread_join(*(pthread_t*)&m_handle, (void**)&ptr);
 		UBA_ASSERT(res == 0);
 #endif
+
+		readLock.Leave();
+
+		SCOPED_WRITE_LOCK(m_funcLock, lock);
+		if (!m_handle)
+			return true;
+
+		#if PLATFORM_WINDOWS
+		CloseHandle(m_handle);
+		#endif
+
 		m_func = {};
 		m_handle = nullptr;
 		return true;

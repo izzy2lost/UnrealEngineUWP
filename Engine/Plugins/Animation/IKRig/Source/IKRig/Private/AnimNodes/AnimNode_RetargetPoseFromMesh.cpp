@@ -105,29 +105,23 @@ void FAnimNode_RetargetPoseFromMesh::Evaluate_AnyThread(FPoseContext& Output)
 	{
 		// live preview source asset settings in the retarget, editor only
 		// NOTE: this copies goal targets as well, but these are overwritten by IK chain goals
-		Processor->ApplySettingsFromAsset();
+		Processor->CopyIKRigSettingsFromAsset();
 	}
 	#endif
 
-	// apply custom profile settings to the processor
-	Processor->ApplySettingsFromProfile(CustomRetargetProfile);
-	
 	// LOD off the IK pass
-	if (LODThresholdForIK != INDEX_NONE && Output.AnimInstanceProxy->GetLODLevel() > LODThresholdForIK)
-	{
-		// override the custom profile's global settings but with IK forcibly turned off
-		FRetargetProfile TurnIKOffProfile;
-		TurnIKOffProfile.bApplyGlobalSettings = true;
-		TurnIKOffProfile.GlobalSettings = Processor->GetGlobalSettings();
-		TurnIKOffProfile.GlobalSettings.bEnableIK = false;
-		Processor->ApplySettingsFromProfile(TurnIKOffProfile);
-	}
+	bool bForceIKOff = LODThresholdForIK != INDEX_NONE && Output.AnimInstanceProxy->GetLODLevel() > LODThresholdForIK;
+	FRetargetProfile RetargetProfileToUse = GetMergedRetargetProfile(bForceIKOff);
 
 	// run the retargeter
-	const TArray<FTransform>& RetargetedPose = Processor->RunRetargeter(SourceMeshComponentSpaceBoneTransforms, SpeedValuesFromCurves, DeltaTime);
+	const TArray<FTransform>& RetargetedPose = Processor->RunRetargeter(
+		SourceMeshComponentSpaceBoneTransforms,
+		SpeedValuesFromCurves,
+		DeltaTime,
+		RetargetProfileToUse);
 	DeltaTime = 0.0f;
-
-	// copy pose back
+	
+	// convert pose to local space and apply to output
 	FCSPose<FCompactPose> ComponentPose;
 	ComponentPose.InitPose(Output.Pose);
 	const FCompactPose& CompactPose = ComponentPose.GetPose();
@@ -329,8 +323,10 @@ bool FAnimNode_RetargetPoseFromMesh::EnsureProcessorIsInitialized(const TObjectP
 	if (!Processor->WasInitializedWithTheseAssets(SourceMesh, TargetMesh, IKRetargeterAsset))
 	{
 		// initialize retarget processor with source and target skeletal meshes
-		// (asset is passed in as outer UObject for new UIKRigProcessor) 
-		Processor->Initialize(SourceMesh,	TargetMesh,IKRetargeterAsset);
+		// (asset is passed in as outer UObject for new UIKRigProcessor)
+		bool bForceIKOff = false;
+		FRetargetProfile RetargetProfileToUse = GetMergedRetargetProfile(bForceIKOff);
+		Processor->Initialize(SourceMesh, TargetMesh, IKRetargeterAsset, RetargetProfileToUse);
 	}
 
 	return Processor->IsInitialized();
@@ -392,5 +388,21 @@ TObjectPtr<USkeletalMeshComponent> FAnimNode_RetargetPoseFromMesh::GetComponentT
 	}
 	
 	return SourceMeshComponent.Get();
+}
+
+FRetargetProfile FAnimNode_RetargetPoseFromMesh::GetMergedRetargetProfile(bool bForceIKOff) const
+{
+	// collect settings to retarget with starting with asset settings and overriding with custom profile
+	FRetargetProfile Profile;
+	IKRetargeterAsset->FillProfileWithAssetSettings(Profile);
+	// load custom profile plugged into the anim node
+	Profile.MergeWithOtherProfile(CustomRetargetProfile);
+	// force all IK off (skips IK solve)
+	if (bForceIKOff)
+	{
+		Profile.GlobalSettings.bEnableIK = false;
+	}
+
+	return Profile;
 }
 

@@ -35,9 +35,9 @@ FORCEINLINE void* UeVstackAllocHelper(FVirtualStackAllocator* Allocator, size_t 
 	{
 		// in transactional code we redirect the virtual stack allocator to FMemory::Malloc
 		// until we properly implement a transaction-friendly stack allocator
-		AutoRTFM::Open([&Result, Size, Align]()
+		Result = AutoRTFM::Open([Size, Align]
 		{
-			Result = FMemory::Malloc(Size, Align);
+			return FMemory::Malloc(Size, Align);
 		});
 
 		// for these 'stack' allocations we call Free on both commit and abort, since

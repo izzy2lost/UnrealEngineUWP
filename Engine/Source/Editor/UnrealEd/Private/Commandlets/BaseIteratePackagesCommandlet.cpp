@@ -86,7 +86,6 @@ UBaseIteratePackagesCommandlet::UBaseIteratePackagesCommandlet(const FObjectInit
 	: Super(ObjectInitializer)
 	, bForceUATEnvironmentVariableSet(false)
 {
-
 }
 
 int32 UBaseIteratePackagesCommandlet::InitializeParameters( const TArray<FString>& Tokens, TArray<FString>& PackageNames )
@@ -660,21 +659,14 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 
 
 				// process all the objects loaded with the base package.
-				ForEachObjectWithOuter(Package, [this, &bSavePackage](UObject* Object)
-					{
-						PerformAdditionalOperations(Object, bSavePackage);
-					});
+				TArray<UObject*> PackageObjects;
+				GetObjectsWithOuter(Package, PackageObjects);
+				for (UObject* Object : PackageObjects)
+				{
+					PerformAdditionalOperations(Object, bSavePackage);
+				}
 
-				UWorld::InitializationValues IVS;
-				IVS.RequiresHitProxies(false);
-				IVS.ShouldSimulatePhysics(false);
-				IVS.EnableTraceCollision(false);
-				IVS.CreateNavigation(false);
-				IVS.CreateAISystem(false);
-				IVS.AllowAudioPlayback(false);
-				IVS.CreatePhysicsScene(true);
-
-				FScopedEditorWorld ScopeEditorWorld(World, IVS);
+				FScopedEditorWorld ScopeEditorWorld(World, WorldInitialisationValues);
 
 				/*TUniquePtr<FLoaderAdapterShape> LoaderAdapterShape;
 				FBox Bounds = FBox(FVector(-HALF_WORLD_MAX, -HALF_WORLD_MAX, -HALF_WORLD_MAX), FVector(HALF_WORLD_MAX, HALF_WORLD_MAX, HALF_WORLD_MAX));
@@ -693,6 +685,8 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 						//UWorldPartitionBuilder::SavePackages(PackagesToSave, PackageHelper, true);
 						PackagesToSave.Empty();
 					};
+
+				ForEachActorWithLoadingParams.FilterActorDesc = [this](const FWorldPartitionActorDesc* ActorDesc) -> bool{ return this->FilterActorDesc(ActorDesc); };
 
 				UWorldPartition* WorldPartition = World->GetWorldPartition();
 
@@ -713,7 +707,7 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 						check(Package);
 
 						TArray<UObject*> DependantObjects;
-						ForEachObjectWithPackage(Package, [this, &bSavePackage](UObject* Object)
+						ForEachObjectWithPackage(Package, [this, &bSavePackage, &DependantObjects](UObject* Object)
 							{
 								if (!IsValid(Object))
 								{
@@ -721,10 +715,15 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 								}
 								if (!Cast<UMetaData>(Object))
 								{
-									PerformWorldBuilderAdditionalOperations(Object, bSavePackage);
+									DependantObjects.Add(Object);
 								}
 								return true;
 							}, true);
+
+						for (UObject* Object : DependantObjects)
+						{
+							PerformWorldBuilderAdditionalOperations(Object, bSavePackage);
+						}
 
 						if (bSavePackage)
 						{
@@ -742,14 +741,19 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 				VerboseMessage(TEXT("Post PerformAdditionalOperations"));
 
 				// Check for any special per object operations
-				ForEachObjectWithOuter(Package, [this, &bSavePackage](UObject* Object)
+				TArray<UObject*> PackageObjects;
+				ForEachObjectWithOuter(Package, [this, &PackageObjects](UObject* Object)
 					{
 						if (!IsValid(Object))
 						{
 							return;
 						}
-						PerformAdditionalOperations(Object, bSavePackage);
+						PackageObjects.Add(Object);
 					});
+				for(UObject* Object : PackageObjects)
+				{
+					PerformAdditionalOperations(Object, bSavePackage);
+				}
 			}
 
 			PostPerformAdditionalOperations(Package);
@@ -1068,6 +1072,13 @@ int32 UBaseIteratePackagesCommandlet::Main( const FString& Params )
 	bForceFinishAllCompilationBeforeGC = false;
 
 	bUseWorldPartitionBuilder = false;
+	WorldInitialisationValues.RequiresHitProxies(false);
+	WorldInitialisationValues.ShouldSimulatePhysics(false);
+	WorldInitialisationValues.EnableTraceCollision(false);
+	WorldInitialisationValues.CreateNavigation(false);
+	WorldInitialisationValues.CreateAISystem(false);
+	WorldInitialisationValues.AllowAudioPlayback(false);
+	WorldInitialisationValues.CreatePhysicsScene(true);
 
 	bKeepPackageGUIDOnSave = Switches.Contains(TEXT("KeepPackageGUIDOnSave"));
 	

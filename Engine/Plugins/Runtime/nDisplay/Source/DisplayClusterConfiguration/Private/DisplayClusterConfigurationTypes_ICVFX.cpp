@@ -2,33 +2,13 @@
 
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes.h"
+#include "DisplayClusterConfigurationUtils.h"
 #include "IDisplayCluster.h"
 #include "Camera/CameraTypes.h"
 #include "CineCameraComponent.h"
+#include "CineCameraActor.h"
 
-namespace UE::DisplayClusterConfiguration::ICVFX
-{
-	static float ClampPercent(float InValue)
-	{
-		static const float MaxCustomFrustumValue = 5.f;
 
-		return FMath::Clamp(InValue, -MaxCustomFrustumValue, MaxCustomFrustumValue);
-	}
-
-	static float ClampCustomFrustum(float InValue, float InMax)
-	{
-		return FMath::Clamp(InValue, -InMax, InMax);
-	}
-};
-using namespace UE::DisplayClusterConfiguration::ICVFX;
-
-int32 GDisplayClusterICVFXCameraAdoptResolution = 1;
-static FAutoConsoleVariableRef CVarGDisplayClusterICVFXCameraAdoptResolution(
-	TEXT("nDisplay.icvfx.camera.AdoptResolution"),
-	GDisplayClusterICVFXCameraAdoptResolution,
-	TEXT("Adopt camera viewport resolution with 'Filmback + CropSettings + SqueezeFactor' CineCamera settings.  (Default = 1)"),
-	ECVF_Default
-);
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterConfigurationICVFX_ChromakeyMarkers
@@ -51,7 +31,7 @@ FDisplayClusterConfigurationICVFX_CameraRenderSettings::FDisplayClusterConfigura
 
 void FDisplayClusterConfigurationICVFX_CameraRenderSettings::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const
 {
-	// CameraSettings can disable posprocess from this camera
+	// CameraSettings can disable postprocess from this camera
 	if (!bUseCameraComponentPostprocess)
 	{
 		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
@@ -194,6 +174,31 @@ FDisplayClusterConfigurationICVFX_CameraSettings::FDisplayClusterConfigurationIC
 	AllNodesColorGrading.bEnableEntireClusterColorGrading = true;
 }
 
+ACineCameraActor* FDisplayClusterConfigurationICVFX_CameraSettings::GetExternalCineCameraActor() const
+{
+	ACineCameraActor* ExternalCineCameraActor = ExternalCameraActor.Get();
+	if (IsValid(ExternalCineCameraActor))
+	{
+		return ExternalCineCameraActor;
+	}
+
+	return nullptr;
+}
+
+UCineCameraComponent* FDisplayClusterConfigurationICVFX_CameraSettings::GetExternalCineCameraComponent() const
+{
+	if (ACineCameraActor* ExternalCineCameraActor = GetExternalCineCameraActor())
+	{
+		UCineCameraComponent* ExternalCineCameraComponent = ExternalCineCameraActor->GetCineCameraComponent();
+		if (IsValid(ExternalCineCameraComponent))
+		{
+			return ExternalCineCameraComponent;
+		}
+	}
+
+	return nullptr;
+}
+
 bool FDisplayClusterConfigurationICVFX_CameraSettings::IsICVFXEnabled(const UDisplayClusterConfigurationData& InConfigurationData, const FString& InClusterNodeId) const
 {
 	// When rendering offscreen, we have an extended logic for camera rendering activation
@@ -256,120 +261,11 @@ float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraBufferRatio(con
 	return BufferRatio;
 }
 
-bool FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraBorder(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FLinearColor& OutBorderColor, float& OutBorderThickness) const
-{
-	if (!Border.Enable)
-	{
-		OutBorderColor = FLinearColor::Black;
-		OutBorderThickness = 0.0f;
-
-		return false;
-	}
-
-	const float RealThicknessScaleValue = 0.1f;
-
-	OutBorderColor = Border.Color;
-	OutBorderThickness = Border.Thickness * RealThicknessScaleValue;
-
-	return true;
-}
-
 void FDisplayClusterConfigurationICVFX_CameraSettings::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo)
 {
 	RenderSettings.SetupViewInfo(InStageSettings, InOutViewInfo);
 	CustomFrustum.SetupViewInfo(InStageSettings, *this, InOutViewInfo);
 	CameraMotionBlur.SetupViewInfo(InStageSettings, InOutViewInfo);
-}
-
-FIntPoint FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
-{
-	const FIntPoint CameraFrameSize = RenderSettings.CustomFrameSize.bUseCustomSize
-		? FIntPoint(RenderSettings.CustomFrameSize.CustomWidth, RenderSettings.CustomFrameSize.CustomHeight)
-		: FIntPoint(InStageSettings.DefaultFrameSize.Width, InStageSettings.DefaultFrameSize.Height);
-
-	if (GDisplayClusterICVFXCameraAdoptResolution)
-	{
-		// Get the size of the cinematic camera's cropped sensor:
-		const double CropedSensorWidth  = FMath::Tan(FMath::DegreesToRadians(InCineCameraComponent.GetHorizontalFieldOfView()) / 2.f) * 2.f * InCineCameraComponent.CurrentFocalLength;
-		const double CropedSensorHeight = FMath::Tan(FMath::DegreesToRadians(InCineCameraComponent.GetVerticalFieldOfView()) / 2.f) * 2.f * InCineCameraComponent.CurrentFocalLength;
-
-		// Get the ratio of the cinematic camera's cropped sensor size to the base sensor size.
-		const double CroppedSensorWidthRatio  = CropedSensorWidth / InCineCameraComponent.Filmback.SensorWidth;
-		const double CroppedSensorHeightRatio = CropedSensorHeight / InCineCameraComponent.Filmback.SensorHeight;
-
-		// Adapt camera resolution to the filmback sensor aspect ratio
-		// We keep the width, but adjust the height to match the aspect ratio of the Fimlmback sensor.
-		const double CameraFrameHeight = (InCineCameraComponent.Filmback.SensorHeight > 0.f && InCineCameraComponent.Filmback.SensorWidth > 0.f)
-			? CameraFrameSize.X / (InCineCameraComponent.Filmback.SensorWidth / InCineCameraComponent.Filmback.SensorHeight)
-			: CameraFrameSize.Y;
-
-		// Get cropped camera size
-		const FIntPoint CroppedCameraFrameSize(
-			FMath::RoundToInt(CameraFrameSize.X * CroppedSensorWidthRatio),
-			FMath::RoundToInt(CameraFrameHeight * CroppedSensorHeightRatio)
-		);
-
-		return CroppedCameraFrameSize;
-	}
-
-	return CameraFrameSize;
-}
-
-float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameAspectRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
-{
-	FIntPoint FrameSize = GetCameraFrameSize(InStageSettings, InCineCameraComponent);
-
-	return (FrameSize.Y > 0 && FrameSize.X > 0) ? (float)FrameSize.X / float(FrameSize.Y) : 0;
-}
-
-FVector4 FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
-{
-	FVector4 ResultSoftEdge(ForceInitToZero);
-
-	const float FieldOfViewMultiplier = CustomFrustum.GetCameraFieldOfViewMultiplier(InStageSettings);
-
-	// softedge adjustments	
-	const float Overscan = (FieldOfViewMultiplier > 0) ? FieldOfViewMultiplier : 1;
-
-	// remap values from 0-1 GUI range into acceptable 0.0 - 0.25 shader range
-	ResultSoftEdge.X = FMath::GetMappedRangeValueClamped(FVector2D(0.0, 1.0f), FVector2D(0.0, 0.25), SoftEdge.Horizontal) / Overscan; // Left
-	ResultSoftEdge.Y = FMath::GetMappedRangeValueClamped(FVector2D(0.0, 1.0f), FVector2D(0.0, 0.25), SoftEdge.Vertical) / Overscan; // Top
-
-	// ZW now used in other way
-	// Z for new parameter Feather
-	ResultSoftEdge.Z = SoftEdge.Feather;
-
-	// Custom frustum made changes to soft edges
-	if (CustomFrustum.bEnable)
-	{
-		// default - percents
-		const float ConvertToPercent = 0.01f;
-
-		float Left = ClampPercent(CustomFrustum.Left * ConvertToPercent);
-		float Right = ClampPercent(CustomFrustum.Right * ConvertToPercent);
-		float Top = ClampPercent(CustomFrustum.Top * ConvertToPercent);
-		float Bottom = ClampPercent(CustomFrustum.Bottom * ConvertToPercent);
-
-		if (CustomFrustum.Mode == EDisplayClusterConfigurationViewportCustomFrustumMode::Pixels)
-		{
-			const float CameraBufferRatio = GetCameraBufferRatio(InStageSettings);
-			const FIntPoint FrameSize = GetCameraFrameSize(InStageSettings, InCineCameraComponent);
-
-			const float  FrameWidth = FrameSize.X * CameraBufferRatio;
-			const float FrameHeight = FrameSize.Y * CameraBufferRatio;
-
-			Left = ClampPercent(CustomFrustum.Left / FrameWidth);
-			Right = ClampPercent(CustomFrustum.Right / FrameWidth);
-			Top = ClampPercent(CustomFrustum.Top / FrameHeight);
-			Bottom = ClampPercent(CustomFrustum.Bottom / FrameHeight);
-		}
-
-		// recalculate soft edge related offsets based on frustum
-		ResultSoftEdge.X /= (1 + Left + Right);
-		ResultSoftEdge.Y /= (1 + Top + Bottom);
-	}
-
-	return ResultSoftEdge;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -547,7 +443,7 @@ bool FDisplayClusterConfigurationICVFX_LightcardSettings::ShouldUseLightCard(con
 {
 	if (!bEnable)
 	{
-		// dont use lightcard if disabled
+		// Don't use the lightcard if it is disabled
 		return false;
 	}
 
@@ -568,6 +464,86 @@ bool FDisplayClusterConfigurationICVFX_LightcardSettings::ShouldUseUVLightCard(c
 {
 	//Note: Here we can add custom rules for UV lightcards
 	return ShouldUseLightCard(InStageSettings);
+}
+
+EDisplayClusterShaderParametersICVFX_LightCardRenderMode FDisplayClusterConfigurationICVFX_LightcardSettings::GetLightCardRenderModeOverride(const UDisplayClusterConfigurationViewport* InViewportConfiguration) const
+{
+	if (!bEnable || (InViewportConfiguration && !InViewportConfiguration->ICVFX.bAllowICVFX))
+	{
+		// When ICVFX is disabled we don't override lightcards rendering mode
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
+
+	if (InViewportConfiguration && InViewportConfiguration->ICVFX.LightcardRenderMode != EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Default)
+	{
+		// Use overridden values from the viewport:
+		switch (InViewportConfiguration->ICVFX.LightcardRenderMode)
+		{
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Over:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Under:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+		default:
+			break;
+		}
+	}
+
+	return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+}
+
+EDisplayClusterShaderParametersICVFX_LightCardRenderMode FDisplayClusterConfigurationICVFX_LightcardSettings::GetLightCardRenderMode(const EDisplayClusterConfigurationICVFX_PerLightcardRenderMode InPerLightcardRenderMode, const UDisplayClusterConfigurationViewport* InViewportConfiguration) const
+{
+	if (!bEnable || (InViewportConfiguration && !InViewportConfiguration->ICVFX.bAllowICVFX))
+	{
+		// When ICVFX is disabled we don't render lightcards
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
+
+	if (InViewportConfiguration && InViewportConfiguration->ICVFX.LightcardRenderMode != EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Default)
+	{
+		// Use overridden values from the viewport:
+		switch (InViewportConfiguration->ICVFX.LightcardRenderMode)
+		{
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Over:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+
+		case EDisplayClusterConfigurationICVFX_OverrideLightcardRenderMode::Under:
+			return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+		default:
+			break;
+		}
+
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::None;
+	}
+
+	// Per-lightcard render mode:
+	switch (InPerLightcardRenderMode)
+	{
+	case EDisplayClusterConfigurationICVFX_PerLightcardRenderMode::Under:
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+	case EDisplayClusterConfigurationICVFX_PerLightcardRenderMode::Over:
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
+
+	default:
+		break;
+	}
+
+	// Use global lightcard settings:
+	switch (Blendingmode)
+	{
+	case EDisplayClusterConfigurationICVFX_LightcardRenderMode::Under:
+		return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Under;
+
+	default:
+		break;
+	};
+
+	// By default, lightcards are rendered in "Over" mode.
+	return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -632,50 +608,7 @@ void FDisplayClusterConfigurationICVFX_CameraDepthOfField::UpdateDynamicCompensa
 void FDisplayClusterConfigurationICVFX_CameraCustomFrustum::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings, FMinimalViewInfo& InOutViewInfo) const
 {
 	// Since Circle of confusion is directly proportional to aperature, with wider FOV focal length needs to be shortened by the same amount as FOV.
-	if (bEnable && InCameraSettings.ExternalCameraActor.IsValid())
-	{
-		// default - percents
-		const float ConvertToPercent = 0.01f;
-		const float MaxPercentOverscan = .5f;
-		const float MaxPixelOverscan = 5.f;
-
-		float LocLeft = Left;
-		float LocRight = Right;
-		float LocTop = Top;
-		float LocBottom = Bottom;
-
-		if (Mode == EDisplayClusterConfigurationViewportCustomFrustumMode::Pixels)
-		{
-			LocLeft = ClampCustomFrustum(Left * ConvertToPercent, MaxPixelOverscan);
-			LocRight = ClampCustomFrustum(Right * ConvertToPercent, MaxPixelOverscan);
-			LocTop = ClampCustomFrustum(Top * ConvertToPercent, MaxPixelOverscan);
-			LocBottom = ClampCustomFrustum(Bottom * ConvertToPercent, MaxPixelOverscan);
-
-			const float CameraBufferRatio = InCameraSettings.GetCameraBufferRatio(InStageSettings);
-			const FIntPoint FrameSize = InCameraSettings.GetCameraFrameSize(InStageSettings, *InCameraSettings.ExternalCameraActor->GetCineCameraComponent());
-			const float  FrameWidth = FrameSize.X * CameraBufferRatio;
-			const float FrameHeight = FrameSize.Y * CameraBufferRatio;
-
-			LocLeft = LocLeft / FrameWidth;
-			LocRight = LocRight / FrameWidth;
-			LocTop = LocTop / FrameHeight;
-			LocBottom = LocBottom / FrameHeight;
-		}
-
-		LocLeft = ClampCustomFrustum(LocLeft * ConvertToPercent, MaxPercentOverscan);
-		LocRight = ClampCustomFrustum(LocRight * ConvertToPercent, MaxPercentOverscan);
-		LocTop = ClampCustomFrustum(LocTop * ConvertToPercent, MaxPercentOverscan);
-		LocBottom = ClampCustomFrustum(LocBottom * ConvertToPercent, MaxPercentOverscan);
-
-		const float FOVMultiplier = GetCameraFieldOfViewMultiplier(InStageSettings);
-		const float ClampedFieldOfViewMultiplier = (FOVMultiplier > 0.f) ? FOVMultiplier : 1.f;
-		InOutViewInfo.PostProcessSettings.DepthOfFieldMinFstop /= ClampedFieldOfViewMultiplier;
-		InOutViewInfo.PostProcessSettings.DepthOfFieldFstop /= ClampedFieldOfViewMultiplier;
-
-		float Multiplier = (1. + (LocLeft + LocRight) / 2.) * (1. + (LocTop + LocBottom) / 2.);
-		InOutViewInfo.PostProcessSettings.DepthOfFieldMinFstop /= Multiplier;
-		InOutViewInfo.PostProcessSettings.DepthOfFieldFstop /= Multiplier;
-	}
+	// Adapting the FOV of the nDisplay viewport to DoF is already done in FDisplayClusterViewport_CustomPostProcessSettings::ConfigurePostProcessSettingsForViewport().
 }
 
 float FDisplayClusterConfigurationICVFX_CameraCustomFrustum::GetCameraFieldOfViewMultiplier(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
@@ -716,4 +649,22 @@ void FDisplayClusterConfigurationICVFX_CameraMotionBlur::SetupViewInfo(const FDi
 		InOutViewInfo.PostProcessSettings.MotionBlurPerObjectSize = MotionBlurPPS.MotionBlurPerObjectSize;
 		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurPerObjectSize = true;
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+// FDisplayClusterConfigurationICVFX_CameraDepthOfField
+///////////////////////////////////////////////////////////////////////////////////////
+UTexture2D* FDisplayClusterConfigurationICVFX_CameraDepthOfField::GetCompensationLUT(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+{
+	if (DynamicCompensationLUT)
+	{
+		return ToRawPtr(DynamicCompensationLUT);
+	}
+	
+	if (CompensationLUT.IsValid())
+	{
+		return CompensationLUT.Get();
+	}
+
+	return nullptr;
 }

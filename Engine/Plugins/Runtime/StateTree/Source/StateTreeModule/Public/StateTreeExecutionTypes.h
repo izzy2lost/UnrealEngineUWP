@@ -2,6 +2,7 @@
 
 #pragma once
 #include "StateTreeTypes.h"
+#include "StateTreeEvents.h"
 
 #include "StateTreeExecutionTypes.generated.h"
 
@@ -392,7 +393,7 @@ struct STATETREEMODULE_API FStateTreeActiveStates
 	bool IsEmpty() const { return NumStates == 0; } 
 
 	/** Returns a specified state in the array. */
-	FORCEINLINE FStateTreeStateHandle operator[](const int32 Index) const
+	FORCEINLINE const FStateTreeStateHandle& operator[](const int32 Index) const
 	{
 		check(Index >= 0 && Index < (int32)NumStates);
 		return States[Index];
@@ -485,7 +486,7 @@ struct STATETREEMODULE_API FStateTreeTransitionSource
 };
 
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 struct STATETREEMODULE_API FStateTreeInstanceDebugId
 {
 	FStateTreeInstanceDebugId() = default;
@@ -523,7 +524,7 @@ struct STATETREEMODULE_API FStateTreeInstanceDebugId
 	uint32 Id = INDEX_NONE;
 	uint32 SerialNumber = INDEX_NONE;
 };
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE
 
 /** Describes current state of a delayed transition. */
 USTRUCT()
@@ -539,6 +540,12 @@ struct STATETREEMODULE_API FStateTreeTransitionDelayedState
 
 	UPROPERTY()
 	float TimeLeft = 0.0f;
+
+	UPROPERTY()
+	FStateTreeSharedEvent CapturedEvent;
+
+	UPROPERTY()
+	uint32 CapturedEventHash = 0u;
 };
 
 /** Describes an active branch of a State Tree. */
@@ -546,6 +553,9 @@ USTRUCT(BlueprintType)
 struct STATETREEMODULE_API FStateTreeExecutionFrame
 {
 	GENERATED_BODY()
+
+	FStateTreeExecutionFrame() = default;
+	FStateTreeExecutionFrame(const FRecordedStateTreeExecutionFrame& RecordedExecutionFrame);
 
 	bool IsSameFrame(const FStateTreeExecutionFrame& OtherFrame) const
 	{
@@ -609,7 +619,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	void Reset()
 	{
 		ActiveFrames.Reset();
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 		InstanceDebugId.Reset();
 #endif
 		EnterStateFailedTaskIndex = FStateTreeIndex16::Invalid;
@@ -619,15 +629,26 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CurrentPhase = EStateTreeUpdatePhase::Unset;
 		CompletedStateHandle = FStateTreeStateHandle::Invalid;
 		StateChangeCount = 0;
+		RandomStream.Reset();
 	}
 
-	/** @returns Delayed transition state for a specific transition, or nullptr if it does not exists. */
-	FStateTreeTransitionDelayedState* FindDelayedTransition(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex)
+	UE_DEPRECATED(5.5, "Use FindAndRemoveExpiredDelayedTransitions() instead or search through DelayedTransitions directly.")
+	FStateTreeTransitionDelayedState* FindDelayedTransition(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex) { return nullptr; }
+
+	/** Finds all delayed transition states for a specific transition and removes them. Returns their copies. */
+	TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> FindAndRemoveExpiredDelayedTransitions(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex)
 	{
-		return DelayedTransitions.FindByPredicate([OwnerStateTree, TransitionIndex](const FStateTreeTransitionDelayedState& TransitionState)
+		TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> Result;
+		for (TArray<FStateTreeTransitionDelayedState>::TIterator It = DelayedTransitions.CreateIterator(); It; ++It)
 		{
-			return TransitionState.StateTree == OwnerStateTree && TransitionState.TransitionIndex == TransitionIndex;
-		});
+			if (It->TimeLeft <= 0.0f && It->StateTree == OwnerStateTree && It->TransitionIndex == TransitionIndex)
+			{
+				Result.Emplace(MoveTemp(*It));
+				It.RemoveCurrentSwap();
+			}
+		}
+
+		return Result;
 	}
 
 	/** Currently active frames (and states) */
@@ -638,7 +659,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	TArray<FStateTreeTransitionDelayedState> DelayedTransitions;
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE
 	/** Id for the active instance used for debugging. */
 	mutable FStateTreeInstanceDebugId InstanceDebugId;
 #endif
@@ -678,6 +699,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	uint16 StateChangeCount = 0;
 
+	/** Used by state tree random-based operations. */
+	UPROPERTY()
+	FRandomStream RandomStream;
+
 #if WITH_EDITORONLY_DATA
 	UE_DEPRECATED(5.3, "Use DataHandle instead.")
 	UPROPERTY()
@@ -691,6 +716,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.4, "Superceded by State Tree Data Handles.")
 	FStateTreeIndex16 FirstTaskObjectIndex_DEPRECATED = FStateTreeIndex16::Invalid;
 #endif	
+};
+
+/** Contains StateTree events used during State Selection for a single execution frame. */
+struct FStateTreeFrameStateSelectionEvents
+{
+	TStaticArray<FStateTreeSharedEvent, FStateTreeActiveStates::MaxStates> Events;
 };
 
 /**
@@ -711,6 +742,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FStateTreeTransitionResult& operator=(FStateTreeTransitionResult&&) = default;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	FStateTreeTransitionResult(const FRecordedStateTreeTransitionResult& RecordedTransition);
 	
 	void Reset()
 	{
@@ -726,15 +758,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
 	TArray<FStateTreeExecutionFrame> NextActiveFrames;
 
+	/** Events used in state selection. */
+	TArray<FStateTreeFrameStateSelectionEvents> NextActiveFrameEvents;
+
 	/** Current Run status. */
 	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
 	EStateTreeRunStatus CurrentRunStatus = EStateTreeRunStatus::Unset;
 
-	/** Transition source state */
+	/** Transition source state. */
 	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
 	FStateTreeStateHandle SourceState = FStateTreeStateHandle::Invalid;
 
-	/** Transition target state */
+	/** Transition target state. */
 	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
 	FStateTreeStateHandle TargetState = FStateTreeStateHandle::Invalid;
 
@@ -767,4 +802,89 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	FStateTreeActiveStates NextActiveStates_DEPRECATED;
 #endif	
+};
+
+/*
+ * Enumeration for the different transition recording types.
+ * This is used by the execution context to capture transition snapshots if set to record.
+*/
+UENUM()
+enum class EStateTreeRecordTransitions : uint8
+{
+	No,
+	Yes
+};
+
+/*
+* Captured state tree execution frame that can be cached for recording purposes.
+* Held in FRecordedStateTreeTransitionResult for its NextActiveFrames.
+*/
+USTRUCT()
+struct STATETREEMODULE_API FRecordedStateTreeExecutionFrame
+{
+	GENERATED_BODY()
+
+	FRecordedStateTreeExecutionFrame() = default;
+	FRecordedStateTreeExecutionFrame(const FStateTreeExecutionFrame& ExecutionFrame);
+
+	/** The State Tree used for ticking this frame. */
+	UPROPERTY()
+	TObjectPtr<const UStateTree> StateTree = nullptr;
+
+	/** The root state of the frame (e.g. Root state or a subtree). */
+	UPROPERTY()
+	FStateTreeStateHandle RootState = FStateTreeStateHandle::Root; 
+	
+	/** Active states in this frame. */
+	UPROPERTY()
+	FStateTreeActiveStates ActiveStates;
+
+	/** If true, the global tasks of the State Tree should be handle in this frame. */
+	UPROPERTY()
+	uint8 bIsGlobalFrame : 1 = false;
+
+	/** Captured indices of the events we've recorded. */
+	TStaticArray<uint8, FStateTreeActiveStates::MaxStates> EventIndices;
+};
+
+/*
+* Captured state tree transition result that can be cached for recording purposes.
+* Primarily, when transitions are recorded through this structure, we can replicate them down
+* to clients to keep our state tree in sync.
+*/
+USTRUCT()
+struct STATETREEMODULE_API FRecordedStateTreeTransitionResult
+{
+	GENERATED_BODY()
+
+	FRecordedStateTreeTransitionResult() = default;
+	FRecordedStateTreeTransitionResult(const FStateTreeTransitionResult& Transition);
+
+   	/** States selected as result of the transition. */
+    UPROPERTY()
+	TArray<FRecordedStateTreeExecutionFrame> NextActiveFrames;
+
+	/** Captured events from the transition that we've recorded */
+	UPROPERTY()
+	TArray<FStateTreeEvent> NextActiveFrameEvents;
+
+	/** Transition source state. */
+	UPROPERTY()
+	FStateTreeStateHandle SourceState = FStateTreeStateHandle::Invalid;
+
+	/** Transition target state. */
+	UPROPERTY()
+	FStateTreeStateHandle TargetState = FStateTreeStateHandle::Invalid;
+	
+	/** Priority of the transition that caused the state change. */
+	UPROPERTY()
+	EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::None;
+
+	/** StateTree asset that was active when the transition was requested. */
+	UPROPERTY()
+	TObjectPtr<const UStateTree> SourceStateTree = nullptr;
+
+	/** Root state the execution frame where the transition was requested. */
+	UPROPERTY()
+	FStateTreeStateHandle SourceRootState = FStateTreeStateHandle::Invalid;
 };

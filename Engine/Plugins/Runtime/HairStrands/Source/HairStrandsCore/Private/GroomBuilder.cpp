@@ -51,7 +51,7 @@ bool DoesHairStrandsSupportCompressedPosition();
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v16");
+	return TEXT("v16e");
 }
 
 namespace GroomBuilder_Voxelization
@@ -1901,7 +1901,12 @@ static FName ToGroupName(const FStrandID& InStrandID, const uint32 InGroupID, co
 	}
 }
 
-bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescription, FHairDescriptionGroups& Out)
+bool NeedsToAddEndingControlPoint(uint32 CurveNumVertices)
+{
+	return GetHairStrandsUsesTriangleStrips() && uint32(CurveNumVertices + 1) <= HAIR_MAX_NUM_POINT_PER_CURVE;
+}
+
+bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescription, FHairDescriptionGroups& Out, bool bAllowAddEndControlPoint)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGroomBuilder::BuildHairDescriptionGroups);
 
@@ -2062,10 +2067,32 @@ bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescr
 			continue;
 		}
 
+		// Check if the current curve has invalid data
+		bool bHasInvalidPosition = false;
+		{
+			for (int32 VertexIndex = 0; VertexIndex < CurveNumVertices; ++VertexIndex)
+			{
+				FVertexID VertexID(GlobalVertexIndex + VertexIndex);
+				const FVector3f P = VertexPositions[VertexID];
+				if (!(FMath::IsFinite(P.X) && FMath::IsFinite(P.Y) && FMath::IsFinite(P.Z)))
+				{
+					bHasInvalidPosition = true;
+					break;
+				}
+			}
+		}
+
 		FHairStrandsDatas* CurrentHairStrandsDatas = nullptr;
 		FHairDescriptionGroup& Group = FindOrAdd(StrandID);
 		bool bNumCurveValid = false;
-		if (!bIsGuide)
+		if (bHasInvalidPosition)
+		{
+			// Remove curve with NaN positions
+			GlobalVertexIndex += CurveNumVertices;
+			Group.Info.Flags |= uint32(EHairGroupInfoFlags::HasInvalidPoint);
+			continue;
+		}
+		else if (!bIsGuide)
 		{
 			CurrentHairStrandsDatas = &Group.Strands;
 			if (Group.Info.NumCurves < HAIR_MAX_NUM_CURVE_PER_GROUP)
@@ -2124,7 +2151,8 @@ bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescr
 			continue;
 		}
 
-		CurrentHairStrandsDatas->StrandsCurves.CurvesCount.Add(FMath::Min(uint32(CurveNumVertices), HAIR_MAX_NUM_POINT_PER_CURVE));
+		const bool bAddEndingControlPoint = NeedsToAddEndingControlPoint(CurveNumVertices) && bAllowAddEndControlPoint;
+		CurrentHairStrandsDatas->StrandsCurves.CurvesCount.Add(FMath::Min(uint32(CurveNumVertices + (bAddEndingControlPoint ? 1u : 0u)), HAIR_MAX_NUM_POINT_PER_CURVE));
 
 		if (bCanUseClosestGuidesAndWeights)
 		{
@@ -2230,6 +2258,38 @@ bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescr
 			}
 
 			CurrentHairStrandsDatas->StrandsPoints.PointsRadius.Add(VertexWidth * 0.5f);
+
+			// Add extra control point at the end of each curve when GetHairStrandsUsesTriangleStrips() 
+			// is enabled to avoid loosing the last segment of each curve
+			if (bAddEndingControlPoint && (VertexIndex == CurveNumVertices-1))
+			{
+				const int32 CurrentIndex = CurrentHairStrandsDatas->StrandsPoints.PointsPosition.Num();
+				const int32 P0Index = CurrentIndex-1;
+				const int32 P1Index = CurrentIndex-2;
+				check(CurveNumVertices >= 2);
+				check(P0Index > 0);
+				check(P1Index > 0);
+
+				// Add a small position offset to avoid superposed positions of the extra position
+				const FVector3f P0 = CurrentHairStrandsDatas->StrandsPoints.PointsPosition[P0Index];
+				const FVector3f P1 = CurrentHairStrandsDatas->StrandsPoints.PointsPosition[P1Index];
+				const FVector3f PositionOffset = (P0 - P1) * 0.1f; // 10% of the distance
+
+				CurrentHairStrandsDatas->StrandsPoints.PointsPosition.Add(VertexPositions[VertexID] + PositionOffset);
+				if (bHasBaseColorAttribute)
+				{
+					CurrentHairStrandsDatas->StrandsPoints.PointsBaseColor.Add(FLinearColor(VertexBaseColor[VertexID]));
+				}
+				if (bHasRoughnessAttribute)
+				{
+					CurrentHairStrandsDatas->StrandsPoints.PointsRoughness.Add(VertexRoughness[VertexID]);
+				}
+				if (bHasAOAttribute)
+				{
+					CurrentHairStrandsDatas->StrandsPoints.PointsAO.Add(VertexAO[VertexID]);
+				}
+				CurrentHairStrandsDatas->StrandsPoints.PointsRadius.Add(VertexWidth * 0.5f);
+			}
 		}
 	}
 

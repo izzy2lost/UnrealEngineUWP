@@ -6,6 +6,7 @@
 #include "MeshDrawShaderBindings.h"
 #include "MeshMaterialShader.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "RHIResourceUtils.h"
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualHeightfieldMeshVertexFactoryParameters, "VHM");
 
@@ -14,7 +15,7 @@ namespace
 	template< typename T >
 	FBufferRHIRef CreateIndexBuffer(FRHICommandListBase& RHICmdList, uint32 NumQuadsPerSide)
 	{
-		TResourceArray<T, INDEXBUFFER_ALIGNMENT> Indices;
+		TArray<T> Indices;
 
 		// Allocate room for indices
 		Indices.Reserve(NumQuadsPerSide * NumQuadsPerSide * 6);
@@ -63,12 +64,7 @@ namespace
 			}
 		}
 
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(T);
-
-		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FVirtualHeightfieldMeshIndexBuffer"), &Indices);
-		return RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		return UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FVirtualHeightfieldMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 }
 

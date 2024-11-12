@@ -4,7 +4,7 @@
 
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Templates/SubclassOf.h"
 #include "ViewModel/MVVMInstancedViewModelGeneratedClass.h"
 #include "MVVMBlueprintInstancedViewModel.generated.h"

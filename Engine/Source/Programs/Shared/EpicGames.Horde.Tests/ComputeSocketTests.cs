@@ -175,7 +175,7 @@ namespace EpicGames.Horde.Tests
 						await channel2.CloseAsync(cancellationToken);
 					}
 
-					using BundleStorageClient storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+					BundleStorageNamespace storage = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 					await using (IBlobWriter blobWriter = storage.CreateBlobWriter())
 					{
 						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");
@@ -193,12 +193,12 @@ namespace EpicGames.Horde.Tests
 						DirectoryNode directory = new DirectoryNode();
 						directory.AddFile("hello.txt", FileEntryFlags.None, data.Length, chunkedData);
 
-						IBlobRef<DirectoryNode> directoryRef = await blobWriter.WriteBlobAsync(directory, cancellationToken: cancellationToken);
+						IHashedBlobRef<DirectoryNode> directoryRef = await blobWriter.WriteBlobAsync(directory, cancellationToken: cancellationToken);
 
 						DirectoryNode root = new DirectoryNode();
 						root.AddDirectory(new DirectoryEntry("subdir", directory.Length, directoryRef));
 
-						IBlobRef<DirectoryNode> handle = await blobWriter.WriteBlobAsync(root, cancellationToken: cancellationToken);
+						IHashedBlobRef<DirectoryNode> handle = await blobWriter.WriteBlobAsync(root, cancellationToken: cancellationToken);
 						await blobWriter.FlushAsync(cancellationToken);
 
 						await channel.UploadFilesAsync("", handle.GetLocator(), storage.Backend, cancellationToken);

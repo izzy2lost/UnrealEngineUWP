@@ -148,6 +148,20 @@ struct FDisplayClusterWarpMPCDIAttributes
 	// MPCDI profile type
 	EDisplayClusterWarpProfileType ProfileType = EDisplayClusterWarpProfileType::Invalid;
 
+	/**
+	* Special settings for creating 3D geometry of the mpcdi 2D profile.
+	*/
+	struct FProfile2DSettings
+	{
+		// The focal length will be calculated for that FOV and the geometry will be shifted by that value.
+		float DesiredFOV = 90.f;
+
+		/** The amount to scale an MPCDI buffer by when converting from pixels to world coordinates. */
+		float BufferPixelsToWorldUnits = 0.1f;
+
+	} Profile2DSettings;
+
+
 	// Special flags
 	EDisplayClusterWarpMPCDIAttributesFlags Flags = EDisplayClusterWarpMPCDIAttributesFlags::None;
 
@@ -209,4 +223,46 @@ struct FDisplayClusterWarpMPCDIAttributes
 		FVector Roll;
 
 	} CoordinateFrame;
+
+	/** 
+	* Calculates the position and screen size for a 2d profile.
+	* Returns true if the success.
+	*/
+	inline bool CalcProfile2DScreen(FVector& OutScreenPosition, FVector2D& OutScreenSize) const
+	{
+		if (ProfileType != EDisplayClusterWarpProfileType::warp_2D)
+		{
+			return false;
+		}
+
+		// Computes the buffer size in world units from the resolution in pixels.
+		const FVector2D BufferSize(Buffer.Resolution.X* Profile2DSettings.BufferPixelsToWorldUnits, Buffer.Resolution.Y* Profile2DSettings.BufferPixelsToWorldUnits);
+
+		OutScreenSize = FVector2D(Region.Size.X * BufferSize.X, Region.Size.Y * BufferSize.Y);
+
+		// Calculates the position and size of the region.
+		const FVector2D  RegionPos(Region.Pos.X* BufferSize.X, Region.Pos.Y* BufferSize.Y);
+
+		float FocalLength = 0.f;
+		// Moves the buffer position along the X axis to achieve a DesiredFOV.
+		if (Profile2DSettings.DesiredFOV > 0.f && Profile2DSettings.DesiredFOV < 180.f)
+		{
+			// Convert FOV to focal length,
+			// 
+			// fov = 2 * atan(d/(2*f))
+			// where,
+			//   d = sensor dimension
+			//   f = focal length
+			// 
+			// f = 0.5 * d * (1/tan(fov/2))
+			const float TanHalfFOV = FMath::Tan(FMath::DegreesToRadians(Profile2DSettings.DesiredFOV * 0.5f));
+			FocalLength = (BufferSize.X * 0.5f) / TanHalfFOV;
+		}
+
+		const FVector2D RegionCenterPos = RegionPos + (OutScreenSize * 0.5) - (BufferSize * 0.5);
+
+		OutScreenPosition = FVector(FocalLength, RegionCenterPos.X, RegionCenterPos.Y);
+
+		return true;
+	}
 };

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Nodes/InterchangeBaseNode.h"
+#include "InterchangeAnimationDefinitions.h"
 
 #include "InterchangeAnimationTrackSetNode.generated.h"
 
@@ -44,6 +45,16 @@ public:
 		: UniqueId(InUniqueId)
 		, Type(InType)
 	{
+	}
+
+	bool operator==(const FInterchangeAnimationPayLoadKey& Other) const
+	{
+		return UniqueId.Equals(Other.UniqueId) && Type == Other.Type;
+	}
+
+	friend uint32 GetTypeHash(const FInterchangeAnimationPayLoadKey& InterchangeAnimationPayLoadKey)
+	{
+		return GetTypeHash(InterchangeAnimationPayLoadKey.UniqueId + FString::FromInt(static_cast<int32>(InterchangeAnimationPayLoadKey.Type)));
 	}
 };
 
@@ -310,29 +321,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
 	bool GetCustomActorDependencyUid(FString& DependencyUid) const;
 
+	UE_DEPRECATED(5.5, "SetCustomPropertyTrack using an FName has been deprecated, please use the function with the enum instead.")
+	bool SetCustomPropertyTrack(const FName& PropertyTrack);
+
+	UE_DEPRECATED(5.5, "SetCustomPropertyTrack using an FName has been deprecated, please use the function with the enum instead.")
+	bool GetCustomPropertyTrack(FName& PropertyTrack) const;
+
 	/**
 	 * Set the property animated by this track.
 	 */
-	UE_DEPRECATED(5.4, "SetCustomTargetedProperty has been deprecated, please use SetCustomPropertyTrack instead.")
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
-	bool SetCustomTargetedProperty(const int32& TargetedProperty);
-
-	/**
-	 * Set the property animated by this track. Usually the name of a UMovieSceneTrack, e.g for UMovieSceneColorTrack -> Color
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
-	bool SetCustomPropertyTrack(const FName& PropertyTrack);
+	bool SetCustomPropertyTrack(EInterchangePropertyTracks PropertyTrack);
 
 	/**
 	 * Get the property animated by this track.
 	 */
-	UE_DEPRECATED(5.4, "SetCustomTargetedProperty has been deprecated, please use SetCustomPropertyTrack instead.")
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
-	bool GetCustomTargetedProperty(int32& TargetedProperty) const;
-
-
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
-	bool GetCustomPropertyTrack(FName& PropertyTrack) const;
+	bool GetCustomPropertyTrack(EInterchangePropertyTracks& PropertyTrack) const;
 
 	/**
 	 * Set the payload key needed to retrieve the animation for this track.
@@ -523,6 +528,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalAnimationTrack")
 	bool SetAnimationPayloadKeyForMorphTargetNodeUid(const FString& MorphTargetNodeUid, const FString& InUniqueId, const EInterchangeAnimationPayLoadType& InType);
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalAnimationTrack")
+	bool IsNodeAnimatedWithBakedCurve(const FString& SceneNodeUid) const;
 
 private:
 	const UE::Interchange::FAttributeKey Macro_CustomSkeletonNodeUidKey = UE::Interchange::FAttributeKey(TEXT("SkeletonNodeUid"));

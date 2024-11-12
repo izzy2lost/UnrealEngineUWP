@@ -513,7 +513,6 @@ private:
 	void GetSoundClassInfo(TMap<FName, FAudioClassInfo>& AudioClassInfos);
 #endif
 
-	void UpdateAudioPluginSettingsObjectCache();
 
 public:
 
@@ -681,6 +680,7 @@ public:
 	*
 	* @param	FSoundBuffer	Buffer to check against
 	*/
+	UE_DEPRECATED(5.5, "No longer needed for resource managment, existing calls may be deleted")
 	ENGINE_API void StopSourcesUsingBuffer(FSoundBuffer * SoundBuffer);
 
 	/**
@@ -864,22 +864,50 @@ public:
 	ENGINE_API void ApplyInteriorSettings(FActiveSound& ActiveSound, FSoundParseParameters& ParseParams) const;
 
 	/**
-	 * Notifies subsystems an active sound is about to be deleted (called on audio thread) - Deprecated, see NotifyPendingDeleteInternal
+	 * Notifies subsystems an active sound is about to be deleted (called on audio thread) - Deprecated, see NotifySubsystemsActiveSoundDeleting
 	 */
-	UE_DEPRECATED(5.3, "NotifyPending is deprecated in public scope. Use IActiveSoundUpdateInterface::OnNotifyPendingDelete instead.")
+	UE_DEPRECATED(5.3, "NotifyPending is deprecated in public scope. Use IActiveSoundUpdateInterface::NotifyActiveSoundDeleting instead.")
 	void NotifyPendingDelete(FActiveSound& ActiveSound) const {}
 
 protected:
 
 	/**
-	 * Notifies subsystems an active sound has been added (called on audio thread)
+	 * Notifies subsystems an active sound has just been added (called on audio thread).
+	 * Called both for brand new sounds and for virtualized sounds that have just become active.
 	 */
-	ENGINE_API void NotifyAddActiveSound(FActiveSound& ActiveSound) const;
+	ENGINE_API void NotifySubsystemsActiveSoundCreated(FActiveSound& ActiveSound) const;
 
 	/**
-	 * Notifies subsystems an active sound is about to be deleted (called on audio thread)
+	 * Notifies subsystems an active sound is about to be deleted (called on audio thread).
+	 * Called when a sound is either stopped or virtualized. In either case,
+	 * the referenced ActiveSound object no longer exists after this call; any pointers to it should be discarded.
 	 */
-	ENGINE_API void NotifyPendingDeleteInternal(FActiveSound& ActiveSound) const;
+	ENGINE_API void NotifySubsystemsActiveSoundDeleting(FActiveSound& ActiveSound) const;
+
+	/**
+	 * Notifies subsystems a virtualized sound has just been added (called on audio thread).
+	 * Called both for brand new sounds and for active sounds that have just become virtualized.
+	 */
+	ENGINE_API void NotifySubsystemsVirtualizedSoundCreated(FActiveSound& ActiveSound) const;
+
+	/**
+	 * Notifies subsystems a virtualized sound is about to be deleted (called on audio thread).
+	 * Called when a sound is either stopped or re-triggered. In either case,
+	 * the referenced ActiveSound object no longer exists after this call; any pointers to it should be discarded.
+	 */
+	ENGINE_API void NotifySubsystemsVirtualizedSoundDeleting(FActiveSound& ActiveSound) const;
+
+	UE_DEPRECATED(5.5, "NotifyAddActiveSound is deprecated. Use NotifySubsystemsActiveSoundCreated instead.")
+	ENGINE_API void NotifyAddActiveSound(FActiveSound& ActiveSound) const
+	{
+		NotifySubsystemsActiveSoundCreated(ActiveSound);
+	}
+
+	UE_DEPRECATED(5.5, "NotifyPendingDeleteInternal is deprecated. Use NotifySubsystemsActiveSoundDeleting and/or NotifySubsystemsVirtualizedSoundDeleting instead.")
+	ENGINE_API void NotifyPendingDeleteInternal(FActiveSound& ActiveSound) const
+	{
+		NotifySubsystemsActiveSoundDeleting(ActiveSound);
+	}
 
 public:
 
@@ -1472,6 +1500,7 @@ public:
 
 	/** Adds an envelope follower delegate to the submix for this audio device. */
 	ENGINE_API virtual void AddEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
+	ENGINE_API virtual void RemoveEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
 
 	ENGINE_API virtual void StartSpectrumAnalysis(USoundSubmix* InSubmix, const FSoundSpectrumAnalyzerSettings& InSettings);
 	ENGINE_API virtual void StopSpectrumAnalysis(USoundSubmix* InSubmix);
@@ -1516,6 +1545,11 @@ private:
 	 * loop system.
 	 */
 	void AddNewActiveSoundInternal(const FActiveSound& InActiveSound, TArray<FAudioParameter>&& InDefaultParams, FAudioVirtualLoop* InVirtualLoopToRetrigger = nullptr);
+
+	/**
+	 * Initializes the parameters on the active sound.
+	 */
+	void InitSoundParams(FActiveSound& InOutActiveSound, TArray<FAudioParameter> InDefaultParams, bool bInIsVirtualLoopRealzing) const;
 
 	/**
 	 * Reports if a sound fails to start when attempting to create a new active sound.
@@ -1950,9 +1984,32 @@ public:
 	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the audio device
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachSubsystem or GetSubsystemArrayCopy instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray() const
 	{
 		return SubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Gets all Subsystems of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the audio device
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy() const
+	{
+		return SubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs the given operation on all subsystems of the given class. It's safe to create new subsystems during this operation, but not to remove subsystems.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		((FSubsystemCollection<UAudioEngineSubsystem>&)SubsystemCollection).ForEachSubsystem(
+			[Operation=MoveTemp(Operation)](UAudioEngineSubsystem* Subsystem){
+				Operation(CastChecked<TSubsystemClass>(Subsystem));
+			}, TSubsystemClass::StaticClass());
 	}
 
 public:
@@ -2091,9 +2148,6 @@ private:
 
 	/** Map of sound mix sound class overrides. Will override any sound class effects for any sound mixes */
 	TMap<USoundMix*, FSoundMixClassOverrideMap> SoundMixClassEffectOverrides;
-
-	/** Cached array of plugin settings objects currently loaded. This is stored so we can add it in AddReferencedObjects. */
-	TArray<TObjectPtr<UObject>> PluginSettingsObjects;
 
 protected:
 	/** Interface to audio effects processing */

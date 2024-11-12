@@ -39,71 +39,76 @@ bool FPCGTextureDataOffsetTilingRotation::RunTest(const FString& Parameters)
 
 	bool bTestPassed = true;
 
-	TextureData->Initialize(Texture2D, /*TextureIndex=*/0, FTransform(), [this, TextureData, &bTestPassed]() -> void
+	FTransform Transform;
+	while (!TextureData->Initialize(Texture2D, /*TextureIndex=*/0, Transform)) {}
+
+	bTestPassed &= TestTrue("Texture data successfully initialized", TextureData->IsSuccessfullyInitialized());
+
+	if (TextureData->IsSuccessfullyInitialized())
+	{
+		FRandomStream RandomStream;
+		FPCGPoint OutPoint;
+
+		const float PixelCenterX = WhitePixelX + 0.5f;
+		const float PixelCenterY = WhitePixelY + 0.5f;
+
+		const float TextureSpacePixelX = PixelCenterX / TextureSize;
+		const float ScaledPixelX = (2.0f * TextureSpacePixelX) - 1.0f;
+		const float TextureSpacePixelY = PixelCenterY / TextureSize;
+		const float ScaledPixelY = (2.0f * TextureSpacePixelY) - 1.0f;
+
 		{
-			FRandomStream RandomStream;
-			FPCGPoint OutPoint;
+			TextureData->Rotation = 0.f;
 
-			const float PixelCenterX = WhitePixelX + 0.5f;
-			const float PixelCenterY = WhitePixelY + 0.5f;
+			// sampling with no offset
+			TextureData->CenterOffset = FVector2D::ZeroVector;
+			TextureData->SamplePoint(FTransform(), FBox(), OutPoint, nullptr);
+			bTestPassed &= TestEqual("Valid color sampled for no offset at (0, 0)", OutPoint.Color, static_cast<FVector>(FColor::Black));
 
-			const float TextureSpacePixelX = PixelCenterX / TextureSize;
-			const float ScaledPixelX = (2.0f * TextureSpacePixelX) - 1.0f;
-			const float TextureSpacePixelY = PixelCenterY / TextureSize;
-			const float ScaledPixelY = (2.0f * TextureSpacePixelY) - 1.0f;
+			// sampling at position, with no offset
+			TextureData->CenterOffset = FVector2D::ZeroVector;
+			TextureData->SamplePoint(FTransform(FVector(0.5, 0.5, 0.0)), FBox(), OutPoint, nullptr);
+			bTestPassed &= TestEqual("Valid color sampled for no offset at position", OutPoint.Color, static_cast<FVector>(FColor::Black));
 
+			// sampling at expected position
+			TextureData->CenterOffset = FVector2D::ZeroVector;
+			TextureData->SamplePoint(FTransform(FVector(ScaledPixelX, ScaledPixelY, 0)), FBox(), OutPoint, nullptr);
+			bTestPassed &= TestEqual("Valid color sampled at expected position", OutPoint.Color, static_cast<FVector>(FColor::White));
+
+			// sampling with offset
+			TextureData->CenterOffset = FVector2D(0.5 - TextureSpacePixelX, 0.5 - TextureSpacePixelY);
+			TextureData->SamplePoint(FTransform(), FBox(), OutPoint, nullptr);
+			bTestPassed &= TestEqual("Valid color sampled for offset from (0, 0)", OutPoint.Color, static_cast<FVector>(FColor::White));
+
+			// sampling at position, with offset
+			TextureData->CenterOffset = FVector2D(1.0 - TextureSpacePixelX, 1.0 - TextureSpacePixelY);
+			TextureData->SamplePoint(FTransform(FVector(1.0, 1.0, 0.0)), FBox(), OutPoint, nullptr);
+			bTestPassed &= TestEqual("Valid color sampled for offset from position", OutPoint.Color, static_cast<FVector>(FColor::White));
+
+			for (float Rotation = -360.f; Rotation < 360.f; Rotation += 10.f)
 			{
-				TextureData->Rotation = 0.f;
+				const float Theta = FMath::DegreesToRadians(Rotation);
+				const float CosTheta = FMath::Cos(Theta);
+				const float SinTheta = FMath::Sin(Theta);
+				const FVector::FReal X = (ScaledPixelX * CosTheta) - (ScaledPixelY * SinTheta);
+				const FVector::FReal Y = (ScaledPixelY * CosTheta) + (ScaledPixelX * SinTheta);
 
-				// sampling with no offset
-				TextureData->CenterOffset = FVector2D::ZeroVector;
-				TextureData->SamplePoint(FTransform(), FBox(), OutPoint, nullptr);
-				bTestPassed &= TestEqual("Valid color sampled for no offset at (0, 0)", OutPoint.Color, static_cast<FVector>(FColor::Black));
+				FTransform RotatedTransform(FVector(X, Y, 0.f));
 
-				// sampling at position, with no offset
+				// sampling with rotation at black position
+				TextureData->Rotation = -Rotation;
 				TextureData->CenterOffset = FVector2D::ZeroVector;
 				TextureData->SamplePoint(FTransform(FVector(0.5, 0.5, 0.0)), FBox(), OutPoint, nullptr);
-				bTestPassed &= TestEqual("Valid color sampled for no offset at position", OutPoint.Color, static_cast<FVector>(FColor::Black));
+				bTestPassed &= TestEqual("Valid color sampled for rotated off-position", OutPoint.Color, static_cast<FVector>(FColor::Black));
 
-				// sampling at expected position
+				// sampling with rotation at white position
+				TextureData->Rotation = -Rotation;
 				TextureData->CenterOffset = FVector2D::ZeroVector;
-				TextureData->SamplePoint(FTransform(FVector(ScaledPixelX, ScaledPixelY, 0)), FBox(), OutPoint, nullptr);
-				bTestPassed &= TestEqual("Valid color sampled at expected position", OutPoint.Color, static_cast<FVector>(FColor::White));
-
-				// sampling with offset
-				TextureData->CenterOffset = FVector2D(0.5 - TextureSpacePixelX, 0.5 - TextureSpacePixelY);
-				TextureData->SamplePoint(FTransform(), FBox(), OutPoint, nullptr);
-				bTestPassed &= TestEqual("Valid color sampled for offset from (0, 0)", OutPoint.Color, static_cast<FVector>(FColor::White));
-
-				// sampling at position, with offset
-				TextureData->CenterOffset = FVector2D(1.0 - TextureSpacePixelX, 1.0 - TextureSpacePixelY);
-				TextureData->SamplePoint(FTransform(FVector(1.0, 1.0, 0.0)), FBox(), OutPoint, nullptr);
-				bTestPassed &= TestEqual("Valid color sampled for offset from position", OutPoint.Color, static_cast<FVector>(FColor::White));
-
-				for (float Rotation = -360.f; Rotation < 360.f; Rotation += 10.f)
-				{
-					const float Theta = FMath::DegreesToRadians(Rotation);
-					const float CosTheta = FMath::Cos(Theta);
-					const float SinTheta = FMath::Sin(Theta);
-					const FVector::FReal X = (ScaledPixelX * CosTheta) - (ScaledPixelY * SinTheta);
-					const FVector::FReal Y = (ScaledPixelY * CosTheta) + (ScaledPixelX * SinTheta);
-
-					FTransform RotatedTransform(FVector(X, Y, 0.f));
-
-					// sampling with rotation at black position
-					TextureData->Rotation = -Rotation;
-					TextureData->CenterOffset = FVector2D::ZeroVector;
-					TextureData->SamplePoint(FTransform(FVector(0.5, 0.5, 0.0)), FBox(), OutPoint, nullptr);
-					bTestPassed &= TestEqual("Valid color sampled for rotated off-position", OutPoint.Color, static_cast<FVector>(FColor::Black));
-
-					// sampling with rotation at white position
-					TextureData->Rotation = -Rotation;
-					TextureData->CenterOffset = FVector2D::ZeroVector;
-					TextureData->SamplePoint(RotatedTransform, FBox(), OutPoint, nullptr);
-					bTestPassed &= TestEqual("Valid color sampled for rotated position", OutPoint.Color, static_cast<FVector>(FColor::White));
-				}
+				TextureData->SamplePoint(RotatedTransform, FBox(), OutPoint, nullptr);
+				bTestPassed &= TestEqual("Valid color sampled for rotated position", OutPoint.Color, static_cast<FVector>(FColor::White));
 			}
-		});
+		}
+	}
 
 	return bTestPassed;
 }

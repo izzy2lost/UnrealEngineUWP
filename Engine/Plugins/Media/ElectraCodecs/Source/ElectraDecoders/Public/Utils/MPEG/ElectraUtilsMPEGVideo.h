@@ -153,6 +153,7 @@ namespace ElectraDecodersUtil
 		public:
 			void SetRawData(const void* Data, int64 Size);
 			const TArray<uint8>& GetRawData() const;
+			bool CreateFromCodecSpecificData(const TArray<uint8>& InFromCSD);
 
 			bool Parse();
 
@@ -171,6 +172,11 @@ namespace ElectraDecodersUtil
 			{ return AVCLevelIndication; }
 
 		private:
+			struct FArray
+			{
+				TArray<TArray<uint8>> NALUs;
+			};
+
 			TArray<uint8>													RawData;
 			TArray<uint8>													CodecSpecificData;
 			TArray<uint8>													CodecSpecificDataSPSOnly;
@@ -375,6 +381,7 @@ namespace ElectraDecodersUtil
 		public:
 			void SetRawData(const void* Data, int64 Size);
 			const TArray<uint8>& GetRawData() const;
+			bool CreateFromCodecSpecificData(const TArray<uint8>& InFromCSD);
 
 			void Reset();
 

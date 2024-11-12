@@ -6,7 +6,7 @@
 #include "DetailLayoutBuilder.h"
 #include "Customization/IConnectionRemapUtils.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FConnectionRemapUtilsImpl : public IConnectionRemapUtils
 	{

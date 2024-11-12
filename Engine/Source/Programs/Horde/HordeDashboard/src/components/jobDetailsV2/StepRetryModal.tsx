@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-import { Checkbox, DefaultButton, IconButton, Modal, PrimaryButton, Spinner, SpinnerSize, Stack, Text, TextField } from '@fluentui/react';
+import { Checkbox, DefaultButton, IconButton, Modal, PrimaryButton, ScrollablePane, ScrollbarVisibility, Spinner, SpinnerSize, Stack, Text, TextField } from '@fluentui/react';
 import React, { useState } from 'react';
 import backend from '../../backend';
 import { CreateJobRequest } from '../../backend/Api';
@@ -24,7 +24,7 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
 
    const [submitting, setSubmitting] = useState(false);
    const [submitResults, setSubmitResults] = useState<RunAgainResult[] | undefined>(undefined);
-   const [retrySteps, setRetrySteps] = useState(new Set(stepIds));
+   const [retrySteps, setRetrySteps] = useState(new Set<string>());
 
    const { hordeClasses } = getHordeStyling();
 
@@ -85,17 +85,24 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
       return null;
    }
 
-   const headerText = retrySteps.size > 1 ? "Retry Steps?" : "Retry Step?";
+   const headerText = stepIds.length > 1 ? "Retry Steps?" : "Retry Step?";
 
    const onRetry = async () => {
 
       const results: RunAgainResult[] = [];
 
-      const retryStepIds = Array.from(retrySteps);
+      const retryStepIds = Array.from(retrySteps).sort((a, b) => {
+         const idxA = stepIds.indexOf(a);
+         const idxB = stepIds.indexOf(b);
+
+         return idxA - idxB;
+      });
 
       for (let i = 0; i < retryStepIds.length; i++) {
 
          const stepId = retryStepIds[i];
+
+         console.log(`Retrying: ${jobDetails.stepById(stepId)?.name}`);
 
          const batch = jobDetails.batchByStepId(stepId);
          if (!batch) {
@@ -107,6 +114,7 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
          }
 
          try {
+            
             const response = await backend.updateJobStep(jobData.id, batch.id, stepId, { retry: true })
 
             if (!response.stepId) {
@@ -140,7 +148,24 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
       stepNames.push(stepName);
    });
 
-   const stepElements = stepNames.map(name => {
+   const stepElements: JSX.Element[] = [];
+
+   if (stepIds.length > 1) {
+
+      const allSelected = retrySteps.size === stepIds.length;
+
+      stepElements.push(<Stack horizontal tokens={{ childrenGap: 12 }}><Checkbox checked={allSelected} onChange={(ev, checked) => {
+         const newSteps = new Set<string>();
+         if (checked) {
+            stepIds.forEach(s => newSteps.add(s));
+         } else {
+         }
+         setRetrySteps(newSteps);
+      }} /><Text>{retrySteps.size === stepIds.length ? "Deselect All" : "Select All"}</Text></Stack>)
+   }
+
+
+   stepElements.push(...stepNames.map(name => {
       const stepId = stepLookup.get(name)!;
       return <Stack horizontal tokens={{ childrenGap: 12 }}><Checkbox checked={retrySteps.has(stepId)} onChange={(ev, checked) => {
          const newSteps = new Set(retrySteps);
@@ -151,11 +176,16 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
          }
          setRetrySteps(newSteps);
       }} /><Text>{name}</Text></Stack>
-   })
+   }))
 
-   return <Modal className={hordeClasses.modal} isOpen={true} styles={{ main: { padding: 8, width: 800 } }} onDismiss={() => { onClose() }}>
+   let height = Math.max(stepElements.length * 32, 128);
+   if (height > 432) {
+      height = 432;
+   }
+
+   return <Modal className={hordeClasses.modal} isOpen={true} styles={{ main: { padding: 8, width: 800, maxHeight: 640 } }} onDismiss={() => { onClose() }}>
       <Stack horizontal styles={{ root: { padding: 8 } }}>
-         <Stack.Item grow={2}>
+         <Stack.Item grow={2} style={{paddingLeft: 8}}>
             <Text variant="mediumPlus">{headerText}</Text>
          </Stack.Item>
          <Stack.Item grow={0}>
@@ -167,12 +197,18 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
          </Stack.Item>
       </Stack>
 
-      <Stack styles={{ root: { paddingLeft: 32 } }} tokens={{ childrenGap: 8 }}>
-         {stepElements}
+      <Stack style={{marginRight: 18, marginTop: 18}}>
+         <Stack styles={{ root: { position: "relative", height: height } }}>
+            <ScrollablePane scrollbarVisibility={ScrollbarVisibility.auto}>
+               <Stack style={{ paddingLeft: 24, paddingRight: 24, height: height - 12 }} tokens={{ childrenGap: 8 }}>
+                  {stepElements}
+               </Stack>
+            </ScrollablePane>
+         </Stack>
       </Stack>
 
       <Stack styles={{ root: { padding: 8 } }}>
-         <Stack horizontal tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 12, paddingLeft: 8, paddingBottom: 8 } }}>
+         <Stack horizontal tokens={{ childrenGap: 16 }} styles={{ root: { paddingTop: 24, paddingLeft: 8, paddingBottom: 8, paddingRight: 12 } }}>
             <Stack grow />
             <PrimaryButton text="Retry" disabled={submitting || retrySteps.size === 0} onClick={() => { onRetry(); setSubmitting(true) }} />
             <DefaultButton text="Cancel" disabled={submitting} onClick={() => { onClose(); }} />
@@ -192,9 +228,9 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
       return null;
    }
 
-   const node = jobDetails.nodeByStepId(stepId);
+   const step = jobDetails.stepById(stepId);
 
-   const headerText = type === StepRetryType.RunAgain ? `Run "${node?.name}" Again?` : "Preflight Step";
+   const headerText = type === StepRetryType.RunAgain ? `Run "${step?.name}" Again?` : "Preflight Step";
 
    let fixCL = 0;
 
@@ -212,9 +248,15 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
 
       await backend.updateJobStep(jobData.id, batch.id, stepId, {
          retry: true
-      }).then((response) => {
+      }).then(async (response) => {
 
          if (response.stepId) {
+            if (jobDetails.jobData?.id) {
+               // get new job data so we have the new batch/step
+               jobDetails.jobData = await backend.getJob(jobDetails.jobData?.id);
+               jobDetails.processGraph();
+            }
+
             navigate(`/job/${jobData.id}?step=${response.stepId!}`)
          }
 
@@ -235,26 +277,13 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
       }
 
       const job = jobData;
-      const node = jobDetails.nodeByStepId(stepId);
-
-      const args = [];
-      args.push(`-Target=Setup Build`);
-      args.push(`-Target=${node!.name}`);
-
-      job.arguments?.forEach(arg => {
-
-         if (arg.toLowerCase().indexOf("-target=") !== -1) {
-            return;
-         }
-
-         args.push(arg);
-      });
 
       const data: CreateJobRequest = {
          streamId: job.streamId,
          templateId: job.templateId!,
-         arguments: args,
+         parameters: job.parameters,
          change: job.change,
+         targets: [step!.name],
          preflightChange: fixCL
       };
 

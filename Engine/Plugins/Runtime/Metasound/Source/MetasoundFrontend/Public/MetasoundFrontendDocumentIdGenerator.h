@@ -75,7 +75,10 @@ namespace Metasound
 			bool bIsDeterministic = false;
 		};
 
-		// For generating IDs that are not derived from a given document. 
+		// For generating IDs that are derived from a given class vertex.  Unlike
+		// document ID generation, the class ID generator's results are not unique
+		// upon each request and therefore can deterministically generate the same
+		// ID for the same provided vertex.
 		class FClassIDGenerator
 		{
 		public: 
@@ -86,7 +89,7 @@ namespace Metasound
 			FGuid CreateOutputID(const FMetasoundFrontendClassOutput& Output) const;
 			FGuid CreateOutputID(const Audio::FParameterInterface::FOutput& Output) const;
 
-			FGuid CreateNamespacedIDFromString(const FGuid NamespaceGuid, const FString& StringToHash) const;
+			FGuid CreateNamespacedIDFromString(const FGuid& NamespaceGuid, const FString& StringToHash) const;
 		};
 
 		METASOUNDFRONTEND_API FGuid CreateLocallyUniqueId();

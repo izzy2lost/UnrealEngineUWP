@@ -39,7 +39,7 @@ bool SupportsCurveEditorModels(const FMovieSceneChannelHandle& ChannelHandle)
 	return false;
 }
 
-TUniquePtr<FCurveModel> CreateCurveEditorModel(const FMovieSceneChannelHandle& ChannelHandle, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer)
+TUniquePtr<FCurveModel> CreateCurveEditorModel(const FMovieSceneChannelHandle& ChannelHandle, const UE::Sequencer::FCreateCurveEditorModelParams& Params)
 {
 	return nullptr;
 }

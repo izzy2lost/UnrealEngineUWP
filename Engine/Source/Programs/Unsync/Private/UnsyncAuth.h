@@ -67,8 +67,8 @@ TResult<FOpenIdConfig> GetOpenIdConfig(const FAuthDesc& AuthDesc);
 // - Attempt use stored refresh token first
 // - If refresh is not possible, use PKCE Authentication flow to get new tokens
 // - Save refresh token in user directory for future use
-// - Skips acquiring new token if remaining valid time is above RefreshThreshold (in seconds)
-TResult<FAuthToken> Authenticate(const FAuthDesc& AuthDesc, int32 RefreshThreshold = INT_MAX);
+// - Skips acquiring new token if remaining valid time is above RefreshThreshold (in seconds, 5 minutes by default)
+TResult<FAuthToken> Authenticate(const FAuthDesc& AuthDesc, int32 RefreshThreshold = 300);
 
 // Auth utility functions
 

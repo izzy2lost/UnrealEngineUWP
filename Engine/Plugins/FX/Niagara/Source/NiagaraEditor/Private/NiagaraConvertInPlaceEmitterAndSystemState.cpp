@@ -2,11 +2,12 @@
 
 #include "NiagaraConvertInPlaceEmitterAndSystemState.h"
 #include "NiagaraClipboard.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
+#include "ViewModels/Stack/NiagaraStackScriptHierarchyRoot.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraConvertInPlaceEmitterAndSystemState)
 
-bool UNiagaraConvertInPlaceEmitterAndSystemState::Convert(UNiagaraScript* InOldScript, UNiagaraClipboardContent* InOldClipboardContent, UNiagaraScript* InNewScript, UNiagaraStackFunctionInputCollection* InInputCollection, UNiagaraClipboardContent* InNewClipboardContent, UNiagaraNodeFunctionCall* InCallingNode, FText& OutMessage)
+bool UNiagaraConvertInPlaceEmitterAndSystemState::Convert(UNiagaraScript* InOldScript, UNiagaraClipboardContent* InOldClipboardContent, UNiagaraScript* InNewScript, UNiagaraStackScriptHierarchyRoot* InHierarchyRoot, UNiagaraClipboardContent* InNewClipboardContent, UNiagaraNodeFunctionCall* InCallingNode, FText& OutMessage)
 {
 	UE_LOG(LogNiagaraEditor, Log, TEXT("%s to %s"), *InOldScript->GetPathName(), *InNewScript->GetPathName());
 
@@ -182,7 +183,7 @@ bool UNiagaraConvertInPlaceEmitterAndSystemState::Convert(UNiagaraScript* InOldS
 				}
 			}
 
-			InInputCollection->SetValuesFromClipboardFunctionInputs(NewInputs);
+			InHierarchyRoot->SetValuesFromClipboardFunctionInputs(NewInputs);
 			//InCallingNode->RefreshFromExternalChanges();
 
 			// We have to do this as a second pass as Loop Count is behind a static switch set above.
@@ -194,7 +195,7 @@ bool UNiagaraConvertInPlaceEmitterAndSystemState::Convert(UNiagaraScript* InOldS
 				NewInputs.Add(NewInput);
 				ConvertedItems.Add(NewInput->InputName);
 
-				InInputCollection->SetValuesFromClipboardFunctionInputs(NewInputs);
+				InHierarchyRoot->SetValuesFromClipboardFunctionInputs(NewInputs);
 			}
 
 			// Use first frame delay is behind a static switch set above.
@@ -206,7 +207,7 @@ bool UNiagaraConvertInPlaceEmitterAndSystemState::Convert(UNiagaraScript* InOldS
 				NewInputs.Add(NewInput);
 				ConvertedItems.Add(NewInput->InputName);
 
-				InInputCollection->SetValuesFromClipboardFunctionInputs(NewInputs);
+				InHierarchyRoot->SetValuesFromClipboardFunctionInputs(NewInputs);
 			}
 
 			FString ConcatString = FString::Printf(TEXT("Copied over %d properties\nPlease double-check for correctness\n"), ConvertedItems.Num());

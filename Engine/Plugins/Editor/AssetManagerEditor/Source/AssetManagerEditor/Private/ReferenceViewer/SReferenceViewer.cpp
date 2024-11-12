@@ -5,6 +5,7 @@
 #include "Framework/Views/TableViewMetadata.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/PackageName.h"
+#include "Misc/MessageDialog.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "ReferenceViewer/EdGraph_ReferenceViewer.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -12,6 +13,7 @@
 #include "ReferenceViewer/HistoryManager.h"
 #include "ReferenceViewerStyle.h"
 #include "ReferenceViewer/EdGraphNode_Reference.h"
+#include "ReferenceViewer/EdGraphNode_ReferencedProperties.h"
 #include "ReferenceViewer/ReferenceViewerSchema.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ICollectionManager.h"
@@ -22,9 +24,11 @@
 #include "AssetManagerEditorCommands.h"
 #include "EditorWidgetsModule.h"
 #include "ReferenceViewer/ReferenceViewerSettings.h"
+#include "Settings/EditorProjectSettings.h"
 #include "Toolkits/GlobalEditorCommonCommands.h"
 #include "Engine/AssetManager.h"
 #include "ReferenceViewer/SReferenceViewerFilterBar.h"
+#include "ReferenceViewer/SReferencedPropertiesNode.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
@@ -51,6 +55,49 @@ bool IsAssetIdentifierPassingSearchTextFilter(const FAssetIdentifier& InNode, co
 	return true;
 }
 
+EAppReturnType::Type ShowAssetsNeedsToLoadMessage(const TSet<FAssetData>& UnloadedAssetsData)
+{
+	FString UnloadedAssetsNames;
+
+	int32 Count = 0;
+	constexpr int32 MaxAssetsShown = 5;
+	for (const FAssetData& Data : UnloadedAssetsData)
+	{
+		// Don't show more than 5 entries
+		if (Count++ > MaxAssetsShown - 1)
+		{
+			break;
+		}
+
+		UnloadedAssetsNames += TEXT("\n\n") + Data.GetFullName();
+	}
+
+	if (UnloadedAssetsData.Num() > MaxAssetsShown)
+	{
+		const int32 HiddenAssets = UnloadedAssetsData.Num() - 5;
+
+		FString HiddenAssetsString = TEXT("and ") + FString::FromInt(HiddenAssets) + TEXT(" more...");
+		UnloadedAssetsNames += TEXT("\n\n") + HiddenAssetsString;
+	}
+
+	FFormatNamedArguments Args;
+	Args.Add(TEXT("UnloadedAssets"), FText::FromString(UnloadedAssetsNames));
+	static FText MessageTitle(
+		LOCTEXT("ReferencingProperties_AssetsNeedLoadingTitle", "Resolve Referencing Properties: Assets Loading")
+	);
+
+	return FMessageDialog::Open(
+		EAppMsgType::OkCancel,
+		FText::Format(
+			LOCTEXT(
+				"ReferencingProperties_AssetsNeedLoading", "The following Assets will be loaded in order to resolve referencing properties for the selected nodes: \n {UnloadedAssets}\n\n Do you wish to continue?"
+			),
+			Args
+		),
+		MessageTitle
+	);
+}
+
 SReferenceViewer::~SReferenceViewer()
 {
 	Settings->SetFindPathEnabled(false); 
@@ -68,6 +115,8 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 {
 	bRebuildingFilters = false;
 	bNeedsGraphRebuild = false;
+	bNeedsGraphRefilter = false;
+	bNeedsReferencedPropertiesUpdate = false;
 	Settings = GetMutableDefault<UReferenceViewerSettings>();
 
 	// Create an action list and register commands
@@ -115,6 +164,37 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 	bShowShowFilteredPackagesOnly = true;
 	bShowCompactMode = true;
 	bDirtyResults = false;
+
+	// Retrieve and apply Breadth limit and show searchable names values from Project Settings
+	if (const UEditorProjectAppearanceSettings* DefaultProjectAppearanceSettings = GetDefault<UEditorProjectAppearanceSettings>())
+	{
+		FixAndHideSearchBreadthLimit = DefaultProjectAppearanceSettings->ReferenceViewerDefaultMaxSearchBreadth;
+
+		switch (DefaultProjectAppearanceSettings->ShowSearchableNames)
+		{
+			case EReferenceViewerSettingMode::NoPreference:
+				bShowShowSearchableNames = true;
+				break;
+
+			case EReferenceViewerSettingMode::ShowByDefault:
+				bShowShowSearchableNames = true;
+				break;
+
+			case EReferenceViewerSettingMode::HideByDefault:
+				bShowShowSearchableNames = false;
+				break;
+
+			default:
+				bShowShowSearchableNames = true;
+				break;
+		}
+
+		if (Settings)
+		{
+			Settings->SetSearchBreadthLimit(FixAndHideSearchBreadthLimit);
+			Settings->SetShowSearchableNames(bShowShowSearchableNames);
+		}
+	}
 
 	SAssignNew(FilterWidget, SReferenceViewerFilterBar)
 		.Visibility_Lambda([this]() { return !Settings->GetFiltersEnabled() ? EVisibility::Collapsed : EVisibility::Visible; })
@@ -402,26 +482,16 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 						.VAlign(VAlign_Center)
 						.Padding(2.f)
 						[
-							SNew(SCheckBox)
-							.OnCheckStateChanged( this, &SReferenceViewer::OnSearchBreadthEnabledChanged )
-							.IsChecked( this, &SReferenceViewer::IsSearchBreadthEnabledChecked )
-						]
-					
-						+SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.Padding(2.f)
-						[
 							SNew(SBox)
 							.WidthOverride(100)
 							[
 								SAssignNew(BreadthLimitBox, SSpinBox<int32>)
 								.Value(this, &SReferenceViewer::GetSearchBreadthCount)
-								.OnValueChanged(this, &SReferenceViewer::OnSearchBreadthCommitted)
-								.OnValueCommitted_Lambda([this] (int32 NewValue, ETextCommit::Type CommitType) { FSlateApplication::Get().SetKeyboardFocus(GraphEditorPtr, EFocusCause::SetDirectly); } )
+								.OnValueChanged(this, &SReferenceViewer::OnSearchBreadthChanged)
+								.OnValueCommitted(this, &SReferenceViewer::OnSearchBreadthCommited)
 								.MinValue(1)
 								.MaxValue(1000)
-								.MaxSliderValue(50)
+								.MaxSliderValue(1000)
 							]
 						]
 					]
@@ -549,6 +619,30 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 				SNew(STextBlock)
 				.Text(this, &SReferenceViewer::GetStatusText)
 			]
+
+			+SOverlay::Slot()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0, 0, 0, 16))
+			[
+				SNew(SBox)
+				.MinDesiredWidth(325.0f)
+				.MinDesiredHeight(50.0f)
+				[
+					// Show text within a rounded border
+					SNew(SBorder)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.BorderImage(FReferenceViewerStyle::Get().GetBrush("Graph.CenteredStatusBrush"))
+					.Visibility(this, &SReferenceViewer::GetCenteredStatusVisibility)
+					[
+						SNew(STextBlock)
+						.Justification(ETextJustify::Center)
+						.TextStyle(FReferenceViewerStyle::Get(), "Graph.CenteredStatusText")
+						.Text(this, &SReferenceViewer::GetCenteredStatusText)
+					]
+				]
+			]
 		]
 	];
 
@@ -561,6 +655,21 @@ void SReferenceViewer::Tick( const FGeometry& AllottedGeometry, const double InC
 	{
 		bNeedsGraphRebuild = false;
 		RebuildGraph();
+	}
+
+	if (bNeedsGraphRefilter)
+	{
+		bNeedsGraphRefilter = false;
+		if (GraphObj)
+		{
+			GraphObj->RefilterGraph();
+		}
+	}
+
+	if (bNeedsReferencedPropertiesUpdate)
+	{
+		bNeedsReferencedPropertiesUpdate = false;
+		GraphObj->RefreshReferencedPropertiesNodes();
 	}
 }
 
@@ -587,7 +696,6 @@ void SReferenceViewer::SetGraphRootIdentifiers(const TArray<FAssetIdentifier>& N
 	if (FixAndHideSearchBreadthLimit > 0)
 	{
 		Settings->SetSearchBreadthLimit(FixAndHideSearchBreadthLimit);
-		Settings->SetSearchBreadthLimitEnabled(true);
 	}
 	bShowCollectionFilter = ReferenceViewerParams.bShowCollectionFilter;
 	bShowPluginFilter = ReferenceViewerParams.bShowPluginFilter;
@@ -649,8 +757,15 @@ void SReferenceViewer::SetCurrentRegistrySource(const FAssetManagerEditorRegistr
 
 void SReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 {
+	if (!GraphObj)
+	{
+		return;
+	}
 
-	bool bFoundOverflow = false;
+	const TArray<FAssetIdentifier> CurrentlyVisualizedAssets = GraphObj->GetCurrentGraphRootIdentifiers();
+
+	bool bDependency = false;
+	UEdGraphNode* ParentNode = nullptr;
 	if (UEdGraphNode_Reference* ReferenceNode = Cast<UEdGraphNode_Reference>(Node))
 	{
 		// Overflow nodes have no identifiers
@@ -658,28 +773,24 @@ void SReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 		{
 			if (ReferenceNode->GetReferencerPin()->LinkedTo.Num() > 0)
 			{
-				if (UEdGraphNode* ParentNode = ReferenceNode->GetReferencerPin()->LinkedTo[0]->GetOwningNode())
-				{
-					if (UEdGraphNode_Reference* ParentReferenceNode = Cast<UEdGraphNode_Reference>(ParentNode))
-					{
-						FAssetIdentifier ParentID = ParentReferenceNode->GetIdentifier();
-						GraphObj->ExpandNode(false, ParentID);
-						bFoundOverflow = true;
-					}
-				}
+				ParentNode = ReferenceNode->GetReferencerPin()->LinkedTo[0]->GetOwningNode();
 			}
 			else if (ReferenceNode->GetDependencyPin()->LinkedTo.Num() > 0)
 			{
-				if (UEdGraphNode* ParentNode = ReferenceNode->GetDependencyPin()->LinkedTo[0]->GetOwningNode())
-				{
-					if (UEdGraphNode_Reference* ParentReferenceNode = Cast<UEdGraphNode_Reference>(ParentNode))
-					{
-						FAssetIdentifier ParentID = ParentReferenceNode->GetIdentifier();
-						GraphObj->ExpandNode(true, ParentID);
-						bFoundOverflow = true;
-					}
-				}
+				bDependency = true;
+				ParentNode = ReferenceNode->GetDependencyPin()->LinkedTo[0]->GetOwningNode();
 			}
+		}
+	}
+
+	bool bFoundOverflow = false;
+	if (ParentNode)
+	{
+		if (UEdGraphNode_Reference* ParentReferenceNode = Cast<UEdGraphNode_Reference>(ParentNode))
+		{
+			FAssetIdentifier ParentID = ParentReferenceNode->GetIdentifier();
+			GraphObj->ExpandNode(bDependency, ParentID);
+			bFoundOverflow = true;
 		}
 	}
 
@@ -692,6 +803,8 @@ void SReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 		Nodes.Add(Node);
 		ReCenterGraphOnNodes( Nodes );
 	}
+
+	OnReferenceViewerSelectionChanged().Broadcast(CurrentlyVisualizedAssets, GraphObj->GetCurrentGraphRootIdentifiers());
 }
 
 void SReferenceViewer::RebuildGraph()
@@ -802,6 +915,10 @@ FText SReferenceViewer::GetAddressBarText() const
 			{
 				return FText::Format(LOCTEXT("AddressBarMultiplePackagesText", "{0} and {1} others"), FText::FromString(CurrentGraphRootPackageNames[0].ToString()), FText::AsNumber(CurrentGraphRootPackageNames.Num()));
 			}
+			else
+			{
+				return LOCTEXT("NoAssetFoundText", "No Assets Found");
+			}
 		}
 		else
 		{
@@ -849,10 +966,37 @@ FText SReferenceViewer::GetStatusText() const
 	return FText();
 }
 
+FText SReferenceViewer::GetCenteredStatusText() const
+{
+	if (GraphObj && GraphObj->Nodes.IsEmpty())
+	{
+		return LOCTEXT("NoAssets", "No Assets Found");
+	}
+
+	return FText();
+}
+
+EVisibility SReferenceViewer::GetCenteredStatusVisibility() const
+{
+	if (GraphObj && GraphObj->Nodes.IsEmpty())
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
 void SReferenceViewer::OnAddressBarTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo)
 {
 	if (CommitInfo == ETextCommit::OnEnter)
 	{
+		if (!GraphObj)
+		{
+			return;
+		}
+
+		const TArray<FAssetIdentifier> CurrentlyVisualizedAssets = GraphObj->GetCurrentGraphRootIdentifiers();
+
 		TArray<FAssetIdentifier> NewPaths;
 		FAssetIdentifier NewPath = FAssetIdentifier::FromString(NewText.ToString());
 
@@ -867,6 +1011,8 @@ void SReferenceViewer::OnAddressBarTextCommitted(const FText& NewText, ETextComm
 		}
 
 		SetGraphRootIdentifiers(NewPaths);
+
+		OnReferenceViewerSelectionChanged().Broadcast(CurrentlyVisualizedAssets, GraphObj->GetCurrentGraphRootIdentifiers());
 	}
 }
 
@@ -991,20 +1137,6 @@ void SReferenceViewer::OnSearchReferencerDepthCommitted(int32 NewValue)
 		Settings->SetSearchReferencerDepthLimit(NewValue);
 		RebuildGraph();
 	}
-}
-
-void SReferenceViewer::OnSearchBreadthEnabledChanged( ECheckBoxState NewState )
-{
-	Settings->SetSearchBreadthLimitEnabled(NewState == ECheckBoxState::Checked);
-	if (GraphObj)
-	{
-		GraphObj->RefilterGraph();
-	}
-}
-
-ECheckBoxState SReferenceViewer::IsSearchBreadthEnabledChecked() const
-{
-	return Settings->IsSearchBreadthLimited() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 void SReferenceViewer::OnEnableCollectionFilterChanged(ECheckBoxState NewState)
@@ -1363,20 +1495,19 @@ bool SReferenceViewer::IsShowDuplicatesChecked() const
 	return Settings->GetFindPathEnabled() || Settings->IsShowDuplicates();
 }
 
-void SReferenceViewer::OnShowEditorOnlyReferencesChanged()
+void SReferenceViewer::OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType Value)
 {
-	Settings->SetShowEditorOnlyReferencesEnabled(!Settings->IsShowEditorOnlyReferences());
+	Settings->SetEditorOnlyReferenceFilterType(Value);
 	if (GraphObj)
 	{
 		GraphObj->RebuildGraph();
 	}
 }
 
-bool SReferenceViewer::IsShowEditorOnlyReferencesChecked() const
+EEditorOnlyReferenceFilterType SReferenceViewer::GetEditorOnlyReferenceFilterType() const
 {
-	return Settings->IsShowEditorOnlyReferences();
+	return Settings->GetEditorOnlyReferenceFilterType();
 }
-
 
 bool SReferenceViewer::GetManagementReferencesVisibility() const
 {
@@ -1424,13 +1555,38 @@ int32 SReferenceViewer::GetSearchBreadthCount() const
 	return Settings->GetSearchBreadthLimit();
 }
 
-void SReferenceViewer::OnSearchBreadthCommitted(int32 NewValue)
+void SReferenceViewer::SetSearchBreadthCount(int32 InBreadthValue)
 {
-	Settings->SetSearchBreadthLimit(NewValue);
+	if (!Settings)
+	{
+		return;
+	}
+
+	if (Settings->GetSearchBreadthLimit() != InBreadthValue)
+	{
+		Settings->SetSearchBreadthLimit(InBreadthValue);
+	}
+}
+
+void SReferenceViewer::OnSearchBreadthChanged(int32 InBreadthValue)
+{
+	SetSearchBreadthCount(InBreadthValue);
+
+	bNeedsGraphRefilter = true;
+}
+
+void SReferenceViewer::OnSearchBreadthCommited(int32 InBreadthValue, ETextCommit::Type InCommitType)
+{
+	SetSearchBreadthCount(InBreadthValue);
+
+	bNeedsGraphRefilter = false;
+
 	if (GraphObj)
 	{
 		GraphObj->RefilterGraph();
 	}
+
+	FSlateApplication::Get().SetKeyboardFocus(GraphEditorPtr, EFocusCause::SetDirectly);
 }
 
 void SReferenceViewer::RegisterActions()
@@ -1442,6 +1598,11 @@ void SReferenceViewer::RegisterActions()
 		FAssetManagerEditorCommands::Get().ZoomToFit,
 		FExecuteAction::CreateSP(this, &SReferenceViewer::ZoomToFit),
 		FCanExecuteAction::CreateSP(this, &SReferenceViewer::CanZoomToFit));
+
+	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().ResolveReferencingProperties,
+		FExecuteAction::CreateSP(this, &SReferenceViewer::ResolveReferencingProperties),
+		FCanExecuteAction::CreateSP(this, &SReferenceViewer::CanResolveReferencingProperties));
 
 	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().Find,
@@ -1494,12 +1655,12 @@ void SReferenceViewer::RegisterActions()
 
 	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().IncreaseBreadth,
-		FExecuteAction::CreateLambda( [this] { OnSearchBreadthCommitted( GetSearchBreadthCount() + 1); } ),
+		FExecuteAction::CreateLambda( [this] { SetSearchBreadthCount( GetSearchBreadthCount() + 1); } ),
 		FCanExecuteAction());
 
 	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().DecreaseBreadth,
-		FExecuteAction::CreateLambda( [this] { OnSearchBreadthCommitted( GetSearchBreadthCount() - 1); } ),
+		FExecuteAction::CreateLambda( [this] { SetSearchBreadthCount( GetSearchBreadthCount() - 1); } ),
 		FCanExecuteAction());
 
 	ReferenceViewerActions->MapAction(
@@ -1522,10 +1683,24 @@ void SReferenceViewer::RegisterActions()
 		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
 
 	ReferenceViewerActions->MapAction(
-		FAssetManagerEditorCommands::Get().ShowEditorOnlyReferences,
-		FExecuteAction::CreateSP(this, &SReferenceViewer::OnShowEditorOnlyReferencesChanged),
+		FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeGame,
+		FExecuteAction::CreateSPLambda(this, [this]() { OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType::Game); }),
 		FCanExecuteAction(),	
-		FIsActionChecked::CreateSP(this, &SReferenceViewer::IsShowEditorOnlyReferencesChecked),
+		FIsActionChecked::CreateSPLambda(this, [this]() { return GetEditorOnlyReferenceFilterType() == EEditorOnlyReferenceFilterType::Game; }),
+		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
+
+	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypePropagation,
+		FExecuteAction::CreateSPLambda(this, [this]() { OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType::Propagation); }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSPLambda(this, [this]() { return GetEditorOnlyReferenceFilterType() == EEditorOnlyReferenceFilterType::Propagation; }),
+		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
+
+	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeEditorOnly,
+		FExecuteAction::CreateSPLambda(this, [this]() { OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType::EditorOnly); }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSPLambda(this, [this]() { return GetEditorOnlyReferenceFilterType() == EEditorOnlyReferenceFilterType::EditorOnly; }),
 		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
 
 	ReferenceViewerActions->MapAction(
@@ -2166,6 +2341,9 @@ void SReferenceViewer::OnAssetRegistryChanged(const FAssetData& AssetData)
 {
 	// We don't do more specific checking because that data is not exposed, and it wouldn't handle newly added references anyway
 	bDirtyResults = true;
+
+	// Make sure referenced properties node are displaying updated information
+	bNeedsReferencedPropertiesUpdate = true;
 }
 
 void SReferenceViewer::OnInitialAssetRegistrySearchComplete()
@@ -2197,6 +2375,179 @@ bool SReferenceViewer::CanZoomToFit() const
 void SReferenceViewer::OnFind()
 {
 	FSlateApplication::Get().SetKeyboardFocus(SearchBox, EFocusCause::SetDirectly);
+}
+
+void SReferenceViewer::ResolveReferencingProperties() const
+{
+	if (!GraphEditorPtr)
+	{
+		return;
+	}
+
+	// Retrieve Object from the specified node. Will load the asset if needed.
+	auto GetObjectFromNode([](const UEdGraphNode_Reference* InNode)
+	{
+		UObject* ReturnObject;
+		if (InNode)
+		{
+			const FAssetData& AssetData = InNode->GetAssetData();
+			if (AssetData.IsAssetLoaded())
+			{
+				ReturnObject = AssetData.GetAsset();
+			}
+			else
+			{
+				FScopedSlowTask SlowTask(0, LOCTEXT("LoadingSelectedObject", "Loading selection..."));
+				SlowTask.MakeDialog();
+				ReturnObject = AssetData.GetAsset();
+			}
+		}
+		else
+		{
+			ReturnObject = nullptr;
+		}
+
+		return ReturnObject;
+	});
+
+	TSet<UObject*> SelectedNodesAsObjects = GraphEditorPtr->GetSelectedNodes();
+	if (ensure(!SelectedNodesAsObjects.IsEmpty()))
+	{
+		TSet<UEdGraphNode_Reference*> SelectedNodes;
+		TSet<FAssetData> UnloadedAssetsData;
+
+		// Retrieve current Reference Nodes, and keep track of those which need to be loaded
+		for (UObject* SelectedNode : SelectedNodesAsObjects.Array())
+		{
+			UEdGraphNode_Reference* const ReferencedNode = Cast<UEdGraphNode_Reference>(SelectedNode);
+			if (!ReferencedNode)
+			{
+				continue;
+			}
+
+			SelectedNodes.Add(ReferencedNode);
+
+			// Look for referenced note asset, and check if it's loaded
+			const FAssetData& AssetData = ReferencedNode->GetAssetData();
+			if (!AssetData.IsAssetLoaded())
+			{
+				UnloadedAssetsData.Add(AssetData);
+			}
+
+			// Cycle all referencing nodes, and check if they're already loaded
+			if (const UEdGraphPin* const ReferencerPin = ReferencedNode->GetReferencerPin())
+			{
+				for (const UEdGraphPin* const ReferencedPin : ReferencerPin->LinkedTo)
+				{
+					if (ReferencedPin)
+					{
+						if (const UEdGraphNode_Reference* const ReferencingNode =
+								Cast<UEdGraphNode_Reference>(ReferencedPin->GetOwningNode()))
+						{
+							const FAssetData& ReferencerAssetData = ReferencingNode->GetAssetData();
+							if (!ReferencerAssetData.IsAssetLoaded())
+							{
+								UnloadedAssetsData.Add(ReferencerAssetData);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// If assets need to be loaded in order to resolve properties, let the user know
+		if (!UnloadedAssetsData.IsEmpty())
+		{
+			const EAppReturnType::Type Ret = ShowAssetsNeedsToLoadMessage(UnloadedAssetsData);
+			if (Ret == EAppReturnType::Cancel)
+			{
+				return;
+			}
+		}
+
+		FScopedSlowTask MainResolveTask(
+			SelectedNodes.Num(),
+			LOCTEXT("ReferencingProperties_ResolveTaskDialog", "Resolving Referencing Properties for selected nodes...")
+		);
+		MainResolveTask.MakeDialog(true);
+		bool bIsCanceled = false;
+
+		for (UEdGraphNode_Reference* ReferencedNode : SelectedNodes.Array())
+		{
+			if (MainResolveTask.ShouldCancel())
+			{
+				bIsCanceled = true;
+			}
+
+			if (bIsCanceled || !ReferencedNode)
+			{
+				break;
+			}
+
+			MainResolveTask.EnterProgressFrame(
+				1.0f,
+				FText::Format(
+					LOCTEXT("ReferencingProperties_ResolveTaskDialogDetail", "Resolving Referencing Properties for {0}"),
+					FText::FText::FromName(ReferencedNode->GetAssetData().AssetName)
+				)
+			);
+
+			UObject* const ReferencedObject = GetObjectFromNode(ReferencedNode);
+			const UEdGraphPin* const ReferencerPin = ReferencedNode->GetReferencerPin();
+
+			if (!ReferencerPin || !ReferencedObject)
+			{
+				continue;
+			}
+
+			const TArray<UEdGraphPin*> ReferencingPins = ReferencerPin->LinkedTo;
+			if (!ReferencingPins.IsEmpty())
+			{
+				TArray<FReferencingPropertyDescription> ReferencingProperties;
+				for (const UEdGraphPin* const ReferencedPin : ReferencingPins)
+				{
+					if (!ReferencedPin)
+					{
+						continue;
+					}
+
+					UEdGraphNode_Reference* const ReferencingNode =
+						Cast<UEdGraphNode_Reference>(ReferencedPin->GetOwningNode());
+					if (!ReferencingNode)
+					{
+						continue;
+					}
+
+					if (MainResolveTask.ShouldCancel())
+					{
+						bIsCanceled = true;
+						break;
+					}
+
+					UObject* ReferencingObject = GetObjectFromNode(ReferencingNode);
+					if (!ReferencingObject)
+					{
+						continue;
+					}
+
+					TArray<FReferencingPropertyDescription> ReferencingPropertiesArray =
+						GraphObj->RetrieveReferencingProperties(ReferencingObject, ReferencedObject);
+
+					GraphObj->CreateReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
+				}
+			}
+		}
+	}
+}
+
+bool SReferenceViewer::CanResolveReferencingProperties() const
+{
+	if (!GraphEditorPtr)
+	{
+		return false;
+	}
+
+	return GraphEditorPtr->GetSelectedNodes().Num() >= 1;
 }
 
 void SReferenceViewer::HandleOnSearchTextChanged(const FText& SearchText)
@@ -2258,7 +2609,12 @@ TSharedRef<SWidget> SReferenceViewer::GetShowMenuContent()
 	MenuBuilder.BeginSection("ReferenceTypes", LOCTEXT("ReferenceTypes", "Reference Types"));
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowSoftReferences);
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowHardReferences);
-	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowEditorOnlyReferences);
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("EditorOnlyReferenceTypes", LOCTEXT("EditorOnlyReferenceTypes", "Editor Only Reference Types"));
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeGame);
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypePropagation);
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeEditorOnly);
 	MenuBuilder.EndSection();
 
 	MenuBuilder.BeginSection("Assets", LOCTEXT("Assets", "Assets"));

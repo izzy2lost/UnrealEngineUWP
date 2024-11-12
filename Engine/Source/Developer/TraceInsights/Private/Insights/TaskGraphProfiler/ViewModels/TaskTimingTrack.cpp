@@ -5,29 +5,34 @@
 #include "Framework/Commands/Commands.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+
+// TraceServices
 #include "TraceServices/Model/TasksProfiler.h"
 #include "TraceServices/Model/Threads.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/ITimingViewSession.h"
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskGraphRelation.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTrackEvent.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/ViewModels/ThreadTrackEvent.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
-#define LOCTEXT_NAMESPACE "TaskTimingTrack"
+#define LOCTEXT_NAMESPACE "UE::Insights::TaskGraphProfiler"
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FTaskTimingStateCommands
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,57 +58,57 @@ public:
 	virtual void RegisterCommands() override
 	{
 		UI_COMMAND(Command_ShowTaskTransitions,
-				   "Show Task Transitions",
-				   "Show/hide transitions between the stages of the current task (for a selected cpu timing event.)",
-				    EUserInterfaceActionType::ToggleButton,
-				    FInputChord(EKeys::T));
+			"Show Task Transitions",
+			"Show/hide transitions between the stages of the current task (for a selected CPU timing event.)",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord(EKeys::T));
 
 		UI_COMMAND(Command_ShowTaskConnections,
-				   "Show Task Connections",
-				   "Show/hide conections between:\nThe current task's prerequisites completed time and the current task's started time.\nThe current task's completed time and the current task's subsequents started time.\nThe current task's nested tasks added time and their started time.",
-				   EUserInterfaceActionType::ToggleButton, FInputChord());
+			"Show Task Connections",
+			"Show/hide connections between:\nThe current task's prerequisites completed time and the current task's started time.\nThe current task's completed time and the current task's subsequents started time.\nThe current task's nested tasks added time and their started time.",
+			EUserInterfaceActionType::ToggleButton, FInputChord());
 
 		UI_COMMAND(Command_ShowTaskPrerequisites,
-				   "Show Transitions of Prerequisites",
-				   "Show/hide stage transitions for the current task's prerequisites.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord(EKeys::P));
+			"Show Transitions of Prerequisites",
+			"Show/hide stage transitions for the current task's prerequisites.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord(EKeys::P));
 
 		UI_COMMAND(Command_ShowTaskSubsequents,
-				   "Show Transitions of Subsequents",
-				   "Show/hide stage transitions for the current task's subsequents.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord(EKeys::S));
+			"Show Transitions of Subsequents",
+			"Show/hide stage transitions for the current task's subsequents.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord(EKeys::S));
 
 		UI_COMMAND(Command_ShowParentTasks,
-				   "Show Transitions of Parent Tasks",
-				   "Show/hide stage transitions for the current task's parent tasks.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord(EKeys::R));
+			"Show Transitions of Parent Tasks",
+			"Show/hide stage transitions for the current task's parent tasks.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord(EKeys::R));
 
 		UI_COMMAND(Command_ShowNestedTasks,
-				   "Show Transitions of Nested Tasks",
-				   "Show/hide stage transitions for the current task's nested tasks.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord(EKeys::N));
+			"Show Transitions of Nested Tasks",
+			"Show/hide stage transitions for the current task's nested tasks.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord(EKeys::N));
 
 		UI_COMMAND(Command_ShowCriticalPath,
-				   "Show Task Critical Path",
-				   "Show/hide relations representing the critical path containing the current task.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord());
+			"Show Task Critical Path",
+			"Show/hide relations representing the critical path containing the current task.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
 
 		UI_COMMAND(Command_ShowTaskTrack,
-				   "Show Task Overview Track",
-				   "Show/hide the Task Overview Track when a task is selected.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord());
+			"Show Task Overview Track",
+			"Show/hide the Task Overview Track when a task is selected.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
 
 		UI_COMMAND(Command_ShowDetailedTaskTrackInfo,
-				   "Show Detailed Info on the Task Overview Track",
-				   "Show the current task's prerequisites/nested tasks/subsequents in the Task Overview Track.",
-				   EUserInterfaceActionType::ToggleButton,
-				   FInputChord());
+			"Show Detailed Info on the Task Overview Track",
+			"Show the current task's prerequisites/nested tasks/subsequents in the Task Overview Track.",
+			EUserInterfaceActionType::ToggleButton,
+			FInputChord());
 	}
 	UE_ENABLE_OPTIMIZATION_SHIP
 
@@ -122,14 +127,14 @@ public:
 // FTaskTimingSharedState
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FTaskTimingSharedState::FTaskTimingSharedState(STimingView* InTimingView)
+FTaskTimingSharedState::FTaskTimingSharedState(TimingProfiler::STimingView* InTimingView)
 	: TimingViewSession(InTimingView)
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskTimingSharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FTaskTimingSharedState::OnBeginSession(Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingViewSession)
 	{
@@ -148,7 +153,7 @@ void FTaskTimingSharedState::OnBeginSession(Insights::ITimingViewSession& InSess
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskTimingSharedState::OnEndSession(Insights::ITimingViewSession& InSession)
+void FTaskTimingSharedState::OnEndSession(Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingViewSession)
 	{
@@ -162,7 +167,7 @@ void FTaskTimingSharedState::OnEndSession(Insights::ITimingViewSession& InSessio
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskTimingSharedState::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FTaskTimingSharedState::Tick(Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InSession != TimingViewSession)
 	{
@@ -171,7 +176,7 @@ void FTaskTimingSharedState::Tick(Insights::ITimingViewSession& InSession, const
 
 	if (!TaskTrack.IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable())
 	{
-		TSharedPtr<STimingView> TimingView = GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 
 		InitCommandList(TimingView);
 
@@ -188,10 +193,11 @@ void FTaskTimingSharedState::Tick(Insights::ITimingViewSession& InSession, const
 
 	if (bResetOnNextTick)
 	{
-		TSharedPtr<STimingView> TimingView = GetTimingView();
-
 		bResetOnNextTick = false;
-		if (!TimingView->GetSelectedEvent().IsValid() &&
+
+		TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
+		if (TimingView.IsValid() &&
+			!TimingView->GetSelectedEvent().IsValid() &&
 			(!TimingView->GetSelectedTrack().IsValid() || TimingView->GetSelectedTrack().Get() != TaskTrack.Get()))
 		{
 			SetTaskId(TaskTrace::InvalidId);
@@ -202,21 +208,16 @@ void FTaskTimingSharedState::Tick(Insights::ITimingViewSession& InSession, const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<STimingView> FTaskTimingSharedState::GetTimingView()
+TSharedPtr<TimingProfiler::STimingView> FTaskTimingSharedState::GetTimingView()
 {
-	TSharedPtr<STimingView> TimingView;
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (Window.IsValid())
-	{
-		TimingView = Window->GetTimingView();
-	}
-
-	return TimingView;
+	return Window.IsValid() ? Window->GetTimingView() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskTimingSharedState::ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
+void FTaskTimingSharedState::ExtendFilterMenu(Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
 {
 	if (&InSession != TimingViewSession)
 	{
@@ -236,7 +237,7 @@ void FTaskTimingSharedState::SetTaskId(TaskTrace::FId InTaskId)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskTimingSharedState::ExtendOtherTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
+void FTaskTimingSharedState::ExtendOtherTracksFilterMenu(Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
 {
 	if (&InSession != TimingViewSession)
 	{
@@ -347,10 +348,18 @@ void FTaskTimingSharedState::BuildTasksSubMenu(FMenuBuilder& MenuBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskTimingSharedState::InitCommandList(TSharedPtr<STimingView> TimingView)
+void FTaskTimingSharedState::InitCommandList(TSharedPtr<TimingProfiler::STimingView> TimingView)
 {
+	if (!ensure(TimingView.IsValid()))
+	{
+		return;
+	}
+
 	TSharedPtr<FUICommandList> CommandList = TimingView->GetCommandList();
-	ensure(CommandList);
+	if (!ensure(CommandList.IsValid()))
+	{
+		return;
+	}
 
 	FTaskTimingStateCommands::Register();
 
@@ -414,7 +423,7 @@ void FTaskTimingSharedState::InitCommandList(TSharedPtr<STimingView> TimingView)
 
 void FTaskTimingSharedState::ContextMenu_ShowTaskTransitions_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowTransitions(!TaskGraphManager->GetShowTransitions());
@@ -426,14 +435,14 @@ void FTaskTimingSharedState::ContextMenu_ShowTaskTransitions_Execute()
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskTransitions_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskTransitions_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowTransitions();
 }
 
@@ -442,7 +451,7 @@ bool FTaskTimingSharedState::ContextMenu_ShowTaskTransitions_IsChecked()
 
 void FTaskTimingSharedState::ContextMenu_ShowTaskConnections_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowConnections(!TaskGraphManager->GetShowConnections());
@@ -454,14 +463,14 @@ void FTaskTimingSharedState::ContextMenu_ShowTaskConnections_Execute()
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskConnections_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskConnections_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowConnections();
 }
 
@@ -470,14 +479,14 @@ bool FTaskTimingSharedState::ContextMenu_ShowTaskConnections_IsChecked()
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskPrerequisites_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskPrerequisites_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowPrerequisites();
 }
 
@@ -485,7 +494,7 @@ bool FTaskTimingSharedState::ContextMenu_ShowTaskPrerequisites_IsChecked()
 
 void FTaskTimingSharedState::ContextMenu_ShowTaskPrerequisites_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowPrerequisites(!TaskGraphManager->GetShowPrerequisites());
@@ -498,14 +507,14 @@ void FTaskTimingSharedState::ContextMenu_ShowTaskPrerequisites_Execute()
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskSubsequents_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowTaskSubsequents_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowSubsequents();
 }
 
@@ -513,7 +522,7 @@ bool FTaskTimingSharedState::ContextMenu_ShowTaskSubsequents_IsChecked()
 
 void FTaskTimingSharedState::ContextMenu_ShowTaskSubsequents_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowSubsequents(!TaskGraphManager->GetShowSubsequents());
@@ -526,14 +535,14 @@ void FTaskTimingSharedState::ContextMenu_ShowTaskSubsequents_Execute()
 
 bool FTaskTimingSharedState::ContextMenu_ShowParentTasks_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowParentTasks_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowParentTasks();
 }
 
@@ -541,7 +550,7 @@ bool FTaskTimingSharedState::ContextMenu_ShowParentTasks_IsChecked()
 
 void FTaskTimingSharedState::ContextMenu_ShowParentTasks_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowParentTasks(!TaskGraphManager->GetShowParentTasks());
@@ -554,14 +563,14 @@ void FTaskTimingSharedState::ContextMenu_ShowParentTasks_Execute()
 
 bool FTaskTimingSharedState::ContextMenu_ShowNestedTasks_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowNestedTasks_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowNestedTasks();
 }
 
@@ -569,7 +578,7 @@ bool FTaskTimingSharedState::ContextMenu_ShowNestedTasks_IsChecked()
 
 void FTaskTimingSharedState::ContextMenu_ShowNestedTasks_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowNestedTasks(!TaskGraphManager->GetShowNestedTasks());
@@ -582,14 +591,14 @@ void FTaskTimingSharedState::ContextMenu_ShowNestedTasks_Execute()
 
 bool FTaskTimingSharedState::ContextMenu_ShowCriticalPath_CanExecute()
 {
-	return Insights::FTaskGraphProfilerManager::Get().IsValid() && Insights::FTaskGraphProfilerManager::Get()->GetIsAvailable();
+	return FTaskGraphProfilerManager::Get().IsValid() && FTaskGraphProfilerManager::Get()->GetIsAvailable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTaskTimingSharedState::ContextMenu_ShowCriticalPath_IsChecked()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	return TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable() && TaskGraphManager->GetShowCriticalPath();
 }
 
@@ -597,7 +606,7 @@ bool FTaskTimingSharedState::ContextMenu_ShowCriticalPath_IsChecked()
 
 void FTaskTimingSharedState::ContextMenu_ShowCriticalPath_Execute()
 {
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
+	TSharedPtr<FTaskGraphProfilerManager> TaskGraphManager = FTaskGraphProfilerManager::Get();
 	if (TaskGraphManager.IsValid() && TaskGraphManager->GetIsAvailable())
 	{
 		TaskGraphManager->SetShowCriticalPath(!TaskGraphManager->GetShowCriticalPath());
@@ -676,9 +685,7 @@ void FTaskTimingSharedState::OnTaskSettingsChanged()
 	FTaskGraphProfilerManager::Get()->ClearTaskRelations();
 	TaskTrack->SetTaskId(TaskTrace::InvalidId);
 
-	TSharedPtr<Insights::FTaskGraphProfilerManager> TaskGraphManager = Insights::FTaskGraphProfilerManager::Get();
-	TSharedPtr<STimingView> TimingView = GetTimingView();
-
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView)
 	{
 		return;
@@ -743,59 +750,61 @@ void FTaskTimingTrack::BuildDrawState(ITimingEventsTrackDrawStateBuilder& Builde
 
 	if (bShowDetailInfoOnTaskTrack)
 	{
+		const uint32 MaxEventDepth = TimingProfiler::FTimingProfilerManager::Get()->GetEventDepthLimit() - 1;
+
 		uint32 Depth = 0;
 		for (TraceServices::FTaskInfo::FRelationInfo Relation : Task->Prerequisites)
 		{
-			if (Depth >= FTimingProfilerManager::Get()->GetEventDepthLimit() - 1)
+			if (Depth >= MaxEventDepth)
 			{
 				break;
 			}
 			const TraceServices::FTaskInfo* TaskInfo = TasksProvider->TryGetTask(Relation.RelativeId);
 			if (TaskInfo)
 			{
-				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Prerequisite Task %d Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::PrerequisiteStarted));
+				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Prerequisite Task %" UINT64_FMT " Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::PrerequisiteStarted));
 			}
 		}
 
 		// parent tasks can overlap with prerequisites, hence they are shown under them (`Depth` is not reset)
 		for (TraceServices::FTaskInfo::FRelationInfo Relation : Task->ParentTasks)
 		{
-			if (Depth >= FTimingProfilerManager::Get()->GetEventDepthLimit() - 1)
+			if (Depth >= MaxEventDepth)
 			{
 				break;
 			}
 			const TraceServices::FTaskInfo* TaskInfo = TasksProvider->TryGetTask(Relation.RelativeId);
 			if (TaskInfo)
 			{
-				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Parent Task %d Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::ParentStarted));
+				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Parent Task %" UINT64_FMT " Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::ParentStarted));
 			}
 		}
 
 		Depth = 0;
 		for (TraceServices::FTaskInfo::FRelationInfo Relation : Task->NestedTasks)
 		{
-			if (Depth >= FTimingProfilerManager::Get()->GetEventDepthLimit() - 1)
+			if (Depth >= MaxEventDepth)
 			{
 				break;
 			}
 			const TraceServices::FTaskInfo* TaskInfo = TasksProvider->TryGetTask(Relation.RelativeId);
 			if (TaskInfo)
 			{
-				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Nested Task %d Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::NestedStarted));
+				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Nested Task %" UINT64_FMT " Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::NestedStarted));
 			}
 		}
 
 		Depth = 0;
 		for (TraceServices::FTaskInfo::FRelationInfo Relation : Task->Subsequents)
 		{
-			if (Depth >= FTimingProfilerManager::Get()->GetEventDepthLimit() - 1)
+			if (Depth >= MaxEventDepth)
 			{
 				break;
 			}
 			const TraceServices::FTaskInfo* TaskInfo = TasksProvider->TryGetTask(Relation.RelativeId);
 			if (TaskInfo)
 			{
-				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Subsequent Task %d Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::SubsequentStarted));
+				Builder.AddEvent(TaskInfo->StartedTimestamp, TaskInfo->FinishedTimestamp, ++Depth, *FString::Printf(TEXT("Subsequent Task %" UINT64_FMT " Executing"), TaskInfo->Id), 0, FTaskGraphProfilerManager::Get()->GetColorForTaskEventAsPackedARGB(ETaskEventType::SubsequentStarted));
 			}
 		}
 	}
@@ -859,7 +868,7 @@ void FTaskTimingTrack::OnTimingEventSelected(TSharedPtr<const ITimingEvent> InSe
 	const FThreadTrackEvent &ThreadEvent = InSelectedEvent->As<FThreadTrackEvent>();
 	GetEventRelations(ThreadEvent);
 
-	uint32 ThreadId = StaticCastSharedRef<const FThreadTimingTrack>(ThreadEvent.GetTrack())->GetThreadId();
+	uint32 ThreadId = StaticCastSharedRef<const TimingProfiler::FThreadTimingTrack>(ThreadEvent.GetTrack())->GetThreadId();
 	const TraceServices::FTaskInfo* Task = TasksProvider->TryGetTask(ThreadId, ThreadEvent.GetStartTime());
 
 	if (Task != nullptr)
@@ -1016,9 +1025,10 @@ void FTaskTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimin
 	const FTaskTrackEvent& TaskTrackEvent = InTooltipEvent.As<FTaskTrackEvent>();
 	InOutTooltip.AddTitle(TaskTrackEvent.GetEventName());
 
-	InOutTooltip.AddNameValueTextLine(TaskTrackEvent.GetStartLabel(), TimeUtils::FormatTimeAuto(TaskTrackEvent.GetStartTime(), 6));
-	InOutTooltip.AddNameValueTextLine(TaskTrackEvent.GetEndLabel(), TimeUtils::FormatTimeAuto(TaskTrackEvent.GetEndTime(), 6));
-	InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(TaskTrackEvent.GetEndTime() - TaskTrackEvent.GetStartTime()));
+	using namespace UE::Insights;
+	InOutTooltip.AddNameValueTextLine(TaskTrackEvent.GetStartLabel(), FormatTimeAuto(TaskTrackEvent.GetStartTime(), 6));
+	InOutTooltip.AddNameValueTextLine(TaskTrackEvent.GetEndLabel(), FormatTimeAuto(TaskTrackEvent.GetEndTime(), 6));
+	InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), FormatTimeAuto(TaskTrackEvent.GetEndTime() - TaskTrackEvent.GetStartTime()));
 
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
 	if (!Session.IsValid())
@@ -1042,7 +1052,7 @@ void FTaskTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimin
 		return;
 	}
 
-	InOutTooltip.AddNameValueTextLine(TEXT("Task Id:"), FString::Printf(TEXT("%d"), Task->Id));
+	InOutTooltip.AddNameValueTextLine(TEXT("Task Id:"), FString::Printf(TEXT("%" UINT64_FMT), Task->Id));
 
 	switch (TaskTrackEvent.GetTaskEventType())
 	{
@@ -1057,11 +1067,11 @@ void FTaskTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimin
 		const TCHAR* StartedThreadName = ThreadProvider.GetThreadName(Task->StartedThreadId);
 		if (StartedThreadName)
 		{
-			InOutTooltip.AddNameValueTextLine(TEXT("Executed Thread Id:"), FString::Printf(TEXT("%d (%s)"), Task->StartedThreadId, StartedThreadName));
+			InOutTooltip.AddNameValueTextLine(TEXT("Executed Thread Id:"), FString::Printf(TEXT("%u (%s)"), Task->StartedThreadId, StartedThreadName));
 		}
 		else
 		{
-			InOutTooltip.AddNameValueTextLine(TEXT("Executed Thread Id:"), FString::Printf(TEXT("%d (<unknown>)"), Task->StartedThreadId));
+			InOutTooltip.AddNameValueTextLine(TEXT("Executed Thread Id:"), FString::Printf(TEXT("%u (<unknown>)"), Task->StartedThreadId));
 		}
 		break;
 	}
@@ -1101,13 +1111,13 @@ void FTaskTimingTrack::GetEventRelations(const FThreadTrackEvent& InSelectedEven
 	const TraceServices::ITasksProvider* TasksProvider = TraceServices::ReadTasksProvider(*Session.Get());
 	if (TasksProvider)
 	{
-		TSharedPtr<STimingView> TimingView = SharedState.GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
 		if (!TimingView.IsValid())
 		{
 			return;
 		}
 
-		TSharedRef<const FThreadTimingTrack> EventTrack = StaticCastSharedRef<const FThreadTimingTrack>(InSelectedEvent.GetTrack());
+		TSharedRef<const TimingProfiler::FThreadTimingTrack> EventTrack = StaticCastSharedRef<const TimingProfiler::FThreadTimingTrack>(InSelectedEvent.GetTrack());
 		uint32 ThreadId = EventTrack->GetThreadId();
 
 		FTaskGraphProfilerManager::Get()->ShowTaskRelations(&InSelectedEvent, ThreadId);
@@ -1180,6 +1190,6 @@ FReply FTaskTimingTrack::OnMouseButtonUp(const FGeometry& MyGeometry, const FPoi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler
 
 #undef LOCTEXT_NAMESPACE

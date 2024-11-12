@@ -2,7 +2,7 @@
 /**
 	@file		ancillarydata_cea708.h
 	@brief		Declares the AJAAncillaryData_Cea708 class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef AJA_ANCILLARYDATA_CEA708_H
@@ -73,7 +73,7 @@ public:
 		@param[in]	pInAncData	A valid pointer to a base AJAAncillaryData object that contains the Anc data to inspect.
 		@return		AJAAncillaryDataType if I recognize this Anc data (or AJAAncillaryDataType_Unknown if unrecognized).
 	**/
-	static AJAAncillaryDataType					RecognizeThisAncillaryData (const AJAAncillaryData * pInAncData);
+	static AJAAncDataType						RecognizeThisAncillaryData (const AJAAncillaryData * pInAncData);
 
 	/**
 		@brief		Streams a human-readable representation of me to the given output stream.

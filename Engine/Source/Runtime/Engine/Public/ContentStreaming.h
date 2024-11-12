@@ -9,10 +9,6 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 #include "RenderedTextureStats.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CanvasTypes.h"
-#include "UnrealClient.h"
-#endif
 #include "Serialization/BulkData.h"
 #include "UObject/ObjectKey.h"
 #include "UObject/WeakObjectPtr.h"
@@ -515,41 +511,12 @@ enum class EAudioChunkLoadResult : uint8
  */
 struct IAudioStreamingManager : public IStreamingManager
 {
-	/** Adds a new Sound Wave to the streaming manager. */
-	virtual void AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) = 0;
-
-	/** Removes a Sound Wave from the streaming manager. */
-	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) = 0;
-
 	/** Adds the memory usage of the force inline sound to the streaming cache budget */
 	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) { };
 
 	/** Removes the memory usage of the force inline sound from the streaming cache budget */
 	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) { };
-
-	/** Adds the decoder to the streaming manager to prevent stream chunks from getting reaped from underneath it */
-	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) = 0;
-
-	/** Removes the decoder from the streaming manager. */
-	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) = 0;
-
-	/** Returns true if this is a Sound Wave that is managed by the streaming manager. */
-	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const = 0;
-
-	/** Returns true if this Sound Wave is currently streaming a chunk. */
-	virtual bool IsStreamingInProgress(const FSoundWaveProxyPtr&  SoundWave) = 0;
-
-	virtual bool CanCreateSoundSource(const FWaveInstance* WaveInstance) const = 0;
-
-	/** Adds a new Sound Source to the streaming manager. */
-	virtual void AddStreamingSoundSource(FSoundSource* SoundSource) = 0;
-
-	/** Removes a Sound Source from the streaming manager. */
-	virtual void RemoveStreamingSoundSource(FSoundSource* SoundSource) = 0;
-
-	/** Returns true if this is a streaming Sound Source that is managed by the streaming manager. */
-	virtual bool IsManagedStreamingSoundSource(const FSoundSource* SoundSource) const = 0;
-
+	
 	/** 
 	 * Manually prepare a chunk to start playing back. This should only be used when the Load On Demand feature is enabled, and returns false on failure. 
 	 * @param SoundWave SoundWave we would like to request a chunk of.
@@ -621,6 +588,50 @@ protected:
 	* This can be used to decrease the memory count for external features. Called by FAudioStreamCacheMemoryHandle.
 	*/
 	virtual void RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) { };
+
+// DEPRECATED VIRTUAL INTERFACE
+private:
+	static void LogWarning();
+
+public:
+	/** Adds a new Sound Wave to the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual void AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) { LogWarning(); }
+
+	/** Removes a Sound Wave from the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) { LogWarning(); }
+
+	/** Adds the decoder to the streaming manager to prevent stream chunks from getting reaped from underneath it */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) { LogWarning(); }
+
+	/** Removes the decoder from the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) { LogWarning(); }
+
+	/** Returns true if this is a Sound Wave that is managed by the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const { LogWarning(); return false; }
+
+	/** Returns true if this Sound Wave is currently streaming a chunk. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual bool IsStreamingInProgress(const FSoundWaveProxyPtr&  SoundWave) { LogWarning(); return false; }
+
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual bool CanCreateSoundSource(const FWaveInstance* WaveInstance) const { LogWarning(); return false; }
+
+	/** Adds a new Sound Source to the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual void AddStreamingSoundSource(FSoundSource* SoundSource) { LogWarning(); }
+
+	/** Removes a Sound Source from the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual void RemoveStreamingSoundSource(FSoundSource* SoundSource) { LogWarning(); }
+
+	/** Returns true if this is a streaming Sound Source that is managed by the streaming manager. */
+	UE_DEPRECATED(5.5, "Use These methods are no longer used (removing the unused legacy streaming manager)")
+	virtual bool IsManagedStreamingSoundSource(const FSoundSource* SoundSource) const { LogWarning(); return false; }
 };
 
 /**
@@ -637,20 +648,8 @@ struct FDummyAudioStreamingManager final : public IAudioStreamingManager
 	virtual void RemoveLevel(class ULevel* Level) {}
 	virtual void NotifyLevelOffset(class ULevel* Level, const FVector& Offset) {}
 
-	virtual void AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override {}
-	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override {}
-	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override {}
-	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override {}
 	virtual void AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) override {}
 	virtual void RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) override {}
-	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) override {}
-	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) override {}
-	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) const override { return false; }
-	virtual bool IsStreamingInProgress(const FSoundWaveProxyPtr& SoundWave) override { return false; }
-	virtual bool CanCreateSoundSource(const FWaveInstance* WaveInstance) const override { return false; }
-	virtual void AddStreamingSoundSource(FSoundSource* SoundSource) override {}
-	virtual void RemoveStreamingSoundSource(FSoundSource* SoundSource) override {}
-	virtual bool IsManagedStreamingSoundSource(const FSoundSource* SoundSource) const override { return false; }
 	virtual bool RequestChunk(const FSoundWaveProxyPtr& SoundWave, uint32 ChunkIndex, TFunction<void(EAudioChunkLoadResult)> OnLoadCompleted = [](EAudioChunkLoadResult) {}, ENamedThreads::Type ThreadToCallOnLoadCompletedOn = ENamedThreads::AnyThread, bool bForImmediatePlayback = false) override { return false; }
 	virtual FAudioChunkHandle GetLoadedChunk(const FSoundWaveProxyPtr& SoundWave, uint32 ChunkIndex, bool bBlockForLoad = false, bool bForImmediatePlayback = false) const override { return FAudioChunkHandle(); }
 	virtual uint64 TrimMemory(uint64 NumBytesToFree) override { return 0; }

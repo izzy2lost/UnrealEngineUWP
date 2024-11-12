@@ -118,19 +118,31 @@ void FGameplayTagContainerNetSerializer::DeserializeDelta(FNetSerializationConte
 
 void FGameplayTagContainerNetSerializer::Quantize(FNetSerializationContext& Context, const FNetQuantizeArgs& Args)
 {
-	FGameplayTagContainerNetSerializerSerializationHelper IntermediateValue;
-
-	// It's preferred but not vital that the default state represents the true default state. Because of the brittle tag loading/adding we choose to not store tags in the default state.
-	if (!Context.IsInitializingDefaultState())
+	const UGameplayTagsManager& TagManager = UGameplayTagsManager::Get();
+	if (const bool bUseFastReplication = TagManager.ShouldUseFastReplication())
 	{
-		const SourceType& SourceValue = *reinterpret_cast<const SourceType*>(Args.Source);
-		GameplayTagContainerToSerializationHelper(SourceValue, IntermediateValue);
-	}
+		FGameplayTagContainerNetSerializerSerializationHelper IntermediateValue;
 
-	FNetQuantizeArgs InternalArgs = Args;
-	InternalArgs.Source = NetSerializerValuePointer(&IntermediateValue);
-	InternalArgs.NetSerializerConfig = &StructNetSerializerConfig;
-	return StructNetSerializer->Quantize(Context, InternalArgs);
+		// It's preferred but not vital that the default state represents the true default state. Because of the brittle tag loading/adding we choose to not store tags in the default state.
+		if (!Context.IsInitializingDefaultState())
+		{
+			const SourceType& SourceValue = *reinterpret_cast<const SourceType*>(Args.Source);
+			GameplayTagContainerToSerializationHelper(SourceValue, IntermediateValue);
+		}
+
+		FNetQuantizeArgs InternalArgs = Args;
+		InternalArgs.Source = NetSerializerValuePointer(&IntermediateValue);
+		InternalArgs.NetSerializerConfig = &StructNetSerializerConfig;
+		return StructNetSerializer->Quantize(Context, InternalArgs);
+	}
+	else
+	{
+		// If we do not use FastReplication we just quantize the tags without sorting them.
+		FNetQuantizeArgs InternalArgs = Args;
+		InternalArgs.Source = Args.Source;
+		InternalArgs.NetSerializerConfig = &StructNetSerializerConfig;
+		return StructNetSerializer->Quantize(Context, InternalArgs);
+	}
 }
 
 void FGameplayTagContainerNetSerializer::Dequantize(FNetSerializationContext& Context, const FNetDequantizeArgs& Args)
@@ -151,9 +163,49 @@ bool FGameplayTagContainerNetSerializer::IsEqual(FNetSerializationContext& Conte
 {
 	if (Args.bStateIsQuantized)
 	{
-		FNetIsEqualArgs InternalArgs = Args;
-		InternalArgs.NetSerializerConfig = &StructNetSerializerConfig;
-		return StructNetSerializer->IsEqual(Context, InternalArgs);
+		const UGameplayTagsManager& TagManager = UGameplayTagsManager::Get();
+		if (const bool bUseFastReplication = TagManager.ShouldUseFastReplication())
+		{
+			FNetIsEqualArgs InternalArgs = Args;
+			InternalArgs.NetSerializerConfig = &StructNetSerializerConfig;
+			return StructNetSerializer->IsEqual(Context, InternalArgs);
+		}
+		else
+		{
+			// For now as we are rarely using this path and with dynamic tag indices we cannot stable sort them as we do for the fast path
+			// so for now we dequantize and compare using the native compare
+			SourceType SourceValue0;
+			SourceType SourceValue1;
+
+			FNetDequantizeArgs DequantizeArgs = {};
+			DequantizeArgs.NetSerializerConfig = Args.NetSerializerConfig;
+
+			DequantizeArgs.Source = Args.Source0;
+			DequantizeArgs.Target = NetSerializerValuePointer(&SourceValue0);
+			Dequantize(Context, DequantizeArgs);
+
+			DequantizeArgs.Source = Args.Source1;
+			DequantizeArgs.Target = NetSerializerValuePointer(&SourceValue1);
+			Dequantize(Context, DequantizeArgs);
+
+			if (SourceValue0.GetGameplayTags().Num() != SourceValue1.GetGameplayTags().Num())
+			{
+				return false;
+			}
+
+			if (!SourceValue0.HasAllExact(SourceValue1))
+			{
+				return false;
+			}
+
+			// This will detect duplicate tags.
+			if (!SourceValue1.HasAllExact(SourceValue0))
+			{
+				return false;
+			}
+
+			return true;
+		}
 	}
 	else
 	{

@@ -2,7 +2,7 @@
 
 #include "Iris/ReplicationSystem/Filtering/FilterOutNetObjectFilter.h"
 
-void UFilterOutNetObjectFilter::OnInit(FNetObjectFilterInitParams& Params)
+void UFilterOutNetObjectFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
 }
 
@@ -15,12 +15,8 @@ void UFilterOutNetObjectFilter::RemoveObject(uint32 ObjectIndex, const FNetObjec
 {
 }
 
-void UFilterOutNetObjectFilter::UpdateObjects(FNetObjectFilterUpdateParams& Params)
-{
-}
-
 void UFilterOutNetObjectFilter::Filter(FNetObjectFilteringParams& Params)
 {
 	// Filter out everything
-	Params.OutAllowedObjects.Reset();
+	Params.OutAllowedObjects.ClearAllBits();
 }

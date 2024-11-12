@@ -22,6 +22,7 @@ public:
 	SLATE_BEGIN_ARGS(SInstanceDataObjectFixupTool)
 	{}
 		SLATE_ARGUMENT(TConstArrayView<TObjectPtr<UObject>>, InstanceDataObjects)
+		SLATE_ARGUMENT(TObjectPtr<UObject>, InstanceDataObjectsOwner)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */

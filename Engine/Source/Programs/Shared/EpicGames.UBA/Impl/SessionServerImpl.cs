@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace EpicGames.UBA
@@ -16,11 +18,11 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateSessionServerCreateInfo(IntPtr storage, IntPtr client, IntPtr logger, string rootDir, string traceOutputFile,
-			bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem);
+		static extern IntPtr SessionServerCreateInfo_Create(IntPtr storage, IntPtr client, IntPtr logger, string rootDir, string traceOutputFile,
+			bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem, bool storeObjFilesCompressed);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroySessionServerCreateInfo(IntPtr server);
+		static extern void SessionServerCreateInfo_Destroy(IntPtr server);
 		#endregion
 
 		public SessionServerCreateInfoImpl(IStorageServer storage, IServer client, ILogger logger, SessionServerCreateInfo info)
@@ -28,7 +30,7 @@ namespace EpicGames.UBA
 			_storage = storage;
 			_client = client;
 			_logger = logger;
-			_handle = CreateSessionServerCreateInfo(_storage.GetHandle(), _client.GetHandle(), _logger.GetHandle(), info.RootDirectory, info.TraceOutputFile, info.DisableCustomAllocator, info.LaunchVisualizer, info.ResetCas, info.WriteToDisk, info.DetailedTrace, info.AllowWaitOnMem, info.AllowKillOnMem);
+			_handle = SessionServerCreateInfo_Create(_storage.GetHandle(), _client.GetHandle(), _logger.GetHandle(), info.RootDirectory, info.TraceOutputFile, info.DisableCustomAllocator, info.LaunchVisualizer, info.ResetCas, info.WriteToDisk, info.DetailedTrace, info.AllowWaitOnMem, info.AllowKillOnMem, info.StoreObjFilesCompressed);
 		}
 
 		#region IDisposable
@@ -48,7 +50,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroySessionServerCreateInfo(_handle);
+				SessionServerCreateInfo_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}
@@ -72,7 +74,7 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateSessionServer(IntPtr info);
+		static extern IntPtr SessionServer_Create(IntPtr info, byte[] environment, uint environmentSize);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void SessionServer_SetRemoteProcessAvailable(IntPtr server, RemoteProcessSlotAvailableCallback func);
@@ -91,6 +93,12 @@ namespace EpicGames.UBA
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void SessionServer_EndExternalProcess(IntPtr server, uint id, uint exitCode);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void SessionServer_UpdateProgress(IntPtr server, uint processesTotal, uint processesDone, uint errorCount);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void SessionServer_UpdateStatus(IntPtr server, uint statusRow, uint statusColumn, string statusText, byte statusType, string? statusLink);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern IntPtr SessionServer_RunProcess(IntPtr server, IntPtr info, bool async, bool enableDetour);
@@ -114,7 +122,7 @@ namespace EpicGames.UBA
 		static extern void SessionServer_CancelAll(IntPtr server);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroySessionServer(IntPtr server);
+		static extern void SessionServer_Destroy(IntPtr server);
 		#endregion
 
 		public SessionServerImpl(ISessionServerCreateInfo info)
@@ -122,7 +130,23 @@ namespace EpicGames.UBA
 			_info = info;
 			_remoteProcessSlotAvailableCallbackDelegate = RaiseRemoteProcessSlotAvailable;
 			_remoteProcessReturnedCallbackDelegate = RaiseRemoteProcessReturned;
-			_handle = CreateSessionServer(_info.GetHandle());
+
+			// We need to manually transfer environment variables on non-windows platforms since they are not automatically propagated from c# to native.
+			using MemoryStream environmentMemory = new();
+			{
+				if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+				{
+					using (BinaryWriter writer = new(environmentMemory, System.Text.Encoding.UTF8, true))
+					{
+						foreach (DictionaryEntry de in Environment.GetEnvironmentVariables())
+						{
+							writer.Write($"{de.Key}={de.Value}");
+						}
+					}
+				}
+			}
+
+			_handle = SessionServer_Create(_info.GetHandle(), environmentMemory.GetBuffer(), (uint)environmentMemory.Position);
 			SessionServer_SetRemoteProcessAvailable(_handle, _remoteProcessSlotAvailableCallbackDelegate);
 			SessionServer_SetRemoteProcessReturned(_handle, _remoteProcessReturnedCallbackDelegate);
 		}
@@ -144,7 +168,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroySessionServer(_handle);
+				SessionServer_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}
@@ -183,7 +207,12 @@ namespace EpicGames.UBA
 		public void RegisterNewFiles(params string[] files) => Array.ForEach(files, (file) => SessionServer_RegisterNewFile(_handle, file));
 
 		public uint BeginExternalProcess(string description) => SessionServer_BeginExternalProcess(_handle, description);
+
 		public void EndExternalProcess(uint id, uint exitCode) => SessionServer_EndExternalProcess(_handle, id, exitCode);
+
+		public void UpdateProgress(uint processesTotal, uint processesDone, uint errorCount) => SessionServer_UpdateProgress(_handle, processesTotal, processesDone, errorCount);
+
+		public void UpdateStatus(uint statusRow, uint statusColumn, string statusText, LogEntryType statusType, string? statusLink) => SessionServer_UpdateStatus(_handle, statusRow, statusColumn, statusText, (byte)statusType, statusLink);
 
 		public void SetCustomCasKeyFromTrackedInputs(string file, string workingDirectory, IProcess process) => SessionServer_SetCustomCasKeyFromTrackedInputs(_handle, process.GetHandle(), file, workingDirectory);
 

@@ -862,9 +862,12 @@ void FAnimationEditorPreviewScene::SetSelectedBone(const FName& BoneName, ESelec
 		// need to get mesh bone base since BonesOfInterest is saved in SkeletalMeshComponent
 		// and it is used by renderer. It is not Skeleton base
 		const int32 MeshBoneIndex = SkeletalMeshComponent->GetBoneIndex(BoneName);
-		SelectedBoneIndex = MeshBoneIndex != INDEX_NONE ? MeshBoneIndex : BoneIndex;
-		SkeletalMeshComponent->BonesOfInterest.Add(SelectedBoneIndex);
-
+		if (MeshBoneIndex != INDEX_NONE)
+		{
+			SelectedBoneIndex = MeshBoneIndex;
+			SkeletalMeshComponent->BonesOfInterest.Add(SelectedBoneIndex);
+		}
+		
 		InvalidateViews();
 
 		OnSelectedBoneChanged.Broadcast(BoneName, InSelectInfo);
@@ -1287,6 +1290,15 @@ void FAnimationEditorPreviewScene::AddReferencedObjects( FReferenceCollector& Co
 	Collector.AddReferencedObject(Actor);
 	Collector.AddReferencedObject(SkeletalMeshComponent);
 	Collector.AddReferencedObjects(AdditionalMeshes);
+}
+
+TOptional<float> FAnimationEditorPreviewScene::GetCurrentTime() const
+{
+	if (SkeletalMeshComponent && SkeletalMeshComponent->PreviewInstance)
+	{
+		return SkeletalMeshComponent->PreviewInstance->GetCurrentTime();
+	}
+	return {};
 }
 
 #undef LOCTEXT_NAMESPACE

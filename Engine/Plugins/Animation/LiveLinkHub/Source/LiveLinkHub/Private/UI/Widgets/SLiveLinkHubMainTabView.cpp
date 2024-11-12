@@ -40,7 +40,7 @@ const FText SLiveLinkHubMainTabView::ClientDetailsTabName = LOCTEXT("ClientDetai
 
 void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
 {
-	PanelController = MakeShared<FLiveLinkPanelController>();
+	PanelController = MakeShared<FLiveLinkPanelController>(TAttribute<bool>::CreateSP(this, &SLiveLinkHubMainTabView::IsSourcePanelReadOnly));
 	PanelController->OnSubjectSelectionChanged().AddSP(this, &SLiveLinkHubMainTabView::OnSubjectSelectionChanged);
 
 	SLiveLinkHubTabViewWithManagerBase::Construct(
@@ -51,7 +51,7 @@ void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
 		{
 			CreateTabs(InTabManager, InLayout, InArgs);
 		}))
-		.LayoutName("LiveLinkHubSourcesTabView_v1.2")
+		.LayoutName("LiveLinkHubSourcesTabView_v1.3")
 	);
 }
 
@@ -69,12 +69,8 @@ void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabMan
 
 	InTabManager->RegisterTabSpawner(SourcesTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSourcesTab))
 		.SetDisplayName(SourcesTabName);
-
-	/* Disabled until client details are used in the hub.
 	InTabManager->RegisterTabSpawner(SourceDetailsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSourcesDetailsTab))
 		.SetDisplayName(SourceDetailsTabName);
-	*/
-
 	InTabManager->RegisterTabSpawner(SubjectsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsTab))
 		.SetIcon(FSlateIcon(LiveLinkStyleName, TEXT("LiveLinkHub.Subjects.Icon")))
 		.SetDisplayName(SubjectsTabName);
@@ -106,6 +102,12 @@ void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabMan
 							->SetSizeCoefficient(0.5f)
 							->SetHideTabWell(true)
 							->AddTab(SourcesTabId, ETabState::OpenedTab)
+						)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(SourceDetailsTabId, ETabState::OpenedTab)
 						)
 					)
 					->Split
@@ -187,7 +189,7 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesTab(const FSpawnTabArg
 				.IsEnabled_Lambda([this]()
 				{
 					const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-					return !LiveLinkHubModule.GetPlaybackController()->IsInPlayback();
+					return !LiveLinkHubModule.GetPlaybackController()->IsInPlayback() && !LiveLinkHubModule.GetRecordingController()->IsRecording();
 				})
 			]
 			+SVerticalBox::Slot()
@@ -286,6 +288,12 @@ void SLiveLinkHubMainTabView::OnSubjectSelectionChanged(const FLiveLinkSubjectKe
 {
 	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
 	LiveLinkHubModule.GetSubjectController()->SetSubject(SubjectKey);
+}
+
+bool SLiveLinkHubMainTabView::IsSourcePanelReadOnly() const
+{
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	return LiveLinkHubModule.GetPlaybackController()->IsInPlayback() || LiveLinkHubModule.GetRecordingController()->IsRecording();
 }
 
 #undef LOCTEXT_NAMESPACE

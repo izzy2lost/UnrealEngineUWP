@@ -391,8 +391,7 @@ namespace EpicGames.Core
 		FLargeWorldCoordinatesRealProperty = 0x0080000000000000,
 		FOptionalProperty = 0x0100000000000000,
 		FVValueProperty = 0x0200000000000000,
-		UVerseVMClass = 0x0400000000000000,
-		FVRestValueProperty = 0x0800000000000000,
+		FVRestValueProperty = 0x0400000000000000,
 		AllFlags = UInt64.MaxValue,
 	};
 
@@ -669,9 +668,9 @@ namespace EpicGames.Core
 		ReachabilityFlag1 = 1 << 1,
 
 		/// <summary>
-		/// Flag set on all non-root objects at the beginning of Reachability Analysis
+		/// One of the flags used by Garbage Collector to determine UObject's reachability state
 		/// </summary>
-		MaybeUnreachable = 1 << 19,
+		ReachabilityFlag2 = 1 << 2,
 
 		/// <summary>
 		/// Object is ready to be imported by another package during loading
@@ -714,6 +713,11 @@ namespace EpicGames.Core
 		Unreachable = 1 << 28,
 
 		/// <summary>
+		/// Object currently has ref-counts associated with it.
+		/// </summary>
+		RefCounted = 1 << 29,
+
+		/// <summary>
 		/// Object will not be garbage collected, even if unreferenced.
 		/// </summary>
 		RootSet = 1 << 30,
@@ -723,10 +727,10 @@ namespace EpicGames.Core
 		/// </summary>
 		PendingConstruction = 1 << 31,
 
-		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport,
+		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport | RefCounted,
 
 		//~ Make sure this is up to date!
-		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction
+		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | ReachabilityFlag2 | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction | RefCounted
 	};
 
 	/// <summary>
@@ -1220,6 +1224,11 @@ namespace EpicGames.Core
 		/// ****Experimental*** Property should never inherit from the parent when using overridable serialization
 		/// </summary>
 		ExperimentalAlwaysOverriden = 0x0400000000000000,
+
+		/// <summary>
+		/// ****Experimental*** Property should never be overridden when using overridable serialization
+		/// </summary>
+		ExperimentalNeverOverriden = 0x0800000000000000,
 
 		/// <summary>
 		/// All Native Access Specifier flags

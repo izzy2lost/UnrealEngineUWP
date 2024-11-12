@@ -19,6 +19,7 @@
 #include "WaterBodyStaticMeshComponent.h"
 #include "WaterModule.h"
 #include "WaterVersion.h"
+#include "AI/NavigationSystemBase.h"
 #include "Algo/RemoveIf.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterBodyActor)
@@ -145,6 +146,13 @@ void AWaterBody::PostEditMove(bool bFinished)
 
 	// It's possible that the WaterBodyComponent is invalid here if, for example, we are part of a ChildActorComponent and are being destroyed/recreated every move.
 	if (!IsValid(WaterBodyComponent))
+	{
+		return;
+	}
+
+	// We want to avoid modifying the water body if the world is being cleaned up.
+	// World Partition unloads will call PostEditMove during the cleanup process and we don't want to unnecessarily make changes to the water body now.
+	if (GetWorld() && GetWorld()->IsBeingCleanedUp())
 	{
 		return;
 	}
@@ -424,7 +432,7 @@ void AWaterBody::DeprecateData()
 
 				OldLakeCollision->DestroyComponent();
 				// Rename it so we can use the name
-				OldLakeCollision->Rename(TEXT("LakeCollision_Old"), this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+				OldLakeCollision->Rename(TEXT("LakeCollision_Old"), this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 				It.RemoveCurrent();
 			}
 		}
@@ -531,8 +539,30 @@ void AWaterBody::DeprecateData()
 
 	if (GetLinkerCustomVersion(FWaterCustomVersion::GUID) < FWaterCustomVersion::MoveTerrainCarvingSettingsToWater)
 	{
-		static_assert(sizeof(WaterHeightmapSettings_DEPRECATED) == sizeof(TerrainCarvingSettings_DEPRECATED), "Both old and old water heightmap settings struct should be exactly similar");
-		FMemory::Memcpy((void*)&WaterHeightmapSettings_DEPRECATED, (void*)&TerrainCarvingSettings_DEPRECATED, sizeof(WaterHeightmapSettings_DEPRECATED));
+		// This horrific piece of code is for salvaging data from the old struct (TerrainCarvingSettings_DEPRECATED, of type FLandmassTerrainCarvingSettings), to the 
+		//  "new" struct (WaterHeightmapSettings_DEPRECATED, of type FWaterBodyHeightmapSettings) (which is also deprecated, mind you, since it has moved into UWaterBodyComponent). 
+		//  A straight-up Memcpy used to be enough, but now the Effects.Displacement.Texture has gone from TObjectPtr to TSoftObjectPtr, so we cannot do this anymore and we have to copy 
+		//  each sub-struct one by one... The code is still there for perfect backwards-compatibility, but should not ever be exercised, since FLandmassTerrainCarvingSettings was only used 
+		//  before Water became public... 
+#define COPY_SIMILAR_SETTINGS(MemberName) \
+		static_assert(sizeof(WaterHeightmapSettings_DEPRECATED.MemberName) == sizeof(TerrainCarvingSettings_DEPRECATED.MemberName), "Both old and new settings struct should be exactly similar"); \
+		FMemory::Memcpy((void*)&WaterHeightmapSettings_DEPRECATED.MemberName, (void*)&TerrainCarvingSettings_DEPRECATED.MemberName, sizeof(WaterHeightmapSettings_DEPRECATED.MemberName));
+
+		COPY_SIMILAR_SETTINGS(BlendMode);
+		WaterHeightmapSettings_DEPRECATED.bInvertShape = TerrainCarvingSettings_DEPRECATED.bInvertShape;
+		COPY_SIMILAR_SETTINGS(FalloffSettings);
+		COPY_SIMILAR_SETTINGS(Effects.Blurring);
+		COPY_SIMILAR_SETTINGS(Effects.CurlNoise);
+		// Copy FWaterBrushEffects from FLandmassBrushEffectsList by hand because it is not binary-compatible : 
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.DisplacementHeight = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.DisplacementHeight;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.DisplacementTiling = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.DisplacementTiling;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.Texture = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.Texture;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.Midpoint = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.Midpoint;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.Channel = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.Channel;
+		WaterHeightmapSettings_DEPRECATED.Effects.Displacement.WeightmapInfluence = TerrainCarvingSettings_DEPRECATED.Effects.Displacement.WeightmapInfluence;
+		COPY_SIMILAR_SETTINGS(Effects.SmoothBlending);
+		COPY_SIMILAR_SETTINGS(Effects.Terracing);
+		WaterHeightmapSettings_DEPRECATED.Priority_DEPRECATED = TerrainCarvingSettings_DEPRECATED.Priority;
 	}
 
 	if (GIsEditor && !HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject | RF_DefaultSubObject))
@@ -541,7 +571,7 @@ void AWaterBody::DeprecateData()
 		{
 			WaterWaves->ClearFlags(RF_Public);
 			// At one point, WaterWaves's outer was the level. We need them to be outered by the water body : 
-			WaterWaves->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+			WaterWaves->Rename(nullptr, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		}
 	}
 	
@@ -677,12 +707,23 @@ void AWaterBody::PostRegisterAllComponents()
 #endif // WITH_EDITOR
 
 		WaterBodyComponent->OnPostRegisterAllComponents();
+
+		// Now that all components are registered and setup we can notify the navigation system.
+		FNavigationSystem::UpdateActorAndComponentData(*this);
 	}
 }
 
 bool AWaterBody::IsHLODRelevant() const
 {
 	return true;
+}
+
+bool AWaterBody::IsComponentRelevantForNavigation(UActorComponent* Component) const
+{
+	// Wait for the whole setup to be completed before making child components relevant to navigation (i.e. PostRegisterAllComponents).
+	// Then we update the actor and all its components (i.e. FNavigationSystem::UpdateActorAndComponentData).
+	// This reduces the number of redundant processing in the navigation system while setting up the components.
+	return HasActorRegisteredAllComponents();
 }
 
 #if WITH_EDITOR
@@ -714,7 +755,7 @@ void AWaterBody::SetActorHiddenInGame(bool bNewHidden)
 
 		if (WaterBodyComponent)
 		{
-			WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterMeshRebuild = */true);
+			WaterBodyComponent->UpdateVisibility();
 		}
 	}
 }
@@ -729,7 +770,7 @@ void AWaterBody::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
 
 		if (WaterBodyComponent)
 		{
-			WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterMeshRebuild = */true);
+			WaterBodyComponent->UpdateVisibility();
 		}
 	}
 }
@@ -742,7 +783,7 @@ bool AWaterBody::SetIsHiddenEdLayer(bool bIsHiddenEdLayer)
 	{
 		if (WaterBodyComponent)
 		{
-			WaterBodyComponent->UpdateComponentVisibility(/* bAllowWaterMeshRebuild = */true);
+			WaterBodyComponent->UpdateVisibility();
 		}
 		return true;
 	}

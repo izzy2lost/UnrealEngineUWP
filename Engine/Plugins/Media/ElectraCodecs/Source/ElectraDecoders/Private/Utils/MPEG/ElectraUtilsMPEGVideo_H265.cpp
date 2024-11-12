@@ -199,6 +199,10 @@ namespace ElectraDecodersUtil
 				check((int32)max_dec_buffering <= MaxDPB);
 				return (int32)max_dec_buffering;
 			}
+			int32 FSequenceParameterSet::GetMinCbSizeY() const
+			{
+				return MinCbSizeY;
+			}
 			int32 FSequenceParameterSet::GetWidth() const
 			{
 				return (int32) pic_width_in_luma_samples;
@@ -206,6 +210,13 @@ namespace ElectraDecodersUtil
 			int32 FSequenceParameterSet::GetHeight() const
 			{
 				return (int32) pic_height_in_luma_samples;
+			}
+			void FSequenceParameterSet::GetDisplaySize(int32& OutWidth, int32& OutHeight) const
+			{
+				int32 cl,cr,ct,cb;
+				GetCrop(cl,cr,ct,cb);
+				OutWidth = GetWidth() - cl - cr;
+				OutHeight = GetHeight() - ct - cb;
 			}
 			void FSequenceParameterSet::GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const
 			{
@@ -253,6 +264,38 @@ namespace ElectraDecodersUtil
 					return FFractionalValue(vui_parameters.vui_time_scale, vui_parameters.vui_num_units_in_tick);
 				}
 				return FFractionalValue();
+			}
+
+			uint64 FSequenceParameterSet::GetConstraintFlags() const
+			{
+				return (uint64)((profile_tier_level.general_progressive_source_flag << 3) | (profile_tier_level.general_interlaced_source_flag << 2) | (profile_tier_level.general_non_packed_constraint_flag << 1) | profile_tier_level.general_frame_only_constraint_flag) << 44;
+			}
+
+			FString FSequenceParameterSet::GetRFC6381(const TCHAR* SampleTypePrefix) const
+			{
+				// As per ISO/IEC 14496-15:2014 Annex E.3
+				uint32 cf = BitReverse32(profile_tier_level.general_profile_compatibility_flags);
+				uint64 ConstraintFlags = GetConstraintFlags();
+				FString cfs;
+				bool bNonZero = false;
+				for(int32 i=5; i>=0; --i, ConstraintFlags >>= 8)
+				{
+					if ((ConstraintFlags & 255) == 0 && !bNonZero)
+					{
+						continue;
+					}
+					bNonZero = true;
+					cfs = FString::Printf(TEXT(".%02X"), (uint8)(ConstraintFlags & 255)) + cfs;
+				}
+
+				if (profile_tier_level.general_profile_space == 0)
+				{
+					return FString::Printf(TEXT("%s.%d.%X.%c%d%s"), SampleTypePrefix, profile_tier_level.general_profile_idc, cf, profile_tier_level.general_tier_flag ? TCHAR('H') : TCHAR('L'), profile_tier_level.general_level_idc, *cfs);
+				}
+				else
+				{
+					return FString::Printf(TEXT("%s.%c%d.%X.%c%d%s"), SampleTypePrefix, TCHAR('A')+profile_tier_level.general_profile_space-1, profile_tier_level.general_profile_idc, cf, profile_tier_level.general_tier_flag ? TCHAR('H') : TCHAR('L'), profile_tier_level.general_level_idc, *cfs);
+				}
 			}
 
 
@@ -567,10 +610,12 @@ namespace ElectraDecodersUtil
 					general_profile_space = br.GetBits(2);
 					general_tier_flag = br.GetBits(1);
 					general_profile_idc = br.GetBits(5);
+					general_profile_compatibility_flags = br.PeekBits(32);
 					for(int32 i=0; i<32; ++i)
 					{
 						general_profile_compatibility_flag[i] = br.GetBits(1);
 					}
+					general_constraint_indicator_flags = FBitstreamReader(br).GetBits64(48);	// elaborate PeekBits(48)
 					general_progressive_source_flag = br.GetBits(1);
 					general_interlaced_source_flag = br.GetBits(1);
 					general_non_packed_constraint_flag = br.GetBits(1);
@@ -970,6 +1015,17 @@ namespace ElectraDecodersUtil
 				}
 				return true;
 				#undef RANGE_CHECK_FAILURE
+			}
+
+			bool ParseSequenceParameterSet(FSequenceParameterSet& OutSequenceParameterSet, const uint8* InBitstream, uint64 InBitstreamLenInBytes)
+			{
+				TMap<uint32, FSequenceParameterSet> spss;
+				if (!ParseSequenceParameterSet(spss, InBitstream, InBitstreamLenInBytes))
+				{
+					return false;
+				}
+				OutSequenceParameterSet = spss.CreateConstIterator().Value();
+				return true;
 			}
 
 			bool ParseSequenceParameterSet(TMap<uint32, FSequenceParameterSet>& InOutSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes)

@@ -47,7 +47,9 @@ public:
 	uint32 bAffectReflection : 1;
 	uint32 bAffectGlobalIllumination : 1;
 	uint32 bIsMovable : 1;
-	TEnumAsByte<ECastRayTracedShadow::Type> CastRaytracedShadow;
+	uint32 bAllowMegaLights : 1;
+	TEnumAsByte<EMegaLightsShadowMethod::Type> MegaLightsShadowMethod;
+    TEnumAsByte<ECastRayTracedShadow::Type> CastRaytracedShadow;
 
 	/** Initializes the compact scene info from the light's full scene info. */
 	void Init(FLightSceneInfo* InLightSceneInfo);
@@ -97,8 +99,8 @@ struct FSortedLightSceneInfo
 			 * Super-set of lights supporting tiled, so the tiled lights will end up in the first part of this range.
 			 */
 			uint32 bClusteredDeferredNotSupported : 1;
-			/** Whether the light should be handled by Many Lights, these will be sorted to the end so they can be skipped */
-			uint32 bHandledByManyLights : 1;
+			/** Whether the light should be handled by Mega Lights, these will be sorted to the end so they can be skipped */
+			uint32 bHandledByMegaLights : 1;
 		} Fields;
 		/** Sort key bits packed into an integer. */
 		int32 Packed;
@@ -106,11 +108,13 @@ struct FSortedLightSceneInfo
 
 	const FLightSceneInfo* LightSceneInfo;
 	int32 SimpleLightIndex;
+	bool bIsCompatibleWithLightFunctionAtlas;
 
 	/** Initialization constructor. */
 	explicit FSortedLightSceneInfo(const FLightSceneInfo* InLightSceneInfo)
 		: LightSceneInfo(InLightSceneInfo),
-		SimpleLightIndex(-1)
+		SimpleLightIndex(-1),
+		bIsCompatibleWithLightFunctionAtlas(false)
 	{
 		SortKey.Packed = 0;
 		SortKey.Fields.bIsNotSimpleLight = 1;
@@ -118,7 +122,8 @@ struct FSortedLightSceneInfo
 
 	explicit FSortedLightSceneInfo(int32 InSimpleLightIndex)
 		: LightSceneInfo(nullptr),
-		SimpleLightIndex(InSimpleLightIndex)
+		SimpleLightIndex(InSimpleLightIndex),
+		bIsCompatibleWithLightFunctionAtlas(false)
 	{
 		SortKey.Packed = 0;
 		SortKey.Fields.bIsNotSimpleLight = 0;
@@ -139,8 +144,8 @@ struct FSortedLightSetSceneInfo
 	/** First light with shadow map or */
 	int32 UnbatchedLightStart;
 
-	// First light handled by Many Lights
-	int32 ManyLightsLightStart;
+	// First light handled by Mega Lights
+	int32 MegaLightsLightStart;
 
 	bool bHasRectLights = false;
 	bool bHasLightFunctions = false;
@@ -202,11 +207,16 @@ class FLightSceneInfo
 	FLightPrimitiveInteraction* DynamicInteractionStaticPrimitiveList;
 
 public:
+	using FPersistentId = int32;
+
 	/** The light's scene proxy. */
 	FLightSceneProxy* Proxy;
 
+	ELightComponentType Type;
+
 	/** If bVisible == true, this is the index of the primitive in Scene->Lights. */
-	int32 Id;
+	FPersistentId Id;
+	FORCEINLINE FPersistentId GetPersistentIndex() const { return Id; }
 
 	/** The identifier for the primitive in Scene->PrimitiveOctree. */
 	FOctreeElementId2 OctreeId;
@@ -267,6 +277,13 @@ public:
 
 	/** Adds the light to the scene. */
 	void AddToScene();
+
+	/**
+	 * Returns true if the light affects the primitive
+	 * @param LightSceneInfoCompact Compact representation of the light
+	 * @param PrimitiveSceneInfoCompact Compact representation of the primitive
+	 */
+	bool ShouldCreateLightPrimitiveInteraction(const FLightSceneInfoCompact& LightSceneInfoCompact, const FPrimitiveSceneInfoCompact& PrimitiveSceneInfoCompact);
 
 	/**
 	 * If the light affects the primitive, create an interaction, and process children 

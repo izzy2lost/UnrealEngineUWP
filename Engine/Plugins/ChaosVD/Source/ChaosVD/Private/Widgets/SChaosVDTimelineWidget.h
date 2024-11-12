@@ -4,11 +4,13 @@
 
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SChaosVDTimelineWidget.generated.h"
 
 class SSlider;
 class FReply;
 struct FSlateBrush;
 
+UENUM()
 enum class EChaosVDPlaybackButtonsID : uint8
 {
 	Play,
@@ -19,7 +21,6 @@ enum class EChaosVDPlaybackButtonsID : uint8
 };
 
 DECLARE_DELEGATE_OneParam(FChaosControlButtonClicked, EChaosVDPlaybackButtonsID)
-DECLARE_DELEGATE_OneParam(FChaosVDFrameChangedDelegate, int32)
 DECLARE_DELEGATE_OneParam(FChaosVDFrameLockStateDelegate, bool)
 
 enum class EChaosVDSetTimelineFrameFlags
@@ -48,89 +49,65 @@ enum class EChaosVDTimelineElementIDFlags : uint16
 };
 ENUM_CLASS_FLAGS(EChaosVDTimelineElementIDFlags)
 
+DECLARE_DELEGATE_OneParam(FChaosVDFrameChangedDelegate, int32)
+
 /** Simple timeline control widget */
 class SChaosVDTimelineWidget : public SCompoundWidget
 {
 public:
 
 	SLATE_BEGIN_ARGS( SChaosVDTimelineWidget ){}
-		SLATE_ARGUMENT(int32, MaxFrames)
-		SLATE_ARGUMENT(uint16, ButtonVisibilityFlags)
-		SLATE_ARGUMENT(bool, AutoStopEnabled)
+		SLATE_ATTRIBUTE(int32, MaxFrames)
+		SLATE_ATTRIBUTE(int32, MinFrames)
+		SLATE_ATTRIBUTE(int32, CurrentFrame)
+		SLATE_ARGUMENT(EChaosVDTimelineElementIDFlags, ButtonVisibilityFlags)
+		SLATE_ATTRIBUTE(EChaosVDTimelineElementIDFlags, ButtonEnabledFlags)
+		SLATE_ATTRIBUTE(bool, IsPlaying)
 		SLATE_EVENT(FChaosVDFrameChangedDelegate, OnFrameChanged)
-		SLATE_EVENT(FChaosVDFrameLockStateDelegate, OnFrameLockStateChanged)
 		SLATE_EVENT(FChaosControlButtonClicked, OnButtonClicked)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
-	void UpdateMinMaxValue(float NewMin, float NewMax);
-
-	void SetCurrentTimelineFrame(float FrameNumber, EChaosVDSetTimelineFrameFlags Options = EChaosVDSetTimelineFrameFlags::BroadcastChange);
-
-	void SetIsLocked(bool NewIsLocked);
-
-	bool IsUnlocked() const { return !bIsLocked; }
-
-	void SetTargetFrameTime(float TargetFrameTimeSeconds);
-
-	/** Brings back the state of the timeline to its original state*/
-	void ResetTimeline();
-
-	/** Called when a new frame is manually selected or auto-updated during playback */
-	FChaosVDFrameChangedDelegate& OnFrameChanged() { return FrameChangedDelegate; }
-	
-	/** Called when this timeline is locked or unlocked */
-	FChaosVDFrameLockStateDelegate& OnFrameLockStateChanged() { return FrameLockedDelegate; }
-
-	uint16& GetCurrentElementVisibilityFlags() { return ElementVisibilityFlags; }
-	void SetCurrentElementVisibilityFlags(uint16 NewVisibilityFlags) { ElementVisibilityFlags = NewVisibilityFlags; }
-
-	uint16& GetMutableElementEnabledFlagsRef() { return ElementEnabledFlags; }
-
-	void SetAutoStopEnabled(bool bNewEnabled) { bAutoStopEnabled = bNewEnabled; }
-
-	int32 GetCurrentFrame() const { return CurrentFrame; }
+protected:
 
 	void Play();
-	FReply  Stop();
+	FReply Stop();
 
-protected:
+	void SetCurrentTimelineFrame(float FrameNumber, EChaosVDSetTimelineFrameFlags Options);
+
+	void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	void Pause();
 	FReply  TogglePlay();
 	FReply  Next();
 	FReply  Prev();
 
-	FReply ToggleLockState();
-
 	const FSlateBrush* GetPlayOrPauseIcon() const;
-	const FSlateBrush* GetLockStateIcon() const;
 
 	EVisibility GetElementVisibility(EChaosVDTimelineElementIDFlags ElementID) const;
 	bool GetElementEnabled(EChaosVDTimelineElementIDFlags ElementID) const;
 
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	bool IsPlaying() const;
+
+	int32 GetCurrentFrame() const;
+	float GetCurrentFrameAsFloat() const;
+	int32 GetCurrentMinFrames() const;
+	int32 GetCurrentMaxFrames() const;
 
 	TSharedPtr<SSlider> TimelineSlider;
 
-	int32 CurrentFrame = 0;
-	int32 MinFrames = 0;
-	int32 MaxFrames = 1000;
+	TAttribute<int32> CurrentFrame = 0;
+	TAttribute<int32> MinFrames = 0;
+	TAttribute<int32> MaxFrames = 1000;
+	TAttribute<EChaosVDTimelineElementIDFlags> ElementEnabledFlags = EChaosVDTimelineElementIDFlags::All;
 
-	bool bIsPlaying = false;
-	float CurrentPlaybackTime = 0.0f;
-	float CurrentPlaybackRate = 1.0f / 60.0f;
+	TAttribute<bool> bIsPlaying = false;
 
 	FChaosVDFrameChangedDelegate FrameChangedDelegate;
-	FChaosVDFrameLockStateDelegate FrameLockedDelegate;
 	FChaosControlButtonClicked ButtonClickedDelegate;
 
-	bool bIsLocked = false;
-	bool bAutoStopEnabled = false;
+	TAttribute<EChaosVDTimelineElementIDFlags> ElementVisibilityFlags = EChaosVDTimelineElementIDFlags::All;
 
-	uint16 ElementVisibilityFlags = 0;
-	uint16 ElementEnabledFlags = static_cast<uint16>(EChaosVDTimelineElementIDFlags::All);
-	uint16 DefaultEnabledElementsFlags = static_cast<uint16>(EChaosVDTimelineElementIDFlags::All);
-	
+	EChaosVDTimelineElementIDFlags DefaultEnabledElementsFlags =EChaosVDTimelineElementIDFlags::All;
 };

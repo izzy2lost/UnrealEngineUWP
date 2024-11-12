@@ -92,13 +92,19 @@ void FTextureDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 		FDetailWidgetRow Row;
 		MaxTextureSizePropertyRow.GetDefaultWidgets(NameWidget, ValueWidget, Row);
 
-		int32 MaxTextureSize = 2048;
+		int32 MaxTextureSize = UTexture::GetMaximumDimensionOfNonVT();
 
 		if (UTexture* Texture = Cast<UTexture>(TexturesBeingCustomized[0].Get()))
 		{
 			// GetMaximumDimension is for current RHI and texture type
-			MaxTextureSize = Texture->GetMaximumDimension();
+			MaxTextureSize = FMath::Min<int32>( Texture->GetMaximumDimension(), MaxTextureSize );
 		}
+
+		// @@ this slider is very hard to work with
+		//	it's almost impossible to set low values
+		// instead of being on the linear MaxTextureSize value, it should be on the log2
+		//	and scaled by *10 or something
+		// so the drag experience is slower and log-scaled
 
 		const bool bShowChildren = true;
 		MaxTextureSizePropertyRow.CustomWidget(bShowChildren)
@@ -181,6 +187,7 @@ void FTextureDetails::OnMaxTextureSizeChanged(int32 NewValue)
 		}
 
 		// We don't create a transaction for each property change when using the slider.  Only once when the slider first is moved
+		// Interactive flag makes it so the texture is not rebuilt in PostEditChange
 		EPropertyValueSetFlags::Type Flags = (EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
 		MaxTextureSizePropertyHandle->SetValue(NewValue, Flags);
 	}
@@ -188,6 +195,7 @@ void FTextureDetails::OnMaxTextureSizeChanged(int32 NewValue)
 
 void FTextureDetails::OnMaxTextureSizeCommitted(int32 NewValue, ETextCommit::Type CommitInfo)
 {
+	// this causes the texture to build with the new value (if necessary)
 	MaxTextureSizePropertyHandle->SetValue(NewValue);
 }
 

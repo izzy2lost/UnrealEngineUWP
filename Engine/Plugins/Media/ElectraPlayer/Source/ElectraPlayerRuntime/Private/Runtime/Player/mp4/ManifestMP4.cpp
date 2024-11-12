@@ -116,6 +116,11 @@ void FManifestMP4Internal::GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata,
 	}
 }
 
+void FManifestMP4Internal::UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData)
+{
+	// No-op.
+}
+
 
 //-----------------------------------------------------------------------------
 /**
@@ -801,7 +806,7 @@ FErrorDetail FManifestMP4Internal::FTimelineAssetMP4::Build(IPlayerSessionServic
 		MediaMetadata = MakeSharedTS<UtilsMP4::FMetadataParser>();
 		if (MediaMetadata->Parse(hdlr, res0, Boxes) == UtilsMP4::FMetadataParser::EResult::Success)
 		{
-			PlayerSessionServices->SendMessageToPlayer(FPlaylistMetadataUpdateMessage::Create(FTimeValue(), MediaMetadata));
+			PlayerSessionServices->SendMessageToPlayer(FPlaylistMetadataUpdateMessage::Create(FTimeValue(), MediaMetadata, false));
 		}
 		else
 		{

@@ -41,6 +41,7 @@ struct FPCGAttributeFilterThresholdSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bUseConstantThreshold", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector ThresholdAttribute;
 
+	// This value is now false by default (changed in the ctor of the filtering settings)
 	/** For Point Data, enabling this option will use sampling rather than comparing points 1 to 1 directly. For other spatial data, this is always true, and for attribute sets, always false. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bUseConstantThreshold", EditConditionHides, PCG_Overridable))
 	bool bUseSpatialQuery = true;
@@ -78,7 +79,6 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeFilter")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeFilteringElement", "NodeTitle", "Attribute Filter"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
-	virtual bool HasDynamicPins() const override { return true; }
 
 	// Expose 2 nodes: Attribute filter and Point Filter that will not have the same defaults.
 	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
@@ -87,6 +87,7 @@ public:
 #endif
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 	virtual FString GetAdditionalTitleInformation() const override;
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:
@@ -110,12 +111,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bUseConstantThreshold", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector ThresholdAttribute;
 
+	// This value is now false by default (changed in the ctor)
 	/** If the threshold data is Point data, it will sample input points in threshold data. Always true with Spatial data.*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bUseConstantThreshold", EditConditionHides, PCG_Overridable))
 	bool bUseSpatialQuery = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseConstantThreshold", EditConditionHides, ShowOnlyInnerProperties, DisplayAfter = "bUseConstantThreshold", PCG_NotOverridable))
 	FPCGMetadataTypesConstantStruct AttributeTypes;
+
+	/** Controls whether the node will emit a warning when the input data or the filter data doesn't have the attribute to filter on. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bWarnOnDataMissingAttribute = true;
 
 	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
 	UPROPERTY()
@@ -152,7 +158,6 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeFilterRange")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeFilteringElement", "NodeTitleRange", "Attribute Filter Range"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
-	virtual bool HasDynamicPins() const override { return true; }
 
 	// Expose 2 nodes: "Attribute Filter Range" and "Point Filter Range" that will not have the same defaults.
 	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
@@ -161,6 +166,7 @@ public:
 #endif
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 	virtual FString GetAdditionalTitleInformation() const override;
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:
@@ -181,6 +187,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributeFilterThresholdSettings MaxThreshold;
 
+	/** Controls whether the node will emit a warning when the input data or the filter data doesn't have the attribute to filter on. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bWarnOnDataMissingAttribute = true;
+
 	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
 	UPROPERTY()
 	bool bHasSpatialToPointDeprecation = false;
@@ -189,7 +199,9 @@ public:
 class FPCGAttributeFilterElementBase : public IPCGElement
 {
 protected:
-	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, bool bHasSpatialToPointDeprecation, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
+	/** Performs the filter operation. Returns true when the operation is complete. */
+	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, bool bHasSpatialToPointDeprecation, bool bWarnOnDataMissingAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
 };
 
 class FPCGAttributeFilterElement : public FPCGAttributeFilterElementBase
@@ -203,4 +215,3 @@ class FPCGAttributeFilterRangeElement : public FPCGAttributeFilterElementBase
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
-

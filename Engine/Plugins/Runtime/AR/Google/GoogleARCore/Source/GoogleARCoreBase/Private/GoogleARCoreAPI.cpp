@@ -1644,8 +1644,11 @@ void UGoogleARCorePointCloud::GetPointInTrackingSpace(int Index, FVector& OutTra
 void UGoogleARCorePointCloud::ReleasePointCloud()
 {
 #if PLATFORM_ANDROID
-	ArPointCloud_release(PointCloudHandle);
-	PointCloudHandle = nullptr;
+	if (PointCloudHandle)
+	{
+		ArPointCloud_release(PointCloudHandle);
+		PointCloudHandle = nullptr;
+	}
 #endif
 }
 

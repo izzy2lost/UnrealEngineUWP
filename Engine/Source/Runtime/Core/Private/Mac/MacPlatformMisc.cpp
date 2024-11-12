@@ -779,6 +779,18 @@ bool FMacPlatformMisc::CommandLineCommands()
 	return HandleFirstInstall();
 }
 
+const TCHAR* FMacPlatformMisc::GetNullRHIShaderFormat()
+{
+	if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+	{
+		return TEXT("SF_METAL_SM5");
+	}
+	else
+	{
+		return TEXT("SF_METAL_SM6");
+	}
+}
+
 int32 FMacPlatformMisc::NumberOfCores()
 {	
 	static int32 NumberOfCores = -1;
@@ -2370,7 +2382,8 @@ void FMacCrashContext::GenerateCrashInfoAndLaunchReporter() const
 
 		// Do not inline this! The lifetime of this object needs to extend over the usage of Argv in posix_spawn() call below.
 		auto CrashInfoFolderUTF8 = TStringConversion<FTCHARToUTF8_Convert>(*CrashInfoFolder);
-
+		
+		CaptureAllThreadContext(0);
 		GenerateInfoInFolder(CrashInfoFolderUTF8.Get());
 
 		CrashInfoFolder += TEXT("/");
@@ -2510,6 +2523,7 @@ void FMacCrashContext::GenerateEnsureInfoAndLaunchReporter() const
 		FString GameName = FApp::GetProjectName();
 		FString EnsureLogFolder = FString(GMacAppInfo.CrashReportPath) / FString::Printf(TEXT("EnsureReport-%s-%s"), *GameName, *Guid.ToString(EGuidFormats::Digits));
 		
+		CaptureAllThreadContext(0);
 		GenerateInfoInFolder(TCHAR_TO_UTF8(*EnsureLogFolder));
 		
 		FString Arguments;
@@ -2533,11 +2547,13 @@ void FMacCrashContext::GenerateEnsureInfoAndLaunchReporter() const
 	}
 }
 
+static FString AllThreadContexts;
+
 void FMacCrashContext::AddThreadContext(
 	uint32 ThreadIdEnteredOn,
 	uint32 ThreadId,
 	const FString& ThreadName,
-	const TArray<FCrashStackFrame>& PortableCallStack)
+	const TArray<FCrashStackFrame>& PortableCallStack) const
 {
 	AllThreadContexts += TEXT("<Thread>");
 	{
@@ -2568,7 +2584,7 @@ void FMacCrashContext::AddThreadContext(
 	AllThreadContexts += LINE_TERMINATOR;
 }
 
-void FMacCrashContext::CaptureAllThreadContext(uint32 ThreadIdEnteredOn)
+void FMacCrashContext::CaptureAllThreadContext(uint32 ThreadIdEnteredOn) const
 {
 	TArray<typename FThreadManager::FThreadStackBackTrace> StackTraces;
 	FThreadManager::Get().GetAllThreadStackBackTraces(StackTraces);
@@ -2579,16 +2595,25 @@ void FMacCrashContext::CaptureAllThreadContext(uint32 ThreadIdEnteredOn)
 		const uint32 ThreadId     = ThreadStTrace.ThreadId;
 		const FString& ThreadName = ThreadStTrace.ThreadName;
 
-		TArray<FCrashStackFrame> PortableStack;
-		GetPortableCallStack(ThreadStTrace.ProgramCounters.GetData(), ThreadStTrace.ProgramCounters.Num(), PortableStack);
+		if (Idx == 0)
+		{
+			// current thread, which is crashing
+			AddThreadContext(ThreadId, ThreadId, ThreadName, CallStack);
+		}
+		else
+		{
+			TArray<FCrashStackFrame> PortableStack;
+			GetPortableCallStack(ThreadStTrace.ProgramCounters.GetData(), ThreadStTrace.ProgramCounters.Num(), PortableStack);
 
-		AddThreadContext(ThreadIdEnteredOn, ThreadId, ThreadName, PortableStack);
+			AddThreadContext(ThreadIdEnteredOn, ThreadId, ThreadName, PortableStack);
+		}
 	}
 }
 
 bool FMacCrashContext::GetPlatformAllThreadContextsString(FString& OutStr) const
 {
 	OutStr = AllThreadContexts;
+	AllThreadContexts = TEXT("");
 	return !OutStr.IsEmpty();
 }
 

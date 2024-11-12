@@ -1,14 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading;
 using AutomationTool;
+using Gauntlet.Utils;
 using UnrealBuildTool;
-using System.Text.RegularExpressions;
-using EpicGames.Core;
 using static AutomationTool.ProcessResult;
 
 namespace Gauntlet
@@ -49,7 +45,7 @@ namespace Gauntlet
 				throw new DeviceException("Specified path {0} not found!", LinuxApp.ExecutablePath);
 			}
 
-			IProcessResult Result = null;
+			ILongProcessResult Result = null;
 
 			lock (Globals.MainLock)
 			{
@@ -64,8 +60,6 @@ namespace Gauntlet
 
 				Log.Verbose("\t{0}", CmdLine);
 
-				bool bAllowSpew = LinuxApp.RunOptions.HasFlag(CommandUtils.ERunOptions.AllowSpew);
-
 				bool bAppContainerized = LinuxApp is IContainerized;
 
 				// Forward command to Docker container if running containerized
@@ -76,11 +70,14 @@ namespace Gauntlet
 					CmdLine = $"run --name {Container.ContainerName} {Container.ImageName} {Container.RunCommandPrepend} {ContainerApp} {CmdLine}";
 				}
 
-				Result = CommandUtils.Run(bAppContainerized ? "docker" : LinuxApp.ExecutablePath,
+				Result = new LongProcessResult(
+					bAppContainerized ? "docker" : LinuxApp.ExecutablePath,
 					CmdLine,
-					Options: LinuxApp.RunOptions,
-					SpewFilterCallback: new SpewFilterCallbackType(delegate (string M) { return bAllowSpew ? M : null; }) /* make sure stderr does not spew in the stdout */,
-					WorkingDir: LinuxApp.WorkingDirectory);
+					LinuxApp.RunOptions,
+					OutputCallback: LinuxApp.FilterLoggingDelegate,
+					WorkingDir: LinuxApp.WorkingDirectory,
+					LocalCache: LinuxApp.Device.LocalCachePath
+				);
 
 				if (Result.HasExited && Result.ExitCode != 0)
 				{
@@ -92,6 +89,69 @@ namespace Gauntlet
 
 			return new LinuxAppInstance(LinuxApp, Result, LinuxApp.LogFile);
 		}
+
+		protected override IAppInstall CreateNativeStagedInstall(UnrealAppConfig AppConfig, NativeStagedBuild Build)
+		{
+			LinuxAppInstall LinuxApp;
+			if (AppConfig.ContainerInfo != null)
+			{
+				LinuxApp = new LinuxAppContainerInstall(AppConfig.Name, AppConfig.ProjectName, AppConfig.ContainerInfo, this);
+			}
+			else
+			{
+				LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
+			}
+
+			LinuxApp.ExecutablePath = Path.Combine(Build.BuildPath, Build.ExecutablePath);
+			LinuxApp.WorkingDirectory = Build.BuildPath;
+			LinuxApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, Build.BuildPath);
+
+			return LinuxApp;
+		}
+
+		protected override IAppInstall CreateStagedInstall(UnrealAppConfig AppConfig, StagedBuild Build)
+		{
+			string BuildDir = Build.BuildPath;
+			if (SystemHelpers.IsNetworkPath(BuildDir))
+			{
+				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
+				string InstallDir = Path.Combine(InstallRoot, SubDir, AppConfig.ProcessType.ToString());
+				BuildDir = InstallDir;
+			}
+
+			PopulateDirectoryMappings(Path.Combine(BuildDir, AppConfig.ProjectName));
+
+			LinuxAppInstall LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this)
+			{
+				ExecutablePath = Path.IsPathRooted(Build.ExecutablePath)
+					? Build.ExecutablePath
+					: Path.Combine(BuildDir, Build.ExecutablePath)
+			};
+			LinuxApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BuildDir);
+
+			return LinuxApp;
+		}
+
+		protected override IAppInstall CreateEditorInstall(UnrealAppConfig AppConfig, EditorBuild Build)
+		{
+			PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName);
+
+			LinuxAppInstall LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this)
+			{
+				ExecutablePath = Build.ExecutablePath,
+				WorkingDirectory = Path.GetDirectoryName(Build.ExecutablePath)
+			};
+			LinuxApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, LinuxApp.WorkingDirectory);
+
+			return LinuxApp;
+		}
+
+		protected override string GetInstallArtifactPath()
+		{
+			return (InstallCache as DesktopCommonAppInstall<TargetDeviceLinux>).ArtifactPath;
+		}
+
+		#region Legacy Implementations
 
 		protected override IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
 		{
@@ -198,6 +258,7 @@ namespace Gauntlet
 
 			return LinuxApp;
 		}
+		#endregion
 	}
 
 	public class LinuxAppInstall : DesktopCommonAppInstall<TargetDeviceLinux>
@@ -223,7 +284,7 @@ namespace Gauntlet
 
 	public class LinuxAppInstance : DesktopCommonAppInstance<LinuxAppInstall, TargetDeviceLinux>
 	{
-		public LinuxAppInstance(LinuxAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+		public LinuxAppInstance(LinuxAppInstall InInstall, ILongProcessResult InProcess, string InProcessLogFile = null)
 			: base(InInstall, InProcess, InProcessLogFile)
 		{ }
 	}

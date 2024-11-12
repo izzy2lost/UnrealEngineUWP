@@ -22,14 +22,14 @@ public:
 		return ConverterInfoFlags_PreprocessOnly;
 	}
 
-	virtual bool Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints) override
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override
 	{
 		if (!Player)
 		{
 			return false;
 		}
 
-		Player->JustInTimeSampleRender();
+		Player->JustInTimeSampleRender(RHICmdList);
 
 		return true;
 	}

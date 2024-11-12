@@ -7,13 +7,14 @@
 namespace AudioWidgets
 {
 	FAudioVectorscope::FAudioVectorscope(Audio::FDeviceId InAudioDeviceId,
-		const uint32 InNumChannels, 
-		const float InTimeWindowMs, 
-		const float InMaxTimeWindowMs, 
-		const float InAnalysisPeriodMs, 
-		const EAudioPanelLayoutType InPanelLayoutType)
-		: VectorscopePanelStyle(FAudioVectorscopePanelStyle::GetDefault())
+		const uint32 InNumChannels,
+		const float InTimeWindowMs,
+		const float InMaxTimeWindowMs,
+		const float InAnalysisPeriodMs,
+		const EAudioPanelLayoutType InPanelLayoutType,
+		const FAudioVectorscopePanelStyle* InPanelStyle)
 	{
+		VectorscopePanelStyle = InPanelStyle ? *InPanelStyle : FAudioVectorscopePanelStyle::GetDefault();
 		CreateAudioBus(InNumChannels);
 		CreateDataProvider(InAudioDeviceId, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 		CreateVectorscopeWidget(InPanelLayoutType);
@@ -32,15 +33,21 @@ namespace AudioWidgets
 		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InAudioDeviceId, AudioBus.Get(), AudioBus->GetNumChannels(), InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 	}
 
-	void FAudioVectorscope::CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType)
+	void FAudioVectorscope::CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType, const FAudioVectorscopePanelStyle* PanelStyle)
 	{
 		check(AudioSamplesDataProvider);
 
 		const FFixedSampledSequenceView SequenceView = AudioSamplesDataProvider->GetDataView();
 
+		if (PanelStyle)
+		{
+			VectorscopePanelStyle = *PanelStyle;
+		}
+
 		if (!VectorscopePanelWidget.IsValid())
 		{
 			VectorscopePanelWidget = SNew(SAudioVectorscopePanelWidget, SequenceView)
+				.PanelStyle(PanelStyle ? PanelStyle : &FAudioVectorscopePanelStyle::GetDefault())
 				.PanelLayoutType(InPanelLayoutType)
 				.PanelStyle(&VectorscopePanelStyle);
 		}
@@ -54,7 +61,7 @@ namespace AudioWidgets
 
 		if (InPanelLayoutType == EAudioPanelLayoutType::Advanced)
 		{
-			VectorscopePanelWidget->OnTimeWindowValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
+			VectorscopePanelWidget->OnDisplayPersistenceValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
 		}
 	}
 

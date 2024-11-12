@@ -156,7 +156,7 @@ UMaterialInterface* AMediaPlate::GetCurrentOverlayMaterial() const
 
 void AMediaPlate::UseDefaultMaterial()
 {
-	UMaterial* DefaultMaterial = LoadObject<UMaterial>(NULL, TEXT("/MediaPlate/M_MediaPlate"), NULL, LOAD_None, NULL);
+	UMaterial* DefaultMaterial = LoadObject<UMaterial>(NULL, TEXT("/MediaPlate/M_MediaPlate_Opaque"), NULL, LOAD_None, NULL);
 	
 	ApplyMaterial(DefaultMaterial);
 
@@ -224,7 +224,6 @@ void AMediaPlate::ApplyMaterial(UMaterialInterface* Material)
 		}
 		else
 		{
-			UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Material);
 			UMaterialInterface* Result = nullptr;
 
 			// See if we can modify this material.
@@ -240,8 +239,14 @@ void AMediaPlate::ApplyMaterial(UMaterialInterface* Material)
 				MediaPlateComponent->SetNumberOfTextures(1);
 				LastMaterial = Material;
 			}
-			else if (MID != nullptr)
+			else if (UMaterialInstanceDynamic* InMID = Cast<UMaterialInstanceDynamic>(Material))
 			{
+				SetMIDParameters(InMID);
+				Result = InMID;
+			}
+			else if (Material->IsA(UMaterialInstance::StaticClass()))
+			{
+				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Material, StaticMeshComponent);
 				SetMIDParameters(MID);
 				Result = MID;
 			}
@@ -288,6 +293,12 @@ void AMediaPlate::ApplyOverlayMaterial(UMaterialInterface* InOverlayMaterial)
 			{
 				SetMIDParameters(MID);
 				Result = MID;
+			}
+			else if (InOverlayMaterial->IsA(UMaterialInstance::StaticClass()))
+			{
+				UMaterialInstanceDynamic* OverlayMID = UMaterialInstanceDynamic::Create(InOverlayMaterial, StaticMeshComponent);
+				SetMIDParameters(OverlayMID);
+				Result = OverlayMID;
 			}
 			else
 			{

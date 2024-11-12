@@ -5,7 +5,8 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "HAL/CriticalSection.h"
-
+#include "AutoRTFM/AutoRTFM.h"
+#include "Templates/Function.h"
 
 /** Keeps a FRWLock read-locked while this scope lives */
 class FReadScopeLock
@@ -14,12 +15,14 @@ public:
 	UE_NODISCARD_CTOR explicit FReadScopeLock(FRWLock& InLock)
 		: Lock(InLock)
 	{
-		Lock.ReadLock();
+		UE_AUTORTFM_OPEN{ Lock.ReadLock(); };
+		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Lock.ReadUnlock(); });
 	}
 
 	~FReadScopeLock()
 	{
-		Lock.ReadUnlock();
+		UE_AUTORTFM_OPEN{ Lock.ReadUnlock(); };
+		AutoRTFM::PopOnAbortHandler(this);
 	}
 
 private:

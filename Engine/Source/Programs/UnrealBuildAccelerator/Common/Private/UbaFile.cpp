@@ -22,6 +22,7 @@
 
 #if PLATFORM_MAC
 #include <mach-o/dyld.h>
+#include <copyfile.h>
 #endif
 
 namespace uba
@@ -72,6 +73,18 @@ namespace uba
 	{
 		return (HANDLE)(fh == InvalidFileHandle ? InvalidFileHandle : (fh & FileHandleFlagMask));
 	}
+
+	#define MAKE_LONG_FILENAME(fileName) \
+		UBA_ASSERT(TStrlen(fileName) < MaxPath); \
+		StringBuffer<MaxPath> STRING_JOIN(longName, __LINE__); \
+		if (IsAbsolutePath(fileName)) \
+		{ \
+			auto& lsb = STRING_JOIN(longName, __LINE__); \
+			lsb.Append(TC("\\\\?\\")); \
+			FixPath(fileName, nullptr, 0, lsb); \
+			fileName = lsb.data; \
+		}
+
 #else
 	int asFileDescriptor(FileHandle fh)
 	{
@@ -84,7 +97,8 @@ namespace uba
 
 	bool ReadFile(Logger& logger, const tchar* fileName, FileHandle fileHandle, void* b, u64 bufferLen)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().readFile);
+		auto& stats = KernelStats::GetCurrent();
+		ExtendedTimerScope ts(stats.readFile);
 		u8* buffer = (u8*)b;
 		u64 readLeft = bufferLen;
 		u64 firstZeroReadTime = 0;
@@ -96,7 +110,7 @@ namespace uba
 			DWORD wasRead = 0;
 			if (!::ReadFile(asHANDLE(fileHandle), buffer, toRead, &wasRead, NULL))
 				if (GetLastError() != ERROR_IO_PENDING)
-					return logger.Error(TC("ERROR reading file %s (error: %s)"), fileName, LastErrorToText().data);
+					return logger.Error(TC("ERROR reading %llu bytes from file %s (error: %s)"), toRead, fileName, LastErrorToText().data);
 #else
 			ssize_t wasRead = read(asFileDescriptor(fileHandle), buffer, toRead);
 			if (wasRead == -1)
@@ -116,6 +130,8 @@ namespace uba
 			readLeft -= wasRead;
 			buffer += wasRead;
 		}
+
+		stats.readFile.bytes += bufferLen;
 		return true;
 	}
 
@@ -124,6 +140,7 @@ namespace uba
 		u32 dwFlagsAndAttributes = DefaultAttributes();
 		#if PLATFORM_WINDOWS
 		dwFlagsAndAttributes |= (overlapped ? FILE_FLAG_OVERLAPPED : FILE_FLAG_SEQUENTIAL_SCAN);
+		MAKE_LONG_FILENAME(fileName);
 		#endif
 
 		outHandle = uba::CreateFileW(fileName, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING, dwFlagsAndAttributes);
@@ -150,6 +167,7 @@ namespace uba
 
 	bool GetFileInformationByHandle(FileInformation& out, Logger& logger, const tchar* fileName, FileHandle hFile)
 	{
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
 		BY_HANDLE_FILE_INFORMATION info;
 		if (!::GetFileInformationByHandle(asHANDLE(hFile), &info))
@@ -180,6 +198,7 @@ namespace uba
 	bool GetFileInformation(FileInformation& out, Logger& logger, const tchar* fileName)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(fileName);
 		FileHandle h = uba::CreateFileW(fileName, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS);
 		if (h == InvalidFileHandle)
 			return false;// logger.Error(TC("GetFileInformation: CreateFile failed for file %s (%s)"), fileName, LastErrorToText().data);
@@ -205,9 +224,11 @@ namespace uba
 #endif
 	}
 
-	bool FileExists(Logger& logger, const tchar* fileName, u64* outSize, u32* outAttributes)
+	bool FileExists(Logger& logger, const tchar* fileName, u64* outSize, u32* outAttributes, u64* lastWriteTime)
 	{
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(fileName);
 		WIN32_FILE_ATTRIBUTE_DATA data;
 		if (!::GetFileAttributesExW(fileName, GetFileExInfoStandard, &data))
 		{
@@ -226,13 +247,20 @@ namespace uba
 		}
 		if (outAttributes)
 			*outAttributes = data.dwFileAttributes;
+
+		if (lastWriteTime)
+			*lastWriteTime = (u64&)data.ftLastWriteTime;
+
 		return true;
 #else
 		struct stat attr;
 		if (stat(fileName, &attr) == -1)
 		{
 			if (errno == ENOENT)
+			{
+				SetLastError(ERROR_FILE_NOT_FOUND);
 				return false;
+			}
 			UBA_ASSERTF(false, TC("FileExists error handling implemented"));
 			return false;
 		}
@@ -241,13 +269,15 @@ namespace uba
 			*outSize = attr.st_size;
 		if (outAttributes)
 			*outAttributes = attr.st_mode;
+		if (lastWriteTime)
+			*lastWriteTime = FromTimeSpec(attr.st_mtimespec);
 		return true;
 #endif
 	}
 
 	bool SetEndOfFile(Logger& logger, const tchar* fileName, FileHandle handle, u64 size)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().setFileInfo);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().setFileInfo);
 #if PLATFORM_WINDOWS
 		FILE_END_OF_FILE_INFO info;
 		info.EndOfFile = ToLargeInteger(size);
@@ -266,8 +296,11 @@ namespace uba
 			HMODULE hm = NULL;
 			if (!GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)&GetDirectoryOfCurrentModule, &hm))
 				return logger.Error(TC("GetModuleHandleEx failed (%s)"), LastErrorToText().data);
-			if (!GetModuleFileNameW(hm, out.data, out.capacity))
+			u32 len = GetModuleFileNameW(hm, out.data + out.count, out.capacity - out.count);
+			if (!len)
 				return logger.Error(TC("GetModuleFileNameW failed (%s)"), LastErrorToText().data);
+			out.count += len;
+			UBA_ASSERTF(GetLastError() == ERROR_SUCCESS, TC("GetModuleFileNameW failed (%s)"), LastErrorToText().data);
 			const tchar* lastSlash = out.Last('\\');
 			out.Resize(lastSlash - out.data);
 			return true;
@@ -341,6 +374,8 @@ namespace uba
 
 	bool SearchPathForFile(Logger& logger, StringBufferBase& out, const tchar* file, const tchar* applicationDir)
 	{
+		UBA_ASSERT(!IsAbsolutePath(file));
+
 		StringBuffer<> fullPath;
 		fullPath.Append(applicationDir);
 		fullPath.EnsureEndsWithSlash();
@@ -373,8 +408,7 @@ namespace uba
 
 			*it = 0;
 
-			fullPath.Resize(0);
-			fullPath.Append(lastStart);
+			fullPath.Clear().Append(lastStart);
 			if (*lastStart)
 				fullPath.EnsureEndsWithSlash();
 			fullPath.Append(file);
@@ -391,8 +425,9 @@ namespace uba
 
 	FileHandle CreateFileW(const tchar* fileName, u32 desiredAccess, u32 shareMode, u32 createDisp, u32 flagsAndAttributes)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().createFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().createFile);
 	#if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(fileName);
 		return (FileHandle)(u64)::CreateFileW(fileName, desiredAccess, shareMode, NULL, createDisp, flagsAndAttributes, NULL);
 	#else
 		int flags = O_CLOEXEC;
@@ -449,7 +484,7 @@ namespace uba
 
 	bool CloseFile(const tchar* fileName, FileHandle h)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().closeFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().closeFile);
 #if PLATFORM_WINDOWS
 		return ::CloseHandle(asHANDLE(h));
 #else
@@ -466,6 +501,7 @@ namespace uba
 	bool CreateDirectoryW(const tchar* pathName)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(pathName);
 		return ::CreateDirectoryW(pathName, NULL);
 #else
 		if (mkdir(pathName, 0777) == 0)
@@ -491,6 +527,7 @@ namespace uba
 	bool RemoveDirectoryW(const tchar* pathName)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(pathName);
 		if (::RemoveDirectoryW(pathName))
 			return true;
 		return false;
@@ -511,6 +548,7 @@ namespace uba
 	bool DeleteFileW(const tchar* fileName)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(fileName);
 		if (::DeleteFileW(fileName))
 			return true;
 		return false;
@@ -531,7 +569,14 @@ namespace uba
 	bool CopyFileW(const tchar* existingFileName, const tchar* newFileName, bool bFailIfExists)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(existingFileName);
+		MAKE_LONG_FILENAME(newFileName);
 		return ::CopyFileW(existingFileName, newFileName, bFailIfExists);
+#elif PLATFORM_MAC
+		if (copyfile(existingFileName, newFileName, 0, COPYFILE_ALL) == 0)
+			return true;
+		UBA_ASSERTF(false, TC("CopyFileW failed on %s - Error handling not implemented (%s)"), existingFileName, strerror(errno));
+		return false;
 #else
 
 		UBA_ASSERTF(false, TC("CopyFileW not implemented"));
@@ -551,7 +596,7 @@ namespace uba
 
 	bool GetFileLastWriteTime(u64& outTime, FileHandle hFile)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileTime);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileTime);
 #if PLATFORM_WINDOWS
 		FILETIME lastWriteTime;
 		auto res = ::GetFileTime(asHANDLE(hFile), NULL, NULL, &lastWriteTime);
@@ -582,6 +627,8 @@ namespace uba
 	bool MoveFileExW(const tchar* existingFileName, const tchar* newFileName, u32 dwFlags)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(existingFileName);
+		MAKE_LONG_FILENAME(newFileName);
 		return ::MoveFileExW(existingFileName, newFileName, dwFlags);
 #else
 		int res = rename(existingFileName, newFileName);
@@ -597,6 +644,7 @@ namespace uba
 
 	bool GetFileSizeEx(u64& outFileSize, FileHandle hFile)
 	{
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
 		LARGE_INTEGER lpFileSize;
 		if (!::GetFileSizeEx(asHANDLE(hFile), &lpFileSize))
@@ -619,7 +667,9 @@ namespace uba
 
 	u32 GetFileAttributesW(const tchar* fileName)
 	{
+		ExtendedTimerScope ts(KernelStats::GetCurrent().getFileInfo);
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(fileName);
 		return ::GetFileAttributesW(fileName);
 #else
 		struct stat attr;
@@ -660,22 +710,26 @@ namespace uba
 #if PLATFORM_WINDOWS
 		return FILE_ATTRIBUTE_NORMAL;
 #else
-		return S_IRUSR | S_IWUSR | (execute ? S_IXUSR : 0);
+		return S_IRUSR | S_IWUSR | (execute ? S_IXUSR : 0) | S_IRGRP | S_IROTH;
 #endif
 	}
 
 	bool CreateHardLinkW(const tchar* newFileName, const tchar* existingFileName)
 	{
 #if PLATFORM_WINDOWS
+		MAKE_LONG_FILENAME(newFileName);
+		MAKE_LONG_FILENAME(existingFileName);
 		return ::CreateHardLinkW(newFileName, existingFileName, NULL);
 #else
-#if 1//PLATFORM_MAC
-		int res = symlink(existingFileName, newFileName);
-#else
-		int res = link(existingFileName, newFileName);
-#endif
+		int res = link(existingFileName, newFileName); // We need to use links in order for explicit dynamic library dependencies  to be found at the same path.
+		//int res = symlink(existingFileName, newFileName);
 		if (res == 0)
 			return true;
+
+		#if PLATFORM_MAC
+		if (errno == EPERM) // Because of System Integrity Protection we might not be allowed to link this file, fallback to copy
+			return false;
+		#endif
 
 		UBA_ASSERTF(false, TC("CreateHardLinkW %s to %s error handling not implemented (%s)"), existingFileName, newFileName, strerror(errno));
 		return false;
@@ -764,6 +818,20 @@ namespace uba
 		return TimeToMs(fileTime)/1000;
 #else
 		return fileTime / 10'000'000ull;
+#endif
+	}
+
+	u64 GetFileTimeAsTime(u64 fileTime)
+	{
+		return MsToTime(GetFileTimeAsSeconds(fileTime)*1000);
+	}
+
+	u64 GetSecondsAsFileTime(u64 seconds)
+	{
+#if PLATFORM_WINDOWS
+		return MsToTime(seconds*1000);
+#else
+		return seconds * 10'000'000ull;
 #endif
 	}
 

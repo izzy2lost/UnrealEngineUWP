@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Components/DynamicMeshComponent.h"
+#include "SVGBaseDynamicMeshComponent.h"
 #include "UObject/ObjectPtr.h"
 #include "JoinedSVGDynamicMeshComponent.generated.h"
 
@@ -66,7 +66,7 @@ enum class EJoinedSVGMeshColoring : uint8
 };
 
 UCLASS(MinimalAPI, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class UJoinedSVGDynamicMeshComponent : public UDynamicMeshComponent
+class UJoinedSVGDynamicMeshComponent : public USVGBaseDynamicMeshComponent
 {
 	friend class FJoinedSVGDynamicMeshComponentCustomization;
 

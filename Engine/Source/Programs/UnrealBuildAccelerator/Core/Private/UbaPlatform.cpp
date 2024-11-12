@@ -14,27 +14,27 @@ extern const char* __progname;
 
 namespace uba
 {
-	SystemStats g_systemStats;
-	thread_local SystemStats* t_systemStats;
+	KernelStats g_kernelStatsInternal;
+	thread_local KernelStats* t_kernelStats;
 
-	SystemStats& SystemStats::GetCurrent()
+	KernelStats& KernelStats::GetCurrent()
 	{
-		SystemStats* stats = t_systemStats;
-		return stats ? *stats : g_systemStats;
+		KernelStats* stats = t_kernelStats;
+		return stats ? *stats : g_kernelStatsInternal;
 	}
 
-	SystemStats& SystemStats::GetGlobal()
+	KernelStats& KernelStats::GetGlobal()
 	{
-		return g_systemStats;
+		return g_kernelStatsInternal;
 	}
 
-	SystemStatsScope::SystemStatsScope(SystemStats& s) : stats(s)
+	KernelStatsScope::KernelStatsScope(KernelStats& s) : stats(s)
 	{
-		t_systemStats = &stats;
+		t_kernelStats = &stats;
 	}
-	SystemStatsScope::~SystemStatsScope()
+	KernelStatsScope::~KernelStatsScope()
 	{
-		t_systemStats = nullptr;
+		t_kernelStats = nullptr;
 	}
 
 	bool CreateGuid(Guid& out)
@@ -78,12 +78,11 @@ namespace uba
 		struct timespec ts;
 		ts.tv_sec = milliseconds / 1000;
 		ts.tv_nsec = (milliseconds % 1000) * 1000000;
-		nanosleep(&ts, NULL);
+		int res;
+		do { res = nanosleep(&ts, &ts); } while (res && errno == EINTR);
 		#else
 		if (milliseconds >= 1000)
-		{
 			sleep(milliseconds / 1000);
-		}
 		usleep((milliseconds % 1000) * 1000);
 		#endif
 	}
@@ -123,12 +122,11 @@ namespace uba
 		DWORD nSize = bufferLen;
 		return ::GetComputerNameW(buffer, &nSize);
 		#else
-		gethostname(buffer, bufferLen);
-		return true;
+		return gethostname(buffer, bufferLen) == 0;
 		#endif
 	}
 
-	void WriteAssertInfo(StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack = 0)
+	UBA_NOINLINE void WriteAssertInfo(StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack = 0)
 	{
 #if PLATFORM_WINDOWS
 		if (text)
@@ -164,7 +162,7 @@ namespace uba
 				if (file)
 					out.Appendf(L"\n\n");
 				out.Appendf(L"  Callstack:");
-				for (u32 i = 0; i < count; i++)
+				for (u32 i = skipCallstack; i < count; i++)
 				{
 					tchar str[1024];
 					auto addr = u64(callers[i]);
@@ -301,6 +299,15 @@ namespace uba
 			return envLen + 1;
 		memcpy(buffer, env, envLen + 1);
 		return envLen;
+		#endif
+	}
+
+	bool SetEnvironmentVariableW(const tchar* name, const tchar* value)
+	{
+		#if PLATFORM_WINDOWS
+		return ::SetEnvironmentVariableW(name, value);
+		#else
+		return setenv(name, value, 1) == 0;
 		#endif
 	}
 

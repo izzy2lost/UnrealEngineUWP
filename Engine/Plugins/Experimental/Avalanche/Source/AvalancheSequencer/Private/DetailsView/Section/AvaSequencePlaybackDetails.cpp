@@ -2,50 +2,66 @@
 
 #include "AvaSequencePlaybackDetails.h"
 #include "AvaSequencePlaybackObject.h"
-#include "AvaSequence.h"
 #include "AvaSequencer.h"
 #include "CustomDetailsViewArgs.h"
 #include "CustomDetailsViewModule.h"
 
 #define LOCTEXT_NAMESPACE "AvaSequencePlaybackDetails"
 
-FName FAvaSequencePlaybackDetails::GetSectionName() const
+const FName FAvaSequencePlaybackDetails::UniqueId = TEXT("AvaSequencePlaybackDetails");
+
+FAvaSequencePlaybackDetails::FAvaSequencePlaybackDetails(const TSharedRef<FAvaSequencer>& InAvaSequencer)
+	: AvaSequencerWeak(InAvaSequencer)
+{
+}
+
+FName FAvaSequencePlaybackDetails::GetUniqueId() const
+{
+	return UniqueId;
+}
+
+FName FAvaSequencePlaybackDetails::GetSectionId() const
 {
 	return TEXT("Playback");
 }
 
-FText FAvaSequencePlaybackDetails::GetSectionDisplayName() const
+FText FAvaSequencePlaybackDetails::GetSectionDisplayText() const
 {
 	return LOCTEXT("PlaybackLabel", "Playback");
 }
 
-TSharedRef<SWidget> FAvaSequencePlaybackDetails::CreateContentWidget(const TSharedRef<FAvaSequencer>& InAvaSequencer)
+bool FAvaSequencePlaybackDetails::ShouldShowSection() const
 {
-	AvaSequencerWeak = InAvaSequencer;
+	return AvaSequencerWeak.IsValid();
+}
 
+int32 FAvaSequencePlaybackDetails::GetSortOrder() const
+{
+	return 2;
+}
+
+TSharedRef<SWidget> FAvaSequencePlaybackDetails::CreateContentWidget()
+{
 	FCustomDetailsViewArgs CustomDetailsViewArgs;
-	CustomDetailsViewArgs.IndentAmount           = 0.f;
-	CustomDetailsViewArgs.ValueColumnWidth       = 0.5f;
-	CustomDetailsViewArgs.bShowCategories        = true;
+	CustomDetailsViewArgs.IndentAmount = 0.f;
+	CustomDetailsViewArgs.ValueColumnWidth  = 0.5f;
+	CustomDetailsViewArgs.bShowCategories = true;
 	CustomDetailsViewArgs.bAllowGlobalExtensions = true;
 	CustomDetailsViewArgs.CategoryAllowList.Allow(TEXT("Scheduled Playback"));
-	CustomDetailsViewArgs.ExpansionState.Add(FCustomDetailsViewItemId::MakeCategoryId("Scheduled Playback"), true);
+	CustomDetailsViewArgs.ExpansionState.Add(FCustomDetailsViewItemId::MakeCategoryId("Scheduled Playback"), ECustomDetailsViewExpansion::SelfExpanded);
 
-	TSharedRef<ICustomDetailsView> PlaybackDetailsView = ICustomDetailsViewModule::Get().CreateCustomDetailsView(CustomDetailsViewArgs);
+	const TSharedRef<ICustomDetailsView> PlaybackDetailsView = ICustomDetailsViewModule::Get().CreateCustomDetailsView(CustomDetailsViewArgs);
 
-	IAvaSequencePlaybackObject* PlaybackObject = InAvaSequencer->GetProvider().GetPlaybackObject();
-	if (ensureAlways(PlaybackObject))
+	if (const TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
 	{
-		PlaybackDetailsView->SetObject(PlaybackObject->ToUObject());
+		IAvaSequencePlaybackObject* const PlaybackObject = AvaSequencer->GetProvider().GetPlaybackObject();
+		if (ensureAlways(PlaybackObject))
+		{
+			PlaybackDetailsView->SetObject(PlaybackObject->ToUObject());
+		}
 	}
 
 	return PlaybackDetailsView;
-}
-
-bool FAvaSequencePlaybackDetails::ShouldShowSection() const
-{
-	TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin();
-	return AvaSequencer.IsValid() && IsValid(AvaSequencer->GetViewedSequence());
 }
 
 #undef LOCTEXT_NAMESPACE

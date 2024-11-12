@@ -185,7 +185,6 @@ void FMaterialShaderQualitySettingsCustomization::CustomizeDetails(IDetailLayout
 	ForwardRenderingCategory.AddCustomRow(LOCTEXT("ForwardRenderingMaterialOverrides", "Forward Rendering Material Overrides"))
 		[
 			SAssignNew(MaterialQualityOverridesListView, SMaterialQualityOverridesListView)
-			.ItemHeight(20.0f)
 			.ListItemsSource(&QualityOverrideListSource)
 			.OnGenerateRow(this, &FMaterialShaderQualitySettingsCustomization::HandleGenerateQualityWidget)
 			.SelectionMode(ESelectionMode::None)

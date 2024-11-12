@@ -119,7 +119,20 @@ public:
 	/** If set, a cylinder is drawn to indicate if the navigation data is ready (has been generated) for the given radius (green when ready, red otherwise). */
 	UPROPERTY(EditAnywhere, Category=Query)
 	uint32 bDrawIfNavDataIsReadyInRadius : 1;
-	
+
+	/** If set, a capsule is drawn to indicate if the navigation data is ready (has been generated) for the given radius from the current actor to the query target (green when ready, red otherwise). */
+	UPROPERTY(EditAnywhere, Category=Query)
+	uint32 bDrawIfNavDataIsReadyToQueryTargetActor : 1;
+
+	/** If set, a line is drawn to indicate to result of a ray cast on the navigation data between the current actor and the QueryTargetActor location
+	 * (red when there is a hit, green when there is no hit and the ray end is on the explored corridor, orange otherwise). */
+	UPROPERTY(EditAnywhere, Category=Query)
+	uint32 bDrawRaycastToQueryTargetActor : 1;
+
+	/** Actor to use as a target for navigation data queries */
+	UPROPERTY(EditAnywhere, Category=Query)
+	TObjectPtr<AActor> QueryTargetActor;
+
 	/** show polys from open (orange) and closed (yellow) sets */
 	UPROPERTY(EditAnywhere, Category=Debug)
 	uint32 bShowNodePool : 1;
@@ -169,8 +182,8 @@ public:
 	UPROPERTY(EditAnywhere, Category=Pathfinding)
 	TObjectPtr<ANavigationTestingActor> OtherActor;
 
-	/** "None" will result in default filter being used */
-	UPROPERTY(EditAnywhere, Category=Pathfinding)
+	/** "None" will result in default filter being used. This filter is used by the PathFind and Raycast queries. */
+	UPROPERTY(EditAnywhere, Category=Query)
 	TSubclassOf<class UNavigationQueryFilter> FilterClass;
 
 	/** Show debug steps up to this index. Use -1 to disable. */
@@ -181,8 +194,12 @@ public:
 	float OffsetFromCornersDistance;
 
 	FVector ClosestWallLocation;
-	
+	FVector RaycastHitLocation;
+
 	bool bNavDataIsReadyInRadius;
+	bool bNavDataIsReadyToQueryTargetActor;
+	bool bRaycastToQueryTargetActorResult;
+	bool bRaycastToQueryTargetEndsInCorridor;
 
 #if WITH_RECAST && WITH_EDITORONLY_DATA
 	/** detail data gathered from each step of regular A* algorithm */
@@ -242,6 +259,12 @@ public:
 #endif
 
 protected:
+	void UpdateLocalQueries();
+	void UpdateTargetActorQueries();
+
 	NAVIGATIONSYSTEM_API FVector FindClosestWallLocation() const;
 	bool CheckIfNavDataIsReadyInRadius();
+	bool CheckIfNavDataIsReadyToActor(const AActor* TargetActor);
+	bool CheckRaycastToActor(const AActor* TargetActor, FVector& OutHitLocation, bool& bOutIsRaycastEndInCorridor);
+	void OnQueryTargetActorTransformUpdated(USceneComponent* InRootComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 };

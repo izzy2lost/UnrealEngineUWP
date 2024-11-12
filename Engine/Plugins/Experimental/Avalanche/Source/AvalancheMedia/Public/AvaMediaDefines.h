@@ -6,14 +6,20 @@
 #include "Misc/EnumClassFlags.h"
 #include "AvaMediaDefines.generated.h"
 
+/**
+ * Channel state is a union summary of the output's states.
+ */
 UENUM()
 enum class EAvaBroadcastChannelState : uint8
 {
+	/** Indicates that all channel outputs are offline. */
 	Offline,
+	/** Indicates that at least some of the channel outputs are idle (but none are live). */
 	Idle,
+	/** Indicates that at least some of the channel outputs are live.*/
 	Live,
 
-	Max,
+	Max UMETA(Hidden),
 };
 
 /**
@@ -58,6 +64,10 @@ enum class EAvaBroadcastOutputState : uint8
 	Error
 };
 
+/**
+ * In case the broadcast device is Live (see EAvaBroadcastOutputState),
+ * this extra status indicates if the device is operating normally.
+ */
 UENUM()
 enum class EAvaBroadcastIssueSeverity : uint8
 {
@@ -65,7 +75,7 @@ enum class EAvaBroadcastIssueSeverity : uint8
 	Warnings,
 	Errors,
 
-	Max,
+	Max UMETA(Hidden),
 };
 
 //An enum indicating what changed in Broadcast
@@ -93,6 +103,18 @@ enum class EAvaBroadcastChannelChange : uint8
 ENUM_CLASS_FLAGS(EAvaBroadcastChannelChange);
 
 /**
+ * Action to perform when a media capture overrun (main vs render thread) occurs on a broadcast channel.
+ */
+UENUM()
+enum class EAvaBroadcastOutputOverrunAction : uint8
+{
+	/** Flush rendering thread such that all scheduled commands are executed. */
+	Flush,
+	/** Skip capturing a frame if readback is trailing too much. */
+	Skip
+};
+
+/**
  * The status of a playable object.
  *
  * This is related to the status of the transient playable object which is
@@ -113,8 +135,9 @@ enum class EAvaPlayableStatus : uint8
 UENUM()
 enum class EAvaPlayableSequenceEventType : uint8
 {
-	None,
+	None UMETA(Hidden),
 	Started,
+	Paused,
 	Finished
 };
 
@@ -126,6 +149,8 @@ enum class EAvaPlayableTransitionFlags : uint8
 	None = 0,
 	/** Playing playables will be treated as exit playables. */
 	TreatPlayingAsExiting = 1 << 0,
+	/** Transition contains some reused playables (i.e. both enter and playing). */
+	HasReusedPlayables = 1 << 1,
 };
 ENUM_CLASS_FLAGS(EAvaPlayableTransitionFlags);
 
@@ -134,12 +159,14 @@ enum class EAvaPlayableTransitionEventFlags : uint8
 	None = 0,
 	/** The transition is starting. */
 	Starting = 1 << 0,
+	/** The enter playable can be shown. */
+	ShowPlayable = 1 << 1,
 	/** The playable needs to be stopped. */
-	StopPlayable = 1 << 1,
+	StopPlayable = 1 << 2,
 	/** The playable needs to be discarded at the end of the transition. */
-	MarkPlayableDiscard = 1 << 2,
+	MarkPlayableDiscard = 1 << 3,
 	/** The transition is finished and can be cleaned up. */
-	Finished = 1 << 3,
+	Finished = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EAvaPlayableTransitionEventFlags);
 
@@ -203,13 +230,14 @@ enum class EAvaRundownPageListChange : uint8
 {
 	None = 0,
 
-	AddedPages        = 1 << 0,
-	RemovedPages      = 1 << 1,
-	RenumberedPageId  = 1 << 2,
-	RenamedPageView   = 1 << 3,
-	ReorderedPageView = 1 << 4,
+	AddedPages            = 1 << 0,
+	RemovedPages          = 1 << 1,
+	RenumberedPageId      = 1 << 2,
+	SubListAddedOrRemoved = 1 << 3,
+	SubListRenamed        = 1 << 4,
+	ReorderedPageView     = 1 << 5,
 
-	All              = 0xFF,
+	All                   = 0xFF,
 };
 ENUM_CLASS_FLAGS(EAvaRundownPageListChange);
 
@@ -286,6 +314,9 @@ enum class EAvaPlaybackStatus
 	Error
 };
 
+/**
+ * Rundown's page list type.
+ */
 UENUM(BlueprintType, DisplayName = "Motion Design Rundown Page List Type")
 enum class EAvaRundownPageListType : uint8
 {
@@ -303,7 +334,7 @@ struct FAvaRundownPageListReference
 	EAvaRundownPageListType Type = EAvaRundownPageListType::Instance;
 
 	UPROPERTY()
-	int32 SubListIndex = INDEX_NONE;
+	FGuid SubListId;
 
 	bool operator==(const FAvaRundownPageListReference& InOther) const
 	{
@@ -312,7 +343,7 @@ struct FAvaRundownPageListReference
 			return false;
 		}
 
-		if (Type == EAvaRundownPageListType::View && SubListIndex != InOther.SubListIndex)
+		if (Type == EAvaRundownPageListType::View && SubListId != InOther.SubListId)
 		{
 			return false;
 		}

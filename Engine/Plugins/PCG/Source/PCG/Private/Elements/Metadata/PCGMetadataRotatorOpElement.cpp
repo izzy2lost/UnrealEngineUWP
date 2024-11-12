@@ -198,7 +198,7 @@ FString UPCGMetadataRotatorSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataRotatorOperation>())
 	{
-		return FString("Rotator: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return FText::Format(NSLOCTEXT("PCGMetadataRotatorSettings", "RotatorOperation", "Rotator: {0}"), EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation))).ToString();
 	}
 	else
 	{
@@ -245,38 +245,37 @@ bool FPCGMetadataRotatorElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	const UPCGMetadataRotatorSettings* Settings = CastChecked<UPCGMetadataRotatorSettings>(OperationData.Settings);
 
-	auto RotatorFunc = [this, &OperationData, Operation = Settings->Operation](auto DummyValue)
+	auto RotatorFunc = [this, &OperationData, Operation = Settings->Operation]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyValue);
-
 		if constexpr (!PCG::Private::IsOfTypes<AttributeType, FQuat, FRotator>())
 		{
-			return;
+			ensure(false);
+			return true;
 		}
 		else
 		{
 			if (PCGMetadataRotatorSettings::IsTransfromOp(Operation))
 			{
-				DoBinaryOp<AttributeType, FTransform>(OperationData, [Operation](const AttributeType& Value, const FTransform& Transform)->AttributeType {
+				return DoBinaryOp<AttributeType, FTransform>(OperationData, [Operation](const AttributeType& Value, const FTransform& Transform)->AttributeType {
 					return PCGMetadataRotatorSettings::ApplyTransformOperation(Value, Transform, Operation);
 					});
 			}
 			else if (PCGMetadataRotatorSettings::IsUnaryOp(Operation))
 			{
-				DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value)->AttributeType {
+				return DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value)->AttributeType {
 					double DummyDouble = 0.0;
 					return PCGMetadataRotatorSettings::ApplyRotatorOperation(Value, AttributeType{}, DummyDouble, Operation);
 				});
 			}
 			else if (PCGMetadataRotatorSettings::IsTernaryOp(Operation))
 			{
-				DoTernaryOp<AttributeType, AttributeType, double>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2, const double& Ratio)->AttributeType {
+				return DoTernaryOp<AttributeType, AttributeType, double>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2, const double& Ratio)->AttributeType {
 					return PCGMetadataRotatorSettings::ApplyRotatorOperation(Value1, Value2, Ratio, Operation);
 				});
 			}
 			else
 			{
-				DoBinaryOp<AttributeType, AttributeType>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2)->AttributeType {
+				return DoBinaryOp<AttributeType, AttributeType>(OperationData, [Operation](const AttributeType& Value1, const AttributeType& Value2)->AttributeType {
 					double DummyDouble = 0.0;
 					return PCGMetadataRotatorSettings::ApplyRotatorOperation(Value1, Value2, DummyDouble, Operation);
 				});
@@ -284,7 +283,5 @@ bool FPCGMetadataRotatorElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 		}
 	};
 
-	PCGMetadataAttribute::CallbackWithRightType(OperationData.OutputType, RotatorFunc);
-
-	return true;
+	return PCGMetadataAttribute::CallbackWithRightType(OperationData.OutputType, RotatorFunc);
 }

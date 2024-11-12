@@ -137,7 +137,12 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 			UE_NET_TRACE_NAMED_DYNAMIC_NAME_SCOPE(ReliabilityScope, Private::ReliabilityNetDebugNames[Attachment->IsReliable()], *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 			// If we have exports, append them, if attachment is rolled back we will roll back any appended exports as well.
-			ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetExports());
+			FNetExportContext* ExportContext = Attachment->HasExports() ? Context.GetExportContext() : nullptr;
+			if (ExportContext)
+			{
+				ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetNetObjectReferenceExports());
+				ExportContext->AddPendingExports(Attachment->CallGetNetTokenExports());
+			}
 
 			Attachment->SerializeCreationInfo(Context, Attachment->GetCreationInfo());
 			if (bSerializeWithObject)
@@ -170,7 +175,7 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 			++SerializedCount;
 
 			++WrittenCount[WrittenIndex];
-			if (WrittenCount[WrittenIndex] == 255)
+			if (WrittenCount[WrittenIndex] == MaxSequenceLength)
 			{
 				++WrittenIndex;
 				if (WrittenIndex >= UE_ARRAY_COUNT(WrittenCount))
@@ -188,8 +193,8 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 	FReplicationRecord Record;
 	for (uint32 Index = 0; Index < MaxWriteSequenceCount; ++Index)
 	{
-		Record.Sequences[Index] = WrittenSeq[Index] & 255U;
-		Record.Counts[Index] = WrittenCount[Index] & 255U;
+		Record.Sequences[Index].Number = WrittenSeq[Index] & (MaxUnackedBlobCount - 1U);
+		Record.Sequences[Index].Count = WrittenCount[Index] & MaxSequenceLength;
 	}
 	OutRecord = Record;
 
@@ -200,9 +205,9 @@ void FReliableNetBlobQueue::CommitReplicationRecord(const FReliableNetBlobQueue:
 {
 	for (uint32 Index = 0, EndIndex = MaxWriteSequenceCount; Index != EndIndex; ++Index)
 	{
-		const uint32 Count = Record.Counts[Index];
+		const uint32 Count = Record.Sequences[Index].Count;
 		UnsentBlobCount -= Count;
-		for (uint32 Seq = Record.Sequences[Index], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
+		for (uint32 Seq = Record.Sequences[Index].Number, EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
 			const uint32 BlobIndex = SequenceToIndex(Seq);
 			SetIndexIsSent(BlobIndex);
@@ -438,8 +443,8 @@ void FReliableNetBlobQueue::OnPacketDelivered(const FReliableNetBlobQueue::FRepl
 	// Mark blobs as acked
 	for (uint32 SeqIt = 0, EndSeqIt = MaxWriteSequenceCount; SeqIt != EndSeqIt; ++SeqIt)
 	{
-		const uint32 Count = Record.Counts[SeqIt];
-		for (uint32 Seq = Record.Sequences[SeqIt], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
+		const uint32 Count = Record.Sequences[SeqIt].Count;
+		for (uint32 Seq = Record.Sequences[SeqIt].Number, EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
 			const uint32 Index = SequenceToIndex(Seq);
 
@@ -459,9 +464,9 @@ void FReliableNetBlobQueue::OnPacketDropped(const FReliableNetBlobQueue::FReplic
 	// Mark blobs as unsent
 	for (uint32 SeqIt = 0, EndSeqIt = MaxWriteSequenceCount; SeqIt != EndSeqIt; ++SeqIt)
 	{
-		const uint32 Count = Record.Counts[SeqIt];
+		const uint32 Count = Record.Sequences[SeqIt].Count;
 		UnsentBlobCount += Count;
-		for (uint32 Seq = Record.Sequences[SeqIt], EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
+		for (uint32 Seq = Record.Sequences[SeqIt].Number, EndSeq = Seq + Count; Seq != EndSeq; ++Seq)
 		{
 			ClearSequenceIsSent(Seq);
 		}

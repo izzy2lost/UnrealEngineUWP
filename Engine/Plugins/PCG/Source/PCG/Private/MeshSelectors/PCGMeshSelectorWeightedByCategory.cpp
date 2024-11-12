@@ -129,7 +129,8 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 				}
 
 				TArray<FPCGMeshInstanceList>& PickEntry = InstancesAndWeights->MeshInstances.Emplace_GetRef();
-				PickEntry.Emplace_GetRef(WeightedEntry.Descriptor);
+				FPCGMeshInstanceList& MeshInstanceList = PickEntry.Emplace_GetRef(WeightedEntry.Descriptor);
+				MeshInstanceList.PointData = InPointData;
 
 				// precompute the weights
 				TotalWeight += WeightedEntry.Weight;
@@ -227,9 +228,9 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 		if(RandomPick < InstancesAndWeights->MeshInstances.Num())
 		{
 			const bool bNeedsReverseCulling = (Point.Transform.GetDeterminant() < 0);
-			FPCGMeshInstanceList& InstanceList = PCGMeshSelectorWeighted::GetInstanceList(InstancesAndWeights->MeshInstances[RandomPick], bUseAttributeMaterialOverrides, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bNeedsReverseCulling);
+			FPCGMeshInstanceList& InstanceList = PCGMeshSelectorWeighted::GetInstanceList(InstancesAndWeights->MeshInstances[RandomPick], bUseAttributeMaterialOverrides, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bNeedsReverseCulling, InPointData);
 			InstanceList.Instances.Emplace(Point.Transform);
-			InstanceList.InstancesMetadataEntry.Emplace(Point.MetadataEntry);
+			InstanceList.InstancesIndices.Emplace(CurrentPointIndex - 1); // - 1 because it is already incremented.
 
 			const TSoftObjectPtr<UStaticMesh>& Mesh = InstanceList.Descriptor.StaticMesh;
 
@@ -342,7 +343,7 @@ void UPCGMeshSelectorWeightedByCategory::PostEditChangeProperty(FPropertyChanged
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FSoftISMComponentDescriptor, StaticMesh))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FPCGSoftISMComponentDescriptor, StaticMesh))
 	{
 		RefreshDisplayNames();
 	}

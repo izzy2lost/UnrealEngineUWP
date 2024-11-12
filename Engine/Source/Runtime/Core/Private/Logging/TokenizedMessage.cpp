@@ -306,4 +306,16 @@ const FOnMessageTokenActivated& FActorToken::GetOnMessageTokenActivated() const
 	}
 }
 
+TSharedRef<FFixToken> FFixToken::Create(const FText& InName, TSharedRef<UE::DataValidation::IFixer> InFixer, int32 InFixIndex)
+{
+	return MakeShared<FFixToken>(FPrivateToken(), InName, MoveTemp(InFixer), InFixIndex);
+}
+
+FFixToken::FFixToken(const FText& InName, TSharedPtr<UE::DataValidation::IFixer> InFixer, int32 InFixIndex)
+	: Fixer(MoveTemp(InFixer))
+	, FixIndex(InFixIndex)
+{
+	CachedText = InName.IsEmpty() ? LOCTEXT("FixLabelEmpty", "Fix Issue") : InName;
+}
+
 #undef LOCTEXT_NAMESPACE

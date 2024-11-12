@@ -28,6 +28,7 @@ public:
 		, _IsLockActivityFilteringEnabled(false)
 		, _IsPackageActivityFilteringEnabled(true)
 		, _IsTransactionActivityFilteringEnabled(true)
+		, _IsReplicationActivityFilteringEnabled(true)
 		, _IsIgnoredActivityFilteringEnabled(false)
 		, _AreRecoverAllAndCancelButtonsVisible(true)
 		, _IsRecoverThroughButtonsVisible(true) {}
@@ -76,6 +77,9 @@ public:
 
 		/** Show/hide the check box in the 'View Options' to filter transaction activities. */
 		SLATE_ARGUMENT(bool, IsTransactionActivityFilteringEnabled)
+		
+		/** Show/hide the check box in the 'View Options' to filter replication activities. */
+		SLATE_ARGUMENT(bool, IsReplicationActivityFilteringEnabled)
 
 		/** Show/hide the check box in the 'View Options' to filter unrecoverable activities. */
 		SLATE_ARGUMENT(bool, IsIgnoredActivityFilteringEnabled)

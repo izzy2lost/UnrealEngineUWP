@@ -62,6 +62,7 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 		RootMotionProvider = nullptr;
 	}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// applying MotionMatchingState.ComponentDeltaYaw (considered as root bone delta yaw) to the root bone and the root motion delta transform
 	if (!FMath::IsNearlyZero(MotionMatchingState.ComponentDeltaYaw))
 	{
@@ -84,10 +85,7 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 	}
 
 	MotionMatchingState.AnimationDeltaYaw = FRotator(RootMotionTransformDelta.GetRotation()).Yaw;
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-	MotionMatchingState.RootMotionTransformDelta = RootMotionTransformDelta;
-#endif //UE_POSE_SEARCH_TRACE_ENABLED
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
@@ -194,14 +192,46 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		const UPoseSearchDatabase* CurrentResultDatabase = MotionMatchingState.CurrentSearchResult.Database.Get();
 		if (SearchIndexAsset && CurrentResultDatabase && CurrentResultDatabase->Schema)
 		{
-			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = CurrentResultDatabase->GetAnimationAssetBase(*SearchIndexAsset);
+			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = CurrentResultDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset);
 			check(DatabaseAsset);
 
 			if (UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(DatabaseAsset->GetAnimationAsset()))
 			{
-				FAnimNode_BlendStack_Standalone::BlendTo(Context, AnimationAsset, MotionMatchingState.CurrentSearchResult.AssetTime,
-					SearchIndexAsset->IsLooping(), SearchIndexAsset->IsMirrored(), CurrentResultDatabase->Schema->GetMirrorDataTable(DefaultRole), BlendTime,
-					BlendProfile, BlendOption, bUseInertialBlend, SearchIndexAsset->GetBlendParameters(), MotionMatchingState.WantedPlayRate);
+				// Clear up any sync group info before pushing new asset player (which will have sync info since its the highest weighted).
+				for (FBlendStackAnimPlayer& AnimPlayer : AnimPlayers)
+				{
+					if (FAnimNode_AssetPlayerBase* AssetPlayerNode = AnimPlayer.GetAssetPlayerNode())
+					{
+						AssetPlayerNode->SetGroupMethod(EAnimSyncMethod::DoNotSync);
+						AssetPlayerNode->SetGroupRole(EAnimGroupRole::CanBeLeader);
+						AssetPlayerNode->SetGroupName(NAME_None);
+					}
+				}
+
+				bool bAbortBlend = false;
+				if (!AnimPlayers.IsEmpty() && GetBlendspaceParametersDeltaThreshold() > 0.0f)
+				{
+					if (AnimPlayers[0].GetAnimationAsset() == AnimationAsset)
+					{
+						const FVector CurrentBlendParameters = AnimPlayers[0].GetBlendParameters();
+						const FVector DesiredBlendParameters = GetBlendspaceParameters();
+						const float Delta = (CurrentBlendParameters - DesiredBlendParameters).SizeSquared();
+						if (Delta < FMath::Square(GetBlendspaceParametersDeltaThreshold()))
+						{
+							// If we haven't changed assets, and our currently playing blendspace xy is within threshold of change, then keep playing it.
+							// Time differences should be OK because of the call to AdjustAssetTime before the search.
+							bAbortBlend = true;
+						}
+					}
+				}
+				
+				if (!bAbortBlend)
+				{
+					FAnimNode_BlendStack_Standalone::BlendTo(Context, AnimationAsset, MotionMatchingState.CurrentSearchResult.AssetTime,
+						SearchIndexAsset->IsLooping(), SearchIndexAsset->IsMirrored(), CurrentResultDatabase->Schema->GetMirrorDataTable(DefaultRole), BlendTime,
+						BlendProfile, BlendOption, bUseInertialBlend, SearchIndexAsset->GetBlendParameters(), MotionMatchingState.WantedPlayRate * PlayRateMultiplier, 0,
+						GetGroupName(), GetGroupRole(), GetGroupMethod(), GetOverridePositionWhenJoiningSyncGroupAsLeader());
+				}
 			}
 			else
 			{
@@ -213,7 +243,9 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	const bool bDidBlendToRequestAnInertialBlend = MotionMatchingState.bJumpedToPose && bUseInertialBlend;
 	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(bDidBlendToRequestAnInertialBlend, Context);
 	
-	FAnimNode_BlendStack_Standalone::UpdatePlayRate(MotionMatchingState.WantedPlayRate);
+	FAnimNode_BlendStack_Standalone::UpdatePlayRate(MotionMatchingState.WantedPlayRate * PlayRateMultiplier);
+	FAnimNode_BlendStack_Standalone::UpdateBlendspaceParameters(GetBlendspaceUpdateMode(), GetBlendspaceParameters());
+
 	FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(Context);
 
 	NextUpdateInterruptMode = EPoseSearchInterruptMode::DoNotInterrupt;
@@ -275,6 +307,103 @@ bool FAnimNode_MotionMatching::SetIgnoreForRelevancyTest(bool bInIgnoreForReleva
 		return true;
 	}
 
+	return false;
+}
+
+const FVector& FAnimNode_MotionMatching::GetBlendspaceParameters() const
+{
+	return GET_ANIM_NODE_DATA(FVector, BlendParameters);
+}
+
+float FAnimNode_MotionMatching::GetBlendspaceParametersDeltaThreshold() const
+{
+	return GET_ANIM_NODE_DATA(float, BlendParametersDeltaThreshold);
+}
+
+EBlendStack_BlendspaceUpdateMode FAnimNode_MotionMatching::GetBlendspaceUpdateMode() const
+{
+	return GET_ANIM_NODE_DATA(EBlendStack_BlendspaceUpdateMode, BlendspaceUpdateMode);
+}
+
+FName FAnimNode_MotionMatching::GetGroupName() const
+{
+	return GET_ANIM_NODE_DATA(FName, GroupName);
+}
+
+EAnimGroupRole::Type FAnimNode_MotionMatching::GetGroupRole() const
+{
+	return GET_ANIM_NODE_DATA(TEnumAsByte<EAnimGroupRole::Type>, GroupRole);
+}
+
+EAnimSyncMethod FAnimNode_MotionMatching::GetGroupMethod() const
+{
+	return GET_ANIM_NODE_DATA(EAnimSyncMethod, Method);
+}
+
+bool FAnimNode_MotionMatching::GetOverridePositionWhenJoiningSyncGroupAsLeader() const
+{
+	return GET_ANIM_NODE_DATA(bool, bOverridePositionWhenJoiningSyncGroupAsLeader);
+}
+
+bool FAnimNode_MotionMatching::IsLooping() const
+{
+	if (!AnimPlayers.IsEmpty())
+	{
+		return AnimPlayers[0].IsLooping();
+	}
+	return false;
+}
+
+bool FAnimNode_MotionMatching::SetGroupName(FName InGroupName)
+{
+#if WITH_EDITORONLY_DATA
+	GroupName = InGroupName;
+#endif
+	if(FName* GroupNamePtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(FName, GroupName))
+	{
+		*GroupNamePtr = InGroupName;
+		return true;
+	}
+	return false;
+}
+
+bool FAnimNode_MotionMatching::SetGroupRole(EAnimGroupRole::Type InRole)
+{
+#if WITH_EDITORONLY_DATA
+	GroupRole = InRole;
+#endif
+	
+	if(TEnumAsByte<EAnimGroupRole::Type>* GroupRolePtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(TEnumAsByte<EAnimGroupRole::Type>, GroupRole))
+	{
+		*GroupRolePtr = InRole;
+		return true;
+	}
+	return false;
+}
+
+bool FAnimNode_MotionMatching::SetGroupMethod(EAnimSyncMethod InMethod)
+{
+#if WITH_EDITORONLY_DATA
+	Method = InMethod;
+#endif
+	if(EAnimSyncMethod* MethodPtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(EAnimSyncMethod, Method))
+	{
+		*MethodPtr = InMethod;
+		return true;
+	}
+	return false;
+}
+
+bool FAnimNode_MotionMatching::SetOverridePositionWhenJoiningSyncGroupAsLeader(bool InOverridePositionWhenJoiningSyncGroupAsLeader)
+{
+#if WITH_EDITORONLY_DATA
+	bOverridePositionWhenJoiningSyncGroupAsLeader = InOverridePositionWhenJoiningSyncGroupAsLeader;
+#endif
+	if(bool* bOverridePositionWhenJoiningSyncGroupAsLeaderPtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(bool, bOverridePositionWhenJoiningSyncGroupAsLeader))
+	{
+		*bOverridePositionWhenJoiningSyncGroupAsLeaderPtr = InOverridePositionWhenJoiningSyncGroupAsLeader;
+		return true;
+	}
 	return false;
 }
 

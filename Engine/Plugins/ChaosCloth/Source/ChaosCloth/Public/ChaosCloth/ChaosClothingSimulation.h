@@ -87,16 +87,17 @@ namespace Chaos
 #if WITH_EDITOR
 		// Editor only debug draw function
 		void DebugDrawPhysMeshShaded(FPrimitiveDrawInterface* PDI) const { Visualization.DrawPhysMeshShaded(PDI); }
-		void DebugDrawParticleIndices(FCanvas* Canvas, const FSceneView* SceneView) const { Visualization.DrawParticleIndices(Canvas, SceneView); }
-		void DebugDrawElementIndices(FCanvas* Canvas, const FSceneView* SceneView) const { Visualization.DrawElementIndices(Canvas, SceneView); }
-		void DebugDrawMaxDistanceValues(FCanvas* Canvas, const FSceneView* SceneView) const { Visualization.DrawMaxDistanceValues(Canvas, SceneView); }
 #endif  // #if WITH_EDITOR
 
 #if CHAOS_DEBUG_DRAW
 		// Editor & runtime debug draw functions
+		void DebugDrawParticleIndices(FCanvas* Canvas = nullptr, const FSceneView* SceneView = nullptr) const { Visualization.DrawParticleIndices(Canvas, SceneView); }
+		void DebugDrawElementIndices(FCanvas* Canvas = nullptr, const FSceneView* SceneView = nullptr) const { Visualization.DrawElementIndices(Canvas, SceneView); }
+		void DebugDrawMaxDistanceValues(FCanvas* Canvas = nullptr, const FSceneView* SceneView = nullptr) const { Visualization.DrawMaxDistanceValues(Canvas, SceneView); }
 		void DebugDrawPhysMeshWired(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawPhysMeshWired(PDI); }
 		void DebugDrawAnimMeshWired(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawAnimMeshWired(PDI); }
 		void DebugDrawAnimNormals(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawAnimNormals(PDI); }
+		void DebugDrawAnimVelocities(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawAnimVelocities(PDI); }
 		void DebugDrawPointNormals(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawPointNormals(PDI); }
 		void DebugDrawPointVelocities(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawPointVelocities(PDI); }
 		void DebugDrawCollision(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawCollision(PDI); }
@@ -108,8 +109,6 @@ namespace Chaos
 		void DebugDrawBendingConstraint(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawBendingConstraint(PDI); }
 		void DebugDrawLongRangeConstraint(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawLongRangeConstraint(PDI); }
 		void DebugDrawWindAndPressureForces(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawWindAndPressureForces(PDI); }
-		UE_DEPRECATED(5.1, "DebugDrawWindForces has been renamed DebugDrawWindAndPressureForces.")
-		void DebugDrawWindForces(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawWindAndPressureForces(PDI); }
 		void DebugDrawLocalSpace(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawLocalSpace(PDI); }
 		void DebugDrawSelfCollision(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawSelfCollision(PDI); }
 		void DebugDrawSelfIntersection(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawSelfIntersection(PDI); }
@@ -125,13 +124,13 @@ namespace Chaos
 
 	private:
 		// Visualization object
-		FClothVisualization Visualization;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FClothVisualization Visualization;  // TODO: Replace with FClothVisualizationNoGC in 5.7
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Simulation objects
 		TUniquePtr<FClothingSimulationSolver> Solver;  // Default solver
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		TArray<TUniquePtr<FClothingSimulationMesh>> Meshes;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<TUniquePtr<FClothingSimulationCloth>> Cloths;
 		TArray<TUniquePtr<FClothingSimulationCollider>> Colliders;
 		TArray<TUniquePtr<FClothingSimulationConfig>> Configs;

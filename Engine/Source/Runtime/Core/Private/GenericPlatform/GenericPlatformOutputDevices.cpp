@@ -139,7 +139,6 @@ class FOutputDevice* FGenericPlatformOutputDevices::GetLog()
 		FLogOutputDeviceInitializer()
 		{
 #if WITH_LOGGING_TO_MEMORY
-#if !IS_PROGRAM && !WITH_EDITORONLY_DATA
 			if (!LogDevice
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				&& FParse::Param(FCommandLine::Get(), TEXT("LOGTOMEMORY"))
@@ -150,7 +149,6 @@ class FOutputDevice* FGenericPlatformOutputDevices::GetLog()
 			{
 				LogDevice = MakeUnique<FOutputDeviceMemory>();
 			}
-#endif // !IS_PROGRAM && !WITH_EDITORONLY_DATA
 #endif // WITH_LOGGING_TO_MEMORY
 			if (!LogDevice)
 			{

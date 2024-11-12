@@ -6,6 +6,7 @@ using EpicGames.Horde.Common;
 using EpicGames.Horde.Server;
 
 #pragma warning disable CA2227 // Collection properties should be read only
+#pragma warning disable CA1056 // Change string to URI
 
 namespace EpicGames.Horde.Dashboard
 {
@@ -60,9 +61,9 @@ namespace EpicGames.Horde.Dashboard
 		public List<GetDashboardPoolCategoryResponse> PoolCategories { get; set; } = new List<GetDashboardPoolCategoryResponse>();
 
 		/// <summary>
-		/// Telemetry to display on the telemetry page
+		/// Configured artifact types
 		/// </summary>
-		public List<GetTelemetryViewResponse> TelemetryViews { get; set; } = new List<GetTelemetryViewResponse>();
+		public List<string> ArtifactTypes { get; set; } = new List<string>();
 
 	}
 
@@ -232,132 +233,4 @@ namespace EpicGames.Horde.Dashboard
 		public bool NeedsAuthorization { get; set; } = true;
 
 	}
-
-	#region Telemetry
-
-	/// <summary>
-	/// Metric attached to a telemetry chart
-	/// </summary>
-	public class GetTelemetryChartMetricResponse
-	{
-		/// <summary>
-		/// Associated metric id
-		/// </summary>		
-		public string MetricId { get; set; } = null!;
-
-		/// <summary>
-		/// The threshold for KPI values
-		/// </summary>
-		public int? Threshold { get; set; }
-
-		/// <summary>
-		/// The metric alias for display purposes
-		/// </summary>
-		public string? Alias { get; set; }
-	}
-
-	/// <summary>
-	/// Telemetry chart configuraton
-	/// </summary>
-	public class GetTelemetryChartResponse
-	{
-		/// <summary>
-		/// The name of the chart, will be displayed on the dashboard
-		/// </summary>		
-		public string Name { get; set; } = null!;
-
-		/// <summary>
-		/// The unit to display
-		/// </summary>
-		public string Display { get; set; } = null!;
-
-		/// <summary>
-		/// The graph type 
-		/// </summary>
-		public string Graph { get; set; } = null!;
-
-		/// <summary>
-		/// List of configured metrics
-		/// </summary>
-		public List<GetTelemetryChartMetricResponse> Metrics { get; set; } = new List<GetTelemetryChartMetricResponse>();
-
-		/// <summary>
-		/// The min unit value for clamping chart
-		/// </summary>
-		public int? Min { get; set; }
-
-		/// <summary>
-		/// The max unit value for clamping chart
-		/// </summary>
-		public int? Max { get; set; }
-	}
-
-	/// <summary>
-	/// A chart categody, will be displayed on the dashbord under an associated pivot
-	/// </summary>
-	public class GetTelemetryCategoryResponse
-	{
-		/// <summary>
-		/// The name of the category
-		/// </summary>		
-		public string Name { get; set; } = null!;
-
-		/// <summary>
-		/// The charts contained within the category
-		/// </summary>
-		public List<GetTelemetryChartResponse> Charts { get; set; } = new List<GetTelemetryChartResponse> { };
-	}
-
-	/// <summary>
-	/// A telemetry view variable used for filtering the charting data
-	/// </summary>
-	public class GetTelemetryVariableResponse
-	{
-		/// <summary>
-		/// The name of the variable for display purposes
-		/// </summary>
-		public string Name { get; set; } = null!;
-
-		/// <summary>
-		/// The associated data group attached to the variable 
-		/// </summary>
-		public string Group { get; set; } = null!;
-
-		/// <summary>
-		/// The default values to select
-		/// </summary>
-		public List<string> Defaults { get; set; } = new List<string> { };
-	}
-
-	/// <summary>
-	/// A telemetry view of related metrics, divided into categofies
-	/// </summary>
-	public class GetTelemetryViewResponse
-	{
-		/// <summary>
-		/// Identifier for the view
-		/// </summary>
-		public string Id { get; set; } = null!;
-
-		/// <summary>
-		/// The name of the view
-		/// </summary>
-		public string Name { get; set; } = null!;
-
-		/// <summary>
-		/// The telemetry store the view uses
-		/// </summary>
-		public string TelemetryStoreId { get; set; } = null!;
-
-		/// <summary>
-		///  The variables used to filter the view data
-		/// </summary>
-		public List<GetTelemetryVariableResponse> Variables { get; set; } = new List<GetTelemetryVariableResponse> { };
-
-		/// <summary>
-		/// The categories contained within the view
-		/// </summary>
-		public List<GetTelemetryCategoryResponse> Categories { get; set; } = new List<GetTelemetryCategoryResponse> { };
-	}
-	#endregion
 }

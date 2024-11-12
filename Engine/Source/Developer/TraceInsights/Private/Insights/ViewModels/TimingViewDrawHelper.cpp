@@ -7,12 +7,14 @@
 #include "Rendering/DrawElements.h"
 #include "Styling/AppStyle.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
+#include "Insights/TimingProfiler/Tracks/MarkersTimingTrack.h"
 #include "Insights/ViewModels/DrawHelpers.h"
-#include "Insights/ViewModels/MarkersTimingTrack.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TimingEventsTrack.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
@@ -40,7 +42,7 @@ FTimingEventsTrackDrawStateBuilder::FTimingEventsTrackDrawStateBuilder(FTimingEv
 void FTimingEventsTrackDrawStateBuilder::AppendDurationToEventName(FString& InOutEventName, const double InDuration)
 {
 	InOutEventName += TEXT(" (");
-	InOutEventName += TimeUtils::FormatTimeAuto(InDuration);
+	InOutEventName += UE::Insights::FormatTimeAuto(InDuration);
 	InOutEventName += TEXT(")");
 }
 
@@ -266,7 +268,7 @@ void FTimingEventsTrackDrawStateBuilder::Flush()
 // FTimingViewDrawHelper
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FTimingViewDrawHelper::FTimingViewDrawHelper(const FDrawContext& InDrawContext, const FTimingTrackViewport& InViewport)
+FTimingViewDrawHelper::FTimingViewDrawHelper(const UE::Insights::FDrawContext& InDrawContext, const FTimingTrackViewport& InViewport)
 	: DrawContext(InDrawContext)
 	, Viewport(InViewport)
 	, WhiteBrush(FInsightsStyle::Get().GetBrush("WhiteBrush"))
@@ -287,6 +289,15 @@ FTimingViewDrawHelper::FTimingViewDrawHelper(const FDrawContext& InDrawContext, 
 	, NumDrawTexts(0)
 {
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FTimingViewDrawHelper::FTimingViewDrawHelper(const ::FDrawContext& InDrawContext, const FTimingTrackViewport& InViewport)
+	: FTimingViewDrawHelper((const UE::Insights::FDrawContext&)InDrawContext, InViewport)
+{
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

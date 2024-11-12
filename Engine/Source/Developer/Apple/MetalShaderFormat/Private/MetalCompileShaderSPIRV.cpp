@@ -11,13 +11,13 @@
 #include "SpirvReflectCommon.h"
 #include "ShaderParameterParser.h"
 #include "Misc/OutputDeviceRedirector.h"
+#include "Containers/AnsiString.h"
 
 #include <regex>
 
 extern void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
-	FSHAHash const& GUIDHash,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -41,82 +41,141 @@ extern void BuildMetalShaderOutput(
 #endif
 );
 
-static void Patch16bitInHlslSource(const FShaderCompilerInput& Input, std::string& SourceData)
-{
-	static const std::string TextureTypes [] = {
-		"Texture1D",
-		"Texture1DArray",
-		"Texture2D",
-		"Texture2DArray",
-		"Texture3D",
-		"TextureCube",
-		"TextureCubeArray",
-		"Buffer"
-	};
+static void Patch16bitInHlslSource(const FShaderCompilerInput& Input, FAnsiString& SourceData)
+{	
+	TArray<int32> PatchPositions;
 	
-	// half precision textures and buffers are not supported in DXC
-	for(uint32_t i = 0; i < UE_ARRAY_COUNT(TextureTypes); ++i)
+	static const FAnsiStringView TextureStr = "Texture";
+	static const FAnsiStringView HalfStr("half");
+	static const FAnsiStringView FloatStr("float");
+	
+	// Find all half texture and buffer types to patch
 	{
-		const std::string & TextureTypeString = TextureTypes[i];
-		
-		std::regex pattern(TextureTypeString + "<\\s?half");
-		SourceData = std::regex_replace(SourceData, pattern, TextureTypeString + "<float");
+		int32 Pos = SourceData.Find(TextureStr );
+		while (Pos != INDEX_NONE)
+		{
+			Pos += TextureStr.Len();
+			if (Pos >= SourceData.Len())
+			{
+				break;
+			}
+			static const FAnsiStringView TextureTypeNames[] =
+			{
+				"1D<",
+				"1DArray<",
+				"2D<",
+				"2DArray<",
+				"3D<",
+				"Cube<",
+				"CubeArray<"
+			};
+			
+			FAnsiStringView CodeStr(&SourceData[Pos], SourceData.Len() - Pos);
+			for (const FAnsiStringView& TextureTypeStr : TextureTypeNames)
+			{
+				if (CodeStr.StartsWith(TextureTypeStr))
+				{
+					CodeStr.RightChopInline(TextureTypeStr.Len());
+					CodeStr.TrimStartInline();
+					if (CodeStr.StartsWith(HalfStr))
+					{
+						PatchPositions.Push(CodeStr.GetData() - *SourceData);
+					}
+				}
+			}
+			
+			Pos = SourceData.Find(TextureStr, ESearchCase::CaseSensitive, ESearchDir::FromStart, Pos);
+		}
 	}
 	
-	static const std::string ConstHalf = "const half";
-	static const std::string ConstFloat = "const float";
-	
-	// Replace half in constant buffers to use float
-	for (const TPair<FString, FUniformBufferEntry> & Pair : Input.Environment.UniformBufferMap)
 	{
-		std::string CBufferName = std::string("cbuffer ") + TCHAR_TO_UTF8(*Pair.Key);
-		
-		size_t StructPos = SourceData.find(CBufferName);
-		if(StructPos != std::string::npos)
+		static const FAnsiStringView BufferStr = "Buffer<";
+		int32 Pos = SourceData.Find(BufferStr);
+		while (Pos != INDEX_NONE)
 		{
-			size_t StructEndPos = SourceData.find("};", StructPos);
-			if(StructEndPos != std::string::npos)
+			Pos += BufferStr.Len();
+			if (Pos >= SourceData.Len())
 			{
-				TArray<size_t> HalfPositions;
-				size_t HalfPos = SourceData.find(ConstHalf, StructPos);
-				
-				while(HalfPos != std::string::npos &&
-					  HalfPos < StructEndPos)
+				break;
+			}
+
+			FAnsiStringView CodeStr(&SourceData[Pos], SourceData.Len() - Pos);
+			CodeStr.TrimStartInline();
+			if (CodeStr.StartsWith(HalfStr))
+			{
+				PatchPositions.Push(CodeStr.GetData() - *SourceData);
+			}
+			Pos = SourceData.Find(BufferStr, ESearchCase::CaseSensitive, ESearchDir::FromStart, Pos);
+		}
+	}
+	
+	// Convert global uniforms to float (uniforms in uniform buffers are always float via shader macro UB_HALF_FLOAT)
+	FAnsiStringView CodeStr = SourceData;
+	while(CodeStr.Len() > 0)
+	{
+		CodeStr.TrimStartInline();
+		if (CodeStr.StartsWith(HalfStr))
+		{
+			int32 PatchPos = CodeStr.GetData() - *SourceData;
+			CodeStr.RemovePrefix(HalfStr.Len());
+			char Head = CodeStr[0];
+			if (Head == '1' || Head == '2' || Head == '3' || Head == '4')
+			{
+				CodeStr.RemovePrefix(1);
+				Head = CodeStr[0];
+			}
+			if (isspace(Head))
+			{
+				CodeStr.TrimStartInline();
+				Head = CodeStr[0];
+				if (isalpha(Head) || Head == '_')
 				{
-					HalfPositions.Add(HalfPos);
-					HalfPos = SourceData.find(ConstHalf, HalfPos + ConstHalf.size());
-				}
-				
-				for(int32_t i = HalfPositions.Num()-1; i >= 0; i--)
-				{
-					SourceData.replace(HalfPositions[i], ConstHalf.size(), ConstFloat);
+					for (char C : CodeStr)
+					{
+						if (isalnum(C) || isspace(C) || C == '_')
+						{
+							continue;
+						}
+						else if (C == ';')
+						{
+							PatchPositions.Push(PatchPos);
+							break;
+						}
+						else
+						{
+							break;
+						}
+					}
 				}
 			}
 		}
-	}
-	
-	// Replace Globals
-	size_t GlobalPos = SourceData.find(std::string("\n") + ConstHalf);
-	while(GlobalPos != std::string::npos)
-	{
-		// Check this is a global and not an assignment
-		size_t LineEndPos = SourceData.find(";", GlobalPos);
-		size_t AssignmentPos = SourceData.find("=", GlobalPos);
-		
-		if(AssignmentPos == std::string::npos || AssignmentPos > LineEndPos)
+		// This is brittle, but only consider "half" types at the beginning of a new line of code.
+		// We only want to replace global uniforms, not local variables or variables inside uniform buffers.
+		int32 FindPos = CodeStr.Find("\nhalf", 1);
+		if (FindPos == INDEX_NONE)
 		{
-			SourceData.replace(GlobalPos+1, ConstHalf.size(), ConstFloat);
+			break;
 		}
-		
-		GlobalPos = SourceData.find(std::string("\n") + ConstHalf, GlobalPos+ConstHalf.size());
+		CodeStr.RemovePrefix(FindPos + 1);
 	}
+
+	// Create new code string where all relevant "half" strings are replaced with "float"
+	FAnsiString Result = FAnsiString::ConstructWithSlack("", SourceData.Len() + PatchPositions.Num());
+	int32 LastEndPatchPos = 0;
+	for (const int32 Pos : PatchPositions)
+	{
+		Result.Append(&SourceData[LastEndPatchPos], Pos - LastEndPatchPos);
+		Result.Append(FloatStr);
+		LastEndPatchPos = Pos + HalfStr.Len();
+	}
+	Result.Append(&SourceData[LastEndPatchPos], SourceData.Len() - LastEndPatchPos);
+	SourceData = std::move(Result);
 }
 
 void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 	const FShaderCompilerInput& Input,
 	FShaderCompilerOutput& Output,
 	const FString& InPreprocessedShader,
-	FSHAHash GUIDHash,
 	uint32 VersionEnum,
 	EMetalGPUSemantics Semantics,
 	uint32 MaxUnrollLoops,
@@ -171,6 +230,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 		CrossCompiler::FShaderConductorOptions Options;
 
 		Options.TargetEnvironment = CrossCompiler::FShaderConductorOptions::ETargetEnvironment::Vulkan_1_1;
+		Options.bWarningsAsErrors = Input.Environment.CompilerFlags.Contains(CFLAG_WarningsAsErrors);
 
 		// Enable HLSL 2021 if specified
 		if (Input.Environment.CompilerFlags.Contains(CFLAG_HLSL2021))
@@ -197,21 +257,18 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 		// Load shader source into compiler context
 		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
 
-		// Rewrite HLSL source code to remove unused global resources and variables
-		Options.bRemoveUnusedGlobals = true;
-		if (!CompilerContext.RewriteHlsl(Options, &PreprocessedShader))
-		{
-			CompilerContext.FlushErrors(Output.Errors);
-		}
-		Options.bRemoveUnusedGlobals = false;
-
 		// Convert shader source to ANSI string
-		std::string SourceData(CompilerContext.GetSourceString(), static_cast<size_t>(CompilerContext.GetSourceLength()));
+		FAnsiString SourceData = FAnsiString::ConstructFromPtrSize(CompilerContext.GetSourceString(), CompilerContext.GetSourceLength());
 
 		// Replace special case texture "gl_LastFragData" by native subpass fetch operation
 		static const uint32 MaxMetalSubpasses = 8;
 		uint32 SubpassInputsDim[MaxMetalSubpasses];
 
+		if (bDumpDebugInfo)
+		{
+			DumpDebugShaderText(Input, &SourceData[0], SourceData.Len(), TEXT("orig.hlsl"));
+		}
+		
 		bool bSourceDataWasModified = PatchSpecialTextureInHlslSource(SourceData, SubpassInputsDim, MaxMetalSubpasses);
 		
 		// If using 16 bit types disable half precision in constant buffer due to errors in layout
@@ -224,12 +281,12 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 		// If source data was modified, reload it into the compiler context
 		if (bSourceDataWasModified)
 		{
-			CompilerContext.LoadSource(FAnsiStringView(SourceData.c_str(), SourceData.length()), Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
+			CompilerContext.LoadSource(FAnsiStringView(*SourceData, SourceData.Len()), Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
 		}
 
 		if (bDumpDebugInfo)
 		{
-			DumpDebugShaderText(Input, &SourceData[0], SourceData.size(), TEXT("rewritten.hlsl"));
+			DumpDebugShaderText(Input, &SourceData[0], SourceData.Len(), TEXT("rewritten.hlsl"));
 		}
 		
 		CrossCompiler::FHlslccHeaderWriter CCHeaderWriter;
@@ -255,7 +312,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 			// Now perform reflection on the SPIRV and tweak any decorations that we need to.
 			// This used to be done via JSON, but that was slow and alloc happy so use SPIRV-Reflect instead.
 			spv_reflect::ShaderModule Reflection(SpirvData.Num() * sizeof(uint32), SpirvData.GetData());
-			check(Reflection.GetResult() == SPV_REFLECT_RESULT_SUCCESS);
+			checkf(Reflection.GetResult() == SPV_REFLECT_RESULT_SUCCESS, TEXT("SPIRV-reflect failed with error %d"), Reflection.GetResult());
 			
 			SpvReflectResult SPVRResult = SPV_REFLECT_RESULT_NOT_READY;
 			uint32 Count = 0;
@@ -1117,6 +1174,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 							case UBMT_TEXTURE:
 							case UBMT_RDG_TEXTURE:
 							case UBMT_RDG_TEXTURE_SRV:
+							case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 							case UBMT_SRV:
 							case UBMT_SAMPLER:
 							case UBMT_RDG_BUFFER_SRV:
@@ -1141,6 +1199,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 										case UBMT_TEXTURE:
 										case UBMT_RDG_TEXTURE:
 										case UBMT_RDG_TEXTURE_SRV:
+										case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 										case UBMT_SRV:
 										{
 											std::string typeName = "texture_buffer<float, access::read>";
@@ -1305,7 +1364,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 	if (Result != 0)
 	{
 		Output.Target = Input.Target;
-		BuildMetalShaderOutput(Output, Input, GUIDHash, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics
+		BuildMetalShaderOutput(Output, Input, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
 		  , 0, 0, 0, false, nullptr, FMetalShaderBytecode()
 #endif

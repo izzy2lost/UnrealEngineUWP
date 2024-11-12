@@ -36,6 +36,10 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 			BufferDescriptor OutputDesc = Output.EditTexture().GetBufferDescriptor();
 			const BufferDescriptor& InputDesc = Source.GetTexture()->GetDescriptor();
 
+			// When Output and Input desc don't match, it just ignores input's Desc sRGB value and uses Output desc value (which is currently always false) 
+			// Right now, the sRGB settings cannot be changed in the output node, so we can safely apply the input sRGB setting here.
+			OutputDesc.bIsSRGB = InputDesc.bIsSRGB;
+			
 			/// If the descriptors are not the same
 			if (OutputDesc != InputDesc)
 			{
@@ -95,6 +99,22 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 	}
 }
 
+bool UTG_Expression_Output::Validate(MixUpdateCyclePtr	Cycle)
+{
+	FString Errors;
+	
+	const UTG_Pin* OutputSettingsPin = GetParentNode()->GetPin("OutputSettings");
+
+	if(!OutputSettingsPin->IsConnected() && !OutputSettings.Validate(Errors))
+	{
+		UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
+		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Errors, GetParentNode());
+	}
+
+	return Super::Validate(Cycle);
+}
+
 void UTG_Expression_Output::SetTitleName(FName NewName)
 {
 	GetParentNode()->GetOutputPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, Output))->SetAliasName(NewName);
@@ -121,15 +141,10 @@ void UTG_Expression_Output::InitializeOutputSettings()
 	OutputSettings.Initialize(GetParentNode()->GetGraph()->GetPathName(),GetTitleName());
 
 	UTG_Pin* Settings = GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings));
-	Settings->SetValue(OutputSettings.ToString());
+	Settings->FromString(OutputSettings.ToString());
 }
 
-void UTG_Expression_Output::SetExport(bool bExport)
+void UTG_Expression_Output::SetShouldExport(bool InShouldExport)
 {
-	OutputSettings.bExport = bExport;
-	UTG_Pin* Settings = GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings));
-
-	// We are calling this instead of SetValue() to avoid rendering trigger.
-	// TODO: Better solution is that we should have NoInvalidate meta in UProperty or come up with a better solution.
-	Settings->EditSelfVar()->SetValueFromStr(OutputSettings.ToString());
+	bShouldExport = InShouldExport;
 }

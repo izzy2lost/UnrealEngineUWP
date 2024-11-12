@@ -80,6 +80,20 @@ enum class EProcessRootMotionMode : uint8
 	LoopAndReset
 };
 
+/** Different modes for visualizing root motion */
+UENUM()
+enum class EVisualizeRootMotionMode : uint8
+{
+	/** Preview will not show root motion */
+	None,
+
+	/** Preview will show root motion path */
+	Trajectory,
+
+	/** Preview will show root motion path and orientation. */
+	TrajectoryAndOrientation
+};
+
 //////////////////////////////////////////////////////////////////////////
 // FDebugSkelMeshSceneProxy
 
@@ -234,6 +248,14 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY(Transient)
 	uint32 bDisplaySourceAnimation:1;
 
+	/** Display Notification visualizations in viewport */
+	UPROPERTY(Transient)
+	uint32 bShowNotificationVisualizations:1;
+
+	/** Display Metadata visualizations in viewport */
+	UPROPERTY(Transient)
+	uint32 bShowAssetUserDataVisualizations:1;
+
 	/** Display Bound **/
 	UPROPERTY(transient)
 	bool bDisplayBound;
@@ -255,6 +277,9 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Process root motion mode */
 	UPROPERTY(transient)
 	EProcessRootMotionMode ProcessRootMotionMode;
+
+	UPROPERTY(transient)
+	EVisualizeRootMotionMode VisualizeRootMotionMode;
 
 	/** Playback time last time ConsumeRootmotion was called */
 	UPROPERTY(transient)
@@ -281,10 +306,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY(transient)
 	uint32 bRequiredBonesUpToDateDuringTick : 1;
 
-	/** Multiplier for the bone radius rendering */
-	UPROPERTY(transient)
-	float BoneRadiusMultiplier;
-
 	/* Bounds computed from cloth. */
 	FBoxSphereBounds CachedClothBounds;
 
@@ -303,7 +324,7 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Storage of Source Animation Pose for when bDisplaySourceAnimation == true, as they have to be calculated */
 	TArray<FTransform> SourceAnimationPoses;
 
-	/** Transform representing the actor transform at the beginning of the animation. */
+	/** Transform representing the actor transform at the beginning of the animation sequence. */
 	FTransform RootMotionReferenceTransform;
 
 	/** Array of bones to render bone weights for */
@@ -344,6 +365,9 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Should the LOD of the debug mesh component track the LOD of the instance being debugged */
 	UPROPERTY(transient)
 	bool bTrackAttachedInstanceLOD;
+	
+	/** Palettized semi randomized colors for multi-color bone display */
+	UNREALED_API FLinearColor GetBoneColor(int32 BoneIndex) const;
 
 	// Helper method that sets the forced lod
 	UNREALED_API void SetDebugForcedLOD(int32 InNewForcedLOD);
@@ -364,6 +388,7 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 
 	//~ Begin SkinnedMeshComponent Interface
 	UNREALED_API virtual bool ShouldCPUSkin() override;
+	UNREALED_API virtual bool ShouldNaniteSkin() override;
 	UNREALED_API virtual void PostInitMeshObject(class FSkeletalMeshObject* MeshObject) override;
 	UNREALED_API virtual void RefreshBoneTransforms(FActorComponentTickFunction* TickFunction = NULL) override;
 	virtual int32 GetLODBias() const override { return 0; }
@@ -372,7 +397,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	//~ Begin SkeletalMeshComponent Interface
 	UNREALED_API virtual void InitAnim(bool bForceReinit) override;
 	virtual bool IsWindEnabled() const override { return true; }
-	UNREALED_API virtual void SetAnimClass(class UClass* NewClass) override;
 	UNREALED_API virtual void OnClearAnimScriptInstance() override;
 	UNREALED_API virtual void SetSkeletalMesh(USkeletalMesh* InSkelMesh, bool bReinitPose = true) override;
 	//~ End SkeletalMeshComponent Interface
@@ -470,11 +494,28 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Sets process root motion mode, the request may be ignored if current asset does not support the mode. Note: disabling root motion preview resets transform. */
 	UNREALED_API void SetProcessRootMotionMode(EProcessRootMotionMode Mode);
 
+	/** Sets how we visualize root motion in the viewport. See EVisualizeRootMotionMode for details. */
+	UNREALED_API void SetVisualizeRootMotionMode(EVisualizeRootMotionMode Mode) { VisualizeRootMotionMode = Mode; };
+	UNREALED_API bool IsVisualizeRootMotionMode(EVisualizeRootMotionMode Mode) const { return VisualizeRootMotionMode == Mode; };
+	UNREALED_API EVisualizeRootMotionMode GetVisualizeRootMotionMode() const { return VisualizeRootMotionMode; };
+
 	/** Whether the supplied root motion mode can be used for the current asset */
 	UNREALED_API bool CanUseProcessRootMotionMode(EProcessRootMotionMode Mode) const;
 
 	/** Whether the current asset or animation blueprint is using root motion */
 	UNREALED_API bool DoesCurrentAssetHaveRootMotion() const;
+
+	/** Sets flags whether we notification visualizations should be drawn in the viewport. */
+	UNREALED_API void SetShowNotificationVisualizations(const bool bShow) { bShowNotificationVisualizations = bShow; }
+	UNREALED_API bool IsNotificationVisualizationsEnabled() const { return bShowNotificationVisualizations; }
+
+	UE_DEPRECATED(5.5, "Use VisualizeRootMotionMode functions instead.")
+	UNREALED_API void SetShowRootMotionVisualizations(const bool bShow) { VisualizeRootMotionMode = bShow ? EVisualizeRootMotionMode::Trajectory : EVisualizeRootMotionMode::None; }
+	UNREALED_API bool IsRootMotionVisualizationsEnabled() const { return VisualizeRootMotionMode != EVisualizeRootMotionMode::None; }
+
+	/** Sets flags whether we AssetUserData visualizations should be drawn in the viewport. */
+	UNREALED_API void SetShowAssetUserDataVisualizations(const bool bShow) { bShowAssetUserDataVisualizations = bShow; }
+	UNREALED_API bool IsAssetUserDataVisualizationsEnabled() const { return bShowAssetUserDataVisualizations; }
 
 	/** Whether the current LOD of the debug mesh is being synced with the attached (preview) mesh instance. */
 	UNREALED_API bool IsTrackingAttachedLOD() const;
@@ -600,6 +641,10 @@ protected:
 	UNREALED_API virtual void SendRenderDynamicData_Concurrent() override;
 
 public:
+
+	/** Set TurnTableMode and reset the turntable rotation if needed. */
+	UNREALED_API void SetTurnTableMode(EPersonaTurnTableMode::Type NewMode);
+	
 	/** Current turn table mode */
 	EPersonaTurnTableMode::Type TurnTableMode;
 	/** Current turn table speed scaling */
@@ -657,7 +702,6 @@ public:
 
 		return FTransform::Identity;
 	}
-
 };
 
 

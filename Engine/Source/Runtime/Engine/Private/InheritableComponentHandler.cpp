@@ -25,10 +25,8 @@ void UInheritableComponentHandler::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FBlueprintsObjectVersion::GUID);
 }
 
-void UInheritableComponentHandler::PostLoad()
+void UInheritableComponentHandler::FixComponentTemplateNames()
 {
-	Super::PostLoad();
-	
 #if WITH_EDITOR
 	if (!GIsDuplicatingClassForReinstancing)
 	{
@@ -151,7 +149,7 @@ UActorComponent* UInheritableComponentHandler::CreateOverridenComponentTemplate(
 		UActorComponent* ExistingComp = Cast<UActorComponent>(ExistingObj);
 		if (ensure(ExistingComp) && ensure(UnnecessaryComponents.RemoveSwap(ExistingComp) > 0 || GetPackage()->HasAnyPackageFlags(PKG_ForDiffing)))
 		{
-			ExistingObj->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+			ExistingObj->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 			ExistingObj->MarkAsGarbage();
 		}
 	}
@@ -256,18 +254,14 @@ void UInheritableComponentHandler::ValidateTemplates()
 					{
 						Record.ComponentTemplate->SetFlags(RF_Transient);
 #if WITH_EDITOR
+                        // Mark the export as invalid to ensure the loader won't reload the object, 
+                        // should the package owning this object be reloaded.
+                        // Note, Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
+						FLinkerLoad::InvalidateExport(Record.ComponentTemplate);
 						// in editor, move the component template aside so its name is free:
-						Record.ComponentTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+						Record.ComponentTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 						Record.ComponentTemplate->ClearFlags(RF_Standalone);
 						Record.ComponentTemplate->RemoveFromRoot();
-						Record.ComponentTemplate->MarkAsGarbage();
-						// Rename won't invalidate the linker's export, and linker lifetime extends long beyond an actual loadpackage 
-						// invocation. Consequently, if the template object is garbage collected (as we hope it will be) it 
-						// could tragically be recreated by FLinkerLoad unless we invalidate the export. Zen loader has some 
-						// logic to avoid recreating the object, but it is buggy and we want to avoid object recreation when 
-						// not using Zen, anyway. We would not need to invalidate the export if: 1. Rename invalidated the 
-						// export or 2. FLinkerLoad's lifetime were reigned in.
-						FLinkerLoad::InvalidateExport(Record.ComponentTemplate);
 #endif // WITH_EDITOR
 						UnnecessaryComponents.AddUnique(Record.ComponentTemplate);
 					}
@@ -524,7 +518,7 @@ void UInheritableComponentHandler::PreloadAll()
 	// this are not clear to me, but that the logic exists and occasionally
 	// runs means we should run it ASAP - otherwise we may use the wrong
 	// archetype on construction.
-	ConditionalPostLoad();
+	FixComponentTemplateNames();
 }
 
 FComponentKey UInheritableComponentHandler::FindKey(const FName VariableName) const
@@ -570,11 +564,11 @@ void UInheritableComponentHandler::FixComponentTemplateName(UActorComponent* Com
 	// PostLoad() validation and see that it still doesn't match its original template name.
 	if (UObject* ExistingObject = (UObject*)FindObjectWithOuter(ComponentTemplate->GetOuter(), nullptr, NewName))
 	{
-		ExistingObject->Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		ExistingObject->Rename(nullptr, nullptr, REN_DontCreateRedirectors);
 	}
 
 	// Now that we're sure there are no collisions with other records, we can safely rename this one to its new name.
-	ComponentTemplate->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+	ComponentTemplate->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors);
 }
 
 // FComponentOverrideRecord

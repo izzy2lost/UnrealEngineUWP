@@ -118,7 +118,6 @@ bool FSkyPassMeshProcessor::Process(
 			EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED,
 			MaterialResource,
 			VertexFactory->GetType(),
-			false,
 			SkyPassShaders.VertexShader,
 			SkyPassShaders.PixelShader
 		))

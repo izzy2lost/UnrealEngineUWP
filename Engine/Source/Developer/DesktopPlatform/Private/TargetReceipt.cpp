@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TargetReceipt.h"
+#include "HAL/PlatformProcess.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Dom/JsonObject.h"
@@ -82,14 +83,33 @@ bool FTargetReceipt::Read(const FString& FileName, bool bExpandVariables)
 		return false;
 	}
 
-	// Get the launch path
-	if(!Object->TryGetStringField(TEXT("Launch"), Launch))
+	// Get the launch path(s). LaunchCmd is optional.
+	if (FString MaybeLaunchCmd; Object->TryGetStringField(TEXT("LaunchCmd"), MaybeLaunchCmd))
 	{
-		return false;
+		LaunchCmd = MoveTemp(MaybeLaunchCmd);
 	}
+
+	if (!Object->TryGetStringField(TEXT("Launch"), Launch))
+	{
+		// If the regular launch field is not present try using the LaunchCmd field
+		if (!LaunchCmd.IsSet())
+		{
+			return false;
+		}
+		else
+		{
+			Launch = LaunchCmd.GetValue();
+		}
+	}
+
 	if (bExpandVariables)
 	{
 		ExpandVariables(Launch);
+
+		if (LaunchCmd.IsSet())
+		{
+			ExpandVariables(LaunchCmd.GetValue());
+		}
 	}
 
 	// Read the list of build products
@@ -204,6 +224,23 @@ bool FTargetReceipt::Read(const FString& FileName, bool bExpandVariables)
 	}
 
 	return true;
+}
+
+bool FTargetReceipt::LaunchesCurrentExecutable(bool bCheckLaunchField, bool bCheckLaunchCmdField) const
+{
+	const FString CurrentExecutable = FPlatformProcess::ExecutablePath();
+
+	if (bCheckLaunchField && FPaths::IsSamePath(Launch, CurrentExecutable))
+	{
+		return true;
+	}
+
+	if (bCheckLaunchCmdField && LaunchCmd.IsSet() && FPaths::IsSamePath(LaunchCmd.GetValue(), CurrentExecutable))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 FString FTargetReceipt::GetDefaultPath(const TCHAR* BaseDir, const TCHAR* TargetName, const TCHAR* Platform, EBuildConfiguration Configuration, const TCHAR* BuildArchitecture)

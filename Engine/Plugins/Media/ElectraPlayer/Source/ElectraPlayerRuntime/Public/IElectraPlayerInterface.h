@@ -30,7 +30,7 @@ DECLARE_MULTICAST_DELEGATE_FourParams(FElectraPlayerReportSubtitlesMetricsDelega
 
 // ---------------------------------------------------------------------------------------------
 
-class IElectraPlayerAdapterDelegate : public TSharedFromThis<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe>
+class IElectraPlayerAdapterDelegate
 {
 public:
 	virtual ~IElectraPlayerAdapterDelegate() {}
@@ -263,9 +263,9 @@ public:
 
 	struct FSeekParam
 	{
+		TOptional<int32> SequenceIndex;
 		TOptional<int32> StartingBitrate;
 		TOptional<bool> bOptimizeForScrubbing;
-		TOptional<double> DistanceThreshold;
 	};
 
 	virtual bool Seek(const FTimespan& Time) = 0;
@@ -320,9 +320,28 @@ public:
 	virtual bool GetVideoStreamFormat(FVideoStreamFormat& OutFormat, int32 InTrackIndex, int32 InStreamIndex) const = 0;
 	virtual bool GetActiveVideoStreamFormat(FVideoStreamFormat& OutFormat) const = 0;
 
+	virtual Electra::FVariantValue GetMediaInfo(FName InInfoName) const = 0;
 	virtual TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> GetMediaMetadata() const = 0;
 
 	virtual void NotifyOfOptionChange() = 0;
+
+	struct FStreamBufferInfo
+	{
+		struct FTimeValue
+		{
+			FTimespan Time;
+			int64 SequenceIndex = -1;
+		};
+		struct FTimeRange
+		{
+			FTimeValue Start;
+			FTimeValue End;
+		};
+		TArray<FTimeRange> TimeEnqueued;
+		TArray<FTimeRange> TimeAvailable;
+		TArray<FTimeRange> TimeRequested;
+	};
+	virtual bool GetStreamBufferInformation(FStreamBufferInfo& OutBufferInformation, EPlayerTrackType InTrackType) const = 0;
 
 	// Suspends or resumes decoder instances. Not supported on all platforms.
 	virtual void SuspendOrResumeDecoders(bool bSuspend, const Electra::FParamDict& InOptions) = 0;

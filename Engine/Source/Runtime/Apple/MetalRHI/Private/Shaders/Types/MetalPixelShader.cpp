@@ -4,24 +4,22 @@
 	MetalPixelShader.cpp: Metal RHI Pixel Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalPixelShader.h"
-
 
 //------------------------------------------------------------------------------
 
 #pragma mark - Metal RHI Pixel Shader Class
 
 
-FMetalPixelShader::FMetalPixelShader(TArrayView<const uint8> InCode)
+FMetalPixelShader::FMetalPixelShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode)
+	: TMetalBaseShader<FRHIPixelShader, SF_Pixel>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, MTLLibraryPtr());
 }
 
-FMetalPixelShader::FMetalPixelShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+FMetalPixelShader::FMetalPixelShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+	: TMetalBaseShader<FRHIPixelShader, SF_Pixel>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, InLibrary);

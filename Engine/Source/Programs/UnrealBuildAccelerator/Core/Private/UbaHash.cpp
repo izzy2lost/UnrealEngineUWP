@@ -34,11 +34,16 @@ namespace uba
 		return ToStringKey(b.data, b.count);
 	}
 
-	StringKey ToStringKeyLower(const StringBufferBase& b)
+	StringKey ToStringKeyLower(const tchar* str, u64 strLen)
 	{
 		StringBuffer<> temp;
-		temp.Append(b).MakeLower();
+		temp.Append(str, strLen).MakeLower();
 		return ToStringKey(temp.data, temp.count);
+	}
+
+	StringKey ToStringKeyLower(const StringBufferBase& b)
+	{
+		return ToStringKeyLower(b.data, b.count);
 	}
 	StringKey ToStringKey(const StringKeyHasher& hasher, const tchar* str, u64 strLen)
 	{
@@ -74,9 +79,10 @@ namespace uba
 		blake3_hasher_init((blake3_hasher*)&hasher);
 	}
 
-	void CasKeyHasher::Update(const void* data, u64 bytes)
+	CasKeyHasher& CasKeyHasher::Update(const void* data, u64 bytes)
 	{
 		blake3_hasher_update((blake3_hasher*)&hasher, data, bytes);
+		return *this;
 	}
 
 	CasKey ToCasKey(const CasKeyHasher& hasher, bool compressed)
@@ -84,6 +90,7 @@ namespace uba
 		CasKeyHasher temp(hasher);
 		uint8_t output[BLAKE3_OUT_LEN];
 		blake3_hasher_finalize((blake3_hasher*)&temp.hasher, output, BLAKE3_OUT_LEN);
-		return AsCompressed((CasKey&)output, compressed);
+		output[19] = compressed ? 1 : 0;
+		return (CasKey&)output;
 	}
 }

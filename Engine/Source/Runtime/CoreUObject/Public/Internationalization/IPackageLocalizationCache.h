@@ -11,6 +11,12 @@ public:
 	virtual ~IPackageLocalizationCache() {}
 
 	/**
+	 * Invalidate any cached state for the given root source path, and add it to the queue of things to process when ConditionalUpdateCache is called.
+	 * eg) when new asset registry state is loaded for a plugin that may invalidate its cached data
+	 */
+	virtual void InvalidateRootSourcePath(const FString& InRootPath) = 0;
+
+	/**
 	 * Update this cache, but only if it is dirty.
 	 */
 	virtual void ConditionalUpdateCache() = 0;

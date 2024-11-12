@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -13,7 +10,10 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Schema;
-using UnrealBuildBase;
+using AutomationTool.Tasks;
+using EpicGames.BuildGraph;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 #nullable enable
 
@@ -64,7 +64,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Set to true if the reader encounters an error
 		/// </summary>
-		bool _bHasErrors;
+		bool _hasErrors;
 
 		/// <summary>
 		/// Logger for validation errors
@@ -74,10 +74,10 @@ namespace AutomationTool
 		/// <summary>
 		/// Private constructor. Use ScriptDocument.Load to read an XML document.
 		/// </summary>
-		BgScriptDocument(FileReference inFile, ILogger inLogger)
+		BgScriptDocument(FileReference file, ILogger logger)
 		{
-			File = inFile;
-			Logger = inLogger;
+			File = file;
+			Logger = logger;
 		}
 
 		/// <summary>
@@ -98,7 +98,7 @@ namespace AutomationTool
 		/// <param name="logger">Logger for output messages</param>
 		/// <param name="outDocument">If successful, the document that was read</param>
 		/// <returns>True if the document could be read, false otherwise</returns>
-		public static bool TryRead(FileReference file, byte[] data, BgScriptSchema schema, ILogger logger, [NotNullWhen(true)] out BgScriptDocument? outDocument)
+		public static bool TryRead(FileReference file, byte[] data, BgScriptSchema? schema, ILogger logger, [NotNullWhen(true)] out BgScriptDocument? outDocument)
 		{
 			BgScriptDocument document = new BgScriptDocument(file, logger);
 
@@ -121,16 +121,16 @@ namespace AutomationTool
 				}
 				catch (XmlException ex)
 				{
-					if (!document._bHasErrors)
+					if (!document._hasErrors)
 					{
 						BgScriptLocation location = new BgScriptLocation(file, ex.LineNumber);
 						logger.LogScriptError(location, "{Message}", ex.Message);
-						document._bHasErrors = true;
+						document._hasErrors = true;
 					}
 				}
 
 				// If we hit any errors while parsing
-				if (document._bHasErrors)
+				if (document._hasErrors)
 				{
 					outDocument = null;
 					return false;
@@ -172,7 +172,7 @@ namespace AutomationTool
 			else
 			{
 				Logger.LogScriptError(location, "{Message}", args.Message);
-				_bHasErrors = true;
+				_hasErrors = true;
 			}
 		}
 	}
@@ -258,7 +258,10 @@ namespace AutomationTool
 			allArgs[0] = location.File;
 			allArgs[1] = location.LineNumber;
 			args.CopyTo(allArgs, 2);
+
+#pragma warning disable CA2254 // Message templates should be constant
 			logger.LogError(KnownLogEvents.AutomationTool_BuildGraphScript, $"{{Script}}({{Line}}): error: {format}", allArgs);
+#pragma warning restore CA2254
 		}
 
 		/// <summary>
@@ -270,7 +273,10 @@ namespace AutomationTool
 			allArgs[0] = location.File;
 			allArgs[1] = location.LineNumber;
 			args.CopyTo(allArgs, 2);
+
+#pragma warning disable CA2254 // Message templates should be constant
 			logger.LogWarning(KnownLogEvents.AutomationTool_BuildGraphScript, $"{{Script}}({{Line}}): warning: {format}", allArgs);
+#pragma warning restore CA2254
 		}
 	}
 
@@ -287,8 +293,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BgScriptNode(string name, IReadOnlyList<BgNodeOutput> inputs, IReadOnlyList<string> outputNames, IReadOnlyList<BgNodeDef> inputDependencies, IReadOnlyList<BgNodeDef> orderDependencies, IReadOnlyList<FileReference> requiredTokens)
-			: base(name, inputs, outputNames, inputDependencies, orderDependencies, requiredTokens)
+		public BgScriptNode(string name, IReadOnlyList<BgNodeOutput> inputs, IReadOnlyList<string> outputNames, IReadOnlyList<BgNodeDef> inputDependencies, IReadOnlyList<BgNodeDef> orderDependencies, IReadOnlyList<FileReference> requiredTokens, IReadOnlyList<string> ignoreModified)
+			: base(name, inputs, outputNames, inputDependencies, orderDependencies, requiredTokens, ignoreModified)
 		{
 		}
 	}
@@ -299,10 +305,15 @@ namespace AutomationTool
 	public class BgScriptReader
 	{
 		/// <summary>
+		/// Root directory to resolve relative paths against
+		/// </summary>
+		readonly DirectoryReference _rootDir;
+
+		/// <summary>
 		/// List of property name to value lookups. Modifications to properties are scoped to nodes and agents. EnterScope() pushes an empty dictionary onto the end of this list, and LeaveScope() removes one. 
 		/// ExpandProperties() searches from last to first lookup when trying to resolve a property name, and takes the first it finds.
 		/// </summary>
-		protected List<Dictionary<string, string>> ScopedProperties { get; } = new List<Dictionary<string, string>>();
+		protected List<Dictionary<string, string?>> ScopedProperties { get; } = new List<Dictionary<string, string?>>();
 
 		/// <summary>
 		/// When declaring a property in a nested scope, we enter its name into a set for each parent scope which prevents redeclaration in an OUTER scope later. Subsequent NESTED scopes can redeclare it.
@@ -333,7 +344,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Schema for the script
 		/// </summary>
-		BgScriptSchema Schema { get; }
+		BgScriptSchema? Schema { get; }
 
 		/// <summary>
 		/// Logger for diagnostic messages
@@ -351,13 +362,16 @@ namespace AutomationTool
 		/// <summary>
 		/// Private constructor. Use ScriptReader.TryRead() to read a script file.
 		/// </summary>
+		/// <param name="rootDir">Root directory to resolve relative paths against</param>
 		/// <param name="defaultProperties">Default properties available to the script</param>
 		/// <param name="arguments">Arguments passed in to the graph on the command line</param>
 		/// <param name="singleNodeName">If a single node will be processed, the name of that node.</param>
 		/// <param name="schema">Schema for the script</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		protected BgScriptReader(IDictionary<string, string> defaultProperties, IReadOnlyDictionary<string, string> arguments, string? singleNodeName, BgScriptSchema schema, ILogger logger)
+		protected BgScriptReader(DirectoryReference rootDir, IDictionary<string, string?> defaultProperties, IReadOnlyDictionary<string, string> arguments, string? singleNodeName, BgScriptSchema? schema, ILogger logger)
 		{
+			_rootDir = rootDir;
+
 			Schema = schema;
 			Logger = logger;
 
@@ -366,7 +380,7 @@ namespace AutomationTool
 			_arguments = new Dictionary<string, string>(arguments, StringComparer.OrdinalIgnoreCase);
 			_singleNodeName = singleNodeName;
 
-			foreach (KeyValuePair<string, string> pair in defaultProperties)
+			foreach (KeyValuePair<string, string?> pair in defaultProperties)
 			{
 				SetPropertyValue(null!, pair.Key, pair.Value);
 			}
@@ -376,16 +390,17 @@ namespace AutomationTool
 		/// Try to read a script file from the given file.
 		/// </summary>
 		/// <param name="file">File to read from</param>
+		/// <param name="rootDir">Root directory to resolve files to</param>
 		/// <param name="arguments">Arguments passed in to the graph on the command line</param>
 		/// <param name="defaultProperties">Default properties available to the script</param>
 		/// <param name="schema">Schema for the script</param>
 		/// <param name="logger">Logger for output messages</param>
 		/// <param name="singleNodeName">If a single node will be processed, the name of that node.</param>
 		/// <returns>True if the graph was read, false if there were errors</returns>
-		public static async Task<BgGraphDef?> ReadAsync(FileReference file, Dictionary<string, string> arguments, Dictionary<string, string> defaultProperties, BgScriptSchema schema, ILogger logger, string? singleNodeName = null)
+		public static async Task<BgGraphDef?> ReadAsync(FileReference file, DirectoryReference rootDir, Dictionary<string, string> arguments, Dictionary<string, string?> defaultProperties, BgScriptSchema? schema, ILogger logger, string? singleNodeName = null)
 		{
 			// Read the file and build the graph
-			BgScriptReader reader = new BgScriptReader(defaultProperties, arguments, singleNodeName, schema, logger);
+			BgScriptReader reader = new BgScriptReader(rootDir, defaultProperties, arguments, singleNodeName, schema, logger);
 			if (!await reader.TryReadAsync(file) || reader.NumErrors > 0)
 			{
 				return null;
@@ -539,7 +554,7 @@ namespace AutomationTool
 		/// </summary>
 		protected void EnterScope()
 		{
-			ScopedProperties.Add(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+			ScopedProperties.Add(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase));
 			_shadowProperties.Add(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 		}
 
@@ -559,7 +574,7 @@ namespace AutomationTool
 		/// <param name="name">Name of the property</param>
 		/// <param name="value">Value for the property</param>
 		/// <param name="createInParentScope">If true, this property should be added to the parent scope and not the current scope. Cannot be used if the parent scope already contains a parameter with this name or if there is no parent scope</param>
-		protected void SetPropertyValue(BgScriptElement element, string name, string value, bool createInParentScope = false)
+		protected void SetPropertyValue(BgScriptElement element, string name, string? value, bool createInParentScope = false)
 		{
 			// Find the scope containing this property, defaulting to the current scope
 			int scopeIdx = 0;
@@ -611,7 +626,7 @@ namespace AutomationTool
 		protected bool TryGetPropertyValue(string name, out string? value)
 		{
 			int valueLength = 0;
-			if (name.Contains(":"))
+			if (name.Contains(':', StringComparison.Ordinal))
 			{
 				string[] tokens = name.Split(':');
 				name = tokens[0];
@@ -656,15 +671,19 @@ namespace AutomationTool
 		{
 			if (await EvaluateConditionAsync(element))
 			{
-				string basePath = element.Location.File.MakeRelativeTo(Unreal.RootDirectory).Replace(Path.DirectorySeparatorChar, '/');
+				string basePath = element.Location.File.MakeRelativeTo(_rootDir).Replace(Path.DirectorySeparatorChar, '/');
 
 				HashSet<FileReference> files = new HashSet<FileReference>();
 				foreach (string script in ReadListAttribute(element, "Script"))
 				{
-					string includePath = CombinePaths(basePath, script);
-					if (Regex.IsMatch(includePath, @"\*|\?|\.\.\."))
+					string? includePath = CombinePaths(basePath, script);
+					if (includePath == null)
 					{
-						files.UnionWith(FindMatchingFiles(includePath));
+						LogError(element, $"Path '{script}' cannot be combined with '{basePath}'");
+					}
+					else if (Regex.IsMatch(includePath, @"\*|\?|\.\.\."))
+					{
+						files.UnionWith(FindMatchingFiles(_rootDir, includePath));
 					}
 					else
 					{
@@ -683,7 +702,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Combine two paths without validating the result
 		/// </summary>
-		static string CombinePaths(string basePath, string nextPath)
+		static string? CombinePaths(string basePath, string nextPath)
 		{
 			if (Path.IsPathRooted(nextPath))
 			{
@@ -707,7 +726,7 @@ namespace AutomationTool
 					}
 					else
 					{
-						throw new Exception($"Path '{nextPath}' cannot be combined with '{basePath}'");
+						return null;
 					}
 				}
 				else
@@ -721,14 +740,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Find files matching a pattern
 		/// </summary>
-		/// <param name="Pattern"></param>
-		/// <returns></returns>
-		IEnumerable<FileReference> FindMatchingFiles(string Pattern)
+		static IEnumerable<FileReference> FindMatchingFiles(DirectoryReference rootDir, string pattern)
 		{
-			FileFilter Filter = new FileFilter();
-			Filter.AddRule(Pattern, FileFilterType.Include);
+			FileFilter filter = new FileFilter();
+			filter.AddRule(pattern, FileFilterType.Include);
 
-			return Filter.ApplyToDirectory(Unreal.RootDirectory, true);
+			return filter.ApplyToDirectory(rootDir, true);
 		}
 
 		/// <summary>
@@ -745,7 +762,8 @@ namespace AutomationTool
 					// Make sure we're at global scope
 					if (ScopedProperties.Count > 1)
 					{
-						throw new Exception("Incorrect scope depth for reading option settings");
+						LogError(element, "Incorrect scope depth for reading option settings");
+						return;
 					}
 
 					// Check if the property already exists. If it does, we don't need to register it as an option.
@@ -808,25 +826,60 @@ namespace AutomationTool
 					string value = ReadAttribute(element, "Value");
 					if (element.HasChildNodes)
 					{
-						// Get the separator character
-						string separator = ";";
-						if (element.HasAttribute("Separator"))
-						{
-							separator = ReadAttribute(element, "Separator");
-						}
-
-						// Read the element content, and append each line to the value as a semicolon delimited list
 						StringBuilder builder = new StringBuilder(value);
-						foreach (string line in element.InnerText.Split('\n'))
+						if (ReadBooleanAttribute(element, "Multiline", false))
 						{
-							string trimLine = ExpandProperties(element, line.Trim());
-							if (trimLine.Length > 0)
+							// Get a hanging indent from the first line, and remove that whitespace from subsequent lines
+							int prefixLen = -1;
+
+							List<string> lines = new List<string>(element.InnerText.Split('\n'));
+							while (lines.Count > 0 && String.IsNullOrWhiteSpace(lines[0]))
 							{
-								if (builder.Length > 0)
+								lines.RemoveAt(0);
+							}
+							while (lines.Count > 0 && String.IsNullOrWhiteSpace(lines[^1]))
+							{
+								lines.RemoveAt(lines.Count - 1);
+							}
+
+							foreach (string line in lines)
+							{
+								int whitespaceLen = 0;
+								while (whitespaceLen < line.Length && Char.IsWhiteSpace(line[whitespaceLen]))
 								{
-									builder.Append(separator);
+									whitespaceLen++;
 								}
-								builder.Append(trimLine);
+
+								if (prefixLen == -1)
+								{
+									prefixLen = whitespaceLen;
+								}
+
+								whitespaceLen = Math.Min(whitespaceLen, prefixLen);
+								builder.AppendLine(line.Substring(whitespaceLen));
+							}
+						}
+						else
+						{
+							// Get the separator character
+							string separator = ";";
+							if (element.HasAttribute("Separator"))
+							{
+								separator = ReadAttribute(element, "Separator");
+							}
+
+							// Read the element content, and append each line to the value as a semicolon delimited list
+							foreach (string line in element.InnerText.Split('\n'))
+							{
+								string trimLine = ExpandProperties(element, line.Trim());
+								if (trimLine.Length > 0)
+								{
+									if (builder.Length > 0)
+									{
+										builder.Append(separator);
+									}
+									builder.Append(trimLine);
+								}
 							}
 						}
 						value = builder.ToString();
@@ -859,9 +912,9 @@ namespace AutomationTool
 
 					// make sure the number of property names is the same as the number of match groups
 					// this includes the entire string match group as [0], so don't count that one.
-					if (captureNames.Length != groupNumbers.Count() - 1)
+					if (captureNames.Length != groupNumbers.Length - 1)
 					{
-						LogError(element, "MatchGroup count: {Count} does not match the number of names specified: {NameCount}", groupNumbers.Count() - 1, captureNames.Length);
+						LogError(element, "MatchGroup count: {Count} does not match the number of names specified: {NameCount}", groupNumbers.Length - 1, captureNames.Length);
 					}
 					else
 					{
@@ -869,7 +922,7 @@ namespace AutomationTool
 						string input = ReadAttribute(element, "Input");
 						Match match = regexValue.Match(input);
 
-						bool optional = await BgCondition.EvaluateAsync(ReadAttribute(element, "Optional"));
+						bool optional = await BgCondition.EvaluateAsync(ReadAttribute(element, "Optional"), new BgConditionContext(_rootDir));
 						if (!match.Success)
 						{
 							if (!optional)
@@ -880,7 +933,7 @@ namespace AutomationTool
 						else
 						{
 							// assign each property to the group it matches, skip over [0]
-							for (int matchIdx = 1; matchIdx < groupNumbers.Count(); matchIdx++)
+							for (int matchIdx = 1; matchIdx < groupNumbers.Length; matchIdx++)
 							{
 								SetPropertyValue(element, captureNames[matchIdx - 1], match.Groups[matchIdx].Value);
 							}
@@ -902,9 +955,7 @@ namespace AutomationTool
 				string method = ReadAttribute(element, "Method");
 				string output = ReadAttribute(element, "Output");
 
-				string operationResult = string.Empty;
-
-				string[] arguments = { };
+				string[] arguments = Array.Empty<string>();
 
 				const string ArgumentsName = "Arguments";
 
@@ -914,32 +965,45 @@ namespace AutomationTool
 				}
 
 				// Supply more string operations here
+				string operationResult;
 				switch (method)
 				{
-					case "ToLower": operationResult = input.ToLower(); break;
-					case "ToUpper": operationResult = input.ToUpper(); break;
+					case "ToLower":
+						operationResult = input.ToLower();
+						break;
+					case "ToUpper":
+						operationResult = input.ToUpper();
+						break;
 					case "Replace":
 						if (arguments.Length != 2)
 						{
-							throw new AutomationException($"String operation 'Replace' requires exactly 2 arguments.");
+							LogError(element, $"String operation 'Replace' requires exactly 2 arguments.");
+							return;
 						}
-						operationResult = input.Replace(arguments[0], arguments[1]);
+
+						operationResult = input.Replace(arguments[0], arguments[1], StringComparison.Ordinal);
 						break;
 					case "SplitFirst":
 						if (arguments.Length != 1)
 						{
-							throw new AutomationException($"String operation 'SplitFirst' requires exactly 1 argument.");
+							LogError(element, $"String operation 'SplitFirst' requires exactly 1 argument.");
+							return;
 						}
+
 						operationResult = input.Split(arguments[0]).First();
 						break;
 					case "SplitLast":
 						if (arguments.Length != 1)
 						{
-							throw new AutomationException($"String operation 'SplitLast' requires exactly 1 argument.");
+							LogError(element, $"String operation 'SplitLast' requires exactly 1 argument.");
+							return;
 						}
+
 						operationResult = input.Split(arguments[0]).Last();
 						break;
-					default: throw new AutomationException($"String operation '{method}' not available.");
+					default:
+						LogError(element, $"String operation '{method}' not available.");
+						return;
 				}
 				SetPropertyValue(element, output, operationResult);
 			}
@@ -960,7 +1024,7 @@ namespace AutomationTool
 					if (!RuntimePlatform.IsWindows)
 					{
 						// Non-windows platforms don't allow dashes in variable names. The engine platform layer substitutes underscores for them.
-						envVarName = envVarName.Replace("-", "_");
+						envVarName = envVarName.Replace("-", "_", StringComparison.Ordinal);
 					}
 
 					string value = Environment.GetEnvironmentVariable(envVarName) ?? "";
@@ -1175,7 +1239,7 @@ namespace AutomationTool
 					BgLabelDef label;
 
 					// Create the label
-					int slashIdx = labelCategoryName.IndexOf('/');
+					int slashIdx = labelCategoryName.IndexOf('/', StringComparison.Ordinal);
 					if (slashIdx != -1)
 					{
 						label = new BgLabelDef(labelCategoryName.Substring(slashIdx + 1), labelCategoryName.Substring(0, slashIdx), null, null, BgLabelChange.Current);
@@ -1252,7 +1316,7 @@ namespace AutomationTool
 				string[] keys = ReadListAttribute(element, "Keys");
 				string[] metadata = ReadListAttribute(element, "Metadata");
 
-				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, tag, keys, metadata);
+				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, null, tag, keys, metadata);
 				_graph.Artifacts.Add(newArtifact);
 			}
 		}
@@ -1365,9 +1429,10 @@ namespace AutomationTool
 				string[] producesNames = ReadListAttribute(element, "Produces");
 				string[] afterNames = ReadListAttribute(element, "After");
 				string[] tokenFileNames = ReadListAttribute(element, "Token");
-				bool bRunEarly = ReadBooleanAttribute(element, "RunEarly", false);
-				bool bNotifyOnWarnings = ReadBooleanAttribute(element, "NotifyOnWarnings", true);
+				bool runEarly = ReadBooleanAttribute(element, "RunEarly", false);
+				bool notifyOnWarnings = ReadBooleanAttribute(element, "NotifyOnWarnings", true);
 				Dictionary<string, string> annotations = ReadAnnotationsAttribute(element, "Annotations");
+				string[] ignoreModified = ReadListAttribute(element, "IgnoreModified");
 
 				// Resolve all the inputs we depend on
 				HashSet<BgNodeOutput> inputs = ResolveInputReferences(element, requiresNames);
@@ -1398,7 +1463,7 @@ namespace AutomationTool
 					{
 						LogError(element, "Output tag '{Tag}' is already generated by node '{Name}'", producesName, existingOutput.ProducingNode.Name);
 					}
-					else if (!producesName.StartsWith("#"))
+					else if (!producesName.StartsWith("#", StringComparison.Ordinal))
 					{
 						LogError(element, "Output tag names must begin with a '#' character ('{Name}')", producesName);
 					}
@@ -1432,9 +1497,9 @@ namespace AutomationTool
 				if (CheckNameIsUnique(element, name))
 				{
 					// Add it to the node lookup
-					BgScriptNode newNode = new BgScriptNode(name, inputs.ToArray(), validOutputNames.ToArray(), inputDependencies.ToArray(), orderDependencies.ToArray(), requiredTokens.ToArray());
-					newNode.RunEarly = bRunEarly;
-					newNode.NotifyOnWarnings = bNotifyOnWarnings;
+					BgScriptNode newNode = new BgScriptNode(name, inputs.ToArray(), validOutputNames.ToArray(), inputDependencies.ToArray(), orderDependencies.ToArray(), requiredTokens.ToArray(), ignoreModified.ToArray());
+					newNode.RunEarly = runEarly;
+					newNode.NotifyOnWarnings = notifyOnWarnings;
 					foreach ((string key, string value) in annotations)
 					{
 						newNode.Annotations[key] = value;
@@ -1625,18 +1690,18 @@ namespace AutomationTool
 						}
 
 						// Make sure none of the required arguments are missing
-						bool bHasMissingArguments = false;
+						bool hasMissingArguments = false;
 						for (int idx = 0; idx < macro.NumRequiredArguments; idx++)
 						{
 							if (arguments[idx] == null)
 							{
 								LogWarning(element, "Macro '{Name}' is missing argument '{ArgName}'", macro.Name, macro.ArgumentNameToIndex.First(x => x.Value == idx).Key);
-								bHasMissingArguments = true;
+								hasMissingArguments = true;
 							}
 						}
 
 						// Expand the function
-						if (!bHasMissingArguments)
+						if (!hasMissingArguments)
 						{
 							EnterScope();
 							foreach (KeyValuePair<string, int> pair in macro.ArgumentNameToIndex)
@@ -1671,14 +1736,45 @@ namespace AutomationTool
 				BgTask info = new BgTask(element.Location, element.Name);
 				foreach (XmlAttribute? attribute in element.Attributes)
 				{
-					if (String.Compare(attribute!.Name, "If", StringComparison.InvariantCultureIgnoreCase) != 0)
+					if (!String.Equals(attribute!.Name, "If", StringComparison.OrdinalIgnoreCase))
 					{
 						string expandedValue = ExpandProperties(element, attribute.Value);
 						info.Arguments.Add(attribute.Name, expandedValue);
 					}
 				}
 				_enclosingNode!.Tasks.Add(info);
+
+				if (info.Name.Equals("CreateArtifact", StringComparison.OrdinalIgnoreCase))
+				{
+					AddArtifactFromTask(element, info.Arguments);
+				}
 			}
+		}
+
+		void AddArtifactFromTask(BgScriptElement element, Dictionary<string, string> arguments)
+		{
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Name), out string? name);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Type), out string? type);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Description), out string? description);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Keys), out string? keys);
+			arguments.TryGetValue(nameof(CreateArtifactTaskParameters.Metadata), out string? metadata);
+
+			if (String.IsNullOrEmpty(name))
+			{
+				LogError(element, "Missing artifact name");
+				return;
+			}
+			if (String.IsNullOrEmpty(type))
+			{
+				LogError(element, "Missing artifact type");
+				return;
+			}
+
+			string[] keysArray = (keys ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			string[] metadataArray = (metadata ?? String.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+			BgArtifactDef artifact = new BgArtifactDef(name, type, description, null, _enclosingNode!.Name, null, keysArray, metadataArray);
+			_graph.Artifacts.Add(artifact);
 		}
 
 		/// <summary>
@@ -1695,8 +1791,8 @@ namespace AutomationTool
 				string[] reportNames = ReadListAttribute(element, "Reports");
 				string[] users = ReadListAttribute(element, "Users");
 				string[] submitters = ReadListAttribute(element, "Submitters");
-				bool? bWarnings = element.HasAttribute("Warnings") ? (bool?)ReadBooleanAttribute(element, "Warnings", true) : null;
-				bool bAbsolute = element.HasAttribute("Absolute") && ReadBooleanAttribute(element, "Absolute", true);
+				bool? warnings = element.HasAttribute("Warnings") ? (bool?)ReadBooleanAttribute(element, "Warnings", true) : null;
+				bool absolute = element.HasAttribute("Absolute") && ReadBooleanAttribute(element, "Absolute", true);
 
 				// Find the list of targets which are included, and recurse through all their dependencies
 				HashSet<BgNodeDef> nodes = new HashSet<BgNodeDef>();
@@ -1729,7 +1825,7 @@ namespace AutomationTool
 				{
 					if (users != null)
 					{
-						if (bAbsolute)
+						if (absolute)
 						{
 							node.NotifyUsers = new HashSet<string>(users);
 						}
@@ -1740,7 +1836,7 @@ namespace AutomationTool
 					}
 					if (submitters != null)
 					{
-						if (bAbsolute)
+						if (absolute)
 						{
 							node.NotifySubmitters = new HashSet<string>(submitters);
 						}
@@ -1749,9 +1845,9 @@ namespace AutomationTool
 							node.NotifySubmitters.UnionWith(submitters);
 						}
 					}
-					if (bWarnings.HasValue)
+					if (warnings.HasValue)
 					{
-						node.NotifyOnWarnings = bWarnings.Value;
+						node.NotifyOnWarnings = warnings.Value;
 					}
 				}
 
@@ -1913,7 +2009,7 @@ namespace AutomationTool
 				{
 					nodes.UnionWith(otherNodes);
 				}
-				else if (!referenceName.StartsWith("#") && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
+				else if (!referenceName.StartsWith("#", StringComparison.Ordinal) && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
 				{
 					LogError(element, "Reference to '{Name}' cannot be resolved; did you mean '{PossibleName}'?", referenceName, $"#{referenceName}");
 				}
@@ -1941,7 +2037,7 @@ namespace AutomationTool
 				{
 					inputs.UnionWith(referenceInputs);
 				}
-				else if (!referenceName.StartsWith("#") && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
+				else if (!referenceName.StartsWith("#", StringComparison.Ordinal) && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
 				{
 					LogError(element, "Reference to '{Name}' cannot be resolved; did you mean '{PossibleName}'?", referenceName, $"#{referenceName}");
 				}
@@ -1976,7 +2072,7 @@ namespace AutomationTool
 					LogError(element, "Consecutive spaces in object name '{Name}'", name);
 					return false;
 				}
-				if (Char.IsControl(name[idx]) || BgScriptSchema.IllegalNameCharacters.IndexOf(name[idx]) != -1)
+				if (Char.IsControl(name[idx]) || BgScriptSchema.IllegalNameCharacters.Contains(name[idx], StringComparison.Ordinal))
 				{
 					LogError(element, "Invalid character in object name '{Name}': '{Character}'", name, name[idx]);
 					return false;
@@ -2059,7 +2155,7 @@ namespace AutomationTool
 			{
 				if (!String.IsNullOrWhiteSpace(pair))
 				{
-					int idx = pair.IndexOf('=');
+					int idx = pair.IndexOf('=', StringComparison.Ordinal);
 					if (idx < 0)
 					{
 						LogError(element, "Invalid annotation '{Pair}'", pair);
@@ -2089,28 +2185,28 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="element">Element to read the attribute from</param>
 		/// <param name="name">Name of the attribute</param>
-		/// <param name="bDefaultValue">Default value if the attribute is missing</param>
+		/// <param name="defaultValue">Default value if the attribute is missing</param>
 		/// <returns>The value of the attribute field</returns>
-		protected bool ReadBooleanAttribute(BgScriptElement element, string name, bool bDefaultValue)
+		protected bool ReadBooleanAttribute(BgScriptElement element, string name, bool defaultValue)
 		{
-			bool bResult = bDefaultValue;
+			bool result = defaultValue;
 			if (element.HasAttribute(name))
 			{
 				string value = ReadAttribute(element, name).Trim();
-				if (value.Equals("true", StringComparison.InvariantCultureIgnoreCase))
+				if (value.Equals("true", StringComparison.OrdinalIgnoreCase))
 				{
-					bResult = true;
+					result = true;
 				}
-				else if (value.Equals("false", StringComparison.InvariantCultureIgnoreCase))
+				else if (value.Equals("false", StringComparison.OrdinalIgnoreCase))
 				{
-					bResult = false;
+					result = false;
 				}
 				else
 				{
 					LogError(element, "Invalid boolean value '{0}' - expected 'true' or 'false'", value);
 				}
 			}
-			return bResult;
+			return result;
 		}
 
 		/// <summary>
@@ -2209,7 +2305,7 @@ namespace AutomationTool
 			try
 			{
 				string text = ExpandProperties(element, element.GetAttribute("If"));
-				return await BgCondition.EvaluateAsync(text);
+				return await BgCondition.EvaluateAsync(text, new BgConditionContext(_rootDir));
 			}
 			catch (BgConditionException ex)
 			{
@@ -2228,7 +2324,7 @@ namespace AutomationTool
 		{
 			string result = text;
 			// Iterate in reverse order to handle cases where there are nested expansions like $(Outer$(Inner))
-			for (int idx = result.LastIndexOf("$("); idx != -1; idx = result.LastIndexOf("$(", idx, idx + 1))
+			for (int idx = result.LastIndexOf("$(", StringComparison.Ordinal); idx != -1; idx = result.LastIndexOf("$(", idx, idx + 1, StringComparison.Ordinal))
 			{
 				// Find the end of the variable name
 				int endIdx = result.IndexOf(')', idx + 2);
@@ -2259,9 +2355,9 @@ namespace AutomationTool
 		}
 
 		/// <inheritdoc/>
-		public object GetNativePath(string Path)
+		public static object GetNativePath(DirectoryReference rootDir, string path)
 		{
-			return FileReference.Combine(Unreal.RootDirectory, Path).FullName;
+			return FileReference.Combine(rootDir, path).FullName;
 		}
 	}
 }

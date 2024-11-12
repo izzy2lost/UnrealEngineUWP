@@ -2,6 +2,15 @@
 
 #pragma once
 
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable : 4365 4987)
+#endif
+#include <utility>
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif
+
 namespace terse {
 
 // Anchor is a virtual, utility type only (meaning it does not write or read any data from the stream)

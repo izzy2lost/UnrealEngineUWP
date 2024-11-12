@@ -8,7 +8,7 @@
 #include "Misc/Guid.h"
 #include "Engine/TextureStreamingTypes.h"
 #include "Components/PrimitiveComponent.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "Serialization/BulkData.h"
 #include "LandscapePhysicalMaterial.h"
 #include "LandscapeInfo.h"
@@ -36,7 +36,6 @@ class UMaterialInterface;
 class UTexture2D;
 struct FConvexVolume;
 struct FEngineShowFlags;
-struct FLandscapeEditDataInterface;
 struct FLandscapeTextureDataInfo;
 struct FStaticLightingPrimitiveInfo;
 struct FLandscapeEditDataInterface;
@@ -204,9 +203,11 @@ struct FLandscapeComponentGrassData
 
 	// Guid per material instance in the hierarchy between the assigned landscape material (instance) and the root UMaterial
 	// used to detect changes to material instance parameters or the root material that could affect the grass maps
+	UE_DEPRECATED(5.5, "GenerationHash is now used") 
 	TArray<FGuid, TInlineAllocator<2>> MaterialStateIds_DEPRECATED;
 	// cached component rotation when material world-position-offset is used,
 	// as this will affect the direction of world-position-offset deformation (included in the HeightData below)
+	UE_DEPRECATED(5.5, "GenerationHash is now used") 
 	FQuat RotationForWPO_DEPRECATED;
 
 	// Variable used to detect when grass data needs to be regenerated:
@@ -216,9 +217,6 @@ struct FLandscapeComponentGrassData
 #if WITH_EDITORONLY_DATA
 	// Height data for LODs 1+, keyed on LOD index
 	TMap<int32, TArray<uint16>> HeightMipData;
-
-	// Grass data was updated but not saved yet
-	bool bIsDirty = false;
 #endif // WITH_EDITORONLY_DATA
 	
 	static constexpr int32 UnknownNumElements = -1;
@@ -229,9 +227,16 @@ struct FLandscapeComponentGrassData
 	TMap<TObjectPtr<ULandscapeGrassType>, int32> WeightOffsets;
 	TArray<uint8> HeightWeightData;
 
+	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FLandscapeComponentGrassData() = default;
-
 	FLandscapeComponentGrassData(ULandscapeComponent* Component);
+    ~FLandscapeComponentGrassData() = default;
+    FLandscapeComponentGrassData(const FLandscapeComponentGrassData&) = default;
+    FLandscapeComponentGrassData(FLandscapeComponentGrassData&&) = default;
+    FLandscapeComponentGrassData& operator=(const FLandscapeComponentGrassData&) = default;
+    FLandscapeComponentGrassData& operator=(FLandscapeComponentGrassData&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Returns whether grass data has been computed (or serialized) yet. Returns true even if the data is completely empty (e.g. all-zero weightmap data)
 	bool HasValidData() const;
@@ -256,7 +261,7 @@ struct FLandscapeComponentGrassData
 };
 
 USTRUCT(NotBlueprintable, meta = (Deprecated = "5.1"))
-struct UE_DEPRECATED(5.1, "FLandscapeComponentMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeComponentMaterialOverride
+struct UE_DEPRECATED(all, "FLandscapeComponentMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeComponentMaterialOverride
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -370,6 +375,8 @@ enum ELandscapeLayerUpdateMode : uint32
 	Update_All = Update_Weightmap_All | Update_Heightmap_All,
 	Update_All_Editing = Update_Weightmap_Editing | Update_Heightmap_Editing,
 	Update_All_Editing_NoCollision = Update_Weightmap_Editing_NoCollision | Update_Heightmap_Editing_NoCollision,
+	Update_Heightmap_Types = Update_Heightmap_All | Update_Heightmap_Editing | Update_Heightmap_Editing_NoCollision,
+	Update_Weightmap_Types = Update_Weightmap_All | Update_Weightmap_Editing | Update_Weightmap_Editing_NoCollision,
 	// In cases where we couldn't update the clients right away this flag will be set in RegenerateLayersContent
 	Update_Client_Deferred = 1 << 6,
 	// Update landscape component clients while editing
@@ -380,6 +387,7 @@ static const uint32 DefaultSplineHash = 0xFFFFFFFF;
 
 #endif
 
+// TODO [jonathan.bard] : Deprecate : this is now kinda redundant with ELandscapeToolTargetType
 UENUM()
 enum ELandscapeClearMode : int
 {
@@ -427,11 +435,12 @@ class ULandscapeComponent : public UPrimitiveComponent
 
 #if WITH_EDITORONLY_DATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.1, "OverrideMaterials has been deprecated, use PerLODOverrideMaterials instead.")
+	UE_DEPRECATED(all, "OverrideMaterials has been deprecated, use PerLODOverrideMaterials instead.")
 	UPROPERTY()
 	TArray<FLandscapeComponentMaterialOverride> OverrideMaterials_DEPRECATED;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	UE_DEPRECATED(5.5, "MaterialInstance has been deprecated, use MaterialInstances instead.")
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceConstant> MaterialInstance_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
@@ -478,6 +487,7 @@ class ULandscapeComponent : public UPrimitiveComponent
 	TArray<double> MipToMipMaxDeltas;
 
 #if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "CollisionComponent has been deprecated and will be removed in a future version")
 	UPROPERTY()
 	TLazyObjectPtr<ULandscapeHeightfieldCollisionComponent> CollisionComponent_DEPRECATED;
 #endif // !WITH_EDITORONLY_DATA
@@ -486,7 +496,6 @@ private:
 	/** Reference to associated collision component */
 	UPROPERTY()
 	TObjectPtr<ULandscapeHeightfieldCollisionComponent> CollisionComponentRef;
-
 
 	/** Store  */ 
 	UPROPERTY(Transient)
@@ -596,21 +605,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=LandscapeComponent)
 	int32 LODBias;
 
+	UE_DEPRECATED(5.5, "StateId is unused and will be removed in a future version")
 	UPROPERTY()
-	// TODO [jonathan.bard] : remove unused : 
 	FGuid StateId;
 
-	UE_DEPRECATED(5.3, "BakedTextureMaterialGuid is officially deprecated now and nothing updates it anymore")
-	FGuid BakedTextureMaterialGuid;
-
-	UE_DEPRECATED(5.3, "LastBakedTextureMaterialGuid is officially deprecated now and nothing updates it anymore")
-	FGuid LastBakedTextureMaterialGuid;
-
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.3, "GIBakedBaseColorTexture is officially deprecated now and nothing updates it anymore")
-	TObjectPtr<UTexture2D> GIBakedBaseColorTexture;
-
 	/**	Legacy irrelevant lights */
+	UE_DEPRECATED(5.5, "IrrelevantLights is officially deprecated now and will be removed in a future version")
 	UPROPERTY()
 	TArray<FGuid> IrrelevantLights_DEPRECATED;
 
@@ -647,10 +648,15 @@ public:
 	/** Represents last saved hash for PhysicalMaterialTask */
 	UPROPERTY(Transient)
 	uint32 LastSavedPhysicalMaterialHash;
-#endif // WITH_EDITORONLY_DATA
 
+	UE_DEPRECATED(5.5, "MobileMaterialInterface has been deprecated and will be removed in a future version")
 	UPROPERTY(NonPIEDuplicateTransient)
 	TObjectPtr<UMaterialInterface> MobileMaterialInterface_DEPRECATED;
+
+    UE_DEPRECATED(5.5, "MobileCombinationMaterialInstance has been deprecated and will be removed in a future version")
+	UPROPERTY(NonPIEDuplicateTransient)
+	TObjectPtr<UMaterialInstanceConstant> MobileCombinationMaterialInstance_DEPRECATED;
+#endif // WITH_EDITORONLY_DATA
 
 	/** Material interfaces used for mobile */
 	UPROPERTY(NonPIEDuplicateTransient)
@@ -673,9 +679,6 @@ public:
 	  because we cannot generate it at runtime for standalone PIE games */
 	UPROPERTY(NonPIEDuplicateTransient)
 	TArray<TObjectPtr<UMaterialInstanceConstant>> MobileCombinationMaterialInstances;
-
-	UPROPERTY(NonPIEDuplicateTransient)
-	TObjectPtr<UMaterialInstanceConstant> MobileCombinationMaterialInstance_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 
 public:
@@ -715,7 +718,6 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	virtual void BeginDestroy() override;
-	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
@@ -752,7 +754,7 @@ public:
 #endif
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
-	virtual ELightMapInteractionType GetStaticLightingType() const override { return LMIT_Texture;	}
+	virtual ELightMapInteractionType GetStaticLightingType() const override;
 	virtual void GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const override;
 	virtual bool IsPrecomputedLightingValid() const override;
 
@@ -863,7 +865,7 @@ public:
 	
 	bool MaterialHasGrass() const { return !GetGrassTypes().IsEmpty(); }
 
-	float GetGrassTypesMaxDiscardDistance() const { return GrassTypeSummary.MaxInstanceDiscardDistance; }
+	double GetGrassTypesMaxDiscardDistance() const { return GrassTypeSummary.MaxInstanceDiscardDistance; }
 	void SetGrassTypesMaxDiscardDistance(const float InGrassTypesMaxDiscardDistance) { GrassTypeSummary.MaxInstanceDiscardDistance = InGrassTypesMaxDiscardDistance; GrassTypeSummary.bInvalid = false; }
 
 	/** If the LandscapeMaterial has changed, updates the GrassTypes array. Returns true if the GrassTypes array was updated. */
@@ -960,6 +962,12 @@ public:
 		return FIntPoint(SectionBaseX, SectionBaseY);
 	}
 
+	/** @return the component's coordinates (aka index, aka component key) in the entire landscape */
+	FIntPoint GetComponentKey() const
+	{
+		return GetSectionBase() / ComponentSizeQuads;
+	}
+
 	/** @param InSectionBase new section base for a component */
 	void SetSectionBase(FIntPoint InSectionBase)
 	{
@@ -1011,19 +1019,9 @@ public:
 
 #if WITH_EDITOR
 	/**
-	 * Recalculate cached bounds using height values.
-	 */
-	LANDSCAPE_API void UpdateCachedBounds(bool bInApproximateBounds = false);
-
-	/**
 	 * Recalculate cached bounds using height values.  Returns true when the bounds were changed.
 	 */
-private:
-	// temporary private version for 5.4, to avoid changing the public API
-	bool UpdateCachedBoundsInternal(bool bInApproximateBounds = false);
-	friend class ALandscapeProxy;
-	
-public:
+	LANDSCAPE_API bool UpdateCachedBounds(bool bInApproximateBounds = false);
 
 	/**
 	 * Update the MaterialInstance parameters to match the layer and weightmaps for this component
@@ -1132,12 +1130,13 @@ public:
 	/**
 	 * Create weightmaps for this component for the layers specified in the WeightmapLayerAllocations array, works in the landscape current edit layer when InCanUseEditingWeightmap is true
 	 */
+	UE_DEPRECATED(5.5, "Use the new prototype of ReallocateWeightmaps : note : this is very internal stuff, normally, you shouldn't have to use this function at all")
 	LANDSCAPE_API void ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface = nullptr, bool InCanUseEditingWeightmap = true, bool InSaveToTransactionBuffer = true, bool InForceReallocate = false, ALandscapeProxy* InTargetProxy = nullptr, TArray<UTexture*>* OutNewCreatedTextures = nullptr);
 
 	/**
 	 * Create weightmaps for this component for the layers specified in the WeightmapLayerAllocations array, works in the specified edit layer
 	 */
-	void ReallocateWeightmapsInternal(FLandscapeEditDataInterface* DataInterface = nullptr, const FGuid& InEditLayerGuid = FGuid(), bool InSaveToTransactionBuffer = true, bool InForceReallocate = false, ALandscapeProxy* InTargetProxy = nullptr, TArray<UTexture*>* OutNewCreatedTextures = nullptr);
+	LANDSCAPE_API TArray<UTexture*> ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, const FGuid& InEditLayerGuid, bool bInSaveToTransactionBuffer, bool bInForceReallocate, ALandscapeProxy* InTargetProxy, TSet<ULandscapeComponent*>* InRestrictSharingToComponents);
 
 	/** Returns true if the component has a valid LandscapeHoleMaterial */
 	LANDSCAPE_API bool IsLandscapeHoleMaterialValid() const;

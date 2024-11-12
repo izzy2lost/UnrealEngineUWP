@@ -2,10 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Misc/ConfigCacheIni.h"
+#include "String/ParseTokens.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
 #include "UObject/MetaData.h"
+#include "UObject/PropertyHelper.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/DevObjectVersion.h"
@@ -13,7 +15,7 @@
 #include "UObject/CoreRedirects.h"
 #include "UObject/LinkerLoad.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogEnum, Log, All);
+DEFINE_LOG_CATEGORY(LogEnum);
 
 /*-----------------------------------------------------------------------------
 	UEnum implementation.
@@ -29,6 +31,8 @@ UEnum::UEnum(const FObjectInitializer& ObjectInitializer)
 	, EnumDisplayNameFn( nullptr )
 {
 }
+
+UEnum::~UEnum() = default;
 
 void UEnum::Serialize( FArchive& Ar )
 {
@@ -207,6 +211,39 @@ int64 UEnum::GetValueByName(FName InName, EGetByNameFlags Flags) const
 	return INDEX_NONE;
 }
 
+int64 UEnum::GetValueOrBitfieldFromString(FStringView InString, EGetByNameFlags LookupFlags) const
+{
+	bool  bSuccess = true;
+	int64 Result   = 0;
+
+	UE::String::ParseTokens(
+		InString,
+		TEXTVIEW("|"),
+		[this, &bSuccess, &Result, LookupFlags](FStringView Flag)
+		{
+			if (!bSuccess)
+			{
+				return;
+			}
+
+			FName FlagName(Flag);
+
+			int32 FlagIndex = GetIndexByName(FlagName, LookupFlags);
+			if (FlagIndex != INDEX_NONE)
+			{
+				Result |= GetValueByName(FlagName);
+			}
+			else
+			{
+				bSuccess = false;
+			}
+		},
+		UE::String::EParseTokensOptions::SkipEmpty | UE::String::EParseTokensOptions::Trim
+	);
+
+	return bSuccess ? Result : INDEX_NONE;
+}
+
 int64 UEnum::GetMaxEnumValue() const
 {
 	int32 NamesNum = Names.Num();
@@ -215,17 +252,35 @@ int64 UEnum::GetMaxEnumValue() const
 		return 0;
 	}
 
-	int64 MaxValue = Names[0].Value;
-	for (int32 i = 1; i < NamesNum; ++i)
+	if (EnumHasAnyFlags(EnumFlags, EEnumFlags::Flags))
 	{
-		int64 CurrentValue = Names[i].Value;
-		if (CurrentValue > MaxValue)
+		// The max value of a set of flags is the combination of all the power-of-two flags
+		int64 MaxFlag = 0;
+		for (const TPair<FName, int64>& NameAndValue : Names)
 		{
-			MaxValue = CurrentValue;
+			int64 EnumeratorValue = NameAndValue.Value;
+			if (FMath::IsPowerOfTwo(EnumeratorValue))
+			{
+				MaxFlag |= EnumeratorValue;
+			}
 		}
-	}
 
-	return MaxValue;
+		return MaxFlag;
+	}
+	else
+	{
+		int64 MaxValue = Names[0].Value;
+		for (int32 i = 1; i < NamesNum; ++i)
+		{
+			int64 CurrentValue = Names[i].Value;
+			if (CurrentValue > MaxValue)
+			{
+				MaxValue = CurrentValue;
+			}
+		}
+
+		return MaxValue;
+	}
 }
 
 bool UEnum::IsValidEnumValue(int64 InValue) const
@@ -241,6 +296,42 @@ bool UEnum::IsValidEnumValue(int64 InValue) const
 	}
 
 	return false;
+}
+
+bool UEnum::IsValidEnumValueOrBitfield(int64 InValue) const
+{
+	if (!EnumHasAnyFlags(EnumFlags, EEnumFlags::Flags))
+	{
+		return IsValidEnumValue(InValue);
+	}
+
+	// Remove the known flags from the value - ignore the last enumerator because it's MAX.
+	// TODO: Update this when MAX is no longer generated for flag-based enums.
+	int32 NamesNum  = Names.Num() - 1;
+	int32 NameIndex = 0;
+	for (;;)
+	{
+		// If all the flags have been removed then it must be a valid value
+		if (InValue == 0)
+		{
+			return true;
+		}
+
+		// If all the flags in the enum have been tested and there are still left in the value, it wasn't a valid value
+		if (NameIndex == NamesNum)
+		{
+			return false;
+		}
+
+		// Remove flag from value, but only if it's a power of two
+		int64 EnumeratorValue = Names[NameIndex].Value;
+		if (FMath::IsPowerOfTwo(EnumeratorValue))
+		{
+			InValue &= ~EnumeratorValue;
+		}
+
+		++NameIndex;
+	}
 }
 
 bool UEnum::IsValidEnumName(FName InName) const
@@ -499,34 +590,67 @@ FString UEnum::GetNameStringByValue(int64 Value) const
 	return GetNameStringByIndex(Index);
 }
 
-FString UEnum::GetValueOrBitfieldAsString(int64 InValue) const
+namespace
 {
-	if (!HasAnyEnumFlags(EEnumFlags::Flags) || InValue == 0)
+	template <typename NameGetterType>
+	FString CreateStringFromValueOrBitfield(const UEnum* Enum, int64 InValue, NameGetterType&& NameGetter)
 	{
-		return GetNameStringByValue(InValue);
-	}
-	else
-	{
+		if (!Enum->HasAnyEnumFlags(EEnumFlags::Flags) || InValue == 0)
+		{
+			return NameGetter(InValue);
+		}
+
 		FString BitfieldString;
-		bool WroteFirstFlag = false;
+		bool bWroteFirstFlag = false;
 		while (InValue != 0)
 		{
 			int64 NextValue = 1ll << FMath::CountTrailingZeros64(InValue);
 			InValue = InValue & ~NextValue;
-			if (WroteFirstFlag)
-			{
-				// We don't just want to use the NameValuePair.Key because we want to strip enum class prefixes
-				BitfieldString.Appendf(TEXT(" | %s"), *GetNameStringByValue(NextValue));
-			}
-			else
-			{
-				// We don't just want to use the NameValuePair.Key because we want to strip enum class prefixes
-				BitfieldString.Appendf(TEXT("%s"), *GetNameStringByValue(NextValue));
-				WroteFirstFlag = true;
-			}
+
+			// We don't just want to use the NameValuePair.Key because we want to strip enum class prefixes
+			BitfieldString.Appendf(TEXT("%s%s"), bWroteFirstFlag ? TEXT(" | ") : TEXT(""), *NameGetter(NextValue));
+			bWroteFirstFlag = true;
 		}
 		return BitfieldString;
 	}
+}
+
+FString UEnum::GetValueOrBitfieldAsString(int64 InValue) const
+{
+	return CreateStringFromValueOrBitfield(
+		this,
+		InValue,
+		[this](int64 Value)
+		{
+			return GetNameStringByValue(Value);
+		}
+	);
+}
+
+FString UEnum::GetValueOrBitfieldAsAuthoredNameString(int64 InValue) const
+{
+	return CreateStringFromValueOrBitfield(
+		this,
+		InValue,
+		[this](int64 Value)
+		{
+			return GetAuthoredNameStringByValue(Value);
+		}
+	);
+}
+
+FText UEnum::GetValueOrBitfieldAsDisplayNameText(int64 InValue) const
+{
+	return FText::FromString(
+		CreateStringFromValueOrBitfield(
+			this,
+			InValue,
+			[this](int64 Value)
+			{
+				return GetDisplayNameTextByValue(Value).ToString();
+			}
+		)
+	);
 }
 
 bool UEnum::FindNameStringByValue(FString& Out, int64 InValue) const
@@ -551,9 +675,8 @@ FText UEnum::GetDisplayNameTextByIndex(int32 NameIndex) const
 	}
 
 #if WITH_EDITOR
-	FText LocalizedDisplayName;
 	// In the editor, use metadata and localization to look up names
-	static const FString Namespace = TEXT("UObjectDisplayNames");
+	static const FTextKey Namespace = TEXT("UObjectDisplayNames");
 	const FString Key = GetFullGroupName(false) + TEXT(".") + RawName;
 
 	FString NativeDisplayName;
@@ -566,14 +689,9 @@ FText UEnum::GetDisplayNameTextByIndex(int32 NameIndex) const
 		NativeDisplayName = FName::NameToDisplayString(RawName, false);
 	}
 
-	if (!(FText::FindText(Namespace, Key, /*OUT*/LocalizedDisplayName, &NativeDisplayName)))
+	if (!NativeDisplayName.IsEmpty())
 	{
-		LocalizedDisplayName = FText::FromString(NativeDisplayName);
-	}
-
-	if (!LocalizedDisplayName.IsEmpty())
-	{
-		return LocalizedDisplayName;
+		return FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeDisplayName));
 	}
 #endif
 
@@ -772,7 +890,9 @@ bool UEnum::SetEnums(TArray<TPair<FName, int64>>& InNames, UEnum::ECppForm InCpp
 
 	if (bAddMaxKeyIfMissing)
 	{
-		if (!ContainsExistingMax())
+		// TODO: A MAX value for enum flags doesn't make sense, but keep generating it until we're comfortable that
+		// it's no longer needed.
+		if (!ContainsExistingMax() /*&& !EnumHasAnyFlags(EnumFlags, EEnumFlags::Flags)*/)
 		{
 			FName MaxEnumItem = *GenerateFullEnumName(*(GenerateEnumPrefix() + TEXT("_MAX")));
 			if (LookupEnumName(GetOutermost()->GetFName(), MaxEnumItem) != INDEX_NONE)
@@ -796,10 +916,10 @@ FText UEnum::GetToolTipTextByIndex(int32 NameIndex) const
 	FText LocalizedToolTip;
 	FString NativeToolTip = GetMetaData( TEXT("ToolTip"), NameIndex );
 
-	static const FString Namespace = TEXT("UObjectToolTips");
-	FString Key = GetFullGroupName(false) + TEXT(".") + GetNameStringByIndex(NameIndex);
+	static const FTextKey Namespace = TEXT("UObjectToolTips");
+	const FString Key = GetFullGroupName(false) + TEXT(".") + GetNameStringByIndex(NameIndex);
 		
-	if ( !FText::FindText( Namespace, Key, /*OUT*/LocalizedToolTip, &NativeToolTip ) )
+	if ( !FText::FindTextInLiveTable_Advanced( Namespace, Key, /*OUT*/LocalizedToolTip, &NativeToolTip ) )
 	{
 		static const FString DoxygenSee(TEXT("@see"));
 		static const FString TooltipSee(TEXT("See:"));
@@ -808,7 +928,7 @@ FText UEnum::GetToolTipTextByIndex(int32 NameIndex) const
 			NativeToolTip.TrimEndInline();
 		}
 
-		LocalizedToolTip = FText::FromString(NativeToolTip);
+		LocalizedToolTip = FText::AsLocalizable_Advanced(Namespace, Key, MoveTemp(NativeToolTip));
 	}
 
 	return LocalizedToolTip;
@@ -816,7 +936,7 @@ FText UEnum::GetToolTipTextByIndex(int32 NameIndex) const
 
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 
 bool UEnum::HasMetaData( const TCHAR* Key, int32 NameIndex/*=INDEX_NONE*/ ) const
 {
@@ -934,7 +1054,7 @@ void UEnum::RemoveMetaData( const TCHAR* Key, int32 NameIndex/*=INDEX_NONE*/) co
 	MetaData->RemoveValue( this, *KeyString );
 }
 
-#endif
+#endif // WITH_METADATA
 
 int64 UEnum::ParseEnum(const TCHAR*& Str)
 {
@@ -964,7 +1084,7 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UEnum, UField,
 #if WITH_DEV_AUTOMATION_TESTS 
 
 #include "Misc/AutomationTest.h"
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumBitfieldTest, "System.CoreUObject.EnumBitfields", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnumBitfieldTest, "System.CoreUObject.EnumBitfields", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 bool FEnumBitfieldTest::RunTest(const FString& Parameters)
 {
 	UPackage* NativePackage = CreatePackage(TEXT("/Script/TestEnumBitfieldsPackage"));

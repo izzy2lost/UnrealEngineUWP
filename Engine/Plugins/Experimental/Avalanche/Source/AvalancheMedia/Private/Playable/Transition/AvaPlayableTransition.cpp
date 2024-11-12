@@ -49,6 +49,11 @@ void UAvaPlayableTransition::Stop()
 	}
 }
 
+void UAvaPlayableTransition::SetTransitionId(const FGuid& InTransitionId)
+{
+	TransitionId = InTransitionId;
+}
+
 void UAvaPlayableTransition::SetTransitionFlags(EAvaPlayableTransitionFlags InFlags)
 {
 	TransitionFlags = InFlags;
@@ -69,17 +74,17 @@ void UAvaPlayableTransition::SetExitPlayables(TArray<TWeakObjectPtr<UAvaPlayable
 	ExitPlayablesWeak = MoveTemp(InPlayablesWeak);
 }
 
-bool UAvaPlayableTransition::IsEnterPlayable(UAvaPlayable* InPlayable) const
+bool UAvaPlayableTransition::IsEnterPlayable(const UAvaPlayable* InPlayable) const
 {
 	return EnterPlayablesWeak.Contains(InPlayable);
 }
 
-bool UAvaPlayableTransition::IsPlayingPlayable(UAvaPlayable* InPlayable) const
+bool UAvaPlayableTransition::IsPlayingPlayable(const UAvaPlayable* InPlayable) const
 {
 	return PlayingPlayablesWeak.Contains(InPlayable);
 }
 
-bool UAvaPlayableTransition::IsExitPlayable(UAvaPlayable* InPlayable) const
+bool UAvaPlayableTransition::IsExitPlayable(const UAvaPlayable* InPlayable) const
 {
 	return ExitPlayablesWeak.Contains(InPlayable);
 }
@@ -89,8 +94,37 @@ void UAvaPlayableTransition::SetEnterPlayableValues(TArray<TSharedPtr<FAvaPlayab
 	EnterPlayableValues = MoveTemp(InPlayableValues);
 }
 
+TSharedPtr<FAvaPlayableRemoteControlValues> UAvaPlayableTransition::GetValuesForPlayable(const UAvaPlayable* InPlayable, bool bInIsEnterPlayable)
+{
+	if (bInIsEnterPlayable)
+	{
+		int32 ArrayIndex = 0;
+		for (const TWeakObjectPtr<UAvaPlayable> PlayableWeak : EnterPlayablesWeak)
+		{
+			const UAvaPlayable* Playable = PlayableWeak.Get();
+			if (Playable == InPlayable && EnterPlayableValues.IsValidIndex(ArrayIndex))
+			{
+				return EnterPlayableValues[ArrayIndex];
+			}
+			++ArrayIndex;
+		}
+	}
+	else if (TSharedPtr<FAvaPlayableRemoteControlValues>* FoundValues = OtherPlayableValues.Find(InPlayable))
+	{
+		return *FoundValues;
+	}
+
+	return nullptr;
+}
+
 void UAvaPlayableTransition::MarkPlayableAsDiscard(UAvaPlayable* InPlayable)
 {
+	// Hack: Intercept "in-place" playable, don't mark them for discard.
+	if (IsEnterPlayable(InPlayable) && IsPlayingPlayable(InPlayable))
+	{
+		return;
+	}
+	
 	DiscardPlayablesWeak.AddUnique(InPlayable);
 	UAvaPlayable::OnTransitionEvent().Broadcast(InPlayable, this, EAvaPlayableTransitionEventFlags::MarkPlayableDiscard);
 }
@@ -166,9 +200,9 @@ void FAvaPlayableTransitionBuilder::AddEnterPlayableValues(const TSharedPtr<FAva
 	EnterPlayableValues.Add(InValues);
 }
 
-bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable)
+bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd)
 {
-	if (ExitPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && ExitPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -177,7 +211,7 @@ bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable)
 		return false;
 	}
 
-	if (PlayingPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && PlayingPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -190,9 +224,9 @@ bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable)
 	return true;
 }
 
-bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable)
+bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd)
 {
-	if (EnterPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && EnterPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -201,7 +235,7 @@ bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable)
 		return false;
 	}
 
-	if (ExitPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && ExitPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -215,9 +249,9 @@ bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable)
 	return true;
 }
 
-bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable)
+bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd)
 {
-	if (EnterPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && EnterPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -226,7 +260,7 @@ bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable)
 		return false;
 	}
 
-	if (PlayingPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && PlayingPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -239,7 +273,7 @@ bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable)
 	return true;
 }
 
-UAvaPlayableTransition* FAvaPlayableTransitionBuilder::MakeTransition(UObject* InOuter)
+UAvaPlayableTransition* FAvaPlayableTransitionBuilder::MakeTransition(UObject* InOuter, const FGuid& InTransitionId)
 {
 	// Determine if we have remote playables.
 	using namespace UE::AvaPlayableTransition::Private;
@@ -303,6 +337,7 @@ UAvaPlayableTransition* FAvaPlayableTransitionBuilder::MakeTransition(UObject* I
 	PlayableTransition->SetEnterPlayables(MoveTemp(EnterPlayablesWeak));
 	PlayableTransition->SetPlayingPlayables(MoveTemp(PlayingPlayablesWeak));
 	PlayableTransition->SetExitPlayables(MoveTemp(ExitPlayablesWeak));
+	PlayableTransition->SetTransitionId(InTransitionId);
 	
 	return PlayableTransition;
 }

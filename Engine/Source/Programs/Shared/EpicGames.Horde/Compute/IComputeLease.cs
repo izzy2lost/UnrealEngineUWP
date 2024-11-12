@@ -13,6 +13,11 @@ namespace EpicGames.Horde.Compute
 	public interface IComputeLease : IAsyncDisposable
 	{
 		/// <summary>
+		/// Compute cluster ID
+		/// </summary>
+		ClusterId Cluster { get; }
+		
+		/// <summary>
 		/// Properties of the remote machine
 		/// </summary>
 		IReadOnlyList<string> Properties { get; }

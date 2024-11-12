@@ -166,7 +166,7 @@ FDataHandle FDataRegistry::GetRegisteredData(const FName& Id) const
 
 void FDataRegistry::FreeAllocatedBlock(Private::FAllocatedBlock* AllocatedBlock)
 {
-	FRWScopeLock Lock(DataTypeDefsLock, SLT_Write);
+	FRWScopeLock ScopedAllocatedBlocksLock(AllocatedBlocksLock, SLT_Write);
 
 	if (ensure(AllocatedBlock != nullptr && AllocatedBlocks.Find(AllocatedBlock)))
 	{
@@ -174,14 +174,17 @@ void FDataRegistry::FreeAllocatedBlock(Private::FAllocatedBlock* AllocatedBlock)
 		{
 			void* Memory = AllocatedBlock->Memory;
 
-			FDataTypeDef* TypeDef = DataTypeDefs.Find(AllocatedBlock->TypeHandle);
-			if (ensure(TypeDef != nullptr))
 			{
-				TypeDef->DestroyTypeFn((uint8*)AllocatedBlock->Memory, AllocatedBlock->NumElem);
-
-				FMemory::Free(AllocatedBlock->Memory); // TODO : This should come from preallocated chunks, use malloc / free for now
-				AllocatedBlock->Memory = nullptr;
+				FRWScopeLock ScopedDataTypeDefsLock(DataTypeDefsLock, SLT_ReadOnly);
+				FDataTypeDef* TypeDef = DataTypeDefs.Find(AllocatedBlock->Type);
+				if (ensure(TypeDef != nullptr))
+				{
+					TypeDef->DestroyTypeFn((uint8*)AllocatedBlock->Memory, AllocatedBlock->NumElem);
+				}
 			}
+
+			FMemory::Free(AllocatedBlock->Memory); // TODO : This should come from preallocated chunks, use malloc / free for now
+			AllocatedBlock->Memory = nullptr;
 
 			AllocatedBlocks.Remove(AllocatedBlock);
 			delete AllocatedBlock; // TODO : avoid memory fragmentation

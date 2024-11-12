@@ -15,6 +15,13 @@ void USphereNetObjectPrioritizer::Init(FNetObjectPrioritizerInitParams& Params)
 	Super::Init(Params);
 }
 
+void USphereNetObjectPrioritizer::Deinit()
+{
+	Super::Deinit();
+
+	Config = nullptr;
+}
+
 void USphereNetObjectPrioritizer::Prioritize(FNetObjectPrioritizationParams& PrioritizationParams)
 {
 	IRIS_PROFILER_SCOPE(USphereNetObjectPrioritizer_Prioritize);

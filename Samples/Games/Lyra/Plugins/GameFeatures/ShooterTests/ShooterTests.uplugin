@@ -32,6 +32,26 @@
 		{
 			"Name": "LyraExampleContent",
 			"Enabled": true
+		},
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
+		{
+			"Name": "ModularGameplay",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "CQTest",
+			"Enabled": true
+		},
+		{
+			"Name": "CQTestEnhancedInput",
+			"Enabled": true
 		}
 	]
 }

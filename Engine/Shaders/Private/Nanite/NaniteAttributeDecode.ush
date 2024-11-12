@@ -19,17 +19,60 @@ struct FNaniteAttributeData
 
 struct FNaniteRawAttributeData
 {
-	float4 TangentX_AndSign;
+	float4 TangentXAndSign;
 	float3 TangentZ;
 	float4 Color;
 	float2 TexCoords[NANITE_MAX_UVS];
 };
 
-HLSL_STATIC_ASSERT(sizeof(FNaniteRawAttributeData) == 44 + 8 * NANITE_MAX_UVS, "Unexpected size of FNaniteRawAttributeData. Update StoreVertexToLDS to reflect changes.");
+struct FNaniteTangentBasis
+{
+	float4 TangentXAndSign; // Tangent and Bitangent Sign Bit
+	float3 TangentZ; // Normal
+
+	float3 DeriveTangentY()
+	{
+		// Bitangent
+		return cross(TangentZ, TangentXAndSign.xyz) * TangentXAndSign.w;
+	}
+
+	void RecalculateTangentX()
+	{
+		// Recalculate TangentX from the other two vectors - This can correct some quantization errors.
+		// The error shows up most in specular off of a mesh with a smoothed UV seam (normal is smooth, but tangents vary across the seam)
+		const float3 TangentY = DeriveTangentY();
+		TangentXAndSign.xyz = cross(TangentY, TangentZ) * TangentXAndSign.w;
+	}
+
+	void Normalize()
+	{
+		TangentXAndSign.xyz = normalize(TangentXAndSign.xyz);
+		TangentZ = normalize(TangentZ);
+	}
+};
+
+FNaniteTangentBasis MakeTangentBasis(FNaniteRawAttributeData RawAttributeData)
+{
+	FNaniteTangentBasis TangentBasis;
+	TangentBasis.TangentXAndSign = RawAttributeData.TangentXAndSign;
+	TangentBasis.TangentZ = RawAttributeData.TangentZ;
+	return TangentBasis;
+}
+
+HLSL_STATIC_ASSERT(sizeof(FNaniteTangentBasis) == 28, "Unexpected size of FNaniteTangentBasis. Update WaveReadLaneAt to reflect changes.");
+FNaniteTangentBasis WaveReadLaneAt(FNaniteTangentBasis In, uint SrcIndex)
+{
+	FNaniteTangentBasis Out;
+	Out.TangentXAndSign = WaveReadLaneAt(In.TangentXAndSign, SrcIndex);
+	Out.TangentZ = WaveReadLaneAt(In.TangentZ, SrcIndex);
+	return Out;
+}
+
+HLSL_STATIC_ASSERT(sizeof(FNaniteRawAttributeData) == 44 + 8 * NANITE_MAX_UVS, "Unexpected size of FNaniteRawAttributeData. Update WaveReadLaneAt to reflect changes.");
 FNaniteRawAttributeData WaveReadLaneAt(FNaniteRawAttributeData In, uint SrcIndex)
 {
 	FNaniteRawAttributeData Out;
-	Out.TangentX_AndSign = WaveReadLaneAt(In.TangentX_AndSign, SrcIndex);
+	Out.TangentXAndSign = WaveReadLaneAt(In.TangentXAndSign, SrcIndex);
 	Out.TangentZ = WaveReadLaneAt(In.TangentZ, SrcIndex);
 	Out.Color = WaveReadLaneAt(In.Color, SrcIndex);
 	UNROLL
@@ -40,18 +83,36 @@ FNaniteRawAttributeData WaveReadLaneAt(FNaniteRawAttributeData In, uint SrcIndex
 	return Out;
 }
 
-#define SIZEOF_PACKED_UV_RANGE	8
-struct FUVRange
+#define SIZEOF_PACKED_UV_HEADER	8
+struct FUVHeader
 {
 	uint2	Min;
 	uint2	NumBits;
 	uint	NumMantissaBits;
 };
 
-
-FUVRange UnpackUVRange(uint2 Data)
+#define SIZEOF_PACKED_BONE_INFLUENCE_HEADER	8
+struct FBoneInfluenceHeader
 {
-	FUVRange Range;
+	uint	DataAddress;
+	uint	NumVertexBoneInfluences;
+	uint	NumVertexBoneIndexBits;
+	uint	NumVertexBoneWeightBits;
+	uint	NumClusterBoneInfluences;
+};
+
+struct FClusterBoneInfluence
+{
+	uint	BoneIndex;
+	float	MinWeight;
+	float	MaxWeight;
+	float3	BoundMin;
+	float3	BoundMax;
+};
+
+FUVHeader UnpackUVHeader(uint2 Data)
+{
+	FUVHeader Range;
 
 	Range.NumBits.x			= BitFieldExtractU32(Data.x, 5, 0);
 	Range.Min.x				= Data.x >> 5;
@@ -64,16 +125,30 @@ FUVRange UnpackUVRange(uint2 Data)
 	return Range;
 }
 
-FUVRange GetUVRange(ByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
+FUVHeader GetUVHeader(ByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
 {
-	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_RANGE);
-	return UnpackUVRange(Data);
+	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_HEADER);
+	return UnpackUVHeader(Data);
 }
 
-FUVRange GetUVRange(RWByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
+FUVHeader GetUVHeader(RWByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
 {
-	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_RANGE);
-	return UnpackUVRange(Data);
+	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_HEADER);
+	return UnpackUVHeader(Data);
+}
+
+FBoneInfluenceHeader GetBoneInfluenceHeader(FCluster Cluster)
+{
+	const uint2 Data = ClusterPageData.Load2(Cluster.PageBaseAddress + Cluster.DecodeInfoOffset + Cluster.NumUVs * SIZEOF_PACKED_BONE_INFLUENCE_HEADER);
+	
+	FBoneInfluenceHeader Header;
+	Header.DataAddress					= Cluster.PageBaseAddress + BitFieldExtractU32(Data.x, 22, 0);
+	Header.NumVertexBoneInfluences		= BitFieldExtractU32(Data.x, 10, 22);
+	Header.NumVertexBoneIndexBits		= BitFieldExtractU32(Data.y,  6,  0);
+	Header.NumVertexBoneWeightBits		= BitFieldExtractU32(Data.y,  6,  6);
+	Header.NumClusterBoneInfluences		= BitFieldExtractU32(Data.y,  5, 12);
+	
+	return Header;
 }
 
 float DecodeUVFloat(uint EncodedValue, uint NumMantissaBits)
@@ -88,12 +163,12 @@ float DecodeUVFloat(uint EncodedValue, uint NumMantissaBits)
 	return bNeg ? -Result : Result;
 }
 
-float2 UnpackTexCoord(uint2 Packed, FUVRange UVRange)
+float2 UnpackTexCoord(uint2 Packed, FUVHeader UVHeader)
 {
-	const uint2 GlobalUV = UVRange.Min + Packed;
+	const uint2 GlobalUV = UVHeader.Min + Packed;
 
-	return float2(	DecodeUVFloat(GlobalUV.x, UVRange.NumMantissaBits),
-					DecodeUVFloat(GlobalUV.y, UVRange.NumMantissaBits));
+	return float2(	DecodeUVFloat(GlobalUV.x, UVHeader.NumMantissaBits),
+					DecodeUVFloat(GlobalUV.y, UVHeader.NumMantissaBits));
 }
 
 float3 UnpackNormal(uint Packed, uint Bits)
@@ -197,9 +272,10 @@ struct FNaniteMaterialPrimitiveData
 	uint MeshPassMask;
 	bool bHasUVDensities;
 	uint HitProxyBufferOffset;
+	float4 OverlayColor;
 };
 
-FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint3 Data)
+FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint4 Data)
 {
 	FNaniteMaterialPrimitiveData Output;
 	Output.MaterialBufferOffset	= Data.x;
@@ -207,6 +283,7 @@ FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint3 Data)
 	Output.MeshPassMask			= BitFieldExtractU32(Data.y, 8u,  8u);
 	Output.bHasUVDensities		= BitFieldExtractU32(Data.y, 1u, 16u);
 	Output.HitProxyBufferOffset = Data.z;
+	Output.OverlayColor			= float4(UnpackToUint4(Data.w, 8)) * (1.0f / 255.0f);
 
 	return Output;
 }
@@ -215,13 +292,13 @@ FNaniteMaterialPrimitiveData LoadNaniteMaterialPrimitiveData(uint InPrimitiveInd
 {
 	const uint ElementStride = Scene.NaniteMaterials.PrimitiveMaterialElementStride;
 	const uint Offset = InPrimitiveIndex * ElementStride;
-	uint3 Data = (uint3)0xFFFFFFFFu;
+	uint4 Data = (uint4)0xFFFFFFFFu;
 	
 #if USE_EDITOR_SHADERS
 	// Check to load the hit proxy buffer offset
-	if (ElementStride / 4u >= 3u)
+	if (ElementStride / 4u >= 4u)
 	{
-		Data = Scene.NaniteMaterials.PrimitiveMaterialData.Load3(Offset);
+		Data = Scene.NaniteMaterials.PrimitiveMaterialData.Load4(Offset);
 	}
 	else
 #endif
@@ -236,8 +313,8 @@ struct FNaniteMaterialSlot
 {
 	uint ShadingBin;
 	uint RasterBin;
-	uint SecondaryRasterBin;
-	uint LegacyShadingId;
+	uint FallbackRasterBin;
+	uint Unused;
 };
 
 FNaniteMaterialSlot UnpackMaterialSlot(uint2 Data)
@@ -245,8 +322,8 @@ FNaniteMaterialSlot UnpackMaterialSlot(uint2 Data)
 	FNaniteMaterialSlot Output;
 	Output.ShadingBin			= Data.x >> 16u;
 	Output.RasterBin			= Data.x & 0xFFFFu;
-	Output.LegacyShadingId		= Data.y >> 16u;
-	Output.SecondaryRasterBin	= Data.y & 0xFFFFu;
+	Output.Unused				= Data.y >> 16u;
+	Output.FallbackRasterBin	= Data.y & 0xFFFFu;
 	return Output;
 }
 
@@ -319,15 +396,6 @@ float4 LoadMaterialUVDensities(uint InRelativeMaterialIndex, uint InPrimitiveInd
 	return LoadMaterialUVDensities(GetMaterialUVDensitiesOffset(InRelativeMaterialIndex, InPrimitiveIndex));
 }
 
-uint GetMaterialLegacyShadingIdFromIndex(
-	uint InRelativeMaterialIndex,
-	uint InPrimitiveIndex,
-	uint InMeshPassIndex)
-{
-	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
-	return MaterialSlot.LegacyShadingId;
-}
-
 uint GetMaterialShadingBinFromIndex(
 	uint InRelativeMaterialIndex,
 	uint InPrimitiveIndex,
@@ -339,16 +407,24 @@ uint GetMaterialShadingBinFromIndex(
 
 uint RemapRasterBin(uint InBinIndex, uint InRenderFlags, FNaniteMaterialFlags MaterialFlags)
 {
-	uint RemappedBin = InBinIndex;
+	// Any bins within the fixed function bin mask are special cased
+	const bool bFixedFunctionBin = InBinIndex <= NANITE_FIXED_FUNCTION_BIN_MASK;
+	const bool bDisableProgrammable = (InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0;
+	const bool bShadowPass = (InRenderFlags & NANITE_RENDER_FLAG_IS_SHADOW_PASS) != 0;
 
-	if ((InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0)
+	if (bFixedFunctionBin || bDisableProgrammable)
 	{
-		RemappedBin  = NANITE_FIXED_FUNCTION_BIN;
-		RemappedBin |= select(MaterialFlags.bTwoSided, NANITE_FIXED_FUNCTION_BIN_TWOSIDED, 0x0u);
-		RemappedBin |= select(MaterialFlags.bSplineMesh, NANITE_FIXED_FUNCTION_BIN_SPLINE, 0x0u);
+		// For non-shadow views, remap shadow casting fixed function to non-shadow casting (explicitly skipped)
+		const bool bCastShadow = select(bShadowPass, MaterialFlags.bCastShadow, false);
+
+		InBinIndex  = NANITE_FIXED_FUNCTION_BIN;
+		InBinIndex |= select(MaterialFlags.bTwoSided,		NANITE_FIXED_FUNCTION_BIN_TWOSIDED,		0x0u);
+		InBinIndex |= select(MaterialFlags.bSplineMesh,		NANITE_FIXED_FUNCTION_BIN_SPLINE,		0x0u);
+		InBinIndex |= select(MaterialFlags.bSkinnedMesh,	NANITE_FIXED_FUNCTION_BIN_SKINNED,		0x0u);
+		InBinIndex |= select(bCastShadow,					NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW,	0x0u);
 	}
 
-	return RemappedBin;
+	return InBinIndex;
 }
 
 uint GetMaterialRasterBinFromIndex(
@@ -356,14 +432,14 @@ uint GetMaterialRasterBinFromIndex(
 	uint InPrimitiveIndex,
 	uint InMeshPassIndex,
 	uint InRegularRasterBinCount,
-	bool bSecondaryRasterBin)
+	bool bFallbackRasterBin)
 {
 	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 	uint RasterBin = MaterialSlot.RasterBin;
 	
-	if (bSecondaryRasterBin && MaterialSlot.SecondaryRasterBin != 0xFFFFu)
+	if (bFallbackRasterBin && MaterialSlot.FallbackRasterBin != 0xFFFFu)
 	{
-		RasterBin = MaterialSlot.SecondaryRasterBin;
+		RasterBin = MaterialSlot.FallbackRasterBin;
 	}
 
 	if (RasterBin >= InRegularRasterBinCount)
@@ -372,16 +448,6 @@ uint GetMaterialRasterBinFromIndex(
 	}
 
 	return RasterBin;
-}
-
-uint GetMaterialLegacyShadingId(
-	FCluster InCluster,
-	uint InPrimitiveIndex,
-	uint InMeshPassIndex,
-	uint InTriIndex)
-{
-	const uint RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
-	return GetMaterialLegacyShadingIdFromIndex(RelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 }
 
 float4 GetMaterialUVDensities(
@@ -409,23 +475,15 @@ uint GetMaterialRasterBin(
 	uint InMeshPassIndex,
 	uint InTriIndex,
 	uint InRegularSlotCount,
-	bool bSecondaryBin)
+	bool bFallbackRasterBin)
 {
 	return GetMaterialRasterBinFromIndex(
 		GetRelativeMaterialIndex(InCluster, InTriIndex),
 		InPrimitiveIndex,
 		InMeshPassIndex,
 		InRegularSlotCount,
-		bSecondaryBin
+		bFallbackRasterBin
 	);
-}
-
-uint GetMaterialDepthId(
-	uint InMaterialSlot,
-	ByteAddressBuffer InMaterialDepthTable)
-{
-	const uint MaterialDepthId = InMaterialDepthTable.Load(InMaterialSlot * 4);
-	return MaterialDepthId;
 }
 
 uint LoadMaterialHitProxyId(uint InPrimitiveIndex, uint InMaterialIndex, ByteAddressBuffer InMaterialHitProxyTable)
@@ -452,9 +510,10 @@ uint GetMaterialHitProxyId(
 	return MaterialHitProxyId;
 }
 
-uint GetMaterialBucketIdFromDepth(float Depth)
+float4 LoadNaniteMaterialOverlayColor(uint InPrimitiveIndex)
 {
-	return (uint)(Depth * NANITE_MAX_STATE_BUCKET_ID);
+	FNaniteMaterialPrimitiveData PrimitiveData = LoadNaniteMaterialPrimitiveData(InPrimitiveIndex);
+	return PrimitiveData.OverlayColor;
 }
 
 float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBits)
@@ -472,6 +531,39 @@ float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBit
 	if (bSwapXZ) TangentX.xz = TangentX.zx;
 	return TangentX;
 }
+
+void DecodeVertexBoneInfluence(FBoneInfluenceHeader BoneInfluenceHeader, uint VertIndex, uint InfluenceIndex, inout uint OutBoneIndex, inout float OutBoneWeight)
+{
+	if (InfluenceIndex >= BoneInfluenceHeader.NumVertexBoneInfluences)
+	{
+		OutBoneIndex = 0;
+		OutBoneWeight = 0.0f;
+		return;
+	}
+
+	const uint BitsPerInfluence = (BoneInfluenceHeader.NumVertexBoneIndexBits + BoneInfluenceHeader.NumVertexBoneWeightBits);
+	
+	const uint BitOffset = (VertIndex * BoneInfluenceHeader.NumVertexBoneInfluences + InfluenceIndex) * BitsPerInfluence;
+	FBitStreamReaderState BoneDataStream = BitStreamReader_Create_Aligned(BoneInfluenceHeader.DataAddress, BitOffset, 32);
+
+	OutBoneIndex = BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, BoneInfluenceHeader.NumVertexBoneIndexBits, 16);
+	OutBoneWeight = (float)BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, BoneInfluenceHeader.NumVertexBoneWeightBits, 16) / 65535.0f;
+}
+
+#if COMPILER_SUPPORTS_HLSL2021
+FClusterBoneInfluence DecodeClusterBoneInfluence(FCluster Cluster, FBoneInfluenceHeader BoneInfluenceHeader, uint InfluenceIndex)
+{
+	// TODO: Nanite-Skinning: Just store cluster influences right after vertex influences for now. We probably want to make this easier to access.
+	const uint BitsPerInfluence = (BoneInfluenceHeader.NumVertexBoneIndexBits + BoneInfluenceHeader.NumVertexBoneWeightBits);
+	const uint BitOffset		= Cluster.NumVerts * BoneInfluenceHeader.NumVertexBoneInfluences * BitsPerInfluence;
+	const uint DwordOffset		= (BitOffset + 31) >> 5;
+
+	const uint BaseAddress		= BoneInfluenceHeader.DataAddress + DwordOffset * 4;
+
+	FClusterBoneInfluence Result = ClusterPageData.Load<FClusterBoneInfluence>(BaseAddress + InfluenceIndex * (uint)sizeof(FClusterBoneInfluence));
+	return Result;
+}
+#endif
 
 
 // Decodes vertex attributes for N vertices. N must be compile-time constant and <= 3.
@@ -507,7 +599,7 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 		ReadOffset[i] += 12;
 		if(Cluster.bHasTangents)
 		{
-			RawAttributeData[i].TangentX_AndSign = asfloat(ClusterPageData.Load4(ReadOffset[i]));
+			RawAttributeData[i].TangentXAndSign = asfloat(ClusterPageData.Load4(ReadOffset[i]));
 			ReadOffset[i] += 16;
 		}
 		RawAttributeData[i].Color = float4(UnpackToUint4(ClusterPageData.Load(ReadOffset[i]), 8)) * (1.0f / 255.0f);
@@ -559,11 +651,11 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 		{
 			const bool bTangentYSign = (TangentAngleAndSignBits & (1u << Cluster.TangentPrecision)) != 0;
 			const uint TangentAngleBits = BitFieldExtractU32(TangentAngleAndSignBits, Cluster.TangentPrecision, 0);
-			RawAttributeData[i].TangentX_AndSign = float4(UnpackTangentX(TangentZ, TangentAngleBits, Cluster.TangentPrecision), bTangentYSign ? -1.0f : 1.0f);
+			RawAttributeData[i].TangentXAndSign = float4(UnpackTangentX(TangentZ, TangentAngleBits, Cluster.TangentPrecision), bTangentYSign ? -1.0f : 1.0f);
 		}
 		else
 		{
-			RawAttributeData[i].TangentX_AndSign = 0.0f;
+			RawAttributeData[i].TangentXAndSign = 0.0f;
 		}
 
 		const uint4 ColorDelta = BitStreamReader_Read4_RO(ClusterPageData, AttributeStream[i], NumComponentBits, NANITE_MAX_COLOR_QUANTIZATION_BITS);
@@ -573,19 +665,19 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < CompileTimeMaxTexCoords; ++TexCoordIndex)
 	{
-		uint2 UVRangeData = 0u;
+		uint2 UVHeaderData = 0u;
 		if (TexCoordIndex < Cluster.NumUVs)
 		{
-			UVRangeData = ClusterPageData.Load2(DecodeInfoOffset + TexCoordIndex * SIZEOF_PACKED_UV_RANGE);
+			UVHeaderData = ClusterPageData.Load2(DecodeInfoOffset + TexCoordIndex * SIZEOF_PACKED_UV_HEADER);
 		}
 
-		const FUVRange UVRange = UnpackUVRange(UVRangeData);
+		const FUVHeader UVHeader = UnpackUVHeader(UVHeaderData);
 		
 		uint2 UVBits[3];
 		UNROLL
 		for (uint i = 0; i < CompileTimeN; i++)
 		{
-			UVBits[i] = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream[i], UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+			UVBits[i] = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream[i], UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 		}
 
 		BRANCH
@@ -594,7 +686,7 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 			UNROLL
 			for (uint i = 0; i < CompileTimeN; i++)
 			{
-				TexCoords[i] = UnpackTexCoord(UVBits[i], UVRange);
+				TexCoords[i] = UnpackTexCoord(UVBits[i], UVHeader);
 			}
 		}
 
@@ -627,10 +719,10 @@ FNaniteRawAttributeData GetRawAttributeData(
 	return RawAttributeData[0];
 }
 
-half3x3 NaniteTangentToLocal(float4 TangentX_AndSign, float3 UnnormalizedTangentZ)
+half3x3 NaniteTangentToLocal(float4 TangentXAndSign, float3 UnnormalizedTangentZ)
 {
-	const float3 TangentY = cross(UnnormalizedTangentZ.xyz, TangentX_AndSign.xyz) * TangentX_AndSign.w;
-	return float3x3(TangentX_AndSign.xyz, TangentY, UnnormalizedTangentZ);
+	const float3 TangentY = cross(UnnormalizedTangentZ.xyz, TangentXAndSign.xyz) * TangentXAndSign.w;
+	return float3x3(TangentXAndSign.xyz, TangentY, UnnormalizedTangentZ);
 }
 
 FNaniteAttributeData GetAttributeData(
@@ -641,10 +733,12 @@ FNaniteAttributeData GetAttributeData(
 	FNaniteRawAttributeData RawAttributeData0,
 	FNaniteRawAttributeData RawAttributeData1,
 	FNaniteRawAttributeData RawAttributeData2,
+	FNaniteTangentBasis TangentBasis0,
+	FNaniteTangentBasis TangentBasis1,
+	FNaniteTangentBasis TangentBasis2,
 	FBarycentrics Barycentrics,
 	FInstanceSceneData InstanceData,
-	uint CompileTimeMaxTexCoords,
-	half3x3 TangentRot
+	uint CompileTimeMaxTexCoords
 )
 {
 	FNaniteAttributeData AttributeData = (FNaniteAttributeData)0;
@@ -652,7 +746,7 @@ FNaniteAttributeData GetAttributeData(
 	// Always process first UV set. Even if it isn't used, we might still need TangentToWorld.
 	CompileTimeMaxTexCoords = max(1, min(NANITE_MAX_UVS, CompileTimeMaxTexCoords));
 
-	const float3 UnnormalizedTangentZ = Lerp( RawAttributeData0.TangentZ, RawAttributeData1.TangentZ, RawAttributeData2.TangentZ, Barycentrics ).Value;
+	const float3 UnnormalizedTangentZ = Lerp(TangentBasis0.TangentZ, TangentBasis1.TangentZ, TangentBasis2.TangentZ, Barycentrics).Value;
 	const float3 TangentZ = normalize(UnnormalizedTangentZ);
 
 	// Decode vertex color
@@ -688,9 +782,9 @@ FNaniteAttributeData GetAttributeData(
 				BRANCH
 				if (Cluster.bHasTangents)
 				{
-					float4 TangentX_AndSign = Lerp( RawAttributeData0.TangentX_AndSign, RawAttributeData1.TangentX_AndSign, RawAttributeData2.TangentX_AndSign, Barycentrics ).Value;
-					TangentToLocal = NaniteTangentToLocal(TangentX_AndSign, UnnormalizedTangentZ);
-					AttributeData.UnMirrored = TangentX_AndSign.w;
+					float4 TangentXAndSign = Lerp(TangentBasis0.TangentXAndSign, TangentBasis1.TangentXAndSign, TangentBasis2.TangentXAndSign, Barycentrics).Value;
+					TangentToLocal = NaniteTangentToLocal(TangentXAndSign, UnnormalizedTangentZ);
+					AttributeData.UnMirrored = TangentXAndSign.w;
 				}
 				else
 				{
@@ -737,7 +831,6 @@ FNaniteAttributeData GetAttributeData(
 
 					TangentToLocal = float3x3(TangentX, TangentY, TangentZ);
 				}
-				TangentToLocal = mul(TangentToLocal, TangentRot);
 
 				// Should be Pow2(InvScale) but that requires renormalization
 				float3x3 LocalToWorldNoScale = DFToFloat3x3(InstanceData.LocalToWorld);
@@ -760,40 +853,6 @@ FNaniteAttributeData GetAttributeData(
 	}
 
 	return AttributeData;
-}
-
-FNaniteAttributeData GetAttributeData(
-	FCluster Cluster,
-	float3 PointLocal0,
-	float3 PointLocal1,
-	float3 PointLocal2,
-	FNaniteRawAttributeData RawAttributeData0,
-	FNaniteRawAttributeData RawAttributeData1,
-	FNaniteRawAttributeData RawAttributeData2,
-	FBarycentrics Barycentrics,
-	FInstanceSceneData InstanceData,
-	uint CompileTimeMaxTexCoords
-)
-{
-	const half3x3 TangentRot =
-	{
-		1, 0, 0,
-		0, 1, 0,
-		0, 0, 1
-	};
-	return GetAttributeData(
-		Cluster,
-		PointLocal0,
-		PointLocal1,
-		PointLocal2,
-		RawAttributeData0,
-		RawAttributeData1,
-		RawAttributeData2,
-		Barycentrics,
-		InstanceData,
-		CompileTimeMaxTexCoords,
-		TangentRot
-	);
 }
 
 TDual< float2 > GetTexCoord(
@@ -831,40 +890,17 @@ TDual< float2 > GetTexCoord(
 	float2 TexCoord1 = asfloat(ClusterPageData.Load2(ReadOffset.y));
 	float2 TexCoord2 = asfloat(ClusterPageData.Load2(ReadOffset.z));
 #else
-	const FUVRange UVRange = GetUVRange(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
-	uint2 UVBits0 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream0, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
-	uint2 UVBits1 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream1, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
-	uint2 UVBits2 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream2, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	const FUVHeader UVHeader = GetUVHeader(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
+	uint2 UVBits0 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream0, UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	uint2 UVBits1 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream1, UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	uint2 UVBits2 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream2, UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 
-	float2 TexCoord0 = UnpackTexCoord(UVBits0, UVRange);
-	float2 TexCoord1 = UnpackTexCoord(UVBits1, UVRange);
-	float2 TexCoord2 = UnpackTexCoord(UVBits2, UVRange);
+	float2 TexCoord0 = UnpackTexCoord(UVBits0, UVHeader);
+	float2 TexCoord1 = UnpackTexCoord(UVBits1, UVHeader);
+	float2 TexCoord2 = UnpackTexCoord(UVBits2, UVHeader);
 #endif
 
 	return Lerp( TexCoord0, TexCoord1, TexCoord2, Barycentrics );	
-}
-
-// TODO: Move to an appropriate common location outside of Nanite
-uint LowerBound(Buffer<uint> SearchBuffer, uint BufferCount, uint Key)
-{
-	uint Index = 0;
-	uint Width = BufferCount >> 1;
-	
-	UNROLL
-	while (Width > 0)
-	{
-		Index += (Key < SearchBuffer[Index + Width]) ? 0 : Width;
-		Width = Width >> 1;
-	}
-	
-	return Index;
-}
-
-// TODO: Move to an appropriate common location outside of Nanite
-bool BinarySearch(Buffer<uint> SearchBuffer, uint BufferCount, uint Key)
-{
-	uint Index = LowerBound(SearchBuffer, BufferCount, Key);
-	return SearchBuffer[Index] == Key;
 }
 
 #ifndef DEFINE_ITERATE_CLUSTER_SEGMENTS

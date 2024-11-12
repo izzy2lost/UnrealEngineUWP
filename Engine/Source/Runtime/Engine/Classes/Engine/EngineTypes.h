@@ -401,6 +401,21 @@ enum ERefractionCoverageMode : int
 	RCM_CoverageAccountedFor UMETA(DisplayName = "Coverage Accounted For"),
 };
 
+/** Determines how the pixel depth offset is evaluated and applied. Must match PODM_LEGACY in MaterialTemplace.ush.*/
+UENUM()
+enum EPixelDepthOffsetMode : int
+{
+	/**
+	 * This is the legacy mode where PDO is applied differently for Depth (along View Forward) and world position (along Camera Vector).
+	 */
+	PDOM_Legacy UMETA(DisplayName = "Legacy"),
+
+	/**
+	 * PDO is applied along the Camera Vector for Depth and World Position altogether.
+	 */
+	PDOM_AlongCameraVector UMETA(DisplayName = "Along Camera Vector"),
+};
+
 /**
  * Enumerates available options for the translucency sort policy.
  */
@@ -483,6 +498,22 @@ namespace ECastRayTracedShadow
 		UseProjectSetting,
 		/** Ray traced shadows enabled for this light */
 		Enabled,
+	};
+}
+
+/** MegaLights Shadow type for a light component.
+*/
+UENUM()
+namespace EMegaLightsShadowMethod
+{
+	enum Type : int
+	{
+		/** Recommended. Uses the default MegaLights shadow method. */
+		Default,
+		/** Preferred method, which guarantees fixed MegaLights cost and correct area shadows, but is dependent on the BVH representation quality. */
+		RayTracing,
+		/** Has a significant per light cost, but can cast shadows directly from the Nanite geometry using rasterization. */
+		VirtualShadowMap,
 	};
 }
 
@@ -738,12 +769,12 @@ public:
 	// Subsurface profiles
 	void AddSubsurfaceProfile(USubsurfaceProfile* InProfile) { if (InProfile) SubsurfaceProfiles.Add(InProfile); }
 	int32 CountSubsurfaceProfiles() const { return SubsurfaceProfiles.Num(); }
-	USubsurfaceProfile* GetSubsurfaceProfile() const { return SubsurfaceProfiles.Num() > 0 ? SubsurfaceProfiles[0] : nullptr; }
+	USubsurfaceProfile* GetSubsurfaceProfile(int32 Index) const { return SubsurfaceProfiles.IsValidIndex(Index) ? SubsurfaceProfiles[Index] : nullptr; }
 
 	// Specular profiles
 	void AddSpecularProfile(USpecularProfile* InProfile) { if (InProfile) SpecularProfiles.Add(InProfile); }
 	int32 CountSpecularProfiles() const { return SpecularProfiles.Num(); }
-	USpecularProfile* GetSpecularProfile(int32 Index) const { return Index < SpecularProfiles.Num() ? SpecularProfiles[Index] : nullptr; }
+	USpecularProfile* GetSpecularProfile(int32 Index) const { return SpecularProfiles.IsValidIndex(Index) ? SpecularProfiles[Index] : nullptr; }
 
 	// Shading model from expression
 	void SetShadingModelFromExpression(bool bIn) { bHasShadingModelFromExpression = bIn ? 1u : 0u; }
@@ -1019,6 +1050,7 @@ enum ECollisionChannel : int
 };
 
 DECLARE_DELEGATE_OneParam(FOnConstraintBroken, int32 /*ConstraintIndex*/);
+DECLARE_DELEGATE_ThreeParams(FOnConstraintViolated, int32 /*ConstraintIndex*/, float /*LinearViolation*/, float /*AngularViolation*/);
 DECLARE_DELEGATE_OneParam(FOnPlasticDeformation, int32 /*ConstraintIndex*/);
 
 #define COLLISION_GIZMO ECC_EngineTraceChannel1
@@ -2921,7 +2953,7 @@ struct FMeshNaniteSettings
 	 * Disable if data stored in UVs isn't valid to interpolate, for example if indexes are stored in UVs.
 	 * Lerping an index doesn't make sense and would break the shader trying to use it.
 	 * Note: If disabled, error from UVs is no longer accounted for when Nanite selects the LOD to render because
-	 * error due to arbitary vertex attributes that aren't interpolatable can't be generally reasoned about.
+	 * error due to arbitrary vertex attributes that aren't interpolatable can't be generally reasoned about.
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
 	uint8 bLerpUVs : 1;
@@ -3049,6 +3081,63 @@ public:
 	bool operator!=(const FDisplacementScaling& Other) const
 	{
 		return !(*this == Other);
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FDisplacementFadeRange
+{
+	GENERATED_USTRUCT_BODY()
+
+	/**
+	 * How large the max displacement should be, in on-screen pixels, when beginning to fade out displacement.
+	 * NOTE: This should be a LARGER number than End Fade Size.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Displacement, meta = (DisplayName="Start Fade Size (Pixels)", NoSpinbox=true, ClampMin="0.0001", UIMin="0.0001"))
+	float StartSizePixels;
+
+	/**
+	 * How large the max displacement should be, in on-screen pixels, when fading out should complete, and displacement
+	 * should be disabled.
+	 * NOTE: This should be a SMALLER number than Start Fade Size.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Displacement, meta = (DisplayName="End Fade Size (Pixels)", NoSpinbox=true, ClampMin="0.0001", UIMin="0.0001"))
+	float EndSizePixels;
+
+public:
+	static FDisplacementFadeRange Invalid()
+	{
+		return FDisplacementFadeRange(0.0f, 0.0f);
+	}
+	
+	FDisplacementFadeRange()
+	: StartSizePixels(4.0f)
+	, EndSizePixels(1.0f)
+	{
+	}
+	
+	FDisplacementFadeRange(float InStartSizePixels, float InEndSizePixels)
+	: StartSizePixels(InStartSizePixels)
+	, EndSizePixels(InEndSizePixels)
+	{
+	}
+
+	/** Equality operator. */
+	bool operator==(const FDisplacementFadeRange& Other) const
+	{
+		return FMath::IsNearlyEqual(StartSizePixels, Other.StartSizePixels) &&
+			FMath::IsNearlyEqual(EndSizePixels, Other.EndSizePixels);
+	}
+
+	/** Inequality operator. */
+	bool operator!=(const FDisplacementFadeRange& Other) const
+	{
+		return !(*this == Other);
+	}
+
+	bool IsValid() const
+	{
+		return StartSizePixels > 0.0f && EndSizePixels > 0.0f;
 	}
 };
 
@@ -3952,22 +4041,29 @@ enum class ELevelCollectionType : uint8
 	/**
 	 * The dynamic levels that are used for normal gameplay and the source for any duplicated collections.
 	 * Will contain a world's persistent level and any streaming levels that contain dynamic or replicated gameplay actors.
+	 * This collection will always exist for gameplay and editor worlds.
 	 */
 	DynamicSourceLevels,
 
-	/** Gameplay relevant levels that have been duplicated from DynamicSourceLevels if requested by the game. */
+	/** 
+	 * Gameplay relevant levels that have been duplicated from DynamicSourceLevels if requested by the game.
+	 * This collection only exists if levels have actually been duplicated.
+	 */
 	DynamicDuplicatedLevels,
 
 	/**
 	 * These levels are shared between the source levels and the duplicated levels, and should contain
 	 * only static geometry and other visuals that are not replicated or affected by gameplay.
 	 * These will not be duplicated in order to save memory.
+	 * If s.World.CreateStaticLevelCollection is 0, this will not be created and static levels will be treated as dynamic.
 	 */
 	StaticLevels,
 
 	MAX
 };
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
+#if WITH_EDITOR
+
+ENGINE_API void SerializeNaniteSettingsForDDC(FArchive& Ar, FMeshNaniteSettings& NaniteSettings, bool bIsNaniteForceEnabled);
+
 #endif

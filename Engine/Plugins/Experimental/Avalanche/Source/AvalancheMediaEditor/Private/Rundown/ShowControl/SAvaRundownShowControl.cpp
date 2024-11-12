@@ -9,6 +9,7 @@
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/Pages/Slate/SAvaRundownInstancedPageList.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
+#include "Rundown/TabFactories/AvaRundownSubListDocumentTabFactory.h"
 #include "Widgets/SWidget.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownShowControl"
@@ -86,9 +87,9 @@ TSharedRef<SWidget> SAvaRundownShowControl::CreateActiveListWidget()
 
 FText SAvaRundownShowControl::GetActiveListName() const
 {
-	if (TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
+	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
 	{
-		UAvaRundown* Rundown = RundownEditor->GetRundown();
+		const UAvaRundown* Rundown = RundownEditor->GetRundown();
 
 		if (IsValid(Rundown))
 		{
@@ -107,7 +108,7 @@ FText SAvaRundownShowControl::GetActiveListName() const
 				return AllPages;
 			}
 
-			return FText::Format(LOCTEXT("RundownSubListDocument_TabLabel", "Page View {0}"), FText::AsNumber(ActiveList.SubListIndex + 1));
+			return FAvaRundownSubListDocumentTabFactory::GetTabLabel(ActiveList, Rundown);
 		}
 	}
 

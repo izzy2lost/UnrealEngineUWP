@@ -41,7 +41,7 @@ FPCGElementPtr UPCGMetadataRenameSettings::CreateElement() const
 
 bool FPCGMetadataRenameElement::ExecuteInternal(FPCGContext* Context) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataOperationElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataRenameElement::Execute);
 
 	const UPCGMetadataRenameSettings* Settings = Context->GetInputSettings<UPCGMetadataRenameSettings>();
 	check(Settings);
@@ -92,7 +92,7 @@ bool FPCGMetadataRenameElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		UPCGMetadata* NewMetadata = nullptr;
-		PCGMetadataElementCommon::DuplicateTaggedData(Input, Output, NewMetadata);
+		PCGMetadataElementCommon::DuplicateTaggedData(Context, Input, Output, NewMetadata);
 
 		if (!NewMetadata || !NewMetadata->RenameAttribute(LocalAttributeToRename, NewAttributeName))
 		{

@@ -13,25 +13,31 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FallingMode)
 
 UFallingMode::UFallingMode(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer),
-	  AirControlPercentage(0.4f),
-	  FallingDeceleration(200.0f),
-	  OverTerminalSpeedFallingDeceleration(800.0f),
-	  TerminalMovementPlaneSpeed(1500.0f),
-	  bShouldClampTerminalVerticalSpeed(true),
-	  VerticalFallingDeceleration(4000.0f),
-	  TerminalVerticalSpeed(2000.0f)
+	: Super(ObjectInitializer)
+	, bCancelVerticalSpeedOnLanding(true)
+	, AirControlPercentage(0.4f)
+	, FallingDeceleration(200.0f)
+	, OverTerminalSpeedFallingDeceleration(800.0f)
+	, TerminalMovementPlaneSpeed(1500.0f)
+	, bShouldClampTerminalVerticalSpeed(true)
+	, VerticalFallingDeceleration(4000.0f)
+	, TerminalVerticalSpeed(2000.0f)
 {
-	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
+	SharedSettingsClasses.Add(UCommonLegacyMovementSettings::StaticClass());
+
+	GameplayTags.AddTag(Mover_IsInAir);
+	GameplayTags.AddTag(Mover_IsFalling);
 }
 
 constexpr float VERTICAL_SLOPE_NORMAL_Z = 0.001f; // Slope is vertical if Abs(Normal.Z) <= this threshold. Accounts for precision problems that sometimes angle normals slightly off horizontal for vertical surface.
 
 void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
+	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
+	UMoverComponent* MoverComponent = GetMoverComponent();
 
 	const float DeltaSeconds = TimeStep.StepMs * 0.001f;
 
@@ -44,7 +50,8 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	if (CharacterInputs)
 	{
 		Params.MoveInputType = CharacterInputs->GetMoveInputType();
-		Params.MoveInput = CharacterInputs->GetMoveInput();
+		const bool bMaintainInputMagnitude = true;
+		Params.MoveInput = UPlanarConstraintUtils::ConstrainDirectionToPlane(MoverComp->GetPlanarConstraint(), CharacterInputs->GetMoveInput_WorldSpace(), bMaintainInputMagnitude);
 	}
 	else
 	{
@@ -86,7 +93,7 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 		Params.Deceleration = OverTerminalSpeedFallingDeceleration;
 	}
 	
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComponent->GetSimBlackboard_Mutable();
 	FFloorCheckResult LastFloorResult;
 	// limit our moveinput based on the floor we're on
 	if (SimBlackboard && SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult))
@@ -104,7 +111,7 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	}
 	
 	OutProposedMove = UAirMovementUtils::ComputeControlledFreeMove(Params);
-	const FVector VelocityWithGravity = StartVelocity + UMovementUtils::ComputeVelocityFromGravity(GetMoverComponent()->GetGravityAcceleration(), DeltaSeconds);
+	const FVector VelocityWithGravity = StartVelocity + UMovementUtils::ComputeVelocityFromGravity(MoverComponent->GetGravityAcceleration(), DeltaSeconds);
 
 	//  If we are going faster than TerminalVerticalVelocity apply VerticalFallingDeceleration otherwise reset Z velocity to before we applied deceleration 
 	if (VelocityWithGravity.GetAbs().Z > TerminalVerticalSpeed)
@@ -129,9 +136,9 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 
 void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
+	UMoverComponent* MoverComponent = GetMoverComponent();
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
 	FProposedMove ProposedMove = Params.ProposedMove;
 
 	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
@@ -144,17 +151,10 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 	float PctTimeApplied = 0.f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputSyncState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	FMovementRecord MoveRecord;
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 	
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComponent->GetSimBlackboard_Mutable();
 
 	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);	// falling = no valid floor
 	SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
@@ -166,7 +166,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	FRotator TargetOrient = StartingSyncState->GetOrientation_WorldSpace();
 
 	// Apply orientation changes (if any)
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!UMovementUtils::IsAngularVelocityZero(ProposedMove.AngularVelocity))
 	{
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 	}
@@ -179,7 +179,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	FHitResult Hit(1.f);
 	const FQuat TargetOrientQuat = TargetOrient.Quaternion();
 
-	UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, MoveDelta, TargetOrientQuat, true, Hit, ETeleportType::None, MoveRecord);
+	UMovementUtils::TrySafeMoveUpdatedComponent(Params.MovingComps, MoveDelta, TargetOrientQuat, true, Hit, ETeleportType::None, MoveRecord);
 
 	// Compute final velocity based on how long we actually go until we get a hit.
 	FVector NewFallingVelocity = StartingSyncState->GetVelocity_WorldSpace();
@@ -189,7 +189,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	FFloorCheckResult LandingFloor;
 
 	// Handle impact, whether it's a landing surface or something to slide on
-	if (Hit.IsValidBlockingHit() && UpdatedPrimitive)
+	if (Hit.IsValidBlockingHit() && UpdatedComponent)
 	{
 		float LastMoveTimeSlice = DeltaSeconds;
 		float SubTimeTickRemaining = LastMoveTimeSlice * (1.f - Hit.Time);
@@ -197,7 +197,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		PctTimeApplied += Hit.Time * (1.f - PctTimeApplied);
 
 		// Check for hitting a landing surface
-		if (UAirMovementUtils::IsValidLandingSpot(UpdatedComponent, UpdatedPrimitive, UpdatedPrimitive->GetComponentLocation(), 
+		if (UAirMovementUtils::IsValidLandingSpot(Params.MovingComps, UpdatedComponent->GetComponentLocation(),
 			Hit, CommonLegacySettings->FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, OUT LandingFloor))
 		{
 			CaptureFinalState(UpdatedComponent, *StartingSyncState, LandingFloor, DeltaSeconds, DeltaSeconds * PctTimeApplied, OutputSyncState, OutputState, MoveRecord);
@@ -206,13 +206,12 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		
 		LandingFloor.HitResult = Hit;
 		SimBlackboard->Set(CommonBlackboard::LastFloorResult, LandingFloor);
-
-		UMoverComponent* MoverComponent = GetMoverComponent();
+		
 		FMoverOnImpactParams ImpactParams(DefaultModeNames::Falling, Hit, MoveDelta);
 		MoverComponent->HandleImpact(ImpactParams);
 
 		// We didn't land on a walkable surface, so let's try to slide along it
-		UAirMovementUtils::TryMoveToFallAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, MoveDelta, 
+		UAirMovementUtils::TryMoveToFallAlongSurface(Params.MovingComps, MoveDelta,
 			(1.f - Hit.Time), TargetOrientQuat, Hit.Normal, Hit, true,
 			CommonLegacySettings->FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine, LandingFloor, MoveRecord);
 
@@ -250,33 +249,26 @@ void UFallingMode::OnUnregistered()
 	Super::OnUnregistered();
 }
 
-
-bool UFallingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverDefaultSyncState& OutputSyncState)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  PriorVelocity,
-												  nullptr); // no movement base
-
-		UpdatedComponent->ComponentVelocity = PriorVelocity;
-		return true;
-	}
-
-	return false;
-}
-
 void UFallingMode::ProcessLanded(const FFloorCheckResult& FloorResult, FVector& Velocity, FRelativeBaseInfo& BaseInfo, FMoverTickEndData& TickEndData) const
 {
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	const UMoverComponent* MoverComp = GetMoverComponent();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	FName NextMovementMode = NAME_None; 
 	// if we can walk on the floor we landed on
 	if (FloorResult.IsWalkableFloor())
 	{
+		if (bCancelVerticalSpeedOnLanding)
+		{
+			const FPlane MovementPlane(FVector::ZeroVector, MoverComp->GetUpDirection());
+			Velocity = UMovementUtils::ConstrainToPlane(Velocity, MovementPlane, false);
+		}
+		else
+		{
+			Velocity = FVector::VectorPlaneProject(Velocity, FloorResult.HitResult.Normal);
+		}
+		
 		// Transfer to LandingMovementMode (usually walking), and cache any floor / movement base info
-		Velocity.Z = 0.0;
 		NextMovementMode = CommonLegacySettings->GroundMovementModeName;
 
 		SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
@@ -300,7 +292,7 @@ void UFallingMode::ProcessLanded(const FFloorCheckResult& FloorResult, FVector& 
 
 void UFallingMode::CaptureFinalState(USceneComponent* UpdatedComponent, const FMoverDefaultSyncState& StartSyncState, const FFloorCheckResult& FloorResult, float DeltaSeconds, float DeltaSecondsUsed, FMoverDefaultSyncState& OutputSyncState, FMoverTickEndData& TickEndData, FMovementRecord& Record) const
 {
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = GetMoverComponent()->GetSimBlackboard_Mutable();
 
 	const FVector FinalLocation = UpdatedComponent->GetComponentLocation();
 

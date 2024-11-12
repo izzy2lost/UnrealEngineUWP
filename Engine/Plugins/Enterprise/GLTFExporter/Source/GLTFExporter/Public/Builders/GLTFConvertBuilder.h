@@ -17,11 +17,10 @@
 #include "Converters/GLTFCameraConverters.h"
 #include "Converters/GLTFLightConverters.h"
 #include "Converters/GLTFMaterialVariantConverters.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 
 class UMeshComponent;
 class UPropertyValue;
-class FGLTFNormalArray;
-class FGLTFUVArray;
 
 class GLTFEXPORTER_API FGLTFConvertBuilder : public FGLTFAnalyticsBuilder
 {
@@ -34,18 +33,22 @@ public:
 	bool IsSelectedActor(const AActor* Object) const;
 	bool IsRootActor(const AActor* Actor) const;
 
-	FGLTFJsonAccessor* AddUniquePositionAccessor(const FPositionVertexBuffer* VertexBuffer);
 	FGLTFJsonAccessor* AddUniquePositionAccessor(const FGLTFMeshSection* MeshSection, const FPositionVertexBuffer* VertexBuffer);
+	FGLTFJsonAccessor* AddUniquePositionAccessor(const FGLTFPositionArray& VertexBuffer);
 	FGLTFJsonAccessor* AddUniqueColorAccessor(const FGLTFMeshSection* MeshSection, const FColorVertexBuffer* VertexBuffer);
+	FGLTFJsonAccessor* AddUniqueColorAccessor(const FGLTFColorArray& VertexColorBuffer);
 	FGLTFJsonAccessor* AddUniqueNormalAccessor(const FGLTFMeshSection* MeshSection, const FStaticMeshVertexBuffer* VertexBuffer);
-	FGLTFJsonAccessor* AddUniqueNormalAccessor(const FGLTFNormalArray* Normals);
+	FGLTFJsonAccessor* AddUniqueNormalAccessor(const FGLTFNormalArray& Normals);
 	FGLTFJsonAccessor* AddUniqueTangentAccessor(const FGLTFMeshSection* MeshSection, const FStaticMeshVertexBuffer* VertexBuffer);
+	FGLTFJsonAccessor* AddUniqueTangentAccessor(const FGLTFTangentArray& Tangents);
 	FGLTFJsonAccessor* AddUniqueUVAccessor(const FGLTFMeshSection* MeshSection, const FStaticMeshVertexBuffer* VertexBuffer, int32 UVIndex);
-	FGLTFJsonAccessor* AddUniqueUVAccessor(const FGLTFUVArray* UVs); /* Supports single UV channel */
+	FGLTFJsonAccessor* AddUniqueUVAccessor(const FGLTFUVArray& UVs); /* Supports single UV channel */
 	FGLTFJsonAccessor* AddUniqueJointAccessor(const FGLTFMeshSection* MeshSection, const FSkinWeightVertexBuffer* VertexBuffer, int32 InfluenceOffset);
 	FGLTFJsonAccessor* AddUniqueWeightAccessor(const FGLTFMeshSection* MeshSection, const FSkinWeightVertexBuffer* VertexBuffer, int32 InfluenceOffset);
+	FGLTFJsonAccessor* AddUniqueJointAccessor(const FGLTFJointInfluenceArray& BoneIndices);
+	FGLTFJsonAccessor* AddUniqueWeightAccessor(const FGLTFJointWeightArray& Weights);
 	FGLTFJsonAccessor* AddUniqueIndexAccessor(const FGLTFMeshSection* MeshSection);
-	FGLTFJsonAccessor* AddUniqueIndexAccessor(const FGLTFIndexArray* IndexBuffer, const FString& MeshName);
+	FGLTFJsonAccessor* AddUniqueIndexAccessor(const FGLTFIndexArray& IndexBuffer, const FString& MeshName);
 
 	FGLTFJsonMesh* AddUniqueMesh(const UStaticMesh* StaticMesh, const FGLTFMaterialArray& Materials = {}, int32 LODIndex = INDEX_NONE);
 	FGLTFJsonMesh* AddUniqueMesh(const USkeletalMesh* SkeletalMesh, const FGLTFMaterialArray& Materials = {}, int32 LODIndex = INDEX_NONE);
@@ -100,13 +103,7 @@ public:
 	void RegisterObjectVariant(const UObject* Object, const UPropertyValue* Property);
 	const TArray<const UPropertyValue*>* GetObjectVariants(const UObject* Object) const;
 
-	TUniquePtr<IGLTFPositionBufferConverterRaw> PositionBufferConverterRaw = MakeUnique<FGLTFPositionBufferConverterRaw>(*this);
-	TUniquePtr<IGLTFNormalBufferConverterRaw> NormalBufferConverterRaw = MakeUnique<FGLTFNormalBufferConverterRaw>(*this);
-	TUniquePtr<IGLTFUVBufferConverterRaw> UVBufferConverterRaw = MakeUnique<FGLTFUVBufferConverterRaw>(*this);
-	TUniquePtr<IGLTFIndexBufferConverterRaw> IndexBufferConverterRaw = MakeUnique<FGLTFIndexBufferConverterRaw>(*this);
-	TUniquePtr<IGLTFSplineMeshConverter> SplineMeshConverter = MakeUnique<FGLTFSplineMeshConverter>(*this);
-	TUniquePtr<IGLTFLandscapeMeshConverter> LandscapeConverter = MakeUnique<FGLTFLandscapeMeshConverter>(*this);
-
+	//'Original' converters:
 	TUniquePtr<IGLTFPositionBufferConverter> PositionBufferConverter = MakeUnique<FGLTFPositionBufferConverter>(*this);
 	TUniquePtr<IGLTFColorBufferConverter> ColorBufferConverter = MakeUnique<FGLTFColorBufferConverter>(*this);
 	TUniquePtr<IGLTFNormalBufferConverter> NormalBufferConverter = MakeUnique<FGLTFNormalBufferConverter>(*this);
@@ -115,6 +112,20 @@ public:
 	TUniquePtr<IGLTFBoneIndexBufferConverter> BoneIndexBufferConverter = MakeUnique<FGLTFBoneIndexBufferConverter>(*this);
 	TUniquePtr<IGLTFBoneWeightBufferConverter> BoneWeightBufferConverter = MakeUnique<FGLTFBoneWeightBufferConverter>(*this);
 	TUniquePtr<IGLTFIndexBufferConverter> IndexBufferConverter = MakeUnique<FGLTFIndexBufferConverter>(*this);
+
+	//Raw converters:
+	TUniquePtr<IGLTFPositionBufferConverterRaw> PositionBufferConverterRaw = MakeUnique<FGLTFPositionBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFColorBufferConverterRaw> ColorBufferConverterRaw = MakeUnique<FGLTFColorBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFNormalBufferConverterRaw> NormalBufferConverterRaw = MakeUnique<FGLTFNormalBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFTangentBufferConverterRaw> TangentBufferConverterRaw = MakeUnique<FGLTFTangentBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFUVBufferConverterRaw> UVBufferConverterRaw = MakeUnique<FGLTFUVBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFIndexBufferConverterRaw> IndexBufferConverterRaw = MakeUnique<FGLTFIndexBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFBoneIndexBufferConverterRaw> BoneIndexBufferConverterRaw = MakeUnique<FGLTFBoneIndexBufferConverterRaw>(*this);
+	TUniquePtr<IGLTFBoneWeightBufferConverterRaw> BoneWeightBufferConverterRaw = MakeUnique<FGLTFBoneWeightBufferConverterRaw>(*this);
+
+
+	TUniquePtr<IGLTFSplineMeshConverter> SplineMeshConverter = MakeUnique<FGLTFSplineMeshConverter>(*this);
+	TUniquePtr<IGLTFLandscapeMeshConverter> LandscapeConverter = MakeUnique<FGLTFLandscapeMeshConverter>(*this);
 
 	TUniquePtr<IGLTFStaticMeshConverter> StaticMeshConverter = MakeUnique<FGLTFStaticMeshConverter>(*this);
 	TUniquePtr<IGLTFSkeletalMeshConverter> SkeletalMeshConverter = MakeUnique<FGLTFSkeletalMeshConverter>(*this);

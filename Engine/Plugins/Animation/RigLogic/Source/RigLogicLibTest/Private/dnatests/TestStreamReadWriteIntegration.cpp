@@ -9,15 +9,20 @@
 #include "dnatests/Fixturesv21.h"
 #include "dnatests/Fixturesv22.h"
 #include "dnatests/Fixturesv23.h"
+#include "dnatests/Fixturesv24.h"
+#include "dnatests/Fixturesv25.h"
 
 #include "dna/DataLayer.h"
-#include "dna/DNA.h"
 #include "dna/BinaryStreamReader.h"
 #include "dna/BinaryStreamWriter.h"
 #ifdef DNA_BUILD_WITH_JSON_SUPPORT
     #include "dna/JSONStreamReader.h"
     #include "dna/JSONStreamWriter.h"
 #endif  // DNA_BUILD_WITH_JSON_SUPPORT
+
+#ifdef _MSC_VER
+    #pragma warning(disable : 4503)
+#endif
 
 namespace dna {
 
@@ -33,7 +38,7 @@ static void verifyDescriptor(DescriptorReader* reader) {
 
     const auto metaDataCount = reader->getMetaDataCount();
     ASSERT_EQ(metaDataCount, 2u);
-    for (std::uint32_t i = 0u; i < metaDataCount; ++i) {
+    for (std::uint32_t i = {}; i < metaDataCount; ++i) {
         const auto key = reader->getMetaDataKey(i);
         const auto value = reader->getMetaDataValue(key);
         ASSERT_EQ(key, StringView{DecodedDNA::metadata[i].first});
@@ -61,13 +66,13 @@ static void verifyDefinition(DefinitionReader* reader) {
 
     const auto guiControlCount = reader->getGUIControlCount();
     ASSERT_EQ(guiControlCount, DecodedDNA::guiControlNames.size());
-    for (std::uint16_t i = 0u; i < guiControlCount; ++i) {
+    for (std::uint16_t i = {}; i < guiControlCount; ++i) {
         ASSERT_EQ(reader->getGUIControlName(i), StringView{DecodedDNA::guiControlNames[i]});
     }
 
     const auto rawControlCount = reader->getRawControlCount();
     ASSERT_EQ(rawControlCount, DecodedDNA::rawControlNames.size());
-    for (std::uint16_t i = 0u; i < rawControlCount; ++i) {
+    for (std::uint16_t i = {}; i < rawControlCount; ++i) {
         ASSERT_EQ(reader->getRawControlName(i), StringView{DecodedDNA::rawControlNames[i]});
     }
 
@@ -79,7 +84,7 @@ static void verifyDefinition(DefinitionReader* reader) {
         ASSERT_EQ(reader->getJointName(jointIndices[i]), StringView{expectedJointNames[i]});
     }
 
-    for (std::uint16_t i = 0u; i < reader->getJointCount(); ++i) {
+    for (std::uint16_t i = {}; i < reader->getJointCount(); ++i) {
         ASSERT_EQ(reader->getJointParentIndex(i), DecodedDNA::jointHierarchy[index][i]);
     }
 
@@ -183,7 +188,7 @@ static void verifyBehavior(BehaviorReader* reader) {
     const auto jointGroupCount = reader->getJointGroupCount();
     ASSERT_EQ(jointGroupCount, DecodedDNA::jointGroupLODs.size());
 
-    for (std::uint16_t i = 0u; i < jointGroupCount; ++i) {
+    for (std::uint16_t i = {}; i < jointGroupCount; ++i) {
         const auto& expectedLODs = DecodedDNA::jointGroupLODs[i][index];
         ASSERT_EQ(reader->getJointGroupLODs(i), ConstArrayView<std::uint16_t>{expectedLODs});
 
@@ -281,17 +286,17 @@ static void verifyGeometry(GeometryReader* reader) {
 
     const auto meshCount = reader->getMeshCount();
     ASSERT_EQ(meshCount, DecodedDNA::meshCount[index]);
-    for (std::uint16_t meshIndex = 0u; meshIndex < meshCount; ++meshIndex) {
+    for (std::uint16_t meshIndex = {}; meshIndex < meshCount; ++meshIndex) {
         const auto vertexPositionCount = reader->getVertexPositionCount(meshIndex);
         ASSERT_EQ(vertexPositionCount, DecodedDNA::vertexPositions[index][meshIndex].size());
-        for (std::uint32_t vertexIndex = 0u; vertexIndex < vertexPositionCount; ++vertexIndex) {
+        for (std::uint32_t vertexIndex = {}; vertexIndex < vertexPositionCount; ++vertexIndex) {
             ASSERT_EQ(reader->getVertexPosition(meshIndex, vertexIndex),
                       DecodedDNA::vertexPositions[index][meshIndex][vertexIndex]);
         }
 
         const auto vertexTextureCoordinateCount = reader->getVertexTextureCoordinateCount(meshIndex);
         ASSERT_EQ(vertexTextureCoordinateCount, DecodedDNA::vertexTextureCoordinates[index][meshIndex].size());
-        for (std::uint32_t texCoordIndex = 0u; texCoordIndex < vertexTextureCoordinateCount; ++texCoordIndex) {
+        for (std::uint32_t texCoordIndex = {}; texCoordIndex < vertexTextureCoordinateCount; ++texCoordIndex) {
             const auto& textureCoordinate = reader->getVertexTextureCoordinate(meshIndex, texCoordIndex);
             const auto& expectedTextureCoordinate =
                 DecodedDNA::vertexTextureCoordinates[index][meshIndex][texCoordIndex];
@@ -301,14 +306,14 @@ static void verifyGeometry(GeometryReader* reader) {
 
         const auto vertexNormalCount = reader->getVertexNormalCount(meshIndex);
         ASSERT_EQ(vertexNormalCount, DecodedDNA::vertexNormals[index][meshIndex].size());
-        for (std::uint32_t normalIndex = 0u; normalIndex < vertexNormalCount; ++normalIndex) {
+        for (std::uint32_t normalIndex = {}; normalIndex < vertexNormalCount; ++normalIndex) {
             ASSERT_EQ(reader->getVertexNormal(meshIndex, normalIndex),
                       DecodedDNA::vertexNormals[index][meshIndex][normalIndex]);
         }
 
         const auto vertexLayoutCount = reader->getVertexLayoutCount(meshIndex);
         ASSERT_EQ(vertexLayoutCount, DecodedDNA::vertexLayouts[index][meshIndex].size());
-        for (std::uint32_t layoutIndex = 0u; layoutIndex < vertexLayoutCount; ++layoutIndex) {
+        for (std::uint32_t layoutIndex = {}; layoutIndex < vertexLayoutCount; ++layoutIndex) {
             const auto& layout = reader->getVertexLayout(meshIndex, layoutIndex);
             const auto& expectedLayout = DecodedDNA::vertexLayouts[index][meshIndex][layoutIndex];
             ASSERT_EQ(layout.position, expectedLayout.position);
@@ -318,7 +323,7 @@ static void verifyGeometry(GeometryReader* reader) {
 
         const auto faceCount = reader->getFaceCount(meshIndex);
         ASSERT_EQ(faceCount, DecodedDNA::faces[index][meshIndex].size());
-        for (std::uint32_t faceIndex = 0u; faceIndex < faceCount; ++faceIndex) {
+        for (std::uint32_t faceIndex = {}; faceIndex < faceCount; ++faceIndex) {
             ASSERT_EQ(reader->getFaceVertexLayoutIndices(meshIndex, faceIndex),
                       ConstArrayView<std::uint32_t>{DecodedDNA::faces[index][meshIndex][faceIndex]});
         }
@@ -327,7 +332,7 @@ static void verifyGeometry(GeometryReader* reader) {
                   DecodedDNA::maxInfluencePerVertex[index][meshIndex]);
 
         ASSERT_EQ(reader->getSkinWeightsCount(meshIndex), DecodedDNA::skinWeightsValues[index][meshIndex].size());
-        for (std::uint32_t vertexIndex = 0u; vertexIndex < vertexPositionCount; ++vertexIndex) {
+        for (std::uint32_t vertexIndex = {}; vertexIndex < vertexPositionCount; ++vertexIndex) {
             const auto skinWeights = reader->getSkinWeightsValues(meshIndex, vertexIndex);
             const auto& expectedSkinWeights = DecodedDNA::skinWeightsValues[index][meshIndex][vertexIndex];
             ASSERT_EQ(skinWeights, ConstArrayView<float>{expectedSkinWeights});
@@ -339,7 +344,7 @@ static void verifyGeometry(GeometryReader* reader) {
 
         const auto blendShapeCount = reader->getBlendShapeTargetCount(meshIndex);
         ASSERT_EQ(blendShapeCount, DecodedDNA::correctiveBlendShapeDeltas[index][meshIndex].size());
-        for (std::uint16_t blendShapeTargetIndex = 0u; blendShapeTargetIndex < blendShapeCount; ++blendShapeTargetIndex) {
+        for (std::uint16_t blendShapeTargetIndex = {}; blendShapeTargetIndex < blendShapeCount; ++blendShapeTargetIndex) {
             const auto channelIndex = reader->getBlendShapeChannelIndex(meshIndex, blendShapeTargetIndex);
             ASSERT_EQ(channelIndex, DecodedDNA::correctiveBlendShapeIndices[index][meshIndex][blendShapeTargetIndex]);
 
@@ -347,7 +352,7 @@ static void verifyGeometry(GeometryReader* reader) {
             ASSERT_EQ(deltaCount,
                       DecodedDNA::correctiveBlendShapeDeltas[index][meshIndex][blendShapeTargetIndex].size());
 
-            for (std::uint32_t deltaIndex = 0u; deltaIndex < deltaCount; ++deltaIndex) {
+            for (std::uint32_t deltaIndex = {}; deltaIndex < deltaCount; ++deltaIndex) {
                 const auto& delta = reader->getBlendShapeTargetDelta(meshIndex, blendShapeTargetIndex, deltaIndex);
                 const auto& expectedDelta =
                     DecodedDNA::correctiveBlendShapeDeltas[index][meshIndex][blendShapeTargetIndex][deltaIndex];
@@ -369,7 +374,7 @@ static void verifyMachineLearnedBehavior(MachineLearnedBehaviorReader* reader) {
 
     const auto mlControlCount = reader->getMLControlCount();
     ASSERT_EQ(mlControlCount, DecodedDNA::mlControlNames.size());
-    for (std::uint16_t i = 0u; i < mlControlCount; ++i) {
+    for (std::uint16_t i = {}; i < mlControlCount; ++i) {
         ASSERT_EQ(reader->getMLControlName(i), StringView{DecodedDNA::mlControlNames[i]});
     }
 
@@ -415,6 +420,152 @@ static void verifyMachineLearnedBehavior(MachineLearnedBehaviorReader* reader) {
 }
 
 template<class TAPICopyParameters>
+static void verifyRBFBehavior(RBFBehaviorReader* reader) {
+    using DecodedDNA = typename TAPICopyParameters::DecodedData;
+    const auto index = DecodedDNA::lodConstraintToIndex(TAPICopyParameters::maxLOD(), TAPICopyParameters::minLOD());
+
+    const std::uint16_t solverCount = reader->getRBFSolverCount();
+    ASSERT_EQ(solverCount, DecodedDNA::solverIndicesPerLOD[index].size());
+
+    const auto poseCount = reader->getRBFPoseCount();
+    ASSERT_EQ(poseCount, DecodedDNA::poseScale.size());
+    for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
+        ASSERT_EQ(reader->getRBFPoseName(pi), StringView{DecodedDNA::poseNames[pi]});
+        ASSERT_EQ(reader->getRBFPoseScale(pi), DecodedDNA::poseScale[pi]);
+    }
+    for (std::uint16_t si = {}; si < solverCount; ++si) {
+        std::uint16_t esi = DecodedDNA::solverIndicesPerLOD[index][si];
+        ASSERT_EQ(reader->getRBFSolverName(si), StringView{DecodedDNA::solverNames[esi]});
+        ASSERT_EQ(reader->getRBFSolverRawControlIndices(si),
+                  ConstArrayView<std::uint16_t>{DecodedDNA::solverRawControlIndices[esi]});
+        ASSERT_EQ(reader->getRBFSolverType(si),
+                  static_cast<RBFSolverType>(DecodedDNA::solverType[esi]));
+        ASSERT_EQ(reader->getRBFSolverAutomaticRadius(si),
+                  static_cast<AutomaticRadius>(DecodedDNA::solverAutomaticRadius[esi]));
+        ASSERT_EQ(reader->getRBFSolverDistanceMethod(si),
+                  static_cast<RBFDistanceMethod>(DecodedDNA::solverDistanceMethod[esi]));
+        ASSERT_EQ(reader->getRBFSolverNormalizeMethod(si),
+                  static_cast<RBFNormalizeMethod>(DecodedDNA::solverNormalizeMethod[esi]));
+        ASSERT_EQ(reader->getRBFSolverFunctionType(si),
+                  static_cast<RBFFunctionType>(DecodedDNA::solverFunctionType[esi]));
+        ASSERT_EQ(reader->getRBFSolverTwistAxis(si),
+                  static_cast<TwistAxis>(DecodedDNA::solverTwistAxis[esi]));
+        ASSERT_EQ(reader->getRBFSolverRadius(si), DecodedDNA::solverRadius[esi]);
+        ASSERT_EQ(reader->getRBFSolverWeightThreshold(si), DecodedDNA::solverWeightThreshold[esi]);
+        auto rawControlIndices = reader->getRBFSolverRawControlIndices(si);
+        const auto& expectedRawControlIndices = DecodedDNA::solverRawControlIndices[esi];
+        ASSERT_EQ(rawControlIndices.size(), expectedRawControlIndices.size());
+        ASSERT_ELEMENTS_EQ(rawControlIndices, expectedRawControlIndices, rawControlIndices.size());
+
+        auto solverPoseIndices = reader->getRBFSolverPoseIndices(si);
+        const auto& expectedSolverPoseIndices = DecodedDNA::solverPoseIndices[esi];
+        ASSERT_EQ(solverPoseIndices.size(), expectedSolverPoseIndices.size());
+        ASSERT_ELEMENTS_EQ(solverPoseIndices, expectedSolverPoseIndices, expectedSolverPoseIndices.size());
+
+        auto solverRawControlValues = reader->getRBFSolverRawControlValues(si);
+        const auto& expectedSolverRawControlValues = DecodedDNA::solverRawControlValues[esi];
+        ASSERT_EQ(solverRawControlValues.size(), expectedSolverRawControlValues.size());
+        ASSERT_ELEMENTS_EQ(solverRawControlValues, expectedSolverRawControlValues, expectedSolverRawControlValues.size());
+    }
+
+}
+
+template<class TAPICopyParameters>
+static void verifyRBFBehaviorExt(RBFBehaviorReader* reader) {
+    using DecodedDNA = typename TAPICopyParameters::DecodedData;
+
+    const auto poseControlCount = reader->getRBFPoseControlCount();
+    ASSERT_EQ(poseControlCount, DecodedDNA::poseControlNames.size());
+    for (std::uint16_t pci = {}; pci < poseControlCount; ++pci) {
+        ASSERT_EQ(reader->getRBFPoseControlName(pci), StringView{DecodedDNA::poseControlNames[pci]});
+    }
+
+    const auto poseCount = reader->getRBFPoseCount();
+    for (std::uint16_t pi = {}; pi < poseCount; ++pi) {
+        auto poseInputControlIndices = reader->getRBFPoseInputControlIndices(pi);
+        const auto& expectedPoseInputControlIndices = DecodedDNA::poseInputControlIndices[pi];
+        ASSERT_EQ(poseInputControlIndices.size(), expectedPoseInputControlIndices.size());
+        ASSERT_ELEMENTS_EQ(poseInputControlIndices, expectedPoseInputControlIndices, expectedPoseInputControlIndices.size());
+
+        auto poseOutputControlIndices = reader->getRBFPoseOutputControlIndices(pi);
+        const auto& expectedPoseOutputControlIndices = DecodedDNA::poseOutputControlIndices[pi];
+        ASSERT_EQ(poseOutputControlIndices.size(), expectedPoseOutputControlIndices.size());
+        ASSERT_ELEMENTS_EQ(poseOutputControlIndices, expectedPoseOutputControlIndices, expectedPoseOutputControlIndices.size());
+
+        auto poseOutputControlWeights = reader->getRBFPoseOutputControlWeights(pi);
+        const auto& expectedPoseOutputControlWeights = DecodedDNA::poseOutputControlWeights[pi];
+        ASSERT_EQ(poseOutputControlWeights.size(), expectedPoseOutputControlWeights.size());
+        ASSERT_ELEMENTS_EQ(poseOutputControlWeights, expectedPoseOutputControlWeights, expectedPoseOutputControlWeights.size());
+    }
+}
+
+template<class TAPICopyParameters>
+static void verifyJointBehaviorMetadata(JointBehaviorMetadataReader* reader) {
+    using DecodedDNA = typename TAPICopyParameters::DecodedData;
+    const auto index = DecodedDNA::lodConstraintToIndex(TAPICopyParameters::maxLOD(), TAPICopyParameters::minLOD());
+
+    for (const auto ji :  reader->getJointIndicesForLOD(TAPICopyParameters::currentLOD())) {
+        ASSERT_EQ(reader->getJointTranslationRepresentation(ji), DecodedDNA::jointTranslationRepresentation[index][ji]);
+        ASSERT_EQ(reader->getJointRotationRepresentation(ji), DecodedDNA::jointRotationRepresentation[index][ji]);
+        ASSERT_EQ(reader->getJointScaleRepresentation(ji), DecodedDNA::jointScaleRepresentation[index][ji]);
+    }
+}
+
+template<class TAPICopyParameters>
+static void verifyTwistSwingBehavior(TwistSwingBehaviorReader* reader) {
+    using DecodedDNA = typename TAPICopyParameters::DecodedData;
+    const auto index = DecodedDNA::lodConstraintToIndex(TAPICopyParameters::maxLOD(), TAPICopyParameters::minLOD());
+
+    const auto expectedTwistCount = static_cast<std::uint16_t>(DecodedDNA::twistBlendWeights[index].size());
+    const auto twistCount = reader->getTwistCount();
+    ASSERT_EQ(twistCount, expectedTwistCount);
+    for (std::uint16_t ti = {}; ti < twistCount; ++ti) {
+        const auto twistInputIndices = reader->getTwistInputControlIndices(ti);
+        const auto expectedTwistInputIndices = DecodedDNA::twistInputControlIndices[index][ti];
+        ASSERT_EQ(twistInputIndices.size(), expectedTwistInputIndices.size());
+        ASSERT_ELEMENTS_EQ(twistInputIndices, expectedTwistInputIndices, expectedTwistInputIndices.size());
+
+        const auto twistOutputIndices = reader->getTwistOutputJointIndices(ti);
+        const auto expectedTwistOutputIndices = DecodedDNA::twistOutputJointIndices[index][ti];
+        ASSERT_EQ(twistOutputIndices.size(), expectedTwistOutputIndices.size());
+        ASSERT_ELEMENTS_EQ(twistOutputIndices, expectedTwistOutputIndices, expectedTwistOutputIndices.size());
+
+        const auto twistBlendWeights = reader->getTwistBlendWeights(ti);
+        const auto expectedTwistBlendWeights = DecodedDNA::twistBlendWeights[index][ti];
+        ASSERT_EQ(twistBlendWeights.size(), expectedTwistBlendWeights.size());
+        ASSERT_ELEMENTS_EQ(twistBlendWeights, expectedTwistBlendWeights, twistBlendWeights.size());
+
+        const auto twistAxis = reader->getTwistSetupTwistAxis(ti);
+        const auto expectedTwistAxis = DecodedDNA::twistTwistAxes[index][ti];
+        ASSERT_EQ(twistAxis, expectedTwistAxis);
+    }
+
+    const auto expectedSwingCount = static_cast<std::uint16_t>(DecodedDNA::swingBlendWeights[index].size());
+    const auto swingCount = reader->getSwingCount();
+    ASSERT_EQ(swingCount, expectedSwingCount);
+    for (std::uint16_t si = {}; si < swingCount; ++si) {
+        const auto swingInputIndices = reader->getSwingInputControlIndices(si);
+        const auto expectedSwingInputIndices = DecodedDNA::swingInputControlIndices[index][si];
+        ASSERT_EQ(swingInputIndices.size(), expectedSwingInputIndices.size());
+        ASSERT_ELEMENTS_EQ(swingInputIndices, expectedSwingInputIndices, expectedSwingInputIndices.size());
+
+        const auto swingOutputIndices = reader->getSwingOutputJointIndices(si);
+        const auto expectedSwingOutputIndices = DecodedDNA::swingOutputJointIndices[index][si];
+        ASSERT_EQ(swingOutputIndices.size(), expectedSwingOutputIndices.size());
+        ASSERT_ELEMENTS_EQ(swingOutputIndices, expectedSwingOutputIndices, expectedSwingOutputIndices.size());
+
+        const auto swingBlendWeights = reader->getSwingBlendWeights(si);
+        const auto expectedSwingBlendWeights = DecodedDNA::swingBlendWeights[index][si];
+        ASSERT_EQ(swingBlendWeights.size(), expectedSwingBlendWeights.size());
+        ASSERT_ELEMENTS_EQ(swingBlendWeights, expectedSwingBlendWeights, expectedSwingBlendWeights.size());
+
+        const auto twistAxis = reader->getSwingSetupTwistAxis(si);
+        const auto expectedTwistAxis = DecodedDNA::swingTwistAxes[index][si];
+        ASSERT_EQ(twistAxis, expectedTwistAxis);
+    }
+}
+
+template<class TAPICopyParameters>
 struct ReaderDataVerifier {
 
     static void assertHasAllData(Reader* reader) {
@@ -441,6 +592,41 @@ struct ReaderDataVerifier<APICopyParameters<Reader, Writer, RawV23, DecodedV23, 
 
 };
 
+template<class Reader, class Writer, std::uint16_t MaxLOD, std::uint16_t MinLOD, std::uint16_t CurrentLOD>
+struct ReaderDataVerifier<APICopyParameters<Reader, Writer, RawV24, DecodedV24, MaxLOD, MinLOD, CurrentLOD> > {
+
+    static void assertHasAllData(Reader* reader) {
+        using TAPICopyParameters = APICopyParameters<Reader, Writer, RawV24, DecodedV24, MaxLOD, MinLOD, CurrentLOD>;
+        verifyDescriptor<TAPICopyParameters>(reader);
+        verifyDefinition<TAPICopyParameters>(reader);
+        verifyBehavior<TAPICopyParameters>(reader);
+        verifyGeometry<TAPICopyParameters>(reader);
+        verifyMachineLearnedBehavior<TAPICopyParameters>(reader);
+        verifyRBFBehavior<TAPICopyParameters>(reader);
+        verifyJointBehaviorMetadata<TAPICopyParameters>(reader);
+        verifyTwistSwingBehavior<TAPICopyParameters>(reader);
+    }
+
+};
+
+template<class Reader, class Writer, std::uint16_t MaxLOD, std::uint16_t MinLOD, std::uint16_t CurrentLOD>
+struct ReaderDataVerifier<APICopyParameters<Reader, Writer, RawV25, DecodedV25, MaxLOD, MinLOD, CurrentLOD> > {
+
+    static void assertHasAllData(Reader* reader) {
+        using TAPICopyParameters = APICopyParameters<Reader, Writer, RawV25, DecodedV25, MaxLOD, MinLOD, CurrentLOD>;
+        verifyDescriptor<TAPICopyParameters>(reader);
+        verifyDefinition<TAPICopyParameters>(reader);
+        verifyBehavior<TAPICopyParameters>(reader);
+        verifyGeometry<TAPICopyParameters>(reader);
+        verifyMachineLearnedBehavior<TAPICopyParameters>(reader);
+        verifyRBFBehavior<TAPICopyParameters>(reader);
+        verifyRBFBehaviorExt<TAPICopyParameters>(reader);
+        verifyJointBehaviorMetadata<TAPICopyParameters>(reader);
+        verifyTwistSwingBehavior<TAPICopyParameters>(reader);
+    }
+
+};
+
 using TAPICopyTestParameters = ::testing::Types<
     APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV21, DecodedV21, 0u, 1u, 0u>
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV21, DecodedV21, 0u, 1u, 1u>
@@ -454,10 +640,20 @@ using TAPICopyTestParameters = ::testing::Types<
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV23, DecodedV23, 0u, 1u, 1u>
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV23, DecodedV23, 0u, 0u, 0u>
     , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV23, DecodedV23, 1u, 1u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 0u, 1u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 0u, 1u, 1u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 0u, 0u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV24, DecodedV24, 1u, 1u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 0u, 1u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 0u, 1u, 1u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 0u, 0u, 0u>
+    , APICopyParameters<dna::BinaryStreamReader, dna::BinaryStreamWriter, RawV25, DecodedV25, 1u, 1u, 0u>
     #ifdef DNA_BUILD_WITH_JSON_SUPPORT
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV21, DecodedV21, 0u, 1u, 0u>
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV22, DecodedV22, 0u, 1u, 0u>
         , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV23, DecodedV23, 0u, 1u, 0u>
+        , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV24, DecodedV24, 0u, 1u, 0u>
+        , APICopyParameters<dna::JSONStreamReader, dna::JSONStreamWriter, RawV25, DecodedV25, 0u, 1u, 0u>
     #endif  // DNA_BUILD_WITH_JSON_SUPPORT
     >;
 TYPED_TEST_SUITE(StreamReadWriteAPICopyIntegrationTest, TAPICopyTestParameters, );
@@ -535,6 +731,10 @@ using TRawCopyTestParameters = ::testing::Types<
                       static_cast<std::uint16_t>(-1)>,
     RawCopyParameters<RawV23, RawV23, UnknownLayerPolicy::Preserve, 2, 3>,
     RawCopyParameters<RawV23, RawV23, UnknownLayerPolicy::Ignore, 2, 3>,
+    RawCopyParameters<RawV24, RawV24, UnknownLayerPolicy::Preserve, 2, 4>,
+    RawCopyParameters<RawV24, RawV24, UnknownLayerPolicy::Ignore, 2, 4>,
+    RawCopyParameters<RawV25, RawV25, UnknownLayerPolicy::Preserve, 2, 5>,
+    RawCopyParameters<RawV25, RawV25, UnknownLayerPolicy::Ignore, 2, 5>,
     // File format conversion tests
     RawCopyParameters<RawV21, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Preserve, 2, 2>,
     RawCopyParameters<RawV21, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Ignore, 2, 2>,
@@ -545,7 +745,11 @@ using TRawCopyTestParameters = ::testing::Types<
     RawCopyParameters<RawV22Empty, RawV22Empty, UnknownLayerPolicy::Preserve, 2, 2>,
     RawCopyParameters<RawV22Empty, RawV22Empty, UnknownLayerPolicy::Ignore, 2, 2>,
     RawCopyParameters<RawV23, RawV22DowngradedFromV23, UnknownLayerPolicy::Preserve, 2, 2>,
-    RawCopyParameters<RawV23, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Ignore, 2, 2>
+    RawCopyParameters<RawV23, RawV22WithUnknownDataIgnoredAndDNARewritten, UnknownLayerPolicy::Ignore, 2, 2>,
+    RawCopyParameters<RawV24, RawV23DowngradedFromV24, UnknownLayerPolicy::Preserve, 2, 3>,
+    RawCopyParameters<RawV24, RawV23, UnknownLayerPolicy::Ignore, 2, 3>,
+    RawCopyParameters<RawV25, RawV24DowngradedFromV25, UnknownLayerPolicy::Preserve, 2, 4>,
+    RawCopyParameters<RawV25, RawV24, UnknownLayerPolicy::Ignore, 2, 4>
     >;
 TYPED_TEST_SUITE(StreamReadWriteRawCopyIntegrationTest, TRawCopyTestParameters, );
 
@@ -624,6 +828,8 @@ using TReadWriteMultipleParameters = ::testing::Types<
     ReadWriteMultipleParameters<RawV21>,
     ReadWriteMultipleParameters<RawV22>,
     ReadWriteMultipleParameters<RawV23>,
+    ReadWriteMultipleParameters<RawV24>,
+    ReadWriteMultipleParameters<RawV25>,
     ReadWriteMultipleParameters<RawV22Empty>,
     ReadWriteMultipleParameters<RawV22WithUnknownDataIgnoredAndDNARewritten>,
     ReadWriteMultipleParameters<RawV2xNewerWithUnknownDataIgnoredAndDNARewritten>,
@@ -717,6 +923,32 @@ TYPED_TEST(StreamReadWriteMultipleIntegrationTest, ReadWriteTwoDNAsToSameStream)
 
     ASSERT_EQ(cloneSize, cloneRewrittenSize);
     ASSERT_EQ(copiedCloneBytes, copiedCloneRewrittenBytes);
+}
+
+TEST(StreamReadWriteMultipleIntegrationTest, DNAv25LayerIsBackFilledFromv24) {
+    const auto bytes = RawV24::getBytes();
+    auto source = pma::makeScoped<trio::MemoryStream>();
+    source->write(bytes.data(), bytes.size());
+    source->seek(0);
+    auto reader = pma::makeScoped<BinaryStreamReader>(source.get(),
+                                                      DataLayer::All,
+                                                      UnknownLayerPolicy::Preserve,
+                                                      static_cast<std::uint16_t>(0));
+    reader->read();
+
+    ASSERT_TRUE(dna::Status::isOk());
+    ASSERT_EQ(reader->getRBFPoseControlCount(), reader->getRBFPoseCount());
+    for (std::uint16_t pi = {}; pi < reader->getRBFPoseCount(); ++pi) {
+        const auto inputControlIndices = reader->getRBFPoseInputControlIndices(pi);
+        const auto outputControlIndices = reader->getRBFPoseOutputControlIndices(pi);
+        const auto outputControlWeights = reader->getRBFPoseOutputControlWeights(pi);
+        ASSERT_EQ(inputControlIndices.size(), 0ul);
+        ASSERT_EQ(outputControlIndices.size(), 1ul);
+        ASSERT_EQ(outputControlWeights.size(), 1ul);
+        const auto offset = reader->getRawControlCount() + reader->getPSDCount() + reader->getMLControlCount();
+        ASSERT_EQ(outputControlIndices[0], offset + pi);
+        ASSERT_EQ(outputControlWeights[0], 1.0f);
+    }
 }
 
 }  // namespace dna

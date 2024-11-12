@@ -14,6 +14,7 @@
 #include "Misc/EngineVersion.h"
 #include "Misc/Paths.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFramePro, Log, All);
 
@@ -130,11 +131,28 @@ public:
 
 	virtual void* Alloc(size_t size) override
 	{
-		return BaseMalloc.Malloc(size, DEFAULT_ALIGNMENT);
+		void* Ptr = nullptr;
+		UE_AUTORTFM_OPEN
+		{
+			Ptr = BaseMalloc.Malloc(size, DEFAULT_ALIGNMENT);
+		};
+
+		// no-op for non-transactional code
+		UE_AUTORTFM_ONABORT(=, this)
+		{
+			// Disable the code analysis warning that complains that Free is being passed
+			// a pointer that may be null. Free explicitly handles this case already.
+			this->Free(Ptr); //-V575
+		};
+
+		return Ptr;
 	}
 	virtual void Free(void* p) override
 	{
-		return BaseMalloc.Free(p);
+		UE_AUTORTFM_ONCOMMIT(=, this)
+		{
+			BaseMalloc.Free(p);
+		};
 	}
 
 private:
@@ -147,17 +165,61 @@ class FrameProMalloc
 public:
 	static void* Malloc(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
 	{
-		return FrameProAllocator::Get().GetBaseMalloc()->Malloc(Count, Alignment);
+		void* Ptr = nullptr;
+		UE_AUTORTFM_OPEN
+		{
+			Ptr = FrameProAllocator::Get().GetBaseMalloc()->Malloc(Count, Alignment);
+		};
+
+		// no-op for non-transactional code
+		UE_AUTORTFM_ONABORT(Ptr)
+		{
+			// Disable the code analysis warning that complains that Free is being passed
+			// a pointer that may be null. Free explicitly handles this case already.
+			FrameProMalloc::Free(Ptr); //-V575
+		};
+
+		return Ptr;
 	}
 
 	static void* Realloc(void* Original, SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
 	{
-		return FrameProAllocator::Get().GetBaseMalloc()->Realloc(Original, Count, Alignment);
+		FMalloc* BaseMalloc = FrameProAllocator::Get().GetBaseMalloc();
+
+		// This logic is from FMemory.inl
+		if (AutoRTFM::IsClosed())
+		{
+			void* Ptr = FrameProMalloc::Malloc(Count, Alignment);
+			if (!Ptr)
+			{
+				return nullptr;
+			}
+
+			if (Original)
+			{
+				SIZE_T OriginalCount = 0;
+				UE_AUTORTFM_OPEN
+				{
+					BaseMalloc->GetAllocationSize(Original, OriginalCount);
+				};
+
+				SIZE_T CopyCount = FGenericPlatformMath::Min(Count, OriginalCount);
+				FMemory::Memcpy(Ptr, Original, CopyCount);
+				FrameProMalloc::Free(Original);
+			}
+
+			return Ptr;
+		}
+
+		return BaseMalloc->Realloc(Original, Count, Alignment);
 	}
 
 	static void Free(void* Original)
 	{
-		return FrameProAllocator::Get().GetBaseMalloc()->Free(Original);
+		UE_AUTORTFM_ONCOMMIT(Original)
+		{
+			FrameProAllocator::Get().GetBaseMalloc()->Free(Original);
+		};
 	}
 };
 

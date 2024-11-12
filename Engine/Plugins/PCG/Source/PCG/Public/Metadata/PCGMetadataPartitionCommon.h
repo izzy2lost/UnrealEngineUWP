@@ -54,4 +54,26 @@ namespace PCGMetadataPartitionCommon
 	* @returns Array of bucket indices.
 	*/
 	PCG_API TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext = nullptr, bool bSilenceMissingAttributeErrors = false);
+
+	/**
+	* Remove duplicates for the incoming data on the given attribute.
+	 *Will return a single data, containing the first occurrence of every unique value
+	* @param InData - Data to partition, need to support attributes and multi entries (point data or attribute set).
+	* @param InSelector - Selector on the attribute to partition.
+	* @param InOptionalContext - Optional context for logging.
+	* @param bSilenceMissingAttributeErrors - Do not log errors to the context or log.
+	* @returns Resulting data, stripped of duplicates
+	*/
+	PCG_API UPCGData* RemoveDuplicates(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext = nullptr, bool bSilenceMissingAttributeErrors = false);
+
+	/**
+	* Remove duplicates for the incoming data on the given array of attributes.
+	* Will return a single data, containing the first occurrence of every unique tuple of values.
+	* @param InData - Data to partition, need to support attributes and multi entries (point data or attribute set).
+	* @param InSelectorArrayView - ArrayView of selectors on the attribute to partition.
+	* @param InOptionalContext - Optional context for logging.
+	* @param bSilenceMissingAttributeErrors - Do not log errors to the context or log.
+	* @returns Resulting data, stripped of duplicates
+	*/
+	PCG_API UPCGData* RemoveDuplicates(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext = nullptr, bool bSilenceMissingAttributeErrors = false);
 }

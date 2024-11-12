@@ -175,7 +175,7 @@ void FDatasmithMVRNativeTranslator::ReplaceMVRActorsWithMVRSceneActor(const TSha
 	CustomMVRSceneActorElement->SetTranslation(FVector::ZeroVector);
 
 	// Set the DMX Library path as metadata of the custom actor element
-	const TSoftObjectPtr<UDMXEntityFixturePatch> SoftDMXLibraryObject = DMXLibrary;
+	const TSoftObjectPtr<UDMXLibrary> SoftDMXLibraryObject = DMXLibrary;
 	const TSharedRef<IDatasmithKeyValueProperty> FixturePatchKeyValueProperty = FDatasmithSceneFactory::CreateKeyValueProperty(TEXT("DMXLibraryPath"));
 	FixturePatchKeyValueProperty->SetValue(*SoftDMXLibraryObject.ToString());
 

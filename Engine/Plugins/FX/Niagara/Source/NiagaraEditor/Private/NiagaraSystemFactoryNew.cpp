@@ -138,6 +138,8 @@ UObject* UNiagaraSystemFactoryNew::FactoryCreateNew(UClass* Class, UObject* InPa
 		InitializeSystem(NewSystem, true);
 	}
 
+	TryAssignDefaultEffectType(NewSystem);
+	
 	NewSystem->RequestCompile(false);
 
 	FNiagaraEditorModule::Get().GetRecentsManager()->SystemUsed(*NewSystem);
@@ -177,22 +179,17 @@ void UNiagaraSystemFactoryNew::InitializeSystem(UNiagaraSystem* System, bool bCr
 			FNiagaraStackGraphUtilities::RelayoutGraph(*SystemScriptSource->NodeGraph);
 		}
 	}
+}
 
+void UNiagaraSystemFactoryNew::TryAssignDefaultEffectType(UNiagaraSystem* System)
+{
 	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();
 	check(Settings);
-
-	UNiagaraEffectType* RequiredEffectType = Settings->GetRequiredEffectType();
-	if (RequiredEffectType != nullptr)
-	{
-		System->SetEffectType(RequiredEffectType);
-	}
-	else
+	
+	if(System->GetEffectType() == nullptr && Settings->GetDefaultEffectType())
 	{
 		UNiagaraEffectType* DefaultEffectType = Settings->GetDefaultEffectType();
-		if (DefaultEffectType != nullptr)
-		{
-			System->SetEffectType(DefaultEffectType);
-		}
+		System->SetEffectType(DefaultEffectType);
 	}
 }
 

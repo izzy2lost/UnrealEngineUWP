@@ -10,7 +10,6 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		//some default values for creating midi events
 		constexpr int32 DefaultNoteNumber = 60;//C4
 		constexpr int32 DefaultNoteVelocity = 90;
-		constexpr int32 DefaultTicksPerQuarter = 960;
 		constexpr uint8 DefaultControllerID = 69; //Hold Pedal
 		constexpr uint8 DefaultControlValue = 127;
 		constexpr uint8 DefaultPitchBendValueLSB = 64;
@@ -18,9 +17,8 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		constexpr uint8 DefaultPolyPresValue = 127;
 
 		// Set initial tempo and time signature
-		TheMidiFile->GetSongMaps()->GetTempoMap().AddTempoInfoPoint(Midi::Constants::BPMToMidiTempo(InTempo), 0);
-		TheMidiFile->GetSongMaps()->GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, InTimeSigNum, InTimeSigDenom);
-		TheMidiFile->GetSongMaps()->GetBarMap().SetTicksPerQuarterNote(DefaultTicksPerQuarter);
+		TheMidiFile->GetSongMaps()->AddTempoInfoPoint(Midi::Constants::BPMToMidiTempo(InTempo), 0);
+		TheMidiFile->GetSongMaps()->AddTimeSignatureAtBarIncludingCountIn(0, InTimeSigNum, InTimeSigDenom);
 		// Whenever you change the song maps you need to either:
 		// a) Add corresponding midi events to the conductor track. Or...
 		// b) Build the conductor track from scratch.
@@ -28,7 +26,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		TheMidiFile->BuildConductorTrack();
 
 		// now we can calculate the tick length since the midi file now has a conductor track...
-		int32 TickLength = TheMidiFile->GetSongMaps()->GetBarMap().FractionalBarIncludingCountInToTick(FileLengthBars);
+		int32 TickLength = TheMidiFile->GetSongMaps()->FractionalBarIncludingCountInToTick(FileLengthBars);
 		if (TickLength <= 0)
 		{
 			// MIDI Files must be at least one tick long. Even the initial tempo and time signature are specified on tick 0!

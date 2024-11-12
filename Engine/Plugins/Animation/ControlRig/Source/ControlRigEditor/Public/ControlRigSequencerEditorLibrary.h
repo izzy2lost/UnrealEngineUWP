@@ -17,6 +17,7 @@
 #include "Tools/ControlRigSnapSettings.h"
 #include "MovieSceneTimeUnit.h"
 #include "RigSpacePickerBakeSettings.h"
+#include "Filters/CurveEditorSmartReduceFilter.h"
 #include "ControlRigSequencerEditorLibrary.generated.h"
 
 class ULevelSequence;
@@ -25,6 +26,7 @@ class UTickableTransformConstraint;
 class UTransformableHandle;
 struct FBakingAnimationKeySettings;
 class UControlRig;
+class UAnimLayer;
 
 USTRUCT(BlueprintType)
 struct FControlRigSequencerBindingProxy
@@ -145,6 +147,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool BakeToControlRig(UWorld* World, ULevelSequence* LevelSequence, UClass* ControlRigClass, UAnimSeqExportOption* ExportOptions, bool bReduceKeys, float Tolerance,
 			const FMovieSceneBindingProxy& Binding, bool bResetControls = true);
+
+	/**
+	* Peform new Smart Reduce filter over the specified control rig section in the current open level sequence. Note existing
+	* functions like LoadAnimSequenceIntoControlRigSection and BakeToControlRig, will still use the old key reduction algorithm,
+	* so if you want to bake and then key reduce with the new function, set the bKeyReduce param as false with those functions,
+	* but then call this function after.
+	* @param ReduceParams Key reduction parameters
+	* @param MovieSceneSection The Control rig section we want to reduce
+	* @return returns True if successful, False otherwise
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static bool SmartReduce(FSmartReduceParams& ReduceParams, UMovieSceneSection* MovieSceneSection);
+
 
 	/**
 	* Bake the constraint to keys based on the passed in frames. This will use the open sequencer to bake. See ConstraintsScriptingLibrary to get the list of available constraints
@@ -995,6 +1010,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool BakeControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, const TArray<FName>& InControlNames, FRigSpacePickerBakeSettings InSettings, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
 	
+	/** Perform compensation for any spaces at the specified time for the specified control rig
+	* @param InControlRig Control Rig to compensate
+	* @param InTime  The time to look for a space key to compensate
+	* @param TimeUnit Unit for the InTime
+	* @return Will return false if function fails
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static bool SpaceCompensate(UControlRig* InControlRig, FFrameNumber InTime, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
+
+	/** Perform compensation for all spaces for the specified control rig
+	* @param InControlRig Control Rig to compensate
+	* @return Will return false if function fails
+	*/
+	static bool SpaceCompensateAll(UControlRig* InControlRig);
+
 	/** Delete the Control Rig Space Key for the Control at the specified time. This will delete any attached Control Rig keys at this time and will perform any needed compensation to the new space.
 	*
 	* @param InSequence Sequence to set the space
@@ -1066,6 +1096,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool IsLayeredControlRig(UControlRig* InControlRig);
 
+	/**
+	 * Mark the layered mode of a control rig on the color and display name of a track
+	 * @param InTrack The track to modify the color and display name if necessary
+	 */
+	static bool MarkLayeredModeOnTrackDisplay(UMovieSceneControlRigParameterTrack* InTrack);
+
 	/*
 	 * Convert the control rig track into absolute or layered rig
 	 *
@@ -1089,5 +1125,51 @@ public:
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool SetControlRigApplyMode(UControlRig* InControlRig, EControlRigFKRigExecuteMode InApplyMode);
+
+	/**
+	* Delete anim layer at specified index
+	* @param Index The index where the anim layer exists
+	* @return Returns true if successful, false otherwise
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig | Animation Layers")
+	static bool DeleteAnimLayer(int32 Index);
+
+	/**
+	* Duplicate anim layer at specified index
+	* @param Index The index where the anim layer exists
+	* @return Returns index of new layer, -1 if none created
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig | Animation Layers")
+	static int32 DuplicateAnimLayer(int32 Index);
+
+	/**
+	* Add anim layer from objects selected in Sequencer
+	* @return Returns Index of created anim layer
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig | Animation Layers")
+	static int32 AddAnimLayerFromSelection();
+
+	/**
+	* Merge specified anim layers into one layer. Will merge onto the anim layer with the lowest index
+	* @param Indices The indices to merge
+	* @return Returns true if successful, false otherwise
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig | Animation Layers")
+	static bool MergeAnimLayers(const TArray<int32>& Indices);
+
+	/**
+	* Get the animation layer objects
+	* @return Returns array of anim layer objects if they exist on active Sequencer
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig | Animation Layers")
+	static TArray<UAnimLayer*> GetAnimLayers();
+	
+	/**
+	* Helper function to get the index in the anim layer array from the anim layer
+	* @param Anim Layer to get the index for
+	* @return Returns index for the anim layer or INDEX_NONE(-1) if it doesn't exist
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig | Animation Layers")
+	static int32 GetAnimLayerIndex(UAnimLayer* AnimLayer);
 
 };

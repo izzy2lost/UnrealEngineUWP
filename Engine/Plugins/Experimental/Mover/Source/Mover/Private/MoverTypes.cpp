@@ -7,6 +7,14 @@
 
 #define LOCTEXT_NAMESPACE "MoverData"
 
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsOnGround, "Mover.IsOnGround", "Default Mover state flag indicating character is on the ground.");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsInAir, "Mover.IsInAir", "Default Mover state flag indicating character is in the air.");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsFalling, "Mover.IsFalling", "Default Mover state flag indicating character is falling.");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsFlying, "Mover.IsFlying", "Default Mover state flag indicating character is flying.");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsSwimming, "Mover.IsSwimming", "Default Mover state flag indicating character is swimming.");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsCrouching, "Mover.Stance.IsCrouching", "Default Mover state flag indicating character is crouching.");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Mover_IsNavWalking, "Mover.IsNavWalking", "Default Mover state flag indicating character is NavWalking.");
+
 FMoverOnImpactParams::FMoverOnImpactParams() 
 	: AttemptedMoveDelta(0) 
 {
@@ -196,6 +204,11 @@ void FMoverDataCollection::ToString(FAnsiStringBuilderBase& Out) const
 			Data->ToString(Out);
 		}
 	}
+}
+
+TArray<TSharedPtr<FMoverDataStructBase>>::TConstIterator FMoverDataCollection::GetCollectionDataIterator() const
+{
+	return DataArray.CreateConstIterator();
 }
 
 struct FMoverDataDeleter

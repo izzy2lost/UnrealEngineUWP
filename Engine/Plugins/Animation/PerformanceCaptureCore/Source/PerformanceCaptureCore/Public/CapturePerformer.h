@@ -12,7 +12,7 @@ class ULiveLinkInstance;
 class UPerformerComponent;
 
 UCLASS(Blueprintable, Category="Performance Capture")
-class ACapturePerformer : public ASkeletalMeshActor
+class PERFORMANCECAPTURECORE_API ACapturePerformer : public ASkeletalMeshActor
 {
 	GENERATED_BODY()
 
@@ -42,35 +42,35 @@ public:
 	* Set the LiveLink Subject Name. Subject must have the Animation Role Type.
 	* @param Subject New LiveLink Subject.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Performer")
 	void SetLiveLinkSubject(FLiveLinkSubjectName Subject);
 
 	/**
 	* Get the LiveLink Subject Name.
 	* @return FLiveLinkSubjectName Current LiveLink Subject.
 	*/
-	UFUNCTION(BlueprintCallable, Category ="Performance Capture")
+	UFUNCTION(BlueprintCallable, Category ="Performance Capture|Performer")
 	FLiveLinkSubjectName GetLiveLinkSubject() const;
 
 	/**
 	* Set the LiveLink data to update the Skeletal Mesh pose.
 	* @param bEvaluateLinkLink Drive or pause the Skeletal Mesh from LiveLink Subject data.
 	*/
-	UFUNCTION(BlueprintCallable, Category ="Performance Capture")
+	UFUNCTION(BlueprintCallable, Category ="Performance Capture|Performer")
 	void SetEvaluateLiveLinkData(bool bEvaluateLinkLink);
 
 	/**
 	* Get state of LiveLink data evaluation. True = animation is updated.
 	* @return bool Is LiveLink data being evaluated.
 	*/
-	UFUNCTION(BlueprintPure, Category ="Performance Capture")
+	UFUNCTION(BlueprintPure, Category ="Performance Capture|Performer")
 	bool GetEvaluateLiveLinkData();
 
 	/**
 	* Set the Skeletal Mesh Asset of the root Skeletal Mesh.
 	* @param MocapMesh New Skeletal Mesh Asset.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Performer")
 	void SetMocapMesh(USkeletalMesh* MocapMesh);
 
 protected:

@@ -78,7 +78,7 @@ public:
 		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) && !IsConsolePlatform(Parameters.Platform);
 	}
 	
-	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FTexture* TextureValue, int32 SizeZ, const FMatrix44f& ColorWeightsValue, float GammaValue, float MipLevel, float Opacity, const FRotator& TraceOrientation, bool bUsePointSampling)
+	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FTexture* TextureValue, const FMatrix44f& ColorWeightsValue, float GammaValue, float MipLevel, float Opacity, const FRotator& TraceOrientation, bool bUsePointSampling)
 	{
 		FRHISamplerState* SamplerState = bUsePointSampling ? TStaticSamplerState<SF_Point>::GetRHI() : TextureValue->SamplerStateRHI.GetReference();
 		SetTextureParameter(BatchedParameters, InTexture, InTextureSampler, SamplerState, TextureValue->TextureRHI);
@@ -93,6 +93,7 @@ public:
 		}
 		SetShaderValue(BatchedParameters,ColorWeights,ColorWeightsValue);
 
+		const int32 SizeZ = TextureValue->GetSizeZ();
 		const int32 MipSizeZ = MipLevel >= 0 ? FMath::Max<int32>(SizeZ >> FMath::FloorToInt(MipLevel), 1) : SizeZ;
 		FVector4f PackedParametersValue(GammaValue, MipLevel, (float)MipSizeZ, Opacity);
 		SetShaderValue(BatchedParameters, PackedParameters, PackedParametersValue);
@@ -206,5 +207,5 @@ void FBatchedElementVolumeTexturePreviewParameters::BindShaders(
 	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
 	SetShaderParametersLegacyVS(RHICmdList, VertexShader, InTransform);
-	SetShaderParametersLegacyPS(RHICmdList, PixelShader, Texture, SizeZ, ColorWeights, InGamma, MipLevel, Opacity, TraceOrientation, bUsePointSampling);
+	SetShaderParametersLegacyPS(RHICmdList, PixelShader, Texture, ColorWeights, InGamma, MipLevel, Opacity, TraceOrientation, bUsePointSampling);
 }

@@ -7,7 +7,7 @@
 #include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
 #include "EditorSupportDelegates.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "InstancedReferenceSubobjectHelper.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/ConfigCacheIni.h"
@@ -16,6 +16,8 @@
 #include "PropertyHandleImpl.h"
 #include "PropertyRestriction.h"
 #include "PropertyTextUtilities.h"
+#include "PropertyEditorEditConstPolicy.h"
+#include "PropertyEditorArchetypePolicy.h"
 #include "StringPrefixTree.h"
 #include "StructurePropertyNode.h"
 
@@ -26,8 +28,144 @@
 #include "UObject/UnrealType.h"
 
 #include "UObject/PropertyOptional.h"
+#include "UObject/UObjectArchetypeHelper.h"
 
 #define LOCTEXT_NAMESPACE "PropertyNode"
+
+namespace UE::PropertyEditor::Private
+{
+	static bool bShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable = true;
+	static FAutoConsoleVariableRef CVarShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable(
+		TEXT("PropertyEditor.ShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable"),
+		bShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable,
+		TEXT("Enables legacy behavior to show the InlineEditConditionToggle when the edit condition property does not have this specifier and is not editable.")
+	);
+}
+
+namespace PropertyEditorPolicy
+{
+	struct FPropertyNodePolicyImpl : public FObjectArchetypeHelper::IObjectArchetypePolicy
+	{
+		FPropertyNodePolicyImpl() {}
+		virtual ~FPropertyNodePolicyImpl() {}
+		
+		virtual UObject* GetArchetype(const UObject* Object) const override
+		{
+			for (const IArchetypePolicy* ArchetypePolicy : ArchetypePolicies)
+			{
+				if (UObject* Archetype = ArchetypePolicy->GetArchetypeForObject(Object))
+				{
+					return Archetype;
+				}
+			}
+
+			return nullptr;
+		}
+
+		bool CanEditProperty(const FEditPropertyChain& PropertyChain, const UObject* Object) const
+		{
+			for (const IEditConstPolicy* EditConstPolicy : EditConstPolicies)
+			{
+				if (!EditConstPolicy->CanEditProperty(PropertyChain, Object))
+				{
+					return false;
+				}
+			}
+			
+			return true;
+		}
+
+		bool CanEditProperty(const FProperty* Property, const UObject* Object) const
+		{
+			for (const IEditConstPolicy* EditConstPolicy : EditConstPolicies)
+			{
+				if (!EditConstPolicy->CanEditProperty(Property, Object))
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		void RegisterArchetypePolicy(IArchetypePolicy* ArchetypePolicy)
+		{
+			check(!ArchetypePolicies.Contains(ArchetypePolicy));
+			ArchetypePolicies.Add(ArchetypePolicy);
+			PolicyEpoch++;
+		}
+
+		void UnregisterArchetypePolicy(IArchetypePolicy* ArchetypePolicy)
+		{
+			check(ArchetypePolicies.Contains(ArchetypePolicy));
+			ArchetypePolicies.Remove(ArchetypePolicy);
+			PolicyEpoch++;
+		}
+
+		void RegisterEditConstPolicy(IEditConstPolicy* EditConstPolicy)
+		{
+			check(!EditConstPolicies.Contains(EditConstPolicy));
+			EditConstPolicies.Add(EditConstPolicy);
+			PolicyEpoch++;
+		}
+
+		void UnregisterEditConstPolicy(IEditConstPolicy* EditConstPolicy)
+		{
+			check(EditConstPolicies.Contains(EditConstPolicy));
+			EditConstPolicies.Remove(EditConstPolicy);
+			PolicyEpoch++;
+		}
+
+		int32 GetPolicyEpoch() const
+		{
+			return PolicyEpoch;
+		}
+				
+		TArray<IArchetypePolicy*> ArchetypePolicies;
+		TArray<IEditConstPolicy*> EditConstPolicies;
+		int32 PolicyEpoch = 0;
+	};
+
+	FPropertyNodePolicyImpl& Get()
+	{
+		static FPropertyNodePolicyImpl Policy;
+		return Policy;
+	}
+}
+void FPropertyNode::RegisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy)
+{
+	PropertyEditorPolicy::Get().RegisterArchetypePolicy(ArchetypePolicy);
+}
+
+void FPropertyNode::UnregisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy)
+{
+	PropertyEditorPolicy::Get().UnregisterArchetypePolicy(ArchetypePolicy);
+}
+
+void FPropertyNode::RegisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy)
+{
+	PropertyEditorPolicy::Get().RegisterEditConstPolicy(EditConstPolicy);
+}
+
+void FPropertyNode::UnregisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy)
+{
+	PropertyEditorPolicy::Get().UnregisterEditConstPolicy(EditConstPolicy);
+}
+
+UObject* FPropertyNode::GetArchetype(const UObject* Object)
+{
+	return Object ? FObjectArchetypeHelper::GetArchetype(Object, &PropertyEditorPolicy::Get()) : nullptr;
+}
+
+bool FPropertyNode::IsPropertyEditConst(const FEditPropertyChain& PropertyChain, UObject* Object)
+{
+	return !PropertyEditorPolicy::Get().CanEditProperty(PropertyChain, Object);
+}
+
+bool FPropertyNode::IsPropertyEditConst(const FProperty* Property, UObject* Object)
+{
+	return !PropertyEditorPolicy::Get().CanEditProperty(Property, Object);
+}
 
 FEditConditionParser FPropertyNode::EditConditionParser;
 
@@ -74,8 +212,10 @@ FPropertyNode::FPropertyNode()
 	, PropertyPath(TEXT(""))
 	, bIsEditConst(false)
 	, bUpdateEditConstState(true)
+	, UpdateEditConstStateEpoch(0)
 	, bDiffersFromDefault(false)
 	, bUpdateDiffersFromDefault(true)
+	, UpdateDiffersFromDefaultEpoch(0)
 {
 }
 
@@ -841,7 +981,7 @@ FPropertyAccess::Result FPropertyNodeEditStack::InitializeInternal(const FProper
 		if (Property == ParentProperty) // Static array items
 		{
 			// Static array property node creates subnodes that point to individual array items
-			MemoryStack.Add(FMemoryFrame(Property, MemoryStack.Last().Memory + InNode->GetArrayIndex() * Property->ElementSize));
+			MemoryStack.Add(FMemoryFrame(Property, MemoryStack.Last().Memory + InNode->GetArrayIndex() * Property->GetElementSize()));
 		}
 		else if (const FStructProperty* StructProp = CastField<FStructProperty>(ParentProperty)) // structs
 		{
@@ -1195,10 +1335,12 @@ bool FPropertyNode::IsPropertyConst() const
 }
 
 /** @return whether this window's property is constant (can't be edited by the user) */
-bool FPropertyNode::IsEditConst() const
+bool FPropertyNode::IsEditConst(const bool bIncludeEditCondition) const
 {
-	if (bUpdateEditConstState)
+	if (bUpdateEditConstState || UpdateEditConstStateEpoch != PropertyEditorPolicy::Get().GetPolicyEpoch())
 	{
+		UpdateEditConstStateEpoch = PropertyEditorPolicy::Get().GetPolicyEpoch();
+
 		// Ask the objects whether this property can be changed
 		const FObjectPropertyNode* ObjectPropertyNode = FindObjectItemParent();
 
@@ -1222,7 +1364,7 @@ bool FPropertyNode::IsEditConst() const
 					}
 				}
 
-				if (CurParent->IsEditConst())
+				if (CurParent->IsEditConst(bIncludeEditCondition))
 				{
 					// An owning struct is edit const, so the child property is too
 					bIsEditConst = true;
@@ -1272,6 +1414,12 @@ bool FPropertyNode::IsEditConst() const
 					const TWeakObjectPtr<UObject> CurObject = *CurObjectIt;
 					if (CurObject.IsValid())
 					{
+						if (!PropertyEditorPolicy::Get().CanEditProperty(*PropertyChain, CurObject.Get()))
+						{
+							bIsEditConst = true;
+							break;
+						}
+						
 						if (!CurObject->CanEditChange(*PropertyChain))
 						{
 							// At least one of the objects didn't like the idea of this property being changed.
@@ -1283,6 +1431,9 @@ bool FPropertyNode::IsEditConst() const
 			}
 		}
 
+		// this ignores EditCondition check below
+		bIsEditConstWithoutCondition = bIsEditConst;
+
 		// check edit condition
 		if (!bIsEditConst && HasEditCondition())
 		{
@@ -1292,7 +1443,7 @@ bool FPropertyNode::IsEditConst() const
 		bUpdateEditConstState = false;
 	}
 
-	return bIsEditConst;
+	return bIncludeEditCondition ? bIsEditConst : bIsEditConstWithoutCondition;
 }
 
 bool FPropertyNode::ShouldSkipSerialization() const
@@ -1334,30 +1485,30 @@ bool FPropertyNode::SupportsEditConditionToggle() const
 		const FBoolProperty* ConditionalProperty = EditConditionContext->GetSingleBoolProperty(EditConditionExpression);
 		if (ConditionalProperty != nullptr)
 		{
-			// There are 2 valid states for inline edit conditions:
-			// 1. The property is marked as editable and has InlineEditConditionToggle set. 
-			// 2. The property is not marked as editable and does not have InlineEditConditionToggle set.
-			// In both cases, the original property will be hidden and only show up as a toggle.
-
 			static const FName Name_InlineEditConditionToggle("InlineEditConditionToggle");
 			const bool bIsInlineEditCondition = ConditionalProperty->HasMetaData(Name_InlineEditConditionToggle);
 			const bool bIsEditable = ConditionalProperty->HasAllPropertyFlags(CPF_Edit);
-
-			if (bIsInlineEditCondition == bIsEditable)
+			
+			// Support for legacy behavior ( case 2. in the comment below ) if enabled
+			if (UE::PropertyEditor::Private::bShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable)
 			{
-				return true;
+				// There are 2 valid states for inline edit conditions:
+				// 1. The property is marked as editable and has InlineEditConditionToggle set. 
+				// 2. The property is not marked as editable and does not have InlineEditConditionToggle set.
+				// In both cases, the original property will be hidden and only show up as a toggle.
+				if (bIsInlineEditCondition == bIsEditable)
+				{
+					return true;
+				}
 			}
-
-			if (bIsInlineEditCondition && !bIsEditable)
+			
+			if (bIsInlineEditCondition)
 			{
-				UE_LOG(LogPropertyNode, Warning, TEXT("Property being used as inline edit condition is not editable, but has redundant InlineEditConditionToggle flag. Field \"%s\" in class \"%s\"."), *ConditionalProperty->GetNameCPP(), *Property->GetOwnerStruct()->GetName());
+				if (!bIsEditable)
+				{
+					UE_LOG(LogPropertyNode, Warning, TEXT("Property being used as inline edit condition is not editable, but has InlineEditConditionToggle flag. Field \"%s\" in class \"%s\"."), *ConditionalProperty->GetNameCPP(), *Property->GetOwnerStruct()->GetName());
+				}
 				return true;
-			}
-
-			// The property is already shown, and not marked as inline edit condition.
-			if (!bIsInlineEditCondition && bIsEditable)
-			{
-				return false;
 			}
 		}
 	}
@@ -1716,7 +1867,7 @@ public:
 			// calculate the addresses for the default object if it exists
 			if (bHasDefaultValue)
 			{
-				PropertyDefaultValueRoot.OwnerObject = PropertyValueRoot.OwnerObject ? PropertyValueRoot.OwnerObject->GetArchetype() : nullptr;
+				PropertyDefaultValueRoot.OwnerObject = PropertyValueRoot.OwnerObject ? FPropertyNode::GetArchetype(PropertyValueRoot.OwnerObject) : nullptr;
 
 				PropertyDefaultBaseAddress = Node->GetValueBaseAddressFromObject(PropertyDefaultValueRoot.OwnerObject);
 				PropertyDefaultAddress = PropertyNode->GetValueAddressFromObject(PropertyDefaultValueRoot.OwnerObject);
@@ -1881,7 +2032,7 @@ private:
 			}
 			check(PropertyValueBaseAddress);
 			check(PropertyValueRoot.OwnerObject);
-			UObject* ParentDefault = PropertyValueRoot.OwnerObject->GetArchetype();
+			UObject* ParentDefault = FPropertyNode::GetArchetype(PropertyValueRoot.OwnerObject);
 			check(ParentDefault);
 			if (OwnerClass == ParentDefault->GetClass())
 			{
@@ -1989,7 +2140,7 @@ struct FPropertyItemComponentCollector
 			// either the associated property is not an array property, or it's the header for the property (meaning the entire array)
 			for ( int32 ArrayIndex = 0; ArrayIndex < Prop->ArrayDim; ArrayIndex++ )
 			{
-				ProcessProperty(Prop, ValueTracker.GetPropertyValueAddress() + ArrayIndex * Prop->ElementSize);
+				ProcessProperty(Prop, ValueTracker.GetPropertyValueAddress() + ArrayIndex * Prop->GetElementSize());
 			}
 		}
 		else
@@ -2067,7 +2218,7 @@ private:
 			int32 ArraySize = ArrayHelper.Num();
 			for ( int32 ArrayIndex = 0; ArrayIndex < ArraySize; ArrayIndex++ )
 			{
-				ProcessProperty(ArrayProp->Inner, ArrayValue + ArrayIndex * ArrayProp->Inner->ElementSize);
+				ProcessProperty(ArrayProp->Inner, ArrayValue + ArrayIndex * ArrayProp->Inner->GetElementSize());
 			}
 
 			bResult = true;
@@ -2092,7 +2243,7 @@ private:
 		{
 			FScriptSet* SetValuePtr = SetProp->GetPropertyValuePtr(PropertyValueAddress);
 
-			FScriptSetLayout SetLayout = SetValuePtr->GetScriptLayout(SetProp->ElementProp->ElementSize, SetProp->ElementProp->GetMinAlignment());
+			FScriptSetLayout SetLayout = SetValuePtr->GetScriptLayout(SetProp->ElementProp->GetElementSize(), SetProp->ElementProp->GetMinAlignment());
 			int32 ItemsLeft = SetValuePtr->Num();
 
 			for (int32 Index = 0; ItemsLeft > 0; ++Index)
@@ -2353,8 +2504,9 @@ bool FPropertyNode::GetDiffersFromDefaultForObject( FPropertyItemValueDataTracke
  */
 bool FPropertyNode::GetDiffersFromDefault()
 {
-	if( bUpdateDiffersFromDefault )
+	if( bUpdateDiffersFromDefault || UpdateDiffersFromDefaultEpoch != PropertyEditorPolicy::Get().GetPolicyEpoch())
 	{
+		UpdateDiffersFromDefaultEpoch = PropertyEditorPolicy::Get().GetPolicyEpoch();
 		bUpdateDiffersFromDefault = false;
 		bDiffersFromDefault = false;
 
@@ -3624,7 +3776,7 @@ void FPropertyNode::GatherInstancesAffectedByContainerPropertyChange(UObject* Mo
 		{
 			UObject* Obj = ArchetypeInstances[i];
 
-			if (Obj->GetArchetype() == ObjToChange)
+			if (GetArchetype(Obj) == ObjToChange)
 			{
 				ObjectsToChange.Push(Obj);
 				ArchetypeInstances.RemoveAt(i--);
@@ -3824,7 +3976,25 @@ void FPropertyNode::PropagatePropertyChange( UObject* ModifiedObject, const TCHA
 	FPropertyNode* SubobjectPropertyNode = NULL;
 	UObject* Object = ModifiedObject;
 
-	if (Object->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
+	if (HasNodeFlags(EPropertyNodeFlags::IsSparseClassData))
+	{
+		// Propagate only to child types with the CDO serving as a 'dummy' object to identify
+		// the class (and consequently edit the SCD)
+		if (ensure(Object->HasAnyFlags(RF_ClassDefaultObject)))
+		{
+			TArray<UClass*> Children;
+			GetDerivedClasses(Object->GetClass(), Children);
+			for (UClass* ChildClass : Children)
+			{
+				if (ChildClass->ClassDefaultObject &&
+					!ChildClass->GetPackage()->HasAnyFlags(RF_Transient))
+				{
+					ArchetypeInstances.Add(ChildClass->ClassDefaultObject);
+				}
+			}
+		}
+	}
+	else if (Object->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
 	{
 		// Object is a default subobject, collect all instances.
 		Object->GetArchetypeInstances(ArchetypeInstances);
@@ -3923,7 +4093,7 @@ void FPropertyNode::PropagatePropertyChange( UObject* ModifiedObject, const TCHA
 		{
 			UObject* Obj = ArchetypeInstances[InstanceIndex];
 
-			if (Obj->GetArchetype() == ObjToChange)
+			if (GetArchetype(Obj) == ObjToChange)
 			{
 				ObjectsToChange.Push(Obj);
 				ArchetypeInstances.RemoveAt(InstanceIndex--);
@@ -4012,6 +4182,21 @@ bool FPropertyNode::GenerateRestrictionToolTip(const FString& Value, FText& OutT
 		}
 	}
 	return bRestricted;
+}
+
+void FComplexPropertyNode::SetDisplayNameOverride(const FText& InDisplayNameOverride)
+{
+	DisplayNameOverride = InDisplayNameOverride;
+}
+
+FText FComplexPropertyNode::GetDisplayName() const
+{
+	if (!DisplayNameOverride.IsEmpty())
+	{
+		return DisplayNameOverride;
+	}
+
+	return FPropertyNode::GetDisplayName();
 }
 
 #undef LOCTEXT_NAMESPACE

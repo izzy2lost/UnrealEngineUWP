@@ -9,7 +9,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "Async/Future.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	TSharedRef<IClientChangeOperation> FExternalClientChangeRequestHandler::MakeFailedOperation(
 		EChangeStreamOperationResult StreamResult,

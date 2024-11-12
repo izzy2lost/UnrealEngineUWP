@@ -337,7 +337,7 @@ namespace UnrealBuildTool
 			string NewModulePath = ModulePath.Replace('\\', '/');
 			if (!NewModulePath.EndsWith('/'))
 			{
-				NewModulePath = NewModulePath + '/';
+				NewModulePath += '/';
 			}
 			return NewModulePath;
 		}
@@ -357,10 +357,7 @@ namespace UnrealBuildTool
 			Logger.LogInformation($"====================================================");
 
 			// Fixup the log path if it wasn't overridden by a config file
-			if (IWYUBaseLogFileName == null)
-			{
-				IWYUBaseLogFileName = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "IWYULog.txt").FullName;
-			}
+			IWYUBaseLogFileName ??= FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "IWYULog.txt").FullName;
 
 			// Create the log file, and flush the startup listener to it
 			if (!Arguments.HasOption("-NoLog") && !Log.HasFileWriter())
@@ -388,7 +385,7 @@ namespace UnrealBuildTool
 
 			if (TargetDescriptors.Count != 1)
 			{
-				Logger.LogError($"IWYUMode can only handle command lines that produce one target (Cmdline: {Arguments.ToString()})");
+				Logger.LogError($"IWYUMode can only handle command lines that produce one target (Cmdline: {Arguments})");
 				return 0;
 			}
 
@@ -400,7 +397,7 @@ namespace UnrealBuildTool
 			{
 				foreach (string OnlyModuleName in TargetDescriptors[0].OnlyModuleNames)
 				{
-					if (String.Compare(OnlyModuleName, ModuleToUpdateName, StringComparison.OrdinalIgnoreCase) != 0)
+					if (!String.Equals(OnlyModuleName, ModuleToUpdateName, StringComparison.OrdinalIgnoreCase))
 					{
 						Logger.LogError($"ModuleToUpdate '{ModuleToUpdateName}' was not in list of specified modules: {String.Join(", ", TargetDescriptors[0].OnlyModuleNames)}");
 						return -1;
@@ -415,7 +412,7 @@ namespace UnrealBuildTool
 			}
 			else if (!String.IsNullOrEmpty(PathToUpdateFile))
 			{
-				PathToUpdateList = File.ReadAllLines(PathToUpdateFile);
+				PathToUpdateList = await File.ReadAllLinesAsync(PathToUpdateFile);
 			}
 
 			if (PathToUpdateList.Length > 0)
@@ -825,6 +822,7 @@ namespace UnrealBuildTool
 					GetInfo("VerseInteropUtils.h", "Restricted/NotForLicensees/Plugins/Solaris/Source/VerseNative/Public/VerseInteropTypes.h"),
 					GetInfo("Containers/ContainersFwd.h", "Source/Runtime/Core/Public/Containers/ContainersFwd.h"),
 					GetInfo("Misc/OptionalFwd.h", "Source/Runtime/Core/Public/Misc/OptionalFwd.h"),
+					GetInfo("Templates/SharedPointerFwd.h", "Source/Runtime/Core/Public/Templates/SharedPointerFwd.h"),
 				}
 			);
 
@@ -835,6 +833,8 @@ namespace UnrealBuildTool
 				{ "TArray", SpecialIncludes["Containers/ContainersFwd.h"] },
 				{ "TArrayView", SpecialIncludes["Containers/ContainersFwd.h"] },
 				{ "TOptional", SpecialIncludes["Misc/OptionalFwd.h"] },
+				{ "TSharedPtr", SpecialIncludes["Templates/SharedPointerFwd.h"] },
+				{ "TSharedRef", SpecialIncludes["Templates/SharedPointerFwd.h"] },
 			};
 
 			// Add all .generated.h files as entries in the lookup and explicitly add the includes they have which will never be removed
@@ -1484,10 +1484,7 @@ namespace UnrealBuildTool
 						// Might be forward declaration.. 
 						if (ForwardDeclarationsToAdd.Remove(Line)) // Skip adding the ones that already exists
 						{
-							if (FirstForwardDeclareLine == null)
-							{
-								FirstForwardDeclareLine = Line;
-							}
+							FirstForwardDeclareLine ??= Line;
 						}
 
 						if (Line.Contains("IWYU pragma: "))
@@ -1652,7 +1649,7 @@ namespace UnrealBuildTool
 				}
 
 				List<string> NewLines = new(ExistingLines.Length);
-				SortedSet<String> LinesRemoved = new();
+				SortedSet<string> LinesRemoved = new();
 
 				if (!HasIncludes)
 				{
@@ -2199,7 +2196,7 @@ namespace UnrealBuildTool
 				}
 
 				float Percent = 100.0f - (((float)OptimizedSize) / (OptimizedSize + Saved) * 100.0f);
-				Logger.LogInformation($"{Path.GetFileName(File.File)}   {PrettySize(OptimizedSize + Saved)} -> {PrettySize(OptimizedSize)}  (Saved {PrettySize(Saved)} or {Percent.ToString("0.0")}%)");
+				Logger.LogInformation($"{Path.GetFileName(File.File)}   {PrettySize(OptimizedSize + Saved)} -> {PrettySize(OptimizedSize)}  (Saved {PrettySize(Saved)} or {Percent:0.0}%)");
 			}
 			Logger.LogInformation("");
 

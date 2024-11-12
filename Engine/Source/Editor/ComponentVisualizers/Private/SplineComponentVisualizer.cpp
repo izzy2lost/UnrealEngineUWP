@@ -2075,8 +2075,6 @@ void FSplineComponentVisualizer::SnapKeyToTransform(const ESplineComponentSnapMo
 	if (InSnapMode == ESplineComponentSnapMode::AlignToTangent || InSnapMode == ESplineComponentSnapMode::AlignPerpendicularToTangent)
 	{
 		// Copy tangents
-		FVector AlignTangent;
-		FQuat AlignRot;
 		const FVector WorldUpVector = InWorldUpVector.GetSafeNormal();
 		const FVector WorldForwardVector = InWorldForwardVector.GetSafeNormal();
 

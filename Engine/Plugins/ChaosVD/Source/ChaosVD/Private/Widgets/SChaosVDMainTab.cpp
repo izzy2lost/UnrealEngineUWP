@@ -3,7 +3,6 @@
 #include "Widgets/SChaosVDMainTab.h"
 
 #include "ChaosVDEditorModeTools.h"
-#include "ChaosVDEditorVisualizationSettingsTab.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDObjectDetailsTab.h"
@@ -14,6 +13,9 @@
 #include "ChaosVDSolversTracksTab.h"
 #include "ChaosVDCollisionDataDetailsTab.h"
 #include "ChaosVDConstraintDataInspectorTab.h"
+#include "ChaosVDParticleActor.h"
+#include "ChaosVDParticleActorCustomization.h"
+#include "ChaosVDRecordedLogTab.h"
 #include "ChaosVDSceneQueryDataInspectorTab.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
@@ -25,17 +27,35 @@
 #include "Framework/Application/SWindowTitleBar.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "IDesktopPlatform.h"
+#include "PropertyEditorModule.h"
 #include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Components/ChaosVDGenericDebugDrawDataComponent.h"
+#include "Components/ChaosVDGTAccelerationStructuresDataComponent.h"
+#include "Components/ChaosVDInstancedStaticMeshComponent.h"
 #include "Components/ChaosVDParticleDataComponent.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
+#include "Components/ChaosVDStaticMeshComponent.h"
+#include "DetailsCustomizations/ChaosVDGeometryComponentCustomization.h"
+#include "DetailsCustomizations/ChaosVDParticleDataWrapperCustomization.h"
+#include "DetailsCustomizations/ChaosVDQueryDataWrappersCustomizationDetails.h"
+#include "DetailsCustomizations/ChaosVDSelectionMultipleViewCustomization.h"
+#include "DetailsCustomizations/ChaosVDShapeDataCustomization.h"
+#include "HAL/FileManager.h"
+#include "Settings/ChaosVDMiscSettings.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
+#include "TabSpawers/ChaosVDSceneQueryBrowserTab.h"
 #include "Trace/ChaosVDTraceManager.h"
+#include "Visualizers/ChaosVDCharacterGroundConstraintsDataComponentVisualizer.h"
+#include "Visualizers/ChaosVDGenericDebugDrawDataComponentVisualizer.h"
+#include "Visualizers/ChaosVDGTAccelerationStructureDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDJointConstraintsDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDSceneQueryDataComponentVisualizer.h"
@@ -62,6 +82,9 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	RegisterComponentVisualizer(UChaosVDSceneQueryDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDSceneQueryDataComponentVisualizer>());
 	RegisterComponentVisualizer(UChaosVDParticleDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDParticleDataComponentVisualizer>());
 	RegisterComponentVisualizer(UChaosVDSolverJointConstraintDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDJointConstraintsDataComponentVisualizer>());
+	RegisterComponentVisualizer(UChaosVDSolverCharacterGroundConstraintDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDCharacterGroundConstraintDataComponentVisualizer>());
+	RegisterComponentVisualizer(UChaosVDGTAccelerationStructuresDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDGTAccelerationStructureDataComponentVisualizer>());
+	RegisterComponentVisualizer(UChaosVDGenericDebugDrawDataComponent::StaticClass()->GetFName(), MakeShared<FChaosVDGenericDebugDrawDataComponentVisualizer>());
 
 	TabManager = FGlobalTabmanager::Get()->NewTabManager(InArgs._OwnerTab.ToSharedRef()).ToSharedPtr();
 
@@ -70,10 +93,11 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	RegisterTabSpawner<FChaosVDOutputLogTab>(FChaosVDTabID::OutputLog);
 	RegisterTabSpawner<FChaosVDPlaybackViewportTab>(FChaosVDTabID::PlaybackViewport);
 	RegisterTabSpawner<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack);
-	RegisterTabSpawner<FChaosVDEditorVisualizationSettingsTab>(FChaosVDTabID::CVDEditorSettings);
 	RegisterTabSpawner<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails);
 	RegisterTabSpawner<FChaosVDSceneQueryDataInspectorTab>(FChaosVDTabID::SceneQueryDataDetails);
-	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::JointsDataDetails);
+	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::ConstraintsInspector);
+	RegisterTabSpawner<FChaosVDSceneQueryBrowserTab>(FChaosVDTabID::SceneQueryBrowser);
+	RegisterTabSpawner<FChaosVDRecordedLogTab>(FChaosVDTabID::RecordedOutputLog);
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	
@@ -155,6 +179,13 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	// Make sure these tabs are always focused at the start
 	TabManager->TryInvokeTab(FChaosVDTabID::SolversTrack);
 	TabManager->TryInvokeTab(FChaosVDTabID::DetailsPanel);
+
+	SetUpDisableCPUThrottlingDelegate();
+}
+
+SChaosVDMainTab::~SChaosVDMainTab()
+{
+	CleanUpDisableCPUThrottlingDelegate();
 }
 
 void SChaosVDMainTab::BringToFront()
@@ -230,6 +261,8 @@ void SChaosVDMainTab::HandleTabDestroyed(TSharedRef<SDockTab> Tab, FName TabID)
 
 TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 {
+	const float DPIScaleFactor = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(10.0f, 10.0f);
+
 	return FTabManager::NewLayout("ChaosVisualDebugger_Layout")
 		->AddArea
 		(
@@ -253,6 +286,7 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.3f)
 					->AddTab(FChaosVDTabID::SolversTrack, ETabState::OpenedTab)
+					->AddTab(FChaosVDTabID::RecordedOutputLog, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::OutputLog, ETabState::OpenedTab)
 				)
 			)
@@ -274,11 +308,19 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					->AddTab(FChaosVDTabID::DetailsPanel, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::CollisionDataDetails, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::SceneQueryDataDetails, ETabState::OpenedTab)
-					->AddTab(FChaosVDTabID::JointsDataDetails, ETabState::ClosedTab)
-					->AddTab(FChaosVDTabID::CVDEditorSettings, ETabState::ClosedTab)
+					->AddTab(FChaosVDTabID::ConstraintsInspector, ETabState::ClosedTab)
 				)
 			)
-		);
+		)
+	->AddArea(
+	FTabManager::NewArea(800.0f * DPIScaleFactor, 600.0f * DPIScaleFactor)
+	->SetOrientation(Orient_Vertical)
+	->Split
+	(
+		FTabManager::NewStack()
+		->SetSizeCoefficient(1.0f)
+		->AddTab(FChaosVDTabID::SceneQueryBrowser, ETabState::ClosedTab)
+	));
 }
 
 void SChaosVDMainTab::GenerateMainWindowMenu()
@@ -287,14 +329,9 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 	MenuBarBuilder.AddPullDownMenu(
 		LOCTEXT("FileMenuLabel", "File"),
 		FText::GetEmpty(),
-		FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+		FNewMenuDelegate::CreateSPLambda(this, [this](FMenuBuilder& MenuBuilder)
 		{
-			MenuBuilder.AddMenuEntry(LOCTEXT("OpenFileMenuLabel", "OpenFile"), FText(), FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateLambda([this]()
-				{
-					BrowseAndOpenChaosVDRecording();
-				})));
+			MenuBuilder.AddSubMenu(LOCTEXT("RecentFilesMenuLabel", "Recent Files"), LOCTEXT("RecentFilesMenuLabelToolTip", "Shows a list of recently used CVD Files"), FNewMenuDelegate::CreateSP(this, &SChaosVDMainTab::GenerateRecentFilesMenu));
 		}),
 		"File"
 	);
@@ -310,6 +347,22 @@ void SChaosVDMainTab::GenerateMainWindowMenu()
 
 	TabManager->SetAllowWindowMenuBar(true);
 	TabManager->SetMenuMultiBox(MenuBarBuilder.GetMultiBox(), MenuBarBuilder.MakeWidget());
+}
+
+void SChaosVDMainTab::GenerateRecentFilesMenu(FMenuBuilder& MenuBuilder)
+{
+	if (UChaosVDMiscSettings* MiscSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDMiscSettings>())
+	{
+		MiscSettings->RecentFiles.Sort(FChaosVDRecentFile::FRecentFilesSortPredicate());
+
+		for (const FChaosVDRecentFile& RecentFile : MiscSettings->RecentFiles)
+		{
+			const FText DisplayName = FText::FromString(FPaths::GetBaseFilename(*RecentFile.FileName));
+			const FText Tooltip = FText::FromString(IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*RecentFile.FileName) );
+			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon(FChaosVDStyle::Get().GetStyleSetName(), "OpenFileIcon"), FUIAction(FExecuteAction::CreateSPLambda(this, [this, FileNameCopy = RecentFile.FileName](){ LoadCVDFile(FileNameCopy); })),
+					NAME_None, EUserInterfaceActionType::Button);
+		}
+	}
 }
 
 FReply SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
@@ -400,6 +453,62 @@ TSharedRef<SWidget> SChaosVDMainTab::GenerateMainToolbarWidget()
 	return UToolMenus::Get()->GenerateWidget(MainToolBarName, MenuContext);
 }
 
+void SChaosVDMainTab::LoadCVDFile(const FString& InFilename)
+{
+	if (ensure(InFilename.EndsWith(TEXT("utrace"))))
+	{
+		GetChaosVDEngineInstance()->LoadRecording(InFilename);
+	}
+	else
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Invalid file extension | Only UTrace files are supported | Filename [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *InFilename)			
+	}
+}
+
+TSharedRef<IDetailsView> SChaosVDMainTab::CreateDetailsView(const FDetailsViewArgs& InDetailsViewArgs)
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(InDetailsViewArgs);
+	SetCustomPropertyLayouts(&DetailsView.Get());
+
+	return DetailsView;
+}
+
+TSharedRef<IStructureDetailsView> SChaosVDMainTab::CreateStructureDetailsView(const FDetailsViewArgs& InDetailsViewArgs, const FStructureDetailsViewArgs& InStructureDetailsViewArgs, const TSharedPtr<FStructOnScope>& InStructData, const FText& CustomName)
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	TSharedRef<IStructureDetailsView> DetailsView = PropertyEditorModule.CreateStructureDetailView(InDetailsViewArgs, InStructureDetailsViewArgs, InStructData, CustomName);
+	SetCustomPropertyLayouts(DetailsView->GetDetailsView());
+
+	return DetailsView;
+}
+
+void SChaosVDMainTab::SetCustomPropertyLayouts(IDetailsView* DetailsView)
+{
+	if (!DetailsView)
+	{
+		return;
+	}
+
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	DetailsView->RegisterInstancedCustomPropertyLayout(AChaosVDParticleActor::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDParticleActorCustomization::MakeInstance, StaticCastWeakPtr<SChaosVDMainTab>(AsWeak())));
+	DetailsView->RegisterInstancedCustomPropertyLayout(UChaosVDInstancedStaticMeshComponent::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
+	DetailsView->RegisterInstancedCustomPropertyLayout(UChaosVDStaticMeshComponent::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
+	DetailsView->RegisterInstancedCustomPropertyLayout(FChaosVDQueryVisitStep::StaticStruct(), FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDQueryVisitDataCustomization::MakeInstance));
+	DetailsView->RegisterInstancedCustomPropertyLayout(FChaosVDQueryDataWrapper::StaticStruct(), FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDQueryDataWrapperCustomization::MakeInstance));
+	DetailsView->RegisterInstancedCustomPropertyLayout(FChaosVDSelectionMultipleView::StaticStruct(), FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDSelectionMultipleViewCustomization::MakeInstance));
+
+	//TODO: Rename FChaosVDParticleDataWrapperCustomization to something generic as currently works with any type that wants to hide properties of type FChaosVDWrapperDataBase with invalid data.
+	// Or another option is create a new custom layout intended to be generic from the get go
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout(TEXT("ChaosVDQueryDataWrapper"), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout(TEXT("ChaosVDQueryVisitStep"), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
+
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout(TEXT("ChaosVDCollisionResponseParams"), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDCollisionResponseParamsCustomization::MakeInstance, StaticCastWeakPtr<SChaosVDMainTab>(AsWeak())));
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout(TEXT("ChaosVDCollisionObjectQueryParams"), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDCollisionObjectParamsCustomization::MakeInstance,StaticCastWeakPtr<SChaosVDMainTab>(AsWeak())));
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout(TEXT("ChaosVDShapeCollisionData"), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDShapeDataCustomization::MakeInstance, StaticCastWeakPtr<SChaosVDMainTab>(AsWeak())));
+}
+
 void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 {
 	TArray<FString> OutOpenFilenames;
@@ -423,10 +532,7 @@ void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 
 	if (OutOpenFilenames.Num() > 0)
 	{
-		if (OutOpenFilenames[0].EndsWith(TEXT("utrace")))
-		{
-			GetChaosVDEngineInstance()->LoadRecording(OutOpenFilenames[0]);
-		}
+		LoadCVDFile(OutOpenFilenames[0]);
 	}
 }
 
@@ -438,7 +544,7 @@ bool SChaosVDMainTab::ConnectToLiveSession(int32 SessionID, const FString Sessio
 
 	bool bSuccess = false;
 
-	if (NewSessionFromFileDescriptor.SessionName.IsEmpty())
+	if (!NewSessionFromFileDescriptor.IsValid())
 	{
 		// If it failed we want to clean the current session name, so it is ok calling it either way
 		GetChaosVDEngineInstance()->SetCurrentSession(FChaosVDTraceSessionDescriptor());
@@ -450,6 +556,26 @@ bool SChaosVDMainTab::ConnectToLiveSession(int32 SessionID, const FString Sessio
 	}
 
 	return bSuccess;
+}
+
+void SChaosVDMainTab::SetUpDisableCPUThrottlingDelegate()
+{
+	if (GEditor)
+	{
+		GEditor->ShouldDisableCPUThrottlingDelegates.Add(UEditorEngine::FShouldDisableCPUThrottling::CreateSP(this, &SChaosVDMainTab::ShouldDisableCPUThrottling));
+		DisableCPUThrottleHandle = GEditor->ShouldDisableCPUThrottlingDelegates.Last().GetHandle();
+	}
+}
+
+void SChaosVDMainTab::CleanUpDisableCPUThrottlingDelegate() const
+{
+	if (GEditor)
+	{
+		GEditor->ShouldDisableCPUThrottlingDelegates.RemoveAll([this](const UEditorEngine::FShouldDisableCPUThrottling& Delegate)
+		{
+			return Delegate.GetHandle() == DisableCPUThrottleHandle;
+		});
+	}
 }
 
 void SChaosVDMainTab::RegisterMainTabMenu()
@@ -548,6 +674,47 @@ void SChaosVDMainTab::RegisterMainTabMenu()
 	}));
 	
 	Section.AddSeparator(NAME_None);
+
+	//TODO : This button should not be added to the toolbar here. Ideally it should be added from the SceneQueryComponent Visualizer, but we have two issues :
+	// 1- The recording control buttons are still implemented as a widget we instantiate alongside the tool bar, that needs to be moved to be a properly
+	// registered menu entry that is part of the toolbar.
+	// 2- We need to ensure the main toolbar is created and ready to use before we allow other system to register into it.
+	// Jira for tracking UE-221454
+
+	Section.AddDynamicEntry("DataBrowsers", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	{
+		const UChaosVDMainToolbarMenuContext* Context = InSection.FindContext<UChaosVDMainToolbarMenuContext>();
+		TSharedPtr<SChaosVDMainTab> MainTabPtr = Context->MainTab.Pin();
+		if (!MainTabPtr)
+		{
+			return;
+		}
+
+		FOnClicked OnClickedDelegate = FOnClicked::CreateLambda([WeakTab = StaticCastWeakPtr<SChaosVDMainTab>(MainTabPtr->AsWeak())]()
+		{
+			if (TSharedPtr<SChaosVDMainTab> TabPtr = WeakTab.Pin())
+			{
+				TabPtr->TabManager->TryInvokeTab(FChaosVDTabID::SceneQueryBrowser);
+			}
+
+			return FReply::Handled();
+		});
+
+		TSharedRef<SButton> ConnectToSessionButton = MainTabPtr->CreateSimpleButton(
+														[](){ return LOCTEXT("SceneQueryBrowserButton", "Scene Query Browser"); },
+														[](){ return LOCTEXT("SceneQueryBrowserButtonTooltip", "Opens the Scene Query Browser window, which shows all the available scene queries in the current frame."); },
+														FChaosVDStyle::Get().GetBrush("SceneQueriesInspectorIcon"),
+														Context, MoveTemp(OnClickedDelegate));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"SceneQueryBrowser",
+				ConnectToSessionButton,
+				FText::GetEmpty(),
+				true,
+				false
+			));
+	}));
 }
 
 void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
@@ -569,6 +736,12 @@ void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
 			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("FailedToConnectToSessionMessage", "Failed to connect to session"));	
 		}
 	}
+}
+
+bool SChaosVDMainTab::ShouldDisableCPUThrottling() const
+{
+	// If we are playing a live session, it is likely the editor will be in the background, so we need to disable CPU Throttling
+	return ChaosVDEngine && ChaosVDEngine->GetCurrentSessionDescriptor().bIsLiveSession;
 }
 
 FReply SChaosVDMainTab::HandleSessionConnectionClicked()

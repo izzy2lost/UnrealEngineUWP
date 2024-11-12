@@ -398,6 +398,19 @@ FFolder FActorFolderTreeItem::GetFolder() const
 	return Folder.IsValid() ? Folder : FFolderTreeItem::GetFolder();
 }
 
+FString FActorFolderTreeItem::GetPackageName() const
+{
+	if (const UActorFolder* ActorFolderPtr = GetActorFolder())
+	{
+		if (ActorFolderPtr->IsPackageExternal())
+		{
+			return ActorFolderPtr->GetExternalPackage()->GetName();
+		}
+	}
+	
+	return FFolderTreeItem::GetPackageName();
+}
+
 bool FActorFolderTreeItem::CanInteract() const
 {
 	if (!FFolderTreeItem::CanInteract())

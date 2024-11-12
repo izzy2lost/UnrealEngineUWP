@@ -5,7 +5,9 @@
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "InterchangePipelineBase.h"
 #include "InterchangePipelineConfigurationBase.h"
+#include "SInterchangeAssetCard.h"
 #include "Styling/SlateBrush.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/STreeView.h"
 
 class SBox;
@@ -15,6 +17,7 @@ struct FSlateBrush;
 class IDetailsView;
 class SCheckBox;
 class STextComboBox;
+class UInterchangeCardsPipeline;
 class UInterchangeTranslatorBase;
 
 
@@ -26,7 +29,7 @@ public:
 	UObject* ReimportObject = nullptr;
 	UInterchangeBaseNodeContainer* Container = nullptr;
 	UInterchangeSourceData* SourceData = nullptr;
-	bool bBasicLayout = false;
+	bool bShowEssentials = false;
 	TArray<FInterchangeConflictInfo> ConflictInfos;
 };
 
@@ -99,6 +102,7 @@ public:
 
 private:
 	TSharedRef<SBox> SpawnPipelineConfiguration();
+	TSharedRef<SBox> SpawnCardsConfiguration();
 
 	bool IsPropertyVisible(const FPropertyAndParent&) const;
 	FText GetSourceDescription() const;
@@ -115,12 +119,14 @@ private:
 
 	void SetEditPipeline(FInterchangePipelineItemType* PipelineItemToEdit);
 	FReply OnEditTranslatorSettings();
-	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 
 private:
 	TWeakPtr< SWindow > OwnerWindow;
+	double OriginalMinWindowSize = 0.0;
+	double DeltaClientWindowSize = 0.0;
 	TWeakObjectPtr<UInterchangeSourceData> SourceData;
 	TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer;
+	mutable TObjectPtr<UInterchangeBaseNodeContainer> PreviewNodeContainer = nullptr;
 	TWeakObjectPtr<UObject> ReimportObject;
 	TWeakObjectPtr<UInterchangeTranslatorBase> Translator;
 	TObjectPtr<UInterchangeTranslatorSettings> TranslatorSettings = nullptr;
@@ -145,21 +151,43 @@ private:
 
 	//
 	//////////////////////////////////////////////////////////////////////////
+	struct FFactoryNodeEnabledData
+	{
+		bool bEnable = true;
+		TObjectPtr<UClass> ObjectClass = nullptr;
+	};
+	TArray<TObjectPtr<UClass>> PipelineSupportAssetClasses;
+	TSharedPtr<SScrollBar> CardViewScrollbar;
+	TMap<UClass*, FFactoryNodeEnabledData> EnableDataPerFactoryNodeClass;
+	TSharedPtr<SInterchangeAssetCardList> CardViewList = nullptr;
+	TArray<TSharedPtr<SInterchangeAssetCard>> AssetCards;
+	void UpdatePipelineSupportedAssetClasses();
+	void UpdateEnableDataPerFactoryNodeClass();
+	void FillAssetCardsList();
+	void CreateCardsViewList();
+	void RefreshCardsViewList();
+	UInterchangeCardsPipeline* GenerateTransientCardsPipeline() const;
+
+	//Splitter management
+	double SplitAdvancedRatio = 0.6;
+	TSharedPtr<SSplitter> CardsAndAdvancedSplitter = nullptr;
 
 	ECheckBoxState IsFilteringOptions() const
 	{
 		return bFilterOptions ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 
-	ECheckBoxState IsBasicLayoutEnabled() const
+	ECheckBoxState IsShowEssentialsEnabled() const
 	{
-		return bBasicLayout ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		return bShowEssentials ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 
 	void OnFilterOptionsChanged(ECheckBoxState CheckState);
-	void OnBasicLayoutChanged(ECheckBoxState CheckState);
+	void OnShowEssentialsChanged(ECheckBoxState CheckState);
 
 	const FSlateBrush* GetImportButtonIcon() const;
+
+	void UpdatePreviewContainer(bool bUpdateCards) const;
 
 	FReply OnPreviewImport() const;
 
@@ -172,7 +200,9 @@ private:
 	bool bImportAll = false;
 
 	bool bFilterOptions = false;
-	bool bBasicLayout = false;
+	bool bShowEssentials = false;
+	bool bShowSettings = false;
+	bool bShowCards = true;
 
 	FName CurrentStackName = NAME_None;
 	TObjectPtr<UInterchangePipelineBase> CurrentSelectedPipeline = nullptr;

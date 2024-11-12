@@ -9,10 +9,8 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace UnrealBuildTool.Artifacts
 {
@@ -31,7 +29,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Collection of output file references.  There should be exactly the same number
 		/// of file references as outputs in the action
 		/// </summary>
-		public readonly IBlobRef<ChunkedDataNode>[] OutputRefs;
+		public readonly IHashedBlobRef<ChunkedDataNode>[] OutputRefs;
 
 		/// <summary>
 		/// Construct a new horde artifact number
@@ -41,7 +39,7 @@ namespace UnrealBuildTool.Artifacts
 		public HordeArtifactAction(ArtifactAction artifactAction)
 		{
 			ArtifactAction = artifactAction;
-			OutputRefs = new IBlobRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
+			OutputRefs = new IHashedBlobRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
 		}
 
 		/// <summary>
@@ -74,7 +72,6 @@ namespace UnrealBuildTool.Artifacts
 		{
 			LeafChunkedDataNodeOptions leafOptions = new(512 * 1024, 1 * 1024 * 1024, 2 * 1024 * 1024);
 			InteriorChunkedDataNodeOptions interiorOptions = new(1, 10, 20);
-			ChunkingOptions options = new() { LeafOptions = leafOptions, InteriorOptions = interiorOptions };
 
 			using LeafChunkedDataWriter fileWriter = new(writer, leafOptions);
 			int index = 0;
@@ -156,7 +153,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <summary>
 	/// Class for managing artifacts using horde storage
 	/// </summary>
-	public class HordeStorageArtifactCache : IArtifactCache
+	public sealed class HordeStorageArtifactCache : IArtifactCache, IDisposable
 	{
 		/// <summary>
 		/// Defines the theoretical max number of pending actions to write
@@ -166,12 +163,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <summary>
 		/// Underlying storage object
 		/// </summary>
-		private IStorageClient? _store = null;
-
-		/// <summary>
-		/// Logger to be used
-		/// </summary>
-		private readonly ILogger _logger;
+		private IStorageNamespace? _store = null;
 
 		/// <summary>
 		/// Task used to wait on ready state
@@ -207,13 +199,20 @@ namespace UnrealBuildTool.Artifacts
 			private set => Interlocked.Exchange(ref _state, (int)value);
 		}
 
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			_pendingWritesFlushTask?.Dispose();
+			_pendingWritesFlushTask = null;
+			_semaphore.Dispose();
+		}
+
 		/// <summary>
 		/// Create a memory only cache
 		/// </summary>
-		/// <returns>Storage client instance</returns>
 		public static IArtifactCache CreateMemoryCache(ILogger logger)
 		{
-			HordeStorageArtifactCache cache = new(BundleStorageClient.CreateInMemory(logger), logger)
+			HordeStorageArtifactCache cache = new(BundleStorageNamespace.CreateInMemory(logger))
 			{
 				State = ArtifactCacheState.Available
 			};
@@ -224,13 +223,13 @@ namespace UnrealBuildTool.Artifacts
 		/// Create a file based cache
 		/// </summary>
 		/// <param name="directory">Destination directory</param>
+		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logging object</param>
 		/// <param name="cleanDirectory">If true, clean the directory</param>
-		/// <returns>Storage client instance</returns>
-		public static IArtifactCache CreateFileCache(DirectoryReference directory, ILogger logger, bool cleanDirectory)
+		public static IArtifactCache CreateFileCache(DirectoryReference directory, MemoryMappedFileCache memoryMappedFileCache, ILogger logger, bool cleanDirectory)
 		{
-			HordeStorageArtifactCache cache = new(null, logger);
-			cache._readyTask = Task.Run(() => cache.InitFileCache(directory, NullLogger.Instance, cleanDirectory));
+			HordeStorageArtifactCache cache = new(null);
+			cache._readyTask = Task.Run(() => cache.InitFileCache(directory, memoryMappedFileCache, logger, cleanDirectory));
 			return cache;
 		}
 
@@ -238,11 +237,9 @@ namespace UnrealBuildTool.Artifacts
 		/// Constructor
 		/// </summary>
 		/// <param name="storage">Storage object to use</param>
-		/// <param name="logger">Logging destination</param>
-		private HordeStorageArtifactCache(IStorageClient? storage, ILogger logger)
+		private HordeStorageArtifactCache(IStorageNamespace? storage)
 		{
 			_store = storage;
-			_logger = logger;
 			_pendingWrites = new(MaxPendingSize);
 		}
 
@@ -310,7 +307,7 @@ namespace UnrealBuildTool.Artifacts
 						output[index] = true;
 
 						int refIndex = 0;
-						foreach (IBlobRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
+						foreach (IHashedBlobRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
 						{
 							if (artifactRef == null)
 							{
@@ -469,7 +466,7 @@ namespace UnrealBuildTool.Artifacts
 					RefName refName = GetRefName(artifactAction.Key);
 
 					// Locate the destination collection for this key
-					ArtifactActionCollectionNode? node = _store!.TryReadRefTargetAsync<ArtifactActionCollectionNode>(refName, default, cancellationToken: cancellationToken).Result;
+					ArtifactActionCollectionNode? node = await _store!.TryReadRefTargetAsync<ArtifactActionCollectionNode>(refName, default, cancellationToken: cancellationToken);
 					node ??= new ArtifactActionCollectionNode();
 
 					// Update the artifact action collection
@@ -479,7 +476,7 @@ namespace UnrealBuildTool.Artifacts
 					// Save the artifact action file
 					await using IBlobWriter writer = _store!.CreateBlobWriter();
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
-					IBlobRef<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
+					IHashedBlobRef<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
 					await writer.FlushAsync();
 
 					// Save the collection
@@ -493,10 +490,11 @@ namespace UnrealBuildTool.Artifacts
 		/// Initialize a file based cache
 		/// </summary>
 		/// <param name="directory">Destination directory</param>
+		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logger</param>
 		/// <param name="cleanDirectory">If true, clean the directory</param>
 		/// <returns>Cache state</returns>
-		private ArtifactCacheState InitFileCache(DirectoryReference directory, ILogger logger, bool cleanDirectory)
+		private ArtifactCacheState InitFileCache(DirectoryReference directory, MemoryMappedFileCache memoryMappedFileCache, ILogger logger, bool cleanDirectory)
 		{
 			try
 			{
@@ -512,7 +510,7 @@ namespace UnrealBuildTool.Artifacts
 				}
 				Directory.CreateDirectory(directory.FullName);
 
-				_store = BundleStorageClient.CreateFromDirectory(directory, BundleCache.None, logger);
+				_store = BundleStorageNamespace.CreateFromDirectory(directory, BundleCache.None, memoryMappedFileCache, logger);
 
 				State = ArtifactCacheState.Available;
 				return State;

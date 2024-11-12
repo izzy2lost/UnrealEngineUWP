@@ -37,7 +37,7 @@ namespace UnrealGame
 		{
 			UnrealRoleArtifacts ClientArtifacts = RoleResults.Where(R => R.Artifacts.SessionRole.RoleType == UnrealTargetRole.Client).Select(R => R.Artifacts).FirstOrDefault();
 
-			var SnapshotSummary = new UnrealSnapshotSummary<UnrealHealthSnapshot>(ClientArtifacts.AppInstance.StdOut);
+			var SnapshotSummary = new UnrealSnapshotSummary<UnrealHealthSnapshot>(ClientArtifacts.AppInstance.GetLogReader());
 
 			Log.Info("Elemental Performance Report");
 			Log.Info(SnapshotSummary.ToString());

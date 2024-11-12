@@ -19,6 +19,39 @@
 #define LOG_TAG "SwappyVk"
 #include "SwappyLog.h"
 
+/* For tracking tracers internally within vulkan instance, we cannot store the
+ * pointers as there is no requirement for the life of the object once the
+ * SwappyVk_injectTracer(*t) call is returned. So we store the struct objects by
+ * value. In turn, this implies that we have to compare the whole struct for
+ * managing it. So we define a local "==" operator to this file in order to
+ * handle the C struct API in the std::list.
+ *
+ * In addition, there is a risk that updates to the SwappyTracer struct could go
+ * unnoticed silently. So we have a copy here and we check at compile time that
+ * the sizes are the same, it is a weak check, but it is better than nothing.
+ */
+
+typedef struct SwappyTracerLocalStruct {
+    SwappyPreWaitCallback preWait;
+    SwappyPostWaitCallback postWait;
+    SwappyPreSwapBuffersCallback preSwapBuffers;
+    SwappyPostSwapBuffersCallback postSwapBuffers;
+    SwappyStartFrameCallback startFrame;
+    void* userData;
+    SwappySwapIntervalChangedCallback swapIntervalChanged;
+} SwappyTracerLocalStruct;
+
+static bool operator==(const SwappyTracer& t1, const SwappyTracer& t2) {
+    static_assert(sizeof(SwappyTracer) == sizeof(SwappyTracerLocalStruct),
+                  "SwappyTracer struct appears to have changed, please "
+                  "consider updating locally.");
+    return (t1.preWait == t2.preWait) && (t1.postWait == t2.postWait) &&
+           (t1.preSwapBuffers == t2.preSwapBuffers) &&
+           (t1.postSwapBuffers == t2.postSwapBuffers) &&
+           (t1.startFrame == t2.startFrame) && (t1.userData == t2.userData) &&
+           (t1.swapIntervalChanged == t2.swapIntervalChanged);
+}
+
 namespace swappy {
 
 class DefaultSwappyVkFunctionProvider {
@@ -158,6 +191,14 @@ bool SwappyVk::GetRefreshCycleDuration(JNIEnv* env, jobject jactivity,
         }
     }
 
+    // SwappyBase is constructed by this point, so we can add the tracers we
+    // have so far.
+    {
+        std::lock_guard<std::mutex> lock(tracer_list_lock);
+        for (const auto& tracer : tracer_list) {
+            pImplementation->addTracer(&tracer);
+        }
+    }
     // Now, call that derived class to get the refresh duration to return
     return pImplementation->doGetRefreshCycleDuration(swapchain,
                                                       pRefreshDuration);
@@ -291,14 +332,24 @@ std::chrono::nanoseconds SwappyVk::GetSwapInterval(VkSwapchainKHR swapchain) {
 }
 
 void SwappyVk::addTracer(const SwappyTracer* t) {
-    for (auto i : perSwapchainImplementation) {
-        i.second->addTracer(t);
+    if (t != nullptr) {
+        std::lock_guard<std::mutex> lock(tracer_list_lock);
+        tracer_list.push_back(*t);
+
+        for (const auto& i : perSwapchainImplementation) {
+            i.second->addTracer(t);
+        }
     }
 }
 
 void SwappyVk::removeTracer(const SwappyTracer* t) {
-    for (auto i : perSwapchainImplementation) {
-        i.second->removeTracer(t);
+    if (t != nullptr) {
+        std::lock_guard<std::mutex> lock(tracer_list_lock);
+        tracer_list.remove(*t);
+
+        for (const auto& i : perSwapchainImplementation) {
+            i.second->removeTracer(t);
+        }
     }
 }
 
@@ -338,6 +389,23 @@ void SwappyVk::recordFrameStart(VkQueue queue, VkSwapchainKHR swapchain,
 void SwappyVk::clearStats(VkSwapchainKHR swapchain) {
     auto it = perSwapchainImplementation.find(swapchain);
     if (it != perSwapchainImplementation.end()) it->second->clearStats();
+}
+
+void SwappyVk::resetFramePacing(VkSwapchainKHR swapchain) {
+    auto it = perSwapchainImplementation.find(swapchain);
+    if (it != perSwapchainImplementation.end()) it->second->resetFramePacing();
+}
+
+void SwappyVk::enableFramePacing(VkSwapchainKHR swapchain, bool enable) {
+    auto it = perSwapchainImplementation.find(swapchain);
+    if (it != perSwapchainImplementation.end())
+        it->second->enableFramePacing(enable);
+}
+
+void SwappyVk::enableBlockingWait(VkSwapchainKHR swapchain, bool enable) {
+    auto it = perSwapchainImplementation.find(swapchain);
+    if (it != perSwapchainImplementation.end())
+        it->second->enableBlockingWait(enable);
 }
 
 }  // namespace swappy

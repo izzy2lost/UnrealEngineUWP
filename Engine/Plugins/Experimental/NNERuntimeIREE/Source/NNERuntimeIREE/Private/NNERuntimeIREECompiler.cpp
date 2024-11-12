@@ -13,8 +13,10 @@
 #include "Interfaces/IPluginManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
+#include "Misc/MonitoredProcess.h"
 #include "Misc/Paths.h"
 #include "NNE.h"
+#include "NNERuntimeIREELog.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Templates/SharedPointer.h"
@@ -75,15 +77,41 @@ namespace UE::NNERuntimeIREE
 				return HeaderString.Mid(Start, End - Start).TrimStartAndEnd();
 			}
 
-			void RunCommand(const FString& Command, const FString& Arguments)
+			void RunCommand(const FString& Command, const FString& Arguments, const FString& LogFilePath = FString())
 			{
-				void* PipeRead = nullptr;
-				void* PipeWrite = nullptr;
-				FPlatformProcess::CreatePipe(PipeRead, PipeWrite);
-				FProcHandle ProcHandle = FPlatformProcess::CreateProc(*Command, *Arguments, false, true, true, nullptr, 0, nullptr, PipeWrite, PipeRead);
-				FPlatformProcess::WaitForProc(ProcHandle);
-				FPlatformProcess::CloseProc(ProcHandle);
-				FPlatformProcess::ClosePipe(PipeRead, PipeWrite);
+				int32 ReturnCode = 0;
+				bool IsCanceled = false;
+
+				FMonitoredProcess Process(Command, Arguments, true);
+				Process.OnCompleted().BindLambda([&ReturnCode] (int32 _ReturnCode) { ReturnCode = _ReturnCode; });
+				Process.OnCanceled().BindLambda([&IsCanceled] (){ IsCanceled = true; });
+
+				if (!Process.Launch())
+				{
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("Failed to launch subprocess!"));
+					return;
+				}
+
+				while (Process.Update())
+				{
+					// Poll until process has finished
+				}
+
+				if (IsCanceled)
+				{
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("Execution of subprocess was canceled!"));
+				}
+				else if (ReturnCode)
+				{
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("Subprocess exited with non-zero code %d"), ReturnCode);
+				}
+
+				if (!LogFilePath.IsEmpty())
+				{
+					FFileHelper::SaveStringToFile(Process.GetFullOutputWithoutDelegate(), *LogFilePath);
+
+					UE_LOG(LogNNERuntimeIREE, Log, TEXT("Saved subprocess output to: %s"), *LogFilePath);
+				}
 			}
 		} // Private
 
@@ -125,7 +153,7 @@ namespace UE::NNERuntimeIREE
 						{
 							if (BuildConfig.BuildTargets.IsEmpty())
 							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find targets in %s"), *BuildConfigFilePath);
+								UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find targets in %s"), *BuildConfigFilePath);
 								continue;
 							}
 
@@ -144,12 +172,12 @@ namespace UE::NNERuntimeIREE
 								}
 								else
 								{
-									UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.CompilerCommand[i]);
+									UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.CompilerCommand[i]);
 								}
 							}
 							if (TmpCompilerCommand.IsEmpty())
 							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the compiler executable in %s"), *BuildConfigFilePath);
+								UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the compiler executable in %s"), *BuildConfigFilePath);
 								continue;
 							}
 
@@ -168,12 +196,12 @@ namespace UE::NNERuntimeIREE
 								}
 								else
 								{
-									UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.LinkerCommand[i]);
+									UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildConfig.LinkerCommand[i]);
 								}
 							}
 							if (TmpLinkerCommand.IsEmpty())
 							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the linker executable in %s"), *BuildConfigFilePath);
+								UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the linker executable in %s"), *BuildConfigFilePath);
 								continue;
 							}
 
@@ -185,12 +213,12 @@ namespace UE::NNERuntimeIREE
 						}
 						else
 						{
-							UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not parse build config file %s"), *BuildConfigFilePath);
+							UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not parse build config file %s"), *BuildConfigFilePath);
 						}
 					}
 					else
 					{
-						UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not read build config file %s"), *BuildConfigFilePath);
+						UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not read build config file %s"), *BuildConfigFilePath);
 					}
 				}
 			}
@@ -201,26 +229,34 @@ namespace UE::NNERuntimeIREE
 			return TUniquePtr<FCompiler>(new FCompiler(CompilerCommand, LinkerCommand, SharedLibExt, BuildTargets));
 		}
 
-		bool FCompiler::CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FCompilerResult>& OutCompilerResults, UNNERuntimeIREEModuleMetaData* ModuleMetaData)
+		bool FCompiler::CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InOutputDir, FNNERuntimeIREECompilerResultCPU& OutCompilerResult, UNNERuntimeIREEModuleMetaData& ModuleMetaData)
 		{
+			SCOPED_NAMED_EVENT_TEXT("FCompiler::CompileMlir", FColor::Magenta);
+
 			using namespace Private;
 
-			FString InputFilePath = FPaths::Combine(InIntermediateDir, InModelName) + ".mlir";
-			FFileHelper::SaveArrayToFile(InFileData, *InputFilePath);
-
-			if (ModuleMetaData)
 			{
+				SCOPED_NAMED_EVENT_TEXT("Metadata", FColor::Magenta);
+
 				FString FileDataString = "";
 				FileDataString.AppendChars((char*)InFileData.GetData(), InFileData.Num());
-				ModuleMetaData->ParseFromString(FileDataString);
+				ModuleMetaData.ParseFromString(FileDataString);
 			}
 
-			TArray<FCompilerResult> Results;
-			bool bResult = true;
 			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+
+			FString InputFilePath = FPaths::Combine(InOutputDir, InModelName) + ".mlir";
+			if (!PlatformFile.FileExists(*InputFilePath))
+			{
+				SCOPED_NAMED_EVENT_TEXT("InputFile", FColor::Magenta);
+
+				FFileHelper::SaveArrayToFile(InFileData, *InputFilePath);
+			}
+
+			bool bResult = true;
 			for (int32 i = 0; i < BuildTargets.Num(); i++)
 			{
-				FString IntermediateDirPath = FPaths::Combine(InIntermediateDir, BuildTargets[i].Architecture);
+				FString IntermediateDirPath = FPaths::Combine(InOutputDir, BuildTargets[i].Architecture);
 				PlatformFile.CreateDirectoryTree(*IntermediateDirPath);
 				FString IntermediateFilePathNoExt = FPaths::Combine(IntermediateDirPath, InModelName);
 				FString ObjectFilePath = IntermediateFilePathNoExt + ".o";
@@ -230,19 +266,23 @@ namespace UE::NNERuntimeIREE
 				FString CompilerArguments = BuildTargets[i].CompilerArguments;
 				if (!ResolveEnvironmentVariables(CompilerArguments))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].CompilerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].CompilerArguments);
 					continue;
 				}
 				CompilerArguments.ReplaceInline(*FString("${OBJECT_PATH}"), *(FString("\"") + ObjectFilePath + "\""));
 				CompilerArguments.ReplaceInline(*FString("${VMFB_PATH}"), *(FString("\"") + VmfbFilePath + "\""));
 				CompilerArguments.ReplaceInline(*FString("${INPUT_PATH}"), *(FString("\"") + InputFilePath + "\""));
 
-				RunCommand(CompilerCommand, CompilerArguments);
+				{
+					SCOPED_NAMED_EVENT_TEXT("Compile", FColor::Magenta);
+
+					RunCommand(CompilerCommand, CompilerArguments, IntermediateFilePathNoExt + "_compile-log.txt");
+				}
 
 				if (!PlatformFile.FileExists(*ObjectFilePath) || !PlatformFile.FileExists(*VmfbFilePath))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to compile the model \"%s\" using the command:"), *InputFilePath);
-					UE_LOG(LogNNE, Warning, TEXT("\"%s\" %s"), *CompilerCommand, *CompilerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to compile the model \"%s\" using the command:"), *InputFilePath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("\"%s\" %s"), *CompilerCommand, *CompilerArguments);
 					bResult = false;
 					continue;
 				}
@@ -250,74 +290,66 @@ namespace UE::NNERuntimeIREE
 				FString LinkerArguments = BuildTargets[i].LinkerArguments;
 				if (!ResolveEnvironmentVariables(LinkerArguments))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].LinkerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not replace environment variables in %s"), *BuildTargets[i].LinkerArguments);
 					bResult = false;
 					continue;
 				}
 				LinkerArguments.ReplaceInline(*FString("${OBJECT_PATH}"), *(FString("\"") + ObjectFilePath + "\""));
 				LinkerArguments.ReplaceInline(*FString("${SHARED_LIB_PATH}"), *(FString("\"") + SharedLibFilePath + "\""));
 
-				RunCommand(LinkerCommand, LinkerArguments);
+				{
+					SCOPED_NAMED_EVENT_TEXT("Link", FColor::Magenta);
+
+					RunCommand(LinkerCommand, LinkerArguments, IntermediateFilePathNoExt + "_link-log.txt");
+				}
 
 				if (!PlatformFile.FileExists(*SharedLibFilePath))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to link the model \"%s\" using the command:"), *InputFilePath);
-					UE_LOG(LogNNE, Warning, TEXT("\"%s\" %s"), *LinkerCommand, *LinkerArguments);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu failed to link the model \"%s\" using the command:"), *InputFilePath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("\"%s\" %s"), *LinkerCommand, *LinkerArguments);
 					bResult = false;
 					continue;
-				}
-
-				FString StagingFilePathNoExt = FPaths::Combine(InStagingDir, BuildTargets[i].Architecture, InModelName);
-				FString StagedVmfbFilePath = StagingFilePathNoExt + ".vmfb";
-				FString StagedSharedLibFilePath = StagingFilePathNoExt + SharedLibExt;
-				if (IFileManager::Get().Copy(*StagedSharedLibFilePath, *SharedLibFilePath) != COPY_OK)
-				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *SharedLibFilePath, *StagedSharedLibFilePath);
-					bResult = false;
-				}
-				if (IFileManager::Get().Copy(*StagedVmfbFilePath, *VmfbFilePath) != COPY_OK)
-				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu failed to copy \"%s\" to \"%s\""), *VmfbFilePath, *StagedVmfbFilePath);
-					bResult = false;
 				}
 
 				FString SharedLibraryEntryPointName = "";
 				FString HeaderPath = IntermediateFilePathNoExt + ".h";
 				if (!PlatformFile.FileExists(*HeaderPath))
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the model header \"%s\""), *HeaderPath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the model header \"%s\""), *HeaderPath);
 					bResult = false;
 					continue;
 				}
 				FString HeaderString;
 				if (!FFileHelper::LoadFileToString(HeaderString, *HeaderPath) || HeaderString.IsEmpty())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not read the model header \"%s\""), *HeaderPath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not read the model header \"%s\""), *HeaderPath);
 					bResult = false;
 					continue;
 				}
 				SharedLibraryEntryPointName = GetSharedLibraryEntryPointName(HeaderString);
 				if (SharedLibraryEntryPointName.IsEmpty())
 				{
-					UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeIREECpu could not find the entry point in model header \"%s\""), *HeaderPath);
+					UE_LOG(LogNNERuntimeIREE, Warning, TEXT("UNNERuntimeIREECpu could not find the entry point in model header \"%s\""), *HeaderPath);
 					bResult = false;
 					continue;
 				}
 
-				FCompilerResult Result;
-				Result.Architecture = BuildTargets[i].Architecture;
-				Result.RelativeDirPath = BuildTargets[i].Architecture;
-				Result.SharedLibraryFileName = InModelName + SharedLibExt;
-				Result.VmfbFileName = InModelName + ".vmfb";
-				Result.SharedLibraryEntryPointName = SharedLibraryEntryPointName;
-				Results.Add(Result);
+				FNNERuntimeIREEArchitectureInfoCPU ArchitectureInfo;
+				ArchitectureInfo.Architecture = BuildTargets[i].Architecture;
+				ArchitectureInfo.RelativeDirPath = BuildTargets[i].Architecture;
+				ArchitectureInfo.SharedLibraryFileName = InModelName + SharedLibExt;
+				ArchitectureInfo.VmfbFileName = InModelName + ".vmfb";
+				ArchitectureInfo.SharedLibraryEntryPointName = SharedLibraryEntryPointName;
+				OutCompilerResult.ArchitectureInfos.Add(MoveTemp(ArchitectureInfo));
 			}
 
-			bResult &= !Results.IsEmpty();
-			if (bResult)
+			bResult &= !OutCompilerResult.ArchitectureInfos.IsEmpty();
+
+			if (!bResult)
 			{
-				OutCompilerResults = Results;
+				OutCompilerResult.ArchitectureInfos.Empty();
 			}
+
 			return bResult;
 		}
 	} // CPU

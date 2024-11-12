@@ -80,13 +80,13 @@ void FVirtualTextureFeedbackBuffer::Begin(FRDGBuilder& GraphBuilder, const FVirt
 	FRDGBufferDesc BufferDesc(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), Desc.BufferSize.X * Desc.BufferSize.Y));
 	BufferDesc.Usage |= BUF_SourceCopy;
 
-	if (AllocatePooledBuffer(BufferDesc, PooledBuffer, TEXT("VirtualTextureFeedbackGPU")))
+	if (AllocatePooledBuffer(BufferDesc, PooledBuffer, TEXT("VirtualTexture_FeedbackBuffer")))
 	{
 		FRDGBufferUAVDesc UAVDesc{};
 		UAV = PooledBuffer->GetOrCreateUAV(GraphBuilder.RHICmdList, UAVDesc);
 	}
 
-	AddPass(GraphBuilder, RDG_EVENT_NAME("VirtualTextureClear"), [this](FRHICommandList& RHICmdList)
+	AddPass(GraphBuilder, RDG_EVENT_NAME("VirtualTextureClear"), [UAV = UAV](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		// Clear virtual texture feedback to default value
 		RHICmdList.Transition(FRHITransitionInfo(UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute));
@@ -98,11 +98,11 @@ void FVirtualTextureFeedbackBuffer::Begin(FRDGBuilder& GraphBuilder, const FVirt
 
 void FVirtualTextureFeedbackBuffer::End(FRDGBuilder& GraphBuilder)
 {
-	AddPass(GraphBuilder, RDG_EVENT_NAME("VirtualTextureFeedbackCopy"), [this](FRHICommandListImmediate& RHICmdList)
+	AddPass(GraphBuilder, RDG_EVENT_NAME("VirtualTextureFeedbackCopy"), [UAV = UAV, BufferRHI = PooledBuffer->GetRHI(), Desc = Desc](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		RHICmdList.EndUAVOverlap(UAV);
 		RHICmdList.Transition(FRHITransitionInfo(UAV, ERHIAccess::UAVMask, ERHIAccess::CopySrc));
-		SubmitVirtualTextureFeedbackBuffer(RHICmdList, PooledBuffer->GetRHI(), Desc);
+		SubmitVirtualTextureFeedbackBuffer(RHICmdList, BufferRHI, Desc);
 	});
 }
 
@@ -117,7 +117,7 @@ void FVirtualTextureFeedbackBuffer::ReleaseRHI()
 	UAV = nullptr;
 }
 
-void SubmitVirtualTextureFeedbackBuffer(FRHICommandListImmediate& RHICmdList, FBufferRHIRef const& InBuffer, FVirtualTextureFeedbackBufferDesc const& InDesc)
+void SubmitVirtualTextureFeedbackBuffer(FRHICommandList& RHICmdList, FBufferRHIRef const& InBuffer, FVirtualTextureFeedbackBufferDesc const& InDesc)
 {
 	GVirtualTextureFeedback.TransferGPUToCPU(RHICmdList, InBuffer, InDesc);
 }

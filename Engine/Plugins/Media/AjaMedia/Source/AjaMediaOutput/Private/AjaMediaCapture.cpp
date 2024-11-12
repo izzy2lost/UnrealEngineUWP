@@ -508,6 +508,7 @@ bool UAjaMediaCapture::InitAJA(UAjaMediaOutput* InAjaMediaOutput)
 	ChannelOptions.bUseAudio = InAjaMediaOutput->bOutputAudio;
 	ChannelOptions.bUseVideo = true;
 	ChannelOptions.bOutputInterlacedFieldsTimecodeNeedToMatch = InAjaMediaOutput->bInterlacedFieldsTimecodeNeedToMatch && Descriptor.bIsInterlacedStandard && InAjaMediaOutput->TimecodeFormat != EMediaIOTimecodeFormat::None;
+	ChannelOptions.bOutputInterlaceAsProgressive = InAjaMediaOutput->bOutputInterlaceAsProgressive;
 	ChannelOptions.bDisplayWarningIfDropFrames = bLogDropFrame;
 	ChannelOptions.bConvertOutputLevelAToB = InAjaMediaOutput->bOutputIn3GLevelB && Descriptor.bIsVideoFormatA;
 	ChannelOptions.TransportType = AjaMediaCaptureUtils::ConvertTransportType(InAjaMediaOutput->OutputConfiguration.MediaConfiguration.MediaConnection.TransportType, InAjaMediaOutput->OutputConfiguration.MediaConfiguration.MediaConnection.QuadTransportType);
@@ -598,7 +599,7 @@ void UAjaMediaCapture::OnFrameCaptured_RenderingThread(const FCaptureBaseData& I
 	OnFrameCapturedInternal_AnyThread(InBaseData, InUserData, MoveTemp(InResourceData));
 }
 
-void UAjaMediaCapture::OnRHIResourceCaptured_RenderingThread(const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
+void UAjaMediaCapture::OnRHIResourceCaptured_RenderingThread(FRHICommandListImmediate& /*RHICmdList*/, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
 {
 	OnRHIResourceCaptured_AnyThread(InBaseData, InUserData, InTexture);
 }
@@ -611,7 +612,7 @@ void UAjaMediaCapture::LockDMATexture_RenderThread(FTextureRHIRef InTexture)
 		{
 			TexturesToRelease.Add(InTexture);
 
-			FRHITexture2D* Texture = InTexture->GetTexture2D();
+			FRHITexture* Texture = InTexture->GetTexture2D();
 			UE::GPUTextureTransfer::FRegisterDMATextureArgs Args;
 			Args.RHITexture = Texture;
 			

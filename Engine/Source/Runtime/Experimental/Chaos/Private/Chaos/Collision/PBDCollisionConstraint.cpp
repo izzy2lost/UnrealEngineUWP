@@ -71,6 +71,9 @@ namespace Chaos
 	int32 Chaos_Collision_MaxManifoldPoints = -1;
 	FAutoConsoleVariableRef CVarChaos_Collision_MaxManifoldPoints(TEXT("p.Chaos.Collision.MaxManifoldPoints"), Chaos_Collision_MaxManifoldPoints, TEXT(""));
 
+	bool bChaos_Collision_AllowGlobalInitialPhi = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_AllowGlobalInitialPhi(TEXT("p.Chaos.Collision.AllowGlobalInitialPhi"), bChaos_Collision_AllowGlobalInitialPhi, TEXT(""));
+
 
 	struct FCollisionTolerances
 	{
@@ -332,12 +335,10 @@ namespace Chaos
 		Flags.bUseManifold = bInUseManifold;
 		Flags.bUseIncrementalManifold = false;
 
-		// The initial overlap depenetration velocity is that max of the two body settings. A negative value means use the system default.
-		// If either body has a zero of positive value, it will be used instead of the system setting. If both have a value, the max will be used.
-		// If both bodies have negative values, the solver settings will be used (search for GetInitialOverlapDepentrationVelocity to see where)
+		// The initial overlap depenetration velocity is that max of the two body settings. I.e., if either body wants to depenetrate, they will.
 		const FRealSingle InitialOverlapDepenetrationVelocity0 = FConstGenericParticleHandle(GetParticle0())->InitialOverlapDepenetrationVelocity();
 		const FRealSingle InitialOverlapDepenetrationVelocity1 = FConstGenericParticleHandle(GetParticle1())->InitialOverlapDepenetrationVelocity();
-		InitialOverlapDepenetrationVelocity = FMath::Max(InitialOverlapDepenetrationVelocity0, InitialOverlapDepenetrationVelocity1);
+		InitialOverlapDepenetrationVelocity = FMath::Max3(InitialOverlapDepenetrationVelocity0, InitialOverlapDepenetrationVelocity1, 0.0f);
 
 		// Is this a one-way interaction? A dynamic one-way interaction particle that hits a kinematic non one-way interaction particle should still be considered one-way.
 		const bool bDynamic0 = FConstGenericParticleHandle(GetParticle0())->IsDynamic();
@@ -345,6 +346,15 @@ namespace Chaos
 		const bool bOneWay0 = FConstGenericParticleHandle(GetParticle0())->OneWayInteraction();
 		const bool bOneWay1 = FConstGenericParticleHandle(GetParticle1())->OneWayInteraction();
 		Flags.bIsOneWayInteraction = (bDynamic0 || bDynamic1) && (bOneWay0 || bOneWay1);
+
+		// For dynamic against kinematic (as long as no spheres or capsules are involved) we share initial overlap between all manifold points.
+		// This is to make convex-mesh collisions work better for large overlaps on complicated meshes, but it is not ideal.
+		// @todo(chaos): try to remove this
+		Flags.bUsePerContactInitialPhi = true;
+		if (bChaos_Collision_AllowGlobalInitialPhi && !Flags.bIsQuadratic0 && !Flags.bIsQuadratic1 && (!bDynamic0 || !bDynamic1))
+		{
+			Flags.bUsePerContactInitialPhi = false;
+		}
 
 		// Only levelsets use incremental collision manifolds
 		if (bInUseManifold && ((ImplicitType0 == ImplicitObjectType::LevelSet) || (ImplicitType1 == ImplicitObjectType::LevelSet)))

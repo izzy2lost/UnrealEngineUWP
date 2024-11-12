@@ -122,3 +122,45 @@ float UChaosCacheCollection::GetMaxDuration() const
     }
 	return MaxDuration;
 }
+
+uint32 UChaosCacheCollection::GetMaxNumFrames() const
+{
+	float MaxDuration = 0.0;
+	uint32 MaxFramesCount = 0;
+	for(const UChaosCache* CacheInstance : Caches)
+	{
+		if(CacheInstance->GetDuration() >= MaxDuration)
+		{
+			MaxDuration = CacheInstance->GetDuration();
+			MaxFramesCount = CacheInstance->NumRecordedFrames;
+		}
+	}
+	return MaxFramesCount;
+}
+
+#if WITH_EDITOR
+void UChaosCacheCollection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UChaosCacheCollection, InterpolationMode))
+	{
+		SetInterpolationMode(InterpolationMode);
+	}
+}
+#endif
+
+void UChaosCacheCollection::SetInterpolationMode(EChaosCacheInterpolationMode Mode)
+{
+	InterpolationMode = Mode;
+	for (UChaosCache* CacheInstance : Caches)
+	{
+		if (CacheInstance)
+		{
+			CacheInstance->InterpolationMode = Mode;
+		}
+	}
+}
+
+

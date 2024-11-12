@@ -115,21 +115,7 @@ void UExternalDataLayerEngineSubsystem::OnGetLevelExternalActorsPaths(const FStr
 
 bool UExternalDataLayerEngineSubsystem::OnResolveLevelMountPoint(const FString& InLevelPackageName, const UObject* InLevelMountPointContext, FString& OutResolvedLevelMountPoint)
 {
-	const UExternalDataLayerAsset* ExternalDataLayerAssetContext = nullptr;
-	if (InLevelMountPointContext)
-	{
-		ExternalDataLayerAssetContext = Cast<UExternalDataLayerAsset>(InLevelMountPointContext);
-		if (!ExternalDataLayerAssetContext && InLevelMountPointContext->Implements<UDataLayerInstanceProvider>())
-		{
-			ExternalDataLayerAssetContext = CastChecked<IDataLayerInstanceProvider>(InLevelMountPointContext)->GetRootExternalDataLayerAsset();
-		}
-		if (!ExternalDataLayerAssetContext && InLevelMountPointContext->IsA<AActor>())
-		{
-			ExternalDataLayerAssetContext = CastChecked<AActor>(InLevelMountPointContext)->GetExternalDataLayerAsset();
-		}
-	}
-
-	if (ExternalDataLayerAssetContext)
+	if (const UExternalDataLayerAsset* ExternalDataLayerAssetContext = FExternalDataLayerHelper::GetExternalDataLayerAssetFromObject(InLevelMountPointContext))
 	{
 		OutResolvedLevelMountPoint = FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(ExternalDataLayerAssetContext, InLevelPackageName);
 		return true;
@@ -150,7 +136,7 @@ bool UExternalDataLayerEngineSubsystem::CanWorldInjectExternalDataLayerAsset(con
 	{
 		if (OutFailureReason)
 		{
-			*OutFailureReason = FText::Format(LOCTEXT("CantInjectNotRegisteredExternalDataLayerAsset", "External Data Layer Asset {0} not registered"), FText::FromString(InExternalDataLayerAsset->GetName()));
+			*OutFailureReason = FText::Format(LOCTEXT("CantInjectNotRegisteredExternalDataLayerAsset", "External Data Layer Asset {0} is not registered"), FText::FromString(InExternalDataLayerAsset->GetName()));
 		}
 		return false;
 	}
@@ -171,7 +157,7 @@ bool UExternalDataLayerEngineSubsystem::CanWorldInjectExternalDataLayerAsset(con
 	{
 		if (OutFailureReason)
 		{
-			*OutFailureReason = FText::Format(LOCTEXT("CantInjectNotActiveExternalDataLayerAsset", "External Data Layer Asset {0} not active"), FText::FromString(InExternalDataLayerAsset->GetName()));
+			*OutFailureReason = FText::Format(LOCTEXT("CantInjectNotActiveExternalDataLayerAsset", "External Data Layer Asset {0} is not active"), FText::FromString(InExternalDataLayerAsset->GetName()));
 		}
 		return false;
 	}
@@ -187,7 +173,7 @@ void UExternalDataLayerEngineSubsystem::RegisterExternalDataLayerAsset(const UEx
 	{
 		if ((InExternalDataLayerAsset != ExternalDataLayerAsset) && (InExternalDataLayerAsset->GetUID() == ExternalDataLayerAsset->GetUID()))
 		{
-			UE_LOG(LogWorldPartition, Error, TEXT("ExternalDataLayerAsset %s is already registered with UID %s. Can't register ExternalDataLayerAsset %s under same UID."), 
+			UE_LOG(LogWorldPartition, Error, TEXT("External Data Layer Asset %s is already registered with UID %s. Can't register External Data Layer Asset %s under the same UID."), 
 				*ExternalDataLayerAsset->GetPathName(), *ExternalDataLayerAsset->GetUID().ToString(), *InExternalDataLayerAsset->GetPathName());
 			return;
 		}
@@ -209,7 +195,7 @@ void UExternalDataLayerEngineSubsystem::ActivateExternalDataLayerAsset(const UEx
 	check(IsValid(InExternalDataLayerAsset));
 	if (!IsExternalDataLayerAssetRegistered(InExternalDataLayerAsset, InClient))
 	{
-		UE_LOG(LogWorldPartition, Error, TEXT("ExternalDataLayerAsset %s is not registered."), *InExternalDataLayerAsset->GetPathName());
+		UE_LOG(LogWorldPartition, Error, TEXT("External Data Layer Asset %s is not registered."), *InExternalDataLayerAsset->GetPathName());
 		return;
 	}
 
@@ -267,6 +253,22 @@ void UExternalDataLayerEngineSubsystem::UnregisterExternalDataLayerAsset(const U
 		}
 	}
 };
+
+TArray<UObject*> UExternalDataLayerEngineSubsystem::GetClientsForExternalDataLayerAsset(const UExternalDataLayerAsset* InExternalDataLayerAsset) const
+{
+	const FRegisteredExternalDataLayers* RegisteredEDL = ExternalDataLayerAssets.Find(InExternalDataLayerAsset);
+	TSet<UObject*> Clients;
+	for (const FObjectKey Client : RegisteredEDL->RegisteredClients)
+	{
+		Clients.Add(Client.ResolveObjectPtr());
+	}
+	for (const FObjectKey Client : RegisteredEDL->ActiveClients)
+	{
+		Clients.Add(Client.ResolveObjectPtr());
+	}
+	Clients.Remove(nullptr);
+	return Clients.Array();
+}
 
 EExternalDataLayerRegistrationState UExternalDataLayerEngineSubsystem::GetExternalDataLayerAssetRegistrationState(const UExternalDataLayerAsset* InExternalDataLayerAsset) const
 {

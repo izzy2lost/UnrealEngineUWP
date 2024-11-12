@@ -133,6 +133,11 @@ void UTestReplicatedObjectWithRPC::ServerRPCWithParam_Implementation(int32 IntPa
 	ServerRPCWithParamCallOrder = ++CallOrder;
 }
 
+void UTestReplicatedObjectWithRPC::ServerRPCWithParamWithHiddenVirtualBase_Implementation(const FReplicatedStructWithHiddenVirtualBase& StructParam)
+{
+	LocalStructWithHiddenVirtualBaseParam = StructParam;
+}
+
 void UTestReplicatedObjectWithRPC::ServerUnreliableRPC_Implementation()
 {
 	bServerUnreliableRPCCalled = true;

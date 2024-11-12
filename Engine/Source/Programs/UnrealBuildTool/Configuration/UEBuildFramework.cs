@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Xml;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -79,12 +80,13 @@ namespace UnrealBuildTool
 		/// Constructor
 		/// </summary>
 		/// <param name="Name">The framework name</param>
-		/// <param name="ZipFile">Path to the zip file for this framework</param>
+		/// <param name="ZipFile">Path to the zip file for this framework/xcframework</param>
 		/// <param name="OutputDirectory">Path for the extracted zip file</param>
 		/// <param name="CopyBundledAssets"></param>
 		/// <param name="bLinkFramework">Link the framework into the executable</param>
 		/// <param name="bCopyFramework">Copy the framework to the target's Framework directory</param>
-		public UEBuildFramework(string Name, FileReference? ZipFile, DirectoryReference OutputDirectory, string? CopyBundledAssets, bool bLinkFramework, bool bCopyFramework)
+		/// <param name="Logger">Logger for diagnostic output</param>
+		public UEBuildFramework(string Name, FileReference? ZipFile, DirectoryReference OutputDirectory, string? CopyBundledAssets, bool bLinkFramework, bool bCopyFramework, ILogger Logger)
 		{
 			this.Name = Name;
 			this.ZipFile = ZipFile;
@@ -93,18 +95,22 @@ namespace UnrealBuildTool
 			this.CopyBundledAssets = CopyBundledAssets;
 			this.bCopyFramework = bCopyFramework;
 			this.bLinkFramework = bLinkFramework;
+			if (this.ZipFile != null && this.ZipFile.FullName.EndsWith(".xcframework.zip"))
+			{
+				XCFrameworkVariants = LoadXCFrameworkVariantsFromZipFile(Logger);
+			}
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="Name">The framework name</param>
-		/// <param name="FrameworkDirectory">Path for the framework on disk</param>
+		/// <param name="FrameworkDirectory">Path for the framework/xcframework on disk</param>
 		/// <param name="CopyBundledAssets"></param>
 		/// <param name="bLinkFramework">Link the framework into the executable</param>
 		/// <param name="bCopyFramework">Copy the framework to the target's Framework directory</param>
 		/// <param name="Logger">Logger for diagnostic output</param>
-		public UEBuildFramework(String Name, DirectoryReference FrameworkDirectory, string? CopyBundledAssets, bool bLinkFramework, bool bCopyFramework, ILogger Logger)
+		public UEBuildFramework(string Name, DirectoryReference FrameworkDirectory, string? CopyBundledAssets, bool bLinkFramework, bool bCopyFramework, ILogger Logger)
 		{
 			this.Name = Name;
 			this.FrameworkDirectory = FrameworkDirectory;
@@ -122,7 +128,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="Platform"></param>
 		/// <param name="Architecture"></param>
-		/// <param name="Logger"></param>
+		/// <param name="Logger">Logger for diagnostic output</param>
 		public DirectoryReference? GetFrameworkDirectory(UnrealTargetPlatform? Platform, UnrealArch? Architecture, ILogger Logger)
 		{
 			if (XCFrameworkVariants != null && Platform != null && Architecture != null)
@@ -139,12 +145,46 @@ namespace UnrealBuildTool
 
 		/// <summary>
 		/// Loads XCFramework variants description from Info.plist file inside XCFramework structure 
+		/// <param name="Logger">Logger for diagnostic output</param>
 		/// </summary>
 		List<XCFrameworkVariantEntry>? LoadXCFrameworkVariants(ILogger Logger)
 		{
 			XmlDocument PlistDoc = new XmlDocument();
 			PlistDoc.Load(FileReference.Combine(FrameworkDirectory!, "Info.plist").FullName);
+			return LoadXCFrameworkVariants(PlistDoc, Logger);
+		}
 
+		/// <summary>
+		/// Loads XCFramework variants description from Info.plist file inside the zipped XCFramework structure 
+		/// <param name="Logger">Logger for diagnostic output</param>
+		/// </summary>
+		List<XCFrameworkVariantEntry>? LoadXCFrameworkVariantsFromZipFile(ILogger Logger)
+		{
+			using (ZipArchive Archive =  System.IO.Compression.ZipFile.OpenRead(ZipFile!.FullName))
+			{
+				ZipArchiveEntry? Entry  = Archive.GetEntry($"{Name}.xcframework/Info.plist");
+				if (Entry == null)
+				{
+					Logger.LogError("Failed find Info.plist in XCFramework {Name}", Name);
+					return null;
+				}
+				else
+				{
+					Stream InfoPlist = Entry.Open();
+					XmlDocument PlistDoc = new XmlDocument();
+					PlistDoc.Load(InfoPlist);
+					return LoadXCFrameworkVariants(PlistDoc, Logger);
+				}				
+			}
+		}
+
+		/// <summary>
+		/// Loads XCFramework variants description from Info.plist inside XCFramework structure loaded in a XmlDocument 
+		/// <param name="PlistDoc">XmlDocument containing Info.plist that defines the xcframework settings</param>
+		/// <param name="Logger">Logger for diagnostic output</param>
+		/// </summary>
+		List<XCFrameworkVariantEntry>? LoadXCFrameworkVariants(XmlDocument PlistDoc, ILogger Logger)
+		{
 			// Check the plist type
 			XmlNode? CFBundlePackageType = PlistDoc.SelectSingleNode("/plist/dict[key='CFBundlePackageType']/string[1]");
 			if (CFBundlePackageType == null || CFBundlePackageType.NodeType != XmlNodeType.Element || CFBundlePackageType.InnerText != "XFWK")

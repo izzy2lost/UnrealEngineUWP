@@ -99,6 +99,7 @@
 #include "UObject/ReferenceChainSearch.h"
 #include "UObject/ArchiveCookContext.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "Templates/GuardValueAccessors.h"
 #include "IMediaModule.h"
 #include "Scalability.h"
 #include "PlatformInfo.h"
@@ -111,6 +112,7 @@
 #include "SceneView.h"
 #include "StaticBoundShaderState.h"
 #include "PropertyColorSettings.h"
+#include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
 
 // needed for the RemotePropagator
 #include "AudioDevice.h"
@@ -162,6 +164,9 @@
 #include "EngineModule.h"
 
 #include "EditorWorldExtension.h"
+#include "Elements/Interfaces/TypedElementAssetDataInterface.h"
+#include "Elements/Interfaces/TypedElementObjectInterface.h"
+#include "Elements/Framework/TypedElementRegistry.h"
 
 #if PLATFORM_WINDOWS
 	#include "Windows/WindowsHWrapper.h"
@@ -245,6 +250,7 @@
 #include "ToolMenus.h"
 #include "IToolMenusEditorModule.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Subsystems/BrowseToAssetOverrideSubsystem.h"
 #include "LevelEditorSubsystem.h"
 #include "Engine/LevelScriptActor.h"
 #include "UObject/UnrealType.h"
@@ -265,6 +271,10 @@
 #include "IProjectExternalContentInterface.h"
 #include "IDocumentation.h"
 #include "StereoRenderTargetManager.h"
+#include "Subsystems/EditorActorSubsystem.h"
+
+#include "Engine/EngineCustomTimeStep.h"
+#include "Engine/TimecodeProvider.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditor, Log, All);
 
@@ -338,6 +348,22 @@ void DestroySelectionSets()
 }
 
 } // namespace PrivateEditorSelection
+
+namespace ActorAttachmentHelper
+{
+	static const AActor* GetTopMostAttachParentActor(AActor* InActor)
+	{
+		check(InActor);
+		AActor* TopAttachParentActor = InActor;
+		AActor* NextAttachParentActor = TopAttachParentActor->GetAttachParentActor();
+		while (NextAttachParentActor)
+		{
+			TopAttachParentActor = NextAttachParentActor;
+			NextAttachParentActor = TopAttachParentActor->GetAttachParentActor();
+		}
+		return TopAttachParentActor;
+	}
+} // namespace ActorAttachmentHelper
 
 static FAutoConsoleVariable GInvalidateHitProxiesEachSIEFrameCVar(
 	TEXT("r.Editor.Viewport.InvalidateEachSIEFrame"),
@@ -427,6 +453,85 @@ ERHIFeatureLevel::Type FPreviewPlatformInfo::GetEffectivePreviewFeatureLevel() c
 	return bPreviewFeatureLevelActive ? PreviewFeatureLevel : GMaxRHIFeatureLevel;
 }
 
+EShaderPlatform FPreviewPlatformInfo::GetShaderPlatform() const
+{
+	return PreviewShaderPlatformName != NAME_None ?
+		FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(PreviewShaderPlatformName) :
+		GetFeatureLevelShaderPlatform(PreviewFeatureLevel);
+}
+
+void FPreviewPlatformInfo::InternalSetFriendlyName()
+{
+	if (PreviewShaderPlatformFriendlyName.IsEmpty())
+	{
+		EShaderPlatform PreviewShaderPlatform = GetShaderPlatform();
+		EShaderPlatform MaxRHIFeatureLevelPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
+		PreviewShaderPlatformFriendlyName = FDataDrivenShaderPlatformInfo::GetFriendlyName(bPreviewFeatureLevelActive ? PreviewShaderPlatform : MaxRHIFeatureLevelPlatform);
+	}
+}
+
+void FAssetReferenceFilterContext::AddReferencingAsset(const FAssetData& InReferencingAsset, EAssetReferenceFilterProperties InProperties)
+{
+	if (InReferencingAsset.IsValid())
+	{
+		ReferencingAssetInfo.Emplace(InReferencingAsset, InProperties);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ReferencingAssets.Add(InReferencingAsset);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+}
+
+void FAssetReferenceFilterContext::AddReferencingAssets(const TArray<FAssetData>& InReferencingAssets, EAssetReferenceFilterProperties InProperties)
+{
+	for (const FAssetData& ReferencingAsset : InReferencingAssets)
+	{
+		AddReferencingAsset(ReferencingAsset);
+	}
+}
+
+void FAssetReferenceFilterContext::AddReferencingAssetsFromPropertyHandle(const TSharedPtr<IPropertyHandle>& PropertyHandle)
+{
+	if (!PropertyHandle.IsValid())
+	{
+		return;
+	}
+
+	EAssetReferenceFilterProperties ReferencerProperties = EAssetReferenceFilterProperties::None;
+
+	// Determine if this is an editor only property by following the parent property chain and checking if any are editor only
+	{
+		TSharedPtr<IPropertyHandle> CurrentPropertyHandle = PropertyHandle;
+		while (CurrentPropertyHandle.IsValid())
+		{
+			const FProperty* Property = CurrentPropertyHandle->GetProperty();
+			if (Property != nullptr && Property->HasAnyPropertyFlags(CPF_EditorOnly))
+			{
+				ReferencerProperties |= EAssetReferenceFilterProperties::EditorOnly;
+				break;
+			}
+
+			CurrentPropertyHandle = CurrentPropertyHandle->GetParentHandle();
+		}
+	}
+
+	TArray<UObject*> ReferencingObjects;
+	PropertyHandle->GetOuterObjects(ReferencingObjects);
+
+	for (UObject* ReferencingObject : ReferencingObjects)
+	{
+		if (ReferencingObject)
+		{
+			FAssetData ReferencingObjectData(ReferencingObject);
+			ReferencingAssetInfo.Emplace(ReferencingObjectData, ReferencerProperties);
+			
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			ReferencingAssets.Add(ReferencingObjectData);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // UEditorEngine
 
@@ -468,6 +573,7 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 
 	DetailMode = DM_MAX;
 	CurrentPlayWorldDestination = -1;
+	bIsRebuildingAlteredBSP = false;
 	bDisableDeltaModification = false;
 	bAllowMultiplePIEWorlds = true;
 	bIsEndingPlay = false;
@@ -517,7 +623,7 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 				{
 					if (GetPropertyColorationMatch(Actor))
 					{
-						PropertyColor = FColor::Red;
+						PropertyColor = GetDefault<ULevelEditorViewportSettings>()->PropertyColorationColorForMatchingObjects;
 					}
 				}
 				return PropertyColor;
@@ -526,12 +632,12 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 			{
 				const FString EmptyString;
 				SetPropertyColorationTarget(GWorld, EmptyString, nullptr, nullptr, nullptr);
-			});
+			},
+			LOCTEXT("PropertyColor_ToopTip", "Colorize actor if property matches. Red means a property match, otherwise the color is White."));
 
 		for (const FPropertyColorCustomProperty& PropertyColorCustomProperty : GetDefault<UPropertyColorSettings>()->CustomProperties)
 		{
-			FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(PropertyColorCustomProperty.Name, 
-				FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*PropertyColorCustomProperty.Text, TEXT("PropertyColor"), *PropertyColorCustomProperty.Name.ToString()),
+			FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(PropertyColorCustomProperty.Name, PropertyColorCustomProperty.Text,
 				[this, PropertyColorCustomProperty](const UPrimitiveComponent* InPrimitiveComponent)
 				{
 					if (AActor* Actor = InPrimitiveComponent->GetOwner())
@@ -574,7 +680,8 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 							SetPropertyColorationTarget(GWorld, PropertyColorCustomProperty.PropertyValue, PropertyChain->GetTail()->GetValue(), AActor::StaticClass(), &PropertyChain);
 						}
 					}
-				});
+				},
+				PropertyColorCustomProperty.TextToolTip);
 		}
 	}
 #endif
@@ -932,7 +1039,7 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 					{
 						VolumeFactoryClasses.Add(TestClass);
 					}
-					else
+					else if (TestClass->GetDefaultObject<UActorFactory>()->bShouldAutoRegister)
 					{
 						UActorFactory* NewFactory = NewObject<UActorFactory>(GetTransientPackage(), TestClass);
 						check(NewFactory);
@@ -1058,6 +1165,14 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 	}
 
 	FAssetCompilingManager::Get().OnAssetPostCompileEvent().AddUObject(this, &UEditorEngine::OnAssetPostCompile);
+	
+	WorldAddExtraDeletionObjectsHandle = FEditorDelegates::OnAddExtraObjectsToDelete.AddStatic(&UWorld::OnAddExtraObjectsToDelete);
+
+	OnTimecodeProviderChanged().AddUObject(this, &UEditorEngine::RegisterTimecodeProviderCompiledDelegate);
+	OnCustomTimeStepChanged().AddUObject(this, &UEditorEngine::RegisterCustomTimeStepCompiledDelegate);
+
+	RegisterTimecodeProviderCompiledDelegate();
+	RegisterCustomTimeStepCompiledDelegate();
 }
 
 bool UEditorEngine::HandleOpenAsset(UObject* Asset)
@@ -1392,6 +1507,9 @@ void UEditorEngine::LoadDefaultEditorModules()
 			TEXT("GameplayDebuggerEditor"),
 			TEXT("RenderResourceViewer"),
 			TEXT("UniversalObjectLocatorEditor"),
+			TEXT("StructUtilsEditor"),
+			TEXT("StructUtilsTestSuite"),
+			TEXT("MassEntityEditor")
 		};
 
 	FScopedSlowTask ModuleSlowTask((float)UE_ARRAY_COUNT(ModuleNames));
@@ -1507,8 +1625,13 @@ void UEditorEngine::FinishDestroy()
 				AssetRegistry->OnInMemoryAssetCreated().RemoveAll(this);
 			}
 		}
+
+		OnTimecodeProviderChanged().RemoveAll(this);
+		OnCustomTimeStepChanged().RemoveAll(this);
+
 		FAssetCompilingManager::Get().OnAssetPostCompileEvent().RemoveAll(this);
 
+		FEditorDelegates::OnAddExtraObjectsToDelete.Remove(WorldAddExtraDeletionObjectsHandle);
 
 		// Shut down transaction tracking system.
 		if( Trans )
@@ -1533,6 +1656,8 @@ void UEditorEngine::FinishDestroy()
 			GEditor = nullptr;
 		}
 	}
+
+	ShutdownDerivedDataBuildWorkers();
 
 	Super::FinishDestroy();
 }
@@ -2076,8 +2201,8 @@ void UEditorEngine::Tick( float DeltaSeconds, bool bIdleMode )
 		bFirstTick = false;
 	}
 
-	ensure(GPlayInEditorID == INDEX_NONE);
-	GPlayInEditorID = INDEX_NONE;
+	ensure(UE::GetPlayInEditorID() == INDEX_NONE);
+	UE::SetPlayInEditorID(INDEX_NONE);
 
 	// Clean up any game viewports that may have been closed during the level tick (eg by Kismet).
 	CleanupGameViewport();
@@ -3187,72 +3312,42 @@ void UEditorEngine::GetAssetsToSyncToContentBrowser(TArray<FAssetData>& Assets, 
 	// Otherwise, assemble a list of resources from selected actors.
 	if (!bFoundSurfaceMaterial)
 	{
-		for (FSelectionIterator It(GetSelectedActorIterator()); It; ++It)
+		if (UTypedElementSelectionSet* SelectionSet = GEditor->GetSelectedActors()->GetElementSelectionSet())
 		{
-			AActor* Actor = static_cast<AActor*>(*It);
-			checkSlow(Actor->IsA(AActor::StaticClass()));
-
-			bool bFoundOverride = false;
-			if (bAllowBrowseToAssetOverride)
+			UBrowseToAssetOverrideSubsystem* BrowseToAssetOverrideSubsystem = UBrowseToAssetOverrideSubsystem::Get();
+			SelectionSet->ForEachSelectedElementHandle([&Assets, bAllowBrowseToAssetOverride, BrowseToAssetOverrideSubsystem](const FTypedElementHandle& SelectedHandle)
 			{
-				// If BrowseToAssetOverride is set, then use the asset it points to instead of the selected asset
-				const FString& BrowseToAssetOverride = Actor->GetBrowseToAssetOverride();
-				if (!BrowseToAssetOverride.IsEmpty())
+				if (bAllowBrowseToAssetOverride)
 				{
-					if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
+					if (TTypedElement<ITypedElementObjectInterface> ObjectInterface = UTypedElementRegistry::GetInstance()->GetElement<ITypedElementObjectInterface>(SelectedHandle))
 					{
-						TArray<FAssetData> FoundAssets;
-						if (AssetRegistry->GetAssetsByPackageName(*BrowseToAssetOverride, FoundAssets) && FoundAssets.Num() > 0)
+						if (AActor* Actor = ObjectInterface.GetObjectAs<AActor>())
 						{
-							Assets.Add(FoundAssets[0]);
-							bFoundOverride = true;
-						}
-					}
-				}
-			}
-
-			if (!bFoundOverride)
-			{
-				// If the actor is an instance of a blueprint, just add the blueprint.
-				UBlueprint* GeneratingBP = Cast<UBlueprint>(It->GetClass()->ClassGeneratedBy);
-				if (GeneratingBP != NULL)
-				{
-					Assets.Add(FAssetData(GeneratingBP));
-				}
-				// Cooked editor sometimes only contains UBlueprintGeneratedClass with no UBlueprint
-				else if (UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(It->GetClass()))
-				{
-					Assets.Add(FAssetData(BlueprintGeneratedClass));
-				}
-				// Otherwise, add the results of the GetReferencedContentObjects call
-				else
-				{
-					TArray<UObject*> Objects;
-					Actor->GetReferencedContentObjects(Objects);
-					for (UObject* Object : Objects)
-					{
-						Assets.Add(FAssetData(Object));
-					}
-
-					TArray<FSoftObjectPath> SoftObjects;
-					Actor->GetSoftReferencedContentObjects(SoftObjects);
-
-					if (SoftObjects.Num())
-					{
-						IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
-
-						for (const FSoftObjectPath& SoftObject : SoftObjects)
-						{
-							FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(SoftObject);
-
-							if (AssetData.IsValid())
+							// If BrowseToAssetOverride is set, then use the asset it points to instead of the selected asset
+							const FName BrowseToAssetOverride = BrowseToAssetOverrideSubsystem->GetBrowseToAssetOverride(Actor);
+							if (!BrowseToAssetOverride.IsNone())
 							{
-								Assets.Add(AssetData);
+								if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
+								{
+									TArray<FAssetData> FoundAssets;
+									if (AssetRegistry->GetAssetsByPackageName(BrowseToAssetOverride, FoundAssets) && FoundAssets.Num() > 0)
+									{
+										Assets.Add(FoundAssets[0]);
+										return true;
+									}
+								}
 							}
 						}
 					}
 				}
-			}
+
+				if (TTypedElement<ITypedElementAssetDataInterface> AssetDataInterface = UTypedElementRegistry::GetInstance()->GetElement<ITypedElementAssetDataInterface>(SelectedHandle))
+				{
+					Assets.Append(AssetDataInterface.GetAllReferencedAssetDatas(FTypedElementAssetDataReferencedOptions().SetOnlyTopLevelAsset(true)));
+				}
+
+				return true;
+			});
 		}
 	}
 }
@@ -3552,528 +3647,12 @@ bool UEditorEngine::AreAnySelectedActorsInLevelScript()
 
 void UEditorEngine::ConvertSelectedBrushesToVolumes( UClass* VolumeClass )
 {
-	TArray<ABrush*> BrushesToConvert;
-	for ( FSelectionIterator SelectedActorIter( GetSelectedActorIterator() ); SelectedActorIter; ++SelectedActorIter )
-	{
-		AActor* CurSelectedActor = Cast<AActor>( *SelectedActorIter );
-		check( CurSelectedActor );
-		ABrush* Brush = Cast< ABrush >( CurSelectedActor );
-		if ( Brush && !FActorEditorUtils::IsABuilderBrush(CurSelectedActor) )
-		{
-			ABrush* CurBrushActor = CastChecked<ABrush>( CurSelectedActor );
-
-			BrushesToConvert.Add(CurBrushActor);
-		}
-	}
-
-	if (BrushesToConvert.Num())
-	{
-		GetSelectedActors()->BeginBatchSelectOperation();
-
-		const FScopedTransaction Transaction( FText::Format( NSLOCTEXT("UnrealEd", "Transaction_ConvertToVolume", "Convert to Volume: {0}"), FText::FromString( VolumeClass->GetName() ) ) );
-		checkSlow( VolumeClass && VolumeClass->IsChildOf( AVolume::StaticClass() ) );
-
-		TArray< UWorld* > WorldsAffected;
-		TArray< ULevel* > LevelsAffected;
-		// Iterate over all selected actors, converting the brushes to volumes of the provided class
-		for ( int32 BrushIdx = 0; BrushIdx < BrushesToConvert.Num(); BrushIdx++ )
-		{
-			ABrush* CurBrushActor = BrushesToConvert[BrushIdx];
-			check( CurBrushActor );
-			
-			ULevel* CurActorLevel = CurBrushActor->GetLevel();
-			check( CurActorLevel );
-			LevelsAffected.AddUnique( CurActorLevel );
-
-			// Cache the world and store in a list.
-			UWorld* World = CurBrushActor->GetWorld();
-			check( World );
-			WorldsAffected.AddUnique( World );
-
-			FActorSpawnParameters SpawnInfo;
-			SpawnInfo.OverrideLevel = CurActorLevel;
-			ABrush* NewVolume = World->SpawnActor<ABrush>( VolumeClass, CurBrushActor->GetActorTransform(), SpawnInfo);
-			if ( NewVolume )
-			{
-				NewVolume->PreEditChange( NULL );
-
-				FBSPOps::csgCopyBrush( NewVolume, CurBrushActor, 0, RF_Transactional, true, true );
-
-				// Set the texture on all polys to NULL.  This stops invisible texture
-				// dependencies from being formed on volumes.
-				if( NewVolume->Brush )
-				{
-					for ( TArray<FPoly>::TIterator PolyIter( NewVolume->Brush->Polys->Element ); PolyIter; ++PolyIter )
-					{
-						FPoly& CurPoly = *PolyIter;
-						CurPoly.Material = NULL;
-					}
-				}
-
-				// Select the new actor
-				SelectActor( CurBrushActor, false, true );
-				SelectActor( NewVolume, true, true );
-
-				NewVolume->PostEditChange();
-				NewVolume->PostEditMove( true );
-				NewVolume->Modify(false);
-
-				// Make the actor visible as the brush is hidden by default
-				NewVolume->SetActorHiddenInGame(false);
-
-				// Destroy the old actor.
-				GetEditorSubsystem<ULayersSubsystem>()->DisassociateActorFromLayers( CurBrushActor );
-				World->EditorDestroyActor( CurBrushActor, true );
-			}
-		}
-
-		GetSelectedActors()->EndBatchSelectOperation();
-		RedrawLevelEditingViewports();
-
-		// Broadcast a message that the levels in these worlds have changed
-		for (UWorld* ChangedWorld : WorldsAffected)
-		{
-			ChangedWorld->BroadcastLevelsChanged();
-		}
-
-		// Rebuild BSP for any levels affected
-		for (ULevel* ChangedLevel : LevelsAffected)
-		{
-			RebuildLevel(*ChangedLevel);
-		}
-	}
+	UEditorActorSubsystem::ConvertSelectedBrushesToVolumes(VolumeClass);
 }
-
-/** Utility for copying properties that differ from defaults between mesh types. */
-struct FConvertStaticMeshActorInfo
-{
-	/** The level the source actor belonged to, and into which the new actor is created. */
-	ULevel*						SourceLevel;
-
-	// Actor properties.
-	FVector						Location;
-	FRotator					Rotation;
-	FVector						DrawScale3D;
-	bool						bHidden;
-	AActor*						Base;
-	UPrimitiveComponent*		BaseComponent;
-	// End actor properties.
-
-	/**
-	 * Used to indicate if any of the above properties differ from defaults; if so, they're copied over.
-	 * We don't want to simply copy all properties, because classes with different defaults will have
-	 * their defaults hosed by other types.
-	 */
-	bool bActorPropsDifferFromDefaults[14];
-
-	// Component properties.
-	UStaticMesh*						StaticMesh;
-	USkeletalMesh*						SkeletalMesh;
-	TArray<UMaterialInterface*>			OverrideMaterials;
-	TArray<FGuid>						IrrelevantLights;
-	float								CachedMaxDrawDistance;
-	bool								CastShadow;
-
-	FBodyInstance						BodyInstance;
-	TArray< TArray<FColor> >			OverrideVertexColors;
-
-
-	// for skeletalmeshcomponent animation conversion
-	// this is temporary until we have SkeletalMeshComponent.Animations
-	UAnimationAsset*					AnimAsset;
-	bool								bLooping;
-	bool								bPlaying;
-	float								Rate;
-	float								CurrentPos;
-
-	// End component properties.
-
-	/**
-	 * Used to indicate if any of the above properties differ from defaults; if so, they're copied over.
-	 * We don't want to simply copy all properties, because classes with different defaults will have
-	 * their defaults hosed by other types.
-	 */
-	bool bComponentPropsDifferFromDefaults[7];
-
-	AGroupActor* ActorGroup;
-
-	bool PropsDiffer(const TCHAR* PropertyPath, UObject* Obj)
-	{
-		const FProperty* PartsProp = FindFProperty<FProperty>( PropertyPath );
-		check(PartsProp);
-
-		uint8* ClassDefaults = (uint8*)Obj->GetClass()->GetDefaultObject();
-		check( ClassDefaults );
-
-		for (int32 Index = 0; Index < PartsProp->ArrayDim; Index++)
-		{
-			const bool bMatches = PartsProp->Identical_InContainer(Obj, ClassDefaults, Index);
-			if (!bMatches)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	void GetFromActor(AActor* Actor, UStaticMeshComponent* MeshComp)
-	{
-		InternalGetFromActor(Actor);
-
-		// Copy over component properties.
-		StaticMesh				= MeshComp->GetStaticMesh();
-		OverrideMaterials		= MeshComp->OverrideMaterials;
-		CachedMaxDrawDistance	= MeshComp->CachedMaxDrawDistance;
-		CastShadow				= MeshComp->CastShadow;
-
-		BodyInstance.CopyBodyInstancePropertiesFrom(&MeshComp->BodyInstance);
-
-		// Loop over each LODInfo in the static mesh component, storing the override vertex colors
-		// in each, if any
-		bool bHasAnyVertexOverrideColors = false;
-		for ( int32 LODIndex = 0; LODIndex < MeshComp->LODData.Num(); ++LODIndex )
-		{
-			const FStaticMeshComponentLODInfo& CurLODInfo = MeshComp->LODData[LODIndex];
-			const FColorVertexBuffer* CurVertexBuffer = CurLODInfo.OverrideVertexColors;
-
-			OverrideVertexColors.Add( TArray<FColor>() );
-			
-			// If the LODInfo has override vertex colors, store off each one
-			if ( CurVertexBuffer && CurVertexBuffer->GetNumVertices() > 0 )
-			{
-				for ( uint32 VertexIndex = 0; VertexIndex < CurVertexBuffer->GetNumVertices(); ++VertexIndex )
-				{
-					OverrideVertexColors[LODIndex].Add( CurVertexBuffer->VertexColor(VertexIndex) );
-				}
-				bHasAnyVertexOverrideColors = true;
-			}
-		}
-
-		// Record which component properties differ from their defaults.
-		bComponentPropsDifferFromDefaults[0] = PropsDiffer( TEXT("Engine.StaticMeshComponent:StaticMesh"), MeshComp );
-		bComponentPropsDifferFromDefaults[1] = true; // Assume the materials array always differs.
-		bComponentPropsDifferFromDefaults[2] = PropsDiffer( TEXT("Engine.PrimitiveComponent:CachedMaxDrawDistance"), MeshComp );
-		bComponentPropsDifferFromDefaults[3] = PropsDiffer( TEXT("Engine.PrimitiveComponent:CastShadow"), MeshComp );
-		bComponentPropsDifferFromDefaults[4] = PropsDiffer( TEXT("Engine.PrimitiveComponent:BodyInstance"), MeshComp );
-		bComponentPropsDifferFromDefaults[5] = bHasAnyVertexOverrideColors;	// Differs from default if there are any vertex override colors
-	}
-
-	void SetToActor(AActor* Actor, UStaticMeshComponent* MeshComp)
-	{
-		InternalSetToActor(Actor);
-
-		// Set component properties.
-		if ( bComponentPropsDifferFromDefaults[0] ) MeshComp->SetStaticMesh(StaticMesh);
-		if ( bComponentPropsDifferFromDefaults[1] ) MeshComp->OverrideMaterials		= OverrideMaterials;
-		if ( bComponentPropsDifferFromDefaults[2] ) MeshComp->CachedMaxDrawDistance	= CachedMaxDrawDistance;
-		if ( bComponentPropsDifferFromDefaults[3] ) MeshComp->CastShadow			= CastShadow;
-		if ( bComponentPropsDifferFromDefaults[4] ) 
-		{
-			MeshComp->BodyInstance.CopyBodyInstancePropertiesFrom(&BodyInstance);
-		}
-		if ( bComponentPropsDifferFromDefaults[5] )
-		{
-			// Ensure the LODInfo has the right number of entries
-			MeshComp->SetLODDataCount( OverrideVertexColors.Num(), MeshComp->GetStaticMesh()->GetNumLODs() );
-			
-			// Loop over each LODInfo to see if there are any vertex override colors to restore
-			for ( int32 LODIndex = 0; LODIndex < MeshComp->LODData.Num(); ++LODIndex )
-			{
-				FStaticMeshComponentLODInfo& CurLODInfo = MeshComp->LODData[LODIndex];
-
-				// If there are override vertex colors specified for a particular LOD, set them in the LODInfo
-				if ( OverrideVertexColors.IsValidIndex( LODIndex ) && OverrideVertexColors[LODIndex].Num() > 0 )
-				{
-					const TArray<FColor>& OverrideColors = OverrideVertexColors[LODIndex];
-					
-					// Destroy the pre-existing override vertex buffer if it's not the same size as the override colors to be restored
-					if ( CurLODInfo.OverrideVertexColors && CurLODInfo.OverrideVertexColors->GetNumVertices() != OverrideColors.Num() )
-					{
-						CurLODInfo.ReleaseOverrideVertexColorsAndBlock();
-					}
-
-					// If there is a pre-existing color vertex buffer that is valid, release the render thread's hold on it and modify
-					// it with the saved off colors
-					if ( CurLODInfo.OverrideVertexColors )
-					{								
-						CurLODInfo.BeginReleaseOverrideVertexColors();
-						FlushRenderingCommands();
-						for ( int32 VertexIndex = 0; VertexIndex < OverrideColors.Num(); ++VertexIndex )
-						{
-							CurLODInfo.OverrideVertexColors->VertexColor(VertexIndex) = OverrideColors[VertexIndex];
-						}
-					}
-
-					// If there isn't a pre-existing color vertex buffer, create one and initialize it with the saved off colors 
-					else
-					{
-						CurLODInfo.OverrideVertexColors = new FColorVertexBuffer();
-						CurLODInfo.OverrideVertexColors->InitFromColorArray( OverrideColors );
-					}
-					BeginInitResource(CurLODInfo.OverrideVertexColors);
-				}
-			}
-		}
-	}
-
-	void GetFromActor(AActor* Actor, USkeletalMeshComponent* MeshComp)
-	{
-		InternalGetFromActor(Actor);
-
-		// Copy over component properties.
-		SkeletalMesh			= MeshComp->GetSkeletalMeshAsset();
-		OverrideMaterials		= MeshComp->OverrideMaterials;
-		CachedMaxDrawDistance	= MeshComp->CachedMaxDrawDistance;
-		CastShadow				= MeshComp->CastShadow;
-
-		BodyInstance.CopyBodyInstancePropertiesFrom(&MeshComp->BodyInstance);
-
-		// Record which component properties differ from their defaults.
-		bComponentPropsDifferFromDefaults[0] = PropsDiffer( TEXT("Engine.SkinnedMeshComponent:SkeletalMesh"), MeshComp );
-		bComponentPropsDifferFromDefaults[1] = true; // Assume the materials array always differs.
-		bComponentPropsDifferFromDefaults[2] = PropsDiffer( TEXT("Engine.PrimitiveComponent:CachedMaxDrawDistance"), MeshComp );
-		bComponentPropsDifferFromDefaults[3] = PropsDiffer( TEXT("Engine.PrimitiveComponent:CastShadow"), MeshComp );
-		bComponentPropsDifferFromDefaults[4] = PropsDiffer( TEXT("Engine.PrimitiveComponent:BodyInstance"), MeshComp );
-		bComponentPropsDifferFromDefaults[5] = false;	// Differs from default if there are any vertex override colors
-
-		InternalGetAnimationData(MeshComp);
-	}
-
-	void SetToActor(AActor* Actor, USkeletalMeshComponent* MeshComp)
-	{
-		InternalSetToActor(Actor);
-
-		// Set component properties.
-		if ( bComponentPropsDifferFromDefaults[0] ) MeshComp->SetSkeletalMeshAsset(SkeletalMesh);
-		if ( bComponentPropsDifferFromDefaults[1] ) MeshComp->OverrideMaterials		= OverrideMaterials;
-		if ( bComponentPropsDifferFromDefaults[2] ) MeshComp->CachedMaxDrawDistance	= CachedMaxDrawDistance;
-		if ( bComponentPropsDifferFromDefaults[3] ) MeshComp->CastShadow			= CastShadow;
-		if ( bComponentPropsDifferFromDefaults[4] ) MeshComp->BodyInstance.CopyBodyInstancePropertiesFrom(&BodyInstance);
-
-		InternalSetAnimationData(MeshComp);
-	}
-private:
-	void InternalGetFromActor(AActor* Actor)
-	{
-		SourceLevel				= Actor->GetLevel();
-
-		// Copy over actor properties.
-		Location				= Actor->GetActorLocation();
-		Rotation				= Actor->GetActorRotation();
-		DrawScale3D				= Actor->GetRootComponent() ? Actor->GetRootComponent()->GetRelativeScale3D() : FVector(1.f,1.f,1.f);
-		bHidden					= Actor->IsHidden();
-
-		// Record which actor properties differ from their defaults.
-		// we don't have properties for location, rotation, scale3D, so copy all the time. 
-		bActorPropsDifferFromDefaults[0] = true; 
-		bActorPropsDifferFromDefaults[1] = true; 
-		bActorPropsDifferFromDefaults[2] = false;
-		bActorPropsDifferFromDefaults[4] = true; 
-		bActorPropsDifferFromDefaults[5] = PropsDiffer( TEXT("Engine.Actor:bHidden"), Actor );
-		bActorPropsDifferFromDefaults[7] = false;
-		// used to point to Engine.Actor.bPathColliding
-		bActorPropsDifferFromDefaults[9] = false;
-	}
-
-	void InternalSetToActor(AActor* Actor)
-	{
-		if ( Actor->GetLevel() != SourceLevel )
-		{
-			UE_LOG(LogEditor, Fatal, TEXT("Actor was converted into a different level."));
-		}
-
-		// Set actor properties.
-		if (bActorPropsDifferFromDefaults[0])
-		{
-			Actor->SetActorLocation(Location, false);
-		}
-		if (bActorPropsDifferFromDefaults[1])
-		{
-			Actor->SetActorRotation(Rotation);
-		}
-		if (bActorPropsDifferFromDefaults[4])
-		{
-			if( Actor->GetRootComponent() != NULL )
-			{
-				Actor->GetRootComponent()->SetRelativeScale3D( DrawScale3D );
-			}
-		}
-		if (bActorPropsDifferFromDefaults[5])
-		{
-			Actor->SetHidden(bHidden);
-		}
-	}
-
-
-	void InternalGetAnimationData(USkeletalMeshComponent * SkeletalComp)
-	{
-		AnimAsset = SkeletalComp->AnimationData.AnimToPlay;
-		bLooping = SkeletalComp->AnimationData.bSavedLooping;
-		bPlaying = SkeletalComp->AnimationData.bSavedPlaying;
-		Rate = SkeletalComp->AnimationData.SavedPlayRate;
-		CurrentPos = SkeletalComp->AnimationData.SavedPosition;
-	}
-
-	void InternalSetAnimationData(USkeletalMeshComponent * SkeletalComp)
-	{
-		if (!AnimAsset)
-		{
-			return;
-		}
-
-		UE_LOG(LogAnimation, Log, TEXT("Converting animation data for AnimAsset : (%s), bLooping(%d), bPlaying(%d), Rate(%0.2f), CurrentPos(%0.2f)"), 
-			*AnimAsset->GetName(), bLooping, bPlaying, Rate, CurrentPos);
-
-		SkeletalComp->AnimationData.AnimToPlay = AnimAsset;
-		SkeletalComp->AnimationData.bSavedLooping = bLooping;
-		SkeletalComp->AnimationData.bSavedPlaying = bPlaying;
-		SkeletalComp->AnimationData.SavedPlayRate = Rate;
-		SkeletalComp->AnimationData.SavedPosition = CurrentPos;
-		// we don't convert back to SkeletalMeshComponent.Animations - that will be gone soon
-	}
-};
 
 void UEditorEngine::ConvertActorsFromClass( UClass* FromClass, UClass* ToClass )
 {
-	const bool bFromInteractiveFoliage = FromClass == AInteractiveFoliageActor::StaticClass();
-	// InteractiveFoliageActor derives from StaticMeshActor.  bFromStaticMesh should only convert static mesh actors that arent supported by some other conversion
-	const bool bFromStaticMesh = !bFromInteractiveFoliage && FromClass->IsChildOf( AStaticMeshActor::StaticClass() );
-	const bool bFromSkeletalMesh = FromClass->IsChildOf(ASkeletalMeshActor::StaticClass());
-
-	const bool bToInteractiveFoliage = ToClass == AInteractiveFoliageActor::StaticClass();
-	const bool bToStaticMesh = ToClass->IsChildOf( AStaticMeshActor::StaticClass() );
-	const bool bToSkeletalMesh = ToClass->IsChildOf(ASkeletalMeshActor::StaticClass());
-
-	const bool bFoundTarget = bToInteractiveFoliage || bToStaticMesh || bToSkeletalMesh;
-
-	TArray<AActor*>				SourceActors;
-	TArray<FConvertStaticMeshActorInfo>	ConvertInfo;
-
-	// Provide the option to abort up-front.
-	if ( !bFoundTarget || (GUnrealEd && GUnrealEd->ShouldAbortActorDeletion()) )
-	{
-		return;
-	}
-
-	const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "ConvertMeshes", "Convert Meshes") );
-	// Iterate over selected Actors.
-	for ( FSelectionIterator It( GetSelectedActorIterator() ) ; It ; ++It )
-	{
-		AActor* Actor				= static_cast<AActor*>( *It );
-		checkSlow( Actor->IsA(AActor::StaticClass()) );
-
-		AStaticMeshActor* SMActor				= bFromStaticMesh ? Cast<AStaticMeshActor>(Actor) : NULL;
-		AInteractiveFoliageActor* FoliageActor	= bFromInteractiveFoliage ? Cast<AInteractiveFoliageActor>(Actor) : NULL;
-		ASkeletalMeshActor* SKMActor			= bFromSkeletalMesh? Cast<ASkeletalMeshActor>(Actor) : NULL;
-
-		const bool bFoundActorToConvert = SMActor || FoliageActor || SKMActor;
-		if ( bFoundActorToConvert )
-		{
-			// clear all transient properties before copying from
-			Actor->UnregisterAllComponents();
-
-			// If its the type we are converting 'from' copy its properties and remember it.
-			FConvertStaticMeshActorInfo Info;
-			FMemory::Memzero(&Info, sizeof(FConvertStaticMeshActorInfo));
-
-			if( SMActor )
-			{
-				SourceActors.Add(Actor);
-				Info.GetFromActor(SMActor, SMActor->GetStaticMeshComponent());
-			}
-			else if( FoliageActor )
-			{
-				SourceActors.Add(Actor);
-				Info.GetFromActor(FoliageActor, FoliageActor->GetStaticMeshComponent());
-			}
-			else if ( bFromSkeletalMesh )
-			{
-				SourceActors.Add(Actor);
-				Info.GetFromActor(SKMActor, SKMActor->GetSkeletalMeshComponent());
-			}
-
-			// Get the actor group if any
-			Info.ActorGroup = AGroupActor::GetParentForActor(Actor);
-
-			ConvertInfo.Add(MoveTemp(Info));
-		}
-	}
-
-	if (SourceActors.Num())
-	{
-		GetSelectedActors()->BeginBatchSelectOperation();
-
-		// Then clear selection, select and delete the source actors.
-		SelectNone( false, false );
-		UWorld* World = NULL;
-		for( int32 ActorIndex = 0 ; ActorIndex < SourceActors.Num() ; ++ActorIndex )
-		{
-			AActor* SourceActor = SourceActors[ActorIndex];
-			SelectActor( SourceActor, true, false );
-			World = SourceActor->GetWorld();
-		}
-		
-		if ( World && GUnrealEd && GUnrealEd->edactDeleteSelected( World, false ) )
-		{
-			// Now we need to spawn some new actors at the desired locations.
-			for( int32 i = 0 ; i < ConvertInfo.Num() ; ++i )
-			{
-				FConvertStaticMeshActorInfo& Info = ConvertInfo[i];
-
-				// Spawn correct type, and copy properties from intermediate struct.
-				AActor* Actor = NULL;
-				
-				// Cache the world pointer
-				check( World == Info.SourceLevel->OwningWorld );
-				
-				FActorSpawnParameters SpawnInfo;
-				SpawnInfo.OverrideLevel = Info.SourceLevel;
-				SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-				if( bToStaticMesh )
-				{
-					AStaticMeshActor* SMActor = CastChecked<AStaticMeshActor>( World->SpawnActor( ToClass, &Info.Location, &Info.Rotation, SpawnInfo ) );
-					SMActor->UnregisterAllComponents();
-					Info.SetToActor(SMActor, SMActor->GetStaticMeshComponent());
-					SMActor->RegisterAllComponents();
-					SelectActor( SMActor, true, false );
-					Actor = SMActor;
-				}
-				else if(bToInteractiveFoliage)
-				{
-					AInteractiveFoliageActor* FoliageActor = World->SpawnActor<AInteractiveFoliageActor>( Info.Location, Info.Rotation, SpawnInfo );
-					check(FoliageActor);
-					FoliageActor->UnregisterAllComponents();
-					Info.SetToActor(FoliageActor, FoliageActor->GetStaticMeshComponent());
-					FoliageActor->RegisterAllComponents();
-					SelectActor( FoliageActor, true, false );
-					Actor = FoliageActor;
-				}
-				else if (bToSkeletalMesh)
-				{
-					check(ToClass->IsChildOf(ASkeletalMeshActor::StaticClass()));
-					// checked
-					ASkeletalMeshActor* SkeletalMeshActor = CastChecked<ASkeletalMeshActor>( World->SpawnActor( ToClass, &Info.Location, &Info.Rotation, SpawnInfo ));
-					SkeletalMeshActor->UnregisterAllComponents();
-					Info.SetToActor(SkeletalMeshActor, SkeletalMeshActor->GetSkeletalMeshComponent());
-					SkeletalMeshActor->RegisterAllComponents();
-					SelectActor( SkeletalMeshActor, true, false );
-					Actor = SkeletalMeshActor;
-				}
-
-				// Fix up the actor group.
-				if( Actor )
-				{
-					if( Info.ActorGroup )
-					{
-						Info.ActorGroup->Add(*Actor);
-						Info.ActorGroup->Add(*Actor);
-					}
-				}
-			}
-		}
-
-		GetSelectedActors()->EndBatchSelectOperation();
-	}
+	UEditorActorSubsystem::ConvertActorsFromClass(FromClass, ToClass);
 }
 
 void UEditorEngine::BuildReflectionCaptures(UWorld* World)
@@ -4380,6 +3959,10 @@ void UEditorEngine::ParentActors( AActor* ParentActor, AActor* ChildActor, const
 		// Snap to socket if a valid socket name was provided, otherwise attach without changing the relative transform
 		ChildRoot->AttachToComponent(Component ? Component : ParentRoot, FAttachmentTransformRules::KeepWorldTransform, SocketName);
 
+		// Update recursively attached actor folder using top most parent folder
+		const AActor* TopMostAttachParentActor = ActorAttachmentHelper::GetTopMostAttachParentActor(ParentActor);
+		ChildActor->SetFolderPath_Recursively(TopMostAttachParentActor->GetFolderPath());
+
 		// Refresh editor in case child was translated after snapping to socket
 		RedrawLevelEditingViewports();
 	}
@@ -4402,7 +3985,10 @@ bool UEditorEngine::DetachSelectedActors()
 			OldParentActor->Modify(false);
 			RootComp->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
 			bDetachOccurred = true;
-			Actor->SetFolderPath_Recursively(OldParentActor->GetFolderPath());
+
+			// Update recursively detached actor folder using top most parent folder
+			const AActor* TopMostAttachParentActor = ActorAttachmentHelper::GetTopMostAttachParentActor(OldParentActor);
+			Actor->SetFolderPath_Recursively(TopMostAttachParentActor->GetFolderPath());
 		}
 	}
 	return bDetachOccurred;
@@ -4631,7 +4217,12 @@ bool UEditorEngine::InitializePhysicsSceneForSaveIfNecessary(UWorld* World, bool
 		else
 		{
 			// If we aren't already initialized, initialize now and create a physics scene. Don't create an FX system because it uses too much video memory for bulk operations
-			World->InitWorld(GetEditorWorldInitializationValues().CreateFXSystem(false).CreatePhysicsScene(true));
+			World->InitWorld(
+				GetEditorWorldInitializationValues()
+				.CreateFXSystem(false)
+				.CreateAISystem(false)
+				.CreateNavigation(false)
+				.CreatePhysicsScene(true));
 			bOutForceInitialized = true;
 		}
 
@@ -5100,7 +4691,7 @@ FString UEditorEngine::GetFriendlyName( const FProperty* Property, UStruct* Owne
 	{
 		FString PropertyPathName = Property->GetPathName(CurrentStruct);
 
-		DidFindText = FText::FindText(*CurrentStruct->GetName(), *(PropertyPathName + TEXT(".FriendlyName")), /*OUT*/FoundText );
+		DidFindText = FText::FindTextInLiveTable_Advanced(*CurrentStruct->GetName(), *(PropertyPathName + TEXT(".FriendlyName")), /*OUT*/FoundText );
 		CurrentStruct = CurrentStruct->GetSuperStruct();
 	} while( CurrentStruct != NULL && CurrentStruct->IsChildOf(RealOwnerStruct) && !DidFindText );
 
@@ -5167,1239 +4758,34 @@ AActor* UEditorEngine::UseActorFactory( UActorFactory* Factory, const FAssetData
 	return NewActor;
 }
 
-namespace ReattachActorsHelper
-{
-	/** Holds the actor and socket name for attaching. */
-	struct FActorAttachmentInfo
-	{
-		AActor* Actor;
-
-		FName SocketName;
-	};
-
-	/** Used to cache the attachment info for an actor. */
-	struct FActorAttachmentCache
-	{
-	public:
-		/** The post-conversion actor. */
-		AActor* NewActor;
-
-		/** The parent actor and socket. */
-		FActorAttachmentInfo ParentActor;
-
-		/** Children actors and the sockets they were attached to. */
-		TArray<FActorAttachmentInfo> AttachedActors;
-	};
-
-	/** 
-	 * Caches the attachment info for the actors being converted.
-	 *
-	 * @param InActorsToReattach			List of actors to reattach.
-	 * @param InOutAttachmentInfo			List of attachment info for the list of actors.
-	 */
-	void CacheAttachments(const TArray<AActor*>& InActorsToReattach, TArray<FActorAttachmentCache>& InOutAttachmentInfo)
-	{
-		for( int32 ActorIdx = 0; ActorIdx < InActorsToReattach.Num(); ++ActorIdx )
-		{
-			AActor* ActorToReattach = InActorsToReattach[ ActorIdx ];
-
-			InOutAttachmentInfo.AddZeroed();
-
-			FActorAttachmentCache& CurrentAttachmentInfo = InOutAttachmentInfo[ActorIdx];
-
-			// Retrieve the list of attached actors.
-			TArray<AActor*> AttachedActors;
-			ActorToReattach->GetAttachedActors(AttachedActors);
-
-			// Cache the parent actor and socket name.
-			CurrentAttachmentInfo.ParentActor.Actor = ActorToReattach->GetAttachParentActor();
-			CurrentAttachmentInfo.ParentActor.SocketName = ActorToReattach->GetAttachParentSocketName();
-
-			// Required to restore attachments properly.
-			for( int32 AttachedActorIdx = 0; AttachedActorIdx < AttachedActors.Num(); ++AttachedActorIdx )
-			{
-				// Store the attached actor and socket name in the cache.
-				CurrentAttachmentInfo.AttachedActors.AddZeroed();
-				CurrentAttachmentInfo.AttachedActors[AttachedActorIdx].Actor = AttachedActors[AttachedActorIdx];
-				CurrentAttachmentInfo.AttachedActors[AttachedActorIdx].SocketName = AttachedActors[AttachedActorIdx]->GetAttachParentSocketName();
-
-				AActor* ChildActor = CurrentAttachmentInfo.AttachedActors[AttachedActorIdx].Actor;
-				ChildActor->Modify();
-				ChildActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-			}
-
-			// Modify the actor so undo will reattach it.
-			ActorToReattach->Modify();
-			ActorToReattach->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		}
-	}
-
-	/** 
-	 * Caches the actor old/new information, mapping the old actor to the new version for easy look-up and matching.
-	 *
-	 * @param InOldActor			The old version of the actor.
-	 * @param InNewActor			The new version of the actor.
-	 * @param InOutReattachmentMap	Map object for placing these in.
-	 * @param InOutAttachmentInfo	Update the required attachment info to hold the Converted Actor.
-	 */
-	void CacheActorConvert(AActor* InOldActor, AActor* InNewActor, TMap<AActor*, AActor*>& InOutReattachmentMap, FActorAttachmentCache& InOutAttachmentInfo)
-	{
-		// Add mapping data for the old actor to the new actor.
-		InOutReattachmentMap.Add(InOldActor, InNewActor);
-
-		// Set the converted actor so re-attachment can occur.
-		InOutAttachmentInfo.NewActor = InNewActor;
-	}
-
-	/** 
-	 * Checks if two actors can be attached, creates Message Log messages if there are issues.
-	 *
-	 * @param InParentActor			The parent actor.
-	 * @param InChildActor			The child actor.
-	 * @param InOutErrorMessages	Errors with attaching the two actors are stored in this array.
-	 *
-	 * @return Returns true if the actors can be attached, false if they cannot.
-	 */
-	bool CanParentActors(AActor* InParentActor, AActor* InChildActor)
-	{
-		FText ReasonText;
-		if (GEditor->CanParentActors(InParentActor, InChildActor, &ReasonText))
-		{
-			return true;
-		}
-		else
-		{
-			FMessageLog("EditorErrors").Error(ReasonText);
-			return false;
-		}
-	}
-
-	/** 
-	 * Reattaches actors to maintain the hierarchy they had previously using a conversion map and an array of attachment info. All errors displayed in Message Log along with notifications.
-	 *
-	 * @param InReattachmentMap			Used to find the corresponding new versions of actors using an old actor pointer.
-	 * @param InAttachmentInfo			Holds parent and child attachment data.
-	 */
-	void ReattachActors(TMap<AActor*, AActor*>& InReattachmentMap, TArray<FActorAttachmentCache>& InAttachmentInfo)
-	{
-		// Holds the errors for the message log.
-		FMessageLog EditorErrors("EditorErrors");
-		EditorErrors.NewPage(LOCTEXT("AttachmentLogPage", "Actor Reattachment"));
-
-		for( int32 ActorIdx = 0; ActorIdx < InAttachmentInfo.Num(); ++ActorIdx )
-		{
-			FActorAttachmentCache& CurrentAttachment = InAttachmentInfo[ActorIdx];
-
-			// Need to reattach all of the actors that were previously attached.
-			for( int32 AttachedIdx = 0; AttachedIdx < CurrentAttachment.AttachedActors.Num(); ++AttachedIdx )
-			{
-				// Check if the attached actor was converted. If it was it will be in the TMap.
-				AActor** CheckIfConverted = InReattachmentMap.Find(CurrentAttachment.AttachedActors[AttachedIdx].Actor);
-				if(CheckIfConverted)
-				{
-					// This should always be valid.
-					if(*CheckIfConverted)
-					{
-						AActor* ParentActor = CurrentAttachment.NewActor;
-						AActor* ChildActor = *CheckIfConverted;
-
-						if (CanParentActors(ParentActor, ChildActor))
-						{
-							// Attach the previously attached and newly converted actor to the current converted actor.
-							ChildActor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, CurrentAttachment.AttachedActors[AttachedIdx].SocketName);
-						}
-					}
-
-				}
-				else
-				{
-					AActor* ParentActor = CurrentAttachment.NewActor;
-					AActor* ChildActor = CurrentAttachment.AttachedActors[AttachedIdx].Actor;
-
-					if (CanParentActors(ParentActor, ChildActor))
-					{
-						// Since the actor was not converted, reattach the unconverted actor.
-						ChildActor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, CurrentAttachment.AttachedActors[AttachedIdx].SocketName);
-					}
-				}
-
-			}
-
-			// Check if the parent was converted.
-			AActor** CheckIfNewActor = InReattachmentMap.Find(CurrentAttachment.ParentActor.Actor);
-			if(CheckIfNewActor)
-			{
-				// Since the actor was converted, attach the current actor to it.
-				if(*CheckIfNewActor)
-				{
-					AActor* ParentActor = *CheckIfNewActor;
-					AActor* ChildActor = CurrentAttachment.NewActor;
-
-					if (CanParentActors(ParentActor, ChildActor))
-					{
-						ChildActor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, CurrentAttachment.ParentActor.SocketName);
-					}
-				}
-
-			}
-			else
-			{
-				AActor* ParentActor = CurrentAttachment.ParentActor.Actor;
-				AActor* ChildActor = CurrentAttachment.NewActor;
-
-				// Verify the parent is valid, the actor may not have actually been attached before.
-				if (ParentActor && CanParentActors(ParentActor, ChildActor))
-				{
-					// The parent was not converted, attach to the unconverted parent.
-					ChildActor->AttachToActor(ParentActor, FAttachmentTransformRules::KeepWorldTransform, CurrentAttachment.ParentActor.SocketName);
-				}
-			}
-		}
-
-		// Add the errors to the message log, notifications will also be displayed as needed.
-		EditorErrors.Notify(NSLOCTEXT("ActorAttachmentError", "AttachmentsFailed", "Attachments Failed!"));
-	}
-}
-
 void UEditorEngine::ReplaceSelectedActors(UActorFactory* Factory, const FAssetData& AssetData, bool bCopySourceProperties)
 {
-	UObject* ObjectForFactory = NULL;
-
-	// Provide the option to abort the delete
-	if (ShouldAbortActorDeletion())
-	{
-		return;
-	}
-	else if (Factory != nullptr)
-	{
-		FText ActorErrorMsg;
-		if (!Factory->CanCreateActorFrom( AssetData, ActorErrorMsg))
-		{
-			FMessageDialog::Open( EAppMsgType::Ok, ActorErrorMsg );
-			return;
-		}
-	}
-	else
-	{
-		UE_LOG(LogEditor, Error, TEXT("UEditorEngine::ReplaceSelectedActors() called with NULL parameters!"));
-		return;
-	}
-
-	const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "Replace Actors", "Replace Actor(s)") );
-
-	// construct a list of Actors to replace in a separate pass so we can modify the selection set as we perform the replacement
-	TArray<AActor*> ActorsToReplace;
-	for (FSelectionIterator It = GetSelectedActorIterator(); It; ++It)
-	{
-		AActor* Actor = Cast<AActor>(*It);
-		if ( Actor && Actor->IsUserManaged() && !FActorEditorUtils::IsABuilderBrush(Actor) )
-		{
-			ActorsToReplace.Add(Actor);
-		}
-	}
-
-	ReplaceActors(Factory, AssetData, ActorsToReplace, nullptr, bCopySourceProperties);
+	UEditorActorSubsystem::ReplaceSelectedActors(Factory, AssetData, bCopySourceProperties);
 }
 
 void UEditorEngine::ReplaceActors(UActorFactory* Factory, const FAssetData& AssetData, const TArray<AActor*>& ActorsToReplace, TArray<AActor*>* OutNewActors, bool bCopySourceProperties)
 {
-	// Cache for attachment info of all actors being converted.
-	TArray<ReattachActorsHelper::FActorAttachmentCache> AttachmentInfo;
-
-	// Maps actors from old to new for quick look-up.
-	TMap<AActor*, AActor*> ConvertedMap;
-
-	// Cache the current attachment states.
-	ReattachActorsHelper::CacheAttachments(ActorsToReplace, AttachmentInfo);
-
-	USelection* SelectedActors = GetSelectedActors();
-	SelectedActors->BeginBatchSelectOperation();
-	SelectedActors->Modify();
-
-	UObject* Asset = AssetData.GetAsset();
-	for(int32 ActorIdx = 0; ActorIdx < ActorsToReplace.Num(); ++ActorIdx)
-	{
-		AActor* OldActor = ActorsToReplace[ActorIdx];//.Pop();
-		check(OldActor);
-		UWorld* World = OldActor->GetWorld();
-		ULevel* Level = OldActor->GetLevel();
-		AActor* NewActor = NULL;
-
-		// Destroy any non-native constructed components, but make sure we grab the transform first in case it has a
-		// non-native root component. These will be reconstructed as part of the new actor when it's created/instanced.
-		const FTransform OldTransform = OldActor->ActorToWorld();
-		OldActor->DestroyConstructedComponents();
-
-		// Unregister this actors components because we are effectively replacing it with an actor sharing the same ActorGuid.
-		// This allows it to be unregistered before a new actor with the same guid gets registered avoiding conflicts.
-		OldActor->UnregisterAllComponents();
-
-		const FName OldActorName = OldActor->GetFName();
-		const FName OldActorReplacedNamed = MakeUniqueObjectName(OldActor->GetOuter(), OldActor->GetClass(), *FString::Printf(TEXT("%s_REPLACED"), *OldActorName.ToString()));
-		
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Name = OldActorName;
-		SpawnParams.bCreateActorPackage = false;
-		SpawnParams.OverridePackage = OldActor->GetExternalPackage();
-		SpawnParams.OverrideActorGuid = OldActor->GetActorGuid();
-				
-		// Don't go through AActor::Rename here because we aren't changing outers (the actor's level) and we also don't want to reset loaders
-		// if the actor is using an external package. We really just want to rename that actor out of the way so we can spawn the new one in
-		// the exact same package, keeping the package name intact.
-		OldActor->UObject::Rename(*OldActorReplacedNamed.ToString(), OldActor->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
-
-		// create the actor
-		NewActor = Factory->CreateActor(Asset, Level, OldTransform, SpawnParams);
-		// For blueprints, try to copy over properties
-		if (bCopySourceProperties && Factory->IsA(UActorFactoryBlueprint::StaticClass()))
-		{
-			UBlueprint* Blueprint = CastChecked<UBlueprint>(Asset);
-			// Only try to copy properties if this blueprint is based on the actor
-			UClass* OldActorClass = OldActor->GetClass();
-			if (Blueprint->GeneratedClass->IsChildOf(OldActorClass) && NewActor != NULL)
-			{
-				NewActor->UnregisterAllComponents();
-				FCopyPropertiesForUnrelatedObjectsParams Options;
-				Options.bNotifyObjectReplacement = true;
-				UEditorEngine::CopyPropertiesForUnrelatedObjects(OldActor, NewActor, Options);
-				NewActor->RegisterAllComponents();
-			}
-		}
-
-		if (NewActor)
-		{
-			// The new actor might not have a root component
-			USceneComponent* const NewActorRootComponent = NewActor->GetRootComponent();
-			if(NewActorRootComponent)
-			{
-				if(!GetDefault<ULevelEditorMiscSettings>()->bReplaceRespectsScale || OldActor->GetRootComponent() == NULL )
-				{
-					NewActorRootComponent->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-				}
-				else
-				{
-					NewActorRootComponent->SetRelativeScale3D( OldActor->GetRootComponent()->GetRelativeScale3D() );
-				}
-
-				if (OldActor->GetRootComponent() != NULL)
-				{
-					NewActorRootComponent->SetMobility(OldActor->GetRootComponent()->Mobility);
-				}
-			}
-
-			NewActor->Layers.Empty();
-			ULayersSubsystem* LayersSubsystem = GetEditorSubsystem<ULayersSubsystem>();
-			LayersSubsystem->AddActorToLayers( NewActor, OldActor->Layers );
-
-			// Allow actor derived classes a chance to replace properties.
-			NewActor->EditorReplacedActor(OldActor);
-
-			// Caches information for finding the new actor using the pre-converted actor.
-			ReattachActorsHelper::CacheActorConvert(OldActor, NewActor, ConvertedMap, AttachmentInfo[ActorIdx]);
-
-			if (SelectedActors->IsSelected(OldActor))
-			{
-				// Avoid notifications as we are in a Batch Select Operation
-				const bool bNotify = false;
-				SelectActor(OldActor, false, bNotify);
-				SelectActor(NewActor, true, bNotify);
-			}
-
-			// Find compatible static mesh components and copy instance colors between them.
-			UStaticMeshComponent* NewActorStaticMeshComponent = NewActor->FindComponentByClass<UStaticMeshComponent>();
-			UStaticMeshComponent* OldActorStaticMeshComponent = OldActor->FindComponentByClass<UStaticMeshComponent>();
-			if ( NewActorStaticMeshComponent != NULL && OldActorStaticMeshComponent != NULL )
-			{
-				NewActorStaticMeshComponent->CopyInstanceVertexColorsIfCompatible( OldActorStaticMeshComponent );
-			}
-
-			NewActor->InvalidateLightingCache();
-			NewActor->PostEditMove(true);
-			NewActor->MarkPackageDirty();
-
-			TSet<ULevel*> LevelsToRebuildBSP;
-			ABrush* Brush = Cast<ABrush>(OldActor);
-			if (Brush && !FActorEditorUtils::IsABuilderBrush(Brush)) // Track whether or not a brush actor was deleted.
-			{
-				ULevel* BrushLevel = OldActor->GetLevel();
-				if (BrushLevel && !Brush->IsVolumeBrush())
-				{
-					BrushLevel->Model->Modify(false);
-					LevelsToRebuildBSP.Add(BrushLevel);
-				}
-			}
-
-			// Replace references in the level script Blueprint with the new Actor
-			const bool bDontCreate = true;
-			ULevelScriptBlueprint* LSB = NewActor->GetLevel()->GetLevelScriptBlueprint(bDontCreate);
-			if( LSB )
-			{
-				// Only if the level script blueprint exists would there be references.  
-				FBlueprintEditorUtils::ReplaceAllActorRefrences(LSB, OldActor, NewActor);
-			}
-
-			LayersSubsystem->DisassociateActorFromLayers( OldActor );
-			World->EditorDestroyActor(OldActor, true);
-
-			// If any brush actors were modified, update the BSP in the appropriate levels
-			if (LevelsToRebuildBSP.Num())
-			{
-				FlushRenderingCommands();
-
-				for (ULevel* LevelToRebuild : LevelsToRebuildBSP)
-				{
-					GEditor->RebuildLevel(*LevelToRebuild);
-				}
-			}
-		}
-		else
-		{
-			// If creating the new Actor failed, put the old Actor's name back
-			OldActor->UObject::Rename(*OldActorName.ToString(), OldActor->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
-			OldActor->RegisterAllComponents();
-		}
-	}
-
-	const bool bNotify = true;
-	SelectedActors->EndBatchSelectOperation(bNotify);
-
-	// Reattaches actors based on their previous parent child relationship.
-	ReattachActorsHelper::ReattachActors(ConvertedMap, AttachmentInfo);
-
-
-	// Output new actors and
-	// Perform reference replacement on all Actors referenced by World
-	TArray<UObject*> ReferencedLevels;
-	if (OutNewActors)
-	{
-		OutNewActors->Reserve(ConvertedMap.Num());
-	}
-	for (const TPair<AActor*, AActor*>& ReplacedObj : ConvertedMap)
-	{
-		ReferencedLevels.AddUnique(ReplacedObj.Value->GetLevel());
-		if (OutNewActors)
-		{
-			OutNewActors->Add(ReplacedObj.Value);
-		}
-	}
-
-	for (UObject* Referencer : ReferencedLevels)
-	{
-		constexpr EArchiveReplaceObjectFlags ArFlags = (EArchiveReplaceObjectFlags::IgnoreOuterRef | EArchiveReplaceObjectFlags::TrackReplacedReferences);
-		FArchiveReplaceObjectRef<AActor> Ar(Referencer, ConvertedMap, ArFlags);
-
-		for (const TPair<UObject*, TArray<FProperty*>>& MapItem : Ar.GetReplacedReferences())
-		{
-			UObject* ModifiedObject = MapItem.Key;
-
-			if (!ModifiedObject->HasAnyFlags(RF_Transient) && ModifiedObject->GetOutermost() != GetTransientPackage() && !ModifiedObject->RootPackageHasAnyFlags(PKG_CompiledIn))
-			{
-				ModifiedObject->MarkPackageDirty();
-			}
-
-			for (FProperty* Property : MapItem.Value)
-			{
-				FPropertyChangedEvent PropertyEvent(Property);
-				ModifiedObject->PostEditChangeProperty(PropertyEvent);
-			}
-		}
-	}
-
-	RedrawLevelEditingViewports();
-
-	ULevel::LevelDirtiedEvent.Broadcast();
-}
-
-
-/* Gets the common components of a specific type between two actors so that they may be copied.
- * 
- * @param InOldActor		The actor to copy component properties from
- * @param InNewActor		The actor to copy to
- */
-static void CopyLightComponentProperties( const AActor& InOldActor, AActor& InNewActor )
-{
-	// Since this is only being used for lights, make sure only the light component can be copied.
-	const UClass* CopyableComponentClass =  ULightComponent::StaticClass();
-
-	// Get the light component from the default actor of source actors class.
-	// This is so we can avoid copying properties that have not changed. 
-	// using ULightComponent::StaticClass()->GetDefaultObject() will not work since each light actor sets default component properties differently.
-	ALight* OldActorDefaultObject = InOldActor.GetClass()->GetDefaultObject<ALight>();
-	check(OldActorDefaultObject);
-	UActorComponent* DefaultLightComponent = OldActorDefaultObject->GetLightComponent();
-	check(DefaultLightComponent);
-
-	// The component we are copying from class
-	UClass* CompToCopyClass = NULL;
-	UActorComponent* LightComponentToCopy = NULL;
-
-	// Go through the old actor's components and look for a light component to copy.
-	for (UActorComponent* Component : InOldActor.GetComponents())
-	{
-		if (Component && Component->IsRegistered() && Component->IsA( CopyableComponentClass ) ) 
-		{
-			// A light component has been found. 
-			CompToCopyClass = Component->GetClass();
-			LightComponentToCopy = Component;
-			break;
-		}
-	}
-
-	// The light component from the new actor
-	UActorComponent* NewActorLightComponent = NULL;
-	// The class of the new actors light component
-	const UClass* CommonLightComponentClass = NULL;
-
-	// Don't do anything if there is no valid light component to copy from
-	if( LightComponentToCopy )
-	{
-		// Find a light component to overwrite in the new actor
-		for (UActorComponent* Component : InNewActor.GetComponents())
-		{
-			if (Component && Component->IsRegistered())
-			{
-				// Find a common component class between the new and old actor.   
-				// This needs to be done so we can copy as many properties as possible. 
-				// For example: if we are converting from a point light to a spot light, the point light component will be the common superclass.
-				// That way we can copy properties like light radius, which would have been impossible if we just took the base LightComponent as the common class.
-				const UClass* CommonSuperclass = Component->FindNearestCommonBaseClass( CompToCopyClass );
-
-				if( CommonSuperclass->IsChildOf( CopyableComponentClass ) )
-				{
-					NewActorLightComponent = Component;
-					CommonLightComponentClass = CommonSuperclass;
-				}
-			}
-		}
-	}
-
-	// Don't do anything if there is no valid light component to copy to
-	if( NewActorLightComponent )
-	{
-		bool bCopiedAnyProperty = false;
-
-		// Find and copy the lightmass settings directly as they need to be examined and copied individually and not by the entire light mass settings struct
-		const FString LightmassPropertyName = TEXT("LightmassSettings");
-
-		FProperty* PropertyToCopy = NULL;
-		for( FProperty* Property = CompToCopyClass->PropertyLink; Property != NULL; Property = Property->PropertyLinkNext )
-		{
-			if( Property->GetName() == LightmassPropertyName )
-			{
-				// Get the offset in the old actor where lightmass properties are stored.
-				PropertyToCopy = Property;
-				break;
-			}
-		}
-
-		if( PropertyToCopy != NULL )
-		{
-			void* PropertyToCopyBaseLightComponentToCopy = PropertyToCopy->ContainerPtrToValuePtr<void>(LightComponentToCopy);
-			void* PropertyToCopyBaseDefaultLightComponent = PropertyToCopy->ContainerPtrToValuePtr<void>(DefaultLightComponent);
-			// Find the location of the lightmass settings in the new actor (if any)
-			for( FProperty* NewProperty = NewActorLightComponent->GetClass()->PropertyLink; NewProperty != NULL; NewProperty = NewProperty->PropertyLinkNext )
-			{
-				if( NewProperty->GetName() == LightmassPropertyName )
-				{
-					FStructProperty* OldLightmassProperty = CastField<FStructProperty>(PropertyToCopy);
-					FStructProperty* NewLightmassProperty = CastField<FStructProperty>(NewProperty);
-
-					void* NewPropertyBaseNewActorLightComponent = NewProperty->ContainerPtrToValuePtr<void>(NewActorLightComponent);
-					// The lightmass settings are a struct property so the cast should never fail.
-					check(OldLightmassProperty);
-					check(NewLightmassProperty);
-
-					// Iterate through each property field in the lightmass settings struct that we are copying from...
-					for( TFieldIterator<FProperty> OldIt(OldLightmassProperty->Struct); OldIt; ++OldIt)
-					{
-						FProperty* OldLightmassField = *OldIt;
-
-						// And search for the same field in the lightmass settings struct we are copying to.
-						// We should only copy to fields that exist in both structs.
-						// Even though their offsets match the structs may be different depending on what type of light we are converting to
-						bool bPropertyFieldFound = false;
-						for( TFieldIterator<FProperty> NewIt(NewLightmassProperty->Struct); NewIt; ++NewIt)
-						{
-							FProperty* NewLightmassField = *NewIt;
-							if( OldLightmassField->GetName() == NewLightmassField->GetName() )
-							{
-								// The field is in both structs.  Ok to copy
-								bool bIsIdentical = OldLightmassField->Identical_InContainer(PropertyToCopyBaseLightComponentToCopy, PropertyToCopyBaseDefaultLightComponent);
-								if( !bIsIdentical )
-								{
-									// Copy if the value has changed
-									OldLightmassField->CopySingleValue(NewLightmassField->ContainerPtrToValuePtr<void>(NewPropertyBaseNewActorLightComponent), OldLightmassField->ContainerPtrToValuePtr<void>(PropertyToCopyBaseLightComponentToCopy));
-									bCopiedAnyProperty = true;
-								}
-								break;
-							}
-						}
-					}
-					// No need to continue once we have found the lightmass settings
-					break;
-				}
-			}
-		}
-
-
-
-		// Now Copy the light component properties.
-		for( FProperty* Property = CommonLightComponentClass->PropertyLink; Property != NULL; Property = Property->PropertyLinkNext )
-		{
-			bool bIsTransient = !!(Property->PropertyFlags & (CPF_Transient | CPF_DuplicateTransient | CPF_NonPIEDuplicateTransient));
-			// Properties are identical if they have not changed from the light component on the default source actor
-			bool bIsIdentical = Property->Identical_InContainer(LightComponentToCopy, DefaultLightComponent);
-			bool bIsComponent = !!(Property->PropertyFlags & (CPF_InstancedReference | CPF_ContainsInstancedReference));
-
-			if ( !bIsTransient && !bIsIdentical && !bIsComponent && Property->GetName() != LightmassPropertyName )
-			{
-				bCopiedAnyProperty = true;
-				// Copy only if not native, not transient, not identical, not a component (at this time don't copy components within components)
-				// Also dont copy lightmass settings, those were examined and taken above
-				Property->CopyCompleteValue_InContainer(NewActorLightComponent, LightComponentToCopy);
-			}
-		}	
-
-		if (bCopiedAnyProperty)
-		{
-			NewActorLightComponent->PostEditChange();
-		}
-	}
-}
-
-
-void UEditorEngine::ConvertLightActors( UClass* ConvertToClass )
-{
-	// Provide the option to abort the conversion
-	if ( ShouldAbortActorDeletion() )
-	{
-		return;
-	}
-
-	// List of actors to convert
-	TArray< AActor* > ActorsToConvert;
-
-	// Get a list of valid actors to convert.
-	for( FSelectionIterator It( GetSelectedActorIterator() ) ; It ; ++It )
-	{
-		AActor* ActorToConvert = static_cast<AActor*>( *It );
-		// Prevent non light actors from being converted
-		// Also prevent light actors from being converted if they are the same time as the new class
-		if( ActorToConvert->IsA( ALight::StaticClass() ) && ActorToConvert->GetClass() != ConvertToClass )
-		{
-			ActorsToConvert.Add( ActorToConvert );
-		}
-	}
-
-	if (ActorsToConvert.Num())
-	{
-		GetSelectedActors()->BeginBatchSelectOperation();
-
-		// Undo/Redo support
-		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "ConvertLights", "Convert Light") );
-
-		int32 NumLightsConverted = 0;
-		int32 NumLightsToConvert = ActorsToConvert.Num();
-
-		// Convert each light 
-		ULayersSubsystem* LayersSubsystem = GetEditorSubsystem<ULayersSubsystem>();
-		for( int32 ActorIdx = 0; ActorIdx < ActorsToConvert.Num(); ++ActorIdx )
-		{
-			AActor* ActorToConvert = ActorsToConvert[ ActorIdx ];
-
-			check( ActorToConvert );
-			// The class of the actor we are about to replace
-			UClass* ClassToReplace = ActorToConvert->GetClass();
-
-			// Set the current level to the level where the convertible actor resides
-			UWorld* World = ActorToConvert->GetWorld();
-			check( World );
-			ULevel* ActorLevel = ActorToConvert->GetLevel();
-			checkSlow( ActorLevel != NULL );
-
-			// Find a common superclass between the actors so we know what properties to copy
-			const UClass* CommonSuperclass = ActorToConvert->FindNearestCommonBaseClass( ConvertToClass );
-			check ( CommonSuperclass );
-
-			// spawn the new actor
-			AActor* NewActor = NULL;	
-
-			// Take the old actors location always, not rotation.  If rotation was changed on the source actor, it will be copied below.
-			FVector const SpawnLoc = ActorToConvert->GetActorLocation();
-			FActorSpawnParameters SpawnInfo;
-			SpawnInfo.OverrideLevel = ActorLevel;
-			NewActor = World->SpawnActor( ConvertToClass, &SpawnLoc, NULL, SpawnInfo );
-			// The new actor must exist
-			check(NewActor);
-
-			// Copy common light component properties
-			CopyLightComponentProperties( *ActorToConvert, *NewActor );
-
-			// Select the new actor
-			SelectActor( ActorToConvert, false, true );
-	
-
-			NewActor->InvalidateLightingCache();
-			NewActor->PostEditChange();
-			NewActor->PostEditMove( true );
-			NewActor->Modify();
-			LayersSubsystem->InitializeNewActorLayers( NewActor );
-
-			// We have converted another light.
-			++NumLightsConverted;
-
-			UE_LOG(LogEditor, Log, TEXT("Converted: %s to %s"), *ActorToConvert->GetName(), *NewActor->GetName() );
-
-			// Destroy the old actor.
-			LayersSubsystem->DisassociateActorFromLayers(ActorToConvert);
-			World->EditorDestroyActor( ActorToConvert, true );
-
-			if (!IsValidChecked(NewActor) || NewActor->IsUnreachable())
-			{
-				UE_LOG(LogEditor, Log, TEXT("Newly converted actor ('%s') is pending kill"), *NewActor->GetName());
-			}
-			SelectActor(NewActor, true, true);
-		}
-
-		GetSelectedActors()->EndBatchSelectOperation();
-		RedrawLevelEditingViewports();
-
-		ULevel::LevelDirtiedEvent.Broadcast();
-	}
-}
-
-/**
- * Internal helper function to copy component properties from one actor to another. Only copies properties
- * from components if the source actor, source actor class default object, and destination actor all contain
- * a component of the same name (specified by parameter) and all three of those components share a common base
- * class, at which point properties from the common base are copied. Component template names are used instead of
- * component classes because an actor could potentially have multiple components of the same class.
- *
- * @param	SourceActor		Actor to copy component properties from
- * @param	DestActor		Actor to copy component properties to
- * @param	ComponentNames	Set of component template names to attempt to copy
- */
-void CopyActorComponentProperties( const AActor* SourceActor, AActor* DestActor, const TSet<FString>& ComponentNames )
-{
-	// Don't attempt to copy anything if the user didn't specify component names to copy
-	if ( ComponentNames.Num() > 0 )
-	{
-		check( SourceActor && DestActor );
-		const AActor* SrcActorDefaultActor = SourceActor->GetClass()->GetDefaultObject<AActor>();
-		check( SrcActorDefaultActor );
-
-		// Construct a mapping from the default actor of its relevant component names to its actual components. Here relevant component
-		// names are those that match a name provided as a parameter.
-		TMap<FString, const UActorComponent*> NameToDefaultComponentMap; 
-		for (UActorComponent* CurComp : SrcActorDefaultActor->GetComponents())
-		{
-			if (CurComp)
-			{
-				FString CurCompName = CurComp->GetName();
-				if (ComponentNames.Contains(CurCompName))
-				{
-					NameToDefaultComponentMap.Add(MoveTemp(CurCompName), CurComp);
-				}
-			}
-		}
-
-		// Construct a mapping from the source actor of its relevant component names to its actual components. Here relevant component names
-		// are those that match a name provided as a parameter.
-		TMap<FString, const UActorComponent*> NameToSourceComponentMap;
-		for (UActorComponent* CurComp : SourceActor->GetComponents())
-		{
-			if (CurComp)
-			{
-				FString CurCompName = CurComp->GetName();
-				if (ComponentNames.Contains(CurCompName))
-				{
-					NameToSourceComponentMap.Add(MoveTemp(CurCompName), CurComp);
-				}
-			}
-		}
-
-		bool bCopiedAnyProperty = false;
-
-		TInlineComponentArray<UActorComponent*> DestComponents;
-		DestActor->GetComponents(DestComponents);
-
-		// Iterate through all of the destination actor's components to find the ones which should have properties copied into them.
-		for ( TInlineComponentArray<UActorComponent*>::TIterator DestCompIter( DestComponents ); DestCompIter; ++DestCompIter )
-		{
-			UActorComponent* CurComp = *DestCompIter;
-			check( CurComp );
-
-			const FString CurCompName = CurComp->GetName();
-
-			// Check if the component is one that the user wanted to copy properties into
-			if ( ComponentNames.Contains( CurCompName ) )
-			{
-				const UActorComponent** DefaultComponent = NameToDefaultComponentMap.Find( CurCompName );
-				const UActorComponent** SourceComponent = NameToSourceComponentMap.Find( CurCompName );
-
-				// Make sure that both the default actor and the source actor had a component of the same name
-				if ( DefaultComponent && SourceComponent )
-				{
-					const UClass* CommonBaseClass = NULL;
-					const UClass* DefaultCompClass = (*DefaultComponent)->GetClass();
-					const UClass* SourceCompClass = (*SourceComponent)->GetClass();
-
-					// Handle the unlikely case of the default component and the source actor component not being the exact same class by finding
-					// the common base class across all three components (default, source, and destination)
-					if ( DefaultCompClass != SourceCompClass )
-					{
-						const UClass* CommonBaseClassWithDefault = CurComp->FindNearestCommonBaseClass( DefaultCompClass );
-						const UClass* CommonBaseClassWithSource = CurComp->FindNearestCommonBaseClass( SourceCompClass );
-						if ( CommonBaseClassWithDefault && CommonBaseClassWithSource )
-						{
-							// If both components yielded the same common base, then that's the common base of all three
-							if ( CommonBaseClassWithDefault == CommonBaseClassWithSource )
-							{
-								CommonBaseClass = CommonBaseClassWithDefault;
-							}
-							// If not, find a common base across all three components
-							else
-							{
-								CommonBaseClass = const_cast<UClass*>(CommonBaseClassWithDefault)->GetDefaultObject()->FindNearestCommonBaseClass( CommonBaseClassWithSource );
-							}
-						}
-					}
-					else
-					{
-						CommonBaseClass = CurComp->FindNearestCommonBaseClass( DefaultCompClass );
-					}
-
-					// If all three components have a base class in common, copy the properties from that base class from the source actor component
-					// to the destination
-					if ( CommonBaseClass )
-					{
-						// Iterate through the properties, only copying those which are non-native, non-transient, non-component, and not identical
-						// to the values in the default component
-						for ( FProperty* Property = CommonBaseClass->PropertyLink; Property != NULL; Property = Property->PropertyLinkNext )
-						{
-							const bool bIsTransient = !!( Property->PropertyFlags & CPF_Transient );
-							const bool bIsIdentical = Property->Identical_InContainer(*SourceComponent, *DefaultComponent);
-							const bool bIsComponent = !!( Property->PropertyFlags & (CPF_InstancedReference | CPF_ContainsInstancedReference) );
-
-							if ( !bIsTransient && !bIsIdentical && !bIsComponent )
-							{
-								bCopiedAnyProperty = true;
-								Property->CopyCompleteValue_InContainer(CurComp, *SourceComponent);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// If any properties were copied at all, alert the actor to the changes
-		if ( bCopiedAnyProperty )
-		{
-			DestActor->PostEditChange();
-		}
-	}
+	UEditorActorSubsystem::ReplaceActors(Factory, AssetData, ActorsToReplace, OutNewActors, bCopySourceProperties);
 }
 
 AActor* UEditorEngine::ConvertBrushesToStaticMesh(const FString& InStaticMeshPackageName, TArray<ABrush*>& InBrushesToConvert, const FVector& InPivotLocation)
 {
-	AActor* NewActor(NULL);
-
-	FName ObjName = *FPackageName::GetLongPackageAssetName(InStaticMeshPackageName);
-
-
-	UPackage* Pkg = CreatePackage( *InStaticMeshPackageName);
-	check(Pkg != nullptr);
-
-	FVector Location(0.0f, 0.0f, 0.0f);
-	FRotator Rotation(0.0f, 0.0f, 0.0f);
-	for(int32 BrushesIdx = 0; BrushesIdx < InBrushesToConvert.Num(); ++BrushesIdx )
-	{
-		// Cache the location and rotation.
-		Location = InBrushesToConvert[BrushesIdx]->GetActorLocation();
-		Rotation = InBrushesToConvert[BrushesIdx]->GetActorRotation();
-
-		// Leave the actor's rotation but move it to origin so the Static Mesh will generate correctly.
-		InBrushesToConvert[BrushesIdx]->TeleportTo(Location - InPivotLocation, Rotation, false, true);
-	}
-
-	RebuildModelFromBrushes(ConversionTempModel, true, true );
-	bspBuildFPolys(ConversionTempModel, true, 0);
-
-	if (0 < ConversionTempModel->Polys->Element.Num())
-	{
-		UStaticMesh* NewMesh = CreateStaticMeshFromBrush(Pkg, ObjName, NULL, ConversionTempModel);
-		NewActor = FActorFactoryAssetProxy::AddActorForAsset( NewMesh );
-
-		NewActor->Modify();
-
-		NewActor->InvalidateLightingCache();
-		NewActor->PostEditChange();
-		NewActor->PostEditMove( true );
-		NewActor->Modify();
-		ULayersSubsystem* LayersSubsystem = GetEditorSubsystem<ULayersSubsystem>();
-		LayersSubsystem->InitializeNewActorLayers(NewActor);
-
-		// Teleport the new actor to the old location but not the old rotation. The static mesh is built to the rotation already.
-		NewActor->TeleportTo(InPivotLocation, FRotator(0.0f, 0.0f, 0.0f), false, true);
-
-		// Destroy the old brushes.
-		for( int32 BrushIdx = 0; BrushIdx < InBrushesToConvert.Num(); ++BrushIdx )
-		{
-			LayersSubsystem->DisassociateActorFromLayers(InBrushesToConvert[BrushIdx]);
-			GWorld->EditorDestroyActor( InBrushesToConvert[BrushIdx], true );
-		}
-
-		// Notify the asset registry
-		IAssetRegistry::GetChecked().AssetCreated(NewMesh);
-	}
-
-	ConversionTempModel->EmptyModel(1, 1);
-	RebuildAlteredBSP();
-	RedrawLevelEditingViewports();
-
-	return NewActor;
+	return UEditorActorSubsystem::ConvertBrushesToStaticMesh(InStaticMeshPackageName, InBrushesToConvert, InPivotLocation);
 }
 
-struct TConvertData
+void UEditorEngine::ConvertLightActors( UClass* ConvertToClass )
 {
-	const TArray<AActor*> ActorsToConvert;
-	UClass* ConvertToClass;
-	const TSet<FString> ComponentsToConsider;
-	bool bUseSpecialCases;
-
-	TConvertData(const TArray<AActor*>& InActorsToConvert, UClass* InConvertToClass, const TSet<FString>& InComponentsToConsider, bool bInUseSpecialCases)
-		: ActorsToConvert(InActorsToConvert)
-		, ConvertToClass(InConvertToClass)
-		, ComponentsToConsider(InComponentsToConsider)
-		, bUseSpecialCases(bInUseSpecialCases)
-	{
-
-	}
-};
-
-namespace ConvertHelpers
-{
-	void OnBrushToStaticMeshNameCommitted(const FString& InSettingsPackageName, TConvertData InConvertData)
-	{
-		GEditor->DoConvertActors(InConvertData.ActorsToConvert, InConvertData.ConvertToClass, InConvertData.ComponentsToConsider, InConvertData.bUseSpecialCases, InSettingsPackageName);
-	}
-
-	void GetBrushList(const TArray<AActor*>& InActorsToConvert, UClass* InConvertToClass, TArray<ABrush*>& OutBrushList, int32& OutBrushIndexForReattachment)
-	{
-		for( int32 ActorIdx = 0; ActorIdx < InActorsToConvert.Num(); ++ActorIdx )
-		{
-			AActor* ActorToConvert = InActorsToConvert[ActorIdx];
-			if (IsValidChecked(ActorToConvert) && ActorToConvert->GetClass()->IsChildOf(ABrush::StaticClass()) && InConvertToClass == AStaticMeshActor::StaticClass())
-			{
-				GEditor->SelectActor(ActorToConvert, true, true);
-				OutBrushList.Add(Cast<ABrush>(ActorToConvert));
-
-				// If this is a single brush conversion then this index will be used for re-attachment.
-				OutBrushIndexForReattachment = ActorIdx;
-			}
-		}
-	}
+	UEditorActorSubsystem::ConvertLightActors(ConvertToClass);
 }
 
 void UEditorEngine::ConvertActors( const TArray<AActor*>& ActorsToConvert, UClass* ConvertToClass, const TSet<FString>& ComponentsToConsider, bool bUseSpecialCases )
 {
-	// Early out if actor deletion is currently forbidden
-	if (ShouldAbortActorDeletion())
-	{
-		return;
-	}
-
-	SelectNone(true, true);
-
-	// List of brushes being converted.
-	TArray<ABrush*> BrushList;
-	int32 BrushIndexForReattachment;
-	ConvertHelpers::GetBrushList(ActorsToConvert, ConvertToClass, BrushList, BrushIndexForReattachment);
-
-	if( BrushList.Num() )
-	{
-		TConvertData ConvertData(ActorsToConvert, ConvertToClass, ComponentsToConsider, bUseSpecialCases);
-
-		TSharedPtr<SWindow> CreateAssetFromActorWindow =
-			SNew(SWindow)
-			.Title(LOCTEXT("SelectPath", "Select Path"))
-			.ToolTipText(LOCTEXT("SelectPathTooltip", "Select the path where the static mesh will be created"))
-			.ClientSize(FVector2D(400, 400));
-
-		TSharedPtr<SCreateAssetFromObject> CreateAssetFromActorWidget;
-		CreateAssetFromActorWindow->SetContent
-			(
-			SAssignNew(CreateAssetFromActorWidget, SCreateAssetFromObject, CreateAssetFromActorWindow)
-			.AssetFilenameSuffix(TEXT("StaticMesh"))
-			.HeadingText(LOCTEXT("ConvertBrushesToStaticMesh_Heading", "Static Mesh Name:"))
-			.CreateButtonText(LOCTEXT("ConvertBrushesToStaticMesh_ButtonLabel", "Create Static Mesh"))
-			.OnCreateAssetAction(FOnPathChosen::CreateStatic(ConvertHelpers::OnBrushToStaticMeshNameCommitted, ConvertData))
-			);
-
-		TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
-		if (RootWindow.IsValid())
-		{
-			FSlateApplication::Get().AddWindowAsNativeChild(CreateAssetFromActorWindow.ToSharedRef(), RootWindow.ToSharedRef());
-		}
-		else
-		{
-			FSlateApplication::Get().AddWindow(CreateAssetFromActorWindow.ToSharedRef());
-		}
-	}
-	else
-	{
-		DoConvertActors(ActorsToConvert, ConvertToClass, ComponentsToConsider, bUseSpecialCases, TEXT(""));
-	}
+	UEditorActorSubsystem::ConvertActors(ActorsToConvert, ConvertToClass, ComponentsToConsider, bUseSpecialCases);
 }
 
 void UEditorEngine::DoConvertActors( const TArray<AActor*>& ActorsToConvert, UClass* ConvertToClass, const TSet<FString>& ComponentsToConsider, bool bUseSpecialCases, const FString& InStaticMeshPackageName )
 {
-	// Early out if actor deletion is currently forbidden
-	if (ShouldAbortActorDeletion())
-	{
-		return;
-	}
-
-	GWarn->BeginSlowTask( NSLOCTEXT("UnrealEd", "ConvertingActors", "Converting Actors"), true );
-
-	// Scope the transaction - we need it to end BEFORE we finish the slow task we just started
-	{
-		const FScopedTransaction Transaction( NSLOCTEXT("EditorEngine", "ConvertActors", "Convert Actors") );
-
-		GetSelectedActors()->BeginBatchSelectOperation();
-
-		TArray<AActor*> ConvertedActors;
-		int32 NumActorsToConvert = ActorsToConvert.Num();
-
-		// Cache for attachment info of all actors being converted.
-		TArray<ReattachActorsHelper::FActorAttachmentCache> AttachmentInfo;
-
-		// Maps actors from old to new for quick look-up.
-		TMap<AActor*, AActor*> ConvertedMap;
-
-		SelectNone(true, true);
-		ReattachActorsHelper::CacheAttachments(ActorsToConvert, AttachmentInfo);
-
-		// List of brushes being converted.
-		TArray<ABrush*> BrushList;
-
-		// The index of a brush, utilized for re-attachment purposes when a single brush is being converted.
-		int32 BrushIndexForReattachment = 0;
-
-		FVector CachePivotLocation = GetPivotLocation();
-		ConvertHelpers::GetBrushList(ActorsToConvert, ConvertToClass, BrushList, BrushIndexForReattachment);
-
-		if( BrushList.Num() )
-		{
-			AActor* ConvertedBrushActor = ConvertBrushesToStaticMesh(InStaticMeshPackageName, BrushList, CachePivotLocation);
-			ConvertedActors.Add(ConvertedBrushActor);
-
-			// If only one brush is being converted, reattach it to whatever it was attached to before.
-			// Multiple brushes become impossible to reattach due to the single actor returned.
-			if(BrushList.Num() == 1)
-			{
-				ReattachActorsHelper::CacheActorConvert(BrushList[0], ConvertedBrushActor, ConvertedMap, AttachmentInfo[BrushIndexForReattachment]);
-			}
-		}
-
-		ULayersSubsystem* LayersSubsystem = GetEditorSubsystem<ULayersSubsystem>();
-		for( int32 ActorIdx = 0; ActorIdx < ActorsToConvert.Num(); ++ActorIdx )
-		{
-			AActor* ActorToConvert = ActorsToConvert[ ActorIdx ];
-
-			if (ActorToConvert->GetClass()->IsChildOf(ABrush::StaticClass()) && ConvertToClass == AStaticMeshActor::StaticClass())
-			{
-				// We already converted this actor in ConvertBrushesToStaticMesh above, and it has been marked as pending
-				// kill (and hence is invalid) TODO: It would be good to refactor this function so there is a single place
-				// where conversion happens
-				ensure(!IsValid(ActorToConvert));
-				continue;
-			}
-
-			if (!IsValidChecked(ActorToConvert))
-			{
-				UE_LOG(LogEditor, Error, TEXT("Actor '%s' is invalid and cannot be converted"), *ActorToConvert->GetFullName());
-				continue;
-			}
-
-			// Source actor display label
-			FString ActorLabel = ActorToConvert->GetActorLabel();
-	
-			// The class of the actor we are about to replace
-			UClass* ClassToReplace = ActorToConvert->GetClass();
-
-			AActor* NewActor = NULL;
-
-			ABrush* Brush = Cast< ABrush >( ActorToConvert );
-			if ( ( Brush && FActorEditorUtils::IsABuilderBrush(Brush) ) ||
-				(ClassToReplace->IsChildOf(ABrush::StaticClass()) && ConvertToClass == AStaticMeshActor::StaticClass()) )
-			{
-				continue;
-			}
-
-			if (bUseSpecialCases)
-			{
-				// Disable grouping temporarily as the following code assumes only one actor will be selected at any given time
-				const bool bGroupingActiveSaved = UActorGroupingUtils::IsGroupingActive();
-
-				UActorGroupingUtils::SetGroupingActive(false);
-
-				SelectNone(true, true);
-				SelectActor(ActorToConvert, true, true);
-
-				// Each of the following 'special case' conversions will convert ActorToConvert to ConvertToClass if possible.
-				// If it does it will mark the original for delete and select the new actor
-				if (ClassToReplace->IsChildOf(ALight::StaticClass()))
-				{
-					UE_LOG(LogEditor, Log, TEXT("Converting light from %s to %s"), *ActorToConvert->GetFullName(), *ConvertToClass->GetName());
-					ConvertLightActors(ConvertToClass);
-				}
-				else if (ClassToReplace->IsChildOf(ABrush::StaticClass()) && ConvertToClass->IsChildOf(AVolume::StaticClass()))
-				{
-					UE_LOG(LogEditor, Log, TEXT("Converting brush from %s to %s"), *ActorToConvert->GetFullName(), *ConvertToClass->GetName());
-					ConvertSelectedBrushesToVolumes(ConvertToClass);
-				}
-				else
-				{
-					UE_LOG(LogEditor, Log, TEXT("Converting actor from %s to %s"), *ActorToConvert->GetFullName(), *ConvertToClass->GetName());
-					ConvertActorsFromClass(ClassToReplace, ConvertToClass);
-				}
-
-				if (!IsValidChecked(ActorToConvert))
-				{
-					// Converted by one of the above
-					check (1 == GetSelectedActorCount());
-					NewActor = Cast< AActor >(GetSelectedActors()->GetSelectedObject(0));
-					if (ensureMsgf(NewActor, TEXT("Actor conversion of %s to %s failed"), *ActorToConvert->GetFullName(), *ConvertToClass->GetName()))
-					{
-						// Caches information for finding the new actor using the pre-converted actor.
-						ReattachActorsHelper::CacheActorConvert(ActorToConvert, NewActor, ConvertedMap, AttachmentInfo[ActorIdx]);
-					}
-					
-				}
-				else
-				{
-					// Failed to convert, make sure the actor is unselected
-					SelectActor(ActorToConvert, false, true);
-				}
-
-				// Restore previous grouping setting
-				UActorGroupingUtils::SetGroupingActive(bGroupingActiveSaved);
-			}
-
-			// Attempt normal spawning if a new actor hasn't been spawned yet via a special case
-			if (!NewActor)
-			{
-				// Set the current level to the level where the convertible actor resides
-				check(ActorToConvert);
-				UWorld* World = ActorToConvert->GetWorld();
-				ULevel* ActorLevel = ActorToConvert->GetLevel();
-				check(World);
-				checkSlow( ActorLevel );
-				// Find a common base class between the actors so we know what properties to copy
-				const UClass* CommonBaseClass = ActorToConvert->FindNearestCommonBaseClass( ConvertToClass );
-				check ( CommonBaseClass );	
-
-				const FTransform& SpawnTransform = ActorToConvert->GetActorTransform();
-				{
-					FActorSpawnParameters SpawnInfo;
-					SpawnInfo.OverrideLevel = ActorLevel;
-					SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-					SpawnInfo.bDeferConstruction = true;
-					NewActor = World->SpawnActor(ConvertToClass, &SpawnTransform, SpawnInfo);
-
-					if (NewActor)
-					{
-						// Deferred spawning and finishing with !bIsDefaultTransform results in scale being applied for both native and simple construction script created root components
-						constexpr bool bIsDefaultTransform = false;
-						NewActor->FinishSpawning(SpawnTransform, bIsDefaultTransform);
-						
-						// Copy non component properties from the old actor to the new actor
-						for( FProperty* Property = CommonBaseClass->PropertyLink; Property != NULL; Property = Property->PropertyLinkNext )
-						{
-							const bool bIsTransient = !!(Property->PropertyFlags & CPF_Transient);
-							const bool bIsComponentProp = !!(Property->PropertyFlags & (CPF_InstancedReference | CPF_ContainsInstancedReference));
-							const bool bIsIdentical = Property->Identical_InContainer(ActorToConvert, ClassToReplace->GetDefaultObject());
-
-							if ( !bIsTransient && !bIsIdentical && !bIsComponentProp && Property->GetName() != TEXT("Tag") )
-							{
-								// Copy only if not native, not transient, not identical, and not a component.
-								// Copying components directly here is a bad idea because the next garbage collection will delete the component since we are deleting its outer.  
-
-								// Also do not copy the old actors tag.  That will always come up as not identical since the default actor's Tag is "None" and SpawnActor uses the actor's class name
-								// The tag will be examined for changes later.
-								Property->CopyCompleteValue_InContainer(NewActor, ActorToConvert);
-							}
-						}
-
-						// Copy properties from actor components
-						CopyActorComponentProperties( ActorToConvert, NewActor, ComponentsToConsider );
-
-
-						// Caches information for finding the new actor using the pre-converted actor.
-						ReattachActorsHelper::CacheActorConvert(ActorToConvert, NewActor, ConvertedMap, AttachmentInfo[ActorIdx]);
-
-						NewActor->Modify();
-						NewActor->InvalidateLightingCache();
-						NewActor->PostEditChange();
-						NewActor->PostEditMove( true );
-						LayersSubsystem->InitializeNewActorLayers( NewActor );
-
-						// Destroy the old actor.
-						ActorToConvert->Modify();
-						LayersSubsystem->DisassociateActorFromLayers(ActorToConvert);
-						World->EditorDestroyActor( ActorToConvert, true );	
-					}
-				}
-			}
-
-			if (NewActor)
-			{
-				// If the actor label isn't actually anything custom allow the name to be changed
-				// to avoid cases like converting PointLight->SpotLight still being called PointLight after conversion
-				FString ClassName = ClassToReplace->GetName();
-				
-				// Remove any number off the end of the label
-				int32 Number = 0;
-				if( !ActorLabel.StartsWith( ClassName ) || !FParse::Value(*ActorLabel, *ClassName, Number)  )
-				{
-					NewActor->SetActorLabel(ActorLabel);
-				}
-
-				ConvertedActors.Add(NewActor);
-
-				UE_LOG(LogEditor, Log, TEXT("Converted: %s to %s"), *ActorLabel, *NewActor->GetActorLabel() );
-
-				FFormatNamedArguments Args;
-				Args.Add( TEXT("OldActorName"), FText::FromString( ActorLabel ) );
-				Args.Add( TEXT("NewActorName"), FText::FromString( NewActor->GetActorLabel() ) );
-				const FText StatusUpdate = FText::Format( LOCTEXT("ConvertActorsTaskStatusUpdateMessageFormat", "Converted: {OldActorName} to {NewActorName}"), Args);
-
-				GWarn->StatusUpdate( ConvertedActors.Num(), NumActorsToConvert, StatusUpdate );				
-			}
-		}
-
-		// Reattaches actors based on their previous parent child relationship.
-		ReattachActorsHelper::ReattachActors(ConvertedMap, AttachmentInfo);
-
-		// Select the new actors
-		SelectNone( false, true );
-		for( TArray<AActor*>::TConstIterator it(ConvertedActors); it; ++it )
-		{
-			SelectActor(*it, true, true);
-		}
-
-		GetSelectedActors()->EndBatchSelectOperation();
-		
-		RedrawLevelEditingViewports();
-
-		ULevel::LevelDirtiedEvent.Broadcast();
-		
-		// Clean up
-		CollectGarbage( GARBAGE_COLLECTION_KEEPFLAGS );
-	}
-	// End the slow task
-	GWarn->EndSlowTask();
+	UEditorActorSubsystem::DoConvertActors(ActorsToConvert, ConvertToClass, ComponentsToConsider, bUseSpecialCases, InStaticMeshPackageName);
 }
 
 void UEditorEngine::NotifyToolsOfObjectReplacement(const TMap<UObject*, UObject*>& OldToNewInstanceMap)
@@ -6696,15 +5082,15 @@ TArray<AActor*> UEditorEngine::AddExportTextActors(const FString& ExportText, bo
 				// Send notification about a new actor being created
 				ULevel::LevelDirtiedEvent.Broadcast();
 				NoteSelectionChange();
+
+	            if( !bSilent )
+	            {
+		            UE_LOG(LogEditor, Log,
+			            TEXT("Added '%d' actor(s) to level at %0.2f,%0.2f,%0.2f"),
+			            NewActors.Num(), Location.X, Location.Y, Location.Z );
+	            }
 			}
 		}
-	}
-
-	if( NewActors.Num() > 0 && !bSilent )
-	{
-		UE_LOG(LogEditor, Log,
-			TEXT("Added '%d' actor(s) to level at %0.2f,%0.2f,%0.2f"),
-			NewActors.Num(), Location.X, Location.Y, Location.Z );
 	}
 
 	return NewActors;
@@ -7503,6 +5889,40 @@ void UEditorEngine::OnAssetPostCompile(const TArray<FAssetCompileData>& Compiled
 	}
 }
 
+void UEditorEngine::HandleTimecodeProviderCompiled(UBlueprint* InBlueprint)
+{
+	ReinitializeTimecodeProvider();
+}
+
+void UEditorEngine::HandleCustomTimeStepCompiled(UBlueprint* InBlueprint)
+{
+	ReinitializeCustomTimeStep();
+}
+
+void UEditorEngine::RegisterTimecodeProviderCompiledDelegate()
+{
+	if (UTimecodeProvider* NewProvider = GetTimecodeProvider())
+	{
+		if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(NewProvider->GetClass()))
+		{
+			Blueprint->OnCompiled().Remove(TimecodeProviderCompiledDelegateHandle);
+			TimecodeProviderCompiledDelegateHandle = Blueprint->OnCompiled().AddUObject(this, &UEditorEngine::HandleTimecodeProviderCompiled);
+		}
+	}
+}
+
+void UEditorEngine::RegisterCustomTimeStepCompiledDelegate()
+{
+	if (UEngineCustomTimeStep* NewCustomTimeStep = GetCustomTimeStep())
+	{
+		if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(NewCustomTimeStep->GetClass()))
+		{
+			Blueprint->OnCompiled().Remove(CustomTimeStepCompiledDelegateHandle);
+			CustomTimeStepCompiledDelegateHandle = Blueprint->OnCompiled().AddUObject(this, &UEditorEngine::HandleCustomTimeStepCompiled);
+		}
+	}
+}
+
 void UEditorEngine::InitializeNewlyCreatedInactiveWorld(UWorld* World)
 {
 	check(World);
@@ -7510,7 +5930,7 @@ void UEditorEngine::InitializeNewlyCreatedInactiveWorld(UWorld* World)
 	if (!World->bIsWorldInitialized && World->WorldType == EWorldType::Inactive && !World->IsInstanced())
 	{
 		// Guard against dirtying packages while initializing the map
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 		// This is probably no longer needed with the EditorLoadingPackage guard but doesn't hurt to keep for safety.
 		const bool bOldDirtyState = World->GetOutermost()->IsDirty();
 
@@ -7800,6 +6220,7 @@ bool UEditorEngine::IsOfflineShaderCompilerAvailable(UWorld* World)
 
 void UEditorEngine::OnSceneMaterialsModified()
 {
+	SceneMaterialsModifiedEvent.Broadcast();
 }
 
 void UEditorEngine::OnEffectivePreviewShaderPlatformChange()
@@ -7866,7 +6287,7 @@ void UEditorEngine::SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPla
 	if (bChangedPreviewShaderPlatform)
 	{
 		UMaterialShaderQualitySettings* MaterialShaderQualitySettings = UMaterialShaderQualitySettings::Get();
-		MaterialShaderQualitySettings->SetPreviewPlatform(PreviewPlatform.PreviewShaderFormatName);
+		MaterialShaderQualitySettings->SetPreviewPlatform(PreviewPlatform.PreviewShaderPlatformName);
 
 		UStaticMesh::OnLodStrippingQualityLevelChanged(nullptr);
 
@@ -8117,11 +6538,11 @@ namespace
 	{
 	private:
 		virtual bool IsEnabled() const override { return false; }
-		virtual bool HasExternalContent(const FString& ExternalContentId) const override { return false; }
-		virtual bool IsExternalContentLoaded(const FString& ExternalContentId) const override { return false; }
-		virtual TArray<FString> GetExternalContentIds() const override { return {}; }
-		virtual void AddExternalContent(const FString& ExternalContentId, FAddExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false, /*Plugins=*/{}); }
-		virtual void RemoveExternalContent(TConstArrayView<FString> ExternalContentIds, FRemoveExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false); }
+		virtual bool HasExternalContent(const FString& VersePath) const override { return false; }
+		virtual bool IsExternalContentLoaded(const FString& VersePath) const override { return false; }
+		virtual TArray<FString> GetExternalContentVersePaths() const override { return {}; }
+		virtual void AddExternalContent(const FString& VersePath, FAddExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false, /*Plugins=*/{}); }
+		virtual void RemoveExternalContent(TConstArrayView<FString> VersePaths, FRemoveExternalContentComplete CompleteCallback) override { CompleteCallback.ExecuteIfBound(false); }
 	};
 
 	FProjectExternalContentDefault ProjectExternalContentDefault;

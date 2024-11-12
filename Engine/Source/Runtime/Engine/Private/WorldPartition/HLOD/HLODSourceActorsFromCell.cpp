@@ -56,7 +56,7 @@ uint32 UWorldPartitionHLODSourceActorsFromCell::GetHLODHash() const
 	// Source Actors
 	uint32 SourceActorsHash = GetHLODHash(Actors);
 	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - Source Actors (%d actors) = %x"), Actors.Num(), SourceActorsHash);
-	HLODHash = HashCombine(HLODHash, SourceActorsHash);
+	HLODHash = HashCombineFast(HLODHash, SourceActorsHash);
 
 	return HLODHash;
 }

@@ -29,6 +29,7 @@
 #include "PostProcess/PostProcessing.h"
 #include "Substrate/Substrate.h"
 #include "LightFunctionAtlas.h"
+#include "AnisotropyRendering.h"
 
 // This is used to switch on and off the clustered deferred shading implementation, that uses the light grid to perform shading.
 int32 GUseClusteredDeferredShading = 0;
@@ -99,7 +100,8 @@ class FClusteredShadingPS : public FGlobalShader
 	class FSubstrateTileType : SHADER_PERMUTATION_INT("SUBSTRATE_TILETYPE", 4);
 	class FLightFunctionAtlasDim : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FRectLight : SHADER_PERMUTATION_BOOL("USE_RECT_LIGHT");
-	using FPermutationDomain = TShaderPermutationDomain<FVisualizeLightCullingDim, FHairStrandsLighting, FSubstrateTileType, FLightFunctionAtlasDim, FRectLight>;
+	class FAnistropicMaterials : SHADER_PERMUTATION_BOOL("SUPPORTS_ANISOTROPIC_MATERIALS");
+	using FPermutationDomain = TShaderPermutationDomain<FVisualizeLightCullingDim, FHairStrandsLighting, FSubstrateTileType, FLightFunctionAtlasDim, FRectLight, FAnistropicMaterials>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, bHasLightChannels)
@@ -125,6 +127,11 @@ class FClusteredShadingPS : public FGlobalShader
 		{
 			return false;
 		}
+		else if (Substrate::IsSubstrateEnabled() && PermutationVector.Get<FAnistropicMaterials>())
+		{
+			return false;
+		}
+
 		// OLATODO: what level do we actually need for this?
 		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
 	}
@@ -168,7 +175,8 @@ static void InternalAddClusteredDeferredShadingPass(
 	const bool bHairStrands = InputType == EClusterPassInputType::HairStrands;
 	const bool bSubstrate = Substrate::IsSubstrateEnabled() && !bHairStrands;
 	const bool bHasRectLights = SortedLightsSet.bHasRectLights;
-	const bool bLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting);
+	const bool bLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting);	
+	const bool bSupportAnisotropyPermutation = ShouldRenderAnisotropyPass(View) && !Substrate::IsSubstrateEnabled(); // Strata managed anisotropy differently than legacy path. No need for special permutation.
 
 	FClusteredShadingPS::FParameters *PassParameters = GraphBuilder.AllocParameters<FClusteredShadingPS::FParameters>();
 	PassParameters->bHasLightChannels = SortedLightsSet.bHasLightChannels;
@@ -178,7 +186,7 @@ static void InternalAddClusteredDeferredShadingPass(
 	PassParameters->SceneTextures = SceneTextures.UniformBuffer;
 	PassParameters->ShadowMaskBits = ShadowMaskBits ? ShadowMaskBits : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 	PassParameters->LightingChannelsTexture = LightingChannelsTexture ? LightingChannelsTexture : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
-	PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+	PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	PassParameters->HairTransmittanceBuffer = HairTransmittanceBuffer;
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
@@ -198,14 +206,17 @@ static void InternalAddClusteredDeferredShadingPass(
 
 	// VS - Substrate tile parameters
 	EPrimitiveType PrimitiveType = PT_TriangleList;
-	PassParameters->SubstrateTile = Substrate::SetTileParameters(GraphBuilder, View, TileType, PrimitiveType);
+	if (Substrate::IsSubstrateEnabled())
+	{
+		PassParameters->SubstrateTile = Substrate::SetTileParameters(GraphBuilder, View, TileType, PrimitiveType);
+	}
 	
 	const TCHAR* TileTypeName = ToString(TileType);
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("Light::ClusteredDeferredShading(%s,Lights:%d%s%s%s%s)", bHairStrands ? TEXT("HairStrands") : (bSubstrate ? TEXT("Substrate") : TEXT("GBuffer")), SortedLightsSet.ClusteredSupportedEnd, bSubstrate ? TEXT(",Tile:") : TEXT(""), bSubstrate ? TileTypeName : TEXT(""), bLightFunctionAtlas ? TEXT(",LFAtlas") : TEXT(""), bHasRectLights ? TEXT(",RectLight") : TEXT("")),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, &View, SceneTextureExtent, bHasRectLights, bLightFunctionAtlas, bHairStrands, bSubstrate, TileType, PrimitiveType](FRHICommandListImmediate& InRHICmdList)
+		[PassParameters, &View, SceneTextureExtent, bHasRectLights, bLightFunctionAtlas, bHairStrands, bSubstrate, bSupportAnisotropyPermutation, TileType, PrimitiveType](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 	{
 		TShaderMapRef<FClusteredShadingVS> HairVertexShader(View.ShaderMap);
 		TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
@@ -221,6 +232,7 @@ static void InternalAddClusteredDeferredShadingPass(
 		PermutationVector.Set<FClusteredShadingPS::FSubstrateTileType>(bSubstrate ? TileType : 0);
 		PermutationVector.Set<FClusteredShadingPS::FRectLight>(bHasRectLights);
 		PermutationVector.Set<FClusteredShadingPS::FLightFunctionAtlasDim>(bLightFunctionAtlas);
+		PermutationVector.Set<FClusteredShadingPS::FAnistropicMaterials>(bSupportAnisotropyPermutation);
 		TShaderMapRef<FClusteredShadingPS> PixelShader(View.ShaderMap, PermutationVector);
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
@@ -265,6 +277,7 @@ static void InternalAddClusteredDeferredShadingPass(
 		}
 		else if (bSubstrate)
 		{
+			InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 			SetShaderParameters(InRHICmdList, TileVertexShader, TileVertexShader.GetVertexShader(), PassParameters->SubstrateTile);
 			InRHICmdList.DrawPrimitiveIndirect(PassParameters->SubstrateTile.TileIndirectBuffer->GetIndirectRHICallBuffer(), Substrate::TileTypeDrawIndirectArgOffset(TileType));
 		}
@@ -293,8 +306,8 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 
 	if (NumLightsToRender > 0)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ClusteredShading, "ClusteredShading");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ClusteredShading);
-		RDG_EVENT_SCOPE(GraphBuilder, "ClusteredShading");
 
 		for (int32 ViewIndex = 0, Num = Views.Num(); ViewIndex < Num; ViewIndex++)
 		{
@@ -381,7 +394,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 
 			if (HairStrands::HasViewHairStrandsData(View))
 			{
-				FHairStrandsTransmittanceMaskData TransmittanceMask = RenderHairStrandsOnePassTransmittanceMask(GraphBuilder, View, HairStrandsShadowMaskBits, VirtualShadowMapArray);
+				FHairStrandsTransmittanceMaskData TransmittanceMask = RenderHairStrandsOnePassTransmittanceMask(GraphBuilder, View, ViewIndex, HairStrandsShadowMaskBits, VirtualShadowMapArray);
 				InternalAddClusteredDeferredShadingPass(
 					GraphBuilder,
 					ViewIndex,

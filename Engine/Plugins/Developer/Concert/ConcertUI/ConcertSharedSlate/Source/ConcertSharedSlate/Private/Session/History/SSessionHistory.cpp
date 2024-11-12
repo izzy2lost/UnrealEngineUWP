@@ -66,6 +66,7 @@ void SSessionHistory::Construct(const FArguments& InArgs)
 		.LockActivitiesVisibility(ActivityListViewOptions.Get(), &FConcertSessionActivitiesOptions::GetLockActivitiesVisibility)
 		.PackageActivitiesVisibility(ActivityListViewOptions.Get(), &FConcertSessionActivitiesOptions::GetPackageActivitiesVisibility)
 		.TransactionActivitiesVisibility(ActivityListViewOptions.Get(), &FConcertSessionActivitiesOptions::GetTransactionActivitiesVisibility)
+		.ReplicationActivitiesVisibility(ActivityListViewOptions.Get(), &FConcertSessionActivitiesOptions::GetReplicationActivitiesVisibility)
 		.DetailsAreaVisibility(InArgs._DetailsAreaVisibility)
 		.IsAutoScrollEnabled(true)
 		.ColumnVisibilitySnapshot(InArgs._ColumnVisibilitySnapshot)
@@ -146,7 +147,7 @@ void SSessionHistory::Construct(const FArguments& InArgs)
 			.Padding(0, 3)
 			[
 				SNew(SSeparator)
-				.Thickness(2.f)
+				.Thickness(FCoreStyle::Get().GetWidgetStyle<FToolBarStyle>("ToolBar").SeparatorThickness)
 				.SeparatorImage(&FCoreStyle::Get().GetWidgetStyle<FToolBarStyle>("ToolBar").SeparatorBrush)
 			];
 	}

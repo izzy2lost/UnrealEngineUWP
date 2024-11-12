@@ -8,6 +8,7 @@
 
 struct FGuid;
 struct FSlateBrush;
+class UStateTreeEditorData;
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -17,7 +18,7 @@ namespace UE::StateTree::PropertyHelpers {
  * Dispatches PostEditChange to all FState
  * Assumes property chain head is member property of Owner. 
  */
-void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& PropertyChangedEvent);
+void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& PropertyChangedEvent, UStateTreeEditorData& EditorData);
 
 /** Makes deterministic ID from the owners property path, a property path (or any string), and a seed value (e.g. array index). */
 FGuid MakeDeterministicID(const UObject& Owner, const FString& PropertyPath, const uint64 Seed);
@@ -84,6 +85,32 @@ FPropertyAccess::Result GetStructValue(const TSharedPtr<const IPropertyHandle>& 
 	return FPropertyAccess::Success;
 }
 
+/**
+ * Returns const pointer to struct container in the property.
+ * @param ValueProperty Handle to property where value is got from.
+ * @return Pointer to the struct, or nullptr if type does not match or multiple values.
+ */
+template<typename T>
+const T* GetStructPtr(const TSharedPtr<const IPropertyHandle>& ValueProperty)
+{
+	if (!ValueProperty)
+	{
+		return nullptr;
+	}
+
+	FStructProperty* StructProperty = CastFieldChecked<FStructProperty>(ValueProperty->GetProperty());
+	check(StructProperty);
+	check(StructProperty->Struct == TBaseStructure<T>::Get());
+
+	TArray<const void*> RawData;
+	ValueProperty->AccessRawData(RawData);
+	if (RawData.Num() == 1)
+	{
+		return static_cast<const T*>(RawData[0]); 
+	}
+
+	return nullptr;
+}
 /**
  * Sets a struct property to specific value, checks type before access. Expects T is struct.
  * @param ValueProperty Handle to property where value is got from.

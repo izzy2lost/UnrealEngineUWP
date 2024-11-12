@@ -156,19 +156,17 @@ UEdGraphNode* URigVMEdGraphVariableNodeSpawner::Invoke(UEdGraph* ParentGraph, FB
 		static const FString SetterPrefix = TEXT("Setter");
 		NodeName = FString::Printf(VariableNodeNameFormat, bIsGetter ? *GetterPrefix : *SetterPrefix, *ExternalVariable.Name.ToString());
 
-		static const FName ValueName = *URigVMVariableNode::ValueName;
-
 		TArray<FPinInfo> Pins;
 
 		if(!bIsGetter)
 		{
 			static UScriptStruct* ExecuteScriptStruct = FRigVMExecuteContext::StaticStruct();
-			static const FName ExecuteStructName = *ExecuteScriptStruct->GetStructCPPName();
+			static const FLazyName ExecuteStructName(*ExecuteScriptStruct->GetStructCPPName());
 			Pins.Emplace(FRigVMStruct::ExecuteName, ERigVMPinDirection::IO, ExecuteStructName, ExecuteScriptStruct);
 		}
 		
 		Pins.Emplace(
-			ValueName,
+			URigVMVariableNode::ValueName,
 			bIsGetter ? ERigVMPinDirection::Output : ERigVMPinDirection::Input,
 			ExternalVariable.TypeName,
 			ExternalVariable.TypeObject);

@@ -272,7 +272,7 @@ public:
 		, _LayoutBorder( _Style->BorderPadding )
 		, _UserResizeBorder(FMargin(5, 5, 5, 5))
 		, _bManualManageDPI( false )
-
+		, _CloseButtonToolTipText(NSLOCTEXT("SWindow", "Window_DefaultCloseButtonToolTip", "Close"))
 	{
 	}
 
@@ -375,7 +375,10 @@ public:
 
 		SLATE_DEFAULT_SLOT( FArguments, Content )
 
-	SLATE_END_ARGS()
+		/** Optional tooltip for the close button, when HasCloseButton is true. */
+		SLATE_ATTRIBUTE(FText, CloseButtonToolTipText)
+
+		SLATE_END_ARGS()
 
 	/**
 	 * Default constructor. Use SNew(SWindow) instead.
@@ -878,6 +881,18 @@ public:
 
 	bool GetIsHDR() const { return bIsHDR; }
 
+	void SetViewportScaleUIOverride(float InViewportScaleUIOverride)
+	{
+		ViewportScaleUIOverride = InViewportScaleUIOverride;
+	}
+
+	void ResetViewportScaleUIOverride()
+	{
+		ViewportScaleUIOverride = -1.0f;
+	}
+
+	float GetViewportScaleUIOverride() const { return ViewportScaleUIOverride; }
+
 	bool IsVirtualWindow() const { return bVirtualWindow; }
 
 	bool IsMirrorWindow()
@@ -1042,6 +1057,14 @@ public:
 		Viewport = ViewportRef;
 	}
 
+	void UnsetViewport(TSharedRef<ISlateViewport> ViewportRef)
+	{
+		if (ensure(Viewport == ViewportRef))
+		{
+			Viewport.Reset();
+		}
+	}
+
 	TSharedPtr<ISlateViewport> GetViewport()
 	{
 		return Viewport.Pin();
@@ -1070,6 +1093,8 @@ public:
 	/** Windows that are not hittestable should not show up in the hittest grid. */
 	SLATECORE_API EVisibility GetWindowVisibility() const;
 
+	/** Return the tooltip text that should be used for the window's Close button. */
+	SLATECORE_API TAttribute<FText> GetWindowCloseButtonToolTipText() const;
 protected:
 	/**Returns swindow title bar widgets. */
 	SLATECORE_API virtual TSharedRef<SWidget> MakeWindowTitleBar(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& CenterContent, EHorizontalAlignment CenterContentAlignment);
@@ -1087,6 +1112,9 @@ protected:
 
 	/** Title of the window, displayed in the title bar as well as potentially in the task bar (Windows platform) */
 	TAttribute<FText> Title;
+
+	/** Tooltip text displayed over the window's Close button (on Windows only). */
+	TAttribute<FText> CloseButtonToolTipText;
 
 	/** When true, grabbing anywhere on the window will allow it to be dragged. */
 	bool bDragAnywhere;
@@ -1187,6 +1215,13 @@ protected:
 
 	/** Pointer to the viewport registered with this window if any */
 	TWeakPtr<ISlateViewport> Viewport;
+
+	/** 
+	 * Mix of aspect ratio + DPI + UI Zoom. Used in shaders / materials.
+	 * Can be overriden by child widgets, is reset after draw every frame.
+	 * Negative value indicates not used, in which case application level UI scale will be used.
+	 */
+	float ViewportScaleUIOverride;
 
 	/** Size of this window's title bar.  Can be zero.  Set at construction and should not be changed afterwards. */
 	float TitleBarSize;

@@ -7,27 +7,30 @@
 #include "Framework/Docking/TabManager.h"
 #include "Logging/MessageLog.h"
 #include "Modules/ModuleManager.h"
-#include "TraceServices/Model/TasksProfiler.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/TasksProfiler.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskGraphRelation.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
 #include "Insights/TaskGraphProfiler/Widgets/STaskTableTreeView.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/ViewModels/ThreadTimingSharedState.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/ViewModels/ThreadTrackEvent.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::TaskGraphProfiler"
 
-#define LOCTEXT_NAMESPACE "TaskGraphProfilerManager"
-
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const FName FTaskGraphProfilerTabs::TaskTableTreeViewTabID(TEXT("TaskTableTreeView"));
 
@@ -118,7 +121,7 @@ FTaskGraphProfilerManager::~FTaskGraphProfilerManager()
 
 	if (TaskTimingSharedState.IsValid())
 	{
-		IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
+		IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
 	}
 }
 
@@ -152,13 +155,7 @@ bool FTaskGraphProfilerManager::Tick(float DeltaTime)
 			TSharedPtr<FTabManager> TabManagerShared = TimingTabManager.Pin();
 			if (TasksProvider && TasksProvider->GetNumTasks() > 0 && TabManagerShared.IsValid())
 			{
-				TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-				if (!Window.IsValid())
-				{
-					return true;
-				}
-
-				TSharedPtr<STimingView> TimingView = Window->GetTimingView();
+				TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 				if (!TimingView.IsValid())
 				{
 					return true;
@@ -169,7 +166,7 @@ bool FTaskGraphProfilerManager::Tick(float DeltaTime)
 				if (!TaskTimingSharedState.IsValid())
 				{
 					TaskTimingSharedState = MakeShared<FTaskTimingSharedState>(TimingView.Get());
-					IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
+					IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
 				}
 				TabManagerShared->TryInvokeTab(FTaskGraphProfilerTabs::TaskTableTreeViewTabID);
 			}
@@ -214,7 +211,7 @@ void FTaskGraphProfilerManager::RegisterTimingProfilerLayoutExtensions(FInsights
 	FMinorTabConfig& MinorTabConfig = InOutExtender.AddMinorTabConfig();
 	MinorTabConfig.TabId = FTaskGraphProfilerTabs::TaskTableTreeViewTabID;
 	MinorTabConfig.TabLabel = LOCTEXT("TaskTableTreeViewTabTitle", "Tasks");
-	MinorTabConfig.TabTooltip = LOCTEXT("TaskTableTreeViewTabTitleTooltip", "Opens the Task Table Tree View tab, that allows Task Graph profilling.");
+	MinorTabConfig.TabTooltip = LOCTEXT("TaskTableTreeViewTabTitleTooltip", "Opens the Task Table Tree View tab, that allows Task Graph profiling.");
 	MinorTabConfig.TabIcon = FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TasksView");
 	MinorTabConfig.OnSpawnTab = FOnSpawnTab::CreateRaw(this, &FTaskGraphProfilerManager::SpawnTab_TaskTableTreeView);
 	MinorTabConfig.CanSpawnTab = FCanSpawnTab::CreateRaw(this, &FTaskGraphProfilerManager::CanSpawnTab_TaskTableTreeView);
@@ -231,6 +228,7 @@ TSharedRef<SDockTab> FTaskGraphProfilerManager::SpawnTab_TaskTableTreeView(const
 {
 	TSharedRef<FTaskTable> TaskTable = MakeShared<FTaskTable>();
 	TaskTable->Reset();
+	TaskTable->SetDisplayName(LOCTEXT("TaskTableTreeViewTabTitle", "Tasks"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
@@ -416,13 +414,7 @@ void FTaskGraphProfilerManager::GetRelationsOnCriticalPath(const TraceServices::
 			return;
 		}
 
-		TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (!TimingWindow.IsValid())
-		{
-			return;
-		}
-
-		TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 		if (!TimingView.IsValid())
 		{
 			return;
@@ -574,26 +566,20 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 		return;
 	}
 
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return;
-	}
-
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return;
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<TimingProfiler::FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
 
 	TUniquePtr<ITimingEventRelation> Relation = MakeUnique<FTaskGraphRelation>(SourceTimestamp, SourceThreadId, TargetTimestamp, TargetThreadId, Type);
 	FTaskGraphRelation* TaskRelationPtr = StaticCast<FTaskGraphRelation*>(Relation.Get());
 
 	if (!TaskRelationPtr->GetSourceTrack().IsValid())
 	{
-		TSharedPtr<const FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetSourceThreadId());
+		TSharedPtr<const TimingProfiler::FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetSourceThreadId());
 		if (Track.IsValid())
 		{
 			TaskRelationPtr->SetSourceTrack(Track);
@@ -604,7 +590,7 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 	if (!TaskRelationPtr->GetTargetTrack().IsValid())
 
 	{
-		TSharedPtr<const FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetTargetThreadId());
+		TSharedPtr<const TimingProfiler::FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetTargetThreadId());
 		if (Track.IsValid())
 		{
 			TaskRelationPtr->SetTargetTrack(Track);
@@ -630,7 +616,7 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const FThreadTimingTrack> Track, double Time, int32 KnownDepth)
+int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const TimingProfiler::FThreadTimingTrack> Track, double Time, int32 KnownDepth)
 {
 	if (KnownDepth >= 0)
 	{
@@ -647,13 +633,7 @@ int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const FThrea
 
 void FTaskGraphProfilerManager::ClearTaskRelations()
 {
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return;
-	}
-
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -673,21 +653,16 @@ void FTaskGraphProfilerManager::ClearTaskRelations()
 int32 FTaskGraphProfilerManager::GetDepthOfTaskExecution(double TaskStartedTime, double TaskFinishedTime, uint32 ThreadId)
 {
 	int32 Depth = -1;
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return Depth;
-	}
 
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return Depth;
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<TimingProfiler::FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
 
-	TSharedPtr<FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(ThreadId);
+	TSharedPtr<TimingProfiler::FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(ThreadId);
 
 	if (!Track.IsValid())
 	{
@@ -844,6 +819,8 @@ void FTaskGraphProfilerManager::RegisterOnWindowClosedEventHandle()
 {
 	if (!OnWindowClosedEventHandle.IsValid())
 	{
+		using namespace UE::Insights::TimingProfiler;
+
 		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (!Window.IsValid())
 		{
@@ -895,6 +872,7 @@ void FTaskGraphProfilerManager::OutputWarnings()
 									   FText::FromString(TrackList.ToString()));
 	}
 
+	using namespace UE::Insights::TimingProfiler;
 	FName LogListingName = FTimingProfilerManager::Get()->GetLogListingName();
 	FMessageLog ReportMessageLog(LogListingName);
 	ReportMessageLog.Warning(WarningMessage);
@@ -903,6 +881,15 @@ void FTaskGraphProfilerManager::OutputWarnings()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+TSharedPtr<TimingProfiler::STimingView> FTaskGraphProfilerManager::GetTimingView()
+{
+	using namespace UE::Insights::TimingProfiler;
+	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
+	return Window.IsValid() ? Window->GetTimingView() : nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::TaskGraphProfiler
 
 #undef LOCTEXT_NAMESPACE

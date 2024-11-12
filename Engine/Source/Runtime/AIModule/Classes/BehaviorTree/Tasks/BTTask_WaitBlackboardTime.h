@@ -9,17 +9,16 @@
 class UBehaviorTree;
 
 /**
+* DEPRECATED Replace with UBTTask_Wait that now accepts blackboard keys
  * Wait task node.
  * Wait for the time specified by a Blackboard key when executed.
  */
-UCLASS(hidecategories=Wait, MinimalAPI)
+UCLASS(hidecategories=Wait, hidden, MinimalAPI)
 class UBTTask_WaitBlackboardTime : public UBTTask_Wait
 {
 	GENERATED_UCLASS_BODY()
 
 	AIMODULE_API virtual void InitializeFromAsset(UBehaviorTree& Asset) override;
-	AIMODULE_API virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
-	AIMODULE_API virtual FString GetStaticDescription() const override;
 
 	/** get name of selected blackboard key */
 	AIMODULE_API FName GetSelectedBlackboardKey() const;

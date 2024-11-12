@@ -44,6 +44,7 @@ public:
 		SLATE_SLOT_BEGIN_ARGS_OneMixin(FSlot, TSlotBase<FSlot>, TAlignmentWidgetSlotMixin<FSlot>)
 			SLATE_ATTRIBUTE(FText, Text)
 			SLATE_ATTRIBUTE(FText, ToolTip)
+			SLATE_ATTRIBUTE(TSharedPtr<IToolTip>, ToolTipWidget)
 			SLATE_ATTRIBUTE(const FSlateBrush*, Icon)
 			SLATE_ARGUMENT(TOptional<OptionType>, Value)
 		SLATE_SLOT_END_ARGS()
@@ -59,6 +60,10 @@ public:
 			if (InArgs._ToolTip.IsSet())
 			{
 				_Tooltip = MoveTemp(InArgs._ToolTip);
+			}
+			if (InArgs._ToolTipWidget.IsSet())
+			{
+				_ToolTipWidget = MoveTemp(InArgs._ToolTipWidget);
 			}
 			if (InArgs._Icon.IsSet())
 			{
@@ -105,6 +110,7 @@ public:
 	private:
 		TAttribute<FText> _Text;
 		TAttribute<FText> _Tooltip;
+		TAttribute<TSharedPtr<IToolTip>> _ToolTipWidget;
 		TAttribute<const FSlateBrush*> _Icon;
 
 		OptionType _Value;
@@ -283,6 +289,7 @@ public:
 				.Clipping(EWidgetClipping::ClipToBounds)
 				.HAlign(ChildSlotPtr->GetHorizontalAlignment())
 				.ToolTipText(ChildSlotPtr->_Tooltip)
+				.ToolTip(ChildSlotPtr->_ToolTipWidget)
 				.Style(CheckBoxStyle)
 				.IsChecked(GetCheckBoxStateAttribute(ChildValue))
 				.OnCheckStateChanged(this, &SSegmentedControl::CommitValue, ChildValue)

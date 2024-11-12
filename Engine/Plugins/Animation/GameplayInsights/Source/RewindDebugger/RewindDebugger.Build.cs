@@ -35,6 +35,7 @@ namespace UnrealBuildTool.Rules
 				"TraceInsights",
 				"UnrealEd",
 				"RewindDebuggerInterface",
+				"RewindDebuggerRuntime",
 				"ToolWidgets",
 				"MainFrame",
 				"DeveloperSettings",

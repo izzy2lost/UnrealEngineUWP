@@ -7,6 +7,7 @@
 #include "SceneTypes.h"
 
 class FMaterialHLSLGenerator;
+struct FExpressionOutput;
 
 namespace UE::HLSLTree
 {
@@ -34,25 +35,24 @@ struct FExpressionInput
 	 * Material expression that this input is connected to, or NULL if not connected. 
 	 * If you want to be safe when checking against dangling Reroute nodes, please use GetTracedInput before accessing this property.
 	*/
-	class UMaterialExpression*	Expression;
+	class UMaterialExpression* Expression;
 
 	/** 
 	 * Index into Expression's outputs array that this input is connected to.
 	 * If you want to be safe when checking against dangling Reroute nodes, please use GetTracedInput before accessing this property.
 	*/
-	int32						OutputIndex;
+	int32 OutputIndex;
 
 	/** 
 	 * Optional name of the input.  
 	 * Note that this is the only member which is not derived from the output currently connected. 
 	 */
-	FName						InputName;
-
-	int32						Mask,
-								MaskR,
-								MaskG,
-								MaskB,
-								MaskA;
+	FName InputName;
+	
+	/**
+	 * Input value component mask.
+	 */
+	int32 Mask, MaskR, MaskG, MaskB, MaskA;
 
 	FExpressionInput()
 		: OutputIndex(0)
@@ -110,6 +110,10 @@ struct FExpressionInput
 		MaskB = B;
 		MaskA = A;
 	}
+
+	/** Returns the connected expression output if this input is connected to one,	nullptr otherwise. */
+	FExpressionOutput* GetConnectedOutput();
+
 #endif // WITH_EDITOR
 };
 

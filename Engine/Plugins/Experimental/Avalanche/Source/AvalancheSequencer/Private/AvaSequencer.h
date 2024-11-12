@@ -7,6 +7,8 @@
 #include "Framework/Commands/UIAction.h"
 #include "IAvaSequencer.h"
 #include "IAvaSequencerProvider.h"
+#include "MovieSceneSequenceID.h"
+#include "Widgets/Layout/SSplitter.h"
 
 class AActor;
 class FAvaEaseCurveTool;
@@ -24,7 +26,10 @@ class IPropertyHandle;
 class ISequencer;
 class ISequencerObjectChangeListener;
 class SAvaSequenceTree;
+class SBox;
 class SHeaderRow;
+class SSidebar;
+class SSidebarContainer;
 class SWidget;
 class UAvaSequence;
 class UAvaSequencerSettings;
@@ -39,6 +44,7 @@ struct FAvaSequencerArgs;
 struct FMovieSceneBinding;
 struct FMovieScenePossessable;
 struct FSequencerInitParams;
+struct FSidebarState;
 struct FToolMenuContext;
 template<typename ItemType> class STreeView;
 
@@ -50,6 +56,8 @@ namespace UE::Sequencer
 class FAvaSequencer : public IAvaSequencer, public FEditorUndoClient, public TSharedFromThis<FAvaSequencer>
 {
 public:
+	static const FName SidebarDrawerId;
+
 	explicit FAvaSequencer(IAvaSequencerProvider& InProvider, FAvaSequencerArgs&& InArgs);
 
 	virtual ~FAvaSequencer() override;
@@ -124,9 +132,11 @@ public:
 	bool DuplicateSequence_CanExecute() const;
 	void DuplicateSequence_Execute();
 
-	bool ExportSequence_IsVisible() const;
 	bool ExportSequence_CanExecute() const;
 	void ExportSequence_Execute();
+
+	bool SpawnPlayer_CanExecute() const;
+	void SpawnPlayer_Execute();
 
 	bool DeleteSequence_CanExecute() const;
 	void DeleteSequence_Execute();
@@ -207,6 +217,8 @@ public:
 	// End of FEditorUndoClient
 
 private:
+	TArray<UAvaSequence*, TInlineAllocator<1>> GetSelectedSequences() const;
+
 	TSharedPtr<UE::Sequencer::SOutlinerView> GetOutlinerView() const;
 
 	void InitSequencerCommandList();
@@ -214,6 +226,11 @@ private:
 	void ExecuteSequencerDuplication(FExecuteAction InExecuteAction);
 
 	void OnUpdateCameraCut(UObject* InCameraObject, bool bInJumpCut);
+
+	void OnSidebarStateChanged(const FSidebarState& InNewState);
+
+	void ExtendSidebarSelectionMenu(FMenuBuilder& OutMenuBuilder);
+	void ExtendSidebarMarkedFramesMenu(FMenuBuilder& OutMenuBuilder);
 
 	FOnViewedSequenceChanged OnViewedSequenceChanged;
 
@@ -264,8 +281,9 @@ private:
 	/** Whether FAvaSequencer is allowed to select to/from the ISequencer instance */
 	const bool bCanProcessSequencerSelections;
 
-	/** Selected sequence details sections to restore when a new sequence is selected. */
-	TSet<FName> SelectedSections;
-
 	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
+
+	TSharedPtr<FExtender> SidebarExtender;
+
+	FDelegateHandle SidebarSelectionExtenderHandle;
 };

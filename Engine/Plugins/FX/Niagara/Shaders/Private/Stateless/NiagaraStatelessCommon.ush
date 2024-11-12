@@ -4,6 +4,8 @@
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/Random.ush"
 
+#include "/Plugin/FX/Niagara/Shared/NiagaraStatelessDefinitions.h"
+#include "/Plugin/FX/Niagara/Shared/NiagaraStatelessBuiltDistribution.h"
 #include "/Plugin/FX/Niagara/Private/NiagaraQuaternionUtils.ush"
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +68,6 @@ struct FStatelessParticle
 {
 	bool bAlive;					// If the particle should remain alive or not (only evaluated as specific points)
 	uint UniqueIndex;				// Unique particle index, sequential based on previous spawn info accumulation
-	uint4 RandomSeed;				// Random seed for this particle
 	float Lifetime;					// Overall lifetime for the particle
 	float Age;						// Current age for the particle
 	float NormalizedAge;			// Current normalized age for the particle
@@ -84,43 +85,44 @@ struct FStatelessParticle
 	#undef PARTICLE_ATTRIBUTE
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 };
-	
-uint4 RandomUInt4(inout FStatelessParticle Particle)
-{
-	++Particle.RandomSeed.x;
-	Particle.RandomSeed.w = Particle.RandomSeed.x ^ Particle.RandomSeed.y;
-	return Rand4DPCG32(Particle.RandomSeed);
-}
-uint   RandomUInt(inout FStatelessParticle Particle) { return RandomUInt4(Particle).x; }
-uint2  RandomUInt2(inout FStatelessParticle Particle) { return RandomUInt4(Particle).xy; }
-uint3  RandomUInt3(inout FStatelessParticle Particle) { return RandomUInt4(Particle).xyz; }
 
-float4 RandomFloat4(inout FStatelessParticle Particle)
+static uint4 GRandomSeedInternal;
+
+uint4 RandomUInt4(uint RandomSeedOffset)
 {
-	uint4 v = RandomUInt4(Particle);
+	uint4 RandomSeed = FNiagaraStatelessDefinitions::OffsetRandomSeedForCall(GRandomSeedInternal, RandomSeedOffset);
+	return Rand4DPCG32(RandomSeed);
+}
+uint   RandomUInt(uint RandomSeedOffset) { return RandomUInt4(RandomSeedOffset).x; }
+uint2  RandomUInt2(uint RandomSeedOffset) { return RandomUInt4(RandomSeedOffset).xy; }
+uint3  RandomUInt3(uint RandomSeedOffset) { return RandomUInt4(RandomSeedOffset).xyz; }
+
+float4 RandomFloat4(uint RandomSeedOffset)
+{
+	uint4 v = RandomUInt4(RandomSeedOffset);
 	return float4((v >> 8) & 0x00ffffff) / 16777216.0; // 0x01000000 == 16777216
 }
-float  RandomFloat(inout FStatelessParticle Particle)  { return RandomFloat4(Particle).x; }
-float2 RandomFloat2(inout FStatelessParticle Particle) { return RandomFloat4(Particle).xy; }
-float3 RandomFloat3(inout FStatelessParticle Particle) { return RandomFloat4(Particle).xyz; }
+float  RandomFloat(uint RandomSeedOffset)  { return RandomFloat4(RandomSeedOffset).x; }
+float2 RandomFloat2(uint RandomSeedOffset) { return RandomFloat4(RandomSeedOffset).xy; }
+float3 RandomFloat3(uint RandomSeedOffset) { return RandomFloat4(RandomSeedOffset).xyz; }
 	
-float  RandomRangeFloat(inout FStatelessParticle Particle, float  Min, float  Max) { return (RandomFloat(Particle)  * (Max - Min)) + Min; }
-float2 RandomRangeFloat(inout FStatelessParticle Particle, float2 Min, float2 Max) { return (RandomFloat2(Particle) * (Max - Min)) + Min; }
-float3 RandomRangeFloat(inout FStatelessParticle Particle, float3 Min, float3 Max) { return (RandomFloat3(Particle) * (Max - Min)) + Min; }
-float4 RandomRangeFloat(inout FStatelessParticle Particle, float4 Min, float4 Max) { return (RandomFloat4(Particle) * (Max - Min)) + Min; }
+float  RandomRangeFloat(uint RandomSeedOffset, float  Min, float  Max) { return (RandomFloat(RandomSeedOffset)  * (Max - Min)) + Min; }
+float2 RandomRangeFloat(uint RandomSeedOffset, float2 Min, float2 Max) { return (RandomFloat2(RandomSeedOffset) * (Max - Min)) + Min; }
+float3 RandomRangeFloat(uint RandomSeedOffset, float3 Min, float3 Max) { return (RandomFloat3(RandomSeedOffset) * (Max - Min)) + Min; }
+float4 RandomRangeFloat(uint RandomSeedOffset, float4 Min, float4 Max) { return (RandomFloat4(RandomSeedOffset) * (Max - Min)) + Min; }
 
-float  RandomScaleBiasFloat(inout FStatelessParticle Particle, float  Scale, float  Bias) { return (RandomFloat(Particle)  * Scale) + Bias; }
-float2 RandomScaleBiasFloat(inout FStatelessParticle Particle, float2 Scale, float2 Bias) { return (RandomFloat2(Particle) * Scale) + Bias; }
-float3 RandomScaleBiasFloat(inout FStatelessParticle Particle, float3 Scale, float3 Bias) { return (RandomFloat3(Particle) * Scale) + Bias; }
-float4 RandomScaleBiasFloat(inout FStatelessParticle Particle, float4 Scale, float4 Bias) { return (RandomFloat4(Particle) * Scale) + Bias; }
+float  RandomScaleBiasFloat(uint RandomSeedOffset, float  Scale, float  Bias) { return (RandomFloat(RandomSeedOffset)  * Scale) + Bias; }
+float2 RandomScaleBiasFloat(uint RandomSeedOffset, float2 Scale, float2 Bias) { return (RandomFloat2(RandomSeedOffset) * Scale) + Bias; }
+float3 RandomScaleBiasFloat(uint RandomSeedOffset, float3 Scale, float3 Bias) { return (RandomFloat3(RandomSeedOffset) * Scale) + Bias; }
+float4 RandomScaleBiasFloat(uint RandomSeedOffset, float4 Scale, float4 Bias) { return (RandomFloat4(RandomSeedOffset) * Scale) + Bias; }
 
-float  RandomScaleBiasFloat(inout FStatelessParticle Particle, float  Scale, float  Bias, bool bUniform) { return (RandomFloat(Particle)  * Scale) + Bias; }
-float2 RandomScaleBiasFloat(inout FStatelessParticle Particle, float2 Scale, float2 Bias, bool bUniform) { float2 Random = (RandomFloat2(Particle) * Scale) + Bias; return bUniform ? Random.xx : Random; }
-float3 RandomScaleBiasFloat(inout FStatelessParticle Particle, float3 Scale, float3 Bias, bool bUniform) { float3 Random = (RandomFloat3(Particle) * Scale) + Bias; return bUniform ? Random.xxx : Random; }
-float4 RandomScaleBiasFloat(inout FStatelessParticle Particle, float4 Scale, float4 Bias, bool bUniform) { float4 Random = (RandomFloat4(Particle) * Scale) + Bias; return bUniform ? Random.xxxx : Random; }
+float  RandomScaleBiasFloat(uint RandomSeedOffset, float  Scale, float  Bias, bool bUniform) { return (RandomFloat(RandomSeedOffset)  * Scale) + Bias; }
+float2 RandomScaleBiasFloat(uint RandomSeedOffset, float2 Scale, float2 Bias, bool bUniform) { float2 Random = (RandomFloat2(RandomSeedOffset) * Scale) + Bias; return bUniform ? Random.xx : Random; }
+float3 RandomScaleBiasFloat(uint RandomSeedOffset, float3 Scale, float3 Bias, bool bUniform) { float3 Random = (RandomFloat3(RandomSeedOffset) * Scale) + Bias; return bUniform ? Random.xxx : Random; }
+float4 RandomScaleBiasFloat(uint RandomSeedOffset, float4 Scale, float4 Bias, bool bUniform) { float4 Random = (RandomFloat4(RandomSeedOffset) * Scale) + Bias; return bUniform ? Random.xxxx : Random; }
 
-float2 RandomUnitFloat2(inout FStatelessParticle Particle) { return SafeNormalize(RandomFloat2(Particle) - 0.5f); }
-float3 RandomUnitFloat3(inout FStatelessParticle Particle) { return SafeNormalize(RandomFloat3(Particle) - 0.5f); }
+float2 RandomUnitFloat2(uint RandomSeedOffset) { return SafeNormalize(RandomFloat2(RandomSeedOffset) - 0.5f); }
+float3 RandomUnitFloat3(uint RandomSeedOffset) { return SafeNormalize(RandomFloat3(RandomSeedOffset) - 0.5f); }
 
 float  GetStaticFloat (int BaseOffset, int Element)	{ return Common_StaticFloatBuffer[BaseOffset + Element]; }
 float2 GetStaticFloat2(int BaseOffset, int Element)	{ return float2(Common_StaticFloatBuffer[BaseOffset + Element*2], Common_StaticFloatBuffer[BaseOffset + 1 + Element*2]); }
@@ -164,6 +166,11 @@ float3 LerpStaticFloat3(uint2 Parameters, float U)
 	const float3 Value1 = GetStaticFloat3(Parameters.x, ceil(Offset));
 	return lerp(Value0, Value1, frac(Offset));
 }
+
+float  StatelessLerp(float  lhs, float  rhs, float  u, bool bUniform) { return lerp(lhs, rhs, u); }
+float2 StatelessLerp(float2 lhs, float2 rhs, float2 u, bool bUniform) { return bUniform ? lerp(lhs.x, rhs.x, u.x).xx   : lerp(lhs, rhs, u); }
+float3 StatelessLerp(float3 lhs, float3 rhs, float3 u, bool bUniform) { return bUniform ? lerp(lhs.x, rhs.x, u.x).xxx  : lerp(lhs, rhs, u); }
+float4 StatelessLerp(float4 lhs, float4 rhs, float4 u, bool bUniform) { return bUniform ? lerp(lhs.x, rhs.x, u.x).xxxx : lerp(lhs, rhs, u); }
 	
 uint GetComponentOffset(uint OutputIndex, int ComponentOffset)
 {

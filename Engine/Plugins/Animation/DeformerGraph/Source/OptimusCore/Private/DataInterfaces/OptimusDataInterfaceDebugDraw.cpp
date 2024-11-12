@@ -2,6 +2,7 @@
 
 #include "OptimusDataInterfaceDebugDraw.h"
 
+#include "OptimusCoreModule.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "OptimusDataDomain.h"
@@ -13,6 +14,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceDebugDraw)
 
+#define LOCTEXT_NAMESPACE "OptimusDebugDrawDataInterface"
 
 UOptimusDebugDrawDataInterface::UOptimusDebugDrawDataInterface()
 {
@@ -54,6 +56,18 @@ void UOptimusDebugDrawDataInterface::RegisterTypes()
 		nullptr,
 		FLinearColor(0.3f, 0.7f, 0.4f, 1.0f),
 		EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+}
+
+TOptional<FText> UOptimusDebugDrawDataInterface::ValidateForCompile() const
+{
+	if (!bIsSupported)
+	{
+		return LOCTEXT("Unsupported Platform Setting", "Deformer Graph contains unsupported DebugDraw Data Interface and may not "
+						"function properly. Either make sure DirectX 12 and Shader Model 6 are enabled in Project Settings, "
+						"or remove the data interface from your graph completely");
+	}
+
+	return {};
 }
 
 void UOptimusDebugDrawDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
@@ -113,6 +127,12 @@ UComputeDataProvider* UOptimusDebugDrawDataInterface::CreateDataProvider(TObject
 	UOptimusDebugDrawDataProvider* Provider = NewObject<UOptimusDebugDrawDataProvider>();
 	Provider->PrimitiveComponent = Cast<UPrimitiveComponent>(InBinding);
 	Provider->DebugDrawParameters = DebugDrawParameters;
+
+	if (!bIsSupported)
+	{
+		UE_LOG(LogOptimusCore, Error, TEXT("Deformer Graph aborted because it relies on unsupported DebugDraw DataInterface. Either remove the data interface or make sure DirectX 12 and Shader Model 6 is enabled in project settings for DebugDraw Data Interface to function, since DXC is required for shader compilation."));
+	}
+	
 	return Provider;
 }
 
@@ -205,3 +225,5 @@ void FOptimusDebugDrawDataProviderProxy::GatherDispatchData(FDispatchData const&
 		Parameters.RWEntryBuffer = CachedParameters.ShaderPrint_RWEntryBuffer;
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -75,7 +75,9 @@ enum class EGeometryScriptBakeTypes : uint8
 	/* Material IDs as unique colors */
 	MaterialID             UMETA(DisplayName = "Material ID"),
 	/* Constant value */
-	Constant
+	Constant,
+	/* UV Shell */
+	UVShell                UMETA(DisplayName = "UV Shell")
 };
 
 UENUM(BlueprintType)
@@ -111,6 +113,9 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Occlusion : public FGeo
 
 	/** Angle in degrees from the horizon for occlusion rays for which the contribution is attenuated to reduce faceting artifacts. */
 	float BiasAngle = 15.0f;
+
+	/** Normal space for Bent Normals. */
+	EGeometryScriptBakeNormalSpace NormalSpace = EGeometryScriptBakeNormalSpace::Tangent;
 };
 
 UENUM(BlueprintType)
@@ -126,7 +131,6 @@ enum class EGeometryScriptBakeCurvatureTypeMode : uint8
 	Gaussian
 };
 
-
 UENUM(BlueprintType)
 enum class EGeometryScriptBakeCurvatureColorMode : uint8
 {
@@ -137,7 +141,6 @@ enum class EGeometryScriptBakeCurvatureColorMode : uint8
 	/** Map curvature values to red, green, blue such that red is negative, green is zero, and blue is positive */
 	RedGreenBlue
 };
-
 
 UENUM(BlueprintType)
 enum class EGeometryScriptBakeCurvatureClampMode : uint8
@@ -166,6 +169,24 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Curvature : public FGeo
 
 	/** Clamping applied to curvature values before color mapping */
 	EGeometryScriptBakeCurvatureClampMode Clamping = EGeometryScriptBakeCurvatureClampMode::None;
+};
+
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_UVShell : public FGeometryScriptBakeTypes
+{
+	/** The source UV layer to sample. */
+	int SourceUVLayer = 0;
+	
+	/** The pixel thickness of the wireframes. */
+	float WireframeThickness = 1.0f;
+
+	/** The color for wireframe samples. */
+	FLinearColor WireframeColor = FLinearColor::Blue;
+
+	/** The color for UV shell triangle fill samples. */
+	FLinearColor ShellColor = FLinearColor::Gray;
+
+	/** The color for samples external to UV shells. */
+	FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 };
 
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Texture : public FGeometryScriptBakeTypes
@@ -253,7 +274,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeVertexOptions
 	bool bSplitAtNormalSeams = false;
 
 	/** If true, compute a separate vertex color for each unique UV on a vertex. */
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta=(DisplayName = "Split at UV Seams"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta=(DisplayName = "Split at UV Seams"))
 	bool bSplitAtUVSeams = false;
 
 	/** Maximum allowed distance for the projection from target mesh to source mesh for the sample to be considered valid.
@@ -297,7 +318,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeTargetMeshOptions
 {
 	GENERATED_BODY();
 
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (DisplayName="Target UV Channel"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (DisplayName="Target UV Channel"))
 	int TargetUVLayer = 0;
 };
 
@@ -309,7 +330,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeSourceMeshOptions
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	TObjectPtr<UTexture2D> SourceNormalMap = nullptr;
 
-	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (DisplayName="Source Normal UV Channel"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (DisplayName="Source Normal UV Channel"))
 	int SourceNormalUVLayer = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
@@ -499,7 +520,8 @@ public:
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeBentNormal(
 		int OcclusionRays = 16,
 		float MaxDistance = 0.0f,
-		float SpreadAngle = 180.0f);
+		float SpreadAngle = 180.0f,
+		EGeometryScriptBakeNormalSpace NormalSpace = EGeometryScriptBakeNormalSpace::Tangent);
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypePosition();
@@ -534,6 +556,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeMaterialID();
+
+	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
+	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeUVShell(
+		int SourceUVLayer = 0,
+		float WireframeThickness = 1.0f,
+		FLinearColor WireframeColor = FLinearColor::Blue,
+		FLinearColor ShellColor = FLinearColor::Gray,
+		FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f));
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeConstant(

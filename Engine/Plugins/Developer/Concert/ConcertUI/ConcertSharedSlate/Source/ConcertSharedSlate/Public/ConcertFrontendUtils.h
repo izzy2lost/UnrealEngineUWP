@@ -24,19 +24,6 @@ enum class ETimeFormat
 
 namespace ConcertFrontendUtils
 {
-	inline TSharedRef<SWidget> CreateDisplayName(const TAttribute<FText>& InDisplayName)
-	{
-		return SNew(SBorder)
-			.BorderImage(FAppStyle::Get().GetBrush("NoBorder"))
-			.ColorAndOpacity(FLinearColor(0.75f, 0.75f, 0.75f))
-			.Padding(FMargin(6.0f, 4.0f))
-			[
-				SNew(STextBlock)
-				.Font(FAppStyle::Get().GetFontStyle("BoldFont"))
-				.Text(InDisplayName)
-			];
-	}
-	
 	template <typename ItemType, typename PredFactoryType>
 	inline void SyncArraysByPredicate(TArray<TSharedPtr<ItemType>>& InOutArray, TArray<TSharedPtr<ItemType>>&& InNewArray, const PredFactoryType& InPredFactory)
 	{

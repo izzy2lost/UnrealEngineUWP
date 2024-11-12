@@ -38,6 +38,7 @@ namespace EAssetViewType
 		List,
 		Tile,
 		Column,
+		Custom,
 
 		MAX
 	};
@@ -312,6 +313,9 @@ struct FAssetPickerConfig
 	/** If we display filters & set to true, we will add sections instead of sub-menus for other filters. Useful if the number of additional filters is small. */
 	bool bUseSectionsForCustomFilterCategories;
 
+	/** If specified, the asset view options menu will use this tool menu profile for customization purposes. */
+	TOptional<FName> AssetViewOptionsProfile;
+
 	FAssetPickerConfig()
 		: SelectionMode( ESelectionMode::Multi )
 		, ThumbnailLabel( EThumbnailLabel::ClassName )
@@ -385,6 +389,18 @@ struct FPathPickerConfig
 	/** Whether to call OnPathSelected during construction for DefaultPath if DefaultPath is allowed */
 	bool bNotifyDefaultPathSelected : 1;
 
+	/** Indicates if the 'Show Developers' option should be enabled or disabled */
+	bool bCanShowDevelopersFolder;
+
+	/** Indicates if engine content should always be shown */
+	bool bForceShowEngineContent;
+
+	/** Indicates if plugin content should always be shown */
+	bool bForceShowPluginContent;
+
+	/** if true, will add the filter setting to the path picker */
+	bool bShowViewOptions;
+
 	FPathPickerConfig()
 		: bFocusSearchBoxWhenOpened(true)
 		, bAllowContextMenu(true)
@@ -394,6 +410,10 @@ struct FPathPickerConfig
 		, bOnPathSelectedPassesVirtualPaths(false)
 		, bShowFavorites(true)
 		, bNotifyDefaultPathSelected(false)
+		, bCanShowDevelopersFolder(true)
+		, bForceShowEngineContent(false)
+		, bForceShowPluginContent(false)
+		, bShowViewOptions(false)
 	{}
 };
 

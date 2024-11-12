@@ -93,7 +93,7 @@ void UCurveEditorReduceFilter::ApplyFilter_Impl(TSharedRef<FCurveEditor> InCurve
 
 		// Get all keys that exist between the time range
 		KeyHandles.Reset();
-		Curve->GetKeys(*InCurveEditor, MinKey, MaxKey, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+		Curve->GetKeys( MinKey, MaxKey, TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 		if (KeyHandles.Num() > 2) //need at least 3 keys to reduce
 		{
 			SelectedKeyPositions.SetNum(KeyHandles.Num());

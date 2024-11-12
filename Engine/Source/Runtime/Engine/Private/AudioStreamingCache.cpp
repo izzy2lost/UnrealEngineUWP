@@ -122,7 +122,7 @@ static int32 DebugViewCVar = 2;
 FAutoConsoleVariableRef CVarDebugView(
 	TEXT("au.streamcaching.DebugView"),
 	DebugViewCVar,
-	TEXT("Enables the comparison of FObjectKeys when comparing Stream Cache Chunk Keys.  Without this FName collisions could occur if 2 SoundWaves have the same name.\n")
+	TEXT("Controls Drawing the Debug Display for the Stream Cache.\n")
 	TEXT("0: Legacy, 1: Default, 2: Averaged View, 3: High Detail View"),
 	ECVF_Default);
 
@@ -351,7 +351,6 @@ bool FAudioChunkCache::FCacheElement::IsSoundWaveRetainingAudio() const
 FCachedAudioStreamingManager::FCachedAudioStreamingManager(const FCachedAudioStreamingManagerParams& InitParams)
 {
 	LLM_SCOPE(ELLMTag::AudioStreamCache);
-	check(FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching());
 	checkf(InitParams.Caches.Num() > 0, TEXT("FCachedAudioStreamingManager should be initialized with dimensions for at least one cache."));
 
 	// const FAudioStreamCachingSettings& CacheSettings = FPlatformCompressionUtilities::GetStreamCachingSettingsForCurrentPlatform();
@@ -416,16 +415,6 @@ void FCachedAudioStreamingManager::NotifyLevelOffset(class ULevel* Level, const 
 	// Unused.
 }
 
-void FCachedAudioStreamingManager::AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave)
-{
-	// Unused.
-}
-
-void FCachedAudioStreamingManager::RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave)
-{
-	// Unused.
-}
-
 void FCachedAudioStreamingManager::AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave)
 {
 	// add the sound wave to the first cache
@@ -460,60 +449,6 @@ void FCachedAudioStreamingManager::RemoveMemoryCountedFeature(const FAudioStream
 	{
 		CacheArray[0].RemoveMemoryCountedFeature(Feature);
 	}
-}
-
-void FCachedAudioStreamingManager::AddDecoder(ICompressedAudioInfo* InCompressedAudioInfo)
-{
-	// Unused.
-}
-
-void FCachedAudioStreamingManager::RemoveDecoder(ICompressedAudioInfo* InCompressedAudioInfo)
-{
-	//Unused.
-}
-
-bool FCachedAudioStreamingManager::IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const
-{
-	// Unused. The concept of a sound wave being "managed" doesn't apply here.
-	checkf(false, TEXT("Not Implemented!"));
-	return true;
-}
-
-bool FCachedAudioStreamingManager::IsStreamingInProgress(const FSoundWaveProxyPtr&  SoundWave)
-{
-	// This function is used in USoundWave cleanup.
-	// Since this manager owns the binary data we are streaming off of,
-	// It's safe to delete the USoundWave as long as
-	// There are NO sound sources playing with this Sound Wave.
-	//
-	// This is because a playing sound source might kick off a load for a new chunk,
-	// which dereferences the corresponding USoundWave
-	//
-	// As of right now, this is handled by USoundWave::FreeResources(), called
-	// by USoundWave::IsReadyForFinishDestroy.
-	return false;
-}
-
-bool FCachedAudioStreamingManager::CanCreateSoundSource(const FWaveInstance* WaveInstance) const
-{
-	return true;
-}
-
-void FCachedAudioStreamingManager::AddStreamingSoundSource(FSoundSource* SoundSource)
-{
-	// Unused.
-}
-
-void FCachedAudioStreamingManager::RemoveStreamingSoundSource(FSoundSource* SoundSource)
-{
-	// Unused.
-}
-
-bool FCachedAudioStreamingManager::IsManagedStreamingSoundSource(const FSoundSource* SoundSource) const
-{
-	// Unused. The concept of a sound wave being "managed" doesn't apply here.
-	checkf(false, TEXT("Not Implemented!"));
-	return true;
 }
 
 FAudioChunkHandle FCachedAudioStreamingManager::GetLoadedChunk(const FSoundWaveProxyPtr& SoundWave, uint32 ChunkIndex, bool bBlockForLoad, bool bForImmediatePlayback) const
@@ -1808,7 +1743,12 @@ void FAudioChunkCache::KickOffAsyncLoad(FCacheElement* CacheElement, const FChun
 
 			CacheElement->ChunkDataSize = ChunkDataSize;
 			CacheElement->bIsLoaded = true;
-
+			if (bRequestFailed)
+			{
+				FMemory::Memzero(CacheElement->ChunkData, CacheElement->ChunkDataSize);
+				UE_LOG(LogAudio, Warning, TEXT("FAudioChunkCache::KickOffAsyncLoad -> DDCTask.OnLoadComplete: Request Failed. ChunkIdx: %d; SoundWave: %s"), InKey.ChunkIndex, *InKey.SoundWaveName.ToString());
+			}
+			
 #if DEBUG_STREAM_CACHE
 			CacheElement->DebugInfo.TimeToLoad = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - CacheElement->DebugInfo.TimeLoadStarted);
 #endif
@@ -1862,7 +1802,12 @@ void FAudioChunkCache::KickOffAsyncLoad(FCacheElement* CacheElement, const FChun
 			CacheElement->Key = InKey;
 			CacheElement->ChunkDataSize = ChunkDataSize;
 			CacheElement->bIsLoaded = true;
-
+			if (bWasCancelled)
+			{
+				FMemory::Memzero(CacheElement->ChunkData, CacheElement->ChunkDataSize);
+				UE_LOG(LogAudio, Warning, TEXT("FAudioChunkCache::KickOffAsyncLoad -> AsyncFileCallBack: Request Cancelled. ChunkIdx: %d; SoundWave: %s"), InKey.ChunkIndex, *InKey.SoundWaveName.ToString());
+			}
+			
 #if DEBUG_STREAM_CACHE
 			CacheElement->DebugInfo.TimeToLoad = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - CacheElement->DebugInfo.TimeLoadStarted);
 #endif
@@ -2306,7 +2251,7 @@ FString FAudioChunkCache::DebugPrint()
 	const double PercentageOfCacheExternalFeatures = NumMegabytesExternalFeatures / MaxCacheSizeMB;
 
 	FString CacheMemoryHeader = *FString::Printf(TEXT("External Features:\t, Force Inline:\t, Retaining:\t, Loaded:\t, Max Potential Usage:\t, \n"));
-	FString CacheMemoryUsage = *FString::Printf(TEXT("%.4f Megabytes (%.3f%% of total capacity)\t %.4f Megabytes (%.3f%% of total capacity)\t %.4f Megabytes (%.3f%% of total capacity)\t,  %.4f Megabytes (%lu bytes)\t, %.4f Megabytes\t, \n"), 
+	FString CacheMemoryUsage = *FString::Printf(TEXT("%.4f Megabytes (%.3f%% of total capacity)\t %.4f Megabytes (%.3f%% of total capacity)\t %.4f Megabytes (%.3f%% of total capacity)\t,  %.4f Megabytes (%" UINT64_FMT " bytes)\t, %.4f Megabytes\t, \n"), 
 		NumMegabytesExternalFeatures, PercentageOfCacheExternalFeatures, NumMegabytesForceInline, PercentageOfCacheForceInlined, NumMegabytesRetained, PercentageOfCacheRetained, NumMegabytesInUse, MemoryCounterBytes.Load(), MaxCacheSizeMB);
 	OutputString += CacheMemoryHeader + CacheMemoryUsage + TEXT("\n");
 
@@ -2541,7 +2486,7 @@ TPair<int, int> FAudioChunkCache::DebugDisplay(UWorld* World, FViewport* Viewpor
 	const double NumMegabytesExternalFeatures = (double)ExternalFeaturesBytes / (1024 * 1024);
 	const float PercentageExternalFeatures = NumBytesCounter > 0 ? (double)ExternalFeaturesBytes / NumBytesCounter : 0;
 
-	FString CacheMemoryUsage = *FString::Printf(TEXT("Using: %.4f Megabytes (%lu bytes). Max Potential Usage: %.4f Megabytes."), 
+	FString CacheMemoryUsage = *FString::Printf(TEXT("Using: %.4f Megabytes (%" UINT64_FMT " bytes). Max Potential Usage: %.4f Megabytes."), 
 		NumMegabytesInUse, GetCurrentMemoryUsageBytes(), MaxCacheSizeMB);
 
 	// We're going to align this horizontally with the number of elements right above it.

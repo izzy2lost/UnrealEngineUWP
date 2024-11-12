@@ -308,6 +308,8 @@ TSharedRef<SNiagaraScratchPadScriptEditor> UNiagaraSystemEditorDocumentsViewMode
 	}
 
 	TSharedRef<SNiagaraScratchPadScriptEditor> Editor = SNew(SNiagaraScratchPadScriptEditor, GraphViewModel);
+	// We add a tag here to identify what the tab contains. The tab type doesn't work for that purpose as it can be invalid once a tab is activated
+	Editor->SetTag(FName("ScratchPadScriptEditor"));
 	return Editor;
 }
 
@@ -358,16 +360,19 @@ bool UNiagaraSystemEditorDocumentsViewModel::FindOpenTabsContainingDocument(cons
 
 void UNiagaraSystemEditorDocumentsViewModel::SetActiveDocumentTab(TSharedPtr<SDockTab> Tab)
 {
-	ActiveDocumentTab = Tab;
-	ActiveDocumentTabScriptViewModel = GetActiveScratchPadViewModelIfSet();
-
-	ActiveDocChangedDelegate.Broadcast(Tab);
-
-	// We need to update the parameter panel view model with new parameters potentially
-	INiagaraParameterPanelViewModel* PanelVM = GetSystemViewModel()->GetParameterPanelViewModel();
-	if (PanelVM)
+	if(ActiveDocumentTab != Tab)
 	{
-		PanelVM->RefreshNextTick();
+		ActiveDocumentTab = Tab;
+		ActiveDocumentTabScriptViewModel = GetActiveScratchPadViewModelIfSet();
+
+		ActiveDocChangedDelegate.Broadcast(Tab);
+
+		// We need to update the parameter panel view model with new parameters potentially
+		INiagaraParameterPanelViewModel* PanelVM = GetSystemViewModel()->GetParameterPanelViewModel();
+		if (PanelVM)
+		{
+			PanelVM->RefreshNextTick();
+		}
 	}
 }
 
@@ -416,7 +421,8 @@ TSharedPtr<FNiagaraScratchPadScriptViewModel> UNiagaraSystemEditorDocumentsViewM
 TSharedPtr<FNiagaraScratchPadScriptViewModel> UNiagaraSystemEditorDocumentsViewModel::GetActiveScratchPadViewModelIfSet()
 {
 	TSharedPtr<SDockTab> Tab = ActiveDocumentTab.Pin();
-	if (Tab.IsValid() && Tab->GetLayoutIdentifier().TabType == TEXT("Document"))
+	// When this is called during tab construction, we can't rely on the TabID to be initialized to check if this is a scratch pad tab
+	if (Tab.IsValid() && Tab->GetContent()->GetTag() == "ScratchPadScriptEditor")
 	{
 		TSharedRef<SNiagaraScratchPadScriptEditor> GraphEditor = StaticCastSharedRef<SNiagaraScratchPadScriptEditor>(Tab->GetContent());
 		if (GraphEditor->GetGraphEditor())

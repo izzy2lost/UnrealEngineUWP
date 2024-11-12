@@ -20,11 +20,23 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
 
+// Base class for breadcrumb trail holding methods which are not dependent on the crumb data type.
+class SBreadcrumbTrailBase : public SCompoundWidget
+{
+public:
+	SLATE_API void ScrollToStart();
+	SLATE_API void ScrollToEnd();
+
+protected:
+	/** The horizontal box which contains all the breadcrumbs */
+	TSharedPtr<SScrollBox> CrumbBox;
+};
+
 /**
  * A breadcrumb trail. Allows the user to see their currently selected path and navigate upwards.
  */
 template <typename ItemType>
-class SBreadcrumbTrail : public SCompoundWidget
+class SBreadcrumbTrail : public SBreadcrumbTrailBase
 {
 private:
 	/** A container for data associated with a single crumb in the trail. */
@@ -62,6 +74,9 @@ public:
 
 	/** Callback for getting the menu content to be displayed when clicking on a crumb's delimiter arrow */
 	DECLARE_DELEGATE_RetVal_OneParam( TSharedRef< SWidget >, FGetCrumbMenuContent, const ItemType& /*CrumbData*/ );
+
+	/** Callback for customizing the crumb button content */
+	DECLARE_DELEGATE_RetVal_TwoParams( TSharedRef<SWidget>, FGetCrumbButtonContent, const ItemType& /*CrumbData*/, const FTextBlockStyle* InTextStyle );	
 
 	SLATE_BEGIN_ARGS( SBreadcrumbTrail )
 		: _ButtonStyle( &FCoreStyle::Get().GetWidgetStyle< FButtonStyle >( "BreadcrumbButton" ) )
@@ -105,6 +120,8 @@ public:
 
 		SLATE_EVENT( FGetCrumbMenuContent, GetCrumbMenuContent )
 
+		SLATE_EVENT( FGetCrumbButtonContent, GetCrumbButtonContent )
+
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -121,6 +138,7 @@ public:
 		bHasStaticBreadcrumbs = InArgs._PersistentBreadcrumbs;
 		HasCrumbMenuContentCallback = InArgs._HasCrumbMenuContent;
 		GetCrumbMenuContentCallback = InArgs._GetCrumbMenuContent;
+		GetCrumbButtonContentCallback = InArgs._GetCrumbButtonContent;
 
 		NextValidCrumbID = 0;
 
@@ -144,6 +162,8 @@ public:
 		TSharedPtr<SVerticalBox> NewButtonBox;
 		TSharedPtr<SVerticalBox> NewDelimiterBox;
 
+		TSharedRef<SWidget> ContentWidget = GetCrumbButtonContentCallback.IsBound() ? GetCrumbButtonContentCallback.Execute(NewCrumbData, TextStyle) : SNullWidget::NullWidget; 
+
 		// Add the crumb button
 		CrumbBox->AddSlot()
 		[
@@ -159,7 +179,10 @@ public:
 				.TextStyle(TextStyle)
 				.Text(CrumbText)
 				.OnClicked( this, &SBreadcrumbTrail::CrumbButtonClicked, NextValidCrumbID )
-				// .ForegroundColor( FSlateColor::Uthis, &SBreadcrumbTrail::GetButtonForegroundColor, NextValidCrumbID )
+				.Content()
+				[
+					ContentWidget
+				]
 			]
 		];
 
@@ -420,9 +443,6 @@ private:
 
 private:
 
-	/** The horizontal box which contains all the breadcrumbs */
-	TSharedPtr<SScrollBox> CrumbBox;
-
 	/** The list of crumbs and their data */
 	TArray<FCrumbItem> CrumbList;
 
@@ -455,6 +475,9 @@ private:
 
 	/** Delegate to invoke to retrieve the content for a crumb's menu */
 	FGetCrumbMenuContent GetCrumbMenuContentCallback;
+
+	/** Delegate to invoke to retrieve content a crumb's SButton */
+	FGetCrumbButtonContent GetCrumbButtonContentCallback;
 
 	/** If true, a leading delimiter will be added */
 	TAttribute<bool> ShowLeadingDelimiter;

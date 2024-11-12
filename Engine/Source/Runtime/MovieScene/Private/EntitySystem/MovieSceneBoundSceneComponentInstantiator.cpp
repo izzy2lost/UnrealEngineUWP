@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EntitySystem/MovieSceneBoundSceneComponentInstantiator.h"
+#include "EntitySystem/MovieSceneBoundObjectInstantiator.h"
 #include "EntitySystem/MovieSceneEntityInstantiatorSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneEntityManager.h"
@@ -8,13 +9,17 @@
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "EntitySystem/MovieSceneEntityMutations.h"
 
+#include "Evaluation/MovieSceneEvaluationState.h"
 #include "MovieSceneCommonHelpers.h"
 #include "IMovieScenePlayer.h"
 
 #include "Components/SceneComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneBoundSceneComponentInstantiator)
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 UMovieSceneBoundSceneComponentInstantiator::UMovieSceneBoundSceneComponentInstantiator(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
@@ -26,8 +31,7 @@ UMovieSceneBoundSceneComponentInstantiator::UMovieSceneBoundSceneComponentInstan
 
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
-		DefineComponentProducer(GetClass(), Components->BoundObject);
-		DefineComponentProducer(GetClass(), Components->SymbolicTags.CreatesEntities);
+		DefineImplicitPrerequisite(GetClass(), UMovieSceneGenericBoundObjectInstantiator::StaticClass());
 	}
 }
 
@@ -37,58 +41,36 @@ void UMovieSceneBoundSceneComponentInstantiator::OnRun(FSystemTaskPrerequisites&
 
 	FBuiltInComponentTypes* Components = FBuiltInComponentTypes::Get();
 
-	UnlinkStaleObjectBindings(Components->SceneComponentBinding);
-
-	struct FBoundSceneComponentBatch : FObjectFactoryBatch
+	struct FSceneComponentBindingMutation : IMovieSceneEntityMutation
 	{
-		virtual EResolveError ResolveObjects(FInstanceRegistry* InstanceRegistry, FInstanceHandle InstanceHandle, int32 InEntityIndex, const FGuid& ObjectBinding) override
+		virtual void CreateMutation(FEntityManager* EntityManager, FComponentMask* InOutEntityComponentTypes) const override
 		{
-			EResolveError Result = EResolveError::UnresolvedBinding;
-
-			FSequenceInstance& SequenceInstance = InstanceRegistry->MutateInstance(InstanceHandle);
-
-			TArrayView<TWeakObjectPtr<>> BoundObjects = SequenceInstance.GetPlayer()->FindBoundObjects(ObjectBinding, SequenceInstance.GetSequenceID());
-			if (BoundObjects.Num() == 0)
-			{
-				UE_LOG(LogMovieSceneECS, Verbose, TEXT("FBoundSceneComponentBatch::ResolveObjects: No bound objects returned for FGuid: %s"), *ObjectBinding.ToString());
-				return Result;
-			}
-
-			for (TWeakObjectPtr<> WeakObject : BoundObjects)
-			{
-				if (UObject* Object = WeakObject.Get())
-				{
-					if (USceneComponent* SceneComponent = MovieSceneHelpers::SceneComponentFromRuntimeObject(Object))
-					{
-						if (!ensureMsgf(!FBuiltInComponentTypes::IsBoundObjectGarbage(SceneComponent), TEXT("Attempting to bind an object that is garbage or unreachable")))
-						{
-							continue;
-						}
-
-						// Make a child entity for this resolved binding
-						Add(InEntityIndex, SceneComponent);
-						Result = EResolveError::None;
-					}
-				}
-				else
-				{
-					UE_LOG(LogMovieSceneECS, Verbose, TEXT("FBoundSceneComponentBatch::ResolveObjects: Invalid weak object returned for FGuid: %s"), *ObjectBinding.ToString());
-				}
-			}
-
-			return Result;
+			FBuiltInComponentTypes* Components = FBuiltInComponentTypes::Get();
+			InOutEntityComponentTypes->SetAll({ Components->GenericObjectBinding, Components->BoundObjectResolver });
 		}
-	};
+		virtual void InitializeAllocation(FEntityAllocation* Allocation, const FComponentMask& AllocationType) const
+		{
+			FBuiltInComponentTypes* Components = FBuiltInComponentTypes::Get();
 
-	TBoundObjectTask<FBoundSceneComponentBatch> ObjectBindingTask(Linker);
+			const FGuid*          SceneComponentBindings = Allocation->ReadComponents(Components->SceneComponentBinding).AsPtr();
+			FGuid*                GenericObjectBindings  = Allocation->WriteComponents(Components->GenericObjectBinding, FEntityAllocationWriteContext::NewAllocation()).AsPtr();
+			FBoundObjectResolver* BoundObjectResolvers   = Allocation->WriteComponents(Components->BoundObjectResolver, FEntityAllocationWriteContext::NewAllocation()).AsPtr();
 
-	// Gather all newly instanced entities with an object binding ID
-	FEntityTaskBuilder()
-	.ReadEntityIDs()
-	.Read(Components->InstanceHandle)
-	.Read(Components->SceneComponentBinding)
-	.FilterAny({ Components->Tags.NeedsLink, Components->Tags.HasUnresolvedBinding })
-	.FilterNone({ Components->Tags.NeedsUnlink })
-	.RunInline_PerAllocation(&Linker->EntityManager, ObjectBindingTask);
+			const int32 Num = Allocation->Num();
+			FMemory::Memcpy(GenericObjectBindings, SceneComponentBindings, sizeof(FGuid)*Num);
+
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				BoundObjectResolvers[Index] = MovieSceneHelpers::ResolveSceneComponentBoundObject;
+			}
+		}
+	} Mutation;
+
+
+	Linker->EntityManager.MutateAll(
+		FEntityComponentFilter().All({ Components->SceneComponentBinding }), Mutation);
 }
+
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

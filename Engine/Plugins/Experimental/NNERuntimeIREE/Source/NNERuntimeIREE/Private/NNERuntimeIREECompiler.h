@@ -2,12 +2,44 @@
 
 #pragma once
 
-#ifdef WITH_NNE_RUNTIME_IREE
-#if WITH_EDITOR
-
 #include "CoreMinimal.h"
 #include "NNERuntimeIREEMetaData.h"
 #include "Serialization/JsonSerializerMacros.h"
+
+#include "NNERuntimeIREECompiler.generated.h"
+
+USTRUCT()
+struct FNNERuntimeIREEArchitectureInfoCPU
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Architecture;
+
+	UPROPERTY()
+	FString RelativeDirPath;
+	
+	UPROPERTY()
+	FString SharedLibraryFileName;
+
+	UPROPERTY()
+	FString VmfbFileName;
+
+	UPROPERTY()
+	FString SharedLibraryEntryPointName;
+};
+
+USTRUCT()
+struct FNNERuntimeIREECompilerResultCPU
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FNNERuntimeIREEArchitectureInfoCPU> ArchitectureInfos;
+};
+
+#ifdef WITH_NNE_RUNTIME_IREE
+#if WITH_EDITOR
 
 namespace UE::NNERuntimeIREE::CPU
 {
@@ -39,15 +71,6 @@ namespace UE::NNERuntimeIREE::CPU
 		END_JSON_SERIALIZER
 	};
 
-	struct FCompilerResult
-	{
-		FString Architecture;
-		FString RelativeDirPath;
-		FString SharedLibraryFileName;
-		FString VmfbFileName;
-		FString SharedLibraryEntryPointName;
-	};
-
 	class FCompiler
 	{
 	private:
@@ -58,7 +81,7 @@ namespace UE::NNERuntimeIREE::CPU
 		static TUniquePtr<FCompiler> Make(const FString& InTargetPlatformName);
 
 	public:
-		bool CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FCompilerResult>& OutCompilerResults, UNNERuntimeIREEModuleMetaData* ModuleMetaData);
+		bool CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InOutputDir, FNNERuntimeIREECompilerResultCPU& OutCompilerResult, UNNERuntimeIREEModuleMetaData& ModuleMetaData);
 
 	private:
 		FString CompilerCommand;

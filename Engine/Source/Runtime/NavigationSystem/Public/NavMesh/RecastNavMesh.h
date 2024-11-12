@@ -8,6 +8,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Templates/SubclassOf.h"
 #include "EngineDefines.h"
+#include "LinkGenerationConfig.h"
 #include "AI/Navigation/NavigationTypes.h"
 #include "AI/Navigation/NavigationDataResolution.h"
 #include "NavigationSystemTypes.h"
@@ -199,6 +200,7 @@ struct FRecastDebugGeometry
 		uint8	AreaID;
 		uint8	Direction;
 		uint8	ValidEnds;
+		bool	bIsGenerated;
 		float	Radius;
 		float	Height;
 		FColor	Color;
@@ -283,6 +285,8 @@ struct FNavTileRef
 
 	bool IsValid() const { return TileRef != (uint64)FNavTileRef(); }
 
+	FORCEINLINE friend uint32 GetTypeHash(const FNavTileRef& NavTileRef) { return GetTypeHash(NavTileRef.TileRef); }
+
 	/** Those 2 functions are used for backward compatibility of the following deprecated functions in FRecastNavMeshGenerator and ARecastNavMesh:
 	*	  RemoveTileLayers
 	*     AddGeneratedTilesTimeSliced
@@ -326,122 +330,6 @@ struct FNavigationWallEdge
 	FVector End = FVector::ZeroVector;
 };
 #endif //WITH_RECAST
-
-USTRUCT(meta=(Deprecated = "5.2"))
-struct FRecastNavMeshGenerationProperties
-{
-	GENERATED_BODY()
-
-	/** maximum number of tiles NavMesh can hold */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (editcondition = "bFixedTilePoolSize"))
-	int32 TilePoolSize;
-
-	/** size of single tile, expressed in uu */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "300.0"))
-	float TileSizeUU;
-
-	/** horizontal size of voxelization cell */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "1.0", ClampMax = "1024.0"))
-	float CellSize;
-
-	/** vertical size of voxelization cell */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "1.0", ClampMax = "1024.0"))
-	float CellHeight;
-
-	/** Radius of largest agent that can freely traverse the generated navmesh */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0"))
-	float AgentRadius;
-
-	/** Size of the tallest agent that will path with this navmesh. */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0"))
-	float AgentHeight;
-
-	/* The maximum slope (angle) that the agent can move on. */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0", ClampMax = "89.0", UIMin = "0.0", UIMax = "89.0"))
-	float AgentMaxSlope;
-
-	/** Largest vertical step the agent can perform */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0"))
-	float AgentMaxStepHeight;
-
-	/* The minimum dimension of area. Areas smaller than this will be discarded */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0"))
-	float MinRegionArea;
-
-	/* The size limit of regions to be merged with bigger regions (watershed partitioning only) */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0"))
-	float MergeRegionSize;
-
-	/** How much navigable shapes can get simplified - the higher the value the more freedom */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "0.0"))
-	float MaxSimplificationError;
-
-	/** Absolute hard limit to number of navmesh tiles. Be very, very careful while modifying it while
-	*	having big maps with navmesh. A single, empty tile takes 176 bytes and empty tiles are
-	*	allocated up front (subject to change, but that's where it's at now)
-	*	@note TileNumberHardLimit is always rounded up to the closest power of 2 */
-	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "1", UIMin = "1"), AdvancedDisplay)
-	int32 TileNumberHardLimit;
-
-	/** partitioning method for creating navmesh polys */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	TEnumAsByte<ERecastPartitioning::Type> RegionPartitioning;
-
-	/** partitioning method for creating tile layers */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	TEnumAsByte<ERecastPartitioning::Type> LayerPartitioning;
-
-	/** number of chunk splits (along single axis) used for region's partitioning: ChunkyMonotone */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	int32 RegionChunkSplits;
-
-	/** number of chunk splits (along single axis) used for layer's partitioning: ChunkyMonotone */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	int32 LayerChunkSplits;
-
-	/** Controls whether Navigation Areas will be sorted by cost before application
-	 *	to navmesh during navmesh generation. This is relevant when there are
-	 *	areas overlapping and we want to have area cost express area relevancy
-	 *	as well. Setting it to true will result in having area sorted by cost,
-	 *	but it will also increase navmesh generation cost a bit */
-	UPROPERTY(EditAnywhere, Category = Generation)
-	uint32 bSortNavigationAreasByCost : 1;
-
-	/** controls whether voxel filtering will be applied (via FRecastTileGenerator::ApplyVoxelFilter).
-	 *	Results in generated navmesh better fitting navigation bounds, but hits (a bit) generation performance */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	uint32 bPerformVoxelFiltering : 1;
-
-	/** mark areas with insufficient free height above instead of cutting them out (accessible only for area modifiers using replace mode) */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	uint32 bMarkLowHeightAreas : 1;
-
-	/** Expand the top of the area nav modifier's bounds by one cell height when applying to the navmesh. 
-	    If unset, navmesh on top of surfaces might not be marked by marking bounds flush with top surfaces (since navmesh is generated slightly above collision, depending on cell height). */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	uint32 bUseExtraTopCellWhenMarkingAreas : 1;
-
-	/** if set, only single low height span will be allowed under valid one */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	uint32 bFilterLowSpanSequences : 1;
-
-	/** if set, only low height spans with corresponding area modifier will be stored in tile cache (reduces memory, can't modify without full tile rebuild) */
-	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
-	uint32 bFilterLowSpanFromTileCache : 1;
-
-	/** if true, the NavMesh will allocate fixed size pool for tiles, should be enabled to support streaming */
-	UPROPERTY(EditAnywhere, Category = Generation)
-	uint32 bFixedTilePoolSize : 1;
-
-	/* In a world partitioned map, is this navmesh using world partitioning */
-	UPROPERTY(EditAnywhere, Category = Generation)
-	uint32 bIsWorldPartitioned : 1;
-	
-	NAVIGATIONSYSTEM_API FRecastNavMeshGenerationProperties();
-#if WITH_RECAST
-	NAVIGATIONSYSTEM_API FRecastNavMeshGenerationProperties(const ARecastNavMesh& RecastNavMesh);
-#endif // WITH_RECAST
-};
 
 UENUM()
 enum class EHeightFieldRenderMode : uint8
@@ -497,6 +385,9 @@ struct FRecastNavMeshTileGenerationDebug
 	uint32 bCompactHeightfieldEroded : 1;
 
 	UPROPERTY(EditAnywhere, Category = Debug)
+	uint32 bHeightFieldLayers : 1;
+	
+	UPROPERTY(EditAnywhere, Category = Debug)
 	uint32 bCompactHeightfieldRegions : 1;
 
 	UPROPERTY(EditAnywhere, Category = Debug)
@@ -520,6 +411,13 @@ struct FRecastNavMeshTileGenerationDebug
 
 	UPROPERTY(EditAnywhere, Category = Debug)
 	uint32 bTileCacheDetailMesh : 1;
+
+	UPROPERTY(EditAnywhere, Category = Debug, meta = (Bitmask, BitmaskEnum = "/Script/NavigationSystem.ELinkGenerationDebugFlags"))
+	uint16 LinkGenerationDebugFlags;
+
+	/** Using -1 as no selected edge. */
+	UPROPERTY(EditAnywhere, Category = Debug, meta=(UIMin=-1, ClampMin=-1))
+	int32 LinkGenerationSelectedEdge;
 };
 
 /**
@@ -713,10 +611,12 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Display)
 	uint32 bDrawLabelsOnPathNodes:1;
 
+	/** Draw valid links (both ends are valid). */
 	UPROPERTY(EditAnywhere, Category=Display)
 	uint32 bDrawNavLinks:1;
 
-	UPROPERTY(EditAnywhere, Category=Display)
+	/** Draw failed links and valid links. */
+	UPROPERTY(EditAnywhere, Category=Display, Meta = (DisplayName = "Draw Failed and Valid NavLinks"))
 	uint32 bDrawFailedNavLinks:1;
 	
 	/** Draw navmesh's clusters and cluster links. (Requires WITH_NAVMESH_CLUSTER_LINKS=1) */
@@ -761,15 +661,23 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "300.0"))
 	float TileSizeUU;
 
-	/** horizontal size of voxelization cell */
-	UE_DEPRECATED(5.2, "Set the CellSizes for the required navmesh resolutions in NavMeshResolutionParams.")
-	UPROPERTY(config)
+	/**
+	 * Note that we are not using _DEPRECATED on the following deprecated properties
+	 * since it prevents the property from being serialized back which can break the
+	 * process of duplicating the navmesh for PIE
+	 */
+
+	UE_DEPRECATED(all, "Use NavMeshResolutionParams to set CellSize for the different resolutions instead")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Use NavMeshResolutionParams to set CellSize for the different resolutions instead"))
 	float CellSize;
 
-	/** vertical size of voxelization cell */
-	UE_DEPRECATED(5.2, "Set the CellHeight for the required navmesh resolutions in NavMeshResolutionParams.")
-	UPROPERTY(config)
+	UE_DEPRECATED(all, "Use NavMeshResolutionParams to set CellHeight for the different resolutions instead")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Use NavMeshResolutionParams to set CellHeight for the different resolutions instead"))
 	float CellHeight;
+
+	UE_DEPRECATED(all, "Use NavMeshResolutionParams to set AgentMaxStepHeight for the different resolutions instead")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Use NavMeshResolutionParams to set AgentMaxStepHeight for the different resolutions instead"))
+	float AgentMaxStepHeight;
 
 	/** Resolution params 
 	 * If using multiple resolutions, it's recommended to chose the highest resolution first and 
@@ -789,11 +697,6 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "0.0", ClampMax = "89.0", UIMin = "0.0", UIMax = "89.0" ))
 	float AgentMaxSlope;
 
-	/** Largest vertical step the agent can perform */
-	UE_DEPRECATED(5.3, "Set the AgentMaxStepHeight for the required navmesh resolutions in NavMeshResolutionParams.")
-	UPROPERTY(config)
-	float AgentMaxStepHeight;
-
 	/* The minimum dimension of area. Areas smaller than this will be discarded */
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "0.0"))
 	float MinRegionArea;
@@ -805,7 +708,8 @@ class ARecastNavMesh : public ANavigationData
 	/** Maximum vertical deviation between raw contour points to allowing merging (in voxel).
 	 * Use a low value (2-5) depending on CellHeight, AgentMaxStepHeight and AgentMaxSlope, to allow more precise contours (also see SimplificationElevationRatio).
 	 * Use very high value to deactivate (Recast behavior). */
-	UPROPERTY(EditAnywhere, Category = Generation, config, meta = (ClampMin = "0"))
+	UE_DEPRECATED(5.5, "Not used anymore, the behavior is now binded to SimplificationElevationRatio.")
+	UPROPERTY(config)
 	int MaxVerticalMergeError;
 	
 	/** How much navigable shapes can get simplified - the higher the value the more freedom */
@@ -885,6 +789,11 @@ class ARecastNavMesh : public ANavigationData
 	/* In a world partitioned map, is this navmesh using world partitioning */
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta = (EditCondition = "bAllowWorldPartitionedNavMesh", HideEditConditionToggle, DisplayName = "IsWorldPartitionedNavMesh"))
 	uint32 bIsWorldPartitioned : 1;
+
+	/** Experimental: if set, navlinks will be automatically generated.
+	 * @see FNavLinkGenerationJumpDownConfig */ 
+	UPROPERTY(EditAnywhere, Category=Generation, config)
+	uint32 bGenerateNavLinks : 1;
 	
 	/** controls whether voxel filtering will be applied (via FRecastTileGenerator::ApplyVoxelFilter). 
 	 *	Results in generated navmesh better fitting navigation bounds, but hits (a bit) generation performance */
@@ -924,7 +833,8 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(config)
 	uint32 bUseVirtualFilters : 1;
 
-	/** Indicates whether use the virtual methods to check if an object should generate geometry or if we should call the normal method directly (i.e. FNavigationOctreeElement::ShouldUseGeometry).
+	/** Indicates whether to use the virtual methods to check if an object should generate geometry or
+	 *  if we should call the normal method directly (i.e. FNavigationOctreeElement::ShouldUseGeometry).
 	 *  If enabled, will also check if an object requesting an update on the navmesh is excluded to avoid dirtying the areas unnecessarily.
 	 *  Defaults to false. */
 	UPROPERTY(config)
@@ -956,8 +866,15 @@ protected:
 	UPROPERTY() 
 	uint32 bAllowWorldPartitionedNavMesh : 1;
 #endif // WITH_EDITORONLY_DATA
+
+	/** Experimental configuration to generate vertical links. */
+	UPROPERTY(EditAnywhere, Category=Generation, config)
+	FNavLinkGenerationJumpDownConfig NavLinkJumpDownConfig;
 	
 private:
+	/** @returns true if there were no tiles when the navmesh was loaded. */
+	bool bHasNoTileData : 1 = false;
+	
 	/** Cache rasterized voxels instead of just collision vertices/indices in navigation octree */
 	UPROPERTY(config)
 	uint32 bUseVoxelCache : 1;
@@ -1044,11 +961,13 @@ public:
 	NAVIGATIONSYSTEM_API virtual void PostInitProperties() override;
 	NAVIGATIONSYSTEM_API virtual void PostLoad() override;
 	NAVIGATIONSYSTEM_API virtual void PostRegisterAllComponents() override;
+	NAVIGATIONSYSTEM_API virtual void PostUnregisterAllComponents() override;
 	NAVIGATIONSYSTEM_API virtual void BeginDestroy() override;
 
 #if WITH_EDITOR
 	NAVIGATIONSYSTEM_API virtual void PostEditChangeChainProperty( struct FPropertyChangedChainEvent& PropertyChangedChainEvent) override;
 	NAVIGATIONSYSTEM_API virtual void PostEditChangeProperty( struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	NAVIGATIONSYSTEM_API virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 	//~ End UObject Interface
 
@@ -1156,25 +1075,44 @@ public:
 	NAVIGATIONSYSTEM_API FBox GetNavMeshBounds() const;
 
 	/** Returns bounding box for a given navmesh tile. */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API FBox GetNavMeshTileBounds(int32 TileIndex) const;
 
+	/** Returns bounding box for a given navmesh tile. */
+	NAVIGATIONSYSTEM_API FBox GetNavMeshTileBounds(FNavTileRef TileRef) const;
+
 	/** Retrieves XY coordinates of tile specified by index */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& Layer) const;
+
+	/** Retrieves XY coordinates of tile */
+	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(FNavTileRef TileRef, int32& OutX, int32& OutY, int32& Layer) const;
 
 	/** Retrieves XY coordinates of tile specified by position */
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& OutY) const;
 
 	/** Retrieves the tile resolution */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetNavmeshTileResolution(int32 TileIndex, ENavigationDataResolution& OutResolution) const;
+
+	/** Retrieves the tile resolution */
+	NAVIGATIONSYSTEM_API bool GetNavmeshTileResolution(FNavTileRef TileRef, ENavigationDataResolution& OutResolution) const;
 
 	/** Checks the supplied Points tile indicies can fit in the range of an int32 */
 	NAVIGATIONSYSTEM_API bool CheckTileIndicesInValidRange(const FVector& Point, bool& bOutInRange) const;
 
 	/** Retrieves all tile indices at matching XY coordinates */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes an array of FNavTileRefs instead.")
 	NAVIGATIONSYSTEM_API void GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const;
+
+	/** Retrieves all tiles at matching XY coordinates */
+	NAVIGATIONSYSTEM_API void GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<FNavTileRef>& OutRefs) const;
 
 	/** Retrieves number of tiles in this navmesh */
 	NAVIGATIONSYSTEM_API int32 GetNavMeshTilesCount() const;
+
+	/** Retrieves all tiles in this navmesh */
+	NAVIGATIONSYSTEM_API void GetAllNavMeshTiles(TArray<FNavTileRef>& OutRefs) const;
 
 	/** Removes compressed tile data at given tile coord */
 	NAVIGATIONSYSTEM_API void RemoveTileCacheLayers(int32 TileX, int32 TileY);
@@ -1206,10 +1144,6 @@ public:
 	NAVIGATIONSYSTEM_API void RequestDrawingUpdate(bool bForce = false);
 
 	/** called after regenerating tiles */
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API virtual void OnNavMeshTilesUpdated(const TArray<uint32>& ChangedTiles);
-
-	/** called after regenerating tiles */
 	NAVIGATIONSYSTEM_API virtual void OnNavMeshTilesUpdated(const TArray<FNavTileRef>& ChangedTiles);
 
 	/** Event from generator that navmesh build has finished */
@@ -1233,16 +1167,21 @@ public:
 	//----------------------------------------------------------------------//
 	// Debug                                                                
 	//----------------------------------------------------------------------//
-	/** Debug rendering support. */
-	UE_DEPRECATED(5.1, "Please use the new signature of GetDebugGeometryForTile()")
-	NAVIGATIONSYSTEM_API void GetDebugGeometry(FRecastDebugGeometry& OutGeometry, int32 TileIndex = INDEX_NONE) const;
 
 	/* Gather debug geometry.
 	 * @params OutGeometry Output geometry.
 	 * @params TileIndex Used to collect geometry for a specific tile, INDEX_NONE will gather all tiles
 	 * @return True if done collecting.
 	 */
+	UE_DEPRECATED(5.5, "Use the version of the function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const;
+
+	/* Gather debug geometry.
+	 * @params OutGeometry Output geometry.
+	 * @params TileRef Used to collect geometry for a specific tile, an invalid FNavTileRef will gather all tiles
+	 * @return True if done collecting.
+	 */
+	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const;
 
 	// @todo docuement
 	NAVIGATIONSYSTEM_API void DrawDebugPathCorridor(NavNodeRef const* PathPolys, int32 NumPathPolys, bool bPersistent=true) const;
@@ -1322,7 +1261,7 @@ public:
 	UE_DEPRECATED(5.3, "Please use GetNavLinkUserId() instead. This function only returns Invalid.")
 	int32 GetLinkUserId(NavNodeRef LinkPolyID) const
 	{
-		return FNavLinkId::Invalid.GetId();
+		return static_cast<int32>(FNavLinkId::Invalid.GetId());
 	}
 
 	/** Retrieves LinkUserID associated with indicated PolyID */
@@ -1349,6 +1288,9 @@ public:
 	/** Retrieves a random point inside the specified polygon. Returns false on error. */
 	NAVIGATIONSYSTEM_API bool GetRandomPointInPoly(NavNodeRef PolyID, FVector& OutPoint) const;
 
+	/** Retrieves the surface area of the specified polygon. Returns 0 on error. */
+	NAVIGATIONSYSTEM_API FVector::FReal GetPolySurfaceArea(NavNodeRef PolyID) const;
+
 	/** Retrieves area ID for the specified polygon. */
 	NAVIGATIONSYSTEM_API uint32 GetPolyAreaID(NavNodeRef PolyID) const;
 
@@ -1374,6 +1316,9 @@ public:
 
 	/** Finds edges of specified poly */
 	NAVIGATIONSYSTEM_API bool GetPolyEdges(NavNodeRef PolyID, TArray<FNavigationPortalEdge>& Neighbors) const;
+
+	/** Finds all wall segments for the specified polygon (walls or area borders) */
+	NAVIGATIONSYSTEM_API bool GetPolyWallSegments(NavNodeRef PolyID, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner, TArray<FNavigationPortalEdge>& OutNeighbors) const;
 
 	/** Finds closest point constrained to given poly */
 	NAVIGATIONSYSTEM_API bool GetClosestPointOnPoly(NavNodeRef PolyID, const FVector& TestPt, FVector& PointOnPoly) const;
@@ -1404,13 +1349,20 @@ public:
 	NAVIGATIONSYSTEM_API bool FilterPolys(TArray<NavNodeRef>& PolyRefs, const FRecastQueryFilter* Filter, const UObject* Querier = NULL) const;
 
 	/** Get all polys from tile */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const;
+
+	/** Get all polys from tile */
+	NAVIGATIONSYSTEM_API bool GetPolysInTile(FNavTileRef TileRef, TArray<FNavPoly>& Polys) const;
 
 	/** Get up to 256 polys that overlap the specified box */
 	NAVIGATIONSYSTEM_API bool GetPolysInBox(const FBox& Box, TArray<FNavPoly>& Polys, FSharedConstNavQueryFilter Filter = nullptr, const UObject* Owner = nullptr) const;
 
 	/** Find up to 64 navmesh eges in up to 64 polys around the center */
 	NAVIGATIONSYSTEM_API bool FindEdges(const NavNodeRef CenterNodeRef, const FVector Center, const FVector::FReal Radius, const FSharedConstNavQueryFilter Filter, TArray<FNavigationWallEdge>& OutEdges) const;
+
+	/** Get all exterior nav mesh edges from tile */
+	NAVIGATIONSYSTEM_API bool GetEdgesInTile(FNavTileRef TileRef, TArray<FNavigationWallEdge>& OutEdges) const;
 
 	/** Get all polys from tile */
 	NAVIGATIONSYSTEM_API bool GetNavLinksInTile(const int32 TileIndex, TArray<FNavPoly>& Polys, const bool bIncludeLinksFromNeighborTiles) const;
@@ -1419,13 +1371,15 @@ public:
 	NAVIGATIONSYSTEM_API bool ProjectPointMulti(const FVector& Point, TArray<FNavLocation>& OutLocations, const FVector& Extent,
 		FVector::FReal MinZ, FVector::FReal MaxZ, FSharedConstNavQueryFilter Filter = NULL, const UObject* Querier = NULL) const;
 	
-	// @todo docuement
+	// @todo document
 	static NAVIGATIONSYSTEM_API FPathFindingResult FindPath(const FNavAgentProperties& AgentProperties, const FPathFindingQuery& Query);
 	static NAVIGATIONSYSTEM_API bool TestPath(const FNavAgentProperties& AgentProperties, const FPathFindingQuery& Query, int32* NumVisitedNodes);
 	static NAVIGATIONSYSTEM_API bool TestHierarchicalPath(const FNavAgentProperties& AgentProperties, const FPathFindingQuery& Query, int32* NumVisitedNodes);
 	static NAVIGATIONSYSTEM_API bool NavMeshRaycast(const ANavigationData* Self, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier, FRaycastResult& Result);
 	static NAVIGATIONSYSTEM_API bool NavMeshRaycast(const ANavigationData* Self, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL);
+	static NAVIGATIONSYSTEM_API bool NavMeshRaycast(const ANavigationData* Self, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL);
 	static NAVIGATIONSYSTEM_API bool NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL);
+	static NAVIGATIONSYSTEM_API bool NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL);
 
 	NAVIGATIONSYSTEM_API virtual void BatchRaycast(TArray<FNavigationRaycastWork>& Workload, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL) const override;
 
@@ -1437,15 +1391,17 @@ public:
 	  * @returns true if ALL tiles inside are ready
 	  */
 	NAVIGATIONSYSTEM_API bool HasCompleteDataInRadius(const FVector& TestLocation, FVector::FReal TestRadius) const;
+	
+	/** Check if navmesh is defined (either built/streamed or recognized as empty tile by generator) within given radius around the given segment.
+	* @returns true if ALL tiles inside are ready
+	*/
+	NAVIGATIONSYSTEM_API bool HasCompleteDataAroundSegment(const FVector& StartLocation, const FVector& EndLocation, FVector::FReal TestRadius) const;
 
 	/** @return true is specified segment is fully on navmesh (respecting the optional filter) */
 	NAVIGATIONSYSTEM_API bool IsSegmentOnNavmesh(const FVector& SegmentStart, const FVector& SegmentEnd, FSharedConstNavQueryFilter Filter = NULL, const UObject* Querier = NULL) const;
 
 	/** Check if poly is a custom link */
 	NAVIGATIONSYSTEM_API bool IsCustomLink(NavNodeRef PolyRef) const;
-
-	UE_DEPRECATED(5.3, "Use new override of this function with Array<FNavLinkId>* CustomLinks. This function has no effect.")
-	bool FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<uint32>* CustomLinks) const { return false; }
 
 	/** finds stringpulled path from given corridor */
 	NAVIGATIONSYSTEM_API bool FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<FNavLinkId>* CustomLinks = NULL) const;
@@ -1466,21 +1422,16 @@ public:
 	 *  The subset is be defined by navinvokers or loaded world partitioned cells. */
 	NAVIGATIONSYSTEM_API bool IsUsingActiveTilesGeneration(const UNavigationSystemV1& NavSys) const;
 
+	/** Runs after LoadBeforeGeneratorRebuild but before the rebuild. */
+	NAVIGATIONSYSTEM_API virtual void PostLoadPreRebuild() override;
+	
 	NAVIGATIONSYSTEM_API virtual void ConditionalConstructGenerator() override;
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS	
-	UE_DEPRECATED(5.2, "UpdateGenerationProperties is unused, it will be removed")
-	NAVIGATIONSYSTEM_API void UpdateGenerationProperties(const FRecastNavMeshGenerationProperties& GenerationProps);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS	
 	
 	bool ShouldGatherDataOnGameThread() const { return bDoFullyAsyncNavDataGathering == false; }
 	int32 GetTileNumberHardLimit() const { return TileNumberHardLimit; }
 
 	NAVIGATIONSYSTEM_API virtual void UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& InvokerLocations);
 	NAVIGATIONSYSTEM_API virtual void RemoveTiles(const TArray<FIntPoint>& Tiles);
-	
-	UE_DEPRECATED(5.3, "Use overload with FNavMeshDirtyTileElement instead.")
-	NAVIGATIONSYSTEM_API void RebuildTile(const TArray<FIntPoint>& Tiles);
 
 	NAVIGATIONSYSTEM_API void RebuildTile(const TArray<FNavMeshDirtyTileElement>& Tiles);
 	
@@ -1493,10 +1444,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 
 	NAVIGATIONSYSTEM_API void UpdatePolyRefBitsPreview();
-	
-	/** Invalidates active paths that go through changed tiles  */
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API void InvalidateAffectedPaths(const TArray<uint32>& ChangedTiles);
 
 	/** Invalidates active paths that go through changed tiles  */
 	NAVIGATIONSYSTEM_API void InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedTiles);
@@ -1506,6 +1453,12 @@ protected:
 	NAVIGATIONSYSTEM_API virtual FRecastNavMeshGenerator* CreateGeneratorInstance();
 
 	NAVIGATIONSYSTEM_API void CheckToDiscardSubLevelNavData(const UNavigationSystemBase& NavSys);
+	
+	void RegisterGeneratedLinksProxy();
+	void UnregisterGeneratedLinksProxy();
+
+	/* Create and register links proxy. It's expected to be called on load or when the navmesh is rebuilt. */
+	void CreateAndRegisterJumpDownLinksProxy(const FNavLinkId LinkProxyId = FNavLinkId::GenerateUniqueId());
 
 private:
 	friend struct FRecastGraphWrapper;
@@ -1524,6 +1477,9 @@ private:
 	/** @return Navmesh data chunk that belongs to this actor */
 	NAVIGATIONSYSTEM_API URecastNavMeshDataChunk* GetNavigationDataChunk(const ANavigationDataChunkActor& InActor) const;
 
+	/** Check if navmesh is defined (either built/streamed or recognized as empty tile by generator) in given tile */
+	bool HasCompleteDataInTile(const int32 TileX, const int32 TileY) const;
+
 protected:
 	// retrieves RecastNavMeshImpl
 	FPImplRecastNavMesh* GetRecastNavMeshImpl() { return RecastNavMeshImpl; }
@@ -1532,7 +1488,13 @@ protected:
 	struct FUpdateActiveTilesWorkingMem
 	{
 		TSet<FIntPoint> OldActiveSet;
+
+#if WITH_EDITORONLY_DATA
+		UE_DEPRECATED(5.5, "TilesInMinDistance not used anymore, use TilesInMinDistanceMap instead.")
 		TArray<FNavMeshDirtyTileElement> TilesInMinDistance;
+#endif
+		TMap<FIntPoint, FNavMeshDirtyTileElement> TilesInMinDistanceMap;
+		
 		TSet<FIntPoint> TilesInMaxDistance;
 		TArray<FIntPoint> TileToAppend;
 	};
@@ -1594,8 +1556,19 @@ public:
 FORCEINLINE
 bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier)
 {
+	return NavMeshRaycast(Self, RayStart, RayEnd, HitLocation, nullptr, QueryFilter, Querier);
+}
+
+FORCEINLINE
+bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier)
+{
 	FRaycastResult Result;
-	return NavMeshRaycast(Self, RayStart, RayEnd, HitLocation, QueryFilter, Querier, Result);
+	const bool bDidHit = NavMeshRaycast(Self, RayStart, RayEnd, HitLocation, QueryFilter, Querier, Result);
+	if (AdditionalResults)
+	{
+		AdditionalResults->bIsRayEndInCorridor = Result.bIsRaycastEndInCorridor;
+	}
+	return bDidHit;
 }
 
 

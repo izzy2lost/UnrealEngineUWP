@@ -54,6 +54,7 @@ public:
 	static const FName NameColumnId;
 	static const FName ClassColumnId;
 	static const FName PathColumnId;
+	static const FName DiskSizeColumnId;
 
 	// The revision control column. NOTE: This column currently doesn't support sorting, but is wired through the Sort Manager so the feature can be added in the future
 	static const FName RevisionControlColumnId;

@@ -31,7 +31,6 @@
 class FDetailWidgetRow;
 class IDetailCategoryBuilder;
 class IDetailChildrenBuilder;
-class IDetailGroup;
 class IDetailLayoutBuilder;
 class IPropertyHandle;
 class SWidget;
@@ -61,8 +60,8 @@ public:
 	}
 
 	/** IPropertyTypeCustomization interface */
-	virtual void CustomizeHeader( TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils ) override {};
-	virtual void CustomizeChildren( TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils ) override;
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
 
 private:
 
@@ -71,14 +70,14 @@ private:
 
 	// Profile combo related
 	TSharedRef<SWidget> MakeCollisionProfileComboWidget( TSharedPtr<FString> InItem );
-	void OnCollisionProfileChanged( TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo, IDetailGroup* CollisionGroup );
+	void OnCollisionProfileChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 	FText GetCollisionProfileComboBoxContent() const;
 	FText GetCollisionProfileComboBoxToolTip() const;
 	void OnCollisionProfileComboOpening();
 
 	// Movement channel related
-	TSharedRef<SWidget> MakeObjectTypeComboWidget( TSharedPtr<FString> InItem );
-	void OnObjectTypeChanged( TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo  );
+	TSharedRef<SWidget> MakeObjectTypeComboWidget(TSharedPtr<FString> InItem);
+	void OnObjectTypeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 	FText GetObjectTypeComboBoxContent() const;
 	int32 InitializeObjectTypeComboList();
 
@@ -94,7 +93,7 @@ private:
 	ECheckBoxState IsCollisionChannelChecked( int32 ValidIndex, ECollisionResponse InCollisionResponse) const;
 	// all collision channel check boxes
 	void OnAllCollisionChannelChanged(ECheckBoxState InNewValue, ECollisionResponse InCollisionResponse);
-	ECheckBoxState IsAllCollisionChannelChecked( ECollisionResponse InCollisionResponse) const;
+	ECheckBoxState IsAllCollisionChannelChecked(ECollisionResponse InCollisionResponse) const;
 
 	// should show custom prop
 	bool ShouldEnableCustomCollisionSetup() const;
@@ -106,7 +105,7 @@ private:
 	bool AreAllCollisionUsingDefault() const;
 
 	// utility functions between property and struct
-	void CreateCustomCollisionSetup( TSharedRef<IPropertyHandle> StructPropertyHandle, class IDetailGroup& CollisionGroup );
+	void CreateCustomCollisionSetup(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder);
 	void SetCollisionResponseContainer(const FCollisionResponseContainer& ResponseContainer);
 	void SetResponse(int32 ValidIndex, ECollisionResponse InCollisionResponse);
 	void UpdateCollisionProfile();
@@ -114,8 +113,15 @@ private:
 
 	void UpdateValidCollisionChannels();
 
-	void AddPhysicsCategory(TSharedRef<IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils);
-	void AddCollisionCategory(TSharedRef<IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils);
+	void RefreshCollisionProfiles();
+
+	UStaticMeshComponent* GetDefaultCollisionProvider(const FBodyInstance* BI) const;
+	void MarkAllBodiesDefaultCollision(bool bUseDefaultCollision);
+	bool CanUseDefaultCollision() const;
+	bool CanShowDefaultCollision() const;
+	int32 GetNumberOfSpecialProfiles() const;
+	int32 GetCustomIndex() const;
+	int32 GetDefaultIndex() const;
 
 private:
 	// property handles
@@ -128,40 +134,32 @@ private:
 	TSharedPtr<IPropertyHandle> StaticMeshHandle;
 
 	// widget related variables
-	TSharedPtr<class SComboBox< TSharedPtr<FString> > > CollsionProfileComboBox;
-	TArray< TSharedPtr< FString > >						CollisionProfileComboList;
+	TSharedPtr<class SComboBox<TSharedPtr<FString>>> CollisionProfileComboBox;
+	TArray<TSharedPtr<FString>> CollisionProfileComboList;
 
 	// movement channel related options
-	TSharedPtr<class SComboBox< TSharedPtr<FString> > > ObjectTypeComboBox;
-	TArray< TSharedPtr< FString > >						ObjectTypeComboList;
+	TSharedPtr<class SComboBox<TSharedPtr<FString>>> ObjectTypeComboBox;
+	TArray<TSharedPtr<FString>> ObjectTypeComboList;
 	// matching ObjectType value to ComboList, technically you can search DisplayName all the time, but this seems just easier
-	TArray< ECollisionChannel >							ObjectTypeValues; 
+	TArray<ECollisionChannel> ObjectTypeValues; 
 
 	// default collision profile object
-	UCollisionProfile * CollisionProfile;
+	UCollisionProfile* CollisionProfile;
 
 	TArray<FBodyInstance*> BodyInstances;
-	TArray<UPrimitiveComponent*>		PrimComponents;
+	TArray<UPrimitiveComponent*> PrimComponents;
 	TMap<FBodyInstance*, TWeakObjectPtr<UPrimitiveComponent>> BodyInstanceToPrimComponent;
 
-	TArray<FCollisionChannelInfo>	ValidCollisionChannels;
-
-	void RefreshCollisionProfiles();
-
-	UStaticMeshComponent* GetDefaultCollisionProvider(const FBodyInstance* BI) const;
-	void MarkAllBodiesDefaultCollision(bool bUseDefaultCollision);
-	bool CanUseDefaultCollision() const;
-	bool CanShowDefaultCollision() const;
-	int32 GetNumberOfSpecialProfiles() const;
-	int32 GetCustomIndex() const;
-	int32 GetDefaultIndex() const;
+	TArray<FCollisionChannelInfo> ValidCollisionChannels;
+	IDetailLayoutBuilder* DetailBuilder = nullptr;
 };
 
 class FBodyInstanceCustomizationHelper  : public TSharedFromThis<FBodyInstanceCustomizationHelper>
 {
 public:
 	FBodyInstanceCustomizationHelper(const TArray<TWeakObjectPtr<UObject>>& InObjectsCustomized);
-	void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler );
+	void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler);
+	void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> BodyInstanceHandler, TFunction<void(TSharedRef<IPropertyHandle>)> CustomizeCoMNudge);
 
 private:
 	void UpdateFilters();

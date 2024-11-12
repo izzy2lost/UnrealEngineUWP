@@ -39,6 +39,8 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 	OnTagQueryChanged = InArgs._OnTagQueryChanged;
 	PropertyHandle = InArgs._PropertyHandle;
 
+	CacheQueryList();
+
 	if (PropertyHandle.IsValid())
 	{
 		PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SGameplayTagQueryEntryBox::CacheQueryList));
@@ -48,13 +50,14 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 		{
 			Filter = UGameplayTagsManager::Get().GetCategoriesMetaFromPropertyHandle(PropertyHandle);
 		}
+
+		// Let's check if there's already an open editor window for this property and rebuild that
+		QueryWidget = UE::GameplayTags::Editor::TrySyncGameplayTagQueryWidget(BuildWindowArgs());
 	}
 	else
 	{
 		TagQueryAttribute.Assign(*this, InArgs._TagQuery);
 	}
-
-	CacheQueryList();
 
 	ChildSlot
 	[
@@ -185,7 +188,7 @@ EVisibility SGameplayTagQueryEntryBox::GetQueryDescVisibility() const
 	return HasAnyValidQueries() == true ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
+FGameplayTagQueryWindowArgs SGameplayTagQueryEntryBox::BuildWindowArgs()
 {
 	FGameplayTagQueryWindowArgs Args;
 	Args.OnQueriesCommitted = SGameplayTagQueryWidget::FOnQueriesCommitted::CreateSP(this, &SGameplayTagQueryEntryBox::OnQueriesCommitted);
@@ -196,6 +199,8 @@ FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
 	
 	if (PropertyHandle.IsValid())
 	{
+		Args.Property = PropertyHandle->GetProperty();
+
 		TArray<UObject*> OuterObjects;
 		PropertyHandle->GetOuterObjects(OuterObjects);
 
@@ -227,7 +232,12 @@ FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
 		Args.Title = LOCTEXT("GameplayTagQueryEntryBox_WidgetTitle", "Tag Editor");
 	}
 
-	QueryWidget = UE::GameplayTags::Editor::OpenGameplayTagQueryWindow(Args);
+	return Args;
+}
+
+FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
+{
+	QueryWidget = UE::GameplayTags::Editor::OpenGameplayTagQueryWindow(BuildWindowArgs());
 	
 	return FReply::Handled();
 }

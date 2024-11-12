@@ -125,6 +125,9 @@ struct FMeshPart
 	UStaticMesh* SourceAsset = nullptr;
 	const IGeometryProcessing_CombineMeshInstances::FMeshLODSet* SourceMeshLODSet = nullptr;
 
+	// Precomputed part meshes
+	TSharedPtr<IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet> PrecomputedMeshes = nullptr;
+
 	TArray<FMeshPartInstance> Instances;
 
 	bool bPreserveUVs = false;
@@ -154,12 +157,14 @@ struct FMeshPart
 
 struct FSourceGeometry
 {
+	// Note: These arrays cannot be resized
 	TArray<UE::Geometry::FDynamicMesh3> SourceMeshLODs;
 	UE::Geometry::FSimpleShapeSet3d CollisionShapes;
 };
 
 struct FOptimizedGeometry
 {
+	// Note: These arrays cannot be resized
 	TArray<UE::Geometry::FDynamicMesh3> SimplifiedMeshLODs;
 
 	TArray<UE::Geometry::FDynamicMesh3> ApproximateMeshLODs;
@@ -176,15 +181,19 @@ public:
 	FMeshPartsAssembly(FMeshPartsAssembly&) = delete;
 	FMeshPartsAssembly& operator=(const FMeshPartsAssembly&) = delete;
 
-
+	// Array of parts, sorted in descending order of triangle count. Note each part can have multiple instances
 	TArray<TUniquePtr<FMeshPart>> Parts;
 
+	// All materials used by parts in this assembly
 	TArray<UMaterialInterface*> UniqueMaterials;
 	TMap<UMaterialInterface*, int32> MaterialMap;
 
-	TArray<FSourceGeometry> SourceMeshGeometry;
-	TArray<FOptimizedGeometry> OptimizedMeshGeometry;
 
+	// For each part, and array of source LODs
+	TArray<FSourceGeometry> SourceMeshGeometry;
+	// For each part, arrays of simplified and approximated versions of the part
+	TArray<FOptimizedGeometry> OptimizedMeshGeometry;
+	// Array of aabb tree per SourceMeshGeometry; note these are always wrt LOD 0 of the corresponding source geometry
 	TArray<FDynamicMeshAABBTree3> SourceMeshSpatials;
 
 	// allow external code to preprocess dynamic mesh for a specific instance
@@ -209,17 +218,19 @@ void InitializeMeshPartAssembly(
 
 		UStaticMesh* StaticMesh = SourceMeshInstance.SourceMesh;
 		FMeshPart** FoundPart = StaticMeshToPartMap.Find(StaticMesh);
+		FMeshPart* LocalPtr = nullptr;
 		if (FoundPart == nullptr)
 		{
 			TUniquePtr<FMeshPart> NewPart = MakeUnique<FMeshPart>();
 			NewPart->SourceAsset = StaticMesh;
-			FMeshPart* Ptr = NewPart.Get();
+			NewPart->PrecomputedMeshes = SourceMeshInstance.PrecomputedMeshes;
+			LocalPtr = NewPart.Get();
 					
 			AssemblyOut.Parts.Add(MoveTemp(NewPart));
 			// store source model?
 
-			StaticMeshToPartMap.Add(StaticMesh, Ptr);
-			FoundPart = &Ptr;
+			StaticMeshToPartMap.Add(StaticMesh, LocalPtr);
+			FoundPart = &LocalPtr;
 		}
 
 		FMeshPartInstance NewInstance;
@@ -268,17 +279,19 @@ void InitializeMeshPartAssembly(
 		const IGeometryProcessing_CombineMeshInstances::FMeshLODSet* MeshLODSet = &SourceInstanceList.MeshLODSets[MeshSetIndex];
 
 		FMeshPart** FoundPart = MeshLODSetToPartMap.Find(MeshLODSet);
+		FMeshPart* LocalPtr = nullptr;
 		if (FoundPart == nullptr)
 		{
 			TUniquePtr<FMeshPart> NewPart = MakeUnique<FMeshPart>();
 			NewPart->SourceMeshLODSet = MeshLODSet;
-			FMeshPart* Ptr = NewPart.Get();
+			NewPart->PrecomputedMeshes = SourceMeshInstance.PrecomputedMeshes;
+			LocalPtr = NewPart.Get();
 
 			AssemblyOut.Parts.Add(MoveTemp(NewPart));
 			// store source model?
 
-			MeshLODSetToPartMap.Add(MeshLODSet, Ptr);
-			FoundPart = &Ptr;
+			MeshLODSetToPartMap.Add(MeshLODSet, LocalPtr);
+			FoundPart = &LocalPtr;
 		}
 
 		FMeshPartInstance NewInstance;
@@ -419,13 +432,6 @@ void InitializeAssemblySourceMeshesFromLOD(
 		if (Target.SourceMeshLODs[0].TriangleCount() == 0 && Part->SourceAsset != nullptr)
 		{
 			ExtractSourceMeshLOD(*Part, 0, Target.SourceMeshLODs[0]);
-		}
-
-		// now if first LOD is missing, just fall back to a box
-		if (Target.SourceMeshLODs[0].TriangleCount() == 0)
-		{
-			FGridBoxMeshGenerator BoxGen;
-			Target.SourceMeshLODs[0].Copy(&BoxGen.Generate());
 		}
 
 		// now make sure every one of our Source LODs has a mesh by copying from N-1
@@ -607,19 +613,28 @@ public:
 		Options.Add(Option);
 	}
 
-	void ComputeMetric(FResultOption& Option)
+	static double ComputeMetricFromDeviation(FVector2d DeviationMetric, int32 MethodID, int32 TriCount, double MaxAllowableDeviation, double TriangleCost = .7)
 	{
-		Option.DeviationMetric = DeviationMetric(*Option.Mesh, *Spatial);
-		int32 TriCount = Option.Mesh->TriangleCount();
 		int32 BaseTriCount = 12;		// 2 tris for each face of box
-		if (MaxAllowableDeviation > 0 && Option.DeviationMetric[1] > MaxAllowableDeviation)
+		if (MaxAllowableDeviation > 0 && DeviationMetric[1] > MaxAllowableDeviation)
 		{
-			Option.CostMetric = TNumericLimits<float>::Max() + (double)Option.MethodID;
+			return TNumericLimits<float>::Max() + (double)MethodID;
 		}
 		else
 		{
-			Option.CostMetric = Option.DeviationMetric[0] * FMathd::Pow((double)TriCount / (double)BaseTriCount, TriangleCost);
+			return DeviationMetric[0] * FMathd::Pow((double)TriCount / (double)BaseTriCount, TriangleCost);
 		}
+	}
+
+	// Compute an error metric to decide which approximation of the input shape to favor
+	// Note this is a point-sampled (not area weighted) average squared error scaled by (TriCount / 12)^.7, or a huge number (but ordered by generation method) if the max error is too high
+	// So the metric favors e.g. using fewer triangles in higher error regions (so there are less samples there) and a higher error is 'ok' if it comes with an associated lower tri count.
+	// Note this metric is only 'for' comparing meshes that represent the same shape, it's not intended to compare quality of two different parts meshes
+	// (e.g. do not use it to decide which part to 'promote' to a worse LOD to hit a tri budget)
+	void ComputeMetric(FResultOption& Option)
+	{
+		Option.DeviationMetric = DeviationMetric(*Option.Mesh, *Spatial);
+		Option.CostMetric = ComputeMetricFromDeviation(Option.DeviationMetric, Option.MethodID, Option.Mesh->TriangleCount(), MaxAllowableDeviation, TriangleCost);
 	}
 
 	void SelectBestOption(
@@ -680,7 +695,10 @@ void ReplaceBadSimplifiedLODs(FMeshPartsAssembly& Assembly, const IGeometryProce
 			Selector.Initialize(Spatial.GetMesh(), &Spatial);
 			if ( k == OptimizedTargets.SimplifiedMeshLODs.Num()-1 )
 			{
-				Selector.AddGeneratedMesh(OptimizedTargets.ApproximateMeshLODs[0], 2);
+				if (OptimizedTargets.ApproximateMeshLODs.Num() > 0)
+				{
+					Selector.AddGeneratedMesh(OptimizedTargets.ApproximateMeshLODs[0], 2);
+				}
 			}
 			else
 			{
@@ -999,6 +1017,12 @@ static void ComputeSimplePartApproximation(
 	FDynamicMesh3& DestMesh,
 	EApproximatePartMethod ApproxMethod)
 {
+
+	if (SourcePartMesh.TriangleCount() == 0)
+	{
+		// Nothing to approximate.
+		return;
+	}
 
 	if (ApproxMethod == EApproximatePartMethod::AxisAlignedBox)
 	{
@@ -1348,12 +1372,13 @@ void ComputeMeshApproximations(
 	using namespace UE::Geometry;
 	const double AngleThresholdDeg = CombineOptions.HardNormalAngleDeg;
 
-	int32 NumParts = Assembly.Parts.Num();
+	const int32 NumParts = Assembly.Parts.Num();
 	Assembly.OptimizedMeshGeometry.SetNum(NumParts);
 
-	int32 NumSimplifiedLODs = CombineOptions.NumSimplifiedLODs;
-	int32 NumApproxLODs = FMath::Max(1, 
+	const int32 NumSimplifiedLODs = CombineOptions.NumSimplifiedLODs;
+	const int32 NumApproxLODs = FMath::Max(0, 
 		CombineOptions.NumLODs - CombineOptions.NumCopiedLODs - CombineOptions.NumSimplifiedLODs);
+	const bool bNeedsApproximateDecorativePartLODs = CombineOptions.NumLODs >= CombineOptions.FilterDecorativePartsLODLevel - CombineOptions.ApproximateDecorativePartLODs;
 
 	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
 	ParallelFor(NumParts, [&](int32 Index)
@@ -1398,8 +1423,8 @@ void ComputeMeshApproximations(
 		// Note that ExtraLODs is a hack here - we are computing more than necessary
 		// so that the cost approximation strategy below has additional simplified approximations available. 
 		// This could be smarter, but this dumb method works OK for now...
-		int32 ExtraLODs = 10;
-		int32 UseNumApproxLODs = NumApproxLODs + ExtraLODs;
+		const int32 ExtraLODs = 10;
+		const int32 UseNumApproxLODs = NumApproxLODs > 0 || bNeedsApproximateDecorativePartLODs ? NumApproxLODs + ExtraLODs : 0;
 		ApproxGeo.ApproximateMeshLODs.SetNum(UseNumApproxLODs);
 		double InitialTriCost = CombineOptions.OptimizeBaseTriCost;
 		TArray<EApproximatePartMethod> SelectedMethodID; SelectedMethodID.SetNum(UseNumApproxLODs);		// useful for debugging
@@ -1426,7 +1451,7 @@ void ComputeMeshApproximations(
 			FMeshNormals::QuickRecomputeOverlayNormals(ApproxGeo.ApproximateMeshLODs[k]);
 		}
 
-		// try remeshing the last Source LOD to reduce it's triangle count, by removing spurious geometry
+		// try planar simplification for lower Source LODs, reducing triangle count in flat regions
 		if (CombineOptions.bRetriangulateSourceLODs)
 		{
 			for (int32 SourceLODIndex = CombineOptions.StartRetriangulateSourceLOD; SourceLODIndex < NumSourceLODs; ++SourceLODIndex)
@@ -1539,12 +1564,12 @@ void ComputeMeshApproximations(
 				PartCostInfo.ReplacedWeight = 1.0;
 			}
 
-			int32 LastTotalCurLODTriCount = 999999;
+			int32 LastTotalCurLODTriCount = TMathUtil<int32>::SafeLargeValue;
 			int32 MaxIters = 1000;
 			int32 NoProgressIters = 0;
 			for ( int32 NumIter = 0; NumIter < MaxIters; ++NumIter)
 			{
-				// compute current estimate of total part count for this LOD
+				// compute current estimate of per-part and total tri counts for this LOD
 				int32 TotalCurLODTriCount = 0;
 				for (int32 SetIndex = 0; SetIndex < NumParts; ++SetIndex)
 				{
@@ -2724,8 +2749,9 @@ void DoSimplifyMesh(
 		}
 	}
 
-	// do these flags matter here since we are not flipping??
-	EEdgeRefineFlags MeshBoundaryConstraints = EEdgeRefineFlags::NoFlip;
+	// If we allow boundary collapse, this can introduce visible holes in the simplified result
+	constexpr bool bAllowBoundaryCollapse = false;
+	EEdgeRefineFlags MeshBoundaryConstraints = bAllowBoundaryCollapse ? EEdgeRefineFlags::NoFlip : EEdgeRefineFlags::SplitsOnly;
 	EEdgeRefineFlags GroupBorderConstraints = EEdgeRefineFlags::NoConstraint;
 	EEdgeRefineFlags MaterialBorderConstraints = EEdgeRefineFlags::NoConstraint;
 
@@ -3058,13 +3084,15 @@ static void SortMesh(FDynamicMesh3& Mesh)
 bool ComputeHiddenRemovalForLOD(
 	FDynamicMesh3& MeshLOD,
 	int32 LODIndex,
-	IGeometryProcessing_CombineMeshInstances::FOptions CombineOptions)
+	IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode RemoveHiddenFacesMethod,
+	double RemoveHiddenSamplingDensity,
+	bool bDoubleSidedHiddenRemoval)
 {
 	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(RemoveHidden_LOD);
 	bool bModified = false;
-	switch (CombineOptions.RemoveHiddenFacesMethod)
+	switch (RemoveHiddenFacesMethod)
 	{
 		case IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::OcclusionBased:
 			RemoveHiddenFaces_Occlusion(MeshLOD, 200);		// 200 is arbitrary here! should improve once max-distance is actually available (currently ignored)
@@ -3072,7 +3100,7 @@ bool ComputeHiddenRemovalForLOD(
 			break;
 		case IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::ExteriorVisibility:
 		case IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::Fastest:
-			RemoveHiddenFaces_ExteriorVisibility(MeshLOD, CombineOptions.RemoveHiddenSamplingDensity, CombineOptions.bDoubleSidedHiddenRemoval, LODIndex);
+			RemoveHiddenFaces_ExteriorVisibility(MeshLOD, RemoveHiddenSamplingDensity, bDoubleSidedHiddenRemoval, LODIndex);
 			bModified = true;
 			break;
 	}
@@ -3085,6 +3113,34 @@ bool ComputeHiddenRemovalForLOD(
 	return bModified;
 }
 
+bool ComputeHiddenRemovalForLOD(
+	FDynamicMesh3& MeshLOD,
+	int32 LODIndex,
+	IGeometryProcessing_CombineMeshInstances::FOptions CombineOptions)
+{
+	return ComputeHiddenRemovalForLOD(MeshLOD, LODIndex, CombineOptions.RemoveHiddenFacesMethod, CombineOptions.RemoveHiddenSamplingDensity, CombineOptions.bDoubleSidedHiddenRemoval);
+}
+
+
+void OptimizeLODMeshTriangulation(
+	FDynamicMesh3& MeshLOD,
+	int32 LODIndex,
+	TFunction<FIndex3i(const FDynamicMesh3& Mesh, int32 TriangleID)> TriangleGroupingIDFunc,
+	bool bWantCoplanarMerging,
+	bool bWantPlanarRetriangulation,
+	double BaseGeometricTolerance,
+	TSet<int32>* SkipMaterialIDs = nullptr)
+{
+	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
+
+	TFunction<FIndex3i(const FDynamicMesh3& Mesh, int32 TriangleID)> GroupingIDFunc = TriangleGroupingIDFunc;
+	if (!GroupingIDFunc)
+	{
+		GroupingIDFunc = [](const FDynamicMesh3&, int32) { return FIndex3i::Zero(); };
+	}
+
+	PostProcessHiddenFaceRemovedMesh(MeshLOD, BaseGeometricTolerance, bWantCoplanarMerging, bWantPlanarRetriangulation,	GroupingIDFunc, SkipMaterialIDs);
+}
 
 void OptimizeLODMeshTriangulation(
 	FDynamicMesh3& MeshLOD,
@@ -3093,14 +3149,6 @@ void OptimizeLODMeshTriangulation(
 	double BaseGeometricTolerance,
 	TSet<int32>* SkipMaterialIDs = nullptr)
 {
-	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
-
-	TFunction<FIndex3i(const FDynamicMesh3& Mesh, int32 TriangleID)> GroupingIDFunc = CombineOptions.TriangleGroupingIDFunc;
-	if (!GroupingIDFunc)
-	{
-		GroupingIDFunc = [](const FDynamicMesh3&, int32) { return FIndex3i::Zero(); };
-	}
-
 	bool bWantCoplanarMerging = (CombineOptions.bMergeCoplanarFaces)
 		&& (LODIndex >= CombineOptions.MergeCoplanarFacesStartLOD)
 		&& (LODIndex > CombineOptions.PreserveUVLODLevel);
@@ -3108,7 +3156,7 @@ void OptimizeLODMeshTriangulation(
 		&& (CombineOptions.PlanarPolygonRetriangulationStartLOD >= 0)
 		&& (LODIndex >= CombineOptions.PlanarPolygonRetriangulationStartLOD);
 
-	PostProcessHiddenFaceRemovedMesh(MeshLOD, BaseGeometricTolerance, bWantCoplanarMerging, bWantPlanarRetriangulation,	GroupingIDFunc, SkipMaterialIDs);
+	OptimizeLODMeshTriangulation(MeshLOD, LODIndex, CombineOptions.TriangleGroupingIDFunc, bWantCoplanarMerging, bWantPlanarRetriangulation, BaseGeometricTolerance, SkipMaterialIDs);
 }
 
 
@@ -3119,24 +3167,38 @@ void ProcessCombinedLODChain(
 	TArray<FCombinedMeshLOD>& MeshLODs,
 	const TArray<double>& OptimizationTolerances,
 	int32 FirstVoxWrappedIndex,
-	IGeometryProcessing_CombineMeshInstances::FOptions CombineOptions,
+	int32 NumLODs,
+	bool bRemoveHiddenFaces,
+	TFunctionRef<bool(int32)> LODRemoveHidden,
+	TFunctionRef<bool(int32)> LODWantCoplanarMerging,
+	TFunctionRef<bool(int32)> LODWantPlanarRetriangulation,
+	TFunctionRef<IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode(int32)> LODRemoveHiddenFacesMethod,
+	TFunctionRef<double(int32)> LODRemoveHiddenSamplingDensity,
+	TFunctionRef<bool(int32)> LODDoubleSidedHiddenRemoval,
+	TFunction<FIndex3i(const FDynamicMesh3& Mesh, int32 TriangleID)> TriangleGroupingIDFunc,
+
+	IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy CoarseLODStrategy,
+	double CoarseApproximationDetailSize,
+	TFunctionRef<int32(int32)> GetCoarseLODMaxTriCount,
+	double CoarseLODBaseTolerance,
+	double HardNormalAngleDeg,
+	bool bAutoGenerateMissingUVs,
+	bool bAutoGenerateTangents,
 	TSet<int32>* PreserveTopologyMaterialIDs = nullptr
 )
 {
 	using namespace UE::Geometry;
 	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
 
-	int32 NumLODs = CombineOptions.NumLODs;
-
 	TArray<UE::Tasks::FTask> PendingRemoveHiddenTasks;
-	bool bRemoveHiddenFaces =
-		(CombineOptions.RemoveHiddenFacesMethod != IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::None
-			&& CVarGeometryCombineMeshInstancesRemoveHidden.GetValueOnAnyThread() > 0);
 	if (bRemoveHiddenFaces)
 	{
-		for (int32 LODIndex = CombineOptions.RemoveHiddenStartLOD; LODIndex < NumLODs && LODIndex < FirstVoxWrappedIndex; ++LODIndex)
+		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 		{
-			if (MeshLODs[LODIndex].Mesh.TriangleCount() == 0) continue;
+			if (!LODRemoveHidden(LODIndex) || MeshLODs[LODIndex].Mesh.TriangleCount() == 0)
+			{
+				continue;
+			}
 
 			if (bVerbose)
 			{
@@ -3144,16 +3206,20 @@ void ProcessCombinedLODChain(
 			}
 
 			double UseTolerance = OptimizationTolerances[LODIndex];
-			UE::Tasks::FTask RemoveHiddenTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [&MeshLODs, &CombineOptions, LODIndex, UseTolerance, PreserveTopologyMaterialIDs]()
+			bool bWantCoplanarMerging = LODWantCoplanarMerging(LODIndex), bWantPlanarRetriangulation = LODWantPlanarRetriangulation(LODIndex);
+			UE::Tasks::FTask RemoveHiddenTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, 
+				[&MeshLODs, LODIndex, UseTolerance, PreserveTopologyMaterialIDs,
+				LODRemoveHiddenFacesMethod, LODRemoveHiddenSamplingDensity, LODDoubleSidedHiddenRemoval,
+				TriangleGroupingIDFunc, bWantCoplanarMerging, bWantPlanarRetriangulation]()
 			{
-				ComputeHiddenRemovalForLOD(MeshLODs[LODIndex].Mesh, LODIndex, CombineOptions);
-				OptimizeLODMeshTriangulation(MeshLODs[LODIndex].Mesh, LODIndex, CombineOptions, UseTolerance, PreserveTopologyMaterialIDs);
+				ComputeHiddenRemovalForLOD(MeshLODs[LODIndex].Mesh, LODIndex, LODRemoveHiddenFacesMethod(LODIndex), LODRemoveHiddenSamplingDensity(LODIndex), LODDoubleSidedHiddenRemoval(LODIndex));
+				OptimizeLODMeshTriangulation(MeshLODs[LODIndex].Mesh, LODIndex, TriangleGroupingIDFunc, bWantCoplanarMerging, bWantPlanarRetriangulation, UseTolerance, PreserveTopologyMaterialIDs);
 			});
 			PendingRemoveHiddenTasks.Add(RemoveHiddenTask);
 
 			if (bVerbose)
 			{
-				RemoveHiddenTask.BusyWait();
+				RemoveHiddenTask.Wait();
 			}
 		}
 	}
@@ -3163,7 +3229,7 @@ void ProcessCombinedLODChain(
 	// Process VoxWrapped LODs 
 	//
 	bool bUsingCoarseSweepApproximation = false;
-	if ( FirstVoxWrappedIndex < 9999 &&  (MeshLODs[FirstVoxWrappedIndex].Mesh.TriangleCount() > 0) )
+	if ( FirstVoxWrappedIndex < MeshLODs.Num() && (MeshLODs[FirstVoxWrappedIndex].Mesh.TriangleCount() > 0))
 	{
 		FDynamicMesh3 SourceVoxWrapMesh = MoveTemp(MeshLODs[FirstVoxWrappedIndex].Mesh);
 		FDynamicMeshAABBTree3 SourceSpatial(&SourceVoxWrapMesh, true);
@@ -3174,28 +3240,28 @@ void ProcessCombinedLODChain(
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeVoxWrap);
 			
-			if (CombineOptions.CoarseLODStrategy == IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy::VoxelBasedSolidApproximation)
+			if (CoarseLODStrategy == IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy::VoxelBasedSolidApproximation)
 			{
-				ComputeVoxWrapMesh(SourceVoxWrapMesh, SourceSpatial, InitialCoarseApproximation, CombineOptions.CoarseApproximationDetailSize, VoxelDimension);
+				ComputeVoxWrapMesh(SourceVoxWrapMesh, SourceSpatial, InitialCoarseApproximation, CoarseApproximationDetailSize, VoxelDimension);
 				bUsingCoarseSweepApproximation = false;
 			}
-			else if (CombineOptions.CoarseLODStrategy == IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy::SweptPlanarProjection)
+			else if (CoarseLODStrategy == IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy::SweptPlanarProjection)
 			{
-				ComputeBestFullProjectionMesh(SourceVoxWrapMesh, SourceSpatial, InitialCoarseApproximation, CombineOptions.CoarseApproximationDetailSize);
+				ComputeBestFullProjectionMesh(SourceVoxWrapMesh, SourceSpatial, InitialCoarseApproximation, CoarseApproximationDetailSize);
 				bUsingCoarseSweepApproximation = true;
 			}
-			else if (CombineOptions.CoarseLODStrategy == IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy::IntersectSweptPlanarProjections)
+			else if (CoarseLODStrategy == IGeometryProcessing_CombineMeshInstances::ECoarseApproximationStrategy::IntersectSweptPlanarProjections)
 			{
-				ComputeProjectionMeshIntersection(SourceVoxWrapMesh, SourceSpatial, InitialCoarseApproximation, CombineOptions.CoarseApproximationDetailSize);
+				ComputeProjectionMeshIntersection(SourceVoxWrapMesh, SourceSpatial, InitialCoarseApproximation, CoarseApproximationDetailSize);
 				bUsingCoarseSweepApproximation = true;
 			}
 			else  // Automatic
 			{
 				// try swept-planar-projection as it is cheaper and generally better. If it deviates too much, fall back to voxel
 				FDynamicMesh3 SweptPlanarCoarseMesh;
-				ComputeBestFullProjectionMesh(SourceVoxWrapMesh, SourceSpatial, SweptPlanarCoarseMesh, CombineOptions.CoarseApproximationDetailSize);
+				ComputeBestFullProjectionMesh(SourceVoxWrapMesh, SourceSpatial, SweptPlanarCoarseMesh, CoarseApproximationDetailSize);
 				FVector2d SweepDeviation = ComputeGeometricDeviation(SweptPlanarCoarseMesh, SourceSpatial);
-				bUsingCoarseSweepApproximation = (SweepDeviation.Y < 2.0 * CombineOptions.CoarseApproximationDetailSize);
+				bUsingCoarseSweepApproximation = (SweepDeviation.Y < 2.0 * CoarseApproximationDetailSize);
 				if (bUsingCoarseSweepApproximation)
 				{
 					InitialCoarseApproximation = MoveTemp(SweptPlanarCoarseMesh);
@@ -3203,7 +3269,7 @@ void ProcessCombinedLODChain(
 				else
 				{
 					FDynamicMesh3 VoxWrapCoarseMesh;
-					ComputeVoxWrapMesh(SourceVoxWrapMesh, SourceSpatial, VoxWrapCoarseMesh, CombineOptions.CoarseApproximationDetailSize, VoxelDimension);
+					ComputeVoxWrapMesh(SourceVoxWrapMesh, SourceSpatial, VoxWrapCoarseMesh, CoarseApproximationDetailSize, VoxelDimension);
 					InitialCoarseApproximation = MoveTemp(VoxWrapCoarseMesh);
 				}
 			}
@@ -3234,17 +3300,15 @@ void ProcessCombinedLODChain(
 			UE_LOG(LogGeometry, Log, TEXT("         FastCollapse         - Tris %8d Verts %8d"), InitialCoarseApproximation.TriangleCount(), InitialCoarseApproximation.VertexCount());
 		}
 
-		int32 MaxTriCount = CombineOptions.CoarseLODMaxTriCountBase;
-		double SimplifyTolerance = CombineOptions.CoarseLODBaseTolerance;
+		int32 MaxTriCount = GetCoarseLODMaxTriCount(FirstVoxWrappedIndex);
+		double SimplifyTolerance = CoarseLODBaseTolerance;
 
-		// for very simple parts it can be the case that the last approximate LOD is
-		// lower tri-count than the first coarse approximation. In that case just use it.
+		// Note for very simple parts it can be the case that the last approximate LOD is
+		// lower tri-count than the first coarse approximation. To handle such cases,
+		// we rely on the BuildOutputSubAssembly to propagate simpler LODs down the chain.
+		// (We don't use the non-coarse LODs as a starting point because they tend not
+		// to simplify down as well for subsequent coarse LODs)
 		UE::Tasks::Wait(PendingRemoveHiddenTasks);
-		int32 PrevLODTriCount = MeshLODs[FirstVoxWrappedIndex - 1].Mesh.TriangleCount();
-		if (PrevLODTriCount < InitialCoarseApproximation.TriangleCount() && PrevLODTriCount < MaxTriCount)
-		{
-			InitialCoarseApproximation = MeshLODs[FirstVoxWrappedIndex-1].Mesh;
-		}
 
 		// Current state of InitialCoarseApproximation is our initial voxel LOD. To ensure
 		// that voxel LODs have compatible UVs (to allow baking), we compute UVs on
@@ -3259,16 +3323,16 @@ void ProcessCombinedLODChain(
 			}
 		}
 		InitialCoarseApproximation.EnableAttributes();
-		InitializeNormalsFromAngleThreshold(InitialCoarseApproximation, CombineOptions.HardNormalAngleDeg);
+		InitializeNormalsFromAngleThreshold(InitialCoarseApproximation, HardNormalAngleDeg);
 		ComputeVoxWrapMeshAutoUV(InitialCoarseApproximation);
 		MeshLODs[FirstVoxWrappedIndex].Mesh = MoveTemp(InitialCoarseApproximation);
 
 		// iterate simplification criteria to next level
 		SimplifyTolerance *= 1.5;
-		MaxTriCount /= 2;
 
 		for (int32 LODIndex = FirstVoxWrappedIndex+1; LODIndex < NumLODs; ++LODIndex)
 		{
+			MaxTriCount = GetCoarseLODMaxTriCount(LODIndex);
 			// need to simplify from previous level to preserve UVs/etc
 			MeshLODs[LODIndex].Mesh = MeshLODs[LODIndex-1].Mesh;
 
@@ -3278,7 +3342,6 @@ void ProcessCombinedLODChain(
 			}
 
 			SimplifyTolerance *= 1.5;
-			MaxTriCount /= 2;
 		}
 
 		// Project colors and materials after mesh simplification to avoid constraining it.
@@ -3295,14 +3358,14 @@ void ProcessCombinedLODChain(
 
 	// parallel regenerate UVs and potentially tangents for any areas of LODs that are missing UVs
 	TArray<UE::Tasks::FTask> PendingAutoUVTasks;
-	bool bComputeTangents = (CombineOptions.bAutoGenerateMissingUVs && CombineOptions.bAutoGenerateTangents);
-	if (CombineOptions.bAutoGenerateMissingUVs)
+	bool bComputeTangents = (bAutoGenerateMissingUVs && bAutoGenerateTangents);
+	if (bAutoGenerateMissingUVs)
 	{
 		for (int32 LODIndex = 0; LODIndex < NumLODs && LODIndex < FirstVoxWrappedIndex; ++LODIndex)
 		{
 			if (MeshLODs[LODIndex].Mesh.TriangleCount() == 0) continue;
 
-			UE::Tasks::FTask AutoUVTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [&MeshLODs, &CombineOptions, LODIndex, bComputeTangents]()
+			UE::Tasks::FTask AutoUVTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [&MeshLODs, LODIndex, bComputeTangents]()
 			{
 				ComputeMissingUVs(MeshLODs[LODIndex].Mesh);
 				if (bComputeTangents)
@@ -3329,7 +3392,7 @@ void ProcessCombinedLODChain(
 					UE_LOG(LogGeometry, Log, TEXT("  Optimizing LOD%d - Tris %6d Verts %6d"), LODIndex, MeshLODs[LODIndex].Mesh.TriangleCount(), MeshLODs[LODIndex].Mesh.VertexCount());
 				}
 
-				ComputeHiddenRemovalForLOD(MeshLODs[LODIndex].Mesh, LODIndex, CombineOptions);
+				ComputeHiddenRemovalForLOD(MeshLODs[LODIndex].Mesh, LODIndex, LODRemoveHiddenFacesMethod(LODIndex), LODRemoveHiddenSamplingDensity(LODIndex), LODDoubleSidedHiddenRemoval(LODIndex));
 			}
 		}, (bVerbose) ? EParallelForFlags::ForceSingleThread :  EParallelForFlags::None );
 	}
@@ -3337,6 +3400,50 @@ void ProcessCombinedLODChain(
 
 	// make sure AutoUV is done
 	UE::Tasks::Wait(PendingAutoUVTasks);
+}
+
+void ProcessCombinedLODChain(
+	TArray<FCombinedMeshLOD>& MeshLODs,
+	const TArray<double>& OptimizationTolerances,
+	int32 FirstVoxWrappedIndex,
+	IGeometryProcessing_CombineMeshInstances::FOptions CombineOptions,
+	TSet<int32>* PreserveTopologyMaterialIDs = nullptr
+)
+{
+	bool bRemoveHiddenFaces =
+		(CombineOptions.RemoveHiddenFacesMethod != IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::None
+			&& CVarGeometryCombineMeshInstancesRemoveHidden.GetValueOnAnyThread() > 0);
+	ProcessCombinedLODChain(MeshLODs, OptimizationTolerances, FirstVoxWrappedIndex,
+		CombineOptions.NumLODs,
+		bRemoveHiddenFaces,
+		[&CombineOptions, FirstVoxWrappedIndex](int32 LODIndex) { return LODIndex >= CombineOptions.RemoveHiddenStartLOD && LODIndex < FirstVoxWrappedIndex; },
+		[&CombineOptions](int32 LODIndex) { return CombineOptions.bMergeCoplanarFaces && LODIndex >= CombineOptions.MergeCoplanarFacesStartLOD && LODIndex >= CombineOptions.PreserveUVLODLevel; },
+		[&CombineOptions](int32 LODIndex)
+		{
+			return CombineOptions.bMergeCoplanarFaces && LODIndex >= CombineOptions.MergeCoplanarFacesStartLOD && LODIndex >= CombineOptions.PreserveUVLODLevel
+				&& CombineOptions.PlanarPolygonRetriangulationStartLOD >= 0 && LODIndex >= CombineOptions.PlanarPolygonRetriangulationStartLOD;
+		},
+		[&CombineOptions](int32) { return CombineOptions.RemoveHiddenFacesMethod; },
+		[&CombineOptions](int32) { return CombineOptions.RemoveHiddenSamplingDensity; },
+		[&CombineOptions](int32) { return CombineOptions.bDoubleSidedHiddenRemoval; },
+		CombineOptions.TriangleGroupingIDFunc,
+		CombineOptions.CoarseLODStrategy,
+		CombineOptions.CoarseApproximationDetailSize,
+		[&CombineOptions, FirstVoxWrappedIndex](int32 LODIndex)
+		{
+			int32 MaxCoarseTri = CombineOptions.CoarseLODMaxTriCountBase;
+			for (int32 Idx = FirstVoxWrappedIndex; Idx < LODIndex; ++Idx)
+			{
+				MaxCoarseTri /= 2;
+			}
+			return MaxCoarseTri;
+		},
+		CombineOptions.CoarseLODBaseTolerance,
+		CombineOptions.HardNormalAngleDeg,
+		CombineOptions.bAutoGenerateMissingUVs,
+		CombineOptions.bAutoGenerateTangents,
+		PreserveTopologyMaterialIDs
+	);
 }
 
 
@@ -3357,10 +3464,7 @@ static void BuildOutputSubAssembly(
 	OutputSubAssembly.SubAssemblyID = SubAssemblyID;
 
 	// collect output meshes
-	// can't replace voxel LODs if we are generating UVs for them!
-	// (no way to communicate this upwards...)
-	//int MaxReplaceLOD = MeshLODs.Num();
-	int MaxReplaceLOD = FirstVoxWrappedIndex;
+	int MaxReplaceLOD = MeshLODs.Num();
 	for (int32 LODLevel = 0; LODLevel < MeshLODs.Num(); ++LODLevel)
 	{
 		FDynamicMesh3 LODMesh = MoveTemp(MeshLODs[LODLevel].Mesh);
@@ -3391,9 +3495,9 @@ void BuildCombinedMesh(
 	TArray<FCombinedMeshLOD> MeshLODs;
 	MeshLODs.SetNum(NumLODs);
 
-	int FirstVoxWrappedIndex = 9999;
+	int FirstVoxWrappedIndex = MAX_int32;
 	TArray<ECombinedLODType> LODTypes;
-	LODTypes.Init(ECombinedLODType::Approximated, NumLODs);
+	LODTypes.Init(ECombinedLODType::Approximated, NumLODs); // Note Approximated is the default here, and will cover the span between simplified and voxwrapped
 	for (int32 LODLevel = 0; LODLevel < NumLODs; ++LODLevel)
 	{
 		if (LODLevel < CombineOptions.NumCopiedLODs)
@@ -3463,31 +3567,27 @@ void BuildCombinedMesh(
 
 		for (int32 LODLevel = 0; LODLevel < NumLODs; ++LODLevel)
 		{
-			const FDynamicMesh3* SourceAppendMesh = nullptr;
 			const FDynamicMesh3* ApproximateAppendMesh = nullptr;
 			const FDynamicMesh3* UseAppendMesh = nullptr;
 
 			// default approximate mesh to lowest-quality approximation (box), need to do this
 			// so that we always have something to swap to for Decorative parts
-			ApproximateAppendMesh = &OptimizedGeometry.ApproximateMeshLODs.Last();
+			ApproximateAppendMesh = OptimizedGeometry.ApproximateMeshLODs.Num() > 0 ? &OptimizedGeometry.ApproximateMeshLODs.Last() : nullptr;
 
 			ECombinedLODType LevelLODType = LODTypes[LODLevel];
 			if (LevelLODType == ECombinedLODType::Copied)
 			{
-				SourceAppendMesh = (LODLevel < SourceGeometry.SourceMeshLODs.Num()) ? 
+				UseAppendMesh = (LODLevel < SourceGeometry.SourceMeshLODs.Num()) ?
 					&SourceGeometry.SourceMeshLODs[LODLevel] : &SourceGeometry.SourceMeshLODs.Last();
-				UseAppendMesh = SourceAppendMesh;
 			}
 			else if (LevelLODType == ECombinedLODType::Simplified)
 			{
 				int32 SimplifiedLODIndex = LODLevel - CombineOptions.NumCopiedLODs;
-				SourceAppendMesh = &OptimizedGeometry.SimplifiedMeshLODs[SimplifiedLODIndex];
-				UseAppendMesh = SourceAppendMesh;
+				UseAppendMesh = &OptimizedGeometry.SimplifiedMeshLODs[SimplifiedLODIndex];;
 			}
 			else if (LevelLODType == ECombinedLODType::VoxWrapped)
 			{
-				SourceAppendMesh = &SourceGeometry.SourceMeshLODs.Last();
-				UseAppendMesh = SourceAppendMesh;
+				UseAppendMesh = &SourceGeometry.SourceMeshLODs.Last();;
 			}
 			else // ECombinedLODType::Approximated
 			{
@@ -3518,6 +3618,7 @@ void BuildCombinedMesh(
 					// at last detail part LOD, switch to approximate mesh
 					if (LODLevel >= (CombineOptions.FilterDecorativePartsLODLevel - CombineOptions.ApproximateDecorativePartLODs) )
 					{
+						check(ApproximateAppendMesh)
 						InstanceAppendMesh = ApproximateAppendMesh;
 					}
 				}
@@ -3685,6 +3786,607 @@ void BuildCombinedMesh(
 }
 
 
+void BuildCombinedMeshFromPrecomputedMeshes(
+	const FMeshPartsAssembly& Assembly,
+	const IGeometryProcessing_CombineMeshInstances::FCombineMeshInstancesOptionsGeneral& AllLODOptions,
+	TConstArrayView<IGeometryProcessing_CombineMeshInstances::FCombineMeshInstancesOptionsPerLOD> PerLODOptions,
+	TArray<FCombinedSubAssembly>& CombinedResults)
+{
+	using namespace UE::Geometry;
+	using FLODOpts = IGeometryProcessing_CombineMeshInstances::FCombineMeshInstancesOptionsPerLOD;
+	using FAllOpts = IGeometryProcessing_CombineMeshInstances::FCombineMeshInstancesOptionsGeneral;
+
+	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
+
+	int32 NumLODs = PerLODOptions.Num();
+	TArray<FCombinedMeshLOD> MeshLODs;
+	MeshLODs.SetNum(NumLODs);
+
+	int32 FirstVoxWrappedIndex = MAX_int32;
+
+	// LOD types tracks the optimization method per LOD. We enforce that this is increasing, e.g. must always use at-least-or-more aggressive optimization methods for higher LODs
+	TArray<ECombinedLODType> LODTypes;
+	LODTypes.Reserve(NumLODs);
+	IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod LastLODMethod = IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod::None;
+	for (const FLODOpts& Opts : PerLODOptions)
+	{
+		IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod UseMethod = Opts.OptimizationMethod;
+		if ((int32)UseMethod < (int32)LastLODMethod)
+		{
+			UE_LOG(LogGeometry, Warning, TEXT("LOD optimization methods must be increasing in optimization level."));
+			UseMethod = LastLODMethod;
+		}
+		switch (UseMethod)
+		{
+		case IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod::None:
+			LODTypes.Add(ECombinedLODType::Copied);
+			break;
+		case IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod::SimplifyOrApproximate:
+			LODTypes.Add(ECombinedLODType::Simplified);
+			break;
+		case IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod::ApproximateOnly:
+			LODTypes.Add(ECombinedLODType::Approximated);
+			break;
+		case IGeometryProcessing_CombineMeshInstances::EMeshOptimizationMethod::VoxelizeAndDecimate:
+			int32 LODIdx = LODTypes.Add(ECombinedLODType::VoxWrapped);
+			FirstVoxWrappedIndex = FMath::Min(LODIdx, FirstVoxWrappedIndex);
+			break;
+		}
+		LastLODMethod = UseMethod;
+	}
+	check(LODTypes.Num() == NumLODs);
+
+	int32 NumParts = Assembly.Parts.Num();
+
+	// determine maximum number of UV channels on any Part LOD0, and configure the output combined
+	// LOD meshes to have that many UV channels (clamping to at least 1). Triangles from Parts that
+	// have fewer UV channels will end up with (0,0) UVs in the extra channels.
+	int32 MaxNumUVChannels = 1;
+	for (int32 SetIndex = 0; SetIndex < NumParts; ++SetIndex)
+	{
+		const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[SetIndex]->PrecomputedMeshes;
+		const FDynamicMesh3& SourceMesh = PartMeshes.Source[0];
+		
+		MaxNumUVChannels = FMath::Max(MaxNumUVChannels, (SourceMesh.HasAttributes() ? SourceMesh.Attributes()->NumUVLayers() : 0));
+	}
+	for (FCombinedMeshLOD& LODMeshData : MeshLODs)
+	{
+		LODMeshData.Mesh.Attributes()->SetNumUVLayers(MaxNumUVChannels);
+	}
+
+
+	// determine if we have multiple part subsets. In this case we need to be able to split the mesh
+	// by part later, which we will do by appending a polygroup layer
+	TArray<int32> SubsetIDs;
+	for (const TUniquePtr<FMeshPart>& Part : Assembly.Parts)
+	{
+		for (const FMeshPartInstance& Instance : Part->Instances)
+		{
+			SubsetIDs.AddUnique(Instance.SubsetID);
+		}
+	}
+	bool bHaveMultiplePartSubsets = (SubsetIDs.Num() > 1);
+	if (bHaveMultiplePartSubsets)
+	{
+		for (FCombinedMeshLOD& LODMeshData : MeshLODs)
+		{
+			LODMeshData.Mesh.Attributes()->SetNumPolygroupLayers(1);
+			LODMeshData.SubsetIDs = LODMeshData.Mesh.Attributes()->GetPolygroupLayer(0);
+		}
+	}
+
+	TArray<int32> PartSourcesPerLOD; // array of precomputed mesh indices per LOD per Part, ordered as [ Lod0[Part0 Part1 ...], Lod1[Part0 Part1 ...], ...]
+	PartSourcesPerLOD.SetNumZeroed(NumParts * NumLODs);
+	// Get the category of approximation as quality-ordered integer -- source == 0, simplified == 1, approximated == 2
+	auto SourceIndexToMeshCategory = [&Assembly](int32 PartIdx, int32 SourceIdx, int32& WithinCategoryIdx, bool& bCanPromoteWithinCategory, bool& bCanPromoteAtAll, double& PromotedAvgError)
+		{
+			const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[PartIdx]->PrecomputedMeshes;
+			int32 MeshesCount = PartMeshes.Source.Num() + PartMeshes.Simplified.Num() + PartMeshes.Approximated.Num();
+			PromotedAvgError = 0;
+			bCanPromoteAtAll = SourceIdx + 1 < MeshesCount;
+			if (!bCanPromoteAtAll)
+			{
+				SourceIdx = MeshesCount - 1;
+			}
+			if (SourceIdx < PartMeshes.Source.Num())
+			{
+				WithinCategoryIdx = SourceIdx;
+				bCanPromoteWithinCategory = SourceIdx + 1 < PartMeshes.Source.Num();
+				if (!bCanPromoteWithinCategory && bCanPromoteAtAll)
+				{
+					PromotedAvgError = PartMeshes.SimplifiedMeshErrors.IsEmpty() ? PartMeshes.ApproximatedMeshErrors[0].AverageError : PartMeshes.SimplifiedMeshErrors[0].AverageError;
+				}
+				return 0;
+			}
+			SourceIdx -= PartMeshes.Source.Num();
+			if (SourceIdx < PartMeshes.Simplified.Num())
+			{
+				WithinCategoryIdx = SourceIdx;
+				bCanPromoteWithinCategory = SourceIdx + 1 < PartMeshes.Simplified.Num();
+				if (bCanPromoteWithinCategory)
+				{
+					PromotedAvgError = PartMeshes.SimplifiedMeshErrors[SourceIdx + 1].AverageError;
+				}
+				else if (bCanPromoteAtAll)
+				{
+					PromotedAvgError = PartMeshes.ApproximatedMeshErrors[0].AverageError;
+				}
+				return 1;
+			}
+			SourceIdx -= PartMeshes.Simplified.Num();
+			WithinCategoryIdx = SourceIdx;
+			bCanPromoteWithinCategory = SourceIdx + 1 < PartMeshes.Approximated.Num();
+			if (bCanPromoteWithinCategory)
+			{
+				PromotedAvgError = PartMeshes.ApproximatedMeshErrors[SourceIdx + 1].AverageError;
+			}
+			return 2;
+		};
+	auto SourceIndexToMesh = [&Assembly](int32 PartIdx, int32 SourceIdx)
+		{
+			const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[PartIdx]->PrecomputedMeshes;
+			if (SourceIdx < PartMeshes.Source.Num())
+			{
+				return &PartMeshes.Source[SourceIdx];
+			}
+			SourceIdx -= PartMeshes.Source.Num();
+			if (SourceIdx < PartMeshes.Simplified.Num())
+			{
+				return &PartMeshes.Simplified[SourceIdx];
+			}
+			SourceIdx -= PartMeshes.Simplified.Num();
+			if (PartMeshes.Approximated.Num() > 0)
+			{
+				return &PartMeshes.Approximated[FMath::Min(SourceIdx, PartMeshes.Approximated.Num() - 1)];
+			}
+			else // If there weren't approximated meshes, fall back to the last existing mesh
+			{
+				if (PartMeshes.Simplified.Num() > 0)
+				{
+					return &PartMeshes.Simplified.Last();
+				}
+				else
+				{
+					check(!PartMeshes.Source.IsEmpty()); // there must at least be source meshes available for every part
+					return &PartMeshes.Source.Last();
+				}
+			}
+		};
+	auto GetPrecomputedMesh = [&PartSourcesPerLOD, &SourceIndexToMesh, &Assembly, &PerLODOptions, NumParts](int32 LODLevel, int32 PartIdx, int32 InstIdx) -> const FDynamicMesh3*
+		{
+			int32 SourceIdx = PartSourcesPerLOD[LODLevel * NumParts + PartIdx];
+			bool bIsDecorative = Assembly.Parts[PartIdx]->Instances[InstIdx].DetailLevel == EMeshDetailLevel::Decorative;
+			if (bIsDecorative)
+			{
+				if (PerLODOptions[LODLevel].Decorations == IGeometryProcessing_CombineMeshInstances::EDecorationHandling::Remove)
+				{
+					return nullptr;
+				}
+				else if (PerLODOptions[LODLevel].Decorations == IGeometryProcessing_CombineMeshInstances::EDecorationHandling::Approximate)
+				{
+					SourceIdx = MAX_int32; // approximate decorations with the coarsest available approximation
+				}
+			}
+			// respect whether part/instance allows approximation also
+			bool bAllowApproximation = (Assembly.Parts[PartIdx]->bAllowApproximation && Assembly.Parts[PartIdx]->Instances[InstIdx].bAllowApproximation);
+			if (!bAllowApproximation)
+			{
+				const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[PartIdx]->PrecomputedMeshes;
+				SourceIdx = FMath::Min(SourceIdx, PartMeshes.Source.Num() + PartMeshes.Simplified.Num() - 1);
+			}
+			const FDynamicMesh3* Mesh = SourceIndexToMesh(PartIdx, SourceIdx);
+			return Mesh;
+		};
+	auto GetLODTriCount = [&PartSourcesPerLOD, &GetPrecomputedMesh, &Assembly, &PerLODOptions, NumParts, &SourceIndexToMesh](int32 LODLevel)
+		{
+			int32 TriCount = 0;
+			int32 UseLODLevel = FMath::Max(LODLevel, 0);
+			for (int32 PartIdx = 0; PartIdx < NumParts; ++PartIdx)
+			{
+				// sum tris per instance, because some instances (and therefore have fewer tris, or no mesh at all)
+				int32 NumInst = Assembly.Parts[PartIdx]->Instances.Num();
+				for (int32 InstIdx = 0; InstIdx < NumInst; ++InstIdx)
+				{
+					if (const FDynamicMesh3* Mesh = GetPrecomputedMesh(LODLevel, PartIdx, InstIdx))
+					{
+						TriCount += Mesh->TriangleCount();
+					}
+				}
+			}
+			return TriCount;
+		};
+
+	TArray<int32> TriBudget;
+	TriBudget.Init(-1, NumLODs);
+	for (int32 LODLevel = 0; LODLevel < NumLODs; ++LODLevel)
+	{
+		int32 PrevLODLevel = FMath::Max(0, LODLevel - 1);
+		ECombinedLODType LODType = LODTypes[LODLevel];
+		const FLODOpts& Opts = PerLODOptions[LODLevel];
+		if (LODType == ECombinedLODType::Copied)
+		{
+			for (int32 PartIdx = 0; PartIdx < NumParts; ++PartIdx)
+			{
+				const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[PartIdx]->PrecomputedMeshes;
+				PartSourcesPerLOD[LODLevel * NumParts + PartIdx] =
+					FMath::Clamp(Opts.PreferredLOD, 0, PartMeshes.Source.Num() - 1);
+			}
+		}
+		else if (LODType == ECombinedLODType::Simplified || LODType == ECombinedLODType::Approximated)
+		{
+			// first pass: copy forward from the previous source indices, + make all part indices appropriate for the requested LOD type
+			for (int32 PartIdx = 0; PartIdx < NumParts; ++PartIdx)
+			{
+				const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[PartIdx]->PrecomputedMeshes;
+				// Start from the previous LOD level's source index
+				int32 UseSourceIdx = PartSourcesPerLOD[PrevLODLevel * NumParts + PartIdx];
+				// If approximated meshes are required, enforce that
+				if (LODType == ECombinedLODType::Approximated)
+				{
+					UseSourceIdx = FMath::Max(UseSourceIdx, PartMeshes.Source.Num() + PartMeshes.Simplified.Num());
+				}
+				PartSourcesPerLOD[LODLevel * NumParts + PartIdx] = UseSourceIdx;
+			}
+
+			if (!Opts.bEnableBudgetStrategy_PartLODPromotion || Opts.TriangleBudgetOptions.Method == IGeometryProcessing_CombineMeshInstances::ETriangleBudgetMethod::NoRestriction)
+			{
+				continue;
+			}
+
+			int32 TargetTriCount = Opts.TriangleBudgetOptions.TriangleBudget;
+			if (Opts.TriangleBudgetOptions.Method == IGeometryProcessing_CombineMeshInstances::ETriangleBudgetMethod::UsePercentageOfPreviousLOD)
+			{
+				int32 PrevTriCount = GetLODTriCount(PrevLODLevel);
+				TargetTriCount = Opts.TriangleBudgetOptions.LODReductionPercentage * PrevTriCount;
+			}
+			TriBudget[LODLevel] = TargetTriCount;
+			int32 CurTriCount = GetLODTriCount(LODLevel);
+			// While needed, apply part promotion.
+			// We first promote within categories, so e.g. if we have a mesh still using a source LOD that we can push to a worse source LOD, we do that before pushing anything to a simplified version
+			// We then promote to a 'worse' category, prioritizing the parts where the promoted parts have lowest average error
+			while (CurTriCount > TargetTriCount * Opts.PartLODPromotionBudgetMultiplier)
+			{
+				int32 BestCategory = MAX_int32;
+				int32 BestSourceIdx = MAX_int32;
+				int32 BestPromotableCategory = MAX_int32;
+				int32 BestPromotableWithinCatIdx = MAX_int32;
+				double BestWithinCatAvgError = FMathd::MaxReal;
+				double BestAvgError = FMathd::MaxReal;
+				// track the best-to-promote-within-category part index
+				int32 BestPromotablePartIdx = -1;
+				// track the best-to-promote-overall part index (which may require crossing categories)
+				int32 BestPartIdx = -1;
+				for (int32 PartIdx = 0; PartIdx < NumParts; ++PartIdx)
+				{
+					int32 SourceIdx = PartSourcesPerLOD[LODLevel * NumParts + PartIdx];
+					bool bCanPromoteWithinCategory, bCanPromoteAtAll;
+					int32 WithinCatIdx;
+					double PromotedAvgError = 0;
+					int32 Category = SourceIndexToMeshCategory(PartIdx, SourceIdx, WithinCatIdx, bCanPromoteWithinCategory, bCanPromoteAtAll, PromotedAvgError);
+					if (!bCanPromoteAtAll)
+					{
+						continue;
+					}
+
+					// Prioritize across-category promotions by lower promoted part average error
+					if (Category < BestCategory || (Category == BestCategory && PromotedAvgError < BestAvgError))
+					{
+						BestCategory = Category;
+						BestSourceIdx = SourceIdx;
+						BestAvgError = PromotedAvgError;
+						BestPartIdx = PartIdx;
+					}
+					if (bCanPromoteWithinCategory)
+					{
+						// For source meshes (category 0), promote by LOD index primarily (note that source meshes don't have average error stats)
+						// For simplified and approximated meshes, promote primarily by average error
+						if (Category < BestPromotableCategory || 
+						   (Category == 0 && WithinCatIdx < BestPromotableWithinCatIdx) ||
+						   (Category == BestPromotableCategory && Category > 0 && PromotedAvgError < BestWithinCatAvgError))
+						{
+							BestPromotableCategory = Category;
+							BestPromotableWithinCatIdx = WithinCatIdx;
+							BestPromotablePartIdx = PartIdx;
+							BestWithinCatAvgError = PromotedAvgError;
+						}
+					}
+				}
+				if (BestPromotablePartIdx != -1 && BestPromotableCategory <= BestCategory)
+				{
+					PartSourcesPerLOD[LODLevel * NumParts + BestPromotablePartIdx]++;
+				}
+				else if (BestPartIdx != -1)
+				{
+					PartSourcesPerLOD[LODLevel * NumParts + BestPartIdx]++;
+				}
+				else
+				{
+					break; // couldn't find a promotable part
+				}
+				CurTriCount = GetLODTriCount(LODLevel);
+			}
+		}
+		else if (LODType == ECombinedLODType::VoxWrapped)
+		{
+			int32 TargetTriCount = Opts.TriangleBudgetOptions.TriangleBudget;
+			if (Opts.TriangleBudgetOptions.Method == IGeometryProcessing_CombineMeshInstances::ETriangleBudgetMethod::UsePercentageOfPreviousLOD
+				|| Opts.TriangleBudgetOptions.Method == IGeometryProcessing_CombineMeshInstances::ETriangleBudgetMethod::NoRestriction) // for CoarseLODs, treat 'no restriction' as keeping the budget constant
+			{
+				// Note: after the first coarse LOD we set the tri budget with respect to the previous budget, not the previous actual tri count,
+				// because we haven't yet computed the coarse meshes so do not have the tri counts
+				int32 PrevBudget = TriBudget[PrevLODLevel];
+				if (LODLevel == FirstVoxWrappedIndex || PrevBudget == -1)
+				{
+					PrevBudget = GetLODTriCount(PrevLODLevel);
+				}
+				TargetTriCount = PrevBudget;
+				if (Opts.TriangleBudgetOptions.Method == IGeometryProcessing_CombineMeshInstances::ETriangleBudgetMethod::UsePercentageOfPreviousLOD)
+				{
+					TargetTriCount *= Opts.TriangleBudgetOptions.LODReductionPercentage;
+				}
+			}
+			TriBudget[LODLevel] = TargetTriCount;
+
+			// For voxwrapped LOD levels, reference the last source LOD
+			for (int32 PartIdx = 0; PartIdx < NumParts; ++PartIdx)
+			{
+				const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[PartIdx]->PrecomputedMeshes;
+				PartSourcesPerLOD[LODLevel * NumParts + PartIdx] = PartMeshes.Source.Num() - 1;
+			}
+		}
+	}
+
+
+	// iterate over part sets, then for each part, over part LODs, and
+	// for each instance append the part LOD to the accumulate LOD mesh
+	for (int32 SetIndex = 0; SetIndex < NumParts; ++SetIndex)
+	{
+		const TUniquePtr<FMeshPart>& Part = Assembly.Parts[SetIndex];
+		const IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& PartMeshes = *Assembly.Parts[SetIndex]->PrecomputedMeshes;
+
+		check(Part->bAllowMerging == true);		// do not support this yet
+
+		FMeshIndexMappings Mappings;
+
+		for (int32 LODLevel = 0; LODLevel < NumLODs; ++LODLevel)
+		{
+			int32 SourceIndex = PartSourcesPerLOD[NumParts * LODLevel + SetIndex];
+			const FDynamicMesh3* UseAppendMesh = SourceIndexToMesh(SetIndex, SourceIndex);
+
+			ECombinedLODType LevelLODType = LODTypes[LODLevel];
+
+			FCombinedMeshLOD& CombinedMeshLODData = MeshLODs[LODLevel];
+
+			for (int32 InstIdx = 0; InstIdx < Part->Instances.Num(); ++InstIdx)
+			{
+				const FMeshPartInstance& Instance = Part->Instances[InstIdx];
+				const FDynamicMesh3* InstanceAppendMesh = GetPrecomputedMesh(LODLevel, SetIndex, InstIdx);
+				if (!InstanceAppendMesh)
+				{
+					continue;
+				}
+
+				if (Instance.FilterLODLevel >= 0 && LODLevel >= Instance.FilterLODLevel)
+				{
+					continue;
+				}
+
+				// need to make a copy to run pre-process func
+				FDynamicMesh3 TempAppendMesh(*InstanceAppendMesh);
+				if (Assembly.PreProcessInstanceMeshFunc)
+				{
+					Assembly.PreProcessInstanceMeshFunc(TempAppendMesh, Instance);
+				}
+
+				// determine if we should be keeping UVs around for this Part
+				bool bPreserveUVs = PerLODOptions[LODLevel].bPreserveUVs
+					|| Part->bPreserveUVs;
+
+				// if part does not require UVs, but still has them, discard them here to encourage merging downstream
+				if (bPreserveUVs == false && TempAppendMesh.HasAttributes())
+				{
+					for (int32 UVLayer = 0; UVLayer < TempAppendMesh.Attributes()->NumUVLayers(); ++UVLayer)
+					{
+						TempAppendMesh.Attributes()->GetUVLayer(UVLayer)->ClearElements();
+					}
+					// if we have no UVs then tangents are invalid
+					TempAppendMesh.Attributes()->DisableTangents();
+				}
+
+				Mappings.Reset();
+				CombinedMeshLODData.Editor.AppendMesh(&TempAppendMesh, Mappings,
+					[&](int, const FVector3d& Pos) { return Instance.WorldTransform.TransformPosition(Pos); },
+					[&](int, const FVector3d& Normal) { return Instance.WorldTransform.TransformNormal(Normal); });
+
+				// transfer part IDs etc
+				if (CombinedMeshLODData.SubsetIDs != nullptr)
+				{
+					for (int32 tid : TempAppendMesh.TriangleIndicesItr())
+					{
+						CombinedMeshLODData.SubsetIDs->SetValue(Mappings.GetNewTriangle(tid), Instance.SubsetID);
+					}
+				}
+
+				// transfer Material IDs if part mesh has them
+				FDynamicMeshMaterialAttribute* AppendMaterialAttrib = TempAppendMesh.HasAttributes() ? TempAppendMesh.Attributes()->GetMaterialID() : nullptr;
+				for (int32 tid : TempAppendMesh.TriangleIndicesItr())
+				{
+					int32 SourceMaterialID = (AppendMaterialAttrib != nullptr) ? AppendMaterialAttrib->GetValue(tid) : 0;
+					UMaterialInterface* UseMaterial = Instance.Materials.IsValidIndex(SourceMaterialID) ? Instance.Materials[SourceMaterialID] : nullptr;
+					const int32* FoundMaterialIndex = Assembly.MaterialMap.Find(UseMaterial);
+					int32 AssignMaterialIndex = (FoundMaterialIndex != nullptr) ? *FoundMaterialIndex : 0;
+
+					CombinedMeshLODData.MaterialIDs->SetValue(Mappings.GetNewTriangle(tid), AssignMaterialIndex);
+				}
+			}
+		}
+	}
+
+	// Some Material regions may need to be explicitly preserved, this set will be passed on later
+	TSet<int32> PreserveTopologyMaterialIDSet;
+	for (UMaterialInterface* Material : AllLODOptions.PreventMergingMaterialSet)
+	{
+		if (const int32* FoundMaterialIndex = Assembly.MaterialMap.Find(Material))
+		{
+			PreserveTopologyMaterialIDSet.Add(*FoundMaterialIndex);
+		}
+	}
+
+	// make a list of per-LOD geometric tolerances that will drive additional optimization,
+	// by taking the value from the per-LOD options and making sure it never decreases
+	double LastTolerance = 0;
+	TArray<double> OptimizationTolerances;
+	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+	{
+		double Tolerance = FMath::Max(LastTolerance, PerLODOptions[LODIndex].SimplificationTolerance);
+		OptimizationTolerances.Add(Tolerance);
+		LastTolerance = Tolerance;
+	}
+
+
+	if (bHaveMultiplePartSubsets)
+	{
+		TArray<int32> OrderedSubsetIDs(SubsetIDs);
+
+		int32 NumSubsets = SubsetIDs.Num();
+		TArray<TArray<FCombinedMeshLOD>> SubsetMeshLODChains;
+		SubsetMeshLODChains.SetNum(NumSubsets);
+		for (int32 SubsetIndex = 0; SubsetIndex < NumSubsets; ++SubsetIndex)
+		{
+			SubsetMeshLODChains[SubsetIndex].SetNum(NumLODs);
+		}
+
+		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+		{
+			// split the LOD by subset ID
+			FDynamicMesh3& LODMesh = MeshLODs[LODIndex].Mesh;
+			FDynamicMeshPolygroupAttribute* SubsetIDAttrib = MeshLODs[LODIndex].SubsetIDs;
+			TArray<FDynamicMesh3> SplitMeshes;
+			FDynamicMeshEditor::SplitMesh(&LODMesh, SplitMeshes, [&](int32 tid) { return OrderedSubsetIDs.IndexOfByKey(SubsetIDAttrib->GetValue(tid)); });
+
+			// code below assumes this. If it's not the case, then we have some more complex processing to figure out...
+			check(SplitMeshes.Num() == NumSubsets);
+
+			// give each subset submesh to the 
+			for (int32 SubsetIndex = 0; SubsetIndex < NumSubsets; ++SubsetIndex)
+			{
+				TArray<FCombinedMeshLOD>& LODChain = SubsetMeshLODChains[SubsetIndex];
+				FDynamicMesh3& Submesh = SplitMeshes[SubsetIndex];
+				LODChain[LODIndex].SetMesh(MoveTemp(Submesh));
+			}
+		}
+
+		TArray<UE::Tasks::FTask> PendingSubsetTasks;
+
+		for (int32 SubsetIndex = 0; SubsetIndex < NumSubsets; ++SubsetIndex)
+		{
+			TArray<FCombinedMeshLOD>& LODChain = SubsetMeshLODChains[SubsetIndex];
+			bool bRemoveHiddenFaces = CVarGeometryCombineMeshInstancesRemoveHidden.GetValueOnAnyThread() > 0;
+			UE::Tasks::FTask ProcessSubsetTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [&LODChain, &OptimizationTolerances, &PreserveTopologyMaterialIDSet, FirstVoxWrappedIndex,
+				bRemoveHiddenFaces, &PerLODOptions, &AllLODOptions, NumLODs, &TriBudget]()
+				{
+					auto LODRemoveHidden = [&PerLODOptions, FirstVoxWrappedIndex](int32 LODIndex) { return PerLODOptions[LODIndex].RemoveHiddenFacesMethod != IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::None && LODIndex < FirstVoxWrappedIndex; };
+					auto LODMergeCoplanar = [&PerLODOptions](int32 LODIndex) { return PerLODOptions[LODIndex].bMergeCoplanarFaces; };
+					auto LODPlanarRetriangulate = [&PerLODOptions](int32 LODIndex)
+						{
+							return PerLODOptions[LODIndex].bMergeCoplanarFaces && PerLODOptions[LODIndex].bPlanarPolygonRetriangulation;
+						};
+					auto LODRemoveHiddenFaces = [&PerLODOptions](int32 LODIndex)
+						{
+							return PerLODOptions[LODIndex].RemoveHiddenFacesMethod;
+						};
+					auto LODRemoveHiddenSamplingDensity = [&PerLODOptions](int32 LODIndex)
+						{
+							return PerLODOptions[LODIndex].RemoveHiddenSamplingDensity;
+						};
+					auto LODDoubleSidedHiddenRemoval = [&PerLODOptions](int32 LODIndex)
+						{
+							return PerLODOptions[LODIndex].bDoubleSidedHiddenRemoval;
+						};
+					ProcessCombinedLODChain(LODChain, OptimizationTolerances, FirstVoxWrappedIndex,
+						NumLODs,
+						bRemoveHiddenFaces,
+						LODRemoveHidden,
+						LODMergeCoplanar,
+						LODPlanarRetriangulate,
+						LODRemoveHiddenFaces,
+						LODRemoveHiddenSamplingDensity,
+						LODDoubleSidedHiddenRemoval,
+						AllLODOptions.TriangleGroupingIDFunc,
+						AllLODOptions.CoarseLODStrategy,
+						AllLODOptions.CoarseApproximationDetailSize,
+						[&TriBudget](int32 LODIndex) { return TriBudget[LODIndex]; },
+						AllLODOptions.CoarseLODBaseTolerance,
+						AllLODOptions.HardNormalAngleDeg,
+						AllLODOptions.bAutoGenerateMissingUVs,
+						AllLODOptions.bAutoGenerateTangents,
+						&PreserveTopologyMaterialIDSet
+					);
+				});
+			PendingSubsetTasks.Add(ProcessSubsetTask);
+			if (bVerbose)
+			{
+				ProcessSubsetTask.Wait();
+			}
+		}
+
+		// wait for all subsets to finish processing
+		UE::Tasks::Wait(PendingSubsetTasks);
+
+		CombinedResults.SetNum(NumSubsets);
+		for (int32 SubsetIndex = 0; SubsetIndex < NumSubsets; ++SubsetIndex)
+		{
+			TArray<FCombinedMeshLOD>& LODChain = SubsetMeshLODChains[SubsetIndex];
+			BuildOutputSubAssembly(LODChain, OrderedSubsetIDs[SubsetIndex], FirstVoxWrappedIndex, CombinedResults[SubsetIndex]);
+		}
+
+	}
+	else
+	{
+		bool bRemoveHiddenFaces = CVarGeometryCombineMeshInstancesRemoveHidden.GetValueOnAnyThread() > 0;
+		auto LODRemoveHidden = [&PerLODOptions, FirstVoxWrappedIndex](int32 LODIndex) { return PerLODOptions[LODIndex].RemoveHiddenFacesMethod != IGeometryProcessing_CombineMeshInstances::ERemoveHiddenFacesMode::None && LODIndex < FirstVoxWrappedIndex; };
+		auto LODMergeCoplanar = [&PerLODOptions](int32 LODIndex) { return PerLODOptions[LODIndex].bMergeCoplanarFaces; };
+		auto LODPlanarRetriangulate = [&PerLODOptions](int32 LODIndex)
+			{
+				return PerLODOptions[LODIndex].bMergeCoplanarFaces && PerLODOptions[LODIndex].bPlanarPolygonRetriangulation;
+			};
+		auto LODRemoveHiddenFaces = [&PerLODOptions](int32 LODIndex)
+			{
+				return PerLODOptions[LODIndex].RemoveHiddenFacesMethod;
+			};
+		auto LODRemoveHiddenSamplingDensity = [&PerLODOptions](int32 LODIndex)
+			{
+				return PerLODOptions[LODIndex].RemoveHiddenSamplingDensity;
+			};
+		auto LODDoubleSidedHiddenRemoval = [&PerLODOptions](int32 LODIndex)
+			{
+				return PerLODOptions[LODIndex].bDoubleSidedHiddenRemoval;
+			};
+		ProcessCombinedLODChain(MeshLODs, OptimizationTolerances, FirstVoxWrappedIndex,
+			NumLODs,
+			bRemoveHiddenFaces,
+			LODRemoveHidden,
+			LODMergeCoplanar,
+			LODPlanarRetriangulate,
+			LODRemoveHiddenFaces,
+			LODRemoveHiddenSamplingDensity,
+			LODDoubleSidedHiddenRemoval,
+			AllLODOptions.TriangleGroupingIDFunc,
+			AllLODOptions.CoarseLODStrategy,
+			AllLODOptions.CoarseApproximationDetailSize,
+			[&TriBudget](int32 LODIndex) { return TriBudget[LODIndex]; },
+			AllLODOptions.CoarseLODBaseTolerance,
+			AllLODOptions.HardNormalAngleDeg,
+			AllLODOptions.bAutoGenerateMissingUVs,
+			AllLODOptions.bAutoGenerateTangents,
+			&PreserveTopologyMaterialIDSet
+		);
+
+		CombinedResults.SetNum(1);
+		BuildOutputSubAssembly(MeshLODs, 0, FirstVoxWrappedIndex, CombinedResults[0]);
+	}
+
+}
 
 
 
@@ -3781,7 +4483,6 @@ static void CombineCollisionShapes(
 void BuildCombinedCollisionShapes(
 	const FMeshPartsAssembly& Assembly,
 	TArray<int32> SubsetIDsOrdering,
-	IGeometryProcessing_CombineMeshInstances::FOptions CombineOptions,
 	TArray<FSimpleShapeSet3d>& CombinedCollisionShapes)
 {
 	int32 NumParts = Assembly.Parts.Num();
@@ -3917,7 +4618,338 @@ static void SetConstantVertexColor(FDynamicMesh3& Mesh, FLinearColor LinearColor
 	}
 }
 
+// Common compute part meshes code -- to be called after source LOD meshes are populated
+static void ComputeSinglePartMeshSet_Helper(
+	const IGeometryProcessing_CombineMeshInstances::FComputePartMeshesOptions& Options,
+	const IGeometryProcessing_CombineMeshInstances::FComputePartMeshesSinglePartOptions& PartOptions,
+	IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet& Result)
+{
+	using namespace UE::Geometry;
+	const int32 NumSimplifiedLODs = Options.NumSimplifiedLODs;
+	const int32 NumApproxLODs = Options.ApproximationTriCosts.Num();
+	const double AngleThresholdDeg = Options.HardNormalAngleDeg;
 
+	int32 NumSourceLODs = Result.Source.Num();
+
+	const FDynamicMesh3* SimplificationSourceMesh = Options.SimplificationSourceLOD < Result.Source.Num() ?
+		&Result.Source[Options.SimplificationSourceLOD] : &Result.Source.Last();
+	FDynamicMeshAABBTree3 SimplificationSourceMeshSpatial(SimplificationSourceMesh, true);
+	Result.Simplified.Reserve(NumSimplifiedLODs);
+	double UseSimplifyTolerance = Options.SimplifyBaseTolerance;
+	for (int32 SimplifyIdx = 0; SimplifyIdx < NumSimplifiedLODs; ++SimplifyIdx)
+	{
+		TUniquePtr<FDynamicMesh3> ToAdd = MakeUnique<FDynamicMesh3>(*SimplificationSourceMesh);
+		FDynamicMesh3& ToSimplify = *ToAdd;
+		SimplifyPartMesh(ToSimplify, UseSimplifyTolerance, AngleThresholdDeg, Options.bSimplifyPreserveCorners,
+			Options.bSimplifyPreserveUVs || PartOptions.bPreserveUVs,
+			Options.bSimplifyPreserveVertexColors, Options.SimplifySharpEdgeAngleDeg, Options.SimplifyMinSalientDimension);
+		UseSimplifyTolerance *= Options.SimplifyLODLevelToleranceScale;
+		// Add the simplification if it's simpler than the lowest-tri source LOD
+		if (ToAdd->TriangleCount() < Result.Source.Last().TriangleCount())
+		{
+			Result.Simplified.Add(ToAdd.Release());
+		}
+	}
+		
+	const FDynamicMesh3* ApproximationSourceMesh = Options.ApproximationSourceLOD < Result.Source.Num() ?
+		&Result.Source[Options.ApproximationSourceLOD] : &Result.Simplified[FMath::Clamp(Options.ApproximationSourceLOD - Result.Source.Num(), 0, Result.Simplified.Num())];
+
+	Result.Approximated.Reserve(NumApproxLODs);
+	TArray<EApproximatePartMethod> SelectedMethodID; SelectedMethodID.Reserve(NumApproxLODs);		// useful for debugging
+	for (int32 ApproxIdx = 0; ApproxIdx < NumApproxLODs; ++ApproxIdx)
+	{
+		double UseTriCost = Options.ApproximationTriCosts[ApproxIdx];
+		Result.Approximated.Add(new FDynamicMesh3(*ApproximationSourceMesh));
+		FDynamicMesh3& ToApprox = Result.Approximated.Last();
+		EApproximatePartMethod UsedMethod;
+		SelectBestFittingMeshApproximation(*ApproximationSourceMesh, SimplificationSourceMeshSpatial,
+			PartOptions.ApproximationConstraint, ToApprox, UsedMethod,
+			Options.SimplifyBaseTolerance, UseTriCost, Options.MaxAllowableApproximationDeviation);
+			
+		// update enabled attribs (is this good?)
+		ToApprox.EnableMatchingAttributes(*ApproximationSourceMesh);
+
+		// recompute normals
+		FMeshNormals::InitializeOverlayTopologyFromOpeningAngle(&ToApprox, ToApprox.Attributes()->PrimaryNormals(), AngleThresholdDeg);
+		FMeshNormals::QuickRecomputeOverlayNormals(ToApprox);
+
+		// stop making approximations if we are already down to a box
+		if (ToApprox.TriangleCount() <= 12)
+		{
+			break;
+		}
+	}
+
+	// Compute error metrics for simplified and approximated meshes
+	Result.SimplifiedMeshErrors.Reserve(Result.Simplified.Num());
+	for (int32 SimplifiedIdx = 0; SimplifiedIdx < Result.Simplified.Num(); ++SimplifiedIdx)
+	{
+		FVector2d Metric = DeviationMetric(Result.Simplified[SimplifiedIdx], SimplificationSourceMeshSpatial);
+		Result.SimplifiedMeshErrors.Add({ Metric[0], Metric[1] });
+	}
+	Result.ApproximatedMeshErrors.Reserve(Result.Approximated.Num());
+	for (int32 ApproxIdx = 0; ApproxIdx < Result.Approximated.Num(); ++ApproxIdx)
+	{
+		FVector2d Metric = DeviationMetric(Result.Approximated[ApproxIdx], SimplificationSourceMeshSpatial);
+		Result.ApproximatedMeshErrors.Add({ Metric[0], Metric[1] });
+	}
+
+	if (!Result.Approximated.IsEmpty() && !Result.Simplified.IsEmpty())
+	{
+		double FirstApproxMetric = FPartApproxSelector::ComputeMetricFromDeviation(
+			FVector2d(Result.ApproximatedMeshErrors[0].AverageError, Result.ApproximatedMeshErrors[0].MaxError), 2, Result.Approximated[0].TriangleCount(), Options.MaxAllowableApproximationDeviation);
+		for (int32 SimplifiedIdx = Result.Simplified.Num() - 1; SimplifiedIdx >= 0; --SimplifiedIdx)
+		{
+			double SimplifiedMetric = FPartApproxSelector::ComputeMetricFromDeviation(
+				FVector2d(Result.SimplifiedMeshErrors[SimplifiedIdx].AverageError, Result.SimplifiedMeshErrors[SimplifiedIdx].MaxError), 1, Result.Simplified[SimplifiedIdx].TriangleCount(), Options.MaxAllowableApproximationDeviation);
+			if (SimplifiedMetric > FirstApproxMetric)
+			{
+				// simplification is worse than approximation, so delete it
+				Result.Simplified.RemoveAt(SimplifiedIdx);
+				Result.SimplifiedMeshErrors.RemoveAt(SimplifiedIdx);
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+
+	// optionally planar-remesh the requested Source LODs to reduce their triangle count by removing spurious geometry
+	// Note: May invalidate SimplificationSourceMeshSpatial, so we do this last
+	if (Options.bRetriangulateSourceLODs)
+	{
+		for (int32 SourceLODIndex = Options.StartRetriangulateSourceLOD; SourceLODIndex < Result.Source.Num(); ++SourceLODIndex)
+		{
+			if (!(PartOptions.bPreserveUVs || Options.bSimplifyPreserveUVs || (SourceLODIndex <= Options.PreserveUVLODLevel)))
+			{
+				PlanarRetriangulatePartMesh(Result.Source[SourceLODIndex], Options.SimplifyBaseTolerance, AngleThresholdDeg);
+			}
+		}
+	}
+
+	// Enforce that simplified and approximated meshes must have decreasing triangle counts
+	int32 LastTriCount = Result.Source.Last().TriangleCount();
+	auto EnforceDecreasingTriCount = [&LastTriCount](TIndirectArray<FDynamicMesh3>& Meshes, TArray<IGeometryProcessing_CombineMeshInstances::FSinglePartMeshSet::FErrorStats>& MeshErrors)
+	{
+		for (int32 Idx = 0, Shift = 0; Idx < Meshes.Num(); ++Idx)
+		{
+			// Shift forward to the first mesh with smaller tri count
+			while (Idx + Shift < Meshes.Num() && Meshes[Idx + Shift].TriangleCount() >= LastTriCount)
+			{
+				Shift++;
+			}
+
+			// If there are no meshes to copy back, remove the rest of the array
+			if (Idx + Shift >= Meshes.Num())
+			{
+				Meshes.RemoveAtSwap(Idx, Meshes.Num() - Idx);
+				MeshErrors.RemoveAtSwap(Idx, MeshErrors.Num() - Idx);
+				break;
+			}
+
+			// Update the last tri count and shift if needed
+			LastTriCount = Meshes[Idx + Shift].TriangleCount();
+			if (Shift > 0)
+			{
+				Meshes[Idx] = MoveTemp(Meshes[Idx + Shift]);
+				MeshErrors[Idx] = MeshErrors[Idx + Shift];
+			}
+		}
+	};
+	EnforceDecreasingTriCount(Result.Simplified, Result.SimplifiedMeshErrors);
+	EnforceDecreasingTriCount(Result.Approximated, Result.ApproximatedMeshErrors);
+
+}
+
+int32 AddSourceLODs(TIndirectArray<UE::Geometry::FDynamicMesh3>& OutSourceLODs, int32 NumLODs, TFunctionRef<const FMeshDescription*(int)> GetLOD)
+{
+	OutSourceLODs.Reset(NumLODs);
+	for (int32 Idx = 0; Idx < NumLODs; ++Idx)
+	{
+		const FMeshDescription* Source = GetLOD(Idx);
+		if (Source)
+		{
+			UE::Geometry::FDynamicMesh3* OutputLODMesh = new UE::Geometry::FDynamicMesh3();
+			FMeshDescriptionToDynamicMesh Converter;
+			Converter.bEnableOutputGroups = true;
+			Converter.bTransformVertexColorsLinearToSRGB = true;		// possibly this should be false...
+			Converter.Convert(Source, *OutputLODMesh);
+			OutSourceLODs.Add(OutputLODMesh);
+		}
+	}
+	return OutSourceLODs.Num();
+}
+
+void FCombineMeshInstancesImpl::ComputeSinglePartMeshSet(
+	TConstArrayView<const FMeshDescription*> SourceMeshLODs,
+	const FComputePartMeshesOptions& Options,
+	const FComputePartMeshesSinglePartOptions& PartOptions,
+	FSinglePartMeshSet& ResultMeshes)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputePartMeshSet_MeshDescriptions);
+
+	int32 NumSources = AddSourceLODs(ResultMeshes.Source, SourceMeshLODs.Num(), [&SourceMeshLODs](int32 LOD) {return SourceMeshLODs[LOD];});
+
+	if (NumSources <= 0)
+	{
+		return;
+	}
+	
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputePartMeshSet_PartApprox);
+	ComputeSinglePartMeshSet_Helper(Options, PartOptions, ResultMeshes);
+}
+
+void FCombineMeshInstancesImpl::ComputeSinglePartMeshSet(
+	UStaticMesh* SourceMesh,
+	const FComputePartMeshesOptions& Options,
+	const FComputePartMeshesSinglePartOptions& PartOptions,
+	FSinglePartMeshSet& ResultMeshes
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputePartMeshSet_StaticMesh);
+
+	check(SourceMesh);
+	int32 NumSources = AddSourceLODs(ResultMeshes.Source, SourceMesh->GetNumSourceModels(), [&SourceMesh](int32 LOD) {return SourceMesh->GetMeshDescription(LOD);});
+
+	if (NumSources <= 0)
+	{
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputePartMeshSet_PartApprox);
+	ComputeSinglePartMeshSet_Helper(Options, PartOptions, ResultMeshes);
+}
+
+void FCombineMeshInstancesImpl::ComputePartMeshSets(
+	FSourceInstanceList& SourceInstanceList,
+	const FComputePartMeshesOptions& Options,
+	bool bKeepExistingPartMeshes,
+	TArray<TSharedPtr<FSinglePartMeshSet>>& ResultMeshSets
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ComputePartMeshSet_Instances);
+
+	TMap<UStaticMesh*, TSharedPtr<FSinglePartMeshSet>> StaticMeshToPartMap;
+	TMap<const IGeometryProcessing_CombineMeshInstances::FMeshLODSet*, TSharedPtr<FSinglePartMeshSet>> MeshLODSetToPartMap;
+
+	int32 NumStaticMeshInstances = SourceInstanceList.StaticMeshInstances.Num();
+	int32 NumMeshLODSetInstances = SourceInstanceList.MeshLODSetInstances.Num();
+
+	if (!bKeepExistingPartMeshes)
+	{
+		ResultMeshSets.Empty();
+		for (int32 Index = 0; Index < NumStaticMeshInstances; ++Index)
+		{
+			IGeometryProcessing_CombineMeshInstances::FStaticMeshInstance& SourceMeshInstance = SourceInstanceList.StaticMeshInstances[Index];
+			SourceMeshInstance.PrecomputedMeshes.Reset();
+		}
+		for (int32 Index = 0; Index < NumMeshLODSetInstances; ++Index)
+		{
+			IGeometryProcessing_CombineMeshInstances::FMeshLODSetInstance& SourceMeshInstance = SourceInstanceList.MeshLODSetInstances[Index];
+			SourceMeshInstance.PrecomputedMeshes.Reset();
+		}
+	}
+	else
+	{
+		for (int32 Index = 0; Index < NumStaticMeshInstances; ++Index)
+		{
+			const IGeometryProcessing_CombineMeshInstances::FStaticMeshInstance& SourceMeshInstance = SourceInstanceList.StaticMeshInstances[Index];
+			if (SourceMeshInstance.PrecomputedMeshes.IsValid())
+			{
+				UStaticMesh* StaticMesh = SourceMeshInstance.SourceMesh;
+				StaticMeshToPartMap.Add(StaticMesh, SourceMeshInstance.PrecomputedMeshes);
+			}
+		}
+		for (int32 Index = 0; Index < NumMeshLODSetInstances; ++Index)
+		{
+			const IGeometryProcessing_CombineMeshInstances::FMeshLODSetInstance& SourceMeshInstance = SourceInstanceList.MeshLODSetInstances[Index];
+			if (SourceMeshInstance.PrecomputedMeshes.IsValid())
+			{
+				int32 MeshSetIndex = SourceMeshInstance.MeshLODSetIndex;
+				if (MeshSetIndex < 0 || MeshSetIndex > SourceInstanceList.MeshLODSets.Num())
+				{
+					ensure(false);
+					continue;
+				}
+				const IGeometryProcessing_CombineMeshInstances::FMeshLODSet* MeshLODSet = &SourceInstanceList.MeshLODSets[MeshSetIndex];
+				MeshLODSetToPartMap.Add(MeshLODSet, SourceMeshInstance.PrecomputedMeshes);
+			}
+		}
+	}
+
+	
+
+	// TODO: compute these in parallel?
+	for (int32 Index = 0; Index < NumStaticMeshInstances; ++Index)
+	{
+		IGeometryProcessing_CombineMeshInstances::FStaticMeshInstance& SourceMeshInstance = SourceInstanceList.StaticMeshInstances[Index];
+		if (SourceMeshInstance.PrecomputedMeshes.IsValid())
+		{
+			continue;
+		}
+
+		UStaticMesh* StaticMesh = SourceMeshInstance.SourceMesh;
+		TSharedPtr<FSinglePartMeshSet>* Found = StaticMeshToPartMap.Find(StaticMesh);
+		if (Found)
+		{
+			SourceMeshInstance.PrecomputedMeshes = *Found;
+		}
+		else
+		{
+			TSharedPtr<FSinglePartMeshSet>& NewMeshSet = ResultMeshSets.Add_GetRef(MakeShared<FSinglePartMeshSet>());
+			EApproximationType ApproximationConstraint = EApproximationType::NoConstraint;
+			bool bPreservePartUVs = false;
+			if (SourceInstanceList.InstanceGroupDatas.IsValidIndex(SourceMeshInstance.GroupDataIndex))
+			{
+				ApproximationConstraint = SourceInstanceList.InstanceGroupDatas[SourceMeshInstance.GroupDataIndex].ApproximationConstraint;
+				bPreservePartUVs = SourceInstanceList.InstanceGroupDatas[SourceMeshInstance.GroupDataIndex].bPreserveUVs;
+			}
+			IGeometryProcessing_CombineMeshInstances::FComputePartMeshesSinglePartOptions PartOptions(ApproximationConstraint, bPreservePartUVs);
+			ComputeSinglePartMeshSet(StaticMesh, Options, PartOptions, *NewMeshSet);
+			StaticMeshToPartMap.Add(StaticMesh, NewMeshSet);
+			SourceMeshInstance.PrecomputedMeshes = NewMeshSet;
+		}
+	}
+
+	// TODO: compute these in parallel?
+	for (int32 Index = 0; Index < NumMeshLODSetInstances; ++Index)
+	{
+		IGeometryProcessing_CombineMeshInstances::FMeshLODSetInstance& SourceMeshInstance = SourceInstanceList.MeshLODSetInstances[Index];
+		if (SourceMeshInstance.PrecomputedMeshes.IsValid())
+		{
+			continue;
+		}
+
+		int32 MeshSetIndex = SourceMeshInstance.MeshLODSetIndex;
+		if (MeshSetIndex < 0 || MeshSetIndex > SourceInstanceList.MeshLODSets.Num())
+		{
+			ensure(false);
+			continue;
+		}
+		const IGeometryProcessing_CombineMeshInstances::FMeshLODSet* MeshLODSet = &SourceInstanceList.MeshLODSets[MeshSetIndex];
+
+		TSharedPtr<FSinglePartMeshSet>* Found = MeshLODSetToPartMap.Find(MeshLODSet);
+		if (Found)
+		{
+			SourceMeshInstance.PrecomputedMeshes = *Found;
+		}
+		else
+		{
+			TSharedPtr<FSinglePartMeshSet>& NewMeshSet = ResultMeshSets.Add_GetRef(MakeShared<FSinglePartMeshSet>());
+			EApproximationType ApproximationConstraint = EApproximationType::NoConstraint;
+			if (SourceInstanceList.InstanceGroupDatas.IsValidIndex(SourceMeshInstance.GroupDataIndex))
+			{
+				ApproximationConstraint = SourceInstanceList.InstanceGroupDatas[SourceMeshInstance.GroupDataIndex].ApproximationConstraint;
+			}
+			IGeometryProcessing_CombineMeshInstances::FComputePartMeshesSinglePartOptions PartOptions(ApproximationConstraint);
+			ComputeSinglePartMeshSet(MeshLODSet->ReferencedMeshLODs, Options, PartOptions, *NewMeshSet);
+			MeshLODSetToPartMap.Add(MeshLODSet, NewMeshSet);
+
+			SourceMeshInstance.PrecomputedMeshes = NewMeshSet;
+		}
+	}
+}
 
 void FCombineMeshInstancesImpl::CombineMeshInstances(
 	const FSourceInstanceList& MeshInstances, const FOptions& Options, FResults& ResultsOut)
@@ -4003,11 +5035,11 @@ void FCombineMeshInstancesImpl::CombineMeshInstances(
 		}
 	}
 
-	// build combined collision shapes, repsecting sub-assembly ordering
+	// build combined collision shapes, respecting sub-assembly ordering
 	TArray<FSimpleShapeSet3d> CombinedCollisionShapes;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CombineMeshInst_BuildCollision);
-		BuildCombinedCollisionShapes(PartAssembly, SubsetIDsOrdering, Options, CombinedCollisionShapes);
+		BuildCombinedCollisionShapes(PartAssembly, SubsetIDsOrdering, CombinedCollisionShapes);
 
 		if (bVerbose && CombinedCollisionShapes.Num() == 1)
 		{
@@ -4030,6 +5062,143 @@ void FCombineMeshInstancesImpl::CombineMeshInstances(
 
 		ResultsOut.CombinedMeshes[k].MaterialSet = PartAssembly.UniqueMaterials;
 		if (CombinedResults.Num() > 1)	
+		{
+			// if we have multiple outputs, they may not each use the full material set, in this case we will filter the materials (should this be optional?)
+			FilterUnusedMaterials(ResultsOut.CombinedMeshes[k].MeshLODs, ResultsOut.CombinedMeshes[k].MaterialSet);
+		}
+
+		ResultsOut.CombinedMeshes[k].InstanceSubsetID = CombinedResults[k].SubAssemblyID;
+	}
+}
+
+
+void FCombineMeshInstancesImpl::CombineMeshInstances(
+	const FSourceInstanceList& MeshInstances,
+	const FCombineMeshInstancesOptionsGeneral& AllLODOptions,
+	TConstArrayView<FCombineMeshInstancesOptionsPerLOD> PerLODOptions,
+	FResults& ResultsOut
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(CombineMeshInstances);
+
+	bool bVerbose = CVarGeometryCombineMeshInstancesVerbose.GetValueOnAnyThread();
+	
+	FMeshPartsAssembly PartAssembly;
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(CombineMeshInst_Setup);
+		InitializeMeshPartAssembly(MeshInstances, PartAssembly);
+		if (bVerbose)
+		{
+			UE_LOG(LogGeometry, Log, TEXT("  PartAssembly contains %d Parts, %d Unique Materials"),
+				PartAssembly.Parts.Num(), PartAssembly.UniqueMaterials.Num());
+		}
+
+
+		// require that all instances have precomputed part meshes
+		for (const TUniquePtr<FMeshPart>& Part : PartAssembly.Parts)
+		{
+			if (!Part->PrecomputedMeshes.IsValid())
+			{
+				UE_LOG(LogGeometry, Warning, TEXT("Failed to compute CombineMeshInstances because some instances did not have precomputed part meshes"));
+				return;
+			}
+		}
+
+		// Initialize just the collision shapes on source mesh geometry
+		PartAssembly.SourceMeshGeometry.SetNum(PartAssembly.Parts.Num());
+		for (int32 Index = 0; Index < PartAssembly.Parts.Num(); ++Index)
+		{
+			TUniquePtr<FMeshPart>& Part = PartAssembly.Parts[Index];
+			FSourceGeometry& Target = PartAssembly.SourceMeshGeometry[Index];
+
+			if (UStaticMesh* StaticMesh = Part->SourceAsset)
+			{
+				if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
+				{
+					UE::Geometry::GetShapeSet(BodySetup->AggGeom, Target.CollisionShapes);
+				}
+			}
+			else if (Part->SourceMeshLODSet != nullptr)
+			{
+				UE::Geometry::GetShapeSet(Part->SourceMeshLODSet->SimpleCollisionShapes, Target.CollisionShapes);
+			}
+
+			// sometimes simple collision is a convex when it's actually a box - could try to detect here?
+
+		}
+	}
+
+	PartAssembly.PreProcessInstanceMeshFunc = [&PartAssembly, &MeshInstances, &AllLODOptions](FDynamicMesh3& AppendMesh, const FMeshPartInstance& Instance)
+	{
+		int32 SourceInstance = Instance.ExternalInstanceIndex.A;
+		bool bIsStaticMeshInstance = (Instance.ExternalInstanceIndex.B == 0);		// a bit of a hack here but we configured this above
+
+		int GroupDataIdx = (bIsStaticMeshInstance) ?
+			MeshInstances.StaticMeshInstances[SourceInstance].GroupDataIndex
+			: MeshInstances.MeshLODSetInstances[SourceInstance].GroupDataIndex;
+
+		if (MeshInstances.InstanceGroupDatas[GroupDataIdx].bHasConstantOverrideVertexColor)
+		{
+			FLinearColor VertexColorLinear(0, 0, 0, 1);
+			if (AllLODOptions.VertexColorMappingMode == EVertexColorMappingMode::TriangleCountMetric)
+			{
+				const double UseMax = 25.0;
+				double TriCountRelToBox = FMath::Clamp((double)AppendMesh.TriangleCount() / (double)12, 1.0, UseMax);		// 12 is num tris in a bounding box
+				double T = (TriCountRelToBox) / (UseMax);
+				T = FMathd::Sqrt(T);	// improve color mapping somewhat (try better options?)
+				VertexColorLinear = FLinearColor::LerpUsingHSV(
+					FLinearColor::White, FLinearColor::Red, FMath::Clamp(T, 0.0, 1.0));
+			}
+			else
+			{
+				FColor VertexColorSRGB = MeshInstances.InstanceGroupDatas[GroupDataIdx].OverrideVertexColor;
+				VertexColorLinear = VertexColorSRGB.ReinterpretAsLinear();
+			}
+
+			SetConstantVertexColor(AppendMesh, VertexColorLinear);
+		}
+	};
+
+	// build combined mesh LOD chains for each sub-assembly
+	TArray<FCombinedSubAssembly> CombinedResults;
+	TArray<int32> SubsetIDsOrdering;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(CombineMeshInst_BuildMeshes);
+		BuildCombinedMeshFromPrecomputedMeshes(PartAssembly, AllLODOptions, PerLODOptions, CombinedResults);
+		for (FCombinedSubAssembly& Assembly : CombinedResults)
+		{
+			SubsetIDsOrdering.Add(Assembly.SubAssemblyID);
+		}
+	}
+
+	// build combined collision shapes, respecting sub-assembly ordering
+	TArray<FSimpleShapeSet3d> CombinedCollisionShapes;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(CombineMeshInst_BuildCollision);
+		BuildCombinedCollisionShapes(PartAssembly, SubsetIDsOrdering, CombinedCollisionShapes);
+
+		if (bVerbose && CombinedCollisionShapes.Num() == 1)
+		{
+			UE_LOG(LogGeometry, Log, TEXT("  CombinedCollisionShapes[0] contains %d Boxes, %d Convexes"),
+				CombinedCollisionShapes[0].Boxes.Num(), CombinedCollisionShapes[0].Convexes.Num());
+		}
+	}
+
+
+	// build final results data structure
+	ResultsOut.CombinedMeshes.SetNum(CombinedResults.Num());
+	for (int32 k = 0; k < CombinedResults.Num(); ++k)
+	{
+		ResultsOut.CombinedMeshes[k].MeshLODs = MoveTemp(CombinedResults[k].MeshLODs);
+
+		FPhysicsDataCollection PhysicsData;
+		PhysicsData.Geometry = CombinedCollisionShapes[k];
+		PhysicsData.CopyGeometryToAggregate();		// need FPhysicsDataCollection to convert to agg geom, should fix this
+		ResultsOut.CombinedMeshes[k].SimpleCollisionShapes = PhysicsData.AggGeom;
+
+		ResultsOut.CombinedMeshes[k].MaterialSet = PartAssembly.UniqueMaterials;
+		if (CombinedResults.Num() > 1)
 		{
 			// if we have multiple outputs, they may not each use the full material set, in this case we will filter the materials (should this be optional?)
 			FilterUnusedMaterials(ResultsOut.CombinedMeshes[k].MeshLODs, ResultsOut.CombinedMeshes[k].MaterialSet);

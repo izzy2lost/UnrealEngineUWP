@@ -161,6 +161,8 @@ private:
 
 	void SetChildExpansionRecursively(const FConsoleVariablesEditorListRowPtr& InRow, const bool bNewIsExpanded) const;
 
+	const FSlateBrush* GetActionColumnImage() const;
+
 	TArray<TSharedRef<IConsoleVariablesEditorListFilter>> ShowFilters;
 
 	TSharedPtr<STreeView<FConsoleVariablesEditorListRowPtr>> TreeViewPtr;

@@ -21,4 +21,5 @@ namespace Metasound::NodeCategories
 	extern const FText METASOUNDSTANDARDNODES_API Spatialization;
 	extern const FText METASOUNDSTANDARDNODES_API Trigger;
 	extern const FText METASOUNDSTANDARDNODES_API WaveTables;
+	extern const FText METASOUNDSTANDARDNODES_API Reverbs;
 } // Metasound::NodeCategories

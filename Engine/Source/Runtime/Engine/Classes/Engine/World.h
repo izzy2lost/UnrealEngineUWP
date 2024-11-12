@@ -6,9 +6,6 @@
 #include "GameFramework/Actor.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Online/CoreOnlineFwd.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
@@ -28,12 +25,6 @@
 #include "Particles/WorldPSCPool.h"
 #include "Containers/SortedMap.h"
 #include "AudioDeviceHandle.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AudioDeviceManager.h"
-#include "Engine/Blueprint.h"
-#include "Engine/GameInstance.h"
-#include "GameFramework/Pawn.h"
-#endif
 #include "Subsystems/WorldSubsystem.h"
 #include "Subsystems/SubsystemCollection.h"
 #include "CollisionProfile.h"
@@ -458,7 +449,7 @@ private:
 	friend class UPackageMapClient;
 
 #if UE_WITH_IRIS
-	friend class UActorReplicationBridge;
+	friend class UNetActorFactory;
 #endif // UE_WITH_IRIS
 
 	/* Is the actor remotely owned. This should only be set true by the package map when it is creating an actor on a client that was replicated from the server. */
@@ -523,7 +514,7 @@ struct ENGINE_API FActorSpawnUtils
 	/**
 	 * Function to generate a locally or globally unique actor name. To generate a globally unique name, we store an epoch number
 	 * in the name number (while maintaining compatibility with fast path name generation, see GFastPathUniqueNameGeneration) and
-	 * also append an unique user id to the name.
+	 * also append a unique user id to the name.
 	 *
 	 * @param	Level			the new actor level
 	 * @param	Class			the new actor class
@@ -1161,10 +1152,10 @@ public:
 	UE_DEPRECATED(5.4, "Public access to bBegunPlay is deprecated. Please update your code to use the public accessors GetBegunPlay() & SetBegunPlay().")
 	uint8 bBegunPlay:1;
 
-	/** Set whether BeginPlay has been called on actors */
+	/** Sets whether BeginPlay has been called for actors in the world. Use BeginPlay and EndPlay below to start the process of changing this. */
 	void SetBegunPlay(bool bHasBegunPlay);
 
-	/** Get whether BeginPlay has been called on actors */
+	/** Returns true if BeginPlay has been called on actors in the world (and EndPlay has not) */
 	bool GetBegunPlay() const;
 
 	DECLARE_EVENT_OneParam(UWorld, FOnBeginPlay, bool);
@@ -1389,6 +1380,8 @@ public:
 	/** Restore the purged editor world FScene back to the proper GPU representation */
 	void RestoreScene();
 
+	static void OnAddExtraObjectsToDelete(const TArray<UObject*>& InObjectsToDelete, TSet<UObject*>& OutSecondaryObjects);
+
 #endif // WITH_EDITOR
 
 	/**
@@ -1530,48 +1523,43 @@ private:
 	/** Timestamp (in FPlatformTime::Seconds) when the next call to BuildStreamingData() should be made, if bDirtyStreamingData is true. */
 	double BuildStreamingDataTimer;
 
-	DECLARE_EVENT_OneParam(UWorld, FOnNetTickEvent, float);
-	DECLARE_EVENT(UWorld, FOnTickFlushEvent);
+	using FOnNetTickEvent UE_DEPRECATED(5.5, "The FOnNetTickEvent typedef has been deprecated - use TMulticastDelegateRegistration<void(float)> instead.") = TMulticastDelegate<void(float)>;
+	using FOnTickFlushEvent UE_DEPRECATED(5.5, "The FOnTickFlushEvent typedef has been deprecated - use TMulticastDelegateRegistration<void()> instead.") = TMulticastDelegate<void()>;
+
 	/** Event to gather up all net drivers and call TickDispatch at once */
-	FOnNetTickEvent TickDispatchEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to TickDispatchEvent has been deprecated - use OnTickDispatch() instead.")
+	TMulticastDelegate<void(float)> TickDispatchEvent;
 
 	/** Event to gather up all net drivers and call PostTickDispatch at once */
-	FOnTickFlushEvent PostTickDispatchEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to PostTickDispatchEvent has been deprecated - use OnPostTickDispatch() instead.")
+	TMulticastDelegate<void()> PostTickDispatchEvent;
 
 	/** Event called prior to calling TickFlush */
-	FOnNetTickEvent PreTickFlushEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to PreTickFlushEvent has been deprecated - use OnPreTickFlush() instead.")
+	TMulticastDelegate<void(float)> PreTickFlushEvent;
 
 	/** Event to gather up all net drivers and call TickFlush at once */
-	FOnNetTickEvent TickFlushEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to TickFlushEvent has been deprecated - use OnTickFlush() instead.")
+	TMulticastDelegate<void(float)> TickFlushEvent;
 	
 	/** Event to gather up all net drivers and call PostTickFlush at once */
-	FOnTickFlushEvent PostTickFlushEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to PostTickFlushEvent has been deprecated - use OnPostTickFlush() instead.")
+	TMulticastDelegate<void()> PostTickFlushEvent;
 
 	/** All registered net drivers TickDispatch() */
-	void BroadcastTickDispatch(float DeltaTime)	
-	{
-		TickDispatchEvent.Broadcast(DeltaTime);
-	}
+	void BroadcastTickDispatch(float DeltaTime);
+
 	/** All registered net drivers PostTickDispatch() */
-	void BroadcastPostTickDispatch()
-	{
-		PostTickDispatchEvent.Broadcast();
-	}
+	void BroadcastPostTickDispatch();
+
 	/** PreTickFlush */
-	void BroadcastPreTickFlush(float DeltaTime)
-	{
-		PreTickFlushEvent.Broadcast(DeltaTime);
-	}
+	void BroadcastPreTickFlush(float DeltaTime);
+
 	/** All registered net drivers TickFlush() */
-	void BroadcastTickFlush(float DeltaTime)
-	{
-		TickFlushEvent.Broadcast(DeltaTime);
-	}
+	void BroadcastTickFlush(float DeltaTime);
+
 	/** All registered net drivers PostTickFlush() */
-	void BroadcastPostTickFlush(float DeltaTime)
-	{
-		PostTickFlushEvent.Broadcast();
-	}
+	void BroadcastPostTickFlush(float DeltaTime);
 
 	/** Called when the number of levels changes. */
 	DECLARE_EVENT(UWorld, FOnLevelsChangedEvent);
@@ -1640,9 +1628,6 @@ public:
 
 	/** Interface to the FX system managing particles and related effects for this world.										*/
 	class FFXSystemInterface*					FXSystem;
-
-	/** Data structures for holding the tick functions that are associated with the world (line batcher, etc) **/
-	class FTickTaskLevel*						TickTaskLevel;
 
 	/** Tick function for starting physics																						*/
 	FStartPhysicsTickFunction StartPhysicsTickFunction;
@@ -2502,6 +2487,10 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnMatchStarting);
 	FOnMatchStarting OnWorldMatchStarting;
 
+	/** Called by WorldSettings's NotifyBeginPlay before calling DispatchBeginPlay on all world actors when world's bBegunPlay switches to true. */
+	DECLARE_MULTICAST_DELEGATE(FOnWorldPreBeginPlay);
+	FOnWorldPreBeginPlay OnWorldPreBeginPlay;
+
 	/** Returns true if gameplay has already started, false otherwise. */
 	bool HasBegunPlay() const;
 
@@ -2727,7 +2716,9 @@ public:
 	FDelegateHandle AddOnActorDestroyedHandler(const FOnActorDestroyed::FDelegate& InHandler) const;
 
 	/** Remove a listener for OnActorDestroyed events */
+	UE_DEPRECATED(5.5, "Use the typo corrected version RemoveOnActorDestroyedHandler")
 	void RemoveOnActorDestroyededHandler(FDelegateHandle InHandle) const;
+	void RemoveOnActorDestroyedHandler(FDelegateHandle InHandle) const;
 
 	/** Add a listener for OnPostRegisterAllActorComponents events */
 	FDelegateHandle AddOnPostRegisterAllActorComponentsHandler(const FOnPostRegisterAllActorComponents::FDelegate& InHandler) const;
@@ -2811,7 +2802,10 @@ public:
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
+	virtual void GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& OutTags) const override;
+protected:
+	virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const;
+public:
 	virtual bool IsNameStableForNetworking() const override;
 #endif
 	virtual bool ResolveSubobject(const TCHAR* SubObjectPath, UObject*& OutObject, bool bLoadIfExists) override;
@@ -2960,6 +2954,13 @@ public:
 
 private:
 	UMaterialParameterCollectionInstance* CreateParameterCollectionInstance(int32 ExistingIndex, UMaterialParameterCollection* Collection, bool bUpdateScene);
+
+	/** Returns true if streaming levels have not loaded and are waiting on outstanding async load requests */
+	bool HasAsyncLevelRequests();
+
+	/** Waits for all streaming levels with outstanding async load requests */
+	void FlushAsyncLevelRequests();
+
 public:
 
 	/** Gets the canvas object for rendering to a render target.  Will allocate one if needed. */
@@ -3026,11 +3027,11 @@ public:
 public:
 
 	/** Network Tick events */
-	FOnNetTickEvent& OnTickDispatch() { return TickDispatchEvent; }
-	FOnTickFlushEvent& OnPostTickDispatch() { return PostTickDispatchEvent; }	
-	FOnNetTickEvent& OnPreTickFlush() { return PreTickFlushEvent; }
-	FOnNetTickEvent& OnTickFlush() { return TickFlushEvent; }
-	FOnTickFlushEvent& OnPostTickFlush() { return PostTickFlushEvent; }
+	TMulticastDelegateRegistration<void(float)>& OnTickDispatch();
+	TMulticastDelegateRegistration<void()>& OnPostTickDispatch();
+	TMulticastDelegateRegistration<void(float)>& OnPreTickFlush();
+	TMulticastDelegateRegistration<void(float)>& OnTickFlush();
+	TMulticastDelegateRegistration<void()>& OnPostTickFlush();
 
 	/**
 	 * Update the level after a variable amount of time, DeltaSeconds, has passed.
@@ -3058,7 +3059,7 @@ public:
 	void MarkActorComponentForNeededEndOfFrameUpdate(UActorComponent* Component, bool bForceGameThread);
 
 	/**
-	* Clears the need for a component to have a end of frame update
+	* Clears the need for a component to have an end of frame update
 	* @param Component - Component to update at the end of the frame
 	*/
 	void ClearActorComponentEndOfFrameUpdate(UActorComponent* Component);
@@ -3205,6 +3206,9 @@ public:
 	 */
 	bool RemoveLevel( ULevel* InLevel );
 
+	/** Returns the FLevelCollection for the passed in streaming level, which could depend on configuration */
+	FLevelCollection& FindOrAddCollectionForLevelStreaming(const ULevelStreaming* Level);
+
 	/** Returns the FLevelCollection for the given InType. If one does not exist, it is created. */
 	FLevelCollection& FindOrAddCollectionByType(const ELevelCollectionType InType);
 
@@ -3248,9 +3252,6 @@ public:
 
 	/** Handle Exec/Console Commands related to the World */
 	bool Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar=*GLog );
-
-	/** Mark the world as being torn down */
-	void BeginTearingDown();
 
 private:
 	/** Internal version of CleanupWorld. */
@@ -3517,8 +3518,6 @@ public:
 	 * @param InNetPlayerIndex (optional) - the NetPlayerIndex to set on the PlayerController
 	 * @return the PlayerController that was spawned (may fail and return NULL)
 	 */
-	UE_DEPRECATED(5.0, "Use SpawnPlayActor with FUniqueNetIdRepl")
-	APlayerController* SpawnPlayActor(class UPlayer* Player, ENetRole RemoteRole, const FURL& InURL, const FUniqueNetIdPtr& UniqueId, FString& Error, uint8 InNetPlayerIndex = 0);
 	APlayerController* SpawnPlayActor(class UPlayer* Player, ENetRole RemoteRole, const FURL& InURL, const FUniqueNetIdRepl& UniqueId, FString& Error, uint8 InNetPlayerIndex = 0);
 	
 	/**
@@ -3547,10 +3546,26 @@ public:
 	 */
 	void InitializeActorsForPlay(const FURL& InURL, bool bResetTime = true, FRegisterComponentContext* Context = nullptr);
 
+	/** 
+	 * Mark a world that was initialized for play as starting to tear down in preparation for cleanup.
+	 * This will block the creation of new gameplay objects.
+	 */
+	void BeginTearingDown();
+
 	/**
-	 * Start gameplay. This will cause the game mode to transition to the correct state and call BeginPlay on all actors
+	 * Start gameplay. This will cause the game mode to transition to the correct state and call BeginPlay on all actors.
+	 * If this is called on a world with no game mode, it will execute world callbacks but will not set BegunPlay to true.
+	 * On networked clients, actor BeginPlay and SetBegunPlay are called from the game state replication.
 	 */
 	void BeginPlay();
+
+	/**
+	 * Tries to stop gameplay by sending EndPlay to all actors in the world.
+	 * This will call BeginTearingDown if it has not been called yet.
+	 * @param EndPlayReason The reason that play is ending
+	 * @return true if this actually stopped play (BegunPlay will return false)
+	 */
+	bool EndPlay(EEndPlayReason::Type EndPlayReason);
 
 	/** 
 	 * Looks for a PlayerController that was being swapped by the given NetConnection and, if found, destroys it
@@ -3759,7 +3774,7 @@ public:
 	 *
 	 * @param bForce	If true, load the levels even is a commandlet
 	 */
-	void LoadSecondaryLevels(bool bForce = false, TSet<FName>* FilenamesToSkip = NULL);
+	void LoadSecondaryLevels(bool bForce = false, TSet<FName>* PackageNamesToSkip = nullptr);
 
 	/** Utility for returning the ULevelStreaming object for a particular sub-level, specified by package name */
 	ULevelStreaming* GetLevelStreamingForPackageName(FName PackageName);
@@ -3918,15 +3933,37 @@ public:
 	/**
 	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
 	 *
-	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the World
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use GetSubsystemArrayCopy or ForEachSubsystem instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray() const
 	{
 		return SubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
 	}
 
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the World
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy() const
+	{
+		return SubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
 
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UWorldSubsystem>::IsDerived, "TSubsystemClass must be derived from UWorldSubsystem");
+		return SubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UWorldSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
+	}
 
 	/** Sets the owning game instance for this world */
 	inline void SetGameInstance(UGameInstance* NewGI)
@@ -4169,6 +4206,7 @@ public:
 	// Global Callback after actors have been initialized (on any world)
 	static UWorld::FOnWorldInitializedActors OnWorldInitializedActors;
 
+	// Global Callback when an initialized world begins to tear down before cleanup
 	static FWorldEvent OnWorldBeginTearDown;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSeamlessTravelStart, UWorld*, const FString&);

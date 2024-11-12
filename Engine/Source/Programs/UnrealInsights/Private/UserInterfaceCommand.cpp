@@ -6,7 +6,6 @@
 //#include "Brushes/SlateImageBrush.h"
 #include "Containers/Ticker.h"
 #include "CoreGlobals.h"
-#include "Styling/AppStyle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Docking/TabManager.h"
@@ -20,20 +19,17 @@
 #include "Misc/Parse.h"
 #include "Modules/ModuleManager.h"
 #include "StandaloneRenderer.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
-#include "Insights/IUnrealInsightsModule.h"
-#include "Insights/Version.h"
+// TraceInsightsCore
+#include "InsightsCore/Version.h"
 
-#if PLATFORM_WINDOWS
-#include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/HideWindowsPlatformTypes.h"
-#endif
-#if PLATFORM_UNIX
-#include <sys/file.h>
-#include <errno.h>
-#endif
+// TraceInsights
+#include "Insights/IUnrealInsightsModule.h"
+
+// TraceInsightsFrontend
+#include "InsightsFrontend/ITraceInsightsFrontendModule.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -74,97 +70,23 @@ namespace UserInterfaceCommand
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool CheckSessionBrowserSingleInstance()
+void FUserInterfaceCommand::Run(bool bFrontendMode, const FString& TraceFileToOpen)
 {
-#if PLATFORM_WINDOWS
-	// Create a named event that other processes can detect.
-	// It allows only a single instance of Unreal Insights (Browser Mode).
-	HANDLE SessionBrowserEvent = CreateEvent(NULL, true, false, TEXT("Local\\UnrealInsightsBrowser"));
-	if (SessionBrowserEvent == NULL || GetLastError() == ERROR_ALREADY_EXISTS)
-	{
-		// Another Session Browser process is already running.
-
-		if (SessionBrowserEvent != NULL)
-		{
-			CloseHandle(SessionBrowserEvent);
-		}
-
-		// Activate the respective window.
-		HWND Window = FindWindowW(0, L"Unreal Insights Session Browser");
-		if (Window)
-		{
-			ShowWindow(Window, SW_SHOW);
-			SetForegroundWindow(Window);
-
-			FLASHWINFO FlashInfo;
-			FlashInfo.cbSize = sizeof(FLASHWINFO);
-			FlashInfo.hwnd = Window;
-			FlashInfo.dwFlags = FLASHW_ALL;
-			FlashInfo.uCount = 3;
-			FlashInfo.dwTimeout = 0;
-			FlashWindowEx(&FlashInfo);
-		}
-
-		return false;
-	}
-#endif // PLATFORM_WINDOWS
-
-#if PLATFORM_UNIX
-	int FileHandle = open("/var/run/UnrealInsightsBrowser.pid", O_CREAT | O_RDWR, 0666);
-	int Ret = flock(FileHandle, LOCK_EX | LOCK_NB);
-	if (Ret && EWOULDBLOCK == errno)
-	{
-		// Another Session Browser process is already running.
-
-		// Activate the respective window.
-		//TODO: "wmctrl -a Insights"
-
-		return false;
-	}
-#endif
-
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FUserInterfaceCommand::Run()
-{
-	const uint32 MaxPath = FPlatformMisc::GetMaxPathLength();
-	TCHAR* TraceFile = new TCHAR[MaxPath + 1];
-	TraceFile[0] = 0;
-	bool bOpenTraceFile = false;
-
-	// Only a single instance of Session Browser window/process is allowed.
-	{
-		bool bBrowserMode = true;
-
-		if (bBrowserMode)
-		{
-			bBrowserMode = FCString::Strifind(FCommandLine::Get(), TEXT("-OpenTraceId=")) == nullptr;
-		}
-		if (bBrowserMode)
-		{
-			bOpenTraceFile = GetTraceFileFromCmdLine(TraceFile, MaxPath);
-			bBrowserMode = !bOpenTraceFile;
-		}
-
-		if (bBrowserMode && !CheckSessionBrowserSingleInstance())
-		{
-			return;
-		}
-	}
-
-	//FCoreStyle::ResetToDefault();
-
 	// Crank up a normal Slate application using the platform's standalone renderer.
 	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
 
 	// Load required modules.
-	FModuleManager::Get().LoadModuleChecked("TraceInsights");
+	FModuleManager::Get().LoadModuleChecked("TraceInsightsCore");
+	if (bFrontendMode)
+	{
+		FModuleManager::Get().LoadModuleChecked("TraceInsightsFrontend");
+	}
+	else
+	{
+		FModuleManager::Get().LoadModuleChecked("TraceInsights");
+	}
 
 	// Load plug-ins.
-	// @todo: allow for better plug-in support in standalone Slate applications
 	IPluginManager::Get().LoadModulesForEnabledPlugins(ELoadingPhase::PreDefault);
 	IPluginManager::Get().LoadModulesForEnabledPlugins(ELoadingPhase::Default);
 
@@ -174,12 +96,13 @@ void FUserInterfaceCommand::Run()
 		FModuleManager::Get().LoadModule("SettingsEditor");
 	}
 
-	InitializeSlateApplication(bOpenTraceFile, TraceFile);
+	InitializeSlateApplication(bFrontendMode, TraceFileToOpen);
 
-	delete[] TraceFile;
-	TraceFile = nullptr;
+	IPluginManager::Get().LoadModulesForEnabledPlugins(ELoadingPhase::PostDefault);
 
+	//////////////////////////////////////////////////
 	// Initialize source code access.
+	
 	// Load the source code access module.
 	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>(FName("SourceCodeAccess"));
 
@@ -192,10 +115,14 @@ void FUserInterfaceCommand::Run()
 	SourceCodeAccessModule.SetAccessor(FName("VisualStudioSourceCodeAccess"));
 #endif
 
+	//////////////////////////////////////////////////
+
 #if WITH_SHARED_POINTER_TESTS
 	SharedPointerTesting::TestSharedPointer<ESPMode::NotThreadSafe>();
 	SharedPointerTesting::TestSharedPointer<ESPMode::ThreadSafe>();
 #endif
+
+	const bool bDisableFramerateThrottle = FParse::Param(FCommandLine::Get(), TEXT("DisableFramerateThrottle"));
 
 	// Enter main loop.
 	double DeltaTime = 0.0;
@@ -215,7 +142,8 @@ void FUserInterfaceCommand::Run()
 		FTSTicker::GetCoreTicker().Tick(static_cast<float>(DeltaTime));
 
 		// Throttle frame rate.
-		const float FrameTime = UserInterfaceCommand::IsApplicationBackground() ? BackgroundFrameTime : IdealFrameTime;
+		const float FrameTime = !bDisableFramerateThrottle && UserInterfaceCommand::IsApplicationBackground() ? BackgroundFrameTime : IdealFrameTime;
+
 		UserInterfaceCommand::AdaptiveSleep(FMath::Max<float>(0.0f, FrameTime - static_cast<float>(FPlatformTime::Seconds() - LastTime)));
 
 		double CurrentTime = FPlatformTime::Seconds();
@@ -225,19 +153,17 @@ void FUserInterfaceCommand::Run()
 		FStats::AdvanceFrame(false);
 
 		FCoreDelegates::OnEndFrame.Broadcast();
-		GLog->FlushThreadedLogs(); //im: ???
+		GLog->FlushThreadedLogs();
 
 		GFrameCounter++;
 	}
-
-	//im: ??? FCoreDelegates::OnExit.Broadcast();
 
 	ShutdownSlateApplication();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, const TCHAR* TraceFile)
+void FUserInterfaceCommand::InitializeSlateApplication(bool bFrontendMode, const FString& TraceFileToOpen)
 {
 	FSlateApplication::InitHighDPI(true);
 
@@ -255,21 +181,7 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 		FModuleManager::LoadModuleChecked<ISlateReflectorModule>("SlateReflector").RegisterTabSpawner(UserInterfaceCommand::DeveloperTools);
 	}
 
-	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
-
-	uint32 TraceId = 0;
-	FString TraceIdString;
-	bool bUseTraceId = FParse::Value(FCommandLine::Get(), TEXT("-OpenTraceId="), TraceIdString);
-	if (TraceIdString.StartsWith(TEXT("0x")))
-	{
-		TCHAR* End;
-		TraceId = FCString::Strtoi(*TraceIdString + 2, &End, 16);
-	}
-	else
-	{
-		TCHAR* End;
-		TraceId = FCString::Strtoi(*TraceIdString, &End, 10);
-	}
+	//////////////////////////////////////////////////
 
 	FString StoreHost = TEXT("127.0.0.1");
 	uint32 StorePort = 0;
@@ -294,25 +206,42 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 		bUseCustomStoreAddress = true;
 	}
 
-	// This parameter will cause the application to close when analysis fails to start or completes successfully.
-	const bool bAutoQuit = FParse::Param(FCommandLine::Get(), TEXT("AutoQuit"));
+	//////////////////////////////////////////////////
 
-	const bool bInitializeTesting = FParse::Param(FCommandLine::Get(), TEXT("InsightsTest"));
-	if (bInitializeTesting)
+	if (!bFrontendMode) // viewer mode
 	{
-		const bool bInitAutomationModules = true;
-		TraceInsightsModule.InitializeTesting(bInitAutomationModules, bAutoQuit);
-	}
+		FModuleManager::Get().LoadModuleChecked("TraceInsights");
+		IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 
-	if (bUseTraceId || bOpenTraceFile) // viewer mode
-	{
-		FString Cmd;
-		bool bExecuteCommand = false;
-		if (FParse::Value(FCommandLine::Get(), TEXT("-ExecOnAnalysisCompleteCmd="), Cmd, false))
+		// This parameter will cause the application to close when analysis fails to start or completes successfully.
+		const bool bAutoQuit = FParse::Param(FCommandLine::Get(), TEXT("AutoQuit"));
+
+		const bool bInitializeTesting = FParse::Param(FCommandLine::Get(), TEXT("InsightsTest"));
+		if (bInitializeTesting)
 		{
-			bExecuteCommand = true;
+			const bool bInitAutomationModules = true;
+			TraceInsightsModule.InitializeTesting(bInitAutomationModules, bAutoQuit);
 		}
-		if (bExecuteCommand)
+
+		uint32 TraceId = 0;
+		FString TraceIdString;
+		bool bUseTraceId = FParse::Value(FCommandLine::Get(), TEXT("-OpenTraceId="), TraceIdString);
+		if (bUseTraceId)
+		{
+			if (TraceIdString.StartsWith(TEXT("0x")))
+			{
+				TCHAR* End;
+				TraceId = FCString::Strtoi(*TraceIdString + 2, &End, 16);
+			}
+			else
+			{
+				TCHAR* End;
+				TraceId = FCString::Strtoi(*TraceIdString, &End, 10);
+			}
+		}
+
+		FString Cmd;
+		if (FParse::Value(FCommandLine::Get(), TEXT("-ExecOnAnalysisCompleteCmd="), Cmd, false))
 		{
 			TraceInsightsModule.ScheduleCommand(Cmd);
 		}
@@ -330,36 +259,44 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 		}
 		else
 		{
-			TraceInsightsModule.StartAnalysisForTraceFile(TraceFile, bAutoQuit);
+			TraceInsightsModule.StartAnalysisForTraceFile(*TraceFileToOpen, bAutoQuit);
 		}
 	}
-	else // browser mode
+	else // frontend mode
 	{
-		FString Cmd;
-		bool bExecuteCommand = false;
-		if (FParse::Value(FCommandLine::Get(), TEXT("-ExecBrowserAutomationTest="), Cmd, false))
-		{
-			bExecuteCommand = true;
-		}
+		FModuleManager::Get().LoadModuleChecked("TraceInsightsFrontend");
+		ITraceInsightsFrontendModule& TraceInsightsFrontendModule = FModuleManager::LoadModuleChecked<ITraceInsightsFrontendModule>("TraceInsightsFrontend");
 
-		if (bUseCustomStoreAddress)
-		{
-			TraceInsightsModule.ConnectToStore(*StoreHost, StorePort);
-		}
-		else
-		{
-			TraceInsightsModule.CreateDefaultStore();
-		}
+		// Ensure target platform manager is referenced early as it must be created on the main thread.
+		FModuleManager::Get().LoadModuleChecked("DesktopPlatform");
+		FConfigCacheIni::InitializeConfigSystem();
+		GetTargetPlatformManager();
 
-		FCreateSessionBrowserParams Params;
+		FModuleManager::Get().LoadModuleChecked("Messaging");
+		FModuleManager::Get().LoadModuleChecked("OutputLog");
+
+		// Load optional modules.
+		FModuleManager::Get().LoadModule("DeviceManager");
+		FModuleManager::Get().LoadModule("SessionFrontend");
+
+		FString AutomationTests;
+		bool bRunAutomationTests =
+			FParse::Value(FCommandLine::Get(), TEXT("-ExecBrowserAutomationTest="), AutomationTests, false) ||
+			FParse::Value(FCommandLine::Get(), TEXT("-RunAutomationTests="), AutomationTests, false);
+
+		TraceInsightsFrontendModule.ConnectToStore(*StoreHost, StorePort);
+
+		UE::Insights::FCreateFrontendWindowParams Params;
 		Params.bAllowDebugTools = bAllowDebugTools;
-		Params.bInitializeTesting = bInitializeTesting;
+		Params.bInitializeTesting = FParse::Param(FCommandLine::Get(), TEXT("InsightsTest"));
 		Params.bStartProcessWithStompMalloc = FParse::Param(FCommandLine::Get(), TEXT("stompmalloc"));
-		TraceInsightsModule.CreateSessionBrowser(Params);
+		Params.bDisableFramerateThrottle = FParse::Param(FCommandLine::Get(), TEXT("DisableFramerateThrottle"));
+		Params.bAutoQuit = FParse::Param(FCommandLine::Get(), TEXT("AutoQuit"));
+		TraceInsightsFrontendModule.CreateFrontendWindow(Params);
 
-		if (bExecuteCommand)
+		if (bRunAutomationTests)
 		{
-			TraceInsightsModule.RunAutomationTest(Cmd);
+			TraceInsightsFrontendModule.RunAutomationTests(AutomationTests);
 		}
 	}
 }
@@ -373,36 +310,6 @@ void FUserInterfaceCommand::ShutdownSlateApplication()
 
 	// Shut down application.
 	FSlateApplication::Shutdown();
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FUserInterfaceCommand::GetTraceFileFromCmdLine(TCHAR* OutTraceFile, uint32 MaxPath)
-{
-	// Try getting the trace file from the -OpenTraceFile= paramter first.
-	bool bUseTraceFile = FParse::Value(FCommandLine::Get(), TEXT("-OpenTraceFile="), OutTraceFile, MaxPath, true);
-
-	if (bUseTraceFile)
-	{
-		return true;
-	}
-
-	// Support opening a trace file by double clicking a .utrace file.
-	// In this case, the app will receive as the first parameter a utrace file path.
-
-	const TCHAR* CmdLine = FCommandLine::Get();
-	bool HasToken = FParse::Token(CmdLine, OutTraceFile, MaxPath, false);
-
-	if (HasToken)
-	{
-		FString Token = OutTraceFile;
-		if (Token.EndsWith(TEXT(".utrace")))
-		{
-			bUseTraceFile = true;
-		}
-	}
-
-	return bUseTraceFile;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

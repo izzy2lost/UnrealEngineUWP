@@ -3,9 +3,11 @@
 
 #include "Containers/Array.h"
 #include "Containers/Set.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Containers/SparseArray.h"
-#include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Containers/UnrealString.h"
 #include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformCrt.h"
@@ -23,6 +25,7 @@
 #include "Widgets/Views/STreeView.h"
 #include "PropertyHandle.h"
 
+class FBlueprintDifferenceTreeEntry;
 class ISourceControlRevision;
 class SWidget;
 class UBlueprint;
@@ -64,17 +67,34 @@ struct FResolvedProperty
 struct FPropertySoftPath
 {
 	UNREALED_API FPropertySoftPath();
+	UNREALED_API FPropertySoftPath(const FProperty* Property);
 	UNREALED_API FPropertySoftPath(TArray<FName> InPropertyChain);
 	UNREALED_API FPropertySoftPath(FPropertyPath InPropertyPath);
+	UNREALED_API FPropertySoftPath(const FPropertySoftPath& MainPropertyPath, const FPropertySoftPath& SubPropertyPath);
 	UNREALED_API FPropertySoftPath(const FPropertySoftPath& SubPropertyPath, const FProperty* LeafProperty);
 	UNREALED_API FPropertySoftPath(const FPropertySoftPath& SubPropertyPath, int32 ContainerIndex);
 
 	UNREALED_API FResolvedProperty Resolve(const UObject* Object) const;
 	UNREALED_API FResolvedProperty Resolve(const UStruct* Struct, const void* StructData) const;
 	UNREALED_API FPropertyPath ResolvePath(const UObject* Object) const;
-	UNREALED_API FString ToDisplayName() const;
 
-	inline bool IsSubPropertyMatch(const FPropertySoftPath& PotentialBasePropertyPath) const
+	UNREALED_API FPropertySoftPath GetRootProperty(int32 Depth) const;
+	UNREALED_API int32 TryReadIndex(int32 Index) const;
+
+	/**
+	 * Provides a string of all elements in the property chain using the following format
+	 * e.g., "X[3] Y Z"
+	 * @param NumberOfElements Optional argument to return a string containing only the last 'NumberOfElements' elements of the path
+	 * @return String of all elements in the property chain
+	 */
+	UNREALED_API FString ToDisplayName(const int32 NumberOfElements = INDEX_NONE) const;
+
+	/**
+	 * Indicates whether a given path is a base path of the current path.
+	 * @param PotentialBasePropertyPath The path to look for as a base common path
+	 * @return Whether the path has the provided path as base path or not
+	 */
+	bool IsSubPropertyMatch(const FPropertySoftPath& PotentialBasePropertyPath) const
 	{
 		if (PropertyChain.Num() <= PotentialBasePropertyPath.PropertyChain.Num())
 		{
@@ -92,15 +112,55 @@ struct FPropertySoftPath
 		return true;
 	}
 
+	/**
+	 * Indicates whether a given list of property names is a base path of the current path.
+	 * @param PotentialBasePropertyNameArray The list of property names to look for as a base common path
+	 * @return Whether the path has the provided list of names as base path or not
+	 */
+	bool IsSubPropertyMatch(TConstArrayView<FName> PotentialBasePropertyNameArray) const
+	{
+		if (PropertyChain.Num() <= PotentialBasePropertyNameArray.Num())
+		{
+			return false;
+		}
+
+		for (int32 CurChainElement = 0; CurChainElement < PotentialBasePropertyNameArray.Num(); CurChainElement++)
+		{
+			if (PotentialBasePropertyNameArray[CurChainElement] != PropertyChain[CurChainElement].PropertyName)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Indicates whether a given property name is a base path of the current path.
+	 * @param PotentialBasePropertyName Name of the single property to match
+	 * @return Whether the path contains a single element with the name provided or not
+	 */
+	bool IsSubPropertyMatch(const FName PotentialBasePropertyName) const
+	{
+		return IsSubPropertyMatch(MakeArrayView({PotentialBasePropertyName}));
+	}
+
 	inline bool operator==(FPropertySoftPath const& RHS) const
 	{
 		return PropertyChain == RHS.PropertyChain;
 	}
 
-	inline bool operator!=(FPropertySoftPath const& RHS ) const
+	inline bool operator!=(FPropertySoftPath const& RHS) const
 	{
 		return !(*this == RHS);
 	}
+
+	inline FPropertySoftPath& operator+=(FPropertySoftPath const& RHS)
+	{
+		PropertyChain.Append(RHS.PropertyChain);
+		return *this;
+	}
+
 private:
 	struct FChainElement
 	{
@@ -248,6 +308,31 @@ struct FSCSDiffRoot
 
 namespace DiffUtils
 {
+	DECLARE_DELEGATE_OneParam(FOnGenerateCustomDiffEntries, TArray<FSingleObjectDiffEntry>&)
+	DECLARE_DELEGATE_RetVal_TwoParams(TSharedRef<SWidget>, FOnGenerateCustomDiffEntryWidget, const FSingleObjectDiffEntry&, FText&)
+	DECLARE_DELEGATE_FourParams(FOnOrganizeDiffEntries,
+		TArray<TSharedPtr<FBlueprintDifferenceTreeEntry>>&,
+		const TArray<FSingleObjectDiffEntry>&,
+		TFunctionRef<TSharedPtr<FBlueprintDifferenceTreeEntry>(const FSingleObjectDiffEntry&)>,
+		TFunctionRef<TSharedPtr<FBlueprintDifferenceTreeEntry>(FText&)>)
+
+	struct FDiffParameters
+	{
+		FDiffParameters() = default;
+		explicit FDiffParameters(const FPropertySoftPath& RootPath)
+			: RootPath(RootPath)
+		{
+		}
+
+		FPropertySoftPath RootPath;
+
+		/** Predicate evaluated on visited properties to determine if they should be part of the comparison. */
+		TFunction<bool(const FProperty&)> ShouldIgnorePropertyPredicate;
+
+		/** Indicates if the elements of a static array should be compared. Otherwise, only the size is compared. */
+		bool bShouldDiffArrayElements = true;
+	};
+
 	UNREALED_API const UObject* GetCDO(const UBlueprint* ForBlueprint);
 	UE_DEPRECATED(5.3, "DiffUtils now requires root objects so that object topology can be meaningfully compared.")
 	UNREALED_API void CompareUnrelatedStructs(const UStruct* StructA, const void* A, const UStruct* StructB, const void* B, TArray<FSingleObjectDiffEntry>& OutDifferingProperties);
@@ -257,15 +342,20 @@ namespace DiffUtils
 	UNREALED_API void CompareUnrelatedSCS(const UBlueprint* Old, const TArray< FSCSResolvedIdentifier >& OldHierarchy, const UBlueprint* New, const TArray< FSCSResolvedIdentifier >& NewHierarchy, FSCSDiffRoot& OutDifferingEntries );
 
 	UE_DEPRECATED(5.3, "DiffUtils now requires root objects so that object topology can be meaningfully compared.")
-	UNREALED_API bool Identical(const FResolvedProperty& AProp, const FResolvedProperty& BProp, const FPropertySoftPath& RootPath, TArray<FPropertySoftPath>& DifferingProperties); 
+	UNREALED_API bool Identical(const FResolvedProperty& AProp, const FResolvedProperty& BProp, const FPropertySoftPath& RootPath, TArray<FPropertySoftPath>& DifferingProperties);
+
+	UE_DEPRECATED(5.5, "Use version with FDiffParameters instead.")
+	UNREALED_API bool Identical(const FResolvedProperty& AProp, const FResolvedProperty& BProp, const UObject* OwningOuterA, const UObject* OwningOuterB, const FPropertySoftPath& RootPath, TArray<FPropertySoftPath>& DifferingProperties);
+
 	/**
 	 * DiffUtils now requires root objects so that object topology can be meaningfully compared.
 	 * DiffUtils::Identical works similar to FProperty::Identical except when a UObject is found, that is in OwningOuter*,
 	 * it's compared by topology instead. This allows sub-objects to diff correctly.
 	 */
 	UNREALED_API bool Identical(const FResolvedProperty& AProp, const FResolvedProperty& BProp, const UObject* OwningOuterA, const UObject* OwningOuterB);
-	UNREALED_API bool Identical(const FResolvedProperty& AProp, const FResolvedProperty& BProp, const UObject* OwningOuterA, const UObject* OwningOuterB, const FPropertySoftPath& RootPath, TArray<FPropertySoftPath>& DifferingProperties);
+	UNREALED_API bool Identical(const FResolvedProperty& AProp, const FResolvedProperty& BProp, const UObject* OwningOuterA, const UObject* OwningOuterB, FDiffParameters DiffParameters, TArray<FPropertySoftPath>& DifferingProperties);
 	UNREALED_API bool Identical(const TSharedPtr<IPropertyHandle>& PropertyHandleA, const TSharedPtr<IPropertyHandle>& PropertyHandleB, const TArray<TWeakObjectPtr<UObject>>& OwningOutersA = {}, const TArray<TWeakObjectPtr<UObject>>& OwningOutersB = {});
+	UNREALED_API bool Identical(TArray<FPropertySoftPath>& OutDifferingProperties, const TSharedPtr<IPropertyHandle>& PropertyHandleA, const TSharedPtr<IPropertyHandle>& PropertyHandleB, const TArray<TWeakObjectPtr<UObject>>& OwningOutersA = {}, const TArray<TWeakObjectPtr<UObject>>& OwningOutersB = {});
 	UNREALED_API TArray<FPropertySoftPath> GetVisiblePropertiesInOrderDeclared(const UStruct* ForStruct, const FPropertySoftPath& Scope = FPropertySoftPath());
 
 	UNREALED_API TArray<FPropertyPath> ResolveAll(const UObject* Object, const TArray<FPropertySoftPath>& InSoftProperties);
@@ -278,7 +368,6 @@ namespace DiffUtils
 	 */
 	UNREALED_API UPackage* LoadPackageForDiff(const FPackagePath& InTempPackagePath, const FPackagePath& InOriginalPackagePath);
 	UNREALED_API UPackage* LoadPackageForDiff(TSharedPtr<ISourceControlRevision> Revision);
-
 }
 
 DECLARE_DELEGATE(FOnDiffEntryFocused);

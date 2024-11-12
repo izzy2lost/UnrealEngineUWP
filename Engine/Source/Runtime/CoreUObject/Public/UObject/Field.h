@@ -13,7 +13,7 @@ Field.h: Declares FField property system fundamentals
 #include "CoreTypes.h"
 #include "Delegates/Delegate.h"
 #include "HAL/PlatformMath.h"
-#include "HAL/ThreadSafeCounter.h"
+#include "HAL/PreprocessorHelpers.h"
 #include "HAL/UnrealMemory.h"
 #include "Internationalization/Text.h"
 #include "Math/RandomStream.h"
@@ -29,6 +29,7 @@ Field.h: Declares FField property system fundamentals
 #include "Templates/EnableIf.h"
 #include "Templates/IsAbstract.h"
 #include "Templates/IsEnum.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -194,8 +195,8 @@ private: \
 	TClass& operator=(TClass&&);   \
 	TClass& operator=(const TClass&);   \
 public: \
-	typedef TSuperClass Super;\
-	typedef TClass ThisClass;\
+	using Super = PREPROCESSOR_REMOVE_OPTIONAL_PARENS(TSuperClass);\
+	using ThisClass = TClass;\
 	TClass(EInternal InInernal, FFieldClass* InClass) \
 		: Super(EC_InternalUseOnlyConstructor, InClass) \
 	{ \
@@ -229,6 +230,10 @@ public: \
 	friend void operator<<(FStructuredArchive::FSlot InSlot, ThisClass*& Res) \
 	{ \
 		InSlot << (FField*&)Res; \
+	} \
+	virtual SIZE_T GetFieldSize() const override \
+	{ \
+		return sizeof(TClass); \
 	}
 
 #if !CHECK_PUREVIRTUALS
@@ -247,7 +252,7 @@ FField* TClass::Construct(const FFieldVariant& InOwner, const FName& InName, EOb
 } \
 FFieldClass* TClass::StaticClass() \
 { \
-	static FFieldClass StaticFieldClass(TEXT(#TClass), TClass::StaticClassCastFlagsPrivate(), TClass::StaticClassCastFlags(), TClass::Super::StaticClass(), &TClass::Construct); \
+	static FFieldClass StaticFieldClass(TEXT(PREPROCESSOR_TO_STRING(TClass)), TClass::StaticClassCastFlagsPrivate(), TClass::StaticClassCastFlags(), TClass::Super::StaticClass(), &TClass::Construct); \
 	return &StaticFieldClass; \
 } \
 
@@ -293,8 +298,8 @@ public:
 	}
 
 	template <
-		typename T,
-		decltype(ImplicitConv<const UObject*>(std::declval<T>()))* = nullptr
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, const UObject*>)
 	>
 	FFieldVariant(T&& InObject)
 	{
@@ -430,12 +435,12 @@ public:
 		return Container.Field != Other.Container.Field;
 	}
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	COREUOBJECT_API bool HasMetaData(const FName& Key) const;
-#endif
+#endif // WITH_METADATA
 
 	/** Support comparison functions that make this usable as a KeyValue for a TSet<> */
-	friend uint32 GetTypeHash(const FFieldVariant& InFieldVariant)
+	[[nodiscard]] friend uint32 GetTypeHash(const FFieldVariant& InFieldVariant)
 	{
 		return GetTypeHash(InFieldVariant.GetRawPointer());
 	}
@@ -458,6 +463,11 @@ public:
 	typedef FFieldClass FieldTypeClass;
 
 	static COREUOBJECT_API FFieldClass* StaticClass();
+
+	virtual SIZE_T GetFieldSize() const
+	{
+		return sizeof(FField);
+	}
 
 	inline static constexpr uint64 StaticClassCastFlagsPrivate()
 	{
@@ -743,38 +753,12 @@ public:
 	{
 	}
 
-#if WITH_EDITORONLY_DATA
-
+#if WITH_METADATA
 private:
 	/** Editor-only meta data map */
 	TMap<FName, FString>* MetaDataMap;
 
 public:
-
-	/**
-	* Walks up the chain of packages until it reaches the top level, which it ignores.
-	*
-	* @param	bStartWithOuter		whether to include this object's name in the returned string
-	* @return	string containing the path name for this object, minus the outermost-package's name
-	*/
-	COREUOBJECT_API FString GetFullGroupName(bool bStartWithOuter) const;
-
-	/**
-	* Finds the localized display name or native display name as a fallback.
-	*
-	* @return The display name for this object.
-	*/
-	COREUOBJECT_API FText GetDisplayNameText() const;
-
-	/**
-	* Finds the localized tooltip or native tooltip as a fallback.
-	*
-	* @param bShortTooltip Look for a shorter version of the tooltip (falls back to the long tooltip if none was specified)
-	*
-	* @return The tooltip for this object.
-	*/
-	COREUOBJECT_API FText GetToolTipText(bool bShortTooltip = false) const;
-
 	/**
 	* Determines if the property has any metadata associated with the key
 	*
@@ -810,8 +794,8 @@ public:
 	* @param LocalizationKey			Key to lookup in the localization manager
 	* @return							Localized metadata if available, defaults to whatever is provided via GetMetaData
 	*/
-	COREUOBJECT_API const FText GetMetaDataText(const TCHAR* MetaDataKey, const FString LocalizationNamespace = FString(), const FString LocalizationKey = FString()) const;
-	COREUOBJECT_API const FText GetMetaDataText(const FName& MetaDataKey, const FString LocalizationNamespace = FString(), const FString LocalizationKey = FString()) const;
+	COREUOBJECT_API const FText GetMetaDataText(const TCHAR* MetaDataKey, const FTextKey LocalizationNamespace = FTextKey(), const FTextKey LocalizationKey = FTextKey()) const;
+	COREUOBJECT_API const FText GetMetaDataText(const FName& MetaDataKey, const FTextKey LocalizationNamespace = FTextKey(), const FTextKey LocalizationKey = FTextKey()) const;
 
 	/**
 	* Sets the metadata value associated with the key
@@ -926,6 +910,33 @@ public:
 
 	/** Copies all metadata from Source Field to Dest Field */
 	static COREUOBJECT_API void CopyMetaData(const FField* InSourceField, FField* InDestField);
+#endif // WITH_METADATA
+
+#if WITH_EDITORONLY_DATA
+public:
+	/**
+	* Walks up the chain of packages until it reaches the top level, which it ignores.
+	*
+	* @param	bStartWithOuter		whether to include this object's name in the returned string
+	* @return	string containing the path name for this object, minus the outermost-package's name
+	*/
+	COREUOBJECT_API FString GetFullGroupName(bool bStartWithOuter) const;
+
+	/**
+	* Finds the localized display name or native display name as a fallback.
+	*
+	* @return The display name for this object.
+	*/
+	COREUOBJECT_API FText GetDisplayNameText() const;
+
+	/**
+	* Finds the localized tooltip or native tooltip as a fallback.
+	*
+	* @param bShortTooltip Look for a shorter version of the tooltip (falls back to the long tooltip if none was specified)
+	*
+	* @return The tooltip for this object.
+	*/
+	COREUOBJECT_API FText GetToolTipText(bool bShortTooltip = false) const;
 
 	/** Creates a new FField from existing UField */
 	static COREUOBJECT_API FField* CreateFromUField(UField* InField);
@@ -933,9 +944,9 @@ public:
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnConvertCustomUFieldToFField, FFieldClass*, UField*, FField*&);
 	/** Gets a delegate to convert custom UField types to FFields */
 	static COREUOBJECT_API FOnConvertCustomUFieldToFField& GetConvertCustomUFieldToFFieldDelegate();
-
 #endif // WITH_EDITORONLY_DATA
 
+public:
 	/** Duplicates an FField */
 	static COREUOBJECT_API FField* Duplicate(const FField* InField, FFieldVariant DestOwner, const FName DestName = NAME_None, EObjectFlags FlagMask = RF_AllFlags, EInternalObjectFlags InternalFlagsMask = EInternalObjectFlags_AllFlags);
 

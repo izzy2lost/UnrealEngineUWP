@@ -31,4 +31,8 @@ namespace UE::MovieGraph
 		/** Determines if the pipeline can generate audio. */
 		bool IsMoviePipelineAudioOutputSupported(const UObject* InWorldContextObject);
 	}
+
+#if WITH_EDITOR
+	void ValidateAlphaProjectSettings(const FText& InRequestingFeatureLabel, bool bMandatePrimitiveAlphaHoldout = false);
+#endif
 }

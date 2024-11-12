@@ -14,6 +14,8 @@ export const HordeSetupView: React.FC = () => {
 
    const username = "Admin";
 
+   document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FFFFFFF"}`)   
+
    const onLoginAdmin = async () => {
 
       const password = secrets.newPassword?.trim();
@@ -96,7 +98,7 @@ export const HordeSetupView: React.FC = () => {
    }
 
 
-   return (<ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme}>
+   return (<ThemeProvider applyTo='element' theme={dashboard.darktheme ? darkTheme : lightTheme}>
       <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
          <Stack>
             <Stack horizontalAlign="center">

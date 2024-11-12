@@ -15,6 +15,7 @@
 #include "Widgets/SNiagaraSystemUserParameters.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "NiagaraEditorDataBase.h"
+#include "NiagaraEditorUtilities.h"
 #include "PropertyEditorClipboard.h"
 #include "Customizations/NiagaraComponentDetails.h"
 
@@ -89,7 +90,7 @@ IDetailPropertyRow* FNiagaraUserParameterNodeBuilder::AddValueParameterAsRow(IDe
 	
 	if(bShouldCreateNiagaraEditor)
 	{
-		UNiagaraScriptVariable* UserParameterScriptVariable = FNiagaraEditorUtilities::GetScriptVariableForUserParameter(ChoppedUserParameter, *GetSystem());
+		UNiagaraScriptVariable* UserParameterScriptVariable = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(ChoppedUserParameter, *GetSystem());
 		FNiagaraEditorModule& NiagaraEditorModule = FNiagaraEditorModule::Get();
 		if(TSharedPtr<INiagaraEditorTypeUtilities> TypeUtilities = NiagaraEditorModule.GetTypeUtilities(ParameterType))
 		{
@@ -412,7 +413,7 @@ void FNiagaraUserParameterNodeBuilder::AddCustomMenuActionsForParameter(FDetailW
 
 TSharedRef<SWidget> FNiagaraUserParameterNodeBuilder::CreateUserParameterNameWidget(FNiagaraVariable UserParameter)
 {
-	UNiagaraScriptVariable* ScriptVariable = FNiagaraEditorUtilities::GetScriptVariableForUserParameter(UserParameter, *GetSystem());
+	UNiagaraScriptVariable* ScriptVariable = FNiagaraEditorUtilities::UserParameters::GetScriptVariableForUserParameter(UserParameter, *GetSystem());
 	TAttribute<FText> Tooltip = FText::GetEmpty();
 	if(ScriptVariable)
 	{

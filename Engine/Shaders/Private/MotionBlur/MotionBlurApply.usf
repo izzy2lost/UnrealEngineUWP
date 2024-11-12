@@ -4,6 +4,7 @@
 
 
 #include "MotionBlurCommon.ush"
+#include "../LensDistortion.ush"
 #include "../Random.ush"
 #include "/Engine/Public/WaveBroadcastIntrinsics.ush"
 
@@ -65,6 +66,8 @@
 	#define CONFIG_SKIP_CENTER 0
 #endif
 
+#define CONFIG_SCENE_COLOR_ALPHA (DIM_ALPHA_CHANNEL)
+
 
 //------------------------------------------------------- CONSTANTS
 
@@ -81,9 +84,12 @@ SCREEN_PASS_TEXTURE_VIEWPORT(Color)
 SCREEN_PASS_TEXTURE_VIEWPORT(Velocity)
 SCREEN_PASS_TEXTURE_VIEWPORT(VelocityTile)
 FScreenTransform ColorToVelocity;
+FScreenTransform SeparateTranslucencyUVToViewportUV;
+FScreenTransform ViewportUVToSeparateTranslucencyUV;
 uint MaxSampleCount;
 uint OutputMip1;
 uint OutputMip2;
+uint bLensDistortion;
 
 uint TileListOffset;
 StructuredBuffer<uint> TileListsBuffer;
@@ -100,6 +106,9 @@ SamplerState VelocitySampler;
 SamplerState VelocityTileSampler;
 SamplerState VelocityFlatSampler;
 SamplerState DepthSampler;
+
+Texture2D<float2> UndistortingDisplacementTexture;
+SamplerState      UndistortingDisplacementSampler;
 
 Texture2D TranslucencyTexture;
 SamplerState TranslucencySampler;
@@ -132,7 +141,7 @@ RWTexture2D<float4> DebugOutput;
 
 groupshared mb_half4 SharedArray0[TILE_SIZE * TILE_SIZE];
 
-#if POST_PROCESS_ALPHA
+#if CONFIG_SCENE_COLOR_ALPHA
 groupshared mb_half  SharedArray1[TILE_SIZE * TILE_SIZE];
 #endif
 
@@ -244,6 +253,14 @@ mb_half GetVelocityLengthPixels(mb_half2 EncodedVelocity)
 {
 	// 11:11:10  (VelocityLength, VelocityAngle, Depth)
 	return EncodedVelocity.x;
+}
+
+float2 ApplyLensDistortionOnTranslucencyUV(float2 SeparateTranslucencyUV)
+{
+	float2 DistortedViewportUV = ApplyScreenTransform(SeparateTranslucencyUV, SeparateTranslucencyUVToViewportUV);
+	float2 UndistortedViewportUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, DistortedViewportUV);
+	
+	return ApplyScreenTransform(UndistortedViewportUV, ViewportUVToSeparateTranslucencyUV);
 }
 
 
@@ -734,6 +751,15 @@ void MainCS(
 			float2 PostMotionBlurTranslucencyUV2 = PostMotionBlurTranslucencyUV + float2(-0.5, +0.5) * TranslucencyExtentInverse;
 			float2 PostMotionBlurTranslucencyUV3 = PostMotionBlurTranslucencyUV + float2(+0.5, +0.5) * TranslucencyExtentInverse;
 		#endif
+
+		BRANCH
+		if (bLensDistortion)
+		{
+			PostMotionBlurTranslucencyUV0 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV0);
+			PostMotionBlurTranslucencyUV1 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV1);
+			PostMotionBlurTranslucencyUV2 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV2);
+			PostMotionBlurTranslucencyUV3 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV3);
+		}
 			
 		PostMotionBlurTranslucencyUV0 = clamp(PostMotionBlurTranslucencyUV0, TranslucencyUVMin, TranslucencyUVMax);
 		PostMotionBlurTranslucencyUV1 = clamp(PostMotionBlurTranslucencyUV1, TranslucencyUVMin, TranslucencyUVMax);
@@ -821,7 +847,7 @@ void MainCS(
 		}
 		#elif CONFIG_SHUFFLE_HALF_RES && !PLATFORM_SUPPORTS_WAVE_BROADCAST
 		{
-			#if POST_PROCESS_ALPHA
+			#if CONFIG_SCENE_COLOR_ALPHA
 				SharedArray0[GroupThreadIndex] = MotionBlurColor;
 				SharedArray1[GroupThreadIndex] = FullResBlend;
 			#else
@@ -833,7 +859,7 @@ void MainCS(
 			MotionBlurColor2 = SharedArray0[(GroupThreadIndex & (~0x3)) | 0x2];
 			MotionBlurColor3 = SharedArray0[(GroupThreadIndex & (~0x3)) | 0x3];
 		
-			#if POST_PROCESS_ALPHA
+			#if CONFIG_SCENE_COLOR_ALPHA
 				FullResBlend0 = SharedArray1[(GroupThreadIndex & (~0x3)) | 0x0];
 				FullResBlend1 = SharedArray1[(GroupThreadIndex & (~0x3)) | 0x1];
 				FullResBlend2 = SharedArray1[(GroupThreadIndex & (~0x3)) | 0x2];
@@ -882,12 +908,19 @@ void MainCS(
 			OutputColor1.rgb = OutputColor1.rgb * PostMotionBlurTranslucency1.a + PostMotionBlurTranslucency1.rgb;
 			OutputColor2.rgb = OutputColor2.rgb * PostMotionBlurTranslucency2.a + PostMotionBlurTranslucency2.rgb;
 			OutputColor3.rgb = OutputColor3.rgb * PostMotionBlurTranslucency3.a + PostMotionBlurTranslucency3.rgb;
+
+			#if CONFIG_SCENE_COLOR_ALPHA
+				OutputColor0.a = OutputColor0.a * PostMotionBlurTranslucency0.a;
+				OutputColor1.a = OutputColor1.a * PostMotionBlurTranslucency1.a;
+				OutputColor2.a = OutputColor2.a * PostMotionBlurTranslucency2.a;
+				OutputColor3.a = OutputColor3.a * PostMotionBlurTranslucency3.a;
+			#endif
 		}
 		#endif
 		
 		// Ensure that alpha values that are expected to be opaque (but are only close to opaque) are forced to be opaque.
 		// (0.995 chosen to accommodate handling of 254/255)
-		#if POST_PROCESS_ALPHA
+		#if CONFIG_SCENE_COLOR_ALPHA
 		{
 			OutputColor0[3] = select(OutputColor0[3] > mb_half(0.995), mb_half(1.0), OutputColor0[3]);
 			OutputColor1[3] = select(OutputColor1[3] > mb_half(0.995), mb_half(1.0), OutputColor1[3]);
@@ -941,7 +974,7 @@ void MainCS(
 		}
 		
 		// Needed to avoid crash in shader compiler of Xclipse driver
-		#if !POST_PROCESS_ALPHA
+		#if !CONFIG_SCENE_COLOR_ALPHA
 			QuarterResOutput.a = 0;
 		#endif
 		bool bIsValid = all(OutputPixelCoord < mb_short2(Color_ViewportMax));
@@ -972,6 +1005,11 @@ void MainCS(
 		mb_short2 OutputPixelCoord = mb_short2(ColorUV * Color_Extent);
 
 		float2 PostMotionBlurTranslucencyUV = ApplyScreenTransform(ColorUV, ColorToTranslucency);
+		BRANCH
+		if (bLensDistortion)
+		{
+			PostMotionBlurTranslucencyUV = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV);
+		}
 		PostMotionBlurTranslucencyUV = clamp(PostMotionBlurTranslucencyUV, TranslucencyUVMin, TranslucencyUVMax);
 		
 		mb_half4 CenterColor;
@@ -1010,12 +1048,16 @@ void MainCS(
 		#if CONFIG_POST_MOTIONBLUR_TRANSLUCENCY
 		{
 			OutputColor.rgb = OutputColor.rgb * PostMotionBlurTranslucency.a + PostMotionBlurTranslucency.rgb;
+			
+			#if CONFIG_SCENE_COLOR_ALPHA
+				OutputColor.a = OutputColor.a * PostMotionBlurTranslucency.a;
+			#endif
 		}
 		#endif
 
 		// Ensure that alpha values that are expected to be opaque (but are only close to opaque) are forced to be opaque.
 		// (0.995 chosen to accommodate handling of 254/255)
-		#if POST_PROCESS_ALPHA
+		#if CONFIG_SCENE_COLOR_ALPHA
 		{
 			OutputColor[3] = select(OutputColor[3] > mb_half(0.995), mb_half(1.0), OutputColor[3]);
 			OutputColor[3] = select(OutputColor[3] < mb_half(0.005), mb_half(0.0), OutputColor[3]);
@@ -1055,7 +1097,7 @@ void MainCS(
 		}
 		
 		// Needed to avoid crash in shader compiler of Xclipse driver
-		#if !POST_PROCESS_ALPHA
+		#if !CONFIG_SCENE_COLOR_ALPHA
 			HalfResOutput.a = 0;
 		#endif
 		mb_half4 QuarterResOutput;
@@ -1087,7 +1129,7 @@ void MainCS(
 		}
 
 		// Needed to avoid crash in shader compiler of Xclipse driver
-		#if !POST_PROCESS_ALPHA
+		#if !CONFIG_SCENE_COLOR_ALPHA
 			QuarterResOutput.a = 0;
 		#endif
 		bool bIsValid = all(OutputPixelCoord < mb_short2(Color_ViewportMax));

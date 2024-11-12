@@ -245,6 +245,12 @@ public:
 	/** Gets the extension hook so users can see what hooks are where */
 	FName GetExtensionHook() const { return ExtensionHook; }
 
+	/** Get the visibility override for this block. */
+	TAttribute<EVisibility> GetVisibilityOverride() const;
+
+	/** Set the visibility override for this block. */
+	void SetVisibilityOverride(TAttribute<EVisibility> InVisibilityOverride);
+
 private:
 	/**
 	 * Allocates a widget for this type of MultiBlock.  Override this in derived classes.
@@ -254,14 +260,23 @@ private:
 	virtual TSharedRef< class IMultiBlockBaseWidget > ConstructWidget() const = 0;
 
 	/**
- 	 * Gets any aligment overrides for this block
+ 	 * Gets any alignment overrides for this block
 	 *
-	 * @param OutHorizontalAligment	Horizontal alignment override
+	 * @param OutHorizontalAlignment	Horizontal alignment override
 	 * @param OutVerticalAlignment	Vertical Alignment override 
 	 * @param bOutAutoWidth		Fill or Auto width override
 	 * @return true if overrides should be applied, false to use defaults 
- 	 */ 
+ 	 */
+	UE_DEPRECATED(5.5, "Use the version that outputs FMenuEntryStyleParams.")
 	virtual bool GetAlignmentOverrides(EHorizontalAlignment& OutHorizontalAlignment, EVerticalAlignment& OutVerticalAlignment, bool& bOutAutoWidth) const { return false; }
+
+	/**
+	  * Gets any alignment overrides for this block
+	 *
+	 * @param OutAlignmentParameters	Alignment parameters and overrides
+	 * @return true if overrides should be applied, false to use defaults
+	  */
+	virtual bool GetAlignmentOverrides(FMenuEntryStyleParams& OutAlignmentParameters) const { return false; }
 private:
 
 	// We're friends with SMultiBoxWidget so that it can call MakeWidget() directly
@@ -292,6 +307,9 @@ private:
 
 	/** Whether this block is part of the heading blocks for a section */
 	bool bIsPartOfHeading;
+
+	/** Visibility override which, if set and returning anything but Visible, takes priority over other methods of determining visibility. */
+	TAttribute<EVisibility> VisibilityOverride;
 };
 
 
@@ -331,6 +349,18 @@ public:
 	{
 		return bShouldCloseWindowAfterMenuSelection;
 	}
+
+	/**
+	 * returns the index of the item which was last selected in this box
+	 */
+	int32 GetLastSelectedCommandIndex() const;
+	
+	/**
+	 * sets the index of the item which was last selected in this box
+	 *
+	 * @param LastSelectedCommandIndex the index of the last command that was selected for this box
+	 */
+	void SetLastSelectedCommandIndex( int32 LastSelectedCommandIndex );
 
 	/**
 	 * Adds a MultiBlock to this MultiBox, to the end of the list
@@ -480,6 +510,10 @@ private:
 
 	/** True if window that owns any widgets created from this multibox should be closed automatically after the user commits to a menu choice */
 	bool bShouldCloseWindowAfterMenuSelection;
+
+	/** the Last selected command index. If unset this has a value of INDEX_NONE */
+	int32 LastSelectedCommandIndex;
+
 };
 
 
@@ -810,6 +844,7 @@ public:
 	 */
 	SLATE_API double GetSummonedMenuTime() const;
 
+	UE_DEPRECATED_FORGAME(5.5, "This function will be made private in the future.")
 	bool ShouldShowMenuSearchField();
 
 private:
@@ -824,7 +859,10 @@ private:
 	/** Creates the SearchTextWidget if the MultiBox has requested one */
 	SLATE_API void CreateSearchTextWidget();
 
-	/** Called when the SearchText changes */
+	/** Called when the search field text is committed (such as pressing ESC). */
+	SLATE_API void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type CommitType);
+	
+	/** Called when the search field text changes. */
 	SLATE_API void OnFilterTextChanged(const FText& InFilterText);
 
 	/**

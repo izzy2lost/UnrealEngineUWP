@@ -32,10 +32,7 @@ namespace EpicGames.Jupiter
 
 		public List<JupiterTree> Trees { get; } = new List<JupiterTree>();
 
-		public IEnumerable<string> ContentHashes
-		{
-			get { return ContentProvider.GetHashes(); }
-		}
+		public IEnumerable<string> ContentHashes => ContentProvider.GetHashes();
 
 		public Task<byte[]> GetContent(string BlobHash)
 		{
@@ -100,10 +97,7 @@ namespace EpicGames.Jupiter
 			{
 				Log.Logger.LogInformation("Creating a new tree root in Jupiter with id: {Key}", JupiterTreeKey);
 
-				if (Metadata == null)
-				{
-					Metadata = new Dictionary<string, object>();
-				}
+				Metadata ??= new Dictionary<string, object>();
 
 				// add a source field if it doesn't already exist to make it known were this tree came from
 				if (!Metadata.ContainsKey("source"))
@@ -116,16 +110,16 @@ namespace EpicGames.Jupiter
 					{
 						TreeReferenceKey = JupiterTreeKey,
 						TreeHash = TreeHashString,
-						Metadata = Metadata,
+						Metadata,
 					};
 					string PutTreeRootString = JsonSerializer.Serialize(TreeRoot);
 					using StringContent PutTreeRootContent = new StringContent(PutTreeRootString, Encoding.UTF8, "application/json");
 					// upload tree information
-					HttpResponseMessage PutTreeResult = await JupiterClient.PutAsync(string.Format("api/v1/c/tree-root/{0}", JupiterNamespace), PutTreeRootContent);
+					HttpResponseMessage PutTreeResult = await JupiterClient.PutAsync(String.Format("api/v1/c/tree-root/{0}", JupiterNamespace), PutTreeRootContent);
 					if (!PutTreeResult.IsSuccessStatusCode)
 					{
 						string ErrorMsg = await PutTreeResult.Content.ReadAsStringAsync();
-						throw new Exception(string.Format("Failed to create tree root in Jupiter. Response: {0}", ErrorMsg));
+						throw new Exception(String.Format("Failed to create tree root in Jupiter. Response: {0}", ErrorMsg));
 					}
 				}
 
@@ -143,11 +137,11 @@ namespace EpicGames.Jupiter
 						};
 					string PutTreeString = JsonSerializer.Serialize(PutTreesRequest);
 					using StringContent PutTreeContent = new StringContent(PutTreeString, Encoding.UTF8, "application/json");
-					HttpResponseMessage PutTreeContentResult = await JupiterClient.PutAsync(string.Format("api/v1/c/tree/{0}", JupiterNamespace), PutTreeContent);
+					HttpResponseMessage PutTreeContentResult = await JupiterClient.PutAsync(String.Format("api/v1/c/tree/{0}", JupiterNamespace), PutTreeContent);
 					if (!PutTreeContentResult.IsSuccessStatusCode)
 					{
 						string ErrorMsg = await PutTreeContentResult.Content.ReadAsStringAsync();
-						throw new Exception(string.Format("Failed to upload one or more trees to Jupiter. Response: {0}", ErrorMsg));
+						throw new Exception(String.Format("Failed to upload one or more trees to Jupiter. Response: {0}", ErrorMsg));
 					}
 				}
 
@@ -173,7 +167,7 @@ namespace EpicGames.Jupiter
 					if (!FilterBlobResponse.IsSuccessStatusCode)
 					{
 						string ErrorMsg = await FilterBlobResponse.Content.ReadAsStringAsync();
-						throw new Exception(string.Format("Failed to determine which blobs were already present in Jupiter. Response: {0}", ErrorMsg));
+						throw new Exception(String.Format("Failed to determine which blobs were already present in Jupiter. Response: {0}", ErrorMsg));
 					}
 
 					string ResponseString = await FilterBlobResponse.Content.ReadAsStringAsync();
@@ -201,12 +195,12 @@ namespace EpicGames.Jupiter
 									ByteArrayContent Content = new ByteArrayContent(await JupiterTree.GetContent(BlobHash));
 									Content.Headers.Remove("Content-Type");
 									Content.Headers.Add("Content-Type", "application/octet-stream");
-									HttpResponseMessage PutBlobResultResult = await JupiterClient.PutAsync(string.Format("api/v1/s/{0}/{1}", JupiterNamespace, BlobHash), Content);
+									HttpResponseMessage PutBlobResultResult = await JupiterClient.PutAsync(String.Format("api/v1/s/{0}/{1}", JupiterNamespace, BlobHash), Content);
 
 									if (!PutBlobResultResult.IsSuccessStatusCode)
 									{
 										string ErrorMsg = await PutBlobResultResult.Content.ReadAsStringAsync();
-										throw new Exception(string.Format(
+										throw new Exception(String.Format(
 											"Failed to upload content blob to Jupiter. Response: {0}", ErrorMsg));
 									}
 								}
@@ -219,11 +213,11 @@ namespace EpicGames.Jupiter
 
 				// verify the build upload
 				{
-					HttpResponseMessage FinalizeTreeResult = await JupiterClient.PutAsync(string.Format("api/v1/c/tree-root/{0}/{1}/finalize", JupiterNamespace, JupiterTreeKey), null);
+					HttpResponseMessage FinalizeTreeResult = await JupiterClient.PutAsync(String.Format("api/v1/c/tree-root/{0}/{1}/finalize", JupiterNamespace, JupiterTreeKey), null);
 					if (!FinalizeTreeResult.IsSuccessStatusCode)
 					{
 						string ErrorMsg = await FinalizeTreeResult.Content.ReadAsStringAsync();
-						throw new Exception(string.Format("Jupiter tree upload verification failed. Response: {0}",
+						throw new Exception(String.Format("Jupiter tree upload verification failed. Response: {0}",
 							ErrorMsg));
 					}
 				}
@@ -242,12 +236,12 @@ namespace EpicGames.Jupiter
 
 				{
 					// download the tree root
-					HttpResponseMessage GetTreeRootResult = await JupiterClient.GetAsync(string.Format("api/v1/c/tree-root/{0}/{1}", JupiterNamespace, JupiterTreeKey));
+					HttpResponseMessage GetTreeRootResult = await JupiterClient.GetAsync(String.Format("api/v1/c/tree-root/{0}/{1}", JupiterNamespace, JupiterTreeKey));
 
 					string GetTreeRootResultString = await GetTreeRootResult.Content.ReadAsStringAsync();
 					if (!GetTreeRootResult.IsSuccessStatusCode)
 					{
-						throw new Exception(string.Format("Failed to download tree root with key {0}. Response: {1}", JupiterTreeKey, GetTreeRootResultString));
+						throw new Exception(String.Format("Failed to download tree root with key {0}. Response: {1}", JupiterTreeKey, GetTreeRootResultString));
 					}
 
 					TreeRootContents TreeRoot = JsonSerializer.Deserialize<TreeRootContents>(GetTreeRootResultString);
@@ -258,12 +252,12 @@ namespace EpicGames.Jupiter
 				Dictionary<string, TreeContents> TreeMapping;
 				{
 					// Flatten this tree, and download the tree descriptions of all those trees
-					HttpResponseMessage GetFlattenTreeResult = await JupiterClient.GetAsync(string.Format("api/v1/c/tree/{0}/{1}/flattend", JupiterNamespace, TopTreeHash));
+					HttpResponseMessage GetFlattenTreeResult = await JupiterClient.GetAsync(String.Format("api/v1/c/tree/{0}/{1}/flattend", JupiterNamespace, TopTreeHash));
 
 					string GetFlattenTreeResultString = await GetFlattenTreeResult.Content.ReadAsStringAsync();
 					if (!GetFlattenTreeResult.IsSuccessStatusCode)
 					{
-						throw new Exception(string.Format("Failed to download flattened tree {0}. Response: {1}", TopTreeHash, GetFlattenTreeResultString));
+						throw new Exception(String.Format("Failed to download flattened tree {0}. Response: {1}", TopTreeHash, GetFlattenTreeResultString));
 					}
 
 					FlattendTreeContents FlattenedTree = JsonSerializer.Deserialize<FlattendTreeContents>(GetFlattenTreeResultString);
@@ -274,12 +268,12 @@ namespace EpicGames.Jupiter
 					foreach (string Tree in TreesToDownload)
 					{
 						// Flatten this tree, and download the tree descriptions of all those trees
-						HttpResponseMessage GetTreeResult = await JupiterClient.GetAsync(string.Format("api/v1/c/tree/{0}/{1}", JupiterNamespace, Tree));
+						HttpResponseMessage GetTreeResult = await JupiterClient.GetAsync(String.Format("api/v1/c/tree/{0}/{1}", JupiterNamespace, Tree));
 
 						string GetTreeResultString = await GetTreeResult.Content.ReadAsStringAsync();
 						if (!GetTreeResult.IsSuccessStatusCode)
 						{
-							throw new Exception(string.Format("Failed to download tree {0}. Response: {1}", Tree, GetTreeResultString));
+							throw new Exception(String.Format("Failed to download tree {0}. Response: {1}", Tree, GetTreeResultString));
 						}
 
 						TreeContents TreeContents = JsonSerializer.Deserialize<TreeContents>(GetTreeResultString);
@@ -339,12 +333,12 @@ namespace EpicGames.Jupiter
 		{
 			using (HttpClient JupiterClient = new HttpClient {BaseAddress = new Uri(BaseUrl)})
 			{
-				HttpResponseMessage GetContentsResult = await JupiterClient.GetAsync(string.Format("api/v1/s/{0}/{1}", JupiterNamespace, Sha1));
+				HttpResponseMessage GetContentsResult = await JupiterClient.GetAsync(String.Format("api/v1/s/{0}/{1}", JupiterNamespace, Sha1));
 
 				if (!GetContentsResult.IsSuccessStatusCode)
 				{
 					string ErrorMsg = await GetContentsResult.Content.ReadAsStringAsync();
-					throw new Exception(string.Format("Failed to download blob {0}. Response: {1}", Sha1, ErrorMsg));
+					throw new Exception(String.Format("Failed to download blob {0}. Response: {1}", Sha1, ErrorMsg));
 				}
 
 				byte[] Data = await GetContentsResult.Content.ReadAsByteArrayAsync();
@@ -607,10 +601,7 @@ namespace EpicGames.Jupiter
 			}
 			private readonly ManifestData Data;
 
-			public Dictionary<string, string> Files
-			{
-				get { return Data.Files; }
-			}
+			public Dictionary<string, string> Files => Data.Files;
 
 			public Manifest(DirectoryReference InBaseDir)
 			{

@@ -33,6 +33,8 @@ public class AndroidPlatform : Platform
     private const string TargetAndroidLocation = "obb/";
 	private const string TargetAndroidTemp = "/data/local/tmp/";
 
+	private const string DefaultLaunchActivity = "com.epicgames.unreal.SplashActivity";
+
 	public class AdbCreatedProcess : AutomationTool.IProcessResult
 	{
 		private readonly object StopSyncObject = new object();
@@ -300,6 +302,8 @@ public class AndroidPlatform : Platform
 		string DefaultAndroidStudioInstallDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Android", "Android Studio");
 		string RegValue = Microsoft.Win32.Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Android Studio", "Path", null) as string;
 		string AndroidStudioInstallDir = RegValue == null ? DefaultAndroidStudioInstallDir : RegValue;
+  		// Some installs, like JetBrains Toolbox, may not place an entry in the registry so try an alternate location
+		AndroidStudioInstallDir = Directory.Exists(AndroidStudioInstallDir) ? AndroidStudioInstallDir : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Android Studio");
 		return Path.Combine(AndroidStudioInstallDir, "bin", "studio64.exe");
 	}
 
@@ -505,13 +509,36 @@ public class AndroidPlatform : Platform
 
 		return bHaveAndroidStudio;
 	}
-
-
-
-
-
-
-
+	
+	public override DeviceInfo[] GetDevices()
+	{
+		List<DeviceInfo> Devices = new List<DeviceInfo>();
+		
+		List<string> ConnectedDevices;
+		GetConnectedDevices(null, out ConnectedDevices);
+		
+		foreach (string ConnectedDeviceName in ConnectedDevices)
+		{
+			DeviceInfo CurrentDevice = new DeviceInfo(TargetPlatformType);
+			// GetConnectedDevices returns valid device names with an '@' in front
+			CurrentDevice.Name = ConnectedDeviceName.StartsWith("@") ? ConnectedDeviceName.Remove(0, 1) : ConnectedDeviceName; 
+			
+			CurrentDevice.Id = CurrentDevice.Name;
+			CurrentDevice.bCanConnect = ConnectedDeviceName.StartsWith("@");
+			
+			// Instead, we return the SDK Version, and other parts of the code were adjusted
+			string GetPropCommand = "shell getprop";
+			string SDKVersionCommand = $"{GetPropCommand} ro.build.version.sdk";
+			IProcessResult Result = RunAdbCommand(CurrentDevice.Name, SDKVersionCommand);
+			if (Result.Output.Length > 0)
+			{
+				CurrentDevice.SoftwareVersion = Result.Output.Trim();
+			}
+						
+			Devices.Add(CurrentDevice);
+		}
+		return Devices.ToArray();
+	}
 
 
 
@@ -1607,8 +1634,8 @@ public class AndroidPlatform : Platform
 				{
 					foreach (OverflowBatchInstallInfo Overflow in OverflowInfo)
 					{
-						string AfsOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
-						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile '" + AfsOverflowName + "'" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " '" + AfsOverflowName + "'");
+						string AFSOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
+						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile '" + AFSOverflowName + "'" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " '" + AFSOverflowName + "'");
 						OverflowInstallCommands.Add("if \"%ERRORLEVEL%\" NEQ \"0\" goto Error");
 					}
 				}
@@ -1716,8 +1743,8 @@ public class AndroidPlatform : Platform
 				{
 					foreach (OverflowBatchInstallInfo Overflow in OverflowInfo)
 					{
-						string AfsOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
-						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile \"" + AfsOverflowName + "\"" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " \"" + AfsOverflowName + "\"");
+						string AFSOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
+						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile \"" + AFSOverflowName + "\"" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " \"" + AFSOverflowName + "\"");
 						OverflowInstallCommands.Add("if \"%ERRORLEVEL%\" NEQ \"0\" goto Error");
 					}
 				}
@@ -2038,9 +2065,16 @@ public class AndroidPlatform : Platform
 				{
 					throw new AutomationException(ExitCode.Error_SymbolizedSONotFound, "ARCHIVE FAILED - {0} was not found", SymbolizedSOPath);
 				}
-
 				// Add symbolized .so directory
 				SC.ArchiveFiles(Path.GetDirectoryName(SymbolizedSOPath), Path.GetFileName(SymbolizedSOPath), true, null, SymbolizedSODirectory);
+
+				// copy mapping.txt file if generated
+				string SymbolizedBasePath = SymbolizedSODirectory.Substring(0, SymbolizedSODirectory.LastIndexOf("/"));
+				string SymbolizedMappingFile = Path.Combine(Path.Combine(Path.GetDirectoryName(ApkName), SymbolizedBasePath), "mapping.txt");
+				if (FileExists(SymbolizedMappingFile))
+				{
+					SC.ArchiveFiles(Path.GetDirectoryName(SymbolizedMappingFile), Path.GetFileName(SymbolizedMappingFile), false, null, SymbolizedBasePath);
+				}
 			}
 
 			if (!bPackageDataInsideApk)
@@ -2176,6 +2210,15 @@ public class AndroidPlatform : Platform
 
 		return string.Format("{0} {1}", SerialNumber, Args);
 	}
+	private static string GetAFSCommandLine(string SerialNumber, string Args)
+	{
+	    if (string.IsNullOrEmpty(SerialNumber) == false)
+		{
+			SerialNumber = "-s " + SerialNumber;
+		}
+
+		return string.Format("{0} {1}", SerialNumber, Args);
+	}
 
 	static string LastSpewFilename = "";
 
@@ -2221,6 +2264,31 @@ public class AndroidPlatform : Platform
 		string AdbCommand = Environment.ExpandEnvironmentVariables("%ANDROID_HOME%/platform-tools/adb" + (RuntimePlatform.IsWindows ? ".exe" : ""));
 		LastSpewFilename = "";
 		return RunAndLog(CmdEnv, AdbCommand, GetAdbCommandLine(SerialNumber, Args), out SuccessCode, SpewFilterCallback: new ProcessResult.SpewFilterCallbackType(ADBSpewFilter));
+	}
+
+	public static IProcessResult RunAFSCommand(ProjectParams Params, string SerialNumber, string Args, string Input = null, ERunOptions Options = ERunOptions.Default, bool bShouldLogCommand = false)
+	{
+		return RunAFSCommand(SerialNumber, Args, Input, Options, bShouldLogCommand);
+	}
+
+	private static IProcessResult RunAFSCommand(string SerialNumber, string Args, string Input = null, ERunOptions Options = ERunOptions.Default, bool bShouldLogCommand = false)
+	{
+		string AFSExecutable = AndroidExports.GetAFSExecutable(UnrealTargetPlatform.Win64, EpicGames.Core.Log.Logger);
+		AFSExecutable = Path.Combine(Unreal.EngineDirectory.FullName, "Binaries", "DotNET", "Android", "UnrealAndroidFileTool", AFSExecutable);
+		if (Options.HasFlag(ERunOptions.AllowSpew) || Options.HasFlag(ERunOptions.SpewIsVerbose))
+		{
+			LastSpewFilename = "";
+			return Run(AFSExecutable, GetAFSCommandLine(SerialNumber, Args), Input, Options, SpewFilterCallback: new ProcessResult.SpewFilterCallbackType(ADBSpewFilter));
+		}
+		return Run(AFSExecutable, GetAFSCommandLine(SerialNumber, Args), Input, Options);
+	}
+
+	private string RunAndLogAFSCommand(ProjectParams Params, string SerialNumber, string Args, out int SuccessCode)
+	{
+		string AFSExecutable = AndroidExports.GetAFSExecutable(UnrealTargetPlatform.Win64, EpicGames.Core.Log.Logger);
+		AFSExecutable = Path.Combine(Unreal.EngineDirectory.FullName, "Binaries", "DotNET", "Android", "UnrealAndroidFileTool", AFSExecutable);
+		LastSpewFilename = "";
+		return RunAndLog(CmdEnv, AFSExecutable, GetAFSCommandLine(SerialNumber, Args), out SuccessCode, SpewFilterCallback: new ProcessResult.SpewFilterCallbackType(ADBSpewFilter));
 	}
 
 	public override void GetConnectedDevices(ProjectParams Params, out List<string> Devices)
@@ -3672,7 +3740,7 @@ public class AndroidPlatform : Platform
 
 		if (ReturnValue == null || ReturnValue.Length == 0)
 		{
-			/** If APK does not exist or we cant find package info in apk use the packageInfo file */
+			// If APK does not exist or we cant find package info in apk use the packageInfo file
 			ReturnValue = GetPackageInfoFromInfoFile(ApkName, SC, bRetrieveVersionCode);
 		}
 
@@ -3727,7 +3795,7 @@ public class AndroidPlatform : Platform
 	/** Returns the launch activity name to launch (must call GetPackageInfo first), returns "com.epicgames.unreal.SplashActivity" default if not found */
 	public static string GetLaunchableActivityName()
 	{
-		string ReturnValue = "com.epicgames.unreal.SplashActivity";
+		string ReturnValue = DefaultLaunchActivity;
 		if (LaunchableActivityLine != null)
 		{
 			// the line should look like: launchable-activity: name='com.epicgames.unreal.SplashActivity'  label='TappyChicken' icon=''
@@ -3738,6 +3806,15 @@ public class AndroidPlatform : Platform
 			}
 		}
 		return ReturnValue;
+	}
+
+	public static string GetLaunchableActivityName(string ApkName)
+	{
+		if (!string.IsNullOrEmpty(ApkName) && LaunchableActivityLine == null)
+		{
+			GetPackageInfo(ApkName, false);
+		}
+		return GetLaunchableActivityName();
 	}
 
 	/** Returns the app type from the packaged APK metadata, returns "" if not found */

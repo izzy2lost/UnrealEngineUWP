@@ -7,20 +7,22 @@ public class DynamicMaterialEditor : ModuleRules
 	public DynamicMaterialEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		bUseUnity = false;
 
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
-				"DynamicMaterial"
+				"DynamicMaterial",
+				"Engine",
+				"MaterialEditor"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AdvancedPreviewScene",
 				"AppFramework",
 				"ApplicationCore",
 				"AssetDefinition",
@@ -28,8 +30,11 @@ public class DynamicMaterialEditor : ModuleRules
 				"ContentBrowserData",
 				"CustomDetailsView",
 				"DeveloperSettings",
+				"DynamicMaterialShadersEditor",
+				"DynamicMaterialTextureSet",
+				"DynamicMaterialTextureSetEditor",
+				"EditorSubsystem",
 				"EditorWidgets",
-				"Engine",
 				"InputCore",
 				"Json",
 				"JsonUtilities",
@@ -37,6 +42,8 @@ public class DynamicMaterialEditor : ModuleRules
 				"Projects",
 				"PropertyEditor",
 				"RenderCore",
+				"Renderer",
+				"RHI",
 				"Slate",
 				"SlateCore",
 				"ToolMenus",

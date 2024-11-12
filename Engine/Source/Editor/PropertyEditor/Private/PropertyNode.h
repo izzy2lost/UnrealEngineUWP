@@ -22,6 +22,12 @@ class FPropertyNode;
 class FPropertyRestriction;
 class FStructurePropertyNode;
 
+namespace PropertyEditorPolicy
+{
+	class IEditConstPolicy;
+	class IArchetypePolicy;
+}
+
 DECLARE_LOG_CATEGORY_EXTERN(LogPropertyNode, Log, All);
 
 namespace EPropertyNodeFlags
@@ -536,8 +542,8 @@ public:
 	 */
 	bool IsPropertyConst() const;
 
-	/** @return whether this window's property is constant (can't be edited by the user) */
-	bool IsEditConst() const;
+	/** @return whether this window's property is constant (can't be edited by the user). If bIncludeEditCondition is false, the property is considered editable regardless of the EditCondition result. */
+	bool IsEditConst(const bool bIncludeEditCondition = true) const;
 
 	/**
 	 * Returns whether this window's property should not be serialized (determined by the CPF_SkipSerialization flag).
@@ -921,6 +927,18 @@ public:
 		return PossibleExtensions;
 	}
 
+	static UObject* GetArchetype(const UObject* Object);
+
+	static void RegisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy);
+	static void UnregisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy);
+	
+	static void RegisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy);
+	static void UnregisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy);
+
+	static bool IsPropertyEditConst(const FEditPropertyChain& PropertyChain, UObject* Object);
+
+	static bool IsPropertyEditConst(const FProperty* Property, UObject* Object);
+
 	/**
 	 * Adds a restriction to the possible values for this property.
 	 * @param Restriction	The restriction being added to this property.
@@ -1303,10 +1321,13 @@ protected:
 	* Cached state of flags that are expensive to update
 	* These update when values are changed in the details panel
 	*/
-	mutable bool bIsEditConst;
+	mutable bool bIsEditConst; // Includes EditCondition state
+	mutable bool bIsEditConstWithoutCondition; // Ignores EditCondition state
 	mutable bool bUpdateEditConstState;
+	mutable int32 UpdateEditConstStateEpoch;
 	mutable bool bDiffersFromDefault;
 	mutable bool bUpdateDiffersFromDefault;
+	mutable int32 UpdateDiffersFromDefaultEpoch;
 };
 
 class FComplexPropertyNode : public FPropertyNode
@@ -1327,6 +1348,9 @@ public:
 
 	virtual FStructurePropertyNode* AsStructureNode() { return nullptr; }
 	virtual const FStructurePropertyNode* AsStructureNode() const { return nullptr; }
+
+	virtual void SetDisplayNameOverride(const FText& InDisplayNameOverride) override;
+	virtual FText GetDisplayName() const override;
 
 	virtual UStruct* GetBaseStructure() = 0;
 	virtual const UStruct* GetBaseStructure() const = 0;
@@ -1349,4 +1373,8 @@ public:
 
 	/** Generates a single child from the provided property name.  Any existing children are destroyed */
 	virtual TSharedPtr<FPropertyNode> GenerateSingleChild(FName ChildPropertyName) = 0;
+
+private:
+	/** Display name to use instead of the fully qualified name */
+	FText DisplayNameOverride;
 };

@@ -1,16 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaRundownRCControllerItem.h"
-
 #include "Controller/RCController.h"
 #include "IRemoteControlUIModule.h"
 #include "RCVirtualProperty.h"
 #include "SAvaRundownRCControllerItemRow.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 FAvaRundownRCControllerItem::FAvaRundownRCControllerItem(int32 InInstanceIndex, FName InAssetName, URCController* InController, const TSharedRef<IDetailTreeNode>& InTreeNode)
 {
 	AssetName = InAssetName;
 	InstanceIndex = InInstanceIndex;
+
+	Controller = InController;
 	
 	if (InController)
 	{
@@ -34,4 +36,9 @@ FAvaRundownRCControllerItem::FAvaRundownRCControllerItem(int32 InInstanceIndex, 
 TSharedRef<ITableRow> FAvaRundownRCControllerItem::CreateWidget(TSharedRef<SAvaRundownRCControllerPanel> InControllerPanel, const TSharedRef<STableViewBase>& InOwnerTable) const
 {
 	return SNew(SAvaRundownRCControllerItemRow, InControllerPanel, InOwnerTable, SharedThis(this));
+}
+
+URCController* FAvaRundownRCControllerItem::GetController() const
+{
+	return Controller.Get();
 }

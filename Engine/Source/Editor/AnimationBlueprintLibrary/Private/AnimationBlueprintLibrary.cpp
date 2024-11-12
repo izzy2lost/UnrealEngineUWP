@@ -213,6 +213,17 @@ void UAnimationBlueprintLibrary::GetAnimationCurveNames(const UAnimSequenceBase*
 	}
 }
 
+FTransform UAnimationBlueprintLibrary::ExtractRootTrackTransform(const UAnimSequenceBase* AnimationSequenceBase, float Time)
+{
+	if (AnimationSequenceBase == nullptr)
+	{
+		UE_LOG(LogAnimationBlueprintLibrary, Warning, TEXT("Invalid Animation Sequence supplied for ExtractRootTrackTransform"));
+		return FTransform::Identity;
+	}
+	
+	return AnimationSequenceBase->ExtractRootTrackTransform(Time, nullptr);
+}
+
 const FRawAnimSequenceTrack& UAnimationBlueprintLibrary::GetRawAnimationTrackByName(const UAnimSequenceBase* AnimationSequenceBase, const FName TrackName)
 {
 	static FRawAnimSequenceTrack TempTrack;
@@ -901,7 +912,7 @@ static void ReplaceAnimNotifies_Helper(UAnimSequenceBase* AnimationSequence, UCl
 					UAnimNotifyState* OldNotifyState = NotifyEvent.NotifyStateClass;
 
 					// Remove old notify
-					AnimationSequence->Notifies.RemoveAt(NotifyIndex, 1, EAllowShrinking::No);
+					AnimationSequence->Notifies.RemoveAt(NotifyIndex, EAllowShrinking::No);
 
 					// Add new notify in old notifies place
 					AnimationSequence->Notifies.InsertDefaulted(NotifyIndex);
@@ -2025,6 +2036,94 @@ bool UAnimationBlueprintLibrary::IsValidTimeInternal(const UAnimSequenceBase* An
 	return FMath::IsWithinInclusive(Time, 0.0f, AnimationSequenceBase->GetPlayLength());
 }
 
+namespace UE::AnimationBlueprintLibrary::Private
+{
+	struct FTimecodeBoneAttributeNames
+	{
+		FTimecodeBoneAttributeNames()
+		{
+			TCHourAttrName = TEXT("TCHour");
+			TCMinuteAttrName = TEXT("TCMinute");
+			TCSecondAttrName = TEXT("TCSecond");
+			TCFrameAttrName = TEXT("TCFrame");
+			TCSubframeAttrName = TEXT("TCSubframe");
+			TCRateAttrName = TEXT("TCRate");
+			TCSlateAttrName = TEXT("TCSlate");
+			if (const UAnimationSettings* AnimationSettings = UAnimationSettings::Get())
+			{
+				TCHourAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.HourAttributeName;
+				TCMinuteAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.MinuteAttributeName;
+				TCSecondAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.SecondAttributeName;
+				TCFrameAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.FrameAttributeName;
+				TCSubframeAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.SubframeAttributeName;
+				TCRateAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.RateAttributeName;
+				TCSlateAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.TakenameAttributeName;
+			}
+		}
+
+		bool Contains(const FName AttributeName) const
+		{
+			return AttributeName == TCHourAttrName
+				|| AttributeName == TCMinuteAttrName
+				|| AttributeName == TCSecondAttrName
+				|| AttributeName == TCFrameAttrName
+				|| AttributeName == TCSubframeAttrName
+				|| AttributeName == TCRateAttrName
+				|| AttributeName == TCSlateAttrName;
+		}
+
+		FName TCHourAttrName;
+		FName TCMinuteAttrName;
+		FName TCSecondAttrName;
+		FName TCFrameAttrName;
+		FName TCSubframeAttrName;
+		FName TCRateAttrName;
+		FName TCSlateAttrName;
+	};
+}
+
+FName UAnimationBlueprintLibrary::FindBoneNameWithTimecodeAttributes(const UAnimSequenceBase* AnimationSequenceBase)
+{
+	if (!AnimationSequenceBase || !AnimationSequenceBase->GetSkeleton())
+	{
+		return NAME_None;
+	}
+
+	const IAnimationDataModel* AnimDataModel = AnimationSequenceBase->GetDataModel();
+	if (!AnimDataModel || !AnimDataModel->HasBeenPopulated())
+	{
+		return NAME_None;
+	}
+
+	using namespace UE::AnimationBlueprintLibrary::Private;
+	FTimecodeBoneAttributeNames TimecodeBoneAttributeNames;
+
+	const TArray<FMeshBoneInfo>& BoneInfos = AnimationSequenceBase->GetSkeleton()->GetReferenceSkeleton().GetRefBoneInfo();
+	for (FMeshBoneInfo BoneInfo : BoneInfos)
+	{
+		if (!AnimDataModel->IsValidBoneTrackName(BoneInfo.Name))
+		{
+			continue;
+		}
+		TArray<const FAnimatedBoneAttribute*> BoneAttributes;
+		AnimDataModel->GetAttributesForBone(BoneInfo.Name, BoneAttributes);
+		for (const FAnimatedBoneAttribute* BoneAttribute : BoneAttributes)
+		{
+			if (!BoneAttribute)
+			{
+				continue;
+			}
+			const FName& BoneAttributeName = BoneAttribute->Identifier.GetName();
+
+			if (TimecodeBoneAttributeNames.Contains(BoneAttributeName))
+			{
+				return BoneInfo.Name;
+			}
+		}
+	}
+	return NAME_None;
+}
+
 bool UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeAttributesAtTime(const UAnimSequenceBase* AnimationSequenceBase, const float EvalTime, FQualifiedFrameTime& OutQualifiedFrameTime)
 {
 	if (!AnimationSequenceBase || !AnimationSequenceBase->GetSkeleton())
@@ -2038,33 +2137,34 @@ bool UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeAttributesAtTime(const 
 		return false;
 	}
 
+	FString OutSlate;
 	const FName RootBoneName = AnimationSequenceBase->GetSkeleton()->GetReferenceSkeleton().GetBoneName(0);
-	if (!AnimDataModel->IsValidBoneTrackName(RootBoneName))
+	return EvaluateBoneTimecodeAndSlateAttributesAtTime(RootBoneName, AnimationSequenceBase, EvalTime, OutQualifiedFrameTime, OutSlate);
+}
+
+bool UAnimationBlueprintLibrary::EvaluateBoneTimecodeAndSlateAttributesAtTime(const FName BoneName, const UAnimSequenceBase* AnimationSequenceBase, const float EvalTime, FQualifiedFrameTime& OutQualifiedFrameTime, FString& OutSlate)
+{
+	if (!AnimationSequenceBase || !AnimationSequenceBase->GetSkeleton())
+	{
+		return false;
+	}
+
+	const IAnimationDataModel* AnimDataModel = AnimationSequenceBase->GetDataModel();
+	if (!AnimDataModel || !AnimDataModel->HasBeenPopulated())
+	{
+		return false;
+	}
+
+	if (!AnimDataModel->IsValidBoneTrackName(BoneName))
 	{
 		return false;
 	}
 
 	TArray<const FAnimatedBoneAttribute*> RootBoneAttributes;
-	AnimDataModel->GetAttributesForBone(RootBoneName, RootBoneAttributes);
+	AnimDataModel->GetAttributesForBone(BoneName, RootBoneAttributes);
 
-	FName TCHourAttrName(TEXT("TCHour"));
-	FName TCMinuteAttrName(TEXT("TCMinute"));
-	FName TCSecondAttrName(TEXT("TCSecond"));
-	FName TCFrameAttrName(TEXT("TCFrame"));
-	FName TCSubframeAttrName(TEXT("TCSubframe"));
-	FName TCRateAttrName(TEXT("TCRate"));
-
-	if (const UAnimationSettings* AnimationSettings = UAnimationSettings::Get())
-	{
-		TCHourAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.HourAttributeName;
-		TCMinuteAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.MinuteAttributeName;
-		TCSecondAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.SecondAttributeName;
-		TCFrameAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.FrameAttributeName;
-		TCSubframeAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.SubframeAttributeName;
-		TCRateAttrName = AnimationSettings->BoneTimecodeCustomAttributeNameSettings.RateAttributeName;
-	}
-
-	const TArray<FName> TimecodeBoneAttributeNames = { TCHourAttrName, TCMinuteAttrName, TCSecondAttrName, TCFrameAttrName, TCSubframeAttrName, TCRateAttrName };
+	using namespace UE::AnimationBlueprintLibrary::Private;
+	FTimecodeBoneAttributeNames TimecodeBoneAttributeNames;
 
 	bool bHasTimecodeBoneAttributes = false;
 
@@ -2126,37 +2226,41 @@ bool UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeAttributesAtTime(const 
 			continue;
 		}
 
-		if (BoneAttributeName.IsEqual(TCHourAttrName))
+		if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCHourAttrName))
 		{
 			Timecode.Hours = IntValue;
 			bHasTimecodeBoneAttributes = true;
 		}
-		else if (BoneAttributeName.IsEqual(TCMinuteAttrName))
+		else if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCMinuteAttrName))
 		{
 			Timecode.Minutes = IntValue;
 			bHasTimecodeBoneAttributes = true;
 		}
-		else if (BoneAttributeName.IsEqual(TCSecondAttrName))
+		else if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCSecondAttrName))
 		{
 			Timecode.Seconds = IntValue;
 			bHasTimecodeBoneAttributes = true;
 		}
-		else if (BoneAttributeName.IsEqual(TCFrameAttrName))
+		else if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCFrameAttrName))
 		{
 			Timecode.Frames = IntValue;
 			bHasTimecodeBoneAttributes = true;
 		}
-		else if (BoneAttributeName.IsEqual(TCSubframeAttrName))
+		else if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCSubframeAttrName))
 		{
 			SubFrame = FloatValue;
 			bHasTimecodeBoneAttributes = true;
 		}
-		else if (BoneAttributeName.IsEqual(TCRateAttrName))
+		else if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCRateAttrName))
 		{
 			TimecodeRateAsString = StringValue;
 			TimecodeRateAsDecimal = FloatValue;
 			// Don't consider this attribute when determining whether timecode value attributes are
 			// present, since it can't be useful on its own.
+		}
+		else if (BoneAttributeName.IsEqual(TimecodeBoneAttributeNames.TCSlateAttrName))
+		{
+			OutSlate = StringValue;
 		}
 	}
 

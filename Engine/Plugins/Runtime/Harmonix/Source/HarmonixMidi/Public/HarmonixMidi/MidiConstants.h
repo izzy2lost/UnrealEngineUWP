@@ -6,6 +6,9 @@
 
 HARMONIXMIDI_API DECLARE_LOG_CATEGORY_EXTERN(LogMIDI, Log, All);
 
+enum class EMidiClockSubdivisionQuantization : uint8;
+struct FTimeSignature;
+
 namespace Harmonix::Midi::Constants
 {
 	enum class EMidiTextEventEncoding
@@ -107,6 +110,8 @@ namespace Harmonix::Midi::Constants
 	// turns MIDI style tempo (microseconds per quarter note) into BPM...
 	HARMONIXMIDI_API inline float MidiTempoToBPM(int32 UsPerQuarterNote) { return UsPerQuarterNote== 0 ? 0 : 60000000.0f/(float)UsPerQuarterNote; }
 	HARMONIXMIDI_API inline int32 BPMToMidiTempo(float Bpm)       { return Bpm == 0.0 ? 0 : (int32)(60000000.0f / (float)Bpm); }
+	HARMONIXMIDI_API int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const FTimeSignature& TimeSignature, const int32 TicksPerQuarterNote);
+	HARMONIXMIDI_API float SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature);
 
 	HARMONIXMIDI_API float RoundToStandardBeatPrecision(float InBeat, int TimeSignatureDenominator);
 

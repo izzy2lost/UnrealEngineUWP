@@ -660,11 +660,11 @@ namespace AutomationScripts
 			}
 			else if (Params.RunAutomationTest != "")
 			{
-				TempCmdLine += "-execcmds=\"automation runtests " + Params.RunAutomationTest + ";quit\" ";
+				TempCmdLine += "-execcmds=\"automation runtests " + Params.RunAutomationTest + ";softquit\" ";
 			}
 			else if (Params.RunAutomationTests)
 			{
-				TempCmdLine += "-execcmds=\"automation runall;quit;\" ";
+				TempCmdLine += "-execcmds=\"automation runall;softquit;\" ";
 			}
 			if (SC.StageTargetPlatform.UseAbsLog)
 			{
@@ -796,39 +796,10 @@ namespace AutomationScripts
 			return HostAddresses.ToList();
 		}
 
-		private static FileReference FindZenProjectStoreMarker(ProjectParams Params, DeploymentContext SC)
-		{
-			DirectoryReference ProjectStoreDir = null;
-			if (Params.Stage)
-			{
-				if (!SetUpStagingSourceDirectories(Params, SC))
-				{
-					return null;
-				}
-				ProjectStoreDir = SC.PlatformCookDir;
-			}
-			else if (Params.Deploy)
-			{
-				ProjectStoreDir = SC.StageDirectory;
-			}
-			if (ProjectStoreDir == null)
-			{
-				return null;
-			}
-			// Check for stage with zenstore without PAK?
-			FileReference PackageStoreManifestFile = FileReference.Combine(ProjectStoreDir, "ue.projectstore");
-			System.IO.FileInfo PackageStoreManifestFileInfo = PackageStoreManifestFile.ToFileInfo();
-			if (PackageStoreManifestFileInfo.Exists)
-			{
-				return PackageStoreManifestFile;
-			}
-			return null;
-		}
-
 		private static string GetFileHostCommandline(ProjectParams Params, DeploymentContext SC)
 		{
 			string FileHostParams = "";
-			FileReference ZenStoreMarkerFile = FindZenProjectStoreMarker(Params, SC);
+			FileReference ZenStoreMarkerFile = Params.FindZenProjectStoreMarker(SC);
 			bool UseZenServerHost = (ZenStoreMarkerFile != null) && !Params.UsePak(SC.StageTargetPlatform);
 			if (!Params.CookOnTheFly && !Params.FileServer && !UseZenServerHost)
 			{

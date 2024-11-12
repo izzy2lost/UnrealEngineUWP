@@ -121,6 +121,8 @@ namespace GLTF
 		const int32 MaterialIndex;
 		TArray<FVariantMapping>	VariantMappings;
 
+		TMap<FString, FString> Extras;
+
 		FPrimitive(EMode InMode, int32 InMaterial, const FAccessor& InIndices, const FAccessor& InPosition, const FAccessor& InNormal,
 		           const FAccessor& InTangent, const FAccessor& InTexCoord0, const FAccessor& InTexCoord1, const FAccessor& InColor0,
 		           const FAccessor& InJoints0, const FAccessor& InWeights0);
@@ -174,6 +176,8 @@ namespace GLTF
 
 		TArray<float>		MorphTargetWeights;
 		TArray<FString>		MorphTargetNames;
+
+		TMap<FString, FString> Extras;
 
 		FString				UniqueId; //will be generated in FAsset::GenerateNames
 	

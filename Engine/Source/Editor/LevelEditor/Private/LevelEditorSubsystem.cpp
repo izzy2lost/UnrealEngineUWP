@@ -239,6 +239,26 @@ void ULevelEditorSubsystem::EditorInvalidateViewports()
 	}
 }
 
+void ULevelEditorSubsystem::EditorSetViewportRealtime(bool bInRealtime, FName ViewportConfigKey)
+{
+	TSharedPtr<SLevelViewport> LevelViewport = InternalEditorLevelLibrary::GetLevelViewport(ViewportConfigKey);
+	if (LevelViewport.IsValid())
+	{
+		FLevelEditorViewportClient& LevelViewportClient = LevelViewport->GetLevelViewportClient();
+
+		FText RealTimeOverrideSystemName = LOCTEXT("LevelEditorSubsystemRealtimeOverride", "Level Editor Subsystem Realtime Override");
+
+		if (bInRealtime)
+		{
+			LevelViewportClient.RemoveRealtimeOverride(RealTimeOverrideSystemName);
+		}
+		else
+		{
+			LevelViewportClient.AddRealtimeOverride(false, RealTimeOverrideSystemName);
+		}
+	}
+}
+
 void ULevelEditorSubsystem::EditorSetGameView(bool bGameView, FName ViewportConfigKey)
 {
 	TSharedPtr<SLevelViewport> LevelViewport = InternalEditorLevelLibrary::GetLevelViewport(ViewportConfigKey);
@@ -261,6 +281,20 @@ bool ULevelEditorSubsystem::EditorGetGameView(FName ViewportConfigKey)
 	return false;
 }
 
+void ULevelEditorSubsystem::EditorRequestBeginPlay()
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+
+	TSharedPtr<IAssetViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveViewport();
+	if (ActiveLevelViewport.IsValid())
+	{
+		FRequestPlaySessionParams SessionParams;
+		SessionParams.WorldType = EPlaySessionWorldType::PlayInEditor;
+		SessionParams.DestinationSlateViewport = ActiveLevelViewport;
+
+		GUnrealEd->RequestPlaySession(SessionParams);
+	}
+}
 
 void ULevelEditorSubsystem::EditorRequestEndPlay()
 {

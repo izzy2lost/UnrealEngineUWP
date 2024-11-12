@@ -18,6 +18,7 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
+#include "LiveLinkBoneAttachmentDetailCustomization.h"
 #include "LiveLinkComponentController.h"
 #include "LiveLinkComponentDetailCustomization.h"
 #include "LiveLinkComponentSettings.h"
@@ -35,8 +36,10 @@
 #include "LiveLinkSubjectNameDetailCustomization.h"
 #include "LiveLinkSubjectRepresentationDetailCustomization.h"
 #include "LiveLinkVirtualSubjectDetailCustomization.h"
+#include "LiveLinkVirtualSubjectBoneAttachment.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "VirtualSubjects/LiveLinkBlueprintVirtualSubject.h"
+
 
 /**
  * Implements the LiveLinkEditor module.
@@ -231,19 +234,19 @@ private:
 	{
 		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 		{
-			SettingsModule->RegisterSettings("Editor", "Plugins", "LiveLink",
+			SettingsModule->RegisterSettings("Editor", "Plugins", "Live Link",
 				LOCTEXT("EditorSettingsName", "Live Link"),
 				LOCTEXT("EditorSettingsDescription", "Configure Live Link."),
 				GetMutableDefault<ULiveLinkEditorSettings>()
 			);
 
-			SettingsModule->RegisterSettings("Project", "Plugins", "LiveLink",
+			SettingsModule->RegisterSettings("Project", "Plugins", "Live Link",
 				LOCTEXT("LiveLinkSettingsName", "Live Link"),
 				LOCTEXT("LiveLinkDescription", "Configure the Live Link plugin."),
 				GetMutableDefault<ULiveLinkSettings>()
 			);
 
-			SettingsModule->RegisterSettings("Project", "Plugins", "LiveLinkComponent",
+			SettingsModule->RegisterSettings("Project", "Plugins", "Live Link Component",
 				LOCTEXT("LiveLinkComponentSettingsName", "Live Link Component"),
 				LOCTEXT("LiveLinkComponentDescription", "Configure the Live Link Component."),
 				GetMutableDefault<ULiveLinkComponentSettings>()
@@ -257,9 +260,9 @@ private:
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 		if (SettingsModule != nullptr)
 		{
-			SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLinkComponent");
-			SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLink");
-			SettingsModule->UnregisterSettings("Editor", "Plugins", "LiveLink");
+			SettingsModule->UnregisterSettings("Project", "Plugins", "Live Link Component");
+			SettingsModule->UnregisterSettings("Project", "Plugins", "Live Link");
+			SettingsModule->UnregisterSettings("Editor", "Plugins", "Live Link");
 		}
 	}
 
@@ -270,6 +273,7 @@ private:
 		PropertyEditorModule.RegisterCustomPropertyTypeLayout(FLiveLinkSubjectKey::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLiveLinkSubjectKeyDetailCustomization::MakeInstance));
 		PropertyEditorModule.RegisterCustomPropertyTypeLayout(FLiveLinkSubjectRepresentation::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLiveLinkSubjectRepresentationDetailCustomization::MakeInstance));
 		PropertyEditorModule.RegisterCustomPropertyTypeLayout(FLiveLinkSubjectName::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLiveLinkSubjectNameDetailCustomization::MakeInstance));
+		PropertyEditorModule.RegisterCustomPropertyTypeLayout(FLiveLinkVirtualSubjectBoneAttachment::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLiveLinkBoneAttachmentDetailCustomization::MakeInstance));
 		PropertyEditorModule.RegisterCustomClassLayout(ULiveLinkSourceSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkSourceSettingsDetailCustomization::MakeInstance));
 		PropertyEditorModule.RegisterCustomClassLayout(ULiveLinkComponentController::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkComponentDetailCustomization::MakeInstance));
 		PropertyEditorModule.RegisterCustomClassLayout(ULiveLinkControllerBase::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkControllerBaseDetailCustomization::MakeInstance));
@@ -289,6 +293,7 @@ private:
 				PropertyEditorModule->UnregisterCustomClassLayout(ULiveLinkComponentController::StaticClass()->GetFName());
 				PropertyEditorModule->UnregisterCustomClassLayout(ULiveLinkControllerBase::StaticClass()->GetFName());
 				PropertyEditorModule->UnregisterCustomClassLayout(ULiveLinkSourceSettings::StaticClass()->GetFName());
+				PropertyEditorModule->UnregisterCustomClassLayout(FLiveLinkVirtualSubjectBoneAttachment::StaticStruct()->GetFName());
 				PropertyEditorModule->UnregisterCustomPropertyTypeLayout(FLiveLinkSubjectName::StaticStruct()->GetFName());
 				PropertyEditorModule->UnregisterCustomPropertyTypeLayout(FLiveLinkSubjectRepresentation::StaticStruct()->GetFName());
 				PropertyEditorModule->UnregisterCustomPropertyTypeLayout(FLiveLinkSubjectKey::StaticStruct()->GetFName());

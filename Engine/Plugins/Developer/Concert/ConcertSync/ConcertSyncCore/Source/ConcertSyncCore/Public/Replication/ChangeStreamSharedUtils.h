@@ -20,12 +20,27 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 {
 	/**
 	 * Iterates through all objects that are removed and therefore the requesting client would lose authority over.
+	 * This function assumes that Request was validated.
 	 * 
 	 * @param Request The request to parse
 	 * @param ExistingStreams The streams the request would be applied to
 	 * @param Callback The callback to process the objects
 	 */
-	CONCERTSYNCCORE_API void ForEachObjectLosingAuthority(
+	CONCERTSYNCCORE_API void ForEachRemovedObject(
+		const FConcertReplication_ChangeStream_Request& Request,
+		const TArray<FConcertReplicationStream>& ExistingStreams,
+		TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID&)> Callback
+		);
+
+	/**
+	 * Iterates through all objects that are added by Request but not yet in ExistingStreams.
+	 * This function assumes that Request was validated.
+	 *
+	 * @param Request The request to parse
+	 * @param ExistingStreams The streams the request would be applied to
+	 * @param Callback The callback to process the objects
+	 */
+	CONCERTSYNCCORE_API void ForEachAddedObject(
 		const FConcertReplication_ChangeStream_Request& Request,
 		const TArray<FConcertReplicationStream>& ExistingStreams,
 		TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID&)> Callback
@@ -65,7 +80,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 */
 	CONCERTSYNCCORE_API bool ValidateFrequencyChanges(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FConcertReplicationStream>& Streams,
+		const TConstArrayView<FConcertReplicationStream>& Streams,
 		OUT FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors = nullptr
 		);
 

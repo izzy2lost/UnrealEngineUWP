@@ -913,6 +913,11 @@ void InitializeFieldTrials()
 		FieldTrials += TEXT("WebRTC-FrameDropper/Disabled/");
 	}
 
+	if (Settings::CVarPixelStreamingWebRTCEnableFlexFec.GetValueOnAnyThread())
+	{
+		FieldTrials += TEXT("WebRTC-FlexFEC-03-Advertised/Enabled/WebRTC-FlexFEC-03/Enabled/");
+	}
+
 	// Parse "WebRTC-Video-Pacing/" field trial
 	{
 		float OutPacingFactor = -1.0f;

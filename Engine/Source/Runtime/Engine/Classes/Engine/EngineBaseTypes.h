@@ -210,6 +210,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="Tick", AdvancedDisplay)
 	uint8 bAllowTickOnDedicatedServer:1;
 
+	/** True if we allow this tick to be combined with other ticks for improved performance */
+	uint8 bAllowTickBatching:1;
+
 	/** Run this tick first within the tick group, presumably to start async tasks that must be completed with this tick group, hiding the latency. */
 	uint8 bHighPriority:1;
 
@@ -242,6 +245,19 @@ private:
 	/** Prerequisites for this tick function **/
 	TArray<struct FTickPrerequisite> Prerequisites;
 
+	/** Defines the internal state of a tick function, set in TickTaskManager */
+	enum class ETickTaskState : uint8
+	{
+		// Has not been queued yet for the current frame, or has already executed
+		NotQueued,
+		// In the process of being queued, but no actual task yet
+		Pending,
+		// Has an actual task and a completion event, may be executing
+		HasTask,
+		// Directly points to a completion event, probably in a batched tick
+		HasCompletionEvent,
+	};
+
 	/** Internal Data structure that contains members only required for a registered tick function **/
 	struct FInternalData
 	{
@@ -253,20 +269,23 @@ private:
 		/** Cache whether this function was rescheduled as an interval function during StartParallel */
 		bool bWasInterval:1;
 
-		/** Internal data that indicates the tick group we actually started in (it may have been delayed due to prerequisites) **/
+		/** Internal state, this determines what TaskPointer points to */
+		ETickTaskState TaskState;
+
+		/** Internal data that indicates the tick group we actually started in (it may have been delayed due to prerequisites) */
 		TEnumAsByte<enum ETickingGroup> ActualStartTickGroup;
 
-		/** Internal data that indicates the tick group we actually started in (it may have been delayed due to prerequisites) **/
+		/** Internal data that indicates the tick group we are guaranteed to end by (it may have been delayed due to prerequisites) */
 		TEnumAsByte<enum ETickingGroup> ActualEndTickGroup;
 		
-		/** Internal data to track if we have started visiting this tick function yet this frame **/
-		int32 TickVisitedGFrameCounter;
+		/** Internal data to track if we have started visiting this tick function yet this frame, smaller than full frame counter */
+		std::atomic<uint32> TickVisitedGFrameCounter;
 
-		/** Internal data to track if we have finished visiting this tick function yet this frame **/
-		std::atomic<int32> TickQueuedGFrameCounter;
-
-		/** Pointer to the task, only used during setup. This is often stale. **/
-		FBaseGraphTask* TaskPointer;
+		/** Internal data to track if we have finished visiting this tick function yet this frame, smaller than full frame counter */
+		std::atomic<uint32> TickQueuedGFrameCounter;
+	
+		/** Pointer to a type determined by TaskState, do not access directly */
+		void* TaskPointer;
 
 		/** The next function in the cooling down list for ticks with an interval*/
 		FTickFunction* Next;
@@ -310,36 +329,37 @@ public:
 	ENGINE_API void SetTickFunctionEnable(bool bInEnabled);
 	/** Returns whether the tick function is currently enabled */
 	bool IsTickFunctionEnabled() const { return TickState != ETickState::Disabled; }
-	/** Returns whether it is valid to access this tick function's completion handle */
-	bool IsCompletionHandleValid() const { return (InternalData && InternalData->TaskPointer); }
+
 	/** Update tick interval in the system and overwrite the current cooldown if any. */
 	ENGINE_API void UpdateTickIntervalAndCoolDown(float NewTickInterval);
 
+	/** Returns true if it is valid to access this tick function's completion handle */
+	ENGINE_API bool IsCompletionHandleValid() const;
+
 	/**
-	* Gets the current completion handle of this tick function, so it can be delayed until a later point when some additional
-	* tasks have been completed.  Only valid after TG_PreAsyncWork has started and then only until the TickFunction finishes
-	* execution
-	**/
+	 * Gets the current completion handle of this tick function, so it can be delayed until a later point when some additional
+	 * tasks have been completed. Only valid after StartFrame has been called and then only until the TickFunction finishes
+	 * execution. This returns a reference so IsCompletionHandleValid must be called first.
+	 */
 	ENGINE_API FGraphEventRef GetCompletionHandle() const;
 
 	/** 
-	* Gets the action tick group that this function will be elligible to start in.
-	* Only valid after TG_PreAsyncWork has started through the end of the frame.
-	**/
+	 * Gets the action tick group that this function will be elligible to start in.
+	 * Only valid after StartFrame has been called through the end of the frame.
+	 */
 	TEnumAsByte<enum ETickingGroup> GetActualTickGroup() const
 	{
 		return (InternalData ? InternalData->ActualStartTickGroup : TickGroup);
 	}
 
 	/** 
-	* Gets the action tick group that this function will be required to end in.
-	* Only valid after TG_PreAsyncWork has started through the end of the frame.
-	**/
+	 * Gets the action tick group that this function will be required to end in.
+ 	 * Only valid after StartFrame has been called through the end of the frame.
+	 */
 	TEnumAsByte<enum ETickingGroup> GetActualEndTickGroup() const
 	{
 		return (InternalData ? InternalData->ActualEndTickGroup : EndTickGroup);
 	}
-
 
 	/** 
 	 * Adds a tick function to the list of prerequisites...in other words, adds the requirement that TargetTickFunction is called before this tick function is 
@@ -347,12 +367,14 @@ public:
 	 * @param TargetTickFunction - Actual tick function to use as a prerequisite
 	 **/
 	ENGINE_API void AddPrerequisite(UObject* TargetObject, struct FTickFunction& TargetTickFunction);
+
 	/** 
 	 * Removes a prerequisite that was previously added.
 	 * @param TargetObject - UObject containing this tick function. Only used to verify that the other pointer is still usable
 	 * @param TargetTickFunction - Actual tick function to use as a prerequisite
 	 **/
 	ENGINE_API void RemovePrerequisite(UObject* TargetObject, struct FTickFunction& TargetTickFunction);
+
 	/** 
 	 * Sets this function to hipri and all prerequisites recursively
 	 * @param bInHighPriority - priority to set
@@ -375,50 +397,87 @@ public:
 		return Prerequisites;
 	}
 
+	/**
+	 * For actively registered tick functions with an interval, return the last time it ticked.
+	 * For unregistered or non-interval functions it will return -1;
+	 */
 	float GetLastTickGameTime() const { return (InternalData ? InternalData->LastTickGameTimeSeconds : -1.f); }
+	 
+	/** 
+	 * Correctly call ExecuteTick on a nested function, and will set the completion event properly for the duration of the tick function
+	 * @param DeltaTime - frame time to advance, in seconds
+	 * @param TickType - kind of tick for this frame
+	 * @param CurrentThread - thread we are executing on, useful to pass along as new tasks are created
+	 * @param MyCompletionGraphEvent - completion event for this task. Useful for holding the completetion of this task until certain child tasks are complete.
+	 */
+	ENGINE_API void ExecuteNestedTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 
 private:
+	/** Returns the current internal task only if it matches required state */
+	void* GetTaskPointer(ETickTaskState RequiredState) const
+	{
+		return (InternalData && InternalData->TaskState == RequiredState ? InternalData->TaskPointer : nullptr);
+	}
+
+	/** Directly set the task pointer and state */
+	void SetTaskPointer(ETickTaskState NewState, void* InTaskPointer);
+
 	/**
 	 * Queues a tick function for execution from the game thread
 	 * @param TickContext - context to tick in
 	 */
-	ENGINE_API void QueueTickFunction(class FTickTaskSequencer& TTS, const FTickContext& TickContext);
+	void QueueTickFunction(class FTickTaskSequencer& TTS, const FTickContext& TickContext);
 
 	/**
 	 * Queues a tick function for execution from the game thread
 	 * @param TickContext - context to tick in
 	 * @param StackForCycleDetection - Stack For Cycle Detection
 	 */
-	ENGINE_API void QueueTickFunctionParallel(const FTickContext& TickContext, TArray<FTickFunction*, TInlineAllocator<8> >& StackForCycleDetection);
+	void QueueTickFunctionParallel(const FTickContext& TickContext, TArray<FTickFunction*, TInlineAllocator<8> >& StackForCycleDetection);
 
-	/** Returns the delta time to use when ticking this function given the TickContext */
-	ENGINE_API float CalculateDeltaTime(const FTickContext& TickContext);
+public:
+	// Functions to be used by executing tasks, don't call these directly from user code
 
-	/** 
-	 * Logs the prerequisites
-	 */
+	/** Returns the delta time to use when ticking this function given the delta time and world. This also updates internal tracking data */
+	ENGINE_API float CalculateDeltaTime(float DeltaTime, const class UWorld* TickingWorld);
+
+	/** Logs function info based on flags */
+	ENGINE_API void LogTickFunction(ENamedThreads::Type CurrentThread, bool bLogPrerequisites, int32 Indent = 0);
+
+	/** Logs the prerequisites */
 	ENGINE_API void ShowPrerequistes(int32 Indent = 1);
 
+	/** Clear any current task information such as the completion handle, called after execution */
+	ENGINE_API void ClearTaskInformation();
+
+
 	/** 
-	 * Abstract function actually execute the tick. 
+	 * Abstract function actually execute the tick. Batched tick managers should use ExecuteNestedTick
 	 * @param DeltaTime - frame time to advance, in seconds
 	 * @param TickType - kind of tick for this frame
 	 * @param CurrentThread - thread we are executing on, useful to pass along as new tasks are created
 	 * @param MyCompletionGraphEvent - completion event for this task. Useful for holding the completetion of this task until certain child tasks are complete.
 	 **/
 	ENGINE_API virtual void ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent) PURE_VIRTUAL(,);
+	
 	/** Abstract function to describe this tick. Used to print messages about illegal cycles in the dependency graph **/
 	ENGINE_API virtual FString DiagnosticMessage() PURE_VIRTUAL(, return TEXT("DiagnosticMessage() not implemented"););
+	
 	/** Function to give a 'context' for this tick, used for grouped active tick reporting */
 	virtual FName DiagnosticContext(bool bDetailed)
 	{
 		return NAME_None;
 	}
+
+	/**
+	 * To properly expose nested/batched tick functions to the logging and debugging systems of the tick manager, 
+	 * override this to execute InFunc for every nested tick function that would be executed as part of this tick.
+	 */
+	virtual void ForEachNestedTick(TFunctionRef<void(FTickFunction&)> InFunc) const {}
 	
 	friend class FTickTaskSequencer;
 	friend class FTickTaskManager;
 	friend class FTickTaskLevel;
-	friend class FTickFunctionTask;
 
 	// It is unsafe to copy FTickFunctions and any subclasses of FTickFunction should specify the type trait WithCopy = false
 	FTickFunction& operator=(const FTickFunction&) = delete;
@@ -928,6 +987,14 @@ enum EViewModeIndex : int
 	/** Visualize Groom debug views */
 	VMI_VisualizeGroom = 35 UMETA(DisplayName = "Groom Visualization"),
 
+	VMI_LWCComplexity = 36 UMETA(DisplayName = "Material LWC Function Usage"),
+	
+	/** Lit Wireframe. */
+	VMI_Lit_Wireframe = 37 UMETA(DisplayName = "Lit Wireframe"),
+
+	/** Visualize Actor Coloration. */
+	VMI_VisualizeActorColoration = 38 UMETA(DisplayName = "Actor Coloration Visualization"),
+
 	VMI_Max UMETA(Hidden),
 
 	// VMI_Unknown - The value assigned to VMI_Unknown must be the highest possible of any member of EViewModeIndex, or GetViewModeName might seg-fault
@@ -963,7 +1030,7 @@ struct FExposureSettings
 
 	FString ToString() const
 	{
-		return FString::Printf(TEXT("%d,%d"), FixedEV100, bFixed ? 1 : 0);
+		return FString::Printf(TEXT("%f,%d"), FixedEV100, bFixed ? 1 : 0);
 	}
 
 	void SetFromString(const TCHAR *In)
@@ -998,8 +1065,3 @@ class UEngineBaseTypes : public UObject
 	GENERATED_UCLASS_BODY()
 
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Async/TaskGraphInterfaces.h"
-#include "CoreMinimal.h"
-#endif

@@ -5,6 +5,7 @@
 #include "EditorSupportDelegates.h"
 #include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "Engine/Texture.h"
 #include "GeometryMaskCanvasResource.h"
 #include "GeometryMaskEditorLog.h"
@@ -32,8 +33,6 @@ namespace UE::GeometryMaskEditor::Private
 	static FName OpacityParameterName = TEXT("OpacityMultiplier");
 	static FName FeatherParameterName = TEXT("Feather");
 }
-
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 SGeometryMaskCanvasPreview::SGeometryMaskCanvasPreview()
 	: PreviewMaterialPath(UE::GeometryMaskEditor::Private::PreviewMaterialPath)
@@ -249,12 +248,15 @@ bool SGeometryMaskCanvasPreview::TryResolveCanvas()
 		return false;
 	}
 
-	if (UWorld* CanvasWorld = CanvasId.Get().World.ResolveObjectPtr())
+	if (ULevel* CanvasLevel = CanvasId.Get().Level.ResolveObjectPtr())
 	{
-		if (UGeometryMaskWorldSubsystem* Subsystem = CanvasWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
+		if (CanvasLevel->OwningWorld)
 		{
-			CanvasWeak = Subsystem->GetNamedCanvas(GetCanvasName());
-			UpdateBrush(CanvasWeak.Get(), nullptr);
+			if (UGeometryMaskWorldSubsystem* Subsystem = CanvasLevel->OwningWorld->GetSubsystem<UGeometryMaskWorldSubsystem>())
+			{
+				CanvasWeak = Subsystem->GetNamedCanvas(CanvasLevel, GetCanvasName());
+				UpdateBrush(CanvasWeak.Get(), nullptr);
+			}
 		}
 	}
 
@@ -279,7 +281,7 @@ void SGeometryMaskCanvasPreview::UpdateBrush(const UGeometryMaskCanvas* InCanvas
 			InTexture = CanvasTexture;
 		}
 
-		FGeometryMaskDrawingContext DrawingContext(InCanvas->GetCanvasId().World);
+		FGeometryMaskDrawingContext DrawingContext(InCanvas->GetCanvasId().Level);
 
 		FVector4f Padding(ForceInitToZero);
 		if (const UGeometryMaskCanvasResource* CanvasResource = InCanvas->GetResource())
@@ -319,5 +321,3 @@ void SGeometryMaskCanvasPreview::UpdateBrush(const UGeometryMaskCanvas* InCanvas
 		AspectRatio.Set(ImageSize.X / ImageSize.Y);
 	}
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION

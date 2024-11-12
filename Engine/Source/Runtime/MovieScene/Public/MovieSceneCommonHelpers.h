@@ -18,8 +18,18 @@ class UMovieSceneSubSection;
 class UMovieSceneSequence;
 class USceneComponent;
 class USoundBase;
+template <class TClass> class TSubclassOf;
+class UMovieSceneCustomBinding;
 struct FRichCurve;
 enum class EMovieSceneKeyInterpolation : uint8;
+struct FMovieSceneSequenceID;
+class UMovieSceneCondition;
+class UMovieSceneTrack;
+
+namespace UE::MovieScene
+{
+	struct FSharedPlaybackState;
+}
 
 class MovieSceneHelpers
 {
@@ -116,6 +126,7 @@ public:
 	 * @return The found scene component
 	 */	
 	static MOVIESCENE_API USceneComponent* SceneComponentFromRuntimeObject(UObject* Object);
+	static MOVIESCENE_API UObject* ResolveSceneComponentBoundObject(UObject* Object);
 
 	/**
 	 * Get the active camera component from the actor 
@@ -179,6 +190,14 @@ public:
 	static MOVIESCENE_API float CalculateWeightForBlending(UMovieSceneSection* SectionToKey, FFrameNumber Time);
 
 	/*
+	 * Return a name unique to the binding names in the given movie scene
+	 * @param InMovieScene The movie scene to look for existing possessables.
+	 * @param InName The requested name to make unique.
+	 * @return The unique name
+	 */
+	static MOVIESCENE_API FString MakeUniqueBindingName(UMovieScene* InMovieScene, const FString& InName);
+
+	/*
 	 * Return a name unique to the spawnable names in the given movie scene
 	 * @param InMovieScene The movie scene to look for existing spawnables.
 	 * @param InName The requested name to make unique.
@@ -194,6 +213,83 @@ public:
 	 * @return The spawnable template
 	 */
 	static MOVIESCENE_API UObject* MakeSpawnableTemplateFromInstance(UObject& InSourceObject, UMovieScene* InMovieScene, FName InName);
+
+	/*
+	* Returns whether the given ObjectId is valid and is currently bound to at least 1 spawnable give the current context.
+	* More specifically, if a FMovieSceneSpawnable exists with this ObjectId, true will be returned.
+	* If a Level Sequence binding reference exists with a Custom Binding implementing MovieSceneSpawnableBindingBase, true will be returned.
+	* If a Level Sequence binding reference exists with a Custom Binding implementing MovieSceneReplaceableBindingBase and the Context is an editor world, then true will be returned.
+	* Otherwise, false will be returned.
+	*/
+	static MOVIESCENE_API bool IsBoundToAnySpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
+
+	/*
+	* Returns whether the given ObjectId is valid and is the given bindingindex is currently bound to a spawnable give the current context.
+	* More specifically, if a FMovieSceneSpawnable exists with this ObjectId, true will be returned.
+	* If a Level Sequence binding reference for this guid with the given BindingIndex exists with a Custom Binding implementing MovieSceneSpawnableBindingBase, true will be returned.
+	* If a Level Sequence binding reference for this guid with the given BindingIndex exists with a Custom Binding implementing MovieSceneReplaceableBindingBase and the Context is an editor world, then true will be returned.
+	* Otherwise, false will be returned.
+	*/
+	static MOVIESCENE_API bool IsBoundToSpawnable(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* Attempts to create a new custom spawnable binding for the passed in UObject*. 
+	* Where possible, it is preferred to call FSequencerUtilities::CreateOrReplaceBinding as it handles more cases. This should only be called in cases where there is no editor or sequencer context.
+	* FactoryCreatedActor may be passed in as an alternative option for creating the binding in the case an actor factory was able to create an actor from this object.
+	*/
+
+	static MOVIESCENE_API FGuid TryCreateCustomSpawnableBinding(UMovieSceneSequence* Sequence, UObject* CustomBindingObject);
+	
+
+	/*
+	* Returns the single bound object currently bound to the given objectid and binding index (optional).
+	*/
+	static MOVIESCENE_API UObject* GetSingleBoundObject(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* If the binding for the given ObjectId supports object templates, returns the template, otherwise returns nullptr
+	*/
+	static MOVIESCENE_API UObject* GetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* If the binding for the given ObjectId supports object templates, sets the template and returns true, otherwise returns false
+	*/
+	static MOVIESCENE_API bool SetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, UObject* InSourceObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* Returns whether the binding for the given ObjectId supports object templates
+	*/
+	static MOVIESCENE_API bool SupportsObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+
+	/*
+	* If the binding for the given ObjectId supports object templates, copies the object template into the binding and returns true, otherwise returns false
+	*/
+	static MOVIESCENE_API bool CopyObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, UObject* InSourceObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex = 0);
+#if WITH_EDITORONLY_DATA
+	/*
+	* Returns the bound object class for the binding for the given ObjectId.
+	*/
+	static MOVIESCENE_API const UClass* GetBoundObjectClass(UMovieSceneSequence* Sequence, const FGuid& ObjectId, int32 BindingIndex = 0);
+#endif
+
+	/* Returns a sorted list of all custom binding type classes currently known. Slow, may desire to cache result*/
+	static void MOVIESCENE_API GetPrioritySortedCustomBindingTypes(TArray<const TSubclassOf<UMovieSceneCustomBinding>>& OutCustomBindingTypes);
+
+	/* For cases where the user does not have a IMovieScenePlayer with a shared playback state, creates a transient one. Use sparingly. */
+	static TSharedRef<UE::MovieScene::FSharedPlaybackState> MOVIESCENE_API CreateTransientSharedPlaybackState(UObject* WorldContext, UMovieSceneSequence* Sequence);
+
+	/* Finds the resolution context to use to resolve the given guid. */
+	static MOVIESCENE_API UObject* GetResolutionContext(UMovieSceneSequence* Sequence, const FGuid& ObjectId, const FMovieSceneSequenceID& SequenceID, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
+
+	/* Given a movie scene track and an optional section inside it, returns an optional single condition that needs to be evaluated.
+	* If multiple conditions exist in the given scope (for example a track condition, a track row condition for the row the section is on, and a section),
+	* a UMovieSceneGroupCondition will be generated, and the caller is responsible for holding a reference to this new UObject.
+	* If bFromCompilation is true, then any generated conditions will be stored on the movie scene.
+	*/
+	static MOVIESCENE_API const UMovieSceneCondition* GetSequenceCondition(const UMovieSceneTrack* Track, const UMovieSceneSection* Section, bool bFromCompilation=false);
+	
+	/* Helper function for evaluating a condition in a movie scene, taking advantage of any cacheing that may apply. */
+	static MOVIESCENE_API bool EvaluateSequenceCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
 };
 
 /**
@@ -492,7 +588,7 @@ void FTrackInstancePropertyBindings::InvokeSetterFunction(UObject* InRuntimeObje
 	uint8* Params = reinterpret_cast<uint8*>(InputParameter);
 
 	check(InRuntimeObject && Setter);
-	if (Setter->ReturnValueOffset != MAX_uint16 || Setter->NumParms > 1)
+	if (Setter->ReturnValueOffset != MAX_uint16 || Setter->NumParms > 0)
 	{
 		// Function has a return value or multiple parameters, we need to initialize memory for the entire parameter pack
 		// We use alloca here (as in UObject::ProcessEvent) to avoid a heap allocation. Alloca memory survives the current function's stack frame.
@@ -509,7 +605,7 @@ void FTrackInstancePropertyBindings::InvokeSetterFunction(UObject* InRuntimeObje
 				// The first encountered property is assumed to be the input value so initialize this with the user-specified value from InPropertyValue
 				if (Property->HasAnyPropertyFlags(CPF_Parm) && !Property->HasAnyPropertyFlags(CPF_ReturnParm) && bFirstProperty)
 				{
-					const bool bIsValid = ensureMsgf(sizeof(T) == Property->ElementSize, TEXT("Property type does not match for Sequencer setter function %s::%s (%ibytes != %ibytes"), *InRuntimeObject->GetName(), *Setter->GetName(), sizeof(T), Property->ElementSize);
+					const bool bIsValid = ensureMsgf(sizeof(T) == Property->GetElementSize(), TEXT("Property type does not match for Sequencer setter function %s::%s (%ibytes != %ibytes"), *InRuntimeObject->GetName(), *Setter->GetName(), sizeof(T), Property->GetElementSize());
 					if (bIsValid)
 					{
 						Property->CopyCompleteValue(Property->ContainerPtrToValuePtr<void>(Params), &InPropertyValue);

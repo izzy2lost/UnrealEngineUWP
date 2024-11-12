@@ -16,7 +16,7 @@ FDomainAssetReferenceFilter::FDomainAssetReferenceFilter(const FAssetReferenceFi
 	: IAssetReferenceFilter()
 	, DomainDB(InDomainDB)
 {
-	OriginalReferencingAssets = Context.ReferencingAssets;
+	OriginalReferencingAssets = Context.GetReferencingAssets();
 
 	DetermineReferencingDomain();
 
@@ -34,15 +34,18 @@ void FDomainAssetReferenceFilter::DetermineReferencingDomain()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(FDomainAssetReferenceFilter_DetermineReferencingDomain);
 
-	ReferencingDomains.Reset();
-
+	ReferencingAssetDataInfos.Reset();
+	
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
 	// Collect the associated domains from each referencing asset
 	TArray<FAssetData> PendingAssets;
 	TSet<FAssetData> AssetsConsidered;
 
-	PendingAssets.Append(OriginalReferencingAssets);
+	for (const FAssetReferenceFilterReferencerInfo& AssetReferencer : OriginalReferencingAssets)
+	{
+		PendingAssets.Add(AssetReferencer.Data);
+	}
 
 	while (!PendingAssets.IsEmpty())
 	{
@@ -79,7 +82,7 @@ void FDomainAssetReferenceFilter::DetermineReferencingDomain()
 		TSharedPtr<FDomainData> TestDomain = DomainDB->FindDomainFromAssetData(TestAsset);
 		if (TestDomain.IsValid())
 		{
-			ReferencingDomains.Add(TestDomain);
+			ReferencingAssetDataInfos.Add(MakeTuple(TestAsset, TestDomain));
 		}
 	}
 }
@@ -104,6 +107,18 @@ void FDomainAssetReferenceFilter::UpdateAllFilters()
 	}
 }
 
+bool FDomainAssetReferenceFilter::IsCrossPluginReferenceAllowed(const FAssetDataInfo& ReferencingAssetDataInfo, const FAssetDataInfo& ReferencedAssetDataInfo) const
+{
+	const TSharedPtr<FDomainData>& ReferencingAssetDomain = ReferencingAssetDataInfo.Value;
+	const TSharedPtr<FDomainData>& ReferencedAssetDomain = ReferencedAssetDataInfo.Value;
+	const FAssetData& ReferencingAssetData = ReferencingAssetDataInfo.Key;
+	const FAssetData& ReferencedAssetData = ReferencedAssetDataInfo.Key;
+
+	return DomainDB->IsPlugin(ReferencedAssetDomain) &&
+		   DomainDB->IsPlugin(ReferencingAssetDomain) &&
+		   IAssetReferenceFilter::IsCrossPluginReferenceAllowed(ReferencingAssetData, ReferencedAssetData);
+}
+
 bool FDomainAssetReferenceFilter::PassesFilterImpl(const FAssetData& AssetData, FText& OutOptionalFailureReason) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(FDomainAssetReferenceFilter_PassesFilterImpl);
@@ -123,9 +138,12 @@ bool FDomainAssetReferenceFilter::PassesFilterImpl(const FAssetData& AssetData, 
 	// If it gets hit, transient can be added to the special system mount 'Temp' domain
 	if (ensureMsgf(AssetDomain.IsValid(), TEXT("Asset %s didn't match any domain"), *AssetData.GetObjectPathString()))
 	{
+		FAssetDataInfo ReferencedAssetDataInfo = MakeTuple(AssetData, AssetDomain);
+
 		// Check the referencing domains
-		for (const TSharedPtr<FDomainData>& ReferencingDomain : ReferencingDomains)
+		for (const FAssetDataInfo& ReferencingAssetDataInfo : ReferencingAssetDataInfos)
 		{
+			const TSharedPtr<FDomainData>& ReferencingDomain = ReferencingAssetDataInfo.Value;
 			if (ReferencingDomain->bCanSeeEverything)
 			{
 				return true;
@@ -136,6 +154,12 @@ bool FDomainAssetReferenceFilter::PassesFilterImpl(const FAssetData& AssetData, 
 
 			if (!bResult)
 			{
+				// Before returning false, check whether this is an allowed cross-plugin asset reference (exception)
+				if (IsCrossPluginReferenceAllowed(ReferencingAssetDataInfo, ReferencedAssetDataInfo))
+				{
+					return true;
+				}
+				
 				return false;
 			}
 		}

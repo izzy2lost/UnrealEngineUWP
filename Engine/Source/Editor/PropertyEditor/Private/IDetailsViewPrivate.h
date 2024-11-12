@@ -13,6 +13,7 @@ class FEditConditionParser;
 class FNotifyHook;
 class IDetailPropertyExtensionHandler;
 class IDetailRootObjectCustomization;
+class FStringPrefixTree;
 
 class IDetailsViewPrivate : public IDetailsView
 {
@@ -148,6 +149,11 @@ public:
 	* Restores the expansion state of property nodes for the selected object set
 	*/
 	virtual void RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode) = 0;
+
+	/**
+	* Restores the expansion state of property nodes for the selected object set, with optionally provided external expansion states.
+	*/
+	virtual void RestoreExpandedItems(TSharedRef<FPropertyNode> StartNode, TMap<UStruct*, FStringPrefixTree>* OptionalExpansionStates) = 0;
 
 	/**
 	* Mark node as animating, useful if animating during behaviors that trigger widget reconstruction.

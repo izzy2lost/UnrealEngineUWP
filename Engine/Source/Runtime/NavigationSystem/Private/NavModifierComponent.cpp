@@ -14,22 +14,35 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavModifierComponent)
 
-#if WITH_EDITOR
 namespace UE::Navigation::ModComponent::Private
 {
+#if WITH_EDITOR
 	void OnNavAreaRegistrationChanged(UNavModifierComponent& ModifierComponent, const UWorld& World, const UClass* NavAreaClass)
 	{
-		if (NavAreaClass && NavAreaClass == ModifierComponent.AreaClass && &World == ModifierComponent.GetWorld())
+		if (NavAreaClass && (NavAreaClass == ModifierComponent.AreaClass || NavAreaClass == ModifierComponent.AreaClassToReplace) && &World == ModifierComponent.GetWorld())
 		{
 			ModifierComponent.RefreshNavigationModifiers();
 		}
 	}
-} // UE::Navigation::ModComponent::Private
 #endif // WITH_EDITOR
+
+	FAreaNavModifier CreateAreaModifier(const FBox& Box, const FQuat& Quat, const TSubclassOf<UNavArea>& AreaClass, const TSubclassOf<UNavArea>& AreaClassToReplace, const bool bIncludeAgentHeight)
+	{
+		FAreaNavModifier AreaNavModifier(Box, FTransform(Quat), AreaClass);
+		AreaNavModifier.SetIncludeAgentHeight(bIncludeAgentHeight);
+		if (AreaClassToReplace)
+		{
+			AreaNavModifier.SetAreaClassToReplace(AreaClassToReplace);
+			AreaNavModifier.SetApplyMode(ENavigationAreaMode::Replace);
+		}
+		return AreaNavModifier;
+	}
+} // UE::Navigation::ModComponent::Private
 
 UNavModifierComponent::UNavModifierComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	AreaClass = UNavArea_Null::StaticClass();
+	AreaClassToReplace = nullptr;
 	FailsafeExtent = FVector(100, 100, 100);
 	bIncludeAgentHeight = true;
 	NavMeshResolution = ENavigationDataResolution::Invalid;
@@ -211,7 +224,7 @@ void UNavModifierComponent::CalcAndCacheBounds() const
 		TArray<FAreaNavModifier> Areas;
 		for (int32 Idx = 0; Idx < ComponentBounds.Num(); Idx++)
 		{
-			Areas.Add(FAreaNavModifier(ComponentBounds[Idx].Box, FTransform(ComponentBounds[Idx].Quat), AreaClass));
+			Areas.Add(UE::Navigation::ModComponent::Private::CreateAreaModifier(ComponentBounds[Idx].Box, ComponentBounds[Idx].Quat, AreaClass, AreaClassToReplace, bIncludeAgentHeight));
 		}
 
 		for(const FAreaNavModifier& Modifier : Areas)
@@ -225,7 +238,7 @@ void UNavModifierComponent::GetNavigationData(FNavigationRelevantData& Data) con
 {
 	for (int32 Idx = 0; Idx < ComponentBounds.Num(); Idx++)
 	{
-		Data.Modifiers.Add(FAreaNavModifier(ComponentBounds[Idx].Box, FTransform(ComponentBounds[Idx].Quat), AreaClass).SetIncludeAgentHeight(bIncludeAgentHeight));
+		Data.Modifiers.Add(UE::Navigation::ModComponent::Private::CreateAreaModifier(ComponentBounds[Idx].Box, ComponentBounds[Idx].Quat, AreaClass, AreaClassToReplace, bIncludeAgentHeight));
 	}
 
 	Data.Modifiers.SetNavMeshResolution(NavMeshResolution);
@@ -236,6 +249,15 @@ void UNavModifierComponent::SetAreaClass(TSubclassOf<UNavArea> NewAreaClass)
 	if (AreaClass != NewAreaClass)
 	{
 		AreaClass = NewAreaClass;
+		RefreshNavigationModifiers();
+	}
+}
+
+void UNavModifierComponent::SetAreaClassToReplace(TSubclassOf<UNavArea> NewAreaClassToReplace)
+{
+	if (AreaClassToReplace != NewAreaClassToReplace)
+	{
+		AreaClassToReplace = NewAreaClassToReplace;
 		RefreshNavigationModifiers();
 	}
 }

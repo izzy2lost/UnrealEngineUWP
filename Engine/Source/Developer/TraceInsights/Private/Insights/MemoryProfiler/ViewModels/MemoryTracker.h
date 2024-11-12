@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Containers/UnrealString.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 typedef int32 FMemoryTrackerId;
@@ -36,4 +37,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

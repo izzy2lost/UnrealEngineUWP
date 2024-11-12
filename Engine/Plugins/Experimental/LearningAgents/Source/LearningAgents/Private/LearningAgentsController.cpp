@@ -47,8 +47,8 @@ void ULearningAgentsController::EvaluateAgentControllers_Implementation(
 }
 
 ULearningAgentsController* ULearningAgentsController::MakeController(
-	ULearningAgentsManager* InManager, 
-	ULearningAgentsInteractor* InInteractor, 
+	ULearningAgentsManager*& InManager, 
+	ULearningAgentsInteractor*& InInteractor, 
 	TSubclassOf<ULearningAgentsController> Class,
 	const FName Name)
 {
@@ -74,7 +74,7 @@ ULearningAgentsController* ULearningAgentsController::MakeController(
 	return Controller->IsSetup() ? Controller : nullptr;
 }
 
-void ULearningAgentsController::SetupController(ULearningAgentsManager* InManager, ULearningAgentsInteractor* InInteractor)
+void ULearningAgentsController::SetupController(ULearningAgentsManager*& InManager, ULearningAgentsInteractor*& InInteractor)
 {
 	if (IsSetup())
 	{
@@ -122,26 +122,26 @@ void ULearningAgentsController::EvaluateController()
 		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
 	}
 
-	if (Manager->GetAgentNum() != Interactor->ObservationObjectElements.Num())
+	if (Manager->GetAgentNum() != Interactor->GetObservationObjectElements().Num())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Observation Objects added by GatherAgentObservations. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->ObservationObjectElements.Num());
+		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Observation Objects added by GatherAgentObservations. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->GetObservationObjectElements().Num());
 		return;
 	}
 
 	// Run EvaluateAgentControllers Callback
 
-	Interactor->ActionObject->ActionObject.Reset();
-	Interactor->ActionObjectElements.Empty(Manager->GetMaxAgentNum());
+	Interactor->GetActionObject()->ActionObject.Reset();
+	Interactor->GetActionObjectElements().Empty(Manager->GetMaxAgentNum());
 	EvaluateAgentControllers(
-		Interactor->ActionObjectElements, 
-		Interactor->ActionObject, 
-		Interactor->ObservationObject,
-		Interactor->ObservationObjectElements,
+		Interactor->GetActionObjectElements(),
+		Interactor->GetActionObject(),
+		Interactor->GetObservationObject(),
+		Interactor->GetObservationObjectElements(),
 		Manager->GetAllAgentIds());
 
-	if (Manager->GetAgentNum() != Interactor->ActionObjectElements.Num())
+	if (Manager->GetAgentNum() != Interactor->GetActionObjectElements().Num())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Action Objects added by EvaluateAgentControllers. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->ActionObjectElements.Num());
+		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Action Objects added by EvaluateAgentControllers. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->GetActionObjectElements().Num());
 		return;
 	}
 
@@ -150,19 +150,19 @@ void ULearningAgentsController::EvaluateController()
 	for (int32 AgentIdx = 0; AgentIdx < Manager->GetAgentNum(); AgentIdx++)
 	{
 		if (ULearningAgentsActions::ValidateActionObjectMatchesSchema(
-			Interactor->ActionSchema,
-			Interactor->ActionSchemaElement, 
-			Interactor->ActionObject, 
-			Interactor->ActionObjectElements[AgentIdx]))
+			Interactor->GetActionSchema(),
+			Interactor->GetActionSchemaElement(),
+			Interactor->GetActionObject(),
+			Interactor->GetActionObjectElements()[AgentIdx]))
 		{
 			UE::Learning::Action::SetVectorFromObject(
-				Interactor->ActionVectors[Manager->GetAllAgentSet()[AgentIdx]],
-				Interactor->ActionSchema->ActionSchema,
-				Interactor->ActionSchemaElement.SchemaElement,
-				Interactor->ActionObject->ActionObject,
-				Interactor->ActionObjectElements[AgentIdx].ObjectElement);
+				Interactor->GetActionVectorsArrayView()[Manager->GetAllAgentSet()[AgentIdx]],
+				Interactor->GetActionSchema()->ActionSchema,
+				Interactor->GetActionSchemaElement().SchemaElement,
+				Interactor->GetActionObject()->ActionObject,
+				Interactor->GetActionObjectElements()[AgentIdx].ObjectElement);
 
-			Interactor->ActionVectorIteration[Manager->GetAllAgentSet()[AgentIdx]]++;
+			Interactor->GetActionVectorIterationArrayView()[Manager->GetAllAgentSet()[AgentIdx]]++;
 		}
 	}
 }

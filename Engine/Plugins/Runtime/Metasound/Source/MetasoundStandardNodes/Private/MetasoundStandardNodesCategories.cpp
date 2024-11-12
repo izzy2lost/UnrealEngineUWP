@@ -22,6 +22,7 @@ namespace Metasound::NodeCategories
 	const FText Spatialization = { METASOUND_LOCTEXT("Metasound_SpatializationCategory", "Spatialization") };
 	const FText Trigger = { METASOUND_LOCTEXT("Metasound_TriggerCategory", "Triggers") };
 	const FText WaveTables = { METASOUND_LOCTEXT("Metasound_WaveTableCategory", "WaveTables") };
+	const FText Reverbs = { METASOUND_LOCTEXT("Metasound_ReverbCategory", "Reverbs") };
 } // Metasound::NodeCategories
 
 #undef LOCTEXT_NAMESPACE

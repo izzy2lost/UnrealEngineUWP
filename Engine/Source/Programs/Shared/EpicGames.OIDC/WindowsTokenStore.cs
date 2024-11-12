@@ -9,6 +9,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #pragma warning disable CS1591 // Missing XML documentation on public types
 
@@ -16,6 +18,8 @@ namespace EpicGames.OIDC
 {
 	public class WindowsTokenStore : ITokenStore, IDisposable
 	{
+		private readonly ILogger<WindowsTokenStore>? _logger = null;
+
 		private class TokenStoreState
 		{
 			public Dictionary<string, string> Providers { get; set; } = new Dictionary<string, string>();
@@ -36,11 +40,19 @@ namespace EpicGames.OIDC
 		}
 
 		private readonly Dictionary<string, byte[]> _providerToRefreshToken = new Dictionary<string, byte[]>();
-		private bool _isDirty;
+		private readonly List<string> _dirtyProviders = new List<string>();
 
 		public WindowsTokenStore()
 		{
-			ReadStoreFromDisk();
+			_providerToRefreshToken = ReadStoreFromDisk();
+		}
+
+		[ActivatorUtilitiesConstructor]
+		public WindowsTokenStore(ILogger<WindowsTokenStore> logger)
+		{
+			_logger = logger;
+
+			_providerToRefreshToken = ReadStoreFromDisk();
 		}
 
 		private static FileInfo GetStorePath()
@@ -48,13 +60,14 @@ namespace EpicGames.OIDC
 			return new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnrealEngine", "Common", "OidcToken", "oidcTokenStore.dat"));
 		}
 
-		private void ReadStoreFromDisk()
+		private Dictionary<string, byte[]> ReadStoreFromDisk()
 		{
 			FileInfo fi = GetStorePath();
 			if (!fi.Exists)
 			{
+				_logger?.LogDebug("No existing token store found at {Path}. Assuming empty store.", fi.FullName);
 				// if we have no store on disk then we just initialize it to empty
-				return;
+				return new Dictionary<string, byte[]>();
 			}
 
 			using FileStream fs = fi.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -72,23 +85,23 @@ namespace EpicGames.OIDC
 
 			if (state == null)
 			{
+				_logger?.LogDebug("Failed to deserialize state. Dropping the existing state.");
 				// if we fail to deserialize the state just drop it, will mean users will need to login again
-				return;
+				return new Dictionary<string, byte[]>();
 			}
+
+			Dictionary<string, byte[]> providers = new Dictionary<string, byte[]>();
 
 			foreach ((string key, string value) in state.Providers)
 			{
-				_providerToRefreshToken[key] = Convert.FromBase64String(value);
+				providers[key] = Convert.FromBase64String(value);
 			}
+
+			return providers;
 		}
 
 		private void SaveStoreToDisk()
 		{
-			if (!_isDirty)
-			{
-				return;
-			}
-
 			FileInfo fi = GetStorePath();
 
 			if (!fi.Directory?.Exists ?? false)
@@ -96,14 +109,14 @@ namespace EpicGames.OIDC
 				Directory.CreateDirectory(fi.Directory!.FullName);
 			}
 
-			string tempFile = Path.GetTempFileName();
+			lock (_dirtyProviders)
 			{
-				using FileStream fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write);
-				using Utf8JsonWriter writer = new Utf8JsonWriter(fs);
-				JsonSerializer.Serialize<TokenStoreState>(writer, new TokenStoreState(_providerToRefreshToken));
-			}
+				// no providers have changed, do not touch the state file
+				if (_dirtyProviders.Count == 0)
+				{
+					return;
+				}
 
-			{
 				using Mutex mutex = new Mutex(false, "oidcTokenStoreDat");
 
 				try
@@ -114,11 +127,27 @@ namespace EpicGames.OIDC
 				{
 
 				}
+
+				// read back the state of all providers but only overwrite the state of the ones we have actually got new state for (are dirty)
+				Dictionary<string, byte[]> providers = ReadStoreFromDisk();
+
+				foreach (string providerId in _dirtyProviders)
+				{
+					providers[providerId] = _providerToRefreshToken[providerId];
+				}
+				string tempFile = Path.GetTempFileName();
+				{
+					using FileStream fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write);
+					using Utf8JsonWriter writer = new Utf8JsonWriter(fs);
+					JsonSerializer.Serialize<TokenStoreState>(writer, new TokenStoreState(providers));
+				}
+
 				File.Move(tempFile, fi.FullName, true);
 
 				mutex.ReleaseMutex();
+
+				_dirtyProviders.Clear();
 			}
-			_isDirty = false;
 		}
 
 		public bool TryGetRefreshToken(string oidcProvider, out string refreshToken)
@@ -142,12 +171,14 @@ namespace EpicGames.OIDC
 				{
 					// unable to decrypt the data, ignore it
 					refreshToken = "";
+					_logger?.LogDebug("Unable to decrypt refresh token. Ignoring.");
 					return false;
 				}
 				if (e.NativeErrorCode == unchecked((int)0x8009000B)) // key not valid for use in specified state
 				{
 					// unable to decrypt the data, ignore it
 					refreshToken = "";
+					_logger?.LogDebug("Unable to decrypt refresh token, key not valid for use in specified state. Ignoring.");
 					return false;
 				}
 				throw;
@@ -168,7 +199,10 @@ namespace EpicGames.OIDC
 
 			_providerToRefreshToken[providerIdentifier] = encryptedToken;
 
-			_isDirty = true;
+			lock (_dirtyProviders)
+			{
+				_dirtyProviders.Add(providerIdentifier);
+			}
 		}
 
 		public void Save()

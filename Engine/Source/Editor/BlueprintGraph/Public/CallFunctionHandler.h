@@ -35,11 +35,12 @@ public:
 	 */
 	void CreateFunctionCallStatement(FKismetFunctionContext& Context, UEdGraphNode* Node, UEdGraphPin* SelfPin);
 
+	UE_DEPRECATED(5.5, "IsCalledFunctionPure is deprecated")
 	bool IsCalledFunctionPure(UEdGraphNode* Node)
 	{
 		if (UK2Node_CallFunction* CallFunctionNode = Cast<UK2Node_CallFunction>(Node))
 		{
-			return CallFunctionNode->bIsPureFunc;
+			return CallFunctionNode->IsNodePure();
 		}
 
 		return false;
@@ -51,13 +52,9 @@ public:
 		return false;
 	}
 
+	UE_DEPRECATED(5.5, "IsCalledFunctionFromInterface is deprecated")
 	bool IsCalledFunctionFromInterface(UEdGraphNode* Node)
 	{
-		if (UK2Node_CallFunction* CallFunctionNode = Cast<UK2Node_CallFunction>(Node))
-		{
-			return CallFunctionNode->bIsInterfaceCall;
-		}
-
 		return false;
 	}
 

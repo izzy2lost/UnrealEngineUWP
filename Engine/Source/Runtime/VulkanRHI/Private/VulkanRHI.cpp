@@ -20,8 +20,10 @@
 #include "VulkanLLM.h"
 #include "Misc/EngineVersion.h"
 #include "GlobalShader.h"
+#include "VulkanResourceCollection.h"
 #include "RHIValidation.h"
 #include "RHIUtilities.h"
+#include "ShaderDiagnostics.h"
 #include "IHeadMountedDisplayModule.h"
 #include "VulkanRenderpass.h"
 #include "VulkanTransientResourceAllocator.h"
@@ -43,10 +45,6 @@ void VulkanProfilePrint(const char* Msg)
 
 
 static_assert(sizeof(VkStructureType) == sizeof(int32), "ZeroVulkanStruct() assumes VkStructureType is int32!");
-
-#if NV_AFTERMATH
-bool GVulkanNVAftermathModuleLoaded = false;
-#endif
 
 TAtomic<uint64> GVulkanBufferHandleIdCounter{ 0 };
 TAtomic<uint64> GVulkanBufferViewHandleIdCounter{ 0 };
@@ -91,20 +89,11 @@ static FAutoConsoleVariableRef GCVarEnableTransientResourceAllocator(
 	ECVF_ReadOnly
 );
 
-int32 GVulkanAllowVariableRateShading = 1;
-static FAutoConsoleVariableRef CVarVulkanVariableRateShading(
-	TEXT("r.Vulkan.AllowVariableRateShading"),
-	GVulkanAllowVariableRateShading,
-	TEXT("0 to disable variable rate shading")
-	TEXT("1 to allow use of variable rate shading if available (default)"),
-	ECVF_ReadOnly
-);
-
 static TAutoConsoleVariable<bool> CVarAllowVulkanPSOPrecache(
 	TEXT("r.Vulkan.AllowPSOPrecaching"),
-	false,
-	TEXT("true: if r.PSOPrecaching=1 Vulkan RHI will use precaching.\n")
-	TEXT("false: Vulkan RHI will disable precaching (even if r.PSOPrecaching=1). (default)"),
+	true,
+	TEXT("true: if r.PSOPrecaching=1 Vulkan RHI will use precaching. (default)\n")
+	TEXT("false: Vulkan RHI will disable precaching (even if r.PSOPrecaching=1)."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 // If precaching is active we should not need the file cache.
@@ -116,7 +105,22 @@ static TAutoConsoleVariable<bool> CVarEnableVulkanPSOFileCacheWhenPrecachingActi
 	TEXT("true: Allow both PSO file cache and precaching."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-bool GGPUCrashDebuggingEnabled = false;
+int32 GVulkanTempBlockSize = 4 * 1024 * 1024;
+static FAutoConsoleVariableRef GCVarVulkanTempBlockSize(
+	TEXT("r.Vulkan.TempBlockSize"),
+	GVulkanTempBlockSize,
+	TEXT("Size of the temporary blocks allocate by contexts, used for single use ub allocs and copies (default: 4MB)."),
+	ECVF_ReadOnly
+);
+
+int32 GVulkanAMDCompatibilityMode = 1;
+static FAutoConsoleVariableRef GCVarVulkanAMDCompatibilityMode(
+	TEXT("r.Vulkan.AMDCompatibilityMode"),
+	GVulkanAMDCompatibilityMode,
+	TEXT("Used to tweak enabled Vulkan feature set in order to ensure wider compatibility with all AMD GPUs on all platforms. (default:1)"),
+	ECVF_ReadOnly
+);
+
 
 extern TAutoConsoleVariable<int32> GVulkanRayTracingCVar;
 
@@ -267,10 +271,14 @@ static VkPhysicalDevice SelectPhysicalDevice(VkInstance InInstance)
 static uint32 GetVulkanApiVersionForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel, bool bRaytracing)
 {
 	const FString ProfileName = FVulkanPlatform::GetVulkanProfileNameForFeatureLevel(FeatureLevel, bRaytracing);
-	const detail::VpProfileDesc* ProfileDesc = detail::vpGetProfileDesc(TCHAR_TO_ANSI(*ProfileName));
-	if (ProfileDesc)
+	VpProfileProperties ProfileProperties;
+	FMemory::Memzero(ProfileProperties);
+	FCStringAnsi::Strcpy(ProfileProperties.profileName, VP_MAX_PROFILE_NAME_SIZE, TCHAR_TO_ANSI(*ProfileName));
+
+	const uint32 minApiVersion = vpGetProfileAPIVersion(&ProfileProperties);
+	if (minApiVersion)
 	{
-		return ProfileDesc->minApiVersion;
+		return minApiVersion;
 	}
 
 	UE_LOG(LogVulkanRHI, Log, TEXT("Using default apiVersion for platform..."));
@@ -307,7 +315,8 @@ static bool CheckVulkanProfile(ERHIFeatureLevel::Type FeatureLevel, bool bRaytra
 
 		VpInstanceCreateInfo ProfileInstanceCreateInfo;
 		FMemory::Memzero(ProfileInstanceCreateInfo);
-		ProfileInstanceCreateInfo.pProfile = &ProfileProperties;
+		ProfileInstanceCreateInfo.enabledFullProfileCount = 1;
+		ProfileInstanceCreateInfo.pEnabledFullProfiles = &ProfileProperties;
 		ProfileInstanceCreateInfo.pCreateInfo = &InstanceCreateInfo;
 
 		VkInstance TempInstance = VK_NULL_HANDLE;
@@ -390,6 +399,8 @@ FDynamicRHI* FVulkanDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequest
 	GMaxRHIShaderPlatform = ShaderPlatformForFeatureLevel[GMaxRHIFeatureLevel];
 	checkf(GMaxRHIShaderPlatform != SP_NumPlatforms, TEXT("Requested feature level [%s] mapped to unsupported shader platform!"), *LexToString(InRequestedFeatureLevel));
 
+	UE_LOG(LogVulkanRHI, Display, TEXT("Vulkan RHI ShaderPlatform for %s: %s."), *LexToString(InRequestedFeatureLevel), *LexToString(GMaxRHIShaderPlatform, false));
+
 	GVulkanRHI = new FVulkanDynamicRHI();
 	FDynamicRHI* FinalRHI = GVulkanRHI;
 
@@ -424,20 +435,26 @@ FVulkanCommandListContext::FVulkanCommandListContext(FVulkanDynamicRHI* InRHI, F
 	, Device(InDevice)
 	, Queue(InQueue)
 	, bSubmitAtNextSafePoint(false)
-	, UniformBufferUploader(nullptr)
-	, TempFrameAllocationBuffer(InDevice)
 	, CommandBufferManager(nullptr)
 	, PendingGfxState(nullptr)
 	, PendingComputeState(nullptr)
 	, FrameCounter(0)
+#if (RHI_NEW_GPU_PROFILER == 0)
 	, GpuProfiler(this, InDevice)
+#endif
 {
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming = new FVulkanGPUTiming(this, InDevice);
+#endif
 
 	// Create CommandBufferManager, contain all active buffers
 	CommandBufferManager = new FVulkanCommandBufferManager(InDevice, this);
 	CommandBufferManager->Init(this);
+
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FrameTiming->Initialize();
+#endif
+
 	if (IsImmediate())
 	{
 		// Insert the Begin frame timestamp query. On EndDrawingViewport() we'll insert the End and immediately after a new Begin()
@@ -453,7 +470,15 @@ FVulkanCommandListContext::FVulkanCommandListContext(FVulkanDynamicRHI* InRHI, F
 	PendingGfxState = new FVulkanPendingGfxState(Device, *this);
 	PendingComputeState = new FVulkanPendingComputeState(Device, *this);
 
-	UniformBufferUploader = new FVulkanUniformBufferUploader(Device);
+	// Currently used for UB and copies
+	{
+		const uint32 BlockAlignment = FMath::Max<uint32>(Device->GetLimits().minUniformBufferOffsetAlignment, 16u);
+		const VkBufferUsageFlags BufferUsageFlags = 
+			(Device->GetOptionalExtensions().HasBufferDeviceAddress ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0) |
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		TempBlockAllocator = new VulkanRHI::FTempBlockAllocator(InDevice, GVulkanTempBlockSize, BlockAlignment, BufferUsageFlags);
+	}
 
 	GlobalUniformBuffers.AddZeroed(FUniformBufferStaticSlotRegistry::Get().GetSlotCount());
 }
@@ -469,22 +494,22 @@ void FVulkanCommandListContext::ReleasePendingState()
 
 FVulkanCommandListContext::~FVulkanCommandListContext()
 {
-	if (FVulkanPlatform::SupportsTimestampRenderQueries())
+	if (GSupportsTimestampRenderQueries)
 	{
+#if (RHI_NEW_GPU_PROFILER == 0)
 		FrameTiming->Release();
 		delete FrameTiming;
 		FrameTiming = nullptr;
+#endif
 	}
 
 	check(CommandBufferManager != nullptr);
 	delete CommandBufferManager;
 	CommandBufferManager = nullptr;
 
-	delete UniformBufferUploader;
+	delete TempBlockAllocator;
 	delete PendingGfxState;
 	delete PendingComputeState;
-
-	TempFrameAllocationBuffer.Destroy();
 }
 
 
@@ -508,16 +533,13 @@ FVulkanDynamicRHI::FVulkanDynamicRHI()
 	GRHISupportsMultithreading = true;
 	GRHISupportsMultithreadedResources = true;
 	GRHISupportsPipelineFileCache = true;
-	GRHIVariableRateShadingEnabled &= (GVulkanAllowVariableRateShading != 0); // before extensions setup
 	GRHITransitionPrivateData_SizeInBytes = sizeof(FVulkanPipelineBarrier);
 	GRHITransitionPrivateData_AlignInBytes = alignof(FVulkanPipelineBarrier);
 	GConfig->GetInt(TEXT("TextureStreaming"), TEXT("PoolSizeVRAMPercentage"), GPoolSizeVRAMPercentage, GEngineIni);
 
 	GRHIGlobals.SupportsBarycentricsSemantic = true;
 
-	static const auto CVarPSOPrecaching = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecaching"));
-
-	GRHISupportsPSOPrecaching = FVulkanChunkedPipelineCacheManager::IsEnabled() && (CVarPSOPrecaching && CVarPSOPrecaching->GetInt() != 0) && CVarAllowVulkanPSOPrecache.GetValueOnAnyThread();
+	GRHISupportsPSOPrecaching = CVarAllowVulkanPSOPrecache.GetValueOnAnyThread();
 	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnableVulkanPSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
 	UE_LOG(LogVulkanRHI, Log, TEXT("Vulkan PSO Precaching = %d, PipelineFileCache = %d"), GRHISupportsPSOPrecaching, GRHISupportsPipelineFileCache);
 
@@ -529,16 +551,11 @@ FVulkanDynamicRHI::FVulkanDynamicRHI()
 
 	UE_LOG(LogVulkanRHI, Display, TEXT("Built with Vulkan header version %u.%u.%u"), VK_API_VERSION_MAJOR(VK_HEADER_VERSION_COMPLETE), VK_API_VERSION_MINOR(VK_HEADER_VERSION_COMPLETE), VK_API_VERSION_PATCH(VK_HEADER_VERSION_COMPLETE));
 
-	{
-		IConsoleVariable* GPUCrashDebuggingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging"));
-		GGPUCrashDebuggingEnabled = (GPUCrashDebuggingCVar && GPUCrashDebuggingCVar->GetInt() != 0) || FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging"));
-	}
-
-
-
 	CreateInstance();
 	SelectDevice();
 }
+
+FVulkanDynamicRHI::~FVulkanDynamicRHI() = default;
 
 void FVulkanDynamicRHI::Init()
 {
@@ -576,12 +593,10 @@ void FVulkanDynamicRHI::Init()
 
 void FVulkanDynamicRHI::PostInit()
 {
-#if VULKAN_RHI_RAYTRACING
 	if (GRHISupportsRayTracing)
 	{
 		Device->InitializeRayTracing();
 	}
-#endif // VULKAN_RHI_RAYTRACING
 }
 
 void FVulkanDynamicRHI::Shutdown()
@@ -623,19 +638,10 @@ void FVulkanDynamicRHI::Shutdown()
 			Device->SamplerMap.Empty();
 		}
 
-#if VULKAN_RHI_RAYTRACING
 		Device->CleanUpRayTracing();
-#endif // VULKAN_RHI_RAYTRACING
-
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 
 		// Flush all pending deletes before destroying the device.
-		RHICmdList.FlushPendingDeletes();
-		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-
-		// And again since some might get on a pending queue
-		RHICmdList.FlushPendingDeletes();
-		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		FRHICommandListImmediate::Get().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 	}
 
 	Device->Destroy();
@@ -673,21 +679,17 @@ void FVulkanDynamicRHI::Shutdown()
 void FVulkanDynamicRHI::CreateInstance()
 {
 	// Engine registration can be disabled via console var. Also disable automatically if ShaderDevelopmentMode is on.
-	auto* CVarShaderDevelopmentMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ShaderDevelopmentMode"));
 	auto* CVarDisableEngineAndAppRegistration = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DisableEngineAndAppRegistration"));
 	bool bDisableEngineRegistration = (CVarDisableEngineAndAppRegistration && CVarDisableEngineAndAppRegistration->GetValueOnAnyThread() != 0) ||
-		(CVarShaderDevelopmentMode && CVarShaderDevelopmentMode->GetValueOnAnyThread() != 0);
+		IsShaderDevelopmentModeEnabled();
 
 	// Use the API version stored in the profile
 	ApiVersion = GetVulkanApiVersionForFeatureLevel(GMaxRHIFeatureLevel, false);
 
-#if VULKAN_RHI_RAYTRACING
 	// Run a profile check to see if this device can support our raytacing requirements since it might change the required API version of the instance
 	if (FVulkanPlatform::SupportsProfileChecks() && GVulkanRayTracingCVar.GetValueOnAnyThread())
 	{
-		static IConsoleVariable* RequireSM6CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.RequireSM6"));
-		const bool bRequireSM6 = RequireSM6CVar && RequireSM6CVar->GetBool();
-		const bool bRayTracingAllowedOnCurrentShaderPlatform = (bRequireSM6 == false) || (GMaxRHIShaderPlatform == SP_VULKAN_SM6 || IsVulkanMobileSM5Platform(GMaxRHIShaderPlatform));
+		const bool bRayTracingAllowedOnCurrentShaderPlatform = (GMaxRHIShaderPlatform == SP_VULKAN_SM6 || IsVulkanMobileSM5Platform(GMaxRHIShaderPlatform));
 
 		if (CheckVulkanProfile(GMaxRHIFeatureLevel, true) && bRayTracingAllowedOnCurrentShaderPlatform)
 		{
@@ -701,7 +703,7 @@ void FVulkanDynamicRHI::CreateInstance()
 
 			if (!bRayTracingAllowedOnCurrentShaderPlatform)
 			{
-				UE_LOG(LogVulkanRHI, Display, TEXT("Vulkan RayTracing disabled because SM6 shader platform is required (r.RayTracing.RequireSM6=1)."));
+				UE_LOG(LogVulkanRHI, Display, TEXT("Vulkan RayTracing disabled because SM6 shader platform is required."));
 			}
 			else
 			{
@@ -709,7 +711,6 @@ void FVulkanDynamicRHI::CreateInstance()
 			}
 		}
 	}
-#endif // VULKAN_RHI_RAYTRACING
 
 	UE_LOG(LogVulkanRHI, Log, TEXT("Using API Version %u.%u."), VK_API_VERSION_MAJOR(ApiVersion), VK_API_VERSION_MINOR(ApiVersion));
 
@@ -894,7 +895,7 @@ void FVulkanDynamicRHI::SelectDevice()
 		}
 		else
 		{
-			GRHIAdapterUserDriverVersion = FString::Printf(TEXT("%d.%d.%d"), VK_VERSION_MAJOR(Props.driverVersion), VK_VERSION_MINOR(Props.driverVersion), VK_VERSION_PATCH(Props.driverVersion), Props.driverVersion);
+			GRHIAdapterUserDriverVersion = FString::Printf(TEXT("%d.%d.%d"), VK_VERSION_MAJOR(Props.driverVersion), VK_VERSION_MINOR(Props.driverVersion), VK_VERSION_PATCH(Props.driverVersion));
 		}
 
 		GRHIDeviceId = Props.deviceID;
@@ -918,7 +919,6 @@ void FVulkanDynamicRHI::InitInstance()
 		FVulkanPlatform::OverridePlatformHandlers(true);
 
 		GRHISupportsAsyncTextureCreation = false;
-		GEnableAsyncCompute = false;
 
 		Device->InitGPU();
 
@@ -940,15 +940,24 @@ void FVulkanDynamicRHI::InitInstance()
 		GSupportsRenderTargetFormat_PF_G8 = false;	// #todo-rco
 		GRHISupportsTextureStreaming = true;
 		GSupportsTimestampRenderQueries = FVulkanPlatform::SupportsTimestampRenderQueries();
+		GRHISupportsGPUTimestampBubblesRemoval = true;
 		GSupportsMobileMultiView = Device->GetOptionalExtensions().HasKHRMultiview ? true : false;
 		GRHISupportsMSAAShaderResolve = Device->GetOptionalExtensions().HasQcomRenderPassShaderResolve ? true : false;
-#if VULKAN_RHI_RAYTRACING
 		GRHISupportsRayTracing = RHISupportsRayTracing(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRaytracingExtensions();
+
+		// Use this compatibility mode avoid known issues at launch time with latest drivers at the time of release 5.5.  This will:
+		// - disable inline ray tracing and use ray tracing pipelines everywhere (instead of a mix of both)
+		// - disable mesh shaders until issues can be resolved (holes in Nanite meshes)
+		// - force llvm compiler backend on Linux (see VulkanLinuxPlatform.cpp) to circumvent raytracing pipeline compilation crash
+		const bool bUseAMDCompatibilityMode = GVulkanAMDCompatibilityMode && (Device->GetVendorId() == EGpuVendorId::Amd);
 
 		if (GRHISupportsRayTracing)
 		{
-			GRHISupportsRayTracingShaders = RHISupportsRayTracingShaders(GMaxRHIShaderPlatform);
-			GRHISupportsInlineRayTracing = RHISupportsInlineRayTracing(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRayQuery;
+			GRHISupportsRayTracingShaders = RHISupportsRayTracingShaders(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRayTracingPipeline;
+			GRHISupportsInlineRayTracing = !bUseAMDCompatibilityMode && RHISupportsInlineRayTracing(GMaxRHIShaderPlatform) && Device->GetOptionalExtensions().HasRayQuery;
+
+			// Inline RayTracing SBT is needed if raytracing position fetch isn't available
+			GRHIGlobals.RayTracing.RequiresInlineRayTracingSBT = !VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH;
 
 			GRHIRayTracingAccelerationStructureAlignment = 256; // TODO (currently handled by FVulkanAccelerationStructureBuffer)
 			//Some devices have 64 for min AS offset alignment meanwhile engine AS alignment is 256. hence using round up value
@@ -956,8 +965,10 @@ void FVulkanDynamicRHI::InitInstance()
 													Device->GetOptionalExtensionProperties().AccelerationStructureProps.minAccelerationStructureScratchOffsetAlignment);
 
 			GRHIRayTracingInstanceDescriptorSize = uint32(sizeof(VkAccelerationStructureInstanceKHR));
+
+			// Loose parameters are always placed in the shader record after the FVulkanHitGroupSystemParameters in Vulkan (see VulkanRayTracing.h and VulkanCommon.ush)
+			GRHIGlobals.RayTracing.SupportsLooseParamsInShaderRecord = true;
 		}
-#endif
 #if VULKAN_ENABLE_DUMP_LAYER
 		// Disable RHI thread by default if the dump layer is enabled
 		GRHISupportsRHIThread = false;
@@ -1017,6 +1028,18 @@ void FVulkanDynamicRHI::InitInstance()
 			VulkanDeviceShaderStageBits |= VK_SHADER_STAGE_GEOMETRY_BIT;
 		}
 
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		// If mesh shaders are enabled in DDPI (currently SM6), then the profile check will ensure it's supported
+		if (!bUseAMDCompatibilityMode && Device->GetOptionalExtensions().HasEXTMeshShader)
+		{
+			GRHIGlobals.SupportsMeshShadersTier0 = RHISupportsMeshShadersTier0(GMaxRHIShaderPlatform);
+			GRHIGlobals.SupportsMeshShadersTier1 = RHISupportsMeshShadersTier1(GMaxRHIShaderPlatform);
+
+			GVulkanDevicePipelineStageBits |= VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT;
+			VulkanDeviceShaderStageBits |= VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT;
+		}
+#endif
+
 		const VkShaderStageFlags RequiredSubgroupShaderStageFlags = FVulkanPlatform::RequiredWaveOpsShaderStageFlags(VulkanDeviceShaderStageBits);
 		
 		// Check for wave ops support (only filled on platforms creating Vulkan 1.1 or greater instances)
@@ -1041,12 +1064,6 @@ void FVulkanDynamicRHI::InitInstance()
 			const uint32 MissingStageFlags = (Device->GetDeviceSubgroupProperties().supportedStages & RequiredSubgroupShaderStageFlags) ^ RequiredSubgroupShaderStageFlags;
 			const uint32 MissingOperationFlags = (Device->GetDeviceSubgroupProperties().supportedOperations & RequiredSubgroupFlags) ^ RequiredSubgroupFlags;
 			UE_LOG(LogVulkanRHI, Display, TEXT("Wave Operations have been DISABLED (missing stages=0x%x operations=0x%x)."), MissingStageFlags, MissingOperationFlags);
-		}
-
-
-		if (GGPUCrashDebuggingEnabled && !Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Tried to enable GPU crash debugging but no extension found! Will use local tracepoints."));
 		}
 
 		FHardwareInfo::RegisterHardwareInfo(NAME_RHI, TEXT("Vulkan"));
@@ -1114,39 +1131,74 @@ void FVulkanDynamicRHI::InitInstance()
 
 #endif
 
-		GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
-
 		FRenderResource::InitPreRHIResources();
 		GIsRHIInitialized = true;
 	}
 }
 
-void FVulkanCommandListContext::RHIBeginFrame()
+void FVulkanDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
-	check(IsImmediate());
-
-	extern uint32 GVulkanRHIDeletionFrameNumber;
-	++GVulkanRHIDeletionFrameNumber;
-
-	GpuProfiler.BeginFrame();
-
-#if VULKAN_RHI_RAYTRACING
-	if (GRHISupportsRayTracing)
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Vulkan EndFrame"),
+		[this](FVulkanContextArray const& Contexts)
 	{
-		Device->GetRayTracingCompactionRequestHandler()->Update(*this);
-	}
+		FVulkanCommandListContext& Context = *Contexts[ERHIPipeline::Graphics];
+
+		check(Context.IsImmediate());
+
+#if (RHI_NEW_GPU_PROFILER == 0)
+		Context.ReadAndCalculateGPUFrameTime();
+		Context.GpuProfiler.EndFrame();
 #endif
+
+		bool bTrimMemory = false;
+		Context.GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
+
+		Context.Device->GetStagingManager().ProcessPendingFree(false, true);
+		Context.Device->GetMemoryManager().ReleaseFreedPages(Context);
+		Context.Device->GetDeferredDeletionQueue().ReleaseResources();
+
+		if (UseVulkanDescriptorCache())
+		{
+			Context.Device->GetDescriptorSetCache().GC();
+		}
+		Context.Device->GetDescriptorPoolsManager().GC();
+
+		Context.Device->ReleaseUnusedOcclusionQueryPools();
+
+		Context.Device->GetPipelineStateCache()->TickLRU();
+
+		Context.Device->GetBindlessDescriptorManager()->UpdateUBAllocator();
+		Context.GetTempBlockAllocator().UpdateBlocks();
+
+		++Context.FrameCounter;
+	});
+
+	FDynamicRHI::RHIEndFrame_RenderThread(RHICmdList);
+
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Vulkan BeginFrame"),
+		[this](FVulkanContextArray const& Contexts)
+	{
+		FVulkanCommandListContext& Context = *Contexts[ERHIPipeline::Graphics];
+
+		check(Context.IsImmediate());
+
+		extern uint32 GVulkanRHIDeletionFrameNumber;
+		++GVulkanRHIDeletionFrameNumber;
+
+#if (RHI_NEW_GPU_PROFILER == 0)
+		Context.GpuProfiler.BeginFrame();
+#endif
+
+		if (GRHISupportsRayTracing)
+		{
+			Context.Device->GetRayTracingCompactionRequestHandler()->Update(Context);
+		}
+	});
 }
 
-
-void FVulkanCommandListContext::RHIBeginScene()
+void FVulkanDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
-	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIBeginScene()")));
-}
-
-void FVulkanCommandListContext::RHIEndScene()
-{
-	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIEndScene()")));
+	// @todo dev-pr - refactor RHIEndFrame_RenderThread to reduce use of the immediate command list, and move cleanup work to here.
 }
 
 void FVulkanCommandListContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
@@ -1192,97 +1244,104 @@ void FVulkanCommandListContext::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,
 	WriteBeginTimestamp(CommandBufferManager->GetActiveCmdBuffer());
 }
 
-void FVulkanCommandListContext::RHIEndFrame()
-{
-	check(IsImmediate());
-	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIEndFrame()")));
-	
-	ReadAndCalculateGPUFrameTime();
-
-	GetGPUProfiler().EndFrame();
-
-	bool bTrimMemory = false;
-	GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
-
-	Device->GetStagingManager().ProcessPendingFree(false, true);
-	Device->GetMemoryManager().ReleaseFreedPages(*this);
-	Device->GetDeferredDeletionQueue().ReleaseResources();
-
-	if (UseVulkanDescriptorCache())
+#if WITH_RHI_BREADCRUMBS
+	void FVulkanCommandListContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
-		Device->GetDescriptorSetCache().GC();
+		const TCHAR* NameStr = nullptr;
+		FRHIBreadcrumb::FBuffer Buffer;
+		auto GetNameStr = [&]()
+		{
+			if (!NameStr)
+			{
+				NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+			}
+			return NameStr;
+		};
+
+		const FColor Color = FColor::White;
+
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if VULKAN_ENABLE_DRAW_MARKERS
+			if (auto CmdBeginLabel = Device->GetCmdBeginDebugLabel())
+			{
+				FTCHARToUTF8 Converter(GetNameStr());
+				VkDebugUtilsLabelEXT Label;
+				ZeroVulkanStruct(Label, VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT);
+				Label.pLabelName = Converter.Get();
+				FLinearColor LColor(Color);
+				Label.color[0] = LColor.R;
+				Label.color[1] = LColor.G;
+				Label.color[2] = LColor.B;
+				Label.color[3] = LColor.A;
+				CmdBeginLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &Label);
+			}
+		#endif
+
+		#if VULKAN_ENABLE_DUMP_LAYER
+			// only valid on immediate context currently.  needs to be fixed for parallel rhi execute
+			if (IsImmediate())
+			{
+				VulkanRHI::DumpLayerPushMarker(GetNameStr());
+			}
+		#endif
+		}
+		
+	#if (RHI_NEW_GPU_PROFILER == 0)
+		if (IsImmediate())
+		{
+		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
+			if (GpuProfiler.bTrackingGPUCrashData)
+			{
+				GpuProfiler.PushMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer(), Device->GetCrashMarkerBuffer(), GetNameStr());
+			}
+		#endif
+			if (GpuProfiler.IsProfilingGPU())
+			{
+				GpuProfiler.PushEvent(GetNameStr(), Color);
+			}
+		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
 	}
-	Device->GetDescriptorPoolsManager().GC();
 
-	Device->ReleaseUnusedOcclusionQueryPools();
-
-	Device->GetPipelineStateCache()->TickLRU();
-
-	++FrameCounter;
-}
-
-void FVulkanCommandListContext::RHIPushEvent(const TCHAR* Name, FColor Color)
-{
-#if VULKAN_ENABLE_DRAW_MARKERS
-	if (auto CmdBeginLabel = Device->GetCmdBeginDebugLabel())
+	void FVulkanCommandListContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
-		FTCHARToUTF8 Converter(Name);
-		VkDebugUtilsLabelEXT Label;
-		ZeroVulkanStruct(Label, VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT);
-		Label.pLabelName = Converter.Get();
-		FLinearColor LColor(Color);
-		Label.color[0] = LColor.R;
-		Label.color[1] = LColor.G;
-		Label.color[2] = LColor.B;
-		Label.color[3] = LColor.A;
-		CmdBeginLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &Label);
+	#if (RHI_NEW_GPU_PROFILER == 0)
+		//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
+		if (IsImmediate())
+		{
+			if (GpuProfiler.IsProfilingGPU())
+			{
+				GpuProfiler.PopEvent();
+			}
+
+		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
+			if (GpuProfiler.bTrackingGPUCrashData)
+			{
+				GpuProfiler.PopMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer(), Device->GetCrashMarkerBuffer());
+			}
+		#endif
+		}
+	#endif // (RHI_NEW_GPU_PROFILER == 0)
+
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if VULKAN_ENABLE_DUMP_LAYER
+			if (IsImmediate())
+			{
+				VulkanRHI::DumpLayerPopMarker();
+			}
+		#endif
+
+		#if VULKAN_ENABLE_DRAW_MARKERS
+			if (auto CmdEndLabel = Device->GetCmdEndDebugLabel())
+			{
+				CmdEndLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle());
+			}
+		#endif
+		}
 	}
-#endif
-
-#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GpuProfiler.bTrackingGPUCrashData)
-	{
-		GpuProfiler.PushMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer(), Name);
-	}
-#endif
-
-	//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
-	if (IsImmediate())
-	{
-#if VULKAN_ENABLE_DUMP_LAYER
-		VulkanRHI::DumpLayerPushMarker(Name);
-#endif
-
-		GpuProfiler.PushEvent(Name, Color);
-	}
-}
-
-void FVulkanCommandListContext::RHIPopEvent()
-{
-#if VULKAN_ENABLE_DRAW_MARKERS
-	if (auto CmdEndLabel = Device->GetCmdEndDebugLabel())
-	{
-		CmdEndLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle());
-	}
-#endif
-
-#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GpuProfiler.bTrackingGPUCrashData)
-	{
-		GpuProfiler.PopMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer());
-	}
-#endif
-
-	//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
-	if (IsImmediate())
-	{
-#if VULKAN_ENABLE_DUMP_LAYER
-		VulkanRHI::DumpLayerPopMarker();
-#endif
-
-		GpuProfiler.PopEvent();
-	}
-}
+#endif // WITH_RHI_BREADCRUMBS
 
 void FVulkanDynamicRHI::RHIGetSupportedResolution( uint32 &Width, uint32 &Height )
 {
@@ -1298,14 +1357,6 @@ void FVulkanDynamicRHI::RHIFlushResources()
 	FVulkanCommandListContextImmediate& ImmediateContext = GetDevice()->GetImmediateContext();
 	bool bTrimMemory = true;
 	ImmediateContext.GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
-}
-
-void FVulkanDynamicRHI::RHIAcquireThreadOwnership()
-{
-}
-
-void FVulkanDynamicRHI::RHIReleaseThreadOwnership()
-{
 }
 
 // IVulkanDynamicRHI interface
@@ -1443,6 +1494,18 @@ TArray<VkExtensionProperties> FVulkanDynamicRHI::RHIGetAllDeviceExtensions(VkPhy
 	return Extensions;
 }
 
+TArray<FAnsiString> FVulkanDynamicRHI::RHIGetLoadedDeviceExtensions() const
+{
+	// Create copies to prevent issues
+	TArray<FAnsiString> OutExtensions;
+	const TArray<const ANSICHAR*>& DeviceExtensions = GetDevice()->DeviceExtensions;
+	for (const ANSICHAR* ExtensionName : DeviceExtensions)
+	{
+		OutExtensions.Emplace(ExtensionName);
+	}
+	return OutExtensions;
+}
+
 VkImage FVulkanDynamicRHI::RHIGetVkImage(FRHITexture* InTexture) const
 {
 	FVulkanTexture* VulkanTexture = ResourceCast(InTexture);
@@ -1493,6 +1556,19 @@ FVulkanRHIImageViewInfo FVulkanDynamicRHI::RHIGetImageViewInfo(FRHITexture* InTe
 	return Info;
 }
 
+FVulkanRHIAllocationInfo FVulkanDynamicRHI::RHIGetAllocationInfo(FRHIBuffer* InBuffer) const
+{
+	FVulkanResourceMultiBuffer* VulkanBuffer = ResourceCast(InBuffer);
+	const VulkanRHI::FVulkanAllocation& Allocation = VulkanBuffer->GetCurrentAllocation();
+
+	FVulkanRHIAllocationInfo NewInfo{};
+	NewInfo.Handle = Allocation.GetDeviceMemoryHandle(GetDevice());
+	NewInfo.Offset = Allocation.Offset;
+	NewInfo.Size = Allocation.Size;
+
+	return NewInfo;
+}
+
 void FVulkanDynamicRHI::RHISetImageLayout(VkImage Image, VkImageLayout OldLayout, VkImageLayout NewLayout, const VkImageSubresourceRange& SubresourceRange)
 {
 	FVulkanCommandListContext& ImmediateContext = GetDevice()->GetImmediateContext();
@@ -1521,7 +1597,7 @@ void FVulkanDynamicRHI::RHIRegisterWork(uint32 NumPrimitives)
 	FVulkanCommandListContextImmediate& ImmediateContext = GetDevice()->GetImmediateContext();
 	if (FVulkanPlatform::RegisterGPUWork() && ImmediateContext.IsImmediate())
 	{
-		ImmediateContext.GetGPUProfiler().RegisterGPUWork(1);
+		ImmediateContext.RegisterGPUWork(NumPrimitives);
 	}
 }
 
@@ -1566,23 +1642,13 @@ IRHICommandContext* FVulkanDynamicRHI::RHIGetDefaultContext()
 	return &Device->GetImmediateContext();
 }
 
-IRHIComputeContext* FVulkanDynamicRHI::RHIGetDefaultAsyncComputeContext()
-{
-	return &Device->GetImmediateComputeContext();
-}
-
 uint64 FVulkanDynamicRHI::RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat Format)
 {
 	const VkPhysicalDeviceLimits& Limits = Device->GetLimits();
 	return Limits.minTexelBufferOffsetAlignment;
 }
 
-void FVulkanDynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
-	Device->SubmitCommandsAndFlushGPU();
-}
-
-FTexture2DRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
+FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding, const FVulkanRHIExternalImageDeleteCallbackInfo& ExternalImageDeleteCallbackInfo)
 {
 	const FRHITextureCreateDesc Desc =
 		FRHITextureCreateDesc::Create2D(TEXT("VulkanTexture2DFromResource"), SizeX, SizeY, Format)
@@ -1592,10 +1658,28 @@ FTexture2DRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat 
 		.SetNumSamples(NumSamples)
 		.DetermineInititialState();
 
-	return new FVulkanTexture(*Device, Desc, Resource, false);
+	return new FVulkanTexture(*Device, Desc, Resource, ExternalImageDeleteCallbackInfo);
 }
 
-FTexture2DArrayRHIRef FVulkanDynamicRHI::RHICreateTexture2DArrayFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
+#if PLATFORM_ANDROID
+FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromAndroidHardwareBuffer(AHardwareBuffer* HardwareBuffer)
+{
+	check(HardwareBuffer);
+
+	AHardwareBuffer_Desc HardwareBufferDesc;
+	AHardwareBuffer_describe(HardwareBuffer, &HardwareBufferDesc);
+	check((HardwareBufferDesc.usage & AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE) != 0);
+
+	const FRHITextureCreateDesc Desc =
+		FRHITextureCreateDesc::Create2D(TEXT("VulkanTexture2DFromAndroidHardwareBuffer"), HardwareBufferDesc.width, HardwareBufferDesc.height, PF_Unknown)
+		.SetFlags(ETextureCreateFlags::External)
+		.DetermineInititialState();
+
+	return new FVulkanTexture(*Device, Desc, HardwareBufferDesc, HardwareBuffer);
+}
+#endif
+
+FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DArrayFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
 {
 	const FRHITextureCreateDesc Desc =
 		FRHITextureCreateDesc::Create2DArray(TEXT("VulkanTextureArrayFromResource"), SizeX, SizeY, ArraySize, Format)
@@ -1605,10 +1689,10 @@ FTexture2DArrayRHIRef FVulkanDynamicRHI::RHICreateTexture2DArrayFromResource(EPi
 		.SetNumSamples(NumSamples)
 		.DetermineInititialState();
 
-	return new FVulkanTexture(*Device, Desc, Resource, false);
+	return new FVulkanTexture(*Device, Desc, Resource, {});
 }
 
-FTextureCubeRHIRef FVulkanDynamicRHI::RHICreateTextureCubeFromResource(EPixelFormat Format, uint32 Size, bool bArray, uint32 ArraySize, uint32 NumMips, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
+FTextureRHIRef FVulkanDynamicRHI::RHICreateTextureCubeFromResource(EPixelFormat Format, uint32 Size, bool bArray, uint32 ArraySize, uint32 NumMips, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
 {
 	const FRHITextureCreateDesc Desc =
 		FRHITextureCreateDesc::Create(TEXT("VulkanTextureCubeFromResource"), ArraySize > 1 ? ETextureDimension::TextureCubeArray : ETextureDimension::TextureCube)
@@ -1620,7 +1704,7 @@ FTextureCubeRHIRef FVulkanDynamicRHI::RHICreateTextureCubeFromResource(EPixelFor
 		.SetNumMips(NumMips)
 		.DetermineInititialState();
 
-	return new FVulkanTexture(*Device, Desc, Resource, false);
+	return new FVulkanTexture(*Device, Desc, Resource, {});
 }
 
 void FVulkanDynamicRHI::RHIAliasTextureResources(FTextureRHIRef& DestTextureRHI, FTextureRHIRef& SrcTextureRHI)
@@ -1682,7 +1766,7 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	VkDescriptorSetLayoutBinding* Binding = new(DescSetLayout.LayoutBindings) VkDescriptorSetLayoutBinding;
 	*Binding = Descriptor;
 
-	const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = RemappingInfo.SetInfos[DescriptorSetIndex];
+	const FStageInfo& SetInfo = StageInfos[DescriptorSetIndex];
 	check(SetInfo.Types[Descriptor.binding] == Descriptor.descriptorType);
 	switch (Descriptor.descriptorType)
 	{
@@ -1691,18 +1775,16 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
 	case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumImageInfos);
+		IncrementChecked(StageInfos[DescriptorSetIndex].NumImageInfos);
 		break;
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumBufferInfos);
+		IncrementChecked(StageInfos[DescriptorSetIndex].NumBufferInfos);
 		break;
-#if VULKAN_RHI_RAYTRACING
 	case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumAccelerationStructures);
+		IncrementChecked(StageInfos[DescriptorSetIndex].NumAccelerationStructures);
 		break;
-#endif
 	case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
 		break;
@@ -1723,19 +1805,19 @@ void FVulkanDescriptorSetsLayoutInfo::GenerateHash(const TArrayView<FRHISamplerS
 		Hash = FCrc::MemCrc32(&SetLayouts[layoutIndex].Hash, sizeof(uint32), Hash);
 	}
 
-	for (uint32 RemapingIndex = 0; RemapingIndex < ShaderStage::NumStages; ++RemapingIndex)
+	const uint32 NumStages = GetNumStagesForBindPoint(InBindPoint);
+	for (uint32 RemapingIndex = 0; RemapingIndex < NumStages; ++RemapingIndex)
 	{
-		Hash = FCrc::MemCrc32(&RemappingInfo.StageInfos[RemapingIndex].PackedUBDescriptorSet, sizeof(uint16), Hash);
-		Hash = FCrc::MemCrc32(&RemappingInfo.StageInfos[RemapingIndex].Pad0, sizeof(uint16), Hash);
+		const FStageInfo& StageInfo = StageInfos[RemapingIndex];
 
-		TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& Globals = RemappingInfo.StageInfos[RemapingIndex].Globals;
-		Hash = FCrc::MemCrc32(Globals.GetData(), sizeof(FDescriptorSetRemappingInfo::FRemappingInfo) * Globals.Num(), Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.PackedGlobalsSize, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumBoundUniformBuffers, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumImageInfos, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumBufferInfos, Hash);
+		Hash = FCrc::TypeCrc32(StageInfo.NumAccelerationStructures, Hash);
 
-		TArray<FDescriptorSetRemappingInfo::FUBRemappingInfo>& UniformBuffers = RemappingInfo.StageInfos[RemapingIndex].UniformBuffers;
-		Hash = FCrc::MemCrc32(UniformBuffers.GetData(), sizeof(FDescriptorSetRemappingInfo::FUBRemappingInfo) * UniformBuffers.Num(), Hash);
-
-		TArray<uint16>& PackedUBBindingIndices = RemappingInfo.StageInfos[RemapingIndex].PackedUBBindingIndices;
-		Hash = FCrc::MemCrc32(PackedUBBindingIndices.GetData(), sizeof(uint16) * PackedUBBindingIndices.Num(), Hash);
+		const TArray<VkDescriptorType>& Types = StageInfo.Types;
+		Hash = FCrc::MemCrc32(Types.GetData(), sizeof(VkDescriptorType) * Types.Num(), Hash);
 	}
 
 	// It would be better to store this when the object is created, but it's not available at that time, so we'll do it here.
@@ -1819,12 +1901,10 @@ void FVulkanDescriptorSetsLayout::Compile(FVulkanDescriptorSetLayoutMap& DSetLay
 
 	check(LayoutTypes[VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT] <= Limits.maxDescriptorSetInputAttachments);
 
-#if VULKAN_RHI_RAYTRACING
 	if (GRHISupportsRayTracing)
 	{
 		check(LayoutTypes[VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR] < Device->GetOptionalExtensionProperties().AccelerationStructureProps.maxDescriptorSetAccelerationStructures);
 	}
-#endif
 	
 	LayoutHandles.Empty(SetLayouts.Num());
 
@@ -1896,13 +1976,13 @@ FVulkanRenderPass::~FVulkanRenderPass()
 {
 	DEC_DWORD_STAT(STAT_VulkanNumRenderPasses);
 
-	Device.GetDeferredDeletionQueue().EnqueueResource(FDeferredDeletionQueue2::EType::RenderPass, RenderPass);
+	Device.GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::FDeferredDeletionQueue2::EType::RenderPass, RenderPass);
 	RenderPass = VK_NULL_HANDLE;
 }
 
 void FVulkanDynamicRHI::SavePipelineCache()
 {
-	FString CacheFile = GetPipelineCacheFilename();
+	FString CacheFile = VulkanRHI::GetPipelineCacheFilename();
 
 	GVulkanRHI->Device->PipelineStateCache->Save(CacheFile);
 }
@@ -1932,7 +2012,7 @@ void FVulkanDynamicRHI::SaveValidationCache()
 				Result = vkGetValidationCacheData(Device, ValidationCache, &CacheSize, Data.GetData());
 				if (Result == VK_SUCCESS)
 				{
-					FString CacheFilename = GetValidationCacheFilename();
+					FString CacheFilename = VulkanRHI::GetValidationCacheFilename();
 					if (FFileHelper::SaveArrayToFile(Data, *CacheFilename))
 					{
 						UE_LOG(LogVulkanRHI, Display, TEXT("Saved validation cache file '%s', %d bytes"), *CacheFilename, Data.Num());
@@ -2050,7 +2130,7 @@ IRHITransientResourceAllocator* FVulkanDynamicRHI::RHICreateTransientResourceAll
 
 uint32 FVulkanDynamicRHI::GetPrecachePSOHashVersion()
 {
-	static const uint32 PrecacheHashVersion = 2;
+	static const uint32 PrecacheHashVersion = 3;
 	return PrecacheHashVersion;
 }
 
@@ -2068,23 +2148,28 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 #endif // PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 #if PLATFORM_SUPPORTS_MESH_SHADERS
 		uint32 MeshShader;
+		uint32 TaskShader;
 #endif // PLATFORM_SUPPORTS_MESH_SHADERS
 		uint32 BlendState;
 		uint32 RasterizerState;
 		uint32 DepthStencilState;
 		uint32 ImmutableSamplerState;
 
-		uint32 MultiViewCount : 8;
 		uint32 DrawShadingRate : 8;
 		uint32 PrimitiveType : 8;
 		uint32 bDepthBounds : 1;
-		uint32 bHasFragmentDensityAttachment : 1;
-		uint32 Unused : 6;
+		uint32 bAllowVariableRateShading : 1;
+		uint32 Unused : 14;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FHashKey));
 
-	HashKey.VertexDeclaration = Initializer.BoundShaderState.VertexDeclarationRHI ? Initializer.BoundShaderState.VertexDeclarationRHI->GetPrecachePSOHash() : 0;
+	// We know for sure that on ARM MALI GPUs vertex decl does not affect PSO
+	const bool bVertexDeclAffectsPSO = (GRHIVendorId != (uint32)EGpuVendorId::Arm);
+	if (bVertexDeclAffectsPSO)
+	{ 
+		HashKey.VertexDeclaration = Initializer.BoundShaderState.VertexDeclarationRHI ? Initializer.BoundShaderState.VertexDeclarationRHI->GetPrecachePSOHash() : 0;
+	}
 	HashKey.VertexShader = Initializer.BoundShaderState.GetVertexShader() ? GetTypeHash(Initializer.BoundShaderState.GetVertexShader()->GetHash()) : 0;
 	HashKey.PixelShader = Initializer.BoundShaderState.GetPixelShader() ? GetTypeHash(Initializer.BoundShaderState.GetPixelShader()->GetHash()) : 0;
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
@@ -2092,6 +2177,7 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 #endif
 #if PLATFORM_SUPPORTS_MESH_SHADERS
 	HashKey.MeshShader = Initializer.BoundShaderState.GetMeshShader() ? GetTypeHash(Initializer.BoundShaderState.GetMeshShader()->GetHash()) : 0;
+	HashKey.TaskShader = Initializer.BoundShaderState.GetAmplificationShader() ? GetTypeHash(Initializer.BoundShaderState.GetAmplificationShader()->GetHash()) : 0;
 #endif
 
 	FBlendStateInitializerRHI BlendStateInitializerRHI;
@@ -2113,11 +2199,10 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 	// Ignore immutable samplers for now
 	//HashKey.ImmutableSamplerState = GetTypeHash(ImmutableSamplerState);
 
-	HashKey.MultiViewCount = Initializer.MultiViewCount;
 	HashKey.DrawShadingRate = Initializer.ShadingRate;
 	HashKey.PrimitiveType = Initializer.PrimitiveType;
 	HashKey.bDepthBounds = Initializer.bDepthBounds;
-	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
+	HashKey.bAllowVariableRateShading = Initializer.bAllowVariableRateShading;
 
 	uint64 PrecachePSOHash = CityHash64((const char*)&HashKey, sizeof(FHashKey));
 
@@ -2141,7 +2226,6 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 	{
 		uint64							StatePrecachePSOHash;
 
-		EPrimitiveType					PrimitiveType;
 		uint32							RenderTargetsEnabled;
 		FGraphicsPipelineStateInitializer::TRenderTargetFormats	RenderTargetFormats;
 		FGraphicsPipelineStateInitializer::TRenderTargetFlags RenderTargetFlags;
@@ -2151,18 +2235,15 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 		uint16							NumSamples;
 		ESubpassHint					SubpassHint;
 		uint8							SubpassIndex;
-		EConservativeRasterization		ConservativeRasterization;
 		uint8							MultiViewCount;
-		EVRSShadingRate					ShadingRate;
-		bool							bDepthBounds;
 		bool							bHasFragmentDensityAttachment;
+		EConservativeRasterization		ConservativeRasterization;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FNonStateHashKey));
 
 	HashKey.StatePrecachePSOHash = StatePrecachePSOHash;
 
-	HashKey.PrimitiveType = Initializer.PrimitiveType;
 	HashKey.RenderTargetsEnabled = Initializer.RenderTargetsEnabled;
 	HashKey.RenderTargetFormats = Initializer.RenderTargetFormats;
 	HashKey.RenderTargetFlags = Initializer.RenderTargetFlags;
@@ -2171,12 +2252,10 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 	HashKey.NumSamples = Initializer.NumSamples;
 	HashKey.SubpassHint = Initializer.SubpassHint;
 	HashKey.SubpassIndex = Initializer.SubpassIndex;
-	HashKey.ConservativeRasterization = Initializer.ConservativeRasterization;
 	HashKey.MultiViewCount = Initializer.MultiViewCount;
-	HashKey.ShadingRate = Initializer.ShadingRate;
-	HashKey.bDepthBounds = Initializer.bDepthBounds;
 	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
-
+	HashKey.ConservativeRasterization = Initializer.ConservativeRasterization;
+	
 	// TODO: check if any RT flags actually affect PSO in VK
 	for (ETextureCreateFlags& Flags : HashKey.RenderTargetFlags)
 	{
@@ -2196,6 +2275,7 @@ bool FVulkanDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 		LHS.MultiViewCount != RHS.MultiViewCount ||
 		LHS.ShadingRate != RHS.ShadingRate ||
 		LHS.bHasFragmentDensityAttachment != RHS.bHasFragmentDensityAttachment ||
+		LHS.bAllowVariableRateShading != RHS.bAllowVariableRateShading ||
 		LHS.RenderTargetsEnabled != RHS.RenderTargetsEnabled ||
 		LHS.RenderTargetFormats != RHS.RenderTargetFormats ||
 		!FGraphicsPipelineStateInitializer::RelevantRenderTargetFlagsEqual(LHS.RenderTargetFlags, RHS.RenderTargetFlags) ||
@@ -2237,6 +2317,72 @@ bool FVulkanDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 
 	return true;
 }
+
+void FVulkanDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
+{
+	RHICmdList.EnqueueLambda(TEXT("FVulkanDynamicRHI::RHIReplaceResources"),
+		[ReplaceInfos = MoveTemp(ReplaceInfos)](FRHICommandListBase& ExecutingCmdList)
+		{
+			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
+			{
+				switch (Info.GetType())
+				{
+				default:
+					checkNoEntry();
+					break;
+
+				case FRHIResourceReplaceInfo::EType::Buffer:
+					{
+						FVulkanResourceMultiBuffer* Dst = ResourceCast(Info.GetBuffer().Dst);
+						FVulkanResourceMultiBuffer* Src = ResourceCast(Info.GetBuffer().Src);
+
+						if (Src)
+						{
+							// The source buffer should not have any associated views.
+							check(!Src->HasLinkedViews());
+
+							Dst->TakeOwnership(*Src);
+						}
+						else
+						{
+							Dst->ReleaseOwnership();
+						}
+
+						Dst->UpdateLinkedViews();
+					}
+					break;
+
+				case FRHIResourceReplaceInfo::EType::RTGeometry:
+					{
+						FVulkanRayTracingGeometry* Src = ResourceCast(Info.GetRTGeometry().Src);
+						FVulkanRayTracingGeometry* Dst = ResourceCast(Info.GetRTGeometry().Dst);
+
+						if (!Src)
+						{
+							TRefCountPtr<FVulkanRayTracingGeometry> DeletionProxy = new FVulkanRayTracingGeometry(NoInit);
+							Dst->RemoveCompactionRequest();
+							Dst->Swap(*DeletionProxy);
+						}
+						else
+						{
+							Dst->Swap(*Src);
+						}
+					}
+					break;
+				}
+			}
+		}
+	);
+
+	RHICmdList.RHIThreadFence(true);
+}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+FRHIResourceCollectionRef FVulkanDynamicRHI::RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+{
+	return new FVulkanResourceCollection(RHICmdList, InMembers);
+}
+#endif
 
 
 #undef LOCTEXT_NAMESPACE

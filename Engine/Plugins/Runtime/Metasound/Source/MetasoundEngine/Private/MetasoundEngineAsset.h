@@ -4,36 +4,79 @@
 
 #include "Metasound.h"
 #include "MetasoundAssetManager.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundEngineModule.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistryKey.h"
+#include "MetasoundGlobals.h"
+#include "MetasoundSettings.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/App.h"
+#include "Modules/ModuleManager.h"
 #include "Serialization/Archive.h"
 
 #if WITH_EDITORONLY_DATA
-#include "MetasoundFrontendRegistries.h"
 #include "Algo/Transform.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "MetasoundFrontendRegistryContainer.h"
+#include "Misc/DataValidation.h"
+#include "UObject/GarbageCollection.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/StrongObjectPtrTemplates.h"
 #endif // WITH_EDITORONLY_DATA
 
+#define LOCTEXT_NAMESPACE "MetasoundEngine"
 
-namespace Metasound
+namespace Metasound::Engine
 {
 	/** MetaSound Engine Asset helper provides routines for UObject based MetaSound assets. 
 	 * Any UObject deriving from FMetaSoundAssetBase should use these helper functions
 	 * in their UObject overrides. 
 	 */
-	struct FMetaSoundEngineAssetHelper
+	struct FAssetHelper
 	{
+		static bool SerializationRequiresDeterminism(bool bIsCooking)
+		{
+			return bIsCooking || IsRunningCookCommandlet();
+		}
+
 #if WITH_EDITOR
+		static void PreDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, FObjectDuplicationParameters& DupParams)
+		{
+			FDocumentBuilderRegistry::GetChecked().SetEventLogVerbosity(FDocumentBuilderRegistry::ELogEvent::DuplicateEntries, ELogVerbosity::NoLogging);
+		}
+
+		static void PostDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EDuplicateMode::Type InDuplicateMode, FGuid& OutAssetClassID)
+		{
+			using namespace Engine;
+			using namespace Frontend;
+
+			if (InDuplicateMode == EDuplicateMode::Normal)
+			{
+				UObject* MetaSoundObject = MetaSound.GetObject();
+				check(MetaSoundObject);
+
+				FDocumentBuilderRegistry& BuilderRegistry = FDocumentBuilderRegistry::GetChecked();
+				UMetaSoundBuilderBase& DuplicateBuilder = BuilderRegistry.FindOrBeginBuilding(*MetaSoundObject);
+
+				FMetaSoundFrontendDocumentBuilder& DocBuilder = DuplicateBuilder.GetBuilder();
+				const FMetasoundFrontendClassName DuplicateName = DocBuilder.GetConstDocumentChecked().RootGraph.Metadata.GetClassName();
+				const FMetasoundFrontendClassName NewName = DocBuilder.GenerateNewClassName();
+				ensureAlwaysMsgf(IMetaSoundAssetManager::GetChecked().TryGetAssetIDFromClassName(NewName, OutAssetClassID), TEXT("Failed to retrieve newly duplicated MetaSoundClassName AssetID"));
+
+				constexpr bool bForceUnregisterNodeClass = true;
+				BuilderRegistry.FinishBuilding(DuplicateName, MetaSound->GetAssetPathChecked(), bForceUnregisterNodeClass);
+				BuilderRegistry.SetEventLogVerbosity(FDocumentBuilderRegistry::ELogEvent::DuplicateEntries, ELogVerbosity::All);
+			}
+		}
+
 		template <typename TMetaSoundObject>
 		static void PostEditUndo(TMetaSoundObject& InMetaSound)
 		{
 			InMetaSound.GetModifyContext().SetForceRefreshViews();
 
-			const FMetasoundFrontendDocument& Document = InMetaSound.GetDocumentChecked();
-			const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
-			UMetaSoundBuilderSubsystem::GetChecked().PostBuilderAssetTransaction(ClassName);
+			const FMetasoundFrontendClassName& ClassName = InMetaSound.GetConstDocument().RootGraph.Metadata.GetClassName();
+			Frontend::IDocumentBuilderRegistry::GetChecked().ReloadBuilder(ClassName);
 
 			if (UMetasoundEditorGraphBase* Graph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
 			{
@@ -62,6 +105,103 @@ namespace Metasound
 				}
 			}
 		}
+
+		static EDataValidationResult IsClassNameUnique(const FMetasoundFrontendDocument& Document, FDataValidationContext& InOutContext)
+		{
+			using namespace Metasound::Frontend;
+			using namespace Metasound::Engine;
+
+			EDataValidationResult Result = EDataValidationResult::Valid;
+
+			// Need to prime asset registry to look for duplicate class names
+			IMetasoundEngineModule& MetaSoundEngineModule = FModuleManager::GetModuleChecked<IMetasoundEngineModule>("MetaSoundEngine");
+			// Checking for duplicate class names only requires the asset manager to be primed, but not for assets to be loaded. 
+			if (!MetaSoundEngineModule.IsAssetManagerPrimed())
+			{
+				MetaSoundEngineModule.PrimeAssetManager();
+				// Check again, as priming relies on the asset registry being loaded so may not be complete
+				if (!MetaSoundEngineModule.IsAssetManagerPrimed())
+				{
+					Result = EDataValidationResult::Invalid;
+					InOutContext.AddError(LOCTEXT("UniqueClassNameAssetManagerNotReady",
+						"MetaSound Asset Manager was unable to be primed to check for unique class names. This may be because the asset registry has not finished loading assets. Please try again later."));
+					return Result;
+				}
+			}
+
+			IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+			// Validation has added assets to the asset manager
+			// and we don't remove them immediately after validation to optimize possible subsequent validation
+			// Set this flag to prevent log spam of active assets on shutdown
+			AssetManager.SetLogActiveAssetsOnShutdown(false);
+
+			// Add error for multiple assets with the same class name
+			const FAssetKey Key(Document.RootGraph.Metadata);
+			const TArray<FTopLevelAssetPath> AssetPaths = AssetManager.FindAssetPaths(Key);
+			if (AssetPaths.Num() > 1)
+			{
+				Result = EDataValidationResult::Invalid;
+
+				TArray<FText> PathStrings;
+				Algo::Transform(AssetPaths, PathStrings, [](const FTopLevelAssetPath& Path) { return FText::FromString(Path.ToString()); });
+				InOutContext.AddError(FText::Format(LOCTEXT("UniqueClassNameValidation",
+					"Multiple assets use the same class name which may result in unintended behavior. This may happen when an asset is moved, then the move is reverted in revision control without removing the newly created asset. Please remove the offending asset or duplicate it to automatically generate a new class name." \
+					"\nConflicting Asset Paths:\n{0}"), FText::Join(FText::FromString(TEXT("\n")), PathStrings)));
+			}
+
+			// Success
+			return Result;
+		}
+
+		static EDataValidationResult IsDataValid(const UObject& MetaSound, const FMetasoundFrontendDocument& Document, FDataValidationContext& InOutContext)
+		{
+			using namespace Metasound::Engine;
+
+			EDataValidationResult Result = EDataValidationResult::Valid;
+			if (MetasoundEngineModulePrivate::EnableMetaSoundEditorAssetValidation)
+			{
+				Result = IsClassNameUnique(Document, InOutContext);
+			}
+
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+
+			TSet<FGuid> ValidPageIDs;
+			auto ErrorIfMissing = [&](const FGuid& PageID, const FText& DataDescriptor)
+			{
+				if (!ValidPageIDs.Contains(PageID))
+				{
+					if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageID))
+					{
+						ValidPageIDs.Add(PageSettings->UniqueId);
+					}
+					else
+					{
+						Result = EDataValidationResult::Invalid;
+						InOutContext.AddMessage(FAssetData(&MetaSound), EMessageSeverity::Error, FText::Format(
+							LOCTEXT("InvalidPageDataFormat", "MetaSound contains invalid {0} with page ID '{1}': page not found in Project 'MetaSound' Settings. Remove page data or migrate to existing page identifier."),
+							DataDescriptor,
+							FText::FromString(PageID.ToString())));
+					}
+				}
+			};
+
+			const TArray<FMetasoundFrontendGraph>& Graphs = Document.RootGraph.GetConstGraphPages();
+			for (const FMetasoundFrontendGraph& Graph : Graphs)
+			{
+				ErrorIfMissing(Graph.PageID, LOCTEXT("GraphPageDescriptor", "graph"));
+			}
+
+			for (const FMetasoundFrontendClassInput& ClassInput : Document.RootGraph.Interface.Inputs)
+			{
+				ClassInput.IterateDefaults([&](const FGuid& PageID, const FMetasoundFrontendLiteral&)
+				{
+					ErrorIfMissing(PageID, FText::Format(LOCTEXT("InputPageDefaultDescriptorFormat", "input '{0}' default value"), FText::FromName(ClassInput.Name)));
+				});
+			}
+			return Result;
+		}
+
 #endif // WITH_EDITOR
 
 		template <typename TMetaSoundObject>
@@ -95,43 +235,42 @@ namespace Metasound
 			return ReferencedAssets;
 		}
 
-		template <typename TMetaSoundObject>
-		static void PreSaveAsset(TMetaSoundObject& InMetaSound, FObjectPreSaveContext InSaveContext)
+		static void PreSaveAsset(FMetasoundAssetBase& InMetaSound, FObjectPreSaveContext InSaveContext)
 		{
 #if WITH_EDITORONLY_DATA
 			using namespace Frontend;
 
-			// Do not call asset manager on CDO objects which may be loaded before asset 
-			// manager is set.
 			if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 			{
 				AssetManager->WaitUntilAsyncLoadReferencedAssetsComplete(InMetaSound);
 			}
 
-			if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
+			const bool bIsCooking = InSaveContext.IsCooking();
+			const bool bCanEverExecute = Metasound::CanEverExecuteGraph(bIsCooking);
+			if (!bCanEverExecute)
 			{
-				if (InSaveContext.IsCooking() || IsRunningCommandlet())
+				FName PlatformName;
+				if (const ITargetPlatform* TargetPlatform = InSaveContext.GetTargetPlatform())
 				{
-					// Use deterministic ID generation so more can be done at cook rather than runtime
-					if (MetaSoundEnableCookDeterministicIDGeneration != 0)
-					{
-						{
-							constexpr bool bIsDeterministic = true;
-							FDocumentIDGenerator::FScopeDeterminism DeterminismScope = FDocumentIDGenerator::FScopeDeterminism(bIsDeterministic);
-							InMetaSound.CookMetaSound();
-						}
-					}
+					PlatformName = *TargetPlatform->IniPlatformName();
 				}
- 				else if (FApp::CanEverRenderAudio())
+				const bool bIsDeterministic = SerializationRequiresDeterminism(bIsCooking);
+				FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+				InMetaSound.UpdateAndRegisterForSerialization(PlatformName);
+			}
+ 			else if (FApp::CanEverRenderAudio())
+			{
+				if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
 				{
+					// Uses graph flavor of register with frontend to update editor systems/asset editors in case editor is enabled.
 					MetaSoundGraph->RegisterGraphWithFrontend();
-					MetaSoundGraph->GetModifyContext().SetForceRefreshViews();
+					InMetaSound.GetModifyContext().SetForceRefreshViews();
 				}
-				else
-				{
-					UE_LOG(LogMetaSound, Warning, TEXT("PreSaveAsset for MetaSound: (%s) is doing nothing because InSaveContext.IsCooking, IsRunningCommandlet, and FApp::CanEverRenderAudio were all false")
-						, *InMetaSound.GetPathName());
-				}
+			}
+			else
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("PreSaveAsset for MetaSound: (%s) is doing nothing because InSaveContext.IsCooking, IsRunningCommandlet, and FApp::CanEverRenderAudio were all false")
+					, *InMetaSound.GetOwningAssetName());
 			}
 #endif // WITH_EDITORONLY_DATA
 		}
@@ -139,18 +278,36 @@ namespace Metasound
 		template <typename TMetaSoundObject>
 		static void SerializeToArchive(TMetaSoundObject& InMetaSound, FArchive& InArchive)
 		{
+#if WITH_EDITORONLY_DATA
+			using namespace Frontend;
+
+			bool bVersionedAsset = false;
+
 			if (InArchive.IsLoading())
 			{
-				if (InMetaSound.VersionAsset())
+				const bool bIsTransacting = InArchive.IsTransacting();
+				TStrongObjectPtr<UMetaSoundBuilderBase> Builder;
 				{
-#if WITH_EDITORONLY_DATA
-					if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
-					{
-						MetaSoundGraph->SetVersionedOnLoad();
-					}
-#endif // WITH_EDITORONLY_DATA
+					FGCScopeGuard ScopeGuard;
+					Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(InMetaSound, bIsTransacting));
 				}
+
+				{
+					const bool bIsCooking = InArchive.IsCooking();
+					const bool bIsDeterministic = SerializationRequiresDeterminism(bIsCooking);
+					FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+					check(Builder.IsValid());
+					bVersionedAsset = InMetaSound.VersionAsset(Builder->GetBuilder());
+				}
+
+				Builder->ClearInternalFlags(EInternalObjectFlags::Async);
 			}
+
+			if (bVersionedAsset)
+			{
+				InMetaSound.SetVersionedOnLoad();
+			}
+#endif // WITH_EDITORONLY_DATA
 		}
 
 		template<typename TMetaSoundObject>
@@ -164,14 +321,7 @@ namespace Metasound
 			{
 				if (InMetaSound.GetAsyncReferencedAssetClassPaths().Num() > 0)
 				{
-					if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
-					{
-						AssetManager->RequestAsyncLoadReferencedAssets(InMetaSound);
-					}
-					else
-					{
-						UE_LOG(LogMetaSound, Warning, TEXT("Request for to load async references ignored from asset %s. Likely due loading before the MetaSoundEngine module."), *InMetaSound.GetPathName());
-					}
+					IMetaSoundAssetManager::GetChecked().RequestAsyncLoadReferencedAssets(InMetaSound);
 				}
 			}
 		}
@@ -235,5 +385,5 @@ namespace Metasound
 		}
 #endif // WITH_EDITORONLY_DATA
 	};
-} // namespace Metasound
-
+} // namespace Metasound::Engine
+#undef LOCTEXT_NAMESPACE // MetasoundEngine

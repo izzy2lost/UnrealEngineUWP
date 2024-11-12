@@ -90,7 +90,7 @@ FNiagaraEmitterInstance* FNiagaraDataInterfaceEmitterBinding::Resolve(const FNia
 
 		if (FNiagaraUtilities::LogVerboseWarnings())
 		{
-			UE_LOG(LogNiagara, Warning, TEXT("EmitterBinding failed to find emitter '%s' it might not exist or has been cooked out"), EmitterNameStringView.GetData());
+			UE_LOG(LogNiagara, Warning, TEXT("EmitterBinding failed to find emitter '%s' it might not exist or has been cooked out"), *EmitterNameString);
 		}
 	}
 	return nullptr;
@@ -147,6 +147,38 @@ const FNiagaraEmitterHandle* FNiagaraDataInterfaceEmitterBinding::ResolveHandle(
 				}
 			}
 		}
+	}
+	else if (BindingMode == ENiagaraDataInterfaceEmitterBindingMode::Other)
+	{
+		if (!EmitterName.IsNone())
+		{
+			FNameBuilder EmitterNameString;
+			EmitterName.ToString(EmitterNameString);
+			FStringView EmitterNameStringView = EmitterNameString.ToView();
+
+			for (const FNiagaraEmitterHandle& EmitterHandle : OwnerSystem->GetEmitterHandles())
+			{
+				if (UNiagaraEmitter* NiagaraEmitter = EmitterHandle.GetInstance().Emitter)
+				{
+					//-TODO: UniqueEmitterName should probably be a FName?
+					if (EmitterNameStringView.Equals(NiagaraEmitter->GetUniqueEmitterName(), ESearchCase::IgnoreCase))
+					{
+						return &EmitterHandle;
+					}
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+const FNiagaraEmitterHandle* FNiagaraDataInterfaceEmitterBinding::ResolveHandle(const UNiagaraSystem* OwnerSystem, const FNiagaraEmitterHandle* OwnerEmitter) const
+{
+	check(OwnerSystem);
+
+	if (BindingMode == ENiagaraDataInterfaceEmitterBindingMode::Self)
+	{
+		return OwnerEmitter;
 	}
 	else if (BindingMode == ENiagaraDataInterfaceEmitterBindingMode::Other)
 	{

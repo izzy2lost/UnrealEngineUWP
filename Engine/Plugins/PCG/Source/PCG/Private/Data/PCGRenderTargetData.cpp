@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Data/PCGRenderTargetData.h"
+
+#include "PCGContext.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "TextureResource.h"
 
@@ -26,15 +28,10 @@ void UPCGRenderTargetData::Initialize(UTextureRenderTarget2D* InRenderTarget, co
 				RTResource->ReadLinearColorPixels(ColorData, ReadPixelFlags, Rect);
 			}
 		}
+	}
 
-		Width = RenderTarget->SizeX;
-		Height = RenderTarget->SizeY;
-	}
-	else
-	{
-		Width = 0;
-		Height = 0;
-	}
+	Width = !ColorData.IsEmpty() ? RenderTarget->SizeX : 0;
+	Height = !ColorData.IsEmpty() ? RenderTarget->SizeY : 0;
 
 	Bounds = FBox(EForceInit::ForceInit);
 	Bounds += FVector(-1.0f, -1.0f, 0.0f);
@@ -50,9 +47,9 @@ void UPCGRenderTargetData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 	AddUIDToCrc(Ar);
 }
 
-UPCGSpatialData* UPCGRenderTargetData::CopyInternal() const
+UPCGSpatialData* UPCGRenderTargetData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGRenderTargetData* NewRenderTargetData = NewObject<UPCGRenderTargetData>();
+	UPCGRenderTargetData* NewRenderTargetData = FPCGContext::NewObject_AnyThread<UPCGRenderTargetData>(Context);
 
 	CopyBaseTextureData(NewRenderTargetData);
 

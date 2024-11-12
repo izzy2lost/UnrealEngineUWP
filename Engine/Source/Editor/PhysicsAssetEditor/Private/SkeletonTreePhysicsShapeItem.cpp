@@ -6,6 +6,7 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "ScopedTransaction.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 
 #define LOCTEXT_NAMESPACE "FSkeletonTreePhysicsShapeItem"
 
@@ -77,6 +78,22 @@ void FSkeletonTreePhysicsShapeItem::GenerateWidgetForNameColumn( TSharedPtr< SHo
 TSharedRef< SWidget > FSkeletonTreePhysicsShapeItem::GenerateWidgetForDataColumn(const FName& DataColumnName, FIsSelected InIsSelected)
 {
 	return SNullWidget::NullWidget;
+}
+
+FName FSkeletonTreePhysicsShapeItem::GetRowItemName() const
+{
+	FString NameAsString = GetNameAsString();
+	return *NameAsString;
+}
+
+UObject* FSkeletonTreePhysicsShapeItem::GetObject() const
+{
+	return BodySetup;
+}
+
+bool FSkeletonTreePhysicsShapeItem::CanRenameItem() const
+{
+	return true;
 }
 
 void FSkeletonTreePhysicsShapeItem::OnItemDoubleClicked()

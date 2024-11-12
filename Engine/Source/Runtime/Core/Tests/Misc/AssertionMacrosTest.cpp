@@ -123,4 +123,11 @@ TEST_CASE("Core::Misc::TestCheck", "[Core][Misc][AssertionMacros][Check]")
 	REQUIRE_CHECK_MSG("Error Message", checkf(1 == 2, TEXT("Error Message")));
 }
 
+TEST_CASE("Core::Misc::TestCheck", "[Core][Misc][AssertionMacros][CheckSlow]")
+{
+	REQUIRE_CHECK_SLOW(checkSlow(1 == 2));
+	REQUIRE_CHECK_SLOW_MSG("1 == 2", checkfSlow(1 == 2, TEXT("Error Message")));
+	REQUIRE_CHECK_SLOW_MSG("Error Message", checkfSlow(1 == 2, TEXT("Error Message")));
+}
+
 #endif

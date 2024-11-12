@@ -348,7 +348,7 @@ public:
 	 * @param Guid The GUID to calculate the hash for.
 	 * @return The hash.
 	 */
-	friend uint32 GetTypeHash(const FGuid& Guid)
+	[[nodiscard]] friend uint32 GetTypeHash(const FGuid& Guid)
 	{
 		return uint32(CityHash64((char*)&Guid, sizeof(FGuid)));
 	}

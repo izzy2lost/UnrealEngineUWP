@@ -107,6 +107,32 @@ void FNavTestSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>&
 						NavTestActor->RadiusUsedToValidateNavData, HalfHeight,  
 						NumSides, SDPG_World);
 				}
+
+				if (NavTestActor->bDrawIfNavDataIsReadyToQueryTargetActor && NavTestActor->QueryTargetActor)
+				{
+					const FVector QueryTargetLocation = NavTestActor->QueryTargetActor->GetActorLocation();
+					float Distance;
+					FVector Forward, Right, Up;
+					(QueryTargetLocation-ActorLocation).ToDirectionAndLength(Up, Distance);
+					Up.FindBestAxisVectors(Forward, Right);
+
+					constexpr int32 NumSides = 32;
+					DrawWireCapsule(PDI, ActorLocation + 0.5f * Distance * Up, Forward, Right, Up,
+						NavTestActor->bNavDataIsReadyToQueryTargetActor ? FColor::Green : FColor::Red, 
+						NavTestActor->RadiusUsedToValidateNavData, 0.5f*Distance + NavTestActor->RadiusUsedToValidateNavData,  
+						NumSides, SDPG_World);
+				}
+
+				if (NavTestActor->bDrawRaycastToQueryTargetActor && NavTestActor->QueryTargetActor)
+				{
+					const FVector QueryTargetLocation = NavTestActor->QueryTargetActor->GetActorLocation();
+					PDI->DrawLine(ActorLocation, QueryTargetLocation, NavTestActor->bRaycastToQueryTargetActorResult ? FColor::Red : NavTestActor->bRaycastToQueryTargetEndsInCorridor ? FColor::Green : FColor::Orange, SDPG_World, 2.5);
+
+					if (FNavigationSystem::IsValidLocation(NavTestActor->RaycastHitLocation))
+					{
+						DrawWireSphere(PDI, NavTestActor->RaycastHitLocation, FColor::Red, 25.f, 6, SDPG_World);
+					}
+				}
 			}
 
 			// draw path

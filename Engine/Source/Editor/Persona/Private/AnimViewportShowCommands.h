@@ -47,11 +47,13 @@ public:
 	/** Option to set ProcessRootMotionMode to Loop (Preview mesh will consume root motion continually) */
 	TSharedPtr< FUICommandInfo > ProcessRootMotionLoop;
 
+	/** Visualize root motion mode */
+	TSharedPtr< FUICommandInfo > DoNotVisualizeRootMotion;
+	TSharedPtr< FUICommandInfo > VisualizeRootMotionTrajectory;
+	TSharedPtr< FUICommandInfo > VisualizeRootMotionTrajectoryAndOrientation;
+
 	/** Option to enable/disable post process anim blueprint evaluation */
 	TSharedPtr< FUICommandInfo > DisablePostProcessBlueprint;
-
-	/** Show reference pose on preview mesh */
-	TSharedPtr< FUICommandInfo > ShowRetargetBasePose;
 	
 	/** Show Bound of preview mesh */
 	TSharedPtr< FUICommandInfo > ShowBound;
@@ -107,6 +109,9 @@ public:
 	/** Show skeletal mesh bone names */
 	TSharedPtr< FUICommandInfo > ShowBoneNames;
 
+	/** Show skeletal mesh bone names */
+	TSharedPtr< FUICommandInfo > ShowBoneColors;
+
 	/** Show skeletal mesh info */
 	TSharedPtr< FUICommandInfo > ShowDisplayInfoBasic;
 	TSharedPtr< FUICommandInfo > ShowDisplayInfoDetailed;
@@ -152,6 +157,15 @@ public:
 	TSharedPtr< FUICommandInfo > HideOnlyClothSections;
 
 	TSharedPtr< FUICommandInfo > PauseClothWithAnim;
+
+	/** Show Notification Visualizations */
+	TSharedPtr< FUICommandInfo > ShowNotificationVisualizations;
+
+	/** Show AssetUserData Visualizations */
+	TSharedPtr< FUICommandInfo > ShowAssetUserDataVisualizations;
+
+	/** Show Animation Timecode Values */
+	TSharedPtr< FUICommandInfo > ShowTimecode;
 
 public:
 	/** Registers our commands with the binding system */

@@ -4,10 +4,10 @@
 
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
-#include "Replication/Util/StreamRequestUtils.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
+#include "Replication/Misc/Util/StreamRequestUtils.h"
+#include "Replication/Client/ClientUtils.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FSubmissionWorkflow_LocalClient::FSubmissionWorkflow_LocalClient(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))

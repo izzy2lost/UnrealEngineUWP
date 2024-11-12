@@ -16,9 +16,9 @@ class FOnlineServicesFactoryEOSGS : public IOnlineServicesFactory
 {
 public:
 	virtual ~FOnlineServicesFactoryEOSGS() {}
-	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName) override
+	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName, FName InInstanceConfigName) override
 	{
-		return MakeShared<FOnlineServicesEOSGS>(InInstanceName);
+		return MakeShared<FOnlineServicesEOSGS>(InInstanceName, InInstanceConfigName);
 	}
 };
 
@@ -29,12 +29,8 @@ int FOnlineServicesEOSGSModule::GetRegistryPriority()
 
 void FOnlineServicesEOSGSModule::StartupModule()
 {
-	// Making sure we load the module at this point will avoid errors while cooking
-	const FName OnlineServicesInterfaceModuleName = TEXT("OnlineServicesInterface");
-	if (!FModuleManager::Get().IsModuleLoaded(OnlineServicesInterfaceModuleName))
-	{
-		FModuleManager::Get().LoadModuleChecked(OnlineServicesInterfaceModuleName);
-	}
+	FModuleManager::Get().LoadModuleChecked(TEXT("OnlineServicesInterface"));
+	FModuleManager::Get().LoadModuleChecked(TEXT("EOSShared"));
 
 	FOnlineServicesRegistry::Get().RegisterServicesFactory(EOnlineServices::Epic, MakeUnique<FOnlineServicesFactoryEOSGS>(), GetRegistryPriority());
 	FOnlineIdRegistryRegistry::Get().RegisterAccountIdRegistry(EOnlineServices::Epic, &FOnlineAccountIdRegistryEOSGS::Get(), GetRegistryPriority());

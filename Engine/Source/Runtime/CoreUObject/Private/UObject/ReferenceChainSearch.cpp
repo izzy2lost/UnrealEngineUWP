@@ -8,8 +8,10 @@
 #include "Experimental/Graph/GraphConvert.h"
 #include "HAL/PlatformStackWalk.h"
 #include "HAL/ThreadHeartBeat.h"
+#include "Misc/FeedbackContext.h"
 #include "UObject/FastReferenceCollector.h"
 #include "UObject/GCObject.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 
@@ -1265,28 +1267,35 @@ namespace UE::ReferenceChainSearch
 
 FString FReferenceChainSearch::GetObjectFlags(const FGCObjectInfo& InObject)
 {
+	using namespace UE::GC::Private;
+
 	FString Flags;
 
 	if (!InObject.IsDisregardForGC())
 	{
-		if (!InObject.HasAnyInternalFlags(UE::GC::GReachableObjectFlag | UE::GC::GMaybeUnreachableObjectFlag | UE::GC::GUnreachableObjectFlag))
+		if (!InObject.HasAnyInternalFlags(EInternalObjectFlags_ReachabilityFlags))
 		{
 			Flags += TEXT("(Error: No reachability flag) ");
 		}
 	}
-	else if (InObject.HasAnyInternalFlags(UE::GC::GReachableObjectFlag))
+	else if (InObject.HasAnyInternalFlags(FGCFlags::GetReachableFlagValue_ForGC()))
 	{
 		Flags += TEXT("(Error: Reachable but NeverGCed) ");
 	}
 
-	if (InObject.HasAnyInternalFlags(UE::GC::GMaybeUnreachableObjectFlag))
+	if (InObject.HasAnyInternalFlags(FGCFlags::GetMaybeUnreachableFlagValue_ForGC()))
 	{
-		Flags += FString::Printf(TEXT("(MaybeUnreachable<%d>) "), (int32)UE::GC::GMaybeUnreachableObjectFlag);
+		Flags += FString::Printf(TEXT("(MaybeUnreachable<%d>) "), FGCFlags::GetMaybeUnreachableFlagValue_ForGC());
 	}
 
-	if (InObject.HasAnyInternalFlags(UE::GC::GUnreachableObjectFlag))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::Unreachable))
 	{
-		Flags += FString::Printf(TEXT("(Unreachable<%d>) "), (int32)UE::GC::GUnreachableObjectFlag);
+		Flags += TEXT("(Unreachable) ");
+	}
+
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::RefCounted))
+	{
+		Flags += FString::Printf(TEXT("(refcounted<%d>) "), InObject.GetRefCount());
 	}
 
 	if (InObject.IsRooted())
@@ -1315,7 +1324,7 @@ FString FReferenceChainSearch::GetObjectFlags(const FGCObjectInfo& InObject)
 		Flags += TEXT("(async) ");
 	}
 
-	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		Flags += TEXT("(asyncloading) ");
 	}
@@ -1347,7 +1356,8 @@ static void ConvertStackFramesToCallstack(
 	int32 NumStackFrames,
 	int32 Indent,
 	FOutputDevice& Out,
-	TMap<uint64, FString>& Cache)
+	TMap<uint64, FString>& Cache,
+	ELogVerbosity::Type VerbosityForPrint)
 {
 	// Convert the stack trace to text
 	FStringView View;
@@ -1377,7 +1387,7 @@ static void ConvertStackFramesToCallstack(
 			{
 				View = View.RightChop(Index + 1);
 			}
-			Out.Logf(ELogVerbosity::Log, TEXT("%*s   ^ %.*s"), Indent, TEXT(""), View.Len(), View.GetData());
+			Out.Logf(VerbosityForPrint, TEXT("%*s   ^ %.*s"), Indent, TEXT(""), View.Len(), View.GetData());
 		}
 	}
 }
@@ -1385,7 +1395,8 @@ static void ConvertStackFramesToCallstack(
 void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Chain,
 	TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback,
 	TMap<uint64, FString>& CallstackCache,
-	FOutputDevice& Out)
+	FOutputDevice& Out,
+	ELogVerbosity::Type InVerbosityForPrint)
 {
 	if (Chain->Num())
 	{
@@ -1401,7 +1412,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 			Params.Indent = FMath::Min<int32>(TCStringSpcHelper<TCHAR>::MAX_SPACES, Chain->Num() - RootIndex);
 			Params.Out = &Out;
 
-			Out.Logf(ELogVerbosity::Log, TEXT("%s%s %s"),
+			Out.Logf(InVerbosityForPrint, TEXT("%s%s %s"),
 				FCString::Spc(Params.Indent),
 				*GetObjectFlags(*ReferencerObject),
 				*ReferencerObject->GetFullName());
@@ -1463,7 +1474,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 					ReferencingPropertyName = FString::Printf(TEXT("UObject* %s::%s"), *ClassName, *ReferenceInfo->ReferencerName.ToString());
 				}
 
-				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s = %s %s"),
+				Out.Logf(InVerbosityForPrint, TEXT("%s-> %s = %s %s"),
 					FCString::Spc(Params.Indent),
 					*ReferencingPropertyName,
 					*GetObjectFlags(*Object),
@@ -1490,7 +1501,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 					UObjectOrGCObjectName = ReferenceInfo->ReferencerName.ToString();
 				}
 
-				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s::AddReferencedObjects(%s %s)"),
+				Out.Logf(InVerbosityForPrint, TEXT("%s-> %s::AddReferencedObjects(%s %s)"),
 					FCString::Spc(Params.Indent),
 					*UObjectOrGCObjectName,
 					*GetObjectFlags(*Object),
@@ -1502,12 +1513,13 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 						ReferenceInfo->StackFrames.Num(),
 						Params.Indent,
 						Out,
-						CallstackCache);
+						CallstackCache,
+						InVerbosityForPrint);
 				}
 			}
 			else if (ReferenceInfo && ReferenceInfo->Type == EReferenceType::OuterChain)
 			{
-				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s = %s %s"),
+				Out.Logf(InVerbosityForPrint, TEXT("%s-> %s = %s %s"),
 					FCString::Spc(Params.Indent),
 					TEXT("Outer Chain"),
 					*GetObjectFlags(*Object),
@@ -1515,7 +1527,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 			}
 			else
 			{
-				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s = %s %s"),
+				Out.Logf(InVerbosityForPrint, TEXT("%s-> %s = %s %s"),
 					FCString::Spc(Params.Indent),
 					TEXT("UNKNOWN"),
 					*GetObjectFlags(*Object),
@@ -1527,7 +1539,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 			ReferencerObject = Object;
 			ReferenceInfo = Chain->GetReferenceInfo(NodeIndex);
 		}
-		Out.Logf(ELogVerbosity::Log, TEXT("  "));
+		Out.Logf(InVerbosityForPrint, TEXT("  "));
 	}
 }
 
@@ -1545,14 +1557,17 @@ bool FReferenceChainSearch::FReferenceChain::IsExternal() const
 }
 
 FReferenceChainSearch::FReferenceChainSearch(UObject* InObjectToFindReferencesTo,
-	EReferenceChainSearchMode Mode /*= EReferenceChainSearchMode::PrintResults*/)
-	: FReferenceChainSearch(TConstArrayView<UObject*>(&InObjectToFindReferencesTo, 1), Mode)
+	EReferenceChainSearchMode Mode /*= EReferenceChainSearchMode::PrintResults*/,
+	ELogVerbosity::Type InVerbosityForPrint /* = ELogVerbosity::Log */)
+	: FReferenceChainSearch(TConstArrayView<UObject*>(&InObjectToFindReferencesTo, 1), Mode, InVerbosityForPrint)
 {
 }
 
 FReferenceChainSearch::FReferenceChainSearch(TConstArrayView<UObject*> InObjectsToFindReferencesTo,
-	EReferenceChainSearchMode Mode /*= EReferenceChainSearchMode::PrintResults*/)
+	EReferenceChainSearchMode Mode /*= EReferenceChainSearchMode::PrintResults*/,
+	ELogVerbosity::Type InVerbosityForPrint /* = ELogVerbosity::Log */)
 	: SearchMode(Mode)
+	, VerbosityForPrint(InVerbosityForPrint)
 {
 	FSlowHeartBeatScope DisableHangDetection; // This function can be very slow
 
@@ -1575,7 +1590,7 @@ FReferenceChainSearch::FReferenceChainSearch(TConstArrayView<UObject*> InObjects
 
 	if (!!(Mode & (EReferenceChainSearchMode::PrintResults|EReferenceChainSearchMode::PrintAllResults)))
 	{
-		PrintResults(!!(Mode & EReferenceChainSearchMode::PrintAllResults));
+		PrintResults(!!(Mode & EReferenceChainSearchMode::PrintAllResults), /*TargetObject*/nullptr, VerbosityForPrint);
 	}
 
 	UE_LOG(LogReferenceChain, Display, TEXT("Post-search memory usage: %.2f"), static_cast<double>(ReferenceGraph.GetAllocatedSize() + Paths.GetAllocatedSize() + GetAllocatedSize()) / 1024.0 / 1024.0);
@@ -1664,17 +1679,22 @@ void FReferenceChainSearch::PerformSearchFromGCSnapshot(TConstArrayView<UObject*
 
 	if (!!(SearchMode & (EReferenceChainSearchMode::PrintResults | EReferenceChainSearchMode::PrintAllResults)))
 	{
-		PrintResults(!!(SearchMode & EReferenceChainSearchMode::PrintAllResults));
+		PrintResults(!!(SearchMode & EReferenceChainSearchMode::PrintAllResults), /*TargetObject*/nullptr, VerbosityForPrint);
 	}
 }
 #endif // ENABLE_GC_HISTORY
 
-int32 FReferenceChainSearch::PrintResults(bool bDumpAllChains /*= false*/, UObject* TargetObject /*= nullptr*/) const
+void FReferenceChainSearch::SetVerbosityForPrint(ELogVerbosity::Type Verbosity)
 {
-	return PrintResults([](FCallbackParams& Params) { return true; }, bDumpAllChains, TargetObject);
+	VerbosityForPrint = Verbosity;
 }
 
-int32 FReferenceChainSearch::PrintResults(TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback, bool bDumpAllChains /*= false*/, UObject* TargetObject /*= nullptr*/) const
+int32 FReferenceChainSearch::PrintResults(bool bDumpAllChains /*= false*/, UObject* TargetObject /*= nullptr*/, ELogVerbosity::Type InVerbosityForPrint /*= ELogVerbosity::Log*/) const
+{
+	return PrintResults([](FCallbackParams& Params) { return true; }, bDumpAllChains, TargetObject, InVerbosityForPrint);
+}
+
+int32 FReferenceChainSearch::PrintResults(TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback, bool bDumpAllChains /*= false*/, UObject* TargetObject /*= nullptr*/, ELogVerbosity::Type InVerbosityForPrint /*= ELogVerbosity::Log*/) const
 {
 	FSlowHeartBeatScope DisableHangDetection; // This function can be very slow
 
@@ -1691,30 +1711,42 @@ int32 FReferenceChainSearch::PrintResults(TFunctionRef<bool(FCallbackParams& Par
 
 		if (bDumpAllChains || NumPrintedChains < MaxChainsToPrint)
 		{
-			DumpChain(Chain, ReferenceCallback, CallstackCache, *GLog);
+			DumpChain(Chain, ReferenceCallback, CallstackCache, *GWarn, InVerbosityForPrint);
 			NumPrintedChains++;
 		}
 		else
 		{
-			UE_LOG(LogReferenceChain, Log, TEXT("Referenced by %d more reference chain(s)."), ReferenceChains.Num() - NumPrintedChains);
+#if !NO_LOGGING
+			GWarn->CategorizedLogf(LogReferenceChain.GetCategoryName(), InVerbosityForPrint,
+				TEXT("Referenced by %d more reference chain(s)."), ReferenceChains.Num() - NumPrintedChains);
+#endif
 			break;
 		}
 	}
 
 	if (NumPrintedChains == 0)
 	{
-		auto LogUnreachableObject = [this](const FGCObjectInfo& ObjInfo) {
+		auto LogUnreachableObject = [InVerbosityForPrint, this](const FGCObjectInfo& ObjInfo) {
 			if (ObjInfo.HasAnyInternalFlags(EInternalObjectFlags_RootFlags))
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of EInternalObjectFlags_RootFlags set."), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
+#if !NO_LOGGING
+				GWarn->CategorizedLogf(LogReferenceChain.GetCategoryName(), InVerbosityForPrint,
+					TEXT("%s%s is not currently reachable but it does have some of EInternalObjectFlags_RootFlags set."), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
+#endif
 			}
 			else if (ObjInfo.HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS))
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of GARBAGE_COLLECTION_KEEPFLAGS set."), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
+#if !NO_LOGGING
+				GWarn->CategorizedLogf(LogReferenceChain.GetCategoryName(), InVerbosityForPrint,
+					TEXT("%s%s is not currently reachable but it does have some of GARBAGE_COLLECTION_KEEPFLAGS set."), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
+#endif
 			}
 			else
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable. Try using GC history to debug transient leaks with 'gc.historysize 1'"), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
+#if !NO_LOGGING
+				GWarn->CategorizedLogf(LogReferenceChain.GetCategoryName(), InVerbosityForPrint,
+					TEXT("%s%s is not currently reachable. Try using GC history to debug transient leaks with 'gc.historysize 1'"), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
+#endif
 			}
 		};
 		if (TargetObject)
@@ -1758,7 +1790,7 @@ FString FReferenceChainSearch::GetRootPath(TFunctionRef<bool(FCallbackParams& Pa
 		FStringOutputDevice OutString;
 		OutString.SetAutoEmitLineTerminator(true);
 		TMap<uint64, FString> CallstackCache;
-		DumpChain(Chain, ReferenceCallback, CallstackCache, OutString);
+		DumpChain(Chain, ReferenceCallback, CallstackCache, OutString, VerbosityForPrint);
 		return MoveTemp(OutString);
 	}
 	else
@@ -1836,7 +1868,7 @@ static bool PrintStaleReferenceChainsAndFindReferencingObjects(UObject* ObjectTo
 				}
 				return true;
 			}
-		}, false, ObjectToFindReferencesTo) != 0;
+		}, false, ObjectToFindReferencesTo, Verbosity) != 0;
 }
 
 static FString GetPathToStaleObjectReferencer(UObject* ObjectToFindReferencesTo, FReferenceChainSearch& RefChainSearch)

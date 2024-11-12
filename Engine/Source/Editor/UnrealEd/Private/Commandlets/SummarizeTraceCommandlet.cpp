@@ -1280,7 +1280,7 @@ bool USummarizeTraceCommandlet::GenerateBookmarksCSV(const FSummarizeBookmarksPr
 		}
 
 		// note newline is at the front of every data line to prevent final extraneous newline, per customary for csv
-		CsvUtils::WriteAsUTF8String(CsvHandle.Get(), FString::Printf(TEXT("\n%s,%d,%f,%f,"),
+		CsvUtils::WriteAsUTF8String(CsvHandle.Get(), FString::Printf(TEXT("\n%s,%" UINT64_FMT ",%f,%f,"),
 			*Bookmark.Value.Name, Bookmark.Value.Count,
 			Bookmark.Value.FirstSeconds, Bookmark.Value.LastSeconds));
 	}

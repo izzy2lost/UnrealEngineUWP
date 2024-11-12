@@ -707,10 +707,8 @@ bool FSharedMemoryMediaPlayer::DetermineNextSourceFrame(uint64 FrameNumber, uint
 	return false;
 }
 
-void FSharedMemoryMediaPlayer::JustInTimeSampleRender()
+void FSharedMemoryMediaPlayer::JustInTimeSampleRender(FRHICommandListImmediate& RHICmdList)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 	// We only allow this function to run once per frame.
 	if (LastFrameNumberThatUpdatedJustInTime == GFrameCounterRenderThread)
 	{
@@ -754,8 +752,8 @@ void FSharedMemoryMediaPlayer::JustInTimeSampleRender()
 	// It will determine this by polling the sender's shared memory metadata.
 	// To avoid any hangs, it will give up after some time.
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, SharedMemoryMedia_WaitForPixels, "SharedMemoryMedia_WaitForPixels");
 		SCOPED_GPU_STAT(RHICmdList, SharedMemoryMedia_WaitForPixels);
-		SCOPED_DRAW_EVENT(RHICmdList, SharedMemoryMedia_WaitForPixels);
 
 		// Since we are going to enqueue a lambda that can potentially sleep in the RHI thread if the pixels haven't arrived,
 		// we dispatch the existing commands (including the draw event start timing in the SCOPED_DRAW_EVENT above) before any potential sleep.
@@ -834,8 +832,8 @@ void FSharedMemoryMediaPlayer::JustInTimeSampleRender()
 	{
 		FRHICopyTextureInfo CopyInfo;
 
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, SharedMemoryMedia_CopyToSampleCommon, "SharedMemoryMedia_CopyToSampleCommon");
 		SCOPED_GPU_STAT(RHICmdList, SharedMemoryMedia_CopyToSampleCommon);
-		SCOPED_DRAW_EVENT(RHICmdList, SharedMemoryMedia_CopyToSampleCommon);
 
 		RHICmdList.CopyTexture(SharedCrossGpuTextures[SharedMemoryIdx], SampleCommonTexture->GetResource()->GetTextureRHI(), CopyInfo);
 	}

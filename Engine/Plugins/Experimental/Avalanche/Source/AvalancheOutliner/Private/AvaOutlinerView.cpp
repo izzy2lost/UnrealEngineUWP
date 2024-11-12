@@ -272,6 +272,10 @@ void FAvaOutlinerView::BindCommands(const TSharedPtr<FUICommandList>& InBaseComm
 		, FExecuteAction::CreateSP(this, &FAvaOutlinerView::RenameSelected)
 		, FCanExecuteAction::CreateSP(this, &FAvaOutlinerView::CanRenameSelected));
 
+	ViewCommandList->MapAction(GenericCommands.Delete
+		, FExecuteAction::CreateSP(this, &FAvaOutlinerView::DeleteSelected)
+		, FCanExecuteAction::CreateSP(this, &FAvaOutlinerView::CanDeleteSelected));
+
 	ViewCommandList->MapAction(GenericCommands.Duplicate
 		, FExecuteAction::CreateSP(this, &FAvaOutlinerView::DuplicateSelected)
 		, FCanExecuteAction::CreateSP(this, &FAvaOutlinerView::CanDuplicateSelected));
@@ -1409,6 +1413,39 @@ void FAvaOutlinerView::OnItemRenameAction(EAvaOutlinerRenameAction InRenameActio
 bool FAvaOutlinerView::CanRenameSelected() const
 {
 	return GetViewSelectedItemCount() > 0;
+}
+
+void FAvaOutlinerView::DeleteSelected()
+{
+	if (TSharedPtr<FAvaOutliner> Outliner = OutlinerWeak.Pin())
+	{
+		TArray<FAvaOutlinerItemPtr> Items = GetViewSelectedItems();
+
+		Items.RemoveAll([](const FAvaOutlinerItemPtr& InItem)
+		{
+			return !InItem.IsValid() || !InItem->CanDelete();
+		});
+
+		if (Items.IsEmpty())
+		{
+			return;
+		}
+
+		Outliner->DeleteItems(Items);
+	}
+}
+
+bool FAvaOutlinerView::CanDeleteSelected() const
+{
+	for (const FAvaOutlinerItemPtr& Item : GetViewSelectedItems())
+	{
+		if (Item && Item->CanDelete())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void FAvaOutlinerView::DuplicateSelected()

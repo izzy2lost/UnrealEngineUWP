@@ -32,6 +32,11 @@ enum class EAnimDetailSelectionState : uint8
 	None = 0x0, Partial = 0x1, All = 0x2
 };
 
+//direction to find range of property names
+enum class EAnimDetailRangeDirection : uint8
+{
+	Up = 0x0, Down = 0x1
+};
 struct FAnimDetailVectorSelection
 {
 	EAnimDetailSelectionState  XSelected = EAnimDetailSelectionState::None;
@@ -80,9 +85,10 @@ public:
 	virtual EPropertyKeyedStatus GetPropertyKeyedStatus(TSharedPtr<ISequencer>& Sequencer, const IPropertyHandle& PropertyHandle) const { return EPropertyKeyedStatus::NotKeyed; }
 	virtual EControlRigContextChannelToKey GetChannelToKeyFromPropertyName(const FName& PropertyName) const { return EControlRigContextChannelToKey::AllTransform; }
 	virtual EControlRigContextChannelToKey GetChannelToKeyFromChannelName(const FString& InChannelName) const { return EControlRigContextChannelToKey::AllTransform; }
+	virtual TMap<FName, int32> GetPropertyNames() const { TMap<FName, int32> Empty; return Empty; }
 	virtual bool IsMultiple(const FName& InPropertyName) const { return false; }
 	virtual void SetControlRigElementValueFromCurrent(UControlRig* ControlRig, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context) {};
-	virtual void SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive = false) {};
+	virtual void SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, const FRigControlModifiedContext& Context, bool bInteractive = false) {};
 	virtual void GetChannelSelectionState(TWeakPtr<FCurveEditor>& CurveEditor, FAnimDetailVectorSelection& OutLocationSelection, FAnimDetailVectorSelection& OutRotationSelection,
 		FAnimDetailVectorSelection& OutScaleSelection) {};
 	virtual bool PropertyIsOnProxy(FProperty* Property, FProperty* MemberProperty){return false;}
@@ -107,14 +113,14 @@ public:
 	void AddControlRigControl(UControlRig* InControlRig, const FName& InName);
 
 private:
-	void HandlePostEditChangedForControlRigs();
-	void HandlePostEditChangedForSequencer();
 
 	//reset the  rig controls this also owns
 	void ResetControlRigItems();
 	void ResetSequencerItems();
 
 	FCachedRigElement& GetOwnerControlElement();
+
+	void AddInteractions(EControlRigContextChannelToKey ChannelsToKey, EPropertyChangeType::Type ChangeType);
 
 public:
 
@@ -157,6 +163,11 @@ struct FSequencerProxyPerType
 	TMap<UObject*, TArray<FBindingAndTrack>> Bindings;
 };
 
+enum class EAnimDetailPropertySelectionType : uint8
+{
+	Toggle = 0x0, Select = 0x1, SelectRange = 0x2
+};
+
 /** Proxy in Details Panel */
 UCLASS()
 class UControlRigDetailPanelControlProxies :public UObject
@@ -180,6 +191,8 @@ protected:
 	UPROPERTY()
 	TArray< TObjectPtr<UControlRigControlsProxy>> SelectedSequencerProxies;
 	
+	TPair<TWeakObjectPtr<UControlRigControlsProxy>, FName> LastSelection;
+
 	TWeakPtr<ISequencer> Sequencer;
 
 public:
@@ -192,18 +205,31 @@ public:
 	void RemoveAllProxies();
 	void ProxyChanged(UControlRig* InControlRig, FRigControlElement* RigElement, bool bModify = true);
 	void RecreateAllProxies(UControlRig* InControlRig);
-	const TArray<UControlRigControlsProxy*> GetAllSelectedProxies() const;
+	const TArray<UControlRigControlsProxy*> GetAllSelectedProxies();
 	bool IsSelected(UControlRig* InControlRig, FRigControlElement* RigElement) const;
 	void SetSequencer(TWeakPtr<ISequencer> InSequencer) { Sequencer = InSequencer; }
 	ISequencer* GetSequencer() const { return Sequencer.Pin().Get(); }
 	void ValuesChanged();
 	void ResetSequencerProxies(TMap<ERigControlType, FSequencerProxyPerType>& ProxyPerType);
 
+	//property selection to handle shift selection ranges
+	void SelectProperty(UControlRigControlsProxy* Proxy, const FName& PropertyName, EAnimDetailPropertySelectionType SelectionType);
+
+	bool IsPropertyEditingEnabled() const;
 private:
+
+
 	UControlRigControlsProxy* FindProxy(UControlRig* InControlRig, FRigControlElement* RigElement) const;
 	UControlRigControlsProxy* FindProxy(UObject* InObject, FName PropertyName) const;
 
 	UControlRigControlsProxy* NewProxyFromType(ERigControlType Type, TObjectPtr<UEnum>& EnumPtr);
+
+	//if SelectedProxy == nullptr then always clear it
+	void ClearSelectedProperty(UControlRigControlsProxy* SelectedProxy = nullptr);
+	//select/deslect property based on selection type  return true if it is selected
+	bool SelectPropertyInternal(UControlRigControlsProxy* Proxy, const FName& PropertyName, EAnimDetailPropertySelectionType SelectionType);
+	//using the Last Section, get the range of properties from that (used for shift selections).
+	TArray<TPair< UControlRigControlsProxy*, FName>> GetPropertiesFromLastSelection(UControlRigControlsProxy* Proxy, const FName& PropertyName) const;
 
 	//delegate for changed objects
 	void OnPostPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);

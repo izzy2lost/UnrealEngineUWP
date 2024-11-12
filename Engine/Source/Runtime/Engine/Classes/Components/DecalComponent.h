@@ -124,13 +124,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Decal")
 	ENGINE_API virtual class UMaterialInstanceDynamic* CreateDynamicMaterialInstance();
 
+public:
 #if UE_WITH_PSO_PRECACHING
-protected:
-	/** Graph event used to track all the PSO precache events - used for delayed proxy creation */
-	FGraphEventRef PSOPrecacheCompileEvent;
+	/** Atomic int used to track the last PSO precache events */
+	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
+	int32 LatestPSOPrecacheJobSet = 0;
 #endif
 
-public:
 	/** The decal proxy. */
 	FDeferredDecalProxy* SceneProxy;
 
@@ -178,12 +178,16 @@ public:
 
 	
 	//~ Begin UActorComponent Interface
+	ENGINE_API virtual void OnRegister() override;
 	ENGINE_API virtual void BeginPlay() override;
 	ENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	ENGINE_API virtual void DestroyRenderState_Concurrent() override;
 	ENGINE_API virtual void SendRenderTransform_Concurrent() override;
 	ENGINE_API virtual const UObject* AdditionalStatObject() const override;
 	ENGINE_API virtual void PrecachePSOs() override;
+#if WITH_EDITOR
+	ENGINE_API virtual void CheckForErrors() override;
+#endif
 	//~ End UActorComponent Interface
 	
 	//~ Begin UObject Interface. 

@@ -135,4 +135,27 @@ void FGameplayInteractionSyncSlotTagStateTask::ExitState(FStateTreeExecutionCont
 	}
 }
 
+#if WITH_EDITOR
+FText FGameplayInteractionSyncSlotTagStateTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, TargetSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("SyncSlotTagStateRich", "<b>Sync Tag State</> {Tag} <s>on slot</> {Slot}")
+		: LOCTEXT("SyncSlotTagState", "Sync Tag State {Tag} on slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Tag"), FText::FromString(TagToMonitor.ToString()),
+		TEXT("Slot"), SlotValue);
+}
+#endif
+
 #undef LOCTEXT_NAMESPACE

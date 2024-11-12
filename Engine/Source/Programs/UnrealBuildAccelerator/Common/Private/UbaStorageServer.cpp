@@ -1,16 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageServer.h"
+#include "UbaFileAccessor.h"
 #include "UbaNetworkServer.h"
 #include "UbaTrace.h"
 
 namespace uba
 {
+	void StorageServerCreateInfo::Apply(Config& config)
+	{
+		StorageCreateInfo::Apply(config);
+	}
+
 	StorageServer::StorageServer(const StorageServerCreateInfo& info)
 	:	StorageImpl(info, TC("UbaStorageServer"))
 	,	m_server(info.server)
 	{
 		m_zone = info.zone;
+		m_allowFallback = info.allowFallback;
+		m_writeRecievedCasFilesToDisk = info.writeRecievedCasFilesToDisk;
 
 		if (!CreateGuid(m_uid))
 			UBA_ASSERT(false);
@@ -41,6 +49,7 @@ namespace uba
 
 	StorageServer::~StorageServer()
 	{
+		WaitForActiveWork();
 		UBA_ASSERT(m_waitEntries.empty());
 		UBA_ASSERT(m_proxies.empty());
 		m_server.UnregisterOnClientDisconnected(ServiceId);
@@ -51,6 +60,12 @@ namespace uba
 	{
 		m_disallowedPaths.push_back(path);
 		return true;
+	}
+
+	void StorageServer::WaitForActiveWork()
+	{
+		while (m_activeUnmap)
+			Sleep(5);
 	}
 
 	bool StorageServer::GetZone(StringBufferBase& out)
@@ -89,7 +104,7 @@ namespace uba
 
 		u64 startTime = GetTime();
 		u32 timeout = 0;
-		while (!waitEntry.Done.IsSet(timeout)) // TODO WaitMultipleObjects (additional work and Done)
+		while (!waitEntry.done.IsSet(timeout)) // TODO WaitMultipleObjects (additional work and Done)
 		{
 			timeout = m_server.DoAdditionalWork() ? 0 : 50;
 
@@ -109,15 +124,25 @@ namespace uba
 		{
 			if (ownsMapping)
 			{
-				UnmapViewOfFile(memoryBegin, mappedView.size, TC(""));
-				CloseFileMapping(mappedView.handle);
-				CloseFile(nullptr, readFileHandle);
+				++server.m_activeUnmap;
+				server.GetServer().AddWork([&server, mb = memoryBegin, mp = mappedView, rfh = readFileHandle]()
+					{
+						UnmapViewOfFile(mb, mp.size, TC(""));
+						CloseFileMapping(mp.handle);
+						CloseFile(nullptr, rfh);
+						--server.m_activeUnmap;
+					}, 1, TC("ActiveFetchRelease"));
 			}
 			else
 				server.m_casDataBuffer.UnmapView(mappedView, TC("OnDisconnected"));
 		}
 		else
-			server.PushBufferSlot(memoryBegin);
+		{
+			if (!memoryBegin)
+				server.m_logger.Warning(TC("This should not happen. It means there is a race between a fetch and a disconnect. Report to honk (%s)"), reason);
+			server.m_bufferSlots.Push(memoryBegin);
+			memoryBegin = nullptr;
+		}
 	}
 
 	void StorageServer::OnDisconnected(u32 clientId)
@@ -153,6 +178,13 @@ namespace uba
 						m_trace->FileEndStore(clientId, store.casEntry->key);
 				}
 
+				if (auto fa = store.fileAccessor)
+				{
+					const tchar* filename = fa->GetFileName();
+					delete store.fileAccessor;
+					free((void*)filename);
+				}
+
 				m_casDataBuffer.UnmapView(store.mappedView, TC("OnDisconnected"));
 				it = m_activeStores.erase(it);
 			}
@@ -167,6 +199,8 @@ namespace uba
 					++it;
 					continue;
 				}
+
+				m_logger.Detail(TC("Cancelled fetch id %u because of disconnect of client with id %u"), u32(it->first), clientId);
 
 				fetch.Release(*this, TC("OnDisconnected"));
 
@@ -189,10 +223,7 @@ namespace uba
 		if (out == CasKeyZero)
 			return false;
 
-		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
-		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
-		FileEntry& fileEntry = insres.first->second;
-		lookupLock.Leave();
+		FileEntry& fileEntry = GetOrCreateFileEntry(fileNameKey);
 		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = true;
 		fileEntry.casKey = out;
@@ -202,7 +233,8 @@ namespace uba
 		m_externalFileMappings.try_emplace(fileNameKey, ExternalFileMapping{mappingHandle, mappingOffset, fileSize});
 		externalFileLock.Leave();
 
-		if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+		bool fileIsCompressed = false;
+		if (!AddCasFile(fileNameKey, fileName, fileEntry.casKey, deferCreation, fileIsCompressed))
 			return false;
 
 		return true;
@@ -229,7 +261,7 @@ namespace uba
 		u8* fileMem = MapViewOfFile(mapping.mappingHandle, FILE_MAP_READ, mapping.mappingOffset, mapping.fileSize);
 		UBA_ASSERT(fileMem);
 		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, mapping.fileSize, from); });
-		return StorageImpl::WriteCompressed(out, from, InvalidFileHandle, fileMem, mapping.fileSize, toFile);
+		return StorageImpl::WriteCompressed(out, from, InvalidFileHandle, fileMem, mapping.fileSize, toFile, nullptr, 0);
 	}
 
 	bool StorageServer::IsDisallowedPath(const tchar* fileName)
@@ -256,22 +288,32 @@ namespace uba
 		return false;
 	}
 
-	bool StorageServer::WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const tchar* hint)
+	bool StorageServer::WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const ConnectionInfo& connectionInfo, const tchar* hint)
 	{
 		int waitCount = 0;
 		while (true)
 		{
 			if (!casEntry.beingWritten)
 				return true;
+			CasKey key = casEntry.key;
 			entryLock.Leave();
 			Sleep(100);
 			entryLock.Enter();
 
-			if (++waitCount == 10000)
+			if (++waitCount < 12*60*10)
+				continue;
+
+			// Something went wrong.. should not take 12 minutes to write a file
+
+			SCOPED_READ_LOCK(m_activeStoresLock, activeLock);
+			for (auto& kv : m_activeStores)
 			{
-				m_logger.Error(TC("Got store for file %s that is already being written. Waited 1000 seconds for it to finish without success."), hint);
-				return false;
+				if (kv.second.casEntry != &casEntry)
+					continue;
+				ActiveStore& as = kv.second;
+				return m_logger.Error(TC("Client %u waited more than 12 minutes for file %s (%s) to be written by client %u (Written %llu/%llu)"), connectionInfo.GetId(), CasKeyString(key).str, hint, as.clientId, as.totalWritten.load(), as.fileSize);
 			}
+			return m_logger.Error(TC("Client %u waited more than 12 minutes for file %s (%s) to be written but there are no active writes. This should not be possible!"), connectionInfo.GetId(), CasKeyString(key).str, hint);
 		}
 	}
 
@@ -301,13 +343,28 @@ namespace uba
 				info.proxyPort = proxyPort;
 
 				writer.WriteGuid(m_uid);
+				writer.WriteByte(m_casCompressor);
+				writer.WriteByte(m_casCompressionLevel);
 				return true;
 			}
 
 			case StorageMessageType_FetchBegin:
 			{
+				// TODO: Remove this when we have tracked down the issue where clients time out
+				u32 todoRemoveMe = 0;
+				auto timeoutGuard = MakeGuard([&, timeoutStartTime = GetTime()]()
+					{
+						u64 timeSpentMs = TimeToMs(GetTime() - timeoutStartTime);
+						if (timeSpentMs > 8 * 60 * 1000)
+						{
+							// Took more than 5 minutes to respond
+							m_logger.Warning(TC("Took more than 8 minutes to respond to FetchBegin (%u).. is this some sort of hang or just host being half dead?"), todoRemoveMe);
+						}
+					});
+
 				if (reader.ReadBool()) // Wants proxy
 				{
+					todoRemoveMe = 1;
 					SCOPED_READ_LOCK(m_connectionInfoLock, lock);
 					auto findIt = m_connectionInfo.find(connectionInfo.GetId());
 					UBA_ASSERT(findIt != m_connectionInfo.end());
@@ -374,6 +431,8 @@ namespace uba
 					}
 				}
 
+				todoRemoveMe = 2;
+
 				u64 start = GetTime();
 				CasKey casKey = reader.ReadCasKey();
 				StringBuffer<> hint;
@@ -385,52 +444,64 @@ namespace uba
 				bool has = HasCasFile(casKey, &casEntry); // HasCasFile also writes deferred cas entries if in queue
 				if (!has)
 				{
-					// Last resort.. use hint to load file into cas (hint should be renamed since it is now a critical parameter)
-					// We better check the caskey first to make sure it is matching on the server
+					todoRemoveMe = 3;
+					if (!EnsureCasFile(casKey, nullptr) && m_allowFallback)
+					{
+						// Last resort.. use hint to load file into cas (hint should be renamed since it is now a critical parameter)
+						// We better check the caskey first to make sure it is matching on the server
 
-					CasKey checkedCasKey;
-					{
 						StringKey fileNameKey = CaseInsensitiveFs ? ToStringKeyLower(hint) : ToStringKey(hint);
-						SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
-						auto findIt = m_fileTableLookup.find(fileNameKey);
-						if (findIt != m_fileTableLookup.end())
+						CasKey checkedCasKey;
 						{
-							FileEntry& fileEntry = findIt->second;
-							lookupLock.Leave();
-							SCOPED_READ_LOCK(fileEntry.lock, entryLock);
-							if (fileEntry.verified)
-								checkedCasKey = fileEntry.casKey;
+							SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+							auto findIt = m_fileTableLookup.find(fileNameKey);
+							if (findIt != m_fileTableLookup.end())
+							{
+								FileEntry& fileEntry = findIt->second;
+								lookupLock.Leave();
+								SCOPED_READ_LOCK(fileEntry.lock, entryLock);
+								if (fileEntry.verified)
+									checkedCasKey = fileEntry.casKey;
+							}
 						}
-					}
-					if (checkedCasKey == CasKeyZero)
-					{
-						m_logger.Info(TC("Server did not find cas for %s in file table lookup. Recalculating cas key"), hint.data);
-						if (!CalculateCasKey(checkedCasKey, hint.data))
+						if (checkedCasKey == CasKeyZero)
 						{
-							m_logger.Error(TC("FetchBegin failed for cas file %s (%s) requested by %s. Can't calculate cas key for file"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
+							m_logger.Info(TC("Server did not find cas for %s in file table lookup. Recalculating cas key"), hint.data);
+							if (!CalculateCasKey(checkedCasKey, hint.data))
+							{
+								m_logger.Error(TC("FetchBegin failed for cas file %s (%s) requested by %s. Can't calculate cas key for file"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
+								writer.WriteU16(0);
+								return false;
+							}
+						}
+
+						if (AsCompressed(checkedCasKey, m_storeCompressed) != casKey)
+						{
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). File on disk has different cas %s"), CasKeyString(casKey).str, hint.data, CasKeyString(checkedCasKey).str);
 							writer.WriteU16(0);
 							return false;
 						}
-					}
 
-					if (checkedCasKey != casKey)
-					{
-						m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Server has a source file"), CasKeyString(casKey).str, hint.data);
-						writer.WriteU16(0);
-						return false;
-					}
-
-					if (!AddCasFile(hint.data, casKey, false))
-					{
-						m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't add cas file to database"), CasKeyString(casKey).str, hint.data);
-						writer.WriteU16(0);
-						return true;
+						bool deferCreation = false;
+						bool fileIsCompressed = false;
+						if (!AddCasFile(fileNameKey, hint.data, casKey, deferCreation, fileIsCompressed))
+						{
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't add cas file to database"), CasKeyString(casKey).str, hint.data);
+							writer.WriteU16(0);
+							return true;
+						}
 					}
 					SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 					auto findIt = m_casLookup.find(casKey);
-					UBA_ASSERT(findIt != m_casLookup.end());
+					if (findIt == m_casLookup.end())
+					{
+						writer.WriteU16(0);
+						return true;
+					}
 					casEntry = &findIt->second;
 				}
+
+				todoRemoveMe = 4;
 
 				if (casEntry->disallowed)
 				{
@@ -449,6 +520,8 @@ namespace uba
 
 				MappedView mappedView;
 				auto mvg = MakeGuard([&](){ m_casDataBuffer.UnmapView(mappedView, TC("FetchBegin")); });
+
+				todoRemoveMe = 5;
 
 				bool useFileMapping = casEntry->mappingHandle.IsValid();
 				if (useFileMapping)
@@ -491,6 +564,8 @@ namespace uba
 					}
 				}
 
+				todoRemoveMe = 6;
+
 				if (m_trace)
 					m_trace->FileBeginFetch(connectionInfo.GetId(), casKey, fileSize, hint.data, m_traceFetch);
 
@@ -509,6 +584,9 @@ namespace uba
 				u64 capacityLeft = writer.GetCapacityLeft();
 				u32 toWrite = u32(Min(left, capacityLeft));
 				void* writeBuffer = writer.AllocWrite(toWrite);
+
+				todoRemoveMe = 7;
+
 				if (useFileMapping)
 				{
 					memcpy(writeBuffer, memoryPos, toWrite);
@@ -519,18 +597,18 @@ namespace uba
 					if (!ReadFile(m_logger, casFile.data, readFileHandle, writeBuffer, toWrite))
 					{
 						UBA_ASSERT(false); // Implement
-						return false;
+						return m_logger.Error(TC("Failed to read file %s (%s) (1)"), casFile.data, LastErrorToText().data);;
 					}
 				}
 				else
 				{
-					memoryBegin = PopBufferSlot();
+					memoryBegin = m_bufferSlots.Pop();
 					memoryPos = memoryBegin;
 					u32 toRead = u32(Min(left, BufferSlotSize));
  					if (!ReadFile(m_logger, casFile.data, readFileHandle, memoryBegin, toRead))
 					{
 						UBA_ASSERT(false); // Implement
-						return false;
+						return m_logger.Error(TC("Failed to read file %s (%s) (2)"), casFile.data, LastErrorToText().data);;
 					}
 					memcpy(writeBuffer, memoryPos, toWrite);
 					memoryPos += toWrite;
@@ -538,6 +616,8 @@ namespace uba
 					CloseFile(casFile.data, readFileHandle);
 					readFileHandle = InvalidFileHandle;
 				}
+
+				todoRemoveMe = 8;
 
 				u64 actualSize = fileSize;
 				if (m_storeCompressed)
@@ -553,9 +633,11 @@ namespace uba
 				{
 					*fetchId = u16(~0);
 					u64 sendCasTime = GetTime() - start;
-					stats.sendCas.Add(Timer{sendCasTime, 1});
+					stats.sendCas += Timer{sendCasTime, 1};
 					return true;
 				}
+
+				todoRemoveMe = 9;
 
 				mvg.Cancel();
 				cg.Cancel();
@@ -569,6 +651,8 @@ namespace uba
 				ActiveFetch& fetch = insres.first->second;
 				fetch.clientId = connectionInfo.GetId();
 				lock.Leave();
+
+				todoRemoveMe = 10;
 
 				mappedView.size = fileSize;
 
@@ -592,7 +676,7 @@ namespace uba
 				SCOPED_READ_LOCK(m_activeFetchesLock, lock);
 				auto findIt = m_activeFetches.find(fetchId);
 				if (findIt == m_activeFetches.end())
-					return m_logger.Error(TC("Can't find active fetch %u, disconnected client? (index %u)"), fetchId, fetchIndex);
+					return m_logger.Error(TC("Can't find active fetch %u, disconnected client? (fetch index %u, client id %u uid %s)"), fetchId, fetchIndex, connectionInfo.GetId(), GuidToString(connectionInfo.GetUid()).str);
 				ActiveFetch& fetch = findIt->second;
 				UBA_ASSERT(fetch.clientId == connectionInfo.GetId());
 				lock.Leave();
@@ -621,7 +705,7 @@ namespace uba
 				PushId(fetchId);
 
 				sendCasTime += GetTime() - start;
-				Stats().sendCas.Add(Timer{sendCasTime, 1});
+				Stats().sendCas += Timer{sendCasTime, 1};
 				return true;
 			}
 
@@ -644,7 +728,7 @@ namespace uba
 
 				SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 				
-				if (!WaitForWritten(casEntry, entryLock, TC("UNKNOWN")))
+				if (!WaitForWritten(casEntry, entryLock, connectionInfo, TC("UNKNOWN")))
 					return false;
 
 				bool exists = casEntry.verified && casEntry.exists;
@@ -664,6 +748,7 @@ namespace uba
 							if (!uba::DeleteFileW(casFile.data))
 								return m_logger.Error(TC("Failed to delete %s. Clean cas folder and restart"), casFile.data);
 							casEntry.exists = false;
+							casEntry.verified = true;
 						}
 						else
 						{
@@ -676,8 +761,8 @@ namespace uba
 					else
 					{
 						casEntry.exists = false;
+						casEntry.verified = true;
 					}
-					casEntry.verified = true;
 #endif
 				}
 				writer.WriteBool(exists);
@@ -707,7 +792,7 @@ namespace uba
 				}
 				else
 				{
-					if (!WaitForWritten(casEntry, entryLock, hint.data))
+					if (!WaitForWritten(casEntry, entryLock, connectionInfo, hint.data))
 						return false;
 
 					if (casEntry.exists)
@@ -715,6 +800,7 @@ namespace uba
 						entryLock.Leave();
 						CasEntryAccessed(casEntry);
 						writer.WriteU16(u16(~0));
+						writer.WriteBool(m_traceStore);
 						return true;
 					}
 				}
@@ -725,11 +811,40 @@ namespace uba
 					return false;
 				}
 
-				auto mappedView = m_casDataBuffer.AllocAndMapView(MappedView_Transient, fileSize, 1, CasKeyString(casKey).str);
-				if (!mappedView.memory)
+				MappedView mappedView;
+				FileAccessor* fileAccessor = nullptr;
+				
+				if (m_writeRecievedCasFilesToDisk)
 				{
-					casEntry.verified = false;
-					return false;
+					StringBuffer<> casKeyName;
+					GetCasFileName(casKeyName, casKey);
+					
+					const tchar* filename = TStrdup(casKeyName.data);
+					fileAccessor = new FileAccessor(m_logger, filename);
+					if (!fileAccessor->CreateMemoryWrite(false, DefaultAttributes(), fileSize, m_tempPath.data))
+					{
+						delete fileAccessor;
+						free((void*)filename);
+
+						m_logger.Error(TC("Failed to create cas file %s"), casKeyName.data);
+						casEntry.verified = false;
+						return false;
+					}
+
+					#ifdef __clang_analyzer__ // Seems clang analyzer gets lost
+					free((void*)filename);
+					#endif
+
+					mappedView.memory = fileAccessor->GetData();
+				}
+				else
+				{
+					mappedView = m_casDataBuffer.AllocAndMapView(MappedView_Transient, fileSize, 1, CasKeyString(casKey).str);
+					if (!mappedView.memory)
+					{
+						casEntry.verified = false;
+						return false;
+					}
 				}
 
 				casEntry.beingWritten = true;
@@ -742,6 +857,7 @@ namespace uba
 				firstStore->fileSize = fileSize;
 				firstStore->actualSize = actualSize;
 				firstStore->mappedView = mappedView;
+				firstStore->fileAccessor = fileAccessor;
 				firstStore->recvCasTime = GetTime() - start;
 
 				if (m_trace)
@@ -781,6 +897,16 @@ namespace uba
 				{
 					m_casDataBuffer.UnmapView(activeStore.mappedView, TC("StoreDone"));
 
+					if (activeStore.fileAccessor)
+					{
+						bool success = activeStore.fileAccessor->Close();
+						const tchar* filename = activeStore.fileAccessor->GetFileName();
+						delete activeStore.fileAccessor;
+						free((void*)filename);
+						if (!success)
+							return m_logger.Error(TC("REVISIT THIS!"));
+					}
+
 					CasEntry& casEntry = *activeStore.casEntry;
 					{
 						SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
@@ -791,14 +917,14 @@ namespace uba
 						casEntry.beingWritten = false;
 					}
 
-					bool isPersistentStore = false;
+					bool isPersistentStore = m_writeRecievedCasFilesToDisk;
 					if (isPersistentStore)
 						CasEntryWritten(*activeStore.casEntry, totalWritten);
 
 					activeStore.recvCasTime += GetTime() - time2;
 
 					StorageStats& stats = Stats();
-					stats.recvCas.Add(Timer{activeStore.recvCasTime, 1});
+					stats.recvCas += Timer{activeStore.recvCasTime, 1};
 					stats.recvCasBytesComp += activeStore.fileSize;
 					stats.recvCasBytesRaw += activeStore.actualSize;
 
@@ -808,7 +934,7 @@ namespace uba
 					{
 						WaitEntry& waitEntry = waitFindIt->second;
 						waitEntry.Success = true;
-						waitEntry.Done.Set();
+						waitEntry.done.Set();
 					}
 					waitLock.Leave();
 
@@ -844,10 +970,10 @@ namespace uba
 
 					s.fileSize = firstStore->fileSize;
 					s.mappedView = firstStore->mappedView;
+					s.fileAccessor = firstStore->fileAccessor;
 					s.casEntry = firstStore->casEntry;
 					s.totalWritten = firstStore->totalWritten.load();
 					s.recvCasTime = firstStore->recvCasTime.load();
-					s.error = firstStore->error;
 				}
 				return true;
 			}

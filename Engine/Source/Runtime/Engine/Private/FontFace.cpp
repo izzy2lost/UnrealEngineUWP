@@ -2,6 +2,7 @@
 
 #include "Engine/FontFace.h"
 #include "Engine/Font.h"
+#include "Engine/UserInterfaceSettings.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Misc/Paths.h"
 #include "Framework/Application/SlateApplication.h"
@@ -17,11 +18,35 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogFontFace, Log, All);
 
+TAutoConsoleVariable<FString> CVarFontFaceDistanceFieldRasterizationMode(
+	TEXT("UI.SlateSDFText.RasterizationMode"),
+	"Bitmap",
+	TEXT("Sets the rasterization mode of font faces with distance field rasterization enabled. Possible values are: Bitmap, Msdf, Sdf, SdfApproximation."),
+	ECVF_Preview);
+
+TAutoConsoleVariable<int32> CVarFontFaceDistanceFieldResolutionLevel(
+	TEXT("UI.SlateSDFText.ResolutionLevel"),
+	2,
+	TEXT("Sets the resolution level (1 = low, 2 = medium, 3 = high) of font faces with distance field rasterization enabled."),
+	ECVF_Preview);
+
+EFontRasterizationMode GetDeviceFontFaceDistanceFieldRasterizationMode()
+{
+	const int64 EnumVal = StaticEnum<EFontRasterizationMode>()->GetValueByNameString(CVarFontFaceDistanceFieldRasterizationMode.GetValueOnAnyThread());
+	if (EnumVal != INDEX_NONE)
+	{
+		return (EFontRasterizationMode) EnumVal;
+	}
+	UE_LOG(LogFontFace, Warning, TEXT("Unexpected value of CVar UI.SlateSDFText.RasterizationMode - falling back to Bitmap."));
+	return EFontRasterizationMode::Bitmap;
+}
+
 UFontFace::UFontFace()
 	: AscendOverriddenValue(0)
 	, bIsAscendOverridden(false)
 	, DescendOverriddenValue(0)
 	, bIsDescendOverridden(false)
+	, StrikeBrushHeightPercentage(60)
 	, FontFaceData(FFontFaceData::MakeFontFaceData())
 
 {
@@ -106,10 +131,19 @@ void UFontFace::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 
 }
 
+void UFontFace::PostLoad()
+{
+	Super::PostLoad();
+
+	UpdateDeviceRasterizationSettings();
+}
+
 #if WITH_EDITOR
 void UFontFace::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	UpdateDeviceRasterizationSettings();
 
 #if WITH_EDITORONLY_DATA
 	CacheSubFaces();
@@ -236,9 +270,19 @@ int32 UFontFace::GetDescendOverriddenValue() const
 	return DescendOverriddenValue;
 }
 
+int32 UFontFace::GetStrikeBrushHeightPercentage() const
+{
+	return StrikeBrushHeightPercentage;
+}
+
 FFontFaceDataConstRef UFontFace::GetFontFaceData() const
 {
 	return FontFaceData;
+}
+
+FFontRasterizationSettings UFontFace::GetRasterizationSettings() const
+{
+	return DeviceRasterizationSettings;
 }
 
 FString UFontFace::GetCookedFilename() const
@@ -255,3 +299,46 @@ FString UFontFace::GetCookedFilename() const
 	return FPaths::GetPath(PackageFilename) / GetName() + TEXT(".ufont");
 }
 
+void UFontFace::UpdateDeviceRasterizationSettings()
+{
+	DeviceRasterizationSettings = FFontRasterizationSettings();
+	if (bEnableDistanceFieldRendering && GetDefault<UUserInterfaceSettings>()->bEnableDistanceFieldFontRasterization && IsSlateSdfTextFeatureEnabled())
+	{
+		DeviceRasterizationSettings.Mode = GetDeviceFontFaceDistanceFieldRasterizationMode();
+		if (PlatformRasterizationModeOverrides.IsSet())
+		{
+			switch (DeviceRasterizationSettings.Mode)
+			{
+				default:
+					checkNoEntry();
+					break;
+				case EFontRasterizationMode::Bitmap:
+					break;
+				case EFontRasterizationMode::Msdf:
+					DeviceRasterizationSettings.Mode = PlatformRasterizationModeOverrides->MsdfOverride;
+					break;
+				case EFontRasterizationMode::Sdf:
+					DeviceRasterizationSettings.Mode = PlatformRasterizationModeOverrides->SdfOverride;
+					break;
+				case EFontRasterizationMode::SdfApproximation:
+					DeviceRasterizationSettings.Mode = PlatformRasterizationModeOverrides->SdfApproximationOverride;
+					break;
+			}
+		}
+
+		const bool bMultiChannel = DeviceRasterizationSettings.Mode == EFontRasterizationMode::Msdf;
+		const int32 DeviceResolutionLevel = CVarFontFaceDistanceFieldResolutionLevel.GetValueOnAnyThread();
+		if (DeviceResolutionLevel <= 1) // Low
+		{
+			DeviceRasterizationSettings.DistanceFieldPpem = bMultiChannel ? MinMultiDistanceFieldPpem : MinDistanceFieldPpem;
+		}
+		else if (DeviceResolutionLevel >= 3) // High
+		{
+			DeviceRasterizationSettings.DistanceFieldPpem = bMultiChannel ? MaxMultiDistanceFieldPpem : MaxDistanceFieldPpem;
+		}
+		else // 2 = Medium
+		{
+			DeviceRasterizationSettings.DistanceFieldPpem = bMultiChannel ? MidMultiDistanceFieldPpem : MidDistanceFieldPpem;
+		}
+	}
+}

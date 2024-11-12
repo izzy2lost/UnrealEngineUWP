@@ -829,7 +829,38 @@ static float ReadOvercommitRatio()
 	}
 
 	return OutVal;
+}
 
+static int ReadOvercommitMode()
+{
+	int PolicyType = 2;	// Do not overcommit by default
+	int Fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
+
+	if (Fd < 0)
+	{
+		static bool bLogOnceFileNotFound = false;
+		if (!bLogOnceFileNotFound)
+		{
+			fprintf(stderr, "Warning: ReadOvercommitMode failed to open /proc/sys/vm/overcommit_memory (Err %d).\n", errno);
+			fflush(stderr);
+			bLogOnceFileNotFound = true;
+		}
+	}
+	else
+	{
+		// The overcommit_memory policy is defined by a number from 0 to 2
+		// https://www.kernel.org/doc/Documentation/vm/overcommit-accounting
+		char Buffer[512] = { 0 };
+		ssize_t ReadBytes = read(Fd, Buffer, sizeof(Buffer) - 1);
+		if (ReadBytes > 0)
+		{
+			PolicyType = FCStringAnsi::Atoi(Buffer);
+		}
+
+		close(Fd);
+	}
+
+	return PolicyType;
 }
 
 // struct CORE_API FGenericPlatformMemoryStats : public FPlatformMemoryConstants
@@ -1425,4 +1456,10 @@ bool FUnixPlatformMemory::GetLLMAllocFunctions(void*(*&OutAllocFunction)(size_t)
 #else
 	return false;
 #endif
+}
+
+bool FUnixPlatformMemory::CanOverallocateVirtualMemory()
+{
+	static int OvercommitPolicy = ReadOvercommitMode();
+	return OvercommitPolicy != 2;
 }

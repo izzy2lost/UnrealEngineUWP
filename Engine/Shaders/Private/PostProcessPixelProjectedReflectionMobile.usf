@@ -39,12 +39,12 @@ float2 ProjectionPixelToBufferUV(int2 ReflectionPixel)
 {
 #if REFLECTION_PASS_PIXEL_SHADER
 	uint2 ViewportPos = (ReflectionPixel + float2(0.5f, 0.5f) - ViewRectMin.xy) * ViewSizeAndInvSize.zw * ResolvedView.ViewSizeAndInvSize.xy;
-#else
-	uint2 ViewportPos = (ReflectionPixel + float2(0.5f, 0.5f)) * ViewSizeAndInvSize.zw * ResolvedView.ViewSizeAndInvSize.xy;
-#endif
-
 	float2 BufferUV = ((float2)ViewportPos + float2(0.5f, 0.5f) + ResolvedView.ViewRectMin.xy) * ResolvedView.BufferSizeAndInvSize.zw;
-
+#else
+	uint2 ViewportPos = (ReflectionPixel + float2(0.5f, 0.5f)) * ViewSizeAndInvSize.zw * ViewSizeAndInvSize.xy;
+	float2 BufferUV = ((float2) ViewportPos + float2(0.5f, 0.5f) + ViewRectMin.xy) * BufferSizeAndInvSize.zw;
+#endif
+	
 	return BufferUV;
 }
 
@@ -126,26 +126,8 @@ void ProjectionPassCS(
 	uint2 GroupId : SV_GroupID,
 	uint2 DispatchThreadId : SV_DispatchThreadID,
 	uint2 GroupThreadId : SV_GroupThreadID
-#if INSTANCED_STEREO
-	, uint InstanceId : SV_InstanceID
-	, out uint LayerIndex : SV_RenderTargetArrayIndex
-#elif MOBILE_MULTI_VIEW
-	, in uint ViewId : SV_ViewID
-	, out nointerpolation uint MultiViewIndex : VIEW_ID
-#endif
 )
 {
-#if INSTANCED_STEREO
-	const uint EyeIndex = GetEyeIndex(InstanceId);
-	ResolvedView = ResolveView(EyeIndex);
-	LayerIndex = EyeIndex;
-#elif MOBILE_MULTI_VIEW
-	ResolvedView = ResolveView(ViewId);
-	MultiViewIndex = ViewId;
-#else
-	ResolvedView = ResolveView();
-#endif
-
 	int2 ReflectedPixel = DispatchThreadId.xy;
 
 	if (all(ReflectedPixel.xy < (int2)ViewSizeAndInvSize.xy))
@@ -162,7 +144,7 @@ void ProjectionPassCS(
 		{
 			float3 MirroredViewPosition = ViewPosition - ReflectionPlane.xyz * (2.f * PlaneDistance);
 
-			float4 MirroredProjectedPosition = mul(float4(MirroredViewPosition, 1.0f), ResolvedView.ViewToClip);
+			float4 MirroredProjectedPosition = mul(float4(MirroredViewPosition, 1.0f), View.ViewToClip);
 			half2 MirroredProjectedUV = MirroredProjectedPosition.xy / MirroredProjectedPosition.w;
 
 			if (all(abs(MirroredProjectedUV.xy) < 1.0f))
@@ -187,22 +169,21 @@ void ReflectionPassVS(
 	in float2 InPosition : ATTRIBUTE0,
 	out float4 OutPosition : SV_POSITION,
 	out float4 PixelPosition : TEXCOORD0
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	, uint InstanceId : SV_InstanceID
 	, out uint LayerIndex : SV_RenderTargetArrayIndex
+	, out nointerpolation uint EyeIndex : VIEW_ID
 #elif MOBILE_MULTI_VIEW
 	, in uint ViewId : SV_ViewID
-	, out nointerpolation uint MultiViewIndex : VIEW_ID
 #endif
 )
 {
-#if INSTANCED_STEREO
-	const uint EyeIndex = GetEyeIndex(InstanceId);
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	EyeIndex = GetEyeIndex(InstanceId);
 	ResolvedView = ResolveView(EyeIndex);
 	LayerIndex = EyeIndex;
 #elif MOBILE_MULTI_VIEW
 	ResolvedView = ResolveView(ViewId);
-	MultiViewIndex = ViewId;
 #else
 	ResolvedView = ResolveView();
 #endif
@@ -280,13 +261,17 @@ half4 DecodeReflectionColor(int2 ReflectingPixel, uint EncodeValue)
 void ReflectionPassPS(
 	in float4 SvPosition : SV_Position,
 	in float4 PixelPosition : TEXCOORD0,
-#if MOBILE_MULTI_VIEW
-	in nointerpolation uint MultiViewId : VIEW_ID,
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+	in nointerpolation uint EyeIndex : VIEW_ID,
+#elif MOBILE_MULTI_VIEW
+	in nointerpolation uint ViewId : SV_ViewID,
 #endif
 	out HALF4_TYPE OutColor : SV_Target0)
 {
-#if MOBILE_MULTI_VIEW
-	ResolvedView = ResolveView(MultiViewId);
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(EyeIndex);
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
 #else
 	ResolvedView = ResolveView();
 #endif

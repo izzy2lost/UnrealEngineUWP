@@ -3,6 +3,7 @@
 #include "ClearKey/ClearKeyCDM.h"
 #include "ElectraCDM.h"
 #include "ElectraCDMClient.h"
+#include "ElectraCDMUtils.h"
 #include "Crypto/StreamCryptoAES128.h"
 #include <Misc/Base64.h>
 #include <Misc/ScopeLock.h>
@@ -10,8 +11,9 @@
 #include <Serialization/JsonReader.h>
 #include <Serialization/JsonSerializer.h>
 
-
 #define ENABLE_LEGACY_RAWKEY_OVERRIDE 1
+
+using namespace ElectraCDMUtils;
 
 namespace ElectraCDM
 {
@@ -87,8 +89,8 @@ public:
 	virtual bool IsBlockStreamDecrypter() override;
 	virtual void Reinitialize() override;
 	virtual ECDMError DecryptInPlace(uint8* InOutData, int32 InNumDataBytes, const FMediaCDMSampleInfo& InSampleInfo) override;
-	virtual ECDMError BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext) override;
-	virtual ECDMError BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, const FMediaCDMSampleInfo& InSampleInfo, bool bIsLastBlock) override;
+	virtual ECDMError BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext, const FMediaCDMSampleInfo& InSampleInfo) override;
+	virtual ECDMError BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, bool bIsLastBlock) override;
 	virtual ECDMError BlockStreamDecryptEnd(IStreamDecryptHandle* InStreamDecryptContext) override;
 
 private:
@@ -157,75 +159,6 @@ private:
 	ECDMState CurrentState = ECDMState::Idle;
 	FString LastErrorMsg;
 };
-
-/***************************************************************************************************************************************************/
-/***************************************************************************************************************************************************/
-/***************************************************************************************************************************************************/
-namespace
-{
-	/*
-		ClearKey license requests and responses use base64url encoding.
-		See https://www.w3.org/TR/encrypted-media/#clear-key-request-format
-		Section 9.1.3 License Request Format
-	*/
-
-	static FString Base64UrlEncode(const TArray<uint8>& InData)
-	{
-		FString b64 = FBase64::Encode(InData);
-		// Base64Url encoding replaces '+' and '/' with '-' and '_' respectively.
-		b64.ReplaceCharInline(TCHAR('+'), TCHAR('-'), ESearchCase::IgnoreCase);
-		b64.ReplaceCharInline(TCHAR('/'), TCHAR('_'), ESearchCase::IgnoreCase);
-		return b64;
-	}
-	static bool Base64UrlDecode(TArray<uint8>& OutData, FString InString)
-	{
-		InString.ReplaceCharInline(TCHAR('-'), TCHAR('+'), ESearchCase::IgnoreCase);
-		InString.ReplaceCharInline(TCHAR('_'), TCHAR('/'), ESearchCase::IgnoreCase);
-		return FBase64::Decode(InString, OutData);
-	}
-
-	static FString StripDashesFromKID(const FString& InKID)
-	{
-		return InKID.Replace(TEXT("-"), TEXT(""), ESearchCase::CaseSensitive);
-	}
-
-	static void ConvertKIDToBin(TArray<uint8>& OutBinKID, const FString& InKID)
-	{
-		OutBinKID.Empty();
-		check((InKID.Len() % 2) == 0);
-		if ((InKID.Len() % 2) == 0)
-		{
-			OutBinKID.AddUninitialized(InKID.Len() / 2);
-			HexToBytes(InKID, OutBinKID.GetData());
-		}
-	}
-
-	static FString ConvertKIDToBase64(const FString& InKID)
-	{
-		TArray<uint8> BinKID;
-		ConvertKIDToBin(BinKID, InKID);
-		FString b64 = Base64UrlEncode(BinKID);
-		// Chop off trailing padding.
-		return b64.Replace(TEXT("="), TEXT(""), ESearchCase::CaseSensitive);
-	}
-
-	void StringToArray(TArray<uint8>& OutArray, const FString& InString)
-	{
-		FTCHARToUTF8 cnv(*InString);
-		int32 Len = cnv.Length();
-		OutArray.AddUninitialized(Len);
-		FMemory::Memcpy(OutArray.GetData(), cnv.Get(), Len);
-	}
-
-	FString ArrayToString(const TArray<uint8>& InArray, int32 InStartAt=0)
-	{
-		FUTF8ToTCHAR cnv((const ANSICHAR*)InArray.GetData() + InStartAt, InArray.Num() - InStartAt);
-		FString UTF8Text(cnv.Length(), cnv.Get());
-		return MoveTemp(UTF8Text);
-	}
-
-}
-
 
 /***************************************************************************************************************************************************/
 /***************************************************************************************************************************************************/
@@ -1392,14 +1325,14 @@ bool FClearKeyDRMDecrypter::IsBlockStreamDecrypter()
 	return false;
 }
 
-ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext)
+ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext, const FMediaCDMSampleInfo& InSampleInfo)
 {
 	FScopeLock lock(&Lock);
 	OutStreamDecryptContext = nullptr;
 	LastErrorMsg = TEXT("Not a block stream decrypter");
 	return ECDMError::CipherModeMismatch;
 }
-ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, const FMediaCDMSampleInfo& InSampleInfo, bool bIsLastBlock)
+ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, bool bIsLastBlock)
 {
 	FScopeLock lock(&Lock);
 	LastErrorMsg = TEXT("Not a block stream decrypter");

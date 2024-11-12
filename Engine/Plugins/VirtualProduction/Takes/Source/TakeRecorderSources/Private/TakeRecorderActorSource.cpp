@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TakeRecorderActorSource.h"
+#include "AnimationRecorder.h"
 #include "Styling/SlateIconFinder.h"
 #include "ClassIconFinder.h"
 #include "MovieScene.h"
@@ -11,6 +12,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "SequenceRecorderUtils.h"
 #include "TakeRecorderSource.h"
+#include "TakeRecorderSourceHelpers.h"
 #include "TakeRecorderSources.h"
 #include "TakeRecorderSourcesUtils.h"
 #include "Recorder/TakeRecorderParameters.h"
@@ -45,6 +47,7 @@
 #if WITH_EDITOR
 #include "Tracks/MovieSceneSpawnTrack.h"
 #endif
+#include "SequencerUtilities.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TakeRecorderActorSource)
 
@@ -184,6 +187,14 @@ void UTakeRecorderActorSource::RemoveActorFromSources(AActor* InActor, UTakeReco
 	}
 }
 
+namespace TakeRecorderActorSource
+{
+static bool bAllowsSpawnableObjects = true;
+}
+
+bool UTakeRecorderActorSource::AllowsSpawnableObjects() { return TakeRecorderActorSource::bAllowsSpawnableObjects; }
+void UTakeRecorderActorSource::SetAllowsSpawnableObjects(bool bInAllowsSpawnableObjects) { TakeRecorderActorSource::bAllowsSpawnableObjects  = bInAllowsSpawnableObjects; }
+
 UTakeRecorderActorSource::UTakeRecorderActorSource(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
@@ -255,13 +266,16 @@ TArray<UTakeRecorderSource*> UTakeRecorderActorSource::PreRecording(ULevelSequen
 	{
 		// We need to store the object template in the Movie Scene (because it's a complex UObject)
 		// instead of trying to place this data into the non-UObject safe data stream.
-		FName UniqueTemplateName = MakeUniqueObjectName(TargetLevelSequence, ActorToRecord->GetClass(), NAME_None);
-		Header.TemplateName = UniqueTemplateName.ToString();
-		CachedObjectTemplate = CastChecked<AActor>(TargetLevelSequence->MakeSpawnableTemplateFromInstance(*ActorToRecord, UniqueTemplateName));
-		CachedObjectBindingGuid = MovieScene->AddSpawnable(ActorToRecord->GetActorLabel(), *CachedObjectTemplate);
+		UE::Sequencer::FCreateBindingParams CreateBindingParams;
+		CreateBindingParams.bSpawnable = true;
+		CreateBindingParams.bAllowCustomBinding = true;
+		CreateBindingParams.BindingNameOverride = ActorToRecord->GetActorLabel();
+		CachedObjectBindingGuid = FSequencerUtilities::CreateOrReplaceBinding(nullptr, InSequence, ActorToRecord, CreateBindingParams);
+		CachedObjectTemplate = CastChecked<AActor>(MovieSceneHelpers::GetObjectTemplate(InSequence, CachedObjectBindingGuid, MovieSceneHelpers::CreateTransientSharedPlaybackState(ActorToRecord, InSequence)));
 		
 		if (CachedObjectTemplate.IsValid())
 		{
+			Header.TemplateName = CachedObjectTemplate->GetName();
 			PostProcessCreatedObjectTemplateImpl(CachedObjectTemplate.Get());
 		}
 	}
@@ -413,12 +427,6 @@ void UTakeRecorderActorSource::CreateSectionRecordersRecursive(UObject* ObjectTo
 		if (ensure(ChildPossessable))
 		{
 			ChildPossessable->SetParent(CachedObjectBindingGuid, MovieScene);
-		}
-
-		FMovieSceneSpawnable* ParentSpawnable = MovieScene->FindSpawnable(CachedObjectBindingGuid);
-		if (ParentSpawnable)
-		{
-			ParentSpawnable->AddChildPossessable(Guid);
 		}
 
 		// Bindings are stored relative to their context outer. Newly duplicated components have a different outer
@@ -645,16 +653,12 @@ void UTakeRecorderActorSource::StopRecording(ULevelSequence* InSequence)
 	ActorSerializer.Close();
 }
 
-void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
+namespace UE::TakeRecorderActorSource::Private
 {
-	UMovieScene* MovieScene = InSequence->GetMovieScene();
-
-	TOptional<TRange<FFrameNumber> > FrameRange;
-	FMovieSceneBinding* Binding = MovieScene->FindBinding(CachedObjectBindingGuid);
-	if (!Binding)
-	{
-		return;
-	}
+TOptional<TRange<FFrameNumber>> GetFrameRange(UMovieScene* MovieScene, FMovieSceneBinding* Binding)
+{
+	TOptional<TRange<FFrameNumber>> FrameRange;
+	check(Binding);
 
 	// In case we need it later, get the earliest timecode source *before* we
 	// add the take section, since its timecode source will be default
@@ -678,106 +682,41 @@ void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
 			}
 		}
 	}
+	return FrameRange;
+}
 
+UMovieSceneTakeTrack* FindOrAddTakeTrack(UMovieScene* MovieScene, const FGuid& CachedObjectBindingGuid)
+{
 	UMovieSceneTakeTrack* TakeTrack = MovieScene->FindTrack<UMovieSceneTakeTrack>(CachedObjectBindingGuid);
 	if (!TakeTrack)
 	{
-		TakeTrack = InSequence->GetMovieScene()->AddTrack<UMovieSceneTakeTrack>(CachedObjectBindingGuid);
+		TakeTrack = MovieScene->AddTrack<UMovieSceneTakeTrack>(CachedObjectBindingGuid);
 	}
-	TakeTrack->RemoveAllAnimationData();
+	return TakeTrack;
+}
 
-	UMovieSceneTakeSection* TakeSection = Cast<UMovieSceneTakeSection>(TakeTrack->CreateNewSection());
-	TakeTrack->AddSection(*TakeSection);
+}
+void UTakeRecorderActorSource::ProcessRecordedTimes(ULevelSequence* InSequence)
+{
+	UMovieScene* MovieScene = InSequence->GetMovieScene();
 
-	if (FrameRange.IsSet())
+	FMovieSceneBinding* Binding = MovieScene->FindBinding(CachedObjectBindingGuid);
+	if (!Binding)
 	{
-		TArray<int32> Hours, Minutes, Seconds, Frames;
-		TArray<FMovieSceneFloatValue> SubFrames;
-		TArray<FFrameNumber> Times;
-
-		const TArray<TPair<FQualifiedFrameTime, FQualifiedFrameTime>>& RecordedTimes = UTakeRecorderSources::RecordedTimes;
-
-		Hours.Reserve(RecordedTimes.Num());
-		Minutes.Reserve(RecordedTimes.Num());
-		Seconds.Reserve(RecordedTimes.Num());
-		Frames.Reserve(RecordedTimes.Num());
-		SubFrames.Reserve(RecordedTimes.Num());
-		Times.Reserve(RecordedTimes.Num());
-
-		FFrameRate TickResolution = MovieScene->GetTickResolution();
-		FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-
-		for (const TPair<FQualifiedFrameTime, FQualifiedFrameTime>& RecordedTimePair : RecordedTimes)
-		{
-			FFrameNumber FrameNumber = RecordedTimePair.Key.Time.FrameNumber;
-			if (!FrameRange.GetValue().Contains(FrameNumber))
-			{
-				continue;
-			}
-
-			FFrameTime FrameTime = FFrameRate::TransformTime(RecordedTimePair.Key.Time, TickResolution, DisplayRate);
-
-			FTimecode Timecode = RecordedTimePair.Value.ToTimecode();
-		
-			Hours.Add(Timecode.Hours);
-			Minutes.Add(Timecode.Minutes);
-			Seconds.Add(Timecode.Seconds);
-			Frames.Add(Timecode.Frames);
-
-			FMovieSceneFloatValue SubFrame;
-			SubFrame.Value = RecordedTimePair.Value.Time.GetSubFrame();
-			SubFrame.InterpMode = ERichCurveInterpMode::RCIM_Linear;
-			SubFrames.Add(SubFrame);
-
-			Times.Add(FrameNumber);
-		}
-
-		Hours.Shrink();
-		Minutes.Shrink();
-		Seconds.Shrink();
-		Frames.Shrink();
-		SubFrames.Shrink();
-		Times.Shrink();
-
-		TakeSection->HoursCurve.Set(Times, Hours);
-		TakeSection->MinutesCurve.Set(Times, Minutes);
-		TakeSection->SecondsCurve.Set(Times, Seconds);
-		TakeSection->FramesCurve.Set(Times, Frames);
-		TakeSection->SubFramesCurve.Set(Times, SubFrames);
+		return;
 	}
 
-	// Since the take section was created post recording here in this
-	// function, it wasn't available at the start of recording to have
-	// its timecode source set with the other sections, so we set it here.
-	if (TakeSection->HoursCurve.GetNumKeys() > 0)
-	{
-		// We populated the take section's timecode curves with data, so
-		// use the first values as the timecode source.
-		const int32 Hours = TakeSection->HoursCurve.GetValues()[0];
-		const int32 Minutes = TakeSection->MinutesCurve.GetValues()[0];
-		const int32 Seconds = TakeSection->SecondsCurve.GetValues()[0];
-		const int32 Frames = TakeSection->FramesCurve.GetValues()[0];
-		const bool bIsDropFrame = false;
-		const FTimecode Timecode(Hours, Minutes, Seconds, Frames, bIsDropFrame);
-		TakeSection->TimecodeSource = FMovieSceneTimecodeSource(Timecode);
-	}
-	else
-	{
-		// Otherwise, adopt the earliest timecode source from one of the movie
-		// scene's other sections as the timecode source for the take section.
-		// This case is unlikely.
-		TakeSection->TimecodeSource = EarliestTimecodeSource;
-	}
+	// In case we need it later, get the earliest timecode source *before* we
+	// add the take section, since its timecode source will be default
+	// constructed as all zeros and might accidentally compare as earliest.
+	TOptional<TRange<FFrameNumber>> FrameRange =
+		UE::TakeRecorderActorSource::Private::GetFrameRange(MovieScene, Binding);
 
-	if (UTakeMetaData* TakeMetaData = InSequence->FindMetaData<UTakeMetaData>())
-	{
-		TakeSection->Slate.SetDefault(FString::Printf(TEXT("%s_%d"), *TakeMetaData->GetSlate(), TakeMetaData->GetTakeNumber()));
-	}
+	// Create a new take track or reuse the existing one based on binding.
+	UMovieSceneTakeTrack* TakeTrack = UE::TakeRecorderActorSource::Private::FindOrAddTakeTrack(MovieScene, CachedObjectBindingGuid);
 
-	if (TakeSection->GetAutoSizeRange().IsSet())
-	{
-		TakeSection->SetRange(TakeSection->GetAutoSizeRange().GetValue());
-	}
+	// Add the recorded times to the take track.
+	TakeRecorderSourceHelpers::ProcessRecordedTimes(InSequence, TakeTrack, FrameRange, UTakeRecorderSources::RecordedTimes);
 }
 
 TArray<UTakeRecorderSource*> UTakeRecorderActorSource::PostRecording(ULevelSequence* InSequence, class ULevelSequence* InRootSequence, const bool bCancelled)
@@ -865,23 +804,39 @@ void UTakeRecorderActorSource::FinalizeRecording()
 	ParentSource = nullptr;
 }
 
+namespace UE::TakeRecorderActorSource::Private
+{
+FProcessRecordedTimeParams GetTimecodeRecordingParameters()
+{
+	FString HoursName = GetDefault<UMovieSceneTakeSettings>()->HoursName;
+	FString MinutesName = GetDefault<UMovieSceneTakeSettings>()->MinutesName;
+	FString SecondsName = GetDefault<UMovieSceneTakeSettings>()->SecondsName;
+	FString FramesName = GetDefault<UMovieSceneTakeSettings>()->FramesName;
+	FString SubFramesName = GetDefault<UMovieSceneTakeSettings>()->SubFramesName;
+	FString RateName = GetDefault<UMovieSceneTakeSettings>()->RateName;
+	FString SlateName = GetDefault<UMovieSceneTakeSettings>()->SlateName;
+
+	return FProcessRecordedTimeParams {
+		.HoursName = HoursName,
+		.MinutesName = MinutesName,
+		.SecondsName = SecondsName,
+		.FramesName = FramesName,
+		.SubFramesName = SubFramesName,
+		.RateName = RateName,
+		.SlateName = SlateName
+	};
+}
+}
 void UTakeRecorderActorSource::PostProcessTrackRecorders(ULevelSequence* InSequence)
 {
 	FTakeRecorderParameters Parameters;
 	Parameters.User = GetDefault<UTakeRecorderUserSettings>()->Settings;
 	Parameters.Project = GetDefault<UTakeRecorderProjectSettings>()->Settings;
 
-	FString HoursName = GetDefault<UMovieSceneTakeSettings>()->HoursName;
-	FString MinutesName = GetDefault<UMovieSceneTakeSettings>()->MinutesName;
-	FString SecondsName = GetDefault<UMovieSceneTakeSettings>()->SecondsName;
-	FString FramesName = GetDefault<UMovieSceneTakeSettings>()->FramesName;
-	FString SubFramesName = GetDefault<UMovieSceneTakeSettings>()->SubFramesName;
-	FString SlateName = GetDefault<UMovieSceneTakeSettings>()->SlateName;
-				
-	FString Slate;
+	FProcessRecordedTimeParams RecordedTimeParams = UE::TakeRecorderActorSource::Private::GetTimecodeRecordingParameters();
 	if (UTakeMetaData* TakeMetaData = InSequence->FindMetaData<UTakeMetaData>())
 	{
-		Slate = FString::Printf(TEXT("%s_%d"), *TakeMetaData->GetSlate(), TakeMetaData->GetTakeNumber());
+		RecordedTimeParams.Slate = FString::Printf(TEXT("%s_%d"), *TakeMetaData->GetSlate(), TakeMetaData->GetTakeNumber());
 	}
 
 	// We want to look at all Animation Track recorders and remove root motion if the transform
@@ -932,7 +887,7 @@ void UTakeRecorderActorSource::PostProcessTrackRecorders(ULevelSequence* InSeque
 			
 			if (Parameters.Project.bRecordTimecode)
 			{
-				AnimationTrackRecorder->ProcessRecordedTimes(HoursName, MinutesName, SecondsName, FramesName, SubFramesName, SlateName, Slate);
+				AnimationTrackRecorder->ProcessRecordedTimes(RecordedTimeParams);
 			}
 		}
 	}
@@ -1067,7 +1022,8 @@ bool UTakeRecorderActorSource::EnsureObjectTemplateHasComponent(UActorComponent*
 
 	// Ensure the component name is unique within the Object Template. If there's complex spawn/destroy patterns that don't always use unique names this can
 	// cause UniqueComponentName to become a different name than the object it's being copied from which will cause anything attached to this to fail attachment.
-	FName UniqueComponentName = MakeUniqueObjectName(CachedObjectTemplate.Get(), InComponent->GetClass(), InComponent->GetFName());
+	// Note, we use NAME_None as the base name as opposed to anything the actual component's name because it could conflict with subsequence spawned components.
+	FName UniqueComponentName = MakeUniqueObjectName(CachedObjectTemplate.Get(), InComponent->GetClass(), NAME_None);
 	OutComponent = Cast<UActorComponent>(StaticDuplicateObject(InComponent, CachedObjectTemplate.Get(), UniqueComponentName, RF_AllFlags & ~RF_Transient));
 
 	// Restore attachment
@@ -1737,12 +1693,15 @@ void UTakeRecorderActorSource::SetSourceActor(TSoftObjectPtr<AActor> InTarget)
 
 bool UTakeRecorderActorSource::GetRecordToPossessable() const
 {
-#if WITH_EDITOR
-	if (!UMovieScene::IsTrackClassAllowed(UMovieSceneSpawnTrack::StaticClass()))
+	if (TargetLevelSequence && !TargetLevelSequence->AllowsSpawnableObjects())
 	{
 		return true;
 	}
-#endif
+	
+	if (!AllowsSpawnableObjects())
+	{
+		return true;
+	}
 
 	if (RecordType == ETakeRecorderActorRecordType::ProjectDefault)
 	{

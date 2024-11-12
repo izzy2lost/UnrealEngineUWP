@@ -1,14 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionTreeDetailsTabFactory.h"
-#include "AvaTransitionTreeEditorData.h"
-#include "AvaTypeSharedPointer.h"
-#include "Customizations/AvaTransitionTreeEditorDataCustomization.h"
-#include "IDetailsView.h"
-#include "Modules/ModuleManager.h"
-#include "PropertyEditorModule.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
-#include "ViewModels/AvaTransitionViewModelSharedData.h"
+#include "Views/SAvaTransitionTreeDetails.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionTreeDetailsTabFactory"
@@ -40,30 +34,7 @@ TSharedRef<SWidget> FAvaTransitionTreeDetailsTabFactory::CreateTabBody(const FWo
 		return SNullWidget::NullWidget;
 	}
 
-	UAvaTransitionTreeEditorData* EditorData = EditorViewModel->GetEditorData();
-	if (!ensure(EditorData))
-	{
-		return SNullWidget::NullWidget;
-	}
-
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-
-	DetailsView->RegisterInstancedCustomPropertyLayout(UStateTreeEditorData::StaticClass()
-		, FOnGetDetailCustomizationInstance::CreateStatic(&FAvaTransitionTreeEditorDataCustomization::MakeInstance));
-
-	// Read-only
-	if (EditorViewModel->GetSharedData()->IsReadOnly())
-	{
-		DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([]{ return false; }));
-	}
-
-	DetailsView->SetObject(EditorData);
-
-	return DetailsView;
+	return SNew(SAvaTransitionTreeDetails, EditorViewModel.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

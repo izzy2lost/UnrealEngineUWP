@@ -124,6 +124,13 @@ public:
 	static FOnSmartObjectChanged& GetOnSmartObjectChanged() { return OnSmartObjectChanged; }
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_EDITOR
+	FSmartObjectDefinitionReference& GetMutableDefinitionReference()
+	{
+		return DefinitionRef;
+	}
+#endif // WITH_EDITOR
+
 protected:
 	friend FSmartObjectComponentInstanceData;
 	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
@@ -169,7 +176,7 @@ protected:
 	ESmartObjectRegistrationType RegistrationType = ESmartObjectRegistrationType::NotRegistered;
 
 	FDelegateHandle EventDelegateHandle;
-	
+
 	/** 
 	 * Controls whether a given SmartObject can be aggregated in SmartObjectPersistentCollections. SOs in collections
 	 * can be queried and reasoned about even while the actual Actor and its components are not streamed in.
@@ -190,6 +197,8 @@ private:
 	mutable TObjectPtr<USmartObjectDefinition> CachedDefinitionAssetVariation = nullptr;
 
 #if WITH_EDITORONLY_DATA
+	FDelegateHandle OnSavingDefinitionDelegateHandle;
+
 	/** return true if applied or false if already applied */
 	bool ApplyDeprecation();
 

@@ -86,13 +86,6 @@ FText FSpawnableModel::GetIconToolTipText() const
 
 const FSlateBrush* FSpawnableModel::GetIconOverlayBrush() const
 {
-	UMovieScene*          MovieScene  = OwnerModel ? OwnerModel->GetMovieScene() : nullptr;
-	FMovieSceneSpawnable* Spawnable  = MovieScene ? MovieScene->FindSpawnable(ObjectBindingID) : nullptr;
-	if (Spawnable && Spawnable->DynamicBinding.WeakEndpoint.IsValid())
-	{
-		return FAppStyle::GetBrush("Sequencer.SpawnableDynamicBindingIconOverlay");
-	}
-
 	return FAppStyle::GetBrush("Sequencer.SpawnableIconOverlay");
 }
 
@@ -100,7 +93,7 @@ FText FSpawnableModel::GetTooltipForSingleObjectBinding() const
 {
 	const UClass* ClassForObjectBinding = FindObjectClass();
 	if (ClassForObjectBinding)
-	{\
+	{
 		return FText::Format(LOCTEXT("SpawnableBoundObjectToolTip", "Spawnable Class: {0} (BindingID: {1})"), FText::FromName(ClassForObjectBinding->GetFName()), FText::FromString(LexToString(ObjectBindingID)));
 	}
 	return FObjectBindingModel::GetTooltipForSingleObjectBinding();

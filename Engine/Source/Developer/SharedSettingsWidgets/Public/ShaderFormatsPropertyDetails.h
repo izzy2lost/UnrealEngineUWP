@@ -8,6 +8,7 @@
 class IDetailLayoutBuilder;
 class IPropertyHandle;
 class ITargetPlatform;
+class ITargetPlatformSettings;
 
 enum class ECheckBoxState : uint8;
 
@@ -36,6 +37,9 @@ public:
 	void SetOnUpdateShaderWarning(const FSimpleDelegate& Delegate);
 	
 	/** Create the UI to select which windows shader formats we are targeting */
+	void CreateTargetShaderFormatsPropertyView(ITargetPlatformSettings* TargetPlatform, GetFriendlyNameFromRHINameFnc* FriendlyNameFnc, FilterShaderPlatformFnc* FilterShaderPlatformFunc = nullptr, ECategoryPriority::Type InPriority = ECategoryPriority::Default);
+	
+	UE_DEPRECATED(5.5, "CreateTargetShaderFormatsPropertyView now takes a ITargetPlatformSettings* as first argument instead of ITargetPlatform*. Please change your callback function as this is a breaking change.")
 	void CreateTargetShaderFormatsPropertyView(ITargetPlatform* TargetPlatform, GetFriendlyNameFromRHINameFnc* FriendlyNameFnc, FilterShaderPlatformFnc* FilterShaderPlatformFunc = nullptr, ECategoryPriority::Type InPriority = ECategoryPriority::Default);
 
 	UE_DEPRECATED(5.1, "CreateTargetShaderFormatsPropertyView now gets RHI names via FName instead of FString. Please change your callback function as this is a breaking change.")

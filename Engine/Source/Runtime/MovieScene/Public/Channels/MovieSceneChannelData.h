@@ -197,8 +197,11 @@ protected:
 	 *
 	 * @param InTimes        A pointer to an array that should be operated on by this class. Externally owned.
 	 * @param InKeyHandles   A key handle map used for persistent, order independent identification of keys
-	 * @param InChannel      A optional pointer to the owning channel.
+	 * @param InChannel      A pointer to the owning channel.
 	 */
+	MOVIESCENE_API FMovieSceneChannelData(FMovieSceneChannel* InChannel, TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles);
+
+	UE_DEPRECATED(5.5, "Constructor that takes an optional FMovieSceneChannel is now deprecated. FMovieSceneChannel is now required.")
 	MOVIESCENE_API FMovieSceneChannelData(TArray<FFrameNumber>* InTimes, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel = nullptr);
 
 	/**
@@ -248,8 +251,9 @@ struct TMovieSceneChannelData : FMovieSceneChannelData
 	 * @param InKeyHandles   A key handle map used for persistent, order independent identification of keys
 	 * @param InChannel A option point to the owning channel, should be set if the move,add, delete delegates are utilizaed
 	 */
+	UE_DEPRECATED(5.5, "Constructor that takes an optional FMovieSceneChannel is now deprecated. FMovieSceneChannel is now required.")
 	TMovieSceneChannelData(TArray<FFrameNumber>* InTimes, TArray<ValueType>* InValues, FKeyHandleLookupTable* InKeyHandles, FMovieSceneChannel* InChannel = nullptr)
-		: FMovieSceneChannelData(InTimes, InKeyHandles, InChannel), Values(InValues) 
+		: FMovieSceneChannelData(InChannel, InTimes, InKeyHandles), Values(InValues) 
 	{
 		check(Times && Values);
 	}
@@ -260,10 +264,11 @@ struct TMovieSceneChannelData : FMovieSceneChannelData
 	 *
 	 * @param InTimes        A pointer to an array of times that should be operated on by this class. Externally owned.
 	 * @param InValues       A pointer to an array of values that should be operated on by this class. Externally owned.
+	 * @param InChannel      A pointer to the owning channel.
 	 * @param InKeyHandles   A key handle map used for persistent, order independent identification of keys
 	 */
 	TMovieSceneChannelData(TArray<FFrameNumber>* InTimes, TArray<ValueType>* InValues, FMovieSceneChannel* InChannel, FKeyHandleLookupTable* InKeyHandles)
-		: FMovieSceneChannelData(InTimes, InKeyHandles), Values(InValues)
+		: FMovieSceneChannelData(InChannel, InTimes, InKeyHandles), Values(InValues)
 	{
 		check(Times && Values);
 	}
@@ -329,7 +334,7 @@ struct TMovieSceneChannelData : FMovieSceneChannelData
 			// We have to remove the key and re-add it in the right place
 			// This could probably be done better by just shuffling up/down the items that need to move, without ever changing the size of the array
 			ValueType OldValue = (*Values)[KeyIndex];
-			Values->RemoveAt(KeyIndex, 1, EAllowShrinking::No);
+			Values->RemoveAt(KeyIndex, EAllowShrinking::No);
 			Values->Insert(OldValue, NewIndex);
 		}
 		return NewIndex;
@@ -362,8 +367,8 @@ struct TMovieSceneChannelData : FMovieSceneChannelData
 			Items.Add(FKeyAddOrDeleteEventItem(KeyIndex, Time));
 			OwningChannel->OnKeyDeletedEvent().Broadcast(OwningChannel, Items);
 		}
-		Times->RemoveAt(KeyIndex, 1, EAllowShrinking::No);
-		Values->RemoveAt(KeyIndex, 1, EAllowShrinking::No);
+		Times->RemoveAt(KeyIndex, EAllowShrinking::No);
+		Values->RemoveAt(KeyIndex, EAllowShrinking::No);
 
 		if (KeyHandles)
 		{

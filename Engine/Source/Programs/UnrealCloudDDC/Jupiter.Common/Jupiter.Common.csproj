@@ -29,24 +29,24 @@
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.300" />
     <PackageReference Include="AWSSDK.SecretsManager" Version="3.7.302.8" />
     <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.300.34" />
-    <PackageReference Include="Azure.Identity" Version="1.10.4" />
+    <PackageReference Include="Azure.Identity" Version="1.11.4" />
     <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.5.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="OpenTelemetry" Version="1.7.0" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.7.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.7.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.7.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.7.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.8.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.8.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.7.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
     <PackageReference Include="IdentityServer4.AccessTokenValidation" Version="3.0.1" />
 
     <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
 
-    <PackageReference Include="Okta.AspNetCore" Version="4.5.0" />
+    <PackageReference Include="Okta.AspNetCore" Version="4.6.1" />
     <!-- Adding explicit version of identity model to workaround deletion of a internal symbol used by Okta.AspNetCore -->
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="7.2.0" />
     <PackageReference Include="Microsoft.IdentityModel.Logging" Version="7.2.0" />
@@ -56,6 +56,7 @@
 
     <!--Support reading yaml config files -->
     <PackageReference Include="NetEscapades.Configuration.Yaml" Version="3.1.0" />
+    <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.1.1" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="SharpYaml" Version="2.1.0" />
 

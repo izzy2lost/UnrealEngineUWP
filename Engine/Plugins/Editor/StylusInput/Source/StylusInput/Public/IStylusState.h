@@ -7,7 +7,7 @@
 /**
  * The types of stylus inputs that can be potentially supported by a stylus.
  */
-enum class STYLUSINPUT_API EStylusInputType
+enum class UE_DEPRECATED(5.5, "Please use the new API's ETabletSupportedProperties in StylusInputTabletContext.h instead.") EStylusInputType
 {
 	Position,
 	Z,
@@ -22,7 +22,7 @@ enum class STYLUSINPUT_API EStylusInputType
 /**
  * The current state of a single stylus, as sent by IStylusMessageHandler. 
  */
-class STYLUSINPUT_API FStylusState
+class UE_DEPRECATED(5.5, "Please use the new API's FStylusInputPacket in StylusInputPacket.h instead.") FStylusState
 {
 public:
 
@@ -115,12 +115,14 @@ private:
 };
 
 /** An input device representing a stylus and its current state. */
-class STYLUSINPUT_API IStylusInputDevice
+class UE_DEPRECATED(5.5, "Please use the new API in StylusInput.h instead.") IStylusInputDevice
 {
 public:
 
 	virtual ~IStylusInputDevice() {}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	
 	/**
 	 * Get the current stylus state.
 	 */
@@ -135,6 +137,8 @@ public:
 	 * Get the supported inputs of this tablet.
 	 */
 	const TArray<EStylusInputType>& GetSupportedInputs() const { return SupportedInputs; }
+	
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Update the input device. Not intended to be called externally. */ 
 	virtual void Tick() = 0;
@@ -143,9 +147,11 @@ public:
 	bool IsDirty() const { return Dirty; }
 
 protected:
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FStylusState CurrentState;
 	FStylusState PreviousState;
 	TArray<EStylusInputType> SupportedInputs;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool Dirty : 1;
 };
 
@@ -153,8 +159,10 @@ protected:
  * Interface to implement for classes that want to receive messages when a stylus state change occurs.
  * Will trigger once per frame.
  */
-class IStylusMessageHandler
+class UE_DEPRECATED(5.5, "Please use the new API's IStylusInputEventHandler in StylusInput.h instead.") IStylusMessageHandler
 {
 public:
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual void OnStylusStateChanged(const FStylusState& NewState, int32 StylusIndex) = 0;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };

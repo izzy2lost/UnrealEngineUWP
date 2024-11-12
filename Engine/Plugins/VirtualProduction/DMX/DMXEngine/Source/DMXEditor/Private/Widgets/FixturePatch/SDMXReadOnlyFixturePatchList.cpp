@@ -118,7 +118,6 @@ void SDMXReadOnlyFixturePatchList::Construct(const FArguments& InArgs)
 			[
 				SAssignNew(ListView, SListView<TSharedPtr<FDMXReadOnlyFixturePatchListItem>>)
 				.HeaderRow(GenerateHeaderRow())
-				.ItemHeight(60.0f)
 				.ListItemsSource(&ListItems)
 				.OnGenerateRow(this, &SDMXReadOnlyFixturePatchList::OnGenerateRow)
 				.OnContextMenuOpening(InArgs._OnContextMenuOpening)
@@ -290,7 +289,7 @@ TSharedRef<SHeaderRow> SDMXReadOnlyFixturePatchList::GenerateHeaderRow()
 	HeaderRow->AddColumn(
 		SHeaderRow::FColumn::FArguments()
 		.ColumnId(FDMXReadOnlyFixturePatchListCollumnIDs::EditorColor)
-		.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+		.DefaultLabel(FText())
 		.FixedWidth(16.f)
 	);
 	
@@ -533,11 +532,8 @@ TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> SDMXReadOnlyFixturePatchLis
 				const UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.IsValid() ? FixturePatchRef->GetFixturePatch() : nullptr;
 				if (FixturePatch)
 				{
-					int32 FID;
-					if (FixturePatch->FindFixtureID(FID))
-					{
-						return FID != FixtureID;
-					}
+					const int32 FID = FixturePatch->GetFixtureID();
+					return FID != FixtureID;
 				}
 
 				return true;
@@ -601,10 +597,8 @@ void SDMXReadOnlyFixturePatchList::SortByColumnID(const EColumnSortPriority::Typ
 						return false;
 					}
 
-					int32 FixtureIDA;
-					int32 FixtureIDB;
-					FixturePatchA->FindFixtureID(FixtureIDA);
-					FixturePatchB->FindFixtureID(FixtureIDB);
+					const int32 FixtureIDA = FixturePatchA->GetFixtureID();
+					const int32 FixtureIDB = FixturePatchB->GetFixtureID();
 
 					return FixtureIDA >= FixtureIDB;
 				}();

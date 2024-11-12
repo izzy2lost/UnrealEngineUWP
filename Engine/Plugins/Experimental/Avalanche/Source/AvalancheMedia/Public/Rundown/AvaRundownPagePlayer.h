@@ -49,7 +49,7 @@ public:
 
 	void SetPagePlayer(UAvaRundownPagePlayer* InPagePlayer);
 
-public:	
+public:
 	UPROPERTY()
 	FAvaTagHandle TransitionLayer;
 
@@ -60,6 +60,8 @@ public:
 	TObjectPtr<UAvaPlaybackGraph> Playback;
 
 	TSharedPtr<FAvaPlaybackInstance> PlaybackInstance;
+
+	TWeakObjectPtr<UAvaRundownPagePlayer> ParentPagePlayer;
 };
 
 UCLASS()
@@ -155,11 +157,11 @@ public:
 	UAvaRundownPlaybackInstancePlayer* FindInstancePlayerByAssetPath(const FSoftObjectPath& InAssetPath) const;
 	
 protected:
-	UAvaRundownPlaybackInstancePlayer* CreateAndLoadInstancePlayer(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, int32 InSubPageIndex, const FGuid& InInstanceId);
+	UAvaRundownPlaybackInstancePlayer* CreateAndLoadInstancePlayer(UAvaRundown* InRundown, const FAvaRundownPage& InPage, int32 InSubPageIndex, const FGuid& InInstanceId);
 
 	void RemoveInstancePlayer(UAvaRundownPlaybackInstancePlayer* InInstancePlayer);
 	
-	void HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType);
+	void HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType);
 
 public:
 	UPROPERTY()
@@ -178,10 +180,6 @@ public:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAvaRundownPlaybackInstancePlayer>> InstancePlayers;
-
-	/** Instances that should bypass the next transition. */
-	UPROPERTY(Transient)
-	TSet<FGuid> InstancesBypassingTransition;
 
 protected:
 	TWeakObjectPtr<UAvaRundown> RundownWeak;

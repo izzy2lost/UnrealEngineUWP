@@ -201,12 +201,11 @@ struct FStructSerializerBuiltinTestStruct
 	UPROPERTY()
 	FText Text;
 
-	// FDatetime and FTimespan should be tested here but aren't properly setup in `NoExportTypes.h` and so do not properly work currently.
-	//UPROPERTY()
-	//FDateTime Datetime;
+	UPROPERTY()
+	FDateTime Datetime;
 
-	//UPROPERTY()
-	//FTimespan Timespan;
+	UPROPERTY()
+	FTimespan Timespan;
 
 	UPROPERTY()
 	FVector Vector;
@@ -229,6 +228,8 @@ struct FStructSerializerBuiltinTestStruct
 		, Name(TEXT("Test FName"))
 		, String("Test String")
 		, Text(FText::FromString("Test Text"))
+		, Datetime(2048, 2, 4, 8, 16, 32, 64)
+		, Timespan(1, 2, 3, 4, 5)
 		, Vector(1.0f, 2.0f, 3.0f)
 		, Vector4(4.0f, 5.0f, 6.0f, 7.0f)
 		, Rotator(4096, 8192, 16384)
@@ -241,7 +242,7 @@ struct FStructSerializerBuiltinTestStruct
 
 	bool operator==(const FStructSerializerBuiltinTestStruct& Rhs) const
 	{
-		return Guid == Rhs.Guid && Name == Rhs.Name && String == Rhs.String && Text.EqualTo(Rhs.Text) && Vector == Rhs.Vector && Vector4 == Rhs.Vector4 && Rotator == Rhs.Rotator && Quat == Rhs.Quat && Color == Rhs.Color;
+		return Guid == Rhs.Guid && Name == Rhs.Name && String == Rhs.String && Text.EqualTo(Rhs.Text) && Datetime == Rhs.Datetime && Timespan == Rhs.Timespan && Vector == Rhs.Vector && Vector4 == Rhs.Vector4 && Rotator == Rhs.Rotator && Quat == Rhs.Quat && Color == Rhs.Color;
 	}
 };
 
@@ -688,7 +689,64 @@ struct FStructSerializerSetTestStruct
 	FStructSerializerSetTestStruct( ENoInit ) { }
 };
 
+/**
+ * Test structure for optional properties.
+ */
+USTRUCT()
+struct FStructSerializerOptionalTestStruct
+{
+	GENERATED_BODY()
 
+	UPROPERTY()
+	TOptional<FString> StrOptional;
+
+	UPROPERTY()
+	TOptional<FString> StrOptionalUnset;
+
+	UPROPERTY()
+	TOptional<int32> IntOptional;
+
+	UPROPERTY()
+	TOptional<int32> IntOptionalUnset;
+
+	UPROPERTY()
+	TOptional<FName> NameOptional;
+
+	UPROPERTY()
+	TOptional<FName> NameOptionalUnset;
+
+	UPROPERTY(meta=(IgnoreForMemberInitializationTest))
+	TOptional<FStructSerializerBuiltinTestStruct> StructOptional;
+
+	UPROPERTY()
+	TOptional<FStructSerializerBuiltinTestStruct> StructOptionalUnset;
+
+	// At the time of writing, optionals can not be used as keys/values in containers (optionals/arrays/sets/maps).
+
+	// UPROPERTY()
+	// TOptional<TOptional<int32>> OptionalOptionalInt;
+
+	// UPROPERTY()
+	// TArray<TOptional<int32>> ArrayOptionalInt;
+
+	// UPROPERTY()
+	// TSet<TOptional<int32>> SetOptionalInt;
+
+	// UPROPERTY()
+	// TMap<TOptional<int32>, TOptional<int32>> MapOptionalIntOptionalInt;
+
+	/** Default constructor. */
+	FStructSerializerOptionalTestStruct()
+		: StrOptional(TEXT("Test String"))
+		, IntOptional(1234)
+		, NameOptional(TEXT("Test Name"))
+		, StructOptional(FStructSerializerBuiltinTestStruct())
+	{
+	}
+
+	/** Creates an uninitialized instance. */
+	FStructSerializerOptionalTestStruct( ENoInit ) { }
+};
 
 /**
  * Test structure for all supported types.
@@ -720,6 +778,9 @@ struct FStructSerializerTestStruct
 	FStructSerializerSetTestStruct Sets;
 
 	UPROPERTY()
+	FStructSerializerOptionalTestStruct Optionals;
+
+	UPROPERTY()
 	FStructSerializerLWCTypesTest LWCTypes;
 
 	/** Default constructor. */
@@ -734,6 +795,7 @@ struct FStructSerializerTestStruct
 		, Arrays(NoInit)
 		, Maps(NoInit)
 		, Sets(NoInit)
+		, Optionals(NoInit)
 		, LWCTypes(NoInit)
 	{ }
 };

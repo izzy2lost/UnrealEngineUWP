@@ -3,17 +3,18 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
-#include "VerseVM/VVMCVars.h"
+#include "Templates/Casts.h"
+#include "UObject/Class.h"
+#include "VerseVM/Inline/VVMNativeStructInline.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
+#include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMShape.h"
-#include "VerseVM/VVMTypeCreator.h"
+#include "VerseVM/VVMVerseStruct.h"
 
 namespace Verse
 {
-struct VShape;
-
 inline bool FEmergentTypesCacheKeyFuncs::Matches(FEmergentTypesCacheKeyFuncs::KeyInitType A, FEmergentTypesCacheKeyFuncs::KeyInitType B)
 {
 	return A == B;
@@ -34,41 +35,103 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& Constructor, const TArray<VClass*>& Inherited, VPackage* Scope)
+inline VConstructor::VEntry VConstructor::VEntry::Constant(FAllocationContext Context, FUtf8StringView InField, bool bInNative, VPropertyType* InPropertyType, VValue InValue)
 {
-	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Name, Kind, Constructor, Inherited, Scope);
+	return Constant(Context, VUniqueString::New(Context, InField), bInNative, InPropertyType, InValue);
 }
 
-inline VClass::VClass(FAllocationContext Context, VUTF8String* InName, EKind InKind, VConstructor& InConstructor, const TArray<VClass*>& InInherited, VPackage* InScope)
-	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
-	, ClassName(Context, InName)
-	, Scope(Context, InScope)
-	, Kind(InKind)
-	, NumInherited(InInherited.Num())
+inline VConstructor::VEntry VConstructor::VEntry::Constant(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InPropertyType, VValue InValue)
 {
-	if (InInherited.IsEmpty())
+	return VEntry{
+		{Context,        InField},
+		bInNative,
+		{Context, InPropertyType},
+		{Context,        InValue},
+		false
+    };
+}
+
+inline VFunction* VConstructor::VEntry::Initializer() const
+{
+	if (bDynamic && Value.Get())
 	{
-		Constructor.Set(Context, InConstructor);
+		return &Value.Get().StaticCast<VFunction>();
 	}
 	else
 	{
-		// Elements of this class override later superclasses, which override earlier superclasses.
-		TSet<VUniqueString*> Fields;
-		TArray<VConstructor::VEntry> Entries;
-		Entries.Reserve(InConstructor.NumEntries);
-		Extend(Fields, Entries, InConstructor);
-		for (uint32 Index = InInherited.Num(); Index-- > 0;)
-		{
-			Extend(Fields, Entries, *InInherited[Index]->Constructor.Get());
-		}
-		Constructor.Set(Context, VConstructor::New(Context, Entries));
+		return nullptr;
+	}
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::Field(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InType)
+{
+	return {
+		{Context, InField},
+		bInNative,
+		{Context, InType},
+		{},
+		true  // bDynamic
+	};
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::FieldInitializer(FAllocationContext Context, FUtf8StringView InField, bool bInNative, VPropertyType* InPropertyType, VProcedure& InCode)
+{
+	return FieldInitializer(Context, VUniqueString::New(Context, InField), bInNative, InPropertyType, InCode);
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::FieldInitializer(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InPropertyType, VProcedure& InCode)
+{
+	return {
+		{Context,        InField},
+		bInNative,
+		{Context, InPropertyType},
+		{Context,         InCode},
+		true
+    };
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::Block(FAllocationContext Context, VProcedure& Code)
+{
+	return {
+		{},
+		false,
+		{},
+		{Context, Code},
+		true
+    };
+}
+
+template <class CppStructType>
+inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStructType&& Struct)
+{
+	VEmergentType& EmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
+	return VNativeStruct::New(Context, EmergentType, Forward<CppStructType>(Struct));
+}
+
+inline VEmergentType& VClass::GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context)
+{
+	V_DIE_UNLESS(IsNativeStruct());
+	V_DIE_UNLESS(AssociatedUStruct);
+
+	// Get the singleton emergent type for this native struct
+	if (UVerseStruct* VerseStruct = Cast<UVerseStruct>(AssociatedUStruct.Get().AsUObject()))
+	{
+		return *VerseStruct->EmergentType;
 	}
 
-	for (uint32 Index = 0; Index < NumInherited; ++Index)
-	{
-		new (&Inherited[Index]) TWriteBarrier<VClass>(Context, InInherited[Index]);
-	}
+	// None found, that means this is an imported native struct
+	return GetOrCreateEmergentTypeForImportedNativeStruct(Context);
+}
+
+inline VConstructor& VClass::GetConstructor() const
+{
+	return *Constructor.Get();
+}
+
+inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UStruct* ImportStruct, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor)
+{
+	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, ImportStruct, bNative, Kind, Inherited, Constructor);
 }
 
 } // namespace Verse

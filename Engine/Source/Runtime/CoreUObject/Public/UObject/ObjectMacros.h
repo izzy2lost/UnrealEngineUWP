@@ -65,8 +65,8 @@ enum ELoadFlags
 //	LOAD_Unused						= 0x00000040
 	LOAD_NoVerify					= 0x00000080,	///< Don't verify imports yet.
 	LOAD_IsVerifying				= 0x00000100,	///< Is verifying imports
-	LOAD_SkipLoadImportedPackages	= 0x00000200,	///< Assume that all import packages are already loaded and don't call LoadPackage when creating imports 
-	LOAD_RegenerateBulkDataGuids	= 0x00000400,	///< BulkData identifiers should be regenerated as they are loaded 
+	LOAD_SkipLoadImportedPackages	= 0x00000200,	///< Assume that all import packages are already loaded and don't call LoadPackage when creating imports
+	LOAD_RegenerateBulkDataGuids UE_DEPRECATED(5.5, "This flag is now obsolete as the functionality is unnecessary.") = 0x00000400, ///< BulkData identifiers should be regenerated as they are loaded
 //	LOAD_Unused						= 0x00000800,
 	LOAD_DisableDependencyPreloading = 0x00001000,	///< Bypass dependency preloading system
 	LOAD_Quiet						= 0x00002000,	///< No log warnings.
@@ -104,6 +104,7 @@ enum ESaveFlags
 	SAVE_Optional					= 0x00008000,	///< Indicate that we to save optional exports. This flag is only valid while cooking. Optional exports are filtered if not specified during cooking. 
 	SAVE_AllowTimeout				= 0x00010000,   ///< If present, if SavePackage is blocked by an asynchronous operation, it will quickly fail with ESavePackageResult::Timeout, otherwise it will wait for a while and then fail with ESavePackageResult::Error.
 	SAVE_RehydratePayloads			= 0x00020000,   ///< Any virtualized payloads in the package should be pulled and stored locally in the package file during the save
+	SAVE_CookSoftPackageReferences	= 0x00040000,	///< Indicate that we want to save soft package references for cooked packages
 	SAVE_Unversioned = SAVE_Unversioned_Native | SAVE_Unversioned_Properties,
 };
 
@@ -375,8 +376,10 @@ enum EClassCastFlags : uint64
 	CASTCLASS_FFieldPathProperty			= 0x0010000000000000,
 	CASTCLASS_FLargeWorldCoordinatesRealProperty = 0x0080000000000000,
 	CASTCLASS_FOptionalProperty				= 0x0100000000000000,
-	CASTCLASS_FVerseValueProperty			= 0x0200000000000000,
-	CASTCLASS_UVerseVMClass					= 0x0400000000000000,
+	CASTCLASS_FVValueProperty				= 0x0200000000000000,
+	CASTCLASS_FVRestValueProperty			= 0x0400000000000000,
+	CASTCLASS_FUtf8StrProperty				= 0x1000000000000000,
+	CASTCLASS_FAnsiStrProperty				= 0x2000000000000000,
 };
 
 #define CASTCLASS_AllFlags ((EClassCastFlags)0xFFFFFFFFFFFFFFFF)
@@ -455,6 +458,8 @@ enum EPropertyFlags : uint64
 	CPF_TObjectPtr						= 0x0100000000000000,	///< Property is a TObjectPtr<T> instead of a USomething*. Need to differentiate between TObjectclassOf and TObjectPtr
 	CPF_ExperimentalOverridableLogic	= 0x0200000000000000,	///< ****Experimental*** Property will use different logic to serialize knowing what changes are done against its default use the overridable information provided by the overridable manager on the object
 	CPF_ExperimentalAlwaysOverriden		= 0x0400000000000000,	///< ****Experimental*** Property should never inherit from the parent when using overridable serialization
+	CPF_ExperimentalNeverOverriden		= 0x0800000000000000,	///< ****Experimental*** Property should never be overridden when using overridable serialization
+	CPF_AllowSelfReference				= 0x1000000000000000,	///< Enables the intancing graph self referencing logic, delgates and verse function are already using this
 };
 
 /** All Native Access Specifier flags */
@@ -569,7 +574,7 @@ enum EObjectFlags
 	// RF_Dynamic				=0x04000000,	///< Was removed along with bp nativization
 	RF_WillBeLoaded				=0x08000000,	///< This object was constructed during load and will be loaded shortly
 	RF_HasExternalPackage		=0x10000000,	///< This object has an external package assigned and should look it up when getting the outermost package
-	RF_HasPlaceholderType		=0x20000000,	///< This object was instanced from a placeholder type (e.g. on load). References to it are serialized but externally resolve to NULL from a logical point of view (for type safety).
+	// RF_Unused				=0x20000000,
 
 	// RF_MirroredGarbage is mirrored in EInternalObjectFlags::Garbage because checking the internal flags is much faster for the Garbage Collector
 	// while checking the object flags is much faster outside of it where the Object pointer is already available and most likely cached.
@@ -583,6 +588,8 @@ UE_DEPRECATED(5.4, "RF_InternalGarbage should no longer be used. Use IsValid(Obj
 inline constexpr EObjectFlags RF_InternalGarbage = RF_MirroredGarbage;
 UE_DEPRECATED(5.4, "RF_InternalMirroredFlags should no longer be used. Use IsValid(Object) instead.")
 inline constexpr EObjectFlags RF_InternalMirroredFlags = RF_MirroredGarbage;
+UE_DEPRECATED(5.5, "RF_HasPlaceholderType is no longer in use.")
+inline constexpr EObjectFlags RF_HasPlaceholderType = EObjectFlags(0x20000000);
 
 /** Mask for all object flags */
 #define RF_AllFlags				(EObjectFlags)0xffffffff	///< All flags, used mainly for error checking
@@ -611,37 +618,32 @@ enum class EInternalObjectFlags : int32
 	ReachabilityFlag1 = 1 << 1, ///< One of the flags used by Garbage Collector to determine UObject's reachability state
 	ReachabilityFlag2 = 1 << 2, ///< One of the flags used by Garbage Collector to determine UObject's reachability state
 
-	MaybeUnreachable UE_DEPRECATED(5.4, "MaybeUnreachable flag should no longer be used. Use FUObjectItem::IsMaybeUnreachable() or UE::GC::GMaybeUnreachableObjectFlag flag instead.") = 1 << 19, ///< Flag set on all non-root objects at the beginning of Reachability Analysis
 	LoaderImport = 1 << 20, ///< Object is ready to be imported by another package during loading
 	Garbage = 1 << 21, ///< Garbage from logical point of view and should not be referenced. This flag is mirrored in EObjectFlags as RF_Garbage for performance
+	AsyncLoadingPhase1 = 1 << 22, ///< Object is being asynchronously loaded.
 	ReachableInCluster = 1 << 23, ///< External reference to object in cluster exists
 	ClusterRoot = 1 << 24, ///< Root of a cluster
 	Native = 1 << 25, ///< Native (UClass only). 
 	Async = 1 << 26, ///< Object exists only on a different thread than the game thread.
-	AsyncLoading = 1 << 27, ///< Object is being asynchronously loaded.
-	Unreachable UE_DEPRECATED(5.4, "Unreachable flag should no longer be used. Use UObjectBaseUtility::IsUnreachable() or UE::GC::GUnreachableObjectFlag flag instead.") = 1 << 28, ///< Object is not reachable on the object graph.
-	// Unused = 1 << 29,
+	AsyncLoadingPhase2 = 1 << 27, ///< Object is being asynchronously loaded.
+	Unreachable = 1 << 28, ///< Object is not reachable on the object graph.
+	RefCounted = 1 << 29, ///< Object currently has ref-counts associated with it.
 	RootSet = 1 << 30, ///< Object will not be garbage collected, even if unreferenced.
 	PendingConstruction = 1 << 31, ///< Object didn't have its class constructor called yet (only the UObjectBase one to initialize its most basic members)
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// DO NOT ADD new compound flags to EInternalObjectFlags. The below flags are deprecated so that one day we can remove them.
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-	GarbageCollectionKeepFlags UE_DEPRECATED(5.4, "GarbageCollectionKeepFlags should no longer be used. Use EInternalObjectFlags_GarbageCollectionKeepFlags instead.") = Native | Async | AsyncLoading | LoaderImport,
-	MirroredFlags UE_DEPRECATED(5.4, "MirroredFlags should no longer be used. Use Garbage instead.") = Garbage,
-
-	//~ Make sure this is up to date!
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	AllFlags UE_DEPRECATED(5.4, "AllFlags should no longer be used. Use EInternalObjectFlags_AllFlags instead.") = ReachabilityFlag0 | ReachabilityFlag1 | MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// DO NOT ADD composite flags to EInternalObjectFlags. Debugger visualisations have trouble displaying composite flag values as text.
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	AsyncLoading UE_DEPRECATED(5.5, "Use EInternalObjectFlags_AsyncLoading instead.") = AsyncLoadingPhase1 | AsyncLoadingPhase2
 };
 ENUM_CLASS_FLAGS(EInternalObjectFlags);
 
 //~ Make sure these macros are up to date!
-#define EInternalObjectFlags_GarbageCollectionKeepFlags (EInternalObjectFlags::Native | EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::LoaderImport)
-#define EInternalObjectFlags_AllFlags (EInternalObjectFlags::ReachabilityFlag0 | EInternalObjectFlags::ReachabilityFlag1 | EInternalObjectFlags::ReachabilityFlag2 | EInternalObjectFlags::LoaderImport | EInternalObjectFlags::Garbage | EInternalObjectFlags::ReachableInCluster | EInternalObjectFlags::ClusterRoot | EInternalObjectFlags::Native | EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::RootSet | EInternalObjectFlags::PendingConstruction | (EInternalObjectFlags)(1 << 19 /*MaybeUnreachable*/) | (EInternalObjectFlags)(1 << 28 /*Unreachable*/))
+#define EInternalObjectFlags_GarbageCollectionKeepFlags (EInternalObjectFlags::Native | EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoadingPhase1 | EInternalObjectFlags::AsyncLoadingPhase2 | EInternalObjectFlags::LoaderImport | EInternalObjectFlags::RefCounted)
+#define EInternalObjectFlags_AllFlags (EInternalObjectFlags::ReachabilityFlag0 | EInternalObjectFlags::ReachabilityFlag1 | EInternalObjectFlags::ReachabilityFlag2 | EInternalObjectFlags::LoaderImport | EInternalObjectFlags::Garbage | EInternalObjectFlags::ReachableInCluster | EInternalObjectFlags::ClusterRoot | EInternalObjectFlags::Native | EInternalObjectFlags::RefCounted | EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoadingPhase1 | EInternalObjectFlags::AsyncLoadingPhase2 | EInternalObjectFlags::RootSet | EInternalObjectFlags::PendingConstruction | (EInternalObjectFlags::Unreachable))
 #define EInternalObjectFlags_RootFlags (EInternalObjectFlags::RootSet | EInternalObjectFlags_GarbageCollectionKeepFlags)
+#define EInternalObjectFlags_ReachabilityFlags (EInternalObjectFlags::ReachabilityFlag0 | EInternalObjectFlags::ReachabilityFlag1 | EInternalObjectFlags::ReachabilityFlag2 | EInternalObjectFlags::Unreachable)
+#define EInternalObjectFlags_AsyncLoading (EInternalObjectFlags::AsyncLoadingPhase1 | EInternalObjectFlags::AsyncLoadingPhase2)
 
 /**
  * Flags describing a UEnum 
@@ -774,7 +776,7 @@ namespace UC
 		NotBlueprintable,
 
 		/// This keyword indicates that the class should be accessible outside of it's module, but does not need all methods exported.
-		/// It exports only the autogenerated methods required for dynamic_cast<>, etc... to work.
+		/// It exports only the autogenerated methods required for Cast<>, etc... to work.
 		MinimalAPI,
 
 		/// Prevents automatic generation of the constructor declaration.
@@ -889,7 +891,7 @@ namespace UI
 	enum 
 	{
 		/// This keyword indicates that the interface should be accessible outside of it's module, but does not need all methods exported.
-		/// It exports only the autogenerated methods required for dynamic_cast<>, etc... to work.
+		/// It exports only the autogenerated methods required for Cast<>, etc... to work.
 		MinimalAPI,
 
 		/// Specifies that this interface can be directly implemented by blueprints, this is implied if the interface has any blueprint events.
@@ -1517,7 +1519,10 @@ namespace UM
 		///
 		/// UFUNCTION()
 		/// TArray<UClass*> FuncName() const;
-		GetDisallowedClasses
+		GetDisallowedClasses,
+
+		/// [PropertyMetadata] Used for edit inline UObject* properties, enables detail class customization for instanced UObject properties.
+		AllowEditInlineCustomization,
 	};
 
 	// Metadata usable in UPROPERTY for customizing the behavior of Persona and UMG
@@ -2134,23 +2139,25 @@ private:
 typedef uint32 ERenameFlags;
 
 /** Default rename behavior */
-#define REN_None					(0x0000)
-/** Rename won't call ResetLoaders or flush async loading. You should pass this if you are renaming a deep subobject and do not need to reset loading for the outer package */
-#define REN_ForceNoResetLoaders		(0x0001) 
+#define REN_None					    (0x0000)
+/** UE_DEPRECATED(5.5, "Rename will no longer call ResetLoaders making this flag no longer needed.") -  Rename won't call ResetLoaders or flush async loading. You should pass this if you are renaming a deep subobject and do not need to reset loading for the outer package */
+#define REN_ForceNoResetLoaders		    (0x0001) 
 /** Just test to make sure that the rename is guaranteed to succeed if an non test rename immediately follows */
-#define REN_Test					(0x0002) 
+#define REN_Test					    (0x0002) 
 /** Indicates that the object (and new outer) should not be dirtied */
-#define REN_DoNotDirty				(0x0004) 
+#define REN_DoNotDirty				    (0x0004) 
 /** Don't create an object redirector, even if the class is marked RF_Public */
-#define REN_DontCreateRedirectors	(0x0010) 
+#define REN_DontCreateRedirectors	    (0x0010) 
 /** Don't call Modify() on the objects, so they won't be stored in the transaction buffer */
-#define REN_NonTransactional		(0x0020) 
+#define REN_NonTransactional		    (0x0020) 
 /** Force unique names across all packages not just within the scope of the new outer */
-#define REN_ForceGlobalUnique		(0x0040) 
+#define REN_ForceGlobalUnique		    (0x0040) 
 /** Prevent renaming of any child generated classes and CDO's in blueprints */
-#define REN_SkipGeneratedClasses	(0x0080) 
+#define REN_SkipGeneratedClasses	    (0x0080) 
 /** Prevents renaming from unregistering/registering all components */
-#define REN_SkipComponentRegWork	(0x0100) 
+#define REN_SkipComponentRegWork	    (0x0100) 
+/** Prevents rename from clearing an object's linker when being renamed to a new package */
+#define REN_AllowPackageLinkerMismatch	(0x0200) 
 
 /*-----------------------------------------------------------------------------
 	Misc.

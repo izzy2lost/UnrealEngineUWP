@@ -26,6 +26,10 @@ namespace GeometryCollection::Facades
 		/** Is the facade defined constant. */
 		bool IsConst() const { return ParentAttribute.IsConst(); }
 
+		/** Get the number of transforms */
+		CHAOS_API int32 Num() const;
+
+
 		/** Gets the root index */
 		CHAOS_API TArray<int32> GetRootIndices() const;
 
@@ -43,6 +47,11 @@ namespace GeometryCollection::Facades
 		* Returns the child indicesfrom the collection. Null if not initialized.
 		*/
 		const TManagedArray<FTransform3f>* FindTransforms() const { return TransformAttribute.Find(); }
+
+		/**
+		* Returns the bone names from the collection. Null if not initialized.
+		*/
+		const TManagedArray<FString>* FindBoneNames() const { return BoneNameAttribute.Find(); }
 
 		/**
 		* Returns array of transforms for transforming from bone space to collection space
@@ -64,6 +73,15 @@ namespace GeometryCollection::Facades
 
 		/** Transforms selected bones in the collection */
 		CHAOS_API void Transform(const FTransform& InTransform, const TArray<int32>& InSelection);
+
+		/** Check if the facade has the bone name attribute. */
+		CHAOS_API bool HasBoneNameAttribute() const;
+
+		/** Get a bone name from the index if the facade has the attribute defined. */
+		CHAOS_API FString BoneName(int32 Index) const;
+
+		/** Get a TMap from bone name to bone index if the facade has the attribute defined. */
+		CHAOS_API TMap<FString, int32> BoneNameIndexMap() const;
 
 		/** Builds a FMatrix from all the components */
 		static CHAOS_API FMatrix BuildMatrix(const FVector& Translate,
@@ -89,9 +107,31 @@ namespace GeometryCollection::Facades
 		/** Sets the selected bone's transform to identity */
 		CHAOS_API void SetBoneTransformToIdentity(int32 BoneIdx);
 
+		/** Does the transform heirarchy have a cycle*/
+		static CHAOS_API bool HasCycle(const TManagedArray<int32>& Parents, int32 Node);
+
+		/** Does the transform heirarchy have a cycle*/
+		static CHAOS_API bool HasCycle(const TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones);
+
+		/** Parent a single transform */
+		CHAOS_API void ParentTransform(const int32 TransformIndex, const int32 ChildIndex);
+
+		/**  Parent the list of transforms to the selected index. */
+		CHAOS_API void ParentTransforms(const int32 TransformIndex, const TArray<int32>& SelectedBones);
+
+		/**  Unparent the child index from its parent */
+		CHAOS_API void UnparentTransform(const int32 ChildIndex);
+
+		/** Adds a Identity transform and nests all roots under the new transform */
+		CHAOS_API void EnforceSingleRoot(const FString & RootName);
+
 	private:
+		const FManagedArrayCollection& ConstCollection;
+		FManagedArrayCollection* Collection = nullptr;
+
 		TManagedArrayAccessor<int32>		ParentAttribute;
 		TManagedArrayAccessor<TSet<int32>>	ChildrenAttribute;
 		TManagedArrayAccessor<FTransform3f>	TransformAttribute;
+		TManagedArrayAccessor<FString>	    BoneNameAttribute;
 	};
 }

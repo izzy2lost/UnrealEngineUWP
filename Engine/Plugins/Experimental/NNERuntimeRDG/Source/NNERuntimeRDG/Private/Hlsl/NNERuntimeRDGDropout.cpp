@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGDropout.h"
+
+#include "NNEHlslShadersLog.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 #include "RenderGraphUtils.h"
@@ -44,7 +46,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (OutputTensorDescs.Num() == 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Dropout is only supported in inference mode at the moment, without the ability to output a 'mask'."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Dropout: Is only supported in inference mode at the moment, without the ability to output a 'mask'."));
 				return false;
 			}
 			
@@ -61,7 +63,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			const FTensorRDG& Data = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Dropout");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorDropout, "NNE.Operator.Hlsl.Dropout");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorDropout);
 
 			AddCopyBufferPass(GraphBuilder, Output.GetBuffer(), Data.GetBuffer());
@@ -93,7 +95,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		if (InputTypes.Num() > 1)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Dropout is only supported in inference mode at the moment, 'ratio' and 'training_mode' will be ignored."));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Dropout: Is only supported in inference mode at the moment, 'ratio' and 'training_mode' will be ignored."));
 		}
 
 		bIsValid &= InputValidator.Validate(InputTypes);

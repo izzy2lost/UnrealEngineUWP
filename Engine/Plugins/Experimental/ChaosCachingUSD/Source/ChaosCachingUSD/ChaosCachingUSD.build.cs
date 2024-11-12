@@ -15,9 +15,6 @@ namespace UnrealBuildTool.Rules
 			// warning C5103: pasting '"TF_LOG_STACK_TRACE_ON_ERROR"' and '"TF_LOG_STACK_TRACE_ON_WARNING"' does not result in a valid preprocessing token
 			CppStandard = CppStandardVersion.Cpp17;
 
-			// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
-			PCHUsage = PCHUsageMode.NoPCHs;
-
 			bUseRTTI = true;
 
 			PublicDependencyModuleNames.AddRange(
@@ -39,6 +36,8 @@ namespace UnrealBuildTool.Rules
 				"USDUtilities",
 				}
 			);
+
+			PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
 		}
 	}
 }

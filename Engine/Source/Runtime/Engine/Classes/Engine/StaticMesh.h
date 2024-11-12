@@ -21,15 +21,9 @@
 #include "Engine/StreamableRenderAsset.h"
 #include "Templates/UniquePtr.h"
 #include "StaticMeshSourceData.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "MeshTypes.h"
 #include "PerQualityLevelProperties.h"
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Components.h"
-#include "StaticMeshResources.h"
-#include "RenderAssetUpdate.h"
-#endif
 
 #include "StaticMesh.generated.h"
 
@@ -45,6 +39,7 @@ class UPackage;
 struct FMeshDescription;
 struct FStaticMeshLODResources;
 class IStaticMeshComponent;
+struct FStaticMeshSection;
 
 /*-----------------------------------------------------------------------------
 	Async Static Mesh Compilation
@@ -553,6 +548,17 @@ struct FMaterialRemapIndex
 	TArray<int32> MaterialRemap;
 };
 
+UENUM(BlueprintType)
+enum class EStaticMeshPaintSupport : uint8
+{
+	/** Use the default project setting for whether texture color mesh painting is supported. */
+	Default,
+	/** Enable texture color mesh painting support. */
+	Enabled,
+	/** Disable texture color mesh painting support. */
+	Disabled,
+};
+
 
 /**
  * A StaticMesh is a piece of geometry that consists of a static set of polygons.
@@ -775,7 +781,7 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::MinLOD);
-		MinQualityLevelLOD.PerQuality = QualityLevelProperty::ConvertQualtiyLevelData(QualityLevelMinimumLODs);
+		MinQualityLevelLOD.PerQuality = QualityLevelProperty::ConvertQualityLevelData(QualityLevelMinimumLODs);
 		MinQualityLevelLOD.Default = Default >= 0 ? Default : MinQualityLevelLOD.Default;
 #endif
 	}
@@ -785,7 +791,7 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::MinLOD);
-		QualityLevelMinimumLODs = QualityLevelProperty::ConvertQualtiyLevelData(MinQualityLevelLOD.PerQuality);
+		QualityLevelMinimumLODs = QualityLevelProperty::ConvertQualityLevelData(MinQualityLevelLOD.PerQuality);
 		Default = MinQualityLevelLOD.Default;
 #endif
 	}
@@ -794,7 +800,10 @@ public:
 	ENGINE_API int32 GetMinLODIdx(bool bForceLowestLODIdx = false) const;
 	ENGINE_API int32 GetDefaultMinLOD() const;
 	ENGINE_API void SetMinLODIdx(int32 InMinLOD);
-
+	
+	/** Computes the LOD Screen Size based on the LODIndex while keeping it within tolerance from the previous LODScreenSize*/
+	ENGINE_API static float ComputeLODScreenSize(int32 LODIndex, float PreviousLODScreenSize = -1.0f);
+	
 	ENGINE_API static void OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable);
 
 	/** Minimum LOD to use for rendering.  This is the default setting for the mesh and can be overridden by component settings. */
@@ -859,6 +868,16 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 	}
+
+protected:
+	/**
+	 * Index of an element to ignore while gathering streaming texture factors.
+	 * This is useful to disregard automatically generated vertex data which breaks texture factor heuristics.
+	 */
+	UPROPERTY(meta = (DisplayAfter = "ExtendedBounds"))
+	int32 ElementToIgnoreForTexFactor;
+
+public:
 
 #if WITH_EDITORONLY_DATA
 	/**
@@ -994,6 +1013,25 @@ public:
 		return GET_MEMBER_NAME_CHECKED(UStaticMesh, LightMapCoordinateIndex);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+
+	/** Whether to support per instance texture color mesh painting on components using this mesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = StaticMesh, meta = (DisplayName = "Support Texture Color Mesh Painting"))
+	EStaticMeshPaintSupport StaticMeshPaintSupport;
+
+	/** Whether to support per instance texture color mesh painting on components using this mesh. */
+	ENGINE_API bool CanMeshPaintTextureColors() const;
+
+	/** The default coordinate index to use when texture color painting on this mesh. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta = (UIMin = "0", UIMax = "3"))
+	int32 MeshPaintTextureCoordinateIndex;
+
+	/** 
+	 * The resolution of texture color mesh paint textures on this mesh.
+	 * The final size will be rounded up to a power of 2 and a multiple of the "Mesh Paint Tile Size" project setting.
+	 * A default value of 0 will auto calculate the size using the "Mesh paint texels per vertex" project setting.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta = (UIMin = "0", UIMax = "4096", ClampMax = "4096"))
+	int32 MeshPaintTextureResolution;
 
 	/** Useful for reducing self shadowing from distance field methods when using world position offset to animate the mesh's vertices. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh)
@@ -1298,12 +1336,6 @@ public:
 #endif
 
 protected:
-	/**
-	 * Index of an element to ignore while gathering streaming texture factors.
-	 * This is useful to disregard automatically generated vertex data which breaks texture factor heuristics.
-	 */
-	UPROPERTY()
-	int32 ElementToIgnoreForTexFactor;
 
 	/** Array of user data stored with the asset */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category = StaticMesh)
@@ -1876,8 +1908,10 @@ public:
 	ENGINE_API virtual bool GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const override;
 
 private:
-		bool GetPhysicsTriMeshDataCheckComplex(struct FTriMeshCollisionData* CollisionData, bool bInUseAllTriData, bool bInCheckComplexCollisionMesh);
-		bool ContainsPhysicsTriMeshDataCheckComplex(bool InUseAllTriData, bool bInCheckComplexCollisionMesh) const;
+	bool GetPhysicsTriMeshDataCheckComplex(struct FTriMeshCollisionData* CollisionData, bool bInUseAllTriData, bool bInCheckComplexCollisionMesh);
+	bool ContainsPhysicsTriMeshDataCheckComplex(bool InUseAllTriData, bool bInCheckComplexCollisionMesh) const;
+	bool SectionHasCollisionEnabled(const FStaticMeshSection& Section, int32 LODIndex, int32 SectionIndex) const;
+
 public:
 
 	virtual bool WantsNegXTriMesh() override
@@ -2090,6 +2124,7 @@ private:
 	// Notification about missing Nanite required shader models.
 	TWeakPtr<class SNotificationItem> ShaderModelNotificationPtr;
 
+	void CheckForValidMinLODs(FPerQualityLevelInt& QualityLocalMinLOD, FPerPlatformInt& LocalMinLOD, int32& OutMinAvailableLOD, TArray<TPair<int32, FName>>& OutInvalidMinLODs) const;
 	void CheckForMissingShaderModels();
 
 	FOnPreMeshBuild PreMeshBuild;
@@ -2155,6 +2190,19 @@ public:
 
 	UStaticMesh::FBuildParameters BuildParameters;
 	bool bHasRenderDataChanged = false;
+};
+
+struct FStaticMeshBuildParameters
+{
+	FStaticMeshBuildParameters(UStaticMesh* InStaticMesh, const ITargetPlatform* InTargetPlatform, const FStaticMeshLODGroup& InLODGroup)
+		: StaticMesh(InStaticMesh)
+		, TargetPlatform(InTargetPlatform)
+		, LODGroup(InLODGroup)
+	{}
+
+	UStaticMesh* StaticMesh;
+	const ITargetPlatform* TargetPlatform;
+	const FStaticMeshLODGroup& LODGroup;
 };
 
 namespace UE::Private::StaticMesh

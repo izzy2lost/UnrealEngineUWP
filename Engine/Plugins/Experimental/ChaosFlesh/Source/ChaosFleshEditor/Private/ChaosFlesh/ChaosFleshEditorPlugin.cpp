@@ -7,6 +7,7 @@
 #include "ChaosFlesh/Asset/FleshDeformableInterfaceDetails.h"
 #include "ChaosFlesh/Asset/FleshAssetThumbnailRenderer.h"
 #include "ChaosFlesh/ChaosDeformableCollisionsActor.h"
+#include "ChaosFlesh/ChaosDeformableConstraintsActor.h"
 #include "ChaosFlesh/ChaosDeformableSolverComponent.h"
 #include "ChaosFlesh/Cmd/ChaosFleshCommands.h"
 #include "ChaosFlesh/FleshActor.h"
@@ -43,6 +44,17 @@ void IChaosFleshEditorPlugin::StartupModule()
 			FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FChaosFleshCommands::FindQualifyingTetrahedra),
 			ECVF_Default
 		));
+
+		EditorCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("ChaosDeformable.CreateGeometryCache"),
+			TEXT("With an actor with flesh component(s) and a chaos cache manager selected (or use arg UsdFile), "
+				"generates a GeometryCache asset from the topology of associated SkeletalMeshComponent's import geometry, "
+				"and the simulation results from the USD file.  Requires deformer bindings for the import geometry in the "
+				"flesh component rest collection."
+				"Use arg 'UsdFile </path/to/file.usd>' to specify a specific USD file, rather than infering it from a chaos cache manager."),
+			FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FChaosFleshCommands::CreateGeometryCache),
+			ECVF_Default
+		));
 	}
 
 	// register details customization
@@ -50,6 +62,10 @@ void IChaosFleshEditorPlugin::StartupModule()
 
 	PropertyModule.RegisterCustomClassLayout(
 		ADeformableCollisionsActor::StaticClass()->GetFName(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FDeformableInterfaceDetails::MakeInstance));
+
+	PropertyModule.RegisterCustomClassLayout(
+		ADeformableConstraintsActor::StaticClass()->GetFName(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FDeformableInterfaceDetails::MakeInstance));
 
 	PropertyModule.RegisterCustomClassLayout(

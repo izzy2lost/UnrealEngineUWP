@@ -2,17 +2,20 @@
 
 #pragma once
 
+#include "Networking/VirtualCameraBeaconReceiver.h"
+
 #include "Modules/ModuleInterface.h"
 #include "UObject/WeakObjectPtr.h"
-#include "VirtualCameraBeaconReceiver.h"
 
 class UVCamPixelStreamingSession;
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	class FPixelStreamingVCamModule : public IModuleInterface
 	{
 	public:
+		
+		static FPixelStreamingVCamModule& Get();
 
 		//~ Begin IModuleInterface Interface
 		virtual void StartupModule() override;
@@ -25,22 +28,19 @@ namespace UE::PixelStreamingVCam::Private
 		/** Indicate that a VCAM pixel streaming session has become inactive. */
 		void RemoveActiveSession(const TWeakObjectPtr<UVCamPixelStreamingSession>& Session);
 
-		static FPixelStreamingVCamModule& Get();
-
 	private:
-		/** Configure CVars and session logic for Pixel Streaming. */
-		void ConfigurePixelStreaming();
-
-		/** Update the beacon receiver's streaming readiness state based on the number of active sessions. */
-		void UpdateBeaconReceiverStreamReadiness();
-
-	private:
-
+		
 		/** Receiver that responds to beacon messages from the VCAM app. */
 		FVirtualCameraBeaconReceiver BeaconReceiver;
 
 		/** VCAM Pixel Streaming sessions that are currently active. */
 		TSet<TWeakObjectPtr<UVCamPixelStreamingSession>, TWeakObjectPtrSetKeyFuncs<TWeakObjectPtr<UVCamPixelStreamingSession>>> ActiveSessions;
+		
+		/** Configure CVars and session logic for Pixel Streaming. */
+		void ConfigurePixelStreaming();
+
+		/** Update the beacon receiver's streaming readiness state based on the number of active sessions. */
+		void UpdateBeaconReceiverStreamReadiness();
 	};
 }
 

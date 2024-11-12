@@ -13,7 +13,6 @@
 #include "Containers/StringView.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
-#include "Internationalization/Regex.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Misc/ScopeRWLock.h"
@@ -24,6 +23,8 @@
 // If both are enabled and the RAD Syms library fails to initialize, it will fall back to DbgHelp (on Windows).
 #define USE_SYMSLIB 1
 #define USE_DBGHELP 1
+// Psym resolver supports symbols in the breakpad cross-platform text format
+#define USE_PSYMRESOLVER 1
 
 // Symbol files implementations
 #if USE_SYMSLIB
@@ -31,6 +32,9 @@
 #endif
 #if USE_DBGHELP
 #include "DbgHelpResolver.h"
+#endif
+#if USE_PSYMRESOLVER
+#include "PsymResolver.h"
 #endif
 
 namespace TraceServices
@@ -47,8 +51,8 @@ public:
 	virtual void Update(FResolvedSymbol& InSymbol) const override;
 
 private:
-	TArray<FString> IgnoreSymbolsByFunctionName;
-	TArray<FRegexPattern> IgnoreSymbolsByFilePath;
+	TArray<FStringView> IgnoreSymbolsByFunctionName;
+	TArray<FStringView> IgnoreSymbolsByFilePath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +209,15 @@ template <typename SymbolResolverType>
 FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPath(uint64 Base, const TCHAR* Path)
 {
 	FReadScopeLock _(ModulesLock);
-	const FModule* Module = Algo::FindBy(Modules, Base, &FModule::Base);
+	FModule* Module = nullptr;
+	for (uint32 ModuleIndex = 0; ModuleIndex < Modules.Num(); ++ModuleIndex)
+	{
+		if (Modules[ModuleIndex].Base == Base)
+		{
+			Module = &Modules[ModuleIndex];
+			break;
+		}
+	}
 	if (Module)
 	{
 		const FString FullPath = FPaths::ConvertRelativePathToFull(Path);
@@ -215,7 +227,7 @@ FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPat
 			// re-resolve any cached symbols
 			LoadSymbolsTask = FFunctionGraphTask::CreateAndDispatchWhenReady([this, Module, FullPath]()
 			{
-				auto ReloadModuleFn = [this] (const FModule* InModule, const TCHAR* InPath)
+				auto ReloadModuleFn = [this] (FModule* InModule, const TCHAR* InPath)
 				{
 					const uint32 DiscoveredSymbols = InModule->Stats.Discovered.load();
 					const uint64 ModuleBegin = InModule->Base;
@@ -240,15 +252,16 @@ FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPat
 					Resolver->QueueModuleReload(InModule, InPath, ReresolveOnSuccess);
 
 					// Wait for the resolver to do it's work
-					while (InModule->Status.load() == EModuleStatus::Pending)
+					do
 					{
 						FPlatformProcess::Sleep(0.1f);
 					}
+					while (InModule->Status.load() == EModuleStatus::Pending);
 
 					return InModule->Status.load();
 				};
 
-				UE_LOG(LogTraceServices, Display, TEXT("Queing symbol loading using path %s."), *FullPath);
+				UE_LOG(LogTraceServices, Display, TEXT("Queuing symbol loading using path %s."), *FullPath);
 
 				// Load the requested module
 				const EModuleStatus Result = ReloadModuleFn(Module, *FullPath);
@@ -258,21 +271,34 @@ FGraphEventRef TModuleProvider<SymbolResolverType>::LoadSymbolsForModuleUsingPat
 					// Queue up any other failed module using the directory.
 					IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
 					const FString Directory = PlatformFile->DirectoryExists(*FullPath) ? FullPath : FPaths::GetPath(FullPath);
-					for (auto& OtherModule : Modules)
+
+					TArray<FModule*> OtherModules;
+					{
+						FReadScopeLock _(ModulesLock);
+						for (uint32 ModuleIndex = 0; ModuleIndex < Modules.Num(); ++ModuleIndex)
+						{
+							FModule* OtherModule = &Modules[ModuleIndex];
+							if (OtherModule != Module)
+							{
+								const EModuleStatus ModuleStatus = OtherModule->Status.load();
+								if (ModuleStatus >= EModuleStatus::FailedStatusStart)
+								{
+									OtherModules.Add(OtherModule);
+								}
+							}
+						}
+					}
+					for (FModule* OtherModule : OtherModules)
 					{
 						if (LoadSymbolsAbort)
 						{
 							return;
 						}
-						const EModuleStatus ModuleStatus = OtherModule.Status.load();
-						if (&OtherModule != Module && ModuleStatus >= EModuleStatus::FailedStatusStart)
-						{
-							ReloadModuleFn(&OtherModule, *Directory);
-						}
+						ReloadModuleFn(OtherModule, *Directory);
 					}
 				}
 
-				UE_LOG(LogTraceServices, Display, TEXT("Loading symbols for path %s complete."), *FullPath);
+				UE_LOG(LogTraceServices, Display, TEXT("Completed loading symbols for path %s."), *FullPath);
 			});
 
 			return LoadSymbolsTask;
@@ -444,26 +470,26 @@ uint32 TModuleProvider<SymbolResolverType>::GetNumCachedSymbolsFromModule(uint64
 
 FResolvedSymbolFilter::FResolvedSymbolFilter()
 {
-	IgnoreSymbolsByFunctionName.Add(TEXT("FMemory::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FMallocWrapper::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FMallocPoisonProxy::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FMallocLeakDetectionProxy::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FVirtualWinApiHooks::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("Malloc"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("Realloc"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("Free"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("MemoryTrace_"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("operator new"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("operator delete"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("std::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FWindowsPlatformMemory::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FCachedOSPageAllocator::"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FMallocBinned"));
-	IgnoreSymbolsByFunctionName.Add(TEXT("FD3D12Adapter::TraceMemoryAllocation"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FMemory::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FMallocWrapper::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FMallocPoisonProxy::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FMallocLeakDetectionProxy::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FVirtualWinApiHooks::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("Malloc"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("Realloc"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("Free"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("MemoryTrace_"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("operator new"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("operator delete"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("std::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FWindowsPlatformMemory::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FCachedOSPageAllocator::"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FMallocBinned"));
+	IgnoreSymbolsByFunctionName.Add(TEXTVIEW("FD3D12Adapter::TraceMemoryAllocation"));
 
-	IgnoreSymbolsByFilePath.Add(FRegexPattern(FString(TEXT(".*/Containers/.*"))));
-	IgnoreSymbolsByFilePath.Add(FRegexPattern(FString(TEXT(".*/ConcurrentLinearAllocator.*"))));
-	IgnoreSymbolsByFilePath.Add(FRegexPattern(FString(TEXT(".*/D3D12PoolAllocator.*"))));
+	IgnoreSymbolsByFilePath.Add(TEXTVIEW("/Containers/"));
+	IgnoreSymbolsByFilePath.Add(TEXTVIEW("/ConcurrentLinearAllocator"));
+	IgnoreSymbolsByFilePath.Add(TEXTVIEW("/D3D12PoolAllocator"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -481,9 +507,9 @@ void FResolvedSymbolFilter::Update(FResolvedSymbol& InSymbol) const
 	if (!bIsFiltered && InSymbol.Name)
 	{
 		// Ignore symbols by function name prefix.
-		for (const FString& Prefix : IgnoreSymbolsByFunctionName)
+		for (const FStringView& Prefix : IgnoreSymbolsByFunctionName)
 		{
-			if (FCString::Strnicmp(InSymbol.Name, *Prefix, Prefix.Len()) == 0)
+			if (FCString::Strnicmp(InSymbol.Name, Prefix.GetData(), Prefix.Len()) == 0)
 			{
 				bIsFiltered = true;
 				break;
@@ -493,13 +519,13 @@ void FResolvedSymbolFilter::Update(FResolvedSymbol& InSymbol) const
 
 	if (!bIsFiltered && InSymbol.File)
 	{
-		// Ignore symbols by file path, specified as RegexPattern strings.
-		for (const FRegexPattern& RegexPattern : IgnoreSymbolsByFilePath)
+		FString File(InSymbol.File);
+		File.ReplaceCharInline(TEXT('\\'), TEXT('/'), ESearchCase::CaseSensitive);
+
+		// Ignore symbols by file path, specified as substrings.
+		for (const FStringView& SubString : IgnoreSymbolsByFilePath)
 		{
-			FString File(InSymbol.File);
-			File.ReplaceCharInline(TEXT('\\'), TEXT('/'), ESearchCase::CaseSensitive);
-			FRegexMatcher RegexMatcher(RegexPattern, File);
-			if (RegexMatcher.FindNext())
+			if (File.Contains(SubString, ESearchCase::CaseSensitive))
 			{
 				bIsFiltered = true;
 				break;
@@ -529,6 +555,12 @@ TSharedPtr<IModuleAnalysisProvider> CreateModuleProvider(IAnalysisSession& InSes
 		Provider = MakeShared<TModuleProvider<FDbgHelpResolver>>(InSession);
 	}
 #endif // PLATFORM_WINDOWS && USE_DBGHELP
+#if USE_PSYMRESOLVER
+	if (!Provider && InSymbolFormat.Equals("psym"))
+	{
+		Provider = MakeShared<TModuleProvider<FPsymResolver>>(InSession);
+	}
+#endif
 	return Provider;
 }
 

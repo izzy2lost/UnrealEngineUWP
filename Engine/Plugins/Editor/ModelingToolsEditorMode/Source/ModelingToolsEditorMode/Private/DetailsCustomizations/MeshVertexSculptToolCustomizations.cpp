@@ -432,7 +432,7 @@ public:
 				{
 					return;
 				}
-				RecentAssets.RemoveAt(k, 1, EAllowShrinking::No);
+				RecentAssets.RemoveAt(k, EAllowShrinking::No);
 			}
 		}
 		RecentAssets.Insert(NewAsset, 0);

@@ -16,9 +16,6 @@ namespace UE
 {
 namespace Trace 
 {
-#if WITH_TRACE_STORE
-	class FStoreService;
-#endif
 	class FStoreClient;
 }
 }
@@ -56,9 +53,6 @@ private:
 	FDelegateHandle CustomDebugObjectHandle;
 #endif
 
-#if WITH_TRACE_STORE
-	TSharedPtr<UE::Trace::FStoreService> StoreService;
-#endif
 	TWeakPtr<FTabManager> WeakTimingProfilerTabManager;
 	
 	bool bTraceStarted = false;

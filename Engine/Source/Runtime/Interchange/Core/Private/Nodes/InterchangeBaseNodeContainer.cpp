@@ -164,18 +164,23 @@ bool UInterchangeBaseNodeContainer::SetNodeParentUid(const FString& NodeUniqueID
 
 int32 UInterchangeBaseNodeContainer::GetNodeChildrenCount(const FString& NodeUniqueID) const
 {
+	if (TArray<FString>* CacheChildrenPtr = GetCachedNodeChildrenUids(NodeUniqueID))
+	{
+		return CacheChildrenPtr->Num();
+	}
+
 	TArray<FString> ChildrenUids = GetNodeChildrenUids(NodeUniqueID);
 	return ChildrenUids.Num();
 }
 
 TArray<FString> UInterchangeBaseNodeContainer::GetNodeChildrenUids(const FString& NodeUniqueID) const
 {
-	if(TArray<FString>* CacheChildrenPtr = ChildrenCache.Find(NodeUniqueID))
+	if (TArray<FString>* CacheChildrenPtr = GetCachedNodeChildrenUids(NodeUniqueID))
 	{
 		return *CacheChildrenPtr;
 	}
 
-	//Update the cache
+	// Update the cache
 	TArray<FString>& CacheChildren = ChildrenCache.Add(NodeUniqueID);
 	for (const auto& NodeKeyValue : Nodes)
 	{
@@ -185,6 +190,16 @@ TArray<FString> UInterchangeBaseNodeContainer::GetNodeChildrenUids(const FString
 		}
 	}
 	return CacheChildren;
+}
+
+TArray<FString>* UInterchangeBaseNodeContainer::GetCachedNodeChildrenUids(const FString& NodeUniqueID) const
+{
+	if (TArray<FString>* CacheChildrenPtr = ChildrenCache.Find(NodeUniqueID))
+	{
+		return CacheChildrenPtr;
+	}
+
+	return nullptr;
 }
 
 UInterchangeBaseNode* UInterchangeBaseNodeContainer::GetNodeChildren(const FString& NodeUniqueID, int32 ChildIndex)
@@ -324,3 +339,22 @@ UInterchangeBaseNode* UInterchangeBaseNodeContainer::GetNodeChildrenInternal(con
 	return nullptr;
 }
 
+bool UInterchangeBaseNodeContainer::GetIsAncestor(const FString& NodeUniqueID, const FString& AncestorUID) const
+{
+	FString CurrentNodeUID = NodeUniqueID;
+	
+	while (CurrentNodeUID != UInterchangeBaseNode::InvalidNodeUid() && Nodes.Contains(CurrentNodeUID))
+	{
+		UInterchangeBaseNode* Node = Nodes.FindChecked(CurrentNodeUID);
+		const FString& ParentUID = Node->GetParentUid();
+
+		if (AncestorUID == ParentUID)
+		{
+			return true;
+		}
+
+		CurrentNodeUID = ParentUID;
+	}
+
+	return false;
+}

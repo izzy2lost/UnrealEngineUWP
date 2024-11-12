@@ -36,6 +36,8 @@ struct FFunctionMap {
 
 void FunctionMapAdd(void* OldFunction, void* NewFuncton);
 
+void* FunctionMapReportError(void* OldFunction, const char* Where);
+
 inline void* FunctionMapTryLookup(void* OldFunction)
 {
     FFunctionMap* Map = GlobalData->FunctionMap;

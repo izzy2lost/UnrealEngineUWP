@@ -11,8 +11,10 @@ public class ExternalRpcRegistry : ModuleRules
                 "Core",
                 "CoreUObject",
 				"Json",
-                "HTTPServer"
+				"HTTP",
+				"HTTPServer"
             }
         );
+		PublicDefinitions.Add("USE_RPC_REGISTRY_IN_SHIPPING=0");
     }
 }

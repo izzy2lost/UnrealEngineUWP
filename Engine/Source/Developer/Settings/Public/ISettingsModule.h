@@ -98,6 +98,16 @@ public:
 
 public:
 
+	/**
+	 * A delegate that is executed when a settings container has been added.
+	 *
+	 * @return The delegate.
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnContainerAdded, const FName&)
+	virtual FOnContainerAdded& OnContainerAdded() = 0;
+
+public:
+
 	/** Virtual destructor. */
 	virtual ~ISettingsModule() { }
 };

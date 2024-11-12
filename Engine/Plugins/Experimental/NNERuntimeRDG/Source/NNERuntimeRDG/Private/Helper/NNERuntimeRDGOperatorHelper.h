@@ -9,6 +9,8 @@
 namespace UE::NNERuntimeRDG::Private::OperatorHelper
 {
 	bool GetInt32ArrayFromConstTensor(TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>& Attr, const NNE::Internal::FTensorRef Tensor);
+	bool GetInt32ArrayFromConstTensor(TArray<int32, TInlineAllocator<2 * NNE::FTensorShape::MaxRank>>& Attr, const NNE::Internal::FTensorRef Tensor);
+	bool GetInt32ArrayFromConstTensor(TArray<int32>& Attr, const NNE::Internal::FTensorRef Tensor);
 
 } // UE::NNERuntimeRDG::Private::OperatorHelper
 

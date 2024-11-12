@@ -5,10 +5,14 @@
 #include "Containers/ContainersFwd.h"
 #include "NNEStatus.h"
 #include "NNETypes.h"
-#include "RenderGraphFwd.h"
 #include "UObject/Interface.h"
 
 #include "NNERuntimeRDG.generated.h"
+
+class FRDGBuffer;
+using FRDGBufferRef = FRDGBuffer*;
+
+class FRDGBuilder;
 
 class UNNEModelData;
 

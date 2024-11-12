@@ -24,13 +24,15 @@ void QualifierFunc_MostNegativeMod_AllPositiveMods(const FAggregatorEvaluatePara
 		float ExpectedDelta = 0.f;
 		switch( ModInfo.Op )
 		{
-		case EGameplayModOp::Additive:
+		case EGameplayModOp::AddBase:
+		case EGameplayModOp::AddFinal:
 			ExpectedDelta = ModInfo.Mod->EvaluatedMagnitude;
 			break;
-		case EGameplayModOp::Multiplicitive:
+		case EGameplayModOp::MultiplyAdditive:
+		case EGameplayModOp::MultiplyCompound:
 			ExpectedDelta = (BaseValue * ModInfo.Mod->EvaluatedMagnitude) - BaseValue;
 			break;
-		case EGameplayModOp::Division:
+		case EGameplayModOp::DivideAdditive:
 			ExpectedDelta = ModInfo.Mod->EvaluatedMagnitude > 0.f ? ((BaseValue / ModInfo.Mod->EvaluatedMagnitude) - BaseValue) : 0.f;
 			break;
 		case EGameplayModOp::Override:

@@ -10,15 +10,15 @@
 /**
 * User data that can be attached to assets to provide namespaced data access.
 */
-UCLASS(Abstract)
-class RIGVM_API UNameSpacedUserData : public UAssetUserData
+UCLASS(Abstract, MinimalAPI)
+class UNameSpacedUserData : public UAssetUserData
 {
 	GENERATED_BODY()
 
 public:
 
 	/** A helper struct to represent a single user data */
-	struct RIGVM_API FUserData
+	struct FUserData
 	{
 	public:
 
@@ -60,12 +60,12 @@ public:
 		const FString& GetPath() const { return Path; }
 
 		// returns the name of the last segment of the path
-		FString GetName() const;
+		RIGVM_API FString GetName() const;
 
 #if WITH_EDITOR
 
 		// returns the display name of the last segment of the path
-		FString GetDisplayName() const;
+		RIGVM_API FString GetDisplayName() const;
 
 #endif
 
@@ -82,11 +82,11 @@ public:
 			return CPPType;
 		}
 
-		bool IsArray() const;
+		RIGVM_API bool IsArray() const;
 
-		bool IsArrayElement() const;
+		RIGVM_API bool IsArrayElement() const;
 
-		bool IsUObject() const;
+		RIGVM_API bool IsUObject() const;
 
 		// returns the property of this user data or nullptr
 		const FProperty* GetProperty() const { return Property; }
@@ -129,7 +129,7 @@ public:
 		InvalidateCache();
 	}
 
-	virtual void Serialize(FArchive& Ar) override;
+	RIGVM_API virtual void Serialize(FArchive& Ar) override;
 
 	/** The namespace to use when looking up values inside of the user data. */
 	UPROPERTY(EditAnywhere, Category = General)
@@ -139,10 +139,10 @@ public:
 	bool ContainsUserData(const FString& InPath) const { return GetUserData(InPath) != nullptr; }
 
 	/** Returns a user data path given its string path */
-	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const;
+	RIGVM_API virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const;
 
 	/** Retrieves the user data paths given a (optional) parent path */
-	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const;
+	RIGVM_API virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const;
 
 	/** Retrieves the user data path given the path string */
 	const FUserData* GetParentUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const
@@ -157,17 +157,17 @@ public:
 
 protected:
 
-	const FUserData* GetUserDataWithinStruct(const UStruct* InStruct, const uint8* InMemory, const FString& InPath, const FString& InPropertyName, FString* OutErrorMessage = nullptr) const;
-	const TArray<const FUserData*>& GetUserDataArrayWithinStruct(UStruct* InStruct, const uint8* InMemory, const FString& InPath, FString* OutErrorMessage = nullptr) const;
-	const TArray<const FUserData*>& GetUserDataArrayWithinArray(const FArrayProperty* InArrayProperty, const uint8* InMemory, const FString& InPath, FString* OutErrorMessage = nullptr) const;
-	static const FProperty* FindPropertyByName(const UStruct* InStruct, const FName& InName);
+	RIGVM_API const FUserData* GetUserDataWithinStruct(const UStruct* InStruct, const uint8* InMemory, const FString& InPath, const FString& InPropertyName, FString* OutErrorMessage = nullptr) const;
+	RIGVM_API const TArray<const FUserData*>& GetUserDataArrayWithinStruct(UStruct* InStruct, const uint8* InMemory, const FString& InPath, FString* OutErrorMessage = nullptr) const;
+	RIGVM_API const TArray<const FUserData*>& GetUserDataArrayWithinArray(const FArrayProperty* InArrayProperty, const uint8* InMemory, const FString& InPath, FString* OutErrorMessage = nullptr) const;
+	RIGVM_API static const FProperty* FindPropertyByName(const UStruct* InStruct, const FName& InName);
 
-	void InvalidateCache() const;
-	const FUserData* StoreCacheForUserData(const FUserData& InUserData) const; 
-	const TArray<const FUserData*>& StoreCacheForUserDataArray(const FString& InPath, const TArray<const FUserData*>& InUserDataArray) const;
-	virtual bool IsPropertySupported(const FProperty* InProperty, const FString& InPath, bool bCheckPropertyFlags, FString* OutErrorMessage = nullptr) const;
+	RIGVM_API void InvalidateCache() const;
+	RIGVM_API const FUserData* StoreCacheForUserData(const FUserData& InUserData) const; 
+	RIGVM_API const TArray<const FUserData*>& StoreCacheForUserDataArray(const FString& InPath, const TArray<const FUserData*>& InUserDataArray) const;
+	RIGVM_API virtual bool IsPropertySupported(const FProperty* InProperty, const FString& InPath, bool bCheckPropertyFlags, FString* OutErrorMessage = nullptr) const;
 	
-	static const TArray<const FUserData*> EmptyUserDatas;
+	RIGVM_API static const TArray<const FUserData*> EmptyUserDatas;
 
 	mutable TMap<FString, FUserData*> CachedUserData;
 	mutable TMap<FString, TArray<const FUserData*>> CachedUserDataArray;
@@ -183,8 +183,8 @@ protected:
 /**
 * Namespaced user data which provides access to a linked data asset
 */
-UCLASS(BlueprintType)
-class RIGVM_API UDataAssetLink : public UNameSpacedUserData
+UCLASS(BlueprintType, MinimalAPI)
+class UDataAssetLink : public UNameSpacedUserData
 {
 	GENERATED_BODY()
 
@@ -198,16 +198,16 @@ public:
 	TSoftObjectPtr<UDataAsset> GetDataAsset() const { return DataAsset; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset);
+	RIGVM_API void SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset);
 
-	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
-	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
+	RIGVM_API virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
+	RIGVM_API virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
 
-	virtual void Serialize(FArchive& Ar) override;
+	RIGVM_API virtual void Serialize(FArchive& Ar) override;
 #if WITH_EDITOR
 	virtual bool IsPostLoadThreadSafe() const override { return false; }
-	virtual void PostLoad() override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	RIGVM_API virtual void PostLoad() override;
+	RIGVM_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
 protected:

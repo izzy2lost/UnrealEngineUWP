@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "LowLevelMemTrackerDefines.h" // LLM_ENABLED_IN_CONFIG
 #include "ProfilingDebugging/TagTrace.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #ifndef PLATFORM_SUPPORTS_LLM
 #define PLATFORM_SUPPORTS_LLM 1
@@ -314,6 +315,7 @@ enum class ELLMAllocType
 
 extern const ANSICHAR* LLMGetTagNameANSI(ELLMTag Tag);
 extern const TCHAR* LLMGetTagName(ELLMTag Tag);
+extern CORE_API const FName LLMGetUntaggedTagName(ELLMTagSet TagSet);
 UE_DEPRECATED(4.27, "This function was an unused implementation detail; contact Epic if you need to keep its functionality.")
 extern FName LLMGetTagStatGroup(ELLMTag Tag);
 UE_DEPRECATED(4.27, "This function was an unused implementation detail; contact Epic if you need to keep its functionality.")
@@ -372,8 +374,11 @@ extern FName LLMGetTagStat(ELLMTag Tag);
 																	FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMScope_Name,__LINE__), false /* bIsStatTag */, ELLMTagSet::Assets, ELLMTracker::Default, false /* bOverride */);
 #define LLM_PLATFORM_SCOPE(Tag)										FLLMScope SCOPE_NAME(Tag, false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Platform);
 #define LLM_PLATFORM_SCOPE_BYNAME(Tag) 								static FName PREPROCESSOR_JOIN(LLMScope_Name,__LINE__)(Tag);\
-																	FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMLLMScope_NameScope,__LINE__), false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Platform);
+																	FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMScope_Name,__LINE__), false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Platform);
 #define LLM_PLATFORM_SCOPE_BYTAG(TagDeclName)						FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMTagDeclaration_, TagDeclName).GetUniqueName(), false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Platform);
+#define LLM_SCOPE_CLEAR()											FLLMClearScope SCOPE_NAME(ELLMTagSet::None, ELLMTracker::Default);\
+																	UE_MEMSCOPE(0)
+#define LLM_TAGSET_SCOPE_CLEAR(TagSet)								FLLMClearScope SCOPE_NAME(TagSet, ELLMTracker::Default);
 
  /**
  * LLM Pause scope macros
@@ -901,23 +906,32 @@ public:
 	{
 		if (FLowLevelMemTracker::IsEnabled())
 		{
-			Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride);
+			// We run the init in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN { Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride); };
+			// But remember that if we abort while we hold the scope, we need to destroy the scope.
+			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
 	}
+
 	FLLMScope(ELLMTag TagEnum, bool bIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride = true)
 	{
 		if (FLowLevelMemTracker::IsEnabled())
 		{
-			Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride);
+			// We run the init in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN { Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride); };
+			// But remember that if we abort while we hold the scope, we need to destroy the scope.
+			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
-
 	}
 
 	FLLMScope(const UE::LLMPrivate::FTagData* TagData, bool bIsStatTag, ELLMTagSet Set, ELLMTracker Tracker, bool bOverride = true)
 	{
 		if (FLowLevelMemTracker::IsEnabled())
 		{
-			Init(TagData, bIsStatTag, Set, Tracker, bOverride);
+			// We run the init in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN { Init(TagData, bIsStatTag, Set, Tracker, bOverride); };
+			// But remember that if we abort while we hold the scope, we need to destroy the scope.
+			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
 	}
 
@@ -925,7 +939,10 @@ public:
 	{
 		if (bEnabled)
 		{
-			Destruct();
+			// We run the destroy in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN { Destruct(); };
+			// But remember to pop our on-abort handler (so that we don't try and double destroy).
+			AutoRTFM::PopOnAbortHandler(this);
 		}
 	}
 
@@ -1023,6 +1040,13 @@ protected:
 	bool bEnabled;
 };
 
+/** LLM Scope to clear top tag while in scope */
+class FLLMClearScope : public FLLMScope
+{
+public:
+	CORE_API FLLMClearScope(ELLMTagSet InTagSet, ELLMTracker InTracker);
+};
+
 /** LLM scope for inheriting tag from the given address. */
 class FLLMScopeFromPtr
 {
@@ -1099,6 +1123,8 @@ inline bool FLowLevelMemTracker::IsEnabled()
 #define LLM_PLATFORM_SCOPE(...)
 #define LLM_PLATFORM_SCOPE_BYNAME(...)
 #define LLM_PLATFORM_SCOPE_BYTAG(...)
+#define LLM_SCOPE_CLEAR()
+#define LLM_TAGSET_SCOPE_CLEAR(...)
 #define LLM_REALLOC_SCOPE(...)
 #define LLM_REALLOC_PLATFORM_SCOPE(...)
 #define LLM_SCOPED_PAUSE_TRACKING(...)

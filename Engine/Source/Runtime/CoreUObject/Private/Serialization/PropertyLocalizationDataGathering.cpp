@@ -385,8 +385,8 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromChildTextPrope
 		}
 
 		const FString& PathToElement = IsFixedSizeArray ? PathToFixedSizeArrayElement : PathToElementRoot;
-		const void* const ElementValueAddress = reinterpret_cast<const uint8*>(ValueAddress) + Property->ElementSize * i;
-		const void* const DefaultElementValueAddress = DefaultValueAddress ? (reinterpret_cast<const uint8*>(DefaultValueAddress) + Property->ElementSize * i) : nullptr;
+		const void* const ElementValueAddress = reinterpret_cast<const uint8*>(ValueAddress) + Property->GetElementSize() * i;
+		const void* const DefaultElementValueAddress = DefaultValueAddress ? (reinterpret_cast<const uint8*>(DefaultValueAddress) + Property->GetElementSize() * i) : nullptr;
 
 		EPropertyLocalizationGathererTextFlags ElementChildPropertyGatherTextFlags = FixedChildPropertyGatherTextFlags;
 		if (!EnumHasAnyFlags(ElementChildPropertyGatherTextFlags, EPropertyLocalizationGathererTextFlags::ForceIsDefaultValue))
@@ -728,7 +728,7 @@ private:
 				bIsParsingText = true;
 
 				SerializeExpr(iCode, Ar);
-				const FString SourceString = MoveTemp(LastParsedString);
+				FString SourceString = MoveTemp(LastParsedString);
 
 				SerializeExpr(iCode, Ar);
 				const FString TextKey = MoveTemp(LastParsedString);
@@ -738,7 +738,7 @@ private:
 
 				bIsParsingText = false;
 
-				const FText TextInstance = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *TextNamespace, *TextKey);
+				const FText TextInstance = FText::AsLocalizable_Advanced(TextNamespace, TextKey, MoveTemp(SourceString));
 				if (!PropertyLocalizationDataGatherer.IsDefaultTextInstance(TextInstance))
 				{
 					PropertyLocalizationDataGatherer.GatherTextInstance(TextInstance, FString::Printf(TEXT("%s [Script Bytecode]"), SourceDescription), bTreatAsEditorOnlyData);
@@ -814,8 +814,8 @@ bool FPropertyLocalizationDataGatherer::ExtractTextIdentity(const FText& Text, F
 	const FTextId TextId = FTextInspector::GetTextId(Text);
 	if (!TextId.IsEmpty() && Text.ShouldGatherForLocalization())
 	{
-		OutNamespace = TextId.GetNamespace().GetChars();
-		OutKey = TextId.GetKey().GetChars();
+		TextId.GetNamespace().ToString(OutNamespace);
+		TextId.GetKey().ToString(OutKey);
 		if (bCleanNamespace)
 		{
 			OutNamespace = TextNamespaceUtil::StripPackageNamespace(OutNamespace);

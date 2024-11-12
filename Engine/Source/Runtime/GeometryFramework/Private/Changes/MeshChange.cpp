@@ -7,14 +7,14 @@
 
 using namespace UE::Geometry;
 
-FMeshChange::FMeshChange()
-{
-}
+FMeshChange::FMeshChange() = default;
 
 FMeshChange::FMeshChange(TUniquePtr<FDynamicMeshChange> DynamicMeshChangeIn)
 {
 	DynamicMeshChange = MoveTemp(DynamicMeshChangeIn);
 }
+
+FMeshChange::~FMeshChange() = default;
 
 void FMeshChange::Apply(UObject* Object)
 {

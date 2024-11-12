@@ -63,6 +63,12 @@ struct FPluginTemplateDescription
 	/** Called to change away from special folders if needed */
 	virtual void UpdatePathWhenTemplateUnselected(FString& InOutPath) {}
 
+	/** Called to optionally set the default plugin name text */
+	virtual void UpdatePluginNameTextWhenTemplateSelected(FText& OutPluginNameText) {}
+
+	/** Called to optionally unset the default plugin name text */
+	virtual void UpdatePluginNameTextWhenTemplateUnselected(FText& OutPluginNameText) {}
+
 	/** Constructor */
 	FPluginTemplateDescription(FText InName, FText InDescription, FString InOnDiskPath, bool InCanContainContent, EHostType::Type InModuleDescriptorType, ELoadingPhase::Type InLoadingPhase = ELoadingPhase::Default)
 		: Name(InName)

@@ -3,28 +3,34 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/SHeaderRow.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STreeView.h"
 
-// Insights
+// TraceInsights
+#include "Insights/NetworkingProfiler/ViewModels/NetEventNode.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNodeHelper.h"
 
 class IToolTip;
-class SNetEventTableRowToolTip;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 }
 
+namespace UE::Insights::NetworkingProfiler
+{
+
+class SNetEventTableRowToolTip;
+
 DECLARE_DELEGATE_RetVal_OneParam(bool, FNetEventNodeShouldBeEnabledDelegate, FNetEventNodePtr /*NodePtr*/);
 DECLARE_DELEGATE_RetVal_OneParam(bool, FIsColumnVisibleDelegate, const FName /*ColumnId*/);
 DECLARE_DELEGATE_RetVal_OneParam(EHorizontalAlignment, FGetColumnOutlineHAlignmentDelegate, const FName /*ColumnId*/);
-DECLARE_DELEGATE_ThreeParams(FSetHoveredNetEventTableCell, TSharedPtr<Insights::FTable> /*TablePtr*/, TSharedPtr<Insights::FTableColumn> /*ColumnPtr*/, FNetEventNodePtr /*NetEventNodePtr*/);
+DECLARE_DELEGATE_ThreeParams(FSetHoveredNetEventTableCell, TSharedPtr<FTable> /*TablePtr*/, TSharedPtr<FTableColumn> /*ColumnPtr*/, FNetEventNodePtr /*NetEventNodePtr*/);
 
 /** Widget that represents a table row in the tree control. Generates widgets for each column on demand. */
 class SNetStatsTableRow : public SMultiColumnTableRow<FNetEventNodePtr>
@@ -37,7 +43,7 @@ public:
 		SLATE_EVENT(FSetHoveredNetEventTableCell, OnSetHoveredCell)
 		SLATE_ATTRIBUTE(FText, HighlightText)
 		SLATE_ATTRIBUTE(FName, HighlightedNodeName)
-		SLATE_ARGUMENT(TSharedPtr<Insights::FTable>, TablePtr)
+		SLATE_ARGUMENT(TSharedPtr<FTable>, TablePtr)
 		SLATE_ARGUMENT(FNetEventNodePtr, NetEventNodePtr)
 	SLATE_END_ARGS()
 
@@ -72,11 +78,11 @@ protected:
 	const FSlateBrush* GetOutlineBrush(const FName ColumnId) const;
 	bool HandleShouldBeEnabled() const;
 	EVisibility IsColumnVisible(const FName ColumnId) const;
-	void OnSetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FNetEventNodePtr InNetEventNodePtr);
+	void OnSetHoveredCell(TSharedPtr<FTable> InTablePtr, TSharedPtr<FTableColumn> InColumnPtr, FNetEventNodePtr InNetEventNodePtr);
 
 protected:
 	/** A shared pointer to the table view model. */
-	TSharedPtr<Insights::FTable> TablePtr;
+	TSharedPtr<FTable> TablePtr;
 
 	/** Data context for this table row. */
 	FNetEventNodePtr NetEventNodePtr;
@@ -94,3 +100,5 @@ protected:
 
 	TSharedPtr<SNetEventTableRowToolTip> RowToolTip;
 };
+
+} // namespace UE::Insights::NetworkingProfiler

@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "RigUnit_AnimNextBase.h"
 #include "AnimNextExecuteContext.h"
-
 #include "RigUnit_AnimNextShimRoot.generated.h"
 
 /**
@@ -12,7 +12,7 @@
  * The graph editor will not see this node. It is added during compilation as a shim to start the evaluation process.
  * This node is only used at runtime.
  */
-USTRUCT(meta=(DisplayName="Animation Output Shim", Category="Events", NodeColor="1, 0, 0", Keywords="Root,Output"))
+USTRUCT(meta=(Hidden, DisplayName="Animation Output Shim", Category="Events", NodeColor="1, 0, 0", Keywords="Root,Output"))
 struct ANIMNEXT_API FRigUnit_AnimNextShimRoot : public FRigUnit_AnimNextBase
 {
 	GENERATED_BODY()

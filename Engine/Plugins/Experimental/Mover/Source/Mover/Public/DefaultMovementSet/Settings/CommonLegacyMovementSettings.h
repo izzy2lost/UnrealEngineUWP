@@ -25,6 +25,10 @@ public:
 	UPROPERTY(Category="General", EditAnywhere, BlueprintReadWrite)
 	FName AirMovementModeName = DefaultModeNames::Falling;
 
+	// What movement mode to use when airborne.
+	UPROPERTY(Category = "General", EditAnywhere, BlueprintReadWrite)
+	FName SwimmingMovementModeName = DefaultModeNames::Swimming;
+
 	/** Walkable slope angle, represented as cosine(max slope angle) for performance reasons. Ex: for max slope angle of 30 degrees, value is cosine(30 deg) = 0.866 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ground Movement")
 	float MaxWalkSlopeCosine = 0.71f;

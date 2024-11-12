@@ -40,10 +40,6 @@ public:
 		Open = 3
 	};
 
-	virtual ~TImplicitMorphology()
-	{
-	}
-
 	///
 	/// Inputs
 	///

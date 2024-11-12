@@ -94,14 +94,30 @@ public:
 			LOCTEXT("TrimRightPreserve", "Trim Right and Preserve"),
 			LOCTEXT("TrimRightPreserveToolTip", "Trims the right side of this attach at the current time and preserves the last key's world coordinates"),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateRaw(AttachTrackEditor, &F3DAttachTrackEditor::TrimAndPreserve, ObjectBinding, &Section, false))
+			FUIAction(
+				FExecuteAction::CreateRaw(AttachTrackEditor, &F3DAttachTrackEditor::TrimAndPreserve, ObjectBinding, &Section, false),
+				FCanExecuteAction::CreateLambda([this] { 
+					TSet<UMovieSceneSection*> Sections;
+					Sections.Add(&Section);
+					TSharedPtr<ISequencer> Sequencer = AttachTrackEditor->GetSequencer();
+					FQualifiedFrameTime Time = Sequencer->GetLocalTime();
+					return MovieSceneToolHelpers::CanTrimSectionRight(Sections, Time);
+				}))
 		);
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("TrimLeftPreserve", "Trim Left and Preserve"),
 			LOCTEXT("TrimLeftPreserveToolTip", "Trims the left side of this attach at the current time and preserves the first key's world coordinates"),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateRaw(AttachTrackEditor, &F3DAttachTrackEditor::TrimAndPreserve, ObjectBinding, &Section, true))
+			FUIAction(
+				FExecuteAction::CreateRaw(AttachTrackEditor, &F3DAttachTrackEditor::TrimAndPreserve, ObjectBinding, &Section, true),
+				FCanExecuteAction::CreateLambda([this] {
+					TSet<UMovieSceneSection*> Sections;
+					Sections.Add(&Section);
+					TSharedPtr<ISequencer> Sequencer = AttachTrackEditor->GetSequencer();
+					FQualifiedFrameTime Time = Sequencer->GetLocalTime();
+					return MovieSceneToolHelpers::CanTrimSectionLeft(Sections, Time);
+				}))
 		);
 
 		MenuBuilder.EndSection();
@@ -786,8 +802,10 @@ struct FAttachRevertModifier
 
 		TransformEvaluator = FWorldTransformEvaluator(InWeakAttachTrackEditor, ConstraintObject, InSocketName, InComponentName);
 
-		BeginConstraintTransform = TransformEvaluator(InRevertRange.GetLowerBoundValue());
-
+		if (InRevertRange.HasLowerBound())
+		{
+			BeginConstraintTransform = TransformEvaluator(InRevertRange.GetLowerBoundValue());
+		}
 	}
 
 	/**
@@ -796,9 +814,13 @@ struct FAttachRevertModifier
 	FAttachRevertModifier(TSharedPtr<F3DAttachTrackEditor> InWeakAttachTrackEditor, const TRange<FFrameNumber>& InRevertRange, const FWorldTransformEvaluator& InTransformEvaluator, bool bInFullRevert)
 		: bFullRevert(bInFullRevert)
 		, TransformEvaluator(InTransformEvaluator)
-		, BeginConstraintTransform(InTransformEvaluator(InRevertRange.GetLowerBoundValue()))
 		, RevertRange(InRevertRange)
-	{}
+	{
+		if (InRevertRange.HasLowerBound())
+		{
+			BeginConstraintTransform = InTransformEvaluator(InRevertRange.GetLowerBoundValue());
+		}
+	}
 
 	/** Reverts a transform in relative space to world space */
 	FTransform operator()(const FTransform& InTransform, const FFrameNumber& InTime)
@@ -868,12 +890,18 @@ void UpdateChannelTransforms(const TRange<FFrameNumber>& InAttachRange, TMap<FFr
 
 		// Get the keys contained in before attach and after attach ranges
 		InChannels[ChannelIndex]->GetKeys(ExcludedRanges[0], &LowerKeyTimes, &LowerKeyHandles);
-		ExcludedRanges.Top().SetLowerBound(TRangeBound<FFrameNumber>::Exclusive(ExcludedRanges.Top().GetLowerBoundValue()));
+		if (ExcludedRanges.Top().HasLowerBound())
+		{
+			ExcludedRanges.Top().SetLowerBound(TRangeBound<FFrameNumber>::Exclusive(ExcludedRanges.Top().GetLowerBoundValue()));
+		}
 		InChannels[ChannelIndex]->GetKeys(ExcludedRanges.Top(), &UpperKeyTimes, &UpperKeyHandles);
 
 		// Add all keys before attach range if they exist
 		int32 ValueIndex = 0;
-		if (ExcludedRanges.Num() > 0 && ExcludedRanges[0].GetUpperBoundValue() <= InAttachRange.GetLowerBoundValue() && LowerKeyTimes.Num() > 0)
+		if (ExcludedRanges.Num() > 0 && 
+			ExcludedRanges[0].HasUpperBound() &&
+			InAttachRange.HasLowerBound() && 
+			ExcludedRanges[0].GetUpperBoundValue() <= InAttachRange.GetLowerBoundValue() && LowerKeyTimes.Num() > 0)
 		{
 			InChannels[ChannelIndex]->DeleteKeys(LowerKeyHandles);
 			TArray<FMovieSceneDoubleValue> ValuesToAdd;
@@ -886,7 +914,9 @@ void UpdateChannelTransforms(const TRange<FFrameNumber>& InAttachRange, TMap<FFr
 		InChannels[ChannelIndex]->AddKeys(NewKeyFrames, NewKeyValues);
 
 		// Add all keys after attach range if they exist
-		if (ExcludedRanges.Num() > 0 && ExcludedRanges.Top().GetLowerBoundValue() >= InAttachRange.GetUpperBoundValue() && ValueIndex < PrevKeyValues.Num() && UpperKeyTimes.Num() > 0)
+		if (ExcludedRanges.Num() > 0 && 
+			ExcludedRanges.Top().HasLowerBound() && InAttachRange.HasUpperBound() &&
+			ExcludedRanges.Top().GetLowerBoundValue() >= InAttachRange.GetUpperBoundValue() && ValueIndex < PrevKeyValues.Num() && UpperKeyTimes.Num() > 0)
 		{
 			InChannels[ChannelIndex]->DeleteKeys(UpperKeyHandles);
 			TArray<FMovieSceneDoubleValue> ValuesToAdd;
@@ -975,7 +1005,14 @@ void F3DAttachTrackEditor::TrimAndPreserve(FGuid InObjectBinding, UMovieSceneSec
 			FFrameNumber PreserveEdgeTime;
 			if (bInTrimLeft)
 			{
-				PreserveEdgeTime = ExcludedRange.GetUpperBoundValue();
+				if (ExcludedRange.HasUpperBound())
+				{
+					PreserveEdgeTime = ExcludedRange.GetUpperBoundValue();
+				}
+				else
+				{
+					PreserveEdgeTime = TNumericLimits<FFrameNumber>::Max();
+				}
 				RevertEdgeTime = PreserveEdgeTime.Value - 1;
 				EdgeKeys = { PreserveEdgeTime, RevertEdgeTime };
 				ResizeAndAddKey(PreserveEdgeTime, Channels.Num(), TransformMap, nullptr);
@@ -983,7 +1020,14 @@ void F3DAttachTrackEditor::TrimAndPreserve(FGuid InObjectBinding, UMovieSceneSec
 			}
 			else
 			{
-				RevertEdgeTime = ExcludedRange.GetLowerBoundValue();
+				if (ExcludedRange.HasLowerBound())
+				{
+					RevertEdgeTime = ExcludedRange.GetLowerBoundValue();
+				}
+				else
+				{
+					RevertEdgeTime = TNumericLimits<FFrameNumber>::Min();
+				}
 				PreserveEdgeTime = RevertEdgeTime.Value - 1;
 				EdgeKeys = { RevertEdgeTime, PreserveEdgeTime };
 				ResizeAndAddKey(RevertEdgeTime, Channels.Num(), TransformMap, &KeyTimesToCompensate);
@@ -1021,9 +1065,20 @@ void F3DAttachTrackEditor::TrimAndPreserve(FGuid InObjectBinding, UMovieSceneSec
 		{
 			TArray<FKeyHandle> KeyAtTime;
 
-			bInTrimLeft ? 
-			Channel->GetKeys(TRange<FFrameNumber>::Inclusive(ExcludedRange.GetLowerBoundValue() - 1, ExcludedRange.GetLowerBoundValue() - 1), nullptr, &KeyAtTime) : 
-			Channel->GetKeys(TRange<FFrameNumber>::Inclusive(ExcludedRange.GetUpperBoundValue() - 1, ExcludedRange.GetUpperBoundValue() - 1), nullptr, &KeyAtTime);
+			if (bInTrimLeft)
+			{
+				if (ExcludedRange.HasLowerBound())
+				{
+					Channel->GetKeys(TRange<FFrameNumber>::Inclusive(ExcludedRange.GetLowerBoundValue() - 1, ExcludedRange.GetLowerBoundValue() - 1), nullptr, &KeyAtTime);
+				}
+			}
+			else
+			{
+				if (ExcludedRange.HasUpperBound())
+				{
+					Channel->GetKeys(TRange<FFrameNumber>::Inclusive(ExcludedRange.GetUpperBoundValue() - 1, ExcludedRange.GetUpperBoundValue() - 1), nullptr, &KeyAtTime);
+				}
+			}
 
 			Channel->DeleteKeys(KeyAtTime);
 			Channel->AutoSetTangents();

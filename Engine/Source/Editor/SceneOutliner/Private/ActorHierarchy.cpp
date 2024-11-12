@@ -29,6 +29,7 @@
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "ActorFolder.h"
 #include "ActorMode.h"
+#include "SSceneOutliner.h"
 
 TUniquePtr<FActorHierarchy> FActorHierarchy::Create(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& World)
 {
@@ -50,8 +51,7 @@ void FActorHierarchy::Create_Internal(FActorHierarchy* Hierarchy, const TWeakObj
 	GEngine->OnActorFolderAdded().AddRaw(Hierarchy, &FActorHierarchy::OnActorFolderAdded);
 	GEngine->OnActorFoldersUpdatedEvent().AddRaw(Hierarchy, &FActorHierarchy::OnActorFoldersUpdatedEvent);
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().AddRaw(Hierarchy, &FActorHierarchy::OnWorldPartitionCreated);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().AddRaw(Hierarchy, &FActorHierarchy::OnWorldPartitionCreated);
 
 	if (World.IsValid())
 	{
@@ -100,8 +100,7 @@ FActorHierarchy::~FActorHierarchy()
 		GEngine->OnActorFoldersUpdatedEvent().RemoveAll(this);
 	}
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().RemoveAll(this);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().RemoveAll(this);
 
 	if (RepresentingWorld.IsValid())
 	{
@@ -263,7 +262,7 @@ FSceneOutlinerTreeItemPtr FActorHierarchy::FindOrCreateParentItem(const ISceneOu
 			{
 				return *ParentItem;
 			}
-			else
+			else if (Owner->IsListedInSceneOutliner())
 			{
 				return bCreate ? CreateItemForActor(Owner, true) : nullptr;
 			}
@@ -386,7 +385,8 @@ void FActorHierarchy::CreateComponentItems(const AActor* Actor, TArray<FSceneOut
 		{
 			if (Component != nullptr)
 			{
-				if (FSceneOutlinerTreeItemPtr ComponentItem = Mode->CreateItemFor<FComponentTreeItem>(Component))
+				if (FSceneOutlinerTreeItemPtr ComponentItem =
+					Mode->CreateItemFor<FComponentTreeItem>(FComponentTreeItem(Component, bSearchComponentsByActorName)))
 				{
 					OutItems.Add(ComponentItem);
 				}
@@ -452,25 +452,25 @@ bool FActorHierarchy::CheckLevelInstanceEditing(UWorld* World, AActor* Actor) co
 
 void FActorHierarchy::InsertActorItemAndCreateComponents(AActor* InActor, FSceneOutlinerTreeItemPtr ActorItem, TArray<FSceneOutlinerTreeItemPtr>& OutItems) const
 {
+	const int32 InsertLocation = OutItems.Num();
+	
+	// Create all component items
+	CreateComponentItems(InActor, OutItems);
+
+	// If we are only showing actors with valid components, don't add the actor if no components were added
 	if (bShowingOnlyActorWithValidComponents)
 	{
-		int32 InsertLocation = OutItems.Num();
-
-		// Create all component items
-		CreateComponentItems(InActor, OutItems);
-
-		if (OutItems.Num() != InsertLocation)
+		// If the number of items remained the same after component insertion no components were inserted
+		if (OutItems.Num() == InsertLocation)
 		{
-			// Add the actor before the components
-			OutItems.Insert(ActorItem, InsertLocation);
+			return;
 		}
 	}
-	else
-	{
-		OutItems.Add(ActorItem);
 
-		// Create all component items
-		CreateComponentItems(InActor, OutItems);
+	if(ActorItem)
+	{
+		// Add the actor before the components
+		OutItems.Insert(ActorItem, InsertLocation);
 	}
 }
 
@@ -576,11 +576,11 @@ void FActorHierarchy::CreateWorldChildren(UWorld* World, TArray<FSceneOutlinerTr
 		{
 			continue;
 		}
+
+		FSceneOutlinerTreeItemPtr ActorItem = CreateItemForActor(Actor);
 		
-		if (FSceneOutlinerTreeItemPtr ActorItem = CreateItemForActor(Actor))
-		{
-			InsertActorItemAndCreateComponents(Actor, ActorItem, OutItems);
-		}
+		InsertActorItemAndCreateComponents(Actor, ActorItem, OutItems);
+		
 	}
 
 	CreateUnloadedItems(World, OutItems);
@@ -701,6 +701,7 @@ void FActorHierarchy::OnWorldPartitionCreated(UWorld* InWorld)
 {
 	if (RepresentingWorld.Get() == InWorld)
 	{
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnWorldPartitionCreated Full Refresh Event"));
 		FullRefreshEvent();
 	}
 }
@@ -821,26 +822,32 @@ void FActorHierarchy::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstanc
 
 void FActorHierarchy::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnWorldPartitionInitialized Full Refresh Event"));
+
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition)
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnWorldPartitionUninitialized Full Refresh Event"));
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnComponentsUpdated()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnComponentsUpdated Full Refresh Event"));
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnLevelActorListChanged()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnLevelActorListChanged Full Refresh Event"));
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnActorFoldersUpdatedEvent(ULevel* InLevel)
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnActorFoldersUpdatedEvent Full Refresh Event"));
 	FullRefreshEvent();
 }
 
@@ -952,6 +959,8 @@ void FActorHierarchy::OnLevelActorFolderChanged(const AActor* InActor, FName Old
 {
 	if (Mode->ShouldShowFolders() && RepresentingWorld.Get() == InActor->GetWorld())
 	{
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnLevelActorFolderChanged refresh requested by Actor: %s"), *InActor->GetActorLabel());
+
 		FSceneOutlinerHierarchyChangedData EventData;
 		EventData.Type = FSceneOutlinerHierarchyChangedData::Moved;
 		EventData.ItemIDs.Add(FSceneOutlinerTreeItemID(InActor));

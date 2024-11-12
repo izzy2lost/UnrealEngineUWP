@@ -300,6 +300,15 @@ private:
 	ECheckBoxState OnGetDeprecatedCheckboxState() const;
 	void OnDeprecatedChanged(ECheckBoxState InNewState);
 
+	EVisibility GetDropDownOptionsVisibility() const;
+	void OnDropDownOptionSelectionChanged(TSharedPtr<FString> InString, ESelectInfo::Type);
+	void OnDropDownOptionTextChanged(const FText& Text, ETextCommit::Type);
+	TSharedRef<SWidget> GenerateDropDownOptionWidget(TSharedPtr<FString> InItem) const;
+	void CollectDropDownOptions();
+	FText GetDropDownOptionDisplayText() const;
+	FString GetDropDownOptionsFunctionName() const;
+	void SetDropDownOptionsFunctionName(const FString& InFunctionName);
+
 	FText GetDeprecationMessageText() const;
 	void OnDeprecationMessageTextCommitted(const FText& NewText, ETextCommit::Type InTextCommit, FName VarName);
 
@@ -332,6 +341,9 @@ private:
 
 	/** Array of replication options for our combo text box */
 	TArray<TSharedPtr<FString>> ReplicationOptions;
+
+	/** Array of function names that can be used for GetOptions */
+	TArray<TSharedPtr<FString>> DropDownFunctionOptions;
 
 	/** Array of units options for our combo text box */
 	TArray<TSharedPtr<FString>> UnitsOptions;
@@ -549,9 +561,14 @@ private:
 
 	/** Returns whether the "Pass-by-Reference" checkbox is checked or not */
 	ECheckBoxState IsRefChecked() const;
+	ECheckBoxState IsConstChecked() const;
 
 	/** Handles toggling the "Pass-by-Reference" checkbox */
 	void OnRefCheckStateChanged(ECheckBoxState InState);
+
+	void OnConstCheckStateChanged(ECheckBoxState InState);
+	bool ShouldBeForceConst() const;
+	bool CanChangeConst() const;
 
 private:
 	/** The parent graph action details customization */
@@ -939,7 +956,7 @@ public:
 
 	}
 	
-	FBlueprintGlobalOptionsDetails(UBlueprint* InBlueprintPtr)
+	FBlueprintGlobalOptionsDetails(TWeakObjectPtr<UBlueprint> InBlueprintPtr)
 		:BlueprintObjOverride(InBlueprintPtr)
 	{
 
@@ -953,7 +970,7 @@ public:
 
 	/** Diff functionality doesn't need access to the FBlueprintEditor so this allows creation without editor access
 	 *  but with limited functionality */
-	static TSharedRef<IDetailCustomization> MakeInstanceForDiff(UBlueprint* InBlueprintPtr)
+	static TSharedRef<IDetailCustomization> MakeInstanceForDiff(TWeakObjectPtr<UBlueprint> InBlueprintPtr)
 	{
 		return MakeShareable(new FBlueprintGlobalOptionsDetails(InBlueprintPtr));
 	}
@@ -1008,8 +1025,8 @@ private:
 	/** Weak reference to the Blueprint editor */
 	TWeakPtr<FBlueprintEditor> BlueprintEditorPtr;
 	
-	/** Weak reference to the Blueprint editor */
-	TObjectPtr<UBlueprint> BlueprintObjOverride;
+	/** Weak reference to a Blueprint override - used to customize a blueprint that is displayed without an editor, e.g. for diff */
+	TWeakObjectPtr<UBlueprint> BlueprintObjOverride;
 
 	/** Combo button used to choose a parent class */
 	TSharedPtr<SComboButton> ParentClassComboButton;

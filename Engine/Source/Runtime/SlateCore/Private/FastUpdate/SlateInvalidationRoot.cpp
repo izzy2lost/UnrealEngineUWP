@@ -141,6 +141,14 @@ static FAutoConsoleVariableRef CVarSlateInvalidationRootVerifyWidgetsAreUpdatedO
 	TEXT("Verify that the widgets are painted only once per tick.")
 );
 
+bool GSlateInvalidationRootVerifyCachedElementDataList = false;
+static FAutoConsoleVariableRef CVarSlateInvalidationRootVerifyCachedElementDataList(
+	TEXT("Slate.InvalidationRoot.VerifyCachedElementDataList"),
+	GSlateInvalidationRootVerifyCachedElementDataList,
+	TEXT("Verify that the widgets cached are valid.")
+);
+void VerifyCachedElementDataList(const FSlateInvalidationRoot* InvalidationRoot);
+
 #endif //UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 
 
@@ -157,7 +165,7 @@ FAutoConsoleVariableRef CVarSlateInvalidationWidgetListNumElementLeftBeforeSplit
 	GSlateInvalidationWidgetListNumberElementLeftBeforeSplitting,
 	TEXT("With the invalidation system, when splitting, only split the array when the number of element left is under X."));
 
-bool GSlateInvalidationEnableReindexLayerId = false;
+bool GSlateInvalidationEnableReindexLayerId = true;
 FAutoConsoleVariableRef CVarSlateInvalidationEnableReindexLayerId(
 	TEXT("Slate.InvalidationList.EnableReindexLayerId"),
 	GSlateInvalidationEnableReindexLayerId,
@@ -166,11 +174,21 @@ FAutoConsoleVariableRef CVarSlateInvalidationEnableReindexLayerId(
 /**
  *
  */
- namespace Slate
+ namespace UE::Slate::Private
  {
+	 constexpr EInvalidateWidgetReason PreInvalidationReason = EInvalidateWidgetReason::Layout
+		 | EInvalidateWidgetReason::AttributeRegistration
+		 | EInvalidateWidgetReason::Visibility
+		 | EInvalidateWidgetReason::ChildOrder;
+	 constexpr EInvalidateWidgetReason PostInvalidationReason = EInvalidateWidgetReason::Layout
+		 | EInvalidateWidgetReason::Paint
+		 | EInvalidateWidgetReason::Volatility
+		 | EInvalidateWidgetReason::RenderTransform
+		 | EInvalidateWidgetReason::Prepass;
+
 	bool EInvalidateWidgetReason_HasPreUpdateFlag(EInvalidateWidgetReason InvalidateReason)
 	{
-		return EnumHasAnyFlags(InvalidateReason, EInvalidateWidgetReason::AttributeRegistration | EInvalidateWidgetReason::ChildOrder);
+		return EnumHasAnyFlags(InvalidateReason, PreInvalidationReason);
 	}
 
 	bool EInvalidateWidgetReason_HasPostUpdateFlag(EInvalidateWidgetReason InvalidateReason)
@@ -179,13 +197,6 @@ FAutoConsoleVariableRef CVarSlateInvalidationEnableReindexLayerId(
 		const uint8 AnyPostUpdate = (0xFF & ~(uint8)EInvalidateWidgetReason::AttributeRegistration);
 		return (((uint8)InvalidateReason & AnyPostUpdate) != 0);
 	}
-
-	constexpr EInvalidateWidgetReason PostInvalidationReason = EInvalidateWidgetReason::Layout
-		| EInvalidateWidgetReason::Paint
-		| EInvalidateWidgetReason::Volatility
-		| EInvalidateWidgetReason::RenderTransform
-		| EInvalidateWidgetReason::Visibility
-		| EInvalidateWidgetReason::Prepass;
  }
 
 
@@ -259,11 +270,6 @@ FString FSlateInvalidationRoot::GetReferencerName() const
 	return TEXT("FSlateInvalidationRoot");
 }
 
-void FSlateInvalidationRoot::InvalidateRoot(const SWidget* Investigator)
-{
-	InvalidateRootChildOrder(Investigator);
-}
-
 void FSlateInvalidationRoot::InvalidateRootChildOrder(const SWidget* Investigator)
 {
 	// Invalidate all proxy handles
@@ -297,9 +303,9 @@ void FSlateInvalidationRoot::InvalidateWidget(FWidgetProxy& Proxy, EInvalidateWi
 
 	if (bProcessingAttributeUpdate)
 	{
-		if (ensureMsgf(FSlateAttributeBase::IsInvalidateWidgetReasonSupported(InvalidateReason)
-			, TEXT("An invalid invalidation occurred while processing the widget attributes. That may result in an infinit loop.")))
+		if (!FSlateAttributeBase::IsInvalidateWidgetReasonSupported(InvalidateReason))
 		{
+			ensureMsgf(false, TEXT("An invalid invalidation occurred while processing the widget attributes. That may result in an infinite loop."));
 			return;
 		}
 	}
@@ -307,7 +313,7 @@ void FSlateInvalidationRoot::InvalidateWidget(FWidgetProxy& Proxy, EInvalidateWi
 	if (!bNeedsSlowPath)
 	{
 		Proxy.CurrentInvalidateReason |= InvalidateReason;
-		if (Slate::EInvalidateWidgetReason_HasPreUpdateFlag(InvalidateReason))
+		if (UE::Slate::Private::EInvalidateWidgetReason_HasPreUpdateFlag(InvalidateReason))
 		{
 			WidgetsNeedingPreUpdate->HeapPushUnique(Proxy);
 		}
@@ -319,7 +325,7 @@ void FSlateInvalidationRoot::InvalidateWidget(FWidgetProxy& Proxy, EInvalidateWi
 			WidgetsNeedingPrepassUpdate->PushBackUnique(Proxy);
 		}
 
-		if (Slate::EInvalidateWidgetReason_HasPostUpdateFlag(InvalidateReason))
+		if (UE::Slate::Private::EInvalidateWidgetReason_HasPostUpdateFlag(InvalidateReason))
 		{
 			WidgetsNeedingPostUpdate->PushBackOrHeapUnique(Proxy);
 		}
@@ -417,6 +423,14 @@ FSlateInvalidationResult FSlateInvalidationRoot::PaintInvalidationRoot(const FSl
 		check(RootWidget == FastWidgetPathList->GetRoot().Pin());
 
 		Result.bRepaintedWidgets = PaintFastPath(Context);
+
+		// Once everything is painted and ticked, new widget (SListView, SRichBox, SScrollBox) might have created new widget.
+		//It might create a 1 frame hitch because the widget is in the cached and should not.
+		if (!bNeedsSlowPath && WidgetsNeedingPreUpdate->Num() > 0)
+		{
+			SCOPED_NAMED_EVENT(Slate_InvalidationProcessing_PreUpdate, FColor::Blue);
+			ProcessPreUpdate();
+		}
 	}
 
 	if (Context.bAllowFastPathUpdate)
@@ -427,6 +441,10 @@ FSlateInvalidationResult FSlateInvalidationRoot::PaintInvalidationRoot(const FSl
 	FinalUpdateList.Reset();
 
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
+	if (GSlateInvalidationRootVerifyCachedElementDataList && !bNeedsSlowPath)
+	{
+		VerifyCachedElementDataList(this);
+	}
 	if (GSlateInvalidationRootVerifyHittestGrid && Context.bAllowFastPathUpdate)
 	{
 		VerifyHittest(InvalidationRootWidget, GetFastPathWidgetList(), GetHittestGrid());
@@ -644,17 +662,16 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 	const FSlateInvalidationWidgetIndex MyIndex = FinalUpdateList.Pop(EAllowShrinking::No).GetWidgetIndex();
 
 	FSlateInvalidationWidgetList::InvalidationWidgetType& InvalidationWidget = (*FastWidgetPathList)[MyIndex];
-	SWidget* WidgetPtr = InvalidationWidget.GetWidget();
 
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 	if (GSlateInvalidationRootVerifyWidgetsAreUpdatedOnce)
 	{
-		ensureAlwaysMsgf(!InvalidationWidget.bDebug_Updated, TEXT("VerifyWidgetsAreUpdatedOnce failed. Widget '%s' is going to be updated more than once"), *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+		ensureAlwaysMsgf(!InvalidationWidget.bDebug_Updated, TEXT("VerifyWidgetsAreUpdatedOnce failed. Widget '%s' is going to be updated more than once"), *FReflectionMetaData::GetWidgetDebugInfo(InvalidationWidget.GetWidget()));
 	}
 #endif
 
 	// Check visibility, it was tested before adding it to the list but another widget may have change while updating.
-	if (InvalidationWidget.Visibility.IsVisible() && WidgetPtr)
+	if (InvalidationWidget.Visibility.IsVisible() && InvalidationWidget.GetWidget())
 	{
 		const FWidgetProxy::FUpdateResult UpdateResult = InvalidationWidget.Update(*Context.PaintArgs, *Context.WindowElementList);
 
@@ -677,14 +694,14 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 					}
 
 					// It's already been processed by the previous draw
-					FinalUpdateList.RemoveAt(LastIndex, 1, EAllowShrinking::No);
+					FinalUpdateList.RemoveAt(LastIndex, EAllowShrinking::No);
 				}
 			}
 
 			// Did it painted more elements than it previously had
 			if (UpdateResult.NewOutgoingLayerId > UpdateResult.PreviousOutgoingLayerId && GSlateInvalidationEnableReindexLayerId)
 			{
-				if (InvalidationWidget.Visibility.IsVisible() && WidgetPtr)
+				if (InvalidationWidget.Visibility.IsVisible() && InvalidationWidget.GetWidget())
 				{
 					PaintFastPath_FixupLayerId(FastPaintContext, InvalidationWidget, UpdateResult.NewOutgoingLayerId);
 				}
@@ -700,6 +717,7 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 bool FSlateInvalidationRoot::PaintFastPath(const FSlateInvalidationContext& Context)
 {
 	SCOPED_NAMED_EVENT(SWidget_FastPathUpdate, FColor::Green);
+	CSV_SCOPED_TIMING_STAT(Slate, PaintFastPath);
 
 	check(!bNeedsSlowPath);
 
@@ -723,9 +741,35 @@ bool FSlateInvalidationRoot::PaintFastPath(const FSlateInvalidationContext& Cont
 	{
 		TGuardValue<bool> OnFastPathGuard(GSlateIsOnFastUpdatePath, true);
 
-
-		// Widgets that needs reindexing while updating the FinalUpdateList.
+		// Widgets that needs re-indexing while updating the FinalUpdateList.
 		UE::Slate::Private::FSlateInvalidationPaintFastPathContext FastPaintContext;
+
+		// Is the new LayerId bigger than the previous we received.
+		{
+			const FSlateInvalidationWidgetIndex FirstWidgetIndex = FastWidgetPathList->FirstIndex();
+			if (FirstWidgetIndex != FSlateInvalidationWidgetIndex::Invalid)
+			{
+				const FSlateInvalidationWidgetList::InvalidationWidgetType& FirstWidgetInvalidationWidget = (*FastWidgetPathList)[FirstWidgetIndex];
+				// Are we going to already process it anyway
+				if (FinalUpdateList.Num() == 0 || FinalUpdateList.Last().GetWidgetIndex() != FirstWidgetIndex)
+				{
+					if (SWidget* FirstWidgetPtr = FirstWidgetInvalidationWidget.GetWidget())
+					{
+						// The new LayerId is bigger than previously. Because of some widget optimization, see PaintFastPath_FixupLayerId, we need to repaint the widgets.
+						if (Context.IncomingLayerId > FirstWidgetPtr->GetPersistentState().LayerId)
+						{
+							// +1 is enough but we add a buffer just in case.
+							const int32 LayerIdBuffer = 100;
+							const_cast<FSlateWidgetPersistentState&>(FirstWidgetPtr->GetPersistentState()).LayerId = Context.IncomingLayerId + LayerIdBuffer;
+							FirstWidgetPtr->UpdateFlags |= EWidgetUpdateFlags::NeedsRepaint;
+
+							const FSlateInvalidationWidgetSortOrder FirstWidgetSortIndex{ *FastWidgetPathList, FirstWidgetIndex };
+							FinalUpdateList.Emplace(FirstWidgetIndex, FirstWidgetSortIndex);
+						}
+					}
+				}
+			}
+		}
 
 		// The update list is put in reverse order by ProcessInvalidation
 		while (FinalUpdateList.Num() > 0 || !FastPaintContext.ReindexUpdateList.IsEmpty())
@@ -828,10 +872,6 @@ void FSlateInvalidationRoot::ProcessPreUpdate()
 	if (GSlateInvalidationRootVerifyWidgetsUpdateList)
 	{
 		VerifyWidgetsUpdateList_BeforeProcessPreUpdate(GetRootWidget(), FastWidgetPathList.Get(), WidgetsNeedingPreUpdate.Get(), WidgetsNeedingPostUpdate.Get(), FinalUpdateList);
-	}
-	if (GSlateInvalidationRootVerifySlateAttribute)
-	{
-		VerifySlateAttribute_BeforeUpdate(*FastWidgetPathList);
 	}
 #endif
 
@@ -997,8 +1037,23 @@ void FSlateInvalidationRoot::ProcessPreUpdate()
 					if (bIsInvalidationWidgetValid && EnumHasAnyFlags(CurrentInvalidateReason, EInvalidateWidgetReason::AttributeRegistration))
 					{
 						FSlateInvalidationWidgetList::InvalidationWidgetType& InvalidationWidget = (*FastWidgetPathList)[WidgetIndex];
+						// Process the attribute invalidation even if it could be process in a ChildOrder invalidation. The attribute is added with "Unique".
 						FastWidgetPathList->ProcessAttributeRegistrationInvalidation(InvalidationWidget);
 						EnumRemoveFlags(InvalidationWidget.CurrentInvalidateReason, EInvalidateWidgetReason::AttributeRegistration);
+					}
+
+					if (bIsInvalidationWidgetValid && EnumHasAnyFlags(CurrentInvalidateReason, EInvalidateWidgetReason::Visibility))
+					{
+						FSlateInvalidationWidgetList::InvalidationWidgetType& InvalidationWidget = (*FastWidgetPathList)[WidgetIndex];
+						WidgetPtr->UpdateFastPathVisibility(InvalidationWidget.Visibility.MimicAsParent(), GetHittestGrid());
+						// We should Keep the flag for the layout process (visibility changes affect the layout and paint) and it will be removed then.
+						//This phase only updated the internal flags and internal states.
+						//But if we are in the layout or paint process, and we add the Visibility flag, then the visibility flag will be remove and the UpdateFastPathVisibility won't execute.
+						//The EInvalidationWidgetReason is already full (8bits). We can add a new bit in the InvalidationWidgetType but that would mean more flag management.
+						//Easy solution is to use the "RenderTransform" flag because it does the same job as the "Visibility" in the layout and paint phase.
+						EnumRemoveFlags(InvalidationWidget.CurrentInvalidateReason, EInvalidateWidgetReason::Visibility);
+						EnumAddFlags(InvalidationWidget.CurrentInvalidateReason, EInvalidateWidgetReason::RenderTransform);
+						WidgetsNeedingPostUpdate->PushBackOrHeapUnique(InvalidationWidget);
 					}
 				}
 			}
@@ -1028,6 +1083,12 @@ void FSlateInvalidationRoot::ProcessAttributeUpdate()
 {
 	TGuardValue<bool> Tmp(bProcessingAttributeUpdate, true);
 
+#if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
+	if (GSlateInvalidationRootVerifySlateAttribute)
+	{
+		VerifySlateAttribute_BeforeUpdate(*FastWidgetPathList);
+	}
+#endif
 
 	FSlateInvalidationWidgetList::FWidgetAttributeIterator AttributeItt = FastWidgetPathList->CreateWidgetAttributeIterator();
 	while (AttributeItt.IsValid())
@@ -1056,18 +1117,22 @@ void FSlateInvalidationRoot::ProcessAttributeUpdate()
 					AttributeItt.Advance();
 
 #if WITH_SLATE_DEBUGGING
+					// visibility is updated with FSlateAttributeMetaData::UpdateOnlyVisibilityAttributes
 					ensureMsgf(PreviousVisibility == InvalidationWidget.Visibility, TEXT("The visibility of widget '%s' doesn't match the previous visibility after the attribute update."), *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+					// childorder is not support as an invalidation with attribute
 					ensureMsgf(PreviousLeafMostChildIndex == InvalidationWidget.LeafMostChildIndex, TEXT("The number of child of widget '%s' doesn't match the previous count after the attribute update."), *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
 #endif
 				}
 				else
 				{
-					AttributeItt.AdvanceToNextSibling();
+					FSlateAttributeMetaData::ApplyDelayedInvalidation(*WidgetPtr);
+					AttributeItt.Advance();
 				}
 			}
 			else
 			{
-				AttributeItt.AdvanceToNextParent();
+				FSlateAttributeMetaData::ApplyDelayedInvalidation(*WidgetPtr);
+				AttributeItt.Advance();
 			}
 		}
 		else
@@ -1075,6 +1140,7 @@ void FSlateInvalidationRoot::ProcessAttributeUpdate()
 			AttributeItt.Advance();
 		}
 	}
+
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 	if (GSlateInvalidationRootVerifySlateAttribute)
 	{
@@ -1138,7 +1204,7 @@ void FSlateInvalidationRoot::ProcessPrepassUpdate()
 			//If there is no new invalidation, then the Widget's CurrentInvalidation should be none and nothing will be execute.
 			//Then, if needed, ProcessPostUpdate will add the widget to the FinalUpdateList in the update correct order.
 			WidgetProxy.ProcessPostInvalidation(*WidgetsNeedingPostUpdate, *FastWidgetPathList, *this);
-			EnumRemoveFlags(WidgetProxy.CurrentInvalidateReason, Slate::PostInvalidationReason);
+			EnumRemoveFlags(WidgetProxy.CurrentInvalidateReason, UE::Slate::Private::PostInvalidationReason);
 		}
 	}
 	WidgetsNeedingPrepassUpdate->Reset(true);
@@ -1181,7 +1247,7 @@ bool FSlateInvalidationRoot::ProcessPostUpdate()
 #endif
 
 			bWidgetsNeedRepaint |= WidgetProxy.ProcessPostInvalidation(*WidgetsNeedingPostUpdate, *FastWidgetPathList, *this);
-			EnumRemoveFlags(WidgetProxy.CurrentInvalidateReason, Slate::PostInvalidationReason);
+			EnumRemoveFlags(WidgetProxy.CurrentInvalidateReason, UE::Slate::Private::PostInvalidationReason);
 
 			if (WidgetPtr->HasAnyUpdateFlags(EWidgetUpdateFlags::AnyUpdate) && WidgetProxy.Visibility.IsVisible())
 			{
@@ -1213,6 +1279,7 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 
 	bool bWidgetsNeedRepaint = false;
 
+	// Process ChildOrder | Visibility | AttributeRegistration invalidations.
 	if (!bNeedsSlowPath)
 	{
 		check(WidgetsNeedingPreUpdate);
@@ -1227,6 +1294,7 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 		ProcessPreUpdate();
 	}
 
+	// Execute the attributes delegate.
 	if (!bNeedsSlowPath)
 	{
 		SCOPED_NAMED_EVENT(Slate_InvalidationProcessing_AttributeUpdate, FColor::Blue);
@@ -1237,7 +1305,7 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 		ProcessAttributeUpdate();
 	}
 
-	/** Re-run any ChildOrder invalidation. Attributes may have added new ChildOrder. */
+	// Re-process new ChildOrder | Visibility | AttributeRegistration invalidations. Attributes may have added new invalidation.
 	if (!bNeedsSlowPath && WidgetsNeedingPreUpdate->Num() > 0)
 	{
 		SCOPED_NAMED_EVENT(Slate_InvalidationProcessing_PreUpdate, FColor::Blue);
@@ -1245,9 +1313,16 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 		ProcessPreUpdate();
 	}
 
+#if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
+	if (GSlateInvalidationRootVerifyWidgetVisibility && !bNeedsSlowPath)
+	{
+		VerifyWidgetVisibility(GetFastPathWidgetList());
+	}
+#endif
+
 	if (!bNeedsSlowPath)
 	{
-		// Put all widgets in the VolatileUpdate list in the WidgetsNeedingPostUpdate
+		// Put all widgets in the VolatileUpdate (Paint, Tick, ActiveTimer) list in the WidgetsNeedingPostUpdate
 		WidgetsNeedingPrepassUpdate->Heapify();
 		WidgetsNeedingPostUpdate->Heapify();
 		{
@@ -1266,6 +1341,9 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 		}
 	}
 
+	// Process widget that needs Prepass and PrepassVolatile.
+	//They will execute forward and then executed again in ProcessPostUpdate in backward.
+	//That save time when the big widget needs Prepass because we can skip all the child widgets.
 	if (!bNeedsSlowPath)
 	{
 		SCOPED_NAMED_EVENT(Slate_InvalidationProcessing_PrepassUpdate, FColor::Blue);
@@ -1276,6 +1354,7 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 		ProcessPrepassUpdate();
 	}
 
+	// Process all the layout widgets (RenderTransform | Layout | Prepass)
 	if (!bNeedsSlowPath)
 	{
 		FinalUpdateList.Reset(WidgetsNeedingPostUpdate->Num());
@@ -1299,10 +1378,6 @@ bool FSlateInvalidationRoot::ProcessInvalidation()
 	}
 
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
-	if (GSlateInvalidationRootVerifyWidgetVisibility && !bNeedsSlowPath)
-	{
-		VerifyWidgetVisibility(GetFastPathWidgetList());
-	}
 	if (GSlateInvalidationRootVerifyWidgetVolatile && !bNeedsSlowPath)
 	{
 		VerifyWidgetVolatile(GetFastPathWidgetList(), FinalUpdateList);
@@ -1490,7 +1565,7 @@ void VerifyWidgetList(TSharedRef<SWidget> RootWidget, FSlateInvalidationRootHand
 {
 	FSlateInvalidationWidgetList List(InvalidationRootHandle, FSlateInvalidationWidgetList::FArguments{ 128, 128, 1000, false });
 	List.BuildWidgetList(RootWidget);
-	bool bIsIdentical = (List.DeapCompare(WidgetList));
+	bool bIsIdentical = (List.DeepCompare(WidgetList));
 	if (!bIsIdentical)
 	{
 		UE_LOG(LogSlate, Log, TEXT("**-- New Build List --**"));
@@ -1667,7 +1742,7 @@ void VerifyWidgetVisibility(FSlateInvalidationWidgetList& WidgetList)
 					{
 						UE_SLATE_LOG_ERROR_IF_FALSE(!Widget->GetPersistentState().CachedElementHandle.HasCachedElements()
 							, CVarSlateInvalidationRootVerifyWidgetVisibility
-							, TEXT("Widget '%s' has cached element and is not visibled.")
+							, TEXT("Widget '%s' has cached element and is not visible.")
 							, *FReflectionMetaData::GetWidgetDebugInfo(Widget));
 					}
 				}
@@ -1870,9 +1945,6 @@ void VerifyWidgetsUpdateList_AfterProcessPostUpdate(const TSharedRef<SWidget>& R
 		return;
 	}
 
-	UE_SLATE_LOG_ERROR_IF_FALSE(WidgetsNeedingPreUpdate->Num() == 0
-		, CVarSlateInvalidationRootVerifyWidgetsUpdateList
-		, TEXT("The list of Pre Update should already been processed."));
 	UE_SLATE_LOG_ERROR_IF_FALSE(WidgetsNeedingPostUpdate->Num() == 0
 		, CVarSlateInvalidationRootVerifyWidgetsUpdateList
 		, TEXT("The list of Post Update should already been processed."));
@@ -1912,6 +1984,33 @@ void VerifySlateAttribute_AfterUpdate(const FSlateInvalidationWidgetList& FastWi
 	UE_SLATE_LOG_ERROR_IF_FALSE(bElementIndexListValid
 		, CVarSlateInvalidationRootVerifySlateAttribute
 		, TEXT("The VerifySlateAttribute failed in post."));
+}
+
+void VerifyCachedElementDataList(const FSlateInvalidationRoot* InvalidationRoot)
+{
+	for (const TSharedPtr<FSlateCachedElementList>& CachedElementList : InvalidationRoot->GetCachedElements().GetCachedElementLists())
+	{
+		if (CachedElementList)
+		{
+			const SWidget* WidgetPtr = CachedElementList->OwningWidget;
+			UE_SLATE_LOG_ERROR_IF_FALSE(WidgetPtr
+				, CVarSlateInvalidationRootVerifyCachedElementDataList
+				, TEXT("A widget is invalid and should not be cached."));
+			if (WidgetPtr)
+			{
+				UE_SLATE_LOG_ERROR_IF_FALSE(WidgetPtr->GetProxyHandle().IsValid(WidgetPtr)
+					, CVarSlateInvalidationRootVerifyCachedElementDataList
+					, TEXT("The widget '%s' proxy is invalid and should not be cached.")
+					, *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+				UE_SLATE_LOG_ERROR_IF_FALSE((WidgetPtr->GetProxyHandle().GetWidgetVisibility(WidgetPtr).IsVisible()
+					|| WidgetPtr->GetProxyHandle().HasAllInvalidationReason(WidgetPtr, EInvalidateWidgetReason::Visibility)
+					|| CachedElementList->IsEmpty())
+					, CVarSlateInvalidationRootVerifyCachedElementDataList
+					, TEXT("The widget '%s' proxy is not visible and should not be cached.")
+					, *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+			}
+		}
+	}
 }
 
 #undef UE_SLATE_LOG_ERROR_IF_FALSE

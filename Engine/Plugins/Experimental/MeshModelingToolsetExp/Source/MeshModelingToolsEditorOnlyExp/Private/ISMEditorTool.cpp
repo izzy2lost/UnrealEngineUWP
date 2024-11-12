@@ -573,6 +573,7 @@ void UISMEditorTool::SetActiveGizmos_Single(bool bLocalRotations)
 
 	FISMEditorTarget Transformable;
 	Transformable.TransformProxy = NewObject<UTransformProxy>(this);
+	Transformable.TransformProxy->bSetPivotMode = TransformProps ? TransformProps->bSetPivotMode : false;
 	Transformable.TransformProxy->bRotatePerObject = bLocalRotations;
 	Transformable.TransformProxy->OnBeginTransformEdit.AddLambda([this](UTransformProxy*) { bInActiveDrag = true; });
 	Transformable.TransformProxy->OnEndTransformEdit.AddLambda([this](UTransformProxy*) { OnTransformCompleted(); bInActiveDrag = false; });
@@ -606,6 +607,7 @@ void UISMEditorTool::SetActiveGizmos_PerObject()
 		{
 			FISMEditorTarget Transformable;
 			Transformable.TransformProxy = NewObject<UTransformProxy>(this);
+			Transformable.TransformProxy->bSetPivotMode = TransformProps ? TransformProps->bSetPivotMode : false;
 			Transformable.TransformProxy->OnBeginTransformEdit.AddLambda([this](UTransformProxy*) { bInActiveDrag = true; });
 			Transformable.TransformProxy->OnEndTransformEdit.AddLambda([this](UTransformProxy*) { OnTransformCompleted(); bInActiveDrag = false; });
 			Transformable.TransformProxy->OnTransformChangedUndoRedo.AddLambda([this](UTransformProxy*, FTransform) { OnTransformCompleted(); });

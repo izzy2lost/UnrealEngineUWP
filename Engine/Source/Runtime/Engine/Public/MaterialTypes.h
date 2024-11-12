@@ -10,7 +10,9 @@
 #include "Shader/ShaderTypes.h"
 #include "MaterialTypes.generated.h"
 
+class FShaderKeyGenerator;
 class UTexture;
+class UTextureCollection;
 class UCurveLinearColor;
 class UCurveLinearColorAtlas;
 class UFont;
@@ -56,12 +58,8 @@ struct FMaterialParameterInfo
 
 	ENGINE_API explicit FMaterialParameterInfo(const struct FMemoryImageMaterialParameterInfo& Rhs);
 
-	void AppendString(FString& Out) const
-	{
-		Name.AppendString(Out);
-		Out.AppendInt(Association);
-		Out.AppendInt(Index);
-	}
+	ENGINE_API void AppendString(FString& Out) const;
+	ENGINE_API void Append(FShaderKeyGenerator& KeyGen) const;
 	FString ToString() const
 	{
 		FString Out;
@@ -189,6 +187,7 @@ enum class EMaterialParameterType : uint8
 	Vector,
 	DoubleVector,
 	Texture,
+	TextureCollection,
 	Font,
 	RuntimeVirtualTexture,
 	SparseVolumeTexture,
@@ -253,7 +252,7 @@ enum class EMaterialSetParameterValueFlags : uint32
 };
 ENUM_CLASS_FLAGS(EMaterialSetParameterValueFlags);
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FParameterChannelNames
 {
 	GENERATED_USTRUCT_BODY()
@@ -325,6 +324,7 @@ struct FMaterialParameterValue
 	FMaterialParameterValue(const FVector4d& InValue) : Type(EMaterialParameterType::DoubleVector) { Double[0] = InValue.X; Double[1] = InValue.Y; Double[2] = InValue.Z; Double[3] = InValue.W; }
 	FMaterialParameterValue(UTexture* InValue) : Type(EMaterialParameterType::Texture) { Texture = InValue; }
 	FMaterialParameterValue(const TObjectPtr<UTexture>& InValue) : Type(EMaterialParameterType::Texture) { Texture = InValue; }
+	FMaterialParameterValue(const TObjectPtr<UTextureCollection>& InValue) : Type(EMaterialParameterType::TextureCollection) { TextureCollection = InValue; }
 	FMaterialParameterValue(URuntimeVirtualTexture* InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = InValue; }
 	FMaterialParameterValue(const TObjectPtr<URuntimeVirtualTexture>& InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = InValue; }
 	FMaterialParameterValue(USparseVolumeTexture* InValue) : Type(EMaterialParameterType::SparseVolumeTexture) { SparseVolumeTexture = InValue; }
@@ -334,6 +334,8 @@ struct FMaterialParameterValue
 	// Would be possible to store an additional const-flag member, and provide runtime checks to ensure constness is not violated...maybe worth doing in the future
 	FMaterialParameterValue(const UTexture* InValue) : Type(EMaterialParameterType::Texture) { Texture = const_cast<UTexture*>(InValue); }
 	FMaterialParameterValue(const TObjectPtr<const UTexture>& InValue) : Type(EMaterialParameterType::Texture) { Texture = const_cast<UTexture*>(InValue.Get()); }
+	FMaterialParameterValue(const UTextureCollection* InValue) : Type(EMaterialParameterType::TextureCollection) { TextureCollection = const_cast<UTextureCollection*>(InValue); }
+	FMaterialParameterValue(const TObjectPtr<const UTextureCollection>& InValue) : Type(EMaterialParameterType::TextureCollection) { TextureCollection = const_cast<UTextureCollection*>(InValue.Get()); }
 	FMaterialParameterValue(const URuntimeVirtualTexture* InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = const_cast<URuntimeVirtualTexture*>(InValue); }
 	FMaterialParameterValue(const TObjectPtr<const URuntimeVirtualTexture>& InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = const_cast<URuntimeVirtualTexture*>(InValue.Get()); }
 	FMaterialParameterValue(const USparseVolumeTexture* InValue) : Type(EMaterialParameterType::SparseVolumeTexture) { SparseVolumeTexture = const_cast<USparseVolumeTexture*>(InValue); }
@@ -360,6 +362,7 @@ struct FMaterialParameterValue
 		float Float[4];
 		bool Bool[4];
 		UTexture* Texture;
+		UTextureCollection* TextureCollection;
 		URuntimeVirtualTexture* RuntimeVirtualTexture;
 		USparseVolumeTexture* SparseVolumeTexture;
 		struct
@@ -392,6 +395,7 @@ struct FMaterialParameterValue
 			Lhs.Double[2] == Rhs.Double[2] &&
 			Lhs.Double[3] == Rhs.Double[3];
 		case EMaterialParameterType::Texture: return Lhs.Texture == Rhs.Texture;
+		case EMaterialParameterType::TextureCollection: return Lhs.TextureCollection == Rhs.TextureCollection;
 		case EMaterialParameterType::Font: return Lhs.Font.Value == Rhs.Font.Value && Lhs.Font.Page == Rhs.Font.Page;
 		case EMaterialParameterType::RuntimeVirtualTexture: return Lhs.RuntimeVirtualTexture == Rhs.RuntimeVirtualTexture;
 		case EMaterialParameterType::SparseVolumeTexture: return Lhs.SparseVolumeTexture == Rhs.SparseVolumeTexture;
@@ -469,11 +473,14 @@ struct FSubstrateCompilationConfig
 	int16 BytesPerPixelOverride = -1;
 	int16 ClosuresPerPixelOverride = -1;
 
+#if WITH_EDITOR
 	FString GetShaderMapKeyString() const;
+	void Append(FShaderKeyGenerator& KeyGen) const;
 
 	void UpdateHash(FSHA1& Hasher) const;
 
 	void Serialize(FArchive& Ar);
+#endif
 
 	friend inline bool operator==(const FSubstrateCompilationConfig& Lhs, const FSubstrateCompilationConfig& Rhs)
 	{
@@ -484,4 +491,12 @@ struct FSubstrateCompilationConfig
 	{
 		return !operator==(Lhs, Rhs);
 	}
+private:
+#if WITH_EDITOR
+	// Hidden friend for the FShaderKeyGenerator Append API
+	friend inline void Append(FShaderKeyGenerator& KeyGen, const FSubstrateCompilationConfig& Value)
+	{
+		Value.Append(KeyGen);
+	}
+#endif
 };

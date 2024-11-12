@@ -3,13 +3,13 @@
 #include "AvaBroadcastOutputTreeItemDragDropOp.h"
 
 #include "Broadcast/AvaBroadcast.h"
-#include "Broadcast/OutputDevices/AvaBroadcastOutputClassItem.h"
+#include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
 #include "MediaOutput.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastOutputTreeItemDragDropOp"
 
-TSharedRef<FAvaBroadcastOutputTreeItemDragDropOp> FAvaBroadcastOutputTreeItemDragDropOp::New(const TSharedPtr<FAvaBroadcastOutputTreeItem>& InOutputTreeItem)
+TSharedRef<FAvaBroadcastOutputTreeItemDragDropOp> FAvaBroadcastOutputTreeItemDragDropOp::New(const TSharedPtr<IAvaBroadcastOutputTreeItem>& InOutputTreeItem)
 {
 	TSharedRef<FAvaBroadcastOutputTreeItemDragDropOp> DragDropOp = MakeShared<FAvaBroadcastOutputTreeItemDragDropOp>();
 	DragDropOp->Init(InOutputTreeItem);
@@ -23,7 +23,7 @@ bool FAvaBroadcastOutputTreeItemDragDropOp::IsValidToDropInChannel(FName InTarge
 
 FReply FAvaBroadcastOutputTreeItemDragDropOp::OnChannelDrop(FName InTargetChannelName)
 {
-	if (const TSharedPtr<FAvaBroadcastOutputTreeItem> Item = GetOutputTreeItem())
+	if (const TSharedPtr<IAvaBroadcastOutputTreeItem> Item = GetOutputTreeItem())
 	{
 		UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 		
@@ -43,7 +43,7 @@ FReply FAvaBroadcastOutputTreeItemDragDropOp::OnChannelDrop(FName InTargetChanne
 	return FReply::Unhandled();
 }
 
-void FAvaBroadcastOutputTreeItemDragDropOp::Init(const TSharedPtr<FAvaBroadcastOutputTreeItem>& InOutputTreeItem)
+void FAvaBroadcastOutputTreeItemDragDropOp::Init(const TSharedPtr<IAvaBroadcastOutputTreeItem>& InOutputTreeItem)
 {
 	OutputTreeItem = InOutputTreeItem;
 	CurrentHoverText = InOutputTreeItem->GetDisplayName();

@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanTransientResourceAllocator.h"
-
+#include "VulkanCommandWrappers.h"
+#include "VulkanDevice.h"
+#include "VulkanMemory.h"
 
 FVulkanTransientHeap::FVulkanTransientHeap(const FInitializer& Initializer, FVulkanDevice* InDevice)
 	: FRHITransientHeap(Initializer)
@@ -12,14 +13,13 @@ FVulkanTransientHeap::FVulkanTransientHeap(const FInitializer& Initializer, FVul
 	EBufferUsageFlags UEBufferUsageFlags = BUF_VertexBuffer | BUF_IndexBuffer | BUF_DrawIndirect 
 		| BUF_UnorderedAccess | BUF_StructuredBuffer | BUF_ShaderResource | BUF_KeepCPUAccessible;
 
-#if VULKAN_RHI_RAYTRACING
 	if (InDevice->GetOptionalExtensions().HasRaytracingExtensions())
 	{
 		UEBufferUsageFlags |= BUF_RayTracingScratch;
 		// AccelerationStructure not yet supported as TransientResource see FVulkanTransientResourceAllocator::CreateBuffer
 		//UEBufferUsageFlags |= BUF_AccelerationStructure;
 	}
-#endif
+
 	const bool bZeroSize = false;
 	VkBufferUsageFlags BufferUsageFlags = FVulkanResourceMultiBuffer::UEToVKBufferUsageFlags(InDevice, UEBufferUsageFlags, bZeroSize);
 
@@ -30,9 +30,9 @@ FVulkanTransientHeap::FVulkanTransientHeap(const FInitializer& Initializer, FVul
 	VERIFYVULKANRESULT(VulkanRHI::vkCreateBuffer(InDevice->GetInstanceHandle(), &BufferCreateInfo, VULKAN_CPU_ALLOCATOR, &VulkanBuffer));
 
 	// Find the alignment that works for everyone
-	const uint32 MinBufferAlignment = FMath::Max<uint32>(Initializer.Alignment, FMemoryManager::CalculateBufferAlignment(*InDevice, UEBufferUsageFlags, bZeroSize));
+	const uint32 MinBufferAlignment = FMath::Max<uint32>(Initializer.Alignment, VulkanRHI::FMemoryManager::CalculateBufferAlignment(*InDevice, UEBufferUsageFlags, bZeroSize));
 
-	const EVulkanAllocationFlags AllocFlags = EVulkanAllocationFlags::Dedicated | EVulkanAllocationFlags::AutoBind;
+	const VulkanRHI::EVulkanAllocationFlags AllocFlags = VulkanRHI::EVulkanAllocationFlags::Dedicated | VulkanRHI::EVulkanAllocationFlags::AutoBind;
 	InDevice->GetMemoryManager().AllocateBufferMemory(InternalAllocation, VulkanBuffer, AllocFlags, TEXT("VulkanTransientHeap"), MinBufferAlignment);
 }
 
@@ -48,12 +48,12 @@ VkDeviceMemory FVulkanTransientHeap::GetMemoryHandle()
 	return InternalAllocation.GetDeviceMemoryHandle(Device);
 }
 
-FVulkanAllocation FVulkanTransientHeap::GetVulkanAllocation(const FRHITransientHeapAllocation& HeapAllocation)
+VulkanRHI::FVulkanAllocation FVulkanTransientHeap::GetVulkanAllocation(const FRHITransientHeapAllocation& HeapAllocation)
 {
 	FVulkanTransientHeap* Heap = static_cast<FVulkanTransientHeap*>(HeapAllocation.Heap);
 	check(Heap);
 
-	FVulkanAllocation TransientAlloc;
+	VulkanRHI::FVulkanAllocation TransientAlloc;
 	TransientAlloc.Reference(Heap->InternalAllocation);
 	TransientAlloc.VulkanHandle = (uint64)Heap->VulkanBuffer;
 	TransientAlloc.Offset += HeapAllocation.Offset;
@@ -93,11 +93,11 @@ FVulkanTransientResourceAllocator::FVulkanTransientResourceAllocator(FVulkanTran
 {
 }
 
-FRHITransientTexture* FVulkanTransientResourceAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+FRHITransientTexture* FVulkanTransientResourceAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
-	FDynamicRHI::FRHICalcTextureSizeResult MemReq = GVulkanRHI->RHICalcTexturePlatformSize(InCreateInfo, 0);
+	FDynamicRHI::FRHICalcTextureSizeResult MemReq = GDynamicRHI->RHICalcTexturePlatformSize(InCreateInfo, 0);
 
-	return CreateTextureInternal(InCreateInfo, InDebugName, InPassIndex, MemReq.Size, MemReq.Align,
+	return CreateTextureInternal(InCreateInfo, InDebugName, Fences, MemReq.Size, MemReq.Align,
 		[&](const FRHITransientHeap::FResourceInitializer& Initializer)
 	{
 		FRHITextureCreateDesc CreateDesc(InCreateInfo, ERHIAccess::Discard, InDebugName);
@@ -106,16 +106,16 @@ FRHITransientTexture* FVulkanTransientResourceAllocator::CreateTexture(const FRH
 	});
 }
 
-FRHITransientBuffer* FVulkanTransientResourceAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+FRHITransientBuffer* FVulkanTransientResourceAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
 	checkf(!EnumHasAnyFlags(InCreateInfo.Usage, BUF_AccelerationStructure), TEXT("AccelerationStructure not yet supported as TransientResource."));
 	checkf(!EnumHasAnyFlags(InCreateInfo.Usage, BUF_Volatile), TEXT("The volatile flag is not supported for transient resources."));
 
 	const bool bZeroSize = (InCreateInfo.Size == 0);
-	const uint32 Alignment = FMemoryManager::CalculateBufferAlignment(*Device, InCreateInfo.Usage, bZeroSize);
+	const uint32 Alignment = VulkanRHI::FMemoryManager::CalculateBufferAlignment(*Device, InCreateInfo.Usage, bZeroSize);
 	uint64 Size = Align(InCreateInfo.Size, Alignment);
 
-	return CreateBufferInternal(InCreateInfo, InDebugName, InPassIndex, Size, Alignment,
+	return CreateBufferInternal(InCreateInfo, InDebugName, Fences, Size, Alignment,
 		[&](const FRHITransientHeap::FResourceInitializer& Initializer)
 	{
 		FRHIResourceCreateInfo ResourceCreateInfo(InDebugName);

@@ -15,6 +15,9 @@ struct FDMXProtocolObjectVersion
 		// Update Ports to allow for an array of Unicast Addresses instead of just one
 		OutputPortSupportsManyUnicastAddresses,
 
+		// 5.5 fix UE-224455, variable default for FDXMAttribute::Name
+		FixAttributeNameDefaultValue,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

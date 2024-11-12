@@ -5,6 +5,17 @@ using UnrealBuildTool;
 [SupportedPlatforms("Win64", "Linux")]
 public class NetworkPredictionTests : TestModuleRules
 {
+	static NetworkPredictionTests()
+	{
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "NetworkPredictionPlugin";
+			TestMetadata.TestShortName = "Net Prediction";
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+		}
+	}
+
 	public NetworkPredictionTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
@@ -15,11 +26,5 @@ public class NetworkPredictionTests : TestModuleRules
 				"NetworkPrediction",
 			}
 		);
-
-		UpdateBuildGraphPropertiesFile(new Metadata() {
-			TestName = "NetworkPredictionPlugin",
-			TestShortName = "Net Prediction",
-			SupportedPlatforms = { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Linux }
-		});
 	}
 }

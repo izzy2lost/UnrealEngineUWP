@@ -67,7 +67,7 @@ struct FTextureSourceLayerData
 
 struct FTextureSourceBlockData
 {
-	TArray<TArray<FImage>> MipsPerLayer;
+	TArray<TArray<FImage>> MipsPerLayer; // @@ use FImageView instead
 	int32 BlockX = 0;
 	int32 BlockY = 0;
 	int32 SizeInBlocksX = 1; // Normally each blocks covers a 1x1 block area
@@ -92,33 +92,24 @@ struct FTextureSourceData
 	// Clear the current source data and make it into a placeholder texture.
 	void InitAsPlaceholder();
 
-	void Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, bool bAllowAsyncLoading);
+	void Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, bool bAllowAsyncLoading);
 	bool IsValid() const { return bValid; }
 
-	bool HasPayload() const
-	{
-		return AsyncSource.HasPayloadData();
-	}
-	
 	// ImageWrapperModule is not used
 	void GetSourceMips(FTextureSource& Source, IImageWrapperModule* InImageWrapper = nullptr);
-	void GetAsyncSourceMips(IImageWrapperModule* InImageWrapper = nullptr);
 
 	void ReleaseMemory()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.ReleaseMemory);
 
-		// Unload BulkData loaded with LoadBulkDataWithFileReader
-		AsyncSource.RemoveBulkData();
 		Blocks.Empty();
 		Layers.Empty();
 		bValid = false;
 	}
 
-	TArray<TPair<FLinearColor, FLinearColor>> LayerChannelMinMax;
+	TArray<TPair<FLinearColor, FLinearColor>> LayerChannelMinMax; // Key == Min, Value == Max
 
 	FString TextureFullName;
-	FTextureSource AsyncSource;
 	TArray<FTextureSourceLayerData> Layers;
 	TArray<FTextureSourceBlockData> Blocks;
 	int32 SizeInBlocksX;

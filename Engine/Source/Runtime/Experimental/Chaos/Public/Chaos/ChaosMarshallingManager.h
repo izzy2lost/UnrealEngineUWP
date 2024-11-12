@@ -8,6 +8,7 @@
 #include "Chaos/ParallelFor.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
 #include "Chaos/SimCallbackObject.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 
 class FGeometryCollectionResults;
 
@@ -258,6 +259,7 @@ struct FPushPhysicsData
 
 	void Reset();
 	void ResetForHistory();
+	void ResetDirtyProxiesBuffer();
 	void CopySubstepData(const FPushPhysicsData& FirstStepData);
 };
 
@@ -275,25 +277,79 @@ public:
 		return ProducerData;
 	}
 
+	void AddDirtyProxy(IPhysicsProxyBase* ProxyBaseIn)
+	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->DirtyProxiesDataBuffer.Add(ProxyBaseIn);
+	}
+
+	void RemoveDirtyProxy(IPhysicsProxyBase* ProxyBaseIn)
+	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->DirtyProxiesDataBuffer.Remove(ProxyBaseIn);
+	}
+
+	void RemoveDirtyProxyIfNoShapesAreDirty(IPhysicsProxyBase* ProxyBaseIn)
+	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->DirtyProxiesDataBuffer.RemoveIfNoShapesAreDirty(ProxyBaseIn);
+	}
+
+	const FDirtyProxiesBucketInfo& GetDirtyProxyBucketInfo_External()
+	{
+		ensureAlwaysMsgf(!Chaos::CVars::bEnableAsyncInitBody, TEXT("This method is not safe when p.Chaos.EnableAsyncInitBody is true"));
+		return ProducerData->DirtyProxiesDataBuffer.GetDirtyProxyBucketInfo();
+	}
+
+	int32 GetDirtyProxyBucketInfoNum_External(EPhysicsProxyType Type)
+	{
+		UE_CHAOS_ASYNC_INITBODY_READSCOPELOCK(MarshallingManagerLock);
+		return ProducerData->DirtyProxiesDataBuffer.GetDirtyProxyBucketInfo().Num[(uint32)Type];
+	}
+
+	// Batch dirty proxies without checking DirtyIdx.
+	template <typename TProxiesArray>
+	void AddDirtyProxiesUnsafe(TProxiesArray& ProxiesArray)
+	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->DirtyProxiesDataBuffer.AddMultipleUnsafe(ProxiesArray);
+	}
+
+	void AddDirtyProxyShape(IPhysicsProxyBase* ProxyBaseIn, int32 ShapeIdx)
+	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->DirtyProxiesDataBuffer.AddShape(ProxyBaseIn, ShapeIdx);
+	}
+
+	void SetNumDirtyShapes(IPhysicsProxyBase* Proxy, int32 NumShapes)
+	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->DirtyProxiesDataBuffer.SetNumDirtyShapes(Proxy, NumShapes);
+	}
+
 	void RegisterSimCallbackObject_External(ISimCallbackObject* SimCallbackObject)
 	{
-		GetProducerData_External()->SimCallbackObjectsToAdd.Add(SimCallbackObject);
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->SimCallbackObjectsToAdd.Add(SimCallbackObject);
 	}
 
 	void RegisterSimCommand_External(FSimCallbackCommandObject* SimCommand)
 	{
-		GetProducerData_External()->SimCommands.Add(SimCommand);
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->SimCommands.Add(SimCommand);
 	}
 
 	void UnregisterSimCallbackObject_External(ISimCallbackObject* SimCallbackObject)
 	{
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
 		SimCallbackObject->bPendingDelete_External = true;
-		GetProducerData_External()->SimCallbackObjectsToRemove.Add(SimCallbackObject);
+		ProducerData->SimCallbackObjectsToRemove.Add(SimCallbackObject);
 	}
 
 	void AddSimCallbackInputData_External(ISimCallbackObject* SimCallbackObject, FSimCallbackInput* InputData)
 	{
-		GetProducerData_External()->SimCallbackInputs.Add(FSimCallbackInputAndObject{ SimCallbackObject, InputData });
+		UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(MarshallingManagerLock);
+		ProducerData->SimCallbackInputs.Add(FSimCallbackInputAndObject{ SimCallbackObject, InputData });
 	}
 	/** Step forward using the external delta time. Should only be called by external thread */
 	CHAOS_API void Step_External(FReal ExternalDT, const int32 NumSteps = 1, bool bSolverSubstepped = false);
@@ -343,12 +399,15 @@ public:
 
 	/** Return the size of the history queue */
 	int32 GetNumHistory_Internal() const {return HistoryQueue_Internal.Num();}
-		
+
+	/** Used for multithreaded access */
+	CHAOS_API FRWLock& GetMarshallingManagerLock() { return MarshallingManagerLock; }
+
 private:
-	FReal ExternalTime_External;	//the global time external thread is currently at
-	int32 ExternalTimestamp_External; //the global timestamp external thread is currently at (1 per frame)
-	FReal SimTime_External;	//the global time the sim is at (once Step_External is called this time advances, even though the actual sim work has yet to be done)
-	int32 InternalStep_External; //the current internal step we are pushing work into. This is not synced with external timestamp as we may sub-step. This should match the solver step
+	std::atomic<FReal> ExternalTime_External;	//the global time external thread is currently at
+	std::atomic<int32> ExternalTimestamp_External; //the global timestamp external thread is currently at (1 per frame)
+	std::atomic<FReal> SimTime_External;	//the global time the sim is at (once Step_External is called this time advances, even though the actual sim work has yet to be done)
+	std::atomic<int32> InternalStep_External; //the current internal step we are pushing work into. This is not synced with external timestamp as we may sub-step. This should match the solver step
 	
 	//push
 	FPushPhysicsData* ProducerData;
@@ -363,11 +422,14 @@ private:
 	TQueue<FPullPhysicsData*,EQueueMode::Spsc> PullDataPool;	//the pull data pool to avoid reallocs. Pushed by external thread, popped by internal
 	TArray<TUniquePtr<FPullPhysicsData>> BackingPullBuffer;		//all pull data is cleaned up by this
 
-	int32 Delay;
+	std::atomic<int32> Delay;
 
 	int32 HistoryLength;	//how long to keep push data for
 
 	CHAOS_API void PrepareExternalQueue_External();
 	CHAOS_API void PreparePullData();
+
+	/** Used for multithreaded access */
+	FRWLock MarshallingManagerLock;
 };
 }; // namespace Chaos

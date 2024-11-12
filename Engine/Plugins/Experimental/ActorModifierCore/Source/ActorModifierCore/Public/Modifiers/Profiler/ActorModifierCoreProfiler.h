@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 class FStructOnScope;
 class UActorModifierCoreBase;

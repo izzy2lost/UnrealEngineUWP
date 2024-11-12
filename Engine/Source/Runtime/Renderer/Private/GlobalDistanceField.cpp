@@ -2466,7 +2466,7 @@ void UpdateGlobalDistanceFieldCache(
 			FRHIGPUBufferReadback* ReadbackBuffer = StreamingReadback.PendingStreamingReadbackBuffers[StreamingReadback.ReadbackBuffersWriteIndex].Get();
 
 			AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("GlobalDistanceField.HasPendingStreamingReadback"), PendingStreamingReadbackBuffer,
-				[ReadbackBuffer, PendingStreamingReadbackBuffer = PendingStreamingReadbackBuffer](FRHICommandList& RHICmdList)
+				[ReadbackBuffer, PendingStreamingReadbackBuffer = PendingStreamingReadbackBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					ReadbackBuffer->EnqueueCopy(RHICmdList, PendingStreamingReadbackBuffer->GetRHI(), 0u);
 				});

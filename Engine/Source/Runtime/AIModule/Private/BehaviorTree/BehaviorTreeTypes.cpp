@@ -18,6 +18,7 @@
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Int.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Name.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Struct.h"
 #include "BehaviorTree/BTTaskNode.h"
 #include "BehaviorTree/BTCompositeNode.h"
 
@@ -423,7 +424,7 @@ void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData,
 				*UBehaviorTreeTypes::DescribeNodeUpdateMode(EBTNodeUpdateMode::Remove),
 				*UBehaviorTreeTypes::DescribeNodeHelper(UpdateInfo.AuxNode ? (UBTNode*)UpdateInfo.AuxNode : (UBTNode*)UpdateInfo.TaskNode));
 
-			SearchData.PendingUpdates.RemoveAt(Idx, 1, EAllowShrinking::No);
+			SearchData.PendingUpdates.RemoveAt(Idx, EAllowShrinking::No);
 		}
 	}
 
@@ -492,7 +493,7 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 			bSkipAdding = (Info.Mode == EBTNodeUpdateMode::Remove) || (UpdateInfo.Mode == EBTNodeUpdateMode::Remove);
 			UE_CVLOG(bSkipAdding, OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT(">> skipped: paired add/remove"));
 
-			PendingUpdates.RemoveAt(UpdateIndex, 1, EAllowShrinking::No);
+			PendingUpdates.RemoveAt(UpdateIndex, EAllowShrinking::No);
 		}
 	}
 	
@@ -662,6 +663,14 @@ void FBlackboardKeySelector::AddNameFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Name");
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Name>(Owner, *FilterName));
+}
+
+void FBlackboardKeySelector::AddStructFilter(UObject* Owner, FName PropertyName, const UScriptStruct* AllowedStruct)
+{
+	const FString FilterName = PropertyName.ToString() + TEXT("_Struct_") + GetNameSafe(AllowedStruct);
+	UBlackboardKeyType_Struct* FilterOb = NewObject<UBlackboardKeyType_Struct>(Owner, *FilterName);
+	FilterOb->DefaultValue.InitializeAs(AllowedStruct);
+	AllowedTypes.Add(FilterOb);
 }
 
 //----------------------------------------------------------------------//

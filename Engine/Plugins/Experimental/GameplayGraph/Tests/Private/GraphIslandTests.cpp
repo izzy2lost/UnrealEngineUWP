@@ -662,7 +662,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Events::On Connectivity Chan
 				REQUIRE(Island != nullptr);
 
 				Island->OnConnectivityChanged.AddLambda(
-					[&CallbackIslandHandle](const FGraphIslandHandle& InCallbackIslandHandle)
+					[&CallbackIslandHandle](const FGraphIslandHandle& InCallbackIslandHandle, EGraphIslandConnectivityChange Change)
 					{
 						CallbackIslandHandle = InCallbackIslandHandle;
 					}
@@ -689,7 +689,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Events::On Connectivity Chan
 
 		FGraphIslandHandle CallbackIslandHandle;
 		Island->OnConnectivityChanged.AddLambda(
-			[&CallbackIslandHandle](const FGraphIslandHandle& InCallbackIslandHandle)
+			[&CallbackIslandHandle](const FGraphIslandHandle& InCallbackIslandHandle, EGraphIslandConnectivityChange Change)
 			{
 				CallbackIslandHandle = InCallbackIslandHandle;
 			}

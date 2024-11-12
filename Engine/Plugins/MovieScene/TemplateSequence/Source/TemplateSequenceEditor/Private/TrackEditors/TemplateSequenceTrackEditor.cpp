@@ -8,6 +8,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "IContentBrowserSingleton.h"
+#include "ISequencer.h"
 #include "LevelSequence.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageName.h"
@@ -20,6 +21,7 @@
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "Sections/TemplateSequenceSection.h"
+#include "SequencerSettings.h"
 #include "Tracks/TemplateSequenceTrack.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -119,10 +121,12 @@ public:
 			CurBaseClass = CurBaseClass->GetSuperClass();
 		}
 
+		TSharedRef<FTemplateSequenceTrackEditor> TrackEditorRef = TrackEditor.ToSharedRef();
+		TSharedPtr<ISequencer> Sequencer = TrackEditorRef->GetSequencer();
+
 		FAssetPickerConfig AssetPickerConfig;
 		{
-			TSharedRef<FTemplateSequenceTrackEditor> TrackEditorRef = TrackEditor.ToSharedRef();
-			UMovieSceneSequence* Sequence = TrackEditorRef->GetSequencer() ? TrackEditorRef->GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
+			UMovieSceneSequence* Sequence = Sequencer.IsValid() ? Sequencer->GetFocusedMovieSceneSequence() : nullptr;
 
 			AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateSP(TrackEditorRef, &FTemplateSequenceTrackEditor::OnTemplateSequenceAssetSelected, ObjectBindings);
 			AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateSP(TrackEditorRef, &FTemplateSequenceTrackEditor::OnTemplateSequenceAssetEnterPressed, ObjectBindings);
@@ -175,11 +179,14 @@ public:
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 		AssetPicker = ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig);
 
+		const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		ChildSlot
 		[
 			SNew(SBox)
-			.WidthOverride(300.0f)
-			.HeightOverride(300.f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 			[
 				SNew(SVerticalBox)
 				+SVerticalBox::Slot()

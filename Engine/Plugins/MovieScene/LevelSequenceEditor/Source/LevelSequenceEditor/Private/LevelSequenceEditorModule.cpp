@@ -159,6 +159,7 @@ protected:
 			TEXT("PMCinematic"),
 			25
 		);
+		Info.ShortDisplayName = LOCTEXT("CinematicShortCategoryName", "Cine");
 
 		IPlacementModeModule::Get().RegisterPlacementCategory(Info);
 		IPlacementModeModule::Get().RegisterPlaceableItem(Info.UniqueHandle, MakeShareable( new FPlaceableItem(nullptr, FAssetData(ACameraShakeSourceActor::StaticClass())) ));

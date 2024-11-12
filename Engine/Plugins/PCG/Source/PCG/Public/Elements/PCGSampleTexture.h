@@ -53,6 +53,14 @@ public:
 	/** Overrides the texture's tiling to wrap or clamp its UVs. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "TextureMappingMethod == EPCGTextureMappingMethod::UVCoordinates", EditConditionHides))
 	EPCGTextureAddressMode TilingMode = EPCGTextureAddressMode::Wrap;
+
+	/** Controls the behavior of density computation with respect to initial data. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGDensityMergeOperation DensityMergeFunction = EPCGDensityMergeOperation::Set;
+
+	/** Controls whether the output density should be clamped or not. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bClampOutputDensity = true;
 };
 
 class FPCGSampleTextureElement : public IPCGElement
@@ -63,4 +71,5 @@ public:
 
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

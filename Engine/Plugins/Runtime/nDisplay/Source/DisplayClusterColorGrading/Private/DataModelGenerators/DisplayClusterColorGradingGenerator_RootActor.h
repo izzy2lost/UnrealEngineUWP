@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DisplayClusterColorGradingDataModel.h"
+#include "ColorGradingEditorDataModel.h"
 
 #include "Input/Reply.h"
 
@@ -16,14 +16,14 @@ class UDisplayClusterICVFXCameraComponent;
 struct FCachedPropertyPath;
 
 /** Base generator for any object that needs a color grading data model generated from an FColorGradingRenderingSettings struct */
-class FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings : public IDisplayClusterColorGradingDataModelGenerator
+class FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings : public IColorGradingEditorDataModelGenerator
 {
 protected:
 	/** Creates a new color grading group structure from the specified group property handle, which finds and connects the appropriate property handles for the color wheels and details view */
-	FDisplayClusterColorGradingDataModel::FColorGradingGroup CreateColorGradingGroup(const TSharedPtr<IPropertyHandle>& GroupPropertyHandle);
+	FColorGradingEditorDataModel::FColorGradingGroup CreateColorGradingGroup(const TSharedPtr<IPropertyHandle>& GroupPropertyHandle);
 
 	/** Creates a color grading element structure from the specified property handle, whose child properties are expected to be colors with the ColorGradingMode metadata set */
-	FDisplayClusterColorGradingDataModel::FColorGradingElement CreateColorGradingElement(const TSharedPtr<IPropertyHandle>& GroupPropertyHandle, FName ElementPropertyName, FText ElementLabel);
+	FColorGradingEditorDataModel::FColorGradingElement CreateColorGradingElement(const TSharedPtr<IPropertyHandle>& GroupPropertyHandle, FName ElementPropertyName, FText ElementLabel);
 
 	/** Recursively searches the detail tree hierarchy for a property detail tree node whose name matches the specified name */
 	TSharedPtr<IDetailTreeNode> FindPropertyTreeNode(const TSharedRef<IDetailTreeNode>& Node, const FCachedPropertyPath& PropertyPath);
@@ -36,12 +36,12 @@ protected:
 class FDisplayClusterColorGradingGenerator_RootActor : public FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings
 {
 public:
-	static TSharedRef<IDisplayClusterColorGradingDataModelGenerator> MakeInstance();
+	static TSharedRef<IColorGradingEditorDataModelGenerator> MakeInstance();
 
 	//~ IDisplayClusterColorGradingDataModelGenerator interface
-	virtual void Initialize(const TSharedRef<class FDisplayClusterColorGradingDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator) override;
-	virtual void Destroy(const TSharedRef<class FDisplayClusterColorGradingDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator) override;
-	virtual void GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FDisplayClusterColorGradingDataModel& OutColorGradingDataModel) override;
+	virtual void Initialize(const TSharedRef<class FColorGradingEditorDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator) override;
+	virtual void Destroy(const TSharedRef<class FColorGradingEditorDataModel>& ColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& PropertyRowGenerator) override;
+	virtual void GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FColorGradingEditorDataModel& OutColorGradingDataModel) override;
 	//~ End IDisplayClusterColorGradingDataModelGenerator interface
 
 private:
@@ -72,12 +72,12 @@ private:
 class FDisplayClusterColorGradingGenerator_ICVFXCamera : public FDisplayClusterColorGradingGenerator_ColorGradingRenderingSettings
 {
 public:
-	static TSharedRef<IDisplayClusterColorGradingDataModelGenerator> MakeInstance();
+	static TSharedRef<IColorGradingEditorDataModelGenerator> MakeInstance();
 
 	//~ IDisplayClusterColorGradingDataModelGenerator interface
-	virtual void Initialize(const TSharedRef<class FDisplayClusterColorGradingDataModel>& InColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& InPropertyRowGenerator) override;
-	virtual void Destroy(const TSharedRef<class FDisplayClusterColorGradingDataModel>& InColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& InPropertyRowGenerator) override;
-	virtual void GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FDisplayClusterColorGradingDataModel& OutColorGradingDataModel) override;
+	virtual void Initialize(const TSharedRef<class FColorGradingEditorDataModel>& InColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& InPropertyRowGenerator) override;
+	virtual void Destroy(const TSharedRef<class FColorGradingEditorDataModel>& InColorGradingDataModel, const TSharedRef<IPropertyRowGenerator>& InPropertyRowGenerator) override;
+	virtual void GenerateDataModel(IPropertyRowGenerator& PropertyRowGenerator, FColorGradingEditorDataModel& OutColorGradingDataModel) override;
 	//~ End IDisplayClusterColorGradingDataModelGenerator interface
 
 private:

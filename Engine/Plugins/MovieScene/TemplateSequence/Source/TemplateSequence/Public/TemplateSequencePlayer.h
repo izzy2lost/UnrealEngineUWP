@@ -9,6 +9,7 @@ struct FMovieSceneSequencePlaybackSettings;
 
 class ATemplateSequenceActor;
 class UTemplateSequence;
+class UMovieSceneSpawnableBindingBase;
 
 UCLASS(BlueprintType)
 class TEMPLATESEQUENCE_API UTemplateSequencePlayer : public UMovieSceneSequencePlayer
@@ -46,7 +47,7 @@ public:
 	void SetSpawnedObject(UObject* InObject) { SpawnedObject = InObject; }
 
 	virtual UObject* SpawnObject(FMovieSceneSpawnable&, FMovieSceneSequenceIDRef, TSharedRef<const UE::MovieScene::FSharedPlaybackState>) override { return SpawnedObject.Get(); }
-	virtual void DestroySpawnedObject(UObject&) override {}
+	virtual void DestroySpawnedObject(UObject&, UMovieSceneSpawnableBindingBase* CustomSpawnableBinding) override {}
 
 #if WITH_EDITOR
 	virtual bool CanSpawnObject(UClass* InClass) const override { return SpawnedObject.IsValid() && SpawnedObject.Get()->GetClass()->IsChildOf(InClass); }

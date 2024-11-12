@@ -31,7 +31,12 @@ namespace PCGIndexing
 
 	bool FPCGIndexCollection::AddRange(const int32 StartIndex, const int32 EndIndex)
 	{
-		const FPCGIndexRange NewRange(AdjustIndex(StartIndex), AdjustIndex(EndIndex));
+		if (!ensure(IsValid()))
+		{
+			return false;
+		}
+
+		const FPCGIndexRange NewRange = AdjustIndicesAndCreateRange(StartIndex, EndIndex);
 
 		if (!RangeIsValid(NewRange))
 		{
@@ -81,11 +86,21 @@ namespace PCGIndexing
 
 	bool FPCGIndexCollection::RangeIsValid(const FPCGIndexRange& Range) const
 	{
-		return (Range.StartIndex >= 0 && Range.StartIndex <= ArraySize && Range.EndIndex >= 0 && Range.EndIndex <= ArraySize && Range.StartIndex < Range.EndIndex);
+		return IsValid()
+				&& Range.StartIndex >= 0
+				&& Range.StartIndex <= ArraySize
+				&& Range.EndIndex >= 0
+				&& Range.EndIndex <= ArraySize
+				&& Range.StartIndex < Range.EndIndex;
 	}
 
 	bool FPCGIndexCollection::ContainsIndex(const int32 Index) const
 	{
+		if (!IsValid())
+		{
+			return false;
+		}
+
 		for (const FPCGIndexRange& Range : IndexRanges)
 		{
 			if (Range.ContainsIndex(Index))
@@ -120,19 +135,39 @@ namespace PCGIndexing
 		return TotalIndexCount;
 	}
 
+	bool FPCGIndexCollection::IsValid() const
+	{
+		return ArraySize > 0;
+	}
+
+	bool FPCGIndexCollection::IsEmpty() const
+	{
+		return IndexRanges.IsEmpty();
+	}
+
 	bool FPCGIndexCollection::operator==(const FPCGIndexCollection& Other) const
 	{
 		return (ArraySize == Other.ArraySize) && (IndexRanges == Other.IndexRanges);
 	}
 
-	int32 FPCGIndexCollection::AdjustIndex(const int32 Index) const
+	FPCGIndexCollection& FPCGIndexCollection::operator+=(const FPCGIndexCollection& Other)
 	{
-		if (Index >= 0)
+		ArraySize = FMath::Max(ArraySize, Other.ArraySize);
+		for (const FPCGIndexRange& Range : Other.IndexRanges)
 		{
-			return FMath::Min(Index, ArraySize);
+			AddRange(Range);
 		}
 
-		return FMath::Max(ArraySize + Index, 0);
+		return *this;
+	}
+
+	FPCGIndexRange FPCGIndexCollection::AdjustIndicesAndCreateRange(int32 StartIndex, int32 EndIndex) const
+	{
+		// Convert both indices to a positive range
+		StartIndex = (StartIndex >= 0) ? FMath::Min(StartIndex, ArraySize) : FMath::Min(ArraySize + StartIndex, ArraySize);
+		EndIndex = (EndIndex >= 0) ? FMath::Min(EndIndex, ArraySize) : FMath::Min(ArraySize + EndIndex, ArraySize);
+
+		return FPCGIndexRange(StartIndex, (EndIndex == StartIndex) ? EndIndex + 1 : EndIndex);
 	}
 
 	bool FPCGIndexCollection::CheckOverlap(const FPCGIndexRange& FirstRange, const FPCGIndexRange& SecondRange) const

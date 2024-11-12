@@ -73,10 +73,22 @@ FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::FBezierChannelCurv
 }
 
 template<typename ChannelType, typename ChannelValue, typename KeyType> 
+FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::FBezierChannelCurveModel(TMovieSceneChannelHandle<ChannelType> InChannel, UMovieSceneSection* OwningSection, UObject* InOwningObject, TWeakPtr<ISequencer> InWeakSequencer)
+	: FChannelCurveModel<ChannelType, ChannelValue, KeyType>(InChannel, OwningSection, InOwningObject, InWeakSequencer)
+{
+	ChannelType* Channel = InChannel.Get();
+
+	if (Channel && OwningSection && OwningSection->GetTypedOuter<UMovieScene>())
+	{
+		Channel->SetTickResolution(OwningSection->GetTypedOuter<UMovieScene>()->GetTickResolution());
+	}
+}
+
+template<typename ChannelType, typename ChannelValue, typename KeyType> 
 void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::DrawCurve(const FCurveEditor& CurveEditor, const FCurveEditorScreenSpace& ScreenSpace, TArray<TTuple<double, double>>& InterpolatingPoints) const
 {
 	ChannelType* Channel		= this->GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(this->GetOwningObject());
+	UMovieSceneSection* Section = this->template GetOwningObjectOrOuter<UMovieSceneSection>();
 
 	if (Channel && Section && Section->GetTypedOuter<UMovieScene>())
 	{
@@ -156,7 +168,7 @@ template <class ChannelType, class ChannelValue, class KeyType>
 TPair<ERichCurveInterpMode, ERichCurveTangentMode> FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetInterpolationMode(const double& InTime, ERichCurveInterpMode DefaultInterpolationMode, ERichCurveTangentMode DefaultTangentMode) const
 {
 	ChannelType* Channel = this->GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(this->GetOwningObject());
+	UMovieSceneSection* Section = this->template GetOwningObjectOrOuter<UMovieSceneSection>();
 	if (Channel && Section)
 	{
 		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
@@ -197,15 +209,17 @@ TPair<ERichCurveInterpMode, ERichCurveTangentMode> FBezierChannelCurveModel<Chan
 template<typename ChannelType, typename ChannelValue, typename KeyType> 
 void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetKeyAttributes(TArrayView<const FKeyHandle> InKeys, TArrayView<FKeyAttributes> OutAttributes) const
 {
-	ChannelType* Channel		= this->GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(this->GetOwningObject());
-	if (Channel && Section && Section->GetTypedOuter<UMovieScene>())
+	ChannelType*        Channel    = this->GetChannelHandle().Get();
+	UMovieSceneSection* Section    = this->template GetOwningObjectOrOuter<UMovieSceneSection>();
+	UMovieScene*        MovieScene = Section ? Section->GetTypedOuter<UMovieScene>() : nullptr;
+
+	if (Channel && Section && MovieScene)
 	{
 		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
 		TArrayView<const FFrameNumber>    Times  = ChannelData.GetTimes();
 		TArrayView<ChannelValue> Values = ChannelData.GetValues();
 
-		float TimeInterval = Section->GetTypedOuter<UMovieScene>()->GetTickResolution().AsInterval();
+		float TimeInterval = MovieScene->GetTickResolution().AsInterval();
 
 		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
 		{
@@ -253,17 +267,20 @@ static bool IsAuto(ERichCurveTangentMode TangentMode)
 template<typename ChannelType, typename ChannelValue, typename KeyType> 
 void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetKeyAttributes(TArrayView<const FKeyHandle> InKeys, TArrayView<const FKeyAttributes> InAttributes, EPropertyChangeType::Type ChangeType)
 {
-	ChannelType* Channel		= this->GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(this->GetOwningObject());
-	if (Channel && Section && Section->GetTypedOuter<UMovieScene>() && !this->IsReadOnly())
+	UE::MovieScene::FScopedSignedObjectModifyDefer Defer(false /*do not force upate*/);
+
+	ChannelType*             Channel     = this->GetChannelHandle().Get();
+	UMovieSceneSignedObject* SignedOwner = this->template GetOwningObjectOrOuter<UMovieSceneSignedObject>();
+	UMovieScene*             MovieScene  = SignedOwner ? SignedOwner->GetTypedOuter<UMovieScene>() : nullptr;
+
+	if (Channel && SignedOwner && MovieScene && !this->IsReadOnly())
 	{
 		bool bAutoSetTangents = false;
-		Section->MarkAsChanged();
 
 		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
 		TArrayView<ChannelValue> Values = ChannelData.GetValues();
 
-		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+		FFrameRate TickResolution = MovieScene->GetTickResolution();
 		float TimeInterval = TickResolution.AsInterval();
 
 		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
@@ -391,6 +408,7 @@ void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetKeyAttribu
 			Channel->AutoSetTangents();
 		}
 
+		SignedOwner->MarkAsChanged();
 		this->CurveModifiedDelegate.Broadcast();
 	}
 }
@@ -409,12 +427,11 @@ void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetCurveAttri
 template<typename ChannelType, typename ChannelValue, typename KeyType> 
 void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetCurveAttributes(const FCurveAttributes& InCurveAttributes)
 {
-	ChannelType* Channel		= this->GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(this->GetOwningObject());
-	if (Channel && Section && !this->IsReadOnly())
-	{
-		Section->MarkAsChanged();
+	ChannelType*             Channel     = this->GetChannelHandle().Get();
+	UMovieSceneSignedObject* SignedOwner = this->template GetOwningObjectOrOuter<UMovieSceneSignedObject>();
 
+	if (Channel && SignedOwner && !this->IsReadOnly())
+	{
 		if (InCurveAttributes.HasPreExtrapolation())
 		{
 			Channel->PreInfinityExtrap = InCurveAttributes.GetPreExtrapolation();
@@ -425,6 +442,7 @@ void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetCurveAttri
 			Channel->PostInfinityExtrap = InCurveAttributes.GetPostExtrapolation();
 		}
 
+		SignedOwner->MarkAsChanged();
 		this->CurveModifiedDelegate.Broadcast();
 	}
 }
@@ -470,9 +488,11 @@ template<typename ChannelType, typename ChannelValue, typename KeyType>
 void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetValueRange(double InMinTime, double InMaxTime, double& MinValue, double& MaxValue) const
 {
 	ChannelType* Channel = this->GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(this->GetOwningObject());
 
-	if (Channel && Section && Section->GetTypedOuter<UMovieScene>())
+	UMovieSceneSignedObject* SignedOwner = this->template GetOwningObjectOrOuter<UMovieSceneSignedObject>();
+	UMovieScene*             MovieScene  = SignedOwner ? SignedOwner->GetTypedOuter<UMovieScene>() : nullptr;
+
+	if (Channel && SignedOwner && MovieScene && !this->IsReadOnly())
 	{
 		TArrayView<const FFrameNumber> Times = Channel->GetData().GetTimes();
 		TArrayView<const ChannelValue> Values = Channel->GetData().GetValues();
@@ -484,7 +504,7 @@ void FBezierChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetValueRange
 		}
 		else
 		{
-			FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+			FFrameRate TickResolution = MovieScene->GetTickResolution();
 			double ToTime = TickResolution.AsInterval();
 			int32 LastKeyIndex = Values.Num() - 1;
 			MinValue = TNumericLimits<double>::Max();

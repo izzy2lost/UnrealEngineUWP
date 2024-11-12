@@ -59,6 +59,7 @@ TFunction<bool(const FBlueprintActionFilter& Filter, FBlueprintActionInfo& Bluep
 
 	FStructProperty* ReturnStructProperty = CastField<FStructProperty>(ReturnProperty);
 	FObjectPropertyBase* ReturnObjectProperty = CastField<FObjectPropertyBase>(ReturnProperty);
+	FBoolProperty* ReturnBoolProperty = CastField<FBoolProperty>(ReturnProperty);
 	auto RejectAnyIncompatibleReturnValues = [=](const FBlueprintActionFilter& Filter, FBlueprintActionInfo& BlueprintAction)
 	{
 		const UFunction* Function = BlueprintAction.GetAssociatedFunction();
@@ -70,6 +71,10 @@ TFunction<bool(const FBlueprintActionFilter& Filter, FBlueprintActionInfo& Bluep
 				return false;
 			}
 			else if (ReturnObjectProperty && ReturnObjectProperty->PropertyClass == CastField<FObjectPropertyBase>(FunctionReturnProperty)->PropertyClass)
+			{
+				return false;
+			}
+			else if (ReturnBoolProperty)
 			{
 				return false;
 			}
@@ -89,6 +94,9 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 {
 	PropertyHandle = InPropertyHandle;
 	PropertyUtilities = CustomizationUtils.GetPropertyUtilities();
+
+	PropertyRawData.Empty();
+	PropertyHandle->AccessRawData(PropertyRawData);
 
 	ChildBuilder.AddCustomRow(FText())
 	.NameContent()
@@ -253,18 +261,16 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 
 	if (CommonFunction)
 	{
-		IDetailCategoryBuilder& DetailCategoryBuilder = ChildBuilder
-			.GetParentCategory()
+		IDetailCategoryBuilder& DetailCategoryBuilder = CreateNewCategoryForPayloadVariables() ? 
+			ChildBuilder.GetParentCategory()
 			.GetParentLayout()
-			.EditCategory("Payload", LOCTEXT("PayloadLabel", "Payload"), ECategoryPriority::Uncommon);
+			.EditCategory("Payload", LOCTEXT("PayloadLabel", "Payload"), ECategoryPriority::Uncommon) :
+			ChildBuilder.GetParentCategory();
 
 		bool bPayloadUpToDate = true;
 
 		TArray<UObject*> EditObjects;
 		GetEditObjects(EditObjects);
-
-		TArray<void*> RawData;
-		PropertyHandle->AccessRawData(RawData);
 
 		FPayloadVariableMap PayloadVariables;
 		TArray<FName> WellKnownParameters;
@@ -272,14 +278,14 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 
 		const FString* WorldContextParamName = CommonFunction->FindMetaData(FBlueprintMetadata::MD_WorldContext);
 
-		for (int32 Index = 0; Index < RawData.Num(); ++Index)
+		for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 		{
 			AllValidNames.Empty();
 			PayloadVariables.Empty();
 			WellKnownParameters.Empty();
 
-			GetPayloadVariables(EditObjects[Index], RawData[Index], PayloadVariables);
-			GetWellKnownParameterPinNames(EditObjects[Index], RawData[Index], WellKnownParameters);
+			GetPayloadVariables(EditObjects[Index], PropertyRawData[Index], PayloadVariables);
+			GetWellKnownParameterPinNames(EditObjects[Index], PropertyRawData[Index], WellKnownParameters);
 
 			TSharedPtr<FStructOnScope> StructData = MakeShared<FStructOnScope>(CommonFunction);
 
@@ -341,7 +347,9 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 					}
 				}
 
-				IDetailPropertyRow* ExternalRow = DetailCategoryBuilder.AddExternalStructureProperty(StructData.ToSharedRef(), Field->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty());
+				IDetailPropertyRow* ExternalRow = CreateNewCategoryForPayloadVariables() ? 
+				(DetailCategoryBuilder.AddExternalStructureProperty(StructData.ToSharedRef(), Field->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty()))
+				: (ChildBuilder.AddExternalStructureProperty(StructData.ToSharedRef(), Field->GetFName(), FAddPropertyParams().ForceShowProperty()));
 
 				TSharedPtr<IPropertyHandle> LocalVariableProperty = ExternalRow->GetPropertyHandle();
 				FSimpleDelegate Delegate = FSimpleDelegate::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::OnPayloadVariableChanged, StructData.ToSharedRef(), LocalVariableProperty);
@@ -355,7 +363,7 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 
 		if (!bPayloadUpToDate)
 		{
-			DetailCategoryBuilder.AddCustomRow(FText())
+			(CreateNewCategoryForPayloadVariables() ? DetailCategoryBuilder.AddCustomRow(FText()) : ChildBuilder.AddCustomRow(FText()))
 			.WholeRowContent()
 			[
 				SNew(SHorizontalBox)
@@ -423,17 +431,14 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::OnPayloadVariableChanged
 	TArray<UObject*> EditObjects;
 	GetEditObjects(EditObjects);
 
-	TArray<void*> RawData;
-	PropertyHandle->AccessRawData(RawData);
-
-	if (!ensure(RawData.Num() == EditObjects.Num()))
+	if (!ensure(PropertyRawData.Num() == EditObjects.Num()))
 	{
 		return;
 	}
 
-	for (int32 Index = 0; Index < RawData.Num(); ++Index)
+	for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 	{
-		bChangedAnything |= SetPayloadVariable(EditObjects[Index], RawData[Index], Property->GetFName(), NewPayloadVariable);
+		bChangedAnything |= SetPayloadVariable(EditObjects[Index], PropertyRawData[Index], Property->GetFName(), NewPayloadVariable);
 	}
 
 	if (bChangedAnything)
@@ -519,7 +524,10 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::OnSetCallInEditorCheckSt
 
 void FMovieSceneDirectorBlueprintEndpointCustomization::OnBlueprintCompiled(UBlueprint*)
 {
-	PropertyUtilities->ForceRefresh();
+	if (PropertyUtilities.IsValid())
+	{
+		PropertyUtilities->ForceRefresh();
+	}
 }
 
 UMovieSceneSequence* FMovieSceneDirectorBlueprintEndpointCustomization::GetCommonSequence() const
@@ -547,17 +555,14 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::IterateEndpoints(TFuncti
 	TArray<UObject*> EditObjects;
 	GetEditObjects(EditObjects);
 
-	TArray<void*> RawData;
-	PropertyHandle->AccessRawData(RawData);
-
-	if (!ensure(RawData.Num() == EditObjects.Num()))
+	if (!ensure(PropertyRawData.Num() == EditObjects.Num()))
 	{
 		return;
 	}
 
-	for (int32 Index = 0; Index < RawData.Num(); ++Index)
+	for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 	{
-		UK2Node* Endpoint = FindEndpoint(EditObjects[Index], RawData[Index]);
+		UK2Node* Endpoint = FindEndpoint(EditObjects[Index], PropertyRawData[Index]);
 		if (Endpoint)
 		{
 			if (!Callback(Endpoint))
@@ -609,7 +614,10 @@ UK2Node* FMovieSceneDirectorBlueprintEndpointCustomization::GetCommonEndpoint() 
 
 void FMovieSceneDirectorBlueprintEndpointCustomization::GetEditObjects(TArray<UObject*>& OutObjects) const
 {
-	PropertyHandle->GetOuterObjects(OutObjects);
+	if (PropertyHandle.IsValid())
+	{
+		PropertyHandle->GetOuterObjects(OutObjects);
+	}
 }
 
 TSharedRef<SWidget> FMovieSceneDirectorBlueprintEndpointCustomization::GetMenuContent()
@@ -633,7 +641,7 @@ TSharedRef<SWidget> FMovieSceneDirectorBlueprintEndpointCustomization::GetMenuCo
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("CreateQuickBinding_Text",    "Quick Bind"),
 			LOCTEXT("CreateQuickBinding_Tooltip", "Shows a list of functions on this object binding that can be bound directly to this endpoint."),
-			FNewMenuDelegate::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu, Sequence),
+			FNewMenuDelegate::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu, Sequence, FOnQuickBindActionSelected::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSelected)),
 			false /* bInOpenSubMenuOnClick */,
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.CreateQuickBinding"),
 			false /* bInShouldWindowAfterMenuSelection */
@@ -714,16 +722,13 @@ bool FMovieSceneDirectorBlueprintEndpointCustomization::CompareWellKnownParamete
 	TArray<UObject*> EditObjects;
 	GetEditObjects(EditObjects);
 
-	TArray<void*> RawData;
-	PropertyHandle->AccessRawData(RawData);
-
-	check(EditObjects.Num() == RawData.Num());
+	check(EditObjects.Num() == PropertyRawData.Num());
 
 	TArray<FName> WellKnownParameters;
-	for (int32 Index = 0; Index < RawData.Num(); ++Index)
+	for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 	{
 		WellKnownParameters.Empty();
-		GetWellKnownParameterPinNames(EditObjects[Index], RawData[Index], WellKnownParameters);
+		GetWellKnownParameterPinNames(EditObjects[Index], PropertyRawData[Index], WellKnownParameters);
 		if (WellKnownParameters.IsValidIndex(ParameterIndex) &&
 				WellKnownParameters[ParameterIndex] == InPinName)
 		{
@@ -741,22 +746,22 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::SetWellKnownParameterPin
 	TArray<UObject*> EditObjects;
 	GetEditObjects(EditObjects);
 
-	TArray<void*> RawData;
-	PropertyHandle->AccessRawData(RawData);
+	check(EditObjects.Num() == PropertyRawData.Num());
 
-	check(EditObjects.Num() == RawData.Num());
-
-	for (int32 Index = 0; Index < RawData.Num(); ++Index)
+	for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 	{
 		EditObjects[Index]->Modify();
 
-		const bool bWasSet = SetWellKnownParameterPinName(EditObjects[Index], RawData[Index], ParameterIndex, InNewBoundPinName);
+		const bool bWasSet = SetWellKnownParameterPinName(EditObjects[Index], PropertyRawData[Index], ParameterIndex, InNewBoundPinName);
 		ensureMsgf(bWasSet, TEXT("Trying to set bound pin %s for parameter %d but sub-class did not handle it."), 
 				*InNewBoundPinName.ToString(), ParameterIndex);
 	}
 
-	// Ensure that anything listening for property changed notifications are notified of the new binding
-	PropertyHandle->NotifyFinishedChangingProperties();
+	if (PropertyHandle.IsValid())
+	{
+		// Ensure that anything listening for property changed notifications are notified of the new binding
+		PropertyHandle->NotifyFinishedChangingProperties();
+	}
 
 	FSequenceDataMap AllSequenceData;
 	GatherSequenceData(AllSequenceData);
@@ -765,7 +770,10 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::SetWellKnownParameterPin
 		FKismetEditorUtilities::CompileBlueprint(SequenceData.Value.Blueprint);
 	}
 
-	PropertyUtilities->ForceRefresh();
+	if (PropertyUtilities.IsValid())
+	{
+		PropertyUtilities->ForceRefresh();
+	}
 }
 
 const FSlateBrush* FMovieSceneDirectorBlueprintEndpointCustomization::GetWellKnownParameterPinIcon(int32 ParameterIndex) const
@@ -784,18 +792,15 @@ FText FMovieSceneDirectorBlueprintEndpointCustomization::GetWellKnownParameterPi
 	TArray<UObject*> EditObjects;
 	GetEditObjects(EditObjects);
 
-	TArray<void*> RawData;
-	PropertyHandle->AccessRawData(RawData);
-
-	check(EditObjects.Num() == RawData.Num());
+	check(EditObjects.Num() == PropertyRawData.Num());
 
 	FName CommonPinName;
 	TArray<FName> WellKnownParameters;
 
-	for (int32 Index = 0; Index < RawData.Num(); ++Index)
+	for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 	{
 		WellKnownParameters.Empty();
-		GetWellKnownParameterPinNames(EditObjects[Index], RawData[Index], WellKnownParameters);
+		GetWellKnownParameterPinNames(EditObjects[Index], PropertyRawData[Index], WellKnownParameters);
 		if (WellKnownParameters.IsValidIndex(ParameterIndex))
 		{
 			FName PinName = WellKnownParameters[ParameterIndex];
@@ -813,7 +818,7 @@ FText FMovieSceneDirectorBlueprintEndpointCustomization::GetWellKnownParameterPi
 	return FText::FromName(CommonPinName);
 }
 
-void FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, UMovieSceneSequence* Sequence)
+void FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, UMovieSceneSequence* Sequence, FOnQuickBindActionSelected InOnQuickBindActionSelected)
 {
 	FMovieSceneSequenceEditor* SequenceEditor = FMovieSceneSequenceEditor::Find(Sequence);
 	if (!SequenceEditor)
@@ -832,7 +837,11 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu
 	TSharedRef<SGraphActionMenu> ActionMenu = SNew(SGraphActionMenu)
 		.OnCreateCustomRowExpander_Static([](const FCustomExpanderData& Data) -> TSharedRef<SExpanderArrow> { return SNew(SExpanderArrow, Data.TableRow); })
 		.OnCollectAllActions(this, &FMovieSceneDirectorBlueprintEndpointCustomization::CollectQuickBindActions, Blueprint, EndpointDefinition)
-		.OnActionSelected(this, &FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSelected, Blueprint, EndpointDefinition);
+		.OnActionSelected(FOnActionSelected::CreateLambda([this, Blueprint, EndpointDefinition, InOnQuickBindActionSelected](const TArray< TSharedPtr<FEdGraphSchemaAction> >& Actions, ESelectInfo::Type Type)
+			{
+				// We call the passed in delegate first as we may need to set something up before running the action
+				InOnQuickBindActionSelected.ExecuteIfBound(Actions, Type, Blueprint, EndpointDefinition);
+			}));
 
 	ActionMenu->RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda(
 		[FilterTextBox = ActionMenu->GetFilterTextBox()](double, float)
@@ -999,6 +1008,7 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSel
 
 		if (Action)
 		{
+			Blueprint->Modify();
 			UK2Node* NewEndpoint = FMovieSceneDirectorBlueprintUtils::CreateEndpoint(Blueprint, EndpointDefinition);
 
 			UEdGraphPin* EndpointThenPin = NewEndpoint->FindPin(UEdGraphSchema_K2::PN_Then, EGPD_Output);
@@ -1043,6 +1053,16 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSel
 
 			SetEndpoint(EndpointDefinition, NewEndpoint, Cast<UK2Node>(NewNode), EAutoCreatePayload::Pins | EAutoCreatePayload::Variables);
 		}
+	}
+}
+
+void FMovieSceneDirectorBlueprintEndpointCustomization::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	PropertyHandle = InPropertyHandle;
+	if (PropertyHandle.IsValid())
+	{
+		PropertyRawData.Empty();
+		PropertyHandle->AccessRawData(PropertyRawData);
 	}
 }
 
@@ -1236,9 +1256,7 @@ const FSlateBrush* FMovieSceneDirectorBlueprintEndpointCustomization::GetEndpoin
 	}
 	else
 	{
-		TArray<void*> RawData;
-		PropertyHandle->AccessRawData(RawData);
-		if (RawData.Num() > 1)
+		if (PropertyRawData.Num() > 1)
 		{
 			return FAppStyle::GetBrush("Sequencer.MultipleEvents");
 		}
@@ -1257,9 +1275,7 @@ FText FMovieSceneDirectorBlueprintEndpointCustomization::GetEndpointName() const
 	}
 	else
 	{
-		TArray<void*> RawData;
-		PropertyHandle->AccessRawData(RawData);
-		if (RawData.Num() != 1)
+		if (PropertyRawData.Num() != 1)
 		{
 			return LOCTEXT("MultipleValuesText", "Multiple Values");
 		}
@@ -1273,12 +1289,9 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::GatherSequenceData(FSequ
 	TArray<UObject*> EditObjects;
 	GetEditObjects(EditObjects);
 
-	TArray<void*> RawData;
-	PropertyHandle->AccessRawData(RawData);
+	check(EditObjects.Num() == PropertyRawData.Num());
 
-	check(EditObjects.Num() == RawData.Num());
-
-	for (int32 Index = 0; Index < RawData.Num(); ++Index)
+	for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 	{
 		UMovieSceneSequence*       Sequence           = EditObjects[Index]->GetTypedOuter<UMovieSceneSequence>();
 		FMovieSceneSequenceEditor* SequenceEditor     = FMovieSceneSequenceEditor::Find(Sequence);
@@ -1288,7 +1301,7 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::GatherSequenceData(FSequ
 		ensure(SequenceData.Blueprint == nullptr || SequenceData.Blueprint == SequenceDirectorBP);
 		SequenceData.Blueprint = SequenceDirectorBP;
 		SequenceData.EditObjects.Add(EditObjects[Index]);
-		SequenceData.RawData.Add(RawData[Index]);
+		SequenceData.RawData.Add(PropertyRawData[Index]);
 	}
 }
 
@@ -1429,7 +1442,11 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::SetEndpoint(const FMovie
 	}
 
 	// Ensure that anything listening for property changed notifications are notified of the new binding
-	PropertyHandle->NotifyFinishedChangingProperties();
+	if (PropertyHandle.IsValid())
+	{
+		// Ensure that anything listening for property changed notifications are notified of the new binding
+		PropertyHandle->NotifyFinishedChangingProperties();
+	}
 
 	// Compile the blueprint now that clients have had a chance to update underlying data (we do this after to ensure we are compiling the correct data)
 	if (Blueprint)
@@ -1438,7 +1455,10 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::SetEndpoint(const FMovie
 	}
 
 	// Forcibly update the panel now that our endpoint has changed
-	PropertyUtilities->ForceRefresh();
+	if (PropertyUtilities.IsValid())
+	{
+		PropertyUtilities->ForceRefresh();
+	}
 
 	if (NewEndpoint)
 	{
@@ -1458,18 +1478,15 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CreateEndpoint()
 
 	// Populate all the sequences represented by this customization
 	{
-		TArray<void*> RawData;
-		GetPropertyHandle()->AccessRawData(RawData);
-
 		TArray<UObject*> EditObjects;
 		GetEditObjects(EditObjects);
 
-		check(RawData.Num() == EditObjects.Num());
+		check(PropertyRawData.Num() == EditObjects.Num());
 
-		for (int32 Index = 0; Index < RawData.Num(); ++Index)
+		for (int32 Index = 0; Index < PropertyRawData.Num(); ++Index)
 		{
 			FSequenceData& SequenceData = PerSequenceData.FindOrAdd(EditObjects[Index]->GetTypedOuter<UMovieSceneSequence>());
-			SequenceData.RawData.Add(RawData[Index]);
+			SequenceData.RawData.Add(PropertyRawData[Index]);
 			SequenceData.EditObjects.Add(EditObjects[Index]);
 		}
 	}
@@ -1512,8 +1529,11 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CreateEndpoint()
 		LastNewEndpoint = NewEndpoint;
 	}
 
-	// Ensure that anything listening for property changed notifications are notified of the new binding
-	PropertyHandle->NotifyFinishedChangingProperties();
+	if (PropertyHandle.IsValid())
+	{
+		// Ensure that anything listening for property changed notifications are notified of the new binding
+		PropertyHandle->NotifyFinishedChangingProperties();
+	}
 
 	// Compile the blueprint now that clients have had a chance to update underlying data (we do this after to ensure we are compiling the correct data)
 	for (UBlueprint* Blueprint : BlueprintsToRecompile)
@@ -1521,7 +1541,10 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CreateEndpoint()
 		FKismetEditorUtilities::CompileBlueprint(Blueprint);
 	}
 
-	PropertyUtilities->ForceRefresh();
+	if (PropertyUtilities.IsValid())
+	{
+		PropertyUtilities->ForceRefresh();
+	}
 
 	// Focus the first created endpoint
 	if (LastNewEndpoint)

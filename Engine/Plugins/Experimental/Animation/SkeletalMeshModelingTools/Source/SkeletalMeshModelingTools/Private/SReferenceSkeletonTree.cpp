@@ -270,7 +270,6 @@ void SReferenceSkeletonTree::Construct(const FArguments& InArgs)
 					.OnContextMenuOpening(this, &SReferenceSkeletonTree::CreateContextMenu)
 					.OnMouseButtonDoubleClick(this, &SReferenceSkeletonTree::OnItemDoubleClicked)
 					.OnSetExpansionRecursive(this, &SReferenceSkeletonTree::OnSetExpansionRecursive)
-					.ItemHeight(24)
 					.HighlightParentNodesForSelection(true)
 					.HeaderRow
 					(

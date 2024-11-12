@@ -14,6 +14,7 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineQueueSubsystem.h"
+#include "MoviePipelineTelemetry.h"
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphAssetToolkit.h"
 #include "Graph/MovieGraphConfigFactory.h"
@@ -285,6 +286,10 @@ FReply SMoviePipelineQueuePanel::OnRenderLocalRequested()
 	// OnRenderLocalRequested should only get called if IsRenderLocalEnabled() returns true, meaning there's a valid class.
 	check(ExecutorClass != nullptr);
 	Subsystem->RenderQueueWithExecutor(ExecutorClass);
+
+	constexpr bool bIsLocal = true;
+	FMoviePipelineTelemetry::SendRendersRequestedTelemetry(bIsLocal, Subsystem->GetQueue()->GetJobs());
+	
 	return FReply::Handled();
 }
 
@@ -322,8 +327,11 @@ FReply SMoviePipelineQueuePanel::OnRenderRemoteRequested()
 
 	// OnRenderRemoteRequested should only get called if IsRenderRemoteEnabled() returns true, meaning there's a valid class.
 	check(ExecutorClass != nullptr);
-
 	Subsystem->RenderQueueWithExecutor(ExecutorClass);
+
+	constexpr bool bIsLocal = false;
+	FMoviePipelineTelemetry::SendRendersRequestedTelemetry(bIsLocal, Subsystem->GetQueue()->GetJobs());
+	
 	return FReply::Handled();
 }
 

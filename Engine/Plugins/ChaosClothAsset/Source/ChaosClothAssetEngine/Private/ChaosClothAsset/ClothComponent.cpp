@@ -2,7 +2,9 @@
 
 #include "ChaosClothAsset/ClothComponent.h"
 #include "ChaosClothAsset/ClothAsset.h"
+#include "ChaosClothAsset/ClothAssetInteractor.h"
 #include "ChaosClothAsset/ClothAssetPrivate.h"
+#include "ChaosClothAsset/CollisionSources.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/ClothSimulationProxy.h"
 #include "Chaos/CollectionPropertyFacade.h"
@@ -11,6 +13,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "SkeletalRenderPublic.h"
+#include "Dataflow/DataflowSimulationManager.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Stats/Stats.h"
 
@@ -26,6 +29,7 @@ UChaosClothComponent::UChaosClothComponent(const FObjectInitializer& ObjectIniti
 	, bEnableSimulation(1)
 	, bSuspendSimulation(0)
 	, bBindToLeaderComponent(0)
+	, CollisionSources(MakeUnique<UE::Chaos::ClothAsset::FCollisionSources>(this))
 {
 	PrimaryComponentTick.EndTickGroup = TG_PostPhysics;
 }
@@ -55,9 +59,7 @@ UChaosClothAsset* UChaosClothComponent::GetClothAsset() const
 
 bool UChaosClothComponent::IsSimulationSuspended() const
 {
-	static IConsoleVariable* const CVarClothPhysics = IConsoleManager::Get().FindConsoleVariable(TEXT("p.ClothPhysics"));
-
-	return bSuspendSimulation || !ClothSimulationProxy.IsValid() || (CVarClothPhysics && !CVarClothPhysics->GetBool());
+	return bSuspendSimulation || !IsSimulationEnabled();
 }
 
 bool UChaosClothComponent::IsSimulationEnabled() const
@@ -85,12 +87,15 @@ void UChaosClothComponent::ResetConfigProperties()
 				::Chaos::Softs::FCollectionPropertyMutableFacade CollectionPropertyMutableFacade(PropertyCollection);
 				CollectionPropertyMutableFacade.Copy(*ClothCollection);
 
-				CollectionPropertyFacades.Add(MakeUnique<::Chaos::Softs::FCollectionPropertyFacade>(PropertyCollection));
-
+				CollectionPropertyFacades.Add(MakeShared<::Chaos::Softs::FCollectionPropertyFacade>(PropertyCollection));
 			}
+			check(ClothOutfitInteractor);
+			ClothOutfitInteractor->SetProperties(CollectionPropertyFacades);
 		}
 		else
 		{
+			check(ClothOutfitInteractor);
+			ClothOutfitInteractor->ResetProperties();
 			PropertyCollections.Reset();
 			CollectionPropertyFacades.Reset();
 		}
@@ -182,6 +187,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
+bool UChaosClothComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, SimulationAsset))
+	{
+		static const auto CVarEnableSimulationDataflow = IConsoleManager::Get().FindConsoleVariable(TEXT("p.Dataflow.EnableSimulation"));
+		return CVarEnableSimulationDataflow->GetBool();
+	}
+
+	return true;
+}
 #endif // WITH_EDITOR
 
 void UChaosClothComponent::OnRegister()
@@ -195,6 +218,7 @@ void UChaosClothComponent::OnRegister()
 	UpdateComponentSpaceTransforms();
 
 	// Fill up the property collection with the original cloth asset properties
+	ClothOutfitInteractor = NewObject<UChaosClothAssetInteractor>();
 	ResetConfigProperties();
 
 	// Create the proxy to start the simulation
@@ -202,6 +226,9 @@ void UChaosClothComponent::OnRegister()
 
 	// Update render visibility, so that an empty LODs doesn't unnecessarily go to render
 	UpdateVisibility();
+
+	// Register the dataflow simulation interface
+	UE::Dataflow::RegisterSimulationInterface(this);
 }
 
 void UChaosClothComponent::OnUnregister()
@@ -212,8 +239,12 @@ void UChaosClothComponent::OnUnregister()
 	ClothSimulationProxy.Reset();
 
 	// Release the runtime simulation collection and facade
+	ClothOutfitInteractor->ResetProperties();
 	CollectionPropertyFacades.Empty();
 	PropertyCollections.Empty();
+
+	// Unregister the dataflow simulation interface
+	UE::Dataflow::UnregisterSimulationInterface(this);
 }
 
 bool UChaosClothComponent::IsComponentTickEnabled() const
@@ -228,25 +259,22 @@ void UChaosClothComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	
 	// Tick USkinnedMeshComponent first so it will update the predicted lod
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// TODO: Fields
-	//if (ClothingSimulation)
-	//{
-	//	ClothingSimulation->UpdateWorldForces(this);
-	//}
-
+	
 	// Make sure that the previous frame simulation has completed
 	HandleExistingParallelSimulation();
-
-	// < This would be the right place to update the preset/use an interactor, ...etc.
-
-	// Update the proxy and start the simulation parallel task
-	StartNewParallelSimulation(DeltaTime);
-
-	// Wait in tick function for the simulation results if required
-	if (ShouldWaitForParallelSimulationInTickComponent())
+	
+	if(!SimulationAsset.DataflowAsset)
 	{
-		HandleExistingParallelSimulation();
+		// < This would be the right place to update the preset/use an interactor, ...etc.
+
+		// Update the proxy and start the simulation parallel task
+		StartNewParallelSimulation(DeltaTime);
+
+		// Wait in tick function for the simulation results if required
+		if (ShouldWaitForParallelSimulationInTickComponent())
+		{
+			HandleExistingParallelSimulation();
+		}
 	}
 
 #if WITH_EDITOR
@@ -280,6 +308,8 @@ void UChaosClothComponent::OnPreEndOfFrameSync()
 
 FBoxSphereBounds UChaosClothComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_CalcClothComponentBounds);
+
 	FBoxSphereBounds NewBounds(ForceInitToZero);
 
 	// Use cached local bounds if possible
@@ -288,17 +318,58 @@ FBoxSphereBounds UChaosClothComponent::CalcBounds(const FTransform& LocalToWorld
 		NewBounds = bCachedLocalBoundsUpToDate ?
 			CachedWorldOrLocalSpaceBounds.TransformBy(LocalToWorld) :
 			CachedWorldOrLocalSpaceBounds.TransformBy(CachedWorldToLocalTransform * LocalToWorld.ToMatrixWithScale());
+	
+		if (bIncludeComponentLocationIntoBounds)
+		{
+			NewBounds = NewBounds + FBoxSphereBounds(GetComponentLocation(), FVector(1.0f), 1.0f);
+		}
 	}
 	else  // Calculate new bounds
 	{
-		const IConsoleVariable* const CVarCacheLocalSpaceBounds = IConsoleManager::Get().FindConsoleVariable(TEXT("a.CacheLocalSpaceBounds"));
+		FVector RootBoneOffset(ForceInitToZero);
+
+		// If attached to a skeletal mesh component that uses fixed bounds, add the root bone translation
+		if (const USkeletalMeshComponent* const SkeletalMeshComponent = Cast<USkeletalMeshComponent>(LeaderPoseComponent.Get()))
+		{
+			if (SkeletalMeshComponent->GetSkinnedAsset() && SkeletalMeshComponent->bComponentUseFixedSkelBounds)
+			{
+				RootBoneOffset = SkeletalMeshComponent->RootBoneTranslation; // Adjust bounds by root bone translation
+			}
+		}
+
+		static IConsoleVariable* const CVarCacheLocalSpaceBounds = IConsoleManager::Get().FindConsoleVariable(TEXT("a.CacheLocalSpaceBounds"));
 		const bool bCacheLocalSpaceBounds = CVarCacheLocalSpaceBounds ? (CVarCacheLocalSpaceBounds->GetInt() != 0) : true;
 
 		const FTransform CachedBoundsTransform = bCacheLocalSpaceBounds ? FTransform::Identity : LocalToWorld;
 
-		if (ClothSimulationProxy)
+		// Add render mesh bounds
+		constexpr bool bHasValidBodies = false;
+		NewBounds = CalcMeshBound((FVector3f)RootBoneOffset, bHasValidBodies, CachedBoundsTransform);
+
+		if (bIncludeComponentLocationIntoBounds)
 		{
-			NewBounds = ClothSimulationProxy->CalculateBounds_AnyThread().TransformBy(CachedBoundsTransform);
+			const FVector ComponentLocation = GetComponentLocation();
+			const FBoxSphereBounds ComponentLocationBounds(ComponentLocation, FVector(1.), 1.);
+			if (bCacheLocalSpaceBounds)
+			{
+				NewBounds = NewBounds.TransformBy(LocalToWorld);
+				NewBounds = NewBounds + ComponentLocationBounds;
+				NewBounds = NewBounds.TransformBy(LocalToWorld.ToInverseMatrixWithScale());
+			}
+			else
+			{
+				NewBounds = NewBounds + ComponentLocationBounds;
+			}
+		}
+
+		// Add sim mesh bounds
+		if (ClothSimulationProxy.IsValid())
+		{
+			const FBoxSphereBounds SimulationBounds = ClothSimulationProxy->CalculateBounds_AnyThread();
+			if (SimulationBounds.SphereRadius > UE_SMALL_NUMBER)  // Don't add the simulation bounds if there are empty, otherwise it could unwillingly add the component's location
+			{
+				NewBounds = NewBounds + SimulationBounds.TransformBy(CachedBoundsTransform);
+			}
 		}
 
 		CachedWorldOrLocalSpaceBounds = NewBounds;
@@ -355,7 +426,7 @@ void UChaosClothComponent::GetUpdateClothSimulationData_AnyThread(TMap<int32, FC
 		OutBlendWeight = BlendWeight;
 		OutClothSimulData = LeaderPoseClothComponent->ClothSimulationProxy->GetCurrentSimulationData_AnyThread();
 	}
-	else if (bEnableSimulation && !bBindToLeaderComponent && ClothSimulationProxy)
+	else if (IsSimulationEnabled() && !bBindToLeaderComponent && ClothSimulationProxy)
 	{
 		OutBlendWeight = BlendWeight;
 		OutClothSimulData = ClothSimulationProxy->GetCurrentSimulationData_AnyThread();
@@ -400,6 +471,9 @@ void UChaosClothComponent::SetSkinnedAssetAndUpdate(USkinnedAsset* InSkinnedAsse
 
 void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const
 {
+	TArray<FBoneIndexType> RequiredBones;
+
+	// Add the follower's bones (including sim and render mesh bones, both stored in the LODRenderData RequiredBones array)
 	if (const FSkeletalMeshRenderData* const SkeletalMeshRenderData = GetSkeletalMeshRenderData())
 	{
 		const int32 MinLODIndex = ComputeMinLOD();
@@ -409,8 +483,6 @@ void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIn
 
 		if (SkeletalMeshRenderData->LODRenderData.IsValidIndex(LODIndex))
 		{
-			// Gather the follower's bones
-			TArray<FBoneIndexType> RequiredBones;
 			RequiredBones.Reserve(SkeletalMeshRenderData->LODRenderData[LODIndex].RequiredBones.Num());
 
 			for (const FBoneIndexType RequiredBone : SkeletalMeshRenderData->LODRenderData[LODIndex].RequiredBones)
@@ -427,17 +499,66 @@ void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIn
 
 			// Then sort array of required bones in hierarchy order
 			RequiredBones.Sort();
-
-			// Make sure all of these are in RequiredBones.
-			MergeInBoneIndexArrays(InOutRequiredBones, RequiredBones);
 		}
 	}
+
+	// Merge the physics asset bones (the leader's physics asset can be different to this component's cloth asset)
+	if (const UPhysicsAsset* const PhysicsAsset = GetClothAsset() ? GetClothAsset()->GetPhysicsAsset() : nullptr)
+	{
+		if (const USkinnedAsset* const LeaderSkinnedAsset = ensure(LeaderPoseComponent.IsValid()) ? LeaderPoseComponent->GetSkinnedAsset() : nullptr)  // Needs the leader SkinnedAsset for the correct RefSkeleton
+		{
+			USkinnedMeshComponent::GetPhysicsRequiredBones(LeaderSkinnedAsset, PhysicsAsset, RequiredBones);
+		}
+	}
+
+	if (RequiredBones.Num())
+	{
+		// Make sure all of these are in RequiredBones, note MergeInBoneIndexArrays requires the arrays to be sorted and bone must be unique
+		MergeInBoneIndexArrays(InOutRequiredBones, RequiredBones);
+	}
+}
+
+void UChaosClothComponent::FinalizeBoneTransform()
+{
+	Super::FinalizeBoneTransform();
+
+	OnBoneTransformsFinalizedMC.Broadcast();
+}
+
+FDelegateHandle UChaosClothComponent::RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& Delegate)
+{
+	return OnBoneTransformsFinalizedMC.Add(Delegate);
+}
+
+void UChaosClothComponent::UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle)
+{
+	OnBoneTransformsFinalizedMC.Remove(DelegateHandle);
 }
 
 TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> UChaosClothComponent::CreateClothSimulationProxy()
 {
 	using namespace UE::Chaos::ClothAsset;
 	return MakeShared<FClothSimulationProxy>(*this);
+}
+
+void UChaosClothComponent::AddCollisionSource(USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset, bool bUseSphylsOnly)
+{
+	CollisionSources->Add(SourceComponent, SourcePhysicsAsset, bUseSphylsOnly);
+}
+
+void UChaosClothComponent::RemoveCollisionSources(const USkinnedMeshComponent* SourceComponent)
+{
+	CollisionSources->Remove(SourceComponent);
+}
+
+void UChaosClothComponent::RemoveCollisionSource(const USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset)
+{
+	CollisionSources->Remove(SourceComponent, SourcePhysicsAsset);
+}
+
+void UChaosClothComponent::ResetCollisionSources()
+{
+	CollisionSources->Reset();
 }
 
 void UChaosClothComponent::StartNewParallelSimulation(float DeltaTime)
@@ -506,3 +627,60 @@ void UChaosClothComponent::UpdateVisibility()
 		SetVisibility(false);
 	}
 }
+
+UChaosClothAssetInteractor* UChaosClothComponent::GetClothOutfitInteractor()
+{
+	check(IsInGameThread());
+	return ClothOutfitInteractor;
+}
+
+void UChaosClothComponent::BuildSimulationProxy()
+{
+	RecreateClothSimulationProxy();
+}
+
+void UChaosClothComponent::ResetSimulationProxy()
+{
+	ClothSimulationProxy.Reset();
+}
+
+void UChaosClothComponent::WriteToSimulation(const float DeltaTime, const bool bAsyncTask)
+{
+	if (ClothSimulationProxy.IsValid())
+	{
+		const bool bIsSimulating = ClothSimulationProxy->PreSimulate_GameThread(DeltaTime);
+		const int32 CurrentLOD = GetPredictedLODLevel();
+
+		if (bIsSimulating && CollectionPropertyFacades.IsValidIndex(CurrentLOD) && CollectionPropertyFacades[CurrentLOD].IsValid())
+		{
+			CollectionPropertyFacades[CurrentLOD]->ClearDirtyFlags();
+		}
+	}
+}
+
+void UChaosClothComponent::PreProcessSimulation(const float DeltaTime)
+{
+	if (ClothSimulationProxy.IsValid() && ClothSimulationProxy->HasCacheData())
+	{
+		WriteToSimulation(DeltaTime, false);
+	}
+}
+
+void UChaosClothComponent::ReadFromSimulation(const float DeltaTime, const bool bAsyncTask)
+{
+	if (ClothSimulationProxy.IsValid())
+	{
+		ClothSimulationProxy->PostSimulate_GameThread();
+	}
+}
+
+FDataflowSimulationProxy* UChaosClothComponent::GetSimulationProxy()
+{
+	return ClothSimulationProxy.Get();
+}
+
+const FDataflowSimulationProxy* UChaosClothComponent::GetSimulationProxy() const
+{
+	return ClothSimulationProxy.Get();
+}
+

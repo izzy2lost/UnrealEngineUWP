@@ -81,16 +81,18 @@ inline const TCHAR* GetShaderFrequencyString(EShaderFrequency Frequency, bool bI
 	const TCHAR* String = TEXT("SF_NumFrequencies");
 	switch (Frequency)
 	{
-	case SF_Vertex:			String = TEXT("SF_Vertex"); break;
-	case SF_Mesh:			String = TEXT("SF_Mesh"); break;
-	case SF_Amplification:	String = TEXT("SF_Amplification"); break;
-	case SF_Geometry:		String = TEXT("SF_Geometry"); break;
-	case SF_Pixel:			String = TEXT("SF_Pixel"); break;
-	case SF_Compute:		String = TEXT("SF_Compute"); break;
-	case SF_RayGen:			String = TEXT("SF_RayGen"); break;
-	case SF_RayMiss:		String = TEXT("SF_RayMiss"); break;
-	case SF_RayHitGroup:	String = TEXT("SF_RayHitGroup"); break;
-	case SF_RayCallable:	String = TEXT("SF_RayCallable"); break;
+	case SF_Vertex:					String = TEXT("SF_Vertex"); break;
+	case SF_Mesh:					String = TEXT("SF_Mesh"); break;
+	case SF_Amplification:			String = TEXT("SF_Amplification"); break;
+	case SF_Geometry:				String = TEXT("SF_Geometry"); break;
+	case SF_Pixel:					String = TEXT("SF_Pixel"); break;
+	case SF_Compute:				String = TEXT("SF_Compute"); break;
+	case SF_RayGen:					String = TEXT("SF_RayGen"); break;
+	case SF_RayMiss:				String = TEXT("SF_RayMiss"); break;
+	case SF_RayHitGroup:			String = TEXT("SF_RayHitGroup"); break;
+	case SF_RayCallable:			String = TEXT("SF_RayCallable"); break;
+	case SF_WorkGraphRoot:			String = TEXT("SF_WorkGraphRoot"); break;
+	case SF_WorkGraphComputeNode:	String = TEXT("SF_WorkGraphComputeNode"); break;
 
 	default:
 		break;

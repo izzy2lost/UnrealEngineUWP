@@ -78,6 +78,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "DataToImport", meta = (DisplayName = "Sparse Volume Textures"))
 	bool bImportSparseVolumeTextures;
 
+	/** Whether to import audio files referenced by UsdMediaSpatialAudio schemas as Unreal sound assets */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "DataToImport", meta = (DisplayName = "Audio"))
+	bool bImportSounds;
+
 	/**
 	 * If this is checked, only materials actively used by the stage and import settings will be parsed.
 	 * If this is unchecked, all materials present on the stage will be parsed.
@@ -92,6 +96,19 @@ public:
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Prims to Import")
 	TArray<FString> PrimsToImport = TArray<FString>{TEXT("/")};
+
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = (InlineEditConditionToggle))
+	bool bUseExistingAssetCache;
+
+	/** Copy assets from an existing UsdAsset cache instead of generating them from scratch, if possible */
+	UPROPERTY(
+		BlueprintReadWrite,
+		config,
+		EditAnywhere,
+		Category = "USD options",
+		meta = (AllowedClasses = "/Script/USDClasses.UsdAssetCache3", EditCondition = "bUseExistingAssetCache")
+	)
+	FSoftObjectPath ExistingAssetCache = nullptr;
 
 	/** Only import prims with these specific purposes from the USD file */
 	UPROPERTY(
@@ -146,24 +163,28 @@ public:
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = (EditCondition = bImportAtSpecificTimeCode))
 	float ImportTimeCode;
 
-	/** Groom group interpolation settings */
-	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Groom")
-	TArray<FHairGroupsInterpolation> GroomInterpolationSettings;
-
-	/** What should happen when imported actors and components try to overwrite existing actors and components */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision", meta = (EditCondition = bImportActors))
-	EReplaceActorPolicy ExistingActorPolicy;
-
-	/** What should happen when imported assets try to overwrite existing assets */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision")
-	EReplaceAssetPolicy ExistingAssetPolicy;
-
 	/**
 	 * If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of
 	 * that asset is generated, and the asset is shared by the components generated for both prims.
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
-	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision")
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options")
+	bool bShareAssetsForIdenticalPrims;
+
+	/** Groom group interpolation settings */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Groom")
+	TArray<FHairGroupsInterpolation> GroomInterpolationSettings;
+
+	/** What should happen when imported actors and components try to overwrite existing actors and components */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Conflicts with Existing Objects", meta = (EditCondition = bImportActors))
+	EReplaceActorPolicy ExistingActorPolicy;
+
+	/** What should happen when imported assets try to overwrite existing assets */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Conflicts with Existing Objects")
+	EReplaceAssetPolicy ExistingAssetPolicy;
+
+	UE_DEPRECATED(5.5, "This property has been renamed to 'Share Assets for Identical Prims'")
+	UPROPERTY()
 	bool bReuseIdenticalAssets;
 
 	/**
@@ -174,6 +195,13 @@ public:
 	bool bPrimPathFolderStructure;
 
 	/**
+	 * Use KindsToCollapse to determine when to collapse prim subtrees or not (defaults to enabled).
+	 * Disable this if you want to prevent collapsing, or to control it manually by right-clicking on individual prims.
+	 */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Processing")
+	bool bUsePrimKindsForCollapsing;
+
+	/**
 	 * Whether to try to combine individual assets and components of the same type on a kind-per-kind basis,
 	 * like multiple Mesh prims into a single Static Mesh
 	 */
@@ -182,7 +210,7 @@ public:
 		config,
 		EditAnywhere,
 		Category = "Processing",
-		meta = (Bitmask, BitmaskEnum = "/Script/UnrealUSDWrapper.EUsdDefaultKind")
+		meta = (Bitmask, BitmaskEnum = "/Script/UnrealUSDWrapper.EUsdDefaultKind", EditCondition = bUsePrimKindsForCollapsing)
 	)
 	int32 KindsToCollapse;
 

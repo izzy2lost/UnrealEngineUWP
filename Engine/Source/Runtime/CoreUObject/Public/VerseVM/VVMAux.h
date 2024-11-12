@@ -15,6 +15,7 @@ namespace Verse
 template <typename T>
 class TAux
 {
+protected:
 	T* Ptr;
 
 public:
@@ -43,11 +44,32 @@ public:
 	}
 };
 
-template <typename T>
-static constexpr inline bool IsTAux = false;
+template <>
+class TAux<void>
+{
+protected:
+	void* Ptr;
+
+public:
+	TAux()
+		: Ptr(nullptr) {}
+	TAux(void* InPtr)
+		: Ptr(InPtr) {}
+
+	void* GetPtr() { return Ptr; }
+
+	explicit operator bool() const { return !!(Ptr); }
+};
 
 template <typename T>
-static constexpr inline bool IsTAux<TAux<T>> = true;
+constexpr inline bool IsTAux = false;
+
+template <typename T>
+constexpr inline bool IsTAux<TAux<T>> = true;
+
+struct VBuffer;
+template <>
+constexpr inline bool IsTAux<VBuffer> = true;
 
 } // namespace Verse
 #endif // WITH_VERSE_VM

@@ -7,6 +7,7 @@
 #include "ModelLight.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 #include "Misc/ScopedSlowTask.h"
 #include "ComponentReregisterContext.h"
@@ -105,7 +106,8 @@ FBSPSurfaceStaticLighting::FBSPSurfaceStaticLighting(
 		InNodeGroup->RelevantLights,
 		InComponent,
 		InNodeGroup->BoundingBox, 
-		InModel->LightingGuid
+		InModel->LightingGuid,
+		FGuid()
 		),
 	NodeGroup(InNodeGroup),
 	bComplete(false),
@@ -155,7 +157,7 @@ FLightRayIntersection FBSPSurfaceStaticLighting::IntersectLightRay(const FVector
 }
 
 #if WITH_EDITOR
-void FBSPSurfaceStaticLighting::Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& InShadowMapData, ULevel* LightingScenario)
+void FBSPSurfaceStaticLighting::Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& InShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	if(!bComplete)
 	{
@@ -171,7 +173,7 @@ void FBSPSurfaceStaticLighting::Apply(FQuantizedLightmapData* InQuantizedData, c
 	// If all the surfaces have complete static lighting, apply the component's static lighting.
 	if(Model->NumIncompleteNodeGroups == 0)
 	{
-		Model->ApplyStaticLighting(LightingScenario);
+		Model->ApplyStaticLighting(LightingContext);
 	}
 }
 
@@ -994,7 +996,7 @@ void UModel::GroupAllNodes(ULevel* Level, const TArray<ULightComponentBase*>& Li
 /**
  * Applies all of the finished lighting cached in the NodeGroups 
  */
-void UModel::ApplyStaticLighting(ULevel* LightingScenario)
+void UModel::ApplyStaticLighting(const FStaticLightingBuildContext* LightingContext)
 {
 #if WITH_EDITOR
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
@@ -1213,11 +1215,10 @@ void UModel::ApplyStaticLighting(ULevel* LightingScenario)
 		// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
 		// shaders are always expecting a light map in the case of a shadow map, even if the lighting is entirely zero.  This is simply to reduce
 		// the number of shader permutations to support in the very unlikely case of a unshadowed surfaces that has lighting values of zero.
-		const bool bHasRelevantLights = SurfaceGroup.Surfaces.ContainsByPredicate([](const FSurfaceStaticLightingGroup::FSurfaceInfo& SurfaceInfo) { return SurfaceInfo.SurfaceStaticLighting->RelevantLights.Num() > 0; });
+		const bool bHasRelevantLights = SurfaceGroup.Surfaces.ContainsByPredicate([](const FSurfaceStaticLightingGroup::FSurfaceInfo& SurfaceInfo) { return SurfaceInfo.SurfaceStaticLighting->RelevantLightsGuid.Num() > 0; });
 		const bool bNeedsLightMap = bHasNonZeroData || SurfaceGroup.ShadowMappedLights.Num() > 0 || bHasRelevantLights || GroupQuantizedData->bHasSkyShadowing;
 
-		ULevel* StorageLevel = LightingScenario ? LightingScenario : LightingLevel;
-		UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+		UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForLevel(LightingLevel);
 
 		// Allocate merged shadow-map data.
 		TMap<ULightComponent*,FShadowMapData2D*> GroupShadowMapData;

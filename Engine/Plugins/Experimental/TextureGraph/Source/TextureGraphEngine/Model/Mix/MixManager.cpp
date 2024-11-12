@@ -32,6 +32,12 @@ MixManager::~MixManager()
 	Queue.clear();
 }
 
+void MixManager::FlushMix(UMixInterface* MixObj)
+{
+	check(IsInGameThread());
+	MixesToFlush.push_back(MixObj);
+}
+
 void MixManager::Update(float Delta)
 {
 	/// Mix manager has been suspended for the time being. 
@@ -43,6 +49,25 @@ void MixManager::Update(float Delta)
 
 	if (!MixInfos.size())
 		return;
+
+	if (!MixesToFlush.empty())
+	{
+		for (UMixInterface* MixToFlush : MixesToFlush)
+		{
+			for (auto Iter = MixInfos.begin(); Iter != MixInfos.end();)
+			{
+				MixInvalidateInfo& MixInfo = *Iter;
+				UMixInterface* MixObj = MixInfo.MixObj;
+
+				if (MixObj == MixToFlush)
+					Iter = MixInfos.erase(Iter);
+				else
+					Iter++;
+			}
+		}
+
+		MixesToFlush.clear();
+	}
 
 	std::vector<MixInvalidateInfo> BucketedMixInfos;
 	
@@ -116,7 +141,7 @@ void MixManager::Exit()
 	
 	FRenderCommandFence SuspendFence;
 	
-	SuspendFence.BeginFence(true);
+	SuspendFence.BeginFence();
 	SuspendFence.Wait();
 	
 	Suspend();

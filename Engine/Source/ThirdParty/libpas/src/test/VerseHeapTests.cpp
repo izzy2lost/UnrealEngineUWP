@@ -1,4 +1,27 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+/*
+ * Copyright (c) 2023-2024 Epic Games, Inc. All Rights Reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY EPIC GAMES, INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL EPIC GAMES, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ */
 
 #include "TestHarness.h"
 
@@ -1368,20 +1391,21 @@ void testConservativeMarking(size_t size,
     if (expectFreePages) {
         bool foundEmptyPage = false;
         for (void* ptr : deadObjectArray) {
-            verse_heap_chunk_map_entry entry = verse_heap_get_chunk_map_entry(reinterpret_cast<uintptr_t>(ptr));
-            if (verse_heap_chunk_map_entry_is_empty(entry))
+            verse_heap_chunk_map_entry_header header = verse_heap_get_chunk_map_entry_header(reinterpret_cast<uintptr_t>(ptr));
+            if (verse_heap_chunk_map_entry_header_is_empty(header))
                 foundEmptyPage = true;
-            if (verse_heap_chunk_map_entry_is_small_segregated(entry)) {
-                unsigned bitvector;
+            if (verse_heap_chunk_map_entry_header_is_small_segregated(header)) {
+                unsigned* bitvector;
                 size_t index;
 
-                bitvector = verse_heap_chunk_map_entry_small_segregated_ownership_bitvector(entry);
+                bitvector = verse_heap_chunk_map_entry_small_segregated_ownership_bitvector(
+					verse_heap_get_chunk_map_entry_ptr(reinterpret_cast<uintptr_t>(ptr)));
                 index = pas_modulo_power_of_2(reinterpret_cast<uintptr_t>(ptr), VERSE_HEAP_CHUNK_SIZE)
                     / VERSE_HEAP_SMALL_SEGREGATED_PAGE_SIZE;
 
                 CHECK(index);
 
-                if (!pas_bitvector_get_from_one_word(&bitvector, index))
+                if (!pas_bitvector_get(bitvector, index))
                     foundEmptyPage = true;
             }
         }

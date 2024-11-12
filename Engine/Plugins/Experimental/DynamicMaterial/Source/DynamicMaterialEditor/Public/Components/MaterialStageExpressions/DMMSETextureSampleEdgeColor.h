@@ -20,8 +20,8 @@ enum class EDMEdgeLocation : uint8
 	Custom
 };
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpressionTextureSampleEdgeColor : public UDMMaterialStageExpression
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageExpressionTextureSampleEdgeColor : public UDMMaterialStageExpression
 {
 	GENERATED_BODY()
 
@@ -29,13 +29,13 @@ public:
 	UDMMaterialStageExpressionTextureSampleEdgeColor();
 
 	//~ Begin UDMMaterialStageThroughput
-	virtual bool CanChangeInputType(int32 InInputIndex) const override;
-	virtual bool IsInputVisible(int32 InInputIndex) const override;
-	virtual void AddDefaultInput(int32 InInputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInputType(int32 InInputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsInputVisible(int32 InInputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual void AddDefaultInput(int32 InInputIndex) const override;
 	//~ End UDMMaterialStageThroughput
 
 	//~ Begin UObject
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject
 
 protected:

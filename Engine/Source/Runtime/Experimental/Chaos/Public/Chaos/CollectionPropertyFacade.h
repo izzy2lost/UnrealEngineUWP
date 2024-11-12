@@ -10,17 +10,6 @@ struct FManagedArrayCollection;
 
 namespace Chaos::Softs
 {
-	enum class UE_DEPRECATED(5.3, "Use ECollectionPropertyFlags instead.") ECollectionPropertyFlag : uint8
-	{
-		None,
-		Enabled = 1 << 0,
-		Animatable = 1 << 1,
-		Dirty = 1 << 7
-	};
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	ENUM_CLASS_FLAGS(ECollectionPropertyFlag)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/** Property flags, whether properties are enabled, animatable, ...etc. */
 	enum class ECollectionPropertyFlags : uint8
 	{
@@ -74,26 +63,23 @@ namespace Chaos::Softs
 		//~ Values access per index, fast, no check, index must be valid (0 <= KeyIndex < Num())
 		const FString& GetKey(int32 KeyIndex) const { return GetValue<const FString&>(KeyIndex, KeyArray); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetLowValue(int32 KeyIndex) const { return GetValue<T>(KeyIndex, LowValueArray); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetHighValue(int32 KeyIndex) const { return GetValue<T>(KeyIndex, HighValueArray); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		TPair<T, T> GetWeightedValue(int32 KeyIndex) const { return MakeTuple(GetLowValue<T>(KeyIndex), GetHighValue<T>(KeyIndex)); }
 
 		FVector2f GetWeightedFloatValue(int32 KeyIndex) const { return FVector2f(GetLowValue<float>(KeyIndex), GetHighValue<float>(KeyIndex)); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetValue(int32 KeyIndex) const { return GetLowValue<T>(KeyIndex); }
 
 		const FString& GetStringValue(int32 KeyIndex) const { return GetValue<const FString&>(KeyIndex, StringValueArray); }
-		UE_DEPRECATED(5.3, "Use GetStringValue(int32) or GetStringValue(const FString&, const FString&, int32*) instead.")
-		const FString& GetStringValue(int32 KeyIndex, const FString& Default) const { return GetValue<const FString&>(KeyIndex, StringValueArray); }
 
-		UE_DEPRECATED(5.3, "uint8 GetFlags(int32) is deprecated and will soon be replaced by ECollectionPropertyFlags GetFlags(int32).")
-		uint8 GetFlags(int32 KeyIndex) const { return FlagsArray[KeyIndex]; }
+		ECollectionPropertyFlags GetFlags(int32 KeyIndex) const { return (ECollectionPropertyFlags)FlagsArray[KeyIndex]; }
 
 		bool IsEnabled(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Enabled); }
 		bool IsAnimatable(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Animatable) && !HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Intrinsic); }
@@ -104,19 +90,19 @@ namespace Chaos::Softs
 		bool IsInterpolable(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Interpolable); }
 
 		//~ Values access per key
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetLowValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->T { return GetLowValue<T>(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetHighValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->T { return GetHighValue<T>(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		TPair<T, T> GetWeightedValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->TPair<T, T> { return GetWeightedValue<T>(KeyIndex); }, MakeTuple(Default, Default), OutKeyIndex);
@@ -132,7 +118,7 @@ namespace Chaos::Softs
 			return SafeGet(Key, [this](int32 KeyIndex)->FVector2f { return GetWeightedFloatValue(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->T { return GetValue<T>(KeyIndex); }, Default, OutKeyIndex);
@@ -143,12 +129,9 @@ namespace Chaos::Softs
 			return SafeGet(Key, [this](int32 KeyIndex)->FString { return GetStringValue(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		UE_DEPRECATED(5.3, "uint8 GetFlags(const FString&, uint8, int32*) is deprecated and will soon be replaced by ECollectionPropertyFlags GetFlags(const FString&, uint8, int32*).")
-		uint8 GetFlags(const FString& Key, uint8 Default = 0, int32* OutKeyIndex = nullptr) const
+		ECollectionPropertyFlags GetFlags(const FString& Key, uint8 Default = 0, int32* OutKeyIndex = nullptr) const
 		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return SafeGet(Key, [this](int32 KeyIndex)->uint8 { return GetFlags(KeyIndex); }, Default, OutKeyIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			return SafeGet(Key, [this](int32 KeyIndex)->ECollectionPropertyFlags { return GetFlags(KeyIndex); }, (ECollectionPropertyFlags)Default, OutKeyIndex);
 		}
 
 		bool IsEnabled(const FString& Key, bool bDefault = false, int32* OutKeyIndex = nullptr) const
@@ -222,10 +205,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		template<typename T, typename ElementType>
-		T GetValue(int32 KeyIndex, const TConstArrayView<ElementType>& ValueArray) const;
+		CHAOS_API T GetValue(int32 KeyIndex, const TConstArrayView<ElementType>& ValueArray) const;
 
 		template <typename T>
-		TConstArrayView<T> GetArray(const FName& Name) const;
+		CHAOS_API TConstArrayView<T> GetArray(const FName& Name) const;
 
 		bool HasAnyFlags(int32 KeyIndex, ECollectionPropertyFlags Flags) const { return EnumHasAnyFlags(GetValue<ECollectionPropertyFlags, uint8>(KeyIndex, FlagsArray), Flags); }
 
@@ -272,26 +255,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FCollectionPropertyFacade& operator=(FCollectionPropertyFacade&&) = default;
 
 		//~ Values set per index
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetLowValue(int32 KeyIndex, const T& Value) { SetValue(KeyIndex, GetLowValueArray(), FVector3f(Value)); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetHighValue(int32 KeyIndex, const T& Value) { SetValue(KeyIndex, GetHighValueArray(), FVector3f(Value)); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetWeightedValue(int32 KeyIndex, const T& LowValue, const T& HighValue) { SetLowValue(KeyIndex, LowValue); SetHighValue(KeyIndex, HighValue); }
 
 		void SetWeightedFloatValue(int32 KeyIndex, const FVector2f& Value) { SetLowValue<float>(KeyIndex, Value.X); SetHighValue<float>(KeyIndex, Value.Y); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetValue(int32 KeyIndex, const T& Value) { SetWeightedValue(KeyIndex, Value, Value); }
 
 		void SetStringValue(int32 KeyIndex, const FString& Value) { if (GetStringValueArray()[KeyIndex] != Value) { GetStringValueArray()[KeyIndex] = Value; SetStringDirty(KeyIndex); } }
 
 		/** SetFlags cannot be used to remove Dirty, StringDirty, Interpolable or Intrinsic flags. Use ClearDirtyFlags to remove dirty flags. */
 		CHAOS_API void SetFlags(int32 KeyIndex, ECollectionPropertyFlags Flags);
-		UE_DEPRECATED(5.3, "Use SetFlags(int32, ECollectionPropertyFlags) instead.")
-		void SetFlags(int32 KeyIndex, uint8 Flags) { return SetFlags(KeyIndex, (ECollectionPropertyFlags)Flags); }
 
 		void SetEnabled(int32 KeyIndex, bool bEnabled) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Enabled, bEnabled); }
 		void SetAnimatable(int32 KeyIndex, bool bAnimatable) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Animatable, bAnimatable); }
@@ -300,25 +281,23 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		/** Set the intrinsic flag for this property. This flag cannot be removed and implies non Animatable. */
 		void SetIntrinsic(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Intrinsic, true); }
 		void SetDirty(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Dirty, true); }
-		UE_DEPRECATED(5.3, "SetDirty can only be set, to unset use ClearDirtyFlags instead.")
-		void SetDirty(int32 KeyIndex, bool bDirty) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Dirty, bDirty); }
 		void SetStringDirty(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::StringDirty, true); }
 		void SetInterpolable(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Interpolable, true); }
 
 		//~ Values set per key
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetLowValue(const FString& Key, const T& Value)
 		{
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetLowValue(KeyIndex, Value); });
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetHighValue(const FString& Key, const T& Value)
 		{
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetHighValue(KeyIndex, Value); });
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetWeightedValue(const FString& Key, const T& LowValue, const T& HighValue)
 		{
 			return SafeSet(Key, [this, &LowValue, &HighValue](int32 KeyIndex) { SetWeightedValue(KeyIndex, LowValue, HighValue); });
@@ -329,7 +308,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetWeightedFloatValue(KeyIndex, Value); });
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetValue(const FString& Key, const T& Value)
 		{
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetValue(KeyIndex, Value); });
@@ -344,8 +323,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			return SafeSet(Key, [this, Flags](int32 KeyIndex) { SetFlags(KeyIndex, Flags); });
 		}
-		UE_DEPRECATED(5.3, "Use SetFlags(const FString&, ECollectionPropertyFlags) instead.")
-		int32 SetFlags(const FString& Key, uint8 Flags) { return SetFlags(Key, (ECollectionPropertyFlags)Flags); }
 
 		int32 SetEnabled(const FString& Key, bool bEnabled)
 		{
@@ -366,14 +343,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 SetIntrinsic(const FString& Key)
 		{
 			return SafeSet(Key, [this](int32 KeyIndex) { SetIntrinsic(KeyIndex); });
-		}
-
-		UE_DEPRECATED(5.3, "SetDirty can only be set, to unset use ClearDirtyFlags instead.")
-		int32 SetDirty(const FString& Key, bool bDirty)
-		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return SafeSet(Key, [this, bDirty](int32 KeyIndex) { SetDirty(KeyIndex, bDirty); });
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		int32 SetDirty(const FString& Key)
@@ -479,9 +448,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		 */
 		CHAOS_API void Append(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection, bool bUpdateExistingProperties);
 
-		UE_DEPRECATED(5.3, "Use SharedPtr version of Append to avoid additional copy.")
-		CHAOS_API void Append(const FManagedArrayCollection& InManagedArrayCollection);
-
 		/**
 		 * Copy all properties and values from an existing collection to this property collection.
 		 * Dirty flags will be copied directly.
@@ -498,17 +464,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CHAOS_API void Update(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection, ECollectionPropertyUpdateFlags UpdateFlags);
 
 		//~ Add values
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		inline int32 AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled);
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		inline int32 AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, bool bEnabled, bool bAnimatable = false, bool bIntrinsic = false);
 
 		CHAOS_API int32 AddWeightedFloatValue(const FString& Key, const FVector2f& Value, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled);
 		CHAOS_API int32 AddWeightedFloatValue(const FString& Key, const FVector2f& Value, bool bEnabled, bool bAnimatable, bool bIntrinsic = false);
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 AddValue(const FString& Key, const T& Value, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled) { return AddWeightedValue(Key, Value, Value, Flags); }
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 AddValue(const FString& Key, const T& Value, bool bEnabled, bool bAnimatable = false) { return AddWeightedValue(Key, Value, Value, bEnabled, bAnimatable); }
 
 		CHAOS_API int32 AddStringValue(const FString& Key, const FString& Value, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled);
@@ -525,7 +491,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	template<typename T, typename TEnableIf<TIsWeightedType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsWeightedType<T>::Value)>
 	inline int32 FCollectionPropertyMutableFacade::AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, ECollectionPropertyFlags Flags)
 	{
 		const int32 KeyIndex = AddProperty(Key, Flags);
@@ -533,7 +499,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return KeyIndex;
 	}
 
-	template<typename T, typename TEnableIf<TIsWeightedType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsWeightedType<T>::Value)>
 	inline int32 FCollectionPropertyMutableFacade::AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, bool bEnabled, bool bAnimatable, bool bIntrinsic)
 	{
 		const int32 KeyIndex = AddProperty(Key, bEnabled, bAnimatable, bIntrinsic);
@@ -545,8 +511,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 // Use this macro to add shorthands for property getters without a key index
 #define UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
 	inline static const FName PropertyName##Name = TEXT(#PropertyName); \
-	UE_DEPRECATED(5.3, "PropertyName##String is to be removed as to not be confused with GetPropertyName##String().") \
-	static FString PropertyName##String() { return PropertyName##Name.ToString(); } \
 	static bool Is##PropertyName##Enabled(const FCollectionPropertyConstFacade& InPropertyCollection, bool bDefault) \
 	{ \
 		return InPropertyCollection.IsEnabled(PropertyName##Name.ToString(), bDefault); \
@@ -583,13 +547,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{ \
 		return InPropertyCollection.GetStringValue(PropertyName##Name.ToString(), Default); \
 	} \
-	UE_DEPRECATED(5.3, "GetFlags is being phased out to promote correct dirtying operations.") \
-	uint8 Get##PropertyName##Flags(const FCollectionPropertyConstFacade& InPropertyCollection, uint8 Default) \
-	{ \
-PRAGMA_DISABLE_DEPRECATION_WARNINGS \
-		return InPropertyCollection.GetFlags(PropertyName##Name.ToString(), Default); \
-PRAGMA_ENABLE_DEPRECATION_WARNINGS \
-	}
 
 // Use this macro to add shorthands for property getters and direct access through the declared key index
 #define UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
@@ -630,15 +587,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 		checkf(PropertyName##Index != INDEX_NONE, TEXT("The default value getter that sets the property index must be called once prior to calling this function.")); \
 		return PropertyCollection.GetStringValue(PropertyName##Index); \
 	} \
-	UE_DEPRECATED(5.3, "GetFlags is being phased out to promote correct dirtying operations.") \
-	uint8 Get##PropertyName##Flags(const FCollectionPropertyConstFacade& PropertyCollection) const \
-	{ \
-		checkSlow(PropertyName##Index == PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())); \
-		checkf(PropertyName##Index != INDEX_NONE, TEXT("The default value getter that sets the property index must be called once prior to calling this function.")); \
-PRAGMA_DISABLE_DEPRECATION_WARNINGS \
-		return PropertyCollection.GetFlags(PropertyName##Index); \
-PRAGMA_ENABLE_DEPRECATION_WARNINGS \
-	} \
 	bool Is##PropertyName##Enabled(const FCollectionPropertyConstFacade& PropertyCollection) const \
 	{ \
 		checkSlow(PropertyName##Index == PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())); \
@@ -671,8 +619,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 	struct F##PropertyName##Index \
 	{ \
 		int32 Index = INDEX_NONE; \
-		UE_DEPRECATED(5.3, PREPROCESSOR_TO_STRING(PropertyName##Index) " must be explicitly initialized. Add " PREPROCESSOR_TO_STRING(PropertyName##Index) "(PropertyCollection) or (ForceInit) to this constructor initialization list.") \
-		F##PropertyName##Index() {} \
 		explicit F##PropertyName##Index(EForceInit) : Index(INDEX_NONE) {} \
 		explicit F##PropertyName##Index(const FCollectionPropertyConstFacade& PropertyCollection) : Index(PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())) {} \
 		operator int32() const { return Index; } \

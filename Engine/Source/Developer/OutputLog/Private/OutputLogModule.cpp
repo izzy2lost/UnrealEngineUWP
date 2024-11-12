@@ -80,18 +80,32 @@ public:
 		return Messages;
 	}
 
+	void Suspend()
+	{
+		bSuspended = true;
+	}
+
+	void Resume()
+	{
+		bSuspended = false;
+	}
 protected:
 
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
 	{
-		// Capture all incoming messages and store them in history
-		SOutputLog::CreateLogMessages(V, Verbosity, Category, Messages);
+		if (!bSuspended)
+		{
+			// Capture all incoming messages and store them in history
+			SOutputLog::CreateLogMessages(V, Verbosity, Category, Messages);
+		}
 	}
 
 private:
 
 	/** All log messsges since this module has been started */
 	TArray< TSharedPtr<FOutputLogMessage> > Messages;
+
+	bool bSuspended = false;
 };
 
 
@@ -190,11 +204,16 @@ void FOutputLogModule::ShutdownModule()
 	OutputLogHistory.Reset();
 }
 
+const FName FOutputLogModule::ModuleName = UE_MODULE_NAME;
+
 FOutputLogModule& FOutputLogModule::Get()
 {
-	static const FName OutputLog("OutputLog");
+	return FModuleManager::Get().LoadModuleChecked<FOutputLogModule>(ModuleName);
+}
 
-	return FModuleManager::Get().LoadModuleChecked<FOutputLogModule>(OutputLog);
+FOutputLogModule* FOutputLogModule::TryGet()
+{
+	return FModuleManager::Get().GetModulePtr<FOutputLogModule>(ModuleName);
 }
 
 bool FOutputLogModule::ShouldHideConsole() const
@@ -223,6 +242,13 @@ TSharedRef<SWidget> FOutputLogModule::MakeOutputLogDrawerWidget(const FSimpleDel
 		OutputLogDrawerPinned = 
 			SNew(SOutputLog, true)
 			.OnCloseConsole(OnCloseConsole)
+			.OnClearLog_Lambda([]
+			{
+				if (FOutputLogModule* OutputLogModule = FOutputLogModule::TryGet())
+				{
+					OutputLogModule->OnOutputLogDrawerCleared.Broadcast();
+				}
+			})
 			.Messages(OutputLogHistory->GetMessages());
 
 		OutputLogDrawerPinned->UpdateOutputLogFilter(*OutputLogFilterCache);
@@ -240,7 +266,22 @@ TSharedRef<SWidget> FOutputLogModule::MakeOutputLogWidget(const FOutputLogCreati
 			.Messages(OutputLogHistory->GetMessages())
 			.SettingsMenuFlags(Params.SettingsMenuCreationFlags)
 			.DefaultCategorySelection(Params.DefaultCategorySelection)
-			.AllowInitialLogCategory(Params.AllowAsInitialLogCategory);
+			.AllowInitialLogCategory(Params.AllowAsInitialLogCategory)
+			.EnableLoggingLimitMenu(Params.LoggingLimit.IsSet())
+			.LoggingLineLimit(Params.LoggingLimit);
+}
+
+void FOutputLogModule::SuspendGlobalLog()
+{
+	check(OutputLogHistory);
+	OutputLogHistory->Suspend();
+}
+
+
+void FOutputLogModule::ResumeGlobalLog()
+{
+	check(OutputLogHistory);
+	OutputLogHistory->Resume();
 }
 
 void FOutputLogModule::ToggleDebugConsoleForWindow(const TSharedRef<SWindow>& Window, const EDebugConsoleStyle::Type InStyle, const FDebugConsoleDelegates& DebugConsoleDelegates)

@@ -11,6 +11,7 @@
 #include "NiagaraSimCache.generated.h"
 
 class UNiagaraComponent;
+class UNiagaraSimCacheDebugData;
 struct FNiagaraSimCacheDataBuffersLayout;
 
 UENUM(BlueprintType)
@@ -86,6 +87,12 @@ struct FNiagaraSimCacheCreateParameters
 	uint32 bAllowSerializeLargeCache : 1 = true;
 
 	/**
+	When enabled additional information is stored that can be useful for debugging a simulation
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SimCache")
+	uint32 bIncludeDebugData : 1 = false;
+
+	/**
 	List of Attributes to force include in the SimCache rebase, they should be the full path to the attribute
 	For example, MyEmitter.Particles.MyQuat would force the particle attribute MyQuat to be included for MyEmitter
 	*/
@@ -119,6 +126,9 @@ struct FNiagaraSimCacheCreateParameters
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SimCache", meta=(EditCondition="AttributeCaptureMode == ENiagaraSimCacheAttributeCaptureMode::ExplicitAttributes"))
 	TArray<FName> ExplicitCaptureAttributes;
+
+	// Helper function to setup the parameters for capturing a cache for debugging
+	NIAGARA_API static FNiagaraSimCacheCreateParameters CreateForDebugging();
 };
 
 USTRUCT()
@@ -369,10 +379,21 @@ struct FNiagaraSimCacheFeedbackContext
 	TArray<FString> Warnings;
 };
 
-UCLASS(Experimental, BlueprintType, MinimalAPI)
+/**
+ * Recording of multiple frames of simulation data from a running Niagara system.
+ * Can be used to play back the captured recording or to inspect the captured data for debug purposes.
+ * Depending on the capture settings, not all attributes from the simulation are present in the cache.
+ *
+ * To capture a cache, either
+ * (1) use the baker tool in the system editor,
+ * (2) use the Niagara component cache track in sequencer or
+ * (3) manually capture a running system with the "CaptureNiagaraSimCache" Blueprint functions
+ */
+UCLASS(BlueprintType, MinimalAPI)
 class UNiagaraSimCache : public UObject
 {
 	friend struct FNiagaraSimCacheAttributeReaderHelper;
+	friend struct FNiagaraSimCacheExport;
 	friend struct FNiagaraSimCacheCompare;
 	friend struct FNiagaraSimCacheHelper;
 	friend struct FNiagaraSimCacheGpuResource;
@@ -459,7 +480,10 @@ public:
 	NIAGARA_API TArray<FNiagaraVariableBase> GetStoredDataInterfaces() const;
 	
 	/** Returns the actual data we have captured in the SimCache for the given data interface. */
-	NIAGARA_API UObject* GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const;
+	NIAGARA_API const UObject* GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const;
+
+	/** Returns the debug data stored inside the cache, intended for internal use only. */
+	NIAGARA_API const UNiagaraSimCacheDebugData* GetDebugData() const { return DebugData; }
 
 	/**
 	Get number of active instances for the emitter at the given frame.
@@ -565,7 +589,17 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = NiagaraSimCache)
 	NIAGARA_API void ReadQuatAttributeWithRebase(TArray<FQuat>& OutValues, FQuat Quat, FName AttributeName = FName("MeshOrientation"), FName EmitterName = NAME_None, int FrameIndex = 0) const;
-	
+
+	/**
+	Reads data interface data from the cache as the requested type.
+	This method will return nullptr if the attribute does not exists or the requests type is not supported by the storage type.
+	*/
+	UFUNCTION(BlueprintCallable, Category = NiagaraSimCache)
+	NIAGARA_API UObject* ReadDataInterfaceAs(UClass* RequestedType, FName AttributeName, int FrameIndex = 0) const;
+
+	template<typename T>
+	T* ReadDataInterfaceAs(FName AttributeName, int FrameIndex = 0) const { return (T*)ReadDataInterfaceAs(T::StaticClass(), AttributeName, FrameIndex); }
+
 private:
 	UPROPERTY(VisibleAnywhere, Category=SimCache)
 	FGuid CacheGuid;
@@ -598,6 +632,9 @@ private:
 
 	UPROPERTY()
 	TMap<FNiagaraVariableBase, TObjectPtr<UObject>> DataInterfaceStorage;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraSimCacheDebugData> DebugData;
 
 	int32 CaptureTickCount = INDEX_NONE;
 	double CaptureStartTime = 0;

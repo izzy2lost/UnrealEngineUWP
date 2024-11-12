@@ -1,34 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.IO;
 
 public class NNERuntimeORT : ModuleRules
 {
 	public NNERuntimeORT( ReadOnlyTargetRules Target ) : base( Target )
 	{
-		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PrivateDependencyModuleNames.AddRange
-			(
-			new string[] {
-				"Core",
-				"CoreUObject",
-				"Engine",
-				"NNE",
-				"NNEOnnxruntimeEditor",
-				"NNEUtilities",
-				"Projects"
-			}
-		);
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Core",
+			"CoreUObject",
+			"NNE",
+			"NNEOnnxruntime",
+			"Projects",
+			"RenderCore",
+			"DeveloperSettings",
+			"RHI"
+		});
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
-				"D3D12RHI",
-				"DirectML",
-				"RHI"
+				"D3D12RHI"
 			});
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, new string[]
@@ -36,7 +32,6 @@ public class NNERuntimeORT : ModuleRules
 				"DirectML",
 				"DX12"
 			});
-
 		}
 	}
 }

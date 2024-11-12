@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Compilation/MovieSceneCompiledDataID.h"
+#include "Compilation/MovieSceneDeterminismFence.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
@@ -47,6 +48,7 @@ namespace MovieScene
 }
 }
 
+UENUM(Flags)
 enum class EMovieSceneSequenceCompilerMask : uint8
 {
 	Hierarchy               = 1 << 0,
@@ -57,48 +59,6 @@ enum class EMovieSceneSequenceCompilerMask : uint8
 	None                    = 0,
 };
 ENUM_CLASS_FLAGS(EMovieSceneSequenceCompilerMask);
-
-/** Flag struct necessary while flag enums are not supported on UPROPERTY */
-USTRUCT()
-struct FMovieSceneSequenceCompilerMaskStruct
-{
-	GENERATED_BODY()
-
-	FMovieSceneSequenceCompilerMaskStruct()
-		: bHierarchy(0)
-		, bEvaluationTemplate(0)
-		, bEvaluationTemplateField(0)
-		, bEntityComponentField(0)
-	{}
-
-	FMovieSceneSequenceCompilerMaskStruct& operator=(EMovieSceneSequenceCompilerMask InMask)
-	{
-		bHierarchy               = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::Hierarchy);
-		bEvaluationTemplate      = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::EvaluationTemplate);
-		bEvaluationTemplateField = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::EvaluationTemplateField);
-		bEntityComponentField    = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::EntityComponentField);
-		return *this;
-	}
-
-	EMovieSceneSequenceCompilerMask AsEnum() const
-	{
-		EMovieSceneSequenceCompilerMask Enum = EMovieSceneSequenceCompilerMask::None;
-		Enum |= bHierarchy               ? EMovieSceneSequenceCompilerMask::Hierarchy               : EMovieSceneSequenceCompilerMask::None;
-		Enum |= bEvaluationTemplate      ? EMovieSceneSequenceCompilerMask::EvaluationTemplate      : EMovieSceneSequenceCompilerMask::None;
-		Enum |= bEvaluationTemplateField ? EMovieSceneSequenceCompilerMask::EvaluationTemplateField : EMovieSceneSequenceCompilerMask::None;
-		Enum |= bEntityComponentField    ? EMovieSceneSequenceCompilerMask::EntityComponentField    : EMovieSceneSequenceCompilerMask::None;
-		return Enum;
-	}
-
-	UPROPERTY()
-	uint8 bHierarchy : 1;
-	UPROPERTY()
-	uint8 bEvaluationTemplate : 1;
-	UPROPERTY()
-	uint8 bEvaluationTemplateField : 1;
-	UPROPERTY()
-	uint8 bEntityComponentField : 1;
-};
 
 /** Flags generated at compile time for a given sequence */
 USTRUCT()
@@ -132,6 +92,10 @@ public:
 
 	void Reset();
 
+#if WITH_EDITORONLY_DATA
+	static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
+#endif
+
 private:
 	friend class UMovieSceneCompiledDataManager;
 
@@ -153,7 +117,7 @@ private:
 
 	/** 16 Bytes */
 	UPROPERTY()
-	TArray<FFrameTime> DeterminismFences;
+	TArray<FMovieSceneDeterminismFence> DeterminismFences;
 
 	/** 16 bytes */
 	UPROPERTY()
@@ -165,11 +129,11 @@ private:
 
 	/** 1 Byte */
 	UPROPERTY()
-	FMovieSceneSequenceCompilerMaskStruct AccumulatedMask;
+	EMovieSceneSequenceCompilerMask AccumulatedMask;
 
 	/** 1 Byte */
 	UPROPERTY()
-	FMovieSceneSequenceCompilerMaskStruct AllocatedMask;
+	EMovieSceneSequenceCompilerMask AllocatedMask;
 
 	/** 1 Byte */
 	UPROPERTY()
@@ -190,7 +154,7 @@ struct FMovieSceneCompiledDataEntry
 	FGuid CompiledSignature;
 
 	/** 16 Bytes */
-	TArray<FFrameTime> DeterminismFences;
+	TArray<FMovieSceneDeterminismFence> DeterminismFences;
 
 	/** 8 Bytes */
 	FObjectKey SequenceKey;
@@ -292,6 +256,12 @@ public:
 	MOVIESCENE_API void CopyCompiledData(UMovieSceneSequence* Sequence);
 	MOVIESCENE_API void LoadCompiledData(UMovieSceneSequence* Sequence);
 
+public:
+
+	// Internal API.
+
+	bool CanMarkSignedObjectAsChangedDuringCook(UMovieSceneSequence* Sequence) const;
+
 private:
 
 	MOVIESCENE_API void Gather(const FMovieSceneCompiledDataEntry& Entry, UMovieSceneSequence* Sequence, const FTrackGatherParameters& Params, FMovieSceneGatheredCompilerData* OutCompilerData) const;
@@ -329,6 +299,12 @@ private:
 private:
 
 	FMovieSceneCompiledDataEntry* GetEntryPtr(FMovieSceneCompiledDataID DataID)
+	{
+		check(CompiledDataEntries.IsValidIndex(DataID.Value));
+		return &CompiledDataEntries[DataID.Value];
+	}
+
+	const FMovieSceneCompiledDataEntry* GetEntryPtr(FMovieSceneCompiledDataID DataID) const
 	{
 		check(CompiledDataEntries.IsValidIndex(DataID.Value));
 		return &CompiledDataEntries[DataID.Value];

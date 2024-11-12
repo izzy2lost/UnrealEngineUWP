@@ -6,12 +6,10 @@
 #include "dna/DataLayerBitmask.h"
 #include "dna/DNA.h"
 #include "dna/LODConstraint.h"
-#include "dna/TypeDefs.h"
 #include "dna/filters/AnimatedMapFilter.h"
 #include "dna/filters/BlendShapeFilter.h"
 #include "dna/filters/JointFilter.h"
 #include "dna/filters/MeshFilter.h"
-
 #include <terse/archives/binary/InputArchive.h>
 
 #include <cstddef>
@@ -83,6 +81,10 @@ class FilteredBinaryInputArchive final : public AnimatedMapFilter, public BlendS
         void process(Vector<RawBlendShapeTarget>& dest);
         void process(RawVertexSkinWeights& dest);
         void process(RawMachineLearnedBehavior& dest);
+        void process(RawRBFBehavior& dest);
+        void process(RawRBFBehaviorExt& dest);
+        void process(RawJointBehaviorMetadata& dest);
+        void process(RawTwistSwingBehavior& dest);
 
         void process(DNA& dest);
         void removeUnreferencedBlendShapes(DNA& dest);

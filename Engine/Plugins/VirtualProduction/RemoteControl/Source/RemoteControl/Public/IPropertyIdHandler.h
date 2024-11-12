@@ -6,7 +6,7 @@
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/UnrealType.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 class FProperty;
 class UObject;

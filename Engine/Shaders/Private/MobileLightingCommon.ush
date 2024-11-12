@@ -11,6 +11,26 @@
 #include "ShadowFilteringCommon.ush"
 #include "ClearCoatCommon.ush"
 #include "DeferredLightingCommon.ush"
+#include "SHCommon.ush"
+
+#if MOBILE_SSR_ENABLED && !(MOBILE_QL_FORCE_FULLY_ROUGH || MATERIAL_FULLY_ROUGH)
+	#if MOBILE_DEFERRED_SHADING
+		#if IS_MOBILE_BASE_PASS
+			#define MOBILE_USE_SSR (MATERIAL_SSR)
+		#else
+			#define MOBILE_USE_SSR 1
+		#endif
+	#else
+		#define MOBILE_USE_SSR (MATERIAL_SSR || !MATERIALBLENDING_ANY_TRANSLUCENT)
+	#endif
+	#define SSRData	MobileBasePass.SSRParams
+#else 
+	#define MOBILE_USE_SSR 0
+#endif
+
+#if MOBILE_USE_SSR
+#include "MobileSSR.ush"
+#endif
 
 #ifndef TRANSLUCENCY_NON_DIRECTIONAL
 #define TRANSLUCENCY_NON_DIRECTIONAL 0
@@ -208,7 +228,7 @@ FTranslucencyLightingVector GetTranslucencyLightingVector(FDeferredLightData Lig
 
 	Out.AmbientLightingVector = float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, 1.0f);
 
-	float3 LuminanceWeights = float3(.3, .59, .11);
+	float3 LuminanceWeights = LuminanceFactors();
 	float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
 	float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
 	float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);
@@ -216,6 +236,8 @@ FTranslucencyLightingVector GetTranslucencyLightingVector(FDeferredLightData Lig
 
 	return Out;
 }
+
+#if TRANSLUCENCY_SH_LIGHTING
 
 FLightAccumulator GetTranslucencySHLighting(FGBufferData GBuffer, FDeferredLightData LightData, float3 TranslatedWorldPosition)
 {
@@ -239,15 +261,21 @@ FLightAccumulator GetTranslucencySHLighting(FGBufferData GBuffer, FDeferredLight
 	return LightAccumulator;
 }
 
+#endif
+
 /*------------------------------------------------------------------------------
 	Mobile Directional Light.
 ------------------------------------------------------------------------------*/
 
-FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosition, inout half4 OutDynamicShadowFactors, inout half OutDynamicShadowing)
+FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosition, inout half4 OutDynamicShadowFactors, inout half OutDynamicShadowing, uint EyeIndex)
 {
 #if USE_SHADOWMASKTEXTURE
 	half4 PreviewShadowMapChannelMask = half4(1.0f, 0.0f, 0.0f, 0.0f);
+#if MOBILE_MULTI_VIEW
+	OutDynamicShadowFactors = Texture2DArraySample(MobileBasePass.ScreenSpaceShadowMaskTextureArray, MobileBasePass.ScreenSpaceShadowMaskSampler, float3(SvPositionToBufferUV(SvPosition), EyeIndex));
+#else
 	OutDynamicShadowFactors = Texture2DSample(MobileBasePass.ScreenSpaceShadowMaskTexture, MobileBasePass.ScreenSpaceShadowMaskSampler, SvPositionToBufferUV(SvPosition));
+#endif
 	OutDynamicShadowFactors = DecodeLightAttenuation(OutDynamicShadowFactors);
 		
 	PreviewShadowMapChannelMask = UnpackShadowMapChannelMask(MobileDirectionalLight.DirectionalLightShadowMapChannelMask >> 4);
@@ -276,6 +304,7 @@ FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosit
 	LightData.Direction = MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz;
 	LightData.bRadialLight = false;
 	LightData.SpecularScale = MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.z;
+	LightData.DiffuseScale = MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.w;
 	LightData.ShadowedBits = 1;
 	LightData.HairTransmittance = InitHairTransmittanceData();
 	LightData.ShadowMapChannelMask = UnpackShadowMapChannelMask(MobileDirectionalLight.DirectionalLightShadowMapChannelMask);
@@ -283,16 +312,16 @@ FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosit
 	return LightData;
 }
 
-void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, half3 CameraVector, float4 ScreenPosition, float4 SvPosition, inout half4 DynamicShadowFactors, inout float OutDirectionalLightShadow, inout FLightAccumulator DirectLighting)
+void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, half3 CameraVector, float4 ScreenPosition, float4 SvPosition, inout half4 DynamicShadowFactors, inout float OutDirectionalLightShadow, inout FLightAccumulator DirectLighting, uint EyeIndex)
 {
 	half DynamicShadowing = 1.0f;
-	FDeferredLightData LightData = GetDirectionalLightData(ScreenPosition, SvPosition, DynamicShadowFactors, DynamicShadowing);
+	FDeferredLightData LightData = GetDirectionalLightData(ScreenPosition, SvPosition, DynamicShadowFactors, DynamicShadowing, EyeIndex);
 	half4 LightAttenuation = half4(1, 1, DynamicShadowing, DynamicShadowing);
 
 #if TRANSLUCENCY_SH_LIGHTING
 	FLightAccumulator NewLighting = GetTranslucencySHLighting(GBuffer, LightData, TranslatedWorldPosition);
 #else
-	FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, LightData, LightAttenuation, 0, uint2(0, 0), OutDirectionalLightShadow);
+	FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, LightData, LightAttenuation, 0, uint2(0, 0), OutDirectionalLightShadow);
 #endif
 	DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 }
@@ -301,7 +330,7 @@ void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldP
 	Mobile Reflection.
 ------------------------------------------------------------------------------*/
 
-#if IS_MOBILE_BASE_PASS
+#if IS_MOBILE_BASE_PASS || IS_DECAL
 /** Prenormalized capture of the scene that's closest to the object being rendered. */
 half3 GetMobileSkyLightReflection(half3 ReflectionVector, half Roughness, half CubemapMaxMip)
 {
@@ -331,9 +360,7 @@ half3 GetImageBasedReflectionLighting_Mobile(
 	half3 SpecularIBL = (half3)0.0f;
 
 #if ENABLE_CLUSTERED_REFLECTION
-	uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-	uint NumLocalReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-	uint DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, 0);
 
 	SpecularIBL = CompositeReflectionCapturesAndSkylightTWS(
 		CompositeAlpha,
@@ -343,8 +370,8 @@ half3 GetImageBasedReflectionLighting_Mobile(
 		IndirectIrradiance,
 		1.0f,
 		0.0f,
-		NumLocalReflectionCaptures,
-		DataStartIndex,
+		CulledReflectionCapturesGridHeader.NumReflectionCaptures,
+		CulledReflectionCapturesGridHeader.DataStartIndex,
 		0,
 		true);
 
@@ -363,11 +390,11 @@ half3 GetImageBasedReflectionLighting_Mobile(
 	}
 
 	SpecularIBL *= CompositeAlpha;
-#else // !(ENABLE_CLUSTERED_REFLECTION || MOBILE_DEFERRED_LIGHTING)
+#elif IS_MOBILE_BASE_PASS || IS_DECAL
 
 	bool UsingSkyReflection = MobileReflectionCapture.Params.y > 0.0f;
 	// Normalize for static skylight types which mix with lightmaps.
-	bool bNormalize = UsingSkyReflection && MobileReflectionCapture.Params.z < 1;
+	bool bNormalize = !UsingSkyReflection || MobileReflectionCapture.Params.z < 1;
 	if (UsingSkyReflection)
 	{
 		// Apply sky colour if the reflection map is the sky.
@@ -441,6 +468,7 @@ float3 GetImageBasedReflectionSpecular(
 // Version used for legacy shading
 void AccumulateReflection(
 	FGBufferData GBuffer, 
+	half4 SvPosition,
 	half3 CameraVector, 
 	float3 TranslatedWorldPosition, 
 	half3 ReflectionVector, 
@@ -473,6 +501,15 @@ void AccumulateReflection(
 		, SpecularOcclusion
 		, GridIndex
 	);
+
+
+#if MOBILE_USE_SSR
+	half4 SSR = 0;
+	if (MobileSSR(GBuffer, SvPosition, TranslatedWorldPosition, ReflectionVector, SSR))
+	{
+		SpecularIBL.rgb = SpecularIBL.rgb * (1 - SSR.a) + SSR.rgb;
+	}
+#endif // MOBILE_USE_SSR
 
 	// Planar reflection
 	SpecularIBL = GetPlanarReflectionbasedReflectionLighting_Mobile(TranslatedWorldPosition, GBuffer.WorldNormal, GBuffer.Roughness, SpecularIBL);
@@ -528,7 +565,7 @@ void AccumulateReflection(
  */
 #if ENABLE_CLUSTERED_LIGHTS
 
-void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridData
+void AccumulateLightGridLocalLighting(const FCulledLightsGridHeader InLightGridHeader
 	, FGBufferData GBuffer
 	, float3 TranslatedWorldPosition
 	, half3 CameraVector
@@ -542,12 +579,12 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 {
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLightsInGridCell = min(InLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(InLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint GridLightListIndex = FirstNonSimpleLightIndex; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + GridLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(InLightGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
 
 #if MOBILE_DEFERRED_LIGHTING
 		// The lights are sorted such that all that support clustered deferred are at the beginning, there might be others
@@ -580,7 +617,7 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 
 		half DynamicShadowing = 1.0f;
 #if USE_SHADOWMASKTEXTURE
-		if (LightType == LIGHT_TYPE_SPOT)
+		if (LightType == LIGHT_TYPE_SPOT || LightType == LIGHT_TYPE_POINT)
 		{
 			half4 PreviewShadowMapChannelMask = UnpackShadowMapChannelMask(LightTypeAndPackedShadowMapChannelMask >> 4);
 			DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
@@ -589,13 +626,19 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 
 		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
 
+		if (LightType == LIGHT_TYPE_SPOT || LightType == LIGHT_TYPE_POINT)
+		{
+			half Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+			LightData.Color *= Attenuation;
+		}
+
 		half4 LightAttenuation = half4(1, 1, DynamicShadowing, DynamicShadowing);
 
 		float SurfaceShadow = 0;
 #if TRANSLUCENCY_SH_LIGHTING
 		FLightAccumulator NewLighting = GetTranslucencySHLighting(GBuffer, LightData, TranslatedWorldPosition);
 #else
-		FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, LightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+		FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, LightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 #endif
 		DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 	}
@@ -603,7 +646,7 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 #endif
 
 #if ENABLE_CLUSTERED_LIGHTS || MERGED_LOCAL_LIGHTS_MOBILE
-void MergeLocalLights(const FCulledLightsGridData InLightGridData
+void MergeLocalLights(const FCulledLightsGridHeader InLightGridHeader
 	, float3 TranslatedWorldPosition
 	, uint EyeIndex
 	, float bSupportLightFunctions
@@ -621,12 +664,12 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 	MergedTotalWeight = 0;
 	MergedSpecularScale = 0.f;
 	
-	uint NumLightsInGridCell = min(InLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
+	uint NumLightsInGridCell = min(InLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + GridLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(InLightGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
 
 		// extra-early out since we know light grid is sloppy and all lights in list are radial (have a range)
 		// appears useless
@@ -640,6 +683,7 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 
 		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
 		LightData.SpecularScale	= UnpackLightSpecularScale(LocalLight);
+		LightData.DiffuseScale	= UnpackLightDiffuseScale(LocalLight);
 
 		float3 L = LightData.Direction;	// Already normalized
 		float3 ToLight = L;
@@ -678,3 +722,47 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 	}
 }
 #endif
+
+/*------------------------------------------------------------------------------
+	Mobile Forward Decal Lighting
+------------------------------------------------------------------------------*/
+
+half3 ForwardDecalLighting(
+	float3 TranslatedWorldPosition, 
+	float2 ScreenPosition, 
+	float SceneDepth, 
+	half3 CameraVector, 
+	half3 VertexNormal, 
+	half3 ReflectionVector,
+	half3 WorldNormal,
+	half  Specular,
+	half3 BaseColor,
+	half  Metallic,
+	half  Roughness,
+	half3 EmissiveColor, 
+	half  Opacity)
+{
+	float ShadowPositionZ = 0;
+	half ShadowMap = MobileDirectionalLightCSM(ScreenPosition.xy, SceneDepth, ShadowPositionZ);
+	half3 DirectionalLightDirection = MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz;
+	half NoL = saturate(dot(half3(WorldNormal), DirectionalLightDirection));
+	
+	half3 SpecularColor = ComputeF0(Specular, BaseColor, Metallic);
+	half3 DiffuseColor = BaseColor - BaseColor * Metallic;
+
+	half3 OutColor = EmissiveColor;
+	OutColor += MobileDirectionalLight.DirectionalLightColor.rgb * NoL * SimpleShading(DiffuseColor, SpecularColor, max(Roughness, .04f), DirectionalLightDirection, -CameraVector, WorldNormal) * ShadowMap;
+
+	half3 SkyDiffuse = GetSkySHDiffuseSimple(WorldNormal) * ResolvedView.SkyLightColor.rgb;
+	OutColor += DiffuseColor * SkyDiffuse;
+
+	half3 SpecularIBL = GetImageBasedReflectionSpecular(ReflectionVector, Roughness, TranslatedWorldPosition, WorldNormal, 1.0, Luminance(SkyDiffuse), 0);
+	half NoV = saturate(abs(dot(WorldNormal, -CameraVector)) + 1e-5);
+	OutColor += SpecularIBL * EnvBRDFApprox(SpecularColor, Roughness, NoV);
+
+#if MATERIALBLENDING_MODULATE
+	OutColor *= Opacity;
+#endif
+
+	return OutColor;
+}

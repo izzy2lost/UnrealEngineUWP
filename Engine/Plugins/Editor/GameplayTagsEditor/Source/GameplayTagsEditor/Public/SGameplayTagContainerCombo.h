@@ -22,7 +22,7 @@ class SComboButton;
  */
 class SGameplayTagContainerCombo : public SCompoundWidget
 {
-	SLATE_DECLARE_WIDGET(SGameplayTagContainerCombo, SCompoundWidget)
+	SLATE_DECLARE_WIDGET_API(SGameplayTagContainerCombo, SCompoundWidget, GAMEPLAYTAGSEDITOR_API)
 	
 public:
 
@@ -66,10 +66,10 @@ public:
 
 	GAMEPLAYTAGSEDITOR_API void Construct(const FArguments& InArgs);
 
+	GAMEPLAYTAGSEDITOR_API virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
 private:
 
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	
 	struct FEditableItem
 	{
 		FEditableItem() = default;

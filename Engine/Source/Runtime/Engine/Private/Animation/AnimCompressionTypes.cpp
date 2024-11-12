@@ -244,7 +244,13 @@ void FCompressibleAnimData::BakeOutAdditiveIntoRawData(const FFrameRate& SampleR
 	}
 
 	FMemMark Mark(FMemStack::Get());
+
 	FByFramePoseEvalContext EvalContext(AnimSequence);
+
+	// Enable re-targeting as we wish for both the base and additive sequences to use the same frame of reference.
+	EvalContext.RequiredBones.SetDisableRetargeting(false);
+	EvalContext.RequiredBones.SetUseRAWData(true);
+	EvalContext.RequiredBones.SetUseSourceData(false);
 
 	TScriptInterface<IAnimationDataModel> DataModelInterface = AnimSequence->GetDataModelInterface();
 	// We actually need to resample bone transforms
@@ -444,12 +450,11 @@ void FCompressibleAnimData::ResampleAnimationTrackData(const FFrameRate& SampleR
             	return;
             }
 
-			// Make a copy, deals with bone name and index
-			TArray<FName> TrackNames;
-			DataModelInterface->GetBoneTrackNames(TrackNames);
-			
 			FMemMark Mark(FMemStack::Get());
+
 			FByFramePoseEvalContext EvalContext(AnimSequence);
+
+			// Disable re-targeting since we wish to compress pre-retargeting data. Retargeting is performed at runtime.
 			EvalContext.RequiredBones.SetDisableRetargeting(true);
 			EvalContext.RequiredBones.SetUseRAWData(true);
 			EvalContext.RequiredBones.SetUseSourceData(false);
@@ -523,17 +528,21 @@ void FCompressibleAnimData::ResampleAnimationTrackData(const FFrameRate& SampleR
 					TrackData.InternalTrackData.ScaleKeys.SetNumUninitialized(SampledKeys);
 				}
 			}
-			
+
+			FCompactPose Pose;
+			Pose.SetBoneContainer(&EvalContext.RequiredBones);
+
 			FBlendedCurve Curve;
 			Curve.InitFrom(EvalContext.RequiredBones);
+
 			UE::Anim::FStackAttributeContainer AttributeContainer;
-						
+
+			const FName RetargetTransformsSourceName = AnimSequence->GetRetargetTransformsSourceName();
+			const TArray<FTransform>& RetargetTransforms = AnimSequence->GetRetargetTransforms();
+
 			for (int32 FrameIndex = 0; FrameIndex < SampledKeys; ++FrameIndex)
 			{
-				UE::Anim::DataModel::FEvaluationContext EvaluationContext(FFrameTime(FrameIndex), SampleRate, AnimSequence->GetRetargetTransformsSourceName(), AnimSequence->GetRetargetTransforms());
-				
-				FCompactPose Pose;
-				Pose.SetBoneContainer(&EvalContext.RequiredBones);
+				UE::Anim::DataModel::FEvaluationContext EvaluationContext(FFrameTime(FrameIndex), SampleRate, RetargetTransformsSourceName, RetargetTransforms);
 
 				FAnimationPoseData PoseData(Pose, Curve, AttributeContainer);
 				DataModelInterface->Evaluate(PoseData, EvaluationContext);
@@ -800,12 +809,7 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 
 	FAnimationUtils::BuildSkeletonMetaData(Skeleton, BoneData);
 
-	const FFrameRate DefaultSamplingFrameRate = AnimSequence->GetSamplingFrameRate();
-	const FFrameRate PlatformSamplingFrameRate = InPlatform ? AnimSequence->GetTargetSamplingFrameRate(InPlatform) : FFrameRate(0,0);
-	
-	const bool bValidTargetSampleRate = PlatformSamplingFrameRate.IsValid() && (PlatformSamplingFrameRate.IsMultipleOf(DefaultSamplingFrameRate) || PlatformSamplingFrameRate.IsFactorOf(DefaultSamplingFrameRate));
-	
-	const FFrameRate& FrameRateToSampleWith = (DefaultSamplingFrameRate != PlatformSamplingFrameRate && bValidTargetSampleRate) ? PlatformSamplingFrameRate : DefaultSamplingFrameRate;	
+	const FFrameRate FrameRateToSampleWith = UE::Anim::Compression::GetCompressionFrameRate(*AnimSequence, InPlatform);
 	
 	const FFrameTime SampleFrameTime = FrameRateToSampleWith.AsFrameTime(SequenceLength);
 	check(FMath::IsNearlyZero(SampleFrameTime.GetSubFrame()));	
@@ -855,12 +859,21 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 	{
 		return InLHS.GetName().LexicalLess(InRHS.GetName());
 	});
+
+	// High fidelity codecs wish to see the original raw data where possible
+	const bool bIsHighFidelity = BoneCompressionSettings->IsHighFidelity(*this);
 	
 	// Apply any key reduction if possible
 	if (RawAnimationData.Num())
 	{ 
-		UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName(), -1.f, -1.f);
-		UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName());
+		// Fixup broken data
+		UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName(), -1.f, -1.f, -1.f);
+
+		if (!bIsHighFidelity)
+		{
+			// Low fidelity codecs need some help, sanitize the raw data
+			UE::Anim::Compression::CompressAnimationDataTracks(Skeleton, TrackToSkeletonMapTable, RawAnimationData, NumberOfKeys, AnimSequence->GetFName());
+		}
 	}
 
 	auto IsKeyArrayValidForRemoval = [](const auto& Keys, const auto& IdentityValue) -> bool
@@ -888,7 +901,7 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 		TArray<FTrackToSkeletonMap> TempTrackToSkeletonMapTable;
 		TempTrackToSkeletonMapTable.Reserve(OriginalTrackNames.Num());
 		TempRawAnimationData.Reserve(OriginalTrackNames.Num());
-	FinalTrackNames.Reserve(ResampledTrackData.Num());	
+		FinalTrackNames.Reserve(ResampledTrackData.Num());	
 		TempAdditiveBaseAnimationData.Reserve(AdditiveBaseAnimationData.Num() ? AdditiveBaseAnimationData.Num() : 0);
 
 		// Include root bone track
@@ -902,17 +915,19 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 
 		const int32 NumTracks = RawAnimationData.Num();
 		for (int32 TrackIndex = 1; TrackIndex < NumTracks; ++TrackIndex)
-	{
-		const FRawAnimSequenceTrack& Track = RawAnimationData[TrackIndex];
-		// Try find correct bone index
-		const int32 BoneIndex = RefSkeleton.FindBoneIndex(OriginalTrackNames[TrackIndex]);
+		{
+			const FRawAnimSequenceTrack& Track = RawAnimationData[TrackIndex];
+			// Try find correct bone index
+			const int32 BoneIndex = RefSkeleton.FindBoneIndex(OriginalTrackNames[TrackIndex]);
 
 			const bool bValidBoneIndex = BoneIndex != INDEX_NONE;
-			const bool bValidAdditiveTrack = !IsRawTrackZeroAdditive(Track);
+
+			// Low fidelity codecs need some help, sanitize the raw data
+			const bool bValidAdditiveTrack = bIsHighFidelity || !IsRawTrackZeroAdditive(Track);
 
 			// Only include track if it contains valid (additive) data and its name corresponds to a bone on the skeleton
 			if ((!bIsAdditiveAnimation || bValidAdditiveTrack) && bValidBoneIndex)
-		{
+			{
 				FinalTrackNames.Add(OriginalTrackNames[TrackIndex]);
 				TempTrackToSkeletonMapTable.Add(TrackToSkeletonMapTable[TrackIndex]);
 				TempRawAnimationData.Add(RawAnimationData[TrackIndex]);
@@ -921,7 +936,7 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 				{
 					TempAdditiveBaseAnimationData.Add(AdditiveBaseAnimationData[TrackIndex]);
 				}
-		}
+			}
 		}
 
 		// Swap out maintained track data
@@ -936,7 +951,6 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 
 	if (bShouldPerformStripping)
 	{
-
 		const FName TargetPlatformName = InPlatform->GetPlatformInfo().IniPlatformName;
 		const TObjectPtr<class UVariableFrameStrippingSettings> VarFrameStrippingSettings = AnimSequence->VariableFrameStrippingSettings;
 		const FPerPlatformBool PlatformBool = VarFrameStrippingSettings->UseVariableFrameStripping;
@@ -1128,7 +1142,9 @@ FArchive& operator<<(FArchive& Ar, AnimationKeyFormat& Fmt)
 
 void FUECompressedAnimData::SerializeCompressedData(FArchive& Ar)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ICompressedAnimData::SerializeCompressedData(Ar);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Ar << KeyEncodingFormat;
 	Ar << TranslationCompressionFormat;
@@ -1218,7 +1234,7 @@ void FUECompressedAnimDataMutable::BuildFinalBuffer(TArray<uint8>& OutCompressed
 	WriteArray(MemoryWriter, CompressedByteStream);
 }
 
-void ICompressedAnimData::SerializeCompressedData(class FArchive& Ar)
+void ICompressedAnimData::SerializeCompressedData(FArchive& Ar)
 {
 	Ar << CompressedNumberOfKeys;
 
@@ -1232,6 +1248,14 @@ void ICompressedAnimData::SerializeCompressedData(class FArchive& Ar)
 		Ar << BoneCompressionErrorStats;
 	}
 #endif
+}
+
+void ICompressedAnimData::SerializeCompressedData(UObject* DataOwner, FArchive& Ar)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// When we remove the deprecated function, we can inline it here
+	SerializeCompressedData(Ar);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -1378,7 +1402,7 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 		if (BoneCompressionCodec != nullptr)
 		{
 			CompressedDataStructure = BoneCompressionCodec->AllocateAnimData();
-			CompressedDataStructure->SerializeCompressedData(Ar);
+			CompressedDataStructure->SerializeCompressedData(DataOwner, Ar);
 			CompressedDataStructure->Bind(CompressedByteStream);
 
 			// The codec can be null if we are a default object, a sequence with no raw bone data (just curves),
@@ -1495,7 +1519,15 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 
 		if (BoneCompressionCodec != nullptr)
 		{
-			CompressedDataStructure->SerializeCompressedData(Ar);
+			CompressedDataStructure->SerializeCompressedData(DataOwner, Ar);
+		}
+	}
+
+	if (Ar.IsLoading() || Ar.IsCooking())
+	{
+		if (CurveCompressionCodec != nullptr)
+		{
+			CurveCompressionCodec->ValidateCompressedData(DataOwner, *this);
 		}
 	}
 
@@ -1633,6 +1665,19 @@ UE::Anim::Compression::FAnimDDCKeyArgs::FAnimDDCKeyArgs(const UAnimSequenceBase&
 	, TargetPlatform(TargetPlatform)
 	{
 			}
+
+namespace UE::Anim::Compression
+{
+	FFrameRate GetCompressionFrameRate(const UAnimSequence& AnimSequence, const ITargetPlatform* TargetPlatform)
+	{
+		const FFrameRate DefaultSamplingFrameRate = AnimSequence.GetSamplingFrameRate();
+		const FFrameRate PlatformSamplingFrameRate = TargetPlatform ? AnimSequence.GetTargetSamplingFrameRate(TargetPlatform) : FFrameRate(0, 0);
+
+		const bool bValidTargetSampleRate = PlatformSamplingFrameRate.IsValid() && (PlatformSamplingFrameRate.IsMultipleOf(DefaultSamplingFrameRate) || PlatformSamplingFrameRate.IsFactorOf(DefaultSamplingFrameRate));
+
+		return DefaultSamplingFrameRate != PlatformSamplingFrameRate && bValidTargetSampleRate ? PlatformSamplingFrameRate : DefaultSamplingFrameRate;
+	}
+}
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR

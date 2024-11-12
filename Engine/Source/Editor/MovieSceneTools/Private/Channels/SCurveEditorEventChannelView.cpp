@@ -34,6 +34,7 @@ float SCurveEditorEventChannelView::TrackHeight = 24.f;
 void SCurveEditorEventChannelView::Construct(const FArguments& InArgs, TWeakPtr<FCurveEditor> InCurveEditor)
 {
 	bFixedOutputBounds = true;
+	bAllowModelViewTransforms = false;
 	OutputMin = -0.5;
 	OutputMax =  0.5;
 	WeakCurveEditor = InCurveEditor;
@@ -64,7 +65,7 @@ void SCurveEditorEventChannelView::Tick(const FGeometry& AllottedGeometry, const
 		FCurveModel* Curve = CurveEditor->FindCurve(It.Key());
 		if (ensureAlways(Curve))
 		{
-			It->Value.ViewToCurveTransform = FTransform2D(FVector2D(0.f, Count));
+			It->Value.ViewToCurveTransform = FTransform2d(FVector2D(0.f, Count));
 		}
 
 		Count += 1.0;

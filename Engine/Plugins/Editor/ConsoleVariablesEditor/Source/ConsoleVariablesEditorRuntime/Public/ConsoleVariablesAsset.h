@@ -96,9 +96,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Console Variables Asset")
 	bool RemoveConsoleVariable(const FString& InCommandString);
 
-	/** Copy data from input asset to this asset */
+	/** Copy list of variables from input asset to this asset */
 	UFUNCTION(BlueprintCallable, Category="Console Variables Asset")
 	void CopyFrom(const UConsoleVariablesAsset* InAssetToCopy);
+
+	/** Add list of variables from input asset to this asset's list */
+	UFUNCTION(BlueprintCallable, Category = "Console Variables Asset")
+	void AddFrom(const UConsoleVariablesAsset* InAssetToCopy);
 	
 private:
 

@@ -15,6 +15,7 @@
 #include "UObject/NameTypes.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/SBoxPanel.h"
 
 class IDocumentationPage;
 class SBox;
@@ -29,6 +30,7 @@ public:
 
 	SLATE_BEGIN_ARGS( SDocumentationToolTip )
 		: _Text()
+		, _Shortcut()
 		, _Style( TEXT("Documentation.SDocumentationTooltip") )
 		, _SubduedStyle( TEXT("Documentation.SDocumentationTooltipSubdued") )
 		, _HyperlinkTextStyle( TEXT("Documentation.SDocumentationTooltipHyperlinkText") )
@@ -36,11 +38,15 @@ public:
 		, _ColorAndOpacity( FLinearColor::Black )
 		, _AddDocumentation( true )
 		, _DocumentationMargin(0)
+		, _OverrideExtendedToolTipContent(nullptr)
 		, _Content()
 		{}
 
 		/** The text displayed in this tool tip */
 		SLATE_ATTRIBUTE( FText, Text )
+
+		/** The keyboard shortcut to display for the action */
+		SLATE_ATTRIBUTE(FText, Shortcut)
 
 		/** The text style to use for this tool tip */
 		SLATE_ARGUMENT( FName, Style )
@@ -67,6 +73,9 @@ public:
 
 		/**  */
 		SLATE_ARGUMENT( FString, ExcerptName )
+
+		/** Extended ToolTip to use when Ctrl + Alt is pressed instead of loading it from the Documentation */
+		SLATE_ARGUMENT(TSharedPtr<SWidget>, OverrideExtendedToolTipContent)
 
 		/** Arbitrary content to be displayed in the tool tip; overrides any text that may be set. */
 		SLATE_DEFAULT_SLOT( FArguments, Content )
@@ -97,7 +106,11 @@ public:
 	 */
 	void AddDocumentation(TSharedPtr< SVerticalBox > VerticalBox);
 
+	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
+
 private:
+
+	EVisibility GetOverriddenFullToolTipVisibility() const;
 
 	void ConstructSimpleTipContent();
 
@@ -107,14 +120,23 @@ private:
 
 	void CreateExcerpt( FString FileSource, FString ExcerptName );
 
+	EVisibility GetFullTipVisibility() const;
+	EVisibility GetPromptVisibility() const;
+	EVisibility GetControlVisibility() const;
+	EVisibility GetShortcutVisibility() const;
+	const FSlateBrush* GetSimpleTipBorderStyle() const;
+
 private:
 
 	/** Text block widget */
 	TAttribute< FText > TextContent;
+	TAttribute< FText > Shortcut;
 	TSharedPtr< SWidget > OverrideContent;
+	TSharedPtr< SWidget > OverrideFullTooltipContent;
 	FTextBlockStyle StyleInfo;
 	FTextBlockStyle SubduedStyleInfo;
 	FTextBlockStyle HyperlinkTextStyleInfo;
+	FTextBlockStyle KeybindStyleInfo;
 	FButtonStyle HyperlinkButtonStyleInfo;
 	TAttribute< FSlateColor > ColorAndOpacity;
 
@@ -128,11 +150,21 @@ private:
 	TSharedPtr< SWidget > SimpleTipContent;
 	bool IsDisplayingDocumentationLink;
 
-	TSharedPtr< SWidget > FullTipContent;
+	TSharedPtr< SBox > FullTipContent;
+	TSharedPtr< SHorizontalBox > DocumentationControlBox;
 
 	TSharedPtr< IDocumentationPage > DocumentationPage;
 	bool IsShowingFullTip;
 
 	bool bAddDocumentation;
 	FMargin DocumentationMargin;
+
+	FVector2D LastDesiredSize;
+	bool bIsInTransition;
+	double TransitionStartTime;
+	float TransitionLength;
+	float TransitionPercentage;
+	FVector2D TransitionStartSize;
+
+	bool bFullTipContentIsReady;
 };

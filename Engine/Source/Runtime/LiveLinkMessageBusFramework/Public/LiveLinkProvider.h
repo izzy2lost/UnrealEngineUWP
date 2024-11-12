@@ -44,15 +44,16 @@ public:
 
 	/**
 	 * Send, to UE, the static data of a subject.
-	 * @param SubjectName	The name of the subject
-	 * @param Role			The Live Link role of the subject. The StaticData type should match the role's data.
-	 * @param StaticData	The static data of the subject.
-							The FLiveLinkStaticDataStruct doesn't have a copy constructor.
-	 *						The argument is passed by r-value to help the user understand the compiler error message.
+	 * @param SubjectName	    The name of the subject
+	 * @param Role			    The Live Link role of the subject. The StaticData type should match the role's data.
+	 * @param StaticData	    The static data of the subject.
+							    The FLiveLinkStaticDataStruct doesn't have a copy constructor.
+	 *						    The argument is passed by r-value to help the user understand the compiler error message.
+	 * @param ExtraAnnotations	Extra annotations to pass in with the static data message.
 	 * @return				True if the message was sent or is pending an active connection.
 	 * @see					UpdateSubjectFrameData, RemoveSubject
 	 */
-	virtual bool UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) = 0;
+	virtual bool UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData, const TMap<FName, FString>& ExtraAnnotations = {}) = 0;
 
 	/**
 	 * Inform UE that a subject won't be streamed anymore.
@@ -62,14 +63,15 @@ public:
 
 	/**
 	 * Send the static data of a subject to UE.
-	 * @param SubjectName	The name of the subject
-	 * @param StaticData	The frame data of the subject. The type should match the role's data send with UpdateSubjectStaticData.
-							The FLiveLinkFrameDataStruct doesn't have a copy constructor.
-	 *						The argument is passed by r-value to help the user understand the compiler error message.
-	 * @return				True if the message was sent or is pending an active connection.
-	 * @see					UpdateSubjectStaticData, RemoveSubject
+	 * @param SubjectName		The name of the subject
+	 * @param StaticData		The frame data of the subject. The type should match the role's data send with UpdateSubjectStaticData.
+								The FLiveLinkFrameDataStruct doesn't have a copy constructor.
+	 *							The argument is passed by r-value to help the user understand the compiler error message.
+	 * @param ExtraAnnotations	Extra annotations to pass in with the frame data message.
+	 * @return					True if the message was sent or is pending an active connection.
+	 * @see						UpdateSubjectStaticData, RemoveSubject
 	 */
-	virtual bool UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData) = 0;
+	virtual bool UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData, const TMap<FName, FString>& ExtraAnnotations = {}) = 0;
 
 	/** Is this provider currently connected to something. */
 	virtual bool HasConnection() const = 0;

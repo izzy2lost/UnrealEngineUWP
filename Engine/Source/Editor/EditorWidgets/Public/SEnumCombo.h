@@ -32,17 +32,20 @@ public:
 		, _ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
 		, _ButtonStyle(nullptr)
 		, _TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
+		, _bForceBitFlags(false)
 	{}
 
 		SLATE_ATTRIBUTE(int32, CurrentValue)
 		SLATE_ATTRIBUTE(FMargin, ContentPadding)
 		SLATE_ATTRIBUTE(FSlateFontInfo, Font)
+		SLATE_ATTRIBUTE(FText, OverrideNoFlagsSetText)
 		SLATE_EVENT(FOnEnumSelectionChanged, OnEnumSelectionChanged)
 		SLATE_EVENT(FOnGetToolTipForValue, OnGetToolTipForValue)
 		SLATE_STYLE_ARGUMENT(FComboButtonStyle, ComboButtonStyle)
 		SLATE_STYLE_ARGUMENT(FButtonStyle, ButtonStyle)
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
 		SLATE_ARGUMENT(TArray<int32>, EnumValueSubset)
+		SLATE_ARGUMENT(bool, bForceBitFlags)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const UEnum* InEnum);
@@ -72,6 +75,7 @@ private:
 	TAttribute<int32> CurrentValue;
 
 	TAttribute<FSlateFontInfo> Font;
+	TAttribute<FText> OverrideNoFlagsSetText;
 
 	TArray<FEnumInfo> VisibleEnums;
 

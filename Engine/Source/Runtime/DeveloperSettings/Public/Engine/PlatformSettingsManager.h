@@ -75,12 +75,12 @@ public:
 	static DEVELOPERSETTINGS_API TArray<FName> GetKnownAndEnablePlatformIniNames();
 
 	template <typename TPlatformSettingsClass>
-	FORCEINLINE TArray<UPlatformSettings*> GetAllPlatformSettings() const
+	FORCEINLINE TArray<TObjectPtr<UPlatformSettings>> GetAllPlatformSettings() const
 	{
 		return GetAllPlatformSettings(TPlatformSettingsClass::StaticClass());
 	}
 
-	DEVELOPERSETTINGS_API TArray<UPlatformSettings*> GetAllPlatformSettings(TSubclassOf<UPlatformSettings> SettingsClass) const;
+	DEVELOPERSETTINGS_API TArray<TObjectPtr<UPlatformSettings>> GetAllPlatformSettings(TSubclassOf<UPlatformSettings> SettingsClass) const;
 
 	template <typename TPlatformSettingsClass>
 	FORCEINLINE TPlatformSettingsClass* GetSettingsForPlatform(FName TargetIniPlatformName) const

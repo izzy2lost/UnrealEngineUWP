@@ -21,6 +21,15 @@ public:
 	void ConstructSections(UToolMenu* Menu, const FToolMenuContext& Context);
 };
 
+UENUM(BlueprintType)
+enum class EToolMenuSectionAlign : uint8
+{
+	Default,
+	First,
+	Middle,
+	Last,
+};
+
 USTRUCT(BlueprintType)
 struct TOOLMENUS_API FToolMenuSection
 {
@@ -126,6 +135,8 @@ public:
 	TAttribute<FText> Label;
 
 	FNewSectionConstructChoice Construct;
+
+	EToolMenuSectionAlign Alignment;
 
 private:
 

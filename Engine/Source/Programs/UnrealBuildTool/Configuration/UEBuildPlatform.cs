@@ -240,7 +240,7 @@ namespace UnrealBuildTool
 
 			// check DDPI to see if the platform is enabled on this host platform
 			string IniPlatformName = ConfigHierarchy.GetIniPlatformName(Platform);
-			bool bIsEnabled = false; 
+			bool bIsEnabled = false;
 			ConfigDataDrivenPlatformInfo? DDPI = DataDrivenPlatformInfo.GetDataDrivenInfoForPlatform(IniPlatformName);
 			if (DDPI != null)
 			{
@@ -256,10 +256,11 @@ namespace UnrealBuildTool
 		}
 
 		private static string[] UATProjectParams = { "-project=", "-scriptsforproject=" };
-		// Before we setup AutoSDK, we check to see if any projects need to override the Main version so that AutoSDK
-		// will set up an alternate SDK
 		private static void InitializePerPlatformSDKs(string[] Args, bool bArgumentsAreForUBT, ILogger Logger)
 		{
+			// Before we setup AutoSDK, we check to see if any projects need to override the Main version so that AutoSDK
+			// will set up an alternate SDK
+		
 			Dictionary<string, string> PlatformToVersionMap = new();
 
 			IEnumerable<FileReference?> ProjectFiles;
@@ -287,6 +288,9 @@ namespace UnrealBuildTool
 			}
 
 			UEBuildPlatformSDK.InitializePerProjectSDKVersions(ProjectFiles.OfType<FileReference>());
+
+			// clear the cache used for auto-switching to the best manually-installed SDK
+			UEBuildPlatformSDK.ClearManualSDKEnvVarCache();
 		}
 
 		/// <summary>
@@ -317,7 +321,7 @@ namespace UnrealBuildTool
 		/// <param name="Logger">Logger for output</param>
 		internal static void RegisterPlatforms(bool bIncludeNonInstalledPlatforms, bool bHostPlatformOnly, string[] ArgumentsForPerPlatform, ILogger Logger)
 		{
-			RegisterPlatforms(bIncludeNonInstalledPlatforms, bHostPlatformOnly, ArgumentsForPerPlatform, bArgumentsAreForUBT:false, Logger);
+			RegisterPlatforms(bIncludeNonInstalledPlatforms, bHostPlatformOnly, ArgumentsForPerPlatform, bArgumentsAreForUBT: false, Logger);
 		}
 
 		private static void RegisterPlatforms(bool bIncludeNonInstalledPlatforms, bool bHostPlatformOnly, string[] ArgumentsForPerPlatform, bool bArgumentsAreForUBT, ILogger Logger)
@@ -415,10 +419,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public IReadOnlySet<string> GetExcludedFolderNames()
 		{
-			if (CachedExcludedFolderNames == null)
-			{
-				CachedExcludedFolderNames = new HashSet<string>(GetPlatformFolderNames().Except(GetIncludedFolderNames()), DirectoryReference.Comparer);
-			}
+			CachedExcludedFolderNames ??= new HashSet<string>(GetPlatformFolderNames().Except(GetIncludedFolderNames()), DirectoryReference.Comparer);
 			return CachedExcludedFolderNames;
 		}
 

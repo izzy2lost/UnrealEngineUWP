@@ -346,6 +346,58 @@ TEST_CASE_METHOD(FObjectPtrTestBase, "CoreUObject::TObjectPtr::Long Path", "[Cor
 }
 #endif
 
+TEST_CASE_METHOD(FObjectPtrTestBase, "CoreUObject::TObjectPtr::Type Specialization", "[CoreUObject][ObjectPtr]")
+{
+	FSnapshotObjectRefMetrics ObjectRefMetrics(*this);
+
+	const FName TestPackageName(TEXT("/Engine/Test/ObjectPtrTypeSafety/Transient"));
+	UPackage* TestPackage = NewObject<UPackage>(nullptr, TestPackageName, RF_Transient);
+	TestPackage->AddToRoot();
+	ON_SCOPE_EXIT
+	{
+		TestPackage->RemoveFromRoot();
+	};
+
+	UObject* TestAsBaseUObject = NewObject<UObjectPtrTestClass>(TestPackage);
+	UObjectPtrTestClass* TestAsDerivedUObject = NewObject<UObjectPtrTestClass>(TestPackage);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	FObjectPtr UntypedBaseUObjectPtr(MakeUnresolvedHandle(TestAsBaseUObject));
+	FObjectPtr UntypedDerivedUObjectPtr(MakeUnresolvedHandle(TestAsDerivedUObject));
+#else
+	FObjectPtr UntypedBaseUObjectPtr(TestAsBaseUObject);
+	FObjectPtr UntypedDerivedUObjectPtr(TestAsDerivedUObject);
+#endif
+
+	TObjectPtr<UObject> TestUObjectTypePtr(UntypedBaseUObjectPtr);
+	TObjectPtr<UObjectPtrTestClass> TestUObjectSubTypePtr(UntypedDerivedUObjectPtr);
+
+	// Evaluating the UObject base pointer type multiple times should not resolve the underlying handle.
+	TEST_TRUE(TEXT("UObject base pointer types should evaluate to true"), !!TestUObjectTypePtr);
+	TEST_TRUE(TEXT("UObject base pointer types should not equate to NULL"), TestUObjectTypePtr != nullptr);
+
+	ObjectRefMetrics.TestNumResolves(TEXT("Unexpected resolve count after UObject base pointer evaluation tests"), 0);
+
+	// Evaluating the UObject subtype pointer multiple times should also not resolve the underlying handle.
+	TEST_TRUE(TEXT("UObject subtype pointers should evaluate to true"), !!TestUObjectSubTypePtr);
+	TEST_TRUE(TEXT("UObject subtype pointers should not equate to NULL"), TestUObjectSubTypePtr != nullptr);
+
+	ObjectRefMetrics.TestNumResolves(TEXT("Unexpected resolve count after UObject subtype pointer evaluation tests"), 0);
+
+	// Dereferencing the UObject base pointer type multiple times should only increment the test's overall resolve count one time (if late resolve is enabled).
+	const UObject* ResolvedUObject = TestUObjectTypePtr;
+	TEST_TRUE(TEXT("UObject base pointer types should resolve to the original object"), ResolvedUObject == TestAsBaseUObject);
+	TEST_TRUE(TEXT("UObject base pointer types should resolve to a non-NULL reference"), Cast<UObject>(TestUObjectTypePtr) != nullptr);
+
+	ObjectRefMetrics.TestNumResolves(TEXT("Unexpected resolve count after dereferencing a UObject base pointer multiple times"), UE_WITH_OBJECT_HANDLE_LATE_RESOLVE ? 1 : 0);
+
+	// Dereferencing the UObject subtype pointer multiple times should only increment the test's overall resolve count one additional time (if late resolve is enabled).
+	const UObjectPtrTestClass* ResolvedUObjectSubType = TestUObjectSubTypePtr;
+	TEST_TRUE(TEXT("UObject subtype pointers should resolve to the original object"), ResolvedUObjectSubType == TestAsDerivedUObject);
+	TEST_TRUE(TEXT("UObject subtype pointers should resolve to a non-NULL reference"), Cast<UObjectPtrTestClass>(TestUObjectSubTypePtr) != nullptr);
+
+	ObjectRefMetrics.TestNumResolves(TEXT("Unexpected resolve count after dereferencing a UObject subtype pointer multiple times"), UE_WITH_OBJECT_HANDLE_LATE_RESOLVE ? 2 : 0);
+}
+
 void ObjectPtrStressTest(int32 NumTestNodes, bool bIsContiguousTest, bool bIsEvalOnlyTest)
 {
 	const FName TestPackageName(TEXT("/Engine/Test/ObjectPtr/EvalStressTest/Transient"));

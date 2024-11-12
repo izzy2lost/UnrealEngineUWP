@@ -102,7 +102,6 @@ void SClassPickerDialog::Construct(const FArguments& InArgs)
 	if (bHasDefaultClasses)
 	{
 		SAssignNew(DefaultClassViewer, SListView < TSharedPtr<FClassPickerDefaults> >)
-			.ItemHeight(24)
 			.SelectionMode(ESelectionMode::None)
 			.ListItemsSource(&AssetDefaultClasses)
 			.OnGenerateRow(this, &SClassPickerDialog::GenerateListRow);

@@ -25,14 +25,12 @@ class GenericApplication;
 class IInstallBundleManager;
 class IPlatformChunkInstall;
 class IPlatformCompression;
+class IWrappedFileHandle;
 class IPlatformHostCommunication;
-struct FCustomChunk;
 struct FDefaultDelegateUserPolicy;
 struct FGenericCrashContext;
 struct FGenericMemoryWarningContext;
 struct FGuid;
-
-enum class ECustomChunkType : uint8;
 
 template <typename FuncType>
 class TFunction;
@@ -900,12 +898,6 @@ public:
 	static void CustomNamedStat(const ANSICHAR* Text, float Value, const ANSICHAR* Graph, const ANSICHAR* Unit) {}
 
 	/**
-	 * Profiler color stack - this overrides the color for named events with undefined colors (e.g stat namedevents)
-	 */
-	static void BeginProfilerColor(const struct FColor& Color) {}
-	static void EndProfilerColor() {}
-
-	/**
 	 * Profiler enter background events. These are for timing backgrounding. Some platforms have a timeout for this
 	 */
 	static void BeginEnterBackgroundEvent(const TCHAR* Text) {}
@@ -1416,7 +1408,10 @@ public:
 		__asm__ __volatile__("prfm pldl1keep, [%[ptr]]\n" ::[ptr] "r"(Ptr) : );
 #	endif
 #else
-#	error Unknown architecture
+		// any other architecture must implement this function so this is not called, but we can't use any convenience functions 
+		// like unimplemented() or checkf(), so just crash with a comment that if you get here, implement Prefetch and ALL Prefecth calls below
+		// this is because the Prefetch calls below will end up calling _this one_ not the platform specific functions
+		UE_FORCE_CRASH();
 #endif
 	}
 
@@ -1584,6 +1579,8 @@ public:
 		return ENetworkConnectionType::Unknown;
 	}
 
+	static void EnsureNetworkIfNecessary()	{}
+
 	/**
 	 * Returns whether the platform has variable hardware (configurable/upgradeable system).
 	 */
@@ -1633,7 +1630,7 @@ public:
 	 * Change the allowed orientation of the device. 
 	 */
 	static CORE_API void SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllowedDeviceOrientation);
-
+    
 	/**
 	 * Returns the device volume if the device is capable of returning that information.
 	 *  -1 : Unknown
@@ -1780,18 +1777,6 @@ public:
 
 	static CORE_API bool RequestDeviceCheckToken(TFunction<void(const TArray<uint8>&)> QuerySucceededFunc, TFunction<void(const FString&, const FString&)> QueryFailedFunc);
 
-	UE_DEPRECATED(5.1, "Use named chunks instead")
-	static CORE_API TArray<FCustomChunk> GetOnDemandChunksForPakchunkIndices(const TArray<int32>& PakchunkIndices);
-
-	UE_DEPRECATED(5.1, "Use IPlatformChunkInstall::GetNamedChunksByType instead")
-	static CORE_API TArray<FCustomChunk> GetAllOnDemandChunks();
-
-	UE_DEPRECATED(5.1, "Use IPlatformChunkInstall::GetNamedChunksByType instead")
-	static CORE_API TArray<FCustomChunk> GetAllLanguageChunks();
-
-	UE_DEPRECATED(5.1, "Use IPlatformChunkInstall::GetNamedChunksByType instead")
-	static CORE_API TArray<FCustomChunk> GetCustomChunksByType(ECustomChunkType DesiredChunkType);
-
 	/**
 	 * Loads a text file relative to the package root on platforms that distribute apps in package formats.
 	 * For other platforms, the path is relative to the root directory.
@@ -1909,6 +1894,8 @@ public:
 	 * Note that on some platforms can start and stop profile data collection.
 	 */
 	static CORE_API bool IsPGIActive();
+
+	static CORE_API const FString VersionCheckPlatformName();
 
 	/**
 	 * On platforms that support run-time PGI on/off, stops the current collection and writes out the file (or completes its write).

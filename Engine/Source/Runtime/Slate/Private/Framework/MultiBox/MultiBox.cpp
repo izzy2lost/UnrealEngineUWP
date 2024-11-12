@@ -31,6 +31,7 @@
 #include "Framework/Commands/UICommandDragDropOp.h"
 #include "Framework/MultiBox/SUniformToolbarPanel.h"
 #include "Styling/ToolBarStyle.h"
+#include "Misc/CoreMiscDefines.h"
 
 #define LOCTEXT_NAMESPACE "MultiBox"
 
@@ -96,8 +97,27 @@ FMultiBoxSettings::FMultiBoxSettings()
 	ResetToolTipConstructor();
 }
 
-TSharedRef< SToolTip > FMultiBoxSettings::ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action )
+TSharedRef< SToolTip > FMultiBoxSettings::ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action, bool ShowActionShortcut )
 {
+	struct Local
+	{
+		/** Appends the key binding to the end of the provided ToolTip */
+		static FText AppendKeyBindingToToolTip(const TAttribute<FText> ToolTip, TSharedPtr< const FUICommandInfo> Command)
+		{
+			if (Command.IsValid() && (Command->GetFirstValidChord()->IsValidChord()))
+			{
+				FFormatNamedArguments Args;
+				Args.Add(TEXT("ToolTipDescription"), ToolTip.Get());
+				Args.Add(TEXT("Keybinding"), Command->GetInputText());
+				return FText::Format(NSLOCTEXT("ToolBar", "ToolTip + Keybinding", "{ToolTipDescription} ({Keybinding})"), Args);
+			}
+			else
+			{
+				return ToolTip.Get();
+			}
+		}
+	};
+
 	if ( OverrideContent.IsValid() )
 	{
 		return SNew( SToolTip )
@@ -106,7 +126,13 @@ TSharedRef< SToolTip > FMultiBoxSettings::ConstructDefaultToolTip( const TAttrib
 		];
 	}
 
-	return SNew( SToolTip ).Text( ToolTipText );
+	TAttribute<FText> ActualToolTip = ToolTipText;
+	if (Action.IsValid())
+	{
+		ActualToolTip = TAttribute< FText >::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::AppendKeyBindingToToolTip, ToolTipText, Action));
+	}
+
+	return SNew( SToolTip ).Text(ActualToolTip);
 }
 
 void FMultiBoxSettings::ResetToolTipConstructor()
@@ -237,6 +263,16 @@ bool FMultiBlock::GetSearchable() const
 	return bSearchable;
 }
 
+TAttribute<EVisibility> FMultiBlock::GetVisibilityOverride() const
+{
+	return VisibilityOverride;
+}
+
+void FMultiBlock::SetVisibilityOverride(TAttribute<EVisibility> InVisibilityOverride)
+{
+	VisibilityOverride = InVisibilityOverride;
+}
+
 /**
  * Constructor
  *
@@ -252,6 +288,7 @@ FMultiBox::FMultiBox(const EMultiBoxType InType, FMultiBoxCustomization InCustom
 	, StyleName( "ToolBar" )
 	, Type( InType )
 	, bShouldCloseWindowAfterMenuSelection( bInShouldCloseWindowAfterMenuSelection )
+	, LastSelectedCommandIndex( INDEX_NONE )
 {
 
 	if ((InType == EMultiBoxType::SlimHorizontalToolBar ||  InType == EMultiBoxType::SlimHorizontalUniformToolBar) && FCoreStyle::IsStarshipStyle())
@@ -388,7 +425,7 @@ void FMultiBox::InsertCustomMultiBlock( TSharedRef<const FMultiBlock> InBlock, i
 					// Menus do not start with separators, remove separator if one exists
 					if (Blocks.Num() > 0 && Blocks[0]->IsSeparator())
 					{
-						Blocks.RemoveAt(0, 1, EAllowShrinking::No);
+						Blocks.RemoveAt(0, EAllowShrinking::No);
 					}
 
 					if (UToolMenuBase* ToolMenu = GetToolMenu())
@@ -460,6 +497,16 @@ bool FMultiBox::IsCustomizable() const
 	}
 
 	return false;
+}
+
+int32 FMultiBox::GetLastSelectedCommandIndex() const
+{
+	return LastSelectedCommandIndex;
+}
+
+void FMultiBox::SetLastSelectedCommandIndex(const int32 InLastSelectedCommandIndex)
+{
+	LastSelectedCommandIndex = InLastSelectedCommandIndex;
 }
 
 FName FMultiBox::GetCustomizationName() const
@@ -771,11 +818,8 @@ void SMultiBoxWidget::AddBlockWidget(const FMultiBlock& Block, TSharedPtr<SHoriz
 	case EMultiBoxType::ToolBar:
 	case EMultiBoxType::SlimHorizontalToolBar:
 		{
-			EHorizontalAlignment HAlign;
-			EVerticalAlignment VAlign;
-			bool bAutoWidth;
-
-			bool bOverride = Block.GetAlignmentOverrides(HAlign, VAlign, bAutoWidth);
+			FMenuEntryStyleParams StyleParams;
+			const bool bOverride = Block.GetAlignmentOverrides(StyleParams);
 
 			{
 				SHorizontalBox::FScopedWidgetSlotArguments NewSlot = HorizontalBox->AddSlot();
@@ -787,13 +831,38 @@ void SMultiBoxWidget::AddBlockWidget(const FMultiBlock& Block, TSharedPtr<SHoriz
 
 				if (bOverride)
 				{
-					if (bAutoWidth)
+					if (StyleParams.SizeRule.IsSet()
+						&& StyleParams.SizeRule.GetValue() == FSizeParam::SizeRule_Auto)
 					{
 						NewSlot.AutoWidth();
 					}
 
-					NewSlot.HAlign(HAlign)
-						.VAlign(VAlign);
+					NewSlot
+					.HAlign(StyleParams.HorizontalAlignment)
+					.VAlign(StyleParams.VerticalAlignment.Get(VAlign_Fill));
+
+					if (StyleParams.SizeRule.IsSet())
+					{
+						FSizeParam::ESizeRule SizeRule = StyleParams.SizeRule.GetValue();
+						if (SizeRule == FSizeParam::SizeRule_Stretch)
+						{
+							NewSlot.FillWidth(1.0f);
+						}
+						else if (SizeRule == FSizeParam::SizeRule_StretchContent)
+						{
+							NewSlot.FillContentWidth(1.0f);
+						}
+					}
+
+					if (StyleParams.MinSize.IsSet())
+					{
+						NewSlot.MinWidth(StyleParams.MinSize.GetValue());
+					}
+
+					if (StyleParams.MaxSize.IsSet())
+					{
+						NewSlot.MaxWidth(StyleParams.MaxSize.GetValue());
+					}
 				}
 				else
 				{
@@ -874,29 +943,36 @@ bool SMultiBoxWidget::GetSearchable() const
 /** Creates the SearchTextWidget if the MultiBox has requested one */
 void SMultiBoxWidget::CreateSearchTextWidget()
 {
-	if (!MultiBox->bHasSearchWidget)
+	if (!MultiBox->bHasSearchWidget || !bSearchable)
 	{
 		return;
 	}
 
-	const FText SearchHint = ShouldShowMenuSearchField()
-							   ? LOCTEXT("SearchHintStartTyping", "Start typing to search")
-							   : LOCTEXT("SearchHint", "Search");
-
 	SearchTextWidget =
 		SNew(SSearchBox)
-			.HintText(SearchHint)
+			.HintText(LOCTEXT("SearchHintStartTyping", "Start typing to search"))
 			.SelectAllTextWhenFocused(false)
-			.OnTextChanged(this, &SMultiBoxWidget::OnFilterTextChanged);
+			.OnTextChanged(this, &SMultiBoxWidget::OnFilterTextChanged)
+			.OnTextCommitted(this, &SMultiBoxWidget::OnFilterTextCommitted);
 
 	TSharedRef<SBox> SearchBox =
 		SNew(SBox)
 			.Padding(FMargin(8, 0, 8, 0))
+			.Visibility_Lambda(
+				[this]() -> EVisibility
+				{
+					const bool bShow = !SearchText.IsEmpty() || ShouldShowMenuSearchField();
+					return bShow ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+			)
 			[
 				SearchTextWidget.ToSharedRef()
 			];
 
-	TSharedRef<FWidgetBlock> NewWidgetBlock(new FWidgetBlock(SearchBox, FText::GetEmpty(), false));
+	FMenuEntryStyleParams StyleParams;
+	StyleParams.bNoIndent = false;
+
+	TSharedRef<FWidgetBlock> NewWidgetBlock = MakeShared<FWidgetBlock>(SearchBox, FText::GetEmpty(), FText(), StyleParams);
 	NewWidgetBlock->SetSearchable(false);
 
 	MultiBox->AddMultiBlockToFront(NewWidgetBlock);
@@ -905,27 +981,35 @@ void SMultiBoxWidget::CreateSearchTextWidget()
 /** Called when the SearchText changes */
 void SMultiBoxWidget::OnFilterTextChanged(const FText& InFilterText)
 {
+	const bool bInitialSearch = SearchText.IsEmpty();
+	// Set SearchText here, so the SBox wrapping our SearchTextWidget will be visible when we attempt to focus the
+	// SearchTextWidget. Otherwise, setting focus will fail because the parent is invisible and therefore the
+	// SearchTextWidget is too, and Slate refuses to focus invisible widgets.
+	SearchText = InFilterText;
+
 	// Activate the searchbox if it was empty and we are putting text in it for the first time.
 	// This is for IME keyboards only because they don't go through the OnKeyChar route.
-	if (bSearchable && SearchText.IsEmpty() 
-		&& !InFilterText.IsEmpty() 
+	if (bSearchable && bInitialSearch && !InFilterText.IsEmpty()
 		&& !FSlateApplication::Get().HasUserFocusedDescendants(SearchTextWidget.ToSharedRef(), 0))
 	{
 		if (SearchTextWidget.IsValid() && SearchBlockWidget.IsValid())
 		{
-			// We only have to do this if we're not always showing the search widget.
-			if (!ShouldShowMenuSearchField())
-			{
-				// Make the search box visible and focused
-				SearchBlockWidget->SetVisibility(EVisibility::Visible);
-			}
+			// Make the search box visible and focused.
+			SearchBlockWidget->SetVisibility(EVisibility::Visible);
 			FSlateApplication::Get().SetUserFocus(0, SearchTextWidget);
 		}
 	}
 
-	SearchText = InFilterText;
-
 	FilterMultiBoxEntries();
+}
+
+void SMultiBoxWidget::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type CommitType)
+{
+	if (CommitType == ETextCommit::Type::OnCleared)
+	{
+		SearchText = InFilterText;
+		FilterMultiBoxEntries();
+	}
 }
 
 /**
@@ -1002,6 +1086,10 @@ void SMultiBoxWidget::BuildMultiBoxWidget()
 			MainWidget = VerticalBox = ClippedVerticalBox = SNew(SClippingVerticalBox)
 				.OnWrapButtonClicked(FOnGetContent::CreateSP(this, &SMultiBoxWidget::OnWrapButtonClicked))
 				.IsFocusable(MultiBox->bIsFocusable)
+				.SelectedIndex_Lambda( [this] ()
+				{
+					return MultiBox->GetLastSelectedCommandIndex();
+				})
 				.StyleSet(StyleSet)
 				.StyleName(StyleName);
 		}
@@ -1655,12 +1743,8 @@ void SMultiBoxWidget::BeginSearch(const TCHAR InChar)
 
 		if (SearchTextWidget.IsValid() && SearchBlockWidget.IsValid())
 		{
-			// We only have to do this if we're not always showing the search widget.
-			if (!ShouldShowMenuSearchField())
-			{
-				// Make the search box visible and focused
-				SearchBlockWidget->SetVisibility(EVisibility::Visible);
-			}
+			// Make the search box visible and focused.
+			SearchBlockWidget->SetVisibility(EVisibility::Visible);
 			FSlateApplication::Get().SetUserFocus(0, SearchTextWidget);
 
 			SearchTextWidget->SetText(FText::FromString(NewSearchText));
@@ -1809,15 +1893,6 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 			It.Key()->SetVisibility(EVisibility::Visible);
 		}
 
-		// We only have to do this if we're not always showing the search widget.
-		if (!ShouldShowMenuSearchField())
-		{
-			if (SearchBlockWidget.IsValid())
-			{
-				SearchBlockWidget->SetVisibility(EVisibility::Collapsed);
-			}
-		}
-
 		// Hide the sub-menus widgets that were made visible by searching this multi-box hierarchy.
 		for (TPair<TSharedPtr<const FMultiBlock>, TSharedPtr<FFlattenSearchableBlockInfo>>& Pair: FlattenSearchableBlocks)
 		{
@@ -1840,12 +1915,9 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 		const TSharedPtr<SWidget>& Widget = It.Key();
 
 		// Skip the search widget itself when scanning for searchable items.
-		if (ShouldShowMenuSearchField())
+		if (Widget == SearchBlockWidget)
 		{
-			if (Widget == SearchBlockWidget)
-			{
-				continue;
-			}
+			continue;
 		}
 
 		// Non-labeled elements should not be visible when searching
@@ -1889,16 +1961,6 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 			{
 				Widget->SetVisibility(WidgetVisibility);
 			}
-		}
-	}
-
-	// If we always show the search widget, we're skipping it in the code above and do not need to show it here to compensate.
-	if (!ShouldShowMenuSearchField())
-	{
-		// Show the search widget again, it was hidden by the above code.
-		if (SearchBlockWidget.IsValid())
-		{
-			SearchBlockWidget->SetVisibility(EVisibility::Visible);
 		}
 	}
 }

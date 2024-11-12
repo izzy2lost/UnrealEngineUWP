@@ -9,6 +9,8 @@
 #include "RivermaxMediaSource.h"
 #include "RivermaxTypes.h"
 
+struct FGuid;
+
 namespace UE::RivermaxMediaUtils::Private
 {
 	struct FSourceBufferDesc
@@ -26,3 +28,24 @@ namespace UE::RivermaxMediaUtils::Private
 	FSourceBufferDesc GetBufferDescription(const FIntPoint& Resolution, ERivermaxMediaSourcePixelFormat InPixelFormat);
 
 }
+
+// Custom version to keep track of and restore depricated properties.
+struct RIVERMAXMEDIA_API FRivermaxMediaVersion
+{
+	enum Type
+	{
+		BeforeCustomVersionAdded = 0,
+
+		// Add new versions above this comment.
+		VersionPlusOne,
+		LatestVersion = VersionPlusOne - 1
+
+
+	};
+
+	// Rivermax Guild
+	const static FGuid GUID;
+
+private:
+	FRivermaxMediaVersion() {}
+};

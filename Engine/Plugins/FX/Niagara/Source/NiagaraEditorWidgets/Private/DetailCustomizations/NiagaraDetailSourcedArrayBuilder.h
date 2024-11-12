@@ -21,7 +21,7 @@ public:
 	virtual void GenerateHeaderRowContent(FDetailWidgetRow& NodeRow) override;
 	virtual void GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder) override;
 	
-	void SetSourceArray(TArray<TSharedPtr<FName>>& InOptionsSource);
+	void SetSourceArray(const TArray<TSharedPtr<FName>>& InOptionsSource);
 
 private: 
 	void OnGenerateEntry(TSharedRef<IPropertyHandle> ElementProperty, int32 ElementIndex, IDetailChildrenBuilder& ChildrenBuilder);

@@ -2,7 +2,7 @@
 
 #include "MVVMViewModelBase.h"
 #include "Blueprint/BlueprintExceptionInfo.h"
-#include "ViewModel/MVVMViewModelBlueprintGeneratedClass.h"
+#include "Engine/BlueprintGeneratedClass.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMViewModelBase)
 

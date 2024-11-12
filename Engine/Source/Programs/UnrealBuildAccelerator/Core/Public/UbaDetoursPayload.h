@@ -9,7 +9,7 @@ namespace uba
 {
 	struct __declspec(uuid("{a1041c70-bf7c-4e94-8f8b-bacf0f31ba9a}")) DetoursPayload
 	{
-		Guid processGuid = {};
+		u32 processId = 0;
 		HANDLE hostProcess = 0;
 		HANDLE cancelEvent = 0;
 		HANDLE writeEvent = 0;
@@ -23,6 +23,10 @@ namespace uba
 		bool useCustomAllocator = true;
 		bool isRunningWine = false;
 		bool isChild = false;
+		bool allowKeepFilesInMemory = IsWindows;
+		bool allowOutputFiles = IsWindows;
+		bool suppressLogging = false;
+		bool storeObjFilesCompressed = false;
 		int uiLanguage = 0;
 		StringBuffer<256> logFile;
 	};

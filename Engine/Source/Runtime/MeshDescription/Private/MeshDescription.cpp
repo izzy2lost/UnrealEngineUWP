@@ -13,7 +13,6 @@
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/NameAsStringProxyArchive.h"
 #include "UObject/EnterpriseObjectVersion.h"
-#include "UObject/UE5CookerObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshDescription)
@@ -1322,8 +1321,8 @@ void FMeshDescription::FindPolygonPerimeter(const FPolygonID PolygonID, TArrayVi
 			if (EdgeIndex != INDEX_NONE)
 			{
 				// If adding an edge which already exists, it must be an internal edge, so remove it again.
-				PerimeterEdges.RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
-				TriIndices.RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
+				PerimeterEdges.RemoveAtSwap(EdgeIndex, EAllowShrinking::No);
+				TriIndices.RemoveAtSwap(EdgeIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1419,8 +1418,8 @@ void FMeshDescription::FindPolygonPerimeter(TArrayView<const FTriangleID> Triang
 			if (PerimeterIndex != INDEX_NONE)
 			{
 				// If adding an edge which already exists, it must be an internal edge, so remove it again.
-				PerimeterEdges.RemoveAtSwap(PerimeterIndex, 1, EAllowShrinking::No);
-				Indices.RemoveAtSwap(PerimeterIndex, 1, EAllowShrinking::No);
+				PerimeterEdges.RemoveAtSwap(PerimeterIndex, EAllowShrinking::No);
+				Indices.RemoveAtSwap(PerimeterIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1550,6 +1549,32 @@ void FMeshDescription::RemovePolygonTriangles(const FPolygonID PolygonID)
 		EdgeToTriangles.RemoveKey(EdgeID);
 	}
 }
+
+
+void FMeshDescription::SplitPolygon(FPolygonID OriginalPolygonID)
+{
+	TArrayView<const FTriangleID> TriangleIDs = PolygonToTriangles.Find<FTriangleID>(OriginalPolygonID);
+	if (TriangleIDs.Num() == 1)
+	{
+		return;
+	}
+
+	const FPolygonGroupID PolygonGroupID = PolygonPolygonGroups[OriginalPolygonID];
+	TArray<FTriangleID, TInlineAllocator<64>> TriangleIDsCopy(TriangleIDs);
+
+	for (int32 TriangleIndex = 1; TriangleIndex < TriangleIDsCopy.Num(); TriangleIndex++)
+	{
+		FPolygonID NewPolygonID = PolygonElements->Get().Add();
+		PolygonPolygonGroups[NewPolygonID] = PolygonGroupID;
+		PolygonGroupToPolygons.AddReferenceToKey(PolygonGroupID, NewPolygonID);
+
+		FTriangleID TriangleID = TriangleIDsCopy[TriangleIndex];
+		PolygonToTriangles.RemoveReferenceFromKey(OriginalPolygonID, TriangleID);
+		TrianglePolygons[TriangleID] = NewPolygonID;
+		PolygonToTriangles.AddReferenceToKey(NewPolygonID, TriangleID);
+	}
+}
+
 
 void FMeshDescription::CreatePolygonTriangles(const FPolygonID PolygonID, TArrayView<const FVertexInstanceID> VertexInstanceIDs)
 {

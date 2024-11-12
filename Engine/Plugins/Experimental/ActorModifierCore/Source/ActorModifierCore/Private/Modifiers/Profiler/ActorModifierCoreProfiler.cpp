@@ -33,9 +33,9 @@ void FActorModifierCoreProfiler::SetupProfilingStats()
 void FActorModifierCoreProfiler::BeginProfiling()
 {
 	{
-		TRACE_BOOKMARK(*(TEXT("BeginProfiling_") + GetProfilerTag()))
-		TRACE_BEGIN_REGION(*GetProfilerTag())
+		TRACE_BOOKMARK(TEXT("BeginProfiling_%s"), *GetProfilerTag())
 		TRACE_OBJECT(GetModifier())
+		TRACE_BEGIN_REGION(*GetProfilerTag())
 	}
 
 	ExecutionTimeStart = FPlatformTime::Cycles64();
@@ -75,7 +75,7 @@ void FActorModifierCoreProfiler::EndProfiling()
 			<< EndExecutionEvent.ExecutionCount(ExecutionCount)
 			<< EndExecutionEvent.FrameCountDelta(FrameCountDelta)
 			<< EndExecutionEvent.FrameRateDelta(FrameRateDelta);
-		TRACE_BOOKMARK(*(TEXT("EndProfiling_") + GetProfilerTag()))
+		TRACE_BOOKMARK(TEXT("EndProfiling_%s"), *GetProfilerTag())
 	}
 }
 

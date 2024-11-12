@@ -18,6 +18,8 @@
 #include "MVVM/Extensions/IObjectBindingExtension.h"
 #include "MVVM/Extensions/ISnappableExtension.h"
 #include "MVVM/Extensions/IBindingLifetimeExtension.h"
+#include "MVVM/Extensions/IConditionableExtension.h"
+#include "MVVM/Extensions/ITimeDomainExtension.h"
 
 #include "MVVM/ViewModels/SequencerOutlinerViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
@@ -59,6 +61,7 @@ UE_SEQUENCER_DEFINE_CASTABLE(FTrackRowModel);
 
 // Interface types
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ITrackExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(IConditionableExtension);
 
 // View model types
 UE_SEQUENCER_DEFINE_CASTABLE(FSequencerEditorViewModel);
@@ -77,8 +80,10 @@ UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FTrackRowModelStorageExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ICurveEditorTreeItemExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(IObjectBindingExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ISnappableExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ITimeDomainExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(IBindingLifetimeExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FOutlinerCacheExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FConditionStateCacheExtension);
 
 } // namespace Sequencer
 } // namespace UE

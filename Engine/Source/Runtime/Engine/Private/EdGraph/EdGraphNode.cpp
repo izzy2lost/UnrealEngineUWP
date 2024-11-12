@@ -10,6 +10,7 @@
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "Textures/SlateIcon.h"
 #include "EngineLogs.h"
+#include "HAL/IConsoleManager.h"
 #if WITH_EDITOR
 #include "CookerSettings.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -23,6 +24,12 @@
 #endif
 
 #define LOCTEXT_NAMESPACE "EdGraph"
+
+static int32 GEdGraphStripNodeComment = 0;
+static FAutoConsoleVariableRef CVarEdGraphStripNodeComment(
+	TEXT("cook.StripGraphNodeComments"),
+	GEdGraphStripNodeComment,
+	TEXT("1 = Strip graph node comments on cook. 0 = off"));
 
 FEdGraphTerminalType FEdGraphTerminalType::FromPinType(const FEdGraphPinType& PinType)
 {
@@ -206,7 +213,19 @@ void UEdGraphNode::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FBlueprintsObjectVersion::GUID);
 #endif
 
+	FString StrippedNodeComment;
+	if (GEdGraphStripNodeComment && Ar.IsCooking())
+	{
+		StrippedNodeComment = NodeComment;
+		NodeComment = FString();
+	}
+
 	Super::Serialize(Ar);
+
+	if (StrippedNodeComment.Len() > 0)
+	{
+		NodeComment = StrippedNodeComment;
+	}
 
 #if WITH_EDITOR
 	if (Ar.IsLoading())
@@ -306,22 +325,46 @@ void UEdGraphNode::DiffProperties(UStruct* StructA, UStruct* StructB, uint8* Dat
 			continue;
 		}
 
+		auto ShouldSkipProperty = [](const FProperty& Prop)
+			{
+				return !Prop.HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible) ||
+					Prop.HasAnyPropertyFlags(CPF_Transient) ||
+					Prop.HasAnyPropertyFlags(CPF_DisableEditOnInstance) ||
+					Prop.IsA(FDelegateProperty::StaticClass()) ||
+					Prop.IsA(FMulticastDelegateProperty::StaticClass());
+			};
+
 		// skip properties we cant see
-		if (!Prop->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible) ||
-			Prop->HasAnyPropertyFlags(CPF_Transient) ||
-			Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance) ||
-			Prop->IsA(FDelegateProperty::StaticClass()) ||
-			Prop->IsA(FMulticastDelegateProperty::StaticClass()))
+		if (ShouldSkipProperty(*Prop))
 		{
 			continue;
 		}
 
-		if (!DiffUtils::Identical(FResolvedProperty(DataA, Prop), FResolvedProperty(DataB, PropB), StructA, StructB))
+		DiffUtils::FDiffParameters ComparisonParameters;
+		ComparisonParameters.ShouldIgnorePropertyPredicate = ShouldSkipProperty;
+		TArray<FPropertySoftPath> DifferingSubProperties;
+
+		if (!DiffUtils::Identical(FResolvedProperty(DataA, Prop), FResolvedProperty(DataB, PropB), StructA, StructB, ComparisonParameters, DifferingSubProperties))
 		{
 			// Only bother setting up the display data if we're storing the result
 			if (Results.CanStoreResults())
 			{
-				Diff.DisplayString = FText::Format(LOCTEXT("DIF_NodePropertyFmt", "Property Changed: {0} "), FText::FromString(Prop->GetName()));
+				FStringBuilderBase StringBuilder;
+				for (int DifferingIndex = 0; DifferingIndex < DifferingSubProperties.Num(); DifferingIndex++)
+				{
+					StringBuilder += DifferingSubProperties[DifferingIndex].ToDisplayName();
+				}
+
+				if (StringBuilder.Len() > 0)
+				{
+					Diff.DisplayString = FText::Format(LOCTEXT("DIF_NodePropertyWithSubPropertiesFmt", "Property Changed: {0} - {1}"),
+						FText::FromString(Prop->GetName()),
+						FText::FromString(StringBuilder.ToString()));
+				}
+				else
+				{
+					Diff.DisplayString = FText::Format(LOCTEXT("DIF_NodePropertyFmt", "Property Changed: {0}"), FText::FromString(Prop->GetName()));
+				}
 			}
 			Results.Add(Diff);
 		}
@@ -431,7 +474,7 @@ bool UEdGraphNode::RemovePin(UEdGraphPin* Pin)
 	return false;
 }
 
-void UEdGraphNode::BreakAllNodeLinks()
+void UEdGraphNode::BreakAllNodeLinks(bool bAlwaysMarkDirty)
 {
 	TSet<UEdGraphNode*> NodeList;
 
@@ -451,7 +494,8 @@ void UEdGraphNode::BreakAllNodeLinks()
 				}
 			}
 
-			Pin->BreakAllPinLinks();
+			constexpr bool bNotifyNodes = false;
+			Pin->BreakAllPinLinks(bNotifyNodes, bAlwaysMarkDirty);
 		}
 	}
 
@@ -657,7 +701,7 @@ void UEdGraphNode::PostLoad()
 	{
 		for (UEdGraphPin_Deprecated* LegacyPin : DeprecatedPins)
 		{
-			LegacyPin->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders|REN_NonTransactional);
+			LegacyPin->Rename(nullptr, GetTransientPackage(), REN_AllowPackageLinkerMismatch | REN_NonTransactional);
 			LegacyPin->SetFlags(RF_Transient);
 			LegacyPin->MarkAsGarbage();
 		}

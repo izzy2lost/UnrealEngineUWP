@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if UE_WITH_STORE_KIT
+
 #include "Interfaces/OnlineStoreInterfaceV2.h"
 #include "RetainedObjCInstance.h"
 
@@ -108,3 +110,4 @@ private:
 };
 
 typedef TSharedPtr<FOnlineStoreIOS, ESPMode::ThreadSafe> FOnlineStoreIOSPtr;
+#endif // UE_WITH_STORE_KIT

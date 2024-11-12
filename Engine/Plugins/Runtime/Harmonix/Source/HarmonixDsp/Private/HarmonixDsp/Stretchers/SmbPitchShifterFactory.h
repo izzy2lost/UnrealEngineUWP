@@ -32,5 +32,5 @@ private:
 
 	float FactorySampleRate = 0;
 
-	TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe> CreateStretcherAndPitchShifter(float InSampleRate);
+	static TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe> CreateStretcherAndPitchShifter(float InSampleRate);
 };

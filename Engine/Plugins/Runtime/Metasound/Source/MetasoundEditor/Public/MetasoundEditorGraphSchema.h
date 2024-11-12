@@ -50,6 +50,15 @@ namespace Metasound
 			FOutputFilterFunction OutputFilterFunction;
 		};
 	} // namespace Editor
+
+	namespace SchemaUtils
+	{
+		UEdGraphNode* PromoteToInput(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D InLocation, bool bSelectNewNode);
+		UEdGraphNode* PromoteToOutput(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D InLocation, bool bSelectNewNode);
+		UEdGraphNode* PromoteToVariable(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D InLocation, bool bSelectNewNode);
+		UEdGraphNode* PromoteToDeferredVariable(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D InLocation, bool bSelectNewNode);
+		UEdGraphNode* PromoteToMutatorVariable(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D InLocation, bool bSelectNewNode);
+	} // namespace SchemaUtils
 } // namespace Metasound
 
 
@@ -82,7 +91,7 @@ struct METASOUNDEDITOR_API FMetasoundGraphSchemaAction : public FEdGraphSchemaAc
 
 	virtual const FLinearColor& GetIconColor() const
 	{
-		static const FLinearColor DefaultColor;
+		static const FLinearColor DefaultColor = FLinearColor::Black;
 		return DefaultColor;
 	}
 };
@@ -376,6 +385,23 @@ struct METASOUNDEDITOR_API FMetasoundGraphSchemaAction_NewFromSelected : public 
 	{}
 
 	virtual ~FMetasoundGraphSchemaAction_NewFromSelected() = default;
+
+	//~ Begin FEdGraphSchemaAction Interface
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
+	//~ End FEdGraphSchemaAction Interface
+};
+
+/** Action to create new Audio Analyzer node */
+USTRUCT()
+struct METASOUNDEDITOR_API FMetasoundGraphSchemaAction_NewAudioAnalyzer : public FMetasoundGraphSchemaAction
+{
+	GENERATED_USTRUCT_BODY();
+
+	FMetasoundGraphSchemaAction_NewAudioAnalyzer();
+
+	//~ Begin FMetasoundGraphSchemaAction Interface
+	virtual const FLinearColor& GetIconColor() const override;
+	//~ End FMetasoundGraphSchemaAction Interface
 
 	//~ Begin FEdGraphSchemaAction Interface
 	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;

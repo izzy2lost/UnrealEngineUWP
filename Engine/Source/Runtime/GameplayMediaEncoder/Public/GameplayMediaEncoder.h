@@ -169,6 +169,8 @@ private:
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TMap<TSharedPtr<AVEncoder::FVideoEncoderInputFrame>, FTextureRHIRef> BackBuffers;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	bool bIsInDestructor = false;
 };
 
 

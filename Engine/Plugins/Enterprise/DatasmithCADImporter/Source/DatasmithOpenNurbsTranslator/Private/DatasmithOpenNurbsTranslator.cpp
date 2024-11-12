@@ -643,21 +643,6 @@ public:
 		{
 			TranslationCache = MakeShared<FTranslationCache>();
 		}
-
-		CADLibrary::FImportParameters ImportParameters(FDatasmithUtils::EModelCoordSystem::ZUp_RightHanded_FBXLegacy);
-
-		if (CADLibrary::FImportParameters::bGDisableCADKernelTessellation)
-		{
-			TSharedRef<FOpenNurbsBRepToTechSoftConverter> OpenNurbsBRepToTechSoftConverter = MakeShared<FOpenNurbsBRepToTechSoftConverter>(ImportParameters);
-			CADModelConverter = OpenNurbsBRepToTechSoftConverter;
-			OpenNurbsBRepConverter = OpenNurbsBRepToTechSoftConverter;
-		}
-		else
-		{
-			TSharedRef<FOpenNurbsBRepToCADKernelConverter> OpenNurbsBRepToCADKernelConverter = MakeShared<FOpenNurbsBRepToCADKernelConverter>(ImportParameters);
-			CADModelConverter = OpenNurbsBRepToCADKernelConverter;
-			OpenNurbsBRepConverter = OpenNurbsBRepToCADKernelConverter;
-		}
 	}
 
 	~FOpenNurbsTranslatorImpl()
@@ -3228,6 +3213,21 @@ void FOpenNurbsTranslatorImpl::SetOpenNurbsOptions(const FDatasmithOpenNurbsOpti
 	OpenNurbsOptions = Options;
 	OpenNurbsOptionsHash = OpenNurbsOptions.GetHash();
 
+	const CADLibrary::FImportParameters ImportParameters(FDatasmithUtils::EModelCoordSystem::ZUp_RightHanded_FBXLegacy);
+
+	if (CADLibrary::FImportParameters::bGDisableCADKernelTessellation)
+	{
+		TSharedRef<FOpenNurbsBRepToTechSoftConverter> OpenNurbsBRepToTechSoftConverter = MakeShared<FOpenNurbsBRepToTechSoftConverter>(ImportParameters);
+		CADModelConverter = OpenNurbsBRepToTechSoftConverter;
+		OpenNurbsBRepConverter = OpenNurbsBRepToTechSoftConverter;
+	}
+	else
+	{
+		TSharedRef<FOpenNurbsBRepToCADKernelConverter> OpenNurbsBRepToCADKernelConverter = MakeShared<FOpenNurbsBRepToCADKernelConverter>(ImportParameters, Options);
+		CADModelConverter = OpenNurbsBRepToCADKernelConverter;
+		OpenNurbsBRepConverter = OpenNurbsBRepToCADKernelConverter;
+	}
+
 	for (FOpenNurbsTranslatorImpl* ChildTranslator : ChildTranslators)
 	{
 		ChildTranslator->SetOpenNurbsOptions(OpenNurbsOptions);
@@ -3341,6 +3341,7 @@ void FDatasmithOpenNurbsTranslator::SetSceneImportOptions(const TArray<TObjectPt
 		else if (UDatasmithOpenNurbsImportOptions* OpenNurbsOptionsObj = Cast<UDatasmithOpenNurbsImportOptions>(Option))
 		{
 			OpenNurbsOptions = OpenNurbsOptionsObj->Options;
+			OpenNurbsOptionsObj->SaveConfig(CPF_Config);
 		}
 	}
 

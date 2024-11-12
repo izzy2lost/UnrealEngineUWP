@@ -4,6 +4,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Jupiter.Controllers;
@@ -13,15 +14,15 @@ namespace Jupiter.Implementation
 {
 	public class CacheContentIdStore : RelayStore, IContentIdStore
 	{
-		
+
 		public CacheContentIdStore(IOptionsMonitor<UpstreamRelaySettings> settings, IHttpClientFactory httpClientFactory, IServiceCredentials serviceCredentials) : base(settings, httpClientFactory, serviceCredentials)
 		{
 		}
 
-		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId, CancellationToken cancellationToken)
 		{
 			using HttpRequestMessage getContentIdRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/content-id/{ns}/{contentId}", UriKind.Relative));
-			HttpResponseMessage response = await HttpClient.SendAsync(getContentIdRequest);
+			HttpResponseMessage response = await HttpClient.SendAsync(getContentIdRequest, cancellationToken);
 
 			if (response.StatusCode == HttpStatusCode.NotFound)
 			{
@@ -29,7 +30,7 @@ namespace Jupiter.Implementation
 			}
 
 			response.EnsureSuccessStatusCode();
-			ResolvedContentIdResponse? resolvedContentId = await response.Content.ReadFromJsonAsync<ResolvedContentIdResponse>();
+			ResolvedContentIdResponse? resolvedContentId = await response.Content.ReadFromJsonAsync<ResolvedContentIdResponse>(cancellationToken);
 
 			if (resolvedContentId == null)
 			{
@@ -38,10 +39,10 @@ namespace Jupiter.Implementation
 			return resolvedContentId.Blobs;
 		}
 
-		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight, CancellationToken cancellationToken)
 		{
 			using HttpRequestMessage putContentIdRequest = await BuildHttpRequestAsync(HttpMethod.Put, new Uri($"api/v1/content-id/{ns}/{contentId}/update/{blobIdentifier}/{contentWeight}", UriKind.Relative));
-			HttpResponseMessage response = await HttpClient.SendAsync(putContentIdRequest);
+			HttpResponseMessage response = await HttpClient.SendAsync(putContentIdRequest, cancellationToken);
 
 			response.EnsureSuccessStatusCode();
 		}

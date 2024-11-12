@@ -15,6 +15,7 @@ NiagaraDrawIndirect.h: Niagara shader to generate the draw indirect args for Nia
 #define NIAGARA_DRAW_INDIRECT_ARGS_GEN_THREAD_COUNT 64
 #define NIAGARA_DRAW_INDIRECT_ARGS_SIZE 5
 #define NIAGARA_DRAW_INDIRECT_TASK_INFO_SIZE 5
+#define NIAGARA_INIT_INSTANCE_COUNT_TASK_INFO_SIZE 2
 
 // #define NIAGARA_COPY_BUFFER_THREAD_COUNT 64
 // #define NIAGARA_COPY_BUFFER_BUFFER_COUNT 3
@@ -92,6 +93,26 @@ class FNiagaraDrawIndirectResetCountsCS : public FGlobalShader
 {
 	DECLARE_EXPORTED_GLOBAL_SHADER(FNiagaraDrawIndirectResetCountsCS, NIAGARAVERTEXFACTORIES_API);
 	SHADER_USE_PARAMETER_STRUCT(FNiagaraDrawIndirectResetCountsCS, FGlobalShader);
+
+public:
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, NIAGARAVERTEXFACTORIES_API)
+		SHADER_PARAMETER_SRV(Buffer<uint>,		TaskInfos)
+		SHADER_PARAMETER_UAV(RWBuffer<uint>,	RWInstanceCounts)
+		SHADER_PARAMETER(FUintVector4,			TaskCount)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+};
+
+/**
+ * Compute shader used to initialize instance count entries to specific values. Used if the platform doesn't support RW texture buffers
+ */
+class FNiagaraInstanceCountsInitCS : public FGlobalShader
+{
+	DECLARE_EXPORTED_GLOBAL_SHADER(FNiagaraInstanceCountsInitCS, NIAGARAVERTEXFACTORIES_API);
+	SHADER_USE_PARAMETER_STRUCT(FNiagaraInstanceCountsInitCS, FGlobalShader);
 
 public:
 	using FPermutationDomain = TShaderPermutationDomain<>;

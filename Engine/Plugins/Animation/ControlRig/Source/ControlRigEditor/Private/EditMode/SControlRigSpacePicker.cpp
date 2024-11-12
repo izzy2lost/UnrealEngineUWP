@@ -88,10 +88,12 @@ void SControlRigSpacePicker::Construct(const FArguments& InArgs, FControlRigEdit
 						.AllowDelete(true)
 						.AllowReorder(true)
 						.AllowAdd(false)
-						.ShowBakeButton(true)
+						.ShowBakeAndCompensateButton(true)
 						.GetControlCustomization(this, &SControlRigSpacePicker::HandleGetControlElementCustomization)
 						.OnActiveSpaceChanged(this, &SControlRigSpacePicker::HandleActiveSpaceChanged)
 						.OnSpaceListChanged(this, &SControlRigSpacePicker::HandleSpaceListChanged)
+						.OnCompensateKeyButtonClicked(this, &SControlRigSpacePicker::OnCompensateKeyClicked)
+						.OnCompensateAllButtonClicked(this, &SControlRigSpacePicker::OnCompensateAllClicked)
 						.OnBakeButtonClicked(this, &SControlRigSpacePicker::OnBakeControlsToNewSpaceButtonClicked)
 						// todo: implement GetAdditionalSpacesDelegate to pull spaces from sequencer
 					]
@@ -108,7 +110,7 @@ SControlRigSpacePicker::~SControlRigSpacePicker()
 	//base class handles control rig related cleanup
 }
 
-UControlRig* SControlRigSpacePicker::GetControlRig()
+UControlRig* SControlRigSpacePicker::GetControlRig() const
 {
 	TArray<UControlRig*> ControlRigs = GetControlRigs();
 	for(UControlRig* ControlRig: ControlRigs)
@@ -234,25 +236,88 @@ FReply SControlRigSpacePicker::HandleAddSpaceClicked()
 	return SpacePickerWidget->HandleAddElementClicked();
 }
 
-FReply SControlRigSpacePicker::OnBakeControlsToNewSpaceButtonClicked()
+bool SControlRigSpacePicker::ReadyForBakeOrCompensation() const
 {
 	if (SpacePickerWidget->GetHierarchy() == nullptr)
 	{
-		return FReply::Unhandled();
+		return false;
 	}
 	if (SpacePickerWidget->GetControls().Num() == 0)
 	{
-		return FReply::Unhandled();
+		return false;
 	}
 	if (!GetControlRig())
 	{
-		return FReply::Unhandled();
+		return false;
 	}
 	ISequencer* Sequencer = GetSequencer();
 	if (Sequencer == nullptr || Sequencer->GetFocusedMovieSceneSequence() == nullptr || Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene() == nullptr)
 	{
+		return false;
+	}
+	return true;
+}
+
+FReply SControlRigSpacePicker::OnCompensateKeyClicked()
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
 		return FReply::Unhandled();
 	}
+	ISequencer* Sequencer = GetSequencer();
+	const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
+	const FFrameTime FrameTime = Sequencer->GetLocalTime().ConvertTo(TickResolution);
+	const TOptional<FFrameNumber> OptionalKeyTime = FrameTime.GetFrame();
+	const bool bSetPreviousKey = true;
+	Compensate(OptionalKeyTime, bSetPreviousKey);
+	return FReply::Handled();
+}
+
+FReply SControlRigSpacePicker::OnCompensateAllClicked()
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
+		return FReply::Unhandled();
+	}
+	const TOptional<FFrameNumber> OptionalKeyTime;
+	ISequencer* Sequencer = GetSequencer();
+	const bool bSetPreviousKey = true;
+	Compensate(OptionalKeyTime, bSetPreviousKey);
+	return FReply::Handled();
+}
+
+
+
+void SControlRigSpacePicker::Compensate(TOptional<FFrameNumber> OptionalKeyTime, bool bSetPreviousTick)
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
+		return;
+	}
+	ISequencer* Sequencer = GetSequencer();
+	UControlRig* ControlRig = GetControlRig(); //!!!!! THIS SHOULD SUPPORT MULTIPLE!
+
+	if (ControlRig && SpacePickerWidget->GetHierarchy() == ControlRig->GetHierarchy())
+	{
+		// compensate spaces
+		if (UMovieSceneControlRigParameterSection* CRSection = FControlRigSpaceChannelHelpers::GetControlRigSection(Sequencer, ControlRig))
+		{
+			// compensate spaces
+			FControlRigSpaceChannelHelpers::CompensateIfNeeded(
+				ControlRig, Sequencer, CRSection,
+				OptionalKeyTime, bSetPreviousTick);
+		}
+	}
+}
+
+FReply SControlRigSpacePicker::OnBakeControlsToNewSpaceButtonClicked()
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
+		return FReply::Unhandled();
+	}
+
+	ISequencer* Sequencer = GetSequencer();
 	UControlRig* ControlRig = GetControlRig();
 
 	FRigSpacePickerBakeSettings Settings;

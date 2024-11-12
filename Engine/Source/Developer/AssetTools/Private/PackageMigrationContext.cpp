@@ -157,13 +157,13 @@ FPackageMigrationContext::FScopedTemporalyMovedPackage::FScopedTemporalyMovedPac
 	: PackageToMove(InPackageToMove)
 	, OriginalName(PackageToMove->GetName())
 {
-	const ERenameFlags PkgRenameFlags = REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
+	const ERenameFlags PkgRenameFlags = REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
 	check(PackageToMove->Rename(*MakeUniqueObjectName(nullptr, UPackage::StaticClass(), *FString::Printf(TEXT("%s_MOVEDFORMIGRATION"), *PackageToMove->GetName())).ToString(), nullptr, PkgRenameFlags));
 }
 
 FPackageMigrationContext::FScopedTemporalyMovedPackage::~FScopedTemporalyMovedPackage()
 {
-	const ERenameFlags PkgRenameFlags = REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
+	const ERenameFlags PkgRenameFlags = REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses;
 	check(PackageToMove->Rename(*OriginalName, nullptr, PkgRenameFlags));
 }
 

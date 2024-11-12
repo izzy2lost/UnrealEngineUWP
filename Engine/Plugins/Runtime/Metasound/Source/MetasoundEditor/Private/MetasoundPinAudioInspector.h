@@ -33,9 +33,8 @@ namespace Metasound
 			UEdGraphPin* GraphPinObj = nullptr;
 
 			TSharedPtr<AudioWidgets::FAudioOscilloscope> Oscilloscope = nullptr;
-			Audio::FPatchInput PatchInput;
-			
 			TSharedPtr<SMetasoundPinAudioInspector> PinAudioInspectorWidget = nullptr;
+			FGuid AnalyzerInstanceID;
 		};
 	} // namespace Editor
 } // namespace Metasound

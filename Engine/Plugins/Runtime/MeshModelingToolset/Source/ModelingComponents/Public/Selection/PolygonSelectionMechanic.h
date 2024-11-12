@@ -44,6 +44,34 @@ public:
 		TFunction<FDynamicMeshAABBTree3* ()> GetSpatialSourceFunc
 	);
 
+	/*
+	 * Expands selection at the borders.
+	 * 
+	 * @param bAsTriangleTopology Can be set true if the topology type is FTriangleGroupTopology, to
+	 *  perform the operation a bit more efficiently by using the mesh topology directly.
+	 */
+	void GrowSelection(bool bAsTriangleTopology);
+	/*
+	 * Shrinks selection at the borders.
+	 * 
+	 * @param bAsTriangleTopology Can be set true if the topology type is FTriangleGroupTopology, to
+	 *  perform the operation a bit more efficiently by using the mesh topology directly.
+	 */
+	void ShrinkSelection(bool bAsTriangleTopology);
+
+	/**
+	 * Converts selection to a vertex/corner selection of just the boundary vertices/corners
+	 * 
+	 * @param bAsTriangleTopology Can be set true if the topology type is FTriangleGroupTopology, to
+	 *  perform the operation a bit more efficiently by using the mesh topology directly.
+	 */
+	void ConvertSelectionToBorderVertices(bool bAsTriangleTopology);
+	
+	/**
+	 * Expands selection to encompass connected components.
+	 */
+	void FloodSelection();
+
 	// UMeshTopologySelectionMechanic
 	virtual bool UpdateHighlight(const FRay& WorldRay) override;
 	virtual bool UpdateSelection(const FRay& WorldRay, FVector3d& LocalHitPositionOut, FVector3d& LocalHitNormalOut) override;
@@ -75,4 +103,7 @@ private:
 	// TODO: Would be nice to get rid of this and write everything in terms of TopologySelector and TopologyProvider
 	const FGroupTopology* Topology;
 
+	// Helper to execute selection actions through existing geometry selection code.
+	bool ExecuteActionThroughGeometrySelection(bool bAsTriangleTopology, const FText& TransactionName,
+		TFunctionRef<bool(UE::Geometry::FGeometrySelection& SelectionToModifyInPlace)> SelectionProcessor);
 };

@@ -7,6 +7,12 @@
 #include "RHICommandList.h"
 #include "RenderGraphUtils.h"
 
+/**
+ * Returns true if Nanite primitives are to be skipped in Light Primitive Interactions (LPI) and the primitive acceleration structure (octree).
+ */
+bool ShouldSkipNaniteLPIs(EShaderPlatform ShaderPlatform);
+
+
 class FTileTexCoordVertexBuffer : public FVertexBuffer
 {
 public:
@@ -77,7 +83,7 @@ void AddBufferLockReadbackPass(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPoole
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("BufferLockReadbackPass"),
 		ERDGPassFlags::None,
-		[ReadbackProcessingLambdaType=MoveTemp(ReadbackProcessingLambda), SourceBufferRHI, NumBytes](FRHICommandListImmediate& RHICmdList)
+		[ReadbackProcessingLambdaType=MoveTemp(ReadbackProcessingLambda), SourceBufferRHI, NumBytes](FRHICommandList& RHICmdList)
 	{
 		const void *GPUData = (uint32*)RHICmdList.LockBuffer(SourceBufferRHI, 0, NumBytes, RLM_ReadOnly);
 		ReadbackProcessingLambdaType(GPUData);
@@ -362,3 +368,30 @@ using TPersistentByteAddressBuffer = UE::RendererPrivateUtils::Implementation::T
 
 template <typename InValueType, int32 InNumValuesPerScatter = 1>
 using TByteAddressBufferScatterUploader = UE::RendererPrivateUtils::Implementation::TBufferScatterUploader<InValueType, UE::RendererPrivateUtils::Implementation::FByteAddressBufferTraits, InNumValuesPerScatter>;
+
+/**
+ * Clear indirect args for GPU-side building, initializes the XYZ dimensions of the dispatch arg to DimClearValue and everything else in the strided range to zero. 
+ * Can clear one or more args (NumIndirectArgs). 
+ * IndirectArgStride gives the size (in uints) of each argument, this may be larger than the required size. E.g., to make space for an atomic counter.
+ */
+void AddClearIndirectDispatchArgsPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGBufferRef IndirectArgsRDG, const FIntVector3 &DimClearValue, uint32 NumIndirectArgs, uint32 IndirectArgStride);
+
+/**
+ * Clear indirect for 1D kernel launch, sets YZ grid dimensions to 1.
+ */
+inline void AddClearIndirectDispatchArgs1DPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGBufferRef IndirectArgsRDG, uint32 NumIndirectArgs, uint32 IndirectArgStride)
+{
+	AddClearIndirectDispatchArgsPass(GraphBuilder, FeatureLevel, IndirectArgsRDG, FIntVector3(0,1,1), NumIndirectArgs, IndirectArgStride);
+}
+/**
+ * Create an indirect args buffer and clear it using AddClearIndirectDispatchArgsPass.
+ */
+FRDGBufferRef CreateAndClearIndirectDispatchArgs(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name, const FIntVector3 &DimClearValue, uint32 NumIndirectArgs, uint32 IndirectArgStride);
+
+/**
+ * Create and initialize a singular indirect args buffer with size derived from FRHIDispatchIndirectParameters.
+ */
+inline FRDGBufferRef CreateAndClearIndirectDispatchArgs1D(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name)
+{
+	return CreateAndClearIndirectDispatchArgs(GraphBuilder, FeatureLevel, Name, FIntVector3(0,1,1), 1u, sizeof(FRHIDispatchIndirectParameters) / 4u);
+}

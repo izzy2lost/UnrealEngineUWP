@@ -37,6 +37,13 @@ void UGeometryCache::PostInitProperties()
 	Super::PostInitProperties();
 }
 
+void UGeometryCache::PreSave(FObjectPreSaveContext SaveContext)
+{
+	OnPreSave.ExecuteIfBound(this);
+
+	Super::PreSave(SaveContext);
+}
+
 void UGeometryCache::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FAnimPhysObjectVersion::GUID);
@@ -138,6 +145,8 @@ void UGeometryCache::BeginDestroy()
 
 void UGeometryCache::ClearForReimporting()
 {
+	Materials.Reset();
+	MaterialSlotNames.Reset();
 	Tracks.Empty();
 
 	// Flush the resource release commands to the rendering thread to ensure that the edit change doesn't occur while a resource is still allocated

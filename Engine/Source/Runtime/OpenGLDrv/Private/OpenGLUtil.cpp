@@ -4,7 +4,7 @@
 	OpenGLUtil.h: OpenGL RHI utility implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
+#include "OpenGLUtil.h"
 #include "Stats/Stats.h"
 #include "OpenGLDrv.h"
 #include "OpenGLDrvPrivate.h"
@@ -149,21 +149,3 @@ void OpenGLBufferStats::UpdateBufferStats(const FRHIBufferDesc& BufferDesc, bool
 	UE::RHICore::UpdateGlobalBufferStats(BufferDesc, BufferDesc.Size, bAllocating);
 }
 
-// Run passed function on whichever thread owns the render context.
-void RunOnGLRenderContextThread(TUniqueFunction<void(void)> GLFunc, bool bWaitForCompletion)
-{
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
-	{
-		GLFunc();
-	}
-	else
-	{
-		ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)(MoveTemp(GLFunc));
-		if (bWaitForCompletion)
-		{
-			RHITHREAD_GLTRACE_BLOCKING;
-			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-		}
-	}
-}

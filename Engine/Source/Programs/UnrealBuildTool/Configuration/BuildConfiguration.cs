@@ -65,7 +65,7 @@ namespace UnrealBuildTool
 			get => bAllowUBAExecutor || _bAllowUBALocalExecutorPrivate;
 			set => _bAllowUBALocalExecutorPrivate = value;
 		}
-		private bool _bAllowUBALocalExecutorPrivate = false;
+		private bool _bAllowUBALocalExecutorPrivate = true;
 
 		/// <summary>
 		/// Whether XGE may be used if available, default is true.

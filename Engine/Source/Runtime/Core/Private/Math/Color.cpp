@@ -10,6 +10,9 @@
 #include "Math/Float16Color.h"
 #include "Math/RandomStream.h"
 
+#include "ColorManagement/ColorSpace.h"
+#include "HAL/IConsoleManager.h"
+
 // Common colors.
 const FLinearColor FLinearColor::White(1.f,1.f,1.f);
 const FLinearColor FLinearColor::Gray(0.5f,0.5f,0.5f);
@@ -294,6 +297,15 @@ FLinearColor FLinearColor::Desaturate( float Desaturation ) const
 	return FMath::Lerp( *this, FLinearColor( Lum, Lum, Lum, 0 ), Desaturation );
 }
 
+/** Computes the perceptually weighted luminance value of a color. */
+float FLinearColor::GetLuminance() const
+{
+	static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+	static const FLinearColor LuminanceFactors = CVar->GetInt() != 0 ? FLinearColor(0.3f, 0.59f, 0.11f) : UE::Color::FColorSpace::GetWorking().GetLuminanceFactors();
+
+	return R * LuminanceFactors.R + G * LuminanceFactors.G + B * LuminanceFactors.B;
+}
+
 FColor FColor::FromHex( const FString& HexString )
 {
 	int32 StartIndex = (!HexString.IsEmpty() && HexString[0] == TCHAR('#')) ? 1 : 0;
@@ -481,8 +493,13 @@ FLinearColor FLinearColor::LerpUsingHSV( const FLinearColor& From, const FLinear
 */
 FLinearColor FLinearColor::MakeRandomColor()
 {
-	const uint8 Hue = (uint8)(FMath::FRand()*255.f);
-	return FLinearColor::MakeFromHSV8(Hue, 255, 255);
+	// step hue around the ring, with a step relatively prime to 256
+	// this ensures that many calls in a row of this function produce very different values
+	static std::atomic<uint32> s_hue(0);
+	uint32 Hue = s_hue.fetch_add(157,std::memory_order_relaxed);
+	// 157 and 181 are both good steps
+
+	return FLinearColor::MakeFromHSV8((uint8)Hue, 255, 255);
 }
 
 FColor FColor::MakeRandomColor()

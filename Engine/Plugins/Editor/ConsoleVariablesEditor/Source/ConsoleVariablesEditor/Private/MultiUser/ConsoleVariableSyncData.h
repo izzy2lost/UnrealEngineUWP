@@ -17,7 +17,7 @@ class UConcertCVarSynchronization : public UObject
 public:
 	GENERATED_BODY()
 
-	UPROPERTY(config,EditAnywhere,BlueprintReadWrite,Category="Multi-user",DisplayName="Multi-user Console Variables Synchronization")
+	UPROPERTY(config,EditAnywhere,BlueprintReadWrite,Category="Multi-User",DisplayName="Multi-User Console Variables Synchronization")
 	bool bSyncCVarTransactions = true;
 };
 

@@ -145,6 +145,66 @@ void UGeometryScriptLibrary_VectorMathFunctions::VectorNormalizeInPlace(FGeometr
 	}
 }
 
+void UGeometryScriptLibrary_VectorMathFunctions::VectorTransformInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FTransform Transform, bool bAsPosition)
+{
+	if (!VectorList.List.IsValid())
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("VectorTransformInPlace: VectorList is empty"));
+		return;
+	}
+	if (bAsPosition)
+	{
+		for (FVector& V : *VectorList.List)
+		{
+			V = Transform.TransformPosition(V);
+		}
+	}
+	else
+	{
+		for (FVector& V : *VectorList.List)
+		{
+			V = Transform.TransformVector(V);
+		}
+	}
+
+}
+
+void UGeometryScriptLibrary_VectorMathFunctions::VectorInverseTransformInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FTransform Transform, bool bAsPosition)
+{
+	if (!VectorList.List.IsValid())
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("VectorInverseTransformInPlace: VectorList is empty"));
+		return;
+	}
+	if (bAsPosition)
+	{
+		for (FVector& V : *VectorList.List)
+		{
+			V = Transform.InverseTransformPosition(V);
+		}
+	}
+	else
+	{
+		for (FVector& V : *VectorList.List)
+		{
+			V = Transform.InverseTransformVector(V);
+		}
+	}
+}
+
+void UGeometryScriptLibrary_VectorMathFunctions::VectorPlaneProjectInPlace(UPARAM(ref) FGeometryScriptVectorList& VectorList, FPlane Plane)
+{
+	if (!VectorList.List.IsValid())
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("VectorPlaneProjectInPlace: VectorList is empty"));
+		return;
+	}
+	for (FVector& V : *VectorList.List)
+	{
+		V = FVector::PointPlaneProject(V, Plane);
+	}
+}
+
 
 
 FGeometryScriptVectorList UGeometryScriptLibrary_VectorMathFunctions::VectorBlend(FGeometryScriptVectorList VectorListA, FGeometryScriptVectorList VectorListB, double ConstantA, double ConstantB)

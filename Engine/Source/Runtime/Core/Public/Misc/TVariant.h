@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
 #include "TVariantMeta.h"
 #include <type_traits>
 
@@ -28,8 +29,19 @@ struct FEmptyVariantState
  * Attempting to use the value of a Get() when the underlying type is different leads to undefined behavior.
  */
 template <typename T, typename... Ts>
-class TVariant final : private UE::Core::Private::TVariantStorage<T, Ts...>
+class TVariant final
+#if UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS
+	: private UE::Core::Private::TVariantStorage<T, Ts...>
+#else
+	: private std::conditional_t<!std::is_trivially_destructible_v<T> || (!std::is_trivially_destructible_v<Ts> || ...), UE::Core::Private::TDestructibleVariantStorage<T, Ts...> , UE::Core::Private::TVariantStorage<T, Ts...>>
+#endif
 {
+#if UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS
+	using Super = UE::Core::Private::TVariantStorage<T, Ts...>;
+#else
+	using Super = std::conditional_t<!std::is_trivially_destructible_v<T> || (!std::is_trivially_destructible_v<Ts> || ...), UE::Core::Private::TDestructibleVariantStorage<T, Ts...> , UE::Core::Private::TVariantStorage<T, Ts...>>;
+#endif
+
 	static_assert(!UE::Core::Private::TTypePackContainsDuplicates<T, Ts...>::Value, "All the types used in TVariant should be unique");
 	static_assert(!UE::Core::Private::TContainsReferenceType<T, Ts...>::Value, "TVariant cannot hold reference types");
 
@@ -41,7 +53,7 @@ public:
 	TVariant()
 	{
 		static_assert(std::is_constructible_v<T>, "To default-initialize a TVariant, the first type in the parameter pack must be default constructible. Use FEmptyVariantState as the first type if none of the other types can be listed first.");
-		new(&UE::Core::Private::CastToStorage(*this).Storage) T();
+		::new((void*)&UE::Core::Private::CastToStorage(*this).Storage) T();
 		TypeIndex = 0;
 	}
 
@@ -52,21 +64,21 @@ public:
 		constexpr SIZE_T Index = UE::Core::Private::TParameterPackTypeIndex<U, T, Ts...>::Value;
 		static_assert(Index != (SIZE_T)-1, "The TVariant is not declared to hold the type being constructed");
 
-		new(&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
+		::new((void*)&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
 		TypeIndex = (uint8)Index;
 	}
 
 	/** Copy construct the variant from another variant of the same type */
 	TVariant(const TVariant& Other)
-		: TypeIndex(Other.TypeIndex)
 	{
+		TypeIndex = Other.TypeIndex;
 		UE::Core::Private::TCopyConstructorLookup<T, Ts...>::Construct(TypeIndex, &UE::Core::Private::CastToStorage(*this).Storage, &UE::Core::Private::CastToStorage(Other).Storage);
 	}
 
 	/** Move construct the variant from another variant of the same type */
 	TVariant(TVariant&& Other)
-		: TypeIndex(Other.TypeIndex)
 	{
+		TypeIndex = Other.TypeIndex;
 		UE::Core::Private::TMoveConstructorLookup<T, Ts...>::Construct(TypeIndex, &UE::Core::Private::CastToStorage(*this).Storage, &UE::Core::Private::CastToStorage(Other).Storage);
 	}
 
@@ -92,11 +104,20 @@ public:
 		return *this;
 	}
 
+#if UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS
 	/** Destruct the underlying type (if appropriate) */
 	~TVariant()
+		requires(!std::is_trivially_destructible_v<T> || (!std::is_trivially_destructible_v<Ts> || ...))
 	{
 		UE::Core::Private::TDestructorLookup<T, Ts...>::Destruct(TypeIndex, &UE::Core::Private::CastToStorage(*this).Storage);
 	}
+	~TVariant()
+		requires(std::is_trivially_destructible_v<T> && (std::is_trivially_destructible_v<Ts> && ...))
+	= default;
+#else
+	// Defer to the storage as to how to destruct the elements
+	~TVariant() = default;
+#endif
 
 	/** Determine if the variant holds the specific type */
 	template <typename U>
@@ -168,7 +189,7 @@ public:
 		static_assert(Index != (SIZE_T)-1, "The TVariant is not declared to hold the type passed to Emplace<>");
 
 		UE::Core::Private::TDestructorLookup<T, Ts...>::Destruct(TypeIndex, &UE::Core::Private::CastToStorage(*this).Storage);
-		new(&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
+		::new((void*)&UE::Core::Private::CastToStorage(*this).Storage) U(Forward<TArgs>(Args)...);
 		TypeIndex = (uint8)Index;
 	}
 
@@ -188,8 +209,12 @@ public:
 	}
 
 private:
+#if UE_TVARIANT_TRIVIAL_DESTRUCTOR_USING_CONCEPTS
 	/** Index into the template parameter pack for the type held. */
 	uint8 TypeIndex;
+#else
+	using Super::TypeIndex;
+#endif
 };
 
 /** Apply a visitor function to the list of variants */

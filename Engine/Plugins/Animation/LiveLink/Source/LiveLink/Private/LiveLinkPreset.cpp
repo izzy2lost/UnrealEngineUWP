@@ -260,6 +260,12 @@ void ULiveLinkPreset::ApplyToClientLatent(TFunction<void(bool)> CompletionCallba
 	UE_LOG(LogTemp, Verbose, TEXT("Applying preset %s (%d)"), *GetFullName(), ApplyCount++);
 }
 
+void ULiveLinkPreset::CancelLatentAction()
+{
+	ClearApplyToClientTimer();
+	ApplyToClientPollingOperation.Reset();
+}
+
 bool ULiveLinkPreset::AddToClient(const bool bRecreatePresets) const
 {
 	bool bResult = false;

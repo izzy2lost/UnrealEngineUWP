@@ -710,6 +710,11 @@ class FLandscapeComponentSceneProxy : public FPrimitiveSceneProxy, public FLands
 		FLandscapeLCI(const ULandscapeComponent* InComponent, ERHIFeatureLevel::Type FeatureLevel, bool bVFRequiresPrimitiveUniformBuffer)
 			: FLightCacheInterface()
 		{
+			if (InComponent->GetLightmapType() == ELightmapType::ForceVolumetric)
+			{
+				SetGlobalVolumeLightmap(true);
+			}
+
 			const FMeshMapBuildData* MapBuildData = InComponent->GetMeshMapBuildData();
 
 			if (MapBuildData)
@@ -934,7 +939,7 @@ public:
 #endif
 
 #if RHI_RAYTRACING
-	LANDSCAPE_API virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override final;
+	LANDSCAPE_API virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override final;
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
 #endif

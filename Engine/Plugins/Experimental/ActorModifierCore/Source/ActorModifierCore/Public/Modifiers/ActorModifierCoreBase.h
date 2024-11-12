@@ -65,10 +65,7 @@ public:
 	ACTORMODIFIERCORE_API AActor* GetModifiedActor() const;
 
 	/** Returns the stack this modifier is in */
-	UActorModifierCoreStack* GetModifierStack() const
-	{
-		return ModifierStack.Get();
-	}
+	ACTORMODIFIERCORE_API UActorModifierCoreStack* GetModifierStack() const;
 
 	/** Returns the top root stack this modifier is in */
 	ACTORMODIFIERCORE_API UActorModifierCoreStack* GetRootModifierStack() const;
@@ -240,7 +237,7 @@ protected:
 	/** Checks whether this modifier is ready to run, called before this modifier is executed */
 	virtual bool IsModifierReady() const { return true; }
 
-	/** You can do some additional lightweights checks here in case you want to dirty the modifier before the stack runs an update */
+	/** You can do additional lightweights checks here in case you want to dirty the modifier instead of waiting for an event, tick must be enabled in the metadata */
 	virtual bool IsModifierDirtyable() const { return false; }
 
 	/** Override in child classes, called before applying this modifier */
@@ -352,15 +349,14 @@ protected:
 	/** Logs modifier message if in profiling mode or forced */
 	void LogModifier(const FString& InLog, bool bInForce = false) const;
 
+	void DeferInitializeModifier();
+
 private:
 	/** Called when modifier becomes dirty */
 	ACTORMODIFIERCORE_API virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute);
 
 	/** Execute a const function on this modifier, only to read data */
 	ACTORMODIFIERCORE_API virtual bool ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const;
-
-	/** INTERNAL USE ONLY, allows tickable modifier to mark themselves dirty */
-	void TickModifier(float InDeltaTime);
 
 	/** INTERNAL USE ONLY, called by the stack only to unapply this modifier if it was applied */
 	void Unapply();
@@ -421,11 +417,7 @@ private:
 	/** Promise that executes when the modifier execution is done */
 	TSharedPtr<TPromise<bool>, ESPMode::ThreadSafe> ExecutePromise = nullptr;
 
-	UPROPERTY(DuplicateTransient, NonTransactional)
 	TWeakObjectPtr<AActor> ModifiedActor = nullptr;
-
-	UPROPERTY(NonTransactional)
-	TWeakObjectPtr<UActorModifierCoreStack> ModifierStack = nullptr;
 
 	/** Is the modifier enabled or disabled */
 	UPROPERTY(EditInstanceOnly, Setter="SetModifierEnabled", Getter="IsModifierEnabled", Category="Modifier", meta=(DisplayName="Enable Modifier"))

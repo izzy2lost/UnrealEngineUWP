@@ -77,6 +77,9 @@ public:
 	/** Checks whether or not one of the following fields can be added to the AddAction Menu. Makes sure they're unique. */
 	virtual bool CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const override;
 
+	/** Whether the behaviour support property id */
+	virtual bool SupportPropertyId() const override { return false; }
+
 	/** Returns the Step value associated with a given Action*/
 	bool GetValueForAction(const URCAction* InAction, double& OutValue);
 

@@ -12,6 +12,9 @@
 
 class FEvent;
 class FRunnableThread;
+class FMaterialShaderMap;
+class FMaterialShaderMapId;
+class FPrimitiveSceneInfo;
 
 namespace UE
 {
@@ -21,6 +24,13 @@ namespace UE
 		class FCookOnTheFlyMessage;
 	}
 }
+
+enum class EODSCMetaDataType
+{
+	Default=0, // The material hasn't been seen by ODSCManager yet
+	IsDependentOnMaterialName,
+	IsNotDependentOnMaterialName,
+};
 
 class FODSCMessageHandler : public IPlatformFile::IFileServerMessageHandler
 {
@@ -39,6 +49,8 @@ public:
 	const TArray<uint8>& GetMeshMaterialMaps() const;
 	const TArray<uint8>& GetGlobalShaderMap() const;
 	bool ReloadGlobalShaders() const;
+	ODSCRecompileCommand GetRecompileCommandType() const { return RecompileCommandType; };
+	int32 NumPayloads() const { return RequestBatch.Num(); }
 
 private:
 	/** The time when this command was issued.  This isn't serialized to the cooking server. */
@@ -129,11 +141,13 @@ public:
 		EShaderPlatform ShaderPlatform,
 		ERHIFeatureLevel::Type FeatureLevel,
 		EMaterialQualityLevel::Type QualityLevel,
-		const FString& MaterialName,
+		const FMaterial* Material,
+		const FPrimitiveSceneInfo* PrimitiveSceneInfo,
 		const FString& VertexFactoryName,
 		const FString& PipelineName,
 		const TArray<FString>& ShaderTypeNames,
-		int32 PermutationId
+		int32 PermutationId,
+		const TArray<FShaderId>& RequestShaderIds
 	);
 
 	/**
@@ -147,6 +161,24 @@ public:
 	* Wakeup the thread to process requests.
 	*/
 	void Wakeup();
+	
+	/**
+	* Wait until all added requests are processed. Must be called after Wakeup.
+	*/
+	void WaitUntilAllRequestsDone();
+
+	bool GetPendingShaderData(bool& bOutIsConnectedToODSCServer, bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const;
+
+	void ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel);
+
+	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FMaterial* Material) const;
+	const FString& GetODSCHostIP() const { return ODSCHostIP; };
+
+	void UnregisterMaterialName(const FMaterial* Material);
+	void RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps);
+	FMaterialShaderMap* FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId) const;
+
+	void RetrieveMissedMaterials(TArray<FString>& OutMaterialPaths) const;
 
 protected:
 
@@ -168,6 +200,9 @@ private:
 	 */
 	void Process();
 
+	bool ConnectToODSCHost();
+	bool CheckODSCConnection();
+
 	/**
 	 * Threaded requests that are waiting to be processed on the ODSC thread.
 	 * Added to on (any) non-ODSC thread, processed then cleared on ODSC thread.
@@ -187,19 +222,84 @@ private:
 	TQueue<FODSCMessageHandler*, EQueueMode::Spsc> CompletedThreadedRequests;
 
 	/** Lock to access the RequestHashes TMap */
+	mutable FRWLock RequestHashesRWLock;
 	FCriticalSection RequestHashCriticalSection;
 
-	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
-	TArray<FString> RequestHashes;
+	struct FODSCShaderId
+	{
+	public:
+		inline FODSCShaderId() {}
+		FODSCShaderId(const FShaderId& ShaderId);
+
+		FHashedName ShaderTypeHashedName = 0;
+		FHashedName VFTypeHashedName = 0;
+		FHashedName ShaderPipelineName = 0;
+		int32 PermutationId = 0;
+		uint32 Platform : SP_NumBits = SP_NumPlatforms;
+
+		friend inline uint32 GetTypeHash( const FODSCShaderId& Id )
+		{
+			return HashCombine(
+				GetTypeHash(Id.ShaderTypeHashedName),
+				HashCombine(GetTypeHash(Id.VFTypeHashedName),
+							HashCombine(GetTypeHash(Id.ShaderPipelineName),
+										HashCombine(GetTypeHash(Id.PermutationId), GetTypeHash(Id.Platform)))));
+		}
+
+		friend bool operator==(const FODSCShaderId& X, const FODSCShaderId& Y)
+		{
+			return X.ShaderTypeHashedName == Y.ShaderTypeHashedName
+			&& X.ShaderPipelineName == Y.ShaderPipelineName
+			&& X.VFTypeHashedName == Y.VFTypeHashedName
+			&& X.PermutationId == Y.PermutationId 
+			&& X.Platform == Y.Platform;
+		}
+
+		friend bool operator!=(const FODSCShaderId& X, const FODSCShaderId& Y)
+		{
+			return !(X == Y);
+		}
+	};
+
+
+	struct FODSCShaderMapData
+	{
+    	/** All the shadermaps owned by the material (quality level / feature level) */
+		TArray<TRefCountPtr<FMaterialShaderMap>> MaterialShaderMaps;
+    	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
+		TSet<FODSCShaderId> CurrentRequests;
+		
+		FName ActorPath;
+	};
+
+    /** Requests seen for a given material name */
+	TMap<FName, FODSCShaderMapData> RequestHashes;
+
+    /** FMaterial* -> FName cache to avoid the expensive operation of calling FMaterialResource::GetFullPath and convert it to FName */
+	TMap<UPTRINT, FName> ODSCPointerToNames; 
 
 	/** Pointer to Runnable Thread */
 	FRunnableThread* Thread = nullptr;
 
 	/** Holds an event signaling the thread to wake up. */
 	FEvent* WakeupEvent;
+	
+	/** Holds an event signaling when all the requests are processed*/
+	FEvent* AllRequestsDoneEvent;
 
-	void SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler);
+	bool SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler);
+
+	TArray<FODSCMessageHandler*> PendingRequestsMaterialAndGlobal;
+	TArray<FODSCMessageHandler*> PendingRequestsPipeline;
 
 	/** Special connection to the cooking server.  This is only used to send recompileshaders commands on. */
 	TUniquePtr<UE::Cook::ICookOnTheFlyServerConnection> CookOnTheFlyServerConnection;
+
+	FString ODSCHostIP;
+
+	std::atomic<bool> bIsConnectedToODSCServer = false;
+	std::atomic<bool> bHasPendingGlobalShaders = false;
+	std::atomic<uint32> NumPendingMaterialsRecompile = 0;
+	std::atomic<uint32> NumPendingMaterialsShaders = 0;
+	bool bHasDefaultConnection = false;
 };

@@ -9,6 +9,7 @@
 #include "LiveLinkFrameInterpolationProcessor.h"
 #include "LiveLinkFramePreProcessor.h"
 #include "LiveLinkSourceSettings.h"
+#include "LiveLinkSubjectRemapper.h"
 
 class FLiveLinkTimedDataInput;
 class ULiveLinkSubjectSettings;
@@ -60,13 +61,24 @@ public:
 	virtual FLiveLinkSubjectKey GetSubjectKey() const override { return SubjectKey; }
 	virtual TSubclassOf<ULiveLinkRole> GetRole() const override { return Role; }
 	virtual bool HasValidFrameSnapshot() const override;
-	virtual FLiveLinkStaticDataStruct& GetStaticData() override { return StaticData; }
-	virtual const FLiveLinkStaticDataStruct& GetStaticData() const override { return StaticData; }
+	virtual FLiveLinkStaticDataStruct& GetStaticData(bool bGetOverrideData=true) override;
+	virtual const FLiveLinkStaticDataStruct& GetStaticData() const override;
 	virtual TArray<FLiveLinkTime> GetFrameTimes() const override;
-	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const override { return FrameTranslators; }
+	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const override
+	{
+		FScopeLock Lock(&SettingsCriticalSection);
+		return FrameTranslators;
+	}
+	virtual const ULiveLinkSubjectRemapper::FWorkerSharedPtr GetFrameRemapper() const override
+	{
+		FScopeLock Lock(&SettingsCriticalSection);
+		return SubjectRemapper;
+	}
 	virtual bool IsRebroadcasted() const override { return bRebroadcastSubject; }
 	virtual bool HasStaticDataBeenRebroadcasted() const override { return bRebroadcastStaticDataSent; }
 	virtual void SetStaticDataAsRebroadcasted(const bool bInSent) override { bRebroadcastStaticDataSent = bInSent; }
+	virtual void PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData) override;
+
 protected:
 	virtual const FLiveLinkSubjectFrameData& GetFrameSnapshot() const override { return FrameSnapshot; }
 	//~ End ILiveLinkSubject Interface
@@ -110,6 +122,12 @@ public:
 	double GetLastPushTime() const { return LastPushTime; }
 	/** Set the last time a frame was received. */
 	void SetLastPushTime(double InLastPushTime) { LastPushTime = InLastPushTime; }
+
+	/** Validates if the incoming frame data is compatible with the static data for this subject. */
+	bool ValidateFrameData(const FLiveLinkFrameDataStruct& InFrameData);
+
+	/** Clear the override static data for this subject. */
+	void ClearOverrideStaticData_AnyThread();
 
 private:
 	int32 FindNewFrame_WorldTime(const FLiveLinkWorldTime& FrameTime) const;
@@ -158,6 +176,9 @@ protected:
 	/** List of available translator the subject can use. */
 	TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> FrameTranslators;
 
+	/** Subject remapper used to modify static and frame data for a subject. */
+	ULiveLinkSubjectRemapper::FWorkerSharedPtr SubjectRemapper;
+
 private:
 	struct FLiveLinkCachedSettings
 	{
@@ -179,6 +200,9 @@ private:
 
 	// Static data of the subject
 	FLiveLinkStaticDataStruct StaticData;
+
+	// Override static data, set by the remapper.
+	TOptional<FLiveLinkStaticDataStruct> OverrideStaticData;
 
 	// Frames added to the subject
 	TArray<FLiveLinkFrameDataStruct> FrameData;
@@ -221,10 +245,20 @@ private:
 
 	// If true, static data has been sent for this rebroadcast
 	bool bRebroadcastStaticDataSent = false;
+
+	// If true, override static data may remap when caching settings.
+	bool bNeedsStaticRemap = false;
+
+	/** Flag set to clear the override static data for a subject. */
+	std::atomic<bool> bClearOverrideStaticData = false;
 	
 	/** 
 	 * Evaluation can be done on any thread so we need to protect statistic logging 
 	 * Some stats requires more than atomic sized vars so a critical section is used to protect when necessary
 	 */
+
 	mutable FCriticalSection StatisticCriticalSection;
+
+	/** Used to protect access to translators, preprocessors and interpolation processors since they can be set and accessed in different threads. */
+	mutable FCriticalSection SettingsCriticalSection;
 };

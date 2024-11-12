@@ -71,6 +71,9 @@ namespace UE::DMX::Private
 		/** Called when the current active layout has changed */
 		void OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
 
+		/** Called when selection in the layout view of the console has changed */
+		void OnLayoutViewSelectionChanged();
+
 		/** Called when the context menu is opening */
 		TSharedPtr<SWidget> OnContextMenuOpening();
 

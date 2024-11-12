@@ -32,6 +32,8 @@ UBlueprintEditorSettings::UBlueprintEditorSettings(const FObjectInitializer& Obj
 	, bShowGraphInstructionText(true)
 	, bHideUnrelatedNodes(false)
 	, bShowShortTooltips(true)
+	, bShowFunctionParameterIcon(true)
+	, bShowFunctionLocalVariableIcon(true)
 	// Workflow Settings
 	, bEnableInputTriggerSupportWarnings(false)
 	, bSplitContextTargetSettings(true)

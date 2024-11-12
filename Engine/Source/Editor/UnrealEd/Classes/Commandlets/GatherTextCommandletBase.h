@@ -40,16 +40,24 @@ private:
 		Exclude,
 	};
 
+	/**
+	* * The algorithm used to test path matches for a fuzzy path. Defaults to FString::MatchesWildcard
+	*/
+	enum class EPathTestPolicy : uint8
+	{
+		/** Performs the path test with FString::MatchesWildcard. This is the default algorithm to use for fuzzy paths that can't be optimized with FString::StartsWith.*/
+		MatchesWildcard,
+		/** Uses FSTring::StartsWith to perform the path test against this fuzzy path. This is an optimization for fuzzy paths that only contain a single wildcard and the * wildcard only exists at the end of the fuzzy path. */
+		StartsWith
+	};
+
 	struct FFuzzyPath
 	{
-		FFuzzyPath(FString InPathFilter, const EPathType InPathType)
-			: PathFilter(MoveTemp(InPathFilter))
-			, PathType(InPathType)
-		{
-		}
+		FFuzzyPath(FString InPathFilter, const EPathType InPathType);
 
 		FString PathFilter;
 		EPathType PathType;
+		EPathTestPolicy PathTestPolicy;
 	};
 
 	TArray<FFuzzyPath> FuzzyPaths;
@@ -83,16 +91,20 @@ public:
 	static UNREALED_API const FString& GetProjectBasePath();
 
 	/**
-* Returns true if this commandlet should run during a preview run.
-* Override in child classes to conditionally skip a commandlet from being run.
-* Most commandlets that require source control, write to files etc should be skipped for preview runs
-*/
+	* Returns true if this commandlet should run during a preview run.
+	* Override in child classes to conditionally skip a commandlet from being run.
+	* Most commandlets that require source control, write to files etc should be skipped for preview runs
+	*/
 	virtual bool ShouldRunInPreview(const TArray<FString>& Switches, const TMap<FString, FString>& ParamVals) const
 	{
 		return false;
 	}
 
 protected:
+	void ResolveLocalizationPath(FString& InOutPath);
+
+	static FName GetSplitPlatformNameFromPath_Static(const FString& InPath, const TMap<FName, FString>& InSplitPlatforms);
+
 	TSharedPtr< FLocTextHelper > GatherManifestHelper;
 
 	TSharedPtr< FLocalizationSCC > SourceControlInfo;
@@ -100,12 +112,13 @@ protected:
 	/** Mapping from platform name to the path marker for that platform */
 	TMap<FName, FString> SplitPlatforms;
 
-	// Common params and switches among all text gathering commadnlets 
+	// Common params and switches among all text gathering commandlets 
 	static UNREALED_API const TCHAR* ConfigParam;
 	static UNREALED_API const TCHAR* EnableSourceControlSwitch;
 	static UNREALED_API const TCHAR* DisableSubmitSwitch;
 	static UNREALED_API const TCHAR* PreviewSwitch;
 	static UNREALED_API const TCHAR* GatherTypeParam;
+	static UNREALED_API const TCHAR* SkipNestedMacroPrepassSwitch;
 
 private:
 	UNREALED_API virtual void CreateCustomEngine(const FString& Params) override ; //Disallow other text commandlets to make their own engine.	

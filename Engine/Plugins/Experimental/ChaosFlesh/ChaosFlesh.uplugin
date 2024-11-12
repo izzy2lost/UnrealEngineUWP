@@ -12,7 +12,6 @@
     "SupportURL" : "",
     "EnabledByDefault" : false,
     "CanContainContent" : true,
-    "IsBetaVersion" : true,
 	"IsExperimentalVersion": true,
     "Installed" : false,
 	"Modules": [
@@ -33,6 +32,11 @@
 		},
 		{
 			"Name": "ChaosFleshNodes",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault"
+		},
+		{
+			"Name": "ChaosFleshDeprecatedNodes",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
 		}

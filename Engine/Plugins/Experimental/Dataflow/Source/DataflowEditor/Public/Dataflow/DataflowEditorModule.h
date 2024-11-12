@@ -15,6 +15,8 @@ class DATAFLOWEDITOR_API FDataflowEditorModule : public FBaseCharacterFXEditorMo
 {
 public:
 
+	static const FColor SurfaceColor;
+
 	/** IModuleInterface implementation */
 	virtual void StartupModule();
 	virtual void ShutdownModule();

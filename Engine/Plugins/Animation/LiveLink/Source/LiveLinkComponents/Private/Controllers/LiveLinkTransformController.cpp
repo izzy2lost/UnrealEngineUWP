@@ -20,6 +20,7 @@
 
 void FLiveLinkTransformControllerData::ApplyTransform(USceneComponent* SceneComponent, const FTransform& Transform, const FLiveLinkTransformStaticData& StaticData) const
 {
+	
 	if (SceneComponent)
 	{
 		if (bUseLocation && StaticData.bIsLocationSupported)
@@ -98,7 +99,8 @@ void ULiveLinkTransformController::Tick(float DeltaTime, const FLiveLinkSubjectF
 	{
 		if (USceneComponent* SceneComponent = Cast<USceneComponent>(GetAttachedComponent()))
 		{
-			TransformData.ApplyTransform(SceneComponent, FrameData->Transform, *StaticData);
+			CombinedTransform = OffsetTransform * FrameData->Transform;
+			TransformData.ApplyTransform(SceneComponent, CombinedTransform, *StaticData);
 		}
 	}
 }

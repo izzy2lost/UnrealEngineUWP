@@ -4,6 +4,7 @@
 D3D12Adapter.cpp:D3D12 Adapter implementation.
 =============================================================================*/
 
+#include "D3D12Adapter.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12AmdExtensions.h"
 #include "D3D12IntelExtensions.h"
@@ -11,6 +12,7 @@ D3D12Adapter.cpp:D3D12 Adapter implementation.
 #include "Misc/CommandLine.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/OutputDeviceRedirector.h"
+#include "ShaderDiagnostics.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
@@ -51,22 +53,6 @@ static FAutoConsoleVariableRef CVarAllowAsyncCompute(
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
-#if PLATFORM_WINDOWS
-
-#if UE_BUILD_SHIPPING || UE_BUILD_TEST
-static int32 GD3D12EnableGPUBreadCrumbs = 0;
-static int32 GD3D12EnableNvAftermath = 0;
-static int32 GD3D12EnableDRED = 0;
-static int32 GD3D12EnableLightweightDRED = 1;
-#else
-static int32 GD3D12EnableGPUBreadCrumbs = 1;
-static int32 GD3D12EnableNvAftermath = 1;
-static int32 GD3D12EnableDRED = 0;
-static int32 GD3D12EnableLightweightDRED = 1;
-#endif // UE_BUILD_SHIPPING || UE_BUILD_TEST
-
-#endif // PLATFORM_WINDOWS
-
 TAutoConsoleVariable<int32> GD3D12DebugCvar (
 	TEXT("r.D3D12.EnableD3DDebug"),
 	0,
@@ -93,32 +79,46 @@ bool D3D12_ShouldBreakOnD3DDebugWarnings()
 }
 
 #if PLATFORM_WINDOWS
-static FAutoConsoleVariableRef CVarD3D12EnableGPUBreadCrumbs(
-	TEXT("r.D3D12.BreadCrumbs"),
-	GD3D12EnableGPUBreadCrumbs,
-	TEXT("Enable minimal overhead GPU Breadcrumbs to track the current GPU state and logs information what operations the GPU executed last.\n"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static FAutoConsoleVariableRef CVarD3D12EnableNvAftermath(
-	TEXT("r.D3D12.NvAfterMath"),
-	GD3D12EnableNvAftermath,
-	TEXT("Enable NvAftermath to track the current GPU state and logs information what operations the GPU executed last.\n")
-	TEXT("Only works on nVidia hardware and will dump GPU crashdumps as well.\n"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+enum class ED3D12DredMode
+{
+	Disabled,
+	Lightweight,
+	Full
+};
 
-static FAutoConsoleVariableRef CVarD3D12EnableDRED(
+static TAutoConsoleVariable<int32> CVarD3D12EnableDRED(
 	TEXT("r.D3D12.DRED"),
-	GD3D12EnableDRED,
+	0,
 	TEXT("Enable DRED GPU Crash debugging mode to track the current GPU state and logs information what operations the GPU executed last.")
 	TEXT("Has GPU overhead but gives the most information on the current GPU state when it crashes or hangs.\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static FAutoConsoleVariableRef CVarD3D12EnableLightweightDRED(
+static TAutoConsoleVariable<int32> CVarD3D12EnableLightweightDRED(
 	TEXT("r.D3D12.LightweightDRED"),
-	GD3D12EnableLightweightDRED,
+	0,
 	TEXT("Enable Lightweight DRED GPU Crash debugging mode to track the current GPU state and logs information what operations the GPU executed last.")
 	TEXT("Gives the basic information on the current GPU state when it crashes or hangs on all PC hardware.\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
+ED3D12DredMode D3D12_GetDredMode()
+{
+	if (UE::RHI::ShouldEnableGPUCrashFeature(*CVarD3D12EnableDRED, TEXT("dred")))
+	{
+		return ED3D12DredMode::Full;
+	}
+	else if (UE::RHI::ShouldEnableGPUCrashFeature(*CVarD3D12EnableLightweightDRED, TEXT("lightdred")))
+	{
+		// Intel suffers a significant performance hit.
+		return IsRHIDeviceIntel()
+			 ? ED3D12DredMode::Disabled
+			 : ED3D12DredMode::Lightweight;
+	}
+	else
+	{
+		return ED3D12DredMode::Disabled;
+	}
+}
 
 bool GD3D12TrackAllAlocations = false;
 static TAutoConsoleVariable<int32> CVarD3D12TrackAllAllocations(
@@ -318,6 +318,9 @@ FD3D12Adapter::FD3D12Adapter(FD3D12AdapterDesc& DescIn)
 	, StaticRayTracingGlobalRootSignature(this)
 	, StaticRayTracingLocalRootSignature(this)
 #endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	, BindlessDescriptorAllocator(this)
+#endif
 {
 	FMemory::Memzero(&UploadHeapAllocator, sizeof(UploadHeapAllocator));
 	FMemory::Memzero(&Devices, sizeof(Devices));
@@ -343,71 +346,16 @@ FD3D12Adapter::FD3D12Adapter(FD3D12AdapterDesc& DescIn)
 	}
 }
 
-#if NV_AFTERMATH
-/** Callback function called when the GPU crashes, when Aftermath is enabled */
-static void D3D12AftermathCrashCallback(const void* InGPUCrashDump, const uint32_t InGPUCrashDumpSize, void* InUserData)
-{
-	// If we have crash dump data then dump to disc
-	if (InGPUCrashDump != nullptr)
-	{
-		// Write out crash dump to project log dir - exception handling code will take care of copying it to the correct location
-		const FString GpuMiniDumpPath = FPaths::Combine(FPaths::ProjectLogDir(), FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName);
-
-		UE_LOG(LogD3D12RHI, Error, TEXT("Aftermath: Writing Aftermath dump to: %s"), *GpuMiniDumpPath);
-
-		if (FArchive* Writer = IFileManager::Get().CreateFileWriter(*GpuMiniDumpPath))
-		{
-			Writer->Serialize((void*)InGPUCrashDump, InGPUCrashDumpSize);
-			Writer->Close();
-		}
-	}
-}
-
-void EnableNVAftermathCrashDumps(ED3D12GPUCrashDebuggingModes GPUCrashDebuggingModes)
-{
-	// GPUcrash dump handler must be attached prior to device creation
-	if (GDX12NVAfterMathModuleLoaded && EnumHasAnyFlags(GPUCrashDebuggingModes, ED3D12GPUCrashDebuggingModes::NvAftermath))
-	{
-		const HANDLE CurrentThread = ::GetCurrentThread();
-
-		const GFSDK_Aftermath_Result Result = GFSDK_Aftermath_EnableGpuCrashDumps(
-			GFSDK_Aftermath_Version_API,
-			GFSDK_Aftermath_GpuCrashDumpWatchedApiFlags_DX,
-			GFSDK_Aftermath_GpuCrashDumpFeatureFlags_Default,
-			&D3D12AftermathCrashCallback,
-			nullptr, //Shader debug callback
-			nullptr, // description callback
-			nullptr, // resolve marker callback
-			CurrentThread
-		); // user data
-
-		if (Result == GFSDK_Aftermath_Result_Success)
-		{
-			UE_LOG(LogD3D12RHI, Log, TEXT("[Aftermath] Aftermath crash dumping enabled"));
-
-			// enable core Aftermath to set the init flags
-			GDX12NVAfterMathEnabled = 1;
-		}
-		else
-		{
-			UE_LOG(LogD3D12RHI, Log, TEXT("[Aftermath] Aftermath crash dumping failed to initialize (%x)"), Result);
-
-			GDX12NVAfterMathEnabled = 0;
-		}
-	}
-}
-#endif
-
 void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 {
-	const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-
 	// -d3ddebug is always allowed on Windows, but only allowed in non-shipping builds on other platforms.
 	// -gpuvalidation is only supported on Windows.
 #if PLATFORM_WINDOWS || !UE_BUILD_SHIPPING
-	bool bWithGPUValidation = PLATFORM_WINDOWS && (FParse::Param(FCommandLine::Get(), TEXT("d3d12gpuvalidation")) || FParse::Param(FCommandLine::Get(), TEXT("gpuvalidation")));
+#if PLATFORM_WINDOWS
+	bool bWithGPUValidation =  (FParse::Param(FCommandLine::Get(), TEXT("d3d12gpuvalidation")) || FParse::Param(FCommandLine::Get(), TEXT("gpuvalidation")));
 	// If GPU validation is requested, automatically enable the debug layer.
 	bWithDebug |= bWithGPUValidation;
+#endif
 	if (bWithDebug)
 	{
 		TRefCountPtr<ID3D12Debug> DebugController;
@@ -434,18 +382,17 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	}
 
 	FGenericCrashContext::SetEngineData(TEXT("RHI.D3DDebug"), bWithDebug ? TEXT("true") : TEXT("false"));
+#if PLATFORM_WINDOWS
 	UE_LOG(LogD3D12RHI, Log, TEXT("InitD3DDevice: -D3DDebug = %s -D3D12GPUValidation = %s"), bWithDebug ? TEXT("on") : TEXT("off"), bWithGPUValidation ? TEXT("on") : TEXT("off"));
+#else
+	UE_LOG(LogD3D12RHI, Log, TEXT("InitD3DDevice: -D3DDebug = %s -D3D12GPUValidation = off"), bWithDebug ? TEXT("on") : TEXT("off"));
+#endif
 #endif
 
 #if PLATFORM_WINDOWS
 	
-    SetupGPUCrashDebuggingModesCommon();
-
 #if NV_AFTERMATH
-	if (IsRHIDeviceNVIDIA() && GDX12NVAfterMathModuleLoaded)
-	{
-		EnableNVAftermathCrashDumps(GPUCrashDebuggingModes);
-	}
+	UE::RHICore::Nvidia::Aftermath::InitializeBeforeDeviceCreation();
 #endif
 
 	// Setup DRED if requested
@@ -462,7 +409,7 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 
 			if (D3D12GetInterfaceFnPtr != nullptr)
 			{
-				if (EnumHasAnyFlags(GPUCrashDebuggingModes, ED3D12GPUCrashDebuggingModes::DRED))
+				if (D3D12_GetDredMode() == ED3D12DredMode::Full)
 				{
 					TRefCountPtr<ID3D12DeviceRemovedExtendedDataSettings> DredSettings;
 					HRESULT hr = D3D12GetInterfaceFnPtr(CLSID_D3D12DeviceRemovedExtendedData, IID_PPV_ARGS(DredSettings.GetInitReference()));
@@ -496,8 +443,7 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 					}
 #endif // __ID3D12DeviceRemovedExtendedDataSettings1_INTERFACE_DEFINED__
 				}
-
-				else if(GD3D12EnableLightweightDRED && !IsRHIDeviceIntel()) // Intel suffers a significant performance hit.
+				else if (D3D12_GetDredMode() == ED3D12DredMode::Lightweight)
 				{
 #ifdef __ID3D12DeviceRemovedExtendedDataSettings2_INTERFACE_DEFINED__
 					TRefCountPtr<ID3D12DeviceRemovedExtendedDataSettings2> DredSettings2;
@@ -554,10 +500,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 #if !PLATFORM_CPU_ARM_FAMILY && (PLATFORM_WINDOWS)
 	if (IsRHIDeviceAMD() && FD3D12DynamicRHI::GetD3DRHI()->GetAmdAgsContext())
 	{
-		auto* CVarShaderDevelopmentMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ShaderDevelopmentMode"));
 		auto* CVarDisableEngineAndAppRegistration = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DisableEngineAndAppRegistration"));
 
-		const bool bDisableEngineRegistration = (CVarShaderDevelopmentMode && CVarShaderDevelopmentMode->GetValueOnAnyThread() != 0) ||
+		const bool bDisableEngineRegistration = IsShaderDevelopmentModeEnabled() ||
 			(CVarDisableEngineAndAppRegistration && CVarDisableEngineAndAppRegistration->GetValueOnAnyThread() != 0);
 		const bool bDisableAppRegistration = bDisableEngineRegistration || !FApp::HasProjectName();
 
@@ -612,7 +557,7 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 #endif
 
 #if INTEL_EXTENSIONS
-	if (IsRHIDeviceIntel() && bAllowVendorDevice)
+	if (IsRHIDeviceIntel() && UE::RHICore::AllowVendorDevice())
 	{
 		ID3D12Device* Device = nullptr;
 		// Create the device for communication with the extension
@@ -638,7 +583,7 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	{
 #if INTEL_EXTENSIONS
 		// Enable Intel App Discovery
-		if (IsRHIDeviceIntel() && bAllowVendorDevice)
+		if (IsRHIDeviceIntel() && UE::RHICore::AllowVendorDevice())
 		{
 			EnableIntelAppDiscovery(GRHIDeviceId);
 		}
@@ -661,66 +606,7 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 
 #if NV_AFTERMATH
-	// Enable aftermath when GPU crash debugging is enabled
-	if (EnumHasAnyFlags(GPUCrashDebuggingModes, ED3D12GPUCrashDebuggingModes::NvAftermath) && GDX12NVAfterMathEnabled)
-	{
-		if (IsRHIDeviceNVIDIA() && bAllowVendorDevice)
-		{
-			static IConsoleVariable* MarkersCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging.Aftermath.Markers"));
-			static IConsoleVariable* CallstackCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging.Aftermath.Callstack"));
-			static IConsoleVariable* ResourcesCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging.Aftermath.ResourceTracking"));
-			static IConsoleVariable* TrackAllCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging.Aftermath.TrackAll"));
-
-			const bool bEnableMarkers = FParse::Param(FCommandLine::Get(), TEXT("aftermathmarkers")) || (MarkersCVar && MarkersCVar->GetInt());
-			const bool bEnableCallstack = FParse::Param(FCommandLine::Get(), TEXT("aftermathcallstack")) || (CallstackCVar && CallstackCVar->GetInt());
-			const bool bEnableResources = FParse::Param(FCommandLine::Get(), TEXT("aftermathresources")) || (ResourcesCVar && ResourcesCVar->GetInt());
-			const bool bEnableAll = FParse::Param(FCommandLine::Get(), TEXT("aftermathall")) || (TrackAllCVar && TrackAllCVar->GetInt());
-
-			uint32 Flags = GFSDK_Aftermath_FeatureFlags_Minimum;
-
-			Flags |= bEnableMarkers ? GFSDK_Aftermath_FeatureFlags_EnableMarkers : 0;
-			Flags |= bEnableCallstack ? GFSDK_Aftermath_FeatureFlags_CallStackCapturing : 0;
-			Flags |= bEnableResources ? GFSDK_Aftermath_FeatureFlags_EnableResourceTracking : 0;
-			Flags |= bEnableAll ? GFSDK_Aftermath_FeatureFlags_Maximum : 0;
-
-			// @todo - GFSDK_Aftermath_FeatureFlags_EnableShaderErrorReporting is disabled to prevent TDRs until Nvidia fixes this
-			Flags &= ~GFSDK_Aftermath_FeatureFlags_EnableShaderErrorReporting;
-
-			GFSDK_Aftermath_Result Result = GFSDK_Aftermath_DX12_Initialize(GFSDK_Aftermath_Version_API, (GFSDK_Aftermath_FeatureFlags)Flags, RootDevice);
-			if (Result == GFSDK_Aftermath_Result_Success)
-			{
-				UE_LOG(LogD3D12RHI, Log, TEXT("[Aftermath] Aftermath enabled and primed"));
-			}
-			else
-			{
-				UE_LOG(LogD3D12RHI, Log, TEXT("[Aftermath] Aftermath enabled but failed to initialize (%x)"), Result);
-				GDX12NVAfterMathEnabled = 0;
-			}
-
-			if (GDX12NVAfterMathEnabled && (bEnableMarkers || bEnableAll))
-			{
-				SetEmitDrawEvents(true);
-				GDX12NVAfterMathMarkers = 1;
-			}
-
-			GDX12NVAfterMathTrackResources = bEnableResources || bEnableAll;
-			if (GDX12NVAfterMathEnabled && GDX12NVAfterMathTrackResources)
-			{
-				UE_LOG(LogD3D12RHI, Log, TEXT("[Aftermath] Aftermath resource tracking enabled"));
-			}
-		}
-		else
-		{
-			GDX12NVAfterMathEnabled = 0;
-			UE_LOG(LogD3D12RHI, Warning, TEXT("[Aftermath] Skipping aftermath initialization on non-Nvidia device"));
-		}
-	}
-	else
-	{
-		GDX12NVAfterMathEnabled = 0;
-	}
-
-	FGenericCrashContext::SetEngineData(TEXT("RHI.Aftermath"), GDX12NVAfterMathEnabled ? TEXT("true") : TEXT("false"));
+	UE::RHICore::Nvidia::Aftermath::D3D12::InitializeDevice(RootDevice);
 #endif
 
 #if PLATFORM_WINDOWS
@@ -853,6 +739,11 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 				// This is safe to ignore
 				D3D12_MESSAGE_ID_META_COMMAND_UNSUPPORTED_PARAMS,
 
+				// D3D Agility SDK bug (version 614) where scratch allocation memory for BuildRaytracingAccelerationStructure is always computed using build size
+				// while operation is update and needs less memory (verified by MS and will be fixed in the next Agility SDK)
+				// See: UE-222685 to remove again from Deny list after Agility SDK upgrade
+				D3D12_MESSAGE_ID_HEAP_ADDRESS_RANGE_HAS_NO_RESOURCE,
+
 			};
 
 #if PLATFORM_DESKTOP
@@ -893,13 +784,29 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 		UE_LOG(LogD3D12RHI, Log, TEXT("Enabling multi-GPU with %d nodes"), Desc.NumDeviceNodes);
 	}
 #endif
+
+	if (RootDevice)
+	{
+		extern int32 GD3D12RHIStablePowerState;
+		if (GD3D12RHIStablePowerState == 2)
+		{
+			bool bWorked = SUCCEEDED(RootDevice->SetStablePowerState(true));
+			// This will fail if windows developper mode is not enabled. Windows will remove the adapter on failure, so we can't really gracefully exit here.
+			checkf(bWorked, TEXT("Enabling state power state requires Windows developer mode to be enabled."));
+		}
+	}
+}
+
+void FD3D12Adapter::SetDrawingViewport(FD3D12Viewport* InViewport)
+{
+	DrawingViewport = InViewport;
 }
 
 FD3D12TransientHeapCache& FD3D12Adapter::GetOrCreateTransientHeapCache()
 {
 	if (!TransientMemoryCache)
 	{
-		TransientMemoryCache = FD3D12TransientHeapCache::Create(this, FRHIGPUMask::All());
+		TransientMemoryCache = FD3D12TransientHeapCache::Create(this);
 	}
 
 	return static_cast<FD3D12TransientHeapCache&>(*TransientMemoryCache);
@@ -1090,10 +997,7 @@ void FD3D12Adapter::InitializeDevices()
 			D3D12_FEATURE_DATA_D3D12_OPTIONS5 D3D12Caps5 = {};
 			if (SUCCEEDED(RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &D3D12Caps5, sizeof(D3D12Caps5))))
 			{
-				static IConsoleVariable* RequireSM6CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.RequireSM6"));
-				const bool bRequireSM6 = RequireSM6CVar && RequireSM6CVar->GetBool();
-
-				const bool bRayTracingAllowedOnCurrentShaderPlatform = (bRequireSM6 == false) || (GMaxRHIShaderPlatform == SP_PCD3D_SM6);
+				const bool bRayTracingAllowedOnCurrentShaderPlatform = (GMaxRHIShaderPlatform == SP_PCD3D_SM6);
 
 				if (D3D12Caps5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0
 					&& GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_2
@@ -1117,7 +1021,7 @@ void FD3D12Adapter::InitializeDevices()
 						}
 						else
 						{
- 							UE_LOG(LogD3D12RHI, Log, TEXT("Ray tracing is disabled because SM6 shader platform is required (r.RayTracing.RequireSM6=1)."));
+ 							UE_LOG(LogD3D12RHI, Log, TEXT("Ray tracing is disabled because SM6 shader platform is required."));
 						}
 					}
 					else if (GRHIBindlessSupport == ERHIBindlessSupport::Unsupported)
@@ -1195,6 +1099,19 @@ void FD3D12Adapter::InitializeDevices()
 				{
 					UE_LOG(LogD3D12RHI, Log, TEXT("Shader Model 6.6 atomic64 is not supported"));
 				}
+
+#if D3D12_MAX_FEATURE_OPTIONS >= 21
+				D3D12_FEATURE_DATA_D3D12_OPTIONS21 D3D12Caps21 = {};
+				RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS21, &D3D12Caps21, sizeof(D3D12Caps21));
+
+#if D3D12_RHI_WORKGRAPHS
+				if (D3D12Caps21.WorkGraphsTier != D3D12_WORK_GRAPHS_TIER_NOT_SUPPORTED)
+				{
+					UE_LOG(LogD3D12RHI, Log, TEXT("Work Graphs are supported"));
+					GRHISupportsShaderWorkGraphsTier1 = true;
+				}
+#endif // D3D12_RHI_WORKGRAPHS
+#endif // D3D12_MAX_FEATURE_OPTIONS
 			}
 #endif // PLATFORM_WINDOWS
 		}
@@ -1233,6 +1150,11 @@ void FD3D12Adapter::InitializeDevices()
 #endif
 		}
 
+		if (!FPlatformMemory::SupportsFastVRAMMemory() && GSupportsEfficientAsyncCompute)
+		{
+			GRHIGlobals.SupportsAsyncComputeTransientAliasing = true;
+		}
+
 #if PLATFORM_WINDOWS
 		D3D12_FEATURE_DATA_D3D12_OPTIONS2 D3D12Caps2 = {};
 		if (FAILED(RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS2, &D3D12Caps2, sizeof(D3D12Caps2))))
@@ -1268,8 +1190,24 @@ void FD3D12Adapter::InitializeDevices()
 		// Set flag if we want to track all allocations - comes with some overhead and only possible when Tier 2 is available
 		// (because we will create placed buffers for texture allocation to retrieve the GPU virtual addresses)
 		const bool bTraceMemAlloc = UE_TRACE_CHANNELEXPR_IS_ENABLED(MemAllocChannel);
-		bTrackAllAllocation = (GD3D12TrackAllAlocations || GPUCrashDebuggingModes == ED3D12GPUCrashDebuggingModes::All || bTraceMemAlloc) && (GetResourceHeapTier() == D3D12_RESOURCE_HEAP_TIER_2);
-#endif 
+		bTrackAllAllocation = (GD3D12TrackAllAlocations || UE::RHI::UseGPUCrashDebugging() || bTraceMemAlloc) && (GetResourceHeapTier() == D3D12_RESOURCE_HEAP_TIER_2);
+#endif
+
+		ERHIBindlessConfiguration BindlessResourcesConfig = ERHIBindlessConfiguration::Disabled;
+		ERHIBindlessConfiguration BindlessSamplersConfig = ERHIBindlessConfiguration::Disabled;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		if (Desc.MaxSupportedFeatureLevel >= D3D_FEATURE_LEVEL_12_0 && Desc.MaxSupportedShaderModel >= D3D_SHADER_MODEL_6_6 && Desc.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3)
+		{
+			// Needs to happen before device creation below
+			BindlessDescriptorAllocator.Init();
+
+			BindlessResourcesConfig = BindlessDescriptorAllocator.GetResourcesConfiguration();
+			BindlessSamplersConfig = BindlessDescriptorAllocator.GetSamplersConfiguration();
+
+			GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters = (BindlessResourcesConfig == ERHIBindlessConfiguration::AllShaders || BindlessSamplersConfig == ERHIBindlessConfiguration::AllShaders);
+		}
+#endif
 
 		// Context redirectors allow RHI commands to be executed on multiple GPUs at the
 		// same time in a multi-GPU system. Redirectors have a physical mask for the GPUs
@@ -1311,48 +1249,34 @@ void FD3D12Adapter::InitializeDevices()
 		PipelineStateCache.Init(GraphicsCacheFile, ComputeCacheFile, DriverBlobFilename);
 		PipelineStateCache.RebuildFromDiskCache();
 
-		ERHIBindlessConfiguration BindlessResourcesConfig = ERHIBindlessConfiguration::Disabled;
-		ERHIBindlessConfiguration BindlessSamplersConfig = ERHIBindlessConfiguration::Disabled;
-
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-		if (Desc.MaxSupportedFeatureLevel >= D3D_FEATURE_LEVEL_12_0 && Desc.MaxSupportedShaderModel >= D3D_SHADER_MODEL_6_6 && Desc.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3)
-		{
-			BindlessResourcesConfig = RHIGetRuntimeBindlessResourcesConfiguration(GMaxRHIShaderPlatform);
-			BindlessSamplersConfig = RHIGetRuntimeBindlessSamplersConfiguration(GMaxRHIShaderPlatform);
-
-			bBindlessResourcesAllowed = (BindlessResourcesConfig != ERHIBindlessConfiguration::Disabled);
-			bBindlessSamplersAllowed = (BindlessSamplersConfig != ERHIBindlessConfiguration::Disabled);
-		}
-#endif
-
 #if USE_STATIC_ROOT_SIGNATURE
-		ED3D12RootSignatureFlags GraphicsFlags{};
+		EShaderBindingLayoutFlags GraphicsFlags{};
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-		EnumAddFlags(GraphicsFlags, ED3D12RootSignatureFlags::AllowMeshShaders);
+		EnumAddFlags(GraphicsFlags, EShaderBindingLayoutFlags::AllowMeshShaders);
 #endif
 		if (BindlessResourcesConfig == ERHIBindlessConfiguration::AllShaders)
 		{
-			EnumAddFlags(GraphicsFlags, ED3D12RootSignatureFlags::BindlessResources);
+			EnumAddFlags(GraphicsFlags, EShaderBindingLayoutFlags::BindlessResources);
 		}
 		if (BindlessSamplersConfig == ERHIBindlessConfiguration::AllShaders)
 		{
-			EnumAddFlags(GraphicsFlags, ED3D12RootSignatureFlags::BindlessSamplers);
+			EnumAddFlags(GraphicsFlags, EShaderBindingLayoutFlags::BindlessSamplers);
 		}
 
 		StaticGraphicsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags);
-		StaticGraphicsWithConstantsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags | ED3D12RootSignatureFlags::RootConstants);
+		StaticGraphicsWithConstantsRootSignature.InitStaticGraphicsRootSignature(GraphicsFlags | EShaderBindingLayoutFlags::RootConstants);
 		StaticComputeRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags);
-		StaticComputeWithConstantsRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags | ED3D12RootSignatureFlags::RootConstants);
+		StaticComputeWithConstantsRootSignature.InitStaticComputeRootSignatureDesc(GraphicsFlags | EShaderBindingLayoutFlags::RootConstants);
 
 #if D3D12_RHI_RAYTRACING
-		ED3D12RootSignatureFlags RayTracingFlags{};
+		EShaderBindingLayoutFlags RayTracingFlags{};
 		if (BindlessResourcesConfig != ERHIBindlessConfiguration::Disabled)
 		{
-			EnumAddFlags(RayTracingFlags, ED3D12RootSignatureFlags::BindlessResources);
+			EnumAddFlags(RayTracingFlags, EShaderBindingLayoutFlags::BindlessResources);
 		}
 		if (BindlessSamplersConfig != ERHIBindlessConfiguration::Disabled)
 		{
-			EnumAddFlags(RayTracingFlags, ED3D12RootSignatureFlags::BindlessSamplers);
+			EnumAddFlags(RayTracingFlags, EShaderBindingLayoutFlags::BindlessSamplers);
 		}
 
 		StaticRayTracingGlobalRootSignature.InitStaticRayTracingGlobalRootSignatureDesc(RayTracingFlags);
@@ -1408,69 +1332,6 @@ void FD3D12Adapter::CreateCommandSignatures()
 
 	checkf(DispatchIndirectGraphicsCommandSignature.IsValid(), TEXT("Indirect graphics dispatch command signature is expected to be created by platform-specific D3D12 adapter implementation."))
 	checkf(DispatchIndirectComputeCommandSignature.IsValid(), TEXT("Indirect compute dispatch command signature is expected to be created by platform-specific D3D12 adapter implementation."))
-}
-
-void FD3D12Adapter::SetupGPUCrashDebuggingModesCommon()
-{
-	// Multiple ways to enable the different D3D12 crash debugging modes:
-	// - via RHI independent r.GPUCrashDebugging cvar: by default enable low overhead breadcrumbs and NvAftermath are enabled
-	// - via 'gpucrashdebugging' command line argument: enable all possible GPU crash debug modes (minor performance impact)
-	// - via 'r.D3D12.BreadCrumbs', 'r.D3D12.AfterMath' or 'r.D3D12.Dred' each type of GPU crash debugging mode can be enabled
-	// - via '-gpubreadcrumbs(=0)', '-nvaftermath(=0)' or '-dred(=0)' command line argument: each type of gpu crash debugging mode can enabled/disabled
-	if (FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging")))
-	{
-		GPUCrashDebuggingModes = ED3D12GPUCrashDebuggingModes::All;
-	}
-	else
-	{
-		// Parse the specific GPU crash debugging cvars and enable the different modes
-		const auto ParseCVar = [this](const TCHAR* CVarName, ED3D12GPUCrashDebuggingModes DebuggingMode)
-		{
-			IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(CVarName);
-			if (ConsoleVariable && ConsoleVariable->GetInt() > 0)
-			{
-				EnumAddFlags(GPUCrashDebuggingModes, DebuggingMode);
-			}
-		};
-		ParseCVar(TEXT("r.GPUCrashDebugging"), ED3D12GPUCrashDebuggingModes((int)ED3D12GPUCrashDebuggingModes::NvAftermath | (int)ED3D12GPUCrashDebuggingModes::DRED));
-		ParseCVar(TEXT("r.D3D12.BreadCrumbs"), ED3D12GPUCrashDebuggingModes::BreadCrumbs);
-		ParseCVar(TEXT("r.D3D12.NvAfterMath"), ED3D12GPUCrashDebuggingModes::NvAftermath);
-		ParseCVar(TEXT("r.D3D12.DRED"), ED3D12GPUCrashDebuggingModes::DRED);
-
-		// Enable/disable specific crash debugging modes if requested via command line argument
-		const auto ParseCommandLine = [this](const TCHAR* CommandLineArgument, ED3D12GPUCrashDebuggingModes DebuggingMode)
-		{
-			int32 Value = 0;
-			if (FParse::Value(FCommandLine::Get(), *FString::Printf(TEXT("%s="), CommandLineArgument), Value))
-			{
-				if (Value > 0)
-				{
-					EnumAddFlags(GPUCrashDebuggingModes, DebuggingMode);
-				}
-				else
-				{
-					EnumRemoveFlags(GPUCrashDebuggingModes, DebuggingMode);
-				}
-			}
-			else  if (FParse::Param(FCommandLine::Get(), CommandLineArgument))
-			{
-				EnumAddFlags(GPUCrashDebuggingModes, DebuggingMode);
-			}
-		};
-		ParseCommandLine(TEXT("gpubreadcrumbs"), ED3D12GPUCrashDebuggingModes::BreadCrumbs);
-		ParseCommandLine(TEXT("nvaftermath"), ED3D12GPUCrashDebuggingModes::NvAftermath);
-		ParseCommandLine(TEXT("dred"), ED3D12GPUCrashDebuggingModes::DRED);
-	}
-
-	// Submit draw events when any crash debugging mode is enabled
-	if (GPUCrashDebuggingModes != ED3D12GPUCrashDebuggingModes::None)
-	{
-		SetEmitDrawEvents(true);
-	}
-
-	bool bBreadcrumbs = EnumHasAnyFlags(GPUCrashDebuggingModes, ED3D12GPUCrashDebuggingModes::BreadCrumbs);
-	FGenericCrashContext::SetEngineData(TEXT("RHI.Breadcrumbs"), bBreadcrumbs ? TEXT("true") : TEXT("false"));
-
 }
 
 void FD3D12Adapter::CleanupResources()
@@ -1645,6 +1506,13 @@ void FD3D12Adapter::EndFrame()
 		TransientMemoryCache->GarbageCollect();
 	}
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	for (uint32 GPUIndex : FRHIGPUMask::All())
+	{
+		GetDevice(GPUIndex)->GetBindlessDescriptorManager().GarbageCollect();
+	}
+#endif
+
 #if TRACK_RESOURCE_ALLOCATIONS
 	FScopeLock Lock(&TrackedAllocationDataCS); 
 
@@ -1688,73 +1556,41 @@ void FD3D12Adapter::ReleaseTransientUniformBufferAllocator(FTransientUniformBuff
 	verify(TransientUniformBufferAllocators.Remove(InAllocator) == 1);
 }
 
-void FD3D12Adapter::UpdateMemoryInfo()
+const FD3DMemoryStats& FD3D12Adapter::CollectMemoryStats()
 {
 #if PLATFORM_WINDOWS
 	const uint64 UpdateFrame = FrameFence != nullptr ? FrameFence->GetNextFenceToSignal() : 0;
 
-	// Avoid spurious query calls if we have already captured this frame.
-	if (MemoryInfo.UpdateFrameNumber == UpdateFrame)
+	// Avoid spurious query calls if we have already captured stats this frame.
+	if (MemoryStatsUpdateFrame == UpdateFrame)
 	{
-		return;
+		return MemoryStats;
+	}
+	MemoryStatsUpdateFrame = UpdateFrame;
+
+	if (FAILED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter(), MemoryStats)))
+	{
+		return MemoryStats;
 	}
 
-	// Update the frame number that the memory is captured from.
-	MemoryInfo.UpdateFrameNumber = UpdateFrame;
-
-	TRefCountPtr<IDXGIAdapter3> Adapter3;
-	VERIFYD3D12RESULT(GetAdapter()->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference())));
-
-	VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &MemoryInfo.LocalMemoryInfo));
-	VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &MemoryInfo.NonLocalMemoryInfo));
+	// Update global RHI state (for warning output, etc.)
+	GDemotedLocalMemorySize = MemoryStats.DemotedLocal;
 
 #if ENABLE_RESIDENCY_MANAGEMENT
 	// D3D12 residency manager will only evict resources when the resident set is larger than DXGI reported budget.
 	// However, the DXGI reports high budget even when multiple applications use large amounts of VRAM.
-	// This casuses VidMm to automatically page out allocations out of VRAM based on its own heuristics, which can cause significant 
+	// This causes VidMm to automatically page out allocations out of VRAM based on its own heuristics, which can cause significant 
 	// performance degradation when paged-out resources are used for rendering before VidMm pages them back in (which can take a long time).
 	// By overriding the budget to 0 and stopping rendering at the high-level, we can immediately free VRAM and avoid VidMm paging.
 	const bool bEvictResidentResources = GEnableResidencyManagement && GD3D12EvictAllResidentResourcesInBackground && !FApp::HasFocus();
-	const uint64 LocalMemoryBudgetLimit = bEvictResidentResources ? 0 : MemoryInfo.LocalMemoryInfo.Budget;
+	const uint64 LocalMemoryBudgetLimit = bEvictResidentResources ? 0 : MemoryStats.BudgetLocal;
 	for (uint32 GPUIndex : FRHIGPUMask::All())
 	{
 		GetDevice(GPUIndex)->GetResidencyManager().SetLocalMemoryBudgetLimit(LocalMemoryBudgetLimit);
 	}
 #endif // ENABLE_RESIDENCY_MANAGEMENT
-
-	// Over budget?
-	if (MemoryInfo.LocalMemoryInfo.CurrentUsage > MemoryInfo.LocalMemoryInfo.Budget)
-	{
-		MemoryInfo.AvailableLocalMemory = 0;
-		MemoryInfo.DemotedLocalMemory = MemoryInfo.LocalMemoryInfo.CurrentUsage - MemoryInfo.LocalMemoryInfo.Budget;
-	}
-	else
-	{
-		MemoryInfo.AvailableLocalMemory = MemoryInfo.LocalMemoryInfo.Budget - MemoryInfo.LocalMemoryInfo.CurrentUsage;
-		MemoryInfo.DemotedLocalMemory = 0;
-	}
-
-	// Update global RHI state (for warning output, etc.)
-	GDemotedLocalMemorySize = MemoryInfo.DemotedLocalMemory;
-
-	if (!GVirtualMGPU)
-	{
-		for (uint32 Index = 1; Index < GNumExplicitGPUsForRendering; ++Index)
-		{
-			DXGI_QUERY_VIDEO_MEMORY_INFO TempVideoMemoryInfo;
-			VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(Index, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &TempVideoMemoryInfo));
-
-			DXGI_QUERY_VIDEO_MEMORY_INFO TempSystemMemoryInfo;
-			VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(Index, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &TempSystemMemoryInfo));
-			
-			MemoryInfo.LocalMemoryInfo.Budget = FMath::Min(MemoryInfo.LocalMemoryInfo.Budget, TempVideoMemoryInfo.Budget);
-			MemoryInfo.LocalMemoryInfo.CurrentUsage = FMath::Min(MemoryInfo.LocalMemoryInfo.CurrentUsage, TempVideoMemoryInfo.CurrentUsage);
-
-			MemoryInfo.NonLocalMemoryInfo.Budget = FMath::Min(MemoryInfo.NonLocalMemoryInfo.Budget, TempSystemMemoryInfo.Budget);
-			MemoryInfo.NonLocalMemoryInfo.CurrentUsage = FMath::Min(MemoryInfo.NonLocalMemoryInfo.CurrentUsage, TempSystemMemoryInfo.CurrentUsage);
-		}
-	}
-#endif
+#endif // PLATFORM_WINDOWS
+	return MemoryStats;
 }
 
 void FD3D12Adapter::BlockUntilIdle()
@@ -2014,7 +1850,7 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 			Flags += EnumHasAnyFlags(ResourceDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) ? "|UAV" : "UAV";
 		}
 
-		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %d - Height: %d - DepthOrArraySize: %d - MipLevels: %d - Flags: %s - Resident: %s\n"), 
+		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %" UINT64_FMT " - Height: %d - DepthOrArraySize: %d - MipLevels: %d - Flags: %s - Resident: %s\n"), 
 			*AllocationData.ResourceAllocation->GetResource()->GetName().ToString(), 
 			AllocationData.AllocationSize / (1024.0f * 1024),
 			ResourceDesc.Width, ResourceDesc.Height, ResourceDesc.DepthOrArraySize, ResourceDesc.MipLevels,
@@ -2047,7 +1883,7 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 			continue;
 		}
 
-		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %d - UAV: %s - Resident: %s\n"), 
+		OutputData += FString::Printf(TEXT("\tName: %s - Size: %3.3fMB - Width: %" UINT64_FMT " - UAV: %s - Resident: %s\n"), 
 			*AllocationData.ResourceAllocation->GetResource()->GetName().ToString(), 
 			AllocationData.AllocationSize / (1024.0f * 1024),
 			ResourceDesc.Width,
@@ -2091,4 +1927,5 @@ void FD3D12Adapter::SetResidencyPriority(ID3D12Pageable* Pageable, D3D12_RESIDEN
 	}
 #endif // D3D12_RHI_RAYTRACING
 }
+
 

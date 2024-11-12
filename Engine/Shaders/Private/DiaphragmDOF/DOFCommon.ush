@@ -13,6 +13,11 @@
 #include "../CircleDOFCommon.ush"
 
 
+//------------------------------------------------------- RECOMPILE HASH
+
+#pragma message("UESHADERMETADATA_VERSION EADEBBCC-57EB-41E0-9606-DC289F55A057")
+
+
 //------------------------------------------------------- COMPILER CONFIG
 
 // Generate vector truncation warnings to errors.
@@ -23,6 +28,9 @@
 
 // Ignores race condition detection when writing to LDS.
 #pragma warning(disable: 3584)
+
+// Equality comparison with extraneous parentheses
+#pragma dxc diagnostic ignored "-Wparentheses-equality"
 
 
 //------------------------------------------------------- Readability helpers.
@@ -104,7 +112,11 @@
 #define BOKEH_LUT_SIZE 32
 
 /** Whether alpha channel should be processed or not. */
-#define CONFIG_DOF_ALPHA (POST_PROCESS_ALPHA)
+#ifdef DIM_ALPHA_CHANNEL
+	#define CONFIG_DOF_ALPHA (DIM_ALPHA_CHANNEL)
+#else
+	#define CONFIG_DOF_ALPHA 0
+#endif
 
 /** Amount of error tolerated to quick fast gathering in. */
 #define FAST_GATHERING_COC_ERROR 0.05

@@ -11,6 +11,7 @@
 #include "UObject/Package.h"
 #include "Device/FX/DeviceBuffer_FX.h"
 #include "Model/Mix/MixSettings.h"
+#include "GameDelegates.h"
 
 UTG_AsyncRenderTask::UTG_AsyncRenderTask(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -21,13 +22,15 @@ UTG_AsyncRenderTask::UTG_AsyncRenderTask(const FObjectInitializer& ObjectInitial
 UTG_AsyncRenderTask* UTG_AsyncRenderTask::TG_AsyncRenderTask( UTextureGraph* InTextureGraph)
 {
 	UTG_AsyncRenderTask* Task = NewObject<UTG_AsyncRenderTask>();
+	Task->SetFlags(RF_Standalone);
 
 	if (InTextureGraph != nullptr)
 	{
 		Task->OriginalTextureGraphPtr = InTextureGraph;
-		Task->TextureGraphPtr = (UTextureGraph*)StaticDuplicateObject(Task->OriginalTextureGraphPtr, GetTransientPackage(), NAME_None, ~RF_Standalone, UTextureGraph::StaticClass());
+		Task->TextureGraphPtr = (UTextureGraph*)StaticDuplicateObject(Task->OriginalTextureGraphPtr, GetTransientPackage(), NAME_None, RF_Standalone, UTextureGraph::StaticClass());
 		FTG_HelperFunctions::InitTargets(Task->TextureGraphPtr);
 		Task->RegisterWithTGAsyncTaskManger();
+		FWorldDelegates::OnWorldCleanup.AddUObject(Task, &UTG_AsyncRenderTask::OnWorldCleanup);
 	}
 	
 	return Task;
@@ -47,6 +50,7 @@ void UTG_AsyncRenderTask::Activate()
 
 	OutputBlobs.Empty();
 	OutputRts.Empty();
+	TextureGraphPtr->FlushInvalidations();
 
 	FTG_HelperFunctions::RenderAsync(TextureGraphPtr)
 	.then([this](bool bRenderResult) mutable
@@ -73,7 +77,14 @@ void UTG_AsyncRenderTask::Activate()
 	.then([this](bool bRtResult)
 	{
 		OnDone.Broadcast(OutputRts);
-		SetReadyToDestroy();
+		bRenderComplete = true;
+
+		UE_LOG(LogTextureGraph, Log, TEXT("UTG_AsyncRenderTask:: OnDone : bShouldDestroyOnRenderComplete %i"), bShouldDestroyOnRenderComplete ? 1 : 0);
+		if (bShouldDestroyOnRenderComplete)
+		{
+			SetReadyToDestroy();
+		}
+
 		return bRtResult;
 	});
 }
@@ -115,11 +126,35 @@ AsyncBool UTG_AsyncRenderTask::GetRenderTextures()
 	});
 }
 
+void UTG_AsyncRenderTask::OnWorldCleanup(UWorld* World, bool bSessionEnded, bool CleanupResources)
+{
+	FWorldDelegates::OnWorldCleanup.RemoveAll(this);
+	bShouldDestroyOnRenderComplete = true;
+
+	//Destroy now if rendering is already complete
+	if (bRenderComplete)
+	{
+		SetReadyToDestroy();
+	}
+
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_AsyncRenderTask:: OnWorldCleanup"));
+}
+
+void UTG_AsyncRenderTask::SetReadyToDestroy()
+{
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_AsyncRenderTask:: SetReadyToDestroy"));
+	TextureGraphPtr->FlushInvalidations();
+	ClearFlags(RF_Standalone);
+	UTG_AsyncTask::SetReadyToDestroy();
+}
+
 void UTG_AsyncRenderTask::FinishDestroy()
 {
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_AsyncRenderTask:: FinishDestroy"));
 	if (TextureGraphPtr != nullptr)
 	{
 		TextureGraphPtr->GetSettings()->FreeTargets();
+		TextureGraphPtr->ClearFlags(RF_Standalone);
 		TextureGraphPtr = nullptr;
 		OriginalTextureGraphPtr = nullptr;
 	}

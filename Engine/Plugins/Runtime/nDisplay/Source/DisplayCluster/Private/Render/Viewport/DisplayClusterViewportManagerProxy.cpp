@@ -3,6 +3,7 @@
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/DisplayClusterViewportHelpers.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
 
@@ -142,8 +143,8 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateViewportManagerProxy_GameThr
 		, ViewExtension = InViewportManager.GetViewportManagerViewExtension()
 		](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy, "nDisplay_ViewportManager_UpdateViewportManagerProxy");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateViewportManagerProxy);
 
 		ViewportManagerProxy->ViewportManagerViewExtension = ViewExtension;
 
@@ -171,8 +172,8 @@ void FDisplayClusterViewportManagerProxy::ImplUpdateViewportProxies_GameThread(c
 	ENQUEUE_RENDER_COMMAND(DisplayClusterUpdateViewports)(
 		[ProxiesData = std::move(ViewportProxiesData)](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewports, "nDisplay_ViewportManager_UpdateViewports");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateViewports);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateViewports);
 
 		// Update game on rendering thread:
 		for (FDisplayClusterViewportProxyData* ProxyDataIt : ProxiesData)
@@ -193,8 +194,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_Setup)(
 		[InViewportManagerProxy = SharedThis(this)](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_RenderFrame, "nDisplay_ViewportManager_RenderFrame");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_RenderFrame);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_RenderFrame);
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
@@ -205,8 +206,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_CrossGPUTransfer)(
 		[InViewportManagerProxy = SharedThis(this), OutputViewport = InViewport](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_CrossGPUTransfer, "nDisplay_ViewportManager_CrossGPUTransfer");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_CrossGPUTransfer);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_CrossGPUTransfer);
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
@@ -227,8 +228,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_UpdateDeferredResources)(
 		[ViewportManagerProxy = SharedThis(this)](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_UpdateDeferredResources, "nDisplay_ViewportManager_UpdateDeferredResources");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_UpdateDeferredResources);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_UpdateDeferredResources);
 
 		// Update viewports resources: vp/texture overlay, OCIO, blur, nummips, etc
 		ViewportManagerProxy->UpdateDeferredResources_RenderThread(RHICmdList);
@@ -237,8 +238,8 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 	ENQUEUE_RENDER_COMMAND(DisplayClusterRenderFrame_WarpBlend)(
 		[InViewportManagerProxy = SharedThis(this), OutputViewport = InViewport](FRHICommandListImmediate& RHICmdList)
 	{
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_ViewportManager_WarpBlend, "nDisplay_ViewportManager_WarpBlend");
 		SCOPED_GPU_STAT(RHICmdList, nDisplay_ViewportManager_WarpBlend);
-		SCOPED_DRAW_EVENT(RHICmdList, nDisplay_ViewportManager_WarpBlend);
 
 		const FDisplayClusterViewportManagerProxy* ViewportManagerProxy = &InViewportManagerProxy.Get();
 
@@ -254,7 +255,7 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 
 		if (OutputViewport)
 		{
-			if (FRHITexture2D* FrameOutputRTT = OutputViewport->GetRenderTargetTexture())
+			if (FRHITexture* FrameOutputRTT = OutputViewport->GetRenderTargetTexture())
 			{
 				// For quadbuf stereo copy only left eye, right copy from OutputFrameTarget
 				//@todo Copy QuadBuf_LeftEye/(mono,sbs,tp) to separate rtt, before UI and debug rendering
@@ -296,12 +297,12 @@ void FDisplayClusterViewportManagerProxy::UpdateDeferredResources_RenderThread(F
 
 void FDisplayClusterViewportManagerProxy::ImplClearFrameTargets_RenderThread(FRHICommandListImmediate& RHICmdList) const
 {
-	TArray<FRHITexture2D*> FrameResources;
-	TArray<FRHITexture2D*> AdditionalFrameResources;
+	TArray<FRHITexture*> FrameResources;
+	TArray<FRHITexture*> AdditionalFrameResources;
 	TArray<FIntPoint> TargetOffset;
 	if (GetFrameTargets_RenderThread(FrameResources, TargetOffset, &AdditionalFrameResources))
 	{
-		for (FRHITexture2D* FrameResourceIt : FrameResources)
+		for (FRHITexture* FrameResourceIt : FrameResources)
 		{
 			FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(RHICmdList, FrameResourceIt, FLinearColor::Black);
 		}
@@ -481,7 +482,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 			{
 				if (FRenderTarget* RenderTarget = ViewportRenderTargetResource.IsValid() ? ViewportRenderTargetResource->GetViewportResourceRenderTarget() : nullptr)
 				{
-					if (FRHITexture2D* TextureRHI = ViewportRenderTargetResource->GetViewportResourceRHI_RenderThread())
+					if (FRHITexture* TextureRHI = ViewportRenderTargetResource->GetViewportResourceRHI_RenderThread())
 					{
 						const FRHIGPUMask RenderTargetGPUMask = RenderTarget->GetGPUMask(RHICmdList);
 
@@ -511,7 +512,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 #endif // WITH_MGPU
 }
 
-bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FRHITexture2D*>& OutFrameResources, TArray<FIntPoint>& OutTargetOffsets, TArray<FRHITexture2D*>* OutAdditionalFrameResources) const
+bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FRHITexture*>& OutFrameResources, TArray<FIntPoint>& OutTargetOffsets, TArray<FRHITexture*>* OutAdditionalFrameResources) const
 {
 	check(IsInRenderingThread());
 
@@ -526,14 +527,14 @@ bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FR
 
 			for (int32 FrameIt = 0; FrameIt < Frames.Num(); FrameIt++)
 			{
-				if (FRHITexture2D* FrameTexture = Frames[FrameIt].IsValid() ? Frames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
+				if (FRHITexture* FrameTexture = Frames[FrameIt].IsValid() ? Frames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
 				{
 					OutFrameResources.Add(FrameTexture);
 					OutTargetOffsets.Add(Frames[FrameIt]->GetBackbufferFrameOffset());
 
 					if (OutAdditionalFrameResources && AdditionalFrames.IsValidIndex(FrameIt))
 					{
-						if (FRHITexture2D* AdditionalFrameTexture = AdditionalFrames[FrameIt].IsValid() ? AdditionalFrames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
+						if (FRHITexture* AdditionalFrameTexture = AdditionalFrames[FrameIt].IsValid() ? AdditionalFrames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
 						{
 							OutAdditionalFrameResources->Add(AdditionalFrameTexture);
 						}
@@ -562,41 +563,38 @@ bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FR
 	return false;
 }
 
-bool FDisplayClusterViewportManagerProxy::ResolveFrameTargetToBackBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const uint32 InContextNum, const int32 DestArrayIndex, FRHITexture2D* DestTexture, FVector2D WindowSize) const
+bool FDisplayClusterViewportManagerProxy::ResolveFrameTargetToBackBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const uint32 InContextNum, const int32 DestArrayIndex, FRHITexture* DestTexture, FVector2D WindowSize) const
 {
 	check(IsInRenderingThread());
 
-	TArray<FRHITexture2D*>   FrameResources;
+	TArray<FRHITexture*>   FrameResources;
 	TArray<FIntPoint>        TargetOffsets;
-	if (GetFrameTargets_RenderThread(FrameResources, TargetOffsets))
+	if (GetFrameTargets_RenderThread(FrameResources, TargetOffsets) && FrameResources.IsValidIndex(InContextNum))
 	{
 		// Use internal frame textures as source
-		int32 ContextNum = InContextNum;
-
-		FRHITexture2D* FrameTexture = FrameResources[ContextNum];
-		FIntPoint DstOffset = TargetOffsets[ContextNum];
-
-		if (FrameTexture)
+		if (FRHITexture* FrameTexture = FrameResources[InContextNum])
 		{
-			const FIntPoint SrcSize = FrameTexture->GetSizeXY();
-			const FIntPoint DstSize = DestTexture->GetSizeXY();;
+			FIntRect SrcRect(FIntPoint::ZeroValue, FrameTexture->GetDesc().Extent);
 
-			FIntRect DstRect(DstOffset, DstOffset + SrcSize);
+			const FIntPoint& DestOffset = TargetOffsets[InContextNum];
+			FIntRect DestRect(DestOffset, DestOffset + FrameTexture->GetDesc().Extent);
 
-			// Fit to backbuffer size
-			DstRect.Max.X = FMath::Min(DstSize.X, DstRect.Max.X);
-			DstRect.Max.Y = FMath::Min(DstSize.Y, DstRect.Max.Y);
+			// Check if resources with the specified regions can be resolved.
+			if (!FDisplayClusterViewportHelpers::GetValidResourceRectsForResolve(FrameTexture, DestTexture, SrcRect, DestRect))
+			{
+				// The SrcRect or DestRect is invalid.
+				return false;
+			}
 
 			FRHICopyTextureInfo CopyInfo;
 
 			CopyInfo.SourceSliceIndex = 0;
 			CopyInfo.DestSliceIndex = DestArrayIndex;
 
-			CopyInfo.Size.X = DstRect.Width();
-			CopyInfo.Size.Y = DstRect.Height();
+			CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
+			CopyInfo.DestPosition = FIntVector(DestRect.Min.X, DestRect.Min.Y, 0);
 
-			CopyInfo.DestPosition.X = DstRect.Min.X;
-			CopyInfo.DestPosition.Y = DstRect.Min.Y;
+			CopyInfo.Size = FIntVector(DestRect.Width(), DestRect.Height(), 0);
 
 			TransitionAndCopyTexture(RHICmdList, FrameTexture, DestTexture, CopyInfo);
 

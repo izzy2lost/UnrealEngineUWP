@@ -33,7 +33,6 @@ struct FRayTracingInstanceDebugData
 struct FRayTracingPickingFeedback
 {
 	// Hit data
-	UINT32_TYPE GeometryInstanceIndex;
 	UINT32_TYPE InstanceIndex;
 	UINT32_TYPE GeometryIndex;
 	UINT32_TYPE TriangleIndex;
@@ -49,8 +48,7 @@ struct FRayTracingPickingFeedback
 
 #ifdef __cplusplus
 	FRayTracingPickingFeedback()
-		: GeometryInstanceIndex(0xFFFFFFFF)
-		, InstanceIndex(0xFFFFFFFF)
+		: InstanceIndex(0xFFFFFFFF)
 		, GeometryAddress(0xFFFFFFFFFFFFFFFF)
 	{}
 #endif

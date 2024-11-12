@@ -5,6 +5,8 @@
 #include "AnalyticsProviderConfigurationDelegate.h"
 #include "Interfaces/IAnalyticsProvider.h"
 
+namespace UE::Tasks { class FPipe; }
+
 /**
  * Implementation of the IAnalyticsProviderET interface that exports telemetry events to a file as Newline - delimited JSON
  * By default,the log file is written to Saved/Telemetry folder of the application.
@@ -41,4 +43,5 @@ private:
 	FString									SessionID;
 	TArray<FAnalyticsEventAttribute>		DefaultEventAttributes;	
 	TUniquePtr<FArchive>					FileWriter;
+	TUniquePtr<UE::Tasks::FPipe>			WriterPipe;
 };

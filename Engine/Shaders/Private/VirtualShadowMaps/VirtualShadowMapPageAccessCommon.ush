@@ -9,28 +9,38 @@
 #include "../BitPacking.ush"
 #include "/Engine/Shared/VirtualShadowMapDefinitions.h"
 
-// Used in the PageFlags
-// NOTE: These flags are combined hierarchically using bitwise *OR*, so plan/negate them appropriately
+// NOTE: These page flags are combined hierarchically using bitwise *OR*, so plan/negate them appropriately
 // Marks pages that are allocated
-#define VSM_ALLOCATED_FLAG			(1U << 0)
+#define VSM_FLAG_ALLOCATED						(1U << 0)
 // Marks pages whose dynamic pages are uncached
-#define VSM_DYNAMIC_UNCACHED_FLAG	(1U << 1)
+#define VSM_FLAG_DYNAMIC_UNCACHED				(1U << 1)
 // Marks pages whose static pages are uncached
-#define VSM_STATIC_UNCACHED_FLAG	(1U << 2)
+#define VSM_FLAG_STATIC_UNCACHED				(1U << 2)
 // Marks pages that are _not_ coarse (i.e., "normal" pages) that should include all geometry and conversely to mark geometry that is 
 // "detail geometry" and which can skip rendering to coarse pages
-#define VSM_DETAIL_GEOMETRY_FLAG	(1U << 3)
+#define VSM_FLAG_DETAIL_GEOMETRY				(1U << 3)
 
 // Stored in the physical meta data flags and must be higher than the  VSM_*_FLAG
-// The light was marked to not be cached (even though caching is enabled)
-#define VSM_PHYSICAL_FLAG_VIEW_UNCACHED		(1U << 4) 
-#define VSM_PHYSICAL_FLAG_DIRTY				(1U << 5)
-#define VSM_PHYSICAL_FLAG_UNREFERENCED		(1U << 6)
+// These are *NOT* valid to be used with hierarchical flag lookups!
 
+// The next time this page is rendered, clear the dynamic portion and re-render
+#define VSM_EXTENDED_FLAG_INVALIDATE_DYNAMIC    (1U << 4)
+// The next time this page is rendered, clear the static portion and re-render
+#define VSM_EXTENDED_FLAG_INVALIDATE_STATIC     (1U << 5)
+// Propogated from the NaniteView for convenience; allows skipping separate static/dynamic rendering and associated merge
+#define VSM_EXTENDED_FLAG_VIEW_UNCACHED			(1U << 6)
+// Set if anything is rendered into static page (i.e. regenerate HZB and merge), or if anything is rendered into the single page for uncached pages (regenerate HZB)
+#define VSM_EXTENDED_FLAG_DIRTY					(1U << 7)
+// Set on physical pages that are unreferenced in the current render pass/frame. We can keep these alive and cached if space permits but otherwise ignore them.
+#define VSM_EXTENDED_FLAG_UNREFERENCED			(1U << 8)
+// A bit messy, but this flag forces a page to be considered cached even if an UNCACHED flag is set.
+// This is currently used so that we still consider these pages during rendering/instance cull (generally for WPO disable/enable purposes)
+// but will not actually clear, draw, or merge them this frame.
+#define VSM_EXTENDED_FLAG_FORCE_CACHED			(1U << 9)
 
-// bit-offset for storing another set of page flags used to track invalidation in the physical page metadata flags.
-#define VSM_PHYSICAL_PAGE_INVALIDATION_FLAGS_SHIFT 8U
-
+// Convenience
+#define VSM_FLAG_ANY_UNCACHED				(VSM_FLAG_DYNAMIC_UNCACHED | VSM_FLAG_STATIC_UNCACHED)
+#define VSM_EXTENDED_FLAG_ANY_INVALIDATED	(VSM_EXTENDED_FLAG_INVALIDATE_DYNAMIC | VSM_EXTENDED_FLAG_INVALIDATE_STATIC)
 
 // NOTE: Bits for the hierarchical page flags are stored in the same uints as the regular mip tail,
 // offset based on the Hmip level. For instance, at the 1x1 level the first 4 bits store the page
@@ -40,14 +50,15 @@
 #define VSM_PAGE_FLAGS_BITS_PER_HMIP (4U)
 #define VSM_PAGE_FLAGS_BITS_MASK     ((1U<<VSM_PAGE_FLAGS_BITS_PER_HMIP)-1U)
 
+
 bool IsSinglePageVirtualShadowMap(int VirtualShadowMapId)
 {
-	return VirtualShadowMapId < VSM_MAX_SINGLE_PAGE_SHADOW_MAPS;
+	return VirtualShadowMapId < int(VSM_MAX_SINGLE_PAGE_SHADOW_MAPS);
 }
 
 struct FPhysicalPageMetaData
 {
-	uint Flags;	// VSM_*_FLAG, not all relevant to physical pages + VSM_PHYSICAL_FLAG_*
+	uint Flags;	// VSM_FLAG_* (not all relevant to physical pages) and VSM_EXTENDED_FLAG_*
 	uint LastRequestedSceneFrameNumber;
 	// Link back to the virtual shadow map & page table slot that references this physical page
 	uint VirtualShadowMapId;
@@ -204,25 +215,33 @@ uint2 VSMPhysicalIndexToPageAddress(uint PageIndex)
 //   [0:9] PageAddress.x
 //   [10:19] PageAddress.y
 //   [20:25] LODOffset
-//   [26:30] (currently unused)
+//   [26:29] (currently unused)
+//   [30] bThisLODValidForRendering
 //   [31] bAnyLODValid
 struct FShadowPhysicalPage
 {
 	uint2 PhysicalAddress;	// Physical page address X, Y
 	uint LODOffset;			// 0 if page is mapped at this mip/clipmap level; 1 if mapped at next courser level, etc. [0..64)
 	bool bAnyLODValid;		// Valid physical page mapped at some LOD level
+	bool bThisLODValidForRendering;		// Valid physical page mapped for rendering into
 	bool bThisLODValid;		// Valid page mapped at this specific level (equivalent to bAnyMipValid && LODOffset == 0)
 };
 
-#define VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG 0x80000000
-#define VSM_PHYSICAL_PAGE_INVALID 0x00000000
+#define VSM_PHYSICAL_PAGE_VALID_FOR_RENDERING_FLAG	0x40000000
+#define VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG		0x80000000
+#define VSM_PHYSICAL_PAGE_INVALID					0x00000000
 
-uint ShadowEncodePageTable(uint2 PhysicalAddress)
+uint ShadowEncodePageTable(uint2 PhysicalAddress, bool bValidForRendering)
 {
-	return VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG | (PhysicalAddress.y << 10) | (PhysicalAddress.x);
+	return (PhysicalAddress.y << 10) | (PhysicalAddress.x) |
+		(bValidForRendering ?
+			(VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG | VSM_PHYSICAL_PAGE_VALID_FOR_RENDERING_FLAG) :
+			(VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG)) ;
 }
 uint ShadowEncodePageTable(uint2 PhysicalAddress, uint LODOffset)
 {
+	// These are hierarchical pointers to coarser pages that are mapped, so never valid for rendering directly
+	// See PropagateMappedMips
 	return VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG | (LODOffset << 20) | (PhysicalAddress.y << 10) | (PhysicalAddress.x);
 }
 
@@ -232,6 +251,7 @@ FShadowPhysicalPage ShadowDecodePageTable(uint Value)
 	Result.PhysicalAddress = uint2(Value & 0x3FF, (Value >> 10) & 0x3FF);
 	Result.LODOffset = (Value >> 20) & 0x3F;
 	Result.bAnyLODValid = (Value & VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG) != 0;
+	Result.bThisLODValidForRendering = (Value & VSM_PHYSICAL_PAGE_VALID_FOR_RENDERING_FLAG) != 0;
 	Result.bThisLODValid = Result.bAnyLODValid && Result.LODOffset == 0;
 	return Result;
 }
@@ -241,6 +261,18 @@ FShadowPhysicalPage ShadowGetPhysicalPage(uint PageOffset)
 	return ShadowDecodePageTable(VirtualShadowMap.PageTable[PageOffset]);
 }
 
+// Returns true if the page is valid *for rendering*
+bool VirtualToPhysicalTexelForRendering(FVirtualSMLevelOffset PageTableLevelOffset, uint Level, uint2 VirtualTexelAddress, inout uint2 PhysicalTexelAddress)
+{
+	uint VPageX = VirtualTexelAddress.x >> VSM_LOG2_PAGE_SIZE;
+	uint VPageY = VirtualTexelAddress.y >> VSM_LOG2_PAGE_SIZE;
+
+	FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(CalcPageOffset(PageTableLevelOffset, Level, uint2(VPageX, VPageY)));
+	PhysicalTexelAddress = PhysicalPageEntry.PhysicalAddress * VSM_PAGE_SIZE + (VirtualTexelAddress & VSM_PAGE_SIZE_MASK);
+	return (PhysicalPageEntry.bThisLODValidForRendering);
+}
+
+// TODO: Rename and clean up some duplication
 bool VirtualToPhysicalTexel_PageTableLevelOffset(FVirtualSMLevelOffset PageTableLevelOffset, uint Level, uint2 VirtualTexelAddress, inout uint2 PhysicalTexelAddress)
 {
 	uint VPageX = VirtualTexelAddress.x >> VSM_LOG2_PAGE_SIZE;
@@ -266,14 +298,14 @@ struct FShadowPageTranslationResult
 };
 
 // Finds the best-resolution mapped page at the given UV
-FShadowPageTranslationResult ShadowVirtualToPhysicalUV(uint VirtualShadowMapID, float2 ShadowMapUV)
+FShadowPageTranslationResult ShadowVirtualToPhysicalUV(uint VirtualShadowMapID, float2 ShadowMapUV, uint MinMipLevel)
 {
 	uint2 vPage = uint2(ShadowMapUV * VSM_LEVEL0_DIM_PAGES_XY);
-	FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(CalcPageOffset(VirtualShadowMapID, 0, vPage));
+	FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(CalcPageOffset(VirtualShadowMapID, MinMipLevel, vPage >> MinMipLevel));
 
 	FShadowPageTranslationResult Result;
 	Result.bValid = PhysicalPageEntry.bAnyLODValid;
-	Result.LODOffset = IsSinglePageVirtualShadowMap(VirtualShadowMapID) ? (VSM_MAX_MIP_LEVELS - 1U) : PhysicalPageEntry.LODOffset;
+	Result.LODOffset = IsSinglePageVirtualShadowMap(VirtualShadowMapID) ? (VSM_MAX_MIP_LEVELS - 1U) : (PhysicalPageEntry.LODOffset + MinMipLevel);
 	// TODO: Can optimize this slightly based on relative offset
 	Result.VirtualTexelAddressFloat = ShadowMapUV * float(CalcLevelDimsTexels(Result.LODOffset));
 	Result.VirtualTexelAddress = uint2(Result.VirtualTexelAddressFloat);
@@ -312,4 +344,9 @@ bool VirtualShadowMapShouldCacheStaticSeparately()
 uint GetVirtualShadowMapStaticArrayIndex()
 {
 	return VirtualShadowMap.StaticCachedArrayIndex;
+}
+
+uint GetVirtualShadowMapHZBArrayIndex(bool bUseStaticOcclusion)
+{
+	return select(bUseStaticOcclusion, VirtualShadowMap.StaticHZBArrayIndex, 0);
 }

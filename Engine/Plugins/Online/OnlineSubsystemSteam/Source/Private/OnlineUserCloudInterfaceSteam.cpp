@@ -356,7 +356,7 @@ void FOnlineUserCloudSteam::DumpCloudState(const FUniqueNetId& UserId)
 		TotalBytes = TotalAvailable = 0;
 	}
 
-	UE_LOG_ONLINE_CLOUD(Verbose, TEXT("Steam Disk Quota: %d / %d"), TotalAvailable, TotalBytes);
+	UE_LOG_ONLINE_CLOUD(Verbose, TEXT("Steam Disk Quota: %" UINT64_FMT " / %" UINT64_FMT), TotalAvailable, TotalBytes);
 	UE_LOG_ONLINE_CLOUD(Verbose, TEXT("Game does %shave cloud storage enabled."), SteamRemoteStorage()->IsCloudEnabledForApp() ? TEXT("") : TEXT("NOT "));
 	UE_LOG_ONLINE_CLOUD(Verbose, TEXT("User does %shave cloud storage enabled."), SteamRemoteStorage()->IsCloudEnabledForAccount() ? TEXT("") : TEXT("NOT "));
 }

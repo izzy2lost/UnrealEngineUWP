@@ -20,6 +20,7 @@
 #include "Channels/MovieSceneDoubleChannel.h"
 #include "Channels/MovieSceneIntegerChannel.h"
 #include "Channels/MovieSceneByteChannel.h"
+#include "Channels/MovieSceneObjectPathChannel.h"
 #include "LevelSequence.h"
 #include "MovieScene.h"
 #include "MovieSceneSection.h"
@@ -148,7 +149,7 @@ namespace UE::Interchange::Private
 		{
 			const FFrameRate& FrameRate = MovieScene->GetTickResolution();
 
-			TMovieSceneChannelData<ValueType> Data = Channel.GetData();
+			auto Data = Channel.GetData();
 
 			Data.Reset();
 
@@ -166,7 +167,14 @@ namespace UE::Interchange::Private
 					this->MaxFrameNumber = FrameNumber;
 				}
 
-				Data.AddKey(FrameNumber, Values[KeyIndex]);
+				if constexpr(std::is_same_v<ChannelType, FMovieSceneObjectPathChannel>)
+				{
+					Data.AddKey(FrameNumber, FSoftObjectPath{ Values[KeyIndex] }.TryLoad());
+				}
+				else
+				{
+					Data.AddKey(FrameNumber, Values[KeyIndex]);
+				}
 			}
 		}
 
@@ -235,7 +243,9 @@ namespace UE::Interchange::Private
 	{
 		// Get targeted actor exists
 		AActor* Actor = GetActor(TransformTrackNode);
-		if (!Actor)
+		FString SceneNodeUid;
+
+		if (!Actor || !TransformTrackNode.GetCustomActorDependencyUid(SceneNodeUid))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("Cannot find actor for animation track %s"), *TransformTrackNode.GetDisplayLabel());
 			return;
@@ -249,13 +259,15 @@ namespace UE::Interchange::Private
 			return;
 		}
 
-		TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> Result = PayloadInterface.GetAnimationPayloadData(PayloadKey);
-		const TOptional<UE::Interchange::FAnimationPayloadData>& PayloadData = Result.Get();
-		if (!PayloadData.IsSet() || PayloadData->Curves.Num() != 9)
+		TArray<UE::Interchange::FAnimationPayloadData> PayloadDataArray = PayloadInterface.GetAnimationPayloadData({ FAnimationPayloadQuery(SceneNodeUid, PayloadKey) });
+		
+		if (PayloadDataArray.Num() != 1 || PayloadDataArray[0].Curves.Num() != 9)
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for animation track %s on actor %s"), *TransformTrackNode.GetDisplayLabel(), *Actor->GetActorLabel());
 			return;
 		}
+
+		UE::Interchange::FAnimationPayloadData* PayloadData = &PayloadDataArray[0];
 
 		FGuid ObjectBinding = BindActorToLevelSequence(Actor);
 
@@ -337,6 +349,111 @@ namespace UE::Interchange::Private
 		}
 	}
 
+	template <class T>
+	void ConvertRichCurveKeyToFloatValue(const FRichCurveKey& RichCurveKey, T& OutMovieSceneKey, double TangentRatio /*= 1.0*/, double SecondsPerFrame /*= 1.0*/)
+	{
+		OutMovieSceneKey.Value = RichCurveKey.Value;
+
+		OutMovieSceneKey.Tangent.TangentWeightMode = RichCurveKey.TangentWeightMode;
+		if (OutMovieSceneKey.Tangent.TangentWeightMode != RCTWM_WeightedNone &&
+			OutMovieSceneKey.Tangent.TangentWeightMode != RCTWM_WeightedArrive &&
+			OutMovieSceneKey.Tangent.TangentWeightMode != RCTWM_WeightedLeave &&
+			OutMovieSceneKey.Tangent.TangentWeightMode != RCTWM_WeightedBoth
+			)
+		{
+			OutMovieSceneKey.Tangent.TangentWeightMode = RCTWM_WeightedNone;
+		}
+
+		OutMovieSceneKey.Tangent.ArriveTangentWeight = RichCurveKey.ArriveTangentWeight;
+		OutMovieSceneKey.Tangent.LeaveTangentWeight = RichCurveKey.LeaveTangentWeight;
+
+		if (OutMovieSceneKey.Tangent.TangentWeightMode == RCTWM_WeightedNone)
+		{
+			OutMovieSceneKey.Tangent.ArriveTangent = static_cast<float>(RichCurveKey.ArriveTangent * TangentRatio);
+			OutMovieSceneKey.Tangent.LeaveTangent = static_cast<float>(RichCurveKey.LeaveTangent * TangentRatio);
+		}
+		else
+		{
+			OutMovieSceneKey.Tangent.ArriveTangent = static_cast<float>(RichCurveKey.ArriveTangent * SecondsPerFrame);
+			OutMovieSceneKey.Tangent.LeaveTangent = static_cast<float>(RichCurveKey.LeaveTangent * SecondsPerFrame);
+		}
+
+		OutMovieSceneKey.TangentMode = RichCurveKey.TangentMode;
+		OutMovieSceneKey.InterpMode = RichCurveKey.InterpMode;
+	}
+
+	template <class T>
+	void ProcessRichCurveKeys(const FFrameRate& TargetFrameRate, const FRichCurve& Curve, TArray<FFrameNumber>& OutFrameNumbers, TArray<T>& OutValues, FFrameNumber& MinFrameNumber, FFrameNumber& MaxFrameNumber)
+	{
+		const TArray<FRichCurveKey>& CurveKeys = Curve.GetConstRefOfKeys();
+		const int32 NumCurveKeys = CurveKeys.Num();
+
+		OutFrameNumbers.Reserve(NumCurveKeys);
+		OutValues.Reserve(NumCurveKeys);
+
+		for (int32 KeyIndex = 0; KeyIndex < CurveKeys.Num(); ++KeyIndex)
+		{
+			const FRichCurveKey* PrevKey = KeyIndex > 0 ? &CurveKeys[KeyIndex - 1] : nullptr;
+			const FRichCurveKey* NextKey = KeyIndex < (NumCurveKeys - 1) ? &CurveKeys[KeyIndex + 1] : nullptr;
+			const FRichCurveKey& RichCurveKey = CurveKeys[KeyIndex];
+
+			FFrameNumber& FrameNumber = OutFrameNumbers.Add_GetRef(TargetFrameRate.AsFrameNumber(RichCurveKey.Time));
+
+			if (FrameNumber < MinFrameNumber)
+			{
+				MinFrameNumber = FrameNumber;
+			}
+
+			if (FrameNumber > MaxFrameNumber)
+			{
+				MaxFrameNumber = FrameNumber;
+			}
+
+			const float SecondsDelta = [&]() -> float
+				{
+					if (PrevKey && NextKey)
+					{
+						return NextKey->Time - PrevKey->Time;
+					}
+					else if (PrevKey)
+					{
+						return RichCurveKey.Time - PrevKey->Time;
+					}
+					else if (NextKey)
+					{
+						return NextKey->Time - RichCurveKey.Time;
+					}
+
+					return 1.f;
+				}();
+
+			const int32 FrameNumberDelta = [&]() -> int32
+				{
+					if (PrevKey && NextKey)
+					{
+						return TargetFrameRate.AsFrameTime(NextKey->Time).RoundToFrame().Value - TargetFrameRate.AsFrameTime(PrevKey->Time).RoundToFrame().Value;
+					}
+					else if (PrevKey)
+					{
+						return TargetFrameRate.AsFrameTime(RichCurveKey.Time).RoundToFrame().Value - TargetFrameRate.AsFrameTime(PrevKey->Time).RoundToFrame().Value;
+					}
+					else if (NextKey)
+					{
+						return TargetFrameRate.AsFrameTime(NextKey->Time).RoundToFrame().Value - TargetFrameRate.AsFrameTime(RichCurveKey.Time).RoundToFrame().Value;
+					}
+
+					return 1;
+				}();
+
+			T& Value = OutValues.AddDefaulted_GetRef();
+
+			// Ratio between rich-curve and moviescene key(s) timing, if there are any surrounding keys (otherwise default to a ratio of 1:1)
+			const double KeyTimingRatio = (PrevKey || NextKey) ? SecondsDelta / FrameNumberDelta : 1.0;
+
+			ConvertRichCurveKeyToFloatValue(RichCurveKey, Value, KeyTimingRatio, TargetFrameRate.AsInterval());
+		}
+	}
+
 	void FLevelSequenceHelper::PopulateSubsequenceTrack(const UInterchangeAnimationTrackSetInstanceNode& InstanceNode)
 	{
 		FString TrackSetNodeUid;
@@ -407,9 +524,10 @@ namespace UE::Interchange::Private
 
 		// Internally AddSequenceOnRow will automatically bump overlapping subsequences, so we can just add where it's ideal for us
 		UMovieSceneSubSection* NewSection = SubTrack->AddSequenceOnRow(TargetMovieSceneSequence, DstLowerBound, DstUpperBound.Value - DstLowerBound.Value, INDEX_NONE);
-		
-		NewSection->Parameters.TimeScale = 1.f;
-		InstanceNode.GetCustomTimeScale(NewSection->Parameters.TimeScale);
+
+		float TimeScale = 1.f;
+		InstanceNode.GetCustomTimeScale(TimeScale);
+		NewSection->Parameters.TimeScale.Set(TimeScale);
 		
 		int32 CompletionMode;
 		if (InstanceNode.GetCustomCompletionMode(CompletionMode))
@@ -430,7 +548,7 @@ namespace UE::Interchange::Private
 
 	void FLevelSequenceHelper::PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode)
 	{
-		FName PropertyTrack;
+		EInterchangePropertyTracks PropertyTrack;
 		if(!AnimationTrackNode.GetCustomPropertyTrack(PropertyTrack))
 		{
 			return;
@@ -438,7 +556,9 @@ namespace UE::Interchange::Private
 
 		// Get targeted actor exists
 		AActor* Actor = GetActor(AnimationTrackNode);
-		if (!Actor)
+		FString SceneNodeUid;
+
+		if (!Actor || !AnimationTrackNode.GetCustomActorDependencyUid(SceneNodeUid))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("Cannot find actor for animation track %s"), *AnimationTrackNode.GetDisplayLabel());
 			return;
@@ -452,16 +572,18 @@ namespace UE::Interchange::Private
 			return;
 		}
 
-		TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> Result = PayloadInterface.GetAnimationPayloadData(PayloadKey);
-		const TOptional<UE::Interchange::FAnimationPayloadData>& PayloadData = Result.Get();
-		if (!PayloadData.IsSet() || (PayloadData->StepCurves.IsEmpty() && PayloadData->Curves.IsEmpty()))
+		TArray<UE::Interchange::FAnimationPayloadData> PayloadDataArray = PayloadInterface.GetAnimationPayloadData({ FAnimationPayloadQuery(SceneNodeUid, PayloadKey) });
+		
+		if (PayloadDataArray.Num() != 1 || (PayloadDataArray[0].StepCurves.IsEmpty() && PayloadDataArray[0].Curves.IsEmpty()))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for animation track %s on actor %s"), *AnimationTrackNode.GetDisplayLabel(), *Actor->GetActorLabel());
 			return;
 		}
 
+		UE::Interchange::FAnimationPayloadData* PayloadData = &PayloadDataArray[0];
+
 		FGuid ObjectBinding;
-		if(PropertyTrack == UE::Interchange::Animation::PropertyTracks::Visibility)
+		if(PropertyTrack == EInterchangePropertyTracks::Visibility)
 		{
 			ObjectBinding = BindActorToLevelSequence(Actor);
 		}
@@ -482,44 +604,20 @@ namespace UE::Interchange::Private
 		const FName IntegerChannelTypeName = FMovieSceneIntegerChannel::StaticStruct()->GetFName();
 		const FName BoolChannelTypeName = FMovieSceneBoolChannel::StaticStruct()->GetFName();
 		const FName EnumChannelTypeName = FMovieSceneByteChannel::StaticStruct()->GetFName();
+		const FName ObjectPathChannelTypeName = FMovieSceneObjectPathChannel::StaticStruct()->GetFName();
 
 		auto CopyToChannel = [this](auto Channel, const FRichCurve& Curve)
 		{
-			const FFrameRate& FrameRate = this->MovieScene->GetTickResolution();
-
-			const TArray<FRichCurveKey>& CurveKeys = Curve.GetConstRefOfKeys();
-
 			TArray<FFrameNumber> FrameNumbers;
-			FrameNumbers.Reserve(CurveKeys.Num());
 
 			using FMovieSceneValue = typename std::remove_pointer_t<decltype(Channel)>::ChannelValueType;
-			TArray<FMovieSceneValue> MovieSceneValues;
-			MovieSceneValues.Reserve(CurveKeys.Num());
+			TArray<FMovieSceneValue> Values;
 
-			for(int32 KeyIndex = 0; KeyIndex < CurveKeys.Num(); ++KeyIndex)
+			ProcessRichCurveKeys(this->MovieScene->GetTickResolution(), Curve, FrameNumbers, Values, this->MinFrameNumber, this->MaxFrameNumber);
+
+			if(!Values.IsEmpty())
 			{
-				const FRichCurveKey& CurveKey = CurveKeys[KeyIndex];
-
-				FFrameNumber& FrameNumber = FrameNumbers.Add_GetRef(FrameRate.AsFrameNumber(CurveKey.Time));
-
-				if(FrameNumber < this->MinFrameNumber)
-				{
-					this->MinFrameNumber = FrameNumber;
-				}
-
-				if(FrameNumber > this->MaxFrameNumber)
-				{
-					this->MaxFrameNumber = FrameNumber;
-				}
-
-				FMovieSceneValue& SceneValue = MovieSceneValues.AddDefaulted_GetRef();
-				SceneValue.InterpMode = CurveKey.InterpMode;
-				SceneValue.Value = CurveKey.Value;
-			}
-
-			if(!MovieSceneValues.IsEmpty())
-			{
-				Channel->Set(FrameNumbers, MovieSceneValues);
+				Channel->Set(FrameNumbers, Values);
 			}
 			else
 			{
@@ -533,40 +631,59 @@ namespace UE::Interchange::Private
 		for(const FMovieSceneChannelEntry& ChannelEntry : ChannelEntries)
 		{
 			const FName ChannelTypeName = ChannelEntry.GetChannelTypeName();
-			if(ChannelTypeName != DoubleChannelTypeName &&
-			   ChannelTypeName != FloatChannelTypeName &&
-			   ChannelTypeName != IntegerChannelTypeName &&
-			   ChannelTypeName != BoolChannelTypeName &&
-			   ChannelTypeName != EnumChannelTypeName)
+			const bool bIsBoolChannel = (ChannelTypeName == BoolChannelTypeName);
+			const bool bIsEnumChannel = (ChannelTypeName == EnumChannelTypeName);
+			const bool bIsIntegerChannel = (ChannelTypeName == IntegerChannelTypeName);
+			const bool bIsDoubleChannel = (ChannelTypeName == DoubleChannelTypeName);
+			const bool bIsFloatChannel = (ChannelTypeName == FloatChannelTypeName);
+			const bool bIsObjectPathChannel = (ChannelTypeName == ObjectPathChannelTypeName);
+
+			if(!bIsBoolChannel &&
+			   !bIsEnumChannel &&
+			   !bIsIntegerChannel &&
+			   !bIsDoubleChannel &&
+			   !bIsFloatChannel &&
+			   !bIsObjectPathChannel)
 			{
 				continue;
 			}
 
 			TArrayView<FMovieSceneChannel* const> Channels = ChannelEntry.GetChannels();
-			for(int32 Index = 0; Index < Channels.Num(); ++Index)
+			int32 NumChannels = (bIsBoolChannel || bIsEnumChannel || bIsIntegerChannel || bIsObjectPathChannel) ? PayloadData->StepCurves.Num() : PayloadData->Curves.Num();
+			NumChannels = FMath::Min(NumChannels, Channels.Num());
+			for(int32 Index = 0; Index < NumChannels; ++Index)
 			{
 				FMovieSceneChannelHandle Channel = ChannelProxy.MakeHandle(ChannelTypeName, Index);
-				if(ChannelTypeName == FMovieSceneBoolChannel::StaticStruct()->GetFName())
+				if(bIsBoolChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].BooleanKeyValues.GetValue());
 				}
-				else if(ChannelTypeName == FMovieSceneByteChannel::StaticStruct()->GetFName())
+				else if(bIsEnumChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneByteChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].ByteKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneByteChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].ByteKeyValues.GetValue());
 				}
-				else if(ChannelTypeName == FMovieSceneIntegerChannel::StaticStruct()->GetFName())
+				else if(bIsIntegerChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneIntegerChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].IntegerKeyValues.GetValue());
 				}
-				else if(ChannelTypeName == FMovieSceneFloatChannel::StaticStruct()->GetFName())
+				else if(bIsObjectPathChannel)
+				{
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneObjectPathChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].StringKeyValues.GetValue());
+				}
+				else if(bIsFloatChannel)
 				{
 					CopyToChannel(Channel.Cast<FMovieSceneFloatChannel>().Get(), PayloadData->Curves[Index]);
 				}
-				else if(ChannelTypeName == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
+				else if(bIsDoubleChannel)
 				{
 					CopyToChannel(Channel.Cast<FMovieSceneDoubleChannel>().Get(), PayloadData->Curves[Index]);
 				}
 			}
+		}
+
+		if(USceneComponent* SceneComp = Actor->GetRootComponent())
+		{
+			SceneComp->SetMobility(EComponentMobility::Movable);
 		}
 	}
 
@@ -596,7 +713,8 @@ namespace UE::Interchange::Private
 
 	FGuid FLevelSequenceHelper::BindActorToLevelSequence(AActor* Actor)
 	{
-		FGuid ActorBinding = LevelSequence.FindBindingFromObject(Actor, Actor->GetWorld());
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Actor, &LevelSequence);
+		FGuid ActorBinding = LevelSequence.FindBindingFromObject(Actor, SharedPlaybackState);
 		if(!ActorBinding.IsValid())
 		{
 			ActorBinding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());
@@ -608,9 +726,10 @@ namespace UE::Interchange::Private
 
 	FGuid FLevelSequenceHelper::BindComponentToLevelSequence(AActor* Actor)
 	{
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(Actor, &LevelSequence);
 		FGuid ActorBinding = BindActorToLevelSequence(Actor);
 		USceneComponent* Component = Actor->GetDefaultAttachComponent();
-		FGuid ComponentBinding = LevelSequence.FindBindingFromObject(Component, Actor);
+		FGuid ComponentBinding = LevelSequence.FindBindingFromObject(Component, SharedPlaybackState);
 		if(!ComponentBinding.IsValid())
 		{
 			ComponentBinding = MovieScene->AddPossessable(Component->GetReadableName(), Component->GetClass());
@@ -634,41 +753,14 @@ namespace UE::Interchange::Private
 	{
 		auto CopyToChannel = [this](FMovieSceneDoubleChannel* Channel, const FRichCurve& Curve)
 		{
-			const FFrameRate& FrameRate = this->MovieScene->GetTickResolution();
-
-			const TArray<FRichCurveKey>& CurveKeys = Curve.GetConstRefOfKeys();
-			
 			TArray<FFrameNumber> FrameNumbers;
-			FrameNumbers.Reserve(CurveKeys.Num());
-			
-			TArray<FMovieSceneDoubleValue> MovieSceneDoubleValues;
-			MovieSceneDoubleValues.Reserve(CurveKeys.Num());
+			TArray<FMovieSceneDoubleValue> Values;
 
-			for (int32 KeyIndex = 0; KeyIndex < CurveKeys.Num(); ++KeyIndex)
+			ProcessRichCurveKeys(this->MovieScene->GetTickResolution(), Curve, FrameNumbers, Values, this->MinFrameNumber, this->MaxFrameNumber);
+
+			if (!Values.IsEmpty())
 			{
-				const FRichCurveKey& CurveKey = CurveKeys[KeyIndex];
-
-				FFrameNumber& FrameNumber = FrameNumbers.Add_GetRef(FrameRate.AsFrameNumber(CurveKey.Time));
-
-				if (FrameNumber < this->MinFrameNumber)
-				{
-					this->MinFrameNumber = FrameNumber;
-				}
-
-				if (FrameNumber > this->MaxFrameNumber)
-				{
-					this->MaxFrameNumber = FrameNumber;
-				}
-
-				FMovieSceneDoubleValue& SceneValue = MovieSceneDoubleValues.AddDefaulted_GetRef();
-
-				SceneValue.InterpMode = CurveKey.InterpMode;
-				SceneValue.Value = CurveKey.Value;
-			}
-
-			if (!MovieSceneDoubleValues.IsEmpty())
-			{
-				Channel->Set(FrameNumbers, MovieSceneDoubleValues);
+				Channel->Set(FrameNumbers, Values);
 			}
 			else
 			{

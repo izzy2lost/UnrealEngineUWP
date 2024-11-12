@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "VulkanRHIPrivate.h"
+#include "VulkanCommandWrappers.h"
 #include "VulkanPendingState.h"
 #include "VulkanPipeline.h"
 #include "VulkanContext.h"
@@ -38,7 +39,6 @@ FVulkanDescriptorPool::FVulkanDescriptorPool(FVulkanDevice* InDevice, const FVul
 		}
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	{
 		uint32 NumTypesUsed = Layout.GetTypesUsed(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
 		if (NumTypesUsed > 0)
@@ -49,7 +49,6 @@ FVulkanDescriptorPool::FVulkanDescriptorPool(FVulkanDevice* InDevice, const FVul
 			Type.descriptorCount = NumTypesUsed * MaxSetsAllocations;
 		}
 	}
-#endif
 
 	VkDescriptorPoolCreateInfo PoolInfo;
 	ZeroVulkanStruct(PoolInfo, VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO);
@@ -87,11 +86,9 @@ void FVulkanDescriptorPool::TrackAddUsage(const FVulkanDescriptorSetsLayout& InL
 		ensure(Layout.GetTypesUsed((VkDescriptorType)TypeIndex) == InLayout.GetTypesUsed((VkDescriptorType)TypeIndex));
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	{
 		ensure(Layout.GetTypesUsed(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR) == InLayout.GetTypesUsed(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR));
 	}
-#endif
 
 	NumAllocatedDescriptorSets += InLayout.GetLayouts().Num();
 	PeakAllocatedDescriptorSets = FMath::Max(NumAllocatedDescriptorSets, PeakAllocatedDescriptorSets);
@@ -104,11 +101,9 @@ void FVulkanDescriptorPool::TrackRemoveUsage(const FVulkanDescriptorSetsLayout& 
 		check(Layout.GetTypesUsed((VkDescriptorType)TypeIndex) == InLayout.GetTypesUsed((VkDescriptorType)TypeIndex));
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	{
 		check(Layout.GetTypesUsed(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR) == InLayout.GetTypesUsed(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR));
 	}
-#endif
 
 	NumAllocatedDescriptorSets -= InLayout.GetLayouts().Num();
 }
@@ -296,9 +291,9 @@ void FVulkanDescriptorPoolsManager::GC()
 	for (int32 Index = PoolSets.Num() - 1; Index >= 0; Index--)
 	{
 		auto* PoolSet = PoolSets[Index];
-		if (PoolSet->IsUnused() && GFrameNumberRenderThread - PoolSet->GetLastFrameUsed() > NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS)
+		if (PoolSet->IsUnused() && GFrameNumberRenderThread - PoolSet->GetLastFrameUsed() > VulkanRHI::NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS)
 		{
-			PoolSets.RemoveAtSwap(Index, 1, EAllowShrinking::Yes);
+			PoolSets.RemoveAtSwap(Index, EAllowShrinking::Yes);
 
 			if (AsyncDeletionTask)
 			{
@@ -538,32 +533,38 @@ void FVulkanPendingGfxState::InternalUpdateDynamicStates(FVulkanCmdBuffer* Cmd)
 
 void FVulkanPendingGfxState::UpdateInputAttachments(FVulkanFramebuffer* Framebuffer)
 {
-	const FVulkanGfxPipelineDescriptorInfo& GfxDescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-	const TArray<FInputAttachmentData>& InputAttachmentData = GfxDescriptorInfo.GetInputAttachmentData();
-
-	for (int32 Index = 0; Index < InputAttachmentData.Num(); ++Index)
+	const FVulkanShader* PixelShader = CurrentPipeline->GetVulkanShader(SF_Pixel);
+	if (PixelShader)
 	{
-		const FInputAttachmentData& AttachmentData = InputAttachmentData[Index];
-		const uint32 ColorIndex = static_cast<uint32>(AttachmentData.Type);
-		
-		switch (AttachmentData.Type)
+		const FVulkanShaderHeader& Header = PixelShader->GetCodeHeader();
+		const TArray<FVulkanShaderHeader::FInputAttachmentInfo>& InputAttachmentData = Header.InputAttachmentInfos;
+	
+		for (int32 Index = 0; Index < InputAttachmentData.Num(); ++Index)
 		{
-		case FVulkanShaderHeader::EAttachmentType::Color0:
-		case FVulkanShaderHeader::EAttachmentType::Color1:
-		case FVulkanShaderHeader::EAttachmentType::Color2:
-		case FVulkanShaderHeader::EAttachmentType::Color3:
-		case FVulkanShaderHeader::EAttachmentType::Color4:
-		case FVulkanShaderHeader::EAttachmentType::Color5:
-		case FVulkanShaderHeader::EAttachmentType::Color6:
-		case FVulkanShaderHeader::EAttachmentType::Color7:
-			check(ColorIndex < Framebuffer->GetNumColorAttachments());
-			CurrentState->SetInputAttachment(AttachmentData.DescriptorSet, AttachmentData.BindingIndex, Framebuffer->AttachmentTextureViews[ColorIndex]->GetTextureView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			const FVulkanShaderHeader::FInputAttachmentInfo& AttachmentData = InputAttachmentData[Index];
+
+			switch (AttachmentData.Type)
+			{
+			case FVulkanShaderHeader::EAttachmentType::Color0:
+			case FVulkanShaderHeader::EAttachmentType::Color1:
+			case FVulkanShaderHeader::EAttachmentType::Color2:
+			case FVulkanShaderHeader::EAttachmentType::Color3:
+			case FVulkanShaderHeader::EAttachmentType::Color4:
+			case FVulkanShaderHeader::EAttachmentType::Color5:
+			case FVulkanShaderHeader::EAttachmentType::Color6:
+			case FVulkanShaderHeader::EAttachmentType::Color7:
+			{
+				const int32 ColorIndex = static_cast<int32>(AttachmentData.Type) - (int32)FVulkanShaderHeader::EAttachmentType::Color0;
+				check((ColorIndex >= 0) && (ColorIndex < (int32)Framebuffer->GetNumColorAttachments()));
+				CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->AttachmentTextureViews[ColorIndex]->GetTextureView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			}
 			break;
-		case FVulkanShaderHeader::EAttachmentType::Depth:
-			CurrentState->SetInputAttachment(AttachmentData.DescriptorSet, AttachmentData.BindingIndex, Framebuffer->GetPartialDepthTextureView(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
-			break;
-		default:
-			check(0);
+			case FVulkanShaderHeader::EAttachmentType::Depth:
+				CurrentState->SetInputAttachment(ShaderStage::Pixel, AttachmentData.BindingIndex, Framebuffer->GetPartialDepthTextureView(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+				break;
+			default:
+				check(0);
+			}
 		}
 	}
 }
@@ -755,7 +756,7 @@ void FVulkanDescriptorSetCache::GC()
 			UE_LOG(LogVulkanRHI, Warning, TEXT("FVulkanDescriptorSetCache::GC() Free Pool is not empty! Too small r.Vulkan.DSetCacheTargetSetsPerPool?"));
 		}
 		FreePool = MoveTemp(CachedPools[RemoveIndex]);
-		CachedPools.RemoveAt(RemoveIndex, 1, EAllowShrinking::No);
+		CachedPools.RemoveAt(RemoveIndex, EAllowShrinking::No);
 	}
 }
 
@@ -794,12 +795,12 @@ bool FVulkanDescriptorSetCache::FCachedPool::CreateDescriptorSets(
 
 	NewSetEntry.NumSets = DSWriters.Num();
 	check(NewSetEntry.NumSets <= NewSetEntry.Sets.Num());
-	check(NewSetEntry.NumSets == SetsLayout.GetHandles().Num());
+	check(SetsLayout.GetHandles().Num() <= NewSetEntry.NumSets);
 
 	for (int32 Index = 0; Index < NewSetEntry.NumSets; ++Index)
 	{
 		FVulkanDescriptorSetWriter& DSWriter = DSWriters[Index];
-		if (DSWriter.GetNumWrites() == 0) // Should not normally happen
+		if (DSWriter.GetNumWrites() == 0)
 		{
 			NewSetEntry.Sets[Index] = VK_NULL_HANDLE;
 			continue;
@@ -853,7 +854,7 @@ void FVulkanDescriptorSetCache::FCachedPool::Reset()
 
 bool FVulkanDescriptorSetCache::FCachedPool::CanGC() const
 {
-	constexpr uint32 FramesBeforeGC = NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS;
+	constexpr uint32 FramesBeforeGC = VulkanRHI::NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS;
 	return ((GFrameNumberRenderThread - RecentFrame) > FramesBeforeGC);
 }
 

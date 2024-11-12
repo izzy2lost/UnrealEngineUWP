@@ -51,7 +51,7 @@ namespace uba
 	{
 		MutableLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
 		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { if (!isMuted) LoggerWithWriter::Log(type, str, strLen); }
-		Atomic<bool> isMuted;
+		Atomic<u32> isMuted;
 	};
 
 	class FilteredLogWriter : public LogWriter
@@ -69,6 +69,13 @@ namespace uba
 	struct BytesToText
 	{
 		BytesToText(u64 bytes);
+		operator const tchar* () const { return str; };
+		tchar str[32];
+	};
+
+	struct CountToText
+	{
+		CountToText(u64 count);
 		operator const tchar* () const { return str; };
 		tchar str[32];
 	};

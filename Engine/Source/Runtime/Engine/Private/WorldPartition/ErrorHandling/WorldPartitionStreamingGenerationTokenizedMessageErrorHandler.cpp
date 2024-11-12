@@ -8,6 +8,7 @@
 #include "Misc/MapErrors.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
+#include "WorldPartition/DataLayer/WorldDataLayers.h"
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
 
@@ -96,6 +97,15 @@ void ITokenizedMessageErrorHandler::OnInvalidReferenceRuntimeGrid(const IWorldPa
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 
+void ITokenizedMessageErrorHandler::OnDataLayersLoadFilterMismatch(const IWorldPartitionActorDescInstanceView& ActorDescView)
+{
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_Actor", "Actor")))
+		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_ContainsRuntimeDataLayersWithDifferentTypesOfLoadFilter", "contains runtime data layers with different types of Load Filter")))
+		->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_DataLayersLoadFilterMismatch_CheckForErrors")));
+}
+
 void ITokenizedMessageErrorHandler::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
 	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
@@ -141,15 +151,43 @@ void ITokenizedMessageErrorHandler::OnInvalidDataLayerAssetType(const UDataLayer
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 
-void ITokenizedMessageErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent)
+void ITokenizedMessageErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason)
 {
 	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
-	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_DataLayer", "Data layer")))
+
+	switch (Reason)
+	{
+	case EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild:
+	case EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild:
+		Message->AddToken(FTextToken::Create((Reason == EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild) ? LOCTEXT("TokenMessage_DataLayers_ClientOnlyDataLayer", "Client-Only Data Layer") : LOCTEXT("TokenMessage_DataLayers_ServerOnlyDataLayer", "Server-Only Data Layer")))
+			->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
+			->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_CantBeChild", "can't be child of")))
+			->AddToken(FTextToken::Create(FText::FromString(Parent->GetDataLayerShortName())))
+			->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMismatch_CheckForErrors")));
+		break;
+	case EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType:
+		Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_DataLayer", "Data layer")))
+			->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
+			->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsEditor", "is Editor but its parent data layer")))
+			->AddToken(FTextToken::Create(FText::FromString(Parent->GetDataLayerShortName())))
+			->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsRuntime", "is Runtime")))
+			->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMismatch_CheckForErrors")));
+		break;
+	}
+	
+	HandleTokenizedMessage(MoveTemp(Message));
+}
+
+void ITokenizedMessageErrorHandler::OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason)
+{
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_Actor", "Actor")))
+		->AddToken(FTextToken::Create(FText::FromString(WorldDataLayers->GetName())))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_CantReferenceDataLayer", "can't reference data layer")))
 		->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
-		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsRntime", "is Runtime but its parent data layer")))
-		->AddToken(FTextToken::Create(FText::FromString(Parent->GetDataLayerShortName())))
-		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsNot", "is not")))
-		->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMisMatch_CheckForErrors")));
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_AssetReferenceRestrictions", "because of asset reference restrictions")))
+		->AddToken(FTextToken::Create(Reason))
+		->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMismatch_CheckForErrors")));
 
 	HandleTokenizedMessage(MoveTemp(Message));
 }
@@ -190,11 +228,11 @@ void ITokenizedMessageErrorHandler::OnLevelInstanceInvalidWorldAsset(const IWorl
 		MessageSeverity = EMessageSeverity::Error;
 		ReasonText = LOCTEXT("TokenMessage_WorldPartition_HasInvalidWorldAsset", "has an invalid world asset");
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors:
+	case ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata:
 		MessageSeverity = EMessageSeverity::Error;
-		ReasonText = LOCTEXT("TokenMessage_WorldPartition_WorldAssetIsNotUsingExternalActors", "is not using external actors");
+		ReasonText = LOCTEXT("TokenMessage_WorldPartition_WorldAssetIsNotUsingExternalActors", "is not using external actors, resave level to add compatibility");
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetImcompatiblePartitioned:
+	case ELevelInstanceInvalidReason::WorldAssetIncompatiblePartitioned:
 		MessageSeverity = EMessageSeverity::Error;
 		ReasonText = LOCTEXT("TokenMessage_WorldPartition_WorldAssetIsPartitionedIncompatible", "is partitioned but not marked as compatible");
 		break;
@@ -235,7 +273,7 @@ void ITokenizedMessageErrorHandler::OnInvalidActorFilterReference(const IWorldPa
 
 void ITokenizedMessageErrorHandler::OnInvalidHLODLayer(const IWorldPartitionActorDescInstanceView& ActorDescView)
 {
-	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Warning);
 	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_Actor", "Actor")))
 		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
 		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_HaveInvalidHLODLayer", "has an invalid HLOD layer")))

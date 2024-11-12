@@ -28,11 +28,18 @@ struct STATETREEMODULE_API FStateTreeTaskBase : public FStateTreeNodeBase
 	{
 	}
 	
+	UE_DEPRECATED(5.5, "Use EnterState without the EStateTreeStateChangeType.")
 	/**
 	 * Note: The API has been deprecated. ChangeType is moved into FStateTreeTransitionResult.
 	 * You can configure the task to be only called on state changes (that is, never call sustained changes) by setting bShouldStateChangeOnReselect to true.
 	 */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const EStateTreeStateChangeType ChangeType, const FStateTreeTransitionResult& Transition) const final { return EStateTreeRunStatus::Running; }
+
+	UE_DEPRECATED(5.5, "Use ExitState without the EStateTreeStateChangeType.")
+	/**
+	 * Note: The API has been deprecated. ChangeType is moved into FStateTreeTransitionResult.
+	 * You can configure the task to be only called on state changes (that is, never call sustained changes) by setting bShouldStateChangeOnReselect to true.
+	 */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const EStateTreeStateChangeType ChangeType, const FStateTreeTransitionResult& Transition) const final {}
 
 	/**
@@ -75,6 +82,16 @@ struct STATETREEMODULE_API FStateTreeTaskBase : public FStateTreeNodeBase
 	 */
 	virtual void TriggerTransitions(FStateTreeExecutionContext& Context) const {};
 
+#if WITH_EDITOR
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Task");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::Grey;
+	}
+#endif
 
 #if WITH_GAMEPLAY_DEBUGGER
 	virtual void AppendDebugInfoString(FString& DebugString, const FStateTreeExecutionContext& Context) const;
@@ -103,6 +120,9 @@ struct STATETREEMODULE_API FStateTreeTaskBase : public FStateTreeNodeBase
 	/** True if the node is Enabled (i.e. not explicitly disabled in the asset). */
 	UPROPERTY()
 	uint8 bTaskEnabled : 1;
+
+	UPROPERTY()
+	EStateTreeTransitionPriority TransitionHandlingPriority = EStateTreeTransitionPriority::Normal;
 };
 
 /**

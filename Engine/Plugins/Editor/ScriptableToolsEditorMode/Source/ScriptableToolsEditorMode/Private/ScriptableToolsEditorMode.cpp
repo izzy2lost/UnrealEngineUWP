@@ -12,6 +12,7 @@
 #include "InteractiveToolManager.h"
 #include "ScriptableToolsEditorModeToolkit.h"
 #include "ScriptableToolsEditorModeManagerCommands.h"
+#include "ScriptableToolsEditorModeSettings.h"
 
 #include "BaseGizmos/TransformGizmoUtil.h"
 #include "Snapping/ModelingSceneSnappingManager.h"
@@ -21,6 +22,18 @@
 
 #include "InteractiveToolQueryInterfaces.h" // IInteractiveToolExclusiveToolAPI
 #include "ToolContextInterfaces.h"
+
+#include "ToolTargetManager.h"
+#include "ToolTargets/StaticMeshComponentToolTarget.h"
+#include "ToolTargets/VolumeComponentToolTarget.h"
+#include "ToolTargets/DynamicMeshComponentToolTarget.h"
+#include "ToolTargets/SkeletalMeshComponentToolTarget.h"
+
+#include "Utility/ScriptableToolContextObjects.h"
+#include "ContextObjectStore.h"
+
+#include "Engine/StreamableManager.h"
+
 
 
 #define LOCTEXT_NAMESPACE "UScriptableToolsEditorMode"
@@ -132,6 +145,13 @@ void UScriptableToolsEditorMode::Enter()
 	// listen to post-build
 	GetToolManager()->OnToolPostBuild.AddUObject(this, &UScriptableToolsEditorMode::OnToolPostBuild);
 
+	// Register builders for tool targets that the mode uses.
+	// TODO: We're not actually suporting modeling mode tool targets on scriptable tools, but the infrastructure to test for selected
+	// objects uses the ToolTargetFactories, so we're including these here. We probably need a more generic way to accomplish this.
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UStaticMeshComponentToolTargetFactory>(GetToolManager()));
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UVolumeComponentToolTargetFactory>(GetToolManager()));
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UDynamicMeshComponentToolTargetFactory>(GetToolManager()));
+
 	//// forward shutdown requests
 	//GetToolManager()->OnToolShutdownRequest.BindLambda([this](UInteractiveToolManager*, UInteractiveTool* Tool, EToolShutdownType ShutdownType)
 	//{
@@ -151,15 +171,12 @@ void UScriptableToolsEditorMode::Enter()
 	// enable realtime viewport override
 	ConfigureRealTimeViewportsOverride(true);
 
-
 	ScriptableTools = NewObject<UScriptableToolSet>(this);
-	// find all the Tool Blueprints
-	ScriptableTools->ReinitializeScriptableTools();
-	// register each of them with ToolManager
-	ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder) 
+
+	UScriptableToolsModeCustomizationSettings* ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+	ModeSettings->OnSettingChanged().AddLambda([this](UObject*, FPropertyChangedEvent&)
 	{
-		FString UseName = ToolClass->GetName();
-		GetToolManager(EToolsContextScope::EdMode)->RegisterToolType(UseName, ToolBuilder);
+		RebuildScriptableToolSet();
 	});
 
 	// todoz
@@ -173,9 +190,107 @@ void UScriptableToolsEditorMode::Enter()
 	{
 		FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
 		ModeToolkit->InitializeAfterModeSetup();
-		ModeToolkit->ForceToolPaletteRebuild();
 	}
+
+	RebuildScriptableToolSet();
+
+	InitializeModeContexts();
 }
+
+void UScriptableToolsEditorMode::RebuildScriptableToolSet()
+{
+	UScriptableToolsModeCustomizationSettings* ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+
+	auto UnregisterTools = [this]()
+	{
+		// unregister old tools from ToolManager
+		ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder)
+			{
+				FString UseName;
+				ToolClass->GetClassPathName().ToString(UseName);
+				GetToolManager(EToolsContextScope::EdMode)->UnregisterToolType(UseName);
+			});
+
+		if (Toolkit.IsValid())
+		{
+			FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
+			ModeToolkit->StartAsyncToolLoading();
+		};
+	};
+
+	auto RegisterTools = [this]()
+	{
+		// register each of them with ToolManager
+		ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder)
+		{
+			FString UseName;
+			ToolClass->GetClassPathName().ToString(UseName);
+			GetToolManager(EToolsContextScope::EdMode)->RegisterToolType(UseName, ToolBuilder);
+		});
+
+		if (Toolkit.IsValid())
+		{
+			FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
+			ModeToolkit->EndAsyncToolLoading();
+			ModeToolkit->ForceToolPaletteRebuild();
+		}
+	};
+
+	auto ToolLoadingUpdate = [this](TSharedPtr<FStreamableHandle> Handle)
+	{
+		if (Toolkit.IsValid())
+		{
+			FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
+			ModeToolkit->SetAsyncProgress(Handle->GetProgress());
+		}
+	};
+
+	// find all the Tool Blueprints
+	if (ModeSettings->RegisterAllTools())
+	{
+		ScriptableTools->ReinitializeScriptableTools(FToolsLoadedDelegate::CreateLambda(UnregisterTools),
+													 FToolsLoadedDelegate::CreateLambda(RegisterTools),
+			                                         FToolsLoadingUpdateDelegate::CreateLambda(ToolLoadingUpdate));
+	}
+	else
+	{
+		ScriptableTools->ReinitializeScriptableTools(FToolsLoadedDelegate::CreateLambda(UnregisterTools),
+												     FToolsLoadedDelegate::CreateLambda(RegisterTools),
+			                                         FToolsLoadingUpdateDelegate::CreateLambda(ToolLoadingUpdate),
+			                                         &ModeSettings->ToolRegistrationFilters);
+	}	
+
+
+
+}
+
+void UScriptableToolsEditorMode::InitializeModeContexts()
+{
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+
+	auto AddContextObject = [this, ContextStore](UScriptableToolContextObject* Object)
+	{
+		if (ensure(ContextStore->AddContextObject(Object)))
+		{
+			ContextsToShutdown.Add(Object);
+		}
+		ContextsToUpdateOnToolEnd.Add(Object);
+	};
+
+	UScriptableToolViewportWidgetAPI* ViewportWidgetAPI = NewObject<UScriptableToolViewportWidgetAPI>();
+	ViewportWidgetAPI = NewObject<UScriptableToolViewportWidgetAPI>();
+	ViewportWidgetAPI->Initialize(
+		[this](TSharedRef<SWidget> InOverlaidWidget) {
+			Toolkit->GetToolkitHost()->AddViewportOverlayWidget(InOverlaidWidget);
+		},
+		[this](TSharedRef<SWidget> InOverlaidWidget) {
+			Toolkit->GetToolkitHost()->RemoveViewportOverlayWidget(InOverlaidWidget);
+		}
+		);
+	AddContextObject(ViewportWidgetAPI);
+
+}
+
 
 
 void UScriptableToolsEditorMode::OnBlueprintPreCompile(UBlueprint* Blueprint)
@@ -190,18 +305,13 @@ void UScriptableToolsEditorMode::OnBlueprintPreCompile(UBlueprint* Blueprint)
 
 void UScriptableToolsEditorMode::OnBlueprintCompiled()
 {
-	// Probably not necessary to always rebuild the palette here. But currently this lets us respond
-	// to changes in the tool name/setting/etc
-	if (Toolkit.IsValid())
-	{
-		FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
-		ModeToolkit->ForceToolPaletteRebuild();
-	}
+	RebuildScriptableToolSet();
 }
 
 void UScriptableToolsEditorMode::Exit()
 {
 	GEditor->OnBlueprintPreCompile().Remove(BlueprintPreCompileHandle);
+	GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
 
 	// exit any exclusive active tools w/ cancel
 	if (UInteractiveTool* ActiveTool = GetToolManager()->GetActiveTool(EToolSide::Left))
@@ -221,6 +331,20 @@ void UScriptableToolsEditorMode::Exit()
 	
 	// clear realtime viewport override
 	ConfigureRealTimeViewportsOverride(false);
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	for (TWeakObjectPtr<UScriptableToolContextObject> Context : ContextsToShutdown)
+	{
+		if (Context.IsValid())
+		{
+			Context->Shutdown();
+			ContextStore->RemoveContextObject(Context.Get());
+		}
+	}
+
+	// Explicitly unload all tools from the set, just in case
+	ScriptableTools->UnloadAllTools();
+	ScriptableTools = nullptr;
 
 	// Call base Exit method to ensure proper cleanup
 	UEdMode::Exit();
@@ -272,6 +396,14 @@ void UScriptableToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, U
 {
 	// re-enable slate throttling (see OnToolStarted)
 	FSlateThrottleManager::Get().DisableThrottle(false);
+
+	for (TWeakObjectPtr<UScriptableToolContextObject> Context : ContextsToUpdateOnToolEnd)
+	{
+		if (Context.IsValid())
+		{
+			Context->OnToolEnded(Tool);
+		}
+	}
 }
 
 void UScriptableToolsEditorMode::BindCommands()

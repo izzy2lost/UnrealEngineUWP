@@ -29,6 +29,7 @@ public:
 
 	//~ Begin IRCProtocolBindingList Interface
 	virtual void AddProtocolBinding(const FName InProtocolName) override;
+	virtual URemoteControlPreset* GetPreset() const;
 
 	/** Get the set of entities which is awaiting state and waiting for binding. */
 	virtual FRemoteControlProtocolEntitySet GetAwaitingProtocolEntities() const override
@@ -58,9 +59,6 @@ private:
 
 	/** Retrieves the appropriate tooltip based on the active protocol. */
 	FText HandleAddBindingToolTipText() const;
-
-	/** Called to get the visibility of the scrollbar based on options, needs to be dynamic to avoid layout changing on expansion */
-	EVisibility GetScrollBarVisibility() const;
 
 	/** Primary Column is between Input and Output values. */
 	float OnGetPrimaryLeftColumnWidth() const
@@ -121,4 +119,7 @@ private:
 
 	/** Set of protocol entities with awaiting state and waiting for binding */
 	FRemoteControlProtocolEntitySet AwaitingProtocolEntities;
+
+	/** Map of protocol names and their support of awaiting protocol entities */
+	TMap<FName, bool> ProtocolNameToSupportsAwaitingProtocolEntitiesMap;
 };

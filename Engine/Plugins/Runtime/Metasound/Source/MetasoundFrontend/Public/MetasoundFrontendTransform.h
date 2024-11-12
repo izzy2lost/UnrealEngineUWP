@@ -64,16 +64,10 @@ namespace Metasound::Frontend
 	public:
 		virtual ~INodeTransform() = default;
 
-		UE_DEPRECATED(5.3, "Deprecated: unused function which encouraged breaking const behavior of transform state.")
-		virtual FMetasoundFrontendDocument& GetOwningDocument() const { static FMetasoundFrontendDocument BaseDoc; return BaseDoc; };
-
-		UE_DEPRECATED(5.3, "Deprecated: unused function which encouraged breaking const behavior of transform state.")
-		virtual FMetasoundFrontendGraph& GetOwningGraph() const { static FMetasoundFrontendGraph BaseGraph; return BaseGraph; }
-
 		/** Return true if the node was modified, false otherwise. */
 		virtual bool Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const;
 
-		UE_DEPRECATED(5.4, "Use transform which provides builder and const node representation to apply node transform to mutate underlying builder document")
+		UE_DEPRECATED(5.4, "Use transform overload with node ID and builder parameters to apply node transform to builder's underlying document")
 		virtual bool Transform(FMetasoundFrontendNode& InOutNode) const;
 	};
 
@@ -137,24 +131,15 @@ namespace Metasound::Frontend
 
 	};
 
-	/** Updates document's given interface to the most recent version. */
 	class METASOUNDFRONTEND_API FUpdateRootGraphInterface : public IDocumentTransform
 	{
 	public:
 		FUpdateRootGraphInterface(const FMetasoundFrontendVersion& InInterfaceVersion, const FString& InOwningAssetName=FString(TEXT("Unknown")))
-			: InterfaceVersion(InInterfaceVersion)
-			, OwningAssetName(InOwningAssetName)
 		{
 		}
 
-		bool Transform(FDocumentHandle InDocument) const override;
-
-	private:
-		void GetUpdatePathForDocument(const FMetasoundFrontendVersion& InCurrentVersion, const FMetasoundFrontendVersion& InTargetVersion, TArray<const IInterfaceRegistryEntry*>& OutUpgradePath) const;
-		bool UpdateDocumentInterface(const TArray<const IInterfaceRegistryEntry*>& InUpgradePath, FDocumentHandle InDocument) const;
-
-		FMetasoundFrontendVersion InterfaceVersion;
-		FString OwningAssetName;
+		UE_DEPRECATED(5.5, "RootGraph update is now handled privately by internal MetaSound asset management")
+		virtual bool Transform(FDocumentHandle InDocument) const override { return false; }
 	};
 
 	/** Completely rebuilds the graph connecting a preset's inputs to the reference
@@ -192,13 +177,18 @@ namespace Metasound::Frontend
 		// Add outputs to parent graph and connect to wrapped graph node.
 		void AddAndConnectOutputs(const TArray<FMetasoundFrontendClassOutput>& InClassOutputs, FGraphHandle& InParentGraphHandle, FNodeHandle& InReferencedNode) const;
 
+#if WITH_EDITORONLY_DATA
+		using FMemberIDToMetadataMap = TMap<FGuid, TObjectPtr<UMetaSoundFrontendMemberMetadata>>;
+		void AddMemberMetadata(const FMemberIDToMetadataMap& InCachedMemberMetadata, FGraphHandle& InPresetGraphHandle, FMemberIDToMetadataMap& InOutMemberMetadata) const;
+#endif // WITH_EDITORONLY_DATA
+
 		FConstDocumentHandle ReferencedDocument = IDocumentController::GetInvalidHandle();
 	};
 
 	/** Automatically updates all nodes and respective dependencies in graph where
 		* newer versions exist in the loaded MetaSound Class Node Registry.
 		*/
-	class METASOUNDFRONTEND_API FAutoUpdateRootGraph : public IDocumentTransform
+	class METASOUNDFRONTEND_API FAutoUpdateRootGraph 
 	{
 	public:
 		/** Construct an AutoUpdate transform
@@ -212,9 +202,14 @@ namespace Metasound::Frontend
 		{
 		}
 
-		bool Transform(FDocumentHandle InDocument) const override;
+		bool Transform(FDocumentHandle InDocument);
 
 	private:
+		// Keeps track of classes already updated so node check can be avoided.
+		// Hack to avoid issue where earlier auto-update passes on pages can
+		// clear out internal change state of a class in the registry causing
+		// nodes to get ignored on later page auto-update passes.
+		TSet<FGuid> UpdatedClasses;
 		const FString DebugAssetPath;
 		bool bLogWarningOnDroppedConnection;
 	};
@@ -225,28 +220,28 @@ namespace Metasound::Frontend
 		const FMetasoundFrontendClassName NewClassName;
 
 	public:
-		/* Generates and assigns the document's root graph class a unique name using the provided guid as the name field and
-		 * (optionally) namespace and variant.
-		 * Returns true if transform succeeded, false if not.
-		*/
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		static bool Generate(FDocumentHandle InDocument, const FGuid& InGuid, const FName Namespace = { }, const FName Variant = { })
 		{
-			const FMetasoundFrontendClassName GeneratedClassName = { Namespace, *InGuid.ToString(), Variant };
-			return FRenameRootGraphClass(GeneratedClassName).Transform(InDocument);
+			return false;
 		}
 
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		static bool Generate(FMetasoundFrontendDocument& InDocument, const FGuid& InGuid, const FName Namespace = { }, const FName Variant = { })
 		{
-			const FMetasoundFrontendClassName GeneratedClassName = { Namespace, *InGuid.ToString(), Variant };
-			return FRenameRootGraphClass(GeneratedClassName).Transform(InDocument);
+			return false;
 		}
 
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		FRenameRootGraphClass(const FMetasoundFrontendClassName InClassName)
 			: NewClassName(InClassName)
 		{
 		}
 
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		bool Transform(FDocumentHandle InDocument) const override;
+
+		UE_DEPRECATED(5.5, "Use FMetasoundFrontendDocumentBuilder::GenerateNewClassName instead")
 		bool Transform(FMetasoundFrontendDocument& InOutDocument) const override;
 	};
 } // Metasound::Frontend

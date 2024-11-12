@@ -13,6 +13,10 @@
 class UMovieScene;
 class UUserWidget;
 
+#if WITH_EDITOR
+struct FSlateBrush;
+#endif
+
 
 /**
  * 
@@ -97,10 +101,17 @@ public:
 	virtual void UnbindPossessableObjects(const FGuid& ObjectId) override;
 	virtual void UnbindObjects(const FGuid& ObjectId, const TArray<UObject*>& InObjects, UObject* InContext) override {}
 	virtual void UnbindInvalidObjects(const FGuid& ObjectId, UObject* InContext) override {}
-	virtual void LocateBoundObjects(const FGuid& ObjectId, UObject* Context, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const override;
+	virtual void LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TSharedPtr<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const override;
 	virtual UObject* CreateDirectorInstance(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID SequenceID) override;
+
+	
 #if WITH_EDITOR
-	virtual ETrackSupport IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
+	virtual void IterateDynamicBindings(TFunction<void(const FGuid&, FMovieSceneDynamicBinding&)> InCallback) override;
+	virtual ETrackSupport IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
+	virtual const FSlateBrush* GetCustomBrushForBinding(FGuid BindingID) const override;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FFixupWidgetDynamicBindingsEvent, UWidgetAnimation*);
+	static UMG_API FFixupWidgetDynamicBindingsEvent FixupWidgetDynamicBindingsEvent;
 #endif
 	// ~UMovieSceneAnimation overrides
 

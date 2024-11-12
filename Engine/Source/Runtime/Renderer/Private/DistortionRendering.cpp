@@ -511,7 +511,7 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FSceneRenderer_RenderDistortion);
 	SCOPED_NAMED_EVENT(RenderDistortion, FColor::Emerald);
-	RDG_EVENT_SCOPE(GraphBuilder, "Distortion");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Distortion, "Distortion");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Distortion);
 
 	const FDepthStencilBinding StencilReadBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead);
@@ -573,7 +573,9 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 			{
 				FTAAPassParameters TAASettings(View);
 				TAASettings.SceneDepthTexture = SceneDepthTexture;
-				TAASettings.SceneVelocityTexture = SceneVelocityTexture;
+
+				// We need a valid velocity buffer texture. Use black (no velocity) if it's not produced.
+				TAASettings.SceneVelocityTexture = GetIfProduced(SceneVelocityTexture, GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy));
 				TAASettings.Pass = ETAAPassConfig::Main;		// Reusing main config for now. We could add a ReoughRefraction config forcing 111110 format.
 				TAASettings.SceneColorInput = TAASceneColorTexture;
 				TAASettings.bOutputRenderTargetable = true;
@@ -781,11 +783,11 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 				{},
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, PassParameters](FRHICommandList& RHICmdList)
+				[&View, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FSceneRender_RenderDistortion_Accumulate_Meshes);
 				SetStereoViewport(RHICmdList, View);
-				View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 
 			LoadAction = ERenderTargetLoadAction::ELoad;
@@ -908,6 +910,12 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 			false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
 			DISTORTION_STENCIL_MASK_BIT, DISTORTION_STENCIL_MASK_BIT>::GetRHI();
 		PipelineState.StencilRef = DISTORTION_STENCIL_MASK_BIT;
+		
+		// When holdout is enabled, we retain the alpha to keep the translucent holdout alpha.
+		if (IsPrimitiveAlphaHoldoutEnabledForAnyView(Views))
+		{
+			PipelineState.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_Zero, BF_One>::GetRHI();
+		}
 
 		for (int32 ViewIndex = 0, Num = Views.Num(); ViewIndex < Num; ++ViewIndex)
 		{

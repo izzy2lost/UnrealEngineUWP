@@ -4,8 +4,8 @@
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
-
 #include "Engine/Level.h"
+#include "Engine/LevelStreamingGCHelper.h"
 #include "Engine/World.h"
 
 void FWorldPartitionPackageHelper::UnloadPackage(UPackage* InPackage)
@@ -20,8 +20,7 @@ void FWorldPartitionPackageHelper::UnloadPackage(UPackage* InPackage)
 		}, false);
 
 		// Rename so it isn't found again
-		FName NewUniqueTrashName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InPackage->GetName())));
-		InPackage->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional | REN_DoNotDirty);
+		FLevelStreamingGCHelper::TrashPackage(InPackage);
 	};
 
 	TrashPackage(InPackage);

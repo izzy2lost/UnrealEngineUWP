@@ -67,6 +67,8 @@ SWindowTitleBarArea::SWindowTitleBarArea()
 	}
 }
 
+SWindowTitleBarArea::~SWindowTitleBarArea() = default;
+
 void SWindowTitleBarArea::Construct( const FArguments& InArgs )
 {
 	MinimizeButton = SNew(SButton)

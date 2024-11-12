@@ -19,6 +19,8 @@
 // the virtualization system to be a lazy initialization.
 #ifndef UE_VIRTUALIZATION_SYSTEM_LAZY_INIT
 	#define UE_VIRTUALIZATION_SYSTEM_LAZY_INIT 0
+#else
+	#pragma message("WARNING: Use of UE_VIRTUALIZATION_SYSTEM_LAZY_INIT is deprecated as of UE 5.5, consider replacing with 'ini:Engine:[Core.VirtualizationModule]:LazyInitConnections=true'")
 #endif //UE_VIRTUALIZATION_SYSTEM_LAZY_INIT
 
 // When enabled we will log if FNullVirtualizationSystem tries to push or pull payloads
@@ -140,12 +142,12 @@ public:
 		// The null implementation will have no stats and nothing to log
 	}
 
-	virtual void GetPayloadActivityInfo(GetPayloadActivityInfoFuncRef) const override
+	virtual TArray<FBackendStats> GetBackendStatistics() const override
 	{
-		// The null implementation has no stats and nothing to invoke
+		return TArray<FBackendStats>();
 	}
 
-	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const override
+	virtual FPayloadActivityInfo GetSystemStatistics() const override
 	{
 		return FPayloadActivityInfo();
 	}
@@ -164,6 +166,7 @@ public:
 };
 
 TUniquePtr<IVirtualizationSystem> GVirtualizationSystem = nullptr;
+FName GVirtualizationSystemName;
 
 /**
  * Utility to check if either cmd is present in the command line. Useful when transitioning from one
@@ -297,6 +300,7 @@ void Initialize(const FInitParams& InitParams, EInitializationFlags Flags)
 	{
 		if (ShouldLazyInitializeSystem(InitParams.ConfigFile))
 		{
+			UE_LOG(LogVirtualization, Warning, TEXT("The 'LazyInit' feature is deprecated as of UE 5.5, consider replacing with 'ini:Engine:[Core.VirtualizationModule]:LazyInitConnections=true'"));
 			return;
 		}
 	}
@@ -326,6 +330,7 @@ void Initialize(const FInitParams& InitParams, EInitializationFlags Flags)
 			{
 				check(!IVirtualizationSystem::IsInitialized());
 				GVirtualizationSystem = MoveTemp(NewSystem);
+				GVirtualizationSystemName = SystemName;
 			}
 			else
 			{
@@ -363,10 +368,20 @@ void Shutdown()
 	UE_LOG(LogVirtualization, Verbose, TEXT("UE::Virtualization was shutdown"));
 }
 
+FAnalyticsRecordEvent& GetAnalyticsRecordEvent()
+{
+	static FAnalyticsRecordEvent Event;
+	return Event;
+}
 
 bool IVirtualizationSystem::IsInitialized()
 {
 	return GVirtualizationSystem != nullptr;
+}
+
+FName IVirtualizationSystem::GetSystemName()
+{
+	return GVirtualizationSystemName;
 }
 
 IVirtualizationSystem& IVirtualizationSystem::Get()

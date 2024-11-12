@@ -3,6 +3,7 @@
 #include "AvaTransitionSimpleMode.h"
 #include "TabFactories/AvaTransitionCompilerResultsTabFactory.h"
 #include "TabFactories/AvaTransitionSelectionDetailsTabFactory.h"
+#include "TabFactories/AvaTransitionTreeDetailsTabFactory.h"
 #include "TabFactories/AvaTransitionTreeTabFactory.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionSimpleMode"
@@ -10,9 +11,11 @@
 FAvaTransitionSimpleMode::FAvaTransitionSimpleMode(const TSharedRef<FAvaTransitionEditor>& InEditor)
 	: FAvaTransitionAppMode(InEditor, EAvaTransitionEditorMode::Default)
 {
+	RegisterDefaultTabFactories();
+
 	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenuCategory", "Motion Design Transition Simple"));
 
-	TabLayout = FTabManager::NewLayout("AvaTransitionEditor_Simple_Layout_V0_1")
+	TabLayout = FTabManager::NewLayout("AvaTransitionEditor_Simple_Layout_V0_2")
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea()
@@ -23,8 +26,14 @@ FAvaTransitionSimpleMode::FAvaTransitionSimpleMode(const TSharedRef<FAvaTransiti
 			->SetOrientation(Orient_Horizontal)
 			->Split
 			(
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.2f)
+				->AddTab(FAvaTransitionTreeDetailsTabFactory::TabId, ETabState::ClosedTab)
+			)
+			->Split
+			(
 				FTabManager::NewSplitter()
-				->SetSizeCoefficient(0.8f)
+				->SetSizeCoefficient(0.6f)
 				->SetOrientation(Orient_Vertical)
 				->Split
 				(

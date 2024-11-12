@@ -21,6 +21,7 @@
 #include "CanvasTypes.h"
 #include "EngineModule.h"
 #include "SceneViewExtension.h"
+#include "TrackEditorThumbnail/TrackThumbnailUtils.h"
 
 namespace TrackEditorThumbnailConstants
 {
@@ -359,12 +360,11 @@ void FTrackEditorThumbnailCache::DrawThumbnail(FTrackEditorThumbnail& TrackEdito
 	else if (ViewportThumbnailClient)
 	{
 		ViewportThumbnailClient->PreDraw(TrackEditorThumbnail);
-
 		DrawViewportThumbnail(TrackEditorThumbnail);
-
 		ViewportThumbnailClient->PostDraw(TrackEditorThumbnail);
 	}
 
+	// The texture will be rendered by a shader so transition it to SRVMask.
 	FSlateTextureRenderTarget2DResource* pSlateResource = TrackEditorThumbnail.GetRenderTarget();
 	if (pSlateResource != nullptr)
 	{
@@ -379,7 +379,7 @@ void FTrackEditorThumbnailCache::DrawThumbnail(FTrackEditorThumbnail& TrackEdito
 		);
 	}
 }
-void FTrackEditorThumbnailCache::DrawViewportThumbnail(FTrackEditorThumbnail& TrackEditorThumbnail)
+void FTrackEditorThumbnailCache::DrawViewportThumbnail(FTrackEditorThumbnail& TrackEditorThumbnail) const
 {
 	check(ViewportThumbnailClient);
 
@@ -391,8 +391,7 @@ void FTrackEditorThumbnailCache::DrawViewportThumbnail(FTrackEditorThumbnail& Tr
 
 	FMinimalViewInfo ViewInfo;
 	PreviewCameraComponent->GetCameraView(FApp::GetDeltaTime(), ViewInfo);
-
-	FIntPoint RTSize = CalculateTextureSize(ViewInfo);
+	const FIntPoint RTSize = CalculateTextureSize(ViewInfo);
 	if (RTSize.X <= 0 || RTSize.Y <= 0)
 	{
 		return;
@@ -400,77 +399,8 @@ void FTrackEditorThumbnailCache::DrawViewportThumbnail(FTrackEditorThumbnail& Tr
 
 	TrackEditorThumbnail.bIgnoreAlpha = true;
 	TrackEditorThumbnail.ResizeRenderTarget(RTSize);
-
 	UWorld* World = PreviewCameraComponent->GetWorld();
-
-	FSceneViewFamilyContext ViewFamily( FSceneViewFamily::ConstructionValues( TrackEditorThumbnail.GetRenderTarget(), World->Scene, FEngineShowFlags(ESFIM_Game) )
-		.SetTime(FGameTime::GetTimeSinceAppStart())
-		.SetResolveScene(true));
-
-	FSceneViewStateInterface* ViewStateInterface = nullptr;
-
-	// Screen percentage is not supported in thumbnail.
-	ViewFamily.EngineShowFlags.ScreenPercentage = false;
-
-	switch (CurrentCache.Quality)
-	{
-	case EThumbnailQuality::Draft:
-		ViewFamily.EngineShowFlags.DisableAdvancedFeatures();
-		ViewFamily.EngineShowFlags.SetPostProcessing(false);
-		break;
-
-	case EThumbnailQuality::Normal:
-	case EThumbnailQuality::Best:
-		ViewFamily.EngineShowFlags.SetMotionBlur(false);
-
-		// Default eye adaptation requires a viewstate.
-		ViewFamily.EngineShowFlags.EyeAdaptation = true;
-		UMovieSceneUserThumbnailSettings* ThumbnailSettings = GetMutableDefault<UMovieSceneUserThumbnailSettings>();
-		FSceneViewStateInterface* Ref = ThumbnailSettings->ViewState.GetReference();
-		if (!Ref)
-		{
-			ThumbnailSettings->ViewState.Allocate(ViewFamily.GetFeatureLevel());
-		}
-		ViewStateInterface = ThumbnailSettings->ViewState.GetReference();
-		break;
-	}
-
-	FSceneViewInitOptions ViewInitOptions;
-
-	// Use target exposure without blend. 
-	ViewInitOptions.bInCameraCut = true;
-	ViewInitOptions.SceneViewStateInterface = ViewStateInterface;
-
-	ViewInitOptions.BackgroundColor = FLinearColor::Black;
-	ViewInitOptions.SetViewRectangle(FIntRect(FIntPoint::ZeroValue, RTSize));
-	ViewInitOptions.ViewFamily = &ViewFamily;
-
-	ViewInitOptions.ViewOrigin = ViewInfo.Location;
-	ViewInitOptions.ViewRotationMatrix = FInverseRotationMatrix(ViewInfo.Rotation) * FMatrix(
-		FPlane(0, 0, 1, 0),
-		FPlane(1, 0, 0, 0),
-		FPlane(0, 1, 0, 0),
-		FPlane(0, 0, 0, 1));
-
-	ViewInitOptions.ProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
-
-	FSceneView* NewView = new FSceneView(ViewInitOptions);
-	ViewFamily.Views.Add(NewView);
-
-	const float GlobalResolutionFraction = 1.f;
-	ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(ViewFamily, GlobalResolutionFraction));
-
-	FCanvas Canvas(TrackEditorThumbnail.GetRenderTarget(), nullptr, FGameTime::GetTimeSinceAppStart(), World->Scene->GetFeatureLevel());
-	Canvas.Clear(FLinearColor::Transparent);
-
-	ViewFamily.ViewExtensions = GEngine->ViewExtensions->GatherActiveExtensions(FSceneViewExtensionContext(World->Scene));
-	for (const FSceneViewExtensionRef& Extension : ViewFamily.ViewExtensions)
-	{
-		Extension->SetupViewFamily(ViewFamily);
-		Extension->SetupView(ViewFamily, *NewView);
-	}
-
-	GetRendererModule().BeginRenderingViewFamily(&Canvas, &ViewFamily);
+	UE::MoveSceneTools::DrawViewportThumbnail(*TrackEditorThumbnail.GetRenderTarget(), RTSize, *World->Scene, ViewInfo, CurrentCache.Quality);
 }
 
 

@@ -11,6 +11,7 @@
 #include "Containers/BitArray.h"
 #include "Containers/SortedMap.h"
 
+#include "MovieSceneTransformTypes.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceID.h"
 #include "Evaluation/MovieScenePlayback.h"
@@ -20,14 +21,23 @@
 #include "Evaluation/MovieSceneRootOverridePath.h"
 
 #include "MovieSceneTimeHelpers.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 
 #include "Algo/IndexOf.h"
 #include "Algo/Transform.h"
+#include "Algo/Unique.h"
+#include "Sections/MovieSceneSubSection.h"
 
 namespace UE
 {
 namespace MovieScene
 {
+
+struct FMovieSceneDeterminismFenceWithSubframe
+{
+	FFrameTime FrameTime;
+	uint8 bInclusive : 1;
+};
 
 /** Flat sequence updater (ie, no hierarchy) */
 struct FSequenceUpdater_Flat : ISequenceUpdater
@@ -41,20 +51,27 @@ struct FSequenceUpdater_Flat : ISequenceUpdater
 	virtual void Update(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& Context) override;
 	virtual bool CanFinishImmediately(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const override;
 	virtual void Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
-	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
+	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType) override;
 	virtual void Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
 	virtual TUniquePtr<ISequenceUpdater> MigrateToHierarchical() override;
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const override { return FInstanceHandle(); }
 	virtual void OverrideRootSequence(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID NewRootOverrideSequenceID) override {}
+	virtual bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
 
 private:
 
 	TRange<FFrameNumber> CachedEntityRange;
 
-	TOptional<TArray<FFrameTime>> CachedDeterminismFences;
+	TOptional<TArray<FMovieSceneDeterminismFence>> CachedDeterminismFences;
 	FMovieSceneCompiledDataID CompiledDataID;
 
 	TOptional<bool> bDynamicWeighting;
+
+	// Conditional entities that need to be re-checked in between entity ranges.
+	FMovieSceneEvaluationFieldEntitySet CachedPerTickConditionalEntities;
+
+	// Cached results for conditions that only need to be checked once, stored by the cache key returned by the condition itself.
+	mutable TMap<uint32, bool> CachedConditionResults;
 };
 
 /** Hierarchical sequence updater */
@@ -70,11 +87,12 @@ struct FSequenceUpdater_Hierarchical : ISequenceUpdater
 	virtual void Update(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& Context) override;
 	virtual bool CanFinishImmediately(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const override;
 	virtual void Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
-	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
+	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType) override;
 	virtual void Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
 	virtual TUniquePtr<ISequenceUpdater> MigrateToHierarchical() override { return nullptr; }
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const override { return SequenceInstances.FindRef(SubSequenceID).Handle; }
 	virtual void OverrideRootSequence(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID NewRootOverrideSequenceID) override;
+	virtual bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
 
 private:
 
@@ -98,9 +116,15 @@ private:
 	FMovieSceneSequenceID RootOverrideSequenceID;
 
 	TOptional<bool> bDynamicWeighting;
+
+	// Conditional entities per sequence ID in the hierarchy that need to be re-checked in between entity ranges.
+	TMap<FMovieSceneSequenceID, FMovieSceneEvaluationFieldEntitySet> CachedPerTickConditionalEntities;
+
+	// Cached results for conditions that only need to be checked once, stored by the cache key returned by the condition itself.
+	mutable TMap<uint32, bool> CachedConditionResults;
 };
 
-void DissectRange(TArrayView<const FFrameTime> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
+void DissectRange(TArrayView<const FMovieSceneDeterminismFenceWithSubframe> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
 {
 	if (InDissectionTimes.Num() == 0)
 	{
@@ -111,16 +135,19 @@ void DissectRange(TArrayView<const FFrameTime> InDissectionTimes, const TRange<F
 
 	for (int32 Index = 0; Index < InDissectionTimes.Num(); ++Index)
 	{
-		FFrameTime DissectionTime = InDissectionTimes[Index];
+		FMovieSceneDeterminismFenceWithSubframe DissectionFence = InDissectionTimes[Index];
 
-		TRange<FFrameTime> Dissection(LowerBound, TRangeBound<FFrameTime>::Exclusive(DissectionTime));
+		TRange<FFrameTime> Dissection = DissectionFence.bInclusive
+			? TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Inclusive(DissectionFence.FrameTime))
+			: TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Exclusive(DissectionFence.FrameTime));
+
 		if (!Dissection.IsEmpty())
 		{
 			ensureAlwaysMsgf(Bounds.Contains(Dissection), TEXT("Dissection specified for a range outside of the current bounds"));
 
 			OutDissections.Add(Dissection);
 
-			LowerBound = TRangeBound<FFrameTime>::Inclusive(DissectionTime);
+			LowerBound = TRangeBound<FFrameTime>::FlipInclusion(Dissection.GetUpperBound());
 		}
 	}
 
@@ -131,25 +158,69 @@ void DissectRange(TArrayView<const FFrameTime> InDissectionTimes, const TRange<F
 	}
 }
 
-TArrayView<const FFrameTime> GetFencesWithinRange(TArrayView<const FFrameTime> Fences, const TRange<FFrameTime>& Boundary)
+void DissectRange(TArrayView<const FMovieSceneDeterminismFence> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
+{
+	if (InDissectionTimes.Num() == 0)
+	{
+		return;
+	}
+
+	TRangeBound<FFrameTime> LowerBound = Bounds.GetLowerBound();
+
+	for (int32 Index = 0; Index < InDissectionTimes.Num(); ++Index)
+	{
+		FMovieSceneDeterminismFence DissectionFence = InDissectionTimes[Index];
+
+		TRange<FFrameTime> Dissection = DissectionFence.bInclusive
+			? TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Inclusive(DissectionFence.FrameNumber))
+			: TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Exclusive(DissectionFence.FrameNumber));
+
+		if (!Dissection.IsEmpty())
+		{
+			ensureAlwaysMsgf(Bounds.Contains(Dissection), TEXT("Dissection specified for a range outside of the current bounds"));
+
+			OutDissections.Add(Dissection);
+
+			LowerBound = TRangeBound<FFrameTime>::FlipInclusion(Dissection.GetUpperBound());
+		}
+	}
+
+	TRange<FFrameTime> TailRange(LowerBound, Bounds.GetUpperBound());
+	if (!TailRange.IsEmpty())
+	{
+		OutDissections.Add(TailRange);
+	}
+}
+
+TArrayView<const FMovieSceneDeterminismFence> GetFencesWithinRange(TArrayView<const FMovieSceneDeterminismFence> Fences, const TRange<FFrameTime>& Boundary)
 {
 	if (Fences.Num() == 0 || Boundary.IsEmpty())
 	{
-		return TArrayView<const FFrameTime>();
+		return TArrayView<const FMovieSceneDeterminismFence>();
 	}
 
-	// Take care to include or exclude the lower bound of the range if it's on a whole frame numbe
-	const int32 StartFence = Boundary.GetLowerBound().IsClosed() ? Algo::UpperBound(Fences, Boundary.GetLowerBoundValue()) : 0;
+	// Take care to include or exclude the lower bound of the range if it's on a whole frame number
+	const int32 StartFence = Boundary.GetLowerBound().IsOpen()
+		? 0
+		: Boundary.GetLowerBound().IsInclusive() && Boundary.GetLowerBoundValue().GetSubFrame() == 0.0
+			? Algo::LowerBoundBy(Fences, Boundary.GetLowerBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber)
+			: Algo::UpperBoundBy(Fences, Boundary.GetLowerBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber);
+
 	if (StartFence >= Fences.Num())
 	{
-		return TArrayView<const FFrameTime>();
+		return TArrayView<const FMovieSceneDeterminismFence>();
 	}
 
-	const int32 EndFence = Boundary.GetUpperBound().IsClosed() ? Algo::UpperBound(Fences, Boundary.GetUpperBoundValue()) : Fences.Num();
+	const int32 EndFence = Boundary.GetUpperBound().IsOpen()
+		? 0
+		: Boundary.GetUpperBound().IsInclusive() && Boundary.GetUpperBoundValue().GetSubFrame() == 0.0
+			? Algo::LowerBoundBy(Fences, Boundary.GetUpperBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber)
+			: Algo::UpperBoundBy(Fences, Boundary.GetUpperBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber);
+
 	const int32 NumFences = FMath::Max(0, EndFence - StartFence);
 	if (NumFences == 0)
 	{
-		return TArrayView<const FFrameTime>();
+		return TArrayView<const FMovieSceneDeterminismFence>();
 	}
 
 	return MakeArrayView(Fences.GetData() + StartFence, NumFences);
@@ -200,12 +271,12 @@ void FSequenceUpdater_Flat::PopulateUpdateFlags(TSharedRef<const FSharedPlayback
 {
 	if (!CachedDeterminismFences.IsSet())
 	{
-		UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
-		TArrayView<const FFrameTime>    DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
+		UMovieSceneCompiledDataManager*               CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+		TArrayView<const FMovieSceneDeterminismFence> DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
 
 		if (DeterminismFences.Num() != 0)
 		{
-			CachedDeterminismFences = TArray<FFrameTime>(DeterminismFences.GetData(), DeterminismFences.Num());
+			CachedDeterminismFences = TArray<FMovieSceneDeterminismFence>(DeterminismFences.GetData(), DeterminismFences.Num());
 		}
 		else
 		{
@@ -222,18 +293,25 @@ void FSequenceUpdater_Flat::PopulateUpdateFlags(TSharedRef<const FSharedPlayback
 	{
 		OutUpdateFlags |= ESequenceInstanceUpdateFlags::NeedsDissection;
 	}
+
+	const FMovieSceneSequenceHierarchy* Hierarchy = SharedPlaybackState->GetCompiledDataManager()->FindHierarchy(CompiledDataID);
+	if (Hierarchy && Hierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
+	{
+		// Time-warped root transforms require dissection to manipulate the evaluation range
+		OutUpdateFlags |= ESequenceInstanceUpdateFlags::NeedsDissection;
+	}
 }
 
 void FSequenceUpdater_Flat::DissectContext(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& Context, TArray<TRange<FFrameTime>>& OutDissections)
 {
 	if (!CachedDeterminismFences.IsSet())
 	{
-		UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
-		TArrayView<const FFrameTime>    DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
+		UMovieSceneCompiledDataManager*               CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+		TArrayView<const FMovieSceneDeterminismFence> DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
 
 		if (DeterminismFences.Num() != 0)
 		{
-			CachedDeterminismFences = TArray<FFrameTime>(DeterminismFences.GetData(), DeterminismFences.Num());
+			CachedDeterminismFences = TArray<FMovieSceneDeterminismFence>(DeterminismFences.GetData(), DeterminismFences.Num());
 		}
 		else
 		{
@@ -243,7 +321,7 @@ void FSequenceUpdater_Flat::DissectContext(TSharedRef<const FSharedPlaybackState
 
 	if (CachedDeterminismFences->Num() != 0)
 	{
-		TArrayView<const FFrameTime> TraversedFences = GetFencesWithinRange(CachedDeterminismFences.GetValue(), Context.GetRange());
+		TArrayView<const FMovieSceneDeterminismFence> TraversedFences = GetFencesWithinRange(CachedDeterminismFences.GetValue(), Context.GetRange());
 		UE::MovieScene::DissectRange(TraversedFences, Context.GetRange(), OutDissections);
 	}
 }
@@ -284,6 +362,8 @@ void FSequenceUpdater_Flat::Update(TSharedRef<const FSharedPlaybackState> Shared
 	const bool bOutsideCachedRange = !CachedEntityRange.Contains(ImportTime);
 	if (bOutsideCachedRange)
 	{
+		CachedPerTickConditionalEntities.Reset();
+
 		if (ComponentField)
 		{
 			ComponentField->QueryPersistentEntities(ImportTime, CachedEntityRange, EntitiesScratch);
@@ -301,7 +381,19 @@ void FSequenceUpdater_Flat::Update(TSharedRef<const FSharedPlaybackState> Shared
 		Params.HierarchicalBias = 0;
 		Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-		SequenceInstance.Ledger.UpdateEntities(Linker, Params, ComponentField, EntitiesScratch);
+		SequenceInstance.Ledger.UpdateEntities(Linker, Params, ComponentField, EntitiesScratch, CachedPerTickConditionalEntities, CachedConditionResults);
+	}
+	else if (CachedPerTickConditionalEntities.Num() != 0)
+	{
+		FEntityImportSequenceParams Params;
+		Params.SequenceID = MovieSceneSequenceID::Root;
+		Params.InstanceHandle = InstanceHandle;
+		Params.RootInstanceHandle = InstanceHandle;
+		Params.DefaultCompletionMode = Sequence->DefaultCompletionMode;
+		Params.HierarchicalBias = 0;
+		Params.bDynamicWeighting = bDynamicWeighting.Get(false);
+
+		SequenceInstance.Ledger.UpdateConditionalEntities(Linker, Params, ComponentField, CachedPerTickConditionalEntities);
 	}
 
 	// Update any one-shot entities for the current frame
@@ -320,7 +412,7 @@ void FSequenceUpdater_Flat::Update(TSharedRef<const FSharedPlaybackState> Shared
 			Params.HierarchicalBias = 0;
 			Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-			SequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, ComponentField, EntitiesScratch);
+			SequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, ComponentField, EntitiesScratch, CachedConditionResults);
 		}
 	}
 }
@@ -335,22 +427,42 @@ bool FSequenceUpdater_Flat::CanFinishImmediately(TSharedRef<const FSharedPlaybac
 
 void FSequenceUpdater_Flat::Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
-	InvalidateCachedData(SharedPlaybackState);
+	InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 }
 
 void FSequenceUpdater_Flat::Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 }
 
-void FSequenceUpdater_Flat::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+void FSequenceUpdater_Flat::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType)
 {
 	CachedEntityRange = TRange<FFrameNumber>::Empty();
 	CachedDeterminismFences.Reset();
+	CachedPerTickConditionalEntities.Reset();
+	CachedConditionResults.Reset();
 	bDynamicWeighting.Reset();
 }
 
 
+bool FSequenceUpdater_Flat::EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (Condition)
+	{
+		if (Condition->CanCacheResult(SharedPlaybackState))
+		{
+			if (bool* ConditionResult = CachedConditionResults.Find(Condition->ComputeCacheKey(BindingID, SequenceID, SharedPlaybackState, ConditionOwnerObject)))
+			{
+				return *ConditionResult;
+			}
 
+			// We specifically don't cache the result of a condition check in this path, since this path is called by UI contexts.
+			// The main evaluation path in MovieSceneEntityLedger caches its results.
+		}
+
+		return Condition->EvaluateCondition(BindingID, SequenceID, SharedPlaybackState);
+	}
+	return true;
+}
 
 
 FSequenceUpdater_Hierarchical::FSequenceUpdater_Hierarchical(FMovieSceneCompiledDataID InCompiledDataID)
@@ -389,7 +501,11 @@ void FSequenceUpdater_Hierarchical::PopulateUpdateFlags(TSharedRef<const FShared
 
 	if (const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(CompiledDataID))
 	{
-		for (const TPair<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : Hierarchy->AllSubSequenceData())
+		if (Hierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
+		{
+			OutUpdateFlags |= ESequenceInstanceUpdateFlags::NeedsDissection;
+		}
+		else for (const TPair<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : Hierarchy->AllSubSequenceData())
 		{
 			UMovieSceneSequence*      SubSequence = Pair.Value.GetSequence();
 			FMovieSceneCompiledDataID SubDataID   = SubSequence ? CompiledDataManager->GetDataID(SubSequence) : FMovieSceneCompiledDataID();
@@ -407,28 +523,55 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 {
 	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 
-	TRange<FFrameNumber> TraversedRange = Context.GetFrameNumberRange();
-	TArray<FFrameTime>   RootDissectionTimes;
+	FMovieSceneCompiledDataID   RootCompiledDataID = CompiledDataID;
+	FMovieSceneContext          RootContext        = Context;
+
+	const FMovieSceneSequenceHierarchy* RootHierarchy = CompiledDataManager->FindHierarchy(CompiledDataID);
+
+	if (!RootHierarchy)
+	{
+		return;
+	}
+
+	if (RootOverrideSequenceID != MovieSceneSequenceID::Root)
+	{
+		const FMovieSceneSubSequenceData* SubData = RootHierarchy->FindSubData(RootOverrideSequenceID);
+		if (SubData)
+		{
+			RootCompiledDataID = CompiledDataManager->GetDataID(SubData->GetSequence());
+			RootContext = Context.Transform(SubData->RootToSequenceTransform, SubData->TickResolution);
+		}
+	}
+	else if (RootHierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
+	{
+		RootContext = Context.Transform(RootHierarchy->GetRootTransform(), Context.GetFrameRate());
+	}
+
+	TRange<FFrameNumber> TraversedRange = RootContext.GetFrameNumberRange();
+	TArray<FMovieSceneDeterminismFenceWithSubframe> RootDissectionTimes;
 
 	{
-		const FMovieSceneCompiledDataEntry& DataEntry       = CompiledDataManager->GetEntryRef(CompiledDataID);
-		TArrayView<const FFrameTime>        TraversedFences = GetFencesWithinRange(DataEntry.DeterminismFences, Context.GetRange());
+		const FMovieSceneCompiledDataEntry&           DataEntry       = CompiledDataManager->GetEntryRef(RootCompiledDataID);
+		TArrayView<const FMovieSceneDeterminismFence> TraversedFences = GetFencesWithinRange(DataEntry.DeterminismFences, RootContext.GetRange());
 
-		UE::MovieScene::DissectRange(TraversedFences, Context.GetRange(), OutDissections);
+		for (const FMovieSceneDeterminismFence& Fence : TraversedFences)
+		{
+			RootDissectionTimes.Add(FMovieSceneDeterminismFenceWithSubframe{ Fence.FrameNumber, Fence.bInclusive });
+		}
 	}
 
 	// @todo: should this all just be compiled into the root hierarchy?
-	if (const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(CompiledDataID))
+	if (const FMovieSceneSequenceHierarchy* Hierarchy = CompiledDataManager->FindHierarchy(RootCompiledDataID))
 	{
 		FMovieSceneEvaluationTreeRangeIterator SubSequenceIt = Hierarchy->GetTree().IterateFromLowerBound(TraversedRange.GetLowerBound());
 		for ( ; SubSequenceIt && SubSequenceIt.Range().Overlaps(TraversedRange); ++SubSequenceIt)
 		{
-			TRange<FFrameTime> RootClampRange = TRange<FFrameTime>::Intersection(ConvertRange<FFrameNumber, FFrameTime>(SubSequenceIt.Range()), Context.GetRange());
+			TRange<FFrameTime> RootClampRange = TRange<FFrameTime>::Intersection(ConvertToFrameTimeRange(SubSequenceIt.Range()), RootContext.GetRange());
 
-			// When Context.GetRange() does not fall on whole frame boundaries, we can sometimes end up with a range that clamps to being empty, even though the range overlapped
+			// When RootContext.GetRange() does not fall on whole frame boundaries, we can sometimes end up with a range that clamps to being empty, even though the range overlapped
 			// the traversed range. ie if we evaluated range (1.5, 10], our traversed range would be [2, 11). If we have a sub sequence range of (10, 20), it would still be iterated here
 			// because [2, 11) overlaps (10, 20), but when clamped to the evaluated range, the range is (10, 10], which is empty.
-			if (!RootClampRange.IsEmpty())
+			if (RootClampRange.IsEmpty())
 			{
 				continue;
 			}
@@ -445,20 +588,37 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 					continue;
 				}
 
-				TArrayView<const FFrameTime> SubDeterminismFences = CompiledDataManager->GetEntryRef(SubDataID).DeterminismFences;
+				TArrayView<const FMovieSceneDeterminismFence> SubDeterminismFences = CompiledDataManager->GetEntryRef(SubDataID).DeterminismFences;
 				if (SubDeterminismFences.Num() > 0)
 				{
-					TRange<FFrameTime>   InnerRange           = SubData->RootToSequenceTransform.TransformRangeUnwarped(RootClampRange);
+					TRange<FFrameTime> InnerRange = SubData->RootToSequenceTransform.ComputeTraversedHull(RootClampRange);
 
-					TArrayView<const FFrameTime> TraversedFences  = GetFencesWithinRange(SubDeterminismFences, InnerRange);
+					// Time-warp can result in inside-out ranges
+					if (InnerRange.GetLowerBound().IsClosed() && InnerRange.GetUpperBound().IsClosed() && InnerRange.GetLowerBoundValue() > InnerRange.GetUpperBoundValue())
+					{
+						TRangeBound<FFrameTime> OldLower = InnerRange.GetLowerBound();
+						TRangeBound<FFrameTime> OldUpper = InnerRange.GetUpperBound();
+						InnerRange.SetLowerBound(OldUpper);
+						InnerRange.SetUpperBound(OldLower);
+					}
+
+					TArrayView<const FMovieSceneDeterminismFence> TraversedFences = GetFencesWithinRange(SubDeterminismFences, InnerRange);
 					if (TraversedFences.Num() > 0)
 					{
-						FMovieSceneWarpCounter WarpCounter;
-						FFrameTime Unused;
-						SubData->RootToSequenceTransform.TransformTime(RootClampRange.GetLowerBoundValue(), Unused, WarpCounter);
+						// Find the breadcrumbs for this range
+						FMovieSceneTransformBreadcrumbs Breadcrumbs;
+						SubData->RootToSequenceTransform.TransformTime(RootClampRange.GetLowerBoundValue(), FTransformTimeParams().HarvestBreadcrumbs(Breadcrumbs));
 
-						FMovieSceneSequenceTransform InverseTransform = SubData->RootToSequenceTransform.InverseFromLoop(WarpCounter);
-						Algo::Transform(TraversedFences, RootDissectionTimes, [InverseTransform](FFrameTime In){ return In * InverseTransform; });
+						FMovieSceneInverseSequenceTransform InverseTransform = SubData->RootToSequenceTransform.Inverse();
+
+						for (FMovieSceneDeterminismFence Fence : TraversedFences)
+						{
+							TOptional<FFrameTime> RootTime = InverseTransform.TryTransformTime(Fence.FrameNumber, Breadcrumbs);
+							if (RootTime && TraversedRange.Contains(RootTime->FrameNumber))
+							{
+								RootDissectionTimes.Emplace(FMovieSceneDeterminismFenceWithSubframe{ RootTime.GetValue(), Fence.bInclusive });
+							}
+						}
 					}
 				}
 			}
@@ -467,8 +627,17 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 
 	if (RootDissectionTimes.Num() > 0)
 	{
-		Algo::Sort(RootDissectionTimes);
-		UE::MovieScene::DissectRange(RootDissectionTimes, Context.GetRange(), OutDissections);
+		Algo::SortBy(RootDissectionTimes, &FMovieSceneDeterminismFenceWithSubframe::FrameTime);
+		int32 Index = Algo::UniqueBy(RootDissectionTimes, &FMovieSceneDeterminismFenceWithSubframe::FrameTime);
+		if (Index < RootDissectionTimes.Num())
+		{
+			RootDissectionTimes.SetNum(Index);
+		}
+		UE::MovieScene::DissectRange(RootDissectionTimes, RootContext.GetRange(), OutDissections);
+	}
+	else if (RootHierarchy->GetRootTransform().FindFirstWarpDomain() == ETimeWarpChannelDomain::Time)
+	{
+		OutDissections.Add(RootContext.GetRange());
 	}
 }
 
@@ -520,7 +689,7 @@ void FSequenceUpdater_Hierarchical::OverrideRootSequence(TSharedRef<const FShare
 			InstanceRegistry->MutateInstance(RootInstanceHandle).Ledger.UnlinkEverything(Linker);
 		}
 
-		InvalidateCachedData(SharedPlaybackState);
+		InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 		RootOverrideSequenceID = NewRootOverrideSequenceID;
 	}
 }
@@ -595,6 +764,8 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 			// Update entities if necessary
 			if (bGatherEntities)
 			{
+				CachedPerTickConditionalEntities.Reset();
+
 				CachedEntityRange = UpdateEntitiesForSequence(RootComponentField, ImportTime, EntitiesScratch);
 
 				FEntityImportSequenceParams Params;
@@ -605,7 +776,24 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 				Params.HierarchicalBias = 0;
 				Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-				RootInstance.Ledger.UpdateEntities(Linker, Params, RootComponentField, EntitiesScratch);
+				FMovieSceneEvaluationFieldEntitySet& RootSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Add(MovieSceneSequenceID::Root);
+
+				RootInstance.Ledger.UpdateEntities(Linker, Params, RootComponentField, EntitiesScratch, RootSequenceCachedConditionalEntries, CachedConditionResults);
+			}
+			else if (FMovieSceneEvaluationFieldEntitySet* RootSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Find(MovieSceneSequenceID::Root))
+			{
+				if (RootSequenceCachedConditionalEntries->Num() != 0)
+				{
+					FEntityImportSequenceParams Params;
+					Params.SequenceID = MovieSceneSequenceID::Root;
+					Params.InstanceHandle = RootInstanceHandle;
+					Params.RootInstanceHandle = RootInstanceHandle;
+					Params.DefaultCompletionMode = RootSequence->DefaultCompletionMode;
+					Params.HierarchicalBias = 0;
+					Params.bDynamicWeighting = bDynamicWeighting.Get(false);
+
+					RootInstance.Ledger.UpdateConditionalEntities(Linker, Params, RootComponentField, *RootSequenceCachedConditionalEntries);
+				}
 			}
 
 			// Update any one-shot entities for the current root frame
@@ -624,7 +812,7 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 					Params.HierarchicalBias = 0;
 					Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-					RootInstance.Ledger.UpdateOneShotEntities(Linker, Params, RootComponentField, EntitiesScratch);
+					RootInstance.Ledger.UpdateOneShotEntities(Linker, Params, RootComponentField, EntitiesScratch, CachedConditionResults);
 				}
 			}
 		}
@@ -647,19 +835,46 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 			// When a root override path is specified, we always remap the 'local' sequence IDs to their equivalents from the root sequence.
 			FMovieSceneSequenceID SequenceIDFromRoot = RootOverridePath.ResolveChildSequenceID(Entry.SequenceID);
 
-			ActiveSequences.Add(SequenceIDFromRoot);
-
 			const FMovieSceneSubSequenceData* SubData = RootOverrideHierarchy->FindSubData(Entry.SequenceID);
+
+			ActiveSequences.Add(SequenceIDFromRoot);
 			checkf(SubData, TEXT("Sub data does not exist for a SequenceID that exists in the hierarchical tree - this indicates a corrupt compilation product."));
 
+			bool bSubSequenceConditionFailed = false;
+			if (SubData->Condition)
+			{
+				// If we're able to cache the condition result, then it should be cached above when its entity got processed- retrieve that value.
+				// Otherwise, test it again.
+				if (SubData->Condition->CanCacheResult(SharedPlaybackState))
+				{
+					if (bool* ConditionResult = CachedConditionResults.Find(SubData->Condition->ComputeCacheKey(FGuid(), RootOverrideSequenceID, SharedPlaybackState, FindObject<UMovieSceneSubSection>(CompiledDataManager->GetEntryRef(RootCompiledDataID).GetSequence(), *SubData->SectionPath.ToString()))))
+					{
+						if (*ConditionResult == false)
+						{
+							bSubSequenceConditionFailed = true;
+						}
+					}
+					else if (!SubData->Condition->EvaluateCondition(FGuid(), RootOverrideSequenceID, SharedPlaybackState))
+					{
+						bSubSequenceConditionFailed = true;
+					}
+				}
+				else if (!SubData->Condition->EvaluateCondition(FGuid(), RootOverrideSequenceID, SharedPlaybackState))
+				{
+					bSubSequenceConditionFailed = true;
+				}
+			}
+			
 			UMovieSceneSequence* SubSequence = SubData->GetSequence();
-			if (SubSequence == nullptr)
+			if (SubSequence == nullptr || bSubSequenceConditionFailed)
 			{
 				FInstanceHandle SubSequenceHandle = SequenceInstances.FindRef(SequenceIDFromRoot).Handle;
 				if (SubSequenceHandle.IsValid())
 				{
 					FSequenceInstance& SubSequenceInstance = InstanceRegistry->MutateInstance(SubSequenceHandle);
 					SubSequenceInstance.Ledger.UnlinkEverything(Linker);
+					// Also invalidate the ledge to ensure that if the condition changes, we can detect it and force gather entities
+					SubSequenceInstance.Ledger.Invalidate();
 				}
 			}
 			else
@@ -712,29 +927,49 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 				Params.bPostRoll = bIsPostRoll;
 				Params.bDynamicWeighting = bDynamicWeighting.Get(false); // Always inherit dynamic weighting flags
 
-				if (bGatherEntities)
+				if (bGatherEntities || SubSequenceInstance.Ledger.IsInvalidated())
 				{
 					EntitiesScratch.Reset();
 
 					TRange<FFrameNumber> SubEntityRange = UpdateEntitiesForSequence(SubComponentField, SubSequenceTime, EntitiesScratch);
+					SubEntityRange = TRange<FFrameNumber>::Intersection(SubEntityRange, SubData->PlayRange.Value);
 
-					SubSequenceInstance.Ledger.UpdateEntities(Linker, Params, SubComponentField, EntitiesScratch);
+					FMovieSceneEvaluationFieldEntitySet& SubSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Add(SequenceIDFromRoot);
+					SubSequenceInstance.Ledger.UpdateEntities(Linker, Params, SubComponentField, EntitiesScratch, SubSequenceCachedConditionalEntries, CachedConditionResults);
 
-					// Clamp to the current warp loop if necessary
-					FMovieSceneWarpCounter WarpCounter;
-					FFrameTime Unused;
-					SubData->RootToSequenceTransform.TransformTime(ImportTime, Unused, WarpCounter);
+					// Convert sub entity range into root space
+					// 
+					// Sometimes the bounds can be unset if the lower bound does not map to any valid time in the root sequence.
+					//   If this happens, we rely in the intersection with SubSequenceIt.Range() to clamp to the bounds of the current sub sequence range
+					FMovieSceneInverseSequenceTransform Inv = SubContext.GetSequenceToRootSequenceTransform();
 
-					if (WarpCounter.WarpCounts.Num() > 0)
+					TRange<FFrameNumber> SubCachedRange = TRange<FFrameNumber>::All();
+					if (!SubEntityRange.GetLowerBound().IsOpen())
 					{
-						FMovieSceneSequenceTransform InverseTransform = SubData->RootToSequenceTransform.InverseFromLoop(WarpCounter);
-						CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, InverseTransform.TransformRangeConstrained(SubData->PlayRange.Value));
+						TOptional<FFrameTime> LowerBoundRootSpace = Inv.TryTransformTime(SubEntityRange.GetLowerBoundValue(), SubContext.GetRootToSequenceWarpCounter());
+						if (LowerBoundRootSpace)
+						{
+							SubCachedRange.SetLowerBound(TRangeBound<FFrameNumber>::Inclusive(LowerBoundRootSpace.GetValue().CeilToFrame()));
+						}
 					}
 
-					const FMovieSceneSequenceTransform SequenceToRootOverrideTransform = SubContext.GetSequenceToRootSequenceTransform() * RootContext.GetRootToSequenceTransform();
-					SubEntityRange = SequenceToRootOverrideTransform.TransformRangeConstrained(SubEntityRange);
+					if (!SubEntityRange.GetUpperBound().IsOpen())
+					{
+						TOptional<FFrameTime> UpperBoundRootSpace = Inv.TryTransformTime(SubEntityRange.GetUpperBoundValue(), SubContext.GetRootToSequenceWarpCounter());
+						if (UpperBoundRootSpace)
+						{
+							SubCachedRange.SetUpperBound(TRangeBound<FFrameNumber>::Exclusive(UpperBoundRootSpace.GetValue().FloorToFrame()));
+						}
+					}
 
-					CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, SubEntityRange);
+					CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, SubCachedRange);
+				}
+				else if (FMovieSceneEvaluationFieldEntitySet* SubSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Find(SequenceIDFromRoot))
+				{
+					if (SubSequenceCachedConditionalEntries->Num() != 0)
+					{
+						SubSequenceInstance.Ledger.UpdateConditionalEntities(Linker, Params, SubComponentField, *SubSequenceCachedConditionalEntries);
+					}
 				}
 
 				// Update any one-shot entities for the sub sequence
@@ -745,15 +980,14 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 
 					if (EntitiesScratch.Num() != 0)
 					{
-						SubSequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, SubComponentField, EntitiesScratch);
+						SubSequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, SubComponentField, EntitiesScratch, CachedConditionResults);
 					}
 				}
 			}
 		}
 	}
 
-	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
-	check(Runner);
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
 	for (auto InstanceIt = SequenceInstances.CreateIterator(); InstanceIt; ++InstanceIt)
 	{
@@ -806,7 +1040,7 @@ void FSequenceUpdater_Hierarchical::Finish(TSharedRef<const FSharedPlaybackState
 		InstanceRegistry->MutateInstance(Pair.Value.Handle).Finish();
 	}
 
-	InvalidateCachedData(SharedPlaybackState);
+	InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 }
 
 void FSequenceUpdater_Hierarchical::Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
@@ -820,26 +1054,42 @@ void FSequenceUpdater_Hierarchical::Destroy(TSharedRef<const FSharedPlaybackStat
 	}
 }
 
-void FSequenceUpdater_Hierarchical::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+void FSequenceUpdater_Hierarchical::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType)
 {
 	bDynamicWeighting.Reset();
 	CachedEntityRange = TRange<FFrameNumber>::Empty();
+	CachedPerTickConditionalEntities.Reset();
+	CachedConditionResults.Reset();
 
 	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 
 	for (TPair<FMovieSceneSequenceID, FSubInstanceData>& Pair : SequenceInstances)
 	{
-		UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Pair.Key);
-		if (!Sequence)
+		FSequenceInstance& SubInstance = InstanceRegistry->MutateInstance(Pair.Value.Handle);
+
+		switch (InvalidationType)
 		{
-			Pair.Value.SequenceSignature = FGuid();
-			InstanceRegistry->MutateInstance(Pair.Value.Handle).Ledger.Invalidate();
-		}
-		else if (Pair.Value.SequenceSignature != Sequence->GetSignature())
-		{
-			Pair.Value.SequenceSignature = Sequence->GetSignature();
-			InstanceRegistry->MutateInstance(Pair.Value.Handle).Ledger.Invalidate();
+			case ESequenceInstanceInvalidationType::All:
+				{
+					SubInstance.Ledger.Invalidate();
+				}
+				break;
+			case ESequenceInstanceInvalidationType::DataChanged:
+				{
+					UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Pair.Key);
+					if (!Sequence)
+					{
+						Pair.Value.SequenceSignature = FGuid();
+						SubInstance.Ledger.Invalidate();
+					}
+					else if (Pair.Value.SequenceSignature != Sequence->GetSignature())
+					{
+						Pair.Value.SequenceSignature = Sequence->GetSignature();
+						SubInstance.Ledger.Invalidate();
+					}
+				}
+				break;
 		}
 	}
 }
@@ -855,6 +1105,31 @@ TRange<FFrameNumber> FSequenceUpdater_Hierarchical::UpdateEntitiesForSequence(co
 	}
 
 	return CachedRange;
+}
+
+bool FSequenceUpdater_Hierarchical::EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (Condition)
+	{
+		if (Condition->CanCacheResult(SharedPlaybackState))
+		{
+			if (bool* ConditionResult = CachedConditionResults.Find(Condition->ComputeCacheKey(BindingID, SequenceID, SharedPlaybackState, ConditionOwnerObject)))
+			{
+				return *ConditionResult;
+			}
+
+			// We specifically don't cache the result of a condition check in this path, since this path is called by UI contexts.
+			// The main evaluation path in MovieSceneEntityLedger caches its results.
+		}
+
+		return Condition->EvaluateCondition(BindingID, SequenceID, SharedPlaybackState);
+	}
+	return true;
+}
+
+void ISequenceUpdater::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+{
+	InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 }
 
 } // namespace MovieScene

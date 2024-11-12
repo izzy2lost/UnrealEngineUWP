@@ -8,7 +8,7 @@
 #include "WorldConditionQuery.h"
 #include "WorldConditions/SmartObjectWorldConditionSchema.h"
 #include "SmartObjectTypes.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "PropertyBindingPath.h"
 #include "SmartObjectDefinition.generated.h"
 
@@ -28,8 +28,20 @@ namespace UE::SmartObject::Delegates
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParametersChanged, const USmartObjectDefinition& /*SmartObjectDefinition*/);
 	extern SMARTOBJECTSMODULE_API FOnParametersChanged OnParametersChanged;
 
-#endif
-}; //
+	/** Delegate to retrieve Registry Tags for SmartObjectDefinition */
+	DECLARE_DELEGATE_TwoParams(FOnGetAssetRegistryTags, const USmartObjectDefinition& /*SmartObjectDefinition*/, FAssetRegistryTagsContext /*Context*/);
+	extern SMARTOBJECTSMODULE_API FOnGetAssetRegistryTags OnGetAssetRegistryTags;
+
+	/** Called in editor when a new SmartObjectSlotDefinition is created (not called when duplicating an existing one). */
+	DECLARE_DELEGATE_TwoParams(FOnSlotDefinitionCreated, USmartObjectDefinition& /*SmartObjectDefinition*/, FSmartObjectSlotDefinition& /*SmartObjectSlotDefinition*/);
+	extern SMARTOBJECTSMODULE_API FOnSlotDefinitionCreated OnSlotDefinitionCreated;
+
+	/** Called in editor when a SmartObjectDefinition is about to be saved. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSavingDefinition, const USmartObjectDefinition& /*SmartObjectDefinition*/);
+	extern SMARTOBJECTSMODULE_API FOnSavingDefinition OnSavingDefinition;
+
+#endif // WITH_EDITOR
+}; // UE::SmartObject::Delegates
 
 /** Indicates how Tags from slots and parent object are combined to be evaluated by a TagQuery from a find request. */
 UENUM()
@@ -108,7 +120,8 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 
 		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
 		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()
+				&& DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
 				return DataProxy.Data.Get<T>();
 			}
@@ -129,7 +142,8 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 
 		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
 		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()
+				&& DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
 				return DataProxy.Data.GetPtr<T>();
 			}
@@ -414,7 +428,9 @@ public:
 	 * @param OutDefinitionDataIndex Index of the definition data the ID points to, or INDEX_NONE, if ID points directly to a slot.
 	 * @return true if ID matches data in the definition. */
 	bool FindSlotAndDefinitionDataIndexByID(const FGuid ID, int32& OutSlotIndex, int32& OutDefinitionDataIndex) const;
-#endif
+
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+#endif // WITH_EDITOR
 
 	/** Return bounds encapsulating all slots */
 	UFUNCTION(BlueprintCallable, Category="SmartObject")
@@ -422,18 +438,6 @@ public:
 
 	/** Adds and returns a reference to a defaulted slot (used for testing purposes) */
 	FSmartObjectSlotDefinition& DebugAddSlot() { return Slots.AddDefaulted_GetRef(); }
-
-	/**
-	 * Returns the transform (in world space) of the given slot index.
-	 * @param OwnerTransform Transform (in world space) of the slot owner.
-	 * @param SlotIndex Index within the list of slots.
-	 * @return Transform (in world space) of the slot associated to SlotIndex.
-	 * @note Method will ensure on invalid slot index.
-	 */
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.3, "Please use GetSlotWorldTransform() instead.")
-	TOptional<FTransform> GetSlotTransform(const FTransform& OwnerTransform, const FSmartObjectSlotIndex SlotIndex) const;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Returns the transform (in world space) of the given slot index.
@@ -467,14 +471,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Sets the tag query to run on the user tags provided by a request to accept this definition */
 	UFUNCTION(BlueprintCallable, Category="SmartObject")
 	void SetUserTagFilter(const FGameplayTagQuery& InUserTagFilter) { UserTagFilter = InUserTagFilter; }
-
-	/** Returns the tag query to run on the runtime tags of a smart object instance to accept it */
-	UE_DEPRECATED(5.2, "Use FWorldCondition_SmartObjectActorTagQuery or FSmartObjectWorldConditionObjectTagQuery in Preconditions instead.")
-	const FGameplayTagQuery& GetObjectTagFilter() const { static FGameplayTagQuery Dummy; return Dummy; }
-
-	/** Sets the tag query to run on the runtime tags of a smart object instance to accept it */
-	UE_DEPRECATED(5.2, "Use FWorldCondition_SmartObjectActorTagQuery or FSmartObjectWorldConditionObjectTagQuery in Preconditions instead.")
-	void SetObjectTagFilter(const FGameplayTagQuery& InObjectTagFilter) {}
 
 	/** Returns the list of tags describing the activity associated to this definition */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
@@ -516,7 +512,28 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			*LexToString(Definition.Preconditions.IsValid()));
 	}
 
+	/**
+	 * Indicates if 'Validate' was called.
+	 * Need to be called before calling 'IsDefinitionValid' to make the distinction between
+	 * an invalid asset and one that hasn't been validated yet.
+	 * @return true if 'Validate' was called, false otherwise
+	 * @see Validate
+	 * @see IsValidDefinition
+	 */
+	bool HasBeenValidated() const { return bValid.IsSet(); }
+
+	/**
+	 * Indicates the result of the last validation if 'Validate' was called.
+	 * Need to call 'HasBeenValidated' before to make the distinction between an invalid
+	 * asset and one that hasn't been validated yet.
+	 * @returns result of the last validation if 'Validate' was called; false otherwise
+	 * @see Validate
+	 * @see HasBeenValidated
+	 */
+	bool IsDefinitionValid() const { return bValid.Get(false); }
+
 	/** Returns result of the last validation if `Validate` was called; unset otherwise. */
+	UE_DEPRECATED(5.5, "Use IsDefinitionValid that returns a boolean instead.")
 	TOptional<bool> IsValid() const { return bValid; }
 
 #if WITH_EDITORONLY_DATA
@@ -572,7 +589,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
 		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			if (DataProxy.Data.GetScriptStruct()
+				&& DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
 			{
 				return DataProxy.Data.GetPtr<T>();
 			}
@@ -617,6 +635,7 @@ protected:
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
+	virtual void CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext) override;
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif // WITH_EDITOR
 

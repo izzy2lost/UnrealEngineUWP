@@ -129,7 +129,7 @@ public:
 
 			case ETextureDimension::Texture3D:
 			{
-				FTexture3DRHIRef Texture3D = RHICreateTexture(Desc);
+				FTextureRHIRef Texture3D = RHICreateTexture(Desc);
 				Texture = Texture3D;
 
 				const FPixelFormatInfo& Info = GPixelFormats[PixelFormat];
@@ -293,9 +293,9 @@ bool FNiagaraDynamicDataBase::IsGpuLowLatencyTranslucencyEnabled() const
 	return ComputeDataBufferInterface ? ComputeDataBufferInterface->HasTranslucentDataToRender() : false;
 }
 
-FNiagaraDataBuffer* FNiagaraDynamicDataBase::GetParticleDataToRender(bool bIsLowLatencyTranslucent) const
+FNiagaraDataBuffer* FNiagaraDynamicDataBase::GetParticleDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const
 {
-	FNiagaraDataBuffer* Ret = ComputeDataBufferInterface ? ComputeDataBufferInterface->GetDataToRender(bIsLowLatencyTranslucent) : CPUParticleData.GetReference();
+	FNiagaraDataBuffer* Ret = ComputeDataBufferInterface ? ComputeDataBufferInterface->GetDataToRender(RHICmdList, bIsLowLatencyTranslucent) : CPUParticleData.GetReference();
 	checkSlow(Ret == nullptr || Ret->IsBeingRead());
 	return Ret;
 }

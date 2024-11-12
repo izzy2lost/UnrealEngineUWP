@@ -8,7 +8,9 @@
 
 class FAvaRundownEditor;
 class FAvaRundownManagedInstance;
+class FAvaRundownPageControllerContextMenu;
 class FAvaRundownRCControllerItem;
+class FUICommandList;
 class IPropertyRowGenerator;
 class ITableRow;
 class SAvaRundownRCControllerPanel;
@@ -44,12 +46,12 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedPtr<FAvaRundownEditor>& InRundownEditor);
 	
 	bool HasRemoteControlPreset(const URemoteControlPreset* InPreset) const;
-
-	void OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds);
 	
 	void Refresh(const TArray<int32>& InSelectedPageIds);
 	
 	TSharedRef<ITableRow> OnGenerateControllerRow(FAvaRundownRCControllerItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable);
+
+	const TArray<FAvaRundownRCControllerItemPtr> GetSelectedControllerItems() const;
 
 private:
 	static FAvaRundownRCControllerHeaderRowExtensionDelegate HeaderRowExtensionDelegate;
@@ -78,6 +80,8 @@ private:
 	FAvaRundownPage& GetActivePageMutable(UAvaRundown* InRundown) const;
 	FAvaRundownPage& GetActivePageMutable() const { return GetActivePageMutable(GetRundown()); }
 
+	TSharedPtr<SWidget> GetContextMenuContent();
+
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 
 	class FPropertyRowGeneratorWrapper : public FNotifyHook
@@ -86,6 +90,7 @@ private:
 		TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
 		TWeakObjectPtr<URemoteControlPreset> PresetWeak;
 		SAvaRundownRCControllerPanel* ParentPanel = nullptr;
+		TSet<FProperty*> OngoingPropertyChanges;
 
 		FPropertyRowGeneratorWrapper(SAvaRundownRCControllerPanel* InParentPanel);
 		virtual ~FPropertyRowGeneratorWrapper();
@@ -104,4 +109,8 @@ private:
 	TArray<FAvaRundownRCControllerItemPtr> ControllerItems;
 
 	int32 ActivePageId = -1;
+
+	TSharedPtr<FUICommandList> CommandList;
+
+	TSharedPtr<FAvaRundownPageControllerContextMenu> ContextMenu;
 };

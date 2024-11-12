@@ -117,6 +117,11 @@ extern RENDERER_API FSceneTextureShaderParameters CreateSceneTextureShaderParame
 
 extern RENDERER_API FSceneTextureShaderParameters GetSceneTextureShaderParameters(const FSceneView& View);
 
+BEGIN_SHADER_PARAMETER_STRUCT(FSceneTextureExtractsParameters, )
+	SHADER_PARAMETER_STRUCT_REF(FSceneTextureUniformParameters, SceneTextures)
+	SHADER_PARAMETER_STRUCT_REF(FMobileSceneTextureUniformParameters, MobileSceneTextures)
+END_SHADER_PARAMETER_STRUCT()
+
 /** Struct containing references to extracted RHI resources after RDG execution. All textures are
  *  left in an SRV read state, so they can safely be used for read without being re-imported into
  *  RDG. Likewise, the uniform buffer is non-RDG and can be used as is.
@@ -137,6 +142,14 @@ public:
 	TUniformBufferRef<FMobileSceneTextureUniformParameters> GetMobileUniformBufferRef() const
 	{
 		return MobileUniformBuffer;
+	}
+
+	FSceneTextureExtractsParameters GetShaderParameters() const
+	{
+		FSceneTextureExtractsParameters Parameters;
+		Parameters.SceneTextures = UniformBuffer;
+		Parameters.MobileSceneTextures = MobileUniformBuffer;
+		return Parameters;
 	}
 
 	FRHITexture* GetDepthTexture() const

@@ -34,7 +34,8 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeHeader(TShare
 
 	PropertyContextHandle = InPropertyHandle;
 
-	const FName PropertyName = PropertyContext->GetAnimatedProperty().GetPropertyDisplayName();
+	const FString PropertyDisplayName = PropertyContext->GetAnimatedProperty().GetPropertyDisplayName();
+	const FName PropertyTypeName = PropertyContext->GetAnimatedProperty().GetLeafPropertyTypeName();
 
 	InRow
 		.NameContent()
@@ -50,7 +51,7 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeHeader(TShare
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.f)
 			[
-				InPropertyHandle->CreatePropertyNameWidget(FText::FromName(PropertyName))
+				InPropertyHandle->CreatePropertyNameWidget(FText::FromString(PropertyDisplayName + TEXT(" (") + PropertyTypeName.ToString() + TEXT(")")))
 			]
 		]
 		.ValueContent()
@@ -77,13 +78,16 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeHeader(TShare
 
 void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& InBuilder, IPropertyTypeCustomizationUtils& InUtils)
 {
+	UObject* PropertyObject;
+	if (FPropertyAccess::Success != InPropertyHandle->GetValue(PropertyObject))
+	{
+		return;
+	}
+
 	static const TSet<FName> SkipProperties
 	{
 		GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreContext, bAnimated)
 	};
-
-	UObject* PropertyObject;
-	InPropertyHandle->GetValue(PropertyObject);
 
 	if (UPropertyAnimatorCoreContext* Options = Cast<UPropertyAnimatorCoreContext>(PropertyObject))
 	{

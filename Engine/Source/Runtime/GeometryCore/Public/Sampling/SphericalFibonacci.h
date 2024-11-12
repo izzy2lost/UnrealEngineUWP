@@ -247,7 +247,7 @@ public:
 	{
 		checkSlow(Index >= 0 && Index < N);
 
-		TVector<RealType> Point;
+		TVector<RealType> Point = {};
 		switch (Distribution)
 		{
 		case EDistribution::Uniform:

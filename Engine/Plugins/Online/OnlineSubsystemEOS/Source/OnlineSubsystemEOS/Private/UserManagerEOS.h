@@ -200,7 +200,7 @@ struct FLocalUserEOS
 	/** Online Account information for the local user */
 	FUserOnlineAccountEOSPtr UserOnlineAccount;
 
-	/** Friends information for the local user */
+	/** Friends information for the local user. Populated by ReadFriendsList */
 	FFriendsListEOSPtr FriendsList;
 
 	/** Epic ids for users with ongoing queries */
@@ -232,10 +232,17 @@ struct FLocalUserEOS
 	TArray<ReadUserListInfo> CachedReadUserListInfo;
 
 	/** Last Login Credentials used for a login attempt */
-	TSharedPtr<FOnlineAccountCredentials> LastLoginCredentials;
+	TSharedPtr<FOnlineAccountCredentials> LastLoginCredentials_Legacy;
 
 	/** Struct containing the information related to the connect login notification for the user */
 	FNotificationIdCallbackPairPtr ConnectLoginNotification;
+};
+
+/** Created when a new local user starts a login process, keeps the state for the login session, and gets destroyed when the user logs out */
+struct FLoginSession
+{
+	/** If set, Connect Login will be re-attempted with it. If this attempt fails, a new token will need to be provided */
+	TOptional<FString> UserProvidedConnectAuthToken;
 };
 
 /**
@@ -287,6 +294,7 @@ public:
 	virtual FPlatformUserId GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) const override;
 	virtual void GetLinkedAccountAuthToken(int32 LocalUserNum, const FString& TokenType, const FOnGetLinkedAccountAuthTokenCompleteDelegate& Delegate) const override;
 // ~IOnlineIdentity Interface
+
 	ELoginStatus::Type GetLoginStatus(const FUniqueNetIdEOS& UserId) const;
 
 // IOnlineExternalUI Interface
@@ -378,16 +386,15 @@ public:
 	 */
 	FUserManagerEOS() = delete;
 
-	bool ConnectLoginEAS(int32 LocalUserNum, EOS_EpicAccountId AccountId, const FOnlineAccountCredentials& AccountCredentials);
-	void LoginViaPersistentAuth(int32 LocalUserNum, const FOnlineAccountCredentials& CurrentLoginCredentials);
-	void LoginViaExternalAuth(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
-	void LoginViaAccountPortal(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
-	void CreateConnectedLogin(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
-	void LinkEAS(int32 LocalUserNum, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
-	void RefreshConnectLogin(int32 LocalUserNum);
-	bool ConnectLoginNoEAS(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
+	bool ConnectLoginEAS(int32 LocalUserNum, EOS_EpicAccountId AccountId);
+	void LoginViaPersistentAuth(int32 LocalUserNum);
+	void LoginViaExternalAuth(int32 LocalUserNum);
+	void CreateConnectedLogin(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ContinuanceToken Token);
+	void LinkEAS(int32 LocalUserNum, EOS_ContinuanceToken Token);
+	void AutoRefreshConnectLogin(int32 LocalUserNum);
+	bool ConnectLoginNoEAS(int32 LocalUserNum);
 
-	void FullLoginCallback(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
+	void FullLoginCallback(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ProductUserId UserId);
 	void FriendStatusChanged(const EOS_Friends_OnFriendsUpdateInfo* Data);
 	void FriendStatusChangedImpl(EOS_EpicAccountId LocalUserId, EOS_EpicAccountId TargetUserId, EOS_EFriendsStatus PreviousStatus, EOS_EFriendsStatus CurrentStatus);
 	void LoginStatusChanged(const EOS_Auth_LoginStatusChangedCallbackInfo* Data);
@@ -397,14 +404,28 @@ public:
 	FString GetBestDisplayName(EOS_EpicAccountId TargetUserId, const FStringView& RequestedPlatform) const;
 
 private:
+	// Legacy methods to be removed along with EOSPlus
+	bool LoginLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
+	bool AutoLoginLegacy(int32 LocalUserNum);
+	bool ConnectLoginEASLegacy(int32 LocalUserNum, EOS_EpicAccountId AccountId, const FOnlineAccountCredentials& AccountCredentials);
+	void LoginViaPersistentAuthLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& CurrentLoginCredentials);
+	void LoginViaAccountPortalLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
+	void CreateConnectedLoginLegacy(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
+	void LinkEASLegacy(int32 LocalUserNum, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
+	bool ConnectLoginNoEASLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
+	void FullLoginCallbackLegacy(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
+	void OnEOSAuthLoginCompleteLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, const EOS_ELoginCredentialType LoginCredentialType, const bool bIsAutoLogin, const EOS_Auth_LoginCallbackInfo* Data);
+
+	bool IsLocalUserValid(int32 LocalUserNum) const ;
 	FLocalUserEOS& GetLocalUserChecked(int32 LocalUserNum);
 
-	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials);
+	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bIsAutoLogin);
 	void CopyAndSaveEpicAuthToken(int32 LocalUserNum, const EOS_EpicAccountId& EpicAccountId);
-	void OnEOSAuthLoginComplete(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bIsPersistentLogin, const EOS_Auth_LoginCallbackInfo* Data);
+	void OnEOSAuthLoginComplete(int32 LocalUserNum, const EOS_ELoginCredentialType LoginCredentialType, const bool bIsAutoLogin, const EOS_Auth_LoginCallbackInfo* Data);
+	void CallEOSConnectLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials);
 
 	void RemoveLocalUser(int32 LocalUserNum);
-	FLocalUserEOS& AddLocalUser(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
+	FLocalUserEOS& AddLocalUser(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, EOS_ProductUserId UserId);
 
 	typedef TFunction<void(bool bWasSuccessful, FUniqueNetIdEOSRef RemotePlayerNetId, const FString& ErrorStr)> FRemoteUserProcessedCallback;
 	void AddRemotePlayer(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, const FRemoteUserProcessedCallback& Callback);
@@ -446,6 +467,11 @@ private:
 
 	/** Information related to ongoing operations and state for local users */
 	TLocalUserArray<FLocalUserEOS> LocalUsers;
+
+	/** Relevant information about the login session for local users */
+	TLocalUserArray<FLoginSession> LoginSessions;
+	// Remove from LoginSessions, but only if LocalUserNum is in there
+	void TryRemoveLoginSession(int32 LocalUserNum);
 
 	// Online user info
 

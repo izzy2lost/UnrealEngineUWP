@@ -502,16 +502,13 @@ void FVirtualShadowMapClipmap::OnPrimitiveRendered(const FPrimitiveSceneInfo* Pr
 		check(PersistentPrimitiveId.Index < RenderedPrimitivesMaxNum);
 
 		// Check previous-frame state to detect transition from hidden->visible
-		if (!PerLightCacheEntry->RenderedPrimitives[PersistentPrimitiveId.Index])
-		{
-			LazyInitAndSetBitArray(RevealedPrimitivesMask, PersistentPrimitiveId.Index, true, RenderedPrimitivesMaxNum);
-		}
-
+		const bool bPrimitiveRevealed = !PerLightCacheEntry->RenderedPrimitives[PersistentPrimitiveId.Index];
+		
 		// update current frame-state.
 		LazyInitAndSetBitArray(RenderedPrimitives, PersistentPrimitiveId.Index, true, RenderedPrimitivesMaxNum);
 
 		// update cached state (this is checked & cleared whenever a primitive is invalidating the VSM).
-		PerLightCacheEntry->OnPrimitiveRendered(PrimitiveSceneInfo);
+		PerLightCacheEntry->OnPrimitiveRendered(PrimitiveSceneInfo, bPrimitiveRevealed);
 	}
 }
 

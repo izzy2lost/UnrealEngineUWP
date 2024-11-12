@@ -58,6 +58,7 @@ private:
 		uint8 IndexOffset;
 	};
 
+	// TODO [jonathan.bard] Remove on non-release branch
 	bool bDeferringRefresh = false;
 
 	TSharedPtr<IPropertyUtilities> PropertyUtils;
@@ -98,7 +99,6 @@ private:
 	void PopulateParameterData(UPrimitiveComponent* PrimitiveComponent, int32& MaxPrimitiveDataIndex);
 
 	void RequestRefresh();
-	void OnDeferredRefresh();
 	void OnElementsModified(const enum FPropertyAccess::Result OldAccessResult, const uint32 OldNumElements);
 	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnMaterialCompiled(UMaterialInterface* Material);

@@ -57,11 +57,8 @@ public:
 	// Is the span active?
 	virtual bool GetIsActive() const = 0;
 
-	/** Set the parent span */
-	virtual void SetParentSpan(TSharedPtr<IAnalyticsSpan> ParentSpan) = 0;
-
-	/** Get the parent span */
-	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const = 0;
+	// Get unique Id?
+	virtual FGuid GetId()  const = 0;
 };
 
 /**
@@ -90,9 +87,6 @@ public:
 
 	/** Start a new span specifying an optional parent. EndSpan is called recursively on children. Parent attributes are passed onto children  */
 	virtual TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan=TSharedPtr<IAnalyticsSpan>(), const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
-
-	/** Start a an existing span*/
-	virtual bool StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
 
 	/** End an existing span*/
 	virtual bool EndSpan(TSharedPtr<IAnalyticsSpan>, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;

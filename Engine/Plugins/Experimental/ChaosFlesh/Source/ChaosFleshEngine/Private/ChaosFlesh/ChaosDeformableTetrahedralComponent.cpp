@@ -11,16 +11,22 @@
 #include "ChaosFlesh/ChaosDeformableSolverActor.h"
 #include "ChaosFlesh/ChaosDeformableSolverComponent.h"
 #include "ChaosFlesh/ChaosDeformableTypes.h"
+#include "ChaosFlesh/ChaosFleshCollectionFacade.h"
+#include "ChaosFlesh/FleshCollectionEngineUtility.h"
 #include "ChaosFlesh/FleshDynamicAsset.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Dataflow/DataflowEngineUtil.h"
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/Facades/CollectionTransformSourceFacade.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralSkeletalBindingsFacade.h"
+#include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "GeometryCollection/TransformCollection.h"
 #include "ProceduralMeshComponent.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 
+#if WITH_EDITOR
+#include "Rendering/SkeletalMeshModel.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosDeformableTetrahedralComponent)
 
@@ -82,6 +88,8 @@ void UDeformableTetrahedralComponent::EndPlay(const EEndPlayReason::Type ReasonE
 	{
 		GetSimulationCollection()->Reset();
 	}
+
+	Super::EndPlay(ReasonEnd);
 }
 
 void UDeformableTetrahedralComponent::SetRestCollection(const UFleshAsset* InRestCollection)
@@ -151,10 +159,17 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 					TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
 					GetOwner()->GetComponents<USkeletalMeshComponent>(SkeletalMeshComponents);
 
-					if (const TManagedArray<FTransform>* RestTransforms = Rest->FindAttribute<FTransform>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup))
+					if (const TManagedArray<FTransform3f>* RestTransforms = Rest->FindAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup))
 					{
-						TArray<FTransform> AnimationTransforms = RestTransforms->GetConstArray();
-						TArray<FTransform> ComponentPose = RestTransforms->GetConstArray();
+						auto ToDoubleLocal = [](const TArray<FTransform3f>& Src, TArray<FTransform>& Tar) {
+							// @todo : Push floats through to the solver and avoid the copy. 
+							Tar.AddUninitialized(Src.Num());
+							for (int i = 0; i < Src.Num(); i++) Tar[i] = FTransform(Src[i]);
+						};
+
+						TArray<FTransform3f> FloatRestTransform = RestTransforms->GetConstArray();
+						TArray<FTransform> AnimationTransforms; ToDoubleLocal(FloatRestTransform, AnimationTransforms);
+						TArray<FTransform> ComponentPose; ToDoubleLocal(FloatRestTransform, ComponentPose);
 
 						// Extract animated transforms from all skeletal meshes.
 						for (const USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
@@ -167,7 +182,7 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 									if (!Roots.IsEmpty() && ensureMsgf(Roots.Num() == 1, TEXT("Error: Only supports a single root per skeleton.(%s)"), *Skeleton->GetName()))
 									{
 										TArray<FTransform> ComponentLocalPose;
-										Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentLocalPose);
+										UE::Dataflow::Animation::GlobalTransforms(SkeletalMesh->GetRefSkeleton(), ComponentLocalPose);
 
 										const TArray<FTransform>& ComponentTransforms = SkeletalMeshComponent->GetComponentSpaceTransforms();
 										if (ComponentLocalPose.Num() == ComponentTransforms.Num())
@@ -196,7 +211,7 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 						FTransform BoneSpaceXf;
 						if (AnimationTransforms.IsValidIndex(SimulationSpace.SimSpaceTransformGlobalIndex))
 						{
-							BoneSpaceXf = AnimationTransforms[SimulationSpace.SimSpaceTransformGlobalIndex];
+							BoneSpaceXf = FTransform(AnimationTransforms[SimulationSpace.SimSpaceTransformGlobalIndex]);
 						}
 						else
 						{
@@ -205,12 +220,12 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 
 						return FDataMapValue(
 							new Chaos::Softs::FFleshThreadingProxy::FFleshInputBuffer(
-								*GetSimulationCollection()->GetCollection(),
+								MoveTemp(*GetSimulationCollection()->GetCollection()),
 								this->GetComponentTransform(),
 								BoneSpaceXf, 
 								SimulationSpace.SimSpaceTransformGlobalIndex,
-								AnimationTransforms, 
-								ComponentPose, 
+								MoveTemp(AnimationTransforms), 
+								MoveTemp(ComponentPose), 
 								BodyForces.bApplyGravity,
 								BodyForces.StiffnessMultiplier,
 								BodyForces.DampingMultiplier,
@@ -225,7 +240,7 @@ UDeformablePhysicsComponent::FDataMapValue UDeformableTetrahedralComponent::NewD
 	}
 	return FDataMapValue(
 		new Chaos::Softs::FFleshThreadingProxy::FFleshInputBuffer(
-			*GetSimulationCollection()->GetCollection(),
+			MoveTemp(*GetSimulationCollection()->GetCollection()),
 			this->GetComponentTransform(),
 			GetSimSpaceRestTransform(),
 			SimulationSpace.SimSpaceTransformGlobalIndex,
@@ -320,10 +335,22 @@ void UDeformableTetrahedralComponent::UpdateFromSimulation(const FDataMapValue* 
 			TManagedArray<FVector3f>& DynamicVertex = GetDynamicCollection()->GetPositions();
 			const TManagedArray<FVector3f>& SimulationVertex = FleshBuffer->Dynamic.GetAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
 
+			TArray<FTransform3f> Transforms;
+			const TManagedArray<int32>& Parent = GetRestCollection()->GetCollection()->GetAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+			const TManagedArray<FTransform3f>& Transform = GetRestCollection()->GetCollection()->GetAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+			const TManagedArray<int32>& BoneIndex = GetRestCollection()->GetCollection()->GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+			GeometryCollectionAlgo::GlobalMatrices(Transform, Parent, Transforms);
 			// Simulator produces results in component space.
 			for (int i = DynamicVertex.Num() - 1; i >= 0; i--)
 			{
-				DynamicVertex[i] = SimulationVertex[i];
+				if (0 < BoneIndex[i] && BoneIndex[i] < Transforms.Num())
+				{
+					DynamicVertex[i] = Transforms[BoneIndex[i]].TransformPosition(SimulationVertex[i]);
+				}
+				else
+				{
+					DynamicVertex[i] = SimulationVertex[i];
+				}
 			}
 			
 			// p.Chaos.Deformable.FleshDeformer.UpdateGPUBuffersOnTick 1 (default) or 0
@@ -404,7 +431,7 @@ void UDeformableTetrahedralComponent::BeginPlay()
 	}
 	if (PrimarySolverComponent)
 	{
-		PrimaryComponentTick.AddPrerequisite(PrimarySolverComponent, PrimarySolverComponent->PrimaryComponentTick);
+		PrimaryComponentTick.AddPrerequisite(PrimarySolverComponent.Get(), PrimarySolverComponent->PrimaryComponentTick);
 	}
 }
 
@@ -451,10 +478,12 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 				{
 					PERF_SCOPE(STAT_ChaosDeformable_UDeformableTetrahedralComponent_RenderProceduralMesh);
 
-					if (const FFleshCollection* Flesh = FleshAsset->GetCollection())
+					if (const FFleshCollection* FleshCollection = FleshAsset->GetCollection())
 					{
-						int32 NumVertices = Flesh->NumElements(FGeometryCollection::VerticesGroup);
-						int32 NumFaces = Flesh->NumElements(FGeometryCollection::FacesGroup);
+						const Chaos::FFleshCollectionFacade Flesh(*FleshCollection);
+
+						int32 NumVertices = Flesh.NumVertices();
+						int32 NumFaces = Flesh.NumFaces();
 						if (NumFaces && NumVertices)
 						{
 							if (RenderMesh && RenderMesh->Vertices.Num() != NumFaces * 3)
@@ -465,20 +494,30 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 							if (!RenderMesh)
 							{
 								RenderMesh = new FFleshRenderMesh;
-
+								TArray<FVector3f> Vertex;
+								Flesh.ComponentSpaceVertices(Vertex);
+								const TManagedArray<FLinearColor>* Color = FleshCollection->FindAttributeTyped<FLinearColor>(FGeometryCollection::ColorAttribute, FGeometryCollection::VerticesGroup);
 								for (int i = 0; i < NumFaces; ++i)
 								{
-									const auto& P1 = Flesh->Vertex[Flesh->Indices[i][0]];
-									const auto& P2 = Flesh->Vertex[Flesh->Indices[i][1]];
-									const auto& P3 = Flesh->Vertex[Flesh->Indices[i][2]];
+									const auto& P1 = Vertex[Flesh.Indices[i][0]];
+									const auto& P2 = Vertex[Flesh.Indices[i][1]];
+									const auto& P3 = Vertex[Flesh.Indices[i][2]];
 
 									RenderMesh->Vertices.Add(FVector(P1));
 									RenderMesh->Vertices.Add(FVector(P2));
 									RenderMesh->Vertices.Add(FVector(P3));
-
-									RenderMesh->Colors.Add(FLinearColor::White);
-									RenderMesh->Colors.Add(FLinearColor::White);
-									RenderMesh->Colors.Add(FLinearColor::White);
+									if (Color)
+									{
+										RenderMesh->Colors.Add((*Color)[Flesh.Indices[i][0]]);
+										RenderMesh->Colors.Add((*Color)[Flesh.Indices[i][1]]);
+										RenderMesh->Colors.Add((*Color)[Flesh.Indices[i][2]]);
+									}
+									else
+									{
+										RenderMesh->Colors.Add(FLinearColor::White);
+										RenderMesh->Colors.Add(FLinearColor::White);
+										RenderMesh->Colors.Add(FLinearColor::White);
+									}
 
 									RenderMesh->UVs.Add(FVector2D(0, 0));
 									RenderMesh->UVs.Add(FVector2D(0, 0));
@@ -500,27 +539,32 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 									Tangent = (P1 - P3).GetSafeNormal();
 									RenderMesh->Tangents.Add(FProcMeshTangent(Tangent[0], Tangent[1], Tangent[2]));
 								}
-
+								if (Material)
+								{
+									Mesh->SetMaterial(0, Material);
+								}
 								Mesh->SetRelativeTransform(GetComponentTransform());
 								Mesh->CreateMeshSection_LinearColor(0, RenderMesh->Vertices, RenderMesh->Triangles, RenderMesh->Normals, RenderMesh->UVs, RenderMesh->Colors, RenderMesh->Tangents, false);
 							}
 							else
 							{
+								TArray<FVector3f> RenderVertex;
+								Flesh.ComponentSpaceVertices(RenderVertex);
 
-								const TManagedArray<FVector3f>* RenderVertex = &Flesh->Vertex;
 								if (GetDynamicCollection())
 								{
 									const TManagedArray<FVector3f>& DynamicVertex = GetDynamicCollection()->GetPositions();
-									if (DynamicVertex.Num()) RenderVertex = &DynamicVertex;
+									if ((DynamicVertex.Num() > 0) && (DynamicVertex.Num() == RenderVertex.Num())) 
+										RenderVertex = DynamicVertex.GetConstArray();
 								}
 								auto InRange = [](int32 Size, int32 Val) { return 0 <= Val && Val < Size; };
 
 								// Display only
 								for (int i = 0; i < NumFaces; ++i)
 								{
-									const auto& P1 = (*RenderVertex)[Flesh->Indices[i][0]];
-									const auto& P2 = (*RenderVertex)[Flesh->Indices[i][1]];
-									const auto& P3 = (*RenderVertex)[Flesh->Indices[i][2]];
+									const auto& P1 = RenderVertex[Flesh.Indices[i][0]];
+									const auto& P2 = RenderVertex[Flesh.Indices[i][1]];
+									const auto& P3 = RenderVertex[Flesh.Indices[i][2]];
 
 									RenderMesh->Vertices[3 * i] = FVector(P1);
 									RenderMesh->Vertices[3 * i + 1] = FVector(P2);
@@ -542,7 +586,7 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 								if (!Mesh->GetComponentTransform().Equals(GetComponentTransform())) {
 									Mesh->SetRelativeTransform(GetComponentTransform());
 								}
-								Mesh->UpdateMeshSection_LinearColor(0, RenderMesh->Vertices, RenderMesh->Normals, RenderMesh->UVs, RenderMesh->Colors, RenderMesh->Tangents);
+								Mesh->UpdateMeshSection_LinearColor(0, RenderMesh->Vertices, RenderMesh->Normals, RenderMesh->UVs, RenderMesh->Colors, RenderMesh->Tangents, false);
 							}
 
 							bCanRender = true;
@@ -595,6 +639,88 @@ TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshBindingPositions
 	return GetSkeletalMeshBindingPositionsInternal(InSkeletalMesh, nullptr);
 }
 
+TArray<FVector3f> UDeformableTetrahedralComponent::GetGeometryCachePositions(const USkeletalMesh* SkeletalMesh) const
+{
+	TArray<FVector3f> Positions;
+	if (RestCollection && DynamicCollection && SkeletalMesh)
+	{
+		const FFleshCollection* FleshCollection = RestCollection->GetCollection();
+		const TManagedArray<FVector3f>* RestVertices = RestCollection->FindPositions();
+		const TManagedArray<FVector3f>* SimulatedVertices = DynamicCollection->FindPositions();
+		if (FleshCollection && RestVertices && SimulatedVertices)
+		{
+			ChaosFlesh::BoundSurfacePositions(SkeletalMesh, FleshCollection, RestVertices, SimulatedVertices, Positions);
+		}
+	}
+	return Positions;
+}
+
+TOptional<TArray<int32>> UDeformableTetrahedralComponent::GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const
+{
+	constexpr int32 LODIndex = 0;
+	const TOptional<TArray<int32>> None;
+#if WITH_EDITOR
+	const FSkeletalMeshModel* const MLDModel = SkinnedMeshAsset.GetImportedModel();
+	if (!MLDModel || !MLDModel->LODModels.IsValidIndex(LODIndex))
+	{
+		return None;
+	}
+	const FSkeletalMeshLODModel& MLDLOD = MLDModel->LODModels[LODIndex];
+	const TArray<int32>& Map = MLDLOD.MeshToImportVertexMap;
+	if (Map.IsEmpty())
+	{
+		UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("MeshToImportVertexMap is empty. MLDeformer Asset should be an imported SkeletalMesh (e.g. from fbx)."));
+		return None;
+	}
+
+	//
+	// @todo(flesh LOD) : Add support for managing vertex mappings between skeletal LOD.
+	//		The cloth/flesh asset will extract the LOD from the ManagedArrayCollection.
+
+	TArray<FVector3f> Positions;
+
+	const USkeletalMesh* SkeletalMeshAsset = Cast<USkeletalMesh>(&SkinnedMeshAsset);
+	const TManagedArray<FVector3f>* RestVertices = RestCollection->FindPositions();
+	if (SkeletalMeshAsset && RestCollection && RestVertices)
+	{
+		ChaosFlesh::BoundSurfacePositions(SkeletalMeshAsset, RestCollection->GetCollection(), RestVertices, RestVertices, Positions);
+
+		//@todo(Flesh Sections) : Add checks for multiple sections. 
+		int32 NumSections = MLDLOD.Sections.Num();
+		if (NumSections != 1)
+		{
+			UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("SkeletalMeshAsset should have only one section."));
+			return None;
+		}
+
+		for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+		{
+			const FSkelMeshSection& MLDSection = MLDLOD.Sections[SectionIndex];
+			if (MLDSection.NumVertices != Positions.Num())
+			{
+				UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("SkeletalMeshAsset and FleshAsset have different number of vertices in section %d. Check if the assets have the same mesh."), SectionIndex);
+				return None;
+			}
+
+			for (int32 VertexIndex = 0; VertexIndex < MLDSection.NumVertices; ++VertexIndex)
+			{
+				const FVector3f& MLDPosition = MLDSection.SoftVertices[VertexIndex].Position;
+				const FVector3f& FleshPosition = Positions[VertexIndex];
+				if (!MLDPosition.Equals(FleshPosition, UE_KINDA_SMALL_NUMBER))
+				{
+					UE_LOG(LogDeformableTetrahedralComponentInternal, Warning, TEXT("SkeletalMeshAsset and FleshAsset have different vertex positions. Check if the assets have the same vertex order."));
+					return None;
+				}
+			}
+		}
+	}
+
+	return Map;
+#else
+	return None;
+#endif
+}
+
 TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshEmbeddedPositions(
 	const ChaosDeformableBindingOption Format,
 	const FTransform TargetDeformationSkeletonOffset,
@@ -637,7 +763,7 @@ TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshEmbeddedPosition
 		Format == ChaosDeformableBindingOption::ComponentDelta) // BoneDelta handled below
 	{
 		TArray<FTransform> ComponentPose;
-		Dataflow::Animation::GlobalTransforms(GetRestCollection()->TargetDeformationSkeleton->GetRefSkeleton(), ComponentPose);
+		UE::Dataflow::Animation::GlobalTransforms(GetRestCollection()->TargetDeformationSkeleton->GetRefSkeleton(), ComponentPose);
 		TransformPositions.SetNumUninitialized(ComponentPose.Num());
 		if (TargetDeformationSkeletonOffset.Equals(FTransform::Identity))
 		{
@@ -927,7 +1053,7 @@ TArray<FVector> UDeformableTetrahedralComponent::GetSkeletalMeshBindingPositions
 				{
 					// Component relative transforms, not world.
 					TArray<FTransform> ComponentPose;
-					Dataflow::Animation::GlobalTransforms(InSkeletalMesh->GetRefSkeleton(), ComponentPose);
+					UE::Dataflow::Animation::GlobalTransforms(InSkeletalMesh->GetRefSkeleton(), ComponentPose);
 
 					TransformPositions.SetNumUninitialized(ComponentPose.Num());
 					for (int32 i = 0; i < ComponentPose.Num(); i++)

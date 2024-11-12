@@ -8,6 +8,7 @@
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
+#include "Iris/ReplicationSystem/ReplicationBridgeTypes.h"
 #include "Misc/EnumClassFlags.h"
 #include "Net/Core/NetHandle/NetHandle.h"
 #include "UObject/ObjectKey.h"
@@ -21,12 +22,19 @@ class UNetDriver;
 
 namespace UE::Net
 {
+	enum class ENetRefHandleError : uint32;
+	typedef uint8 FNetObjectFactoryId;
+
 	struct FNetDependencyInfo;
-	class FNetTokenStoreState;
-	class FReplicationFragment;
 	struct FReplicationInstanceProtocol;
 	struct FReplicationProtocol;
+
+	class FNetBitStreamReader;
+	class FNetBitStreamWriter;
 	class FNetSerializationContext;
+	class FNetTokenStoreState;	
+	class FReplicationFragment;
+
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
@@ -61,58 +69,7 @@ struct FReplicationBridgeSerializationContext
 	bool bIsDestructionInfo;
 };
 
-enum class EEndReplicationFlags : uint32
-{
-	None								= 0U,
-	/** Destroy remote instance. Default for dynamic objects unless they have TearOff flag set. */
-	Destroy								= 1U,				
-	/** Stop replication object without destroying instance on the remote end. */
-	TearOff								= Destroy << 1U,
-	/** Complete replication of pending state to all clients before ending replication. */
-	Flush								= TearOff << 1U,
-	/** Destroy NetHandle if one is associated with the replicated object. This should only be done if the object should not be replicated by any other replication system. */
-	DestroyNetHandle					= Flush << 1U,
-	/** Clear net push ID to prevent this object and its subobjects from being marked as dirty in the networking system. This should only be done if the object should not be replicated by any other replication system. */
-	ClearNetPushId						= DestroyNetHandle << 1U,
-	/** Skip bPendingEndReplication Validation, In some cases we want to allow detaching instance from replicated object on clients, such as when shutting down */
-	SkipPendingEndReplicationValidation = ClearNetPushId << 1U,
-};
-ENUM_CLASS_FLAGS(EEndReplicationFlags);
 
-IRISCORE_API FString LexToString(EEndReplicationFlags EndReplicationFlags);
-
-enum class EReplicationBridgeCreateNetRefHandleResultFlags : unsigned
-{
-	None = 0U,
-	/** Whether the instance may be destroyed due to the remote peer requesting the object to be destroyed. If not then the object itself must not be destroyed. */
-	AllowDestroyInstanceFromRemote = 1U << 0U,
-	ShouldCallSubObjectCreatedFromReplication = AllowDestroyInstanceFromRemote << 1U,
-};
-ENUM_CLASS_FLAGS(EReplicationBridgeCreateNetRefHandleResultFlags);
-
-struct FReplicationBridgeCreateNetRefHandleResult
-{
-	UE::Net::FNetRefHandle NetRefHandle;
-	EReplicationBridgeCreateNetRefHandleResultFlags Flags = EReplicationBridgeCreateNetRefHandleResultFlags::None;
-};
-
-enum class EReplicationBridgeDestroyInstanceReason : unsigned
-{
-	DoNotDestroy,
-	TearOff,
-	Destroy,
-};
-IRISCORE_API const TCHAR* LexToString(EReplicationBridgeDestroyInstanceReason Reason);
-
-enum class EReplicationBridgeDestroyInstanceFlags : unsigned
-{
-	None = 0U,
-	/** Whether the instance may be destroyed when instructed from the remote peer. This flag applies when the destroy reason is TearOff and torn off actors are to be destroyed as well as regular Destroy. */
-	AllowDestroyInstanceFromRemote = 1U << 0U,
-};
-ENUM_CLASS_FLAGS(EReplicationBridgeDestroyInstanceFlags);
-
-IRISCORE_API const TCHAR* LexToString(EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 
 UCLASS(Transient, MinimalAPI)
 class UReplicationBridge : public UObject
@@ -147,19 +104,19 @@ public:
 	};
 
 	/**
-	 * Stop replicating the NetObject associated with the handle and mark the handle to be destroyed.
-	 * If EEndReplication::TearOff is set the remote instance will be Torn-off rather than being destroyed on the receiving end, after the call, any state changes will not be replicated
-     * If EEndReplication::Flush is set all pending states will be delivered before the remote instance is destroyed, final state will be immediately copied so it is safe to remove the object after this call
-	 * If EEndReplication::Destroy is set the remote instance will be destroyed, if this is set for a static instance and the EndReplicationParameters are set a permanent destruction info will be added
-	 * Dynamic instances are always destroyed unless the TearOff flag is set.
-	 */
-	IRISCORE_API void EndReplication(FNetRefHandle Handle, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::Destroy, FEndReplicationParameters* Parameters = nullptr);
+	* Stop replicating the NetObject associated with the handle and mark the handle to be destroyed.
+	* If EEndReplication::TearOff is set the remote instance will be Torn-off rather than being destroyed on the receiving end, after the call, any state changes will not be replicated
+	* If EEndReplication::Flush is set all pending states will be delivered before the remote instance is destroyed, final state will be immediately copied so it is safe to remove the object after this call
+	* If EEndReplication::Destroy is set the remote instance will be destroyed, if this is set for a static instance and the EndReplicationParameters are set a permanent destruction info will be added
+	* Dynamic instances are always destroyed unless the TearOff flag is set.
+	*/
+	IRISCORE_API void StopReplicatingNetRefHandle(FNetRefHandle Handle, EEndReplicationFlags EndReplicationFlags);
+
+	/** Store destruction info for the referenced object. */
+	IRISCORE_API FNetRefHandle StoreDestructionInfo(FNetRefHandle Handle, const FEndReplicationParameters& Parameters);
 
 	/** Returns true if the handle is replicated. */
 	IRISCORE_API bool IsReplicatedHandle(FNetRefHandle Handle) const;
-
-	/** Set the NetDriver used by the bridge. Called during creation if the NetDriver is recreated. */
-	IRISCORE_API virtual void SetNetDriver(UNetDriver* NetDriver);
 
 	/** Get the group associated with the level in order to control connection filtering for it. */
 	IRISCORE_API UE::Net::FNetObjectGroupHandle GetLevelGroup(const UObject* Level) const;
@@ -198,14 +155,21 @@ protected:
 	 */
 	IRISCORE_API virtual bool WriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 
+	/**
+	 * Cache info required to allow deferred writing of NetRefHandleCreationInfo
+	 * @param Handle The handle of the object to store creation data for.
+	 * return whether cached data is stored or not.
+	*/
+	IRISCORE_API virtual bool CacheNetRefHandleCreationInfo(FNetRefHandle Handle);
+
 	/** Read data required to instantiate NetObject from bitstream. */
 	IRISCORE_API virtual FReplicationBridgeCreateNetRefHandleResult CreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context);
 
 	/** Invoked right before we apply the state for a new received subobject but after we have applied state for owning/root object in order to behave like old replication system */
 	IRISCORE_API virtual void SubObjectCreatedFromReplication(FNetRefHandle SubObjectRefHandle);
 
-	/** Invoke after we have applied the initial state for an object.*/
-	IRISCORE_API virtual void PostApplyInitialState(FNetRefHandle Handle);
+	/** Invoked after we have applied the initial state for an object.*/
+	virtual void PostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex) {}
 
 	/**
 	 * Called when the instance is detached from the protocol on request by the remote. 
@@ -234,7 +198,7 @@ protected:
 	IRISCORE_API FNetRefHandle InternalCreateNetObject(FNetRefHandle AllocatedHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol);
 
 	/** Create a NetRefHandle / NetObject on request from the authoritative end. */
-	IRISCORE_API FNetRefHandle InternalCreateNetObjectFromRemote(FNetRefHandle WantedNetHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol);
+	IRISCORE_API FNetRefHandle InternalCreateNetObjectFromRemote(FNetRefHandle WantedNetHandle, const UE::Net::FReplicationProtocol* ReplicationProtocol,  UE::Net::FNetObjectFactoryId FactoryId);
 
 	/** Attach instance to NetRefHandle. */
 	IRISCORE_API void InternalAttachInstanceToNetRefHandle(FNetRefHandle RefHandle, bool bBindInstanceProtocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, UObject* Instance, FNetHandle NetHandle);
@@ -248,16 +212,13 @@ protected:
 	/** Add SubObjectHandle as SubObject to OwnerHandle. */
 	IRISCORE_API void InternalAddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder);
 
-	/** Add destruction info for the referenced object. */
-	FNetRefHandle InternalAddDestructionInfo(FNetRefHandle Handle, const FEndReplicationParameters& Parameters);
-
 	inline UE::Net::Private::FReplicationProtocolManager* GetReplicationProtocolManager() const { return ReplicationProtocolManager; }
 	inline UReplicationSystem* GetReplicationSystem() const { return ReplicationSystem; }
 	inline UE::Net::Private::FReplicationStateDescriptorRegistry* GetReplicationStateDescriptorRegistry() const { return ReplicationStateDescriptorRegistry; }
 	inline UE::Net::Private::FObjectReferenceCache* GetObjectReferenceCache() const { return ObjectReferenceCache; }
 
 	/** Creates a group for a level for object filtering purposes. */
-	IRISCORE_API UE::Net::FNetObjectGroupHandle CreateLevelGroup(const UObject* Level);
+	IRISCORE_API UE::Net::FNetObjectGroupHandle CreateLevelGroup(const UObject* Level, FName PackageName);
 
 	/** Destroys the group associated with the level. */
 	IRISCORE_API void DestroyLevelGroup(const UObject* Level);
@@ -269,10 +230,10 @@ protected:
 	IRISCORE_API virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
 	/** Called when a remote connection has a critical error caused by a specific NetRefHandle */
-	IRISCORE_API virtual void OnErrorWithNetRefHandleReported(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
+	IRISCORE_API virtual void OnErrorWithNetRefHandleReported(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
 	/** Tell the remote connection that we detected a reading error with a specific replicated object */
-	IRISCORE_API virtual void ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
+	IRISCORE_API virtual void SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
 private:
 
@@ -281,18 +242,25 @@ private:
 	void DetachSubObjectInstancesFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 	void DestroyNetObjectFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 
-	// Adds the Handle to the list of handles pending tear-off, if bIsImmediate is true the object will be destroyed after the next update, otherwise
-	// it will be kept around until EndReplication is called.
-	void TearOff(FNetRefHandle Handle, EEndReplicationFlags DestroyFlags, bool bIsImmediate);
+	enum class EPendingEndReplicationImmediate : uint8
+	{
+		Yes,
+		No,
+	};
+
+	// Adds the Handle to the list of handles pending deferred EndReplication, if bIsImmediate is true the object will be destroyed after the next update, otherwise
+	// it will be kept around until the handle is no longer ref-counted by any connection. It will however be removed from the set of scopeable objects after the first update so new connections will not add it to their scope.
+	void AddPendingEndReplication(FNetRefHandle Handle, EEndReplicationFlags DestroyFlags, EPendingEndReplicationImmediate Immediate = EPendingEndReplicationImmediate::No);
 
 	FReplicationBridgeCreateNetRefHandleResult CallCreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context);
 	void CallPreSendUpdate(float DeltaSeconds);	
 	void CallPreSendUpdateSingleHandle(FNetRefHandle Handle);
 	void CallUpdateInstancesWorldLocation();
+	bool CallCacheNetRefHandleCreationInfo(FNetRefHandle Handle);
 	bool CallWriteNetRefHandleCreationInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 	bool CallWriteNetRefHandleDestructionInfo(FReplicationBridgeSerializationContext& Context, FNetRefHandle Handle);
 	void CallSubObjectCreatedFromReplication(FNetRefHandle SubObjectHandle);
-	void CallPostApplyInitialState(FNetRefHandle Handle);
+	void CallPostApplyInitialState(UE::Net::Private::FInternalNetRefIndex InternalObjectIndex);
 	void CallPruneStaleObjects();
 	void CallGetInitialDependencies(FNetRefHandle Handle, FNetDependencyInfoArray& OutDependencies) const;
 	void CallDetachInstance(FNetRefHandle Handle);
@@ -301,7 +269,6 @@ private:
 private:
 
 	void InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex);
-
 	// Internal method to copy state data for Handle
 	void InternalFlushStateData(FNetRefHandle Handle);
 
@@ -328,8 +295,8 @@ private:
 	// Tear-off all handles in the PendingTearOff list that has not yet been torn-off
 	void TearOffHandlesPendingTearOff();
 
-	// Update all the handles pending tear-off
-	void UpdateHandlesPendingTearOff();
+	// Update all the handles pending EndReplication
+	void UpdateHandlesPendingEndReplication();
 
 	void SetNetPushIdOnFragments(const TArrayView<const UE::Net::FReplicationFragment*const>& Fragments, const UE::Net::Private::FNetPushObjectHandle& PushHandle);
 	void ClearNetPushIdOnFragments(const TArrayView<const UE::Net::FReplicationFragment*const>& Fragments);
@@ -369,15 +336,15 @@ private:
 	// We use this to be able ask remote to destroy static objects
 	TMap<FNetRefHandle, FDestructionInfo> StaticObjectsPendingDestroy;
 
-	struct FTearOffInfo
+	struct FPendingEndReplicationInfo
 	{
-		FTearOffInfo(FNetRefHandle InHandle, EEndReplicationFlags InDestroyFlags, bool bInIsImmediate) : Handle(InHandle), DestroyFlags(InDestroyFlags), bIsImmediate(bInIsImmediate) {}
+		FPendingEndReplicationInfo(FNetRefHandle InHandle, EEndReplicationFlags InDestroyFlags, EPendingEndReplicationImmediate InImmediate) : Handle(InHandle), DestroyFlags(InDestroyFlags), Immediate(InImmediate) {}
 
 		FNetRefHandle Handle;
 		EEndReplicationFlags DestroyFlags;
-		bool bIsImmediate;
+		EPendingEndReplicationImmediate Immediate;
 	};
-	TArray<FTearOffInfo> HandlesPendingTearOff;
+	TArray<FPendingEndReplicationInfo> HandlesPendingEndReplication;
 };
 
 inline FReplicationBridgeSerializationContext::FReplicationBridgeSerializationContext(UE::Net::FNetSerializationContext& InSerialiazationContext, uint32 InConnectionId, bool bInIsDestructionInfo)

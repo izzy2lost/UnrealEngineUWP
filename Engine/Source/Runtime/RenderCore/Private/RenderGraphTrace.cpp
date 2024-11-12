@@ -13,7 +13,7 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, GraphMessage)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
 	UE_TRACE_EVENT_FIELD(uint64, StartCycles)
 	UE_TRACE_EVENT_FIELD(uint64, EndCycles)
-	UE_TRACE_EVENT_FIELD(uint16, PassCount)
+	UE_TRACE_EVENT_FIELD(uint32, PassCount)
 	UE_TRACE_EVENT_FIELD(uint64[], TransientMemoryCommitSizes)
 	UE_TRACE_EVENT_FIELD(uint64[], TransientMemoryCapacities)
 	UE_TRACE_EVENT_FIELD(uint8[],  TransientMemoryFlags)
@@ -26,11 +26,11 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, PassMessage)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
 	UE_TRACE_EVENT_FIELD(uint64, StartCycles)
 	UE_TRACE_EVENT_FIELD(uint64, EndCycles)
-	UE_TRACE_EVENT_FIELD(uint16, Handle)
-	UE_TRACE_EVENT_FIELD(uint16, GraphicsForkPass)
-	UE_TRACE_EVENT_FIELD(uint16, GraphicsJoinPass)
-	UE_TRACE_EVENT_FIELD(uint16[], Textures)
-	UE_TRACE_EVENT_FIELD(uint16[], Buffers)
+	UE_TRACE_EVENT_FIELD(uint32, Handle)
+	UE_TRACE_EVENT_FIELD(uint32, GraphicsForkPass)
+	UE_TRACE_EVENT_FIELD(uint32, GraphicsJoinPass)
+	UE_TRACE_EVENT_FIELD(uint32[], Textures)
+	UE_TRACE_EVENT_FIELD(uint32[], Buffers)
 	UE_TRACE_EVENT_FIELD(uint16, Flags)
 	UE_TRACE_EVENT_FIELD(uint16, Pipeline)
 	UE_TRACE_EVENT_FIELD(bool, IsCulled)
@@ -42,6 +42,8 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, PassMessage)
 	UE_TRACE_EVENT_FIELD(bool, IsParallelExecuteEnd)
 	UE_TRACE_EVENT_FIELD(bool, IsParallelExecute)
 	UE_TRACE_EVENT_FIELD(bool, IsParallelExecuteAllowed)
+	UE_TRACE_EVENT_FIELD(bool, IsParallelExecuteAsyncAllowed)
+	UE_TRACE_EVENT_FIELD(bool, IsHandleType32Bits)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(RDGTrace, BufferMessage)
@@ -49,13 +51,15 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, BufferMessage)
 	UE_TRACE_EVENT_FIELD(uint32, UsageFlags)
 	UE_TRACE_EVENT_FIELD(uint32, BytesPerElement)
 	UE_TRACE_EVENT_FIELD(uint32, NumElements)
-	UE_TRACE_EVENT_FIELD(uint16, Handle)
-	UE_TRACE_EVENT_FIELD(uint16, NextOwnerHandle)
-	UE_TRACE_EVENT_FIELD(uint16, Order)
-	UE_TRACE_EVENT_FIELD(uint16[], Passes)
+	UE_TRACE_EVENT_FIELD(uint32, Handle)
+	UE_TRACE_EVENT_FIELD(uint32, NextOwnerHandle)
+	UE_TRACE_EVENT_FIELD(uint32, Order)
+	UE_TRACE_EVENT_FIELD(uint32[], Passes)
 	UE_TRACE_EVENT_FIELD(uint64[], TransientAllocationOffsetMins)
 	UE_TRACE_EVENT_FIELD(uint64[], TransientAllocationOffsetMaxs)
 	UE_TRACE_EVENT_FIELD(uint16[], TransientAllocationMemoryRanges)
+	UE_TRACE_EVENT_FIELD(FRDGPassHandle::IndexType, TransientAcquirePass)
+	UE_TRACE_EVENT_FIELD(FRDGPassHandle::IndexType, TransientDiscardPass)
 	UE_TRACE_EVENT_FIELD(bool, IsExternal)
 	UE_TRACE_EVENT_FIELD(bool, IsExtracted)
 	UE_TRACE_EVENT_FIELD(bool, IsCulled)
@@ -63,19 +67,22 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, BufferMessage)
 	UE_TRACE_EVENT_FIELD(bool, IsTransient)
 	UE_TRACE_EVENT_FIELD(bool, IsTransientUntracked)
 	UE_TRACE_EVENT_FIELD(bool, IsTransientCacheHit)
+	UE_TRACE_EVENT_FIELD(bool, IsHandleType32Bits)
 UE_TRACE_EVENT_END()
  
 UE_TRACE_EVENT_BEGIN(RDGTrace, TextureMessage)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
 	UE_TRACE_EVENT_FIELD(uint64, StartCycles)
 	UE_TRACE_EVENT_FIELD(uint64, EndCycles)
-	UE_TRACE_EVENT_FIELD(uint16, Handle)
-	UE_TRACE_EVENT_FIELD(uint16, NextOwnerHandle)
-	UE_TRACE_EVENT_FIELD(uint16, Order)
-	UE_TRACE_EVENT_FIELD(uint16[], Passes)
+	UE_TRACE_EVENT_FIELD(uint32, Handle)
+	UE_TRACE_EVENT_FIELD(uint32, NextOwnerHandle)
+	UE_TRACE_EVENT_FIELD(uint32, Order)
+	UE_TRACE_EVENT_FIELD(uint32[], Passes)
 	UE_TRACE_EVENT_FIELD(uint64[], TransientAllocationOffsetMins)
 	UE_TRACE_EVENT_FIELD(uint64[], TransientAllocationOffsetMaxs)
 	UE_TRACE_EVENT_FIELD(uint16[], TransientAllocationMemoryRanges)
+	UE_TRACE_EVENT_FIELD(FRDGPassHandle::IndexType, TransientAcquirePass)
+	UE_TRACE_EVENT_FIELD(FRDGPassHandle::IndexType, TransientDiscardPass)
 	UE_TRACE_EVENT_FIELD(uint64, SizeInBytes)
 	UE_TRACE_EVENT_FIELD(uint64, CreateFlags)
 	UE_TRACE_EVENT_FIELD(uint32, Dimension)
@@ -93,18 +100,20 @@ UE_TRACE_EVENT_BEGIN(RDGTrace, TextureMessage)
 	UE_TRACE_EVENT_FIELD(bool, IsTransient)
 	UE_TRACE_EVENT_FIELD(bool, IsTransientUntracked)
 	UE_TRACE_EVENT_FIELD(bool, IsTransientCacheHit)
+	UE_TRACE_EVENT_FIELD(bool, IsHandleType32Bits)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(RDGTrace, ScopeMessage)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
-	UE_TRACE_EVENT_FIELD(uint16, FirstPass)
-	UE_TRACE_EVENT_FIELD(uint16, LastPass)
+	UE_TRACE_EVENT_FIELD(uint32, FirstPass)
+	UE_TRACE_EVENT_FIELD(uint32, LastPass)
 	UE_TRACE_EVENT_FIELD(uint16, Depth)
+	UE_TRACE_EVENT_FIELD(bool, IsHandleType32Bits)
 UE_TRACE_EVENT_END()
 
-static_assert(sizeof(FRDGPassHandle) == sizeof(uint16), "Expected 16 bit pass handles.");
-static_assert(sizeof(FRDGTextureHandle) == sizeof(uint16), "Expected 16 bit texture handles.");
-static_assert(sizeof(FRDGBufferHandle) == sizeof(uint16), "Expected 16 bit buffer handles.");
+static_assert(sizeof(FRDGPassHandle) == sizeof(uint32), "Expected 32 bit pass handles.");
+static_assert(sizeof(FRDGTextureHandle) == sizeof(uint32), "Expected 32 bit texture handles.");
+static_assert(sizeof(FRDGBufferHandle) == sizeof(uint32), "Expected 32 bit buffer handles.");
 
 FRDGTrace::FRDGTrace()
 	: bEnabled(UE_TRACE_CHANNELEXPR_IS_ENABLED(RDGChannel) && !IsImmediateMode())
@@ -162,7 +171,7 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			<< GraphMessage.Name(Name, uint16(FCString::Strlen(Name)))
 			<< GraphMessage.StartCycles(GraphStartCycles)
 			<< GraphMessage.EndCycles(FPlatformTime::Cycles64())
-			<< GraphMessage.PassCount(uint16(Passes.Num()))
+			<< GraphMessage.PassCount(uint32(Passes.Num()))
 			<< GraphMessage.TransientMemoryCommitSizes(TransientMemoryCommitSizes.GetData(), (uint16)TransientMemoryCommitSizes.Num())
 			<< GraphMessage.TransientMemoryCapacities(TransientMemoryCapacities.GetData(), (uint16)TransientMemoryCapacities.Num())
 			<< GraphMessage.TransientMemoryFlags(TransientMemoryFlags.GetData(), (uint16)TransientMemoryFlags.Num());
@@ -178,8 +187,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			<< PassMessage.Handle(Handle.GetIndex())
 			<< PassMessage.GraphicsForkPass(Pass->GetGraphicsForkPass().GetIndexUnchecked())
 			<< PassMessage.GraphicsJoinPass(Pass->GetGraphicsJoinPass().GetIndexUnchecked())
-			<< PassMessage.Textures((const uint16*)Pass->TraceTextures.GetData(), (uint16)Pass->TraceTextures.Num())
-			<< PassMessage.Buffers((const uint16*)Pass->TraceBuffers.GetData(), (uint16)Pass->TraceBuffers.Num())
+			<< PassMessage.Textures((const uint32*)Pass->TraceTextures.GetData(), (uint32)Pass->TraceTextures.Num())
+			<< PassMessage.Buffers((const uint32*)Pass->TraceBuffers.GetData(), (uint32)Pass->TraceBuffers.Num())
 			<< PassMessage.Flags(uint16(Pass->GetFlags()))
 			<< PassMessage.Pipeline(uint16(Pass->GetPipeline()))
 			<< PassMessage.IsCulled(Pass->bCulled != 0)
@@ -190,79 +199,54 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			<< PassMessage.IsParallelExecuteBegin(Pass->bParallelExecuteBegin != 0)
 			<< PassMessage.IsParallelExecuteEnd(Pass->bParallelExecuteEnd != 0)
 			<< PassMessage.IsParallelExecute(Pass->bParallelExecute != 0)
-			<< PassMessage.IsParallelExecuteAllowed(Pass->bParallelExecuteAllowed != 0);
+			<< PassMessage.IsParallelExecuteAllowed(Pass->TaskMode != ERDGPassTaskMode::Inline)
+			<< PassMessage.IsParallelExecuteAsyncAllowed(Pass->TaskMode == ERDGPassTaskMode::Async)
+			<< PassMessage.IsHandleType32Bits(true);
 	}
 
 #if RDG_EVENTS
 	{
-		struct FScopeInfo
+		auto DumpScopes = [&](FRDGScope* Current, auto& DumpScopes)
 		{
-			const TCHAR* Name{};
-			FRDGPassHandle FirstPass;
-			FRDGPassHandle LastPass;
-			uint16 Depth{};
-		};
-		TArray<FScopeInfo> Scopes;
-		TMap<const FRDGEventScope*, int32> ScopeToIndex;
-		int32 Depth = 0;
+			if (!Current || Current->bVisited)
+				return;
 
-		TRDGScopeStackHelper<FRDGEventScopeOp> ScopeStackHelper;
+			Current->bVisited = true;
+			DumpScopes(Current->Parent, DumpScopes);
+
+			if (FRDGScope_RHI* RHIScope = Current->Get<FRDGScope_RHI>())
+			{
+				if (Current->CPUFirstPass && Current->CPULastPass)
+				{
+					const TCHAR* Name = RHIScope->Name.GetTCHAR();
+
+					uint32 Depth = 0;
+
+					for (FRDGScope* Scope = Current; Scope->Parent; Scope = Scope->Parent)
+					{
+						if (Scope->Get<FRDGScope_RHI>())
+						{
+							if (Scope->CPUFirstPass && Scope->CPULastPass)
+							{
+								Depth++;
+							}
+						}
+					}
+
+					UE_TRACE_LOG(RDGTrace, ScopeMessage, RDGChannel)
+						<< ScopeMessage.Name(Name, uint16(FCString::Strlen(Name)))
+						<< ScopeMessage.FirstPass(Current->CPUFirstPass->GetHandle().GetIndexUnchecked())
+						<< ScopeMessage.LastPass(Current->CPULastPass->GetHandle().GetIndexUnchecked())
+						<< ScopeMessage.Depth(Depth)
+						<< ScopeMessage.IsHandleType32Bits(true);
+				}
+			}
+		};
 
 		for (FRDGPassHandle Handle = Passes.Begin(); Handle != Passes.End(); ++Handle)
 		{
-			const auto Replay = [&](const TRDGScopeOpArray<FRDGEventScopeOp>& Ops)
-			{
-				for (int32 Index = 0; Index < Ops.Num(); ++Index)
-				{
-					FRDGEventScopeOp Op = Ops[Index];
-
-					if (Op.IsScope())
-					{
-						if (Op.IsPush())
-						{
-							ScopeToIndex.Emplace(Op.Scope, Scopes.Num());
-
-							FScopeInfo ScopeInfo;
-							ScopeInfo.Name = Op.Scope->Name.GetTCHAR();
-							ScopeInfo.FirstPass = Handle;
-							check(Depth >= 0 && Depth <= TNumericLimits<uint16>::Max());
-							ScopeInfo.Depth = static_cast<uint16>(Depth);
-							Scopes.Add(ScopeInfo);
-
-							Depth++;
-						}
-						else
-						{
-							FScopeInfo& ScopeInfo = Scopes[ScopeToIndex.FindChecked(Op.Scope)];
-							ScopeInfo.LastPass = FRDGPassHandle(Handle.GetIndex() - 1);
-
-							Depth--;
-						}
-					}
-				}
-			};
-
 			const FRDGPass* Pass = Passes[Handle];
-
-			const FRDGEventScope* ParentScope = Pass->TraceEventScope;
-
-			Replay(ScopeStackHelper.CompilePassPrologue(ParentScope, nullptr));
-
-			if (Handle == Passes.Last())
-			{
-				Replay(ScopeStackHelper.EndCompile());
-			}
-		}
-
-		check(Depth == 0);
-
-		for (const FScopeInfo& ScopeInfo : Scopes)
-		{
-			UE_TRACE_LOG(RDGTrace, ScopeMessage, RDGChannel)
-				<< ScopeMessage.Name(ScopeInfo.Name, uint16(FCString::Strlen(ScopeInfo.Name)))
-				<< ScopeMessage.FirstPass(ScopeInfo.FirstPass.GetIndexUnchecked())
-				<< ScopeMessage.LastPass(ScopeInfo.LastPass.GetIndexUnchecked())
-				<< ScopeMessage.Depth(ScopeInfo.Depth);
+			DumpScopes(Pass->Scope, DumpScopes);
 		}
 	}
 #endif
@@ -298,6 +282,36 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 
 	} TransientAllocation;
 
+	FRDGPassHandle TransientAcquirePass;
+	FRDGPassHandle TransientDiscardPass;
+
+	const auto FillTransientResourceArrays = [&](const FRHITransientResource* Resource, bool bRemoveFromStats)
+	{
+		TransientAllocation.Reset();
+		TransientAcquirePass = {};
+		TransientDiscardPass = {};
+
+		if (Resource)
+		{
+			TransientAllocation.Fill(TransientAllocationStats, Resource);
+
+			if (Resource->GetAcquirePass() != FRHITransientResource::kInvalidPassIndex)
+			{
+				TransientAcquirePass = FRDGPassHandle(Resource->GetAcquirePass());
+			}
+
+			if (Resource->GetDiscardPass() != FRHITransientResource::kInvalidPassIndex)
+			{
+				TransientDiscardPass = FRDGPassHandle(Resource->GetDiscardPass());
+			}
+
+			if (bRemoveFromStats)
+			{
+				TransientAllocationStats.Resources.Remove(Resource);
+			}
+		}
+	};
+
 	for (FRDGTextureHandle Handle = Textures.Begin(); Handle != Textures.End(); ++Handle)
 	{
 		const FRDGTexture* Texture = Textures[Handle];
@@ -305,27 +319,30 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 		uint64 SizeInBytes = 0;
 		if (FRHITexture* TextureRHI = Texture->GetRHIUnchecked())
 		{
-			SizeInBytes = RHIComputeMemorySize(TextureRHI);
+			if (Texture->TransientTexture)
+			{
+				SizeInBytes = Texture->TransientTexture->GetSize();
+			}
+			else
+			{
+				SizeInBytes = RHIComputeMemorySize(TextureRHI);
+			}
 		}
 
-		TransientAllocation.Reset();
-
-		if (Texture->TransientTexture)
-		{
-			const FRHITransientResource* Resource = Texture->TransientTexture;
-			TransientAllocation.Fill(TransientAllocationStats, Resource);
-			TransientAllocationStats.Resources.Remove(Resource);
-		}
+		const bool bRemoveFromStats = true;
+		FillTransientResourceArrays(Texture->TransientTexture, bRemoveFromStats);
 
 		UE_TRACE_LOG(RDGTrace, TextureMessage, RDGChannel)
 			<< TextureMessage.Name(Texture->Name, uint16(FCString::Strlen(Texture->Name)))
 			<< TextureMessage.Handle(Handle.GetIndex())
 			<< TextureMessage.NextOwnerHandle(Texture->NextOwner.GetIndexUnchecked())
 			<< TextureMessage.Order(Texture->TraceOrder)
-			<< TextureMessage.Passes((const uint16*)Texture->TracePasses.GetData(), (uint16)Texture->TracePasses.Num())
+			<< TextureMessage.Passes((const uint32*)Texture->TracePasses.GetData(), (uint32)Texture->TracePasses.Num())
 			<< TextureMessage.TransientAllocationOffsetMins(TransientAllocation.OffsetMins.GetData(), TransientAllocation.OffsetMins.Num())
 			<< TextureMessage.TransientAllocationOffsetMaxs(TransientAllocation.OffsetMaxs.GetData(), TransientAllocation.OffsetMaxs.Num())
 			<< TextureMessage.TransientAllocationMemoryRanges(TransientAllocation.MemoryRanges.GetData(), TransientAllocation.MemoryRanges.Num())
+			<< TextureMessage.TransientAcquirePass(TransientAcquirePass.GetIndexUnchecked())
+			<< TextureMessage.TransientDiscardPass(TransientDiscardPass.GetIndexUnchecked())
 			<< TextureMessage.SizeInBytes(SizeInBytes)
 			<< TextureMessage.CreateFlags(uint32(Texture->Desc.Flags))
 			<< TextureMessage.Dimension(uint32(Texture->Desc.Dimension))
@@ -342,31 +359,28 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			<< TextureMessage.IsTrackingSkipped(EnumHasAnyFlags(Texture->Flags, ERDGTextureFlags::SkipTracking))
 			<< TextureMessage.IsTransient(bool(Texture->bTransient))
 			<< TextureMessage.IsTransientUntracked(false)
-			<< TextureMessage.IsTransientCacheHit(TransientAllocation.bCacheHit);
+			<< TextureMessage.IsTransientCacheHit(TransientAllocation.bCacheHit)
+			<< TextureMessage.IsHandleType32Bits(true);
 	}
 
 	for (FRDGBufferHandle Handle = Buffers.Begin(); Handle != Buffers.End(); ++Handle)
 	{
 		const FRDGBuffer* Buffer = Buffers[Handle];
-
-		TransientAllocation.Reset();
-
-		if (Buffer->TransientBuffer)
-		{
-			const FRHITransientResource* Resource = Buffer->TransientBuffer;
-			TransientAllocation.Fill(TransientAllocationStats, Resource);
-			TransientAllocationStats.Resources.Remove(Resource);
-		}
+		
+		const bool bRemoveFromStats = true;
+		FillTransientResourceArrays(Buffer->TransientBuffer, bRemoveFromStats);
 
 		UE_TRACE_LOG(RDGTrace, BufferMessage, RDGChannel)
 			<< BufferMessage.Name(Buffer->Name, uint16(FCString::Strlen(Buffer->Name)))
 			<< BufferMessage.Handle(Buffer->Handle.GetIndex())
 			<< BufferMessage.NextOwnerHandle(Buffer->NextOwner.GetIndexUnchecked())
 			<< BufferMessage.Order(Buffer->TraceOrder)
-			<< BufferMessage.Passes((const uint16*)Buffer->TracePasses.GetData(), (uint16)Buffer->TracePasses.Num())
+			<< BufferMessage.Passes((const uint32*)Buffer->TracePasses.GetData(), (uint32)Buffer->TracePasses.Num())
 			<< BufferMessage.TransientAllocationOffsetMins(TransientAllocation.OffsetMins.GetData(), TransientAllocation.OffsetMins.Num())
 			<< BufferMessage.TransientAllocationOffsetMaxs(TransientAllocation.OffsetMaxs.GetData(), TransientAllocation.OffsetMaxs.Num())
 			<< BufferMessage.TransientAllocationMemoryRanges(TransientAllocation.MemoryRanges.GetData(), TransientAllocation.MemoryRanges.Num())
+			<< BufferMessage.TransientAcquirePass(TransientAcquirePass.GetIndexUnchecked())
+			<< BufferMessage.TransientDiscardPass(TransientDiscardPass.GetIndexUnchecked())
 			<< BufferMessage.UsageFlags(uint32(Buffer->Desc.Usage))
 			<< BufferMessage.BytesPerElement(Buffer->Desc.BytesPerElement)
 			<< BufferMessage.NumElements(Buffer->Desc.NumElements)
@@ -376,7 +390,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			<< BufferMessage.IsTrackingSkipped(EnumHasAnyFlags(Buffer->Flags, ERDGBufferFlags::SkipTracking))
 			<< BufferMessage.IsTransient(bool(Buffer->bTransient))
 			<< BufferMessage.IsTransientUntracked(false)
-			<< BufferMessage.IsTransientCacheHit(TransientAllocation.bCacheHit);
+			<< BufferMessage.IsTransientCacheHit(TransientAllocation.bCacheHit)
+			<< BufferMessage.IsHandleType32Bits(true);
 	}
 
 	int32 TextureIndex = Textures.Num();
@@ -391,8 +406,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 			continue;
 		}
 
-		TransientAllocation.Reset();
-		TransientAllocation.Fill(TransientAllocationStats, Resource);
+		const bool bRemoveFromStats = false;
+		FillTransientResourceArrays(Resource, bRemoveFromStats);
 
 		if (Resource->GetResourceType() == ERHITransientResourceType::Texture)
 		{
@@ -404,6 +419,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 				<< TextureMessage.TransientAllocationOffsetMins(TransientAllocation.OffsetMins.GetData(), TransientAllocation.OffsetMins.Num())
 				<< TextureMessage.TransientAllocationOffsetMaxs(TransientAllocation.OffsetMaxs.GetData(), TransientAllocation.OffsetMaxs.Num())
 				<< TextureMessage.TransientAllocationMemoryRanges(TransientAllocation.MemoryRanges.GetData(), TransientAllocation.MemoryRanges.Num())
+				<< TextureMessage.TransientAcquirePass(TransientAcquirePass.GetIndexUnchecked())
+				<< TextureMessage.TransientDiscardPass(TransientDiscardPass.GetIndexUnchecked())
 				<< TextureMessage.SizeInBytes(Resource->GetSize())
 				<< TextureMessage.CreateFlags(uint32(Texture->CreateInfo.Flags))
 				<< TextureMessage.Dimension(uint32(Texture->CreateInfo.Dimension))
@@ -420,7 +437,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 				<< TextureMessage.IsTrackingSkipped(false)
 				<< TextureMessage.IsTransient(true)
 				<< TextureMessage.IsTransientUntracked(true)
-				<< TextureMessage.IsTransientCacheHit(TransientAllocation.bCacheHit);
+				<< TextureMessage.IsTransientCacheHit(TransientAllocation.bCacheHit)
+				<< TextureMessage.IsHandleType32Bits(true);
 
 			TextureIndex++;
 		}
@@ -434,6 +452,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 				<< BufferMessage.TransientAllocationOffsetMins(TransientAllocation.OffsetMins.GetData(), TransientAllocation.OffsetMins.Num())
 				<< BufferMessage.TransientAllocationOffsetMaxs(TransientAllocation.OffsetMaxs.GetData(), TransientAllocation.OffsetMaxs.Num())
 				<< BufferMessage.TransientAllocationMemoryRanges(TransientAllocation.MemoryRanges.GetData(), TransientAllocation.MemoryRanges.Num())
+				<< BufferMessage.TransientAcquirePass(TransientAcquirePass.GetIndexUnchecked())
+				<< BufferMessage.TransientDiscardPass(TransientDiscardPass.GetIndexUnchecked())
 				<< BufferMessage.UsageFlags(uint32(Buffer->CreateInfo.Usage))
 				<< BufferMessage.BytesPerElement(Buffer->CreateInfo.Stride)
 				<< BufferMessage.NumElements(Buffer->CreateInfo.Size / Buffer->CreateInfo.Stride)
@@ -443,7 +463,8 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 				<< BufferMessage.IsTrackingSkipped(false)
 				<< BufferMessage.IsTransient(true)
 				<< BufferMessage.IsTransientUntracked(true)
-				<< BufferMessage.IsTransientCacheHit(TransientAllocation.bCacheHit);
+				<< BufferMessage.IsTransientCacheHit(TransientAllocation.bCacheHit)
+				<< BufferMessage.IsHandleType32Bits(true);
 
 			BufferIndex++;
 		}

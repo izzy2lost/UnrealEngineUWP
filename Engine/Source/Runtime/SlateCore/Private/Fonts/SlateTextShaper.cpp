@@ -308,14 +308,12 @@ FShapedGlyphSequenceRef FSlateTextShaper::FinalizeTextShaping(TArray<FShapedGlyp
 	}
 #endif // WITH_FREETYPE
 
-	const IFontProviderInterface* const FontObject = Cast<const IFontProviderInterface>(InFontInfo.FontObject);
 	return MakeShared<FShapedGlyphSequence>(MoveTemp(InGlyphsToRender), 
 											TextBaseline, 
 											MaxHeight, 
 											InFontInfo.FontMaterial.Get(),
+											InFontInfo.bMaterialIsStencil,
 											InFontInfo.OutlineSettings,
-											FontObject ? FontObject->GetFontRasterizationMode() : EFontRasterizationMode::Bitmap,
-											FontObject ? FontObject->GetSdfSettings() : FFontSdfSettings(),
 											InSourceTextRange);
 }
 
@@ -425,7 +423,8 @@ void FSlateTextShaper::PerformKerningOnlyTextShaping(const TCHAR* InText, const 
 			}
 
 			FreeTypeUtils::ApplySizeAndScale(KerningOnlyTextSequenceEntry.FaceAndMemory->GetFace(), InFontInfo.Size, FinalFontScale);
-			TSharedRef<FShapedGlyphFaceData> ShapedGlyphFaceData = MakeShared<FShapedGlyphFaceData>(KerningOnlyTextSequenceEntry.FaceAndMemory, GlyphFlags, InFontInfo.Size, FinalFontScale, InFontInfo.GetClampSkew());
+			const FFontRasterizationSettings FontRasterizationSettings = KerningOnlyTextSequenceEntry.FontDataPtr->GetFontRasterizationSettings();
+			TSharedRef<FShapedGlyphFaceData> ShapedGlyphFaceData = MakeShared<FShapedGlyphFaceData>(KerningOnlyTextSequenceEntry.FaceAndMemory, GlyphFlags, InFontInfo.Size, FinalFontScale, InFontInfo.GetClampSkew(), FontRasterizationSettings.Mode, FontRasterizationSettings.DistanceFieldPpem);
 			TSharedPtr<FFreeTypeKerningCache> KerningCache = FTCacheDirectory->GetKerningCache(KerningOnlyTextSequenceEntry.FaceAndMemory->GetFace(), FT_KERNING_DEFAULT, InFontInfo.Size, FinalFontScale);
 			TSharedRef<FFreeTypeAdvanceCache> AdvanceCache = FTCacheDirectory->GetAdvanceCache(KerningOnlyTextSequenceEntry.FaceAndMemory->GetFace(), GlyphFlags, InFontInfo.Size, FinalFontScale);
 
@@ -708,11 +707,14 @@ void FSlateTextShaper::PerformHarfBuzzTextShaping(const TCHAR* InText, const int
 			{
 				continue;
 			}
+			const FFontRasterizationSettings FontRasterizationSettings = HarfBuzzTextSequenceEntry.FontDataPtr->GetFontRasterizationSettings();
 			TSharedRef<FShapedGlyphFaceData> ShapedGlyphFaceData = MakeShared<FShapedGlyphFaceData>(HarfBuzzTextSequenceEntry.FaceAndMemory, 
 																									GlyphFlags, 
 																									InFontInfo.Size, 
 																									FinalFontScale, 
-																									InFontInfo.GetClampSkew());
+																									InFontInfo.GetClampSkew(),
+																									FontRasterizationSettings.Mode,
+																									FontRasterizationSettings.DistanceFieldPpem);
 			TSharedPtr<FFreeTypeKerningCache> KerningCache = FTCacheDirectory->GetKerningCache(HarfBuzzTextSequenceEntry.FaceAndMemory->GetFace(), 
 																							   FT_KERNING_DEFAULT,
 																							   InFontInfo.Size, 

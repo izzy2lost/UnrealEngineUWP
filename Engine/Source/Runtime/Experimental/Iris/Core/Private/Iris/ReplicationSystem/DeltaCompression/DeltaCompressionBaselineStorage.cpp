@@ -22,7 +22,7 @@ FDeltaCompressionBaselineStorage::FDeltaCompressionBaselineStorage()
 
 FDeltaCompressionBaselineStorage::~FDeltaCompressionBaselineStorage()
 {
-	Deinit();
+	checkf(UsedBaselineStateInfos.IsAnyBitSet() == false, TEXT("Leak in FDeltaCompressionBaselineStorage"));
 }
 
 void FDeltaCompressionBaselineStorage::Init(FDeltaCompressionBaselineStorageInitParams& InitParams)
@@ -220,6 +220,7 @@ void FDeltaCompressionBaselineStorage::FreeAllBaselineStateInfos()
 
 	UsedBaselineStateInfos.ClearBit(InvalidDeltaCompressionBaselineStateInfoIndex);
 	UsedBaselineStateInfos.ForAllSetBits(DestructStateInfo);
+	UsedBaselineStateInfos.ClearAllBits();
 }
 
 }

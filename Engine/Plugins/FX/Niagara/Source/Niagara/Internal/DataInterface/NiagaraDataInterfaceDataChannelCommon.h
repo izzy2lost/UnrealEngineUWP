@@ -5,6 +5,8 @@
 #include "NiagaraDataSetCompiledData.h"
 #include "NiagaraCompileHash.h"
 #include "NiagaraDataInterface.h"
+#include "RHIUtilities.h"
+#include "Containers/DynamicRHIResourceArray.h"
 #include "NiagaraDataInterfaceDataChannelCommon.generated.h"
 
 UENUM()
@@ -13,10 +15,8 @@ enum class ENiagaraDataChannelAllocationMode : uint8
 	/** Fixed number of elements available to write per frame. */
 	Static,
 
-	/** Allow N elements per instance, per frame. Per instance is context dependent meaning data written from particles scripts will allocate per particle. From emitter script will allocate per writing emitter etc. */
-	//TODO: For this we need a Pre Stage (+on CPU) from which we can allocate and a Post Stage from which we can publish the results.
-	//PerInstance,
-	//Dynamic?
+	/** Allocation count is determined by DI script calls to Allocate in Emitter Scripts. */
+	Dynamic UMETA(Hidden)
 };
 
 //TODO: Possible we may want to do reads and writes using data channels in a single system in future, avoiding the need to push data out to any manager class etc.
@@ -61,18 +61,24 @@ uint32 GetTypeHash(const FNDIDataChannelFunctionInfo& FuncInfo);
 struct FNDIDataChannelRegisterBinding
 {
 	static const uint32 RegisterBits = 30;
-	static const uint32 DataTypeBitst = 2;
+	static const uint32 DataTypeBits = 2;
 	FNDIDataChannelRegisterBinding(uint32 InFunctionRegisterIndex, uint32 InDataSetRegisterIndex, ENiagaraBaseTypes InDataType)
-	: FunctionRegisterIndex(InFunctionRegisterIndex)
-	, DataSetRegisterIndex(InDataSetRegisterIndex)
+	: DataSetRegisterIndex(InDataSetRegisterIndex)
+	, FunctionRegisterIndex(InFunctionRegisterIndex) 
 	, DataType((uint32)InDataType)
 	{
-		check(InDataSetRegisterIndex <= (1u << RegisterBits) - 1);
-		check((uint32)InDataType <= (1u << DataTypeBitst) - 1);
+		check(FunctionRegisterIndex <= (1u << RegisterBits) - 1);
+		check((uint32)InDataType <= (1u << DataTypeBits) - 1);
 	}
-	uint32 FunctionRegisterIndex;
-	uint32 DataSetRegisterIndex : RegisterBits;
-	uint32 DataType : DataTypeBitst;
+
+	uint32 GetDataSetRegisterIndex()const { return DataSetRegisterIndex; }
+	uint32 GetFunctionRegisterIndex()const { return FunctionRegisterIndex; }
+	ENiagaraBaseTypes GetDataType()const { return (ENiagaraBaseTypes)DataType; }
+
+private:
+	uint32 DataSetRegisterIndex;
+	uint32 FunctionRegisterIndex : RegisterBits;
+	uint32 DataType : DataTypeBits;
 };
 
 
@@ -167,6 +173,8 @@ struct FNDIDataChannelCompiledData
 	bool UsedByCPU()const{ return bUsedByCPU; }
 	bool UsedByGPU()const{ return bUsedByGPU; }
 	bool NeedSpawnDataTable()const { return bNeedsSpawnDataTable; }
+	bool SpawnsParticles()const { return bSpawnsParticles; }
+	bool CallsWriteFunction()const { return bCallsWrite; }
 	int32 GetTotalParams()const{ return TotalParams; }
 
 protected:
@@ -198,16 +206,57 @@ protected:
 	UPROPERTY()
 	bool bNeedsSpawnDataTable = true;
 
+	UPROPERTY()
+	bool bSpawnsParticles = false;
+
+	//If we call Write() on our CPU buffers we must do some extra buffer book keeping.
+	UPROPERTY()
+	bool bCallsWrite = false;
+
 	/** Iterates over all scripts for the owning system and gathers all functions and parameters accessing this DI. Building the FunctionInfoTable and GPUScriptParameterInfos map.  */
 	void GatherAccessInfo(UNiagaraSystem* System, UNiagaraDataInterface* Owner);
 };
 
+class FNDIDummyUAV : public FRenderResource
+{
+private:
+
+	EPixelFormat PixelFmt;
+	uint32 Size;
+
+public:
+	FNDIDummyUAV(EPixelFormat Fmt, uint32 InSize) :PixelFmt(Fmt), Size(InSize) {}
+
+	FRWBuffer Buffer;
+
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		Buffer.Initialize(RHICmdList, TEXT("FNDIDummyUAV"), Size, 1, PixelFmt, BUF_Static);
+	}
+
+	virtual void ReleaseRHI() override
+	{
+		Buffer.Release();
+	}
+};
 
 namespace NDIDataChannelUtilities
 {
 	extern const FName GetNDCSpawnDataName;
+	extern const FName SpawnConditionalName;
+	extern const FName SpawnDirectName;
+	extern const FName WriteName;
+
+	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVFloat();
+	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVInt32();
+	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVHalf();
 
 	void SortParameters(TArray<FNiagaraVariableBase>& Parameters);
+
+#if WITH_EDITORONLY_DATA
+	void GenerateDataChannelAccessHlsl(FNiagaraDataInterfaceHlslGenerationContext& HlslGenContext, TConstArrayView<FString> CommonTemplateShaderCode, const TMap<FName, FString>& TemplateShaderMap, FString& OutHLSL);
+#endif
+
 }
 
 
@@ -229,12 +278,12 @@ struct FNDIVariadicInputHandler
 			HalfInputs.Reserve(BindingPtr->NumHalfComponents);
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingPtr->VMRegisterBindings)
 			{
-				switch (VMBinding.DataType)
+				switch (VMBinding.GetDataType())
 				{
-				case (int32)ENiagaraBaseTypes::Float: FloatInputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Int32: IntInputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Bool: IntInputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Half: HalfInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Float: FloatInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Int32: IntInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Bool: IntInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Half: HalfInputs.Emplace(Context); break;
 				default: check(0);
 				};
 			}
@@ -263,12 +312,12 @@ struct FNDIVariadicInputHandler
 			//TODO: Optimize for long runs of writes to reduce binding/lookup overhead.
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingInfo->VMRegisterBindings)
 			{
-				switch(VMBinding.DataType)
+				switch(VMBinding.GetDataType())
 				{
-					case (int32)ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatInputs[VMBinding.FunctionRegisterIndex]); break;
-					case (int32)ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntInputs[VMBinding.FunctionRegisterIndex]); break;
-					case (int32)ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntInputs[VMBinding.FunctionRegisterIndex]); break;
-					case (int32)ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfInputs[VMBinding.FunctionRegisterIndex]); break;
+					case ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatInputs[VMBinding.GetFunctionRegisterIndex()]); break;
+					case ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntInputs[VMBinding.GetFunctionRegisterIndex()]); break;
+					case ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntInputs[VMBinding.GetFunctionRegisterIndex()]); break;
+					case ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfInputs[VMBinding.GetFunctionRegisterIndex()]); break;
 					default: check(0);
 				};
 			}
@@ -298,12 +347,12 @@ struct FNDIVariadicOutputHandler
 			HalfOutputs.Reserve(BindingPtr->NumHalfComponents);
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingPtr->VMRegisterBindings)
 			{
-				switch (VMBinding.DataType)
+				switch (VMBinding.GetDataType())
 				{
-				case (int32)ENiagaraBaseTypes::Float: FloatOutputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Int32: IntOutputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Bool: IntOutputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Half: HalfOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Float: FloatOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Int32: IntOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Bool: IntOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Half: HalfOutputs.Emplace(Context); break;
 				default: check(0);
 				};
 			}
@@ -318,12 +367,12 @@ struct FNDIVariadicOutputHandler
 			//TODO: Optimize for long runs of writes to reduce binding/lookup overhead.
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingInfo->VMRegisterBindings)
 			{
-				switch (VMBinding.DataType)
+				switch (VMBinding.GetDataType())
 				{
-				case (int32)ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatOutputs[VMBinding.FunctionRegisterIndex]); break;
-				case (int32)ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntOutputs[VMBinding.FunctionRegisterIndex]); break;
-				case (int32)ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntOutputs[VMBinding.FunctionRegisterIndex]); break;
-				case (int32)ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfOutputs[VMBinding.FunctionRegisterIndex]); break;
+				case ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
+				case ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
+				case ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
+				case ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
 				default: check(0);
 				};
 			}
@@ -363,6 +412,62 @@ struct FNDIVariadicOutputHandler
 				{
 					FMemory::Memzero(HalfOutputs[OutIdx].GetDest(), sizeof(FFloat16) * Count);
 					HalfOutputs[OutIdx].Advance(Count);
+				}
+			}
+		}
+	}
+};
+
+
+struct FVariadicParameterGPUScriptInfo
+{
+	/**
+	Table of all parameter offsets used by each GPU script using this DI.
+	Each script has to have it's own section of this table as the offsets into this table are embedded in the hlsl.
+	At hlsl gen time we only have the context of each script individually to generate these indexes.
+	TODO: Can possible elevate this up to the LayoutManager and have a single layout buffer for all scripts
+	*/
+	TResourceArray<uint32> GPUScriptParameterOffsetTable;
+
+	/**
+	Offsets into the parameter table are embedded in the gpu script hlsl.
+	At hlsl gen time we can only know which parameters are accessed by each script individually so each script must have it's own parameter binding table.
+	We provide the offset into the above table via a shader param.
+	TODO: Can just as easily be an offset into a global buffer in the Layout manager.
+	*/
+	TMap<FNiagaraCompileHash, uint32> GPUScriptParameterTableOffsets;
+
+	bool bDirty = false;
+
+	void Init(const FNDIDataChannelCompiledData& DICompiledData, const FNiagaraDataSetCompiledData& GPUDataSetCompiledData)
+	{
+		bDirty = true;
+
+		//For every GPU script, we append it's parameter access info to the table.
+		GPUScriptParameterTableOffsets.Reset();
+		constexpr int32 ElemsPerParam = 3;
+		GPUScriptParameterOffsetTable.Reset(DICompiledData.GetTotalParams() * ElemsPerParam);
+		for (auto& GPUParameterAccessInfoPair : DICompiledData.GetGPUScriptParameterInfos())
+		{
+			const FNDIDataChannel_GPUScriptParameterAccessInfo& ParamAccessInfo = GPUParameterAccessInfoPair.Value;
+
+			//First get the offset for this script in the table.
+			GPUScriptParameterTableOffsets.FindOrAdd(GPUParameterAccessInfoPair.Key) = GPUScriptParameterOffsetTable.Num();
+
+			//Now fill the table for this script
+			for (const FNiagaraVariableBase& Param : ParamAccessInfo.SortedParameters)
+			{
+				if (const FNiagaraVariableLayoutInfo* LayoutInfo = GPUDataSetCompiledData.FindVariableLayoutInfo(Param))
+				{
+					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumFloatComponents() > 0 ? LayoutInfo->GetFloatComponentStart() : INDEX_NONE);
+					GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumInt32Components() > 0 ? LayoutInfo->GetInt32ComponentStart() : INDEX_NONE);
+					//TODO: Half Support | GPUScriptParameterOffsetTable.Add(LayoutInfo->GetNumHalfComponents() > 0 ? LayoutInfo->GetHalfComponentStart() : INDEX_NONE);
+				}
+				else
+				{
+					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
+					GPUScriptParameterOffsetTable.Add(INDEX_NONE);
+					//TODO: Half Support | GPUScriptParameterOffsetTable.Add(INDEX_NONE);
 				}
 			}
 		}

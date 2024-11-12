@@ -4,18 +4,15 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/ITimingViewSession.h" // for Insights::ETimeChangedFlags
+// TraceInsights
+#include "Insights/ITimingViewSession.h" // for ETimeChangedFlags
 #include "Insights/Widgets/SMajorTabWindow.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace UE::Insights { class SUntypedTableTreeView; }
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
-class STimingView;
-
-namespace Insights
+namespace UE::Insights::LoadingProfiler
 {
-	class SUntypedTableTreeView;
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +30,7 @@ struct FLoadingProfilerTabs
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** Implements the Asset Loading Insights window. */
-class SLoadingProfilerWindow : public Insights::SMajorTabWindow
+class SLoadingProfilerWindow : public ::Insights::SMajorTabWindow
 {
 public:
 	/** Default constructor. */
@@ -57,12 +54,12 @@ public:
 	/** Constructs this widget. */
 	void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
 
-	TSharedPtr<STimingView> GetTimingView() const { return TimingView; }
-	TSharedPtr<Insights::SUntypedTableTreeView> GetEventAggregationTreeView() const { return EventAggregationTreeView; }
-	TSharedPtr<Insights::SUntypedTableTreeView> GetObjectTypeAggregationTreeView() const { return ObjectTypeAggregationTreeView; }
-	TSharedPtr<Insights::SUntypedTableTreeView> GetPackageDetailsTreeView() const { return PackageDetailsTreeView; }
-	TSharedPtr<Insights::SUntypedTableTreeView> GetExportDetailsTreeView() const { return ExportDetailsTreeView; }
-	TSharedPtr<Insights::SUntypedTableTreeView> GetRequestsTreeView() const { return RequestsTreeView; }
+	TSharedPtr<TimingProfiler::STimingView> GetTimingView() const { return TimingView; }
+	TSharedPtr<SUntypedTableTreeView> GetEventAggregationTreeView() const { return EventAggregationTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetObjectTypeAggregationTreeView() const { return ObjectTypeAggregationTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetPackageDetailsTreeView() const { return PackageDetailsTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetExportDetailsTreeView() const { return ExportDetailsTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetRequestsTreeView() const { return RequestsTreeView; }
 
 protected:
 	virtual const TCHAR* GetAnalyticsEventName() const override;
@@ -90,27 +87,31 @@ private:
 	TSharedRef<SDockTab> SpawnTab_RequestsTreeView(const FSpawnTabArgs& Args);
 	void OnRequestsTreeViewTabClosed(TSharedRef<SDockTab> TabBeingClosed);
 
-	void OnTimeSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
+	void OnTimeSelectionChanged(Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
 
 private:
 	/** The Timing view (multi-track) widget */
-	TSharedPtr<STimingView> TimingView;
+	TSharedPtr<TimingProfiler::STimingView> TimingView;
 
 	/** The Event Aggregation tree view widget */
-	TSharedPtr<Insights::SUntypedTableTreeView> EventAggregationTreeView;
+	TSharedPtr<SUntypedTableTreeView> EventAggregationTreeView;
 
 	/** The Object Type Aggregation tree view widget */
-	TSharedPtr<Insights::SUntypedTableTreeView> ObjectTypeAggregationTreeView;
+	TSharedPtr<SUntypedTableTreeView> ObjectTypeAggregationTreeView;
 
 	/** The Package Details tree view widget */
-	TSharedPtr<Insights::SUntypedTableTreeView> PackageDetailsTreeView;
+	TSharedPtr<SUntypedTableTreeView> PackageDetailsTreeView;
 
 	/** The Export Details tree view widget */
-	TSharedPtr<Insights::SUntypedTableTreeView> ExportDetailsTreeView;
+	TSharedPtr<SUntypedTableTreeView> ExportDetailsTreeView;
 
 	/** The Requests tree view widget */
-	TSharedPtr<Insights::SUntypedTableTreeView> RequestsTreeView;
+	TSharedPtr<SUntypedTableTreeView> RequestsTreeView;
 
 	double SelectionStartTime;
 	double SelectionEndTime;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::LoadingProfiler

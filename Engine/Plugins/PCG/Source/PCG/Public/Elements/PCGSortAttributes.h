@@ -30,9 +30,9 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual TArray<FText> GetNodeTitleAliases() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
 	
+	virtual bool HasDynamicPins() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
@@ -51,4 +51,5 @@ class FPCGSortAttributesElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

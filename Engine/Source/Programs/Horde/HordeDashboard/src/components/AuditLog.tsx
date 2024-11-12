@@ -20,6 +20,7 @@ import { getLogStyles, logMetricNormal } from "./LogStyle";
 import { TopNav } from "./TopNav";
 import { getHordeStyling } from "../styles/Styles";
 import { getHordeTheme } from "../styles/theme";
+import { projectStore } from "horde/backend/ProjectStore";
 
 
 let _auditStyleNormal: any;
@@ -32,17 +33,22 @@ const getAuditStyleNormal = () => {
    const auditStyleNormal = _auditStyleNormal ?? mergeStyleSets(logStyleNormal, {
 
       logLine: [
-          {
+         {
             selectors: {
                '&:hover': { background: theme.palette.neutralLight }
-             },
-          }
+            },
+         }
       ]
    });
 
    _auditStyleNormal = auditStyleNormal;
 
-   return auditStyleNormal;  
+   return auditStyleNormal;
+}
+
+export type TemplateAudit = {
+   streamId: string;
+   templateId: string;
 }
 
 
@@ -59,7 +65,8 @@ class AuditLogHandler {
 
       this.agentId = undefined;
       this.issueId = undefined;
-      
+      this.templateAudit = undefined;
+
       this.timeSelectKey = "time_live_tail";
 
       clearTimeout(this.timeoutId);
@@ -109,13 +116,32 @@ class AuditLogHandler {
       this.update();
    }
 
+   setTemplateAudit(templateAudit?: TemplateAudit) {
 
-   get isAgentLog():boolean {
+      if (!templateAudit) {
+         this.clear();
+         return;
+      }
+
+      if (this.templateAudit?.streamId === templateAudit.streamId && this.templateAudit.templateId === templateAudit.templateId) {
+         return;
+      }
+
+      this.templateAudit = templateAudit;
+      this.update();
+   }
+
+
+   get isAgentLog(): boolean {
       return !!this.agentId;
    }
 
-   get isIssueLog():boolean {
+   get isIssueLog(): boolean {
       return !!this.issueId;
+   }
+
+   get isTemplateAuditLog(): boolean {
+      return !!this.templateAudit;
    }
 
    async update() {
@@ -129,7 +155,7 @@ class AuditLogHandler {
          if (this.updating) {
             return;
          }
-   
+
       }
 
       // cancel any pending        
@@ -137,7 +163,7 @@ class AuditLogHandler {
          this.canceled.add(i);
       }
 
-      if (!this.agentId && !this.issueId) {
+      if (!this.agentId && !this.issueId && !this.templateAudit) {
          return;
       }
 
@@ -152,15 +178,17 @@ class AuditLogHandler {
          let maxTime = this.maxDate;
 
          if (this.tailing) {
-            
+
             if (this.issueId) {
                minTime = undefined;
             } else if (this.agentId) {
                // live tail of the last 4 days
                // We need to optimize the agent history endpoint, this was an attempt to limit results though doesn't work 
                minTime = undefined; //new Date(new Date().valueOf() - (60 * 24 * 4 * 60000));
+            } else if (this.templateAudit) {
+               minTime = undefined;
             }
-            
+
             maxTime = new Date();
          }
 
@@ -169,9 +197,13 @@ class AuditLogHandler {
          if (this.agentId) {
             entries = await backend.getAgentHistory(this.agentId, { minTime: minTime?.toISOString(), maxTime: maxTime?.toISOString(), count: 8192 * 2 });
          }
-         
+
          if (this.issueId) {
             entries = await backend.getIssueHistory(this.issueId, { minTime: minTime?.toISOString(), maxTime: maxTime?.toISOString(), count: 8192 * 2 });
+         }
+
+         if (this.templateAudit) {
+            entries = await backend.getTemplateHistory(this.templateAudit.streamId, this.templateAudit.templateId, { minTime: minTime?.toISOString(), maxTime: maxTime?.toISOString(), count: 8192 * 2 });
          }
 
          // check for canceled during graph request
@@ -240,6 +272,7 @@ class AuditLogHandler {
 
    agentId?: string;
    issueId?: string;
+   templateAudit?: TemplateAudit;
 
    timeSelectKey?: string;
 
@@ -310,7 +343,7 @@ const timeSelections: TimeSelection[] = [
 
 const selection = new Selection({ selectionMode: SelectionMode.multiple });
 
-export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = observer(({ agentId, issueId }) => {
+export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string, templateAudit?: TemplateAudit }> = observer(({ agentId, issueId, templateAudit }) => {
 
    const windowSize = useWindowSize();
    const [showDatePicker, setShowDatePicker] = useState(false);
@@ -342,7 +375,11 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
       handler.setIssue(issueId);
    }
 
-   if (!agentId && !issueId) {
+   if (templateAudit) {
+      handler.setTemplateAudit(templateAudit);
+   }
+
+   if (!agentId && !issueId && !templateAudit) {
       return null;
    }
 
@@ -396,6 +433,10 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
 
    });
 
+   if (issueId) {
+      logItems.reverse();
+   }
+
    const typeItems: IDropdownOption[] = Array.from(entryTypes.keys()).map(type => {
       return {
          key: type,
@@ -435,6 +476,19 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
 
    }
 
+   if (templateAudit) {
+      const stream = projectStore.streamById(templateAudit.streamId)!;
+      const templateName = stream?.templates.find(t => t.id === templateAudit.templateId)?.name;
+
+      crumbItems = [
+         {
+            text: `Template`,
+         },
+         {
+            text: `Audit - ${stream.fullname ?? templateAudit.streamId} - ${templateName ?? templateAudit.templateId}`,
+         }
+      ];
+   }
 
    const onRenderCell = (item?: AuditLogItem, index?: number, isScrolling?: boolean): JSX.Element => {
       const entry = item!.entry;
@@ -449,17 +503,17 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
       let timestamp = `[${tm.format(format)}]`;
 
       return (
-            <Stack className={auditStyleNormal.logLine} key={`key_log_line_${item?.entry.time}`} style={{ width: "100%", height: logMetricNormal.lineHeight }}>
-               <div style={{ position: "relative" }}>
-                  <Stack tokens={{ childrenGap: 8 }} horizontal disableShrink={true}>
-                     <Stack horizontal disableShrink={true} >
-                        <Stack styles={{ root: { width: 140, whiteSpace: "nowrap", fontSize: logMetricNormal.fontSize, userSelect: "none" } }}> {timestamp}</Stack>
-                        <Stack styles={{ root: { color: "#8a8a8a", width: 92, paddingRight: 8, whiteSpace: "nowrap", textAlign: "right", fontSize: logMetricNormal.fontSize, userSelect: "none" } }}> [{item!.type}]</Stack>
-                        <div className={auditStyleNormal.logLineOuter}> <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8 } }}> {renderAuditEntry(entry, search)}</Stack></div>
-                     </Stack>
+         <Stack className={auditStyleNormal.logLine} key={`key_log_line_${item?.entry.time}`} style={{ width: "100%", height: logMetricNormal.lineHeight }}>
+            <div style={{ position: "relative" }}>
+               <Stack tokens={{ childrenGap: 8 }} horizontal disableShrink={true}>
+                  <Stack horizontal disableShrink={true} >
+                     <Stack styles={{ root: { width: 140, whiteSpace: "nowrap", fontSize: logMetricNormal.fontSize, userSelect: "none" } }}> {timestamp}</Stack>
+                     <Stack styles={{ root: { color: "#8a8a8a", width: 92, paddingRight: 8, whiteSpace: "nowrap", textAlign: "right", fontSize: logMetricNormal.fontSize, userSelect: "none" } }}> [{item!.type}]</Stack>
+                     <div className={auditStyleNormal.logLineOuter}> <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8 } }}> {renderAuditEntry(entry, search)}</Stack></div>
                   </Stack>
-               </div>
-            </Stack>
+               </Stack>
+            </div>
+         </Stack>
       );
    }
 
@@ -476,9 +530,9 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
 
    return <Stack>
       <Breadcrumbs items={crumbItems} />
-      <Stack tokens={{ childrenGap: 12 }}>
+      <Stack tokens={{ childrenGap: 12 }} style={{backgroundColor: modeColors.background}}>
          <Stack horizontal>
-            <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440/2) - 230, flexShrink: 0, backgroundColor: modeColors.background }} />
+            <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2) - 990, flexShrink: 0, backgroundColor: modeColors.background }} />
             <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, margin: "auto", paddingTop: 12, paddingRight: 10 } }}>
                <Stack horizontal styles={{ root: { paddingLeft: 0, paddingBottom: 4, paddingRight: 12, width: 1440 } }}>
                   <Stack horizontal tokens={{ childrenGap: 12 }}>
@@ -577,11 +631,11 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
             <Stack tokens={{ childrenGap: 0 }}>
                {showDatePicker && < DateTimeRange onChange={(minDate, maxDate) => { handler.setTimeRange(minDate, maxDate); setShowDatePicker(false) }} onDismiss={() => { handler.setTimeSelection({ text: "Live Tail", key: "time_live_tail", minutes: 0 }); setShowDatePicker(false) }} />}
                {viewAgent && <HistoryModal agentId={agentId} onDismiss={() => { setViewAgent(false) }} />}
-               {viewIssue && <IssueModalV2 issueId={issueId} onCloseExternal={() => { setViewIssue(false);} } popHistoryOnClose={false} />}
+               {viewIssue && <IssueModalV2 issueId={issueId} onCloseExternal={() => { setViewIssue(false); }} popHistoryOnClose={false} />}
                <FocusZone direction={FocusZoneDirection.vertical} isInnerZoneKeystroke={() => { return true; }} defaultActiveElement="#LogList" style={{ padding: 0, margin: 0 }} >
                   <div className={auditStyleNormal.container} style={{ height: 'calc(100vh - 260px)', position: 'relative' }} data-is-scrollable={true}>
                      <Stack horizontal>
-                        <div key={`windowsize_logview2_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440/2) - 24, flexShrink: 0 }} />
+                        <div key={`windowsize_logview2_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2) - 24, flexShrink: 0 }} />
                         <Stack styles={{ root: { backgroundColor: modeColors.background, paddingLeft: "0px", paddingRight: "0px" } }}>
                            {!handler.haveUpdated && <Spinner size={SpinnerSize.large} />}
                            {!!handler.haveUpdated && !logItems.length && <Stack style={{ paddingLeft: 0 }}><Text variant="mediumPlus">No audit entries found</Text></Stack>}
@@ -613,12 +667,22 @@ export const AuditLogView: React.FC = () => {
 
    const { hordeClasses } = getHordeStyling();
 
-   const { agentId, issueId } = useParams<{ agentId: string, issueId: string }>();
+   const { agentId, issueId, streamId, templateId } = useParams<{ agentId: string, issueId: string, streamId: string, templateId: string }>();
+
+   let templateAudit: TemplateAudit | undefined;
+   if (!!streamId && !!templateId) {
+      templateAudit = {
+         streamId: streamId,
+         templateId: templateId
+      }
+   }
+
    return <Stack className={hordeClasses.horde}>
       <TopNav />
       <Stack>
          {!!agentId && <AuditLogPanel agentId={agentId} />}
          {!!issueId && <AuditLogPanel issueId={issueId} />}
+         {!!templateAudit && <AuditLogPanel templateAudit={templateAudit} />}
       </Stack>
    </Stack>
 
@@ -632,7 +696,8 @@ export const AuditLogView: React.FC = () => {
 enum AuditLogType {
    Unknown,
    Agent,
-   Issue
+   Issue,
+   Template
 }
 
 type AuditProperty = {
@@ -660,6 +725,10 @@ class AuditLine {
 
       if (logType === AuditLogType.Issue) {
          instance = new IssueAuditLine(logType, entry);
+      }
+
+      if (logType === AuditLogType.Template) {
+         instance = new TemplateAuditLine(logType, entry);
       }
 
       if (instance) {
@@ -701,7 +770,7 @@ class AuditLine {
 
          }
 
-         if (typeof (property) === "string" || typeof (property) === "number" || typeof(property) === "boolean") {
+         if (typeof (property) === "string" || typeof (property) === "number" || typeof (property) === "boolean") {
 
             this.properties.set(m, {
                tag: m,
@@ -779,7 +848,7 @@ class AuditLine {
          // LogId
          if (tag === "LogId") {
 
-            const logId = property.value as string;            
+            const logId = property.value as string;
 
             if (logId) {
                let to = `/log/${logId}`;
@@ -855,7 +924,7 @@ class AuditLine {
             return t;
          }
 
-         const rtags = [];
+         const rtags: any = [];
 
          const key = `log_line_${idx}_${index}_fragment`;
 
@@ -896,6 +965,9 @@ class IssueAuditLine extends AuditLine {
 
 }
 
+class TemplateAuditLine extends AuditLine {
+
+}
 
 // Line Rendering -------------------------------------------------------------------------------------------------------------------
 
@@ -910,6 +982,10 @@ const renderAuditEntry = (entry: AuditLogEntry, search?: string) => {
 
    if (handler.isIssueLog) {
       type = AuditLogType.Issue;
+   }
+
+   if (handler.isTemplateAuditLog) {
+      type = AuditLogType.Template;
    }
 
    if (type === AuditLogType.Unknown) {

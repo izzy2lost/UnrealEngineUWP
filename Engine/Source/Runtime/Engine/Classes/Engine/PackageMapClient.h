@@ -26,16 +26,19 @@
 #include "Misc/NetworkGuid.h"
 #include "Misc/NetworkVersion.h"
 #include "UObject/CoreNet.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Net/DataBunch.h"
 #include "Net/NetAnalyticsTypes.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "HAL/LowLevelMemTracker.h"
+
 #include "PackageMapClient.generated.h"
 
 LLM_DECLARE_TAG_API(GuidCache, ENGINE_API);
 
 class UNetConnection;
 class UNetDriver;
+enum class EChannelGetAdditionalRequiredBunchesFlags : uint32;
 
 class FNetFieldExport
 {
@@ -320,7 +323,7 @@ private:
 				NetGUIDs.AddUnique(OtherGUID);
 			}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			bWasRequestedByOwnerOrPawn |= Other.bWasRequestedByOwnerOrPawn;
 #endif
 		}
@@ -335,7 +338,7 @@ private:
 
 		double RequestStartTime;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		bool bWasRequestedByOwnerOrPawn = false;
 #endif
 	};
@@ -364,7 +367,7 @@ private:
 	 */
 	TMap<FNetworkGUID, UE::Net::Private::FRefCountedNetGUIDArray> UnmappedStablyNamedGuids_OuterToInner;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 public:
 
 	ENGINE_API bool IsTrackingOwnerOrPawn() const;
@@ -437,13 +440,7 @@ public:
 
 	ENGINE_API UPackageMapClient(const FObjectInitializer & ObjectInitializer = FObjectInitializer::Get());
 
-	void Initialize(UNetConnection * InConnection, TSharedPtr<FNetGUIDCache> InNetGUIDCache)
-	{
-		Connection = InConnection;
-		GuidCache = InNetGUIDCache;
-		ExportNetGUIDCount = 0;
-		OverrideAckState = &AckState;
-	}
+	ENGINE_API void Initialize(UNetConnection * InConnection, TSharedPtr<FNetGUIDCache> InNetGUIDCache);
 
 	virtual ~UPackageMapClient()
 	{
@@ -453,7 +450,6 @@ public:
 			CurrentExportBunch = NULL;
 		}
 	}
-
 	
 	// UPackageMap Interface
 	ENGINE_API virtual bool SerializeObject( FArchive& Ar, UClass* InClass, UObject*& Obj, FNetworkGUID *OutNetGUID = NULL ) override;
@@ -469,9 +465,16 @@ public:
 	ENGINE_API virtual void ReceivedAck( const int32 AckPacketId ) override;
 	ENGINE_API virtual void NotifyBunchCommit( const int32 OutPacketId, const FOutBunch* OutBunch ) override;
 	ENGINE_API virtual void GetNetGUIDStats(int32 &AckCount, int32 &UnAckCount, int32 &PendingCount) override;
+	ENGINE_API virtual const UE::Net::FNetTokenResolveContext* GetNetTokenResolveContext() const override { return &NetTokenResolveContext; }
 
 	ENGINE_API void ReceiveNetGUIDBunch( FInBunch &InBunch );
+
+	UE_DEPRECATED(5.5, "Use GetAdditionalRequiredBunches")
 	ENGINE_API void AppendExportBunches(TArray<FOutBunch *>& OutgoingBunches);
+
+	/** Get bunches to prepend to the OutgoingBunch. The required bunches usually contain exports or extension data. */
+	ENGINE_API TArray<FOutBunch*> GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags);
+
 	ENGINE_API int32 GetNumExportBunches() const;
 
 	ENGINE_API void AppendExportData(FArchive& Archive);
@@ -522,6 +525,13 @@ public:
 	ENGINE_API void								SerializeNetFieldExportGroupMap( FArchive& Ar, bool bClearPendingExports=true );
 	ENGINE_API void								SerializeNetFieldExportDelta(FArchive& Ar);
 
+	/** This is called during the sending of a network bunch.  The returned bunch is prepended to the outgoing bunches and guaranteed to be processed upon receive (before ack) */
+	ENGINE_API FOutBunch* CreateCustomExportsBunch(const FOutBunch& OutgoingBunch);
+
+	/** Receive a bunch that contains the data for Package Map Extensions */
+	void ReceiveCustomExportsBunch(FInBunch& InBunch);
+
+public:
 	TUniquePtr<TGuardValue<bool>> ScopedIgnoreReceivedExportGUIDs()
 	{
 		return MakeUnique<TGuardValue<bool>>(bIgnoreReceivedExportGUIDs, true);
@@ -543,6 +553,7 @@ public:
 
 	ENGINE_API virtual void AddUnmappedNetGUIDReference(FNetworkGUID UnmappedGUID) override;
 	ENGINE_API virtual void RemoveUnmappedNetGUIDReference(FNetworkGUID MappedGUID) override;
+	ENGINE_API bool IsNetGUIDAuthority() const;
 
 protected:
 
@@ -566,8 +577,6 @@ protected:
 
 	ENGINE_API bool	ShouldSendFullPath(const UObject* Object, const FNetworkGUID &NetGUID);
 	
-	ENGINE_API bool IsNetGUIDAuthority() const;
-
 	class UNetConnection* Connection;
 
 	ENGINE_API bool ObjectLevelHasFinishedLoading(UObject* Obj) const;
@@ -620,4 +629,13 @@ private:
 	 * of a particular property or actor spawn, to help correlate those sync loads with that property or actor.
 	 */
 	TArray<FNetworkGUID> TrackedSyncLoadedGUIDs;
+
+	// Stored information required to resolve NetTokens
+	UE::Net::FNetTokenResolveContext NetTokenResolveContext;
+
+	/** NetTokens acknowledged by remote */
+	TSet<UE::Net::FNetToken> AcknowledgedExportedNetTokens;
+	
+	/** NetTokens still pending acknowledgment by remote */
+	TMultiMap<int32, UE::Net::FNetToken> NetTokenPendingAckMap;
 };

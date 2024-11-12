@@ -19,7 +19,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"GameplayTags",
 					"WorldConditions",
-					"StructUtils",
 				}
 			);
 

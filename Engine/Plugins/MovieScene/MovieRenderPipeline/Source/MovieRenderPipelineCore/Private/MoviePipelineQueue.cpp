@@ -3,6 +3,7 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineOutputSetting.h"
 #include "MoviePipelineSetting.h"
+#include "LevelSequence.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MovieRenderPipelineCoreModule.h"
 
@@ -35,7 +36,7 @@ namespace UE::MovieGraph::Private
 		// Create the variable assignments container if it wasn't found
 		TObjectPtr<UMovieJobVariableAssignmentContainer> NewVariableAssignments = NewObject<UMovieJobVariableAssignmentContainer>(InAssignmentsOwner);
 		InVariableAssignments.Add(NewVariableAssignments);
-		NewVariableAssignments->SetGraphConfig(InGraph);
+		NewVariableAssignments->SetGraphConfig(const_cast<UMovieGraphConfig*>(InGraph));
 
 #if WITH_EDITOR
 		NewVariableAssignments->UpdateGraphVariableOverrides();
@@ -161,12 +162,12 @@ UMoviePipelineExecutorJob* UMoviePipelineQueue::DuplicateJob(UMoviePipelineExecu
 	return NewJob;
 }
 
-void UMoviePipelineQueue::CopyFrom(UMoviePipelineQueue* InQueue)
+UMoviePipelineQueue* UMoviePipelineQueue::CopyFrom(UMoviePipelineQueue* InQueue)
 {
 	if (!InQueue)
 	{
 		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Cannot copy the contents of a null queue."));
-		return;
+		return nullptr;
 	}
 
 	// The copy should reflect the input queue's origin (ie, the queue asset it was originally based off of). Setting
@@ -186,6 +187,7 @@ void UMoviePipelineQueue::CopyFrom(UMoviePipelineQueue* InQueue)
 	// Ensure the serial number gets bumped at least once so the UI refreshes in case
 	// the queue we are copying from was empty.
 	QueueSerialNumber++;
+	return this;
 }
 
 void UMoviePipelineQueue::SetJobIndex(UMoviePipelineExecutorJob* InJob, int32 Index)
@@ -314,7 +316,7 @@ void UMoviePipelineExecutorJob::SetGraphPreset(const UMovieGraphConfig* InGraphP
 	Modify();
 #endif
 	
-	GraphPreset = InGraphPreset;
+	GraphPreset = const_cast<UMovieGraphConfig*>(InGraphPreset);
 
 	// If the graph is being cleared out, also clear out all graphs on the job's shots. A shot cannot have a graph assigned to it while
 	// the parent job is using a legacy config.
@@ -409,7 +411,7 @@ void UMoviePipelineExecutorShot::SetGraphPreset(const UMovieGraphConfig* InGraph
 	Modify();
 #endif
 	
-	GraphPreset = InGraphPreset;
+	GraphPreset = const_cast<UMovieGraphConfig*>(InGraphPreset);
 
 	if (bUpdateVariableAssignments)
 	{

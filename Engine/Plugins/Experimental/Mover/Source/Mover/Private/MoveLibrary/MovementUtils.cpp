@@ -154,12 +154,19 @@ FVector UMovementUtils::ConstrainToPlane(const FVector& Vector, const FPlane& Mo
 	return ConstrainedResult;
 }
 
-FVector UMovementUtils::ComputeSlideDelta(const FVector& Delta, const float PctOfDeltaToMove, const FVector& Normal, const FHitResult& Hit)
+FVector UMovementUtils::ComputeSlideDelta(const FMovingComponentSet& MovingComps, const FVector& Delta, const float PctOfDeltaToMove, const FVector& Normal, const FHitResult& Hit)
 {
-	return FVector::VectorPlaneProject(Delta, Normal) * PctOfDeltaToMove;
+	FVector ConstrainedNormal = Normal;
+
+	if (MovingComps.MoverComponent.IsValid())
+	{
+		ConstrainedNormal = UPlanarConstraintUtils::ConstrainNormalToPlane(MovingComps.MoverComponent->GetPlanarConstraint(), Normal);
+	}
+
+	return FVector::VectorPlaneProject(Delta, ConstrainedNormal) * PctOfDeltaToMove;
 }
 
-FVector UMovementUtils::ComputeTwoWallAdjustedDelta(const FVector& MoveDelta, const FHitResult& Hit, const FVector& OldHitNormal)
+FVector UMovementUtils::ComputeTwoWallAdjustedDelta(const FMovingComponentSet& MovingComps, const FVector& MoveDelta, const FHitResult& Hit, const FVector& OldHitNormal)
 {
 	FVector Delta = MoveDelta;
 	const FVector HitNormal = Hit.Normal;
@@ -178,7 +185,7 @@ FVector UMovementUtils::ComputeTwoWallAdjustedDelta(const FVector& MoveDelta, co
 	else //adjust to new wall
 	{
 		const FVector DesiredDir = Delta;
-		Delta = UMovementUtils::ComputeSlideDelta(Delta, 1.f - Hit.Time, HitNormal, Hit);
+		Delta = UMovementUtils::ComputeSlideDelta(MovingComps, Delta, 1.f - Hit.Time, HitNormal, Hit);
 		if ((Delta | DesiredDir) <= 0.f)
 		{
 			Delta = FVector::ZeroVector;
@@ -194,7 +201,7 @@ FVector UMovementUtils::ComputeTwoWallAdjustedDelta(const FVector& MoveDelta, co
 	return Delta;
 }
 
-float UMovementUtils::TryMoveToSlideAlongSurface(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, UMoverComponent* MoverComponent, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, FMovementRecord& MoveRecord)
+float UMovementUtils::TryMoveToSlideAlongSurface(const FMovingComponentSet& MovingComps, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, FMovementRecord& MoveRecord)
 {
 	if (!Hit.bBlockingHit)
 	{
@@ -204,38 +211,38 @@ float UMovementUtils::TryMoveToSlideAlongSurface(USceneComponent* UpdatedCompone
 	float PctOfTimeUsed = 0.f;
 	const FVector OldHitNormal = Normal;
 
-	FVector SlideDelta = UMovementUtils::ComputeSlideDelta(Delta, PctOfDeltaToMove, Normal, Hit);
+	FVector SlideDelta = UMovementUtils::ComputeSlideDelta(MovingComps, Delta, PctOfDeltaToMove, Normal, Hit);
 
 	if ((SlideDelta | Delta) > 0.f)
 	{
-		TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
+		TrySafeMoveUpdatedComponent(MovingComps, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
 
 		PctOfTimeUsed = Hit.Time;
 
 		if (Hit.IsValidBlockingHit())
 		{
 			// Notify first impact
-			if (MoverComponent && bHandleImpact)
+			if (MovingComps.MoverComponent.IsValid() && bHandleImpact)
 			{
 				FMoverOnImpactParams ImpactParams(NAME_None, Hit, SlideDelta);
-				MoverComponent->HandleImpact(ImpactParams);
+				MovingComps.MoverComponent->HandleImpact(ImpactParams);
 			}
 
 			// Compute new slide normal when hitting multiple surfaces.
-			SlideDelta = UMovementUtils::ComputeTwoWallAdjustedDelta(SlideDelta, Hit, OldHitNormal);
+			SlideDelta = UMovementUtils::ComputeTwoWallAdjustedDelta(MovingComps, SlideDelta, Hit, OldHitNormal);
 
 			// Only proceed if the new direction is of significant length and not in reverse of original attempted move.
 			if (!SlideDelta.IsNearlyZero(UE::MoverUtils::SMALL_MOVE_DISTANCE) && (SlideDelta | Delta) > 0.f)
 			{
 				// Perform second move
-				TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
+				TrySafeMoveUpdatedComponent(MovingComps, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
 				PctOfTimeUsed += (Hit.Time * (1.f - PctOfTimeUsed));
 
 				// Notify second impact
-				if (MoverComponent && bHandleImpact && Hit.bBlockingHit)
+				if (MovingComps.MoverComponent.IsValid() && bHandleImpact && Hit.bBlockingHit)
 				{
 					FMoverOnImpactParams ImpactParams(NAME_None, Hit, SlideDelta);
-					MoverComponent->HandleImpact(ImpactParams);
+					MovingComps.MoverComponent->HandleImpact(ImpactParams);
 				}
 			}
 		}
@@ -249,9 +256,11 @@ float UMovementUtils::TryMoveToSlideAlongSurface(USceneComponent* UpdatedCompone
 
 static const FName SafeMoveSubstepName = "SafeMove";
 
-bool UMovementUtils::TrySafeMoveUpdatedComponent(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult& OutHit, ETeleportType Teleport, FMovementRecord& MoveRecord)
+bool UMovementUtils::TrySafeMoveUpdatedComponent(const FMovingComponentSet& MovingComps, const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult& OutHit, ETeleportType Teleport, FMovementRecord& MoveRecord)
 {
-	if (UpdatedComponent == nullptr)
+	USceneComponent* UpdatedComponent = MovingComps.UpdatedComponent.Get();
+
+	if (!UpdatedComponent)
 	{
 		OutHit.Reset(1.f);
 		return false;
@@ -268,7 +277,7 @@ bool UMovementUtils::TrySafeMoveUpdatedComponent(USceneComponent* UpdatedCompone
 		const EMoveComponentFlags IncludeBlockingOverlapsWithoutEvents = (MOVECOMP_NeverIgnoreBlockingOverlaps | MOVECOMP_DisableBlockingOverlapDispatch);
 		//TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags, MovementComponentCVars::MoveIgnoreFirstBlockingOverlap ? MoveComponentFlags : (MoveComponentFlags | IncludeBlockingOverlapsWithoutEvents));
 		MoveComponentFlags = (MoveComponentFlags | IncludeBlockingOverlapsWithoutEvents);
-		bMoveResult = TryMoveUpdatedComponent_Internal(UpdatedComponent, Delta, NewRotation, bSweep, MoveComponentFlags, &OutHit, Teleport);
+		bMoveResult = TryMoveUpdatedComponent_Internal(MovingComps, Delta, NewRotation, bSweep, MoveComponentFlags, &OutHit, Teleport);
 
 		if (UpdatedComponent)
 		{
@@ -281,12 +290,12 @@ bool UMovementUtils::TrySafeMoveUpdatedComponent(USceneComponent* UpdatedCompone
 	if (OutHit.bStartPenetrating && UpdatedComponent)
 	{
 		const FVector RequestedAdjustment = ComputePenetrationAdjustment(OutHit);
-		if (TryMoveToResolvePenetration(UpdatedComponent, UpdatedPrimitive, MoveComponentFlags, RequestedAdjustment, OutHit, NewRotation, MoveRecord))
+		if (TryMoveToResolvePenetration(MovingComps, MoveComponentFlags, RequestedAdjustment, OutHit, NewRotation, MoveRecord))
 		{
 			PreviousCompPos = UpdatedComponent->GetComponentLocation();
 
 			// Retry original move
-			bMoveResult = TryMoveUpdatedComponent_Internal(UpdatedComponent, Delta, NewRotation, bSweep, MoveComponentFlags, &OutHit, Teleport);
+			bMoveResult = TryMoveUpdatedComponent_Internal(MovingComps, Delta, NewRotation, bSweep, MoveComponentFlags, &OutHit, Teleport);
 
 			UE_LOG(LogMover, VeryVerbose, TEXT("TrySafeMove retry: %s (role %i) Delta=%s DidMove=%i"),
 				*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *Delta.ToCompactString(), bMoveResult);
@@ -321,15 +330,19 @@ FVector UMovementUtils::ComputePenetrationAdjustment(const FHitResult& Hit)
 
 static const FName PenetrationResolutionSubstepName = "ResolvePenetration";
 
-bool UMovementUtils::TryMoveToResolvePenetration(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, EMoveComponentFlags MoveComponentFlags, const FVector& ProposedAdjustment, const FHitResult& Hit, const FQuat& NewRotationQuat, FMovementRecord& MoveRecord)
+bool UMovementUtils::TryMoveToResolvePenetration(const FMovingComponentSet& MovingComps, EMoveComponentFlags MoveComponentFlags, const FVector& ProposedAdjustment, const FHitResult& Hit, const FQuat& NewRotationQuat, FMovementRecord& MoveRecord)
 {
+	USceneComponent* UpdatedComponent = MovingComps.UpdatedComponent.Get();
+	UPrimitiveComponent* UpdatedPrimitive = Cast<UPrimitiveComponent>(UpdatedComponent);
+	UMoverComponent* MoverComp = MovingComps.MoverComponent.Get();
+
 	// SceneComponent can't be in penetration, so this function really only applies to PrimitiveComponent.
-	const FVector Adjustment = ProposedAdjustment; //ConstrainDirectionToPlane(ProposedAdjustment);
+	const FVector Adjustment = UPlanarConstraintUtils::ConstrainDirectionToPlane(MovingComps.MoverComponent->GetPlanarConstraint(), ProposedAdjustment);
 	if (!Adjustment.IsZero() && UpdatedPrimitive)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_BaseMovementComponent_ResolvePenetration);
 		// See if we can fit at the adjusted location without overlapping anything.
-		AActor* ActorOwner = UpdatedComponent->GetOwner();
+		AActor* ActorOwner = MoverComp->GetOwner();
 		if (!ActorOwner)
 		{
 			return false;
@@ -359,7 +372,7 @@ bool UMovementUtils::TryMoveToResolvePenetration(USceneComponent* UpdatedCompone
 
 			// Try sweeping as far as possible...
 			FHitResult SweepOutHit(1.f);
-			bool bMoved = TryMoveUpdatedComponent_Internal(UpdatedComponent, Adjustment, NewRotationQuat, true, MoveComponentFlags, &SweepOutHit, ETeleportType::TeleportPhysics);
+			bool bMoved = TryMoveUpdatedComponent_Internal(MovingComps, Adjustment, NewRotationQuat, true, MoveComponentFlags, &SweepOutHit, ETeleportType::TeleportPhysics);
 
 			UE_LOG(LogMover, VeryVerbose, TEXT("TryMoveToResolvePenetration: %s (role %i) Adjustment=%s DidMove=%i"),
 				*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *Adjustment.ToCompactString(), bMoved);
@@ -372,7 +385,7 @@ bool UMovementUtils::TryMoveToResolvePenetration(USceneComponent* UpdatedCompone
 				const FVector CombinedMTD = Adjustment + SecondMTD;
 				if (SecondMTD != Adjustment && !CombinedMTD.IsZero())
 				{
-					bMoved = TryMoveUpdatedComponent_Internal(UpdatedComponent, CombinedMTD, NewRotationQuat, true, MoveComponentFlags, nullptr, ETeleportType::TeleportPhysics);
+					bMoved = TryMoveUpdatedComponent_Internal(MovingComps, CombinedMTD, NewRotationQuat, true, MoveComponentFlags, nullptr, ETeleportType::TeleportPhysics);
 
 					UE_LOG(LogMover, VeryVerbose, TEXT("TryMoveToResolvePenetration combined: %s (role %i) CombinedAdjustment=%s DidMove=%i"),
 						*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *CombinedMTD.ToCompactString(), bMoved);
@@ -383,11 +396,11 @@ bool UMovementUtils::TryMoveToResolvePenetration(USceneComponent* UpdatedCompone
 			if (!bMoved)
 			{
 				// Try moving the proposed adjustment plus the attempted move direction. This can sometimes get out of penetrations with multiple objects
-				const FVector MoveDelta = (Hit.TraceEnd - Hit.TraceStart); //ConstrainDirectionToPlane(Hit.TraceEnd - Hit.TraceStart);
+				const FVector MoveDelta = UPlanarConstraintUtils::ConstrainDirectionToPlane(MoverComp->GetPlanarConstraint(), (Hit.TraceEnd - Hit.TraceStart));
 				if (!MoveDelta.IsZero())
 				{
 					const FVector AdjustAndMoveDelta = Adjustment + MoveDelta;
-					bMoved = TryMoveUpdatedComponent_Internal(UpdatedComponent, AdjustAndMoveDelta, NewRotationQuat, true, MoveComponentFlags, nullptr, ETeleportType::TeleportPhysics);
+					bMoved = TryMoveUpdatedComponent_Internal(MovingComps, AdjustAndMoveDelta, NewRotationQuat, true, MoveComponentFlags, nullptr, ETeleportType::TeleportPhysics);
 
 					UE_LOG(LogMover, VeryVerbose, TEXT("TryMoveToResolvePenetration multiple: %s (role %i) AdjustAndMoveDelta=%s DidMove=%i"),
 						*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *AdjustAndMoveDelta.ToCompactString(), bMoved);
@@ -479,14 +492,24 @@ FVector UMovementUtils::ComputeDirectionIntent(const FVector& MoveInput, EMoveIn
 	return ResultDirIntent;
 }
 
-bool UMovementUtils::TryMoveUpdatedComponent_Internal(USceneComponent* UpdatedComponent, const FVector& Delta, const FQuat& NewRotation, bool bSweep, EMoveComponentFlags MoveComponentFlags, FHitResult* OutHit, ETeleportType Teleport)
+bool UMovementUtils::IsAngularVelocityZero(const FRotator& AngularVelocity)
 {
+	return (AngularVelocity.Yaw == 0.0 && AngularVelocity.Pitch == 0.0 && AngularVelocity.Roll == 0.0);
+}
 
-	if (UpdatedComponent)
+
+bool UMovementUtils::TryMoveUpdatedComponent_Internal(const FMovingComponentSet& MovingComps, const FVector& Delta, const FQuat& NewRotation, bool bSweep, EMoveComponentFlags MoveComponentFlags, FHitResult* OutHit, ETeleportType Teleport)
+{
+	if (MovingComps.UpdatedComponent.IsValid())
 	{
-		// TODO: Consider whether we need NewDelta... seems pointless in this context
-		const FVector NewDelta = Delta;
-		return UpdatedComponent->MoveComponent(NewDelta, NewRotation, bSweep, OutHit, MoveComponentFlags, Teleport);
+		FVector ConstrainedDelta = Delta;
+
+		if (MovingComps.MoverComponent.IsValid())
+		{
+			ConstrainedDelta = UPlanarConstraintUtils::ConstrainDirectionToPlane(MovingComps.MoverComponent->GetPlanarConstraint(), Delta);	
+		}
+
+		return MovingComps.UpdatedComponent->MoveComponent(ConstrainedDelta, NewRotation, bSweep, OutHit, MoveComponentFlags, Teleport);
 	}
 
 	return false;

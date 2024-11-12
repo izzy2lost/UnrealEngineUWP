@@ -16,6 +16,7 @@ const FName UVirtualCameraClipsMetaData::AssetRegistryTag_bIsNoGood = "ClipsMeta
 const FName UVirtualCameraClipsMetaData::AssetRegistryTag_bIsFlagged = "ClipsMetaData_bIsFlagged";
 const FName UVirtualCameraClipsMetaData::AssetRegistryTag_FavoriteLevel = "ClipsMetaData_FavoriteLevel";
 const FName UVirtualCameraClipsMetaData::AssetRegistryTag_bIsCreatedFromVCam = "ClipsMetaData_bIsCreatedFromVCam";
+const FName UVirtualCameraClipsMetaData::AssetRegistryTag_PostSmoothLevel = "ClipMetaData_PostSmoothLevel";
 
 UVirtualCameraClipsMetaData::UVirtualCameraClipsMetaData(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
@@ -39,7 +40,8 @@ TSet<FName> UVirtualCameraClipsMetaData::GetAllClipsMetaDataTags()
 		GetClipsMetaDataTag_IsNoGood(),
 		GetClipsMetaDataTag_IsFlagged(),
 		GetClipsMetaDataTag_FavoriteLevel(),
-		GetClipsMetaDataTag_IsCreatedFromVCam()
+		GetClipsMetaDataTag_IsCreatedFromVCam(),
+		GetClipsMetaDataTag_PostSmoothLevel()
 	};
 }
 
@@ -62,6 +64,7 @@ void UVirtualCameraClipsMetaData::ExtendAssetRegistryTags(FAssetRegistryTagsCont
 	Context.AddTag(FAssetRegistryTag(AssetRegistryTag_bIsFlagged, FString::FromInt(bIsFlagged), FAssetRegistryTag::ETagType::TT_Numerical, FAssetRegistryTag::TD_None));
 	Context.AddTag(FAssetRegistryTag(AssetRegistryTag_FavoriteLevel, FString::FromInt(FavoriteLevel), FAssetRegistryTag::ETagType::TT_Alphabetical, FAssetRegistryTag::TD_None));
 	Context.AddTag(FAssetRegistryTag(AssetRegistryTag_bIsCreatedFromVCam, FString::FromInt(bIsCreatedFromVCam), FAssetRegistryTag::ETagType::TT_Numerical, FAssetRegistryTag::TD_None));
+	Context.AddTag(FAssetRegistryTag(AssetRegistryTag_PostSmoothLevel, FString::FromInt(PostSmoothLevel), FAssetRegistryTag::ETagType::TT_Numerical, FAssetRegistryTag::TD_None));
 }
 
 #if WITH_EDITOR

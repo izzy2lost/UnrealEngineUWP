@@ -33,7 +33,7 @@ class FSplineMeshSceneExtension : public ISceneExtension
 	friend class FSplineMeshSceneUpdater;
 	friend class FSplineMeshSceneRenderer;
 
-	DECLARE_SCENE_EXTENSION(FSplineMeshSceneExtension);
+	DECLARE_SCENE_EXTENSION(RENDERER_API, FSplineMeshSceneExtension);
 
 public:
 	static bool ShouldCreateExtension(FScene& InScene);
@@ -83,7 +83,7 @@ class FSplineMeshSceneUpdater : public ISceneExtensionUpdater
 public:
 	FSplineMeshSceneUpdater(FSplineMeshSceneExtension& InSceneData) : SceneData(&InSceneData) {}
 
-	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) override;
+	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms) override;
 	virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
 	virtual void PostGPUSceneUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) override;
 

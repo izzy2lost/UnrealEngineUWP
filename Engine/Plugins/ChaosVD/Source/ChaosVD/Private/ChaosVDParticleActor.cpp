@@ -7,6 +7,7 @@
 #include "ChaosVDScene.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDInstancedStaticMeshComponent.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
@@ -14,6 +15,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Engine/StaticMesh.h"
+#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 
 namespace Chaos::VisualDebugger::Cvars
 {
@@ -112,6 +114,47 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const TSharedPtr<FCha
 	OnParticleDataUpdated().ExecuteIfBound();
 }
 
+void AChaosVDParticleActor::SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& GeometryInstanceToSelect)
+{
+	if (!ParticleDataPtr)
+	{
+		return;
+	}
+
+	const TSharedPtr<FChaosVDMeshDataInstanceHandle> GeometryInstanceToSelectPtr = GeometryInstanceToSelect.Pin();
+	if (!GeometryInstanceToSelectPtr)
+	{
+		return;
+	}
+
+	if (ensure(ParticleDataPtr->ParticleIndex == GeometryInstanceToSelectPtr->GetOwningParticleID()))
+	{
+		CurrentSelectedGeometryInstance = GeometryInstanceToSelect;
+	}
+}
+
+void AChaosVDParticleActor::HandleNewGeometryLoaded(uint32 GeometryID, const Chaos::FConstImplicitObjectPtr& InGeometryData)
+{
+	UpdateGeometry(InGeometryData, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
+}
+
+void AChaosVDParticleActor::HandleSelected()
+{
+	PushSelectionToProxies();
+}
+
+void AChaosVDParticleActor::HandleDeSelected()
+{
+	CurrentSelectedGeometryInstance = nullptr;
+	PushSelectionToProxies();
+}
+
+bool AChaosVDParticleActor::Modify(bool bAlwaysMarkDirty)
+{
+	//CVD Actors are transient. Skipping super call to recude the cost of spawning them
+	return false;
+}
+
 void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles)
 {
 	for (TArray<TSharedPtr<FChaosVDMeshDataInstanceHandle>>::TIterator MeshDataHandleRemoveIterator = MeshDataHandles.CreateIterator(); MeshDataHandleRemoveIterator; ++MeshDataHandleRemoveIterator)
@@ -133,6 +176,10 @@ void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FC
 				{
 					bExists = true;
 
+					// Although the geometry is the same, we need to copy over all the new data on the updated handle
+					// Otherwise the ptr to the root implicit object or the Shape Instance Index will be outdated 
+					*ExistingMeshDataHandle->GetGeometryHandle() = *GeometryDataHandle;
+
 					// If we have a CVD Geometry Component for this handle, just remove it from the list as it means we don't need to re-create it
 					HandleRemoveIterator.RemoveCurrent();
 					break;
@@ -151,7 +198,6 @@ void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FC
 		}		
 	}
 }
-
 
 void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
@@ -181,7 +227,7 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 		return;
 	}
 
-	const TSharedPtr<FChaosVDGeometryBuilder> GeometryGenerator = ScenePtr->GetGeometryGenerator();
+	const TSharedPtr<FChaosVDGeometryBuilder> GeometryGenerator = ScenePtr->GetGeometryGenerator().Pin();
 	if (!GeometryGenerator.IsValid())
 	{
 		return;
@@ -212,7 +258,7 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 	constexpr int32 LODsToGenerateNum = 3;
 	constexpr int32 LODsToGenerateNumForInstancedStaticMesh = 0;
 
-	GeometryGenerator->CreateMeshesFromImplicitObject<UStaticMesh>(InImplicitObject, this, OutExtractedGeometryDataHandles, bHasToUseStaticMeshComponent ? LODsToGenerateNum : LODsToGenerateNumForInstancedStaticMesh);
+	GeometryGenerator->CreateMeshesFromImplicitObject(InImplicitObject, this, OutExtractedGeometryDataHandles, ParticleDataPtr->CollisionDataPerShape.Num(), bHasToUseStaticMeshComponent ? LODsToGenerateNum : LODsToGenerateNumForInstancedStaticMesh);
 
 	// This should not happen in theory, but there might be some valid situations where it does. Adding an ensure to catch them and then evaluate if it is really an issue (if it is not I will remove the ensure later on). 
 	if (!ensure(ObjectsToGenerateNum == OutExtractedGeometryDataHandles.Num()))
@@ -282,29 +328,8 @@ void AChaosVDParticleActor::UpdateGeometry(uint32 NewGeometryHash, EChaosVDActor
 	}
 }
 
-void AChaosVDParticleActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
-{
-	FChaosVDSceneObjectBase::SetScene(InScene);
-
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
-	{
-		GeometryUpdatedDelegate = ScenePtr->OnNewGeometryAvailable().AddWeakLambda(this, [this](const Chaos::FConstImplicitObjectPtr& ImplicitObject, const uint32 ID)
-		{
-			if (ParticleDataPtr && ParticleDataPtr->GeometryHash == ID)
-			{
-				UpdateGeometry(ImplicitObject, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
-			}
-		});
-	}
-}
-
 void AChaosVDParticleActor::Destroyed()
 {
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
-	{
-		ScenePtr->OnNewGeometryAvailable().Remove(GeometryUpdatedDelegate);
-	}
-
 	VisitGeometryInstances([](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		if (IChaosVDGeometryComponent* AsGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshDataHandle->GetMeshComponent()))
@@ -365,29 +390,27 @@ FBox AChaosVDParticleActor::GetComponentsBoundingBox(bool bNonColliding, bool bI
 			}
 		}
 
-		const FBoxSphereBounds SphereBounds= BoundsBuilder;
-		BoundingBox = SphereBounds.GetBox();
+		// Geometry might not be generated yet, so we need a placeholder box so the Focus on object feature works
+		if (!BoundsBuilder.IsValid())
+		{
+			return BoundingBox.ExpandBy(10.0f).MoveTo(ParticleDataPtr->ParticlePositionRotation.MX);
+		}
+		else
+		{
+			BoundingBox = FBoxSphereBounds(BoundsBuilder).GetBox();
+		}
 	}
 
 	return BoundingBox;
 }
 
-void AChaosVDParticleActor::GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound)
+TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>> AChaosVDParticleActor::GetCollisionData()
 {
 	if (const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* MidPhases = GetCollisionMidPhasesArray())
 	{
-		OutCollisionDataFound.Reserve(MidPhases->Num());
-
-		for (const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhasePtr : *MidPhases)
-		{
-			TSharedPtr<FChaosVDCollisionDataFinder> FinderData = MakeShared<FChaosVDCollisionDataFinder>();
-			FinderData->OwningMidPhase = MidPhasePtr;
-			FinderData->OwningConstraint = MidPhasePtr->Constraints.Num() > 0 ? &MidPhasePtr->Constraints[0] : nullptr;
-			FinderData->ContactIndex = INDEX_NONE;
-
-			OutCollisionDataFound.Add(FinderData);
-		}
+		return *MidPhases;
 	}
+	return TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>>();
 }
 
 bool AChaosVDParticleActor::HasCollisionData()
@@ -402,18 +425,48 @@ bool AChaosVDParticleActor::HasCollisionData()
 
 FName AChaosVDParticleActor::GetProviderName()
 {
-	return GetFName();
+	return ParticleDataPtr ? FName(ParticleDataPtr->DebugName) : NAME_None;
+}
+
+void AChaosVDParticleActor::UpdateMeshInstancesSelectionState()
+{
+	TSharedPtr<FChaosVDMeshDataInstanceHandle> CurrentSelectedGeometry = CurrentSelectedGeometryInstance.Pin();
+	const bool bIsOwningParticleSelectedInEditor = IsSelectedInEditor();
+	VisitGeometryInstances([this, bIsOwningParticleSelectedInEditor, CurrentSelectedGeometry](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		const bool bShouldSelectInstance = bIsOwningParticleSelectedInEditor ? (CurrentSelectedGeometry ? CurrentSelectedGeometryInstance == MeshDataHandle : true) : false;
+
+		MeshDataHandle->SetIsSelected(bShouldSelectInstance);
+	});
+}
+
+void AChaosVDParticleActor::GetCharacterGroundConstraintData(TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>& OutConstraintsFound)
+{
+	if (const TArray<TSharedPtr<FChaosVDConstraintDataWrapperBase>>* Constraints = GetCharacterGroundConstraintArray())
+	{
+		OutConstraintsFound.Reserve(Constraints->Num());
+
+		for (const TSharedPtr<FChaosVDConstraintDataWrapperBase>& Constraint : *Constraints)
+		{
+			OutConstraintsFound.Add(StaticCastSharedPtr<FChaosVDCharacterGroundConstraint>(Constraint));
+		}
+	}
+}
+
+bool AChaosVDParticleActor::HasCharacterGroundConstraintData()
+{
+	if (const TArray<TSharedPtr<FChaosVDConstraintDataWrapperBase>>* Constraints = GetCharacterGroundConstraintArray())
+	{
+		return Constraints->Num() > 0;
+	}
+
+	return false;
 }
 
 void AChaosVDParticleActor::PushSelectionToProxies()
 {
+	UpdateMeshInstancesSelectionState();
 	Super::PushSelectionToProxies();
-
-	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
-	{
-		const bool bIsSelectedInEditor = IsSelectedInEditor();
-		MeshDataHandle->SetIsSelected(bIsSelectedInEditor);
-	});
 }
 
 const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::GetCollisionMidPhasesArray() const
@@ -434,6 +487,30 @@ const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::G
 		if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoActor->GetCollisionDataComponent())
 		{
 			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataPtr->ParticleIndex, EChaosVDParticlePairSlot::Any);
+		}
+	}
+
+	return nullptr;
+}
+
+const TArray<TSharedPtr<FChaosVDConstraintDataWrapperBase>>* AChaosVDParticleActor::GetCharacterGroundConstraintArray() const
+{
+	if (!ParticleDataPtr.IsValid())
+	{
+		return nullptr;
+	}
+
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr.IsValid())
+	{
+		return nullptr;
+	}
+
+	if (AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(ParticleDataPtr->SolverID))
+	{
+		if (const UChaosVDSolverCharacterGroundConstraintDataComponent* ConstraintDataComponent = SolverInfoActor->GetCharacterGroundConstraintDataComponent())
+		{
+			return ConstraintDataComponent->GetConstraintsForParticle(ParticleDataPtr->ParticleIndex, EChaosVDParticlePairSlot::Primary);
 		}
 	}
 

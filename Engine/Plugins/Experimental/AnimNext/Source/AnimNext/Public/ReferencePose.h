@@ -34,6 +34,11 @@ struct TReferencePose
 	// Higher LOD come first
 	TTransformArray<AllocatorType> ReferenceLocalTransforms;
 
+	// A mapping of LOD sorted bone indices to their parent LOD sorted bone indices per LOD
+	// Each list of bone indices is a mapping of: LODSortedBoneIndex -> LODSortedBoneIndex
+	// When fast path is enabled, we have a single LOD entry that we truncate to the number of bones for each LOD
+	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> LODBoneIndexToParentLODBoneIndexMapPerLOD;
+
 	// A mapping of LOD sorted bone indices to skeletal mesh indices per LOD
 	// Each list of bone indices is a mapping of: LODSortedBoneIndex -> SkeletalMeshBoneIndex
 	// When fast path is enabled, we have a single LOD entry that we truncate to the number of bones for each LOD
@@ -46,14 +51,14 @@ struct TReferencePose
 
 	// List of skeleton bone indices for each LOD
 	// Each list of skeleton bone indices is a mapping of: SkeletonBoneIndex -> LODSortedBoneIndex
-	// When fast path is enabled, we have a single LOD entry that we truncate to the number of bones for each LOD
+	// When fast path is enabled, we have a single LOD entry
 	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> SkeletonBoneIndexToLODBoneIndexMapPerLOD;
 
 	// Number of bones for each LOD
 	TArray<int32, AllocatorType> LODNumBones;
 
 	// Mapping of mesh bone indices to mesh parent indices for each bone
-	TArray<FBoneIndexType, AllocatorType> ParentIndices;
+	TArray<FBoneIndexType, AllocatorType> MeshBoneIndexToParentMeshBoneIndexMap;
 
 	TWeakObjectPtr<const USkeletalMesh> SkeletalMesh = nullptr;
 	TWeakObjectPtr<const USkeleton> Skeleton = nullptr;
@@ -79,6 +84,7 @@ struct TReferencePose
 	}
 
 	void Initialize(const FReferenceSkeleton& RefSkeleton
+		, const TArray<TArray<FBoneIndexType>>& InLODBoneIndexToParentLODBoneIndexMapPerLOD
 		, const TArray<TArray<FBoneIndexType>>& InLODBoneIndexToMeshBoneIndexMapPerLOD
 		, const TArray<TArray<FBoneIndexType>>& InLODBoneIndexToSkeletonBoneIndexMapPerLOD
 		, const TArray<TArray<FBoneIndexType>>& InSkeletonBoneIndexToLODBoneIndexMapPerLOD
@@ -88,8 +94,9 @@ struct TReferencePose
 		const int32 NumBonesLOD0 = !InLODNumBones.IsEmpty() ? InLODNumBones[0] : 0;
 		const int32 NumBonesMesh = RefSkeleton.GetRefBoneInfo().Num();
 		
-		ParentIndices.SetNum(NumBonesMesh);
+		MeshBoneIndexToParentMeshBoneIndexMap.SetNum(NumBonesMesh);
 		ReferenceLocalTransforms.SetNum(NumBonesLOD0);
+		LODBoneIndexToParentLODBoneIndexMapPerLOD = InLODBoneIndexToParentLODBoneIndexMapPerLOD;
 		LODBoneIndexToMeshBoneIndexMapPerLOD = InLODBoneIndexToMeshBoneIndexMapPerLOD;
 		LODBoneIndexToSkeletonBoneIndexMapPerLOD = InLODBoneIndexToSkeletonBoneIndexMapPerLOD;
 		SkeletonBoneIndexToLODBoneIndexMapPerLOD = InSkeletonBoneIndexToLODBoneIndexMapPerLOD;
@@ -105,12 +112,28 @@ struct TReferencePose
 			ReferenceLocalTransforms[LODBoneIndex] = RefBonePose[BoneLODIndexToMeshIndexMap0[LODBoneIndex]];
 		}
 
-		for(int32 BoneIndex = 0; BoneIndex < NumBonesMesh; ++BoneIndex)
+		for (int32 BoneIndex = 0; BoneIndex < NumBonesMesh; ++BoneIndex)
 		{
-			ParentIndices[BoneIndex] = RefBoneInfo[BoneIndex].ParentIndex;
+			MeshBoneIndexToParentMeshBoneIndexMap[BoneIndex] = RefBoneInfo[BoneIndex].ParentIndex;
 		}
 
 		GenerationFlags = bFastPath ? EReferencePoseGenerationFlags::FastPath : EReferencePoseGenerationFlags::None;
+	}
+
+	// Returns a list of LOD sorted parent bone indices, a mapping of: LODSortedBoneIndex -> LODSortedBoneIndex
+	const TArrayView<const FBoneIndexType> GetLODBoneIndexToParentLODBoneIndexMap(int32 LODLevel) const
+	{
+		TArrayView<const FBoneIndexType> ArrayView;
+
+		if (LODLevel >= 0 && (IsFastPath() || LODLevel < LODBoneIndexToParentLODBoneIndexMapPerLOD.Num()))
+		{
+			const int32 NumBonesForLOD = GetNumBonesForLOD(LODLevel);
+			const int32 LODIndex = IsFastPath() ? 0 : LODLevel;
+
+			ArrayView = MakeArrayView(LODBoneIndexToParentLODBoneIndexMapPerLOD[LODIndex].GetData(), NumBonesForLOD);
+		}
+
+		return ArrayView;
 	}
 
 	// Returns a list of LOD sorted skeletal mesh bone indices, a mapping of: LODSortedBoneIndex -> SkeletalMeshBoneIndex
@@ -152,10 +175,8 @@ struct TReferencePose
 
 		if (LODLevel >= 0 && (IsFastPath() || LODLevel < SkeletonBoneIndexToLODBoneIndexMapPerLOD.Num()))
 		{
-			const int32 NumBonesForLOD = GetNumBonesForLOD(LODLevel);
 			const int32 LODIndex = IsFastPath() ? 0 : LODLevel;
-
-			ArrayView = MakeArrayView(SkeletonBoneIndexToLODBoneIndexMapPerLOD[LODIndex].GetData(), NumBonesForLOD);
+			ArrayView = SkeletonBoneIndexToLODBoneIndexMapPerLOD[LODIndex];
 		}
 
 		return ArrayView;
@@ -169,9 +190,9 @@ struct TReferencePose
 	}
 
 	// Returns a mapping of mesh bone indices to mesh parent indices for each bone
-	TConstArrayView<FBoneIndexType> GetParentIndices() const
+	TConstArrayView<FBoneIndexType> GetMeshBoneIndexToParentMeshBoneIndexMap() const
 	{
-		return ParentIndices;
+		return MeshBoneIndexToParentMeshBoneIndexMap;
 	}
 
 	int32 GetSkeletonBoneIndexFromLODBoneIndex(int32 LODBoneIndex) const

@@ -44,6 +44,7 @@ namespace OidcToken
 			{
 				try
 				{
+					Logger.LogDebug("OidcToken started with arguments: {@Settings}", Settings.CurrentValue);
 					await Main();
 					ExitCode = 0;
 				}
@@ -92,7 +93,7 @@ namespace OidcToken
 					if (status == OidcStatus.NotLoggedIn && !Settings.CurrentValue.Unattended)
 					{
 						Logger.LogInformation("Logging in to provider {ProviderName}", providerName);
-						tokenInfo = await TokenManager.Login(providerName);
+						tokenInfo = await TokenManager.LoginAsync(providerName);
 					}
 					else
 					{
@@ -112,12 +113,12 @@ namespace OidcToken
 							else
 							{
 								Logger.LogInformation("Logging in to provider {ProviderName}", providerName);
-								tokenInfo = await TokenManager.Login(providerName);
+								tokenInfo = await TokenManager.LoginAsync(providerName);
 							}
 						}
 					}
 
-					if (!tokenInfo.IsValid)
+					if (!tokenInfo.IsValid(DateTimeOffset.Now))
 					{
 						throw new Exception("Failed to allocate a token");
 					}
@@ -264,6 +265,11 @@ namespace OidcToken
 		/// The provider identifier you wish to login to
 		/// </summary>
 		[Required] public string Service { get; set; } = null!;
+
+		/// <summary>
+		/// URL of the horde server to read provider information from
+		/// </summary>
+		public Uri? HordeUrl { get; set; }
 
 		/// <summary>
 		/// The mode we are running OidcToken in

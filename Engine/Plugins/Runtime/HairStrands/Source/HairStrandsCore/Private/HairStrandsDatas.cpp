@@ -26,14 +26,19 @@ float GetHairStrandsMaxLength(const FHairStrandsDatas& In)
 	return MaxLength;
 }
 
-float GetHairStrandsMaxRadius(const FHairStrandsDatas& In)
+float GetHairStrandsMaxRadius(const TArray<float>& InPointsRadius)
 {
 	float MaxRadius = 0;
-	for (float PointRadius : In.StrandsPoints.PointsRadius)
+	for (float PointRadius : InPointsRadius)
 	{
 		MaxRadius = FMath::Max(MaxRadius, PointRadius);
 	}
 	return MaxRadius;
+}
+
+float GetHairStrandsMaxRadius(const FHairStrandsDatas& In)
+{
+	return GetHairStrandsMaxRadius(In.StrandsPoints.PointsRadius);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,19 +278,36 @@ void FHairStrandsBulkCommon::FQuery::Add(FHairBulkContainer& In, const TCHAR* In
 		}
 		check (InSize >= InOffset);
 
-		// 1. Add chunk request to the streaming request. The chunk will hold the request result.
 		check(StreamingRequest);
-		FHairStreamingRequest::FChunk& Chunk = StreamingRequest->Chunks.AddDefaulted_GetRef();
-		Chunk.Status 	= FHairStreamingRequest::FChunk::EStatus::Pending;
-		Chunk.Container = &In;
-		Chunk.Size 		= InSize - InOffset;
-		Chunk.Offset 	= InOffset;
-		Chunk.TotalSize = InSize;
-		In.ChunkRequest = &Chunk;
 
-		// 2. Fill in actual DDC request
-		check(OutReadIO);
-		OutReadIO->Read(In.Data, InOffset, InSize, EAsyncIOPriorityAndFlags::AIOP_Normal, Chunk.Data_IO);
+		// IO system does not support 0-bytes requests, so bypass them.
+		const bool bHasValidSize = int32(InSize) - int32(InOffset) > 0;
+		if (bHasValidSize)
+		{
+			// 1. Add chunk request to the streaming request. The chunk will hold the request result.
+			FHairStreamingRequest::FChunk& Chunk = StreamingRequest->Chunks.AddDefaulted_GetRef();
+			Chunk.Status 	= FHairStreamingRequest::FChunk::EStatus::Pending;
+			Chunk.Container = &In;
+			Chunk.Size 		= InSize - InOffset;
+			Chunk.Offset 	= InOffset;
+			Chunk.TotalSize = InSize;
+			In.ChunkRequest = &Chunk;
+
+			// 2. Fill in actual DDC request
+			check(OutReadIO);
+			OutReadIO->Read(In.Data, InOffset, Chunk.Size, EAsyncIOPriorityAndFlags::AIOP_Normal, Chunk.Data_IO);
+		}
+		else
+		{
+			// Add a (dummy) chunk request, so that the buffer creation path will be identical to the streaming path
+			FHairStreamingRequest::FChunk& Chunk = StreamingRequest->Chunks.AddDefaulted_GetRef();
+			Chunk.Status = FHairStreamingRequest::FChunk::EStatus::Completed;
+			Chunk.Container = &In;
+			Chunk.Size = InSize - InOffset;
+			Chunk.Offset = InOffset;
+			Chunk.TotalSize = InSize;
+			In.ChunkRequest = &Chunk;
+		}
 	}
 	else if (Type == ReadWriteIO)
 	{
@@ -531,7 +553,10 @@ const uint8* FHairStreamingRequest::FChunk::GetData() const
 void FHairStreamingRequest::FChunk::Release() 
 { 
 #if !WITH_EDITORONLY_DATA
+	// Take ownership of the buffer
 	TIoStatusOr<uint8*> Out = Data_IO.Release();
+	// Free the buffer
+	FMemory::Free(Out.ConsumeValueOrDie());
 #else
 	Data_DDC.Reset(); 
 #endif

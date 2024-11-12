@@ -100,9 +100,12 @@ void SDebuggerDetailsView::UpdateReflection(const FTraceMotionMatchingStateMessa
 	Reflection->SimAngularVelocity = State.SimAngularVelocity;
 	Reflection->AnimLinearVelocity = State.AnimLinearVelocity;
 	Reflection->AnimAngularVelocity = State.AnimAngularVelocity;
+	Reflection->Playrate = State.Playrate;
+	Reflection->AnimLinearVelocityNoTimescale = State.AnimLinearVelocityNoTimescale;
+	Reflection->AnimAngularVelocityNoTimescale = State.AnimAngularVelocityNoTimescale;
 }
 
-void SDebuggerView::Construct(const FArguments& InArgs, uint64 InAnimInstanceId)
+void SDebuggerView::Construct(const FArguments& InArgs, uint64 InAnimInstanceId, int32 InWantedSearchId)
 {
 	ViewModel = InArgs._ViewModel;
 	OnViewClosed = InArgs._OnViewClosed;
@@ -112,7 +115,8 @@ void SDebuggerView::Construct(const FArguments& InArgs, uint64 InAnimInstanceId)
 	check(OnViewClosed.IsBound());
 	
 	AnimInstanceId = InAnimInstanceId;
-	SelectedNodeId = INDEX_NONE;
+	WantedSearchId = InWantedSearchId;
+	SelectedSearchId = InWantedSearchId;
 
 	ChildSlot
 	[
@@ -181,13 +185,6 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 	const UWorld* DebuggerWorld = FDebugger::GetWorld();
 	check(DebuggerWorld);
 
-	// @todo: Handle editor world when those features are enabled for the Rewind Debugger
-	// Currently prevents debug draw remnants from stopped world
-	if (DebuggerWorld->WorldType != EWorldType::PIE)
-	{
-		return;
-	}
-
 	const bool bSameTime = FMath::Abs(TimeMarker - PreviousTimeMarker) < DOUBLE_SMALL_NUMBER;
 	PreviousTimeMarker = TimeMarker;
 
@@ -217,7 +214,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 			Model->OnUpdate();
 			if (UpdateNodeSelection())
 			{
-				Model->OnUpdateNodeSelection(SelectedNodeId);
+				Model->OnUpdateSearchSelection(SelectedSearchId);
 				UpdateViews();
 			}
 			bUpdated = true;
@@ -392,41 +389,60 @@ bool SDebuggerView::UpdateNodeSelection()
 	TSharedPtr<FDebuggerViewModel> Model = ViewModel.Get();
 	check(Model.IsValid());
 
+	const TArray<FTraceMotionMatchingStateMessage>& MotionMatchingStates = Model->GetMotionMatchingStates();
+
 	// Update selection view if no node selected
-	bool bNodeSelected = SelectedNodeId != INDEX_NONE;
-	if (!bNodeSelected)
+	if (SelectedSearchId != InvalidSearchId)
 	{
-		const TArray<FTraceMotionMatchingStateMessage>& MotionMatchingStates = Model->GetMotionMatchingStates();
-		// Only one active state, bypass selection view
-		if (MotionMatchingStates.Num() == 1)
+		if (!MotionMatchingStates.IsEmpty())
 		{
-			SelectedNodeId = MotionMatchingStates[0].NodeId;
-			bNodeSelected = true;
-		}
-		// Create selection view with buttons for each node, displaying the database name
-		else
-		{
-			SelectionView->ClearChildren();
+			// making sure SelectedSearchId is still valid. if not, let's pick the first available MotionMatchingStates
 			for (const FTraceMotionMatchingStateMessage& MotionMatchingState : MotionMatchingStates)
 			{
-				Model->OnUpdateNodeSelection(MotionMatchingState.NodeId);
-				SelectionView->AddSlot()
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Center)
-				.Padding(10.0f)
-				[
-					SNew(SButton)
-					.Text(FText::FromString(GetNameSafe(Model->GetCurrentDatabase())))
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.ContentPadding(10.0f)
-					.OnClicked(this, &SDebuggerView::OnUpdateNodeSelection, MotionMatchingState.NodeId)
-				];
+				if (MotionMatchingState.GetSearchId() == SelectedSearchId)
+				{
+					return true;
+				}
+			}
+
+			if (WantedSearchId == InvalidSearchId)
+			{
+				// SelectedSearchId is not valid, and since there's no WantedSearchId, by specifically double clicking the 
+				// search track instead of selecting "Pose Search" track, we reassign SelectedSearchId to the first valid SearchId
+				SelectedSearchId = MotionMatchingStates[0].GetSearchId();
 			}
 		}
+
+		return true;
+	}
+	
+	// Only one active state, bypass selection view
+	if (MotionMatchingStates.Num() == 1)
+	{
+		SelectedSearchId = MotionMatchingStates[0].GetSearchId();
+		return true;
 	}
 
-	return bNodeSelected;
+	// Create selection view with buttons for each node, displaying the database name
+	SelectionView->ClearChildren();
+	for (const FTraceMotionMatchingStateMessage& MotionMatchingState : MotionMatchingStates)
+	{
+		Model->OnUpdateSearchSelection(MotionMatchingState.GetSearchId());
+		SelectionView->AddSlot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Center)
+		.Padding(10.0f)
+		[
+			SNew(SButton)
+			.Text(MotionMatchingState.GenerateSearchName())
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ContentPadding(10.0f)
+			.OnClicked(this, &SDebuggerView::OnUpdateSearchSelection, MotionMatchingState.GetSearchId())
+		];
+	}
+
+	return false;
 }
 
 void SDebuggerView::UpdateViews() const
@@ -461,7 +477,7 @@ int32 SDebuggerView::SelectView() const
 	check(Model.IsValid());
 
 	const bool bNoActiveNodes = Model->GetNodesNum() == 0;
-	const bool bNodeSelectedWithoutData = SelectedNodeId != INDEX_NONE && Model->GetMotionMatchingState() == nullptr;
+	const bool bNodeSelectedWithoutData = SelectedSearchId != InvalidSearchId && Model->GetMotionMatchingState() == nullptr;
 
 	// No active nodes, or node selected has no data
 	if (bNoActiveNodes || bNodeSelectedWithoutData)
@@ -470,7 +486,7 @@ int32 SDebuggerView::SelectView() const
     }
 
 	// Node not selected yet, showcase selection view
-	if (SelectedNodeId == INDEX_NONE)
+	if (SelectedSearchId == InvalidSearchId)
 	{
 		return Selection;
 	}
@@ -490,10 +506,10 @@ void SDebuggerView::OnPoseSelectionChanged(const UPoseSearchDatabase* Database, 
 	}
 }
 
-FReply SDebuggerView::OnUpdateNodeSelection(int32 InSelectedNodeId)
+FReply SDebuggerView::OnUpdateSearchSelection(int32 InSelectedSearchId)
 {
-	// -1 will backtrack to selection view
-	SelectedNodeId = InSelectedNodeId;
+	// InvalidSearchId will backtrack to selection view
+	SelectedSearchId = InSelectedSearchId;
 	bUpdated = false;
 	return FReply::Handled();
 }
@@ -538,7 +554,7 @@ TSharedRef<SHorizontalBox> SDebuggerView::GenerateReturnButtonView()
 			.Visibility_Lambda([this] { return ViewModel.Get()->GetNodesNum() > 1 ? EVisibility::Visible : EVisibility::Hidden; })
 			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 			.ContentPadding( FMargin(1, 0) )
-			.OnClicked(this, &SDebuggerView::OnUpdateNodeSelection, static_cast<int32>(INDEX_NONE))
+			.OnClicked(this, &SDebuggerView::OnUpdateSearchSelection, InvalidSearchId)
 			// Contents of button, icon then text
 			[
 				SNew(SHorizontalBox)
@@ -557,7 +573,7 @@ TSharedRef<SHorizontalBox> SDebuggerView::GenerateReturnButtonView()
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.Text(FText::FromString("Return to Database Selection"))
+					.Text(FText::FromString("Return to Search Selection"))
 					.Justification(ETextJustify::Center)
 				]
 			]

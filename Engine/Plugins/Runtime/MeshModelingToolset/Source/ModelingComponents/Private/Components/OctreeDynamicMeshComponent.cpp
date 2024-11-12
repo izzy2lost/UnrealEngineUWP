@@ -239,8 +239,8 @@ FPrimitiveSceneProxy* UOctreeDynamicMeshComponent::CreateSceneProxy()
 
 		if (TriangleColorFunc != nullptr)
 		{
-			NewProxy->bUsePerTriangleColor = true;
-			NewProxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(TriangleID); };
+			NewProxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			NewProxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(TriangleID); };
 		}
 
 		OctreeCut = MakeUnique<FDynamicMeshOctree3::FTreeCutSet>();

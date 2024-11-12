@@ -1114,15 +1114,18 @@ namespace Audio
 		{
 			return true;
 		}
-
+		
 		{
 			// query the SubmixBufferListeners to see if they plan to render audio into this buffer
 			FScopeLock Lock(&BufferListenerCriticalSection);
-			for (const TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>& BufferListener : BufferListeners)
+			for (const TWeakPtr<ISubmixBufferListener>& BufferListenerWeakPtr : BufferListenerPtrs)	
 			{
-				if (BufferListener->IsRenderingAudio())
+				if (TSharedPtr<ISubmixBufferListener> BufferListener = BufferListenerWeakPtr.Pin())
 				{
-					return true;
+					if (BufferListener->IsRenderingAudio())
+					{
+						return true;
+					}
 				}
 			}
 		}
@@ -1398,7 +1401,7 @@ namespace Audio
 						// only remove effect chain if it's not the base effect chain
 						if (!FadeInfo.bIsBaseEffect)
 						{
-							EffectChains.RemoveAtSwap(EffectChainIndex, 1, EAllowShrinking::Yes);
+							EffectChains.RemoveAtSwap(EffectChainIndex, EAllowShrinking::Yes);
 						}
 						continue;
 					}
@@ -1625,13 +1628,18 @@ namespace Audio
 
 			double AudioClock = MixerDevice->GetAudioTime();
 			float SampleRate = MixerDevice->GetSampleRate();
+			
 			FScopeLock Lock(&BufferListenerCriticalSection);
-			for (TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>& BufferListener : BufferListeners)
+			for (TWeakPtr<ISubmixBufferListener, ESPMode::ThreadSafe>& BufferListenerWeakPtr : BufferListenerPtrs)
 			{
-				BufferListener->OnNewSubmixBuffer(SoundSubmix, OutAudioBuffer.GetData(), OutAudioBuffer.Num(), NumChannels, SampleRate, AudioClock);
+				if (TSharedPtr<ISubmixBufferListener> BufferListener = BufferListenerWeakPtr.Pin())
+				{
+					BufferListener->OnNewSubmixBuffer(SoundSubmix, OutAudioBuffer.GetData(), OutAudioBuffer.Num(), NumChannels, SampleRate, AudioClock);
+				}
 			}
 
 			PatchSplitter.PushAudio(OutAudioBuffer.GetData(), OutAudioBuffer.Num());
+			PruneSubmixBufferListeners();
 		}
 	}
 
@@ -1643,6 +1651,27 @@ namespace Audio
 		{
 			PatchInput.PushAudio(OutAudioBuffer.GetData(), OutAudioBuffer.Num());
 		}
+	}
+
+	void FMixerSubmix::UnregisterBufferListenerInternal(UPTRINT ListenerBufferPtr) 
+	{
+		FScopeLock Lock(&BufferListenerCriticalSection);
+		BufferListenerPtrs.RemoveAll(
+			[=](const TWeakPtr<ISubmixBufferListener>& Listener)
+			{
+				Listener.GetWeakPtrTypeHash();
+				return reinterpret_cast<UPTRINT>(Listener.Pin().Get()) == ListenerBufferPtr;
+			});
+	}
+
+	void FMixerSubmix::PruneSubmixBufferListeners()
+	{
+		FScopeLock Lock(&BufferListenerCriticalSection);
+		BufferListenerPtrs.RemoveAll(
+			[](const TWeakPtr<ISubmixBufferListener>& Listener)
+			{
+				return !Listener.IsValid();
+			});
 	}
 
 	bool FMixerSubmix::GenerateEffectChainAudio(FSoundEffectSubmixInputData& InputData, const FAlignedFloatBuffer& InAudioBuffer, TArray<FSoundEffectSubmixPtr>& InEffectChain, FAlignedFloatBuffer& OutBuffer)
@@ -2152,26 +2181,26 @@ namespace Audio
 	{
 		FScopeLock Lock(&BufferListenerCriticalSection);
 		check(BufferListener);
-		BufferListeners.AddUnique(BufferListener->AsShared());
+		BufferListenerPtrs.AddUnique(BufferListener->AsShared());
 	}
 
 	void FMixerSubmix::RegisterBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> BufferListener)
 	{
 		FScopeLock Lock(&BufferListenerCriticalSection);
-		BufferListeners.AddUnique(BufferListener);
+		BufferListenerPtrs.AddUnique(BufferListener);
 	}
 
 	void FMixerSubmix::UnregisterBufferListener(ISubmixBufferListener* BufferListener)
 	{
 		FScopeLock Lock(&BufferListenerCriticalSection);
 		check(BufferListener);
-		BufferListeners.Remove(BufferListener->AsShared());
+		BufferListenerPtrs.Remove(BufferListener->AsShared());
 	}
 
 	void FMixerSubmix::UnregisterBufferListener(TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe> BufferListener)
 	{
 		FScopeLock Lock(&BufferListenerCriticalSection);
-		BufferListeners.Remove(BufferListener);
+		BufferListenerPtrs.Remove(BufferListener);
 	}
 
 	void FMixerSubmix::StartEnvelopeFollowing(int32 AttackTime, int32 ReleaseTime)
@@ -2203,6 +2232,11 @@ namespace Audio
 	void FMixerSubmix::AddEnvelopeFollowerDelegate(const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP)
 	{
 		OnSubmixEnvelope.AddUnique(OnSubmixEnvelopeBP);
+	}
+
+	void FMixerSubmix::RemoveEnvelopeFollowerDelegate(const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP)
+	{
+		OnSubmixEnvelope.Remove(OnSubmixEnvelopeBP);
 	}
 
 	void FMixerSubmix::AddSpectralAnalysisDelegate(const FSoundSpectrumAnalyzerDelegateSettings& InDelegateSettings, const FOnSubmixSpectralAnalysisBP& OnSubmixSpectralAnalysisBP)

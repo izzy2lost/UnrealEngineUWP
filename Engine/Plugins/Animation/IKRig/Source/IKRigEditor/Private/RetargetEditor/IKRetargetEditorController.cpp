@@ -316,29 +316,28 @@ UIKRetargetAnimInstance* FIKRetargetEditorController::GetAnimInstance(
 	return SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceAnimInstance.Get() : TargetAnimInstance.Get();
 }
 
-void FIKRetargetEditorController::AddOffsetToMeshComponent(const FVector& Offset, USceneComponent* MeshComponent) const
+void FIKRetargetEditorController::UpdateMeshOffset(ERetargetSourceOrTarget SourceOrTarget) const
 {
-	UIKRetargeter* Asset = AssetController->GetAsset();
-	FVector Position;
-	float Scale;
-	if (MeshComponent == TargetSkelMeshComponent)
+	const UIKRetargeter* Asset = AssetController->GetAsset();
+	if (!Asset)
 	{
-		Asset->TargetMeshOffset += Offset;
-		Position = Asset->TargetMeshOffset;
-		Scale = Asset->TargetMeshScale;
-	}
-	else
-	{
-		Asset->SourceMeshOffset += Offset;
-		Position = Asset->SourceMeshOffset;
-		Scale = 1.0f;
+		return;
 	}
 
+	const bool bIsSource  = SourceOrTarget == ERetargetSourceOrTarget::Source;
+	USceneComponent* Component = bIsSource ? SourceRootComponent : GetSkeletalMeshComponent(ERetargetSourceOrTarget::Target);
+    if (!Component)
+    {
+    	return;
+    }
+	
+	const FVector Position = bIsSource ? Asset->SourceMeshOffset : Asset->TargetMeshOffset;
+	const float Scale = bIsSource ? 1.0f : Asset->TargetMeshScale;
 	constexpr bool bSweep = false;
 	constexpr FHitResult* OutSweepHitResult = nullptr;
 	constexpr ETeleportType Teleport = ETeleportType::ResetPhysics;
-	MeshComponent->SetWorldLocation(Position, bSweep, OutSweepHitResult, Teleport);
-	MeshComponent->SetWorldScale3D(FVector(Scale,Scale,Scale));
+	Component->SetWorldLocation(Position, bSweep, OutSweepHitResult, Teleport);
+	Component->SetWorldScale3D(FVector(Scale,Scale,Scale));
 }
 
 bool FIKRetargetEditorController::GetCameraTargetForSelection(FSphere& OutTarget) const
@@ -775,20 +774,6 @@ void FIKRetargetEditorController::SetSourceOrTargetMode(ERetargetSourceOrTarget 
 	RefreshPoseList();
 }
 
-void FIKRetargetEditorController::SetSelectedMesh(UPrimitiveComponent* InMeshComponent)
-{
-	SelectedMesh = InMeshComponent;
-	if (SelectedMesh)
-	{
-		LastSelectedItem = ERetargetSelectionType::MESH;
-	}
-}
-
-UPrimitiveComponent* FIKRetargetEditorController::GetSelectedMesh() const
-{
-	return SelectedMesh;
-}
-
 void FIKRetargetEditorController::EditBoneSelection(
 	const TArray<FName>& InBoneNames,
 	ESelectionEdit EditMode,
@@ -802,9 +787,7 @@ void FIKRetargetEditorController::EditBoneSelection(
 	}
 
 	LastSelectedItem = ERetargetSelectionType::BONE;
-
-	// deselect mesh
-	SetSelectedMesh(nullptr);
+	
 	SetRootSelected(false);
 	
 	switch (EditMode)
@@ -870,7 +853,6 @@ void FIKRetargetEditorController::EditChainSelection(
 	const bool bFromChainsView)
 {
 	// deselect others
-	SetSelectedMesh(nullptr);
 	SetRootSelected(false);
 
 	LastSelectedItem = ERetargetSelectionType::CHAIN;
@@ -971,7 +953,6 @@ void FIKRetargetEditorController::ClearSelection(const bool bKeepBoneSelection)
 {
 	// clear root and mesh selection
 	SetRootSelected(false);
-	SetSelectedMesh(nullptr);
 	
 	// deselect all chains
 	if (ChainsView.IsValid())
@@ -983,7 +964,6 @@ void FIKRetargetEditorController::ClearSelection(const bool bKeepBoneSelection)
 	// clear bone selection
 	if (!bKeepBoneSelection)
 	{
-		SetSelectedMesh(nullptr);
 		SetRootSelected(false);
 		SelectedBoneNames[ERetargetSourceOrTarget::Source].Reset();
 		SelectedBoneNames[ERetargetSourceOrTarget::Target].Reset();
@@ -1474,8 +1454,15 @@ void FIKRetargetEditorController::RenderSkeleton(FPrimitiveDrawInterface* PDI, E
 	// generate bone colors, blue on selected chains
 	TArray<FLinearColor> BoneColors;
 	{
-		// set all to default color
-		BoneColors.Init(DefaultColor, RefSkeleton.GetNum());
+		// set default colors
+		if (GetDefault<UPersonaOptions>()->bShowBoneColors)
+		{
+			SkeletalDebugRendering::FillWithMultiColors(BoneColors, RefSkeleton.GetNum());
+		}
+		else
+		{
+			BoneColors.Init(DefaultColor, RefSkeleton.GetNum());
+		}
 
 		// highlight selected chains in blue
 		const TArray<FName>& SelectedChainNames = GetSelectedChains();

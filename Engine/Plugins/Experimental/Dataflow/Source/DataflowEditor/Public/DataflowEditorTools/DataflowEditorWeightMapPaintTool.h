@@ -33,6 +33,7 @@ class UDataflowWeightMapSmoothBrushOpProps;
 class UPolygonSelectionMechanic;
 class UDataflowContextObject;
 struct FDataflowCollectionAddScalarVertexPropertyNode;
+class UDataflowEditorMode;
 
 DECLARE_STATS_GROUP(TEXT("WeightMapPaintTool"), STATGROUP_WeightMapPaintTool, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_UpdateROI"), WeightMapPaintTool_UpdateROI, STATGROUP_WeightMapPaintTool);
@@ -58,12 +59,15 @@ UCLASS()
 class DATAFLOWEDITOR_API UDataflowEditorWeightMapPaintToolBuilder : public UMeshSurfacePointMeshEditingToolBuilder, public IDataflowEditorToolBuilder
 {
 	GENERATED_BODY()
+public:
+	void SetEditorMode(UDataflowEditorMode* InMode) { Mode = InMode; }
 
 private:
-	virtual void GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const override;
+	virtual void GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const UE::Dataflow::IDataflowConstructionViewMode*>& Modes) const override;
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
+	UDataflowEditorMode* Mode = nullptr;
 };
 
 
@@ -202,9 +206,10 @@ UENUM()
 enum class EDataflowEditorWeightMapPaintToolActions
 {
 	NoAction,
-
 	FloodFillCurrent,
 	ClearAll,
+	InvertCurrent,
+	InvertCurrentSurface
 };
 
 
@@ -233,6 +238,19 @@ public:
 		PostAction(EDataflowEditorWeightMapPaintToolActions::FloodFillCurrent);
 	}
 
+	/* Invert the values in range [0, 1] for the current selected geometry, including interior vertices*/
+	UFUNCTION(CallInEditor, Category = Operations, meta = (DisplayPriority = 13))
+	void InvertCurrent()
+	{
+		PostAction(EDataflowEditorWeightMapPaintToolActions::InvertCurrent);
+	}
+
+	/* Invert the values in range [0, 1] for the current selected surface*/
+	UFUNCTION(CallInEditor, Category = Operations, meta = (DisplayPriority = 13))
+	void InvertCurrentSurface()
+	{
+		PostAction(EDataflowEditorWeightMapPaintToolActions::InvertCurrentSurface);
+	}
 };
 
 UCLASS()
@@ -284,6 +302,11 @@ public:
 	virtual void CommitResult(UBaseDynamicMeshComponent* Component, bool bModifiedTopology) override;
 
 	void SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowEditorContextObject);
+	void SetEditorMode(UDataflowEditorMode* InMode) { Mode = InMode; }
+
+	//~ UObject interface
+
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 public:
 
@@ -306,6 +329,7 @@ private:
 public:
 	void FloodFillCurrentWeightAction();
 	void ClearAllWeightsAction();
+	void InvertCurrentWeightAction(bool bInvertSurfaceOnly = true);
 
 	void SetVerticesToWeightMap(const TSet<int32>& Vertices, double WeightValue, bool bIsErase);
 
@@ -397,10 +421,10 @@ protected:
 	TObjectPtr<AInternalToolFrameworkActor> PreviewMeshActor = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent;
+	TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay;
+	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UDataflowContextObject> DataflowEditorContextObject = nullptr;
@@ -486,6 +510,8 @@ protected:
 	void UpdateSelectedNode();
 
 	void UpdateVertexColorOverlay(const TSet<int>* TrianglesToUpdate = nullptr);
+
+	UDataflowEditorMode* Mode = nullptr;
 };
 
 

@@ -15,6 +15,7 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "Tickable.h"
+#include "Misc/Optional.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
@@ -26,6 +27,7 @@
 #include "WorldPartition/DataLayer/ActorDataLayer.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
+#include "LevelEditorDragDropHandler.h"
 
 #include "DataLayerEditorSubsystem.generated.h"
 
@@ -43,10 +45,10 @@ class UObject;
 class UWorld;
 class UWorldPartition;
 class UExternalDataLayerAsset;
-struct FLevelEditorDragDropWorldSurrogateReferencingObject;
 struct FFrame;
 enum class EExternalDataLayerRegistrationState : uint8;
 template<typename TItemType> class IFilter;
+namespace WorldPartitionTests { class FExternalDataLayerTest; }
 
 USTRUCT(BlueprintType)
 struct DATALAYEREDITOR_API FDataLayerCreationParameters
@@ -98,7 +100,7 @@ public:
 	virtual UWorld* GetTickableGameObjectWorld() const override;
 	virtual bool IsTickableInEditor() const { return true; }
 	virtual ETickableTickType GetTickableTickType() const override;
-	virtual bool IsAllowedToTick() const override;
+	virtual bool IsTickable() const override;
 	virtual void Tick(float DeltaTime) override;
 	TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UDataLayerEditorSubsystem, STATGROUP_Tickables); }
 	//~ End FTickableGameObject interface
@@ -362,6 +364,15 @@ public:
 	 */
 	bool SelectActorsInDataLayers(const TArray<UDataLayerInstance*>& DataLayers, const bool bSelect, const bool bNotify, const bool bSelectEvenIfHidden, const TSharedPtr<FActorFilter>& Filter);
 
+	/** 
+	 * Pin/unpin actors belonging to the DataLayers.
+	 * 
+	 * @param	DataLayerInstances				A valid list of Data Layer Instances.
+	 * @param	bPinned							If true actors are pinned; if false, actors are unpinned.
+	 * 
+	 */
+	void SetActorsPinStateInDataLayers(const TArray<UDataLayerInstance*>& DataLayerInstances, const bool bPinned);
+
 
 	/////////////////////////////////////////////////
 	// Operations on actor viewport visibility regarding DataLayers
@@ -601,6 +612,15 @@ public:
 	bool SetParentDataLayer(UDataLayerInstance* DataLayer, UDataLayerInstance* ParentDataLayer);
 
 	/**
+	 * Sets a Parent DataLayer for a specified list of DataLayers
+	 * 
+	 *  @param DataLayers		The child DataLayers.
+	 *  @param ParentDataLayer	The parent DataLayer.
+	 */
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
+	void SetParentDataLayerForDataLayers(const TArray<UDataLayerInstance*>& DataLayers, UDataLayerInstance* ParentDataLayer);
+
+	/**
 	 * Deletes all of the provided DataLayers
 	 *
 	 * @param DataLayersToDelete	A valid list of DataLayer.
@@ -744,16 +764,21 @@ private:
 	void OnSelectionChanged();
 	void RebuildSelectedDataLayersFromEditorSelection();
 	const TSet<TWeakObjectPtr<const UDataLayerInstance>>& GetSelectedDataLayersFromEditorSelection() const;
+	bool SetParentDataLayerForDataLayersInternal(const TArray<UDataLayerInstance*>& DataLayers, UDataLayerInstance* ParentDataLayer);
 
 	bool UpdateAllActorsVisibility(const bool bNotifySelectionChange, const bool bRedrawViewports, ULevel* InLevel);
 
 	bool IsActorValidForDataLayerForClasses(AActor* Actor, const TSet<TSubclassOf<UDataLayerInstance>>& DataLayerInstanceClasses);
 
 	// External Data Layer methods
-	void OnActorPreSpawnInitialization(AActor* Actor);
-	static const UExternalDataLayerAsset* GetReferencingWorldSurrogateObjectForObject(UWorld* ReferencingWorld, const FSoftObjectPath& ObjectPath);
-	TUniquePtr<FLevelEditorDragDropWorldSurrogateReferencingObject> OnLevelEditorDragDropWorldSurrogateReferencingObject(UWorld* ReferencingWorld, const FSoftObjectPath& Object);
+	void OnActorPreSpawnInitialization(AActor* InActor);
+	void OnNewActorsPlaced(UObject* InObjToUse, const TArray<AActor*>& InPlacedActors);
+	void OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor);
 	void OnExternalDataLayerAssetRegistrationStateChanged(const UExternalDataLayerAsset* ExternalDataLayerAsset, EExternalDataLayerRegistrationState OldState, EExternalDataLayerRegistrationState NewState);
+	TUniquePtr<FLevelEditorDragDropWorldSurrogateReferencingObject> OnLevelEditorDragDropWorldSurrogateReferencingObject(UWorld* ReferencingWorld, const FSoftObjectPath& Object);
+	void ApplyContext(AActor* InActor, bool bInForceTryApply = false);
+	const UExternalDataLayerInstance* GetActorSpawningExternalDataLayerInstance(AActor* InActor) const;
+	static const UExternalDataLayerAsset* GetReferencingWorldSurrogateObjectForObject(UWorld* ReferencingWorld, const FSoftObjectPath& ObjectPath);
 
 	/** Contains Data Layers that contain actors that are part of the editor selection */
 	mutable TSet<TWeakObjectPtr<const UDataLayerInstance>> SelectedDataLayersFromEditorSelection;
@@ -793,8 +818,13 @@ private:
 	/** Delegate handle for world's AddOnActorPreSpawnInitialization */
 	FDelegateHandle OnActorPreSpawnInitializationDelegate;
 
+	/** Last pushed warning to be send to the notification manager at next tick */
+	TOptional<FText> LastWarningNotification;
+
 	friend class FDataLayersBroadcast;
+	friend class UContentBundleEditingSubmodule;
 	friend struct FExternalDataLayerWorldSurrogateReferencingObject;
+	friend class WorldPartitionTests::FExternalDataLayerTest;
 };
 
 template<class DataLayerInstanceType, typename ...Args>

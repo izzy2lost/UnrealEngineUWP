@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Converters/GLTFConverter.h"
-#include "Converters/GLTFIndexArray.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 #include "Containers/StaticArray.h"
 
 struct FMeshDescription;

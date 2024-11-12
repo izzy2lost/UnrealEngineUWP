@@ -3,67 +3,24 @@
 #pragma once
 
 #include "DMXAttribute.h"
-
-#include "CoreMinimal.h"
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "Templates/SubclassOf.h"
 
 #include "DMXTypes.generated.h"
 
 class UDMXLibrary;
 
-
+UE_DEPRECATED(5.5, "FDMXColorCIE1931xyY is deprecated. Please use FDMXGDTFColorCIE1931xyY instead.")
+typedef FDMXGDTFColorCIE1931xyY FDMXColorCIE1931xyY;
 
 /** Holds an array Attribute Names with their normalized Values (expand the property to see the map) */
-USTRUCT(BlueprintType, Category = "DMX")
+USTRUCT(BlueprintType, Category = "DMX", meta = (DisplayName = "DMX Normalized Attribute Value Map"))
 struct DMXRUNTIME_API FDMXNormalizedAttributeValueMap
 {
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
 	TMap<FDMXAttributeName, float> Map;
-};
-
-
-/** xyY color representation in the CIE 1931 color space, as typically used in GDTF and MVR */
-USTRUCT(BlueprintType, Category = "DMX")
-struct DMXRUNTIME_API FDMXColorCIE1931xyY
-{
-	GENERATED_BODY()
-
-	FString ToString() const
-	{
-		return FString::FromInt(X) + TEXT(", ") + FString::FromInt(Y) + TEXT(", ") + FString::FromInt(YY);
-	}
-
-	/** x */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
-	float X = 0.f;
-
-	/** y */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
-	float Y = 0.f;
-
-	/** Y */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
-	float YY = 0.f;
-
-	friend bool operator==(const FDMXColorCIE1931xyY& A, const FDMXColorCIE1931xyY& B)
-	{
-		return A.X == B.X && A.Y == B.Y && A.YY == B.YY;
-	}
-
-	friend bool operator!=(const FDMXColorCIE1931xyY& A, const FDMXColorCIE1931xyY& B)
-	{
-		return !(A == B);
-	}
-
-	friend FArchive& operator<<(FArchive& Ar, FDMXColorCIE1931xyY& ColorCIE1931)
-	{
-		Ar << ColorCIE1931.X;
-		Ar << ColorCIE1931.Y;
-		Ar << ColorCIE1931.YY;
-		return Ar;
-	}
 };
 
 USTRUCT()
@@ -119,8 +76,8 @@ struct TStructOpsTypeTraits<FDMXByteArray64>
 	};
 };
 
-
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRequestBase;
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -132,7 +89,9 @@ public:
 
 };
 
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRequest;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRequest : public FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -143,8 +102,11 @@ public:
 	TSubclassOf<UDMXLibrary> DMXLibrary;
 
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRawArtNetRequest;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRawArtNetRequest : public FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -164,8 +126,11 @@ public:
 	int32 Address = 1;
 
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-USTRUCT(BlueprintType)
+struct UE_DEPRECATED(5.5, "This stuct had no specific use and is now deprecated.") FDMXRawSACN;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(BlueprintType, meta = (Deprecated = "Deprecated 5.5. This stuct had no specific use and is now deprecated."))
 struct FDMXRawSACN : public FDMXRequestBase
 {
 	GENERATED_BODY()
@@ -178,3 +143,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DMX|RawRequest", meta = (ClampMin = 0, ClampMax = 512, UIMin = 0, UIMax = 512))
 	int32 Address = 0;
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

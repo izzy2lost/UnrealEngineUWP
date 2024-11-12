@@ -11,7 +11,7 @@ enum class EType : uint32
 {
 	None			= 0,
 	File			= 1 << 0, 
-	Ini 			= 1 << 1, 
+	Ini UE_DEPRECATED(5.4, "Use FConfigAccessTracking in ConfigAccessTracking instead") = 1 << 1,
 	CVar 			= 1 << 2,
 };
 ENUM_CLASS_FLAGS(EType);

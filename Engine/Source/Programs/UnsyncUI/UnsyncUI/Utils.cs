@@ -73,6 +73,7 @@ namespace UnsyncUI
 	{
 		public Task<IEnumerable<string>> EnumerateDirectories(string path, CancellationToken token);
 		public Task<IEnumerable<string>> EnumerateFiles(string path, CancellationToken token);
+		public string FormatArtifactPath(string virtualPath) { return virtualPath; }
 	}
 
 	public class NativeDirectoryEnumerator : IDirectoryEnumerator
@@ -281,7 +282,24 @@ namespace UnsyncUI
 			};
 		}
 
+		public enum StreamKind
+		{
+			StdOut,
+			StdErr,
+		}
+
 		public async IAsyncEnumerable<string> RunAsync([EnumeratorCancellation] CancellationToken cancelToken, bool ReadStdErr = true)
+		{
+			await foreach (var (s, k) in RunAsyncStreams(cancelToken))
+			{
+				if (k == StreamKind.StdOut || (k==StreamKind.StdErr && ReadStdErr))
+				{
+					yield return s;
+				}
+			}
+		}
+
+		public async IAsyncEnumerable<(string, StreamKind)> RunAsyncStreams([EnumeratorCancellation] CancellationToken cancelToken)
 		{
 			string processFileName = Path.GetFileName(proc.StartInfo.FileName);
 			App.Current?.LogMessage($"Running: {processFileName} {proc.StartInfo.Arguments}");
@@ -299,9 +317,9 @@ namespace UnsyncUI
 					proc.Start();
 					ProcessTracker.Attach(proc);
 
-					var pipe = new BufferBlock<string>();
+					var pipe = new BufferBlock<(string, StreamKind)>();
 
-					async Task ReadStream(Stream stream, bool ShouldPost)
+					async Task ReadStream(Stream stream, StreamKind Kind)
 					{
 						var block = new byte[4096];
 						var mem = new Memory<byte>(block);
@@ -314,17 +332,14 @@ namespace UnsyncUI
 								break;
 							}
 
-							if (ShouldPost)
-							{
-								// @todo: this won't handle UTF-8 encoding if a char is split across the read boundary.
-								string decodedString = Encoding.UTF8.GetString(mem.Span.Slice(0, bytesRead));
-								pipe.Post(decodedString);
-							}
+							// @todo: this won't handle UTF-8 encoding if a char is split across the read boundary.
+							string decodedString = Encoding.UTF8.GetString(mem.Span.Slice(0, bytesRead));
+							pipe.Post((decodedString, Kind));
 						}
 					}
 
-					var stdoutTask = ReadStream(proc.StandardOutput.BaseStream, true);
-					var stderrTask = ReadStream(proc.StandardError.BaseStream, ReadStdErr);
+					var stdoutTask = ReadStream(proc.StandardOutput.BaseStream, StreamKind.StdOut);
+					var stderrTask = ReadStream(proc.StandardError.BaseStream, StreamKind.StdErr);
 
 					var completionTask = Task.Run(async () =>
 					{
@@ -334,8 +349,8 @@ namespace UnsyncUI
 
 					while (await pipe.OutputAvailableAsync())
 					{
-						string receivedString = pipe.Receive();
-						yield return receivedString;
+						var (receivedString, receivedKind) = pipe.Receive();
+						yield return (receivedString, receivedKind);
 					}
 
 					await completionTask;

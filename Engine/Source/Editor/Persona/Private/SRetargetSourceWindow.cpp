@@ -229,7 +229,6 @@ void SRetargetSourceWindow::Construct(const FArguments& InArgs, const TSharedRef
 			.ListItemsSource( &RetargetSourceList )
 			.OnGenerateRow( this, &SRetargetSourceWindow::GenerateRetargetSourceRow )
 			.OnContextMenuOpening( this, &SRetargetSourceWindow::OnGetContextMenuContent )
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )
@@ -657,7 +656,6 @@ void SCompatibleSkeletons::Construct(
 			SAssignNew(CompatibleSkeletonListView, SListView<TSharedRef<FSoftObjectPath>>)
 			.ListItemsSource(&CompatibleSkeletonAssets)
 			.OnGenerateRow(this, &SCompatibleSkeletons::GenerateRowForItem)
-			.ItemHeight( 22.0f )
 		]
 	];
 }

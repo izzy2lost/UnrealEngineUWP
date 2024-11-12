@@ -3,6 +3,7 @@
 #include "StaticMeshActorDetails.h"
 
 #include "Containers/Array.h"
+#include "Components/StaticMeshComponent.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -100,6 +101,32 @@ void FStaticMeshActorDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuil
 		]
 	];
 
+
+	// Retrieve all currently selected static mesh components
+	auto RetrieveSelectedStaticMeshComponents = [](const TArray<TWeakObjectPtr<UObject>>& SelectedObjects)
+	{		
+		TArray<UStaticMeshComponent*> StaticMeshComponents;
+		for (TWeakObjectPtr<UObject> WeakObject : SelectedObjects)
+		{
+			if (WeakObject.IsValid())
+			{
+				UObject* Object = WeakObject.Get();
+				if (AStaticMeshActor* Actor = Cast<AStaticMeshActor>(Object))
+				{
+					if (UStaticMeshComponent* SMC = Actor->GetStaticMeshComponent())
+					{
+						if (SMC->GetStaticMesh())
+						{
+							StaticMeshComponents.Add(SMC);
+						}
+					}
+				}
+			}
+		}
+
+		return StaticMeshComponents;
+	};
+
 	// This allows baking out the materials for the given instance data	
 	TArray<TWeakObjectPtr<UObject>> Objects;
 	DetailBuilder.GetObjectsBeingCustomized(Objects);
@@ -113,30 +140,20 @@ void FStaticMeshActorDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuil
 		[
 			SNew(SButton)
 			.Text(LOCTEXT("BakeLabel", "Bake Materials"))
-			.OnClicked_Lambda([Objects]() -> FReply
+			.OnClicked_Lambda([RetrieveSelectedStaticMeshComponents, Objects]() -> FReply
 			{
 				const IMeshMergeUtilities& MeshMergeUtilities = FModuleManager::Get().LoadModuleChecked<IMeshMergeModule>("MeshMergeUtilities").GetUtilities();
-
-				// Retrieve all currently selected static mesh components
-				TArray<UStaticMeshComponent*> StaticMeshComponents;
-				for (TWeakObjectPtr<UObject> WeakObject : Objects)
-				{
-					if (WeakObject.IsValid())
-					{
-						UObject* Object = WeakObject.Get();
-						if (AStaticMeshActor* Actor = Cast<AStaticMeshActor>(Object))
-						{
-							StaticMeshComponents.Add(Actor->GetStaticMeshComponent());
-						}
-					}
-				}
-
+				TArray<UStaticMeshComponent*> StaticMeshComponents = RetrieveSelectedStaticMeshComponents(Objects);
 				for (UStaticMeshComponent* Component : StaticMeshComponents)
 				{
 					MeshMergeUtilities.BakeMaterialsForComponent(Component);
 				}
 				
 				return FReply::Handled();
+			})
+			.IsEnabled_Lambda([RetrieveSelectedStaticMeshComponents, Objects]() -> bool
+			{
+				return !RetrieveSelectedStaticMeshComponents(Objects).IsEmpty();
 			})
 		]
 	];		

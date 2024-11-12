@@ -167,13 +167,12 @@ bool FPCGMetadataBreakVectorElement::DoOperation(PCGMetadataOps::FOperationData&
 	const UPCGMetadataBreakVectorSettings* Settings = static_cast<const UPCGMetadataBreakVectorSettings*>(OperationData.Settings);
 	check(Settings);
 
-	auto BreakFunc = [this, &OperationData](auto DummyValue) -> bool
+	auto BreakFunc = [this, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyValue);
-
 		if constexpr (!PCGMetadataBreakVectorSettings::IsValidType<AttributeType>())
 		{
-			return false;
+			ensure(false);
+			return true;
 		}
 		else
 		{

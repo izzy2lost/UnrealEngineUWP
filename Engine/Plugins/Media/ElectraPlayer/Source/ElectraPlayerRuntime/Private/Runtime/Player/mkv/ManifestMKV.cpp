@@ -96,6 +96,11 @@ void FManifestMKVInternal::GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata,
 	}
 }
 
+void FManifestMKVInternal::UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData)
+{
+	// No-op.
+}
+
 
 //-----------------------------------------------------------------------------
 /**

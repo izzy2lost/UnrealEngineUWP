@@ -7,6 +7,7 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "RHIPipeline.h"
 
 #include "D3D12ThirdParty.h"
 #include "D3D12RHI.h"
@@ -18,6 +19,9 @@
 
 class FD3D12Adapter;
 class FD3D12Device;
+
+class FD3D12CommandContext;
+class FD3D12ContextArray;
 
 template <typename ObjectType0, typename ObjectType1>
 class TD3D12DualLinkedObjectIterator;
@@ -45,14 +49,6 @@ static_assert((8 * sizeof(UAVSlotMask)) >= MAX_UAVS, "UAVSlotMask isn't large en
 
 DECLARE_LOG_CATEGORY_EXTERN(LogD3D12RHI, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogD3D12GapRecorder, Log, All);
-
-DECLARE_STATS_GROUP(TEXT("D3D12RHI"), STATGROUP_D3D12RHI, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("D3D12RHI: Memory"), STATGROUP_D3D12Memory, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("D3D12RHI: Memory Details"), STATGROUP_D3D12MemoryDetails, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("D3D12RHI: Resources"), STATGROUP_D3D12Resources, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("D3D12RHI: Buffer Details"), STATGROUP_D3D12BufferDetails, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("D3D12RHI: Pipeline State (PSO)"), STATGROUP_D3D12PipelineState, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("D3D12RHI: Descriptor Heap (GPU Visible)"), STATGROUP_D3D12DescriptorHeap, STATCAT_Advanced);
 
 class FD3D12AdapterChild
 {
@@ -104,19 +100,28 @@ class FD3D12GPUObject
 {
 public:
 	FD3D12GPUObject(FRHIGPUMask InGPUMask, FRHIGPUMask InVisibiltyMask)
+#if WITH_MGPU
 		: GPUMask(InGPUMask)
 		, VisibilityMask(InVisibiltyMask)
+#endif
 	{
 		// Note that node mask can't be null.
 	}
 
-	FORCEINLINE const FRHIGPUMask& GetGPUMask() const { return GPUMask; }
-	FORCEINLINE const FRHIGPUMask& GetVisibilityMask() const { return VisibilityMask; }
+#if WITH_MGPU
+	FORCEINLINE FRHIGPUMask GetGPUMask() const { return GPUMask; }
+	FORCEINLINE FRHIGPUMask GetVisibilityMask() const { return VisibilityMask; }
+#else
+	SGPU_CONSTEXPR FRHIGPUMask GetGPUMask() const { return FRHIGPUMask::GPU0(); }
+	SGPU_CONSTEXPR FRHIGPUMask GetVisibilityMask() const { return FRHIGPUMask::GPU0(); }
+#endif
 
 protected:
+#if WITH_MGPU
 	const FRHIGPUMask GPUMask;
 	// Which GPUs have direct access to this object
 	const FRHIGPUMask VisibilityMask;
+#endif
 };
 
 class FD3D12SingleNodeGPUObject : public FD3D12GPUObject
@@ -124,16 +129,24 @@ class FD3D12SingleNodeGPUObject : public FD3D12GPUObject
 public:
 	FD3D12SingleNodeGPUObject(FRHIGPUMask GPUMask)
 		: FD3D12GPUObject(GPUMask, GPUMask)
+#if WITH_MGPU
 		, GPUIndex(GPUMask.ToIndex())
+#endif
 	{}
 
+#if WITH_MGPU
 	FORCEINLINE uint32 GetGPUIndex() const
 	{
 		return GPUIndex;
 	}
+#else
+	SGPU_CONSTEXPR uint32 GetGPUIndex() const { return 0; }
+#endif
 
 private:
+#if WITH_MGPU
 	uint32 GPUIndex;
+#endif
 };
 
 class FD3D12MultiNodeGPUObject : public FD3D12GPUObject
@@ -179,6 +192,10 @@ public:
 		return GetFirstLinkedObject() == this;
 	}
 
+	// The creation lambda function is passed FD3D12Device, and a pointer to the first linked object, or nullptr if the object being constructed
+	// is itself the first object.  The first object pointer is needed for cases where resources need to be shared for all linked objects,
+	// such as bindless resource descriptor handles, which need to be the same across GPUs for use in platform independent logic which generates
+	// descriptor tables.
 	template <typename ReturnType, typename CreationCoreFunction, typename CreationParameterFunction>
 	static ReturnType* CreateLinkedObjects(FRHIGPUMask GPUMask, const CreationParameterFunction& pfnGetCreationParameter, const CreationCoreFunction& pfnCreationCore)
 	{
@@ -187,7 +204,7 @@ public:
 #if WITH_MGPU
 		for (uint32 GPUIndex : GPUMask)
 		{
-			ReturnType* NewObject = pfnCreationCore(pfnGetCreationParameter(GPUIndex));
+			ReturnType* NewObject = pfnCreationCore(pfnGetCreationParameter(GPUIndex), ObjectOut);
 			CA_ASSUME(NewObject != nullptr);
 			if (ObjectOut == nullptr)
 			{
@@ -213,7 +230,7 @@ public:
 		}
 #else
 		check(GPUMask == FRHIGPUMask::GPU0());
-		ObjectOut = pfnCreationCore(pfnGetCreationParameter(0));
+		ObjectOut = pfnCreationCore(pfnGetCreationParameter(0), nullptr);
 #endif
 
 		return ObjectOut;
@@ -343,6 +360,7 @@ public:
 
 	ObjectType0* GetFirst() const { return Object0; }
 	ObjectType1* GetSecond() const { return Object1; }
+	uint32 GetGPUIndex() const { return *GPUIterator; }
 
 private:
 	FRHIGPUMask::FIterator GPUIterator;

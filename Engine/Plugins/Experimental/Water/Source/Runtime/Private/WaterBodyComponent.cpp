@@ -20,6 +20,7 @@
 #include "WaterRuntimeSettings.h"
 #include "WaterUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "Engine/Texture2D.h"
 #include "WaterMeshComponent.h"
 #include "WaterVersion.h"
@@ -79,6 +80,25 @@ const FName UWaterBodyComponent::WaterVelocityAndHeightName(TEXT("WaterVelocityA
 const FName UWaterBodyComponent::GlobalOceanHeightName(TEXT("GlobalOceanHeight"));
 const FName UWaterBodyComponent::MaxFlowVelocityParamName(TEXT("MaxFlowVelocity"));
 
+namespace UE::Water
+{
+	static bool ShouldUpdateWaterMeshForPropertyChange(const FPropertyChangedEvent& InPropertyChangedEvent)
+	{
+#if WITH_EDITOR
+		if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+		{
+			const IWaterModuleInterface& WaterModule = FModuleManager::GetModuleChecked<IWaterModuleInterface>("Water");
+			if (const IWaterEditorServices* WaterEditorServices = WaterModule.GetWaterEditorServices())
+			{
+				return WaterEditorServices->GetShouldUpdateWaterMeshDuringInteractiveChanges();
+			}
+		}
+#endif // WITH_EDITOR
+
+		return true;
+	}
+}
+
 UWaterBodyComponent::UWaterBodyComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -118,14 +138,14 @@ void UWaterBodyComponent::OnVisibilityChanged()
 {
 	Super::OnVisibilityChanged();
 
-	UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
+	UpdateVisibility();
 }
 
 void UWaterBodyComponent::OnHiddenInGameChanged()
 {
 	Super::OnHiddenInGameChanged();
 
-	UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
+	UpdateVisibility();
 }
 
 bool UWaterBodyComponent::IsFlatSurface() const
@@ -239,17 +259,18 @@ ETextureRenderTargetFormat UWaterBodyComponent::GetBrushRenderTargetFormat() con
 
 void UWaterBodyComponent::GetBrushRenderDependencies(TSet<UObject*>& OutDependencies) const
 {
+	// Lazy-load the referenced textures : this allows the settings to not be editor-only but to only actually load data if GetBrushRenderDependencies is called (which is : only in the editor)
 	for (const TPair<FName, FWaterBodyWeightmapSettings>& Pair : LayerWeightmapSettings)
 	{
-		if (Pair.Value.ModulationTexture)
+		if (UTexture2D* Texture = Pair.Value.ModulationTexture.LoadSynchronous())
 		{
-			OutDependencies.Add(Pair.Value.ModulationTexture);
+			OutDependencies.Add(Texture);
 		}
 	}
 
-	if (WaterHeightmapSettings.Effects.Displacement.Texture)
+	if (UTexture2D* Texture = WaterHeightmapSettings.Effects.Displacement.Texture.LoadSynchronous())
 	{
-		OutDependencies.Add(WaterHeightmapSettings.Effects.Displacement.Texture);
+		OutDependencies.Add(Texture);
 	}
 }
 #endif //WITH_EDITOR
@@ -603,6 +624,17 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 	const bool bFlatSurface = IsFlatSurface();
 	const UWaterSplineComponent* const WaterSpline = GetWaterSpline();
 
+	FVector ShallowWaterVelocity = { 0, 0, 0 };
+	float ShallowWaterHeight = 0;
+	float ShallowWaterDepth = 0;
+	const bool bUseShallowWaterValues = UseBakedSimulationForQueriesAndPhysics();
+
+	if (bUseShallowWaterValues)
+	{		
+		BakedShallowWaterSim->SimulationData.SampleShallowWaterSimulationAtPosition(InWorldLocation,
+			ShallowWaterVelocity, ShallowWaterHeight, ShallowWaterDepth);
+	}
+
 	// Compute water plane location :
 	if (EnumHasAnyFlags(Result.GetQueryFlags(), EWaterBodyQueryFlags::ComputeLocation))
 	{
@@ -612,7 +644,22 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 		//  If the user fails to do so, at least it allows immersion depth to be 0.0f, which means the query location is NOT in water :
 		if (!Result.IsInExclusionVolume())
 		{
-			WaterPlaneLocation.Z = (bFlatSurface || WaterSpline  == nullptr) ? GetComponentLocation().Z : WaterSpline->GetLocationAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World).Z;
+			float WaterPlaneHeight;
+
+			if (bFlatSurface || WaterSpline == nullptr)
+			{
+				WaterPlaneHeight = GetComponentLocation().Z;
+			}
+			else if (bUseShallowWaterValues)
+			{
+				WaterPlaneHeight = ShallowWaterHeight;
+			}
+			else
+			{
+				WaterPlaneHeight = WaterSpline->GetLocationAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World).Z;
+			}
+
+			WaterPlaneLocation.Z = WaterPlaneHeight;
 
 			// Apply body height offset if applicable (ocean)
 			if (IsHeightOffsetSupported())
@@ -634,8 +681,15 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 		// Default to Z up for the normal
 		if (!bFlatSurface && WaterSpline != nullptr)
 		{
-			// For rivers default to using spline up vector to account for sloping rivers
-			WaterPlaneNormal = WaterSpline->GetUpVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World);
+			if (bUseShallowWaterValues)
+			{
+				WaterPlaneNormal = BakedShallowWaterSim->SimulationData.ComputeShallowWaterSimulationNormalAtPosition(InWorldLocation);
+			}
+			else
+			{
+				// For rivers default to using spline up vector to account for sloping rivers
+				WaterPlaneNormal = WaterSpline->GetUpVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation), ESplineCoordinateSpace::World);
+			}			
 		}
 
 		Result.SetWaterPlaneNormal(WaterPlaneNormal);
@@ -654,7 +708,12 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 
 		// The better option for computing water depth for ocean and lake is landscape : 
 		const bool bTryUseLandscape = (GetWaterBodyType() == EWaterBodyType::Ocean || GetWaterBodyType() == EWaterBodyType::Lake);
-		if (bTryUseLandscape)
+
+		if (bUseShallowWaterValues)
+		{
+			WaterPlaneDepth = ShallowWaterDepth;
+		}
+		else if (bTryUseLandscape)
 		{
 			TOptional<float> LandscapeHeightOptional;
 			if (ALandscapeProxy* LandscapePtr = FindLandscape())
@@ -754,7 +813,14 @@ FWaterBodyQueryResult UWaterBodyComponent::QueryWaterInfoClosestToWorldLocation(
 		FVector Velocity = FVector::ZeroVector;
 		if (!Result.IsInExclusionVolume())
 		{
-			Velocity = GetWaterVelocityVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation));
+			if (bUseShallowWaterValues)
+			{
+				Velocity = ShallowWaterVelocity;
+			}
+			else
+			{
+				Velocity = GetWaterVelocityVectorAtSplineInputKey(Result.LazilyComputeSplineKey(*this, InWorldLocation));
+			}
 		}
 
 		Result.SetVelocity(Velocity);
@@ -1016,13 +1082,13 @@ ALandscapeProxy* UWaterBodyComponent::FindLandscape() const
 {
 	if (!Landscape.IsValid())
 	{
-		const FVector Location = GetComponentLocation();
+		const FBox ComponentBounds = Bounds.GetBox();
 		for (TObjectIterator<ALandscapeProxy> It; It; ++It)
 		{
 			if (It->GetWorld() == GetWorld())
 			{
-				FBox Box = It->GetComponentsBoundingBox();
-				if (Box.IsInsideOrOnXY(Location))
+				const FBox Box = It->GetComponentsBoundingBox();
+				if (Box.IntersectXY(ComponentBounds))
 				{
 					Landscape = *It;
 					return Landscape.Get();
@@ -1033,41 +1099,41 @@ ALandscapeProxy* UWaterBodyComponent::FindLandscape() const
 	return Landscape.Get();
 }
 
+// Deprecated
 void UWaterBodyComponent::UpdateComponentVisibility(bool bAllowWaterZoneRebuild)
+{
+	UpdateVisibility();
+}
+
+void UWaterBodyComponent::UpdateVisibility()
 {
 	if (UWorld* World = GetWorld())
 	{
 	 	const bool bIsWaterRenderingEnabled = FWaterUtils::IsWaterEnabled(/*bIsRenderThread = */false);
 	 
 		bool bIsRenderedByWaterMesh = ShouldGenerateWaterMeshTile();
-		bool bLocalVisible = bIsWaterRenderingEnabled && !bIsRenderedByWaterMesh && GetVisibleFlag();
-		bool bLocalHiddenInGame = !bIsWaterRenderingEnabled || bIsRenderedByWaterMesh || bHiddenInGame;
 
-	 	for (UPrimitiveComponent* Component : GetStandardRenderableComponents())
-	 	{
-	 		Component->SetVisibility(bLocalVisible);
-	 		Component->SetHiddenInGame(bLocalHiddenInGame);
-	 	}
-
-		if (bAllowWaterZoneRebuild)
+		// Handle the standard renderable components (i.e. when the water body is not rendered by the water mesh) : 
 		{
-			if (AWaterZone* WaterZone = GetWaterZone())
+			bool bLocalVisible = bIsWaterRenderingEnabled && !bIsRenderedByWaterMesh && GetVisibleFlag();
+			bool bLocalHiddenInGame = !bIsWaterRenderingEnabled || bIsRenderedByWaterMesh || bHiddenInGame;
+
+			for (UPrimitiveComponent* Component : GetStandardRenderableComponents())
 			{
-				// If the component is being or can be rendered by the water mesh or renders into the water info texture, rebuild it in case its visibility has changed : 
-
-				EWaterZoneRebuildFlags RebuildFlags = EWaterZoneRebuildFlags::None;
-				if (AffectsWaterMesh())
-				{
-					RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterMesh;
-				}
-
-				if (AffectsWaterInfo())
-				{
-					RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterInfoTexture;
-				}
-
-				MarkOwningWaterZoneForRebuild(RebuildFlags);
+				Component->SetVisibility(bLocalVisible);
+				Component->SetHiddenInGame(bLocalHiddenInGame);
 			}
+		}
+
+		// Keep track of the visibility state when the water body is being rendered by the water mesh, to avoid calling MarkOwningWaterZoneForRebuild every time UpdateVisibility is called :
+		const bool bPreviousIsRenderedByWaterMeshAndVisible = bIsRenderedByWaterMeshAndVisible;
+		bIsRenderedByWaterMeshAndVisible = bIsRenderedByWaterMesh && ShouldRender();
+		const bool bHasVisibilityChanged = (bIsRenderedByWaterMeshAndVisible != bPreviousIsRenderedByWaterMeshAndVisible);
+
+		if (bHasVisibilityChanged)
+		{
+			// If the component is being or can be rendered by the water mesh or renders into the water info texture, rebuild it in case its visibility has changed : 
+			MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags::All);
 		}
 	}
 }
@@ -1442,6 +1508,7 @@ void UWaterBodyComponent::UpdateAll(const FOnWaterBodyChangedParams& InParams)
 	const bool bUserTriggered = InParams.bUserTriggered;
 	bool bShapeOrPositionChanged = InParams.bShapeOrPositionChanged;
 	
+	// TODO [jonathan.bard] : Replace GIsEditor by World->IsEditorWorld
 	if (GIsEditor || IsBodyDynamic())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UWaterBodyComponent::UpdateAll);
@@ -1480,15 +1547,28 @@ void UWaterBodyComponent::UpdateAll(const FOnWaterBodyChangedParams& InParams)
 
 		if (bShapeOrPositionChanged)
 		{
-			FNavigationSystem::UpdateActorAndComponentData(*WaterBodyOwner);
+			EWaterZoneRebuildFlags RebuildFlags = EWaterZoneRebuildFlags::All;
+			if (!UE::Water::ShouldUpdateWaterMeshForPropertyChange(InParams.PropertyChangedEvent))
+			{
+				EnumRemoveFlags(RebuildFlags, EWaterZoneRebuildFlags::UpdateWaterMesh);
+			}
+
+			MarkOwningWaterZoneForRebuild(RebuildFlags);
 		}
 
-		UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */true);
+		// 'UpdateWaterBody' creates/updates collision components so we need to update the navigation data
+		if (IsRegistered() && IsNavigationRelevant())
+		{
+			FNavigationSystem::UpdateActorAndComponentData(*WaterBodyOwner);
+		}
 
 #if WITH_EDITOR
 		UpdateWaterSpriteComponent();
 #endif
 	}
+
+	// Always update the visibility, since it might change based on CVars and there's a transient boolean (bIsComponent
+	UpdateVisibility();
 }
 
 void UWaterBodyComponent::OnPostRegisterAllComponents()
@@ -1507,11 +1587,19 @@ void UWaterBodyComponent::OnPostRegisterAllComponents()
 	UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = GetWaterInfoMeshComponent();
 	const bool bHasConservativeRasterMesh = IsValid(WaterInfoMeshComponent) && WaterInfoMeshComponent->bIsConservativeRasterCompatible;
 	const bool bShouldHaveConservativeRastermesh = CVarWaterBodyBuildConservativeRasterizationMesh.GetValueOnGameThread() != 0;
-	if ((bHasConservativeRasterMesh != bShouldHaveConservativeRastermesh) || GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WaterBodyStaticMeshFixup)
+	if (AffectsWaterInfo() && ((bHasConservativeRasterMesh != bShouldHaveConservativeRastermesh) || GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WaterBodyStaticMeshFixup))
 	{
+		const IWaterModuleInterface& WaterModule = FModuleManager::GetModuleChecked<IWaterModuleInterface>("Water");
+		if (IWaterEditorServices* WaterEditorServices = WaterModule.GetWaterEditorServices())
+		{
+			if (GetWorld() && GetWorld()->WorldType == EWorldType::Editor)
+			{
+				WaterEditorServices->TryMarkPackageAsModified(GetPackage());
+			}
+		}
 		UpdateWaterBodyRenderData();
 	}
-
+	
 	// Ensure that the sprite component is updated once the water body is fully setup after PostRegister.
 	UpdateWaterSpriteComponent();
 #endif // WITH_EDITOR
@@ -1527,15 +1615,6 @@ void UWaterBodyComponent::UpdateSplineComponent()
 #endif // WITH_EDITOR
 		WaterSpline->SetClosedLoop(IsWaterSplineClosedLoop());
 	}
-}
-
-void UWaterBodyComponent::OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged, bool bUserTriggeredChange)
-{
-	FOnWaterBodyChangedParams Params;
-	Params.bShapeOrPositionChanged = bShapeOrPositionChanged;
-	Params.bWeightmapSettingsChanged = bWeightmapSettingsChanged;
-	Params.bUserTriggered = bUserTriggeredChange;
-	OnWaterBodyChanged(Params);
 }
 
 void UWaterBodyComponent::OnWaterBodyChanged(const FOnWaterBodyChangedParams& InParams)
@@ -1556,7 +1635,7 @@ void UWaterBodyComponent::OnWaterBodyChanged(const FOnWaterBodyChangedParams& In
 	}
 
 #if WITH_EDITOR
-	if (InParams.PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	if (UE::Water::ShouldUpdateWaterMeshForPropertyChange(InParams.PropertyChangedEvent))
 	{
 		UpdateWaterBodyRenderData();
 	}
@@ -1619,26 +1698,24 @@ void UWaterBodyComponent::PostLoad()
 
 	DeprecateData();
 
-	if (IsComponentPSOPrecachingEnabled()
-		// FIXME: need to collect an actual vertex declaration for non-MVF path
-		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	if ((IsComponentPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform)))
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
-		if (WaterMaterial)
+
+		const FVertexFactoryType* VFType = &FLocalVertexFactory::StaticType;
+		FPSOPrecacheVertexFactoryDataList VFDataList;
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(VFType));
+
+		TArray<TObjectPtr<UMaterialInterface>> Materials = { WaterMaterial, UnderwaterPostProcessMaterial, WaterInfoMaterial };
+
+		for (TObjectPtr<UMaterialInterface>& Mat : Materials)
 		{
-			WaterMaterial->ConditionalPostLoad();
-			WaterMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
-		}
-		if (UnderwaterPostProcessMaterial)
-		{
-			UnderwaterPostProcessMaterial->ConditionalPostLoad();
-			UnderwaterPostProcessMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
-		}
-		if (WaterInfoMaterial)
-		{
-			WaterInfoMaterial->ConditionalPostLoad();
-			WaterInfoMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
+			if(Mat)
+			{ 
+				Mat->ConditionalPostLoad();
+				Mat->PrecachePSOs(VFType, PrecachePSOParams);
+			}
 		}
 	}
 
@@ -1670,6 +1747,32 @@ void UWaterBodyComponent::PostLoad()
 		FMessageLog("MapCheck").Open(EMessageSeverity::Warning);
 		
 		OwningWaterZone.Reset();
+	}
+
+	// If the detail mode of the water body component or the water spline component are ever not DM_Low,
+	// depending on per platform project settings they may be culled out in a cooked build for certain platforms
+	// breaking our assumptions that the waterbodycomponent/watersplinecomponent should always be present in game.
+	// This is a tricky issue to debug if it comes up, since there will be very little indication as to why the component
+	// went missing. There is not a valid use case for having DetailMode != DM_Low on either of these components so we
+	// are conservative here and simply prevent error if it's ever not the case while encouraging users to fixup their data.
+
+	if (DetailMode != DM_Low || (GetWaterSpline() && GetWaterSpline()->DetailMode != DM_Low))
+	{
+		DetailMode = DM_Low;
+		if (UWaterSplineComponent* SplineComp = GetWaterSpline())
+		{
+			SplineComp->DetailMode = DM_Low;
+		}
+
+		// Push the request to the user that they should mark this modified water package as dirty and resave it to persist the DetailMode change.
+		const IWaterModuleInterface& WaterModule = FModuleManager::GetModuleChecked<IWaterModuleInterface>("Water");
+		if (IWaterEditorServices* WaterEditorServices = WaterModule.GetWaterEditorServices())
+		{
+			if (GetWorld() && GetWorld()->WorldType == EWorldType::Editor)
+			{
+				WaterEditorServices->TryMarkPackageAsModified(GetPackage());
+			}
+		}
 	}
 #endif // WITH_EDITOR
 }
@@ -1751,7 +1854,7 @@ bool UWaterBodyComponent::SetDynamicParametersOnMID(UMaterialInstanceDynamic* In
 	if (const AWaterZone* WaterZone = GetWaterZone())
 	{
 		InMID->SetScalarParameterValue(WaterZoneIndexParamName, WaterZone->GetWaterZoneIndex());
-		InMID->SetTextureParameterValue(WaterVelocityAndHeightName, WaterZone->WaterInfoTexture);
+		InMID->SetTextureParameterValue(WaterVelocityAndHeightName, WaterZone->WaterInfoTextureArray);
 	}
 
 	return true;
@@ -1915,16 +2018,20 @@ void UWaterBodyComponent::SetWaterBodyStaticMeshEnabled(bool bEnabled)
 
 void UWaterBodyComponent::UpdateWaterBodyRenderData()
 {
-	// Avoid updating any mesh data if we are in a PIE world if dynamic data changes aren't allowed.
-	if (const UWorld* World = GetWorld())
+	// Don't need to update render data if we can't ever render
+	if (FApp::CanEverRender())
 	{
-		if (!World->HasBegunPlay() || AreDynamicDataChangesAllowed())
+		if (const UWorld* World = GetWorld())
 		{
-			UpdateWaterInfoMeshComponents();
+			// Avoid updating any mesh data if we are in a PIE world if dynamic data changes aren't allowed.
+			if (!World->HasBegunPlay() || AreDynamicDataChangesAllowed())
+			{
+				UpdateWaterInfoMeshComponents();
 
-			UpdateWaterBodyStaticMeshComponents();
+				UpdateWaterBodyStaticMeshComponents();
 
-			OnWaterBodyRenderDataUpdated();
+				OnWaterBodyRenderDataUpdated();
+			}
 		}
 	}
 }
@@ -2027,7 +2134,6 @@ void UWaterBodyComponent::FixupEditorTransform()
 	}
 
 }
-
 
 void UWaterBodyComponent::CreateWaterSpriteComponent()
 {

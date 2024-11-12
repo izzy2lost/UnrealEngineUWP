@@ -6,6 +6,7 @@ PipelineFileCache.cpp: Pipeline state cache implementation.
 
 #include "PipelineFileCache.h"
 #include "Containers/List.h"
+#include "Containers/Ticker.h"
 #include "PipelineStateCache.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/EngineVersion.h"
@@ -112,7 +113,7 @@ static TAutoConsoleVariable<int32> CVarPSOFileCacheLogPSO(
 static TAutoConsoleVariable<int32> CVarPSOFileCacheReportPSO(
 														   TEXT("r.ShaderPipelineCache.ReportPSO"),
 														   PIPELINE_CACHE_DEFAULT_ENABLED,
-														   TEXT("1 reports new PSO entries via a delegate, but does not record or modify any cache file."),
+														   TEXT("1 reports new PSO entries via a delegate, but does not record or modify any cache file. New PSOs are reported in bulk once per frame."),
 														   ECVF_Default | ECVF_RenderThreadSafe
 														   );
 
@@ -120,7 +121,7 @@ static int32 GPSOExcludePrecachePSOsInFileCache = 0;
 static FAutoConsoleVariableRef CVarPSOFileCacheExcludePrecachePSO(
 														   TEXT("r.ShaderPipelineCache.ExcludePrecachePSO"),
 														   GPSOExcludePrecachePSOsInFileCache,
-														   TEXT("1 excludes saving runtime-precached graphics PSOs in the file cache, 0 (default) includes them. Excluding precached PSOs currently requires r.PSOPrecaching = 1 and r.PSOPrecache.Validation != 0."),
+														   TEXT("1 excludes saving runtime-precached graphics PSOs in the file cache, 0 (default) includes them. Excluding precached PSOs requires PSO precaching to be enabled."),
 														   ECVF_ReadOnly
 														   );
 
@@ -181,6 +182,7 @@ TMap<uint32, FPSOUsageData> FPipelineFileCacheManager::RunTimeToPSOUsage;
 TMap<uint32, FPSOUsageData> FPipelineFileCacheManager::NewPSOUsage;
 TMap<uint32, FPipelineStateStats*> FPipelineFileCacheManager::Stats;
 TSet<FPipelineCacheFileFormatPSO> FPipelineFileCacheManager::NewPSOs;
+TArray<FPipelineCacheFileFormatPSO> FPipelineFileCacheManager::NewPSOsToReport;
 TSet<uint32> FPipelineFileCacheManager::NewPSOHashes;
 uint32 FPipelineFileCacheManager::NumNewPSOs;
 FString FPipelineFileCacheManager::UserCacheKey;
@@ -206,6 +208,31 @@ static inline bool IsReferenceMaskSet(uint64 ReferenceMask, uint64 PSOMask)
 {
 	return (ReferenceMask & PSOMask) == ReferenceMask;
 }
+
+#if PLATFORM_WINDOWS
+
+FRHIShader::~FRHIShader()
+{
+	if (InUseByPSOCompilation > 0)
+	{
+		UE_LOG(LogRHI, Fatal, TEXT("FRHIShader with hash: %s and Frequency: %d still in use by PSO compilation when being destroyed"), *Hash.ToString(), Frequency);
+	}
+}
+
+void FRHIShader::SetInUseByPSOCompilation(bool bInUse)
+{
+	if (bInUse)
+	{
+		FPlatformAtomics::InterlockedIncrement(&InUseByPSOCompilation);
+	}
+	else
+	{
+		check(InUseByPSOCompilation > 0);
+		FPlatformAtomics::InterlockedDecrement(&InUseByPSOCompilation);
+	}
+}
+
+#endif // PLATFORM_WINDOWS
 
 void FRHIComputeShader::UpdateStats()
 {
@@ -928,7 +955,7 @@ FString FPipelineCacheFileFormatPSO::CommonToString() const
 	Mask = UsageMask;
 	Count = BindCount;
 #endif
-	return FString::Printf(TEXT("\"%d,%llu\""), Count, Mask);
+	return FString::Printf(TEXT("\"%" INT64_FMT ",%" UINT64_FMT "\""), Count, Mask);
 }
 
 FString FPipelineCacheFileFormatPSO::ToStringReadable() const
@@ -1385,9 +1412,7 @@ bool FPipelineCacheFileFormatPSO::Verify() const
 			uint32 Frequency = uint32(Info.RayTracingDesc.Frequency);
 			Ar << Frequency;
 			Info.RayTracingDesc.Frequency = EShaderFrequency(Frequency);
-
-			Ar << Info.RayTracingDesc.bAllowHitGroupIndexing;
-
+			
 			break;
 		}
 		default:
@@ -3120,6 +3145,11 @@ void FPipelineFileCacheManager::Initialize(uint32 InGameVersion)
 
 bool FPipelineFileCacheManager::ShouldEnableFileCache()
 {
+	if (!GRHISupportsPipelineFileCache)
+	{
+		return false;
+	}
+
 #if PLATFORM_IOS
 	if (CVarAlwaysGeneratePOSSOFileCache.GetValueOnAnyThread() == 0)
 	{
@@ -3133,7 +3163,8 @@ bool FPipelineFileCacheManager::ShouldEnableFileCache()
 		}
 	}
 #endif
-	return GRHISupportsPipelineFileCache;
+
+	return true;
 }
 
 void FPipelineFileCacheManager::PreCompileComplete()
@@ -3173,6 +3204,7 @@ void FPipelineFileCacheManager::ClearOSPipelineCache()
 				FTimespan DataTime(0, 0, FileInfo.st_atime);
 				if (ExecutableTime > DataTime)
 				{
+					UE_LOG(LogTemp, Display, TEXT("Clearing functions.data"));
 					unlink(TCHAR_TO_UTF8(*Result));
 				}
 			}
@@ -3182,6 +3214,7 @@ void FPipelineFileCacheManager::ClearOSPipelineCache()
 				FTimespan MapsTime(0, 0, FileInfo.st_atime);
 				if (ExecutableTime > MapsTime)
 				{
+					UE_LOG(LogTemp, Display, TEXT("Clearing functions.maps"));
 					unlink(TCHAR_TO_UTF8(*Result));
 				}
 			}
@@ -3492,6 +3525,31 @@ void FPipelineFileCacheManager::LogNewRaytracingPSOToConsole(FPipelineCacheFileF
 	}
 }
 
+void FPipelineFileCacheManager::BroadcastNewPSOsDelegate()
+{
+	TArray<FPipelineCacheFileFormatPSO> PSOs;
+	{
+		FRWScopeLock Lock(FileCacheLock, SLT_Write);
+		PSOs = MoveTemp(NewPSOsToReport);
+		NewPSOsToReport.Empty(32);
+	}
+
+	if (!PSOs.IsEmpty() && ReportNewPSOs())
+	{
+		// It's not safe to touch UObjects-based delegates from the render thread.
+		ExecuteOnGameThread(TEXT("OnPipelineStateLoggedBroadcastGT"), [PSOs = MoveTemp(PSOs)]() mutable
+		{
+			if (PSOLoggedEvent.IsBound())
+			{
+				for (FPipelineCacheFileFormatPSO& PSO : PSOs)
+				{
+					PSOLoggedEvent.Broadcast(PSO);
+				}
+			}
+		});
+	}
+}
+
 void FPipelineFileCacheManager::CacheGraphicsPSO(uint32 RunTimeHash, FGraphicsPipelineStateInitializer const& Initializer, bool bWasPSOPrecached)
 {
 	if(IsPipelineFileCacheEnabled() && (LogPSOtoFileCache() || ReportNewPSOs()))
@@ -3553,7 +3611,7 @@ void FPipelineFileCacheManager::CacheGraphicsPSO(uint32 RunTimeHash, FGraphicsPi
 							
 						if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 						{
-							PSOLoggedEvent.Broadcast(NewEntry);
+							NewPSOsToReport.Emplace(MoveTemp(NewEntry));
 						}
 					}
 				}
@@ -3628,7 +3686,7 @@ void FPipelineFileCacheManager::CacheComputePSO(uint32 RunTimeHash, FRHIComputeS
 
 							if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 							{
-								PSOLoggedEvent.Broadcast(NewEntry);
+								NewPSOsToReport.Emplace(MoveTemp(NewEntry));
 							}
 						}
 					}
@@ -3709,7 +3767,7 @@ void FPipelineFileCacheManager::CacheRayTracingPSO(const FRayTracingPipelineStat
 
 						if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 						{
-							PSOLoggedEvent.Broadcast(NewEntry);
+							NewPSOsToReport.Emplace(MoveTemp(NewEntry));
 						}
 					}
 
@@ -4299,13 +4357,12 @@ bool FPipelineFileCacheManager::MergePipelineFileCaches(FString const& PathA, FS
 FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::FPipelineFileCacheRayTracingDesc(const FRayTracingPipelineStateInitializer& Initializer, const FRHIRayTracingShader* ShaderRHI)
 : ShaderHash(ShaderRHI->GetHash())
 , Frequency(ShaderRHI->GetFrequency())
-, bAllowHitGroupIndexing(Initializer.bAllowHitGroupIndexing)
 {
 }
 
 FString FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::HeaderLine() const
 {
-	return FString(TEXT("RayTracingShader,DeprecatedMaxPayloadSizeInBytes,Frequency,bAllowHitGroupIndexing"));
+	return FString(TEXT("RayTracingShader,DeprecatedMaxPayloadSizeInBytes,Frequency"));
 }
 
 FString FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::ToString() const
@@ -4314,7 +4371,6 @@ FString FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::ToString(
 		, *ShaderHash.ToString()
 		, DeprecatedMaxPayloadSizeInBytes
 		, uint32(Frequency)
-		, uint32(bAllowHitGroupIndexing)
 	);
 }
 
@@ -4338,7 +4394,6 @@ void FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::AddToReadabl
 	}
 	OutBuilder << ShaderHash.ToString();
 	OutBuilder << TEXT(" AHGI ");
-	OutBuilder << bAllowHitGroupIndexing;
 }
 
 void FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::FromString(const FString& Src)
@@ -4355,13 +4410,7 @@ void FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc::FromString(c
 		uint32 Temp = 0;
 		LexFromString(Temp, Parts[2]);
 		Frequency = EShaderFrequency(Temp);
-	}
-	
-	{
-		uint32 Temp = 0;
-		LexFromString(Temp, Parts[3]);
-		bAllowHitGroupIndexing = Temp != 0;
-	}
+	}	
 }
 
 bool FPipelineCacheFileFormatPSO::Init(FPipelineCacheFileFormatPSO& PSO, FPipelineCacheFileFormatPSO::FPipelineFileCacheRayTracingDesc const& Desc)

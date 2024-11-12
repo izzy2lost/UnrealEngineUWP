@@ -150,8 +150,8 @@ static TAutoConsoleVariable<float> CVarSceneCullingMaxCellSize(
 
 static TAutoConsoleVariable<int32> CVarTreatDynamicInstancedAsUncullable(
 	TEXT("r.SceneCulling.TreatInstancedDynamicAsUnCullable"), 
-	1, 
-	TEXT("If this is turned on (default), dynamic primitives with instances are treated as uncullable (not put into the hierarchy and instead brute-forced on the GPU).")
+	0, 
+	TEXT("If this is turned on, dynamic primitives with instances are treated as uncullable (not put into the hierarchy and instead brute-forced on the GPU).")
 	TEXT("  This significantly reduces the hierarchy update cost on the CPU and for scenes with a large proportion of static elements, does not increase the GPU cost."),
 	ECVF_RenderThreadSafe);
 
@@ -496,7 +496,7 @@ inline FSceneCulling::FFootprint64 ToLevelRelative(const FSceneCulling::FFootpri
 	return Result;
 };
 
-void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups)
+void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, const FVector3d &WorldToVolumeTranslation, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups)
 {
 	LLM_SCOPE_BYTAG(SceneCulling);
 
@@ -523,7 +523,7 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 		const double LevelCellSize = SpatialHash.GetCellSize(BlockLoc.GetLevel() - FSpatialHash::CellBlockDimLog2);
 		// Extend extent by half a cell size in all directions
 		FVector3d BlockBoundsExtent = FVector((BlockLevelSize + LevelCellSize) * 0.5);
-		FOutcode BlockCullResult = ViewCullVolume.GetBoxIntersectionOutcode(BlockBoundsCenter, BlockBoundsExtent);
+		FOutcode BlockCullResult = ViewCullVolume.GetBoxIntersectionOutcode(BlockBoundsCenter + WorldToVolumeTranslation, BlockBoundsExtent);
 
 		if (BlockCullResult.GetInside())
 		{
@@ -563,7 +563,7 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 					FVector3d CellCenter = FVector3d(CellCoord) * LevelCellSize + MinCellCenter;
 
 					// emit for intersecting cells
-					bool bCellIntersects = ViewCullVolume.IntersectBox(CellCenter, CellBoundsExtent);
+					bool bCellIntersects = ViewCullVolume.IntersectBox(CellCenter, WorldToVolumeTranslation, CellBoundsExtent);
 					if (bCellIntersects)
 					{
 						FCellHeader CellHeader = UnpackCellHeader(CellHeaders[CellId]);
@@ -711,7 +711,7 @@ void FSceneCulling::Test(const FCullingVolume& CullingVolume, TArray<FCellDraw, 
 			return;
 		}
 	}
-	TestConvexVolume(CullingVolume.ConvexVolume, OutCellDraws, ViewGroupId, MaxNumViews, OutNumInstanceGroups);
+	TestConvexVolume(CullingVolume.ConvexVolume, CullingVolume.WorldToVolumeTranslation, OutCellDraws, ViewGroupId, MaxNumViews, OutNumInstanceGroups);
 }
 
 void FSceneCulling::Empty()
@@ -1293,16 +1293,16 @@ public:
 			int32 TotalItemChunks = 0;
 			// 1. flush the dynamic stuff
 			{
-				int32 NumToremove = RemovedInstanceCount[EUpdateFrequencyCategory::Dynamic];
-				TotalItemChunks += Builders[EUpdateFrequencyCategory::Dynamic].FinalizeChunks(Builder, PrevItemChunksOffset + PrevNumStaticItemChunks, PrevItemChunksOffset + PrevNumItemChunks, NumToremove);
-				check(NumToremove == 0);
+				int32 NumToRemove = RemovedInstanceCount[EUpdateFrequencyCategory::Dynamic];
+				TotalItemChunks += Builders[EUpdateFrequencyCategory::Dynamic].FinalizeChunks(Builder, PrevItemChunksOffset + PrevNumStaticItemChunks, PrevItemChunksOffset + PrevNumItemChunks, NumToRemove);
+				check(NumToRemove == 0);
 			}
 
 			// 2. And then the static.
 			{
-				int32 NumToremove = RemovedInstanceCount[EUpdateFrequencyCategory::Static];
-				TotalItemChunks += Builders[EUpdateFrequencyCategory::Static].FinalizeChunks(Builder, PrevItemChunksOffset, PrevItemChunksOffset + PrevNumStaticItemChunks, NumToremove);
-				check(NumToremove == 0);
+				int32 NumToRemove = RemovedInstanceCount[EUpdateFrequencyCategory::Static];
+				TotalItemChunks += Builders[EUpdateFrequencyCategory::Static].FinalizeChunks(Builder, PrevItemChunksOffset, PrevItemChunksOffset + PrevNumStaticItemChunks, NumToRemove);
+				check(NumToRemove == 0);
 			}
 
 			// Insert retained chunk info first.
@@ -1482,6 +1482,7 @@ public:
 		BUILDER_LOG_LIST("BuildInstanceRange(%d, %d):", InstanceDataOffset, NumInstances);
 
 		constexpr bool bCompressRLE = UpdateFrequencyCategory != EUpdateFrequencyCategory::Dynamic;
+		CellIndexCacheEntry.bSingleInstanceOnly = !bCompressRLE;
 
 		FSceneCulling::FLocation64 PrevInstanceCellLoc;
 		int32 SameInstanceLocRunCount = 0;
@@ -1789,11 +1790,14 @@ public:
 			BuildInstanceRange<UpdateFrequencyCategory>(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry);
 		}
 
+#if SC_ENABLE_DETAILED_LOGGING
 		BUILDER_LOG_LIST("CellIndexCacheEntry(%d):", CellIndexCacheEntry.Items.Num());
-		for (FCellIndexCacheEntry::FItem Item : CellIndexCacheEntry.Items)
+		for (int32 ItemIndex = 0; ItemIndex < CellIndexCacheEntry.Items.Num(); ++ItemIndex)
 		{
+			FCellIndexCacheEntry::FItem Item = CellIndexCacheEntry.LoadAndStepItem(ItemIndex);
 			BUILDER_LOG_LIST_APPEND("(%d, %d)", Item.CellIndex, Item.NumInstances);
 		}
+#endif
 
 		SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
 
@@ -1992,8 +1996,9 @@ public:
 			const FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(CacheIndex);
 
 			BUILDER_LOG_LIST("MarkForRemove(%d):", CellIndexCacheEntry.Items.Num());
-			for (FCellIndexCacheEntry::FItem Item : CellIndexCacheEntry.Items)
+			for (int32 ItemIndex = 0; ItemIndex < CellIndexCacheEntry.Items.Num(); ++ItemIndex)
 			{
+				FCellIndexCacheEntry::FItem Item = CellIndexCacheEntry.LoadAndStepItem(ItemIndex);
 				BUILDER_LOG_LIST_APPEND("(%d, %d)", Item.CellIndex, Item.NumInstances);
 				MarkCellForRemove(Item.CellIndex, Item.NumInstances, (PrimitiveState.State == FPrimitiveState::Dynamic) ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 			}
@@ -2008,7 +2013,7 @@ public:
 	}
 
 	template <typename HashLocationComputerType>
-	SC_FORCEINLINE void UpdateProcessDynamicInstances(HashLocationComputerType &HashLocationComputer, int32 InstanceDataOffset, int32 NumInstances, int32 PrevNumInstances, FSceneCulling::FCellIndexCacheEntry &CacheEntry)
+	SC_FORCEINLINE void UpdateProcessDynamicInstances(HashLocationComputerType &HashLocationComputer, int32 InstanceDataOffset, int32 NumInstances, int32 PrevNumInstances, FSceneCulling::FCellIndexCacheEntry &CellIndexCacheEntry)
 	{
 		for (int32 InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
 		{
@@ -2018,7 +2023,7 @@ public:
 			bool bNeedAdd = InstanceIndex >= PrevNumInstances;
 			if (!bNeedAdd)
 			{
-				int32 PrevCellIndex =  CacheEntry.Items[InstanceIndex].CellIndex;
+				int32 PrevCellIndex =  CellIndexCacheEntry.LoadAndStepItem(InstanceIndex).CellIndex;
 				FSceneCulling::FLocation64 PrevCellLoc = SceneCulling.GetCellLoc(PrevCellIndex);
 				if (PrevCellLoc != InstanceCellLoc)
 				{
@@ -2033,7 +2038,7 @@ public:
 			if (bNeedAdd)
 			{
 				int32 CellIndex = AddToCell(InstanceCellLoc, InstanceId, EUpdateFrequencyCategory::Dynamic);
-				CacheEntry.Set(InstanceIndex, CellIndex, 1);
+				CellIndexCacheEntry.Set(InstanceIndex, CellIndex);
 			}
 		}
 	}
@@ -2117,19 +2122,21 @@ public:
 		{
 			SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_UpdateInstances_DynamicUpdate, FColor::Red);
 			check(InstanceSceneDataBuffers != nullptr);
+			check(PrevPrimitiveState.bDynamic);
 
 			// For dynamic instance batches we process individual instances since they can then more often be retained
 			// Stored in the same data structure, just guaranteed to be singular instances
 			FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(PrevPrimitiveState.Payload);
 			// retain previous state.
 			NewPrimitiveState.Payload = PrevPrimitiveState.Payload;
-
-			// Mark overflowing ones for remove (if the number of instances shrank
+			check(CellIndexCacheEntry.bSingleInstanceOnly);
+			// Mark overflowing ones for remove (if the number of instances shrank)
 			for (int32 ItemIndex = NumInstances; ItemIndex < CellIndexCacheEntry.Items.Num(); ++ItemIndex)
 			{
-				FCellIndexCacheEntry::FItem Item = CellIndexCacheEntry.Items[ItemIndex];
+				FCellIndexCacheEntry::FItem Item = CellIndexCacheEntry.LoadAndStepItem(ItemIndex);
+				check(Item.NumInstances == 1);
 				// Assumes 1:1 between index and ID
-				MarkForRemove(Item.CellIndex, PrevPrimitiveState.InstanceDataOffset + ItemIndex, Item.NumInstances, PrevPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
+				MarkForRemove(Item.CellIndex, PrevPrimitiveState.InstanceDataOffset + ItemIndex, 1, EUpdateFrequencyCategory::Dynamic);
 			}
 			// Maintain the total accross all entries
 			SceneCulling.TotalCellIndexCacheItems -= CellIndexCacheEntry.Items.Num();
@@ -2170,8 +2177,9 @@ public:
 			FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(PrevPrimitiveState.Payload);
 
 			RemovedInstanceFlags.SetRange(PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances, true);
-			for (FCellIndexCacheEntry::FItem Item : CellIndexCacheEntry.Items)
+			for (int32 ItemIndex = 0; ItemIndex < CellIndexCacheEntry.Items.Num(); ++ItemIndex)
 			{
+				FCellIndexCacheEntry::FItem Item = CellIndexCacheEntry.LoadAndStepItem(ItemIndex);
 				MarkCellForRemove(Item.CellIndex, Item.NumInstances, PrevPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 			}
 			
@@ -2412,21 +2420,17 @@ public:
 		{
 			SCOPED_NAMED_EVENT(SceneCulling_Post_UpdateInstances, FColor::Emerald);
 
-			// [transform-] updated primitives instances & primitives with updated instances 
-			for (int32 Index = 0; Index < ScenePostUpdateData.UpdatedPrimitiveIds.Num(); ++Index)
+			ScenePostUpdateData.PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::AddedUpdated, EPrimitiveUpdateDirtyFlags::AllCulling, [&](const FPrimitiveUpdateCommand& Cmd)
 			{
-				UpdateInstances(ScenePostUpdateData.UpdatedPrimitiveIds[Index], ScenePostUpdateData.UpdatedPrimitiveSceneInfos[Index]);
-			}	
-		}
-
-		{
-			SCOPED_NAMED_EVENT(SceneCulling_Post_AddInstances, FColor::Emerald);
-
-			// Next process all added and added ones.
-			for (int32 Index = 0; Index < ScenePostUpdateData.AddedPrimitiveIds.Num(); ++Index)
-			{
-				AddInstances(ScenePostUpdateData.AddedPrimitiveIds[Index], ScenePostUpdateData.AddedPrimitiveSceneInfos[Index]);
-			}
+				if (Cmd.IsAdd())
+				{
+					AddInstances(Cmd.GetPersistentId(), Cmd.GetSceneInfo());
+				}
+				else
+				{
+					UpdateInstances(Cmd.GetPersistentId(), Cmd.GetSceneInfo());
+				}
+			});
 		}
 		FinalizeTempCellsAndUncullable();
 
@@ -2901,7 +2905,9 @@ inline bool FSceneCulling::IsUncullable(const FPrimitiveBounds& Bounds, FPrimiti
 {
 	// a primitive cannot be culled if it is too large, OR if it is so far away that it cannot be represented in the precision used in the hierarhcy
 	return Bounds.BoxSphereBounds.SphereRadius * 2.0 >= SpatialHash.GetLastLevelCellSize()
-		||  Bounds.BoxSphereBounds.Origin.SquaredLength() >= FMath::Square(SpatialHash.GetMaxCullingDistance() - Bounds.BoxSphereBounds.SphereRadius);
+		||  Bounds.BoxSphereBounds.Origin.SquaredLength() >= FMath::Square(SpatialHash.GetMaxCullingDistance() - Bounds.BoxSphereBounds.SphereRadius)
+		// TODO: this may become costly if many primitives end up here and if so, we should insert them by the primitive bounds to at least get that level of culling.
+		|| PrimitiveSceneInfo->Proxy->IsInstanceDataGPUOnly();
 }
 
 

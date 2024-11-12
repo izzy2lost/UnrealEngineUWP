@@ -9,6 +9,7 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STableRow.h"
 #include "SkeletonTreeItem.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/ShapeElem.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 
@@ -22,9 +23,9 @@ public:
 	/** ISkeletonTreeItem interface */
 	virtual void GenerateWidgetForNameColumn(TSharedPtr< SHorizontalBox > Box, const TAttribute<FText>& FilterText, FIsSelected InIsSelected) override;
 	virtual TSharedRef< SWidget > GenerateWidgetForDataColumn(const FName& DataColumnName, FIsSelected InIsSelected ) override;	
-	virtual FName GetRowItemName() const override { FString NameAsString = GetNameAsString(); return *NameAsString; }
-	virtual UObject* GetObject() const override { return BodySetup; }
-	virtual bool CanRenameItem() const override { return true; }
+	virtual FName GetRowItemName() const override;
+	virtual UObject* GetObject() const override;
+	virtual bool CanRenameItem() const override;
 	virtual void RequestRename() override;
 	virtual void OnItemDoubleClicked() override;
 

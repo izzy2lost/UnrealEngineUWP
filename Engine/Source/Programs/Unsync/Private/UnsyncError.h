@@ -173,4 +173,12 @@ struct FAtomicError
 	}
 };
 
+#define UNSYNC_RETURN_ON_ERROR(x)           \
+	{                                       \
+		if (x.IsError())                    \
+		{                                   \
+			return std::move(x.GetError()); \
+		}                                   \
+	}
+
 }  // namespace unsync

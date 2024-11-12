@@ -246,10 +246,10 @@ public:
 	// Called when another toolkit (such as a ed mode toolkit) is no longer being hosted in this asset editor toolkit
 	virtual void OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit) {}
 
-	/* Called when a toolkit requests an overlay widget to be added to the viewport. Not relevant in the absence
+	/* Called when a toolkit requests an overlay widget to be added to the viewport, optionally with a specific Z-Order. Not relevant in the absence
 	 * of a viewport.
 	 */
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) {}
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder = INDEX_NONE) {}
 
 	/** Called when a toolkit requests the overlay widget to be removed. */
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) {}
@@ -347,14 +347,23 @@ protected:
 	/** Internal function to check if the asset can be saved that calls CanSaveAsset */
 	bool CanSaveAsset_Internal() const;
 
+	/** Called to test if "Save" should be visible for this asset */
+	UNREALED_API virtual bool IsSaveAssetVisible() const;
+
 	/** Called when "Save" is clicked for this asset */
 	UNREALED_API virtual void SaveAsset_Execute();
+
+	/** Called from SaveAsset_Execute when assets have been saved */
+	virtual void OnAssetsSaved(const TArray<UObject*>& SavedObjects) {}
 
 	/** Called to test if "Save As" should be enabled for this asset */
 	virtual bool CanSaveAssetAs() const { return true; }
 
 	/** Internal function to check if the asset can be saved that calls CanSaveAssetAs */
 	bool CanSaveAssetAs_Internal() const;
+
+	/** Called to test if "Save As" should be visible for this asset */
+	UNREALED_API virtual bool IsSaveAssetAsVisible() const;
 
 	/** Called when "Save As" is clicked for this asset */
 	UNREALED_API virtual void SaveAssetAs_Execute();
@@ -363,11 +372,14 @@ protected:
 	virtual bool ShouldReopenEditorForSavedAsset(const UObject* Asset) const { return true; }
 
 	/** Called from SaveAssetAs_Execute when assets have been saved */
-	UNREALED_API virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) {}
+	virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) {}
 
 	/** Called to test if "Find in Content Browser" should be enabled for this asset */
 	virtual bool CanFindInContentBrowser() const { return true; }
 
+	/** Called to get the desired visibility when the asset is compiling */
+	UNREALED_API virtual EVisibility GetVisibilityWhileAssetCompiling() const;
+	
 	/** Called to test if "Find in Content Browser" should be visible for this asset */
 	virtual bool IsFindInContentBrowserButtonVisible() const { return true; }
 

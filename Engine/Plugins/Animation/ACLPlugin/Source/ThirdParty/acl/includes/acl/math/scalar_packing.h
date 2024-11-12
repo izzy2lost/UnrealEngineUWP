@@ -43,14 +43,14 @@ namespace acl
 	{
 		ACL_ASSERT(num_bits < 31, "Attempting to pack on too many bits");
 		ACL_ASSERT(input >= 0.0F && input <= 1.0F, "Expected normalized unsigned input value: %f", input);
-		const uint32_t max_value = (1 << num_bits) - 1;
+		const uint32_t max_value = (1U << num_bits) - 1;
 		return static_cast<uint32_t>(rtm::scalar_round_symmetric(input * rtm::scalar_safe_to_float(max_value)));
 	}
 
 	inline float unpack_scalar_unsigned(uint32_t input, uint32_t num_bits)
 	{
 		ACL_ASSERT(num_bits < 31, "Attempting to unpack from too many bits");
-		const uint32_t max_value = (1 << num_bits) - 1;
+		const uint32_t max_value = (1U << num_bits) - 1;
 		ACL_ASSERT(input <= max_value, "Input value too large: %ull", input);
 		// For performance reasons, unpacking is faster when multiplying with the reciprocal
 		const float inv_max_value = 1.0F / rtm::scalar_safe_to_float(max_value);
@@ -80,7 +80,7 @@ namespace acl
 
 		const uint32_t x32 = uint32_t(vector_u64);
 
-		return rtm::scalarf{ _mm_castsi128_ps(_mm_set1_epi32(x32)) };
+		return rtm::scalarf{ _mm_castsi128_ps(_mm_set1_epi32(static_cast<int32_t>(x32))) };
 #elif defined(RTM_NEON_INTRINSICS)
 		const uint32_t byte_offset = bit_offset / 8;
 		const uint32_t shift_offset = bit_offset % 8;
@@ -118,7 +118,7 @@ namespace acl
 		{
 			explicit constexpr PackedTableEntry(uint8_t num_bits_)
 				: max_value(num_bits_ == 0 ? 1.0F : (1.0F / float((1 << num_bits_) - 1)))
-				, mask((1 << num_bits_) - 1)
+				, mask((1U << num_bits_) - 1)
 			{}
 
 			float max_value;
@@ -145,7 +145,7 @@ namespace acl
 		vector_u32 = byte_swap(vector_u32);
 		const uint32_t x32 = (vector_u32 >> (bit_shift - (bit_offset % 8)));
 
-		const __m128 value = _mm_cvtsi32_ss(inv_max_value, x32 & mask);
+		const __m128 value = _mm_cvtsi32_ss(inv_max_value, static_cast<int32_t>(x32 & mask));
 		return rtm::scalarf{ _mm_mul_ss(value, inv_max_value) };
 #elif defined(RTM_NEON_INTRINSICS)
 		const uint32_t bit_shift = 32 - num_bits;
@@ -157,7 +157,7 @@ namespace acl
 		vector_u32 = byte_swap(vector_u32);
 		const uint32_t x32 = (vector_u32 >> (bit_shift - (bit_offset % 8)));
 
-		const int32_t value_u32 = x32 & mask;
+		const int32_t value_u32 = static_cast<int32_t>(x32 & mask);
 		const float value_f32 = static_cast<float>(value_u32);
 		return value_f32 * inv_max_value;
 #else

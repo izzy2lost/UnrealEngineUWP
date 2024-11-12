@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 
 /** Status flags of SteamAuth response codes, mapped 1:1 with SteamAPI */
-enum class ONLINESUBSYSTEMSTEAM_API ESteamAuthResponseCode : uint8
+enum class ESteamAuthResponseCode : uint8
 {
 	OK = 0,
 	NotConnectedToSteam = 1,
@@ -46,7 +46,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnSteamAuthResultWithCode, const class F
 typedef FOnSteamAuthResultWithCode::FDelegate FOnSteamAuthResultWithCodeDelegate;
 
 /** A class for interfacing with SteamAuth outside of the SteamOSS. */
-class ONLINESUBSYSTEMSTEAM_API FOnlineAuthUtilsSteam
+class FOnlineAuthUtilsSteam
 {
 public:
 	
@@ -64,7 +64,7 @@ public:
 	 * @return the true if SteamAuth is enabled.
 	 *
 	 */
-	bool IsSteamAuthEnabled() const;
+	ONLINESUBSYSTEMSTEAM_API bool IsSteamAuthEnabled() const;
 	
 	/** Attach to this delegate to control the behavior of the Steam authentication failure. 
 	 *  This overrides the default behavior (kick). 

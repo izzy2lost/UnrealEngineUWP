@@ -8,9 +8,11 @@
 #include "CollectionManagerModule.h"
 #include "CollectionViewTypes.h"
 #include "CollectionViewUtils.h"
+#include "ContentBrowserConfig.h"
 #include "ContentBrowserDelegates.h"
 #include "ContentBrowserModule.h"
 #include "ContentBrowserPluginFilters.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "CoreGlobals.h"
 #include "DragAndDrop/AssetDragDropOp.h"
@@ -50,6 +52,7 @@
 #include "SourcesSearch.h"
 #include "SourcesViewWidgets.h"
 #include "TelemetryRouter.h"
+#include "Settings/ContentBrowserSettings.h"
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateColor.h"
@@ -176,6 +179,14 @@ void SCollectionView::Construct( const FArguments& InArgs )
 	ExternalSearchPtr = InArgs._ExternalSearch;
 	TitleContent = SNew(SHorizontalBox);
 
+	UContentBrowserCollectionProjectSettings* CollectionProjectSettings = GetMutableDefault<UContentBrowserCollectionProjectSettings>();
+	if (CollectionProjectSettings)
+	{
+		CollectionProjectSettings->OnSettingChanged().AddSPLambda(this, [this](UObject* CollectionProjectSettings_, struct FPropertyChangedEvent&)
+		{
+			UpdateFilteredCollectionItems();
+		});
+	}
 
 	PreventSelectionChangedDelegateCount = 0;
 
@@ -214,7 +225,6 @@ void SCollectionView::Construct( const FArguments& InArgs )
 				.TreeItemsSource(&VisibleRootCollectionItems)
 				.OnGenerateRow(this, &SCollectionView::GenerateCollectionRow)
 				.OnGetChildren(this, &SCollectionView::GetCollectionItemChildren)
-				.ItemHeight(18)
 				.SelectionMode(ESelectionMode::Multi)
 				.OnSelectionChanged(this, &SCollectionView::CollectionSelectionChanged)
 				.OnContextMenuOpening(CollectionListContextMenuOpening)
@@ -323,13 +333,7 @@ void SCollectionView::HandleSourceControlProviderChanged(ISourceControlProvider&
 
 void SCollectionView::HandleSourceControlStateChanged()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(SCollectionView::HandleSourceControlStateChanged);
-
-	// Update the status of each collection
-	for (const auto& AvailableCollectionInfo : AvailableCollections)
-	{
-		UpdateCollectionItemStatus(AvailableCollectionInfo.Value.ToSharedRef());
-	}
+	bQueueItemStatusUpdate = true;
 }
 
 void SCollectionView::UpdateCollectionItemStatus( const TSharedRef<FCollectionItem>& CollectionItem )
@@ -499,8 +503,20 @@ void SCollectionView::UpdateFilteredCollectionItems()
 	VisibleCollections.Reset();
 	VisibleRootCollectionItems.Reset();
 
-	auto AddVisibleCollection = [&](const TSharedPtr<FCollectionItem>& InCollectionItem)
+	const UContentBrowserCollectionProjectSettings* CollectionProjectSettings = GetDefault<UContentBrowserCollectionProjectSettings>();
+	const UContentBrowserSettings* ContentBrowserSettings = GetDefault<UContentBrowserSettings>();
+
+	auto AddVisibleCollection = [&](const FCollectionNameType& NameTypePair, const TSharedPtr<FCollectionItem>& InCollectionItem)
 	{
+		if (!ContentBrowserSettings->bDisplayExcludedCollections)
+		{
+			const int32 FoundIndex = CollectionProjectSettings->ExcludedCollectionsFromView.Find(NameTypePair.Name);
+			if (FoundIndex != INDEX_NONE)
+			{
+				return;
+			}
+		}
+		
 		VisibleCollections.Add(FCollectionNameType(InCollectionItem->CollectionName, InCollectionItem->CollectionType));
 		if (!InCollectionItem->ParentCollection.IsValid())
 		{
@@ -508,12 +524,12 @@ void SCollectionView::UpdateFilteredCollectionItems()
 		}
 	};
 
-	auto AddVisibleCollectionRecursive = [&](const TSharedPtr<FCollectionItem>& InCollectionItem)
+	auto AddVisibleCollectionRecursive = [&](const FCollectionNameType& NameTypePair, const TSharedPtr<FCollectionItem>& InCollectionItem)
 	{
 		TSharedPtr<FCollectionItem> CollectionItemToAdd = InCollectionItem;
 		do
 		{
-			AddVisibleCollection(CollectionItemToAdd);
+			AddVisibleCollection(NameTypePair, CollectionItemToAdd);
 			CollectionItemToAdd = CollectionItemToAdd->ParentCollection.Pin();
 		}
 		while(CollectionItemToAdd.IsValid());
@@ -525,7 +541,7 @@ void SCollectionView::UpdateFilteredCollectionItems()
 		// No filter, just mark everything as visible
 		for (const auto& AvailableCollectionInfo : AvailableCollections)
 		{
-			AddVisibleCollection(AvailableCollectionInfo.Value);
+			AddVisibleCollection(AvailableCollectionInfo.Key, AvailableCollectionInfo.Value);
 		}
 	}
 	else
@@ -538,7 +554,7 @@ void SCollectionView::UpdateFilteredCollectionItems()
 			const TSharedPtr<FCollectionItem>& CollectionItem = AvailableCollectionInfo.Value;
 			if (CollectionItemTextFilter->PassesFilter(*CollectionItem))
 			{
-				AddVisibleCollectionRecursive(CollectionItem);
+				AddVisibleCollectionRecursive(AvailableCollectionInfo.Key, CollectionItem);
 				CollectionsToExpandTo.Add(CollectionItem.ToSharedRef());
 			}
 		}
@@ -549,6 +565,8 @@ void SCollectionView::UpdateFilteredCollectionItems()
 			ExpandParentItems(CollectionItem);
 		}
 	}
+	
+	UContentBrowserSettings::OnSettingChanged().AddSP(this, &SCollectionView::HandleSettingChanged);
 
 	VisibleRootCollectionItems.Sort(FCollectionItem::FCompareFCollectionItemByName());
 	CollectionTreePtr->RequestTreeRefresh();
@@ -777,6 +795,18 @@ void SCollectionView::Tick( const FGeometry& AllottedGeometry, const double InCu
 		if (CollectionFilesToRefresh.Num() > 0)
 		{
 			ISourceControlModule::Get().QueueStatusUpdate(CollectionFilesToRefresh);
+		}
+	}
+
+	if (bQueueItemStatusUpdate)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("CollectionView Update Collection Items Status");
+
+		bQueueItemStatusUpdate = false;
+		// Update the status of each collection
+		for (const TPair<FCollectionNameType, TSharedPtr<FCollectionItem>>& AvailableCollectionInfo : AvailableCollections)
+		{
+			UpdateCollectionItemStatus(AvailableCollectionInfo.Value.ToSharedRef());
 		}
 	}
 }
@@ -1052,7 +1082,8 @@ void SCollectionView::DeleteCollectionItems( const TArray<TSharedPtr<FCollection
 	FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
 	for (const TSharedPtr<FCollectionItem>& ItemToDelete : ItemsToDelete)
 	{
-		if (CollectionManagerModule.Get().DestroyCollection(ItemToDelete->CollectionName, ItemToDelete->CollectionType))
+		FText Error;
+		if (CollectionManagerModule.Get().DestroyCollection(ItemToDelete->CollectionName, ItemToDelete->CollectionType, &Error))
 		{
 			if (PreviouslySelectedItems.Contains(ItemToDelete))
 			{
@@ -1065,7 +1096,7 @@ void SCollectionView::DeleteCollectionItems( const TArray<TSharedPtr<FCollection
 			const FVector2f& CursorPos = FSlateApplication::Get().GetCursorPos();
 			FSlateRect MessageAnchor(CursorPos.X, CursorPos.Y, CursorPos.X, CursorPos.Y);
 			ContentBrowserUtils::DisplayMessage(
-				FText::Format( LOCTEXT("CollectionDestroyFailed", "Failed to destroy collection. {0}"), CollectionManagerModule.Get().GetLastError() ),
+				FText::Format( LOCTEXT("CollectionDestroyFailed", "Failed to destroy collection. {0}"), Error),
 				MessageAnchor,
 				CollectionTreePtr.ToSharedRef()
 				);
@@ -1115,7 +1146,7 @@ EVisibility SCollectionView::GetHeaderVisibility() const
 
 const FSlateBrush* SCollectionView::GetCollectionViewDropTargetBorder() const
 {
-	return bDraggedOver ? FAppStyle::GetBrush("ContentBrowser.CollectionTreeDragDropBorder") : FAppStyle::GetBrush("NoBorder");
+	return bDraggedOver ? UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetBrush("ContentBrowser.CollectionTreeDragDropBorder") : FAppStyle::GetBrush("NoBorder");
 }
 
 TSharedRef<ITableRow> SCollectionView::GenerateCollectionRow( TSharedPtr<FCollectionItem> CollectionItem, const TSharedRef<STableViewBase>& OwnerTable )
@@ -1232,12 +1263,13 @@ FReply SCollectionView::HandleDragDropOnCollectionTree(const FGeometry& Geometry
 		// Reparent all of the collections in the drag drop so that they are root level items
 		for (const FCollectionNameType& NewChildCollection : DragDropOp->Collections)
 		{
+			FText Error;
 			if (!CollectionManagerModule.Get().ReparentCollection(
 					NewChildCollection.Name, NewChildCollection.Type,
-					NAME_None, ECollectionShareType::CST_All
+					NAME_None, ECollectionShareType::CST_All, &Error
 					))
 			{
-				ContentBrowserUtils::DisplayMessage(CollectionManagerModule.Get().GetLastError(), Geometry.GetLayoutBoundingRect(), SharedThis(this));
+				ContentBrowserUtils::DisplayMessage(Error, Geometry.GetLayoutBoundingRect(), SharedThis(this));
 			}
 		}
 
@@ -1271,14 +1303,14 @@ bool SCollectionView::ValidateDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		bIsValidDrag = true;
 		for (const FCollectionNameType& PotentialChildCollection : DragDropOp->Collections)
 		{
+			FText Error;
 			bIsValidDrag = CollectionManagerModule.Get().IsValidParentCollection(
 				PotentialChildCollection.Name, PotentialChildCollection.Type,
-				CollectionItem->CollectionName, CollectionItem->CollectionType
-				);
+				CollectionItem->CollectionName, CollectionItem->CollectionType, &Error);
 
 			if (!bIsValidDrag)
 			{
-				DragDropOp->SetToolTip(CollectionManagerModule.Get().GetLastError(), FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error")));
+				DragDropOp->SetToolTip(Error, FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error")));
 				break;
 			}
 		}
@@ -1321,12 +1353,13 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		// Reparent all of the collections in the drag drop so that they are our immediate children
 		for (const FCollectionNameType& NewChildCollection : DragDropOp->Collections)
 		{
+			FText Error;
 			if (!CollectionManagerModule.Get().ReparentCollection(
 					NewChildCollection.Name, NewChildCollection.Type,
-					CollectionItem->CollectionName, CollectionItem->CollectionType
+					CollectionItem->CollectionName, CollectionItem->CollectionType, &Error
 					))
 			{
-				ContentBrowserUtils::DisplayMessage(CollectionManagerModule.Get().GetLastError(), Geometry.GetLayoutBoundingRect(), SharedThis(this));
+				ContentBrowserUtils::DisplayMessage(Error, Geometry.GetLayoutBoundingRect(), SharedThis(this));
 			}
 		}
 
@@ -1348,9 +1381,8 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		const double BeginTimeSec = FPlatformTime::Seconds();
 		int32 NumAdded = 0;
 		FText Message;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (CollectionManagerModule.Get().AddToCollection(CollectionItem->CollectionName, CollectionItem->CollectionType, UE::SoftObjectPath::Private::ConvertSoftObjectPaths(ObjectPaths), &NumAdded))
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		if (CollectionManagerModule.Get().AddToCollection(
+				CollectionItem->CollectionName, CollectionItem->CollectionType, ObjectPaths, &NumAdded, &Message))
 		{
 			if (DroppedAssets.Num() == 1)
 			{
@@ -1378,10 +1410,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				FTelemetryRouter::Get().ProvideTelemetry(AssetAdded);
 			}
 		}
-		else
-		{
-			Message = CollectionManagerModule.Get().GetLastError();
-		}
 
 		// Added items to the collection or failed. Either way, display the message.
 		ContentBrowserUtils::DisplayMessage(Message, Geometry.GetLayoutBoundingRect(), SharedThis(this));
@@ -1390,6 +1418,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	return FReply::Unhandled();
+}
+
+void SCollectionView::HandleSettingChanged(FName PropertyName)
+{
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UContentBrowserSettings, bDisplayExcludedCollections))
+	{
+		UpdateFilteredCollectionItems();
+	}
 }
 
 void SCollectionView::ExpandParentItems(const TSharedRef<FCollectionItem>& InCollectionItem)
@@ -1515,13 +1551,14 @@ bool SCollectionView::CollectionNameChangeCommit( const TSharedPtr< FCollectionI
 			return false;
 		}
 
-		if ( !CollectionManagerModule.Get().CreateCollection(NewNameFinal, CollectionItem->CollectionType, CollectionItem->StorageMode) )
+		FText Error;
+		if ( !CollectionManagerModule.Get().CreateCollection(NewNameFinal, CollectionItem->CollectionType, CollectionItem->StorageMode, &Error) )
 		{
 			// Failed to add the collection, remove it from the list
 			AvailableCollections.Remove(FCollectionNameType(CollectionItem->CollectionName, CollectionItem->CollectionType));
 			UpdateFilteredCollectionItems();
 
-			OutWarningMessage = FText::Format( LOCTEXT("CreateCollectionFailed", "Failed to create the collection. {0}"), CollectionManagerModule.Get().GetLastError());
+			OutWarningMessage = FText::Format( LOCTEXT("CreateCollectionFailed", "Failed to create the collection. {0}"), Error);
 			return false;
 		}
 
@@ -1567,10 +1604,11 @@ bool SCollectionView::CollectionNameChangeCommit( const TSharedPtr< FCollectionI
 		}
 
 		// Otherwise perform the rename
-		if ( !CollectionManagerModule.Get().RenameCollection(CollectionItem->CollectionName, CollectionItem->CollectionType, NewNameFinal, CollectionItem->CollectionType) )
+		FText Error;
+		if ( !CollectionManagerModule.Get().RenameCollection(CollectionItem->CollectionName, CollectionItem->CollectionType, NewNameFinal, CollectionItem->CollectionType, &Error) )
 		{
 			// Failed to rename the collection
-			OutWarningMessage = FText::Format( LOCTEXT("RenameCollectionFailed", "Failed to rename the collection. {0}"), CollectionManagerModule.Get().GetLastError());
+			OutWarningMessage = FText::Format( LOCTEXT("RenameCollectionFailed", "Failed to rename the collection. {0}"), Error);
 			return false;
 		}
 	}
@@ -1607,9 +1645,8 @@ bool SCollectionView::CollectionVerifyRenameCommit(const TSharedPtr< FCollection
 
 	FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
 
-	if (!CollectionManagerModule.Get().IsValidCollectionName(NewName, ECollectionShareType::CST_All))
+	if (!CollectionManagerModule.Get().IsValidCollectionName(NewName, ECollectionShareType::CST_All, &OutErrorMessage))
 	{
-		OutErrorMessage = CollectionManagerModule.Get().GetLastError();
 		return false;
 	}
 

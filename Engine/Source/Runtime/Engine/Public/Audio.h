@@ -92,7 +92,6 @@ struct FWaveInstance;
 struct FReverbSettings;
 struct FSampleLoop;
 struct FSoundWaveTimecodeInfo;
-
 enum ELoopingMode
 {
 	/** One shot sound */
@@ -235,6 +234,9 @@ private:
 	/** The current envelope value of the wave instance. */
 	float EnvelopValue;
 
+	/** The estimated relative render cost of the wave instance. 1.0 is cost of a single decoding sound source. Used for limited the overall voice count. */
+	float RelativeRenderCost;
+
 public:
 	/** The envelope follower attack time in milliseconds. */
 	int32 EnvelopeFollowerAttackTime;
@@ -297,6 +299,9 @@ private:
 public:
 	/** Whether or not to enable the low pass filter */
 	uint32 bEnableLowPassFilter:1;
+	
+	/** Whether or not to enable the high pass filter */
+	uint32 bEnableHighPassFilter:1;
 
 	/** Whether or not the sound is occluded. */
 	uint32 bIsOccluded:1;
@@ -348,6 +353,9 @@ public:
 
 	/** The low pass filter frequency to use */
 	float LowPassFilterFrequency;
+	
+	/** The high pass filter frequency to use */
+	float HighPassFilterFrequency;
 
 	/** The low pass filter frequency to use from sound class. */
 	float SoundClassFilterFrequency;
@@ -512,6 +520,12 @@ public:
 	uint32 GetPlayOrder() const { return PlayOrder; }
 
 	friend inline uint32 GetTypeHash(FWaveInstance* A) { return A->PlayOrder; }
+
+	/** Sets the relative render cost of the wave instance. */
+	void SetRelativeRenderCost(float InRelativeRenderCost) { RelativeRenderCost = InRelativeRenderCost; }
+
+	/** Retrieves the relative render cost of wave instance. */
+	float GetRelativeRenderCost() const { return RelativeRenderCost; }
 };
 
 /*-----------------------------------------------------------------------------
@@ -601,7 +615,6 @@ public:
 	FSoundSource(FAudioDevice* InAudioDevice)
 		: AudioDevice(InAudioDevice)
 		, WaveInstance(nullptr)
-		, Buffer(nullptr)
 		, LFEBleed(0.5f)
 		, LPFFrequency(MAX_FILTER_FREQUENCY)
 		, HPFFrequency(MIN_FILTER_FREQUENCY)
@@ -630,7 +643,7 @@ public:
 	}
 
 	/** Destructor */
-	virtual ~FSoundSource() {}
+	ENGINE_API virtual ~FSoundSource();
 
 	/* Prepares the source voice for initialization. This may parse a compressed asset header on some platforms */
 	virtual bool PrepareForInitialization(FWaveInstance* InWaveInstance) { return true; }
@@ -706,7 +719,10 @@ public:
 	ENGINE_API FSpatializationParams GetSpatializationParams();
 
 	/** Returns the contained sound buffer object. */
-	virtual const FSoundBuffer* GetBuffer() const { return Buffer; }
+	UE_DEPRECATED(5.5, "The Buffer member no longer exists.  Use GetNumChannels() to qeury channel count.")
+	virtual const FSoundBuffer* GetBuffer() const { return nullptr; }
+
+	int32 GetNumChannels() const { return NumChannels; }
 
 	/** Initializes any source effects for this sound source. */
 	virtual void InitializeSourceEffects(uint32 InEffectVoiceId)
@@ -737,6 +753,9 @@ public:
 	/** Returns the source's envelope at the callback block rate. Only implemented in audio mixer. */
 	virtual float GetEnvelopeValue() const { return 0.0f; };
 
+	/** Returns the source's estimated relative render cost (relative to a single decoded sound). Used for debug information and to constrain overall CPU usage. */
+	virtual float GetRelativeRenderCost() const { return 1.0f; }
+
 	ENGINE_API void GetChannelLocations(FVector& Left, FVector&Right) const;
 
 	void NotifyPlaybackData();
@@ -765,6 +784,7 @@ protected:
 	FWaveInstance* WaveInstance;
 
 	/** Cached sound buffer associated with currently bound wave instance. */
+	UE_DEPRECATED(5.5, "This is no longer used and should not be accessed directly.")
 	FSoundBuffer* Buffer;
 
 	/** The amount of a sound to bleed to the LFE speaker */
@@ -811,6 +831,9 @@ protected:
 
 	/** The frame we started on. */
 	int32 StartFrame;
+
+	/** the number of channels */
+	int32 NumChannels = 0;
 
 	/** Effect ID of this sound source in the audio device sound source array. */
 	uint32 VoiceId;
@@ -859,6 +882,9 @@ public:
 
 		/** Fraction of a single CPU core used to render audio. */
 		double CPUCoreUtilization = 0;
+
+		/** Relative cost to render wave. */
+		float RelativeRenderCost = 1.f;
 
 		/** Basic CS so we can pass this around safely. */
 		FCriticalSection CS;

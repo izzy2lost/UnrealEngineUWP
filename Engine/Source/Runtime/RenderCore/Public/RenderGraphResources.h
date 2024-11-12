@@ -47,6 +47,7 @@ struct FRDGProducerState
 {
 	FRDGPass* Pass = nullptr;
 	FRDGPass* PassIfSkipUAVBarrier = nullptr;
+	FRDGPass* PassIfReadAccess = nullptr;
 	ERHIAccess Access = ERHIAccess::Unknown;
 	FRDGViewHandle NoUAVBarrierHandle;
 };
@@ -62,17 +63,13 @@ struct FRDGSubresourceState
 	/** Given a before and after state, returns whether they can be merged into a single state. */
 	static bool IsMergeAllowed(ERDGViewableResourceType ResourceType, const FRDGSubresourceState& Previous, const FRDGSubresourceState& Next);
 
-	FRDGSubresourceState()
-		: bReservedCommit(0)
-	{}
+	FRDGSubresourceState() = default;
 
 	explicit FRDGSubresourceState(ERHIAccess InAccess)
 		: Access(InAccess)
-		, bReservedCommit(0)
 	{}
 
 	explicit FRDGSubresourceState(ERHIPipeline Pipeline, FRDGPassHandle PassHandle)
-		: bReservedCommit(0)
 	{
 		SetPass(Pipeline, PassHandle);
 	}
@@ -107,11 +104,11 @@ struct FRDGSubresourceState
 	/** The last no-UAV barrier to be used by this subresource. */
 	FRDGViewUniqueFilter NoUAVBarrierFilter;
 
+	/** Whether this subresource state represents a commit operation for a reserved resource. */
+	FRDGBufferReservedCommitHandle ReservedCommitHandle;
+
 	/** The last used transition flags on the pass. */
 	EResourceTransitionFlags Flags = EResourceTransitionFlags::None;
-
-	/** Whether this subresource state represents a commit operation for a reserved resource. */
-	uint8 bReservedCommit : 1;
 };
 
 using FRDGTextureSubresourceState = TRDGTextureSubresourceArray<FRDGSubresourceState*, FRDGArrayAllocator>;
@@ -140,13 +137,6 @@ public:
 	{
 		IF_RDG_ENABLE_DEBUG(ValidateRHIAccess());
 		return ResourceRHI;
-	}
-
-	void SetOwnerName(const FName& InOwnerName)
-	{
-#if RHI_ENABLE_RESOURCE_INFO
-		OwnerName = InOwnerName;
-#endif
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -178,10 +168,6 @@ private:
 	RENDERCORE_API FRDGResourceDebugData& GetDebugData() const;
 #endif
 
-#if RHI_ENABLE_RESOURCE_INFO
-	FName OwnerName;	// For RHI resource tracking
-#endif
-
 	friend FRDGBuilder;
 	friend FRDGUserValidation;
 	friend FRDGBarrierValidation;
@@ -192,7 +178,7 @@ class FRDGUniformBuffer
 {
 public:
 
-	virtual ~FRDGUniformBuffer() {};
+	RENDERCORE_API virtual ~FRDGUniformBuffer();
 
 	FORCEINLINE const FRDGParameterStruct& GetParameters() const
 	{
@@ -289,6 +275,16 @@ class FRDGViewableResource
 	: public FRDGResource
 {
 public:
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	virtual ~FRDGViewableResource()
+	{
+		if (bHeapAllocatedDebugName)
+		{
+			delete[] Name;
+		}
+	}
+#endif
+
 	/** The type of this resource; useful for casting between types. */
 	const ERDGViewableResourceType Type;
 
@@ -315,6 +311,29 @@ public:
 	bool HasBeenProduced() const
 	{
 		return bProduced;
+	}
+
+	void SetOwnerName(const FName& InOwnerName)
+	{
+#if RHI_ENABLE_RESOURCE_INFO
+		OwnerName = InOwnerName;
+#endif
+	}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	inline void SetDebugNameIsHeapAllocated()
+	{
+		bHeapAllocatedDebugName = 1;
+	}
+#endif
+
+	inline bool IsDebugNameHeapAllocated() const
+	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		return bHeapAllocatedDebugName;
+#else
+		return false;
+#endif
 	}
 
 protected:
@@ -389,22 +408,24 @@ protected:
 	/** If false, the resource needs to be collected. */
 	uint8 bCollectForAllocate : 1;
 
-	/** If true, the reserved resource is having tiles committed. */
-	uint8 bQueuedForReservedCommit : 1;
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	/** If true, the debug name passed to the constructor was heap allocated, and needs to be freed in the destructor. */
+	uint8 bHeapAllocatedDebugName : 1;
+#endif
 
 	/** Whether this resource is allowed to be both transient and extracted. */
 	ETransientExtractionHint TransientExtractionHint;
 
+	FRDGPassHandle AcquirePass;
+	FRDGPassHandle DiscardPass;
 	FRDGPassHandle FirstPass;
-	FRDGPassHandle LastPass;
-	FRDGPassHandle MinAcquirePass;
-	FRDGPassHandle MinDiscardPass;
+	FRDGPassHandlesByPipeline LastPasses;
 
 	/** Number of references in passes and deferred queries. */
-	uint16 ReferenceCount;
+	uint32 ReferenceCount;
 
 	/** Scratch index allocated for the resource in the pass being setup. */
-	uint16 PassStateIndex = 0;
+	uint32 PassStateIndex = 0;
 
 	/** Set of aliasing overlaps to apply to the acquire transition if transient. */
 	TArrayView<const FRHITransientAliasingOverlap> AliasingOverlaps;
@@ -413,21 +434,35 @@ protected:
 	ERHIAccess EpilogueAccess = DefaultEpilogueAccess;
 
 private:
-	static const uint16 DeallocatedReferenceCount = ~0;
+	static const uint32 DeallocatedReferenceCount = ~0;
 
-	void SetExternalAccessMode(ERHIAccess InReadOnlyAccess, ERHIPipeline InPipelines)
+	void SetRHI(FRHIResource* Resource)
+	{
+		check(!ResourceRHI);
+		ResourceRHI = Resource;
+
+	#if RHI_ENABLE_RESOURCE_INFO
+		ResourceRHI->SetOwnerName(OwnerName);
+	#endif
+	}
+
+	void SetExternalAccessMode(ERHIAccess InAccess, ERHIPipeline InPipelines)
 	{
 		check(!AccessModeState.bLocked);
 
 		AccessModeState.Mode = EAccessMode::External;
-		AccessModeState.Access = InReadOnlyAccess;
+		AccessModeState.Access = InAccess;
 		AccessModeState.Pipelines = InPipelines;
 
-		EpilogueAccess = InReadOnlyAccess;
+		EpilogueAccess = InAccess;
 	}
 
+#if RHI_ENABLE_RESOURCE_INFO
+	FName OwnerName;	// For RHI resource tracking
+#endif
+
 #if RDG_ENABLE_TRACE
-	uint16 TraceOrder = 0;
+	uint32 TraceOrder = 0;
 	TArray<FRDGPassHandle, FRDGArrayAllocator> TracePasses;
 #endif
 
@@ -435,6 +470,8 @@ private:
 	struct FRDGViewableResourceDebugData* ViewableDebugData = nullptr;
 	RENDERCORE_API FRDGViewableResourceDebugData& GetViewableDebugData() const;
 #endif
+
+	friend bool IsExtendedLifetimeResource(FRDGViewableResource*);
 
 	friend FRDGBuilder;
 	friend FRDGUserValidation;
@@ -492,7 +529,9 @@ class FRDGPooledTexture final
 public:
 	FRDGPooledTexture(FRHITexture* InTexture)
 		: Texture(InTexture)
-	{}
+	{
+		Fences.Emplace();
+	}
 
 	/** Finds a UAV matching the descriptor in the cache or creates a new one and updates the cache. */
 	FORCEINLINE FRHIUnorderedAccessView* GetOrCreateUAV(FRHICommandListBase& RHICmdList, const FRHITextureUAVCreateInfo& UAVDesc) { return ViewCache.GetOrCreateUAV(RHICmdList, Texture, UAVDesc); }
@@ -511,8 +550,10 @@ public:
 private:
 	TRefCountPtr<FRHITexture> Texture;
 	FRHITextureViewCache ViewCache;
+	TOptional<FRHITransientAllocationFences> Fences;
 
 	friend FRDGBuilder;
+	friend FRenderTargetPool;
 };
 
 /** Render graph tracked Texture. */
@@ -614,6 +655,25 @@ private:
 #if RDG_ENABLE_DEBUG
 	struct FRDGTextureDebugData* TextureDebugData = nullptr;
 	RENDERCORE_API FRDGTextureDebugData& GetTextureDebugData() const;
+#endif
+
+#if SUPPORTS_VISUALIZE_TEXTURE
+	FIntPoint VisualizeTextureExtent = { 0, 0 };
+public:
+	FORCEINLINE void EncloseVisualizeExtent(const FIntPoint& Point)
+	{
+		VisualizeTextureExtent.X = FMath::Max(VisualizeTextureExtent.X, Point.X);
+		VisualizeTextureExtent.Y = FMath::Max(VisualizeTextureExtent.Y, Point.Y);
+	}
+	FORCEINLINE FIntPoint GetVisualizeExtent() const
+	{
+		return VisualizeTextureExtent;
+	}
+private:
+#else
+public:
+	FORCEINLINE void EncloseVisualizeExtent(const FIntPoint& Point) {}
+private:
 #endif
 
 	friend FRDGBuilder;
@@ -1069,6 +1129,11 @@ struct FRDGBufferSRVDesc final
 		, Buffer(InBuffer)
 	{}
 
+	FRDGBufferSRVDesc(FRDGBufferRef InBuffer, FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes)
+		: FRHIBufferSRVCreateInfo(InRayTracingScene, InStartOffsetBytes)
+		, Buffer(InBuffer)
+	{}
+
 	bool operator == (const FRDGBufferSRVDesc& Other) const
 	{
 		return Buffer == Other.Buffer && FRHIBufferSRVCreateInfo::operator==(Other);
@@ -1134,6 +1199,8 @@ public:
 		{
 			CachedSRV = GetOrCreateSRV(RHICmdList, FRHIBufferSRVCreateInfo());
 		}
+
+		Fences.Emplace();
 	}
 
 	RENDERCORE_API FRDGPooledBuffer(TRefCountPtr<FRHIBuffer> InBuffer, const FRDGBufferDesc& InDesc, uint32 InNumAllocatedElements, const TCHAR* InName);
@@ -1205,6 +1272,8 @@ private:
 		return AlignedDesc;
 	}
 
+	void SetDebugLabelName(FRHICommandListBase& RHICmdList, const TCHAR* InName);
+
 	// Used internally by FRDGBuilder::QueueCommitReservedBuffer(),
 	// which is expected to be the only way to resize physical memory for FRDGPooledBuffer
 	void SetCommittedSize(uint64 InCommittedSizeInBytes)
@@ -1226,8 +1295,15 @@ private:
 	// May be UINT64_MAX for regular (non-reserved) buffers or when the entire resource is committed.
 	uint64 CommittedSizeInBytes = UINT64_MAX;
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	// Tracks the number of items in ViewCache when the debug Name was updated, so we know if items were added and we need to propagate the debug name to the new items
+	int32 NameUpdatedViewCacheNum = 0;
+#endif
+
 	const uint32 NumAllocatedElements;
 	uint32 LastUsedFrame = 0;
+
+	TOptional<FRHITransientAllocationFences> Fences;
 
 	friend FRDGBuilder;
 	friend FRDGBufferPool;

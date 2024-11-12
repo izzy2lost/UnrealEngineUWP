@@ -209,13 +209,6 @@ void UK2Node_AssignmentStatement::PostReconstructNode()
 	Super::PostReconstructNode();
 }
 
-UEdGraphPin* UK2Node_AssignmentStatement::GetThenPin() const
-{
-	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_Then);
-	check(Pin != NULL);
-	return Pin;
-}
-
 UEdGraphPin* UK2Node_AssignmentStatement::GetVariablePin() const
 {
 	UEdGraphPin* Pin = FindPin(VariablePinName);

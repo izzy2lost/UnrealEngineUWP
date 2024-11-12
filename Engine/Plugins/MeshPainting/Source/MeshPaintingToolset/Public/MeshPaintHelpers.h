@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/HitResult.h"
 #include "Engine/StaticMesh.h"
+#include "ImageCore.h"
 #include "Math/Ray.h"
 #include "UObject/Package.h"
 #include "MeshPaintHelpers.generated.h"
@@ -28,6 +29,7 @@ class FSceneView;
 struct FStaticMeshComponentLODInfo;
 class UMeshVertexPaintingToolProperties;
 class UBrushBaseProperties;
+struct FMeshDescription;
 
 enum class EMeshPaintDataColorViewMode : uint8;
 
@@ -134,12 +136,24 @@ public:
 
 	/** Removes vertex colors associated with the mesh component */
 	void RemoveComponentInstanceVertexColors(UStaticMeshComponent* StaticMeshComponent);
-	
+
+	/** Creates and returns a mesh paint texture that isn't attached to a mesh component */
+	UTexture* CreateMeshPaintTexture(UObject* Outer, uint32 TextureSize);
+	/** Creates mesh paint texture associated with the mesh component */
+	void CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent);
+	void CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent, FImageView const& InImage);
+
+	/** Removes mesh paint texture associated with the mesh component */
+	void RemoveComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent);
+
 	/** Propagates per-instance vertex colors to the underlying Mesh for the given LOD Index */
 	bool PropagateColorsToRawMesh(UStaticMesh* StaticMesh, int32 LODIndex, FStaticMeshComponentLODInfo& ComponentLODInfo);	
 
 	/** Retrieves the Vertex Color buffer size for the given LOD level in the Mesh */
 	uint32 GetVertexColorBufferSize(UMeshComponent* MeshComponent, int32 LODIndex, bool bInstance);
+	
+	/** Retrieves the resource size for the mesh paint texture on the component */
+	uint32 GetMeshPaintTextureResourceSize(UMeshComponent* MeshComponent);
 
 	/** Retrieves the vertex positions from the given LOD level in the Mesh */
 	TArray<FVector> GetVerticesForLOD(const UStaticMesh* StaticMesh, int32 LODIndex);
@@ -229,16 +243,6 @@ public:
 	/** Helper function to retrieve vertex color from a UTexture given a UVCoordinate */
 	FColor PickVertexColorFromTextureData(const uint8* MipData, const FVector2D& UVCoordinate, const UTexture2D* Texture, const FColor ColorMask);	
 
-	void SetSelectionHasMaterialValidForTexturePaint(const bool InValidity)
-	{
-		bSelectionHasMaterialValidForTexturePaint = InValidity;
-	}
-
-	bool SelectionHasMaterialValidForTexturePaint()
-	{
-		return bSelectionHasMaterialValidForTexturePaint;
-	}
-
 	/** Map of geometry adapters for each selected mesh component */
 	TSharedPtr<IMeshPaintComponentAdapter> GetAdapterForComponent(const UMeshComponent* InComponent) const;
 	void AddToComponentToAdapterMap(const UMeshComponent* InComponent, const TSharedPtr<IMeshPaintComponentAdapter> InAdapter);
@@ -250,7 +254,6 @@ public:
 	TArray<UMeshComponent*> GetPaintableMeshComponents() const;
 	void AddPaintableMeshComponent(UMeshComponent* InComponent);
 	void ClearPaintableMeshComponents();
-	bool SelectionContainsValidAdapters() const;
 	TArray<FPerComponentVertexColorData> GetCopiedColorsByComponent() const;
 	void SetCopiedColorsByComponent(TArray<FPerComponentVertexColorData>& InCopiedColors);
 	void CacheSelectionData(const int32 PaintLODIndex, const int32 UVChannel);
@@ -259,15 +262,19 @@ public:
 	void Refresh();
 	bool SelectionContainsPerLODColors() const { return bSelectionContainsPerLODColors; }
 	void ClearSelectionLODColors() { bSelectionContainsPerLODColors = false; }
+	void UpdatePaintSupportState();
+	bool GetSelectionSupportsVertexPaint() const { return bSelectionSupportsVertexPaint; }
+	bool GetSelectionSupportsTextureColorPaint() const { return bSelectionSupportsTextureColorPaint; }
+	bool GetSelectionSupportsTextureAssetPaint() const { return bSelectionSupportsTextureAssetPaint; }
+
+	FImage const& GetCopiedTexture() const;
+	void SetCopiedTexture(UTexture* InTexture);
 
 public:
 	bool bNeedsRecache;
-	UPROPERTY(Transient)
-	TWeakObjectPtr<UTexture> OverridePaintTexture;
 
-	const UMeshComponent* LastPaintedComponent = nullptr;
-protected:
-	bool bSelectionHasMaterialValidForTexturePaint;
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshComponent> LastPaintedComponent;
 
 private:
 	void CleanUp();
@@ -285,6 +292,13 @@ private:
 	/** Contains copied vertex color data */
 	TArray<FPerComponentVertexColorData> CopiedColorsByComponent;
 	bool bSelectionContainsPerLODColors;
+
+	/** Contains copied texture data */
+	FImage CopiedTextureData;
+
+	bool bSelectionSupportsVertexPaint;
+	bool bSelectionSupportsTextureColorPaint;
+	bool bSelectionSupportsTextureAssetPaint;
 };
 
 template<typename T>

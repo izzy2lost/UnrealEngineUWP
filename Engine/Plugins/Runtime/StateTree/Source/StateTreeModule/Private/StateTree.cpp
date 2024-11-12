@@ -6,17 +6,25 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "AssetRegistry/AssetData.h"
 #include "Misc/ScopeRWLock.h"
 #include "StateTreeDelegates.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 #include "Misc/DataValidation.h"
-#include "StructUtilsDelegates.h"
 #include "Misc/EnumerateRange.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#include "StateTreePropertyFunctionBase.h"
+
 #if WITH_EDITOR
-#include "Engine/UserDefinedStruct.h"
+#include "Editor.h"
+#include "StateTreeModuleImpl.h"
+#include "StructUtils/UserDefinedStruct.h"
+#include "StructUtilsDelegates.h"
+#include "Templates/GuardValueAccessors.h"
+#include "UObject/LinkerLoad.h"
 #endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTree)
 
 const FGuid FStateTreeCustomVersion::GUID(0x28E21331, 0x501F4723, 0x8110FA64, 0xEA10DA1E);
@@ -30,7 +38,7 @@ bool UStateTree::IsReadyToRun() const
 
 FConstStructView UStateTree::GetNode(const int32 NodeIndex) const
 {
-	return Nodes.IsValidIndex(NodeIndex) ? Nodes[NodeIndex] : FConstStructView();	
+	return Nodes.IsValidIndex(NodeIndex) ? Nodes[NodeIndex] : FConstStructView();
 }
 
 FStateTreeIndex16 UStateTree::GetNodeIndexFromId(const FGuid Id) const
@@ -146,6 +154,21 @@ bool UStateTree::HasCompatibleContextData(const UStateTree& Other) const
 
 
 #if WITH_EDITOR
+namespace UE::StateTree::Compiler
+{
+	void RenameObjectToTransientPackage(UObject* ObjectToRename)
+	{
+		const ERenameFlags RenFlags = REN_DoNotDirty | REN_DontCreateRedirectors;
+
+		ObjectToRename->SetFlags(RF_Transient);
+		ObjectToRename->ClearFlags(RF_Public | RF_Standalone | RF_ArchetypeObject);
+
+		// Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
+		FLinkerLoad::InvalidateExport(ObjectToRename);
+		ObjectToRename->Rename(nullptr, GetTransientPackage(), RenFlags);
+	}
+}
+
 void UStateTree::ResetCompiled()
 {
 	Schema = nullptr;
@@ -169,6 +192,24 @@ void UStateTree::ResetCompiled()
 	bHasGlobalTransitionTasks = false;
 	
 	ResetLinked();
+
+	// Remove objects created from last compilation.
+	{
+		TArray<UObject*, TInlineAllocator<32>> Children;
+		const bool bIncludeNestedObjects = false;
+		ForEachObjectWithOuter(this, [&Children, EditorData = EditorData.Get()](UObject* Child)
+			{
+				if (Child != EditorData)
+				{
+					Children.Add(Child);
+				}
+			}, bIncludeNestedObjects);
+
+		for (UObject* Child : Children)
+		{
+			UE::StateTree::Compiler::RenameObjectToTransientPackage(Child);
+		}
+	}
 }
 
 void UStateTree::OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap)
@@ -178,27 +219,45 @@ void UStateTree::OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap)
 		return;
 	}
 
+	bool bShouldRelink = false;
+
+	// Relink if one of the out of date objects got reinstanced.
+	if (OutOfDateStructs.Num() > 0)
+	{
+		for (FObjectKey OutOfDateObjectKey : OutOfDateStructs)
+		{
+			if (const UObject* OutOfDateObject = OutOfDateObjectKey.ResolveObjectPtr())
+			{
+				if (ObjectMap.Contains(OutOfDateObject))
+				{
+					bShouldRelink = true;
+					break;
+				}
+			}
+		}
+	}
+
 	// If the asset is not linked yet (or has failed), no need to link.
-	if (!bIsLinked)
+	if (!bShouldRelink && !bIsLinked)
 	{
 		return;
 	}
 
 	// Relink only if the reinstantiated object belongs to this asset,
 	// or anything from the property binding refers to the classes of the reinstantiated object.
-
-	bool bShouldRelink = false;
-
-	for (TMap<UObject*, UObject*>::TConstIterator It(ObjectMap); It; ++It)
+	if (!bShouldRelink)
 	{
-		if (const UObject* ObjectToBeReplaced = It->Value)
+		for (TMap<UObject*, UObject*>::TConstIterator It(ObjectMap); It; ++It)
 		{
-			if (ObjectToBeReplaced->IsInOuter(this))
+			if (const UObject* ObjectToBeReplaced = It->Value)
 			{
-				bShouldRelink = true;
-				break;
+				if (ObjectToBeReplaced->IsInOuter(this))
+				{
+					bShouldRelink = true;
+					break;
+				}
 			}
-		}			
+		}
 	}
 
 	if (!bShouldRelink)
@@ -208,7 +267,15 @@ void UStateTree::OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap)
 		{
 			if (const UObject* ObjectToBeReplaced = It->Value)
 			{
-				Structs.Add(ObjectToBeReplaced->GetClass());
+				// It's a UClass or a UScriptStruct
+				if (const UStruct* StructToReplaced = Cast<const UStruct>(ObjectToBeReplaced))
+				{
+					Structs.Add(StructToReplaced);
+				}
+				else
+				{
+					Structs.Add(ObjectToBeReplaced->GetClass());
+				}
 			}
 		}
 
@@ -245,23 +312,20 @@ void UStateTree::PostInitProperties()
 {
 	Super::PostInitProperties();
 	
-	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UStateTree::OnObjectsReinstanced);
-	OnUserDefinedStructReinstancedHandle = UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTree::OnUserDefinedStructReinstanced);
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		OnObjectsReinstancedHandle = FStateTreeModule::OnObjectsReinstanced.AddUObject(this, &UStateTree::OnObjectsReinstanced);
+		OnUserDefinedStructReinstancedHandle = FStateTreeModule::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTree::OnUserDefinedStructReinstanced);
+		OnPreBeginPIEHandle = FStateTreeModule::OnPreBeginPIE.AddUObject(this, &UStateTree::OnPreBeginPIE);
+	}
 }
 
 void UStateTree::BeginDestroy()
 {
-	if (OnObjectsReinstancedHandle.IsValid())
-	{
-		FCoreUObjectDelegates::OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
-		OnObjectsReinstancedHandle.Reset();
-	}
-	if (OnUserDefinedStructReinstancedHandle.IsValid())
-	{
-		UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
-		OnUserDefinedStructReinstancedHandle.Reset();
-	}
-	
+	FStateTreeModule::OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
+	FStateTreeModule::OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
+	FStateTreeModule::OnPreBeginPIE.Remove(OnPreBeginPIEHandle);
+
 	Super::BeginDestroy();
 }
 
@@ -277,27 +341,46 @@ void UStateTree::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	const FString SchemaClassName = Schema ? Schema->GetClass()->GetPathName() : TEXT("");
 	Context.AddTag(FAssetRegistryTag(UE::StateTree::SchemaTag, SchemaClassName, FAssetRegistryTag::TT_Alphabetical));
 
+	if (Schema)
+	{
+		Schema->GetAssetRegistryTags(Context);
+	}
+
 	Super::GetAssetRegistryTags(Context);
 }
 
-void UStateTree::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UStateTree::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
 	static const FName SchemaTag(TEXT("Schema"));
-	const FString SchemaTagValue = InAssetData.GetTagValueRef<FString>(SchemaTag);
+	const FString SchemaTagValue = Context.GetAssetData().GetTagValueRef<FString>(SchemaTag);
 	if (!SchemaTagValue.IsEmpty() && FPackageName::IsShortPackageName(SchemaTagValue))
 	{
-		const FTopLevelAssetPath SchemaTagClassPathName = UClass::TryConvertShortTypeNameToPathName<UStruct>(SchemaTagValue, ELogVerbosity::Warning, TEXT("UStateTree::PostLoadAssetRegistryTags"));
+		const FTopLevelAssetPath SchemaTagClassPathName = UClass::TryConvertShortTypeNameToPathName<UStruct>(SchemaTagValue, ELogVerbosity::Warning, TEXT("UStateTree::ThreadedPostLoadAssetRegistryTagsOverride"));
 		if (!SchemaTagClassPathName.IsNull())
 		{
-			OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(SchemaTag, SchemaTagClassPathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
+			Context.AddTagToUpdate(FAssetRegistryTag(SchemaTag, SchemaTagClassPathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
 		}
 	}
 }
 
 EDataValidationResult UStateTree::IsDataValid(FDataValidationContext& Context) const
 {
+	// Don't warn user that the tree they just saved is not compiled. Only for submit or manual validation
+	if (Context.GetValidationUsecase() != EDataValidationUsecase::Save)
+	{
+		if (UE::StateTree::Delegates::OnRequestEditorHash.IsBound())
+		{
+			const uint32 CurrentHash = UE::StateTree::Delegates::OnRequestEditorHash.Execute(*this);
+			if (CurrentHash != LastCompiledEditorDataHash)
+			{
+				Context.AddWarning(FText::FromString(FString::Printf(TEXT("%s is not compiled. Please recompile the State Tree."), *GetFullName())));
+				return EDataValidationResult::Invalid;
+			}
+		}
+	}
+
 	if (!const_cast<UStateTree*>(this)->Link())
 	{
 		Context.AddError(FText::FromString(FString::Printf(TEXT("%s failed to link. Please recompile the State Tree for more details errors."), *GetFullName())));
@@ -331,38 +414,51 @@ void UStateTree::PostLoad()
 {
 	Super::PostLoad();
 
-	const int32 CurrentVersion = GetLinkerCustomVersion(FStateTreeCustomVersion::GUID);
-
-	if (CurrentVersion < FStateTreeCustomVersion::LatestVersion)
+	for (int32 NodeIndex = 0; NodeIndex < Nodes.Num(); ++NodeIndex)
 	{
+		FStructView NodeView = Nodes[NodeIndex];
+		if (FStateTreeNodeBase* Node = NodeView.GetPtr<FStateTreeNodeBase>())
+		{
+			if (Node->InstanceTemplateIndex.IsValid())
+			{
+				const bool bIsUsingSharedInstanceData = NodeView.GetScriptStruct()->IsChildOf<FStateTreeConditionBase>()
+														|| NodeView.GetScriptStruct()->IsChildOf<FStateTreeConsiderationBase>()
+														|| NodeView.GetScriptStruct()->IsChildOf<FStateTreePropertyFunctionBase>();
+				FStateTreeInstanceData& SourceInstanceData = bIsUsingSharedInstanceData ? SharedInstanceData : DefaultInstanceData;
+				if (SourceInstanceData.IsObject(Node->InstanceTemplateIndex.Get()))
+				{
+					Node->PostLoad(SourceInstanceData.GetMutableObject(Node->InstanceTemplateIndex.Get()));
+				}
+				else
+				{
+					Node->PostLoad(SourceInstanceData.GetMutableStruct(Node->InstanceTemplateIndex.Get()));
+				}
+			}
+		}
+	}
+
+	const int32 CurrentVersion = GetLinkerCustomVersion(FStateTreeCustomVersion::GUID);
 #if WITH_EDITOR
-		if (EditorData)
-		{
-			// Make sure all the fix up logic in the editor data has had chance to happen.
-			EditorData->ConditionalPostLoad();
-		}
-		
-		// Compiled data is in older format, try to compile the StateTree.
-		if (UE::StateTree::Delegates::OnRequestCompile.IsBound())
-		{
-			LOG_SCOPE_VERBOSITY_OVERRIDE(LogStateTree, ELogVerbosity::Log);
-			UE_LOG(LogStateTree, Log, TEXT("%s: compiled data is in older format. Trying to compile the asset..."), *GetFullName());
-			UE::StateTree::Delegates::OnRequestCompile.Execute(*this);
-		}
-		else
-		{
-			ResetCompiled();
-			UE_LOG(LogStateTree, Warning, TEXT("%s: compiled data is in older format. Please resave the StateTree asset."), *GetFullName());
-		}
+	if (EditorData)
+	{
+		// Make sure all the fix up logic in the editor data has had chance to happen.
+		EditorData->ConditionalPostLoad();
+	}
+	{
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
+		Compile();
+	}
 #else
+	if (CurrentVersion < FStateTreeCustomVersion::LatestVersion)
+	{		
 		UE_LOG(LogStateTree, Error, TEXT("%s: compiled data is in older format. Please recompile the StateTree asset."), *GetFullName());
-#endif
 		return;
 	}
-	
+#endif
+
 	if (!Link())
 	{
-		UE_LOG(LogStateTree, Log, TEXT("%s failed to link. Asset will not be usable at runtime."), *GetFullName());	
+		UE_LOG(LogStateTree, Log, TEXT("%s failed to link. Asset will not be usable at runtime."), *GetFullName());
 	}
 }
 
@@ -404,8 +500,97 @@ void UStateTree::ResetLinked()
 	bIsLinked = false;
 	ExternalDataDescs.Reset();
 
+#if WITH_EDITOR
+	OutOfDateStructs.Reset();
+#endif
+
 	FWriteScopeLock WriteLock(PerThreadSharedInstanceDataLock);
 	PerThreadSharedInstanceData.Reset();
+}
+
+bool UStateTree::ValidateInstanceData()
+{
+	bool bResult = true;
+	for (FConstStructView NodeView : Nodes)
+	{
+		const FStateTreeNodeBase* Node = NodeView.GetPtr<const FStateTreeNodeBase>();
+		if (Node && Node->InstanceTemplateIndex.IsValid())
+		{
+			const UStruct* CurrentInstanceDataType = nullptr;
+			{
+				const bool bUseSharedInstanceData = NodeView.GetPtr<const FStateTreeConditionBase>() || NodeView.GetPtr<const FStateTreeConsiderationBase>() || NodeView.GetPtr<const FStateTreePropertyFunctionBase>();
+				const FStateTreeInstanceData& SourceInstanceData = bUseSharedInstanceData ? SharedInstanceData : DefaultInstanceData;
+				if (SourceInstanceData.IsObject(Node->InstanceTemplateIndex.Get()))
+				{
+					const UObject* InstanceObject = SourceInstanceData.GetObject(Node->InstanceTemplateIndex.Get());
+					CurrentInstanceDataType = InstanceObject ? InstanceObject->GetClass() : nullptr;
+				}
+				else
+				{
+					CurrentInstanceDataType = SourceInstanceData.GetStruct(Node->InstanceTemplateIndex.Get()).GetScriptStruct();
+				}
+			}
+
+			{
+				// Is the class/scriptstruct a blueprint that got replaced by another class.
+				bool bHasNewerVersionExists = false;
+				if (const UClass* CurrentInstanceDataClass = Cast<UClass>(CurrentInstanceDataType))
+				{
+					bHasNewerVersionExists = CurrentInstanceDataClass->HasAnyClassFlags(CLASS_NewerVersionExists);
+				}
+				else if (const UScriptStruct* CurrentInstanceDataStruct = Cast<UScriptStruct>(CurrentInstanceDataType))
+				{
+					bHasNewerVersionExists = (CurrentInstanceDataStruct->StructFlags & STRUCT_NewerVersionExists) != 0;
+				}
+
+				if (bHasNewerVersionExists)
+				{
+					bool bLogError = true;
+#if WITH_EDITOR
+					OutOfDateStructs.Add(CurrentInstanceDataType);
+					bLogError = false;
+#endif
+
+					if (bLogError)
+					{
+						UE_LOG(LogStateTree, Error, TEXT("%s: node '%s' failed. The source Instance Data type '%s' has a newer version."), *GetFullName(), *WriteToString<64>(Node->StaticStruct()->GetFName()), *WriteToString<64>(CurrentInstanceDataType->GetFName()));
+					}
+
+					bResult = false;
+				}
+			}
+
+			{
+				const UStruct* DesiredInstanceDataType = Node->GetInstanceDataType();
+
+				// Use strict testing so that the users will have option to initialize data mismatch if the type changes (even if potentially compatible).
+				if (CurrentInstanceDataType != DesiredInstanceDataType)
+				{
+					bool bLogError = true;
+#if WITH_EDITOR
+					const UClass* CurrentInstanceDataClass = Cast<UClass>(CurrentInstanceDataType);
+					const UClass* DesiredInstanceDataClass = Cast<UClass>(DesiredInstanceDataType);
+					if (CurrentInstanceDataClass && DesiredInstanceDataClass)
+					{
+						// Because of the loading order.It's possible that the OnObjectsReinstanced did complete.
+						if (CurrentInstanceDataClass->ClassGeneratedBy == DesiredInstanceDataClass->ClassGeneratedBy)
+						{
+							OutOfDateStructs.Add(CurrentInstanceDataType);
+							bLogError = false;
+						}
+					}
+#endif
+					if (bLogError)
+					{
+						UE_LOG(LogStateTree, Error, TEXT("%s: node '%s' failed. The source Instance Data type '%s' does not match '%s'"), *GetFullName(), *WriteToString<64>(Node->StaticStruct()->GetFName()), *GetNameSafe(CurrentInstanceDataType), *GetNameSafe(DesiredInstanceDataType));
+					}
+					bResult = false;
+				}
+			}
+		}
+	}
+
+	return bResult;
 }
 
 bool UStateTree::Link()
@@ -413,6 +598,12 @@ bool UStateTree::Link()
 	// Initialize the instance data default value.
 	// This data will be used to allocate runtime instance on all StateTree users.
 	ResetLinked();
+
+	// Validate that all the source instance data types matches the node instance data types
+	if (!ValidateInstanceData())
+	{
+		return false;
+	}
 
 	// Resolves nodes references to other StateTree data
 	FStateTreeLinker Linker(Schema);
@@ -619,7 +810,6 @@ bool UStateTree::PatchBindings()
 		}
 	}
 
-
 	TMap<FStateTreeDataHandle, FStateTreeDataView> DataViews;
 	TMap<FStateTreeIndex16, FStateTreeDataView> BindingBatchDataView;
 
@@ -650,11 +840,13 @@ bool UStateTree::PatchBindings()
 	for (FConstStructView NodeView : Nodes)
 	{
 		const FStateTreeNodeBase& Node = NodeView.Get<const FStateTreeNodeBase>();
-		
+
 		FStateTreeInstanceData* SourceInstanceData = &DefaultInstanceData;
-		if (NodeView.GetPtr<const FStateTreeConditionBase>())
+		if (NodeView.GetScriptStruct()->IsChildOf<FStateTreeConditionBase>()
+            || NodeView.GetScriptStruct()->IsChildOf<FStateTreeConsiderationBase>()
+            || NodeView.GetScriptStruct()->IsChildOf<FStateTreePropertyFunctionBase>())
 		{
-			// Conditions are stored in shared instance data.
+			// Conditions, Considerations, and PropertyFunctions are stored in shared instance data.
 			SourceInstanceData = &SharedInstanceData;
 		}
 
@@ -702,15 +894,22 @@ bool UStateTree::PatchBindings()
 		}
 
 		FString ErrorMsg;
-		for (int32 Index = Batch.BindingsBegin; Index != Batch.BindingsEnd; Index++)
+		for (int32 Index = Batch.BindingsBegin.Get(); Index != Batch.BindingsEnd.Get(); Index++)
 		{
 			FStateTreePropertyPathBinding& Binding = PropertyPathBindings[Index];
-			FStateTreeDataView SourceView = GetDataSourceView(Binding.GetSourceDataHandle());
-			
-			if (!Binding.GetMutableSourcePath().UpdateSegmentsFromValue(SourceView, &ErrorMsg))
+
+			const EStateTreeDataSourceType Source = Binding.GetSourceDataHandle().GetSource();
+			const bool bIsSourceEvent = Source == EStateTreeDataSourceType::TransitionEvent || Source == EStateTreeDataSourceType::StateEvent;
+
+			if(!bIsSourceEvent)
 			{
-				UE_LOG(LogStateTree, Error, TEXT("%hs: Failed to update source instance structs for property binding '%s'. Reason: %s"), __FUNCTION__, *Binding.GetTargetPath().ToString(), *ErrorMsg);
-				return false;
+				FStateTreeDataView SourceView = GetDataSourceView(Binding.GetSourceDataHandle());
+
+				if (!Binding.GetMutableSourcePath().UpdateSegmentsFromValue(SourceView, &ErrorMsg))
+				{
+					UE_LOG(LogStateTree, Error, TEXT("%hs: Failed to update source instance structs for property binding '%s'. Reason: %s"), __FUNCTION__, *Binding.GetTargetPath().ToString(), *ErrorMsg);
+					return false;
+				}
 			}
 
 			if (!Binding.GetMutableTargetPath().UpdateSegmentsFromValue(TargetView, &ErrorMsg))
@@ -948,5 +1147,205 @@ TArray<FStateTreeMemoryUsage> UStateTree::CalculateEstimatedMemoryUsage() const
 
 	return MemoryUsages;
 }
-#endif // WITH_EDITOR
+
+void UStateTree::OnPreBeginPIE(const bool bIsSimulating)
+{
+	CompileIfChanged();
+}
+
+void UStateTree::CompileIfChanged()
+{
+	if (UE::StateTree::Delegates::OnRequestCompile.IsBound() && UE::StateTree::Delegates::OnRequestEditorHash.IsBound())
+	{
+		const uint32 CurrentHash = UE::StateTree::Delegates::OnRequestEditorHash.Execute(*this);
+		if (LastCompiledEditorDataHash != CurrentHash)
+		{
+			UE_LOG(LogStateTree, Log, TEXT("%s: Editor data has changed. Recompiling state tree."), *GetFullName());
+			UE::StateTree::Delegates::OnRequestCompile.Execute(*this);
+		}
+	}
+	else
+	{
+		ResetCompiled();
+		UE_LOG(LogStateTree, Warning, TEXT("%s: could not compile. Please resave the StateTree asset."), *GetFullName());
+	}
+}
+
+void UStateTree::Compile()
+{
+	if (UE::StateTree::Delegates::OnRequestCompile.IsBound())
+	{
+		UE_LOG(LogStateTree, Log, TEXT("%s: Editor data has changed. Recompiling state tree."), *GetFullName());
+		UE::StateTree::Delegates::OnRequestCompile.Execute(*this);
+	}
+	else
+	{
+		ResetCompiled();
+		UE_LOG(LogStateTree, Warning, TEXT("%s: could not compile. Please resave the StateTree asset."), *GetFullName());
+	}
+}
+#endif //WITH_EDITOR
+
+#if WITH_EDITOR || WITH_STATETREE_DEBUG
+FString UStateTree::DebugInternalLayoutAsString() const
+{
+	FStringBuilderBase DebugString;
+	DebugString << TEXT("StateTree (asset: '");
+	GetFullName(DebugString);
+	DebugString << TEXT("')\n");
+
+	auto PrintObjectNameSafe = [&DebugString](const UObject* Obj)
+		{
+			DebugString << TEXT("  ");
+			if (Obj)
+			{
+				DebugString << Obj->GetFName();
+			}
+			else
+			{
+				DebugString << TEXT("null");
+			}
+			DebugString << TEXT('\n');
+		};
+	auto PrintViewNameSafe = [&DebugString](const FConstStructView& View)
+		{
+			DebugString << TEXT("  ");
+			if (View.IsValid())
+			{
+				DebugString << View.GetScriptStruct()->GetFName();
+			}
+			else
+			{
+				DebugString << TEXT("null");
+			}
+			DebugString << TEXT('\n');
+		};
+
+	// Tree items (e.g. tasks, evaluators, conditions)
+	DebugString.Appendf(TEXT("\nNodes(%d)\n"), Nodes.Num());
+	for (int32 Index = 0; Index < Nodes.Num(); Index++)
+	{
+		const FConstStructView Node = Nodes[Index];
+		PrintViewNameSafe(Node);
+	}
+
+	// Instance InstanceData data (e.g. tasks)
+	DebugString.Appendf(TEXT("\nInstance Data(%d)\n"), DefaultInstanceData.Num());
+	for (int32 Index = 0; Index < DefaultInstanceData.Num(); Index++)
+	{
+		if (DefaultInstanceData.IsObject(Index))
+		{
+			const UObject* Data = DefaultInstanceData.GetObject(Index);
+			PrintObjectNameSafe(Data);
+		}
+		else
+		{
+			const FConstStructView Data = DefaultInstanceData.GetStruct(Index);
+			PrintViewNameSafe(Data);
+		}
+	}
+
+	// External data (e.g. fragments, subsystems)
+	DebugString.Appendf(TEXT("\nExternal Data(%d)\n"), ExternalDataDescs.Num());
+	if (ExternalDataDescs.Num())
+	{
+		DebugString.Appendf(TEXT("  [% -40s | % -8s | % 15s]\n"), TEXT("Name"), TEXT("Optional"), TEXT("Handle"));
+		for (const FStateTreeExternalDataDesc& Desc : ExternalDataDescs)
+		{
+			DebugString.Appendf(TEXT("  | %-40s | %8s | %15s |\n"), Desc.Struct ? *Desc.Struct->GetName() : TEXT("null"), *UEnum::GetDisplayValueAsText(Desc.Requirement).ToString(), *Desc.Handle.DataHandle.Describe());
+		}
+	}
+
+	// Bindings
+	DebugString << PropertyBindings.DebugInternalLayoutAsString();
+
+	// States
+	DebugString.Appendf(TEXT("\nStates(%d)\n"), States.Num());
+	if (States.Num())
+	{
+		DebugString.Appendf(TEXT("  [ %-30s | %15s | %5s [%3s:%-3s[ | Begin Idx : %4s %4s %4s %4s | Num : %4s %4s %4s %4s ]\n"),
+			TEXT("Name"), TEXT("Parent"), TEXT("Child"), TEXT("Beg"), TEXT("End"),
+			TEXT("Cond"), TEXT("Tr"), TEXT("Tsk"), TEXT("Uti"), TEXT("Cond"), TEXT("Tr"), TEXT("Tsk"), TEXT("Uti"));
+		for (const FCompactStateTreeState& State : States)
+		{
+			DebugString.Appendf(TEXT("  | %-30s | %15s | %5s [%3d:%-3d[ | %9s   %4d %4d %4d %4d | %3s   %4d %4d %4d %4d |\n"),
+				*State.Name.ToString(), *State.Parent.Describe(),
+				TEXT(""), State.ChildrenBegin, State.ChildrenEnd,
+				TEXT(""), State.EnterConditionsBegin, State.TransitionsBegin, State.TasksBegin, State.UtilityConsiderationsBegin,
+				TEXT(""), State.EnterConditionsNum, State.TransitionsNum, State.TasksNum, State.UtilityConsiderationsNum);
+		}
+	}
+
+	// Transitions
+	DebugString.Appendf(TEXT("\nTransitions(%d)\n"), Transitions.Num());
+	if (Transitions.Num())
+	{
+		DebugString.Appendf(TEXT("  [ %-3s | %15s | %-20s | %-40s | %-40s | %-8s ]\n")
+			, TEXT("Idx"), TEXT("State"), TEXT("Transition Trigger"), TEXT("Transition Event Tag"), TEXT("Transition Event Payload"), TEXT("Cond:Num"));
+		for (const FCompactStateTransition& Transition : Transitions)
+		{
+			DebugString.Appendf(TEXT("  | %3d | %15s | %-20s | %-40s | %-40s | %4d:%3d |\n"),
+				Transition.ConditionsBegin, *Transition.State.Describe(),
+				*UEnum::GetDisplayValueAsText(Transition.Trigger).ToString(),
+				*Transition.RequiredEvent.Tag.ToString(),
+				Transition.RequiredEvent.PayloadStruct ? *Transition.RequiredEvent.PayloadStruct->GetName() : TEXT("None"),
+				Transition.ConditionsBegin, Transition.ConditionsNum);
+		}
+	}
+
+	// Evaluators
+	DebugString.Appendf(TEXT("\nEvaluators(%d)\n"), EvaluatorsNum);
+	if (EvaluatorsNum)
+	{
+		DebugString.Appendf(TEXT("  [ %-30s | %8s | %10s ]\n"),
+			TEXT("Name"), TEXT("Bindings"), TEXT("Struct Idx"));
+		for (int32 EvalIndex = EvaluatorsBegin; EvalIndex < (EvaluatorsBegin + EvaluatorsNum); EvalIndex++)
+		{
+			const FStateTreeEvaluatorBase& Eval = Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
+			DebugString.Appendf(TEXT("  | %-30s | %8d | %10s |\n"),
+				*Eval.Name.ToString(), Eval.BindingsBatch.Get(), *Eval.InstanceDataHandle.Describe());
+		}
+	}
+
+	// Tasks
+	DebugString.Appendf(TEXT("\nTasks\n  [ %-30s | %-30s | %8s | %10s ]\n"),
+		TEXT("State"), TEXT("Name"), TEXT("Bindings"), TEXT("Struct Idx"));
+	for (const FCompactStateTreeState& State : States)
+	{
+		if (State.TasksNum)
+		{
+			for (int32 TaskIndex = State.TasksBegin; TaskIndex < (State.TasksBegin + State.TasksNum); TaskIndex++)
+			{
+				const FStateTreeTaskBase& Task = Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
+				DebugString.Appendf(TEXT("  | %-30s | %-30s | %8d | %10s |\n"),
+					*State.Name.ToString(), *Task.Name.ToString(), Task.BindingsBatch.Get(), *Task.InstanceDataHandle.Describe());
+			}
+		}
+	}
+	for (int32 TaskIndex = GlobalTasksBegin; TaskIndex < (GlobalTasksBegin + GlobalTasksNum); TaskIndex++)
+	{
+		const FStateTreeTaskBase& Task = Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
+		DebugString.Appendf(TEXT("  | %-30s | %-30s | %8d | %10s |\n"),
+			TEXT("Global"), *Task.Name.ToString(), Task.BindingsBatch.Get(), *Task.InstanceDataHandle.Describe());
+	}
+
+	// Conditions
+	DebugString.Appendf(TEXT("\nCondition\n  [ %-30s | %-30s | %8s | %12s | %10s ]\n"),
+		TEXT("State"), TEXT("Name"), TEXT("Operand"), TEXT("Evaluation"), TEXT("Struct Idx"));
+	for (const FCompactStateTreeState& State : States)
+	{
+		if (State.EnterConditionsNum)
+		{
+			for (int32 CondIndex = State.EnterConditionsBegin; CondIndex < (State.EnterConditionsBegin + State.EnterConditionsNum); CondIndex++)
+			{
+				const FStateTreeConditionBase& Cond = Nodes[CondIndex].Get<const FStateTreeConditionBase>();
+				DebugString.Appendf(TEXT("  | %-30s | %-30s | %8s | %12s | %10s |\n"),
+					*State.Name.ToString(), *Cond.Name.ToString(), *UEnum::GetDisplayValueAsText(Cond.Operand).ToString(), *UEnum::GetDisplayValueAsText(Cond.EvaluationMode).ToString(), *Cond.InstanceDataHandle.Describe());
+			}
+		}
+	}
+
+	return DebugString.ToString();
+}
+#endif // WITH_EDITOR || WITH_STATETREE_DEBUG
 

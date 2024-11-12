@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml.Linq;
 using EpicGames.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -16,7 +15,7 @@ using UnrealBuildBase;
 Here's how this works:
 
   * An XcodeProjectFile (subclass of generic ProjectFile class) is created, along with it - UnrealData and XcodeFileCollection objects are made
-  * High level code calls AddModule() which this code will use to cache information about the Modules in the project (including build settings, etc)
+  * High level code calls AddModuleForIntelliSense() which this code will use to cache information about the Modules in the project (including build settings, etc)
     * These are used to determine what source files can be indexed together (we use native xcode code compilation for indexing, so we make compiling succesful for best index)
     * A few #defines are removed or modified (FOO_API, etc) which would otherwise make every module a separate target
   * High level code then calls WriteProjectFile() which is the meat of all this
@@ -84,7 +83,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 	class UnrealBatchedFiles
 	{
 		// build settings that cause uniqueness
-		public IEnumerable<String>? ForceIncludeFiles = null;
+		public IEnumerable<string>? ForceIncludeFiles = null;
 		// @todo can we actually use this effectively with indexing other than fotced include?
 		public FileReference? PCHFile = null;
 		public bool bEnableRTTI = false;
@@ -102,10 +101,10 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public UnrealBatchedFiles(UnrealData UnrealData, int Index, UEBuildModuleCPP Module)
 		{
 			this.Module = Module;
-			ResponseFile = FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, "ResponseFiles", $"{UnrealData.ProductName}{Index}.response");
+			ResponseFile = FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, "ResponseFiles", Module.Rules.Target.Platform.ToString(), $"{UnrealData.ProductName}{Index}.response");
 		}
 
-		public void GenerateResponseFile()
+		public void GenerateResponseFile(UnrealTargetPlatform Platform)
 		{
 			StringBuilder ResponseFileContents = new();
 			ResponseFileContents.Append("-isystem");
@@ -199,7 +198,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 							}
 							else
 							{
-								throw ex;
+								throw;
 							}
 						}
 					}
@@ -342,7 +341,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 		public List<UnrealBuildConfig> AllConfigs = new();
 
-		public List<UnrealBatchedFiles> BatchedFiles = new();
+		public Dictionary<UnrealTargetPlatform, List<UnrealBatchedFiles>> BatchedFiles = new();
 
 		public List<string> ExtraPreBuildScriptLines = new();
 
@@ -488,7 +487,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				}
 
 				DirectoryReference? ProgramFinder = DirectoryReference.Combine(ProjectFile.BaseDir);
-				while (ProgramFinder != null && String.Compare(ProgramFinder.GetDirectoryName(), "Source", true) != 0)
+				while (ProgramFinder != null && !String.Equals(ProgramFinder.GetDirectoryName(), "Source", StringComparison.CurrentCultureIgnoreCase))
 				{
 					ProgramFinder = ProgramFinder.ParentDirectory;
 				}
@@ -599,7 +598,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			return null;
 		}
 
-		public string ProjectOrEnginePath(string SubPath, bool bMakeRelative, string? AltProjectSubPath=null)
+		public string ProjectOrEnginePath(string SubPath, bool bMakeRelative, string? AltProjectSubPath = null)
 		{
 			string? FinalPath = null;
 			if (ProductDirectory != Unreal.EngineDirectory)
@@ -622,10 +621,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 
 			// if the SubPath (or optional AlProjectsubPath) wasn't found, then fall back to engine location
-			if (FinalPath == null)
-			{
-				FinalPath = Path.Combine(Unreal.EngineDirectory.FullName, SubPath);
-			}
+			FinalPath ??= Path.Combine(Unreal.EngineDirectory.FullName, SubPath);
 			if (bMakeRelative)
 			{
 				FinalPath = new FileReference(FinalPath).MakeRelativeTo(XcodeProjectFileLocation.ParentDirectory!);
@@ -634,11 +630,15 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			return FinalPath;
 		}
 
-		public void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
-			// one batched files per module
-			UnrealBatchedFiles FileBatch = new UnrealBatchedFiles(this, BatchedFiles.Count + 1, Module);
-			BatchedFiles.Add(FileBatch);
+			// one batched files per module per platform
+			if (!BatchedFiles.ContainsKey(Module.Rules.Target.Platform))
+			{
+				BatchedFiles[Module.Rules.Target.Platform] = new();
+			}
+			UnrealBatchedFiles FileBatch = new UnrealBatchedFiles(this, BatchedFiles[Module.Rules.Target.Platform].Count + 1, Module);
+			BatchedFiles[Module.Rules.Target.Platform].Add(FileBatch);
 
 			if (CompileEnvironment.ForceIncludeFiles.Count == 0)
 			{
@@ -783,7 +783,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 			// pull off the front of the "deque" amd add its references to the back, gather
 			List<XcodeProjectNode> Return = new();
-			while (Nodes.Count() > 0)
+			while (Nodes.Count > 0)
 			{
 				XcodeProjectNode Head = Nodes.First();
 				Nodes.RemoveFirst();
@@ -818,10 +818,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		/// <param name="WrittenNodes"></param>
 		public static void WriteNodeAndReferences(StringBuilder Content, XcodeProjectNode Node, ILogger Logger, HashSet<XcodeProjectNode>? WrittenNodes = null)
 		{
-			if (WrittenNodes == null)
-			{
-				WrittenNodes = new();
-			}
+			WrittenNodes ??= new();
 
 			// write the node into the xcode project file
 			Node.Write(Content);
@@ -967,9 +964,9 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public void AddFramework(DirectoryReference Framework, string FileRefGuid)
 		{
 			XcodeSourceFile FrameworkSource = new XcodeSourceFile(new FileReference(Framework.FullName), null, FileRefGuid);
-			FileCollection.ProcessFile(FrameworkSource, true, false, "Frameworks", ""); ;
+			FileCollection.ProcessFile(FrameworkSource, true, false, "Frameworks", "");
+			;
 			FileItems.Add(FrameworkSource);
-
 		}
 	}
 
@@ -1061,7 +1058,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					Content.WriteLine(4, $"\"VALID_ARCHS[sdk=macos*]\" = \"{SupportedMacArchitectures}\";");
 				}
 			}
-				
+
 			Content.WriteLine(3, "};");
 			Content.WriteLine(3, $"name = \"{Info.DisplayName}\";");
 			Content.WriteLine(2, "};");
@@ -1379,7 +1376,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			{
 				// Editor just need the above script to copy executable into .app
 
-				XcodeShellScriptBuildPhase EditorCopyScriptPhase = new("Copy Executable into .app", CopyScript, new string[] { }, new string[] { $"/dev/null" });
+				XcodeShellScriptBuildPhase EditorCopyScriptPhase = new("Copy Executable into .app", CopyScript, Array.Empty<string>(), new string[] { $"/dev/null" });
 				BuildPhases.Add(EditorCopyScriptPhase);
 				References.Add(EditorCopyScriptPhase);
 				return;
@@ -1436,7 +1433,8 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 						$"  rm -rf \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
 						"  exit -0",
 						"fi",
-					}); ;
+					});
+					;
 				}
 
 				// when we bring stated data into the .app, we have to skip some temp stuff that went into it
@@ -1448,19 +1446,42 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				};
 
 				// make a string like --exclude=/Info.plist --exclude=/Manifest_* ...
-				string ExcludeString = string.Join(" ", Exclusions.Select(x => (x[0] == '+' ? "--include" : "--exclude") + $"=\\\"{x.Substring(1)}\\\""));
+				string ExcludeString = String.Join(" ", Exclusions.Select(x => (x[0] == '+' ? "--include" : "--exclude") + $"=\\\"{x.Substring(1)}\\\""));
+
+
+				// copy uecommandline.txt for IOS type platforms
+				if (Platform != UnrealTargetPlatform.Mac)
+				{
+					CopyScript.AddRange(new string[]
+					{
+						"if [[ -e \\\"${STAGED_DIR}/uecommandline.txt\\\" ]]; then",
+						"  echo \\\"Syncing ${STAGED_DIR}/uecommandline.txt to ${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\"",
+						"  cp \\\"${STAGED_DIR}/uecommandline.txt\\\" \\\"${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\"",
+						"fi"
+					});
+				}
 
 				CopyScript.AddRange(new string[]
 				{
 					"",
 					$"echo \\\"Syncing ${{STAGED_DIR}}{SyncSourceSubdir} to ${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
+					$"if [[ -e  \\\"${{STAGED_DIR}}{SyncSourceSubdir}\\\" ]]; then",
 					$"rsync -a --delete {ExcludeString} \\\"${{STAGED_DIR}}{SyncSourceSubdir}/\\\" \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
+					"else",
+					"  echo =========================================================================================",
+					"  echo \\\"WARNING: To run, you must have a valid staged sync source directory. The Staged SyncSource location is:\\\"",
+					$"  echo \\\"${{STAGED_DIR}}{SyncSourceSubdir}\\\"",
+					"  echo \\\"Use the editor's Platforms menu, or run a command like::\\\"",
+					$"  echo \\\"./RunUAT.sh BuildCookRun -platform={Platform} -project=<project> -build -cook -stage -pak\\\"",
+					"  echo =========================================================================================",
+					"  exit -0 ",
+					"fi",
 				});
 			}
 
 			// run this script every time, but xcode will show a warning if there isn't _some_ output
 			string ScriptOutput = $"/dev/null";
-			XcodeShellScriptBuildPhase CopyScriptPhase = new("Copy Executable and Staged Data into .app", CopyScript, new string[] { }, new string[] { ScriptOutput });
+			XcodeShellScriptBuildPhase CopyScriptPhase = new("Copy Executable and Staged Data into .app", CopyScript, Array.Empty<string>(), new string[] { ScriptOutput });
 			BuildPhases.Add(CopyScriptPhase);
 			References.Add(CopyScriptPhase);
 
@@ -1468,17 +1489,43 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			// (note bInstallOnly which will make this onle run when archiving)
 			List<string> DsymScript = new();
 
+			bool bUsePremadeDSYMInXcArchive;
+			// get ini file for the platform
+			ConfigHierarchy PlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, UnrealData.ConfigDirectory, Platform);
+			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUsePremadeDSYMInXcArchive", out bUsePremadeDSYMInXcArchive);
+
+			if (bUsePremadeDSYMInXcArchive)
+			{
+				DsymScript.AddRange(new string[]
+				{
+					"set -e",
+					"",
+					"# Copy a dsym from next to the executable",
+					"SRC_DSYM=\\\"${UE_BINARIES_DIR}/${UE_UBT_BINARY_SUBPATH}.dSYM\\\"",
+					"if [[ -e \\\"${SRC_DSYM}\\\" ]]; then",
+					"  echo Using pre-existing dSYM at \\\"${SRC_DSYM}\\\"",
+					"  ditto \\\"${SRC_DSYM}\\\" \\\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\\\"",
+					"fi"
+				});
+			}
+			else
+			{
+				DsymScript.AddRange(new string[]
+				{
+					"set -e",
+					"",
+					"# Run the wrapper dsym generator",
+					"\\\"${UE_ENGINE_DIR}/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh\\\" \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\" \\\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\\\"",
+				});
+			}
 			DsymScript.AddRange(new string[]
 			{
-				"set -e",
-				"",
-				"# Run the wrapper dsym generator",
-				"\\\"${UE_ENGINE_DIR}/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh\\\" \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\" \\\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\\\"",
 				"strip -no_code_signature_warning -D \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\"",
 				"",
 				"# Remove any unused architectures from dylibs in the .app (param1) that don't match the executable (param2). Also error if a dylib is missing arches",
 				"\\\"${UE_ENGINE_DIR}/Build/BatchFiles/Mac/ThinApp.sh\\\" \\\"${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\" \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\"",
 			});
+
 			string DsymScriptInput = $"\\\"$(CONFIGURATION_BUILD_DIR)/$(EXECUTABLE_PATH)\\\"";
 			string DsymScriptOutput = $"\\\"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)\\\"";
 			XcodeShellScriptBuildPhase DsymScriptPhase = new("Generate dsym for archive, and strip", DsymScript, new string[] { DsymScriptInput }, new string[] { DsymScriptOutput }, bInstallOnly: true);
@@ -1516,7 +1563,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			string AssetsPath = UnrealData.ProjectOrEnginePath(AssetsSubPath, false, AssetsAltSubPath);
 			ResourcesBuildPhase.AddResource(new FileReference(AssetsPath));
 			StoryboardPath = UnrealData.FindFile(StoryboardPaths, Platform, false);
-			
+
 			if (StoryboardPath != null)
 			{
 				ResourcesBuildPhase.AddResource(new FileReference(StoryboardPath));
@@ -1559,6 +1606,24 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					{
 						ResourcesBuildPhase.AddResource(FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, PrivacyInfo.XcodeProjectRelative));
 					}
+				}
+			}
+
+			string? ExtraFolderToCopyToApp;
+			ConfigHierarchy PlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, UnrealData.ConfigDirectory, Platform);
+			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "ExtraFolderToCopyToApp", out ExtraFolderToCopyToApp);
+
+			if (ExtraFolderToCopyToApp != null)
+			{
+				List<string> ResourcesToBundlePaths = new List<string>()
+				{
+					ExtraFolderToCopyToApp,
+				};
+
+				string? ResourcesToBundlePath = UnrealData.FindFile(ResourcesToBundlePaths, Platform, false);
+				if (ResourcesToBundlePath != null)
+				{
+					ResourcesBuildPhase.AddFolderResource(new DirectoryReference(ResourcesToBundlePath), "Resources");
 				}
 			}
 		}
@@ -1679,7 +1744,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		private string GetPlistSigningName(string ProvisionSetting, ILogger Logger)
 		{
 			string? SigningName;
-			lock(PlistFileMap)
+			lock (PlistFileMap)
 			{
 				if (!PlistFileMap.TryGetValue(ProvisionSetting, out SigningName))
 				{
@@ -1704,7 +1769,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 							Logger.LogInformation("Copying project's provision '{SourceProvision}' to your libary: '{TargetProvision}'", ProfileFile, InstalledProfileFile);
 						}
 
-
 						SigningName = UUID;
 					}
 					else
@@ -1727,7 +1791,14 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			DirectoryReference ProjectOrEngineDir = UnrealData.UProjectFileLocation?.Directory ?? Unreal.EngineDirectory;
 
 			// point to the shader Engine/Binaries for content only project (sadly, the TargetRules.OutputFile is not filled out)
-			DirectoryReference ConfigBuildDir = (TargetRules.Type == TargetType.Editor || UnrealData.bIsContentOnlyProject) ? Unreal.EngineDirectory : ProjectOrEngineDir;
+			bool bUseEngineDirectory = TargetRules.Type == TargetType.Editor || UnrealData.bIsContentOnlyProject;
+			if (TargetRules.BuildEnvironment == TargetBuildEnvironment.Unique)
+			{
+				// unique build environment editors will put their binaries in the project
+				bUseEngineDirectory = false;
+			}
+
+			DirectoryReference ConfigBuildDir = bUseEngineDirectory ? Unreal.EngineDirectory : ProjectOrEngineDir;
 			if (TargetRules.Type == TargetType.Program && TargetRules.File!.IsUnderDirectory(Unreal.EngineDirectory))
 			{
 				ConfigBuildDir = BuildConfig.RootDirectory;
@@ -1776,7 +1847,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppCategory", out AppCategory);
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "ApplicationDisplayName", out ApplicationDisplayName);
 
-
 			if (Platform == UnrealTargetPlatform.Mac)
 			{
 				// editor vs game metadata
@@ -1813,14 +1883,14 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					{
 						SupportedPlatforms += " iphonesimulator";
 					}
-				
+
 					DeploymentTargetKey = "IPHONEOS_DEPLOYMENT_TARGET";
 					SupportedDevices = UnrealData.IOSProjectSettings!.RuntimeDevices;
 					DeploymentTarget = UnrealData.IOSProjectSettings.RuntimeVersion;
 
 					// only iphone deals with orientation
 					List<string> SupportedOrientations = XcodeUtils.GetSupportedOrientations(PlatformIni);
-					ExtraConfigLines.Add($"INFOPLIST_KEY_UISupportedInterfaceOrientations = \"{String.Join(" ", SupportedOrientations)}\"");
+					ExtraConfigLines.Add($"INFOPLIST_KEY_UISupportedInterfaceOrientations = " + String.Join(" ", SupportedOrientations));
 
 					// iPhone is always Fullscreen, however, an iPad can support SplitView mode (dynamic view resizeing), so check if that's enabled and then add iPad UISupportedInterfaceOrientations
 					bool bEnableSplitView = false;
@@ -1857,7 +1927,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					{
 						ExtraConfigLines.Add($"INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES");
 					}
-
 				}
 				else
 				{
@@ -2004,7 +2073,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				// hook up the Buildconfig that matches this info to this xcconfig file
 				XcconfigFile ConfigXcconfig = MatchedConfig.Xcconfig!;
 
-				string ExecutableName = AppleExports.MakeBinaryFileName(Config.ExeName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
+				string ExecutableName = AppleExports.MakeBinaryFileName(Config.ExeName, TargetRules.DecoratedSeparator, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
 				string ExetuableSubPath = FileReference.Combine(ConfigBuildDir, ExecutableName).MakeRelativeTo(ConfigBuildDir);
 				string ExecutableKey = $"UE_{Platform.ToString().ToUpper()}_EXECUTABLE_NAME";
 
@@ -2018,7 +2087,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				// content only projects don't want UnrealGame, etc as the ProductName
 				if (UnrealData.bIsContentOnlyProject && TargetRules.Type != TargetType.Editor)
 				{
-					ProductName = AppleExports.MakeBinaryFileName(PerTargetTypeProductName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
+					ProductName = AppleExports.MakeBinaryFileName(PerTargetTypeProductName, TargetRules.DecoratedSeparator, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
 				}
 
 				MetadataItem? EntitlementsMetadata = UnrealData.Metadata!.EntitlementsFiles[MetadataPlatform];
@@ -2104,7 +2173,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		private UnrealData UnrealData;
 
 		// just take the Project since it has everything we need, and is needed when adding target dependencies
-		public XcodeIndexTarget(XcodeProject Project)
+		public XcodeIndexTarget(XcodeProject Project, UnrealTargetPlatform Platform)
 			: base(XcodeTarget.Type.Index, Project.UnrealData)
 		{
 			UnrealData = Project.UnrealData;
@@ -2121,10 +2190,10 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			BuildPhases.Add(SourcesBuildPhase);
 			References.Add(SourcesBuildPhase);
 
-			foreach (KeyValuePair<XcodeSourceFile, FileReference?> Pair in Project.FileCollection.BuildableFilesToResponseFile)
+			foreach (KeyValuePair<XcodeSourceFile, Dictionary<UnrealTargetPlatform, FileReference>> Pair in Project.FileCollection.BuildableFilesToResponseFile)
 			{
 				// only add files that found a moduleto be part of (since we can't build without the build settings that come from a module)
-				if (Pair.Value != null)
+				if (Pair.Value.ContainsKey(Platform))
 				{
 					SourcesBuildPhase.AddFile(Pair.Key);
 				}
@@ -2196,11 +2265,26 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			References.Add(ProjectBuildConfigs);
 
 			// make an indexing target if we aren't just a run-only project, and it has buildable source files
-			if (!XcodeProjectFileGenerator.bGenerateRunOnlyProject && UnrealData.BatchedFiles.Count != 0)
+			if (!XcodeProjectFileGenerator.bGenerateRunOnlyProject)
 			{
-				// index isn't a dependency of run, it's simply a target that xcode will find to index from
-				XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this);
-				References.Add(IndexTarget);
+				if (Platform != null)
+				{
+					// Per platform project, check if we have files to index for that platform
+					if (UnrealData.BatchedFiles.ContainsKey(Platform.Value) && UnrealData.BatchedFiles[Platform.Value].Count > 0)
+					{
+						XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this, Platform.Value);
+						References.Add(IndexTarget);
+					}
+				}
+				else
+				{
+					// Shared platform project, just try to index Mac target
+					if (UnrealData.BatchedFiles[UnrealTargetPlatform.Mac].Count > 0)
+					{
+						XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this, UnrealTargetPlatform.Mac);
+						References.Add(IndexTarget);
+					}
+				}
 			}
 		}
 
@@ -2315,7 +2399,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				bHasCheckedForLegacy = true;
 				if (ProjectTargets.Count == 0)
 				{
-					throw new BuildException("Expected to have a target before AddModule is called");
+					throw new BuildException("Expected to have a target before AddModuleForIntelliSense is called");
 				}
 
 				UnrealData.InitializeUProjectFileLocation(this);
@@ -2331,17 +2415,17 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 		}
 
-		public override void AddModule(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
+		public override void AddModuleForIntelliSense(UEBuildModuleCPP Module, CppCompileEnvironment CompileEnvironment)
 		{
 			ConditionalCreateLegacyProject();
 
-			if (LegacyProjectFile != null)
+			if (LegacyProjectFile != null)// && Module.Rules.Target.Platform == UnrealTargetPlatform.Mac)
 			{
-				LegacyProjectFile.AddModule(Module, CompileEnvironment);
+				LegacyProjectFile.AddModuleForIntelliSense(Module, CompileEnvironment);
 				return;
 			}
 
-			UnrealData.AddModule(Module, CompileEnvironment);
+			UnrealData.AddModuleForIntelliSense(Module, CompileEnvironment);
 		}
 
 		/// <summary>
@@ -2352,10 +2436,21 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			// process the files that came from UE/cross-platform land
 			SourceFiles.SortBy(x => x.Reference.FullName);
 
+			ConfigHierarchy PlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, UnrealData.ConfigDirectory, UnrealTargetPlatform.Mac);
+
+			IReadOnlyList<string>? ExcludedDirs;
+			if (!PlatformIni.TryGetValues("/Script/MacTargetPlatform.XcodeProjectSettings", "XCProjectExcludedDirs", out ExcludedDirs))
+			{
+				ExcludedDirs = new List<string>();
+			}
+
 			Dictionary<DirectoryReference, int> BuildFileMap = new();
 			foreach (XcodeSourceFile SourceFile in SourceFiles.OfType<XcodeSourceFile>())
 			{
-				SharedFileCollection.ProcessFile(SourceFile, bIsForBuild: IsGeneratedProject, bIsFolder: false, SourceToBuildFileMap: BuildFileMap);
+				if (!ExcludedDirs.Any(dir => SourceFile.Reference.IsUnderDirectory(DirectoryReference.Combine(SharedFileCollection.RootDirectory, dir))))
+				{
+					SharedFileCollection.ProcessFile(SourceFile, bIsForBuild: IsGeneratedProject, bIsFolder: false, SourceToBuildFileMap: BuildFileMap);
+				}
 			}
 
 			// cache the main group
@@ -2368,21 +2463,27 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 
 			// write out the response files for each batch now that everything is done
-			foreach (UnrealBatchedFiles Batch in UnrealData.BatchedFiles)
+			foreach (KeyValuePair<UnrealTargetPlatform, List<UnrealBatchedFiles>> Pair in UnrealData.BatchedFiles)
 			{
-				Batch.GenerateResponseFile();
+				foreach(UnrealBatchedFiles Batch in Pair.Value)
+				{
+					Batch.GenerateResponseFile(Pair.Key);
+				}
 			}
 		}
 
 		private void AddFileToBatch(XcodeSourceFile File, XcodeFileCollection FileCollection)
 		{
-			foreach (UnrealBatchedFiles Batch in UnrealData.BatchedFiles)
+			foreach (KeyValuePair<UnrealTargetPlatform, List<UnrealBatchedFiles>> Pair in UnrealData.BatchedFiles)
 			{
-				if (Batch.Module.ContainsFile(File.Reference))
+				foreach (UnrealBatchedFiles Batch in Pair.Value)
 				{
-					Batch.Files.Add(File);
-					FileCollection.BuildableFilesToResponseFile[File] = Batch.ResponseFile;
-					return;
+					if (Batch.Module.ContainsFile(File.Reference))
+					{
+						Batch.Files.Add(File);
+						FileCollection.BuildableFilesToResponseFile[File][Pair.Key] = Batch.ResponseFile;
+						break;
+					}
 				}
 			}
 		}
@@ -2469,7 +2570,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					Content.WriteLine(1, "objects = {");
 
 					// write out the list of files and groups
-					FileCollection.Write(Content);
+					FileCollection.Write(Content, Platform);
 
 					// now write out the project node and its recursive dependent nodes
 					XcodeProjectNode.WriteNodeAndReferences(Content, RootProject, Logger);
@@ -2554,7 +2655,8 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 			StringBuilder Content = new StringBuilder();
 			Content.WriteLine(0, "{");
-			FileCollection.Write(Content);
+			// @todo figure out how to deal with platform
+			// FileCollection.Write(Content, Platform);
 			XcodeProjectNode.WriteNodeAndReferences(Content, BuildTarget, Logger);
 			XcodeProjectNode.WriteNodeAndReferences(Content, IndexTarget, Logger);
 			XcodeProjectNode.WriteNodeAndReferences(Content, BuildDependency, Logger);

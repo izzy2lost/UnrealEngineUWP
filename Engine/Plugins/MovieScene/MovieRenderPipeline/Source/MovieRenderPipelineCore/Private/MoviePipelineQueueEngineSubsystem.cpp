@@ -4,6 +4,7 @@
 #include "Modules/ModuleManager.h"
 #include "MoviePipeline.h"
 #include "MoviePipelineInProcessExecutor.h"
+#include "LevelSequence.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineQueueEngineSubsystem)
 

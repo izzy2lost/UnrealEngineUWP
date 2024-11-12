@@ -2,7 +2,7 @@
 /**
 	@file		linux/lockimpl.h
 	@brief		Declares the AJALockImpl class.
-	@copyright	(C) 2009-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2009-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_LOCK_IMPL_H
@@ -19,7 +19,7 @@ class AJALockImpl
 {
 public:
 
-	AJALockImpl(const char* pName);
+    AJALockImpl(const char* pName);
 	virtual ~AJALockImpl();
 
 	AJAStatus 			Lock(uint32_t uTimeout = 0xffffffff);

@@ -35,6 +35,18 @@ void UPCGLoadDataAssetSettings::PostEditChangeProperty(FPropertyChangedEvent& Pr
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
+EPCGChangeType UPCGLoadDataAssetSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
+{
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic;
+
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGLoadDataAssetSettings, bLoadFromInput))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
+	return ChangeType;
+}
 #endif // WITH_EDITOR
 
 FPCGElementPtr UPCGLoadDataAssetSettings::CreateElement() const
@@ -42,9 +54,40 @@ FPCGElementPtr UPCGLoadDataAssetSettings::CreateElement() const
 	return MakeShared<FPCGLoadDataAssetElement>();
 }
 
+TArray<FPCGPinProperties> UPCGLoadDataAssetSettings::InputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+
+	if (bLoadFromInput)
+	{
+		FPCGPinProperties& InputPin = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param);
+		InputPin.SetRequiredPin();
+	}
+	
+	return PinProperties;
+}
+
 FString UPCGLoadDataAssetSettings::GetAdditionalTitleInformation() const
 {
-	return AssetName.IsEmpty() ? Asset.ToSoftObjectPath().GetAssetName() : AssetName;
+#if WITH_EDITOR
+	if (bLoadFromInput || IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGLoadDataAssetSettings, Asset)))
+	{
+		// If loading data from a specified input or from an overriden value, we shouldn't show the template asset name.
+		return FString();
+	}
+	else
+#endif // WITH_EDITOR
+	{
+		return AssetName.IsEmpty() ? Asset.ToSoftObjectPath().GetAssetName() : AssetName;
+	}
+}
+
+EPCGDataType UPCGLoadDataAssetSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	// Implementation notes: the output pin types don't depend on the input pin types,
+	// but they can change based on the asset selected, hence why they are dynamic, but we need to return the pin type as-is.
+	check(InPin);
+	return InPin->Properties.AllowedTypes;
 }
 
 void UPCGLoadDataAssetSettings::SetFromAsset(const FAssetData& InAsset)
@@ -123,56 +166,70 @@ bool FPCGLoadDataAssetElement::PrepareDataInternal(FPCGContext* InContext) const
 	const UPCGLoadDataAssetSettings* Settings = Context->GetInputSettings<UPCGLoadDataAssetSettings>();
 	check(Settings);
 
-	if (Settings->Asset.IsNull())
-	{
-		return true;
-	}
-
-	// Request load, return false if we need to wait, otherwise continue
-	if (!Context->WasLoadRequested())
-	{
-		return !Context->RequestResourceLoad(Context, { Settings->Asset.ToSoftObjectPath() }, !Settings->bSynchronousLoad);
-	}
-	else
-	{
-		return true;
-	}
+	return Context->InitializeAndRequestLoad(PCGPinConstants::DefaultInputLabel,
+		Settings->AssetReferenceSelector,
+		{ Settings->Asset.ToSoftObjectPath() },
+		/*bPersistAllData=*/false,
+		/*bSilenceErrorOnEmptyObjectPath*/!Settings->bWarnIfNoAsset,
+		/*bSynchronousLoad=*/Settings->bSynchronousLoad);
 }
 
-bool FPCGLoadDataAssetElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGLoadDataAssetElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataAssetElement::Execute);
 
-	check(Context);
+	check(InContext);
+	FPCGLoadDataAssetContext* Context = static_cast<FPCGLoadDataAssetContext*>(InContext);
 	const UPCGLoadDataAssetSettings* Settings = Context->GetInputSettings<UPCGLoadDataAssetSettings>();
 	check(Settings);
 
 #if WITH_EDITOR
-	if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGLoadDataAssetSettings, Asset)))
+	if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGLoadDataAssetSettings, Asset)) || (Settings->bLoadFromInput && !Context->PathsToObjectsAndDataIndex.IsEmpty()))
 	{
-		FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->Asset.ToSoftObjectPath()), /*bIsCulled=*/false);
+		FPCGDynamicTrackingHelper DynamicTracking;
+		DynamicTracking.EnableAndInitialize(Context, Context->PathsToObjectsAndDataIndex.Num());
+		for(const TTuple<FSoftObjectPath, int32, int32>& Path : Context->PathsToObjectsAndDataIndex)
+		{
+			DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(Path.Get<0>()), /*bIsCulled=*/false);
+		}
+
+		DynamicTracking.Finalize(Context);
 	}
 #endif
 
 	// At this point, the data should already be loaded
-	if (UPCGDataAsset* AssetData = Settings->Asset.LoadSynchronous())
+	for(const TTuple<FSoftObjectPath, int32, int32>& AssetPath : Context->PathsToObjectsAndDataIndex)
 	{
-		Context->OutputData = AssetData->Data;
-
-		if (Settings->bTagOutputsBasedOnOutputPins)
+		TSoftObjectPtr<UPCGDataAsset> Asset(AssetPath.Get<0>());
+		UPCGDataAsset* AssetData = Asset.LoadSynchronous();
+		if (AssetData)
 		{
-			for (FPCGTaggedData& TaggedData : Context->OutputData.TaggedData)
+			const int TaggedDataOffset = Context->OutputData.TaggedData.Num();
+			Context->OutputData.TaggedData.Append(AssetData->Data.TaggedData);
+
+			if (Settings->bTagOutputsBasedOnOutputPins || Settings->InputIndexTag != NAME_None || Settings->DataIndexTag != NAME_None)
 			{
-				if (TaggedData.Pin != NAME_None)
+				for (int TaggedDataIndex = TaggedDataOffset; TaggedDataIndex < Context->OutputData.TaggedData.Num(); ++TaggedDataIndex)
 				{
-					TaggedData.Tags.Add(TaggedData.Pin.ToString());
+					FPCGTaggedData& TaggedData = Context->OutputData.TaggedData[TaggedDataIndex];
+
+					if (Settings->bTagOutputsBasedOnOutputPins && TaggedData.Pin != NAME_None)
+					{
+						TaggedData.Tags.Add(TaggedData.Pin.ToString());
+					}
+
+					if (Settings->InputIndexTag != NAME_None)
+					{
+						TaggedData.Tags.Add(FString::Format(TEXT("{0}:{1}"), { Settings->InputIndexTag.ToString(), AssetPath.Get<1>() }));
+					}
+
+					if (Settings->DataIndexTag != NAME_None)
+					{
+						TaggedData.Tags.Add(FString::Format(TEXT("{0}:{1}"), { Settings->DataIndexTag.ToString(), AssetPath.Get<2>() }));
+					}
 				}
 			}
 		}
-	}
-	else if (!Settings->Asset.IsNull() || Settings->bWarnIfNoAsset)
-	{
-		PCGE_LOG(Warning, GraphAndLog, FText::Format(NSLOCTEXT("PCGLoadDataAssetSettings", "UnableToLoadAsset", "Unable to load PCG asset '{0}'"), FText::FromString(Settings->Asset.ToString())));
 	}
 
 	return true;

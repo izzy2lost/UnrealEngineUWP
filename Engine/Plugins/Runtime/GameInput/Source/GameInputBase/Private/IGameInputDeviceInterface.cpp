@@ -93,8 +93,7 @@ void IGameInputDeviceInterface::SendControllerEvents()
 		// A map of Platform users to a bitmask of any reading kinds that were processed this frame.
 		// This is used by the devices to keep track of which users had which readings, and use that
 		// state to determine if we can process a given reading.
-		static TMap<FPlatformUserId, GameInputKind> PlatformUsersWhoHaveHadInputThisFrame;
-		PlatformUsersWhoHaveHadInputThisFrame.Reset();
+		TMap<FPlatformUserId, GameInputKind> PlatformUsersWhoHaveHadInputThisFrame;
 
 		// The allowed input kinds that we can read from the IGameInput interface.
 		const GameInputKind AllowedInputKindsThisFrame = GetCurrentGameInputKindSupport();
@@ -286,17 +285,15 @@ GameInputKind IGameInputDeviceInterface::GetCurrentGameInputKindSupport() const
 		RegisterInputKindMask |= GameInputKindRacingWheel;
 	}
 
-	// TODO: Future expansion of GameInput devices!
-	/*if (Settings->bProcessArcadeStick)
+	if (PlatformSettings->bProcessArcadeStick)
 	{
-
+		RegisterInputKindMask |= GameInputKindArcadeStick;
 	}
 
-	if (Settings->bProcessRacingWheel)
+	if (PlatformSettings->bProcessFlightStick)
 	{
-
-	}	
-	*/
+		RegisterInputKindMask |= GameInputKindFlightStick;
+	}
 
 	return RegisterInputKindMask;
 }

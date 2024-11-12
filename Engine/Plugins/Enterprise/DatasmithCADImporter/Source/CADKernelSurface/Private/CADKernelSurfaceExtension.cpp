@@ -8,18 +8,18 @@
 #include "DatasmithPayload.h"
 #include "Engine/StaticMesh.h"
 #include "MeshDescription.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "Misc/FileHelper.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/EnterpriseObjectVersion.h"
 
-#include "CADKernel/Core/CADKernelArchive.h"
-#include "CADKernel/Core/Entity.h"
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Core/Types.h"
-#include "CADKernel/Mesh/Structure/ModelMesh.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/Body.h"
+#include "Core/CADKernelArchive.h"
+#include "Core/CADEntity.h"
+#include "Core/Session.h"
+#include "Core/Types.h"
+#include "Mesh/Structure/ModelMesh.h"
+#include "Topo/Model.h"
+#include "Topo/Body.h"
 
 void UCADKernelParametricSurfaceData::Serialize(FArchive& Ar)
 {
@@ -45,7 +45,6 @@ bool UCADKernelParametricSurfaceData::Tessellate(UStaticMesh& StaticMesh, const 
 	CadMeshParameters.SymmetricNormal = (FVector3f) MeshParameters.SymmetricNormal;
 	CadMeshParameters.SymmetricOrigin = (FVector3f) MeshParameters.SymmetricOrigin;
 
-	CADLibrary::FMeshConversionContext MeshConversionContext(ImportParameters, CadMeshParameters);
 
 	// Previous MeshDescription is get to be able to create a new one with the same order of PolygonGroup (the matching of color and partition is currently based on their order)
 	if (FMeshDescription* DestinationMeshDescription = StaticMesh.GetMeshDescription(0))
@@ -54,20 +53,20 @@ bool UCADKernelParametricSurfaceData::Tessellate(UStaticMesh& StaticMesh, const 
 		FStaticMeshAttributes MeshDescriptionAttributes(MeshDescription);
 		MeshDescriptionAttributes.Register();
 
-		if (RetessellateOptions.RetessellationRule == EDatasmithCADRetessellationRule::SkipDeletedSurfaces)
-		{
-			CADLibrary::GetExistingPatches(*DestinationMeshDescription, MeshConversionContext.PatchesToMesh);
-		}
-
-		const double GeometricTolerance = 0.01; // mm
-		TSharedRef<FSession> CADKernelSession = MakeShared<FSession>(GeometricTolerance);
+		TSharedRef<FSession> CADKernelSession = MakeShared<FSession>(RetessellateOptions.GetGeometricTolerance(true));
 		CADKernelSession->AddDatabase(RawData);
 
 		FModel& CADKernelModel = CADKernelSession->GetModel();
-		TArray<TSharedPtr<FBody>> CADKernelBodies = CADKernelModel.GetBodies();
-		if (CADKernelBodies.Num() != 1)
+		if (CADKernelModel.GetBodies().IsEmpty())
 		{
 			return bSuccessfulTessellation;
+		}
+
+		CADLibrary::FMeshConversionContext MeshConversionContext(ImportParameters, CadMeshParameters, CADKernelSession->GetGeometricTolerance());
+
+		if (RetessellateOptions.RetessellationRule == EDatasmithCADRetessellationRule::SkipDeletedSurfaces)
+		{
+			CADLibrary::GetExistingPatches(*DestinationMeshDescription, MeshConversionContext.PatchesToMesh);
 		}
 
 		if(CADLibrary::FCADKernelTools::Tessellate(CADKernelModel, MeshConversionContext, MeshDescription))

@@ -8,6 +8,8 @@
 #include "Misc/EnumClassFlags.h"
 
 // Forward declarations
+
+class UReplicationSystem;
 namespace UE::Net
 {
 	class FFragmentRegistrationContext;
@@ -230,8 +232,9 @@ typedef TArray<FReplicationFragmentInfo, TInlineAllocator<32>> FReplicationFragm
 class FFragmentRegistrationContext
 {
 public:
-	explicit FFragmentRegistrationContext(Private::FReplicationStateDescriptorRegistry* InReplicationStateRegistry, EReplicationFragmentTraits InFragmentTraits)
+	explicit FFragmentRegistrationContext(Private::FReplicationStateDescriptorRegistry* InReplicationStateRegistry, UReplicationSystem* InReplicationSystem, const EReplicationFragmentTraits InFragmentTraits)
 		: ReplicationStateRegistry(InReplicationStateRegistry)
+		, ReplicationSystem(InReplicationSystem)
 		, FragmentTraits(InFragmentTraits)
 	{
 	}
@@ -248,16 +251,21 @@ public:
 	/** Returns true when the netobject knows it won't contain any replicated properties or RPCs */
 	bool IsFragmentlessNetObject() const { return bIsAFragmentlessNetObject; }
 
+	/** Returns true if the fragments (or the lack of) were registered by the instance */
+	bool WasRegistered() const
+	{
+		return Fragments.Num() > 0 || bIsAFragmentlessNetObject;
+	}
+
 	/** Returns the number of fragments registered */
 	int32 NumFragments() const { return Fragments.Num(); }
-
-	Private::FReplicationStateDescriptorRegistry* GetReplicationStateRegistry() const { return ReplicationStateRegistry; }
 
 	friend Private::FFragmentRegistrationContextPrivateAccessor;
 
 private:
 	FReplicationFragments Fragments;
 	Private::FReplicationStateDescriptorRegistry* ReplicationStateRegistry;
+	UReplicationSystem* ReplicationSystem;
 	const EReplicationFragmentTraits FragmentTraits;
 	bool bIsAFragmentlessNetObject = false;
 };

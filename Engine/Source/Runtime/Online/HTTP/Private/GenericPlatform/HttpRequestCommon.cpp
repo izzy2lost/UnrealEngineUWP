@@ -3,10 +3,32 @@
 #include "GenericPlatform/HttpRequestCommon.h"
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "HAL/Event.h"
+#include "HAL/IConsoleManager.h"
 #include "Http.h"
 #include "HttpManager.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/CommandLine.h"
 #include "Stats/Stats.h"
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+namespace UE::HttpRequestCommon::Private
+{
+
+TAutoConsoleVariable<bool> CVarHttpLogJsonResponseOnly(
+	TEXT("http.LogJsonResponseOnly"),
+	true,
+	TEXT("When log response payload, log json content only"),
+	ECVF_SaveForNextBoot
+);
+
+}
+
+TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode(
+	TEXT("http.SetGeneralFailureReasonFromCommonCode"),
+	true,
+	TEXT("Temporary hotfixable cvar: when enabled, set general failure reason from common code instead."),
+	ECVF_SaveForNextBoot
+);
 
 FHttpRequestCommon::FHttpRequestCommon()
 	: RequestStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
@@ -83,11 +105,75 @@ bool FHttpRequestCommon::PreCheck() const
 	return true;
 }
 
+bool FHttpRequestCommon::WillTriggerMockFailure()
+{
+	TOptional<int32> MockResponseCode = FHttpModule::Get().GetHttpManager().GetMockFailure(GetURL());
+	if (MockResponseCode.IsSet())
+	{
+		if (MockResponseCode.GetValue() == EHttpResponseCodes::Unknown)
+		{
+			int32 HttpConnectionTimeout = FHttpModule::Get().GetHttpConnectionTimeout();
+			TWeakPtr<FHttpRequestCommon> RequestWeakPtr(SharedThis(this));
+			FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
+				if (TSharedPtr<FHttpRequestCommon> RequestPtr = RequestWeakPtr.Pin())
+				{
+					RequestPtr->SetFailureReason(EHttpFailureReason::ConnectionError);
+					RequestPtr->FinishRequestNotInHttpManager();
+				}
+			}, HttpConnectionTimeout);
+		}
+		else
+		{
+			InitResponse();
+			ResponseCommon->SetResponseCode(MockResponseCode.GetValue());
+			MockResponseData();
+			FinishRequestNotInHttpManager();
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+void FHttpRequestCommon::InitResponse()
+{
+	if (!ResponseCommon)
+	{
+		FHttpResponsePtr Response = CreateResponse();
+		ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
+	}
+}
+
+void FHttpRequestCommon::PopulateUserAgentHeader()
+{
+	if (GetHeader(TEXT("User-Agent")).IsEmpty())
+	{
+		SetHeader(TEXT("User-Agent"), FPlatformHttp::GetDefaultUserAgent());
+	}
+}
+
 bool FHttpRequestCommon::PreProcess()
 {
 	ClearInCaseOfRetry();
 
-	if (!PreCheck() || !SetupRequest())
+	if (!PreCheck())
+	{
+		FinishRequestNotInHttpManager();
+		return false;
+	}
+
+	if (WillTriggerMockFailure())
+	{
+		// Connect timeout mocking will trigger FinishRequest after a delay, still make sure total timeout 
+		// works when mocking connect timeout
+		StartTotalTimeoutTimer();
+		return false;
+	}
+
+	PopulateUserAgentHeader();
+
+	if (!SetupRequest())
 	{
 		FinishRequestNotInHttpManager();
 		return false;
@@ -156,11 +242,59 @@ EHttpRequestDelegateThreadPolicy FHttpRequestCommon::GetDelegateThreadPolicy() c
 	return DelegateThreadPolicy; 
 }
 
+FString FHttpRequestCommon::GetOption(const FName Option) const
+{
+	const FString* OptionValue = Options.Find(Option);
+	if (OptionValue)
+	{
+		return *OptionValue;
+	}
+	return TEXT("");
+}
+
+void FHttpRequestCommon::SetOption(const FName Option, const FString& OptionValue)
+{
+	Options.Add(Option, OptionValue);
+}
+
 void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse)
 {
 	SetStatus(EHttpRequestStatus::Succeeded);
+
+	LogResponse(InResponse);
+
 	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), InResponse, true);
 	FHttpModule::Get().GetHttpManager().RecordStatTimeToConnect(ConnectTime);
+}
+
+void FHttpRequestCommon::HandleRequestFailed(TSharedPtr<IHttpResponse> InResponse)
+{
+	if (CVarHttpSetGeneralFailureReasonFromCommonCode.GetValueOnAnyThread())
+	{
+		if (FailureReason == EHttpFailureReason::None) // Failure reason was not set by platform, will set it here
+		{
+			if (bCanceled)
+			{
+				SetFailureReason(EHttpFailureReason::Cancelled);
+			}
+			else if (bTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::TimedOut);
+			}
+			else if (!bUsePlatformActivityTimeout && bActivityTimedOut)
+			{
+				SetFailureReason(EHttpFailureReason::ConnectionError);
+			}
+			else
+			{
+				SetFailureReason(EHttpFailureReason::Other);
+			}
+		}
+
+		SetStatus(EHttpRequestStatus::Failed);
+	}
+
+	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), InResponse, false);
 }
 
 void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
@@ -192,7 +326,13 @@ void FHttpRequestCommon::SetTimeout(float InTimeoutSecs)
 void FHttpRequestCommon::ClearTimeout()
 {
 	TimeoutSecs.Reset();
+	ResetTimeoutStatus();
+}
+
+void FHttpRequestCommon::ResetTimeoutStatus()
+{
 	StopTotalTimeoutTimer();
+	bTimedOut = false;
 }
 
 TOptional<float> FHttpRequestCommon::GetTimeout() const
@@ -278,12 +418,11 @@ void FHttpRequestCommon::StartActivityTimeoutTimerBy(double DelayToTrigger)
 		return;
 	}
 
-	TWeakPtr<IHttpRequest> RequestWeakPtr(AsShared());
+	TWeakPtr<FHttpRequestCommon> RequestWeakPtr(SharedThis(this));
 	ActivityTimeoutHttpTaskTimerHandle = FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
-		if (TSharedPtr<IHttpRequest> RequestPtr = RequestWeakPtr.Pin())
+		if (TSharedPtr<FHttpRequestCommon> RequestPtr = RequestWeakPtr.Pin())
 		{
-			TSharedPtr<FHttpRequestCommon> RequestCommonPtr = StaticCastSharedPtr<FHttpRequestCommon>(RequestPtr);
-			RequestCommonPtr->OnActivityTimeoutTimerTaskTrigger();
+			RequestPtr->OnActivityTimeoutTimerTaskTrigger();
 		}
 	}, DelayToTrigger + 0.05);
 }
@@ -442,6 +581,15 @@ void FHttpRequestCommon::ProcessRequestUntilComplete()
 	FPlatformProcess::ReturnSynchEventToPool(Event);
 }
 
+void FHttpRequestCommon::HandleStatusCodeReceived(int32 StatusCode)
+{
+	if (ResponseCommon)
+	{
+		ResponseCommon->SetResponseCode(StatusCode);
+	}
+	TriggerStatusCodeReceivedDelegate(StatusCode);
+}
+
 void FHttpRequestCommon::TriggerStatusCodeReceivedDelegate(int32 StatusCode)
 {
 	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
@@ -476,6 +624,22 @@ bool FHttpRequestCommon::SetResponseBodyReceiveStream(TSharedRef<FArchive> Strea
 	return true;
 }
 
+float FHttpRequestCommon::GetElapsedTime() const
+{
+	return ElapsedTime;
+}
+
+void FHttpRequestCommon::StartWaitingInQueue()
+{
+	TimeStartedWaitingInQueue = FPlatformTime::Seconds();
+}
+
+float FHttpRequestCommon::GetTimeStartedWaitingInQueue() const
+{
+	check(TimeStartedWaitingInQueue != 0);
+	return TimeStartedWaitingInQueue;
+}
+
 bool FHttpRequestCommon::PassReceivedDataToStream(void* Ptr, int64 Length)
 {
 	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
@@ -496,6 +660,7 @@ void FHttpRequestCommon::StopPassingReceivedData()
 
 	ResponseBodyReceiveStream = nullptr;
 }
+
 
 float FHttpRequestCommon::GetActivityTimeoutOrDefault() const
 {
@@ -544,3 +709,64 @@ void FHttpRequestCommon::CloseRequestPayloadDefaultImpl()
 		RequestPayload->Close();
 	}
 }
+
+#define UE_HTTP_LOG_RESPONSE_PRIVATE(Condition, Format, ...) \
+	if (Condition) \
+	{ \
+		UE_LOG(LogHttp, Warning, Format, ##__VA_ARGS__); \
+	} \
+	else \
+	{ \
+		UE_LOG(LogHttp, Verbose, Format, ##__VA_ARGS__); \
+	}
+
+void FHttpRequestCommon::LogResponse(const TSharedPtr<IHttpResponse>& InResponse)
+{
+	bool bShouldLogResponse = FHttpModule::Get().GetHttpManager().ShouldLogResponse(GetURL());
+	UE_HTTP_LOG_RESPONSE_PRIVATE(bShouldLogResponse, TEXT("%p %s %s completed with code %d after %.2fs. Content length: %ld"), this, *GetVerb(), *GetURL(), InResponse->GetResponseCode(), ElapsedTime, InResponse->GetContentLength());
+
+	TArray<FString> AllHeaders = InResponse->GetAllHeaders();
+	for (const FString& HeaderStr : AllHeaders)
+	{
+		if (!HeaderStr.StartsWith(TEXT("Authorization")) && !HeaderStr.StartsWith(TEXT("Set-Cookie")))
+		{
+			UE_HTTP_LOG_RESPONSE_PRIVATE(bShouldLogResponse, TEXT("%p Response Header %s"), this, *HeaderStr);
+		}
+	}
+
+	if (!bShouldLogResponse || InResponse->GetContentLength() == 0)
+	{
+		return;
+	}
+
+	if (UE::HttpRequestCommon::Private::CVarHttpLogJsonResponseOnly.GetValueOnAnyThread())
+	{
+		bool bIsContentTypeJson = !InResponse->GetHeader(TEXT("Content-Type")).Compare(TEXT("application/json"), ESearchCase::IgnoreCase);
+		if (!bIsContentTypeJson)
+			return;
+	}
+
+	const TArray<uint8>& Content = InResponse->GetContent();
+	FUtf8StringView ResponseStringView(reinterpret_cast<const UTF8CHAR*>(Content.GetData()), Content.Num());
+	int32 StartPos = 0;
+	int32 EndPos = 0;
+	// The response payload could exceed the maximum length supported by UE_LOG/UE_LOGFMT, so log it line by line if there are multiple lines
+	while (StartPos < ResponseStringView.Len())
+	{
+		EndPos = ResponseStringView.Find("\n", StartPos);
+		if (EndPos != INDEX_NONE)
+		{
+			FUtf8StringView Line(&ResponseStringView[StartPos], EndPos - StartPos);
+			UE_LOGFMT(LogHttp, Warning, "{Line}", Line);
+		}
+		else
+		{
+			FUtf8StringView Remain(&ResponseStringView[StartPos], ResponseStringView.Len() - StartPos);
+			UE_LOGFMT(LogHttp, Warning, "{Remain}", Remain);
+			break;
+		}
+
+		StartPos = EndPos + 1;
+	}
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

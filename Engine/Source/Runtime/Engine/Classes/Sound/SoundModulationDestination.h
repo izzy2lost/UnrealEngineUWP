@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Audio.h"
-#endif
 #include "Containers/ArrayView.h"
 #include "Containers/Set.h"
 #include "DSP/BufferVectorOperations.h"
@@ -39,6 +36,24 @@ enum class EModulationRouting : uint8
 
 	/* Performs set union on local modulation sources with those inherited (AudioComponent inherits from Sound, Sound inherits from SoundClass) */
 	Union
+};
+
+UENUM(BlueprintType)
+enum class EModulationDestination : uint8
+{
+	/* Volume modulation */
+	Volume,
+
+	/* Pitch modulation */
+	Pitch,
+
+	/* Cutoff Frequency of a lowpass filter */
+	Lowpass,
+
+	/* Cutoff Frequency of a highpass filter */
+	Highpass,
+
+	Count UMETA(Hidden)
 };
 
 /** Parameter destination settings allowing modulation control override for parameter destinations opting in to the Modulation System. */

@@ -129,17 +129,17 @@ public:
 
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseUFunctionDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseUFunctionDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseUFunctionDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseUFunctionDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseUFunctionDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseUFunctionDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -156,6 +156,7 @@ public:
 
 	bool ExecuteIfSafe(ParamTypes... Params) const final
 	{
+		TStrongObjectPtr<UserClass> PinnedObject = IsInGameThread() ? nullptr : this->UserObjectPtr.Pin();
 		if (UserClass* ActualUserObject = this->UserObjectPtr.Get())
 		{
 			using FParmsWithPayload = TPayload<RetValType(typename TDecay<ParamTypes>::Type..., typename TDecay<VarTypes> ::Type...)>;
@@ -250,17 +251,17 @@ public:
 
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseSPMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseSPMethodDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseSPMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseSPMethodDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseSPMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseSPMethodDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -374,17 +375,17 @@ public:
 	// IBaseDelegateInstance interface
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseSPLambdaDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseSPLambdaDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseSPLambdaDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseSPLambdaDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseSPLambdaDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseSPLambdaDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -490,17 +491,17 @@ public:
 
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseRawMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseRawMethodDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseRawMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseRawMethodDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseRawMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseRawMethodDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -619,17 +620,17 @@ public:
 
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseUObjectMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseUObjectMethodDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseUObjectMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseUObjectMethodDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseUObjectMethodDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseUObjectMethodDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -651,6 +652,7 @@ public:
 
 	bool ExecuteIfSafe(ParamTypes... Params) const final
 	{
+		TStrongObjectPtr<UserClass> PinnedObject = IsInGameThread() ? nullptr : this->UserObject.Pin();
 		if (UserClass* ActualUserObject = this->UserObject.Get())
 		{
 			using MutableUserClass = std::remove_const_t<UserClass>;
@@ -746,17 +748,17 @@ public:
 
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseStaticDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseStaticDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseStaticDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseStaticDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseStaticDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseStaticDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -844,17 +846,17 @@ public:
 	// IBaseDelegateInstance interface
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseFunctorDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseFunctorDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseFunctorDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseFunctorDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TBaseFunctorDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TBaseFunctorDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -943,17 +945,17 @@ public:
 	// IBaseDelegateInstance interface
 	void CreateCopy(TDelegateBase<FThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TWeakBaseFunctorDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TWeakBaseFunctorDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TWeakBaseFunctorDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TWeakBaseFunctorDelegateInstance(*this);
 	}
 
 	void CreateCopy(TDelegateBase<FNotThreadSafeNotCheckedDelegateMode>& Base) const final
 	{
-		Base.template CreateDelegateInstance<TWeakBaseFunctorDelegateInstance>(*this);
+		new (TWriteLockedDelegateAllocation{Base}) TWeakBaseFunctorDelegateInstance(*this);
 	}
 
 	RetValType Execute(ParamTypes... Params) const final
@@ -963,6 +965,7 @@ public:
 
 	bool ExecuteIfSafe(ParamTypes... Params) const final
 	{
+		TStrongObjectPtr<UserClass> PinnedObject = IsInGameThread() ? nullptr : ContextObject.Pin();
 		if (ContextObject.IsValid())
 		{
 			(void)this->Payload.ApplyAfter(Functor, Forward<ParamTypes>(Params)...);

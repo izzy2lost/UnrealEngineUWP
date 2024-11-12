@@ -6,17 +6,21 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "RHIResources.h"
 
 //------------------------------------------------------------------------------
 
 #pragma mark - Metal RHI Private Query Buffer Forward Declarations
 
 
-class FMetalContext;
+class FMetalRHICommandContext;
 class FMetalQueryBufferPool;
 class FMetalQueryResult;
 class FMetalCommandBufferFence;
-
+class FMetalDevice;
+class FMetalBuffer;
+typedef TSharedPtr<FMetalBuffer, ESPMode::ThreadSafe> FMetalBufferPtr;
 
 //------------------------------------------------------------------------------
 
@@ -26,12 +30,12 @@ class FMetalCommandBufferFence;
 class FMetalQueryBuffer : public FRHIResource
 {
 public:
-	FMetalQueryBuffer(FMetalContext* InContext, FMetalBufferPtr InBuffer);
+	FMetalQueryBuffer(FMetalQueryBufferPool* Pool, FMetalBufferPtr InBuffer);
 	virtual ~FMetalQueryBuffer();
 
 	uint64 GetResult(uint32 Offset);
 
-	TWeakPtr<FMetalQueryBufferPool, ESPMode::ThreadSafe> Pool;
+	FMetalQueryBufferPool* Pool;
 	FMetalBufferPtr Buffer;
 	uint32 WriteOffset;
 };
@@ -49,13 +53,13 @@ public:
 	{
 		EQueryBufferAlignment = 8,
 		EQueryResultMaxSize   = 8,
-		EQueryBufferMaxSize   = (1 << 16)
+		EQueryBufferMaxSize   = (1 << 18)
 	};
 
 	// Disallow a default constructor
 	FMetalQueryBufferPool() = delete;
 
-	FMetalQueryBufferPool(FMetalContext* InContext);
+	FMetalQueryBufferPool(FMetalDevice& InDevice);
 	~FMetalQueryBufferPool();
 
 	void Allocate(FMetalQueryResult& NewQuery);
@@ -65,7 +69,7 @@ public:
 
 	TRefCountPtr<FMetalQueryBuffer> CurrentBuffer;
 	TArray<FMetalBufferPtr> Buffers;
-	FMetalContext* Context;
+	FMetalDevice& Device;
 };
 
 
@@ -80,6 +84,7 @@ public:
 	FMetalQueryResult() = default;
 	~FMetalQueryResult() = default;
 
+	void Reset();
 	bool Wait(uint64 Millis);
 	uint64 GetResult();
 
@@ -99,18 +104,21 @@ public:
 class FMetalRHIRenderQuery : public FRHIRenderQuery
 {
 public:
-	FMetalRHIRenderQuery(ERenderQueryType InQueryType);
+	FMetalRHIRenderQuery(FMetalDevice& MetalDevice, ERenderQueryType InQueryType);
 	virtual ~FMetalRHIRenderQuery();
 
+	void Begin_TopOfPipe();
+	void End_TopOfPipe();
+	
 	/**
 	 * Kick off an occlusion test
 	 */
-	void Begin(FMetalContext* Context, TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> const& BatchFence);
+	void Begin(FMetalRHICommandContext* Context, TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> const& BatchFence);
 
 	/**
 	 * Finish up an occlusion test
 	 */
-	void End(FMetalContext* Context);
+	void End(FMetalRHICommandContext* Context);
 
 	/**
 	 * Get the query result
@@ -118,6 +126,8 @@ public:
 	bool GetResult(uint64& OutNumPixels, bool bWait, uint32 GPUIndex);
 
 private:
+	FMetalDevice& Device;
+	
 	// The type of query
 	ERenderQueryType Type;
 
@@ -128,7 +138,7 @@ private:
 	volatile uint64 Result;
 
 	// Result availability - if not set the first call to acquire it will read the buffer & cache
-	volatile bool bAvailable;
+	std::atomic<bool> bAvailable;
 
 	// Timer event completion signal
 	FEvent* QueryWrittenEvent;

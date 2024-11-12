@@ -15,6 +15,7 @@ namespace UE
 namespace MovieScene
 {
 
+struct FSharedPlaybackState;
 
 /**
  * A path of unaccumulated sequence IDs ordered from child->parent->grandparent that is used to generate unique sequenceIDs for inner sequences
@@ -33,6 +34,9 @@ struct FSubSequencePath
 	 * @param LeafID 			ID of the child-most sequence to include in this path
 	 * @param Player 			Player from which to retrieve the hierarchy
 	 */
+	MOVIESCENE_API explicit FSubSequencePath(FMovieSceneSequenceID LeafID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
+
+	UE_DEPRECATED(5.5, "Please use the version that takes an FSharedPlaybackState")
 	MOVIESCENE_API explicit FSubSequencePath(FMovieSceneSequenceID LeafID, IMovieScenePlayer& Player);
 
 	/**

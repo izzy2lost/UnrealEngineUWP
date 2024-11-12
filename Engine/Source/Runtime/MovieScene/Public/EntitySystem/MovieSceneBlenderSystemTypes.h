@@ -89,10 +89,3 @@ struct FMovieSceneBlendChannelID
 	/** The blend channel ID for the given blender system */
 	uint16 ChannelID;
 };
-
-#if UE_MOVIESCENE_ENTITY_DEBUG
-namespace UE::MovieScene
-{
-	template<> struct TComponentDebugType<FMovieSceneBlendChannelID> { static const EComponentDebugType Type = EComponentDebugType::BlendChannelID; };
-}
-#endif

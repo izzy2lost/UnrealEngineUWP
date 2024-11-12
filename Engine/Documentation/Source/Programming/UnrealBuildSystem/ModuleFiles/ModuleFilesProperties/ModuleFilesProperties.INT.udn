@@ -2,7 +2,7 @@ Availability: NoPublish
 Title: Build Configuration Properties Page
 Crumbs:
 Description: This is a procedurally generated markdown page.
-Version: 5.4
+Version: 5.5
 
 ### Read-Only Properties
 
@@ -11,6 +11,18 @@ $ IsPlugin (Boolean): True if a Plugin contains this module
 $ Logger (ILogger): Accessor for the target logger
 
 $ HasPackageOverride (Boolean): Returns true if there has been an override type specified on this module
+
+$ ForceIncludeFiles (List&lt;String&gt;): Header files that should be force included for every source file in this module.
+
+$ SDKVersionRelevantPlatforms (List&lt;UnrealTargetPlatform&gt;): If this contains a platform and the project has had it's SDK version overriden from default, this module will be compiled as a project module, instead of shared engine module
+
+$ StaticAnalyzerCheckers (HashSet&lt;String&gt;): The static analyzer checkers that should be enabled rather than the defaults. This is only supported for Clang. See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run: 'clang -Xclang -analyzer-checker-help' or: 'clang -Xclang -analyzer-checker-help-alpha' for the list of experimental checkers.
+
+$ StaticAnalyzerDisabledCheckers (HashSet&lt;String&gt;): The static analyzer default checkers that should be disabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang. See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run: 'clang -Xclang -analyzer-checker-help' or: 'clang -Xclang -analyzer-checker-help-alpha' for the list of experimental checkers.
+
+$ StaticAnalyzerAdditionalCheckers (HashSet&lt;String&gt;): The static analyzer non-default checkers that should be enabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang. See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run: 'clang -Xclang -analyzer-checker-help' or: 'clang -Xclang -analyzer-checker-help-alpha' for the list of experimental checkers.
+
+$ StaticAnalyzerPVSDisabledErrors (HashSet&lt;String&gt;): The PVS Studio analysis errors that should be disabled.
 
 $ AutoSdkDirectory (String): The AutoSDK directory for the active host platform
 
@@ -27,12 +39,6 @@ $ IsVcPackageSupported (Boolean): Returns if VcPkg is supported for the build co
 
 ### Read/Write Properties
 $ StaticAnalyzerRulesets (HashSet&lt;FileReference&gt;): The static analyzer rulesets that should be used to filter warnings. This is only supported for MSVC. See https://learn.microsoft.com/en-us/cpp/code-quality/using-rule-sets-to-specify-the-cpp-rules-to-run
-
-$ StaticAnalyzerCheckers (HashSet&lt;String&gt;): The static analyzer checkers that should be enabled rather than the defaults. This is only supported for Clang. See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run: 'clang -Xclang -analyzer-checker-help' or: 'clang -Xclang -analyzer-checker-help-alpha' for the list of experimental checkers.
-
-$ StaticAnalyzerDisabledCheckers (HashSet&lt;String&gt;): The static analyzer default checkers that should be disabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang. This overrides the default disabled checkers, which are deadcode.DeadStores and security.FloatLoopCounter See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run: 'clang -Xclang -analyzer-checker-help' or: 'clang -Xclang -analyzer-checker-help-alpha' for the list of experimental checkers.
-
-$ StaticAnalyzerAdditionalCheckers (HashSet&lt;String&gt;): The static analyzer non-default checkers that should be enabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang. See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run: 'clang -Xclang -analyzer-checker-help' or: 'clang -Xclang -analyzer-checker-help-alpha' for the list of experimental checkers.
 
 $ AllowedRestrictedFolders (List&lt;String&gt;): List of folders which are allowed to be referenced when compiling this binary, without propagating restricted folder names
 
@@ -63,6 +69,8 @@ $ PrivateRuntimeLibraryPaths (List&lt;String&gt;): List of search paths for libr
 $ PublicRuntimeLibraryPaths (List&lt;String&gt;): List of search paths for libraries at runtime (eg. .so files)
 
 $ PublicAdditionalLibraries (List&lt;String&gt;): List of additional libraries (names of the .lib files including extension) - typically used for External (third party) modules
+
+$ PublicDebugVisualizerPaths (List&lt;String&gt;): List of additional debug visualizers (.natvis and .natstepfilter) exposed to other modules - typically used for External (third party) modules
 
 $ DependenciesToSkipPerArchitecture (Dictionary&lt;String, List&lt;UnrealArch&gt;&gt;): Per-architecture lists of dependencies for linking to ignore (useful when building for multiple architectures, and a lib only is needed for one architecture), it's up to the Toolchain to use this
 
@@ -156,6 +164,8 @@ $ bWarningsAsErrors (Boolean): Whether to enable all warnings as errors. UE enab
 
 $ UnsafeTypeCastWarningLevel (WarningLevel): How to treat unsafe implicit type cast warnings (e.g., double->float or int64->int32)
 
+$ UndefinedIdentifierWarningLevel (WarningLevel): Indicates what warning/error level to treat undefined identifiers in conditional expressions.
+
 $ bEnableUndefinedIdentifierWarnings (Boolean): Enable warnings for using undefined identifiers in #if expressions
 
 $ ModuleIncludePathWarningLevel (WarningLevel): How to treat general module include path validation messages
@@ -200,7 +210,7 @@ $ bUsePrecompiled (Boolean): Whether this module should use precompiled data. Al
 
 $ bAllowConfidentialPlatformDefines (Boolean): Whether this module can use PLATFORM_XXXX style defines, where XXXX is a confidential platform name. This is used to ensure engine or other shared code does not reveal confidential information inside an #if PLATFORM_XXXX block. Licensee game code may want to allow for them, however.
 
-$ bAllowAutoRTFMInstrumentation (Boolean): Enables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
+$ bDisableAutoRTFMInstrumentation (Boolean): Disables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
 
 $ PrecompileForTargets (PrecompileTargetsType): Which targets this module should be precompiled for
 

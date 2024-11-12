@@ -17,6 +17,8 @@
 #include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "EntitySystem/MovieSceneEntitySystemDirectedGraph.h"
 
+#include <type_traits>
+
 
 namespace UE
 {
@@ -24,6 +26,7 @@ namespace MovieScene
 {
 
 struct FInstanceRegistry;
+using FBoundObjectResolver = UObject* (*)(UObject*);
 
 template<typename ParentComponentType, typename ChildComponentType>
 struct TChildEntityInitializer : FChildEntityInitializer
@@ -104,14 +107,25 @@ struct TDuplicateChildEntityInitializer : FChildEntityInitializer
 	}
 };
 
+/* Duplicates child components, but only if the parent entity passes the given component mask*/
+template<typename ComponentType>
+struct TConditionalDuplicateChildEntityInitializer : TDuplicateChildEntityInitializer<ComponentType>
+{
+	explicit TConditionalDuplicateChildEntityInitializer(TComponentTypeID<ComponentType> InComponent, FComponentMask InParentComponentMask)
+		: TDuplicateChildEntityInitializer<ComponentType>(InComponent)
+		, ParentComponentMask(InParentComponentMask)
+	{}
+
+	virtual bool IsRelevant(const FComponentMask& InParentType, const FComponentMask& InChildType) const override
+	{
+		return TDuplicateChildEntityInitializer<ComponentType>::IsRelevant(InParentType, InChildType) && InParentType.ContainsAll(ParentComponentMask);
+	}
+
+	FComponentMask ParentComponentMask;
+};
+
 struct FObjectFactoryBatch : FChildEntityFactory
 {
-	enum class EResolveError
-	{
-		None              = 0x0,
-		UnresolvedBinding = 0x1,
-	};
-
 	void Add(int32 EntityIndex, UObject* BoundObject);
 
 	virtual void GenerateDerivedType(FComponentMask& OutNewEntityType) override;
@@ -120,25 +134,20 @@ struct FObjectFactoryBatch : FChildEntityFactory
 
 	virtual void PostInitialize(UMovieSceneEntitySystemLinker* InLinker) override;
 
-	virtual EResolveError ResolveObjects(FInstanceRegistry* InstanceRegistry, FInstanceHandle InstanceHandle, int32 InEntityIndex, const FGuid& ObjectBinding) = 0;
-
 	TMap<TTuple<UObject*, FMovieSceneEntityID>, FMovieSceneEntityID>* StaleEntitiesToPreserve;
 
 private:
 	TSortedMap<FMovieSceneEntityID, FMovieSceneEntityID> PreservedEntities;
 	TArray<UObject*> ObjectsToAssign;
 };
-ENUM_CLASS_FLAGS(FObjectFactoryBatch::EResolveError)
 
 struct FBoundObjectTask
 {
 	FBoundObjectTask(UMovieSceneEntitySystemLinker* InLinker);
-	virtual ~FBoundObjectTask(){}
 
-	virtual FObjectFactoryBatch& AddBatch(FEntityAllocationProxy ParentProxy) = 0;
-	virtual void Apply() = 0;
+	void Apply();
 
-	void ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings);
+	void ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings, TReadOptional<FBoundObjectResolver> Resolvers);
 
 	void PostTask();
 
@@ -152,6 +161,7 @@ private:
 	};
 
 	TMap<TTuple<UObject*, FMovieSceneEntityID>, FMovieSceneEntityID> StaleEntitiesToPreserve;
+	TMap<FEntityAllocationProxy, FObjectFactoryBatch> Batches;
 	TArray<FMovieSceneEntityID> EntitiesToDiscard;
 	TArray<FEntityMutationData> EntityMutations;
 
@@ -160,41 +170,17 @@ protected:
 	UMovieSceneEntitySystemLinker* Linker;
 };
 
-template<typename BatchType>
-struct TBoundObjectTask : FBoundObjectTask
-{
-	TBoundObjectTask(UMovieSceneEntitySystemLinker* InLinker)
-		: FBoundObjectTask(InLinker)
-	{}
-
-private:
-
-	virtual FObjectFactoryBatch& AddBatch(FEntityAllocationProxy ParentProxy) override
-	{
-		return Batches.Add(ParentProxy);
-	}
-
-	virtual void Apply() override
-	{
-		for (TTuple<FEntityAllocationProxy, BatchType>& Pair : Batches)
-		{
-			// Determine the type for the new entities
-			if (Pair.Value.Num() != 0)
-			{
-				Pair.Value.Apply(Linker, Pair.Key);
-			}
-		}
-	}
-
-	TMap<FEntityAllocationProxy, BatchType> Batches;
-};
-
-
 
 template<typename ComponentType>
 inline void FEntityFactories::DuplicateChildComponent(TComponentTypeID<ComponentType> InComponent)
 {
 	DefineChildComponent(TDuplicateChildEntityInitializer<ComponentType>(InComponent));
+}
+
+template<typename ComponentType>
+inline void FEntityFactories::ConditionallyDuplicateChildComponent(TComponentTypeID<ComponentType> InComponent, FComponentMask InParentComponentMask)
+{
+	DefineChildComponent(TConditionalDuplicateChildEntityInitializer<ComponentType>(InComponent, InParentComponentMask));
 }
 
 template<typename ParentComponent, typename ChildComponent, typename InitializerCallback>
@@ -220,7 +206,7 @@ FComponentTypeInfo FComponentRegistry::MakeComponentTypeInfoWithoutComponentOps(
 	NewTypeInfo.Sizeof = ComponentTypeSize;
 	NewTypeInfo.Alignment = Alignment;
 	NewTypeInfo.bIsZeroConstructType = TIsZeroConstructType<T>::Value;
-	NewTypeInfo.bIsTriviallyDestructable = TIsTriviallyDestructible<T>::Value;
+	NewTypeInfo.bIsTriviallyDestructable = std::is_trivially_destructible_v<T>;
 	NewTypeInfo.bIsTriviallyCopyAssignable = TIsTriviallyCopyAssignable<T>::Value;
 	NewTypeInfo.bIsPreserved = EnumHasAnyFlags(Params.Flags, EComponentTypeFlags::Preserved);
 	NewTypeInfo.bIsCopiedToOutput = EnumHasAnyFlags(Params.Flags, EComponentTypeFlags::CopyToOutput);
@@ -228,10 +214,9 @@ FComponentTypeInfo FComponentRegistry::MakeComponentTypeInfoWithoutComponentOps(
 	NewTypeInfo.bHasReferencedObjects = false;
 
 #if UE_MOVIESCENE_ENTITY_DEBUG
-	NewTypeInfo.DebugInfo = MakeUnique<FComponentTypeDebugInfo>();
+	NewTypeInfo.DebugInfo = MakeUnique<TComponentTypeDebugInfo<T>>();
 	NewTypeInfo.DebugInfo->DebugName = DebugName;
 	NewTypeInfo.DebugInfo->DebugTypeName = GetGeneratedTypeName<T>();
-	NewTypeInfo.DebugInfo->Type = TComponentDebugType<T>::Type;
 #endif
 
 	return NewTypeInfo;

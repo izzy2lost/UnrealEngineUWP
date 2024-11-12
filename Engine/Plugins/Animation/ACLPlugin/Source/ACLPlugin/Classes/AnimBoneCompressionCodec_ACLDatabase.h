@@ -15,13 +15,13 @@ THIRD_PARTY_INCLUDES_END
 #include "AnimBoneCompressionCodec_ACLBase.h"
 #include "AnimBoneCompressionCodec_ACLDatabase.generated.h"
 
-struct FACLDatabaseCompressedAnimData final : public ICompressedAnimData
+struct FACLDatabaseCompressedAnimData final : public FACLCompressedAnimDataBase
 {
 	/** Maps the compressed_tracks instance. Used in cooked build only. */
 	TArrayView<uint8> CompressedByteStream;
 
 	/** Maps the database context instance. Used in cooked build only. */
-	acl::database_context<UE4DefaultDatabaseSettings>* DatabaseContext = nullptr;
+	acl::database_context<UEDefaultDatabaseSettings>* DatabaseContext = nullptr;
 
 	/** The codec instance that owns us. */
 	const class UAnimBoneCompressionCodec_ACLDatabase* Codec = nullptr;
@@ -45,7 +45,7 @@ struct FACLDatabaseCompressedAnimData final : public ICompressedAnimData
 	virtual ~FACLDatabaseCompressedAnimData() override;
 #endif
 
-	virtual void SerializeCompressedData(FArchive& Ar) override;
+	virtual void SerializeCompressedData(UObject* DataOwner, FArchive& Ar) override;
 	virtual void Bind(const TArrayView<uint8> BulkData) override;
 	virtual int64 GetApproxCompressedSize() const override;
 	virtual bool IsValid() const override;

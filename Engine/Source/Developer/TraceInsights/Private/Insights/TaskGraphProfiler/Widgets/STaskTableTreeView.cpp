@@ -9,21 +9,26 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/TasksProfiler.h"
 #include "Widgets/Input/SComboBox.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/TasksProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskEntry.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskGraphRelation.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskNode.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/ViewModels/ThreadTimingSharedState.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
@@ -32,7 +37,7 @@
 
 using namespace TraceServices;
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +97,7 @@ STaskTableTreeView::~STaskTableTreeView()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STaskTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<Insights::FTaskTable> InTablePtr)
+void STaskTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<FTaskTable> InTablePtr)
 {
 	ConstructWidget(InTablePtr);
 
@@ -203,6 +208,8 @@ void STaskTableTreeView::Tick(const FGeometry& AllottedGeometry, const double In
 
 void STaskTableTreeView::RebuildTree(bool bResync)
 {
+	using namespace UE::Insights::TimingProfiler;
+
 	double NewQueryStartTime = FTimingProfilerManager::Get()->GetSelectionStartTime();
 	double NewQueryEndTime = FTimingProfilerManager::Get()->GetSelectionEndTime();
 
@@ -720,6 +727,8 @@ void STaskTableTreeView::ContextMenu_GoToTask_Execute()
 		return;
 	}
 
+	using namespace UE::Insights::TimingProfiler;
+
 	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (!TimingWindow.IsValid())
 	{
@@ -742,13 +751,13 @@ void STaskTableTreeView::ContextMenu_GoToTask_Execute()
 		TaskSharedState->SetTaskId(TaskEntry->GetId());
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadTimingState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<TimingProfiler::FThreadTimingSharedState> ThreadTimingState = TimingView->GetThreadTimingSharedState();
 	if (!ThreadTimingState.IsValid())
 	{
 		return;
 	}
 
-	TSharedPtr<FCpuTimingTrack> Track = ThreadTimingState->GetCpuTrack(TaskEntry->GetStartedThreadId());
+	TSharedPtr<TimingProfiler::FCpuTimingTrack> Track = ThreadTimingState->GetCpuTrack(TaskEntry->GetStartedThreadId());
 	if (!Track.IsValid())
 	{
 		return;
@@ -912,6 +921,6 @@ void STaskTableTreeView::SearchForItem(TSharedPtr<FTableTaskCancellationToken> C
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler
 
 #undef LOCTEXT_NAMESPACE

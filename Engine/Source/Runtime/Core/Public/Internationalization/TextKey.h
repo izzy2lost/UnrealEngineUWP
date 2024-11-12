@@ -10,7 +10,7 @@
 #include "Serialization/StructuredArchive.h"
 
 #ifndef UE_TEXTKEY_STORE_EMBEDDED_HASH
-	#define UE_TEXTKEY_STORE_EMBEDDED_HASH (1)
+	#define UE_TEXTKEY_STORE_EMBEDDED_HASH (0)
 #endif
 
 namespace TextKeyUtil
@@ -74,7 +74,7 @@ namespace TextKeyUtil
 class FTextKey
 {
 public:
-	CORE_API FTextKey();
+	FTextKey() = default;
 	CORE_API FTextKey(FStringView InStr);
 	
 	FTextKey(const TCHAR* InStr)
@@ -88,32 +88,30 @@ public:
 	}
 
 	/** Get the underlying chars buffer this text key represents */
-	FORCEINLINE const TCHAR* GetChars() const
-	{
-		return StrPtr;
-	}
+	UE_DEPRECATED(5.5, "GetChars is deprecated as FTextKey may now store its internal data as UTF-8. Use ToString/AppendString instead.")
+	CORE_API const TCHAR* GetChars() const;
+
+	/** Convert this text key back to its string representation */
+	CORE_API FString ToString() const;
+	CORE_API void ToString(FString& Out) const;
+	CORE_API void ToString(FStringBuilderBase& Out) const;
+	CORE_API void AppendString(FString& Out) const;
+	CORE_API void AppendString(FStringBuilderBase& Out) const;
 
 	/** Compare for equality */
 	friend FORCEINLINE bool operator==(const FTextKey& A, const FTextKey& B)
 	{
-		return A.StrPtr == B.StrPtr;
+		return A.Index == B.Index;
 	}
 
 	/** Compare for inequality */
 	friend FORCEINLINE bool operator!=(const FTextKey& A, const FTextKey& B)
 	{
-		return A.StrPtr != B.StrPtr;
+		return A.Index != B.Index;
 	}
 
 	/** Get the hash of this text key */
-	friend FORCEINLINE uint32 GetTypeHash(const FTextKey& A)
-	{
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		return A.StrHash;
-#else
-		return TextKeyUtil::HashString(A.StrPtr);
-#endif
-	}
+	friend CORE_API uint32 GetTypeHash(const FTextKey& A);
 
 	/** Serialize this text key as if it were an FString */
 	CORE_API void SerializeAsString(FArchive& Ar);
@@ -136,11 +134,17 @@ public:
 	/** Is this text key empty? */
 	FORCEINLINE bool IsEmpty() const
 	{
-		return *StrPtr == 0;
+		return Index == INDEX_NONE;
 	}
 
 	/** Reset this text key to be empty */
-	CORE_API void Reset();
+	FORCEINLINE void Reset()
+	{
+		Index = INDEX_NONE;
+#if UE_TEXTKEY_STORE_EMBEDDED_HASH
+		StrHash = 0;
+#endif
+	}
 
 	/** Compact any slack within the internal table */
 	static CORE_API void CompactDataStructures();
@@ -149,23 +153,14 @@ public:
 	static CORE_API void TearDown();
 
 private:
-	/** Pointer to the null-terminated string buffer we reference */
-	const TCHAR* StrPtr;
+	/** Index of the internal FKeyData we reference */
+	int32 Index = INDEX_NONE;
 
 #if UE_TEXTKEY_STORE_EMBEDDED_HASH
-	/** Hash of this text key */
-	uint32 StrHash;
+	/** Local cache of FKeyData::StrHash to avoid indirection into the internal table */
+	uint32 StrHash = 0;
 #endif
 
-	FTextKey(const TCHAR* Str, uint32 Hash)
-		: StrPtr(Str)
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		, StrHash(Hash)
-#endif
-	{
-	}
-
-	friend class FTextId;
 	friend class FTextKeyState;
 };
 
@@ -175,93 +170,63 @@ private:
 class FTextId
 {
 public:
-	FTextId()
-	{
-		Reset();
-	}
+	FTextId() = default;
 
 	FTextId(const FTextKey& InNamespace, const FTextKey& InKey)
+		: Namespace(InNamespace)
+		, Key(InKey)
 	{
-		SetNamespace(InNamespace);
-		SetKey(InKey);
 	}
 
 	/** Get the namespace component of this text identity */
 	FORCEINLINE FTextKey GetNamespace() const
 	{
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		return FTextKey(NamespaceStr, NamespaceHash);
-#else
-		return FTextKey(NamespaceStr, 0);
-#endif
+		return Namespace;
 	}
 
 	/** Get the key component of this text identity */
 	FORCEINLINE FTextKey GetKey() const
 	{
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		return FTextKey(KeyStr, KeyHash);
-#else
-		return FTextKey(KeyStr, 0);
-#endif
+		return Key;
 	}
 
 	/** Compare for equality */
 	friend FORCEINLINE bool operator==(const FTextId& A, const FTextId& B)
 	{
-		return A.NamespaceStr == B.NamespaceStr && A.KeyStr == B.KeyStr;
+		return A.Namespace == B.Namespace && A.Key == B.Key;
 	}
 
 	/** Compare for inequality */
 	friend FORCEINLINE bool operator!=(const FTextId& A, const FTextId& B)
 	{
-		return A.NamespaceStr != B.NamespaceStr || A.KeyStr != B.KeyStr;
+		return A.Namespace != B.Namespace || A.Key != B.Key;
 	}
 
 	/** Get the hash of this text identity */
 	friend FORCEINLINE uint32 GetTypeHash(const FTextId& A)
 	{
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		return HashCombine(A.NamespaceHash, A.KeyHash);
-#else
-		return HashCombine(TextKeyUtil::HashString(A.NamespaceStr), TextKeyUtil::HashString(A.KeyStr));
-#endif
+		return HashCombine(GetTypeHash(A.Namespace), GetTypeHash(A.Key));
 	}
 
 	/** Serialize this text identity as if it were FStrings */
 	void SerializeAsString(FArchive& Ar)
 	{
-		FTextKey Namespace = GetNamespace();
 		Namespace.SerializeAsString(Ar);
-		SetNamespace(Namespace);
-
-		FTextKey Key = GetKey();
 		Key.SerializeAsString(Ar);
-		SetKey(Key);
 	}
 
 	/** Serialize this text identity including its hash values (this method is sensitive to hashing algorithm changes, so only use it for generated files that can be rebuilt from another source) */
 	void SerializeWithHash(FArchive& Ar)
 	{
-		FTextKey Namespace = GetNamespace();
 		Namespace.SerializeWithHash(Ar);
-		SetNamespace(Namespace);
-
-		FTextKey Key = GetKey();
 		Key.SerializeWithHash(Ar);
-		SetKey(Key);
 	}
 
 	/** Serialize this text identity including its hash values, discarding the hash on load (to upgrade from an older hashing algorithm) */
 	void SerializeDiscardHash(FArchive& Ar)
 	{
-		FTextKey Namespace = GetNamespace();
 		Namespace.SerializeDiscardHash(Ar);
-		SetNamespace(Namespace);
-
-		FTextKey Key = GetKey();
 		Key.SerializeDiscardHash(Ar);
-		SetKey(Key);
 	}
 
 	/** Serialize this text identity as if it were FStrings */
@@ -269,13 +234,8 @@ public:
 	{
 		FStructuredArchiveRecord Record = Slot.EnterRecord();
 
-		FTextKey Namespace = GetNamespace();
 		Namespace.SerializeAsString(Record.EnterField(TEXT("Namespace")));
-		SetNamespace(Namespace);
-
-		FTextKey Key = GetKey();
 		Key.SerializeAsString(Record.EnterField(TEXT("Key")));
-		SetKey(Key);
 	}
 
 	/** Serialize this text identity including its hash values (this method is sensitive to hashing algorithm changes, so only use it for generated files that can be rebuilt from another source) */
@@ -283,13 +243,8 @@ public:
 	{
 		FStructuredArchiveRecord Record = Slot.EnterRecord();
 
-		FTextKey Namespace = GetNamespace();
 		Namespace.SerializeWithHash(Record.EnterField(TEXT("Namespace")));
-		SetNamespace(Namespace);
-
-		FTextKey Key = GetKey();
 		Key.SerializeWithHash(Record.EnterField(TEXT("Key")));
-		SetKey(Key);
 	}
 
 	/** Serialize this text identity including its hash values, discarding the hash on load (to upgrade from an older hashing algorithm) */
@@ -297,51 +252,24 @@ public:
 	{
 		FStructuredArchiveRecord Record = Slot.EnterRecord();
 
-		FTextKey Namespace = GetNamespace();
 		Namespace.SerializeDiscardHash(Record.EnterField(TEXT("Namespace")));
-		SetNamespace(Namespace);
-
-		FTextKey Key = GetKey();
 		Key.SerializeDiscardHash(Record.EnterField(TEXT("Key")));
-		SetKey(Key);
 	}
 
 	/** Is this text identity empty? */
 	FORCEINLINE bool IsEmpty() const
 	{
-		return *NamespaceStr == 0 && *KeyStr == 0;
+		return Namespace.IsEmpty() && Key.IsEmpty();
 	}
 
 	/** Reset this text identity to be empty */
 	FORCEINLINE void Reset()
 	{
-		NamespaceStr = KeyStr = TEXT("");
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		NamespaceHash = KeyHash = 0;
-#endif
+		Namespace.Reset();
+		Key.Reset();
 	}
 
 private:
-	void SetNamespace(const FTextKey& InNamespace)
-	{
-		NamespaceStr = InNamespace.StrPtr;
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		NamespaceHash = InNamespace.StrHash;
-#endif
-	}
-
-	void SetKey(const FTextKey& InKey)
-	{
-		KeyStr = InKey.StrPtr;
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-		KeyHash = InKey.StrHash;
-#endif
-	}
-
-	const TCHAR* NamespaceStr;
-	const TCHAR* KeyStr;
-#if UE_TEXTKEY_STORE_EMBEDDED_HASH
-	uint32 NamespaceHash;
-	uint32 KeyHash;
-#endif
+	FTextKey Namespace;
+	FTextKey Key;
 };

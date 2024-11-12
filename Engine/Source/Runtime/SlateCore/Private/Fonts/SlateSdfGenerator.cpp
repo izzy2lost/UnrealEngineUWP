@@ -35,12 +35,6 @@ static constexpr double SDF_BOUNDS_MITER_LIMIT = 1.0;
 namespace SdfUtils
 {
 
-/** Converts FreeType's units-per-em to MSDFgen's units-per-em, due to the issue msdfgen#147 */
-float GetMsdfgenUnitsPerEm(const uint16 InFreetypeUnitsPerEm)
-{
-	return 1.f/64.f*static_cast<float>(InFreetypeUnitsPerEm);
-}
-
 /**
  * Specifies how the glyph's shape geometry will be mapped into the distance field's pixel coordinate system
  * and how the distance values are mapped to the 0 - 255 range.
@@ -74,9 +68,9 @@ public:
 		const float InEmOuterSpread,
 		const float InEmInnerSpread);
 
-	const msdfgen::Projection& GetMsdfgenProjection() const
+	const msdfgen::SDFTransformation& GetMsdfgenTransformation() const
 	{
-		return MsdfgenProjection;
+		return MsdfgenTransformation;
 	}
 
 	int32 GetSdfWidth() const
@@ -97,27 +91,9 @@ public:
 		return SdfBounds.Max.Y;
 	}
 
-	float GetMsdfgenOuterRange() const
-	{
-		return MsdfgenOuterRange;
-	}
-	float GetMsdfgenInnerRange() const
-	{
-		return MsdfgenInnerRange;
-	}
-
-	FORCEINLINE uint8 EncodeDistance(const float InMsdfgenUnitDistance) const
-	{
-		return msdfgen::pixelFloatToByte(DistanceFactor*InMsdfgenUnitDistance+DistanceBias);
-	}
-
 private:
-	msdfgen::Projection MsdfgenProjection;
+	msdfgen::SDFTransformation MsdfgenTransformation;
 	FIntRect SdfBounds;
-	float MsdfgenOuterRange = 1.f;
-	float MsdfgenInnerRange = 1.f;
-	float DistanceFactor = 1.f;
-	float DistanceBias = 0.f;
 
 	void Wrap(const msdfgen::Shape* MsdfgenShape,
 		msdfgen::Shape::Bounds MsdfgenBounds,
@@ -135,11 +111,11 @@ void FGlyphSdfMapping::Wrap(const msdfgen::Shape* MsdfgenShape,
 	const float InEmOuterSpread,
 	const double InMiterLimit)
 {
-	const float MsdfgenUnitsPerEm = GetMsdfgenUnitsPerEm(InUnitsPerEm);
-	const float MsdfgenScale = static_cast<float>(InPpem)/MsdfgenUnitsPerEm;
+	const float UnitsPerEm = static_cast<float>(InUnitsPerEm);
+	const float UnitScale = static_cast<float>(InPpem)/UnitsPerEm;
 
 	// Add outer portion of spread to bounds
-	const float MsdfgenOuterSpread = MsdfgenUnitsPerEm*InEmOuterSpread;
+	const float MsdfgenOuterSpread = UnitsPerEm*InEmOuterSpread;
 	MsdfgenBounds.l -= MsdfgenOuterSpread;
 	MsdfgenBounds.b -= MsdfgenOuterSpread;
 	MsdfgenBounds.r += MsdfgenOuterSpread;
@@ -152,10 +128,10 @@ void FGlyphSdfMapping::Wrap(const msdfgen::Shape* MsdfgenShape,
 	}
 
 	// Convert to pixel bounds
-	MsdfgenBounds.l *= MsdfgenScale;
-	MsdfgenBounds.b *= MsdfgenScale;
-	MsdfgenBounds.r *= MsdfgenScale;
-	MsdfgenBounds.t *= MsdfgenScale;
+	MsdfgenBounds.l *= UnitScale;
+	MsdfgenBounds.b *= UnitScale;
+	MsdfgenBounds.r *= UnitScale;
+	MsdfgenBounds.t *= UnitScale;
 
 	// Add 0.5 px to pixel bounds to make sure that spread does not extend beyond edge pixel centers
 	MsdfgenBounds.l -= 0.5;
@@ -181,9 +157,11 @@ void FGlyphSdfMapping::Wrap(const msdfgen::Shape* MsdfgenShape,
 	SdfBounds.Max.X = FMath::CeilToInt32(MsdfgenBounds.r);
 	SdfBounds.Max.Y = FMath::CeilToInt32(MsdfgenBounds.t);
 
-	MsdfgenProjection = msdfgen::Projection(
-		msdfgen::Vector2(MsdfgenScale),
-		msdfgen::Vector2(-SdfBounds.Min.X/MsdfgenScale, -SdfBounds.Min.Y/MsdfgenScale));
+	MsdfgenTransformation = msdfgen::SDFTransformation(msdfgen::Projection(
+		msdfgen::Vector2(UnitScale),
+		msdfgen::Vector2(-SdfBounds.Min.X, -SdfBounds.Min.Y)/UnitScale),
+		msdfgen::Range(2)
+	);
 }
 
 void FGlyphSdfMapping::SetSpread(
@@ -191,11 +169,8 @@ void FGlyphSdfMapping::SetSpread(
 	const float InEmOuterSpread,
 	const float InEmInnerSpread)
 {
-	const float MsdfgenUnitsPerEm = GetMsdfgenUnitsPerEm(InUnitsPerEm);
-	MsdfgenOuterRange = MsdfgenUnitsPerEm*InEmOuterSpread;
-	MsdfgenInnerRange = MsdfgenUnitsPerEm*InEmInnerSpread;
-	DistanceFactor = 1.f/(MsdfgenOuterRange+MsdfgenInnerRange);
-	DistanceBias = (MsdfgenOuterRange-0.5f)*DistanceFactor; // 0.5 is subtracted because MSDFgen automatically places zero distance at 50% luminance
+	const float UnitsPerEm = static_cast<float>(InUnitsPerEm);
+	MsdfgenTransformation.distanceMapping = msdfgen::Range(-UnitsPerEm*InEmOuterSpread, UnitsPerEm*InEmInnerSpread);
 }
 
 /*
@@ -255,7 +230,7 @@ bool FFreeTypeShapeBuilder::Build(TSharedPtr<FFreeTypeFace> InFace,
 		return false;
 	}
 
-	Error = msdfgen::readFreetypeOutline(OutMsdfgenShape, &InFace->GetFace()->glyph->outline);
+	Error = msdfgen::readFreetypeOutline(OutMsdfgenShape, &InFace->GetFace()->glyph->outline, 1);
 	if (Error != 0 || OutMsdfgenShape.contours.empty())
 	{
 		return false;
@@ -335,6 +310,21 @@ public:
 	void MakePlaceholder(TArray<uint8>& OutRawPixels) const;
 
 };
+
+static int32 GetNumSdfChannels(FSlateSdfGenerator::ESdfType InSdfType)
+{
+	switch (InSdfType)
+	{
+		case FSlateSdfGenerator::ESdfType::Simple:
+		case FSlateSdfGenerator::ESdfType::Perpendicular:
+			return 1;
+		case FSlateSdfGenerator::ESdfType::MultichannelAndSimple:
+			return 4;
+		default:
+			checkNoEntry();
+	}
+	return 0;
+}
 
 FSlateSdfGenerator::ERequestResponse FSdfGeneratorTask::Prepare(const FSlateSdfGenerator::FRequestDescriptor& InDescriptor, FSlateSdfGenerator::FRequestOutputInfo& OutOutputInfo, bool bCsvTrace)
 {
@@ -440,46 +430,75 @@ void FSdfGeneratorTask::DoOutlineDecomposition()
 	const bool OverlappedContourSupport = true;
 	const int32 TargetWidth = GlyphSdfMapping.GetSdfWidth();
 	const int32 TargetHeight = GlyphSdfMapping.GetSdfHeight();
+	const int32 TargetChannels = GetNumSdfChannels(Descriptor.SdfType);
 	TArray<float> FloatPixels;
-	FloatPixels.SetNumUninitialized(4 * TargetWidth * TargetHeight);
-	OutputPixels.SetNumUninitialized(4 * TargetWidth * TargetHeight);
+	FloatPixels.SetNumUninitialized(TargetChannels * TargetWidth * TargetHeight);
+	OutputPixels.SetNumUninitialized(TargetChannels * TargetWidth * TargetHeight);
 
-	TArray<uint8> ECBuffer;
-	ECBuffer.SetNumUninitialized (TargetWidth * TargetHeight);
+	switch (Descriptor.SdfType)
+	{
+		case FSlateSdfGenerator::ESdfType::Simple:
+		{
+			msdfgen::BitmapRef<float, 1> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+			msdfgen::generateSDF(
+				FloatBitmap,
+				MsdfgenShape,
+				GlyphSdfMapping.GetMsdfgenTransformation(),
+				msdfgen::GeneratorConfig(OverlappedContourSupport)
+			);
+			break;
+		}
+		case FSlateSdfGenerator::ESdfType::Perpendicular:
+		{
+			msdfgen::BitmapRef<float, 1> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+			msdfgen::generatePSDF(
+				FloatBitmap,
+				MsdfgenShape,
+				GlyphSdfMapping.GetMsdfgenTransformation(),
+				msdfgen::GeneratorConfig(OverlappedContourSupport)
+			);
+			break;
+		}
+		case FSlateSdfGenerator::ESdfType::MultichannelAndSimple:
+		{
+			msdfgen::edgeColoringInkTrap(MsdfgenShape, SDF_CORNER_ANGLE_THRESHOLD);
 
-	msdfgen::edgeColoringInkTrap(MsdfgenShape, SDF_CORNER_ANGLE_THRESHOLD);
-
-	msdfgen::BitmapRef<float, 4> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
-	msdfgen::generateMTSDF(
-		FloatBitmap,
-		MsdfgenShape,
-		GlyphSdfMapping.GetMsdfgenProjection(),
-		1.0,
-		msdfgen::MSDFGeneratorConfig(
-			OverlappedContourSupport,
-			msdfgen::ErrorCorrectionConfig(
-				msdfgen::ErrorCorrectionConfig::EDGE_PRIORITY,
-				msdfgen::ErrorCorrectionConfig::CHECK_DISTANCE_AT_EDGE,
-				msdfgen::ErrorCorrectionConfig::defaultMinDeviationRatio,
-				msdfgen::ErrorCorrectionConfig::defaultMinImproveRatio,
-				ECBuffer.GetData()
-			)
-		)
-	);
+			msdfgen::BitmapRef<float, 4> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+			msdfgen::generateMTSDF(
+				FloatBitmap,
+				MsdfgenShape,
+				GlyphSdfMapping.GetMsdfgenTransformation(),
+				msdfgen::MSDFGeneratorConfig(
+					OverlappedContourSupport,
+					msdfgen::ErrorCorrectionConfig(
+						msdfgen::ErrorCorrectionConfig::EDGE_PRIORITY,
+						msdfgen::ErrorCorrectionConfig::CHECK_DISTANCE_AT_EDGE,
+						msdfgen::ErrorCorrectionConfig::defaultMinDeviationRatio,
+						msdfgen::ErrorCorrectionConfig::defaultMinImproveRatio,
+						OutputPixels.GetData() // Temporarily repurpose output buffer as error correction buffer
+					)
+				)
+			);
+			break;
+		}
+		default:
+			checkNoEntry();
+	}
 
 	const float* Src = FloatPixels.GetData();
-	for (uint8* Dst = OutputPixels.GetData(), * End = Dst+4*TargetWidth*TargetHeight; Dst < End; ++Dst, ++Src)
+	for (uint8* Dst = OutputPixels.GetData(), * End = Dst+TargetChannels*TargetWidth*TargetHeight; Dst < End; ++Dst, ++Src)
 	{
-		*Dst = GlyphSdfMapping.EncodeDistance(*Src);
+		*Dst = msdfgen::pixelFloatToByte(*Src);
 	}
 }
 
 void FSdfGeneratorTask::MakePlaceholder(TArray<uint8>& OutRawPixels) const
 {
+	const int32 TargetChannels = GetNumSdfChannels(Descriptor.SdfType);
 	const int32 TargetWidth = GlyphSdfMapping.GetSdfWidth();
 	const int32 TargetHeight = GlyphSdfMapping.GetSdfHeight();
 	const int32 TargetArea = TargetWidth * TargetHeight;
-	const int32 TotalSubpixels = 4 * TargetArea;
+	const int32 TotalSubpixels = TargetChannels * TargetArea;
 	TArray<float> FloatPixels;
 	FloatPixels.SetNumUninitialized(TargetArea);
 	OutRawPixels.SetNumUninitialized(TotalSubpixels);
@@ -487,14 +506,32 @@ void FSdfGeneratorTask::MakePlaceholder(TArray<uint8>& OutRawPixels) const
 	msdfgen::approximateSDF(
 		FloatBitmap,
 		MsdfgenShape,
-		GlyphSdfMapping.GetMsdfgenProjection(),
-		GlyphSdfMapping.GetMsdfgenOuterRange(),
-		GlyphSdfMapping.GetMsdfgenInnerRange()
+		GlyphSdfMapping.GetMsdfgenTransformation()
 	);
+
 	const float* Src = FloatPixels.GetData();
-	for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 4, ++Src)
+	switch (TargetChannels)
 	{
-		Dst[3] = Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
+		case 1:
+			for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; ++Dst, ++Src)
+			{
+				*Dst = msdfgen::pixelFloatToByte(*Src);
+			}
+			break;
+		case 3:
+			for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 3, ++Src)
+			{
+				Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
+			}
+			break;
+		case 4:
+			for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 4, ++Src)
+			{
+				Dst[3] = Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
+			}
+			break;
+		default:
+			checkNoEntry();
 	}
 }
 
@@ -513,6 +550,7 @@ public:
 	virtual ERequestResponse Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo) override;
 	virtual ERequestResponse SpawnWithPlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) override;
 	virtual ERequestResponse Respawn(const FRequestDescriptor& InRequest, const FRequestOutputInfo& InCharInfo) override;
+	virtual ERequestResponse MakePlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) override;
 	virtual void Update(const FForEachRequestDoneCallback& InEnumerator) override;
 	virtual void Flush() override;
 private:
@@ -599,11 +637,9 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::SpawnWithPlaceholde
 {
 	if (FreeTasks.IsEmpty())
 	{
-		SdfUtils::FSdfGeneratorTask PlaceholderTask;
-		const ERequestResponse Result = PlaceholderTask.Prepare(InRequest, OutCharInfo, false);
+		const ERequestResponse Result = MakePlaceholder(InRequest, OutCharInfo, OutRawPixels);
 		if (Result == ERequestResponse::SUCCESS)
 		{
-			PlaceholderTask.MakePlaceholder(OutRawPixels);
 			return ERequestResponse::PLACEHOLDER_ONLY;
 		}
 		return Result;
@@ -653,6 +689,17 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::Respawn(const FRequ
 		}
 	}
 	FreeTasks.Push(Task);
+	return Result;
+}
+
+FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::MakePlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels)
+{
+	SdfUtils::FSdfGeneratorTask PlaceholderTask;
+	const ERequestResponse Result = PlaceholderTask.Prepare(InRequest, OutCharInfo, false);
+	if (Result == ERequestResponse::SUCCESS)
+	{
+		PlaceholderTask.MakePlaceholder(OutRawPixels);
+	}
 	return Result;
 }
 

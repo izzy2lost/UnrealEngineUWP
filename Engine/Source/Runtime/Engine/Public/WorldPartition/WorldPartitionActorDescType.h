@@ -1,12 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Templates/Requires.h"
 #include "Templates/UnrealTypeTraits.h"
+
+#include <type_traits>
 
 class AActor;
 
 #if WITH_EDITOR
-template <typename ActorType, TEMPLATE_REQUIRES(TIsDerivedFrom<ActorType, AActor>::IsDerived)>
+template <typename ActorType UE_REQUIRES(std::is_base_of_v<AActor, ActorType>)>
 struct FWorldPartitionActorDescType
 {};
 
@@ -18,8 +21,4 @@ struct FWorldPartitionActorDescType<ActorType>			\
 };
 #else
 #define DEFINE_ACTORDESC_TYPE(ActorType, ActorDescType)
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
 #endif

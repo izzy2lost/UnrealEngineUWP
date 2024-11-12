@@ -14,9 +14,6 @@ public:
 	 */
 	static bool ExportWarpMap(const class FDisplayClusterWarpBlend_GeometryContext& InContext, struct FDisplayClusterWarpGeometryOBJ& Dst, uint32 InMaxDimension = 0);
 
-	/** Return pixels to Unit scale for fake geometry of MPCDI profile 2D. */
-	static float Get2DProfilePixelsToUnitScale();
-
 	/** [2D] Return fake geometry points for region in mpcdi 2D profile. */
 	static void Get2DProfileGeometry(const struct FDisplayClusterWarpMPCDIAttributes& InMPCDIAttributes, TArray<FVector>& OutGeometryPoints, TArray<FVector>* OutNormal = nullptr, TArray<FVector2D>* OutUV = nullptr);
 };

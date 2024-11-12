@@ -30,6 +30,7 @@ public class PropertyEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
                 "AppFramework",
+				"AssetDefinition",
 				"Core",
 				"CoreUObject",
 				"ApplicationCore",

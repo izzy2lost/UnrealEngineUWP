@@ -21,7 +21,7 @@
 
 #include "NiagaraSystem.h"
 #include "NiagaraEditorUtilities.h"
-#include "K2Node_WriteDataChannel.h"
+#include "K2Node_DataChannelBase.h"
 
 #include "NiagaraDataInterfaceDetails.h"
 

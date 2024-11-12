@@ -56,7 +56,7 @@ namespace GeometryCollectionTest
 		RadialMaskTmp->ExteriorValue = (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic;
 		RadialMaskTmp->SetMaskCondition = ESetMaskConditionType::Field_Set_IFF_NOT_Interior;
 		FName TargetNameTmp = GetFieldPhysicsName(EFieldPhysicsType::Field_DynamicState);
-		Collection->PhysObject->BufferCommand(UnitTest.Solver, { TargetNameTmp, RadialMaskTmp });
+		Collection->PhysObject->BufferFieldCommand_Internal(UnitTest.Solver, { TargetNameTmp, RadialMaskTmp });
 
 		UnitTest.Initialize();
 		UnitTest.Advance();
@@ -102,7 +102,7 @@ namespace GeometryCollectionTest
 		RadialMask->ExteriorValue = (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic;
 		RadialMask->SetMaskCondition = ESetMaskConditionType::Field_Set_IFF_NOT_Interior;
 		FName TargetName = GetFieldPhysicsName(EFieldPhysicsType::Field_DynamicState);
-		Collection->PhysObject->BufferCommand(UnitTest.Solver, { TargetName, RadialMask });
+		Collection->PhysObject->BufferFieldCommand_Internal(UnitTest.Solver, { TargetName, RadialMask });
 
 		{
 			UnitTest.Advance();
@@ -168,7 +168,7 @@ namespace GeometryCollectionTest
 		Params.RootTransform.SetLocation(FVector(0.0, 0.0, 0.0));
 
 		Params.InitialVelocityType = EInitialVelocityTypeEnum::Chaos_Initial_Velocity_User_Defined;
-		Params.InitialLinearVelocity = FVector(0.f, 100.f, 0.f);
+		Params.InitialLinearVelocity = FVector3f(0.f, 100.f, 0.f);
 		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSingleRigid>::Init(Params)->template As<FGeometryCollectionWrapper>();
 		UnitTest.AddSimulationObject(Collection);
 
@@ -195,7 +195,7 @@ namespace GeometryCollectionTest
 			if (Frame == 1)
 			{
 				FName TargetName = GetFieldPhysicsName(EFieldPhysicsType::Field_DynamicState);
-				Collection->PhysObject->BufferCommand(UnitTest.Solver, { TargetName, RadialMask });
+				Collection->PhysObject->BufferFieldCommand_Internal(UnitTest.Solver, { TargetName, RadialMask });
 			}
 
 			if (Frame >= 2)
@@ -490,7 +490,7 @@ namespace GeometryCollectionTest
 			if (Frame == 31)
 			{
 				EFieldPhysicsType PhysicsType = GetGeometryCollectionPhysicsType(EGeometryCollectionPhysicsTypeEnum::Chaos_CollisionGroup);
-				Collection[1]->PhysObject->BufferCommand(UnitTest.Solver, { PhysicsType, RadialMask });
+				Collection[1]->PhysObject->BufferFieldCommand_Internal(UnitTest.Solver, { PhysicsType, RadialMask });
 			}
 		}
 		// The bottom boxes should have fallen below the ground level, box 2 now on the ground with box 3 on top
@@ -1054,7 +1054,7 @@ namespace GeometryCollectionTest
 		CreationParameters Params;
 		Params.DynamicState = EObjectStateTypeEnum::Chaos_Object_Dynamic;
 		Params.InitialVelocityType = EInitialVelocityTypeEnum::Chaos_Initial_Velocity_User_Defined;
-		Params.InitialLinearVelocity = FVector(100.0, 0.0, 0.0);
+		Params.InitialLinearVelocity = FVector3f(100.0, 0.0, 0.0);
 		Params.RootTransform.SetLocation(ExpectedLocation);
 		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSingleRigid>::Init(Params)->template As<FGeometryCollectionWrapper>();
 		UnitTest.AddSimulationObject(Collection);

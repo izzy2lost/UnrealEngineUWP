@@ -10,6 +10,7 @@
 #include "MVVMEditorSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprintEditor.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "WidgetBlueprintToolMenuContext.h"
 
 #include "Customizations/MVVMConversionPathCustomization.h"
@@ -221,6 +222,7 @@ void SBindingsPanel::OnBindingListSelectionChanged(TConstArrayView<FMVVMBlueprin
 	{
 		// show empty details view
 		DetailsView->SetObject(nullptr);
+		StructDetailsView->SetStructureData(nullptr);
 		DetailContainer->SetContent(DetailsView.ToSharedRef());
 	}
 }
@@ -275,7 +277,7 @@ void SBindingsPanel::AddBindingToWidgetList(const TSet<FWidgetReference>& Widget
 						{
 							Path.SetWidgetName(WidgetReference.GetTemplate()->GetFName());
 						}
-						EditorSubsystem->SetDestinationPathForBinding(MVVMExtensionPtr->GetWidgetBlueprint(), Binding, Path);
+						EditorSubsystem->SetDestinationPathForBinding(MVVMExtensionPtr->GetWidgetBlueprint(), Binding, Path, false);
 						AddedBindingId = Binding.BindingId;
 
 						bBindingAdded = true;
@@ -311,6 +313,48 @@ bool SBindingsPanel::CanAddBinding() const
 	return MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView() != nullptr;
 }
 
+void SBindingsPanel::AddEmptyCondition()
+{
+	if (!CanAddEmptyCondition())
+	{
+		return;
+	}
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+		if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
+		{
+			UMVVMBlueprintViewCondition* Condition = EditorSubsystem->AddCondition(MVVMExtensionPtr->GetWidgetBlueprint());
+
+			if (Condition && BindingsList)
+			{
+				BindingsList->RequestNavigateToCondition(Condition);
+			}
+		}
+	}
+
+}
+
+bool SBindingsPanel::CanAddEmptyCondition() const
+{
+	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
+	return MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView() != nullptr;
+}
+
+FText SBindingsPanel::GetAddEmptyConditionToolTip() const
+{
+	if (CanAddEmptyCondition())
+	{
+		return LOCTEXT("AddEmptyConditionTooltip", "Add an empty condition.");
+	}
+	else
+	{
+		return LOCTEXT("CannotAddEmptyConditionToolTip", "A viewmodel is required before adding conditions.");
+	}
+
+}
+
+
 void SBindingsPanel::RefreshDetailsView()
 {
 	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
@@ -326,6 +370,7 @@ void SBindingsPanel::RefreshDetailsView()
 		}
 	}
 	DetailsView->SetObject(nullptr);
+	StructDetailsView->SetStructureData(nullptr);
 	DetailContainer->SetContent(DetailsView.ToSharedRef());
 }
 
@@ -431,7 +476,7 @@ TSharedRef<SWidget> SBindingsPanel::CreateDrawerDockButton()
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
-				.Padding(4.0, 0.0f)
+				.Padding(4.0f, 0.0f)
 				[
 					SNew(SImage)
 					.ColorAndOpacity(FSlateColor::UseForeground())
@@ -439,7 +484,7 @@ TSharedRef<SWidget> SBindingsPanel::CreateDrawerDockButton()
 				]
 				+ SHorizontalBox::Slot()
 				.VAlign(VAlign_Center)
-				.Padding(4.0, 0.0f)
+				.Padding(4.0f, 0.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("DockInLayout", "Dock in Layout"))
@@ -639,7 +684,21 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 			true
 		);
 
-
+		if (GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConditionBinding)
+		{
+			ToolbarBuilderGlobal.AddToolBarButton(
+				FUIAction(
+					FExecuteAction::CreateSP(this, &SBindingsPanel::AddEmptyCondition),
+					FCanExecuteAction::CreateSP(this, &SBindingsPanel::CanAddEmptyCondition),
+					FGetActionCheckState()
+				),
+				NAME_None,
+				LOCTEXT("AddCondition", "Add Condition"),
+				MakeAttributeSP(this, &SBindingsPanel::GetAddEmptyConditionToolTip),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), FName("Icons.Plus")),
+				EUserInterfaceActionType::Button
+			);
+		}
 	}
 	ToolbarBuilderGlobal.EndSection();
 
@@ -734,22 +793,11 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 		[
 			SNew(SBorder)
 			.BorderImage(FMVVMEditorStyle::Get().GetBrush("BindingView.ViewModelWarning"))
-			.Visibility_Lambda([this]()
-				{
-					if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
-					{
-						if (MVVMExtensionPtr->GetBlueprintView() != nullptr && 
-							MVVMExtensionPtr->GetBlueprintView()->GetViewModels().Num() > 0)
-						{
-							return EVisibility::Collapsed;
-						}
-					}
-					return EVisibility::Visible;
-				})
+			.Visibility(this, &SBindingsPanel::GetViewModelMessageVisibility)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.Padding(20, 20, 12, 20)
+				.Padding(20.0f, 20.0f, 12.0f, 20.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Left)
 				.AutoWidth()
@@ -758,7 +806,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 					.Image(FAppStyle::Get().GetBrush("Icons.Warning"))
 				]
 				+ SHorizontalBox::Slot()
-				.Padding(0, 0, 8, 0)
+				.Padding(0.0f, 0.0f, 8.0f, 0.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Center)
 				.AutoWidth()
@@ -767,7 +815,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 					.Text(LOCTEXT("MissingViewModel", "This editor requires a viewmodel that widgets can bind to, would you like to add a viewmodel now?"))
 				]
 				+ SHorizontalBox::Slot()
-				.Padding(0, 0, 20, 0)
+				.Padding(0.0f, 0.0f, 20.0f, 0.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Right)
 				[
@@ -777,6 +825,35 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 						SNew(STextBlock)
 						.Text(LOCTEXT("CreateViewModel", "Add Viewmodel"))
 					]
+				]
+			]
+		]
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SBorder)
+			.BorderImage(FMVVMEditorStyle::Get().GetBrush("BindingView.ViewModelWarning"))
+			.Visibility(this, &SBindingsPanel::GetBindingMessageVisibility)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(20.0f, 20.0f, 12.0f, 20.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.Image(FAppStyle::Get().GetBrush("Icons.Info"))
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(0.0f, 0.0f, 20.0f, 0.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("DragWidgetCreateBinding", "Drag a widget from the Hierarchy to create a binding."))
 				]
 			]
 		]
@@ -867,6 +944,33 @@ FReply SBindingsPanel::HandleCreateViewModelClicked()
 		}
 	}
 	return FReply::Handled();
+}
+
+EVisibility SBindingsPanel::GetViewModelMessageVisibility() const
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		if (MVVMExtensionPtr->GetBlueprintView() != nullptr &&
+			MVVMExtensionPtr->GetBlueprintView()->GetViewModels().Num() > 0)
+		{
+			return EVisibility::Collapsed;
+		}
+	}
+	return EVisibility::Visible;
+}
+
+EVisibility SBindingsPanel::GetBindingMessageVisibility() const
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		if (MVVMExtensionPtr->GetBlueprintView() != nullptr &&
+			MVVMExtensionPtr->GetBlueprintView()->GetViewModels().Num() > 0 &&
+			MVVMExtensionPtr->GetBlueprintView()->GetBindings().Num() == 0)
+		{
+			return EVisibility::Visible;
+		}
+	}
+	return EVisibility::Collapsed;
 }
 
 } // namespace UE::MVVM

@@ -254,12 +254,14 @@ public:
 	{
 		ObjectInfo.SetObject(InObject);
 		ObjectArchetype = FPersistentObjectRef(InObject->GetArchetype());
+		ObjectFlags = InObject->GetFlags();
 	}
 
 	void Reset()
 	{
 		ObjectInfo.Reset();
 		ObjectArchetype = FPersistentObjectRef();
+		ObjectFlags = RF_NoFlags;
 		SerializedData.Reset();
 		SerializedTaggedData.Reset();
 	}
@@ -268,6 +270,7 @@ public:
 	{
 		ObjectInfo.Swap(Other.ObjectInfo);
 		Exchange(ObjectArchetype, Other.ObjectArchetype);
+		Exchange(ObjectFlags, Other.ObjectFlags);
 		Exchange(SerializedData, Other.SerializedData);
 		Exchange(SerializedTaggedData, Other.SerializedTaggedData);
 	}
@@ -277,6 +280,9 @@ public:
 
 	/** The archetype of the object when it was serialized */
 	FPersistentObjectRef ObjectArchetype;
+
+	/** The flags of the object when it was serialized */
+	EObjectFlags ObjectFlags = RF_NoFlags;
 
 	/** The serialized data for the diffable object */
 	FSerializedObjectData SerializedData;
@@ -409,6 +415,7 @@ private:
 
 namespace DiffUtil
 {
+ENGINE_API bool IsGeneratingDiffableObject(const FArchive& Ar);
 
 enum class EGetDiffableObjectMode : uint8
 {

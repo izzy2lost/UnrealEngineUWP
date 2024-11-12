@@ -12,7 +12,7 @@
 #include "Viewport/Interaction/AvaViewportPostProcessInfo.h"
 #include "AvaViewportDataActor.generated.h"
 
-UCLASS(DisplayName = "Motion Design Viewport Data Actor")
+UCLASS(NotPlaceable, Hidden, DisplayName = "Motion Design Viewport Data Actor")
 class AAvaViewportDataActor : public AActor
 {
 	GENERATED_BODY()

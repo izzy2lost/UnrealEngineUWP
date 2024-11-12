@@ -1,16 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageExpressions/DMMSEMathBase.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageInput.h"
-#include "DMPrivate.h"
-#include "Helpers/DMInputNodeBuilder.h"
 #include "Materials/MaterialExpression.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMInputNodeBuilder.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageExpressionMathBase"
 
@@ -68,10 +69,10 @@ bool UDMMaterialStageExpressionMathBase::CanInputAcceptType(int32 InInputIndex, 
 
 				case FDMMaterialStageConnectorChannel::PREVIOUS_STAGE:
 				{
-					const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+					UDMMaterialLayerObject* Layer = Stage->GetLayer();
 					check(Layer);
 
-					if (const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(Channel.MaterialProperty, EDMMaterialLayerStage::Base))
+					if (UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(Channel.MaterialProperty, EDMMaterialLayerStage::Base))
 					{
 						UDMMaterialStage* PreviousStage = PreviousLayer->GetLastEnabledStage(EDMMaterialLayerStage::All);
 						check(PreviousStage);
@@ -206,14 +207,19 @@ bool UDMMaterialStageExpressionMathBase::CanInputAcceptType(int32 InInputIndex, 
 	return true;
 }
 
-void UDMMaterialStageExpressionMathBase::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageExpressionMathBase::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (HasComponentBeenRemoved())
 	{
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		check(InputConnectors.IsEmpty() == false);
 		check(OutputConnectors.Num() == 1);
@@ -278,7 +284,7 @@ void UDMMaterialStageExpressionMathBase::Update(EDMUpdateType InUpdateType)
 		}
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageExpressionMathBase::AddDefaultInput(int32 InInputIndex) const
@@ -291,10 +297,10 @@ void UDMMaterialStageExpressionMathBase::AddDefaultInput(int32 InInputIndex) con
 	Super::AddDefaultInput(InInputIndex);
 }
 
-bool UDMMaterialStageExpressionMathBase::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageExpressionMathBase::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
-	UpdateOntoPreviewMaterial(InPreviewMaterial);
+	GeneratePreviewMaterial(InPreviewMaterial);
 	return true;
 }
 
@@ -330,23 +336,8 @@ void UDMMaterialStageExpressionMathBase::SetupInputs(int32 InCount)
 	}
 }
 
-void UDMMaterialStageExpressionMathBase::UpdatePreviewMaterial(UMaterial* InPreviewMaterial)
+void UDMMaterialStageExpressionMathBase::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!InPreviewMaterial)
-		{
-			return;
-		}
-	}
-
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
@@ -406,7 +397,7 @@ void UDMMaterialStageExpressionMathBase::UpdatePreviewMaterial(UMaterial* InPrev
 	}
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	if (!bHasStageInput || Inputs.IsEmpty())
 	{

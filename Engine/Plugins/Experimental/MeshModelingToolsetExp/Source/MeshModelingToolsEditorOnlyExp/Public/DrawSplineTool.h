@@ -214,7 +214,7 @@ public:
 	virtual void OnClickDrag(const FInputDeviceRay& DragPos);
 	virtual void OnClickRelease(const FInputDeviceRay& ReleasePos);
 	virtual void OnTerminateDragSequence();
-protected:
+private:
 
 	UPROPERTY()
 	TObjectPtr<UDrawSplineToolProperties> Settings = nullptr;
@@ -228,15 +228,10 @@ protected:
 	TWeakObjectPtr<UWorld> TargetWorld = nullptr;
 
 	// This is only used to initialize TargetActor in the settings object
-	TWeakObjectPtr<AActor> SelectedActor = nullptr;
+	TWeakObjectPtr<AActor> StartupSelectedActor = nullptr;
 
-	// PreviewRootActor either holds WorkingSpline inside it directly, or has some preview actor
-	// attached to it (so that the preview actor is hidden from outliner, like APreviewGeometryActor is).
-	UPROPERTY()
-	TObjectPtr<APreviewGeometryActor> PreviewRootActor = nullptr;
-
-	// The preview actor may be a duplicate of some target blueprint actor so that we can see the
-	// effects of the drawn spline immediately
+	// The preview actor is either a APreviewGeometryActor with a spline, or a duplicate of 
+	// some target blueprint actor so that we can see the effects of the drawn spline immediately.
 	UPROPERTY()
 	TObjectPtr<AActor> PreviewActor = nullptr;
 
@@ -258,9 +253,12 @@ protected:
 	void TransitionOutputMode();
 	void GenerateAsset();
 	
-	// Used to restore visibility of previous actor when switching to a different one
+	// Used to restore visibility of previous actor when switching to a different one, and to avoid switching
+	//  target actors if the new value is invalid (e.g., user clicked the preview actor with the actor picker)
 	UPROPERTY()
 	TObjectPtr<AActor> PreviousTargetActor = nullptr;
+
+	int32 TargetActorWatcherID = -1;
 	bool PreviousTargetActorVisibility = true;
 	// Used to restore visibility of previous spline when switching to a different one
 	TWeakObjectPtr<USplineComponent> HiddenSpline = nullptr;

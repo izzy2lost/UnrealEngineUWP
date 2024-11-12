@@ -25,6 +25,7 @@ typedef TMulticastDelegate<void(IConsoleVariable*), FDefaultDelegateUserPolicy> 
 
 namespace Metasound
 {
+	class IGraph;
 	class FGraph;
 	namespace Frontend
 	{
@@ -43,15 +44,16 @@ namespace Metasound
 	} // namespace Frontend
 } // namespace Metasound
 
-
 /** FMetasoundAssetBase is intended to be a mix-in subclass for UObjects which utilize
  * Metasound assets.  It provides consistent access to FMetasoundFrontendDocuments, control
  * over the FMetasoundFrontendClassInterface of the FMetasoundFrontendDocument.  It also enables the UObject
  * to be utilized by a host of other engine tools built to support MetaSounds.
  */
-class METASOUNDFRONTEND_API FMetasoundAssetBase
+class METASOUNDFRONTEND_API FMetasoundAssetBase : public IAudioProxyDataFactory
 {
 public:
+	virtual TSharedPtr<Audio::IProxyData> CreateProxyData(const Audio::FProxyDataInitParams& InitParams) override;
+
 	static const FString FileExtension;
 
 	FMetasoundAssetBase() = default;
@@ -63,10 +65,9 @@ public:
 	// Returns the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @return Editor graph associated with this metasound uobject.
-	virtual UEdGraph* GetGraph() = 0;
-	virtual const UEdGraph* GetGraph() const = 0;
-	virtual UEdGraph& GetGraphChecked() = 0;
-	virtual const UEdGraph& GetGraphChecked() const = 0;
+	virtual UEdGraph* GetGraph() const = 0;
+	virtual UEdGraph& GetGraphChecked() const = 0;
+	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) = 0;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
@@ -78,32 +79,33 @@ public:
 	virtual void SetRegistryAssetClassInfo(const Metasound::Frontend::FNodeClassInfo& InClassInfo) = 0;
 #endif // WITH_EDITORONLY_DATA
 
-	// Called when the interface is changed, presenting the opportunity for
-	// any reflected object data to be updated based on the new interface.
-	// Returns whether or not any edits were made.
-	virtual bool ConformObjectDataToInterfaces() = 0;
+	UE_DEPRECATED(5.5, "Moved to IMetaSoundDocumentInterface::ConformObjectToDocument")
+	virtual bool ConformObjectDataToInterfaces();
 
-	// Registers the root graph of the given asset with the MetaSound Frontend.
+	// Registers the root graph of the given asset with the MetaSound Frontend. Unlike 'UpdateAndRegisterForSerialization", this call
+	// generates all necessary runtime data to execute the given graph (i.e. INodes).
+	virtual void UpdateAndRegisterForExecution(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
+
+	UE_DEPRECATED(5.5, "Moved to UpdateAndRegisterForExecution.")
 	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
 
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
-	// Cooks this MetaSound and recursively checks and cooks referenced MetaSounds if necessary. Cook includes autoupdating and resolving the document, which is then registered with the MetaSound Frontend.
+	UE_DEPRECATED(5.5, "Moved to UpdateAndRegisterForSerialization instead, which is only in builds set to load editor-only data.")
 	void CookMetaSound();
 
-	// Sets/overwrites the root class metadata
-	UE_DEPRECATED(5.3, "Directly setting graph class Metadata is no longer be supported. Use the FMetaSoundFrontendDocumentBuilder to modify class data.")
-	virtual void SetMetadata(FMetasoundFrontendClassMetadata& InMetadata);
+#if WITH_EDITORONLY_DATA
+	// Updates and registers this and referenced MetaSound document objects with the NodeClass Registry. AutoUpdates and
+	// optimizes aforementioned documents for serialization. Unlike 'UpdateAndRegisterForRuntime', does not generate required
+	// runtime data for graph execution. If CookPlatformName is set, used to strip data not required for the provided platform.
+	void UpdateAndRegisterForSerialization(FName CookPlatformName = { });
+#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 	// Rebuild dependent asset classes
 	void RebuildReferencedAssetClasses();
 #endif // WITH_EDITOR
-
-	// Returns the interface entries declared by the given asset's document from the InterfaceRegistry.
-	UE_DEPRECATED(5.3, "Use static FMetaSoundFrontendDocumentBuilder 'FindDeclaredInterfaces instead.")
-	bool GetDeclaredInterfaces(TArray<const Metasound::Frontend::IInterfaceRegistryEntry*>& OutInterfaces) const;
 
 	// Returns whether an interface with the given version is declared by the given asset's document.
 	bool IsInterfaceDeclared(const FMetasoundFrontendVersion& InVersion) const;
@@ -125,12 +127,12 @@ public:
 	// Called when async assets have finished loading.
 	virtual void OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAssetBase*>& InAsyncReferences) = 0;
 
+	bool AddingReferenceCausesLoop(const FMetasoundAssetBase& InMetaSound) const;
 
+	UE_DEPRECATED(5.5, "Use overload that is provided an AssetBase")
 	bool AddingReferenceCausesLoop(const FSoftObjectPath& InReferencePath) const;
-	bool IsReferencedAsset(const FMetasoundAssetBase& InAssetToCheck) const;
 
-	UE_DEPRECATED(5.3, "ConvertFromPreset moved to FMetaSoundFrontendDocumentBuilder.")
-	void ConvertFromPreset();
+	bool IsReferencedAsset(const FMetasoundAssetBase& InAssetToCheck) const;
 
 	bool IsRegistered() const;
 
@@ -140,20 +142,24 @@ public:
 	// Imports the asset from a JSON file at provided path
 	bool ImportFromJSONAsset(const FString& InAbsolutePath);
 
-	// Returns handle for the root metasound graph of this asset.
+	// Soft Deprecated in favor of DocumentBuilder API. Returns handle for the root metasound graph of this asset.
 	Metasound::Frontend::FDocumentHandle GetDocumentHandle();
 	Metasound::Frontend::FConstDocumentHandle GetDocumentHandle() const;
 
-	// Returns handle for the root metasound graph of this asset.
+	// Soft Deprecated in favor of DocumentBuilder API. Returns handle for the root metasound graph of this asset.
 	Metasound::Frontend::FGraphHandle GetRootGraphHandle();
 	Metasound::Frontend::FConstGraphHandle GetRootGraphHandle() const;
 
-	// Overwrites the existing document. If the document's interface is not supported,
-	// the FMetasoundAssetBase be while queried for a new one using `GetPreferredInterface`.
-	void SetDocument(const FMetasoundFrontendDocument& InDocument, bool bMarkDirty = true);
-	void SetDocument(FMetasoundFrontendDocument&& InDocument, bool bMarkDirty = true);
+	UE_DEPRECATED(5.5, "Direct mutation of the document is no longer supported via AssetBase.")
+	void SetDocument(FMetasoundFrontendDocument InDocument, bool bMarkDirty = true);
 
+	virtual const FMetasoundFrontendDocument& GetConstDocumentChecked() const;
+
+	// Soft deprecated.  Document layer should not be directly mutated via asset base in anticipation
+	// of moving all mutable document calls to the Frontend/Subsystem Document Builder API.
 	FMetasoundFrontendDocument& GetDocumentChecked();
+
+	UE_DEPRECATED(5.5, "Use GetConstDocumentChecked instead.")
 	const FMetasoundFrontendDocument& GetDocumentChecked() const;
 
 	const Metasound::Frontend::FGraphRegistryKey& GetGraphRegistryKey() const;
@@ -161,10 +167,9 @@ public:
 	UE_DEPRECATED(5.4, "Use GetGraphRegistryKey instead.")
 	const Metasound::Frontend::FNodeRegistryKey& GetRegistryKey() const;
 
-	UE_DEPRECATED(5.3, "AddDefaultInterfaces is included in now applied via FMetaSoundFrontendDocumentBuilder::InitDocument and no longer directly supported via this function.")
-	void AddDefaultInterfaces();
-
-	bool VersionAsset();
+#if WITH_EDITORONLY_DATA
+	bool VersionAsset(FMetaSoundFrontendDocumentBuilder& Builder);
+#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 	/*
@@ -176,7 +181,11 @@ public:
 	void CacheRegistryMetadata();
 
 	FMetasoundFrontendDocumentModifyContext& GetModifyContext();
+
+	UE_DEPRECATED(5.5, "Use GetConstModifyContext")
 	const FMetasoundFrontendDocumentModifyContext& GetModifyContext() const;
+
+	const FMetasoundFrontendDocumentModifyContext& GetConstModifyContext() const;
 #endif // WITH_EDITOR
 
 	// Calls the outermost package and marks it dirty.
@@ -195,6 +204,15 @@ public:
 	virtual const UObject* GetOwningAsset() const = 0;
 
 	FString GetOwningAssetName() const;
+
+#if WITH_EDITORONLY_DATA
+	void ClearVersionedOnLoad();
+	bool GetVersionedOnLoad() const;
+	void SetVersionedOnLoad();
+#endif // WITH_EDITORONLY_DATA
+
+	UE_DEPRECATED(5.5, "Use IMetaSoundDocumentInterface 'IsActivelyBuilding' instead")
+	virtual bool IsBuilderActive() const { checkNoEntry(); return false; }
 
 protected:
 	void OnNotifyBeginDestroy();
@@ -222,8 +240,6 @@ protected:
 	// When a graph is registered, the underlying IMetaSoundDocumentInterface may be accessed on an
 	// async tasks. If modifications need to be made to the IMetaSoundDocumentInterface, callers should
 	// wait for the inflight graph registration to complete by calling this method.
-
-protected:
 	
 	// Container for runtime data of MetaSound graph.
 	struct FRuntimeData_DEPRECATED
@@ -251,11 +267,10 @@ protected:
 	const FRuntimeData& GetRuntimeData() const;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	// Returns all public class inputs.  This is a potentially expensive.
-	// Prefer accessing public class inputs using CacheRuntimeData.
-	TArray<FMetasoundFrontendClassInput> GetPublicClassInputs() const;
-
+	UE_DEPRECATED(5.5, "AutoUpdate implementation now private and implemented within 'Version Dependencies'")
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
+
+	UE_DEPRECATED(5.5, "Moved to private, non-cook specific implementation")
 	void CookReferencedMetaSounds();
 
 	// Ensures all referenced graph classes are registered (or re-registers depending on options).
@@ -267,13 +282,56 @@ protected:
 private:
 #if WITH_EDITORONLY_DATA
 	void UpdateAssetRegistry();
-#endif
+	void UpdateAndRegisterReferencesForSerialization(FName CookPlatformName);
+#endif // WITH_EDITORONLY_DATA
 
-	// Returns true if the IMetaSoundDocumentInterface is currently has an active builder.
-	//
-	// If true, calls to register the graph will be performed synchronously in order to avoid
-	// race conditions with an active builder.
-	virtual bool IsBuilderActive() const = 0;
+	// Checks if version is up-to-date. If so, returns true. If false, updates the interfaces within the given asset's document to the most recent version.
+	bool TryUpdateInterfaceFromVersion(const FMetasoundFrontendVersion& Version);
+
+	// Versions dependencies to most recent version where applicable. If asset is a preset, MetaSound is rebuilt to accommodate any referenced node class interface changes.
+	// Otherwise, automatically updates any nodes and respective dependent classes to accommodate changes to interfaces therein preserving edges/connections where possible.
+	bool VersionDependencies(FMetaSoundFrontendDocumentBuilder& Builder, bool bInLogWarningsOnDroppedConnection);
+
+	// Returns new interface to be versioned to from the given version. If no interface versioning is
+	// required, returns invalid interface (interface with no name and invalid version number).
+	FMetasoundFrontendInterface GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion) const;
+
+#if WITH_EDITORONLY_DATA
+	bool bVersionedOnLoad = false;
+#endif // WITH_EDITORONLY_DATA
 
 	Metasound::Frontend::FGraphRegistryKey GraphRegistryKey;
 };
+
+class METASOUNDFRONTEND_API FMetasoundAssetProxy final : public Audio::TProxyData<FMetasoundAssetProxy>
+{
+public:
+	IMPL_AUDIOPROXY_CLASS(FMetasoundAssetProxy);
+
+	struct FParameters
+	{
+		TSet<FMetasoundFrontendVersion> Interfaces;
+		TSharedPtr<const Metasound::IGraph> Graph;
+
+	};
+
+	explicit FMetasoundAssetProxy(const FParameters& InParams);
+	
+	FMetasoundAssetProxy(const FMetasoundAssetProxy& Other);
+
+	const Metasound::IGraph* GetGraph() const
+	{
+		return Graph.Get();
+	}
+
+	const TSet<FMetasoundFrontendVersion>& GetInterfaces() const
+	{
+		return Interfaces;
+	}
+
+private:
+	
+	TSet<FMetasoundFrontendVersion> Interfaces;
+	TSharedPtr<const Metasound::IGraph> Graph;
+};
+using FMetasoundAssetProxyPtr = TSharedPtr<FMetasoundAssetProxy, ESPMode::ThreadSafe>;

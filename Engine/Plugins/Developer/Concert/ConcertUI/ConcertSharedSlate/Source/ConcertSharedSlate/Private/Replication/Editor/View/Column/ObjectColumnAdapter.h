@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 #include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Replication/Editor/View/Column/IReplicationTreeColumn.h"
 
 namespace UE::ConcertSharedSlate
 {
-	/** Adapts an IObjectTreeColumn to IReplicationTreeColumn<FReplicatedPropertyData>. It simply passes additional info down to IPropertyTreeColumn. */
+	/** Adapts an IObjectTreeColumn to IReplicationTreeColumn<FPropertyData>. It simply passes additional info down to IPropertyTreeColumn. */
 	class FObjectColumnAdapter : public IReplicationTreeColumn<FReplicatedObjectData>
 	{
 	public:

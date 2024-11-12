@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "InterchangeResultsContainer.h"
+#include "InterchangeTaskSystem.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
@@ -49,10 +50,11 @@ public:
  * 2. ImportAsset_Async - Import source data (retrieve payloads) and set up properties asynchronously on any thread.
  * 3. EndImportAsset_GameThread - Anything you need to do on the game thread to finalize the import source data and set up properties. For example, conflict resolution that needs UI.
  * 
- * The last two steps are helpful to change the imported or reimported UObject before and after the PostEditChange (render data build) is called on the asset.
+ * The last three steps can modify the created UObject
  * 
- * 4. SetupObject_GameThread - Do any UObject setup required before the build (before PostEditChange), the UObject dependencies should exist and have all the source data and properties imported.
- * 5. FinalizeObject_GameThread - Do any final UObject setup after the build (after PostEditChange). Note that the build of an asset can be asynchronous and this function will be call after the async build is done.
+ * 4. SetupObject_GameThread - Do any UObject setup required before the build, the UObject dependencies should exist and have all the source data and properties imported.
+ * 5. BuildObject_GameThread - Build the asset if it can be built.
+ * 6. FinalizeObject_GameThread - Do any final UObject setup after the build. Note that the build of an asset can be asynchronous and this function will be call after the async build is done.
  * 
  * Scene factory implementation:
  * 
@@ -123,6 +125,11 @@ public:
 	virtual UObject* ImportAssetObject_GameThread(const FImportAssetObjectParams& Arguments)
 	{
 		return nullptr;
+	}
+
+	virtual void CreatePayloadTasks(const FImportAssetObjectParams& Arguments, bool bAsync, TArray<TSharedPtr<UE::Interchange::FInterchangeTaskBase>>& PayloadTasks)
+	{
+		return;
 	}
 
 	/**
@@ -219,6 +226,11 @@ public:
 		 * Factory base node associated with the reimported scene node.
 		 */
 		const UInterchangeFactoryBaseNode* ReimportFactoryNode = nullptr;
+
+		/**
+		 * Get all assets we are importing the actor could point on
+		 */
+		TArray<TObjectPtr<UObject>> ImportAssets;
 	};
 
 	/**
@@ -258,8 +270,8 @@ public:
 	};
 
 	/*
-	 * Do any UObject setup required before the build (before PostEditChange) and after all dependency UObjects have been imported.
-	 * @note - This function is called when starting the pre-completion task (before PostEditChange is called for the asset).
+	 * Do any UObject setup required before the build and after all dependency UObjects have been imported.
+	 * @note - This function is called when starting the pre-completion task (before asset build is called for the asset).
 	 */
 	virtual void SetupObject_GameThread(const FSetupObjectParams& Arguments)
 	{
@@ -267,8 +279,28 @@ public:
 	}
 	
 	/*
-	 * Do any final UObject setup after the build (after PostEditChange).
-	 * @note - This function is called at the end of the pre-completion task (after PostEditChange is called for the asset).
+	 * Build the asset if it can be built.
+	 * 
+	 * @Param Arguments - The setup object data.
+	 * @Param OutPostEditchangeCalled - Set it to true if your implementation has called PostEditChange. Set it to false, interchange will call PostEditChange at the end of the import.
+	 * @note - This function is called when starting the pre-completion task.
+	 * @note - The default implementation for asset that do not have any build step is to call PostEditChange and set OutPostEditchangeCalled to true.
+	 */
+	virtual void BuildObject_GameThread(const FSetupObjectParams& Arguments, bool &OutPostEditchangeCalled)
+	{
+		check(IsInGameThread());
+#if WITH_EDITOR
+		if (Arguments.ImportedObject)
+		{
+			Arguments.ImportedObject->PostEditChange();
+			OutPostEditchangeCalled = true;
+		}
+#endif //WITH_EDITOR
+	}
+
+	/*
+	 * Do any final UObject setup after the asset is built
+	 * @note - This function is called after asset is built in FTaskWaitAssetCompilation
 	 */
 	virtual void FinalizeObject_GameThread(const FSetupObjectParams& Arguments)
 	{
@@ -290,6 +322,27 @@ public:
 	virtual bool SetSourceFilename(const UObject* Object, const FString& SourceFilename, int32 SourceIndex) const
 	{
 		return false;
+	}
+
+	/**
+	 * Backups SourceData from the AssetData.
+	 */
+	virtual void BackupSourceData(const UObject* Object) const
+	{
+	}
+
+	/**
+	 * Reinstates the backedup SourceData from the Backup to the AssetData.
+	 */
+	virtual void ReinstateSourceData(const UObject* Object) const
+	{
+	}
+
+	/**
+	 * Clears the backedup SourceData from the Backup to the AssetData.
+	 */
+	virtual void ClearBackupSourceData(const UObject* Object) const
+	{
 	}
 
 	/**
@@ -327,4 +380,15 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UInterchangeResultsContainer> Results;
+
+	/**
+	* Acquires the Object to be re-imported.
+	* Function is called from FFactoryCommon::GetObjectToReiomport.
+	* Which in turn is called from the InterchangeTask related functions to acquire the Object to be Reimported.
+	* Allows Factories to override, in order to provide the desired ReimportObject based on Factory requirements.
+	*/
+	virtual UObject* GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
+	{
+		return ReimportObject;
+	}
 };

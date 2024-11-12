@@ -67,6 +67,9 @@ enum class EConfigExpansionFlags : int32
 	ForUncooked = 1 << 0,
 	ForCooked = 1 << 1,
 	ForPlugin = 1 << 2,
+	
+	ForEngine = 1 << 3,
+	ForProject = 1 << 4,
 
 	All = 0xFF,
 };

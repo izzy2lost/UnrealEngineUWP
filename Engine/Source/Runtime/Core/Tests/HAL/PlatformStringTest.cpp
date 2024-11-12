@@ -8,6 +8,9 @@
 
 #if WITH_TESTS
 
+#include "Misc/CString.h"
+#include "Templates/UnrealTemplate.h"
+
 template <typename CharType, SIZE_T Size>
 static void InvokePlatformStringGetVarArgs(CharType (&Dest)[Size], const CharType* Fmt, ...)
 {

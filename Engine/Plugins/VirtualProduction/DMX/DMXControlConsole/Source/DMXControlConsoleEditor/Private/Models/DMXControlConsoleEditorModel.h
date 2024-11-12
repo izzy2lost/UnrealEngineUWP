@@ -12,6 +12,7 @@ class FDMXControlConsoleEditorSelection;
 class UDMXControlConsole;
 class UDMXControlConsoleEditorData;
 class UDMXControlConsoleEditorLayouts;
+class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleFaderGroupController;
 
 namespace UE::DMX::Private { class FDMXControlConsoleEditorToolkit; }
@@ -29,7 +30,7 @@ class UDMXControlConsoleEditorModel
 
 public:
 	/** Initializes the model */
-	void Initialize(const TSharedPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit>& InToolkit);
+	void Initialize(UDMXControlConsole* InControlConsole);
 
 	/** Returns the edited Control Console */
 	UDMXControlConsole* GetControlConsole() const { return ControlConsole.IsValid() ? ControlConsole.Get() : nullptr; }
@@ -91,8 +92,11 @@ private:
 	/** Called when the DMX Library of the current Control Console has been changed */
 	void OnDMXLibraryChanged();
 
+	/** Called when a new Fader Group is added to the Control Console Data */
+	void OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup);
+
 	/** Called before the engine is shut down */
-	void OnEnginePreExit();
+	void OnEnginePreExit() const;
 
 	/** Called when a Fader Group Controller needs to be scrolled into view */
 	FDMXControlConsoleFaderGroupControllerDelegate OnScrollFaderGroupControllerIntoView;
@@ -108,9 +112,6 @@ private:
 
 	/** Selection handler for the current edited Control Console */
 	TSharedPtr<FDMXControlConsoleEditorSelection> SelectionHandler;
-
-	/** Weak reference to the Control Console asset toolkit */
-	TWeakPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit> WeakToolkit;
 
 	/** Weak reference to the current edited Control Console */
 	TWeakObjectPtr<UDMXControlConsole> ControlConsole;

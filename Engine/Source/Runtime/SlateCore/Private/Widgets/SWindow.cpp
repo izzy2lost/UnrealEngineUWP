@@ -240,6 +240,7 @@ void SWindow::Construct(const FArguments& InArgs)
 	this->WindowBackground = &InArgs._Style->BackgroundBrush;
 
 	this->Title = InArgs._Title;
+	this->CloseButtonToolTipText = InArgs._CloseButtonToolTipText;
 	this->bDragAnywhere = InArgs._bDragAnywhere;
 	this->TransparencySupport = InArgs._SupportsTransparency.Value;
 	this->Opacity = InArgs._InitialOpacity;
@@ -506,6 +507,7 @@ TSharedRef<SWidget> SWindow::MakeWindowTitleBar(const TSharedRef<SWindow>& Windo
 	FWindowTitleBarArgs Args(Window);
 	Args.CenterContent = CenterContent;
 	Args.CenterContentAlignment = TitleContentAlignment;
+	Args.CloseButtonToolTipText = CloseButtonToolTipText;
 
 	return FSlateApplicationBase::Get().MakeWindowTitleBar(Args, TitleBar);
 }
@@ -543,6 +545,7 @@ void SWindow::ConstructWindowInternals()
 	FWindowTitleBarArgs Args(SharedThis(this));
 	Args.CenterContent = nullptr;
 	Args.CenterContentAlignment = GetTitleAlignment();
+	Args.CloseButtonToolTipText = CloseButtonToolTipText;
 
 	TSharedRef<SWidget> TitleBarWidget = FSlateApplicationBase::Get().MakeWindowTitleBar(Args, TitleBar);
 
@@ -875,8 +878,8 @@ FSlateRect SWindow::GetClientRectInScreen() const
 	}
 
 	return GetRectInScreen()
-		.InsetBy(GetWindowBorderSize())
-		.InsetBy(FMargin(0.0f, TitleBarSize, 0.0f, 0.0f));
+		.InsetBy(GetWindowBorderSize() * GetDPIScaleFactor())
+		.InsetBy(FMargin(0.0f, TitleBarSize * GetDPIScaleFactor(), 0.0f, 0.0f));
 }
 
 UE::Slate::FDeprecateVector2DResult SWindow::GetClientSizeInScreen() const
@@ -961,12 +964,16 @@ void SWindow::ReshapeWindow( UE::Slate::FDeprecateVector2DParameter NewPosition,
 	{
 		if ( NativeWindow.IsValid() )
 		{
+
+// The following hack with speculative position is messing up with Mac window position with notched display
+// The accurate position is calculated in FMacApplication::OnWindowDidMove
+#if !PLATFORM_MAC
 			// Slate code often expects cached screen position to be accurate immediately after the move.
 			// This expectation is generally invalid (see UE-1308) as there may be a delay before the OS reports it back.
 			// This hack sets the position speculatively, keeping Slate happy while also giving the OS chance to report it
 			// correctly after or even during the actual call.
 			SetCachedScreenPosition(NewPositionTruncated);
-
+#endif
 			NativeWindow->ReshapeWindow(NewPositionTruncated.X, NewPositionTruncated.Y, NewSizeRounded.X, NewSizeRounded.Y);
 		}
 		else
@@ -1138,6 +1145,11 @@ EVisibility SWindow::GetWindowVisibility() const
 	return ( AcceptsInput() || FSlateApplicationBase::Get().IsWindowHousingInteractiveTooltip(SharedThis(this)) )
 		? EVisibility::Visible
 		: EVisibility::HitTestInvisible;
+}
+
+TAttribute<FText> SWindow::GetWindowCloseButtonToolTipText() const
+{
+	return CloseButtonToolTipText;
 }
 
 void SWindow::UpdateMorphTargetShape( const FSlateRect& TargetShape )
@@ -2021,6 +2033,7 @@ SWindow::SWindow()
 	, PreFullscreenPosition( FVector2f::ZeroVector )
 	, Size( FVector2f::ZeroVector )
 	, ViewportSize( FVector2f::ZeroVector )
+	, ViewportScaleUIOverride( -1.f )
 	, TitleBarSize( SWindowDefs::DefaultTitleBarSize )
 	, ContentSlot(nullptr)
 	, Style( &FCoreStyle::Get().GetWidgetStyle<FWindowStyle>("Window") )

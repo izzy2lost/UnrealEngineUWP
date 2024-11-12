@@ -98,7 +98,7 @@ namespace UE::Interchange::Private
 		FString DisplayText;
 		VariantSetNode.GetCustomDisplayText(DisplayText);
 
-		const TOptional<UE::Interchange::FVariantSetPayloadData> PayloadData = PayloadInterface.GetVariantSetPayloadData(PayloadKey).Consume();
+		const TOptional<UE::Interchange::FVariantSetPayloadData> PayloadData = PayloadInterface.GetVariantSetPayloadData(PayloadKey);
 		if (!PayloadData.IsSet())
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for variant set %s."), *DisplayText);
@@ -298,11 +298,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSceneVariantSetsFactory:
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSceneVariantSetsFactory::BeginImportAsset_GameThread);
 	FImportAssetResult ImportAssetResult;
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import LevelSequence asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-#else
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	auto CannotReimportMessage = [&Arguments, this]()
 	{
 		UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
@@ -368,19 +364,16 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSceneVariantSetsFactory:
 	}
 
 	ImportAssetResult.ImportedObject = ImportObjectSourceData(Arguments, LevelVariantSets);
+#endif
+
 	return ImportAssetResult;
-#endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
 }
 
 UObject* UInterchangeSceneVariantSetsFactory::ImportObjectSourceData(const FImportAssetObjectParams& Arguments, ULevelVariantSets* LevelVariantSets)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSceneVariantSetsFactory::ImportObjectSourceData);
-#if !WITH_EDITOR || !WITH_EDITORONLY_DATA
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	// TODO: Can we import ULevelVariantSets at runtime
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import LevelVariantSets asset at runtime. This is an editor-only feature."));
-	return nullptr;
-
-#else
 	using namespace UE::Interchange;
 
 
@@ -414,10 +407,10 @@ UObject* UInterchangeSceneVariantSetsFactory::ImportObjectSourceData(const FImpo
 
 	//Getting the file Hash will cache it into the source data
 	Arguments.SourceData->GetFileContentHash();
+#endif
 
 	//The interchange completion task (call in the GameThread after the factories pass), will call PostEditChange which will trig another asynchronous system that will build all material in parallel
 	return LevelVariantSets;
-#endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
 }
 
 void UInterchangeSceneVariantSetsFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)

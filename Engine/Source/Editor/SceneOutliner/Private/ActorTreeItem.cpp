@@ -170,10 +170,15 @@ private:
 	const FSlateBrush* GetIconOverlay() const
 	{
 		static const FName SequencerActorTag(TEXT("SequencerActor"));
+		static const FName SequencerPreviewActorTag(TEXT("SequencerPreviewActor"));
 
 		if (const AActor* Actor = ActorPtr.Get())
 		{
-			if (Actor->ActorHasTag(SequencerActorTag))
+			if (Actor->ActorHasTag(SequencerPreviewActorTag))
+			{
+				return FAppStyle::GetBrush("Sequencer.ReplaceableIconOverlay");
+			}
+			else if (Actor->ActorHasTag(SequencerActorTag))
 			{
 				return FAppStyle::GetBrush("Sequencer.SpawnableIconOverlay");
 			}
@@ -231,32 +236,16 @@ private:
 			{
 				return FAppStyle::Get().GetSlateColor("Colors.AccentGreen");
 			}
+			else if (LevelInstance->IsEditingPropertyOverrides())
+			{
+				return FAppStyle::Get().GetSlateColor("Colors.AccentBlue");
+			}
 		}
 
 		auto TreeItem = TreeItemPtr.Pin();
 		if (auto BaseColor = FSceneOutlinerCommonLabelData::GetForegroundColor(*TreeItem))
 		{
 			return BaseColor.GetValue();
-		}
-
-		if (!Actor)
-		{
-			// Deleted actor!
-			return FLinearColor(0.2f, 0.2f, 0.25f);
-		}
-
-		UWorld* OwningWorld = Actor->GetWorld();
-		if (!OwningWorld)
-		{
-			// Deleted world!
-			return FLinearColor(0.2f, 0.2f, 0.25f);
-		}
-
-		const bool bRepresentingPIEWorld = TreeItem->Actor->GetWorld()->IsPlayInEditor();
-		if (bRepresentingPIEWorld && !TreeItem->bExistsInCurrentWorldAndPIE)
-		{
-			// Highlight actors that are exclusive to PlayWorld
-			return FLinearColor(0.9f, 0.8f, 0.4f);
 		}
 		
 		return FSlateColor::UseForeground();
@@ -411,6 +400,19 @@ void FActorTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outlin
 		FSceneOutlinerMenuHelper::AddMenuEntryCreateFolder(Section, Outliner);
 		FSceneOutlinerMenuHelper::AddMenuEntryCleanupFolders(Section, LevelInstance->GetLoadedLevel());
 	}
+}
+
+FString FActorTreeItem::GetPackageName() const
+{
+	if (const AActor* ActorPtr = Actor.Get())
+	{
+		if (ActorPtr->IsPackageExternal())
+		{
+			return ActorPtr->GetExternalPackage()->GetName();
+		}
+	}
+	
+	return IActorBaseTreeItem::GetPackageName();
 }
 
 const FGuid& FActorTreeItem::GetGuid() const

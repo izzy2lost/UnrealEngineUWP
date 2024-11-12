@@ -111,13 +111,7 @@ static void DrawUVDisplacementToRenderTargetFromPreComputedDisplacementMap_Rende
 	check(IsInRenderingThread());
 	check(PreComputedDisplacementMap);
 
-#if WANTS_DRAW_MESH_EVENTS
-	FString EventName;
-	TextureRenderTargetName.ToString(EventName);
-	SCOPED_DRAW_EVENTF(RHICmdList, DrawUVDisplacementToRenderTargetFromPreComputedDisplacementMap, TEXT("OpenCVLensDistortionDisplacementMapGeneration %s"), *EventName);
-#else
-	SCOPED_DRAW_EVENT(RHICmdList, DrawUVDisplacementToRenderTargetFromPreComputedDisplacementMap);
-#endif
+	SCOPED_DRAW_EVENTF(RHICmdList, DrawUVDisplacementToRenderTargetFromPreComputedDisplacementMap, TEXT("OpenCVLensDistortionDisplacementMapGeneration %s"), TextureRenderTargetName);
 
 	// Set render target.
 	FRHIRenderPassInfo RPInfo(OutTextureRenderTargetResource->GetRenderTargetTexture(), ERenderTargetActions::Clear_Store);

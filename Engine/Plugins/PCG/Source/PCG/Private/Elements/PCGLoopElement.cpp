@@ -35,6 +35,13 @@ void UPCGLoopSettings::ApplyDeprecation(UPCGNode* InOutNode)
 		bUseGraphDefaultPinUsage = LoopPins.IsEmpty();
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	Super::ApplyDeprecation(InOutNode);
 }
 
@@ -112,13 +119,21 @@ void UPCGLoopSettings::GetLoopPinNames(FPCGContext* Context, TArray<FName>& Loop
 	}
 	else
 	{
-		TArray<FString> PinsFromSettings = PCGHelpers::GetStringArrayFromCommaSeparatedString(LoopPins);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		TArray<FString> PinsFromSettings = bTokenizeOnWhiteSpace
+			? PCGHelpers::GetStringArrayFromCommaSeparatedString(LoopPins, Context)
+			: PCGHelpers::GetStringArrayFromCommaSeparatedList(LoopPins);
+
 		for (const FString& PinLabel : PinsFromSettings)
 		{
 			LoopPinNames.Emplace(PinLabel);
 		}
 
-		PinsFromSettings = PCGHelpers::GetStringArrayFromCommaSeparatedString(FeedbackPins);
+		PinsFromSettings = bTokenizeOnWhiteSpace
+			? PCGHelpers::GetStringArrayFromCommaSeparatedString(FeedbackPins, Context)
+			: PCGHelpers::GetStringArrayFromCommaSeparatedList(FeedbackPins);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		for (const FString& PinLabel : PinsFromSettings)
 		{
 			if (LoopPinNames.Contains(PinLabel))
@@ -226,6 +241,7 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 
 		FPCGDataCollection PreSubgraphDataCollection;
 		PrepareSubgraphUserParameters(Settings, Context, PreSubgraphDataCollection);
+		Context->AddToReferencedObjects(PreSubgraphDataCollection);
 
 		FPCGElementPtr PreGraphElement = MakeShared<FPCGInputForwardingElement>(PreSubgraphDataCollection);
 
@@ -266,6 +282,8 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 				Dependencies.Add(PreviousTaskId);
 			}
 
+			Context->AddToReferencedObjects(InputDataCollection);
+
 			FPCGElementPtr InputElement = MakeShared<FPCGLoopInputForwardingElement>(InputDataCollection, PreviousTaskId, FeedbackPinNames);
 			FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(
 				Subgraph,
@@ -294,16 +312,22 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			Context->bIsPaused = true;
 
 			Subsystem->ScheduleGeneric(
-				[Context]() // Normal execution: Wake up the current task
+				[ContextHandle = Context->GetOrCreateHandle()]() // Normal execution: Wake up the current task
 				{
-					Context->bIsPaused = false;
+					if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+					{
+						ContextPtr->bIsPaused = false;
+					}
 					return true;
 				},
-				[Context]() // On abort: wakeup and cancel, forget subgraphs
+				[ContextHandle = Context->GetOrCreateHandle()]() // On abort: wakeup and cancel, forget subgraphs
 				{
-					Context->bIsPaused = false;
-					Context->SubgraphTaskIds.Reset();
-					Context->OutputData.bCancelExecution = true;
+					if (FPCGSubgraphContext* ContextPtr = FPCGContext::GetContextFromHandle<FPCGSubgraphContext>(ContextHandle))
+					{
+						ContextPtr->bIsPaused = false;
+						ContextPtr->SubgraphTaskIds.Reset();
+						ContextPtr->OutputData.bCancelExecution = true;
+					}
 					return true;
 				},
 				Context->SourceComponent.Get(),
@@ -326,7 +350,7 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 	{
 		// when woken up, get the output data from the subgraph
 		// and copy it to the current context output data, and finally return true
-		UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem();
+		UPCGSubsystem* Subsystem = Context->SourceComponent.IsValid() ? Context->SourceComponent->GetSubsystem() : nullptr;
 		if (Subsystem)
 		{
 			// If this was running iterations, we need to build a list of pins we'll ignore for non-terminal tasks
@@ -351,6 +375,7 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 					{
 						Algo::CopyIf(SubgraphOutput.TaggedData, Context->OutputData.TaggedData, [&FeedbackPinNames](const FPCGTaggedData& InTaggedData) { return !FeedbackPinNames.Contains(InTaggedData.Pin); });
 					}
+					Subsystem->ClearOutputData(SubgraphTaskId);
 				}
 			}
 		}

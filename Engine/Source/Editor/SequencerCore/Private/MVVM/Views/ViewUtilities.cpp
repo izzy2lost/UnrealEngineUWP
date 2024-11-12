@@ -14,7 +14,7 @@
 namespace UE::Sequencer
 {
 
-TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnClicked& HandleClicked, const FViewModelPtr& ViewModel)
+TSharedRef<SWidget> MakeButton(FText HoverText, const FSlateBrush* Image, const FOnClicked& HandleClicked, const FViewModelPtr& ViewModel)
 {
 	TAttribute<bool> IsHovered;
 	if (TSharedPtr<IHoveredExtension> Hoverable = ViewModel.ImplicitCast())
@@ -37,10 +37,10 @@ TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnClicked& HandleClick
 		.OnClicked(HandleClicked)
 		.IsEnabled(IsEnabled)
 		.IsRowHovered(IsHovered)
-		.Image(FAppStyle::GetBrush("Sequencer.Outliner.Plus"));
+		.Image(Image);
 }
 
-TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnGetContent& HandleGetMenuContent, const FViewModelPtr& ViewModel)
+TSharedRef<SWidget> MakeButton(FText HoverText, const FSlateBrush* Image, const FOnGetContent& HandleGetMenuContent, const FViewModelPtr& ViewModel)
 {
 	TAttribute<bool> IsHovered;
 	if (TSharedPtr<IHoveredExtension> Hoverable = ViewModel.ImplicitCast())
@@ -63,7 +63,17 @@ TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnGetContent& HandleGe
 		.OnGetMenuContent(HandleGetMenuContent)
 		.IsEnabled(IsEnabled)
 		.IsRowHovered(IsHovered)
-		.Image(FAppStyle::GetBrush("Sequencer.Outliner.Plus"));
+		.Image(Image);
+}
+
+TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnClicked& HandleClicked, const FViewModelPtr& ViewModel)
+{
+	return MakeButton(HoverText, FAppStyle::GetBrush("Sequencer.Outliner.Plus"), HandleClicked, ViewModel);
+}
+
+TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnGetContent& HandleGetMenuContent, const FViewModelPtr& ViewModel)
+{
+	return MakeButton(HoverText, FAppStyle::GetBrush("Sequencer.Outliner.Plus"), HandleGetMenuContent, ViewModel);
 }
 
 TSharedRef<SWidget> MakeAddButton(FText HoverText, const FOnGetContent& MenuContent, const TAttribute<bool>& HoverState, const TAttribute<bool>& IsEnabled)

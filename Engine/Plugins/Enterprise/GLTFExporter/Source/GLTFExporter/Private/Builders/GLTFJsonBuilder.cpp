@@ -18,6 +18,8 @@ FGLTFJsonBuilder::FGLTFJsonBuilder(const FString& FileName, const UGLTFExportOpt
 
 bool FGLTFJsonBuilder::WriteJsonArchive(FArchive& Archive)
 {
+	ValidateAndFixGLTFJson();
+
 	JsonRoot.WriteJson(Archive, !bIsGLB, ExportOptions->bSkipNearDefaultValues ? KINDA_SMALL_NUMBER : 0);
 	return true;
 }
@@ -119,4 +121,51 @@ FString FGLTFJsonBuilder::GetGeneratorString()
 FString FGLTFJsonBuilder::GetCopyrightString()
 {
 	return GetDefault<UGeneralProjectSettings>()->CopyrightNotice;
+}
+
+
+void FGLTFJsonBuilder::ValidateAndFixGLTFJson()
+{
+	//Sort through Meshes, remove empty ones (without indices/attributes/primitives)
+	bool bRemovedElement = false;
+	TSet<int32> RemoveOriginalIndices;
+	for (int32 MeshIndex = 0, OriginalMeshIndex = 0; MeshIndex < JsonRoot.Meshes.Num(); MeshIndex++, OriginalMeshIndex++)
+	{
+		if (!JsonRoot.Meshes[MeshIndex]->HasValue())
+		{
+			RemoveOriginalIndices.Add(OriginalMeshIndex);
+			bRemovedElement = true;
+		}
+	}
+
+	if (bRemovedElement)
+	{
+		for (size_t NodeIndex = 0; NodeIndex < JsonRoot.Nodes.Num(); NodeIndex++)
+		{
+			if (JsonRoot.Nodes[NodeIndex]->Mesh)
+			{
+				if (RemoveOriginalIndices.Contains(JsonRoot.Nodes[NodeIndex]->Mesh->Index))
+				{
+					JsonRoot.Nodes[NodeIndex]->Mesh = nullptr;
+				}
+			}
+		}
+
+		TArray<int32> RemoveOriginalIndicesSorted = RemoveOriginalIndices.Array();
+		RemoveOriginalIndicesSorted.Sort([](int32 A, int32 B) {
+			return A > B;
+			});
+
+		for (int32 RemoveMeshIndex : RemoveOriginalIndicesSorted)
+		{
+			JsonRoot.Meshes.Remove(RemoveMeshIndex);
+		}
+
+		if (bRemovedElement)
+		{
+			JsonRoot.Meshes.FixElementIndices();
+		}
+	}
+
+	
 }

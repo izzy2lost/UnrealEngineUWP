@@ -85,14 +85,13 @@ public:
 	template<class InterfaceToCastTo>
 	void ForEachSubsystem(TFunctionRef<bool(InterfaceToCastTo*)> InFunction) const
 	{
-		const TArray<USubsystem*>& AllSubsystems = GetSubsystemArrayInternal(UAudioEngineSubsystem::StaticClass());
-		for (USubsystem* Subsystem : AllSubsystems)
+		FSubsystemCollection::ForEachSubsystem([Function=MoveTemp(InFunction)](USubsystem* Subsystem)
 		{
 			if (InterfaceToCastTo* CastedSystem = Cast<InterfaceToCastTo>(Subsystem))
 			{
-				InFunction(CastedSystem);
+				Function(CastedSystem);
 			}
-		}
+		});
 	}
 };
 

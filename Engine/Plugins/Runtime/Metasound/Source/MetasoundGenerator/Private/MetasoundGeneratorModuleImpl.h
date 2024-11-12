@@ -23,5 +23,7 @@ namespace Metasound
 
 		TSharedPtr<FOperatorPool> OperatorPool;
 		TSharedPtr<FConcurrentInstanceCounterManager> OperatorInstanceCounterManager;
+
+		FDelegateHandle CsvEndFrameDelegateHandle;
 	};
 }

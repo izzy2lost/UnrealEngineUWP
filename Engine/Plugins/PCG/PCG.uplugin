@@ -37,7 +37,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
+			"Name": "ComputeFramework",
 			"Enabled": true
 		}
 	]

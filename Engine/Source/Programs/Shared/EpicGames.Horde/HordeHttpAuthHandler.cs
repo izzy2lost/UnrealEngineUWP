@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -28,9 +29,15 @@ namespace EpicGames.Horde
 		readonly IOptions<HordeOptions> _options;
 
 		/// <summary>
+		/// Option for HTTP requests that can override the default behavior for whether to enable interactive auth prompts
+		/// </summary>
+		public static HttpRequestOptionsKey<bool> AllowInteractiveLogin { get; } = new HttpRequestOptionsKey<bool>("Horde-AllowInteractiveLogin");
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandler(HordeHttpAuthHandlerState authState, IOptions<HordeOptions> options)
+		public HordeHttpAuthHandler(HttpMessageHandler innerHandler, HordeHttpAuthHandlerState authState, IOptions<HordeOptions> options)
+			: base(innerHandler)
 		{
 			_authState = authState;
 			_options = options;
@@ -45,12 +52,19 @@ namespace EpicGames.Horde
 				return await base.SendAsync(request, cancellationToken);
 			}
 
+			// Check whether the request specifically allows interactive auth, otherwise fall back to the default
+			bool allowInteractiveLogin;
+			if (!request.Options.TryGetValue(AllowInteractiveLogin, out allowInteractiveLogin))
+			{
+				allowInteractiveLogin = _options.Value.AllowAuthPrompt;
+			}
+
 			// Get the current access token and send the request with that
-			string? accessToken = await _authState.GetAccessTokenAsync(_options.Value.AllowAuthPrompt, cancellationToken);
+			string? accessToken = await _authState.GetAccessTokenAsync(allowInteractiveLogin, cancellationToken);
 			for (int attempt = 0; ; attempt++)
 			{
 				// Attempt to perform the request with this access token
-				request.Headers.Authorization = (accessToken == null)? null : new AuthenticationHeaderValue("Bearer", accessToken);
+				request.Headers.Authorization = (accessToken == null) ? null : new AuthenticationHeaderValue("Bearer", accessToken);
 				HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
 
 				const int MaxAttempts = 3;
@@ -66,7 +80,7 @@ namespace EpicGames.Horde
 				}
 
 				// Get the next token, and quit out if it's the same
-				string? nextAccessToken = await _authState.GetAccessTokenAsync(_options.Value.AllowAuthPrompt, cancellationToken);
+				string? nextAccessToken = await _authState.GetAccessTokenAsync(allowInteractiveLogin, cancellationToken);
 				if (String.Equals(accessToken, nextAccessToken, StringComparison.Ordinal))
 				{
 					return response;
@@ -83,52 +97,67 @@ namespace EpicGames.Horde
 	/// </summary>
 	public sealed class HordeHttpAuthHandlerState : IAsyncDisposable
 	{
-		/// <summary>
-		/// HTTP client name
-		/// </summary>
-		public const string HttpClientName = "HordeHttpAuthState";
-
-		record class AuthState(AuthMethod Method, OidcTokenInfo? TokenInfo, bool Interactive)
+		record AuthState(IClock Clock, AuthMethod Method, OidcTokenInfo? TokenInfo, bool Interactive)
 		{
 			public bool IsAuthorized()
-				=> (Method == AuthMethod.Anonymous) || (TokenInfo != null && TokenInfo.IsValid);
+			{
+				bool isAnonymousAuth = Method == AuthMethod.Anonymous;
+				bool isTokenValid = TokenInfo != null && TokenInfo.IsValid(Clock.UtcNow);
+				return isAnonymousAuth || isTokenValid;
+			}
 		}
 
 		readonly object _lockObject = new object();
-		readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-		Task<AuthState>? _authStateTask = null;
-		readonly IHttpClientFactory _httpClientFactory;
+		readonly HttpMessageHandler _httpMessageHandler;
+		readonly Uri _serverUrl;
 		readonly IOptions<HordeOptions> _options;
 		readonly ILogger _logger;
+
+		// Background auth process
+		int _currentAuthTaskId;
+		bool _currentAuthInteractive;
+		BackgroundTask? _currentAuthWorker;
+		TaskCompletionSource<AuthState>? _currentAuthResult;
+
+		// Allow these to be overridden in tests
+		readonly ITokenStore? _tokenStore;
+		readonly IOidcTokenManager? _oidcTokenManager;
+		readonly IClock _clock;
+
+		/// <summary>
+		/// Event handler for the auth state changing
+		/// </summary>
+		public event Action? OnStateChanged;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandlerState(IHttpClientFactory httpClientFactory, IOptions<HordeOptions> options, ILogger<HordeHttpAuthHandler> logger)
+		public HordeHttpAuthHandlerState(
+			HttpMessageHandler httpMessageHandler,
+			Uri serverUrl,
+			IOptions<HordeOptions> options,
+			ILogger<HordeHttpAuthHandlerState> logger,
+			ITokenStore? tokenStore = null,
+			IOidcTokenManager? oidcTokenManager = null,
+			IClock? clock = null)
 		{
-			_httpClientFactory = httpClientFactory;
+			_httpMessageHandler = httpMessageHandler;
+			_serverUrl = serverUrl;
 			_options = options;
 			_logger = logger;
+			_tokenStore = tokenStore;
+			_oidcTokenManager = oidcTokenManager;
+			_clock = clock ?? new DefaultClock();
 		}
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			if (_authStateTask != null && !_authStateTask.IsCompleted)
+			if (_currentAuthWorker != null)
 			{
-				_cancellationTokenSource.Cancel();
-				try
-				{
-#pragma warning disable VSTHRD003
-					await _authStateTask;
-#pragma warning restore VSTHRD003
-				}
-				catch (OperationCanceledException)
-				{
-				}
+				await _currentAuthWorker.DisposeAsync();
+				_currentAuthWorker = null;
 			}
-
-			_cancellationTokenSource.Dispose();
 		}
 
 		/// <summary>
@@ -140,11 +169,62 @@ namespace EpicGames.Horde
 			{
 				return true;
 			}
-			if (_authStateTask != null && _authStateTask.IsCompletedSuccessfully && _authStateTask.TryGetResult(out AuthState? authState) && authState.IsAuthorized())
+			if (TryGetCurrentAuthState(out AuthState? authState) && authState.IsAuthorized())
 			{
 				return true;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// Gets the current access token
+		/// </summary>
+		public string? GetCurrentAccessToken()
+		{
+			string? accessToken = GetAccessTokenFromConfig();
+			if (accessToken != null)
+			{
+				return accessToken;
+			}
+			if (TryGetCurrentAuthState(out AuthState? authState) && authState.IsAuthorized())
+			{
+				return authState.TokenInfo?.AccessToken;
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Gets the current auth state instance. Fails if the current auth task has not finished.
+		/// </summary>
+		bool TryGetCurrentAuthState([NotNullWhen(true)] out AuthState? authState)
+		{
+			AuthState? state;
+			if (_currentAuthResult != null && _currentAuthResult.Task.IsCompletedSuccessfully && _currentAuthResult.Task.TryGetResult(out state))
+			{
+				authState = state;
+				return true;
+			}
+			else
+			{
+				authState = null;
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Resets the current auth state
+		/// </summary>
+		public void Reset()
+		{
+			if (GetAccessTokenFromConfig() != null)
+			{
+				return;
+			}
+
+			lock (_lockObject)
+			{
+				_currentAuthResult = null;
+			}
 		}
 
 		/// <summary>
@@ -153,14 +233,17 @@ namespace EpicGames.Horde
 		/// <param name="accessToken">The access  header to invalidate</param>
 		public void Invalidate(string? accessToken)
 		{
+			if (GetAccessTokenFromConfig() != null)
+			{
+				return;
+			}
+
 			lock (_lockObject)
 			{
-#pragma warning disable VSTHRD002
-				if (_authStateTask != null && _authStateTask.IsCompleted && Object.Equals(_authStateTask.Result?.TokenInfo?.AccessToken, accessToken))
+				if (TryGetCurrentAuthState(out AuthState? authState) && Object.Equals(authState.TokenInfo?.AccessToken, accessToken))
 				{
-					_authStateTask = null;
+					_currentAuthResult = null;
 				}
-#pragma warning restore VSTHRD002
 			}
 		}
 
@@ -195,78 +278,110 @@ namespace EpicGames.Horde
 		}
 
 		/// <summary>
-		/// Refresh the auth state
-		/// </summary>
-		/// <param name="interactive">Whether to allow logging in interactively</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		public async Task<bool> LoginAsync(bool interactive, CancellationToken cancellationToken)
-		{
-			if (GetAccessTokenFromConfig() != null)
-			{
-				return true;
-			}
-
-			AuthState? state = await GetAuthStateAsync(interactive, cancellationToken);
-			return state?.IsAuthorized() ?? false;
-		}
-
-		/// <summary>
 		/// Gets the current access token
 		/// </summary>
-		public async Task<string?> GetAccessTokenAsync(bool allowAuthPrompt, CancellationToken cancellationToken)
+		public async Task<string?> GetAccessTokenAsync(bool interactive, CancellationToken cancellationToken)
 		{
+			// If there's a static access token configured, use that
 			string? accessToken = GetAccessTokenFromConfig();
 			if (accessToken != null)
 			{
 				return accessToken;
 			}
 
-			AuthState? authState = await GetAuthStateAsync(allowAuthPrompt, cancellationToken);
+			// Otherwise check if we need to start a background task to figure it out
+			Task<AuthState> authStateTask;
+			lock (_lockObject)
+			{
+				if (_currentAuthResult == null || (interactive && !_currentAuthInteractive))
+				{
+					int authTaskId = ++_currentAuthTaskId;
+
+					if (_currentAuthResult == null || _currentAuthResult.Task.IsCompleted)
+					{
+						_currentAuthResult = new TaskCompletionSource<AuthState>(TaskCreationOptions.RunContinuationsAsynchronously);
+					}
+
+					BackgroundTask? prevAuthWorker = _currentAuthWorker;
+					_currentAuthWorker = BackgroundTask.StartNew(ctx => GetAuthStateHandlerAsync(authTaskId, interactive, prevAuthWorker, ctx));
+
+					_currentAuthInteractive = interactive;
+				}
+				authStateTask = _currentAuthResult.Task;
+			}
+
+			// Wait for the task to complete
+			AuthState authState = await authStateTask.WaitAsync(cancellationToken);
 			return authState?.TokenInfo?.AccessToken;
 		}
 
-		async Task<AuthState?> GetAuthStateAsync(bool interactive, CancellationToken cancellationToken)
+		async Task GetAuthStateHandlerAsync(int authTaskId, bool interactive, BackgroundTask? prevAuthTask, CancellationToken cancellationToken)
 		{
-			if (GetAccessTokenFromConfig() != null)
+			Task? disposeTask = null;
+			try
 			{
-				return null;
-			}
-
-			Task<AuthState>? authStateTask = null;
-			for (; ; )
-			{
-				lock (_lockObject)
+				// Start disposing of the previous auth task asynchronously
+				if (prevAuthTask != null)
 				{
-					if (_authStateTask == null || _authStateTask == authStateTask)
-					{
-						_authStateTask = Task.Run(() => GetAuthStateInternalAsync(interactive, _cancellationTokenSource.Token), _cancellationTokenSource.Token);
-					}
-					authStateTask = _authStateTask;
+					disposeTask = Task.Run(() => prevAuthTask.DisposeAsync().AsTask(), CancellationToken.None);
 				}
 
-				AuthState authState = await authStateTask.WaitAsync(cancellationToken);
-				if (authState.IsAuthorized() || !interactive || authState.Interactive)
+				// Get the new auth state
+				bool stateHasChanged = false;
+				try
 				{
-					return authState;
+					AuthState authState = await GetAuthStateInternalAsync(interactive, cancellationToken);
+					lock (_lockObject)
+					{
+						if (_currentAuthTaskId == authTaskId)
+						{
+							_logger.LogDebug("Auth task complete (interactive: {Interactive}, authorized: {Authorized})", authState.Interactive, authState.IsAuthorized());
+							stateHasChanged = _currentAuthResult?.TrySetResult(authState) ?? false;
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					lock (_lockObject)
+					{
+						if (_currentAuthTaskId == authTaskId)
+						{
+							_logger.LogDebug(ex, "Exception while attempting auth: {Message}", ex.Message);
+							stateHasChanged = _currentAuthResult?.TrySetException(ex) ?? false;
+						}
+					}
+				}
+
+				// Send notifications about the updated state
+				if (stateHasChanged)
+				{
+					try
+					{
+						OnStateChanged?.Invoke();
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(ex, "Exception while sending state change notifications: {Message}", ex.Message);
+					}
+				}
+			}
+			finally
+			{
+				// Wait for the child task to finish being disposed
+				if (disposeTask != null)
+				{
+					await disposeTask;
 				}
 			}
 		}
 
 		async Task<AuthState> GetAuthStateInternalAsync(bool interactive, CancellationToken cancellationToken)
 		{
-			Uri serverUrl;
-
 			GetAuthConfigResponse? authConfig;
-			using (HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName))
+			using (HttpClient httpClient = new HttpClient(_httpMessageHandler, false))
 			{
-				if (httpClient.BaseAddress == null)
-				{
-					throw new Exception("No http client is configured for Horde. Call IServiceCollection.AddHordeHttpClient().");
-				}
-
-				serverUrl = httpClient.BaseAddress;
-				_logger.LogDebug("Retrieving auth configuration for {Server}", serverUrl);
+				httpClient.BaseAddress = _serverUrl;
+				_logger.LogDebug("Retrieving auth configuration for {Server}", _serverUrl);
 
 				JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
 				HordeHttpClient.ConfigureJsonSerializer(jsonOptions);
@@ -280,7 +395,7 @@ namespace EpicGames.Horde
 
 			if (authConfig.Method == AuthMethod.Anonymous)
 			{
-				return new AuthState(authConfig.Method, null, true);
+				return new AuthState(_clock, authConfig.Method, null, true);
 			}
 
 			string? localRedirectUrl = authConfig.LocalRedirectUrls?.FirstOrDefault();
@@ -291,19 +406,8 @@ namespace EpicGames.Horde
 
 			string oidcProvider = authConfig.ProfileName ?? "Horde";
 
-			Dictionary<string, string?> values = new Dictionary<string, string?>();
-			values[$"Providers:{oidcProvider}:DisplayName"] = oidcProvider;
-			values[$"Providers:{oidcProvider}:ServerUri"] = authConfig.ServerUrl;
-			values[$"Providers:{oidcProvider}:ClientId"] = authConfig.ClientId;
-			values[$"Providers:{oidcProvider}:RedirectUri"] = localRedirectUrl;
-
-			ConfigurationBuilder builder = new ConfigurationBuilder();
-			builder.AddInMemoryCollection(values);
-
-			IConfiguration configuration = builder.Build();
-
-			using ITokenStore tokenStore = TokenStoreFactory.CreateTokenStore();
-			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { oidcProvider });
+			using ITokenStore tokenStore = CreateTokenStore();
+			IOidcTokenManager oidcTokenManager = CreateOidcTokenManager(tokenStore, authConfig, localRedirectUrl);
 
 			OidcTokenInfo? result = null;
 			if (oidcTokenManager.GetStatusForProvider(oidcProvider) != OidcStatus.NotLoggedIn)
@@ -319,11 +423,38 @@ namespace EpicGames.Horde
 			}
 			if (result == null && interactive)
 			{
-				_logger.LogInformation("Logging in to {Server}...", serverUrl);
-				result = await oidcTokenManager.Login(oidcProvider, cancellationToken);
+				_logger.LogInformation("Logging in to {Server}...", _serverUrl);
+				result = await oidcTokenManager.LoginAsync(oidcProvider, cancellationToken);
 			}
 
-			return new AuthState(authConfig.Method, result, interactive);
+			return new AuthState(_clock, authConfig.Method, result, interactive);
+		}
+
+		private ITokenStore CreateTokenStore()
+		{
+			return _tokenStore ?? TokenStoreFactory.CreateTokenStore();
+		}
+
+		private IOidcTokenManager CreateOidcTokenManager(ITokenStore tokenStore, GetAuthConfigResponse authConfig, string localRedirectUrl)
+		{
+			if (_oidcTokenManager != null)
+			{
+				return _oidcTokenManager;
+			}
+
+			string oidcProvider = authConfig.ProfileName ?? "Horde";
+
+			Dictionary<string, string?> values = new();
+			values[$"Providers:{oidcProvider}:DisplayName"] = oidcProvider;
+			values[$"Providers:{oidcProvider}:ServerUri"] = authConfig.ServerUrl;
+			values[$"Providers:{oidcProvider}:ClientId"] = authConfig.ClientId;
+			values[$"Providers:{oidcProvider}:RedirectUri"] = localRedirectUrl;
+
+			ConfigurationBuilder builder = new();
+			builder.AddInMemoryCollection(values);
+			IConfiguration configuration = builder.Build();
+
+			return OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { oidcProvider });
 		}
 	}
 }

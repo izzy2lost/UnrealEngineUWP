@@ -62,8 +62,18 @@ public:
 /** A state to store a copy of CCR properties to be used on render thread. */
 struct FColorCorrectRenderProxy
 {
-	EColorCorrectRegionsType Type;
-	EColorCorrectWindowType WindowType;
+	enum EProxyType
+	{
+		PriorityBased,
+		DistanceBased
+	};
+
+	EProxyType ProxyType;
+
+	union {
+		EColorCorrectRegionsType Type;
+		EColorCorrectWindowType WindowType;
+	};
 
 	/** CCR Properties */
 	int32 Priority;
@@ -103,14 +113,11 @@ typedef TSharedPtr<FColorCorrectRenderProxy, ESPMode::ThreadSafe> FColorCorrectR
 
 /**
  * An instance of Color Correction Region. Used to aggregate all active regions.
- * This actor is aggregated by ColorCorrectRegionsSubsystem which handles:
- *   - Level Loaded, Undo/Redo, Added to level, Removed from level events. 
+ * This actor is aggregated by ColorCorrectRegionsSubsystem on Tick. 
  * AActor class itself is not aware of when it is added/removed, Undo/Redo etc in the Editor. 
- * AColorCorrectRegion reaches out to UColorCorrectRegionsSubsystem when its priority is changed, requesting regions to be sorted 
- * or during BeginPlay/EndPlay to register itself. 
  * More information in ColorCorrectRegionsSubsytem.h
  */
-UCLASS(Blueprintable, NotPlaceable, Abstract)
+UCLASS(Blueprintable, NotPlaceable, Abstract, HideCategories=(Actor, HLOD, Collision, Replication, Cooking, Input, DataLayers, Physics, Streaming, WorldPartition))
 class COLORCORRECTREGIONS_API AColorCorrectRegion : public AActor, public IDisplayClusterStageActor
 {
 	GENERATED_UCLASS_BODY()
@@ -122,7 +129,7 @@ public:
 	virtual ~AColorCorrectRegion() override;
 	
 	/** Region type. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Region")
 	EColorCorrectRegionsType Type;
 
 	/** 
@@ -130,55 +137,55 @@ public:
 	* A region with Priority 1 will be rendered before a region with Priority 10. 
 	* This property is hidden if priority is determined by distance from the camera (When Window CCR is being used). 
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Region")
 	int32 Priority;
 
 	/** Color correction intensity. Clamped to 0-1 range. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0, UIMax = 1.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0, UIMax = 1.0))
 	float Intensity;
 
 	/** Inner of the region. Swapped with Outer in case it is higher than Outer. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0, UIMax = 1.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0, UIMax = 1.0))
 	float Inner;
 
 	/** Outer of the region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0, UIMax = 1.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0, UIMax = 1.0))
 	float Outer;
 
 	/** Falloff. Softening the region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = 0.0))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region", meta = (UIMin = 0.0))
 	float Falloff;
 
 	/** Invert region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Region")
 	bool Invert;
 
 	/** Type of algorithm to be used to control color temperature or white balance. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading")
 	EColorCorrectRegionTemperatureType TemperatureType;
 
 	/** Color correction temperature. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta = (UIMin = "1500.0", UIMax = "15000.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta = (UIMin = "1500.0", UIMax = "15000.0"))
 	float Temperature;
 
 	/** Color temperature tint. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction", meta=(UIMin = "-1.0", UIMax = "1.0"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta=(UIMin = "-1.0", UIMax = "1.0"))
 	float Tint;
 
 	/** Color correction settings. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta = (ShowPostProcessCategories))
 	FColorGradingSettings ColorGradingSettings;
 
 	/** Enable/Disable color correction provided by this region. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Correction")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Color Grading", meta = (DisplayName = "Enable Color Grading", DisplayPriority = 1))
 	bool Enabled;
 
 	/** Enables or disabled per actor color correction. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC", meta = (DisplayName = "Enable Per-Actor CC"))
 	bool bEnablePerActorCC;
 
 	/** Controls in which way the below targets will be affected by color correction. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC", meta = (editcondition = "bEnablePerActorCC", DisplayName = "Per Actor CC Mode"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Per Actor CC", meta = (editcondition = "bEnablePerActorCC", DisplayName = "Per-Actor CC Mode"))
 	EColorCorrectRegionStencilType PerActorColorCorrection;
 
 	/** List of actors that get affected or ignored by Per actor CC. Effect depends on the above option. */
@@ -212,30 +219,21 @@ public:
 	UPROPERTY()
 	TObjectPtr<UColorCorrectionInvisibleComponent> IdentityComponent;
 
-	/** To handle play in Editor, PIE and Standalone. These methods aggregate objects in play mode similarly to 
-	* Editor methods in FColorCorrectRegionsSubsystem
-	*/
-	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-	virtual void BeginDestroy() override;
-
-	virtual void TickActor(float DeltaTime, enum ELevelTick TickType, FActorTickFunction& ThisTickFunction);
 	virtual bool ShouldTickIfViewportsOnly() const;
 
+public:
+
 	/**
-	* Gets a full state for rendering. 
+	* Gets a full state for rendering.
 	*/
-	FColorCorrectRenderProxyPtr GetCCProxy_RenderThread()
-	{
-		check(IsInRenderingThread());
-		return ColorCorrectRenderProxy;
-	};
+	UE_DEPRECATED(5.5, "State management is now done by subsystem.")
+	FColorCorrectRenderProxyPtr GetCCProxy_RenderThread() { return nullptr; };
 
 	/**
 	* Copy state required for rendering to be consumed by Scene view extension.
 	*/
-	void TransferState();
+	UE_DEPRECATED(5.5, "State management is now done by subsystem.")
+	void TransferState() {};
 
 protected:
 
@@ -317,12 +315,6 @@ protected:
 
 private:
 
-#if WITH_METADATA
-	/** Creates an icon for CCR/CCW to be clicked on in Editor. */
-	void CreateIcon();
-
-#endif // WITH_METADATA
-
 	/**
 	* AffectedActors property change could potentially invoke a Dialog Window, which should be displayed on Game Thread.
 	* ActorListChangeType represents EPropertyChangeType
@@ -402,18 +394,6 @@ protected:
 
 	/** Update the transform when a positional setter is called. */
 	bool bNotifyOnParamSetter = true;
-	
-private:
-	TWeakObjectPtr<UColorCorrectRegionsSubsystem> ColorCorrectRegionsSubsystem;
-
-	/** A copy of all properties required by render thread to process this CCR. */
-	FColorCorrectRenderProxyPtr ColorCorrectRenderProxy;
-
-	FCriticalSection StateCopyCriticalSecion;
-
-	// This is for optimization purposes that would let us check assigned actors component's stencil ids ever few once in a while.
-	float TimeWaited = 0;
-
 };
 
 /** 
@@ -440,6 +420,12 @@ protected:
 protected:
 	virtual void ChangeShapeVisibilityForActorType() override;
 
+private:
+#if WITH_METADATA
+	/** Creates an icon for CCR/CCW to be clicked on in Editor. */
+	void CreateIcon();
+
+#endif // WITH_METADATA
 };
 
 

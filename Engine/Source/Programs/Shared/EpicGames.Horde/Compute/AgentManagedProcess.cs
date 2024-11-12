@@ -72,6 +72,7 @@ namespace EpicGames.Horde.Compute
 				{
 					case AgentMessageType.Exception:
 						ExceptionMessage exception = message.ParseExceptionMessage();
+						ComputeExecutionCancelledException.TryThrow(exception);
 						throw new ComputeException("Error while executing remote process", new ComputeRemoteException(exception));
 					case AgentMessageType.ExecuteOutput:
 						AppendData(message.Data.Span);

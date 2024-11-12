@@ -89,7 +89,8 @@ public class DatasmithSDKTarget : TargetRules
 		SrcPath = SrcPath.Replace("\\", "/");
 		DestPath = DestPath.Replace("\\", "/");
 		PostBuildSteps.Add(string.Format("echo Copying \"{0}\" to {1}\n", SrcPath, DestPath));
-		PostBuildSteps.Add(string.Format("cp -R -f {0}/{2} {1}\n", SrcPath, DestPath, Files));
+		// || true to clear error code when source not found
+		PostBuildSteps.Add(string.Format("cp -R -f {0}/{2} {1} || true\n", SrcPath, DestPath, Files));
 	}
 
 	public void PostBuildCopyUnix(string SrcPath, string DestPath)
@@ -97,7 +98,8 @@ public class DatasmithSDKTarget : TargetRules
 		SrcPath = SrcPath.Replace("\\", "/");
 		DestPath = DestPath.Replace("\\", "/");
 		PostBuildSteps.Add(string.Format("echo Copying \"{0}\" to {1}\n", SrcPath, DestPath));
-		PostBuildSteps.Add(string.Format("cp -R -f {0} {1}\n", SrcPath, DestPath));
+		// || true to clear error code when source not found
+		PostBuildSteps.Add(string.Format("cp -R -f {0} {1} || true\n", SrcPath, DestPath));
 	}
 
 	public void AddPostBuildSteps()
@@ -151,9 +153,11 @@ public class DatasmithSDKTarget : TargetRules
 			(@"$(EngineDir)\Source\Runtime\TraceLog\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.h"),
 			(@"$(EngineDir)\Source\Runtime\TraceLog\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.inl"),
 			(@"$(EngineDir)\Source\Runtime\Messaging\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.h"),
+			(@"$(EngineDir)\Source\Runtime\Messaging\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.inl"),
 			(@"$(EngineDir)\Source\Runtime\Core\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.h"),
 			(@"$(EngineDir)\Source\Runtime\Core\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.inl"),
 			(@"$(EngineDir)\Source\Runtime\CoreUObject\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.h"),
+			(@"$(EngineDir)\Source\Runtime\CoreUObject\Public\", Path.Combine(DstDatasmithSDK,"Private\\"), "*.inl"),
 		};
 
 		foreach ((string, string, string) ToCopy in FilesToCopy)

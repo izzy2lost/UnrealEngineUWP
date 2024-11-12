@@ -16,6 +16,8 @@ static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
 	TEXT("If true, forces the component editor to show in the main viewport and blueprint details panel for UObjects which normally have it hidden."));
 
 
+FConstructPropertyUpdatedWidgetBuilderArgs::~FConstructPropertyUpdatedWidgetBuilderArgs() = default;
+
 FDetailsDisplayManager::FDetailsDisplayManager(): bIsOuterCategory(false)
 {
 	PrimaryStyleKey = SDetailsView::GetPrimaryDetailsViewStyleKey();
@@ -156,6 +158,16 @@ TSharedPtr<FPropertyUpdatedWidgetBuilder> FDetailsDisplayManager::GetPropertyUpd
 }
 
 TSharedPtr<FPropertyUpdatedWidgetBuilder> FDetailsDisplayManager::GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, TSharedRef<FEditPropertyChain> Chain, FName InCategoryObjectName)
+{
+	return nullptr;
+}
+
+bool FDetailsDisplayManager::CanConstructPropertyUpdatedWidgetBuilder() const
+{
+	return false;
+}
+
+TSharedPtr<FPropertyUpdatedWidgetBuilder> FDetailsDisplayManager::ConstructPropertyUpdatedWidgetBuilder(const FConstructPropertyUpdatedWidgetBuilderArgs& Args)
 {
 	return nullptr;
 }

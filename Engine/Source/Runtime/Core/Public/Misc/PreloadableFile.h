@@ -99,6 +99,8 @@ public:
 	CORE_API bool IsCacheAllocated() const;
 	/** Return the LowerLevel FArchive if it has been allocated. May return null, even if the FPreloadableFile is currently active. If return value is non-null, caller is responsible for deleting it. */
 	CORE_API FArchive* DetachLowerLevel();
+	/** Return whether this archive has an inner archive it can provide data out of. Serialize will fail if this returns false. */
+	CORE_API bool HasValidData() const;
 
 	// FArchive
 	CORE_API virtual void Serialize(void* V, int64 Length) final;

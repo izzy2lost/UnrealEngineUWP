@@ -25,10 +25,10 @@ public:
 #if WITH_EDITOR
 	/** Creates new asset GDTF Asset Import Data from the File. Returns the GDTF Asset Import Data or nullptr if not a valid GDTF File */
 	void SetSourceFile(const FString& InFilePathAndName);
+#endif // WITH_EDITOR 
 
 	/** Returns the source data the asset was generated from */
 	FORCEINLINE const TArray64<uint8>& GetRawSourceData() const { return RawSourceData.ByteArray; }
-#endif // WITH_EDITOR 
 
 protected:
 	//~ Begin UObject interface
@@ -40,9 +40,7 @@ private:
 	UPROPERTY()
 	FString FilePathAndName;
 
-#if WITH_EDITORONLY_DATA
 	/** The raw GDTF zip file as byte array */
 	UPROPERTY()
 	FDMXByteArray64 RawSourceData;
-#endif // WITH_EDITORONLY_DATA
 };

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "HAL/Platform.h"
 #include "Internationalization/Text.h"
 #include "Math/Color.h"
@@ -10,12 +9,17 @@
 #include "MovieSceneCommonHelpers.h"
 #include "Templates/Function.h"
 #include "UObject/NameTypes.h"
+#include "Misc/FrameNumber.h"
+#include "Misc/Attribute.h"
 
 class FTrackInstancePropertyBindings;
 class UMovieSceneSection;
+class IMovieScenePlayer;
 class UObject;
+struct FMovieSceneSequenceID;
 struct FFrameNumber;
 struct FFrameRate;
+struct FGuid;
 struct FMovieSceneRootEvaluationTemplateInstance;
 
 #if WITH_EDITOR
@@ -57,12 +61,22 @@ struct FMovieSceneChannelMetaData
 	 */
 	MOVIESCENE_API FString GetPropertyMetaData(const FName& InKey) const;
 
+	/*
+	 * Get the amount that all of this channel's keys are offset by
+	 */
+	MOVIESCENE_API FFrameNumber GetOffsetTime(const UMovieSceneSection* InSection) const;
+
 	/** Whether this channel is enabled or not */
 	uint8 bEnabled : 1;
 	/** True if this channel can be collapsed onto the top level track node */
 	uint8 bCanCollapseToTrack : 1;
+	/** True if this channel's times are defined relative to the section start time */
+	uint8 bRelativeToSection : 1;
 	/** A sort order for this channel. Channels are sorted by this order, then by name. Groups are sorted by the channel with the lowest sort order. */
 	uint32 SortOrder;
+	/** By default if a channel has no FText::Group specified, we put it last, by setting this to false we use SortIndex instead */
+	bool bSortEmptyGroupsLast;
+
 	/** This channel's unique name */
 	FName Name;
 	/**
@@ -92,6 +106,10 @@ struct FMovieSceneChannelMetaData
 	TOptional<FLinearColor> Color;
 	/** Property meta data */
 	TMap<FName, FString> PropertyMetaData;
+	/** Optional object that owns this channel. By default the section owns the channel but sometimes channels live inside other nested objects instead. */
+	TWeakObjectPtr<> WeakOwningObject;
+	/** Key offset */
+	TAttribute<FFrameNumber> KeyOffset;
 };
 
 

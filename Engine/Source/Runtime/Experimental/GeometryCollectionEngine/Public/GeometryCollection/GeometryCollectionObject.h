@@ -6,6 +6,7 @@
 #include "Chaos/ChaosSolverActor.h"
 #include "GeometryCollection/GeometryCollectionDamagePropagationData.h"
 #include "GeometryCollection/GeometryCollectionSimulationTypes.h"
+#include "Dataflow/DataflowContent.h"
 #include "GeometryCollection/ManagedArray.h"
 #include "InstanceUniformShaderParameters.h"
 #include "Interfaces/Interface_AssetUserData.h"
@@ -357,7 +358,7 @@ struct FGeometryCollectionRenderResourceSizeInfo
 *
 */
 UCLASS(BlueprintType, customconstructor, MinimalAPI)
-class UGeometryCollection : public UObject, public IInterface_AssetUserData
+class UGeometryCollection : public UObject, public IInterface_AssetUserData, public IDataflowContentOwner
 {
 	GENERATED_UCLASS_BODY()
 
@@ -367,17 +368,16 @@ public:
 	/** UObject Interface */
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	GEOMETRYCOLLECTIONENGINE_API virtual void PostEditUndo() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual bool Modify(bool bAlwaysMarkDirty = true) override;
 #endif
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostInitProperties() override;
+	GEOMETRYCOLLECTIONENGINE_API virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostLoad() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void BeginDestroy() override;
 	/** End UObject Interface */
 
 	GEOMETRYCOLLECTIONENGINE_API void Serialize(FArchive& Ar);
-#if WITH_EDITORONLY_DATA
-	GEOMETRYCOLLECTIONENGINE_API void PostSerialize(const FArchive& Ar);
-#endif
 
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void EnsureDataIsCooked(bool bInitResources, bool bIsTransacting, bool bIsPersistant, bool bAllowCopyFromDDC = true);
@@ -388,11 +388,15 @@ public:
 	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>       GetGeometryCollection() { return GeometryCollection; }
 	const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GetGeometryCollection() const { return GeometryCollection; }
 
+	/** Return true if the collection is "Empty" ( has no transforms at all ) */
+	GEOMETRYCOLLECTIONENGINE_API bool IsEmpty() const;
+
 	/** Return collection to initial (ie. empty) state. */
 	GEOMETRYCOLLECTIONENGINE_API void Reset();
 
 	/** Reset the collection from another set of attributes and materials. */
 	GEOMETRYCOLLECTIONENGINE_API void ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterial*>& InMaterials, bool bHasInternalMaterials);
+	GEOMETRYCOLLECTIONENGINE_API void ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterialInterface*>& InMaterialInstances, bool bHasInternalMaterials);
 	
 	GEOMETRYCOLLECTIONENGINE_API int32 AppendGeometry(const UGeometryCollection & Element, bool ReindexAllMaterials = false, const FTransform& TransformRoot = FTransform::Identity);
 	GEOMETRYCOLLECTIONENGINE_API int32 NumElements(const FName& Group) const;
@@ -606,6 +610,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter=SetEnableNanite, Category = "Nanite")
 	bool EnableNanite;
 
+	/**
+	 * Enable Non-Nanite fallback mesh when Nanite support is enabled.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Nanite", Meta = (EditCondition = "EnableNanite"))
+	bool bEnableNaniteFallback;
+
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	GEOMETRYCOLLECTIONENGINE_API void SetConvertVertexColorsToSRGB(bool bValue);
 
@@ -775,12 +785,11 @@ public:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use remove on break feature instead ( Fracture editor tools )."))
 	TArray<TObjectPtr<UMaterialInterface>> RemoveOnFractureMaterials_DEPRECATED;
 
+	UE_DEPRECATED(5.5, "Bone Selected Material does not have a material index anymore.")
 	FORCEINLINE const int32 GetBoneSelectedMaterialIndex() const { return BoneSelectedMaterialIndex; }
 
-	UMaterialInterface* GetBoneSelectedMaterial() const
-	{
-		return BoneSelectedMaterial;
-	}
+	// Get the material to use for rendering bone selections in the editor, or nullptr
+	static UMaterialInterface* GetBoneSelectedMaterial();
 
 	/** Returns the asset path for the automatically populated selected material. */
 	static GEOMETRYCOLLECTIONENGINE_API const TCHAR* GetSelectedMaterialPath();
@@ -826,6 +835,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataflow", DisplayName = "DataFlow Overrides")
 	TMap<FString, FString> Overrides;
 
+	//~ Begin IDataflowContentOwner interface
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) override;
+	//~ End IDataflowContentOwner interface
+
 	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetBreadthFirstTransformIndices() const { return BreadthFirstTransformIndices; }
 
 	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetAutoInstanceTransformRemapIndices() const { return AutoInstanceTransformRemapIndices; }
@@ -838,6 +853,10 @@ private:
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void CreateSimulationDataImp(bool bCopyFromDDC);
 	GEOMETRYCOLLECTIONENGINE_API void CreateRenderDataImp(bool bCopyFromDDC);
+
+	GEOMETRYCOLLECTIONENGINE_API void EnsureSimulationDataIsCooked(bool bIsTransacting, bool bAllowCopyFromDDC);
+	GEOMETRYCOLLECTIONENGINE_API void EnsureRenderDataIsCooked(bool bInitResources);
+
 #endif
 
 	/*
@@ -892,15 +911,11 @@ private:
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Clustering")
 	TArray<int32> AutoInstanceTransformRemapIndices;
 
-	// #todo(dmp): rename to be consistent BoneSelectedMaterialID?
 	// Legacy index of the bone selected material in the object's Materials array, or INDEX_NONE if it is not stored there.
 	// Note for new objects the bone selected material should not be stored in the Materials array, so this should be INDEX_NONE
+	// The property is kept solely to support deletion of the bone selected material from the materials list of legacy assets
 	UPROPERTY()
 	int32 BoneSelectedMaterialIndex = INDEX_NONE;
-
-	// The material to use for rendering bone selections in the editor, or nullptr
-	UPROPERTY()
-	TObjectPtr<UMaterialInterface> BoneSelectedMaterial = nullptr;
 
 	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollection;
 

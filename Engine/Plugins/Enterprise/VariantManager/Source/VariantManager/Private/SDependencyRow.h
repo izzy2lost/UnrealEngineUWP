@@ -4,6 +4,7 @@
 
 
 #include "Widgets/Views/ITableRow.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 class STableViewBase;

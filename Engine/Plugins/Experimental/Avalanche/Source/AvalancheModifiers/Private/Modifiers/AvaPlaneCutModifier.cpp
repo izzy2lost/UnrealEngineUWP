@@ -97,7 +97,7 @@ void UAvaPlaneCutModifier::UpdatePreviewComponent()
 
 	PreviewPlane.Update(FTransform(
 		PlaneRotation,
-		PlaneLocation,
+		PlaneLocation + PlaneRotation.RotateVector(FVector::UpVector) * 1,
 		FVector::Max(PlaneMeshSize, FVector(0.1f, 0.1f, 0.1f)))
 	);
 	

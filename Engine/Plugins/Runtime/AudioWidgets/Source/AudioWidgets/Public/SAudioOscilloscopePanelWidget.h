@@ -15,6 +15,7 @@
 #include "TriggerThresholdLineStyle.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SAudioOscilloscopePanelWidget.generated.h"
 
 class FFixedSampledSequenceGridData;
 class SAudioRadialSlider;
@@ -106,8 +107,13 @@ public:
 	void SetYAxisGridVisibility(const bool InbIsVisible);
 	void SetYAxisLabelsVisibility(const bool InbIsVisible);
 
-	void SetTriggerThreshold(float InTriggerThreshold);
-	void SetTriggerThresholdVisibility(const bool InbIsVisible);
+	void SetMaxTimeWindowMs(const float InMaxTimeWindowMs);
+
+	void SetChannelToAnalyze(const int32 InChannelToAnalyze);
+	void SetTriggerMode(const EAudioOscilloscopeTriggerMode InTriggerMode);
+	void SetTriggerThreshold(const float InTriggerThreshold);
+	void SetTimeWindow(const float InTimeWindow);
+	void SetAnalysisPeriod(const float InAnalysisPeriod);
 
 	void UpdateSequenceRulerStyle(const FFixedSampleSequenceRulerStyle UpdatedRulerStyle);
 	void UpdateValueGridOverlayStyle(const FSampledSequenceValueGridOverlayStyle UpdatedValueGridOverlayStyle);
@@ -164,6 +170,11 @@ private:
 	TSharedPtr<SAudioRadialSlider> TriggerThresholdKnob;
 	TSharedPtr<SAudioRadialSlider> TimeWindowKnob;
 	TSharedPtr<SAudioRadialSlider> AnalysisPeriodKnob;
+
+	inline static const FVector2D TriggerThresholdKnobOutputRange = { -1.0, 1.0 };
+	inline static const FVector2D AnalysisPeriodKnobOutputRange   = { 10.0, 1000.0 };
+
+	FVector2D TimeWindowKnobOutputRange = { 10.0, 5000.0 };
 
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
 

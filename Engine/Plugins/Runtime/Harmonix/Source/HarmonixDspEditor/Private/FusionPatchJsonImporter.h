@@ -54,5 +54,5 @@ public:
 
 	static TArray<UObject*> ImportAudioSamples(const TArray<FString>& Files, const FString& DestinationPath, bool ReplaceExisting);
 
-	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFusionPatch* FusionPatch, const FImportArgs& ImportArgs, TArray<FString>& OutErrors);
+	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFusionPatch* FusionPatch, TArray<UObject*>& OutAdditionalImportedObjects, const FImportArgs& ImportArgs, TArray<FString>& OutErrors);
 };

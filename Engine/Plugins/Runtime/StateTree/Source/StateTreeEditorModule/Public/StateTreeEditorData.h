@@ -13,6 +13,16 @@ struct FStateTreeEditorPropertyPath;
 
 class UStateTreeSchema;
 
+namespace UE::StateTree::Editor
+{
+	// Name used to describe container of global items (other items use the path to the container State).  
+	extern STATETREEEDITORMODULE_API const FString GlobalStateName;
+
+	// Name used to describe container of property functions.
+	extern STATETREEEDITORMODULE_API const FString PropertyFunctionStateName;
+}
+
+
 USTRUCT()
 struct FStateTreeEditorBreakpoint
 {
@@ -59,13 +69,28 @@ public:
 	virtual bool GetStructByID(const FGuid StructID, FStateTreeBindableStructDesc& OutStructDesc) const override;
 	virtual bool GetDataViewByID(const FGuid StructID, FStateTreeDataView& OutDataView) const override;
 	virtual FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() override { return &EditorBindings; }
+	virtual const FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() const override { return &EditorBindings; }
+	virtual FStateTreeBindableStructDesc FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const override;
+
+	virtual EStateTreeVisitor EnumerateBindablePropertyFunctionNodes(TFunctionRef<EStateTreeVisitor(const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
+
+	virtual bool CanCreateParameter(const FGuid StructID) const override;
+	virtual void CreateParameters(const FGuid StructID, TArrayView<FStateTreeEditorPropertyCreationDesc> InOutCreationDescs) override;
 	// ~IStateTreeEditorPropertyBindingsOwner
+
+	/**
+	 * Returns the description for the node for UI.
+	 * Handles the name override logic, figures out required data for the GetDescription() call, and handles the fallbacks.
+	 * @return description for the node.
+	 */
+	FText GetNodeDescription(const FStateTreeEditorNode& Node, const EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const;
 
 #if WITH_EDITOR
 	using FReplacementObjectMap = TMap<UObject*, UObject*>;
 	void OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap);
 	void OnUserDefinedStructReinstanced(const UUserDefinedStruct& UserDefinedStruct);
 	void OnParametersChanged(const UStateTree& StateTree);
+	void OnStateParametersChanged(const UStateTree& StateTree, const FGuid StateID);
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -85,33 +110,39 @@ public:
 
 	/**
 	* Iterates over all structs that are related to binding
-	* @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	* @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	*/
 	EStateTreeVisitor VisitHierarchy(TFunctionRef<EStateTreeVisitor(UStateTreeState& State, UStateTreeState* ParentState)> InFunc) const;
 
 	/**
 	 * Iterates over all structs at the global level (context, tree parameters, evaluators, global tasks) that are related to binding.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitGlobalNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Iterates over all structs in the state hierarchy that are related to binding.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitHierarchyNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Iterates over all structs that are related to binding.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitAllNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Iterates over all nodes in a given state.
-	 * @param InFunc function called at each node, should return true if visiting is continued or false to stop.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
 	 */
 	EStateTreeVisitor VisitStateNodes(const UStateTreeState& State, TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
+
+	/**
+	 * Iterates recursively over all property functions of the provided node. Also nested ones.
+	 * @param InFunc function called at each node, should return Continue if visiting is continued or Break to stop.
+	 */
+	EStateTreeVisitor VisitStructBoundPropertyFunctions(FGuid StructID, const FString& StatePath, TFunctionRef<EStateTreeVisitor(const FStateTreeEditorNode& EditorNode, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const;
 
 	/**
 	 * Returns array of nodes along the execution path, up to the TargetStruct.
@@ -120,13 +151,6 @@ public:
 	 * @param OutStructDescs Array of nodes accessible on the given path.  
 	 */
 	void GetAccessibleStructs(const TConstArrayView<const UStateTreeState*> Path, const FGuid TargetStructID, TArray<FStateTreeBindableStructDesc>& OutStructDescs) const;
-
-	/**
-	 * Finds a bindable context struct based on name and type.
-	 * @param ObjectType Object type to match
-	 * @param ObjectNameHint Name to use if multiple context objects of same type are found. 
-	 */
-	FStateTreeBindableStructDesc FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const;
 
 	UE_DEPRECATED(5.3, "Use VisitHierarchyNodes with State, Desc, Value instead.")
 	void VisitHierarchyNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FGuid& ID, const FName& Name, const EStateTreeNodeType NodeType, const UScriptStruct* NodeStruct, const UStruct* InstanceStruct)> InFunc) const;
@@ -207,6 +231,14 @@ public:
 		EditorBindings.AddPropertyBinding(SourcePath, TargetPath);
 	}
 
+	/**
+	 * Adds property binding to PropertyFunction of provided type.
+	 */
+	void AddPropertyBinding(const UScriptStruct* PropertyFunctionNodeStruct, TConstArrayView<FStateTreePropertyPathSegment> SourcePathSegments, const FStateTreePropertyPath& TargetPath)
+	{
+		EditorBindings.AddFunctionPropertyBinding(PropertyFunctionNodeStruct, SourcePathSegments, TargetPath);
+	}
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.3, "Use version with FStateTreePropertyPath instead.")
 	void AddPropertyBinding(const FStateTreeEditorPropertyPath& SourcePath, const FStateTreeEditorPropertyPath& TargetPath);
@@ -229,13 +261,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return false;
 	}
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	bool HasAnyBreakpoint(FGuid ID) const;
 	bool HasBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType) const;
 	const FStateTreeEditorBreakpoint* GetBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType) const;
 	void AddBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType);
 	bool RemoveBreakpoint(FGuid ID, EStateTreeBreakpointType BreakpointType);
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 
 	// ~StateTree Builder API
 
@@ -252,11 +284,13 @@ private:
 	void FixObjectNodes();
 	void FixDuplicateIDs();
 	void UpdateBindingsInstanceStructs();
+	void CallPostLoadOnNodes();
 
 #if WITH_EDITORONLY_DATA
 	FDelegateHandle OnObjectsReinstancedHandle;
 	FDelegateHandle OnUserDefinedStructReinstancedHandle;
 	FDelegateHandle OnParametersChangedHandle;
+	FDelegateHandle OnStateParametersChangedHandle;
 #endif
 
 public:

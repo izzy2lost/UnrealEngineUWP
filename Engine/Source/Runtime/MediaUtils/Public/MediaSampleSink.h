@@ -14,7 +14,7 @@ class UMediaPlayer;
 /** Events send from player to sink */
 enum class EMediaSampleSinkEvent
 {
-	Attached,				//!< Attached to a UMediaPlayer 
+	Attached,				//!< Attached to a UMediaPlayer
 	Detached,				//!< Detached from a UMediaPlayer
 	PlayerPluginChange,		//!< Player plugin used changed
 	SampleDataUpdate,		//!< Sample data was updated
@@ -93,7 +93,7 @@ public:
 
 	/**
 	 * Check if sink can accept new samples
-	 * 
+	 *
 	 * @param NumSamples How many samples we would like the sink to accept
 	 * @return True if samples could be accepted, false otherwise
 	 * @note Override in implementation as needed
@@ -110,6 +110,12 @@ public:
 	 * @see Enqueue, Num
 	 */
 	virtual void RequestFlush() = 0;
+
+	/**
+	 * Returns the number of times the queue has been requested to flush already.
+	 * @return Number of times RequestFlush() was called.
+	 */
+	virtual uint32 GetFlushCount() const = 0;
 
 	/**
 	 * Receive event

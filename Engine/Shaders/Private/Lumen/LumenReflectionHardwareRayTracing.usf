@@ -5,7 +5,7 @@
 #include "../MonteCarlo.ush"
 #include "../SceneTextureParameters.ush"
 
-// Ensure that DiffuseAlbedo is not overrident on SSS material (as we don't split lighting with the Lumen/RT integrator)
+// Ensure that DiffuseAlbedo is not overridden on SSS material (as we don't split lighting with the Lumen/RT integrator)
 #define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 #define SUBSTRATE_COMPLEXSPECIALPATH 1
 #define SUBSTRATE_GLINTS_ALLOWED 0
@@ -42,11 +42,13 @@
 uint2 OutputThreadGroupSize;
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 
+#ifdef FLumenReflectionHardwareRayTracingIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenReflectionHardwareRayTracingIndirectArgsCS()
 {
 	WriteDispatchIndirectArgs(RWHardwareRayTracingIndirectArgs, 0, (CompactedTraceTexelAllocator[0] + OutputThreadGroupSize.x - 1) / OutputThreadGroupSize.x, 1, 1);
 }
+#endif
 
 #if LUMEN_HARDWARE_RAYTRACING || LUMEN_HARDWARE_INLINE_RAYTRACING
 
@@ -61,15 +63,21 @@ RaytracingAccelerationStructure TLAS;
 	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
-int NearFieldLightingMode;
-float NearFieldMaxTraceDistance;
+uint HitLightingShadowMode;
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 uint UseReflectionCaptures;
+
+float NearFieldMaxTraceDistance;
 float FarFieldBias;
 float FarFieldMaxTraceDistance;
 float NearFieldMaxTraceDistanceDitherScale;
 float NearFieldSceneRadius;
 float PullbackBias;
+float DistantScreenTracesStartDistance;
+float4 HZBUvFactorAndInvFactor;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
 int ApplySkyLight;
 int HitLightingForceEnabled;
 int SampleSceneColor;
@@ -136,9 +144,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		RayCone.SpreadAngle = View.EyeToPixelSpreadAngle;
 		RayCone = PropagateRayCone(RayCone, RayData.ConeHalfAngle, SceneDepth);
 
-		const bool bHiResSurface = UseHighResSurface ? 1 : 0;
-		const uint CullingMode = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
-		FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, ReflectionTracingCoord.Coord, LinearCoord, CullingMode, MaxTraversalIterations, bHiResSurface);
+		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+			RayCone,
+			ReflectionTracingCoord.Coord,
+			LinearCoord,
+			/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+			MaxTraversalIterations,
+			MeshSectionVisibilityTest != 0);
+
+		Context.bHiResSurface = UseHighResSurface != 0;
 		Context.MaxReflectionBounces = MaxReflectionBounces;
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;
@@ -163,7 +177,13 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 			const float Epsilon = 0.5f;
 			Ray.TMin = max(TraceHitDistance - Epsilon, 0.0f);
 
-			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, NearFieldLightingMode, UseReflectionCaptures != 0, RayHitBookmark);
+			Context.bHitLightingDirectLighting = HitLightingDirectLighting != 0;
+			Context.bHitLightingSkylight = HitLightingSkylight != 0;
+			Context.bUseReflectionCaptures = UseReflectionCaptures != 0;
+			Context.HitLightingShadowMode = HitLightingShadowMode;
+			Context.HitLightingShadowMaxTraceDistance = NearFieldMaxTraceDistance;
+
+			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, RayHitBookmark);
 		}
 		#else
 		{
@@ -234,6 +254,48 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		}
 		#endif
 
+		#if DISTANT_SCREEN_TRACES
+		{
+			if (!Result.bIsHit)
+			{
+				float3 TranslatedDistantRayOrigin = Ray.Origin;
+				float MaxTraceDistanceForDistantScreenTrace = DistantScreenTraceMaxTraceDistance;
+
+				// Start the distant linear screen traces where we have no fallback for HZB screen traces
+				float2 RaySphereHit = RayIntersectSphere(TranslatedDistantRayOrigin, RayData.Direction, float4(View.TranslatedWorldCameraOrigin, DistantScreenTracesStartDistance));
+				if (RaySphereHit.x < 0 && RaySphereHit.y > 0)
+				{
+					TranslatedDistantRayOrigin += RaySphereHit.y * RayData.Direction;
+					MaxTraceDistanceForDistantScreenTrace -= RaySphereHit.y;	
+				}
+
+				if (MaxTraceDistanceForDistantScreenTrace > 0)
+				{
+					float4 StartRayClip = mul(float4(TranslatedDistantRayOrigin, 1.0), View.TranslatedWorldToClip);
+
+					// If we start tracing from outside the screen (from a position on the screen) then we know we will never hit any valueable screen information.
+					// So we skip the tracing if the start position is clipped outside of the view frustum.
+					if (StartRayClip.w >= 0.0 && all(-StartRayClip.ww <= StartRayClip.xy) && all(StartRayClip.xy <= StartRayClip.ww))
+					{
+						// Update SceneDepth according to the new start position moved to the edge of the clipmap. This is important for the SSR HZB tracing to be correct.
+						float StartRayDeviceZ = StartRayClip.z / StartRayClip.w;
+						float DistantTracingSceneDepth = ConvertFromDeviceZ(StartRayDeviceZ);
+
+						DistantScreenTrace(
+							ReflectionTracingCoord.Coord + 0.5f,
+							HZBUvFactorAndInvFactor,
+							TranslatedDistantRayOrigin,
+							RayData.Direction,
+							MaxTraceDistanceForDistantScreenTrace,
+							DistantTracingSceneDepth,
+							Result.bIsHit,
+							TraceResult.Lighting);
+					}
+				}
+			}
+		}
+		#endif
+
 		#if DIM_RADIANCE_CACHE
 		{
 			// If we're tracing a near field ray that missed, which has valid Radiance Cache coverage, use that for final lighting
@@ -262,7 +324,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		{
 			float CoverageForFog = 1.0; // There is always something of the sky fallback.
 			float3 OriginToCollider = Ray.Direction * TraceResult.OpaqueHitDistance;
-			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TranslatedWorldPosition, Ray.Direction, TraceResult.OpaqueHitDistance);
 		}			
 
 		if (MaxLighting > MaxRayIntensity)
@@ -270,7 +332,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 			TraceResult.Lighting *= MaxRayIntensity / MaxLighting;
 		}
 
-		RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = TraceResult.Lighting;
+		RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = MakeFinite(TraceResult.Lighting);
 		RWTraceHit[ReflectionTracingCoord.CoordFlatten] = EncodeRayDistance(TraceResult.OpaqueHitDistance, Result.bIsHit);
 
 		#if WRITE_DATA_FOR_HIT_LIGHTING_PASS

@@ -41,6 +41,7 @@ struct FHotspotSelectionManager
 
 	void ToggleKeys(TArrayView<const FSequencerSelectedKey> InKeys);
 	void ToggleModel(TSharedPtr<FViewModel> InModel);
+	void DefaultModelSelection(TSharedPtr<FViewModel> InModel);
 
 	void SelectKeysExclusive(TArrayView<const FSequencerSelectedKey> InKeys);
 	void SelectModelExclusive(TSharedPtr<FViewModel> InModel);
@@ -69,6 +70,7 @@ struct FKeyHotspot
 	SEQUENCER_API FKeyHotspot(const TArray<FSequencerSelectedKey>& InKeys, TWeakPtr<FSequencer> InWeakSequencer);
 
 	virtual void UpdateOnHover(FTrackAreaViewModel& InTrackArea) const override;
+	virtual TOptional<ETimeDomain> GetDomain() const;
 	virtual TOptional<FFrameNumber> GetTime() const override;
 	virtual bool PopulateContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FFrameTime MouseDownTime) override;
 

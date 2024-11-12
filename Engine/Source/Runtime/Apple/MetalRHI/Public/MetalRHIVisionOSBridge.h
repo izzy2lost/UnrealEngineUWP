@@ -19,7 +19,8 @@ namespace MetalRHIVisionOS
 		cp_frame_t& SwiftFrame;
         cp_drawable_t& SwiftDrawable;
 		int FrameCounter;
+		class IRHICommandContext* RHICommandContext;
     };
-    METALRHI_API void PresentImmersive(const PresentImmersiveParams& Params);
+    METALRHI_API void PresentImmersive(const PresentImmersiveParams* Params);
 }
 #endif // PLATFORM_VISIONOS

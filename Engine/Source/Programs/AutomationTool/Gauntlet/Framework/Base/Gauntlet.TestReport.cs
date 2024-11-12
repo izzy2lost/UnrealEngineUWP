@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-
 namespace Gauntlet
 {
 	/// <summary>
@@ -68,14 +67,15 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Type"></param>
 		/// <param name="Message"></param>
-		/// <param name="Context"></param>
+		/// <param name="Args"></param>
 		/// <returns></returns>
-		void AddEvent(EventType Type, string Message, object Context = null);
+		void AddEvent(EventType Type, string Message, params object[] Args);
 
 		/// <summary>
 		/// Attach an Artifact to the ITestReport
 		/// </summary>
 		/// <param name="ArtifactPath"></param>
+		/// <param name="Name"></param>
 		/// <returns></returns>
 		bool AttachArtifact(string ArtifactPath, string Name = null);
 
@@ -141,10 +141,16 @@ namespace Gauntlet
 		{
 			Metadata = new Dictionary<string, string>();
 		}
+
+		/// <summary>
+		/// Horde report version
+		/// </summary>
+		public abstract int Version { get; }
+
 		/// <summary>
 		/// Metadata blackboard
 		/// </summary>
-		public Dictionary<string, string> Metadata { get; set; }
+		public Dictionary<string, string> Metadata { get; private set; }
 
 		/// <summary>
 		/// Return report type
@@ -184,21 +190,38 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Type"></param>
 		/// <param name="Message"></param>
-		/// <param name="Context"></param>
+		/// <param name="Args"></param>
 		/// <returns></returns>
-		public abstract void AddEvent(EventType Type, string Message, object Context = null);
+		public abstract void AddEvent(EventType Type, string Message, params object[] Args);
 
-		public void AddError(string Message, object Context = null)
+		/// <summary>
+		/// Add Error event with optional formatting inputs to report
+		/// </summary>
+		/// <param name="Message"></param>
+		/// <param name="Args"></param>
+		public void AddError(string Message, params object[] Args)
 		{
-			AddEvent(EventType.Error, Message, Context);
+			AddEvent(EventType.Error, Message, Args);
 		}
-		public void AddWarning(string Message, object Context = null)
+
+		/// <summary>
+		/// Add Warning event with optional formatting inputs to report
+		/// </summary>
+		/// <param name="Message"></param>
+		/// <param name="Args"></param>
+		public void AddWarning(string Message, params object[] Args)
 		{
-			AddEvent(EventType.Warning, Message, Context);
+			AddEvent(EventType.Warning, Message, Args);
 		}
-		public void AddInfo(string Message, object Context = null)
+
+		/// <summary>
+		/// Add Info event with optional formatting inputs to report
+		/// </summary>
+		/// <param name="Message"></param>
+		/// <param name="Args"></param>
+		public void AddInfo(string Message, params object[] Args)
 		{
-			AddEvent(EventType.Info, Message, Context);
+			AddEvent(EventType.Info, Message, Args);
 		}
 
 		/// <summary>

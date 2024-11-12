@@ -11,6 +11,7 @@
 #include "LandscapeDataAccess.h"
 #include "LandscapePatchComponent.h"
 #include "LandscapePatchLogging.h"
+#include "LandscapePatchUtil.h"
 #include "LandscapeModule.h"
 #include "LandscapeEditorServices.h"
 #include "Logging/MessageLog.h"
@@ -20,6 +21,15 @@
 #include "UObject/Package.h"
 #include "UObject/UObjectBaseUtility.h" // GetNameSafe
 #include "UObject/UObjectIterator.h"
+#include "Algo/AnyOf.h"
+
+#if WITH_EDITOR
+#include "Editor.h"
+#include "Editor/UnrealEdEngine.h"
+#include "LevelEditorSubsystem.h"
+#include "ScopedTransaction.h"
+#include "UnrealEdGlobals.h" //GUnrealEd
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapePatchManager)
 
@@ -27,14 +37,19 @@
 
 namespace LandscapePatchManagerLocals
 {
+	const FText MigratePatchesTransactionName(LOCTEXT("MigratePatchesTransaction", "Migrate Patches"));
+
 #if WITH_EDITOR
-	// Another way to do the patch pointer fixup in addition to the map check.
-	FAutoConsoleCommand CCmdFixOwnedPatchBackPointers(
-		TEXT("LandscapePatch.PatchManager.FixOwnedPatchBackPointers"),
-		TEXT("For all patch managers, make it so that their managed patches point to them as their "
-			"patch manager. This is a more limited cleanup command than LandscapePatch.FixPatchManagerPointers."),
-		FConsoleCommandDelegate::CreateLambda([]() 
+	// Note: the priorities would become jumbled up if someone had multiple managers in the same edit layer. But
+	// this is an unexpected case that is not worth trying to handle differently.
+	FAutoConsoleCommand CCmdMigrateLegacyPatchListToPrioritySystem(
+		TEXT("LandscapePatch.MigrateLegacyListToPrioritySystem"),
+		TEXT("For all patch managers, make any patches in their patch list be directly bound to their edit layer, and "
+			"set the patch priorities according to their index."),
+		FConsoleCommandDelegate::CreateLambda([]()
 	{
+		const FScopedTransaction Transaction(MigratePatchesTransactionName);
+
 		for (TObjectIterator<ALandscapePatchManager> It(
 			/*AdditionalExclusionFlags = */RF_ClassDefaultObject,
 			/*bIncludeDerivedClasses = */true,
@@ -54,11 +69,117 @@ namespace LandscapePatchManagerLocals
 
 			if (Manager)
 			{
-				Manager->FixOwnedPatchBackPointers();
+				Manager->MigrateToPrioritySystemAndDelete();
 			}
 		}
 	}));
 #endif // WITH_EDITOR
+
+	// Removes invalid patches from the list. This happens automatically when applying patches.
+	void FilterLegacyRegisteredPatches(TArray<TSoftObjectPtr<ULandscapePatchComponent>>& PatchComponents,
+		TMap<TSoftObjectPtr<ULandscapePatchComponent>, int32>& PatchToIndex, const ALandscapePatchManager* ThisPatchManager)
+	{
+		// Used for removing invalid brushes. We remove from the index map immediately but then remove
+		// from the array and update other indices at the very end.
+		bool bHaveInvalidPatches = false;
+		int32 MinRemovedIndex = PatchComponents.Num();
+		auto RemoveComponentFromIndexMap = [&PatchToIndex, &MinRemovedIndex](TSoftObjectPtr<ULandscapePatchComponent>& Component)
+		{
+			int32 RemovedIndex = -1;
+			if (PatchToIndex.RemoveAndCopyValue(Component, RemovedIndex))
+			{
+				MinRemovedIndex = FMath::Min(MinRemovedIndex, RemovedIndex);
+			}
+		};
+
+		for (TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
+		{
+			if (Component.IsPending())
+			{
+				Component.LoadSynchronous();
+			}
+
+			if (Component.IsNull())
+			{
+				// Theoretically when components are marked for destruction, they should remove themselves from
+				// the patch manager in their OnComponentDestroyed call. However there seem to be ways to end up
+				// with destroyed patches not being removed, for instance through saving the manager but not the
+				// patch actor.
+				UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found an invalid patch in patch manager. It will be removed."));
+				RemoveComponentFromIndexMap(Component);
+				bHaveInvalidPatches = true;
+				continue;
+			}
+
+			if (!Component.IsValid())
+			{
+				// This means that IsPending() was true, but LoadSynchronous() failed, which we generally don't
+				// expect to happen. However, it can happen in some edge cases such as if you force delete a patch
+				// holder blueprint and don't save the patch manager afterward. Whatever the reason, this is likely
+				// a dead patch that actually needs removal.
+				UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found a pending patch pointer in patch manager that "
+					"turned out to be invalid. It will be removed."));
+				RemoveComponentFromIndexMap(Component);
+				bHaveInvalidPatches = true;
+				continue;
+			}
+
+			// Make sure the patch has this manager set as its patch manager.
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				if (Component->GetPatchManager() != ThisPatchManager)
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				{
+						UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found a patch whose patch manager is not set "
+								"to a patch manager that contains it. It will be removed."));
+						RemoveComponentFromIndexMap(Component);
+						bHaveInvalidPatches = true;
+					continue;
+				}
+
+					if (!Component->IsPatchInWorld())
+					{
+						UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found a non-world patch in patch manager. It will be removed."));
+						RemoveComponentFromIndexMap(Component);
+						bHaveInvalidPatches = true;
+						continue;
+					}
+		}
+
+		if (bHaveInvalidPatches)
+		{
+			PatchComponents.RemoveAll([ThisPatchManager](TSoftObjectPtr<ULandscapePatchComponent> Component) {
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					return !Component.IsValid() || Component->GetPatchManager() != ThisPatchManager || !Component->IsPatchInWorld();
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			});
+			// Update forward indices
+			for (int32 i = MinRemovedIndex; i < PatchComponents.Num(); ++i)
+			{
+				PatchToIndex.Add(PatchComponents[i], i);
+			}
+		}
+	}
+
+	/**
+	 * Returns true if any of the patches in the list pass the predicate.
+	 */
+	bool AnyOfPatchComponents(TArrayView<const TSoftObjectPtr<ULandscapePatchComponent>> LegacyRegisteredPatches,
+		TFunctionRef<bool(ULandscapePatchComponent&)> InPredicate)
+	{
+		return Algo::AnyOf(LegacyRegisteredPatches, [InPredicate](const TSoftObjectPtr<ULandscapePatchComponent>& InComponent)
+		{
+			if (InComponent.IsPending())
+			{
+				InComponent.LoadSynchronous();
+			}
+
+			if (InComponent.IsValid() && InPredicate(*InComponent.Get()))
+			{
+				return true;
+			}
+			return false;
+		});
+	}
 }
 
 // TODO: Not sure if using this kind of constructor is a proper thing to do vs some other hook...
@@ -72,131 +193,66 @@ ALandscapePatchManager::ALandscapePatchManager(const FObjectInitializer& ObjectI
 #endif
 }
 
-void ALandscapePatchManager::Initialize_Native(const FTransform & InLandscapeTransform,
+void ALandscapePatchManager::Initialize_Native(const FTransform& InLandscapeTransform,
 	const FIntPoint& InLandscapeSize,
 	const FIntPoint& InLandscapeRenderTargetSize)
 {
-	// Get a transform from pixel coordinate in heightmap to world space coordinate. Note that we can't
-	// store the inverse directly because a FTransform can't properly represent a TRS inverse when the
-	// original TRS has non-uniform scaling).
-
-	// The pixel to landscape-space transform is unrotated, (S_p * x + T_p). The landscape to world
-	// transform gets applied on top of this: (R_l * S_l * (S_p * x + T_p)) + T_L. Collapsing this
-	// down to pixel to world TRS, we get: R_l * (S_l * S_p) * x + (R_l * S_l * T_p + T_L)
-
-	// To go from stored height value to unscaled height, we divide by 128 and subtract 256. We can get these
-	// values from the constants in LandscapeDataAccess.h (we distribute the multiplication by LANDSCAPE_ZSCALE
-	// so that translation happens after scaling like in TRS)
-	const double HEIGHTMAP_TO_OBJECT_HEIGHT_SCALE = LANDSCAPE_ZSCALE;
-	const double HEIGHTMAP_TO_OBJECT_HEIGHT_OFFSET = -LandscapeDataAccess::MidValue * LANDSCAPE_ZSCALE;
-
-	// S_p: the pixel coordinate scale is actually the same as xy object-space coordinates because one quad is 1 unit,
-	// so we only need to scale the height.
-	FVector3d PixelToObjectSpaceScale = FVector3d(
-		1,
-		1,
-		HEIGHTMAP_TO_OBJECT_HEIGHT_SCALE
-	);
-
-	// T_p: the center of the pixel
-	FVector3d PixelToObjectSpaceTranslate = FVector3d(
-		-0.5,
-		-0.5,
-		HEIGHTMAP_TO_OBJECT_HEIGHT_OFFSET
-	);
-
-	// S_l* S_p: composed scale
-	HeightmapCoordsToWorld.SetScale3D(InLandscapeTransform.GetScale3D() * PixelToObjectSpaceScale);
-
-	// R_l
-	HeightmapCoordsToWorld.SetRotation(InLandscapeTransform.GetRotation());
-
-	// R_l * S_l * T_p + T_L: composed translation
-	HeightmapCoordsToWorld.SetTranslation(InLandscapeTransform.TransformVector(PixelToObjectSpaceTranslate)
-		+ InLandscapeTransform.GetTranslation());
+	HeightmapCoordsToWorld = UE::Landscape::PatchUtil::GetHeightmapToWorld(InLandscapeTransform);
 }
 
+// Called in global merge to apply the patches
 UTextureRenderTarget2D* ALandscapePatchManager::RenderLayer_Native(const FLandscapeBrushParameters& InParameters)
 {
 	using namespace LandscapePatchManagerLocals;
 
-	// Used to determine whether we need to remove any invalid brushes
-	bool bHaveInvalidPatches = false;
-	FLandscapeBrushParameters BrushParameters = InParameters;
+	// Note: We do not expect RenderLayer_Native to be called in the batched merge case.
+	// TODO: Check the cvar to make sure that is not the case?
 
-	// TODO: There are many uncertainties in how we iterate across the height patches and have them
-	// apply themselves. For one thing we may want to pass around a render graph, in which case this
-	// loop will happen on the render thread somehow. For another, it's not yet determined what all
-	// of this will look like when we have the ability to render to just a subsection of the entire
-	// height map.
-	// So for now we do the simplest thing, and that is to have the height patches act as if they were
-	// independent brushes.
+	FilterLegacyRegisteredPatches(PatchComponents, PatchToIndex, this);
+	FLandscapeBrushParameters BrushParameters = InParameters;
 	for (TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
 	{
-		if (Component.IsPending())
-		{
-			Component.LoadSynchronous();
-		}
-
-		if (Component.IsNull())
-		{
-			// Theoretically when components are marked for destruction, they should remove themselves from
-			// the patch manager in their OnComponentDestroyed call. However there seem to be ways to end up
-			// with destroyed patches not being removed, for instance through saving the manager but not the
-			// patch actor.
-			UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found an invalid patch in patch manager. It will be removed."));
-			bHaveInvalidPatches = true;
-			continue;
-		}
-
-		if (!Component.IsValid())
-		{
-			// This means that IsPending() was true, but LoadSynchronous() failed, which we generally don't
-			// expect to happen. However, it can happen in some edge cases such as if you force delete a patch
-			// holder blueprint and don't save the patch manager afterward. Whatever the reason, this is likely
-			// a dead patch that actually needs removal.
-			UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found a pending patch pointer in patch manager that "
-				"turned out to be invalid. It will be removed."));
-			Component = nullptr;
-			bHaveInvalidPatches = true;
-			continue;
-		}
-
 		if (!Component->IsEnabled())
 		{
 			// Skip disabled patches
 			continue;
 		}
 
-		// Make sure the patch has this manager set as its patch manager.
-		if (Component->GetPatchManager() != this)
-		{
-#if WITH_EDITORONLY_DATA
-			if (!bIssuedPatchOwnershipWarning)
-			{
-				bIssuedPatchOwnershipWarning = true;
-				UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found at least one patch whose patch manager is not "
-					"set to a patch manager that contains it. This should be fixed an the patches resaved (do this through the map check "
-					"action, or via LandscapePatch.PatchManager.FixOwnedPatchBackPointers console command.)"));
-			}
-#endif
-
-			// The patches need a proper back pointer to get parameters for their render call.
-			continue;
-		}
-
-		BrushParameters.CombinedResult = Component->RenderLayer_Native(BrushParameters); 
-	}
-
-	if (bHaveInvalidPatches)
-	{
-		PatchComponents.RemoveAll([](TSoftObjectPtr<ULandscapePatchComponent> Component) {
-			return Component.IsNull();
-			});
+		BrushParameters.CombinedResult = Component->RenderLayer_Native(BrushParameters, GetHeightmapCoordsToWorld());
 	}
 
 	return BrushParameters.CombinedResult;
 }
+
+#if WITH_EDITOR
+// Called in batched merge path to apply the patches
+TArray<UE::Landscape::EditLayers::FEditLayerRendererState> ALandscapePatchManager::GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush)
+{
+	using namespace LandscapePatchManagerLocals;
+
+	FilterLegacyRegisteredPatches(PatchComponents, PatchToIndex, this);
+
+	TArray<FEditLayerRendererState> RendererStates;
+	RendererStates.Reserve(PatchComponents.Num());
+	for (TSoftObjectPtr<ULandscapePatchComponent>& PatchSoft : PatchComponents)
+	{
+		ULandscapePatchComponent* Patch = PatchSoft.Get();
+		if (!Patch)
+		{
+			continue;
+		}
+
+		FEditLayerRendererState& RendererState = RendererStates.Emplace_GetRef(Patch, InLandscapeInfo);
+		if (bInSkipBrush || !Patch->IsEnabled())
+		{
+			RendererState.DisableTargetTypeMask(ELandscapeToolTargetTypeFlags::All);
+		}
+	}
+
+	return RendererStates;
+}
+
+#endif // WITH_EDITOR
 
 void ALandscapePatchManager::SetTargetLandscape(ALandscape* InTargetLandscape)
 {
@@ -230,7 +286,12 @@ void ALandscapePatchManager::SetTargetLandscape(ALandscape* InTargetLandscape)
 
 			ILandscapeModule& LandscapeModule = FModuleManager::GetModuleChecked<ILandscapeModule>("Landscape");
 			int32 PatchLayerIndex = LandscapeModule.GetLandscapeEditorServices()->GetOrCreateEditLayer(PatchLayerName, InTargetLandscape);
-			
+
+			if (!ensure(PatchLayerIndex >= 0))
+			{
+				return;
+			}
+
 			// Among other things, this will call SetOwningLandscape on us.
 			InTargetLandscape->AddBrushToLayer(PatchLayerIndex, this);
 
@@ -249,34 +310,38 @@ void ALandscapePatchManager::SetTargetLandscape(ALandscape* InTargetLandscape)
 
 bool ALandscapePatchManager::ContainsPatch(ULandscapePatchComponent* Patch) const
 {
-	return PatchComponents.Contains(Patch);
+	return PatchToIndex.Contains(TSoftObjectPtr<ULandscapePatchComponent>(Patch));
 }
 
 void ALandscapePatchManager::AddPatch(ULandscapePatchComponent* Patch)
 {
 	using namespace LandscapePatchManagerLocals;
 
-	if (Patch)
+	if (Patch && Patch->IsPatchInWorld())
 	{
 		if (!ContainsPatch(Patch))
 		{
 			Modify();
-			PatchComponents.Add(TSoftObjectPtr<ULandscapePatchComponent>(Patch));
+			TSoftObjectPtr<ULandscapePatchComponent> PatchSoftPtr(Patch);
+			PatchComponents.Add(PatchSoftPtr);
+			PatchToIndex.Add(PatchSoftPtr, PatchComponents.Num() - 1);
 		}
 
-		if (Patch->GetPatchManager() != this)
-		{
-			UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager::AddPatch: Added patch does not have this manager set "
-				"as its manager. Patches should typically be added to managers by setting the manager on the patch. "
-				"(Package: % s, Actor : % s)"), *GetNameSafe(Patch->GetPackage()), *GetNameSafe(Patch->GetAttachmentRootActor()));
-		}
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Patch->GetPatchManager() != this)
+			{
+				UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager::AddPatch: Added patch does not have this manager set "
+					"as its manager. Patches are typically added to managers by setting the manager on the patch. "
+					"(Package: % s, Actor : % s)"), *GetNameSafe(Patch->GetPackage()), *GetNameSafe(Patch->GetAttachmentRootActor()));
+			}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		// No need to update if the patch is disabled. Important to avoid needlessly updating while dragging a blueprint with
-		// a disabled patch (since construction scripts constantly add and remove).
-		if (Patch->IsEnabled())
-		{
-			RequestLandscapeUpdate();
-		}
+			// No need to update if the patch is disabled. Important to avoid needlessly updating while dragging a blueprint with
+			// a disabled patch (since construction scripts constantly add and remove).
+			if (Patch->IsEnabled())
+			{
+				RequestLandscapeUpdate(!UE::GetIsEditorLoadingPackage());
+			}
 	}
 }
 
@@ -287,27 +352,50 @@ bool ALandscapePatchManager::RemovePatch(ULandscapePatchComponent* Patch)
 	if (Patch && ContainsPatch(Patch))
 	{
 		Modify();
-		bRemoved = PatchComponents.Remove(TSoftObjectPtr<ULandscapePatchComponent>(Patch)) > 0;
+		TSoftObjectPtr<ULandscapePatchComponent> PatchSoftPtr(Patch);
+		bRemoved = PatchComponents.Remove(PatchSoftPtr) > 0;
+		if (bRemoved)
+		{
+			int32 RemovedIndex = -1;
+			if (PatchToIndex.RemoveAndCopyValue(PatchSoftPtr, RemovedIndex))
+			{
+				for (int32 i = RemovedIndex; i < PatchComponents.Num(); ++i)
+				{
+					PatchToIndex.Add(PatchComponents[i], i);
+				}
+			}
+
+		}
 
 		// No need to update if the patch was already disabled.Important to avoid needlessly updating while dragging 
 		// a blueprint with a disabled patch (since construction scripts constantly add and remove).
 		if (bRemoved && Patch->IsEnabled())
 		{
-			RequestLandscapeUpdate();
+			RequestLandscapeUpdate(!UE::GetIsEditorLoadingPackage());
 		}
 	}
-	
+
 	return bRemoved;
 }
 
 int32 ALandscapePatchManager::GetIndexOfPatch(const ULandscapePatchComponent* Patch) const
 {
-	return PatchComponents.IndexOfByKey(Patch);
+	if (const int32* Index = PatchToIndex.Find(TSoftObjectPtr<ULandscapePatchComponent>(const_cast<ULandscapePatchComponent*>(Patch))))
+	{
+		return *Index;
+	}
+	return INDEX_NONE;
 }
 
 void ALandscapePatchManager::MovePatchToIndex(ULandscapePatchComponent* Patch, int32 Index)
 {
-	if (!Patch || Index < 0 || GetIndexOfPatch(Patch) == Index)
+	if (!Patch || !Patch->IsPatchInWorld() || Index < 0)
+	{
+		return;
+	}
+
+	int32 OriginalIndex = GetIndexOfPatch(Patch);
+	if (OriginalIndex == Index)
 	{
 		return;
 	}
@@ -322,6 +410,18 @@ void ALandscapePatchManager::MovePatchToIndex(ULandscapePatchComponent* Patch, i
 	Index = FMath::Clamp(Index, 0, PatchComponents.Num());
 	PatchComponents.Insert(TSoftObjectPtr<ULandscapePatchComponent>(Patch), Index);
 
+	// Update our index lookup structure
+	int32 OtherEndOfChangedIndices = OriginalIndex < 0 ? PatchComponents.Num() - 1
+		: FMath::Min(OriginalIndex, PatchComponents.Num() - 1);
+
+	int32 StartIndex = FMath::Min(Index, OtherEndOfChangedIndices);
+	int32 EndIndex = FMath::Max(Index, OtherEndOfChangedIndices);
+
+	for (int32 i = StartIndex; i <= EndIndex; ++i)
+	{
+		PatchToIndex.Add(PatchComponents[i], i);
+	}
+
 	if (Patch->IsEnabled())
 	{
 		RequestLandscapeUpdate();
@@ -329,94 +429,145 @@ void ALandscapePatchManager::MovePatchToIndex(ULandscapePatchComponent* Patch, i
 }
 
 #if WITH_EDITOR
-void ALandscapePatchManager::FixOwnedPatchBackPointers()
+void ALandscapePatchManager::MigrateToPrioritySystemAndDelete()
 {
-	for (TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
+	if (!PatchComponents.IsEmpty())
 	{
-		if (Component.IsValid() && Component->GetPatchManager() != this)
+		Modify();
+
+		// Patches will remove themselves from PatchComponents as we go along, so we need to iterate
+		// a copy.
+		TArray<TSoftObjectPtr<ULandscapePatchComponent>> PatchListCopy;
+
+		// We call Modify on all the patches we'll be touching at the start, otherwise they will
+		// store incorrect indices for undo as they are removed.
+		for (TSoftObjectPtr<ULandscapePatchComponent> Patch : PatchComponents)
 		{
-			Component->SetPatchManager(this);
+			if (Patch.IsPending())
+			{
+				Patch.LoadSynchronous();
+			}
+
+			if (Patch.IsValid())
+			{
+				Patch->Modify();
+				PatchListCopy.Add(Patch);
+			}
 		}
+
+		double Priority = LEGACY_PATCH_PRIORITY_BASE;
+		double PriorityStep = 1.0 / FMath::Max(1, PatchComponents.Num());
+
+		for (TSoftObjectPtr<ULandscapePatchComponent> Patch : PatchListCopy)
+		{
+			Patch->SetPriority(Priority);
+			Priority += PriorityStep;
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				Patch->SetPatchManager(nullptr);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+				Patch->FixBindings();
+		}
+
+		PatchComponents.Empty();
+		RequestLandscapeUpdate();
 	}
+
+	// Important so that we remove ourselves from the landscape blueprint brush list
+	SetTargetLandscape(nullptr);
+
+	// This will warn the user if there are still references to the manager
+	UTypedElementSelectionSet* SelectionSet = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>()->GetSelectionSet();
+	GUnrealEd->DeleteActors({ this }, GetWorld(), SelectionSet);
 }
 
-void ALandscapePatchManager::MarkModifiedInConstructionScript()
-{
-	bDirtiedByConstructionScript = true;
-}
 
-void ALandscapePatchManager::MarkDirtyIfModifiedInConstructionScript()
+bool ALandscapePatchManager::AffectsHeightmap() const
 {
-	if (bDirtiedByConstructionScript)
+	using namespace LandscapePatchManagerLocals;
+
+	if (!CanAffectHeightmap())
 	{
-		MarkPackageDirty();
+		return false;
 	}
+
+	return AnyOfPatchComponents(PatchComponents,
+		[](ULandscapePatchComponent& InComponent) { return InComponent.AffectsHeightmap(); });
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool ALandscapePatchManager::IsAffectingWeightmapLayer(const FName& InLayerName) const
+bool ALandscapePatchManager::AffectsWeightmap() const
 {
-	return AffectsWeightmapLayer(InLayerName);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	using namespace LandscapePatchManagerLocals;
 
-bool ALandscapePatchManager::AffectsWeightmapLayer(const FName& InLayerName) const
-{
 	if (!CanAffectWeightmap())
 	{
 		return false;
 	}
-	
-	for (const TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
-	{
-		if (Component.IsPending())
-		{
-			Component.LoadSynchronous();
-		}
 
-		if (Component.IsValid() && Component->IsEnabled() && Component->AffectsWeightmapLayer(InLayerName))
-		{
-			return true;
-		}
+	return AnyOfPatchComponents(PatchComponents,
+		[](ULandscapePatchComponent& InComponent) { return InComponent.AffectsWeightmap(); });
+
+}
+
+bool ALandscapePatchManager::AffectsWeightmapLayer(const FName& InLayerName) const
+{
+	using namespace LandscapePatchManagerLocals;
+
+	if (!CanAffectWeightmap())
+	{
+		return false;
 	}
 
-	return false;
+	return AnyOfPatchComponents(PatchComponents,
+		[InLayerName](ULandscapePatchComponent& InComponent) { return InComponent.AffectsWeightmapLayer(InLayerName); });
 }
 
 bool ALandscapePatchManager::AffectsVisibilityLayer() const
 {
+	using namespace LandscapePatchManagerLocals;
+
 	if (!CanAffectVisibilityLayer())
 	{
 		return false;
 	}
 
-	for (const TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
+	return AnyOfPatchComponents(PatchComponents,
+		[](ULandscapePatchComponent& InComponent) { return InComponent.AffectsVisibilityLayer(); });
+}
+
+bool ALandscapePatchManager::CanAffectWeightmapLayer(const FName& InLayerName) const
+{
+	using namespace LandscapePatchManagerLocals;
+
+	if (!CanAffectWeightmap())
+	{
+		return false;
+	}
+
+	return AnyOfPatchComponents(PatchComponents,
+		[InLayerName](ULandscapePatchComponent& InComponent) { return InComponent.CanAffectWeightmapLayer(InLayerName); });
+}
+
+void ALandscapePatchManager::GetRenderDependencies(TSet<UObject*>& OutDependencies)
+{
+	for (TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
 	{
 		if (Component.IsPending())
 		{
 			Component.LoadSynchronous();
 		}
 
-		if (Component.IsValid() && Component->IsEnabled() && Component->AffectsVisibilityLayer())
+		if (Component.IsValid())
 		{
-			return true;
+			Component->GetRenderDependencies(OutDependencies);
 		}
 	}
-
-	return false;
 }
 
 void ALandscapePatchManager::PostEditUndo()
 {
 	RequestLandscapeUpdate();
-}
-
-void ALandscapePatchManager::PreSave(FObjectPreSaveContext SaveContext)
-{
-	Super::PreSave(SaveContext);
-
-	// If we're saving, then we no longer have to worry about our dirtiness.
-	bDirtiedByConstructionScript = false;
 }
 
 void ALandscapePatchManager::SetOwningLandscape(ALandscape* InOwningLandscape)
@@ -445,6 +596,17 @@ void ALandscapePatchManager::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	}
 }
 
+void ALandscapePatchManager::PostLoad()
+{
+	Super::PostLoad();
+
+	PatchToIndex.Reset();
+	for (int32 i = 0; i < PatchComponents.Num(); ++i)
+	{
+		PatchToIndex.Add(PatchComponents[i], i);
+	}
+}
+
 void ALandscapePatchManager::CheckForErrors()
 {
 	using namespace LandscapePatchManagerLocals;
@@ -459,47 +621,55 @@ void ALandscapePatchManager::CheckForErrors()
 		return Arguments;
 	};
 
-	// See if we're supposed to be dirty but aren't
-	if (bDirtiedByConstructionScript && !(GetPackage() && GetPackage()->IsDirty()))
-	{
-		FMessageLog("MapCheck").Warning()
-			->AddToken(FUObjectToken::Create(this))
-			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("ManagerNeedsSaving", "Manager got modified in a construction "
-				"script rerun but has not been marked dirty. This could cause patch order to be unstable. "
-				"(Package: {Package}, Manager: {Actor})."), GetPackageAndActorArgs())))
-			->AddToken(FActionToken::Create(LOCTEXT("MarkDirtyButton", "Mark dirty"), FText(),
-				FOnActionTokenExecuted::CreateWeakLambda(this, [this]()
-		{
-			MarkPackageDirty();
-		})));
-	}
-
 	// See if we're holding on to any patches that don't have us as the owning patch manager
 	bool bHavePatchWithIncorrectManager = false;
 	for (TSoftObjectPtr<ULandscapePatchComponent>& Component : PatchComponents)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (Component.IsValid() && Component->GetPatchManager() != this)
 		{
 			bHavePatchWithIncorrectManager = true;
 			break;
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	if (bHavePatchWithIncorrectManager)
 	{
-		FFormatNamedArguments Arguments;
-		Arguments.Add(TEXT("Manager"), FText::FromString(GetActorNameOrLabel()));
-		Arguments.Add(TEXT("Outer"), FText::FromString(GetPackage()->GetPathName()));
-
 		FMessageLog("MapCheck").Warning()
 			->AddToken(FUObjectToken::Create(this))
 			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("PatchesHaveIncorrectManagerPointer", "Patch manager holds at "
-				"least one patch whose patch manager pointer is set incorrectly. These need to be fixed and resaved. "
+				"least one patch whose patch manager pointer is set incorrectly. These patches should be removed from the manager."
 				"(Package: {Package}, Manager: {Actor})."), GetPackageAndActorArgs())))
 			->AddToken(FActionToken::Create(LOCTEXT("FixPatchesButton", "Fix patches"), FText(),
-				FOnActionTokenExecuted::CreateWeakLambda(this, [this]() 
+				FOnActionTokenExecuted::CreateWeakLambda(this, [this]()
+				{
+					// Hard to say whether this should be in a transaction, or even be an action, because this happens
+					// automatically on the next landscape update... We'll stick with having it be user triggerable but
+					// not undoable.
+
+					PatchComponents.RemoveAll([this](TSoftObjectPtr<ULandscapePatchComponent> Component) 
+					{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						return Component.IsValid() && Component->GetPatchManager() != this;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					});
+				})));
+	}
+
+	if (PatchComponents.Num() > 0)
+	{
+		FMessageLog("MapCheck").Warning()
+			->AddToken(FUObjectToken::Create(this))
+			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("UsingLegacyPatchList", "The use of the patch manager to "
+				"determine patch ordering is deprecated. Patches should point to a specific edit layer via a guid and "
+				"use Priority for ordering. You can use LandscapePatch.MigrateLegacyListToPrioritySystem to "
+				"fix this. (Package: {Package}, Manager: {Actor})."), GetPackageAndActorArgs())))
+			->AddToken(FActionToken::Create(LOCTEXT("MigrateToGuidsButton", "Migrate to guid system"), FText(),
+				FOnActionTokenExecuted::CreateWeakLambda(this, [this]()
 		{
-			FixOwnedPatchBackPointers();
+			const FScopedTransaction Transaction(MigratePatchesTransactionName);
+			MigrateToPrioritySystemAndDelete();
 		})));
 	}
 }

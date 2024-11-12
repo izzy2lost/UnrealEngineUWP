@@ -180,7 +180,7 @@ namespace PropertyPathHelpersInternal
 					{
 						// Create and init a buffer for the function to write to
 						TArray<uint8> TempBuffer;
-						TempBuffer.AddUninitialized(ReturnProperty->ElementSize);
+						TempBuffer.AddUninitialized(ReturnProperty->GetElementSize());
 						ReturnProperty->InitializeValue(TempBuffer.GetData());
 
 						InContainer->ProcessEvent(InFunction, TempBuffer.GetData());
@@ -276,7 +276,7 @@ namespace PropertyPathHelpersInternal
 					{
 						// Create and init a buffer for the function to read from
 						TArray<uint8> TempBuffer;
-						TempBuffer.AddUninitialized(ParamProperty->ElementSize);
+						TempBuffer.AddUninitialized(ParamProperty->GetElementSize());
 						ParamProperty->InitializeValue(TempBuffer.GetData());
 
 						ParamProperty->ImportText_Direct(*InValue, TempBuffer.GetData(), nullptr, 0);
@@ -676,7 +676,7 @@ FPropertyPathSegment::FPropertyPathSegment(int32 InCount, const TCHAR* InString)
 	int32 PropertyNameLength = 0;
 	PropertyPathHelpers::FindFieldNameAndArrayIndex(InCount, InString, PropertyNameLength, &PropertyName, ArrayIndex);
 	ensure(PropertyName != nullptr);
-	FString PropertyNameString(PropertyNameLength, PropertyName);
+	FString PropertyNameString = FString::ConstructFromPtrSize(PropertyName, PropertyNameLength);
 	Name = FName(*PropertyNameString, FNAME_Find);
 }
 
@@ -1047,7 +1047,7 @@ namespace PropertyPathHelpers
 			{
 				OutCount = Offset;
 				// here we need to copy - since we need a section of the string only
-				FString ArrayIndexString(InCount - Offset - 2, &InString[Offset + 1]);
+				FString ArrayIndexString = FString::ConstructFromPtrSize(&InString[Offset + 1], InCount - Offset - 2);
 				OutArrayIndex = FCString::Atoi(*ArrayIndexString);
 				break;
 		}

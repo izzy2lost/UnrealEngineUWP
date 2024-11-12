@@ -12,4 +12,7 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+	static float GetAbsolutePositionOnRail(const UObject* Object);
+	static void SetAbsolutePositionOnRail(UObject* Object, float InNewValue);
 };

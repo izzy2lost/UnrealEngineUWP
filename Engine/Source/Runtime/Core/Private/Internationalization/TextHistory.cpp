@@ -108,7 +108,7 @@ const TCHAR* ReadNumberFromBuffer(const TCHAR* Buffer, FFormatArgumentValue& Out
 	while (NumericString.Len() > 0 && FCString::Strchr(SuffixNumericChars, NumericString[NumericString.Len() - 1]))
 	{
 		SuffixString += NumericString[NumericString.Len() - 1];
-		NumericString.RemoveAt(NumericString.Len() - 1, 1, EAllowShrinking::No);
+		NumericString.RemoveAt(NumericString.Len() - 1, EAllowShrinking::No);
 	}
 
 	if (!NumericString.IsNumeric())
@@ -687,9 +687,7 @@ void FTextHistory::UpdateDisplayStringIfOutOfDate()
 	{
 		uint16 CurrentGlobalRevision = 0;
 		uint16 CurrentLocalRevision = 0;
-		UE_AUTORTFM_OPEN({
-			FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), CurrentGlobalRevision, CurrentLocalRevision);
-		});
+		FTextLocalizationManager::Get().GetTextRevisions(GetTextId(), CurrentGlobalRevision, CurrentLocalRevision);
 
 		if (GlobalRevision != CurrentGlobalRevision || LocalRevision != CurrentLocalRevision)
 		{
@@ -790,7 +788,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 			const FString PackageNamespace = TextNamespaceUtil::GetPackageNamespace(BaseArchive);
 			if (!PackageNamespace.IsEmpty())
 			{
-				const FString NamespaceStr = Namespace.GetChars();
+				const FString NamespaceStr = Namespace.ToString();
 				const FString FullNamespace = TextNamespaceUtil::BuildFullNamespace(NamespaceStr, PackageNamespace);
 				if (!NamespaceStr.Equals(FullNamespace, ESearchCase::CaseSensitive))
 				{
@@ -806,7 +804,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 		if (!GIsEditor)
 		{
 			// Strip the package localization ID to match how text works at runtime (properties do this when saving during cook)
-			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.GetChars());
+			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.ToString());
 		}
 #endif // WITH_EDITOR
 
@@ -822,7 +820,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 		if (BaseArchive.IsCooking())
 		{
 			// We strip the package localization off the serialized text for a cooked game, as they're not used at runtime
-			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.GetChars());
+			Namespace = TextNamespaceUtil::StripPackageNamespace(Namespace.ToString());
 		}
 		else
 		{
@@ -833,7 +831,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 				const FString PackageNamespace = TextNamespaceUtil::GetPackageNamespace(BaseArchive);
 				if (!PackageNamespace.IsEmpty())
 				{
-					const FString NamespaceStr = Namespace.GetChars();
+					const FString NamespaceStr = Namespace.ToString();
 					const FString FullNamespace = TextNamespaceUtil::BuildFullNamespace(NamespaceStr, PackageNamespace);
 					if (!NamespaceStr.Equals(FullNamespace, ESearchCase::CaseSensitive))
 					{
@@ -877,9 +875,10 @@ void FTextHistory_Base::UpdateDisplayString()
 
 	// Create a temp to hold the old value in case we abort, in which case we assign out of the OPEN so the old value will be preserved
 	FTextConstDisplayStringPtr NewLocalizedString;
-	UE_AUTORTFM_OPEN({
+	UE_AUTORTFM_OPEN
+	{
 		NewLocalizedString = FTextLocalizationManager::Get().GetDisplayString(TextId.GetNamespace(), TextId.GetKey(), SourceString.IsEmpty() ? nullptr : &SourceString);
-	});
+	};
 
 	LocalizedString = NewLocalizedString;
 }
@@ -1017,8 +1016,8 @@ bool FTextHistory_Base::WriteToBuffer(FString& Buffer, const bool bStripPackageN
 {
 	if (!TextId.IsEmpty())
 	{
-		FString Namespace = TextId.GetNamespace().GetChars();
-		FString Key = TextId.GetKey().GetChars();
+		FString Namespace = TextId.GetNamespace().ToString();
+		FString Key = TextId.GetKey().ToString();
 		if (bStripPackageNamespace)
 		{
 			TextNamespaceUtil::StripPackageNamespaceInline(Namespace);
@@ -2331,10 +2330,10 @@ bool FTextHistory_Transform::GetHistoricNumericData(const FText& InText, FHistor
 ///////////////////////////////////////
 // FTextHistory_StringTableEntry
 
-FTextHistory_StringTableEntry::FTextHistory_StringTableEntry(FName InTableId, FString&& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
+FTextHistory_StringTableEntry::FTextHistory_StringTableEntry(FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
 	: StringTableReferenceData(MakeShared<FStringTableReferenceData, ESPMode::ThreadSafe>())
 {
-	StringTableReferenceData->Initialize(InTableId, MoveTemp(InKey), InLoadingPolicy);
+	StringTableReferenceData->Initialize(InTableId, InKey, InLoadingPolicy);
 	MarkDisplayStringUpToDate();
 }
 
@@ -2492,7 +2491,7 @@ bool FTextHistory_StringTableEntry::WriteToBuffer(FString& Buffer, const bool bS
 		FTextKey Key;
 		StringTableReferenceData->GetTableIdAndKey(TableId, Key);
 
-		FString KeyStr = Key.GetChars();
+		FString KeyStr = Key.ToString();
 
 #define LOC_DEFINE_REGION
 		// Produces LOCTABLE("...", "...")
@@ -2509,10 +2508,10 @@ bool FTextHistory_StringTableEntry::WriteToBuffer(FString& Buffer, const bool bS
 	return false;
 }
 
-void FTextHistory_StringTableEntry::FStringTableReferenceData::Initialize(FName InTableId, FTextKey InKey, const EStringTableLoadingPolicy InLoadingPolicy)
+void FTextHistory_StringTableEntry::FStringTableReferenceData::Initialize(FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
 {
 	TableId = InTableId;
-	Key = MoveTemp(InKey);
+	Key = InKey;
 	FStringTableRedirects::RedirectTableIdAndKey(TableId, Key);
 
 	if (InLoadingPolicy == EStringTableLoadingPolicy::Find)

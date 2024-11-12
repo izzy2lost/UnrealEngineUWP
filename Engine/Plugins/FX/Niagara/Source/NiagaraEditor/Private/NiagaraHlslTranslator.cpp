@@ -1172,6 +1172,53 @@ static void ConvertFloatToHalf(const FNiagaraCompileOptions& InCompileOptions, T
 	}
 }
 
+// Collapses the set of attributes based on if they would overlap (i.e. attributes share the same name and either have
+// the same type or an equivalent type, like position and vector, (for now)).
+static void CollapseAttributes(const FNiagaraCompileOptions& InCompileOptions, TArray<FNiagaraVariable>& SortedAttributes)
+{
+	const FNiagaraTypeDefinition& Vec3Type = FNiagaraTypeDefinition::GetVec3Def();
+	const FNiagaraTypeDefinition& PosType = FNiagaraTypeDefinition::GetPositionDef();
+
+	auto CanCollapseAttributeTypes = [&](const FNiagaraTypeDefinition& Lhs, const FNiagaraTypeDefinition& Rhs) -> bool
+	{
+		if (Lhs == Rhs)
+		{
+			return true;
+		}
+
+		// for now we're only going to consider the implications of Vec3 vs Position types
+		if ((Lhs == Vec3Type && Rhs == PosType)
+			|| (Lhs == PosType && Rhs == Vec3Type))
+		{
+			return true;
+		}
+
+		return false;
+	};
+
+	for (int32 AttrIt = 0; AttrIt < SortedAttributes.Num(); ++AttrIt)
+	{
+		const FNiagaraVariable& CurrentVariable = SortedAttributes[AttrIt];
+		const FNiagaraTypeDefinition& CurrentVariableType = CurrentVariable.GetType();
+
+		// look at all attributes sharing the name and remove all that have the same or equivalent type
+		int32 NextAttrIt = AttrIt + 1;
+		while (SortedAttributes.IsValidIndex(NextAttrIt) && SortedAttributes[NextAttrIt].GetName() == CurrentVariable.GetName())
+		{
+			const FNiagaraVariable& NextVariable = SortedAttributes[NextAttrIt];
+
+			if (CanCollapseAttributeTypes(CurrentVariableType, NextVariable.GetType()))
+			{
+				SortedAttributes.RemoveAt(NextAttrIt, EAllowShrinking::No);
+			}
+			else
+			{
+				++NextAttrIt;
+			}
+		}
+	}
+}
+
 template<typename GraphBridge>
 FNiagaraTranslateResults TNiagaraHlslTranslator<GraphBridge>::Translate(const FNiagaraCompileOptions& InCompileOptions, const FHlslNiagaraTranslatorOptions& InTranslateOptions)
 {
@@ -2036,6 +2083,7 @@ FNiagaraTranslateResults TNiagaraHlslTranslator<GraphBridge>::Translate(const FN
 		});
 
 		ConvertFloatToHalf(CompileOptions, BasicAttributes);
+		CollapseAttributes(CompileOptions, BasicAttributes);
 
 		DataSetVariables[InstanceReadVarsIndex] = BasicAttributes;
 		DataSetVariables[InstanceWriteVarsIndex] = BasicAttributes;
@@ -3035,6 +3083,7 @@ void FNiagaraHlslTranslator::DefineDataInterfaceHLSL(FString& InHlslOutput)
 			DIHlslGenContext.GetStructHlslTypeNameDelegate.BindStatic(&FNiagaraHlslTranslator::GetStructHlslTypeName);
 			DIHlslGenContext.GetPropertyHlslTypeNameDelegate.BindStatic(&FNiagaraHlslTranslator::GetPropertyHlslTypeName);
 			DIHlslGenContext.GetSanitizedSymbolNameDelegate.BindStatic(&FNiagaraHlslTranslator::GetSanitizedSymbolName);
+			DIHlslGenContext.GetHlslDefaultForTypeDelegate.BindStatic(&FNiagaraHlslTranslator::GetHlslDefaultForType);
 			CDO->GetParameterDefinitionHLSL(DIHlslGenContext, InterfaceUniformHLSL);
 
 			// Ask the DI to generate HLSL.
@@ -5321,7 +5370,9 @@ bool FNiagaraHlslTranslator::IsWriteAllowedForNamespace(const FNiagaraVariable& 
 template<typename GraphBridge>
 bool FNiagaraHlslTranslationStage::IsRelevantToSpawnForStage(const typename GraphBridge::FParamMapHistory& InHistory, const FNiagaraVariable& InAliasedVar, const FNiagaraVariable& InVar) const
 {
-	if (InHistory.IsPrimaryDataSetOutput(InAliasedVar, ScriptUsage) && (UNiagaraScript::IsSpawnScript(ScriptUsage) || bShouldUpdateInitialAttributeValues))
+	const FNiagaraVariableBase DataSetVariable = InAliasedVar.IsInNameSpace(FNiagaraConstants::StackContextNamespace) ? InVar : InAliasedVar;
+
+	if (InHistory.IsPrimaryDataSetOutput(DataSetVariable, ScriptUsage) && (UNiagaraScript::IsSpawnScript(ScriptUsage) || bShouldUpdateInitialAttributeValues))
 	{
 		return true;
 	}
@@ -5330,7 +5381,7 @@ bool FNiagaraHlslTranslationStage::IsRelevantToSpawnForStage(const typename Grap
 	{
 		switch (IterationSourceType)
 		{
-			case ENiagaraIterationSource::Particles:		return InHistory.IsPrimaryDataSetOutput(InAliasedVar, ENiagaraScriptUsage::EmitterSpawnScript); 
+			case ENiagaraIterationSource::Particles:		return InHistory.IsPrimaryDataSetOutput(DataSetVariable, ENiagaraScriptUsage::EmitterSpawnScript);
 			case ENiagaraIterationSource::DataInterface:	return InVar.IsInNameSpace(IterationDataInterface) && !InVar.IsDataInterface();
 			case ENiagaraIterationSource::DirectSet:		return false;
 			default:										check(false);
@@ -7925,6 +7976,19 @@ void TNiagaraHlslTranslator<GraphBridge>::FunctionCall(const FFunctionCallNode* 
 		}
 	}
 
+	if (Signature.NoDefaultValueInputs.Num() > 0)
+	{
+		for (int32 i = 0; i < CallInputs.Num(); i++)
+		{
+			const FInputPin* InPin = CallInputs[i];
+			FNiagaraVariableBase Var = GraphBridge::GetPinVariable(InPin, false, ENiagaraStructConversion::Simulation);
+			if (Signature.NoDefaultValueInputs.Contains(Var) && GraphBridge::GetLinkedOutputPin(InPin) == nullptr)
+			{
+				Error(LOCTEXT("NoDefaultValueInput", "Function call input pin doesn't support default values and needs to be wired in."), FunctionNode, InPin);
+			}
+		}
+	}
+
 	if (const FCustomHlslNode* CustomFunctionHlsl = GraphBridge::AsCustomHlslNode(FunctionNode))
 	{
 		// All of the arguments here are resolved withing the HandleCustomHlsl function..
@@ -8455,8 +8519,8 @@ void TNiagaraHlslTranslator<GraphBridge>::ProcessCustomHlsl(const FString& InCus
 	OutSignature.Inputs = SigInputs;
 
 	// Resolve the names of any internal variables from the output variables.
-	TArray<FNiagaraVariable> SigOutputs;
-	for (FNiagaraVariable Output : OutSignature.Outputs)
+	TArray<FNiagaraVariableBase> SigOutputs;
+	for (FNiagaraVariableBase& Output : OutSignature.Outputs)
 	{
 		if (Output.GetType() == FNiagaraTypeDefinition::GetParameterMapDef())
 		{
@@ -8604,11 +8668,27 @@ void TNiagaraHlslTranslator<GraphBridge>::HandleDataInterfaceCall(FNiagaraScript
 				AllowedContexts.Append(TEXT(", "));
 			}
 			check(EnumClass != nullptr);
-			AllowedContexts.Append(EnumClass->GetNameByValue((int64)Usage).ToString());
+			AllowedContexts.Append(EnumClass->GetNameByValue(static_cast<int64>(Usage)).ToString());
 		}
 		
-		FText ThisContextText = FText::FromName(EnumClass->GetNameByValue((int64)TranslationStages[ActiveStageIdx].ScriptUsage));
+		FText ThisContextText = FText::FromName(EnumClass->GetNameByValue(static_cast<int64>(TranslationStages[ActiveStageIdx].ScriptUsage)));
 		Error(FText::Format(LOCTEXT("FunctionCallDataInterfaceWrongContext", "Function call \"{0}\" is not allowed for stack context {1}. Allowed: {2}"), FText::FromName(InMatchingSignature.Name), ThisContextText, FText::FromString(AllowedContexts)), CurNode, nullptr);
+	}
+
+	// register structs used by DI parameters
+	for (const FNiagaraVariable& Input : InMatchingSignature.Inputs)
+	{
+		if (!AddStructToDefinitionSet(Input.GetType()))
+		{
+			Error(FText::Format(LOCTEXT("DIFunctionInputTypeError", "Cannot handle type {0} in DI function input. Function {1}, Input {2}"), Input.GetType().GetNameText(), FText::FromName(InMatchingSignature.Name), FText::FromName(Input.GetName())), CurNode, nullptr);
+		}
+	}
+	for (const FNiagaraVariableBase& Output : InMatchingSignature.Outputs)
+	{
+		if (!AddStructToDefinitionSet(Output.GetType()))
+		{
+			Error(FText::Format(LOCTEXT("DIFunctionOutputTypeError", "Cannot handle type {0} in DI function output. Function {1}, Output {2}"), Output.GetType().GetNameText(), FText::FromName(InMatchingSignature.Name), FText::FromName(Output.GetName())), CurNode, nullptr);
+		}
 	}
 	
 	//UE_LOG(LogNiagaraEditor, Log, TEXT("HandleDataInterfaceCall %d %s %s %s"), ActiveStageIdx, *InMatchingSignature.Name.ToString(), InMatchingSignature.bWriteFunction ? TEXT("true") : TEXT("False"), *Info.Name.ToString());
@@ -9057,18 +9137,19 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 	FString DefStr = GetFunctionSignatureSymbol(FunctionSignature) + TEXT("(");
 	for (int32 i = 0; i < FunctionSignature.Inputs.Num(); ++i)
 	{
-		FNiagaraTypeDefinition Type = FunctionSignature.Inputs[i].GetType();
+		const FNiagaraVariable& InputVar = FunctionSignature.Inputs[i];
+		FNiagaraTypeDefinition Type = InputVar.GetType();
 		if (Type.UnderlyingType != 0 && Type.ClassStructOrEnum == nullptr)
 		{
-			Error(FText::Format(LOCTEXT("InvalidTypeDefError", "Invalid data in niagara type definition, might be due to broken serialization or missing DI implementation! Variable: {0}"), FText::FromName(FunctionSignature.Inputs[i].GetName())));
+			Error(FText::Format(LOCTEXT("InvalidTypeDefError", "Invalid data in niagara type definition, might be due to broken serialization or missing DI implementation! Variable: {0}"), FText::FromName(InputVar.GetName())));
 			continue;
 		}
 
 		if (!ensure(i < Inputs.Num()))
 		{
-			Error(FText::Format(LOCTEXT("InvalidInputNum", "Functon Input of %d is out of bounds in function signature! Variable: {0}"), 
+			Error(FText::Format(LOCTEXT("InvalidInputNum", "Function Input of %d is out of bounds in function signature! Variable: {0}"), 
 			FText::AsNumber(i),
-			FText::FromName(FunctionSignature.Inputs[i].GetName())));
+			FText::FromName(InputVar.GetName())));
 			continue;
 		}
 
@@ -9077,13 +9158,13 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 		{
 			if (!AddStructToDefinitionSet(Type))
 			{
-				Error(FText::Format(LOCTEXT("GetConstantFailTypeVar2", "Cannot handle type {0}! Variable: {1}"), Type.GetNameText(), FText::FromName(FunctionSignature.Inputs[i].GetName())));
+				Error(FText::Format(LOCTEXT("GetConstantFailTypeVar2", "Cannot handle type {0}! Variable: {1}"), Type.GetNameText(), FText::FromName(InputVar.GetName())));
 			}
 
 			int32 Input = Inputs[i];
 			bool bSkip = false;
 
-			if (FunctionSignature.Inputs[i].GetType() == FNiagaraTypeDefinition::GetParameterMapDef())
+			if (InputVar.GetType() == FNiagaraTypeDefinition::GetParameterMapDef())
 			{
 				Input = INDEX_NONE;
 				bSkip = true;
@@ -9099,7 +9180,7 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 				Params.Add(Input);
 				if (Input == INDEX_NONE)
 				{
-					MissingParameters.Add(FunctionSignature.Inputs[i].GetName().ToString());
+					MissingParameters.Add(InputVar.GetName().ToString());
 				}
 				else
 				{
@@ -9112,7 +9193,7 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 
 	for (int32 i = 0; i < FunctionSignature.Outputs.Num(); ++i)
 	{
-		FNiagaraVariable& OutVar = FunctionSignature.Outputs[i];
+		FNiagaraVariableBase& OutVar = FunctionSignature.Outputs[i];
 		FNiagaraTypeDefinition Type = ConvertToSimulationVariable(OutVar).GetType();
 
 		//We don't write class types as real params in the hlsl
@@ -9235,7 +9316,6 @@ FString FNiagaraHlslTranslator::GetFunctionSignatureSymbol(const FNiagaraFunctio
 	TArray<FNiagaraVariableBase> VariadicParams;
 	VariadicParams.Reserve(Sig.NumOptionalInputs() + Sig.NumOptionalOutputs());
 	Sig.GetVariadicInputs(VariadicParams);
-	AddVarsToSig(VariadicParams);
 	Sig.GetVariadicOutputs(VariadicParams);
 	AddVarsToSig(VariadicParams);
 
@@ -9388,7 +9468,7 @@ FString FNiagaraHlslTranslator::GetFunctionSignature(const FNiagaraFunctionSigna
 
 	for (int32 i = 0; i < Sig.Outputs.Num(); ++i)
 	{
-		const FNiagaraVariable& Output = Sig.Outputs[i];
+		const FNiagaraVariableBase& Output = Sig.Outputs[i];
 		//We don't write class types as real params in the hlsl
 		if (Output.GetType().GetClass() == nullptr)
 		{
@@ -10705,18 +10785,21 @@ bool FNiagaraHlslTranslator::AddStructToDefinitionSet(const FNiagaraTypeDefiniti
 		return true;
 	}
 
+	if (StructsToDefine.Contains(TypeDef))
+	{
+		return true;
+	}
+
 	// Now make sure that we don't have any other struct types within our struct. Add them prior to the struct in question to make sure
 	// that the syntax works out properly.
-	UScriptStruct* Struct = FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(TypeDef.GetScriptStruct(), ENiagaraStructConversion::Simulation);
-	if (Struct != nullptr)
+	if (UScriptStruct* Struct = FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(TypeDef.GetScriptStruct(), ENiagaraStructConversion::Simulation))
 	{
 		// We need to recursively dig through the struct to get at the lowest level of the input struct, which
 		// could be a native type.
 		for (TFieldIterator<FProperty> PropertyIt(Struct, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
 		{
 			const FProperty* Property = *PropertyIt;
-			const FStructProperty* StructProp = CastField<const FStructProperty>(Property);
-			if (StructProp)
+			if (const FStructProperty* StructProp = CastField<const FStructProperty>(Property))
 			{
 				if (!AddStructToDefinitionSet(StructProp->Struct.Get()))
 				{

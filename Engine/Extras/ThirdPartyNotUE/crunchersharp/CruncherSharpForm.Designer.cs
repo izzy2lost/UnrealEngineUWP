@@ -54,6 +54,9 @@
             this.restrictToSymbolsImportedFroCSVToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.unrealEngineToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addMemPoolsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.mB2ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.mB3ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.customMBToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.restrictToUObjectsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openPdbDialog = new System.Windows.Forms.OpenFileDialog();
             this.openCsvDialog = new System.Windows.Forms.OpenFileDialog();
@@ -61,7 +64,7 @@
             this.checkedListBoxNamespaces = new System.Windows.Forms.CheckedListBox();
             this.chkShowTemplates = new System.Windows.Forms.CheckBox();
             this.textBoxCache = new System.Windows.Forms.MaskedTextBox();
-            this.label2 = new System.Windows.Forms.Label();
+            this.labelCacheLine = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.textBoxFilter = new System.Windows.Forms.TextBox();
             this.statusStripBar = new System.Windows.Forms.StatusStrip();
@@ -74,6 +77,8 @@
             this.loadCSVBackgroundWorker = new System.ComponentModel.BackgroundWorker();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.checkBoxMember = new System.Windows.Forms.CheckBox();
+            this.checkBoxSubclasses = new System.Windows.Forms.CheckBox();
             this.checkBoxNamespaces = new System.Windows.Forms.CheckBox();
             this.checkBoxFunctionAnalysis = new System.Windows.Forms.CheckBox();
             this.checkBoxShowOverlap = new System.Windows.Forms.CheckBox();
@@ -86,11 +91,11 @@
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.btnLoad = new System.Windows.Forms.Button();
             this.btnReset = new System.Windows.Forms.Button();
-            this.chkSmartCacheLines = new System.Windows.Forms.CheckBox();
+            this.checkBoxSmartCacheLines = new System.Windows.Forms.CheckBox();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.dataGridSymbols = new System.Windows.Forms.DataGridView();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
-            this.labelCurrentSymbol = new System.Windows.Forms.Label();
+            this.labelCurrentSymbol = new System.Windows.Forms.TextBox();
             this.Infos = new System.Windows.Forms.TabControl();
             this.tabMembers = new System.Windows.Forms.TabPage();
             this.dataGridViewSymbolInfo = new System.Windows.Forms.DataGridView();
@@ -100,7 +105,9 @@
             this.colFieldOffset = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colBitPosition = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFieldSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnAlignment = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFieldPadding = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFieldSaving = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tabFunctions = new System.Windows.Forms.TabPage();
             this.panel2 = new System.Windows.Forms.Panel();
             this.dataGridViewFunctionsInfo = new System.Windows.Forms.DataGridView();
@@ -303,15 +310,39 @@
             // 
             // addMemPoolsToolStripMenuItem
             // 
+            this.addMemPoolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.mB2ToolStripMenuItem,
+            this.mB3ToolStripMenuItem,
+            this.customMBToolStripMenuItem});
             this.addMemPoolsToolStripMenuItem.Name = "addMemPoolsToolStripMenuItem";
-            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.addMemPoolsToolStripMenuItem.Text = "Set memory pools";
-            this.addMemPoolsToolStripMenuItem.Click += new System.EventHandler(this.addMemPoolsToolStripMenuItem_Click);
+            // 
+            // mB2ToolStripMenuItem
+            // 
+            this.mB2ToolStripMenuItem.Name = "mB2ToolStripMenuItem";
+            this.mB2ToolStripMenuItem.Size = new System.Drawing.Size(137, 22);
+            this.mB2ToolStripMenuItem.Text = "MB2";
+            this.mB2ToolStripMenuItem.Click += new System.EventHandler(this.mB2ToolStripMenuItem_Click);
+            // 
+            // mB3ToolStripMenuItem
+            // 
+            this.mB3ToolStripMenuItem.Name = "mB3ToolStripMenuItem";
+            this.mB3ToolStripMenuItem.Size = new System.Drawing.Size(137, 22);
+            this.mB3ToolStripMenuItem.Text = "MB3";
+            this.mB3ToolStripMenuItem.Click += new System.EventHandler(this.mB3ToolStripMenuItem_Click);
+            // 
+            // customMBToolStripMenuItem
+            // 
+            this.customMBToolStripMenuItem.Name = "customMBToolStripMenuItem";
+            this.customMBToolStripMenuItem.Size = new System.Drawing.Size(137, 22);
+            this.customMBToolStripMenuItem.Text = "Custom MB";
+            this.customMBToolStripMenuItem.Click += new System.EventHandler(this.customMBToolStripMenuItem_Click);
             // 
             // restrictToUObjectsToolStripMenuItem
             // 
             this.restrictToUObjectsToolStripMenuItem.Name = "restrictToUObjectsToolStripMenuItem";
-            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.restrictToUObjectsToolStripMenuItem.Text = "Restrict to UObjects";
             this.restrictToUObjectsToolStripMenuItem.Click += new System.EventHandler(this.restrictToUObjectsToolStripMenuItem_Click);
             // 
@@ -335,14 +366,16 @@
             this.checkedListBoxNamespaces.Location = new System.Drawing.Point(3, 16);
             this.checkedListBoxNamespaces.MultiColumn = true;
             this.checkedListBoxNamespaces.Name = "checkedListBoxNamespaces";
-            this.checkedListBoxNamespaces.Size = new System.Drawing.Size(1175, 85);
+            this.checkedListBoxNamespaces.Size = new System.Drawing.Size(1046, 85);
             this.checkedListBoxNamespaces.TabIndex = 10;
             this.checkedListBoxNamespaces.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.checkedListBoxNamespaces_ItemCheck);
             // 
             // chkShowTemplates
             // 
             this.chkShowTemplates.AutoSize = true;
-            this.chkShowTemplates.Location = new System.Drawing.Point(476, 35);
+            this.chkShowTemplates.Checked = true;
+            this.chkShowTemplates.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkShowTemplates.Location = new System.Drawing.Point(424, 35);
             this.chkShowTemplates.Name = "chkShowTemplates";
             this.chkShowTemplates.Size = new System.Drawing.Size(101, 17);
             this.chkShowTemplates.TabIndex = 6;
@@ -352,6 +385,7 @@
             // 
             // textBoxCache
             // 
+            this.textBoxCache.Enabled = false;
             this.textBoxCache.Location = new System.Drawing.Point(186, 58);
             this.textBoxCache.Mask = "0000";
             this.textBoxCache.Name = "textBoxCache";
@@ -362,14 +396,15 @@
             this.textBoxCache.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.textBoxCache_KeyPress);
             this.textBoxCache.Leave += new System.EventHandler(this.textBoxCache_Leave);
             // 
-            // label2
+            // labelCacheLine
             // 
-            this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(127, 62);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(57, 13);
-            this.label2.TabIndex = 3;
-            this.label2.Text = "Cache line";
+            this.labelCacheLine.AutoSize = true;
+            this.labelCacheLine.Enabled = false;
+            this.labelCacheLine.Location = new System.Drawing.Point(127, 62);
+            this.labelCacheLine.Name = "labelCacheLine";
+            this.labelCacheLine.Size = new System.Drawing.Size(57, 13);
+            this.labelCacheLine.TabIndex = 3;
+            this.labelCacheLine.Text = "Cache line";
             // 
             // label1
             // 
@@ -473,6 +508,8 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.panel1.AutoSize = true;
+            this.panel1.Controls.Add(this.checkBoxMember);
+            this.panel1.Controls.Add(this.checkBoxSubclasses);
             this.panel1.Controls.Add(this.checkBoxNamespaces);
             this.panel1.Controls.Add(this.checkBoxFunctionAnalysis);
             this.panel1.Controls.Add(this.checkBoxShowOverlap);
@@ -485,16 +522,38 @@
             this.panel1.Controls.Add(this.groupBox1);
             this.panel1.Controls.Add(this.btnLoad);
             this.panel1.Controls.Add(this.btnReset);
-            this.panel1.Controls.Add(this.chkSmartCacheLines);
+            this.panel1.Controls.Add(this.checkBoxSmartCacheLines);
             this.panel1.Controls.Add(this.chkShowTemplates);
             this.panel1.Controls.Add(this.label1);
             this.panel1.Controls.Add(this.textBoxCache);
             this.panel1.Controls.Add(this.textBoxFilter);
-            this.panel1.Controls.Add(this.label2);
+            this.panel1.Controls.Add(this.labelCacheLine);
             this.panel1.Location = new System.Drawing.Point(3, 3);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(1791, 104);
             this.panel1.TabIndex = 4;
+            // 
+            // checkBoxMember
+            // 
+            this.checkBoxMember.AutoSize = true;
+            this.checkBoxMember.Location = new System.Drawing.Point(637, 35);
+            this.checkBoxMember.Name = "checkBoxMember";
+            this.checkBoxMember.Size = new System.Drawing.Size(64, 17);
+            this.checkBoxMember.TabIndex = 19;
+            this.checkBoxMember.Text = "Member";
+            this.checkBoxMember.UseVisualStyleBackColor = true;
+            this.checkBoxMember.CheckedChanged += new System.EventHandler(this.checkBoxMember_CheckedChanged);
+            // 
+            // checkBoxSubclasses
+            // 
+            this.checkBoxSubclasses.AutoSize = true;
+            this.checkBoxSubclasses.Location = new System.Drawing.Point(537, 35);
+            this.checkBoxSubclasses.Name = "checkBoxSubclasses";
+            this.checkBoxSubclasses.Size = new System.Drawing.Size(80, 17);
+            this.checkBoxSubclasses.TabIndex = 12;
+            this.checkBoxSubclasses.Text = "Subclasses";
+            this.checkBoxSubclasses.UseVisualStyleBackColor = true;
+            this.checkBoxSubclasses.CheckedChanged += new System.EventHandler(this.checkBoxSubclasses_CheckedChanged);
             // 
             // checkBoxNamespaces
             // 
@@ -523,6 +582,7 @@
             this.checkBoxShowOverlap.AutoSize = true;
             this.checkBoxShowOverlap.Checked = true;
             this.checkBoxShowOverlap.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.checkBoxShowOverlap.Enabled = false;
             this.checkBoxShowOverlap.Location = new System.Drawing.Point(435, 62);
             this.checkBoxShowOverlap.Name = "checkBoxShowOverlap";
             this.checkBoxShowOverlap.Size = new System.Drawing.Size(148, 17);
@@ -568,7 +628,7 @@
             // checkBoxRegularExpressions
             // 
             this.checkBoxRegularExpressions.AutoSize = true;
-            this.checkBoxRegularExpressions.Location = new System.Drawing.Point(303, 35);
+            this.checkBoxRegularExpressions.Location = new System.Drawing.Point(268, 35);
             this.checkBoxRegularExpressions.Name = "checkBoxRegularExpressions";
             this.checkBoxRegularExpressions.Size = new System.Drawing.Size(138, 17);
             this.checkBoxRegularExpressions.TabIndex = 5;
@@ -581,7 +641,7 @@
             this.checkBoxMatchWholeExpression.AutoSize = true;
             this.checkBoxMatchWholeExpression.Checked = true;
             this.checkBoxMatchWholeExpression.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxMatchWholeExpression.Location = new System.Drawing.Point(128, 35);
+            this.checkBoxMatchWholeExpression.Location = new System.Drawing.Point(111, 35);
             this.checkBoxMatchWholeExpression.Name = "checkBoxMatchWholeExpression";
             this.checkBoxMatchWholeExpression.Size = new System.Drawing.Size(140, 17);
             this.checkBoxMatchWholeExpression.TabIndex = 4;
@@ -608,9 +668,9 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox1.Controls.Add(this.checkedListBoxNamespaces);
-            this.groupBox1.Location = new System.Drawing.Point(606, 0);
+            this.groupBox1.Location = new System.Drawing.Point(735, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(1181, 104);
+            this.groupBox1.Size = new System.Drawing.Size(1052, 104);
             this.groupBox1.TabIndex = 12;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Namespaces";
@@ -637,18 +697,19 @@
             this.btnReset.UseVisualStyleBackColor = true;
             this.btnReset.Click += new System.EventHandler(this.Reset_Click);
             // 
-            // chkSmartCacheLines
+            // checkBoxSmartCacheLines
             // 
-            this.chkSmartCacheLines.AutoSize = true;
-            this.chkSmartCacheLines.Checked = true;
-            this.chkSmartCacheLines.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkSmartCacheLines.Location = new System.Drawing.Point(245, 61);
-            this.chkSmartCacheLines.Name = "chkSmartCacheLines";
-            this.chkSmartCacheLines.Size = new System.Drawing.Size(174, 17);
-            this.chkSmartCacheLines.TabIndex = 9;
-            this.chkSmartCacheLines.Text = "Merge consecutive cache lines";
-            this.chkSmartCacheLines.UseVisualStyleBackColor = true;
-            this.chkSmartCacheLines.CheckedChanged += new System.EventHandler(this.chkSmartCacheLines_CheckedChanged);
+            this.checkBoxSmartCacheLines.AutoSize = true;
+            this.checkBoxSmartCacheLines.Checked = true;
+            this.checkBoxSmartCacheLines.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.checkBoxSmartCacheLines.Enabled = false;
+            this.checkBoxSmartCacheLines.Location = new System.Drawing.Point(245, 61);
+            this.checkBoxSmartCacheLines.Name = "checkBoxSmartCacheLines";
+            this.checkBoxSmartCacheLines.Size = new System.Drawing.Size(174, 17);
+            this.checkBoxSmartCacheLines.TabIndex = 9;
+            this.checkBoxSmartCacheLines.Text = "Merge consecutive cache lines";
+            this.checkBoxSmartCacheLines.UseVisualStyleBackColor = true;
+            this.checkBoxSmartCacheLines.CheckedChanged += new System.EventHandler(this.checkBoxSmartCacheLines_CheckedChanged);
             // 
             // splitContainer1
             // 
@@ -712,11 +773,12 @@
             // 
             // labelCurrentSymbol
             // 
-            this.labelCurrentSymbol.AutoSize = true;
+            this.labelCurrentSymbol.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.labelCurrentSymbol.Dock = System.Windows.Forms.DockStyle.Fill;
             this.labelCurrentSymbol.Location = new System.Drawing.Point(0, 0);
             this.labelCurrentSymbol.Name = "labelCurrentSymbol";
-            this.labelCurrentSymbol.Size = new System.Drawing.Size(0, 13);
+            this.labelCurrentSymbol.ReadOnly = true;
+            this.labelCurrentSymbol.Size = new System.Drawing.Size(787, 13);
             this.labelCurrentSymbol.TabIndex = 17;
             // 
             // Infos
@@ -754,10 +816,11 @@
             this.colFieldOffset,
             this.colBitPosition,
             this.colFieldSize,
-            this.colFieldPadding});
+            this.ColumnAlignment,
+            this.colFieldPadding,
+            this.colFieldSaving});
             this.dataGridViewSymbolInfo.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewSymbolInfo.Location = new System.Drawing.Point(3, 3);
-            this.dataGridViewSymbolInfo.MultiSelect = false;
             this.dataGridViewSymbolInfo.Name = "dataGridViewSymbolInfo";
             this.dataGridViewSymbolInfo.ReadOnly = true;
             this.dataGridViewSymbolInfo.RowHeadersVisible = false;
@@ -815,7 +878,7 @@
             this.colBitPosition.HeaderText = "Bit offset";
             this.colBitPosition.Name = "colBitPosition";
             this.colBitPosition.ReadOnly = true;
-            this.colBitPosition.Width = 73;
+            this.colBitPosition.Width = 68;
             // 
             // colFieldSize
             // 
@@ -828,6 +891,12 @@
             this.colFieldSize.ReadOnly = true;
             this.colFieldSize.Width = 52;
             // 
+            // ColumnAlignment
+            // 
+            this.ColumnAlignment.HeaderText = "Min alignment";
+            this.ColumnAlignment.Name = "ColumnAlignment";
+            this.ColumnAlignment.ReadOnly = true;
+            // 
             // colFieldPadding
             // 
             this.colFieldPadding.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
@@ -838,6 +907,14 @@
             this.colFieldPadding.Name = "colFieldPadding";
             this.colFieldPadding.ReadOnly = true;
             this.colFieldPadding.Width = 71;
+            // 
+            // colFieldSaving
+            // 
+            this.colFieldSaving.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            this.colFieldSaving.HeaderText = "Potential saving";
+            this.colFieldSaving.Name = "colFieldSaving";
+            this.colFieldSaving.ReadOnly = true;
+            this.colFieldSaving.Width = 98;
             // 
             // tabFunctions
             // 
@@ -940,9 +1017,9 @@
             this.contextMenuStripClassInfo.Name = "contextMenuStripClassInfo";
             this.contextMenuStripClassInfo.Size = new System.Drawing.Size(154, 26);
             // 
-            // toolStripMenuItemParentClasses
+            // toolStripMenuItemDerivedClasses
             // 
-            this.toolStripMenuItemDerivedClasses.Name = "toolStripMenuItemParentClasses";
+            this.toolStripMenuItemDerivedClasses.Name = "toolStripMenuItemDerivedClasses";
             this.toolStripMenuItemDerivedClasses.Size = new System.Drawing.Size(153, 22);
             this.toolStripMenuItemDerivedClasses.Text = "Derived classes";
             // 
@@ -1020,7 +1097,7 @@
         private System.Windows.Forms.TextBox textBoxFilter;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripMembers;
         private System.Windows.Forms.ToolStripMenuItem copyTypeLayoutToClipboardToolStripMenuItem;
-        private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Label labelCacheLine;
         private System.Windows.Forms.MaskedTextBox textBoxCache;
         private System.Windows.Forms.ToolStripMenuItem setPrefetchStartOffsetToolStripMenuItem;
         private System.Windows.Forms.CheckBox chkShowTemplates;
@@ -1037,7 +1114,7 @@
         private System.Windows.Forms.ToolStripProgressBar toolStripProgressBar;
         private System.Windows.Forms.ToolStripMenuItem compareWithPDBToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportCsvToolStripMenuItem;
-        private System.Windows.Forms.CheckBox chkSmartCacheLines;
+        private System.Windows.Forms.CheckBox checkBoxSmartCacheLines;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripClassInfo;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemDerivedClasses;
         private System.Windows.Forms.Button btnReset;
@@ -1049,7 +1126,7 @@
         private System.Windows.Forms.TabPage tabMembers;
         private System.Windows.Forms.DataGridView dataGridViewSymbolInfo;
         private System.Windows.Forms.TabPage tabFunctions;
-        private System.Windows.Forms.Label labelCurrentSymbol;
+        private System.Windows.Forms.TextBox labelCurrentSymbol;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.DataGridView dataGridViewFunctionsInfo;
         private System.Windows.Forms.ToolStripMenuItem findToolStripMenuItem1;
@@ -1070,13 +1147,6 @@
         private System.Windows.Forms.CheckBox checkBoxMatchCase;
         private System.Windows.Forms.CheckBox checkBoxRegularExpressions;
         private System.Windows.Forms.CheckBox checkBoxCacheLines;
-        private System.Windows.Forms.DataGridViewTextBoxColumn Expand;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colField;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldType;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldOffset;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colBitPosition;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldSize;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldPadding;
         private System.Windows.Forms.CheckBox checkBoxPadding;
         private System.Windows.Forms.CheckBox checkBoxBitPadding;
 		private System.Windows.Forms.CheckBox checkBoxShowOverlap;
@@ -1089,6 +1159,20 @@
         private System.Windows.Forms.ToolStripMenuItem useRawPDBToolStripMenuItem;
 		private System.Windows.Forms.CheckBox checkBoxNamespaces;
 		private System.Windows.Forms.ToolStripMenuItem restrictToUObjectsToolStripMenuItem;
+		private System.Windows.Forms.CheckBox checkBoxSubclasses;
+		private System.Windows.Forms.CheckBox checkBoxMember;
+		private System.Windows.Forms.ToolStripMenuItem mB2ToolStripMenuItem;
+		private System.Windows.Forms.ToolStripMenuItem mB3ToolStripMenuItem;
+		private System.Windows.Forms.ToolStripMenuItem customMBToolStripMenuItem;
+		private System.Windows.Forms.DataGridViewTextBoxColumn Expand;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colField;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldType;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldOffset;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colBitPosition;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldSize;
+		private System.Windows.Forms.DataGridViewTextBoxColumn ColumnAlignment;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldPadding;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldSaving;
 	}
 }
 

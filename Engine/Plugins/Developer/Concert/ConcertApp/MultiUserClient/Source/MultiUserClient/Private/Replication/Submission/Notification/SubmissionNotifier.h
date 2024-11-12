@@ -11,11 +11,11 @@
 class SNotificationItem;
 class FReply;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
-	class FRemoteReplicationClient;
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FRemoteClient;
+	class FOnlineClient;
+	class FOnlineClientManager;
 	
 	class SAuthorityRejectedNotification;
 	class SStreamRejectedNotification;
@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		FSubmissionNotifier(FReplicationClientManager& InReplicationClientManager);
+		FSubmissionNotifier(FOnlineClientManager& InReplicationClientManager);
 		~FSubmissionNotifier();
 
 		//~ Begin FTickableEditorObject Interface
@@ -43,7 +43,7 @@ namespace UE::MultiUserClient
 	private:
 
 		/** Emits events when remote clients are discovered. */
-		FReplicationClientManager& ReplicationClientManager;
+		FOnlineClientManager& ReplicationClientManager;
 
 		/** Only valid if changing streams has failed and the user has not yet dismissed the notification. */
 		TSharedPtr<SNotificationItem> StreamNotificationItem;
@@ -67,9 +67,9 @@ namespace UE::MultiUserClient
 		
 		
 		// Client events
-		void OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteReplicationClient);
-		void RegisterClient(FReplicationClient& Client);
-		void UnregisterClient(FReplicationClient& Client);
+		void OnPostRemoteClientAdded(FRemoteClient& RemoteReplicationClient);
+		void RegisterClient(FOnlineClient& Client);
+		void UnregisterClient(FOnlineClient& Client);
 
 		// Per-client submission events
 		void OnStreamRequestCompleted_AnyThread(const FSubmitStreamChangesResponse& Response);

@@ -39,7 +39,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "NNERuntimeRDG",
+			"Name": "NNERuntimeORT",
 			"Enabled": true
 		},
 		{

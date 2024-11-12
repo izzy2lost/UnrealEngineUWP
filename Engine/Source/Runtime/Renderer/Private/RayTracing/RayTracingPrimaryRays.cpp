@@ -15,6 +15,7 @@
 #include "PostProcess/PostProcessing.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
+#include "RayTracing/RayTracing.h"
 
 DECLARE_GPU_STAT(RayTracingPrimaryRays);
 
@@ -69,6 +70,11 @@ class FRayTracingPrimaryRaysRGS : public FGlobalShader
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FRayTracingPrimaryRaysRGS, "/Engine/Private/RayTracing/RayTracingPrimaryRays.usf", "RayTracingPrimaryRaysRGS", SF_RayGen);
@@ -76,7 +82,7 @@ IMPLEMENT_GLOBAL_SHADER(FRayTracingPrimaryRaysRGS, "/Engine/Private/RayTracing/R
 void FDeferredShadingSceneRenderer::PrepareRayTracingTranslucency(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
 	// Translucency and primary ray tracing requires the full ray tracing pipeline with material bindings.
-	if (!ShouldRenderRayTracingEffect(ERayTracingPipelineCompatibilityFlags::FullPipeline))
+	if (!ShouldRenderRayTracingEffect(true, ERayTracingPipelineCompatibilityFlags::FullPipeline, View))
 	{
 		return;
 	}
@@ -175,21 +181,25 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 
 	ClearUnusedGraphResources(RayGenShader, PassParameters);
 
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, RayTracingPrimaryRays, "RayTracingPrimaryRays");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingPrimaryRays);
 
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("RayTracingPrimaryRays %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, this, &View, RayGenShader, RayTracingResolution](FRHIRayTracingCommandList& RHICmdList)
+		[PassParameters, this, &View, SceneUniformBuffer, RayGenShader, RayTracingResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
+		FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 		FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 
-		FRayTracingShaderBindingsWriter GlobalResources;
+		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
+		TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
-		FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 	});
 }
 

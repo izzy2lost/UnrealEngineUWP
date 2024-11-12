@@ -2,21 +2,21 @@
 
 #include "SDMXFixtureTypeModesEditor.h"
 
+#include "Algo/AnyOf.h"
 #include "DMXEditor.h"
 #include "DMXFixtureTypeSharedData.h"
-#include "SDMXFixtureTypeModesEditorCategoryRow.h"
-#include "SDMXFixtureTypeModesEditorModeRow.h"
-#include "Library/DMXEntityFixtureType.h"
-#include "Widgets/FixtureType/DMXFixtureTypeModesEditorModeItem.h"
-
-#include "Styling/AppStyle.h"
-#include "ScopedTransaction.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "ScopedTransaction.h"
+#include "SDMXFixtureTypeModesEditorCategoryRow.h"
+#include "SDMXFixtureTypeModesEditorModeRow.h"
+#include "Styling/AppStyle.h"
+#include "Widgets/FixtureType/DMXFixtureTypeModesEditorModeItem.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Views/SListView.h"
-
 
 #define LOCTEXT_NAMESPACE "SDMXFixtureTypeModesEditor"
 
@@ -57,6 +57,42 @@ void SDMXFixtureTypeModesEditor::Construct(const FArguments& InArgs, const TShar
 			.BorderImage(&TableViewStyle.BackgroundBrush)
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
+		]
+
+		// Revision
+		+ SVerticalBox::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		.AutoHeight()
+		[
+			SNew(SBorder)
+			.Padding(2.0f)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			.ToolTipText(LOCTEXT("ShowAllRevisionsTooltip", "When checked, all revisions of the GDTF Modes in this GDTF are displayed, otherwise only the latest revisions are displayed.\nThis option is available as this Fixture Type is based on a GDTF and contains Modes with more than one revision."))
+			.Visibility(this, &SDMXFixtureTypeModesEditor::GetRevisionCheckBoxVisibility)
+			[
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				.Padding(8.f, 0.f)
+				.FillWidth(1.f)
+				[
+					SNew(STextBlock)
+					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+					.Text(LOCTEXT("ShowAllRevisionsCheckboxLabel", "Show all revisions"))
+				]
+
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SAssignNew(RevisionCheckBox, SCheckBox)
+					.OnCheckStateChanged(this, &SDMXFixtureTypeModesEditor::OnRevisionCheckBoxStateChanged) 			
+				]
+			]
 		]
 	];
 
@@ -102,18 +138,35 @@ void SDMXFixtureTypeModesEditor::RebuildList()
 		// Only single fixture type editing is supported
 		if (SelectedFixtureTypes.Num() == 1 && SelectedFixtureTypes[0].IsValid())
 		{
+			const UDMXEntityFixtureType& FixtureType = *SelectedFixtureTypes[0];
+
+			// Update the revision check box visibility 
+			bHasModeRevisions = false;
+
 			// Rebuild the list source
-			TWeakObjectPtr<UDMXEntityFixtureType> WeakFixtureType = SelectedFixtureTypes[0];
-			if (UDMXEntityFixtureType* FixtureType = WeakFixtureType.Get())
+			const FString SearchString = SearchText.ToString();
+			
+			for (int32 ModeIndex = 0; ModeIndex < FixtureType.Modes.Num(); ModeIndex++)
 			{
-				const FString SearchString = SearchText.ToString();
-				for (int32 ModeIndex = 0; ModeIndex < FixtureType->Modes.Num(); ModeIndex++)
+				if (SearchString.IsEmpty() || FixtureType.Modes[ModeIndex].ModeName.Contains(SearchString, ESearchCase::IgnoreCase))
 				{
-					if (SearchString.IsEmpty() || FixtureType->Modes[ModeIndex].ModeName.Contains(SearchString, ESearchCase::IgnoreCase))
-					{
-						TSharedRef<FDMXFixtureTypeModesEditorModeItem> ModeItem = MakeShared<FDMXFixtureTypeModesEditorModeItem>(DMXEditor.ToSharedRef(), FixtureType, ModeIndex);
-						ListSource.Add(ModeItem);
+					const TSharedRef<FDMXFixtureTypeModesEditorModeItem> ModeItem = MakeShared<FDMXFixtureTypeModesEditorModeItem>(DMXEditor.ToSharedRef(), SelectedFixtureTypes[0], ModeIndex);
+
+					const bool bIsNewerRevision = 
+						!ListSource.IsEmpty() &&
+						!FixtureType.GDTFSource.IsNull() &&
+						ModeItem->GetGDTFModeNumber() != INDEX_NONE &&
+						ModeItem->GetGDTFModeNumber() == ListSource.Last()->GetGDTFModeNumber();
+
+					bHasModeRevisions |= bIsNewerRevision;
+
+					// If only the latest revision should be shown, pop the previous item if it uses the same GDTF mode number.
+					if (bHasModeRevisions && bIsNewerRevision && FixtureType.bShowOnlyLatestGDTFModeRevisions)
+					{				
+						ListSource.Pop();
 					}
+
+					ListSource.Add(ModeItem);
 				}
 			}
 
@@ -121,7 +174,6 @@ void SDMXFixtureTypeModesEditor::RebuildList()
 			ListContentBorder->SetContent
 			(
 				SAssignNew(ListView, SListView<TSharedPtr<FDMXFixtureTypeModesEditorModeItem>>)
-				.ItemHeight(40.0f)
 				.ListItemsSource(&ListSource)
 				.OnGenerateRow(this, &SDMXFixtureTypeModesEditor::OnGenerateModeRow)
 				.OnSelectionChanged(this, &SDMXFixtureTypeModesEditor::OnListSelectionChanged)
@@ -133,6 +185,8 @@ void SDMXFixtureTypeModesEditor::RebuildList()
 		}
 		else if (SelectedFixtureTypes.Num() == 0)
 		{
+			bHasModeRevisions = false;
+
 			// Show a warning when no fixture type is selected
 			ListContentBorder->SetContent
 			(
@@ -147,6 +201,8 @@ void SDMXFixtureTypeModesEditor::RebuildList()
 		}
 		else
 		{
+			bHasModeRevisions = false;
+
 			// Show a warning when multiple fixture types are selected
 			ListContentBorder->SetContent
 			(
@@ -241,6 +297,24 @@ void SDMXFixtureTypeModesEditor::OnFixtureTypeSharedDataSelectedModes()
 		ListView->ClearSelection();
 		ListView->SetItemSelection(NewSelection, true, ESelectInfo::Direct);
 	}
+}
+
+void SDMXFixtureTypeModesEditor::OnRevisionCheckBoxStateChanged(ECheckBoxState NewCheckState)
+{
+	const TArray<TWeakObjectPtr<UDMXEntityFixtureType>> SelectedFixtureTypes = FixtureTypeSharedData->GetSelectedFixtureTypes();
+	if (ensureMsgf(SelectedFixtureTypes.Num() == 1, TEXT("Trying to set if latest mode revisions are shown for fixture type, but fixture type is invalid.")) &&
+		ensureMsgf(!SelectedFixtureTypes[0]->GDTFSource.IsNull(), TEXT("Trying to set if latest mode revisions are shown for fixture type, but fixture type has no GDTF.")) &&
+		SelectedFixtureTypes[0].IsValid())
+	{
+		SelectedFixtureTypes[0]->bShowOnlyLatestGDTFModeRevisions = NewCheckState != ECheckBoxState::Checked;
+
+		RebuildList();
+	}
+}
+
+EVisibility SDMXFixtureTypeModesEditor::GetRevisionCheckBoxVisibility() const
+{
+	return bHasModeRevisions ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 TArray<int32> SDMXFixtureTypeModesEditor::GetListSelectionAsModeIndices() const

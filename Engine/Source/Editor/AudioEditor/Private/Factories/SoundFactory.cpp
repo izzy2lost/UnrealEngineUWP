@@ -449,6 +449,46 @@ UObject* USoundFactory::CreateObject
 		int32 NumSamples = WaveInfo.SampleDataSize / SizeOfSample;
 		int32 NumFrames = NumSamples / ChannelCount;
 
+		// Starting or ending on a non-zero sample creates a pop unless you have very specific use cases
+		// (doesn't apply to ambi)
+		if (!bIsFuMa && !bIsAmbiX)
+		{
+			int32 EndChannelNonZero = 0;
+			int32 StartChannelNonZero = 0;
+			constexpr int16 LogDCLimit = 100; // amount of non zero dc we allow before we nag
+			for (int32 Chan = 0; Chan < ChannelCount; ++Chan)
+			{
+				const int16* FirstFrame = (const int16*)WaveInfo.SampleDataStart;
+				const int16* LastFrame = FirstFrame + (NumFrames-1)*ChannelCount;
+
+				FirstFrame += Chan;
+				LastFrame += Chan;
+
+				if (FMath::Abs(FirstFrame[0]) > LogDCLimit)
+				{
+					StartChannelNonZero++;
+				}
+
+				if (FMath::Abs(LastFrame[0]) > LogDCLimit)
+				{
+					EndChannelNonZero++;
+				}
+			}
+
+			if (EndChannelNonZero && StartChannelNonZero)
+			{
+				Warn->Logf(ELogVerbosity::Log, TEXT("Imported audio has DC offsets larger than %d at the end of %d channel%s and the start of %d channel%s - may pop and not loop well: '%s'"), LogDCLimit, EndChannelNonZero, EndChannelNonZero > 1 ? TEXT("s") : TEXT(""), StartChannelNonZero, StartChannelNonZero > 1 ? TEXT("s") : TEXT(""), *Name.ToString());
+			}
+			else if (EndChannelNonZero)
+			{
+				Warn->Logf(ELogVerbosity::Log, TEXT("Imported audio has DC offsets larger than %d at the end of %d channel%s - may pop and not loop well: '%s'"), LogDCLimit, EndChannelNonZero, EndChannelNonZero > 1 ? TEXT("s") : TEXT(""), *Name.ToString());
+			}
+			else if (StartChannelNonZero)
+			{
+				Warn->Logf(ELogVerbosity::Log, TEXT("Imported audio has DC offsets larger than %d at the start of %d channel%s - may pop and not loop well: '%s'"), LogDCLimit, StartChannelNonZero, StartChannelNonZero > 1 ? TEXT("s") : TEXT(""), *Name.ToString());
+			}
+		}
+
 		if (ChannelCount > 2)
 		{
 			// We need to deinterleave the raw PCM data in the multi-channel file reuse a scratch buffer
@@ -682,11 +722,10 @@ UObject* USoundFactory::CreateObject
 		}
 				
 		// Compressed data is now out of date.
-		const bool bRebuildStreamingChunks = FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching();
-		Sound->InvalidateCompressedData(true /* bFreeResources */, bRebuildStreamingChunks);
+		Sound->InvalidateCompressedData(true /* bFreeResources */);
 
 		// If stream caching is enabled, we need to make sure this asset is ready for playback.
-		if (bRebuildStreamingChunks && Sound->IsStreaming(nullptr))
+		if (Sound->IsStreaming(nullptr))
 		{
 			Sound->LoadZerothChunk();
 		}

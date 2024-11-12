@@ -3,8 +3,9 @@
 #pragma once
 
 #include "MetalRHIPrivate.h"
-#include "MetalCommandQueue.h"
 #include "GPUProfiler.h"
+
+DECLARE_DELEGATE_OneParam(FMetalCommandBufferCompletionHandler, MTL::CommandBuffer*);
 
 // Stats
 DECLARE_CYCLE_STAT_EXTERN(TEXT("MakeDrawable time"),STAT_MetalMakeDrawableTime,STATGROUP_MetalRHI, );
@@ -14,7 +15,6 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("SwitchToNone time"),STAT_MetalSwitchToNoneTime,S
 DECLARE_CYCLE_STAT_EXTERN(TEXT("SwitchToRender time"),STAT_MetalSwitchToRenderTime,STATGROUP_MetalRHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("SwitchToCompute time"),STAT_MetalSwitchToComputeTime,STATGROUP_MetalRHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("SwitchToBlit time"),STAT_MetalSwitchToBlitTime,STATGROUP_MetalRHI, );
-DECLARE_CYCLE_STAT_EXTERN(TEXT("SwitchToAsyncBlit time"),STAT_MetalSwitchToAsyncBlitTime,STATGROUP_MetalRHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("PrepareToRender time"),STAT_MetalPrepareToRenderTime,STATGROUP_MetalRHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("PrepareToDispatch time"),STAT_MetalPrepareToDispatchTime,STATGROUP_MetalRHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("CommitRenderResourceTables time"),STAT_MetalCommitRenderResourceTablesTime,STATGROUP_MetalRHI, );
@@ -41,9 +41,7 @@ DECLARE_MEMORY_STAT_EXTERN(TEXT("Uniform Memory In Flight"), STAT_MetalUniformMe
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Allocated Uniform Pool Memory"), STAT_MetalUniformAllocatedMemory, STATGROUP_MetalRHI, );
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Uniform Memory Per Frame"), STAT_MetalUniformBytesPerFrame, STATGROUP_MetalRHI, );
 
-DECLARE_MEMORY_STAT_EXTERN(TEXT("General Frame Allocator Memory In Flight"), STAT_MetalFrameAllocatorMemoryInFlight, STATGROUP_MetalRHI, );
-DECLARE_MEMORY_STAT_EXTERN(TEXT("Allocated Frame Allocator Memory"), STAT_MetalFrameAllocatorAllocatedMemory, STATGROUP_MetalRHI, );
-DECLARE_MEMORY_STAT_EXTERN(TEXT("Frame Allocator Memory Per Frame"), STAT_MetalFrameAllocatorBytesPerFrame, STATGROUP_MetalRHI, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Allocated Frame Temp Memory"), STAT_MetalTempAllocatorAllocatedMemory, STATGROUP_MetalRHI, );
 
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Buffer Count"), STAT_MetalBufferCount, STATGROUP_MetalRHI, );
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Texture Count"), STAT_MetalTextureCount, STATGROUP_MetalRHI, );
@@ -65,12 +63,14 @@ extern int64 volatile GMetalPresentTime;
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Number Command Buffers Created Per-Frame"), STAT_MetalCommandBufferCreatedPerFrame, STATGROUP_MetalRHI, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Number Command Buffers Committed Per-Frame"), STAT_MetalCommandBufferCommittedPerFrame, STATGROUP_MetalRHI, );
 
+class FMetalRHICommandContext;
+
 /** A single perf event node, which tracks information about a appBeginDrawEvent/appEndDrawEvent range. */
 class FMetalEventNode : public FGPUProfilerEventNode
 {
 public:
 	
-	FMetalEventNode(FMetalContext* InContext, const TCHAR* InName, FGPUProfilerEventNode* InParent, bool bIsRoot, bool bInFullProfiling)
+	FMetalEventNode(FMetalRHICommandContext& InContext, const TCHAR* InName, FGPUProfilerEventNode* InParent, bool bIsRoot, bool bInFullProfiling)
 	: FGPUProfilerEventNode(InName, InParent)
 	, StartTime(0)
 	, EndTime(0)
@@ -95,15 +95,13 @@ public:
     FMetalCommandBufferCompletionHandler Start(void);
     FMetalCommandBufferCompletionHandler Stop(void);
 
-	bool Wait() const { return bRoot && bFullProfiling; }
-	bool IsRoot() const { return bRoot; }
-	
+	bool IsRoot() const { return bRoot; }	
 	uint64 GetCycles() { return EndTime - StartTime; }
 	
 	uint64 StartTime;
 	uint64 EndTime;
 private:
-	FMetalContext* Context;
+	FMetalRHICommandContext& Context;
 	bool bRoot;
     bool bFullProfiling;
 };
@@ -112,7 +110,7 @@ private:
 class FMetalEventNodeFrame : public FGPUProfilerEventNodeFrame
 {
 public:
-	FMetalEventNodeFrame(FMetalContext* InContext, bool bInFullProfiling)
+	FMetalEventNodeFrame(FMetalRHICommandContext& InContext, bool bInFullProfiling)
 	: RootNode(new FMetalEventNode(InContext, TEXT("Frame"), nullptr, true, bInFullProfiling))
     , bFullProfiling(bInFullProfiling)
 	{
@@ -120,10 +118,8 @@ public:
 	
 	virtual ~FMetalEventNodeFrame()
 	{
-        if(bFullProfiling)
-        {
-            delete RootNode;
-        }
+        delete RootNode;
+		RootNode = nullptr;
 	}
 	
 	/** Start this frame of per tracking */
@@ -141,6 +137,8 @@ public:
     bool bFullProfiling;
 };
 
+class FMetalContext;
+
 // This class has multiple inheritance but really FGPUTiming is a static class
 class FMetalGPUTiming : public FGPUTiming
 {
@@ -149,9 +147,9 @@ public:
 	/**
 	 * Constructor.
 	 */
-	FMetalGPUTiming()
+	FMetalGPUTiming(FMetalRHICommandContext& Context)
 	{
-		StaticInitialize(nullptr, PlatformStaticInitialize);
+		StaticInitialize((void*)&Context, PlatformStaticInitialize);
 	}
 	
 	void SetCalibrationTimestamp(uint64 GPU, uint64 CPU)
@@ -164,16 +162,7 @@ private:
 	/**
 	 * Initializes the static variables, if necessary.
 	 */
-	static void PlatformStaticInitialize(void* UserData)
-	{
-		// Are the static variables initialized?
-		if ( !GAreGlobalsInitialized )
-		{
-			GIsSupported = true;
-			SetTimingFrequency(1000 * 1000 * 1000);
-			GAreGlobalsInitialized = true;
-		}
-	}
+	static void PlatformStaticInitialize(void* UserData);
 };
 
 struct IMetalStatsScope
@@ -260,6 +249,33 @@ struct FMetalCommandBufferTiming
 	}
 };
 
+class FMetalCommandBufferTimer
+{
+public:
+	void Submit()
+	{
+		FScopeLock Lock(&Mutex);
+		Counter++;
+	}
+	
+	void AddTiming(FMetalCommandBufferTiming Timing);
+	void FrameEnd();
+	void RecordFrame();
+	
+	const TArray<FMetalCommandBufferTiming>& GetTimings()
+	{
+		return Timings;
+	}
+	
+private:
+	bool bFrameEnded;
+	uint32_t Counter = 0;
+	TArray<FMetalCommandBufferTiming> Timings;
+	FCriticalSection Mutex;
+};
+
+class FMetalRHICommandContext;
+
 /**
  * Encapsulates GPU profiling logic and data.
  * There's only one global instance of this struct so it should only contain global data, nothing specific to a frame.
@@ -269,10 +285,10 @@ struct FMetalGPUProfiler : public FGPUProfiler
 	/** GPU hitch profile histories */
 	TIndirectArray<FMetalEventNodeFrame> GPUHitchEventNodeFrames;
 	
-	FMetalGPUProfiler(FMetalContext* InContext)
+	FMetalGPUProfiler(FMetalRHICommandContext& InContext)
 	:	FGPUProfiler()
+	,	TimingSupport(InContext)
 	,	Context(InContext)
-	,   NumNestedFrames(0)
 	{}
 	
 	virtual ~FMetalGPUProfiler() {}
@@ -290,23 +306,27 @@ struct FMetalGPUProfiler : public FGPUProfiler
 	// WARNING:
 	// These functions MUST be called from within Metal scheduled/completion handlers
 	// since they depend on libdispatch to enforce ordering.
-	static void RecordFrame(TArray<FMetalCommandBufferTiming>& CommandBufferTimings, FMetalCommandBufferTiming& LastPresentBufferTiming);
+	static void RecordFrame(FMetalCommandBufferTimer& Timer);
 	static void RecordPresent(MTL::CommandBuffer* CommandBuffer);
 	// END WARNING
 	
+	static void ResetFrameBufferTimings();
+	static FMetalCommandBufferTimer& GetFrameBufferTimer();
+	
 	FMetalGPUTiming TimingSupport;
-	FMetalContext* Context;
-	int32 NumNestedFrames;
+	FMetalRHICommandContext& Context;
+	
+	static FMetalCommandBufferTimer* Timer;
 };
 
 class FMetalProfiler : public FMetalGPUProfiler
 {
 	static FMetalProfiler* Self;
 public:
-	FMetalProfiler(FMetalContext* InContext);
+	FMetalProfiler(FMetalRHICommandContext& InContext);
 	~FMetalProfiler();
 	
-	static FMetalProfiler* CreateProfiler(FMetalContext* InContext);
+	static FMetalProfiler* CreateProfiler(FMetalRHICommandContext& InContext);
 	static FMetalProfiler* GetProfiler();
 	static void DestroyProfiler();
 	

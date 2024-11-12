@@ -298,25 +298,6 @@ public:
 	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 };
 
-/** Mobile Specific: Combines a movable directional light with LQ lightmaps  */
-struct FMobileMovableDirectionalLightWithLightmapPolicy : public TLightMapPolicy<LQ_LIGHTMAP>
-{
-	typedef TLightMapPolicy<LQ_LIGHTMAP> Super;
-
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters);
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
-};
-
-/** Mobile Specific: Combines a movable directional light with LQ lightmaps and CSM */
-struct FMobileMovableDirectionalLightCSMWithLightmapPolicy : public FMobileMovableDirectionalLightWithLightmapPolicy
-{
-	typedef FMobileMovableDirectionalLightWithLightmapPolicy Super;
-	
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters);
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
-};
-
-
 enum ELightMapPolicyType
 {
 	LMP_NO_LIGHTMAP,
@@ -332,8 +313,6 @@ enum ELightMapPolicyType
 	LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP,
 	LMP_MOBILE_DIRECTIONAL_LIGHT_AND_SH_INDIRECT,
 	LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT,
-	LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP,
-	LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP,
 	LMP_MOBILE_DIRECTIONAL_LIGHT_CSM,
 
 	// LightMapDensity

@@ -7,6 +7,7 @@
 #include "UObject/GCObject.h"
 
 enum class EDMXControlConsoleStopDMXMode : uint8;
+struct FDMXControlConsoleCue;
 class FSpawnTabArgs;
 class FTabManager;
 class SDockableTab;
@@ -15,24 +16,29 @@ class UDMXControlConsoleData;
 class UDMXControlConsoleEditorData;
 class UDMXControlConsoleEditorLayouts;
 class UDMXControlConsoleEditorModel;
+class UDMXControlConsoleEditorPlayMenuModel;
 
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
+	class FDMXControlConsoleEditorToolbar;
+	class SDMXControlConsoleEditorCueStackView;
 	class SDMXControlConsoleEditorDetailsView;
 	class SDMXControlConsoleEditorDMXLibraryView;
 	class SDMXControlConsoleEditorFiltersView;
 	class SDMXControlConsoleEditorLayoutView;
-	class FDMXControlConsoleEditorToolbar;
 
 	/** Implements an Editor toolkit for Control Console. */
 	class FDMXControlConsoleEditorToolkit
 		: public FAssetEditorToolkit
 		, public FGCObject
 	{
+		using Super = FAssetEditorToolkit;
+
 	public:
 		FDMXControlConsoleEditorToolkit();
-		virtual ~FDMXControlConsoleEditorToolkit();
+		~FDMXControlConsoleEditorToolkit();
 
 		/**
 		 * Edits the specified control console object.
@@ -55,6 +61,9 @@ namespace UE::DMX::Private
 		/** Returns the edited Control Console Layouts */
 		UDMXControlConsoleEditorLayouts* GetControlConsoleLayouts() const;
 
+		/** Returns the Control Console Cue Stack Model, if valid */
+		TSharedPtr<FDMXControlConsoleCueStackModel> GetControlConsoleCueStackModel() const { return CueStackModel; }
+
 		/** Returns the Control Console Editor Model, if valid */
 		UDMXControlConsoleEditorModel* GetControlConsoleEditorModel() const { return EditorModel; }
 
@@ -70,6 +79,12 @@ namespace UE::DMX::Private
 		/** Resets all the elements in the Control Console to zero */
 		void ResetToZero();
 
+		/** Reloads the Control Console asset from the disk */
+		void Reload();
+
+		/** Closes this editor and presents the compact editor instead */
+		void ShowCompactEditor();
+
 		/** Name of the DMX Library View Tab */
 		static const FName DMXLibraryViewTabID;
 
@@ -81,6 +96,9 @@ namespace UE::DMX::Private
 
 		/** Name of the Filters View Tab */
 		static const FName FiltersViewTabID;
+
+		/** Name of the Cue Stack View Tab */
+		static const FName CueStackViewTabID;
 
 	protected:
 		//~ Begin FAssetEditorToolkit Interface
@@ -120,6 +138,9 @@ namespace UE::DMX::Private
 		/** Generates the Filters View for this Control Console instance */
 		TSharedRef<SDMXControlConsoleEditorFiltersView> GenerateFiltersView();
 
+		/** Generates the Cue Stack View for this Control Console instance */
+		TSharedRef<SDMXControlConsoleEditorCueStackView> GenerateCueStackView();
+
 		/** Spawns the DMX Library View */
 		TSharedRef<SDockTab> SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args);
 
@@ -132,40 +153,22 @@ namespace UE::DMX::Private
 		/** Spawns the Filters View */
 		TSharedRef<SDockTab> SpawnTab_FiltersView(const FSpawnTabArgs& Args);
 
+		/** Spawns the Cue Stack View */
+		TSharedRef<SDockTab> SpawnTab_CueStackView(const FSpawnTabArgs& Args);
+
 		/** Setups the asset toolkit's commands */
 		void SetupCommands();
 
 		/** Extends the asset toolkit's toolbar */
 		void ExtendToolbar();
 
-		/** Starts to play DMX */
-		void PlayDMX();
+		/** If true, stops the control console when this widget is destructed */
+		bool bStopSendingDMXOnDestruct = true;
 
-		/** Returns true if the console currently sends DMX */
-		bool IsPlayingDMX() const;
+		/** True while switching to compact editor */
+		bool bSwitchingToCompactEditor = false;
 
-		/** Pauses playing DMX. Current DMX values will still be sent at a lower rate. */
-		void PauseDMX();
-
-		/** Stops playing DMX */
-		void StopPlayingDMX();
-
-		/** Toggles between playing and pausing DMX */
-		void TogglePlayPauseDMX();
-
-		/** Toggles between playing and stopping DMX */
-		void TogglePlayStopDMX();
-
-		/** Sets the stop mode for the asset being edited */
-		void SetStopDMXMode(EDMXControlConsoleStopDMXMode StopDMXMode);
-
-		/** Returns true if console uses tested stop mode */
-		bool IsUsingStopDMXMode(EDMXControlConsoleStopDMXMode TestStopMode) const;
-
-		/** True when sending DMX is paused */
-		bool bPaused = false;
-
-		/** Reference to this asset toolkit's toolbar */
+		/** The DMX toolbar extension for this toolkit's toolbar */
 		TSharedPtr<FDMXControlConsoleEditorToolbar> Toolbar;
 
 		/** The DMX Library View instance */
@@ -179,6 +182,15 @@ namespace UE::DMX::Private
 
 		/** The Filters View instance */
 		TSharedPtr<SDMXControlConsoleEditorFiltersView> FiltersView;
+
+		/** The Cue Stack View instance */
+		TSharedPtr<SDMXControlConsoleEditorCueStackView> CueStackView;
+
+		/** The Play Menu Model for the Control Console this toolkit is based on */
+		TObjectPtr<UDMXControlConsoleEditorPlayMenuModel> PlayMenuModel;
+
+		/** The Cue Stack Model for the Control Console this toolkit is based on */
+		TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel;
 
 		/** The Editor Model for the Control Console this toolkit is based on */
 		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;

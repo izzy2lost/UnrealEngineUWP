@@ -23,6 +23,73 @@
 namespace AutoRTFM
 {
 
+namespace
+{
+
+// A helper that opens a FILE to "/dev/null" on first call to Get()
+// and automatically closes the file on static destruction.
+class FNullFile
+{
+public:
+    static FILE* Get()
+    {
+        static FNullFile Instance;
+        return Instance.File;
+    }
+
+private:
+    FNullFile() : File(fopen("/dev/null", "wb")) {}
+    ~FNullFile() { fclose(File); }
+    FILE* const File;
+};
+
+void ThrowErrorFormatContainsPercentN()
+{
+    UE_LOG(LogAutoRTFM, Warning, TEXT("AutoRTFM does not support format strings containing '%%n'"));
+    FContext* Context = FContext::Get();
+    Context->AbortByLanguageAndThrow();
+}
+
+// Throws an error if the format string contains a '%n'.
+static void ThrowIfFormatContainsPercentN(const char* Format)
+{
+    for (const char* P = Format; *P != '\0'; ++P)
+    {
+        if (*P == '%')
+        {
+            switch (*++P)
+            {
+                case 'n':
+                    ThrowErrorFormatContainsPercentN();
+                    break;
+                case '\0':
+                    return;
+            }
+        }
+    }
+}
+
+// Throws an error if the format string contains a '%n'.
+static void ThrowIfFormatContainsPercentN(const wchar_t* Format)
+{
+    for (const wchar_t* P = Format; *P != L'\0'; ++P)
+    {
+        if (*P == L'%')
+        {
+            switch (*++P)
+            {
+                case L'n':
+                    ThrowErrorFormatContainsPercentN();
+                    break;
+                case L'\0':
+                    return;
+            }
+        }
+    }
+}
+
+}
+
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(memcpy, Memcpy);
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(memmove, Memmove);
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(memset, Memset);
@@ -40,6 +107,20 @@ void* RTFM_malloc(size_t Size)
 }
 
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(malloc);
+
+void* RTFM_calloc(size_t Count, size_t Size)
+{
+    void* Result = calloc(Count, Size);
+	FContext* Context = FContext::Get();
+    Context->GetCurrentTransaction()->DeferUntilAbort([Result]
+    {
+        free(Result);
+    });
+    Context->DidAllocate(Result, Count * Size);
+    return Result;
+}
+
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(calloc);
 
 void RTFM_free(void* Ptr)
 {
@@ -79,7 +160,7 @@ char* RTFM_strcpy(char* const Dst, const char* const Src)
     const size_t SrcLen = strlen(Src);
 
 	FContext* Context = FContext::Get();
-    Context->RecordWrite(Dst, SrcLen);
+    Context->RecordWrite(Dst, SrcLen + sizeof(char));
     return strcpy(Dst, Src);
 }
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(strcpy);
@@ -120,7 +201,18 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<const char*(*)(const char*, int)>
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<const char* (*)(const char*, int)>(&strrchr));
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<const char* (*)(const char*, const char*)>(&strstr));
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(strlen);
-UE_AUTORTFM_REGISTER_SELF_FUNCTION(strtol);
+
+long int RTFM_strtol(const char* String, char** EndPtr, int Radix)
+{
+    if (nullptr != EndPtr)
+    {
+        FContext* Context = FContext::Get();
+        Context->RecordWrite(EndPtr, sizeof(char*));
+    }
+
+    return strtol(String, EndPtr, Radix);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(strtol);
 
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<const wchar_t* (*)(const wchar_t*, wchar_t)>(&wcschr));
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<wchar_t* (*)(wchar_t*, wchar_t)>(&wcschr));
@@ -160,6 +252,7 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(log);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(pow);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(llrint);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(fmod);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(modf);
 // Linux (likely Mac) have ambiguous overrides to these math functions
 #else
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<float(*)(float)>(&sqrt));
@@ -200,6 +293,8 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<long long(*)(float)>(&llrint));
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<long long(*)(long double)>(&llrint));
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<float(*)(float, float)>(&fmod));
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<long double(*)(long double, long double)>(&fmod));
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<float(*)(float, float*)>(&modf));
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<long double(*)(long double, long double*)>(&modf));
 #endif
 
 // Self register Math functions
@@ -208,36 +303,113 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(sinf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(cosf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(tanf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(asinf);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(asinhf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(acosf);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(acoshf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(atanf);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(atanhf);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(atan2f);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(sinhf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(coshf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(tanhf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(expf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(logf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(powf);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(llrintf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(fmodf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(fmodl);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(rand);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(modff);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(modfl);
 
-// FIXME: This is only correct when:
-// - Str is newly allocated
-// - Format is either newly allocated or not mutated
-// - any strings passed as arguments are either newly allocated or not mutated
-int RTFM_snprintf(char* Str, size_t Size, char* Format, ...)
+// FIXME: Does not currently support %n format specifiers.
+int RTFM_vsnprintf(char* Str, size_t Size, const char* Format, va_list ArgList)
 {
-	FContext* Context = FContext::Get();
+    ThrowIfFormatContainsPercentN(Format);
+
+    if (nullptr != Str && 0 != Size)
+    {
+        va_list ArgList2;
+        va_copy(ArgList2, ArgList);
+
+        FContext* Context = FContext::Get();
+        int Count = vsnprintf(nullptr, 0, Format, ArgList2);
+        if (Count >= 0)
+        {
+            size_t NumBytes = FMath::Min<size_t>(Size, (1 + Count)) * sizeof(char);
+            Context->RecordWrite(Str, NumBytes);
+        }
+    }
+
+    return vsnprintf(Str, Size, Format, ArgList);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(vsnprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM_vswprintf(wchar_t* Str, size_t Size, const wchar_t* Format, va_list ArgList)
+{
+    ThrowIfFormatContainsPercentN(Format);
+
+    if (nullptr != Str && 0 != Size)
+    {
+        va_list ArgList2;
+        va_copy(ArgList2, ArgList);
+
+#if PLATFORM_WINDOWS
+        int Count = vswprintf(nullptr, 0, Format, ArgList2);
+#else
+        // vswprintf(nullptr, 0, ...) will return -1.
+        int Count = vfwprintf(FNullFile::Get(), Format, ArgList2);
+#endif
+
+        size_t NumChars = FMath::Min<size_t>(Size, (1 + FMath::Max(Count, 0)));
+        size_t NumBytes = NumChars * sizeof(wchar_t);
+        if (NumBytes >= 0)
+        {
+            FContext* Context = FContext::Get();
+            Context->RecordWrite(Str, NumBytes);
+        }
+    }
+
+    return vswprintf(Str, Size, Format, ArgList);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(
+    static_cast<int(*)(wchar_t*, size_t, const wchar_t*, va_list)>(&vswprintf),
+    RTFM_vswprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM_swprintf(wchar_t* Buffer, size_t BufferCount, wchar_t const* Format, ...)
+{
     va_list ArgList;
+
     va_start(ArgList, Format);
-    int Result = vsnprintf(Str, Size, Format, ArgList);
+    int Count = RTFM_vswprintf(Buffer, BufferCount, Format, ArgList);
     va_end(ArgList);
-    return Result;
+
+    return Count;
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(
+    static_cast<int(*)(wchar_t*, size_t, wchar_t const*, ...)>(&swprintf),
+    RTFM_swprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM_snprintf(char* Str, size_t Size, const char* Format, ...)
+{
+    va_list ArgList;
+
+    va_start(ArgList, Format);
+    int Count = RTFM_vsnprintf(Str, Size, Format, ArgList);
+    va_end(ArgList);
+
+    return Count;
 }
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(snprintf);
 
+// FIXME: Does not currently support %n format specifiers.
 int RTFM_printf(const char* Format, ...)
 {
-	FContext* Context = FContext::Get();
+    ThrowIfFormatContainsPercentN(Format);
+
     va_list ArgList;
     va_start(ArgList, Format);
     int Result = vprintf(Format, ArgList);
@@ -245,6 +417,19 @@ int RTFM_printf(const char* Format, ...)
     return Result;
 }
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(printf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM_wprintf(const wchar_t* Format, ...)
+{
+    ThrowIfFormatContainsPercentN(Format);
+
+    va_list ArgList;
+    va_start(ArgList, Format);
+    int Result = vwprintf(Format, ArgList);
+    va_end(ArgList);
+    return Result;
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(wprintf);
 
 int RTFM_putchar(int Char)
 {
@@ -277,10 +462,92 @@ FILE* RTFM___acrt_iob_func(int Index)
     }
 }
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(__acrt_iob_func);
-UE_AUTORTFM_REGISTER_SELF_FUNCTION(__stdio_common_vfprintf);
-UE_AUTORTFM_REGISTER_SELF_FUNCTION(__stdio_common_vsprintf);
-UE_AUTORTFM_REGISTER_SELF_FUNCTION(__stdio_common_vswprintf);
-UE_AUTORTFM_REGISTER_SELF_FUNCTION(__stdio_common_vfwprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM___stdio_common_vfprintf(
+        unsigned __int64 Options,
+        FILE*            Stream,
+        char const*      Format,
+        _locale_t        Locale,
+        va_list          ArgList)
+{
+    ThrowIfFormatContainsPercentN(Format);
+
+    return __stdio_common_vfprintf(Options, Stream, Format, Locale, ArgList);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(__stdio_common_vfprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM___stdio_common_vsprintf(
+        unsigned __int64 Options,
+        char*            Buffer,
+        size_t           BufferCount,
+        char const*      Format,
+        _locale_t        Locale,
+        va_list          ArgList)
+{
+    ThrowIfFormatContainsPercentN(Format);
+
+    if (nullptr != Buffer && 0 != BufferCount)
+    {
+        va_list ArgList2;
+        va_copy(ArgList2, ArgList);
+
+        FContext* Context = FContext::Get();
+        int Count = __stdio_common_vsprintf(Options, nullptr, 0, Format, Locale, ArgList2);
+        if (Count >= 0)
+        {
+            size_t NumBytes = FMath::Min<size_t>(BufferCount, (1 + Count)) * sizeof(char);
+            Context->RecordWrite(Buffer, NumBytes);
+        }
+    }
+
+    return __stdio_common_vsprintf(Options, Buffer, BufferCount, Format, Locale, ArgList);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(__stdio_common_vsprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM___stdio_common_vswprintf(
+        unsigned __int64 Options,
+        wchar_t*         Buffer,
+        size_t           BufferCount,
+        wchar_t const*   Format,
+        _locale_t        Locale,
+        va_list          ArgList)
+{
+    ThrowIfFormatContainsPercentN(Format);
+
+    if (nullptr != Buffer && 0 != BufferCount)
+    {
+        va_list ArgList2;
+        va_copy(ArgList2, ArgList);
+
+        FContext* Context = FContext::Get();
+        int Count = __stdio_common_vswprintf(Options, nullptr, 0, Format, Locale, ArgList2);
+        if (Count >= 0)
+        {
+            size_t NumBytes = FMath::Min<size_t>(BufferCount, (1 + Count)) * sizeof(wchar_t);
+            Context->RecordWrite(Buffer, NumBytes);
+        }
+    }
+
+    return __stdio_common_vswprintf(Options, Buffer, BufferCount, Format, Locale, ArgList);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(__stdio_common_vswprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM___stdio_common_vfwprintf(
+        unsigned __int64 Options,
+        FILE*            Stream,
+        wchar_t const*   Format,
+        _locale_t        Locale,
+        va_list          ArgList)
+{
+    ThrowIfFormatContainsPercentN(Format);
+
+    return __stdio_common_vfwprintf(Options, Stream, Format, Locale, ArgList);
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(__stdio_common_vfwprintf);
 
 #else // PLATFORM_WINDOWS -> so !PLATFORM_WINDOWS
 extern "C" size_t _ZNSt3__112__next_primeEm(size_t N) __attribute__((weak));
@@ -294,6 +561,9 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(static_cast<double(*)(double, double)>(&pow))
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(_tcsncmp);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(_tcslen);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(_isnan);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(_fdtest);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(_dtest);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(_ldtest);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(_finite);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(IsDebuggerPresent);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(GetSystemTime);
@@ -303,6 +573,7 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(QueryPerformanceFrequency);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(GetCurrentThreadId);
 
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(TlsGetValue);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(GetLocalTime);
 
 BOOL RTFM_TlsSetValue(DWORD dwTlsIndex, LPVOID lpTlsValue)
 {
@@ -322,8 +593,20 @@ UE_AUTORTFM_REGISTER_OPEN_FUNCTION(TlsSetValue);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(clock_gettime);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(gettimeofday);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(gmtime_r);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(localtime_r);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(bcmp);
+
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(pthread_getspecific);
 #endif // PLATFORM_LINUX
+
+wchar_t* RTFM_wcscpy(wchar_t* Dst, const wchar_t* Src)
+{
+    const size_t SrcLen = wcslen(Src);
+
+	FContext* Context = FContext::Get();
+    Context->RecordWrite(Dst, (SrcLen + 1) * sizeof(wchar_t));
+    return wcscpy(Dst, Src);
+}
 
 wchar_t* RTFM_wcsncpy(wchar_t* Dst, const wchar_t* Src, size_t Count)
 {
@@ -336,11 +619,11 @@ wchar_t* RTFM_wcsncpy(wchar_t* Dst, const wchar_t* Src, size_t Count)
 /*
    Disable warning about deprecated STD C functions.
 */
-#pragma warning(disable : 4996)
-
 #pragma warning(push)
+#pragma warning(disable : 4996)
 #endif
 
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(wcscpy);
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(wcsncpy);
 
 #ifdef _MSC_VER

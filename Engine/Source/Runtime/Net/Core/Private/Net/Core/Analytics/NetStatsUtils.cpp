@@ -135,7 +135,7 @@ void FSampleMinMaxAvg::Reset()
 #include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBinnedMovingValueTest, "System.Core.Networking.BinnedMovingValue",
-									EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter
+									EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter
 
 );
 

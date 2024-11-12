@@ -38,6 +38,9 @@ private:
 	/** We need to register a callback for when the owner changes its tags.  When that happens, we need to figure out if our GE should continue to execute */
 	void OnTagChanged(const FGameplayTag GameplayTag, int32 NewCount, FActiveGameplayEffectHandle ActiveGEHandle) const;
 
+	/** Have requirements to remove this Gameplay Effect been met? */
+	bool HaveRemovalRequirementsBeenMet(const FGameplayTagContainer& TargetOwnedTags, bool bNetAuthority) const;
+
 public:
 	/** Tag requirements the target must have for this GameplayEffect to be applied. This is pass/fail at the time of application. If fail, this GE fails to apply. */
 	UPROPERTY(EditDefaultsOnly, Category = Tags)

@@ -51,12 +51,16 @@ AWaterBrushManager::AWaterBrushManager(const FObjectInitializer& ObjectInitializ
 	SceneCaptureComponent2D->bCaptureOnMovement = false;
 	SceneCaptureComponent2D->SetRelativeRotation(FRotator(-90.0f, 0.0f, -90.0f));
 	SceneCaptureComponent2D->SetRelativeScale3D(FVector(0.01f, 0.01f, 0.01f));
+
+	TArray<FEngineShowFlagsSetting> ShowFlagSettings;
 	// HACK [jonathan.bard] : Nanite doesn't support USceneCaptureComponent's ShowOnlyComponents ATM so just disable Nanite during captures : 
-	SceneCaptureComponent2D->ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("NaniteMeshes"), false } );
+	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("NaniteMeshes"), false } );
 	// These also need to be disabled to get a clean capture of just the water info material output
-	SceneCaptureComponent2D->ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Atmosphere"), false } );
-	SceneCaptureComponent2D->ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Bloom"), false } );
-	SceneCaptureComponent2D->ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Lighting"), false } );
+	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Atmosphere"), false } );
+	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Bloom"), false } );
+	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Lighting"), false } );
+	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Fog"), false } );
+	SceneCaptureComponent2D->SetShowFlagSettings(ShowFlagSettings);
 
 	PrimaryActorTick.TickGroup = ETickingGroup::TG_PrePhysics;
 	bIsEditorOnlyActor = false;
@@ -403,23 +407,75 @@ void AWaterBrushManager::Initialize_Native(FTransform const& InLandscapeTransfor
 {
 	UE_LOG(LogWaterEditor, Verbose, TEXT("Updated Landscape Transform"));
 
-	LandscapeQuads = InLandscapeSize;
-	LandscapeRTRes = InLandscapeRenderTargetSize;
+	bool bNeedsFullUpdate = false;
+	if (LandscapeQuads != InLandscapeSize)
+	{
+		LandscapeQuads = InLandscapeSize;
+		bNeedsFullUpdate = true;
+	}
+	if (LandscapeRTRes != InLandscapeRenderTargetSize)
+	{
+		LandscapeRTRes = InLandscapeRenderTargetSize;
+		bNeedsFullUpdate = true;
+	}
+	if (!InLandscapeTransform.Equals(LandscapeTransform))
+	{
+		LandscapeTransform = InLandscapeTransform;
+		bNeedsFullUpdate = true;
+	}
 
-	UpdateTransform(InLandscapeTransform);
+	if (bNeedsFullUpdate)
+	{
+		check(SceneCaptureComponent2D != nullptr);
+
+		FVector Scale = LandscapeTransform.GetScale3D();
+		WorldSize.Set(Scale.X * (float)LandscapeQuads.X, Scale.Y * (float)LandscapeQuads.Y, 0.512f);
+
+		const FVector Temp(Scale.X * (float)LandscapeRTRes.X, Scale.Y * (float)LandscapeRTRes.Y, 0.512f);
+		SceneCaptureComponent2D->OrthoWidth = FMath::Max(Temp.X, Temp.Y);
+
+		FVector LocationVector(Temp - Scale);
+		LocationVector *= 0.5f;
+		LocationVector = LandscapeTransform.GetRotation().RotateVector(LocationVector);
+		LocationVector += LandscapeTransform.GetLocation();
+		LocationVector.Z = 50000.0f;
+		SceneCaptureComponent2D->SetWorldLocation(LocationVector);
+
+		// If the transform or resolution changes, the distance fields need to be recomputed entirely : 
+		bKillCache = true;
+	}
 }
 
 void AWaterBrushManager::CaptureMeshDepth(const TArrayView<UStaticMeshComponent*>& MeshComponents)
 {
 	SceneCaptureComponent2D->ClearShowOnlyComponents();
 	SceneCaptureComponent2D->ShowOnlyActors.Empty();
-	for (UStaticMeshComponent* PrimitiveComponent : MeshComponents)
+
+	TArray<bool> PreviousVisibilities;
+	TArray<bool> PreviousHiddenInGame;
+	PreviousVisibilities.SetNum(MeshComponents.Num());
+	PreviousHiddenInGame.SetNum(MeshComponents.Num());
+
+	for (int32 PrimitiveComponentIndex = 0; PrimitiveComponentIndex < MeshComponents.Num(); ++PrimitiveComponentIndex)
 	{
+		UStaticMeshComponent* PrimitiveComponent = MeshComponents[PrimitiveComponentIndex];
+		PreviousVisibilities[PrimitiveComponentIndex] = PrimitiveComponent->GetVisibleFlag();
+		PreviousHiddenInGame[PrimitiveComponentIndex] = PrimitiveComponent->bHiddenInGame;
+
 		PrimitiveComponent->SetVisibility(true);
 		PrimitiveComponent->SetHiddenInGame(false);
+
 		SceneCaptureComponent2D->ShowOnlyComponent(PrimitiveComponent);
 	}
+
 	SceneCaptureComponent2D->CaptureScene();
+
+	for (int32 PrimitiveComponentIndex = 0; PrimitiveComponentIndex < MeshComponents.Num(); ++PrimitiveComponentIndex)
+	{
+		UStaticMeshComponent* PrimitiveComponent = MeshComponents[PrimitiveComponentIndex];
+		PrimitiveComponent->SetVisibility(PreviousVisibilities[PrimitiveComponentIndex]);
+		PrimitiveComponent->SetHiddenInGame(PreviousHiddenInGame[PrimitiveComponentIndex]);
+	}
 
 	// Avoid keeping references to Captured components
 	SceneCaptureComponent2D->ClearShowOnlyComponents();
@@ -459,31 +515,6 @@ void AWaterBrushManager::GetRenderDependencies(TSet<UObject*>& OutDependencies)
 	AddDependencyIfValid(JumpStepMaterial, OutDependencies);
 	AddDependencyIfValid(FindEdgesMaterial, OutDependencies);
 	AddDependencyIfValid(BlurEdgesMaterial, OutDependencies);
-}
-
-void AWaterBrushManager::UpdateTransform(const FTransform& Transform)
-{
-	if (!Transform.Equals(LandscapeTransform))
-	{
-		LandscapeTransform = Transform;
-		check(SceneCaptureComponent2D != nullptr);
-
-		FVector Scale = LandscapeTransform.GetScale3D();
-		WorldSize.Set(Scale.X * (float)LandscapeQuads.X, Scale.Y * (float)LandscapeQuads.Y, 0.512f);
-
-		const FVector Temp(Scale.X * (float)LandscapeRTRes.X, Scale.Y * (float)LandscapeRTRes.Y, 0.512f);
-		SceneCaptureComponent2D->OrthoWidth = FMath::Max(Temp.X, Temp.Y);
-
-		FVector LocationVector(Temp - Scale);
-		LocationVector *= 0.5f;
-		LocationVector = LandscapeTransform.GetRotation().RotateVector(LocationVector);
-		LocationVector += LandscapeTransform.GetLocation();
-		LocationVector.Z = 50000.0f;
-		SceneCaptureComponent2D->SetWorldLocation(LocationVector);
-
-		// The landscape transform has changed, let's re-draw everything (no need to request a landscape update because we're in the middle of one) :
-		bKillCache = true;
-	}
 }
 
 bool AWaterBrushManager::SetupRiverSplineRenderMIDs(const FBrushActorRenderContext& BrushActorRenderContext, bool bRestoreMIDs, TArray<UMaterialInterface*>& InOutMIDs)
@@ -893,7 +924,7 @@ void AWaterBrushManager::DisplacementSettings(const FBrushActorRenderContext& Br
 	float BrushTexHeightValue = DisableBrushTextureEffects ? 0.0f : Displacement.DisplacementHeight;
 	BrushActorRenderContext.MID->SetScalarParameterValue(FName(TEXT("BrushTexHeight")), BrushTexHeightValue);
 	BrushActorRenderContext.MID->SetScalarParameterValue(FName(TEXT("T")), Displacement.DisplacementTiling);
-	BrushActorRenderContext.MID->SetTextureParameterValue(FName(TEXT("BrushRT")), Displacement.Texture);
+	BrushActorRenderContext.MID->SetTextureParameterValue(FName(TEXT("BrushRT")), Displacement.Texture.Get());
 	BrushActorRenderContext.MID->SetScalarParameterValue(FName(TEXT("Displacement Midpoint")), Displacement.Midpoint);
 	BrushActorRenderContext.MID->SetVectorParameterValue(FName(TEXT("DisplacementChannel")), Displacement.Channel);
 }
@@ -910,7 +941,7 @@ void AWaterBrushManager::ApplyWeightmapSettings(const FBrushRenderContext& Brush
 	float EdgeOffsetValue = WMSettings.EdgeOffset - (SplineMeshExtension / 2.0f);
 	WeightmapMID->SetScalarParameterValue(FName(TEXT("EdgeOffset")), EdgeOffsetValue);
 
-	WeightmapMID->SetTextureParameterValue(FName(TEXT("BrushRT")), WMSettings.ModulationTexture);
+	WeightmapMID->SetTextureParameterValue(FName(TEXT("BrushRT")), WMSettings.ModulationTexture.Get());
 	WeightmapMID->SetScalarParameterValue(FName(TEXT("T")), WMSettings.TextureTiling);
 
 	float WeightmapInfluenceValue = WMSettings.TextureInfluence * (float)!DisableBrushTextureEffects;
@@ -1274,12 +1305,6 @@ void AWaterBrushManager::RenderBrushActorContext(FBrushRenderContext& BrushRende
 	//++HeightOnlyIndex;
 	}
 	++BrushRenderContext.RTIndex;
-
-	if (WaterBody != nullptr)
-	{
-		// rebuilding the water mesh is expensive and not necessary : 
-		WaterBody->GetWaterBodyComponent()->UpdateComponentVisibility(/* bAllowWaterZoneRebuild = */false);
-	}
 
 	ApplyToCompositeWaterBodyTexture(BrushRenderContext, BrushActorRenderContext);
 }

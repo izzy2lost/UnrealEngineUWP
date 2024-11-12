@@ -13,7 +13,6 @@
 #include "Rendering/DrawElements.h"
 #include "Materials/MaterialInterface.h"
 #include "Tickable.h"
-#include "SlateElementIndexBuffer.h"
 #include "SlateElementVertexBuffer.h"
 
 class FSlateAtlasedTextureResource;
@@ -108,16 +107,6 @@ private:
 	typedef TMap<TWeakObjectPtr<UObject>, TSharedPtr<FSlateAtlasedTextureResource> > FObjectResourceMap;
 	FObjectResourceMap ObjectMap;
 };
-
-
-struct FCachedRenderBuffers
-{
-	TSlateElementVertexBuffer<FSlateVertex> VertexBuffer;
-	FSlateElementIndexBuffer IndexBuffer;
-
-	FGraphEventRef ReleaseResourcesFence;
-};
-
 
 /**
  * Stores a mapping of texture names to their RHI texture resource               

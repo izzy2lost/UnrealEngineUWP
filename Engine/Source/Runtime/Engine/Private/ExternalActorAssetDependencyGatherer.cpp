@@ -8,9 +8,6 @@
 #include "AssetRegistry/AssetRegistryState.h"
 #include "Engine/Level.h"
 
-// Register FExternalActorAssetDependencyGatherer for UWorld class
-REGISTER_ASSETDEPENDENCY_GATHERER(FExternalActorAssetDependencyGatherer, UWorld);
-
 void FExternalActorAssetDependencyGatherer::GatherDependencies(const FAssetData& AssetData, const FAssetRegistryState& AssetRegistryState, TFunctionRef<FARCompiledFilter(const FARFilter&)> CompileFilterFunc, TArray<IAssetDependencyGatherer::FGathereredDependency>& OutDependencies, TArray<FString>& OutDependencyDirectories) const
 {
 	if (ULevel::GetIsLevelUsingExternalActorsFromAsset(AssetData))

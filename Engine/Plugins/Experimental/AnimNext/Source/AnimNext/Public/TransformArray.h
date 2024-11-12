@@ -318,6 +318,17 @@ struct TTransformArraySoA
 		return *this;
 	}
 
+	inline bool IsEmpty() const
+	{
+		return Num() == 0;
+	}
+
+	inline void Empty(int32 Slack = 0)
+	{
+		AllocatedMemory.Empty(Slack);
+		UpdateViews(AllocatedMemory.GetData(), 0);
+	}
+
 	inline void Reset(int32 NumTransforms)
 	{
 		constexpr int32 TransformSize = sizeof(FVector) + sizeof(FQuat) + sizeof(FVector);
@@ -492,21 +503,21 @@ struct TTransformArraySoA
 
 	bool ContainsNaN() const
 	{
-		for (const auto& Rotation : Rotations)
+		for (const FQuat& Rotation : Rotations)
 		{
 			if (Rotation.ContainsNaN())
 			{
 				return true;
 			}
 		}
-		for (const auto& Translation : Translations)
+		for (const FVector& Translation : Translations)
 		{
 			if (Translation.ContainsNaN())
 			{
 				return true;
 			}
 		}
-		for (const auto& Scale3D : Scales3D)
+		for (const FVector& Scale3D : Scales3D)
 		{
 			if (Scale3D.ContainsNaN())
 			{
@@ -524,7 +535,7 @@ struct TTransformArraySoA
 			return false;
 		}
 
-		for (const auto& Rotation : Rotations)
+		for (const FQuat& Rotation : Rotations)
 		{
 			if (Rotation.IsNormalized() == false)
 			{
@@ -585,15 +596,15 @@ private:
 
 	FORCEINLINE void DiagnosticCheckNaN_All() const
 	{
-		for (const auto& Rotation : Rotations)
+		for (const FQuat& Rotation : Rotations)
 		{
 			DiagnosticCheckNaN_Rotate(Rotation);
 		}
-		for (const auto& Translation : Translations)
+		for (const FVector& Translation : Translations)
 		{
 			DiagnosticCheckNaN_Translate(Translation);
 		}
-		for (const auto& Scale3D : Scales3D)
+		for (const FVector& Scale3D : Scales3D)
 		{
 			DiagnosticCheckNaN_Scale3D(Scale3D);
 		}

@@ -17,6 +17,98 @@
 
 #define LOCTEXT_NAMESPACE "SocialUser"
 
+// Debug utils
+#if !UE_BUILD_SHIPPING
+class USocialUser::FDebugInitializer
+{
+public:
+	FDebugInitializer(USocialUser& InParent)
+		: Parent(InParent)
+	{
+	}
+	~FDebugInitializer()
+	{
+		if (TickHandle.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+		}
+	}
+
+	static bool IsEnabled()
+	{
+		return CVarSocialUserDeferInitializeSeconds.GetValueOnGameThread() > 0 ||
+			!CVarSocialUserDeferInitializePauseIds.GetValueOnGameThread().IsEmpty();
+	}
+	void FinishInitialization()
+	{
+		if (CVarSocialUserDeferInitializePauseIds.GetValueOnGameThread().Contains(Parent.GetUserId(ESocialSubsystem::Primary).ToString()))
+		{
+			// Pause until the cvar changes
+			UE_LOG(LogParty, Log, TEXT("%hs Deferring initialization of user [%s] until they are removed from party.SocialUserDeferInitializePauseIds"), __FUNCTION__, *Parent.ToDebugString());
+			PausedSocialUsers.Emplace(TWeakObjectPtr<USocialUser>(&Parent));
+		}
+		else if (int32 DelaySeconds = CVarSocialUserDeferInitializeSeconds.GetValueOnGameThread(); 
+			DelaySeconds > 0)
+		{
+			// Pause for config driven number of seconds
+			UE_LOG(LogParty, Log, TEXT("%hs Deferring initialization of user [%s] for %d seconds"), __FUNCTION__, *Parent.ToDebugString(), DelaySeconds);
+			TickHandle = FTSTicker::GetCoreTicker().AddTicker(TEXT("USocialUser::FDebugInitializer"), (double)DelaySeconds, [this](float)->bool
+			{
+				TickHandle.Reset();
+				Parent.FinishInitialization();
+				return false;
+			});
+		}
+		else
+		{
+			Parent.FinishInitialization();
+		}
+	}
+
+private:
+	USocialUser& Parent;
+	FTSTicker::FDelegateHandle TickHandle;
+
+	static TAutoConsoleVariable<int32> CVarSocialUserDeferInitializeSeconds;
+	static TAutoConsoleVariable<FString> CVarSocialUserDeferInitializePauseIds;
+	static TArray<TWeakObjectPtr<USocialUser>> PausedSocialUsers;
+
+	static void OnPausedSocialUserIdsChanged(IConsoleVariable* CVar)
+	{
+		TArray<FString> PausedSocialUserIds;
+		CVar->GetString().ParseIntoArray(PausedSocialUserIds, TEXT(","));
+		TArray<TWeakObjectPtr<USocialUser>> PausedSocialUsersCopy = PausedSocialUsers;
+		for (TWeakObjectPtr<USocialUser>& WeakSocialUser : PausedSocialUsersCopy)
+		{
+			USocialUser* SocialUser = WeakSocialUser.Get();
+			if (SocialUser == nullptr)
+			{
+				PausedSocialUsers.Remove(WeakSocialUser);
+				continue;
+			}
+			else if (!PausedSocialUserIds.Contains(SocialUser->GetUserId(ESocialSubsystem::Primary).ToString()))
+			{
+				UE_LOG(LogParty, Log, TEXT("%hs Finishing initialization of user [%s]"), __FUNCTION__, *SocialUser->ToDebugString());
+				PausedSocialUsers.Remove(WeakSocialUser);
+				SocialUser->FinishInitialization();
+			}
+		}
+	}
+};
+
+TAutoConsoleVariable<int32> USocialUser::FDebugInitializer::CVarSocialUserDeferInitializeSeconds(
+	TEXT("party.SocialUserDeferInitializeSeconds"),
+	0,
+	TEXT("How many seconds to delay finalizing social user initialization"));
+TAutoConsoleVariable<FString> USocialUser::FDebugInitializer::CVarSocialUserDeferInitializePauseIds(
+	TEXT("party.SocialUserDeferInitializePauseIds"),
+	TEXT(""),
+	TEXT("Which user ids to pause initializing on (until unset). Should be a comma separated list."),
+	FConsoleVariableDelegate::CreateStatic(&FDebugInitializer::OnPausedSocialUserIdsChanged)
+);
+TArray<TWeakObjectPtr<USocialUser>> USocialUser::FDebugInitializer::PausedSocialUsers;
+#endif // !UE_BUILD_SHIPPING
+
 //////////////////////////////////////////////////////////////////////////
 // FSocialQuery_UserInfo
 //////////////////////////////////////////////////////////////////////////
@@ -340,15 +432,16 @@ void USocialUser::TryBroadcastInitializationComplete()
 		{
 			if (SubsystemInfo->UserInfo.IsValid())
 			{
-				UE_LOG(LogParty, VeryVerbose, TEXT("SocialUser [%s] fully initialized."), *ToDebugString());
-
-				bIsInitialized = true;
-
-				TArray<FOnNewSocialUserInitialized> InitEvents = MoveTemp(UserInitializedEvents);
-				UserInitializedEvents.Reset();
-				for (FOnNewSocialUserInitialized& InitEvent : InitEvents)
+#if !UE_BUILD_SHIPPING
+				if (FDebugInitializer::IsEnabled())
 				{
-					InitEvent.ExecuteIfBound(*this);
+					DebugInitializer = MakeUnique<FDebugInitializer>(*this);
+					DebugInitializer->FinishInitialization();
+				}
+				else
+#endif
+				{
+					FinishInitialization();
 				}
 			}
 			else
@@ -364,6 +457,22 @@ void USocialUser::TryBroadcastInitializationComplete()
 				GetOwningToolkit().HandleUserInvalidated(*this);
 			}
 		}
+	}
+}
+
+void USocialUser::FinishInitialization()
+{
+	UE_LOG(LogParty, VeryVerbose, TEXT("SocialUser [%s] fully initialized."), *ToDebugString());
+	bIsInitialized = true;
+#if !UE_BUILD_SHIPPING
+	DebugInitializer.Reset();
+#endif
+
+	TArray<FOnNewSocialUserInitialized> InitEvents = MoveTemp(UserInitializedEvents);
+	UserInitializedEvents.Reset();
+	for (FOnNewSocialUserInitialized& InitEvent : InitEvents)
+	{
+		InitEvent.ExecuteIfBound(*this);
 	}
 }
 

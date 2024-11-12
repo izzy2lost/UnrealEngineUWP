@@ -58,7 +58,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Index for this log
 		/// </summary>
-		public IBlobRef<LogIndexNode> IndexRef { get; }
+		public IHashedBlobRef<LogIndexNode> IndexRef { get; }
 
 		/// <summary>
 		/// Whether this log is complete
@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Deserializing constructor
 		/// </summary>
-		public LogNode(LogFormat format, int lineCount, long length, IReadOnlyList<LogChunkRef> textChunkRefs, IBlobRef<LogIndexNode> indexRef, bool complete)
+		public LogNode(LogFormat format, int lineCount, long length, IReadOnlyList<LogChunkRef> textChunkRefs, IHashedBlobRef<LogIndexNode> indexRef, bool complete)
 		{
 			Format = format;
 			LineCount = lineCount;
@@ -95,7 +95,7 @@ namespace EpicGames.Horde.Logs
 			LogFormat format = (LogFormat)reader.ReadUInt8();
 			int lineCount = (int)reader.ReadUnsignedVarInt();
 			long length = (long)reader.ReadUnsignedVarInt();
-			IBlobRef<LogIndexNode> indexRef = reader.ReadBlobRef<LogIndexNode>();
+			IHashedBlobRef<LogIndexNode> indexRef = reader.ReadBlobRef<LogIndexNode>();
 			List<LogChunkRef> textChunkRefs = reader.ReadList(() => new LogChunkRef(reader));
 			bool complete = reader.ReadBoolean();
 
@@ -264,7 +264,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="writer">Writer for the output nodes</param>
 		/// <param name="complete">Whether the log is complete</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<IBlobRef<LogNode>> FlushAsync(IBlobWriter writer, bool complete, CancellationToken cancellationToken)
+		public async Task<IHashedBlobRef<LogNode>> FlushAsync(IBlobWriter writer, bool complete, CancellationToken cancellationToken)
 		{
 			// Capture the new data that needs to be written
 			IReadOnlyList<LogChunkNode> writeTextChunks;
@@ -281,21 +281,21 @@ namespace EpicGames.Horde.Logs
 
 			// Flush any complete chunks to storage
 			LogIndexNode newIndex = await _index.AppendAsync(writer, writeIndexTextChunks, cancellationToken);
-			IBlobRef<LogIndexNode> newIndexRef = await writer.WriteBlobAsync(newIndex, cancellationToken);
+			IHashedBlobRef<LogIndexNode> newIndexRef = await writer.WriteBlobAsync(newIndex, cancellationToken);
 
 			List<LogChunkRef> newJsonChunkRefs = new List<LogChunkRef>(_root?.TextChunkRefs ?? Array.Empty<LogChunkRef>());
 			int lineCount = _root?.LineCount ?? 0;
 			long length = _root?.Length ?? 0;
 			foreach (LogChunkNode writeTextChunk in writeTextChunks)
 			{
-				IBlobRef<LogChunkNode> writeTextChunkRef = await writer.WriteBlobAsync(writeTextChunk, cancellationToken);
+				IHashedBlobRef<LogChunkNode> writeTextChunkRef = await writer.WriteBlobAsync(writeTextChunk, cancellationToken);
 				newJsonChunkRefs.Add(new LogChunkRef(lineCount, writeTextChunk.LineCount, length, writeTextChunk.Length, writeTextChunkRef));
 				lineCount += writeTextChunk.LineCount;
 				length += writeTextChunk.Length;
 			}
 
 			LogNode newRoot = new LogNode(_format, lineCount, length, newJsonChunkRefs, newIndexRef, complete);
-			IBlobRef<LogNode> newRootRef = await writer.WriteBlobAsync(newRoot, cancellationToken);
+			IHashedBlobRef<LogNode> newRootRef = await writer.WriteBlobAsync(newRoot, cancellationToken);
 
 			await writer.FlushAsync(cancellationToken);
 

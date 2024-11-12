@@ -21,15 +21,30 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "DynamicMaterialTextureSet",
+			"Type": "RuntimeAndProgram",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "DynamicMaterialEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DynamicMaterialTextureSetEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DynamicMaterialShadersEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostConfigInit"
 		}
 	],
 	"Plugins": [
 		{
 			"Name": "CustomDetailsView",
-			"Enabled":  true
+			"Enabled": true
 		}
 	]
 }

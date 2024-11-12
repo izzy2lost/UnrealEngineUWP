@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -42,15 +42,15 @@ class USubsystem;
  * callback once if the query matches. The following function signatures are accepted by "Select":
  *	- void([const]Column&...) 
  *	- void([const]Column*...) 
- *	- void(TypedElementRowHandle, [const]Column&...) 
+ *	- void(RowHandle, [const]Column&...) 
  *	- void(<Context>&, [const]Column&...) 
- *	- void(<Context>&, TypedElementRowHandle, [const]Column&...) 
+ *	- void(<Context>&, RowHandle, [const]Column&...) 
  *	- void(<Context>&, [const]Column*...) 
- *	- void(<Context>&, const TypedElementRowHandle*, [const]Column*...) 
- *	Where <Context> is ITypedElementDataStorageInterface::IQueryContext or FCachedQueryContext<...>	e.g.:
+ *	- void(<Context>&, const RowHandle*, [const]Column*...) 
+ *	Where <Context> is IQueryContext or FCachedQueryContext<...>	e.g.:
  *		void(
  *			FCachedQueryContext<Subsystem1, const Subsystem2>& Context, 
- *			TypedElementRowHandle Row, 
+ *			RowHandle Row, 
  *			ColumnType0& ColumnA, 
  *			const ColumnType1& ColumnB) 
  *			{...}
@@ -61,8 +61,8 @@ class USubsystem;
  *
  * The following is a simplified example of these options combined together:
  *		FProcessor Info(
- *			ITypedElementDataStorageInterface::EQueryTickPhase::FrameEnd, 
- *			DataStorage->GetQueryTickGroupName(ITypedElementDataStorageInterface::EQueryTickGroups::SyncExternalToDataStorage);
+ *			EQueryTickPhase::FrameEnd, 
+ *			DataStorage->GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage);
  *		Query = Select(FName(TEXT("Example Callback")), Info, 
  *				[](FCachedQueryContext<Subsystem1, const Subsystem2>&, const FDataExample1&, FDataExample2&) {});
  * 
@@ -85,7 +85,7 @@ class USubsystem;
  * - ReadWrite: Indicates that the external system will be used to write data to.
  *
  * Usage example:
- * ITypedElementDataStorageInterface::FQueryDescription Query =
+ * FQueryDescription Query =
  *		Select()
  *			.ReadWrite({ FDataExample1::StaticStruct() })
  *			.ReadWrite<FDataExample2, FDataExample3>()
@@ -103,12 +103,18 @@ class USubsystem;
  * and store its compiled form for repeated use instead of rebuilding the query on every update.
  */
 
-namespace TypedElementQueryBuilder
+namespace UE::Editor::DataStorage::Queries
 {
 	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* Type(FTopLevelAssetPath Name);
 	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* TypeOptional(FTopLevelAssetPath Name);
 	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* operator""_Type(const char* Name, std::size_t NameSize);
 	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* operator""_TypeOptional(const char* Name, std::size_t NameSize);
+
+	enum class EOptional
+	{
+		No,
+		Yes
+	};
 
 	class FDependency final
 	{
@@ -125,15 +131,15 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FDependency& ReadWrite(const UClass* Target);
 		TYPEDELEMENTFRAMEWORK_API FDependency& ReadWrite(TConstArrayView<const UClass*> Targets);
 
-		TYPEDELEMENTFRAMEWORK_API FDependency& SubQuery(TypedElementQueryHandle Handle);
-		TYPEDELEMENTFRAMEWORK_API FDependency& SubQuery(TConstArrayView<TypedElementQueryHandle> Handles);
+		TYPEDELEMENTFRAMEWORK_API FDependency& SubQuery(QueryHandle Handle);
+		TYPEDELEMENTFRAMEWORK_API FDependency& SubQuery(TConstArrayView<QueryHandle> Handles);
 
-		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
+		TYPEDELEMENTFRAMEWORK_API FQueryDescription&& Compile();
 
 	private:
-		TYPEDELEMENTFRAMEWORK_API explicit FDependency(ITypedElementDataStorageInterface::FQueryDescription* Query);
+		TYPEDELEMENTFRAMEWORK_API explicit FDependency(FQueryDescription* Query);
 
-		ITypedElementDataStorageInterface::FQueryDescription* Query;
+		FQueryDescription* Query;
 	};
 
 	class FSimpleQuery final
@@ -143,43 +149,103 @@ namespace TypedElementQueryBuilder
 		friend class Select;
 
 		TYPEDELEMENTFRAMEWORK_API FDependency DependsOn();
-		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
+		TYPEDELEMENTFRAMEWORK_API FQueryDescription&& Compile();
 
-		template<typename... TargetTypes>
+		template<TColumnType... TargetTypes>
 		FSimpleQuery& All();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(TConstArrayView<const UScriptStruct*> Targets);
-		template<typename... TargetTypes>
+		
+		template<TColumnType... TargetTypes>
 		FSimpleQuery& Any();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(TConstArrayView<const UScriptStruct*> Targets);
-		template<typename... TargetTypes>
+
+		// Dynamic Column Support
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const FDynamicColumnDescription& Description);
+		template<TColumnType T>
+		FSimpleQuery& Any(const FName&);
+
+		// ValueTags not yet supported for Any
+		template<TValueTagType>
+		FSimpleQuery& Any(const FName&) = delete;
+		template<TValueTagType>
+		FSimpleQuery& Any(const FName&, const FName&) = delete;
+		
+		template<TColumnType... TargetTypes>
 		FSimpleQuery& None();
+		
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(TConstArrayView<const UScriptStruct*> Targets);
+		
+		// ValueTags not yet supported for None
+		template<TValueTagType>
+		FSimpleQuery& None(const FName& Tag) = delete;
+		template<TValueTagType>
+		FSimpleQuery& None(const FName& Tag, const FName& Value) = delete;
+
+		// Dynamic Column Support
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const FDynamicColumnDescription& Description);
+		template<TColumnType T>
+		FSimpleQuery& None(const FName&);
+		
+		// Value Tags
+		// ============
+		// Adds a filter to the query which must match a given ValueTag.  The value of the ValueTag will not be checked.
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FValueTag& Tag);
+		// Adds a filter to the query which must match a given ValueTag.  The value of the ValueTag must also match.
+		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FValueTag& Tag, const FName& Value);
+		
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum, int64 Value);
+
+		// Dynamic Column support
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FDynamicColumnDescription& Description);
+		template<TColumnType T>
+		FSimpleQuery& All(const FName&);
+
+		// Adds a filter to the query which must match a given ValueTag.  The value of the DynamicTag will not be checked.
+		template<TValueTagType>
+		FSimpleQuery& All(const FName& Tag);
+		// Adds a filter to the query which must match a given ValueTag.  The value of the DynamicTag must also match.
+		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
+		template<TValueTagType>
+		FSimpleQuery& All(const FName& Tag, const FName& Value);
+		
+		template<TEnumType EnumT>
+		FSimpleQuery& All();
+		
+		template<TEnumType EnumT>
+		FSimpleQuery& All(EnumT EnumValue);
+
+		template<auto Value, TEnumType EnumT = decltype(Value)>
+		FSimpleQuery& All();
 
 	private:
-		TYPEDELEMENTFRAMEWORK_API explicit FSimpleQuery(ITypedElementDataStorageInterface::FQueryDescription* Query);
+		TYPEDELEMENTFRAMEWORK_API explicit FSimpleQuery(FQueryDescription* Query);
 
-		ITypedElementDataStorageInterface::FQueryDescription* Query;
+		FQueryDescription* Query;
 	};
 
 	struct FQueryCallbackType{};
 
 	struct FProcessor final : public FQueryCallbackType
 	{
-		TYPEDELEMENTFRAMEWORK_API FProcessor(ITypedElementDataStorageInterface::EQueryTickPhase Phase, FName Group);
-		TYPEDELEMENTFRAMEWORK_API FProcessor& SetPhase(ITypedElementDataStorageInterface::EQueryTickPhase NewPhase);
+		TYPEDELEMENTFRAMEWORK_API FProcessor(EQueryTickPhase Phase, FName Group);
+		TYPEDELEMENTFRAMEWORK_API FProcessor& SetPhase(EQueryTickPhase NewPhase);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetGroup(FName GroupName);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetBeforeGroup(FName GroupName);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetAfterGroup(FName GroupName);
-		TYPEDELEMENTFRAMEWORK_API FProcessor& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FProcessor& SetExecutionMode(EExecutionMode Mode);
+		TYPEDELEMENTFRAMEWORK_API FProcessor& MakeActivatable(FName Name);
 		
-		ITypedElementDataStorageInterface::EQueryTickPhase Phase;
+		EQueryTickPhase Phase;
 		FName Group;
 		FName BeforeGroup;
 		FName AfterGroup;
-		bool bForceToGameThread{ false };
+		FName ActivationName;
+		EExecutionMode ExecutionMode = EExecutionMode::Default;
 	};
 
 	struct FObserver final : public FQueryCallbackType
@@ -192,20 +258,22 @@ namespace TypedElementQueryBuilder
 
 		TYPEDELEMENTFRAMEWORK_API FObserver(EEvent MonitorForEvent, const UScriptStruct* MonitoredColumn);
 
-		template<typename ColumnType>
+		template<TColumnType ColumnType>
 		static FObserver OnAdd();
-		template<typename ColumnType>
+		template<TColumnType ColumnType>
 		static FObserver OnRemove();
 
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetEvent(EEvent MonitorForEvent);
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetMonitoredColumn(const UScriptStruct* MonitoredColumn);
-		template<typename ColumnType>
+		template<TColumnType ColumnType>
 		FObserver& SetMonitoredColumn();
-		TYPEDELEMENTFRAMEWORK_API FObserver& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FObserver& SetExecutionMode(EExecutionMode Mode);
+		TYPEDELEMENTFRAMEWORK_API FObserver& MakeActivatable(FName Name);
 
 		const UScriptStruct* Monitor;
 		EEvent Event;
-		bool bForceToGameThread{ false };
+		FName ActivationName;
+		EExecutionMode ExecutionMode = EExecutionMode::Default;
 	};
 
 	struct FPhaseAmble final : public FQueryCallbackType
@@ -216,67 +284,71 @@ namespace TypedElementQueryBuilder
 			Postamble
 		};
 
-		TYPEDELEMENTFRAMEWORK_API FPhaseAmble(ELocation InLocation, ITypedElementDataStorageInterface::EQueryTickPhase InPhase);
+		TYPEDELEMENTFRAMEWORK_API FPhaseAmble(ELocation InLocation, EQueryTickPhase InPhase);
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetLocation(ELocation NewLocation);
-		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetPhase(ITypedElementDataStorageInterface::EQueryTickPhase NewPhase);
-		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetPhase(EQueryTickPhase NewPhase);
+		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetExecutionMode(EExecutionMode Mode);
+		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& MakeActivatable(FName Name);
 
-		ITypedElementDataStorageInterface::EQueryTickPhase Phase;
+		EQueryTickPhase Phase;
 		ELocation Location;
-		bool bForceToGameThread{ false };
+		FName ActivationName;
+		EExecutionMode ExecutionMode = EExecutionMode::Default;
 	};
 
 	// Because this is a thin wrapper called from within a query callback, it's better to inline fully so all
 	// function pre/postambles can be optimized away.
-	struct FQueryContextForwarder : public ITypedElementDataStorageInterface::IQueryContext
+	struct FQueryContextForwarder : public IQueryContext
 	{
 		inline FQueryContextForwarder(
-			const ITypedElementDataStorageInterface::FQueryDescription& InDescription, 
-			ITypedElementDataStorageInterface::IQueryContext& InParentContext);
+			const FQueryDescription& InDescription, 
+			IQueryContext& InParentContext);
 		inline ~FQueryContextForwarder() = default;
 
 		inline const void* GetColumn(const UScriptStruct* ColumnType) const override;
 		inline void* GetMutableColumn(const UScriptStruct* ColumnType) override;
 		inline void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-			TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes) override;
+			TConstArrayView<EQueryAccessType> AccessTypes) override;
 		inline void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-			const ITypedElementDataStorageInterface::EQueryAccessType* AccessTypes) override;
+			const EQueryAccessType* AccessTypes) override;
 
 		inline bool HasColumn(const UScriptStruct* ColumnType) const override;
 		
 		inline UObject* GetMutableDependency(const UClass* DependencyClass) override;
 		inline const UObject* GetDependency(const UClass* DependencyClass) override;
 		inline void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> SubsystemTypes,
-			TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes) override;
+			TConstArrayView<EQueryAccessType> AccessTypes) override;
 
 		inline uint32 GetRowCount() const override;
-		inline TConstArrayView<TypedElementRowHandle> GetRowHandles() const override;
-		inline void RemoveRow(TypedElementRowHandle Row) override;
-		inline void RemoveRows(TConstArrayView<TypedElementRowHandle> Rows) override;
+		inline TConstArrayView<RowHandle> GetRowHandles() const override;
+		inline void RemoveRow(RowHandle Row) override;
+		inline void RemoveRows(TConstArrayView<RowHandle> Rows) override;
 
-		inline void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
-		inline void AddColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
-		inline void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
-		inline void RemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
+		inline void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
+		inline void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
+		inline void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
+		inline void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
 
-		inline TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query) override;
-		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override;
-		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override;
-		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row,
-			TypedElementDataStorage::SubqueryCallbackRef Callback) override;
+		inline void PushCommand(void(* CommandFunction)(void*), void* CommandData) override;
 
-		ITypedElementDataStorageInterface::IQueryContext& ParentContext;
-		const ITypedElementDataStorageInterface::FQueryDescription& Description;
+		inline FQueryResult RunQuery(QueryHandle Query) override;
+		inline FQueryResult RunSubquery(int32 SubqueryIndex) override;
+		inline FQueryResult RunSubquery(int32 SubqueryIndex, SubqueryCallbackRef Callback) override;
+		inline FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row,
+			SubqueryCallbackRef Callback) override;
+
+		IQueryContext& ParentContext;
+		const FQueryDescription& Description;
 	};
 
 	template<typename... Dependencies>
 	struct FCachedQueryContext final : public FQueryContextForwarder
 	{
 		explicit FCachedQueryContext(
-			const ITypedElementDataStorageInterface::FQueryDescription& InDescription, 
-			ITypedElementDataStorageInterface::IQueryContext& InParentContext);
+			const FQueryDescription& InDescription, 
+			IQueryContext& InParentContext);
 		
-		static void Register(ITypedElementDataStorageInterface::FQueryDescription& Query);
+		static void Register(FQueryDescription& Query);
 
 		template<typename Dependency>
 		Dependency& GetCachedMutableDependency();
@@ -290,26 +362,56 @@ namespace TypedElementQueryBuilder
 	public:
 		TYPEDELEMENTFRAMEWORK_API Select();
 
+		/** Select the columns to operate one, giving read - only or read / write access. */
 		template<typename CallbackType, typename Function>
 		Select(FName Name, const CallbackType& Type, Function&& Callback);
+		/** Select the columns to operate one, giving read - only or read / write access. */
 		template<typename CallbackType, typename Class, typename Function>
 		Select(FName Name, const CallbackType& Type, Class* Instance, Function&& Callback);
 
-		template<typename... TargetTypes>
+		/** Request read-only access to the listed columns. */
+		template<TDataColumnType... TargetTypes>
 		Select& ReadOnly();
+		/** Request read-only access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target);
+		/** Request read-only access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets);
-		template<typename... TargetTypes>
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const FDynamicColumnDescription& Description);
+		/** 
+		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
+		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
+		 */
+		template<TDataColumnType... TargetTypes>
+		Select& ReadOnly(EOptional Optional);
+		/**
+		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
+		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
+		 */
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target, EOptional Optional);
+		/**
+		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
+		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
+		 */
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets, EOptional Optional);
+		template<TDataColumnType Target>
+		Select& ReadOnly(const FName& Identifier);
+		/** Request read and write access to the listed columns. */
+		template<TDataColumnType... TargetTypes>
 		Select& ReadWrite();
+		/** Request read and write access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const UScriptStruct* Target);
+		/** Request read and write access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(TConstArrayView<const UScriptStruct*> Targets);
+		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const FDynamicColumnDescription& Description);
+		template<TDataColumnType Target>
+		Select& ReadWrite(const FName& Identifier);
 
-		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
+		TYPEDELEMENTFRAMEWORK_API FQueryDescription&& Compile();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery Where();
 		TYPEDELEMENTFRAMEWORK_API FDependency DependsOn();
 
 	private:
-		ITypedElementDataStorageInterface::FQueryDescription Query;
+		FQueryDescription Query;
 	};
 
 	// Explicitly not following the naming convention in order to keep readability consistent. It now reads like a query sentence.
@@ -322,14 +424,14 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FDependency DependsOn();
 
 	private:
-		ITypedElementDataStorageInterface::FQueryDescription Query;
+		FQueryDescription Query;
 	};
 
 	template<typename Function>
-	TypedElementDataStorage::DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback);
+	DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback);
 	template<typename Function>
-	TypedElementDataStorage::SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
+	SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
 
-} // namespace TypedElementQueryBuilder
+} // namespace UE::Editor::DataStorage::Queries
 
 #include "Elements/Framework/TypedElementQueryBuilder.inl"

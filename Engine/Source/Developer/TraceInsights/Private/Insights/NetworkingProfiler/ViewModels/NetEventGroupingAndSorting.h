@@ -4,52 +4,57 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNode.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorters
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FNetEventNodeSortingByEventType: public Insights::FTableCellValueSorter
+class FNetEventNodeSortingByEventType: public FTableCellValueSorter
 {
 public:
-	FNetEventNodeSortingByEventType(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FNetEventNodeSortingByEventType(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FNetEventNodeSortingByInstanceCount : public Insights::FTableCellValueSorter
+class FNetEventNodeSortingByInstanceCount : public FTableCellValueSorter
 {
 public:
-	FNetEventNodeSortingByInstanceCount(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FNetEventNodeSortingByInstanceCount(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FNetEventNodeSortingByTotalInclusiveSize : public Insights::FTableCellValueSorter
+class FNetEventNodeSortingByTotalInclusiveSize : public FTableCellValueSorter
 {
 public:
-	FNetEventNodeSortingByTotalInclusiveSize(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FNetEventNodeSortingByTotalInclusiveSize(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FNetEventNodeSortingByTotalExclusiveSize : public Insights::FTableCellValueSorter
+class FNetEventNodeSortingByTotalExclusiveSize : public FTableCellValueSorter
 {
 public:
-	FNetEventNodeSortingByTotalExclusiveSize(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FNetEventNodeSortingByTotalExclusiveSize(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -79,3 +84,5 @@ enum class ENetEventGroupingMode
 typedef TSharedPtr<ENetEventGroupingMode> ENetEventGroupingModePtr;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

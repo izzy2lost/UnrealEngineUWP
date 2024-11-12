@@ -276,14 +276,11 @@ void FDatasmithMaterialExpressions::GetSamplersRecursive(UMaterialExpression* Ex
 		TextureSamplers.AddUnique((UMaterialExpressionTextureSample*)Expression);
 	}
 
-	TArrayView<FExpressionInput*> Inputs = Expression->GetInputsView();
-	for (int32 InputIndex = 0; InputIndex < Inputs.Num(); InputIndex++)
+	for (FExpressionInputIterator It{ Expression }; It; ++It)
 	{
-		UMaterialExpression* Input = Inputs[InputIndex]->Expression;
-
-		if (Input != nullptr)
+		if (UMaterialExpression* InputExpression = It->Expression)
 		{
-			GetSamplersRecursive(Input, TextureSamplers);
+			GetSamplersRecursive(InputExpression, TextureSamplers);
 		}
 	}
 }
@@ -3144,10 +3141,15 @@ void FDatasmithMaterialExpressions::CreateUEPbrMaterialGraph(const TSharedPtr< I
 			{
 				for ( int32 ExpressionInput = 0; ExpressionInput < DatasmithExpression->GetInputCount(); ++ExpressionInput )
 				{
-					if ( MaterialOutputExpression->GetInputsView().IsValidIndex( ExpressionInput ) )
+					if (FExpressionInput* MaterialOutputExpressionInput = MaterialOutputExpression->GetInput( ExpressionInput ) )
 					{
-						ConnectExpression( MaterialElement.ToSharedRef(), MaterialExpressions, DatasmithExpression->GetInput( ExpressionInput )->GetExpression(),
-							MaterialOutputExpression->GetInput( ExpressionInput ), DatasmithExpression->GetInput( ExpressionInput )->GetOutputIndex() );
+						ConnectExpression(
+							MaterialElement.ToSharedRef(),
+							MaterialExpressions,
+							DatasmithExpression->GetInput( ExpressionInput )->GetExpression(),
+							MaterialOutputExpressionInput,
+							DatasmithExpression->GetInput( ExpressionInput )->GetOutputIndex()
+						);
 					}
 				}
 			}

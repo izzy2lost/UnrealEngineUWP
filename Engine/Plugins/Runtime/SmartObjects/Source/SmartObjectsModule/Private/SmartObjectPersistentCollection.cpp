@@ -336,7 +336,7 @@ bool FSmartObjectContainer::UpdateSmartObject(const USmartObjectComponent& SOCom
 					}
 				}
 			}
-			Definitions.RemoveAtSwap(PrevDefinitionIndex, 1, EAllowShrinking::No);
+			Definitions.RemoveAtSwap(PrevDefinitionIndex, EAllowShrinking::No);
 		}
 	}
 

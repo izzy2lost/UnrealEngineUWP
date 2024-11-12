@@ -212,7 +212,7 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	DeleteTrianglesFromMesh( 
 		UDynamicMesh* TargetMesh, 
-		FGeometryScriptIndexList TriangleList,
+		UPARAM(DisplayName = "Triangle ID List") FGeometryScriptIndexList TriangleList,
 		int& NumDeleted,
 		bool bDeferChangeNotifications = false );
 
@@ -243,6 +243,25 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Apply Append Transform to Append Mesh and then add its geometry to the Target Mesh.
+	 * Also combines materials lists of the Target and Append meshes, and updates the output mesh materials to reference the combined list.
+	 * @param AppendOptions Control how details like mesh attributes are handled when one mesh is appended to another.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshEdits", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendMeshWithMaterials(
+		UDynamicMesh* TargetMesh,
+		const TArray<UMaterialInterface*>& TargetMeshMaterialList,
+		UDynamicMesh* AppendMesh,
+		const TArray<UMaterialInterface*>& AppendMeshMaterialList,
+		TArray<UMaterialInterface*>& ResultMeshMaterialList,
+		FTransform AppendTransform,
+		bool bDeferChangeNotifications = false,
+		FGeometryScriptAppendMeshOptions AppendOptions = FGeometryScriptAppendMeshOptions(),
+		bool bCompactAppendedMaterials = true,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	 * For each transform in AppendTransforms, apply the transform to AppendMesh and then add its geometry to the TargetMesh.
 	 * @param ConstantTransform the Constant transform will be applied after each Append transform
 	 * @param bConstantTransformIsRelative if true, the Constant transform is applied "in the frame" of the Append Transform, otherwise it is applied as a second transform in local coordinates (ie rotate around the AppendTransform X axis, vs around the local X axis)
@@ -258,6 +277,30 @@ public:
 		bool bConstantTransformIsRelative = true,
 		bool bDeferChangeNotifications = false,
 		FGeometryScriptAppendMeshOptions AppendOptions = FGeometryScriptAppendMeshOptions(),
+		UGeometryScriptDebug* Debug = nullptr);
+
+
+	/**
+	 * For each transform in AppendTransforms, apply the transform to AppendMesh and then add its geometry to the TargetMesh.
+	 * Also combines materials lists of the Target and Append meshes, and updates the output mesh materials to reference the combined list.
+	 * @param ConstantTransform the Constant transform will be applied after each Append transform
+	 * @param bConstantTransformIsRelative if true, the Constant transform is applied "in the frame" of the Append Transform, otherwise it is applied as a second transform in local coordinates (ie rotate around the AppendTransform X axis, vs around the local X axis)
+	 * @param AppendOptions Control how details like mesh attributes are handled when one mesh is appended to another
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshEdits", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendMeshTransformedWithMaterials( 
+		UDynamicMesh* TargetMesh, 
+		const TArray<UMaterialInterface*>& TargetMeshMaterialList,
+		UDynamicMesh* AppendMesh, 
+		const TArray<UMaterialInterface*>& AppendMeshMaterialList,
+		TArray<UMaterialInterface*>& ResultMeshMaterialList,
+		const TArray<FTransform>& AppendTransforms, 
+		FTransform ConstantTransform,
+		bool bConstantTransformIsRelative = true,
+		bool bDeferChangeNotifications = false,
+		FGeometryScriptAppendMeshOptions AppendOptions = FGeometryScriptAppendMeshOptions(),
+		bool bCompactAppendedMaterials = true,
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
@@ -276,6 +319,29 @@ public:
 		bool bApplyTransformToFirstInstance = true,
 		bool bDeferChangeNotifications = false,
 		FGeometryScriptAppendMeshOptions AppendOptions = FGeometryScriptAppendMeshOptions(),
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Repeatedly apply AppendTransform to the AppendMesh, each time adding the geometry to TargetMesh.
+	 * Also combines materials lists of the Target and Append meshes, and updates the output mesh materials to reference the combined list.
+	 * @param RepeatCount number of times to repeat the transform-append cycle
+	 * @param bApplyTransformToFirstInstance if true, the AppendTransform is applied before the first mesh append, otherwise it is applied after
+	 * @param AppendOptions Control how details like mesh attributes are handled when one mesh is appended to another
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshEdits", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendMeshRepeatedWithMaterials( 
+		UDynamicMesh* TargetMesh, 
+		const TArray<UMaterialInterface*>& TargetMeshMaterialList,
+		UDynamicMesh* AppendMesh, 
+		const TArray<UMaterialInterface*>& AppendMeshMaterialList,
+		TArray<UMaterialInterface*>& ResultMeshMaterialList,
+		FTransform AppendTransform, 
+		int RepeatCount = 1,
+		bool bApplyTransformToFirstInstance = true,
+		bool bDeferChangeNotifications = false,
+		FGeometryScriptAppendMeshOptions AppendOptions = FGeometryScriptAppendMeshOptions(),
+		bool bCompactAppendedMaterials = true,
 		UGeometryScriptDebug* Debug = nullptr);
 
 

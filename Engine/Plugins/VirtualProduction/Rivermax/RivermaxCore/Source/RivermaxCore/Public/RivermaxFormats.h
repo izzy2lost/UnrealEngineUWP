@@ -8,7 +8,7 @@
 
 namespace UE::RivermaxCore
 {
-	enum class RIVERMAXCORE_API ESamplingType : uint8
+	enum class ESamplingType : uint8
 	{
 		YUV422_8bit
 		, YUV422_10bit
@@ -102,7 +102,7 @@ namespace UE::RivermaxCore
 		return TEXT("<Unknown ESamplingType>");;
 	}
 
-	struct RIVERMAXCORE_API FVideoFormatInfo
+	struct FVideoFormatInfo
 	{
 		/** Sampling type of this format */
 		ESamplingType Sampling = ESamplingType::RGB_10bit;
@@ -117,13 +117,13 @@ namespace UE::RivermaxCore
 		uint16 PixelGroupCoverage = 0;
 	};
 
-	struct RIVERMAXCORE_API FStandardVideoFormat
+	struct FStandardVideoFormat
 	{
-		static FVideoFormatInfo GetVideoFormatInfo(ESamplingType SamplingType);
-		static bool IsRGB(ESamplingType SamplingType);
-		static bool IsYUV(ESamplingType SamplingType);
-		static bool IsYUV422(ESamplingType SamplingType);
-		static bool IsYUV444(ESamplingType SamplingType);
+		RIVERMAXCORE_API static FVideoFormatInfo GetVideoFormatInfo(ESamplingType SamplingType);
+		RIVERMAXCORE_API static bool IsRGB(ESamplingType SamplingType);
+		RIVERMAXCORE_API static bool IsYUV(ESamplingType SamplingType);
+		RIVERMAXCORE_API static bool IsYUV422(ESamplingType SamplingType);
+		RIVERMAXCORE_API static bool IsYUV444(ESamplingType SamplingType);
 
 	private:
 		static const TArray<FVideoFormatInfo> AllSamplingTypes;

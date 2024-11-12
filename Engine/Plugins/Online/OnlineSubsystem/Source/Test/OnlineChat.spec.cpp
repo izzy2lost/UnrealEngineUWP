@@ -4,7 +4,7 @@
 #include "Online.h"
 #include "Utils/OnlineTestCommon.h"
 
-BEGIN_DEFINE_SPEC(FOnlineChatSpec, "OnlineChatInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FOnlineChatSpec, "OnlineChatInterface", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 
 IOnlineSubsystem* OnlineSubsystem;
 

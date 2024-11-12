@@ -137,6 +137,32 @@ FRDGBufferRef FMaterialsSceneExtension::CreateHitProxyIDBuffer(FRDGBuilder& Grap
 
 #endif // WITH_EDITOR
 
+#if WITH_DEBUG_VIEW_MODES
+
+FRDGBufferRef FMaterialsSceneExtension::CreateDebugViewModeBuffer(FRDGBuilder& GraphBuilder) const
+{
+	TaskHandles[UpdateDebugViewModeTask].Wait();
+
+	FRDGBufferRef Buffer;
+	if (DebugViewData.Num() > 0)
+	{
+		Buffer = GraphBuilder.CreateBuffer(
+			FRDGBufferDesc::CreateByteAddressDesc(DebugViewData.Num() * sizeof(FNaniteMaterialDebugViewInfo)),
+			TEXT("Nanite.DebugViewDataBuffer")
+		);
+
+		GraphBuilder.QueueBufferUpload(Buffer, MakeArrayView(DebugViewData.GetData(), DebugViewData.Num()));
+	}
+	else
+	{
+		Buffer = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4);
+	}
+
+	return Buffer;
+}
+
+#endif // WITH_DEBUG_VIEW_MODES
+
 void FMaterialsSceneExtension::SetEnabled(bool bEnabled)
 {
 	if (bEnabled != IsEnabled())
@@ -154,6 +180,9 @@ void FMaterialsSceneExtension::SetEnabled(bool bEnabled)
 			HitProxyIDAllocator.Reset();
 			HitProxyIDs.Reset();
 		#endif
+		#if WITH_DEBUG_VIEW_MODES
+			DebugViewData.Reset();
+		#endif
 		}
 	}
 }
@@ -167,23 +196,25 @@ void FMaterialsSceneExtension::FinishMaterialBufferUpload(
 		return;
 	}
 
+	// Sync on dependent tasks
+	UE::Tasks::Wait(
+		MakeArrayView(
+			{
+				TaskHandles[AllocMaterialBufferTask],
+				TaskHandles[UploadPrimitiveDataTask],
+				TaskHandles[UploadMaterialDataTask]
+			}
+		)
+	);
+
 	FRDGBufferRef PrimitiveBuffer = nullptr;
 	FRDGBufferRef MaterialBuffer = nullptr;
 
-	const uint32 MinPrimitiveDataSize = (PrimitiveData.GetMaxIndex() + 1) * sizeof(FPackedPrimitiveData) / 4;
+	const uint32 MinPrimitiveDataSize = PrimitiveData.GetMaxIndex() + 1;
 	const uint32 MinMaterialDataSize = MaterialBufferAllocator.GetMaxSize();
 
 	if (MaterialUploader.IsValid())
 	{
-		// Sync on upload tasks
-		UE::Tasks::Wait(
-			MakeArrayView(
-				{
-					TaskHandles[UploadPrimitiveDataTask],
-					TaskHandles[UploadMaterialDataTask]
-				}
-			)
-		);
 		PrimitiveBuffer = MaterialUploader->PrimitiveDataUploader.ResizeAndUploadTo(
 			GraphBuilder,
 			MaterialBuffers->PrimitiveDataBuffer,
@@ -272,6 +303,49 @@ bool FMaterialsSceneExtension::ProcessBufferDefragmentation()
 	return true;
 }
 
+void FMaterialsSceneExtension::PostBuildNaniteShadingCommands(
+	FRDGBuilder& GraphBuilder,
+	const UE::Tasks::FTask& BuildDependency,
+	ENaniteMeshPass::Type MeshPass
+)
+{
+	if (!IsEnabled() || MeshPass != ENaniteMeshPass::BasePass)
+	{
+		return;
+	}
+
+#if WITH_DEBUG_VIEW_MODES
+
+	const bool bEnableAsync = CVarNaniteMaterialBufferAsyncUpdates.GetValueOnRenderThread();
+
+	// Launch a task to upload current debug view mode data
+	TaskHandles[UpdateDebugViewModeTask] = GraphBuilder.AddSetupTask(
+		[this, BuildDependency]
+		{
+			const FNaniteShadingCommands& ShadingCommands = Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass];
+			check(BuildDependency.IsCompleted());
+
+			DebugViewData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
+			for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
+			{
+				if (ShadingCommand.Pipeline != nullptr)
+				{
+					const FNaniteShadingPipeline* ShadingPipeline = ShadingCommand.Pipeline.Get();
+					FNaniteMaterialDebugViewInfo& DebugData = DebugViewData[ShadingCommand.ShadingBin];
+
+					// Shading pipelines only run as compute shaders
+					DebugData.InstructionCountCS = ShadingPipeline->InstructionCount;
+					DebugData.LWCComplexityCS = ShadingPipeline->LWCComplexity;
+				}
+
+			}
+		},
+		MakeArrayView({ BuildDependency }),
+		UE::Tasks::ETaskPriority::Normal,
+		bEnableAsync
+	);
+#endif
+}
 
 FMaterialsSceneExtension::FMaterialBuffers::FMaterialBuffers() :
 	PrimitiveDataBuffer(
@@ -284,7 +358,6 @@ FMaterialsSceneExtension::FMaterialBuffers::FMaterialBuffers() :
 	)
 {
 }
-
 
 FMaterialsSceneExtension::FUpdater::FUpdater(FMaterialsSceneExtension& InSceneData) :
 	SceneData(&InSceneData),
@@ -299,7 +372,7 @@ void FMaterialsSceneExtension::FUpdater::End()
 	SceneData->SyncAllTasks();
 }
 
-void FMaterialsSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet)
+void FMaterialsSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms)
 {
 	// If there was a pending upload from a prior update (due to the buffer never being used), finish the upload now.
 	// This keeps the upload entries from growing unbounded and prevents any undefined behavior caused by any
@@ -407,7 +480,9 @@ void FMaterialsSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuild
 
 		auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Data.PrimitiveSceneInfo->Proxy);	
 		auto& MaterialSections = NaniteProxy->GetMaterialSections();	
-	
+
+		Data.OverlayColor = NaniteProxy->GetOverlayColor().ToPackedABGR();
+		
 		// Check to allocate space in the hit proxy ID buffer
 		const bool bNeedsMaterialHitProxies = Data.NumMaterials > 0 &&
 			NaniteProxy->GetHitProxyMode() == Nanite::FSceneProxyBase::EHitProxyMode::MaterialSection;
@@ -692,7 +767,6 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 		SceneData->FinishMaterialBufferUpload(GraphBuilder);
 	}
 }
-
 
 void FMaterialsSceneExtension::FRenderer::UpdateSceneUniformBuffer(
 	FRDGBuilder& GraphBuilder,

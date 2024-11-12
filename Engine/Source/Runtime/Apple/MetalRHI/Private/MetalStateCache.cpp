@@ -1,16 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "MetalStateCache.h"
 
 #include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalStateCache.h"
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
+#include "MetalCommandEncoder.h"
 #include "MetalVertexDeclaration.h"
 #include "MetalBindlessDescriptors.h"
 #include "RHIShaderParametersShared.h"
+#include "MetalResourceCollection.h"
+#include "MetalDynamicRHI.h"
 
 #if PLATFORM_MAC
 	#ifndef UINT128_MAX
@@ -51,7 +54,24 @@ static MTL::DepthClipMode TranslateDepthClipMode(ERasterizerDepthClipMode DepthC
 	}
 }
 
-FORCEINLINE MTL::StoreAction GetMetalRTStoreAction(ERenderTargetStoreAction StoreAction)
+static MTL::StoreAction ConditionalOverrideStoreAction(MTL::StoreAction StoreAction, bool bIsDepth, bool bIsMSAA)
+{
+	if (!bIsMSAA)
+	{
+		return StoreAction;
+	}
+	
+	static int Mode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.XRMSAAMode"))->GetValueOnAnyThread();
+	if (Mode != 0)
+	{
+		// @todo visionos: this needs to be experimented on to find best mode
+		return MTL::StoreActionStoreAndMultisampleResolve;
+	}
+	
+	return StoreAction;
+}
+
+FORCEINLINE MTL::StoreAction GetMetalRTStoreAction(FMetalDevice& Device, ERenderTargetStoreAction StoreAction)
 {
 	switch(StoreAction)
 	{
@@ -61,8 +81,8 @@ FORCEINLINE MTL::StoreAction GetMetalRTStoreAction(ERenderTargetStoreAction Stor
         //because we may render to the same MSAA target twice in two separate passes.  BasePass, then some stuff, then translucency for example and we need to not lose the prior MSAA contents to do this properly.
 		case ERenderTargetStoreAction::EMultisampleResolve:
 		{
-            static bool bNoMSAA = FParse::Param(FCommandLine::Get(), TEXT("nomsaa"));
-			static bool bSupportsMSAAStoreResolve = FMetalCommandQueue::SupportsFeature(EMetalFeaturesMSAAStoreAndResolve) && (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
+            static bool bNoMSAA = !AllowMSAA();
+			static bool bSupportsMSAAStoreResolve = Device.SupportsFeature(EMetalFeaturesMSAAStoreAndResolve) && (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
             if (bNoMSAA)
             {
                 return MTL::StoreActionStore;
@@ -80,13 +100,13 @@ FORCEINLINE MTL::StoreAction GetMetalRTStoreAction(ERenderTargetStoreAction Stor
 	}
 }
 
-FORCEINLINE MTL::StoreAction GetConditionalMetalRTStoreAction(bool bMSAATarget)
+FORCEINLINE MTL::StoreAction GetConditionalMetalRTStoreAction(FMetalDevice& Device, bool bMSAATarget)
 {
 	if (bMSAATarget)
 	{
 		//this func should only be getting called when an encoder had to abnormally break.  In this case we 'must' do StoreAndResolve because the encoder will be restarted later
 		//with the original MSAA rendertarget and the original data must still be there to continue the render properly.
-		check(FMetalCommandQueue::SupportsFeature(EMetalFeaturesMSAAStoreAndResolve));
+		check(Device.SupportsFeature(EMetalFeaturesMSAAStoreAndResolve));
 		return MTL::StoreActionStoreAndMultisampleResolve;
 	}
 	else
@@ -95,80 +115,9 @@ FORCEINLINE MTL::StoreAction GetConditionalMetalRTStoreAction(bool bMSAATarget)
 	}	
 }
 
-class FMetalRenderPassDescriptorPool
-{
-public:
-	FMetalRenderPassDescriptorPool()
-	{
-		
-	}
-	
-	~FMetalRenderPassDescriptorPool()
-	{
-		
-	}
-	
-	MTL::RenderPassDescriptor* CreateDescriptor()
-	{
-		MTL::RenderPassDescriptor* Desc = Cache.Pop();
-		if (!Desc)
-		{
-            Desc = MTL::RenderPassDescriptor::alloc()->init();
-            check(Desc);
-		}
-		return Desc;
-	}
-	
-	void ReleaseDescriptor(MTL::RenderPassDescriptor* Desc)
-	{
-		MTL::RenderPassColorAttachmentDescriptorArray* Attachments = Desc->colorAttachments();
-		for (uint32 i = 0; i < MaxSimultaneousRenderTargets; i++)
-		{
-			MTL::RenderPassColorAttachmentDescriptor* Color = Attachments->object(i);
-			Color->setTexture(nullptr);
-			Color->setResolveTexture(nullptr);
-			Color->setStoreAction(MTL::StoreActionStore);
-		}
-		
-        MTL::RenderPassDepthAttachmentDescriptor* Depth = Desc->depthAttachment();
-		Depth->setTexture(nullptr);
-		Depth->setResolveTexture(nullptr);
-		Depth->setStoreAction(MTL::StoreActionStore);
-
-        MTL::RenderPassStencilAttachmentDescriptor* Stencil = Desc->stencilAttachment();
-		Stencil->setTexture(nullptr);
-		Stencil->setResolveTexture(nullptr);
-		Stencil->setStoreAction(MTL::StoreActionStore);
-
-		Desc->setVisibilityResultBuffer(nullptr);
-		
-#if PLATFORM_MAC
-		Desc->setRenderTargetArrayLength(1);
-#endif
-		
-		Cache.Push(Desc);
-	}
-	
-	static FMetalRenderPassDescriptorPool& Get()
-	{
-		static FMetalRenderPassDescriptorPool sSelf;
-		return sSelf;
-	}
-	
-private:
-	TLockFreePointerListLIFO<MTL::RenderPassDescriptor> Cache;
-};
-
-void SafeReleaseMetalRenderPassDescriptor(MTL::RenderPassDescriptor* Desc)
-{
-	if (Desc)
-	{
-		FMetalRenderPassDescriptorPool::Get().ReleaseDescriptor(Desc);
-	}
-}
-
-FMetalStateCache::FMetalStateCache(MTL::Device* Device, bool const bInImmediate)
-: DepthStore(MTL::StoreActionUnknown)
+FMetalStateCache::FMetalStateCache(FMetalDevice& MetalDevice, bool const bInImmediate)
+: Device(MetalDevice)
+, DepthStore(MTL::StoreActionUnknown)
 , StencilStore(MTL::StoreActionUnknown)
 , VisibilityResults(nullptr)
 , VisibilityMode(MTL::VisibilityResultModeDisabled)
@@ -186,10 +135,7 @@ FMetalStateCache::FMetalStateCache(MTL::Device* Device, bool const bInImmediate)
 , bIsRenderTargetActive(false)
 , bHasValidRenderTarget(false)
 , bHasValidColorTarget(false)
-, bScissorRectEnabled(false)
-, bCanRestartRenderPass(false)
 , bImmediate(bInImmediate)
-, bFallbackDepthStencilBound(false)
 {
 	FMemory::Memzero(Viewport);
 	FMemory::Memzero(Scissor);
@@ -209,9 +155,9 @@ FMetalStateCache::FMetalStateCache(MTL::Device* Device, bool const bInImmediate)
 	// Reset Vertex Buffer Offsets.
 	for (uint32 i = 0; i < UE_ARRAY_COUNT(VertexBufferVAs); i++)
 	{
-		VertexBufferVAs[i].GPUVA = 0;
-		VertexBufferVAs[i].Stride = 0;
-		VertexBufferVAs[i].Length = 0;
+		VertexBufferVAs[i].addr = 0;
+		VertexBufferVAs[i].stride = 0;
+		VertexBufferVAs[i].length = 0;
 	}
 	
 	// Clear CBV table
@@ -222,10 +168,6 @@ FMetalStateCache::FMetalStateCache(MTL::Device* Device, bool const bInImmediate)
 			CBVTable[Frequency][i] = 0ull;
 		}
 	}
-	
-	// Allocate SideAlloc table (one time op)
-	MTLBufferPtr SideAllocBuffer = NS::TransferPtr(Device->newBuffer(SideAllocsBufferSize, 0));
-	SideAllocs.TableBuffer = FMetalBufferPtr(new FMetalBuffer(SideAllocBuffer));
 #endif
 }
 
@@ -274,7 +216,6 @@ FMetalStateCache::~FMetalStateCache()
 	}
 	
 	VisibilityResults = nullptr;
-	ActiveHeaps.Empty();
 }
 
 void FMetalStateCache::Reset()
@@ -291,7 +232,6 @@ void FMetalStateCache::Reset()
 	bIsRenderTargetActive = false;
 	bHasValidRenderTarget = false;
 	bHasValidColorTarget = false;
-	bScissorRectEnabled = false;
 	
 	FMemory::Memzero(DirtyUniformBuffers);
 	FMemory::Memzero(BoundUniformBuffers);
@@ -344,8 +284,14 @@ void FMetalStateCache::Reset()
 	RasterizerState.SafeRelease();
 	GraphicsPSO.SafeRelease();
 	ComputeShader.SafeRelease();
+	PreviousComputeShader.SafeRelease();
 	DepthStencilSurface.SafeRelease();
 	StencilRef = 0;
+	
+	if(RenderPassDesc)
+	{
+		FMetalRenderPassDescriptorPool::Get().ReleaseDescriptor(RenderPassDesc);
+	}
 	
 	RenderPassDesc = nullptr;
 	
@@ -359,7 +305,6 @@ void FMetalStateCache::Reset()
 	BlendFactor = FLinearColor::Transparent;
 	FrameBufferSize = CGSizeMake(0.0, 0.0);
 	RenderTargetArraySize = 0;
-	bCanRestartRenderPass = false;
 	
 	RasterBits = EMetalRenderFlagMask;
 	PipelineBits = EMetalPipelineFlagMask;
@@ -367,17 +312,15 @@ void FMetalStateCache::Reset()
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if(GIsMetalInitialized)
 	{
-		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 		
 		if(BindlessDescriptorManager->IsSupported())
 		{
-			BindlessDescriptorManager->Reset();
-			
 			for (uint32 i = 0; i < UE_ARRAY_COUNT(VertexBufferVAs); i++)
 			{
-				VertexBufferVAs[i].GPUVA = 0;
-				VertexBufferVAs[i].Stride = 0;
-				VertexBufferVAs[i].Length = 0;
+				VertexBufferVAs[i].addr = 0;
+				VertexBufferVAs[i].stride = 0;
+				VertexBufferVAs[i].length = 0;
 			}
 			
 			// Clear CBV table
@@ -388,6 +331,14 @@ void FMetalStateCache::Reset()
 					CBVTable[Frequency][i] = 0ull;
 				}
 			}
+			
+			// Free temporary allocations
+			for (FMetalBufferPtr TemporaryBuffer : TemporaryBuffers)
+			{
+				FMetalDynamicRHI::Get().DeferredDelete(TemporaryBuffer);
+			}
+			TemporaryBuffers.Reset();
+			UniformBufferVAs.Reset();
 		}
 	}
 #endif
@@ -400,29 +351,30 @@ static bool MTLScissorRectEqual(MTL::ScissorRect const& Left, MTL::ScissorRect c
 
 void FMetalStateCache::SetScissorRect(bool const bEnable, MTL::ScissorRect const& Rect)
 {
-	if (bScissorRectEnabled != bEnable || !MTLScissorRectEqual(Scissor[0], Rect))
+	if (bEnable)
 	{
-		bScissorRectEnabled = bEnable;
-		if (bEnable)
-		{
-			Scissor[0] = Rect;
-		}
-		else
-		{
-			Scissor[0].x = Viewport[0].originX;
-			Scissor[0].y = Viewport[0].originY;
-			Scissor[0].width = Viewport[0].width;
-			Scissor[0].height = Viewport[0].height;
-		}
-		
-		// Clamp to framebuffer size - Metal doesn't allow scissor to be larger.
-		Scissor[0].x = Scissor[0].x;
-		Scissor[0].y = Scissor[0].y;
+		Scissor[0] = Rect;
+	}
+	else
+	{
+		Scissor[0].x = Viewport[0].originX;
+		Scissor[0].y = Viewport[0].originY;
+		Scissor[0].width = Viewport[0].width;
+		Scissor[0].height = Viewport[0].height;
+	}
+	
+	// Clamp to framebuffer size - Metal doesn't allow scissor to be larger.
+	Scissor[0].x = Scissor[0].x;
+	Scissor[0].y = Scissor[0].y;
+	
+	// FrameBufferSize will be 0 if using RT-less rasterization, so ignore
+	if(FrameBufferSize.width != 0 && FrameBufferSize.height != 0)
+	{
 		Scissor[0].width = FMath::Max((Scissor[0].x + Scissor[0].width <= FMath::RoundToInt32(FrameBufferSize.width)) ? Scissor[0].width : FMath::RoundToInt32(FrameBufferSize.width) - Scissor[0].x, (NS::UInteger)1u);
 		Scissor[0].height = FMath::Max((Scissor[0].y + Scissor[0].height <= FMath::RoundToInt32(FrameBufferSize.height)) ? Scissor[0].height : FMath::RoundToInt32(FrameBufferSize.height) - Scissor[0].y, (NS::UInteger)1u);
-		
-		RasterBits |= EMetalRenderFlagScissorRect;
 	}
+	
+	RasterBits |= EMetalRenderFlagScissorRect;
 	
 	ActiveScissors = 1;
 }
@@ -491,7 +443,7 @@ void FMetalStateCache::SetComputeShader(FMetalComputeShader* InComputeShader)
 	}
 }
 
-bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTargets, FMetalQueryBuffer* QueryBuffer, bool const bRestart)
+bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTargets, FMetalQueryBuffer* QueryBuffer)
 {
 	bool bNeedsSet = false;
 	
@@ -513,13 +465,18 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 		// back this up for next frame
 		RenderPassInfo = InRenderTargets;
 		
+		if(RenderPassDesc)
+		{
+			FMetalRenderPassDescriptorPool::Get().ReleaseDescriptor(RenderPassDesc);
+		}
+		
 		// at this point, we need to fully set up an encoder/command buffer, so make a new one (autoreleased)
 		MTL::RenderPassDescriptor* RenderPass = FMetalRenderPassDescriptorPool::Get().CreateDescriptor();
 	
 		// if we need to do queries, write to the supplied query buffer
 		{
 			VisibilityResults = QueryBuffer;
-			RenderPass->setVisibilityResultBuffer(QueryBuffer ? QueryBuffer->Buffer->GetMTLBuffer().get() : nullptr);
+			RenderPass->setVisibilityResultBuffer(QueryBuffer ? QueryBuffer->Buffer->GetMTLBuffer() : nullptr);
 		}
 		
 		if (QueryBuffer != VisibilityResults)
@@ -536,20 +493,32 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 		bHasValidRenderTarget = false;
 		bHasValidColorTarget = false;
 		
-		bFallbackDepthStencilBound = false;
-		
 		uint8 ArrayTargets = 0;
 		uint8 BoundTargets = 0;
 		uint32 ArrayRenderLayers = UINT_MAX;
 		
 		bool bFramebufferSizeSet = false;
 		FrameBufferSize = CGSizeMake(0.f, 0.f);
-		
-		bCanRestartRenderPass = true;
-		
+
         MTL::RenderPassColorAttachmentDescriptorArray* Attachments = RenderPass->colorAttachments();
 		
 		uint32 NumColorRenderTargets = RenderPassInfo.GetNumColorRenderTargets();
+		
+		// If we don't have RT or Depth we need to set default raster sample count
+		if(!NumColorRenderTargets && RenderPassInfo.DepthStencilRenderTarget.DepthStencilTarget == nullptr)
+		{
+			uint32_t RTWidth = FMath::Max(RenderPassInfo.ResolveRect.X2, GetViewport(0).width);
+			uint32_t RTHeight = FMath::Max(RenderPassInfo.ResolveRect.Y2, GetViewport(0).height);
+			
+			RenderPass->setRenderTargetWidth(RTWidth);
+			RenderPass->setRenderTargetHeight(RTHeight);
+			RenderPass->setDefaultRasterSampleCount(1);
+		}
+		else
+		{
+			RenderPass->setRenderTargetWidth(0);
+			RenderPass->setRenderTargetHeight(0);
+		}
 		
 		for (uint32 RenderTargetIndex = 0; RenderTargetIndex < MaxSimultaneousRenderTargets; RenderTargetIndex++)
 		{
@@ -593,7 +562,6 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
                 if (Surface.Texture.get() == nullptr)
                 {
                     SampleCount = OldCount;
-                    bCanRestartRenderPass &= (OldCount <= 1);
                     return true;
                 }
 #endif
@@ -603,10 +571,6 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 	
 				// user code generally passes -1 as a default, but we need 0
 				uint32 ArraySliceIndex = RenderTargetView.ArraySlice == 0xFFFFFFFF ? 0 : RenderTargetView.ArraySlice;
-				if (Surface.GetDesc().IsTextureCube())
-				{
-					ArraySliceIndex = GetMetalCubeFace((ECubeFace)ArraySliceIndex);
-				}
 				
 				switch(Surface.GetDesc().Dimension)
 				{
@@ -656,8 +620,12 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 #endif
 					// set up an MSAA attachment
 					ColorAttachment->setTexture(Surface.MSAATexture.get());
-					NewColorStore[RenderTargetIndex] = GetMetalRTStoreAction(ERenderTargetStoreAction::EMultisampleResolve);
-					ColorAttachment->setStoreAction(!bMemoryless && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewColorStore[RenderTargetIndex]);
+
+					NewColorStore[RenderTargetIndex] = GetMetalRTStoreAction(Device, ERenderTargetStoreAction::EMultisampleResolve);
+					MTL::StoreAction FinalStoreAction = !bMemoryless && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewColorStore[RenderTargetIndex];
+					FinalStoreAction = ConditionalOverrideStoreAction(FinalStoreAction, false, !!Surface.MSAATexture);
+					ColorAttachment->setStoreAction(FinalStoreAction);
+					
 					ColorAttachment->setResolveTexture(Surface.MSAAResolveTexture ? Surface.MSAAResolveTexture.get() : Surface.Texture.get());
 					SampleCount = Surface.MSAATexture->sampleCount();
 				}
@@ -673,7 +641,7 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 #endif
 					// set up non-MSAA attachment
 					ColorAttachment->setTexture(Surface.Texture.get());
-					NewColorStore[RenderTargetIndex] = GetMetalRTStoreAction(HighLevelStoreAction);
+					NewColorStore[RenderTargetIndex] = GetMetalRTStoreAction(Device, HighLevelStoreAction);
 					ColorAttachment->setStoreAction(!bMemoryless ? MTL::StoreActionUnknown : NewColorStore[RenderTargetIndex]);
                     SampleCount = 1;
 				}
@@ -689,7 +657,7 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 					ColorAttachment->setSlice(ArraySliceIndex);
 				}
 				
-				ColorAttachment->setLoadAction((Surface.Written || !bImmediate || bRestart) ? GetMetalRTLoadAction(HighLevelLoadAction) : MTL::LoadActionClear);
+				ColorAttachment->setLoadAction((Surface.Written || !bImmediate) ? GetMetalRTLoadAction(HighLevelLoadAction) : MTL::LoadActionClear);
 				FPlatformAtomics::InterlockedExchange(&Surface.Written, 1);
 				
 				bNeedsClear |= (ColorAttachment->loadAction() == MTL::LoadActionClear);
@@ -701,10 +669,6 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 					ColorAttachment->setClearColor(MTL::ClearColor(ClearColor.R, ClearColor.G, ClearColor.B, ClearColor.A));
 				}
 
-				bCanRestartRenderPass &= 	!bMemoryless &&
-											ColorAttachment->loadAction() == MTL::LoadActionLoad &&
-											HighLevelStoreAction != ERenderTargetStoreAction::ENoAction;
-	
 				bHasValidRenderTarget = true;
 				bHasValidColorTarget = true;
 			}
@@ -719,7 +683,7 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 		
 		if(ArrayTargets)
 		{
-			if (!GetMetalDeviceContext().SupportsFeature(EMetalFeaturesLayeredRendering))
+			if (!Device.SupportsFeature(EMetalFeaturesLayeredRendering))
 			{
 				METAL_FATAL_ASSERT(ArrayRenderLayers != 1, TEXT("Layered rendering is unsupported on this device (%d)."), ArrayRenderLayers);
 			}
@@ -756,7 +720,7 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 			}
 			if(!ArrayTargets && ArrayRenderLayers > 1)
 			{
-				METAL_FATAL_ASSERT(GetMetalDeviceContext().SupportsFeature(EMetalFeaturesLayeredRendering), TEXT("Layered rendering is unsupported on this device (%d)."), ArrayRenderLayers);
+				METAL_FATAL_ASSERT(Device.SupportsFeature(EMetalFeaturesLayeredRendering), TEXT("Layered rendering is unsupported on this device (%d)."), ArrayRenderLayers);
 #if PLATFORM_MAC
 					RenderTargetArraySize = ArrayRenderLayers;
 					RenderPass->setRenderTargetArrayLength(ArrayRenderLayers);
@@ -887,7 +851,7 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 					}
 				}
 				
-				const bool bSupportsMSAADepthResolve = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesMSAADepthResolve);
+				const bool bSupportsMSAADepthResolve = Device.SupportsFeature(EMetalFeaturesMSAADepthResolve);
 				bool bDepthTextureMemoryless = false;
 #if PLATFORM_IOS
 				bDepthTextureMemoryless = DepthTexture->storageMode() == MTL::StorageModeMemoryless;
@@ -911,8 +875,10 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 #endif
                 //needed to quiet the metal validation that runs when you end renderpass. (it requires some kind of 'resolve' for an msaa target)
 				//But with deferredstore we don't set the real one until submit time.
-				NewDepthStore = !Surface.MSAATexture || bSupportsMSAADepthResolve ? GetMetalRTStoreAction(HighLevelStoreAction) : MTL::StoreActionDontCare;
-				DepthAttachment->setStoreAction(!bDepthTextureMemoryless && Surface.MSAATexture && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewDepthStore);
+				NewDepthStore = !Surface.MSAATexture || bSupportsMSAADepthResolve ? GetMetalRTStoreAction(Device, HighLevelStoreAction) : MTL::StoreActionDontCare;
+				MTL::StoreAction FinalStoreAction = !bDepthTextureMemoryless && Surface.MSAATexture && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewDepthStore;
+				FinalStoreAction = ConditionalOverrideStoreAction(FinalStoreAction, true, !!Surface.MSAATexture);
+				DepthAttachment->setStoreAction(FinalStoreAction);
 				DepthAttachment->setClearDepth(DepthClearValue);
 				check(SampleCount > 0);
 
@@ -931,20 +897,12 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 				}
 				
 				bHasValidRenderTarget = true;
-				bFallbackDepthStencilBound = (RenderPassInfo.DepthStencilRenderTarget.DepthStencilTarget == FallbackDepthStencilSurface);
-
-				bool bDepthMSAARestart = !bDepthTextureMemoryless && HighLevelStoreAction == ERenderTargetStoreAction::EMultisampleResolve;
-				bCanRestartRenderPass &=	(DepthSampleCount <= 1 || bDepthMSAARestart) &&
-											(
-												(RenderPassInfo.DepthStencilRenderTarget.DepthStencilTarget == FallbackDepthStencilSurface) ||
-												((DepthAttachment->loadAction() == MTL::LoadActionLoad) && (bDepthMSAARestart || !RenderPassInfo.DepthStencilRenderTarget.ExclusiveDepthStencil.IsDepthWrite() || DepthStoreAction == ERenderTargetStoreAction::EStore))
-											);
 				
 				// and assign it
 				RenderPass->setDepthAttachment(DepthAttachment);
                 DepthAttachment->release();
 			}
-	
+			
             //if we're dealing with a samplecount mismatch we just bail on stencil entirely as stencil
             //doesn't have an autoresolve target to use.
 			
@@ -988,7 +946,7 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 				
 				// For the case where Depth+Stencil is MSAA we can't Resolve depth and Store stencil - we can only Resolve + DontCare or StoreResolve + Store (on newer H/W and iOS).
 				// We only allow use of StoreResolve in the Desktop renderers as the mobile renderer does not and should not assume hardware support for it.
-				NewStencilStore = (StencilTexture->sampleCount() == 1  || GetMetalRTStoreAction(ERenderTargetStoreAction::EMultisampleResolve) == MTL::StoreActionStoreAndMultisampleResolve) ? GetMetalRTStoreAction(HighLevelStoreAction) : MTL::StoreActionDontCare;
+				NewStencilStore = (StencilTexture->sampleCount() == 1  || GetMetalRTStoreAction(Device, ERenderTargetStoreAction::EMultisampleResolve) == MTL::StoreActionStoreAndMultisampleResolve) ? GetMetalRTStoreAction(Device, HighLevelStoreAction) : MTL::StoreActionDontCare;
                 
                 bool bStoreAction = !bStencilMemoryless && StencilTexture->sampleCount() > 1 && GRHIDeviceId > 2;
 				StencilAttachment->setStoreAction(bStoreAction ? MTL::StoreActionUnknown : NewStencilStore);
@@ -1000,15 +958,6 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 				}
 				
 				bHasValidRenderTarget = true;
-				
-				// @todo Stencil writes that need to persist must use ERenderTargetStoreAction::EStore on iOS.
-				// We should probably be using deferred store actions so that we can safely lazily instantiate encoders.
-				bool bStencilMSAARestart = !bStencilMemoryless && HighLevelStoreAction != ERenderTargetStoreAction::ENoAction;
-				bCanRestartRenderPass &= 	(bStencilMSAARestart || SampleCount <= 1) &&
-											(
-												(RenderPassInfo.DepthStencilRenderTarget.DepthStencilTarget == FallbackDepthStencilSurface) ||
-												((StencilAttachment->loadAction() == MTL::LoadActionLoad) && (bStencilMSAARestart || !RenderPassInfo.DepthStencilRenderTarget.ExclusiveDepthStencil.IsStencilWrite() || (StencilStoreAction == ERenderTargetStoreAction::EStore)))
-											);
 				
 				// and assign it
 				RenderPass->setStencilAttachment(StencilAttachment);
@@ -1088,15 +1037,14 @@ void FMetalStateCache::SetViewport(const MTL::Viewport& InViewport)
 	
 	ActiveViewports = 1;
 	
-	if (!bScissorRectEnabled)
-	{
-		MTL::ScissorRect Rect;
-		Rect.x = InViewport.originX;
-		Rect.y = InViewport.originY;
-		Rect.width = InViewport.width;
-		Rect.height = InViewport.height;
-		SetScissorRect(false, Rect);
-	}
+	MTL::ScissorRect Rect;
+	
+	Rect.x = InViewport.originX;
+	Rect.y = InViewport.originY;
+	Rect.width = InViewport.width;
+	Rect.height = InViewport.height;
+	
+	SetScissorRect(false, Rect);
 }
 
 void FMetalStateCache::SetViewport(uint32 Index, const MTL::Viewport& InViewport)
@@ -1178,32 +1126,35 @@ void FMetalStateCache::SetVertexStream(uint32 const Index, FMetalBufferPtr Buffe
 #endif
 
 #if METAL_USE_METAL_SHADER_CONVERTER
-	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 	
 	if(IsMetalBindlessEnabled())
 	{
 		// Update GPU VA (assuming the offset has changed since last time).
-		if (Buffer)
+		if (Buffer || Bytes)
 		{
 			if (Bytes != nil)
 			{
 				uint8 const* BytesWithOffset = (((uint8 const*)VertexBuffers[Index].Bytes->Data) + Offset);
 				uint32 Len = VertexBuffers[Index].Bytes->Len - Offset;
 				
-				VertexBufferVAs[Index].GPUVA = IRSideUploadToBuffer(BytesWithOffset, Len);
-				VertexBufferVAs[Index].Length = Length;
+				FMetalBufferPtr SideBuffer = IRSideUploadToBuffer(BytesWithOffset, Len);
+				CacheOrSkipResourceResidencyUpdate(SideBuffer->GetMTLBuffer(), EMetalShaderStages::Vertex, true);
+				
+				VertexBufferVAs[Index].addr = SideBuffer->GetGPUAddress();
+				VertexBufferVAs[Index].length = Length;
 			}
 			else
 			{
-				// TODO: Should we be factoring the Vertex buffer offset here?
-				VertexBufferVAs[Index].GPUVA = VertexBuffers[Index].Buffer->GetGPUAddress() + Offset;
-				VertexBufferVAs[Index].Length = Length;
+				VertexBufferVAs[Index].addr = VertexBuffers[Index].Buffer->GetGPUAddress() + Offset;
+				VertexBufferVAs[Index].length = Length;
+				CacheOrSkipResourceResidencyUpdate(VertexBuffers[Index].Buffer->GetMTLBuffer(), EMetalShaderStages::Vertex, true);
 			}
 		}
 		else
 		{
-			VertexBufferVAs[Index].GPUVA = 0;
-			VertexBufferVAs[Index].Length = 0;
+			VertexBufferVAs[Index].addr = 0;
+			VertexBufferVAs[Index].length = 0;
 		}
 	}
 	else
@@ -1238,7 +1189,7 @@ void FMetalStateCache::SetGraphicsPipelineState(FMetalGraphicsPipelineState* Sta
 
 		PipelineBits |= EMetalPipelineFlagPipelineState;
 		
-        if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelResetOnBind)
+        if (Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelResetOnBind)
         {
             for (uint32 i = 0; i < EMetalShaderStages::Num; i++)
             {
@@ -1416,7 +1367,7 @@ bool FMetalStateCache::NeedsToSetRenderTarget(const FRHIRenderPassInfo& InRender
 					}
 #endif
 					
-					NewDepthStore = GetMetalRTStoreAction(HighLevelStoreAction);
+					NewDepthStore = GetMetalRTStoreAction(Device, HighLevelStoreAction);
 				}
 				else
 				{
@@ -1428,11 +1379,11 @@ bool FMetalStateCache::NeedsToSetRenderTarget(const FRHIRenderPassInfo& InRender
 			{
 				if (RenderPassDesc->stencilAttachment()->texture())
 				{
-					NewStencilStore = GetMetalRTStoreAction(GetStoreAction(GetStencilActions(RenderPassInfo.DepthStencilRenderTarget.Action)));
+					NewStencilStore = GetMetalRTStoreAction(Device, GetStoreAction(GetStencilActions(RenderPassInfo.DepthStencilRenderTarget.Action)));
 #if PLATFORM_IOS
 					if (RenderPassDesc->stencilAttachment()->texture()->storageMode() == MTL::StorageModeMemoryless)
 					{
-						NewStencilStore = GetMetalRTStoreAction(ERenderTargetStoreAction::ENoAction);
+						NewStencilStore = GetMetalRTStoreAction(Device, ERenderTargetStoreAction::ENoAction);
 					}
 #endif
 				}
@@ -1546,9 +1497,28 @@ static bool CanMakeTextureResidentViaHeaps(const MTL::Texture* Texture)
 }
 
 #if METAL_USE_METAL_SHADER_CONVERTER
+
+void FMetalStateCache::CacheOrSkipResourceResidencyUpdate(MTL::Resource* InResource, EMetalShaderStages const Frequency, bool bReadOnly, bool bForceUseResource)
+{
+	bool bAlreadyInSet = false;
+	if (!bForceUseResource && bReadOnly && InResource->heap())
+	{
+		HeapsUsedByStage[Frequency].Add(InResource->heap(), &bAlreadyInSet);
+	}
+	else
+	{
+		TSet<MTL::Resource*>& StageResources = bReadOnly ? ROResourcesByStage[Frequency] : RWResourcesByStage[Frequency];
+
+		if (!StageResources.Contains(InResource))
+		{
+			StageResources.Add(InResource);
+		}
+	}
+}
+
 void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV)
 {
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 
 	if(!IsMetalBindlessEnabled())
 	{
@@ -1564,11 +1534,7 @@ void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMe
         case FMetalResourceViewBase::EMetalType::TextureView:
         {
             auto const& View = SRV->GetTextureView();
-			
-            if (!View->heap() || !CanMakeTextureResidentViaHeaps(View.get()))
-			{
-				BindlessDescriptorManager->MakeResident(SRV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample), Frequency);
-			}
+			IRMakeTextureResident(Frequency, View.get());
 			
 			break;
         }
@@ -1577,11 +1543,8 @@ void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMe
         case FMetalResourceViewBase::EMetalType::BufferView:
         {
             auto const& View = SRV->GetBufferView();
+			CacheOrSkipResourceResidencyUpdate(View.Buffer->GetMTLBuffer(), Frequency, true);
 			
-			if (!View.Buffer->GetMTLBuffer()->heap())
-			{
-				BindlessDescriptorManager->MakeResident(SRV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsageRead, Frequency);
-			}
 			break;
         }
             
@@ -1591,15 +1554,17 @@ void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMe
         {
             MTL::AccelerationStructure* AccelerationStructure = SRV->GetAccelerationStructure();
             AddUsedResource(AccelerationStructure, MTL::ResourceUsageRead, SRV->ReferencedResources);
+			
+			break;
         }
-            break;
+		
 #endif
     };
 }
 
 void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMetalUnorderedAccessView* UAV)
 {
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 	if(!IsMetalBindlessEnabled())
 	{
 		return;
@@ -1615,15 +1580,23 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
         {
             auto const& View = UAV->GetTextureView();
             
-			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			if (View->buffer())
+			{
+				CacheOrSkipResourceResidencyUpdate(View->buffer(), Frequency, false);
+			}
+			else if (View->parentTexture())
+			{
+				CacheOrSkipResourceResidencyUpdate(View->parentTexture(), Frequency, false);
+			}
+			
+			CacheOrSkipResourceResidencyUpdate(View.get(), Frequency, false);
 			break;
         }
             
         case FMetalResourceViewBase::EMetalType::BufferView:
         {
             auto const& View = UAV->GetBufferView();
-            
-			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			CacheOrSkipResourceResidencyUpdate(View.Buffer->GetMTLBuffer(), Frequency, false);
 			
 			break;
         }
@@ -1632,8 +1605,8 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
         {
             auto const& View = UAV->GetTextureBufferBacked();
             
-			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
-			BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Texture.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			CacheOrSkipResourceResidencyUpdate(View.Buffer->GetMTLBuffer(), Frequency, false);
+			CacheOrSkipResourceResidencyUpdate(View.Texture.get(),Frequency, false);
 
 			break;
         }
@@ -1647,21 +1620,35 @@ void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMe
             checkNoEntry();
             break;
     }
+	
+	if (UAV->IsTexture())
+	{
+		// @TODO: this needs refactoring.
+		FPlatformAtomics::InterlockedExchange(&ResourceCast(UAV->GetTexture())->Written, 1);
+	}
 }
 
 void FMetalStateCache::IRMakeTextureResident(EMetalShaderStages const Frequency, MTL::Texture* Texture)
 {
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     
-    if (!Texture->heap() || !CanMakeTextureResidentViaHeaps(Texture))
+	if (Texture->buffer())
 	{
-		BindlessDescriptorManager->MakeResident(FRHIDescriptorHandle(), Texture, MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample), Frequency);
+		CacheOrSkipResourceResidencyUpdate(Texture->buffer(), Frequency, true);
+	}
+	else if (Texture->parentTexture())
+	{
+		CacheOrSkipResourceResidencyUpdate(Texture->parentTexture(), Frequency, true, CanMakeTextureResidentViaHeaps(Texture->parentTexture()));
+	}
+	
+	{
+		CacheOrSkipResourceResidencyUpdate(Texture, Frequency, true, CanMakeTextureResidentViaHeaps(Texture));
 	}
 }
 
 void FMetalStateCache::IRForwardBindlessParameters(EMetalShaderStages const Frequency, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters)
 {
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 
     // Collect resources we need to map for this frame.
     for (FRHIShaderParameterResource const& Parameter : InBindlessParameters)
@@ -1713,29 +1700,36 @@ void FMetalStateCache::IRBindPackedUniforms(EMetalShaderStages const Frequency, 
 	uint64 PackedUniformsVA;
 	if(!Buffer)
 	{
-		PackedUniformsVA = IRSideUploadToBuffer(Bytes, Size);
-	}
-	else
-	{
-		PackedUniformsVA = Buffer->GetGPUAddress();
+		Buffer = IRSideUploadToBuffer(Bytes, Size);
 	}
 	
-    CBVTable[Frequency][Index] = PackedUniformsVA;
+	CacheOrSkipResourceResidencyUpdate(Buffer->GetMTLBuffer(), Frequency, true);
+	CBVTable[Frequency][Index] = Buffer->GetGPUAddress();
 }
 
 void FMetalStateCache::IRBindUniformBuffer(EMetalShaderStages const Frequency, int32 Index, FMetalUniformBuffer* UB)
 {
-    uint8* ConstantSpace =  reinterpret_cast<uint8*>(UB->Backing->contents()) + UB->Offset;
-    uint64 UniformBufferVA = IRSideUploadToBuffer(ConstantSpace, UB->GetSize());
-    CBVTable[Frequency][Index] = UniformBufferVA;
+	FMetalBufferPtr Buffer = GetOrCreateBackingBufferCopy(UB);
+	CacheOrSkipResourceResidencyUpdate(Buffer->GetMTLBuffer(), Frequency, true);
+
+	CBVTable[Frequency][Index] = Buffer->GetGPUAddress();
+}
+	
+FMetalBufferPtr FMetalStateCache::GetOrCreateBackingBufferCopy(FMetalUniformBuffer* UB)
+{
+	FMetalBufferPtr* CachedCopy = UniformBufferVAs.Find(UB->BackingBuffer.Get());
+	if (CachedCopy != nullptr)
+	{
+		return *CachedCopy;
+	}
+	
+	uint8* ConstantSpace =  reinterpret_cast<uint8*>(UB->BackingBuffer->Contents());
+	FMetalBufferPtr Buffer = IRSideUploadToBuffer(ConstantSpace, UB->GetSize());
+	UniformBufferVAs.Add(UB->BackingBuffer.Get(), Buffer);
+	
+	return Buffer;
 }
 #endif
-
-void FMetalStateCache::RegisterMetalHeap(MTL::Heap* Heap)
-{
-	FScopeLock ScopeLock(&ActiveHeapsLock);
-	ActiveHeaps.Add(Heap);
-}
 
 void FMetalStateCache::SetShaderTexture(EMetalShaderStages const Frequency, MTL::Texture* Texture, NS::UInteger const Index, MTL::ResourceUsage const Usage)
 {
@@ -1897,7 +1891,7 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 	
 	EMetalShaderStages Frequency = TranslateShaderStage(ShaderStage);
 
-	if (!FMetalCommandQueue::SupportsFeature(EMetalFeaturesIABs))
+	if (!Device.SupportsFeature(EMetalFeaturesIABs))
 	{
 		struct FUniformResourceBinder
 		{
@@ -1957,12 +1951,19 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 					StateCache.SetShaderSamplerState(Frequency, static_cast<FMetalSamplerState*>(Sampler), Index);
 				}
 			}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+			void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+			{
+				FMetalResourceCollection* MetalResourceCollection = ResourceCast(ResourceCollection);
+				SetSRV(MetalResourceCollection->GetShaderResourceView(), Index);
+			}
+#endif
 		};
 
 		UE::RHICore::SetResourcesFromTables(
 			  FUniformResourceBinder { *this, Frequency }
 			, *Shader
-			, Shader->Bindings.ShaderResourceTable
 			, DirtyUniformBuffers[Frequency]
 			, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION
@@ -1977,49 +1978,61 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 }
 
 #if METAL_USE_METAL_SHADER_CONVERTER
-static uint64_t UploadToBuffer(FMetalBufferPtr& Buffer, std::atomic_uint64_t& BufferOffset, const uint64 BufferSize, void const* Content, uint64 Size)
+FMetalBufferPtr FMetalStateCache::IRSideUploadToBuffer(void const* Content, uint64 Size)
 {
-    check(Size < BufferSize);
+	FMetalTempAllocator* Allocator = Device.GetUniformAllocator();
+
+	FMetalBufferPtr Buffer = Allocator->Allocate(Size);
+	memcpy((uint8_t*)Buffer->Contents(), Content, Size);
 	
-	// If the buffer will overflow then wrap around
-    if ((BufferOffset + Size) >= BufferSize)
-    {
-        BufferOffset = 0;
-    }
-
-    uint8_t* BufferContents = (uint8*)Buffer->Contents();
-	check(BufferContents);
-	check(Content);
-	
-    memcpy(BufferContents + BufferOffset, Content, Size);	
-	
-    const uint64 AllocOffset = BufferOffset;
-    const uint64 AlignedSize = Align(Size, 8);
-
-    BufferOffset += AlignedSize;
-
-    return Buffer->GetGPUAddress() + AllocOffset;
-}
-
-uint64 FMetalStateCache::IRSideUploadToBuffer(void const* Content, uint64 Size)
-{
-    return UploadToBuffer(SideAllocs.TableBuffer, SideAllocs.TableOffset, SideAllocsBufferSize, Content, Size);
+	return Buffer;
 }
 
 template<class ShaderType, EMetalShaderStages Frequency, MTL::FunctionType FunctionType>
 void FMetalStateCache::IRBindResourcesToEncoder(ShaderType Shader, FMetalCommandEncoder* Encoder)
 {
-	// Bind active heaps
+	MTL::RenderStages RenderStage = (MTL::RenderStages)0;
+	switch (FunctionType)
 	{
-		FScopeLock ScopeLock(&ActiveHeapsLock);
-		Encoder->UseHeaps(ActiveHeaps, FunctionType);
+		case MTL::FunctionTypeVertex:
+			RenderStage |= MTLRenderStageVertex;
+			break;
+		case MTL::FunctionTypeFragment:
+			RenderStage |= MTLRenderStageFragment;
+			break;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case MTL::FunctionTypeMesh:
+			RenderStage |= MTLRenderStageMesh;
+			break;
+		case MTL::FunctionTypeObject:
+			RenderStage |= MTLRenderStageObject;
+			break;
+#endif
+		default:
+			break;
+	};
+
+	if (!HeapsUsedByStage[Frequency].IsEmpty())
+	{
+		Encoder->UseHeaps(HeapsUsedByStage[Frequency].Array(), FunctionType);
 	}
+
+	if (!ROResourcesByStage[Frequency].IsEmpty())
+	{
+		Encoder->UseResources(ROResourcesByStage[Frequency].Array(), MTL::ResourceUsageRead, RenderStage);
+	}
+		
+	if (!RWResourcesByStage[Frequency].IsEmpty())
+	{
+		Encoder->UseResources(RWResourcesByStage[Frequency].Array(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), RenderStage);
+	}
+	HeapsUsedByStage[Frequency].Reset();
+	ROResourcesByStage[Frequency].Reset();
+	RWResourcesByStage[Frequency].Reset();
 	
     // Bind Standard/Sampler descriptor heaps.
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     BindlessDescriptorManager->BindDescriptorHeapsToEncoder(Encoder, FunctionType, Frequency);
-
-    Encoder->UseResource(SideAllocs.TableBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
 
     // Bind CBV Table
     Encoder->SetShaderBytes(FunctionType, (const uint8*)CBVTable[Frequency], sizeof(uint64) * Shader->Bindings.RSNumCBVs, kIRArgumentBufferBindPoint);
@@ -2027,14 +2040,6 @@ void FMetalStateCache::IRBindResourcesToEncoder(ShaderType Shader, FMetalCommand
 
 void FMetalStateCache::IRMapVertexBuffers(MTL::RenderCommandEncoder* Encoder, bool bBindForMeshShaders)
 {
-    for (uint32 i = 0; i < MaxVertexElementCount; i++)
-    {
-        if (VertexBuffers[i].Buffer != nullptr)
-        {
-            Encoder->useResource(VertexBuffers[i].Buffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
-        } 
-    }
-
 #if PLATFORM_SUPPORTS_MESH_SHADERS
     if (bBindForMeshShaders)
     {
@@ -2134,83 +2139,61 @@ void FMetalStateCache::CommitComputeResources(FMetalCommandEncoder* Compute)
 #endif
 }
 
-bool FMetalStateCache::PrepareToRestart(bool const bCurrentApplied)
+bool FMetalStateCache::StartRenderPass(const FRHIRenderPassInfo& InInfo, FMetalQueryBuffer* QueryBuffer)
 {
-	if(CanRestartRenderPass())
-	{
-		return true;
-	}
-	else
-	{
-		FRHIRenderPassInfo Info = GetRenderPassInfo();
-		
-		ERenderTargetActions DepthActions = GetDepthActions(Info.DepthStencilRenderTarget.Action);
-		ERenderTargetActions StencilActions = GetStencilActions(Info.DepthStencilRenderTarget.Action);
-		ERenderTargetLoadAction DepthLoadAction = GetLoadAction(DepthActions);
-		ERenderTargetStoreAction DepthStoreAction = GetStoreAction(DepthActions);
-		ERenderTargetLoadAction StencilLoadAction = GetLoadAction(StencilActions);
-		ERenderTargetStoreAction StencilStoreAction = GetStoreAction(StencilActions);
+	FRHIRenderPassInfo Info = InInfo;
+	
+	ERenderTargetActions DepthActions = GetDepthActions(Info.DepthStencilRenderTarget.Action);
+	ERenderTargetActions StencilActions = GetStencilActions(Info.DepthStencilRenderTarget.Action);
+	ERenderTargetLoadAction DepthLoadAction = GetLoadAction(DepthActions);
+	ERenderTargetStoreAction DepthStoreAction = GetStoreAction(DepthActions);
+	ERenderTargetLoadAction StencilLoadAction = GetLoadAction(StencilActions);
+	ERenderTargetStoreAction StencilStoreAction = GetStoreAction(StencilActions);
 
-		if (Info.DepthStencilRenderTarget.DepthStencilTarget)
+	if (Info.DepthStencilRenderTarget.DepthStencilTarget)
+	{	
+		if (DepthLoadAction != ERenderTargetLoadAction::EClear)
 		{
-			if(bCurrentApplied && Info.DepthStencilRenderTarget.ExclusiveDepthStencil.IsDepthWrite() && DepthStoreAction == ERenderTargetStoreAction::ENoAction)
-			{
-				return false;
-			}
-			if (bCurrentApplied && Info.DepthStencilRenderTarget.ExclusiveDepthStencil.IsStencilWrite() && StencilStoreAction == ERenderTargetStoreAction::ENoAction)
-			{
-				return false;
-			}
-		
-			if (bCurrentApplied || DepthLoadAction != ERenderTargetLoadAction::EClear)
-			{
-				DepthLoadAction = ERenderTargetLoadAction::ELoad;
-			}
-			if (Info.DepthStencilRenderTarget.ExclusiveDepthStencil.IsDepthWrite())
-			{
-				DepthStoreAction = ERenderTargetStoreAction::EStore;
-			}
+			DepthLoadAction = ERenderTargetLoadAction::ELoad;
+		}
+		if (Info.DepthStencilRenderTarget.ExclusiveDepthStencil.IsDepthWrite())
+		{
+			DepthStoreAction = ERenderTargetStoreAction::EStore;
+		}
 
-			if (bCurrentApplied || StencilLoadAction != ERenderTargetLoadAction::EClear)
-			{
-				StencilLoadAction = ERenderTargetLoadAction::ELoad;
-			}
-			if (Info.DepthStencilRenderTarget.ExclusiveDepthStencil.IsStencilWrite())
-			{
-				StencilStoreAction = ERenderTargetStoreAction::EStore;
-			}
-			
-			DepthActions = MakeRenderTargetActions(DepthLoadAction, DepthStoreAction);
-			StencilActions = MakeRenderTargetActions(StencilLoadAction, StencilStoreAction);
-			Info.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(DepthActions, StencilActions);
+		if (StencilLoadAction != ERenderTargetLoadAction::EClear)
+		{
+			StencilLoadAction = ERenderTargetLoadAction::ELoad;
+		}
+		if (Info.DepthStencilRenderTarget.ExclusiveDepthStencil.IsStencilWrite())
+		{
+			StencilStoreAction = ERenderTargetStoreAction::EStore;
 		}
 		
-		for (int32 RenderTargetIndex = 0; RenderTargetIndex < Info.GetNumColorRenderTargets(); RenderTargetIndex++)
-		{
-			FRHIRenderPassInfo::FColorEntry& RenderTargetView = Info.ColorRenderTargets[RenderTargetIndex];
-			ERenderTargetLoadAction LoadAction = GetLoadAction(RenderTargetView.Action);
-			ERenderTargetStoreAction StoreAction = GetStoreAction(RenderTargetView.Action);
-			
-			if(bCurrentApplied && StoreAction == ERenderTargetStoreAction::ENoAction)
-			{
-				return false;
-			}
-			
-			if (!bCurrentApplied && LoadAction == ERenderTargetLoadAction::EClear)
-			{
-				StoreAction == ERenderTargetStoreAction::EStore;
-			}
-			else
-			{
-				LoadAction = ERenderTargetLoadAction::ELoad;
-			}
-			RenderTargetView.Action = MakeRenderTargetActions(LoadAction, StoreAction);
-			check(RenderTargetView.RenderTarget == nullptr || GetStoreAction(RenderTargetView.Action) != ERenderTargetStoreAction::ENoAction);
-		}
-		
-		InvalidateRenderTargets();
-		return SetRenderPassInfo(Info, GetVisibilityResultsBuffer(), true) && CanRestartRenderPass();
+		DepthActions = MakeRenderTargetActions(DepthLoadAction, DepthStoreAction);
+		StencilActions = MakeRenderTargetActions(StencilLoadAction, StencilStoreAction);
+		Info.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(DepthActions, StencilActions);
 	}
+	
+	for (int32 RenderTargetIndex = 0; RenderTargetIndex < Info.GetNumColorRenderTargets(); RenderTargetIndex++)
+	{
+		FRHIRenderPassInfo::FColorEntry& RenderTargetView = Info.ColorRenderTargets[RenderTargetIndex];
+		ERenderTargetLoadAction LoadAction = GetLoadAction(RenderTargetView.Action);
+		ERenderTargetStoreAction StoreAction = GetStoreAction(RenderTargetView.Action);
+		
+		if (LoadAction == ERenderTargetLoadAction::EClear)
+		{
+			StoreAction == ERenderTargetStoreAction::EStore;
+		}
+		else
+		{
+			LoadAction = ERenderTargetLoadAction::ELoad;
+		}
+		RenderTargetView.Action = MakeRenderTargetActions(LoadAction, StoreAction);
+	}
+	
+	InvalidateRenderTargets();
+	return SetRenderPassInfo(Info, QueryBuffer);
 }
 
 void FMetalStateCache::SetStateDirty(void)
@@ -2243,15 +2226,15 @@ void FMetalStateCache::SetRenderStoreActions(FMetalCommandEncoder& CommandEncode
 				if(RenderTargetView.RenderTarget != nullptr)
 				{
 					const bool bMultiSampled = (ColorAttachments->object(RenderTargetIndex)->texture()->sampleCount() > 1);
-					ColorStore[RenderTargetIndex] = GetConditionalMetalRTStoreAction(bMultiSampled);
+					ColorStore[RenderTargetIndex] = GetConditionalMetalRTStoreAction(Device, bMultiSampled);
 				}
 			}
 			
 			if (RenderPassInfo.DepthStencilRenderTarget.DepthStencilTarget)
 			{
 				const bool bMultiSampled = RenderPassDesc->depthAttachment()->texture() && (RenderPassDesc->depthAttachment()->texture()->sampleCount() > 1);
-				DepthStore = GetConditionalMetalRTStoreAction(bMultiSampled);
-				StencilStore = GetConditionalMetalRTStoreAction(false);
+				DepthStore = GetConditionalMetalRTStoreAction(Device, bMultiSampled);
+				StencilStore = GetConditionalMetalRTStoreAction(Device, false);
 			}
 		}
 		CommandEncoder.SetRenderPassStoreActions(ColorStore, DepthStore, StencilStore);
@@ -2263,17 +2246,10 @@ void FMetalStateCache::FlushVisibilityResults(FMetalCommandEncoder& CommandEncod
 #if PLATFORM_MAC
 	if(VisibilityResults && VisibilityResults->Buffer && VisibilityResults->Buffer->GetMTLBuffer()->storageMode() == MTL::StorageModeManaged && VisibilityWritten && CommandEncoder.IsRenderCommandEncoderActive())
 	{
-		TRefCountPtr<FMetalFence> Fence = CommandEncoder.EndEncoding();
-		
-        CommandEncoder.BeginBlitCommandEncoding();
-		CommandEncoder.WaitForFence(Fence);
-		
 		MTL::BlitCommandEncoder* Encoder = CommandEncoder.GetBlitCommandEncoder();
 
 		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CommandEncoder.GetCommandBufferStats(), __FUNCTION__));
-        
-        Encoder->synchronizeResource(VisibilityResults->Buffer->GetMTLBuffer().get());
-		
+        Encoder->synchronizeResource(VisibilityResults->Buffer->GetMTLBuffer());
 		VisibilityWritten = 0;
 	}
 #endif
@@ -2320,7 +2296,7 @@ void FMetalStateCache::SetRenderState(FMetalCommandEncoder& CommandEncoder)
 		{
 			check(IsValidRef(DepthStencilState));
             
-            if (DepthStencilState && RenderPassDesc && SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
+            if (DepthStencilState && RenderPassDesc && Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
             {
                 METAL_FATAL_ASSERT(DepthStencilState->bIsDepthWriteEnabled == false || (RenderPassDesc->depthAttachment() && RenderPassDesc->depthAttachment()->texture()) , TEXT("Attempting to set a depth-stencil state that writes depth but no depth texture is configured!\nState: %s\nRender Pass: %s"), *NSStringToFString(DepthStencilState->State->description()), *NSStringToFString(RenderPassDesc->description()));
                 METAL_FATAL_ASSERT(DepthStencilState->bIsStencilWriteEnabled == false || (RenderPassDesc->stencilAttachment() && RenderPassDesc->stencilAttachment()->texture()), TEXT("Attempting to set a depth-stencil state that writes stencil but no stencil texture is configured!\nState: %s\nRender Pass: %s"), *NSStringToFString(DepthStencilState->State->description()), *NSStringToFString(RenderPassDesc->description()));
@@ -2378,7 +2354,7 @@ bool FMetalStateCache::ValidateFunctionBindings(FMetalShaderPipeline* Pipeline, 
         return true;
     }
     
-    if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelConditionalSubmit)
+    if (Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelConditionalSubmit)
     {
         check(Pipeline);
         
@@ -2572,7 +2548,7 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
         CommandEncoder.SetRenderPipelineState(Pipeline);
         
 #if METAL_USE_METAL_SHADER_CONVERTER
-		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 		
 		if(IsMetalBindlessEnabled())
 		{
@@ -2581,9 +2557,10 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
 #endif // PLATFORM_SUPPORTS_MESH_SHADERS
 			{
 				// Update the stride table for Vertex input (done only once as this is constant/per pipeline).
-				for (const auto& VertexBuffer : GraphicsPSO->VertexDeclaration->InputDescriptorBufferStrides)
+				uint32* InputSlotStrides = GraphicsPSO->VertexDeclaration->InputDescriptorBufferStrides.GetData();
+				for (uint32 i = 0; i < MaxVertexElementCount; i++)
 				{
-					VertexBufferVAs[VertexBuffer.Key].Stride = VertexBuffer.Value;
+					VertexBufferVAs[i].stride = InputSlotStrides[i];
 				}
 			}
 		}
@@ -2595,13 +2572,13 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
 	
 #if METAL_DEBUG_OPTIONS
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
 	if(!IsMetalBindlessEnabled())
 #endif
 	{
 		Validate();
 		
-		if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
+		if (Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
 		{
 			FMetalShaderPipeline* Pipeline = GetPipelineState();
 			EMetalShaderStages VertexStage = EMetalShaderStages::Vertex;
@@ -2711,14 +2688,18 @@ void FMetalStateCache::SetComputePipelineState(FMetalCommandEncoder& CommandEnco
 {
 	if ((PipelineBits & EMetalPipelineFlagComputeMask) != 0)
 	{
-		FMetalShaderPipelinePtr Pipeline = ComputeShader->GetPipeline();
-	    check(Pipeline);
-	    CommandEncoder.SetComputePipelineState(Pipeline);
-        
-        PipelineBits &= EMetalPipelineFlagRasterMask;
+		if(PreviousComputeShader != ComputeShader)
+		{
+			FMetalShaderPipelinePtr Pipeline = ComputeShader->GetPipeline();
+			check(Pipeline);
+			CommandEncoder.SetComputePipelineState(Pipeline);
+			
+			PipelineBits &= EMetalPipelineFlagRasterMask;
+			PreviousComputeShader = ComputeShader;
+		}
     }
 	
-	if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
+	if (Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
 	{
 		FMetalShaderPipelinePtr Pipeline = ComputeShader->GetPipeline();
 		check(Pipeline);
@@ -2786,11 +2767,6 @@ void FMetalStateCache::CommitResourceTable(EMetalShaderStages const Frequency, M
 			if (Binding.Buffer)
 			{
 				CommandEncoder.SetShaderBuffer(Type, Binding.Buffer, Binding.Offset, Binding.Length, Index, Binding.Usage, BufferBindings.Formats[Index], Binding.ElementRowPitch, Binding.ReferencedResources);
-
-				if (Binding.Buffer->IsSingleUse())
-				{
-					Binding.Buffer = nullptr;
-				}
 			}
 			else if (Binding.Bytes)
 			{
@@ -2860,27 +2836,6 @@ void FMetalStateCache::CommitResourceTable(EMetalShaderStages const Frequency, M
 	}
 }
 
-FTexture2DRHIRef FMetalStateCache::CreateFallbackDepthStencilSurface(uint32 Width, uint32 Height)
-{
-#if PLATFORM_MAC
-	if (!IsValidRef(FallbackDepthStencilSurface) || FallbackDepthStencilSurface->GetSizeX() < Width || FallbackDepthStencilSurface->GetSizeY() < Height)
-#else
-	if (!IsValidRef(FallbackDepthStencilSurface) || FallbackDepthStencilSurface->GetSizeX() != Width || FallbackDepthStencilSurface->GetSizeY() != Height)
-#endif
-	{
-		FRHITextureCreateDesc Desc =
-			FRHITextureCreateDesc::Create2D(TEXT("FallbackDepthStencilSurface"), Width, Height, PF_DepthStencil)
-            .SetFlags(ETextureCreateFlags::DepthStencilTargetable);
-
-        Desc.SetInitialState(RHIGetDefaultResourceState(Desc.Flags, false));
-        
-        FMetalSurface* Surface = new FMetalSurface(nullptr, Desc);
-        FallbackDepthStencilSurface = Surface;
-	}
-	check(IsValidRef(FallbackDepthStencilSurface));
-	return FallbackDepthStencilSurface;
-}
-
 void FMetalStateCache::DiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask)
 {
 	if (Depth)
@@ -2922,4 +2877,14 @@ void FMetalStateCache::DiscardRenderTargets(bool Depth, bool Stencil, uint32 Col
 			}
 		}
 	}
+}
+
+void FMetalStateCache::ReleaseDescriptor(MTL::RenderPassDescriptor* Desc)
+{
+	FMetalRenderPassDescriptorPool::Get().ReleaseDescriptor(Desc);
+}
+
+void FMetalStateCache::ClearPreviousComputeState() 
+{
+	PreviousComputeShader.SafeRelease();
 }

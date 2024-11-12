@@ -56,6 +56,9 @@ public:
 	/** Post update step */
 	void PostUpdate(FChaosScene* PhysScene);
 
+	/** Called on GT but before Physics thread runs - PT tick rate */
+	void InjectInputs_External(int32 PhysicsStep, int32 NumSteps);
+
 	void ParallelUpdateVehicles(float DeltaSeconds);
 
 	/** Find a vehicle manager from an FPhysScene */

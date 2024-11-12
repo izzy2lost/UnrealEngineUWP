@@ -120,6 +120,11 @@ FShaderMaterialDerivedDefines RENDERCORE_API CalculateDerivedMaterialParameters(
 				Dst.PIXELSHADEROUTPUT_MRT1 = 1;
 				Dst.PIXELSHADEROUTPUT_MRT2 = 1;
 			}
+			else if (Mat.OUT_MASK4)
+			{
+				Dst.PIXELSHADEROUTPUT_MRT0 = 1;
+				Dst.PIXELSHADEROUTPUT_MRT1 = 1;
+			}
 			else if (Mat.OUT_WORLDHEIGHT)
 			{
 				Dst.PIXELSHADEROUTPUT_MRT0 = 1;

@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Acls
 	[JsonSchemaString]
 	[JsonConverter(typeof(AclActionJsonConverter))]
 	[TypeConverter(typeof(AclActionTypeConverter))]
-	public record struct AclAction(string Name)
+	public readonly record struct AclAction(string Name)
 	{
 		/// <inheritdoc/>
 		public override string ToString() => Name;

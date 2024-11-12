@@ -19,13 +19,13 @@ UBTDecorator_SetTagCooldown::UBTDecorator_SetTagCooldown(const FObjectInitialize
 
 void UBTDecorator_SetTagCooldown::OnNodeDeactivation(FBehaviorTreeSearchData& SearchData, EBTNodeResult::Type NodeResult)
 {
-	SearchData.OwnerComp.AddCooldownTagDuration(CooldownTag, CooldownDuration, bAddToExistingDuration);
+	SearchData.OwnerComp.AddCooldownTagDuration(CooldownTag, CooldownDuration.GetValue(SearchData.OwnerComp), bAddToExistingDuration.GetValue(SearchData.OwnerComp));
 }
 
 FString UBTDecorator_SetTagCooldown::GetStaticDescription() const
 {
 	// basic info: result after time
-	return FString::Printf(TEXT("%s: set to %.1fs after execution"), *CooldownTag.ToString(), CooldownDuration);
+	return FString::Printf(TEXT("%s: set to %s s after execution"), *CooldownTag.ToString(), *CooldownDuration.ToString());
 }
 
 #if WITH_EDITOR

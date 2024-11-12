@@ -421,7 +421,7 @@ namespace EpicGames.Core
 		/// <param name="prefix">The argument prefix (eg. "-Foo="). Must end with an '=' character.</param>
 		/// <param name="defaultValue">Default value for the argument</param>
 		/// <returns>Value of the argument</returns>
-		[return: NotNullIfNotNull("defaultValue")]
+		[return: NotNullIfNotNull(nameof(defaultValue))]
 		public string? GetStringOrDefault(string prefix, string? defaultValue)
 		{
 			string? value;
@@ -454,7 +454,7 @@ namespace EpicGames.Core
 		/// <param name="prefix">The argument prefix (eg. "-Foo="). Must end with an '=' character.</param>
 		/// <param name="defaultValue">Default value for the argument</param>
 		/// <returns>Value of the argument</returns>
-		[return: NotNullIfNotNull("defaultValue")]
+		[return: NotNullIfNotNull(nameof(defaultValue))]
 		public FileReference? GetFileReferenceOrDefault(string prefix, FileReference? defaultValue)
 		{
 			FileReference? value;
@@ -471,7 +471,7 @@ namespace EpicGames.Core
 		/// <param name="prefix">The argument prefix (eg. "-Foo="). Must end with an '=' character.</param>
 		/// <param name="defaultValue">Default value for the argument</param>
 		/// <returns>Value of the argument</returns>
-		[return: NotNullIfNotNull("defaultValue")]
+		[return: NotNullIfNotNull(nameof(defaultValue))]
 		public DirectoryReference? GetDirectoryReferenceOrDefault(string prefix, DirectoryReference? defaultValue)
 		{
 			DirectoryReference? value;

@@ -29,6 +29,13 @@ struct HARMONIXMETASOUND_API FMidiEventInfo
 	bool IsNoteOff() const;
 	uint8 GetNoteNumber() const;
 	uint8 GetVelocity() const;
+
+	friend FORCEINLINE uint32 GetTypeHash(const FMidiEventInfo& InMidiEventInfo)
+	{
+		return HashCombineFast(
+			HashCombineFast(GetTypeHash(InMidiEventInfo.Timestamp), GetTypeHash(InMidiEventInfo.TrackIndex)),
+			GetTypeHash(InMidiEventInfo.MidiMessage));
+	}
 };
 
 UCLASS()

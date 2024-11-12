@@ -13,9 +13,11 @@
 #include "UObject/GarbageCollectionVerification.h"
 #include "HAL/IConsoleManager.h"
 
+#include <atomic>
+
 // Global GC state flags
-extern bool GObjIncrementalPurgeIsInProgress;
-extern bool GObjUnhashUnreachableIsInProgress;
+extern std::atomic<bool> GObjIncrementalPurgeIsInProgress;
+extern std::atomic<bool> GObjUnhashUnreachableIsInProgress;
 
 namespace UE::GC
 {
@@ -211,6 +213,13 @@ class FInitialReferenceCollector final : public FReferenceCollector
 	{
 		checkf(false, TEXT("FGCObject constructed with AddStableNativeReferencesOnly should only call AddStableReference, not HandleObjectReference"));
 	}
+  
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* InCell, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override
+	{
+		checkf(false, TEXT("FGCObject constructed with AddStableNativeReferencesOnly should only call AddStableReference, not HandleVCellReference"));
+	}
+#endif
 
 	virtual void SetIsProcessingNativeReferences(bool) override
 	{
@@ -263,16 +272,16 @@ void FGCObject::RegisterGCObject()
 		StaticInit();
 
 		// Add this instance to the referencer's list
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN
 		{
 			GGCObjectReferencer->AddObject(this);
-		});
+		};
 
 		// But if we abort, we don't want to leave a dangling reference!
-		UE_AUTORTFM_ONABORT(
+		UE_AUTORTFM_ONABORT(this)
 		{
 			GGCObjectReferencer->RemoveObject(this);
-		});
+		};
 
 		bReferenceAdded = true;
 	}

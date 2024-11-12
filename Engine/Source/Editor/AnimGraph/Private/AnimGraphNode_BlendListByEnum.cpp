@@ -10,11 +10,18 @@
 #include "Kismet2/CompilerResultsLog.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
+#include "BlueprintEditorSettings.h"
+#include "DetailLayoutBuilder.h"
+#include "DetailWidgetRow.h"
+#include "SSearchableComboBox.h"
+#include "AnimGraphSettings.h"
 
 #define LOCTEXT_NAMESPACE "BlendListByEnum"
 
 /////////////////////////////////////////////////////
 // UAnimGraphNode_BlendListByEnum
+
+TArray<TSharedPtr<FString>> UAnimGraphNode_BlendListByEnum::AvailableEnums;
 
 UAnimGraphNode_BlendListByEnum::UAnimGraphNode_BlendListByEnum(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -25,7 +32,7 @@ UAnimGraphNode_BlendListByEnum::UAnimGraphNode_BlendListByEnum(const FObjectInit
 
 FText UAnimGraphNode_BlendListByEnum::GetMenuCategory() const
 {
-	return LOCTEXT("AnimGraphNode_BlendListByEnum_GetMenuCategory", "Animation|Blends|Blend by Enum");
+	return LOCTEXT("AnimGraphNode_BlendListByEnum_GetMenuCategory", "Animation|Blends");
 }
 
 FText UAnimGraphNode_BlendListByEnum::GetTooltipText() const
@@ -38,7 +45,7 @@ FText UAnimGraphNode_BlendListByEnum::GetNodeTitle(ENodeTitleType::Type TitleTyp
 {
 	if (BoundEnum == nullptr)
 	{
-		return LOCTEXT("AnimGraphNode_BlendListByEnum_TitleError", "ERROR: Blend Poses (by missing enum)");
+		return LOCTEXT("AnimGraphNode_BlendListByEnum_TitleError", "Blend Poses by enum");
 	}
 	// @TODO: don't know enough about this node type to comfortably assert that
 	//        the BoundEnum won't change after the node has spawned... until
@@ -55,6 +62,12 @@ FText UAnimGraphNode_BlendListByEnum::GetNodeTitle(ENodeTitleType::Type TitleTyp
 
 void UAnimGraphNode_BlendListByEnum::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
 {
+	if (!GetDefault<UAnimGraphSettings>()->bShowInstancedEnumBlendAnimNodeBlueprintActions)
+	{
+		Super::GetMenuActions(ActionRegistrar);
+		return;
+	}
+
 	struct GetMenuActions_Utils
 	{
 		static void SetNodeEnum(UEdGraphNode* NewNode, bool /*bIsTemplateNode*/, TWeakObjectPtr<UEnum> NonConstEnumPtr)
@@ -288,7 +301,7 @@ void UAnimGraphNode_BlendListByEnum::ValidateAnimNodeDuringCompilation(class USk
 
 	if (BoundEnum == NULL)
 	{
-		MessageLog.Error(TEXT("@@ references an unknown enum; please delete the node and recreate it"), this);
+		MessageLog.Error(TEXT("@@ references an unknown enum; please select the enum to use"), this);
 	}
 }
 
@@ -338,6 +351,104 @@ void UAnimGraphNode_BlendListByEnum::ReloadEnum(class UEnum* InEnum)
 {
 	BoundEnum = InEnum;
 	CachedNodeTitle.MarkDirty();
+}
+
+void UAnimGraphNode_BlendListByEnum::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	Super::CustomizeDetails(DetailBuilder);
+
+	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory("Settings", LOCTEXT("SettingsCategoryName", "Settings"));
+
+	RefreshAvailableEnums();
+
+	TSharedPtr<FString> SelectedEnum = nullptr;
+	if (BoundEnum != nullptr)
+	{
+		TSharedPtr<FString>* FoundEnum = AvailableEnums.FindByPredicate([this](const TSharedPtr<FString> Candidate)
+		{
+			return *Candidate == BoundEnum.GetPathName();
+		});
+
+		if (FoundEnum == nullptr)
+		{
+			ClearEnum();
+		}
+		else
+		{
+			SelectedEnum = *FoundEnum;
+		}
+	}
+
+	SettingsCategory.AddCustomRow(LOCTEXT("BoundEnum", "Bound Enum"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("BoundEnum", "Bound Enum"))
+			.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
+		]
+		.ValueContent()
+		[
+			SNew(SSearchableComboBox)
+			.InitiallySelectedItem(SelectedEnum)
+			.OptionsSource(&AvailableEnums)
+			.OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
+				{
+					return SNew(STextBlock).Text(FText::FromString(*InItem));
+				})
+			.OnSelectionChanged_Lambda([this](TSharedPtr<FString> NewChoice, ESelectInfo::Type SelectType)
+				{
+					FScopedTransaction Transaction( LOCTEXT("ModifyBoundEnum", "Modify Bound Enum") );
+					Modify();
+
+					ClearEnum();
+
+					BoundEnum = FindObject<UEnum>(nullptr, **NewChoice);
+					ReconstructNode();
+				})
+			[
+				SNew(STextBlock)
+				.Text_Lambda([this]()
+				{
+					return FText::FromString(BoundEnum->GetFullName());
+				})
+				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			]
+		];
+}
+
+void UAnimGraphNode_BlendListByEnum::RefreshAvailableEnums()
+{
+	AvailableEnums.Empty();
+	const FPathPermissionList& Permissions = GetMutableDefault<UBlueprintEditorSettings>()->GetEnumPermissions();
+
+	for (TObjectIterator<UEnum> EnumIt; EnumIt; ++EnumIt)
+	{
+		if (!EnumIt->HasAnyEnumFlags(EEnumFlags::NewerVersionExists) && UEdGraphSchema_K2::IsAllowableBlueprintVariableType(*EnumIt))
+		{
+			if (Permissions.HasFiltering())
+			{
+				TStringBuilder<256> ResultBuilder;
+				EnumIt->GetPathName(nullptr, ResultBuilder);
+				if (!Permissions.PassesFilter(ResultBuilder.ToView()))
+				{
+					return;
+				}
+			}
+
+			AvailableEnums.Add(MakeShared<FString>(EnumIt->GetPathName()));
+		}
+	}
+}
+
+void UAnimGraphNode_BlendListByEnum::ClearEnum()
+{
+	for (int32 EnumPoseIndex = VisibleEnumEntries.Num() - 1; EnumPoseIndex >= 0; --EnumPoseIndex)
+	{
+		Node.RemovePose(EnumPoseIndex + 1);
+	}
+	VisibleEnumEntries.Empty();
+
+	BoundEnum = nullptr;
 }
 
 /////////////////////////////////////////////////////

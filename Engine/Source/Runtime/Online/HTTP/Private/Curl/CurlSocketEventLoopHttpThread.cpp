@@ -59,7 +59,8 @@ void FCurlSocketEventLoopHttpThread::HttpThreadTick(float DeltaSeconds)
 	FEventLoopHttpThread::HttpThreadTick(DeltaSeconds);
 }
 
-bool FCurlSocketEventLoopHttpThread::StartThreadedRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FCurlSocketEventLoopHttpThread::StartThreadedRequest(FHttpRequestCommon* Request)
 {
 	FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(Request);
 	CURL* EasyHandle = CurlRequest->GetEasyHandle();
@@ -85,7 +86,7 @@ bool FCurlSocketEventLoopHttpThread::StartThreadedRequest(IHttpThreadedRequest* 
 	return FEventLoopHttpThread::StartThreadedRequest(Request);
 }
 
-void FCurlSocketEventLoopHttpThread::CompleteThreadedRequest(IHttpThreadedRequest* Request)
+void FCurlSocketEventLoopHttpThread::CompleteThreadedRequest(FHttpRequestCommon* Request)
 {
 	FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(Request);
 	CURL* EasyHandle = CurlRequest->GetEasyHandle();
@@ -95,7 +96,10 @@ void FCurlSocketEventLoopHttpThread::CompleteThreadedRequest(IHttpThreadedReques
 		curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, EasyHandle);
 		HandlesToRequests.Remove(EasyHandle);
 	}
+
+	CurlRequest->CleanupRequestHttpThread();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FCurlSocketEventLoopHttpThread::CreateEventLoop()
 {
@@ -244,6 +248,7 @@ void FCurlSocketEventLoopHttpThread::ProcessCurlSocketEvent(curl_socket_t Socket
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FCurlSocketEventLoopHttpThread::ProcessCurlRequests()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlSocketEventLoopHttpThread_ProcessCurlRequests);
@@ -265,7 +270,7 @@ void FCurlSocketEventLoopHttpThread::ProcessCurlRequests()
 			CURL* CompletedHandle = Message->easy_handle;
 			curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, CompletedHandle);
 
-			IHttpThreadedRequest** Request = HandlesToRequests.Find(CompletedHandle);
+			FHttpRequestCommon** Request = HandlesToRequests.Find(CompletedHandle);
 			if (Request)
 			{
 				FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(*Request);
@@ -286,11 +291,12 @@ void FCurlSocketEventLoopHttpThread::ProcessCurlRequests()
 	// If any requests completed, immediately process requests to handle completion event.
 	if (CompletedRequest)
 	{
-		TArray<IHttpThreadedRequest*> RequestsToCancel;
-		TArray<IHttpThreadedRequest*> RequestsToComplete;
+		TArray<FHttpRequestCommon*> RequestsToCancel;
+		TArray<FHttpRequestCommon*> RequestsToComplete;
 		Process(RequestsToCancel, RequestsToComplete);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // WITH_CURL_MULTISOCKET
 #endif // WITH_CURL

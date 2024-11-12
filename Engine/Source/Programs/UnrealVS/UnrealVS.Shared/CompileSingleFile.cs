@@ -11,6 +11,7 @@ using System.IO;
 using System.Windows.Forms;
 using System.Text;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace UnrealVS
 {
@@ -100,7 +101,34 @@ namespace UnrealVS
 			if (!TryCompileSingleFileOrModule(bIsFile, bPreprocessOnly, bProfile, bGenerateAssembly))
 			{
 				DTE DTE = UnrealVSPackage.Instance.DTE;
+
+				if (bProfile)
+					if (!StartTrace())
+						return;
+
 				DTE.ExecuteCommand("Build.Compile");
+
+				if (bProfile)
+				{
+					var WaitThread = new System.Threading.Thread(() =>
+					{
+						bool Done = false;
+						while (!Done)
+						{
+							ThreadHelper.JoinableTaskFactory.Run(async () =>
+							{
+								await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+								if (DTE.Solution.SolutionBuild.BuildState != vsBuildState.vsBuildStateDone)
+									return;
+								StopTrace();
+								Done = true;
+
+							});
+						}
+					})
+					{ Priority = System.Threading.ThreadPriority.Lowest };
+					WaitThread.Start();
+				}
 			}
 		}
 
@@ -132,6 +160,43 @@ namespace UnrealVS
 				return null;
 			}
 			return FindModuleForFile(directory, rootDirectory);
+		}
+
+		bool StartTrace()
+		{
+			ThreadHelper.ThrowIfNotOnUIThread();
+			DTE DTE = UnrealVSPackage.Instance.DTE;
+
+			var Commands = DTE.Commands.Cast<Command>();
+#pragma warning disable VSTHRD010
+			Command Command = Commands.FirstOrDefault((C) => C.Name == "CompileScore.StartTrace");
+#pragma warning restore VSTHRD010
+			if (Command == null || !Command.IsAvailable)
+			{
+				MessageBox.Show($"CompileSingleFileAndProfile requires a CompileScore visual studio extension that has CompileScore.StartTrace/CompileScore.StopTrace installed", "UnrealVS - Missing CompileScore extension ", MessageBoxButtons.OK);
+				return false;
+			}
+			Object CustomIn = null;
+			Object CustomOut = null;
+			DTE.Commands.Raise(Command.Guid, Command.ID, ref CustomIn, ref CustomOut);
+			//DTE.ExecuteCommand("CompileScore.StartTrace");
+			IVsOutputWindowPane BuildOutputPane = UnrealVSPackage.Instance.GetOutputPane();
+			if (BuildOutputPane == null)
+			{
+				BuildOutputPane.OutputStringThreadSafe($"1>------ Started trace for CompileScore ------{Environment.NewLine}");
+			}
+			return true;
+		}
+
+		void StopTrace()
+		{
+			ThreadHelper.ThrowIfNotOnUIThread();
+			UnrealVSPackage.Instance.DTE.ExecuteCommand("CompileScore.StopTrace");
+			IVsOutputWindowPane BuildOutputPane = UnrealVSPackage.Instance.GetOutputPane();
+			if (BuildOutputPane != null)
+			{
+				BuildOutputPane.OutputStringThreadSafe($"1>------ Stopped trace for CompileScore ------{Environment.NewLine}");
+			}
 		}
 
 		bool TryCompileSingleFileOrModule(bool bIsFile, bool bPreProcessOnly, bool bProfile, bool bGenerateAssembly)
@@ -268,8 +333,6 @@ namespace UnrealVS
 			// Set up the output pane
 			BuildOutputPane.Activate();
 			BuildOutputPane.Clear();
-			BuildOutputPane.OutputStringThreadSafe($"1>------ Build started: Project: {StartupProject.Name}, Configuration: {ActiveConfiguration.ConfigurationName} {ActiveConfiguration.PlatformName} ------{Environment.NewLine}");
-			BuildOutputPane.OutputStringThreadSafe($"1>  Compiling {CompilingText}{Environment.NewLine}");
 
 			// Set up event handlers 
 			DTE.Events.BuildEvents.OnBuildBegin += BuildEvents_OnBuildBegin;
@@ -297,21 +360,11 @@ namespace UnrealVS
 			}
 
 			if (bProfile)
-			{
-				var Commands = DTE.Commands.Cast<Command>();
-				#pragma warning disable VSTHRD010
-				Command Command = Commands.FirstOrDefault((C) => C.Name == "CompileScore.StartTrace");
-				#pragma warning restore VSTHRD010
-				if (Command == null || !Command.IsAvailable)
-				{
-					MessageBox.Show($"CompileSingleFileAndProfile requires a CompileScore visual studio extension that has CompileScore.StartTrace/CompileScore.StopTrace installed", "UnrealVS - Missing CompileScore extension ", MessageBoxButtons.OK);
+				if (!StartTrace())
 					return true;
-				}
-				Object CustomIn = null;
-				Object CustomOut = null;
-				DTE.Commands.Raise(Command.Guid, Command.ID, ref CustomIn, ref CustomOut);
-				//DTE.ExecuteCommand("CompileScore.StartTrace");
-			}
+
+			BuildOutputPane.OutputStringThreadSafe($"1>------ Build started: Project: {StartupProject.Name}, Configuration: {ActiveConfiguration.ConfigurationName} {ActiveConfiguration.PlatformName} ------{Environment.NewLine}");
+			BuildOutputPane.OutputStringThreadSafe($"1>  Compiling {CompilingText}{Environment.NewLine}");
 
 			string SolutionDir = Path.GetDirectoryName(UnrealVSPackage.Instance.SolutionFilepath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 			// Get the build command line and escape any environment variables that we use
@@ -337,7 +390,7 @@ namespace UnrealVS
 				// add an event handler to respond to the exit of the preprocess request
 				// and open the generated file if it exists.
 				ChildProcess.EnableRaisingEvents = true;
-				ChildProcess.Exited += new EventHandler((s, e) => PreprocessExitHandler(PreprocessedFiles, AssemblyFiles, bProfile));
+				ChildProcess.Exited += new EventHandler((s, e) => UbtProcessExitHandler(PreprocessedFiles, AssemblyFiles, bProfile));
 			}
 
 			ChildProcess.Start();
@@ -347,14 +400,14 @@ namespace UnrealVS
 			return true;
 		}
 
-		private void PreprocessExitHandler(IEnumerable<string> PreprocessedFiles, IEnumerable<string> AssemblyFiles, bool bIsProfiling)
+		private void UbtProcessExitHandler(IEnumerable<string> PreprocessedFiles, IEnumerable<string> AssemblyFiles, bool bIsProfiling)
 		{
 			if (bIsProfiling)
 			{
 				ThreadHelper.JoinableTaskFactory.Run(async () =>
 				{
 					await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-					UnrealVSPackage.Instance.DTE.ExecuteCommand("CompileScore.StopTrace");
+					StopTrace();
 				});
 			}
 

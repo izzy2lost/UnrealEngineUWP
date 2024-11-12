@@ -191,11 +191,7 @@ class FSimpleElectraAudioPlayer : public ISimpleElectraAudioPlayer, public IAdap
 			FSimpleElectraAudioPlayer::TickAllInstances(DeltaTime);
 		}
 		ETickableTickType GetTickableTickType() const override
-		{ return ETickableTickType::Conditional; }
-		bool IsTickable() const override
-		{ return true; }
-		bool IsAllowedToTick() const override
-		{ return true; }
+		{ return ETickableTickType::Always; }
 		TStatId GetStatId() const override
 		{ RETURN_QUICK_DECLARE_CYCLE_STAT(FSimpleElectraAudioPlayer, STATGROUP_Tickables); }
 		bool IsTickableWhenPaused() const override
@@ -520,10 +516,10 @@ private:
 			{
 				ErrorCode = InRequest->GetError();
 				BlobData = MakeShared<TArray<uint8>, ESPMode::ThreadSafe>();
-				TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer = InRequest->GetResponseBuffer();
+				TSharedPtrTS<FWaitableBuffer> ResponseBuffer = InRequest->GetResponseBuffer();
 				if (ResponseBuffer.IsValid())
 				{
-					BlobData->Append((const uint8*)ResponseBuffer->Buffer.GetLinearReadData(), ResponseBuffer->Buffer.Num());
+					BlobData->Append((const uint8*)ResponseBuffer->GetLinearReadData(), ResponseBuffer->Num());
 				}
 			}
 			bIsComplete = true;

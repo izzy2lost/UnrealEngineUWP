@@ -24,9 +24,8 @@ void SWorldPartitionEditor::Construct(const FArguments& InArgs)
 	FWorldBrowserModule& WorldBrowserModule = FModuleManager::LoadModuleChecked<FWorldBrowserModule>("WorldBrowser");
 	WorldBrowserModule.OnBrowseWorld.AddSP(this, &SWorldPartitionEditor::OnBrowseWorld);
 	UWorldPartition::WorldPartitionChangedEvent.AddSP(this, &SWorldPartitionEditor::OnBrowseWorld);
-
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().AddSP(this, &SWorldPartitionEditor::OnBrowseWorld);
+	
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().AddSP(this, &SWorldPartitionEditor::OnBrowseWorld);
 }
 
 SWorldPartitionEditor::~SWorldPartitionEditor()
@@ -35,8 +34,7 @@ SWorldPartitionEditor::~SWorldPartitionEditor()
 	WorldBrowserModule.OnBrowseWorld.RemoveAll(this);
 	UWorldPartition::WorldPartitionChangedEvent.RemoveAll(this);
 	
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().RemoveAll(this);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().RemoveAll(this);
 
 	if (World.IsValid())
 	{

@@ -5,6 +5,8 @@
 #include "Windows/WindowsHWrapper.h"
 #include "ShaderCompilerCommon.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogD3DShaderCompiler, Log, All)
+
 struct FShaderTarget;
 
 enum class ED3DShaderModel
@@ -13,6 +15,7 @@ enum class ED3DShaderModel
 	SM5_0,
 	SM6_0,
 	SM6_6,
+	SM6_8,
 };
 
 inline bool DoesShaderModelRequireDXC(ED3DShaderModel ShaderModel)
@@ -54,7 +57,8 @@ bool CompileAndProcessD3DShaderDXC(
 	bool bProcessingSecondTime,
 	FShaderCompilerOutput& Output);
 
-bool ValidateResourceCounts(uint32 NumSRVs, uint32 NumSamplers, uint32 NumUAVs, uint32 NumCBs, TArray<FString>& OutFilteredErrors);
+struct FD3DShaderCompileData;
+bool ValidateResourceCounts(const FD3DShaderCompileData& CompiledData, TArray<FString>& OutFilteredErrors);
 
 struct FD3DSM6ShaderDebugData
 {
@@ -65,7 +69,6 @@ struct FD3DSM6ShaderDebugData
 	inline friend FArchive& operator<<(FArchive& Ar, FD3DSM6ShaderDebugData& DebugData)
 	{
 		Ar << DebugData.Name;
-		Ar << DebugData.DebugInfo;
 		Ar << DebugData.Contents;
 		return Ar;
 	}
@@ -78,11 +81,6 @@ struct FD3DSM6ShaderDebugData
 	inline FString GetFilename() const
 	{
 		return Name;
-	}
-
-	inline FString GetDebugInfo() const
-	{
-		return DebugInfo;
 	}
 
 	TConstArrayView<FD3DSM6ShaderDebugData> GetAllSymbolData() const

@@ -23,7 +23,8 @@ public class RemoteControlProtocolWidgets : ModuleRules
 			"RemoteControlProtocol",
 			"Slate",
 			"SlateCore",
-			"UnrealEd"
+			"StructUtilsEditor",
+			"UnrealEd",
 		});
 	}
 }

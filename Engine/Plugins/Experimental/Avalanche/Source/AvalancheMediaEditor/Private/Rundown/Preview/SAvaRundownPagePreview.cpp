@@ -6,6 +6,7 @@
 #include "AvaMediaSettings.h"
 #include "Broadcast/OutputDevices/Slate/SAvaBroadcastCaptureImage.h"
 #include "Brushes/SlateImageBrush.h"
+#include "Engine/RendererSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -157,8 +158,8 @@ TSharedRef<SWidget> SAvaRundownPagePreview::CreatePagePreviewToolBar(const TShar
 					FExecuteAction::CreateSP(this, &SAvaRundownPagePreview::HandleCheckerboardActionExecute),
 					FCanExecuteAction::CreateLambda([]	{ return true;}))
 				, NAME_None
-				, FText()
-				, LOCTEXT("ToggleAlpha_ToolTip", "Toggle alpha preview (checker board).")
+				, LOCTEXT("AlphaPreview", "Alpha Preview")
+				, LOCTEXT("AlphaPreview_ToolTip", "Toggle alpha preview (checker board).")
 				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Checkerboard")
 			);
 
@@ -278,7 +279,7 @@ void SAvaRundownPagePreview::AddResolutionMenuEntry(FMenuBuilder& InOutMenuBuild
 {
 	InOutMenuBuilder.AddMenuEntry(
 			Label,
-			FText(),
+			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SAvaRundownPagePreview::SetPreviewResolution, InResolution),
@@ -303,11 +304,11 @@ void SAvaRundownPagePreview::HandleCheckerboardActionExecute() const
 	if (bShowCheckerBoard)
 	{
 		const IConsoleVariable* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-		if (PropagateAlphaCVar && PropagateAlphaCVar->GetInt() != 2)
+		if (PropagateAlphaCVar && PropagateAlphaCVar->GetBool() != true)
 		{
 			const FText NotificationText = LOCTEXT("AlphaSupport",
 				"An output requested Alpha Support but the required project setting is not enabled!\n"
-				"Go to Project Settings > Rendering > PostProcessing > 'Enable Alpha Channel Support in Post Processing' and set it to 'Allow through tonemapper'.");
+				"Go to Project Settings > Rendering > PostProcessing > 'Alpha Output' and enable it.");
 
 			FNotificationInfo Info(NotificationText);
 			Info.ExpireDuration = 5.0f;	// The message is long, need more time to read it.

@@ -84,11 +84,11 @@ struct F2DTransformSectionEditorData
 
 	static TOptional<float> ExtractTranslationX(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
-		return Bindings ? Bindings->GetCurrentValue<FWidgetTransform>(InObject).Translation.X : TOptional<float>();
+		return Bindings ? static_cast<float>(Bindings->GetCurrentValue<FWidgetTransform>(InObject).Translation.X) : TOptional<float>();
 	}
 	static TOptional<float> ExtractTranslationY(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
-		return Bindings ? Bindings->GetCurrentValue<FWidgetTransform>(InObject).Translation.Y : TOptional<float>();
+		return Bindings ? static_cast<float>(Bindings->GetCurrentValue<FWidgetTransform>(InObject).Translation.Y) : TOptional<float>();
 	}
 
 	static TOptional<float> ExtractRotation(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
@@ -98,20 +98,20 @@ struct F2DTransformSectionEditorData
 
 	static TOptional<float> ExtractScaleX(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
-		return Bindings ? Bindings->GetCurrentValue<FWidgetTransform>(InObject).Scale.X : TOptional<float>();
+		return Bindings ? static_cast<float>(Bindings->GetCurrentValue<FWidgetTransform>(InObject).Scale.X) : TOptional<float>();
 	}
 	static TOptional<float> ExtractScaleY(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
-		return Bindings ? Bindings->GetCurrentValue<FWidgetTransform>(InObject).Scale.Y : TOptional<float>();
+		return Bindings ? static_cast<float>(Bindings->GetCurrentValue<FWidgetTransform>(InObject).Scale.Y) : TOptional<float>();
 	}
 
 	static TOptional<float> ExtractShearX(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
-		return Bindings ? Bindings->GetCurrentValue<FWidgetTransform>(InObject).Shear.X : TOptional<float>();
+		return Bindings ? static_cast<float>(Bindings->GetCurrentValue<FWidgetTransform>(InObject).Shear.X) : TOptional<float>();
 	}
 	static TOptional<float> ExtractShearY(UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
-		return Bindings ? Bindings->GetCurrentValue<FWidgetTransform>(InObject).Shear.Y : TOptional<float>();
+		return Bindings ? static_cast<float>(Bindings->GetCurrentValue<FWidgetTransform>(InObject).Shear.Y) : TOptional<float>();
 	}
 
 	FMovieSceneChannelMetaData      MetaData[7];

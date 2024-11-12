@@ -37,7 +37,7 @@ TAutoConsoleVariable<int32> CVarLUTSize(
 	TEXT("r.LUT.Size"),
 	32,
 	TEXT("Size of film LUT"),
-	ECVF_RenderThreadSafe);
+	ECVF_RenderThreadSafe | ECVF_Scalability);
 
 TAutoConsoleVariable<int32> CVarColorGrading(
 	TEXT("r.Color.Grading"), 1,
@@ -570,7 +570,7 @@ FRDGTextureRef AddCombineLUTPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vie
 			RDG_EVENT_NAME("CombineLUTS %d (PS)", LUTSize),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, PixelShader, PassParameters, bUseVolumeTextureLUT, LUTSize] (FRHICommandList& RHICmdList)
+			[&View, PixelShader, PassParameters, bUseVolumeTextureLUT, LUTSize] (FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

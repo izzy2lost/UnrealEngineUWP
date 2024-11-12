@@ -12,36 +12,41 @@ namespace CruncherSharp
         public string Name { get; private set; }
         public string TypeName { get; set; }
         public ulong Size { get; set; }
-        public ulong NewSize { get; set; }
-        public ulong EndPadding { get; set; }
-        public ulong Padding => (ulong)((long)EndPadding + Members.Sum(info => (long)info.PaddingBefore)); // This is the local (intrinsic) padding
-        public ulong PaddingZonesCount => (ulong)((EndPadding > 0 ? 1 : 0) + Members.Sum(info => info.PaddingBefore > 0 ? 1 : 0));
-        public ulong? TotalPadding { get; set; } // Includes padding from base classes and members
-        public ulong NumInstances { get; set; }
+        public ulong? NewSize { get; set; }
+        public uint EndPadding { get; set; }
+        public uint Padding => (uint)(EndPadding + Members.Sum(info => info.PaddingBefore)); // This is the local (intrinsic) padding
+		public uint? MinAlignment { get; set; }
+		public uint PaddingZonesCount => (uint)((EndPadding > 0 ? 1 : 0) + Members.Sum(info => info.PaddingBefore > 0 ? 1 : 0));
+        public uint? TotalPadding { get; set; } // Includes padding from base classes and members
+		public ulong? PotentialSaving { get; set; }
+		public ulong NumInstances { get; set; }
         public ulong TotalCount { get; set; }
 		public ulong LowerMemPool { get; set; }
-		public ulong UpperMemPool { get; set; }
+		public ulong CurrentMemPool { get; set; }
 
+		public ulong? NewMemPool { get; set; }
 		public bool IsAbstract { get; set; }
         public bool IsTemplate { get; set; }
 		public bool IsImportedFromCSV { get; set; }
 		public List<SymbolMemberInfo> Members { get; set; }
         public List<SymbolFunctionInfo> Functions { get; set; }
-        public List<SymbolInfo> DerivedClasses { get; set; }
-
-        private const string PaddingMarker = "****Padding";
+        public List<SymbolInfo> DerivedClasses { get; set; }		       
 
         public SymbolInfo(string name, string typeName, ulong size, List<uint> MemPools)
         {
             Name = name;
             TypeName = typeName;
             Size = size;
-            EndPadding = 0;
+			NewSize = null;
+			EndPadding = 0;
 			LowerMemPool = 0;
-			UpperMemPool = 0;
+			CurrentMemPool = 0;
+			NewMemPool = null;
+			MinAlignment = null;
 			TotalPadding = null;
+			PotentialSaving = null;
             Members = new List<SymbolMemberInfo>();
-            Functions = new List<SymbolFunctionInfo>();
+            Functions = null;
             IsAbstract = false;
 			IsImportedFromCSV = false;
 
@@ -58,6 +63,10 @@ namespace CruncherSharp
 
         public void AddFunction(SymbolFunctionInfo function)
         {
+			if (Functions == null)
+			{
+				Functions = new List<SymbolFunctionInfo>();
+			}
             Functions.Add(function);
 			if (function.IsPure)
 			{
@@ -75,15 +84,39 @@ namespace CruncherSharp
 					previousMemPool = memPool;
 					continue;
 				}
-				UpperMemPool = memPool;
+				CurrentMemPool = memPool;
 				LowerMemPool = previousMemPool;
+				break;
+			}
+			if (CurrentMemPool == 0)
+			{
+				CurrentMemPool = Size;
+			}
+
+
+			SetNewMemPools(MemPools); 
+			
+		}
+
+		public void SetNewMemPools(List<uint> MemPools)
+		{
+			if (!NewSize.HasValue)
+				return;
+	
+			foreach (var memPool in MemPools)
+			{
+				if (NewSize > memPool)
+				{
+					continue;
+				}
+				NewMemPool = memPool;
 				return;
 			}
-			UpperMemPool = LowerMemPool = Size;
+			NewMemPool = NewSize;
 		}
 
 
-        private bool ComputeOffsetCollision(int index)
+		private bool ComputeOffsetCollision(int index)
         {
             return index > 0 && Members[index].Offset == Members[index - 1].Offset;
         }
@@ -118,19 +151,38 @@ namespace CruncherSharp
             }
         }
 
+		public bool HasUnusedVTable()
+		{
+			return HasVtable && !HasBaseClassWithVTable() && DerivedClasses == null;
+		}
+
+		public bool HasBaseClassWithVTable()
+		{
+			foreach (var member in Members)
+			{
+				if (member.Category == SymbolMemberInfo.MemberCategory.Base)
+				{
+					if (member.TypeInfo == null)
+					{
+						continue;
+					}
+					if (member.TypeInfo.HasVtable)
+						return true;
+				}
+			}
+			return false;
+		}
+
 		// https://randomascii.wordpress.com/2013/12/01/vc-2013-class-layout-change-and-wasted-space/
-		public bool HasMSVCExtraPadding
-        {
-            get
-            {
-                if (HasBaseClass)
-                    return false;
-                if (!HasVtable)
-                    return false;
-                if (Members.Count < 2)
-                    return false;
-                return Members[1].Size == 8 && Members[1].Offset == 16;
-            }
+		public bool HasMSVCExtraPadding()
+		{
+            if (HasBaseClassWithVTable())
+                return false;
+            if (!HasVtable)
+                return false;
+            if (Members.Count < 2)
+                return false;
+            return Members[1].Size < 16 && Members[1].Offset == 16;
         }
 
         public bool HasMSVCEmptyBaseClass
@@ -164,7 +216,7 @@ namespace CruncherSharp
 			EndPadding = ComputeEndPadding();
 		}
 
-        private ulong ComputePadding(int index)
+        private uint ComputePadding(int index)
         {
             if (index < 1 || index > Members.Count)
             {
@@ -185,10 +237,10 @@ namespace CruncherSharp
 
             ulong currentOffset = index > Members.Count - 1 ? Size : Members[index].Offset;
             ulong previousEnd = Members[previousIndex].Offset + biggestSize;
-            return currentOffset > previousEnd ? currentOffset - previousEnd : 0;
+            return currentOffset > previousEnd ? (uint)(currentOffset - previousEnd) : 0u;
         }
 
-        private ulong ComputeBitPadding(int index)
+        private uint ComputeBitPadding(int index)
         {
             if (index > Members.Count)
             {
@@ -203,37 +255,208 @@ namespace CruncherSharp
                 if (Members[index + 1].BitField && Members[index + 1].Offset == Members[index].Offset)
                     return 0;
             }
-            return (8 * Members[index].Size) - (Members[index].BitPosition + Members[index].BitSize);
+            return (uint)(8 * Members[index].Size) - (Members[index].BitPosition + Members[index].BitSize);
         }
 
-        private ulong ComputeEndPadding()
+        private uint ComputeEndPadding()
         {
             return ComputePadding(Members.Count);
         }
 
-        public ulong ComputeTotalPadding(SymbolAnalyzer symbolAnalyzer)
+        public uint ComputeTotalPadding()
         {
             if (TotalPadding.HasValue)
             {
                 return TotalPadding.Value;
             }
-            TotalPadding = (ulong)((long)Padding + Members.Sum(info =>
+            TotalPadding = (uint)((uint)Padding + Members.Sum(info =>
             {
                 if (info.AlignWithPrevious)
                     return 0;
                 if (info.Category == SymbolMemberInfo.MemberCategory.Member)
                     return 0;
-                if (info.TypeName == Name)
+                if (info.TypeInfo == this)
                     return 0; // avoid infinite loops
-                var referencedInfo = symbolAnalyzer.FindSymbolInfo(info.TypeName);
-                if (referencedInfo == null)
+                if (info.TypeInfo == null)
                 {
                     return 0;
                 }
-                return (long)referencedInfo.ComputeTotalPadding(symbolAnalyzer);
+                return info.TypeInfo.ComputeTotalPadding();
             }));
             return TotalPadding.Value;
         }
+
+		public ulong ComputePotentialSaving(SymbolAnalyzer symbolAnalyzer)
+		{
+			if (PotentialSaving.HasValue)
+			{
+				return PotentialSaving.Value;
+			}
+
+			if (Name == "UObjectBase")
+			{
+				PotentialSaving = 0;
+			}
+
+			//List<uint> BitsRemaining = new List<uint>();
+			uint BitsRemaining = 0;
+			foreach (var member in Members)
+			{
+				if (member.Category != SymbolMemberInfo.MemberCategory.Member)
+				{
+					continue;
+				}
+				if (member.Size == 1 &&member.TypeName.StartsWith("bool"))
+				{
+					if (member.BitField)
+					{
+						BitsRemaining += member.BitPaddingAfter; 
+					}
+					else if (BitsRemaining == 0)
+					{
+						BitsRemaining = 7u;
+					}
+					else
+					{
+						BitsRemaining--;
+						member.PotentialSaving = 1u;
+					}
+				}
+				else if (member.Size == 4 && member.TypeName.StartsWith("enum "))
+				{
+					if (!symbolAnalyzer.ConfigEnum.ContainsKey(member.TypeName.Remove(0, 5)))
+					{
+						member.PotentialSaving = 1u;
+					}
+				}
+			}
+
+			PotentialSaving = 0;
+
+			if (EndPadding < 16)
+			{
+				uint InternalPadding = (uint)Members.Sum(info => (long)info.PaddingBefore);
+
+				InternalPadding += BitsRemaining / 8u;
+				
+				InternalPadding += (uint)(Members.Sum(info =>
+				{
+					if (info.AlignWithPrevious)
+						return 0u;
+
+					if (info.PotentialSaving.HasValue)
+						return info.PotentialSaving;
+
+					return 0u;
+				}));
+				uint MinAlignment = ComputeMinAlignment();
+				if (InternalPadding > 0 && (InternalPadding + EndPadding) >= MinAlignment)
+				{
+					PotentialSaving = InternalPadding + EndPadding;
+					PotentialSaving -= (PotentialSaving % MinAlignment);
+				}
+			}
+
+			if (HasUnusedVTable())
+				PotentialSaving += 8;
+
+			PotentialSaving += (ulong)(Members.Sum(info =>
+			{
+				if (info.AlignWithPrevious)
+					return 0u;
+				if (info.Category == SymbolMemberInfo.MemberCategory.Member)
+					return 0u;
+				if (info.PotentialSaving.HasValue)
+					return info.PotentialSaving;
+				if (info.TypeName == Name)
+					return 0u; // avoid infinite loops
+				if (info.TypeInfo == null)
+				{
+					return 0u;
+				}
+
+				return (long)info.Count * (long)info.TypeInfo.ComputePotentialSaving(symbolAnalyzer);
+			}));
+			return PotentialSaving.Value;
+		}
+
+		public uint ComputeMinAlignment()
+		{
+			if (MinAlignment.HasValue)
+			{
+				return MinAlignment.Value;
+			}
+			
+			if (EndPadding >= 8)
+			{
+				MinAlignment = 16;
+				return MinAlignment.Value;
+			}
+			else if (EndPadding >= 4 || HasVtable)
+			{
+				MinAlignment = 8;
+			}
+			else if (EndPadding >= 2)
+			{
+				MinAlignment = 4;
+			}
+			else if (EndPadding > 0)
+			{
+				MinAlignment = 2;
+			}
+			else
+			{
+				MinAlignment = 1;
+			}
+
+			foreach (var member in Members)
+			{
+				if (member.MinAlignment > MinAlignment)
+				{
+					MinAlignment = member.MinAlignment;
+				}
+			}
+			return MinAlignment.Value;
+
+		}
+
+		public ulong ComputeTotalMempoolUsage()
+		{
+			ulong TotalUsage = CurrentMemPool * NumInstances;
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalUsage += derivedClass.ComputeTotalMempoolUsage();
+				}
+			}
+			return TotalUsage;
+		}
+
+		public ulong ComputePotentialTotalSaving()
+		{
+			if (PotentialSaving.HasValue)
+				return ComputePotentialTotalSaving(PotentialSaving.Value);
+			return 0;
+		}
+
+		private ulong ComputePotentialTotalSaving(ulong Win)
+		{
+			ulong TotalWin = 0;
+			if (LowerMemPool > 0 && PotentialSaving.HasValue && (Size - Win) <= LowerMemPool)
+				TotalWin = (CurrentMemPool - LowerMemPool) * NumInstances;
+
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalWin += derivedClass.ComputePotentialTotalSaving(Win);
+				}
+			}
+
+			return TotalWin;
+		}
+
 
 		public ulong ComputeTotalMempoolWin()
 		{
@@ -244,7 +467,7 @@ namespace CruncherSharp
 		{
 			ulong TotalWin = 0;
 			if (LowerMemPool > 0 && (Size - Win) <= LowerMemPool)
-				TotalWin = (UpperMemPool - LowerMemPool) * NumInstances;
+				TotalWin = (CurrentMemPool - LowerMemPool) * NumInstances;
 
 			if (DerivedClasses != null)
 			{
@@ -257,42 +480,87 @@ namespace CruncherSharp
 			return TotalWin;
 		}
 
+		public long ComputeTotalDelta()
+		{
+			long TotalUsage = ((long)NewSize - (long)Size) * (long)NumInstances;
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalUsage += derivedClass.ComputeTotalDelta();
+				}
+			}
+			return TotalUsage;
+		}
+
+		public long ComputeTotalMempoolDelta()
+		{
+			if (!NewMemPool.HasValue)
+				return 0;
+			long TotalUsage = ((long)NewMemPool - (long)CurrentMemPool) * (long)NumInstances;
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalUsage += derivedClass.ComputeTotalMempoolDelta();
+				}
+			}
+			return TotalUsage;
+		}
+
 		private bool _BaseClassUpdated = false;
 		public void UpdateBaseClass(SymbolAnalyzer symbolAnalyzer)
         {
 			if (_BaseClassUpdated)
 				return;
 			_BaseClassUpdated = true;
+			bool _ChildClassUpdated = false;
 
 			foreach (var member in Members)
             {
                 if (member.Category == SymbolMemberInfo.MemberCategory.Base)
                 {
-                    var referencedInfo = symbolAnalyzer.FindSymbolInfo(member.TypeName);
-                    if (referencedInfo != null)
+					member.TypeInfo = symbolAnalyzer.FindSymbolInfo(member.TypeName);
+                    if (member.TypeInfo != null)
                     {
-                        if (referencedInfo.DerivedClasses == null)
-                            referencedInfo.DerivedClasses = new List<SymbolInfo>();
-	                    referencedInfo.DerivedClasses.Add(this);
+                        if (member.TypeInfo.DerivedClasses == null)
+							member.TypeInfo.DerivedClasses = new List<SymbolInfo>();
+						member.TypeInfo.DerivedClasses.Add(this);
                     }
                 }
+				else
+				{
+					if (member.UpdateTypeInfo(symbolAnalyzer))
+					{
+						_ChildClassUpdated = true;
+					}
+				}
             }
+
+			if (_ChildClassUpdated)
+			{
+				SortAndCalculate();
+			}
         }
 
 		public bool IsA(string name, SymbolAnalyzer symbolAnalyzer)
 		{
+			var SymbolInfo = symbolAnalyzer.FindSymbolInfo(name);
+			if (SymbolInfo == null)
+			{
+				return false;
+			}
 			foreach (var member in Members)
 			{
 				if (member.Category == SymbolMemberInfo.MemberCategory.Base)
 				{
-					var referencedInfo = symbolAnalyzer.FindSymbolInfo(member.TypeName);
-					if (referencedInfo != null)
+					if (member.TypeInfo != null)
 					{
-						if (referencedInfo.Name == name)
+						if (member.TypeInfo == SymbolInfo)
 						{
 							return true;
 						}
-						if (referencedInfo.IsA(name, symbolAnalyzer))
+						if (member.TypeInfo.IsA(name, symbolAnalyzer))
 						{
 							return true;
 						}
@@ -374,18 +642,18 @@ namespace CruncherSharp
             return false;
         }
 
-        public void UpdateTotalCount(SymbolAnalyzer symbolAnalyzer, ulong count)
+        public void UpdateTotalCount(ulong count)
         {
             foreach (var member in Members)
             {
                 if (member.Category == SymbolMemberInfo.MemberCategory.UDT || member.Category == SymbolMemberInfo.MemberCategory.Base)
                 {
-                    var referencedInfo = symbolAnalyzer.FindSymbolInfo(member.TypeName);
-                    if (referencedInfo != null)
+                    if (member.TypeInfo != null)
                     {
-                        referencedInfo.TotalCount += count;
-                        referencedInfo.UpdateTotalCount(symbolAnalyzer,count);
-                    }
+						count *= member.Count;
+						member.TypeInfo.TotalCount += count;
+						member.TypeInfo.UpdateTotalCount(count);
+					}
                 }
             }
         }
@@ -401,6 +669,8 @@ namespace CruncherSharp
             sw.WriteLine($"Total padding: {TotalPadding}");
             sw.WriteLine("Members:");
             sw.WriteLine("-------");
+
+			const string PaddingMarker = "****Padding";
 
             foreach (var member in Members)
             {

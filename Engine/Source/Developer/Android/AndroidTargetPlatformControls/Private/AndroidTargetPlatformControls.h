@@ -30,12 +30,10 @@ class IAndroidDeviceDetection;
 class ITargetPlatform;
 class UTextureLODSettings;
 enum class ETargetPlatformFeatures;
-template<typename TPlatformProperties> class TTargetPlatformBase;
 
 template< typename InElementType, typename KeyFuncs, typename Allocator > class TSet;
 template<typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs > class TMap;
 template<typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs > class TMultiMap;
-template<typename TPlatformProperties> class TTargetPlatformBase;
 
 /**
  * FAndroidTargetPlatformControls, abstraction for cooking Android platforms
@@ -190,7 +188,8 @@ public:
 class FAndroid_ASTCTargetPlatformControls : public FAndroidTargetPlatformControls
 {
 public:
-	FAndroid_ASTCTargetPlatformControls(bool bIsClient, ITargetPlatformSettings* TargetPlatformSettings) : FAndroidTargetPlatformControls(bIsClient, TargetPlatformSettings, TEXT("ASTC"))
+	FAndroid_ASTCTargetPlatformControls(bool bIsClient, ITargetPlatformSettings* TargetPlatformSettings, const TCHAR* OverrideIniPlatformName = TEXT("ASTC")) 
+		: FAndroidTargetPlatformControls(bIsClient, TargetPlatformSettings, OverrideIniPlatformName)
 	{
 	}
 
@@ -212,6 +211,15 @@ public:
 #endif
 };
 
+// Flavorless Android platform defaults to ASTC
+class FAndroid_DefaultTargetPlatformControls : public FAndroid_ASTCTargetPlatformControls
+{
+public:
+	FAndroid_DefaultTargetPlatformControls(bool bIsClient, ITargetPlatformSettings* TargetPlatformSettings) 
+		: FAndroid_ASTCTargetPlatformControls(bIsClient, TargetPlatformSettings, nullptr)
+	{
+	}
+};
 
 class FAndroid_ETC2TargetPlatformControls : public FAndroidTargetPlatformControls
 {

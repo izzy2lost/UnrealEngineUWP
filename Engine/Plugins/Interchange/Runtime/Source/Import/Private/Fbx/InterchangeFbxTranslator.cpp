@@ -26,7 +26,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeFbxTranslator)
 
-static bool GInterchangeEnableFBXImport = false;
+static bool GInterchangeEnableFBXImport = true;
 static FAutoConsoleVariableRef CCvarInterchangeEnableFBXImport(
 	TEXT("Interchange.FeatureFlags.Import.FBX"),
 	GInterchangeEnableFBXImport,
@@ -192,6 +192,7 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 	const bool bConvertScene = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bConvertScene : true;
 	const bool bForceFrontXAxis = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bForceFrontXAxis : false;
 	const bool bConvertSceneUnit = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bConvertSceneUnit : true;
+	const bool bKeepFbxNamespace = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bKeepFbxNamespace : false;
 
 	if (bUseWorkerImport)
 	{
@@ -200,7 +201,7 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 			return false;
 		}
 		//Create a json command to read the fbx file
-		FString JsonCommand = CreateLoadFbxFileCommand(Filename, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
+		FString JsonCommand = CreateLoadFbxFileCommand(Filename, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, bKeepFbxNamespace);
 		int32 TaskIndex = Dispatcher->AddTask(JsonCommand);
 
 		//Blocking call until all tasks are executed
@@ -240,7 +241,7 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 #if WITH_EDITOR
 		FbxParser.Reset();
 		FbxParser.SetResultContainer(Results);
-		FbxParser.SetConvertSettings(bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
+		FbxParser.SetConvertSettings(bConvertScene, bForceFrontXAxis, bConvertSceneUnit, bKeepFbxNamespace);
 		FbxParser.LoadFbxFile(Filename, BaseNodeContainer);
 #endif
 	}
@@ -288,6 +289,8 @@ UInterchangeTranslatorSettings* UInterchangeFbxTranslator::GetSettings() const
 	{
 		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(UInterchangeFbxTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeFbxTranslatorSettings>(), GetTransientPackage());
 		CacheFbxTranslatorSettings->LoadSettings();
+		//Since we duplicate the CDO we want to remove the archetype flag
+		CacheFbxTranslatorSettings->ClearFlags(RF_ArchetypeObject);
 		CacheFbxTranslatorSettings->SetFlags(RF_Standalone);
 		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 	}
@@ -302,9 +305,9 @@ void UInterchangeFbxTranslator::SetSettings(const UInterchangeTranslatorSettings
 		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 		CacheFbxTranslatorSettings = nullptr;
 	}
-	if (InterchangeTranslatorSettings)
+	if (const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = Cast<UInterchangeFbxTranslatorSettings>(InterchangeTranslatorSettings))
 	{
-		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(Cast<UInterchangeFbxTranslatorSettings>(InterchangeTranslatorSettings), GetTransientPackage());
+		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(InterchangeFbxTranslatorSettings, GetTransientPackage());
 		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 		CacheFbxTranslatorSettings->SetFlags(RF_Standalone);
 	}
@@ -326,7 +329,7 @@ TOptional<UE::Interchange::FImportImage> UInterchangeFbxTranslator::GetTexturePa
 	return TextureTranslator->GetTexturePayloadData(PayLoadKey, AlternateTexturePath);
 }
 
-TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional<UE::Interchange::FMeshPayloadData> UInterchangeFbxTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
 	TSharedPtr<TPromise<TOptional<UE::Interchange::FMeshPayloadData>>> Promise = MakeShared<TPromise<TOptional<UE::Interchange::FMeshPayloadData>>>();
 
@@ -415,8 +418,7 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator:
 	{
 		if (!Dispatcher.IsValid())
 		{
-			Promise->SetValue(TOptional<UE::Interchange::FMeshPayloadData>());
-			return Promise->GetFuture();
+			return TOptional<UE::Interchange::FMeshPayloadData>();
 		}
 
 		// Create a json command to read the fbx file
@@ -455,42 +457,48 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator:
 			Promise->SetValue(TOptional<UE::Interchange::FMeshPayloadData>{});
 		}
 	}
-	return Promise->GetFuture();
+	//We must stall since the payload async is now control by the interchange task system
+	return Promise->GetFuture().Get();
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeFbxTranslator::GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency, const double RangeStartSecond, const double RangeStopSecond) const
+TArray<UE::Interchange::FAnimationPayloadData> UInterchangeFbxTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
 {
-	TSharedPtr<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>> Promise = MakeShared<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>>();
+	TArray<UE::Interchange::FAnimationPayloadData> PayloadDataResults;
+	
+	if (PayloadQueries.Num() == 0)
+	{
+		return PayloadDataResults;
+	}
 
-	auto OnPayloadReady = [Promise, PayLoadKey](const FString& AnimationPayloadFilename)
+	bool bBakedQueries = PayloadQueries[0].PayloadKey.Type == EInterchangeAnimationPayLoadType::BAKED;
+
+	auto OnPayloadReady = [](const UE::Interchange::FAnimationPayloadQuery& PayloadQuery, const FString& AnimationPayloadFile)
 		{
-			if (!ensure(FPaths::FileExists(AnimationPayloadFilename)))
+			if (!ensure(FPaths::FileExists(AnimationPayloadFile)))
 			{
 				// TODO log an error saying the payload file does not exist even if the get payload command succeeded
-				Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
-				return;
+				return TOptional<UE::Interchange::FAnimationPayloadData>();
 			}
-
-			UE::Interchange::FAnimationPayloadData AnimationTransformPayload(PayLoadKey.Type);
 
 			// All sub object should be gone with the reset
 			TArray64<uint8> Buffer;
-			FFileHelper::LoadFileToArray(Buffer, *AnimationPayloadFilename);
+			FFileHelper::LoadFileToArray(Buffer, *AnimationPayloadFile);
 			uint8* FileData = Buffer.GetData();
 			int64 FileDataSize = Buffer.Num();
 			if (FileDataSize < 1)
 			{
 				// Nothing to load from this file
-				Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
-				return;
+				return TOptional<UE::Interchange::FAnimationPayloadData>();
 			}
+
+			UE::Interchange::FAnimationPayloadData AnimationTransformPayload(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
 
 			// Buffer keeps the ownership of the data, the large memory reader is use to serialize the TMap
 			FLargeMemoryReader Ar(FileData, FileDataSize);
 
-			switch (PayLoadKey.Type)
+			switch (PayloadQuery.PayloadKey.Type)
 			{
-			case EInterchangeAnimationPayLoadType::CURVE:
+				case EInterchangeAnimationPayLoadType::CURVE:
 				{
 					TArray<FInterchangeCurve> InterchangeCurves;
 					Ar << InterchangeCurves;
@@ -502,7 +510,7 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeFbxTransl
 					}
 				}
 				break;
-			case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
+				case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
 				{
 					TArray<FInterchangeCurve> InterchangeCurves;
 					Ar << InterchangeCurves;
@@ -516,97 +524,186 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeFbxTransl
 					}
 				}
 				break;
-			case EInterchangeAnimationPayLoadType::STEPCURVE:
+				case EInterchangeAnimationPayLoadType::STEPCURVE:
 				{
 					Ar << AnimationTransformPayload.StepCurves;
 				}
 				break;
-			case EInterchangeAnimationPayLoadType::BAKED:
-				AnimationTransformPayload.SerializeBaked(Ar);
-				break;
-			case EInterchangeAnimationPayLoadType::NONE:
-			default:
-				break;
+				case EInterchangeAnimationPayLoadType::BAKED:
+					AnimationTransformPayload.SerializeBaked(Ar);
+					break;
+				case EInterchangeAnimationPayLoadType::NONE:
+				default:
+					break;
 			}
 
-			Promise->SetValue(MoveTemp(AnimationTransformPayload));
+			return TOptional<UE::Interchange::FAnimationPayloadData>(AnimationTransformPayload);
 		};
 
 	if (!bUseWorkerImport)
 	{
 #if WITH_EDITOR
-		FString AnimationPayloadFile;
-		if (PayLoadKey.Type == EInterchangeAnimationPayLoadType::BAKED)
+		//PayloadQueries are assumed to be of the same PayloadKey.Type.
+		if (bBakedQueries)
 		{
-			FString ResultPayloadsUniqueId = FbxParser.FetchAnimationBakeTransformPayload(PayLoadKey.UniqueId
-				, BakeFrequency
-				, RangeStartSecond
-				, RangeStopSecond
-				, ResultFolder);
-			AnimationPayloadFile = FbxParser.GetResultPayloadFilepath(ResultPayloadsUniqueId);
+			//Fetch the animation data for all the queries at the same time:
+			FbxParser.FetchAnimationBakeTransformPayloads(PayloadQueries, ResultFolder);
+
+			for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
+			{
+				TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = OnPayloadReady(PayloadQuery, FbxParser.GetResultPayloadFilepath(PayloadQuery.GetHashString()));
+				if (OptionalPayloadData.IsSet())
+				{
+					PayloadDataResults.Add(OptionalPayloadData.GetValue());
+				}
+			}
 		}
 		else
 		{
-			FbxParser.FetchPayload(PayLoadKey.UniqueId, ResultFolder);
-			AnimationPayloadFile = FbxParser.GetResultPayloadFilepath(PayLoadKey.UniqueId);
+			for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
+			{
+				FbxParser.FetchPayload(PayloadQuery.PayloadKey.UniqueId, ResultFolder);
+
+				TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = OnPayloadReady(PayloadQuery, FbxParser.GetResultPayloadFilepath(PayloadQuery.PayloadKey.UniqueId));
+				if (OptionalPayloadData.IsSet())
+				{
+					PayloadDataResults.Add(OptionalPayloadData.GetValue());
+				}
+			}
 		}
-		OnPayloadReady(AnimationPayloadFile);
 #endif //WITH_EDITOR
 	}
 	else
 	{
 		if (!Dispatcher.IsValid())
 		{
-			Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
-			return Promise->GetFuture();
+			return PayloadDataResults;
 		}
 
-		// Create a json command to read the fbx file
-		FString JsonCommand = 
-			(PayLoadKey.Type == EInterchangeAnimationPayLoadType::BAKED)
-			? CreateFetchAnimationBakeTransformPayloadFbxCommand(PayLoadKey.UniqueId, BakeFrequency, RangeStartSecond, RangeStopSecond)
-			: CreateFetchPayloadFbxCommand(PayLoadKey.UniqueId);
-
-		const int32 CreatedTaskIndex = Dispatcher->AddTask(JsonCommand, FInterchangeDispatcherTaskCompleted::CreateLambda([this, Promise, PayLoadKey, OnPayloadReadyClosure = MoveTemp(OnPayloadReady)](const int32 TaskIndex)
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeFbxTranslator::GetAnimationCurvePayloadData::Dispatcher->AddTaskDone)
-				UE::Interchange::ETaskState TaskState;
-				FString JsonResult;
-				TArray<FString> JsonMessages;
-				Dispatcher->GetTaskState(TaskIndex, TaskState, JsonResult, JsonMessages);
-
-				// Parse the Json messages into UInterchangeResults
-				for (const FString& JsonMessage : JsonMessages)
-				{
-					UE::Interchange::Private::ApplyTranslatorMessage(this, JsonMessage);
-				}
-
-				if (TaskState != UE::Interchange::ETaskState::ProcessOk)
-				{
-					Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
-					return;
-				}
-
-				// Grab the result file and fill the BaseNodeContainer
-				UE::Interchange::FJsonFetchPayloadCmd::JsonResultParser ResultParser;
-				ResultParser.FromJson(JsonResult);
-				FString AnimationTransformPayloadFilename = ResultParser.GetResultFilename();
-				OnPayloadReadyClosure(AnimationTransformPayloadFilename);
-			}));
-
-		// The task was not added to the dispatcher
-		if (CreatedTaskIndex == INDEX_NONE)
+		//Init Promises and Futures
+		//Promises so Dispatcher can set the Values
+		//Futures so we can run the Asynch tasks and then acquire the Values.
+		TArray<TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> AnimationPayloadDataFutures;
+		TArray<TSharedPtr<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>>> AnimationPayloadDataPromises;
+		AnimationPayloadDataFutures.Reserve(PayloadQueries.Num());
+		for (size_t PayloadQueryIndex = 0; PayloadQueryIndex < PayloadQueries.Num(); PayloadQueryIndex++)
 		{
-			Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>{});
+			TSharedPtr<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>> Promise = MakeShared<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>>();
+			AnimationPayloadDataFutures.Add(Promise->GetFuture());
+			AnimationPayloadDataPromises.Add(Promise);
 		}
-	}
 
-	return Promise->GetFuture();
+		if (bBakedQueries)
+		{
+			FString JsonCommand = CreateFetchAnimationBakeTransformPayloadFbxCommand(PayloadQueries);
+
+			const int32 CreatedTaskIndex = Dispatcher->AddTask(JsonCommand, FInterchangeDispatcherTaskCompleted::CreateLambda([this, PayloadQueries, OnPayloadReadyClosure = MoveTemp(OnPayloadReady), &AnimationPayloadDataPromises](const int32 TaskIndex)
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeFbxTranslator::GetAnimationCurvePayloadData::Dispatcher->AddTaskDone)
+					
+					UE::Interchange::ETaskState TaskState;
+					FString JsonResult;
+					TArray<FString> JsonMessages;
+					Dispatcher->GetTaskState(TaskIndex, TaskState, JsonResult, JsonMessages);
+
+					// Parse the Json messages into UInterchangeResults
+					for (const FString& JsonMessage : JsonMessages)
+					{
+						UE::Interchange::Private::ApplyTranslatorMessage(this, JsonMessage);
+					}
+
+					if (TaskState != UE::Interchange::ETaskState::ProcessOk)
+					{
+						//Process failed, set Promises up with OptionalValue.
+						for (size_t PayloadQueryIndex = 0; PayloadQueryIndex < PayloadQueries.Num(); PayloadQueryIndex++)
+						{
+							TSharedPtr<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>>& Promise = AnimationPayloadDataPromises[PayloadQueryIndex];
+							Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
+						}
+						return;
+					}
+
+					// Grab the result file and fill the BaseNodeContainer
+					UE::Interchange::FJsonFetchAnimationQueriesCmd::JsonAnimationQueriesResultParser ResultParser;
+					ResultParser.FromJson(JsonResult);
+					const TMap<FString, FString>& HashToFilenames = ResultParser.GetHashToFilenames();
+
+					for (size_t PayloadQueryIndex = 0; PayloadQueryIndex < PayloadQueries.Num(); PayloadQueryIndex++)
+					{
+						TSharedPtr<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>>& Promise = AnimationPayloadDataPromises[PayloadQueryIndex];
+
+						const UE::Interchange::FAnimationPayloadQuery& PayloadQuery = PayloadQueries[PayloadQueryIndex];
+						if (HashToFilenames.Contains(PayloadQuery.GetHashString()))
+						{
+							TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = OnPayloadReadyClosure(PayloadQuery, HashToFilenames[PayloadQuery.GetHashString()]);
+
+							Promise->SetValue(OptionalPayloadData);
+						}
+						else 
+						{
+							Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
+						}
+					}
+				}));
+		}
+		else
+		{
+			for (size_t PayloadQueryIndex = 0; PayloadQueryIndex < PayloadQueries.Num(); PayloadQueryIndex++)
+			{
+				const UE::Interchange::FAnimationPayloadQuery& PayloadQuery = PayloadQueries[PayloadQueryIndex];
+				TSharedPtr<TPromise<TOptional<UE::Interchange::FAnimationPayloadData>>>& Promise = AnimationPayloadDataPromises[PayloadQueryIndex];
+
+				FString JsonCommand = CreateFetchPayloadFbxCommand(PayloadQuery.PayloadKey.UniqueId);
+
+				const int32 CreatedTaskIndex = Dispatcher->AddTask(JsonCommand, FInterchangeDispatcherTaskCompleted::CreateLambda([this, PayloadQuery, OnPayloadReadyClosure = MoveTemp(OnPayloadReady), &Promise](const int32 TaskIndex)
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeFbxTranslator::GetAnimationCurvePayloadData::Dispatcher->AddTaskDone)
+							UE::Interchange::ETaskState TaskState;
+						FString JsonResult;
+						TArray<FString> JsonMessages;
+						Dispatcher->GetTaskState(TaskIndex, TaskState, JsonResult, JsonMessages);
+
+						// Parse the Json messages into UInterchangeResults
+						for (const FString& JsonMessage : JsonMessages)
+						{
+							UE::Interchange::Private::ApplyTranslatorMessage(this, JsonMessage);
+						}
+
+						if (TaskState != UE::Interchange::ETaskState::ProcessOk)
+						{
+							Promise->SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
+							return;
+						}
+
+						// Grab the result file and fill the BaseNodeContainer
+						UE::Interchange::FJsonFetchPayloadCmd::JsonResultParser ResultParser;
+						ResultParser.FromJson(JsonResult);
+						FString AnimationTransformPayloadFilename = ResultParser.GetResultFilename();
+						TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = OnPayloadReadyClosure(PayloadQuery, AnimationTransformPayloadFilename);
+						Promise->SetValue(OptionalPayloadData);
+					}));
+			}
+		}
+
+		for (TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>& AnimationPayloadFuture : AnimationPayloadDataFutures)
+		{
+			TOptional<UE::Interchange::FAnimationPayloadData> OptionalPayloadData = AnimationPayloadFuture.Get();
+			if (!OptionalPayloadData.IsSet())
+			{
+				continue;
+			}
+			PayloadDataResults.Add(OptionalPayloadData.GetValue());
+		}
+
+	}
+	
+	return PayloadDataResults;
 }
 
-FString UInterchangeFbxTranslator::CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit) const
+
+FString UInterchangeFbxTranslator::CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, const bool bKeepFbxNamespace) const
 {
-	UE::Interchange::FJsonLoadSourceCmd LoadSourceCommand(TEXT("FBX"), FbxFilePath, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
+	UE::Interchange::FJsonLoadSourceCmd LoadSourceCommand(TEXT("FBX"), FbxFilePath, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, bKeepFbxNamespace);
 	return LoadSourceCommand.ToJson();
 }
 
@@ -622,9 +719,9 @@ FString UInterchangeFbxTranslator::CreateFetchMeshPayloadFbxCommand(const FStrin
 	return PayloadCommand.ToJson();
 }
 
-FString UInterchangeFbxTranslator::CreateFetchAnimationBakeTransformPayloadFbxCommand(const FString& FbxPayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime) const
+FString UInterchangeFbxTranslator::CreateFetchAnimationBakeTransformPayloadFbxCommand(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
 {
-	UE::Interchange::FJsonFetchAnimationBakeTransformPayloadCmd PayloadCommand(TEXT("FBX"), FbxPayloadKey, BakeFrequency, RangeStartTime, RangeEndTime);
+	UE::Interchange::FJsonFetchAnimationQueriesCmd PayloadCommand(TEXT("FBX"), UE::Interchange::FAnimationPayloadQuery::ToJson(PayloadQueries));
 	return PayloadCommand.ToJson();
 }
 

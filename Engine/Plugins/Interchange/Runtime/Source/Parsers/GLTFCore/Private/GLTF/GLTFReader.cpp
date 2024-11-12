@@ -21,6 +21,9 @@
 
 #include "Math/UnrealMathVectorConstants.h"
 
+
+#define LOCTEXT_NAMESPACE "InterchangeGLTFReader"
+
 namespace GLTF
 {
 	namespace
@@ -143,6 +146,41 @@ namespace GLTF
 			Transform.SetRotation(OutRotation);
 			Transform.SetTranslation(OutTranslation);
 		}
+
+		void ProcessExtras(const FJsonObject& Object, TMap<FString, FString>& StorageForExtras, TSet<FString> KeyExceptions = {})
+		{
+			if (Object.HasField(TEXT("extras")))
+			{
+				const TSharedPtr<FJsonObject>& Extras = Object.GetObjectField(TEXT("extras"));
+				if (KeyExceptions.Num() > 0)
+				{
+					for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+					{
+						if (KeyExceptions.Contains(Pair.Key))
+						{
+							continue;
+						}
+
+						FString ExtraString;
+						if (Pair.Value->TryGetString(ExtraString))
+						{
+							StorageForExtras.Add(Pair.Key, ExtraString);
+						}
+					}
+				}
+				else
+				{
+					for (TPair<FString, TSharedPtr<FJsonValue>>& Pair : Extras->Values)
+					{
+						FString ExtraString;
+						if (Pair.Value->TryGetString(ExtraString))
+						{
+							StorageForExtras.Add(Pair.Key, ExtraString);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	FFileReader::FFileReader()
@@ -176,7 +214,7 @@ namespace GLTF
 				bool    bSuccess = DecodeDataURI(URI, MimeType, CurrentBufferOffset, DataSize);
 				if (!bSuccess || (MimeType != TEXT("application/octet-stream") && MimeType != TEXT("application/gltf-buffer")) || !ensure(DataSize == ByteLength))
 				{
-					Messages.Emplace(EMessageSeverity::Error, TEXT("Problem decoding buffer from data URI."));
+					Messages.Emplace(EMessageSeverity::Error, LOCTEXT("BufferDecodingProblem", "Problem decoding buffer from data URI."));
 				}
 				else
 				{
@@ -200,7 +238,7 @@ namespace GLTF
 					}
 					else
 					{
-						Messages.Emplace(EMessageSeverity::Error, TEXT("Buffer file size does not match."));
+						Messages.Emplace(EMessageSeverity::Error, LOCTEXT("NonMatchingBufferFileSize", "Buffer file size does not match."));
 					}
 
 					Reader->Close();
@@ -208,7 +246,7 @@ namespace GLTF
 				}
 				else
 				{
-					Messages.Emplace(EMessageSeverity::Error, FString::Printf(TEXT("Could not load file: '%s'"), *FullPath));
+					Messages.Emplace(EMessageSeverity::Error, FText::Format(LOCTEXT("LoadingFileFailed", "Could not load file: '{0}'"), FText::FromString(FullPath)));
 				}
 			}
 		}
@@ -218,11 +256,11 @@ namespace GLTF
 			const uint32 BinSize = Asset->BinData.Num();
 			if (BinSize == 0)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("Buffer from BIN chunk is missing or empty."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("BINChunkMissing","Buffer from BIN chunk is missing or empty."));
 			}
 			else if (BinSize < ByteLength)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("Buffer from BIN chunk is too small."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("BINChunkTooSmall","Buffer from BIN chunk is too small."));
 			}
 			else
 			{
@@ -301,6 +339,8 @@ namespace GLTF
 			if (!Object.HasTypedField<EJson::Number>(TEXT("bufferView")))
 			{
 				//if bufferView does not exist in the Object, then the presumption is that it is a (Draco) CompressedAccessor:
+				//Accessors with Sparse present can have no bufferView, in which case:
+				//"When accessor.bufferView is undefined, the sparse accessor is initialized as an array of zeros of size (size of the accessor element) * (accessor.count) bytes"
 				const uint32                    Count = GetUnsignedInt(Object, TEXT("count"), 0);
 				const FAccessor::EType          Type = AccessorTypeFromString(Object.GetStringField(TEXT("type")));
 				const FAccessor::EComponentType CompType = ComponentTypeFromNumber(GetUnsignedInt(Object, TEXT("componentType"), 0));
@@ -373,7 +413,11 @@ namespace GLTF
 
 		if (!FPrimitive::SupportedModes.Contains(Mode))
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("Primitive Mode[%s] in Primitive[%i] (in Mesh[%s]) is currently not supported. Geometry won't be imported."), *FPrimitive::ToString(Mode), PrimitiveIndex, *Mesh.Name));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("UnsupportedPrimitiveMode", 
+				"Primitive Mode[{0}] in Primitive[{1}] (in Mesh[{2}]) is currently not supported. Geometry won't be imported."), 
+				FText::FromString(FPrimitive::ToString(Mode)), 
+				PrimitiveIndex, 
+				FText::FromString(Mesh.Name)));
 		}
 
 		const int32                   MaterialIndex = GetIndex(Object, TEXT("material"));
@@ -411,6 +455,8 @@ namespace GLTF
 			}
 		}
 
+		ProcessExtras(Object, Mesh.Primitives.Last().Extras);
+
 		ExtensionsHandler->SetupPrimitiveExtensions(Object, Mesh.Primitives.Last(), Mesh.Primitives.Num()-1, Mesh.UniqueId);
 	}
 
@@ -440,7 +486,7 @@ namespace GLTF
 				if (NumberOfMorphTargets != Mesh.Primitives.Last().MorphTargets.Num())
 				{
 					//All primitives MUST have the same number of morph targets in the same order.
-					Messages.Emplace(EMessageSeverity::Error, TEXT("Number of Primitive.Targets is not consistent across the Mesh."));
+					Messages.Emplace(EMessageSeverity::Error, LOCTEXT("InconsistentNumMorphTargets", "Number of Primitive.Targets is not consistent across the Mesh."));
 				}
 			}
 
@@ -470,6 +516,8 @@ namespace GLTF
 					Mesh.MorphTargetNames.Add(Value->AsString());
 				}
 			}
+
+			ProcessExtras(Object, Mesh.Extras, { TEXT("targetNames") });
 		}
 
 		Mesh.GenerateIsValidCache();
@@ -494,6 +542,8 @@ namespace GLTF
 				BuildParentIndices(INDEX_NONE, NodeIndex);
 			}
 		}
+
+		ProcessExtras(Object, Scene.Extras);
 
 		ExtensionsHandler->SetupSceneExtensions(Object, Scene);
 	}
@@ -548,6 +598,8 @@ namespace GLTF
 			}
 		}
 
+		ProcessExtras(Object, Node.Extras);
+
 		ExtensionsHandler->SetupNodeExtensions(Object, Node);
 	}
 
@@ -558,7 +610,7 @@ namespace GLTF
 		FString Name = GetString(Object, TEXT("name"));
 		if (!Found)
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("No camera node found for camera %d('%s')"), CameraIndex, *Name));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("NoCameraNodeFound", "No camera node found for camera {0}('{1}')"), CameraIndex, FText::FromString(Name)));
 			return;
 		}
 
@@ -587,8 +639,12 @@ namespace GLTF
 			Camera.bIsPerspective              = false;
 		}
 		else
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Invalid camera type: ") + Type);
+		{
+			Messages.Emplace(EMessageSeverity::Error, FText::Format(LOCTEXT("InvalidCameraType", "Invalid camera type: {0}"), FText::FromString(Type)));
+		}
 
+		ProcessExtras(Object, Camera.Extras);
+		
 		ExtensionsHandler->SetupCameraExtensions(Object, Camera);
 	}
 
@@ -655,6 +711,8 @@ namespace GLTF
 			}
 		}
 
+		ProcessExtras(Object, Animation.Extras);
+		
 		ExtensionsHandler->SetupAnimationExtensions(Object, Animation);
 	}
 
@@ -675,6 +733,8 @@ namespace GLTF
 
 		Skin.Skeleton = GetIndex(Object, TEXT("skeleton"));
 
+		ProcessExtras(Object, Skin.Extras);
+		
 		ExtensionsHandler->SetupSkinExtensions(Object, Skin);
 	}
 
@@ -698,7 +758,7 @@ namespace GLTF
 				Image.Format     = ImageFormatFromMimeType(MimeType);
 				if (!bSuccess || Image.Format == FImage::EFormat::Unknown)
 				{
-					Messages.Emplace(EMessageSeverity::Error, TEXT("Problem decoding image from data URI."));
+					Messages.Emplace(EMessageSeverity::Error, LOCTEXT("DecodingImageProblem", "Problem decoding image from data URI."));
 				}
 				else
 				{
@@ -727,7 +787,7 @@ namespace GLTF
 					}
 					else
 					{
-						Messages.Emplace(EMessageSeverity::Error, TEXT("Could not load image file."));
+						Messages.Emplace(EMessageSeverity::Error, LOCTEXT("ErrorLoadingImageFile", "Could not load image file."));
 					}
 				}
 			}
@@ -753,6 +813,8 @@ namespace GLTF
 			CurrentBufferOffset += Image.DataByteLength;
 		}
 
+		ProcessExtras(Object, Image.Extras);
+		
 		ExtensionsHandler->SetupImageExtensions(Object, Image);
 	}
 
@@ -788,11 +850,14 @@ namespace GLTF
 			const FSampler& Sampler = HasSampler ? Asset->Samplers[SamplerIndex] : FSampler::DefaultSampler;
 
 			Asset->Textures.Emplace(TexName, Source, Sampler);
+
+			ProcessExtras(Object, Asset->Textures.Last().Extras);
+			
 			ExtensionsHandler->SetupTextureExtensions(Object, Asset->Textures.Last());
 		}
 		else
 		{
-			Messages.Emplace(EMessageSeverity::Warning, TEXT("Invalid texture source index: ") + FString::FromInt(SourceIndex));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("InvalidTextureSourceIndex", "Invalid texture source index: {0}"), SourceIndex));
 		}
 	}
 
@@ -830,6 +895,8 @@ namespace GLTF
 
 		Material.bIsDoubleSided = GetBool(Object, TEXT("doubleSided"));
 
+		ProcessExtras(Object, Material.Extras);
+		
 		ExtensionsHandler->SetupMaterialExtensions(Object, Material);
 	}
 
@@ -841,7 +908,7 @@ namespace GLTF
 		TUniquePtr<FArchive> JsonFileReader;
 		if (!FileReader)
 		{
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Can't load file: ") + InFilePath);
+			Messages.Emplace(EMessageSeverity::Error, FText::Format(LOCTEXT("ErrorLoadingFile", "Can't load file: {0}"), FText::FromString(InFilePath)));
 			return;
 		}
 
@@ -866,7 +933,7 @@ namespace GLTF
 		}
 		else
 		{
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Invalid extension."));
+			Messages.Emplace(EMessageSeverity::Error, LOCTEXT("InvalidFileExtention", "Invalid extension."));
 			return;
 		}
 		JsonFileReader.Reset(new FBufferReader(JsonBuffer.GetCharArray().GetData(), sizeof(FString::ElementType) * JsonBuffer.Len(), false));
@@ -876,7 +943,7 @@ namespace GLTF
 		if (!FJsonSerializer::Deserialize(JsonReader, JsonRoot))
 		{
 			JsonRoot.Reset();
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Problem loading JSON."));
+			Messages.Emplace(EMessageSeverity::Error, LOCTEXT("JSONDeserializationError","Problem loading JSON."));
 			return;
 		}
 
@@ -887,7 +954,7 @@ namespace GLTF
 			const double MinVersion = AssetInfo->GetNumberField(TEXT("minVersion"));
 			if (MinVersion > 2.0)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("This importer supports glTF version 2.0 (or compatible) assets."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("UnsupportedGLTFAssetMinVersion", "This importer supports glTF version 2.0 (or compatible) assets."));
 				return;
 			}
 			OutAsset.Metadata.Version = MinVersion;
@@ -897,7 +964,7 @@ namespace GLTF
 			const double Version = AssetInfo->GetNumberField(TEXT("version"));
 			if (Version < 2.0)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("This importer supports glTF asset version 2.0 or later."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("UnsupportedGLTFAssetVersion", "This importer supports glTF asset version 2.0 or later."));
 				return;
 			}
 			OutAsset.Metadata.Version = Version;
@@ -928,7 +995,7 @@ namespace GLTF
 
 		if (OutAsset.ValidationCheck() != FAsset::Valid)
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("For GLTF Asset [%s] not all imported objects are valid."), *OutAsset.Name));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("SomeImportedObjectsInvalid","For GLTF Asset [{0}] not all imported objects are valid."), FText::FromString(OutAsset.Name)));
 		}
 
 		JsonRoot.Reset();
@@ -1109,6 +1176,19 @@ namespace GLTF
 		if (!SetupObjects(SceneCount, TEXT("scenes"), [this](const FJsonObject& Object) { SetupScene(Object); })) { return; }
 		if (!SetupObjects(CameraCount, TEXT("cameras"), [this](const FJsonObject& Object) { SetupCamera(Object); })) { return; }
 		if (!SetupObjects(SkinCount, TEXT("skins"), [this](const FJsonObject& Object) { SetupSkin(Object); })) { return; }
+
+		{//BuildRootJoints can affect the node hierarchy and data, as the Animation setup currently stores references to the Nodes, we have to do these setups before the SetupAnimation calls.
+			SetupUsedSkins();
+
+			SetupNodesType();
+
+			BuildRootJoints();
+
+			GenerateInverseBindPosesPerSkinIndices();
+			GenerateLocalBindPosesPerSkinIndices();
+			SetLocalBindPosesForJoints();
+		}
+
 		if (!SetupObjects(AnimationsCount, TEXT("animations"), [this](const FJsonObject& Object) { SetupAnimation(Object); })) { return; }
 
 		if (!SetupObjects(ImageCount, TEXT("images"), [this, InResourcesPath, bInLoadImageData](const FJsonObject& Object) { SetupImage(Object, InResourcesPath, bInLoadImageData); })) { return; }
@@ -1127,14 +1207,7 @@ namespace GLTF
 			}
 		}
 
-		SetupNodesType();
-
-		GenerateInverseBindPosesPerSkinIndices();
-		GenerateLocalBindPosesPerSkinIndices();
-		SetLocalBindPosesForJoints();
-
 		ExtensionsHandler->SetupAssetExtensions(*JsonRoot);
-		BuildRootJoints();
 	}
 
 	bool FFileReader::CheckForErrors(int32 StartIndex) const
@@ -1173,6 +1246,41 @@ namespace GLTF
 		return true;
 	}
 
+	void FFileReader::SetupUsedSkins() const
+	{
+		//Acquire Skin usages:
+		TBitArray SkinIndicesUsage(false, Asset->Skins.Num());
+		for (size_t Index = 0; Index < Asset->Nodes.Num(); Index++)
+		{
+			int32 SkinIndex = Asset->Nodes[Index].Skindex;
+			if (SkinIndex != INDEX_NONE)
+			{
+				SkinIndicesUsage[SkinIndex] = true;
+			}
+		}
+
+		FString UnUsedIndicesString;
+		for (size_t SkinIndex = 0; SkinIndex < SkinIndicesUsage.Num(); SkinIndex++)
+		{
+			FSkinInfo& Skin = Asset->Skins[SkinIndex];
+			Skin.bUsed = SkinIndicesUsage[SkinIndex];
+
+			if (!Skin.bUsed)
+			{
+				if (UnUsedIndicesString.Len() > 0)
+				{
+					UnUsedIndicesString += TEXT(",");
+				}
+				UnUsedIndicesString += FString::FromInt(SkinIndex);
+			}
+		}
+
+		if (UnUsedIndicesString.Len() > 0)
+		{
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("UnusedSkinObjects","Skin objects unused. At indices: {0}."), FText::FromString(UnUsedIndicesString)));
+		}
+	}
+
 	void FFileReader::SetupNodesType() const
 	{
 		// setup node types
@@ -1200,8 +1308,14 @@ namespace GLTF
 				}
 			}
 		}
+
 		for (const FSkinInfo& Skin : Asset->Skins)
 		{
+			if (!Skin.bUsed)
+			{
+				continue;
+			}
+
 			for (int32 JointIndex : Skin.Joints)
 			{
 				ensure(Asset->Nodes[JointIndex].Type == FNode::EType::None 
@@ -1224,14 +1338,8 @@ namespace GLTF
 				{
 					FMatrix InverseBindMatrix = Skin.InverseBindMatrices.GetMat4(JointCounter);
 					InverseBindMatrix = GLTF::ConvertMat(InverseBindMatrix);
-
-					FTransform InverseBindMatrixTransform;
-					InverseBindMatrixTransform.SetFromMatrix(InverseBindMatrix);
-					InverseBindMatrixTransform.SetRotation(GLTF::ConvertQuat(InverseBindMatrixTransform.GetRotation()));
-					InverseBindMatrixTransform.SetTranslation(GLTF::ConvertVec3(InverseBindMatrixTransform.GetTranslation()));
-					InverseBindMatrixTransform.SetScale3D(GLTF::ConvertVec3(InverseBindMatrixTransform.GetScale3D()));
-
-					Asset->Nodes[Skin.Joints[JointCounter]].SkinIndexToGlobalInverseBindTransform.Add(SkinIndex, InverseBindMatrixTransform);
+					
+					Asset->Nodes[Skin.Joints[JointCounter]].SkinIndexToGlobalInverseBindMatrix.Add(SkinIndex, InverseBindMatrix);
 				}
 			}
 		}
@@ -1267,37 +1375,32 @@ namespace GLTF
 					if (CurrentNode.ParentIndex != INDEX_NONE &&
 						Asset->Nodes.IsValidIndex(CurrentNode.ParentIndex) &&
 						Asset->Nodes[CurrentNode.ParentIndex].Type == FNode::EType::Joint &&
-						(Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindTransform.Contains(SkinIndex) || Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindTransform.Num() > 0)
+						(Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindMatrix.Contains(SkinIndex) || Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindMatrix.Num() > 0)
 						)
 					{
 						FNode& ParentNode = Asset->Nodes[CurrentNode.ParentIndex];
 
 						//LocalBindPose; //bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
-						FTransform ParentGlobalInverseBindTransform;
-						if (ParentNode.SkinIndexToGlobalInverseBindTransform.Contains(SkinIndex))
+						FMatrix ParentGlobalInverseBindMatrix;
+						if (ParentNode.SkinIndexToGlobalInverseBindMatrix.Contains(SkinIndex))
 						{
-							ParentGlobalInverseBindTransform = ParentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex];
+							ParentGlobalInverseBindMatrix = ParentNode.SkinIndexToGlobalInverseBindMatrix[SkinIndex];
 						}
 						else
 						{
 							//Scenario is that the a Skin is instantiated at the end of another skin
 							//(Prime example is the RecursiveSkeleton gltf sample file.)
-							ParentGlobalInverseBindTransform = ParentNode.SkinIndexToGlobalInverseBindTransform.begin().Value();
+							ParentGlobalInverseBindMatrix = ParentNode.SkinIndexToGlobalInverseBindMatrix.begin().Value();
 						}
 
-						FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse() * ParentGlobalInverseBindTransform;
+						FMatrix LocalBindMatrix = CurrentNode.SkinIndexToGlobalInverseBindMatrix[SkinIndex].Inverse() * ParentGlobalInverseBindMatrix;
 
-						CurrentNode.SkinIndexToLocalBindPose.Add(SkinIndex, LocalBindPose);
+						CurrentNode.SkinIndexToLocalBindMatrix.Add(SkinIndex, LocalBindMatrix);
 					}
 					else
 					{
-						FTransform ParentGlobalTransform;
-						if (Skin.Skeleton != INDEX_NONE && Skin.Skeleton != CurrentNode.Index)
-						{
-							GenerateGlobalTransform(Asset->Nodes, CurrentNode.ParentIndex, ParentGlobalTransform, Skin.Skeleton);
-						}
-						FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse() * ParentGlobalTransform.Inverse();
-						CurrentNode.SkinIndexToLocalBindPose.Add(SkinIndex, LocalBindPose);
+							FMatrix LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindMatrix[SkinIndex].Inverse();
+							CurrentNode.SkinIndexToLocalBindMatrix.Add(SkinIndex, LocalBindPose);
 					}
 				}
 			}
@@ -1311,8 +1414,8 @@ namespace GLTF
 
 		for (const FNode& CurrentNode : Asset->Nodes)
 		{
-			TMap<int, FTransform>::TRangedForConstIterator Iter(CurrentNode.SkinIndexToLocalBindPose.begin());
-			FTransform ToCompareAgainst = Iter ? Iter.Value() : FTransform();
+			TMap<int, FMatrix>::TRangedForConstIterator Iter(CurrentNode.SkinIndexToLocalBindMatrix.begin());
+			FMatrix ToCompareAgainst = Iter ? Iter.Value() : FMatrix();
 			++Iter;
 			for (; Iter; ++Iter)
 			{
@@ -1336,7 +1439,7 @@ namespace GLTF
 				OffendingJointsNamesString += OffendingJointName;
 			}
 			
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("The same Joint(s) are used in multiple Skins with multiple different InverseBindMatrix values, which is not supported. Ignoring InverseBindMatrices for the entire Import. Offending Joints' Names: %s."), *OffendingJointsNamesString));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("MultipleSkinsUseSameJointProblem","The same Joint(s) are used in multiple Skins with multiple different InverseBindMatrix values, which is not supported. Ignoring InverseBindMatrices for the entire Import. Offending Joints' Names: {0}."), FText::FromString(OffendingJointsNamesString)));
 			
 			Asset->HasAbnormalInverseBindMatrices = true;
 
@@ -1354,10 +1457,17 @@ namespace GLTF
 					FNode& CurrentNode = Asset->Nodes[Skin.Joints[JointCounter]];
 
 					if (!CurrentNode.bHasLocalBindPose
-						&& CurrentNode.SkinIndexToLocalBindPose.Contains(SkinIndex))
+						&& CurrentNode.SkinIndexToLocalBindMatrix.Contains(SkinIndex))
 					{
 						CurrentNode.bHasLocalBindPose = true;
-						CurrentNode.LocalBindPose = CurrentNode.SkinIndexToLocalBindPose[SkinIndex];
+						
+						FTransform LocalBindPoseTransform;
+						LocalBindPoseTransform.SetFromMatrix(CurrentNode.SkinIndexToLocalBindMatrix[SkinIndex]);
+						LocalBindPoseTransform.SetRotation(GLTF::ConvertQuat(LocalBindPoseTransform.GetRotation()));
+						LocalBindPoseTransform.SetTranslation(GLTF::ConvertVec3(LocalBindPoseTransform.GetTranslation()));
+						LocalBindPoseTransform.SetScale3D(GLTF::ConvertVec3(LocalBindPoseTransform.GetScale3D()));
+
+						CurrentNode.LocalBindPose = LocalBindPoseTransform;
 					}
 				}
 			}
@@ -1393,6 +1503,189 @@ namespace GLTF
 	}
 	void FFileReader::BuildRootJoints() const
 	{
+		//Fix Multi root problems (at least for the semi-trivial "same parent non-joint" scenario)
+		{
+			auto GetRootDistance = [&](const GLTF::FNode& Node)
+				{
+					int32 Distance = 0;
+					int32 CurrentNodeIndex = Node.Index;
+					while (Asset->Nodes[CurrentNodeIndex].ParentIndex != INDEX_NONE && Asset->Nodes.IsValidIndex(Asset->Nodes[CurrentNodeIndex].ParentIndex))
+					{
+						Distance++;
+						CurrentNodeIndex = Asset->Nodes[CurrentNodeIndex].ParentIndex;
+					}
+					return Distance;
+				};
+
+			struct FRootJoints {
+				TArray<int32> Indices;
+				int32 ParentDistanceFromRoot;
+			};
+			auto SortPredicate = [](const FRootJoints& GroupA, const FRootJoints& GroupB)
+				{
+					return GroupA.ParentDistanceFromRoot > GroupB.ParentDistanceFromRoot;
+				};
+
+			for (size_t SkinIndex = 0; SkinIndex < Asset->Skins.Num(); SkinIndex++)
+			{
+				GLTF::FSkinInfo& Skin = Asset->Skins[SkinIndex];
+
+				if (!Skin.bUsed)
+				{
+					continue;
+				}
+
+				//0. Group RootJointNodes by ParentIndices
+				TMap<int32, FRootJoints> ParentToRootJointIndices;
+				for (size_t JointIndex = 0; JointIndex < Skin.Joints.Num(); JointIndex++)
+				{
+					if (!Asset->Nodes.IsValidIndex(Skin.Joints[JointIndex]))
+					{
+						continue;
+					}
+					GLTF::FNode& JointNode = Asset->Nodes[Skin.Joints[JointIndex]];
+					if (!Asset->Nodes.IsValidIndex(JointNode.ParentIndex) || Asset->Nodes[JointNode.ParentIndex].Type != GLTF::FNode::EType::Joint)
+					{
+						FRootJoints* RootJoints = ParentToRootJointIndices.Find(JointNode.ParentIndex);
+						if (RootJoints)
+						{
+							RootJoints->Indices.Add(JointNode.Index);
+						}
+						else
+						{
+							RootJoints = &ParentToRootJointIndices.Add(JointNode.ParentIndex);
+							RootJoints->Indices.Add(JointNode.Index);
+							RootJoints->ParentDistanceFromRoot = GetRootDistance(JointNode);
+						}
+					}
+				}
+				
+				//1. Sort groups based on distance from common root (furthest to closest)
+				ParentToRootJointIndices.ValueSort(SortPredicate);
+
+				//2. Validate Skin.Skeleton if it exists:
+				if (Skin.Skeleton != INDEX_NONE && Asset->Nodes.IsValidIndex(Skin.Skeleton))
+				{
+					const GLTF::FNode SkinSkeletonNode = Asset->Nodes[Skin.Skeleton];
+					int32 SkinSkeletonDistance = GetRootDistance(SkinSkeletonNode);
+					
+
+					const FText MessageText = LOCTEXT("NonCommonRootNode", "Skeleton node is not a common root.");
+					for (TPair<int32, FRootJoints> Group : ParentToRootJointIndices)
+					{
+						if (Group.Value.Indices.Num() == 1 )
+						{
+							if (!Asset->Nodes.IsValidIndex(Group.Value.Indices[0]))
+							{
+								continue;
+							}
+							const GLTF::FNode RootNodeCandidate = Asset->Nodes[Group.Value.Indices[0]];
+							int32 RootNodeCandidateDistance = GetRootDistance(RootNodeCandidate);
+							if (SkinSkeletonDistance > RootNodeCandidateDistance)
+							{
+								Messages.Emplace(EMessageSeverity::Warning, MessageText);
+								break;
+							}
+						}
+						else if (Group.Value.Indices.Num() == 0)
+						{
+							continue;
+						}
+						else
+						{
+							const GLTF::FNode RootNodeCandidate = Asset->Nodes[Group.Key];
+							int32 RootNodeCandidateDistance = GetRootDistance(RootNodeCandidate);
+							if (SkinSkeletonDistance > RootNodeCandidateDistance)
+							{
+								Messages.Emplace(EMessageSeverity::Warning, MessageText);
+								break;
+							}
+						}
+						
+					}
+				}
+
+				//3. Introduce new true root per group
+				for (TPair<int32, FRootJoints> Group : ParentToRootJointIndices)
+				{
+					if (Group.Value.Indices.Num() < 2)
+					{
+						continue;
+					}
+
+					GLTF::FNode& Node = Asset->Nodes.Emplace_GetRef();
+					Node.Index = Asset->Nodes.Num() - 1;
+					Node.Type = GLTF::FNode::EType::Joint;
+
+					if (Asset->Nodes.IsValidIndex(Group.Key))
+					{
+						GLTF::FNode& OriginalNode = Asset->Nodes[Group.Key];
+
+						Node.Name = OriginalNode.Name + "_ProxyTrueRootJoint";
+						Node.Children = OriginalNode.Children;
+						OriginalNode.Children.Reset();
+						OriginalNode.Children.Add(Node.Index);
+						Node.ParentIndex = OriginalNode.Index;
+
+						Node.Transform = OriginalNode.Transform;
+						Node.bHasLocalBindPose = true;
+						Node.LocalBindPose = FTransform::Identity;
+
+						//also update the Scenes.Nodes idx in case the oroginal node is part of the Scenes idx list:
+						for (GLTF::FScene& Scene : Asset->Scenes)
+						{
+							int32 OriginalNodeIndexInSceneNodes;
+							if (Scene.Nodes.Find(OriginalNode.Index, OriginalNodeIndexInSceneNodes))
+							{
+								Scene.Nodes[OriginalNodeIndexInSceneNodes] = Node.Index;
+							}
+						}
+
+						for (size_t RootJointIndex = 0; RootJointIndex < Group.Value.Indices.Num(); RootJointIndex++)
+						{
+							GLTF::FNode& JointNode = Asset->Nodes[Group.Value.Indices[RootJointIndex]];
+							JointNode.ParentIndex = Node.Index;
+						}
+					}
+					else
+					{
+						Node.Name = "_ProxyTrueRootJoint";
+						Node.Transform = FTransform::Identity;
+						Node.bHasLocalBindPose = true;
+						Node.LocalBindPose = FTransform::Identity;
+
+						for (size_t RootJointIndex = 0; RootJointIndex < Group.Value.Indices.Num(); RootJointIndex++)
+						{
+							GLTF::FNode& JointNode = Asset->Nodes[Group.Value.Indices[RootJointIndex]];
+							JointNode.ParentIndex = Node.Index;
+							Node.Children.Add(JointNode.Index);
+						}
+
+						for (GLTF::FScene& Scene : Asset->Scenes)
+						{
+							bool bHadChildAsSceneNode = false;
+							Scene.Nodes.RemoveAll([&bHadChildAsSceneNode, &Node](const int32& NodeIdx)
+								{
+									int ElementIndex;
+									if (Node.Children.Find(NodeIdx, ElementIndex))
+									{
+										bHadChildAsSceneNode = true;
+										return true;
+									}
+									return false;
+								});
+
+							if (bHadChildAsSceneNode)
+							{
+								Scene.Nodes.Add(Node.Index);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		//Set up the RootJointIndices:
 		for (size_t Index = 0; Index < Asset->Nodes.Num(); Index++)
 		{
 			if (Asset->Nodes[Index].Type == GLTF::FNode::EType::Joint)
@@ -1403,3 +1696,5 @@ namespace GLTF
 	}
 
 }  // namespace GLTF
+
+#undef LOCTEXT_NAMESPACE

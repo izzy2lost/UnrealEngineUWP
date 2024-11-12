@@ -136,6 +136,8 @@ SCircularThrobber::SCircularThrobber()
 	: ColorAndOpacity(*this)
 {}
 
+SCircularThrobber::~SCircularThrobber() = default;
+
 void SCircularThrobber::Construct(const FArguments& InArgs)
 {
 	PieceImage = InArgs._PieceImage;

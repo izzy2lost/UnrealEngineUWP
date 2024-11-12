@@ -142,7 +142,7 @@ public:
 	/** Moves specified card to desired coordinates. Actual radius will be based on flush constraint and Actor's RadialOffset.
 	 *
 	 * @param Actor The actor that we are moving
-	 * @param SphericalCoords specifies desired location of actor in spherical coordinates with respect to view origin.
+	 * @param SphericalCoords specifies desired location of actor in spherical coordinates with respect to view point.
 	 * 
 	*/
 	void MoveActorTo(const FDisplayClusterWeakStageActorPtr& Actor, const FDisplayClusterLightCardEditorHelper::FSphericalCoordinates& SphericalCoords) const;
@@ -383,7 +383,7 @@ private:
 	/** The viewport type (perspective or orthogonal) to use when rendering the viewport. Separate from ViewportType since ViewportType also determines input functionality */
 	ELevelViewportType RenderViewportType = LVT_Perspective;
 
-	/** The component of the root actor that is acting as the projection origin. Can be either the root component (stage origin) or a view origin component */
+	/** The component of the root actor that is acting as the projection origin. Can be either the root component (stage origin) or a view point component */
 	TWeakObjectPtr<USceneComponent> ProjectionOriginComponent;
 
 	/** Stores each projecion mode's view configuration separately so they can be restored when the projection mode is selected  */

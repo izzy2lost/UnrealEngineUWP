@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../Common.ush"
+#include "NaniteSceneCommon.ush"
 
 #define NANITE_TESSELLATION_PATCH_REFS	1
 #define NANITE_TESSELLATION_NORMALIZE	0
@@ -45,10 +46,20 @@ float3 DecodeBarycentrics( uint Encoded )
 ByteAddressBuffer TessellationTable_Offsets;
 ByteAddressBuffer TessellationTable_VertsAndIndexes;
 
-float InvDiceRate;
-uint MaxPatchesPerGroup;
+float CalcDisplacementLowTessDistance(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FNaniteView NaniteView)
+{
+	const float LowTessSize = PrimitiveData.MaterialDisplacementFadeOutSize;
+	if (LowTessSize == 0.0f)
+	{
+		return 0.0f;
+	}
 
-float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
+	// Solve for the view depth at which max displacement equals the fade out size
+	const float MaxDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData);
+	return (MaxDisplacement * InstanceData.NonUniformScale.w * NaniteView.LODScale) / LowTessSize;
+}
+
+float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3], float LowTessDistance )
 {
 #if 0
 	float2 PointPixels[3];
@@ -66,8 +77,9 @@ float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
 	};
 	TessFactors *= InvDiceRate;
 #else
-	bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
+	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
 
+	bool3 bDistant = false;
 	float3 TessFactors;
 	for( uint i = 0; i < 3; i++ )
 	{
@@ -78,9 +90,11 @@ float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
 		float EdgeLength = length( PointView[ i0 ] - PointView[ i1 ] );
 		EdgeScale = bOrtho ? 1.0f : max( EdgeScale, NaniteView.NearPlane );
 		TessFactors[i] = EdgeLength / EdgeScale;
+		bDistant[i] = !bOrtho && LowTessDistance > 0.0f && EdgeScale > LowTessDistance;
 	}
 
-	TessFactors *= NaniteView.LODScale * InvDiceRate;
+	const float LowTessMultiple = 0.25f; // hard-coded for now
+	TessFactors *= NaniteView.LODScale * InvDiceRate * select(bDistant, LowTessMultiple, 1.0f);
 #endif
 	
 	return TessFactors;
@@ -114,9 +128,7 @@ float2 CalculateUVDerivativeForDomainPoint(
 	float UniformScale,
 	float UVDensity )
 {
-	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
-	const float dUV_dTri = (bOrtho ? 1.0f : ViewZ) / (UVDensity * UniformScale * NaniteView.LODScale * InvDiceRate);
-
+	const float dUV_dTri = rcp(GetProjectedEdgeLengthAtDepth(UVDensity * UniformScale, ViewZ, NaniteView) * InvDiceRate);
 	return dUV_dTri.xx;
 }
 
@@ -318,24 +330,34 @@ FSplitPatch WaveReadLaneAt(FSplitPatch In, uint SrcIndex)
 #ifdef COHERENT_QUEUE
 RWCoherentByteAddressBuffer						SplitWorkQueue_DataBuffer;
 RWCoherentStructuredBuffer( FWorkQueueState )	SplitWorkQueue_StateBuffer;
-uint											SplitWorkQueue_Size;
 
-static const FGlobalWorkQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
+// TODO: Use function to return a non-const variable before setting it in the queue to work around issue in bindless, remove when fixed in DXC
+RWCoherentByteAddressBuffer                     GetSplitWorkQueue_DataBuffer() { return SplitWorkQueue_DataBuffer; }
+RWCoherentStructuredBuffer( FWorkQueueState )   GetSplitWorkQueue_StateBuffer() { return SplitWorkQueue_StateBuffer; }
+
+static const FGlobalWorkQueue SplitWorkQueue = { GetSplitWorkQueue_DataBuffer(), GetSplitWorkQueue_StateBuffer(), 0, NaniteRaster.MaxCandidatePatches };
 #else
 RWByteAddressBuffer						SplitWorkQueue_DataBuffer;
 RWStructuredBuffer< FWorkQueueState >	SplitWorkQueue_StateBuffer;
-uint									SplitWorkQueue_Size;
 
-static const FOutputQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
+// TODO: Use function to return a non-const variable before setting it in the queue to work around issue in bindless, remove when fixed in DXC
+RWByteAddressBuffer						GetSplitWorkQueue_DataBuffer() { return SplitWorkQueue_DataBuffer; }
+RWStructuredBuffer< FWorkQueueState >	GetSplitWorkQueue_StateBuffer() { return SplitWorkQueue_StateBuffer; }
+
+static const FOutputQueue SplitWorkQueue = { GetSplitWorkQueue_DataBuffer(), GetSplitWorkQueue_StateBuffer(), 0, NaniteRaster.MaxCandidatePatches };
 #endif
 #endif
 
 RWByteAddressBuffer						OccludedPatches_DataBuffer;
 RWStructuredBuffer< FWorkQueueState >	OccludedPatches_StateBuffer;
-uint									OccludedPatches_Size;
 
 #if OCCLUDED_PATCHES_QUEUE	// TODO: Remove once shader rewriter has been fixed (UE-202409)
-static const FOutputQueue OccludedPatches = { OccludedPatches_DataBuffer, OccludedPatches_StateBuffer, 0, OccludedPatches_Size };
+
+// TODO: Use function to return a non-const variable before setting it in the queue to work around issue in bindless, remove when fixed in DXC
+RWByteAddressBuffer						GetOccludedPatches_DataBuffer() { return OccludedPatches_DataBuffer; }
+RWStructuredBuffer< FWorkQueueState >	GetOccludedPatches_StateBuffer() { return OccludedPatches_StateBuffer; }
+
+static const FOutputQueue OccludedPatches = { GetOccludedPatches_DataBuffer(), GetOccludedPatches_StateBuffer(), 0, NaniteRaster.MaxCandidatePatches };
 #endif
 
 ByteAddressBuffer	VisiblePatches;

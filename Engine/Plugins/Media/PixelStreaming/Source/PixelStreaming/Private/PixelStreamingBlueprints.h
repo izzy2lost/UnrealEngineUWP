@@ -98,18 +98,18 @@ public:
 	static void StreamerUnfreezeStream(FString StreamerId);
 
 	/**
-	 * Kick a player. DEPRECATED
+	 * Kick a player.
 	 * @param   PlayerId         The ID of the player to kick.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Pixel Streaming", meta=(DeprecatedFunction, DeprecationMessage = "Kick player has been deprecated, will no longer function and will be removed in future versions."))
+	UFUNCTION(BlueprintCallable, Category = "Pixel Streaming")
 	static void KickPlayer(FString PlayerId);
 
 	/**
-	 * Kick a player. DEPRECATED
+	 * Kick a player.
 	 * @param	StreamerId		The streamer which the player belongs
 	 * @param   PlayerId        The ID of the player to kick.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Pixel Streaming", meta=(DeprecatedFunction, DeprecationMessage = "Kick player has been deprecated, will no longer function and will be removed in future versions."))
+	UFUNCTION(BlueprintCallable, Category = "Pixel Streaming")
 	static void StreamerKickPlayer(FString StreamerId, FString PlayerId);
 
 	/**

@@ -42,8 +42,7 @@ enum class EDataLayerUpdateFlags : uint8
 {
 	None						= 0,
 	FlushStreamingVisibility	= 1,
-	FlushStreamingFull			= 2,
-	PerformGarbageCollect		= 4,
+	FlushStreamingFull			= 2
 };
 ENUM_CLASS_FLAGS(EDataLayerUpdateFlags)
 
@@ -83,10 +82,9 @@ struct FDataLayerState
 {
 	void Reset();
 	bool IsEmpty() const;
-	void AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush, bool bPerformGC);
+	void AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush);
 	TOptional<EDataLayerRuntimeState> ComputeDesiredState() const;
 	bool ShouldFlushStreaming(EDataLayerRuntimeState ComputedState) const;
-	bool ShouldPerformGarbageCollect(EDataLayerRuntimeState ComputedState) const;
 
 private:
 
@@ -96,7 +94,6 @@ private:
 	int32 ActivatedCount   = 0;
 	bool  bFlushUnloaded   = false;
 	bool  bFlushActivated  = false;
-	bool  bGCUnloaded      = false;
 };
 
 
@@ -108,7 +105,7 @@ struct FDesiredLayerStates
 #if WITH_EDITOR
 	void ApplyInEditor(FPreAnimatedDataLayerStorage* PreAnimatedStorage, UDataLayerEditorSubsystem* EditorSubSystem);
 #endif
-	void ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush, bool bPerformGC);
+	void ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush);
 
 	TMap<TObjectKey<UDataLayerInstance>, FDataLayerState> StatesByInstance;
 };
@@ -213,10 +210,9 @@ void FDataLayerState::Reset()
 	ActivatedCount   = 0;
 	bFlushUnloaded   = false;
 	bFlushActivated  = false;
-	bGCUnloaded      = false;
 }
 
-void FDataLayerState::AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush, bool bPerformGC)
+void FDataLayerState::AddRequest(int16 InBias, EDataLayerRuntimeState RequestedState, bool bRequiresStreamingFlush)
 {
 	if (InBias > HierarchicalBias)
 	{
@@ -228,7 +224,7 @@ void FDataLayerState::AddRequest(int16 InBias, EDataLayerRuntimeState RequestedS
 	{
 		switch (RequestedState)
 		{
-		case EDataLayerRuntimeState::Unloaded:  ++UnloadedCount;  bFlushUnloaded |= bRequiresStreamingFlush; bGCUnloaded |= bPerformGC; break;
+		case EDataLayerRuntimeState::Unloaded:  ++UnloadedCount;  bFlushUnloaded |= bRequiresStreamingFlush; break;
 		case EDataLayerRuntimeState::Loaded:    ++LoadedCount;    break;
 		case EDataLayerRuntimeState::Activated: ++ActivatedCount; bFlushActivated |= bRequiresStreamingFlush; break;
 		}
@@ -264,16 +260,6 @@ bool FDataLayerState::ShouldFlushStreaming(EDataLayerRuntimeState ComputedState)
 	{
 	case EDataLayerRuntimeState::Unloaded:  return bFlushUnloaded;
 	case EDataLayerRuntimeState::Activated: return bFlushActivated;
-	}
-
-	return false;
-}
-
-bool FDataLayerState::ShouldPerformGarbageCollect(EDataLayerRuntimeState ComputedState) const
-{
-	switch (ComputedState)
-	{
-	case EDataLayerRuntimeState::Unloaded:  return bGCUnloaded;
 	}
 
 	return false;
@@ -347,38 +333,34 @@ EDataLayerUpdateFlags FDesiredLayerStates::Apply(FPreAnimatedDataLayerStorage* P
 				}
 
 				const EDataLayerRuntimeState DesiredStateValue = DesiredState.GetValue();
-				UDataLayerManager::GetDataLayerManager(DataLayer)->SetDataLayerInstanceRuntimeState(DataLayer, DesiredStateValue);
-
-				if (StateValue.ShouldFlushStreaming(DesiredStateValue) && !IsDataLayerReady(DataLayer, DesiredStateValue, true))
+				if (UDataLayerManager::GetDataLayerManager(DataLayer)->SetDataLayerInstanceRuntimeState(DataLayer, DesiredStateValue))
 				{
-					// Exception for Full flush is if Desired State is Activated but we are not at least in Loaded state
-					if (DesiredStateValue == EDataLayerRuntimeState::Activated && !IsDataLayerReady(DataLayer, EDataLayerRuntimeState::Loaded, false))
+					if (StateValue.ShouldFlushStreaming(DesiredStateValue) && !IsDataLayerReady(DataLayer, DesiredStateValue, true))
 					{
-						Flags |= EDataLayerUpdateFlags::FlushStreamingFull;
-						UE_LOG(LogMovieScene, Warning, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a full streaming flush (%s)"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+						// Exception for Full flush is if Desired State is Activated but we are not at least in Loaded state
+						if (DesiredStateValue == EDataLayerRuntimeState::Activated && !IsDataLayerReady(DataLayer, EDataLayerRuntimeState::Loaded, false))
+						{
+							Flags |= EDataLayerUpdateFlags::FlushStreamingFull;
+							UE_LOG(LogMovieScene, Warning, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a full streaming flush (%s)"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
 							
-						CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushFull-%s-%s"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
-					}
-					else
-					{
-						Flags |= EDataLayerUpdateFlags::FlushStreamingVisibility;
-						UE_LOG(LogMovieScene, Log, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a visibility streaming flush (%s)"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+							CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushFull-%s-%s"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+						}
+						else
+						{
+							Flags |= EDataLayerUpdateFlags::FlushStreamingVisibility;
+							UE_LOG(LogMovieScene, Log, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a visibility streaming flush (%s)"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
 							
-						CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushVis-%s-%s"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+							CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushVis-%s-%s"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+						}
 					}
-				}
-
-				if (StateValue.ShouldPerformGarbageCollect(DesiredStateValue))
-				{
-					Flags |= EDataLayerUpdateFlags::PerformGarbageCollect;
 				}
 			}
 		}
@@ -451,7 +433,7 @@ void FDesiredLayerStates::ApplyInEditor(FPreAnimatedDataLayerStorage* PreAnimate
 }
 #endif
 
-void FDesiredLayerStates::ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush, bool bPerformGC)
+void FDesiredLayerStates::ApplyNewState(const UDataLayerInstance* InDataLayer, int16 HierarchicalBias, EDataLayerRuntimeState DesiredState, bool bRequiresStreamingFlush)
 {
 	using namespace UE::MovieScene;
 
@@ -461,7 +443,7 @@ void FDesiredLayerStates::ApplyNewState(const UDataLayerInstance* InDataLayer, i
 		LayerState = &StatesByInstance.Add(InDataLayer, FDataLayerState());
 	}
 
-	LayerState->AddRequest(HierarchicalBias, DesiredState, bRequiresStreamingFlush, bPerformGC);
+	LayerState->AddRequest(HierarchicalBias, DesiredState, bRequiresStreamingFlush);
 }
 
 } // namespace MovieScene
@@ -560,14 +542,8 @@ void UMovieSceneDataLayerSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites
 				FlushTypeString = TEXT("FlushStreamingVisibility");
 
 				// Make sure any DataLayer state change is processed before flushing visibility					
-				WorldPartitionSubsystem->UpdateStreamingState();
+				WorldPartitionSubsystem->OnUpdateStreamingState();
 				World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
-			}
-
-			if (EnumHasAnyFlags(UpdateFlags, EDataLayerUpdateFlags::PerformGarbageCollect))
-			{
-				UE_LOG(LogMovieScene, Warning, TEXT("[UMovieSceneDataLayerSystem] Forcing garbage collection"));
-				GLevelStreamingContinuouslyIncrementalGCWhileLevelsPendingPurgeOverride = 1;
 			}
 
 			UE_SUPPRESS(LogMovieScene, Warning,
@@ -577,7 +553,8 @@ void UMovieSceneDataLayerSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites
 					FString SequenceList;
 					for (const FSequenceInstance& Instance : Linker->GetInstanceRegistry()->GetSparseInstances())
 					{
-						UMovieSceneSequence* Sequence = Instance.GetPlayer()->GetEvaluationTemplate().GetSequence(Instance.GetSequenceID());
+						TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+						UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Instance.GetSequenceID());
 
 						if (SequenceList.Len())
 						{
@@ -599,16 +576,12 @@ UDataLayerManager* UMovieSceneDataLayerSystem::GetDataLayerManager(UE::MovieScen
 	using namespace UE::MovieScene;
 
 	const FSequenceInstance& Instance = Linker->GetInstanceRegistry()->GetInstance(RootInstance);
-	IMovieScenePlayer* Player = Instance.GetPlayer();
-	if (!Player)
+	UObject* PlaybackContext = Instance.GetSharedPlaybackState()->GetPlaybackContext();
+	if (PlaybackContext)
 	{
-		return nullptr;
+		return UDataLayerManager::GetDataLayerManager(PlaybackContext);
 	}
-
-	UObject* PlayerUObject = Player->AsUObject();
-	UObject* PlaybackContext = PlayerUObject ? PlayerUObject : Player->GetPlaybackContext();
-
-	return UDataLayerManager::GetDataLayerManager(PlaybackContext);
+	return nullptr;
 }
 
 void UMovieSceneDataLayerSystem::UpdateDesiredStates()
@@ -648,14 +621,13 @@ void UMovieSceneDataLayerSystem::UpdateDesiredStates()
 				EDataLayerRuntimeState DesiredState = bPreroll ? Section->GetPrerollState() : Section->GetDesiredState();
 				const bool bRequiresStreamingFlush = (DesiredState == EDataLayerRuntimeState::Unloaded) ? Section->GetFlushOnUnload() :
 													 (DesiredState == EDataLayerRuntimeState::Activated) ? Section->GetFlushOnActivated() : false;
-				const bool bPerformGC = (DesiredState == EDataLayerRuntimeState::Unloaded) ? Section->GetPerformGCOnUnload() : false;
 
 				for (const UDataLayerAsset* DataLayerAsset : Section->GetDataLayerAssets())
 				{
 					const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstanceFromAsset(DataLayerAsset);
 					if (DataLayerInstance)
 					{
-						this->DesiredLayerStates->ApplyNewState(DataLayerInstance, OptHBiases ? OptHBiases[Index] : 0, DesiredState, bRequiresStreamingFlush, bPerformGC);
+						this->DesiredLayerStates->ApplyNewState(DataLayerInstance, OptHBiases ? OptHBiases[Index] : 0, DesiredState, bRequiresStreamingFlush);
 					}
 				}
 			}

@@ -69,6 +69,9 @@ void FVirtualShadowMapVisualizationMenuCommands::BuildCommandMap()
 			break;
 		}
 	}
+
+	UI_COMMAND(VisualizeNextLightCommand, "Visualize next light", "r.Shadow.Virtual.Visualize.NextLight", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(VisualizePrevLightCommand, "Visualize previous light", "r.Shadow.Virtual.Visualize.PrevLight", EUserInterfaceActionType::Button, FInputChord());
 }
 
 void FVirtualShadowMapVisualizationMenuCommands::BuildVisualisationSubMenu(FMenuBuilder& Menu)
@@ -135,6 +138,29 @@ void FVirtualShadowMapVisualizationMenuCommands::BindCommands(FUICommandList& Co
 			FIsActionChecked::CreateStatic(&FVirtualShadowMapVisualizationMenuCommands::IsVirtualShadowMapVisualizationModeSelected, Client.ToWeakPtr(), Record.Name)
 		);
 	}
+
+	CommandList.MapAction(
+		VisualizeNextLightCommand,
+		FExecuteAction::CreateLambda([]()
+		{
+			IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("r.Shadow.Virtual.Visualize.NextLight"))->AsCommand();
+			TArray<FString> Args;
+			Command->Execute(Args, nullptr, *GLog);
+		}),
+		FCanExecuteAction(),
+		EUIActionRepeatMode::RepeatEnabled
+	);
+	CommandList.MapAction(
+		VisualizePrevLightCommand,
+		FExecuteAction::CreateLambda([]()
+		{
+			IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("r.Shadow.Virtual.Visualize.PrevLight"))->AsCommand();
+			TArray<FString> Args;
+			Command->Execute(Args, nullptr, *GLog);
+		}),
+		FCanExecuteAction(),
+		EUIActionRepeatMode::RepeatEnabled
+	);
 }
 
 void FVirtualShadowMapVisualizationMenuCommands::ChangeVirtualShadowMapVisualizationMode(TWeakPtr<FEditorViewportClient> WeakClient, FName InName)

@@ -23,6 +23,9 @@ class UBlackboardKeyType_Enum : public UBlackboardKeyType
 	UPROPERTY(Category=Blackboard, EditDefaultsOnly)
 	FString EnumName;
 
+	UPROPERTY(Category=Blackboard, EditDefaultsOnly)
+	uint8 DefaultValue = 0;
+
 	/** set when EnumName override is valid and active */
 	UPROPERTY(Category = Blackboard, VisibleDefaultsOnly)
 	uint32 bIsEnumNameValid : 1;
@@ -36,6 +39,8 @@ class UBlackboardKeyType_Enum : public UBlackboardKeyType
 	AIMODULE_API virtual FString DescribeSelf() const override;
 	AIMODULE_API virtual FString DescribeArithmeticParam(int32 IntValue, float FloatValue) const override;
 	AIMODULE_API virtual bool IsAllowedByFilter(UBlackboardKeyType* FilterOb) const override;
+
+	AIMODULE_API virtual void InitializeMemory(UBlackboardComponent& OwnerComp, uint8* MemoryBlock) override;
 
 protected:
 #if WITH_EDITOR

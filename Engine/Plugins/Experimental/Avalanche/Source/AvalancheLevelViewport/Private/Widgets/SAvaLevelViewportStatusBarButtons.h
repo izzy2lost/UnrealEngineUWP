@@ -30,6 +30,12 @@ protected:
 
 	TSharedPtr<SWidget> GridSizeSlider;
 
+	TSharedPtr<SWidget> TextureOverlayTextureSelector;
+
+	TSharedPtr<SWidget> TextureOverlayOpacitySlider;
+
+	TSharedPtr<SWidget> TextureOverlayStretchCheckBox;
+
 	void CreateContextMenuWigets();
 
 	void PopulateActorButtons(TSharedPtr<SHorizontalBox> InContainer);
@@ -39,12 +45,15 @@ protected:
 	FSlateColor GetActorAlignmentColor() const;
 	bool GetActorAlignmentEnabled() const;
 	TSharedRef<SWidget> GetActorAlignmentMenuContent() const;
-
 	TSharedRef<SWidget> GetActorColorMenuContent() const;
 
+	FSlateColor GetAnimatorButtonMuteColor() const;
+	FSlateColor GetAnimatorButtonUnmuteColor() const;
+	bool GetAnimatorButtonEnabled() const;
+	FReply EnableAnimators();
+	FReply DisableAnimators();
+
 	// Post Process
-	FSlateColor GetPostProcessColor() const;
-	const FSlateBrush* GetPostProcessIcon() const;
 	bool GetPostProcessEnabled() const;
 	TSharedRef<SWidget> GetPostProcessMenuContent();
 
@@ -104,4 +113,9 @@ protected:
 	bool GetViewportInfoEnabled() const;
 	FSlateColor GetViewportInfoColor() const;
 	TSharedRef<SWidget> GetViewportInfoWidget() const;
+
+	FSlateColor GetTextureOverlayColor() const;
+	bool GetTextureOverlayEnabled() const;
+	TSharedRef<SWidget> GetTextureOverlayMenuContent();
+	FReply ToggleTextureOverlay();
 };

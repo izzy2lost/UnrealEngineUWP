@@ -22,13 +22,14 @@ namespace UnrealBuildTool.Rules
 			//
 			// Common setup...
 			//
-
 			bLegalToDistributeObjectCode = true;
 
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",
-					"SignalProcessing"
+					"SignalProcessing",
+                    // Common codecs
+					"dr_libs"					// MPEG audio layer 3
 				});
 
 			PublicIncludePathModuleNames.AddRange(

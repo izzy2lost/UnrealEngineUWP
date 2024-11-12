@@ -27,8 +27,14 @@ void FCookAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	auto& Builder = Context.InterfaceBuilder;
 
 	Builder.RouteEvent(RouteId_Package, "CookTrace", "Package");
-	Builder.RouteEvent(RouteId_PackageStat, "CookTrace", "PackageStat");
 	Builder.RouteEvent(RouteId_PackageAssetClass, "CookTrace", "PackageAssetClass");
+
+	//V1
+	Builder.RouteEvent(RouteId_PackageStat, "CookTrace", "PackageStat");
+
+	//V2
+	Builder.RouteEvent(RouteId_PackageStatBeginScope, "CookTrace", "PackageStatBeginScope");
+	Builder.RouteEvent(RouteId_PackageStatEndScope, "CookTrace", "PackageStatEndScope");
 }
 
 bool FCookAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext& Context)
@@ -62,24 +68,24 @@ bool FCookAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext&
 			case EPackageEventStatType::LoadPackage:
 			{
 				// We measure the Loadtime in multiple scopes so we receive many LoadPackage events.
-				Package->LoadTime += Value;
+				Package->LoadTimeIncl += Value;
 				break;
 			}
 			case EPackageEventStatType::SavePackage:
 			{
-				Package->SaveTime = Value;
+				Package->SaveTimeIncl = Value;
 				break;
 			}
 			case EPackageEventStatType::BeginCacheForCookedPlatformData:
 			{
 				// A BeginCacheForCookedPlatformData event is received for each asset in the package. We add the values to get the total time for the package.
-				Package->BeginCacheForCookedPlatformData += Value;
+				Package->BeginCacheForCookedPlatformDataIncl += Value;
 				break;
 			}
 			case EPackageEventStatType::IsCachedCookedPlatformDataLoaded:
 			{
 				// A IsCachedCookedPlatformDataLoaded event is received for each asset in the package. We add the values to get the total time for the package.
-				Package->IsCachedCookedPlatformDataLoaded += Value;
+				Package->IsCachedCookedPlatformDataLoadedIncl += Value;
 				break;
 			}
 			default:
@@ -88,6 +94,34 @@ bool FCookAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext&
 			}
 		}
 		break;
+	}
+	case RouteId_PackageStatBeginScope:
+	{
+		uint64 PackageId = EventData.GetValue<uint64>("Id");
+		double Timestamp = Context.EventTime.AsSeconds(EventData.GetValue<uint64>("Time"));
+		EPackageEventStatType StatType = (EPackageEventStatType)EventData.GetValue<uint8>("StatType");
+
+		FProviderEditScopeLock ProviderEditScope(CookProfilerProvider);
+		CookProfilerProvider.AddScopeEntry(Context.ThreadInfo.GetId(), PackageId, Timestamp, StatType, true);
+
+		FAnalysisSessionEditScope _EditScope(Session);
+		Session.UpdateDurationSeconds(Timestamp);
+
+		break;
+	}
+	case RouteId_PackageStatEndScope:
+	{
+		uint64 PackageId = EventData.GetValue<uint64>("Id");
+		double Timestamp = Context.EventTime.AsSeconds(EventData.GetValue<uint64>("Time"));
+		EPackageEventStatType StatType = (EPackageEventStatType)EventData.GetValue<uint8>("StatType");
+
+		FProviderEditScopeLock ProviderEditScope(CookProfilerProvider);
+		CookProfilerProvider.AddScopeEntry(Context.ThreadInfo.GetId(), PackageId, Timestamp, StatType, false);
+
+		FAnalysisSessionEditScope _EditScope(Session);
+		Session.UpdateDurationSeconds(Timestamp);
+
+		break; 
 	}
 	case RouteId_PackageAssetClass:
 	{

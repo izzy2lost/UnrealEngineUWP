@@ -83,7 +83,7 @@ private:
 	void NotifyNodePostEvaluate(UTG_Node* InNode, const FTG_EvaluationContext* InContext);
 
 	bool IsValidNode(FTG_Id NodeId) const { return (NodeId != FTG_Id::INVALID && Nodes.IsValidIndex(NodeId.NodeIdx())); }
-	bool IsValidPin(FTG_Id PinId) const { return IsValidNode(PinId) && Nodes[PinId.NodeIdx()]->Pins.IsValidIndex(PinId.PinIdx()); }
+	bool IsValidPin(FTG_Id PinId) const { return IsValidNode(PinId) && Nodes[PinId.NodeIdx()] && Nodes[PinId.NodeIdx()]->Pins.IsValidIndex(PinId.PinIdx()); }
 	
 protected:
 	friend class UTG_Node;
@@ -289,8 +289,6 @@ protected:
 	void EvalInOutPins() const;
 	void EvalTraverseOrder() const;
 
-	bool IsDependentInternal(const UTG_Graph* SourceGraph, TArray<UTG_Graph*>& DependentGraphs);
-
 #if WITH_EDITORONLY_DATA
 	// Extra data to hold information that is useful only in editor (like comments)
 	UPROPERTY()
@@ -328,6 +326,13 @@ public:
 	static FString LogCall(const TArray<FTG_Id>& PinInputs, const  TArray<FTG_Id>& PinOutputs, int32 InputLogWidth = 10);
 
 	//// Testing zone
+	
+#ifdef UE_BUILD_DEBUG
+	// 0 = DiskVersion, 
+	// 1 = Runtime copy made by TG_Editor, 
+	// 2 = Runtime copy made by TG_Expression_Graph
+	int                 IsRuntime = 0;
+#endif
 private:
 };
 

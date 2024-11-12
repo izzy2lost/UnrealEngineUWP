@@ -8,9 +8,12 @@
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
 #include "Async/ParallelFor.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadata)
 
@@ -70,6 +73,64 @@ void UPCGMetadata::Serialize(FArchive& InArchive)
 	}
 }
 
+void UPCGMetadata::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	const UPCGData* Data = Cast<UPCGData>(GetOuter());
+	check(Data);
+
+	// Sort attributes so we have a consistent processing path
+	TArray<FName> AttributeNames;
+
+	{
+		AttributeLock.ReadLock();
+		AttributeNames.Reserve(Attributes.Num());
+
+		for (const TPair<FName, FPCGMetadataAttributeBase*>& Attribute : Attributes)
+		{
+			AttributeNames.Add(Attribute.Key);
+		}
+		AttributeLock.ReadUnlock();
+
+		Algo::Sort(AttributeNames, [this](const FName& A, const FName& B) { return A.LexicalLess(B); });
+	}
+
+	// Add attributes to CRC
+	for (FName AttributeName : AttributeNames)
+	{
+		Ar << AttributeName;
+
+		FPCGAttributePropertyInputSelector InputSource;
+		InputSource.SetAttributeName(AttributeName);
+
+		TUniquePtr<const IPCGAttributeAccessor> InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Data, InputSource);
+		TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(Data, InputSource);
+
+		auto Callback = [&InputAccessor, &InputKeys, &Ar](auto&& Dummy)
+		{
+			using AttributeType = std::decay_t<decltype(Dummy)>;
+			TArray<AttributeType> Values;
+			if constexpr (std::is_trivially_copyable_v<AttributeType>)
+			{
+				Values.SetNumUninitialized(InputKeys->GetNum());
+			}
+			else
+			{
+				Values.SetNum(InputKeys->GetNum());
+			}
+			
+			InputAccessor->GetRange<AttributeType>(Values, 0, *InputKeys);
+
+			for (AttributeType& Value : Values)
+			{
+				// Add value to Crc
+				PCG::Private::Serialize(Ar, Value);
+			}
+		};
+
+		PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), Callback);
+	}
+}
+
 void UPCGMetadata::BeginDestroy()
 {
 	FWriteScopeLock ScopeLock(AttributeLock);
@@ -91,7 +152,7 @@ void UPCGMetadata::Initialize(const UPCGMetadata* InParent, bool bAddAttributesF
 	InitializeWithAttributeFilter(InParent, TSet<FName>(), bFilter);
 }
 
-void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode)
+void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode, EPCGStringMatchingOperator InMatchOperator)
 {
 	if (Parent || Attributes.Num() != 0)
 	{
@@ -106,7 +167,7 @@ void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, c
 	const bool bSkipAddingAttributesFromParent = (InFilterMode == EPCGMetadataFilterMode::IncludeAttributes) && (InFilteredAttributes.Num() == 0);
 	if (!bSkipAddingAttributesFromParent)
 	{
-		AddAttributesFiltered(InParent, InFilteredAttributes, InFilterMode);
+		AddAttributesFiltered(InParent, InFilteredAttributes, InFilterMode, InMatchOperator);
 	}
 }
 
@@ -178,19 +239,50 @@ void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMet
 	}
 }
 
-void UPCGMetadata::AddAttributesFiltered(const UPCGMetadata* InOther, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode)
+void UPCGMetadata::AddAttributesFiltered(const UPCGMetadata* InOther, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode, EPCGStringMatchingOperator InMatchOperator)
 {
 	if (!InOther)
 	{
 		return;
 	}
 
+	TArray<FString> InFilteredAttributesStrings;
+	if (InMatchOperator != EPCGStringMatchingOperator::Equal)
+	{
+		Algo::Transform(InFilteredAttributes, InFilteredAttributesStrings, [](const FName& InFilteredAttribute) {return InFilteredAttribute.ToString(); });
+	}
+
+	auto IsAttributeInFilterList = [&InFilteredAttributes, &InFilteredAttributesStrings, InMatchOperator](FName OtherAttributeName) -> bool
+	{
+		if (InMatchOperator == EPCGStringMatchingOperator::Equal)
+		{
+			return InFilteredAttributes.Contains(OtherAttributeName);
+		}
+		else
+		{
+			const FString OtherAttributeString = OtherAttributeName.ToString();
+			if (InMatchOperator == EPCGStringMatchingOperator::Substring)
+			{
+				return Algo::AnyOf(InFilteredAttributesStrings, [&OtherAttributeString](const FString& InAttribute) { return OtherAttributeString.Contains(InAttribute); });
+			}
+			else if (InMatchOperator == EPCGStringMatchingOperator::Matches)
+			{
+				return Algo::AnyOf(InFilteredAttributesStrings, [&OtherAttributeString](const FString& InAttribute) { return OtherAttributeString.MatchesWildcard(InAttribute); });
+			}
+			else
+			{
+				checkNoEntry();
+				return false;
+			}
+		}
+	};
+
 	bool bAttributeAdded = false;
 
-	for (const TPair<FName, FPCGMetadataAttributeBase*> OtherAttribute : InOther->Attributes)
+	for (const TPair<FName, FPCGMetadataAttributeBase*>& OtherAttribute : InOther->Attributes)
 	{
 		// Skip this attribute if it is in an exclude list, or if it is not in an include list
-		const bool bAttributeInFilterList = InFilteredAttributes.Contains(OtherAttribute.Key);
+		const bool bAttributeInFilterList = IsAttributeInFilterList(OtherAttribute.Key);
 		const bool bSkipAttributesInFilterList = InFilterMode == EPCGMetadataFilterMode::ExcludeAttributes;
 		const bool bSkipThisAttribute = bSkipAttributesInFilterList == bAttributeInFilterList;
 
@@ -804,6 +896,9 @@ bool UPCGMetadata::RenameAttribute(FName AttributeToRename, FName NewAttributeNa
 		RemoveAttributeInternal(AttributeToRename);
 		Attribute->Name = NewAttributeName;
 		AddAttributeInternal(NewAttributeName, Attribute);
+
+		// Also when renaming an attribute, notify the PCG Data owner that the latest attribute manipulated is this one.
+		SetLastCachedSelectorOnOwner(NewAttributeName);
 		
 		bRenamed = true;
 	}
@@ -909,6 +1004,31 @@ int64 UPCGMetadata::AddEntry(int64 ParentEntry)
 	return ParentKeys.Add(ParentEntry) + ItemKeyOffset;
 }
 
+TArray<int64> UPCGMetadata::AddEntries(TArrayView<const int64> ParentEntryKeys)
+{
+	TArray<int64> Result;
+	Result.Reserve(ParentEntryKeys.Num());
+
+	FWriteScopeLock ScopeLock(ItemLock);
+	ParentKeys.Reserve(ParentKeys.Num() + ParentEntryKeys.Num());
+	for (const int64 ParentEntry : ParentEntryKeys)
+	{
+		Result.Add(ParentKeys.Add(ParentEntry) + ItemKeyOffset);
+	}
+
+	return Result;
+}
+
+void UPCGMetadata::AddEntriesInPlace(TArrayView<int64*> ParentEntryKeys)
+{
+	FWriteScopeLock ScopeLock(ItemLock);
+	ParentKeys.Reserve(ParentKeys.Num() + ParentEntryKeys.Num());
+	for (int64* ParentEntry : ParentEntryKeys)
+	{
+		*ParentEntry = ParentKeys.Add(*ParentEntry) + ItemKeyOffset;
+	}
+}
+
 int64 UPCGMetadata::AddEntryPlaceholder()
 {
 	FReadScopeLock ScopeLock(ItemLock);
@@ -978,6 +1098,43 @@ PCGMetadataEntryKey UPCGMetadata::GetParentKey(PCGMetadataEntryKey LocalItemKey)
 		{
 			UE_LOG(LogPCG, Warning, TEXT("Invalid metadata key - check for entry key not properly initialized"));
 			return PCGInvalidEntryKey;
+		}
+	}
+}
+
+void UPCGMetadata::GetParentKeys(TArrayView<PCGMetadataEntryKey> LocalItemKeys, const TBitArray<>* Mask) const
+{
+	auto GetParentKey_Unsafe = [this](PCGMetadataEntryKey& LocalItemKey) -> void
+	{
+		if (LocalItemKey < ItemKeyOffset)
+		{
+			// Key is already in parent referential
+			return;
+		}
+		else if (LocalItemKey - ItemKeyOffset < ParentKeys.Num())
+		{
+			LocalItemKey = ParentKeys[LocalItemKey - ItemKeyOffset];
+		}
+		else
+		{
+			UE_LOG(LogPCG, Warning, TEXT("Invalid metadata key - check for entry key not properly initialized"));
+			LocalItemKey = PCGInvalidEntryKey;
+		}
+	};
+
+	FReadScopeLock ScopeLock(ItemLock);
+	if (Mask && ensure(LocalItemKeys.Num() == Mask->Num()))
+	{
+		for (TConstSetBitIterator<> It(*Mask); It; ++It)
+		{
+			GetParentKey_Unsafe(LocalItemKeys[It.GetIndex()]);
+		}
+	}
+	else
+	{
+		for (PCGMetadataEntryKey& LocalItemKey : LocalItemKeys)
+		{
+			GetParentKey_Unsafe(LocalItemKey);
 		}
 	}
 }
@@ -1215,7 +1372,7 @@ void UPCGMetadata::SetPointAttributes(const TArrayView<const FPCGPoint>& InPoint
 	}
 }
 
-void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InOriginalKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutOriginalKeys, FPCGContext* OptionalContext)
+void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InOriginalKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>* InOutOptionalKeys, FPCGContext* OptionalContext)
 {
 	if (!InMetadata || InMetadata->GetAttributeCount() == 0 || GetAttributeCount() == 0)
 	{
@@ -1224,13 +1381,14 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes);
 
-	check(InOriginalKeys.Num() == OutOriginalKeys.Num());
+	check(!InOutOptionalKeys || (InOriginalKeys.Num() == InOutOptionalKeys->Num()));
 
 	// There are a few things we can do to optimize here -
 	// basically, we don't need to set attributes more than once for a given <in, out> pair
 	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> InKeys;
 	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> OutKeys;
 
+	if (InOutOptionalKeys)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes::CreateDeduplicatedKeys);
 		TMap<TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>, int> PairMapping;
@@ -1238,7 +1396,7 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 		for (int KeyIndex = 0; KeyIndex < InOriginalKeys.Num(); ++KeyIndex)
 		{
 			PCGMetadataEntryKey InKey = InOriginalKeys[KeyIndex];
-			PCGMetadataEntryKey& OutKey = OutOriginalKeys[KeyIndex];
+			PCGMetadataEntryKey& OutKey = (*InOutOptionalKeys)[KeyIndex];
 
 			if (int* MatchingPairIndex = PairMapping.Find(TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>(InKey, OutKey)))
 			{
@@ -1254,6 +1412,10 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 			}
 		}
 	}
+	else
+	{
+		OutKeys.Init(PCGInvalidEntryKey, InOriginalKeys.Num());
+	}
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes::InitializeOnSet);
@@ -1266,7 +1428,12 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 
 	AttributeLock.ReadLock();
 	int32 AttributeOffset = 0;
-	const int32 AttributesPerDispatch = OptionalContext ? FMath::Max(1, OptionalContext->AsyncState.NumAvailableTasks) : 1;
+	const int32 DefaultAttributesPerDispatch = 64;
+	int32 AttributesPerDispatch = OptionalContext ? DefaultAttributesPerDispatch : 1;
+	if (OptionalContext && OptionalContext->AsyncState.NumAvailableTasks > 0)
+	{
+		AttributesPerDispatch = FMath::Min(OptionalContext->AsyncState.NumAvailableTasks, AttributesPerDispatch);
+	}
 
 	while (AttributeOffset < Attributes.Num())
 	{
@@ -1291,7 +1458,7 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 				if (Attribute == OtherAttribute)
 				{
 					TArray<PCGMetadataValueKey> ValueKeys;
-					Attribute->GetValueKeys(InKeys, ValueKeys);
+					Attribute->GetValueKeys(TArrayView<const PCGMetadataEntryKey>(InKeys), ValueKeys);
 					Attribute->SetValuesFromValueKeys(OutKeys, ValueKeys);
 				}
 				else
@@ -1329,11 +1496,19 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 	}
 	AttributeLock.ReadUnlock();
 
-	// Finally, copy back the actual out keys to the original out keys
-	for (PCGMetadataEntryKey& OutKey : OutOriginalKeys)
+	if (InOutOptionalKeys)
 	{
-		OutKey = OutKeys[OutKey];
+		// Finally, copy back the actual out keys to the original out keys
+		for (PCGMetadataEntryKey& OutKey : *InOutOptionalKeys)
+		{
+			OutKey = OutKeys[OutKey];
+		}
 	}
+}
+
+void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutKeys, FPCGContext* OptionalContext)
+{
+	SetAttributes(InKeys, InMetadata, &OutKeys, OptionalContext);
 }
 
 void UPCGMetadata::MergeAttributesByKey(int64 KeyA, const UPCGMetadata* MetadataA, int64 KeyB, const UPCGMetadata* MetadataB, int64 TargetKey, EPCGMetadataOp Op, int64& OutKey)

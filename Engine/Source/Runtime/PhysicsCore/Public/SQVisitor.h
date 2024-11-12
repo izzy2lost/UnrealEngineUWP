@@ -50,6 +50,7 @@ struct TSQVisitor : public Chaos::ISpatialVisitor<TPayload, Chaos::FReal>
 		, OutputFlags(InOutputFlags)
 		, bAnyHit(false)
 		, DebugParams(InDebugParams)
+		, HitFaceNormal(Chaos::FVec3::ZeroVector)
 		, HitBuffer(InHitBuffer)
 		, QueryFilterData(InQueryFilterData)
 		, QueryFilterDataConcrete(C2UFilterData(QueryFilterData.data))
@@ -239,6 +240,7 @@ private:
 					const FVec3 InflatedBoundsTraceStart = SQ == ESQType::Raycast ? StartPoint : QueryGeomWorldBounds.Center();
 					if (!InflatedWorldBounds.RaycastFast(InflatedBoundsTraceStart, CurData->Dir, CurData->InvDir, CurData->bParallel, CurData->CurrentLength, CurData->InvCurrentLength, TmpTime, TmpExitTime))
 					{
+						CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::FailedFastBoundTest);
 						continue;
 					}
 				}
@@ -247,6 +249,7 @@ private:
 					const FVec3 QueryCenter = QueryGeom ? QueryGeomWorldBounds.Center() : StartTM.GetLocation();
 					if (!InflatedWorldBounds.Contains(QueryCenter))
 					{
+						CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::FailedFastBoundTest);
 						continue;
 					}
 				}
@@ -339,6 +342,7 @@ private:
 									}
 									else
 									{
+										CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::ColocatedHitHasWorseNormal);
 										// This hit is co-located but has a worse normal
 										bAcceptHit = false;
 									}
@@ -392,8 +396,20 @@ private:
 								break;
 							}
 						}
+						else
+						{
+							CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::PostFilter);
+						}
 					}
 				}
+				else
+				{
+					CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::NoHit);
+				}
+			}
+			else
+			{
+				CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::PreFilter);
 			}
 		}
 
@@ -445,9 +461,9 @@ private:
 	}
 #endif
 
-	const FVector StartPoint;
-	const FVector Dir;
-	const FVector HalfExtents;
+	const FVector StartPoint = FVector::ZeroVector;
+	const FVector Dir = FVector::ZeroVector;
+	const FVector HalfExtents = FVector::ZeroVector;
 	FHitFlags OutputFlags;
 	bool bAnyHit;
 	const ChaosInterface::FQueryDebugParams DebugParams;
@@ -581,13 +597,17 @@ private:
 				}
 				break;
 			}
+			else
+			{
+				CVD_SET_SQ_SHAPE_REJECT_REASON(EChaosVDSQVisitRejectReason::PreFilter);
+			}
 		}
 		return bContinue;
 	}
 
-	const FVector StartPoint;
-	const FVector Dir;
-	const FVector HalfExtents;
+	const FVector StartPoint = FVector::ZeroVector;
+	const FVector Dir = FVector::ZeroVector;
+	const FVector HalfExtents = FVector::ZeroVector;
 	FHitFlags OutputFlags;
 	bool bAnyHit;
 	const ChaosInterface::FQueryDebugParams DebugParams;

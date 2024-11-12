@@ -5,6 +5,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
+using System.Security;
 using EpicGames.Core;
 
 namespace UnrealBuildBase
@@ -222,26 +224,32 @@ namespace UnrealBuildBase
 		{
 			if (Directories == null)
 			{
-				Dictionary<string, DirectoryItem> NewDirectories;
+				Dictionary<string, DirectoryItem>? NewDirectories = null;
 				if (Info.Value.Exists)
 				{
-					DirectoryInfo[] Directories = Info.Value.GetDirectories();
-					NewDirectories = new Dictionary<string, DirectoryItem>(Directories.Length, DirectoryReference.Comparer);
-					foreach (DirectoryInfo SubDirectoryInfo in Directories)
+					try
 					{
-						if (NewDirectories.ContainsKey(SubDirectoryInfo.Name))
+						DirectoryInfo[] Directories = Info.Value.GetDirectories();
+						NewDirectories = new Dictionary<string, DirectoryItem>(Directories.Length, DirectoryReference.Comparer);
+						foreach (DirectoryInfo SubDirectoryInfo in Directories)
 						{
-							throw new Exception($"Trying to add {SubDirectoryInfo.FullName} as '{SubDirectoryInfo.Name}' yet exists as {NewDirectories[SubDirectoryInfo.Name].FullName}");
-						}
+							if (NewDirectories.ContainsKey(SubDirectoryInfo.Name))
+							{
+								throw new Exception($"Trying to add {SubDirectoryInfo.FullName} as '{SubDirectoryInfo.Name}' yet exists as {NewDirectories[SubDirectoryInfo.Name].FullName}");
+							}
 
-						NewDirectories.Add(SubDirectoryInfo.Name, DirectoryItem.GetItemByDirectoryInfo(SubDirectoryInfo));
+							NewDirectories.Add(SubDirectoryInfo.Name, DirectoryItem.GetItemByDirectoryInfo(SubDirectoryInfo));
+						}
+					}
+					catch (SecurityException)
+					{
+					}
+					catch (UnauthorizedAccessException)
+					{
 					}
 				}
-				else
-				{
-					NewDirectories = new Dictionary<string, DirectoryItem>(DirectoryReference.Comparer);
-				}
-				Directories = NewDirectories;
+
+				Directories = NewDirectories ?? new Dictionary<string, DirectoryItem>(DirectoryReference.Comparer);
 			}
 		}
 
@@ -288,23 +296,31 @@ namespace UnrealBuildBase
 		{
 			if (Files == null)
 			{
-				Dictionary<string, FileItem> NewFiles;
+				Dictionary<string, FileItem>? NewFiles = null;
 				if (Info.Value.Exists)
 				{
-					FileInfo[] FileInfos = Info.Value.GetFiles();
-					NewFiles = new Dictionary<string, FileItem>(FileInfos.Length, FileReference.Comparer);
-					foreach (FileInfo FileInfo in FileInfos)
+					try
 					{
-						FileItem FileItem = FileItem.GetItemByFileInfo(FileInfo);
-						FileItem.UpdateCachedDirectory(this);
-						NewFiles[FileInfo.Name] = FileItem;
+						FileInfo[] FileInfos = Info.Value.GetFiles();
+						NewFiles = new Dictionary<string, FileItem>(FileInfos.Length, FileReference.Comparer);
+						foreach (FileInfo FileInfo in FileInfos)
+						{
+							FileItem FileItem = FileItem.GetItemByFileInfo(FileInfo);
+							FileItem.UpdateCachedDirectory(this);
+							NewFiles[FileInfo.Name] = FileItem;
+						}
+						Files = NewFiles;
+						return;
+					}
+					catch (SecurityException)
+					{
+					}
+					catch (UnauthorizedAccessException)
+					{
 					}
 				}
-				else
-				{
-					NewFiles = new Dictionary<string, FileItem>(FileReference.Comparer);
-				}
-				Files = NewFiles;
+
+				Files = NewFiles ?? new Dictionary<string, FileItem>(FileReference.Comparer);
 			}
 		}
 
@@ -316,6 +332,16 @@ namespace UnrealBuildBase
 		{
 			CacheFiles();
 			return Files!.Values;
+		}
+
+		/// <summary>
+		/// Check if this directory contains any files
+		/// </summary>
+		/// <param name="searchOption">Directory search options</param>
+		/// <returns>True if this directory has files</returns>
+		public bool ContainsFiles(SearchOption searchOption = SearchOption.TopDirectoryOnly)
+		{
+			return searchOption == SearchOption.TopDirectoryOnly ? EnumerateFiles().Any(x => x.Exists) : (EnumerateFiles().Any(x => x.Exists) || EnumerateDirectories().Any(x => x.ContainsFiles(searchOption)));
 		}
 
 		/// <summary>
@@ -377,12 +403,12 @@ namespace UnrealBuildBase
 				return true;
 			}
 
-			if (ReferenceEquals(obj, null))
+			if (obj is null)
 			{
 				return false;
 			}
 
-			return Equals((DirectoryItem?)obj);
+			return Equals(obj as DirectoryItem);
 		}
 
 		public override int GetHashCode()
@@ -392,9 +418,9 @@ namespace UnrealBuildBase
 
 		public static bool operator ==(DirectoryItem? left, DirectoryItem? right)
 		{
-			if (ReferenceEquals(left, null))
+			if (left is null)
 			{
-				return ReferenceEquals(right, null);
+				return right is null;
 			}
 
 			return left.Equals(right);
@@ -407,22 +433,22 @@ namespace UnrealBuildBase
 
 		public static bool operator <(DirectoryItem? left, DirectoryItem? right)
 		{
-			return ReferenceEquals(left, null) ? !ReferenceEquals(right, null) : left.CompareTo(right) < 0;
+			return left is null ? right is not null : left.CompareTo(right) < 0;
 		}
 
 		public static bool operator <=(DirectoryItem? left, DirectoryItem? right)
 		{
-			return ReferenceEquals(left, null) || left.CompareTo(right) <= 0;
+			return left is null || left.CompareTo(right) <= 0;
 		}
 
 		public static bool operator >(DirectoryItem? left, DirectoryItem? right)
 		{
-			return !ReferenceEquals(left, null) && left.CompareTo(right) > 0;
+			return left is not null && left.CompareTo(right) > 0;
 		}
 
 		public static bool operator >=(DirectoryItem? left, DirectoryItem? right)
 		{
-			return ReferenceEquals(left, null) ? ReferenceEquals(right, null) : left.CompareTo(right) >= 0;
+			return left is null ? right is null : left.CompareTo(right) >= 0;
 		}
 		#endregion
 	}
@@ -474,6 +500,5 @@ namespace UnrealBuildBase
 		{
 			return Reader.ReadDirectoryItem()!.Location;
 		}
-
 	}
 }

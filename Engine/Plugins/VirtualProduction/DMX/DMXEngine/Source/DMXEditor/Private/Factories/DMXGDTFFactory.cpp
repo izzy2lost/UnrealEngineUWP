@@ -1,31 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Factories/DMXGDTFFactory.h"
-#include "Factories/DMXGDTFImportUI.h"
+
+#include "Application/SlateApplicationBase.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "DMXEditorLog.h"
+#include "Editor.h"
+#include "Editor/EditorEngine.h"
+#include "EditorReimportHandler.h"
 #include "Factories/DMXGDTFImporter.h"
+#include "Factories/DMXGDTFImportUI.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "HAL/FileManager.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Library/DMXGDTFAssetImportData.h"
 #include "Library/DMXImportGDTF.h"
-
-#include "Editor.h"
-#include "EditorReimportHandler.h"
-#include "AssetImportTask.h"
-#include "EditorFramework/AssetImportData.h"
-#include "HAL/FileManager.h"
-#include "Misc/CommandLine.h"
-#include "Misc/FeedbackContext.h"
 #include "Misc/Paths.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SDMXGDTFOptionWindow.h"
 
-
-const TCHAR* UDMXGDTFFactory::Extension = TEXT("gdtf");
+#define LOCTEXT_NAMESPACE "DMXGDTFFactory"
 
 UDMXGDTFImportUI::UDMXGDTFImportUI()
-    : bUseSubDirectory(false)
-    , bImportXML(true)
-    , bImportTextures(false)
-    , bImportModels(false)
-{
-}
+	: bUseSubDirectory(false)
+	, bImportXML(true)
+	, bImportTextures(false)
+	, bImportModels(false)
+{}
 
 void UDMXGDTFImportUI::ResetToDefault()
 {
@@ -44,28 +46,6 @@ UDMXGDTFFactory::UDMXGDTFFactory()
 	bText = false;
 	bEditorImport = true;
 	bOperationCanceled = false;
-}
-
-void UDMXGDTFFactory::CleanUp()
-{
-	Super::CleanUp();
-
-    bShowOption = true;
-}
-
-bool UDMXGDTFFactory::ConfigureProperties()
-{
-    Super::ConfigureProperties();
-    EnableShowOption();
-
-    return true;
-}
-
-void UDMXGDTFFactory::PostInitProperties()
-{
-	Super::PostInitProperties();
-
-    ImportUI = NewObject<UDMXGDTFImportUI>(this, NAME_None, RF_NoFlags);
 }
 
 bool UDMXGDTFFactory::DoesSupportClass(UClass* Class)
@@ -93,7 +73,7 @@ UObject* UDMXGDTFFactory::FactoryCreateFile(UClass* InClass, UObject* InParent, 
 
     CA_ASSUME(InParent);
 
-    if( bOperationCanceled )
+    if (bOperationCanceled)
     {
         bOutOperationCanceled = true;
         GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostImport(this, nullptr);
@@ -103,68 +83,65 @@ UObject* UDMXGDTFFactory::FactoryCreateFile(UClass* InClass, UObject* InParent, 
     GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPreImport(this, InClass, InParent, InName, Type);
 
     UObject* ExistingObject = nullptr;
-    if (InParent != nullptr)
+    if (InParent)
     {
         ExistingObject = StaticFindObject(UObject::StaticClass(), InParent, *(InName.ToString()));
         if (ExistingObject)
         {
-            bShowOption = false;
+			bShowOptions = false;
         }
     }
 
-    // Prepare import options
+	if (FParse::Param(FCommandLine::Get(), TEXT("NoDMXImportOption")))
+	{
+		bShowOptions = false;
+	}
+
+    // Create import options
+	using namespace UE::DMX;
     FDMXGDTFImportArgs ImportArgs;
-    ImportArgs.ImportUI = ImportUI;
-    ImportArgs.Name = InName;
+
+	const FString BaseFilename = FPaths::GetBaseFilename(InName.ToString());
+    ImportArgs.Name = *BaseFilename;
     ImportArgs.Parent = InParent;
-    ImportArgs.CurrentFilename = InFilename;
+    ImportArgs.Filename = InFilename;
     ImportArgs.Flags = Flags;
-    ImportArgs.bCancelOperation = bOperationCanceled;
-    const TUniquePtr<FDMXGDTFImporter> Importer = MakeUnique<FDMXGDTFImporter>(ImportArgs);
 
     // Set Import UI
-    if (FParse::Param(FCommandLine::Get(), TEXT("NoDMXImportOption")))
-    {
-        bShowOption = false;
-    }
     bool bIsAutomated = IsAutomatedImport();
-    bool bShowImportDialog = bShowOption && !bIsAutomated;
-    bool bImportAll = false;
-    FDMXGDTFImporter::GetImportOptions(Importer, ImportUI, bShowImportDialog, InParent->GetPathName(), bOperationCanceled, bImportAll, UFactory::CurrentFilename);
-    bOutOperationCanceled = bOperationCanceled;
-    if( bImportAll )
+    bool bShowImportDialog = bShowOptions && !bIsAutomated;
+
+	ImportUI = nullptr;
+	if (bShowImportDialog)
+	{
+		ImportUI = GetMutableDefault<UDMXGDTFImportUI>();
+		bOperationCanceled = GetOptionsFromDialog(InParent);
+		bOutOperationCanceled = bOperationCanceled;
+	}
+
+    if (bImportAll)
     {
         // If the user chose to import all, we don't show the dialog again and use the same settings for each object until importing another set of files
-        bShowOption = false;
+		bShowOptions = false;
     }
 
-    if (!ImportUI->bImportXML && !ImportUI->bImportModels && !ImportUI->bImportTextures)
+    if (ImportUI && !ImportUI->bImportXML && !ImportUI->bImportModels && !ImportUI->bImportTextures)
     {
-        Warn->Log(ELogVerbosity::Error, TEXT("Nothing to Import") );
-		return nullptr;
-    }
-
-    // Try to load and parse the content
-    if (!Importer->AttemptImportFromFile())
-    {
-        Warn->Log(ELogVerbosity::Error, TEXT("Failed to import GDTF") );
+		const FNotificationInfo Info(LOCTEXT("NothingToimportInfo", "Skipping import of GDTF, nothing to import."));
+		FSlateNotificationManager::Get().AddNotification(Info);
 		return nullptr;
     }
 
 	// Import to the Editor
-	UDMXImportGDTF* GDTF = Importer->Import();
+	FText OutErrorReason;
+	UDMXImportGDTF* GDTF = FDMXGDTFImporter::Import(*this, ImportArgs, OutErrorReason);
 	if (!GDTF)
 	{
-		return nullptr;
-	}
+		const FNotificationInfo Info(OutErrorReason);
+		FSlateNotificationManager::Get().AddNotification(Info);
 
-	// Set Asset Import Data
-	UDMXGDTFAssetImportData* GDTFAssetImportData = GDTF->GetGDTFAssetImportData();
-	if (!ensureAlwaysMsgf(GDTFAssetImportData, TEXT("Unexpected missing Asset Import Data for newly created GDTF %s"), *GDTF->GetName()))
-	{
 		return nullptr;
 	}
-	GDTFAssetImportData->SetSourceFile(InFilename);
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostImport(this, GDTF);
 
@@ -175,12 +152,7 @@ bool UDMXGDTFFactory::FactoryCanImport(const FString& Filename)
 {
 	const FString TargetExtension = FPaths::GetExtension(Filename);
 
-	if(TargetExtension == UDMXGDTFFactory::Extension)
-	{
-		return true;
-	}
-
-	return false;
+	return TargetExtension == TEXT("gdtf");
 }
 
 bool UDMXGDTFFactory::CanReimport(UObject* Obj, TArray<FString>& OutFilenames)
@@ -228,7 +200,55 @@ EReimportResult::Type UDMXGDTFFactory::Reimport(UObject* InObject)
 	return bOutCanceled ? EReimportResult::Cancelled : EReimportResult::Failed;
 }
 
-int32 UDMXGDTFFactory::GetPriority() const
+bool UDMXGDTFFactory::GetOptionsFromDialog(UObject* Parent)
 {
-    return ImportPriority;
+	if (!ensureMsgf(Parent, TEXT("Trying to display import options for transient object. This is not expected.")))
+	{
+		return false;
+	}
+
+	TSharedPtr<SWindow> ParentWindow;
+	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+	{
+		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+		ParentWindow = MainFrame.GetParentWindow();
+	}
+
+	// Compute centered window position based on max window size, which include when all categories are expanded
+	const float ImportWindowWidth = 410.0f;
+	const float ImportWindowHeight = 750.0f;
+	const FVector2D ImportWindowSize = FVector2D(ImportWindowWidth, ImportWindowHeight); // Max window size it can get based on current slate
+
+	const FSlateRect WorkAreaRect = FSlateApplicationBase::Get().GetPreferredWorkArea();
+	const FVector2D DisplayTopLeft(WorkAreaRect.Left, WorkAreaRect.Top);
+	const FVector2D DisplaySize(WorkAreaRect.Right - WorkAreaRect.Left, WorkAreaRect.Bottom - WorkAreaRect.Top);
+
+	const FVector2D WindowPosition = (DisplayTopLeft + (DisplaySize - ImportWindowSize) / 2.0f);
+
+	const TSharedRef<SWindow> Window = SNew(SWindow)
+		.Title(LOCTEXT("GDTFImportOpionsTitle", "GDTF Import Options"))
+		.SizingRule(ESizingRule::Autosized)
+		.AutoCenter(EAutoCenter::None)
+		.ClientSize(ImportWindowSize)
+		.ScreenPosition(WindowPosition);
+
+	using namespace UE::DMX;
+	TSharedPtr<SDMXGDTFOptionWindow> OptionWindow;
+	Window->SetContent
+	(
+		SAssignNew(OptionWindow, SDMXGDTFOptionWindow)
+		.ImportUI(ImportUI)
+		.WidgetWindow(Window)
+		.FullPath(FText::FromString(Parent->GetPathName()))
+		.MaxWindowHeight(ImportWindowHeight)
+		.MaxWindowWidth(ImportWindowWidth)
+	);
+
+	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
+
+	bImportAll = OptionWindow->ShouldImportAll();
+
+	return OptionWindow->ShouldImport();
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -7,6 +7,7 @@
 #include "CoreTypes.h"
 #include "Templates/SharedPointer.h"
 #include "ImageCore.h"
+#include "ImageWrapperOutputTypes.h"
 
 /**
 
@@ -169,10 +170,11 @@ public:
 	 */
 	virtual bool SetRaw(const void* InRawData, int64 InRawSize, const int32 InWidth, const int32 InHeight, const ERGBFormat InFormat, const int32 InBitDepth, const int32 InBytesPerRow = 0) = 0;
 
-	/* CanSetRawFormat returns true if SetRaw will accept this format */
+	/** CanSetRawFormat returns true if SetRaw will accept this format */
 	virtual bool CanSetRawFormat(const ERGBFormat InFormat, const int32 InBitDepth) const = 0;
 
-	/* returns InFormat if supported, else maps to something supported
+	/** 
+	 * returns InFormat if supported, else maps to something supported
 	 * the returned format will pass CanSetRawFormat()
 	 */
 	virtual ERawImageFormat::Type GetSupportedRawFormat(const ERawImageFormat::Type InFormat) const = 0;
@@ -200,14 +202,14 @@ public:
 	}
 
 	/**
-	* GetRaw after SetCompressed
-	* fills the raw data in the native format/depth contained in the file
-	* Do not use the GetRaw() variants that take format/depth arguments.
-	* 
-	* @param OutRawData    Filled with raw image data.
-	*
-	* This GetRaw call replaces the variants with format/depth arguments, but prefer GetRawImage instead.
-	*/
+	 * GetRaw after SetCompressed
+	 * fills the raw data in the native format/depth contained in the file
+	 * Do not use the GetRaw() variants that take format/depth arguments.
+	 * 
+	 * @param OutRawData    Filled with raw image data.
+	 *
+	 * This GetRaw call replaces the variants with format/depth arguments, but prefer GetRawImage instead.
+	 */
 	bool GetRaw(TArray64<uint8>& OutRawData)
 	{
 		ERGBFormat Format = GetFormat();
@@ -221,18 +223,57 @@ public:
 
 		return GetRaw(Format,BitDepth,OutRawData);
 	}
+
+	/**
+	 * GetRaw after SetCompressed
+	 * fills the raw data in the native format/depth contained in the file along with meta info
+	 * Do not use the GetRaw() variants that take format/depth arguments.
+	 *
+	 * @param OutRawData				Filled with raw image data.
+	 * @param OutDecompressedImage		Filled with mip images and other metadata.
+	 *
+	 * This GetRaw call replaces the variants with format/depth arguments, but prefer GetRawImage instead.
+	 */
+	bool GetRaw(FDecompressedImageOutput& OutDecompressedImage)
+	{
+		ERGBFormat Format = GetFormat();
+		int32 BitDepth = GetBitDepth();
+
+		// Format and BitDepth should have been set by SetCompressed
+		if (Format == ERGBFormat::Invalid || BitDepth == 0)
+		{
+			return false;
+		}
+
+		return GetRaw(Format, BitDepth, OutDecompressedImage);
+	}
 	
-	/* Decode the image file data from SetCompressed() into an FImage
-	* OutImage is allocated and attributes are filled
-	*	 any previous passed-in contents of OutImage are destroyed
-	*	OutImage.Format is ignored, a new format is set from the loaded image
-	*
-	* @param OutImage	 Filled with the image
-	*
-	* This is the recommended API to get the raw image data from the imagewrapper.
-	* Prefer this instead of any of the GetRaw() calls.
-	*/
+	/**
+	 * Decode the image file data from SetCompressed() into an FImage
+	 * OutImage is allocated and attributes are filled
+	 * Any previous passed-in contents of OutImage are destroyed
+	 * OutImage.Format is ignored, a new format is set from the loaded image
+	 *
+	 * @param OutImage	 Filled with the image
+	 *
+	 * This is the recommended API to get the raw image data from the imagewrapper.
+	 * Prefer this instead of any of the GetRaw() calls.
+	 */
 	bool GetRawImage(FImage & OutImage);
+
+	/**
+	 * Decode the image file data from SetCompressed() into an FImage
+	 * OutImage is allocated and attributes are filled.
+	 * Any previous passed-in contents of OutImage are destroyed.
+	 * OutImage.Format is ignored, a new format is set from the loaded image
+	 * MetaInfo is filled if applicable
+	 * 
+	 * @param OutDecompressedImage	Image and meta data along with Mip Map Images
+	 * 
+	 * This is the recommended API to get the raw image data from the imagewrapper.
+	 * Prefer this instead of any of the GetRaw() calls.
+	 */
+	bool GetRawImage(FDecompressedImageOutput& OutDecompressedImage);
 
 	
 	/**  
@@ -248,7 +289,22 @@ public:
 	 * DEPRECATED , use GetRaw() with 1 argument or GetRawImage()
 	 */
 	virtual bool GetRaw(const ERGBFormat InFormat, int32 InBitDepth, TArray64<uint8>& OutRawData) = 0;
-	
+
+	/**
+	 * Gets the raw data and meta info
+	 * (Note: It may consume the data set in the SetRaw function if it was set before)
+	 *
+	 * @param InFormat How we want to manipulate the RGB data.
+	 * @param InBitDepth The output bit-depth per channel, normally 8.
+	 * @param OutRawData Will contain the uncompressed raw data.
+	 * @param OutDecompressedImage Will contain the mip images if available and other metadata.
+	 * @return true on success, false otherwise.
+	 *
+	 * this is often broken, should only be used with InFormat == GetFormat()
+	 * DEPRECATED , use GetRaw() with 2 argument or GetRawImage() meta info overload
+	 */
+	virtual bool GetRaw(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage) = 0;
+		
 	/**
 	 * Gets the raw data in a TArray. Only use this if you're certain that the image is less than 2 GB in size.
 	 * Prefer using the overload which takes a TArray64 in general.

@@ -2,7 +2,7 @@
 /**
 	@file		log.h
 	@brief		Declares the AJATimeLog class.
-	@copyright	(C) 2012-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2012-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_LOG_H
@@ -235,6 +235,10 @@ public:
 	 *	@param[in]	bReset			true if time is reset after get
 	 */
 	int32_t GetDelta(bool bReset=true);
+	inline int32_t GetLastDelta()
+		{ return (int32_t)_lastDelta; }
+	inline int32_t GetLastDeltaMs()
+		{ return (int32_t)(_lastDelta/1000); }
 	
 	/**
 	 *	Optional print tag, appended tag, and delta-time since last reset.
@@ -263,6 +267,7 @@ protected:
 	std::string		_tag;
 	int				_unit;
 	uint64_t		_time;
+	uint64_t		_lastDelta;
 };
 
 

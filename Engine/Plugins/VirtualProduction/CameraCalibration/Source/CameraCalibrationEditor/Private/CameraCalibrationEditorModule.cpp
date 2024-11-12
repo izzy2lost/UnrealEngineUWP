@@ -73,7 +73,7 @@ const FPlacementCategoryInfo* FCameraCalibrationEditorModule::GetVirtualProducti
 			TEXT("PMVirtualProduction"),
 			25
 		);
-
+		Info.ShortDisplayName = LOCTEXT("VirtualProductionShortCategoryName", "VP");
 		IPlacementModeModule::Get().RegisterPlacementCategory(Info);
 
 		return PlacementModeModule.GetRegisteredPlacementCategory(FLevelEditorOutlinerBuiltInCategories::VirtualProduction());

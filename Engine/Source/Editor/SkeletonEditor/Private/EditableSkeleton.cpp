@@ -338,7 +338,7 @@ void FEditableSkeleton::GetAssetsContainingCurves(const FName& InContainerName, 
 
 		if (!bAssetContainsRemovableCurves)
 		{
-			OutAssets.RemoveAtSwap(Idx,1,EAllowShrinking::No);
+			OutAssets.RemoveAtSwap(Idx,EAllowShrinking::No);
 		}
 	}
 

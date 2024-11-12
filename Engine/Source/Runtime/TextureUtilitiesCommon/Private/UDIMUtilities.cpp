@@ -40,9 +40,8 @@ namespace UE
 				}
 			}
 	
-			if ( UdimValue < 1001 )
+			if ( UdimValue < UDIM_Min_Index || UdimValue > UDIM_Max_Index )
 			{
-				// UDIM starts with 1001 as the origin
 				return INDEX_NONE;
 			}
 
@@ -51,7 +50,14 @@ namespace UE
 
 		int32 GetUDIMIndex(int32 BlockX, int32 BlockY)
 		{
-			return BlockY * 10 + BlockX + 1001;
+			check( BlockX >= 0 && BlockX <= UDIM_Max_X );
+			check( BlockY >= 0 && BlockY <= UDIM_Max_Y );
+
+			int32 Ret = BlockY * 10 + BlockX + 1001;
+
+			check( Ret >= 1001 && Ret <= UDIM_Max_Index );
+
+			return Ret;
 		}
 
 		TMap<int32, FString> GetUDIMBlocksFromSourceFile(const FString& File, const FString& UdimRegexPattern, FString* OutFilenameWithoutUdimPatternAndExtension)
@@ -91,8 +97,15 @@ namespace UE
 
 		void ExtractUDIMCoordinates(int32 UDIMIndex, int32& OutBlockX, int32& OutBlockY)
 		{
-			OutBlockX = (UDIMIndex - 1001) % 10;
-			OutBlockY = (UDIMIndex - 1001) / 10;
+			check( UDIMIndex != INDEX_NONE );
+			check( UDIMIndex >= UDIM_Min_Index && UDIMIndex <= UDIM_Max_Index );
+
+			// note 1010 is X=9, Y=0 , that is the tens column is not Y
+			OutBlockX = (UDIMIndex - UDIM_Min_Index) % 10;
+			OutBlockY = (UDIMIndex - UDIM_Min_Index) / 10;
+
+			check( OutBlockX >= 0 && OutBlockX <= UDIM_Max_X );
+			check( OutBlockY >= 0 && OutBlockY <= UDIM_Max_Y );
 		}
 	}
 }

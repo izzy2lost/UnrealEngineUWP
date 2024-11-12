@@ -42,7 +42,8 @@ public:
 
 private:
 	FVector2D GetTexturePosition() const;
-	
+	FIntPoint GetTextureSize() const;
+
 	/** TRUE if right clicking and dragging for panning a texture 2D */
 	bool ShouldUseMousePanning(FViewport* Viewport) const;
 
@@ -58,6 +59,9 @@ private:
 	/** Zoom Out trying to (smoothly) re-fit the image if there is space on borders */
 	void ZoomTowardsFit(FViewport* Viewport);
 
+	/** Clamp the selection box size to only be large as the texture size */
+	void ClampSelectionBoxSizeToTextureSize();
+
 	TWeakPtr<SSimulcamViewport> SimulcamViewportWeakPtr;
 	TWeakPtr<SSimulcamEditorViewport> SimulcamEditorViewportWeakPtr;
 
@@ -69,4 +73,9 @@ private:
 
 	bool bWithZoom;
 	bool bWithPan;
+
+	bool bIsMarqueeSelecting = false;
+	FVector2D SelectionStartTexture = FVector2D(0);
+	FVector2D SelectionStartCanvas = FVector2D(0);
+	FVector2D SelectionBoxSize = FVector2D(0);
 };

@@ -111,7 +111,7 @@ struct FNNERuntimeFormat
 	TArray<FNNEFormatOperatorDesc> Operators;
 
 	uint64 DataSize;
-	TArray<uint8> TensorData;
+	TArray64<uint8> TensorData;
 	
 	bool Serialize(FArchive& Ar)
 	{

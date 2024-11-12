@@ -33,7 +33,7 @@ private:
 
 	// UChannel interface
 	ENGINE_API virtual void Init(UNetConnection* InConnection, int32 InChIndex, EChannelCreateFlags CreateFlags) override;
-
+	ENGINE_API virtual void ReInit() override;
 	ENGINE_API virtual bool CleanUp(const bool bForDestroy, EChannelCloseReason CloseReason) override;
 
 	/**
@@ -51,13 +51,17 @@ private:
 
 	/** We do not want to append orphaned exportbunches from other channels */
 	ENGINE_API virtual void AppendExportBunches(TArray<FOutBunch *>& OutExportBunches) override;
+	virtual TArray<FOutBunch*> GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags) override;
+
 	ENGINE_API virtual void AppendMustBeMappedGuids(FOutBunch* Bunch) override;
 
 
 	/** Packet delivery status handling */
 	ENGINE_API virtual void ReceivedAck(int32 PacketId) override;
 	ENGINE_API virtual void ReceivedNak(int32 PacketId) override;
-	
+
+	ENGINE_API virtual bool HasAcknowledgedAllReliableData() const override;
+
 private:
 	enum : uint32
 	{
@@ -78,7 +82,9 @@ private:
 
 	void WriteData(UE::Net::EDataStreamWriteMode WriteMode);
 
+#if UE_WITH_IRIS
 	TObjectPtr<UDataStreamManager> DataStreamManager = nullptr;
+#endif
 
 	TResizableCircularQueue<FDataStreamChannelRecord> WriteRecords;
 

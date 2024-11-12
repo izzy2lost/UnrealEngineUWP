@@ -37,6 +37,8 @@ void Main(
 #endif
 #if INSTANCED_STEREO && MOBILE_MULTI_VIEW
 	, out uint LayerIndex : SV_RenderTargetArrayIndex
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint ViewId : SV_ViewID
 #elif INSTANCED_STEREO
 	, out uint ViewportIndex : SV_ViewPortArrayIndex
 #endif
@@ -50,7 +52,13 @@ void Main(
 		ViewportIndex = EyeIndex;
 	#endif
 #endif
+#if INSTANCED_STEREO
 	ResolvedView = ResolveViewFromVF(Input);
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
+#else
+	ResolvedView = ResolveView();
+#endif
 
 	FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
 	float4 WorldPos = VertexFactoryGetWorldPosition(Input, VFIntermediates);

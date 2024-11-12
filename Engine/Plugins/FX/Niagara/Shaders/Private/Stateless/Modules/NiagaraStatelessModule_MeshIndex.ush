@@ -6,18 +6,10 @@ int MeshIndex_Index;
 int MeshIndex_TableOffset;
 int MeshIndex_TableNumElements;	// -1 to avoid added instructions
 
-struct FStatelessModule_MeshIndex
-{
-};
-
-void MeshIndex_Initialize(inout FStatelessModule_MeshIndex ModuleData, inout FStatelessParticle Particle)
-{
-}
-	
-void MeshIndex_Simulate(in FStatelessModule_MeshIndex ModuleData, inout FStatelessParticle Particle)
+void MeshIndex_Simulate(inout FStatelessParticle Particle)
 {
 	const bool bIsParameter = (MeshIndex_Index & 0x80000000) != 0;
-	int MeshIndex = MeshIndex_Index & ~0x80000000;
+	int MeshIndex = MeshIndex_Index & ~0x80000000u;
 	
 	if (bIsParameter)
 	{
@@ -27,7 +19,7 @@ void MeshIndex_Simulate(in FStatelessModule_MeshIndex ModuleData, inout FStatele
 	{
 		if ( MeshIndex_TableNumElements > 0 )
 		{
-			const float2 Rand = RandomFloat2(Particle);
+			const float2 Rand = RandomFloat2(0);
 			MeshIndex = round(Rand.x * float(MeshIndex_TableNumElements));
 			const float Probability = GetStaticFloat(MeshIndex_TableOffset, (MeshIndex * 2) + 0);
 			if (Rand.y > Probability)

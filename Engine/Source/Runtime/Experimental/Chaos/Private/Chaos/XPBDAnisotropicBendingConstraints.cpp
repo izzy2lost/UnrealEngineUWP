@@ -38,10 +38,11 @@ FXPBDAnisotropicBendingConstraints::FXPBDAnisotropicBendingConstraints(const FSo
 		InParticles,
 		TriangleMesh.GetUniqueAdjacentElements(),
 		TConstArrayView<FRealSingle>(), // We don't use base stiffness weight maps
+		WeightMaps.FindRef(GetXPBDAnisoBucklingRatioString(PropertyCollection, XPBDAnisoBucklingRatioName.ToString())),
 		TConstArrayView<FRealSingle>(), // We don't use base stiffness weight maps
 		GetRestAngleMapFromCollection(WeightMaps, PropertyCollection),
 		FSolverVec2(GetWeightedFloatXPBDAnisoBendingStiffnessWarp(PropertyCollection, MaxStiffness)),
-		(FSolverReal)GetXPBDAnisoBucklingRatio(PropertyCollection, 0.f),
+		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingRatio(PropertyCollection, 0.f)),
 		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingStiffnessWarp(PropertyCollection, MaxStiffness)),
 		GetRestAngleValueFromCollection(PropertyCollection),
 		(ERestAngleConstructionType)GetXPBDAnisoRestAngleType(PropertyCollection, (int32)ERestAngleConstructionType::Use3DRestAngles),
@@ -119,10 +120,11 @@ FXPBDAnisotropicBendingConstraints::FXPBDAnisotropicBendingConstraints(const FSo
 		InParticleCount,
 		TriangleMesh.GetUniqueAdjacentElements(),
 		TConstArrayView<FRealSingle>(), // We don't use base stiffness weight maps
+		WeightMaps.FindRef(GetXPBDAnisoBucklingRatioString(PropertyCollection, XPBDAnisoBucklingRatioName.ToString())),
 		TConstArrayView<FRealSingle>(), // We don't use base stiffness weight maps
 		GetRestAngleMapFromCollection(WeightMaps, PropertyCollection),
 		FSolverVec2(GetWeightedFloatXPBDAnisoBendingStiffnessWarp(PropertyCollection, MaxStiffness)),
-		(FSolverReal)GetXPBDAnisoBucklingRatio(PropertyCollection, 0.f),
+		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingRatio(PropertyCollection, 0.f)),
 		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingStiffnessWarp(PropertyCollection, MaxStiffness)),
 		GetRestAngleValueFromCollection(PropertyCollection),
 		(ERestAngleConstructionType)GetXPBDAnisoRestAngleType(PropertyCollection, (int32)ERestAngleConstructionType::Use3DRestAngles),
@@ -196,28 +198,36 @@ FXPBDAnisotropicBendingConstraints::FXPBDAnisotropicBendingConstraints(const FSo
 	const TConstArrayView<FRealSingle>& StiffnessWarpMultipliers,
 	const TConstArrayView<FRealSingle>& StiffnessWeftMultipliers,
 	const TConstArrayView<FRealSingle>& StiffnessBiasMultipliers,
+	const TConstArrayView<FRealSingle>& BucklingRatioMultipliers,
 	const TConstArrayView<FRealSingle>& BucklingStiffnessWarpMultipliers,
 	const TConstArrayView<FRealSingle>& BucklingStiffnessWeftMultipliers,
 	const TConstArrayView<FRealSingle>& BucklingStiffnessBiasMultipliers,
 	const TConstArrayView<FRealSingle>& DampingMultipliers,
+	const TConstArrayView<FRealSingle>& RestAngleMap,
 	const FSolverVec2& InStiffnessWarp,
 	const FSolverVec2& InStiffnessWeft,
 	const FSolverVec2& InStiffnessBias,
-	const FSolverReal InBucklingRatio,
+	const FSolverVec2& InBucklingRatio,
 	const FSolverVec2& InBucklingStiffnessWarp,
 	const FSolverVec2& InBucklingStiffnessWeft,
 	const FSolverVec2& InBucklingStiffnessBias,
-	const FSolverVec2& InDampingRatio)
+	const FSolverVec2& InDampingRatio,
+	const FSolverVec2& RestAngleValue,
+	ERestAngleConstructionType RestAngleConstructionType)
 	: Base(
 		InParticles,
 		ParticleOffset,
 		ParticleCount,
 		TriangleMesh.GetUniqueAdjacentElements(),
 		TConstArrayView<FRealSingle>(), // We don't use base stiffness weight maps
+		BucklingRatioMultipliers,
 		TConstArrayView<FRealSingle>(), // We don't use base stiffness weight maps
+		RestAngleMap,
 		InStiffnessWarp,
 		InBucklingRatio,
 		InBucklingStiffnessWarp,
+		RestAngleValue,
+		RestAngleConstructionType,
 		true /*bTrimKinematicConstraints*/,
 		MaxStiffness)
 	, StiffnessWarp(
@@ -384,6 +394,7 @@ void FXPBDAnisotropicBendingConstraints::InitColor(const SolverParticlesOrRange&
 		StiffnessWarp.ReorderIndices(OrigToReorderedIndices);
 		StiffnessWeft.ReorderIndices(OrigToReorderedIndices);
 		StiffnessBias.ReorderIndices(OrigToReorderedIndices);
+		BucklingRatioWeighted.ReorderIndices(OrigToReorderedIndices);
 		BucklingStiffnessWarp.ReorderIndices(OrigToReorderedIndices);
 		BucklingStiffnessWeft.ReorderIndices(OrigToReorderedIndices);
 		BucklingStiffnessBias.ReorderIndices(OrigToReorderedIndices);
@@ -465,7 +476,21 @@ void FXPBDAnisotropicBendingConstraints::SetProperties(
 	}
 	if (IsXPBDAnisoBucklingRatioMutable(PropertyCollection))
 	{
-		BucklingRatio = FMath::Clamp(GetXPBDAnisoBucklingRatio(PropertyCollection), (FSolverReal)0., (FSolverReal)1.);
+		const FSolverVec2 WeightedValue = FSolverVec2(GetWeightedFloatXPBDAnisoBucklingRatio(PropertyCollection)).ClampAxes(0.f, 1.f);
+		if (IsXPBDAnisoBucklingRatioStringDirty(PropertyCollection))
+		{
+			const FString& WeightMapName = GetXPBDAnisoBucklingRatioString(PropertyCollection);
+			BucklingRatioWeighted = FPBDWeightMap(
+				WeightedValue,
+				WeightMaps.FindRef(WeightMapName),
+				TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+				ParticleOffset,
+				ParticleCount);
+		}
+		else
+		{
+			BucklingRatioWeighted.SetWeightedValue(WeightedValue);
+		}
 	}
 	if (IsXPBDAnisoBucklingStiffnessWarpMutable(PropertyCollection))
 	{
@@ -626,21 +651,43 @@ void FXPBDAnisotropicBendingConstraints::Init(const SolverParticlesOrRange& Part
 	X4Array.SetNumUninitialized(Constraints.Num());
 	if (bRealTypeCompatibleWithISPC && bChaos_Bending_ISPC_Enabled && ConstraintsIndex1.Num() == Constraints.Num())
 	{
-		ispc::InitXPBDBendingConstraintsIsBuckled(
-			(const ispc::FVector3f*)Particles.XArray().GetData(),
-			ConstraintsIndex1.GetData(),
-			ConstraintsIndex2.GetData(),
-			ConstraintsIndex3.GetData(),
-			ConstraintsIndex4.GetData(),
-			RestAngles.GetData(),
-			IsBuckled.GetData(),
-			(ispc::FVector3f*)X1Array.GetData(),
-			(ispc::FVector3f*)X2Array.GetData(),
-			(ispc::FVector3f*)X3Array.GetData(),
-			(ispc::FVector3f*)X4Array.GetData(),
-			BucklingRatio,
-			Constraints.Num()
-		);
+		if (BucklingRatioWeighted.HasWeightMap())
+		{
+			ispc::InitXPBDBendingConstraintsIsBuckledWithMaps(
+				(const ispc::FVector3f*)Particles.XArray().GetData(),
+				ConstraintsIndex1.GetData(),
+				ConstraintsIndex2.GetData(),
+				ConstraintsIndex3.GetData(),
+				ConstraintsIndex4.GetData(),
+				RestAngles.GetData(),
+				IsBuckled.GetData(),
+				(ispc::FVector3f*)X1Array.GetData(),
+				(ispc::FVector3f*)X2Array.GetData(),
+				(ispc::FVector3f*)X3Array.GetData(),
+				(ispc::FVector3f*)X4Array.GetData(),
+				BucklingRatioWeighted.GetIndices().GetData(),
+				BucklingRatioWeighted.GetTable().GetData(),
+				Constraints.Num()
+			);
+		}
+		else
+		{
+			ispc::InitXPBDBendingConstraintsIsBuckled(
+				(const ispc::FVector3f*)Particles.XArray().GetData(),
+				ConstraintsIndex1.GetData(),
+				ConstraintsIndex2.GetData(),
+				ConstraintsIndex3.GetData(),
+				ConstraintsIndex4.GetData(),
+				RestAngles.GetData(),
+				IsBuckled.GetData(),
+				(ispc::FVector3f*)X1Array.GetData(),
+				(ispc::FVector3f*)X2Array.GetData(),
+				(ispc::FVector3f*)X3Array.GetData(),
+				(ispc::FVector3f*)X4Array.GetData(),
+				(FSolverReal)BucklingRatioWeighted,
+				Constraints.Num()
+			);
+		}
 	}
 	else
 #endif

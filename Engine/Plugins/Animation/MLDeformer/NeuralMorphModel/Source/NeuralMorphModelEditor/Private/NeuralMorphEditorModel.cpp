@@ -66,21 +66,16 @@ namespace UE::NeuralMorphModel
 			Property->GetFName() == TEXT("CurveName"))		// The curve name inside one of the items in the CurveNames list changed.
 		{
 			UpdateIsReadyForTrainingState();
-			if (GetNeuralMorphModel()->GetModelMode() == ENeuralMorphMode::Local)
-			{
-				RebuildEditorMaskInfo();
-			}
+			RebuildEditorMaskInfo();
 		}
 		else if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNeuralMorphModel, Mode))
 		{
 			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 			{
+				SetResamplingInputOutputsNeeded(true);
 				UpdateIsReadyForTrainingState();
 				GetEditor()->GetModelDetailsView()->ForceRefresh();
-				if (GetNeuralMorphModel()->GetModelMode() == ENeuralMorphMode::Local)
-				{
-					RebuildEditorMaskInfo();
-				}
+				RebuildEditorMaskInfo();
 			}
 		}
 	}
@@ -89,6 +84,19 @@ namespace UE::NeuralMorphModel
 	{
 		return SNew(SNeuralMorphInputWidget)
 			.EditorModel(this);
+	}
+
+	void FNeuralMorphEditorModel::UpdateTrainingDeviceList()
+	{
+		// Update the list of devices we can use to train with.
+		// This is the cpu and list of cuda devices.
+		UNeuralMorphTrainingModel* TrainingModel = NewDerivedObject<UNeuralMorphTrainingModel>();
+		if (TrainingModel)
+		{
+			TrainingModel->Init(this);
+			TrainingModel->UpdateAvailableDevices();
+			TrainingModel->ConditionalBeginDestroy();
+		}
 	}
 
 	void FNeuralMorphEditorModel::Init(const InitSettings& Settings)
@@ -274,34 +282,13 @@ namespace UE::NeuralMorphModel
 		check(MorphInputInfo);
 
 		const TArray<float>& MaskBuffer = MorphInputInfo->GetInputItemMaskBuffer();
-		if (MaskBuffer.IsEmpty() || !NeuralMorphModel->IsBoneMaskingEnabled())
+		if (MaskBuffer.IsEmpty() || !NeuralMorphModel->IsBoneMaskingEnabled() || NeuralMorphModel->GetModelMode() != ENeuralMorphMode::Local)
 		{
 			return TArrayView<const float>();
 		}
 
 		const int32 ItemIndex = MorphTargetIndex / NeuralMorphModel->GetLocalNumMorphsPerBone();
 		return MorphInputInfo->GetMaskForItem(ItemIndex);
-	}
-
-	void FNeuralMorphEditorModel::ApplyMaskInfoToMaskBuffer(const USkeletalMesh* SkeletalMesh, const FNeuralMorphMaskInfo& MaskInfo, TArrayView<float> ItemMaskBuffer)	
-	{
-		const FReferenceSkeleton& RefSkel = SkeletalMesh->GetRefSkeleton();
-
-		// Apply the bones to the mask buffer.
-		for (const FName MaskBoneName : MaskInfo.BoneNames)
-		{
-			const int32 MaskBoneIndex = RefSkel.FindBoneIndex(MaskBoneName);
-			if (MaskBoneIndex != INDEX_NONE)
-			{
-				ApplyBoneToMask(MaskBoneIndex, ItemMaskBuffer);
-			}
-			else
-			{
-				UE_LOG(LogNeuralMorphModel, Warning, TEXT("Mask contains a bone named '%s', which cannot be found in the ref skeleton of skeletal mesh '%s'."),
-					*MaskBoneName.ToString(),
-					*SkeletalMesh->GetName());
-			}
-		}
 	}
 
 	void FNeuralMorphEditorModel::BuildMaskBuffer(TArray<float>& OutMaskBuffer)
@@ -321,7 +308,6 @@ namespace UE::NeuralMorphModel
 		}
 
 		const int32 NumBaseMeshVerts = Model->GetNumBaseMeshVerts();
-		check(NumBaseMeshVerts > 0);
 
 		USkeletalMesh* SkeletalMesh = Model->GetSkeletalMesh();	
 		UNeuralMorphInputInfo* NeuralMorphInputInfo = Cast<UNeuralMorphInputInfo>(GetEditorInputInfo());
@@ -345,14 +331,14 @@ namespace UE::NeuralMorphModel
 		{
 			TArrayView<float> ItemMaskBuffer(&OutMaskBuffer[MaskOffset], NumBaseMeshVerts);
 			const FName BoneName = BoneNames[Index];
-			FNeuralMorphMaskInfo* MaskInfo = NeuralMorphModel->BoneMaskInfos.Find(BoneName);
+			FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneMaskInfoMap.Find(BoneName);
 			if (MaskInfo == nullptr)
 			{
-				MaskInfo = &NeuralMorphModel->BoneMaskInfos.Add(BoneName, FNeuralMorphMaskInfo());
+				MaskInfo = &NeuralMorphModel->BoneMaskInfoMap.Add(BoneName, FMLDeformerMaskInfo());
 				GenerateBoneMaskInfo(Index, HierarchyDepth);
 			}
 
-			ApplyMaskInfoToMaskBuffer(SkeletalMesh, *MaskInfo, ItemMaskBuffer);
+			ApplyMaskInfoToBuffer(SkeletalMesh, *MaskInfo, ItemMaskBuffer);
 			MaskOffset += NumBaseMeshVerts;
 		}
 
@@ -370,14 +356,14 @@ namespace UE::NeuralMorphModel
 			TArrayView<float> ItemMaskBuffer(&OutMaskBuffer[MaskOffset], NumBaseMeshVerts);
 			
 			const FName GroupName = NeuralMorphInputInfo->GetBoneGroups()[Index].GroupName;
-			FNeuralMorphMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfos.Find(GroupName);
+			FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfoMap.Find(GroupName);
 			if (MaskInfo == nullptr)
 			{
-				MaskInfo = &NeuralMorphModel->BoneGroupMaskInfos.Add(GroupName, FNeuralMorphMaskInfo());
+				MaskInfo = &NeuralMorphModel->BoneGroupMaskInfoMap.Add(GroupName, FMLDeformerMaskInfo());
 				GenerateBoneGroupMaskInfo(Index, HierarchyDepth);
 			}
 
-			ApplyMaskInfoToMaskBuffer(SkeletalMesh, *MaskInfo, ItemMaskBuffer);
+			ApplyMaskInfoToBuffer(SkeletalMesh, *MaskInfo, ItemMaskBuffer);
 			MaskOffset += NumBaseMeshVerts;
 		}
 
@@ -450,12 +436,12 @@ namespace UE::NeuralMorphModel
 
 	void FNeuralMorphEditorModel::ResetBoneMaskInfos()
 	{
-		GetNeuralMorphModel()->BoneMaskInfos.Empty();
+		GetNeuralMorphModel()->BoneMaskInfoMap.Empty();
 	}
 
 	void FNeuralMorphEditorModel::ResetBoneGroupMaskInfos()
 	{
-		GetNeuralMorphModel()->BoneGroupMaskInfos.Empty();
+		GetNeuralMorphModel()->BoneGroupMaskInfoMap.Empty();
 	}
 
 	void FNeuralMorphEditorModel::AddTwistBones(const FReferenceSkeleton& RefSkel, TArray<int32>& SkelBoneIndices)
@@ -520,10 +506,10 @@ namespace UE::NeuralMorphModel
 		AddTwistBones(RefSkel, BonesAdded);
 
 		// Now that we know which bones we need, add them to the mask.
-		FNeuralMorphMaskInfo* MaskInfo = NeuralMorphModel->BoneMaskInfos.Find(BoneName);
+		FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneMaskInfoMap.Find(BoneName);
 		if (MaskInfo == nullptr)
 		{
-			MaskInfo = &NeuralMorphModel->BoneMaskInfos.Add(BoneName, FNeuralMorphMaskInfo());
+			MaskInfo = &NeuralMorphModel->BoneMaskInfoMap.Add(BoneName, FMLDeformerMaskInfo());
 		}
 		MaskInfo->BoneNames.Reset();
 		for (int32 BoneIndex : BonesAdded)
@@ -569,10 +555,10 @@ namespace UE::NeuralMorphModel
 		}
 
 		// Now that we know which bones we need, add them to the mask.
-		FNeuralMorphMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfos.Find(BoneGroup.GroupName);
+		FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfoMap.Find(BoneGroup.GroupName);
 		if (MaskInfo == nullptr)
 		{
-			MaskInfo = &NeuralMorphModel->BoneGroupMaskInfos.Add(BoneGroup.GroupName, FNeuralMorphMaskInfo());
+			MaskInfo = &NeuralMorphModel->BoneGroupMaskInfoMap.Add(BoneGroup.GroupName, FMLDeformerMaskInfo());
 		}
 		MaskInfo->BoneNames.Reset();
 		for (int32 BoneIndex : BonesAdded)
@@ -629,7 +615,7 @@ namespace UE::NeuralMorphModel
 
 		// Find all mask infos for bones that don't exist anymore.
 		TArray<FName> BoneMaskInfosToRemove;
-		for (const auto& MaskInfo : NeuralMorphModel->BoneMaskInfos)
+		for (const auto& MaskInfo : NeuralMorphModel->BoneMaskInfoMap)
 		{
 			const FName BoneName = MaskInfo.Key;
 			if (!NeuralMorphModel->GetBoneIncludeList().Contains(BoneName))
@@ -641,12 +627,12 @@ namespace UE::NeuralMorphModel
 		// Remove those mask infos.
 		for (const FName BoneName : BoneMaskInfosToRemove)
 		{
-			NeuralMorphModel->BoneMaskInfos.Remove(BoneName);
+			NeuralMorphModel->BoneMaskInfoMap.Remove(BoneName);
 		}
 
 		// Find all bone groups that don't exist anymore.
 		BoneMaskInfosToRemove.Reset();
-		for (const auto& MaskInfo : NeuralMorphModel->BoneGroupMaskInfos)
+		for (const auto& MaskInfo : NeuralMorphModel->BoneGroupMaskInfoMap)
 		{
 			const FName GroupName = MaskInfo.Key;
 
@@ -669,13 +655,17 @@ namespace UE::NeuralMorphModel
 		// Remove those group mask infos.
 		for (const FName GroupName : BoneMaskInfosToRemove)
 		{
-			NeuralMorphModel->BoneGroupMaskInfos.Remove(GroupName);
+			NeuralMorphModel->BoneGroupMaskInfoMap.Remove(GroupName);
 		}
 	}
 
 	void FNeuralMorphEditorModel::DebugDrawItemMask(FPrimitiveDrawInterface* PDI, int32 MaskItemIndex, const FVector& DrawOffset)
 	{
 		FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
+		if (!Sampler)
+		{
+			return;
+		}
 
 		UMLDeformerMorphModelVizSettings* VizSettings = Cast<UMLDeformerMorphModelVizSettings>(Model->GetVizSettings());
 		const int32 NumVerts = Model->GetNumBaseMeshVerts();
@@ -692,12 +682,32 @@ namespace UE::NeuralMorphModel
 		const int32 NumMaskItems = InputInfo->GetBoneNames().Num() + InputInfo->GetCurveNames().Num() + InputInfo->GetBoneGroups().Num() + InputInfo->GetCurveGroups().Num();
 		const int32 FinalMaskItemIndex = FMath::Clamp<int32>(MaskItemIndex, 0, NumMaskItems - 1);
 		const TArrayView<const float> MaskBuffer = InputInfo->GetMaskForItem(FinalMaskItemIndex);
+
+		// Find the mask info.
+		FMLDeformerMaskInfo* MaskInfo = nullptr;
+		if (FinalMaskItemIndex < InputInfo->GetBoneNames().Num())	// If we have a bone.
+		{
+			if (InputInfo->GetBoneNames().IsValidIndex(FinalMaskItemIndex))
+			{
+				MaskInfo = GetNeuralMorphModel()->BoneMaskInfoMap.Find(InputInfo->GetBoneNames()[FinalMaskItemIndex]);
+			}
+		}
+		else // It's a bone group.
+		{
+			const int32 GroupIndex = FinalMaskItemIndex - (InputInfo->GetBoneNames().Num() + InputInfo->GetCurveNames().Num());
+			if (InputInfo->GetBoneGroups().IsValidIndex(GroupIndex))
+			{
+				const FName GroupName = InputInfo->GetBoneGroups()[GroupIndex].GroupName;
+				MaskInfo = GetNeuralMorphModel()->BoneGroupMaskInfoMap.Find(GroupName);
+			}
+		}
+
 		if (!MaskBuffer.IsEmpty())
 		{
 			check(MaskBuffer.Num() == NumVerts);
 			check(NumVerts == UnskinnedPositions.Num());
 
-			FLinearColor OrgIncludedColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.Morphs.MaskIncludedVertexColor");
+			const FLinearColor OrgIncludedColor = (MaskInfo && MaskInfo->MaskMode == EMLDeformerMaskingMode::VertexAttribute) ? FMLDeformerEditorStyle::Get().GetColor("MLDeformer.Morphs.MaskIncludedVertexColorPainted") : FMLDeformerEditorStyle::Get().GetColor("MLDeformer.Morphs.MaskIncludedVertexColor");
 			const FLinearColor ExcludedColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.Morphs.MaskExcludedVertexColor");
 			for (int32 VertexIndex = 0; VertexIndex < NumVerts; ++VertexIndex)
 			{
@@ -744,7 +754,6 @@ namespace UE::NeuralMorphModel
 			}
 		}
 	}
-
 }	// namespace UE::NeuralMorphModel
 
 #undef LOCTEXT_NAMESPACE

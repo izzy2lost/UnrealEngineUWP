@@ -128,6 +128,9 @@ public:
 	// Index based access operator for a segment
 	const FRigVMPropertyPathSegment& operator[](int32 InIndex) const { return Segments[InIndex]; }
 
+	// Returns the segments of this property path
+	const TArray<FRigVMPropertyPathSegment>& GetSegments() const { return Segments; }
+
 	bool operator ==(const FRigVMPropertyPath& Other) const
 	{
 		return GetTypeHash(this) == GetTypeHash(Other);

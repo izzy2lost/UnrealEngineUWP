@@ -38,10 +38,10 @@ public:
 	}
 
 	bool UpdateVIOSO(IDisplayClusterViewport* InViewport, const uint32 InContextNum, const FVector& LocalLocation, const FRotator& LocalRotator, const float WorldToMeters, const float NCP, const float FCP);
-	bool RenderVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* ShaderResourceTexture, FRHITexture2D* RenderTargetTexture);
+	bool RenderVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* ShaderResourceTexture, FRHITexture* RenderTargetTexture);
 
 protected:
-	bool InitializeVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* RenderTargetTexture);
+	bool InitializeVIOSO_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* RenderTargetTexture);
 
 public:
 	FVector  ViewLocation;
@@ -59,7 +59,7 @@ private:
 	bool bInitialized = false;
 
 	// This RTT is used for VIOSO. If we change this resource, we need to re-initialize VIOSO
-	FRHITexture2D* UsedRenderTargetTexture = nullptr;
+	FRHITexture* UsedRenderTargetTexture = nullptr;
 
 	FVector2D ClippingPlanes;
 };

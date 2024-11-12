@@ -27,7 +27,7 @@ FSlateTimingViewSession::FSlateTimingViewSession()
 {
 }
 
-void FSlateTimingViewSession::OnBeginSession(Insights::ITimingViewSession& InTimingViewSession)
+void FSlateTimingViewSession::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	if (InTimingViewSession.GetName() == FInsightsManagerTabs::TimingProfilerTabId)
 	{
@@ -37,7 +37,7 @@ void FSlateTimingViewSession::OnBeginSession(Insights::ITimingViewSession& InTim
 	SlateFrameGraphTrack.Reset();
 }
 
-void FSlateTimingViewSession::OnEndSession(Insights::ITimingViewSession& InTimingViewSession)
+void FSlateTimingViewSession::OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	if (&InTimingViewSession != TimingViewSession)
 	{
@@ -53,7 +53,7 @@ void FSlateTimingViewSession::OnEndSession(Insights::ITimingViewSession& InTimin
 	TimingViewSession = nullptr;
 }
 
-void FSlateTimingViewSession::Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FSlateTimingViewSession::Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InTimingViewSession != TimingViewSession)
 	{

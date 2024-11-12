@@ -15,11 +15,6 @@ namespace UE::Net
 	class FNetCullDistanceOverrides;
 	class FWorldLocations;
 	struct FRepTagFindInfo;
-
-	namespace Private
-	{
-		class FNetRefHandleManager;
-	}
 }
 
 /**
@@ -75,14 +70,6 @@ public:
 	UPROPERTY(Config)
 	float DefaultCullDistance = 15000.0f;
 
-	/** Coordinates will be clamped to MinPos and MaxPos. */
-	UPROPERTY(Config)
-	FVector MinPos = {-0.5f*2097152.0f, -0.5f*2097152.0f, -0.5f*2097152.0f};
-
-	/** Coordinates will be clamped to MinPos and MaxPos. */
-	UPROPERTY(Config)
-	FVector MaxPos = {+0.5f*2097152.0f, +0.5f*2097152.0f, +0.5f*2097152.0f};
-
 	/** 
 	 * If true: use the exact distance between an object and the viewer to determine if the object is relevant or should be culled out.
 	 * When false: consider all objects within a grid cell to be relevant when a viewer is located within the cell. This can extend the relevant distance of objects beyond their cull distance. 
@@ -102,7 +89,9 @@ class UNetObjectGridFilter : public UNetObjectFilter
 
 protected:
 	// UNetObjectFilter interface
-	IRISCORE_API virtual void OnInit(FNetObjectFilterInitParams&) override;
+	IRISCORE_API virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	IRISCORE_API virtual void OnDeinit() override;
+	IRISCORE_API virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) override;
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual void RemoveConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
@@ -286,7 +275,19 @@ private:
 	TMap<FCellCoord, FCellObjects> Cells;
 	uint32 FrameIndex = 0;
 
-	const UE::Net::Private::FNetRefHandleManager*  NetRefHandleManager = nullptr;
+	struct FDebugUpdateCellInfo
+	{
+		FCellCoord Coord;
+		FCellBox NewCellBox;
+		FCellBox PrevCellBox;
+		SIZE_T CellsSize;
+		FVector ObjectPosition;
+		float ObjectCullDistance;
+	};
+
+	// Cached state from UpdateCellInfoForObject().
+	FDebugUpdateCellInfo DebugUpdateCellInfo;
+
 	const UE::Net::FNetCullDistanceOverrides* NetCullDistanceOverrides = nullptr;
 };
 
@@ -295,51 +296,23 @@ private:
  * 
  * This filter is more efficient since it's run before Polling and culls out objects that are not relevant to any connection.
  */
-UCLASS()
+UCLASS(transient, MinimalAPI)
 class UNetObjectGridWorldLocFilter : public UNetObjectGridFilter
 {
 	GENERATED_BODY()
 
 protected:
-
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
-	virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
-	virtual void PreFilter(FNetObjectPreFilteringParams&) override;
-	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
-	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
+	IRISCORE_API virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	IRISCORE_API virtual void OnDeinit() override;
+	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
+	IRISCORE_API virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
+	IRISCORE_API virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
 
 private:
 
 	const UE::Net::FWorldLocations* WorldLocations = nullptr;
 };
 
-/**
- * Filter for replicated objects that have their location stored in their fragment
- * 
- * This filter may be less efficient since it's run after Polling and DirtyData copying and cannot cull out objects from those operations.
- */
-UCLASS()
-class UNetObjectGridFragmentLocFilter : public UNetObjectGridFilter
-{
-	GENERATED_BODY()
-
-protected:
-
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
-	virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
-	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
-	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
-	virtual void OnObjectRemoved(uint32 ObjectIndex) override;
-
-private:
-	struct FCullDistanceFragmentInfo
-	{
-		uint16 CullDistanceSqrStateIndex = InvalidStateIndex;
-		uint16 CullDistanceSqrStateOffset = InvalidStateOffset;
-	};
-
-	TMap<uint32, FCullDistanceFragmentInfo> CullDistanceFragments;
-};
 
 //
 inline bool UNetObjectGridFilter::FCellBox::operator==(const UNetObjectGridFilter::FCellBox& Other) const

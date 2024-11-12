@@ -389,7 +389,6 @@ void SConsolidateToolWidget::Construct( const FArguments& InArgs )
 			.Padding(5)
 			[
 				SAssignNew( ListView, SListType)
-				.ItemHeight(24)
 				.ListItemsSource( &ListViewItems )
 				.OnGenerateRow( this, &SConsolidateToolWidget::OnGenerateRowForList )
 			]

@@ -13,6 +13,10 @@ void FTG_Evaluation::TransferVarToPin(UTG_Pin* InPin, FTG_EvaluationContext* Con
 
 	const auto VarId = InPin->GetVarId();
 	FTG_Var* Var = Context->Graph->GetVar(VarId);
+
+	if (!Var)
+		return;
+
 	check(Var);
 
 	if (Arg.IsInput())
@@ -357,7 +361,7 @@ void FTG_VariantToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 
 	FTG_Variant::EType SourceType = Input.GetType();
 
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 
 	switch (SourceType)
 	{

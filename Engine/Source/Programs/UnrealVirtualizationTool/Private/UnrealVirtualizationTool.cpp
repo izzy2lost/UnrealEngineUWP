@@ -3,6 +3,7 @@
 #include "UnrealVirtualizationTool.h"
 
 #include "Modules/ModuleManager.h"
+#include "ProjectUtilities.h"
 #include "RequiredProgramMainCPPInclude.h"
 #include "UnrealVirtualizationToolApp.h"
 
@@ -16,36 +17,14 @@ int32 UnrealVirtualizationToolMain(int32 ArgC, TCHAR* ArgV[])
 
 	using namespace UE::Virtualization;
 
-	// Although standalone tools can set the project path via the cmdline this will not change the ProjectDir being
-	// used as standalone tools have a beespoke path in FGenericPlatformMisc::ProjectDir. We can work around this
-	// for now by doing our own parsing then using the project dir override feature.
-	// This is a band aid while we consider adding better support for project files/directories with stand alone tools.
-	if(ArgC >= 2)
-	{
-		FString Cmd(ArgV[1]);
-
-		if (!Cmd.IsEmpty() && !Cmd.StartsWith(TEXT("-")) && Cmd.EndsWith(FProjectDescriptor::GetExtension()))
-		{
-			FString ProjectDir = FPaths::GetPath(Cmd);
-			ProjectDir = FFileManagerGeneric::DefaultConvertToRelativePath(*ProjectDir);
-			
-			// The path should end with a trailing slash (see FGenericPlatformMisc::ProjectDir) so we use
-			// NormalizeFilename not NormalizeDirectoryName as the latter will remove trailing slashes. We
-			// also need to add one if it is missing.
-			// We probably should move this path fixup code to 'FPlatformMisc::SetOverrideProjectDir'
-			FPaths::NormalizeFilename(ProjectDir);
-			if (!ProjectDir.EndsWith(TEXT("/")))
-			{
-				ProjectDir += TEXT("/");
-			}
-
-			FPlatformMisc::SetOverrideProjectDir(ProjectDir);
-		}
-	}
+	// Allows this program to accept a project argument on the commandline and use project-specific config
+	UE::ProjectUtilities::ParseProjectDirFromCommandline(ArgC, ArgV);
 
 	GEngineLoop.PreInit(ArgC, ArgV);
 	check(GConfig && GConfig->IsReadyForUse());
 
+	const bool bReportFailures = FParse::Param(FCommandLine::Get(), TEXT("ReportFailures"));
+	
 #if 0
 	while (!FPlatformMisc::IsDebuggerPresent())
 	{
@@ -57,28 +36,36 @@ int32 UnrealVirtualizationToolMain(int32 ArgC, TCHAR* ArgV[])
 
 	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
-	bool bRanSuccessfully = true;
+	UE_LOG(LogVirtualizationTool, Display, TEXT("Running UnrealVirtualization Tool"));
+
+	EProcessResult ProcessResult = EProcessResult::Success;
 
 	FUnrealVirtualizationToolApp App;
 
-	EInitResult Result = App.Initialize();
-	if (Result == EInitResult::Success)
+	EInitResult InitResult = App.Initialize();
+	if (InitResult == EInitResult::Success)
 	{
-		if (!App.Run())
+		ProcessResult = App.Run();
+		if (ProcessResult != EProcessResult::Success)
 		{
 			UE_LOG(LogVirtualizationTool, Error, TEXT("UnrealVirtualizationTool ran with errors"));
-			bRanSuccessfully = false;
 		}
 	}	
-	else if(Result == EInitResult::Error)
+	else if(InitResult == EInitResult::Error)
 	{
 		UE_LOG(LogVirtualizationTool, Error, TEXT("UnrealVirtualizationTool failed to initialize"));
-		bRanSuccessfully = false;
+		ProcessResult = EProcessResult::Error;
 	}
 
-	UE_CLOG(bRanSuccessfully, LogVirtualizationTool, Display, TEXT("UnrealVirtualizationTool ran successfully"));
+	UE_CLOG(ProcessResult == EProcessResult::Success, LogVirtualizationTool, Display, TEXT("UnrealVirtualizationTool ran successfully"));
 
-	const uint8 ReturnCode = bRanSuccessfully ? 0 : 1;
+	// Don't report if the error was in a child process, they will raise their own ensures
+	if (bReportFailures && ProcessResult == EProcessResult::Error)
+	{
+		ensure(false);
+	}
+
+	const uint8 ReturnCode = ProcessResult == EProcessResult::Success ? 0 : 1;
 
 	if (FParse::Param(FCommandLine::Get(), TEXT("fastexit")))
 	{

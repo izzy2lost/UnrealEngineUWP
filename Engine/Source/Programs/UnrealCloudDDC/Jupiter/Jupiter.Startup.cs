@@ -14,19 +14,20 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.SecretsManager;
 using Cassandra;
+using Jupiter.Common.Implementation;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
 using Jupiter.Implementation.Blob;
 using Jupiter.Implementation.LeaderElection;
-using Jupiter.Common.Implementation;
 using Jupiter.Implementation.Objects;
+using Jupiter.Implementation.Replication;
 using Jupiter.Implementation.TransactionLog;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StatsdClient;
-using Microsoft.Extensions.Logging;
 
 namespace Jupiter
 {
@@ -51,7 +52,7 @@ namespace Jupiter
 
 		protected override void OnAddAuthorization(AuthorizationOptions authorizationOptions, List<string> defaultSchemes)
 		{
-  
+
 		}
 
 		protected override void OnAddService(IServiceCollection services)
@@ -63,15 +64,15 @@ namespace Jupiter
 					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 					{
 						return "Linux";
-					} 
+					}
 					else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 					{
 						return "Windows";
-					} 
+					}
 					else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 					{
 						return "OSX";
-					} 
+					}
 					else
 					{
 						throw new NotSupportedException("Unknown OS when formatting platform name");
@@ -90,8 +91,11 @@ namespace Jupiter
 			services.AddOptions<S3Settings>().Bind(Configuration.GetSection("S3")).ValidateDataAnnotations();
 			services.AddOptions<AzureSettings>().Bind(Configuration.GetSection("Azure")).ValidateDataAnnotations();
 			services.AddOptions<FilesystemSettings>().Bind(Configuration.GetSection("Filesystem")).ValidateDataAnnotations();
+			services.AddOptions<DebugSettings>().Bind(Configuration.GetSection("Debug")).ValidateDataAnnotations();
 
 			services.AddOptions<NginxSettings>().Bind(Configuration.GetSection("Nginx")).ValidateDataAnnotations();
+
+			services.AddOptions<SymbolsSettings>().Bind(Configuration.GetSection("Symbols")).ValidateDataAnnotations();
 
 			services.AddOptions<ConsistencyCheckSettings>().Bind(Configuration.GetSection("ConsistencyCheck")).ValidateDataAnnotations();
 
@@ -148,8 +152,8 @@ namespace Jupiter
 			services.AddSingleton(typeof(IBlobService), typeof(BlobService));
 			services.AddSingleton(serviceType: typeof(IScyllaSessionManager), ScyllaFactory);
 
-			services.AddSingleton(serviceType: typeof(IReplicationLog), ReplicationLogWriterFactory);
-			
+			services.AddSingleton(serviceType: typeof(IReplicationLog), ReplicationLogFactory);
+
 			services.AddSingleton<LastAccessTrackerReference>();
 			services.AddSingleton(serviceType: typeof(ILastAccessCache<LastAccessRecord>), p => p.GetService<LastAccessTrackerReference>()!);
 			services.AddSingleton(serviceType: typeof(ILastAccessTracker<LastAccessRecord>), p => p.GetService<LastAccessTrackerReference>()!);
@@ -170,7 +174,7 @@ namespace Jupiter
 			services.AddHostedService<LastAccessServiceReferences>(p => p.GetService<LastAccessServiceReferences>()!);
 
 			services.AddSingleton<IServiceCredentials, ServiceCredentials>(p => ActivatorUtilities.CreateInstance<ServiceCredentials>(p));
-			
+
 			services.AddSingleton<ReplicationService>();
 			services.AddHostedService<ReplicationService>(p => p.GetService<ReplicationService>()!);
 
@@ -191,7 +195,7 @@ namespace Jupiter
 
 			services.AddSingleton(typeof(IPeerStatusService), typeof(PeerStatusService));
 			services.AddHostedService<PeerStatusService>(p => (PeerStatusService)p.GetService<IPeerStatusService>()!);
-		
+
 			services.AddTransient(typeof(IRefCleanup), typeof(RefLastAccessCleanup));
 
 			services.AddTransient(typeof(VersionFile), typeof(VersionFile));
@@ -375,7 +379,7 @@ namespace Jupiter
 			ISession replicatedSession;
 			const int MaxRetryAttempts = 100;
 			int countOfAttempts = 0;
-			while(true)
+			while (true)
 			{
 				try
 				{
@@ -451,7 +455,7 @@ namespace Jupiter
 
 			return store;
 		}
-		
+
 		private ILeaderElection CreateLeaderElection(IServiceProvider provider)
 		{
 			UnrealCloudDDCSettings settings = provider.GetService<IOptionsMonitor<UnrealCloudDDCSettings>>()!.CurrentValue!;
@@ -483,7 +487,7 @@ namespace Jupiter
 			{
 				throw new ArgumentException("No storage implementation set");
 			}
-			
+
 			bool isS3InUse = settings.StorageImplementations.Any(x =>
 				string.Equals(x, UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString(), StringComparison.OrdinalIgnoreCase));
 
@@ -524,25 +528,33 @@ namespace Jupiter
 			return null!;
 		}
 
-		private IReplicationLog ReplicationLogWriterFactory(IServiceProvider provider)
+		private IReplicationLog ReplicationLogFactory(IServiceProvider provider)
 		{
 			UnrealCloudDDCSettings settings = provider.GetService<IOptionsMonitor<UnrealCloudDDCSettings>>()!.CurrentValue;
-			switch (settings.ReplicationLogWriterImplementation)
+			IReplicationLog replicationLog = settings.ReplicationLogWriterImplementation switch
 			{
-				case UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla:
-					return ActivatorUtilities.CreateInstance<ScyllaReplicationLog>(provider);
-				case UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory:
-					return ActivatorUtilities.CreateInstance<MemoryReplicationLog>(provider);
-				default:
-					throw new NotImplementedException();
+				UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla =>
+					ActivatorUtilities.CreateInstance<ScyllaReplicationLog>(provider),
+				UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory =>
+					ActivatorUtilities.CreateInstance<MemoryReplicationLog>(provider),
+				_ => throw new NotImplementedException()
+			};
+
+			MemoryCacheReplicationLogSettings memoryCacheSettings = provider.GetService<IOptionsMonitor<MemoryCacheReplicationLogSettings>>()!.CurrentValue;
+
+			if (memoryCacheSettings.Enabled)
+			{
+				replicationLog = ActivatorUtilities.CreateInstance<MemoryCachedReplicationLog>(provider, replicationLog);
 			}
+
+			return replicationLog;
 		}
 
 		protected override void OnAddHealthChecks(IServiceCollection services, IHealthChecksBuilder healthChecks)
 		{
 			ServiceProvider provider = services.BuildServiceProvider();
 			UnrealCloudDDCSettings settings = provider.GetService<IOptionsMonitor<UnrealCloudDDCSettings>>()!.CurrentValue;
-			
+
 			foreach (UnrealCloudDDCSettings.StorageBackendImplementations impl in settings.GetStorageImplementations())
 			{
 				switch (impl)
@@ -563,7 +575,7 @@ namespace Jupiter
 						// Health checks for Azure are disabled as the connection string will vary based on the namespace used
 						/*AzureSettings azureSettings = provider.GetService<IOptionsMonitor<AzureSettings>>()!.CurrentValue;
 						healthChecks.AddAzureBlobStorage(AzureBlobStore.GetConnectionString(azureSettings, provider), tags: new[] {"services"});*/
-						
+
 						break;
 
 					case UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem:
@@ -573,7 +585,7 @@ namespace Jupiter
 							string? driveRoot = Path.GetPathRoot(PathUtil.ResolvePath(filesystemSettings.RootDir));
 							if (!string.IsNullOrEmpty(driveRoot))
 							{
-							options.AddDrive(driveRoot);
+								options.AddDrive(driveRoot);
 							}
 						});
 						break;
@@ -586,7 +598,7 @@ namespace Jupiter
 				}
 			}
 
-			healthChecks.AddCheck<LastAccessServiceCheck>("LastAccessServiceCheck", tags: new[] {"services"});
+			healthChecks.AddCheck<LastAccessServiceCheck>("LastAccessServiceCheck", tags: new[] { "services" });
 
 			healthChecks.AddCheck<ReplicatorServiceCheck>("ReplicatorServiceCheck", tags: new[] { "services" });
 			healthChecks.AddCheck<ReplicationSnapshotServiceCheck>("ReplicationSnapshotServiceCheck", tags: new[] { "services" });
@@ -595,17 +607,17 @@ namespace Jupiter
 
 			if (gcSettings.CleanOldRefRecords)
 			{
-				healthChecks.AddCheck<RefCleanupServiceCheck>("RefCleanupCheck", tags: new[] {"services"});
+				healthChecks.AddCheck<RefCleanupServiceCheck>("RefCleanupCheck", tags: new[] { "services" });
 			}
 
 			if (gcSettings.BlobCleanupServiceEnabled)
 			{
-				healthChecks.AddCheck<BlobCleanupServiceCheck>("BlobStoreCheck", tags: new[] {"services"});
+				healthChecks.AddCheck<BlobCleanupServiceCheck>("BlobStoreCheck", tags: new[] { "services" });
 			}
 
 			if (settings.LeaderElectionImplementation == UnrealCloudDDCSettings.LeaderElectionImplementations.Kubernetes)
 			{
-				healthChecks.AddCheck<KubernetesLeaderServiceCheck>("KubernetesLeaderService", tags: new[] {"services"});
+				healthChecks.AddCheck<KubernetesLeaderServiceCheck>("KubernetesLeaderService", tags: new[] { "services" });
 			}
 		}
 	}

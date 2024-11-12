@@ -8,15 +8,17 @@ public class RivermaxSync : ModuleRules
 	{
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
+				"DisplayCluster",
 				"DisplayClusterMedia",
-				"RivermaxCore"
+				"RivermaxCore",
+				"StageDataCore",
 			});
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 				"CoreUObject",
-				"RivermaxMedia"
+				"RivermaxMedia",
 			});
 
 		if (Target.bBuildEditor == true)

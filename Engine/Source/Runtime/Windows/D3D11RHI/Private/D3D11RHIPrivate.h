@@ -31,21 +31,12 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D11RHI, Log, All);
 #include "D3D11Viewport.h"
 #include "D3D11ConstantBuffer.h"
 #include "D3D11StateCache.h"
+#include "D3D11NvidiaAftermath.h"
 #include "RHIValidationCommon.h"
 #include "RHICoreShader.h"
 
 #ifndef WITH_DX_PERF
 #define WITH_DX_PERF	1
-#endif
-
-#if NV_AFTERMATH
-#define GFSDK_Aftermath_WITH_DX11 1
-#include "GFSDK_Aftermath.h"
-#include "GFSDK_Aftermath_GpuCrashdump.h"
-#undef GFSDK_Aftermath_WITH_DX11
-extern bool GDX11NVAfterMathEnabled;
-extern bool GDX11NVAfterMathMarkers;
-extern float GDX11NVAfterMathDumpWaitTime;
 #endif
 
 #if INTEL_EXTENSIONS
@@ -57,16 +48,6 @@ THIRD_PARTY_INCLUDES_END
 
 // DX11 doesn't support higher MSAA count
 #define DX_MAX_MSAA_COUNT 8
-
-#ifndef EXPERIMENTAL_D3D11_RHITHREAD
-#define EXPERIMENTAL_D3D11_RHITHREAD 0
-#endif
-
-#if EXPERIMENTAL_D3D11_RHITHREAD
-#define D3D11_NUM_THREAD_LOCAL_CACHES 2
-#else
-#define D3D11_NUM_THREAD_LOCAL_CACHES 1
-#endif
 
 #ifndef WITH_NV_API
 #define WITH_NV_API 0
@@ -121,6 +102,7 @@ struct FD3D11GlobalStats
 	static int64 GTotalGraphicsMemory;
 };
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 // This class has multiple inheritance but really FGPUTiming is a static class
 class FD3D11BufferedGPUTiming : public FRenderResource, public FGPUTiming
@@ -318,15 +300,10 @@ struct FD3DGPUProfiler : public FGPUProfiler
 	virtual void PopEvent() override;
 
 	void BeginFrame(class FD3D11DynamicRHI* InRHI);
-
 	void EndFrame();
-
-	bool CheckGpuHeartbeat(bool bShowActiveStatus) const;
-
-private:
-	TMap<uint32, FString> CachedStrings;
-	TArray<uint32> PushPopStack;
 };
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
 
 struct FD3D11TransitionData
 {
@@ -398,10 +375,6 @@ public:
 	virtual void Shutdown() override;
 	virtual const TCHAR* GetName() override { return TEXT("D3D11"); }
 
-	// HDR display output
-	virtual void EnableHDR();
-	virtual void ShutdownHDR();
-
 	virtual void FlushPendingLogs() override;
 
 	static FD3D11DynamicRHI& Get() { return *GetDynamicRHI<FD3D11DynamicRHI>(); }
@@ -447,7 +420,7 @@ public:
 	 * @param bStallRHIThread - if true, stall RHIT before accessing immediate context
 	 * @return true if the query finished.
 	 */
-	bool GetQueryData(ID3D11Query* Query, void* Data, SIZE_T DataSize, ERenderQueryType QueryType, bool bWait, bool bStallRHIThread);
+	bool GetQueryData(ID3D11Query* Query, void* Data, SIZE_T DataSize, bool bTimestamp, bool bWait, bool bStallRHIThread);
 
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) final override;
 	virtual FRasterizerStateRHIRef RHICreateRasterizerState(const FRasterizerStateInitializerRHI& Initializer) final override;
@@ -467,8 +440,7 @@ public:
 	virtual FUniformBufferRHIRef RHICreateUniformBuffer(const void* Contents, const FRHIUniformBufferLayout* Layout, EUniformBufferUsage Usage, EUniformBufferValidation Validation) final override;
 	virtual void RHIUpdateUniformBuffer(FRHICommandListBase& RHICmdList, FRHIUniformBuffer* UniformBufferRHI, const void* Contents) final override;
 	virtual FBufferRHIRef RHICreateBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc const& Desc, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo) final override;
-	virtual void RHICopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer) final override;
-	virtual void RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) final override;
+	virtual void RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos) final override;
 	virtual void* LockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 Offset, uint32 Size, EResourceLockMode LockMode) final override;
 	virtual void UnlockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer) final override;
 	virtual FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex) final override;
@@ -476,20 +448,19 @@ public:
 	virtual bool RHIGetTextureMemoryVisualizeData(FColor* TextureData,int32 SizeX,int32 SizeY,int32 Pitch,int32 PixelSize) final override;
 	virtual FTextureRHIRef RHICreateTexture(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc) final override;
 	virtual FTextureRHIRef RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips, const TCHAR* DebugName, FGraphEventRef& OutCompletionEvent) final override;
-	virtual void RHIGenerateMips(FRHITexture* Texture) final override;
 	virtual uint32 RHIComputeMemorySize(FRHITexture* TextureRHI) final override;
-	virtual void RHIAsyncCopyTexture2DCopy(FRHITexture2D* NewTexture2DRHI, FRHITexture2D* Texture2DRHI, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus);
-	virtual FTexture2DRHIRef RHIAsyncReallocateTexture2D(FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) final override;
-	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) final override;
-	virtual ETextureReallocationStatus RHICancelAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) final override;
-	virtual void* RHILockTexture2D(FRHITexture2D* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount) final override;
-	virtual void RHIUnlockTexture2D(FRHITexture2D* Texture, uint32 MipIndex, bool bLockWithinMiptail) final override;
-	virtual void* RHILockTexture2DArray(FRHITexture2DArray* Texture, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) final override;
-	virtual void RHIUnlockTexture2DArray(FRHITexture2DArray* Texture, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail) final override;
-	virtual void RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData) final override;
-	virtual void RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture3D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData) final override;
-	virtual void* RHILockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) final override;
-	virtual void RHIUnlockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) final override;
+	virtual void RHIAsyncCopyTexture2DCopy(FRHITexture* NewTexture2DRHI, FRHITexture* Texture2DRHI, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus);
+	virtual FTextureRHIRef RHIAsyncReallocateTexture2D(FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) final override;
+	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted) final override;
+	virtual ETextureReallocationStatus RHICancelAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted) final override;
+	virtual void* RHILockTexture2D(FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount) final override;
+	virtual void RHIUnlockTexture2D(FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail) final override;
+	virtual void* RHILockTexture2DArray(FRHITexture* Texture, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) final override;
+	virtual void RHIUnlockTexture2DArray(FRHITexture* Texture, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail) final override;
+	virtual void RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData) final override;
+	virtual void RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData) final override;
+	virtual void* RHILockTextureCubeFace(FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) final override;
+	virtual void RHIUnlockTextureCubeFace(FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) final override;
 	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const TCHAR* Name) final override;
 	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const TCHAR* Name) final override;
 	virtual void RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIUnorderedAccessView* UnorderedAccessViewRHI, const TCHAR* Name) final override;
@@ -501,19 +472,16 @@ public:
 	virtual void RHIRead3DSurfaceFloatData(FRHITexture* Texture,FIntRect Rect,FIntPoint ZMinMax,TArray<FFloat16Color>& OutData) final override;
 	virtual FRenderQueryRHIRef RHICreateRenderQuery(ERenderQueryType QueryType) final override;
 	virtual bool RHIGetRenderQueryResult(FRHIRenderQuery* RenderQuery, uint64& OutResult, bool bWait, uint32 GPUIndex = INDEX_NONE) final override;
-	virtual FTexture2DRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport) final override;
+	virtual FTextureRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport) final override;
 	virtual void RHIAliasTextureResources(FTextureRHIRef& DestTexture, FTextureRHIRef& SrcTexture) final override;
 	virtual FTextureRHIRef RHICreateAliasedTexture(FTextureRHIRef& SourceTexture) final override;
 	virtual void RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Viewport) final override;
-	virtual void RHIAcquireThreadOwnership() final override;
-	virtual void RHIReleaseThreadOwnership() final override;
 	virtual void RHIFlushResources() final override;
 	virtual uint32 RHIGetGPUFrameCycles(uint32 GPUIndex = 0) final override;
 	virtual FViewportRHIRef RHICreateViewport(void* WindowHandle, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat) override;
 	virtual void RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 SizeY, bool bIsFullscreen) final override;
 	virtual void RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat) final override;
-	virtual EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport) final override;
-	virtual void RHICheckViewportHDRStatus(FRHIViewport* ViewportRHI) final override;
+	virtual void RHIHandleDisplayChange() final override;
 	virtual void RHITick(float DeltaTime) final override;
 	virtual void RHIBlockUntilGPUIdle() final override;
 	virtual bool RHIGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool bIgnoreRefreshRate) final override;
@@ -523,8 +491,8 @@ public:
 	virtual void* RHIGetNativeCommandBuffer() final override;
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override;
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) final override;
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* Context) final override;
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources) final override;
+	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) final override;
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) final override;
 
 	// SRV / UAV creation functions
 	virtual FShaderResourceViewRHIRef  RHICreateShaderResourceView (class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) final override;
@@ -544,18 +512,14 @@ public:
 	virtual void RHIReleaseTransition(FRHITransition* Transition) final override;
 	virtual void RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions) override final;
 	virtual void RHIEndTransitions(TArrayView<const FRHITransition*> Transitions) override final;
+
+	virtual void RHIEndRenderQuery_TopOfPipe  (FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
-	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
-	void RHIBeginOcclusionQueryBatch(uint32 NumQueriesInBatch);
-	void RHIEndOcclusionQueryBatch();
-	virtual void RHISubmitCommandsHint() final override;
+	virtual void RHIEndRenderQuery  (FRHIRenderQuery* RenderQuery) final override;
+
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
-	using FDynamicRHI::RHIBeginFrame;
-	virtual void RHIBeginFrame() override;
-	virtual void RHIEndFrame() override;
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) final override;
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
 	virtual void RHISetRasterizerState(FRHIRasterizerState* NewState) final override;
 	virtual void RHISetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ) final override;
@@ -574,7 +538,7 @@ public:
 	virtual void RHISetBlendFactor(const FLinearColor& BlendFactor) final override;
 	void SetRenderTargets(uint32 NumSimultaneousRenderTargets, const FRHIRenderTargetView* NewRenderTargets, const FRHIDepthRenderTargetView* NewDepthStencilTarget);
 	void InternalSetUAVCS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI);
-	void InternalSetUAVPS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI);
+	void InternalSetUAVVSPS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI);
 	void SetRenderTargetsAndClear(const FRHISetRenderTargetsInfo& RenderTargetsInfo);
 	virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) final override;
 	virtual void RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
@@ -595,30 +559,29 @@ public:
 			EnableDepthBoundsTest(true, MinDepth, MaxDepth);
 		}
 	}
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
-	virtual void RHIPopEvent() final override;
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) final override;
+#endif
 
-	virtual void RHIPerFrameRHIFlushComplete() final override;
-	virtual void RHIPollRenderQueryResults() final override;
+	void PollQueryResults();
 
 	// *_RenderThread functions. Command lists call these functions on RT. You can implement your own behavior inside these functions.
 	// For example, deferring the actual creation to RHI thread by sending an RHI command.
 	// For D3D11, these functions mainly just remove RHIT stalls because ID3D11Device is thread safe.
-	virtual FTexture2DRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) final override;
-	virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted) final override;
-	virtual ETextureReallocationStatus CancelAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted) final override;
-	virtual void* LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true, uint64* OutLockedByteCount = nullptr) final override;
-	virtual void UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true) final override;
+	virtual FTextureRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) final override;
+	virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, bool bBlockUntilCompleted) final override;
+	virtual ETextureReallocationStatus CancelAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, bool bBlockUntilCompleted) final override;
+	virtual void* LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true, uint64* OutLockedByteCount = nullptr) final override;
+	virtual void UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true) final override;
 	virtual void RHIEndUpdateTexture3D(FRHICommandListBase& RHICmdList, FUpdateTexture3DData& UpdateData) final override;
-	virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) final override;
-	virtual void RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) final override;
+	virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) final override;
+	virtual void RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) final override;
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override;
 	virtual void RHIEndRenderPass() final override;
 
 	void ResolveTexture(UE::RHICore::FResolveTextureInfo Info);
-
-	virtual void RHICalibrateTimers() override;
 
 	// ID3D11DynamicRHI interface
 	virtual ID3D11Device*         RHIGetDevice() const final override;
@@ -626,9 +589,9 @@ public:
 	virtual IDXGIAdapter*         RHIGetAdapter() const final override;
 	virtual IDXGISwapChain*       RHIGetSwapChain(FRHIViewport* InViewport) const final override;
 	virtual DXGI_FORMAT           RHIGetSwapChainFormat(EPixelFormat InFormat) const final override;
-	virtual FTexture2DRHIRef      RHICreateTexture2DFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* Resource) final override;
-	virtual FTexture2DArrayRHIRef RHICreateTexture2DArrayFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding&, ID3D11Texture2D* Resource) final override;
-	virtual FTextureCubeRHIRef    RHICreateTextureCubeFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* Resource) final override;
+	virtual FTextureRHIRef        RHICreateTexture2DFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* Resource) final override;
+	virtual FTextureRHIRef        RHICreateTexture2DArrayFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding&, ID3D11Texture2D* Resource) final override;
+	virtual FTextureRHIRef        RHICreateTextureCubeFromResource(EPixelFormat Format, ETextureCreateFlags TexCreateFlags, const FClearValueBinding& ClearValueBinding, ID3D11Texture2D* Resource) final override;
 	virtual ID3D11Buffer*         RHIGetResource(FRHIBuffer* InBuffer) const final override;
 	virtual ID3D11Resource*       RHIGetResource(FRHITexture* InTexture) const final override;
 	virtual int64                 RHIGetResourceMemorySize(FRHITexture* InTexture) const final override;
@@ -649,21 +612,9 @@ public:
 		return Direct3DDeviceIMContext;
 	}
 
-#if NV_AFTERMATH
-	GFSDK_Aftermath_ContextHandle GetNVAftermathContext()
-	{
-		return NVAftermathIMContextHandle;
-	}
-#endif
-
 	IDXGIFactory1* GetFactory() const
 	{
 		return DXGIFactory1;
-	}
-
-	bool CheckGpuHeartbeat() const override
-	{
-		return GPUProfilingData.CheckGpuHeartbeat(false);
 	}
 
 	void AddLockedData(const FD3D11LockedKey& Key, const FD3D11LockedData& LockedData)
@@ -733,17 +684,6 @@ public:
 	void ConditionalClearShaderResource(FD3D11ViewableResource* Resource, bool bCheckBoundInputAssembler);
 	void ClearAllShaderResources();
 
-	uint32 GetHDRDetectedDisplayIndex() const
-	{
-		return HDRDetectedDisplayIndex;
-	}
-
-	void SetHDRDetectedDisplayIndices(const uint32 DisplayIndex, const uint32 IHVIndex)
-	{
-		HDRDetectedDisplayIndex = DisplayIndex;
-		HDRDetectedDisplayIHVIndex = IHVIndex;
-	}
-
 	EPixelFormat GetDisplayFormat(EPixelFormat InPixelFormat) const;
 
 	FD3D11StateCache& GetStateCache() { return StateCache; }
@@ -751,6 +691,9 @@ public:
 protected:
 	/** The global D3D interface. */
 	TRefCountPtr<IDXGIFactory1> DXGIFactory1;
+#if PLATFORM_WINDOWS
+	TRefCountPtr<IDXGIFactory1> DXGIFactoryForDisplayList;
+#endif
 
 	// Whether HDR is available from the particular DXGI factories available
 	bool bDXGISupportsHDR;
@@ -759,7 +702,7 @@ protected:
 	TRefCountPtr<FD3D11DeviceContext> Direct3DDeviceIMContext;
 
 #if NV_AFTERMATH
-	GFSDK_Aftermath_ContextHandle NVAftermathIMContextHandle;
+	UE::RHICore::Nvidia::Aftermath::D3D11::FCommandList AftermathHandle = nullptr;
 #endif
 
 	/** The global D3D device's immediate context */
@@ -826,20 +769,74 @@ protected:
 	uint32 NumSimultaneousRenderTargets;
 	uint32 NumUAVs;
 
-	/** Internal frame counter, incremented on each call to RHIBeginScene. */
-	uint32 SceneFrameCounter;
-
 	/** Internal frame counter that just counts calls to Present */
 	uint32 PresentCounter;
 
-	uint32 RequestedOcclusionQueriesInBatch = 0;
-	uint32 ActualOcclusionQueriesInBatch = 0;
+	// Render queries that should be polled by the RHI thread.
+	struct
+	{
+		FD3D11RenderQuery* First = nullptr;
+		FD3D11RenderQuery* Last = nullptr;
+	} ActiveQueries;
+	friend class FD3D11RenderQuery;
 
-	/**
-	 * Internal counter used for resource table caching.
-	 * INDEX_NONE means caching is not allowed.
-	 */
-	uint32 ResourceTableFrameCounter;
+	struct FProfiler
+	{
+		struct FFrame
+		{
+			TRefCountPtr<ID3D11Query> CompletionQuery;
+
+		#if RHI_NEW_GPU_PROFILER
+			UE::RHI::GPUProfiler::FEventStream EventStream;
+		#endif
+
+		#if WITH_RHI_BREADCRUMBS
+			FRHIBreadcrumbAllocatorArray BreadcrumbAllocators{};
+		#endif
+		};
+
+		FFrame Current;
+		TQueue<TUniquePtr<FFrame>> Pending;
+
+		TArray<FD3D11RenderQuery*> TimestampPool;
+		TArray<TRefCountPtr<ID3D11Query>> EventPool;
+
+	} Profiler;
+
+#if RHI_NEW_GPU_PROFILER
+	template <typename TEventType, typename... TArgs>
+	TEventType& EmplaceProfilerEvent(TArgs&&... Args)
+	{
+		return Profiler.Current.EventStream.Emplace<TEventType>(Forward<TArgs>(Args)...);
+	}
+
+	void InsertProfilerTimestamp(uint64* Target);
+
+	void FlushProfilerStats()
+	{
+		// Flush accumulated draw stats
+		if (StatEvent)
+		{
+			EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FStats>() = StatEvent;
+			StatEvent = {};
+		}
+	}
+#endif // RHI_NEW_GPU_PROFILER
+
+public:
+	struct FTimestampCalibration
+	{
+		uint64 CPUTimestamp = 0;
+		uint64 CPUFrequency = 0;
+
+		uint64 GPUTimestamp = 0;
+		uint64 GPUFrequency = 0;
+	};
+
+	TOptional<FTimestampCalibration> CalibrateTimers();
+
+protected:
+	TOptional<FTimestampCalibration> TimestampCalibration;
 
 	/** D3D11 defines a maximum of 14 constant buffers per shader stage. */
 	enum { MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE = 14 };
@@ -868,10 +865,6 @@ protected:
 	TGlobalResource< TBoundShaderStateHistory<10000> > BoundShaderStateHistory;
 	FComputeShaderRHIRef CurrentComputeShader;
 
-	/** If HDR display detected, we store the output device. */
-	uint32 HDRDetectedDisplayIndex;
-	uint32 HDRDetectedDisplayIHVIndex;
-
 	FDisplayInformationArray DisplayList;
 
 	HANDLE ExceptionHandlerHandle = INVALID_HANDLE_VALUE;
@@ -879,24 +872,22 @@ protected:
 	bool bRenderDoc = false;
 
 public:
-	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)
-	{
-		GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices);
-	}
-	void RegisterGPUDispatch(FIntVector GroupCount)
-	{
-		GPUProfilingData.RegisterGPUDispatch(GroupCount);
-	}
+#if RHI_NEW_GPU_PROFILER
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ /*checkNoEntry();*/ } // @todo - new gpu profiler
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { /*checkNoEntry();*/ } // @todo - new gpu profiler
+#else
+	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)	{ GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices); }
+	void RegisterGPUDispatch(FIntVector GroupCount)	                        { GPUProfilingData.RegisterGPUDispatch(GroupCount); }
+#endif
 
 	inline const FD3D11Adapter& GetAdapter() const { return Adapter; }
 
 protected:
+#if (RHI_NEW_GPU_PROFILER == 0)
 	FD3DGPUProfiler GPUProfilingData;
+#endif
 
 	FD3D11Adapter Adapter;
-
-	// If this is false, disable any IHV optimization/libs
-	bool bAllowVendorDevice;
 
 	FD3D11Texture* CreateD3D11Texture2D(FRHITextureCreateDesc const& CreateDesc, TConstArrayView<D3D11_SUBRESOURCE_DATA> InitialData = {});
 	FD3D11Texture* CreateD3D11Texture3D(FRHITextureCreateDesc const& CreateDesc);
@@ -950,7 +941,6 @@ protected:
 	virtual void CleanupD3DDevice();
 
 	void ReleasePooledUniformBuffers();
-	void ReleaseCachedQueries();
 
 	template<typename TPixelShader>
 	static void ResolveTextureUsingShader(
@@ -979,12 +969,6 @@ protected:
 
 	void ReadSurfaceDataMSAARaw(FRHITexture* TextureRHI, FIntRect Rect, TArray<uint8>& OutData, FReadSurfaceDataFlags InFlags);
 
-#if NV_AFTERMATH
-	void StartNVAftermath();
-
-	void StopNVAftermath();
-#endif
-
 #if INTEL_EXTENSIONS
 	void StartIntelExtensions();
 	void StopIntelExtensions();
@@ -995,6 +979,8 @@ protected:
 	void DisableUAVOverlap();
 
 	bool SetupDisplayHDRMetaData();
+
+	void UpdateMemoryStats();
 
 	friend struct FD3DGPUProfiler;
 
@@ -1008,7 +994,6 @@ class FD3D11DynamicRHIModule : public IDynamicRHIModule
 public:
 	// IModuleInterface	
 	virtual bool SupportsDynamicReloading() override { return false; }
-	virtual void StartupModule() override;
 
 	// IDynamicRHIModule
 	virtual bool IsSupported() override;

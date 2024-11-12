@@ -24,7 +24,7 @@ namespace AttachmentReplicationCVars
 	FAutoConsoleVariableRef CVarUnreliableRPCQueueSize(TEXT("net.UnreliableRPCQueueSize"), UnreliableRPCQueueSize, TEXT("Maximum number of unreliable RPCs queued per object. If more RPCs are queued then older ones will be dropped."));
 
 	static int32 ReliableRPCQueueSize = 4096;
-	FAutoConsoleVariableRef CVarReliableRPCQueueSize(TEXT("net.ReliableRPCQueueSize"), ReliableRPCQueueSize, TEXT("Maximum number of reliable RPCs queued per object. This is in addition to the 256 that are in the send window. This is to support very large RPCs that are split into smaller pieces."));
+	FAutoConsoleVariableRef CVarReliableRPCQueueSize(TEXT("net.ReliableRPCQueueSize"), ReliableRPCQueueSize, TEXT("Maximum number of reliable RPCs queued per object. This is in addition to the send window size. This is to support very large RPCs that are split into smaller pieces."));
 
 	static int32 ClientToServerUnreliableRPCQueueSize = 16;
 	FAutoConsoleVariableRef CVarClientToServerUnreliableRPCQueueSize(TEXT("net.ClientToServerUnreliableRPCQueueSize"), ClientToServerUnreliableRPCQueueSize, TEXT( "Maximum number of unreliable RPCs queued for sending from the client to the server. If more RPCs are queued then older ones will be dropped."));
@@ -383,7 +383,12 @@ uint32 FNetObjectAttachmentSendQueue::SerializeUnreliable(FNetSerializationConte
 		const TRefCountPtr<FNetBlob>& Attachment = UnreliableQueue.PeekAtOffsetNoCheck(AttachmentIt);
 
 		// If we have exports, append them, if attachment is rolled back we will roll back any appended exports as well.
-		ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetExports());
+		FNetExportContext* ExportContext = Attachment->HasExports() ? Context.GetExportContext() : nullptr;
+		if (ExportContext)
+		{
+			ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetNetObjectReferenceExports());
+			ExportContext->AddPendingExports(Attachment->CallGetNetTokenExports());
+		}
 
 		Attachment->SerializeCreationInfo(Context, Attachment->GetCreationInfo());
 		if (bSerializeWithObject)
@@ -501,6 +506,27 @@ bool FNetObjectAttachmentsWriter::IsAllReliableSentAndAcked(ENetObjectAttachment
 	}
 
 	return Queue->IsAllSentAndAcked();
+}
+
+bool FNetObjectAttachmentsWriter::AreAllObjectsReliableSentAndAcked() const
+{
+	for (const auto& ObjectQueuePair : ObjectToQueue)
+	{
+		if (!ObjectQueuePair.Value.IsAllReliableSentAndAcked())
+		{
+			return false;
+		}
+	}
+
+	for (const TUniquePtr<FNetObjectAttachmentSendQueue>& SpecialQueue : SpecialQueues)
+	{
+		if (SpecialQueue.IsValid() && !SpecialQueue->IsAllReliableSentAndAcked())
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool FNetObjectAttachmentsWriter::CanSendMoreReliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const

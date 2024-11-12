@@ -167,6 +167,12 @@ void UUsdStageEditorBlueprintLibrary::FileExportFlattenedStage(const FString& Ou
 	StageEditorModule.FileExportFlattenedStage(OutputLayer);
 }
 
+void UUsdStageEditorBlueprintLibrary::FileExportFlattenedLayerStack(const FString& OutputLayer)
+{
+	IUsdStageEditorModule& StageEditorModule = FModuleManager::GetModuleChecked<IUsdStageEditorModule>("USDStageEditor");
+	StageEditorModule.FileExportFlattenedLayerStack(OutputLayer);
+}
+
 void UUsdStageEditorBlueprintLibrary::FileReload()
 {
 	IUsdStageEditorModule& StageEditorModule = FModuleManager::GetModuleChecked<IUsdStageEditorModule>("USDStageEditor");

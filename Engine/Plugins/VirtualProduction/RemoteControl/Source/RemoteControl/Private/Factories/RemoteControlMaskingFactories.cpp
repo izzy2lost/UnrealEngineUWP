@@ -2,6 +2,9 @@
 
 #include "RemoteControlMaskingFactories.h"
 
+// Entirely deprecated 5.5
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 /**
  * FVectorMaskingFactory
  */
@@ -18,8 +21,7 @@ void FVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperati
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
-#endif // WITH_EDITOR
+#endif
 
 			if (const FVector* VectorProp = ToStructProp->ContainerPtrToValuePtr<FVector>(OwningObject))
 			{
@@ -35,7 +37,7 @@ void FVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperati
 #if WITH_EDITOR
 			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
 			OwningObject->PostEditChangeProperty(ChangeEvent);
-#endif // WITH_EDITOR
+#endif
 		}
 	}
 }
@@ -77,7 +79,6 @@ void FVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperat
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
 #endif // WITH_EDITOR
 
 			if (const FVector4* Vector4Prop = ToStructProp->ContainerPtrToValuePtr<FVector4>(OwningObject))
@@ -138,7 +139,6 @@ void FIntVectorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOper
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
 #endif // WITH_EDITOR
 
 			if (const FIntVector* IntVectorProp = ToStructProp->ContainerPtrToValuePtr<FIntVector>(OwningObject))
@@ -197,7 +197,6 @@ void FIntVector4MaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOpe
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
 #endif // WITH_EDITOR
 
 			if (const FIntVector4* IntVector4Prop = ToStructProp->ContainerPtrToValuePtr<FIntVector4>(OwningObject))
@@ -258,7 +257,6 @@ void FRotatorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperat
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
 #endif // WITH_EDITOR
 
 			if (const FRotator* RotatorProp = ToStructProp->ContainerPtrToValuePtr<FRotator>(OwningObject))
@@ -272,7 +270,7 @@ void FRotatorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperat
 				ToStructProp->SetValue_InContainer(OwningObject, &MaskedRotator);
 			}
 
-#if WITH_EDITOR
+#if WITH_EDITOR			
 			FPropertyChangedEvent ChangeEvent(ToStructProp, bIsInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
 			OwningObject->PostEditChangeProperty(ChangeEvent);
 #endif // WITH_EDITOR
@@ -317,7 +315,6 @@ void FColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOperatio
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
 #endif // WITH_EDITOR
 
 			if (const FColor* ColorProp = ToStructProp->ContainerPtrToValuePtr<FColor>(OwningObject))
@@ -376,7 +373,6 @@ void FLinearColorMaskingFactory::ApplyMaskedValues(const TSharedRef<FRCMaskingOp
 		{
 #if WITH_EDITOR
 			OwningObject->PreEditChange(ToStructProp);
-			OwningObject->Modify();
 #endif // WITH_EDITOR
 
 			if (const FLinearColor* LinearColorProp = ToStructProp->ContainerPtrToValuePtr<FLinearColor>(OwningObject))
@@ -420,3 +416,5 @@ bool FLinearColorMaskingFactory::SupportsExposedEntity(UScriptStruct* ScriptStru
 {
 	return ScriptStruct == TBaseStructure<FLinearColor>::Get();
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

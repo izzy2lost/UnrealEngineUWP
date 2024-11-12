@@ -152,7 +152,7 @@ void FPooledVirtualMemoryAllocator::Free(void* Ptr, SIZE_T Size, FCriticalSectio
 
 			if (UNLIKELY(Desc.Pool->WasAllocatedFromThisPool(Ptr, Size)))
 			{
-				// LLVM wants to be informed of the allocations of physical RAM.
+				// LLM wants to be informed of the allocations of physical RAM.
 				// This is the closest we can get.
 				LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
 				Desc.Pool->Free(Ptr, Size);
@@ -279,7 +279,7 @@ void FPooledVirtualMemoryAllocator::FreeAll(FCriticalSection* /*Mutex = nullptr*
 	// That would be a speed optimization and not a size optimization so I'm not going for this at this point, this method is speedy enough.
 };
 
-uint64 FPooledVirtualMemoryAllocator::GetCachedFreeTotal()
+uint64 FPooledVirtualMemoryAllocator::GetCachedFreeTotal() const
 {
 	uint64 TotalFree = 0;
 

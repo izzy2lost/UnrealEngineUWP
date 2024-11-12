@@ -13,8 +13,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Object.h"
 
-
-#if UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING
+#if UE_TRACE_FORCE_ENABLED || (UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING)
 #define TRACE_FILTERING_ENABLED 1
 #else
 #define TRACE_FILTERING_ENABLED 0
@@ -89,6 +88,13 @@ struct FTraceFilter
 	static ENGINE_API void Lock();
 	static ENGINE_API void Unlock();
 };
+
+extern template ENGINE_API void FTraceFilter::SetObjectIsTraceable<true>(const UObject* InObject, bool bIsTraceable);
+extern template ENGINE_API void FTraceFilter::SetObjectIsTraceable<false>(const UObject* InObject, bool bIsTraceable);
+extern template ENGINE_API void FTraceFilter::MarkObjectTraceable<true>(const UObject* InObject);
+extern template ENGINE_API void FTraceFilter::MarkObjectTraceable<false>(const UObject* InObject);
+extern template ENGINE_API bool FTraceFilter::IsObjectTraceable<true>(const UObject* InObject);
+extern template ENGINE_API bool FTraceFilter::IsObjectTraceable<false>(const UObject* InObject);
 
 #define CAN_TRACE_OBJECT(Object) \
 	FTraceFilter::TObjectFilter::CanTrace(Object)

@@ -3,6 +3,7 @@
 #include "DMXControlConsoleEditorToolbar.h"
 
 #include "Commands/DMXControlConsoleEditorCommands.h"
+#include "DMXControlConsole.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
@@ -18,11 +19,13 @@
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Toolkits/DMXControlConsoleEditorToolkit.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SDMXControlConsoleEditorCueStackComboBox.h"
 #include "Widgets/SDMXControlConsoleEditorPortSelector.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -31,9 +34,6 @@
 
 namespace UE::DMX::Private
 {
-	static const FSlateIcon SendDMXIcon = FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), ("DMXControlConsole.PlayDMX"));
-	static const FSlateIcon StopSendingDMXIcon = FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), ("DMXControlConsole.StopPlayingDMX"));
-
 	FDMXControlConsoleEditorToolbar::FDMXControlConsoleEditorToolbar(TSharedPtr<FDMXControlConsoleEditorToolkit> InToolkit)
 		: WeakToolkit(InToolkit)
 	{}
@@ -51,7 +51,7 @@ namespace UE::DMX::Private
 
 		Extender->AddToolBarExtension
 		(
-			"Asset",
+			"PlayMenu",
 			EExtensionHook::After,
 			Toolkit->GetToolkitCommands(),
 			FToolBarExtensionDelegate::CreateSP(this, &FDMXControlConsoleEditorToolbar::BuildToolbarCallback)
@@ -60,6 +60,12 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolbar::BuildToolbarCallback(FToolBarBuilder& ToolbarBuilder)
 	{
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		if (!Toolkit.IsValid())
+		{
+			return;
+		}
+
 		const auto GenerateButtonContentLambda = [](const FSlateColor& ImageColor, const FSlateBrush* ImageBrush, const FText& ButtonText)
 			{
 				return
@@ -83,62 +89,7 @@ namespace UE::DMX::Private
 					];
 			};
 
-		constexpr TCHAR NoExtender[] = TEXT("";)
-		ToolbarBuilder.BeginSection("PlaySection");
-		{
-			// Play
-			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateLeftPlay");
-			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().PlayDMX,
-				NoExtender,
-				TAttribute<FText>(),
-				TAttribute<FText>(),
-				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PlayDMX"));
-			ToolbarBuilder.EndStyleOverride();
-
-			// Pause
-			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateLeft");
-			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().PauseDMX,
-				NoExtender,
-				TAttribute<FText>(),
-				TAttribute<FText>(),
-				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PauseDMX"));
-			ToolbarBuilder.EndStyleOverride();
-
-			// Resume
-			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateLeftPlay");
-			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().ResumeDMX,
-				NoExtender,
-				TAttribute<FText>(),
-				TAttribute<FText>(),
-				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ResumeDMX"));
-			ToolbarBuilder.EndStyleOverride();
-
-			// Stop
-			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateCenterStop");
-			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().StopDMX,
-				NoExtender,
-				TAttribute<FText>(),
-				TAttribute<FText>(),
-				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.StopDMX"));
-			ToolbarBuilder.EndStyleOverride();
-
-			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateRightCombo");
-			ToolbarBuilder.AddComboButton(
-				FUIAction(),
-				FOnGetContent::CreateSP(this, &FDMXControlConsoleEditorToolbar::GeneratePlayOptionsMenuWidget),
-				LOCTEXT("SettingsLabel", "Settings"),
-				LOCTEXT("SettingsToolTip", "Settings for the conflict monitor."),
-				TAttribute<FSlateIcon>(),
-				true);
-
-			ToolbarBuilder.EndSection();
-			ToolbarBuilder.EndStyleOverride();
-
-			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateRight");
-			ToolbarBuilder.AddSeparator();
-			ToolbarBuilder.EndStyleOverride();
-		}
-		ToolbarBuilder.EndSection();
+		// The play section is added via tools menus in the toolkit that owns the toolbar
 
 		ToolbarBuilder.BeginSection("Clear");
 		{
@@ -256,7 +207,7 @@ namespace UE::DMX::Private
 				[
 					SNew(SBox)
 					.VAlign(VAlign_Center)
-					.WidthOverride(300.f)
+					.WidthOverride(200.f)
 					[	
 						SAssignNew(GlobalFilterSearchBox, SFilterSearchBox)
 						.DelayChangeNotificationsWhileTyping(true)
@@ -297,6 +248,36 @@ namespace UE::DMX::Private
 			RestoreGlobalFilter();
 
 			ToolbarBuilder.AddWidget(SearchBarWidget);
+		}
+		ToolbarBuilder.EndSection();
+
+		ToolbarBuilder.BeginSection("EditorMode");
+		{
+			const TSharedRef<SWidget> ShowCompactEditorButton = 
+				SNew(SButton)
+				.OnClicked(this, &FDMXControlConsoleEditorToolbar::OnShowCompactEditorButtonClicked)
+				[
+					SNew(SBorder)
+					.VAlign(VAlign_Center)
+					.BorderImage(FAppStyle::GetBrush("NoBorder"))
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+						.Text(LOCTEXT("ShowCompactWindowLabel", "Show Compact Editor"))
+						.ToolTipText(LOCTEXT("ShowCompactWindowTooltip", "Creates a compact window that can be docked in the level editor."))	
+					]
+				];
+
+			ToolbarBuilder.AddWidget(ShowCompactEditorButton);
+		}
+		ToolbarBuilder.EndSection();
+
+		ToolbarBuilder.BeginSection("CueStack");
+		{
+			const TSharedRef<SWidget> CueStackComboBoxWidget =
+				SNew(SDMXControlConsoleEditorCueStackComboBox, Toolkit->GetControlConsoleCueStackModel());
+
+			ToolbarBuilder.AddWidget(CueStackComboBoxWidget, NAME_None, true, HAlign_Right);
 		}
 		ToolbarBuilder.EndSection();
 	}
@@ -340,6 +321,17 @@ namespace UE::DMX::Private
 				TAttribute<FText>(),
 				TAttribute<FText>(),
 				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.ResetToZero")
+			);
+
+			MenuBuilder.AddSeparator();
+
+			MenuBuilder.AddMenuEntry
+			(
+				FDMXControlConsoleEditorCommands::Get().Reload,
+				NAME_None,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Refresh")
 			);
 		}
 		MenuBuilder.EndSection();
@@ -415,12 +407,12 @@ namespace UE::DMX::Private
 					);
 				};
 
-			// Add a button to select byte value type
+			// Add a button to select dmx value type
 			AddValueTypeMenuEntryLambda
 			(
-				LOCTEXT("ByteValueTypeRadioButtonLabel", "Byte"),
-				LOCTEXT("ByteValueTypeRadioButton_ToolTip", "Values are displayed as 8bit multiples."),
-				EDMXControlConsoleEditorValueType::Byte
+				LOCTEXT("DMXValueTypeRadioButtonLabel", "DMX"),
+				LOCTEXT("DMXValueTypeRadioButton_ToolTip", "Values are displayed as 8bit multiples."),
+				EDMXControlConsoleEditorValueType::DMX
 			);
 
 			// Add a button to select normalized value type
@@ -429,6 +421,14 @@ namespace UE::DMX::Private
 				LOCTEXT("NormalizedValueTypeRadioButtonLabel", "Normalized"),
 				LOCTEXT("NormalizedValueTypeRadioButton_ToolTip", "Values are displayed in a 0 to 1 range."),
 				EDMXControlConsoleEditorValueType::Normalized
+			);
+
+			// Add a button to select physical value type
+			AddValueTypeMenuEntryLambda
+			(
+				LOCTEXT("PhysicalValueTypeRadioButtonLabel", "Physical"),
+				LOCTEXT("PhysicalValueTypeRadioButton_ToolTip", "Values are displayed according to specified physical unit."),
+				EDMXControlConsoleEditorValueType::Physical
 			);
 
 			MenuBuilder.AddSeparator();
@@ -442,28 +442,6 @@ namespace UE::DMX::Private
 				];
 
 			MenuBuilder.AddWidget(PortSelectorWidget, FText::GetEmpty());
-		}
-		MenuBuilder.EndSection();
-
-		return MenuBuilder.MakeWidget();
-	}
-
-	TSharedRef<SWidget> FDMXControlConsoleEditorToolbar::GeneratePlayOptionsMenuWidget()
-	{
-		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
-		if (!Toolkit.IsValid())
-		{
-			return SNullWidget::NullWidget;
-		}
-
-		constexpr bool bShouldCloseWindowAfterMenuSelection = true;
-		FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, Toolkit->GetToolkitCommands());
-
-		MenuBuilder.BeginSection("StopDMXModeSection");
-		{
-			MenuBuilder.AddMenuEntry(FDMXControlConsoleEditorCommands::Get().EditorStopSendsDefaultValues);
-			MenuBuilder.AddMenuEntry(FDMXControlConsoleEditorCommands::Get().EditorStopSendsZeroValues);
-			MenuBuilder.AddMenuEntry(FDMXControlConsoleEditorCommands::Get().EditorStopKeepsLastValues);
 		}
 		MenuBuilder.EndSection();
 
@@ -841,36 +819,16 @@ namespace UE::DMX::Private
 		}
 	}
 
-	FText FDMXControlConsoleEditorToolbar::GetSendDMXButtonText() const
+	FReply FDMXControlConsoleEditorToolbar::OnShowCompactEditorButtonClicked()
 	{
-		if (!WeakToolkit.IsValid())
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		UDMXControlConsole* ControlConsole = Toolkit.IsValid() ? Toolkit->GetControlConsole() : nullptr;
+		if (ControlConsole)
 		{
-			return FText::GetEmpty();
+			Toolkit->ShowCompactEditor();
 		}
 
-		const UDMXControlConsoleData* ControlConsoleData = WeakToolkit.Pin()->GetControlConsoleData();
-		if (!ControlConsoleData)
-		{
-			return FText::GetEmpty();
-		}
-
-		return ControlConsoleData->IsSendingDMX() ? FText::FromString(TEXT("Stop sending DMX")) : FText::FromString(TEXT("Send DMX"));
-	}
-
-	FSlateIcon FDMXControlConsoleEditorToolbar::GetSendDMXButtonIcon() const
-	{
-		if (!WeakToolkit.IsValid())
-		{
-			return FSlateIcon();
-		}
-
-		const UDMXControlConsoleData* ControlConsoleData = WeakToolkit.Pin()->GetControlConsoleData();
-		if (!ControlConsoleData)
-		{
-			return FSlateIcon();
-		}
-
-		return ControlConsoleData->IsSendingDMX() ? StopSendingDMXIcon : SendDMXIcon;
+		return FReply::Handled();
 	}
 }
 

@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/property_modify_operations.dart';
-import '../../models/unreal_property_manager.dart';
 import '../../models/unreal_property_controller.dart';
+import '../../models/unreal_property_manager.dart';
 import '../../models/unreal_types.dart';
 import 'delta_widget_base.dart';
 
@@ -115,10 +115,10 @@ mixin UnrealWidgetStateMixin<WidgetType extends UnrealWidget, PropertyType> on S
   PropertyType? get engineMax => _singlePropertyController.engineMax;
 
   /// The overridden minimum value the controlled properties can reach. If null, [engineMin] will be used.
-  PropertyType? get overrideMin => _singlePropertyController.overrideMin;
+  PropertyType? get overrideMin => null;
 
   /// The overridden maximum value the controlled properties can reach. If null, [engineMax] will be used.
-  PropertyType? get overrideMax => _singlePropertyController.overrideMax;
+  PropertyType? get overrideMax => null;
 
   /// The type of modify operation this widget uses to apply deltas.
   PropertyModifyOperation get modifyOperation => _singlePropertyController.modifyOperation;
@@ -133,14 +133,14 @@ mixin UnrealWidgetStateMixin<WidgetType extends UnrealWidget, PropertyType> on S
   void initState() {
     _singlePropertyController = UnrealPropertyController(context);
     _singlePropertyController.trackAllProperties(widget.unrealProperties, widget.enableProperties);
-    _singlePropertyController.addListener(_handleOnPropertiesChanged);
+    _singlePropertyController.addListener(handleOnPropertiesChanged);
 
     super.initState();
   }
 
   @override
   void dispose() {
-    _singlePropertyController.removeListener(_handleOnPropertiesChanged);
+    _singlePropertyController.removeListener(handleOnPropertiesChanged);
     _singlePropertyController.dispose();
 
     super.dispose();
@@ -202,8 +202,8 @@ mixin UnrealWidgetStateMixin<WidgetType extends UnrealWidget, PropertyType> on S
     return SingleSharedValue(value: sharedValue, bHasMultipleValues: bHasMultipleValues);
   }
 
-  /// handle state change for [properties].
-  void _handleOnPropertiesChanged() {
+  /// Called whenever the underlying Unreal Engine property changes.
+  void handleOnPropertiesChanged() {
     setState(() {});
   }
 
@@ -213,9 +213,13 @@ mixin UnrealWidgetStateMixin<WidgetType extends UnrealWidget, PropertyType> on S
       _singlePropertyController.modifyProperties(
         modifyOperation,
         values: deltaValues,
-        onChangedByUser: widget.onChangedByUser,
+        minMaxBehaviour: widget.minMaxBehaviour,
+        overrideMin: overrideMin,
+        overrideMax: overrideMax,
       );
     });
+
+    widget.onChangedByUser?.call();
   }
 
   /// Called when the user presses the reset button.

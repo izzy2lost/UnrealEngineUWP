@@ -7,6 +7,24 @@
 #include "AbilitySystemLog.h"
 #include "AbilitySystemStats.h"
 
+namespace UE::AbilitySystem::Private
+{
+	float MultiplyMods(const TArray<FAggregatorMod>& InMods)
+	{
+		float Result = 1.0f;
+
+		for (const FAggregatorMod& Mod : InMods)
+		{
+			if (Mod.Qualifies())
+			{
+				Result *= Mod.EvaluatedMagnitude;
+			}
+		}
+
+		return Result;
+	}
+}
+
 void FAggregatorMod::UpdateQualifies(const FAggregatorEvaluateParameters& Parameters) const
 {
 	static const FGameplayTagContainer EmptyTagContainer;
@@ -68,6 +86,8 @@ float FAggregatorModChannel::EvaluateWithBase(float InlineBaseValue, const FAggr
 	float Additive = SumMods(Mods[EGameplayModOp::Additive], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Additive), Parameters);
 	float Multiplicitive = SumMods(Mods[EGameplayModOp::Multiplicitive], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Multiplicitive), Parameters);
 	float Division = SumMods(Mods[EGameplayModOp::Division], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Division), Parameters);
+	float FinalAdd = SumMods(Mods[EGameplayModOp::AddFinal], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::AddFinal), Parameters);
+	float CompoundMultiply = UE::AbilitySystem::Private::MultiplyMods(Mods[EGameplayModOp::MultiplyCompound]);
 
 	if (FMath::IsNearlyZero(Division))
 	{
@@ -75,7 +95,7 @@ float FAggregatorModChannel::EvaluateWithBase(float InlineBaseValue, const FAggr
 		Division = 1.f;
 	}
 
-	return ((InlineBaseValue + Additive) * Multiplicitive) / Division;
+	return ((InlineBaseValue + Additive) * Multiplicitive / Division * CompoundMultiply) + FinalAdd;
 }
 
 bool FAggregatorModChannel::ReverseEvaluate(float FinalValue, const FAggregatorEvaluateParameters& Parameters, OUT float& ComputedValue) const
@@ -93,6 +113,8 @@ bool FAggregatorModChannel::ReverseEvaluate(float FinalValue, const FAggregatorE
 	float Additive = SumMods(Mods[EGameplayModOp::Additive], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Additive), Parameters);
 	float Multiplicitive = SumMods(Mods[EGameplayModOp::Multiplicitive], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Multiplicitive), Parameters);
 	float Division = SumMods(Mods[EGameplayModOp::Division], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Division), Parameters);
+	float FinalAdd = SumMods(Mods[EGameplayModOp::AddFinal], GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::AddFinal), Parameters);
+	float CompoundMultiply = UE::AbilitySystem::Private::MultiplyMods(Mods[EGameplayModOp::MultiplyCompound]);
 
 	if (FMath::IsNearlyZero(Division))
 	{
@@ -106,7 +128,7 @@ bool FAggregatorModChannel::ReverseEvaluate(float FinalValue, const FAggregatorE
 		return false;
 	}
 
-	ComputedValue = (FinalValue * Division / Multiplicitive) - Additive;
+	ComputedValue = ((FinalValue - FinalAdd) / CompoundMultiply * Division / Multiplicitive) - Additive;
 	return true;
 }
 
@@ -431,17 +453,19 @@ float FAggregator::StaticExecModOnBaseValue(float BaseValue, TEnumAsByte<EGamepl
 			BaseValue = EvaluatedMagnitude;
 			break;
 		}
-		case EGameplayModOp::Additive:
+		case EGameplayModOp::AddBase:
+		case EGameplayModOp::AddFinal:
 		{
 			BaseValue += EvaluatedMagnitude;
 			break;
 		}
-		case EGameplayModOp::Multiplicitive:
+		case EGameplayModOp::MultiplyAdditive:
+		case EGameplayModOp::MultiplyCompound:
 		{
 			BaseValue *= EvaluatedMagnitude;
 			break;
 		}
-		case EGameplayModOp::Division:
+		case EGameplayModOp::DivideAdditive:
 		{
 			if (FMath::IsNearlyZero(EvaluatedMagnitude) == false)
 			{
@@ -540,7 +564,7 @@ void FAggregator::OnActiveEffectDependenciesSwapped(const TMap<FActiveGameplayEf
 
 		if (!bStillValidDependent)
 		{
-			Dependents.RemoveAtSwap(DependentIdx, 1, EAllowShrinking::No);
+			Dependents.RemoveAtSwap(DependentIdx, EAllowShrinking::No);
 		}
 
 		ModChannels.OnActiveEffectDependenciesSwapped(SwappedDependencies);

@@ -34,6 +34,11 @@ void Settings::addListener(Listener listener) {
     mListeners.emplace_back(std::move(listener));
 }
 
+void Settings::removeAllListeners() {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mListeners.clear();
+}
+
 void Settings::setDisplayTimings(const DisplayTimings& displayTimings) {
     {
         std::lock_guard<std::mutex> lock(mMutex);

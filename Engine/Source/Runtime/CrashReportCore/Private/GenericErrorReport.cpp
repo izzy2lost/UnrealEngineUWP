@@ -182,17 +182,28 @@ void FGenericErrorReport::SetPrimaryCrashProperties( FPrimaryCrashProperties& ou
 	if (Helper && bValidCallstack)
 	{
 		TArray<FString> CallStack = Helper->CrashInfo.Exception.CallStackString;
+		TArray<FString> PCallStack = Helper->CrashInfo.Exception.PortableCallStackString;
 
 		// Get the callstack and remove any frames that we don't care about
 		int64 NumMinidumpFramesToIgnore = out_PrimaryCrashProperties.NumMinidumpFramesToIgnore;
 		if (NumMinidumpFramesToIgnore > 0)
 		{
 			CallStack.RemoveAt(0, FMath::Min(CallStack.Num(), (int32)NumMinidumpFramesToIgnore));
+			PCallStack.RemoveAt(0, FMath::Min(PCallStack.Num(), (int32)NumMinidumpFramesToIgnore));
 		}
 
 		if (CallStack.Num() > 0)
 		{
 			out_PrimaryCrashProperties.CallStack = CallStack;
+		}
+		if (PCallStack.Num() > 0)
+		{
+			out_PrimaryCrashProperties.PCallStack = PCallStack;
+			
+			FString StringToHash = out_PrimaryCrashProperties.PCallStack.AsString();
+			FSHAHash PCallStackHash;
+			FSHA1::HashBuffer(*StringToHash, StringToHash.Len() * sizeof(FString::ElementType), PCallStackHash.Hash);
+			out_PrimaryCrashProperties.PCallStackHashProperty = PCallStackHash.ToString();
 		}
 		out_PrimaryCrashProperties.Modules = Helper->CrashInfo.ModuleNames;
 		out_PrimaryCrashProperties.SourceContext = Helper->CrashInfo.SourceContext;

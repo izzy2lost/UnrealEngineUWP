@@ -628,6 +628,8 @@ public:
 	void OnPokeTriangle(const DynamicMeshInfo::FPokeTriangleInfo& PokeInfo);
 	/** Update the overlay to reflect an edge merge in the parent mesh */
 	void OnMergeEdges(const DynamicMeshInfo::FMergeEdgesInfo& MergeInfo);
+	/** Update the overlay to reflect a vertex merge in the parent mesh */
+	void OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo);
 	/** Update the overlay to reflect a vertex split in the parent mesh */
 	void OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate);
 
@@ -766,6 +768,37 @@ public:
 		bool bFindUniqueElements = true) const;
 };
 
+
+#if PLATFORM_COMPILER_CLANG
+#define UE_EXTERN_TEMPLATE_API GEOMETRYCORE_API
+#else
+#define UE_EXTERN_TEMPLATE_API
+#endif
+
+#if !IS_MERGEDMODULES
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 1>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 1>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 1>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 2>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 2>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 2>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 3>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 3>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 3>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 4>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 4>;
+
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 2, FVector2f>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 2, FVector2d>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<int, 2, FVector2i>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 3, FVector3f>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 3, FVector3d>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<int, 3, FVector3i>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 4, FVector4f>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 4, FVector4d>;
+#endif
+
+#undef UE_EXTERN_TEMPLATE_API
 
 } // end namespace UE::Geometry
 } // end namespace UE

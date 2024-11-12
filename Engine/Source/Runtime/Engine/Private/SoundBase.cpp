@@ -195,12 +195,11 @@ void USoundBase::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyCh
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName AudioPropertiesSheetFName = GET_MEMBER_NAME_CHECKED(USoundBase, AudioPropertiesSheet);
-	const FName AudioPropertiesBindingsFName = GET_MEMBER_NAME_CHECKED(USoundBase, AudioPropertiesBindings);
 
 	if (FProperty* PropertyThatChanged = PropertyChangedEvent.Property)
 	{
 		const FName& Name = PropertyThatChanged->GetFName();
-		if (Name == AudioPropertiesSheetFName || Name == AudioPropertiesBindingsFName)
+		if (Name == AudioPropertiesSheetFName)
 		{
 			InjectPropertySheet();
 		}
@@ -318,7 +317,7 @@ void USoundBase::InitParameters(TArray<FAudioParameter>& ParametersToInit, FName
 	{
 		if (!IsParameterValid(ParametersToInit[i]))
 		{
-			ParametersToInit.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			ParametersToInit.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 	}
 }
@@ -352,10 +351,29 @@ TOptional<FSoundTimecodeOffset> USoundBase::GetTimecodeOffset() const
 
 void USoundBase::InjectPropertySheet()
 {
-	if (AudioPropertiesSheet && AudioPropertiesBindings)
+	if (AudioPropertiesSheet)
 	{
-		AudioPropertiesSheet->CopyToObjectProperties(this, AudioPropertiesBindings);
+		AudioPropertiesSheet->CopyToObjectProperties(this);
 	}
 }
 
 #endif //WITH_EDITORONLY_DATA
+
+float USoundBase::ComputeMaxDistance() const
+{
+	if (const FSoundAttenuationSettings* Settings = GetAttenuationSettingsToApply())
+	{
+		if (!Settings->bAttenuate)
+		{
+			return FAudioDevice::GetMaxWorldDistance();
+		}
+
+		const float MaxDimension = Settings->GetMaxDimension();
+		if (MaxDimension > UE_KINDA_SMALL_NUMBER)
+		{
+			return MaxDimension;
+		}
+	}
+
+	return GetMaxDistance();
+}

@@ -45,9 +45,6 @@ public:
 	 */
 	virtual void InitializeComponentForInstance(FInstancedActorsInstanceHandle InInstanceHandle);
 
-	/** Called on clients just prior to registering a replicated Instanced Actor with it's matching Mass Entity */
-	virtual void OnClientRegisteredForInstance(FInstancedActorsInstanceHandle InInstanceHandle);
-
 	/** 
 	 * Called on an 'exemplar' Actor's components for clients & servers during UInstancedActorsData::CreateEntityTemplate to provide 
 	 * UInstancedActorsComponent's an opportunity to extend Mass entity default traits.

@@ -34,7 +34,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -50,7 +50,7 @@ namespace Jupiter.Controllers
 				});
 			}
 
-			return Ok(new 
+			return Ok(new
 			{
 				Replicators = replicators.Select(replicator => new ReplicatorStateResponse
 				{
@@ -77,7 +77,7 @@ namespace Jupiter.Controllers
 			[Required] long offset
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -112,10 +112,10 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> SetReplicationStateAsync(
 			[Required] NamespaceId ns,
 			[Required] string replicatorName,
-			[Required] [FromBody] NewReplicationState replicationState
+			[Required][FromBody] NewReplicationState replicationState
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -158,7 +158,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteTransactionLog });
 			if (result != null)
 			{
 				return result;

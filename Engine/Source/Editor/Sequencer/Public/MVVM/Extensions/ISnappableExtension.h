@@ -50,8 +50,6 @@ struct SEQUENCER_API FSnapPoint
 
 private:
 
-	friend void ::DefaultConstructItems<FSnapPoint, int32>(void*, int32);
-
 	// uninitialized default constructor - only for use by containers
 	FSnapPoint()
 	{}

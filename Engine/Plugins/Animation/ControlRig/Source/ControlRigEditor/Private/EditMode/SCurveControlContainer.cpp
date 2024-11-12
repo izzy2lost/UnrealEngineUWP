@@ -162,7 +162,6 @@ void SCurveControlContainer::Construct(const FArguments& InArgs, UControlRig* In
 			SAssignNew( CurveControlListView, SCurveControlListType )
 			.ListItemsSource( &CurveControlList )
 			.OnGenerateRow( this, &SCurveControlContainer::GenerateCurveControlRow )
-			.ItemHeight( 22.0f )
 			.SelectionMode(ESelectionMode::Multi)
 			.OnSelectionChanged( this, &SCurveControlContainer::OnSelectionChanged )
 			.HeaderRow

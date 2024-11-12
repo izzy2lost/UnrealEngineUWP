@@ -41,7 +41,7 @@ namespace Gauntlet
 			Project = InCopy.Project;
 			GameMap = InCopy.GameMap;
 			AdditionalExplicitCommandLineArgs = InCopy.AdditionalExplicitCommandLineArgs;
-			Params = new Dictionary<string, object>(InCopy.Params);
+			Params = new Dictionary<string, object>(InCopy.Params, StringComparer.OrdinalIgnoreCase);
 			NonOptionParams = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		}
 
@@ -50,6 +50,7 @@ namespace Gauntlet
 		/// Will override current set values in the dictionary when conflicts arise.
 		/// </summary>
 		/// <param name="InRawCommandline"></param>
+		/// <param name="bOverrideExistingValues"></param>
 		public void AddRawCommandline(string InRawCommandline, bool bOverrideExistingValues = true)
 		{
 			// turn Name(p1,etc) into a collection of Name|(p1,etc) groups
@@ -76,7 +77,8 @@ namespace Gauntlet
 		/// Breaks down a raw commandline and adds it to the commandline dictionary.
 		/// Will override current set values in the dictionary when conflicts arise.
 		/// </summary>
-		/// <param name="InRawCommandline"></param>
+		/// <param name="InCommandline"></param>
+		/// <param name="bOverrideExistingValues"></param>
 		public void CombineCommandLines(GauntletCommandLine InCommandline, bool bOverrideExistingValues = true)
 		{
 			foreach (string Key in InCommandline.Params.Keys)
@@ -122,6 +124,7 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="ParamName"></param>
 		/// <param name="ParamVal"></param>
+		/// <param name="IsNonOption"></param>
 		public void Add(string ParamName, object ParamVal = null, bool IsNonOption = false)
 		{
 			if (IsNonOption)
@@ -285,7 +288,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public string GenerateFullCommandLine()
 		{
-			string FinalCommandline = string.Format("{0} {1} ", Project, GameMap);
+			string FinalCommandline = string.Format("\"{0}\" \"{1}\" ", Project, GameMap);
 			foreach (string Key in Params.Keys)
 			{
 				string CurrentArgument;
@@ -374,6 +377,7 @@ namespace Gauntlet
 		/// the configuration class and take care to append properties.
 		/// </summary>
 		/// <param name="InType"></param>
+		/// <param name="InPlatformOverride"></param>
 		public UnrealTestRole(UnrealTargetRole InType, UnrealTargetPlatform? InPlatformOverride)
 		{
 			Type = InType;
@@ -389,6 +393,7 @@ namespace Gauntlet
 			InstallOnly = false;
 			DeferredLaunch = false;
 			CommandLineParams = new GauntletCommandLine();
+			CompressScreenshots = true;
 		}
 
 		public ERoleModifier RoleType { get; set; }
@@ -475,10 +480,14 @@ namespace Gauntlet
 		public string MapOverride { get; set; }
 
 		/// <summary>
-		/// Role device configuration 
+		/// Role device configuration
 		/// </summary>
 		public ConfigureDeviceHandler ConfigureDevice;
 
+		/// <summary>
+		/// Whether this role will compress screenshots produced as an artifact into a jpeg format
+		/// </summary>
+		public bool CompressScreenshots;
 	}
 
 	/// <summary>
@@ -513,13 +522,19 @@ namespace Gauntlet
 		/// </summary>
 		public float TimeoutBetweenAnyHeartbeats;
 
-		public UnrealHeartbeatOptions(float InHeartbeatPeriod = 30f, bool bShouldExpectHeartbeats = false, float InTimeoutBeforeFirstActiveHeartbeat = 0f, float InTimeoutBetweenActiveHeartbeats = 0f, float InTimeoutBetweenAnyHeartbeats = 90f)
+		/// <summary>
+		/// The minimum time interval between retrieval of heartbeat logs
+		/// </summary>
+		public float LogHeartbeatInterval;
+		
+		public UnrealHeartbeatOptions(float InHeartbeatPeriod = 30f, bool bShouldExpectHeartbeats = false, float InTimeoutBeforeFirstActiveHeartbeat = 0f, float InTimeoutBetweenActiveHeartbeats = 0f, float InTimeoutBetweenAnyHeartbeats = 90f, float InLogHeartbeatInterval = 0f)
 		{
 			HeartbeatPeriod = InHeartbeatPeriod;
 			bExpectHeartbeats = bShouldExpectHeartbeats;
 			TimeoutBeforeFirstActiveHeartbeat = InTimeoutBeforeFirstActiveHeartbeat;
 			TimeoutBetweenActiveHeartbeats = InTimeoutBetweenActiveHeartbeats;
 			TimeoutBetweenAnyHeartbeats = InTimeoutBetweenAnyHeartbeats;
+			LogHeartbeatInterval = InLogHeartbeatInterval;
 		}
 
 	}
@@ -750,7 +765,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Set this test to use dummy, renderless clients.
 		/// </summary>
-		/// <param name="quantity">Number of dummy clients to spawn.</param>
+		/// <param name="Quantity">Number of dummy clients to spawn.</param>
 		/// <param name="AdditionalCommandLine"></param>
 		public void AddDummyClients(int Quantity, string AdditionalCommandLine = "")
 		{
@@ -765,7 +780,7 @@ namespace Gauntlet
 		/// Adds one role of the specified type to this test. With inherited tests this could
 		/// return an existing role so care should be added to append commandlines, controllers etc
 		/// </summary>
-		/// <param name="Role"></param>
+		/// <param name="InRole"></param>
 		/// <returns></returns>
 		public UnrealTestRole RequireRole(UnrealTargetRole InRole)
 		{
@@ -794,7 +809,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Adds 'Count' of the specified roles to this test
 		/// </summary>
-		/// <param name="Role"></param>
+		/// <param name="InRole"></param>
 		/// <param name="Count"></param>
 		/// <returns></returns>
 		public IEnumerable<UnrealTestRole> RequireRoles(UnrealTargetRole InRole, int Count)
@@ -909,6 +924,8 @@ namespace Gauntlet
 		/// Apply our options to the provided app config
 		/// </summary>
 		/// <param name="AppConfig"></param>
+		/// <param name="ConfigRole"></param>
+		/// <param name="OtherRoles"></param>
 		/// <returns></returns>
 		public virtual void ApplyToConfig(UnrealAppConfig AppConfig, UnrealSessionRole ConfigRole, IEnumerable<UnrealSessionRole> OtherRoles)
 		{

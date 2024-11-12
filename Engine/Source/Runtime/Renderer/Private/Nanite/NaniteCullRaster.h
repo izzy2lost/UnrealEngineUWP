@@ -85,8 +85,13 @@ struct FRasterResults
 {
 	FIntVector4		PageConstants;
 	uint32			MaxVisibleClusters;
+	uint32			MaxCandidatePatches;
 	uint32			MaxNodes;
+	uint32			MaxPatchesPerGroup;
+	uint32			MeshPass;
+	float			InvDiceRate;
 	uint32			RenderFlags;
+	uint32			DebugFlags;
 
 	FRDGBufferRef	ViewsBuffer			= nullptr;
 	FRDGBufferRef	VisibleClustersSWHW	= nullptr;
@@ -96,7 +101,6 @@ struct FRasterResults
 	FRDGTextureRef	DbgBuffer64			= nullptr;
 	FRDGTextureRef	DbgBuffer32			= nullptr;
 
-	FRDGTextureRef	MaterialDepth		= nullptr;
 	FRDGTextureRef	ShadingMask			= nullptr;
 
 	FRDGBufferRef	ClearTileArgs		= nullptr;
@@ -123,6 +127,7 @@ FRasterContext InitRasterContext(
 	FIntRect TextureRect,
 	EOutputBufferMode RasterMode = EOutputBufferMode::VisBuffer,
 	bool bClearTarget = true,
+	bool bAsyncCompute = true,
 	FRDGBufferSRVRef RectMinMaxBufferSRV = nullptr,
 	uint32 NumRects = 0,
 	FRDGTextureRef ExternalDepthBuffer = nullptr,
@@ -139,6 +144,7 @@ struct FConfiguration
 	uint32 bForceHWRaster : 1;
 	uint32 bPrimaryContext : 1;
 	uint32 bDrawOnlyRootGeometry : 1;
+	uint32 bIsShadowPass : 1;
 	uint32 bIsSceneCapture : 1;
 	uint32 bIsReflectionCapture : 1;
 	uint32 bIsLumenCapture : 1;

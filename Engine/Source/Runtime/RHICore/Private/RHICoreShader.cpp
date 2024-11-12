@@ -5,12 +5,7 @@
 
 #define RHI_VALIDATE_STATIC_UNIFORM_BUFFERS (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
 
-namespace UE
-{
-namespace RHICore
-{
-
-void ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBufferStaticSlot Slot, uint32 ExpectedHash)
+void UE::RHICore::ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBufferStaticSlot Slot, uint32 ExpectedHash)
 {
 #if RHI_VALIDATE_STATIC_UNIFORM_BUFFERS
 	FUniformBufferStaticSlotRegistry& SlotRegistry = FUniformBufferStaticSlotRegistry::Get();
@@ -57,13 +52,13 @@ void ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBuffe
 			checkf(
 				false,
 				TEXT("Shader attempted to bind uniform buffer '%s' at slot %s with hash '%u', but the shader expected '%s' with hash '%u'."),
-				*Layout.GetDebugName(), *SlotRegistry.GetDebugDescription(Slot), ExpectedHash, ExpectedStructMetadata->GetShaderVariableName(), Layout.GetHash());
+				*Layout.GetDebugName(), *SlotRegistry.GetDebugDescription(Slot), Layout.GetHash(), ExpectedStructMetadata->GetShaderVariableName(), ExpectedHash);
 		}
 	}
 #endif
 }
 
-void SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
+void UE::RHICore::SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
 {
 #if RHI_INCLUDE_SHADER_DEBUG_DATA && ENABLE_RHI_VALIDATION
 	if (GRHIValidationEnabled && RHIShader)
@@ -84,15 +79,16 @@ void SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& Sha
 #endif
 }
 
-void DispatchShaderBundleEmulation(
+void UE::RHICore::DispatchShaderBundleEmulation(
 	FRHIComputeCommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
-	TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
 {
-	for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+	for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 	{
-		if (Dispatch.Shader == nullptr)
+		if (!Dispatch.IsValid() || Dispatch.Shader == nullptr)
 		{
 			continue;
 		}
@@ -101,14 +97,25 @@ void DispatchShaderBundleEmulation(
 
 		SetComputePipelineState(InRHICmdList, Dispatch.Shader);
 
-		if (Dispatch.Parameters.HasParameters())
+		if (SharedBindlessParameters.Num())
 		{
 			InRHICmdList.SetShaderParameters(
 				Dispatch.Shader,
-				Dispatch.Parameters.ParametersData,
-				Dispatch.Parameters.Parameters,
-				Dispatch.Parameters.ResourceParameters,
-				Dispatch.Parameters.BindlessParameters
+				{},
+				{},
+				{},
+				SharedBindlessParameters
+			);
+		}
+
+		if (Dispatch.Parameters->HasParameters())
+		{
+			InRHICmdList.SetShaderParameters(
+				Dispatch.Shader,
+				Dispatch.Parameters->ParametersData,
+				Dispatch.Parameters->Parameters,
+				Dispatch.Parameters->ResourceParameters,
+				Dispatch.Parameters->BindlessParameters
 			);
 		}
 
@@ -117,13 +124,117 @@ void DispatchShaderBundleEmulation(
 			InRHICmdList.SetShaderRootConstants(Dispatch.Constants);
 		}
 
-		const uint32 IndirectOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
+		const uint32 IndirectOffset = (Dispatch.RecordIndex * ShaderBundle->ArgStride) + ShaderBundle->ArgOffset;
 		InRHICmdList.DispatchIndirectComputeShader(ArgumentBuffer, IndirectOffset);
 	}
 }
 
+void UE::RHICore::DispatchShaderBundleEmulation(
+	FRHICommandList& InRHICmdList,
+	FRHIShaderBundle* ShaderBundle,
+	FRHIBuffer* ArgumentBuffer,
+	const FRHIShaderBundleGraphicsState& BundleState,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches)
+{
+	if (Dispatches.Num() == 0)
+	{
+		return;
+	}
+
+	InRHICmdList.SetViewport(
+		BundleState.ViewRect.Min.X,
+		BundleState.ViewRect.Min.Y,
+		BundleState.DepthMin,
+		FMath::Min(BundleState.ViewRect.Max.X, 32767),
+		FMath::Min(BundleState.ViewRect.Max.Y, 32767),
+		BundleState.DepthMax
+	);
+
+	for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
+	{
+		if (!Dispatch.IsValid())
+		{
+			continue;
+		}
+
+		const FBoundShaderStateInput& ShaderState = Dispatch.PipelineInitializer.BoundShaderState;
+		FRHIGraphicsShader* MSVSShader = ShaderBundle->Mode == ERHIShaderBundleMode::MSPS ? (FRHIGraphicsShader*)ShaderState.GetMeshShader() : (FRHIGraphicsShader*)ShaderState.GetVertexShader();
+
+		if (ShaderState.GetPixelShader() == nullptr || MSVSShader == nullptr)
+		{
+			continue;
+		}
+
+		checkf(ShaderState.GetPixelShader()->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
+		checkf(MSVSShader->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
+
+		SetGraphicsPipelineState(InRHICmdList, Dispatch.PipelineInitializer, BundleState.StencilRef);
+
+		if (SharedBindlessParameters.Num())
+		{
+			InRHICmdList.SetShaderParameters(
+				MSVSShader,
+				{},
+				{},
+				{},
+				SharedBindlessParameters
+			);
+		}
+
+		if (Dispatch.Parameters_MSVS->HasParameters())
+		{
+			InRHICmdList.SetShaderParameters(
+				MSVSShader,
+				Dispatch.Parameters_MSVS->ParametersData,
+				Dispatch.Parameters_MSVS->Parameters,
+				Dispatch.Parameters_MSVS->ResourceParameters,
+				Dispatch.Parameters_MSVS->BindlessParameters
+			);
+		}
+
+		if (SharedBindlessParameters.Num())
+		{
+			InRHICmdList.SetShaderParameters(
+				ShaderState.GetPixelShader(),
+				{},
+				{},
+				{},
+				SharedBindlessParameters
+			);
+		}
+
+		if (Dispatch.Parameters_PS->HasParameters())
+		{
+			InRHICmdList.SetShaderParameters(
+				ShaderState.GetPixelShader(),
+				Dispatch.Parameters_PS->ParametersData,
+				Dispatch.Parameters_PS->Parameters,
+				Dispatch.Parameters_PS->ResourceParameters,
+				Dispatch.Parameters_PS->BindlessParameters
+			);
+		}
+
+		if (GRHISupportsShaderRootConstants)
+		{
+			InRHICmdList.SetShaderRootConstants(Dispatch.Constants);
+		}
+
+		const uint32 IndirectOffset = (Dispatch.RecordIndex * ShaderBundle->ArgStride) + ShaderBundle->ArgOffset;
+
+		if (ShaderBundle->Mode == ERHIShaderBundleMode::MSPS)
+		{
+			InRHICmdList.DispatchIndirectMeshShader(ArgumentBuffer, IndirectOffset);
+		}
+		else
+		{
+			InRHICmdList.DrawPrimitiveIndirect(ArgumentBuffer, IndirectOffset);
+		}
+	}
+}
+
 const bool GRHIShaderDiagnosticEnabled = true;
-void SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
+void UE::RHICore::SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
 {
 	if (RHIShader && GRHIShaderDiagnosticEnabled)
 	{
@@ -140,13 +251,13 @@ void SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderC
 }
 
 TArray<FShaderDiagnosticData> GShaderDiagnosticDatas;
-void RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In)
+void UE::RHICore::RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In)
 {
 	// Not thread safe
 	GShaderDiagnosticDatas.Append(In);
 }
 
-const FString* GetDiagnosticMessage(uint32 MessageID)
+const FString* UE::RHICore::GetDiagnosticMessage(uint32 MessageID)
 {
 	// Not thread safe
 	if (const FShaderDiagnosticData* Found = GShaderDiagnosticDatas.FindByPredicate([MessageID](const FShaderDiagnosticData& In) { return In.Hash == MessageID; }))
@@ -155,6 +266,3 @@ const FString* GetDiagnosticMessage(uint32 MessageID)
 	}
 	return nullptr;
 }
-
-} //! RHICore
-} //! UE

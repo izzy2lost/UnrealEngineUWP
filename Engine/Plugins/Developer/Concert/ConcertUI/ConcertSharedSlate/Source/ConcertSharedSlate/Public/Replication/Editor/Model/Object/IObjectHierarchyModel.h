@@ -5,8 +5,9 @@
 #include "Containers/Array.h"
 #include "Delegates/Delegate.h"
 #include "Misc/EBreakBehavior.h"
-#include "UObject/SoftObjectPath.h"
 #include "Templates/Function.h"
+#include "UObject/SoftObjectPath.h"
+#include "UObject/SoftObjectPtr.h"
 
 enum class EBreakBehavior : uint8;
 
@@ -68,35 +69,35 @@ namespace UE::ConcertSharedSlate
 		 * @param InclusionFlags Specifies the relationships that should be included
 		 */
 		virtual void ForEachDirectChild(
-			const FSoftObjectPath& Root,
-			TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, EChildRelationship Relationship)> Callback,
+			const TSoftObjectPtr<>& Root,
+			TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>& Object, EChildRelationship Relationship)> Callback,
 			EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All
 			) const = 0;
 
 		struct FParentInfo
 		{
 			/** The parent of the child object in the hierarchy. */
-			FSoftObjectPath Parent;
+			TSoftObjectPtr<const UObject> Parent;
 			/** Relationship that the child has to Parent, e.g. the child could be a component of Parent. */
 			EChildRelationship Relationship;
 		};
 		/** Gets parent info for ChildObject, if it has a child. */
-		virtual TOptional<FParentInfo> GetParentInfo(const FSoftObjectPath& ChildObject) const = 0;
+		virtual TOptional<FParentInfo> GetParentInfo(const TSoftObjectPtr<const UObject>& ChildObject) const = 0;
 
 		/** Util for iterating all subobjects. */
 		void ForEachChildRecursive(
-			const FSoftObjectPath& Root,
-			TFunctionRef<EBreakBehavior(const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)> Callback,
+			const TSoftObjectPtr<>& Root,
+			TFunctionRef<EBreakBehavior(const TSoftObjectPtr<>& Parent, const TSoftObjectPtr<>& ChildObject, EChildRelationship Relationship)> Callback,
 			EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All
 			) const;
 
 		/** Builds a TArray containing all children, recursively. */
 		template<typename TAllocator = FDefaultAllocator>
-		TArray<FSoftObjectPath, TAllocator> GetChildrenRecursive(const FSoftObjectPath& Root, EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All) const
+		TArray<TSoftObjectPtr<>, TAllocator> GetChildrenRecursive(const TSoftObjectPtr<>& Root, EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All) const
 		{
-			TArray<FSoftObjectPath, TAllocator> AllObjects;
+			TArray<TSoftObjectPtr<>, TAllocator> AllObjects;
 			ForEachChildRecursive(Root,
-				[&AllObjects](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship)
+				[&AllObjects](const TSoftObjectPtr<>&, const TSoftObjectPtr<>& ChildObject, EChildRelationship)
 				{
 					AllObjects.Add(ChildObject);
 					return EBreakBehavior::Continue;

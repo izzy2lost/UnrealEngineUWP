@@ -7,37 +7,65 @@
 class FOSCType;
 
 
-class FOSCMessagePacket : public IOSCPacket
+namespace UE::OSC
 {
-public:
-	FOSCMessagePacket();
-	virtual ~FOSCMessagePacket();
+	class FPacketBase : public IPacket
+	{
+	public:
+		FPacketBase(FIPv4Endpoint InEndpoint = FIPv4Endpoint::Any);
 
-	/** Set OSC message address. */
-	void SetAddress(const FOSCAddress& InAddress);
+		virtual ~FPacketBase() = default;
 
-	/** Get OSC message address. */
-	virtual const FOSCAddress& GetAddress() const;
+		/** Get endpoint IP address and port responsible for creation/forwarding of packet */
+		virtual const FIPv4Endpoint& GetIPEndpoint() const override;
 
-	/** Get arguments array. */
-	TArray<FOSCType>& GetArguments();
+	protected:
+		FIPv4Endpoint IPEndpoint;
+	};
 
-	/** Returns false to indicate type is not OSC bundle. */
-	virtual bool IsBundle();
 
-	/** Returns true to indicate its an OSC message. */
-	virtual bool IsMessage();
+	class FMessagePacket : public FPacketBase
+	{
+	public:
+		FMessagePacket() = default;
+		FMessagePacket(const FIPv4Endpoint& InEndpoint);
+		virtual ~FMessagePacket() = default;
 
-	/** Write message data into an OSC stream. */
-	virtual void WriteData(FOSCStream& Stream) override;
+		/** Adds argument to argument array */
+		void AddArgument(FOSCData OSCData);
 
-	/** Reads message data from an OSC stream and creates new argument. */
-	virtual void ReadData(FOSCStream& Stream) override;
+		/** Empties all arguments */
+		void EmptyArguments();
 
-private:
-	/** OSC address. */
-	FOSCAddress Address;
+		/** Set OSC message address. */
+		void SetAddress(FOSCAddress InAddress);
 
-	/** List of argument types. */
-	TArray<FOSCType> Arguments;
-};
+		/** Sets argument array to the given values */
+		void SetArguments(TArray<FOSCData> Args);
+
+		/** Get OSC message address. */
+		virtual const FOSCAddress& GetAddress() const;
+
+		/** Get arguments array. */
+		virtual const TArray<FOSCData>& GetArguments() const;
+
+		/** Returns false to indicate type is not OSC bundle. */
+		virtual bool IsBundle();
+
+		/** Returns true to indicate its an OSC message. */
+		virtual bool IsMessage();
+
+		/** Write message data into an OSC stream. */
+		virtual void WriteData(FStream& Stream) override;
+
+		/** Reads message data from an OSC stream and creates new argument. */
+		virtual void ReadData(FStream& Stream) override;
+
+	private:
+		/** OSC address. */
+		FOSCAddress Address;
+
+		/** List of argument data types. */
+		TArray<FOSCData> Arguments;
+	};
+} // namespace UE::OSC

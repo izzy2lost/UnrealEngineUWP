@@ -3,38 +3,35 @@
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 
 #include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendRegistryContainerImpl.h"
 #include "MetasoundFrontendRegistryTransaction.h"
+#include "MetasoundFrontendTransform.h"
 #include "MetasoundLog.h"
 #include "MetasoundTrace.h"
 
 
 namespace Metasound::Frontend
 {
-	bool FNodeTemplateBase::IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const
+#if WITH_EDITOR
+	FText INodeTemplate::ResolveMemberDisplayName(FName FullName, FText DisplayName, bool bIncludeNamespace)
 	{
-		return true;
-	}
+		FName Namespace;
+		FName ShortParamName;
+		Audio::FParameterPath::SplitName(FullName, Namespace, ShortParamName);
+		if (DisplayName.IsEmpty())
+		{
+			DisplayName = FText::FromName(ShortParamName);
+		}
 
-	bool FNodeTemplateBase::IsInputAccessTypeDynamic() const
-	{
-		return false;
-	}
+		if (bIncludeNamespace && !Namespace.IsNone())
+		{
+			return FText::Format(NSLOCTEXT("MetasoundFrontend", "DisplayNameWithNamespaceFormat", "{0} ({1})"), DisplayName, FText::FromName(Namespace));
+		}
 
-	bool FNodeTemplateBase::IsOutputAccessTypeDynamic() const
-	{
-		return false;
+		return DisplayName;
 	}
-
-	EMetasoundFrontendVertexAccessType FNodeTemplateBase::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
-	{
-		return EMetasoundFrontendVertexAccessType::Unset;
-	}
-
-	EMetasoundFrontendVertexAccessType FNodeTemplateBase::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
-	{
-		return EMetasoundFrontendVertexAccessType::Unset;
-	}
+#endif // WITH_EDITOR
 
 	class FNodeTemplateRegistry : public INodeTemplateRegistry
 	{
@@ -43,12 +40,14 @@ namespace Metasound::Frontend
 		virtual ~FNodeTemplateRegistry() = default;
 
 		virtual const INodeTemplate* FindTemplate(const FNodeRegistryKey& InKey) const override;
+		virtual const INodeTemplate* FindTemplate(const FMetasoundFrontendClassName& InClassName) const override;
 
 		void Register(TUniquePtr<INodeTemplate>&& InEntry);
 		void Unregister(const FNodeRegistryKey& InKey);
 
 	private:
-		TMap<FNodeRegistryKey, TUniquePtr<INodeTemplate>> Templates;
+		TMap<FNodeRegistryKey, TUniquePtr<const INodeTemplate>> Templates;
+		TMultiMap<FMetasoundFrontendClassName, const INodeTemplate*> TemplateByClassName;
 	};
 
 	void FNodeTemplateRegistry::Register(TUniquePtr<INodeTemplate>&& InTemplate)
@@ -58,21 +57,41 @@ namespace Metasound::Frontend
 			const FNodeRegistryKey Key = FNodeRegistryKey(InTemplate->GetFrontendClass().Metadata);
 			if (ensure(Key.IsValid()))
 			{
-				Templates.Add(Key, MoveTemp(InTemplate));
+				TUniquePtr<const INodeTemplate>& Entry = Templates.Add(Key, MoveTemp(InTemplate));
+				TemplateByClassName.Add(Entry->GetFrontendClass().Metadata.GetClassName(), Entry.Get());
 			}
 		}
 	}
 
 	void FNodeTemplateRegistry::Unregister(const FNodeRegistryKey& InKey)
 	{
-		ensure(Templates.Remove(InKey) > 0);
+		TUniquePtr<const INodeTemplate> Removed;
+		if (ensure(Templates.RemoveAndCopyValue(InKey, Removed)))
+		{
+			ensure(TemplateByClassName.Remove(Removed->GetFrontendClass().Metadata.GetClassName()));
+		}
 	}
 
 	const INodeTemplate* FNodeTemplateRegistry::FindTemplate(const FNodeRegistryKey& InKey) const
 	{
-		if (const TUniquePtr<INodeTemplate>* TemplatePtr = Templates.Find(InKey))
+		if (const TUniquePtr<const INodeTemplate>* Template = Templates.Find(InKey))
 		{
-			return TemplatePtr->Get();
+			return Template->Get();
+		}
+
+		return nullptr;
+	}
+
+	const INodeTemplate* FNodeTemplateRegistry::FindTemplate(const FMetasoundFrontendClassName& InClassName) const
+	{
+		if (TemplateByClassName.Contains(InClassName))
+		{
+			TArray<const INodeTemplate*> FoundTemplates;
+			constexpr bool bMaintainOrder = false;
+			TemplateByClassName.MultiFind(InClassName, FoundTemplates, bMaintainOrder);
+			Algo::Sort(FoundTemplates, [](const INodeTemplate* A, const INodeTemplate* B) { return A->GetVersionNumber() < B->GetVersionNumber(); });
+
+			return FoundTemplates.Last();
 		}
 
 		return nullptr;
@@ -83,6 +102,53 @@ namespace Metasound::Frontend
 		static FNodeTemplateRegistry Registry;
 		return Registry;
 	}
+
+	TUniquePtr<INodeTransform> INodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const
+	{
+		return nullptr;
+	}
+
+	const TArray<FMetasoundFrontendClassInputDefault>* FNodeTemplateBase::FindNodeClassInputDefaults(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName VertexName) const
+	{
+		if (const FMetasoundFrontendVertex* Vertex = InBuilder.FindNodeInput(InNodeID, VertexName, &InPageID))
+		{
+			const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID, &InPageID);
+			check(Node);
+			if (const FMetasoundFrontendClass* Class = InBuilder.FindDependency(Node->ClassID))
+			{
+				const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
+				auto MatchesName = [&Vertex](const FMetasoundFrontendClassInput& Input) { return Input.Name == Vertex->Name; };
+				if (const FMetasoundFrontendClassInput* Input = Class->Interface.Inputs.FindByPredicate(MatchesName))
+				{
+					return &Input->GetDefaults();
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+#if WITH_EDITOR
+	FText FNodeTemplateBase::GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InPageID, const FGuid& InNodeID) const
+	{
+		return { };
+	}
+
+	FText FNodeTemplateBase::GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName InputName) const
+	{
+		return FText::FromName(InputName);
+	}
+
+	FText FNodeTemplateBase::GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName OutputName) const
+	{
+		return FText::FromName(OutputName);
+	}
+
+	bool FNodeTemplateBase::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FString* OutMessage) const
+	{
+		return true;
+	}
+#endif // WITH_EDITOR
 
 	void RegisterNodeTemplate(TUniquePtr<INodeTemplate>&& InTemplate)
 	{

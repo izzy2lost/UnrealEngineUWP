@@ -35,7 +35,9 @@ public:
 		return Categories;
 	}
 	virtual TSharedPtr<SWidget> GetThumbnailOverlay(const FAssetData& InAssetData) const override;
+	virtual bool GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const override;
 	virtual EAssetCommandResult ActivateAssets(const FAssetActivateArgs& ActivateArgs) const override;
+	virtual void GetAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions) const override;
 	// UAssetDefinition End
 
 	// Menu Extension statics
@@ -50,6 +52,7 @@ public:
 	static bool CanExecuteSoloCommand(const FToolMenuContext& InContext);
 
 	// Asset definition static utilities
-	static TSharedPtr<SWidget> GetSoundBaseThumbnailOverlay(const FAssetData& InAssetData, TUniqueFunction<FReply()>&& OnClickedLambda);
+	static TSharedPtr<SWidget> GetSoundBaseThumbnailOverlay(const FAssetData& InAssetData, TFunction<FReply()>&& OnClicked);
+	static void GetSoundBaseAssetActionButtonExtensions(const FAssetData& InAssetData, TArray<FAssetButtonActionExtension>& OutExtensions);
 	static EAssetCommandResult ActivateSoundBase(const FAssetActivateArgs& ActivateArgs);
 };

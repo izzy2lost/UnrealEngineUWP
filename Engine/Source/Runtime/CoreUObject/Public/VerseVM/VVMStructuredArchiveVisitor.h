@@ -36,15 +36,29 @@ struct FVCellSerializeContext
 
 struct FStructuredArchiveVisitor : FAbstractVisitor
 {
-	FStructuredArchiveVisitor(FAllocationContext InContext, FStructuredArchive& InStructuredArchive, FVCellSerializeContext* InSerializeContext = nullptr)
+	FStructuredArchiveVisitor(FAllocationContext InContext, FVCellSerializeContext* InSerializeContext = nullptr)
 		: Context(InContext)
-		, StructuredArchive(InStructuredArchive)
 		, SerializeContext(InSerializeContext)
 	{
 	}
 
-	void Serialize(VCell*& InOutCell);
-	void Serialize(VValue& InOutValue);
+	// Temporary entry point used for UE serialization
+	static void Serialize(FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr);
+	static void Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr);
+
+	static void Serialize(FStructuredArchiveSlot InSlot, VRestValue& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr)
+	{
+		Serialize(InSlot, reinterpret_cast<TWriteBarrier<VValue>&>(InOutValue), InSerializeContext);
+	}
+
+	static void Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, VRestValue& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr)
+	{
+		Serialize(InContext, InSlot, reinterpret_cast<TWriteBarrier<VValue>&>(InOutValue), InSerializeContext);
+	}
+
+	// Entry points used primarily for testing
+	void Serialize(FStructuredArchiveSlot InSlot, VCell*& InOutCell);
+	void Serialize(FStructuredArchiveSlot InSlot, VValue& InOutValue);
 
 	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements) override;
 	virtual void EndArray() override;
@@ -52,10 +66,9 @@ struct FStructuredArchiveVisitor : FAbstractVisitor
 	virtual void EndSet() override;
 	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements) override;
 	virtual void EndMap() override;
-	virtual void BeginObject(const TCHAR* ElementName = nullptr) override;
-	virtual void EndObject() override;
+	virtual void VisitObject(const TCHAR* ElementName, FUtf8StringView TypeName, TFunctionRef<void()>) override;
 	virtual void VisitNonNull(VCell*& InCell, const TCHAR* ElementName) override;
-	virtual void VisitEmergentType(const VCell* InEmergentType) override;
+	virtual void VisitEmergentType(const VEmergentType* InEmergentType) override;
 	virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override;
 	virtual void Visit(VCell*& InCell, const TCHAR* ElementName) override;
 	virtual void Visit(UObject*& InObject, const TCHAR* ElementName) override;
@@ -65,6 +78,13 @@ struct FStructuredArchiveVisitor : FAbstractVisitor
 	virtual void Visit(FString& Value, const TCHAR* ElementName) override;
 	virtual void Visit(uint64& Value, const TCHAR* ElementName) override;
 	virtual void Visit(int64& Value, const TCHAR* ElementName) override;
+	virtual void Visit(uint32& Value, const TCHAR* ElementName) override;
+	virtual void Visit(int32& Value, const TCHAR* ElementName) override;
+	virtual void Visit(uint16& Value, const TCHAR* ElementName) override;
+	virtual void Visit(int16& Value, const TCHAR* ElementName) override;
+	virtual void Visit(uint8& Value, const TCHAR* ElementName) override;
+	virtual void Visit(int8& Value, const TCHAR* ElementName) override;
+	virtual void VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName) override;
 
 	virtual FArchive* GetUnderlyingArchive() override;
 	virtual bool IsLoading() override;
@@ -138,7 +158,6 @@ private:
 	};
 	TArray<NestingEntry> NestingInfo;
 	FAllocationContext Context;
-	FStructuredArchive& StructuredArchive;
 	FVCellSerializeContext* SerializeContext = nullptr;
 	bool bIsInBatch = false;
 

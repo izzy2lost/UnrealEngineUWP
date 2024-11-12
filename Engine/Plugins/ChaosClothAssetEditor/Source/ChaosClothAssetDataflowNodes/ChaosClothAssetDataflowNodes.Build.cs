@@ -13,7 +13,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
-		
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -27,13 +27,11 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"DataflowCore",
 				"DataflowEditor",
 				"DataflowEngine",
-				"DatasmithCore",
-				"DatasmithImporter",
+				"DataflowNodes",
 				"DesktopWidgets",  // For SFilePathPicker
 				"DetailCustomizations",
 				"DynamicMesh",
 				"Engine",
-				"ExternalSource",
 				"GeometryCore",
 				"InputCore",
 				"MeshConversion",
@@ -41,6 +39,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"MeshUtilitiesCommon",
 				"ModelingOperatorsEditorOnly",	// TODO: Someday remove editor dependencies, see UE-206172
 				"ModelingOperators",
+				"MeshConversionEngineTypes",
 				"RenderCore",
 				"SkeletalMeshDescription",
 				"Slate",

@@ -234,5 +234,6 @@ private:
 	}
 	// Load Cannot be inline because we need to hide implementation and copy-by-value is invalid without definition
 	COREUOBJECT_API friend bool LoadFromCompactBinary(FCbFieldView Field, FAssetIdentifier& Identifier);
+	COREUOBJECT_API friend void SerializeForLog(FCbWriter& Writer, const FAssetIdentifier& Value);
 };
 

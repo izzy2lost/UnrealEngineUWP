@@ -26,6 +26,11 @@ namespace UE
 		static FAutoConsoleVariableRef CVarEnableDefaultMappingContexts(TEXT("EnhancedInput.EnableDefaultMappingContexts"),
 			EnableDefaultMappingContexts,
 			TEXT("Should the UEnhancedInputDeveloperSettings::DefaultMappingContexts be applied to every UEnhancedPlayerInput?"));
+
+		static int32 ReconcileRemovedMappingDelegates = 1;
+		static FAutoConsoleVariableRef CVarReconcileRemovedMappingDelegates(TEXT("EnhancedInput.ReconcileRemovedMappingDelegates"),
+			ReconcileRemovedMappingDelegates,
+			TEXT("When the mappings are rebuilt, they have been 'in process'. If this is true, we will set their value to zero so that they fire the 'Canceled' event on their next evaluation."));
 	}
 }
 
@@ -154,8 +159,16 @@ enum class EKeyEvent : uint8
 	Held,		// Key generated no event, but is in a held state and wants to continue applying modifiers and triggers
 };
 
-void UEnhancedPlayerInput::ProcessActionMappingEvent(TObjectPtr<const UInputAction> Action, float DeltaTime, bool bGamePaused, FInputActionValue RawKeyValue, EKeyEvent KeyEvent, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
-{
+void UEnhancedPlayerInput::ProcessActionMappingEvent(
+	TObjectPtr<const UInputAction> Action,
+	float DeltaTime,
+	bool bGamePaused,
+	FInputActionValue RawKeyValue,
+	EKeyEvent KeyEvent,
+	const TArray<UInputModifier*>& Modifiers,
+	const TArray<UInputTrigger*>& Triggers,
+	const bool bHasAlwaysTickTrigger /*= false*/)
+{	
 	FInputActionInstance& ActionData = FindOrAddActionEventData(Action);
 
 	// Update values and triggers for all actionable mappings each frame
@@ -164,32 +177,9 @@ void UEnhancedPlayerInput::ProcessActionMappingEvent(TObjectPtr<const UInputActi
 	// Reset action data on the first event processed for the action this tick.
 	bool bResetActionData = !ActionsWithEventsThisTick.Contains(Action);
 	bool bMappingTriggersApplied = false;
-
-	bool bHasAnyAlwaysTickTriggers = false;
-	// checking the input mapping context triggers for any triggers that should tick every frame
-	for (const UInputTrigger* Trigger : Triggers)
-	{
-		if (Trigger && Trigger->bShouldAlwaysTick)
-		{
-			bHasAnyAlwaysTickTriggers = true;
-			break;
-		}
-	}
-	// we also need to check the triggers of the Input Action itself - only if we haven't already found an AlwaysTickTrigger
-	if (!bHasAnyAlwaysTickTriggers)
-	{
-		for (const UInputTrigger* Trigger : Action->Triggers)
-		{
-			if (Trigger && Trigger->bShouldAlwaysTick)
-			{
-				bHasAnyAlwaysTickTriggers = true;
-				break;
-			}
-		}
-	}
 	
 	// If the key state is changing or the key is actuated and being held (and not coming back up this tick) recalculate its value and resulting trigger state.
-	if (KeyEvent != EKeyEvent::None || bHasAnyAlwaysTickTriggers)
+	if (KeyEvent != EKeyEvent::None || bHasAlwaysTickTrigger)
 	{
 		if (bResetActionData)
 		{
@@ -437,7 +427,7 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		}
 
 		// Perform update
-		ProcessActionMappingEvent(Mapping.Action, NonDilatedDeltaTime, bGamePaused, RawKeyValue, KeyEvent, Mapping.Modifiers, Mapping.Triggers);
+		ProcessActionMappingEvent(Mapping.Action, NonDilatedDeltaTime, bGamePaused, RawKeyValue, KeyEvent, Mapping.Modifiers, Mapping.Triggers, Mapping.bHasAlwaysTickTrigger);
 	}
 
 
@@ -454,7 +444,16 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		else if (!InputsInjectedThisTick.Contains(InjectedAction))
 		{
 			// Reset action state by "releasing the key".
-			ProcessActionMappingEvent(InjectedAction, NonDilatedDeltaTime, bGamePaused, FInputActionValue(), EKeyEvent::Actuated, {}, {});
+			ProcessActionMappingEvent(
+				InjectedAction,
+				NonDilatedDeltaTime,
+				bGamePaused,
+				FInputActionValue(),
+				EKeyEvent::Actuated,
+				{},
+				{},
+				/* bHasAlwaysTickTrigger= */ false);
+			
 			It.RemoveCurrent();
 		}
 	}
@@ -546,7 +545,7 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		TRACE_CPUPROFILER_EVENT_SCOPE(EnhPIS_Delegates);
 
 		UEnhancedInputComponent* IC = Cast<UEnhancedInputComponent>(InputComponentStack[StackIndex]);
-		if (!IC)
+		if (!IsValid(IC))
 		{
 			continue;
 		}
@@ -625,9 +624,27 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 			if (bCanTrigger)
 			{
 				// Search for the action instance data a second time as a previous delegate call may have deleted it.
-				if (const FInputActionInstance* ActionData = FindActionInstanceData(DelegateAction))
+				if (FInputActionInstance* ActionData = const_cast<FInputActionInstance*>(FindActionInstanceData(DelegateAction)))
 				{
-					Delegate->Execute(*ActionData);
+					// For events that have started and triggered on the same frame, the event will always be 
+					// "Triggered", because that is the latest input state that has been evaluated. While this is the 
+					// correct state, it can be annoying to end users trying to bind the same function to multiple
+					// events and then determine which state they are in, because it will skip the "Started" flag.
+					// By "artificially" setting the trigger event on the action data here we will "force" the 
+					// event to match up to that of the delegate that we are firing.
+					if (ActionData->TriggerEventInternal == ETriggerEventInternal::StartedAndTriggered)
+					{
+						const ETriggerEvent OriginalEvent = ActionData->TriggerEvent;
+						ActionData->TriggerEvent = Delegate->GetTriggerEvent();
+
+						Delegate->Execute(*ActionData);
+
+						ActionData->TriggerEvent = OriginalEvent;
+					}
+					else
+					{
+						Delegate->Execute(*ActionData);
+					}					
 				}
 			}
 		}
@@ -742,6 +759,16 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		ActionData.TriggerStateTracker = FTriggerStateTracker();
 	}
 
+	// Remove any input actions that are no longer mapped to the player. At this point they will have been evaluated and 
+	// fired any "Canceled" input events needed
+	for (const UInputAction* IA : ActionsThatHaveBeenRemovedFromMappings)
+	{
+		ActionInstanceData.Remove(IA);
+	}
+
+	// We can clear our queue of mappings that have been removed on the next iteration directly after a key rebuild.
+	ActionsThatHaveBeenRemovedFromMappings.Reset();
+
 	LastFrameTime = CurrentTime;
 	KeysPressedThisTick.Reset();
 	bIsFlushingInputThisFrame = false;
@@ -812,7 +839,8 @@ void UEnhancedPlayerInput::ConditionalBuildKeyMappings_Internal() const
 		if (!LastInjectedActions.Contains(Action) &&
 			!InputsInjectedThisTick.Contains(Action) &&		// This will be empty for most calls, but could potentially contain data.
 			//EngineDefinedActionMappings.ContainsByPredicate(HasActionMapping) && // TODO: EngineDefinedActionMappings are non-rebindable action/key pairings but we have our own systems to handle this...
-			!EnhancedActionMappings.ContainsByPredicate(HasActionMapping))
+			!EnhancedActionMappings.ContainsByPredicate(HasActionMapping) && 
+			!ActionsThatHaveBeenRemovedFromMappings.Contains(Action))
 		{
 			Itr.RemoveCurrent();
 		}
@@ -841,6 +869,37 @@ bool UEnhancedPlayerInput::IsKeyHandledByAction(FKey Key) const
 {
 	// Determines if the key event is handled or not.
 	return EnhancedKeyBinds.Contains(Key) || Super::IsKeyHandledByAction(Key);
+}
+
+void UEnhancedPlayerInput::NotifyInputActionsUnmapped(const TSet<const UInputAction*>& RemovedInputActions)
+{
+	if (UE::Input::ReconcileRemovedMappingDelegates)
+	{
+		// Instead of totally removing the action instance data so that it stops being processed,
+		// we should instead set the value to zero. This will make it so that upon the next evaluation 
+		// of this action instance data, the "Canceled" event will be fired instead there being
+		// no notification at all. We will queue these action instances for removal from the 
+		// instance data after they have been re-evaluated
+		for (const UInputAction* Action : RemovedInputActions)
+		{
+			if (FInputActionInstance* ActionData = ActionInstanceData.Find(Action))
+			{
+				ActionData->Value.Reset();
+			}
+		}
+
+		ActionsThatHaveBeenRemovedFromMappings = RemovedInputActions;
+	}
+	// ... this is the legacy behavior of just removing the data from the instance data cache
+	else
+	{
+		for (const UInputAction* Action : RemovedInputActions)
+		{			
+			ActionInstanceData.Remove(Action);
+		}
+		
+		UE_LOG(LogEnhancedInput, VeryVerbose, TEXT("[%hs] EnhancedInput.ReconcileRemovedMappingDelegates is false! Using the legacy behavior to remove action instance data. Canceled events will not be fired."), __func__);
+	}
 }
 
 FInputActionInstance& UEnhancedPlayerInput::FindOrAddActionEventData(TObjectPtr<const UInputAction> Action) const

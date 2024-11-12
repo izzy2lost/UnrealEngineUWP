@@ -107,4 +107,19 @@ namespace BuildSettings
 	 * Returns a URL where the job which created these binaries on an automation system (e.g. Horde) can be found, or an empty string.
 	 */
 	BUILDSETTINGS_API const TCHAR* GetBuildURL();
+
+	/**
+	 * Returns the name of the user which created these binaries
+	 */
+	BUILDSETTINGS_API const TCHAR* GetBuildUser();
+
+	/**
+	 * Returns the domain name of the user which created these binaries
+	 */
+	BUILDSETTINGS_API const TCHAR* GetBuildUserDomain();
+
+	/**
+	 * Returns the name of the machine which created these binaries
+	 */
+	BUILDSETTINGS_API const TCHAR* GetBuildMachine();
 }

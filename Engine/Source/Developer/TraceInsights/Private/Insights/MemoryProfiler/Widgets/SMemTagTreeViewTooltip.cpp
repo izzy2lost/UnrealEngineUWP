@@ -4,29 +4,34 @@
 
 #include "SlateOptMacros.h"
 #include "Styling/StyleColors.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/MemoryProfiler/ViewModels/MemTagNode.h"
 #include "Insights/MemoryProfiler/ViewModels/MemTagNodeHelper.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemTagTreeView"
 
-#define LOCTEXT_NAMESPACE "SMemTagTreeView"
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetTableTooltip(const Insights::FTable& Table)
+TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetTableTooltip(const FTable& Table)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)
@@ -57,7 +62,7 @@ TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetTableTooltip(const Insights::FTa
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetColumnTooltip(const Insights::FTableColumn& Column)
+TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetColumnTooltip(const FTableColumn& Column)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)
@@ -96,7 +101,7 @@ TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetRowTooltip(const TSharedPtr<FMem
 
 	FText TagText = FText::GetEmpty();
 	FText TagTextEx = LOCTEXT("MemTagNA", "N/A");
-	Insights::FMemoryTag* MemTag = MemTagNodePtr.IsValid() ? MemTagNodePtr->GetMemTag() : nullptr;
+	FMemoryTag* MemTag = MemTagNodePtr.IsValid() ? MemTagNodePtr->GetMemTag() : nullptr;
 	if (MemTag)
 	{
 		TagText = FText::FromString(MemTag->GetStatName());
@@ -105,7 +110,7 @@ TSharedPtr<SToolTip> SMemTagTreeViewTooltip::GetRowTooltip(const TSharedPtr<FMem
 
 	FText ParentTagText = FText::GetEmpty();
 	FText ParentTagTextEx = LOCTEXT("MemTagNA", "N/A");
-	Insights::FMemoryTag* ParentMemTag = MemTagNodePtr.IsValid() ? MemTagNodePtr->GetParentMemTag() : nullptr;
+	FMemoryTag* ParentMemTag = MemTagNodePtr.IsValid() ? MemTagNodePtr->GetParentMemTag() : nullptr;
 	if (ParentMemTag)
 	{
 		ParentTagText = FText::FromString(ParentMemTag->GetStatName());
@@ -357,5 +362,7 @@ void SMemTagTreeViewTooltip::AddStatsRow(TSharedPtr<SGridPanel> Grid, int32& Row
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

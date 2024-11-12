@@ -18,6 +18,7 @@ public class ScriptableToolsFramework : ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...
+
 			}
 			);
 
@@ -30,7 +31,11 @@ public class ScriptableToolsFramework : ModuleRules
 				"PhysicsCore",
 				"RenderCore",
 				"GeometryCore",
-				"InteractiveToolsFramework"
+				"InputCore",
+				"InteractiveToolsFramework",
+				"ModelingComponents",
+				"UMG",
+				"ModelingUI"
 			}
 			);
 
@@ -38,7 +43,9 @@ public class ScriptableToolsFramework : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Engine"
+				"Engine",
+				"Slate",
+				"SlateCore"
 			}
 			);
 

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ViewModels/Stack/NiagaraStackPropertyRow.h"
+#include "NiagaraClipboard.h"
 #include "NiagaraNode.h"
 
 #include "IDetailTreeNode.h"
@@ -10,6 +11,8 @@
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraStackPropertyRow)
+
+#define LOCTEXT_NAMESPACE "NiagaraStackPropertyRow"
 
 void UNiagaraStackPropertyRow::Initialize(
 	FRequiredEntryData InRequiredEntryData,
@@ -92,6 +95,84 @@ bool UNiagaraStackPropertyRow::CanDrag() const
 {
 	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
 	return PropertyHandle.IsValid() && PropertyHandle->GetParentHandle().IsValid() && PropertyHandle->GetParentHandle()->AsArray().IsValid();
+}
+
+bool UNiagaraStackPropertyRow::SupportsCopy() const
+{
+	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	return PropertyHandle.IsValid() && PropertyHandle->IsValidHandle();
+}
+
+bool UNiagaraStackPropertyRow::TestCanCopyWithMessage(FText& OutMessage) const
+{
+	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	if (PropertyHandle.IsValid() && PropertyHandle->IsValidHandle() && FNiagaraClipboardPortableValue::CreateFromPropertyHandle(*PropertyHandle.Get()).IsValid())
+	{
+		OutMessage = LOCTEXT("CopyMessage", "Copy the value of this property.");
+		return true;
+	}
+	else
+	{
+		OutMessage = LOCTEXT("CantCopyMessage", "This row does not support copying.");
+		return false;
+	}
+}
+
+void UNiagaraStackPropertyRow::Copy(UNiagaraClipboardContent* ClipboardContent) const
+{
+	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	if (PropertyHandle.IsValid() && PropertyHandle->IsValidHandle())
+	{
+		FNiagaraClipboardPortableValue PortableValue = FNiagaraClipboardPortableValue::CreateFromPropertyHandle(*PropertyHandle.Get());
+		if (PortableValue.IsValid())
+		{
+			ClipboardContent->PortableValues.Add(PortableValue);
+		}
+	}
+}
+
+bool UNiagaraStackPropertyRow::SupportsPaste() const
+{
+	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	return PropertyHandle.IsValid() && PropertyHandle->IsValidHandle();
+}
+
+bool UNiagaraStackPropertyRow::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
+{
+	if (ClipboardContent->PortableValues.Num() != 1 || ClipboardContent->PortableValues[0].IsValid() == false)
+	{
+		return false;
+	}
+
+	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	if (PropertyHandle.IsValid() == false || PropertyHandle->IsValidHandle() == false)
+	{
+		OutMessage = LOCTEXT("CantPasteMessage", "Can not paste the clipboard value to this row.");
+		return false;
+	}
+	else
+	{
+		OutMessage = LOCTEXT("PasteMessage", "Paste the value from the clipboard to this property.");
+		return true;
+	}
+}
+
+FText UNiagaraStackPropertyRow::GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const
+{
+	return LOCTEXT("PasteValueToPropertyTransaction", "Paste value to property.");
+}
+
+void UNiagaraStackPropertyRow::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
+{
+	TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNode->CreatePropertyHandle();
+	if (PropertyHandle.IsValid() && PropertyHandle->IsValidHandle() &&
+		ClipboardContent->PortableValues.Num() == 1 && ClipboardContent->PortableValues[0].IsValid())
+	{
+		if (ClipboardContent->PortableValues[0].TryUpdatePropertyHandle(*PropertyHandle.Get()) == false)
+		{
+			OutPasteWarning = LOCTEXT("PasteFailWarning", "Failed to paste the value from the clipboard");
+		}
+	}
 }
 
 void UNiagaraStackPropertyRow::FinalizeInternal()
@@ -268,3 +349,5 @@ FNiagaraHierarchyIdentity UNiagaraStackPropertyRow::DetermineSummaryIdentity() c
 	Identity.Names.Add(DetailTreeNode->GetNodeName());
 	return Identity;
 }
+
+#undef LOCTEXT_NAMESPACE

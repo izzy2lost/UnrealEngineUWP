@@ -182,6 +182,8 @@ public:
 	
 	const TArray<TSharedPtr<IAvaOutlinerItemFilter>>& GetCustomItemFilters() const { return CustomItemFilters; }
 
+	const TSet<TSharedPtr<IAvaOutlinerItemFilter>>& GetActiveItemFilters() const { return ActiveItemFilters; }
+
 	TSharedRef<FAvaOutlinerTextFilter> GetTextFilter() const { return TextFilter; }
 	
 	/** Gets the Currently Selected Items in the Tree View */
@@ -362,6 +364,9 @@ public:
 	void ResetRenaming();
 	void OnItemRenameAction(EAvaOutlinerRenameAction InRenameAction, const TSharedPtr<FAvaOutlinerView>& InOutlinerView);
 	bool CanRenameSelected() const;
+
+	void DeleteSelected();
+	bool CanDeleteSelected() const;
 
 	void DuplicateSelected();
 	bool CanDuplicateSelected() const;

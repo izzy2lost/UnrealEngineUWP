@@ -6,6 +6,8 @@
 
 #include "../ForwardShadowingCommon.ush"
 #include "../VolumeLightingCommon.ush"
+#include "../LightData.ush"
+#include "../DeferredLightingCommon.ush"
 
 #include "../SHCommon.ush"
 #define FrontLayerTranslucencyReflectionsStruct LumenGIVolumeStruct
@@ -36,8 +38,13 @@
 #define APPLY_FOG_INSCATTERING APPLY_FOG_INSCATTERING_OFF
 #endif // APPLY_FOG_INSCATTERING
 
+#ifndef IS_OFFLINE_RENDER
+#define IS_OFFLINE_RENDER 0
+#endif // IS_OFFLINE_RENDER
+
 #if DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 #include "HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
+#include "HeterogeneousVolumesAdaptiveVolumetricShadowMapSampler.ush"
 #endif // DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
 #if APPLY_FOG_INSCATTERING
@@ -115,8 +122,17 @@ void RayMarchTransmittance(
 		float LocalHitT = RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex);
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * LocalHitT * RayMarchingContext.LocalToWorldScale;
+#if USE_ANALYTIC_DERIVATIVES
+		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * LocalHitT * RayMarchingContext.LocalToWorldScale;
+		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * LocalHitT * RayMarchingContext.LocalToWorldScale;
+		WorldPosition_DDX -= WorldPosition;
+		WorldPosition_DDY -= WorldPosition;
+#else
+		float3 WorldPosition_DDX = 0.0;
+		float3 WorldPosition_DDY = 0.0;
+#endif // USE_ANALYTIC_DERIVATIVES
 
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
 		float3 Extinction = SampleExtinction(SampleContext);
 		Transmittance *= exp(-Extinction * RayMarchingContext.StepSize);
 
@@ -183,7 +199,7 @@ float3 ComputeTransmittance(
 	#if DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 		if (!AVSM.bIsEmpty)
 		{
-			float3 TranslatedWorldPosition = DFHackToFloat(DFFastAdd(WorldRayOrigin, PrimaryView.PreViewTranslation));
+			float3 TranslatedWorldPosition = DFFastAddDemote(WorldRayOrigin, PrimaryView.PreViewTranslation);
 			float3 LightTranslatedWorldPosition = TranslatedWorldPosition + ToLight;
 			Transmittance = AVSM_SampleTransmittance(TranslatedWorldPosition, LightTranslatedWorldPosition);
 		}
@@ -294,8 +310,17 @@ void RayMarchEmissionAbsorption(
 		float LocalHitT = RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex);
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * LocalHitT * RayMarchingContext.LocalToWorldScale;
+#if USE_ANALYTIC_DERIVATIVES
+		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * LocalHitT * RayMarchingContext.LocalToWorldScale;
+		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * LocalHitT * RayMarchingContext.LocalToWorldScale;
+		WorldPosition_DDX -= WorldPosition;
+		WorldPosition_DDY -= WorldPosition;
+#else
+		float3 WorldPosition_DDX = 0.0;
+		float3 WorldPosition_DDY = 0.0;
+#endif // USE_ANALYTIC_DERIVATIVES
 
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
 		float3 Extinction = SampleExtinction(SampleContext);
 
 		float3 Emission = SampleEmission(SampleContext);
@@ -308,6 +333,9 @@ void RayMarchEmissionAbsorption(
 
 void RayMarchSingleScattering(
 	inout FRayMarchingContext RayMarchingContext,
+#if USE_CAMERA_AVSM
+	inout FAVSM_Sampler4 TransmittanceSampler,
+#endif
 	FDeferredLightData LightData,
 	uint LightType,
 	uint StepCount,
@@ -330,19 +358,37 @@ void RayMarchSingleScattering(
 	// Reuse jitter as random sample
 	float RandomSample = RayMarchingContext.Jitter;
 
-	float LocalHitT = RayMarchingContext.LocalRayTMin + JitterSize;
 	for (uint StepIndex = 0; StepIndex < StepCount; ++StepIndex)
 	{
 		// Correct the final step size
+		float LocalHitT = RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex);
 		if (StepIndex == StepCount - 1)
 		{
 			float UnjitteredLocalHitT = LocalHitT - JitterSize;
 			StepSize = RayMarchingContext.LocalRayTMax - UnjitteredLocalHitT;
 		}
 
+		float WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
-		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * LocalHitT * RayMarchingContext.LocalToWorldScale;
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
+		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * WorldHitT;
+#if IS_OFFLINE_RENDER
+		float3 FilterWidth = 1.0;
+		float Rand = RandomSequence_GenerateSample1D(RayMarchingContext.RandSequence);
+		int StochasticFilteringMode = GetStochasticFilteringMode();
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, FilterWidth, RayMarchingContext.MipLevel, Rand, StochasticFilteringMode);
+#else
+	#if USE_ANALYTIC_DERIVATIVES
+		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * WorldHitT;
+		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * WorldHitT;
+		WorldPosition_DDX -= WorldPosition;
+		WorldPosition_DDY -= WorldPosition;
+	#else
+		float3 WorldPosition_DDX = 0.0;
+		float3 WorldPosition_DDY = 0.0;
+	#endif // USE_ANALYTIC_DERIVATIVES
+
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
+#endif // IS_OFFLINE_RENDER
 
 		if (RayMarchingContext.bApplyEmissionAndTransmittance)
 		{
@@ -361,9 +407,10 @@ void RayMarchSingleScattering(
 			float3 Extinction = SampleExtinction(SampleContext);
 			float3 Albedo = SampleAlbedo(SampleContext);
 			float3 ScatteringCoefficient = Albedo * Extinction;
+			float AmbientOcclusion = EvalAmbientOcclusion(WorldPosition);
 
 			// Note: Phase is accounted for in spherical hamonic calculation
-			Radiance += IndirectInscattering * ScatteringCoefficient * Transmittance * StepSize;
+			Radiance += IndirectInscattering * AmbientOcclusion * ScatteringCoefficient * Transmittance * StepSize;
 #endif // DIM_USE_LUMEN_GI
 		}
 
@@ -424,8 +471,13 @@ void RayMarchSingleScattering(
 			Radiance += RadianceSample;
 		}
 
+#if USE_CAMERA_AVSM
+		//Transmittance = AVSM_Sampler4_Eval_NoInterpolation(TransmittanceSampler, WorldHitT);
+		Transmittance = AVSM_Sampler4_Eval(TransmittanceSampler, WorldHitT);
+#else
 		// Accumulate transmittance for the next evaluation
 		Transmittance *= exp(-Extinction * StepSize);
+#endif
 
 		float Epsilon = 1.0e-7;
 		if (all(Transmittance < Epsilon))
@@ -476,4 +528,80 @@ void RayMarchSingleScattering(
 	// regions of low density (eg: silhouette edges), blending is interpreted as alpha-masking instead.
 	Radiance += FogRadiance.rgb * FogAlpha;
 #endif // APPLY_FOG_INSCATTERING
+}
+
+void RayMarchSingleScatteringReferenceFastPath(
+	inout FRayMarchingContext RayMarchingContext,
+#if USE_CAMERA_AVSM
+	inout FAVSM_Sampler4 TransmittanceSampler,
+#endif
+	uint StepCount,
+	inout float3 Radiance,
+	inout float3 Transmittance
+)
+{
+	for (uint StepIndex = 0; StepIndex < StepCount; ++StepIndex)
+	{
+		float StepSize = RayMarchingContext.StepSize;
+		float LocalHitT = RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex);
+		float WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
+		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
+		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * WorldHitT;
+#if USE_ANALYTIC_DERIVATIVES
+		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * WorldHitT;
+		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * WorldHitT;
+		WorldPosition_DDX -= WorldPosition;
+		WorldPosition_DDY -= WorldPosition;
+#else
+		float3 WorldPosition_DDX = 0.0;
+		float3 WorldPosition_DDY = 0.0;
+#endif // USE_ANALYTIC_DERIVATIVES
+
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
+
+		// Radiance from emission
+		if (RayMarchingContext.bApplyEmissionAndTransmittance)
+		{
+			float3 Emission = SampleEmission(SampleContext);
+			Radiance += Emission * StepSize * Transmittance;
+		}
+
+		// Radiance from in-scattering
+		float3 Extinction = SampleExtinction(SampleContext);
+		if (RayMarchingContext.bApplyDirectLighting && (any(Extinction > 0)))
+		{
+			float3 RadianceSample = 0;
+
+			// Evaluate in-scattering
+			float3 Albedo = SampleAlbedo(SampleContext);
+			if (any(Albedo > 0.0))
+			{
+				// Evaluate lighting cache
+				float3 LocalBoundsMin = GetLocalBoundsOrigin() - GetLocalBoundsExtent();
+				float3 UVW = saturate((LocalPosition - LocalBoundsMin) / (2.0 * GetLocalBoundsExtent()));
+				float3 Inscattering = SampleLightingCache(UVW, 0) * View.OneOverPreExposure;
+
+				// Evaluate scattering
+				float3 ScatteringCoefficient = Albedo * Extinction;
+				float IsotropicPhase = 1.0 / (4.0 * PI);
+				RadianceSample = Inscattering * ScatteringCoefficient * IsotropicPhase * Transmittance * StepSize;
+			}
+
+			Radiance += RadianceSample;
+		}
+
+		// Accumulate transmittance for the next evaluation
+#if USE_CAMERA_AVSM
+		Transmittance = AVSM_Sampler4_Eval(TransmittanceSampler, WorldHitT);
+#else
+		Transmittance *= exp(-Extinction * StepSize);
+#endif
+
+		float Epsilon = 1.0e-7;
+		if (all(Transmittance < Epsilon))
+		{
+			Transmittance = 0.0;
+			break;
+		}
+	}
 }

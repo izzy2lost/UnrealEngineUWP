@@ -61,12 +61,12 @@ void FWeakKeyMap::Visit(VCell* Key, TVisitor& Visitor)
 			for (auto It = MapMap->CreateIterator(); It; ++It)
 			{
 				// It->Key is a weak map in this case.
-				Visitor.BeginObject();
-				if (Visitor.IsMarked(It->Key, TEXT("Key")))
-				{
-					Visitor.VisitNonNull(It->Value, TEXT("Value"));
-				}
-				Visitor.EndObject();
+				Visitor.VisitPair([&Visitor, &It] {
+					if (Visitor.IsMarked(It->Key, TEXT("Key")))
+					{
+						Visitor.VisitNonNull(It->Value, TEXT("Value"));
+					}
+				});
 			}
 			Visitor.EndMap();
 		}

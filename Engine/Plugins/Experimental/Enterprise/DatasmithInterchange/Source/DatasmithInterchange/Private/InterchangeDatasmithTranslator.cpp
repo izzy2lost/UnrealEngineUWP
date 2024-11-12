@@ -5,6 +5,7 @@
 #include "InterchangeDatasmithAreaLightNode.h"
 #include "InterchangeDatasmithLog.h"
 #include "InterchangeDatasmithMaterialNode.h"
+#include "InterchangeDatasmithStaticMeshData.h"
 #include "InterchangeDatasmithTextureData.h"
 #include "InterchangeDatasmithUtils.h"
 
@@ -17,6 +18,7 @@
 #include "DatasmithUtils.h"
 #include "DatasmithVariantElements.h"
 #include "IDatasmithSceneElements.h"
+#include "DatasmithParametricSurfaceData.h"
 
 #include "CADOptions.h"
 #include "ExternalSourceModule.h"
@@ -37,6 +39,8 @@
 #include "InterchangeVariantSetNode.h"
 #include "StaticMeshOperations.h"
 
+#include "Async/ParallelFor.h"
+#include "HAL/ConsoleManager.h"
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 
@@ -51,70 +55,6 @@
 #endif //WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "DatasmithInterchange"
-
-namespace UE::DatasmithInterchange
-{
-#if WITH_EDITOR
-	bool DisplayOptionsDialog(IDatasmithTranslator& Translator)
-	{
-		TArray<TObjectPtr<UDatasmithOptionsBase>> ImportOptions;
-		Translator.GetSceneImportOptions(ImportOptions);
-
-		if (ImportOptions.Num() == 0)
-		{
-			return true;
-		}
-
-		const FString FilePath = Translator.GetSource().GetSourceFile();
-
-		TSharedPtr<SWindow> ParentWindow;
-
-		if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
-		{
-			IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
-			ParentWindow = MainFrame.GetParentWindow();
-		}
-
-		TArray<UObject*> Options;
-		Options.SetNum(ImportOptions.Num());
-		for (int32 Index = 0; Index < ImportOptions.Num(); ++Index)
-		{
-			Options[Index] = ImportOptions[Index];
-		}
-
-		TSharedRef<SWindow> Window = SNew(SWindow)
-			.Title(LOCTEXT("DatasmithImportSettingsTitle", "Datasmith Import Options"))
-			.SizingRule(ESizingRule::Autosized);
-
-		float SceneVersion = FDatasmithUtils::GetDatasmithFormatVersionAsFloat();
-		FString FileSDKVersion = FDatasmithUtils::GetEnterpriseVersionAsString();
-
-		TSharedPtr<SDatasmithOptionsWindow> OptionsWindow;
-		Window->SetContent
-		(
-			SAssignNew(OptionsWindow, SDatasmithOptionsWindow)
-			.ImportOptions(Options)
-			.WidgetWindow(Window)
-			// note: Spacing in text below is intentional for text alignment
-			.FileNameText(FText::Format(LOCTEXT("DatasmithImportSettingsFileName", "  Import File  :    {0}"), FText::FromString(FPaths::GetCleanFilename(FilePath))))
-			.FilePathText(FText::FromString(FilePath))
-			.FileFormatVersion(SceneVersion)
-			.FileSDKVersion(FText::FromString(FileSDKVersion))
-//			.PackagePathText(FText::Format(LOCTEXT("DatasmithImportSettingsPackagePath", "  Import To   :    {0}"), FText::FromString(PackagePath)))
-			.ProceedButtonLabel(LOCTEXT("DatasmithOptionWindow_ImportCurLevel", "Import"))
-			.ProceedButtonTooltip(LOCTEXT("DatasmithOptionWindow_ImportCurLevel_ToolTip", "Import the file through Interchange and add to the current Level"))
-			.CancelButtonLabel(LOCTEXT("DatasmithOptionWindow_Cancel", "Cancel"))
-			.CancelButtonTooltip(LOCTEXT("DatasmithOptionWindow_Cancel_ToolTip", "Cancel importing this file"))
-			.MinDetailHeight(320.f)
-			.MinDetailWidth(450.f)
-		);
-
-		FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
-
-		return OptionsWindow->ShouldImport();
-	}
-#endif
-}
 
 TArray<FString> UInterchangeDatasmithTranslator::GetSupportedFormats() const
 {
@@ -183,9 +123,16 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 			const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
 			if (DatasmithTranslator)
 			{
-				TArray<TObjectPtr<UDatasmithOptionsBase>> OptionArray;
-				OptionArray.Add(CachedSettings->ImportOptions);
-				DatasmithTranslator->SetSceneImportOptions(OptionArray);
+				FDatasmithTranslatorCapabilities Capabilities;
+				DatasmithTranslator->Initialize(Capabilities);
+
+				if (!Capabilities.bParallelLoadStaticMeshSupported)
+				{
+					AsyncMode = EAsyncExecution::TaskGraphMainThread;
+				}
+
+				DatasmithTranslator->SetSceneImportOptions({ CachedSettings->DatasmithOption });
+				CachedSettings->DatasmithOption->SaveConfig();
 			}
 		}
 
@@ -196,6 +143,19 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 		{
 			return false;
 		}
+
+	}
+
+	// Add container for static mesh's additional data
+	{
+		const FString SceneName = DatasmithScene->GetName();
+		const FString StaticMeshDataNodeUid = NodeUtils::ScenePrefix + SceneName + TEXT("_AdditionalData");
+
+		StaticMeshDataNode = NewObject<UDatasmithInterchangeStaticMeshDataNode>(&BaseNodeContainer);
+
+		StaticMeshDataNode->InitializeNode(StaticMeshDataNodeUid, TEXT("StaticMesh_AdditonalData"), EInterchangeNodeContainerType::TranslatedAsset);
+
+		BaseNodeContainer.AddNode(StaticMeshDataNode.Get());
 	}
 
 	// Texture Nodes
@@ -424,7 +384,7 @@ void UInterchangeDatasmithTranslator::HandleDatasmithActor(UInterchangeBaseNodeC
 	BaseNodeContainer.SetNodeParentUid(NodeUid, ParentNodeUid);
 
 	const FTransform ActorTransform = ActorElement->GetRelativeTransform();
-	InterchangeSceneNode->SetCustomLocalTransform(&BaseNodeContainer, ActorElement->GetRelativeTransform());
+	InterchangeSceneNode->SetCustomLocalTransform(&BaseNodeContainer, ActorElement->GetRelativeTransform(), false);
 	// TODO: Layer association + component actors
 
 	if (ActorElement->IsA(EDatasmithElementType::StaticMeshActor))
@@ -516,6 +476,7 @@ UInterchangePhysicalCameraNode* UInterchangeDatasmithTranslator::AddCameraNode(U
 	const float SensorHeight = CameraActor->GetSensorWidth() / CameraActor->GetSensorAspectRatio();
 	CameraNode->SetCustomSensorHeight(SensorHeight);
 
+	// #cad_interchange:
 	// TODO Add properties currently missing from the InterchangeCameraNode:
 	//  - DepthOfField
 	//  - FocusDistance
@@ -760,14 +721,15 @@ TOptional<UE::Interchange::FImportLightProfile> UInterchangeDatasmithTranslator:
 	return TextureTranslator->GetLightProfilePayloadData(PayloadKey, AlternateTexturePath);
 }
 
-TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
+TOptional<UE::Interchange::FMeshPayloadData> UInterchangeDatasmithTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
 {
-	TPromise<TOptional<UE::Interchange::FMeshPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<UE::Interchange::FMeshPayloadData>());
+	using namespace UE::DatasmithInterchange;
+
+	TOptional<UE::Interchange::FMeshPayloadData> EmptyPayload = TOptional<UE::Interchange::FMeshPayloadData>();
 
 	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
 	{
-		return EmptyPromise.GetFuture();
+		return EmptyPayload;
 	}
 
 	int32 MeshIndex = 0;
@@ -775,103 +737,118 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTrans
 	TSharedPtr<IDatasmithScene> DatasmithScene = LoadedExternalSource->GetDatasmithScene();
 	if (MeshIndex < 0 || MeshIndex >= DatasmithScene->GetMeshesCount())
 	{
-		return EmptyPromise.GetFuture();
+		return EmptyPayload;
 	}
 
 	TSharedPtr<IDatasmithMeshElement> MeshElement = DatasmithScene->GetMesh(MeshIndex);
 	if (!MeshElement.IsValid())
 	{
-		return EmptyPromise.GetFuture();
+		return EmptyPayload;
 	}
 
-	return Async(EAsyncExecution::TaskGraph, [this, MeshElement = MoveTemp(MeshElement), MeshGlobalTransform]
-		{
-			TOptional<UE::Interchange::FMeshPayloadData> Result;
+	UE::Interchange::FMeshPayloadData StaticMeshPayloadData;
+	if (GetMeshDescription(MeshElement, MeshGlobalTransform, StaticMeshPayloadData))
+	{
+		TOptional<UE::Interchange::FMeshPayloadData> Payload;
+		Payload = MoveTemp(StaticMeshPayloadData);
+		return Payload;
+	}
 
-			FDatasmithMeshElementPayload DatasmithMeshPayload;
-			if (LoadedExternalSource->GetAssetTranslator()->LoadStaticMesh(MeshElement.ToSharedRef(), DatasmithMeshPayload))
-			{
-				if (DatasmithMeshPayload.LodMeshes.Num() > 0)
-				{
-					UE::Interchange::FMeshPayloadData StaticMeshPayloadData;
-					StaticMeshPayloadData.MeshDescription = MoveTemp(DatasmithMeshPayload.LodMeshes[0]);
-					if (!FStaticMeshOperations::ValidateAndFixData(StaticMeshPayloadData.MeshDescription, MeshElement->GetName()))
-					{
-						UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
-						ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
-						ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
-					}
-					// Bake the payload mesh, with the provided transform
-					if (!MeshGlobalTransform.Equals(FTransform::Identity))
-					{
-						FStaticMeshOperations::ApplyTransform(StaticMeshPayloadData.MeshDescription, MeshGlobalTransform);
-					}
-					Result.Emplace(MoveTemp(StaticMeshPayloadData));
-				}
-			}
-
-			return Result;
-		}
-	);
+	return EmptyPayload;
 }
 
-TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency, const double RangeStartSecond, const double RangeStopSecond) const
+TOptional<UE::Interchange::FAnimationPayloadData> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const UE::Interchange::FAnimationPayloadQuery& PayloadQuery) const
 {
-	TPromise<TOptional<UE::Interchange::FAnimationPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
-	
+	TOptional<UE::Interchange::FAnimationPayloadData> Result;
 
 	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
 	{
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	TSharedPtr<IDatasmithBaseAnimationElement> AnimationElement;
 	float FrameRate = 0.f;
-	if (UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc* PayloadDescPtr = AnimationPayLoadMapping.Find(PayLoadKey.UniqueId))
+	if (UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc* PayloadDescPtr = AnimationPayLoadMapping.Find(PayloadQuery.PayloadKey.UniqueId))
 	{
 		AnimationElement = PayloadDescPtr->Value;
 		if (!ensure(AnimationElement))
 		{
 			// #ueent_logwarning:
-			return EmptyPromise.GetFuture();
+			return Result;
 		}
 
 		FrameRate = PayloadDescPtr->Key;
 	}
 
-	if (PayLoadKey.Type != EInterchangeAnimationPayLoadType::NONE)
+	if (PayloadQuery.PayloadKey.Type != EInterchangeAnimationPayLoadType::NONE)
 	{
-		return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, PayLoadType = PayLoadKey.Type]
-			{
-
-				UE::Interchange::FAnimationPayloadData TransformPayloadData(PayLoadType);
-				TOptional<UE::Interchange::FAnimationPayloadData> Result;
-
-				if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayLoadType, TransformPayloadData))
-				{
-					Result.Emplace(MoveTemp(TransformPayloadData));
-				}
-
-				return Result;
-			}
-		);
+		UE::Interchange::FAnimationPayloadData TransformPayloadData(PayloadQuery.SceneNodeUniqueID, PayloadQuery.PayloadKey);
+		if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayloadQuery.PayloadKey.Type, TransformPayloadData))
+		{
+			Result = MoveTemp(TransformPayloadData);
+		}
 	}
 
-	return EmptyPromise.GetFuture();
+	return Result;
 }
 
-TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmithTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
+TArray<UE::Interchange::FAnimationPayloadData> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries) const
+{
+	TArray<TOptional<UE::Interchange::FAnimationPayloadData>> AnimationPayloadOptionals;
+	int32 PayloadCount = PayloadQueries.Num();
+	AnimationPayloadOptionals.AddDefaulted(PayloadCount);
+
+	const int32 BatchSize = 5;
+	if (PayloadQueries.Num() > BatchSize)
+	{
+		const int32 NumBatches = (PayloadCount / BatchSize) + 1;
+		ParallelFor(NumBatches, [&](int32 BatchIndex)
+			{
+				int32 PayloadIndexOffset = BatchIndex * BatchSize;
+				for (int32 PayloadIndex = PayloadIndexOffset; PayloadIndex < PayloadIndexOffset + BatchSize; ++PayloadIndex)
+				{
+					if (PayloadQueries.IsValidIndex(PayloadIndex))
+					{
+						AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+					}
+				}
+			}, EParallelForFlags::BackgroundPriority);// ParallelFor
+	}
+	else
+	{
+		for (int32 PayloadIndex = 0; PayloadIndex < PayloadCount; ++PayloadIndex)
+		{
+			if (PayloadQueries.IsValidIndex(PayloadIndex))
+			{
+				AnimationPayloadOptionals[PayloadIndex] = GetAnimationPayloadData(PayloadQueries[PayloadIndex]);
+			}
+		}
+	}
+
+
+	TArray<UE::Interchange::FAnimationPayloadData> AnimationPayloads;
+	for (TOptional<UE::Interchange::FAnimationPayloadData>& OptionalPayloadData : AnimationPayloadOptionals)
+	{
+		if (!OptionalPayloadData.IsSet())
+		{
+			continue;
+		}
+		AnimationPayloads.Add(OptionalPayloadData.GetValue());
+	}
+
+	return AnimationPayloads;
+}
+
+TOptional<UE::Interchange::FVariantSetPayloadData> UInterchangeDatasmithTranslator::GetVariantSetPayloadData(const FString& PayloadKey) const
 {
 	using namespace UE::Interchange;
 	using namespace UE::DatasmithInterchange;
 
-	TPromise<TOptional<FVariantSetPayloadData>> EmptyPromise;
-	EmptyPromise.SetValue(TOptional<FVariantSetPayloadData>());
+	TOptional<FVariantSetPayloadData> Result;
 
 	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
 	{
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	TSharedPtr<IDatasmithScene> DatasmithScene = LoadedExternalSource->GetDatasmithScene();
@@ -882,7 +859,7 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmit
 	if (2 != PayloadKey.ParseIntoArray(PayloadTokens, TEXT(";")))
 	{
 		// Invalid payload
-		return EmptyPromise.GetFuture();
+		return Result;
 	}
 
 	int32 LevelVariantSetIndex = FCString::Atoi(*PayloadTokens[0]);
@@ -894,23 +871,17 @@ TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> UInterchangeDatasmit
 		TSharedPtr<IDatasmithVariantSetElement> VariantSet = LevelVariantSetElement->GetVariantSet(VariantSetIndex);
 		if (ensure(VariantSet) && VariantSet->GetVariantsCount() > 0)
 		{
-			return Async(EAsyncExecution::TaskGraph, [this, VariantSet = MoveTemp(VariantSet)]
-					{
-						FVariantSetPayloadData PayloadData;
-						TOptional<FVariantSetPayloadData> Result;
-
-						if (VariantSetUtils::GetVariantSetPayloadData(*VariantSet, PayloadData))
-						{
-							Result.Emplace(MoveTemp(PayloadData));
-						}
-
-						return Result;
-					}
-				);
+			TSharedPtr<TPromise<TOptional<FVariantSetPayloadData>>> Promise = MakeShared<TPromise<TOptional<FVariantSetPayloadData>>>();
+			FVariantSetPayloadData PayloadData;
+			if (VariantSetUtils::GetVariantSetPayloadData(*VariantSet, PayloadData))
+			{
+				Result = MoveTemp(PayloadData);
+				return Result;
+			}
 		}
 	}
 
-	return EmptyPromise.GetFuture();
+	return Result;
 }
 
 void UInterchangeDatasmithTranslator::ImportFinish()
@@ -921,6 +892,20 @@ void UInterchangeDatasmithTranslator::ImportFinish()
 	ElapsedSeconds -= 60.0 * (double)ElapsedMin;
 
 	UE_LOG(LogInterchangeDatasmith, Log, TEXT("Imported %s in [%d min %.3f s]"), *FileName, ElapsedMin, ElapsedSeconds);
+
+	// Remove dependency on created static meshes
+	StaticMeshDataNode->AdditionalDataMap.Reset();
+	StaticMeshDataNode = nullptr;
+
+	if (LoadedExternalSource.IsValid())
+	{
+		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
+		if (DatasmithTranslator)
+		{
+			DatasmithTranslator->UnloadScene();
+		}
+	}
+
 }
 
 
@@ -944,29 +929,32 @@ UInterchangeTranslatorSettings* UInterchangeDatasmithTranslator::GetSettings() c
 			return nullptr;
 		}
 
+		TArray<TObjectPtr<UDatasmithOptionsBase>> DatasmithOptions;
 		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
-		if (!DatasmithTranslator)
-		{
-			return nullptr;
-		}
-
-		TArray<TObjectPtr<UDatasmithOptionsBase>> OptionArray;
-		DatasmithTranslator->GetSceneImportOptions(OptionArray);
-		if (OptionArray.Num() == 0)
+		DatasmithTranslator->GetSceneImportOptions(DatasmithOptions);
+		if (DatasmithOptions.Num() == 0)
 		{
 			return nullptr;
 		}
 
 		CachedSettings = DuplicateObject<UInterchangeDatasmithTranslatorSettings>(UInterchangeDatasmithTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeDatasmithTranslatorSettings>(), GetTransientPackage());
 		CachedSettings->SetFlags(RF_Standalone);
+		CachedSettings->ClearFlags(RF_ArchetypeObject);
 		CachedSettings->ClearInternalFlags(EInternalObjectFlags::Async);
-		CachedSettings->ImportOptions = OptionArray[0];
+
+		// Only the first one is considered
+		CachedSettings->DatasmithOption = DatasmithOptions[0];
+
+		CachedSettings->DatasmithOption->LoadConfig();
 	}
+
 	return CachedSettings;
 }
 
 void UInterchangeDatasmithTranslator::SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings)
 {
+	using namespace UE::DatasmithImporter;
+
 	if (CachedSettings)
 	{
 		CachedSettings->ClearFlags(RF_Standalone);
@@ -978,7 +966,69 @@ void UInterchangeDatasmithTranslator::SetSettings(const UInterchangeTranslatorSe
 		CachedSettings = DuplicateObject<UInterchangeDatasmithTranslatorSettings>(Cast<UInterchangeDatasmithTranslatorSettings>(InterchangeTranslatorSettings), GetTransientPackage());
 		CachedSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 		CachedSettings->SetFlags(RF_Standalone);
+
+		CachedSettings->SaveConfig();
+
+		CachedSettings->DatasmithOption->SaveConfig();
+
+		if (!LoadedExternalSource.IsValid())
+		{
+			FString FilePath = FPaths::ConvertRelativePathToFull(SourceData->GetFilename());
+			FileName = FPaths::GetCleanFilename(FilePath);
+			const FSourceUri FileNameUri = FSourceUri::FromFilePath(FilePath);
+			LoadedExternalSource = IExternalSourceModule::GetOrCreateExternalSource(FileNameUri);
+		}
+
+		if (LoadedExternalSource.IsValid() && LoadedExternalSource->IsAvailable())
+		{
+			const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
+			DatasmithTranslator->SetSceneImportOptions({ CachedSettings->DatasmithOption });
+		}
 	}
+}
+
+bool UInterchangeDatasmithTranslator::GetMeshDescription(const TSharedPtr<IDatasmithMeshElement>& MeshElement, const FTransform& MeshGlobalTransform, UE::Interchange::FMeshPayloadData& PayloadData) const
+{
+	using namespace UE::DatasmithInterchange;
+
+	FDatasmithMeshElementPayload DatasmithMeshPayload;
+	if (!LoadedExternalSource->GetAssetTranslator()->LoadStaticMesh(MeshElement.ToSharedRef(), DatasmithMeshPayload))
+	{
+		UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+		ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+		ErrorResult->Text = FText::Format(LOCTEXT("GetMeshPayloadData_LoadStaticMeshFail", "Failed to load mesh description for mesh element {0}."), FText::FromString(MeshElement->GetName()));
+		return false;
+	}
+
+	if (DatasmithMeshPayload.LodMeshes.Num() > 0)
+	{
+		for (UDatasmithAdditionalData* AdditionalData : DatasmithMeshPayload.AdditionalData)
+		{
+			if (UDatasmithParametricSurfaceData* ParametricSurfaceData = Cast<UDatasmithParametricSurfaceData>(AdditionalData))
+			{
+				const FString MeshNodeUid = NodeUtils::MeshPrefix + MeshElement->GetName();
+				StaticMeshDataNode->AdditionalDataMap.Add(MeshNodeUid, ParametricSurfaceData);
+				break;
+			}
+		}
+
+		if (!FStaticMeshOperations::ValidateAndFixData(DatasmithMeshPayload.LodMeshes[0], MeshElement->GetName()))
+		{
+			UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+			ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+			ErrorResult->Text = FText::Format(LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad for mesh element {0}."), FText::FromString(MeshElement->GetName()));
+			return false;
+		}
+		// Bake the payload mesh, with the provided transform
+		if (!MeshGlobalTransform.Equals(FTransform::Identity))
+		{
+			FStaticMeshOperations::ApplyTransform(DatasmithMeshPayload.LodMeshes[0], MeshGlobalTransform);
+		}
+
+		PayloadData.MeshDescription = MoveTemp(DatasmithMeshPayload.LodMeshes[0]);
+	}
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

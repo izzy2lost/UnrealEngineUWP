@@ -66,11 +66,13 @@ public:
 	void FileSave(const FString& OutputFileIfUnsaved = {});
 	void FileExportAllLayers(const FString& OutputDirectory = {});
 	void FileExportFlattenedStage(const FString& OutputLayer = {});
+	void FileExportFlattenedLayerStack(const FString& OutputLayer = {});
 	void FileReload();
 	void FileReset();
 	void FileClose();
 	void ActionsImportWithDialog();
 	void ActionsImport(const FString& OutputContentFolder, UUsdStageImportOptions* Options);
+	void ActionsRegenerate();
 	void ExportSelectedLayers(const FString& OutputLayerOrDirectory = {});
 
 protected:
@@ -94,10 +96,11 @@ protected:
 	void FillSubdivisionLevelSubMenu(FMenuBuilder& MenuBuilder);
 	void FillMetadataSubMenu(FMenuBuilder& MenuBuilder);
 	void FillCollapsingSubMenu(FMenuBuilder& MenuBuilder);
-	void FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder);
+	void FillShareAssetsSubMenu(FMenuBuilder& MenuBuilder);
 	void FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder);
 	void FillSelectionSubMenu(FMenuBuilder& MenuBuilder);
 	void FillNaniteThresholdSubMenu(FMenuBuilder& MenuBuilder);
+	void FillGeometryCacheImportSubMenu(FMenuBuilder& MenuBuilder);
 
 	void OnLayerIsolated(const UE::FSdfLayer& IsolatedLayer);
 

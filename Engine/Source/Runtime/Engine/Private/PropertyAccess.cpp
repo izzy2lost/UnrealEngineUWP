@@ -33,7 +33,7 @@ struct FPropertyAccessSystem
 
 	static uint32 GetPropertyOffset(const FProperty* InProperty, int32 InArrayIndex = 0)
 	{
-		return (uint32)(InProperty->GetOffset_ForInternal() + InProperty->ElementSize * InArrayIndex);
+		return (uint32)(InProperty->GetOffset_ForInternal() + InProperty->GetElementSize() * InArrayIndex);
 	}
 
 	// Called on load to resolve all path segments to indirections
@@ -268,7 +268,7 @@ struct FPropertyAccessSystem
 		case EPropertyAccessCopyType::Plain:
 			checkSlow(InSrcProperty->PropertyFlags & CPF_IsPlainOldData);
 			checkSlow(InDestProperty->PropertyFlags & CPF_IsPlainOldData);
-			FMemory::Memcpy(InDestAddr, InSrcAddr, InSrcProperty->ElementSize);
+			FMemory::Memcpy(InDestAddr, InSrcAddr, InSrcProperty->GetElementSize());
 			break;
 		case EPropertyAccessCopyType::Complex:
 			InSrcProperty->CopyCompleteValue(InDestAddr, InSrcAddr);

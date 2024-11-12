@@ -6,10 +6,17 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/UnrealType.h"
 
-class UObject;
+class UPackage;
+
+namespace UE::Cameras
+{
+
+#if WITH_EDITOR
+
+class IGameplayCamerasLiveEditListener;
 
 /**
- * Interface for an object that can handle live-editing features of the camera assets.
+ * Interface for an object that can centralize the live-editing features of the camera system.
  */
 class IGameplayCamerasLiveEditManager : public TSharedFromThis<IGameplayCamerasLiveEditManager>
 {
@@ -17,17 +24,16 @@ public:
 
 	virtual ~IGameplayCamerasLiveEditManager() {}
 
-	/**
-	 * Register a new set of instantiated objects.
-	 *
-	 * @param InstantiatedObjects  A mapping between a source object and an instantiated object.
-	 */
-	virtual void RegisterInstantiatedObjects(const TMap<UObject*, UObject*> InstantiatedObjects) = 0;
+	/** Notify all listeners to reload cameras related to the given package. */
+	virtual void NotifyPostBuildAsset(const UPackage* InAssetPackage) const = 0;
 
-	/**
-	 * Request that a property change on the given source object should be replicated on any
-	 * known related instantied objects.
-	 */
-	virtual void ForwardPropertyChange(const UObject* Object, const FPropertyChangedEvent& PropertyChangedEvent) = 0;
+	/** Add a listener for the given package. */
+	virtual void AddListener(const UPackage* InAssetPackage, IGameplayCamerasLiveEditListener* Listener) = 0;
+	/** Removes a listener for the given package. */
+	virtual void RemoveListener(const UPackage* InAssetPackage, IGameplayCamerasLiveEditListener* Listener) = 0;
 };
+
+#endif  // WITH_EDITOR
+
+}  // namespace UE::Cameras
 

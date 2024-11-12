@@ -2,10 +2,13 @@
 
 #pragma once
 
-#include "OptimusDataType.h"
 #include "UObject/Interface.h"
 
 #include "IOptimusValueProvider.generated.h"
+
+struct FOptimusValueContainerStruct;
+struct FOptimusDataTypeRef;
+struct FOptimusValueIdentifier;
 
 UINTERFACE()
 class UOptimusValueProvider :
@@ -24,9 +27,9 @@ class IOptimusValueProvider
 
 public:
 	// Returns the value name.
-	virtual FString GetValueName() const = 0;
-	// Returns the value type.
-	virtual FOptimusDataTypeRef GetValueType() const = 0;
-	// Returns the stored value as a shader-compatible value.
-	virtual FShaderValueType::FValue GetShaderValue() const = 0;
+	virtual FOptimusValueIdentifier GetValueIdentifier() const = 0;
+	// Returns the value data type.
+	virtual FOptimusDataTypeRef GetValueDataType() const = 0;
+	// Returns the stored value.
+	virtual FOptimusValueContainerStruct GetValue() const = 0;
 };

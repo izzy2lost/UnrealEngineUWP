@@ -129,7 +129,7 @@ static const UObject* ValuePtrToContainerUObjectPtr(FProperty* Property, const v
 	check(ArrayIndex < Property->ArrayDim);
 	check(ValuePtr);
 
-	const uint8* ContainerPtr = (const uint8*)ValuePtr - (Property->GetOffset_ForInternal() + Property->ElementSize * ArrayIndex);
+	const uint8* ContainerPtr = (const uint8*)ValuePtr - (Property->GetOffset_ForInternal() + Property->GetElementSize() * ArrayIndex);
 
 	check(((const UObject*)ContainerPtr)->IsValidLowLevel()); // Check its a valid UObject that was passed in
 	check(((const UObject*)ContainerPtr)->GetClass() != NULL);

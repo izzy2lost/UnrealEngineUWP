@@ -320,17 +320,21 @@ class Sync(_SyncBase):
                         x.write(line)
 
     def _apply_p4sync_txt(self, syncer):
-        def impl(path):
-            print("Source:", os.path.normpath(path), end="")
+        view_filter = syncer.get_view_filter()
+
+        def load_lines(index, path):
+            print("Source:", index, os.path.normpath(path), end="")
             try:
-                sync_config = open(path, "rt")
-                print()
+                with open(path, "rt") as sync_config:
+                    lines = [x.strip() for x in sync_config]
+                print(" ... ", len(lines), "lines")
+                return lines
             except:
                 print(" ... not found")
-                return
 
+        def impl_exclusions(index, lines):
             def read_exclusions():
-                for line in map(str.strip, sync_config):
+                for line in lines:
                     if line.startswith("-"):    yield line[1:]
                     elif line.startswith("$-"): yield line[2:]
 
@@ -340,21 +344,46 @@ class Sync(_SyncBase):
                 elif line.startswith("/"):   view = line[1:]
                 elif line.startswith("..."): view = line
 
-                print("       %2d" % i, "exclude", end=" ")
+                print("  %d.%02d" % (index, i), "excl", end=" ")
 
                 if view and (view.count("/") or "/*." in view or view.startswith("*.")):
                     view = self._branch_root + view
-                    syncer.add_exclude(view)
+                    view_filter.add_exclude(view)
                     print(view)
                 else:
                     view = view or line
                     print(flow.cmd.text.light_yellow(view + " (ill-formed)"))
 
-            sync_config.close()
+        def impl_extra_roots(index, lines):
+            view_query = view_filter.get_query()
+
+            def read_extra_roots():
+                for line in lines:
+                    if line.startswith("/"):    yield line[1:]
+                    elif line.startswith("$/"): yield line[2:]
+
+            for i, extra_root in enumerate(read_extra_roots()):
+                extra_root = self._branch_root + extra_root
+                syncer.add_path(extra_root)
+                print("  %d.%02d" % (index, i), "sync", extra_root)
+
+                if result := view_query.is_excluded(extra_root):
+                    print(
+                        " " * 11,
+                        flow.cmd.text.light_yellow(f"ignoring exclusion '{result}'"),
+                        "(contradiction)"
+                    )
+                    view_filter.remove_exclude(result)
 
         self.print_info("Applying .p4sync.txt")
-        for dir in (self.get_home_dir(), self._local_root):
-            impl(dir + ".p4sync.txt")
+
+        liness = []
+        for index, dir in enumerate((self.get_home_dir(), self._local_root)):
+            if lines := load_lines(index, dir + ".p4sync.txt"):
+                liness.append((index, lines))
+
+        for index, lines in liness: impl_exclusions(index, lines)
+        for index, lines in liness: impl_extra_roots(index, lines)
 
 
 

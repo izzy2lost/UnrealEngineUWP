@@ -15,33 +15,53 @@
 
 #define LOCTEXT_NAMESPACE "PerlinNoiseChannelInterface"
 
-FPerlinNoiseChannelSectionMenuExtension::FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, TArrayView<UMovieSceneSection* const> InSections)
+FPerlinNoiseChannelSectionMenuExtension::FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections)
 	: ChannelHandles(InChannelHandles)
-	, Sections(InSections)
+	, WeakSections(InWeakSections)
 {
 	Initialize();
 }
 
-void FPerlinNoiseChannelSectionMenuExtension::ExtendMenu(FMenuBuilder& MenuBuilder)
+TSharedPtr<ISidebarChannelExtension> FPerlinNoiseChannelSectionMenuExtension::ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu)
 {
-	TSharedRef<FPerlinNoiseChannelSectionMenuExtension> SharedThis = this->AsShared();
-
 	if (ChannelHandles.Num() > 1)
 	{
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
-			LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
-			FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildChannelsMenu(InnerMenuBuilder); })
-		);
+		if (bInSubMenu)
+		{
+			MenuBuilder.AddSubMenu(
+				LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
+				LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
+				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& InnerMenuBuilder)
+					{
+						BuildChannelsMenu(InnerMenuBuilder);
+					})
+			);
+		}
+		else
+		{
+			BuildChannelsMenu(MenuBuilder);
+		}
 	}
 	else if (ChannelHandles.Num() == 1)
 	{
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
-			LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
-			FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildParametersMenu(InnerMenuBuilder, 0); })
-		);
+		if (bInSubMenu)
+		{
+			MenuBuilder.AddSubMenu(
+				LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
+				LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
+				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& InnerMenuBuilder)
+					{
+						BuildParametersMenu(InnerMenuBuilder, 0);
+					})
+			);
+		}
+		else
+		{
+			BuildParametersMenu(MenuBuilder, 0);
+		}
 	}
+
+	return AsShared();
 }
 
 void FPerlinNoiseChannelSectionMenuExtension::Initialize()
@@ -50,7 +70,7 @@ void FPerlinNoiseChannelSectionMenuExtension::Initialize()
 	// Also, create the notify hooks. Normal channels need to modify the section, but overriden channels
 	// need to modify their override channel container.
 	TArray<FMovieSceneChannelProxy*> ChannelProxies;
-	for (UMovieSceneSection* Section : Sections)
+	for (const TWeakObjectPtr<UMovieSceneSection>& Section : WeakSections)
 	{
 		ChannelProxies.Add(&Section->GetChannelProxy());
 	}
@@ -60,11 +80,15 @@ void FPerlinNoiseChannelSectionMenuExtension::Initialize()
 		int32 SectionIndex = ChannelProxies.Find(ChannelHandle.GetChannelProxy());
 		ChannelHandleSectionIndexes.Add(SectionIndex);
 
-		UMovieSceneSection* Section = Sections[SectionIndex];
+		TWeakObjectPtr<UMovieSceneSection> WeakSection = WeakSections[SectionIndex];
+		if (!WeakSection.IsValid())
+		{
+			continue;
+		}
 
-		UObject* ObjectToModify = Section;
+		UObject* ObjectToModify = WeakSection.Get();
 
-		IMovieSceneChannelOverrideProvider* ChannelOverrideProvider = Cast<IMovieSceneChannelOverrideProvider>(Section);
+		IMovieSceneChannelOverrideProvider* ChannelOverrideProvider = Cast<IMovieSceneChannelOverrideProvider>(WeakSection);
 		UMovieSceneSectionChannelOverrideRegistry* ChannelOverrideRegistry = ChannelOverrideProvider ?
 			ChannelOverrideProvider->GetChannelOverrideRegistry(false) : nullptr;
 		if (ChannelOverrideRegistry)
@@ -85,7 +109,7 @@ void FPerlinNoiseChannelSectionMenuExtension::Initialize()
 
 void FPerlinNoiseChannelSectionMenuExtension::BuildChannelsMenu(FMenuBuilder& MenuBuilder)
 {
-	const bool bMultipleSections = Sections.Num() > 1;
+	const bool bMultipleSections = WeakSections.Num() > 1;
 	TSharedRef<FPerlinNoiseChannelSectionMenuExtension> SharedThis = this->AsShared();
 
 	for (int32 Index = 0; Index < ChannelHandles.Num(); ++Index)
@@ -98,7 +122,10 @@ void FPerlinNoiseChannelSectionMenuExtension::BuildChannelsMenu(FMenuBuilder& Me
 			MenuBuilder.AddSubMenu(
 				FText::Format(LOCTEXT("PerlinNoiseChannelAndSectionSelectMenu", "Section{0}.{1}"), SectionIndex + 1, FText::FromName(ChannelHandle.GetMetaData()->Name)),
 				LOCTEXT("PerlinNoiseChannelAndSectionSelectMenuToolTip", "Edit parameters for this Perlin Noise channel"),
-				FNewMenuDelegate::CreateLambda([SharedThis, Index](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildParametersMenu(InnerMenuBuilder, Index); })
+				FNewMenuDelegate::CreateLambda([this, Index](FMenuBuilder& InnerMenuBuilder)
+					{
+						BuildParametersMenu(InnerMenuBuilder, Index);
+					})
 			);
 		}
 		else
@@ -106,7 +133,10 @@ void FPerlinNoiseChannelSectionMenuExtension::BuildChannelsMenu(FMenuBuilder& Me
 			MenuBuilder.AddSubMenu(
 				FText::FromName(ChannelHandle.GetMetaData()->Name),
 				LOCTEXT("PerlinNoiseChannelSelectMenuToolTip", "Edit parameters for this Perlin Noise channel"),
-				FNewMenuDelegate::CreateLambda([SharedThis, Index](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildParametersMenu(InnerMenuBuilder, Index); })
+				FNewMenuDelegate::CreateLambda([this, Index](FMenuBuilder& InnerMenuBuilder)
+					{
+						BuildParametersMenu(InnerMenuBuilder, Index);
+					})
 			);
 		}
 	}
@@ -166,7 +196,7 @@ void FPerlinNoiseChannelSectionMenuExtension::FChannelNotifyHook::NotifyPreChang
 {
 	GEditor->BeginTransaction(FText::Format(LOCTEXT("EditProperty", "Edit {0}"), PropertyAboutToChange->GetDisplayNameText()));
 
-	ObjectToModify->Modify();
+	WeakObjectToModify->Modify();
 }
 
 void FPerlinNoiseChannelSectionMenuExtension::FChannelNotifyHook::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)

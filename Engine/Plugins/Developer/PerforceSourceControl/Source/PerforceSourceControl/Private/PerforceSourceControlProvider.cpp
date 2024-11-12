@@ -38,31 +38,41 @@ namespace
 		IdleConnectionDisconnectSeconds,
 		TEXT("The number of seconds a perforce connection will be kept open without activity before being automatically disconnected"),
 		ECVF_Default);
+
+	void ParseCmdLineSetting(FSourceControlInitSettings& Settings)
+	{
+		if (!Settings.ShouldReadFromCmdLine())
+		{
+			return;
+		}
+
+		auto ParseCmdLineSetting = [&Settings](const TCHAR* SettingKey) -> void
+			{
+				FString SettingValue;
+				if (FParse::Value(FCommandLine::Get(), *WriteToString<64>(SettingKey, TEXT("=")), SettingValue))
+				{
+					Settings.AddSetting(SettingKey, SettingValue);
+				}
+			};
+
+		ParseCmdLineSetting(TEXT("P4Port"));
+		ParseCmdLineSetting(TEXT("P4User"));
+		ParseCmdLineSetting(TEXT("P4Client"));
+		ParseCmdLineSetting(TEXT("P4Host"));
+		ParseCmdLineSetting(TEXT("P4Passwd"));
+		ParseCmdLineSetting(TEXT("P4Changelist"));
+	}
 }
 
 FPerforceSourceControlProvider::FPerforceSourceControlProvider()
 	: PerforceSCCSettings(*this, FStringView())
-	, InitialSettings(FSourceControlInitSettings::EBehavior::OverrideExisting)
+	, InitialSettings(FSourceControlInitSettings::EBehavior::OverrideExisting, FSourceControlInitSettings::ECmdLineFlags::ReadAll)
 	, OwnerName(TEXT("Default"))
 	, bServerAvailable(false)
 	, bLoginError(false)
 	, PersistentConnection(nullptr)
 {
-	auto ParseCmdLineSetting = [this](const TCHAR* SettingKey) -> void
-	{
-		FString SettingValue;
-		if (FParse::Value(FCommandLine::Get(), *WriteToString<64>(SettingKey, TEXT("=")), SettingValue))
-		{
-			InitialSettings.AddSetting(SettingKey, SettingValue);
-		}
-	};
-
-	ParseCmdLineSetting(TEXT("P4Port"));
-	ParseCmdLineSetting(TEXT("P4User"));
-	ParseCmdLineSetting(TEXT("P4Client"));
-	ParseCmdLineSetting(TEXT("P4Host"));
-	ParseCmdLineSetting(TEXT("P4Passwd"));
-	ParseCmdLineSetting(TEXT("P4Changelist"));
+	ParseCmdLineSetting(InitialSettings);
 
 	AccessSettings().LoadSettings();
 }
@@ -75,6 +85,9 @@ FPerforceSourceControlProvider::FPerforceSourceControlProvider(const FStringView
 	, bLoginError(false)
 	, PersistentConnection(nullptr)
 {
+	
+	ParseCmdLineSetting(InitialSettings);
+
 	AccessSettings().SetAllowSave(InInitialSettings.CanWriteToConfigFile());
 	AccessSettings().SetAllowLoad(InInitialSettings.CanReadFromConfigFile());
 
@@ -101,8 +114,7 @@ void FPerforceSourceControlProvider::Close()
 	if ( PersistentConnection )
 	{
 		PersistentConnection->Disconnect();
-		delete PersistentConnection;
-		PersistentConnection = NULL;
+		PersistentConnection.Reset();
 	}
 
 	// clear the cache
@@ -209,21 +221,26 @@ bool FPerforceSourceControlProvider::EstablishPersistentConnection()
 	FPerforceConnectionInfo ConnectionInfo = AccessSettings().GetConnectionInfo();
 
 	bool bIsValidConnection = false;
-	if ( !PersistentConnection )
+	if (!PersistentConnection)
 	{
-		PersistentConnection = new FPerforceConnection(ConnectionInfo, *this);
+		PersistentConnection = MakeUnique<FPerforceConnection>(ConnectionInfo, *this);
 	}
 
 	bIsValidConnection = PersistentConnection->IsValidConnection();
-	if ( !bIsValidConnection )
+	if (!bIsValidConnection)
 	{
-		delete PersistentConnection;
-		PersistentConnection = new FPerforceConnection(ConnectionInfo, *this);
+		PersistentConnection.Reset();
+		PersistentConnection = MakeUnique<FPerforceConnection>(ConnectionInfo, *this);
 		bIsValidConnection = PersistentConnection->IsValidConnection();
 	}
 
 	bServerAvailable = bIsValidConnection;
 	return bIsValidConnection;
+}
+
+void FPerforceSourceControlProvider::ResetPersistentConnection()
+{
+	PersistentConnection.Reset();
 }
 
 ISourceControlProvider::FInitResult FPerforceSourceControlProvider::ParseCommandLineSettings(EInitFlags InitFlags)
@@ -910,7 +927,7 @@ ECommandResult::Type FPerforceSourceControlProvider::SwitchWorkspace(FStringView
 		P4Settings.SetWorkspace(WorkspaceName);
 	}
 
-	UE_LOG(LogSourceControl, Log, TEXT("Switched workspaces from '%s' to '%s%%'"), *OldWorkspaceName, *WorkspaceName);
+	UE_LOG(LogSourceControl, Log, TEXT("Switched workspaces from '%s' to '%s'"), *OldWorkspaceName, *WorkspaceName);
 
 	return ECommandResult::Succeeded;
 }

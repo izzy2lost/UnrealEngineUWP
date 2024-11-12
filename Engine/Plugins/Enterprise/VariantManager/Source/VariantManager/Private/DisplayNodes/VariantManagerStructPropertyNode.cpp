@@ -316,7 +316,7 @@ TSharedPtr<SWidget> FVariantManagerStructPropertyNode::GetPropertyValueWidget()
 		FNumericProperty* Prop = *NumPropIter;
 
 		// Check if we have the same value on all UPropertyValue, for each separate child property
-		int32 Size = Prop->ElementSize;
+		int32 Size = Prop->GetElementSize();
 		int32 Offset = Prop->GetOffset_ForInternal();
 		bool bSameValue = true;
 
@@ -346,7 +346,7 @@ TSharedPtr<SWidget> FVariantManagerStructPropertyNode::GetPropertyValueWidget()
 
 		// This is not trivial because if we're a rotator property the standard is to actually show a vector
 		// widget, but the vector widget expects to read/write from doubles, while rotators still hold floats
-		const size_t RecordedElementSize = bIsRotator ? RotatorElementSize : Prop->ElementSize;
+		const size_t RecordedElementSize = bIsRotator ? RotatorElementSize : Prop->GetElementSize();
 
 		FMargin& MarginToUse = (Prop == LastProp) ? LastMargin : CommonMargin;
 
@@ -527,7 +527,7 @@ void FVariantManagerStructPropertyNode::OnSignedPropCommitted(int64 InValue, ETe
 	}
 
 	UPropertyValue* FirstPropertyValue = PropertyValues[0].Get();
-	int32 Size = Prop->ElementSize;
+	int32 Size = Prop->GetElementSize();
 	TArray<uint8> InValueBytes;
 	InValueBytes.SetNumUninitialized(Size);
 
@@ -596,7 +596,7 @@ void FVariantManagerStructPropertyNode::OnUnsignedPropCommitted(uint64 InValue, 
 	}
 
 	UPropertyValue* FirstPropertyValue = PropertyValues[0].Get();
-	int32 Size = Prop->ElementSize;
+	int32 Size = Prop->GetElementSize();
 	TArray<uint8> InValueBytes;
 	InValueBytes.SetNumUninitialized(Size);
 
@@ -724,7 +724,7 @@ TOptional<int64> FVariantManagerStructPropertyNode::GetSignedValueFromPropertyVa
 		return TOptional<int64>();
 	}
 
-	int32 Size = Prop->ElementSize;
+	int32 Size = Prop->GetElementSize();
 
 	const TArray<uint8>* FirstRecordedData = nullptr;
 
@@ -780,7 +780,7 @@ TOptional<uint64> FVariantManagerStructPropertyNode::GetUnsignedValueFromPropert
 		return TOptional<uint64>();
 	}
 
-	int32 Size = Prop->ElementSize;
+	int32 Size = Prop->GetElementSize();
 
 	const TArray<uint8>* FirstRecordedData = nullptr;
 

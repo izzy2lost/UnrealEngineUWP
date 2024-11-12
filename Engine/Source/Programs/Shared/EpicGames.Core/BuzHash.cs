@@ -148,7 +148,7 @@ namespace EpicGames.Core
 			{
 				for (int idx = 0; idx < data.Length; idx++)
 				{
-					state = state ^ Rol32(s_table[dataPtr[idx]], --count);
+					state ^= Rol32(s_table[dataPtr[idx]], --count);
 				}
 			}
 			return state;
@@ -171,11 +171,12 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="prev">Previous data added to the hash</param>
 		/// <param name="next">Next data to be added to the hash</param>
+		/// <param name="windowSize">Size of the window over which the rolling hash is computed</param>
 		/// <param name="threshold">Threshold for hash below which to terminate the scan</param>
 		/// <param name="state">The current hash value</param>
 		/// <returns>Number of bytes consumed from next</returns>
 #pragma warning disable CA1045 // Do not pass types by reference
-		public static unsafe int Update(ReadOnlySpan<byte> prev, ReadOnlySpan<byte> next, uint threshold, ref uint state)
+		public static unsafe int Update(ReadOnlySpan<byte> prev, ReadOnlySpan<byte> next, int windowSize, uint threshold, ref uint state)
 #pragma warning restore CA1045 // Do not pass types by reference
 		{
 			Debug.Assert(prev.Length == next.Length);
@@ -187,13 +188,13 @@ namespace EpicGames.Core
 				uint hash = state;
 				for (int idx = 0; idx < prev.Length; idx++)
 				{
-					hash = Rol32(hash, 1) ^ table[nextPtr[idx]];
 					if (hash < threshold)
 					{
 						state = hash;
 						return idx;
 					}
-					hash = hash ^ Rol32(table[prevPtr[idx]], prev.Length - 1);
+					hash ^= Rol32(table[prevPtr[idx]], windowSize - 1);
+					hash = Rol32(hash, 1) ^ table[nextPtr[idx]];
 				}
 				state = hash;
 			}
@@ -224,6 +225,61 @@ namespace EpicGames.Core
 		public static uint GetThreshold(int targetSize)
 		{
 			return (uint)((1L << 32) / targetSize);
+		}
+
+		/// <summary>
+		/// Gets the length of a chunk up to the next content-defined boundary
+		/// </summary>
+		/// <param name="inputData">Input data to find a boundary in</param>
+		/// <param name="minSize">Minimum size for a chunk</param>
+		/// <param name="maxSize">Maximum size for a chunk</param>
+		/// <param name="targetSize">Desired average size for a chunk</param>
+		/// <param name="rollingHash">Receives the rolling hash for the chunk</param>
+		/// <returns></returns>
+		public static int FindChunkLength(ReadOnlySpan<byte> inputData, int minSize, int maxSize, int targetSize, out uint rollingHash)
+		{
+			// If the target option sizes are fixed, just chunk the data along fixed boundaries
+			if (minSize == targetSize && maxSize == targetSize)
+			{
+				rollingHash = 0;
+				return Math.Min(inputData.Length, maxSize);
+			}
+
+			// Cap the append data span to the maximum amount we can add
+			int maxLength = maxSize;
+			if (maxLength < inputData.Length)
+			{
+				inputData = inputData.Slice(0, maxLength);
+			}
+
+			int windowSize = minSize;
+
+			// Fast path for appending data to the buffer up to the chunk window size
+			int length = Math.Min(windowSize, inputData.Length);
+			rollingHash = BuzHash.Add(0, inputData.Slice(0, length));
+
+			// Get the threshold for the rolling hash to split the output
+			uint rollingHashThreshold = (uint)((1L << 32) / (targetSize-minSize));
+
+			// Step through the rest of the data which is completely contained in appendData.
+			if (length < inputData.Length)
+			{
+				Debug.Assert(length >= windowSize);
+
+				ReadOnlySpan<byte> tailSpan = inputData.Slice(length - windowSize, inputData.Length - windowSize);
+				ReadOnlySpan<byte> headSpan = inputData.Slice(length);
+
+				int count = BuzHash.Update(tailSpan, headSpan, minSize, rollingHashThreshold, ref rollingHash);
+				if (count != -1)
+				{
+					length += count;
+					return length;
+				}
+
+				length += headSpan.Length;
+			}
+
+			return length;
 		}
 	}
 }

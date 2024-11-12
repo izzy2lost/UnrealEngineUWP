@@ -8,7 +8,7 @@
 
 class UCurveFloat;
 
-UENUM()
+UENUM(BlueprintType)
 enum class EAlphaBlendOption : uint8
 {
 	Linear = 0 UMETA(Grouping = Linear, DisplayName = "Linear", ToolTip = "Linear interpolation"),

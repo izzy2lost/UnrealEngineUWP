@@ -19,12 +19,15 @@ UUsdStageImportOptions::UUsdStageImportOptions(const FObjectInitializer& ObjectI
 	bImportMaterials = true;
 	bImportGroomAssets = true;
 	bImportSparseVolumeTextures = true;
+	bImportSounds = true;
 	bImportOnlyUsedMaterials = false;
 
+	bUseExistingAssetCache = false;
+	ExistingAssetCache = nullptr;
 	PurposesToImport = (int32)(EUsdPurpose::Default | EUsdPurpose::Proxy | EUsdPurpose::Render | EUsdPurpose::Guide);
 	NaniteTriangleThreshold = INT32_MAX;
 	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-	RenderContextToImport = UsdSchemasModule.GetRenderContextRegistry().GetUnrealRenderContext();
+	RenderContextToImport = UnrealIdentifiers::UnrealRenderContext;
 	MaterialPurpose = *UnrealIdentifiers::MaterialPreviewPurpose;
 	SubdivisionLevel = 0;
 	MetadataOptions = FUsdMetadataImportOptions{
@@ -42,10 +45,11 @@ UUsdStageImportOptions::UUsdStageImportOptions(const FObjectInitializer& ObjectI
 
 	ExistingActorPolicy = EReplaceActorPolicy::Replace;
 	ExistingAssetPolicy = EReplaceAssetPolicy::Replace;
-	bReuseIdenticalAssets = true;
+	bShareAssetsForIdenticalPrims = true;
 
 	bPrimPathFolderStructure = false;
 	KindsToCollapse = (int32)(EUsdDefaultKind::Component | EUsdDefaultKind::Subcomponent);
+	bUsePrimKindsForCollapsing = true;
 	bMergeIdenticalMaterialSlots = true;
 	bInterpretLODs = true;
 }
@@ -95,11 +99,14 @@ void UsdUtils::AddAnalyticsAttributes(const UUsdStageImportOptions& Options, TAr
 	InOutAttributes.Emplace(TEXT("ImportMaterials"), LexToString(Options.bImportMaterials));
 	InOutAttributes.Emplace(TEXT("ImportGroomAssets"), LexToString(Options.bImportGroomAssets));
 	InOutAttributes.Emplace(TEXT("ImportSparseVolumeTextures"), LexToString(Options.bImportSparseVolumeTextures));
+	InOutAttributes.Emplace(TEXT("ImportSounds"), LexToString(Options.bImportSounds));
 	InOutAttributes.Emplace(TEXT("ImportOnlyUsedMaterials"), LexToString(Options.bImportOnlyUsedMaterials));
 	if (Options.PrimsToImport != TArray<FString>{TEXT("/")})
 	{
 		InOutAttributes.Emplace(TEXT("NumPrimsToImport"), LexToString(Options.PrimsToImport.Num()));
 	}
+
+	InOutAttributes.Emplace(TEXT("bUseExistingAssetCache"), Options.bUseExistingAssetCache);
 	InOutAttributes.Emplace(TEXT("PurposesToImport"), LexToString(Options.PurposesToImport));
 	InOutAttributes.Emplace(TEXT("NaniteTriangleThreshold"), LexToString(Options.NaniteTriangleThreshold));
 	InOutAttributes.Emplace(TEXT("RenderContextToImport"), Options.RenderContextToImport.ToString());
@@ -122,9 +129,10 @@ void UsdUtils::AddAnalyticsAttributes(const UUsdStageImportOptions& Options, TAr
 	InOutAttributes.Emplace(TEXT("NumGroomInterpolationSettings"), LexToString(Options.GroomInterpolationSettings.Num()));
 	InOutAttributes.Emplace(TEXT("ReplaceActorPolicy"), LexToString((uint8)Options.ExistingActorPolicy));
 	InOutAttributes.Emplace(TEXT("ReplaceAssetPolicy"), LexToString((uint8)Options.ExistingAssetPolicy));
-	InOutAttributes.Emplace(TEXT("ReuseIdenticalAssets"), LexToString(Options.bReuseIdenticalAssets));
+	InOutAttributes.Emplace(TEXT("ShareAssetsForIdenticalPrims"), Options.bShareAssetsForIdenticalPrims);
 	InOutAttributes.Emplace(TEXT("PrimPathFolderStructure"), LexToString(Options.bPrimPathFolderStructure));
 	InOutAttributes.Emplace(TEXT("KindsToCollapse"), LexToString(Options.KindsToCollapse));
+	InOutAttributes.Emplace(TEXT("bUsePrimKindsForCollapsing"), Options.bUsePrimKindsForCollapsing);
 	InOutAttributes.Emplace(TEXT("MergeIdenticalMaterialSlots"), LexToString(Options.bMergeIdenticalMaterialSlots));
 	InOutAttributes.Emplace(TEXT("InterpretLODs"), LexToString(Options.bInterpretLODs));
 }

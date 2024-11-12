@@ -3,8 +3,8 @@
 #include "AssetDependencyGrouping.h"
 #include "AssetTreeNode.h"
 #include "AssetTable.h"
-#include "Insights/Common/AsyncOperationProgress.h"
-#include "Insights/Common/Log.h"
+#include "InsightsCore/Common/AsyncOperationProgress.h"
+#include "InsightsCore/Common/Log.h"
 
 #define LOCTEXT_NAMESPACE "FAssetDependencyGrouping"
 

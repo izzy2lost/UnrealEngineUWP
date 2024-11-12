@@ -2,26 +2,22 @@
 
 #include "DMXLibraryTrackEditor.h"
 
-#include "Library/DMXLibrary.h"
-#include "Library/DMXEntityFixturePatch.h"
-#include "Sequencer/MovieSceneDMXLibraryTrack.h"
-#include "Sequencer/MovieSceneDMXLibrarySection.h"
-#include "Sequencer/DMXLibrarySection.h"
-
-#include "Sections/MovieSceneParameterSection.h"
-#include "MVVM/Views/ViewUtilities.h"
-#include "MovieSceneSection.h"
-
-#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Algo/Sort.h"
-#include "Styling/AppStyle.h"
-#include "Styling/SlateIconFinder.h"
 #include "ContentBrowserModule.h"
-#include "IContentBrowserSingleton.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/Images/SImage.h"
-#include "Widgets/Input/SButton.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "IContentBrowserSingleton.h"
+#include "ISequencer.h"
+#include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXLibrary.h"
+#include "MovieSceneSection.h"
+#include "MVVM/Views/ViewUtilities.h"
+#include "Sequencer/DMXLibrarySection.h"
+#include "Sequencer/MovieSceneDMXLibrarySection.h"
+#include "Sequencer/MovieSceneDMXLibraryTrack.h"
+#include "SequencerSettings.h"
+#include "Styling/SlateIconFinder.h"
+#include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "DMXLibraryTrackEditor"
 
@@ -58,9 +54,13 @@ namespace UE::DMX
 
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 
+		TSharedPtr<ISequencer> Sequencer = InSequencer.Pin();
+		const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		return SNew(SBox)
-			.WidthOverride(300.0f)
-			.HeightOverride(300.f)
+			.WidthOverride(WidthOverride)
+			.HeightOverride(HeightOverride)
 			[
 				ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 			];
@@ -161,6 +161,8 @@ TSharedPtr<SWidget> FDMXLibraryTrackEditor::BuildOutlinerEditWidget(const FGuid&
 	// Create combo button "+ Patch" to pick an asset to add
 	// sub menu content callback
 	FOnGetContent AddPatchMenuContent = FOnGetContent::CreateSP(this, &FDMXLibraryTrackEditor::OnGetAddPatchMenuContent, DMXTrack);
+
+	constexpr bool bEnabled = true;
 	return UE::Sequencer::MakeAddButton(LOCTEXT("AddPatchButton", "Patch"), AddPatchMenuContent, Params.ViewModel);
 }
 

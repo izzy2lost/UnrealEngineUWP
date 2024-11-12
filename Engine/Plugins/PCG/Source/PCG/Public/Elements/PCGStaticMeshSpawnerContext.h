@@ -20,11 +20,11 @@ struct FPCGInstancesAndWeights
 };
 
 USTRUCT(BlueprintType)
-struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadingContext
+struct PCG_API FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 	GENERATED_BODY()
 
-	struct FPackedInstanceListData
+	struct PCG_API FPackedInstanceListData
 	{
 		FPackedInstanceListData();
 		~FPackedInstanceListData();
@@ -59,9 +59,6 @@ struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadin
 
 	TMap<TSoftObjectPtr<UStaticMesh>, TMap<UPCGPointData*, TArray<int32>>> MeshToOutPoints;
 
-	// Used in by-attribute selector
-	TMap<PCGMetadataValueKey, TSoftObjectPtr<UStaticMesh>> ValueKeyToMesh;
-
 	// Used in weighted selector
 	TArray<TArray<FPCGMeshInstanceList>> WeightedMeshInstances;
 	TMap<TSoftObjectPtr<UStaticMesh>, PCGMetadataValueKey> MeshToValueKey;
@@ -72,7 +69,7 @@ struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadin
 
 	// Used for mesh property overrides
 	TArray<TArray<int32>> AttributeOverridePartition;
-	TArray<FSoftISMComponentDescriptor> OverriddenDescriptors;
+	TArray<FPCGSoftISMComponentDescriptor> OverriddenDescriptors;
 
 	// Keeping track of all touched resources to allow for correct cleanup on abort
 	TArray<TWeakObjectPtr<UPCGManagedISMComponent>> TouchedResources;

@@ -36,7 +36,9 @@ USplineMetadata::USplineMetadata(const FObjectInitializer& ObjectInitializer)
 
 USplineComponent::USplineComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+#if WITH_EDITORONLY_DATA
 	, bAllowSplineEditingPerInstance_DEPRECATED(true)
+#endif
 	, ReparamStepsPerSegment(10)
 	, Duration(1.0f)
 	, bStationaryEndpoints(false)
@@ -67,18 +69,19 @@ USplineComponent::USplineComponent(const FObjectInitializer& ObjectInitializer)
 
 	UpdateSpline();
 
+#if WITH_EDITORONLY_DATA
 	// Set these deprecated values up so that old assets with default values load correctly (and are subsequently upgraded during Serialize)
 	SplineInfo_DEPRECATED = SplineCurves.Position;
 	SplineRotInfo_DEPRECATED = SplineCurves.Rotation;
 	SplineScaleInfo_DEPRECATED = SplineCurves.Scale;
 	SplineReparamTable_DEPRECATED = SplineCurves.ReparamTable;
+#endif
 }
 
 void USplineComponent::ResetToDefault()
 {
 	SetDefaultSpline();
 
-	bAllowSplineEditingPerInstance_DEPRECATED = true;
 	ReparamStepsPerSegment = 10;
 	Duration = 1.0f;
 	bStationaryEndpoints = false;
@@ -89,6 +92,7 @@ void USplineComponent::ResetToDefault()
 	bClosedLoop = false;
 	DefaultUpVector = FVector::UpVector;
 #if WITH_EDITORONLY_DATA
+	bAllowSplineEditingPerInstance_DEPRECATED = true;
 	EditorUnselectedSplineSegmentColor = FStyleColors::White.GetSpecifiedColor();
 	EditorSelectedSplineSegmentColor = FStyleColors::AccentOrange.GetSpecifiedColor();
 	EditorTangentColor = FLinearColor(0.718f, 0.589f, 0.921f);
@@ -157,6 +161,7 @@ void USplineComponent::Serialize(FArchive& Ar)
 
 	Ar.UsingCustomVersion(FEditorObjectVersion::GUID);
 
+#if WITH_EDITORONLY_DATA
 	// Move points to new properties
 	if (Ar.CustomVer(FEditorObjectVersion::GUID) < FEditorObjectVersion::SplineComponentCurvesInStruct &&
 		Ar.IsLoading())
@@ -166,6 +171,7 @@ void USplineComponent::Serialize(FArchive& Ar)
 		SplineCurves.Scale = SplineScaleInfo_DEPRECATED;
 		SplineCurves.ReparamTable = SplineReparamTable_DEPRECATED;
 	}
+#endif
 
 	// Support old resources which don't have the rotation and scale splines present
 	const FPackageFileVersion ArchiveUEVersion = Ar.UEVer();
@@ -178,7 +184,7 @@ void USplineComponent::Serialize(FArchive& Ar)
 
 		if (bHasExtraEndpoint)
 		{
-			SplineCurves.Position.Points.RemoveAt(NumPoints - 1, 1, EAllowShrinking::No);
+			SplineCurves.Position.Points.RemoveAt(NumPoints - 1, EAllowShrinking::No);
 			NumPoints--;
 		}
 
@@ -276,6 +282,12 @@ void USplineComponent::UpdateSpline()
 	}
 #endif
 }
+
+void USplineComponent::SetOverrideConstructionScript(bool bInOverride)
+{
+	bSplineHasBeenEdited = bInOverride;
+}
+
 
 float FSplineCurves::GetSegmentLength(const int32 Index, const float Param, bool bClosedLoop, const FVector& Scale3D) const
 {
@@ -825,9 +837,9 @@ void USplineComponent::RemoveSplinePoint(int32 Index, bool bUpdateSpline)
 
 	if (Index >= 0 && Index < NumPoints)
 	{
-		SplineCurves.Position.Points.RemoveAt(Index, 1, EAllowShrinking::No);
-		SplineCurves.Rotation.Points.RemoveAt(Index, 1, EAllowShrinking::No);
-		SplineCurves.Scale.Points.RemoveAt(Index, 1, EAllowShrinking::No);
+		SplineCurves.Position.Points.RemoveAt(Index, EAllowShrinking::No);
+		SplineCurves.Rotation.Points.RemoveAt(Index, EAllowShrinking::No);
+		SplineCurves.Scale.Points.RemoveAt(Index, EAllowShrinking::No);
 		USplineMetadata* Metadata = GetSplinePointsMetadata();
 		if (Metadata)
 		{
@@ -1062,6 +1074,7 @@ FSplinePoint USplineComponent::GetSplinePointAt(int32 PointIndex, ESplineCoordin
 
 	const FInterpCurvePointQuat& RotationPoint = GetRotationPointSafe(PointIndex);
 	const FRotator& Rotation = GetRotationAtSplineInputKey(RotationPoint.InVal, CoordinateSpace);
+	const ESplinePointType::Type SplinePointType = GetSplinePointType(PointIndex);
 
 	const FVector Scale = GetScaleAtSplinePoint(PointIndex);
 
@@ -1070,7 +1083,8 @@ FSplinePoint USplineComponent::GetSplinePointAt(int32 PointIndex, ESplineCoordin
 		SplinePoint.ArriveTangent,
 		SplinePoint.LeaveTangent,
 		Rotation,
-		Scale);
+		Scale,
+		SplinePointType);
 }
 
 FVector USplineComponent::GetLocationAtSplinePoint(int32 PointIndex, ESplineCoordinateSpace::Type CoordinateSpace) const
@@ -1660,9 +1674,14 @@ bool USplineComponent::DivideSplineIntoPolylineRecursiveWithDistancesHelper(floa
 	{
 		// The middle point is close enough to the other 2 points, let's keep those and stop the recursion :
 		OutPoints.Add(Samples[0]);
-		OutPoints.Add(Samples[2]);
 		OutDistancesAlongSpline.Add(StartDistanceAlongSpline);
-		OutDistancesAlongSpline.Add(EndDistanceAlongSpline);
+		// For a constant spline, the end can be the exact same as the start; in this case, just add the point once
+		if (Samples[0] != Samples[2])
+		{
+			OutPoints.Add(Samples[2]);
+			OutDistancesAlongSpline.Add(EndDistanceAlongSpline);
+		}
+		
 	}
 
 	check(OutPoints.Num() == OutDistancesAlongSpline.Num())
@@ -1821,8 +1840,8 @@ bool USplineComponent::ConvertSplineToPolyline_InDistanceRange(ESplineCoordinate
 		{
 			if (bHasAdded && ensure(OutPoints.Num()))
 			{
-				OutPoints.RemoveAt(OutPoints.Num() - 1, 1, EAllowShrinking::No);
-				OutDistancesAlongSpline.RemoveAt(OutDistancesAlongSpline.Num() - 1, 1, EAllowShrinking::No);
+				OutPoints.RemoveAt(OutPoints.Num() - 1, EAllowShrinking::No);
+				OutDistancesAlongSpline.RemoveAt(OutDistancesAlongSpline.Num() - 1, EAllowShrinking::No);
 			}
 			float EndLoc = LoopIdx == EndLoopIdx ? WrappedEnd : SplineLength;
 
@@ -2188,6 +2207,7 @@ TStructOnScope<FActorComponentInstanceData> USplineComponent::GetComponentInstan
 	if (bSplineHasBeenEdited)
 	{
 		SplineInstanceData->SplineCurves = SplineCurves;
+		SplineInstanceData->bClosedLoop = bClosedLoop;
 	}
 	SplineInstanceData->bSplineHasBeenEdited = bSplineHasBeenEdited;
 
@@ -2238,6 +2258,7 @@ void USplineComponent::ApplyComponentInstanceData(FSplineInstanceData* SplineIns
 	if (SplineInstanceData->bSplineHasBeenEdited)
 	{
 		SplineCurves = SplineInstanceData->SplineCurves;
+		bClosedLoop = SplineInstanceData->bClosedLoop;
 		bModifiedByConstructionScript = false;
 	}
 

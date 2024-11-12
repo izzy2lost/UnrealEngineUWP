@@ -73,12 +73,7 @@ private:
 	{
 		~FDecoderInput()
 		{
-			ReleasePayload();
-		}
-		void ReleasePayload()
-		{
 			FAccessUnit::Release(AccessUnit);
-			AccessUnit = nullptr;
 		}
 
 		FTimeValue		AdjustedPTS;
@@ -177,6 +172,10 @@ private:
 	bool																	bDrainForCodecChange = false;
 	bool																	bWaitForSyncSample = true;
 	bool																	bWarnedMissingSyncSample = false;
+
+	int32																	NumInitialSkippedFrames = 0;
+	int32																	NumInitialSkippedDecodingFrames = 0;
+	bool																	bIsStartOfSequence = true;
 
 	bool																	bError = false;
 
@@ -465,10 +464,20 @@ void FVideoDecoderImpl::NotifyReadyBufferListener(bool bHaveOutput)
 	if (ReadyBufferListener)
 	{
 		IDecoderOutputBufferListener::FDecodeReadyStats stats;
-		stats.MaxDecodedElementsReady = MaxOutputBuffers;
-		stats.NumElementsInDecoder = CurrentOutputBuffer ? 1 : 0;
+		stats.OutputBufferPoolSize = MaxOutputBuffers;
+		if ((stats.NumElementsInDecoder = InDecoderInput.Num()) != 0)
+		{
+			stats.InDecoderTimeRangePTS.Start = InDecoderInput[0]->AccessUnit->PTS;
+			stats.InDecoderTimeRangePTS.End = InDecoderInput.Last()->AccessUnit->PTS + InDecoderInput.Last()->AccessUnit->Duration;
+		}
+		if (CurrentAccessUnit)
+		{
+			stats.InDecoderTimeRangePTS.Start = Utils::Min(CurrentAccessUnit->AccessUnit->PTS, stats.InDecoderTimeRangePTS.Start.IsValid() ? stats.InDecoderTimeRangePTS.Start : FTimeValue::GetPositiveInfinity());
+			stats.InDecoderTimeRangePTS.End = Utils::Max(CurrentAccessUnit->AccessUnit->PTS + CurrentAccessUnit->AccessUnit->Duration, stats.InDecoderTimeRangePTS.End.IsValid() ? stats.InDecoderTimeRangePTS.End : FTimeValue::GetNegativeInfinity());
+		}
+		stats.InDecoderTimeRangePTS.End.SetSequenceIndex(stats.InDecoderTimeRangePTS.Start.GetSequenceIndex());
 		stats.bOutputStalled = !bHaveOutput;
-		stats.bEODreached = NextAccessUnits.ReachedEOD() && stats.NumDecodedElementsReady == 0 && stats.NumElementsInDecoder == 0;
+		stats.bEODreached = NextAccessUnits.ReachedEOD() && CurrentOutputBuffer == nullptr;
 		ListenerMutex.Lock();
 		if (ReadyBufferListener)
 		{
@@ -546,8 +555,9 @@ bool FVideoDecoderImpl::InternalDecoderCreate()
 	}
 
 	// Create platform specifics.
+	TSharedPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> PinnedVideoResourceDelegate = VideoResourceDelegate.Pin();
 	TMap<FString, FVariant> PlatformSpecificCfg(DecoderFactoryAddtlCfg);
-	PlatformSpecificCfg.Emplace(TEXT("VideoResourceDelegate"), FVariant((uint64)VideoResourceDelegate.Pin().Get()));
+	PlatformSpecificCfg.Emplace(TEXT("VideoResourceDelegate"), FVariant((uint64)PinnedVideoResourceDelegate.Get()));
 	PlatformResource = FPlatformElectraDecoderResourceManager::GetDelegate()->CreatePlatformResource(this, IElectraDecoderResourceDelegateBase::EDecoderPlatformResourceType::Video, PlatformSpecificCfg);
 
 	// Put a pointer to the renderer into the decoder creation configuration.
@@ -849,16 +859,16 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 			}
 			else
 			{
-				// Get the transfer handle as the current decoder output.
-				check(CurrentOutputBuffer == nullptr);
+				// If we did not return the last buffer to the renderer, do it now.
+				// Transfer handles are unique to the buffer and cannot be used for different frames.
 				ReturnUnusedOutputBuffer();
+				// Get the transfer handle as the current decoder output.
 				CurrentOutputBuffer = reinterpret_cast<IMediaRenderer::IBuffer*>(CurrentDecoderOutput->GetTransferHandle()->GetHandle());
 				CurrentDecoderOutput->GetTransferHandle()->ReleaseHandle();
 			}
 
 			// Check if the output can actually be output or if the decoder says this is not to be output (incorrectly decoded)
-			//bool bUseOutput = CurrentDecoderOutput->GetOutputType() == IElectraDecoderVideoOutput::EOutputType::Output;
-			bool bUseOutput = true;
+			bool bUseOutput = CurrentDecoderOutput->GetOutputType() == IElectraDecoderVideoOutput::EOutputType::Output;
 			if (bUseOutput)
 			{
 				NotifyReadyBufferListener(true);
@@ -915,24 +925,32 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 					return IElectraDecoder::EOutputStatus::Error;
 				}
 
-				// Create the platform specific decoder output.
-				TSharedPtr<FParamDict, ESPMode::ThreadSafe> BufferProperties(new FParamDict);
-				BufferProperties->Set(RenderOptionKeys::PTS, FVariantValue(MatchingInput->AdjustedPTS));
-				BufferProperties->Set(RenderOptionKeys::Duration, FVariantValue(MatchingInput->AdjustedDuration));
-
-				// Set properties from the bitstream messages.
-				BitstreamProcessor->SetPropertiesOnOutput(CurrentDecoderOutput, BufferProperties.Get(), MatchingInput->BitstreamInfo);
-
-				if (bUseOutput && !FPlatformElectraDecoderResourceManager::SetupRenderBufferFromDecoderOutput(CurrentOutputBuffer, BufferProperties, CurrentDecoderOutput, PlatformResource))
-				{
-					PostError(0, TEXT("Failed to set up the decoder output!"), ERRCODE_VIDEO_INTERNAL_FAILED_TO_CONVERT_OUTPUT);
-					return IElectraDecoder::EOutputStatus::Error;
-				}
-
 				bUseOutput = bUseOutput ? MatchingInput->AdjustedPTS.IsValid() : false;
-				Renderer->ReturnBuffer(CurrentOutputBuffer, bUseOutput, *BufferProperties);
+				if (bUseOutput)
+				{
+					// Create the platform specific decoder output.
+					TSharedPtr<FParamDict, ESPMode::ThreadSafe> BufferProperties(new FParamDict);
+					BufferProperties->Set(RenderOptionKeys::PTS, FVariantValue(MatchingInput->AdjustedPTS));
+					BufferProperties->Set(RenderOptionKeys::Duration, FVariantValue(MatchingInput->AdjustedDuration));
+
+					// Set properties from the bitstream messages.
+					BitstreamProcessor->SetPropertiesOnOutput(CurrentDecoderOutput, BufferProperties.Get(), MatchingInput->BitstreamInfo);
+
+					if (!FPlatformElectraDecoderResourceManager::SetupRenderBufferFromDecoderOutput(CurrentOutputBuffer, BufferProperties, CurrentDecoderOutput, PlatformResource))
+					{
+						PostError(0, TEXT("Failed to set up the decoder output!"), ERRCODE_VIDEO_INTERNAL_FAILED_TO_CONVERT_OUTPUT);
+						return IElectraDecoder::EOutputStatus::Error;
+					}
+					Renderer->ReturnBuffer(CurrentOutputBuffer, bUseOutput, *BufferProperties);
+					CurrentOutputBuffer = nullptr;
+
+					if (bIsStartOfSequence && NumInitialSkippedFrames)
+					{
+						UE_LOG(LogElectraPlayer, Verbose, TEXT("Frame accurate seek skipped %d leading frames of which %d had to be decoded"), NumInitialSkippedFrames, NumInitialSkippedFrames-NumInitialSkippedDecodingFrames);
+						bIsStartOfSequence = false;
+					}
+				}
 				CurrentDecoderOutput.Reset();
-				CurrentOutputBuffer = nullptr;
 			}
 		}
 	}
@@ -957,6 +975,8 @@ FVideoDecoderImpl::ENextDecodingState FVideoDecoderImpl::HandleDecoding()
 			// not decoding dummy data the decoder must be drained to get the last decoded data out.
 			bDrainAfterDecode = CurrentAccessUnit->AccessUnit->bIsLastInPeriod && !bInDummyDecodeMode;
 			CurrentAccessUnit.Reset();
+			NumInitialSkippedFrames += bIsStartOfSequence ? 1 : 0;
+			NumInitialSkippedDecodingFrames += bIsStartOfSequence ? 1 : 0;
 			return ENextDecodingState::NormalDecoding;
 		}
 
@@ -997,6 +1017,8 @@ FVideoDecoderImpl::ENextDecodingState FVideoDecoderImpl::HandleDecoding()
 			}
 			if (bSupportsDroppingOutput && !CurrentAccessUnit->AdjustedPTS.IsValid())
 			{
+				NumInitialSkippedFrames += bIsStartOfSequence ? 1 : 0;
+				NumInitialSkippedDecodingFrames += CurrentAccessUnit->BitstreamInfo.bIsDiscardable ? 1 : 0;
 				DecAU.Flags |= EElectraDecoderFlags::DoNotOutput;
 			}
 			TMap<FString, FVariant> CSDOptions;
@@ -1226,6 +1248,19 @@ bool FVideoDecoderImpl::HandleDummyDecoding()
 		DummyBufferSampleProperties.Set(RenderOptionKeys::DummyBufferFlag, FVariantValue(true));
 		Renderer->ReturnBuffer(CurrentOutputBuffer, true, DummyBufferSampleProperties);
 		CurrentOutputBuffer = nullptr;
+		// We must not drain the source buffer too quickly. While our counterpart code in the audio decoder actually
+		// produces a usable sample containing silence, we cannot create a usable dummy frame because we have to
+		// keep the last good frame on screen. Our sample we have just returned will not actually be sent into the
+		// media sample queue and thus any next call to `Renderer->CanReceiveOutputFrames(1)` above will always
+		// return `true` because the sample queue will not be full, and as a result we race and take new source
+		// samples from the buffer so quickly, that the buffer will underrun.
+		// To prevent this we put ourselves to sleep for a while. Not the entire sample duration though, but for
+		// enough time to hopefully not cause an underrun.
+		// NOTE: Technically speaking this is not a good solution because we should not really sleep here as
+		//       that is only acceptable at 1x play rate. If playing faster we would need to sleep for a shorter
+		//       duration here or not at all. Filler data on missing media segments should not really happen
+		//       though, so I'm hoping we're getting by.
+		MinLoopSleepTimeMsec = CurrentAccessUnit->AdjustedDuration.GetAsMilliseconds() - 1;
 		return true;
 	}
 	return true;
@@ -1280,6 +1315,9 @@ bool FVideoDecoderImpl::CheckForFlush()
 		bWaitForSyncSample = true;
 		bWarnedMissingSyncSample = false;
 		CurrentDecodingState = EDecodingState::NormalDecoding;
+		NumInitialSkippedFrames = 0;
+		NumInitialSkippedDecodingFrames = 0;
+		bIsStartOfSequence = true;
 		BitstreamProcessor->Clear();
 		FlushDecoderSignal.Reset();
 		DecoderFlushedSignal.Signal();
@@ -1333,6 +1371,11 @@ void FVideoDecoderImpl::WorkerThread()
 	bWaitForSyncSample = true;
 	bWarnedMissingSyncSample = false;
 	CurrentDecodingState = EDecodingState::NormalDecoding;
+
+	// Clear initial skip frame stats
+	NumInitialSkippedFrames = 0;
+	NumInitialSkippedDecodingFrames = 0;
+	bIsStartOfSequence = true;
 
 	check(InitialCodecSpecificData.IsValid());
 	if (InitialCodecSpecificData.IsValid())

@@ -10,7 +10,7 @@ namespace Config
 {
 
 // Server side timeout for connection with the client
-constexpr double AcceptTimeout_s = 3.0;
+constexpr double AcceptTimeout_s = 6.0;
 
 // Client side timeout for connection with the server
 constexpr double ConnectTimeout_s = 3.0;

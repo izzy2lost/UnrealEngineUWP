@@ -463,6 +463,9 @@ public:
 	/** Unregister a delegate previously registered with CallOrRegister_OnCheatManagerCreated */
 	static ENGINE_API void UnregisterFromOnCheatManagerCreated(FDelegateHandle DelegateHandle);
 
+	/** Do game specific bugIt */
+	ENGINE_API virtual bool DoGameSpecificBugItLog(FOutputDevice& OutputFile);
+
 protected:
 	/** List of registered cheat manager extensions */
 	UPROPERTY(Transient)
@@ -472,8 +475,6 @@ protected:
 	static ENGINE_API FOnCheatManagerCreated OnCheatManagerCreatedDelegate;
 
 protected:
-	/** Do game specific bugIt */
-	ENGINE_API virtual bool DoGameSpecificBugItLog(FOutputDevice& OutputFile);
 
 	/** Switch controller to debug camera without locking gameplay and with locking local player controller input */
 	UFUNCTION(BlueprintCallable,Category="Cheat Manager")

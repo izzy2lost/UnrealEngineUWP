@@ -12,6 +12,9 @@ import { StatusBar, StatusBarStack } from "./AutomationCommon";
 import { AutomationSuiteTest } from "./AutomationSuiteTest";
 import { getHordeStyling } from "../styles/Styles";
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
+
 type TestId = string;
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type DivSelectionType = d3.Selection<HTMLDivElement, unknown, null, undefined>;
@@ -545,8 +548,8 @@ class SuiteGraphRenderer {
       this.hasRendered = true;
       this.forceRender = false;
 
-      const X = d3.map(this.testData, (t) => t);
-      const xDomain = d3.extent(handler.changeDates.values(), d => d.getTime() / 1000);
+      const X = _d3.map(this.testData, (t) => t);
+      const xDomain = d3.extent(handler.changeDates.values() as any, (d:any) => d.getTime() / 1000);
 
       let Y: TestOutcome[] = [];
       const scolors = dashboard.getStatusColors();
@@ -558,14 +561,14 @@ class SuiteGraphRenderer {
          "Skipped": scolors.get(StatusColor.Skipped)!
       };
 
-      Y = d3.map(this.testData, (d) => d.warningCount ? TestOutcome.Warning : d.outcome);
+      Y = _d3.map(this.testData, (d) => d.warningCount ? TestOutcome.Warning : d.outcome);
 
       const width = suiteGraphWidth - 32; // important: the 32 offset is to provide more mouse room to roll down latest CL's
       const height = this.headerOnly ? 20 : 16;
 
       const xRange = [this.margin.left, width - this.margin.right];
 
-      const xScale = d3.scaleTime(xDomain as any, xRange);
+      const xScale = _d3.scaleTime(xDomain, xRange);
 
       const I = d3.range(X.length);
 
@@ -701,8 +704,8 @@ class SuiteGraphRenderer {
 
       const handleMouseMove = (event: any) => {
 
-         const mouseX = d3.pointer(event)[0];
-         const mouseY = d3.pointer(event)[1];
+         const mouseX = _d3.pointer(event)[0];
+         const mouseY = _d3.pointer(event)[1];
 
          const closest = closestRef(mouseX, mouseY);
          if (closest) {
@@ -730,8 +733,8 @@ class SuiteGraphRenderer {
 
       const handleMouseClick = (event: any) => {
 
-         const mouseX = d3.pointer(event)[0];
-         const mouseY = d3.pointer(event)[1];
+         const mouseX = _d3.pointer(event)[0];
+         const mouseY = _d3.pointer(event)[1];
 
          const closest = closestRef(mouseX, mouseY);
          if (closest && this.testId) {

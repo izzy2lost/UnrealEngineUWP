@@ -9,6 +9,7 @@
 #include "Materials/MaterialInterface.h"
 #include "SkeletalRenderGPUSkin.h"
 #include "PSOPrecache.h"
+#include "AutoRTFM/AutoRTFM.h"
 #if WITH_EDITORONLY_DATA
 #include "Streaming/UVChannelDensity.h"
 #endif
@@ -270,7 +271,7 @@ void USkinnedAsset::UpdateUVChannelData(bool bRebuildAll)
 			for (int32 LODIndex = 0; LODIndex < Resource->LODRenderData.Num(); ++LODIndex)
 			{
 				const FSkeletalMeshLODRenderData& LODData = Resource->LODRenderData[LODIndex];
-				const TArray<int32>& RemappedMaterialIndices = GetLODInfoArray()[LODIndex].LODMaterialMap;
+				const TArray<int32>& RemappedMaterialIndices = GetLODInfo(LODIndex)->LODMaterialMap;
 
 				for (int32 SectionIndex = 0; SectionIndex < LODData.RenderSections.Num(); ++SectionIndex)
 				{
@@ -468,14 +469,20 @@ void USkinnedAsset::FillComponentSpaceTransforms(const TArray<FTransform>& InBon
 	if (IsISPCEnabled())
 	{
 #if INTEL_ISPC
-		ispc::FillComponentSpaceTransforms(
-			(ispc::FTransform*)&ComponentSpaceData[0],
-			(ispc::FTransform*)&LocalTransformsData[0],
-			InFillComponentSpaceTransformsRequiredBones.GetData(),
-			(const uint8*)GetRefSkeleton().GetRefBoneInfo().GetData(),
-			sizeof(FMeshBoneInfo),
-			offsetof(FMeshBoneInfo, ParentIndex),
-			InFillComponentSpaceTransformsRequiredBones.Num());
+		UE_AUTORTFM_OPEN
+		{
+			AutoRTFM::RecordOpenWrite(
+				ComponentSpaceData,
+				OutComponentSpaceTransforms.Num() * sizeof(FTransform));
+			ispc::FillComponentSpaceTransforms(
+				reinterpret_cast<ispc::FTransform*>(ComponentSpaceData),
+				reinterpret_cast<const ispc::FTransform*>(LocalTransformsData),
+				InFillComponentSpaceTransformsRequiredBones.GetData(),
+				reinterpret_cast<const uint8*>(GetRefSkeleton().GetRefBoneInfo().GetData()),
+				sizeof(FMeshBoneInfo),
+				offsetof(FMeshBoneInfo, ParentIndex),
+				InFillComponentSpaceTransformsRequiredBones.Num());
+		};
 #endif
 	}
 	else

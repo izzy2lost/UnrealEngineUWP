@@ -8,10 +8,6 @@
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
 
-// TODO: move these into MetasoundParamHelper.h
-#define METASOUND_GET_PARAM_METADATA_ADVANCED(NAME) FDataVertexMetadata { NAME##Tooltip, NAME##DisplayName, true }
-#define METASOUND_GET_PARAM_NAME_AND_METADATA_ADVANCED(NAME) METASOUND_GET_PARAM_NAME(NAME), METASOUND_GET_PARAM_METADATA_ADVANCED(NAME)
-
 namespace HarmonixMetasound
 {
 	HARMONIXMETASOUND_API extern const FName HarmonixNodeNamespace;
@@ -34,7 +30,6 @@ namespace HarmonixMetasound
 	HARMONIXMETASOUND_API extern const FText& NAME##DisplayName;
 
 #if WITH_EDITOR
-#define LOC_DEFINE_REGION
 #define DEFINE_INPUT_METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT)						\
 	const TCHAR* NAME##Name = TEXT(NAME_TEXT);											\
 	const FText NAME##Tooltip = LOCTEXT(#NAME "InputTooltip", TOOLTIP_TEXT);			\
@@ -43,7 +38,6 @@ namespace HarmonixMetasound
 	const TCHAR* NAME##Name = TEXT(NAME_TEXT);											\
 	const FText NAME##Tooltip = LOCTEXT(#NAME "OutputTooltip", TOOLTIP_TEXT);			\
     const FText NAME##DisplayName = LOCTEXT(#NAME "OutputDisplayName", NAME_TEXT);
-#undef LOC_DEFINE_REGION
 #else 
 #define DEFINE_INPUT_METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT)		\
 	const TCHAR* NAME##Name = TEXT(NAME_TEXT);							\

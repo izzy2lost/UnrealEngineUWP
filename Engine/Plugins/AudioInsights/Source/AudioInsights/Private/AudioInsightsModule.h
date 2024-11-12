@@ -5,21 +5,24 @@
 #include "AudioInsightsTraceModule.h"
 #include "Framework/Docking/TabManager.h"
 #include "IAudioInsightsModule.h"
+#include "Insights/IUnrealInsightsModule.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "Views/DashboardViewFactory.h"
 #include "Widgets/Docking/SDockTab.h"
 
+#if !WITH_EDITOR
+#include "AudioInsightsTimingViewExtender.h"
+#endif // !WITH_EDITOR
 
 namespace UE::Audio::Insights
 {
-	// Forward Declarations
-	class FMixerSourceTraceProvider;
+#if !WITH_EDITOR
+	class FAudioInsightsComponent;
+#endif // !WITH_EDITOR
 
 	class FAudioInsightsModule final : public IAudioInsightsModule
 	{
-		TSharedPtr<FDashboardFactory> DashboardFactory;
-		FTraceModule TraceModule;
-
 	public:
 		FAudioInsightsModule() = default;
 
@@ -31,15 +34,26 @@ namespace UE::Audio::Insights
 		virtual void UnregisterDashboardViewFactory(FName InName) override;
 		virtual ::Audio::FDeviceId GetDeviceId() const override;
 
-		FTraceModule& GetTraceModule();
+		static FAudioInsightsModule& GetChecked();
+		virtual IAudioInsightsTraceModule& GetTraceModule() override;
+
+#if !WITH_EDITOR
+		TSharedPtr<FAudioInsightsComponent> GetAudioInsightsComponent() { return AudioInsightsComponent; };
+		FAudioInsightsTimingViewExtender& GetTimingViewExtender() { return AudioInsightsTimingViewExtender; };
+#endif // !WITH_EDITOR
 
 		TSharedRef<FDashboardFactory> GetDashboardFactory();
 		const TSharedRef<FDashboardFactory> GetDashboardFactory() const;
 
-		static FAudioInsightsModule& GetChecked();
+		virtual TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args) override;
 
 	private:
-		TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args);
-		void RegisterMenus();
+		TSharedPtr<FDashboardFactory> DashboardFactory;
+		TUniquePtr<FTraceModule> TraceModule;
+
+#if !WITH_EDITOR
+		TSharedPtr<FAudioInsightsComponent> AudioInsightsComponent;
+		FAudioInsightsTimingViewExtender AudioInsightsTimingViewExtender;
+#endif // !WITH_EDITOR
 	};
 } // namespace UE::Audio::Insights

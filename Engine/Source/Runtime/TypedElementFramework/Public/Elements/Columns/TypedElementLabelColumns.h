@@ -8,16 +8,15 @@
 
 #include "TypedElementLabelColumns.generated.h"
 
-
 /**
  * Column that stores a label.
  */
 USTRUCT(meta = (DisplayName = "Label"))
-struct FTypedElementLabelColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementLabelColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FString Label;
 };
 
@@ -26,7 +25,7 @@ struct FTypedElementLabelColumn final : public FTypedElementDataStorageColumn
  * kept separate in order to iterate quickly over all hash values.
  */
 USTRUCT(meta = (DisplayName = "Label hash"))
-struct FTypedElementLabelHashColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementLabelHashColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

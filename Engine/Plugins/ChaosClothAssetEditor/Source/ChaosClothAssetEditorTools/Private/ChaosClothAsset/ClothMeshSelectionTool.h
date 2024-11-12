@@ -7,8 +7,10 @@
 #include "ClothMeshSelectionTool.generated.h"
 
 class UPolygonSelectionMechanic;
-class UClothEditorContextObject;
+class UDataflowContextObject;
 class UPreviewMesh;
+struct FChaosClothAssetSelectionNode_v2;
+enum class EChaosClothAssetSelectionOverrideType : uint8;
 
 namespace UE::Geometry
 {
@@ -21,13 +23,10 @@ enum class EClothMeshSelectionToolActions
 {
 	NoAction,
 
-	ImportFromCollection,
-	ImportSecondaryFromCollection,
-	TogglePrimarySecondary,
-
 	GrowSelection,
 	ShrinkSelection,
-	FloodSelection
+	FloodSelection,
+	ClearSelection
 };
 
 
@@ -55,24 +54,6 @@ public:
 
 	void PostAction(EClothMeshSelectionToolActions Action);
 
-	UFUNCTION(CallInEditor, Category = Operations)
-	void ImportFromCollection()
-	{
-		PostAction(EClothMeshSelectionToolActions::ImportFromCollection);
-	}
-
-	UFUNCTION(CallInEditor, Category = Operations)
-	void ImportSecondaryFromCollection()
-	{
-		PostAction(EClothMeshSelectionToolActions::ImportSecondaryFromCollection);
-	}
-
-	UFUNCTION(CallInEditor, Category = Operations)
-	void TogglePrimarySecondary()
-	{
-		PostAction(EClothMeshSelectionToolActions::TogglePrimarySecondary);
-	}
-
 	UFUNCTION(CallInEditor, Category = Selection)
 	void GrowSelection()
 	{
@@ -91,6 +72,12 @@ public:
 		PostAction(EClothMeshSelectionToolActions::FloodSelection);
 	}
 
+	UFUNCTION(CallInEditor, Category = Selection)
+	void ClearSelection()
+	{
+		PostAction(EClothMeshSelectionToolActions::ClearSelection);
+	}
+
 };
 
 UCLASS()
@@ -100,15 +87,11 @@ class CHAOSCLOTHASSETEDITORTOOLS_API UClothMeshSelectionToolProperties : public 
 
 public:
 
-	UPROPERTY(EditAnywhere, Transient, Category = Name, meta = (DisplayName = "Name", TransientToolProperty))
+	UPROPERTY(EditAnywhere, Transient, Category = Selection, meta = (DisplayName = "Name", TransientToolProperty))
 	FString Name;
 
-	/**
-	* Whether the user is editing the primary or secondary selection set. Stored as a property here so that the tool will remember what the
-	* user was doing the last time the tool shut down.
-	*/
-	UPROPERTY()
-	bool bSecondarySelection = false;
+	UPROPERTY(EditAnywhere, Transient, Category = Selection, meta = (TransientToolProperty))
+	EChaosClothAssetSelectionOverrideType SelectionOverrideType;
 
 	UPROPERTY(EditAnywhere, Category = Visualization, meta = (DisplayName = "Show Vertices"))
 	bool bShowVertices = false;
@@ -145,8 +128,9 @@ private:
 	// IInteractiveToolCameraFocusAPI implementation
 	virtual FBox GetWorldSpaceFocusBox() override;
 
-	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
-	bool GetSelectedNodeInfo(FString& OutMapName, UE::Geometry::FGroupTopologySelection& OutSelection);
+	void SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject);
+
+	bool GetSelectedNodeInfo(FString& OutMapName, UE::Geometry::FGroupTopologySelection& OutSelection, EChaosClothAssetSelectionOverrideType& OutOverrideType);
 	void UpdateSelectedNode();
 
 	UPROPERTY()
@@ -159,7 +143,7 @@ private:
 	TObjectPtr<UPolygonSelectionMechanic> SelectionMechanic = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UClothEditorContextObject> ClothEditorContextObject = nullptr;
+	TObjectPtr<UDataflowContextObject> DataflowContextObject = nullptr;
 
 	TUniquePtr<UE::Geometry::FGroupTopology> Topology;
 
@@ -169,6 +153,8 @@ private:
 	TArray<int32> DynamicMeshToSelection;
 	TArray<TArray<int32>> SelectionToDynamicMesh;
 
+	FChaosClothAssetSelectionNode_v2* SelectionNodeToUpdate = nullptr;
+	TSet<int32> InputSelectionSet;
 	//
 	// Action support
 	//
@@ -184,12 +170,5 @@ private:
 	EClothMeshSelectionToolActions PendingAction;
 	virtual void ApplyAction(EClothMeshSelectionToolActions ActionType);
 
-	void ImportFromCollection(bool bImportFromSecondarySet);
-	void TogglePrimarySecondaryAction();
-	void UpdatePrimarySecondaryMessage();
-
-	void GrowSelection();
-	void ShrinkSelection();
-	void FloodSelection();
 };
 

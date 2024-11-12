@@ -753,6 +753,15 @@ namespace Audio
 			// be flushed. Audio Rendering Thread ID will be reset again in call
 			// to FMixerDevice::OnProcessAudio
 			ResetAudioRenderingThreadId();
+			
+			// Cache the audio platform thread id for debugging purposes. This is
+			// an attempt to narrow down the causes of UE-209237. The theory is
+			// that the there are multiple threads attempting to run audio rendering
+			// commands. To catch the issue we attempt to cache the thread id before
+			// running audio rendering commands. We then check that the thread id
+			// has not changed for the duration that render thread commands have 
+			// run.
+			std::atomic<int32> CurrentAudioPlatformThreadId = AudioPlatformThreadId.load();
 
 			// Force source manager to incorporate device channel count change.
 			FlushAudioRenderingCommands(true /* bPumpSynchronously */);
@@ -761,6 +770,9 @@ namespace Audio
 			{
 				AudioDeviceNotifSubsystem->OnDeviceSwitched(PlatformInfo.DeviceId);
 			}
+
+			// Related to earlier mention of UE-209237
+			UE_CLOG(CurrentAudioPlatformThreadId != AudioPlatformThreadId, LogAudioMixer, Error, TEXT("Platform audio thread id changed while flushing render commands. Expected %d, found %d. May result in corrupt internal audio source state."), CurrentAudioPlatformThreadId.load(), AudioPlatformThreadId.load());
 
 			// Audio rendering was suspended in CheckAudioDeviceChange if it changed.
 			AudioMixerPlatform->ResumePlaybackOnNewDevice();
@@ -800,7 +812,7 @@ namespace Audio
 
 				for (TObjectIterator<USoundSubmix> It; It; ++It)
 				{
-					if (*It && It->bMuteWhenBackgrounded)
+					if (It->bMuteWhenBackgrounded)
 					{
 						FMixerSubmixPtr SubmixInstance = GetSubmixInstance(*It).Pin();
 						if (SubmixInstance.IsValid())
@@ -901,6 +913,15 @@ namespace Audio
 		// This function could be called in a task manager, which means the thread ID may change between calls.
 		ResetAudioRenderingThreadId();
 
+		// Cache the audio platform thread id for debugging purposes. This is
+		// an attempt to narrow down the causes of UE-209237. The theory is
+		// that the there are multiple threads attempting to run audio rendering
+		// commands. To catch the issue we attempt to cache the thread id before
+		// running audio rendering commands. We then check that the thread id
+		// has not changed for the duration that render thread commands have 
+		// run.
+		std::atomic<int32> CurrentAudioPlatformThreadId = AudioPlatformThreadId.load();
+
 		// Update the audio render thread time at the head of the render
 		AudioThreadTimingData.AudioRenderThreadTime = FPlatformTime::Seconds() - AudioThreadTimingData.StartTime;
 
@@ -985,6 +1006,12 @@ namespace Audio
 		NotifyAudioDevicePostRender(RenderInfo);
 
 		KickQueuedTasks((Audio::AudioTaskQueueId)DeviceID);
+
+
+		// Related to earlier mention of UE-209237
+		UE_CLOG(CurrentAudioPlatformThreadId != AudioPlatformThreadId, LogAudioMixer, Error, TEXT("Platform audio thread id changed while flushing render commands. Expected %d, found %d. May result in corrupt internal audio source state."), CurrentAudioPlatformThreadId.load(), AudioPlatformThreadId.load());
+
+
 		return true;
 	}
 
@@ -1274,16 +1301,22 @@ namespace Audio
 
  	FAudioPlatformSettings FMixerDevice::GetPlatformSettings() const
  	{
-		FAudioPlatformSettings Settings = AudioMixerPlatform->GetPlatformSettings();
+		FAudioPlatformSettings
+			Settings;
 
-		const int32 DefaultMaxChannels = GetDefault<UAudioSettings>()->GetHighestMaxChannels();
-		UE_LOG(LogAudioMixer, Display, TEXT("Audio Mixer Platform Settings:"));
-		UE_LOG(LogAudioMixer, Display, TEXT("	Sample Rate:						  %d"), Settings.SampleRate);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size Requested: %d"), Settings.CallbackBufferFrameSize);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size To Use:	  %d"), AudioMixerPlatform->GetNumFrames(Settings.CallbackBufferFrameSize));
-		UE_LOG(LogAudioMixer, Display, TEXT("	Number of buffers to queue:			  %d"), Settings.NumBuffers);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Max Channels (voices):				  %d"), (Settings.MaxChannels > 0) ? Settings.MaxChannels : DefaultMaxChannels);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Number of Async Source Workers:		  %d"), Settings.NumSourceWorkers);
+		if (AudioMixerPlatform)
+		{
+			Settings = AudioMixerPlatform->GetPlatformSettings();
+
+			const int32 DefaultMaxChannels = GetDefault<UAudioSettings>()->GetHighestMaxChannels();
+			UE_LOG(LogAudioMixer, Display, TEXT("Audio Mixer Platform Settings:"));
+			UE_LOG(LogAudioMixer, Display, TEXT("	Sample Rate:						  %d"), Settings.SampleRate);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size Requested: %d"), Settings.CallbackBufferFrameSize);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size To Use:	  %d"), AudioMixerPlatform->GetNumFrames(Settings.CallbackBufferFrameSize));
+			UE_LOG(LogAudioMixer, Display, TEXT("	Number of buffers to queue:			  %d"), Settings.NumBuffers);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Max Channels (voices):				  %d"), (Settings.MaxChannels > 0) ? Settings.MaxChannels : DefaultMaxChannels);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Number of Async Source Workers:		  %d"), Settings.NumSourceWorkers);
+		}
 
  		return Settings;
  	}
@@ -1471,7 +1504,22 @@ namespace Audio
 			SourceEffectChainOverrides.Add(SourceEffectChainId, SourceEffectChain);
 		}
 
-		SourceManager->UpdateSourceEffectChain(SourceEffectChainId, SourceEffectChain, bPlayEffectChainTails);
+		FAudioThread::RunCommandOnAudioThread([MixerDeviceID = DeviceID, SourceEffectChainId, SourceEffectChain, bPlayEffectChainTails]()
+		{
+			if (FAudioDeviceManager* Manager = FAudioDeviceManager::Get())
+			{
+				if (FAudioDevice* Device = Manager->GetAudioDeviceRaw(MixerDeviceID))
+				{
+					FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(Device);
+					if (MixerDevice && MixerDevice->SourceManager)
+					{
+						MixerDevice->SourceManager->UpdateSourceEffectChain(SourceEffectChainId, SourceEffectChain, bPlayEffectChainTails);
+					}
+				}
+			}
+		});
+
+		
 	}
 
 	void FMixerDevice::UpdateSubmixProperties(USoundSubmixBase* InSoundSubmix)
@@ -1660,7 +1708,7 @@ namespace Audio
 
 			if (SubmixWeakPtr.IsValid())
 			{
-				AudioRenderThreadCommand([MixerSubmixWeakPtr, VolumeMod = InOutputModulation, WetMod = InOutputModulation, DryMod = InOutputModulation]()
+				AudioRenderThreadCommand([MixerSubmixWeakPtr, VolumeMod = InOutputModulation, WetMod = InWetLevelModulation, DryMod = InDryLevelModulation]()
 				{
 					FMixerSubmixPtr MixerSubmixPtr = MixerSubmixWeakPtr.Pin();
 				    if (MixerSubmixPtr.IsValid())
@@ -2485,6 +2533,35 @@ namespace Audio
 		}
 	}
 
+	void FMixerDevice::RemoveEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP)
+	{
+		if (!IsInAudioThread())
+		{
+			DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.RemoveEnvelopeFollowerDelegate"), STAT_RemoveEnvelopeFollowerDelegate, STATGROUP_AudioThreadCommands);
+
+			FAudioThread::RunCommandOnAudioThread([this, InSubmix, OnSubmixEnvelopeBP]()
+			{
+				CSV_SCOPED_TIMING_STAT(Audio, RemoveEnvelopeFollowerDelegate);
+				RemoveEnvelopeFollowerDelegate(InSubmix, OnSubmixEnvelopeBP);
+			}, GET_STATID(STAT_RemoveEnvelopeFollowerDelegate));
+			return;
+		}
+
+		// Fallback to the master submix if the provided submix isn't found to match behavior from ::AddEnvelopeFollowerDelegate
+		FMixerSubmixPtr FoundSubmix = GetSubmixInstance(InSubmix).Pin();
+		if (FoundSubmix.IsValid())
+		{
+			FoundSubmix->RemoveEnvelopeFollowerDelegate(OnSubmixEnvelopeBP);
+		}
+		else
+		{
+			FMixerSubmixWeakPtr MainSubmix = GetMasterSubmix();
+			FMixerSubmixPtr MainSubmixPtr = MainSubmix.Pin();
+			check(MainSubmixPtr.IsValid());
+
+			MainSubmixPtr->RemoveEnvelopeFollowerDelegate(OnSubmixEnvelopeBP);
+		}
+	}
 
 	void FMixerDevice::StartSpectrumAnalysis(USoundSubmix* InSubmix, const FSoundSpectrumAnalyzerSettings& InSettings)
 	{
@@ -2765,20 +2842,22 @@ namespace Audio
 		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.UnregisterSubmixBufferListener"), STAT_UnregisterSubmixBufferListener, STATGROUP_AudioThreadCommands);
 
 		const TWeakObjectPtr<USoundSubmix> SubmixPtr(&InSubmix);
-
-		auto UnregisterLambda = [this, InSubmixBufferListener, SubmixPtr]()
+		UPTRINT ListenerPtr = reinterpret_cast<UPTRINT>(&InSubmixBufferListener.Get());
+		FString ListenerName = InSubmixBufferListener->GetListenerName();
+		
+		auto UnregisterLambda = [this, SubmixPtr, ListenerPtr, ListenerName]()
 		{
 			CSV_SCOPED_TIMING_STAT(Audio, UnregisterSubmixBufferListener);
 
 			FMixerSubmixPtr FoundSubmix = GetSubmixInstance(SubmixPtr.Get()).Pin();
 			if (FoundSubmix.IsValid())
 			{
-				UE_LOG(LogAudioMixer, Display, TEXT("Unregistering submix buffer listener '%s' from submix '%s'"), *InSubmixBufferListener->GetListenerName(), *FoundSubmix->SubmixName);
-				FoundSubmix->UnregisterBufferListener(InSubmixBufferListener);
+				UE_LOG(LogAudioMixer, Display, TEXT("Unregistering submix buffer listener '%s' from submix '%s'"), *ListenerName, *FoundSubmix->SubmixName);
+				FoundSubmix->UnregisterBufferListenerInternal(ListenerPtr);
 			}
 			else
 			{
-				UE_LOG(LogAudioMixer, Display, TEXT("Submix buffer listener '%s' not unregistered. Submix not loaded."), *InSubmixBufferListener->GetListenerName());
+				UE_LOG(LogAudioMixer, Display, TEXT("Submix buffer listener '%s' not unregistered. Submix not loaded."), *ListenerName);
 			}
 		};
 

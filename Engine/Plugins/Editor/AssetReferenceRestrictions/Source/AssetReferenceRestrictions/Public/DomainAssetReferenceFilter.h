@@ -3,9 +3,8 @@
 #pragma once
 
 #include "AssetRegistry/AssetData.h"
+#include "Editor/EditorEngine.h"
 #include "Editor/AssetReferenceFilter.h"
-
-struct FAssetReferenceFilterContext;
 
 struct FAssetData;
 struct FDomainDatabase;
@@ -24,7 +23,10 @@ public:
 	// Update any cached information for all filters
 	static void UpdateAllFilters();
 private:
+	using FAssetDataInfo = TTuple<FAssetData, TSharedPtr<FDomainData>>;
+
 	bool PassesFilterImpl(const FAssetData& AssetData, FText& OutOptionalFailureReason) const;
+	bool IsCrossPluginReferenceAllowed(const FAssetDataInfo& ReferencingAssetDataInfo, const FAssetDataInfo& ReferencedAssetDataInfo) const;
 
 	void DetermineReferencingDomain();
 
@@ -36,8 +38,8 @@ private:
 
 	TSharedPtr<FDomainDatabase> DomainDB;
 
-	TArray<FAssetData> OriginalReferencingAssets;
-	TSet<TSharedPtr<FDomainData>> ReferencingDomains;
+	TArray<FAssetReferenceFilterReferencerInfo> OriginalReferencingAssets;
+	TSet<FAssetDataInfo> ReferencingAssetDataInfos;
 
 	FText Failure_CouldNotDetermineDomain;
 };

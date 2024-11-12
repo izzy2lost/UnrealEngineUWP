@@ -127,6 +127,16 @@ namespace Chaos
 			return NetAngularImpulse;
 		}
 
+		inline FReal GetLinearViolationSq() const
+		{
+			return LinearViolationSq;
+		}
+
+		inline FReal GetAngularViolation() const
+		{
+			return AngularViolation;
+		}
+
 		FPBDJointSolver()
 		{
 		}
@@ -192,6 +202,16 @@ namespace Chaos
 		bool IsBroken() const
 		{
 			return bIsBroken;
+		}
+
+		void SetIsViolating(const bool bInIsViolating)
+		{
+			bIsViolating = bInIsViolating;
+		}
+
+		bool IsViolating() const
+		{
+			return bIsViolating;
 		}
 
 		bool RequiresSolve() const
@@ -322,6 +342,7 @@ namespace Chaos
 			const FVec3& Axis,
 			const FReal Angle,
 			const FReal AngVelTarget,
+			const FReal LambdaLimit,
 			FReal& Lambda);
 
 		void ApplyRotationConstraintSoftKD(
@@ -334,6 +355,7 @@ namespace Chaos
 			const FVec3& Axis,
 			const FReal Angle,
 			const FReal AngVelTarget,
+			const FReal LambdaLimit,
 			FReal& Lambda);
 
 		void ApplyRotationConstraintSoftDD(
@@ -344,6 +366,7 @@ namespace Chaos
 			const FVec3& Axis,
 			const FReal Angle,
 			const FReal AngVelTarget,
+			const FReal LambdaLimit,
 			FReal& Lambda);
 
 		void ApplyLockedRotationConstraints(
@@ -717,6 +740,9 @@ namespace Chaos
 		FVec3 NetLinearImpulse;
 		FVec3 NetAngularImpulse;
 
+		FReal LinearViolationSq;
+		FReal AngularViolation;
+
 		// Lagrange multipliers of the position constraints.
 		// Currently these are only used in ApplyCylindricalVelocityConstraints
 		FVec3 LinearHardLambda;
@@ -746,6 +772,7 @@ namespace Chaos
 		FVec3 InitConstraintAxisAngularVelocities; // Angular velocities along the constraint axes at the begining of the frame, used by restitution
 
 		bool bIsBroken;
+		bool bIsViolating;
 	};
 
 }

@@ -4,15 +4,26 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TextureDefines.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "RenderCommandFence.h"
 #include "SceneComponent.h"
+#include "SceneTypes.h"
 #include "RuntimeVirtualTextureComponent.generated.h"
 
 class URuntimeVirtualTexture;
 class UTexture2D;
 class UVirtualTextureBuilder;
 enum class EShadingPath;
+
+/** Enumeration of material quality. Similar to EMaterialQualityLevel, but as a UENUM for appearance in UI. */
+UENUM()
+enum class ERuntimeVirtualTextureMaterialQuality : uint8
+{
+	Low = 0,
+	Medium = 1,
+	High = 2,
+	Epic = 3,
+};
 
 /** Component used to place a URuntimeVirtualTexture in the world. */
 UCLASS(Blueprintable, ClassGroup = Rendering, HideCategories = (Activation, Collision, Cooking, HLOD, Mobility, LOD, Navigation, Object, Physics), MinimalAPI)
@@ -48,6 +59,14 @@ protected:
 	/** Enable the virtual texture only when Nanite is enabled. Can be used for a Displacement virtual texture with Nanite tessellation. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture)
 	bool bEnableForNaniteOnly = false;
+
+	/** Use a minimum material quality to determine if we enable the virtual texture. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture, Meta = (InlineEditConditionToggle))
+	bool bUseMinMaterialQuality = false;
+
+	/** The minimum material quality for which we enable the virtual texture. Only affects In-Game and PIE. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture, Meta = (EditCondition = "bUseMinMaterialQuality"))
+	ERuntimeVirtualTextureMaterialQuality MinInGameMaterialQuality = ERuntimeVirtualTextureMaterialQuality::Low;
 
 	/** Set to true to enable scalability settings for the virtual texture. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = RuntimeVirtualTexture, meta = (InlineEditConditionToggle))
@@ -89,9 +108,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "Fixed Color", HideAlphaChannel, EditCondition = bUseStreamingMipsFixedColor))
 	FLinearColor StreamingMipsFixedColor;
 
+	/** Whenever streaming low mips are in use, only show the streaming mips and never show runtime generated pages. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "Use Only Streaming Texture"))
+	bool bUseStreamingMipsOnly = false;
+
 	/** Use streaming low mips when rendering in editor. Set true to view and debug the baked streaming low mips. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "View in Editor"))
-	bool bUseStreamingLowMipsInEditor = false;
+	bool bUseStreamingMipsInEditor = false;
 
 #if WITH_EDITOR
 	/** Delegate handle for our function called on PIE end. */
@@ -142,6 +165,9 @@ public:
 
 	/** Get if we want to use any streaming low mips on this component. */
 	ENGINE_API bool IsStreamingLowMips(EShadingPath ShadingPath) const;
+
+	/** Public getter for using streaming low mips only. */
+	ENGINE_API bool IsStreamingLowMipsOnly();
 
 	/** Public getter for streaming mips fixed color. */
 	ENGINE_API FLinearColor GetStreamingMipsFixedColor() const;

@@ -13,7 +13,7 @@ class IDetailsView;
 class FLiveLinkClient;
 class IStructureDetailsView;
 
-class SLiveLinkDataView : public SCompoundWidget
+class LIVELINKEDITOR_API SLiveLinkDataView : public SCompoundWidget
 {
 private:
 	using Super = SCompoundWidget;

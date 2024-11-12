@@ -17,42 +17,29 @@ class FSceneOutlinerTreeItemSCC : public TSharedFromThis<FSceneOutlinerTreeItemS
 {
 public:
 	FSceneOutlinerTreeItemSCC(FSceneOutlinerTreeItemPtr InTreeItemPtr);
-
 	~FSceneOutlinerTreeItemSCC();
 
 	// Actually attempt to connect to Revision Control and get the item's status
 	void Initialize();
 
 	FSourceControlStatePtr GetSourceControlState();
-
 	FSourceControlStatePtr RefreshSourceControlState();
-
-	bool IsExternalPackage() { return !ExternalPackageName.IsEmpty(); }
-
-	FString GetPackageName() { return ExternalPackageName; }
-
-	FString GetPackageFileName() { return ExternalPackageFileName; }
-
-	UPackage* GetPackage() { return ExternalPackage; }
-
-	FSourceControlStateChangedDelegate OnSourceControlStateChanged;
-	
-	FUncontrolledStateChangedDelegate OnUncontrolledChangelistsStateChanged;
-	
 	TWeakPtr<FUncontrolledChangelistState> GetUncontrolledChangelistState() { return UncontrolledChangelistState; }
 
+	bool HasValidPackage() const { return !ExternalPackageName.IsEmpty(); }
+	FString GetPackageName() const { return ExternalPackageName; }
+	FString GetPackageFileName() const { return ExternalPackageFileName; }
+	UPackage* GetPackage() const;
+	UPackage* LoadPackage() const;
+
+	FSourceControlStateChangedDelegate OnSourceControlStateChanged;
+	FUncontrolledStateChangedDelegate OnUncontrolledChangelistsStateChanged;
 private:
-
 	void ConnectSourceControl();
-
 	void DisconnectSourceControl();
-
 	void HandleSourceControlStateChanged(EStateCacheUsage::Type CacheUsage);
-
 	void HandleSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
-
 	void BroadcastNewState(FSourceControlStatePtr SourceControlState);
-
 	void HandleUncontrolledChangelistsStateChanged();
 
 	/** The tree item we relate to */
@@ -61,7 +48,6 @@ private:
 	/** Cache the items external package name and filename */
 	FString ExternalPackageName;
 	FString ExternalPackageFileName;
-	UPackage* ExternalPackage = nullptr;
 
 	/** Source control state changed delegate handle */
 	FDelegateHandle SourceControlStateChangedDelegateHandle;

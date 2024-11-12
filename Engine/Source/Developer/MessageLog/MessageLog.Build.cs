@@ -32,5 +32,7 @@ public class MessageLog : ModuleRules
 		{
 			PrecompileForTargets = PrecompileTargetsType.Any;
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

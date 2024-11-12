@@ -22,6 +22,7 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/ScopeRWLock.h"
 #include "ProfilingDebugging/StringsTrace.h"
+#include "ProfilingDebugging/MetadataTrace.h"
 #include "Containers/Set.h"
 #include "Internationalization/Text.h"
 #include "Internationalization/Internationalization.h"
@@ -39,9 +40,22 @@
 #include "Misc/AsciiSet.h"
 #include "AutoRTFM/AutoRTFM.h"
 
+#ifndef USE_FNAME_MMAP
+#define USE_FNAME_MMAP 0
+#endif
+
+#if USE_FNAME_MMAP
+#include <sys/mman.h>
+#if PLATFORM_ANDROID
+extern FString AndroidThunkCpp_GetCacheDir();
+#endif
+#endif
+
 PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealNames, Log, All);
+
+static_assert(::HasIntrusiveUnsetOptionalState<FName>());
 
 // Console command declarations
 namespace UE::Name::Private
@@ -93,6 +107,12 @@ namespace UE::Name::Private
 		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&DumpHashCsv)
 	);
 }
+
+bool GFNameUseMmap = false;
+static FAutoConsoleVariableRef CVarFNameUseMmap(
+	TEXT("FName.UseMmap"),
+	GFNameUseMmap,
+	TEXT("Whether to use mmap instead of malloc for block allocations"));
 
 const TCHAR* LexToString(EName Ename)
 {
@@ -379,6 +399,9 @@ private:
 		if (!Buffer)
 		{
 			LLM_SCOPE(ELLMTag::FName);
+			LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+			LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+			UE_TRACE_METADATA_CLEAR_SCOPE();
 			constexpr uint32 BufferSizeBytes = NumWords * sizeof(WordType);
 			Buffer = (WordType*) FMemory::MallocZeroed(BufferSizeBytes, alignof(WordType));
 			WordType* Expected = nullptr;
@@ -443,6 +466,25 @@ public:
 	enum { Stride = alignof(FNameEntry) };
 	enum { BlockSizeBytes = Stride * FNameBlockOffsets };
 
+#if USE_FNAME_MMAP
+	const uint32 PageAlignedBlockSizeBytes = Align((uint32)BlockSizeBytes, (uint32)sysconf(_SC_PAGESIZE));
+	// mmap block aligned to FName block size and page size
+	const uint32 MmapSizeBytes = Align(128 * 1024 * 1024, PageAlignedBlockSizeBytes);
+
+	bool IsBlockMmapped(uint8* BlockAddress)
+	{
+		for (uint8* Address : MmappedAddresses)
+		{
+			if (BlockAddress >= Address && BlockAddress < (Address + MmapSizeBytes))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+#endif
+
 	/** Initializes all member variables. */
 	FNameEntryAllocator()
 	{
@@ -451,10 +493,26 @@ public:
 
 	~FNameEntryAllocator()
 	{
-		for (uint32 Index = 0; Index <= CurrentBlock; ++Index)
+		for (int32 Index = CurrentBlock; Index >= 0; --Index)
 		{
+#if USE_FNAME_MMAP
+			if (IsBlockMmapped(Blocks[Index]))
+			{
+				continue;
+			}
+#endif
 			FMemory::Free(Blocks[Index]);
 		}
+#if USE_FNAME_MMAP
+		for (uint8* Address : MmappedAddresses)
+		{
+			munmap(Address, MmapSizeBytes);
+		}
+		if (MmapFile != -1)
+		{
+			close(MmapFile);
+		}
+#endif
 	}
 
 	void ReserveBlocks(uint32 Num)
@@ -575,7 +633,7 @@ public:
 	{
 		return CurrentBlock + 1;
 	}
-	
+
 	uint8** GetBlocksForDebugVisualizer() { return Blocks; }
 
 	void DebugDump(TArray<const FNameEntry*>& Out) const
@@ -651,10 +709,67 @@ private:
 		}
 	}
 
-	static uint8* AllocBlock()
+	uint8* AllocBlock()
 	{
 		LLM_SCOPE(ELLMTag::FName);
-		return (uint8*)FMemory::MallocPersistentAuxiliary(BlockSizeBytes, alignof(FNameEntry));
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
+
+#if USE_FNAME_MMAP
+		if (GFNameUseMmap)
+		{
+#if PLATFORM_ANDROID
+			if (MmapFile == -1)
+			{
+				FString CacheDirectoryPath = AndroidThunkCpp_GetCacheDir();
+				if (!CacheDirectoryPath.IsEmpty())
+				{
+					auto CacheDirectoryPathCStr = StringCast<char>(*CacheDirectoryPath);
+					MmapFile = open(CacheDirectoryPathCStr.Get(), O_TMPFILE | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+				}
+			}
+#else
+			if (MmapFile == -1)
+			{
+				MmapFile = fileno(tmpfile());
+			}
+#endif
+
+			if (MmapFile != -1)
+			{
+				// Increase file size, write a single 0 at the end
+				char Zero = 0;
+				pwrite(MmapFile, &Zero, 1, MmapFileOffset + PageAlignedBlockSizeBytes - 1);
+
+				if (CurrentMmapAddress == nullptr || CurrentMmapOffset >= MmapSizeBytes)
+				{
+					void* AddressHint = NULL;
+					if (CurrentMmapAddress != nullptr)
+					{
+						AddressHint = CurrentMmapAddress + MmapSizeBytes;
+					}
+
+					CurrentMmapAddress = (uint8*)mmap(AddressHint, MmapSizeBytes, PROT_NONE, MAP_SHARED, MmapFile, MmapFileOffset);
+
+					
+					CurrentMmapOffset = 0;
+					MmappedAddresses.Add(CurrentMmapAddress);
+				}
+
+				MmapFileOffset += PageAlignedBlockSizeBytes;
+				
+				uint8* MappedPointer = CurrentMmapAddress + CurrentMmapOffset;
+				CurrentMmapOffset += PageAlignedBlockSizeBytes;
+
+				// enable read/write for the new block
+				mprotect(MappedPointer, PageAlignedBlockSizeBytes, PROT_READ | PROT_WRITE);
+
+				return MappedPointer;
+			}
+		}
+#endif
+		return (uint8*)FMemory::Malloc(BlockSizeBytes, alignof(FNameEntry));
 	}
 	
 	void AllocateNewBlock()
@@ -688,13 +803,23 @@ private:
 			Blocks[CurrentBlock] = AllocBlock();
 		}
 
-		FPlatformMisc::Prefetch(Blocks[CurrentBlock]);
+		if (!GFNameUseMmap)
+		{
+			FPlatformMisc::Prefetch(Blocks[CurrentBlock]);
+		}
 	}
 
 	mutable FRWLock Lock;
 	uint32 CurrentBlock = 0;
 	uint32 CurrentByteCursor = 0;
 	uint8* Blocks[FNameMaxBlocks] = {};
+#if USE_FNAME_MMAP
+	TArray<uint8*> MmappedAddresses;
+	int32 MmapFile = -1;
+	int32 MmapFileOffset = 0;
+	int32 CurrentMmapOffset = 0;
+	uint8* CurrentMmapAddress = nullptr;
+#endif
 };
 
 // Increasing shards reduces contention but uses more memory and adds cache pressure.
@@ -993,6 +1118,9 @@ public:
 	void Initialize(FNameEntryAllocator& InEntries)
 	{
 		LLM_SCOPE(ELLMTag::FName);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		Entries = &InEntries;
 
 		Slots = (FNameSlot*)FMemory::Malloc(FNamePoolInitialSlotsPerShard * sizeof(FNameSlot), alignof(FNameSlot));
@@ -1013,9 +1141,9 @@ public:
 	}
 
 	uint32 Capacity() const	{ return CapacityMask + 1; }
-	uint32 NumCreated() const { return NumCreatedEntries; }
-	uint32 NumCreatedWide() const { return NumCreatedWideEntries; }
-	uint32 NumCreatedWithNumber() const { return NumCreatedWithNumberEntries; }
+	uint32 NumCreated() const { return NumCreatedEntries.load(std::memory_order_relaxed); }
+	uint32 NumCreatedWide() const { return NumCreatedWideEntries.load(std::memory_order_relaxed); }
+	uint32 NumCreatedWithNumber() const { return NumCreatedWithNumberEntries.load(std::memory_order_relaxed); }
 
 protected:
 	enum { LoadFactorQuotient = 9, LoadFactorDivisor = 10 }; // I.e. realloc slots when 90% full
@@ -1025,9 +1153,9 @@ protected:
 	uint32 CapacityMask = 0;
 	FNameSlot* Slots = nullptr;
 	FNameEntryAllocator* Entries = nullptr;
-	uint32 NumCreatedEntries = 0;
-	uint32 NumCreatedWideEntries = 0;
-	uint32 NumCreatedWithNumberEntries = 0;
+	std::atomic<uint32> NumCreatedEntries{0};
+	std::atomic<uint32> NumCreatedWideEntries{0};
+	std::atomic<uint32> NumCreatedWithNumberEntries{0};
 
 
 	template<ENameCase Sensitivity>
@@ -1161,13 +1289,13 @@ public:
 	FNameEntryId Find(const FNameValue<Sensitivity>& Value) const
 	{
 		FNameEntryId Result;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN
 		{
 			FRWScopeLock _(Lock, FRWScopeLockType::SLT_ReadOnly);
 
 			FNameSlot& Slot = Probe(Value);
 			Result = Slot.GetId();
-		});
+		};
 		return Result;
 	}
 
@@ -1367,8 +1495,8 @@ private:
 
 		ClaimSlot(Slot, FNameSlot(NewEntryId, Value.Hash.SlotProbeHash));
 
-		++NumCreatedEntries;
-		NumCreatedWideEntries += Value.Name.bIsWide;
+		NumCreatedEntries.fetch_add(1, std::memory_order_relaxed);
+		NumCreatedWideEntries.fetch_add(Value.Name.bIsWide, std::memory_order_relaxed);
 		
 		return NewEntryId;
 	}
@@ -1381,7 +1509,7 @@ private:
 
 		ClaimSlot(Slot, FNameSlot(NewEntryId, Value.Hash.SlotProbeHash));
 
-		++NumCreatedWithNumberEntries;
+		NumCreatedWithNumberEntries.fetch_add(1, std::memory_order_relaxed);;
 
 		return NewEntryId;
 	}
@@ -1395,6 +1523,9 @@ private:
 	void Grow(const uint32 NewCapacity)
 	{
 		LLM_SCOPE(ELLMTag::FName);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		TArrayView<FNameSlot> OldSlots(Slots, Capacity());
 		const uint32 OldUsedSlots = UsedSlots;
 
@@ -1692,7 +1823,7 @@ FNameEntryId FNamePool::StoreWithNumber(FNameEntryIds StringParts, int32 NumberP
 {
 	FNameEntryId Result;
 
-	AutoRTFM::Open([&]
+	UE_AUTORTFM_OPEN
 	{
 #if WITH_CASE_PRESERVING_NAME
 		// Look for an exact match with the right casing first
@@ -1717,7 +1848,7 @@ FNameEntryId FNamePool::StoreWithNumber(FNameEntryIds StringParts, int32 NumberP
 #else
 		Result = ComparisonId;
 #endif
-	});
+	};
 
 	return Result;
 }
@@ -2012,9 +2143,15 @@ static FNamePool& GetNamePool()
 		return *(FNamePool*)NamePoolData;
 	}
 
-	FNamePool* Singleton = new (NamePoolData) FNamePool;
-	bNamePoolInitialized = true;
-	LLM(FLowLevelMemTracker::Get().FinishInitialise());
+	FNamePool* Singleton = nullptr;
+	
+	UE_AUTORTFM_OPEN
+	{
+		Singleton = new (NamePoolData) FNamePool;
+		bNamePoolInitialized = true;
+		LLM(FLowLevelMemTracker::Get().FinishInitialise());
+	};
+	
 	return *Singleton;
 }
 
@@ -2420,6 +2557,12 @@ void FName::Reserve(uint32 NumBytes, uint32 NumNames)
 int32 FName::GetNameEntryMemorySize()
 {
 	return GetNamePool().NumBlocks() * FNameEntryAllocator::BlockSizeBytes;
+}
+
+int32 FName::GetNameEntryMemoryEstimatedAvailable()
+{
+	FNamePool& Pool = GetNamePool();
+	return (FNameMaxBlocks - Pool.NumBlocks()) * FNameEntryAllocator::BlockSizeBytes;
 }
 
 int32 FName::GetNameTableMemorySize()
@@ -2878,9 +3021,10 @@ struct FNameHelper
 		if (FindType == FNAME_Add)
 		{
 			FNameEntryId DisplayId;
-			UE_AUTORTFM_OPEN({
+			UE_AUTORTFM_OPEN
+			{
 				DisplayId = Pool.StoreWithNumber(BaseIds, InternalNumber);
-			});
+			};
 			return FinalConstruct(FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId });
 		}
 		else
@@ -2986,9 +3130,10 @@ private:
 	static FName MakeInternal(FNameStringView View, EFindName FindType, int32 InternalNumber)
 	{
 		FNameEntryIds Ids;
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN
+		{
 			Ids = FindOrStoreString(View, FindType);
-		});
+		};
 #if UE_FNAME_OUTLINE_NUMBER
 		if (FindType == FNAME_Find && !Ids.DisplayId)
 		{
@@ -3046,7 +3191,7 @@ private:
 	{
 		FNameEntryIds Result{};
 
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN
 		{
 			if (View.Len >= NAME_SIZE)
 			{
@@ -3080,7 +3225,7 @@ private:
 					Result = FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId };
 				}
 			}
-		});
+		};
 
 		return Result;
 	}
@@ -3742,7 +3887,15 @@ void CheckLazyName(const CharType(&Literal)[N])
 	CharType Literal2[N];
 	FMemory::Memcpy(Literal2, Literal);
 	check(FLazyName(Literal) == FLazyName(Literal2));
-	check(WriteToString<64>(FLazyName(Literal).Resolve()).ToView().Equals(WriteToString<64>(Literal).ToView(), ESearchCase::CaseSensitive));
+
+	constexpr ESearchCase::Type ComparisonMode =
+#if WITH_CASE_PRESERVING_NAME
+		ESearchCase::CaseSensitive;
+#else
+		ESearchCase::IgnoreCase;
+#endif
+
+	check(WriteToString<64>(FLazyName(Literal).Resolve()).ToView().Equals(WriteToString<64>(Literal).ToView(), ComparisonMode));
 }
 
 static void TestNameBatch();

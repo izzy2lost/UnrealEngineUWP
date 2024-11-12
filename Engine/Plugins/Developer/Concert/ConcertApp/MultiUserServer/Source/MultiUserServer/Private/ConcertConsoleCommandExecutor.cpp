@@ -35,20 +35,29 @@ namespace UE::MultiUserServer
 		return LOCTEXT("ConsoleCommandExecutorHintText", "Enter Console Command");
 	}
 
-	void FConcertConsoleCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+	void FConcertConsoleCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 	{
 		auto OnConsoleVariable = [&Out](const TCHAR *Name, IConsoleObject* CVar)
 		{
-			if (CVar->TestFlags(ECVF_Unregistered))
+			if (CVar->IsEnabled())
 			{
-				return;
+				Out.Add(FConsoleSuggestion(Name, CVar->GetDetailedHelp().ToString()));
 			}
-
-			Out.Add(Name);
 		};
 
-		IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), Input);
-		Out.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input));
+		IConsoleManager& ConsoleManager = IConsoleManager::Get();
+		ConsoleManager.ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), Input);
+		for (const FString& Name : GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input))
+		{
+			FString HelpString;
+			// Try to find a console object for this entry in order to retrieve a help string if possible :
+			const TCHAR* NamePtr = *Name;
+			if (IConsoleObject* CObj = ConsoleManager.FindConsoleObject(*FParse::Token(NamePtr, /*UseEscape = */false), /*bTrackFrequentCalls = */false); CObj && CObj->IsEnabled())
+			{
+				HelpString = CObj->GetDetailedHelp().ToString();
+			}
+			Out.Add(FConsoleSuggestion(Name, HelpString));
+		}
 	}
 
 	void FConcertConsoleCommandExecutor::GetExecHistory(TArray<FString>& Out)

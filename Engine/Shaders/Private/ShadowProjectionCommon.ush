@@ -11,8 +11,6 @@ float3 SoftTransitionScale;
 // xy:ShadowTexelSize.xy, zw:1/ShadowTexelSize.xy
 float4 ShadowBufferSize;
 
-#if FEATURE_LEVEL >= FEATURE_LEVEL_SM4
-
 /** Cube map texture. */
 TextureCube ShadowDepthCubeTexture;
 
@@ -261,8 +259,6 @@ float CubemapHardwarePCF(
 	return CubemapHardwarePCF(ShadowDepthCubeTexture, ShadowDepthCubeTextureSampler, ShadowViewProjectionMatrices, InvShadowmapResolution,
 		WorldPosition, LightPosition, LightInvRadius, DepthBias, SlopeDepthBias, MaxSlopeDepthBias);
 }
-
-#endif
 
 #ifndef NO_TRANSLUCENCY_AVAILABLE
 

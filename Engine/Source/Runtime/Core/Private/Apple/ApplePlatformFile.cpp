@@ -9,8 +9,10 @@
 #include "Containers/UnrealString.h"
 #include "Containers/StringConv.h"
 #include "CoreGlobals.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformTime.h"
+#include "Misc/ScopeLock.h"
 #include "ProfilingDebugging/PlatformFileTrace.h"
 #include "Templates/Function.h"
 #include <sys/stat.h>
@@ -193,25 +195,75 @@ public:
 			return ReadInternal(Destination, BytesToRead) == BytesToRead;
 		}
 	}
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (BytesToRead < 0 || Offset < 0)
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+#if MANAGE_FILE_HANDLES
+		if (IsManaged())
+		{
+			ActivateSlot();
+		}
+#endif //MANAGE_FILE_HANDLES
+
+		int64 TotalBytesRead = 0;
+		TRACE_PLATFORMFILE_BEGIN_READ(this, FileHandle, Offset, BytesToRead);
+
+		do
+		{
+			size_t BytesToRead32 = static_cast<size_t>(FMath::Min<int64>(READWRITE_SIZE, BytesToRead));
+			ssize_t BytesRead = pread(FileHandle, Destination, BytesToRead, Offset);
+
+			TotalBytesRead += BytesRead;
+
+			if (BytesRead != BytesToRead32)
+			{
+				TRACE_PLATFORMFILE_END_READ(this, TotalBytesRead);
+				return false;
+			}
+
+			Offset += BytesRead;
+			BytesToRead -= BytesToRead32;
+
+		} while (BytesToRead > 0);
+
+		TRACE_PLATFORMFILE_END_READ(this, TotalBytesRead);
+
+		return true;
+	}
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		check(IsValid());
 		TRACE_PLATFORMFILE_BEGIN_WRITE(this, FileHandle, 0, BytesToWrite);
 		int64 TotalBytesWritten = 0;
-		while (BytesToWrite)
+		while (BytesToWrite > 0)
 		{
-			check(BytesToWrite >= 0);
 			int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToWrite);
 			check(Source);
 			int64 BytesWritten = write(FileHandle, Source, ThisSize);
-			TotalBytesWritten += BytesWritten;
-			if (BytesWritten != ThisSize)
-			{
-				TRACE_PLATFORMFILE_END_WRITE(this, TotalBytesWritten);
-				return false;
-			}
-			Source += ThisSize;
-			BytesToWrite -= ThisSize;
+            if (BytesWritten <= 0)
+            {
+                if (errno == EINTR)
+                {
+                    continue;
+                }
+                else
+                {
+                    TRACE_PLATFORMFILE_END_WRITE(this, TotalBytesWritten);
+                    return false;
+                }
+            }
+            TotalBytesWritten += BytesWritten;
+			Source += BytesWritten;
+			BytesToWrite -= BytesWritten;
 		}
 		TRACE_PLATFORMFILE_END_WRITE(this, TotalBytesWritten);
 		return true;

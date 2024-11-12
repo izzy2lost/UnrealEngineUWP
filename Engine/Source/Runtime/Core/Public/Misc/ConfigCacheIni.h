@@ -10,6 +10,7 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
+#include "Containers/List.h"
 #include "Containers/SparseArray.h"
 #include "Containers/StringFwd.h"
 #include "Containers/UnrealString.h"
@@ -26,10 +27,11 @@
 #include "Math/Vector.h"
 #include "Math/Vector2D.h"
 #include "Math/Vector4.h"
-#include "Misc/AccessDetection.h"
 #include "Misc/Build.h"
+#include "Misc/ConfigAccessTracking.h"
 #include "Misc/ConfigTypes.h"
 #include "Misc/Paths.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 #include "Serialization/Archive.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/StructuredArchiveAdapters.h"
@@ -48,7 +50,7 @@ CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConfig, Log, All);
 
 // Server builds should be tweakable even in Shipping
 #define ALLOW_INI_OVERRIDE_FROM_COMMANDLINE			(UE_SERVER || !(UE_BUILD_SHIPPING))
-#define CONFIG_REMEMBER_ACCESS_PATTERN (WITH_EDITOR || 0)
+#define CONFIG_CAN_SAVE_COMMENTS (WITH_EDITOR)
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -62,7 +64,7 @@ CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConfig, Log, All);
 // make some additional code changes:
 //
 // Modifying:
-//    * Replace your direct modification with calls to SetSeting, SetBool, etc for non-array values
+//    * Replace your direct modification with calls to SetString, SetBool, etc for non-array values
 //    * Replace your direct modifications of array type values with AddToSection, AddUniqueToSection, RemoveKeyFromSection, RemoveFromSection
 //    * Fully construct a local new FConfigSection and then add that fully into the FConfigFile with Add
 //
@@ -112,40 +114,92 @@ enum class EKnownIniFile : uint8
 	NumKnownFiles,
 };
 
-namespace UE::ConfigCacheIni::Private { struct FAccessor; }
-namespace UE::ConfigCacheIni::Private { struct FImpl; }
-
 class FConfigContext;
+#if UE_WITH_CONFIG_TRACKING
+UE::ConfigAccessTracking::FSection* GetSectionAccess(const FConfigSection* InSection);
+#endif
 
 struct FConfigValue
 {
 public:
-	FConfigValue() { }
+	enum class EValueType : uint8
+	{
+		// Foo=Bar
+		Set,
+		// .Foo=Bar
+		ArrayAdd,
+		// +Foo=Bar
+		ArrayAddUnique,
+		// -Foo=Bar
+		Remove,
+		// !Foo=ClearArray
+		Clear,
+		// @Array=StructKey
+		ArrayOfStructKey,
+		// *Array=PerObjectConfigStructKey
+		POCArrayOfStructKey,
+        // Virtual type, meaning it is the final combined result of set operations
+        Combined,
+        // Virtual type, meaning it is the final combined result of array operations
+        ArrayCombined,
+	};
+	
+	
+	FConfigValue()
+		: FConfigValue(nullptr, NAME_None)
+	{}
 
-	FConfigValue(const TCHAR* InValue)
-		: SavedValue(InValue)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(false)
+	FConfigValue(const FConfigSection* InSection, FName InValueName, EValueType Type=EValueType::Combined)
+		: ValueType(Type)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
+#endif
+	{
+	}
+
+	FConfigValue(const TCHAR* InValue, EValueType Type=EValueType::Combined)
+		: FConfigValue(nullptr, NAME_None, InValue, Type)
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName, const TCHAR* InValue, EValueType Type=EValueType::Combined)
+		: ValueType(Type)
+		, SavedValue(InValue)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
 #endif
 	{
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
 		ExpandValueInternal();
 	}
 
-	FConfigValue(const FString& InValue)
-		: SavedValue(InValue)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(false)
+	FConfigValue(const FString& InValue, EValueType Type=EValueType::Combined)
+		: FConfigValue(nullptr, NAME_None, InValue, Type)
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName, const FString& InValue, EValueType Type=EValueType::Combined)
+		: ValueType(Type)
+		, SavedValue(InValue)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
 #endif
 	{
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
 		ExpandValueInternal();
 	}
 
-	FConfigValue(FString&& InValue)
-		: SavedValue(MoveTemp(InValue))
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(false)
+	FConfigValue(FString&& InValue, EValueType Type=EValueType::Combined)
+		: FConfigValue(nullptr, NAME_None, MoveTemp(InValue), Type)
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName, FString&& InValue, EValueType Type=EValueType::Combined)
+		: ValueType(Type)
+		, SavedValue(MoveTemp(InValue))
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
 #endif
 	{
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
@@ -153,22 +207,26 @@ public:
 	}
 
 	FConfigValue(const FConfigValue& InConfigValue)
-		: SavedValue(InConfigValue.SavedValue)
+		: ValueType(InConfigValue.ValueType)
+		, SavedValue(InConfigValue.SavedValue)
 		, ExpandedValue(InConfigValue.ExpandedValue)
 		, SavedValueHash(InConfigValue.SavedValueHash)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(InConfigValue.bRead)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(InConfigValue.SectionAccess)
+		, ValueName(InConfigValue.ValueName)
 #endif
 	{
 		// shouldn't need to expand value it's assumed that the other FConfigValue has done this already
 	}
 
 	FConfigValue(FConfigValue&& InConfigValue)
-		: SavedValue(MoveTemp(InConfigValue.SavedValue))
+		: ValueType(InConfigValue.ValueType)
+		, SavedValue(MoveTemp(InConfigValue.SavedValue))
 		, ExpandedValue(MoveTemp(InConfigValue.ExpandedValue))
 		, SavedValueHash(InConfigValue.SavedValueHash)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(InConfigValue.bRead)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(MoveTemp(InConfigValue.SectionAccess))
+		, ValueName(InConfigValue.ValueName)
 #endif
 	{
 		// shouldn't need to expand value it's assumed that the other FConfigValue has done this already
@@ -176,11 +234,13 @@ public:
 
 	FConfigValue& operator=(FConfigValue&& RHS)
 	{
+		ValueType = RHS.ValueType;
 		SavedValue = MoveTemp(RHS.SavedValue);
 		ExpandedValue = MoveTemp(RHS.ExpandedValue);
 		SavedValueHash = RHS.SavedValueHash;
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = RHS.bRead;
+#if UE_WITH_CONFIG_TRACKING
+		SectionAccess = MoveTemp(RHS.SectionAccess);
+		ValueName = RHS.ValueName;
 #endif
 
 		return *this;
@@ -188,11 +248,13 @@ public:
 
 	FConfigValue& operator=(const FConfigValue& RHS)
 	{
+		ValueType = RHS.ValueType;
 		SavedValue = RHS.SavedValue;
 		ExpandedValue = RHS.ExpandedValue;
 		SavedValueHash = RHS.SavedValueHash;
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = RHS.bRead;
+#if UE_WITH_CONFIG_TRACKING
+		SectionAccess = RHS.SectionAccess;
+		ValueName = RHS.ValueName;
 #endif
 
 		return *this;
@@ -218,54 +280,55 @@ public:
 	}
 
 	// Returns the ini setting with any macros expanded out
-	const FString& GetValue() const 
+	const FString& GetValue() const
 	{
-		UE::AccessDetection::ReportAccess(UE::AccessDetection::EType::Ini);
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = true; 
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::Private::OnConfigValueRead(SectionAccess, ValueName, *this);
 #endif
-		return (ExpandedValue.Len() > 0 ? ExpandedValue : SavedValue); 
+		return (ExpandedValue.Len() > 0 ? ExpandedValue : SavedValue);
 	}
 
 	// Returns the original ini setting without macro expansion
-	const FString& GetSavedValue() const 
+	const FString& GetSavedValue() const
 	{
-		UE::AccessDetection::ReportAccess(UE::AccessDetection::EType::Ini);
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = true; 
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::Private::OnConfigValueRead(SectionAccess, ValueName, *this);
 #endif
-		return SavedValue; 
+		return SavedValue;
 	}
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
+#if UE_WITH_CONFIG_TRACKING
+	UE_DEPRECATED(5.4, "No longer written. Use UE::ConfigAccessTracking::AddConfigValueReadCallback instead")
 	inline const bool HasBeenRead() const
 	{
-		return bRead;
+		return false;
 	}
+	UE_DEPRECATED(5.4, "No longer read.")
 	inline void SetHasBeenRead(bool InBRead ) const
 	{
-		bRead = InBRead;
+	}
+
+	void SetSectionAccess(UE::ConfigAccessTracking::FSection* InSectionAccess)
+	{
+		SectionAccess = InSectionAccess;
 	}
 #endif
 
 	bool operator==(const FConfigValue& Other) const { return SavedValueHash == Other.SavedValueHash; }
 	bool operator!=(const FConfigValue& Other) const { return !(FConfigValue::operator==(Other)); }
 
-	friend FArchive& operator<<(FArchive& Ar, FConfigValue& ConfigSection)
+	friend FArchive& operator<<(FArchive& Ar, FConfigValue& ConfigValue)
 	{
-		FStructuredArchiveFromArchive(Ar).GetSlot() << ConfigSection;
+		FStructuredArchiveFromArchive(Ar).GetSlot() << ConfigValue;
 		return Ar;
 	}
 
-	friend void operator<<(FStructuredArchive::FSlot Slot, FConfigValue& ConfigSection)
+	friend void operator<<(FStructuredArchive::FSlot Slot, FConfigValue& ConfigValue)
 	{
-		Slot << ConfigSection.SavedValue;
+		Slot << ConfigValue.SavedValue;
 
 		if (Slot.GetUnderlyingArchive().IsLoading())
 		{
-			ConfigSection.ExpandValueInternal();
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-			ConfigSection.bRead = false;
-#endif
+			ConfigValue.ExpandValueInternal();
 		}
 	}
 
@@ -307,28 +370,39 @@ public:
 	 */
 	CORE_API static FString CollapseValue(const FString& InExpandedValue);
 
-private:
-	/** Internal version of ExpandValue that expands SavedValue into ExpandedValue, or produces an empty ExpandedValue if no expansion occurred. */
-	CORE_API void ExpandValueInternal();
+	// Add, subtract, stc
+	EValueType ValueType;
+
+#if CONFIG_CAN_SAVE_COMMENTS
+	FString Comment;
+#endif
 
 	/** Gets the expanded value (GetValue) without marking it as having been accessed for e.g. writing out to a ConfigFile to disk */
-	friend struct UE::ConfigCacheIni::Private::FAccessor;
 	const FString& GetValueForWriting() const
 	{
 		return (ExpandedValue.Len() > 0 ? ExpandedValue : SavedValue);
 	};
 
 	/** Gets the SavedValue without marking it as having been accessed for e.g. writing out to a ConfigFile to disk */
+	friend class FConfigCacheIni;
+	friend class FConfigFile;
+	friend class FConfigBranch;
+	friend struct FDetailedConfigMemUsage;
 	const FString& GetSavedValueForWriting() const
 	{
 		return SavedValue;
 	};
 
+private:
+	/** Internal version of ExpandValue that expands SavedValue into ExpandedValue, or produces an empty ExpandedValue if no expansion occurred. */
+	CORE_API void ExpandValueInternal();
+
 	FString SavedValue;
 	FString ExpandedValue;
 	uint32 SavedValueHash;
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-	mutable bool bRead; // has this value been read since the config system started
+#if UE_WITH_CONFIG_TRACKING
+	TRefCountPtr<UE::ConfigAccessTracking::FSection> SectionAccess;
+	FMinimalName ValueName;
 #endif
 };
 
@@ -338,6 +412,18 @@ typedef TMultiMap<FName,FConfigValue> FConfigSectionMap;
 class FConfigSection : public FConfigSectionMap
 {
 public:
+	FConfigSection()
+		: FConfigSection(nullptr)
+	{
+	}
+
+	FConfigSection(UE::ConfigAccessTracking::FSection* InSectionAccess)
+#if UE_WITH_CONFIG_TRACKING
+		: SectionAccess(InSectionAccess)
+#endif
+	{
+	}
+
 	/**
 	* Check whether the input string is surrounded by quotes
 	*
@@ -374,38 +460,22 @@ public:
 		}
 	}
 
+
 	// look for "array of struct" keys for overwriting single entries of an array
 	TMap<FName, FString> ArrayOfStructKeys;
+#if UE_WITH_CONFIG_TRACKING
+	TRefCountPtr<UE::ConfigAccessTracking::FSection> SectionAccess;
+#endif
 
-	friend struct UE::ConfigCacheIni::Private::FAccessor;
+	// dyanmic modification will disable saving for this section
+	bool bCanSave = true;
+	
 	friend FArchive& operator<<(FArchive& Ar, FConfigSection& ConfigSection);
-};
 
-namespace UE::ConfigCacheIni::Private
-{
-
-/** An accessor class to access functions that should be restricted only to FConfigFileCache Internal use */
-struct FAccessor
-{
 private:
-	friend class ::FConfigCacheIni;
-	friend class ::FConfigFile;
-	friend class ::FConfigSection;
-	friend class ::FConfigContext;
-	friend struct ::UE::ConfigCacheIni::Private::FImpl;
-
-	static const FString& GetValueForWriting(const FConfigValue& ConfigValue)
-	{
-		return ConfigValue.GetValueForWriting();
-	}
-	static const FString& GetSavedValueForWriting(const FConfigValue& ConfigValue)
-	{
-		return ConfigValue.GetSavedValueForWriting();
-	}
+	friend FConfigFile;
 	static bool AreSectionsEqualForWriting(const FConfigSection& A, const FConfigSection& B);
 };
-
-}
 
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 // Options which stemmed from the commandline
@@ -417,32 +487,93 @@ struct FConfigCommandlineOverride
 
 typedef TMap<FString, FConfigSection> FConfigFileMap;
 
+class FConfigModificationTracker
+{
+public:
+	struct FCVarTracker
+	{
+		// this must be an ECVF priority
+		int CVarPriority;
+		TMap<FName, FConfigSection> CVarEntriesPerBranch;
+	};
+	
+	// input
+	bool bTrackModifiedSections = true;
+	bool bTrackLoadedFiles = false;
+
+	// output
+	TMap<FName, TSet<FString>> ModifiedSectionsPerBranch;
+	TArray<FString> LoadedFiles;
+	
+	// cvars, input/output
+	TMap<FString, FCVarTracker> CVars;
+};
+
+class FConfigCommandStreamSection : public FConfigSectionMap
+{
+public:
+	TMap<FName, FString> ArrayOfStructKeys;
+};
+
+// this ended up being the same as FConfigSection, but we use the different type to indicate these are always combined
+class FConfigCommandStream : public TMap<FString, FConfigCommandStreamSection>
+{
+public:
+	using SectionType = FConfigCommandStreamSection;
+	
+	void ProcessCommand(SectionType* Section, FStringView SectionName, FConfigValue::EValueType Command, FName Key, FString&& Value);
+	FConfigCommandStreamSection* FindOrAddSectionInternal(const FString& SectionName);
+	bool FillFileFromDisk(const FString& Filename, bool bHandleSymbolCommands);
+
+	void Shrink();
+
+	// This holds per-object config class names, with their ArrayOfStructKeys. Since the POC sections are all unique,
+	// we can't track it just in that section. This is expected to be empty/small
+	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
+	
+	class FConfigBranch* Branch = nullptr;
+	FName Tag;
+	
+	uint8 Dirty;
+	uint8 bPythonConfigParserMode = false;
+
+	// used to determine if existing settings should be removed from a FConfigFile before applying this stream - used for compatibility with
+	// how Saved config files are stored (replace the static layers values fully if at least one key exists)
+	uint8 bIsSavedConfigFile = false;
+	
+	uint16 Priority;
+	FString Filename;
+};
+
 // One config file.
 class FConfigFile : private FConfigFileMap
 {
 public:
+	using SectionType = FConfigSection;
+	
 	bool Dirty : 1; // = false;
 	bool NoSave : 1; // = false;
 	bool bHasPlatformName : 1; // = false;
+	bool bPythonConfigParserMode : 1; // = false;
+
 	// by default, we allow saving - this is going to be applied to config files that are not loaded from disk
 	// (when loading, this will get set to false, and then the ini sections will be checked)
 	bool bCanSaveAllSections : 1; // = true;
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::ELoadType LoadType = UE::ConfigAccessTracking::ELoadType::Uninitialized;
+#endif
 
 	/** The name of this config file */
 	FName Name;
-
-	// The collection of source files which were used to generate this file.
-	FConfigFileHierarchy SourceIniHierarchy;
-
-	// Locations where this file may have come from - used to merge with non-standard ini locations
-	FString SourceEngineConfigDir;
-	FString SourceProjectConfigDir;
-
-	/** The untainted config file which contains the coalesced base/default options. I.e. No Saved/ options*/
-	FConfigFile* SourceConfigFile;
-
 	FString PlatformName;
+	
+	// Optional tag, (can tag files per plugin, etc)
+	FName Tag;
 
+	// this will point to the owning branch for the InMemoryFile only
+	friend class FConfigBranch;
+	class FConfigBranch* Branch = nullptr;
+	
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 	/** The collection of overrides which stemmed from the commandline */
 	TArray<FConfigCommandlineOverride> CommandlineOptions;
@@ -453,10 +584,21 @@ private:
 	// we can't track it just in that section. This is expected to be empty/small
 	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
 
+	// if this is set, then we track changes made to sections for saving or replaying later (currently unused)
+	FConfigCommandStream* ChangeTracker = nullptr;
+	
+#if UE_WITH_CONFIG_TRACKING
+	mutable TRefCountPtr<UE::ConfigAccessTracking::FFile> FileAccess;
+#endif
+
 public:
 	CORE_API FConfigFile();
 	FConfigFile( int32 ) {}	// @todo UE-DLL: Workaround for instantiated TMap template during DLLExport (TMap::FindRef)
 	CORE_API ~FConfigFile();
+	CORE_API FConfigFile(const FConfigFile& Other);
+	CORE_API FConfigFile(FConfigFile&& Other);
+	CORE_API FConfigFile& operator=(const FConfigFile& Other);
+	CORE_API FConfigFile& operator=(FConfigFile&& Other);
 
 	// looks for a section by name, and creates an empty one if it can't be found
 	UE_DEPRECATED(5.4, "Use FindOrAddConfigSection, and/or use the new AddToSection, etc APIs to modify sections without retrieving the section. See top of ConfigCacheIni.h for more info.")
@@ -468,45 +610,133 @@ public:
 	UE_DEPRECATED(5.4, "Use FindSection, and/or use the new AddToSection, etc APIs to modify sections without retrieving the section. See top of ConfigCacheIni.h for more info.")
 	FORCEINLINE const FConfigSection* Find(const FString& SectionName) const
 	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
 		return FConfigFileMap::Find(SectionName);
 	}
+
 	UE_DEPRECATED(5.4, "Use FindSection, and/or use the new AddToSection, etc APIs to modify sections without retrieving the section. See top of ConfigCacheIni.h for more info.")
 	FORCEINLINE FConfigSection* Find(const FString& SectionName)
 	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
 		return FConfigFileMap::Find(SectionName);
 	}
 
 	FORCEINLINE const FConfigSection* FindSection(const FString& SectionName) const
 	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
 		return FConfigFileMap::Find(SectionName);
 	}
 
-	FORCEINLINE int32 Num() const 								{ return FConfigFileMap::Num(); }
-	FORCEINLINE bool IsEmpty() const							{ return FConfigFileMap::IsEmpty(); }
-	FORCEINLINE void Empty(int32 ExpectedNumElements = 0) 		{ FConfigFileMap::Empty(ExpectedNumElements); }
-	FORCEINLINE bool Contains(const FString& SectionName) const	{ return FConfigFileMap::Contains(SectionName); }
-	FORCEINLINE int32 GetKeys(TArray<FString>& Keys) const 		{ return FConfigFileMap::GetKeys(Keys); }
-	FORCEINLINE int32 GetKeys(TSet<FString>& Keys) const		{ return FConfigFileMap::GetKeys(Keys); }
-	FORCEINLINE int32 Remove(KeyConstPointerType InKey) 		{ return FConfigFileMap::Remove(InKey); }
+	FORCEINLINE int32 Num() const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Num();
+	}
 
-	FORCEINLINE ValueType& Add(const KeyType&  InKey, const ValueType&  InValue) { return FConfigFileMap::Add(InKey, InValue); }
-	FORCEINLINE ValueType& Add(const KeyType&  InKey,		ValueType&& InValue) { return FConfigFileMap::Add(InKey, MoveTempIfPossible(InValue)); }
-	FORCEINLINE ValueType& Add(		 KeyType&& InKey, const ValueType&  InValue) { return FConfigFileMap::Add(MoveTempIfPossible(InKey), InValue); }
-	FORCEINLINE ValueType& Add(		 KeyType&& InKey,		ValueType&& InValue) { return FConfigFileMap::Add(MoveTempIfPossible(InKey), MoveTempIfPossible(InValue)); }
+	FORCEINLINE bool IsEmpty() const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::IsEmpty();
+	}
+
+	FORCEINLINE void Empty(int32 ExpectedNumElements = 0)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		FConfigFileMap::Empty(ExpectedNumElements);
+	}
+
+	FORCEINLINE bool Contains(const FString& SectionName) const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Contains(SectionName);
+	}
+
+	FORCEINLINE int32 GetKeys(TArray<FString>& Keys) const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::GetKeys(Keys);
+	}
+
+	FORCEINLINE int32 GetKeys(TSet<FString>& Keys) const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::GetKeys(Keys);
+	}
+
+	FORCEINLINE int32 Remove(KeyConstPointerType InKey)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Remove(InKey);
+	}
+
+	FORCEINLINE ValueType& Add(const KeyType& InKey, const ValueType& InValue)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Add(InKey, InValue);
+	}
+
+	FORCEINLINE ValueType& Add(const KeyType&  InKey, ValueType&& InValue)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Add(InKey, MoveTempIfPossible(InValue));
+	}
+
+	FORCEINLINE ValueType& Add(KeyType&& InKey, const ValueType&  InValue)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Add(MoveTempIfPossible(InKey), InValue);
+	}
+
+	FORCEINLINE ValueType& Add(KeyType&& InKey,	ValueType&& InValue)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Add(MoveTempIfPossible(InKey), MoveTempIfPossible(InValue));
+	}
 	
-	FORCEINLINE void Append(TMap<FString, FConfigSection> Other) { FConfigFileMap::Append(MoveTemp(Other)); }
-	FORCEINLINE void Reset() { FConfigFileMap::Reset(); }
+	FORCEINLINE void Append(TMap<FString, FConfigSection> Other)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		FConfigFileMap::Append(MoveTemp(Other));
+	}
 
+	FORCEINLINE void Reset()
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		FConfigFileMap::Reset();
+	}
 
 	UE_DEPRECATED(5.4, "Use FindOrAddConfigSection, and/or use the new AddToSection, etc APIs to modify sections without retrieving the section. See top of ConfigCacheIni.h for more info.")
-	FORCEINLINE ValueType& FindOrAdd(const FString& Key) 		{ return FConfigFileMap::FindOrAdd(Key); }
+	FORCEINLINE ValueType& FindOrAdd(const FString& Key)
+	{
+		FTransactionallySafeWriteScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::FindOrAdd(Key);
+	}
 
 	UE_DEPRECATED(5.4, "Use const ranged for iterators, (wrap your FConfigFile variable in AsConst to force the const iterator). See top of ConfigCacheIni.h for more info.")
-	FORCEINLINE TRangedForIterator      begin() { return TRangedForIterator(Pairs.begin()); }
-	FORCEINLINE TRangedForConstIterator begin() const { return TRangedForConstIterator(Pairs.begin()); }
+	FORCEINLINE TRangedForIterator begin()
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return TRangedForIterator(Pairs.begin());
+	}
+
+	FORCEINLINE TRangedForConstIterator begin() const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock); 
+		return TRangedForConstIterator(Pairs.begin());
+	}
+
 	UE_DEPRECATED(5.4, "Use const ranged for iterators, (wrap your FConfigFile variable in AsConst to force the const iterator). See top of ConfigCacheIni.h for more info.")
-	FORCEINLINE TRangedForIterator      end() { return TRangedForIterator(Pairs.end()); }
-	FORCEINLINE TRangedForConstIterator end() const { return TRangedForConstIterator(Pairs.end()); }
+	FORCEINLINE TRangedForIterator end()
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock); 
+		return TRangedForIterator(Pairs.end());
+	}
+
+	FORCEINLINE TRangedForConstIterator end() const
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return TRangedForConstIterator(Pairs.end());
+	}
 	
 	///////////////////////////////////
 
@@ -515,12 +745,13 @@ public:
 
 	CORE_API bool Combine( const FString& Filename);
 	CORE_API void CombineFromBuffer(const FString& Buffer, const FString& FileHint);
-	UE_DEPRECATED(5.1, "Use CombineFromBuffer that takes FileHint")
-	void CombineFromBuffer(const FString& Buffer)
-	{
-		CombineFromBuffer(Buffer, TEXT("Unknown file, using deprecated function"));
-	}
 	CORE_API void Read( const FString& Filename );
+
+	/**
+	 * Apply the contents of the given file (which must have non-Combined ValueTypes stored in it, it is a logic error otherwise and will assert)
+	 * The values in this file will be Combined type
+	 */
+	CORE_API bool ApplyFile(const FConfigCommandStream* File);
 
 	/** Whether to write a temp file then move it to it's destination when saving. */
 	CORE_API static bool WriteTempFileThenMove();
@@ -566,10 +797,27 @@ private:
 	 */
 	void WriteToStringInternal(FString& InOutText, bool bIsADefaultIniWrite, int32 IniCombineThreshold, TMap<FString, FString>& InOutSectionTexts, const TArray<FString>& InSectionOrder);
 
+	/** Delete all of the inner ConfigFiles, for destruction or preparing to re-read
+	 */
+	void Cleanup();
+
+	void Shrink();
+
+	void FillFileFromBuffer(FStringView Buffer, bool bHandleSymbolCommands, const FString& FileHint);
+	bool FillFileFromDisk(const FString& Filename, bool bHandleSymbolCommands);
+	void ProcessCommand(FConfigSection* Section, FStringView SectionName, FConfigValue::EValueType Command, FName Key, FString&& Value);
+
 	FConfigSection* FindOrAddSectionInternal(const FString& SectionName);
-	FORCEINLINE FConfigSection* FindInternal(const FString& SectionName) { return FConfigFileMap::Find(SectionName); };
 
+	FORCEINLINE FConfigSection* FindInternal(const FString& SectionName)
+	{
+		FTransactionallySafeReadScopeLock ScopeLock(ConfigFileMapLock);
+		return FConfigFileMap::Find(SectionName);
+	};
 
+	// allow the templated helper to access FindOrAddSectionInternal
+	template<typename FileType>
+	friend void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCommands, const FString& FileHint);
 
 public:
 	CORE_API void Dump(FOutputDevice& Ar);
@@ -657,18 +905,21 @@ public:
 	CORE_API bool RemoveFromSection(const TCHAR* Section, FName Key, const FString& Value);
 
 	/**
+	 * Similar to RemvoeKeyFromSection, but if this File's changes are being tracked, then we remove all changes to the
+	 * the key that have been tracked. This would be used to remove enries in a layer so that the values from previous layers
+	 * are used, unmodified. "Reset To Defaults"
+	 * This is equivalent to deleting the keys from a .ini file
+	 * @return true if the section was modified
+	 */
+	CORE_API bool ResetKeyInSection(const TCHAR* Section, FName Key);
+
+	/**
 	 * Process the contents of an .ini file that has been read into an FString
 	 * 
 	 * @param Filename Name of the .ini file the contents came from
 	 * @param Contents Contents of the .ini file
 	 */
 	CORE_API void ProcessInputFileContents(FStringView Contents, const FString& FileHint);
-	UE_DEPRECATED(5.1, "Use ProcessInputFileContents that takes FileHint")
-	void ProcessInputFileContents(const FString& Buffer)
-	{
-		ProcessInputFileContents(Buffer, TEXT("Unknown file, using deprecated function"));
-	}
-
 
 	/** Adds any properties that exist in InSourceFile that this config file is missing */
 	CORE_API void AddMissingProperties(const FConfigFile& InSourceFile);
@@ -711,17 +962,22 @@ public:
 
 	/** Checks the command line for any overridden config settings */
 	CORE_API static void OverrideFromCommandline(FConfigFile* File, const FString& Filename);
+	CORE_API static void OverrideFromCommandline(FConfigCommandStream* File, const FString& Filename);
 
 	/** Checks the command line for any overridden config file settings */
 	CORE_API static bool OverrideFileFromCommandline(FString& Filename);
 
 	/** Appends a new INI file to the SourceIniHierarchy and combines it with the current contents */
+//	UE_DEPRECATED(5.4, "Use FConfigCacheIni::FindBranch (recommended) or FConfigFile.Branch (quick fix) to call AddDynamicLayerToHierarchy (or the other functions to add plugins to configs) ")
 	CORE_API void AddDynamicLayerToHierarchy(const FString& Filename);
 
-	UE_DEPRECATED(5.0, "Call AddDynamicLayerToHierarchy. You also may need to call GetConfigFilename to get the right FConfigFile")
-	void AddDynamicLayerToHeirarchy(const FString& Filename) { AddDynamicLayerToHierarchy(Filename); }
-
 	friend FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile);
+
+#if UE_WITH_CONFIG_TRACKING
+	CORE_API void SuppressReporting();
+	CORE_API UE::ConfigAccessTracking::FFile* GetFileAccess() const;
+#endif
+
 private:
 	/** 
 	 * Save the source hierarchy which was loaded out to a backup file so we can check future changes in the base/default configs
@@ -753,6 +1009,8 @@ private:
 	// for AddStaticLayersToHierarchy
 	friend class FConfigCacheIni;
 	friend FConfigContext;
+
+	static CORE_API FTransactionallySafeRWLock ConfigFileMapLock;
 };
 
 /**
@@ -768,12 +1026,138 @@ enum class EConfigCacheType : uint8
 	Temporary,
 };
 
+enum class EBranchReplayMethod : uint8
+{
+	// every file in the branch is saved with valuetypes, allowing for replay from beginning to end
+	FullReplay,
+	// store a copy of the staticlayers combined together, as a baseline for replaying dynamic layers after (useful for plugins to be removed)
+	DynamicLayerReplay,
+	// store only the final version of static + dynamic + saved
+	NoReplay,
+};
+
+
+// NOTE: These are currently unused - here for future use
+enum class DynamicLayerPriority : uint16
+{
+	Unknown = 0,
+	Plugin = 20,
+	GameFeature = 50,
+	Hotfix = 80,
+};
+
+class FConfigBranch
+{
+public:
+	// Standard branch that will be used by, say, GConfig to hold the inis for Engine, Game, etc
+	FConfigBranch();
+	
+	// A "dummy" branch used to manage a single external FConfigFile
+	FConfigBranch(const FConfigFile& ExistingFile);
+	
+	
+	// base name of the branch, like "Engine"
+	FName IniName;
+	
+	// "final" path for the branch like "Saved/Config/WIndows/Engine.ini"
+	FString IniPath;
+	
+	FName Platform;
+	
+	// Locations where this file may have come from - used to merge with non-standard ini locations
+	FString SourceEngineConfigDir;
+	FString SourceProjectConfigDir;
+	
+	bool bIsSafeUnloaded;
+	bool bIsHierarchical;
+	EBranchReplayMethod ReplayMethod = EBranchReplayMethod::NoReplay;
+	
+	FConfigFileHierarchy Hierarchy;
+	
+	TMap<FString, FConfigCommandStream> StaticLayers;
+	using DynamicLayerList = TDoubleLinkedList<FConfigCommandStream*>;
+	DynamicLayerList DynamicLayers;
+	//	TMap<FString, FConfigCommandStream> DynamicLayers;
+	FConfigCommandStream SavedLayer;
+	
+	// cache the static layers so when remaking dynamic layers after removing a dynamic layer it's faster
+	FConfigFile CombinedStaticLayers;
+	
+	// this contains everything read from disk - when saving the diff between this and InMemoryFile is written out
+	FConfigFile FinalCombinedLayers;
+	
+	FConfigCommandStream CommandLineOverrides;
+	
+	// this is the file that maps to the old FConfigFiles stored in the FConfigCacheIni
+	FConfigFile InMemoryFile;
+	
+	// tracks runtime changes for optimal saving
+	FConfigCommandStream RuntimeChanges;
+	
+	friend FArchive& operator<<(FArchive& Ar, FConfigBranch& ConfigBranch);
+	
+	/** Appends a new INI file to the SourceIniHierarchy and combines it with the current contents
+	 * Additonally, returns the FConfigFIle object that contains just the loaded sections
+	 * Can return the modified sections if the callers wants to reloadconfig on classes
+	 */
+	CORE_API bool AddDynamicLayerToHierarchy(const FString& Filename, FConfigModificationTracker* ModificationTracker =nullptr);
+	CORE_API bool AddDynamicLayersToHierarchy(const TArray<FString>& Filenames, FName Tag=NAME_None, DynamicLayerPriority Priority=DynamicLayerPriority::Unknown, FConfigModificationTracker* ModificationTracker =nullptr);
+	
+	// Add a preloaded string as a dynamic layer (useful for hotfixing)
+	CORE_API bool AddDynamicLayerStringToHierarchy(const FString& Filename, const FString& Contents, FName Tag=NAME_None, DynamicLayerPriority Priority=DynamicLayerPriority::Unknown, FConfigModificationTracker* ModificationTracker =nullptr);
+	
+	/** Removes a dyanmic file from the hierarchy and recalculates the branch's IniMemoryFile
+	 * Can return the modified sections if the callers wants to reloadconfig on classes
+	 */
+	CORE_API bool RemoveDynamicLayerFromHierarchy(const FString& Filename, FConfigModificationTracker* ModificationTracker =nullptr);
+	CORE_API bool RemoveDynamicLayersFromHierarchy(const TArray<FString>& Filenames, FConfigModificationTracker* ModificationTracker =nullptr);
+	
+	/** 
+	 * Frees up the static layer memory, which can be useful if a branch is loaded from, cached, and never used again. However,
+	 * if something does try to access it, it will reload in-place (can hitch your game, so be aware)
+	 */
+	CORE_API void SafeUnload();
+	CORE_API void SafeReload();
+
+	/**
+	  * Removes the section completely from all layers of this branch 
+	  * This is destructive! It will not reload on demand (like SafeUnload does). Use this only when you know you will _never_ need
+	  * the values in the section again!
+	  * @return true if anything was removed
+	 */
+	CORE_API bool RemoveSection(const TCHAR* Section);
+
+	CORE_API void Flush();
+
+	CORE_API void Shrink();
+
+	CORE_API void Dump(FOutputDevice& Ar);
+
+
+	/**
+	 * Run a function on every file in the branch
+	 */
+	CORE_API void RunOnEachFile(TFunction<void(FConfigFile& File, const FString& Name)> Func);
+	CORE_API void RunOnEachCommandStream(TFunction<void(FConfigCommandStream& File, const FString& Name)> Func);
+
+private:
+	void InitFiles();
+	
+	void RemoveTagFromHierarchy(FName Tag, FConfigModificationTracker* ModificationTracker);
+	
+	friend class FConfigCacheIni;
+	
+	// when we last Found the branch to pull data from it, this is used to unload after it's been unused for some time
+	double InactiveTimer;
+};
+
+
 // Set of all cached config files.
 class FConfigCacheIni
 {
 public:
 	// Basic functions.
-	CORE_API FConfigCacheIni(EConfigCacheType Type);
+	CORE_API FConfigCacheIni(EConfigCacheType Type, FName PlatformName = NAME_None, bool bInGloballyRegistered = false);
 
 	/** DO NOT USE. This constructor is for internal usage only for hot-reload purposes. */
 	CORE_API FConfigCacheIni();
@@ -783,17 +1167,17 @@ public:
 	/**
 	* Disables any file IO by the config cache system
 	*/
-	CORE_API virtual void DisableFileOperations();
+	CORE_API void DisableFileOperations();
 
 	/**
 	* Re-enables file IO by the config cache system
 	*/
-	CORE_API virtual void EnableFileOperations();
+	CORE_API void EnableFileOperations();
 
 	/**
 	 * Returns whether or not file operations are disabled
 	 */
-	CORE_API virtual bool AreFileOperationsDisabled();
+	CORE_API bool AreFileOperationsDisabled();
 
 	/**
 	 * @return true after after the basic .ini files have been loaded
@@ -802,6 +1186,17 @@ public:
 	{
 		return bIsReadyForUse;
 	}
+
+	/** Return whether this is one of the global ConfigSystems: GConfig or FConfigCacheIni::ForPlatform. */
+	bool IsGloballyRegistered() const
+	{
+		return bGloballyRegistered;
+	}
+
+	/**
+	 * Allow for periodic cleanup or other tasks
+	 */
+	CORE_API void Tick(float DeltaSeconds);
 
 	/**
 	* Prases apart an ini section that contains a list of 1-to-N mappings of strings in the following format
@@ -821,7 +1216,7 @@ public:
 	*
 	* NOTE: The function naming is weird because you can't apparently have an overridden function differnt only by template type params
 	*/
-	CORE_API virtual void Parse1ToNSectionOfStrings(const TCHAR* Section, const TCHAR* KeyOne, const TCHAR* KeyN, TMap<FString, TArray<FString> >& OutMap, const FString& Filename);
+	CORE_API void Parse1ToNSectionOfStrings(const TCHAR* Section, const TCHAR* KeyOne, const TCHAR* KeyN, TMap<FString, TArray<FString> >& OutMap, const FString& Filename);
 
 	/**
 	* Parses apart an ini section that contains a list of 1-to-N mappings of names in the following format
@@ -832,7 +1227,7 @@ public:
 	*	 MapName=Map2
 	*	 Package=PackageC
 	*	 Package=PackageD
-	* 
+	*
 	* @param Section Name of section to look in
 	* @param KeyOne Key to use for the 1 in the 1-to-N (MapName in the above example)
 	* @param KeyN Key to use for the N in the 1-to-N (Package in the above example)
@@ -841,7 +1236,7 @@ public:
 	*
 	* NOTE: The function naming is weird because you can't apparently have an overridden function differnt only by template type params
 	*/
-	CORE_API virtual void Parse1ToNSectionOfNames(const TCHAR* Section, const TCHAR* KeyOne, const TCHAR* KeyN, TMap<FName, TArray<FName> >& OutMap, const FString& Filename);
+	CORE_API void Parse1ToNSectionOfNames(const TCHAR* Section, const TCHAR* KeyOne, const TCHAR* KeyN, TMap<FName, TArray<FName> >& OutMap, const FString& Filename);
 
 	/**
 	 * Finds the in-memory config file for a config cache filename.
@@ -863,24 +1258,28 @@ public:
 
 	/**
 	 * Reports whether an FConfigFile* is pointing to a config file inside of this
-	 * Used for downstream functions to check whether a config file they were passed came from this ConfigCacheIni or from 
+	 * Used for downstream functions to check whether a config file they were passed came from this ConfigCacheIni or from
 	 * a different source such as LoadLocalIniFile
 	 */
 	CORE_API bool ContainsConfigFile(const FConfigFile* ConfigFile) const;
-
-	UE_DEPRECATED(5.0, "CreateIfNotFound is deprecated, please use the overload without this parameter or FindConfigFile")
-	CORE_API FConfigFile* Find(const FString& Filename, bool CreateIfNotFound);
 
 	/** Finds Config file that matches the base name such as "Engine" */
 	CORE_API FConfigFile* FindConfigFileWithBaseName(FName BaseName);
 
 	CORE_API FConfigFile& Add(const FString& Filename, const FConfigFile& File);
 
-	int32 Remove(const FString& Filename)
-	{
-		delete OtherFiles.FindRef(Filename);
-		return OtherFiles.Remove(Filename);
-	}
+
+    /** Finds an FConfigBranch, using base name or a filename (can pass in NAME_None or empty string as needed) */
+    CORE_API FConfigBranch* FindBranch(FName BaseIniName, const FString& Filename);
+
+	/** Same as FConfigBRanch, but this will not reload a formerly SafeUnload'd branch */
+	CORE_API FConfigBranch* FindBranchWithNoReload(FName BaseIniName, const FString& Filename);
+
+    /** Create a new branch for FIlename, and return it */
+	CORE_API FConfigBranch& AddNewBranch(const FString& Filename);
+	
+	CORE_API int32 Remove(const FString& Filename);
+	
 	CORE_API TArray<FString> GetFilenames();
 
 
@@ -962,27 +1361,27 @@ public:
 	 *
 	 * @param	Ar	the output device to dump the results to
 	 */
-	CORE_API virtual void ShowMemoryUsage( FOutputDevice& Ar );
+	CORE_API void ShowMemoryUsage( FOutputDevice& Ar );
 
 	/**
 	 * USed to get the max memory usage for the FConfigCacheIni
 	 *
 	 * @return the amount of memory in byes
 	 */
-	CORE_API virtual SIZE_T GetMaxMemoryUsage();
+	CORE_API SIZE_T GetMaxMemoryUsage();
 
 	/**
 	 * allows to iterate through all key value pairs
 	 * @return false:error e.g. Section or Filename not found
 	 */
-	CORE_API virtual bool ForEachEntry(const FKeyValueSink& Visitor, const TCHAR* Section, const FString& Filename);
+	CORE_API bool ForEachEntry(const FKeyValueSink& Visitor, const TCHAR* Section, const FString& Filename);
 
 	// Derived functions.
 	CORE_API FString GetStr
 	(
-		const TCHAR*		Section, 
-		const TCHAR*		Key, 
-		const FString&	Filename 
+		const TCHAR*		Section,
+		const TCHAR*		Key,
+		const FString&	Filename
 	);
 	CORE_API bool GetInt
 	(
@@ -1256,6 +1655,27 @@ public:
 	 */
 	CORE_API bool RemoveFromSection(const TCHAR* Section, FName Key, const FString& Value, const FString& Filename);
 
+	/**
+	 * Similar to RemvoeKeyFromSection, but if this File's changes are being tracked, then we remove all changes to the
+	 * the key that have been tracked. This would be used to remove enries in a layer so that the values from previous layers
+	 * are used, unmodified. "Reset To Defaults"
+	 * This is equivalent to deleting the keys from a .ini file
+	 * @return true if the section was modified
+	 */
+	CORE_API bool ResetKeyInSection(const TCHAR* Section, FName Key, const FString& Filename);
+
+	/**
+	 * Clears out the memory of a branch, but can reload it on demand if needed
+	 */
+	CORE_API bool SafeUnloadBranch(const TCHAR* Filename);
+
+	/**
+	  * Removes the section completely from all layers of a branch. 
+	  * This is destructive! It will not reload on demand (like SafeUnloadBranch does). Use this only when you know you will _never_ need
+	  * the values in the section again!
+	  * @return true if anything was removed
+	 */
+	CORE_API bool RemoveSectionFromBranch(const TCHAR* Section, const TCHAR* Filename);
 
 	// Static helper functions
 
@@ -1416,20 +1836,14 @@ public:
 		// given an name ("Engine") return the modifiable FConfigFile for it
 		FConfigFile* GetMutableFile(FName Name);
 
+		// given an name ("Engine") return the modifiable FConfigBranch
+		FConfigBranch* GetBranch(FName Name);
+
 		// get the disk-based filename for the given known ini name
 		const FString& GetFilename(FName Name);
 
-
-		// create the list of members for the known inis (Engine, Game, etc) See the top of this file for the list
-		struct FKnownConfigFile
-		{
-			FName IniName;
-			FString IniPath;
-			FConfigFile IniFile;
-		};
-
-		// array of all known filesd
-		FKnownConfigFile Files[(uint8)EKnownIniFile::NumKnownFiles];
+		// the list of the known inis (Engine, Game, etc) See the top of this file for the list
+		FConfigBranch Branches[(uint8)EKnownIniFile::NumKnownFiles];
 	};
 
 	/**
@@ -1463,6 +1877,14 @@ public:
 	 */
 	static CORE_API void ClearOtherPlatformConfigs();
 
+	/**
+	 * Tell GConfig and the ForPlatform config systems about a plugin location
+	 */
+	static CORE_API void RegisterPlugin(FName PluginName, const FString& PluginDir, const TArray<FString>& ChildPluginDirs, DynamicLayerPriority Priority, bool bIncludePluginNameInBranchName);
+
+	static CORE_API void AddPluginToAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker=nullptr);
+	static CORE_API void RemoveTagFromAllBranches(FName Tag, FConfigModificationTracker* ModificationTracker=nullptr);
+
 private:
 #if WITH_EDITOR
 	/** We only auto-initialize other platform configs in the editor to not slow down programs like ShaderCOmpileWorker */
@@ -1474,87 +1896,55 @@ private:
 	
 	void DumpFile(FOutputDevice& Ar, const FString& Filename, const FConfigFile& File);
 
+	void AddPluginToBranches(FName PluginName, FConfigModificationTracker* ModificationTracker);
+	void RemoveTagFromBranches(FName Tag, FConfigModificationTracker* ModificationTracker);
 
 	/** true if file operations should not be performed */
 	bool bAreFileOperationsDisabled;
 
 	/** true after the base .ini files have been loaded, and GConfig is generally "ready for use" */
 	bool bIsReadyForUse;
+
+	bool bGloballyRegistered;
 	
 	/** The type of the cache (basically, do we call Flush in the destructor) */
 	EConfigCacheType Type;
 
+	/** The platform this config system is for - if empty, then it can't be used with dynamic plugin layering */
+	FName PlatformName;
+
 	/** The filenames for the known files in this config */
 	FKnownConfigFiles KnownFiles;
 
-	TMap<FString, FConfigFile*> OtherFiles;
+	TMap<FString, FConfigBranch*> OtherFiles;
+	
+	/** Parallel array to OtherFiles */
+	TArray<FString> OtherFileNames;
 
+	struct FPluginInfo
+	{
+		FString PluginDir;
+		TArray<FString> ChildPluginDirs;
+		DynamicLayerPriority Priority;
+		// packing in with priority
+		uint8 bIncludePluginNameInBranchName : 1;
+	};
+	static TMap<FName, FPluginInfo*> RegisteredPlugins;
+	TArray<FName> PendingModificationPlugins;
+	static FTransactionallySafeCriticalSection RegisteredPluginsLock;
+	
+#if ALLOW_OTHER_PLATFORM_CONFIG
+	static TMap<FName, FConfigCacheIni*> ConfigForPlatform;
+	static FCriticalSection ConfigForPlatformLock;
+#endif
+	
 	friend FConfigContext;
 };
 
 
-
-/**
- * Helper function to read the contents of an ini file and a specified group of cvar parameters, where sections in the ini file are marked [InName]
- * @param InSectionBaseName - The base name of the section to apply cvars from
- * @param InIniFilename - The ini filename
- * @param SetBy anything in ECVF_LastSetMask e.g. ECVF_SetByScalability
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::ApplyCVarSettingsFromIni")
-CORE_API void ApplyCVarSettingsFromIni(const TCHAR* InSectionBaseName, const TCHAR* InIniFilename, uint32 SetBy, bool bAllowCheating = false);
-
-/**
- * Helper function to operate a user defined function for each CVar key/value pair in the specified section in an ini file
- * @param InSectionName - The name of the section to apply cvars from
- * @param InIniFilename - The ini filename
- * @param InEvaluationFunction - The evaluation function to be called for each key/value pair
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::ForEachCVarInSectionFromIni")
-CORE_API void ForEachCVarInSectionFromIni(const TCHAR* InSectionName, const TCHAR* InIniFilename, TFunction<void(IConsoleVariable* CVar, const FString& KeyString, const FString& ValueString)> InEvaluationFunction);
-
-/**
- * CVAR Ini history records all calls to ApplyCVarSettingsFromIni and can re run them 
- */
-
-/**
- * Helper function to start recording ApplyCVarSettings function calls 
- * uses these to generate a history of applied ini settings sections
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::RecordApplyCVarSettingsFromIni")
-CORE_API void RecordApplyCVarSettingsFromIni();
-
-/**
- * Helper function to reapply inis which have been applied after RecordCVarIniHistory was called
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::ReapplyRecordedCVarSettingsFromIni")
-CORE_API void ReapplyRecordedCVarSettingsFromIni();
-
-/**
- * Helper function to clean up ini history
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::DeleteRecordedCVarSettingsFromIni")
-CORE_API void DeleteRecordedCVarSettingsFromIni();
-
-/**
- * Helper function to start recording config reads
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::RecordConfigReadsFromIni")
-CORE_API void RecordConfigReadsFromIni();
-
-/**
- * Helper function to dump config reads to csv after RecordConfigReadsFromIni was called
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::DumpRecordedConfigReadsFromIni")
-CORE_API void DumpRecordedConfigReadsFromIni();
-
-/**
- * Helper function to clean up config read history
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::DeleteRecordedConfigReadsFromIni")
-CORE_API void DeleteRecordedConfigReadsFromIni();
-
-/**
- * Helper function to deal with "True","False","Yes","No","On","Off"
- */
-UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::ConvertValueFromHumanFriendlyValue")
-CORE_API const TCHAR* ConvertValueFromHumanFriendlyValue(const TCHAR* Value);
+#if UE_WITH_CONFIG_TRACKING
+inline UE::ConfigAccessTracking::FSection* GetSectionAccess(const FConfigSection* InSection)
+{
+	return InSection ? InSection->SectionAccess.GetReference() : nullptr;
+}
+#endif

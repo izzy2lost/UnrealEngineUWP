@@ -98,6 +98,9 @@ public:
 		/** If to generate Verse source code definitions from assets contained in this plugin */
 		bool bEnableVerseAssetReflection = false;
 
+		/** enable iad for this plugin */
+		bool bEnableIAD;
+
 		/** Whether this plugin should be enabled/disabled by default for any project. */
 		EPluginEnabledByDefault EnabledByDefault = EPluginEnabledByDefault::Unspecified;
 
@@ -296,6 +299,15 @@ public:
 	 * Finds a loaded plugin from a plugin descriptor file path
 	 */
 	static TSharedPtr<IPlugin> FindLoadedPlugin(const FString& PluginDescriptorFileName);
+
+	/**
+	 * Finds the plugin that contains the specified package, if any
+	 * @note This method supports C++ module packages (with the "/Script/" root)
+	 * @param PackagePath Unreal path of the package
+	 * @return Plugin or null if the package is not in a plugin
+	 */
+	static TSharedPtr<IPlugin> FindPluginFromPackagePath(FName PackagePath);
+	static TSharedPtr<IPlugin> FindPluginFromPackagePath(FStringView PackagePath);
 
 	/**
 	 * Unload assets from the specified plugin and unmount it

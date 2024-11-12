@@ -7,10 +7,11 @@
 #include "PyReferenceCollector.h"
 #include "UObject/Package.h"
 #include "UObject/Class.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Misc/ScopeExit.h"
 #include "Templates/Casts.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PyWrapperStruct)
 
@@ -41,7 +42,7 @@ const IPyWrapperStructAllocationPolicy* GetPyWrapperStructAllocationPolicy(UScri
 		}
 	};
 
-	if (const IPyWrapperInlineStructFactory* InlineStructFactory = FPyWrapperTypeRegistry::Get().GetInlineStructFactory(InStruct->GetFName()))
+	if (const IPyWrapperInlineStructFactory* InlineStructFactory = FPyWrapperTypeRegistry::Get().GetInlineStructFactory(InStruct->GetStructPathName()))
 	{
 		return InlineStructFactory->GetPythonObjectAllocationPolicy();
 	}
@@ -280,7 +281,8 @@ FPyWrapperStruct* FPyWrapperStruct::CastPyObject(PyObject* InPyObject, PyTypeObj
 					break;
 				}
 
-				const int Result = PyUtil::SetPropertyValue(NewStruct->ScriptStruct, NewStruct->StructInstance, SequenceItem, InitParam.ParamProp, InitParam.ParamName.GetData(), nullptr, 0, false, *PyUtil::GetErrorContext(NewStruct.Get()));
+				const TArray<void*> NoArchetypeInsts;
+				const int Result = PyUtil::SetPropertyValue(NewStruct->ScriptStruct, NewStruct->StructInstance, SequenceItem, InitParam.ParamProp, InitParam.ParamName.GetData(), nullptr, 0, false, *PyUtil::GetErrorContext(NewStruct.Get()), NoArchetypeInsts);
 				if (Result != 0)
 				{
 					return nullptr;
@@ -320,7 +322,8 @@ FPyWrapperStruct* FPyWrapperStruct::CastPyObject(PyObject* InPyObject, PyTypeObj
 			PyObject* MappingItem = PyMapping_GetItemString(InPyObject, (char*)InitParam.ParamName.GetData());
 			if (MappingItem)
 			{
-				const int Result = PyUtil::SetPropertyValue(NewStruct->ScriptStruct, NewStruct->StructInstance, MappingItem, InitParam.ParamProp, InitParam.ParamName.GetData(), nullptr, 0, false, *PyUtil::GetErrorContext(NewStruct.Get()));
+				TArray<void*> NoArchetypeInsts;
+				const int Result = PyUtil::SetPropertyValue(NewStruct->ScriptStruct, NewStruct->StructInstance, MappingItem, InitParam.ParamProp, InitParam.ParamName.GetData(), nullptr, 0, false, *PyUtil::GetErrorContext(NewStruct.Get()), NoArchetypeInsts);
 				if (Result != 0)
 				{
 					return nullptr;
@@ -451,7 +454,8 @@ int FPyWrapperStruct::SetPropertyValue(FPyWrapperStruct* InSelf, PyObject* InVal
 	}
 
 	const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, InPropDef.Prop).BuildChangeNotify(InNotifyMode);
-	return PyGenUtil::SetPropertyValue(InSelf->ScriptStruct, InSelf->StructInstance, InValue, InPropDef, InPythonAttrName, ChangeNotify.Get(), InReadOnlyFlags, OwnerIsTemplate, *PyUtil::GetErrorContext(InSelf));
+	const TArray<void*> NoArchetypeInsts;
+	return PyGenUtil::SetPropertyValue(InSelf->ScriptStruct, InSelf->StructInstance, InValue, InPropDef, InPythonAttrName, ChangeNotify.Get(), InReadOnlyFlags, OwnerIsTemplate, *PyUtil::GetErrorContext(InSelf), NoArchetypeInsts);
 }
 
 int FPyWrapperStruct::CallMakeFunction_Impl(FPyWrapperStruct* InSelf, PyObject* InArgs, PyObject* InKwds, const PyGenUtil::FGeneratedWrappedFunction& InFuncDef)
@@ -634,7 +638,8 @@ PyObject* FPyWrapperStruct::CallOperatorFunction_Impl(FPyWrapperStruct* InSelf, 
 		PyGenUtil::ApplyParamDefaults(FuncParams.GetMemory(), InOpFunc.AdditionalParams);
 		if (InOpFunc.OtherParam.ParamProp)
 		{
-			const FPyConversionResult RHSResult = PyConversion::NativizeProperty_InContainer(InRHS, InOpFunc.OtherParam.ParamProp, FuncParams.GetMemory(), 0, nullptr, PyConversion::ESetErrorState::No);
+			TArray<void*> NoArchetypeInsts;
+			const FPyConversionResult RHSResult = PyConversion::NativizeProperty_InContainer(InRHS, InOpFunc.OtherParam.ParamProp, FuncParams.GetMemory(), 0, NoArchetypeInsts, nullptr, PyConversion::ESetErrorState::No);
 			SetOptionalPyConversionResult(RHSResult, OutRHSConversionResult);
 
 			if (!RHSResult)
@@ -1335,11 +1340,14 @@ FPyWrapperStructMetaData::FPyWrapperStructMetaData()
 {
 }
 
-void FPyWrapperStructMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperStructMetaData::AddTypeReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Struct);
+}
+
+void FPyWrapperStructMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperStruct* Self = static_cast<FPyWrapperStruct*>(Instance);
-
-	Collector.AddReferencedObject(Struct);
 	
 	Collector.AddReferencedObject(Self->ScriptStruct);
 	if (Self->ScriptStruct && Self->StructInstance && !Self->OwnerContext.HasOwner())
@@ -1436,20 +1444,22 @@ bool FPyWrapperStructMetaData::IsStructDeprecated(FPyWrapperStruct* Instance, FS
 class FPythonGeneratedStructBuilder
 {
 public:
-	FPythonGeneratedStructBuilder(const FString& InStructName, UScriptStruct* InSuperStruct, PyTypeObject* InPyType)
-		: StructName(InStructName)
+	FPythonGeneratedStructBuilder(UScriptStruct* InSuperStruct, PyTypeObject* InPyType)
+		: StructName()
 		, PyType(InPyType)
 		, OldStruct(nullptr)
 		, NewStruct(nullptr)
 	{
-		UObject* StructOuter = GetPythonTypeContainer();
+		UObject* StructOuter = nullptr;
+		PyUtil::GetGeneratedTypeOuterAndName(PyType, StructOuter, StructName);
 
 		// Find any existing struct with the name we want to use
 		OldStruct = FindObject<UPythonGeneratedStruct>(StructOuter, *StructName);
 
 		// Create a new struct with a temporary name; we will rename it as part of Finalize
 		const FString NewStructName = MakeUniqueObjectName(StructOuter, UPythonGeneratedStruct::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *StructName)).ToString();
-		NewStruct = NewObject<UPythonGeneratedStruct>(StructOuter, *NewStructName, RF_Public | RF_Standalone | RF_Transient);
+		NewStruct = NewObject<UPythonGeneratedStruct>(StructOuter, *NewStructName, RF_Public | RF_Transient);
+		NewStruct->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewStruct->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewStruct->SetSuperStruct(InSuperStruct);
 	}
@@ -1508,6 +1518,11 @@ public:
 		{
 			PrepareOldStructForReinstancing();
 		}
+
+		if (UObjectRedirector* StructRedirector = CreatePythonTypeLegacyRedirector(PyUtil::GetCleanTypename(PyType), FTopLevelAssetPath(NewStruct->GetOuter()->GetFName(), *StructName)))
+		{
+			StructRedirector->DestinationObject = NewStruct;
+		}
 		NewStruct->Rename(*StructName, nullptr, REN_DontCreateRedirectors);
 
 		// Finalize the struct
@@ -1521,7 +1536,7 @@ public:
 
 		// Map the Unreal struct to the Python type
 		NewStruct->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(NewStruct->GetFName(), PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(NewStruct, PyType, false);
 
 		// Re-instance the old struct
 		if (OldStruct)
@@ -1606,6 +1621,7 @@ private:
 		OldStruct->SetFlags(RF_NewerVersionExists);
 		OldStruct->ClearFlags(RF_Public | RF_Standalone);
 		OldStruct->Rename(*OldStructName, nullptr, REN_DontCreateRedirectors);
+		OldStruct->UnregisterGeneratedType();
 	}
 
 	FString StructName;
@@ -1620,8 +1636,8 @@ void UPythonGeneratedStruct::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(OldName, PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(FSoftObjectPath::ConstructFromPackageAsset(OldOuter->GetFName(), OldName), PyType, false);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(this, PyType, false);
 	}
 }
 
@@ -1640,7 +1656,7 @@ void UPythonGeneratedStruct::InitializeStruct(void* Dest, int32 ArrayDim) const
 			{
 				void* StructInstance = static_cast<uint8*>(Dest) + (ArrIndex * Stride);
 				FPyObjectPtr PySelf = FPyObjectPtr::StealReference((PyObject*)FPyWrapperStructFactory::Get().CreateInstance((UPythonGeneratedStruct*)this, StructInstance, FPyWrapperOwnerContext(Py_None), EPyConversionMethod::Reference));
-				if (PySelf && ensureAlways(PySelf->ob_type == PyType))
+				if (PySelf && ensureAlwaysMsgf(PySelf->ob_type == PyType, TEXT("Struct instance (struct: %s) had an unexpected PyType when calling InitializeStruct! Self is '%s' but we expected '%s'"), *GetPathName(), *PyUtil::GetFriendlyTypename(PySelf), *PyUtil::GetFriendlyTypename(PyType)))
 				{
 					FPyObjectPtr PyArgs = FPyObjectPtr::StealReference(PyTuple_New(1));
 					PyTuple_SetItem(PyArgs, 0, PySelf.Release()); // SetItem steals the reference
@@ -1668,10 +1684,7 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
-		if (PyType)
-		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
-		}
+		UnregisterGeneratedType();
 		PyType.Reset();
 		PyPostInitFunction.Reset();
 	}
@@ -1684,6 +1697,14 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 
 	PropertyDefs.Reset();
 	PyMetaData = FPyWrapperStructMetaData();
+}
+
+void UPythonGeneratedStruct::UnregisterGeneratedType()
+{
+	if (PyType)
+	{
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(this, PyType, false);
+	}
 }
 
 UPythonGeneratedStruct* UPythonGeneratedStruct::GenerateStruct(PyTypeObject* InPyType)
@@ -1701,7 +1722,7 @@ UPythonGeneratedStruct* UPythonGeneratedStruct::GenerateStruct(PyTypeObject* InP
 	}
 
 	// Builder used to generate the struct
-	FPythonGeneratedStructBuilder PythonStructBuilder(PyUtil::GetCleanTypename(InPyType), SuperStruct, InPyType);
+	FPythonGeneratedStructBuilder PythonStructBuilder(SuperStruct, InPyType);
 
 	// Add the fields to this struct
 	{

@@ -6,18 +6,118 @@
 #include "MovieSceneTrack.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneTimeHelpers.h"
+#include "MovieSceneTracksComponentTypes.h"
+#include "Channels/MovieSceneChannelProxy.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "Evaluation/MovieSceneEvaluationTemplate.h"
 #include "Misc/FrameRate.h"
 #include "Logging/MessageLog.h"
+#include "MovieSceneTransformTypes.h"
 #include "Evaluation/MovieSceneRootOverridePath.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/IMovieSceneEntityProvider.h"
+#include "Channels/MovieSceneChannelProxy.h"
+#include "Tracks/MovieSceneTimeWarpTrack.h"
+#include "Sections/MovieSceneSectionTimingParameters.h"
+#include "Variants/MovieSceneTimeWarpGetter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSubSection)
 
 float DeprecatedMagicNumber = TNumericLimits<float>::Lowest();
+
+#if WITH_EDITOR
+
+struct FSubSectionEditorData
+{
+
+	FText LocationGroup = NSLOCTEXT("MovieSceneSubSection", "Origin Override Location", "Origin Override Location");
+	FText RotationGroup = NSLOCTEXT("MovieSceneSubSection", "Origin Override Rotation", "Origin Override Rotation");
+	
+
+	FSubSectionEditorData(EMovieSceneTransformChannel Mask, UMovieSceneSubSection* SubSection)
+	{
+		MetaData[0].SetIdentifiers("Override.Location.X", FCommonChannelData::ChannelX, LocationGroup);
+		MetaData[0].SubPropertyPath = TEXT("Location.X");
+		MetaData[0].SortOrder = 0;
+		MetaData[0].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::TranslationX);
+		MetaData[0].Color = FCommonChannelData::RedChannelColor;
+		MetaData[0].bCanCollapseToTrack = false;
+
+		MetaData[1].SetIdentifiers("Override.Location.Y", FCommonChannelData::ChannelY, LocationGroup);
+		MetaData[1].SubPropertyPath = TEXT("Location.Y");
+		MetaData[1].SortOrder = 1;
+		MetaData[1].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::TranslationY);
+		MetaData[1].Color = FCommonChannelData::GreenChannelColor;
+		MetaData[1].bCanCollapseToTrack = false;
+		
+		MetaData[2].SetIdentifiers("Override.Location.Z", FCommonChannelData::ChannelZ, LocationGroup);
+		MetaData[2].SubPropertyPath = TEXT("Location.Z");
+		MetaData[2].SortOrder = 2;
+		MetaData[2].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::TranslationZ);
+		MetaData[2].Color = FCommonChannelData::BlueChannelColor;
+		MetaData[2].bCanCollapseToTrack = false;
+
+		MetaData[3].SetIdentifiers("Override.Rotation.X", FCommonChannelData::ChannelX, RotationGroup);
+		MetaData[3].SubPropertyPath = TEXT("Rotation.X");
+		MetaData[3].SortOrder = 3;
+		MetaData[3].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::RotationX);
+		MetaData[3].Color = FCommonChannelData::RedChannelColor;
+		MetaData[3].bCanCollapseToTrack = false;
+
+		MetaData[4].SetIdentifiers("Override.Rotation.Y", FCommonChannelData::ChannelY, RotationGroup);
+		MetaData[4].SubPropertyPath = TEXT("Rotation.Y");
+		MetaData[4].SortOrder = 4;
+		MetaData[4].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::RotationY);
+		MetaData[4].Color = FCommonChannelData::GreenChannelColor;
+		MetaData[4].bCanCollapseToTrack = false;
+
+		MetaData[5].SetIdentifiers("Override.Rotation.Z", FCommonChannelData::ChannelZ, RotationGroup);
+		MetaData[5].SubPropertyPath = TEXT("Rotation.Z");
+		MetaData[5].SortOrder = 5;
+		MetaData[5].bEnabled = EnumHasAllFlags(Mask, EMovieSceneTransformChannel::RotationZ);
+		MetaData[5].Color = FCommonChannelData::BlueChannelColor;
+		MetaData[5].bCanCollapseToTrack = false;
+
+		ExternalValues[0].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 0); };
+		ExternalValues[1].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 1); };
+		ExternalValues[2].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 2); };
+		ExternalValues[3].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 3); };
+		ExternalValues[4].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 4); };
+		ExternalValues[5].OnGetExternalValue = [SubSection](UObject& InObject, FTrackInstancePropertyBindings* Bindings) { return GetValue(SubSection, 5); };
+
+	}
+
+	static TOptional<double> GetValue(UMovieSceneSubSection* SubSection, int32 ChannelIndex)
+	{
+		if(!SubSection)
+		{
+			return TOptional<double>();
+		}
+
+		switch (ChannelIndex)
+		{
+		case 0:
+		case 1:
+		case 2:
+			return SubSection->GetKeyPreviewPosition().IsSet() ? SubSection->GetKeyPreviewPosition().GetValue()[ChannelIndex] : TOptional<double>();
+		case 3:
+			return SubSection->GetKeyPreviewRotation().IsSet() ? SubSection->GetKeyPreviewRotation().GetValue().Roll: TOptional<double>();
+		case 4:
+			return SubSection->GetKeyPreviewRotation().IsSet() ? SubSection->GetKeyPreviewRotation().GetValue().Pitch: TOptional<double>();
+		case 5:
+			return SubSection->GetKeyPreviewRotation().IsSet() ? SubSection->GetKeyPreviewRotation().GetValue().Yaw: TOptional<double>();
+		default:
+			return TOptional<double>();
+		}
+	}
+
+	FMovieSceneChannelMetaData MetaData[6];
+	TMovieSceneExternalValue<double> ExternalValues[6];
+};
+
+#endif
+
 
 /* UMovieSceneSubSection structors
  *****************************************************************************/
@@ -31,9 +131,76 @@ UMovieSceneSubSection::UMovieSceneSubSection(const FObjectInitializer& ObjInitia
 	NetworkMask = (uint8)(EMovieSceneServerClientMask::Server | EMovieSceneServerClientMask::Client);
 
 	SetBlendType(EMovieSceneBlendType::Absolute);
+	
+	OriginOverrideMask = EMovieSceneTransformChannel::None;
+
+#if WITH_EDITOR
+	ResetKeyPreviewRotationAndLocation();
+#endif
 }
 
-FMovieSceneSequenceTransform UMovieSceneSubSection::OuterToInnerTransform() const
+void UMovieSceneSubSection::DeleteChannels(TArrayView<const FName> ChannelNames)
+{
+	bool bDeletedAny = false;
+
+	if (Parameters.TimeScale.GetType() == EMovieSceneTimeWarpType::Custom && TryModify())
+	{
+		if (UMovieSceneTimeWarpGetter* Getter = Parameters.TimeScale.AsCustom())
+		{
+			for (FName ChannelName : ChannelNames)
+			{
+				bDeletedAny |= Getter->DeleteChannel(Parameters.TimeScale, ChannelName);
+			}
+		}
+	}
+
+	if (bDeletedAny)
+	{
+		ChannelProxy = nullptr;
+	}
+}
+
+EMovieSceneChannelProxyType UMovieSceneSubSection::CacheChannelProxy()
+{
+	FMovieSceneChannelProxyData Channels;
+
+	if (Parameters.TimeScale.GetType() == EMovieSceneTimeWarpType::Custom)
+	{
+		if (UMovieSceneTimeWarpGetter* Curve = Parameters.TimeScale.AsCustom())
+		{
+			Curve->PopulateChannelProxy(Channels, UMovieSceneTimeWarpGetter::EAllowTopLevelChannels::No);
+		}
+	}
+
+#if WITH_EDITOR	
+
+	FSubSectionEditorData EditorData(OriginOverrideMask.GetChannels(), this);
+
+	Channels.Add(Translation[0], EditorData.MetaData[0], EditorData.ExternalValues[0]);
+	Channels.Add(Translation[1], EditorData.MetaData[1], EditorData.ExternalValues[1]);
+	Channels.Add(Translation[2], EditorData.MetaData[2], EditorData.ExternalValues[2]);
+	Channels.Add(Rotation[0], EditorData.MetaData[3], EditorData.ExternalValues[3]);
+	Channels.Add(Rotation[1], EditorData.MetaData[4], EditorData.ExternalValues[4]);
+	Channels.Add(Rotation[2], EditorData.MetaData[5], EditorData.ExternalValues[5]);
+
+#else
+
+	Channels.Add(Translation[0]);
+	Channels.Add(Translation[1]);
+	Channels.Add(Translation[2]);
+	Channels.Add(Rotation[0]);
+	Channels.Add(Rotation[1]);
+	Channels.Add(Rotation[2]);
+	
+#endif
+	
+
+	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
+	return EMovieSceneChannelProxyType::Dynamic;
+}
+
+
+FMovieSceneSequenceTransform UMovieSceneSubSection::OuterToInnerTransform_NoInnerTimeWarp() const
 {
 	UMovieSceneSequence* SequencePtr   = GetSequence();
 	if (!SequencePtr)
@@ -51,44 +218,63 @@ FMovieSceneSequenceTransform UMovieSceneSubSection::OuterToInnerTransform() cons
 
 	const FFrameRate   InnerFrameRate = MovieScenePtr->GetTickResolution();
 	const FFrameRate   OuterFrameRate = GetTypedOuter<UMovieScene>()->GetTickResolution();
-	const float        FrameRateScale = (OuterFrameRate == InnerFrameRate) ? 1.f : (InnerFrameRate / OuterFrameRate).AsDecimal();
 
 	const TRange<FFrameNumber> MovieScenePlaybackRange = GetValidatedInnerPlaybackRange(Parameters, *MovieScenePtr);
-	const FFrameNumber InnerStartTime = UE::MovieScene::DiscreteInclusiveLower(MovieScenePlaybackRange);
-	const FFrameNumber OuterStartTime = UE::MovieScene::DiscreteInclusiveLower(SubRange);
 
+	FMovieSceneSectionTimingParametersFrames TimingParams = {
+		Parameters.TimeScale.ShallowCopy(),
+		Parameters.StartFrameOffset,
+		Parameters.EndFrameOffset,
+		Parameters.FirstLoopStartFrameOffset,
+		Parameters.bCanLoop,
+		false, // do not clamp sub-sections by default
+		false
+	};
 
-	FMovieSceneSequenceTransform Result;
-	// We have to special case 0 and infinite timescale so we can keep hold of each transform separately for property inverting.
-	// The linear transform for this special case remains identity.
-	if (FMath::IsNearlyZero(Parameters.TimeScale) || !FMath::IsFinite(Parameters.TimeScale))
+	return TimingParams.MakeTransform(OuterFrameRate, SubRange, InnerFrameRate, MovieScenePtr->GetPlaybackRange());
+}
+
+FMovieSceneSequenceTransform UMovieSceneSubSection::OuterToInnerTransform() const
+{
+	FMovieSceneSequenceTransform OuterToInner = OuterToInnerTransform_NoInnerTimeWarp();
+	AppendInnerTimeWarpTransform(OuterToInner);
+	return OuterToInner;
+}
+
+void UMovieSceneSubSection::AppendInnerTimeWarpTransform(FMovieSceneSequenceTransform& OutTransform) const
+{
+	UMovieSceneSequence* Sequence   = GetSequence();
+	UMovieScene*         MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+
+	if (!MovieScene)
 	{
-		Result.NestedTransforms.Add(FMovieSceneTimeTransform(-OuterStartTime));
-		Result.NestedTransforms.Add(FMovieSceneTimeTransform(0, 0));
-		Result.NestedTransforms.Add(FMovieSceneTimeTransform(InnerStartTime));
-	}
-	else
-	{
-		// This is the transform for the "placement" (position and scaling) of the sub-sequence.
-		Result.LinearTransform = 
-			// Inner play offset
-			FMovieSceneTimeTransform(InnerStartTime)
-			// Inner play rate
-			* FMovieSceneTimeTransform(0, Parameters.TimeScale * FrameRateScale)
-			// Outer section start time
-			* FMovieSceneTimeTransform(-OuterStartTime);
+		return;
 	}
 
-	if (Parameters.bCanLoop)
+	// Look for any time warp tracks inside the sub sequence
+	for (UMovieSceneTrack* Track : MovieScene->GetTracks())
 	{
-		const FFrameNumber InnerEndTime = UE::MovieScene::DiscreteExclusiveUpper(MovieScenePlaybackRange);
-		const FMovieSceneTimeWarping LoopingTransform(InnerStartTime, InnerEndTime);
+		UMovieSceneTimeWarpTrack* TimeWarpTrack = Cast<UMovieSceneTimeWarpTrack>(Track);
+		if (TimeWarpTrack && !TimeWarpTrack->IsEvalDisabled())
+		{
+			FMovieSceneNestedSequenceTransform TimeWarpTransform = TimeWarpTrack->GenerateTransform();
 
-		Result.NestedTransforms.Add(FMovieSceneNestedSequenceTransform(FMovieSceneTimeTransform(Parameters.FirstLoopStartFrameOffset) * Result.LinearTransform, LoopingTransform));
-		Result.LinearTransform = FMovieSceneTimeTransform();
-		return Result;
+			if (!TimeWarpTransform.IsIdentity())
+			{
+				if (TimeWarpTransform.IsLinear() && OutTransform.IsLinear())
+				{
+					OutTransform = FMovieSceneSequenceTransform(OutTransform.AsLinear() * TimeWarpTransform.AsLinear());
+				}
+				else
+				{
+					OutTransform.NestedTransforms.Add(TimeWarpTransform);
+				}
+			}
+
+			// Only 1 timewarp track supported
+			return;
+		}
 	}
-	return Result;
 }
 
 bool UMovieSceneSubSection::GetValidatedInnerPlaybackRange(TRange<FFrameNumber>& OutInnerPlaybackRange) const
@@ -105,6 +291,45 @@ bool UMovieSceneSubSection::GetValidatedInnerPlaybackRange(TRange<FFrameNumber>&
 	}
 	return false;
 }
+
+FMovieSceneSubSectionOriginOverrideMask UMovieSceneSubSection::GetMask() const
+{
+	return OriginOverrideMask;
+}
+
+void UMovieSceneSubSection::SetMask(EMovieSceneTransformChannel NewMask)
+{
+	OriginOverrideMask = NewMask;
+
+	ChannelProxy = nullptr;
+}
+
+#if WITH_EDITOR
+
+void UMovieSceneSubSection::SetKeyPreviewPosition(TOptional<FVector> InPosition)
+{
+	if(InPosition.IsSet())
+	{
+		KeyPreviewPosition = InPosition.GetValue();
+	}
+	
+}
+
+void UMovieSceneSubSection::SetKeyPreviewRotation(TOptional<FRotator> InRotation)
+{
+	if(InRotation.IsSet())
+	{
+		KeyPreviewRotation = InRotation.GetValue();
+	}
+}
+
+void UMovieSceneSubSection::ResetKeyPreviewRotationAndLocation()
+{
+	KeyPreviewPosition.Reset();
+	KeyPreviewRotation.Reset();
+}
+
+#endif
 
 TRange<FFrameNumber> UMovieSceneSubSection::GetValidatedInnerPlaybackRange(const FMovieSceneSectionParameters& SubSectionParameters, const UMovieScene& InnerMovieScene)
 {
@@ -237,6 +462,11 @@ UMovieSceneSequence* UMovieSceneSubSection::GetSequence() const
 	return SubSequence;
 }
 
+FMovieSceneTimeWarpVariant* UMovieSceneSubSection::GetTimeWarp()
+{
+	return &Parameters.TimeScale;
+}
+
 #if WITH_EDITOR
 void UMovieSceneSubSection::PreEditChange(FProperty* PropertyAboutToChange)
 {
@@ -300,6 +530,11 @@ void UMovieSceneSubSection::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		PreviousSubSequence = nullptr;
 	}
 
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(FMovieSceneSectionParameters, TimeScale))
+	{
+		ChannelProxy = nullptr;
+	}
+
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	// recreate runtime instance when sequence is changed
@@ -317,11 +552,11 @@ TOptional<TRange<FFrameNumber> > UMovieSceneSubSection::GetAutoSizeRange() const
 	{
 		// We probably want to just auto-size the section to the sub-sequence's scaled playback range... if this section
 		// is looping, however, it's hard to know what we want to do. Let's just size it to one loop.
-		const FMovieSceneSequenceTransform InnerToOuter = OuterToInnerTransform().InverseNoLooping();
+		const FMovieSceneInverseSequenceTransform InnerToOuter = OuterToInnerTransform().Inverse();
 		const TRange<FFrameNumber> InnerPlaybackRange = UMovieSceneSubSection::GetValidatedInnerPlaybackRange(Parameters, *MovieScene);
 
-		const FFrameTime IncAutoStartTime = FFrameTime(UE::MovieScene::DiscreteInclusiveLower(InnerPlaybackRange)) * InnerToOuter;
-		const FFrameTime ExcAutoEndTime = FFrameTime(UE::MovieScene::DiscreteExclusiveUpper(InnerPlaybackRange)) * InnerToOuter;
+		const FFrameTime IncAutoStartTime = InnerToOuter.TryTransformTime(UE::MovieScene::DiscreteInclusiveLower(InnerPlaybackRange)).Get(InnerPlaybackRange.GetLowerBoundValue());
+		const FFrameTime ExcAutoEndTime   = InnerToOuter.TryTransformTime(UE::MovieScene::DiscreteExclusiveUpper(InnerPlaybackRange)).Get(InnerPlaybackRange.GetUpperBoundValue());
 
 		return TRange<FFrameNumber>(GetInclusiveStartFrame(), GetInclusiveStartFrame() + (ExcAutoEndTime.RoundToFrame() - IncAutoStartTime.RoundToFrame()));
 	}
@@ -382,7 +617,12 @@ void UMovieSceneSubSection::TrimSection( FQualifiedFrameTime TrimTime, bool bTri
 
 void UMovieSceneSubSection::GetSnapTimes(TArray<FFrameNumber>& OutSnapTimes, bool bGetSectionBorders) const
 {
+	using namespace UE::MovieScene;
+
 	Super::GetSnapTimes(OutSnapTimes, bGetSectionBorders);
+
+	const FFrameNumber StartFrame = GetInclusiveStartFrame();
+	const FFrameNumber EndFrame   = GetExclusiveEndFrame();
 
 	UMovieSceneSequence* Sequence = GetSequence();
 	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
@@ -391,47 +631,31 @@ void UMovieSceneSubSection::GetSnapTimes(TArray<FFrameNumber>& OutSnapTimes, boo
 		return;
 	}
 
-    TRange<FFrameNumber> PlaybackRange = MovieScene->GetPlaybackRange();
-	const FFrameNumber StartFrame = GetInclusiveStartFrame();
-	const FFrameNumber EndFrame = GetExclusiveEndFrame() - 1; // -1 because we don't need to add the end frame twice
-
-	if (Parameters.bCanLoop)
+	auto VisitBoundary = [&OutSnapTimes](FFrameTime InTime)
 	{
-	    const float InvTimeScale = FMath::IsNearlyZero(Parameters.TimeScale) ? 1.0f : 1.0f / Parameters.TimeScale;
-		const TRange<FFrameNumber> InnerPlaybackRange = UMovieSceneSubSection::GetValidatedInnerPlaybackRange(Parameters, *MovieScene);
+		OutSnapTimes.Add(InTime.RoundToFrame());
+		return true;
+	};
 
-		const FFrameNumber InnerSubSeqLength = UE::MovieScene::DiscreteSize(InnerPlaybackRange);
-		const FFrameNumber InnerSubSeqFirstLoopLength = InnerSubSeqLength - Parameters.FirstLoopStartFrameOffset;
+	FMovieSceneSequenceTransform OuterToInner = OuterToInnerTransform();
 
-		const FFrameRate OuterFrameRate = GetTypedOuter<UMovieScene>()->GetTickResolution();
-		const FFrameRate InnerFrameRate = MovieScene->GetTickResolution();
-		const FFrameNumber OuterSubSeqLength = (ConvertFrameTime(InnerSubSeqLength, InnerFrameRate, OuterFrameRate) * InvTimeScale).FrameNumber;
-		const FFrameNumber OuterSubSeqFirstLoopLength = (ConvertFrameTime(InnerSubSeqFirstLoopLength, InnerFrameRate, OuterFrameRate) * InvTimeScale).FrameNumber;
-
-		FFrameNumber CurOffsetFrame = FMath::Max(OuterSubSeqFirstLoopLength, FFrameNumber(0));
-	    
-		while (CurOffsetFrame < EndFrame)
-		{
-			const int32 CurOffset = CurOffsetFrame.Value;
-			      
-			OutSnapTimes.Add(StartFrame + CurOffset);
-
-			CurOffsetFrame += OuterSubSeqLength;
-		}
-	}
-	else
+	if (!OuterToInner.ExtractBoundariesWithinRange(StartFrame, EndFrame, VisitBoundary))
 	{
-		const FMovieSceneSequenceTransform InnerToOuterTransform = OuterToInnerTransform().InverseNoLooping();
-		const FFrameNumber PlaybackStart = (UE::MovieScene::DiscreteInclusiveLower(PlaybackRange) * InnerToOuterTransform).FloorToFrame();
-		if (GetRange().Contains(PlaybackStart))
+		FMovieSceneInverseSequenceTransform InnerToOuterTransform = OuterToInner.Inverse();
+
+		TRange<FFrameNumber> PlaybackRange = MovieScene->GetPlaybackRange();
+
+		TOptional<FFrameTime> SequenceStart = InnerToOuterTransform.TryTransformTime(PlaybackRange.GetLowerBoundValue());
+		TOptional<FFrameTime> SequenceEnd   = InnerToOuterTransform.TryTransformTime(PlaybackRange.GetUpperBoundValue());
+
+		if (SequenceStart && SequenceStart.GetValue() >= StartFrame && SequenceStart.GetValue() < EndFrame)
 		{
-			OutSnapTimes.Add(PlaybackStart);
+			VisitBoundary(SequenceStart.GetValue());
 		}
 
-		const FFrameNumber PlaybackEnd = (UE::MovieScene::DiscreteExclusiveUpper(PlaybackRange) * InnerToOuterTransform).FloorToFrame();
-		if (GetRange().Contains(PlaybackEnd))
+		if (SequenceEnd && SequenceEnd.GetValue() >= StartFrame && SequenceEnd.GetValue() < EndFrame)
 		{
-			OutSnapTimes.Add(PlaybackEnd);
+			VisitBoundary(SequenceEnd.GetValue());
 		}
 	}
 }
@@ -460,10 +684,35 @@ FMovieSceneSubSequenceData UMovieSceneSubSection::GenerateSubSequenceData(const 
 	return FMovieSceneSubSequenceData(*this);
 }
 
+#if WITH_EDITOR
+bool UMovieSceneSubSection::IsTransformOriginEditable() const
+{
+	const EMovieSceneTransformChannel SectionTransformChannels = OriginOverrideMask.GetChannels();
+
+	const bool bChannelsActive = EnumHasAnyFlags(SectionTransformChannels, EMovieSceneTransformChannel::Translation) || EnumHasAnyFlags(SectionTransformChannels, EMovieSceneTransformChannel::Rotation);
+	
+	return IsActive() && !IsLocked() && bChannelsActive;
+}
+#endif
+
 FFrameNumber UMovieSceneSubSection::MapTimeToSectionFrame(FFrameTime InPosition) const
 {
-	FFrameNumber LocalPosition = ((InPosition - Parameters.StartFrameOffset) * Parameters.TimeScale).GetFrame();
+	FFrameNumber LocalPosition = ((InPosition - Parameters.StartFrameOffset) * OuterToInnerTransform()).GetFrame();
 	return LocalPosition;
+}
+
+bool UMovieSceneSubSection::HasAnyChannelData() const
+{
+	bool bHasAnyData = false;
+
+	bHasAnyData |= Translation[0].HasAnyData();
+	bHasAnyData |= Translation[1].HasAnyData();
+	bHasAnyData |= Translation[2].HasAnyData();
+	bHasAnyData |= Rotation[0].HasAnyData();
+	bHasAnyData |= Rotation[1].HasAnyData();
+	bHasAnyData |= Rotation[2].HasAnyData();
+
+	return bHasAnyData;
 }
 
 void UMovieSceneSubSection::BuildDefaultSubSectionComponents(UMovieSceneEntitySystemLinker* EntityLinker, const UE::MovieScene::FEntityImportParams& Params, UE::MovieScene::FImportedEntity* OutImportedEntity) const
@@ -477,12 +726,51 @@ void UMovieSceneSubSection::BuildDefaultSubSectionComponents(UMovieSceneEntitySy
 	const FSubSequencePath PathToRoot = EntityLinker->GetInstanceRegistry()->GetInstance(Params.Sequence.InstanceHandle).GetSubSequencePath();
 	FMovieSceneSequenceID ResolvedSequenceID = PathToRoot.ResolveChildSequenceID(this->GetSequenceID());
 
+	EMovieSceneTransformChannel Channels = OriginOverrideMask.GetChannels();
+
+	const bool ActiveChannelsMask[] = {
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationX) && Translation[0].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationY) && Translation[1].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationZ) && Translation[2].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationX) && Rotation[0].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationY) && Rotation[1].HasAnyData(),
+		EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationZ) && Rotation[2].HasAnyData(),
+	};
+
+	bool bKeyPreviewPositionIsSet = false;
+	bool bKeyPreviewRotationIsSet = false;
+
+#if WITH_EDITOR
+	bKeyPreviewPositionIsSet = KeyPreviewPosition.IsSet();
+	bKeyPreviewRotationIsSet = KeyPreviewRotation.IsSet();
+#endif
+	
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
 		.Add(Components->SequenceID, ResolvedSequenceID)
 		.AddTag(Components->Tags.SubInstance)
 		.AddConditional(Components->HierarchicalEasingProvider, ResolvedSequenceID, bHasEasing)
+		.AddConditional(Components->DoubleChannel[0], &Translation[0], ActiveChannelsMask[0] && !bKeyPreviewPositionIsSet)
+		.AddConditional(Components->DoubleChannel[1], &Translation[1], ActiveChannelsMask[1] && !bKeyPreviewPositionIsSet)
+		.AddConditional(Components->DoubleChannel[2], &Translation[2], ActiveChannelsMask[2] && !bKeyPreviewPositionIsSet)
+		.AddConditional(Components->DoubleChannel[3], &Rotation[0], ActiveChannelsMask[3] && !bKeyPreviewRotationIsSet)
+		.AddConditional(Components->DoubleChannel[4], &Rotation[1], ActiveChannelsMask[4] && !bKeyPreviewRotationIsSet)
+		.AddConditional(Components->DoubleChannel[5], &Rotation[2], ActiveChannelsMask[5] && !bKeyPreviewRotationIsSet)
 	);
+
+	// Build Key preview entity data. Since the channel data is not written when we have preview data, this data will be used in the transform origin system.
+#if WITH_EDITOR
+	OutImportedEntity->AddBuilder(
+		FEntityBuilder()
+		.AddConditional(Components->DoubleResult[0], KeyPreviewPosition.IsSet() ? KeyPreviewPosition.GetValue().X : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationX) && KeyPreviewPosition.IsSet())
+		.AddConditional(Components->DoubleResult[1], KeyPreviewPosition.IsSet() ? KeyPreviewPosition.GetValue().Y : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationY) && KeyPreviewPosition.IsSet())
+		.AddConditional(Components->DoubleResult[2], KeyPreviewPosition.IsSet() ? KeyPreviewPosition.GetValue().Z : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::TranslationZ) && KeyPreviewPosition.IsSet())
+		.AddConditional(Components->DoubleResult[3], KeyPreviewPosition.IsSet() ? KeyPreviewRotation.GetValue().Roll : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationX) && KeyPreviewRotation.IsSet())
+		.AddConditional(Components->DoubleResult[4], KeyPreviewPosition.IsSet() ? KeyPreviewRotation.GetValue().Pitch : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationY) && KeyPreviewRotation.IsSet())
+		.AddConditional(Components->DoubleResult[5], KeyPreviewPosition.IsSet() ? KeyPreviewRotation.GetValue().Yaw : 0.0f, EnumHasAnyFlags(Channels, EMovieSceneTransformChannel::RotationX) && KeyPreviewRotation.IsSet())
+	);
+#endif
+	
 }
 
 

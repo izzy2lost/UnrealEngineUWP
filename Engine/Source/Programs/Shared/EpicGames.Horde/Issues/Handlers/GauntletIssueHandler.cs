@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -12,13 +13,13 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular Gauntlet error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class GauntletIssueHandler : IssueHandler
 	{
 		/// <summary>
 		/// Prefix for framework keys
 		/// </summary>
-		const string FrameworkPrefix = "framework";
+		const string FrameworkPrefix = "test framework";
 
 		/// <summary>
 		/// Prefix for test keys
@@ -31,14 +32,24 @@ namespace EpicGames.Horde.Issues.Handlers
 		const string DevicePrefix = "device";
 
 		/// <summary>
-		/// Prefix for access keys
+		/// Prefix for build drop keys
 		/// </summary>
-		const string AccessPrefix = "access";
+		const string BuildDropPrefix = "build drop";
 
 		/// <summary>
 		/// Prefix for fatal failure keys
 		/// </summary>
 		const string FatalPrefix = "fatal";
+
+		/// <summary>
+		/// Callstack log type property
+		/// </summary>
+		const string CallstackLogType = "Callstack";
+
+		/// <summary>
+		/// Summary log type property
+		/// </summary>
+		const string SummaryLogType = "Summary";
 
 		/// <summary>
 		/// Max Message Length to hash
@@ -57,9 +68,12 @@ namespace EpicGames.Horde.Issues.Handlers
 			{ KnownLogEvents.Gauntlet_TestEvent, TestPrefix},
 			{ KnownLogEvents.Gauntlet_DeviceEvent, DevicePrefix},
 			{ KnownLogEvents.Gauntlet_UnrealEngineTestEvent, TestPrefix},
-			{ KnownLogEvents.Gauntlet_BuildDropEvent, AccessPrefix},
+			{ KnownLogEvents.Gauntlet_BuildDropEvent, BuildDropPrefix},
 			{ KnownLogEvents.Gauntlet_FatalEvent, FatalPrefix}
 		};
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <summary>
 		/// Constructor
@@ -87,95 +101,43 @@ namespace EpicGames.Horde.Issues.Handlers
 		}
 
 		/// <summary>
-		/// Parses symbol names from a log event
-		/// </summary>
-		/// <param name="issueEvent">The log event data</param>
-		/// <param name="testNames">Receives a set of the test names</param>
-		/// <param name="metadata"></param>
-		private static void GetNames(IssueEvent issueEvent, HashSet<IssueKey> testNames, HashSet<IssueMetadata> metadata)
-		{
-			foreach (JsonLogEvent line in issueEvent.Lines)
-			{
-				JsonDocument document = JsonDocument.Parse(line.Data);
-
-				string? name = null;
-
-				string? value;
-				if (document.RootElement.TryGetNestedProperty("properties.Name", out value))
-				{
-					name = value;
-				}
-
-				if (name != null)
-				{
-					string prefix = GetEventPrefix(issueEvent.EventId!.Value);
-					testNames.Add($"{prefix}:{name}", IssueKeyType.None);
-					metadata.Add("Context", $"with {name}");
-				}
-			}
-		}
-
-		/// <summary>
-		/// Parses symbol file or directory from a log event
-		/// </summary>
-		/// <param name="issueEvent">The log event data</param>
-		/// <param name="paths">Receives a set of the paths</param>
-		/// <param name="metadata"></param>
-		private static void GetPaths(IssueEvent issueEvent, HashSet<IssueKey> paths, HashSet<IssueMetadata> metadata)
-		{
-			if (issueEvent.EventId == KnownLogEvents.Gauntlet_BuildDropEvent)
-			{
-				foreach (JsonLogEvent line in issueEvent.Lines)
-				{
-					JsonDocument document = JsonDocument.Parse(line.Data);
-
-					string? path = null;
-
-					string? value;
-					if (document.RootElement.TryGetNestedProperty("properties.File", out value))
-					{
-						path = value;
-					}
-					else if (document.RootElement.TryGetNestedProperty("properties.Directory", out value))
-					{
-						path = value;
-					}
-
-					if (path != null)
-					{
-						paths.Add($"{AccessPrefix}:{path}", IssueKeyType.None);
-						metadata.Add("Context", $"with {path}");
-					}
-				}
-			}
-		}
-
-		/// <summary>
 		/// Produce a hash from error message
 		/// </summary>
-		/// <param name="message">The log event message</param>
+		/// <param name="issueEvent">The issue event</param>
 		/// <param name="keys">Receives a set of the keys</param>
 		/// <param name="metadata">Receives a set of metadata</param>
-		private void GetHash(string message, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata)
+		/// <param name="hasCallstack">Set true if a callstack property was found</param>
+		private void GetHash(IssueEvent issueEvent, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata, out bool hasCallstack)
 		{
-			string error = message.Length > MaxMessageLength ? message.Substring(0, MaxMessageLength) : message;
-
-			if (TryGetHash(error, out Md5Hash hash))
+			hasCallstack = false;
+			if (TryGetHash(issueEvent, out Md5Hash hash))
 			{
-				keys.Add($"hash:{hash}:stream:{_context.StreamId}", IssueKeyType.None);
+				string key = $"hash:{hash}";
+				hasCallstack = EventHasCallstackProperty(issueEvent);
+				if (!hasCallstack)
+				{
+					// add job step salt if no Callstack property was found
+					key += $":{_context.StreamId}:{_context.NodeName}";
+				}
+				keys.Add(key, IssueKeyType.None);
+				metadata.Add("Hash", hash.ToString());
 			}
 			else
 			{
-				keys.Add($"{_context.NodeName}", IssueKeyType.None);
+				// Not enough information, make it an issue associated with only the job step
+				keys.Add($"{_context.StreamId}:{_context.NodeName}", IssueKeyType.None);
 			}
-			metadata.Add("Context", $"in {_context.NodeName}");
+			metadata.Add("Node", _context.NodeName);
 		}
 
-		private static bool TryGetHash(string message, out Md5Hash hash)
+		private static bool TryGetHash(IssueEvent issueEvent, out Md5Hash hash)
 		{
-			string sanitized = message.ToUpperInvariant();
-			sanitized = Regex.Replace(sanitized, @"(?<![a-zA-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
-			sanitized = Regex.Replace(sanitized, @"0[xX][0-9a-fA-F]+", "H"); // Redact hex strings
+			// Use only the summary if one is found instead of the full callstack
+			string sanitized = GetSummaryProperty(issueEvent) ?? issueEvent.Render();
+			sanitized = sanitized.Length > MaxMessageLength ? sanitized.Substring(0, MaxMessageLength) : sanitized;
+			sanitized = sanitized.Trim().ToUpperInvariant();
+			sanitized = Regex.Replace(sanitized, @"(?<![A-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
+			sanitized = Regex.Replace(sanitized, @"0X[0-9A-F]+", "H"); // Redact hex strings
 			sanitized = Regex.Replace(sanitized, @"\d[\d.,:]*", "n"); // Redact numbers and timestamp like things
 
 			if (sanitized.Length > 30)
@@ -190,22 +152,81 @@ namespace EpicGames.Horde.Issues.Handlers
 			}
 		}
 
+		private static bool EventHasCallstackProperty(IssueEvent issueEvent)
+		{
+			return issueEvent.Lines.Any(x => FindNestedPropertyOfType(x, CallstackLogType) != null);
+		}
+
+		private static string? GetSummaryProperty(IssueEvent issueEvent)
+		{
+			StringBuilder? summary = null;
+			foreach (JsonLogEvent logEvent in issueEvent.Lines)
+			{
+				JsonProperty? property = FindNestedPropertyOfType(logEvent, SummaryLogType);
+				if (property != null)
+				{
+					if (summary == null)
+					{
+						summary = new StringBuilder();
+					}
+					JsonElement value = property.Value.Value;
+					if (value.ValueKind == JsonValueKind.String
+						// handle LogValue type
+						|| (value.TryGetProperty(LogEventPropertyName.Text.Span, out value) && value.ValueKind == JsonValueKind.String))
+					{
+						summary.Append(value.GetString() + '\n');
+						continue;
+					}
+					summary.Append(value.ToString() + '\n');
+				}
+				else if (summary != null)
+				{
+					// when property is null but not summary, we early exit since we expect property split to be contiguous
+					return summary.ToString();
+				}
+			}
+			return summary?.ToString();
+		}
+
+		private static JsonProperty? FindNestedPropertyOfType(JsonLogEvent logEvent, string searchType)
+		{
+			JsonElement line = JsonDocument.Parse(logEvent.Data).RootElement;
+			JsonElement properties;
+			if (line.TryGetProperty("properties", out properties) && properties.ValueKind == JsonValueKind.Object)
+			{
+				foreach (JsonProperty property in properties.EnumerateObject())
+				{
+					if (property.Name.StartsWith(searchType, System.StringComparison.OrdinalIgnoreCase))
+					{
+						// if name is longer, check if it is a split property pattern: {name}${index}
+						if (property.Name.Length > searchType.Length && property.Name.Substring(searchType.Length, 1) != "$")
+						{
+							continue;
+						}
+						return property;
+					}
+				}
+			}
+
+			return null;
+		}
+
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent issueEvent)
 		{
 			if (issueEvent.EventId != null && IsMatchingEventId(issueEvent.EventId.Value))
 			{
-				IssueEventGroup issue = new IssueEventGroup("Gauntlet", "Gauntlet {Meta:Type} {Severity} {Meta:Context}", IssueChangeFilter.Code);
+				string gauntletType = GetEventPrefix(issueEvent.EventId!.Value);
+				IssueEventGroup issue = new IssueEventGroup($"Gauntlet:{gauntletType}", "Automation {Meta:GauntletType} {Severity} in {Meta:Node}", IssueChangeFilter.All);
 				issue.Events.Add(issueEvent);
-
-				GetNames(issueEvent, issue.Keys, issue.Metadata);
-				GetPaths(issueEvent, issue.Keys, issue.Metadata);
-				if (issue.Keys.Count == 0)
+				bool hasCallstack;
+				GetHash(issueEvent, issue.Keys, issue.Metadata, out hasCallstack);
+				issue.Metadata.Add("GauntletType", gauntletType);
+				if (hasCallstack)
 				{
-					GetHash(issueEvent.Message, issue.Keys, issue.Metadata);
+					string? hash = issue.Metadata.FindValues("Hash").FirstOrDefault();
+					issue.Type = $"{issue.Type}:with-callstack:{hash}";
 				}
-
-				issue.Metadata.Add(new IssueMetadata("type", GetEventPrefix(issueEvent.EventId.Value)));
 				_issues.Add(issue);
 
 				return true;

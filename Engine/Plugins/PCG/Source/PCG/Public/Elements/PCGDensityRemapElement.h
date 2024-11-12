@@ -2,25 +2,25 @@
 
 #pragma once
 
+#include "PCGPointOperationElementBase.h"
 #include "PCGSettings.h"
-
-#include "Elements/PCGPointProcessingElementBase.h"
 
 #include "PCGDensityRemapElement.generated.h"
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGDensityRemapSettings : public UPCGSettings
+class UE_DEPRECATED(5.5, "Superseded by UPCGAttributeRemapSettings") UPCGDensityRemapSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
+	UPCGDensityRemapSettings();
+
 	// ~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("DensityRemap")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGDensityRemapSettings", "NodeTitle", "Density Remap"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Density; }
 #endif
-	
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Super::DefaultPointInputPinProperties(); }
@@ -48,13 +48,8 @@ public:
 	bool bExcludeValuesOutsideInputRange = false;
 };
 
-class FPCGDensityRemapElement : public FPCGPointProcessingElementBase
+class FPCGDensityRemapElement : public FPCGPointOperationElementBase
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGNode.h"
-#endif

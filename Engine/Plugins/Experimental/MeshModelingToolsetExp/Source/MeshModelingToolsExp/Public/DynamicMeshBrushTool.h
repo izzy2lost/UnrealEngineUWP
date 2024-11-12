@@ -36,6 +36,8 @@ public:
 
 	virtual bool HitTest(const FRay& Ray, FHitResult& OutHit) override;
 
+	TObjectPtr<UPreviewMesh> GetPreviewMesh() { return PreviewMesh; }
+
 protected:
 	// subclasses can override these to customize behavior
 	virtual void OnShutdown(EToolShutdownType ShutdownType) {}

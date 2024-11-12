@@ -63,20 +63,20 @@ void FRenderAssetInstanceView::FBounds4::UnpackBounds(int32 Index, const UPrimit
 }
 
 /** Dynamic Path, this needs to reset all members since the dynamic data is rebuilt from scratch every update (the previous data is given to the async task) */
-void FRenderAssetInstanceView::FBounds4::FullUpdate(int32 Index, const FBoxSphereBounds& Bounds, float InLastRenderTime)
+void FRenderAssetInstanceView::FBounds4::FullUpdate(int32 Index, const FVector& NewOrigin, const FVector& NewBoxExtent, float NewSphereRadius, float InLastRenderTime)
 {
 	check(Index >= 0 && Index < 4);
 
-	OriginX.Component(Index) = Bounds.Origin.X;
-	OriginY.Component(Index) = Bounds.Origin.Y;
-	OriginZ.Component(Index) = Bounds.Origin.Z;
-	RangeOriginX.Component(Index) = Bounds.Origin.X;
-	RangeOriginY.Component(Index) = Bounds.Origin.Y;
-	RangeOriginZ.Component(Index) = Bounds.Origin.Z;
-	ExtentX.Component(Index) = Bounds.BoxExtent.X;
-	ExtentY.Component(Index) = Bounds.BoxExtent.Y;
-	ExtentZ.Component(Index) = Bounds.BoxExtent.Z;
-	RadiusOrComponentScale.Component(Index) = Bounds.SphereRadius;
+	OriginX.Component(Index) = NewOrigin.X;
+	OriginY.Component(Index) = NewOrigin.Y;
+	OriginZ.Component(Index) = NewOrigin.Z;
+	RangeOriginX.Component(Index) = NewOrigin.X;
+	RangeOriginY.Component(Index) = NewOrigin.Y;
+	RangeOriginZ.Component(Index) = NewOrigin.Z;
+	ExtentX.Component(Index) = NewBoxExtent.X;
+	ExtentY.Component(Index) = NewBoxExtent.Y;
+	ExtentZ.Component(Index) = NewBoxExtent.Z;
+	RadiusOrComponentScale.Component(Index) = NewSphereRadius;
 	PackedRelativeBox[Index] = PackedRelativeBox_Identity;
 	MinDistanceSq.Component(Index) = 0;
 	MinRangeSq.Component(Index) = 0;
@@ -480,6 +480,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 	float& MaxSize,
 	float& MaxSize_VisibleOnly,
 	int32& MaxNumForcedLODs,
+	const float MaxAssetSize,
 	const TCHAR* LogPrefix) const
 {
 	// No need to iterate more if texture is already at maximum resolution.
@@ -501,7 +502,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 				const FRenderAssetInstanceView::FCompiledElement* CompiledElementData = CompiledElements->GetData();
 
 				int32 CompiledElementIndex = 0;
-				while (CompiledElementIndex < NumCompiledElements && MaxSize_VisibleOnly < MAX_TEXTURE_SIZE)
+				while (CompiledElementIndex < NumCompiledElements && MaxSize_VisibleOnly < MaxAssetSize)
 				{
 					const FRenderAssetInstanceView::FCompiledElement& CompiledElement = CompiledElementData[CompiledElementIndex];
 					if (ensure(BoundsViewInfo.IsValidIndex(CompiledElement.BoundsIndex)))
@@ -527,7 +528,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 					++CompiledElementIndex;
 				}
 
-				if (MaxSize_VisibleOnly >= MAX_TEXTURE_SIZE && CompiledElementIndex > 1)
+				if (MaxSize_VisibleOnly >= MaxAssetSize && CompiledElementIndex > 1)
 				{
 					// This does not realloc anything but moves the closest element at head, making the next update find it immediately and early exit.
 					FRenderAssetInstanceView::FCompiledElement* SwapElementData = const_cast<FRenderAssetInstanceView::FCompiledElement*>(CompiledElementData);
@@ -537,7 +538,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 		}
 		else
 		{
-			for (auto It = View->GetElementIterator(InAsset); It && (AssetType != EStreamableRenderAssetType::Texture || MaxSize_VisibleOnly < MAX_TEXTURE_SIZE || LogPrefix); ++It)
+			for (auto It = View->GetElementIterator(InAsset); It && (AssetType != EStreamableRenderAssetType::Texture || MaxSize_VisibleOnly < MaxAssetSize || LogPrefix); ++It)
 			{
 				// Only handle elements that are in bounds.
 				if (ensure(BoundsViewInfo.IsValidIndex(It.GetBoundsIndex())))

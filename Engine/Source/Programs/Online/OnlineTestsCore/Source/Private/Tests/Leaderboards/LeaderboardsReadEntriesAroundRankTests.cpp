@@ -16,7 +16,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundRank succeeds and returns entrie
 	TArray< FAccountId*> AccountIds = { &AccountIdA, &AccountIdB };
 	uint32 NumUsersToLogin = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountIdA, AccountIdB)), AccountIds, NumUsersToLogin)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountIdA, AccountIdB })), AccountIds, NumUsersToLogin)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundRank_2UsersFixture(Promise, Services, "Stat_Use_Set", AccountIdA, 0, 2, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2Users_Stat_Use_Set(LeaderboardEntries, AccountIdA, AccountIdB); })
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundRank_2UsersFixture(Promise, Services, "Stat_Use_Smallest", AccountIdA, 0, 2, LeaderboardEntries); })
@@ -32,7 +32,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundRank returns a fail message if t
 	FAccountId LocalUserInvalid;
 	TArray< FAccountId*> AccountIds = { &AccountId, &LocalUserInvalid };
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountId)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountId })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundRankFixture(Promise, Services, "Stat_Use_Set", LocalUserInvalid, 0, 2, UE::Online::Errors::InvalidUser(), LeaderboardEntries); });
 
 	RunToCompletion();
@@ -45,7 +45,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundRank returns a fail message if g
 	FAccountId AccountId;
 	TArray< FAccountId*> AccountIds = { &AccountId };
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountId)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountId })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundRankFixture(Promise, Services, "Stat_Use_Set", AccountId, 1, 2, UE::Online::Errors::InvalidParams(), LeaderboardEntries); });
 
 	RunToCompletion();
@@ -60,7 +60,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundRank returns all valid entries i
 	uint32 rank = 0;
 	uint32 limit = 3;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountIdA, AccountIdB)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountIdA, AccountIdB })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundRank_2UsersFixture(Promise, Services, "Stat_Use_Set", AccountIdA, rank, limit, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2Users_Stat_Use_Set(LeaderboardEntries, AccountIdA, AccountIdB); });
 
@@ -74,7 +74,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundRank returns fail message if giv
 	FAccountId AccountId;
 	TArray< FAccountId*> AccountIds = { &AccountId };
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountId)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountId })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundRankFixture(Promise, Services, "Stat_Use_Set", AccountId, 3, 0, UE::Online::Errors::InvalidParams(), LeaderboardEntries); });
 
 	RunToCompletion();

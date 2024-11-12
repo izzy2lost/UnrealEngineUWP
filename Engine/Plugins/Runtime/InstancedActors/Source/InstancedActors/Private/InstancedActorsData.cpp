@@ -10,12 +10,18 @@
 #include "InstancedActorsSubsystem.h"
 #include "InstancedActorsVisualizationTrait.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsSettings.h"
+#include "InstancedActorsCommands.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Algo/Count.h"
 #include "Algo/NoneOf.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
+#if UE_WITH_IRIS
+#include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
+#endif
+#include "InstancedActorsVisualizationProcessor.h"
 #include "MassActorSubsystem.h"
 #include "MassCommonFragments.h"
 #include "MassEntityConfigAsset.h"
@@ -140,6 +146,20 @@ namespace UE::InstancedActors
 			TEXT("If enabled, forces all calls to UInstancedActorsData::AddVisualizationAsync to immediately sync load required assets and ")
 			TEXT("initialize the visualization, instead of requesting async loads and deferring initialization."),
 			ECVF_Default);
+
+		bool bUpdateNextTickTimeFragments = true;
+		FAutoConsoleVariableRef CVarUpdateNextTickTimeFragments(
+			TEXT("IA.UpdateNextTickTimeFragments"),
+			bUpdateNextTickTimeFragments,
+			TEXT("If enabled (default) forces LOD updated for newly re-spawned entities (i.e. spawned by IAD that has been reloaded)"),
+			ECVF_Default);		
+
+		bool bEnableReleasingEntityTemplatesAndExemplarActors = true;
+		FAutoConsoleVariableRef CVarEnableReleasingEntityTemplatesAndExemplarActors(
+			TEXT("IA.EnableReleasingEntityTemplatesAndExemplarActors"),
+			bEnableReleasingEntityTemplatesAndExemplarActors,
+			TEXT("If enabled (default) instanced actors will release created entity templates and exemplar actors from central systems. Allows resources that are no longer in use to be garbage collected."),
+			ECVF_Default);
 	} // CVars
 
 	namespace Helpers
@@ -153,6 +173,22 @@ namespace UE::InstancedActors
 			InstanceTransform.SetIdentityZeroScale();
 		}
 	} // Helpers
+
+	//-----------------------------------------------------------------------------
+	// FExemplarActorData
+	//-----------------------------------------------------------------------------
+	FExemplarActorData::~FExemplarActorData()
+	{
+		if (CVars::bEnableReleasingEntityTemplatesAndExemplarActors)
+		{
+			AActor* ExemplarActor = Actor.Get();
+			check(ExemplarActor);
+	
+			InstancedActorsSubsystem.UnregisterExemplarActorClass(ExemplarActor->GetClass());
+
+			ExemplarActor->Destroy();
+		}
+	}
 } // namespace InstancedActors
 
 //-----------------------------------------------------------------------------
@@ -163,7 +199,7 @@ void UInstancedActorsData::Initialize()
 	AInstancedActorsManager& Manager = GetManagerChecked();
 
 	// Get the settings setup nice and early.
-	UInstancedActorsSubsystem& InstancedActorSubsystem = UInstancedActorsSubsystem::GetChecked(GetManager());
+	UInstancedActorsSubsystem& InstancedActorSubsystem = Manager.GetInstancedActorSubsystemChecked();
 	SharedSettings = InstancedActorSubsystem.GetOrCompileSettingsForActorClass(ActorClass);
 	const FInstancedActorsSettings* Settings = GetSettingsPtr<const FInstancedActorsSettings>();
 
@@ -171,6 +207,8 @@ void UInstancedActorsData::Initialize()
 	if (Settings && Settings->bOverride_ActorClass && Settings->ActorClass)
 	{
 		ActorClass = Settings->ActorClass;
+		CachedLocalBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
+		ensure(CachedLocalBounds.IsValid);
 	}
 
 	// Allow settings to scale NumValidInstances, effectively scaling the number of spawned entities
@@ -204,18 +242,31 @@ void UInstancedActorsData::Initialize()
 	}
 
 	// Get or create exemplar actor to derive entities from
-	const AActor& ExemplarActor = Manager.GetInstancedActorSubsystemChecked().GetOrCreateExemplarActor(ActorClass);
+	check(!ExemplarActorData.IsValid());
+	ExemplarActorData = InstancedActorSubsystem.GetOrCreateExemplarActor(ActorClass);
+	const AActor* const ExemplarActor = ExemplarActorData->Actor.Get();
+	check(ExemplarActor);
 
 	// Add default visualization at index 0
 	//FInstancedActorsVisualizationDesc DefaultVisualiation = FInstancedActorsVisualizationDesc::FromActor(ExemplarActor, &UE::InstancedActors::VisualizationDescrFromActorAdditionalSteps);
-	FInstancedActorsVisualizationDesc DefaultVisualiation = InstancedActorSubsystem.CreateVisualDescriptionFromActor(ExemplarActor);
+	FInstancedActorsVisualizationDesc DefaultVisualiation = InstancedActorSubsystem.CreateVisualDescriptionFromActor(*ExemplarActor);
 	const uint8 VisualizationIndex = AddVisualization(DefaultVisualiation);
 	check(VisualizationIndex == 0);
 
 	// Create entity template
-	CreateEntityTemplate(ExemplarActor);
+	CreateEntityTemplate(*ExemplarActor);
 
 	bHasEverInitialized = true;
+}
+
+void UInstancedActorsData::Deinitialize()
+{
+	if (bHasEverInitialized && UE::InstancedActors::CVars::bEnableReleasingEntityTemplatesAndExemplarActors)
+	{
+		ReleaseEntityTemplate();
+
+		ExemplarActorData.Reset();
+	}
 }
 
 void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
@@ -225,7 +276,7 @@ void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
 
 	FMassEntityManager& MassEntityManager = GetMassEntityManagerChecked();
 
-	FMassEntityConfig EntityConfig(*this);
+	EntityConfig = FMassEntityConfig(*this);
 
 	UMassDistanceLODCollectorTrait* LODCollectorTrait = NewObject<UMassDistanceLODCollectorTrait>(this);
 	EntityConfig.AddTrait(*LODCollectorTrait);
@@ -238,7 +289,7 @@ void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
 	EntityConfig.AddTrait(*VisTrait);
 
 	// Allow UInstancedActorsComponent's to extend entity config
-	ExemplarActor.ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [this, &MassEntityManager, &EntityConfig](const UInstancedActorsComponent* InstancedActorComponent)
+	ExemplarActor.ForEachComponent<UInstancedActorsComponent>(/*bIncludeFromChildActors*/ false, [this, &MassEntityManager](const UInstancedActorsComponent* InstancedActorComponent)
 		{ InstancedActorComponent->ModifyMassEntityConfig(MassEntityManager, this, EntityConfig); });
 
 	const FMassEntityTemplate& BaseEntityTemplate = EntityConfig.GetOrCreateEntityTemplate(*World);
@@ -262,11 +313,17 @@ void UInstancedActorsData::CreateEntityTemplate(const AActor& ExemplarActor)
 
 void UInstancedActorsData::ModifyEntityTemplate(FMassEntityTemplateData& ModifiedTemplate, const AActor&)
 {
-	ModifiedTemplate.RemoveTag<FMassDistanceLODProcessorTag>();
-	ModifiedTemplate.RemoveTag<FMassCollectDistanceLODViewerInfoTag>();
-	ModifiedTemplate.RemoveTag<FMassVisualizationProcessorTag>();
-	// not needed really, since we don't add it in any of the traits but leaving here for the reference
-	// ModifiedTemplate.RemoveTag<FMassStationaryISMSwitcherProcessorTag>();
+	// NOTE: Removes some tags that are added by default by the traits that we add to the original template,
+	// but are toggled by the UInstancedActorsStationaryLODBatchProcessor and shouldn't be active when the Mass entities are created.
+	ModifiedTemplate.GetMutableTags().Remove(UE::InstancedActors::GetDetailedLODTags());
+}
+
+void UInstancedActorsData::ReleaseEntityTemplate()
+{
+	UWorld* World = GetWorld();
+	check(World);
+
+	EntityConfig.DestroyEntityTemplate(*World);
 }
 
 void UInstancedActorsData::SpawnEntities()
@@ -314,6 +371,19 @@ void UInstancedActorsData::SpawnEntities()
 
 	// Now we've seeded Mass entity locations, we can free up now-superfluous InstanceTransforms
 	InstanceTransforms.Empty();
+
+	if (UE::InstancedActors::CVars::bUpdateNextTickTimeFragments)
+	{
+		FInstancedActorsDataSharedFragment* AsShared = SharedInstancedActorDataStruct.GetPtr<FInstancedActorsDataSharedFragment>();
+		// our shared fragment was being ticked in the past, so it's possible it's scheduled to tick in quite some time
+		// while we need the update ASAP. We're letting the UInstancedActorsSubsystem know to reschedule it.
+		if (ensure(AsShared) && AsShared->LastTickTime > 0.0)
+		{
+			UInstancedActorsSubsystem* InstancedActorSubsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
+			check(InstancedActorSubsystem);
+			InstancedActorSubsystem->UpdateAndResetTickTime(SharedInstancedActorDataStruct);
+		}
+	}
 }
 
 void UInstancedActorsData::DespawnEntities()
@@ -407,8 +477,8 @@ void UInstancedActorsData::DespawnEntities()
 
 	FInstancedActorsDataSharedFragment ManagerFragment;
 	ManagerFragment.InstanceData = this;
-	const uint32 FragmentHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(ManagerFragment));
-	FSharedStruct SharedFragmentInstance = MassEntityManager.GetOrCreateSharedFragmentByHash<FInstancedActorsDataSharedFragment>(FragmentHash, ManagerFragment);
+	FSharedStruct SharedFragmentInstance = MassEntityManager.GetOrCreateSharedFragment<FInstancedActorsDataSharedFragment>(ManagerFragment);
+
 	FInstancedActorsDataSharedFragment* AsSharedManagerFragment = SharedFragmentInstance.GetPtr<FInstancedActorsDataSharedFragment>();
 	if (ensure(AsSharedManagerFragment) && AsSharedManagerFragment->InstanceData == this)
 	{
@@ -533,8 +603,8 @@ FInstancedActorsInstanceHandle UInstancedActorsData::AddInstance(const FTransfor
 		InstanceTransforms[NewInstanceIndex].SetToRelativeTransform(ManagerTransform);
 	}
 
-	ensure(AssetBounds.IsValid);
-	Bounds += AssetBounds.TransformBy(InstanceTransforms[NewInstanceIndex]);
+	ensure(CachedLocalBounds.IsValid);
+	Bounds += CachedLocalBounds.TransformBy(InstanceTransforms[NewInstanceIndex]);
 
 	return FInstancedActorsInstanceHandle(*this, FInstancedActorsInstanceIndex(NewInstanceIndex));
 }
@@ -556,13 +626,13 @@ bool UInstancedActorsData::RemoveInstance(const FInstancedActorsInstanceHandle& 
 		}
 
 		// Update bounds
-		ensure(AssetBounds.IsValid);
+		ensure(CachedLocalBounds.IsValid);
 		Bounds.Init();
 		for (const FTransform& InstanceTransform : InstanceTransforms)
 		{
 			if (UE::InstancedActors::Helpers::IsValidInstanceTransform(InstanceTransform))
 			{
-				Bounds += AssetBounds.TransformBy(InstanceTransform);
+				Bounds += CachedLocalBounds.TransformBy(InstanceTransform);
 			}
 		}
 
@@ -595,17 +665,33 @@ bool UInstancedActorsData::SetInstanceTransform(const FInstancedActorsInstanceHa
 	}
 
 	// Update bounds
-	ensure(AssetBounds.IsValid);
+	ensure(CachedLocalBounds.IsValid);
 	Bounds.Init();
 	for (const FTransform& InstanceTransform : InstanceTransforms)
 	{
 		if (UE::InstancedActors::Helpers::IsValidInstanceTransform(InstanceTransform))
 		{
-			Bounds += AssetBounds.TransformBy(InstanceTransform);
+			Bounds += CachedLocalBounds.TransformBy(InstanceTransform);
 		}
 	}
 
 	return true;
+}
+
+void UInstancedActorsData::ForEachEditorPreviewISMC(TFunctionRef<bool(UInstancedStaticMeshComponent& /*ISMComponent*/)> InFunction) const
+{
+	// Iterate ISMComponents
+	for (UInstancedStaticMeshComponent* EditorPreviewISMComponent : EditorPreviewISMComponents)
+	{
+		if (IsValid(EditorPreviewISMComponent))
+		{
+			const bool bContinue = InFunction(*EditorPreviewISMComponent);
+			if (!bContinue)
+			{
+				break;
+			}
+		}
+	}
 }
 #endif // WITH_EDITOR
 
@@ -635,10 +721,12 @@ FMassEntityHandle UInstancedActorsData::GetEntity(FInstancedActorsInstanceIndex 
 
 void UInstancedActorsData::SetSharedInstancedActorDataStruct(FSharedStruct InSharedStruct)
 {
-	checkf(SharedInstancedActorDataStruct.IsValid() == false || SharedInstancedActorDataStruct.Identical(&InSharedStruct, 0), TEXT("We don't expect to override this value"));
 	checkf(InSharedStruct.GetPtr<FInstancedActorsDataSharedFragment>(), TEXT("We expect only FInstancedActorsDataSharedFragment-base types here"));
+	checkf(SharedInstancedActorDataStruct.IsValid() == false 
+		|| InSharedStruct.GetMemory() == SharedInstancedActorDataStruct.GetMemory()
+		, TEXT("We don't expect to override this value"));
 
-	SharedInstancedActorDataStruct = InSharedStruct;
+	SharedInstancedActorDataStruct = TStructView<FInstancedActorsDataSharedFragment>(InSharedStruct.GetMemory());
 }
 
 FString UInstancedActorsData::GetDebugName(bool bCompact) const
@@ -679,27 +767,31 @@ void UInstancedActorsData::PostLoad()
 
 	NumInstances = InstanceTransforms.Num();
 
+	// Cache asset bounds
+	if (!CachedLocalBounds.IsValid)
+	{
+		CachedLocalBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
+	}
+	ensure(CachedLocalBounds.IsValid);
+	
 	if (!Bounds.IsValid)
 	{
 		// Update bounds for InstanceData saved prior to addition of Bounds property
 		if (NumValidInstances > 0)
 		{
-			FBox MeshBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
-			ensure(MeshBounds.IsValid);
-
 			Bounds.Init();
 			for (const FTransform& InstanceTransform : InstanceTransforms)
 			{
 				if (UE::InstancedActors::Helpers::IsValidInstanceTransform(InstanceTransform))
 				{
-					Bounds += MeshBounds.TransformBy(InstanceTransform);
+					Bounds += CachedLocalBounds.TransformBy(InstanceTransform);
 				}
 			}
 		}
 		else
 		{
 			// Note: UInstancedActorsData::Bounds mustn't be 0 sized by default, otherwise the first AddInstance
-			//       woulf stretch the bounds from origin - instead we want the first AddInstance to init the bounds.
+			//       would stretch the bounds from origin - instead we want the first AddInstance to init the bounds.
 			Bounds = FBox(FVector::ZeroVector, FVector::ZeroVector);
 		}
 	}
@@ -719,14 +811,6 @@ void UInstancedActorsData::PostLoad()
 		}
 		EditorPreviewISMComponents.Empty();
 	}
-
-	// Cache asset bounds for use during instance population for IAD's saved before
-	// AssetBounds was marked non-transient.
-	if (!AssetBounds.IsValid)
-	{
-		AssetBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
-	}
-	ensure(AssetBounds.IsValid);
 #endif
 
 	//check(CompressedInstanceTransforms.IsEmpty());
@@ -862,6 +946,13 @@ void UInstancedActorsData::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 
 	DOREPLIFETIME_WITH_PARAMS_FAST(UInstancedActorsData, InstanceDeltas, RepParams);
 }
+
+#if UE_WITH_IRIS
+void UInstancedActorsData::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
+{
+	UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags);
+}
+#endif
 
 void UInstancedActorsData::SetInstanceCurrentLifecyclePhase(FInstancedActorsInstanceIndex InstanceIndex, uint8 InCurrentLifecyclePhaseIndex)
 {
@@ -1057,10 +1148,7 @@ void UInstancedActorsData::RuntimeRemoveInstances(TConstArrayView<FInstancedActo
 
 		// Destroy entities. This will also trigger actor destruction for any spawned actors
 		// for these entities.
-		for (FMassArchetypeEntityCollection& EntityCollectionToDestroy : EntityCollectionsToDestroy)
-		{
-			MassEntityManager.BatchDestroyEntityChunks(EntityCollectionToDestroy);
-		}
+		MassEntityManager.BatchDestroyEntityChunks(EntityCollectionsToDestroy);
 	}
 	// Pre-empt entity spawning and simply invalidate InstanceTransform entries, preventing them from spawning later
 	else
@@ -1098,10 +1186,7 @@ void UInstancedActorsData::RuntimeRemoveAllInstances()
 
 		// Destroy entities. This will also trigger actor destruction for any spawned actors
 		// for these entities.
-		for (FMassArchetypeEntityCollection& EntityCollectionToDestroy : EntityCollectionsToDestroy)
-		{
-			MassEntityManager.BatchDestroyEntityChunks(EntityCollectionToDestroy);
-		}
+		MassEntityManager.BatchDestroyEntityChunks(EntityCollectionsToDestroy);
 
 		// Zero out all entity handles to 'reset' them
 		FMemory::Memzero(Entities.GetData(), Entities.GetTypeSize() * Entities.Num());

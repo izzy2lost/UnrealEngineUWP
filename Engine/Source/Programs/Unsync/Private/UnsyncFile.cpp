@@ -4,7 +4,8 @@
 #include "UnsyncCore.h"
 #include "UnsyncMemory.h"
 #include "UnsyncThread.h"
-#include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
+#include "UnsyncFilter.h"
 
 #include <mutex>
 
@@ -62,14 +63,49 @@ MakeExtendedAbsolutePath(const FPath& InAbsolutePath)
 #endif // UNSYNC_PLATFORM_WINDOWS
 }
 
-FPathStringView
+// Removes \\, \\?\UNC\, \\.\UNC\, \\.\ or \\?\ prefix from a path.
+//	\\server\foo\bar -> server\foo\bar
+//	\\?\d:\foo\bar -> d:\foo\bar
+//	d:\foo\bar -> d:\foo\bar
+// Returns original path on non-Windows.
+static inline FPathStringView
+RemoveUNCPrefix(const FPath& InPath)
+{
+	FPathStringView InPathString = InPath.native();
+
+#if UNSYNC_PLATFORM_WINDOWS
+	if (InPathString.starts_with(L"\\\\?\\UNC\\"))
+	{
+		return InPathString.substr(8);
+	}
+	else if (InPathString.starts_with(L"\\\\?\\"))
+	{
+		return InPathString.substr(4);
+	}
+	else if (InPathString.starts_with(L"\\\\"))
+	{
+		return InPathString.substr(2);
+	}
+	else
+#endif
+	{
+		return InPathString;
+	}
+}
+
+FPath
 RemoveExtendedPathPrefix(const FPath& InPath)
 {
 	FPathStringView InPathString = InPath.native();
 #if UNSYNC_PLATFORM_WINDOWS
 	if (InPathString.starts_with(L"\\\\?\\UNC\\"))
 	{
-		return InPathString.substr(8);
+		FPathStringView Remainder = InPathString.substr(8);
+		std::wstring Result;
+		Result.reserve(Remainder.length() + 2);
+		Result += L"\\\\";
+		Result += Remainder;
+		return FPath(Result);
 	}
 	else if (InPathString.starts_with(L"\\\\?\\"))
 	{
@@ -110,23 +146,113 @@ std::filesystem::file_time_type FromWindowsFileTime(uint64 Ticks)
 FPath
 GetRelativePath(const FPath& Path, const FPath& Base)
 {
+	FPathStringView ResultView = GetRelativePathView(Path, Base);
+	return ResultView;
+}
+
+FPathStringView
+GetRelativePathView(const FPath& Path, const FPath& Base)
+{
 	// Try a trivial case first, without touching the filesystem
-	FPathStringView PathView = RemoveExtendedPathPrefix(Path);
-	FPathStringView BaseView = RemoveExtendedPathPrefix(Base);
+	FPathStringView PathView = RemoveUNCPrefix(Path);
+	FPathStringView BaseView = RemoveUNCPrefix(Base);
 
-	FPathStringView PathViewRemainder = PathView.substr(BaseView.length());
-
-	if (PathView.starts_with(BaseView) && PathViewRemainder.starts_with(FPath::preferred_separator))
+	if (PathView.starts_with(BaseView))
 	{
-		FPathStringView RelativePath = PathView.substr(BaseView.length());
-		while (RelativePath.starts_with(FPath::preferred_separator))
+		FPathStringView PathViewRemainder = PathView.substr(BaseView.length());
+		if (PathViewRemainder.starts_with(FPath::preferred_separator))
 		{
-			RelativePath = RelativePath.substr(1);
+			FPathStringView RelativePath = PathView.substr(BaseView.length());
+			while (RelativePath.starts_with(FPath::preferred_separator))
+			{
+				RelativePath = RelativePath.substr(1);
+			}
+			return RelativePath;
 		}
-		return FPath(RelativePath);
 	}
 
 	return {};
+}
+
+void
+ConvertDirectorySeparatorsToNative(std::string& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](char C) { return C == '/' || C == '\\'; },
+		PATH_SEPARATOR);
+}
+
+void
+ConvertDirectorySeparatorsToUnix(std::string& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](char C) { return C == '\\'; },
+		char('/'));
+}
+
+void
+ConvertDirectorySeparatorsToNative(std::wstring& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](wchar_t C) { return C == '/' || C == '\\'; },
+		wchar_t(FPath::preferred_separator));
+}
+
+void
+ConvertDirectorySeparatorsToUnix(std::wstring& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](wchar_t C) { return C == '\\'; },
+		wchar_t('/'));
+}
+
+std::error_code
+CopyFileIfNewer(const FPath& Source, const FPath& Target)
+{
+	FFileAttributes SourceAttr = GetFileAttrib(Source);
+	FFileAttributes TargetAttr = GetFileAttrib(Target);
+	std::error_code Ec;
+	if (SourceAttr.Size != TargetAttr.Size || SourceAttr.Mtime != TargetAttr.Mtime)
+	{
+		FileCopyOverwrite(Source, Target, Ec);
+	}
+	return Ec;
+}
+
+
+bool
+IsNonCaseSensitiveFileSystem(const FPath& ExistingPath)
+{
+	UNSYNC_ASSERTF(PathExists(ExistingPath), L"IsCaseSensitiveFileSystem must be called with a path that exists on disk");
+
+	// Assume file system is case-sensitive if all-upper and all-lower versions of the path exist and resolve to the same FS entry.
+	// This is not 100% robust due to symlinks, but is good enough for most practical purposes.
+
+	FPath PathUpper = StringToUpper(ExistingPath.wstring());
+	FPath PathLower = StringToLower(ExistingPath.wstring());
+
+	if (PathExists(PathUpper) && PathExists(PathLower))
+	{
+		return std::filesystem::equivalent(ExistingPath, PathUpper) && std::filesystem::equivalent(PathLower, PathUpper);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool
+IsCaseSensitiveFileSystem(const FPath& ExistingPath)
+{
+	return !IsNonCaseSensitiveFileSystem(ExistingPath);
 }
 
 FFileAttributes GetCachedFileAttrib(const FPath& Path, FFileAttributeCache& AttribCache)
@@ -875,6 +1001,7 @@ bool
 SetFileMtime(const FPath& Path, uint64 Mtime, bool bAllowInDryRun)
 {
 	UNSYNC_ASSERT(!GDryRun || bAllowInDryRun);
+	UNSYNC_ASSERT(Mtime != 0);
 
 	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
 
@@ -1203,6 +1330,12 @@ CreateDirectories(const FPath& Path)
 }
 
 bool
+EnsureDirectoryExists(const FPath& Path)
+{
+	return (PathExists(Path) && IsDirectory(Path)) || CreateDirectories(Path);
+}
+
+bool
 FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorCode)
 {
 	FPath ExtendedFrom = MakeExtendedAbsolutePath(From);
@@ -1238,6 +1371,13 @@ std::filesystem::recursive_directory_iterator RecursiveDirectoryScan(const FPath
 {
 	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
 	return std::filesystem::recursive_directory_iterator(ExtendedPath);
+}
+
+std::filesystem::directory_iterator
+DirectoryScan(const FPath& Path)
+{
+	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
+	return std::filesystem::directory_iterator(ExtendedPath);
 }
 
 FMemReader::FMemReader(const uint8* InData, uint64 InDataSize) : Data(InData), Size(InDataSize)
@@ -1386,6 +1526,54 @@ TestFileTime()
 	}
 }
 
+uint64
+BlockingReadLarge(FIOReader& Reader, uint64 Offset, uint64 Size, uint8* OutputBuffer, uint64 OutputBufferSize)
+{
+	const uint64 BytesPerRead = 2_MB;
+	const uint64 ReadEnd	  = std::min(Offset + Size, Reader.GetSize());
+	const uint64 ClampedSize  = ReadEnd - Offset;
+
+	std::atomic<uint64> TotalReadSize = 0;
+
+	if (ClampedSize == 0)
+	{
+		return TotalReadSize;
+	}
+
+	FSchedulerSemaphore IoSemaphore(*GScheduler, 16);
+	FTaskGroup			CopyTasks = GScheduler->CreateTaskGroup(&IoSemaphore);
+
+	uint64 NumReads = DivUp(ClampedSize, BytesPerRead);
+	for (uint64 ReadIndex = 0; ReadIndex < NumReads; ++ReadIndex)
+	{
+		const uint64 ThisBatchSize	= CalcChunkSize(ReadIndex, BytesPerRead, ClampedSize);
+		const uint64 OutputOffset	= BytesPerRead * ReadIndex;
+		const uint64 ThisReadOffset = Offset + OutputOffset;
+
+		auto ReadCallback = [OutputBuffer, OutputBufferSize, &TotalReadSize, &CopyTasks](FIOBuffer CmdBuffer,
+																						 uint64	   CmdSourceOffset,
+																						 uint64	   CmdReadSize,
+																						 uint64	   OutputOffset)
+		{
+			UNSYNC_ASSERT(OutputOffset + CmdReadSize <= OutputBufferSize);
+
+			CopyTasks.run(
+				[OutputBuffer, OutputOffset, CmdReadSize, CmdBuffer = MakeShared(std::move(CmdBuffer)), &TotalReadSize]()
+				{
+					memcpy(OutputBuffer + OutputOffset, CmdBuffer->GetData(), CmdReadSize);
+					TotalReadSize += CmdReadSize;
+				});
+		};
+
+		Reader.ReadAsync(ThisReadOffset, ThisBatchSize, OutputOffset, ReadCallback);
+	}
+
+	Reader.FlushAll();
+	CopyTasks.wait();
+
+	return TotalReadSize;
+}
+
 void
 TestFileAttrib()
 {
@@ -1434,6 +1622,94 @@ TestFileAttrib()
 	std::error_code ErrorCode;
 	const bool		bFileDeleted = FileRemove(TestFilename, ErrorCode);
 	UNSYNC_ASSERT(bFileDeleted);
+}
+
+void
+TestPathUtil()
+{
+#if UNSYNC_PLATFORM_WINDOWS
+
+	UNSYNC_LOG(L"TestPathUtil()");
+	UNSYNC_LOG_INDENT;
+
+	// Test path manipulation helpers
+
+	{
+		FPath Simple   = FPath("\\\\?\\UNC\\server\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		UNSYNC_ASSERT(Simple == Extended);
+	}
+
+	{
+		FPath Simple   = FPath("\\\\?\\d:\\local\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		UNSYNC_ASSERT(Simple == Extended);
+	}
+
+	{
+		FPath Simple   = FPath("d:\\local\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		FPath Stripped = RemoveExtendedPathPrefix(Extended);
+		UNSYNC_ASSERT(Stripped == Simple);
+	}
+
+	{
+		FPath Simple   = FPath("\\\\server\\local\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		FPath Stripped = RemoveExtendedPathPrefix(Extended);
+		UNSYNC_ASSERT(Stripped == Simple);
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("\\\\server\\subdir");
+		FPath Full	   = FPath("\\\\server\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("\\\\?\\d:\\local\\subdir");
+		FPath Full	   = FPath("\\\\?\\d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("\\\\?\\d:\\local\\subdir");
+		FPath Full	   = FPath("d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("\\\\?\\d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("\\\\?\\e:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative.empty());
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("d:\\local\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative.empty());
+	}
+
+#endif // UNSYNC_PLATFORM_WINDOWS
 }
 
 }  // namespace unsync

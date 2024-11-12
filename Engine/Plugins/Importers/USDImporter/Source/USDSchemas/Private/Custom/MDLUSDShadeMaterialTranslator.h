@@ -9,7 +9,7 @@
 #if USE_USD_SDK && WITH_EDITOR
 
 #include "USDIncludesStart.h"
-	#include "pxr/pxr.h"
+#include "pxr/pxr.h"
 #include "USDIncludesEnd.h"
 
 class FMdlUsdShadeMaterialTranslator : public FMaterialXUsdShadeMaterialTranslator
@@ -17,13 +17,13 @@ class FMdlUsdShadeMaterialTranslator : public FMaterialXUsdShadeMaterialTranslat
 	using Super = FMaterialXUsdShadeMaterialTranslator;
 
 public:
+	UE_DEPRECATED(5.5, "Use UnrealIdentifiers::MdlRenderContext instead")
 	static FName MdlRenderContext;
 
 public:
 	using FMaterialXUsdShadeMaterialTranslator::FMaterialXUsdShadeMaterialTranslator;
 
 	virtual void CreateAssets() override;
-
 };
 
-#endif // #if USE_USD_SDK && WITH_EDITOR
+#endif	  // #if USE_USD_SDK && WITH_EDITOR

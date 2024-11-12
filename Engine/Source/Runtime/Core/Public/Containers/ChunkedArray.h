@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Containers/IndirectArray.h"
 
@@ -99,6 +100,24 @@ public:
 
 	TChunkedArray(const TChunkedArray&) = default;
 	TChunkedArray& operator=(const TChunkedArray&) = default;
+
+	//////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TChunkedArray> state //
+	//////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TChunkedArray;
+
+	explicit TChunkedArray(FIntrusiveUnsetOptionalState)
+		: NumElements(-1)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return NumElements == -1;
+	}
+	////////////////////////////////////////////////////
+	// End - intrusive TOptional<TChunkedArray> state //
+	////////////////////////////////////////////////////
 
 	// Accessors.
 	ElementType& operator()(int32 ElementIndex)

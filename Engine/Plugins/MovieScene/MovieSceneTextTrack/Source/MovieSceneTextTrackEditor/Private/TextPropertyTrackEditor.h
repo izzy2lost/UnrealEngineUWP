@@ -8,6 +8,10 @@
 class UMovieSceneKeyStructType;
 class FSequencerKeyStructGenerator;
 struct FMovieSceneTextChannel;
+namespace UE::Sequencer
+{
+	struct FCreateKeyEditorParams;
+}
 
 /** Track Editor for Text Property */
 class FTextPropertyTrackEditor : public FPropertyTrackEditor<UMovieSceneTextTrack>
@@ -39,11 +43,7 @@ protected:
 
 bool CanCreateKeyEditor(const FMovieSceneTextChannel* Channel);
 
-TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTextChannel>& Channel
-	, UMovieSceneSection* Section
-	, const FGuid& InObjectBindingID
-	, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings
-	, TWeakPtr<ISequencer> InSequencer);
+TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneTextChannel>& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params);
 
 UMovieSceneKeyStructType* InstanceGeneratedStruct(FMovieSceneTextChannel* Channel, FSequencerKeyStructGenerator* Generator);
 

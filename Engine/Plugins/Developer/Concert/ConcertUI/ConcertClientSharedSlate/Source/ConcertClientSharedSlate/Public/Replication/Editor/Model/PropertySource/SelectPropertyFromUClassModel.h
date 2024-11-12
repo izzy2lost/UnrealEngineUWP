@@ -2,33 +2,28 @@
 
 #pragma once
 
-#include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
-
+#include "ConcertSyncCoreReplicatedPropertySource.h"
+#include "Replication/Editor/Model/Property/IPropertySourceProcessor.h"
 #include "Templates/SharedPointer.h"
 
 struct FSoftClassPath;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class FConcertSyncCoreReplicatedPropertySource;
-	
 	/**
 	 * Decides which properties can be added to IEditableReplicationStreamModel.
 	 * The allowed properties are those returned by UE::ConcertSyncCore::ForEachReplicatableProperty.
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API FSelectPropertyFromUClassModel : public ConcertSharedSlate::IPropertySelectionSourceModel
+	class CONCERTCLIENTSHAREDSLATE_API FSelectPropertyFromUClassModel : public ConcertSharedSlate::IPropertySourceProcessor
 	{
 	public:
 
-		FSelectPropertyFromUClassModel();
-
-		//~ Begin IPropertySelectionSourceModel Interface
-		virtual TSharedRef<ConcertSharedSlate::IPropertySourceModel> GetPropertySource(const FSoftClassPath& Class) const override;
-		//~ End IPropertySelectionSourceModel Interface
-
-	private:
-
-		TSharedRef<FConcertSyncCoreReplicatedPropertySource> UClassIteratorSource;
+		//~ Begin IPropertySelectionProcessor Interface
+		virtual void ProcessPropertySource(
+			const ConcertSharedSlate::FPropertySourceContext& Context,
+			TFunctionRef<void(const ConcertSharedSlate::IPropertySource& Model)> Processor
+			) const override;
+		//~ End IPropertySelectionProcessor Interface
 	};
 }
 

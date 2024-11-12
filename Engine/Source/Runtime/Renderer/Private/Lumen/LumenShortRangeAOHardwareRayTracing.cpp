@@ -125,6 +125,9 @@ void RenderHardwareRayTracingShortRangeAO(
 	const bool bNeedTraceHairVoxel = HairStrands::HasViewHairStrandsVoxelData(View) && GLumenShortRangeAOHairStrandsVoxelTrace > 0;
 
 	{
+		const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+		const FRayTracingShaderBindingTable& RayTracingSBT = Scene->RayTracingSBT;
+
 		FLumenShortRangeAOHardwareRayTracing::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenShortRangeAOHardwareRayTracing::FParameters>();
 		PassParameters->RWScreenBentNormal = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(ScreenBentNormal));
 		PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
@@ -153,18 +156,16 @@ void RenderHardwareRayTracingShortRangeAO(
 			RDG_EVENT_NAME("ShortRangeAO_HWRT(Rays=%u)", NumPixelRays),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[&View, RayGenerationShader, PassParameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
+			[&View, RayGenerationShader, PassParameters, Resolution, &RayTracingScene, &RayTracingSBT](FRHICommandList& RHICmdList)
 			{
-				FRayTracingShaderBindingsWriter GlobalResources;
+				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
-
-				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 
 				bool bBentNormalEnableMaterials = false;
 
 				if (bBentNormalEnableMaterials)
 				{
-					RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
+					RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
 				}
 				else
 				{
@@ -177,14 +178,18 @@ void RenderHardwareRayTracingShortRangeAO(
 
 					FRHIRayTracingShader* HitGroupTable[] = { GetRayTracingDefaultOpaqueShader(View.ShaderMap) };
 					Initializer.SetHitGroupTable(HitGroupTable);
-					Initializer.bAllowHitGroupIndexing = false; // Use the same hit shader for all geometry in the scene by disabling SBT indexing.
 
 					FRHIRayTracingShader* MissGroupTable[] = { GetRayTracingDefaultMissShader(View.ShaderMap) };
 					Initializer.SetMissShaderTable(MissGroupTable);
 
 					FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
-					RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
-					RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
+
+					FShaderBindingTableRHIRef SBT = RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Disallow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, Initializer.GetMaxLocalBindingDataSize());
+					
+					RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);
+					RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+					RHICmdList.CommitShaderBindingTable(SBT);
+					RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, Resolution.X, Resolution.Y);
 				}
 			});
 	}

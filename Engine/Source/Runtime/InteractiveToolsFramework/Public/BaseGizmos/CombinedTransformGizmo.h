@@ -21,6 +21,11 @@ class UGizmoComponentAxisSource;
 class UGizmoTransformChangeStateTarget;
 class UGizmoViewContext;
 class FTransformGizmoTransformChange;
+namespace UE::GizmoUtil
+{
+	struct FTransformSubGizmoCommonParams;
+	struct FTransformSubGizmoSharedState;
+}
 
 /**
  * ACombinedTransformGizmoActor is an Actor type intended to be used with UCombinedTransformGizmo,
@@ -89,7 +94,7 @@ public:
 	UPROPERTY()
 	TObjectPtr<UPrimitiveComponent> RotateZ;
 
-	/** Z Axis Rotation Component */
+	/** Circle that gets drawn around the outside of the gizmo to make it look like a sphere */
 	UPROPERTY()
 	TObjectPtr<UPrimitiveComponent> RotationSphere;
 
@@ -130,6 +135,22 @@ public:
 
 
 public:
+	/**
+	 * Replaces the component corresponding to the given element with a new component.
+	 * 
+	 * @param Element Element to replace, should be a single element (no combined flags), except that
+	 *  RotateAllAxes will be interpreted to mean the rotation sphere component.
+	 * @param NewComponent The component to replace with. If nullptr, no component is added (i.e. the
+	 *  function just deletes the existing component). If not nullptr, then the component should have
+	 *  this actor in its outer chain, i.e. it should have been created as NewObject<UYourComponentType>(ThisActor).
+	 * @param SubGizmoToGizmo Transform from component to gizmo (i.e. the relative transform).
+	 * @param ReplacedComponentOut Outputs a pointer to the replaced component, if there was one. Note 
+	 *  that the component will already have had DestroyComponent() called on it.
+	 * @return true if successful, which will be always as long as parameters are valid.
+	 */
+	bool ReplaceSubGizmoComponent(ETransformGizmoSubElements Element, UPrimitiveComponent* NewComponent, 
+		const FTransform& SubGizmoToGizmo, UPrimitiveComponent** ReplacedComponentOut = nullptr);
+
 	/**
 	 * Create a new instance of ACombinedTransformGizmoActor and populate the various
 	 * sub-components with standard GizmoXComponent instances suitable for a 3-axis transformer Gizmo
@@ -302,6 +323,21 @@ public:
 	INTERACTIVETOOLSFRAMEWORK_API virtual void SetUpdateCoordSystemFunction(TFunction<void(UPrimitiveComponent*, EToolContextCoordinateSystem)> CoordSysFunction);
 	
 	/**
+	 * Sets a given sub gizmo component to the given component. This is only valid to call after Setup(), but
+	 *  can be before or after SetActiveTarget.
+	 * 
+	 * @param Element Element to replace, should be a single element (no combined flags), except that
+	 *  RotateAllAxes will be interpreted to mean the rotation sphere component.
+	 * @param NewComponent The component to replace with. If nullptr, no component is added (i.e. the
+	 *   function just deletes the existing component). If not nullptr, then the component should have
+	 *   the gizmo actor in its outer chain, e.g. NewObject<UYourComponentType>(ThisGizmo->GetGizmoActor()).
+	 * @param SubGizmoToGizmo Transform from component to gizmo.
+	 * @return true if successful.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API bool SetSubGizmoComponent(ETransformGizmoSubElements Element, UPrimitiveComponent* Component, 
+		const FTransform& SubGizmoToGizmo);
+
+	/**
 	 * If used, binds alignment functions to the sub gizmos that they can use to align to geometry in the scene. 
 	 * Specifically, translation and rotation gizmos will check ShouldAlignDestination() to see if they should
 	 * use the custom ray caster (this allows the behavior to respond to modifier key presses, for instance),
@@ -448,11 +484,16 @@ public:
 	FRotator ExplicitRotationGridSize;
 
 	/**
-	 * If true, then when using world frame, Axis and Plane translation snap to the world grid via the ContextQueriesAPI (in RotationSnapFunction)
+	 * If true, then when using world frame, Axis and Plane rotation snap to the world grid via the ContextQueriesAPI (in RotationSnapFunction)
 	 */
 	UPROPERTY()
 	bool bSnapToWorldRotGrid = true;
 
+	/**
+	 * If true, scaling snaps to the grid
+	 */
+	UPROPERTY()
+	bool bSnapToScaleGrid = true;
 
 
 	/**
@@ -646,17 +687,57 @@ protected:
 
 	// See comment for SetDisplaySpaceTransform;
 	TOptional<FTransform> DisplaySpaceTransform;
+
 protected:
 
+	using FTransformSubGizmoCommonParams = UE::GizmoUtil::FTransformSubGizmoCommonParams;
+	using FTransformSubGizmoSharedState = UE::GizmoUtil::FTransformSubGizmoSharedState;
 
+	/** @return a new instance of the standard axis-translation Gizmo */
+	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddAxisTranslationGizmo(
+		FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState);
+
+	/** @return a new instance of the standard plane-translation Gizmo */
+	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddPlaneTranslationGizmo(
+		FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState);
+
+	/** @return a new instance of the standard axis-rotation Gizmo */
+	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddAxisRotationGizmo(
+		FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState);
+
+	/** @return a new instance of the standard axis-scaling Gizmo */
+	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddAxisScaleGizmo(
+		FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState);
+
+	/** @return a new instance of the standard plane-scaling Gizmo */
+	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddPlaneScaleGizmo(
+		FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState);
+
+	/** @return a new instance of the standard plane-scaling Gizmo */
+	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddUniformScaleGizmo(
+		FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState);
+
+	// Axis and Plane TransformSources use these function to execute snapping queries
+	INTERACTIVETOOLSFRAMEWORK_API bool PositionSnapFunction(const FVector& WorldPosition, FVector& SnappedPositionOut) const;
+	INTERACTIVETOOLSFRAMEWORK_API bool PositionAxisDeltaSnapFunction(double AxisDelta, double& SnappedDeltaOut, int AxisIndex) const;
+	INTERACTIVETOOLSFRAMEWORK_API FQuat RotationSnapFunction(const FQuat& DeltaRotation) const;
+	INTERACTIVETOOLSFRAMEWORK_API bool RotationAxisAngleSnapFunction(double AxisAngleDelta, double& SnappedAxisAngleDeltaOut, int AxisIndex) const;
+	
+	// currently not implemented because WorldGridSnapping currently has no affect on scale/scale-snapping
+	INTERACTIVETOOLSFRAMEWORK_API bool ScaleSnapFunction(double DeltaScale) const;
+	// used to execute Plane, Axis, & Uniform scale snapping
+	INTERACTIVETOOLSFRAMEWORK_API bool ScaleAxisDeltaSnapFunction(double ScaleAxisDelta, double & SnappedAxisScaleDeltaOut) const;
+
+
+	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
 	/** @return a new instance of the standard axis-translation Gizmo */
 	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddAxisTranslationGizmo(
 		UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 		IGizmoAxisSource* AxisSource,
-		IGizmoTransformSource* TransformSource, 
+		IGizmoTransformSource* TransformSource,
 		IGizmoStateTarget* StateTarget,
 		int AxisIndex);
-
+	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
 	/** @return a new instance of the standard plane-translation Gizmo */
 	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddPlaneTranslationGizmo(
 		UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
@@ -664,28 +745,28 @@ protected:
 		IGizmoTransformSource* TransformSource,
 		IGizmoStateTarget* StateTarget,
 		int XAxisIndex, int YAxisIndex);
-
+	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
 	/** @return a new instance of the standard axis-rotation Gizmo */
 	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddAxisRotationGizmo(
 		UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 		IGizmoAxisSource* AxisSource,
 		IGizmoTransformSource* TransformSource,
 		IGizmoStateTarget* StateTarget);
-
+	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
 	/** @return a new instance of the standard axis-scaling Gizmo */
 	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddAxisScaleGizmo(
 		UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 		IGizmoAxisSource* GizmoAxisSource, IGizmoAxisSource* ParameterAxisSource,
 		IGizmoTransformSource* TransformSource,
 		IGizmoStateTarget* StateTarget);
-
+	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
 	/** @return a new instance of the standard plane-scaling Gizmo */
 	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddPlaneScaleGizmo(
 		UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 		IGizmoAxisSource* GizmoAxisSource, IGizmoAxisSource* ParameterAxisSource,
 		IGizmoTransformSource* TransformSource,
 		IGizmoStateTarget* StateTarget);
-
+	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
 	/** @return a new instance of the standard plane-scaling Gizmo */
 	INTERACTIVETOOLSFRAMEWORK_API virtual UInteractiveGizmo* AddUniformScaleGizmo(
 		UPrimitiveComponent* ScaleComponent, USceneComponent* RootComponent,
@@ -693,10 +774,10 @@ protected:
 		IGizmoTransformSource* TransformSource,
 		IGizmoStateTarget* StateTarget);
 
-	// Axis and Plane TransformSources use these function to execute snapping queries
-	INTERACTIVETOOLSFRAMEWORK_API bool PositionSnapFunction(const FVector& WorldPosition, FVector& SnappedPositionOut) const;
-	INTERACTIVETOOLSFRAMEWORK_API bool PositionAxisDeltaSnapFunction(double AxisDelta, double& SnappedDeltaOut, int AxisIndex) const;
-	INTERACTIVETOOLSFRAMEWORK_API FQuat RotationSnapFunction(const FQuat& DeltaRotation) const;
-	INTERACTIVETOOLSFRAMEWORK_API bool RotationAxisAngleSnapFunction(double AxisAngleDelta, double& SnappedAxisAngleDeltaOut, int AxisIndex) const;
-
+	// Useful for reinitializing components after SetActiveTarget, or for use by derived classes.
+	TUniquePtr<FTransformSubGizmoSharedState> SubGizmoSharedState;
+private:
+	// Here to support subgizmo reinitialization after SetActiveTarget has been called. Private
+	// instead of protected for now in case we change the approach here.
+	IToolContextTransactionProvider* TransactionProviderAtLastSetActiveTarget = nullptr;
 };

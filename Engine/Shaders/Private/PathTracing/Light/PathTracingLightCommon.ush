@@ -184,9 +184,6 @@ bool IsPhysicalLight(int LightId)
 
 float3 GetTranslatedPosition(int LightId)
 {
-	//const FDFVector3 WorldPosition = DFFromTileOffset_Hack(MakeLWCVector3(SceneLights[LightId].TilePosition, SceneLights[LightId].RelativeWorldPosition));
-	//return DFFastToTranslatedWorld(WorldPosition, PreViewTranslation);
-
 	return SceneLights[LightId].TranslatedWorldPosition;
 }
 
@@ -197,12 +194,12 @@ float3 GetNormal(int LightId)
 
 float3 GetdPdu(int LightId)
 {
-	return SceneLights[LightId].dPdu;
+	return cross(SceneLights[LightId].Normal, SceneLights[LightId].Tangent);
 }
 
 float3 GetdPdv(int LightId)
 {
-	return SceneLights[LightId].dPdv;
+	return SceneLights[LightId].Tangent;
 }
 
 float GetWidth(int LightId)
@@ -345,6 +342,11 @@ bool CastsVolumeShadow(int LightId)
 	return (SceneLights[LightId].Flags & PATHTRACER_FLAG_CAST_VOL_SHADOW_MASK) != 0;
 }
 
+bool CastsCloudShadow(int LightId)
+{
+	return (SceneLights[LightId].Flags & PATHTRACER_FLAG_CAST_CLOUD_SHADOW_MASK) != 0;
+}
+
 bool HasRectTexture(int LightId)
 {
 	return (SceneLights[LightId].Flags & PATHTRACER_FLAG_HAS_RECT_TEXTURE_MASK) != 0;
@@ -357,7 +359,12 @@ float GetVolumetricScatteringIntensity(int LightId)
 
 float GetLightSpecularScale(int LightId)
 {
-	return SceneLights[LightId].SpecularScale;
+	return UnpackFloat2FromUInt(SceneLights[LightId].DiffuseSpecularScale).y;
+}
+
+float GetLightDiffuseScale(int LightId)
+{
+	return UnpackFloat2FromUInt(SceneLights[LightId].DiffuseSpecularScale).x;
 }
 
 uint GetLightMissShaderIndex(int LightId)

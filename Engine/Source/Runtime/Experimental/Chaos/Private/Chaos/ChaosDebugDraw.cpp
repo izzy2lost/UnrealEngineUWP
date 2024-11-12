@@ -38,6 +38,9 @@ namespace Chaos
 	namespace CVars
 	{
 		extern int32 ChaosOneWayInteractionPairCollisionMode;
+		extern int32 ChaosSolverDrawShapesShowStatic;
+		extern int32 ChaosSolverDrawShapesShowKinematic;
+		extern int32 ChaosSolverDrawShapesShowDynamic;
 	}
 
 	namespace DebugDraw
@@ -443,6 +446,55 @@ namespace Chaos
 				}
 			}
 			return true;
+		}
+
+		bool ShouldIgnoreParticle(const FGeometryParticleHandle* InParticle)
+		{
+			if (!CVars::ChaosSolverDrawShapesShowStatic)
+			{
+				if (FConstGenericParticleHandle(InParticle)->IsStatic())
+				{
+					return true;
+				}
+			}
+			if (!CVars::ChaosSolverDrawShapesShowKinematic)
+			{
+				if (FConstGenericParticleHandle(InParticle)->IsKinematic())
+				{
+					return true;
+				}
+			}
+			if (!CVars::ChaosSolverDrawShapesShowDynamic)
+			{
+				if (FConstGenericParticleHandle(InParticle)->IsDynamic())
+				{
+					return true;
+				}
+			}
+
+			if (!bChaosDebugDebugDrawShowQueryOnlyShapes)
+			{
+				if (IsParticleQueryOnly(InParticle))
+				{
+					return true;
+				}
+			}
+			if (!bChaosDebugDebugDrawShowSimOnlyShapes)
+			{
+				if (IsParticleSimOnly(InParticle))
+				{
+					return true;
+				}
+			}
+			if (!bChaosDebugDebugDrawShowProbeOnlyShapes)
+			{
+				if (IsParticleProbeOnly(InParticle))
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		//
@@ -990,6 +1042,11 @@ namespace Chaos
 
 		void DrawBVHImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const Private::FImplicitBVH* BVH, const FColor& UnusedColor, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings)
 		{
+			if (ShouldIgnoreParticle(Particle))
+			{
+				return;
+			}
+
 			const FReal BoundsDrawShrink = 1.0f;	// 1cm
 			int32 LeafIndex = 0;
 
@@ -1070,6 +1127,11 @@ namespace Chaos
 
 		void DrawParticleBoundsImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* InParticle, const FReal Dt, const FChaosDebugDrawSettings& Settings)
 		{
+			if (ShouldIgnoreParticle(InParticle))
+			{
+				return;
+			}
+
 			FConstGenericParticleHandle Particle = InParticle;
 
 			const FAABB3 Box = InParticle->WorldSpaceInflatedBounds();
@@ -1105,26 +1167,9 @@ namespace Chaos
 
 		void DrawParticleTransformImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* InParticle, int32 Index, FRealSingle ColorScale, const FChaosDebugDrawSettings& Settings)
 		{
-			if (!bChaosDebugDebugDrawShowQueryOnlyShapes)
+			if (ShouldIgnoreParticle(InParticle))
 			{
-				if (IsParticleQueryOnly(InParticle))
-				{
-					return;
-				}
-			}
-			if (!bChaosDebugDebugDrawShowSimOnlyShapes)
-			{
-				if (IsParticleSimOnly(InParticle))
-				{
-					return;
-				}
-			}
-			if (!bChaosDebugDebugDrawShowProbeOnlyShapes)
-			{
-				if (IsParticleProbeOnly(InParticle))
-				{
-					return;
-				}
+				return;
 			}
 
 			const TPBDRigidParticleHandle<FReal, 3>* Rigid = InParticle->CastToRigidParticle();
@@ -1528,16 +1573,13 @@ namespace Chaos
 
 		void DrawParticleMassImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* InParticle, const FChaosDebugDrawSettings& Settings)
 		{
+			if (ShouldIgnoreParticle(InParticle))
+			{
+				return;
+			}
+
 			if (const auto RigidParticle = InParticle->CastToRigidParticle())
 			{
-				if (!bChaosDebugDebugDrawShowQueryOnlyShapes)
-				{
-					if (IsParticleQueryOnly(InParticle))
-					{
-						return;
-					}
-				}
-
 				const FColor Color = RigidParticle->IsDynamic()? FColor::Yellow: FColor::Cyan;
 
 				const FVec3 PCOM = SpaceTransform.TransformPosition(FParticleUtilities::GetCoMWorldPosition(RigidParticle));
@@ -1560,6 +1602,43 @@ namespace Chaos
 					const FReal RoundedMass = 0.1 * FMath::RoundToDouble(Mass * FormatMultiplier * 10.0);
 					const FString MassStr = FString::Format(FormatString, { FString::SanitizeFloat(RoundedMass, 1) });
 					FDebugDrawQueue::GetInstance().DrawDebugString(PCOM, MassStr, nullptr, Color, UE_KINDA_SMALL_NUMBER, false, Settings.FontScale);
+				}
+			}
+		}
+
+		void DrawParticleDensityImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* InParticle, const FChaosDebugDrawSettings& Settings)
+		{
+			if (ShouldIgnoreParticle(InParticle))
+			{
+				return;
+			}
+
+			if (const auto RigidParticle = InParticle->CastToRigidParticle())
+			{
+				if (RigidParticle->Disabled())
+				{
+					return;
+				}
+
+				const FColor Color = RigidParticle->IsDynamic() ? FColor::Yellow : FColor::Cyan;
+
+				const FVec3 PCOM = SpaceTransform.TransformPosition(FParticleUtilities::GetCoMWorldPosition(RigidParticle));
+
+				// density is per material so it is set per shape
+				for (const TUniquePtr<FPerShapeData>& Shape: RigidParticle->ShapesArray())
+				{
+					if (Shape && Shape->NumMaterials() > 0)
+					{
+						// use the first one for now
+						if (const Chaos::FChaosPhysicsMaterial* ChaosMaterial = Shape->GetMaterial(0).Get())
+						{
+							const double Density = ChaosMaterial->Density;
+							auto FormatString = TEXT("{0}");
+							const FString DensityStr = FString::Format(FormatString, { FString::SanitizeFloat(Density, 1) });
+							FDebugDrawQueue::GetInstance().DrawDebugString(PCOM, DensityStr, nullptr, Color, UE_KINDA_SMALL_NUMBER, false, Settings.FontScale);
+
+						}
+					}
 				}
 			}
 		}
@@ -2268,6 +2347,28 @@ namespace Chaos
 				for (auto& Particle : ParticlesView)
 				{
 					DrawParticleMassImpl(SpaceTransform, GetHandleHelper(&Particle), GetChaosDebugDrawSettings(Settings));
+				}
+			}
+		}
+
+		void DrawParticleDensity(const FRigidTransform3& SpaceTransform, const TParticleView<FKinematicGeometryParticles>& ParticlesView, const FChaosDebugDrawSettings* Settings)
+		{
+			if (FDebugDrawQueue::IsDebugDrawingEnabled())
+			{
+				for (auto& Particle : ParticlesView)
+				{
+					DrawParticleDensityImpl(SpaceTransform, GetHandleHelper(&Particle), GetChaosDebugDrawSettings(Settings));
+				}
+			}
+		}
+
+		void DrawParticleDensity(const FRigidTransform3& SpaceTransform, const TParticleView<FPBDRigidParticles>& ParticlesView, const FChaosDebugDrawSettings* Settings)
+		{
+			if (FDebugDrawQueue::IsDebugDrawingEnabled())
+			{
+				for (auto& Particle : ParticlesView)
+				{
+					DrawParticleDensityImpl(SpaceTransform, GetHandleHelper(&Particle), GetChaosDebugDrawSettings(Settings));
 				}
 			}
 		}

@@ -72,6 +72,9 @@ public:
 	 */
 	ENGINE_API void Shutdown() override;
 
+	/** Get the name of the asset type this compiler handles */
+	ENGINE_API static FName GetStaticAssetTypeName();
+
 private:
 	FSkinnedAssetCompilingManager();
 

@@ -186,11 +186,13 @@ void UCombineMeshesTool::CreateNewAsset()
 
 	// Make sure meshes are available before we open transaction. This is to avoid potential stability issues related 
 	// to creation/load of meshes inside a transaction, for assets that possibly do not have bulk data currently loaded.
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
 	TArray<FDynamicMesh3> InputMeshes;
 	InputMeshes.Reserve(Targets.Num());
 	for (int32 ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
 	{
-		InputMeshes.Add(UE::ToolTarget::GetDynamicMeshCopy(Targets[ComponentIdx], true));
+		InputMeshes.Add(UE::ToolTarget::GetDynamicMeshCopy(Targets[ComponentIdx], GetMeshParams));
 	}
 
 	GetToolManager()->BeginUndoTransaction( bDuplicateMode ? 
@@ -369,11 +371,13 @@ void UCombineMeshesTool::UpdateExistingAsset()
 
 	// Make sure meshes are available before we open transaction. This is to avoid potential stability issues related 
 	// to creation/load of meshes inside a transaction, for assets that possibly do not have bulk data currently loaded.
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
 	TArray<FDynamicMesh3> InputMeshes;
 	InputMeshes.Reserve(Targets.Num());
 	for (int32 ComponentIdx = 0; ComponentIdx < Targets.Num(); ComponentIdx++)
 	{
-		InputMeshes.Add(UE::ToolTarget::GetDynamicMeshCopy(Targets[ComponentIdx], true));
+		InputMeshes.Add(UE::ToolTarget::GetDynamicMeshCopy(Targets[ComponentIdx], GetMeshParams));
 	}
 
 	check(!bDuplicateMode);

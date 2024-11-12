@@ -1,14 +1,14 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimNextWorkspaceFactory.h"
-#include "AnimNextWorkspace.h"
-#include "UObject/Package.h"
+#include "Workspace/AnimNextWorkspaceFactory.h"
+#include "AnimNextWorkspaceSchema.h"
+#include "AssetTypeCategories.h"
+
+#define LOCTEXT_NAMESPACE "AnimNextWorkspaceFactory"
 
 UAnimNextWorkspaceFactory::UAnimNextWorkspaceFactory()
 {
-	bCreateNew = true;
-	bEditAfterNew = true;
-	SupportedClass = UAnimNextWorkspace::StaticClass();
+	SetSchemaClass(UAnimNextWorkspaceSchema::StaticClass());
 }
 
 bool UAnimNextWorkspaceFactory::ConfigureProperties()
@@ -16,13 +16,20 @@ bool UAnimNextWorkspaceFactory::ConfigureProperties()
 	return true;
 }
 
-UObject* UAnimNextWorkspaceFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
+FText UAnimNextWorkspaceFactory::GetDisplayName() const
 {
-	UAnimNextWorkspace* NewParameter = NewObject<UAnimNextWorkspace>(InParent, Class, Name, Flags | RF_Public | RF_Standalone | RF_Transactional | RF_LoadCompleted);
-
-	// make sure the package is never cooked.
-	UPackage* Package = NewParameter->GetOutermost();
-	Package->SetPackageFlags(Package->GetPackageFlags() | PKG_EditorOnly);
-
-	return NewParameter;
+	return LOCTEXT("DisplayName", "AnimNext Workspace");
 }
+
+uint32 UAnimNextWorkspaceFactory::GetMenuCategories() const
+{
+	return EAssetTypeCategories::Animation;
+}
+
+const TArray<FText>& UAnimNextWorkspaceFactory::GetMenuCategorySubMenus() const
+{
+	static const TArray<FText> Categories = { LOCTEXT("AnimNextSubMenu", "AnimNext") };
+	return Categories;
+}
+
+#undef LOCTEXT_NAMESPACE

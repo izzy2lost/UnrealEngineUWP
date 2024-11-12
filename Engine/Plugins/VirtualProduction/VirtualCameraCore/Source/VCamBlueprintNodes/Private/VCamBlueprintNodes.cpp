@@ -3,7 +3,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::VCamBlueprintNodes::Private
+namespace UE::VCamBlueprintNodes
 {
 	class FVCamBlueprintNodesModule : public IModuleInterface
 	{
@@ -17,4 +17,4 @@ namespace UE::VCamBlueprintNodes::Private
 	};
 }
 
-IMPLEMENT_MODULE(UE::VCamBlueprintNodes::Private::FVCamBlueprintNodesModule, VCamBlueprintNodes);
+IMPLEMENT_MODULE(UE::VCamBlueprintNodes::FVCamBlueprintNodesModule, VCamBlueprintNodes);

@@ -23,6 +23,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryValue.h"
 #include "Serialization/VarInt.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 void VARARGS StaticFailDebug (const TCHAR* Error, const ANSICHAR* Expression, const ANSICHAR* File, int32 Line, bool bIsEnsure, void* ProgramCounter, const TCHAR* DescriptionFormat, ...);
 void         StaticFailDebugV(const TCHAR* Error, const ANSICHAR* Expression, const ANSICHAR* File, int32 Line, bool bIsEnsure, void* ProgramCounter, const TCHAR* DescriptionFormat, va_list DescriptionArgs);
@@ -382,7 +383,7 @@ FLogTemplate* FLogTemplate::CreateLocalized(const TCHAR* TextNamespace, const TC
 	checkf(FAsciiSet::HasNone(Format, Invalid),
 		TEXT("Log format does not currently allow escapes (`) or argument modifiers (|). [[%s]]"), Format);
 
-	FTextFormat TextFormat(FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(Format, TextNamespace, TextKey));
+	FTextFormat TextFormat(FText::AsLocalizable_Advanced(TextNamespace, TextKey, Format));
 
 	const bool bFindFields = !!Fields;
 	if (bFindFields)
@@ -584,6 +585,13 @@ FLogTime FLogTime::Now()
 {
 	FLogTime Time;
 	Time.UtcTicks = FDateTime::UtcNow().GetTicks();
+	return Time;
+}
+
+FLogTime FLogTime::FromUtcTime(const FDateTime& UtcTime)
+{
+	FLogTime Time;
+	Time.UtcTicks = UtcTime.GetTicks();
 	return Time;
 }
 
@@ -821,18 +829,10 @@ inline static FLogRecord CreateLogRecord(const FLogCategoryBase& Category, const
 	return Record;
 }
 
-template <typename StaticLogRecordType>
-inline static void DispatchLogRecord(const StaticLogRecordType& Log, const FLogRecord& Record)
+inline static void DispatchLogRecord(const FLogRecord& Record)
 {
-#if LOGTRACE_ENABLED
-	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(LogChannel))
-	{
-		LogToTrace(&Log, Record);
-	}
-#endif
-
 	FOutputDevice* OutputDevice = nullptr;
-	switch (Log.Verbosity)
+	switch (Record.GetVerbosity())
 	{
 	case ELogVerbosity::Error:
 	case ELogVerbosity::Warning:
@@ -846,10 +846,23 @@ inline static void DispatchLogRecord(const StaticLogRecordType& Log, const FLogR
 	(OutputDevice ? OutputDevice : GLog)->SerializeRecord(Record);
 }
 
+template <typename StaticLogRecordType>
+inline static void DispatchStaticLogRecord(const StaticLogRecordType& Log, const FLogRecord& Record)
+{
+#if LOGTRACE_ENABLED
+	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(LogChannel))
+	{
+		LogToTrace(&Log, Record);
+	}
+#endif
+
+	DispatchLogRecord(Record);
+}
+
 void LogWithFieldArray(const FLogCategoryBase& Category, const FStaticLogRecord& Log, const FLogField* Fields, const int32 FieldCount)
 {
 #if !NO_LOGGING
-	DispatchLogRecord(Log, CreateLogRecord(Category, Log, Fields, FieldCount));
+	DispatchStaticLogRecord(Log, CreateLogRecord(Category, Log, Fields, FieldCount));
 #endif
 }
 
@@ -868,7 +881,7 @@ void LogWithFieldArray(const FLogCategoryBase& Category, const FStaticLocalizedL
 	FLogRecord Record = CreateLogRecord(Category, Log, Fields, FieldCount);
 	Record.SetTextNamespace(Log.TextNamespace);
 	Record.SetTextKey(Log.TextKey);
-	DispatchLogRecord(Log, Record);
+	DispatchStaticLogRecord(Log, Record);
 #endif
 }
 
@@ -1023,6 +1036,7 @@ FORCENOINLINE static FCbObject SerializeBasicLogMessage(const FStaticBasicLogRec
 	return Writer.Save().AsObject();
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void BasicLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord* Log, ...)
 {
 #if !NO_LOGGING
@@ -1077,6 +1091,7 @@ void BasicLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord* Log
 #endif
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 void BasicFatalLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord* Log, ...)
 {
 #if !NO_LOGGING
@@ -1091,5 +1106,17 @@ void BasicFatalLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord
 }
 
 } // UE::Logging::Private
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+namespace UE
+{
+
+void DispatchDynamicLogRecord(const FLogRecord& Record)
+{
+	Logging::Private::DispatchLogRecord(Record);
+}
+
+} // UE
 
 #endif // !NO_LOGGING

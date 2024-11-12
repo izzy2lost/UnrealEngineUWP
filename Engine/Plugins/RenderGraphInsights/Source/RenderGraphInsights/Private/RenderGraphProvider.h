@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Insights/Common/SimpleRtti.h"
-#include "TraceServices/Model/AnalysisSession.h"
+#include "InsightsCore/Common/SimpleRtti.h"
 #include "Model/IntervalTimeline.h"
+#include "RenderGraphResources.h"
 #include "RHITransientResourceAllocator.h"
 #include "Trace/Analyzer.h"
-#include "RenderGraphResources.h"
+#include "TraceServices/Model/AnalysisSession.h"
 
 enum class ERHIPipeline : uint8;
 
@@ -84,6 +84,9 @@ public:
 
 	mutable TArray<uint32, TInlineAllocator<1>> VisibleItems;
 
+	FRDGPassHandle TransientAcquirePass;
+	FRDGPassHandle TransientDiscardPass;
+
 	bool bExternal{};
 	bool bExtracted{};
 	bool bCulled{};
@@ -142,6 +145,7 @@ public:
 	bool bParallelExecuteEnd{};
 	bool bParallelExecute{};
 	bool bParallelExecuteAllowed{};
+	bool bParallelExecuteAsyncAllowed{};
 
 	FPassPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context);
 };

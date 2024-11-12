@@ -26,7 +26,7 @@ const TCHAR* ActorTagsView[] = {
 	DATASMITH_ACTORHIERARCHICALINSTANCEDMESHNAME,
 	DATASMITH_ACTORMESHNAME,
 	DATASMITH_CAMERANAME,
-	DATASMITH_CLOTHACTORNAME,
+	DATASMITH_CLOTHACTORNAME,  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	DATASMITH_CUSTOMACTORNAME,
 	DATASMITH_DECALACTORNAME,
 	DATASMITH_LANDSCAPENAME,
@@ -436,7 +436,8 @@ void FDatasmithSceneXmlReader::ParseMesh(FXmlNode* InNode, TSharedPtr<IDatasmith
 	}
 }
 
-void FDatasmithSceneXmlReader::ParseCloth(FXmlNode* InNode, TSharedPtr<IDatasmithClothElement>& OutElement) const
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FDatasmithSceneXmlReader::ParseCloth(FXmlNode* InNode, TSharedPtr<IDatasmithClothElement>& OutElement) const  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	ParseElement( InNode, OutElement.ToSharedRef() );
 
@@ -448,6 +449,7 @@ void FDatasmithSceneXmlReader::ParseCloth(FXmlNode* InNode, TSharedPtr<IDatasmit
 		}
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDatasmithSceneXmlReader::ParseTextureElement(FXmlNode* InNode, TSharedPtr<IDatasmithTextureElement>& OutElement) const
 {
@@ -663,12 +665,14 @@ void FDatasmithSceneXmlReader::ParseActor(FXmlNode* InNode, TSharedPtr<IDatasmit
 		ParseMeshActor(InNode, MeshElement, Scene);
 		InOutElement = MeshElement;
 	}
-	else if (InNode->GetTag() == DATASMITH_CLOTHACTORNAME)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	else if (InNode->GetTag() == DATASMITH_CLOTHACTORNAME)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		TSharedPtr< IDatasmithClothActorElement> Element = FDatasmithSceneFactory::CreateClothActor(*InNode->GetAttribute(TEXT("name")));
 		ParseClothActor(InNode, Element, Scene);
 		InOutElement = Element;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	else if (InNode->GetTag() == DATASMITH_LIGHTNAME)
 	{
 		TSharedPtr< IDatasmithLightActorElement > LightElement;
@@ -754,6 +758,18 @@ void FDatasmithSceneXmlReader::ParseActor(FXmlNode* InNode, TSharedPtr<IDatasmit
 	FString CastShadowAtribute = InNode->GetAttribute(TEXT("castshadow"));
 	InOutElement->SetCastShadow(CastShadowAtribute.IsEmpty() ? true : ValueFromString<bool>(CastShadowAtribute));
 
+	FString MobilityString = InNode->GetAttribute(TEXT("mobility"));
+	TArrayView< const TCHAR* > MobilityEnumStrings(DatasmithActorMobilityTypeStrings);
+	int32 MobilityIndexOfEnumValue = MobilityEnumStrings.IndexOfByPredicate([&MobilityString](const TCHAR* Value)
+		{
+			return MobilityString == Value;
+		});
+
+	if (MobilityIndexOfEnumValue != INDEX_NONE)
+	{
+		InOutElement->SetMobility((EDatasmithActorMobilityType)MobilityIndexOfEnumValue);
+	}
+
 	for (FXmlNode* ChildNode : InNode->GetChildrenNodes())
 	{
 		if (ChildNode->GetTag() == TEXT("transform"))
@@ -826,7 +842,8 @@ void FDatasmithSceneXmlReader::ParseMeshActor(FXmlNode* InNode, TSharedPtr<IData
 	}
 }
 
-void FDatasmithSceneXmlReader::ParseClothActor(FXmlNode* InNode, TSharedPtr<IDatasmithClothActorElement>& OutElement, TSharedRef< IDatasmithScene > Scene) const
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FDatasmithSceneXmlReader::ParseClothActor(FXmlNode* InNode, TSharedPtr<IDatasmithClothActorElement>& OutElement, TSharedRef< IDatasmithScene > Scene) const  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	ParseElement(InNode, OutElement.ToSharedRef());
 
@@ -838,6 +855,7 @@ void FDatasmithSceneXmlReader::ParseClothActor(FXmlNode* InNode, TSharedPtr<IDat
 		}
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDatasmithSceneXmlReader::ParseHierarchicalInstancedStaticMeshActor(FXmlNode* InNode, TSharedPtr<IDatasmithHierarchicalInstancedStaticMeshActorElement>& OutElement, TSharedRef< IDatasmithScene > Scene) const
 {
@@ -1232,8 +1250,9 @@ bool FDatasmithSceneXmlReader::ParseXmlFile(TSharedRef< IDatasmithScene >& OutSc
 
 			Objects.Add( Element->GetName(), Element );
 		}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// CLOTHES
-		else if (Nodes[i]->GetTag() == DATASMITH_CLOTH)
+		else if (Nodes[i]->GetTag() == DATASMITH_CLOTH)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 		{
 			FString ElementName = Nodes[i]->GetAttribute(TEXT("name"));
 			TSharedPtr< IDatasmithClothElement > Element = FDatasmithSceneFactory::CreateCloth(*ElementName);
@@ -1244,6 +1263,7 @@ bool FDatasmithSceneXmlReader::ParseXmlFile(TSharedRef< IDatasmithScene >& OutSc
 
 // 			Objects.Add( Element->GetName(), Element ); // #ue_ds_cloth_todo cloths referencable by other elements
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// LEVEL SEQUENCES
 		else if (Nodes[i]->GetTag() == DATASMITH_LEVELSEQUENCENAME)
 		{

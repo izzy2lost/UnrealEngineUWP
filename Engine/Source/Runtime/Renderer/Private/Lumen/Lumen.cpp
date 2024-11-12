@@ -24,10 +24,24 @@ static TAutoConsoleVariable<int32> CVarLumenAsyncCompute(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenWaveOps(
+	TEXT("r.Lumen.WaveOps"),
+	1,
+	TEXT("Whether Lumen should use wave ops if supported."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarLumenThreadGroupSize32(
 	TEXT("r.Lumen.ThreadGroupSize32"),
 	1,
 	TEXT("Whether to prefer dispatches in groups of 32 threads on HW which supports it (instead of standard 64)."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarLumenLightingDataFormat(
+	TEXT("r.Lumen.LightingDataFormat"),
+	0,
+	TEXT("Data format for surfaces storing lighting information (e.g. radiance, irradiance). 0=PF_FloatR11G11B10 (default), 1=PF_FloatRGBA (64 bit)."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -50,9 +64,28 @@ bool Lumen::UseAsyncCompute(const FViewFamilyInfo& ViewFamily)
 	return bUseAsync;
 }
 
+bool Lumen::UseWaveOps(EShaderPlatform ShaderPlatform)
+{
+	return CVarLumenWaveOps.GetValueOnRenderThread() != 0
+		&& GRHISupportsWaveOperations
+		&& RHISupportsWaveOperations(ShaderPlatform);
+}
+
 bool Lumen::UseThreadGroupSize32()
 {
-	return GRHISupportsWaveOperations && GRHIMinimumWaveSize <= 32 && CVarLumenThreadGroupSize32.GetValueOnRenderThread() != 0;
+	return GRHISupportsWaveOperations && GRHIMinimumWaveSize <= 32 && CVarLumenThreadGroupSize32.GetValueOnAnyThread() != 0;
+}
+
+EPixelFormat Lumen::GetLightingDataFormat()
+{
+	return CVarLumenLightingDataFormat.GetValueOnRenderThread() == 0 ? PF_FloatR11G11B10 : PF_FloatRGBA;
+}
+
+extern FVector3f ComputePixelFormatQuantizationError(EPixelFormat PixelFormat);
+
+FVector3f Lumen::GetLightingQuantizationError()
+{
+	return ComputePixelFormatQuantizationError(GetLightingDataFormat());
 }
 
 namespace Lumen
@@ -108,16 +141,15 @@ bool Lumen::ShouldHandleSkyLight(const FScene* Scene, const FSceneViewFamily& Vi
 	return Scene->SkyLight
 		&& (Scene->SkyLight->ProcessedTexture || Scene->SkyLight->bRealTimeCaptureEnabled)
 		&& ViewFamily.EngineShowFlags.SkyLighting
-		&& Scene->GetFeatureLevel() >= ERHIFeatureLevel::SM5
-		&& !IsForwardShadingEnabled(Scene->GetShaderPlatform())
+		&& DoesPlatformSupportLumenGI(Scene->GetShaderPlatform(), /*bSkipProjectCheck*/ false)
 		&& !ViewFamily.EngineShowFlags.VisualizeLightCulling;
 }
 
 bool ShouldRenderLumenForViewFamily(const FScene* Scene, const FSceneViewFamily& ViewFamily, bool bSkipProjectCheck)
 {
 	return Scene
-		&& Scene->GetLumenSceneData(*ViewFamily.Views[0])
-		&& ViewFamily.Views.Num() <= LUMEN_MAX_VIEWS
+		&& Scene->DefaultLumenSceneData != nullptr
+		&& (ViewFamily.Views.Num() <= LUMEN_MAX_VIEWS || ViewFamily.Views[0]->bIsSceneCaptureCube)
 		&& DoesPlatformSupportLumenGI(Scene->GetShaderPlatform(), bSkipProjectCheck);
 }
 
@@ -133,7 +165,6 @@ bool Lumen::IsLumenFeatureAllowedForView(const FScene* Scene, const FSceneView& 
 		&& ShouldRenderLumenForViewFamily(Scene, *View.Family, bSkipProjectCheck)
 		// Don't update scene lighting for secondary views
 		&& !View.bIsPlanarReflection
-		&& !View.bIsSceneCaptureCube
 		&& !View.bIsReflectionCapture
 		&& View.State
 		&& (bSkipTracingDataCheck || Lumen::UseHardwareRayTracing(*View.Family) || IsSoftwareRayTracingSupported());

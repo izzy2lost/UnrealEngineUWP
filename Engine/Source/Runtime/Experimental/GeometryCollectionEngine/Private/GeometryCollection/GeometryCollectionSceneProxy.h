@@ -82,10 +82,7 @@ inline void CopyTransformsWithConversionWhenNeeded(TArray<FMatrix44f>& DstTransf
 struct FGeometryCollectionDynamicData
 {
 	TArray<FMatrix44f> Transforms;
-	TArray<FMatrix44f> PrevTransforms;
-	uint32 ChangedCount;
-	uint8 IsDynamic : 1;
-	uint8 IsLoading : 1;
+	uint64 FrameIndex = 0;
 
 	FGeometryCollectionDynamicData()
 	{
@@ -95,16 +92,7 @@ struct FGeometryCollectionDynamicData
 	void Reset()
 	{
 		Transforms.Reset();
-		PrevTransforms.Reset();
-		IsDynamic = false;
-		IsLoading = false;
-	}
-
-	UE_DEPRECATED(5.3, "Use FTransform version of SetTransforms instead")
-	void SetTransforms(const TArray<FMatrix>& InTransforms)
-	{
-		// use for LWC as FMatrix and FMatrix44f are different when LWC is on 
-		CopyTransformsWithConversionWhenNeeded(Transforms, InTransforms);
+		FrameIndex = GFrameCounter;
 	}
 
 	void SetTransforms(const TArray<FTransform>& InTransforms)
@@ -116,64 +104,6 @@ struct FGeometryCollectionDynamicData
 	void SetTransforms(const TArray<FTransform3f>& InTransforms)
 	{
 		CopyTransformsWithConversionWhenNeeded(Transforms, InTransforms);
-	}
-
-	UE_DEPRECATED(5.3, "Use FTransform version of SetPrevTransforms instead")
-	void SetPrevTransforms(const TArray<FMatrix>& InTransforms)
-	{
-		// use for LWC as FMatrix and FMatrix44f are different when LWC is on 
-		CopyTransformsWithConversionWhenNeeded(PrevTransforms, InTransforms);
-	}
-
-	void SetPrevTransforms(const TArray<FTransform>& InTransforms)
-	{
-		// use for LWC as FMatrix and FMatrix44f are different when LWC is on 
-		CopyTransformsWithConversionWhenNeeded(PrevTransforms, InTransforms);
-	}
-
-	void SetPrevTransforms(const TArray<FTransform3f>& InTransforms)
-	{
-		CopyTransformsWithConversionWhenNeeded(PrevTransforms, InTransforms);
-	}
-
-	UE_DEPRECATED(5.3, "Use FTransform version of SetAllTransforms instead")
-	void SetAllTransforms(const TArray<FMatrix>& InTransforms)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetTransforms(InTransforms);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		PrevTransforms = Transforms;
-		ChangedCount = Transforms.Num();
-	}
-
-	void SetAllTransforms(const TArray<FTransform>& InTransforms)
-	{
-		SetTransforms(InTransforms);
-		PrevTransforms = Transforms;
-		ChangedCount = Transforms.Num();
-	}
-
-	void DetermineChanges()
-	{
-		// Check if previous transforms are the same as current
-		const float EqualTolerance = 1e-6;
-
-		check(Transforms.Num() == PrevTransforms.Num());
-		if (Transforms.Num() != PrevTransforms.Num())
-		{
-			ChangedCount = Transforms.Num();
-		}
-		else
-		{
-			ChangedCount = 0;
-			for (int32 TransformIndex = 0; TransformIndex < Transforms.Num(); ++TransformIndex)
-			{
-				if (!PrevTransforms[TransformIndex].Equals(Transforms[TransformIndex], EqualTolerance))
-				{
-					++ChangedCount;
-				}
-			}
-		}
 	}
 };
 
@@ -204,7 +134,6 @@ private:
 *   NOTE : This class is still in flux, and has a few pending todos. Your comments and 
 *   thoughts are appreciated though. The remaining items to address involve:
 *   - @todo double buffer - The double buffering of the FGeometryCollectionDynamicData.
-*   - @todo previous state - Saving the previous FGeometryCollectionDynamicData for rendering motion blur.
 *   - @todo GPU skin : Make the skinning use the GpuVertexShader
 */
 class FGeometryCollectionSceneProxy final : public FPrimitiveSceneProxy
@@ -217,7 +146,9 @@ class FGeometryCollectionSceneProxy final : public FPrimitiveSceneProxy
 	FGeometryCollectionMeshDescription MeshDescription;
 
 	int32 NumTransforms = 0;
-	TArray<FMatrix44f> RestTransforms;
+	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollection;
+
+	FCollisionResponseContainer CollisionResponse;
 
 	FBoxSphereBounds PreSkinnedBounds;
 
@@ -227,11 +158,9 @@ class FGeometryCollectionSceneProxy final : public FPrimitiveSceneProxy
 	FPositionVertexBuffer SkinnedPositionVertexBuffer;
 
 	int32 CurrentTransformBufferIndex = 0;
-	bool TransformVertexBuffersContainsRestTransforms = true;
 	bool bSupportsTripleBufferVertexUpload = false;
 	bool bRenderResourcesCreated = false;
 	TArray<FGeometryCollectionTransformBuffer, TInlineAllocator<3>> TransformBuffers;
-	TArray<FGeometryCollectionTransformBuffer, TInlineAllocator<3>> PrevTransformBuffers;
 
 	FGeometryCollectionDynamicData* DynamicData = nullptr;
 
@@ -242,8 +171,7 @@ class FGeometryCollectionSceneProxy final : public FPrimitiveSceneProxy
 	FColorVertexBuffer ColorVertexBuffer;
 	FGeometryCollectionVertexFactory VertexFactoryDebugColor;
 	UMaterialInterface* BoneSelectedMaterial = nullptr;
-	TArray<bool> HiddenTransforms;
-#endif
+	#endif
 
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	bool bUsesSubSections = false;
@@ -288,7 +216,7 @@ public:
 #if RHI_RAYTRACING
 	bool IsRayTracingRelevant() const override { return true; }
 	bool IsRayTracingStaticRelevant() const override { return false; }
-	void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
+	void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override;
 #endif
 
 protected:
@@ -307,7 +235,9 @@ protected:
 	}
 	FGeometryCollectionTransformBuffer& GetCurrentPrevTransformBuffer()
 	{
-		return PrevTransformBuffers[CurrentTransformBufferIndex];
+		const int32 NumBuffers = TransformBuffers.Num();
+		const int32 PreviousIndex = (CurrentTransformBufferIndex + NumBuffers - 1) % NumBuffers;
+		return TransformBuffers[PreviousIndex];
 	}
 
 	void CycleTransformBuffers(bool bCycle)
@@ -321,6 +251,9 @@ protected:
 #if RHI_RAYTRACING
 	void UpdatingRayTracingGeometry_RenderingThread(TArray<FGeometryCollectionMeshElement> const& InSectionArray);
 #endif
+
+private:
+	bool ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const;
 };
 
 
@@ -330,25 +263,23 @@ public:
 	using Super = Nanite::FSceneProxyBase;
 	
 	FNaniteGeometryCollectionSceneProxy(UGeometryCollectionComponent* Component);
-	virtual ~FNaniteGeometryCollectionSceneProxy() = default;
+	virtual ~FNaniteGeometryCollectionSceneProxy();
 
 public:
 	// FPrimitiveSceneProxy interface.
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual SIZE_T GetTypeHash() const override;
 	virtual FPrimitiveViewRelevance	GetViewRelevance(const FSceneView* View) const override;
-#if WITH_EDITOR
+	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
+#if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
 	virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 
 	virtual uint32 GetMemoryFootprint() const override;
 
-	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
-
 	// FSceneProxyBase interface.
 	virtual void GetNaniteResourceInfo(uint32& ResourceID, uint32& HierarchyOffset, uint32& ImposterIndex) const override;
-	virtual void GetNaniteMaterialMask(FUint32Vector2& OutMaterialMask) const override;
 
 	virtual Nanite::FResourceMeshInfo GetResourceMeshInfo() const override;
 
@@ -369,12 +300,16 @@ public:
 		return bRequiresGPUSceneUpdate;
 	}
 
-	void OnMotionBegin();
-	void OnMotionEnd();
+	inline virtual void GetLCIs(FLCIArray& LCIs) override
+	{
+		FLightCacheInterface* LCI = &EmptyLightCacheInfo;
+		LCIs.Add(LCI);
+	}
 
 protected:
 	// TODO : Copy required data from UObject instead of using unsafe object pointer.
 	const UGeometryCollection* GeometryCollection = nullptr;
+	FCollisionResponseContainer CollisionResponse;
 
 	struct FGeometryNaniteData
 	{
@@ -393,8 +328,29 @@ protected:
 	uint32 bCastShadow : 1;
 	uint32 bReverseCulling : 1;
 	uint32 bHasMaterialErrors : 1;
-	uint32 bCurrentlyInMotion : 1;
 	uint32 bRequiresGPUSceneUpdate : 1;
+	uint32 bEnableBoneSelection : 1;
+	
+#if GEOMETRYCOLLECTION_EDITOR_SELECTION
+	TArray<TRefCountPtr<HHitProxy>> HitProxies;
+#endif
 
 	FInstanceSceneDataBuffers InstanceSceneDataBuffersImpl;
+
+	FGeometryCollectionDynamicData* DynamicData = nullptr;
+
+	// Geometry collection doesn't currently support baked light maps, so we use this simple empty light cache info for all nanite geometry collection proxies
+	class FEmptyLightCacheInfo : public FLightCacheInterface
+	{
+	public:
+
+		// FLightCacheInterface.
+		GEOMETRYCOLLECTIONENGINE_API virtual FLightInteraction GetInteraction(const FLightSceneProxy* LightSceneProxy) const override;
+	};
+
+private:
+	bool ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const;
+
+private:
+	static FEmptyLightCacheInfo EmptyLightCacheInfo;
 };

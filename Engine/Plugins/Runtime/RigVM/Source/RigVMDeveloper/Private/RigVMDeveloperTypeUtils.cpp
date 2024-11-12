@@ -581,9 +581,9 @@ bool RigVMTypeUtils::AreCompatible(const FEdGraphPinType& InTypeA, const FEdGrap
 
 namespace RigVMTypeUtils
 {
-	static const FName CastTemplateValueName = TEXT("Value");
-	static const FName CastTemplateResultName = TEXT("Result");
-	static const FName CastTemplateNotation = TEXT("Cast::Execute(in Value,out Result)");
+	static const FLazyName CastTemplateValueName = TEXT("Value");
+	static const FLazyName CastTemplateResultName = TEXT("Result");
+	static const FLazyName CastTemplateNotation = TEXT("Cast::Execute(in Value,out Result)");
 }
 
 const TArray<TRigVMTypeIndex>& RigVMTypeUtils::GetAvailableCasts(const TRigVMTypeIndex& InTypeIndex, bool bAsInput)
@@ -654,20 +654,14 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 
 			if(SourceArgument && TargetArgument)
 			{
-				const TArray<int32>& SourcePermutations = SourceArgument->GetPermutations(InSourceTypeIndex);
-				const TArray<int32>& TargetPermutations = TargetArgument->GetPermutations(InTargetTypeIndex);
-				if(!SourcePermutations.IsEmpty() && !TargetPermutations.IsEmpty())
+				FRigVMTemplateTypeMap Types;
+				Types.Add(SourceArgument->GetName(), InSourceTypeIndex);
+				Types.Add(TargetArgument->GetName(), InTargetTypeIndex);
+
+				int32 PermutationIndex = INDEX_NONE;
+				if(CastTemplate->FullyResolve(Types, PermutationIndex))
 				{
-					for(int32 SourceIndex = 0, SourceCount = SourcePermutations.Num(); SourceIndex < SourceCount; ++SourceIndex)
-					{
-						for(int32 TargetIndex = 0, TargetCount = TargetPermutations.Num(); TargetIndex < TargetCount; ++TargetIndex)
-						{
-							if(SourcePermutations[SourceIndex] == TargetPermutations[TargetIndex])
-							{
-								return const_cast<FRigVMTemplate*>(CastTemplate)->GetOrCreatePermutation(SourcePermutations[SourceIndex]);
-							}
-						}
-					}
+					return const_cast<FRigVMTemplate*>(CastTemplate)->GetOrCreatePermutation(PermutationIndex);
 				}
 			}
 		}
@@ -675,17 +669,17 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 	return nullptr;
 }
 
-const FName& RigVMTypeUtils::GetCastTemplateValueName()
+const FLazyName& RigVMTypeUtils::GetCastTemplateValueName()
 {
 	return CastTemplateValueName;
 }
 
-const FName& RigVMTypeUtils::GetCastTemplateResultName()
+const FLazyName& RigVMTypeUtils::GetCastTemplateResultName()
 {
 	return CastTemplateResultName;
 }
 
-const FName& RigVMTypeUtils::GetCastTemplateNotation()
+const FLazyName& RigVMTypeUtils::GetCastTemplateNotation()
 {
 	return CastTemplateNotation;
 }

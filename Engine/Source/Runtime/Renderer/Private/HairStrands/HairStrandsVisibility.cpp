@@ -431,7 +431,7 @@ static FRDGTextureRef AddClearLightSamplePass(
 		RDG_EVENT_NAME("HairStrands::LightSampleClearPS"),
 		ParametersPS,
 		ERDGPassFlags::Raster,
-		[ParametersPS, VertexShader, PixelShader, ViewportResolution](FRHICommandList& RHICmdList)
+		[ParametersPS, VertexShader, PixelShader, ViewportResolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairLightSampleClearVS::FParameters ParametersVS;
 		ParametersVS.MaxViewportResolution = ParametersPS->MaxViewportResolution;
@@ -853,7 +853,7 @@ void FHairMaterialProcessor::CollectPSOInitializers(
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
 			EMeshPassFeatures::Default,
 			true /*bRequired*/,
-			PSOInitializers);	
+			PSOInitializers);
 	};
 
 	AddPSOInitializer(EHairMaterialPassFilter::All);
@@ -1166,6 +1166,10 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_ATTRIBUTE_DEBUG"), 1);
+	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
 	}
 };
 
@@ -1788,6 +1792,11 @@ void FHairVisibilityProcessor::AddPSOInitializer(
 		SetupDepthStencilInfo(PF_DepthStencil, SceneTexturesConfig.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
 			ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead, RenderTargetsInfo);
 	}
+	else if (TRenderMode == HairVisibilityRenderMode_PPLL)
+	{
+		SetupDepthStencilInfo(PF_DepthStencil, SceneTexturesConfig.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
+			ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead, RenderTargetsInfo);
+	}
 
 	AddGraphicsPipelineStateInitializer(
 		VertexFactoryData,
@@ -1905,7 +1914,7 @@ static void AddClearGraphicPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, TileType](FRHICommandList& RHICmdList)
+		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairStrandsTilePassVS::FParameters ParametersVS = Parameters->TileData;
 
@@ -2107,7 +2116,7 @@ static void AddHairVisibilityControlPointIdCompactionPass(
 	AddClearGraphicPass(GraphBuilder, RDG_EVENT_NAME("HairStrands::CoverageTexture"), &View, 0, TileData, OutCoverageTexture);
 
 	// Adapt the buffer allocation based on the bounding box of the hair macro groups. This allows to reduce the overall allocation size
-	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, MacroGroupDatas);
+	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View, View.ViewRect, MacroGroupDatas);
 	const FIntPoint EffectiveResolution = bUsePPLL ? FIntPoint(View.ViewRect.Width(), View.ViewRect.Height()) : FIntPoint(HairRect.Width(), HairRect.Height());
 
 	// Select render node count according to current mode
@@ -2359,7 +2368,7 @@ static FRDGTextureRef AddHairVisibilityFillOpaqueDepth(
 		RDG_EVENT_NAME("HairStrands::FillVisibilityDepth(Tile)"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, TileVertexShader, PixelShader, Viewport, TileType](FRHICommandList& RHICmdList)
+		[Parameters, TileVertexShader, PixelShader, Viewport, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FHairStrandsTilePassVS::FParameters ParametersVS = Parameters->TileData;
 
@@ -2658,7 +2667,7 @@ static void AddHairViewTransmittanceDepthPass(
 		RDG_EVENT_NAME("HairStrands::ViewTransmittanceDepth"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, VertexShader, PixelShader, Viewport, Resolution](FRHICommandList& RHICmdList)
+		[Parameters, VertexShader, PixelShader, Viewport, Resolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -2717,8 +2726,8 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetRenderTargetOutputFormat(0, PF_B8G8R8A8);
-		OutEnvironment.SetRenderTargetOutputFormat(1, PF_B8G8R8A8);
+		OutEnvironment.SetRenderTargetOutputFormat(0, Substrate::IsSubstrateEnabled() ? PF_R32_UINT : PF_B8G8R8A8);
+		OutEnvironment.SetRenderTargetOutputFormat(1, Substrate::IsSubstrateEnabled() ? PF_R32_UINT : PF_B8G8R8A8);
 		OutEnvironment.SetRenderTargetOutputFormat(2, PF_FloatRGBA);
 	}
 };
@@ -2813,7 +2822,7 @@ static void AddHairAuxilaryPass(
 		RDG_EVENT_NAME("HairStrands::AuxilaryPass(%s)", Method),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, bDepthTested, TileType](FRHICommandList& RHICmdList)
+		[Parameters, TileVertexShader, PixelShader, Viewport, Resolution, bDepthTested, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		FHairStrandsTilePassVS::FParameters ParametersVS = Parameters->TileData;
 
@@ -2897,7 +2906,7 @@ static void AddHairMaterialDataPatchPass(
 	}
 
 #if RHI_RAYTRACING
-	const bool bLightingChannel = IsRayTracingEnabled() && OutLightChannelMask == nullptr;
+	const bool bLightingChannel = IsRayTracingEnabled() && View.IsRayTracingAllowedForView() && OutLightChannelMask == nullptr;
 	if (bLightingChannel)
 	{
 		OutLightChannelMask = CreateLigthtChannelMaskTexture(GraphBuilder, View.ViewRect.Size());
@@ -3450,6 +3459,10 @@ public:
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_RASTERCOMPUTE_DEBUG"), 1);
 	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FVisiblityRasterComputeDebugCS, "/Engine/Private/HairStrands/HairStrandsVisibilityRasterCompute.usf", "MainCS", SF_Compute);
@@ -3865,7 +3878,7 @@ static FRasterComputeOutput AddVisibilityComputeRasterPass(
 					RDG_EVENT_NAME("HairStrands::VisibilityRasterHW"),
 					Parameters,
 					ERDGPassFlags::Raster,
-					[Parameters, VertexShaderRaster, bClassification, PixelShaderRaster, Viewport, Resolution, PointCount, DrawIndexedIndirectArgs](FRHICommandList &RHICmdList)
+					[Parameters, VertexShaderRaster, bClassification, PixelShaderRaster, Viewport, Resolution, PointCount, DrawIndexedIndirectArgs](FRDGAsyncTask, FRHICommandList &RHICmdList)
 					{
 						FGraphicsPipelineStateInitializer GraphicsPSOInit;
 						RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -4247,7 +4260,7 @@ void AddHairStrandsHitProxyIdPass(
 		RDG_EVENT_NAME("HairStrands::EmitHitProxyId(Tile)"),
 		PassParameters,
 		ERDGPassFlags::Raster,
-		[PassParameters, TileVertexShader, PixelShader, Viewport, TileType](FRHICommandList& RHICmdList)
+		[PassParameters, TileVertexShader, PixelShader, Viewport, TileType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FHairStrandsTilePassVS::FParameters ParametersVS = PassParameters->TileData;
 
@@ -4593,14 +4606,14 @@ void RenderHairStrandsVisibilityBuffer(
 	FInstanceCullingManager& InstanceCullingManager)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CLM_RenderHairStrandsVisibility);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsVisibility");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsVisibility, "HairStrandsVisibility");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsVisibility);
 
 	FHairStrandsMacroGroupDatas& MacroGroupDatas = View.HairStrandsViewData.MacroGroupDatas;
 	check(View.Family);
 	check(MacroGroupDatas.Num() > 0);
 
-	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, MacroGroupDatas);
+	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View, View.ViewRect, MacroGroupDatas);
 	const int32 HairPixelCount = HairRect.Width() * HairRect.Height();
 	if (HairPixelCount <= 0)
 	{
@@ -5224,7 +5237,7 @@ void RenderHairStrandsVisibilityBuffer(
 			}
 
 		#if RHI_RAYTRACING
-			if (IsRayTracingEnabled() && VisibilityData.LightChannelMaskTexture == nullptr)
+			if (IsRayTracingEnabled() && View.IsRayTracingAllowedForView() && VisibilityData.LightChannelMaskTexture == nullptr)
 			{
 				VisibilityData.LightChannelMaskTexture = AddHairLightChannelMaskPass(
 					GraphBuilder,

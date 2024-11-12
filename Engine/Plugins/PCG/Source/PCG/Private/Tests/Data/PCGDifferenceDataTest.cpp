@@ -34,7 +34,7 @@ bool FPCGDifferenceDataTest::RunTest(const FString& Parameters)
 		}
 
 		// Create difference data with Subtract
-		const UPCGDifferenceData* DifferenceData = OriginalVolume->Subtract(DifferenceVolume);
+		const UPCGDifferenceData* DifferenceData = OriginalVolume->Subtract(nullptr, DifferenceVolume);
 
 		if (!TestNotNull("DifferenceData", DifferenceData))
 		{

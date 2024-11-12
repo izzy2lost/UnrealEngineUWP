@@ -51,10 +51,12 @@ class AndroidDriverPatchPass : public Pass {
   // Depth=2 on OpTypeImage results in a crash
   bool FixupOpTypeImage(Instruction* inst);
 
-  // Workaround for a bug on Adreno Vulkan drivers where storing OpTypeAccelerationStructure causes crash 
+  // Workaround for a bug on Adreno Vulkan drivers where storing
+  // OpTypeAccelerationStructure causes crash
   bool FixupOpTypeAccelerationStructure(Instruction* inst);
 
-  // Workaround for bug on Adreno where FMA is broken on older devices and drivers
+  // Workaround for bug on Adreno where FMA is broken on older devices and
+  // drivers
   bool StripFMA(Instruction* inst);
 
   // Remove NMin and NMax functions

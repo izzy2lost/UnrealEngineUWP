@@ -80,9 +80,6 @@ extern "C" {
   void sinqb(fftpack_int n, fftpack_real *x, fftpack_real *wsave);
   void sinqf(fftpack_int n, fftpack_real *x, fftpack_real *wsave);
 
-  void sinti(fftpack_int n, fftpack_real *wsave);
-  void sint(fftpack_int n, fftpack_real *x, fftpack_real *wsave);
-
 #ifdef __cplusplus
 }
 #endif

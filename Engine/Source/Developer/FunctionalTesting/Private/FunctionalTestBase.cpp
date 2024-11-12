@@ -4,6 +4,9 @@
 #include "FunctionalTestingModule.h"
 #include "AutomationControllerSettings.h"
 
+#if ENABLE_RHI_VALIDATION
+#include "RHIValidationCommon.h"
+#endif
 
 // statics
 bool FFunctionalTestBase::bIsFunctionalTestRunning;
@@ -19,6 +22,30 @@ FFunctionalTestBase::FFunctionalTestBase(const FString& InName, const bool bInCo
 	bSuppressLogErrors = false;
 	bSuppressLogWarnings = false;
 	bElevateLogWarningsToErrors = true;
+}
+
+bool FFunctionalTestBase::SuppressLogs()
+{
+#if ENABLE_RHI_VALIDATION
+	if (GRHIValidationEnabled && !bSuppressLogs)
+	{
+		// While RHI Validation is enabled, do not suppress log unless explicitly enabled
+		return false;
+	}
+#endif
+	return bSuppressLogs || !IsFunctionalTestRunning();
+}
+
+bool FFunctionalTestBase::ShouldCaptureLogCategory(const class FName& Category) const
+{
+#if ENABLE_RHI_VALIDATION
+	if (GRHIValidationEnabled && !IsFunctionalTestRunning())
+	{
+		// If capturing log while functional test is not running, only filter in LogRHI channel. 
+		return Category == FName(TEXT("LogRHI"));
+	}
+#endif
+	return true;
 }
 
 void FFunctionalTestBase::SetLogErrorAndWarningHandlingToDefault()

@@ -55,6 +55,18 @@ UMovieSceneSection* IKeyArea::GetOwningSection() const
 	return SectionInterface ? SectionInterface->GetSectionObject() : nullptr;;
 }
 
+UObject* IKeyArea::GetOwningObject() const
+{
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+	UObject* OwningObject = MetaData ? MetaData->WeakOwningObject.Get() : nullptr;
+	if (OwningObject)
+	{
+		return OwningObject;
+	}
+
+	return GetOwningSection();
+}
+
 TSharedPtr<ISequencerSection> IKeyArea::GetSectionInterface() const
 {
 	return WeakSection.Pin();
@@ -84,6 +96,11 @@ FKeyHandle IKeyArea::AddOrUpdateKey(FFrameNumber Time, const FGuid& ObjectBindin
 	FMovieSceneChannel* Channel = ChannelHandle.Get();
 	UMovieSceneSection* Section = GetOwningSection();
 
+	if (const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData())
+	{
+		Time -= MetaData->GetOffsetTime(Section);
+	}
+
 	// The extended editor data may be null, but is passed to the interface regardless
 	const void* RawExtendedData = ChannelHandle.GetExtendedEditorData();
 
@@ -112,7 +129,29 @@ void IKeyArea::SetKeyTimes(TArrayView<const FKeyHandle> InKeyHandles, TArrayView
 {
 	check(InKeyHandles.Num() == InKeyTimes.Num());
 
-	if (FMovieSceneChannel* Channel = ChannelHandle.Get())
+	FMovieSceneChannel*               Channel  = ChannelHandle.Get();
+	UMovieSceneSection*               Section  = GetOwningSection();
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+
+	if (!Channel || !MetaData || !Section)
+	{
+		return;
+	}
+
+	FFrameNumber KeyOffset = MetaData->GetOffsetTime(Section);
+	if (KeyOffset != 0)
+	{
+		// Need to copy the array to offset
+		TArray<FFrameNumber> OffsetKeyTimes;
+		OffsetKeyTimes.SetNumUninitialized(InKeyTimes.Num());
+		for (int32 i = 0; i < InKeyTimes.Num(); ++i)
+		{
+			OffsetKeyTimes[i] = InKeyTimes[i] - KeyOffset;
+		}
+
+		Channel->SetKeyTimes(InKeyHandles, OffsetKeyTimes);
+	}
+	else
 	{
 		Channel->SetKeyTimes(InKeyHandles, InKeyTimes);
 	}
@@ -120,17 +159,62 @@ void IKeyArea::SetKeyTimes(TArrayView<const FKeyHandle> InKeyHandles, TArrayView
 
 void IKeyArea::GetKeyTimes(TArrayView<const FKeyHandle> InKeyHandles, TArrayView<FFrameNumber> OutTimes) const
 {
-	if (FMovieSceneChannel* Channel = ChannelHandle.Get())
+	FMovieSceneChannel*               Channel  = ChannelHandle.Get();
+	UMovieSceneSection*               Section  = GetOwningSection();
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+
+	if (!Channel || !MetaData || !Section)
 	{
-		Channel->GetKeyTimes(InKeyHandles, OutTimes);
+		return;
+	}
+
+	Channel->GetKeyTimes(InKeyHandles, OutTimes);
+
+	FFrameNumber KeyOffset = MetaData->GetOffsetTime(Section);
+	if (KeyOffset != 0)
+	{
+		for (int32 i = 0; i < OutTimes.Num(); ++i)
+		{
+			OutTimes[i] += KeyOffset;
+		}
 	}
 }
 
 void IKeyArea::GetKeyInfo(TArray<FKeyHandle>* OutHandles, TArray<FFrameNumber>* OutTimes, const TRange<FFrameNumber>& WithinRange) const
 {
-	if (FMovieSceneChannel* Channel = ChannelHandle.Get())
+	FMovieSceneChannel*               Channel  = ChannelHandle.Get();
+	UMovieSceneSection*               Section  = GetOwningSection();
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+
+	if (!Channel || !MetaData || !Section)
 	{
-		Channel->GetKeys(WithinRange, OutTimes, OutHandles);
+		return;
+	}
+
+	FFrameNumber KeyOffset = MetaData->GetOffsetTime(Section);
+
+	TRange<FFrameNumber> OffsetRange = WithinRange;
+	if (KeyOffset != 0)
+	{
+		if (OffsetRange.HasLowerBound())
+		{
+			OffsetRange.SetLowerBoundValue(OffsetRange.GetLowerBoundValue() - KeyOffset);
+		}
+		if (OffsetRange.HasUpperBound())
+		{
+			OffsetRange.SetUpperBoundValue(OffsetRange.GetUpperBoundValue() - KeyOffset);
+		}
+	}
+
+	Channel->GetKeys(OffsetRange, OutTimes, OutHandles);
+
+	if (OutTimes && KeyOffset != 0)
+	{
+		const int32 Num = OutTimes->Num();
+		for (int32 i = 0; i < Num; ++i)
+		{
+			(*OutTimes)[i] += KeyOffset;
+		}
 	}
 }
 
@@ -180,6 +264,8 @@ bool IKeyArea::CanCreateKeyEditor() const
 
 TSharedRef<SWidget> IKeyArea::CreateKeyEditor(TWeakPtr<ISequencer> Sequencer, const FGuid& ObjectBindingID)
 {
+	using namespace UE::Sequencer;
+
 	ISequencerChannelInterface* EditorInterface = FindChannelEditorInterface();
 	UMovieSceneSection* OwningSection = GetOwningSection();
 
@@ -189,9 +275,17 @@ TSharedRef<SWidget> IKeyArea::CreateKeyEditor(TWeakPtr<ISequencer> Sequencer, co
 		PropertyBindingsPtr = TSharedPtr<FTrackInstancePropertyBindings>(AsShared(), &PropertyBindings.GetValue());
 	}
 
-	if (EditorInterface && OwningSection)
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+	if (EditorInterface && OwningSection && MetaData)
 	{
-		return EditorInterface->CreateKeyEditor_Raw(ChannelHandle, OwningSection, ObjectBindingID, PropertyBindingsPtr, Sequencer);
+		FCreateKeyEditorParams Params{
+			OwningSection,
+			MetaData->WeakOwningObject.Get(),
+			Sequencer.Pin().ToSharedRef(),
+			ObjectBindingID,
+			PropertyBindingsPtr
+		};
+		return EditorInterface->CreateKeyEditor_Raw(ChannelHandle, Params);
 	}
 	return SNullWidget::NullWidget;
 }
@@ -201,9 +295,12 @@ void IKeyArea::CopyKeys(FMovieSceneClipboardBuilder& ClipboardBuilder, TArrayVie
 	ISequencerChannelInterface* EditorInterface = FindChannelEditorInterface();
 	FMovieSceneChannel* Channel = ChannelHandle.Get();
 	UMovieSceneSection* OwningSection = GetOwningSection();
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
 
-	if (EditorInterface && Channel && OwningSection)
+	if (EditorInterface && Channel && OwningSection && MetaData)
 	{
+		TGuardValue<FFrameNumber> GuardKeyOffset(ClipboardBuilder.KeyOffset, ClipboardBuilder.KeyOffset + MetaData->GetOffsetTime(OwningSection));
+
 		EditorInterface->CopyKeys_Raw(Channel, OwningSection, ChannelName, ClipboardBuilder, KeyMask);
 	}
 }
@@ -215,9 +312,33 @@ TArray<FKeyHandle> IKeyArea::PasteKeys(const FMovieSceneClipboardKeyTrack& KeyTr
 	ISequencerChannelInterface* EditorInterface = FindChannelEditorInterface();
 	FMovieSceneChannel* Channel = ChannelHandle.Get();
 	UMovieSceneSection* OwningSection = GetOwningSection();
-	if (EditorInterface && Channel && OwningSection)
+	UObject*            OwningObject = GetOwningObject();
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+
+	if (EditorInterface && Channel && OwningSection && OwningObject && MetaData)
 	{
+		if (OwningSection->IsReadOnly())
+		{
+			return PastedKeys;
+		}
+
+		OwningObject->Modify();
+
 		EditorInterface->PasteKeys_Raw(Channel, OwningSection, KeyTrack, SrcEnvironment, DstEnvironment, PastedKeys);
+
+		FFrameNumber KeyOffset = MetaData->GetOffsetTime(OwningSection);
+		if (KeyOffset != 0)
+		{
+			TArray<FFrameNumber> KeyTimes;
+			KeyTimes.SetNumUninitialized(PastedKeys.Num());
+
+			Channel->GetKeyTimes(PastedKeys, KeyTimes);
+			for (int32 i = 0; i < KeyTimes.Num(); ++i)
+			{
+				KeyTimes[i] += KeyOffset;
+			}
+			Channel->SetKeyTimes(PastedKeys, KeyTimes);
+		}
 	}
 
 	return PastedKeys;
@@ -272,7 +393,15 @@ TUniquePtr<FCurveModel> IKeyArea::CreateCurveEditorModel(TSharedRef<ISequencer> 
 	UMovieSceneSection* OwningSection = GetOwningSection();
 	if (EditorInterface && OwningSection && ChannelHandle.Get() != nullptr)
 	{
-		TUniquePtr<FCurveModel> CurveModel = EditorInterface->CreateCurveEditorModel_Raw(ChannelHandle, OwningSection, InSequencer);
+		const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+
+		UE::Sequencer::FCreateCurveEditorModelParams Params = {
+			OwningSection,
+			MetaData->WeakOwningObject.Get(),
+			InSequencer
+		};
+
+		TUniquePtr<FCurveModel> CurveModel = EditorInterface->CreateCurveEditorModel_Raw(ChannelHandle, Params);
 		if (CurveModel.IsValid())
 		{
 			// Build long, short and context names for this curve to maximize information shown in the Curve Editor UI.
@@ -295,7 +424,7 @@ TUniquePtr<FCurveModel> IKeyArea::CreateCurveEditorModel(TSharedRef<ISequencer> 
 			// Not all tracks have all the information so we need to format it differently depending on how many are valid.
 			FormatArgs.Add(TEXT("ObjectBindingName"), ObjectBindingName);
 			FormatArgs.Add(TEXT("OwningTrackName"), OwningTrackName);
-			FormatArgs.Add(TEXT("GroupName"), ChannelHandle.GetMetaData()->Group);
+			FormatArgs.Add(TEXT("GroupName"), MetaData->Group);
 			FormatArgs.Add(TEXT("DisplayName"), DisplayText);
 
 			FText FormatText = NSLOCTEXT("SequencerIKeyArea", "CurveLongDisplayNameFormat", "{ObjectBindingName}.{OwningTrackName}.{GroupName}.{DisplayName}");
@@ -305,13 +434,13 @@ TUniquePtr<FCurveModel> IKeyArea::CreateCurveEditorModel(TSharedRef<ISequencer> 
 
 			FText LongDisplayName = FText::FromString(FormattedText);
 			const FText ShortDisplayName = DisplayText;
-			FString IntentName = ChannelHandle.GetMetaData()->IntentName.ToString();
+			FString IntentName = MetaData->IntentName.ToString();
 			if (IntentName.IsEmpty())
 			{
-				IntentName = ChannelHandle.GetMetaData()->Group.IsEmptyOrWhitespace() ? DisplayText.ToString() : FString::Format(TEXT("{0}.{1}"), { ChannelHandle.GetMetaData()->Group.ToString(), DisplayText.ToString() });
+				IntentName = MetaData->Group.IsEmptyOrWhitespace() ? DisplayText.ToString() : FString::Format(TEXT("{0}.{1}"), { MetaData->Group.ToString(), DisplayText.ToString() });
 			}
 
-			FText LongIntentNameFormat = ChannelHandle.GetMetaData()->LongIntentNameFormat;
+			FText LongIntentNameFormat = MetaData->LongIntentNameFormat;
 			if (LongIntentNameFormat.IsEmpty())
 			{
 				LongIntentNameFormat = NSLOCTEXT("SequencerIKeyArea", "LongIntentNameFormat", "{ObjectBindingName}.{GroupName}.{DisplayName}");
@@ -328,7 +457,7 @@ TUniquePtr<FCurveModel> IKeyArea::CreateCurveEditorModel(TSharedRef<ISequencer> 
 			CurveModel->SetLongDisplayName(LongDisplayName);
 			CurveModel->SetIntentionName(IntentName);
 			CurveModel->SetLongIntentionName(LongIntentName);
-			CurveModel->SetChannelName(ChannelHandle.GetMetaData()->Name);
+			CurveModel->SetChannelName(MetaData->Name);
 			if (Color.IsSet())
 			{
 				CurveModel->SetColor(Color.GetValue(),false);

@@ -259,8 +259,6 @@ public:
 	 */
 	PACKETHANDLER_API PacketHandler(FDDoSDetection* InDDoS=nullptr);
 
-	virtual ~PacketHandler() = default;
-
 	/**
 	 * Handles initialization of manager
 	 *
@@ -446,7 +444,7 @@ public:
 	/** Returns a pointer to the first component in the HandlerComponents array with the specified name. */
 	PACKETHANDLER_API TSharedPtr<HandlerComponent> GetComponentByName(FName ComponentName) const;
 
-	PACKETHANDLER_API virtual void CountBytes(FArchive& Ar) const;
+	PACKETHANDLER_API void CountBytes(FArchive& Ar) const;
 
 protected:
 	UE_DEPRECATED(4.26, "Incoming_Internal now uses FReceivedPacketView")
@@ -653,8 +651,21 @@ public:
 	static PACKETHANDLER_API FPacketHandlerAddComponentDelegate& GetAddComponentDelegate();
 
 private:
+
+	/** State of the handler */
+	UE::Handler::State State;
+
+	/** Whether or not outgoing packets bypass the handler */
+	uint8 bRawSend:1;
+
+	/** Whether or not component handshaking has begun */
+	uint8 bBeganHandshaking:1;
+
 	/** Whether or not this PacketHandler handles connectionless (i.e. non-UNetConnection) data */
-	bool bConnectionlessHandler;
+	uint8 bConnectionlessHandler:1;
+
+	/** The maximum supported packet size (reflects UNetConnection::MaxPacket) */
+	uint32 MaxPacketBits;
 
 	/** Mirroring UNetDriver.DDoS*/
 	FDDoSDetection* DDoS;
@@ -680,12 +691,6 @@ private:
 	/** A direct pointer to the component configured as the encryption component. Will also be present in the HandlerComponents array. */
 	TSharedPtr<FEncryptionComponent> EncryptionComponent;
 
-	/** The maximum supported packet size (reflects UNetConnection::MaxPacket) */
-	uint32 MaxPacketBits;
-
-	/** State of the handler */
-	UE::Handler::State State;
-
 	/** Packets that are buffered while HandlerComponents are being initialized */
 	TArray<BufferedPacket*> BufferedPackets;
 
@@ -707,17 +712,11 @@ private:
 	/** Reliability Handler Component */
 	TSharedPtr<ReliabilityHandlerComponent> ReliabilityComponent;
 
-	/** Whether or not outgoing packets bypass the handler */
-	bool bRawSend;
-
 	/** The analytics provider */
 	TSharedPtr<IAnalyticsProvider> Provider;
 
 	/** The NetDriver level aggregator for the analytics provider */
 	TSharedPtr<FNetAnalyticsAggregator> Aggregator;
-	
-	/** Whether or not component handshaking has begun */
-	bool bBeganHandshaking;
 };
 
 /**
@@ -741,9 +740,7 @@ public:
 	/**
 	 * Base destructor
 	 */
-	virtual ~HandlerComponent()
-	{
-	}
+	PACKETHANDLER_API virtual ~HandlerComponent();
 
 	/**
 	 * Returns whether this handler is currently active

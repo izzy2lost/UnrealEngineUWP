@@ -73,10 +73,10 @@ class FCalculateShadingRateImageCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FCalculateShadingRateImageCS);
 	SHADER_USE_PARAMETER_STRUCT(FCalculateShadingRateImageCS, FGlobalShader);
 
-	class FThreadGroupSizeXY : SHADER_PERMUTATION_SPARSE_INT("THREADGROUP_SIZE_XY", 8, 16);
+	class FHardwareTileSize : SHADER_PERMUTATION_SPARSE_INT("HARDWARE_TILE_SIZE", 8, 16);
 	class FOutputHardwareImage : SHADER_PERMUTATION_BOOL("OUTPUT_HARDWARE_IMAGE");
 	class FOutputSoftwareImage : SHADER_PERMUTATION_BOOL("OUTPUT_SOFTWARE_IMAGE");
-	using FPermutationDomain = TShaderPermutationDomain<FThreadGroupSizeXY, FOutputHardwareImage, FOutputSoftwareImage>;
+	using FPermutationDomain = TShaderPermutationDomain<FHardwareTileSize, FOutputHardwareImage, FOutputSoftwareImage>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LuminanceTexture)
@@ -395,7 +395,7 @@ void AddCreateShadingRateImagePass(
 			check(TileSize.X == TileSize.Y);
 
 			FCalculateShadingRateImageCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FCalculateShadingRateImageCS::FThreadGroupSizeXY>(TileSize.X);
+			PermutationVector.Set<FCalculateShadingRateImageCS::FHardwareTileSize>(TileSize.X);
 			PermutationVector.Set<FCalculateShadingRateImageCS::FOutputHardwareImage>(bCreateHardwareImages);
 			PermutationVector.Set<FCalculateShadingRateImageCS::FOutputSoftwareImage>(bCreateSoftwareImages);
 
@@ -542,7 +542,7 @@ bool FContrastAdaptiveImageGenerator::IsSupportedByView(const FSceneView& View) 
 {
 	EDisplayOutputFormat DisplayOutputFormat = GetDisplayOutputFormat(View);
 	const bool bCompatibleWithOutputType = (DisplayOutputFormat == EDisplayOutputFormat::SDR_sRGB) || IsHDR10(DisplayOutputFormat);
-	return !View.bIsSceneCapture && bCompatibleWithOutputType;
+	return !View.bIsSceneCapture && bCompatibleWithOutputType && !IsMobilePlatform(View.GetShaderPlatform());
 }
 
 FRDGTextureRef FContrastAdaptiveImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)

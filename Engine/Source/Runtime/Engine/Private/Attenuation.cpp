@@ -27,6 +27,8 @@ FBaseAttenuationSettings::FBaseAttenuationSettings()
 {
 }
 
+FBaseAttenuationSettings::~FBaseAttenuationSettings() = default;
+
 float FBaseAttenuationSettings::GetMaxDimension() const
 {
 	float MaxDimension = GetMaxFalloffDistance();

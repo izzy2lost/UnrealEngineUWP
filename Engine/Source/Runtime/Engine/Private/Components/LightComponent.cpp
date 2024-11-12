@@ -6,14 +6,16 @@
 
 #include "Components/LightComponent.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Engine/World.h"
 #include "Materials/Material.h"
 #include "MaterialDomain.h"
 #include "UObject/ObjectSaveContext.h"
 #include "SceneInterface.h"
+#include "LightSceneProxy.h"
 #include "UObject/RenderingObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UObjectAnnotation.h"
@@ -30,6 +32,8 @@
 #include "UObject/ICookInfo.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealType.h"
+#include "UObject/Package.h"
+#include "WorldPartition/ActorInstanceGuids.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LightComponent)
 
@@ -160,7 +164,16 @@ void ULightComponentBase::SetSamplesPerPixel(int NewValue)
 
 void ULightComponentBase::Serialize(FArchive& Ar)
 {
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
 	Super::Serialize(Ar);
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LevelInstanceStaticLightingSupport)
+	{
+		// Starting from there LightGuid is a mix of OrigignalLightGuid & ActorInstanceGuid so move the value where it belongs
+		OriginalLightGuid = LightGuid;
+		LightGuid.Invalidate();
+	}
 
 	if (Ar.UEVer() < VER_UE4_INVERSE_SQUARED_LIGHTS_DEFAULT)
 	{
@@ -239,15 +252,19 @@ void ULightComponentBase::PostEditChangeProperty(FPropertyChangedEvent& Property
 void ULightComponentBase::ValidateLightGUIDs()
 {
 	// Validate light guids.
-	if (!LightGuid.IsValid())
+	if (!OriginalLightGuid.IsValid())
 	{
 		UpdateLightGUIDs();
 	}
+
+	
+	LightGuid = (OriginalLightGuid.IsValid() && GetOwner() )? FGuid::Combine( OriginalLightGuid , FActorInstanceGuid::GetActorInstanceGuid(*GetOwner())) : FGuid();
 }
 
 void ULightComponentBase::UpdateLightGUIDs()
 {
-	LightGuid = (HasStaticShadowing() ? FGuid::NewGuid() : FGuid());
+	OriginalLightGuid = (HasStaticShadowing() ? FGuid::NewGuid() : FGuid());
+	LightGuid = (OriginalLightGuid.IsValid() && GetOwner() )? FGuid::Combine( OriginalLightGuid , FActorInstanceGuid::GetActorInstanceGuid(*GetOwner())) : FGuid();
 }
 
 bool ULightComponentBase::HasStaticLighting() const
@@ -267,6 +284,7 @@ void ULightComponentBase::PostLoad()
 
 	if (!HasStaticShadowing())
 	{
+		OriginalLightGuid.Invalidate();
 		LightGuid.Invalidate();
 	}
 }
@@ -274,6 +292,8 @@ void ULightComponentBase::PostLoad()
 void ULightComponentBase::OnRegister()
 {
 	Super::OnRegister();
+
+	ValidateLightGUIDs();
 
 	if (SpriteComponent)
 	{
@@ -338,7 +358,8 @@ void FLightRenderParameters::MakeShaderParameters(const FViewMatrices& ViewMatri
 	OutShaderParameters.Color = FVector3f(Color) * GetLightExposureScale(Exposure);
 	OutShaderParameters.FalloffExponent = FalloffExponent;
 	OutShaderParameters.Direction = Direction;
-	OutShaderParameters.SpecularScale = SpecularScale;
+	OutShaderParameters.SpecularScale = FMath::Clamp(SpecularScale, 0.f, 1.f);
+	OutShaderParameters.DiffuseScale = FMath::Clamp(DiffuseScale, 0.f, 1.f);
 	OutShaderParameters.Tangent = Tangent;
 	OutShaderParameters.SourceRadius = SourceRadius;
 	OutShaderParameters.SpotAngles = SpotAngles;
@@ -351,6 +372,7 @@ void FLightRenderParameters::MakeShaderParameters(const FViewMatrices& ViewMatri
 	OutShaderParameters.RectLightAtlasMaxLevel = RectLightAtlasMaxLevel;
 	OutShaderParameters.IESAtlasIndex = IESAtlasIndex;
 	OutShaderParameters.LightFunctionAtlasLightIndex = LightFunctionAtlasLightIndex;
+	OutShaderParameters.bAffectsTranslucentLighting = bAffectsTranslucentLighting;
 }
 
 // match logic in InverseExposureLerp(...)
@@ -423,6 +445,8 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	ContactShadowLengthInWS = false;
 	ContactShadowCastingIntensity = 1.0f;
 	ContactShadowNonCastingIntensity = 0.0f;
+	bAllowMegaLights = true;
+	MegaLightsShadowMethod = EMegaLightsShadowMethod::Default;
 	bUseIESBrightness = false;
 	IESBrightnessScale = 1.0f;
 	IESTexture = NULL;
@@ -434,6 +458,7 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	LightFunctionFadeDistance = 100000.0f;
 	DisabledBrightness = 0.5f;
 	SpecularScale = 1.0f;
+	DiffuseScale = 1.0f;
 
 	bEnableLightShaftBloom = false;
 	BloomScale = .2f;
@@ -537,7 +562,7 @@ void ULightComponent::Serialize(FArchive& Ar)
 			LegacyData->ShadowMapChannel = ShadowMapChannel_DEPRECATED;
 
 			FLightComponentLegacyMapBuildData LegacyLightData;
-			LegacyLightData.Id = LightGuid;
+			LegacyLightData.Id = OriginalLightGuid;
 			LegacyLightData.Data = LegacyData;
 			GLightComponentsWithLegacyBuildData.AddAnnotation(this, MoveTemp(LegacyLightData));
 		}
@@ -563,7 +588,12 @@ void ULightComponent::PostLoad()
 		ClearLightFunctionMaterial();
 	}
 
-	PreviewShadowMapChannel = INDEX_NONE;
+	// we want to make sure PreviewShadowMapChannel gets into PIE unchanged
+	if (!GIsEditor || !GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor))
+	{
+		PreviewShadowMapChannel = INDEX_NONE;
+	}
+
 	Intensity = FMath::Max(0.0f, Intensity);
 
 	if (GetLinkerUEVersion() < VER_UE4_LIGHTCOMPONENT_USE_IES_TEXTURE_MULTIPLIER_ON_NON_IES_BRIGHTNESS)
@@ -577,6 +607,11 @@ void ULightComponent::PostLoad()
 	}
 }
 
+bool ULightComponent::CanTraceDistanceFieldShadows() const
+{
+	return CastShadows && CastDynamicShadows && Mobility != EComponentMobility::Static && DoesProjectSupportDistanceFields();
+}
+
 #if WITH_EDITOR
 void ULightComponent::PreSave(const class ITargetPlatform* TargetPlatform)
 {
@@ -588,7 +623,11 @@ void ULightComponent::PreSave(const class ITargetPlatform* TargetPlatform)
 void ULightComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	Super::PreSave(ObjectSaveContext);
-	ValidateLightGUIDs();
+
+	if (!ObjectSaveContext.IsCooking() && !IsTemplate())
+	{
+		ValidateLightGUIDs();
+	}
 }
 
 bool ULightComponent::CanEditChange(const FProperty* InProperty) const
@@ -632,7 +671,7 @@ bool ULightComponent::CanEditChange(const FProperty* InProperty) const
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bUseRayTracedDistanceFieldShadows)
 			|| bIsRayStartOffset)
 		{
-			bool bCanEdit = CastShadows && CastDynamicShadows && Mobility != EComponentMobility::Static && DoesProjectSupportDistanceFields();
+			bool bCanEdit = CanTraceDistanceFieldShadows();
 
 			if (bIsRayStartOffset)
 			{
@@ -687,6 +726,7 @@ void ULightComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		Intensity = FMath::Max(0.0f, Intensity);
 	}
 	SpecularScale = FMath::Clamp( SpecularScale, 0.0f, 1.0f );
+	DiffuseScale = FMath::Clamp( DiffuseScale, 0.0f, 1.0f );
 
 	if (HasStaticLighting())
 	{
@@ -714,6 +754,7 @@ void ULightComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bAffectTranslucentLighting) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bTransmission) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, SpecularScale) &&
+		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, DiffuseScale) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, LightFunctionMaterial) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, LightFunctionScale) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, LightFunctionFadeDistance) &&
@@ -821,10 +862,22 @@ bool ULightComponent::IsReadyForFinishDestroy()
 
 void ULightComponent::OnRegister()
 {
-	Super::OnRegister();
-
 	// Update GUIDs on attachment if they are not valid.
 	ValidateLightGUIDs();
+
+	if (OriginalLightGuid.IsValid() && !HasStaticLighting() && HasStaticShadowing())	
+	{		
+		// Since we support LevelInstances the channel must always be reassigned on load
+		if (UMapBuildDataRegistry* DataRegistry = UMapBuildDataRegistry::Get(this))
+		{
+			if (FLightComponentMapBuildData* LightBuildData = DataRegistry->GetLightBuildData(LightGuid))
+			{
+				PreviewShadowMapChannel = LightBuildData->ShadowMapChannel;
+			}
+		}
+	}
+
+	Super::OnRegister();
 }
 
 void ULightComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -1182,10 +1235,22 @@ void ULightComponent::SetShadowSlopeBias(float NewValue)
 
 void ULightComponent::SetSpecularScale(float NewValue)
 {
+	NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
 	if (AreDynamicDataChangesAllowed()
 		&& SpecularScale != NewValue)
 	{
 		SpecularScale = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
+void ULightComponent::SetDiffuseScale(float NewValue)
+{
+	NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
+	if (AreDynamicDataChangesAllowed()
+		&& DiffuseScale != NewValue)
+	{
+		DiffuseScale = NewValue;
 		MarkRenderStateDirty();
 	}
 }
@@ -1209,6 +1274,19 @@ void ULightComponent::SetLightingChannels(bool bChannel0, bool bChannel1, bool b
 		LightingChannels.bChannel0 = bChannel0;
 		LightingChannels.bChannel1 = bChannel1;
 		LightingChannels.bChannel2 = bChannel2;
+		MarkRenderStateDirty();
+	}
+}
+
+void ULightComponent::SetUseRayTracedDistanceFieldShadows(bool bNewValue)
+{
+	// Never set to true if not supported.
+	bNewValue = bNewValue && CanTraceDistanceFieldShadows();
+
+	if (AreDynamicDataChangesAllowed() &&
+		bNewValue != bUseRayTracedDistanceFieldShadows)
+	{
+		bUseRayTracedDistanceFieldShadows = bNewValue;
 		MarkRenderStateDirty();
 	}
 }
@@ -1262,6 +1340,7 @@ void ULightComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuildEnque
 		// Create new guids for light.
 		UpdateLightGUIDs();
 
+#if WITH_EDITOR
 		if (GIsEditor)
 		{
 			UWorld* World = GetWorld();
@@ -1271,6 +1350,7 @@ void ULightComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuildEnque
 				ReassignStationaryLightChannels(World, false, NULL);
 			}
 		}
+#endif
 
 		MarkRenderStateDirty();
 
@@ -1284,6 +1364,7 @@ void ULightComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuildEnque
 	else
 	{
 		// Movable lights will have a GUID of 0
+		OriginalLightGuid.Invalidate();
 		LightGuid.Invalidate();
 	}
 }
@@ -1303,7 +1384,8 @@ void ULightComponent::ApplyComponentInstanceData(FPrecomputedLightInstanceData* 
 		return;
 	}
 
-	LightGuid = (HasStaticShadowing() ? LightMapData->LightGuid : FGuid());
+	OriginalLightGuid = (HasStaticShadowing() ? LightMapData->OriginalLightGuid : FGuid());
+	LightGuid = (HasStaticShadowing() ? LightMapData->LightGuid : FGuid());	
 	PreviewShadowMapChannel = LightMapData->PreviewShadowMapChannel;
 
 	MarkRenderStateDirty();
@@ -1347,17 +1429,7 @@ const FLightComponentMapBuildData* ULightComponent::GetLightComponentMapBuildDat
 			}
 #endif
 
-			ULevel* ActiveLightingScenario = OwnerLevel->OwningWorld->GetActiveLightingScenario();
-			UMapBuildDataRegistry* MapBuildData = NULL;
-
-			if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
-			{
-				MapBuildData = ActiveLightingScenario->MapBuildData;
-			}
-			else if (OwnerLevel->MapBuildData)
-			{
-				MapBuildData = OwnerLevel->MapBuildData;
-			}
+			UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(this);
 
 			if (MapBuildData)
 			{
@@ -1436,7 +1508,18 @@ void ULightComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* InMate
 
 void ULightComponent::PushSelectionToProxy()
 {
-	MarkRenderStateDirty();
+	if (SceneProxy)
+	{
+		const bool bIsSelected = IsSelected() || IsOwnerSelected();
+		FLightSceneProxy* LocalSceneProxy = SceneProxy;
+		ENQUEUE_RENDER_COMMAND(SetLightSelection)(
+			[LocalSceneProxy, bIsSelected](FRHICommandListImmediate& RHICmdList)
+			{
+				// NOTE: The selection flag is currently used on the C++ side for debug features, so simply updating this flag is enough.
+				LocalSceneProxy->SetSelected(bIsSelected);
+			});
+	}
+
 }
 
 /** Stores a light and a channel it has been assigned to. */
@@ -1467,7 +1550,9 @@ struct FCompareLightsByArrayCount
  * - finishing a lighting build
  * If you're adding more call sites to this function, make sure not to break GPULightmass as it is based on the above assumption
  */
-void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, ULevel* LightingScenario)
+
+#if WITH_EDITOR
+void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, FStaticLightingBuildContext* LightingContext)
 {
 	TMap<FLightAndChannel*, TArray<FLightAndChannel*> > LightToOverlapMap;
 
@@ -1484,9 +1569,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 			&& LightComponent->HasStaticShadowing()
 			&& !LightComponent->HasStaticLighting())
 		{
-			ULevel* LightLevel = LightOwner->GetLevel();
-
-			if (!LightingScenario || !LightLevel->bIsLightingScenario || LightLevel == LightingScenario)
+			if (!LightingContext || LightingContext->ShouldIncludeActor(LightOwner))
 			{				
 				if (LightComponent->bAffectsWorld
 					&& (LightComponent->CastShadows || LightComponent->LightFunctionMaterial)
@@ -1516,8 +1599,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 
 		if (bAssignForLightingBuild)
 		{
-			ULevel* StorageLevel = LightingScenario ? LightingScenario : CurrentLight->GetOwner()->GetLevel();
-			UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+			UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(CurrentLight->GetOwner());
 			FLightComponentMapBuildData& LightBuildData = Registry->FindOrAllocateLightBuildData(CurrentLight->LightGuid, true);
 			LightBuildData.ShadowMapChannel = INDEX_NONE;
 		}
@@ -1614,8 +1696,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 
 		if (bAssignForLightingBuild)
 		{
-			ULevel* StorageLevel = LightingScenario ? LightingScenario : CurrentLight->Light->GetOwner()->GetLevel();
-			UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+			UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(CurrentLight->Light->GetOwner());
 			FLightComponentMapBuildData& LightBuildData = Registry->FindOrAllocateLightBuildData(CurrentLight->Light->LightGuid, true);
 			LightBuildData.ShadowMapChannel = CurrentLight->Channel;
 
@@ -1630,6 +1711,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 		delete CurrentLight;
 	}
 }
+#endif
 
 static void ToggleLight(const TArray<FString>& Args)
 {

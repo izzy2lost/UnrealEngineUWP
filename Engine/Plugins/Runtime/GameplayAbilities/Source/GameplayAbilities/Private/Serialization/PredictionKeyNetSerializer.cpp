@@ -73,7 +73,7 @@ void FPredictionKeyNetSerializer::Serialize(FNetSerializationContext& Context, c
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 
 	Writer->WriteBool(Value.bIsServerInitiated);
-	const bool bShouldWriteKey = (Value.CurrentKey > 0) && (Value.bIsServerInitiated || (Value.OwningConnectionId == 0 || Value.OwningConnectionId == Context.GetLocalConnectionId()));
+	const bool bShouldWriteKey = (Value.CurrentKey > 0) && (Value.bIsServerInitiated || (Value.OwningConnectionId == 0) || (Value.OwningConnectionId == Context.GetLocalConnectionId()));
 	if (Writer->WriteBool(bShouldWriteKey))
 	{
 		Writer->WriteBits(Value.CurrentKey, 15U);
@@ -112,11 +112,11 @@ void FPredictionKeyNetSerializer::Quantize(FNetSerializationContext&, const FNet
 		Target.CurrentKey = uint16(Source.Current);
 
 		// The owning connection is only relevant if the key is valid.
-		if (UPackageMapClient* PackageMap = Cast<UPackageMapClient>(reinterpret_cast<UPackageMap*>(Source.GetPredictiveConnectionKey())))
+		if (UPackageMapClient* PackageMap = Cast<UPackageMapClient>(Source.PredictiveConnectionObjectKey.ResolveObjectPtr()))
 		{
 			if (const UNetConnection* Connection = PackageMap->GetConnection())
 			{
-				Target.OwningConnectionId = Connection->GetConnectionId();
+				Target.OwningConnectionId = Connection->GetConnectionHandle().GetParentConnectionId();
 			}
 		}
 	}
@@ -134,7 +134,7 @@ void FPredictionKeyNetSerializer::Dequantize(FNetSerializationContext& Context, 
 		UObject* UserData = Context.GetLocalConnectionUserData(Source.OwningConnectionId);
 		if (UNetConnection* NetConnection = Cast<UNetConnection>(UserData))
 		{
-			Target.PredictiveConnectionKey = UPTRINT(NetConnection->PackageMap);
+			Target.PredictiveConnectionObjectKey = FObjectKey(NetConnection->PackageMap);
 		}
 		else
 		{
@@ -150,8 +150,7 @@ bool FPredictionKeyNetSerializer::IsEqual(FNetSerializationContext&, const FNetI
 		const QuantizedType& Value0 = *reinterpret_cast<const QuantizedType*>(Args.Source0);
 		const QuantizedType& Value1 = *reinterpret_cast<const QuantizedType*>(Args.Source1);
 
-		const bool bIsEqual = (Value0.CurrentKey == Value1.CurrentKey) & 
-			(Value0.bIsServerInitiated == Value1.bIsServerInitiated) & (Value0.OwningConnectionId == Value1.OwningConnectionId);
+		const bool bIsEqual = (Value0.CurrentKey == Value1.CurrentKey) & (Value0.bIsServerInitiated == Value1.bIsServerInitiated) & (Value0.OwningConnectionId == Value1.OwningConnectionId);
 
 		return bIsEqual;
 	}

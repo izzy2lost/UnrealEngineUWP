@@ -50,9 +50,13 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	bool MatchesExactly(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty) const;
 
 	/** @return Attempts to resolve this property given the class */
-	FProperty* ResolveProperty(UStruct& Class, bool bLogOnFail = true) const;
+	FProperty* ResolveProperty(const UStruct& Class, bool bLogOnFail = true) const;
 
+	/** @return The property immediately before the current one in the chain */
 	FConcertPropertyChain GetParent() const;
+	/** @return The root-most parent in the chain. */
+	FConcertPropertyChain GetRootParent() const;
+	/** @return The property path */
 	const TArray<FName>& GetPathToProperty() const { return PathToProperty; }
 
 	enum class EToStringMethod
@@ -62,32 +66,14 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	};
 	FString ToString(EToStringMethod Method = EToStringMethod::Path) const;
 	
-	friend bool operator==(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right)
-	{
-		return Left.PathToProperty == Right.PathToProperty;
-	}
-	friend bool operator!=(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right)
-	{
-		return !(Left == Right);
-	}
+	friend bool operator==(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right) { return Left.PathToProperty == Right.PathToProperty; }
+	friend bool operator!=(const FConcertPropertyChain& Left, const FConcertPropertyChain& Right) { return !(Left == Right); }
 
-	friend bool operator==(const FConcertPropertyChain& Left, const TArray<FName>& Path)
-	{
-		return Left.PathToProperty == Path;
-	}
-	friend bool operator!=(const FConcertPropertyChain& Left, const TArray<FName>& Path)
-	{
-		return Left.PathToProperty != Path;
-	}
+	friend bool operator==(const FConcertPropertyChain& Left, const TArray<FName>& Path) { return Left.PathToProperty == Path; }
+	friend bool operator!=(const FConcertPropertyChain& Left, const TArray<FName>& Path) { return Left.PathToProperty != Path; }
 	
-	friend bool operator==(const TArray<FName>& Path, const FConcertPropertyChain& Left)
-	{
-		return Left.PathToProperty == Path;
-	}
-	friend bool operator!=(const TArray<FName>& Path, const FConcertPropertyChain& Left)
-	{
-		return Left.PathToProperty != Path;
-	}
+	friend bool operator==(const TArray<FName>& Path, const FConcertPropertyChain& Left) { return Left.PathToProperty == Path; }
+	friend bool operator!=(const TArray<FName>& Path, const FConcertPropertyChain& Left) { return Left.PathToProperty != Path; }
 	
 private:
 	
@@ -148,13 +134,13 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 
 	/** List of replicated properties. */
 	UPROPERTY()
-	TArray<FConcertPropertyChain> ReplicatedProperties;
+	TSet<FConcertPropertyChain> ReplicatedProperties;
 
 	/** @return Whether this and Other contain at least one property that is the same. */
 	bool OverlapsWith(const FConcertPropertySelection& Other) const { return EnumeratePropertyOverlaps(ReplicatedProperties, Other.ReplicatedProperties); }
 
 	/** @return Whether this includes all properties of Other */
-	bool Includes(const FConcertPropertySelection& Other) const;
+	bool Includes(const FConcertPropertySelection& Other) const { return ReplicatedProperties.Includes(Other.ReplicatedProperties); }
 
 	/**
 	 * Adds all parent properties if they are missing.
@@ -171,14 +157,14 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 	 * @return Whether there were any property overlaps.
 	 */
 	static bool EnumeratePropertyOverlaps(
-		TConstArrayView<FConcertPropertyChain> First,
-		TConstArrayView<FConcertPropertyChain> Second,
+		const TSet<FConcertPropertyChain>& First,
+		const TSet<FConcertPropertyChain>& Second,
 		TFunctionRef<EBreakBehavior(const FConcertPropertyChain&)> Callback = [](const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 		);
 	
 	friend bool operator==(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
 	{
-		return Left.ReplicatedProperties == Right.ReplicatedProperties;
+		return Left.ReplicatedProperties.Num() == Right.ReplicatedProperties.Num() && Left.Includes(Right);
 	}
 	friend bool operator!=(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
 	{
@@ -186,4 +172,17 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 	}
 };
 
-CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertPropertyChain& Chain);
+namespace UE::ConcertSyncCore
+{
+	/**
+	 * Implementation of hashing FConcertPropertyChain. Allows you to use TSet::ContainsByHash without constructing a FConcertPropertyChain, which is expensive because it searches the property tree.
+	 * You can rely on the fact that this function is either updated or deprecated when the hasing algorithm for FConcertPropertyChain is changed.
+	 */
+	CONCERTSYNCCORE_API uint32 ComputeHashForPropertyChainContent(const TArray<FName>& PropertyChain);
+}
+inline uint32 GetTypeHash(const FConcertPropertyChain& Chain)
+{
+	// If you need to changing the hashing function - update ComputeHashForPropertyChainContent since some code relies on the hasing logic.
+	return UE::ConcertSyncCore::ComputeHashForPropertyChainContent(Chain.GetPathToProperty());
+}
+

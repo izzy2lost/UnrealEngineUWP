@@ -240,7 +240,7 @@ namespace AJA
 		// For Interlaced, there is 2 options. Use Timecode to identify which is the odd and even field.
 		OutputChannelThread::Frame* OutputChannelThread::FetchAvailableWritingFrame(const AJAOutputFrameBufferData& InFrameData)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			Frame* AvailableWritingFrame = nullptr;
 			{
@@ -483,7 +483,7 @@ namespace AJA
 
 		bool OutputChannelThread::SetAncillaryFrameData(const AJAOutputFrameBufferData& InFrameData, uint8_t* InAncillaryBuffer, uint32_t InAncillaryBufferSize)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			if (!UseAncillary())
 			{
@@ -578,7 +578,7 @@ namespace AJA
 
 		bool OutputChannelThread::SetVideoFrameData(const AJAOutputFrameBufferData& InFrameData, uint8_t* InVideoBuffer, uint32_t InVideoBufferSize)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			if (!UseVideo())
 			{
@@ -650,7 +650,7 @@ namespace AJA
 
 		bool OutputChannelThread::SetVideoFrameData(const AJAOutputFrameBufferData& InFrameData, FRHITexture* RHITexture)
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			if (!bIsProgressive)
 			{
@@ -869,7 +869,7 @@ namespace AJA
 
 		void OutputChannelThread::Thread_AutoCirculateLoop()
 		{
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 			bool bRunning = true;
 			bool bSleep = true;
 
@@ -1007,17 +1007,16 @@ namespace AJA
 
 			//	Write the requested test pattern into host buffer...
 			{
-				AJATestPatternGen		testPatternGen;
-				AJATestPatternBuffer	testPatternBuffer;
-				testPatternGen.DrawTestPattern(AJATestPatternSelect::AJA_TestPatt_ColorBars100,
-					FormatDescriptor.numPixels,
-					FormatDescriptor.numLines,
-					Helpers::ConvertToPixelFormat(GetOptions().PixelFormat),
+				NTV2TestPatternGen testPatternGen;
+				NTV2Buffer testPatternBuffer;
+
+				testPatternGen.DrawTestPattern(NTV2TestPatternSelect::NTV2_TestPatt_ColorBars100,
+					FormatDescriptor,
 					testPatternBuffer);
 
 				for (UByte FrameIndex = BaseFrameIndex; FrameIndex < BaseFrameIndex + DeviceConnection::NumberOfFrameForAutoCirculate; ++FrameIndex)
 				{
-					GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast <uint32_t *> (&testPatternBuffer[0]), uint32_t(testPatternBuffer.size()));
+					GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast <uint32_t *> (testPatternBuffer.GetHostPointer()), uint32_t(testPatternBuffer.GetByteCount()));
 				}
 			}
 
@@ -1071,15 +1070,7 @@ namespace AJA
 				}
 				if (UseVideo())
 				{
-					uint32 FrameIndex = BaseFrameIndex + Index;
-
-					if (NTV2_IS_4K_VIDEO_FORMAT(GetOptions().VideoFormatIndex))
-					{
-						// 4K Format uses a different indexing.
-						FrameIndex *= 4;
-					}
-					
-					AJA_CHECK(GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast<ULWord*>(CurrentFrame->VideoBuffer), CurrentFrame->CopiedVideoBufferSize));
+					AJA_CHECK(GetDevice().DMAWriteFrame(BaseFrameIndex + Index, reinterpret_cast<ULWord*>(CurrentFrame->VideoBuffer), CurrentFrame->CopiedVideoBufferSize, Channel));
 
 					if (TextureTransfer && GetOptions().bUseGPUDMA)
 					{
@@ -1127,7 +1118,7 @@ namespace AJA
 		void OutputChannelThread::Thread_PingPongLoop()
 		{
 			bool bHaveOutputOnce = false;
-			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat);
+			const bool bIsProgressive = ::IsProgressivePicture(VideoFormat) || Options.bOutputInterlaceAsProgressive;
 
 			uint32_t CurrentOutFrame = 0;
 			CurrentOutFrame ^= 1;
@@ -1212,14 +1203,7 @@ namespace AJA
 							TextureTransfer->BeginSync(AvailableReadingFrame->VideoBuffer, Direction);
 						}
 
-						uint32 FrameIndex = BaseFrameIndex + CurrentOutFrame;
-						if (NTV2_IS_4K_VIDEO_FORMAT(GetOptions().VideoFormatIndex))
-						{
-							// 4K Format uses a different indexing.
-							FrameIndex *= 4;
-						}
-
-						bRunning = bRunning && GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast<ULWord*>(AvailableReadingFrame->VideoBuffer), AvailableReadingFrame->CopiedVideoBufferSize);
+						bRunning = bRunning && GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast<ULWord*>(AvailableReadingFrame->VideoBuffer), AvailableReadingFrame->CopiedVideoBufferSize, Channel);
 
 						if (TextureTransfer && GetOptions().bUseGPUDMA)
 						{
@@ -1286,18 +1270,17 @@ namespace AJA
 
 			//	Write the requested test pattern into host buffer...
 			{
-				AJATestPatternGen		testPatternGen;
-				AJATestPatternBuffer	testPatternBuffer;
-				testPatternGen.DrawTestPattern(AJATestPatternSelect::AJA_TestPatt_ColorBars100,
-					FormatDescriptor.numPixels,
-					FormatDescriptor.numLines,
-					Helpers::ConvertToPixelFormat(GetOptions().PixelFormat),
+				NTV2TestPatternGen testPatternGen;
+				NTV2Buffer testPatternBuffer;
+
+				testPatternGen.DrawTestPattern(NTV2TestPatternSelect::NTV2_TestPatt_ColorBars100,
+					FormatDescriptor,
 					testPatternBuffer);
 
 				CurrentOutFrame ^= 1;
-				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (&testPatternBuffer[0]), uint32_t(testPatternBuffer.size()));
+				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (testPatternBuffer.GetHostPointer()), uint32_t(testPatternBuffer.GetByteCount()));
 				CurrentOutFrame ^= 1;
-				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (&testPatternBuffer[0]), uint32_t(testPatternBuffer.size()));
+				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (testPatternBuffer.GetHostPointer()), uint32_t(testPatternBuffer.GetByteCount()));
 			}
 
 			if (!bStopRequested)

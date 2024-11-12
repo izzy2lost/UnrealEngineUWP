@@ -1,18 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
 using OpenTracing;
 using OpenTracing.Util;
-using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
 {
@@ -25,50 +19,49 @@ namespace AutomationTool.Tasks
 		/// Project file to be cooked.
 		/// </summary>
 		[TaskParameter]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// The cook platform to target (for example, Windows).
 		/// </summary>
 		[TaskParameter]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// List of maps to be cooked, separated by '+' characters.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Maps;
+		public string Maps { get; set; }
 
 		/// <summary>
 		/// Additional arguments to be passed to the cooker.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Versioned = false;
-	
+		public bool Versioned { get; set; } = false;
+
 		/// <summary>
 		/// Additional arguments to be passed to the cooker.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments = "";
-
+		public string Arguments { get; set; } = "";
 
 		/// <summary>
 		/// Optional path to what editor executable to run for cooking.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EditorExe = "";
+		public string EditorExe { get; set; } = "";
 
 		/// <summary>
 		/// Whether to tag the output from the cook. Since cooks produce a lot of files, it can be detrimental to spend time tagging them if we don't need them in a dependent node.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool TagOutput = true;
+		public bool TagOutput { get; set; } = true;
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
@@ -80,91 +73,84 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for the task
 		/// </summary>
-		CookTaskParameters Parameters;
+		readonly CookTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public CookTask(CookTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public CookTask(CookTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Figure out the project that this target belongs to
-			FileReference ProjectFile = null;
-			if(Parameters.Project != null)
+			FileReference projectFile = null;
+			if (_parameters.Project != null)
 			{
-				ProjectFile = new FileReference(Parameters.Project);
-				if(!FileReference.Exists(ProjectFile))
+				projectFile = new FileReference(_parameters.Project);
+				if (!FileReference.Exists(projectFile))
 				{
-					throw new AutomationException("Missing project file - {0}", ProjectFile.FullName);
+					throw new AutomationException("Missing project file - {0}", projectFile.FullName);
 				}
 			}
 
-			// Execute the cooker
-			using (IScope Scope = GlobalTracer.Instance.BuildSpan("Cook").StartActive())
+			// ExecuteAsync the cooker
+			using (IScope scope = GlobalTracer.Instance.BuildSpan("Cook").StartActive())
 			{
-				Scope.Span.SetTag("project", ProjectFile == null ? "UE4" : ProjectFile.GetFileNameWithoutExtension());
-				Scope.Span.SetTag("platform", Parameters.Platform);
-				string[] Maps = (Parameters.Maps == null)? null : Parameters.Maps.Split(new char[]{ '+' });
-				string Arguments = (Parameters.Versioned ? "" : "-Unversioned ") + "-LogCmds=\"LogSavePackage Warning\" " + Parameters.Arguments;
-				string EditorExe = (string.IsNullOrWhiteSpace(Parameters.EditorExe) ? "UnrealEditor-Cmd.exe" : Parameters.EditorExe);
-				CommandUtils.CookCommandlet(ProjectFile, EditorExe, Maps, null, null, null, Parameters.Platform, Arguments);
+				scope.Span.SetTag("project", projectFile == null ? "UE4" : projectFile.GetFileNameWithoutExtension());
+				scope.Span.SetTag("platform", _parameters.Platform);
+				string[] maps = (_parameters.Maps == null) ? null : _parameters.Maps.Split(new char[] { '+' });
+				string arguments = (_parameters.Versioned ? "" : "-Unversioned ") + _parameters.Arguments;
+				string editorExe = (string.IsNullOrWhiteSpace(_parameters.EditorExe) ? ProjectUtils.GetEditorForProject(projectFile).FullName : _parameters.EditorExe);
+				CommandUtils.CookCommandlet(projectFile, editorExe, maps, null, null, null, _parameters.Platform, arguments);
 			}
 
 			// Find all the cooked files
-			List<FileReference> CookedFiles = new List<FileReference>();
-			if (Parameters.TagOutput)
+			List<FileReference> cookedFiles = new List<FileReference>();
+			if (_parameters.TagOutput)
 			{
-				foreach (string Platform in Parameters.Platform.Split('+'))
+				foreach (string platform in _parameters.Platform.Split('+'))
 				{
-					DirectoryReference PlatformCookedDirectory = DirectoryReference.Combine(ProjectFile.Directory, "Saved", "Cooked", Platform);
-					if (!DirectoryReference.Exists(PlatformCookedDirectory))
+					DirectoryReference platformCookedDirectory = DirectoryReference.Combine(projectFile.Directory, "Saved", "Cooked", platform);
+					if (!DirectoryReference.Exists(platformCookedDirectory))
 					{
-						throw new AutomationException("Cook output directory not found ({0})", PlatformCookedDirectory.FullName);
+						throw new AutomationException("Cook output directory not found ({0})", platformCookedDirectory.FullName);
 					}
-					List<FileReference> PlatformCookedFiles = DirectoryReference.EnumerateFiles(PlatformCookedDirectory, "*", System.IO.SearchOption.AllDirectories).ToList();
-					if (PlatformCookedFiles.Count == 0)
+					List<FileReference> platformCookedFiles = DirectoryReference.EnumerateFiles(platformCookedDirectory, "*", System.IO.SearchOption.AllDirectories).ToList();
+					if (platformCookedFiles.Count == 0)
 					{
-						throw new AutomationException("Cooking did not produce any files in {0}", PlatformCookedDirectory.FullName);
+						throw new AutomationException("Cooking did not produce any files in {0}", platformCookedDirectory.FullName);
 					}
-					CookedFiles.AddRange(PlatformCookedFiles);
-
-					DirectoryReference PackagingFilesDirectory = DirectoryReference.Combine(ProjectFile.Directory, "Saved", "TmpPackaging", Platform);
-					if (DirectoryReference.Exists(PackagingFilesDirectory))
-					{
-						List<FileReference> PackagingFiles = DirectoryReference.EnumerateFiles(PackagingFilesDirectory, "*", System.IO.SearchOption.AllDirectories).ToList();
-						CookedFiles.AddRange(PackagingFiles);
-					}
+					cookedFiles.AddRange(platformCookedFiles);
 				}
 			}
 
 			// Apply the optional tag to the build products
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(CookedFiles);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(cookedFiles);
 			}
 
 			// Add them to the set of build products
-			BuildProducts.UnionWith(CookedFiles);
+			buildProducts.UnionWith(cookedFiles);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -182,7 +168,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

@@ -2,12 +2,14 @@
 
 #pragma once
 
-
+#include "Async/Async.h"
+#include "Async/RecursiveMutex.h"
 #include "ILiveLinkClient.h"
 #include "LiveLinkSubject.h"
 #include "LiveLinkSubjectSettings.h"
 #include "LiveLinkVirtualSubject.h"
 #include "UObject/GCObject.h"
+#include "UObject/StrongObjectPtr.h"
 
 class FLiveLinkSourceCollection;
 
@@ -29,7 +31,7 @@ struct LIVELINK_API FLiveLinkCollectionSourceItem
 	FLiveLinkCollectionSourceItem& operator=(const FLiveLinkCollectionSourceItem&) = delete;
 
 	FGuid Guid;
-	TObjectPtr<ULiveLinkSourceSettings> Setting; // GC by FLiveLinkSourceCollection::AddReferencedObjects
+	TStrongObjectPtr<ULiveLinkSourceSettings> Setting;
 	TSharedPtr<ILiveLinkSource> Source;
 	TSharedPtr<FLiveLinkTimedDataInput> TimedData;
 	bool bPendingKill = false;
@@ -38,7 +40,6 @@ struct LIVELINK_API FLiveLinkCollectionSourceItem
 public:
 	bool IsVirtualSource() const;
 };
-
 
 struct LIVELINK_API FLiveLinkCollectionSubjectItem
 {
@@ -50,19 +51,21 @@ public:
 	bool bEnabled;
 	bool bPendingKill;
 
-	ILiveLinkSubject* GetSubject() { return VirtualSubject ? static_cast<ILiveLinkSubject*>(VirtualSubject) : static_cast<ILiveLinkSubject*>(LiveSubject.Get()); }
-	FLiveLinkSubject* GetLiveSubject() { return LiveSubject.Get(); }
-	ULiveLinkVirtualSubject* GetVirtualSubject() { return VirtualSubject; }
-	ILiveLinkSubject* GetSubject() const { return VirtualSubject ? VirtualSubject : static_cast<ILiveLinkSubject*>(LiveSubject.Get()); }
+	// Todo: These methods should be revisited because they may not be safe to access when LiveLinkHub is ticked outside of  the game thread.
+	// ie. Calling methods on a subject that is about to be removed will not keep the underlying livelink subject alive.
+	ILiveLinkSubject* GetSubject() { return VirtualSubject ? static_cast<ILiveLinkSubject*>(VirtualSubject.Get()) : static_cast<ILiveLinkSubject*>(LiveSubject.Get()); }
+	ULiveLinkVirtualSubject* GetVirtualSubject() { return VirtualSubject.Get(); }
+	ILiveLinkSubject* GetSubject() const { return VirtualSubject ? VirtualSubject.Get() : static_cast<ILiveLinkSubject*>(LiveSubject.Get()); }
+	ULiveLinkVirtualSubject* GetVirtualSubject() const { return VirtualSubject.Get(); }
+	UObject* GetSettings() const { return VirtualSubject ? static_cast<UObject*>(VirtualSubject.Get()) : static_cast<UObject*>(Setting.Get()); }
+	ULiveLinkSubjectSettings* GetLinkSettings() const { return Setting.Get(); }
 	FLiveLinkSubject* GetLiveSubject() const { return LiveSubject.Get(); }
-	ULiveLinkVirtualSubject* GetVirtualSubject() const { return VirtualSubject; }
-	UObject* GetSettings() const { return VirtualSubject ? static_cast<UObject*>(VirtualSubject) : static_cast<UObject*>(Setting); }
-	ULiveLinkSubjectSettings* GetLinkSettings() const { return Setting; }
+
 
 private:
-	TObjectPtr<ULiveLinkSubjectSettings> Setting; // GC by FLiveLinkSourceCollection::AddReferencedObjects
+	TStrongObjectPtr<ULiveLinkSubjectSettings> Setting;
 	TUniquePtr<FLiveLinkSubject> LiveSubject;
-	TObjectPtr<ULiveLinkVirtualSubject> VirtualSubject; // GC by FLiveLinkSourceCollection::AddReferencedObjects
+	TStrongObjectPtr<ULiveLinkVirtualSubject> VirtualSubject;
 
 public:
 	FLiveLinkCollectionSubjectItem(const FLiveLinkCollectionSubjectItem&) = delete;
@@ -74,7 +77,7 @@ public:
 };
 
 
-class LIVELINK_API FLiveLinkSourceCollection : public FGCObject
+class LIVELINK_API FLiveLinkSourceCollection
 {
 public:
 	// "source guid" for virtual subjects
@@ -84,19 +87,14 @@ public:
 	UE_NONCOPYABLE(FLiveLinkSourceCollection)
 
 public:
-	//~ Begin FGCObject implementation
-	virtual void AddReferencedObjects(FReferenceCollector & Collector) override;
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("FLiveLinkSourceCollection");
-	}
-	//~ End FGCObject implementation
 
-public:
-
-	
+	UE_DEPRECATED(5.5, "Use ForEachSource instead.")
 	TArray<FLiveLinkCollectionSourceItem>& GetSources() { return Sources; }
+
+	UE_DEPRECATED(5.5, "Use ForEachSource instead.")
 	const TArray<FLiveLinkCollectionSourceItem>& GetSources() const { return Sources; }
+
+	UE_DEPRECATED(5.5, "Use ForEachSubject instead.")
 	const TArray<FLiveLinkCollectionSubjectItem>& GetSubjects() const { return Subjects; }
 
 	void AddSource(FLiveLinkCollectionSourceItem Source);
@@ -108,18 +106,43 @@ public:
 	const FLiveLinkCollectionSourceItem* FindSource(FGuid SourceGuid) const;
 	FLiveLinkCollectionSourceItem* FindVirtualSource(FName VirtualSourceName);
 	const FLiveLinkCollectionSourceItem* FindVirtualSource(FName VirtualSourceName) const;
+	/** Get the number of sources in the collection. */
+	int32 NumSources() const;
 
 	void AddSubject(FLiveLinkCollectionSubjectItem Subject);
 	void RemoveSubject(FLiveLinkSubjectKey SubjectKey);
 	FLiveLinkCollectionSubjectItem* FindSubject(FLiveLinkSubjectKey SubjectKey);
 	const FLiveLinkCollectionSubjectItem* FindSubject(FLiveLinkSubjectKey SubjectKey) const;
+	const FLiveLinkCollectionSubjectItem* FindSubject(FLiveLinkSubjectName SubjectName) const;
 	const FLiveLinkCollectionSubjectItem* FindEnabledSubject(FLiveLinkSubjectName SubjectName) const;
+	/** Get the number of subjects in the collection. */
+	int32 NumSubjects() const;
 
 	bool IsSubjectEnabled(FLiveLinkSubjectKey SubjectKey) const;
 	void SetSubjectEnabled(FLiveLinkSubjectKey SubjectKey, bool bEnabled);
 
 	void RemovePendingKill();
 	bool RequestShutdown();
+
+	/**
+	 * Thread safe way to apply a method over every subject.
+	 */
+	void ForEachSubject(TFunctionRef<void(FLiveLinkCollectionSourceItem& /*SourceItem*/, FLiveLinkCollectionSubjectItem& /*SubjectItem*/)> VisitorFunc);
+
+	/**
+	 * Thread safe way to apply a method over every subject.
+	 */
+	void ForEachSubject(TFunctionRef<void(const FLiveLinkCollectionSourceItem&, const FLiveLinkCollectionSubjectItem&)> VisitorFunc) const;
+
+	/**
+	 *  Thread safe way to apply a method over every source.
+	 */
+	void ForEachSource(TFunctionRef<void(FLiveLinkCollectionSourceItem& /*SourceItem*/)> VisitorFunc);
+
+	/**
+	 * Thread safe way to apply a method over every source.
+	 */
+	void ForEachSource(TFunctionRef<void(const FLiveLinkCollectionSourceItem&)> VisitorFunc) const;
 
 	FSimpleMulticastDelegate& OnLiveLinkSourcesChanged() { return OnLiveLinkSourcesChangedDelegate; }
 	FSimpleMulticastDelegate& OnLiveLinkSubjectsChanged() { return OnLiveLinkSubjectsChangedDelegate; }
@@ -129,8 +152,22 @@ public:
 	FOnLiveLinkSubjectChangedDelegate& OnLiveLinkSubjectAdded() { return OnLiveLinkSubjectAddedDelegate; }
 	FOnLiveLinkSubjectChangedDelegate& OnLiveLinkSubjectRemoved() { return OnLiveLinkSubjectRemovedDelegate; }
 
-private:
-	void RemoveSource(int32 Index);
+	/** Utility method used to broadcast delegates on the game thread if this function is called on a different thread. */
+	template <typename DelegateType, typename... ArgTypes>
+	void BroadcastOnGameThread(DelegateType& InDelegate, ArgTypes&&... InArgs)
+	{
+		if (IsInGameThread())
+		{
+			InDelegate.Broadcast(Forward<ArgTypes>(InArgs)...);
+		}
+		else
+		{
+			AsyncTask(ENamedThreads::GameThread, [&InDelegate, ...Args = InArgs] () mutable
+			{
+				InDelegate.Broadcast(MoveTemp(Args)...);
+			});
+		}
+	}
 
 private:
 	TArray<FLiveLinkCollectionSourceItem> Sources;
@@ -154,4 +191,10 @@ private:
 
 	/** Notify when a client subject's is removed */
 	FOnLiveLinkSubjectChangedDelegate OnLiveLinkSubjectRemovedDelegate;
+
+	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
+	mutable UE::FRecursiveMutex SubjectsLock;
+
+	/** Lock to stop multiple threads accessing the Sources from the collection at the same time */
+	mutable UE::FRecursiveMutex SourcesLock;
 };

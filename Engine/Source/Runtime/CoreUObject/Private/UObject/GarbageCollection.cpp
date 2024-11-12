@@ -8,6 +8,7 @@
 #include "Algo/Find.h"
 #include "Containers/Deque.h"
 #include "Containers/StaticBitArray.h"
+#include "HAL/MallocLeakDetection.h"
 #include "HAL/ThreadSafeBool.h"
 #include "Misc/TimeGuard.h"
 #include "HAL/IConsoleManager.h"
@@ -37,7 +38,9 @@
 #include "HAL/RunnableThread.h"
 #include "UObject/FieldPathProperty.h"
 #include "UObject/GarbageCollectionHistory.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/GarbageCollectionTesting.h"
+#include "UObject/PropertyBagRepository.h"
 #include "UObject/PropertyOptional.h"
 #include "UObject/ExpandingChunkedList.h"
 #include "UObject/ReachabilityAnalysisState.h"
@@ -75,11 +78,11 @@ extern COREUOBJECT_API float GVerifyGCAssumptionsChance;
 /** Object count during last mark phase																				*/
 FThreadSafeCounter		GObjectCountDuringLastMarkPhase;
 /** Whether UObject hash tables are locked by GC */
-bool GIsGarbageCollectingAndLockingUObjectHashTables = false;
+std::atomic<bool> GIsGarbageCollectingAndLockingUObjectHashTables = false;
 /** Whether incremental object purge is in progress										*/
-bool GObjIncrementalPurgeIsInProgress = false;
+std::atomic<bool> GObjIncrementalPurgeIsInProgress = false;
 /** Whether GC is currently routing BeginDestroy to objects										*/
-bool GObjUnhashUnreachableIsInProgress = false;
+std::atomic<bool> GObjUnhashUnreachableIsInProgress = false;
 /** Time the GC started, needs to be reset on return from being in the background on some OSs */
 double GCStartTime = 0.;
 /** Whether FinishDestroy has already been routed to all unreachable objects. */
@@ -92,14 +95,14 @@ static TArray<UObject *> GGCObjectsPendingDestruction;
 /** Number of objects actually still pending destruction */
 static int32 GGCObjectsPendingDestructionCount = 0;
 /** Whether we need to purge objects or not.											*/
-static bool GObjPurgeIsRequired = false;
+static std::atomic<bool> GObjPurgeIsRequired = false;
 /** Current object index for incremental purge.											*/
 static int32 GObjCurrentPurgeObjectIndex = 0;
 /** Current object index for incremental purge.											*/
 static bool GObjCurrentPurgeObjectIndexNeedsReset = true;
 
 /** Contains a list of objects that stayed marked as unreachable after the last reachability analysis */
-static TArray<FUObjectItem*> GUnreachableObjects;
+static TArray<UE::GC::FUnreachableObject> GUnreachableObjects;
 static FCriticalSection GUnreachableObjectsCritical;
 static int32 GUnrechableObjectIndex = 0;
 
@@ -206,14 +209,6 @@ static FAutoConsoleVariableRef CIncrementalBeginDestroyEnabled(
 	ECVF_Default
 );
 
-int32 GMultithreadedDestructionEnabled = 0;
-static FAutoConsoleVariableRef CMultithreadedDestructionEnabled(
-	TEXT("gc.MultithreadedDestructionEnabled"),
-	GMultithreadedDestructionEnabled,
-	TEXT("If true, the engine will free objects' memory from a worker thread"),
-	ECVF_Default
-);
-
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 bool GEnableFrankenGC = true;
 static FAutoConsoleVariableRef CEnableFrankenGC(
@@ -309,6 +304,14 @@ static FAutoConsoleVariableRef CVarVerifyNoUnreachableObjects(
 	TEXT("gc.VerifyNoUnreachableObjects"),
 	GVerifyNoUnreachableObjects,
 	TEXT("Enables or disables no unreachable objects are reachable verification"),
+	ECVF_Default
+);
+
+static int32 GVerifyObjectsDestroyed = UE_BUILD_DEBUG;
+static FAutoConsoleVariableRef CVarVerifyObjectsDestroyed(
+	TEXT("gc.VerifyObjectsDestroyed"),
+	GVerifyObjectsDestroyed,
+	TEXT("Enables or disables verification if all objects have been destroyed"),
 	ECVF_Default
 );
 #endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
@@ -540,7 +543,7 @@ namespace UE::GC
 #if PERF_DETAILED_PER_CLASS_GC_STATS
 		// Keep track of how many objects of a certain class we're purging.
 		const FName& ClassName = Object->GetClass()->GetFName();
-		int32 InstanceCount = ClassToPurgeCountMap.FindRef( ClassName );
+		uint64 InstanceCount = ClassToPurgeCountMap.FindRef( ClassName );
 		ClassToPurgeCountMap.Add( ClassName, ++InstanceCount );
 #endif
 	}
@@ -564,7 +567,7 @@ namespace UE::GC
 	EInternalObjectFlags GReachableObjectFlag = EInternalObjectFlags::ReachabilityFlag0;
 
 	/** EInternalObjectFlag value representing an unreachable object */
-	EInternalObjectFlags GUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
+	EInternalObjectFlags GUnreachableObjectFlag = EInternalObjectFlags::Unreachable;
 
 	/** EInternalObjectFlag value representing a maybe unreachable object */
 	EInternalObjectFlags GMaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag2;
@@ -579,11 +582,17 @@ namespace UE::GC::Private
 	/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
 	static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
 
-	using FGatherUnreachableObjectsState = TThreadedGather<TArray<FUObjectItem*>>;
+	using FGatherUnreachableObjectsState = TThreadedGather<TArray<UE::GC::FUnreachableObject>>;
 	static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
 
 	static TSet<int32> GRoots;
 	static FCriticalSection GRootsCritical;
+
+	/** Current EInternalObjectFlags value representing a reachable object */
+	EInternalObjectFlags FGCFlags::ReachableObjectFlag = EInternalObjectFlags::ReachabilityFlag0;
+
+	/** Current EInternalObjectFlags value representing a maybe unreachable object */
+	EInternalObjectFlags FGCFlags::MaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
 }
 
 static bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit = 0.0);
@@ -605,7 +614,7 @@ bool FUObjectItem::SetRootFlags(EInternalObjectFlags FlagsToSet)
 				GRoots.Add(GUObjectArray.ObjectToIndex(Object));
 			}
 		}
-		bIChangedIt = ThisThreadAtomicallySetFlag_ForGC(FlagsToSet);
+		bIChangedIt = AtomicallySetFlag_ForGC(FlagsToSet);
 	}
 	if (bIChangedIt & GIsIncrementalReachabilityPending) //-V792
 	{
@@ -624,31 +633,84 @@ bool FUObjectItem::ClearRootFlags(EInternalObjectFlags FlagsToClear)
 	constexpr int32 RootFlags = (int32)EInternalObjectFlags_RootFlags;
 	FScopeLock RootsLock(&GRootsCritical);
 	const int32 OldFlags = GetFlagsInternal();
+
+	// Now that we have the lock, we prevent the removal if refcount is not 0
+	// This avoids a race condition between ReleaseRef and AddRef.
+	if ((FlagsToClear & EInternalObjectFlags::RefCounted) == EInternalObjectFlags::RefCounted && GetRefCountInternal())
+	{
+		FlagsToClear &= ~EInternalObjectFlags::RefCounted;
+	}
+
 	if ((OldFlags & RootFlags) != 0 && ((OldFlags & ~(int32)FlagsToClear) & RootFlags) == 0)
 	{
 		GRoots.Remove(GUObjectArray.ObjectToIndex(Object));
 	}
-	return ThisThreadAtomicallyClearedFlag_ForGC((EInternalObjectFlags)FlagsToClear);
-
+	return AtomicallyClearFlag_ForGC((EInternalObjectFlags)FlagsToClear);
 }
+
+// BEGIN Deprecated FUObjectItem functions. These functions will be removed in the next release and are not used internally by the engine
+bool FUObjectItem::IsMaybeUnreachable() const
+{
+	return UE::GC::Private::FGCFlags::IsMaybeUnreachable_ForGC(this);
+}
+
+void FUObjectItem::SetMaybeUnreachable()
+{
+	UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(this);
+}
+
+void FUObjectItem::FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC()
+{
+	UE::GC::Private::FGCFlags::FastMarkAsReachableAndClearReachableInClusterInterlocked_ForGC(this);
+}
+
+void FUObjectItem::FastMarkAsReachableInterlocked_ForGC()
+{
+	UE::GC::Private::FGCFlags::FastMarkAsReachableInterlocked_ForGC(this);
+}
+
+bool FUObjectItem::MarkAsReachableInterlocked_ForGC()
+{
+	return UE::GC::Private::FGCFlags::MarkAsReachableInterlocked_ForGC(this);
+}
+// END Deprecated FUObjectItem functions
+
+// BEGIN Hidden (but DLL exported) functions that can only be used for testing GC and GC flags
+namespace UE::GC::Test
+{
+	COREUOBJECT_API bool IsReachable(const UObject* Object)
+	{
+		const FUObjectItem* ObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(GUObjectArray.ObjectToIndex(Object));
+		return UE::GC::Private::FGCFlags::IsReachable_ForGC(ObjectItem);
+	}
+	COREUOBJECT_API bool IsMaybeUnreachable(const UObject* Object)
+	{
+		return UE::GC::Private::FGCFlags::IsMaybeUnreachable_ForGC(Object);
+	}
+	COREUOBJECT_API void SetMaybeUnreachable(UObject* Object)
+	{
+		FUObjectItem* ObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(GUObjectArray.ObjectToIndex(Object));
+		UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(ObjectItem);
+	}
+} // namespace UE::GC::Test
+// END Hidden functions
 
 void OnDisregardForGCSetDisabled(int32 NumObjects)
 {
 	using namespace UE::GC;
 	using namespace UE::GC::Private;
-	using FMarkMarkDisregardState = TThreadedGather<TArray<UObject*>>;
+	using FDisregardSetDisabledState = TThreadedGather<TSet<int32>>;
 
-	FMarkMarkDisregardState MarkDisregardState;
+	FDisregardSetDisabledState DisregardSetDisabledState;
 	
-	MarkDisregardState.Start(EGatherOptions::Parallel, NumObjects);
-	FMarkMarkDisregardState::FThreadIterators& ThreadIterators = MarkDisregardState.GetThreadIterators();
+	DisregardSetDisabledState.Start(EGatherOptions::Parallel, NumObjects);
+	FDisregardSetDisabledState::FThreadIterators& ThreadIterators = DisregardSetDisabledState.GetThreadIterators();
 
 	// Objects in the disregard for GC set do not have any of the reachability flags set (this way they never become (Maybe)Unreachable) nor are they added to the GRoots array 
-	FScopeLock RootsLock(&GRootsCritical);
-	ParallelFor(TEXT("GC.OnDisregardForGCSetDisabled"), MarkDisregardState.NumWorkerThreads(), 1, [&ThreadIterators](int32 ThreadIndex)
+	ParallelFor(TEXT("GC.OnDisregardForGCSetDisabled"), DisregardSetDisabledState.NumWorkerThreads(), 1, [&ThreadIterators](int32 ThreadIndex)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(OnDisregardForGCSetDisabledTask);
-		FMarkMarkDisregardState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
+		FDisregardSetDisabledState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
 
 		while (ThreadState.Index <= ThreadState.LastIndex)
 		{
@@ -656,254 +718,139 @@ void OnDisregardForGCSetDisabled(int32 NumObjects)
 			FUObjectItem* RootItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];	
 			if (RootItem->Object)
 			{
-				RootItem->ThisThreadAtomicallySetFlag_ForGC(GReachableObjectFlag);
+				FGCFlags::SetReachable_ForGC(RootItem);
 				if (RootItem->HasAnyFlags(EInternalObjectFlags_RootFlags))
 				{
-					GRoots.Add(ObjectIndex);
+					ThreadState.Payload.Add(ObjectIndex);
 				}
 			}
 		}
-	}, (MarkDisregardState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+	}, (DisregardSetDisabledState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+
+	FScopeLock RootsLock(&GRootsCritical);
+	DisregardSetDisabledState.Finish(GRoots);
 }
 
 /**
- * Helper class for destroying UObjects on a worker thread
+ * Helper class for destroying UObjects
  */
-class FAsyncPurge : public FRunnable
+class FObjectPurge
 {
-	/** Thread to run the worker FRunnable on. Destroys objects. */
-	volatile FRunnableThread* Thread;
-	/** Id of the worker thread */
-	uint32 AsyncPurgeThreadId;
-	/** Stops this thread */
-	FThreadSafeCounter StopTaskCounter;
-	/** Event that triggers the UObject destruction */
-	FEvent* BeginPurgeEvent;
-	/** Event that signales the UObject destruction is finished */
-	FEvent* FinishedPurgeEvent;
+	/** Current index into the global unreachable objects array (GUnreachableObjects) of the object whose index is being released */
+	int32 ObjCurrentFreeIndexObjectIndex = 0;
 	/** Current index into the global unreachable objects array (GUnreachableObjects) of the object being destroyed */
-	int32 ObjCurrentPurgeObjectIndex;
-	/** Number of objects deferred to the game thread to destroy */
-	std::atomic<int32> NumObjectsToDestroyOnGameThread;
-	/** Number of objectsalready destroyed on the game thread */
-	int32 NumObjectsDestroyedOnGameThread;
-	/** Current index into the global unreachable objects array (GUnreachableObjects) of the object being destroyed on the game thread */
-	int32 ObjCurrentPurgeObjectIndexOnGameThread;
-	/** Number of unreachable objects the last time single-threaded tick was called */
-	int32 LastUnreachableObjectsCount;
+	int32 ObjCurrentPurgeObjectIndex = 0;
 	/** Stats for the number of objects destroyed */
-	int32 ObjectsDestroyedSinceLastMarkPhase;
-
-	/** [PURGE/GAME THREAD] Destroys objects that are unreachable */
-	template <bool bMultithreaded> // Having this template argument lets the compiler strip unnecessary checks
-	bool TickDestroyObjects(bool bUseTimeLimit, double TimeLimit, double StartTime)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncPurge::TickDestroyObjects);
-		const int32 TimeLimitEnforcementGranularityForDeletion = 100;
-		int32 ProcessedObjectsCount = 0;
-		bool bFinishedDestroyingObjects = true;
-
-		// Avoid fetch_add synchronization for each object sent to the game-thread and instead load the value
-		// once into a local variable and replace by a simple store to publish the value to the other thread.
-		// This is safe because we know only this thread is going to modify it.
-		int32 LocalNumObjectsToDestroyOnGameThread = NumObjectsToDestroyOnGameThread.load(std::memory_order_acquire);
-		
-		while (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num())
-		{
-			FUObjectItem* ObjectItem = GUnreachableObjects[ObjCurrentPurgeObjectIndex];
-			check(ObjectItem->IsUnreachable());
-
-			UObject* Object = (UObject*)ObjectItem->Object;
-			check(Object->HasAllFlags(RF_FinishDestroyed | RF_BeginDestroyed));
-			if (!bMultithreaded || Object->IsDestructionThreadSafe())
-			{
-				// Can't lock once for the entire batch here as it could hold the lock for too long
-				GUObjectArray.LockInternalArray();
-				Object->~UObject();
-				GUObjectArray.UnlockInternalArray();
-				GUObjectAllocator.FreeUObject(Object);
-				GUnreachableObjects[ObjCurrentPurgeObjectIndex] = nullptr;
-			}
-			else
-			{
-				NumObjectsToDestroyOnGameThread.store(++LocalNumObjectsToDestroyOnGameThread, std::memory_order_release);
-			}
-			++ProcessedObjectsCount;
-			++ObjectsDestroyedSinceLastMarkPhase;
-			++ObjCurrentPurgeObjectIndex;
-
-			// Time slicing when running on the game thread
-			if (!bMultithreaded && bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num()))
-			{
-				ProcessedObjectsCount = 0;
-				if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
-				{
-					bFinishedDestroyingObjects = false;
-					break;
-				}				
-			}
-		}
-		return bFinishedDestroyingObjects;
-	}
-
-	/** [GAME THREAD] Destroys objects that are unreachable and couldn't be destroyed on the worker thread */
-	bool TickDestroyGameThreadObjects(bool bUseTimeLimit, double TimeLimit, double StartTime)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncPurge::TickDestroyGameThreadObjects);
-		const int32 TimeLimitEnforcementGranularityForDeletion = 100;
-		int32 ProcessedObjectsCount = 0;
-		bool bFinishedDestroyingObjects = true;
-
-		// Lock once for the entire batch
-		GUObjectArray.LockInternalArray();
-
-		// Cache the number of objects to destroy locally. The number may grow later but that's ok, we'll catch up to it in the next tick
-		const int32 LocalNumObjectsToDestroyOnGameThread = NumObjectsToDestroyOnGameThread.load(std::memory_order_acquire);
-
-		while (NumObjectsDestroyedOnGameThread < LocalNumObjectsToDestroyOnGameThread && ObjCurrentPurgeObjectIndexOnGameThread < GUnreachableObjects.Num())
-		{
-			FUObjectItem* ObjectItem = GUnreachableObjects[ObjCurrentPurgeObjectIndexOnGameThread];			
-			if (ObjectItem)
-			{
-				GUnreachableObjects[ObjCurrentPurgeObjectIndexOnGameThread] = nullptr;
-				UObject* Object = (UObject*)ObjectItem->Object;
-				Object->~UObject();
-				GUObjectAllocator.FreeUObject(Object);
-				++ProcessedObjectsCount;
-				++NumObjectsDestroyedOnGameThread;
-
-				if (bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && NumObjectsDestroyedOnGameThread < LocalNumObjectsToDestroyOnGameThread)
-				{
-					ProcessedObjectsCount = 0;
-					if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
-					{
-						bFinishedDestroyingObjects = false;
-						break;
-					}
-				}
-			}
-			++ObjCurrentPurgeObjectIndexOnGameThread;
-		}
-
-		GUObjectArray.UnlockInternalArray();
-
-		// Make sure that when we reach the end of GUnreachableObjects array, there's no objects to destroy left
-		check(!bFinishedDestroyingObjects || NumObjectsDestroyedOnGameThread == LocalNumObjectsToDestroyOnGameThread);
-
-		// Note that even though NumObjectsToDestroyOnGameThread may have been incremented by now or still hasn't but it will be 
-		// after we report we're done with all objects, it doesn't matter since we don't care about the result of this function in MT mode
-		return bFinishedDestroyingObjects;
-	}
-
-	/** Waits for the worker thread to finish destroying objects */
-	void WaitForAsyncDestructionToFinish()
-	{
-		FinishedPurgeEvent->Wait();
-	}
+	int32 ObjectsDestroyedSinceLastMarkPhase = 0;
+	/** True if all objects from the last purge phase have been destroyed */
+	bool bFinishedDestroyingObjects = true;
 
 public:
-
-	/** 
-	 * Constructor
-	 * @param bMultithreaded if true, the destruction of objects will happen on a worker thread
-	 */
-	FAsyncPurge(bool bMultithreaded)
-		: Thread(nullptr)
-		, AsyncPurgeThreadId(0)
-		, BeginPurgeEvent(nullptr)
-		, FinishedPurgeEvent(nullptr)
-		, ObjCurrentPurgeObjectIndex(0)
-		, NumObjectsToDestroyOnGameThread(0)
-		, NumObjectsDestroyedOnGameThread(0)
-		, ObjCurrentPurgeObjectIndexOnGameThread(0)
-		, LastUnreachableObjectsCount(0)
-		, ObjectsDestroyedSinceLastMarkPhase(0)
-	{
-		BeginPurgeEvent = FPlatformProcess::GetSynchEventFromPool(true);
-		FinishedPurgeEvent = FPlatformProcess::GetSynchEventFromPool(true);
-		FinishedPurgeEvent->Trigger();
-		if (bMultithreaded)
-		{
-			check(FPlatformProcess::SupportsMultithreading());
-			FPlatformAtomics::InterlockedExchangePtr((void**)&Thread, FRunnableThread::Create(this, TEXT("FAsyncPurge"), 0, TPri_BelowNormal));			
-		}
-		else
-		{
-			AsyncPurgeThreadId = GGameThreadId;
-		}
-	}
-
-	virtual ~FAsyncPurge()
-	{
-		check(IsFinished());
-		delete Thread;
-		Thread = nullptr;
-		FPlatformProcess::ReturnSynchEventToPool(BeginPurgeEvent);
-		FPlatformProcess::ReturnSynchEventToPool(FinishedPurgeEvent);
-		BeginPurgeEvent = nullptr;
-		FinishedPurgeEvent = nullptr;
-	}
 
 	/** Returns true if the destruction process is finished */
 	FORCEINLINE bool IsFinished() const
 	{
-		if (Thread)
-		{
-			return FinishedPurgeEvent->Wait(0, true) && NumObjectsToDestroyOnGameThread == NumObjectsDestroyedOnGameThread;
-		}
-		else
-		{
-			return (ObjCurrentPurgeObjectIndex >= LastUnreachableObjectsCount && NumObjectsToDestroyOnGameThread == NumObjectsDestroyedOnGameThread);
-		}
+		return bFinishedDestroyingObjects;
 	}
 
-	/** [MAIN THREAD] Adds objects to the purge queue */
-	void BeginPurge()
+	/** Begins the UObject purge */
+	void Begin()
 	{
 		check(IsFinished()); // In single-threaded mode we need to be finished or the condition below will hang
-		if (FinishedPurgeEvent->Wait())
-		{
-			FinishedPurgeEvent->Reset();
-
-			ObjCurrentPurgeObjectIndex = 0;
-			ObjectsDestroyedSinceLastMarkPhase = 0;
-			NumObjectsToDestroyOnGameThread = 0;
-			NumObjectsDestroyedOnGameThread = 0;
-			ObjCurrentPurgeObjectIndexOnGameThread = 0;
-
-			BeginPurgeEvent->Trigger();
-		}
+		ObjCurrentFreeIndexObjectIndex = 0;
+		ObjCurrentPurgeObjectIndex = 0;
+		ObjectsDestroyedSinceLastMarkPhase = 0;
 	}
 
-	/** [GAME THREAD] Ticks the purge process on the game thread */
-	void TickPurge(bool bUseTimeLimit, double TimeLimit, double StartTime)
+	/** 
+	 * Destroys UObjects on the game thread 
+	 * @param bUseTimeLimit true if TimeLimit should be respected
+	 * @param TimeLimit Time limit (in seconds) for the purge
+	 * @param StartTime Time incremental destruction has begun
+	 * @return true if all objects have been purged, false otherwise
+	 */
+	FORCENOINLINE bool DestroyObjects(bool bUseTimeLimit, double TimeLimit, double StartTime)
 	{
-		bool bCanStartDestroyingGameThreadObjects = true;
-		if (!Thread)
+		TRACE_CPUPROFILER_EVENT_SCOPE(FObjectPurge::DestroyObjects);
+		constexpr int32 TimeLimitEnforcementGranularityForDeletion = 100;
+		int32 ProcessedObjectsCount = 0;
+
+		// Global UObject Array needs to be locked only when freeing UObject indices
+		GUObjectArray.LockInternalArray();
 		{
-			// If we're running single-threaded we need to tick the main loop here too
-			LastUnreachableObjectsCount = GUnreachableObjects.Num();
-			bCanStartDestroyingGameThreadObjects = TickDestroyObjects<false>(bUseTimeLimit, TimeLimit, StartTime);
-		}
-		if (bCanStartDestroyingGameThreadObjects)
-		{
-			do
+			// This loops replaces every entry in GUnreachableObjects which up untill this point has been an FUObjectItem 
+			// with the actual UObject that the FUObjectItem represented.
+			// This is because in this loop we free UObject indices meaning that they are removed from GUObjectArray and 
+			// the associated FUObjectItem is reset and no longer pointing at UObject.
+			// This approach has the benefit that we don't need to lock GUObjectArray when calling UObject destructors and 
+			// we can reclaim GUObjectArray entires faster.
+			while (ObjCurrentFreeIndexObjectIndex < GUnreachableObjects.Num())
 			{
-				// Deal with objects that couldn't be destroyed on the worker thread. This will do nothing when running single-threaded
-				bool bFinishedDestroyingObjectsOnGameThread = TickDestroyGameThreadObjects(bUseTimeLimit, TimeLimit, StartTime);
-				if (!Thread && bFinishedDestroyingObjectsOnGameThread)
+				UE::GC::FUnreachableObject& UnreachableObject = GUnreachableObjects[ObjCurrentFreeIndexObjectIndex];
+				FUObjectItem* ObjectItem = UnreachableObject.ObjectItem;
+				check(ObjectItem->IsUnreachable());
+
+				UObject* Object = (UObject*)ObjectItem->Object;
+				check(Object->HasAllFlags(RF_FinishDestroyed | RF_BeginDestroyed));
+
+				GUObjectArray.FreeUObjectIndex(Object);
+
+				// Replace the entry in GUnreachableObjects with the actual UObject so that we can iterate over the same array when 
+				// we call UObject destructors and free their memory in the loop below
+				UnreachableObject.Object = Object;
+
+				++ProcessedObjectsCount;
+				++ObjCurrentFreeIndexObjectIndex;
+
+				// Time slicing when running on the game thread
+				if (bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && (ObjCurrentFreeIndexObjectIndex < GUnreachableObjects.Num()))
 				{
-					// This only gets triggered here in single-threaded mode
-					FinishedPurgeEvent->Trigger();
+					ProcessedObjectsCount = 0;
+					if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
+					{
+						break;
+					}
 				}
-			} while (!bUseTimeLimit && !IsFinished());
+			}
 		}
+		GUObjectArray.UnlockInternalArray();
+
+		if (ObjCurrentFreeIndexObjectIndex == GUnreachableObjects.Num())
+		{
+			// At this point all entires in GUnreachableObjects point at UObject memory instead of FUObjectItems
+			while (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num())
+			{
+				UE::GC::FUnreachableObject& UnreachableObject = GUnreachableObjects[ObjCurrentPurgeObjectIndex];
+				UObject* Object = UnreachableObject.Object;
+
+				Object->~UObject();
+				GUObjectAllocator.FreeUObject(Object);
+				UnreachableObject.Object = nullptr;
+
+				++ProcessedObjectsCount;
+				++ObjectsDestroyedSinceLastMarkPhase;
+				++ObjCurrentPurgeObjectIndex;
+
+				// Time slicing when running on the game thread
+				if (bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num()))
+				{
+					ProcessedObjectsCount = 0;
+					if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
+					{
+						break;
+					}
+				}
+			}
+		}
+
+		bFinishedDestroyingObjects = (ObjCurrentPurgeObjectIndex == GUnreachableObjects.Num());
+		return bFinishedDestroyingObjects;
 	}
 
 	/** Returns the number of objects already destroyed */
 	int32 GetObjectsDestroyedSinceLastMarkPhase() const
 	{
-		return ObjectsDestroyedSinceLastMarkPhase - NumObjectsToDestroyOnGameThread + NumObjectsDestroyedOnGameThread;
+		return ObjectsDestroyedSinceLastMarkPhase;
 	}
 
 	/** Resets the number of objects already destroyed */
@@ -912,67 +859,22 @@ public:
 		ObjectsDestroyedSinceLastMarkPhase = 0;
 	}
 
-	/** 
-	  * Returns true if this function is called from the async destruction thread. 
-	  * It will also return true if we're running single-threaded and this function is called on the game thread
-	  */
-	bool IsInAsyncPurgeThread() const
+	FORCENOINLINE void VerifyAllObjectsDestroyed() const
 	{
-		return AsyncPurgeThreadId == FPlatformTLS::GetCurrentThreadId();
-	}
-
-	/* Returns true if it can run multi-threaded destruction */
-	bool IsMultithreaded() const
-	{
-		return !!Thread;
-	}
-
-	//~ Begin FRunnable Interface.
-	virtual bool Init()
-	{
-		return true;
-	}
-
-	virtual uint32 Run()
-	{
-		AsyncPurgeThreadId = FPlatformTLS::GetCurrentThreadId();
-		
-		while (StopTaskCounter.GetValue() == 0)
+		for (UE::GC::FUnreachableObject UnreachableObject : GUnreachableObjects)
 		{
-			if (BeginPurgeEvent->Wait(15, true))
-			{
-				BeginPurgeEvent->Reset();
-				TickDestroyObjects<true>(/* bUseTimeLimit = */ false, /* TimeLimit = */ 0.0f, /* StartTime = */ 0.0);
-				FinishedPurgeEvent->Trigger();
-			}
-		}
-		FinishedPurgeEvent->Trigger();
-		return 0;
-	}
-
-	virtual void Stop()
-	{
-		StopTaskCounter.Increment();
-	}
-	//~ End FRunnable Interface
-
-	void VerifyAllObjectsDestroyed()
-	{
-		for (FUObjectItem* ObjectItem : GUnreachableObjects)
-		{
-			UE_CLOG(ObjectItem, LogGarbage, Fatal, TEXT("Object 0x%016llx has not been destroyed during async purge"), (int64)(PTRINT)ObjectItem->Object);
+			UE_CLOG(UnreachableObject.Object, LogGarbage, Fatal, TEXT("Object 0x%016llx has not been destroyed during purge"), (int64)(PTRINT)UnreachableObject.Object);
 		}
 	}
-};
-static FAsyncPurge* GAsyncPurge = nullptr;
+} GUObjectPurge;
 
 /**
-  * Returns true if this function is called from the async destruction thread.
+  * (Deprecated) Returns true if this function is called from the async destruction thread.
   * It will also return true if we're running single-threaded and this function is called on the game thread
   */
 bool IsInGarbageCollectorThread()
 {
-	return GAsyncPurge ? GAsyncPurge->IsInAsyncPurgeThread() : IsInGameThread();
+	return IsInGameThread();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1083,6 +985,8 @@ FORCEINLINE static void MarkReferencedClustersAsReachableThunk(int32 ClusterInde
 template<EGCOptions Options, class ContainerType>
 static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, ContainerType& ObjectsToSerialize)
 {
+	using namespace UE::GC::Private;
+
 	// This is going to be the return value and basically means that we ran across some Garbage objects
 	bool bAddClusterObjectsToSerialize = false;
 	for (int32& ReferencedMutableObjectIndex : Cluster.MutableObjects)
@@ -1093,9 +997,9 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 			UE::GC::GDetailedStats.IncClusterToObjectRefs(ReferencedMutableObjectItem);
 			if (!ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::Garbage))
 			{
-				if (ReferencedMutableObjectItem->IsMaybeUnreachable())
+				if (FGCFlags::IsMaybeUnreachable_ForGC(ReferencedMutableObjectItem))
 				{
-					if (ReferencedMutableObjectItem->MarkAsReachableInterlocked_ForGC())
+					if (FGCFlags::MarkAsReachableInterlocked_ForGC(ReferencedMutableObjectItem))
 					{
 						// Needs doing because this is either a normal unclustered object (clustered objects are never unreachable) or a cluster root
 						ObjectsToSerialize.Add(static_cast<UObject*>(ReferencedMutableObjectItem->Object));
@@ -1110,14 +1014,14 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 				else if (ReferencedMutableObjectItem->GetOwnerIndex() > 0 && !ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
 				{
 					// This is a clustered object that maybe hasn't been processed yet
-					if (ReferencedMutableObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
+					if (FGCFlags::ThisThreadAtomicallySetFlag_ForGC(ReferencedMutableObjectItem, EInternalObjectFlags::ReachableInCluster))
 					{
 						// Needs doing, we need to get its cluster root and process it too
 						FUObjectItem* ReferencedMutableObjectsClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedMutableObjectItem->GetOwnerIndex());
-						if (ReferencedMutableObjectsClusterRootItem->IsMaybeUnreachable())
+						if (FGCFlags::IsMaybeUnreachable_ForGC(ReferencedMutableObjectsClusterRootItem))
 						{
 							// The root is also maybe unreachable so process it and all the referenced clusters
-							if (ReferencedMutableObjectsClusterRootItem->MarkAsReachableInterlocked_ForGC())
+							if (FGCFlags::MarkAsReachableInterlocked_ForGC(ReferencedMutableObjectsClusterRootItem))
 							{
 								MarkReferencedClustersAsReachable<Options>(ReferencedMutableObjectsClusterRootItem->GetClusterIndex(), ObjectsToSerialize);
 							}
@@ -1159,6 +1063,8 @@ FORCEINLINE static void MarkClusterMutableCellsAsReachable(FUObjectCluster& Clus
 template<EGCOptions Options, class ContainerType>
 static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, ContainerType& ObjectsToSerialize)
 {
+	using namespace UE::GC::Private;
+
 	UE::GC::GDetailedStats.IncNumClustersTraversed();
 
 	// If we run across some Garbage objects we need to add all objects from this cluster
@@ -1176,7 +1082,7 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 			FUObjectItem* ReferencedClusterRootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferncedClusterIndex);
 			if (!ReferencedClusterRootObjectItem->HasAnyFlags(EInternalObjectFlags::Garbage))
 			{
-				ReferencedClusterRootObjectItem->FastMarkAsReachableInterlocked_ForGC();
+				FGCFlags::FastMarkAsReachableInterlocked_ForGC(ReferencedClusterRootObjectItem);
 			}
 			else
 			{
@@ -1712,6 +1618,8 @@ private:
 	// Process all queued validated references
 	FORCEINLINE_DEBUGGABLE void DrainValidated(const uint32 Num)
 	{
+		using namespace UE::GC::Private;
+
 		check(Num <= ValidatedBatchSize);
 
 		// Prefetch metadata
@@ -1720,7 +1628,7 @@ private:
 		// shares cacheline with the raw UObject*. Not adding an offset leads to a bit faster and more compact code.
 		static constexpr uint32 InternalIndexPrefetchOffset = 0;
 		static constexpr uint32 PrefetchAhead = ValidatedPrefetchAhead;
-		static constexpr ::size_t OffsetOfFlags = FUObjectItem::OffsetOfFlags();
+		static constexpr ::size_t OffsetOfFlags = FGCFlags::OffsetOfFlags_ForGC();
 
 		uint32 ObjectIndices[ValidatedBatchSize];
 		if (Num > PrefetchAhead)
@@ -1924,7 +1832,8 @@ private:
 	}
 
 	void AllocateWipBlock(FStructArrayBlock* NextFull)
-	{	
+	{
+		MALLOCLEAK_IGNORE_SCOPE(); // GScratchPages allocations may leak until global static destruction
 		static_assert(sizeof(FStructArrayBlock) <= FPageAllocator::PageSize, "Block must fit in page");
 	
 		Wip = reinterpret_cast<FStructArrayBlock*>(GScratchPages.AllocatePage(WorkerIndex));
@@ -2070,8 +1979,8 @@ private:
 		{
 			return;
 		}
-		
-		uint32 ValidIndices[UnvalidatedStructArrays.Max()];
+
+		uint32 ValidIndices[decltype(UnvalidatedStructArrays)::Max()];
 		uint32* ValidIt = ValidIndices;
 		for (uint32 Idx = 0; Idx < Num; ++Idx)
 		{
@@ -3014,7 +2923,9 @@ public:
 
 	FORCEINLINE static bool HandleValidReference(FWorkerContext& Context, FImmutableReference Reference, FReferenceMetadata Metadata)
 	{
-		if (Metadata.ObjectItem->MarkAsReachableInterlocked_ForGC())
+		using namespace UE::GC::Private;
+
+		if (FGCFlags::MarkAsReachableInterlocked_ForGC(Metadata.ObjectItem))
 		{
 			// Objects that are part of a GC cluster should never have the unreachable flag set!
 			checkSlow(Metadata.ObjectItem->GetOwnerIndex() <= 0);
@@ -3040,9 +2951,9 @@ public:
 				FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(Metadata.ObjectItem->GetOwnerIndex());
 				checkSlow(RootObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
 
-				if (Metadata.ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
+				if (FGCFlags::ThisThreadAtomicallySetFlag_ForGC(Metadata.ObjectItem, EInternalObjectFlags::ReachableInCluster))
 				{
-					if (RootObjectItem->MarkAsReachableInterlocked_ForGC())
+					if (FGCFlags::MarkAsReachableInterlocked_ForGC(RootObjectItem))
 					{
 						// Make sure all referenced clusters are marked as reachable too
 						MarkReferencedClustersAsReachableThunk<Options>(RootObjectItem->GetClusterIndex(), Context.ObjectsToSerialize);
@@ -3126,16 +3037,21 @@ struct TBatchDispatcher
 	}
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	FORCEINLINE_DEBUGGABLE void HandleVerseCellDirectly(UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId, EOrigin Origin)
+	{
+		VerseGCMarkStack.Mark(Cell);
+		Context.Stats.AddVerseCells(1);
+	}
+
 	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue Value, FMemberId MemberId, EOrigin Origin)
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
 		{
-			VerseGCMarkStack.Mark(Cell);
-			Context.Stats.AddVerseCells(1);
+			HandleVerseCellDirectly(ReferencingObject, Cell, MemberId, Origin);
 		}
-		else if (Value.IsUObject())
+		else if (UObject* Object = Value.ExtractUObject())
 		{
-			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
+			HandleImmutableReference(Object, MemberId, Origin);
 		}
 	}
 
@@ -3368,7 +3284,12 @@ protected:
 public:
 	virtual bool IsIgnoringArchetypeRef() const override final { return false;}
 	virtual bool IsIgnoringTransient() const override final { return false; }
-	virtual bool NeedsInitialReferences() const override final { return !IsParallel(Options); }
+	virtual bool NeedsInitialReferences() const override final 
+	{
+		// The logic here needs to match a hypothetical 'else' block in FRealtimeGC::GetInitialReferences(EGCOptions Options)
+		// so that UGCObjectReferencer::AddReferencedObjects(...) gathers InitialReferencedObjects when GC runs in single-threaded mode
+		return !IsParallel(Options); 
+	}
 	virtual void AllowEliminatingReferences(bool bAllow) override final { bAllowEliminatingReferences = bAllow; }
 
 	virtual void SetIsProcessingNativeReferences(bool bIsNative) override final
@@ -3396,6 +3317,9 @@ public:
 		
 	virtual void HandleObjectReference(UObject*& InObject, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
 	virtual void HandleObjectReferences(UObject** InObjects, const int32 ObjectNum, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* InCell, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
+#endif
 
 	virtual void AddStableReference(UObject** Object) override
 	{
@@ -3615,6 +3539,14 @@ public:
 		}
 	}
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	virtual void HandleVCellReference(Verse::VCell* Cell, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
+	{
+		Processor.HandleTokenStreamVerseCellReference(Context, const_cast<UObject*>(ReferencingObject), Cell, EMemberlessId::Collector, CurrentOrigin);
+		Context.Stats.AddVerseCells(1);
+	}
+#endif
+
 	virtual void AddStableReference(UObject** Object) override
 	{
 		HandleObjectReference(*Object, Context.GetReferencingObject(), nullptr);
@@ -3728,6 +3660,14 @@ void TReachabilityCollector<Options>::HandleObjectReferences(UObject** InObjects
 	}
 }
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+template <EGCOptions Options>
+void TReachabilityCollector<Options>::HandleVCellReference(Verse::VCell* Cell, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
+{
+	Dispatcher.HandleVerseCellDirectly(const_cast<UObject*>(ReferencingObject), Cell, EMemberlessId::Collector, this->CurrentOrigin);
+}
+#endif
+
 //////////////////////////////////////////////////////////////////////////
 
 template <typename ProcessorType, typename CollectorType>
@@ -3785,8 +3725,6 @@ void TFastReferenceCollector<ProcessorType, CollectorType>::ProcessStructs(Dispa
 void ShutdownGarbageCollection()
 {
 	UE::GC::FContextPoolScope().Cleanup();
-	delete GAsyncPurge;
-	GAsyncPurge = nullptr;
 #if ENABLE_GC_HISTORY
 	FGCHistory::Get().Cleanup();
 #endif
@@ -3814,6 +3752,8 @@ FReferenceFinder::FReferenceFinder(TArray<UObject*>& InObjectArray, UObject* InO
 		}
 	}
 }
+
+FReferenceFinder::~FReferenceFinder() = default;
 
 void FReferenceFinder::FindReferences(UObject* Object, UObject* InReferencingObject, FProperty* InReferencingProperty)
 {
@@ -3863,6 +3803,19 @@ static bool bInFrankenGCStartStop = false; // This just tracks if we are in a St
 static bool bFrankenGCEnabled = false;
 static Verse::FCollectionCycleRequest VerseCycleRequest;
 
+static FORCEINLINE Verse::FIOContext RelinquishVerseHeapAccess(Verse::FRunningContext RunningContext)
+{
+	Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+	Context.SetIsInManuallyEmptyStack(true);
+	return Context;
+}
+
+static FORCEINLINE Verse::FRunningContext AcquireVerseHeapAccess(Verse::FIOContext Context)
+{
+	Context.SetIsInManuallyEmptyStack(false);
+	return Context.AcquireAccessForManualStackScanning();
+}
+
 static bool UpdateFrankenGCMode()
 {
 	bool bNewState = GEnableFrankenGC;
@@ -3871,11 +3824,12 @@ static bool UpdateFrankenGCMode()
 		bFrankenGCEnabled = bNewState;
 		if (bFrankenGCEnabled)
 		{
-			Verse::FIOContext::Create([](Verse::FIOContext Context) {
-				Verse::FHeap::EnableExternalControl(Context);
-				});
-			// If this trips, then the collection thread was still active after external control was enabled
-			ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
+			Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
+			Verse::FIOContext Context = RelinquishVerseHeapAccess(RunningContext);
+
+			Verse::FHeap::EnableExternalControl(Context);
+
+			AcquireVerseHeapAccess(Context);
 		}
 		else
 		{
@@ -3891,6 +3845,12 @@ void EnableFrankenGCMode(bool bEnable)
 	UpdateFrankenGCMode();
 }
 
+bool ShouldFrankenGCRun()
+{
+	return UpdateFrankenGCMode() && Verse::FHeap::IsGCStartPendingExternalSignal();
+}
+
+// Called at the start of a full mark cycle, which may span multiple ticks.
 static FORCEINLINE void StartVerseGC()
 {
 	ensure(!bInFrankenGCStartStop && !GIsFrankenGCCollecting);
@@ -3898,15 +3858,13 @@ static FORCEINLINE void StartVerseGC()
 	GIsFrankenGCCollecting = UpdateFrankenGCMode();
 	if (GIsFrankenGCCollecting)
 	{
-		// If this triggers, then someone is kicking off a Verse GC outside of FrankenGC which is a problem
-		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
-		Verse::FIOContext::Create([](Verse::FIOContext Context) { 
-			Verse::FHeap::ExternallySynchronouslyStartGC(Context);
-			VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
-		});
+		Verse::FIOContext Context = Verse::FIOContextPromise{};
+		Verse::FHeap::ExternallySynchronouslyStartGC(Context);
+		VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
 	}
 }
 
+// Called at the end of a full mark cycle, which may span multiple ticks.
 static FORCEINLINE void StopVerseGC()
 {
 	ensure(bInFrankenGCStartStop);
@@ -3914,12 +3872,10 @@ static FORCEINLINE void StopVerseGC()
 	if (GIsFrankenGCCollecting)
 	{
 		GIsFrankenGCCollecting = false;
-		Verse::FIOContext::Create([](Verse::FIOContext Context) { 
-			Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
-			VerseCycleRequest.Wait(Context);
-		});
-		// If this trips, then something went wrong with waiting for the previous cycle to complete.
-		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
+
+		Verse::FIOContext Context = Verse::FIOContextPromise{};
+		Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
+		VerseCycleRequest.Wait(Context);
 	}
 }
 #else
@@ -3962,14 +3918,15 @@ class FRealtimeGC : public FGarbageCollectionTracer
 
 	TConstArrayView<UObject**> GetInitialReferences(EGCOptions Options)
 	{
-		if (!!(Options & EGCOptions::Parallel))
+		const double StartTime = FPlatformTime::Seconds();
+		if (IsParallel(Options))
 		{
 			InitialCollection.Wait();
 		}
-		else
-		{
-			FGCObject::GGCObjectReferencer->AddInitialReferences(InitialReferences);
-		}
+		// Note that we don't gather initial references here in single-threaded mode because we'd need block and wait for FGCObject::GGCObjectReferencer->AddInitialReferences(InitialReferences) anyway
+		// so we just collect them in UGCObjectReferencer::AddReferencedObjects(...). The logic here needs to match TReachabilityCollectorBase::NeedsInitialReferences()
+
+		GGCStats.InitialReferenceCollectionTime += FPlatformTime::Seconds() - StartTime;
 
 		return InitialReferences;
 	}
@@ -3985,7 +3942,18 @@ class FRealtimeGC : public FGarbageCollectionTracer
 		}
 		else
 		{
+			if (!GReachabilityState.IsSuspended())
+			{
+				GReachabilityState.SetupWorkers(1);
+				GReachabilityState.GetContextArray()[0] = &Context;
+			}
+
 			FastReferenceCollector(Processor).ProcessObjectArray(Context);
+
+			Context.ResetInitialObjects();
+			Context.InitialNativeReferences = TConstArrayView<UObject**>();
+
+			GReachabilityState.CheckIfAnyContextIsSuspended();
 		}
 	}
 
@@ -4103,7 +4071,7 @@ public:
 						bool bKeepCluster = RootItem->HasAnyFlags(EInternalObjectFlags_RootFlags);
 						if (bKeepCluster)
 						{
-							RootItem->FastMarkAsReachableInterlocked_ForGC();
+							FGCFlags::FastMarkAsReachableInterlocked_ForGC(RootItem);
 							ThreadState.Payload.KeepClusters.Add(RootItem);
 						}
 
@@ -4111,7 +4079,7 @@ public:
 						{
 							FUObjectItem* ClusteredItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
 
-							ClusteredItem->FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC();
+							FGCFlags::FastMarkAsReachableAndClearReachableInClusterInterlocked_ForGC(ClusteredItem);
 
 							if (!bKeepCluster && ClusteredItem->HasAnyFlags(EInternalObjectFlags_RootFlags))
 							{
@@ -4186,7 +4154,7 @@ public:
 					checkCode(if (RootItem->HasAllFlags(EInternalObjectFlags::Garbage | EInternalObjectFlags::RootSet)) { UE_LOG(LogGarbage, Fatal, TEXT("Object %s is part of root set though has been marked as Garbage!"), *Object->GetFullName()); });
 #endif
 
-					RootItem->FastMarkAsReachableInterlocked_ForGC();
+					FGCFlags::FastMarkAsReachableInterlocked_ForGC(RootItem);
 					ThreadState.Payload.Add(Object);
 				}
 			}, (MarkRootsState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);			
@@ -4218,7 +4186,7 @@ public:
 						// IsValidLowLevel is extremely slow in this loop so only do it in debug
 						checkSlow(Object->IsValidLowLevel());
 
-						ObjectItem->FastMarkAsReachableInterlocked_ForGC();
+						FGCFlags::FastMarkAsReachableInterlocked_ForGC(ObjectItem);
 						ThreadState.Payload.Add(Object);
 					}
 				}
@@ -4239,12 +4207,13 @@ public:
 	FORCENOINLINE void MarkObjectsAsUnreachable(const EObjectFlags KeepFlags)
 	{
 		using namespace UE::GC;
+		using namespace UE::GC::Private;
 
 		// Don't swap the flags if we're re-entering this function to track garbage references
 		if (const bool bInitialMark = !Stats.bFoundGarbageRef)
 		{
 			// This marks all UObjects as MaybeUnreachable
-			Swap(GReachableObjectFlag, GMaybeUnreachableObjectFlag);
+			FGCFlags::SwapReachableAndMaybeUnreachable();
 		}
 
 		// Not counting the disregard for GC set to preserve legacy behavior
@@ -4307,22 +4276,16 @@ private:
 	{
 		FContextPoolScope Pool;
 		FWorkerContext* Context = nullptr;
-		const bool bIsSingleThreaded = !(Options & EGCOptions::Parallel);
 
-		if (GReachabilityState.IsSuspended())
+		if (!GReachabilityState.IsSuspended())
+		{
+			Context = Pool.AllocateFromPool();
+		}
+		else
 		{
 			Context = GReachabilityState.GetContextArray()[0];
 			Context->bDidWork = false;
 			InitialObjects.Reset();
-		}
-		else
-		{
-			Context = Pool.AllocateFromPool();
-			if (bIsSingleThreaded)
-			{
-				GReachabilityState.SetupWorkers(1);
-				GReachabilityState.GetContextArray()[0] = Context;
-			}
 		}
 
 		if (!Private::GReachableObjects.IsEmpty())
@@ -4354,17 +4317,12 @@ private:
 
 		PerformReachabilityAnalysisOnObjects(Context, Options);
 
-		if (!GReachabilityState.CheckIfAnyContextIsSuspended())
+		if (!GReachabilityState.IsSuspended())
 		{
 			GReachabilityState.ResetWorkers();
 			Stats.AddStats(Context->Stats);
 			GReachabilityState.UpdateStats(Context->Stats);
 			Pool.ReturnToPool(Context);
-		}
-		else if (bIsSingleThreaded)
-		{
-			Context->ResetInitialObjects();
-			Context->InitialNativeReferences = TConstArrayView<UObject**>();
 		}
 	}
 
@@ -4391,14 +4349,27 @@ public:
 		{
 			const double StartTime = FPlatformTime::Seconds();
 
-			do
+			while (true)
 			{
 				PerformReachabilityAnalysisPass(Options);
-			// NOTE: It is critical that VerseGCActive is called prior to checking GReachableObjects.  While VerseGCActive is true,
-			// items can still be added to GReachableObjects.  So if reversed, during the point where GReachableObjects is checked
-			// and VerseGCActive returns false, something might have been marked.  Reversing insures that Verse will not add anything 
-			// if Verse is no longer active.
-			} while ((VerseGCActive() || !Private::GReachableObjects.IsEmpty() || !Private::GReachableClusters.IsEmpty()) && !GReachabilityState.IsSuspended());
+
+				if (GReachabilityState.IsSuspended())
+				{
+					// We may have suspended either via incremental timeout, or because verse GC is still marking.
+					// If we are not incremental, keep going while verse GC adds to GReachableObjects.
+					if (EnumHasAnyFlags(Options, EGCOptions::IncrementalReachability))
+					{
+						break;
+					}
+				}
+				else if (Private::GReachableObjects.IsEmpty() && Private::GReachableClusters.IsEmpty())
+				{
+					// We terminate verse GC here now that both sides have nothing left to mark.
+					// This check must happen only when !IsSuspended, so verse GC can no longer add to GReachableObjects.
+					StopVerseGC();
+					break;
+				}
+			}
 
 			const double ElapsedTime = FPlatformTime::Seconds() - StartTime;
 			if (!bIsGarbageTracking)
@@ -4413,29 +4384,11 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// because it may require tracing objects (via FGarbageCollectionTracer) multiple times
 		if (!GReachabilityState.IsSuspended())
 		{
+			const double StartTime = FPlatformTime::Seconds();
 			FCoreUObjectDelegates::TraceExternalRootsForReachabilityAnalysis.Broadcast(*this, KeepFlags, !(Options & EGCOptions::Parallel));
+			GGCStats.TraceExternalRootsTime += FPlatformTime::Seconds() - StartTime;
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	bool VerseGCActive()
-	{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-		if (!GIsFrankenGCCollecting)
-		{
-			return false;
-		}
-
-		bool bIsDone = false;
-		Verse::FIOContext::Create(
-			[&bIsDone](Verse::FIOContext VerseContext) {
-				bIsDone = Verse::FHeap::IsGCTerminationPendingExternalSignal(VerseContext);
-			}
-		);
-		return !bIsDone;
-#else
-		return false;
-#endif
 	}
 
 	virtual void PerformReachabilityAnalysisOnObjects(FWorkerContext* Context, EGCOptions Options) override
@@ -4531,14 +4484,12 @@ void IncrementalPurgeGarbage(bool bUseTimeLimit, double TimeLimit)
 		{
 			// Incremental purge is now in progress.
 			GObjIncrementalPurgeIsInProgress = true;
-			FPlatformMisc::MemoryBarrier();
 		}
 		~FResetPurgeProgress()
 		{
 			if (bCompletedRef)
 			{
 				GObjIncrementalPurgeIsInProgress = false;
-				FPlatformMisc::MemoryBarrier();
 			}
 		}
 
@@ -4616,6 +4567,14 @@ static FAutoConsoleVariableRef CVarGCEnableTimeoutOnPendingDestroyedObjectInShip
 );
 #endif
 
+static float GMaxTimeForFinishDestroyGC = 10.0f;
+static FAutoConsoleVariableRef CVarGCMaxTimeForFinishDestroy(
+	TEXT("gc.MaxTimeForFinishDestroyGC"),
+	GMaxTimeForFinishDestroyGC,
+	TEXT("Max time in seconds GC waits on pending objects to be destroyed (default is 10 seconds)."),
+	ECVF_Default
+);
+
 static int32 GAdditionalFinishDestroyTimeGC = 40;
 static FAutoConsoleVariableRef CVarAdditionalFinishDestroyTimeGC(
 	TEXT("gc.AdditionalFinishDestroyTimeGC"),
@@ -4626,18 +4585,9 @@ static FAutoConsoleVariableRef CVarAdditionalFinishDestroyTimeGC(
 
 bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 {
+	using namespace UE::GC::Private;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(IncrementalDestroyGarbage);
-	const bool bMultithreadedPurge = !ShouldForceSingleThreadedGC() && GMultithreadedDestructionEnabled;
-	if (!GAsyncPurge)
-	{
-		GAsyncPurge = new FAsyncPurge(bMultithreadedPurge);
-	}
-	else if (GAsyncPurge->IsMultithreaded() != bMultithreadedPurge)
-	{
-		check(GAsyncPurge->IsFinished());
-		delete GAsyncPurge;
-		GAsyncPurge = new FAsyncPurge(bMultithreadedPurge);
-	}
 
 	bool bCompleted = false;
 	bool bTimeLimitReached = false;
@@ -4675,12 +4625,12 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 			TRACE_CPUPROFILER_EVENT_SCOPE(ConditionalFinishDestroy);
 			while (GObjCurrentPurgeObjectIndex < GUnreachableObjects.Num())
 			{
-				FUObjectItem* ObjectItem = GUnreachableObjects[GObjCurrentPurgeObjectIndex];
+				FUObjectItem* ObjectItem = GUnreachableObjects[GObjCurrentPurgeObjectIndex].ObjectItem;
 				checkSlow(ObjectItem);
 
 				//@todo UE - A prefetch was removed here. Re-add it. It wasn't right anyway, since it was ten items ahead and the consoles on have 8 prefetch slots
 
-				check(!ObjectItem->IsMaybeUnreachable());
+				check(!FGCFlags::IsReachable_ForGC(ObjectItem) && FGCFlags::IsMaybeUnreachable_ForGC(ObjectItem));
 				if (ObjectItem->IsUnreachable())
 				{
 					UObject* Object = static_cast<UObject*>(ObjectItem->Object);
@@ -4725,7 +4675,7 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 		if (GObjCurrentPurgeObjectIndex >= GUnreachableObjects.Num())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ConditionalFinishDestroyDeferred);
-			double MaxTimeForFinishDestroy = 10.00;
+			double MaxTimeForFinishDestroy = double(GMaxTimeForFinishDestroyGC);
 			bool bFinishDestroyTimeExtended = false;
 			FString FirstObjectNotReadyWhenTimeExtended;
 			int32 StartObjectsPendingDestructionCount = GGCObjectsPendingDestructionCount;
@@ -4891,18 +4841,21 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 		int32 ProcessCount = 0;
 		if (GObjCurrentPurgeObjectIndexNeedsReset)
 		{
-			GAsyncPurge->BeginPurge();
+			GUObjectPurge.Begin();
 			// Reset the reset flag but don't reset the actual index yet for stat purposes
 			GObjCurrentPurgeObjectIndexNeedsReset = false;
 		}
 
-		GAsyncPurge->TickPurge(bUseTimeLimit, TimeLimit, GCStartTime);
+		GUObjectPurge.DestroyObjects(bUseTimeLimit, TimeLimit, GCStartTime);
 
-		if (GAsyncPurge->IsFinished())
+		if (GUObjectPurge.IsFinished())
 		{
-#if UE_BUILD_DEBUG
-			GAsyncPurge->VerifyAllObjectsDestroyed();
-#endif
+#if VERIFY_DISREGARD_GC_ASSUMPTIONS
+			if (GVerifyObjectsDestroyed)
+			{
+				GUObjectPurge.VerifyAllObjectsDestroyed();
+			}
+#endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
 
 			bCompleted = true;
 			// Incremental purge is finished, time to reset variables.
@@ -4911,13 +4864,13 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 			GObjCurrentPurgeObjectIndexNeedsReset			= true;
 
 			// Log status information.
-			const int32 PurgedObjectCountSinceLastMarkPhase = GAsyncPurge->GetObjectsDestroyedSinceLastMarkPhase();
+			const int32 PurgedObjectCountSinceLastMarkPhase = GUObjectPurge.GetObjectsDestroyedSinceLastMarkPhase();
 			UE_LOG(LogGarbage, Log, TEXT("GC purged %i objects (%i -> %i) in %.3fms"), PurgedObjectCountSinceLastMarkPhase, 
 				GObjectCountDuringLastMarkPhase.GetValue(), 
 				GObjectCountDuringLastMarkPhase.GetValue() - PurgedObjectCountSinceLastMarkPhase,
 				(FPlatformTime::Seconds() - IncrementalDestroyGarbageStartTime) * 1000);
 			UE::GC::GDetailedStats.LogPurgeStats(PurgedObjectCountSinceLastMarkPhase);
-			GAsyncPurge->ResetObjectsDestroyedSinceLastMarkPhase();
+			GUObjectPurge.ResetObjectsDestroyedSinceLastMarkPhase();
 		}
 	}
 
@@ -4930,7 +4883,7 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 		UE_LOG(LogGarbage, Log, TEXT("%.3f ms for incrementally purging unreachable objects (FinishDestroyed: %d, Destroyed: %d / %d)"),
 			ElapsedTime * 1000,
 			GObjCurrentPurgeObjectIndex,
-			GAsyncPurge->GetObjectsDestroyedSinceLastMarkPhase(),
+			GUObjectPurge.GetObjectsDestroyedSinceLastMarkPhase(),
 			GUnreachableObjects.Num());
 	}
 
@@ -5014,14 +4967,14 @@ void DissolveUnreachableClusters(UE::GC::EGatherOptions Options)
 			if (Cluster.RootIndex >= 0)
 			{
 				FUObjectItem* RootItem = &GUObjectArray.GetObjectItemArrayUnsafe()[Cluster.RootIndex];
-				if (RootItem->IsUnreachable())
+				if (FGCFlags::IsMaybeUnreachable_ForGC(RootItem))
 				{
 					for (int32 ObjectIndex : Cluster.Objects)
 					{
 						FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
 						if (!ObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
 						{
-							ObjectItem->SetUnreachable();
+							FGCFlags::SetMaybeUnreachable_ForGC(ObjectItem);
 							ThisThreadClusteredObjects++;
 						}
 					}
@@ -5089,10 +5042,11 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		while (Iterator.Index <= Iterator.LastIndex)
 		{
 			FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[Iterator.Index++];
-			if (ObjectItem->IsUnreachable())
+			if (FGCFlags::IsMaybeUnreachable_ForGC(ObjectItem))
 			{
 				checkf(!ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot), TEXT("Unreachable cluster root found. Unreachable clusters should have been dissolved in DissolveUnreachableClusters!"));
-				Iterator.Payload.Add(ObjectItem);
+				FGCFlags::SetUnreachable(ObjectItem);
+				Iterator.Payload.Add({ ObjectItem });
 			}
 
 			if (Timer.IsTimeLimitExceeded())
@@ -5102,7 +5056,6 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		}
 	}, (GGatherUnreachableObjectsState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
 
-	// Need to grab the stats now as Finish() will reset the global state but we still want to include Finish() execution time when logging
 	const int32 NumGathered = GGatherUnreachableObjectsState.NumGathered();
 	const int32 NumScanned = GGatherUnreachableObjectsState.NumScanned();
 	const int32 NumThreads = GGatherUnreachableObjectsState.NumWorkerThreads();
@@ -5133,7 +5086,12 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		{
 			AcquireGCLock();
 		}
-		NotifyUnreachableObjects(GUnreachableObjects);
+		{			
+			TArrayView<UE::GC::FUnreachableObject> UnrachableObjectsView(GUnreachableObjects);
+			// Although the below cast is not pretty, we don't want to expose UE::GC::FUnreachableObject to async loading API 
+			// as it may be confusing what UE::GC::FUnreachableObject currently represents
+			NotifyUnreachableObjects(*reinterpret_cast<TArrayView<FUObjectItem*>*>(&UnrachableObjectsView));
+		}
 		if (bNeedsGCLock)
 		{
 			ReleaseGCLock();
@@ -5173,7 +5131,7 @@ public:
 		
 	virtual void HandleObjectReference(UObject*& InObject, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override 
 	{
-		if (InObject && InObject->IsUnreachable())
+		if (InObject && UE::GC::Private::FGCFlags::IsMaybeUnreachable_ForGC(InObject))
 		{
 			InObject = nullptr;
 		}
@@ -5181,7 +5139,7 @@ public:
 	
 	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference, UObject* ReferenceOwner) override
 	{
-		if (WeakReference && *WeakReference && (*WeakReference)->IsUnreachable())
+		if (WeakReference && *WeakReference && UE::GC::Private::FGCFlags::IsMaybeUnreachable_ForGC(*WeakReference))
 		{
 			*WeakReference = nullptr;
 		}
@@ -5192,6 +5150,8 @@ public:
 template <bool bGatheredWithIncrementalReachability = true>
 static void ClearWeakReferences(TConstArrayView<TUniquePtr<FWorkerContext>> Contexts)
 {
+	using namespace UE::GC::Private;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(ClearWeakReferences);
 	TSet<UObject*> ObjectsThatNeedWeakReferenceClearing;
 	for (const TUniquePtr<FWorkerContext>& Context : Contexts)
@@ -5200,7 +5160,7 @@ static void ClearWeakReferences(TConstArrayView<TUniquePtr<FWorkerContext>> Cont
 		for (FWeakReferenceInfo& ReferenceInfo : Context->WeakReferences)
 		{
 			UObject* ReferencedObject = ReferenceInfo.ReferencedObject;
-			if (ReferencedObject && ReferencedObject->IsUnreachable())
+			if (ReferencedObject && FGCFlags::IsMaybeUnreachable_ForGC(ReferencedObject))
 			{
 				if constexpr (bGatheredWithIncrementalReachability)
 				{
@@ -5223,7 +5183,7 @@ static void ClearWeakReferences(TConstArrayView<TUniquePtr<FWorkerContext>> Cont
 		FWeakReferenceEliminator ReferenceEliminator;
 		for (UObject* Object : ObjectsThatNeedWeakReferenceClearing)
 		{
-			if (Object && !Object->IsUnreachable())
+			if (Object && !FGCFlags::IsMaybeUnreachable_ForGC(Object))
 			{
 				Object->GetClass()->CallAddReferencedObjects(Object, ReferenceEliminator);
 			}
@@ -5393,28 +5353,44 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 	// Reset GC skip counter
 	GNumAttemptsSinceLastGC = 0;
 
-	// Flush streaming before GC if requested
-	if (!GIsIncrementalReachabilityPending && GFlushStreamingOnGC && IsAsyncLoading())
-	{
-		UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
-		ReleaseGCLock();
-		FlushAsyncLoading();
-		AcquireGCLock();
-
-		GGCStats.bFlushedAsyncLoading = true;
-	}
-
-	// Route callbacks so we can ensure that we are e.g. not in the middle of loading something by flushing
-	// the async loading, etc...
 	if (!GIsIncrementalReachabilityPending)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
-		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
+		// Do not hold the lock during flush async loading and calling into user code through a delegate
+		// because this could cause deadlocks easily.
+		ReleaseGCLock();
+
+		// Flush streaming before GC if requested
+		if (GFlushStreamingOnGC && IsAsyncLoading())
+		{
+			UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
+			FlushAsyncLoading();
+			GGCStats.bFlushedAsyncLoading = true;
+		}
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
+			FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
+		}
+		// User code in PreGarbageCollect could have triggered new loading... need to flush that too.
+		if (GFlushStreamingOnGC && IsAsyncLoading())
+		{
+			UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading because PreGarbageCollect triggered new loads"));
+			FlushAsyncLoading();
+			GGCStats.bFlushedAsyncLoading = true;
+		}
+
+		AcquireGCLock();
 	}
+
 	GLastGCFrame = GFrameCounter;
 
 	{
 		GIsGarbageCollecting = true;
+
+		if (!GIsIncrementalReachabilityPending)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastGarbageCollectStarted);
+			FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().Broadcast();
+		}
 
 		// Make sure previous incremental purge has finished or we do a full purge pass in case we haven't kicked one
 		// off yet since the last call to garbage collection.
@@ -5517,8 +5493,6 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 
 		DumpGarbageReferencers(AllContexts);
 
-		Swap(GUnreachableObjectFlag, GMaybeUnreachableObjectFlag);
-
 		const EGatherOptions GatherOptions = GetObjectGatherOptions();
 		DissolveUnreachableClusters(GatherOptions);
 
@@ -5532,8 +5506,6 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 			ClearWeakReferences<false>(AllContexts);
 		}
 
-		StopVerseGC();
-
 		if (bPerformFullPurge)
 		{
 			ContextPool.Cleanup();
@@ -5541,7 +5513,7 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 
 		GGatherUnreachableObjectsState.Init();
 
-		if (bPerformFullPurge || !GAllowIncrementalGather)
+		if (bPerformFullPurge || !GAllowIncrementalGather || !FGCFlags::IsIncrementalGatherUnreachableSupported())
 		{
 			GatherUnreachableObjects(GatherOptions, /*TimeLimit =*/ 0.0);
 		}
@@ -5658,6 +5630,11 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	}
 	GGCStats.bFinishedAsFullPurge = bPerformFullPurge;
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
+	Verse::FIOContext Context = RelinquishVerseHeapAccess(RunningContext);
+#endif
+	
 	if (bPerformFullPurge)
 	{
 		UE::GC::PreCollectGarbageImpl<true>(ObjectKeepFlags);
@@ -5665,8 +5642,8 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	else
 	{
 		UE::GC::PreCollectGarbageImpl<false>(ObjectKeepFlags);
-	}	
-	
+	}
+
 	const bool bForceNonIncrementalReachability =
 		!GIsIncrementalReachabilityPending &&
 		(bPerformFullPurge || !GAllowIncrementalReachability);
@@ -5726,7 +5703,7 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 				const double ReferenceProcessingTotalTimeMs = ReferenceProcessingTotalTime * 1000;
 				const double IncrementalMarkPhaseTotalTimeMs = IncrementalMarkPhaseTotalTime * 1000;
 				UE_LOG(LogGarbage, Log, TEXT("GC Reachability Analysis total time: %.2f ms (%.2f ms on reference traversal)"), IncrementalMarkPhaseTotalTimeMs, ReferenceProcessingTotalTimeMs);
-				FString ExtraDetail = WITH_VERSE_VM ? FString::Printf(TEXT("and %d verse cells"), Stats.NumVerseCells) : FString();
+				FString ExtraDetail = WITH_VERSE_VM ? FString::Printf(TEXT("and %d Verse cells"), Stats.NumVerseCells) : FString();
 				UE_LOG(LogGarbage, Log, TEXT("%.2f ms for %sGC - %d refs/ms while processing %d references from %d objects %s with %d clusters"),
 					IncrementalMarkPhaseTotalTimeMs,
 					bForceNonIncrementalReachability ? TEXT("") : TEXT("Incremental "),
@@ -5751,8 +5728,6 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysisRerun"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysisRerun, STATGROUP_GC);		
 		const double StartTime = FPlatformTime::Seconds();
 		{
-			// If we are going to scan again, we need to cycle verse GC so the cells are unmarked.
-			StopVerseGC();
 			TGuardValue<bool> GuardReachabilityUsingTimeLimit(bReachabilityUsingTimeLimit, false);
 			FRealtimeGC GC;
 			GC.Stats = Stats; // This is to pass Stats.bFoundGarbageRef to CG
@@ -5773,6 +5748,10 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	{
 		UE::GC::PostCollectGarbageImpl<false>(ObjectKeepFlags);
 	}
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	AcquireVerseHeapAccess(Context);
+#endif
 }
 
 void FReachabilityAnalysisState::PerformReachabilityAnalysis()
@@ -5918,7 +5897,7 @@ bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 	TRACE_CPUPROFILER_EVENT_SCOPE(UnhashUnreachableObjects);
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("UnhashUnreachableObjects"), STAT_UnhashUnreachableObjects, STATGROUP_GC);
 
-	TGuardValue<bool> GuardObjUnhashUnreachableIsInProgress(GObjUnhashUnreachableIsInProgress, true);
+	TGuardValue GuardObjUnhashUnreachableIsInProgress(GObjUnhashUnreachableIsInProgress, true);
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastGarbageCollectConditionalBeginDestroy);
@@ -5938,7 +5917,7 @@ bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 		{
 			//@todo UE - A prefetch was removed here. Re-add it. It wasn't right anyway, since it was ten items ahead and the consoles on have 8 prefetch slots
 
-			FUObjectItem* ObjectItem = GUnreachableObjects[GUnrechableObjectIndex++];
+			FUObjectItem* ObjectItem = GUnreachableObjects[GUnrechableObjectIndex++].ObjectItem;
 			{
 				UObject* Object = static_cast<UObject*>(ObjectItem->Object);
 				FScopedCBDProfile Profile(Object);
@@ -6048,19 +6027,144 @@ bool TryCollectGarbage(EObjectFlags KeepFlags, bool bPerformFullPurge)
 	return true;
 }
 
-void UObject::CallAddReferencedObjects(FReferenceCollector& Collector)
+/**
+ * Destroys all existing UObjects when the engine shuts down. Does NOT perform reachability analysis to do so.
+ */
+void PurgeAllUObjectsOnExit()
 {
-	GetClass()->CallAddReferencedObjects(this, Collector);
+	using namespace UE::GC::Private;
+
+	// This can happen when we run into an error early in the init process
+	if (GUObjectArray.IsOpenForDisregardForGC())
+	{
+		GUObjectArray.CloseDisregardForGC();
+	}
+
+	// Complete any pending incremental reachability analysis
+	FinalizeIncrementalReachabilityAnalysis();
+
+	// Complete any pending incremental purge
+	if (IsIncrementalPurgePending())
+	{
+		IncrementalPurgeGarbage(false);
+	}
+
+	// Make sure no other threads manipulate UObjects
+	AcquireGCLock();
+
+	// Dissolve all clusters before the final GC pass
+	GUObjectClusters.DissolveClusters(true);
+
+	// Keep track of how many objects there are for GC stats as we simulate a mark pass.
+	extern FThreadSafeCounter GObjectCountDuringLastMarkPhase;
+	GObjectCountDuringLastMarkPhase.Reset();
+
+	// Tag all non template & class objects as unreachable. We can't use object iterators for this as they ignore certain objects.
+	//
+	// Excluding class default, archetype and class objects allows us to not have to worry about fixing issues with initialization 
+	// and certain CDO objects like UNetConnection and UChildConnection having members with arrays that point to the same data and 
+	// will be double freed if destroyed. Hacky, but much cleaner and lower risk than trying to fix the root cause behind it all. 
+	// We need the exit purge for closing network connections and such and only operating on instances of objects is sufficient for 
+	// this purpose.
+	for (FRawObjectIterator It; It; ++It)
+	{
+		// Valid object.
+		GObjectCountDuringLastMarkPhase.Increment();
+
+		FUObjectItem* ObjItem = *It;
+		checkSlow(ObjItem);
+		UObject* Obj = static_cast<UObject*>(ObjItem->Object);
+		if (Obj)
+		{
+			// Skip Structures, properties, etc.. They could be still necessary while GC.
+			if (!Obj->IsA<UField>())
+			{
+				// Mark as unreachable so purge phase will kill it.
+				UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(ObjItem);
+			}
+			else
+			{
+				UE::GC::Private::FGCFlags::ClearMaybeUnreachable_ForGC(ObjItem);
+			}
+		}
+	}
+
+	// Fully purge all objects, not using time limit.
+	GExitPurge = true;
+
+	// Route BeginDestroy. This needs to be a separate pass from marking as RF_Unreachable as code might rely on RF_Unreachable to be 
+	// set on all objects that are about to be deleted. One example is FLinkerLoad detaching textures - the SetLinker call needs to 
+	// not kick off texture streaming.
+	//
+	GatherUnreachableObjects(false);
+	IncrementalPurgeGarbage(false);
+
+	{
+		GObjectCountDuringLastMarkPhase.Reset();
+
+		//Repeat GC for every object, including structures and properties.
+		for (FRawObjectIterator It; It; ++It)
+		{
+			GObjectCountDuringLastMarkPhase.Increment();
+
+			// Mark as unreachable so purge phase will kill it.
+			UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(*It);
+		}
+
+		GatherUnreachableObjects(false);
+		IncrementalPurgeGarbage(false);
+	}
+
+	{
+		// Since we just destroyed all objects regardless of their flags, make sure the roots list is empty
+		FScopeLock RootsLock(&GRootsCritical);
+		GRoots.Empty();
+	}
+
+	ReleaseGCLock();
 }
 
-void UObject::AddReferencedObjects(UObject*, FReferenceCollector&)
+#if WITH_EDITORONLY_DATA
+bool& UE::GC::Private::CalledSuperARO()
 {
+	static thread_local bool bCalledSuperARO = false;
+	return bCalledSuperARO;
+}
+#endif
+
+void UObject::CallAddReferencedObjects(FReferenceCollector& Collector)
+{
+#if WITH_EDITORONLY_DATA
+	bool& bCalledSuperARO = UE::GC::Private::CalledSuperARO();
+	TGuardValue<bool> CalledSuperAROScope(bCalledSuperARO, false);
+	GetClass()->CallAddReferencedObjects(this, Collector);
+	if (!bCalledSuperARO)
+	{
+		UE_LOG(LogGarbage, Warning, TEXT("Class %s or a super class did not call Super::AddReferencedObjects"), *GetClass()->GetName());
+	}
+#else
+	GetClass()->CallAddReferencedObjects(this, Collector);
+#endif
+}
+
+void UObject::AddReferencedObjects(UObject* This, FReferenceCollector& Collector)
+{
+#if WITH_EDITORONLY_DATA
+	UE::GC::Private::CalledSuperARO() = true;
+	UE::FPropertyBagRepository::Get().AddReferencedInstanceDataObject(This, Collector);
+#else
 	// This function exists to compare against in GetAROFunc()
+#endif
 }
 
 bool UObject::IsDestructionThreadSafe() const
 {
 	return false;
+}
+
+bool UObjectBaseUtility::ThisThreadAtomicallyClearedRFUnreachable()
+{
+	return UE::GC::Private::FGCFlags::ThisThreadAtomicallyClearedRFUnreachable(GUObjectArray.IndexToObject(InternalIndex));
 }
 
 template <bool bIsVerse>
@@ -6080,7 +6184,7 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 	{
 		checkf(GIsIncrementalReachabilityPending, TEXT("%s is marked as MaybeUnreachable but Incremental Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
 	}
-	if (ObjectItem->MarkAsReachableInterlocked_ForGC())
+	if (FGCFlags::MarkAsReachableInterlocked_ForGC(ObjectItem))
 	{
 		if (ObjectItem->GetOwnerIndex() >= 0)
 		{
@@ -6098,15 +6202,17 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 template <bool bIsVerse>
 FORCEINLINE static void MarkAsReachable(const UObjectBase* Obj)
 {
+	using namespace UE::GC::Private;
+
 	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Obj);
-	if (ObjectItem->IsMaybeUnreachable())
+	if (FGCFlags::IsMaybeUnreachable_ForGC(ObjectItem))
 	{
 		MarkObjectItemAsReachable<bIsVerse>(ObjectItem);
 	}
 	else if (ObjectItem->GetOwnerIndex() > 0) // Clustered objects are never marked as MaybeUnreachable so we need to check if the cluster root is MaybeUnreachable
 	{
 		FUObjectItem* ClusterRootObjectItem = GUObjectArray.IndexToObject(ObjectItem->GetOwnerIndex());
-		if (ClusterRootObjectItem->IsMaybeUnreachable())
+		if (FGCFlags::IsMaybeUnreachable_ForGC(ClusterRootObjectItem))
 		{
 			MarkObjectItemAsReachable<bIsVerse>(ClusterRootObjectItem);
 		}
@@ -6117,10 +6223,22 @@ void UObjectBase::MarkAsReachable() const
 {
 	// It is safe to perform mark as reachable in the open - the worst case is that we'll mark an object reachable that
 	// should/would be destroyed, and so in the next GC iteration it will be destroyed instead of in this iteration.
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		::MarkAsReachable<false>(this);
-	});
+	};
+}
+
+void UObjectBase::AddRef() const
+{
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(this);
+	ObjectItem->AddRef();
+}
+
+void UObjectBase::ReleaseRef() const
+{
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(this);
+	ObjectItem->ReleaseRef();
 }
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
@@ -6252,18 +6370,28 @@ bool FMulticastDelegateProperty::ContainsObjectReference(TArray<const FStructPro
 void FOptionalProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
 {
 	using namespace UE::GC;
-	if (IsValueNonNullablePointer())
+	if (ValueProperty->ContainsObjectReference(EncounteredStructProps))
 	{
-		ValueProperty->EmitReferenceInfo(Schema, BaseOffset + GetOffset_ForGC(), EncounteredStructProps, DebugPath);
-	}
-	else if (ValueProperty->ContainsObjectReference(EncounteredStructProps))
-	{
-		FSchemaBuilder InnerSchema(ValueProperty->GetSize());
+		// If the value has an intrusive unset optional state, it cannot use the bool implied by EMemberType::Optional to
+		// selectively pass its references to GC.
+		// This means that types with intrusive unset optional states must initialize any fields that need to be traversed 
+		// for GC to values that are safe for GC to read (e.g. null).
+		// See FStructProperty::EmitIntrusiveOptionalReferenceInfo for examples of asserting that such types are safe. 
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
-			FPropertyStackScope PropertyScope(DebugPath, ValueProperty);
-			ValueProperty->EmitReferenceInfo(InnerSchema, 0, EncounteredStructProps, DebugPath);
+			ValueProperty->EmitIntrusiveOptionalReferenceInfo(Schema, BaseOffset + GetOffset_ForGC(), EncounteredStructProps, DebugPath);
 		}
-		Schema.Add(DeclareMember(DebugPath, BaseOffset + GetOffset_ForGC(), EMemberType::Optional, InnerSchema.Build()));
+		else
+		{
+			// Otherwise we embed an inner schema which will only be traversed if the "set" flag on the optional is true
+			// See EMemberType::Optional
+			FSchemaBuilder InnerSchema(ValueProperty->GetSize());
+			{
+				FPropertyStackScope PropertyScope(DebugPath, ValueProperty);
+				ValueProperty->EmitReferenceInfo(InnerSchema, 0, EncounteredStructProps, DebugPath);
+			}
+			Schema.Add(DeclareMember(DebugPath, BaseOffset + GetOffset_ForGC(), EMemberType::Optional, InnerSchema.Build()));
+		}
 	}
 }
 
@@ -6279,6 +6407,30 @@ void FObjectProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 	}
 }
 
+void FObjectProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state is nullptr so normal schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
+void FArrayProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state looks like an empty container with a corrupted Max, but the GC doesn't touch the max so the default schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
+void FMapProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state looks like an empty container with a corrupted Max, but the GC doesn't touch the max so the default schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
+void FSetProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state looks like an empty container with a corrupted Max, but the GC doesn't touch the max so the default schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
+}
+
 void FArrayProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
 {
 	using namespace UE::GC;
@@ -6286,7 +6438,7 @@ void FArrayProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Bas
 	{
 		bool bUsesFreezableAllocator = EnumHasAnyFlags(ArrayFlags, EArrayPropertyFlags::UsesMemoryImageAllocator);
 		EMemberType Type = bUsesFreezableAllocator ?  EMemberType::FreezableStructArray : EMemberType::StructArray;
-		FSchemaBuilder InnerSchema(Inner->ElementSize);
+		FSchemaBuilder InnerSchema(Inner->GetElementSize());
 
 		// Structs and nested arrays share the same implementation on the Garbage Collector side
 		// as arrays of structs already push the array memory into the GC stack and process its tokens
@@ -6355,7 +6507,7 @@ void FStructProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 		StructAROFn StructARO = Struct->GetCppStructOps()->AddStructReferencedObjects();	
 		for (int32 Idx = 0, Num = ArrayDim; Idx < Num; ++Idx)
 		{	
-			Schema.Add(UE::GC::DeclareMember(DebugPath, Offset + Idx * ElementSize, EMemberType::MemberARO, StructARO) );
+			Schema.Add(UE::GC::DeclareMember(DebugPath, Offset + Idx * GetElementSize(), EMemberType::MemberARO, StructARO) );
 		}
 	}
 
@@ -6379,10 +6531,19 @@ void FStructProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 		{
 			for (FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
 			{
-				Property->EmitReferenceInfo(Schema, Offset + Idx * ElementSize, EncounteredStructProps, DebugPath);
+				Property->EmitReferenceInfo(Schema, Offset + Idx * GetElementSize(), EncounteredStructProps, DebugPath);
 			}
 		}
 	}
+}
+
+void FStructProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	checkf(Struct->GetCppStructOps() && Struct->GetCppStructOps()->IsIntrusiveOptionalSafeForGC(), 
+		TEXT("Struct %s contains object references and has an intrusive unset optional state and has not verified that its unset state is safe for GC. ")
+		TEXT("The struct must set WithIntrusiveOptionalSafeForGC in its TStructOpsTypeTraits after ensuring that its object reference fields are nulled in its unset optional state."), 
+		*Struct->GetPathName());
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
 }
 
 void FInterfaceProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
@@ -6433,7 +6594,11 @@ static UE::GC::ObjectAROFn GetARO(UClass* Class)
 {
 	UE::GC::ObjectAROFn ARO = Class->CppClassStaticFunctions.GetAddReferencedObjects();
 	check(ARO != nullptr);
+#if WITH_EDITORONLY_DATA
+	return ARO != &UObject::AddReferencedObjects || Class->CanCreateInstanceDataObject() ? ARO : nullptr;
+#else
 	return ARO != &UObject::AddReferencedObjects ? ARO : nullptr;
+#endif
 }
 
 void UClass::AssembleReferenceTokenStreamInternal(bool bForce)
@@ -6800,15 +6965,17 @@ void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, 
 	}
 
 	// Kick workers
+	TArray<Tasks::TTask<void>> AllWorkerTasks;
+	AllWorkerTasks.Reserve(GReachabilityState.GetNumWorkers() - 1);
 	for (int32 Idx = 1; Idx < GReachabilityState.GetNumWorkers(); ++Idx)
 	{
-		Tasks::Launch(TEXT("CollectReferences"), [=]() 
+		AllWorkerTasks.Add(Tasks::Launch(TEXT("CollectReferences"), [=]() 
 			{
 				if (FWorkerContext* Context = WorkCoordinator->TryStartWorking(Idx))
 				{
 					ProcessSync(Processor, *Context);
 				}
-			});
+			}));
 	}
 
 	// Start working ourselves
@@ -6857,6 +7024,10 @@ void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, 
 	{
 		ReleaseAsyncProcessingContexts(InContext, Contexts);		
 	}
+
+	// Wait for the tasks we launched so that they cannot survive until the next call to ProcessAsync without being started and race
+	// with work such as InitializeAsyncProcessingContexts.
+	Tasks::Wait(AllWorkerTasks);
 }
 
 //////////////////////////////////////////////////////////////////////////

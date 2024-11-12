@@ -16,6 +16,7 @@
 #include "Textures/SlateIcon.h"
 
 class FNamePermissionList;
+struct FPlaceableItem;
 
 /**
  * Struct that defines an identifier for a particular placeable item in this module.
@@ -58,6 +59,9 @@ struct FPlacementCategoryInfo
 	/** This category's display name */
 	FText DisplayName;
 
+	/** This category's short display name (optional) */
+	FText ShortDisplayName;
+
 	/** This category's representative icon */
 	FSlateIcon DisplayIcon;
 
@@ -75,6 +79,11 @@ struct FPlacementCategoryInfo
 
 	/** Whether the items in this category are automatically sortable by name. False if the items are already sorted. */
 	bool bSortable;
+
+	/**
+	 * FPlaceableItems with custom drag handling, populated only if the category handles making
+	 * its own draggable items */
+	TArray< TSharedRef<FPlaceableItem>>  CustomDraggableItems;
 };
 
 /**
@@ -82,6 +91,24 @@ struct FPlacementCategoryInfo
  */
 struct FPlaceableItem
 {
+	/**
+	* An object which provides handling for Drags.
+	*/
+	struct FDragHandler : public TSharedFromThis<FDragHandler>
+	{
+	public:
+		DECLARE_DELEGATE_RetVal(TSharedRef<FDragDropOperation>, FGetContentToDrag  );
+
+		/** a delegate thart returns the FDragDropOperation for the  the draggable */
+		FGetContentToDrag GetContentToDrag;
+
+		/** the tooltip for the draggable */
+		TSharedPtr<IToolTip> ToolTip;
+		
+		/** the const FSlateBrush* that provides the icon for the draggable */
+		const FSlateBrush* IconBrush;
+	};
+	
 	/** Default constructor */
 	FPlaceableItem()
 		: Factory(nullptr)
@@ -151,6 +178,19 @@ struct FPlaceableItem
 		{
 			DisplayName = InDisplayName.GetValue();
 		}
+	}
+
+	FPlaceableItem(
+		TSharedPtr<FPlaceableItem::FDragHandler> InDragHandler
+		, TOptional<int32> InSortOrder
+		, FText InLabel
+		, FString InName ):
+		NativeName( InName )
+		, DisplayName( InLabel )
+		, bAlwaysUseGenericThumbnail(false)
+		, SortOrder(InSortOrder)
+		, DragHandler(InDragHandler)
+	{
 	}
 
 	/** Constructor for any placeable actor class with associated asset data, brush and display name overrides */
@@ -241,6 +281,9 @@ public:
 	/** Optional sort order (lowest first). Overrides default class name sorting. */
 	TOptional<int32> SortOrder;
 
+	/** If provided, handles the drag for the item. This should be provided for objects which are not actors or assets, which have built in handling */
+	TSharedPtr<FDragHandler> DragHandler;
+
 private:
 
 	/** This item's native name as an FName (initialized on access only) */
@@ -250,6 +293,7 @@ private:
 /** Structure of built-in placement categories. Defined as functions to enable external use without linkage */
 struct FBuiltInPlacementCategories
 {
+	static FName Favorites()		{ static FName Name("Favorites");		return Name; }
 	static FName RecentlyPlaced()	{ static FName Name("RecentlyPlaced");	return Name; }
 	static FName Basic()			{ static FName Name("Basic");			return Name; }
 	static FName Lights()			{ static FName Name("Lights");			return Name; }
@@ -430,6 +474,15 @@ public:
 	 * @param Filter 		Filter predicate used to filter out items. Return true to pass the filter, false otherwise
 	 */
 	virtual void GetFilteredItemsForCategory(FName Category, TArray<TSharedPtr<FPlaceableItem>>& OutItems, TFunctionRef<bool(const TSharedPtr<FPlaceableItem>&)> Filter) const = 0;
+
+	/**
+	 * Puts the items that should be shown for Category CategoryName in the OutItems array
+	 * 
+	 * @param CategoryName the name of the category to get the items for
+	 * @param OutItems the array of FPlaceableItems to put the items in
+	 * @param ItemNames the names of the FPlaceableItems to get and put in the OutItems array
+	 */
+	virtual void GetItemsWithNamesForCategory( FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems, const TArray<FName>& ItemNames ) const = 0;
 
 	/**
 	 * Instruct the category associated with the specified unique handle that it should regenerate its items

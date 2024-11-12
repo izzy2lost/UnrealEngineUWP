@@ -51,9 +51,12 @@ namespace uba
 		SetFocus(GetConsoleWindow());
 		SetActiveWindow(GetConsoleWindow());
 #endif
+
+		// *(int*)nullptr = 42; // Use this to force a crashdump instead of exiting
+
 		ExitProcess(terminateCode);
 #else
-		exit(-1);
+		_Exit(-1);
 #endif
 	}
 
@@ -67,18 +70,20 @@ namespace uba
 		va_list arg;
 		va_start(arg, format);
 		tchar buffer[1024];
-		int count = TSprintf_s(buffer, 1024, format, arg);
+		int count = Tvsprintf_s(buffer, 1024, format, arg);
 		if (count <= 0)
 			TStrcpy_s(buffer, 1024, format);
 		va_end(arg);
 #if PLATFORM_WINDOWS
 		wprintf(TC("FATAL ERROR %u: %s\n"), code, buffer);
 		fflush(stdout);
+		if (IsDebuggerPresent())
+			DebugBreak();
 		ExitProcess(code);
 #else
 		printf(TC("FATAL ERROR %u: %s\n"), code, buffer);
 		fflush(stdout);
-		exit(int(code));
+		kill(getpid(), SIGKILL);
 #endif
 	}
 
@@ -181,7 +186,7 @@ namespace uba
 		u32 m_defaultAttributes = 0;
 #endif
 	};
-	LogWriter& g_consoleLogWriter = *new ConsoleLogWriter(); // Leak to prevent asan annoyances during shutdown when asserts happen
+	UBA_API LogWriter& g_consoleLogWriter = *new ConsoleLogWriter(); // Leak to prevent asan annoyances during shutdown when asserts happen
 	thread_local u32 t_consoleLogScopeCount = 0;
 
 	class NullLogWriter : public LogWriter
@@ -191,7 +196,7 @@ namespace uba
 		virtual void EndScope() override {}
 		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) override {}
 	} g_nullLogWriterImpl;
-	LogWriter& g_nullLogWriter = g_nullLogWriterImpl;
+	UBA_API LogWriter& g_nullLogWriter = g_nullLogWriterImpl;
 
 
 	ConsoleLogWriter::ConsoleLogWriter()
@@ -303,12 +308,30 @@ namespace uba
 
 	BytesToText::BytesToText(u64 bytes)
 	{
-		if (bytes < 1000 * 1000)
+		if (bytes < 1000)
+			TSprintf_s(str, 32, TC("%ub"), u32(bytes));
+		else if (bytes < 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fkb"), double(bytes) / 1000ull);
 		else if (bytes < 1000ull * 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fmb"), double(bytes) / (1000ull * 1000));
-		else
+		else if (bytes < 1000ull * 1000 * 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fgb"), double(bytes) / (1000ull * 1000 * 1000));
+		else
+			TSprintf_s(str, 32, TC("%.1ftb"), double(bytes) / (1000ull * 1000 * 1000 * 1000));
+	}
+
+	CountToText::CountToText(u64 count)
+	{
+		if (count < 1000)
+			TSprintf_s(str, 32, TC("%u"), u32(count));
+		else if (count < 1000 * 1000)
+			TSprintf_s(str, 32, TC("%.1fk"), double(count) / 1000ull);
+		else if (count < 1000ull * 1000 * 1000)
+			TSprintf_s(str, 32, TC("%.1fm"), double(count) / (1000ull * 1000));
+		else if (count < 1000ull * 1000 * 1000 * 1000)
+			TSprintf_s(str, 32, TC("%.1fg"), double(count) / (1000ull * 1000 * 1000));
+		else
+			TSprintf_s(str, 32, TC("%.1ft"), double(count) / (1000ull * 1000 * 1000 * 1000));
 	}
 
 #if UBA_DEBUG_LOGGER
@@ -349,12 +372,19 @@ namespace uba
 		void LogNoLock(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix, u32 prefixLen)
 		{
 			#if PLATFORM_WINDOWS
-			u8 buffer[2048];
-			BinaryWriter writer(buffer);
-			writer.WriteString(str, strLen);
-			BinaryReader reader(buffer);
-			u64 charLen = reader.Read7BitEncoded();
-			m_file->Write(reader.GetPositionData(), charLen);
+			char buffer[512];
+			size_t destLen;
+			u32 maxLen = Min(strLen, 256u);
+			if (wcstombs_s(&destLen, buffer, sizeof(buffer), str, maxLen) != 0)
+			{
+				strcpy_s(buffer, sizeof(buffer), "BAD_STRING\n");
+				destLen = 11;
+			}
+			else
+			{
+				buffer[destLen] = '\n';
+			}
+			m_file->Write(buffer, destLen);
 			#else
 			m_file->Write(str, strLen);
 			#endif

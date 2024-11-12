@@ -67,7 +67,8 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		// Only SM6 since SM5 is limited to 8 UAV.
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
 	}
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -127,12 +128,12 @@ void StampDeferredDebugProbeDepthPS(
 	const FRDGTextureRef SceneDepthTexture)
 {
 #if DEBUG_PROBE_ENABLED
-	if (FPlatformProperties::HasEditorOnlyData())
+	if (!FPlatformProperties::HasEditorOnlyData())
 	{
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StampDeferredDebugProbeDepth");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, StampDeferredDebugProbe, "StampDeferredDebugProbeDepth");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, StampDeferredDebugProbe);
 
 	const bool bVisualizeLightingOnProbes = CVarVisualizeLightingOnProbes.GetValueOnRenderThread() > 0;
@@ -161,12 +162,12 @@ void StampDeferredDebugProbeMaterialPS(
 	const FMinimalSceneTextures& SceneTextures)
 {
 #if DEBUG_PROBE_ENABLED
-	if (FPlatformProperties::HasEditorOnlyData())
+	if (!FPlatformProperties::HasEditorOnlyData())
 	{
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StampDeferredDebugProbeMaterial");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, StampDeferredDebugProbe, "StampDeferredDebugProbeMaterial");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, StampDeferredDebugProbe);
 
 	const bool bVisualizeLightingOnProbes = CVarVisualizeLightingOnProbes.GetValueOnRenderThread() > 0;
@@ -226,12 +227,12 @@ void StampDeferredDebugProbeVelocityPS(
 	const FRenderTargetBindingSlots& BasePassRenderTargets)
 {
 #if DEBUG_PROBE_ENABLED
-	if (FPlatformProperties::HasEditorOnlyData())
+	if (!FPlatformProperties::HasEditorOnlyData())
 	{
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StampDeferredDebugProbeVelocity");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, StampDeferredDebugProbe, "StampDeferredDebugProbeVelocity");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, StampDeferredDebugProbe);
 
 	const bool bVisualizeLightingOnProbes = CVarVisualizeLightingOnProbes.GetValueOnRenderThread() > 0;

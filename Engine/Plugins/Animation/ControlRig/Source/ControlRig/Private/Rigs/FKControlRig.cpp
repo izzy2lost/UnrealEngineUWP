@@ -48,8 +48,7 @@ FName UFKControlRig::GetControlName(const FName& InName, const ERigElementType& 
 					ScratchString.Append(CurvePostFix);
 				}
 
-				static FString ControlPostFix = TEXT("_CONTROL");
-		
+				static const TCHAR* ControlPostFix = TEXT("_CONTROL");
 				ScratchString.Append(ControlPostFix);
 				return NameToControlMapping.Add(InName, FName(*ScratchString));
 			}
@@ -418,7 +417,7 @@ void UFKControlRig::CreateRigElements(const FReferenceSkeleton& InReferenceSkele
 
 				const FName DisplayCurveControlName(*(CurveElement->GetFName().ToString() + TEXT(" Curve")));
 				Settings.DisplayName = DisplayCurveControlName;
-				Controller->AddControl(ControlName, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Value), FTransform::Identity, FTransform::Identity, false);
+				Controller->AddControl(ControlName, FRigElementKey(), Settings, FRigControlValue::Make(CurveElement->Get()), FTransform::Identity, FTransform::Identity, false);
 				
 				return true;
 			});

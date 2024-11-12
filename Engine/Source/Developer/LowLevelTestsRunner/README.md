@@ -85,8 +85,8 @@ Follow these steps to create your explicit test:
 2. Inherit your module class from `TestModuleRules`.
     * If you are writing a test for a plugin, place the new module inside a `Tests` directory at the same level as the plugin's Source directory.
     * If you are building a test module that does not use `Catch2`, inherit the base constructor with the second parameter set to false: `base(Target, false)`.
-3. Call `UpdateBuildGraphPropertiesFile` with a new `Metadata` object argument.
-    * This information is used to generate BuildGraph script test metadata.
+3. Implement a static constructor for the class and initialize `TestMetadata` explicitly.
+    * The dat stored in this object is used to generate BuildGraph script test metadata.
     * For more information about BuildGraph script generation, see the [Generate BuildGraph Script Metadata](#generate-buildgraph-script-metadata-files) section.
 4. Suppose that you have an explicit test module titled `UEModuleTests`. Your explicit test `.Build.cs` file should look similar to this:
 	**UEModuleTests\UEModuleTests.Build.cs**
@@ -94,6 +94,17 @@ Follow these steps to create your explicit test:
 	```csharp
 	public class UEModuleTests : TestModuleRules
 	{
+        static UEModuleTests()
+        {
+          if (InTestMode)
+          {
+            TestMetadata = new Metadata();
+		    TestMetadata.TestName = "UEModule";
+		    TestMetadata.TestShortName = "UE Module";
+		    // any other additional properties
+          }
+        }
+
         public UEModuleTests(ReadOnlyTargetRules Target) : base(Target)
         {
             PrivateIncludePaths.AddRange(
@@ -104,12 +115,12 @@ Follow these steps to create your explicit test:
 			);
 
 			// Other types of dependencies or module specific logic
-
-			UpdateBuildGraphPropertiesFile(new Metadata("UEModule", "UE Module"));
 		}
 	}
 	```
 	</font>
+
+	You can also extend this module class for a NDA platform, in which case you need to provide a static constructor in that class and call `TestMetadata.SupportedPlatforms.Add(...)` with the platform as parameter - do not re-initialize TestMetadata so that all the properties set in the base class are kept.
 5. Add a test target file (`.Target.cs`) with a class that inherits from `TestTargetRules`.
 6. Override the default compilation flags if necessary.
     * Aim for a minimal, testable module free of default features that don't add value to low-level testing.
@@ -137,18 +148,20 @@ Now you can write C++ test files in the `Private` folder of the module and write
 
 ### Generate BuildGraph Script Metadata Files
 
-If you want to build and run your tests with BuildGraph, you need to enable generation of BuildGraph script metadata files for explicit tests. When generating the IDE solution via `GenerateProjectFiles.bat`, the explicit test modules generate BuildGraph `.xml` files.
+If you want to build and run your tests with BuildGraph, you need generate BuildGraph script metadata files for explicit tests.
+All classes inheriting TestModuleRules have a static property called TestMetadata whose properties are translated into BuildGraph metadata and instructions.
 
-An engine configuration setting conditions this generation. You can set this configuration in `Engine/Config/BaseEngine.ini`:
-
-```xml
-[LowLevelTestsSettings]
-bUpdateBuildGraphPropertiesFile=true
+Run the following command at the root of the engine:
+```
+.\RunUBT.bat -Mode=Test -GenerateMetadata
 ```
 
-When you run `GenerateProjectFiles.bat`, test metadata `.xml` files are generated in the `Build/LowLevelTests/<TEST_NAME>.xml` folder for each test target, where `<TEST_NAME>` is the name of your test target. For NDA platforms, these files are generated under `Platforms/<PLATFORM_NAME>/Build/LowLevelTests/<TEST_NAME>.xml`. An additional `General.xml` file is optionally present next to the test files containing global properties.
+If your tests live inside a project, use `-ProjectFile=` with the absolute path to the *.uproject* file to generate metadata in the project's directory under the `Build\LowLevelTests` folder.
 
-If the files already exist, they are updated according to the C#-described `Metadata` object. The folders and files that are accessed by project file generation must be writable. Typically, these files are read-only when under source control, so check them out or make them writeable before generation.
+
+This generates test metadata `.xml` files in the `Engine/Build/LowLevelTests/<TEST_NAME>.xml` folder for each test target, where `<TEST_NAME>` is the name of your test target. For NDA platforms, these files are generated under `Platforms/<PLATFORM_NAME>/Build/LowLevelTests/<TEST_NAME>.xml`. An additional `General.xml` file is optionally present next to the test files containing global properties.
+
+These files are overwritten every time the command is executed and their contents depends on the TestModuleRules inherited class' `TestMetadata` object. The folders and files that are accessed by project file generation must be writable. Typically, these files are read-only when under source control, so check them out or make them writeable before generation.
 
 > **_TIP_**: To see an example, the directory Engine/Build/LowLevelTests contains an .xml file named Foundation. This is the generated BuildGraph metadata for the Foundation Tests.
 
@@ -156,7 +169,7 @@ If the files already exist, they are updated according to the C#-described `Meta
 
 #### Test Module Rules Reference
 
-The `TestModuleRules` class extends `ModuleRules` with `UpdateBuildGraphPropertiesFile`. `UpdateBuildGraphPropertiesFile` accepts a `Metadata` object which generates BuildGraph test metadata `.xml` files. With a `Metadata` object, you can set the following properties:
+The `TestModuleRules` class extends `ModuleRules` and adds a static `TestMetadata` filed which is used to generate BuildGraph test metadata `.xml` files. With a `Metadata` object type, you can set the following properties:
 * `TestName`: The name of your tests used by the BuildGraph script to generate test-specific properties. This field cannot contain spaces.
 * `TestShortName`: The short name of your tests used for display in the build system. This field can contain spaces.
 * `ReportType`: The Catch2 report type. The most common report types are console and xml. For more information about Catch2 report types, see the external Catch2 documentation.
@@ -238,6 +251,25 @@ To add implicit tests to this module, create a directory titled **Tests** at the
             └── MoreSampleCodeTests.cpp
 ```
 With this structure, the file `SampleCodeTests.cpp` contains tests for the `SampleCode.cpp` file, and `MoreSampleCodeTests.cpp` contains tests for the `MoreSampleCode.cpp` file.
+
+Should your tests depend on Game-like configuration loading creating a SampleCodeTests.uproject in the root of the will allow the Test program to find the configuration folder with an additional `--projectdir=` paramter. 
+
+```
+.
+└── SampleModule/
+    ├── Public/
+    ├── Private/
+    └── Tests/
+        ├── SampleCodeTests.cpp
+        └── SampleModuleSubDirectory/
+            └── MoreSampleCodeTests.cpp
+        └── Config/
+            └── DefaultEngine.ini
+        └── SampleCodeTests.uproject
+```
+
+Note the `.Build.cs` should be updated to include `StagesWithProjectFile=True` to indicate to BuildGraph that we should use a Game-like folder structure when deploying these tests to run.
+
 
 ## Write Low-Level Tests
 
@@ -520,6 +552,7 @@ You can build and run low-level tests with:
 * [Visual Studio](#visual-studio)
 * [Unreal Build Tool (UBT)](#unreal-build-tool)
 * [BuildGraph](#buildgraph)
+* [BuildCookRun](#buildcookrun)
 
 You can build and run explicit tests using any of these tools. We recommend you build and run explicit tests with BuildGraph whenever possible. Currently, you can only build and run implicit tests with Unreal Build Tool.
 
@@ -545,7 +578,7 @@ You can build and run explicit tests directly from Visual Studio on desktop plat
 
 #### Build
 
-All low level tests must be built usint the UBT mode `-Mode=Test`. This mode performs a pre-analysis of the build target's dependency chain and detects UE core modules such as CoreUObject, Engine, ApplicationCore and UnrealEd and sets appropriate compilation flags. By default `-Mode=Test` is used to build explicit tests - tests that have their own explicitely defined target. To build an implicit test from an existing target use `-Mode=Test -Implicit`: note the additional -Implicit argument here.
+All low level tests must be built using the UBT mode `-Mode=Test`. This mode performs a pre-analysis of the build target's dependency chain and detects UE core modules such as CoreUObject, Engine, ApplicationCore and UnrealEd and sets appropriate compilation flags. By default `-Mode=Test` is used to build explicit tests - tests that have their own explicitely defined target. To build an implicit test from an existing target use `-Mode=Test -Implicit`: note the additional -Implicit argument here.
 
 ##### Explicit Tests
 
@@ -658,6 +691,27 @@ Here are some common ways to use the BuildGraph script:
 ```
 .\RunUAT.bat BuildGraph -Script="Engine/Build/LowLevelTests.xml" -Target="Catch2 Build Library Win64"
 ```
+
+### BuildCookRun
+
+Engine provided script BuildCookRun provides a wrapping script to Unreal Build Tool allows you to build, cook, and run your application in one script. For workflows specific to only deploying low level tests and running them we recommend the following command. BuildCookRun can be used on Low Level Test programs that have `StagesWithProjectFile=true` specified in its metadata and .uproject files appropriately configured. 
+
+It is important to pass `--projectprogramoverride` if your tests exist inside a Game's project folder for dependencies to correctly be passed to Unreal Build Tool.
+
+```
+.\RunUAT.bat BuildCookRun  -Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -SkipBuildEditor=True -SkipClient -Archive -ArchiveDirectory=D:\build\SampleTestName -project=MyGame\Path\To\SampleTestName.uproject -configuration=Development -platform=Win64 --projectprogramoverride=MyGame\MyGame.uproject
+```
+
+If your Binaries folder within the Archive directory appears  subfolder inside your Game/Binaries/ folder, you will want to include a directory remapping so the correct Project folder will be found as well, otherwise the default UE5 system will not find content and configs.
+
+```
+[Staging]
+;Remap platform folders for loading configs from these specific folders
++RemapDirectories=(From="SampleGame/Binaries/Win64/SampleTests",To="SampleTests/Binaries/Win64")
+```
+
+If we want to deploy to a device the addional `-Device=<Device.json>` paramter can be passed in for BuildCookRun to deploy your program to a device. For additional help on BuildCookRun see `-Help` or specific documenation pages on Automation Tool.
+
 
 ## Example: Foundation Tests
 

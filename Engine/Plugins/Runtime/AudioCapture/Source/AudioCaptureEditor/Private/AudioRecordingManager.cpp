@@ -46,9 +46,8 @@ FAudioRecordingManager::~FAudioRecordingManager()
 void FAudioRecordingManager::StartRecording(const FRecordingSettings& InSettings)
 {
 	EAudioRecorderState CurrentState = RecorderState.load();
-	check(CurrentState == EAudioRecorderState::PreRecord);
 
-	if (CurrentState == EAudioRecorderState::PreRecord)
+	if (ensure(CurrentState == EAudioRecorderState::PreRecord))
 	{
 		RecorderState = EAudioRecorderState::Recording;
 
@@ -188,9 +187,8 @@ static void SampleRateConvert(float CurrentSR, float TargetSR, int32 NumChannels
 void FAudioRecordingManager::StopRecording()
 {
 	EAudioRecorderState CurrentState = RecorderState.load();
-	check(CurrentState == EAudioRecorderState::Recording);
 
-	if (CurrentState == EAudioRecorderState::Recording)
+	if (ensure(CurrentState == EAudioRecorderState::Recording))
 	{
 		RecorderState = EAudioRecorderState::Stopped;
 
@@ -219,9 +217,8 @@ void FAudioRecordingManager::StopRecording()
 TObjectPtr<USoundWave> FAudioRecordingManager::GetRecordedSoundWave(const FRecordingManagerSourceSettings& InSourceSettings)
 {
 	EAudioRecorderState CurrentState = RecorderState.load();
-	check(CurrentState == EAudioRecorderState::Stopped);
 
-	if (CurrentState == EAudioRecorderState::Stopped)
+	if (ensure(CurrentState == EAudioRecorderState::Stopped))
 	{
 		if (PCMDataToSerialize == nullptr)
 		{
@@ -411,9 +408,8 @@ TObjectPtr<USoundWave> FAudioRecordingManager::CreateSoundWaveAsset(const FRecor
 		NewSoundWave->SetSoundAssetCompressionType(ESoundAssetCompressionType::BinkAudio);
 		NewSoundWave->SetTimecodeInfo(GetTimecodeInfo(InSourceSettings));
 
-		// Initialize SoundWaveData so that it is synchronized with the owning object
-		// (note that for serialized cases, this happens in PostLoad(), PostImport(), etc.)
-		NewSoundWave->SoundWaveDataPtr->InitializeDataFromSoundWave(*NewSoundWave);
+		// Post import initializes USoundWave internal data structures 
+		NewSoundWave->PostImport();
 
 		if (bCreatedPackage)
 		{

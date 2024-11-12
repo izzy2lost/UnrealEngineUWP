@@ -11,6 +11,11 @@
 class UNNERuntimeORTDml;
 class UNNERuntimeORTCpu;
 
+namespace UE::NNERuntimeORT::Private
+{
+	class FEnvironment;
+}
+
 class FNNERuntimeORTModule : public IModuleInterface
 {
 private:
@@ -20,5 +25,10 @@ private:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+#if WITH_EDITOR
+void OnSettingsChanged(UObject* InObject, struct FPropertyChangedEvent& InPropertyChangedEvent);
+#endif
+
 	TArray<void*> DllHandles;
+	TSharedPtr<UE::NNERuntimeORT::Private::FEnvironment> Environment;
 };

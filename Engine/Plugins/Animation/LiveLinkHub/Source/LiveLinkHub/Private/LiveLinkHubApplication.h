@@ -2,14 +2,17 @@
 
 #pragma once
 
-#include "Commandlets/Commandlet.h"
 #include "CoreMinimal.h"
+#include "Commandlets/Commandlet.h"
 #include "Engine/Engine.h"
-#include "Editor/EditorPerformanceSettings.h"
-#include "Misc/CoreDelegates.h"
+#include "Framework/Application/SlateApplication.h"
 #include "LiveLinkHub.h"
+#include "LiveLinkHubInputProcessor.h"
+#include "LiveLinkHubTicker.h"
 #include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "Settings/LiveLinkHubSettings.h"
 #include "UObject/UObjectGlobals.h"
 
 #if PLATFORM_MAC
@@ -20,16 +23,14 @@ DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkHubApplication, Log, All);
 
 void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 {
-	// Disable throttling for the hub
-	GetMutableDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground = false;
-
+	check(FSlateApplication::IsInitialized());
+	FSlateApplication::Get().RegisterInputPreProcessor(MakeShared<FLiveLinkHubInputProcessor>());
 	{
 		UE_LOG(LogLiveLinkHubApplication, Display, TEXT("LiveLinkHub Initialized (Version: %d.%d)"), ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION);
 
 		double LastTime = FPlatformTime::Seconds();
 
-		constexpr double IdealFrameRate = 60.0;
-		constexpr float IdealFrameTime = 1.0f / IdealFrameRate;
+		const double IdealFrameTime = 1 / GetDefault<ULiveLinkHubSettings>()->TargetFrameRate;
 
 		while (!IsEngineExitRequested())
 		{
@@ -41,8 +42,7 @@ void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 
 			CommandletHelpers::TickEngine(nullptr, DeltaTime);
 
-			// This is normally ticked by OnSamplingInput.
-			LiveLinkHub->Tick();
+			FSlateApplication::Get().PollGameDeviceState();
 
 			// Run garbage collection for the UObjects for the rest of the frame or at least to 2 ms
 			IncrementalPurgeGarbage(true, FMath::Max<float>(0.002f, IdealFrameTime - (FPlatformTime::Seconds() - LastTime)));

@@ -53,11 +53,14 @@ void FOpenXREyeTracker::PostCreateInstance(XrInstance InInstance)
 	Instance = InInstance;
 }
 
-bool FOpenXREyeTracker::GetInteractionProfile(XrInstance InInstance, FString& OutKeyPrefix, XrPath& OutPath, bool& OutHasHaptics)
+bool FOpenXREyeTracker::GetInteractionProfiles(XrInstance InInstance, TArray<FString>& OutKeyPrefixes, TArray<XrPath>& OutPaths, TArray<bool>& OutHasHaptics)
 {
-	OutKeyPrefix = "EyeTracker";
-	OutHasHaptics = false;
-	return xrStringToPath(InInstance, "/interaction_profiles/ext/eye_gaze_interaction", &OutPath) == XR_SUCCESS;
+	OutKeyPrefixes.Add("EyeTracker");
+	OutHasHaptics.Add(false);
+	XrPath OutPath;
+	XrResult Result = xrStringToPath(InInstance, "/interaction_profiles/ext/eye_gaze_interaction", &OutPath);
+	OutPaths.Add(OutPath);
+	return Result == XR_SUCCESS;
 }
 
 void FOpenXREyeTracker::AttachActionSets(TSet<XrActionSet>& OutActionSets)

@@ -17,12 +17,15 @@
 #include "Misc/AssertionMacros.h"
 #include "Serialization/PackageWriter.h"
 #include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "UObject/CookEnums.h"
 #include "UObject/NameTypes.h"
 #include "UObject/SavePackage.h"
 
 class FCbFieldView;
 class FCbWriter;
+class ICookArtifactReader;
 class ITargetPlatform;
 struct FWeakObjectPtr;
 namespace UE::DerivedData { class FBuildDefinition; }
@@ -79,7 +82,8 @@ struct TFastPointerMapKeyFuncs : public TDefaultMapKeyFuncs<KeyType, ValueType, 
 
 /** A TMap which uses TFastPointerMapKeyFuncs instead of TDefaultMapKeyFuncs */
 template<typename KeyType, typename ValueType, typename SetAllocator = FDefaultSetAllocator>
-class TFastPointerMap : public TMap<KeyType, ValueType, SetAllocator, TFastPointerMapKeyFuncs<KeyType, ValueType, false>>
+class TFastPointerMap : public TMap<KeyType, ValueType, SetAllocator,
+	TFastPointerMapKeyFuncs<KeyType, ValueType, false>>
 {};
 
 /** A TSet which uses TFastPointerSetKeyFuncs instead of DefaultKeyFuncs */
@@ -89,6 +93,7 @@ class TFastPointerSet : public TSet<KeyType, TFastPointerSetKeyFuncs<KeyType>, S
 
 namespace UE::Cook
 {
+	class FDeterminismManager;
 	struct FPackageData;
 	struct FPlatformData;
 
@@ -100,7 +105,10 @@ namespace UE::Cook
 		using TFastPointerSet<FPackageData*>::TFastPointerSet;
 	};
 
-	/** External Requests to the cooker can either by cook requests for a specific file, or arbitrary callbacks that need to execute within the Scheduler's lock. */
+	/**
+	 * External Requests to the cooker can either by cook requests for a specific file, or arbitrary callbacks that
+	 * need to execute within the Scheduler's lock.
+	 */
 	enum class EExternalRequestType
 	{
 		None,
@@ -138,6 +146,7 @@ namespace UE::Cook
 		ForceRecook,
 		UrgencyUpdated,
 	};
+	bool IsTerminalStateChange(EStateChangeReason Reason);
 	const TCHAR* LexToString(UE::Cook::EStateChangeReason Reason);
 
 	enum class ESuppressCookReason : uint8
@@ -159,39 +168,139 @@ namespace UE::Cook
 		MultiprocessAssignmentError,
 		RetractedByCookDirector,
 		CookFilter,
+		Count,
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
 	};
 	const TCHAR* LexToString(UE::Cook::ESuppressCookReason Reason);
+	EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason);
 
 	/** The type of callback for External Requests that needs to be executed within the Scheduler's lock. */
 	typedef TUniqueFunction<void()> FSchedulerCallback;
 
 	/** Which phase of cooking a Package is in.  */
-	enum class EPackageState
+	enum class EPackageState : uint8
 	{
-		Idle = 0,	  /* The Package is not being operated on by the cooker, and is not in any queues.  This is the state both for packages that have never been requested and for packages that have finished cooking. */
-		Request,	  /* The Package is in the RequestQueue; it is requested for cooking but has not had any operations performed on it. */
-		AssignedToWorker, /* The Package is in the AssignedToWorkerSet; it has been sent a remote CookWorker for cooking and has not had any operations performed on it locally. */
-		LoadPrepare,  /* The Package is in the LoadPrepareQueue. Preloading is in progress. */
-		LoadReady,	  /* The package is in the LoadReadyQueue. Preloading is complete and it will be loaded when its turn comes up. */
-		Save,		  /* The Package is in the SaveQueue; it has been fully loaded and some target data may have been calculated. */
+		/**
+		 * The Package is not being operated on by the cooker, and is not in any queues. This is the state both for
+		 * packages that have never been requested and for packages that have finished cooking.
+		 */
+		Idle = 0,
+		/**
+		 * The Package is in the RequestQueue; it is requested for cooking but has not had any operations performed
+		 * on it.
+		*/
+		Request,
+		/**
+		 * The Package is in the AssignedToWorkerSet; it has been sent a remote CookWorker for cooking and has not
+		 * had any operations performed on it locally.
+		 */
+		AssignedToWorker,
+		/** The Package is in the LoadQueue, in one of multiple substates that handle loading and preloading. */
+		Load,
+		/** The Package is in the SaveQueue; it has been fully loaded and some target data may have been calculated. */
+		SaveActive,
+		/**
+		 * The Package is in the SaveStalled Set. It might have Saving data, but it has been retracted by the CookDirector
+		 * and has not yet completed save elsewhere. It will stay in this stalled state until the CookDirector reassigns
+		 * it back to this worker or reports that its save was completed elsewhere.
+		 */
+		SaveStalledRetracted,
+		/**
+		 * The Package is in the SaveStalled Set. We are on the CookDirector and the package was previously assigned
+		 * locally for saving on the Director, but we retracted it from saving locally and assigned it to a remote
+		 * CookWorker. It will stay in this stalled state until COTFS.Director reassigns it back for local saving or a
+		 * worker reports that it finished saving.
+		 */
+		SaveStalledAssignedToWorker,
 
 		Min = Idle,
-		Max = Save,
-		Count = Max + 1, /* Number of values in this enum, not a valid value for any EPackageState variable. */
-		BitCount = 3, /* Number of bits required to store a valid EPackageState */
+		Max = SaveStalledAssignedToWorker,
+		/** Number of values in this enum, not a valid value for any EPackageState variable. */
+		Count = Max + 1,
+		/** Number of bits required to store a valid EPackageState */
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
 	};
+	const TCHAR* LexToString(UE::Cook::EPackageState State);
 
 	enum class EPackageStateProperty // Bitfield
 	{
 		None		= 0,
-		InProgress	= 0x1, /* The package is being worked on by the cooker. */
-		Loading		= 0x2, /* The package is in one of the loading states and has preload data. */
-		HasPackage	= 0x4, /* The package has progressed past the loading state, and the UPackage pointer is available on the FPackageData. */
+		/** The package is being worked on by the cooker. */
+		InProgress	= 0x1,
+		/** The package is in one of the loading states and has preload data. */
+		Loading		= 0x2,
+		/**
+		 * The package is in one of the saving states and has access to saving-only data. The UPackage pointer on
+		 * the FPackageData is non-null.
+		 */
+		Saving		= 0x4,
+		/** The package is assigned to a remote worker, and here on the director it is in a stalled state. */
+		AssignedToWorkerProperty = 0x8,
 
 		Min = InProgress,
-		Max = HasPackage
+		Max = AssignedToWorkerProperty,
 	};
 	ENUM_CLASS_FLAGS(EPackageStateProperty);
+
+	/**
+	 * A substate of EPackageState::Load; it describes the state of the PackagePreloader in PumpLoads.
+	 * This state is on the PackagePreloader and not the PackageData, and might be active even while the package
+	 * is not in the load state.
+	 */
+	enum class EPreloaderState : uint8
+	{
+		Inactive,
+		PendingKick,
+		ActivePreload,
+		ReadyForLoad,
+		Count,
+	};
+	const TCHAR* LexToString(UE::Cook::EPreloaderState State);
+
+	/** SubState when in a Saving state. */
+	enum class ESaveSubState : uint8
+	{
+		StartSave = 0,
+		FirstCookedPlatformData_CreateObjectCache,
+		FirstCookedPlatformData_CallingBegin,
+		FirstCookedPlatformData_CheckForGenerator,
+		FirstCookedPlatformData_CheckForGeneratorAfterWaitingForIsLoaded,
+		Generation_TryGenerateList,
+		Generation_QueueGeneratedPackages,
+
+		CheckForIsGenerated,
+
+		Generation_PreMoveCookedPlatformData_WaitingForIsLoaded,
+		Generation_CallObjectsToMove,
+		Generation_BeginCacheObjectsToMove,
+		Generation_FinishCacheObjectsToMove,
+		Generation_CallPopulate,
+		Generation_CallGetPostMoveObjects,
+
+		LastCookedPlatformData_CallingBegin,
+		LastCookedPlatformData_WaitingForIsLoaded,
+
+		ReadyForSave,
+		Last = ReadyForSave,
+		Count = Last + 1,
+		/** Number of bits required to store a valid ESaveSubState */
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
+	};
+	const TCHAR* LexToString(UE::Cook::ESaveSubState State);
+
+	/** How quickly we should push a PackageData through the cook, compared to other PackageDatas. */
+	enum class EUrgency : uint8
+	{
+		Normal = 0,
+		High,
+		Blocking,
+
+		Min = Normal,
+		Max = Blocking,
+		Count = Max + 1,
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
+	};
+	const TCHAR* LexToString(UE::Cook::EUrgency Urgency);
 
 	/** Used as a helper to timeslice cooker functions. */
 	struct FCookerTimer
@@ -241,7 +350,10 @@ namespace UE::Cook
 		double LoopStartTime = 0.;
 		/** A bitmask of flags of type enum ECookOnTheSideResult that were set during the tick. */
 		uint32 ResultFlags = 0;
-		/** The CookerTimer for the current tick. Used by slow reentrant operations that need to check whether they have timed out. */
+		/**
+		 * The CookerTimer for the current tick. Used by slow reentrant operations that need to check whether they
+		 * have timed out.
+		 */
 		FCookerTimer Timer;
 		/** CookFlags describing details of the caller's desired behavior for the current tick. */
 		ECookTickFlags TickFlags;
@@ -261,14 +373,17 @@ namespace UE::Cook
 	*/
 	struct FCookSavePackageContext
 	{
-		FCookSavePackageContext(const ITargetPlatform* InTargetPlatform,
-			ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings);
+		FCookSavePackageContext(const ITargetPlatform* InTargetPlatform, TSharedPtr<ICookArtifactReader> InCookArtifactReader,
+			ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings,
+			TUniquePtr<FDeterminismManager>&& InDeterminismManager);
 		~FCookSavePackageContext();
 
 		FSavePackageContext SaveContext;
 		FString WriterDebugName;
+		TSharedPtr<ICookArtifactReader> ArtifactReader;
 		ICookedPackageWriter* PackageWriter;
 		ICookedPackageWriter::FCookCapabilities PackageWriterCapabilities;
+		TUniquePtr<FDeterminismManager> DeterminismManager;
 	};
 
 	/* Thread Local Storage access to identify which thread is the SchedulerThread for cooking. */
@@ -326,8 +441,10 @@ namespace UE::Cook
 		int32 SoftGCStartNumerator;
 		int32 SoftGCDenominator;
 		TArray<FString> ConfigSettingDenyList;
-		TMap<FName, int32> MaxAsyncCacheForType; // max number of objects of a specific type which are allowed to async cache at once
+		/** max number of objects of a specific type which are allowed to async cache at once */
+		TMap<FName, int32> MaxAsyncCacheForType;
 		bool bUseSoftGC = false;
+		bool bRandomizeCookOrder = false;
 
 		friend FCbWriter& ::operator<<(FCbWriter& Writer, const UE::Cook::FInitializeConfigSettings& Value);
 		friend bool ::LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FInitializeConfigSettings& Value);
@@ -352,7 +469,10 @@ namespace UE::Cook
 
 	/** Report whether commandline/config has disabled use of timeouts throughout the cooker, useful for debugging. */
 	bool IsCookIgnoreTimeouts();
-}
+
+	TConstArrayView<const TCHAR*> GetCommandLineDelimiterStrs();
+	TConstArrayView<TCHAR> GetCommandLineDelimiterChars();
+} // namespace UE::Cook
 
 bool LexTryParseString(FPlatformMemoryStats::EMemoryPressureStatus& OutValue, FStringView Text);
 FString LexToString(FPlatformMemoryStats::EMemoryPressureStatus Value);
@@ -382,10 +502,16 @@ public:
 	/** Create a release from this manifest and store it in the releases directory for this cgame */
 	FString							CreateReleaseVersion;
 
-	/** If we are based on a release version of the game this is the set of packages which were cooked in that release. Map from platform name to list of uncooked package filenames */
+	/**
+	 * If we are based on a release version of the game this is the set of packages which were cooked in that release.
+	 * Map from platform name to list of uncooked package filenames.
+	 */
 	TMap<FName, TArray<FName>>		BasedOnReleaseCookedPackages;
 
-	/** Mapping from source packages to their localized variants (based on the culture list in FCookByTheBookStartupOptions) */
+	/**
+	 * Mapping from source packages to their localized variants (based on the culture list in
+	 * FCookByTheBookStartupOptions)
+	 */
 	TMap<FName, TArray<FName>>		SourceToLocalizedPackageVariants;
 	/** List of all the cultures (e.g. "en") that need to be cooked */
 	TArray<FString>					AllCulturesToCook;
@@ -404,9 +530,11 @@ public:
 
 	/** error when detecting engine content being used in this cook */
 	bool							bErrorOnEngineContentUse = false;
-	bool							bAllowUncookedAssetReferences = false; // this is a flag for dlc, will allow DLC to be cook when the fixed base might be missing references.
+	/** this is a flag for dlc, will allow DLC to be cook when the fixed base might be missing references. */
+	bool							bAllowUncookedAssetReferences = false;
 	bool							bSkipHardReferences = false;
 	bool							bSkipSoftReferences = false;
+	bool							bCookSoftPackageReferences = false;
 	bool							bCookAgainstFixedBase = false;
 	bool							bDlcLoadMainAssetRegistry = false;
 
@@ -426,9 +554,12 @@ public:
 // Cook on the fly startup options
 struct FCookOnTheFlyOptions
 {
-	/** Wether the network file server or the I/O store connection server should bind to any port */
-	bool bBindAnyPort = false;
-	/** Whether the network file server should use a platform-specific communication protocol instead of TCP (used when bZenStore == false) */
+	/** What port the network file server or the I/O store connection server should bind to */
+	int32 Port = -1;
+	/**
+	 * Whether the network file server should use a platform-specific communication protocol instead of TCP (used when
+	 * bZenStore == false)
+	 */
 	bool bPlatformProtocol = false;
 
 	friend FCbWriter& ::operator<<(FCbWriter& Writer, const UE::Cook::FCookOnTheFlyOptions& Value);
@@ -469,7 +600,10 @@ struct FDiscoveredPlatformSet
 		TArray<const ITargetPlatform*, TInlineAllocator<ExpectedMaxNumPlatforms>>* OutBuffer);
 	/** If the current type is EmbeddedBitField, change it to EmbeddedList. */
 	void ConvertFromBitfield(TConstArrayView<const ITargetPlatform*> OrderedPlatforms);
-	/** If the current type is EmbeddedList, change it to EmbeddedBitfield. Asserts if the type is already EmbeddedBitfield. */
+	/**
+	 * If the current type is EmbeddedList, change it to EmbeddedBitfield. Asserts if the type is already
+	 * EmbeddedBitfield.
+	 */
 	void ConvertToBitfield(TConstArrayView<const ITargetPlatform*> OrderedPlatforms);
 
 private:
@@ -509,17 +643,29 @@ struct FBeginCookContextPlatform
 	bool bHasMemoryResults = false;
 	/** If true, we should delete the in-memory results from an earlier cook in the same process, if we have any. */
 	bool bClearMemoryResults = false;
-	/** If true, we should load results that previous cooks left on disk into the current cook's results; this is one way to cook iteratively. */
+	/**
+	 * If true, we should load results that previous cooks left on disk into the current cook's results; this is one
+	 * way to cook iteratively.
+	 */
 	bool bPopulateMemoryResultsFromDiskResults = false;
-	/** If true we are cooking iteratively, from results in a shared build (e.g. from buildfarm) rather than from our previous cook. */
+	/**
+	 * If true we are cooking iteratively, from results in a shared build (e.g. from buildfarm) rather than from our
+	 * previous cook.
+	 */
 	bool bIterateSharedBuild = false;
-	/** If true we are a CookWorker, and we are working on a Sandbox directory that has already been populated by a remote Director process. */
+	/**
+	 * If true we are a CookWorker, and we are working on a Sandbox directory that has already been populated by a
+	 * remote Director process.
+	 */
 	bool bWorkerOnSharedSandbox = false;
 };
 FCbWriter& operator<<(FCbWriter& Writer, const FBeginCookContextPlatform& Value);
 bool LoadFromCompactBinary(FCbFieldView Field, FBeginCookContextPlatform& Value);
 
-/** Data held on the stack and shared with multiple subfunctions when running StartCookByTheBook or StartCookOnTheFly */
+/**
+ * Data held on the stack and shared with multiple subfunctions when running StartCookByTheBook or 
+ * StartCookOnTheFly
+ */
 struct FBeginCookContext
 {
 	FBeginCookContext(UCookOnTheFlyServer& InCOTFS)
@@ -532,7 +678,7 @@ struct FBeginCookContext
 	TArray<FBeginCookContextPlatform> PlatformContexts;
 	/** The list of platforms by themselves, for passing to functions that need just a list of platforms */
 	TArray<ITargetPlatform*> TargetPlatforms;
-	const UCookOnTheFlyServer& COTFS;
+	UCookOnTheFlyServer& COTFS;
 };
 
 /** Helper struct for FBeginCookContextForWorker; holds the context data for each platform being cooked */
@@ -541,7 +687,10 @@ struct FBeginCookContextForWorkerPlatform
 	void Set(const FBeginCookContextPlatform& InContext);
 
 	const ITargetPlatform* TargetPlatform = nullptr;
-	/** If true, we are deleting all old results from disk and rebuilding every package. If false, we are building iteratively. */
+	/**
+	 * If true, we are deleting all old results from disk and rebuilding every package. If false, we are building
+	 * iteratively.
+	 */
 	bool bFullBuild = false;
 };
 FCbWriter& operator<<(FCbWriter& Writer, const FBeginCookContextForWorkerPlatform& Value);

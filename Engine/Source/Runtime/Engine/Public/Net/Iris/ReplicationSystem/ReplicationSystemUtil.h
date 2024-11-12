@@ -12,13 +12,14 @@
 
 class AActor;
 class UActorComponent;
-struct FActorBeginReplicationParams;
-class UActorReplicationBridge;
+struct FActorReplicationParams;
+class UEngineReplicationBridge;
 class UObject;
 class FRepChangedPropertyTracker;
 class UReplicationSystem;
 class UWorld;
 class UNetConnection;
+class UNetDriver;
 
 namespace UE::Net
 {
@@ -34,11 +35,14 @@ struct FReplicationSystemUtil
 	/** Returns the UReplicationSystem for the main NetDriver assigned to the Actor. Note that an Actor may be replicated by multiple ReplicationSystems. May return null. */
 	ENGINE_API static UReplicationSystem* GetReplicationSystem(const AActor* Actor);
 
-	/** Returns the UActorReplicationBridge of the UReplicationSystem belogning to the main NetDriver assigned to the Actor. May return null. */
-	ENGINE_API static UActorReplicationBridge* GetActorReplicationBridge(const AActor* Actor);
+	/** Returns the UReplicationSystem for a specific NetDriver. May return null. */
+	ENGINE_API static UReplicationSystem* GetReplicationSystem(const UNetDriver* NetDriver);
+
+	/** Returns the UEngineReplicationBridge of the UReplicationSystem belogning to the main NetDriver assigned to the Actor. May return null. */
+	ENGINE_API static UEngineReplicationBridge* GetActorReplicationBridge(const AActor* Actor);
 
 	/** Returns the UReplicationSystem of the UNetDriver the UNetConnection belongs to. */
-	ENGINE_API static UActorReplicationBridge* GetActorReplicationBridge(const UNetConnection* NetConnection);
+	ENGINE_API static UEngineReplicationBridge* GetActorReplicationBridge(const UNetConnection* NetConnection);
 
 	/** Returns the NetHandle for the actor. The returned handle may be invalid. */
 	ENGINE_API static FNetHandle GetNetHandle(const AActor* Actor);
@@ -50,7 +54,7 @@ struct FReplicationSystemUtil
 	ENGINE_API static FNetHandle GetNetHandle(const UObject* Object);
 
 	/** Begins replication of an actor and all of its registered subobjects. If any ReplicationSystem wants to replicate the actor a NetHandle will be created. */
-	ENGINE_API static void BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params);
+	ENGINE_API static void BeginReplication(AActor* Actor, const FActorReplicationParams& Params);
 
 	/** Begins replication of an actor and all of its registered subobjects. If any ReplicationSystem wants to replicate the actor a NetHandle will be created. */
 	ENGINE_API static void BeginReplication(AActor* Actor);
@@ -132,7 +136,7 @@ struct FReplicationSystemUtil
 	ENGINE_API static void ClearCullDistanceSqrOverride(const AActor* Actor);
 
 	/** Set the poll frequency for an object and its subobjects. */
-	ENGINE_API static void SetPollFrequency(const UObject* Object, float CullDistSqr);
+	ENGINE_API static void SetPollFrequency(const UObject* Object, float PollFrequency);
 };
 
 }

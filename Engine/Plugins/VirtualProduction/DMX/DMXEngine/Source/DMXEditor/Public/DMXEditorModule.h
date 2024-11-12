@@ -55,6 +55,9 @@ public:
 	 */
 	TSharedRef<FDMXEditor> CreateEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UDMXLibrary* DMXLibrary );
 
+	/** Exports a DMX Library as MVR file */
+	void ExportDMXLibraryAsMVRFile(UDMXLibrary* DMXLibrary, const FString& DesiredName = TEXT("")) const;
+
 	/** Get Level Editor Toolbar Menu extender */
 	TSharedPtr<FExtender> GetLevelEditorToolbarDMXMenuExtender() const { return LevelEditorToolbarDMXMenuExtender; }
 
@@ -74,6 +77,9 @@ public:
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 
 private:
+	/** Before 5.4, GDTF assets could be stored containing invalid characters such as @ common to most GDTFs. This function mends all asset names.*/
+	static void FixGDTFAssetNames();
+
 	/** Binds commands for the DMX editor */
 	void BindDMXEditorCommands();
 

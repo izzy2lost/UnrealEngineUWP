@@ -104,7 +104,9 @@ struct FNavMeshSceneProxyData : public TSharedFromThis<FNavMeshSceneProxyData, E
 	NAVIGATIONSYSTEM_API uint32 GetAllocatedSize() const;
 
 #if WITH_RECAST
+	UE_DEPRECATED(5.5, "Use the version of this function that takes an array of FNavTileRefs instead")
 	NAVIGATIONSYSTEM_API void GatherData(const ARecastNavMesh* NavMesh, int32 InNavDetailFlags, const TArray<int32>& TileSet);
+	NAVIGATIONSYSTEM_API void GatherData(const ARecastNavMesh* NavMesh, int32 InNavDetailFlags, const TArray<struct FNavTileRef>& TileSet);
 
 #if RECAST_INTERNAL_DEBUG_DATA
 	NAVIGATIONSYSTEM_API void AddMeshForInternalData(const struct FRecastInternalDebugData& InInternalData);

@@ -15,6 +15,7 @@ namespace UnrealGameSync
 		public List<string> View { get; init; } = new List<string>();
 		public bool? AllProjects { get; set; }
 		public bool? AllProjectsInSln { get; set; }
+		public bool? UprojectSpecificSln { get; set; }
 
 		public void Reset()
 		{
@@ -23,6 +24,7 @@ namespace UnrealGameSync
 			View.Clear();
 			AllProjects = null;
 			AllProjectsInSln = null;
+			UprojectSpecificSln = null;
 		}
 
 		public void SetCategories(Dictionary<Guid, bool> categories)
@@ -57,6 +59,7 @@ namespace UnrealGameSync
 		public FilterSettings Filter { get; set; } = new FilterSettings();
 		public bool AutoResolveConflicts { get; set; } = true;
 		public bool AlwaysClobberFiles { get; set; } = false;
+		public bool AlwaysDeleteFiles { get; set; } = false;
 	}
 
 	public class GlobalSettingsFile
@@ -171,12 +174,28 @@ namespace UnrealGameSync
 			return settings;
 		}
 
-		public static string[] GetCombinedSyncFilter(Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToFilter, FilterSettings globalFilter, FilterSettings workspaceFilter, ConfigSection? perforceSection)
+		public static string[] GetCombinedSyncFilter(
+			Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToFilter,
+			string roleName,
+			IDictionary<string, Preset> roles,
+			FilterSettings globalFilter,
+			FilterSettings workspaceFilter,
+			ConfigSection? perforceSection)
 		{
-			List<string> lines = new List<string>();
+			
+
+			ISet<string> lines = new HashSet<string>();
 			foreach (string viewLine in Enumerable.Concat(globalFilter.View, workspaceFilter.View).Select(x => x.Trim()).Where(x => x.Length > 0 && !x.StartsWith(";", StringComparison.Ordinal)))
 			{
 				lines.Add(viewLine);
+			}
+
+			if (roles.TryGetValue(roleName, out Preset? role))
+			{
+				foreach (string roleView in role.Views)
+				{
+					lines.Add(roleView);
+				}
 			}
 
 			Dictionary<Guid, bool> globalCategoryIdToSetting = globalFilter.GetCategories();
@@ -187,18 +206,25 @@ namespace UnrealGameSync
 			{
 				bool enable = filter.Enable;
 
-				bool globalEnable;
-				if (globalCategoryIdToSetting.TryGetValue(filter.UniqueId, out globalEnable))
+				if (globalCategoryIdToSetting.TryGetValue(filter.UniqueId, out bool globalEnable))
 				{
 					enable = globalEnable;
 				}
 
-				bool workspaceEnable;
-				if (workspaceCategoryIdToSetting.TryGetValue(filter.UniqueId, out workspaceEnable))
+				if (workspaceCategoryIdToSetting.TryGetValue(filter.UniqueId, out bool workspaceEnable))
 				{
 					enable = workspaceEnable;
-				}
+				}	
 
+				// role override anything set at the global or workspace level
+				if (role != null)
+				{
+					if (role.Categories.TryGetValue(filter.UniqueId, out RoleCategory? roleCategory))
+					{
+						enable = roleCategory.Enabled;
+					}
+				}
+				
 				if (enable)
 				{
 					EnableFilter(filter.UniqueId, enabled, uniqueIdToFilter);
@@ -209,7 +235,10 @@ namespace UnrealGameSync
 			{
 				if (!enabled.Contains(filter.UniqueId))
 				{
-					lines.AddRange(filter.Paths.Select(x => "-" + x.Trim()));
+					foreach (string path in filter.Paths.Select(x => "-" + x.Trim()))
+					{
+						lines.Add(path);
+					}
 				}
 			}
 
@@ -218,7 +247,7 @@ namespace UnrealGameSync
 			if (lines.Count > 0 && perforceSection != null)
 			{
 				IEnumerable<string> additionalPaths = perforceSection.GetValues("AdditionalPathsToSync", Array.Empty<string>());
-				lines = lines.Concat(additionalPaths).ToList();
+				lines.UnionWith(additionalPaths);
 			}
 
 			return lines.ToArray();

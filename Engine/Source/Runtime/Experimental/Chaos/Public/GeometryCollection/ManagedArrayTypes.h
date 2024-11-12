@@ -17,6 +17,7 @@
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/Convex.h"
+#include "Chaos/Matrix.h"
 
 inline FArchive& operator<<(FArchive& Ar, TArray<FVector3f>*& ValueIn)
 {

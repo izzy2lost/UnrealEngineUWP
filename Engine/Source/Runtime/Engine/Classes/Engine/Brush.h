@@ -181,13 +181,19 @@ public:
 	ENGINE_API virtual bool SetIsHiddenEdLayer(bool bIsHiddenEdLayer) override;
 	ENGINE_API virtual bool SupportsLayers() const override;
 	ENGINE_API virtual bool SupportsExternalPackaging() const override;
+	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const override;
+	ENGINE_API virtual bool CanReplaceSelectedActor(FText& OutReason) const override;
+	ENGINE_API virtual bool IsActorLabelEditable() const override;
 public:
 
 	ENGINE_API virtual void InitPosRotScale();
 	ENGINE_API virtual void CopyPosRotScaleFrom( ABrush* Other );
 
+	/** @return true if its Brush Component is static and should affect navmesh based on user settings*/
+	bool ENGINE_API ShouldExportStaticNavigableGeometry() const;
+	
 	static void SetSuppressBSPRegeneration(bool bSuppress) { bSuppressBSPRegeneration = bSuppress; }
-
+	static bool GetSuppressBSPRegeneration() { return bSuppressBSPRegeneration; }
 private:
 
 	/** An array to keep track of all the levels that need rebuilding. This is checked via NeedsRebuild() in the editor tick and triggers a csg rebuild. */

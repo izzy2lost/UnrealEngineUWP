@@ -24,17 +24,17 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Float"))
 	float ValueOut = 0.f;
 
-	FFloatOverrideDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFloatOverrideDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterOutputConnection(&ValueOut);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterContextOverridesNodes();
 }

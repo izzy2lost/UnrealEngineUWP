@@ -7,7 +7,7 @@
 
 DEFINE_LOG_CATEGORY(LogDataflowNodes);
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void FDataflowTools::LogAndToastWarning(const FDataflowNode& DataflowNode, const FText& Headline, const FText& Details)
 	{
@@ -30,4 +30,4 @@ namespace Dataflow
 		do { InOutString.TrimCharInline(TEXT('_'), &bCharsWereRemoved); } while (bCharsWereRemoved);
 	}
 
-}  // End namespace Dataflow
+}  // End namespace UE::Dataflow

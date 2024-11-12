@@ -45,14 +45,14 @@ void UAvaGridArrangeModifier::SetCount(const FIntPoint& InCount)
 	MarkModifierDirty();
 }
 
-void UAvaGridArrangeModifier::SetSpread(const FVector2D& NewSpread)
+void UAvaGridArrangeModifier::SetSpread(const FVector2D& InSpread)
 {
-	if (Spread == NewSpread)
+	if (Spread == InSpread)
 	{
 		return;
 	}
 
-	Spread = NewSpread;
+	Spread = InSpread;
 	MarkModifierDirty();
 }
 
@@ -75,20 +75,6 @@ void UAvaGridArrangeModifier::SetStartDirection(EAvaGridArrangeDirection InDirec
 	}
 
 	StartDirection = InDirection;
-	MarkModifierDirty();
-}
-
-void UAvaGridArrangeModifier::GetArrangementLayout(EAvaCorner2D& OutStartCorner, EAvaGridArrangeDirection& OutStartDirection) const
-{
-	OutStartCorner = StartCorner;
-	OutStartDirection = StartDirection;
-}
-
-void UAvaGridArrangeModifier::SetArrangementLayout(const EAvaCorner2D NewStartCorner, const EAvaGridArrangeDirection NewStartDirection)
-{
-	StartCorner = NewStartCorner;
-	StartDirection = NewStartDirection;
-
 	MarkModifierDirty();
 }
 

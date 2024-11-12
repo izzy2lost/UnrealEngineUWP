@@ -15,8 +15,6 @@
 /** Abstract base parent item */
 struct FOperatorStackEditorItem
 {
-	friend class SOperatorStackEditorStack;
-
 	explicit FOperatorStackEditorItem(const FOperatorStackEditorItemType& InType)
 		: ItemType(InType)
 	{}
@@ -73,9 +71,11 @@ struct FOperatorStackEditorItem
 	 * You can use this to get the item Item.Get<UObject>() or Item.Get<FMyStruct>() or Item.Get<int32>()
 	 */
 	template <typename InValueType>
-	InValueType* Get() const
+	InValueType* Get(uint32 InIndex) const
 	{
-		if (!GetValuePtr())
+		check(InIndex < GetValueCount())
+
+		if (!HasValue(InIndex))
 		{
 			return nullptr;
 		}
@@ -84,25 +84,47 @@ struct FOperatorStackEditorItem
 		{
 			if (ItemType.GetTypeEnum() == EOperatorStackEditorItemType::Object)
 			{
-				return Cast<InValueType>(static_cast<UObject*>(GetValuePtr()));
+				return Cast<InValueType>(static_cast<UObject*>(GetValuePtr(InIndex)));
 			}
 		}
 		else if constexpr (TModels_V<CStaticStructProvider, InValueType> || TModels_V<CBaseStructureProvider, InValueType>)
 		{
 			if (ItemType.GetTypeEnum() == EOperatorStackEditorItemType::Struct)
 			{
-				return static_cast<InValueType*>(GetValuePtr());
+				return static_cast<InValueType*>(GetValuePtr(InIndex));
 			}
 		}
 		else if constexpr (TIsPODType<InValueType>::Value)
 		{
 			if (ItemType.GetTypeEnum() == EOperatorStackEditorItemType::Primitive)
 			{
-				return static_cast<InValueType*>(GetValuePtr());
+				return static_cast<InValueType*>(GetValuePtr(InIndex));
 			}
 		}
 
 		return nullptr;
+	}
+
+	/**
+	 * You can use this to get all the underlying items as an array of a specific type
+	 */
+	template <typename InValueType>
+	TArray<InValueType*> GetAsArray() const
+	{
+		uint32 ValueCount = GetValueCount();
+
+		TArray<InValueType*> Values;
+		Values.Reserve(ValueCount);
+
+		for (uint32 Index = 0; Index < ValueCount; Index++)
+		{
+			if (InValueType* Value = Get<InValueType>(Index))
+			{
+				Values.Add(Value);
+			}
+		}
+
+		return Values;
 	}
 
 	/** Get the value type of this item */
@@ -111,10 +133,41 @@ struct FOperatorStackEditorItem
 		return ItemType;
 	}
 
+	/** Get the amount of value stored within this item */
+	virtual uint32 GetValueCount() const
+	{
+		return 0;
+	}
+
+	/** Checks if this item has at least one value and that it is usable */
+	bool HasValue() const
+	{
+		bool bHasValue = false;
+
+		for (uint32 Index = 0; Index < GetValueCount(); Index++)
+		{
+			bHasValue |= HasValue(Index);
+		}
+
+		return bHasValue;
+	}
+
 	/** Checks if this item has a value and that it is usable */
-	virtual bool HasValue() const
+	virtual bool HasValue(uint32 InIndex) const
 	{
 		return false;
+	}
+
+	/** Get raw ptr to value, prefer using Get<>() instead */
+	virtual void* GetValuePtr(uint32 InIndex) const
+	{
+		return nullptr;
+	}
+
+	/** Override in child to be able to compare item */
+	virtual uint32 GetHash() const
+	{
+		return CachedHash;
 	}
 
 	friend uint32 GetTypeHash(const FOperatorStackEditorItem& InItem)
@@ -133,18 +186,7 @@ struct FOperatorStackEditorItem
 	}
 
 protected:
-	/** Override in child to be able to compare item */
-	virtual uint32 GetHash() const
-	{
-		return 0;
-	}
-
-	/** Get raw ptr to value, prefer using Get<>() instead */
-	virtual void* GetValuePtr() const
-	{
-		return nullptr;
-	}
-
+	uint32 CachedHash = 0;
 	FOperatorStackEditorItemType ItemType;
 };
 

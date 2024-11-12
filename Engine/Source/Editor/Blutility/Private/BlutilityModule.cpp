@@ -13,6 +13,7 @@
 #include "Delegates/Delegate.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
+#include "EditorFunctionLibrary.h"
 #include "EditorSupportDelegates.h"
 #include "EditorUtilityActor.h"
 #include "EditorUtilityBlueprint.h"
@@ -96,6 +97,7 @@ public:
 		KismetCompilerModule.OverrideBPTypeForClass(AEditorUtilityActor::StaticClass(), UEditorUtilityBlueprint::StaticClass());
 		KismetCompilerModule.OverrideBPTypeForClass(AEditorUtilityCamera::StaticClass(), UEditorUtilityBlueprint::StaticClass());
 		KismetCompilerModule.OverrideBPTypeForClass(UEditorUtilityObject::StaticClass(), UEditorUtilityBlueprint::StaticClass());
+		KismetCompilerModule.OverrideBPTypeForClass(UEditorFunctionLibrary::StaticClass(), UEditorUtilityBlueprint::StaticClass());
 		KismetCompilerModule.OverrideBPTypeForClass(UEditorUtilityWidget::StaticClass(), UEditorUtilityWidgetBlueprint::StaticClass());
 
 		FBlutilityContentBrowserExtensions::InstallHooks();
@@ -217,8 +219,9 @@ public:
 		const UClass* BPClass = Blueprint ? Blueprint->GetClass() : nullptr;
 
 		if( BPClass && 
-			(BPClass->IsChildOf( UEditorUtilityBlueprint::StaticClass())
-			|| BPClass->IsChildOf(UEditorUtilityWidgetBlueprint::StaticClass())))
+			( BPClass->IsChildOf( UEditorUtilityBlueprint::StaticClass() )
+				|| BPClass->IsChildOf( UEditorUtilityWidgetBlueprint::StaticClass() )
+				|| IsEditorOnlyObject(BPClass) ) )
 		{
 			return true;
 		}

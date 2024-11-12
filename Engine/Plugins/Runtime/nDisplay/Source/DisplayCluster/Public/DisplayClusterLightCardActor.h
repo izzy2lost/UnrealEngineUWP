@@ -4,6 +4,7 @@
 
 #include "Components/DisplayClusterLabelConfiguration.h"
 #include "StageActor/IDisplayClusterStageActor.h"
+#include "DisplayClusterConfigurationTypes_Enums.h"
 
 #include "GameFramework/Actor.h"
 
@@ -238,6 +239,10 @@ public:
 	/** Indicates whether the light card is always made to be flush to a stage wall or not */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category = "Orientation", meta = (EditCondition = "!bIsUVLightCard", HideEditConditionToggle, EditConditionHides))
 	bool bAlwaysFlushToWall;
+
+	/** Specify how to render this Light Card Actor in relation to the inner frustum. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category = "Appearance", meta = (DisplayName = "Blending Mode"))
+	EDisplayClusterConfigurationICVFX_PerLightcardRenderMode PerLightcardRenderMode;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category = "Appearance")
 	EDisplayClusterLightCardMask Mask;

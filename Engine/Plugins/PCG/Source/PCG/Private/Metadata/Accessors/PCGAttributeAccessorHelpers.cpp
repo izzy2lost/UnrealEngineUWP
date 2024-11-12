@@ -8,44 +8,24 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Metadata/PCGAttributePropertySelector.h"
+#include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Metadata/Accessors/IPCGAttributeAccessorTpl.h"
 #include "Metadata/Accessors/PCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGCustomAccessor.h"
 #include "Metadata/Accessors/PCGPropertyAccessor.h"
 #include "Metadata/Accessors/PCGAttributeExtractor.h"
 
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/EnumProperty.h"
 
 namespace PCGAttributeAccessorHelpers
 {
-	/** Retrieves metadata object and the corresponding attribute if any for the provided data. */
-	void ExtractMetadataAttribute(UPCGData* InData, FName Name, UPCGMetadata*& OutMetadata, FPCGMetadataAttributeBase*& OutAttribute)
+	TUniquePtr<IPCGAttributeAccessor> CreateAttributeAccessorImpl(FPCGMetadataAttributeBase* Attribute, UPCGMetadata* Metadata)
 	{
-		OutMetadata = InData->MutableMetadata();
-		OutAttribute = OutMetadata ? OutMetadata->GetMutableAttribute(Name) : nullptr;
-	}
-
-	// This template creates a const or non-const accessor on an attribute depending on the provided templated type. 
-	template <
-		typename AccessorType,
-		typename = typename std::enable_if_t<
-		std::is_same_v<IPCGAttributeAccessor, std::remove_const_t<AccessorType>>
-		>
-	>
-	TUniquePtr<AccessorType> CreateAttributeAccessorImpl(FPCGMetadataAttributeBase* Attribute, UPCGMetadata* Metadata, bool bForceReadOnly = false)
-	{
-		auto CreateTypedAccessor = [Attribute, Metadata, bForceReadOnly](auto Dummy) -> TUniquePtr<IPCGAttributeAccessor>
+		auto CreateTypedAccessor = [Attribute, Metadata]<typename T>(T) -> TUniquePtr<IPCGAttributeAccessor>
 		{
-			using AttributeType = decltype(Dummy);
-			if constexpr (std::is_const_v<AccessorType>)
-			{
-				return MakeUnique<FPCGAttributeAccessor<AttributeType>>(static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute), Metadata, bForceReadOnly);
-			}
-			else
-			{
-				return MakeUnique<FPCGAttributeAccessor<AttributeType>>(static_cast<FPCGMetadataAttribute<AttributeType>*>(Attribute), Metadata, bForceReadOnly);
-			}
+			return MakeUnique<FPCGAttributeAccessor<T>>(static_cast<FPCGMetadataAttribute<T>*>(Attribute), Metadata);
 		};
 
 		if (Attribute && Metadata)
@@ -54,7 +34,25 @@ namespace PCGAttributeAccessorHelpers
 		}
 		else
 		{
-			return TUniquePtr<AccessorType>();
+			return {};
+		}
+	}
+
+	// Return a non-const version but it will be read only anyway. Done like that to factorize some non-const/const version of accessor creation.
+	TUniquePtr<IPCGAttributeAccessor> CreateConstAttributeAccessorImpl(const FPCGMetadataAttributeBase* Attribute, const UPCGMetadata* Metadata)
+	{
+		auto CreateTypedAccessor = [Attribute, Metadata]<typename T>(T) -> TUniquePtr<IPCGAttributeAccessor>
+		{
+			return MakeUnique<FPCGAttributeAccessor<T>>(static_cast<const FPCGMetadataAttribute<T>*>(Attribute), Metadata, /*bForceReadOnly=*/true);
+		};
+
+		if (Attribute && Metadata)
+		{
+			return PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), CreateTypedAccessor);
+		}
+		else
+		{
+			return {};
 		}
 	}
 
@@ -122,14 +120,22 @@ namespace PCGAttributeAccessorHelpers
 
 		if (InSelector.GetSelection() == EPCGAttributePropertySelection::Attribute)
 		{
-			UPCGMetadata* Metadata = nullptr;
-			FPCGMetadataAttributeBase* Attribute = nullptr;
-
-			// It is OK to const_cast here, since we will create a const accessor if the input is const.
-			ExtractMetadataAttribute(const_cast<UPCGData*>(InData), Name, Metadata, Attribute);
-
-			// To simplify the code here & below we'll get a non-const accessor but force readonly if it should be
-			Accessor = CreateAttributeAccessorImpl<std::remove_const_t<AccessorType>>(Attribute, Metadata, /*bForceReadOnly=*/std::is_const_v<AccessorType>);
+			// We can't use const_cast here to only have a single path, as GetMutableAttribute will set the last selector
+			// and we don't want that on const data.
+			if constexpr (std::is_const_v<AccessorType>)
+			{
+				const UPCGMetadata* ConstMetadata = InData ? InData->ConstMetadata() : nullptr;
+				const FPCGMetadataAttributeBase* ConstAttribute = ConstMetadata ? ConstMetadata->GetConstAttribute(Name) : nullptr;
+				
+				Accessor = CreateConstAttributeAccessorImpl(ConstAttribute, ConstMetadata);
+			}
+			else
+			{
+				UPCGMetadata* MutableMetadata = InData ? InData->MutableMetadata() : nullptr;
+				FPCGMetadataAttributeBase* MutableAttribute = MutableMetadata ? MutableMetadata->GetMutableAttribute(Name) : nullptr;
+				
+				Accessor = CreateAttributeAccessorImpl(MutableAttribute, MutableMetadata);
+			}
 		}
 
 		if (!Accessor.IsValid())
@@ -167,7 +173,10 @@ namespace PCGAttributeAccessorHelpers
 			}
 
 			// Set the cached selector
-			InData->SetLastSelector(InSelector);
+			if (InData)
+			{
+				InData->SetLastSelector(InSelector);
+			}
 		}
 
 		return Accessor;
@@ -203,7 +212,10 @@ namespace PCGAttributeAccessorHelpers
 			{
 				if (const UPCGMetadata* Metadata = InData->ConstMetadata())
 				{
-					return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata);
+					// For const metadata, that is on SpatialData (not points), we allow for Default Value to support "data-wide" metadata
+					// It's only for spatial data and not Param data because for ParamData, GetNum on the keys should return the number of entries.
+					// If we have a default key, GetNum will return 1, while there is actually 0 values.
+					return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata, /*bAddDefaultValueIfEmpty=*/!!Cast<UPCGSpatialData>(InData));
 				}
 			}
 			else
@@ -279,11 +291,20 @@ namespace PCGAttributeAccessorHelpers
 		{
 			if (NumericProperty->IsFloatingPoint())
 			{
+				// As floating properties are mostly all double in UE, convert float to double attributes.
 				return Functor(Signature<FPCGNumericPropertyAccessor<double>>{}, NumericProperty);
 			}
 			else if (NumericProperty->IsInteger())
 			{
-				return Functor(Signature<FPCGNumericPropertyAccessor<int64>>{}, NumericProperty);
+				// But for int32/int64 we can distinguish between the two. Everything of size 32 or less is will be an int32, 64bits integers will be int64.
+				if (NumericProperty->IsA<FInt64Property>() || NumericProperty->IsA<FUInt64Property>())
+				{
+					return Functor(Signature<FPCGNumericPropertyAccessor<int64>>{}, NumericProperty);
+				}
+				else
+				{
+					return Functor(Signature<FPCGNumericPropertyAccessor<int32>>{}, NumericProperty);
+				}
 			}
 		}
 		else if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(InProperty))
@@ -525,21 +546,6 @@ TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateExtraAccess
 	}
 }
 
-TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessorForOverrideParam(const FPCGDataCollection& InInputData, const FPCGSettingsOverridableParam& InParam, FName* OutAttributeName)
-{
-	if (OutAttributeName)
-	{
-		AccessorParamResult Result{};
-		TUniquePtr<const IPCGAttributeAccessor> Accessor = CreateConstAccessorForOverrideParamWithResult(InInputData, InParam, &Result);
-		*OutAttributeName = Result.AttributeName;
-		return Accessor;
-	}
-	else
-	{
-		return CreateConstAccessorForOverrideParamWithResult(InInputData, InParam);
-	}
-}
-
 TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessorForOverrideParamWithResult(const FPCGDataCollection& InInputData, const FPCGSettingsOverridableParam& InParam, AccessorParamResult* OutResult)
 {
 	bool bFromGlobalParamsPin = false;
@@ -556,7 +562,7 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 		OutResult->bHasMultipleAttributeSetsOnOverridePin = InputParamData.Num() > 1;
 	}
 
-	const UPCGParamData* ParamData = !InputParamData.IsEmpty() ? CastChecked<UPCGParamData>(InputParamData[0].Data) : nullptr;
+	const UPCGParamData* ParamData = !InputParamData.IsEmpty() ? Cast<UPCGParamData>(InputParamData[0].Data) : nullptr;
 
 	if (OutResult && ParamData && !bFromGlobalParamsPin)
 	{
@@ -617,7 +623,7 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 
 TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessor(const FPCGMetadataAttributeBase* InAttribute, const UPCGMetadata* InMetadata, bool bQuiet)
 {
-	return CreateAttributeAccessorImpl<const IPCGAttributeAccessor>(const_cast<FPCGMetadataAttributeBase*>(InAttribute), const_cast<UPCGMetadata*>(InMetadata), bQuiet);
+	return CreateConstAttributeAccessorImpl(const_cast<FPCGMetadataAttributeBase*>(InAttribute), const_cast<UPCGMetadata*>(InMetadata));
 }
 
 TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(UPCGData* InData, const FPCGAttributePropertySelector& InSelector, bool bQuiet)
@@ -627,7 +633,66 @@ TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(UP
 
 TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(FPCGMetadataAttributeBase* InAttribute, UPCGMetadata* InMetadata, bool bQuiet)
 {
-	return CreateAttributeAccessorImpl<IPCGAttributeAccessor>(InAttribute, InMetadata, bQuiet);
+	return CreateAttributeAccessorImpl(InAttribute, InMetadata);
+}
+
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessorWithAttributeCreation(UPCGData* InData, const FPCGAttributePropertySelector& InSelector, const IPCGAttributeAccessor* InMatchingAccessor, EPCGAttributeAccessorFlags InTypeMatching, bool bQuiet)
+{
+	TUniquePtr<IPCGAttributeAccessor> Result = CreateAccessor(InData,InSelector, bQuiet);
+
+	if (!InSelector.IsBasicAttribute() || !InMatchingAccessor)
+	{
+		return Result;
+	}
+
+	bool bValid = !!Result;
+
+	if (bValid && !!(InTypeMatching & EPCGAttributeAccessorFlags::StrictType))
+	{
+		bValid &= (InMatchingAccessor->GetUnderlyingType() == Result->GetUnderlyingType());
+	}
+
+	if (bValid && !!(InTypeMatching & EPCGAttributeAccessorFlags::AllowBroadcast))
+	{
+		bValid &= PCG::Private::IsBroadcastable(InMatchingAccessor->GetUnderlyingType(), Result->GetUnderlyingType());
+	}
+
+	if (bValid && !!(InTypeMatching & EPCGAttributeAccessorFlags::AllowConstructible))
+	{
+		bValid &= PCG::Private::IsConstructible(InMatchingAccessor->GetUnderlyingType(), Result->GetUnderlyingType());
+	}
+
+	if (!bValid)
+	{
+		Result.Reset();
+
+		// We didn't find the attribute in the data, or we can't Broadcast/Construct, so create a new one
+		UPCGMetadata* Metadata = InData->MutableMetadata();
+		if (!Metadata)
+		{
+			return Result;
+		}
+
+		const FName AttributeName = InSelector.GetName();
+		if (Metadata->HasAttribute(AttributeName))
+		{
+			Metadata->DeleteAttribute(AttributeName);
+		}
+
+		auto CreateAttributeAndAccessor = [InMatchingAccessor, AttributeName, Metadata](auto&& Dummy) -> TUniquePtr<IPCGAttributeAccessor>
+		{
+			using AttributeType = std::decay_t<decltype(Dummy)>;
+			AttributeType DefaultValue = PCG::Private::MetadataTraits<AttributeType>::ZeroValue();
+			InMatchingAccessor->Get<AttributeType>(DefaultValue, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey));
+			FPCGMetadataAttribute<AttributeType>* Attribute = Metadata->CreateAttribute<AttributeType>(AttributeName, DefaultValue, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false);
+
+			return Attribute ? MakeUnique<FPCGAttributeAccessor<AttributeType>>(Attribute, Metadata) : nullptr;
+		};
+
+		Result = PCGMetadataAttribute::CallbackWithRightType(InMatchingAccessor->GetUnderlyingType(), std::move(CreateAttributeAndAccessor));
+	}
+
+	return Result;
 }
 
 TUniquePtr<const IPCGAttributeAccessorKeys> PCGAttributeAccessorHelpers::CreateConstKeys(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector)

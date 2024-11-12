@@ -16,9 +16,12 @@
 
 struct FAssetData;
 class FAssetRegistryTagsContext;
+namespace UE::AssetRegistry { class FAssetRegistryImpl; }
+namespace UE::ConfigAccessTracking { struct FConfigAccessData; }
 class FConfigCacheIni;
 class FCustomPropertyConditionState;
 class FEditPropertyChain;
+class FObjectCollectSaveOverridesContext;
 class FObjectPostSaveContext;
 class FObjectPostSaveRootContext;
 class FObjectPreSaveContext;
@@ -33,6 +36,7 @@ struct FObjectInstancingGraph;
 struct FPropertyChangedChainEvent;
 struct FTopLevelAssetPath;
 class UClass;
+
 #if UE_WITH_IRIS
 namespace UE::Net
 {
@@ -287,6 +291,11 @@ public:
 	 * @warning: Objects created from within PreSave will NOT have PreSave called on them!!!
 	 */
 	COREUOBJECT_API virtual void PreSave(FObjectPreSaveContext SaveContext);
+
+	/**
+	 * Collect any save override state.
+	 */
+	COREUOBJECT_API virtual void CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext);
 
 #if WITH_EDITOR
 	/**
@@ -604,6 +613,7 @@ public:
 	*
 	* @return	true if this object's destructor is thread safe
 	*/
+	UE_DEPRECATED(5.5, "Multithreaded destruction of UObjects is no longer supported.")
 	COREUOBJECT_API virtual bool IsDestructionThreadSafe() const;
 
 	/**
@@ -856,14 +866,16 @@ public:
 			: Name(InName), Value(MoveTemp(InValue)), Type(InType), DisplayFlags(InDisplayFlags) {}
 
 #if WITH_EDITOR
-		/** Event for listeners who want to add tags to some UObjects' GetAssetRegistryTags. */
-		DECLARE_MULTICAST_DELEGATE_OneParam(FOnGetObjectAssetRegistryTagsWithContext, FAssetRegistryTagsContext);
+		/** Event for listeners who want to add tags to some UObjects' GetAssetRegistryTags. 
+		  * Listeners should be threadsafe as this event may be broadcast on a background thread during concurrent save
+		  **/
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnGetObjectAssetRegistryTagsWithContext, FAssetRegistryTagsContext);
 		COREUOBJECT_API static FOnGetObjectAssetRegistryTagsWithContext OnGetExtraObjectTagsWithContext;
 
-		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnGetObjectAssetRegistryTags, const UObject* /*Object*/, TArray<FAssetRegistryTag>& /*InOutTags*/);
+		DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGetObjectAssetRegistryTags, const UObject* /*Object*/, TArray<FAssetRegistryTag>& /*InOutTags*/);
 		UE_DEPRECATED(5.4, "Subscribe to OnGetExtraObjectTagsWithContext instead")
 		COREUOBJECT_API static FOnGetObjectAssetRegistryTags OnGetExtraObjectTags;
-		DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnGetExtendedAssetRegistryTagsForSave, const UObject* /*Object*/, const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& /*InOutTags*/);
+		DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnGetExtendedAssetRegistryTagsForSave, const UObject* /*Object*/, const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& /*InOutTags*/);
 		UE_DEPRECATED(5.4, "Subscribe to OnGetExtraObjectTagsWithContext instead, and early exit if !Context.IsSaving")
 		COREUOBJECT_API static FOnGetExtendedAssetRegistryTagsForSave OnGetExtendedAssetRegistryTagsForSave;
 #endif // WITH_EDITOR
@@ -907,15 +919,44 @@ public:
 
 #if WITH_EDITOR
 
+	UE_DEPRECATED(5.5, "This function is no longer called. If you require this functionality, please implement ThreadedPostLoadAssetRegistryTagsOverride. \
+Note that this function MUST be safe to call on a background thread. If you have functionality that doesn't meet that requirement, \
+consider using the AssetRegistry's AssetAddedEvent which fires on the game thread.")
+	COREUOBJECT_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const final {}
+
+	/** Contains an AssetData referencing the asset to be processed and an array of tags and values to be updated on that asset */
+	struct FPostLoadAssetRegistryTagsContext
+	{
+		FPostLoadAssetRegistryTagsContext(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& InTagsAndValuesToUpdate)
+		: AssetData(InAssetData), TagsAndValuesToUpdate(InTagsAndValuesToUpdate) {}
+
+		const FAssetData& GetAssetData() const { return AssetData; }
+		void AddTagToUpdate(const FAssetRegistryTag& Tag) { TagsAndValuesToUpdate.Add(Tag); }
+
+	private:
+		/** The AssetData being considered */
+		const FAssetData& AssetData;
+		/** The asset registry tags to be updated for this asset data */
+		TArray<FAssetRegistryTag>& TagsAndValuesToUpdate;
+	};
+
+protected:
 	/**
-	 * Performs fixup on loaded asset registry data. 
-	 * This function is called from inside the AssetRegistry CriticalSection. DO NOT CALL ASSETREGISTRY FUNCTIONS FROM THIS FUNCTION, IT WILL DEADLOCK.
+	 * Performs fixup on loaded asset registry data.
+	 *
+	 * DO NOT CALL ASSETREGISTRY FUNCTIONS FROM THIS FUNCTION, IT WILL DEADLOCK because this function is called from inside the AssetRegistry CriticalSection. 
+	 * IT MUST BE SAFE TO CALL IN MULTITHREADED BACKGROUND THREADS because the AssetRegistry can call this function from a background thread.
+	 * 
 	 * Note that this function is only called on Class Default Objects where the actual object instance data used to generate 
 	 * the asset data is not available.
-	 * @param InAssetData Asset data loaded from the AssetRegistry
-	 * @return Pointer to new asset data after fixup or nullptr if no fixup was required
+	 * @param Context Contains input and receives output from the function. @see FPostloadAssetRegistryTagsContext
 	 */
-	COREUOBJECT_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
+	COREUOBJECT_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const {}
+
+public:
+
+	/** Internal use function for the AssetRegistry. Performs general fixup required by UObject and invokes ThreadedPostLoadAssetRegistryTagsOverride */
+	COREUOBJECT_API void ThreadedPostLoadAssetRegistryTags(FPostLoadAssetRegistryTagsContext& Context) const;
 
 	/**
 	 * Additional data pertaining to asset registry tags used by the editor
@@ -1243,7 +1284,8 @@ public:
 	 * Save configuration out to ini files
 	 * @warning Must be safe to call on class-default object
 	 */
-	COREUOBJECT_API void SaveConfig( uint64 Flags=CPF_Config, const TCHAR* Filename=NULL, FConfigCacheIni* Config=GConfig, bool bAllowCopyToDefaultObject=true );
+	COREUOBJECT_API void SaveConfig(uint64 RequiredPropertyFlags = CPF_Config, const TCHAR* Filename = nullptr,
+		FConfigCacheIni* Config=GConfig, bool bAllowCopyToDefaultObject=true);
 
 	/**
 	 * Saves just the section(s) for this class into the default ini file for the class (with just the changes from base)
@@ -1338,8 +1380,12 @@ public:
 	 * @param	Filename			indicates the filename to load values from; if not specified, uses ConfigClass's ClassConfigName
 	 * @param	PropagationFlags	indicates how this call to LoadConfig should be propagated; expects a bitmask of UE::ELoadConfigPropagationFlags values.
 	 * @param	PropertyToLoad		if specified, only the ini value for the specified property will be imported.
+	 * @param 	OutAccessedKeys     if specified the object is not modified and (EditorOnly) all the config keys it
+	 *                              would read are added to OutAccessedKeys. In non-editor, function returns with no action.
 	 */
-	COREUOBJECT_API void LoadConfig( UClass* ConfigClass=NULL, const TCHAR* Filename=NULL, uint32 PropagationFlags=UE::LCPF_None, class FProperty* PropertyToLoad=NULL );
+	COREUOBJECT_API void LoadConfig(UClass* ConfigClass = nullptr, const TCHAR* Filename = nullptr,
+		uint32 PropagationFlags = UE::LCPF_None, class FProperty* PropertyToLoad = nullptr,
+		TArray<UE::ConfigAccessTracking::FConfigAccessData>* OutAccessedKeys = nullptr);
 
 	/**
 	 * Wrapper method for LoadConfig that is used when reloading the config data for objects at runtime which have already loaded their config data at least once.

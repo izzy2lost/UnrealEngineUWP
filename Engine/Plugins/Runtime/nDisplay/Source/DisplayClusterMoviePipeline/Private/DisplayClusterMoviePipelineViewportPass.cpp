@@ -32,7 +32,7 @@ namespace UE::DisplayCluster::MoviePipelineViewportPass
 				const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InPolicy = InViewportProxy->GetProjectionPolicy_RenderThread();
 				if (InPolicy.IsValid() && InPolicy->IsWarpBlendSupported())
 				{
-					TArray<FRHITexture2D*> WarpInputTextures, WarpOutputTextures;
+					TArray<FRHITexture*> WarpInputTextures, WarpOutputTextures;
 					TArray<FIntRect> WarpInputRects, WarpOutputRects;
 
 					if (InViewportProxy->GetResourcesWithRects_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, WarpInputTextures, WarpInputRects))
@@ -137,6 +137,11 @@ FIntPoint UDisplayClusterMoviePipelineViewportPassBase::GetEffectiveOutputResolu
 	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot);
 
 	return OutputResolution;
+}
+
+void UDisplayClusterMoviePipelineViewportPassBase::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesNDisplay = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -311,7 +316,7 @@ FSceneView* UDisplayClusterMoviePipelineViewportPassBase::GetSceneViewForSampleS
 		const FIntPoint FullDestSize(InOutSampleState.TileSize.X, InOutSampleState.TileSize.Y);
 		const FIntPoint DestSize = FullDestSize - OffsetMin - OffsetMax;
 
-		FDisplayClusterViewInfo NewView, PrevView;
+		FDisplayClusterViewInfo NewView;
 		DCViewport = GetAndCalculateDisplayClusterViewport(InOutSampleState, *ViewportId, DestSize, 0, NewView);
 		if(DCViewport)
 		{
@@ -561,7 +566,7 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 		{
 			// Obtaining the internal viewpoint for a given viewport with stereo eye offset distance.
 			FMinimalViewInfo ViewInfo;
-			if (!DCViewport->SetupViewPoint(ViewInfo))
+			if (!DCViewport->SetupViewPoint(InContextNum, ViewInfo))
 			{
 				return nullptr;
 			}

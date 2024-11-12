@@ -126,7 +126,12 @@ bool UPanelWidget::RemoveChildAt(int32 Index)
 
 UPanelSlot* UPanelWidget::AddChild(UWidget* Content)
 {
-	if ( Content == nullptr )
+	return AddChild(Content, nullptr);
+}
+
+UPanelSlot* UPanelWidget::AddChild(UWidget* Content, UPanelSlot* SlotTemplate)
+{
+	if (Content == nullptr)
 	{
 		return nullptr;
 	}
@@ -144,7 +149,24 @@ UPanelSlot* UPanelWidget::AddChild(UWidget* Content)
 		NewObjectFlags |= RF_Transient;
 	}
 
-	UPanelSlot* PanelSlot = NewObject<UPanelSlot>(this, GetSlotClass(), NAME_None, NewObjectFlags);
+	UPanelSlot* PanelSlot; 
+	if (SlotTemplate && GetSlotClass() == SlotTemplate->GetClass())
+	{
+		UWidget* TempContent = SlotTemplate->Content;
+		UPanelWidget* TempParent = SlotTemplate->Parent;
+		SlotTemplate->Content = nullptr;
+		SlotTemplate->Parent = nullptr;
+
+		PanelSlot = NewObject<UPanelSlot>(this, GetSlotClass(), NAME_None, NewObjectFlags, SlotTemplate);
+
+		SlotTemplate->Content = TempContent;
+		SlotTemplate->Parent = TempParent;
+	}
+	else
+	{
+		PanelSlot = NewObject<UPanelSlot>(this, GetSlotClass(), NAME_None, NewObjectFlags);
+	}
+
 	PanelSlot->Content = Content;
 	PanelSlot->Parent = this;
 
@@ -157,6 +179,34 @@ UPanelSlot* UPanelWidget::AddChild(UWidget* Content)
 	InvalidateLayoutAndVolatility();
 
 	return PanelSlot;
+}
+
+UPanelSlot* UPanelWidget::InsertChildAt(int32 Index, UWidget* Content)
+{
+	return InsertChildAt(Index, Content, nullptr);
+}
+
+UPanelSlot* UPanelWidget::InsertChildAt(int32 Index, UWidget* Content, UPanelSlot* SlotTemplate)
+{
+	if (Content)
+	{
+		UPanelSlot* NewSlot = AddChild(Content, SlotTemplate);
+		ShiftChild(Index, Content);
+		return NewSlot;
+	}
+	return nullptr;
+}
+
+void UPanelWidget::ShiftChild(int32 Index, UWidget* Child)
+{
+	int32 CurrentIndex = GetChildIndex(Child);
+	if (CurrentIndex != INDEX_NONE)
+	{
+		Slots.RemoveAt(CurrentIndex);
+		Slots.Insert(Child->Slot, FMath::Clamp(Index, 0, Slots.Num()));
+
+		InvalidateLayoutAndVolatility();
+	}
 }
 
 #if WITH_EDITOR
@@ -189,27 +239,6 @@ bool UPanelWidget::ReplaceChild(UWidget* CurrentChild, UWidget* NewChild)
 	}
 
 	return false;
-}
-
-UPanelSlot* UPanelWidget::InsertChildAt(int32 Index, UWidget* Content)
-{
-	if (Content)
-	{
-		UPanelSlot* NewSlot = AddChild(Content);
-		ShiftChild(Index, Content);
-		return NewSlot;
-	}
-	return nullptr;
-}
-
-void UPanelWidget::ShiftChild(int32 Index, UWidget* Child)
-{
-	int32 CurrentIndex = GetChildIndex(Child);
-	if (CurrentIndex != INDEX_NONE)
-	{
-		Slots.RemoveAt(CurrentIndex);
-		Slots.Insert(Child->Slot, FMath::Clamp(Index, 0, Slots.Num()));
-	}
 }
 
 void UPanelWidget::SetDesignerFlags(EWidgetDesignFlags NewFlags)

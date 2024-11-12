@@ -26,7 +26,7 @@ namespace Electra
 			for(uint32 i=0, Atom=In4CC; i<4; ++i, Atom<<=8)
 			{
 				int32 v = Atom >> 24;
-				if ((v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') || (v >= '0' && v <= '9') || v == '_')
+				if ((v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') || (v >= '0' && v <= '9') || v == '_'|| v == '.')
 				{
 					Out.AppendChar(v);
 				}
@@ -100,10 +100,13 @@ namespace Electra
 				// Profile and level follow?
 				if (CodecOTI.Len() > 5 && CodecOTI[4] == TCHAR('.'))
 				{
+					int32 DotPos;
+					CodecOTI.FindLastChar(TCHAR('.'), DotPos);
+
 					FString Temp;
 					int32 TempValue;
-					// We recognize the expected format avcC.xxyyzz and for legacy reasons also avcC.xx.zz
-					if (CodecOTI.Len() == 11)
+					// We recognize the expected format avcC.xxyyzz and for legacy reasons also avcC.xxx.zz
+					if (CodecOTI.Len() == 11 && DotPos == 4)
 					{
 						Temp = CodecOTI.Mid(5, 2);
 						LexFromStringHex(TempValue, *Temp);
@@ -115,13 +118,13 @@ namespace Electra
 						LexFromStringHex(TempValue, *Temp);
 						SetProfileLevel(TempValue);
 					}
-					else if (CodecOTI.Len() == 10 && CodecOTI[7] == TCHAR('.'))
+					else if (DotPos != INDEX_NONE)
 					{
-						Temp = CodecOTI.Mid(5, 2);
-						LexFromStringHex(TempValue, *Temp);
+						Temp = CodecOTI.Mid(5, DotPos-5);
+						LexFromString(TempValue, *Temp);
 						SetProfile(TempValue);
-						Temp = CodecOTI.Mid(8, 2);
-						LexFromStringHex(TempValue, *Temp);
+						Temp = CodecOTI.Mid(DotPos+1);
+						LexFromString(TempValue, *Temp);
 						SetProfileLevel(TempValue);
 						// Change the string to the expected format.
 						SetCodecSpecifierRFC6381(FString::Printf(TEXT("avc%c.%02x00%02x"), CodecOTI[3], GetProfile(), GetProfileLevel()));
@@ -211,6 +214,15 @@ namespace Electra
 			}
 			return false;
 		}
+		else if (CodecOTI.StartsWith(TEXT("dvh1")) || CodecOTI.StartsWith(TEXT("dvhe")))
+		{
+			// Dolby Vision only recognized as a generic Video 4CC for now.
+			StreamType = EStreamType::Video;
+			CodecSpecifier = CodecOTI;
+			Codec = ECodec::Video4CC;
+			Codec4CC = CodecOTI[3] == TCHAR('1') ? Make4CC('d','v','h','1') : Make4CC('d','v','h','e');
+			return true;
+		}
 		else if (CodecOTI.StartsWith(TEXT("mp4a")))
 		{
 			StreamType = EStreamType::Audio;
@@ -219,20 +231,39 @@ namespace Electra
 			// Object and profile follow?
 			if (CodecOTI.Len() > 6 && CodecOTI[4] == TCHAR('.'))
 			{
-				// mp4a.40.d is recognized.
+				// mp4a.40.d and mp4a.6b are recognized.
 				FString OT, Profile;
 				int32 DotPos = CodecOTI.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromStart, 5);
 				OT = CodecOTI.Mid(5, DotPos != INDEX_NONE ? DotPos - 5 : DotPos);
 				Profile = CodecOTI.Mid(DotPos != INDEX_NONE ? DotPos + 1 : DotPos);
-				if (!OT.Equals(TEXT("40")))
+				if (OT.Equals(TEXT("40")))
 				{
-					return false;
+					int32 ProfileValue = 0;
+					LexFromString(ProfileValue, *Profile);
+					SetProfile(ProfileValue);
+					// AAC-LC, AAC-HE (SBR), AAC-HEv2 (PS), MP3
+					if (!(ProfileValue == 2 || ProfileValue == 5 || ProfileValue == 29 || ProfileValue == 34))
+					{
+						return false;
+					}
+					if (ProfileValue == 34)
+					{
+						Codec = ECodec::Audio4CC;
+						Codec4CC = Make4CC('m','p','g','a');
+						MimeType = TEXT("audio/mpeg");
+						SetProfile(1);
+						SetProfileLevel(3);
+					}
 				}
-				int32 ProfileValue = 0;
-				LexFromString(ProfileValue, *Profile);
-				SetProfile(ProfileValue);
-				// AAC-LC, AAC-HE (SBR), AAC-HEv2 (PS)
-				if (!(ProfileValue == 2 || ProfileValue == 5 || ProfileValue == 29))
+				else if (OT.Equals(TEXT("6b"), ESearchCase::IgnoreCase))
+				{
+					Codec = ECodec::Audio4CC;
+					Codec4CC = Make4CC('m','p','g','a');
+					MimeType = TEXT("audio/mpeg");
+					SetProfile(1);
+					SetProfileLevel(3);
+				}
+				else
 				{
 					return false;
 				}
@@ -244,6 +275,14 @@ namespace Electra
 			StreamType = EStreamType::Audio;
 			CodecSpecifier = CodecOTI;
 			Codec = ECodec::EAC3;
+			// Presently not supported.
+			return false;
+		}
+		else if (CodecOTI.StartsWith(TEXT("ac-3")) || CodecOTI.StartsWith(TEXT("ac3")))
+		{
+			StreamType = EStreamType::Audio;
+			CodecSpecifier = CodecOTI;
+			Codec = ECodec::AC3;
 			// Presently not supported.
 			return false;
 		}
@@ -305,7 +344,6 @@ namespace Electra
 			SetCodecSpecifierRFC6381(FString::Printf(TEXT("vp09.%02d.%02d.%02d"), 0, 0, 8));
 			return true;
 		}
-
 		else if (CodecOTI.Equals(TEXT("wvtt")))
 		{
 			StreamType = EStreamType::Subtitle;
@@ -366,6 +404,173 @@ namespace Electra
 		}
 	}
 
+	const FString& FStreamCodecInformation::GetHumanReadableCodecName() const
+	{
+		if (HumanReadableCodecName.IsEmpty())
+		{
+			if (!TryConstructHumanReadableCodecName())
+			{
+				HumanReadableCodecName = CodecSpecifier;
+			}
+		}
+		return HumanReadableCodecName;
+	}
+
+	bool FStreamCodecInformation::TryConstructHumanReadableCodecName() const
+	{
+		switch(GetCodec())
+		{
+			case ECodec::H264:
+			{
+				HumanReadableCodecName = TEXT("AVC (H.264)");
+				if (ProfileLevel.Profile == 66)
+				{
+					HumanReadableCodecName.Append(TEXT(", Baseline"));
+				}
+				else if (ProfileLevel.Profile == 77)
+				{
+					HumanReadableCodecName.Append(TEXT(", Main"));
+				}
+				else if (ProfileLevel.Profile == 100)
+				{
+					HumanReadableCodecName.Append(TEXT(", High"));
+				}
+				else
+				{
+					HumanReadableCodecName.Append(TEXT(", Unknown profile"));
+				}
+				HumanReadableCodecName.Append(FString::Printf(TEXT(", level %d.%d"), ProfileLevel.Level/10, ProfileLevel.Level%10));
+				return true;
+			}
+			case ECodec::H265:
+			{
+				HumanReadableCodecName = TEXT("HEVC (H.265)");
+				if (ProfileLevel.Profile == 1)
+				{
+					HumanReadableCodecName.Append(TEXT(", Main"));
+				}
+				else if (ProfileLevel.Profile == 2)
+				{
+					HumanReadableCodecName.Append(TEXT(", Main10"));
+				}
+				else
+				{
+					HumanReadableCodecName.Append(TEXT(", Unknown profile"));
+				}
+				HumanReadableCodecName.Append(FString::Printf(TEXT(", level %d.%d"), ProfileLevel.Level/30, ProfileLevel.Level%30));
+				return true;
+			}
+			case ECodec::Video4CC:
+			{
+				switch(GetCodec4CC())
+				{
+					case Make4CC('v','p','0','8'):
+						HumanReadableCodecName = TEXT("VP8");
+						return true;
+					case Make4CC('v','p','0','9'):
+						HumanReadableCodecName = TEXT("VP9");
+						return true;
+
+					case Make4CC('a','p','c','h'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 High Quality");
+						return true;
+					case Make4CC('a','p','c','n'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 Standard Definition");
+						return true;
+					case Make4CC('a','p','c','s'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 LT");
+						return true;
+					case Make4CC('a','p','c','o'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 Proxy");
+						return true;
+					case Make4CC('a','p','4','h'):
+						HumanReadableCodecName = TEXT("Apple ProRes 4444");
+						return true;
+
+					case Make4CC('H','a','p','1'):
+						HumanReadableCodecName = TEXT("Hap");
+						return true;
+					case Make4CC('H','a','p','5'):
+						HumanReadableCodecName = TEXT("Hap Alpha");
+						return true;
+					case Make4CC('H','a','p','Y'):
+						HumanReadableCodecName = TEXT("Hap Q");
+						return true;
+					case Make4CC('H','a','p','M'):
+						HumanReadableCodecName = TEXT("Hap Q Alpha");
+						return true;
+					case Make4CC('H','a','p','7'):
+						HumanReadableCodecName = TEXT("Hap R");
+						return true;
+					case Make4CC('H','a','p','H'):
+						HumanReadableCodecName = TEXT("Hap HDR");
+						return true;
+
+					case Make4CC('A','V','d','h'):
+						HumanReadableCodecName = TEXT("Avid DNxHD");
+						return true;
+				}
+				HumanReadableCodecName = Printable4CC(GetCodec4CC());
+				return true;
+			}
+			case ECodec::AAC:
+			{
+				HumanReadableCodecName = TEXT("MPEG AAC");
+				return true;
+			}
+			case ECodec::EAC3:
+			{
+				HumanReadableCodecName = TEXT("Dolby Digital");
+				return true;
+			}
+			case ECodec::Audio4CC:
+			{
+				switch(GetCodec4CC())
+				{
+					case Make4CC('O','p','u','s'):
+					{
+						HumanReadableCodecName = TEXT("Opus");
+						return true;
+					}
+					case Make4CC('f','L','a','C'):
+					{
+						HumanReadableCodecName = TEXT("Free Lossless Audio Codec (FLAC)");
+						return true;
+					}
+					case Make4CC('m','p','g','a'):
+					{
+						if (GetProfileLevel())
+						{
+							HumanReadableCodecName = FString::Printf(TEXT("MPEG%d Layer %d"), GetProfile(), GetProfileLevel());
+						}
+						else
+						{
+							HumanReadableCodecName = FString::Printf(TEXT("MPEG%d audio"), GetProfile());
+						}
+						return true;
+					}
+				}
+				HumanReadableCodecName = Printable4CC(GetCodec4CC());
+				return true;
+			}
+			case ECodec::WebVTT:
+			{
+				HumanReadableCodecName = TEXT("WebVTT");
+				return true;
+			}
+			case ECodec::TTML:
+			{
+				HumanReadableCodecName = TEXT("TTML");
+				return true;
+			}
+			case ECodec::TX3G:
+			{
+				HumanReadableCodecName = TEXT("SRT/TX3G");
+				return true;
+			}
+		}
+		return false;
+	}
 
 
 
@@ -508,9 +713,15 @@ namespace Electra
 		}
 		return true;
 	}
-	
+
 	int32 FCodecSelectionPriorities::GetClassPriority(const FString& CodecSpecifierRFC6381) const
 	{
+		// If no priorities are given then all have the same priority of 0.
+		if (!ClassPriorities.Num())
+		{
+			return 0;
+		}
+		// Otherwise apply the priority filter. If no match then return -1.
 		for(auto &CodecClass : ClassPriorities)
 		{
 			if (CodecSpecifierRFC6381.StartsWith(CodecClass.Prefix, ESearchCase::IgnoreCase))
@@ -520,7 +731,7 @@ namespace Electra
 		}
 		return -1;
 	}
-	
+
 	int32 FCodecSelectionPriorities::GetStreamPriority(const FString& CodecSpecifierRFC6381) const
 	{
 		for(auto &CodecClass : ClassPriorities)

@@ -47,6 +47,9 @@ public:
 protected:
 	virtual TArray<int32> AddPastedPages(const TArray<FAvaRundownPage>& InPages) override;
 
+	void ResetPagesToDefaults();
+	bool CanResetPagesToDefaults() const;
+
 private:
-	void OnTemplatePageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
 };

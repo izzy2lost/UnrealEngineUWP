@@ -2,33 +2,29 @@
 
 #pragma once
 
-#include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 
+class FName;
 enum class EDMValueType : uint8;
 
-class FDynamicMaterialEditorStyle
+class FDynamicMaterialEditorStyle final : public FSlateStyleSet
 {
 public:
-	static void Initialize();
-	static void Shutdown();
+	static FDynamicMaterialEditorStyle& Get()
+	{
+		static FDynamicMaterialEditorStyle Instance;
+		return Instance;
+	}
 
-	static FName GetStyleSetName();
-	static const ISlateStyle& Get();
-
-	static FLinearColor GetColor(const FName& InName);
-	static const FSlateBrush* GetBrush(const FName& InName);
-
-	static FName GetBrushNameForType(EDMValueType InType);
+	FDynamicMaterialEditorStyle();
+	virtual ~FDynamicMaterialEditorStyle() override;
 
 private:
-	static TSharedPtr<FSlateStyleSet> StyleInstance;
-
-	static TSharedRef<FSlateStyleSet> Create();
-
-	static void SetupStageStyles(const TSharedRef<FSlateStyleSet>& Style);
-	static void SetupLayerViewStyles(const TSharedRef<FSlateStyleSet>& Style);
-	static void SetupLayerViewItemHandleStyles(const TSharedRef<FSlateStyleSet>& Style);
-	static void SetupEffectsViewStyles(const TSharedRef<FSlateStyleSet>& Style);
-	static void SetupTextStyles(const TSharedRef<FSlateStyleSet>& Style);
+	void SetupGeneralStyles();
+	void SetupStageStyles();
+	void SetupLayerViewStyles();
+	void SetupLayerViewItemHandleStyles();
+	void SetupEffectsViewStyles();
+	void SetupTextStyles();
+	void SetupComponentIcons();
 };

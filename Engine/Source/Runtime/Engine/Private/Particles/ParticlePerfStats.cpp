@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "Particles/ParticlePerfStatsManager.h"
 
+CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, Particles, false);
 
 #if WITH_PARTICLE_PERF_STATS
 
@@ -34,7 +35,7 @@ TAtomic<int32> FParticlePerfStats::SystemStatsReaders(0);
 TAtomic<int32> FParticlePerfStats::ComponentStatsReaders(0);
 
 FDelegateHandle FParticlePerfStatsManager::BeginFrameHandle;
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 FDelegateHandle FParticlePerfStatsManager::CSVStartHandle;
 FDelegateHandle FParticlePerfStatsManager::CSVEndHandle;
 #endif
@@ -317,6 +318,9 @@ void FParticlePerfStatsManager::Tick()
 				}
 				else
 				{
+#if WITH_PARTICLE_PERF_CSV_STATS
+					it.Value()->ResetStatNames();
+#endif
 					FreeSystemStatsPool.Emplace(it.Value().Release());
 					for (FParticlePerfStatsListenerPtr& Listener : Listeners)
 					{
@@ -365,6 +369,44 @@ void FParticlePerfStatsManager::Tick()
 	}
 }
 
+#if WITH_PARTICLE_PERF_CSV_STATS
+void FParticlePerfStats::PopulateStatNames(const FName InName)
+{
+	if (CSVStat_Total == NAME_None)
+	{
+		const FString StatName = InName.ToString();
+		CSVStat_Total = *FString::Printf(TEXT("Total/%s"), *StatName);
+		CSVStat_GTOnly = *FString::Printf(TEXT("GTOnly/%s"), *StatName);
+		CSVStat_InstAvgGT = *FString::Printf(TEXT("InstAvgGT/%s"), *StatName);
+		CSVStat_RT = *FString::Printf(TEXT("RT/%s"), *StatName);
+		CSVStat_InstAvgRT = *FString::Printf(TEXT("InstAvgRT/%s"), *StatName);
+		CSVStat_GPU = *FString::Printf(TEXT("GPU/%s"), *StatName);
+		CSVStat_InstAvgGPU = *FString::Printf(TEXT("InstAvgGPU/%s"), *StatName);
+		CSVStat_Count = *FString::Printf(TEXT("Count/%s"), *StatName);
+		CSVStat_Activation = *FString::Printf(TEXT("Activation/%s"), *StatName);
+		CSVStat_Waits = *FString::Printf(TEXT("Waits/%s"), *StatName);
+		CSVStat_Culled = *FString::Printf(TEXT("Culled/%s"), *StatName);
+		CSVStat_MemoryKB = *FString::Printf(TEXT("MemoryKB/%s"), *StatName);
+	}
+}
+
+void FParticlePerfStats::ResetStatNames()
+{
+	CSVStat_Total = NAME_None;
+	CSVStat_GTOnly = NAME_None;
+	CSVStat_InstAvgGT = NAME_None;
+	CSVStat_RT = NAME_None;
+	CSVStat_InstAvgRT = NAME_None;
+	CSVStat_GPU = NAME_None;
+	CSVStat_InstAvgGPU = NAME_None;
+	CSVStat_Count = NAME_None;
+	CSVStat_Activation = NAME_None;
+	CSVStat_Waits = NAME_None;
+	CSVStat_Culled = NAME_None;
+	CSVStat_MemoryKB = NAME_None;
+}
+#endif
+
 FParticlePerfStats* FParticlePerfStatsManager::GetWorldPerfStats(const UWorld* World)
 {
 	checkSlow(World && FParticlePerfStats::GetGatherWorldStats() && FParticlePerfStats::GetStatsEnabled());
@@ -412,9 +454,12 @@ FParticlePerfStats* FParticlePerfStatsManager::GetSystemPerfStats(const UFXSyste
 			{
 				PerfStats.Reset(new FParticlePerfStats());
 			}
-
 		}
+
 		FXAsset->ParticlePerfStats = PerfStats.Get();
+#if WITH_PARTICLE_PERF_CSV_STATS
+		FXAsset->ParticlePerfStats->PopulateStatNames(FXAsset->GetFName());
+#endif
 
 		for (auto& Listener : Listeners)
 		{
@@ -494,7 +539,7 @@ int32 FParticlePerfStatsManager::RenderStats(class UWorld* World, class FViewpor
 void FParticlePerfStatsManager::OnStartup()
 {
 	BeginFrameHandle = FCoreDelegates::OnBeginFrame.AddStatic(Tick);
-#if CSV_PROFILER && !UE_BUILD_SHIPPING
+#if CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 	if (FCsvProfiler* CSVProfiler = FCsvProfiler::Get())
 	{
 		CSVStartHandle = CSVProfiler->OnCSVProfileStart().AddStatic(FParticlePerfStatsListener_CSVProfiler::OnCSVStart);
@@ -506,7 +551,7 @@ void FParticlePerfStatsManager::OnStartup()
 void FParticlePerfStatsManager::OnShutdown()
 {
 	FCoreDelegates::OnBeginFrame.Remove(BeginFrameHandle);
-#if CSV_PROFILER && !UE_BUILD_SHIPPING
+#if CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 	if (FCsvProfiler* CSVProfiler = FCsvProfiler::Get())
 	{
 		CSVProfiler->OnCSVProfileStart().Remove(CSVStartHandle);
@@ -1105,8 +1150,6 @@ bool FParticlePerfStatsListener_TimedTest::Tick()
 
 #if WITH_PARTICLE_PERF_CSV_STATS
 
-CSV_DEFINE_CATEGORY_MODULE(ENGINE_API, Particles, false);
-
 void OnDetailedCSVStatsEnabledChanged(IConsoleVariable* Variable);
 
 static FAutoConsoleVariable CVarWriteDetailedCSVStats(
@@ -1117,14 +1160,15 @@ static FAutoConsoleVariable CVarWriteDetailedCSVStats(
 	ECVF_Default | ECVF_RenderThreadSafe
 );
 
-int32 GFXDetailedCSVMemorySMode = 1;
+int32 GFXDetailedCSVMemoryMode = 1;
 static FAutoConsoleVariableRef CVarFXDetailedCSVMemoryStats(
 	TEXT("fx.DetailedCSVStats.MemoryMode"),
-	GFXDetailedCSVMemorySMode,
+	GFXDetailedCSVMemoryMode,
 	TEXT("Gathers approximate memory information depending on the mode.\n")
 	TEXT("0 = Disabled (default).\n")
-	TEXT("1 = Minimal information (small performance impact).\n")
-	TEXT("2 = Full information (large performance impact)."),
+	TEXT("1 = Component Approximate Size (low perf impact).\n")
+	TEXT("2 = Asset Size + Component Approximate Size (low perf impact).\n")
+	TEXT("3 = Asset Size + Component Resource Size (high performance impact)."),
 	ECVF_Default
 );
 
@@ -1184,31 +1228,54 @@ bool FParticlePerfStatsListener_CSVProfiler::Tick()
 	{
 #if WITH_PER_SYSTEM_PARTICLE_PERF_STATS
 		// Very slow, this gives coverage over everything but is bad for performance
-		if (GFXDetailedCSVMemorySMode != 0)
+		if (GFXDetailedCSVMemoryMode != 0)
 		{
 			TMap<UFXSystemAsset*, uint64> MemoryUsage;
+
+			const bool bIncludeAssetSize = GFXDetailedCSVMemoryMode > 1;
+			const bool bComponentUseResourceSize = GFXDetailedCSVMemoryMode == 3;
+
+			// Gather per loaded asset cost
+			if (bIncludeAssetSize)
+			{
+				for (TObjectIterator<UFXSystemAsset> It; It; ++It)
+				{
+					UFXSystemAsset* FXAsset = *It;
+					if (!IsValid(FXAsset) || FXAsset->IsUnreachable() || FXAsset->HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
+					{
+						continue;
+					}
+
+					FParticlePerfStats* Stats = FParticlePerfStatsManager::GetSystemPerfStats(FXAsset);
+					if (!Stats->CSVMemoryKB_Asset.IsSet())
+					{
+						FResourceSizeEx ResSize = FResourceSizeEx(EResourceSizeMode::EstimatedTotal);
+						FXAsset->GetResourceSizeEx(ResSize);
+						Stats->CSVMemoryKB_Asset = ResSize.GetTotalMemoryBytes();
+					}
+					MemoryUsage.FindOrAdd(FXAsset) = Stats->CSVMemoryKB_Asset.GetValue();
+				}
+			}
+
+			// Gather per component cost
 			for (TObjectIterator<UFXSystemComponent> It; It; ++It)
 			{
 				UFXSystemComponent* FXComponent = *It;
-				UFXSystemAsset* FXAsset = FXComponent ? FXComponent->GetFXSystemAsset() : nullptr;
+				UFXSystemAsset* FXAsset = FXComponent->GetFXSystemAsset();
 				if (!IsValidChecked(FXComponent) || !IsValid(FXAsset) || FXComponent->IsUnreachable() || FXComponent->HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
 				{
 					continue;
 				}
 
-				if (FXAsset->CSVStat_MemoryKB.IsNone())
+				FParticlePerfStats* Stats = FParticlePerfStatsManager::GetSystemPerfStats(FXAsset);
+				if (Stats->CSVStat_MemoryKB.IsNone())
 				{
 					continue;
 				}
-				const bool bFullMemory = GFXDetailedCSVMemorySMode == 2;
 
 				uint64& MemoryBytes = MemoryUsage.FindOrAdd(FXAsset);
-				if (bFullMemory)
+				if (bComponentUseResourceSize)
 				{
-					if (MemoryBytes == 0)
-					{
-						MemoryBytes += FArchiveCountMem(FXAsset).GetMax();
-					}
 					MemoryBytes += FArchiveCountMem(FXComponent).GetMax();
 
 					FResourceSizeEx CompResSize = FResourceSizeEx(EResourceSizeMode::EstimatedTotal);
@@ -1224,7 +1291,8 @@ bool FParticlePerfStatsListener_CSVProfiler::Tick()
 			for (auto OutputIt=MemoryUsage.CreateConstIterator(); OutputIt; ++OutputIt)
 			{
 				const int32 MemoryKB = (int32)FMath::DivideAndRoundUp(OutputIt.Value(), 1024ull);
-				CSVProfiler->RecordCustomStat(OutputIt.Key()->CSVStat_MemoryKB, CSV_CATEGORY_INDEX(Particles), MemoryKB, ECsvCustomStatOp::Set);
+				FParticlePerfStats* Stats = FParticlePerfStatsManager::GetSystemPerfStats(OutputIt.Key());
+				CSVProfiler->RecordCustomStat(Stats->CSVStat_MemoryKB, CSV_CATEGORY_INDEX(Particles), MemoryKB, ECsvCustomStatOp::Set);
 			}
 		}
 
@@ -1242,13 +1310,15 @@ bool FParticlePerfStatsListener_CSVProfiler::Tick()
 						const float Activation = FPlatformTime::ToMilliseconds64(Stats->GetGameThreadStats().ActivationCycles) * 1000.0f;
 						const float Wait = FPlatformTime::ToMilliseconds64(Stats->GetGameThreadStats().WaitCycles) * 1000.0f;
 
-						CSVProfiler->RecordCustomStat(System->CSVStat_Total, CSV_CATEGORY_INDEX(Particles), TotalTime, ECsvCustomStatOp::Set);
-						CSVProfiler->RecordCustomStat(System->CSVStat_GTOnly, CSV_CATEGORY_INDEX(Particles), GTTime, ECsvCustomStatOp::Set);
-						CSVProfiler->RecordCustomStat(System->CSVStat_InstAvgGT, CSV_CATEGORY_INDEX(Particles), AvgTime, ECsvCustomStatOp::Set);
-						CSVProfiler->RecordCustomStat(System->CSVStat_Count, CSV_CATEGORY_INDEX(Particles), Count, ECsvCustomStatOp::Set);
+						Stats->PopulateStatNames(System->GetFName());
 
-						CSVProfiler->RecordCustomStat(System->CSVStat_Activation, CSV_CATEGORY_INDEX(Particles), Activation, ECsvCustomStatOp::Set);
-						CSVProfiler->RecordCustomStat(System->CSVStat_Waits, CSV_CATEGORY_INDEX(Particles), Wait, ECsvCustomStatOp::Set);
+						CSVProfiler->RecordCustomStat(Stats->CSVStat_Total, CSV_CATEGORY_INDEX(Particles), TotalTime, ECsvCustomStatOp::Set);
+						CSVProfiler->RecordCustomStat(Stats->CSVStat_GTOnly, CSV_CATEGORY_INDEX(Particles), GTTime, ECsvCustomStatOp::Set);
+						CSVProfiler->RecordCustomStat(Stats->CSVStat_InstAvgGT, CSV_CATEGORY_INDEX(Particles), AvgTime, ECsvCustomStatOp::Set);
+						CSVProfiler->RecordCustomStat(Stats->CSVStat_Count, CSV_CATEGORY_INDEX(Particles), Count, ECsvCustomStatOp::Set);
+
+						CSVProfiler->RecordCustomStat(Stats->CSVStat_Activation, CSV_CATEGORY_INDEX(Particles), Activation, ECsvCustomStatOp::Set);
+						CSVProfiler->RecordCustomStat(Stats->CSVStat_Waits, CSV_CATEGORY_INDEX(Particles), Wait, ECsvCustomStatOp::Set);
 					}
 				}
 			}
@@ -1271,15 +1341,17 @@ void FParticlePerfStatsListener_CSVProfiler::TickRT()
 			{
 				if (const UFXSystemAsset* System = WeakSystem.Get())
 				{
+					Stats->PopulateStatNames(System->GetFName());
+
 					const float RTTime = FPlatformTime::ToMilliseconds64(Stats->GetRenderThreadStats().GetTotalCycles()) * 1000.0f;
 					const float RTAvgTime = FPlatformTime::ToMilliseconds64(Stats->GetRenderThreadStats().GetPerInstanceAvgCycles()) * 1000.0f;
-					CSVProfiler->RecordCustomStat(System->CSVStat_RT, CSV_CATEGORY_INDEX(Particles), RTTime, ECsvCustomStatOp::Set);
-					CSVProfiler->RecordCustomStat(System->CSVStat_InstAvgRT, CSV_CATEGORY_INDEX(Particles), RTAvgTime, ECsvCustomStatOp::Set);
+					CSVProfiler->RecordCustomStat(Stats->CSVStat_RT, CSV_CATEGORY_INDEX(Particles), RTTime, ECsvCustomStatOp::Set);
+					CSVProfiler->RecordCustomStat(Stats->CSVStat_InstAvgRT, CSV_CATEGORY_INDEX(Particles), RTAvgTime, ECsvCustomStatOp::Set);
 
 					const float GpuTime = float(Stats->GetGPUStats().GetTotalMicroseconds());
 					const float GpuAvgTime = float(Stats->GetGPUStats().GetPerInstanceAvgMicroseconds());
-					CSVProfiler->RecordCustomStat(System->CSVStat_GPU, CSV_CATEGORY_INDEX(Particles), GpuTime, ECsvCustomStatOp::Set);
-					CSVProfiler->RecordCustomStat(System->CSVStat_InstAvgGPU, CSV_CATEGORY_INDEX(Particles), GpuAvgTime, ECsvCustomStatOp::Set);
+					CSVProfiler->RecordCustomStat(Stats->CSVStat_GPU, CSV_CATEGORY_INDEX(Particles), GpuTime, ECsvCustomStatOp::Set);
+					CSVProfiler->RecordCustomStat(Stats->CSVStat_InstAvgGPU, CSV_CATEGORY_INDEX(Particles), GpuAvgTime, ECsvCustomStatOp::Set);
 				}
 			}
 		);

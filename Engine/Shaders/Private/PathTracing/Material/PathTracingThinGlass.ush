@@ -18,14 +18,11 @@ struct FRoughThinGlassData
 	float2 AlphaR, AlphaT;
 	float3 V;
 
-	FBxDFEnergyTermsRGB Spec;
 	FBxDFEnergyTermsA SpecR;
 	FBxDFEnergyTermsA SpecT;
 	float NudgeE;
-	float3 DiffWeight;
 
-	float3 LobeCdf;
-	float4 LobePdf;
+	float LobeProb; // R or T
 };
 
 FRoughThinGlassData PrepareRoughThinGlassData(FPathTracingPayload Payload, float3 V_World)
@@ -44,23 +41,16 @@ FRoughThinGlassData PrepareRoughThinGlassData(FPathTracingPayload Payload, float
 	Data.V = mul(Data.Basis, V_World);
 	const float NoV = saturate(Data.V.z);
 
-	Data.Spec = ComputeGGXSpecEnergyTermsRGB(Payload.Roughness, NoV, Payload.SpecularColor);
 	// because the roughnesses may not match, we need to measure the response for each individually, taking into account the reflected and transmitted fresnel respectively
 	// NOTE: 1.0 - F_Schlick(NoV, F0, F90) == F_Schlick(NoV, 1.0 - F0, 1.0 - F90)
 	Data.SpecR = ComputeGGXSpecEnergyTermsA(RoughnessR, NoV, Data.F0, Data.F90);
 	Data.SpecT = ComputeGGXSpecEnergyTermsA(RoughnessT, NoV, 1.0 - Data.F0, 1.0 - Data.F90);
 	Data.NudgeE = rcp(Data.SpecR.E + Data.SpecT.E);
-	Data.DiffWeight = (1 - Data.Spec.E) * Payload.DiffuseColor;
 
-	// Figure out probability of the 4 lobes: diffuse,spec,glass reflection, glass transmission (if enabled)
+	// Figure out probability of glass reflection vs glass transmission
 	// Approximate the transmission as just a plain tint by slab color because we can't depend on the half-vector for lobe selection
-	Data.LobeCdf = LobeSelectionCdf(
-		Payload.BSDFOpacity * Data.DiffWeight,
-		Payload.BSDFOpacity * Data.Spec.E,
-		(1 - Payload.BSDFOpacity) * Data.NudgeE * Data.SpecR.E,
-		(1 - Payload.BSDFOpacity) * Data.NudgeE * (Payload.HasRefraction() ? Data.SpecT.E * Payload.GetTransmittanceColor() : 0.0)
-	);
-	Data.LobePdf = LobeSelectionPdf(Data.LobeCdf);
+	// If we don't have any refraction, we will always pick the reflection lobe
+	Data.LobeProb = Payload.HasRefraction() ? LobeSelectionProb(Data.NudgeE * Data.SpecR.E, Data.NudgeE * Data.SpecT.E * Payload.GetTransmittanceColor()) : 1.0;
 
 	return Data;
 }
@@ -93,37 +83,21 @@ FMaterialEval RoughThinGlass_EvalMaterial(
 	const float VoH = saturate(dot(V, H));
 	const float NoH = saturate(H.z);
 
-
 	const FThinSlabWeights SlabResult = ComputeThinSlabWeights(Payload.GetTransmittanceColor(), VoH, Payload.Ior, Data.F0);
 	const float2 GGXResult = GGXEvalReflection(L, V, H, bIsReflection ? Data.AlphaR : Data.AlphaT);
-	FMaterialEval Result = NullMaterialEval();
+	const float GlassPdf = GGXResult.y;
+	float3 GlassWeight = Payload.BSDFOpacity * Data.NudgeE * GGXResult.x * DiffuseSpecularScale.y;
 	if (bIsReflection)
 	{
-		// Diffuse Lobe
-		const float3 Diffuse = GetPathTracingDiffuseModel(Data.DiffWeight, Payload.Roughness, NoV, NoL, VoH, NoH);
-		const float3 DiffWeight = Payload.BSDFOpacity * Diffuse * ShadowTerminatorTerm(L_World, Payload.WorldNormal, Payload.WorldSmoothNormal);
-		const float DiffPdf = NoL / PI;
-		Result.AddLobeWithMIS(DiffWeight * DiffuseSpecularScale.x, DiffPdf, Data.LobePdf.x);
-
-		// Specular lobe
-		const float2 GGXResult = GGXEvalReflection(L, V, H, Data.AlphaR);
-		const float3 F = F_Schlick(Payload.SpecularColor, VoH);
-		const float3 SpecWeight = Payload.BSDFOpacity * F * GGXResult.x * Data.Spec.W;
-		const float SpecPdf = GGXResult.y;
-		Result.AddLobeWithMIS(SpecWeight * DiffuseSpecularScale.y, SpecPdf, Data.LobePdf.y);
-
-
-		// Transmission reflection
-		const float3 GlassWeight = ((1 - Payload.BSDFOpacity) * Data.NudgeE * GGXResult.x * Data.SpecR.W) * SlabResult.Reflected;
-		const float GlassPdf = GGXResult.y;
-		Result.AddLobeWithMIS(GlassWeight * DiffuseSpecularScale.y, GlassPdf, Data.LobePdf.z);
+		GlassWeight *= Data.SpecR.W * SlabResult.Reflected;
 	}
 	else
 	{
-		const float3 GlassWeight = ((1 - Payload.BSDFOpacity) * Data.NudgeE * GGXResult.x * Data.SpecT.W) * SlabResult.Transmitted;
-		const float GlassPdf = GGXResult.y;
-		Result.AddLobeWithMIS(GlassWeight * DiffuseSpecularScale.y, GlassPdf, Data.LobePdf.w);
+		GlassWeight *= Data.SpecT.W * SlabResult.Transmitted;
 	}
+	FMaterialEval Result = NullMaterialEval();
+	// Transmission lobe will be automatically ignored when there is no refraction because we made LobeProbe==1 in that case
+	Result.AddLobeWithMIS(GlassWeight, GlassPdf, bIsReflection ? Data.LobeProb : 1.0 - Data.LobeProb);
 	return Result;
 }
 
@@ -144,100 +118,44 @@ FMaterialSample RoughThinGlass_SampleMaterial(
 		return NullMaterialSample();
 	}
 
-	if (RandSample.x < Data.LobeCdf.x)
+	// Specular/Glass lobes
+	const bool bIsReflection = RandSample.x < Data.LobeProb;
+	if (bIsReflection)
 	{
-		RandSample.x = RescaleRandomNumber(RandSample.x, 0.0, Data.LobeCdf.x);
-		// Diffuse lobe
-		const float3 L = CosineSampleHemisphere(RandSample.xy).xyz;
-		const float3 H = normalize(L + V);
-
-		// transform to world space
-		const float3 L_World = normalize(mul(L, Data.Basis));
-
-		const float NoL = saturate(L.z);
-		const float VoH = saturate(dot(V, H));
-		const float NoH = saturate(H.z);
-
-		// Diffuse Lobe
-		const float3 Diffuse = GetPathTracingDiffuseModel(Data.DiffWeight, Payload.Roughness, NoV, NoL, VoH, NoH);
-		const float3 DiffWeight = Payload.BSDFOpacity * Diffuse * ShadowTerminatorTerm(L_World, Payload.WorldNormal, Payload.WorldSmoothNormal);
-		const float DiffPdf = NoL / PI;
-
-		FMaterialSample Result = CreateMaterialSample(L_World, 0.0, 0.0, 1.0, 1.0, PATHTRACER_SCATTER_DIFFUSE);
-		Result.AddLobeWithMIS(DiffWeight, DiffPdf, Data.LobePdf.x);
-
-		const float SpecPdf = GGXEvalReflection(L, V, H, Data.AlphaR).y;
-		Result.Pdf += Data.LobePdf.y * SpecPdf;
-		Result.Pdf += Data.LobePdf.z * SpecPdf;
-		return Result;
+		RandSample.x = RescaleRandomNumber(RandSample.x, 0, Data.LobeProb);
 	}
 	else
 	{
-		// Specular/Glass lobes
-		const bool bIsReflection = RandSample.x < Data.LobeCdf.z;
-		if (RandSample.x < Data.LobeCdf.y)
-		{
-			RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.x, Data.LobeCdf.y);
-		}
-		else if (RandSample.x < Data.LobeCdf.z)
-		{
-			RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.y, Data.LobeCdf.z);
-		}
-		else
-		{
-			RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeCdf.z, 1.0);
-		}
-		const float3 H = ImportanceSampleVisibleGGX(RandSample.xy, bIsReflection ? Data.AlphaR : Data.AlphaT, V).xyz;
-		const float NoH = saturate(H.z);
-		const float VoH = saturate(dot(V, H));
-
-		const float3 L = reflect(-V, H);
-		if (L.z <= 0)
-		{
-			// invalid output direction, exit early
-			return NullMaterialSample();
-		}
-
-		const float NoL = saturate(L.z);
-
-		FThinSlabWeights SlabResult = ComputeThinSlabWeights(Payload.GetTransmittanceColor(), VoH, Payload.Ior, Data.F0);
-
-		const float2 GGXResult = GGXEvalReflection(L, V, H, bIsReflection ? Data.AlphaR : Data.AlphaT);
-
-		FMaterialSample Result = NullMaterialSample();
-		Result.Roughness = Payload.Roughness; // use common roughness for all lobes, even though transmission is squeezed
-		if (bIsReflection)
-		{
-			// Specular lobe
-			const float3 F = F_Schlick(Payload.SpecularColor, VoH);
-			const float3 SpecWeight = Payload.BSDFOpacity * F * GGXResult.x * Data.Spec.W;
-			const float SpecPdf = GGXResult.y;
-			Result.AddLobeWithMIS(SpecWeight, SpecPdf, Data.LobePdf.y);
-
-
-			// Transmission reflection
-			const float3 GlassWeight = ((1 - Payload.BSDFOpacity) * Data.NudgeE * GGXResult.x * Data.SpecR.W) * SlabResult.Reflected;
-			const float GlassPdf = GGXResult.y;
-			Result.AddLobeWithMIS(GlassWeight, GlassPdf, Data.LobePdf.z);
-
-			Result.Pdf += Data.LobePdf.x * NoL / PI;
-
-			Result.Direction = mul(L, Data.Basis);
-			Result.PositionBiasSign = 1.0;
-			Result.ScatterType = PATHTRACER_SCATTER_SPECULAR;
-		}
-		else
-		{
-			// transmitted ray
-			const float3 GlassWeight = ((1 - Payload.BSDFOpacity) * Data.NudgeE * GGXResult.x * Data.SpecT.W) * SlabResult.Transmitted;
-			const float GlassPdf = GGXResult.y;
-			Result.AddLobeWithMIS(GlassWeight, GlassPdf, Data.LobePdf.w);
-
-			Result.Direction = mul(float3(L.xy, -L.z), Data.Basis); // flip reflection to other side
-			Result.PositionBiasSign = -1.0;
-			Result.ScatterType = PATHTRACER_SCATTER_REFRACT;
-		}
-		Result.Direction = normalize(Result.Direction);
-		return Result;
+		RandSample.x = RescaleRandomNumber(RandSample.x, Data.LobeProb, 1.0);
 	}
+	const float3 H = ImportanceSampleVisibleGGX(RandSample.xy, bIsReflection ? Data.AlphaR : Data.AlphaT, V).xyz;
+	const float NoH = saturate(H.z);
+	const float VoH = saturate(dot(V, H));
+
+	const float3 L = reflect(-V, H);
+	if (L.z <= 0)
+	{
+		// invalid output direction, exit early
+		return NullMaterialSample();
+	}
+
+	const float NoL = saturate(L.z);
+
+	FThinSlabWeights SlabResult = ComputeThinSlabWeights(Payload.GetTransmittanceColor(), VoH, Payload.Ior, Data.F0);
+
+	const float2 GGXResult = GGXEvalReflection(L, V, H, bIsReflection ? Data.AlphaR : Data.AlphaT);
+
+	FMaterialSample Result = NullMaterialSample();
+	Result.Roughness = Payload.Roughness; // use common roughness for all lobes, even though transmission is squeezed
+
+	const float3 GlassWeight = Payload.BSDFOpacity * Data.NudgeE * GGXResult.x * (bIsReflection ? Data.SpecR.W * SlabResult.Reflected : Data.SpecT.W * SlabResult.Transmitted);
+	const float GlassPdf = GGXResult.y;
+
+	Result.AddLobeWithMIS(GlassWeight, GlassPdf, bIsReflection ? Data.LobeProb : 1.0 - Data.LobeProb);
+
+	Result.PositionBiasSign = bIsReflection ? 1.0 : -1.0;
+	Result.ScatterType = bIsReflection ? PATHTRACER_SCATTER_SPECULAR : PATHTRACER_SCATTER_REFRACT;
+	Result.Direction = mul(float3(L.xy, Result.PositionBiasSign * L.z), Data.Basis); // flip reflection to other side for refraction
+	Result.Direction = normalize(Result.Direction);
+	return Result;
 }

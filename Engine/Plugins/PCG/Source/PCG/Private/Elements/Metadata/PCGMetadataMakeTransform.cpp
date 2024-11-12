@@ -126,28 +126,28 @@ bool UPCGMetadataMakeTransformSettings::DoesInputSupportDefaultValue(uint32 Inde
 	return true;
 }
 
-UPCGParamData* UPCGMetadataMakeTransformSettings::CreateDefaultValueParam(uint32 Index) const
+UPCGParamData* UPCGMetadataMakeTransformSettings::CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const
 {
 	switch (Index)
 	{
 	case 0:
 	{
 		// Location -> Default is Zero vector
-		UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+		UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		NewParamData->Metadata->CreateAttribute<FVector>(NAME_None, FVector::ZeroVector, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/ false);
 		return NewParamData;
 	}
 	case 1:
 	{
 		// Rotation -> Default is Zero rotator
-		UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+		UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		NewParamData->Metadata->CreateAttribute<FRotator>(NAME_None, FRotator::ZeroRotator, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/ false);
 		return NewParamData;
 	}
 	case 2:
 	{
 		// Scale -> Default is Vector (1, 1, 1)
-		UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+		UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		NewParamData->Metadata->CreateAttribute<FVector>(NAME_None, FVector::OneVector, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/ false);
 		return NewParamData;
 	}
@@ -193,10 +193,8 @@ bool FPCGMetadataMakeTransformElement::DoOperation(PCGMetadataOps::FOperationDat
 
 	const UPCGMetadataMakeTransformSettings* Settings = CastChecked<UPCGMetadataMakeTransformSettings>(OperationData.Settings);
 
-	auto TransformFunc = [this, &OperationData](auto DummyValue) -> bool
+	auto TransformFunc = [this, &OperationData]<typename AttributeType>(AttributeType) -> bool
 	{
-		using AttributeType = decltype(DummyValue);
-
 		if constexpr (PCG::Private::IsOfTypes<AttributeType, FVector2D, FVector, FVector4>())
 		{
 			return DoTernaryOp<AttributeType, FQuat, AttributeType>(OperationData, PCGMetadataMakeTransformSettings::MakeTransform<AttributeType>);
@@ -207,7 +205,8 @@ bool FPCGMetadataMakeTransformElement::DoOperation(PCGMetadataOps::FOperationDat
 		}
 		else
 		{
-			return false;
+			ensure(false);
+			return true;
 		}
 	};
 

@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetAddStitchNode"
 
-FChaosClothAssetAddStitchNode::FChaosClothAssetAddStitchNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetAddStitchNode::FChaosClothAssetAddStitchNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -21,7 +21,7 @@ FChaosClothAssetAddStitchNode::FChaosClothAssetAddStitchNode(const Dataflow::FNo
 	RegisterInputConnection(&MergeToSingleVertexSelection.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 }
 
-void FChaosClothAssetAddStitchNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetAddStitchNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -34,7 +34,6 @@ void FChaosClothAssetAddStitchNode::Evaluate(Dataflow::FContext& Context, const 
 		FCollectionClothFacade Cloth(ClothCollection);
 		FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
 		const FName InSelectionName(*GetValue<FString>(Context, &MergeToSingleVertexSelection.StringValue));
-		MergeToSingleVertexSelection.StringValue_Override = GetValue<FString>(Context, &MergeToSingleVertexSelection.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 
 		if (Cloth.IsValid() && SelectionFacade.IsValid() && InSelectionName != NAME_None)
 		{

@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Agents.Pools
 	[TypeConverter(typeof(StringIdTypeConverter<PoolId, PoolIdConverter>))]
 	[StringIdConverter(typeof(PoolIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<PoolId, PoolIdConverter>))]
-	public record struct PoolId(StringId Id)
+	public readonly record struct PoolId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

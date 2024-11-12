@@ -105,6 +105,7 @@ public:
 	void LoadObjects();
 	void CleanupObjects();
 	void GarbageCollect();
+	static void GarbageCollect(const TArray<FString>& PackageNames, FAutomationTestBase& AutomationTest);
 
 	FLoadingTestsScope(FAutomationTestBase* InAutomationTest, TFunction<void (FLoadingTestsScope&)> InMutateObjects = nullptr)
 		: AutomationTest(*InAutomationTest)
@@ -159,3 +160,8 @@ protected:
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+namespace LoadingTestsUtils
+{
+	extern bool IsAssetSuitableForTests(const FAssetData& AssetData);
+}

@@ -14,6 +14,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetData.h"
 #include "Nodes/OptimusNode_FunctionReference.h"
+#include "RigVMCore/RigVMRegistry.h"
 
 // Unique serialization id for Optimus .
 const FGuid FOptimusObjectVersion::GUID(0x93ede1aa, 0x10ca7375, 0x4df98a28, 0x49b157a0);
@@ -29,7 +30,14 @@ void FOptimusCoreModule::StartupModule()
 	FOptimusDataTypeRegistry::RegisterBuiltinTypes();
 	FOptimusDataTypeRegistry::RegisterEngineCallbacks();
 	UOptimusComputeDataInterface::RegisterAllTypes();
-	
+
+	FRigVMRegistry& RigVMRegistry = FRigVMRegistry::Get();
+	static TPair<UClass*, FRigVMRegistry::ERegisterObjectOperation> const AllowedObjectTypes[] =
+	{
+		{ UOptimusDeformer::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+	};
+
+	RigVMRegistry.RegisterObjectTypes(AllowedObjectTypes);
 }
 
 void FOptimusCoreModule::ShutdownModule()

@@ -4,17 +4,16 @@
 
 #include "ImageCore.h"
 #include "Async/ParallelFor.h"
+#include "Misc/MessageDialog.h"
+#include "Engine/Texture.h"
+#include "ImageCoreUtils.h"
 
 namespace UE
 {
 	namespace TextureUtilitiesCommon
 	{
-		/**
-		 * Detect the existence of gray scale image in some formats and convert those to a gray scale equivalent image
-		 * 
-		 * @return true if the image was converted
-		 */
-		bool AutoDetectAndChangeGrayScale(FImage& Image)
+		template<typename TImageClass>
+		bool AutoDetectAndChangeGrayScale(TImageClass& Image)
 		{
 			if (Image.Format != ERawImageFormat::BGRA8)
 			{
@@ -32,7 +31,7 @@ namespace UE
 					Colors[i].R != Colors[i].B ||
 					Colors[i].G != Colors[i].B)
 				{
-					return false ;
+					return false;
 				}
 			}
 
@@ -41,6 +40,9 @@ namespace UE
 
 			return true;
 		}
+
+		template TEXTUREUTILITIESCOMMON_API bool AutoDetectAndChangeGrayScale(FImage& Image);
+		template TEXTUREUTILITIESCOMMON_API bool AutoDetectAndChangeGrayScale(FMipMapImage& Image);
 
 		/**
 		 * This fills any pixels of a texture with have an alpha value of zero and RGB=white,
@@ -186,17 +188,18 @@ namespace UE
 
 			static bool IsOpaque(const ColorDataType InColor)
 			{
-				if ( sizeof(ColorDataType) == 4 )
+				if constexpr (sizeof(ColorDataType) == 4)
 				{
 					return InColor >= 0xFF000000U;
 				}
-				else if ( sizeof(ColorDataType) == 8 )
+				else if constexpr (sizeof(ColorDataType) == 8)
 				{
 					return InColor >= 0xFFFF000000000000ULL;
 				}
 				else
 				{
-					check(false);
+					static_assert(sizeof(ColorDataType) == 0);
+					return false;
 				}
 			}
 
@@ -571,4 +574,74 @@ namespace UE
 			}
 		}
 	}
+}
+
+
+bool UE::TextureUtilitiesCommon::IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FText* OutErrorMessage)
+{
+	// note: stricter than IsImageImportPossible
+	//	IsImageImportPossible is a first check that can be done early in the loading to bail on totally impossible sizes
+	//	this is done late and uses project-specific config
+
+	// MaximumSupportedResolutionNonVT is only a popup/warning , not a hard limit
+	// Get the non-VT size limit :
+	int64 MaximumSupportedResolutionNonVT = (int64)UTexture::GetMaximumDimensionOfNonVT();
+
+	// limit on current rendering RHI : == GetMax2DTextureDimension()
+	//const int64 CurrentRHIMaxResolution = int64(1) << (GMaxTextureMipCount - 1);
+	//MaximumSupportedResolutionNonVT = FMath::Min(MaximumSupportedResolutionNonVT, CurrentRHIMaxResolution);
+
+	// No zero-size textures :
+	if (Width == 0 || Height == 0)
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureSizeZero", "Texture has zero width or height");
+		}
+
+		return false;
+	}
+
+	// Dimensions must fit in signed int32
+	//  could be negative here if it was over 2G and int32 was used earlier
+	if ( ! FImageCoreUtils::IsImageImportPossible(Width,Height) )
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureSizeTooLargeOrInvalid", "Texture is too large to import or it has an invalid resolution.");
+		}
+
+		return false;
+	}
+
+	if (Width > MaximumSupportedResolutionNonVT || Height > MaximumSupportedResolutionNonVT)
+	{
+		if (! UTexture::IsVirtualTexturingEnabled() )
+		{
+			const FText VTMessage = NSLOCTEXT("Interchange", "Warning_LargeTextureVTDisabled", "\nWarning: Virtual Textures are disabled in this project.");
+
+			if (EAppReturnType::Yes != FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::Yes, FText::Format(
+				NSLOCTEXT("Interchange", "Warning_LargeTextureImport", "Attempting to import {0} x {1} texture, proceed?\nLargest supported non-VT texture size: {2} x {3}{4}"),
+				FText::AsNumber(Width), FText::AsNumber(Height), FText::AsNumber(MaximumSupportedResolutionNonVT), FText::AsNumber(MaximumSupportedResolutionNonVT), VTMessage)))
+			{
+				return false;
+			}
+		}
+	}
+
+	// Check if the texture dimensions are powers of two
+	if (!bAllowNonPowerOfTwo)
+	{
+		const bool bIsPowerOfTwo = FMath::IsPowerOfTwo(Width) && FMath::IsPowerOfTwo(Height);
+		if (!bIsPowerOfTwo)
+		{
+			if ( OutErrorMessage )
+			{
+				*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureNotAPowerOfTwo", "Cannot import texture with non-power of two dimensions");
+			}
+			return false;
+		}
+	}
+
+	return true;
 }

@@ -7,6 +7,7 @@
 #include "AvaTagHandle.h"
 #include "AvaTagHandleContainer.h"
 #include "AvaTagSoftHandle.h"
+#include "Customization/AvaTagAliasCustomization.h"
 #include "Customization/AvaTagCollectionCustomization.h"
 #include "Customization/AvaTagHandleCustomization.h"
 #include "Customization/TagCustomizers/AvaTagHandleContainerCustomizer.h"
@@ -50,6 +51,12 @@ void FAvalancheTagEditorModule::RegisterCustomizations()
 
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout(CustomizedTypes.Add_GetRef(FAvaTagHandleContainer::StaticStruct()->GetFName())
 		, UE::AvaTagEditor::Private::CreateTagHandleCustomization<FAvaTagHandleContainerCustomizer>());
+
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(CustomizedTypes.Add_GetRef(FAvaTagAlias::StaticStruct()->GetFName())
+		, FOnGetPropertyTypeCustomizationInstance::CreateLambda([]
+		{
+			return MakeShared<FAvaTagAliasCustomization>();
+		}));
 
 	PropertyEditorModule.RegisterCustomClassLayout(CustomizedClasses.Add_GetRef(UAvaTagCollection::StaticClass()->GetFName())
 		, FOnGetDetailCustomizationInstance::CreateLambda([]

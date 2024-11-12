@@ -15,7 +15,7 @@ struct FSimulationParameters;
 
 namespace GeometryCollectionTest {
 
-	TSharedPtr<FGeometryDynamicCollection> GeometryCollectionToGeometryDynamicCollection(const FGeometryCollection* InputCollection, EObjectStateTypeEnum DynamicStateDefault = EObjectStateTypeEnum::Chaos_Object_Dynamic);
+	TSharedPtr<FGeometryDynamicCollection> GeometryCollectionToGeometryDynamicCollection(TSharedPtr<const FGeometryCollection> InputCollection, EObjectStateTypeEnum DynamicStateDefault = EObjectStateTypeEnum::Chaos_Object_Dynamic);
 
 	TSharedPtr<FGeometryCollection>	CreateClusteredBody(FVector Position);
 	TSharedPtr<FGeometryCollection>	CreateClusteredBody_OnePartent_FourBodies(FVector Position);

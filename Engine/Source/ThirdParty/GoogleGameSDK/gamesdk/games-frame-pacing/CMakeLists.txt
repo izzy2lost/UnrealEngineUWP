@@ -1,27 +1,30 @@
 cmake_minimum_required(VERSION 3.18.1)
 project(swappy C CXX)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(IgnoreOldToolchainWarning "${ANDROID_UNIFIED_HEADERS}")
 
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wthread-safety" )
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D _LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS -O3 -fPIC" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall -Werror -Wthread-safety" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D _LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS -fPIC" )
+set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3" )
+set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og" )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions" )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti" )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections" )
 set( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g0")
-set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D ENABLE_SWAPPY_LOGGING=1")
 if ( DEFINED GAMESDK_THREAD_CHECKS )
   set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGAMESDK_THREAD_CHECKS=${GAMESDK_THREAD_CHECKS}" )
 endif()
 
 set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections" )
-set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-s" )
 set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--hash-style=both" )
+set( CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO} -Wl,-s" )
+set( CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports.lds" )
 
 set ( SOURCE_LOCATION .)
 set ( SOURCE_LOCATION_COMMON "${SOURCE_LOCATION}/common" )
 set ( SOURCE_LOCATION_OPENGL "${SOURCE_LOCATION}/opengl" )
 set ( SOURCE_LOCATION_VULKAN "${SOURCE_LOCATION}/vulkan" )
+set ( SOURCE_LOCATION_TEST "${SOURCE_LOCATION}/src/androidTest/cpp" )
 
 include_directories( ../include )
 include_directories( ../src/common )
@@ -108,6 +111,8 @@ add_library( swappy
              ${SOURCE_LOCATION_VULKAN}/swappyVk_c.cpp)
 
 
+set_target_properties(swappy PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/exports.lds)
+
 target_link_libraries( swappy
 
                         swappy_static
@@ -115,3 +120,24 @@ target_link_libraries( swappy
                         GLESv2
                         log
 			atomic)
+
+
+option(BUILD_TEST "Build native tests" OFF)
+if(BUILD_TEST)
+
+     find_package(googletest REQUIRED CONFIG)
+     find_package(junit-gtest REQUIRED CONFIG)
+
+     add_library(swappy_test SHARED ${SOURCE_LOCATION_TEST}/swappy_test.cpp)
+     target_link_libraries(swappy_test
+       PRIVATE
+         swappy
+         android
+         atomic
+         log
+         googletest::gtest
+         googletest::gmock
+         junit-gtest::junit-gtest
+     )
+endif()
+unset(BUILD_TEST CACHE)

@@ -6,9 +6,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Misc/Guid.h"
 #include "Misc/MemStack.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "BonePose.h"
-#endif
 #include "Animation/AnimTypes.h"
 #include "Animation/AnimCurveTypes.h"
 #include "Animation/AnimationAsset.h"
@@ -263,38 +260,38 @@ public:
 
 	const ITargetPlatform* TargetPlatform = nullptr;
 
-	static int32 GetApproxRawDataArraySize(const TArray<FRawAnimSequenceTrack>& AnimData)
+	static int64 GetApproxRawDataArraySize(const TArray<FRawAnimSequenceTrack>& AnimData)
 	{
-		int32 Total = sizeof(FRawAnimSequenceTrack) * AnimData.Num();
+		int64 Total = sizeof(FRawAnimSequenceTrack) * int64(AnimData.Num());
 		for (int32 i = 0; i < AnimData.Num(); ++i)
 		{
 			const FRawAnimSequenceTrack& RawTrack = AnimData[i];
 			Total +=
-				sizeof(FVector) * RawTrack.PosKeys.Num() +
-				sizeof(FQuat) * RawTrack.RotKeys.Num() +
-				sizeof(FVector) * RawTrack.ScaleKeys.Num();
+				sizeof(FVector) * int64(RawTrack.PosKeys.Num()) +
+				sizeof(FQuat) * int64(RawTrack.RotKeys.Num()) +
+				sizeof(FVector) * int64(RawTrack.ScaleKeys.Num());
 		}
 
 		return Total;
 	}
 
-	int32 GetApproxRawBoneSize() const
+	int64 GetApproxRawBoneSize() const
 	{
 		return GetApproxRawDataArraySize(RawAnimationData);
 	}
 
-	int32 GetApproxRawCurveSize() const
+	int64 GetApproxRawCurveSize() const
 	{
-		int32 Total = 0;
+		int64 Total = 0;
 		for (const FFloatCurve& Curve : RawFloatCurves)
 		{
 			Total += sizeof(FFloatCurve);
-			Total += sizeof(FRichCurveKey) * Curve.FloatCurve.Keys.Num();
+			Total += sizeof(FRichCurveKey) * int64(Curve.FloatCurve.Keys.Num());
 		}
 		return Total;
 	}
 
-	int32 GetApproxRawSize() const
+	int64 GetApproxRawSize() const
 	{
 		return GetApproxRawBoneSize() + GetApproxRawCurveSize();
 	}
@@ -450,7 +447,10 @@ struct ICompressedAnimData
 	/* Virtual interface codecs must implement */
 	virtual ~ICompressedAnimData() {}
 
+	UE_DEPRECATED(5.5, "SerializeCompressedData now accepts the DataOwner as an argument")
 	ENGINE_API virtual void SerializeCompressedData(class FArchive& Ar);
+
+	ENGINE_API virtual void SerializeCompressedData(UObject* DataOwner, class FArchive& Ar);
 	virtual void Bind(const TArrayView<uint8> BulkData) = 0;
 
 	virtual int64 GetApproxCompressedSize() const = 0;
@@ -585,14 +585,14 @@ public:
 			return Data;
 		}
 		void ResizeAllocation(
-			SizeType PreviousNumElements,
-			SizeType NumElements,
+			SizeType CurrentNum,
+			SizeType NewMax,
 			SIZE_T NumBytesPerElement
 		)
 		{
 			if (MappedRegion || MappedHandle)
 			{
-				check(NumElements == 0); // Currently we can only support resizing of memory mapped regions to 0 size (ie delete)
+				check(NewMax == 0); // Currently we can only support resizing of memory mapped regions to 0 size (ie delete)
 
 				delete MappedRegion;
 				delete MappedHandle;
@@ -600,40 +600,40 @@ public:
 				MappedHandle = nullptr;
 				Data = nullptr; // make sure we don't try to free this pointer
 			}
-			else if (Data || NumElements)
+			else if (Data || NewMax)
 			{
 				static_assert(sizeof(int32) <= sizeof(SIZE_T), "SIZE_T is expected to be larger than int32");
 
 				// Check for under/overflow
-				if (UNLIKELY(NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
+				if (UNLIKELY(NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
 				{
-				    UE::Animation::Private::OnInvalidMaybeMappedAllocatorNum(NumElements, NumBytesPerElement);
+				    UE::Animation::Private::OnInvalidMaybeMappedAllocatorNum(NewMax, NumBytesPerElement);
 				}
 
 				// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
-				//checkSlow(((uint64)NumElements*(uint64)ElementTypeInfo.GetSize() < (uint64)INT_MAX));
-				Data = (FScriptContainerElement*)FMemory::Realloc(Data, NumElements*NumBytesPerElement, Alignment);
+				//checkSlow(((uint64)NewMax*(uint64)ElementTypeInfo.GetSize() < (uint64)INT_MAX));
+				Data = (FScriptContainerElement*)FMemory::Realloc(Data, NewMax*NumBytesPerElement, Alignment);
 			}
 		}
-		SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
 			check(!MappedHandle && !MappedRegion); // this could be supported, but it probably is never what you want, so we will just assert.
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true, Alignment);
 		}
-		SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			check(!MappedHandle && !MappedRegion); // this could be supported, but it probably is never what you want, so we will just assert.
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true, Alignment);
 		}
-		SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
 			check(!MappedHandle && !MappedRegion); // this could be supported, but it probably is never what you want, so we will just assert.
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true, Alignment);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return NumAllocatedElements * NumBytesPerElement;
+			return CurrentMax * NumBytesPerElement;
 		}
 
 		bool HasAllocation() const
@@ -896,7 +896,7 @@ struct FRootMotionReset
 	}
 };
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 namespace UE::Anim::Compression {
 	struct FAnimDDCKeyArgs
 	{
@@ -906,8 +906,10 @@ namespace UE::Anim::Compression {
 		const UAnimSequenceBase& AnimSequence;
 		const ITargetPlatform* TargetPlatform;
 	};
+
+	ENGINE_API FFrameRate GetCompressionFrameRate(const UAnimSequence& AnimSequence, const ITargetPlatform* TargetPlatform);
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 UE_DEPRECATED(5.1, "Signature of DecompressPose has been deprecated, use UE::Anim::Decompression::DecompressPose instead")
 extern void DecompressPose(FCompactPose& OutPose,

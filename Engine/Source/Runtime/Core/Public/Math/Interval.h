@@ -90,6 +90,28 @@ public:
 		}
 	}
 
+	/**
+	 * Compare two intervals for equality.
+	 *
+	 * @param Other The other interval being compared.
+	 * @return true if the intervals are equal, false otherwise.
+	 */
+	bool operator==(const TInterval& Other) const
+	{
+		return Min == Other.Min && Max == Other.Max;
+	}
+
+	/**
+	 * Compare two intervals for inequality.
+	 *
+	 * @param Other The other interval being compared.
+	 * @return true if the intervals are not equal, false otherwise.
+	 */
+	bool operator!=(const TInterval& Other) const
+	{
+		return (Min != Other.Min) || (Max != Other.Max);
+	}
+
 public:
 	
 	/**
@@ -179,6 +201,36 @@ public:
 		return ElementType();
 	}
 
+	/**
+	 * Clamps X to be between the interval inclusively.
+	 *
+	 * @param X the element to clamp
+	 * @return zero if invalid(Min > Max), clamped result otherwise
+	 */
+	ElementType Clamp( ElementType X ) const
+	{
+		if (!IsValid())
+		{
+			return ElementType();
+		}
+
+		return FMath::Clamp(X, Min, Max);
+	}
+	
+	/**
+	 * Calculate the Percentage of X in the Interval
+	 * @param X the element to calculate the percentage
+	 * @return zero if invalid(Min > Max), percentage otherwise
+	 */
+	ElementType GetRangePct(ElementType X) const
+	{
+		if (!IsValid())
+		{
+			return ElementType();
+		}
+
+		return FMath::GetRangePct(Min, Max, X);
+	}
 public:
 
 	/**

@@ -766,6 +766,7 @@ public:
 
 	// IARKitBlendShapePublisher interface
 	virtual void PublishBlendShapes(FName SubjectName, const FQualifiedFrameTime& FrameTime, const FARBlendShapeMap& FaceBlendShapes, FName DeviceId = NAME_None) override;
+	virtual void Shutdown() override {}
 	// End IARKitBlendShapePublisher
 
 	bool InitSendSocket();
@@ -787,8 +788,9 @@ class FAppleARKitLiveLinkFileWriter :
 	public IARKitBlendShapePublisher
 {
 public:
-	virtual ~FAppleARKitLiveLinkFileWriter();
+	virtual ~FAppleARKitLiveLinkFileWriter() {}
 	virtual void SetTimecodeProvider(UTimecodeProvider* InTimecodeProvider = nullptr) override;
+	virtual void Shutdown() override;
 
 protected:
 	FAppleARKitLiveLinkFileWriter(const TCHAR* InFileExtension);
@@ -880,6 +882,8 @@ public:
 
 	// Bind the remote listener to the port provided by this source's connection settings.
 	void InitializeRemoteListener();
+
+	virtual void Shutdown() override {}
 private:
 	// ILiveLinkSource interface
 	virtual void ReceiveClient(ILiveLinkClient* InClient, FGuid InSourceGuid) override;

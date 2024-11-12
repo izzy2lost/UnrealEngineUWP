@@ -2,6 +2,7 @@
 
 #pragma once
 
+#if (defined(__AUTORTFM) && __AUTORTFM)
 #include "AutoRTFM/AutoRTFM.h"
 #include "Utils.h"
 #include <setjmp.h>
@@ -23,7 +24,7 @@ public:
     template<typename TTryFunctor, typename TCatchFunctor>
     void TryCatch(const TTryFunctor& TryFunctor, const TCatchFunctor& CatchFunctor);
     
-    void Throw();
+    [[noreturn]] void Throw();
     
 private:
     jmp_buf JmpBuf;
@@ -63,3 +64,4 @@ inline void FLongJump::Throw()
 }
 
 } // namespace AutoRTFM
+#endif

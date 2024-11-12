@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include "Render/DisplayDevice/IDisplayClusterDisplayDeviceProxy.h"
 #include "Render/Viewport/DisplayClusterViewportResources.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Context.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettingsICVFX.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"

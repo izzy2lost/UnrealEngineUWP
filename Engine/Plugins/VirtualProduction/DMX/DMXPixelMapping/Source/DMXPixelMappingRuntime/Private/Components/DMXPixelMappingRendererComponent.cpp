@@ -9,7 +9,6 @@
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
 #include "Components/DMXPixelMappingRootComponent.h"
-#include "Components/DMXPixelMappingScreenComponent.h"
 #include "DMXPixelMapping.h"
 #include "DMXPixelMappingPixelMapRenderer.h"
 #include "DMXPixelMappingPreprocessRenderer.h"
@@ -41,8 +40,9 @@ DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputTexture"), STAT_DMXPixelMapping
 
 UDMXPixelMappingRendererComponent::UDMXPixelMappingRendererComponent()
 {
-	ConstructorHelpers::FObjectFinder<UTexture> DefaultTexture(TEXT("Texture2D'/Engine/VREditor/Devices/Vive/UE4_Logo.UE4_Logo'"), LOAD_NoWarn);
-	if (ensureAlwaysMsgf(DefaultTexture.Succeeded(), TEXT("Failed to load Texture2D'/Engine/VREditor/Devices/Vive/UE4_Logo.UE4_Logo'")))
+	static constexpr const TCHAR* UnrealEngineLogoPath = TEXT("Texture2D'/DMXPixelMapping/Textures/T_UnrealEngineLogo.T_UnrealEngineLogo'");
+	ConstructorHelpers::FObjectFinder<UTexture> DefaultTexture(UnrealEngineLogoPath, LOAD_NoWarn);
+	if (ensureAlwaysMsgf(DefaultTexture.Succeeded(), TEXT("Failed to load Default Texture for Pixel Mapping from '%s'"), UnrealEngineLogoPath))
 	{
 		InputTexture = DefaultTexture.Object;
 		RendererType = EDMXPixelMappingRendererType::Texture;
@@ -496,24 +496,7 @@ void UDMXPixelMappingRendererComponent::RenderEditorPreviewTexture()
 	PixelPreviewParams.Reserve(DownsamplePixelCount_DEPRECATED);
 	
 	ForEachChild([this, &PixelPreviewParams](UDMXPixelMappingBaseComponent* InComponent) {
-		if(UDMXPixelMappingScreenComponent* ScreenComponent = Cast<UDMXPixelMappingScreenComponent>(InComponent))
-		{
-			const FVector2D SizePixel = ScreenComponent->GetScreenPixelSize();
-			const int32 DownsampleIndexStart = ScreenComponent->GetPixelDownsamplePositionRange().Key;
-			const int32 PositionX = ScreenComponent->GetPosition().X;
-			const int32 PositionY = ScreenComponent->GetPosition().Y;
-
-			ScreenComponent->ForEachPixel([this, &PixelPreviewParams, SizePixel, PositionX, PositionY, DownsampleIndexStart](const int32 InXYIndex, const int32 XIndex, const int32 YIndex)
-				{
-					FDMXPixelMappingDownsamplePixelPreviewParam PixelPreviewParam;
-					PixelPreviewParam.ScreenPixelSize = SizePixel;
-					PixelPreviewParam.ScreenPixelPosition = FVector2D(PositionX + SizePixel.X * XIndex, PositionY + SizePixel.Y * YIndex);
-					PixelPreviewParam.DownsamplePosition = GetPixelPosition(InXYIndex + DownsampleIndexStart);
-
-					PixelPreviewParams.Add(MoveTemp(PixelPreviewParam));
-				});
-		}
-		else if (UDMXPixelMappingOutputDMXComponent* Component = Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
+		if (UDMXPixelMappingOutputDMXComponent* Component = Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
 		{
 			FDMXPixelMappingDownsamplePixelPreviewParam PixelPreviewParam;
 			PixelPreviewParam.ScreenPixelSize = Component->GetSize();
@@ -743,13 +726,7 @@ int32 UDMXPixelMappingRendererComponent::GetTotalDownsamplePixelCount()
 	constexpr bool bIsRecursive = true;
 	ForEachChildOfClass<UDMXPixelMappingOutputComponent>([&](UDMXPixelMappingOutputComponent* InComponent)
 		{
-			// If that is screen component
-			if (UDMXPixelMappingScreenComponent* ScreenComponent = Cast<UDMXPixelMappingScreenComponent>(InComponent))
-			{
-				DownsamplePixelCount_DEPRECATED += (ScreenComponent->NumXCells * ScreenComponent->NumYCells);
-			}
-			// If that is single pixel component
-			else if (Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
+			if (Cast<UDMXPixelMappingOutputDMXComponent>(InComponent))
 			{
 				DownsamplePixelCount_DEPRECATED++;
 			}

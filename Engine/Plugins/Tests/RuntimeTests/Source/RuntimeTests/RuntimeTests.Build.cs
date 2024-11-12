@@ -10,10 +10,8 @@ public class RuntimeTests : ModuleRules
 			new string[]
 			{
 				"Core",
-				
-				// ... add other public dependencies that you statically link with here ...
 			}
-			);
+		);
 			
 		
 		PrivateDependencyModuleNames.AddRange(
@@ -23,10 +21,12 @@ public class RuntimeTests : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-                "ScreenShotComparisonTools",
-
-				// ... add private dependencies that you statically link with here ...	
 			}
-			);
+		);
+
+		if (Target.bBuildEditor == true)
+		{
+			PrivateDependencyModuleNames.Add("ScreenShotComparisonTools");
+		}
 	}
 }

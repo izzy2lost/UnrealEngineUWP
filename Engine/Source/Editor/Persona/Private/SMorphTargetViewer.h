@@ -12,6 +12,7 @@
 #include "Widgets/Views/SListView.h"
 
 class USkeletalMesh;
+class UMorphTarget;
 
 //////////////////////////////////////////////////////////////////////////
 // FDisplayedMorphTargetInfo
@@ -23,20 +24,22 @@ public:
 	float Weight;
 	bool bAutoFillData;
 	int32 NumberOfVerts;
+	TArray<FString> SourceFilenames;
 
 	/** Static function for creating a new item, but ensures that you can only have a TSharedRef to one */
-	static TSharedRef<FDisplayedMorphTargetInfo> Make(const FName& Source, int32 InNumberOfVerts)
+	static TSharedRef<FDisplayedMorphTargetInfo> Make(const FName& Source, int32 InNumberOfVerts, const TArray<FString>& InSourceFilenames)
 	{
-		return MakeShareable(new FDisplayedMorphTargetInfo(Source, InNumberOfVerts));
+		return MakeShareable(new FDisplayedMorphTargetInfo(Source, InNumberOfVerts, InSourceFilenames));
 	}
 
 protected:
 	/** Hidden constructor, always use Make above */
-	FDisplayedMorphTargetInfo(const FName& InSource, int32 InNumberOfVerts)
+	FDisplayedMorphTargetInfo(const FName& InSource, int32 InNumberOfVerts, const TArray<FString>& InSourceFilenames)
 		: Name( InSource )
 		, Weight( 0 )
 		, bAutoFillData(true)
 		, NumberOfVerts(InNumberOfVerts)
+		, SourceFilenames(InSourceFilenames)
 	{}
 
 	/** Hidden constructor, always use Make above */
@@ -133,12 +136,26 @@ public:
 	bool CanPerformDelete() const;
 
 	/**
+	* Handler for the rename morph targets button
+	*/
+	void OnRenameMorphTargets();
+
+	/**
 	* Handler for the delete morph targets button
 	*/
 	void OnDeleteMorphTargets();
 
 	/** Handler for copying morph taret names */
 	void OnCopyMorphTargetNames();
+
+	/** Handler for importing a new morph target */
+	FReply OnImportMorphTargetButton();
+	void OnReimportMorphTargets(int32 LodIndex);
+	void OnReimportMorphTargetsWithNewFile(int32 LodIndex);
+
+	void InternalImportMorphTarget(int32 LodIndex, bool bWithNewFile, UMorphTarget* ReimportMorphTarget, bool bRecreateMorphTargetList);
+
+
 
 	/**
 	* Accessor so our rows can grab the filtertext for highlighting
@@ -150,6 +167,11 @@ public:
 	 * Refreshes the morph target list after an undo
 	 */
 	void OnPostUndo();
+
+	/**
+	 * Refreshes the morph target list after a mesh changed
+	 */
+	void OnMeshChanged();
 
 private:
 

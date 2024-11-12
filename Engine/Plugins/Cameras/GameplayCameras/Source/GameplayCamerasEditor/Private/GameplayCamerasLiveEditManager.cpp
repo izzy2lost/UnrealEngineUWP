@@ -2,101 +2,79 @@
 
 #include "GameplayCamerasLiveEditManager.h"
 
-#include "Core/CameraInstantiableObject.h"
+#include "IGameplayCamerasLiveEditListener.h"
+#include "Misc/CoreDelegates.h"
+#include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
+
+namespace UE::Cameras
+{
 
 FGameplayCamerasLiveEditManager::FGameplayCamerasLiveEditManager()
 {
+	FCoreUObjectDelegates::GetPostGarbageCollect().AddRaw(this, &FGameplayCamerasLiveEditManager::OnPostGarbageCollection);
 }
 
-void FGameplayCamerasLiveEditManager::CleanUp()
+FGameplayCamerasLiveEditManager::~FGameplayCamerasLiveEditManager()
 {
-	for (auto It = Instantiations.CreateIterator(); It; ++It)
+	FCoreUObjectDelegates::GetPostGarbageCollect().RemoveAll(this);
+}
+
+void FGameplayCamerasLiveEditManager::NotifyPostBuildAsset(const UPackage* InAssetPackage) const
+{
+	if (const FListenerArray* Listeners = ListenerMap.Find(InAssetPackage))
 	{
-		// Clean up invalid entries on keys and values.
-		UObject* Obj = It->Key.Get();
-		if (!Obj)
+		FGameplayCameraAssetBuildEvent BuildEvent;
+		BuildEvent.AssetPackage = InAssetPackage;
+
+		for (IGameplayCamerasLiveEditListener* Listener : *Listeners)
 		{
-			It.RemoveCurrent();
-			continue;
+			Listener->PostBuildAsset(BuildEvent);
 		}
-		for (auto ObjIt = It->Value.InstantiatedObjects.CreateIterator(); ObjIt; ++ObjIt)
+	}
+}
+
+void FGameplayCamerasLiveEditManager::AddListener(const UPackage* InAssetPackage, IGameplayCamerasLiveEditListener* Listener)
+{
+	if (ensure(InAssetPackage && Listener))
+	{
+		FListenerArray& Listeners = ListenerMap.FindOrAdd(InAssetPackage);
+		Listeners.Add(Listener);
+	}
+}
+
+void FGameplayCamerasLiveEditManager::RemoveListener(const UPackage* InAssetPackage, IGameplayCamerasLiveEditListener* Listener)
+{
+	if (ensure(InAssetPackage && Listener))
+	{
+		FListenerArray* Listeners = ListenerMap.Find(InAssetPackage);
+		if (ensure(Listeners))
 		{
-			if (!ObjIt->IsValid())
+			const int32 NumRemoved = Listeners->RemoveSwap(Listener);
+			ensure(NumRemoved == 1);
+			if (Listeners->IsEmpty())
 			{
-				ObjIt.RemoveCurrent();
+				ListenerMap.Remove(InAssetPackage);
 			}
 		}
-
-		// If the source object doesn't have any instantiated objects anymore, clear its flags.
-		if (It->Value.InstantiatedObjects.IsEmpty())
-		{
-			if (UCameraInstantiableObject* SourceObject = Cast<UCameraInstantiableObject>(Obj))
-			{
-				SourceObject->SetInstantiationState(ECameraNodeInstantiationState::None);
-			}
-		}
 	}
 }
 
-void FGameplayCamerasLiveEditManager::RegisterInstantiatedObjects(const TMap<UObject*, UObject*> InstantiatedObjects)
+void FGameplayCamerasLiveEditManager::OnPostGarbageCollection()
 {
-	for (const TPair<UObject*, UObject*>& Pair : InstantiatedObjects)
-	{
-		// If the objects are instantiable, set appropriate flags on both.
-		if (UCameraInstantiableObject* SourceObject = Cast<UCameraInstantiableObject>(Pair.Key))
-		{
-			SourceObject->SetInstantiationState(ECameraNodeInstantiationState::HasInstantiations);
-
-			UCameraInstantiableObject* InstantiatedObject = CastChecked<UCameraInstantiableObject>(Pair.Value);
-			InstantiatedObject->SetInstantiationState(ECameraNodeInstantiationState::IsInstantiated);
-		}
-		
-		FInstantiationInfo& Info = Instantiations.FindOrAdd(Pair.Key);
-		Info.InstantiatedObjects.Add(Pair.Value);
-	}
+	RemoveGarbage();
 }
 
-void FGameplayCamerasLiveEditManager::ForwardPropertyChange(const UObject* Object, const FPropertyChangedEvent& PropertyChangedEvent)
+void FGameplayCamerasLiveEditManager::RemoveGarbage()
 {
-	FInstantiationInfo* Info = Instantiations.Find(Object);
-	if (!Info)
+	for (auto It = ListenerMap.CreateIterator(); It; ++It)
 	{
-		return;
-	}
-
-	const UClass* ObjectClass = Object->GetClass();
-	const FProperty* ChangedProperty = PropertyChangedEvent.MemberProperty;
-	if (!ensure(ChangedProperty))
-	{
-		return;
-	}
-
-	bool bForwardChange = false;
-	if (ChangedProperty->IsA<FBoolProperty>()
-			|| ChangedProperty->IsA<FNumericProperty>()
-			|| ChangedProperty->IsA<FStructProperty>())
-	{
-		bForwardChange = true;
-	}
-	if (!bForwardChange)
-	{
-		return;
-	}
-
-	const void* SourceValuePtr = ChangedProperty->ContainerPtrToValuePtr<void>(Object);
-	for (auto It = Info->InstantiatedObjects.CreateIterator(); It; ++It)
-	{
-		if (UObject* Inst = It->Get())
-		{
-			ensure(Inst->GetClass() == ObjectClass);
-			void* InstValuePtr = ChangedProperty->ContainerPtrToValuePtr<void>(Inst);
-			ChangedProperty->CopyCompleteValue(InstValuePtr, SourceValuePtr);
-		}
-		else
+		if (!It.Key().IsValid())
 		{
 			It.RemoveCurrent();
 		}
 	}
 }
+
+}  // namespace UE::Cameras
 

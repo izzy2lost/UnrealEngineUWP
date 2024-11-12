@@ -36,6 +36,9 @@ struct FLightSceneData
 	// Factor to applies on the specular.
 	float SpecularScale;
 
+	// Factor to applies on the diffuse.
+	float DiffuseScale;
+
 	// One tangent of the light if applies.
 	// Note: BiTangent is on purpose not stored for memory optimisation purposes.
 	float3 Tangent;

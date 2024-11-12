@@ -4,6 +4,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/Actor.h"
+#include "ISequencer.h"
 #include "Modules/ModuleManager.h"
 #include "Layout/WidgetPath.h"
 #include "Framework/Application/MenuStack.h"
@@ -25,6 +26,7 @@
 #include "MovieSceneToolHelpers.h"
 #include "SComponentChooser.h"
 #include "ActorTreeItem.h"
+#include "SequencerSettings.h"
 
 #define LOCTEXT_NAMESPACE "FActorPickerTrackEditor"
 
@@ -79,6 +81,10 @@ void FActorPickerTrackEditor::ShowActorSubMenu(FMenuBuilder& MenuBuilder, TArray
 		// Actor selector to allow the user to choose a parent actor
 		FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>( "SceneOutliner" );
 
+		TSharedPtr<ISequencer> Sequencer = GetSequencer();
+		const float WidthOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserWidth() : 500.f;
+		const float HeightOverride = Sequencer.IsValid() ? Sequencer->GetSequencerSettings()->GetAssetBrowserHeight() : 400.f;
+
 		TSharedRef< SWidget > MenuWidget = 
 			SNew(SHorizontalBox)
 
@@ -86,8 +92,8 @@ void FActorPickerTrackEditor::ShowActorSubMenu(FMenuBuilder& MenuBuilder, TArray
 			.AutoWidth()
 			[
 				SNew(SBox)
-				.MaxDesiredHeight(400.0f)
-				.WidthOverride(300.0f)
+				.WidthOverride(WidthOverride)
+				.HeightOverride(HeightOverride)
 				[
 					SceneOutlinerModule.CreateActorPicker(
 						InitOptions,

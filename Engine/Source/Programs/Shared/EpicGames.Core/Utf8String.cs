@@ -9,7 +9,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Represents a memory region which can be treated as a utf-8 string.
 	/// </summary>
-	public struct Utf8String : IEquatable<Utf8String>, IComparable<Utf8String>
+	public readonly struct Utf8String : IEquatable<Utf8String>, IComparable<Utf8String>
 	{
 		/// <summary>
 		/// An empty string

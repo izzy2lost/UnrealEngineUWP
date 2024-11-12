@@ -209,8 +209,8 @@ public:
 
 	AsyncRawBufferP					LoadRawBuffer(bool bInDoUncompress, bool bFreeMemory = true);
 
-	void							GetAsLinearColor(TArray<FLinearColor>& Pixels);
-	FLinearColor					GetAsLinearColor(int PixelIndex);
+	void							GetAsLinearColor(TArray<FLinearColor>& Pixels) const;
+	FLinearColor					GetAsLinearColor(int PixelIndex) const;
 
 	bool							IsPadded() const;
 	size_t							GetUnpaddedSize();

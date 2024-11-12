@@ -72,7 +72,7 @@ public:
 
 		void Set(int32 Index, const FBoxSphereBounds& Bounds, uint32 InPackedRelativeBox, float LastRenderTime, const FVector& RangeOrigin, float MinDistanceSq, float MinRangeSq, float MaxRangeSq);
 		void UnpackBounds(int32 Index, const UPrimitiveComponent* Component);
-		void FullUpdate(int32 Index, const FBoxSphereBounds& Bounds, float LastRenderTime);
+		void FullUpdate(int32 Index, const FVector& NewOrigin, const FVector& NewBoxExtent, float NewSphereRadius, float LastRenderTime);
 		FORCEINLINE void UpdateLastRenderTime(int32 Index, float LastRenderTime);
 		FORCEINLINE void UpdateMaxDrawDistanceSquared(int32 Index, float InMaxRangeSq);
 
@@ -268,6 +268,7 @@ public:
 		float& MaxSize,
 		float& MaxSize_VisibleOnly,
 		int32& MaxNumForcedLODs,
+		const float MaxAssetSize,
 		const TCHAR* LogPrefix) const;
 
 	FORCEINLINE bool HasRenderAssetReferences(const UStreamableRenderAsset* InAsset) const

@@ -35,8 +35,4 @@ public:
 	virtual bool ExportText(const FExportObjectInnerContext* InContext, UObject* InObject, const TCHAR* InType
 		, FOutputDevice& Ar, FFeedbackContext* InWarn, uint32 InPortFlags) override;
 	//~ End UExporter
-
-private:
-	static void ExportBindings(const TArray<UAvaSequenceCopyableBinding*>& InObjectsToExport, const TCHAR* InType
-		, int32 InTextIndent, FOutputDevice& Ar, FFeedbackContext* InWarn);
 };

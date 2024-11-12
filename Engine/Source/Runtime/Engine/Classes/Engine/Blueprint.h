@@ -12,9 +12,6 @@
 #include "EdGraph/EdGraphPin.h"
 #include "Engine/BlueprintCore.h"
 #include "Blueprint/BlueprintPropertyGuidProvider.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/BlueprintGeneratedClass.h"
-#endif
 #include "UObject/SoftObjectPath.h"
 #include "Blueprint/BlueprintSupport.h"
 
@@ -25,6 +22,7 @@
 
 #include "Blueprint.generated.h"
 
+enum class EBlueprintCompileOptions;
 class ITargetPlatform;
 class UActorComponent;
 class UEdGraph;
@@ -853,6 +851,9 @@ public:
 		return true;
 	}
 
+	// Compile this prefab, overriding this methods give a chance to derived classes to specify extra default compilation flags
+	ENGINE_API virtual EBlueprintCompileOptions GetDefaultCompileOptions() const;
+
 	/** Sets the current object being debugged */
 	ENGINE_API virtual void SetObjectBeingDebugged(UObject* NewObject);
 
@@ -930,8 +931,13 @@ public:
 	ENGINE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	ENGINE_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
+protected:
+	ENGINE_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const override;
+public:
+	UE_DEPRECATED(5.5, "This function is no longer called. See UObject::PostLoadAssetRegistryTags for more information.")
 	static ENGINE_API void PostLoadBlueprintAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate);
+	
+	static ENGINE_API void PostLoadBlueprintAssetRegistryTags(FPostLoadAssetRegistryTagsContext& Context);
 	ENGINE_API virtual FPrimaryAssetId GetPrimaryAssetId() const override;
 	ENGINE_API virtual void BeginCacheForCookedPlatformData(const ITargetPlatform *TargetPlatform) override;
 	ENGINE_API virtual bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;

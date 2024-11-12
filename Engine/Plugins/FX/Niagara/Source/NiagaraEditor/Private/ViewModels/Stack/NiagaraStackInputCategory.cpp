@@ -3,33 +3,35 @@
 #include "ViewModels/Stack/NiagaraStackInputCategory.h"
 
 #include "IDetailTreeNode.h"
-#include "IPropertyRowGenerator.h"
 #include "ViewModels/Stack/NiagaraStackFunctionInput.h"
 #include "NiagaraNodeFunctionCall.h"
 #include "NiagaraClipboard.h"
 #include "NiagaraConstants.h"
 #include "NiagaraSimulationStageBase.h"
 #include "ViewModels/NiagaraEmitterViewModel.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
 #include "ViewModels/HierarchyEditor/NiagaraSummaryViewViewModel.h"
 #include "ViewModels/Stack/NiagaraStackEmitterSettingsGroup.h"
 #include "ViewModels/Stack/NiagaraStackEventScriptItemGroup.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
 #include "ViewModels/Stack/NiagaraStackObject.h"
 #include "ViewModels/Stack/NiagaraStackPropertyRow.h"
 #include "ViewModels/Stack/NiagaraStackRendererItem.h"
 #include "ViewModels/Stack/NiagaraStackRenderersOwner.h"
 #include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
+#include "Algo/Accumulate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraStackInputCategory)
 
 using namespace FNiagaraStackGraphUtilities;
 
+#define LOCTEXT_NAMESPACE "NiagaraStack"
+
 void UNiagaraStackCategory::Initialize(FRequiredEntryData InRequiredEntryData, FString InOwningStackItemEditorDataKey, FString InStackEditorDataKey)
 {
 	Super::Initialize(InRequiredEntryData, InOwningStackItemEditorDataKey, InStackEditorDataKey);
-	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackInputCategory::FilterForVisibleCondition));
-	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackInputCategory::FilterForIsInlineEditConditionToggle));
+	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackCategory::FilterForVisibleCondition));
+	AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackCategory::FilterForIsInlineEditConditionToggle));
 	bShouldShowInStack = true;
 	CategorySpacer = nullptr;
 }
@@ -77,7 +79,7 @@ void UNiagaraStackCategory::RefreshChildrenInternal(const TArray<UNiagaraStackEn
 		{
 			CategorySpacer = NewObject<UNiagaraStackSpacer>(this);
 			TAttribute<bool> ShouldShowSpacerInStack;
-			ShouldShowSpacerInStack.BindUObject(this, &UNiagaraStackInputCategory::GetShouldShowInStack);
+			ShouldShowSpacerInStack.BindUObject(this, &UNiagaraStackCategory::GetShouldShowInStack);
 			CategorySpacer->Initialize(CreateDefaultChildRequiredData(), 6, ShouldShowSpacerInStack, GetStackEditorDataKey());
 		}
 		NewChildren.Add(CategorySpacer);
@@ -96,141 +98,178 @@ bool UNiagaraStackCategory::FilterForIsInlineEditConditionToggle(const UNiagaraS
 	return StackFunctionInputChild == nullptr || StackFunctionInputChild->GetIsInlineEditConditionToggle() == false;
 }
 
-void UNiagaraStackInputCategory::Initialize(
-	FRequiredEntryData InRequiredEntryData,
-	FString InputCategoryStackEditorDataKey,
-	FText InCategoryName,
-	bool bInIsTopLevelCategory,
-	FString InOwnerStackItemEditorDataKey)
+void UNiagaraStackScriptHierarchyCategory::Initialize(FRequiredEntryData InRequiredEntryData, const UNiagaraHierarchyCategory& InHierarchyCategory, FString InOwningStackItemEditorDataKey, FString InStackEditorDataKey)
 {
-	bool bCategoryIsAdvanced = false;
-	Super::Initialize(InRequiredEntryData, InOwnerStackItemEditorDataKey, InputCategoryStackEditorDataKey);
-	CategoryName = InCategoryName;
-	bIsTopLevelCategory = bInIsTopLevelCategory;
+	Super::Initialize(InRequiredEntryData, InOwningStackItemEditorDataKey, InStackEditorDataKey);
+	HierarchyCategory = &InHierarchyCategory;
 }
 
-bool UNiagaraStackInputCategory::GetIsEnabled() const
+void UNiagaraStackScriptHierarchyCategory::Copy(UNiagaraClipboardContent* ClipboardContent) const
 {
-	for (const auto& Input : Inputs)
+	ClipboardContent->FunctionInputs.Append(ToClipboardFunctionInputs(ClipboardContent));
+}
+
+void UNiagaraStackScriptHierarchyCategory::Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning)
+{
+	PasteFromClipboard(ClipboardContent);
+}
+
+bool UNiagaraStackScriptHierarchyCategory::TestCanCopyWithMessage(FText& OutMessage) const
+{
+	TArray<UNiagaraStackFunctionInput*> StackFunctionInputs;
+	GetFilteredChildrenOfType(StackFunctionInputs, true);
+
+	if(StackFunctionInputs.Num() == 0)
 	{
-		if (Input.InputFunctionCallNode->GetDesiredEnabledState() == ENodeEnabledState::Enabled)
-		{
-			return true;
-		}
+		OutMessage = LOCTEXT("CantCopyCategory_NoInputs", "No inputs available for copying.");
+		return false;
 	}
 
-	return false;
+	OutMessage = LOCTEXT("TestCanCopyCategory_Success", "Copy all inputs of this category.");
+	return true;
 }
 
-FText UNiagaraStackInputCategory::GetDisplayName() const
+bool UNiagaraStackScriptHierarchyCategory::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const
 {
-	return CategoryName;
-}
-
-void UNiagaraStackInputCategory::ResetInputs()
-{
-	Inputs.Empty();
-}
-
-void UNiagaraStackInputCategory::AddInput(UNiagaraNodeFunctionCall* InModuleNode, UNiagaraNodeFunctionCall* InInputFunctionCallNode, FName InInputParameterHandle, FNiagaraTypeDefinition InInputType, EStackParameterBehavior InParameterBehavior, TOptional<FText> InOptionalDisplayName, bool bIsInputHidden, bool bIsChildInput)
-{
-	Inputs.Add({ InModuleNode, InInputFunctionCallNode, InInputParameterHandle, InInputType, InParameterBehavior, InOptionalDisplayName, bIsInputHidden, bIsChildInput });
-}
-
-void UNiagaraStackInputCategory::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
-{
-	for (FInputParameterHandleAndType& Input : Inputs)
+	if(ClipboardContent->FunctionInputs.Num() == 0)
 	{
-		UNiagaraStackFunctionInput* InputChild = FindCurrentChildOfTypeByPredicate<UNiagaraStackFunctionInput>(CurrentChildren, [&](UNiagaraStackFunctionInput* CurrentInput) 
-		{ 
-			return CurrentInput->GetInputParameterHandle() == Input.ParameterHandle && CurrentInput->GetInputType() == Input.Type && CurrentInput->GetInputFunctionCallInitialScript() == Input.InputFunctionCallNode->FunctionScript;
-		});
+		OutMessage = LOCTEXT("TestCanPasteCategory_NoCopiedInputsFound", "No inputs were copied.");
+		return false;
+	}
+	
+	TArray<UNiagaraStackFunctionInput*> AllContainedInputs;
+	GetFilteredChildrenOfType(AllContainedInputs, true);
 
-		if (InputChild == nullptr)
+	int32 MatchingInputsNum = Algo::Accumulate(AllContainedInputs, 0, [ClipboardContent](int32 Value, UNiagaraStackFunctionInput* Input)
+	{
+		Value += ClipboardContent->FunctionInputs.ContainsByPredicate([Input](const UNiagaraClipboardFunctionInput* ClipboardFunctionInputCandidate)
 		{
-			InputChild = NewObject<UNiagaraStackFunctionInput>(this);
-			InputChild->Initialize(CreateDefaultChildRequiredData(), *Input.ModuleNode, *Input.InputFunctionCallNode,
-				Input.ParameterHandle, Input.Type, Input.ParameterBehavior, GetOwnerStackItemEditorDataKey());
-		}
-		InputChild->SetIsHidden(Input.bIsHidden);
-		InputChild->SetSemanticChild(Input.bIsChildInput);
-		NewChildren.Add(InputChild);
+			return ClipboardFunctionInputCandidate->InputName == Input->GetInputParameterHandle().GetName() && ClipboardFunctionInputCandidate->InputType == Input->GetInputType();
+		}) ? 1 : 0;
+
+		return Value;
+	});
+	
+	if(MatchingInputsNum == 0)
+	{
+		OutMessage = LOCTEXT("TestCanPasteCategory_NoMatchingInputsFound", "No matching copied inputs were found for pasting into this category.");
+		return false;
 	}
 
+	OutMessage = LOCTEXT("TestCanPasteCategory_Success", "Paste matching inputs into this category.");
+	return true;
+}
+
+void UNiagaraStackScriptHierarchyCategory::PasteFromClipboard(const UNiagaraClipboardContent* ClipboardContent)
+{
+	TArray<UNiagaraStackFunctionInput*> AllContainedInputs;
+	GetUnfilteredChildrenOfType(AllContainedInputs, true);
+	
+	for(const UNiagaraClipboardFunctionInput* ClipboardInput : ClipboardContent->FunctionInputs)
+	{
+		if(ClipboardInput == nullptr)
+		{
+			continue;
+		}
+
+		// Since we pasting into a category, we require name & type match to ensure we aren't writing into unintended inputs
+		for(UNiagaraStackFunctionInput* StackInput : AllContainedInputs)
+		{
+			if(StackInput->GetInputParameterHandle().GetName() == ClipboardInput->InputName && StackInput->GetInputType() == ClipboardInput->InputType)
+			{
+				StackInput->PasteFunctionInput(ClipboardInput);
+			}
+		}
+	}
+}
+
+TArray<const UNiagaraClipboardFunctionInput*> UNiagaraStackScriptHierarchyCategory::ToClipboardFunctionInputs(UObject* InOuter) const
+{
+	TArray<const UNiagaraClipboardFunctionInput*> Result;
+	
+	TArray<UNiagaraStackScriptHierarchyCategory*> SubCategories;
+	GetFilteredChildrenOfType(SubCategories, false);
+
+	for(UNiagaraStackScriptHierarchyCategory* SubCategory : SubCategories)
+	{
+		Result.Append(SubCategory->ToClipboardFunctionInputs(InOuter));
+	}
+
+	TArray<UNiagaraStackFunctionInput*> ContainedInputs;
+	GetFilteredChildrenOfType(ContainedInputs, false);
+
+	for(UNiagaraStackFunctionInput* ContainedInput : ContainedInputs)
+	{
+		Result.Add(ContainedInput->ToClipboardFunctionInput(InOuter));
+	}
+
+	return Result;
+}
+
+FText UNiagaraStackScriptHierarchyCategory::GetDisplayName() const
+{
+	return HierarchyCategory->GetCategoryAsText();
+}
+
+FText UNiagaraStackScriptHierarchyCategory::GetTooltipText() const
+{
+	return HierarchyCategory->GetTooltip();
+}
+
+void UNiagaraStackScriptHierarchyCategory::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
+{
+	for(const UNiagaraHierarchyItemBase* ChildHierarchyItem : HierarchyCategory->GetChildren())
+	{
+		if(const UNiagaraHierarchyScriptParameter* HierarchyParameter = Cast<UNiagaraHierarchyScriptParameter>(ChildHierarchyItem))
+		{
+			FNiagaraVariable InputVariable = HierarchyParameter->GetVariable();
+			
+			if(ScriptInstanceData.UsedInputs.Contains(InputVariable) == false)
+			{
+				continue;
+			}
+			
+			UNiagaraStackFunctionInput* InputChild = FindCurrentChildOfTypeByPredicate<UNiagaraStackFunctionInput>(CurrentChildren, [&](UNiagaraStackFunctionInput* CurrentInput) 
+			{ 
+				return CurrentInput->GetInputParameterHandle() == FNiagaraParameterHandle(InputVariable.GetName()) && CurrentInput->GetInputType() == HierarchyParameter->GetVariable().GetType() && &CurrentInput->GetInputFunctionCallNode() == OwningFunctionCallNode.Get();
+			});
+
+			if (InputChild == nullptr)
+			{
+				EStackParameterBehavior Behavior = HierarchyParameter->GetScriptVariable()->GetIsStaticSwitch() ? EStackParameterBehavior::Static : EStackParameterBehavior::Dynamic;
+				InputChild = NewObject<UNiagaraStackFunctionInput>(this);
+				InputChild->Initialize(CreateDefaultChildRequiredData(), *OwningModuleNode.Get(), *OwningFunctionCallNode.Get(),
+					InputVariable.GetName(), InputVariable.GetType(), Behavior, GetOwnerStackItemEditorDataKey());
+			}
+
+			InputChild->SetScriptInstanceData(ScriptInstanceData);
+			FGuid VariableGuid = HierarchyParameter->GetScriptVariable()->Metadata.GetVariableGuid();
+			InputChild->SetIsHidden(ScriptInstanceData.PerInputInstanceData[VariableGuid].bIsHidden);
+			
+			NewChildren.Add(InputChild);
+		}
+		if(const UNiagaraHierarchyCategory* ChildHierarchyCategory = Cast<UNiagaraHierarchyCategory>(ChildHierarchyItem))
+		{
+			// Try to find an already existing category to reuse
+			UNiagaraStackScriptHierarchyCategory* ChildCategory = FindCurrentChildOfTypeByPredicate<UNiagaraStackScriptHierarchyCategory>(CurrentChildren,
+				[&](UNiagaraStackScriptHierarchyCategory* CurrentCategory) { return CurrentCategory->GetHierarchyCategory() == ChildHierarchyItem; });
+
+			if (ChildCategory == nullptr)
+			{
+				// If we don't have a current child for this category make a new one.
+				ChildCategory = NewObject<UNiagaraStackScriptHierarchyCategory>(this);
+				ChildCategory->SetOwningModuleNode(*OwningModuleNode.Get());
+				ChildCategory->SetOwningFunctionCallNode(*OwningFunctionCallNode.Get());
+				FString InputCategoryStackEditorDataKey = FString::Printf(TEXT("%s-InputCategory-%s"), *OwningFunctionCallNode->NodeGuid.ToString(EGuidFormats::DigitsWithHyphens), *ChildHierarchyCategory->ToString());
+				ChildCategory->Initialize(CreateDefaultChildRequiredData(), *ChildHierarchyCategory, GetOwnerStackItemEditorDataKey(), InputCategoryStackEditorDataKey);
+			}
+
+			ChildCategory->SetScriptInstanceData(ScriptInstanceData);
+			NewChildren.Add(ChildCategory);
+		}		
+	}
+	
 	Super::RefreshChildrenInternal(CurrentChildren, NewChildren, NewIssues);
-}
-
-void UNiagaraStackInputCategory::SetShouldShowInStack(bool bInShouldShowInStack)
-{
-	bShouldShowInStack = bInShouldShowInStack;
-}
-
-void UNiagaraStackInputCategory::ToClipboardFunctionInputs(UObject* InOuter, TArray<const UNiagaraClipboardFunctionInput*>& OutClipboardFunctionInputs) const
-{
-	TArray<UNiagaraStackFunctionInput*> ChildInputs;
-	GetUnfilteredChildrenOfType(ChildInputs);
-	for (UNiagaraStackFunctionInput* ChildInput : ChildInputs)
-	{
-		const UNiagaraClipboardFunctionInput* FunctionInput = ChildInput->ToClipboardFunctionInput(InOuter);
-		if (FunctionInput != nullptr)
-		{
-			OutClipboardFunctionInputs.Add(FunctionInput);
-		}
-	}
-}
-
-bool UNiagaraStackInputCategory::TrySetStaticSwitchValuesFromClipboardFunctionInput(const UNiagaraClipboardFunctionInput& ClipboardFunctionInput)
-{
-	TArray<UNiagaraStackFunctionInput*> ChildInputs;
-	GetUnfilteredChildrenOfType(ChildInputs);
-	for (UNiagaraStackFunctionInput* ChildInput : ChildInputs)
-	{
-		if (ChildInput->IsStaticParameter() &&
-			ChildInput->GetInputParameterHandle().GetName() == ClipboardFunctionInput.InputName &&
-			ChildInput->GetInputType() == ClipboardFunctionInput.InputType)
-		{
-			if (ClipboardFunctionInput.ValueMode == ENiagaraClipboardFunctionInputValueMode::ResetToDefault)
-			{
-				ChildInput->Reset();
-			}
-			else
-			{
-				ChildInput->SetValueFromClipboardFunctionInput(ClipboardFunctionInput);
-			}
-			return true;
-		}
-	}
-	return false;
-}
-
-void  UNiagaraStackInputCategory::SetStandardValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs)
-{
-	TArray<UNiagaraStackFunctionInput*> ChildInputs;
-	GetUnfilteredChildrenOfType(ChildInputs);
-	for (const UNiagaraClipboardFunctionInput* ClipboardFunctionInput : ClipboardFunctionInputs)
-	{
-		for (UNiagaraStackFunctionInput* ChildInput : ChildInputs)
-		{
-			if (ChildInput->IsStaticParameter() == false && 
-				ChildInput->GetInputParameterHandle().GetName() == ClipboardFunctionInput->InputName &&
-				ChildInput->GetInputType() == ClipboardFunctionInput->InputType)
-			{
-				if (ClipboardFunctionInput->ValueMode == ENiagaraClipboardFunctionInputValueMode::ResetToDefault)
-				{
-					ChildInput->Reset();
-				}
-				else
-				{
-					ChildInput->SetValueFromClipboardFunctionInput(*ClipboardFunctionInput);
-				}
-			}
-		}
-	}
-}
-
-void UNiagaraStackInputCategory::GetFilteredChildInputs(TArray<UNiagaraStackFunctionInput*>& OutFilteredChildInputs) const
-{
-	GetFilteredChildrenOfType(OutFilteredChildInputs);
 }
 
 void UNiagaraStackSummaryCategory::Initialize(FRequiredEntryData InRequiredEntryData, TSharedPtr<FNiagaraHierarchyCategoryViewModel> InCategoryViewModel, FString InOwnerStackItemEditorDataKey)
@@ -699,3 +738,5 @@ int32 UNiagaraStackSummaryCategory::GetChildIndentLevel() const
 {
 	return UNiagaraStackEntry::GetChildIndentLevel();
 }
+
+#undef LOCTEXT_NAMESPACE

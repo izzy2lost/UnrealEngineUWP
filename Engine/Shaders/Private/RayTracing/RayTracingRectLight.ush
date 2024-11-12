@@ -32,15 +32,15 @@ bool GenerateRectLightOcclusionRay(
 	RayPdf = 1.0 / SphericalRect.SolidAngle;
 
 	// 2. Uniformly sample from the spherical rectangle
-	float3 LightDirection = UniformSampleSphericalRect(RandSample, SphericalRect);
+	FSphericalRectSample Sample = UniformSampleSphericalRect(RandSample, SphericalRect);
 
 	// Light-normal culling
-	bool bIsValidRay = dot(-LightDirection, -LightParameters.Direction) >= 0.0;
+	bool bIsValidRay = dot(Sample.Direction, LightParameters.Direction) >= 0.0;
 	
 	// Apply normal perturbation when defining ray. normalize() resolves several banding artifacts
 	// at the cost of creating some bias under idea lighting condition but is neglectable.
-	RayDirection = normalize(LightDirection);
-	RayTMax = length(LightDirection);
+	RayDirection = Sample.Direction;
+	RayTMax = Sample.Distance;
 
 	return bIsValidRay;
 }

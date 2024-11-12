@@ -37,12 +37,6 @@ public:
 		/** Horizontal or vertical gradient */
 		SLATE_ATTRIBUTE(EOrientation, Orientation)
 
-		/** Whether to display sRGB color */
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		UE_DEPRECATED(5.0, "UseSRGB is unused")
-		SLATE_ARGUMENT_DEFAULT(bool, UseSRGB) = true;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	SLATE_END_ARGS()
 
 public:

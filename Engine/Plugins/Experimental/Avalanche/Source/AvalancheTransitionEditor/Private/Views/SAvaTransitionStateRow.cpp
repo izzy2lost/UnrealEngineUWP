@@ -3,7 +3,7 @@
 #include "SAvaTransitionStateRow.h"
 #include "Extensions/IAvaTransitionDragDropExtension.h"
 #include "SAvaTransitionStateView.h"
-#include "StateTreeEditorStyle.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "ViewModels/AvaTransitionViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/State/AvaTransitionStateViewModel.h"
@@ -13,7 +13,7 @@
 void SAvaTransitionStateRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const TSharedRef<FAvaTransitionStateViewModel>& InStateViewModel)
 {
 	STableRow::FArguments TableRowArgs = STableRow::FArguments()
-		.Style(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("StateTree.Selection"))
+		.Style(&FAvaTransitionEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("StateTree.Selection"))
 		.Content()
 		[
 			SNew(SAvaTransitionStateView, InStateViewModel)

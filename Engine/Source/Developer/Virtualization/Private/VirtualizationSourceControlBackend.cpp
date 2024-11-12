@@ -2,6 +2,7 @@
 
 #include "VirtualizationSourceControlBackend.h"
 
+#include "AnalyticsEventAttribute.h"
 #include "Containers/Ticker.h"
 #include "HAL/Event.h"
 #include "HAL/FileManager.h"
@@ -22,9 +23,12 @@
 #include "SourceControlHelpers.h"
 #include "SourceControlInitSettings.h"
 #include "SourceControlOperations.h"
+#include "Virtualization/VirtualizationSystem.h"
 #include "VirtualizationManager.h"
 #include "VirtualizationSourceControlUtilities.h"
 #include "VirtualizationUtilities.h"
+
+#include "HAL/PlatformFileManager.h"
 
 // When the SourceControl module (or at least the perforce source control module) is thread safe we
 // can enable this and stop using the hacky work around 'TryToDownloadFileFromBackgroundThread'
@@ -389,8 +393,19 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnect()
 																													UserName,
 																													ErrorMessage);
 
+			{
+				TArray<FAnalyticsEventAttribute> Attributes;
+				Attributes.Add({ TEXT("UserSelection"), DialogResult.bShouldRetry ? TEXT("Retry") : TEXT("Skip") });
+
+				// Need to flush if we are going to quit to make sure that the analytics payloads are sent properly.
+				const EAnalyticsFlags Flags = DialogResult.bShouldRetry ? EAnalyticsFlags::None : EAnalyticsFlags::Flush;
+
+				GetAnalyticsRecordEvent().Broadcast(TEXT("Editor.VA.SourceControlLoginFail"), Attributes, EAnalyticsFlags::None);
+			}
+			
 			if (!DialogResult.bShouldRetry)
 			{
+				// User has opted to continue without a valid source control connection
 				OnConnectionError(ErrorMessage);
 				return IVirtualizationBackend::EConnectionStatus::Error;
 			}

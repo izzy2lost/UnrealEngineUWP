@@ -18,8 +18,10 @@
 #include <android/sharedmem_jni.h>
 #include <sys/mman.h>
 #include "ProfilingDebugging/ScopedTimers.h"
+#include "Android/AndroidDynamicRHI.h"
+#include "PSOMetrics.h"
 
-#if USE_ANDROID_SWAPPY
+#if USE_ANDROID_VULKAN_SWAPPY
 #undef VK_NO_PROTOTYPES
 #include "Android/AndroidJNI.h"
 #include "Android/AndroidApplication.h"
@@ -30,11 +32,9 @@ namespace AndroidVulkan
 {
 	void VKSwappyPostWaitCallback(void*, int64_t cpu_time_ns, int64_t gpu_time_ns)
 	{
-		const double Frequency = 1.0;// FGPUTiming::GetTimingFrequency();
-		const double CyclesPerSecond = 1.0 / (Frequency * FPlatformTime::GetSecondsPerCycle64());
 		const double GPUTimeInSeconds = (double)gpu_time_ns / 1000000000.0;
 
-		GGPUFrameTime = CyclesPerSecond * GPUTimeInSeconds;
+		GGPUFrameTime = GPUTimeInSeconds / FPlatformTime::GetSecondsPerCycle64();
 	}
 
 	void SetSwappyPostWaitCallback()
@@ -42,10 +42,14 @@ namespace AndroidVulkan
 		SwappyTracer Tracer = { 0 };
 		Tracer.postWait = VKSwappyPostWaitCallback;
 		SwappyVk_injectTracer(&Tracer);
+
+		int32 FrameTimeFenceInMillis = FAndroidPlatformRHIFramePacer::CVarSwappyGPUFrameTimeFence.GetValueOnAnyThread();
+
+		SwappyVk_setFenceTimeoutNS(FrameTimeFenceInMillis * 1000000); // millis to ns (ms * 1000000)
 	}
 };
 
-#endif
+#endif // #if USE_ANDROID_VULKAN_SWAPPY
 
 // From VulklanSwapChain.cpp
 extern int32 GVulkanCPURenderThreadFramePacer;
@@ -59,10 +63,10 @@ static FAutoConsoleVariableRef CVarVulkanExtensionFramePacer(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarVulkanSupportsTimestampQueries(
-	TEXT("r.Vulkan.SupportsTimestampQueries"),
+static TAutoConsoleVariable<int32> CVarVulkanSupportsBCTextureFormats(
+	TEXT("r.Vulkan.SupportsBCTextureFormats"),
 	0,
-	TEXT("State of Vulkan timestamp queries support on an Android device\n")
+	TEXT("Whether or not BC Texture formats are supported\n")
 	TEXT("  0 = unsupported\n")
 	TEXT("  1 = supported."),
 	ECVF_SetByDeviceProfile
@@ -74,6 +78,10 @@ ENUM_VK_ENTRYPOINTS_ALL(DEFINE_VK_ENTRYPOINTS)
 
 #define VULKAN_MALI_LAYER_NAME "VK_LAYER_ARM_AGA"
 
+
+#if USE_ANDROID_VULKAN_SWAPPY
+bool FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit = false;
+#endif
 void* FVulkanAndroidPlatform::VulkanLib = nullptr;
 bool FVulkanAndroidPlatform::bAttemptedLoad = false;
 
@@ -324,13 +332,11 @@ bool FVulkanAndroidPlatform::LoadVulkanInstanceFunctions(VkInstance inInstance)
 	ENUM_VK_ENTRYPOINTS_PLATFORM_INSTANCE(GETINSTANCE_VK_ENTRYPOINTS);
 	ENUM_VK_ENTRYPOINTS_PLATFORM_INSTANCE(CHECK_VK_ENTRYPOINTS);
 
-#if VULKAN_RHI_RAYTRACING
 	const bool bFoundRayTracingEntries = FVulkanRayTracingPlatform::CheckVulkanInstanceFunctions(inInstance);
 	if (!bFoundRayTracingEntries)
 	{
 		UE_LOG(LogVulkanRHI, Warning, TEXT("Vulkan RHI ray tracing is enabled, but failed to load instance functions."));
 	}
-#endif
 
 	if (!bFoundAllEntryPoints)
 	{
@@ -366,16 +372,16 @@ void FVulkanAndroidPlatform::FreeVulkanLibrary()
 
 bool FVulkanAndroidPlatform::HasCustomFrameTiming()
 {
-#if USE_ANDROID_SWAPPY
-	return FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() != 0;
+#if USE_ANDROID_VULKAN_SWAPPY
+	return FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit;
 #endif
 	return false;
 }
 
 void FVulkanAndroidPlatform::InitDevice(FVulkanDevice* InDevice)
 {
-#if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		FVulkanQueue* GfxQueue = InDevice->GetGraphicsQueue();
 		check(GfxQueue);
@@ -402,6 +408,11 @@ void* FVulkanAndroidPlatform::GetHardwareWindowHandle()
 	}
 
 	return WindowHandle;
+}
+
+bool FVulkanAndroidPlatform::SupportsBCTextureFormats()
+{
+	return (CVarVulkanSupportsBCTextureFormats.GetValueOnAnyThread() == 1);
 }
 
 void FVulkanAndroidPlatform::CreateSurface(void* WindowHandle, VkInstance Instance, VkSurfaceKHR* OutSurface)
@@ -451,15 +462,6 @@ void FVulkanAndroidPlatform::GetInstanceLayers(TArray<const ANSICHAR*>& OutLayer
 #endif
 }
 
-
-static int32 GVulkanQcomRenderPassTransform = 0;
-static FAutoConsoleVariableRef CVarVulkanQcomRenderPassTransform(
-	TEXT("r.Vulkan.UseQcomRenderPassTransform"),
-	GVulkanQcomRenderPassTransform,
-	TEXT("UseQcomRenderPassTransform\n"),
-	ECVF_ReadOnly
-);
-
 static int32 GVulkanUseASTCDecodeMode = 1;
 static FAutoConsoleVariableRef CVarVulkanUseASTCDecodeMode(
 	TEXT("r.Vulkan.UseASTCDecodeMode"),
@@ -477,19 +479,16 @@ void FVulkanAndroidPlatform::GetDeviceExtensions(FVulkanDevice* Device, FVulkanD
 		OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME, VULKAN_SUPPORTS_ASTC_DECODE_MODE, VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasEXTASTCDecodeMode)));
 	}
 	OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_EXT_TEXTURE_COMPRESSION_ASTC_HDR_EXTENSION_NAME, VULKAN_SUPPORTS_TEXTURE_COMPRESSION_ASTC_HDR, VK_API_VERSION_1_3, DEVICE_EXT_FLAG_SETTER(HasEXTTextureCompressionASTCHDR)));
-
-	if (GVulkanQcomRenderPassTransform)
-	{
-		OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_QCOM_RENDER_PASS_TRANSFORM_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED, VK_API_VERSION_1_3, DEVICE_EXT_FLAG_SETTER(HasQcomRenderPassTransform)));
-	}
+	OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME, VULKAN_EXTENSION_ENABLED));
+	OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME, VULKAN_SUPPORTS_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER, VULKAN_EXTENSION_NOT_PROMOTED, DEVICE_EXT_FLAG_SETTER(HasANDROIDExternalMemoryHardwareBuffer)));
 
 #if !UE_BUILD_SHIPPING
 	// Layer name as extension
 	OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, VULKAN_MALI_LAYER_NAME, VULKAN_EXTENSION_ENABLED, VULKAN_EXTENSION_NOT_PROMOTED));
 #endif
 
-#if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		// make sure any extensions swappy requires are included
 		for (const TArray<ANSICHAR>& SwappyRequiredExtension : SwappyRequiredExtensions)
@@ -502,7 +501,7 @@ void FVulkanAndroidPlatform::GetDeviceExtensions(FVulkanDevice* Device, FVulkanD
 			OutExtensions.Add(MakeUnique<FVulkanDeviceExtension>(Device, SwappyRequiredExtension.GetData(), VULKAN_EXTENSION_ENABLED, VULKAN_EXTENSION_NOT_PROMOTED));
 		}
 	}
-	#endif
+#endif
 
 }
 
@@ -534,8 +533,8 @@ void FVulkanAndroidPlatform::GetDeviceLayers(TArray<const ANSICHAR*>& OutLayers)
 
 void FVulkanAndroidPlatform::NotifyFoundDeviceLayersAndExtensions(VkPhysicalDevice PhysicalDevice, const TArray<const ANSICHAR*>& Layers, const TArray<const ANSICHAR*>& Extensions)
 {
-#if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		// Determine extensions required by Swappy
 		// We need to pass in vkEnumerateDeviceExtensionProperties directly so we cannot use the Extensions array as passed in.
@@ -599,8 +598,31 @@ void FVulkanAndroidPlatform::NotifyFoundDeviceLayersAndExtensions(VkPhysicalDevi
 
 bool FVulkanAndroidPlatform::SupportsTimestampRenderQueries()
 {
+	static const auto CVarAndroidSupportsTimestampQueries = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsTimestampQueries"));
+
 	// standalone devices have newer drivers where timestamp render queries work.
-	return (CVarVulkanSupportsTimestampQueries.GetValueOnAnyThread() == 1);
+	return CVarAndroidSupportsTimestampQueries != nullptr &&
+		CVarAndroidSupportsTimestampQueries->GetBool();
+}
+
+bool FVulkanAndroidPlatform::SupportsDynamicResolution()
+{
+	// separating render timestamp queries from dynres availability
+
+#if USE_ANDROID_VULKAN_SWAPPY
+	
+	static const auto CVarAndroidSupportsDynamicResolution = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsDynamicResolution"));
+	
+	return FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit &&
+		CVarAndroidSupportsDynamicResolution != nullptr &&
+		CVarAndroidSupportsDynamicResolution->GetBool(); // is supported
+
+#else // USE_ANDROID_VULKAN_SWAPPY
+
+	// defaulted to the previous code
+	return SupportsTimestampRenderQueries();
+
+#endif
 }
 
 void FVulkanAndroidPlatform::OverridePlatformHandlers(bool bInit)
@@ -626,14 +648,15 @@ bool FVulkanAndroidPlatform::FramePace(FVulkanDevice& Device, void* WindowHandle
 	bool bVsyncMultiple = (CachedSyncInterval != 0);
 	int32 CurrentFramePace = FAndroidPlatformRHIFramePacer::GetFramePace();
 
-#if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0 && CurrentFramePace != 0)
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit && CurrentFramePace != 0)
 	{
 		// cache refresh rate and sync interval
 		if (CurrentFramePace != CachedFramePace)
 		{
 			CachedFramePace = CurrentFramePace;
 			FramePacer->SupportsFramePaceInternal(CurrentFramePace, CachedRefreshRate, CachedSyncInterval);
+			SwappyVk_resetFramePacing(Swapchain);
 
 			if (CachedSyncInterval != 0)
 			{
@@ -669,8 +692,8 @@ bool FVulkanAndroidPlatform::FramePace(FVulkanDevice& Device, void* WindowHandle
 
 VkResult FVulkanAndroidPlatform::Present(VkQueue Queue, VkPresentInfoKHR& PresentInfo)
 {
-#if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		return SwappyVk_queuePresent(Queue, &PresentInfo);
 	}
@@ -687,8 +710,8 @@ VkResult FVulkanAndroidPlatform::CreateSwapchainKHR(void* WindowHandle, VkPhysic
 
 	if (Result == VK_SUCCESS)
 	{
-#if USE_ANDROID_SWAPPY
-		if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() !=0)
+#if USE_ANDROID_VULKAN_SWAPPY
+		if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 		{
 			JNIEnv* Env = FAndroidApplication::GetJavaEnv();
 			if (ensure(Env))
@@ -725,8 +748,8 @@ VkResult FVulkanAndroidPlatform::CreateSwapchainKHR(void* WindowHandle, VkPhysic
 
 void FVulkanAndroidPlatform::DestroySwapchainKHR(VkDevice Device, VkSwapchainKHR Swapchain, const VkAllocationCallbacks* Allocator)
 {
-#if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() != 0)
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		SwappyVk_destroySwapchain(Device, Swapchain);
 		UE_LOG(LogVulkanRHI, Log, TEXT("SwappyVk_destroySwapchain"));
@@ -936,7 +959,7 @@ void HandleDepthStencilAttachmentPNext(const VkAttachmentReference2* Attachment,
 	check(HandledCount == VkStructs.Num());
 }
 
-void PipelineToBinary(FVulkanDevice* Device, const VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArray<char>& MemoryStream)
+void PipelineToBinary(FVulkanDevice* Device, const VkGraphicsPipelineCreateInfo* PipelineInfo, const FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArray<char>& MemoryStream)
 {
 	static const unsigned int INITIAL_PSO_STREAM_SIZE = 64 * 1024;
 	MemoryStream.Reserve(INITIAL_PSO_STREAM_SIZE);
@@ -1348,7 +1371,13 @@ void PipelineToBinary(FVulkanDevice* Device, const VkGraphicsPipelineCreateInfo*
 #define CHECK_JNI_EXCEPTIONS(env)  if (env->ExceptionCheck()) {env->ExceptionDescribe();env->ExceptionClear();}
 #endif
 
-static bool GRemoteCompileServicesActive = false;
+namespace AndroidVulkanService
+{
+	std::atomic<bool> GRemoteCompileServicesStarted = false;
+	std::atomic<bool> GRemoteCompileServicesActive = false;
+	std::atomic<bool> bOneTimeErrorEncountered = false;
+	std::atomic<int> TotalErrors = 0;
+}
 
 struct FVKRemoteProgramCompileJNI
 {
@@ -1356,12 +1385,15 @@ struct FVKRemoteProgramCompileJNI
 	jmethodID DispatchPSOCompile = 0;
 	jmethodID DispatchPSOCompileShm = 0;
 	jmethodID StartRemoteProgramLink = 0;
+	jmethodID HaveServicesFailed = 0;
+	jmethodID AreProgramServicesReady = 0;	
 	jmethodID StopRemoteProgramLink = 0;
 	jclass ProgramResponseClass = 0;
 	jfieldID ProgramResponse_SuccessField = 0;
 	jfieldID ProgramResponse_ErrorField = 0;
 	jfieldID ProgramResponse_SHMOutputHandleField = 0;
 	jfieldID ProgramResponse_CompiledBinaryField = 0;
+	jfieldID ProgramResponse_CompilationDurationField = 0;
 	bool bAllFound = false;
 
 	void Init(JNIEnv* Env)
@@ -1384,11 +1416,15 @@ struct FVKRemoteProgramCompileJNI
 		CHECK_JNI_EXCEPTIONS(Env);
 		if (PSOServiceAccessor)
 		{
-			DispatchPSOCompile = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompile", "([B[B[B[B[BZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
+			DispatchPSOCompile = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompile", "([BJ[B[B[B[BZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
 			CHECK_JNI_EXCEPTIONS(Env);
-			DispatchPSOCompileShm = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompileShm", "([BIJJJJZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
+			DispatchPSOCompileShm = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_VKPSOGFXCompileShm", "([BJIJJJJZ)Lcom/epicgames/unreal/psoservices/PSOProgramServiceAccessor$JNIProgramLinkResponse;", false);
 			CHECK_JNI_EXCEPTIONS(Env);
 			StartRemoteProgramLink = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_StartRemoteProgramLink", "(IZZ)Z", false);
+			CHECK_JNI_EXCEPTIONS(Env);
+			HaveServicesFailed = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_HaveServicesFailed", "()Z", false);
+			CHECK_JNI_EXCEPTIONS(Env);
+			AreProgramServicesReady = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_AreProgramServicesReady", "()Z", false);
 			CHECK_JNI_EXCEPTIONS(Env);
 			StopRemoteProgramLink = FJavaWrapper::FindStaticMethod(Env, PSOServiceAccessor, "AndroidThunkJava_StopRemoteProgramLink", "()V", false);
 			CHECK_JNI_EXCEPTIONS(Env);
@@ -1402,9 +1438,11 @@ struct FVKRemoteProgramCompileJNI
 			CHECK_JNI_EXCEPTIONS(Env);
 			ProgramResponse_SHMOutputHandleField = FJavaWrapper::FindField(Env, ProgramResponseClass, "SHMOutputHandle", "I", true);
 			CHECK_JNI_EXCEPTIONS(Env);
+			ProgramResponse_CompilationDurationField = FJavaWrapper::FindField(Env, ProgramResponseClass, "CompilationDuration", "F", true);
+			CHECK_JNI_EXCEPTIONS(Env);
 		}
 
-		bAllFound = PSOServiceAccessor && DispatchPSOCompile && DispatchPSOCompileShm && StartRemoteProgramLink && StopRemoteProgramLink && ProgramResponseClass && ProgramResponse_SuccessField && ProgramResponse_CompiledBinaryField && ProgramResponse_ErrorField && ProgramResponse_SHMOutputHandleField;
+		bAllFound = PSOServiceAccessor && DispatchPSOCompile && DispatchPSOCompileShm && StartRemoteProgramLink && HaveServicesFailed && AreProgramServicesReady && StopRemoteProgramLink && ProgramResponseClass && ProgramResponse_SuccessField && ProgramResponse_CompiledBinaryField && ProgramResponse_ErrorField && ProgramResponse_SHMOutputHandleField && ProgramResponse_CompilationDurationField;
 		UE_CLOG(!bAllFound, LogRHI, Fatal, TEXT("Failed to find JNI Vulkan remote program compiler."));
 	}
 }VKRemoteProgramCompileJNI;
@@ -1427,57 +1465,88 @@ static bool AreAndroidVulkanRemoteCompileServicesAvailable()
 	return RemoteCompileService;
 }
 
-bool AreAndroidVulkanRemoteCompileServicesActive()
-{
-	return GRemoteCompileServicesActive && AreAndroidVulkanRemoteCompileServicesAvailable();
-}
-
 bool FVulkanAndroidPlatform::AreRemoteCompileServicesActive()
 {
-	return AreAndroidVulkanRemoteCompileServicesActive();
+	// The services could be stopped at any point elsewhere, the return value is not guaranteed to be correct.
+	// it does not need to be exact as the PSO service will reject any new requests after service stop has been encountered.
+	// any existing PSOservice jobs will complete as normal.
+	if (AndroidVulkanService::GRemoteCompileServicesStarted && AreAndroidVulkanRemoteCompileServicesAvailable())
+	{
+		if (!AndroidVulkanService::GRemoteCompileServicesActive)
+		{
+			JNIEnv* Env = FAndroidApplication::GetJavaEnv();
+			AndroidVulkanService::GRemoteCompileServicesActive = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.AreProgramServicesReady);
+			if (!AndroidVulkanService::GRemoteCompileServicesActive)
+			{
+				if ((bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.HaveServicesFailed))
+				{
+					UE_LOG(LogRHI, Error, TEXT("Remote compile services failed to start."));
+					StopRemoteCompileServices();
+				}
+			}
+			else
+			{
+				UE_LOG(LogRHI, Log, TEXT("Remote compile services are active."));
+			}
+		}
+		return AndroidVulkanService::GRemoteCompileServicesActive;
+	}
+	return false;
 }
 
-bool FVulkanAndroidPlatform::StartAndWaitForRemoteCompileServices(int NumServices)
+bool FVulkanAndroidPlatform::StartRemoteCompileServices(int NumServices)
 {
-	bool bResult = false;
 	JNIEnv* Env = FAndroidApplication::GetJavaEnv();
 	
 	VKRemoteProgramCompileJNI.Init(Env);
 
-	if (Env && AreAndroidVulkanRemoteCompileServicesAvailable())
+	if (Env && AreAndroidVulkanRemoteCompileServicesAvailable() && !AndroidVulkanService::GRemoteCompileServicesStarted)
 	{
-		bResult = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StartRemoteProgramLink, (jint)NumServices, /*bUseRobustEGLContext*/(jboolean)false, /*bUseVulkan*/(jboolean)true);
-		GRemoteCompileServicesActive = bResult;
+		AndroidVulkanService::GRemoteCompileServicesStarted = (bool)Env->CallStaticBooleanMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StartRemoteProgramLink, (jint)NumServices, /*bUseRobustEGLContext*/(jboolean)false, /*bUseVulkan*/(jboolean)true);
 	}
 
-	return bResult;
+	return AndroidVulkanService::GRemoteCompileServicesStarted;
 }
 
 void FVulkanAndroidPlatform::StopRemoteCompileServices()
 {
-	GRemoteCompileServicesActive = false;
-	JNIEnv* Env = FAndroidApplication::GetJavaEnv();
-
-	if (Env && ensure(AreAndroidVulkanRemoteCompileServicesAvailable()))
+	bool bExpected = true;
+	if(AndroidVulkanService::GRemoteCompileServicesStarted.compare_exchange_strong(bExpected, false) )
 	{
-		Env->CallStaticVoidMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StopRemoteProgramLink);
+		UE_LOG(LogVulkanRHI, Log, TEXT("Stopping Remote Compile Services"));
+		AndroidVulkanService::GRemoteCompileServicesActive = false;
+		JNIEnv* Env = FAndroidApplication::GetJavaEnv();
+
+		if (Env && ensure(AreAndroidVulkanRemoteCompileServicesAvailable()))
+		{
+			Env->CallStaticVoidMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.StopRemoteProgramLink);
+		}
 	}
 }
 
-namespace AndroidVulkanService
+VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(
+		FVulkanDevice* Device, 
+		const TArrayView<uint8> OptionalPSOCacheData, 
+		FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType,
+		const VkGraphicsPipelineCreateInfo* PipelineInfo, 
+		const FGfxPipelineDesc* GfxEntry, 
+		const FVulkanRenderTargetLayout* RTLayout, 
+		TArrayView<uint32_t> VS, 
+		TArrayView<uint32_t> PS, 
+		size_t& AfterSize,
+		FString* FailureMessageOUT
+	)
 {
-	std::atomic<bool> bOneTimeErrorEncountered = false;
-}
-
-VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, const TArrayView<uint8> OptionalPSOCacheData, const VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize)
-{
-	FString FailureMessageOUT;
-	
-	if (!AreAndroidVulkanRemoteCompileServicesActive())
+	if (!ensure(AreRemoteCompileServicesActive()))
 	{
 		return VK_NULL_HANDLE;
 	}
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_VulkanAndroid_PrecompilePSO);
+
+	auto SetFailureMessage = [FailureMessageOUT](FString&& Msg) { if (FailureMessageOUT) { *FailureMessageOUT = Msg; }};
+
+	VkPipelineCache ReturnPipelineCache = VK_NULL_HANDLE;
+	FPlatformDynamicRHI::FPSOServicePriInfo PriorityInfo(PSOCompileType);
 
 // 	FScopedDurationTimeLogger Timer(TEXT("FVulkanAndroidPlatform::PrecompilePSO"));
 
@@ -1540,7 +1609,7 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 					bool bEnableTimeOuts = !FPlatformMisc::IsDebuggerPresent();
 					{
 						QUICK_SCOPE_CYCLE_COUNTER(STAT_VulkanAndroid_PrecompilePSOJAVA);
-						ProgramResponseObj = NewScopedJavaObject(Env, Env->CallStaticObjectMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.DispatchPSOCompileShm, *ProgramKeyBuffer, SharedMemFD, VSSize, PSSize, PSOParamsSize, PreSuppliedCacheSize, bEnableTimeOuts));
+						ProgramResponseObj = NewScopedJavaObject(Env, Env->CallStaticObjectMethod(VKRemoteProgramCompileJNI.PSOServiceAccessor, VKRemoteProgramCompileJNI.DispatchPSOCompileShm, *ProgramKeyBuffer, PriorityInfo.GetPriorityInfo(), SharedMemFD, VSSize, PSSize, PSOParamsSize, PreSuppliedCacheSize, bEnableTimeOuts));
 					}
 					CHECK_JNI_EXCEPTIONS(Env);
 					munmap(SharedBuffer, memSize);
@@ -1570,6 +1639,8 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 			if (bSucceeded)
 			{
 				const int ProgramResultSharedHandle = Env->GetIntField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_SHMOutputHandleField);
+				const float ProgramResultCompilationDuration = Env->GetFloatField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_CompilationDurationField);
+				AccumulatePSOMetrics(ProgramResultCompilationDuration);
 				if(ensure(ProgramResultSharedHandle > -1))
 				{
 					const uint32 ResultMemSize = (uint32)ASharedMemory_getSize(ProgramResultSharedHandle);
@@ -1584,21 +1655,16 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 						{
 							QUICK_SCOPE_CYCLE_COUNTER(STAT_VulkanAndroid_PrecompilePSOCreateCache);
 							VkPipelineCacheCreateInfo PipelineCacheCreateInfo;
-							VkPipelineCache PipelineCache;
 							memset(&PipelineCacheCreateInfo, 0, sizeof(VkPipelineCacheCreateInfo));
 							PipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 							PipelineCacheCreateInfo.flags = 0;
 							PipelineCacheCreateInfo.pInitialData = ResultSharedBuffer + sizeof(ResultMemSize);
 							PipelineCacheCreateInfo.initialDataSize = ResultSize;
-							VERIFYVULKANRESULT(VulkanRHI::vkCreatePipelineCache(Device->GetInstanceHandle(), &PipelineCacheCreateInfo, VULKAN_CPU_ALLOCATOR, &PipelineCache));
+							VERIFYVULKANRESULT(VulkanRHI::vkCreatePipelineCache(Device->GetInstanceHandle(), &PipelineCacheCreateInfo, VULKAN_CPU_ALLOCATOR, &ReturnPipelineCache));
 							AfterSize = ResultSize - OptionalPSOCacheData.Num();
-
-							return PipelineCache;
 						}
 					}
 				}
-
- 				return VK_NULL_HANDLE;
 			}
 			else
 			{
@@ -1607,8 +1673,7 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 					FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("ec"));
 				}
 
-				FailureMessageOUT = FJavaHelper::FStringFromLocalRef(Env, (jstring)Env->GetObjectField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_ErrorField));
-				check(!FailureMessageOUT.IsEmpty());
+				SetFailureMessage( FJavaHelper::FStringFromLocalRef(Env, (jstring)Env->GetObjectField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_ErrorField)));
 			}
 		}
 		else
@@ -1617,13 +1682,46 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(FVulkanDevice* Device, con
 			{
 				FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("es"));
 			}
-			FailureMessageOUT = TEXT("Remote compiler failed.");
+			SetFailureMessage(TEXT("Remote PSO compiler failed."));
 		}
 	}
+	else
+	{
+		if (AndroidVulkanService::bOneTimeErrorEncountered.exchange(true) == false)
+		{
+			FGenericCrashContext::SetEngineData(TEXT("Android.PSOService"), TEXT("ejni"));
+		}
+		SetFailureMessage(TEXT("Remote PSO compiler JNI error."));
+	}
 
-	return VK_NULL_HANDLE;
+	if (ReturnPipelineCache == VK_NULL_HANDLE)
+	{
+		if ((AndroidVulkanService::TotalErrors++) == FPlatformDynamicRHI::GetPSOServiceFailureThreshold())
+		{
+			FVulkanAndroidPlatform::StopRemoteCompileServices();
+			SetFailureMessage(TEXT("Remote PSO compiler failed, error count has passed threshold. Future compiles will be in-process."));
+		}
+	}
+	return ReturnPipelineCache;
 }
 
+void FAndroidVulkanFramePacer::Init()
+{
+#if USE_ANDROID_VULKAN_SWAPPY
+	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() != 0)
+	{
+		FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit = true;
+		extern void LoadSwappy();
+		LoadSwappy();
+	}
+#if !UE_BUILD_SHIPPING
+	FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		UE_LOG(LogRHI, Warning, TEXT("In Vulkan mode, changing a.UseSwappyForFramePacing after the RHI is initialized has no effect. Swappy is %s."), FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit ? TEXT("Enabledd") : TEXT("Disabled"));
+	}));
+#endif
+#endif
+}
 
 bool FAndroidVulkanFramePacer::SupportsFramePace(int32 QueryFramePace)
 {
@@ -1642,7 +1740,7 @@ void FVulkanAndroidPlatform::PostInitGPU(const FVulkanDevice& InDevice)
 	static const auto CVarVulkanPSOPrecaching = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Vulkan.AllowPSOPrecaching"));	
 	if (CVarNumRemoteProgramCompileServices->GetInt() && CVarChunkedPSOCache->GetInt() && CVarPSOPrecaching->GetInt() && CVarVulkanPSOPrecaching->GetInt())
 	{
-		FVulkanAndroidPlatform::StartAndWaitForRemoteCompileServices(CVarNumRemoteProgramCompileServices->GetInt());
+		FVulkanAndroidPlatform::StartRemoteCompileServices(CVarNumRemoteProgramCompileServices->GetInt());
 	}
 }
 
@@ -1799,4 +1897,11 @@ FString FVulkanAndroidPlatform::GetVulkanProfileNameForFeatureLevel(ERHIFeatureL
 		ProfileName += TEXT("_RT");
 	}
 	return ProfileName;
+} 
+
+void FVulkanAndroidPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
+{
+	ensure(Entries.Num() <= GMaxCrashBufferEntries);
+
+	WriteCrashMarkerWithoutExtensions(CmdBuffer, DestBuffer, Entries, bAdding);
 }

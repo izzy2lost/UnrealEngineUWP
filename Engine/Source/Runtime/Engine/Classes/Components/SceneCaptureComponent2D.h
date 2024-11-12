@@ -50,6 +50,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1 && bUpdateOrthoPlanes"))
 	bool bUseCameraHeightAsViewTarget;
 
+	/** Amount to increase the view frustum by, from 0.0 for no increase to 1.0 for 100% increase */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Projection, meta = (UIMin="0.0", ClampMin="0.0", UIMax="1.0", ClampMax="1.0"))
+	float Overscan;
+	
 	/** Output render target of the scene capture that can be read in materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)
 	TObjectPtr<class UTextureRenderTarget2D> TextureTarget;
@@ -113,8 +117,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=SceneCapture)
 	FVector ClipPlaneNormal;
 	
-	/** Render scene capture as additional render passes of the main renderer rather than as an independent renderer. Can only apply to scene depth and device depth modes. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = SceneCapture, meta = (EditCondition = "CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureSource == ESceneCaptureSource::SCS_DeviceDepth"))
+	/** Render scene capture as additional render passes of the main renderer rather than as an independent renderer. Applies to scene depth, device depth, base color, and normal modes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo, meta = (EditCondition = "CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureSource == ESceneCaptureSource::SCS_DeviceDepth || CaptureSource == ESceneCaptureSource::SCS_BaseColor || CaptureSource == ESceneCaptureSource::SCS_Normal"))
 	bool bRenderInMainRenderer = false;
 
 	/** 
@@ -129,11 +133,72 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SceneCapture, meta = (DisplayName = "Fog only on rendered pixels"))
 	uint32 bConsiderUnrenderedOpaquePixelAsFullyTranslucent : 1;
 
+	/** Render with main view family (where bIsMainViewFamily == true) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo)
+	uint32 bMainViewFamily : 1;
+
+	/** Render with main view resolution, ignoring the dimensions in the resource.  Enables Main View Family. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PassInfo)
+	uint32 bMainViewResolution : 1;
+
+	/** Render with main view camera.  Enables Main View Family and Resolution.  Temporal AA jitter is matched with main view. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo)
+	uint32 bMainViewCamera : 1;
+
+	/** When rendering with main view resolution, ignore screen percentage scale and render at full resolution.  Temporal AA jitter is also disabled. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PassInfo)
+	uint32 bIgnoreScreenPercentage : 1;
+
+	/** Divisor when rendering at Main View Resolution. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo, meta = (EditCondition = "bMainViewResolution || bMainViewCamera"))
+	FIntPoint MainViewResolutionDivisor = { 1, 1 };
+
+	/** Expose BaseColor as a UserSceneTexture.  Requires "Render In Main Renderer".  Enables Main View Family and Resolution, disables "Ignore Screen Percentage".  Useful to get multiple outputs from a Custom Render Pass. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo, meta = (EditCondition = "bRenderInMainRenderer && (CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureSource == ESceneCaptureSource::SCS_DeviceDepth || CaptureSource == ESceneCaptureSource::SCS_BaseColor || CaptureSource == ESceneCaptureSource::SCS_Normal)"))
+	FName UserSceneTextureBaseColor;
+
+	/** Expose Normal as a UserSceneTexture.  Requires "Render In Main Renderer".  Enables Main View Family and Resolution, disables "Ignore Screen Percentage".  Useful to get multiple outputs from a Custom Render Pass. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo, meta = (EditCondition = "bRenderInMainRenderer && (CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureSource == ESceneCaptureSource::SCS_DeviceDepth || CaptureSource == ESceneCaptureSource::SCS_BaseColor || CaptureSource == ESceneCaptureSource::SCS_Normal)"))
+	FName UserSceneTextureNormal;
+
+	/** Expose SceneColor (emissive/unlit) as a UserSceneTexture.  Requires "Render In Main Renderer".  Enables Main View Family and Resolution, disables "Ignore Screen Percentage".  Useful to get multiple outputs from a Custom Render Pass. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PassInfo, meta = (EditCondition = "bRenderInMainRenderer && (CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureSource == ESceneCaptureSource::SCS_DeviceDepth || CaptureSource == ESceneCaptureSource::SCS_BaseColor || CaptureSource == ESceneCaptureSource::SCS_Normal)"))
+	FName UserSceneTextureSceneColor;
+
+	inline bool ShouldRenderInMainRenderer() const
+	{
+		return bRenderInMainRenderer && (CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureSource == ESceneCaptureSource::SCS_DeviceDepth || CaptureSource == ESceneCaptureSource::SCS_BaseColor || CaptureSource == ESceneCaptureSource::SCS_Normal);
+	}
+
+	inline bool ShouldRenderWithMainViewResolution() const
+	{
+		return bMainViewResolution || bMainViewCamera || (ShouldRenderInMainRenderer() && (!UserSceneTextureBaseColor.IsNone() || !UserSceneTextureNormal.IsNone() || !UserSceneTextureSceneColor.IsNone()));
+	}
+
+	inline bool ShouldRenderWithMainViewFamily() const
+	{
+		return bMainViewFamily || ShouldRenderWithMainViewResolution();
+	}
+
+	inline bool ShouldRenderWithMainViewCamera() const
+	{
+		return bMainViewCamera;
+	}
+
+	inline bool ShouldIgnoreScreenPercentage() const
+	{
+		// User Scene Texture outputs are always in the scaled view resolution, so ignore the bIgnoreScreenPercentage flag if either is set
+		return ShouldRenderInMainRenderer() ? bIgnoreScreenPercentage && UserSceneTextureBaseColor.IsNone() && UserSceneTextureNormal.IsNone() && UserSceneTextureSceneColor.IsNone() : bIgnoreScreenPercentage;
+	}
+
 	/** Array of scene view extensions specifically to apply to this scene capture */
 	TArray< TWeakPtr<ISceneViewExtension, ESPMode::ThreadSafe> > SceneViewExtensions;
 
 	/** Which tile to render of the orthographic view (ignored in Perspective mode) */
 	int32 TileID = 0;
+
+	/** Transient pointer set during calls to UpdateSceneCaptureContents from UpdateDeferredCaptures */
+	const FSceneViewFamily* MainViewFamily = nullptr;
 
 	//~ Begin UActorComponent Interface
 	ENGINE_API virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
@@ -201,6 +266,9 @@ public:
 
 	/* Return number of Y tiles to render (to be used when orthographic tiling rendering is enabled) */
 	ENGINE_API int32 GetNumYTiles() const;
+
+	/** Whether this component is a USceneCaptureComponent2D */
+	virtual bool Is2D() const override { return true; }
 
 #if WITH_EDITORONLY_DATA
 	ENGINE_API void UpdateDrawFrustum();

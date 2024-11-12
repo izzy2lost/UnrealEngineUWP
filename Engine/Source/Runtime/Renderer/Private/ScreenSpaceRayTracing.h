@@ -117,4 +117,6 @@ void SetupCommonScreenSpaceRayParameters(
 	const FViewInfo& View,
 	FCommonScreenSpaceRayParameters* OutParameters);
 
+FLinearColor ComputeSSRParams(const FViewInfo& View, ESSRQuality SSRQuality, bool bEnableDiscard);
+
 } // namespace ScreenSpaceRayTracing

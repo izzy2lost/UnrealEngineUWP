@@ -5,6 +5,7 @@
 #include "AnimationRuntime.h"
 #include "AnimEncoding.h"
 #include "Animation/AnimSequenceHelpers.h"
+#include "AutoRTFM/AutoRTFM.h"
 #if INTEL_ISPC
 #include "BonePose.ispc.generated.h"
 
@@ -29,7 +30,15 @@ void FCompactPose::NormalizeRotations()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		ispc::NormalizeRotations((ispc::FTransform*)this->Bones.GetData(), this->Bones.Num());
+		UE_AUTORTFM_OPEN
+		{
+			AutoRTFM::RecordOpenWrite(
+				this->Bones.GetData(),
+				this->Bones.Num() * sizeof(FTransform));
+			ispc::NormalizeRotations(
+				reinterpret_cast<ispc::FTransform*>(this->Bones.GetData()), 
+				this->Bones.Num());
+		};
 #endif
 	}
 	else
@@ -47,7 +56,15 @@ void FCompactPose::ResetToAdditiveIdentity()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		ispc::ResetToAdditiveIdentity((ispc::FTransform*)this->Bones.GetData(), this->Bones.Num());
+		UE_AUTORTFM_OPEN
+		{
+			AutoRTFM::RecordOpenWrite(
+				this->Bones.GetData(),
+				this->Bones.Num() * sizeof(FTransform));
+			ispc::ResetToAdditiveIdentity(
+				reinterpret_cast<ispc::FTransform*>(this->Bones.GetData()),
+				this->Bones.Num());
+		};
 #endif
 	}
 	else
@@ -65,7 +82,15 @@ void FCompactHeapPose::NormalizeRotations()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		ispc::NormalizeRotations((ispc::FTransform*)this->Bones.GetData(), this->Bones.Num());
+		UE_AUTORTFM_OPEN
+		{
+			AutoRTFM::RecordOpenWrite(
+				this->Bones.GetData(),
+				this->Bones.Num() * sizeof(FTransform));
+			ispc::NormalizeRotations(
+				reinterpret_cast<ispc::FTransform*>(this->Bones.GetData()),
+				this->Bones.Num());
+		};
 #endif
 	}
 	else
@@ -83,7 +108,15 @@ void FCompactHeapPose::ResetToAdditiveIdentity()
 	if (bAnim_BonePose_ISPC_Enabled)
 	{
 #if INTEL_ISPC
-		ispc::ResetToAdditiveIdentity((ispc::FTransform*)this->Bones.GetData(), this->Bones.Num());
+		UE_AUTORTFM_OPEN
+		{
+			AutoRTFM::RecordOpenWrite(
+				this->Bones.GetData(),
+				this->Bones.Num() * sizeof(FTransform));
+			ispc::ResetToAdditiveIdentity(
+				reinterpret_cast<ispc::FTransform*>(this->Bones.GetData()),
+				this->Bones.Num());
+		};
 #endif
 	}
 	else
@@ -188,7 +221,7 @@ void BuildPoseFromRawDataInternal(const TArray<FRawAnimSequenceTrack>& InAnimati
 					if (PoseBoneIndex == VB.VBIndex)
 					{
 						// Remove this bone as we have written data for it
-						VBCompactPoseData.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+						VBCompactPoseData.RemoveAtSwap(Idx, EAllowShrinking::No);
 						break; //Modified TArray so must break here
 					}
 				}

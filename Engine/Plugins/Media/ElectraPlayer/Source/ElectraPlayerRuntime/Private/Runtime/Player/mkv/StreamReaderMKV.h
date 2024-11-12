@@ -35,8 +35,8 @@ public:
 	void GetRequestedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutRequestedStreams) override;
 	void GetEndedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutAlreadyEndedStreams) override;
 
-	//! Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
 	FTimeValue GetFirstPTS() const override;
+	FTimeRange GetTimeRange() const override;
 
 	int32 GetQualityIndex() const override;
 	int32 GetBitrate() const override;
@@ -103,7 +103,7 @@ public:
 /**
  * This class implements an interface to read from an mkv/webm file.
  */
-class FStreamReaderMKV : public IStreamReader, public FMediaThread, public IParserMKV::IReader
+class FStreamReaderMKV : public IStreamReader, public FMediaThread, IGenericDataReader
 {
 public:
 	FStreamReaderMKV() = default;
@@ -114,11 +114,12 @@ public:
 	void CancelRequest(EStreamType StreamType, bool bSilent) override;
 	void CancelRequests() override;
 
-	// Methods from IParserMKV::IReader
-	int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override;
-	int64 MKVGetCurrentFileOffset() const override;
-	int64 MKVGetTotalSize() override;
-	bool MKVHasReadBeenAborted() const override;
+	// Methods from IGenericDataReader
+	int64 ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override;
+	int64 GetCurrentOffset() const override;
+	int64 GetTotalSize() const override;
+	bool HasReadBeenAborted() const override;
+	bool HasReachedEOF() const override;
 
 private:
 	void WorkerThread();
@@ -187,10 +188,10 @@ private:
 		void Abort()
 		{
 			bAbort = true;
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> Buffer = ReceiveBuffer;
+			TSharedPtrTS<FWaitableBuffer> Buffer = ReceiveBuffer;
 			if (Buffer.IsValid())
 			{
-				Buffer->Buffer.Abort();
+				Buffer->Abort();
 			}
 		}
 		void SetHasErrored()
@@ -198,7 +199,7 @@ private:
 			bHasErrored = true;
 		}
 		int32 ReadTo(void* ToBuffer, int64 NumBytes);
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ReceiveBuffer;
+		TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 		int64 StartOffset = 0;
 		int64 EndOffset = 0;
 		int64 CurrentOffset = 0;

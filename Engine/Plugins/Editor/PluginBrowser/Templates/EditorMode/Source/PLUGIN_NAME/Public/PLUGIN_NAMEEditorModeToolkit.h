@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Toolkits/BaseToolkit.h"
 #include "PLUGIN_NAMEEditorMode.h"
 

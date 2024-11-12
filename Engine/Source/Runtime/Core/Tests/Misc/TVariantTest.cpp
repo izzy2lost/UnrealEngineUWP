@@ -31,6 +31,14 @@ namespace UE::Core::Private
 	static_assert(TVariantSize_V<const TVariant<int, float>&>  == 0, "Expected TVariantSize_V<const TVariant&> to be 0");
 	static_assert(TVariantSize_V<      TVariant<int, float>&&> == 0, "Expected TVariantSize_V<TVariant&&> to be 0");
 	static_assert(TVariantSize_V<      bool>                   == 0, "Expected TVariantSize_V<non-TVariant> to be 0");
+
+	// Ensure that TVariant has a trivial destructor if all the types are
+	static_assert( std::is_trivially_destructible_v<TVariant<int>>);
+	static_assert( std::is_trivially_destructible_v<TVariant<int, FVector>>);
+	static_assert( std::is_trivially_destructible_v<TVariant<int, FVector, FBox>>);
+	static_assert(!std::is_trivially_destructible_v<TVariant<FString>>);
+	static_assert(!std::is_trivially_destructible_v<TVariant<int, FString>>);
+	static_assert(!std::is_trivially_destructible_v<TVariant<int, FVector, FString>>);
 } // namespace UE::Core::Private
 
 struct FNonDefaultConstructible

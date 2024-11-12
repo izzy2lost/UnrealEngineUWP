@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common/TargetPlatformControlsBase.h"
 #include "Interfaces/IProjectBuildMutatorFeature.h"
@@ -10,14 +11,36 @@
 #include "DeviceBrowserDefaultPlatformWidgetCreator.h"
 #include "Features/IModularFeatures.h"
 #include "Misc/App.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "TargetPlatform"
 
 void FTargetPlatformControlsBase::GetPlatformSpecificProjectAnalytics(TArray<FAnalyticsEventAttribute>& AnalyticsParamArray) const
 {
+	static IConsoleVariable* CVarDesktopForwardShading = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ForwardShading"));
+	const bool bRForwardShading = CVarDesktopForwardShading ? (CVarDesktopForwardShading->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarMobileHdr = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MobileHDR"));
+	const bool bRMobileHdr = CVarMobileHdr ? (CVarMobileHdr->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarInstancedStereo = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.InstancedStereo"));
+	const bool bVrInstancedStereo = CVarInstancedStereo ? (CVarInstancedStereo->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarMobileMultiView = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.MobileMultiView"));
+	const bool bVrMobileMultiView = CVarMobileMultiView ? (CVarMobileMultiView->GetInt() != 0) : false;
+
+	static IConsoleVariable* CVarAllowStaticLighting = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AllowStaticLighting"));
+	const bool bRAllowStaticLighting = CVarAllowStaticLighting ? (CVarAllowStaticLighting->GetInt() != 0) : false;
+
 	AppendAnalyticsEventAttributeArray(AnalyticsParamArray,
 		TEXT("UsesDistanceFields"), TargetPlatformSettings->UsesDistanceFields(),
-		TEXT("UsesForwardShading"), TargetPlatformSettings->UsesForwardShading()
+		TEXT("UsesForwardShading"), TargetPlatformSettings->UsesForwardShading(),
+		// TP settings sometimes take value from r.ForwardShading, but some platforms have their own settings, hence adding 
+		TEXT("RForwardShading"), bRForwardShading,
+		TEXT("RMobileHdr"), bRMobileHdr,
+		TEXT("VrInstancedStereo"), bVrInstancedStereo,
+		TEXT("VrMobileMultiView"), bVrMobileMultiView,
+		TEXT("RAllowStaticLighting"), bRAllowStaticLighting
 	);
 }
 
@@ -259,7 +282,7 @@ FTargetPlatformControlsBase::FTargetPlatformControlsBase(const PlatformInfo::FTa
 	: ITargetPlatformControls(TargetPlatformSettings)
 	, PlatformInfo(InPlatformInfo)
 {
-	checkf(PlatformInfo, TEXT("Null PlatformInfo was passed to FTargetPlatformBase. Check the static IsUsable function before creating this object. See FWindowsTargetPlatformModule::GetTargetPlatform()"));
+	checkf(PlatformInfo, TEXT("Null PlatformInfo was passed to FTargetPlatformControlsBase. Check the static IsUsable function before creating this object. See FWindowsTargetPlatformModule::GetTargetPlatform()"));
 
 	PlatformOrdinal = AssignPlatformOrdinal(*this);
 
@@ -292,6 +315,30 @@ void FTargetPlatformControlsBase::GetAllWaveFormats(TArray<FName>& OutFormats) c
 void FTargetPlatformControlsBase::GetWaveFormatModuleHints(TArray<FName>& OutModuleNames) const
 {
 	GetAudioFormatSettings().GetWaveFormatModuleHints(OutModuleNames);
+}
+
+/* static */ void FTargetPlatformControlsBase::GetTextureSizeLimitsDefault(FConfigCacheIni* ConfigSystem,uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes)
+{
+	OutMaximumSurfaceBytes = 1ULL << 31; // 2 GB
+	//OutMaximumPackageBytes = 1ULL << 32; // 4 GB  seems to work on some platforms
+	OutMaximumPackageBytes = 1ULL << 31; // 2 GB
+
+	#if 0
+	// for stress testing
+	OutMaximumSurfaceBytes = 32 * 1024 * 1024;
+	OutMaximumPackageBytes = OutMaximumSurfaceBytes * 2;
+	#endif
+
+	int64 MaxChunkSize = 0;
+	if ( ConfigSystem->GetInt64(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("MaxChunkSize"), MaxChunkSize, GGameIni) &&
+		MaxChunkSize != 0 )
+	{
+		check( MaxChunkSize > 0 );
+
+		OutMaximumPackageBytes = FMath::Min<uint64>(OutMaximumPackageBytes,MaxChunkSize);
+	}
+
+	OutMaximumSurfaceBytes = FMath::Min<uint64>(OutMaximumSurfaceBytes,OutMaximumPackageBytes);
 }
 
 #endif // WITH_ENGINE

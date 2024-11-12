@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+
 //#define NIAGARA_NAN_CHECKING 1
 #define NIAGARA_NAN_CHECKING 0
 

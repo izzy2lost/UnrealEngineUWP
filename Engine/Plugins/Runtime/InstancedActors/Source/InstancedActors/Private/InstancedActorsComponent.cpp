@@ -4,8 +4,10 @@
 #include "InstancedActorsManager.h"
 #include "InstancedActorsData.h"
 #include "ServerInstancedActorsSpawnerSubsystem.h"
-
+#include "InstancedActorsSettings.h"
 #include "Net/UnrealNetwork.h"
+#include "Engine/World.h"
+
 
 UInstancedActorsComponent::UInstancedActorsComponent()
 {
@@ -18,11 +20,6 @@ void UInstancedActorsComponent::OnServerPreSpawnInitForInstance(FInstancedActors
 }
 
 void UInstancedActorsComponent::InitializeComponentForInstance(FInstancedActorsInstanceHandle InInstanceHandle)
-{
-	InstanceHandle = InInstanceHandle;
-}
-
-void UInstancedActorsComponent::OnClientRegisteredForInstance(FInstancedActorsInstanceHandle InInstanceHandle)
 {
 	InstanceHandle = InInstanceHandle;
 }
@@ -53,7 +50,7 @@ void UInstancedActorsComponent::InitializeComponent()
 	UWorld* World = GetWorld();
 	if (World && World->GetNetMode() == NM_DedicatedServer)
 	{
-		UServerInstancedActorsSpawnerSubsystem* ServerInstancedActorSpawnerSubystem = World->GetSubsystem<UServerInstancedActorsSpawnerSubsystem>();
+		UServerInstancedActorsSpawnerSubsystem* ServerInstancedActorSpawnerSubystem = UE::InstancedActors::Utils::GetServerInstancedActorsSpawnerSubsystem(*World);
 		if (IsValid(ServerInstancedActorSpawnerSubystem))
 		{
 			ServerInstancedActorSpawnerSubystem->OnInstancedActorComponentInitialize(*this);

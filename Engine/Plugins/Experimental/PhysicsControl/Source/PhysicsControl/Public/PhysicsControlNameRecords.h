@@ -52,4 +52,4 @@ struct FPhysicsControlNameRecords
 
 /** Returns a copy of the supplied list of names in which any names that match keys in the supplied 'Sets' map are replaced with all the names in the array associated with that key. */
 PHYSICSCONTROL_API TArray<FName> ExpandName(const FName InName, const TMap<FName, TArray<FName>>& Sets);
-PHYSICSCONTROL_API TArray<FName> ExpandName(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& Sets);
+PHYSICSCONTROL_API TArray<FName> ExpandNames(const TArray<FName>& InNames, const TMap<FName, TArray<FName>>& Sets);

@@ -13,11 +13,12 @@
 #include "LightMap.h"
 #include "LightSceneProxy.h"
 #include "ShadowMap.h"
+#include "RayTracingInstance.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "TextureResource.h"
 #include "VT/LightmapVirtualTexture.h"
 #include "UnrealEngine.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "StaticMeshBatch.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
@@ -334,20 +335,60 @@ FMeshBatchAndRelevance::FMeshBatchAndRelevance(const FMeshBatch& InMesh, const F
 	Mesh(&InMesh),
 	PrimitiveSceneProxy(InPrimitiveSceneProxy)
 {
-	const FMaterial& Material = InMesh.MaterialRenderProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
-	bHasOpaqueMaterial = IsOpaqueBlendMode(Material);
-	bHasMaskedMaterial = IsMaskedBlendMode(Material);
-	bRenderInMainPass = PrimitiveSceneProxy->ShouldRenderInMainPass();
+	if (InMesh.MaterialRenderProxy)
+	{
+		const FMaterial& Material = InMesh.MaterialRenderProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
+		bHasOpaqueMaterial = IsOpaqueBlendMode(Material);
+		bHasMaskedMaterial = IsMaskedBlendMode(Material);
+	}
+	else
+	{
+		bHasOpaqueMaterial = false;
+		bHasMaskedMaterial = false;
+	}
+
+	bRenderInMainPass = PrimitiveSceneProxy ? PrimitiveSceneProxy->ShouldRenderInMainPass() : false;
 }
 
 #if RHI_RAYTRACING
 
+FRayTracingInstanceCollector::FRayTracingInstanceCollector(
+	ERHIFeatureLevel::Type InFeatureLevel,
+	FSceneRenderingBulkObjectAllocator& InBulkAllocator,
+	const FSceneView* InReferenceView,
+	bool bInTrackReferencedGeometryGroups)
+	: FMeshElementCollector(InFeatureLevel, InBulkAllocator, FMeshElementCollector::ECommitFlags::DeferAll)
+	, ReferenceView(InReferenceView)
+	, bTrackReferencedGeometryGroups(bInTrackReferencedGeometryGroups)
+{
+}
+
+void FRayTracingInstanceCollector::AddRayTracingInstance(FRayTracingInstance Instance)
+{
+	RayTracingInstances.Add(MoveTemp(Instance));
+}
+
+void FRayTracingInstanceCollector::AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup)
+{
+	if (bTrackReferencedGeometryGroups)
+	{
+		ReferencedGeometryGroups.Add(GeometryGroup);
+	}
+}
+
+void FRayTracingInstanceCollector::AddRayTracingGeometryUpdate(FRayTracingDynamicGeometryUpdateParams Params)
+{
+	RayTracingGeometriesToUpdate.Add(MoveTemp(Params));
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	const FScene* InScene,
 	const FSceneView* InReferenceView,
 	const FSceneViewFamily& InReferenceViewFamily,
 	FRDGBuilder& InGraphBuilder,
 	FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+	FGPUScenePrimitiveCollector& InDynamicPrimitiveCollector,
 	FGlobalDynamicReadBuffer& InDynamicReadBuffer)
 	: Scene(InScene)
 	, ReferenceView(InReferenceView)
@@ -358,8 +399,19 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	, DynamicVertexBuffer(GraphBuilder.RHICmdList)
 	, DynamicIndexBuffer(GraphBuilder.RHICmdList)
 	, DynamicReadBuffer(InDynamicReadBuffer)
+	, bUsingReferenceBasedResidency(IsRayTracingUsingReferenceBasedResidency())
 {
 	RayTracingMeshResourceCollector.Start(RHICmdList, DynamicVertexBuffer, DynamicIndexBuffer, DynamicReadBuffer);
+
+	RayTracingMeshResourceCollector.AddViewMeshArrays(
+		ReferenceView,
+		nullptr,
+		nullptr,
+		&InDynamicPrimitiveCollector
+#if UE_ENABLE_DEBUG_DRAWING
+		, nullptr
+#endif
+	);
 }
 
 FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
@@ -368,6 +420,30 @@ FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
 	DynamicReadBuffer.Commit(GraphBuilder.RHICmdList);
 }
 
+void FRayTracingMaterialGatheringContext::SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy)
+{
+	RayTracingMeshResourceCollector.SetPrimitive(InPrimitiveSceneProxy, FHitProxyId::InvisibleHitProxyId);
+}
+
+void FRayTracingMaterialGatheringContext::Reset()
+{
+	DynamicRayTracingGeometriesToUpdate.Reset();
+	ReferencedGeometryGroups.Reset();
+}
+
+void FRayTracingMaterialGatheringContext::AddReferencedGeometryGroup(RayTracing::GeometryGroupHandle GeometryGroup)
+{
+	if (bUsingReferenceBasedResidency)
+	{
+		ReferencedGeometryGroups.Add(GeometryGroup);
+	}
+}
+
+const TSet<RayTracing::GeometryGroupHandle>& FRayTracingMaterialGatheringContext::GetReferencedGeometryGroups() const
+{
+	return ReferencedGeometryGroups;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 
 FMeshElementCollector::FMeshElementCollector(ERHIFeatureLevel::Type InFeatureLevel, FSceneRenderingBulkObjectAllocator& InBulkAllocator, ECommitFlags InCommitFlags) :
@@ -396,7 +472,10 @@ void FMeshElementCollector::SetPrimitive(const FPrimitiveSceneProxy* InPrimitive
 
 	for (int32 ViewIndex = 0; ViewIndex < SimpleElementCollectors.Num(); ViewIndex++)
 	{
-		SimpleElementCollectors[ViewIndex]->HitProxyId = DefaultHitProxyId;
+		if (SimpleElementCollectors[ViewIndex])
+		{
+			SimpleElementCollectors[ViewIndex]->HitProxyId = DefaultHitProxyId;
+		}
 	}
 
 	for (int32 ViewIndex = 0; ViewIndex < MeshIdInPrimitivePerView.Num(); ++ViewIndex)
@@ -567,7 +646,10 @@ void FMeshElementCollector::AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch)
 
 	NumMeshBatchElementsPerView[ViewIndex] += MeshBatch.Elements.Num();
 
-	MeshBatches[ViewIndex]->Emplace(MeshBatch, PrimitiveSceneProxy, FeatureLevel);
+	if (MeshBatches[ViewIndex])
+	{
+		MeshBatches[ViewIndex]->Emplace(MeshBatch, PrimitiveSceneProxy, FeatureLevel);
+	}
 }
 
 FDynamicPrimitiveUniformBuffer::FDynamicPrimitiveUniformBuffer() = default;
@@ -1158,8 +1240,8 @@ FViewUniformShaderParameters::FViewUniformShaderParameters()
 	SkyViewLutTexture = GBlackTexture->TextureRHI;
 	SkyViewLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
-	DistantSkyLightLutTexture = GBlackTexture->TextureRHI;
-	DistantSkyLightLutTextureSampler = TStaticSamplerState<SF_Point, AM_Wrap, AM_Wrap>::GetRHI();
+	DistantSkyLightLutBufferSRV = GBlackFloat4StructuredBufferWithSRV->ShaderResourceViewRHI;
+	MobileDistantSkyLightLutBufferSRV = GBlackFloat4VertexBufferWithSRV->ShaderResourceViewRHI;
 
 	CameraAerialPerspectiveVolume = GBlackAlpha1VolumeTexture->TextureRHI;
 	CameraAerialPerspectiveVolumeSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
@@ -1208,9 +1290,9 @@ FViewUniformShaderParameters::FViewUniformShaderParameters()
 
 	// SimpleVolume
 	SimpleVolumeTexture = GBlackVolumeTexture->TextureRHI;
-	SimpleVolumeTextureSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	SimpleVolumeTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	SimpleVolumeEnvTexture = GBlackVolumeTexture->TextureRHI;
-	SimpleVolumeEnvTextureSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	SimpleVolumeEnvTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 	// Rect light atlas
 	RectLightAtlasMaxMipLevel = 1;

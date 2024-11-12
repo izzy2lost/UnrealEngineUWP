@@ -19,11 +19,14 @@ FName FRigVMEdGraphPanelNodeFactory::GetFactoryName() const
 TSharedPtr<SGraphNode> FRigVMEdGraphPanelNodeFactory::CreateNode(UEdGraphNode* Node) const
 {
 	// we need to check if this is the right factory for the implementation
-	if(const URigVMBlueprint* Blueprint = Node->GetTypedOuter<URigVMBlueprint>())
+	if(const URigVMEdGraph* EdGraph = Node->GetTypedOuter<URigVMEdGraph>())
 	{
-		if(Blueprint->GetPanelNodeFactoryName() != GetFactoryName())
+		if(const URigVMBlueprint* Blueprint = EdGraph->GetBlueprintDefaultObject())
 		{
-			return nullptr;
+			if(Blueprint->GetPanelNodeFactoryName() != GetFactoryName())
+			{
+				return nullptr;
+			}
 		}
 	}
 
@@ -47,13 +50,16 @@ TSharedPtr<SGraphNode> FRigVMEdGraphPanelNodeFactory::CreateNode(UEdGraphNode* N
 	
 	if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(Node))
 	{
-		if (CommentNode->GetSchema()->IsA(URigVMEdGraphSchema::StaticClass()))
+		if (const UEdGraphSchema* Schema = CommentNode->GetSchema())
 		{
-			TSharedRef<SGraphNode> GraphNode =
-				SNew(SRigVMGraphNodeComment, CommentNode);
+			if (Schema->IsA(URigVMEdGraphSchema::StaticClass()))
+			{
+				TSharedRef<SGraphNode> GraphNode =
+					SNew(SRigVMGraphNodeComment, CommentNode);
 
-			GraphNode->SlatePrepass();
-			return GraphNode;
+				GraphNode->SlatePrepass();
+				return GraphNode;
+			}
 		}
 	}
 

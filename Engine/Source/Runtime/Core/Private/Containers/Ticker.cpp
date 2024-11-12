@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Containers/Ticker.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "Stats/Stats.h"
 #include "Misc/TimeGuard.h"
 
@@ -12,15 +13,21 @@ FTSTicker& FTSTicker::GetCoreTicker()
 
 FTSTicker::FDelegateHandle FTSTicker::AddTicker(const FTickerDelegate& InDelegate, float InDelay)
 {
-	FElementPtr NewElement{ new FElement{ CurrentTime + InDelay, InDelay, InDelegate } };
-	AddedElements.Enqueue(NewElement);
+	FElementPtr NewElement{ new FElement{ CurrentTime.load(std::memory_order_relaxed) + InDelay, InDelay, InDelegate } };
+	AutoRTFM::OnCommit([this, NewElement]
+	{
+		AddedElements.Enqueue(NewElement); 
+	});
 	return NewElement;
 }
 
-FTSTicker::FDelegateHandle FTSTicker::AddTicker(const TCHAR* InName, float InDelay, TFunction<bool(float)> Function)
+FTSTicker::FDelegateHandle FTSTicker::AddTicker(const TCHAR* InName, float InDelay, TUniqueFunction<bool(float)>&& InFunction)
 {
-	FElementPtr NewElement{ new FElement{ CurrentTime + InDelay, InDelay, FTickerDelegate::CreateLambda(Function) } };
-	AddedElements.Enqueue(NewElement);
+	FElementPtr NewElement{ new FElement{ CurrentTime.load(std::memory_order_relaxed) + InDelay, InDelay, MoveTemp(InFunction) } };
+	AutoRTFM::OnCommit([this, NewElement]
+	{
+		AddedElements.Enqueue(NewElement); 
+	});
 	return NewElement;
 }
 
@@ -31,20 +38,23 @@ uint32 GetThreadId(uint64 State)
 
 void FTSTicker::RemoveTicker(FDelegateHandle Handle)
 {
-	if (FElementPtr Element = Handle.Pin())
+	AutoRTFM::OnCommit([Handle]
 	{
-		// mark the element as removed and if it's being ticked atm, spin-wait until its execution is finished
-		uint64 PrevState = Element->State.fetch_or(FElement::RemovedState, std::memory_order_acquire); // "acquire" to prevent potential 
-		// resource release after RemoveTicker() to be reordered before it
-		uint32 ExecutingThreadId = GetThreadId(PrevState);
-		
-		while (ExecutingThreadId != 0 && // is being executed right now
-			FPlatformTLS::GetCurrentThreadId() != ExecutingThreadId) // and is not removed from inside its execution
+		if (FElementPtr Element = Handle.Pin())
 		{
-			FPlatformProcess::Yield();
-			ExecutingThreadId = GetThreadId(Element->State.load(std::memory_order_relaxed));
+			// mark the element as removed and if it's being ticked atm, spin-wait until its execution is finished
+			uint64 PrevState = Element->State.fetch_or(FElement::RemovedState, std::memory_order_acquire); // "acquire" to prevent potential 
+			// resource release after RemoveTicker() to be reordered before it
+			uint32 ExecutingThreadId = GetThreadId(PrevState);
+			
+			while (ExecutingThreadId != 0 && // is being executed right now
+				FPlatformTLS::GetCurrentThreadId() != ExecutingThreadId) // and is not removed from inside its execution
+			{
+				FPlatformProcess::Yield();
+				ExecutingThreadId = GetThreadId(Element->State.load(std::memory_order_relaxed));
+			}
 		}
-	}
+	});
 }
 
 void FTSTicker::Tick(float DeltaTime)
@@ -75,7 +85,8 @@ void FTSTicker::Tick(float DeltaTime)
 		return;
 	}
 
-	CurrentTime += DeltaTime;
+	// We can do a relaxed read/store since only the game thread will call the tick function.
+	CurrentTime.store(CurrentTime.load(std::memory_order_relaxed) + DeltaTime, std::memory_order_relaxed);
 
 	TArray<FElementPtr> TickedElements;
 	int32 ElementIdx = 0;
@@ -100,7 +111,7 @@ void FTSTicker::Tick(float DeltaTime)
 				continue;
 			}
 
-			if (Element->FireTime > CurrentTime)
+			if (Element->FireTime > CurrentTime.load(std::memory_order_relaxed))
 			{
 				ClearExecutionFlag(Element);
 				TickedElements.Add(MoveTemp(Element));
@@ -113,7 +124,7 @@ void FTSTicker::Tick(float DeltaTime)
 				if (PrevState != FElement::RemovedState)
 				{
 					checkf(PrevState == FElement::DefaultState, TEXT("Invalid state %u"), PrevState);
-					Element->FireTime = CurrentTime + Element->DelayTime;
+					Element->FireTime = CurrentTime.load(std::memory_order_relaxed) + Element->DelayTime;
 					TickedElements.Add(MoveTemp(Element));
 				}
 			}
@@ -149,12 +160,23 @@ FTSTicker::FElement::FElement()
 FTSTicker::FElement::FElement(double InFireTime, float InDelayTime, const FTickerDelegate& InDelegate)
 	: FireTime(InFireTime)
 	, DelayTime(InDelayTime)
-	, Delegate(InDelegate)
+	, Function(
+		[InDelegate](float DeltaTime)
+		{ 
+			return InDelegate.IsBound() && InDelegate.Execute(DeltaTime);
+		}
+	)
+{}
+
+FTSTicker::FElement::FElement(double InFireTime, float InDelayTime, TUniqueFunction<bool(float)>&& InFunction)
+	: FireTime(InFireTime)
+	, DelayTime(InDelayTime)
+	, Function(MoveTemp(InFunction))
 {}
 
 bool FTSTicker::FElement::Fire(float DeltaTime)
 {
-	return Delegate.IsBound() && Delegate.Execute(DeltaTime);
+	return Function(DeltaTime);
 }
 
 FTSTickerObjectBase::FTSTickerObjectBase(float InDelay, FTSTicker& InTicker)

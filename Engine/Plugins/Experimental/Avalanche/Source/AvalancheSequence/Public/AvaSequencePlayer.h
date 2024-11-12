@@ -13,6 +13,7 @@ class IAvaSequenceController;
 class IAvaSequencePlaybackObject;
 class UAvaSequence;
 struct FAvaSequencePlayParams;
+struct FLevelSequenceCameraSettings;
 
 UCLASS(Transient, BlueprintType)
 class AVALANCHESEQUENCE_API UAvaSequencePlayer : public ULevelSequencePlayer
@@ -24,9 +25,10 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSequenceEvent, UAvaSequencePlayer*, UAvaSequence*);
 	static FOnSequenceEvent& OnSequenceStarted() { return OnSequenceStartedDelegate; }
+	static FOnSequenceEvent& OnSequencePaused() { return OnSequencePausedDelegate; }
 	static FOnSequenceEvent& OnSequenceFinished() { return OnSequenceFinishedDelegate; }
 
-	void InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel);
+	void InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel, const FLevelSequenceCameraSettings& InCameraSettings);
 
 	UAvaSequence* GetAvaSequence() const;
 
@@ -42,6 +44,7 @@ public:
 
 	void ContinueSequence();
 
+	UE_DEPRECATED(5.5, "Use IAvaSequencePlaybackObject::PreviewFrame instead")
 	void PreviewFrame();
 
 	/** Jump to the given Frame, in Tick Resolution space */
@@ -74,9 +77,14 @@ private:
 	FFrameTime CalculateDeltaFrameTime(float InDeltaSeconds) const;
 
 	void NotifySequenceStarted();
+
+	UFUNCTION()
+	void NotifySequencePaused();
+
 	void NotifySequenceFinished();
 
 	static FOnSequenceEvent OnSequenceStartedDelegate;
+	static FOnSequenceEvent OnSequencePausedDelegate;
 	static FOnSequenceEvent OnSequenceFinishedDelegate;
 
 	/** Encapsulate OnNativeFinished as it's a simple delegate that only this Player will bind to and through it call the multicast version (OnSequenceFinishedDelegate) */

@@ -99,8 +99,14 @@ namespace Metasound
 			// Retains existing values provided from update up to given size.
 			void TrackValue(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, int32 InWindowSize);
 
-			void TrackAudioPin(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, Audio::FPatchInput& InPatchInput);
-			void UntrackAudioPin(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName);
+			// Send the audio from the given node output to the given bus. If successful, an AnalyzerInstanceID will be returned.
+			FGuid AddAudioBusWriter(const FGuid& InNodeID, FVertexName InOutputName, Audio::FDeviceId InDeviceID, const UAudioBus* InAudioBus);
+
+			// Remove the specified analyzer. InAnalyzerInstanceID is an FGuid that was previously returned from a call to AddAudioBusWriter(...).
+			void RemoveAudioBusWriter(const FGuid& InAnalyzerInstanceID);
+
+			// Does this connection manager have the specified analyzer? InAnalyzerInstanceID is an FGuid that was previously returned from a call to AddAudioBusWriter(...).
+			bool HasAudioBusWriter(const FGuid& InAnalyzerInstanceID) const;
 
 			void Update(float InDeltaTime);
 
@@ -220,7 +226,6 @@ namespace Metasound
 			struct FAudioBufferKey : FWindowValueKey{};
 
 			TMap<FWindowValueKey, FFloatMovingWindow> WindowedValues;
-			TMap<FAudioBufferKey, TSharedRef<Audio::FPatchInput>> TrackedAudioPins;
 
 			TWeakObjectPtr<const UAudioComponent> AudioComponent;
 			TMap<FString, Audio::FVolumeFader> ConnectionFaders;

@@ -416,11 +416,11 @@ public:
 #if RHI_RAYTRACING
 	virtual bool IsRayTracingRelevant() const override { return true; }
 
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override
 	{
 		if (RenderData.NumElements)
 		{
-			TArray<FLidarPointCloudBatchElementUserData>& UserData = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FLidarOneFrameResource>().Payload;
+			TArray<FLidarPointCloudBatchElementUserData>& UserData = Collector.AllocateOneFrameResource<FLidarOneFrameResource>().Payload;
 			UserData.Reserve(RenderData.SelectedNodes.Num());
 
 			CachedRayTracingMaterials.Reset();
@@ -434,15 +434,20 @@ public:
 					FMeshBatch &MeshBatch = NodeRayTracingMaterials.AddDefaulted_GetRef();
 					SetupMeshBatch(MeshBatch, Node, &UserData[UserData.Add(BuildUserDataElement(nullptr, Node))]);
 					MeshBatch.SegmentIndex = 0;
-					MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
+					MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
 
 					FLidarPointCloudRayTracingGeometry* Geometry = Node.RayTracingGeometry.Get();
-					FRayTracingInstance &RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
-					RayTracingInstance.Geometry = Geometry;
-					RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
-					RayTracingInstance.MaterialsView = MakeArrayView(NodeRayTracingMaterials);
 
-					Context.DynamicRayTracingGeometriesToUpdate.Add(
+					{
+						FRayTracingInstance RayTracingInstance;
+						RayTracingInstance.Geometry = Geometry;
+						RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
+						RayTracingInstance.MaterialsView = MakeArrayView(NodeRayTracingMaterials);
+
+						Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
+					}
+
+					Collector.AddRayTracingGeometryUpdate(
 						FRayTracingDynamicGeometryUpdateParams
 						{
 							NodeRayTracingMaterials,

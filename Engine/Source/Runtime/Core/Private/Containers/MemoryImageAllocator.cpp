@@ -45,29 +45,29 @@ void FMemoryImageAllocatorBase::MoveToEmpty(FMemoryImageAllocatorBase& Other)
 	Other.Data = nullptr;
 }
 
-void FMemoryImageAllocatorBase::ResizeAllocation(int32 PreviousNumElements, int32 NumElements, SIZE_T NumBytesPerElement, uint32 Alignment)
+void FMemoryImageAllocatorBase::ResizeAllocation(int32 CurrentNum, int32 NewMax, SIZE_T NumBytesPerElement, uint32 Alignment)
 {
 	FScriptContainerElement* LocalData = Data.Get();
 	// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
 	if (Data.IsFrozen())
 	{
 		// Can't grow a frozen array or shrink below zero
-		if (UNLIKELY((uint32)NumElements > (uint32)PreviousNumElements))
+		if (UNLIKELY((uint32)NewMax > (uint32)CurrentNum))
 		{
-			UE::Core::Private::OnInvalidMemoryImageAllocatorNum(NumElements, NumBytesPerElement);
+			UE::Core::Private::OnInvalidMemoryImageAllocatorNum(NewMax, NumBytesPerElement);
 		}
 	}
-	else if (LocalData || NumElements > 0)
+	else if (LocalData || NewMax > 0)
 	{
 		static_assert(sizeof(int32) <= sizeof(SIZE_T), "SIZE_T is expected to be larger than int32");
 
 		// Check for under/overflow
-		if (UNLIKELY(NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
+		if (UNLIKELY(NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
 		{
-			UE::Core::Private::OnInvalidMemoryImageAllocatorNum(NumElements, NumBytesPerElement);
+			UE::Core::Private::OnInvalidMemoryImageAllocatorNum(NewMax, NumBytesPerElement);
 		}
 
-		Data = (FScriptContainerElement*)FMemory::Realloc(LocalData, NumElements*NumBytesPerElement, Alignment);
+		Data = (FScriptContainerElement*)FMemory::Realloc(LocalData, NewMax*NumBytesPerElement, Alignment);
 	}
 }
 

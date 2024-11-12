@@ -9,14 +9,14 @@
 #include "Playback/AvaPlaybackMessages.h"
 #include "Playback/IAvaPlaybackClient.h"
 
-class FAvaMediaModule;
+class IAvaMediaModule;
 struct FAvaBroadcastOutputChannel;
 
 // Listens to command to play and broadcast
 class FAvaPlaybackClient : public IAvaPlaybackClient
 {
 public:
-	FAvaPlaybackClient(FAvaMediaModule* InParentModule);
+	FAvaPlaybackClient(IAvaMediaModule* InParentModule);
 	virtual ~FAvaPlaybackClient() override;
 
 	void Init();
@@ -39,12 +39,13 @@ public:
 	virtual void RequestRemoteControlUpdate(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FAvaPlayableRemoteControlValues& InRemoteControlValues) override;
 	virtual void RequestPlayableTransitionStart(const FGuid& InTransitionId, TArray<FGuid>&& InEnterInstanceIds, TArray<FGuid>&& InPlayingInstanceIds, TArray<FGuid>&& InExitInstanceIds, TArray<FAvaPlayableRemoteControlValues>&& InEnterValues, const FName& InChannelName, EAvaPlayableTransitionFlags InTransitionFlags) override;
 	virtual void RequestPlayableTransitionStop(const FGuid& InTransitionId, const FName& InChannelName) override;
-	virtual void RequestBroadcast(const FString& InProfile, const FName& InChannel, const TArray<UMediaOutput*>& InRemoteMediaOutputs, EAvaBroadcastAction InAction) override;
+	virtual void RequestBroadcast(const FString& InProfile, const FName& InChannel, const TArray<UMediaOutput*>& InRemoteMediaOutputs, EAvaBroadcastAction InAction, const FString& InServerName = FString()) override;
 	virtual bool IsMediaOutputRemoteFallback(const UMediaOutput* InMediaOutput) override;
 	virtual EAvaBroadcastIssueSeverity GetMediaOutputIssueSeverity(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override;
 	virtual const TArray<FString>& GetMediaOutputIssueMessages(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override;
 	virtual EAvaBroadcastOutputState GetMediaOutputState(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override;
 	virtual bool HasAnyServerOnlineForChannel(const FName& InChannelName) const override;
+	virtual TArray<FString> GetOnlineServersForChannel(const FName& InChannelName) const override;
 	virtual TOptional<EAvaPlaybackStatus> GetRemotePlaybackStatus(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override;
 	virtual const FString* GetRemotePlaybackUserData(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override;
 	virtual TOptional<EAvaPlaybackAssetStatus> GetRemotePlaybackAssetStatus(const FSoftObjectPath& InAssetPath, const FString& InServerName) const override;
@@ -76,7 +77,15 @@ protected:
 	void HandlePlaybackStatusesMessage(const FAvaPlaybackStatuses& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackSequenceEventMessage(const FAvaPlaybackSequenceEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackTransitionEventMessage(const FAvaPlaybackTransitionEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+
+private:
+	class FServerInfo;
 	
+	void HandlePlaybackStatus(FServerInfo& InServerInfo,
+		const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName,
+		EAvaPlaybackStatus InStatus, const FString& InUserData = FString(), bool bInValidUserData = false);
+
+protected:	
 	void RegisterCommands();
 	
 	// Command handlers
@@ -132,6 +141,7 @@ protected:
 	void SendUserDataUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendBroadcastSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendAvaInstanceSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
+	void SendPlayableSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendBroadcastChannelSettingsUpdate(const TArray<FMessageAddress>& InRecipients, const FAvaBroadcastOutputChannel& InChannel);
 	void SendPackageEvent(const TArray<FMessageAddress>& InRecipients, const FName& InPackageName, EAvaPlaybackPackageEvent InEvent);
 	void SendStatCommand(const FString& InCommand, bool bInBroadcastLocalState, const TArray<FMessageAddress>& InRecipients);
@@ -155,12 +165,12 @@ protected:
 	 * This is based on the channel's MediaOutputInfos. It will properly work
 	 * regardless of the channel's status (idle or even offline).
 	 */
-	TArray<FString> GetServerNamesForChannel(const FName& InChannelName) const;
+	TArray<FString> GetServerNamesForChannel(const FName& InChannelName, bool bInOnlineOnly = false) const;
 
 	FString GetServerNameForMediaOutputFallback(const UMediaOutput* InMediaOutput) const;
 
 private:
-	FAvaMediaModule* ParentModule;
+	IAvaMediaModule* ParentModule;
 	
 	TArray<IConsoleObject*> ConsoleCommands;
 	

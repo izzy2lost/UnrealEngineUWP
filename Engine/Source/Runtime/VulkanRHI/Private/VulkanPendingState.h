@@ -59,48 +59,24 @@ public:
 
 	inline const FVulkanComputeShader* GetCurrentShader() const
 	{
-		return CurrentPipeline ? CurrentPipeline->GetShader() : nullptr;
+		return CurrentPipeline ? ResourceCast(CurrentPipeline->GetComputeShader()) : nullptr;
 	}
 
 	void SetUAVForUBResource(uint32 DescriptorSet, uint32 BindingIndex, FVulkanUnorderedAccessView* UAV);
 
 	inline void SetUAVForStage(uint32 UAVIndex, FVulkanUnorderedAccessView* UAV)
 	{
-		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, UAVIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		SetUAVForUBResource(DescriptorSet, BindingIndex, UAV);
+		SetUAVForUBResource(ShaderStage::Compute, UAVIndex, UAV);
 	}
 
 	inline void SetTextureForStage(uint32 TextureIndex, const FVulkanTexture* Texture, VkImageLayout Layout)
 	{
-		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, TextureIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		CurrentState->SetTexture(DescriptorSet, BindingIndex, Texture, Layout);
+		CurrentState->SetTexture(ShaderStage::Compute, TextureIndex, Texture, Layout);
 	}
 
 	inline void SetSamplerStateForStage(uint32 SamplerIndex, FVulkanSamplerState* Sampler)
 	{
-		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, SamplerIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		CurrentState->SetSamplerState(DescriptorSet, BindingIndex, Sampler);
+		CurrentState->SetSamplerState(ShaderStage::Compute, SamplerIndex, Sampler);
 	}
 
 	inline void SetTextureForUBResource(int32 DescriptorSet, uint32 BindingIndex, const FVulkanTexture* Texture, VkImageLayout Layout)
@@ -112,25 +88,12 @@ public:
 
 	inline void SetSRVForStage(uint32 SRVIndex, FVulkanShaderResourceView* SRV)
 	{
-		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, SRVIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		SetSRVForUBResource(DescriptorSet, BindingIndex, SRV);
+		SetSRVForUBResource(ShaderStage::Compute, SRVIndex, SRV);
 	}
 
 	inline void SetPackedGlobalShaderParameter(uint32 BufferIndex, uint32 Offset, uint32 NumBytes, const void* NewValue)
 	{
 		CurrentState->SetPackedGlobalShaderParameter(BufferIndex, Offset, NumBytes, NewValue);
-	}
-
-	inline void SetUniformBufferConstantData(uint32 BindingIndex, const TArray<uint8>& ConstantData)
-	{
-		CurrentState->SetUniformBufferConstantData(BindingIndex, ConstantData);
 	}
 
 	inline void SetSamplerStateForUBResource(uint32 DescriptorSet, uint32 BindingIndex, FVulkanSamplerState* Sampler)
@@ -196,7 +159,7 @@ public:
 
 	const FVulkanShader* GetCurrentShader(EShaderFrequency Frequency) const
 	{
-		return (CurrentPipeline ? CurrentPipeline->GetShader(Frequency) : nullptr);
+		return (CurrentPipeline ? CurrentPipeline->GetVulkanShader(Frequency) : nullptr);
 	}
 
 	void SetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ)
@@ -277,25 +240,12 @@ public:
 
 	inline void SetTextureForStage(ShaderStage::EStage Stage, uint32 ParameterIndex, const FVulkanTexture* Texture, VkImageLayout Layout)
 	{
-		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		CurrentState->SetTexture(DescriptorSet, BindingIndex, Texture, Layout);
+		CurrentState->SetTexture(Stage, ParameterIndex, Texture, Layout);
 	}
 
 	inline void SetTextureForUBResource(uint8 DescriptorSet, uint32 BindingIndex, const FVulkanTexture* Texture, VkImageLayout Layout)
 	{
 		CurrentState->SetTexture(DescriptorSet, BindingIndex, Texture, Layout);
-	}
-
-	inline void SetUniformBufferConstantData(ShaderStage::EStage Stage, uint32 BindingIndex, const TArray<uint8>& ConstantData)
-	{
-		CurrentState->SetUniformBufferConstantData(Stage, BindingIndex, ConstantData);
 	}
 
 	template<bool bDynamic>
@@ -308,43 +258,19 @@ public:
 
 	inline void SetUAVForStage(ShaderStage::EStage Stage, uint32 ParameterIndex, FVulkanUnorderedAccessView* UAV)
 	{
-		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		SetUAVForUBResource(DescriptorSet, BindingIndex, UAV);
+		SetUAVForUBResource(Stage, ParameterIndex, UAV);
 	}
 
 	void SetSRVForUBResource(uint8 DescriptorSet, uint32 BindingIndex, FVulkanShaderResourceView* SRV);
 
 	inline void SetSRVForStage(ShaderStage::EStage Stage, uint32 ParameterIndex, FVulkanShaderResourceView* SRV)
 	{
-		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		SetSRVForUBResource(DescriptorSet, BindingIndex, SRV);
+		SetSRVForUBResource(Stage, ParameterIndex, SRV);
 	}
 
 	inline void SetSamplerStateForStage(ShaderStage::EStage Stage, uint32 ParameterIndex, FVulkanSamplerState* Sampler)
 	{
-		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
-		uint8 DescriptorSet;
-		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
-		CurrentState->SetSamplerState(DescriptorSet, BindingIndex, Sampler);
+		CurrentState->SetSamplerState(Stage, ParameterIndex, Sampler);
 	}
 
 	inline void SetSamplerStateForUBResource(uint32 DescriptorSet, uint32 BindingIndex, FVulkanSamplerState* Sampler)
@@ -354,7 +280,6 @@ public:
 
 	inline void SetPackedGlobalShaderParameter(ShaderStage::EStage Stage, uint32 BufferIndex, uint32 Offset, uint32 NumBytes, const void* NewValue)
 	{
-		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
 		CurrentState->SetPackedGlobalShaderParameter(Stage, BufferIndex, Offset, NumBytes, NewValue);
 	}
 

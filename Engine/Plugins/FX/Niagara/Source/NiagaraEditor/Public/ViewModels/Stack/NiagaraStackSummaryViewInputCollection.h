@@ -3,7 +3,7 @@
 #pragma once
 
 #include "NiagaraEmitter.h"
-#include "NiagaraStackFunctionInputCollection.h"
+#include "NiagaraStackValueCollection.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
 #include "NiagaraStackSummaryViewInputCollection.generated.h"
 

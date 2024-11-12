@@ -5,14 +5,14 @@
 #include "Templates/SharedPointer.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
-class UUsdAssetCache2;
+class UUsdAssetCache3;
 
 class FUsdAssetCacheAssetEditorToolkit
 	: public FAssetEditorToolkit
 	, public FGCObject
 {
 public:
-	void Initialize(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UUsdAssetCache2* InAssetCache);
+	void Initialize(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UUsdAssetCache3* InAssetCache);
 
 private:
 	virtual FText GetBaseToolkitName() const override;
@@ -29,7 +29,7 @@ private:
 	virtual FString GetReferencerName() const override;
 
 private:
-	TObjectPtr<UUsdAssetCache2> AssetCache;
+	TObjectPtr<UUsdAssetCache3> AssetCache;
 
 	TSharedPtr<class IDetailsView> AssetCacheEditorWidget;
 

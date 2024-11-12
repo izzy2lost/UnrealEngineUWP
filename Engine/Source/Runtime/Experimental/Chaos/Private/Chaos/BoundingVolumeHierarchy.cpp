@@ -349,7 +349,7 @@ namespace Chaos
 		{
 			if(IntersectionList[i] == IntersectionList[i - 1])
 			{
-				IntersectionList.RemoveAtSwap(i, 1, EAllowShrinking::No);
+				IntersectionList.RemoveAtSwap(i, EAllowShrinking::No);
 			}
 		}
 
@@ -368,7 +368,7 @@ namespace Chaos
 		{
 			if(IntersectionList[i] == IntersectionList[i - 1])
 			{
-				IntersectionList.RemoveAtSwap(i, 1, EAllowShrinking::No);
+				IntersectionList.RemoveAtSwap(i, EAllowShrinking::No);
 			}
 		}
 

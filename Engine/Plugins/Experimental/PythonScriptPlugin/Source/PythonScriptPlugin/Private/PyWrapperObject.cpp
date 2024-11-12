@@ -11,6 +11,7 @@
 #include "UObject/Package.h"
 #include "UObject/Class.h"
 #include "UObject/MetaData.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/StructOnScope.h"
@@ -136,7 +137,17 @@ int FPyWrapperObject::SetPropertyValue(FPyWrapperObject* InSelf, PyObject* InVal
 	}
 
 	const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, InPropDef.Prop).BuildChangeNotify(InNotifyMode);
-	return PyGenUtil::SetPropertyValue(InSelf->ObjectInstance->GetClass(), InSelf->ObjectInstance, InValue, InPropDef, InPythonAttrName, ChangeNotify.Get(), InReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+
+	// If the object is a template, gather instances (including subclass CDOs) inheriting their property value from this template.
+	// Those instances are passed into PyGenUtil::SetPropertyValue so that they will receive the value change as well.
+	TArray<void*> ArchetypeInsts;
+	const bool bIsObjectTemplate = PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance);
+	if (bIsObjectTemplate)
+	{
+		PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(InPropDef.Prop, InSelf->ObjectInstance, ArchetypeInsts);
+	}
+
+	return PyGenUtil::SetPropertyValue(InSelf->ObjectInstance->GetClass(), InSelf->ObjectInstance, InValue, InPropDef, InPythonAttrName, ChangeNotify.Get(), InReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 }
 
 PyObject* FPyWrapperObject::CallGetterFunction(FPyWrapperObject* InSelf, const PyGenUtil::FGeneratedWrappedFunction& InFuncDef)
@@ -877,13 +888,22 @@ PyTypeObject InitializePyWrapperObjectType()
 				return nullptr;
 			}
 
+			// If the object is a template, gather instances (including subclass CDOs) inheriting their property value from this template.
+			// Those instances are passed into PyGenUtil::SetPropertyValue so that they will receive the value change as well.
+			TArray<void*> ArchetypeInsts;
+			const bool bIsObjectTemplate = PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance);
+			if (bIsObjectTemplate)
+			{
+				PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(WrappedPropDef.Prop, InSelf->ObjectInstance, ArchetypeInsts);
+			}
+
 			// If the owner class is set then this property is from 'self', otherwise it's from the sparse class data
 			const bool bPropertyIsOwnedBySelf = WrappedPropDef.Prop->GetOwnerClass() != nullptr;
 			UClass* Class = InSelf->ObjectInstance->GetClass();
 			if (bPropertyIsOwnedBySelf)
 			{
 				const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, WrappedPropDef.Prop).BuildChangeNotify(NotifyMode);
-				const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+				const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 				if (Result != 0)
 				{
 					return nullptr;
@@ -896,7 +916,7 @@ PyTypeObject InitializePyWrapperObjectType()
 				if (SparseDataStruct && SparseData)
 				{
 					const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, WrappedPropDef.Prop).BuildChangeNotify(NotifyMode);
-					const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+					const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 					if (Result != 0)
 					{
 						return nullptr;
@@ -979,17 +999,27 @@ PyTypeObject InitializePyWrapperObjectType()
 
 			// Try and set the value of each property
 			UClass* Class = InSelf->ObjectInstance->GetClass();
+			const bool bIsObjectTemplate = PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance);
 			for (const FPropertyInfoPair& PropertyInfo : PropertyInfos)
 			{
 				const FName Name = PropertyInfo.Get<0>();
 				const PyGenUtil::FGeneratedWrappedProperty& WrappedPropDef = PropertyInfo.Get<1>();
 				PyObject* PyValueObj = PropertyInfo.Get<2>().GetPtr();
 
+				// If the object is a template, gather instances (including subclass CDOs) inheriting their property value from this template.
+				// Those instances are passed into PyGenUtil::SetPropertyValue so that they will receive the value change as well.
+				// Each property can have a different set of archetype instances that are inheriting the value.
+				TArray<void*> ArchetypeInsts;
+				if (bIsObjectTemplate)
+				{
+					PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(WrappedPropDef.Prop, InSelf->ObjectInstance, ArchetypeInsts);
+				}
+
 				// If the owner class is set then this property is from 'self', otherwise it's from the sparse class data
 				const bool bPropertyIsOwnedBySelf = WrappedPropDef.Prop->GetOwnerClass() != nullptr;
 				if (bPropertyIsOwnedBySelf)
 				{
-					const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+					const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 					if (Result != 0)
 					{
 						return nullptr;
@@ -1001,7 +1031,7 @@ PyTypeObject InitializePyWrapperObjectType()
 					void* SparseData = Class->GetOrCreateSparseClassData();
 					if (SparseDataStruct && SparseData)
 					{
-						const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+						const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 						if (Result != 0)
 						{
 							return nullptr;
@@ -1130,11 +1160,14 @@ PyTypeObject InitializePyWrapperObjectType()
 
 PyTypeObject PyWrapperObjectType = InitializePyWrapperObjectType();
 
-void FPyWrapperObjectMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperObjectMetaData::AddTypeReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Class);
+}
+
+void FPyWrapperObjectMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperObject* Self = static_cast<FPyWrapperObject*>(Instance);
-
-	Collector.AddReferencedObject(Class);
 
 	UObject* OldInstance = Self->ObjectInstance;
 	Collector.AddReferencedObject(Self->ObjectInstance);
@@ -1313,22 +1346,24 @@ bool FPyWrapperObjectMetaData::IsClassDeprecated(FPyWrapperObject* Instance, FSt
 class FPythonGeneratedClassBuilder
 {
 public:
-	FPythonGeneratedClassBuilder(const FString& InClassName, UClass* InSuperClass, PyTypeObject* InPyType)
-		: ClassName(InClassName)
+	FPythonGeneratedClassBuilder(UClass* InSuperClass, PyTypeObject* InPyType)
+		: ClassName()
 		, PyType(InPyType)
 		, OldClass(nullptr)
 		, NewClass(nullptr)
 	{
-		UObject* ClassOuter = GetPythonTypeContainer();
+		UObject* ClassOuter = nullptr;
+		PyUtil::GetGeneratedTypeOuterAndName(PyType, ClassOuter, ClassName);
 
 		// Find any existing class with the name we want to use
 		OldClass = FindObject<UPythonGeneratedClass>(ClassOuter, *ClassName);
 
 		// Create a new class with a temporary name; we will rename it as part of Finalize
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
-		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Standalone | RF_Transient);
+		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Transient);
+		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
+		NewClass->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewClass->SetSuperStruct(InSuperClass);
-		NewClass->ClassFlags |= CLASS_Native;
 	}
 
 	FPythonGeneratedClassBuilder(UPythonGeneratedClass* InOldClass, UClass* InSuperClass)
@@ -1337,13 +1372,14 @@ public:
 		, OldClass(InOldClass)
 		, NewClass(nullptr)
 	{
-		UObject* ClassOuter = GetPythonTypeContainer();
+		UObject* ClassOuter = InOldClass->GetOuter();
 
 		// Create a new class with a temporary name; we will rename it as part of Finalize
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
-		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Standalone | RF_Transient);
+		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Transient);
+		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
+		NewClass->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewClass->SetSuperStruct(InSuperClass);
-		NewClass->ClassFlags |= CLASS_Native;
 	}
 
 	~FPythonGeneratedClassBuilder()
@@ -1385,6 +1421,10 @@ public:
 		}
 
 		Py_BEGIN_ALLOW_THREADS
+		if (UObjectRedirector* ClassRedirector = CreatePythonTypeLegacyRedirector(PyUtil::GetCleanTypename(PyType), FTopLevelAssetPath(NewClass->GetOuter()->GetFName(), *ClassName)))
+		{
+			ClassRedirector->DestinationObject = NewClass;
+		}
 		NewClass->Rename(*ClassName, nullptr, REN_DontCreateRedirectors);
 
 		// Finalize the class
@@ -1399,7 +1439,7 @@ public:
 
 		// Map the Unreal class to the Python type
 		NewClass->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(NewClass->GetFName() , PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(NewClass, PyType, false);
 
 		// Ensure the CDO exists
 		Py_BEGIN_ALLOW_THREADS
@@ -1611,8 +1651,8 @@ public:
 			if (FuncArgNames.Num() > 0 && FuncArgDefaults.Num() > 0)
 			{
 				// Strip the zero'th 'self' argument when processing a non-static function
-				FuncArgNames.RemoveAt(0, 1, EAllowShrinking::No);
-				FuncArgDefaults.RemoveAt(0, 1, EAllowShrinking::No);
+				FuncArgNames.RemoveAt(0, EAllowShrinking::No);
+				FuncArgDefaults.RemoveAt(0, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1644,7 +1684,7 @@ public:
 					PyUtil::SetPythonError(PyExc_Exception, PyType, *FString::Printf(TEXT("Failed to create return property (%s) for function '%s'"), *PyUtil::GetFriendlyTypename(RetType), *InFieldName));
 					return false;
 				}
-				RetProp->PropertyFlags |= (CPF_Parm | CPF_ReturnParm);
+				RetProp->PropertyFlags |= (CPF_Parm | CPF_OutParm | CPF_ReturnParm);
 				Func->AddCppProperty(RetProp);
 
 				if (bOptionalReturn)
@@ -1921,6 +1961,7 @@ private:
 		OldClass->SetFlags(RF_NewerVersionExists);
 		OldClass->ClearFlags(RF_Public | RF_Standalone);
 		OldClass->Rename(*OldClassName, nullptr, REN_DontCreateRedirectors);
+		OldClass->UnregisterGeneratedType();
 	}
 
 	FString ClassName;
@@ -1935,8 +1976,8 @@ void UPythonGeneratedClass::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(OldName, PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(FSoftObjectPath::ConstructFromPackageAsset(OldOuter->GetFName(), OldName), PyType, false);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(this, PyType, false);
 	}
 }
 
@@ -1951,7 +1992,7 @@ void UPythonGeneratedClass::PostInitInstance(UObject* InObj, FObjectInstancingGr
 		if (PyPostInitFunction)
 		{
 			FPyObjectPtr PySelf = FPyObjectPtr::StealReference((PyObject*)FPyWrapperObjectFactory::Get().CreateInstance(InObj));
-			if (PySelf && ensureAlways(PySelf->ob_type == PyType))
+			if (PySelf && ensureAlwaysMsgf(PySelf->ob_type == PyType, TEXT("Object '%s' (class: %s) had an unexpected PyType when calling PostInitInstance! Self is '%s' but we expected '%s'"), *InObj->GetPathName(), *GetPathName(), *PyUtil::GetFriendlyTypename(PySelf), *PyUtil::GetFriendlyTypename(PyType)))
 			{
 				FPyObjectPtr PyArgs = FPyObjectPtr::StealReference(PyTuple_New(1));
 				PyTuple_SetItem(PyArgs, 0, PySelf.Release()); // SetItem steals the reference
@@ -1978,10 +2019,7 @@ void UPythonGeneratedClass::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
-		if (PyType)
-		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
-		}
+		UnregisterGeneratedType();
 		PyType.Reset();
 		PyPostInitFunction.Reset();
 		for (const TSharedPtr<PyGenUtil::FFunctionDef>& FunctionDef : FunctionDefs)
@@ -2005,6 +2043,14 @@ void UPythonGeneratedClass::ReleasePythonResources()
 	PyMetaData = FPyWrapperObjectMetaData();
 }
 
+void UPythonGeneratedClass::UnregisterGeneratedType()
+{
+	if (PyType)
+	{
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(this, PyType, false);
+	}
+}
+
 bool UPythonGeneratedClass::IsFunctionImplementedInScript(FName InFunctionName) const
 {
 	UFunction* Function = FindFunctionByName(InFunctionName);
@@ -2022,7 +2068,7 @@ UPythonGeneratedClass* UPythonGeneratedClass::GenerateClass(PyTypeObject* InPyTy
 	}
 
 	// Builder used to generate the class
-	FPythonGeneratedClassBuilder PythonClassBuilder(PyUtil::GetCleanTypename(InPyType), SuperClass, InPyType);
+	FPythonGeneratedClassBuilder PythonClassBuilder(SuperClass, InPyType);
 
 	// Add the functions to this class
 	// We have to process these first as properties may reference them as get/set functions
@@ -2085,7 +2131,7 @@ bool UPythonGeneratedClass::ReparentDerivedClasses(UPythonGeneratedClass* InOldP
 
 	for (UClass* DerivedClass : DerivedClasses)
 	{
-		if (DerivedClass->HasAnyClassFlags(CLASS_Native | CLASS_NewerVersionExists))
+		if (DerivedClass->HasAnyClassFlags(CLASS_NewerVersionExists))
 		{
 			continue;
 		}

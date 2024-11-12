@@ -295,6 +295,7 @@ void SAnimTimingPanel::RefreshTrackNodes()
 				.DataStartPos(Element.ToSharedRef(), &FTimingRelevantElementBase::GetElementTime)
 				.NodeName(FString::FromInt(ElementIdx + 1))
 				.NodeColor(FLinearColor::Yellow)
+				.Visibility(EVisibility::HitTestInvisible)
 				.Element(Element)
 				);
 		}

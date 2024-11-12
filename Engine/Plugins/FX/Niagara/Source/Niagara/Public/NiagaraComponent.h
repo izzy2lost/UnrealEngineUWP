@@ -69,17 +69,17 @@ class UNiagaraComponent : public UFXSystemComponent
 public:
 
 	/********* UFXSystemComponent *********/
-	NIAGARA_API void SetBoolParameter(FName ParameterName, bool Param) override;
-	NIAGARA_API void SetIntParameter(FName ParameterName, int Param) override;
-	NIAGARA_API void SetFloatParameter(FName ParameterName, float Param) override;
-	NIAGARA_API void SetVectorParameter(FName ParameterName, FVector Param) override;
-	NIAGARA_API void SetColorParameter(FName ParameterName, FLinearColor Param) override;
-	NIAGARA_API void SetActorParameter(FName ParameterName, class AActor* Param) override;
+	NIAGARA_API virtual void SetBoolParameter(FName ParameterName, bool Param) override;
+	NIAGARA_API virtual void SetIntParameter(FName ParameterName, int Param) override;
+	NIAGARA_API virtual void SetFloatParameter(FName ParameterName, float Param) override;
+	NIAGARA_API virtual void SetVectorParameter(FName ParameterName, FVector Param) override;
+	NIAGARA_API virtual void SetColorParameter(FName ParameterName, FLinearColor Param) override;
+	NIAGARA_API virtual void SetActorParameter(FName ParameterName, class AActor* Param) override;
 
 	NIAGARA_API virtual UFXSystemAsset* GetFXSystemAsset() const override;
-	NIAGARA_API void SetEmitterEnable(FName EmitterName, bool bNewEnableState) override;
-	NIAGARA_API void ReleaseToPool() override;
-	NIAGARA_API uint32 GetApproxMemoryUsage() const override;
+	NIAGARA_API virtual void SetEmitterEnable(FName EmitterName, bool bNewEnableState) override;
+	NIAGARA_API virtual void ReleaseToPool() override;
+	NIAGARA_API virtual uint32 GetApproxMemoryUsage() const override;
 	NIAGARA_API virtual void ActivateSystem(bool bFlagAsJustAttached = false) override;
 	/********* UFXSystemComponent *********/
 
@@ -125,7 +125,6 @@ private:
 	/**
 	When true, this component's system will be force to update via a slower "solo" path rather than the more optimal batched path with other instances of the same system.
 	*/
-	UPROPERTY(EditAnywhere, Category = Parameters)
 	uint32 bForceSolo : 1;
 
 	/** When true the GPU simulation debug display will enabled, allowing information used during simulation to be visualized. */
@@ -359,13 +358,13 @@ public:
 	/** Gets whether or not the delta time used to tick the system instance when using desired age is locked to the seek delta.  When true, the system instance
 	will only be ticked when the desired age has changed by more than the seek delta.  When false the system instance will be ticked by the change in desired
 	age when not seeking. */
-	UFUNCTION(BlueprintCallable, Category = Niagara, meta = (DisplayName = "Get whether or not to lock the desired age delta time to the seek delta."))
+	UFUNCTION(BlueprintCallable, Category = Niagara)
 	NIAGARA_API bool GetLockDesiredAgeDeltaTimeToSeekDelta() const;
 
 	/** Sets whether or not the delta time used to tick the system instance when using desired age is locked to the seek delta.  When true, the system instance
 	will only be ticked when the desired age has changed by more than the seek delta.  When false the system instance will be ticked by the change in desired
 	age when not seeking. */
-	UFUNCTION(BlueprintCallable, Category = Niagara, meta = (DisplayName = "Set whether or not to lock the desired age delta time to the seek delta."))
+	UFUNCTION(BlueprintCallable, Category = Niagara)
 	NIAGARA_API void SetLockDesiredAgeDeltaTimeToSeekDelta(bool bLock);
 
 	/**

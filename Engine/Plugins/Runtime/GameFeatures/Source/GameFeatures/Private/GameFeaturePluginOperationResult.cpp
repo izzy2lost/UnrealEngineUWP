@@ -66,6 +66,7 @@ namespace UE::GameFeatures
 
 				//These are generally unrecoverable and mean something is seriously wrong with the data for this build
 				case EInstallBundleResult::InitializationError:
+				case EInstallBundleResult::MetadataError:
 				{
 					return Generic_FatalError;
 				}
@@ -109,12 +110,13 @@ namespace UE::GameFeatures
 		{
 			switch (ErrorResult)
 			{
-				case (EInstallBundleReleaseResult::UserCancelledError):
+				case EInstallBundleReleaseResult::UserCancelledError:
 				{
 					return ReleaseResult_Cancelled;
 				}
 			
-				case (EInstallBundleReleaseResult::ManifestArchiveError):
+				case EInstallBundleReleaseResult::ManifestArchiveError:
+				case EInstallBundleReleaseResult::MetadataError:
 				{
 					return ReleaseResult_Generic;
 				}

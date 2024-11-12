@@ -4,7 +4,7 @@
 
 #include "PCGData.h"
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 
 #include "PCGUserParametersData.generated.h"
 
@@ -30,4 +30,7 @@ public:
 
 	UPROPERTY()
 	FInstancedStruct UserParameters;
+
+	UPROPERTY()
+	TSoftObjectPtr<UPCGUserParametersData> UpstreamData = nullptr;
 };

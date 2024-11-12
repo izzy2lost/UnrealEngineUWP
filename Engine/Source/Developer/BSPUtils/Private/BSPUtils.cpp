@@ -1988,7 +1988,6 @@ void FBSPUtils::polyUpdateBrush
 	check(Brush);
 
 	FVector ActorLocation;
-	FVector ActorPrePivot;
 	FVector ActorScale;
 	FRotator ActorRotation;
 

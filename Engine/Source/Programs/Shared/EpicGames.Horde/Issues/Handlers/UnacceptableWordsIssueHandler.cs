@@ -8,10 +8,13 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a Perforce case mismatch error
 	/// </summary>
-	[IssueHandler(Priority = 8)]
+	[IssueHandler]
 	public class UnacceptableWordsIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
+
+		/// <inheritdoc/>
+		public override int Priority => 8;
 
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent issueEvent)

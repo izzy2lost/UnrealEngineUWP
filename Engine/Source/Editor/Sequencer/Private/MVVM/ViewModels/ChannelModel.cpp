@@ -6,6 +6,7 @@
 #include "Channels/MovieSceneChannel.h"
 #include "Channels/MovieSceneChannelHandle.h"
 #include "Channels/MovieSceneSectionChannelOverrideRegistry.h"
+#include "Channels/IMovieSceneChannelOwner.h"
 #include "CurveModel.h"
 #include "DetailsViewArgs.h"
 #include "HAL/PlatformCrt.h"
@@ -45,6 +46,7 @@
 #include "Types/SlateEnums.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SBoxPanel.h"
+#include "Algo/AnyOf.h"
 
 class ISequencer;
 class SWidget;
@@ -53,6 +55,92 @@ class SWidget;
 
 namespace UE::Sequencer
 {
+
+
+struct FDynamicChannelMuteExtension : IDynamicExtension, IMutableExtension
+{
+	TWeakObjectPtr<> WeakOwner;
+	FName ChannelName;
+
+	using Implements = TImplements<IDynamicExtension, IMutableExtension>;
+
+	UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(FDynamicChannelMuteExtension)
+
+	FDynamicChannelMuteExtension(TWeakObjectPtr<> InWeakOwner, FName InChannelName)
+		: WeakOwner(InWeakOwner)
+		, ChannelName(InChannelName)
+	{}
+
+	bool IsMuted() const override
+	{
+		IMovieSceneChannelOwner* ChannelOwner = Cast<IMovieSceneChannelOwner>(WeakOwner.Get());
+		return ChannelOwner && ChannelOwner->IsMuted(ChannelName);
+	}
+	void SetIsMuted(bool bIsMuted) override
+	{
+		IMovieSceneChannelOwner* ChannelOwner = Cast<IMovieSceneChannelOwner>(WeakOwner.Get());
+		if (ChannelOwner)
+		{
+			ChannelOwner->SetIsMuted(ChannelName, bIsMuted);
+		}
+	}
+};
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FDynamicChannelMuteExtension);
+
+struct FDynamicChannelGroupMuteExtension : IDynamicExtension, IMutableExtension
+{
+	TWeakViewModelPtr<FChannelGroupModel> WeakChannelGroup;
+
+	using Implements = TImplements<IDynamicExtension, IMutableExtension>;
+
+	UE_SEQUENCER_DECLARE_VIEW_MODEL_TYPE_ID(FDynamicChannelGroupMuteExtension)
+
+	FDynamicChannelGroupMuteExtension(TWeakViewModelPtr<FChannelGroupModel> InWeakChannelGroup)
+		: WeakChannelGroup(InWeakChannelGroup)
+	{}
+
+	bool IsInheritable() const override
+	{
+		return false;
+	}
+
+	bool IsMuted() const override
+	{
+		TViewModelPtr<FChannelGroupModel> ChannelGroup = WeakChannelGroup.Pin();
+		if (!ChannelGroup)
+		{
+			return false;
+		}
+
+		for (const TWeakViewModelPtr<FChannelModel>& WeakChannel : ChannelGroup->GetChannels())
+		{
+			TViewModelPtr<IMutableExtension> Mutable = WeakChannel.ImplicitPin();
+			if (Mutable && Mutable->IsMuted())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void SetIsMuted(bool bIsMuted) override
+	{
+		TViewModelPtr<FChannelGroupModel> ChannelGroup = WeakChannelGroup.Pin();
+		if (ChannelGroup)
+		{
+			for (const TWeakViewModelPtr<FChannelModel>& WeakChannel : ChannelGroup->GetChannels())
+			{
+				TViewModelPtr<IMutableExtension> Mutable = WeakChannel.ImplicitPin();
+				if (Mutable)
+				{
+					Mutable->SetIsMuted(bIsMuted);
+				}
+			}
+		}
+	}
+};
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FDynamicChannelGroupMuteExtension);
+
 
 FChannelModel::FChannelModel(FName InChannelName, TWeakPtr<ISequencerSection> InSection, FMovieSceneChannelHandle InChannel)
 	: KeyArea(MakeShared<IKeyArea>(InSection, InChannel))
@@ -84,6 +172,17 @@ void FChannelModel::Initialize(TWeakPtr<ISequencerSection> InSection, FMovieScen
 	{
 		KeyArea->Reinitialize(InSection, InChannel);
 	}
+
+	const FMovieSceneChannelMetaData* ChannelMetaData = InChannel.GetMetaData();
+	IMovieSceneChannelOwner*          ChannelOwner    = Cast<IMovieSceneChannelOwner>(KeyArea->GetOwningObject());
+	if (ChannelMetaData && ChannelOwner && ChannelOwner->GetCapabilities(KeyArea->GetName()).bSupportsMute)
+	{
+		AddDynamicExtension<FDynamicChannelMuteExtension>(KeyArea->GetOwningObject(), ChannelMetaData->Name);
+	}
+	else
+	{
+		RemoveDynamicExtension<FDynamicChannelMuteExtension>();
+	}
 }
 
 FMovieSceneChannel* FChannelModel::GetChannel() const
@@ -95,6 +194,11 @@ FMovieSceneChannel* FChannelModel::GetChannel() const
 UMovieSceneSection* FChannelModel::GetSection() const
 {
 	return KeyArea->GetOwningSection();
+}
+
+UObject* FChannelModel::GetOwningObject() const
+{
+	return KeyArea->GetOwningObject();
 }
 
 FOutlinerSizing FChannelModel::GetDesiredSizing() const
@@ -333,6 +437,19 @@ void FChannelGroupModel::CleanupChannels()
 	if (NumRemoved > 0)
 	{
 		++ChannelsSerialNumber;
+
+		const bool bShouldBeMutable = Algo::AnyOf(Channels, [](TWeakViewModelPtr<FChannelModel> In)
+			{
+				TViewModelPtr<IMutableExtension> Mutable = In.ImplicitPin();
+				return Mutable.IsValid();
+			}
+		);
+
+		const bool bIsMutable = CastDynamic<IMutableExtension>() != nullptr;
+		if (!bShouldBeMutable && bIsMutable)
+		{
+			RemoveDynamicExtension<FDynamicChannelGroupMuteExtension>();
+		}
 	}
 }
 
@@ -781,6 +898,53 @@ FChannelGroupOutlinerModel::FChannelGroupOutlinerModel(FName InChannelName, cons
 FChannelGroupOutlinerModel::~FChannelGroupOutlinerModel()
 {}
 
+void FChannelGroupOutlinerModel::OnUpdated()
+{
+	WeakCommonChannelModel = nullptr;
+
+	// If all channels are the same type, assign the common channel
+	//    model for edit interactions and context menus
+	{
+		TViewModelPtr<FChannelModel> CommonChannel;
+		for (TWeakViewModelPtr<FChannelModel> WeakChannel : Channels)
+		{
+			if (TViewModelPtr<FChannelModel> Channel = WeakChannel.Pin())
+			{
+				if (!CommonChannel)
+				{
+					CommonChannel = Channel;
+				}
+				else if (CommonChannel->GetTypeTable().GetTypeID() != Channel->GetTypeTable().GetTypeID())
+				{
+					CommonChannel = nullptr;
+					break;
+				}
+			}
+		}
+		WeakCommonChannelModel = CommonChannel;
+	}
+
+
+	const bool bShouldBeMutable = Algo::AnyOf(Channels,
+		[](TWeakViewModelPtr<FChannelModel> In)
+		{
+			TViewModelPtr<IMutableExtension> Mutable = In.ImplicitPin();
+			return Mutable.IsValid();
+		}
+	);
+
+	const bool bIsMutable = CastDynamic<IMutableExtension>() != nullptr;
+
+	if (bShouldBeMutable && !bIsMutable)
+	{
+		AddDynamicExtension<FDynamicChannelGroupMuteExtension>(SharedThis(this));
+	}
+	else if (!bShouldBeMutable && bIsMutable)
+	{
+		RemoveDynamicExtension<FDynamicChannelGroupMuteExtension>();
+	}
+}
+
 FOutlinerSizing FChannelGroupOutlinerModel::RecomputeSizing()
 {
 	FOutlinerSizing MaxSizing;
@@ -832,6 +996,16 @@ TSharedPtr<SWidget> FChannelGroupOutlinerModel::CreateOutlinerViewForColumn(cons
 	if (!Editor)
 	{
 		return SNullWidget::NullWidget;
+	}
+
+	// Ask a common channel to populate the outliner column view first
+	if (TViewModelPtr<FChannelModel> CommonChannel = WeakCommonChannelModel.Pin())
+	{
+		TSharedPtr<SWidget> Widget = CommonChannel->CreateOutlinerViewForColumn(InParams, InColumnName);
+		if (Widget)
+		{
+			return Widget;
+		}
 	}
 
 	if (InColumnName == FCommonOutlinerNames::Label)
@@ -930,6 +1104,11 @@ void FChannelGroupOutlinerModel::CreateCurveModels(TArray<TUniquePtr<FCurveModel
 
 void FChannelGroupOutlinerModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
+	if (TViewModelPtr<FChannelModel> CommonChannel = WeakCommonChannelModel.Pin())
+	{
+		CommonChannel->BuildContextMenu(MenuBuilder, TViewModelPtr<FChannelGroupOutlinerModel>(this));
+	}
+
 	FOutlinerItemModelMixin::BuildContextMenu(MenuBuilder);
 
 	BuildChannelOverrideMenu(MenuBuilder);

@@ -7,7 +7,7 @@ namespace Chaos
 {
 	class FPBDConstraintContainer;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	#define CSV_CUSTOM_STAT_ISLANDGROUP_HELPER(Stat) CSV_CUSTOM_STAT(PhysicsVerbose, Stat, Stats[Stat] * 1000.0, ECsvCustomStatOp::Set);
 	#define CSV_SCOPED_ISLANDGROUP_TIMING_STAT(Stat, ThreadIndex) FScopedDurationTimer Timer_##Stat(GetThreadStatAccumulator(ThreadIndex, FIslandGroupStats::Stat))
 
@@ -59,7 +59,7 @@ namespace Chaos
 		double Stats[EPerIslandStat::NumStats];
 	};
 
-#else // !CSV_PROFILER
+#else // !CSV_PROFILER_STATS
 	
 	#define CSV_SCOPED_ISLANDGROUP_TIMING_STAT(Stat, ThreadIndex)
 
@@ -171,7 +171,7 @@ namespace Chaos
 			int32 TargetNumConstraintsPerTask;
 			FIterationSettings Iterations;
 
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 			double& GetThreadStatAccumulator(const int32 ThreadIndex, const FIslandGroupStats::EPerIslandStat StatId)
 			{
 				if (!GroupStats.IsValidIndex(ThreadIndex))

@@ -50,7 +50,9 @@ namespace GeometryCollection::Facades
 		/**
 		 * Bakes the transforms into the vertex positions and sets the bone transforms to identity
 		 */
-		 CHAOS_API void BakeTransform(int32 TransformIdx, const FTransform& InTransform);
+		CHAOS_API void BakeTransform(int32 TransformIdx, const FTransform& InTransform);
+
+		CHAOS_API const TArray<int32> GetGeometryGroupIndexArray() const;
 
 		TManagedArrayAccessor<int32> TransformToGeometryIndexAttribute;
 		TManagedArrayAccessor<int32> TransformIndexAttribute;

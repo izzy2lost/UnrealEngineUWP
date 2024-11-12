@@ -43,25 +43,28 @@ UE::MovieGraph::FMovieGraphRenderDataValidationInfo UE::MovieGraph::FMovieGraphO
 {
 	const FName& ActiveBranchName = InRenderID.RootBranchName;
 	const FString& ActiveRendererName = InRenderID.RendererName;
+	const FString& ActiveCameraName = InRenderID.CameraName;
 
 	FMovieGraphRenderDataValidationInfo ValidationInfo;
 
 	TSet<FString>	LayerCounts;
 	TSet<FName>		BranchCounts;
 	TSet<FString>	BranchRendererCounts;
+	TSet<FString>	CameraNameCounts;
 
 	const int32 ReserveNum = ExpectedRenderPasses.Num();
 	LayerCounts.Reserve(ReserveNum);
 	BranchCounts.Reserve(ReserveNum);
 	BranchRendererCounts.Reserve(ReserveNum);
+	CameraNameCounts.Reserve(ReserveNum);
 
 	for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
 	{
 		LayerCounts.Add(PassIdentifier.LayerName);
 		BranchCounts.Add(PassIdentifier.RootBranchName);
 
-		// We only count renderers on the active branch
-		if (PassIdentifier.RootBranchName == ActiveBranchName)
+		// We only count renderers on the active branch and active camera
+		if (PassIdentifier.RootBranchName == ActiveBranchName && PassIdentifier.CameraName == ActiveCameraName)
 		{
 			BranchRendererCounts.Add(PassIdentifier.RendererName);
 
@@ -70,6 +73,17 @@ UE::MovieGraph::FMovieGraphRenderDataValidationInfo UE::MovieGraph::FMovieGraphO
 			{
 				ValidationInfo.ActiveRendererSubresourceCount++;
 			}
+		}
+
+		// Figure out how many cameras exist for this branch
+		if (PassIdentifier.RootBranchName == ActiveBranchName)
+		{
+			if (!CameraNameCounts.Contains(PassIdentifier.CameraName))
+			{
+				ValidationInfo.ActiveCameraCount++;
+			}
+			CameraNameCounts.Add(PassIdentifier.CameraName);
+
 		}
 	}
 
@@ -82,7 +96,7 @@ UE::MovieGraph::FMovieGraphRenderDataValidationInfo UE::MovieGraph::FMovieGraphO
 			check(Payload);
 			if (Payload->bCompositeOnOtherRenders)
 			{
-				if (RenderData.Key.RootBranchName == ActiveBranchName)
+				if (RenderData.Key.RootBranchName == ActiveBranchName && RenderData.Key.CameraName == ActiveCameraName)
 				{
 					BranchRendererCounts.Remove(RenderData.Key.RendererName);
 

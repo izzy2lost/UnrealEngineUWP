@@ -1000,9 +1000,9 @@ namespace GeometryCollectionTest
 		EXPECT_TRUE(ClusterMapContains(ClusterMap, ParticleHandles[8], { ParticleHandles[7],ParticleHandles[0] }));
 
 		// Storage for positions for particles 0, 1, 6 for testing assumptions
-		FVector Ref0;
-		FVector Ref1;
-		FVector Ref6;
+		FVector Ref0(0.0);
+		FVector Ref1(0.0);
+		FVector Ref6(0.0);
 
 		for (int Frame = 1; Frame < 10; Frame++)
 		{
@@ -1770,7 +1770,6 @@ namespace GeometryCollectionTest
 		const auto& ParticleHandles = UnitTest.Solver->GetParticles().GetParticleHandles();
 		const TArrayCollectionArray<FRigidTransform3>& ChildToParent = Clustering.GetChildToParentMap();
 
-		FVector TestOffset;
 		FVector InitialRootPosition;
 		FVector RelativeChildOffsets[4];
 

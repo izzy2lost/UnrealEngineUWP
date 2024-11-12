@@ -130,9 +130,12 @@ FComputeDataProviderRenderProxy* UMLDeformerGraphDebugDataProvider::GetRenderPro
 	if (DeformerComponent && DeformerAsset && DeformerComponent->GetModelInstance() && DeformerComponent->GetModelInstance()->IsValidForDataProvider())
 	{
 		UE::MLDeformer::FMLDeformerGraphDebugDataProviderProxy* Proxy = new UE::MLDeformer::FMLDeformerGraphDebugDataProviderProxy(DeformerComponent, DeformerAsset, this);
-		const float SampleTime = DeformerComponent->GetModelInstance()->GetSkeletalMeshComponent()->GetPosition();
 		UMLDeformerModel* Model = DeformerAsset->GetModel();
-		Model->SampleGroundTruthPositions(SampleTime, Proxy->GetGroundTruthPositions());
+		if (Model->GetVizSettings()->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			const int32 GroundTruthFrame = DeformerComponent->GetModelInstance()->GetGroundTruthFrameIndex();
+			Model->SampleGroundTruthPositionsAtFrame(GroundTruthFrame, Proxy->GetGroundTruthPositions());
+		}
 		Proxy->HandleZeroGroundTruthPositions();
 		return Proxy;
 	}
@@ -160,7 +163,7 @@ namespace UE::MLDeformer
 			VertexMapBufferSRV = Model->GetVertexMapBuffer().ShaderResourceViewRHI;
 			HeatMapMode = static_cast<int32>(VizSettings->GetHeatMapMode());
 			HeatMapMax = 1.0f / FMath::Max(VizSettings->GetHeatMapMax(), 0.00001f);
-			GroundTruthLerp = (ModelInstance && ModelInstance->GetSkeletalMeshComponent()->GetPredictedLODLevel() == 0) ? VizSettings->GetGroundTruthLerp() : 0.0f;
+			GroundTruthLerp = (ModelInstance && ModelInstance->GetSkeletalMeshComponent() && ModelInstance->GetSkeletalMeshComponent()->GetPredictedLODLevel() == 0) ? VizSettings->GetGroundTruthLerp() : 0.0f;
 		}
 	}
 

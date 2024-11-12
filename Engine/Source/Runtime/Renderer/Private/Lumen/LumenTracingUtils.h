@@ -63,6 +63,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenCardTracingParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, NormalAtlas)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EmissiveAtlas)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthAtlas)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, TileShadowDownsampleFactorAtlasForResampling)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GlobalDistanceFieldPageObjectGridBuffer)
 	SHADER_PARAMETER(uint32, NumGlobalSDFClipmaps)
 END_SHADER_PARAMETER_STRUCT()
@@ -124,7 +125,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenDiffuseTracingParameters, )
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLumenHZBScreenTraceParameters, )
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevSceneColorTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, PrevSceneColorTexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistorySceneDepth)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, ClosestHZBTexture)
 	SHADER_PARAMETER(FVector4f, HZBUvFactorAndInvFactor)
@@ -174,15 +175,18 @@ extern void CullForCardTracing(
 	FLumenMeshSDFGridParameters& MeshSDFGridParameters,
 	ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
+extern void SetupLumenDiffuseTracingParameters(float MaxTraceDistance, float OrthoMaxDimension, FLumenIndirectTracingParameters& OutParameters);
+extern void SetupLumenDiffuseTracingParametersForProbe(float MaxTraceDistance, float OrthoMaxDimension, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeHalfAngle);
+
 extern void SetupLumenDiffuseTracingParameters(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters);
 extern void SetupLumenDiffuseTracingParametersForProbe(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters, float DiffuseConeAngle);
+
 extern void SetupLumenMeshSDFTracingParameters(FRDGBuilder& GraphBuilder, const FScene* Scene, const FViewInfo& View,FLumenMeshSDFTracingParameters& OutParameters);
 
 extern FLumenHZBScreenTraceParameters SetupHZBScreenTraceParameters(
 	FRDGBuilder& GraphBuilder, 
 	const FViewInfo& View,
-	const FSceneTextures& SceneTextures,
-	bool bBindLumenHistory = true);
+	const FSceneTextures& SceneTextures);
 
 extern int32 GLumenIrradianceFieldGather;
 

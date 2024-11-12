@@ -407,6 +407,13 @@ public:
 	UPROPERTY(Category="Character Movement (General Settings)", EditDefaultsOnly, BlueprintReadWrite)
 	uint8 bUseSeparateBrakingFriction:1;
 
+	/** 
+	 * True means while the jump key is held, we will not allow the vertical speed to fall below the JumpZVelocity tuning value 
+	 * even if a stronger force, such as gravity, is opposing the jump. 
+	 */
+	UPROPERTY(Category="Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite, AdvancedDisplay)
+	uint8 bDontFallBelowJumpZVelocityDuringJump:1;
+
 	/**
 	 *	Apply gravity while the character is actively jumping (e.g. holding the jump key).
 	 *	Helps remove frame-rate dependent jump height, but may alter base jump height.
@@ -1303,6 +1310,7 @@ public:
 	bool IsMovementInProgress() const { return bMovementInProgress; }
 
 	//BEGIN UNavMovementComponent Interface
+	ENGINE_API virtual FVector GetActorFeetLocation() const override;
 	ENGINE_API virtual void RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed) override;
 	ENGINE_API virtual void RequestPathMove(const FVector& MoveInput) override;
 	ENGINE_API virtual bool CanStartPathFollowing() const override;
@@ -1383,6 +1391,10 @@ public:
 	UPROPERTY(Category = "Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite)
 	bool bBasedMovementIgnorePhysicsBase = false;
 
+	/** Property to set if characters should stay based on objects attachment root instead of the traced object */
+	UPROPERTY(Category = "Character Movement (General Settings)", EditAnywhere, BlueprintReadWrite)
+	bool bBaseOnAttachmentRoot = false;
+
 	/** Property to set if characters should stay based on objects while jumping */
 	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite)
 	bool bStayBasedInAir = false;
@@ -1391,16 +1403,24 @@ public:
 	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite, meta = (editcondition = "bStayBasedInAir"))
 	float StayBasedInAirHeight = 1000.0f;
 
+
 	/** changes physics based on MovementMode */
 	ENGINE_API virtual void StartNewPhysics(float deltaTime, int32 Iterations);
 	
 	/**
+	 * NOTE: THIS FUNCTION IS DEPRECATED, PLEASE CALL DoJump(bool bReplayingMoves, float DeltaTime) ... 
+	 */
+	UE_DEPRECATED_FORGAME(5.5, "This function has been deprecated. Please call DoJump(bool bReplayingMoves, float DeltaTime)")
+	ENGINE_API virtual bool DoJump(bool bReplayingMoves);
+
+	/**
 	 * Perform jump. Called by Character when a jump has been detected because Character->bPressedJump was true. Checks Character->CanJump().
 	 * Note that you should usually trigger a jump through Character::Jump() instead.
 	 * @param	bReplayingMoves: true if this is being done as part of replaying moves on a locally controlled client after a server correction.
+	 * @param	DeltaTime: time slice for this jump move
 	 * @return	True if the jump was triggered successfully.
 	 */
-	ENGINE_API virtual bool DoJump(bool bReplayingMoves);
+	ENGINE_API virtual bool DoJump(bool bReplayingMoves, float DeltaTime);
 
 	/**
 	 * Returns true if current movement state allows an attempt at jumping. Used by Character::CanJump().
@@ -1654,9 +1674,21 @@ public:
 	/** Rotate a vector from world to gravity space. */
 	FVector RotateGravityToWorld(const FVector& World) const { return WorldToGravityTransform.RotateVector(World); }
 
-	/** Rotate a vector gravity to world space. */
+	/** Rotate a vector from gravity to world space. */
 	FVector RotateWorldToGravity(const FVector& Gravity) const { return GravityToWorldTransform.RotateVector(Gravity); }
 
+	/** Project a vector onto the floor defined by the gravity direction. */
+	FVector ProjectToGravityFloor(const FVector& Vector) const { return FVector::VectorPlaneProject(Vector, GetGravityDirection()); }
+
+	/** Returns the size of a vector in the gravity-space vertical direction. */
+	FVector::FReal GetGravitySpaceZ(const FVector& Vector) const { return Vector.Dot(-GetGravityDirection()); }
+
+	/** Returns the component of the vector in the gravity-space vertical direction.  */
+	FVector GetGravitySpaceComponentZ(const FVector& Vector) const { return Vector.Dot(GetGravityDirection()) * GetGravityDirection(); }
+
+	/** Set the vertical component of the vector to the given value in the gravity-space vertical direction. */
+	void SetGravitySpaceZ(FVector& Vector, const FVector::FReal Z) const { Vector = ProjectToGravityFloor(Vector) - Z * GetGravityDirection(); }
+	
 protected:
 
 	/**
@@ -1755,13 +1787,13 @@ public:
 	ENGINE_API float GetCrouchedHalfHeight() const;
 
 	/** Returns true if there is a suitable floor SideStep from current position. */
-	ENGINE_API virtual bool CheckLedgeDirection(const FVector& OldLocation, const FVector& SideStep, const FVector& GravDir) const;
+	ENGINE_API virtual bool CheckLedgeDirection(const FVector& OldLocation, const FVector& SideStep, const FFindFloorResult& OldFloor) const;
 
 	/** 
 	 * @param Delta is the current move delta (which ended up going over a ledge).
 	 * @return new delta which moves along the ledge
 	 */
-	ENGINE_API virtual FVector GetLedgeMove(const FVector& OldLocation, const FVector& Delta, const FVector& GravDir) const;
+	ENGINE_API virtual FVector GetLedgeMove(const FVector& OldLocation, const FVector& Delta, const FFindFloorResult& OldFloor) const;
 
 	/** Check if pawn is falling */
 	ENGINE_API virtual bool CheckFall(const FFindFloorResult& OldFloor, const FHitResult& Hit, const FVector& Delta, const FVector& OldLocation, float remainingTime, float timeTick, int32 Iterations, bool bMustJump);
@@ -2713,7 +2745,7 @@ public:
 
 protected:
 	/** Restores Velocity to LastPreAdditiveVelocity during Root Motion Phys*() function calls */
-	ENGINE_API void RestorePreAdditiveRootMotionVelocity();
+	ENGINE_API virtual void RestorePreAdditiveRootMotionVelocity();
 
 	/** Applies root motion from root motion sources to velocity (override and additive) */
 	ENGINE_API virtual void ApplyRootMotionToVelocity(float deltaTime);
@@ -2853,9 +2885,14 @@ FORCEINLINE uint32 UCharacterMovementComponent::PackYawAndPitchTo32(const float 
 	return Rotation32;
 }
 
+class FSavedMove_Character_FixLayout
+{
+public:
+	virtual ~FSavedMove_Character_FixLayout() = default;
+};
 
 /** FSavedMove_Character represents a saved move on the client that has been sent to the server and might need to be played back. */
-class FSavedMove_Character
+class FSavedMove_Character : public FSavedMove_Character_FixLayout
 {
 public:
 	ENGINE_API FSavedMove_Character();
@@ -2869,17 +2906,24 @@ public:
 
 	ACharacter* CharacterOwner;
 
-	uint32 bPressedJump:1;
-	uint32 bWantsToCrouch:1;
-	uint32 bForceMaxAccel:1;
+	uint8 bPressedJump:1;
+	uint8 bWantsToCrouch:1;
+	uint8 bForceMaxAccel:1;
 
 	/** If true, can't combine this move with another move. */
-	uint32 bForceNoCombine:1;
+	uint8 bForceNoCombine:1;
 
 	/** If true this move is using an old TimeStamp, before a reset occurred. */
-	uint32 bOldTimeStampBeforeReset:1;
+	uint8 bOldTimeStampBeforeReset:1;
 
-	uint32 bWasJumping:1;
+	uint8 bWasJumping:1;
+
+	UE_DEPRECATED_FORGAME(4.20, "This property is deprecated, use StartPackedMovementMode or EndPackedMovementMode instead.")
+	uint8 MovementMode;
+
+	// Information at the start of the move
+	uint8 StartPackedMovementMode;
+	uint8 EndPackedMovementMode;
 
 	float TimeStamp;    // Time of this move.
 	float DeltaTime;    // amount of time for this move
@@ -2889,11 +2933,6 @@ public:
 	int32 JumpMaxCount;
 	int32 JumpCurrentCount;
 	
-	UE_DEPRECATED_FORGAME(4.20, "This property is deprecated, use StartPackedMovementMode or EndPackedMovementMode instead.")
-	uint8 MovementMode;
-
-	// Information at the start of the move
-	uint8 StartPackedMovementMode;
 	FVector StartLocation;
 	FVector StartRelativeLocation;
 	FVector StartVelocity;
@@ -2913,7 +2952,6 @@ public:
 	FRotator StartAttachRelativeRotation;
 
 	// Information after the move has been performed
-	uint8 EndPackedMovementMode;
 	FVector SavedLocation;
 	FRotator SavedRotation;
 	FVector SavedVelocity;

@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Containers/Queue.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataBuild.h"
 #include "DerivedDataBuildAction.h"
 #include "DerivedDataBuildInputs.h"
@@ -12,7 +13,6 @@
 #include "DerivedDataBuildWorker.h"
 #include "DerivedDataRequest.h"
 #include "DerivedDataRequestOwner.h"
-#include "DerivedDataSharedString.h"
 #include "DerivedDataValue.h"
 #include "Experimental/ZenServerInterface.h"
 #include "Features/IModularFeatures.h"

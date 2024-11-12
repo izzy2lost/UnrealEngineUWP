@@ -95,6 +95,9 @@ protected:
 	* @param bInAllWildcardPinsUnlinked	TRUE if all wildcard pins were unlinked
 	*/
 	virtual void PostFixupAllWildcardPins(bool bInAllWildcardPinsUnlinked) {}
+	// Feature flag for 'smart' wildcard inference which allows for multiple 
+	// types to be inferred.
+	static bool ShouldDoSmartWildcardInference();
 
 	// Utility function that subclasses must call after allocating their default pins
 	void CacheWildcardPins();

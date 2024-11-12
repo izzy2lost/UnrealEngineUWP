@@ -2,6 +2,7 @@
 
 #include "SDetailSingleItemRow.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/Compare.h"
 #include "DetailGroup.h"
 #include "DetailPropertyRow.h"
@@ -12,6 +13,7 @@
 #include "IDetailPropertyExtensionHandler.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "ObjectPropertyNode.h"
 #include "PropertyEditorClipboard.h"
 #include "PropertyEditorClipboardPrivate.h"
 #include "PropertyEditorCopyPastePrivate.h"
@@ -306,12 +308,12 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 	FOnCanAcceptDrop CanAcceptDropDelegate;
 
 	IDetailsViewPrivate* DetailsView = InOwnerTreeNode->GetDetailsView();
-	FDetailColumnSizeData& ColumnSizeData = DetailsView->GetColumnSizeData();
+	const FDetailColumnSizeData& ColumnSizeData = DetailsView ? DetailsView->GetColumnSizeData() : FDetailColumnSizeData();
 
 	PulseAnimation.AddCurve(0.0f, UE::PropertyEditor::Private::PulseAnimationLength, ECurveEaseFunction::CubicInOut);
 
 	// Play on construction if animation was started from a behavior the re-constructs this widget
-	if (DetailsView->IsNodeAnimating(GetPropertyNode()))
+	if (DetailsView && DetailsView->IsNodeAnimating(GetPropertyNode()))
 	{
 		PulseAnimation.Play(SharedThis(this));
 	}
@@ -491,11 +493,11 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				if (PropertyNode->IsReorderable() || 
 					(CastField<FArrayProperty>(PropertyNode->GetProperty()) != nullptr && 
 					CastField<FObjectProperty>(CastField<FArrayProperty>(PropertyNode->GetProperty())->Inner) != nullptr)) // Is an object array
-						{
+				{
 					DragLeaveDelegate = FOnTableRowDragLeave::CreateSP(this, &SDetailSingleItemRow::OnArrayOrCustomDragLeave);
 					AcceptDropDelegate = FOnAcceptDrop::CreateSP(this, PropertyNode->IsReorderable() ? &SDetailSingleItemRow::OnArrayAcceptDrop : &SDetailSingleItemRow::OnArrayHeaderAcceptDrop);
 					CanAcceptDropDelegate = FOnCanAcceptDrop::CreateSP(this, &SDetailSingleItemRow::OnArrayCanAcceptDrop);
-						}
+				}
 			}
 
 			NameColumnBox->AddSlot()
@@ -584,68 +586,89 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 					];
 			}
 
-			TArray<FPropertyRowExtensionButton> ExtensionButtons;
+			TSharedPtr<SWidget> RightmostWidget;
+			if (GetPropertyNode().IsValid() &&
+					DetailsView &&
+					DetailsView->GetDisplayManager().IsValid())
+			{
+				TSharedPtr<FDetailsDisplayManager> DisplayManagerLocal = DetailsView->GetDisplayManager();
 
-			UpdateResetToDefault();
-			FPropertyRowExtensionButton& ResetToDefault = ExtensionButtons.AddDefaulted_GetRef();
-			ResetToDefault.Label = NSLOCTEXT("PropertyEditor", "ResetToDefault", "Reset to Default");
-			ResetToDefault.UIAction = FUIAction(
-				FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked),
-				FCanExecuteAction::CreateLambda([this, IsValueEnabledAttribute]()
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				if (DisplayManagerLocal->CanConstructPropertyUpdatedWidgetBuilder())
+				{
+					DisplayManager = MoveTemp(DisplayManagerLocal);
+
+					FConstructPropertyUpdatedWidgetBuilderArgs Args;
+					Args.ResetToDefaultAction = FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked);
+					Args.PropertyPath = MakeShared<FPropertyPath>(InOwnerTreeNode->GetPropertyPath());
+					Args.CategoryObjectName = Category->GetObjectName();
+						
+					PropertyUpdatedWidgetBuilder = DisplayManager->ConstructPropertyUpdatedWidgetBuilder(Args);
+
+					if (PropertyUpdatedWidgetBuilder.IsValid())
 					{
-						return IsResetToDefaultVisible() && IsValueEnabledAttribute.Get(true);
-					})
-			);
-
-			// We could just collapse the Reset to Default button by setting the FIsActionButtonVisible delegate,
-			// but this would cause the reset to defaults not to reserve space in the toolbar and not be aligned across all rows.
-			// Instead, we show an empty icon and tooltip and disable the button.
-			static FSlateIcon EnabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "PropertyWindow.DiffersFromDefault");
-			static FSlateIcon DisabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "NoBrush");
-			ResetToDefault.Icon = TAttribute<FSlateIcon>::Create([this]()
-			{
-				return IsResetToDefaultVisible() ?
-					EnabledResetToDefaultIcon :
-					DisabledResetToDefaultIcon;
-			});
-
-			ResetToDefault.ToolTip = TAttribute<FText>::Create([this]() 
-			{
-				return IsResetToDefaultVisible() ?
-					NSLOCTEXT("PropertyEditor", "ResetToDefaultPropertyValueToolTip", "Reset this property to its default value.") :
-					FText::GetEmpty();
-			});
-
-			CreateGlobalExtensionWidgets(ExtensionButtons);
-
-			FSlimHorizontalToolBarBuilder ToolbarBuilder(TSharedPtr<FUICommandList>(), FMultiBoxCustomization::None);
-			ToolbarBuilder.SetLabelVisibility(EVisibility::Collapsed);
-			ToolbarBuilder.SetStyle(&FAppStyle::Get(), "DetailsView.ExtensionToolBar");
-			ToolbarBuilder.SetIsFocusable(false);
-
-			for (const FPropertyRowExtensionButton& Extension : ExtensionButtons)
-			{
-				ToolbarBuilder.AddToolBarButton(Extension.UIAction, NAME_None, Extension.Label, Extension.ToolTip, Extension.Icon);
+						TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailSingleItemRow::IsHovered);
+						PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+					}
+				}
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
-			FProperty* Property = nullptr;
-			
-			if (GetPropertyNode().IsValid() &&
-				DetailsView &&
-				DetailsView->GetDisplayManager().IsValid())
+			if(PropertyUpdatedWidgetBuilder.IsValid())
 			{
-				TSharedPtr<FPropertyNode>  PropertyNode = GetPropertyNode(); 	
-				Property = PropertyNode->GetProperty();
-				DisplayManager = DetailsView->GetDisplayManager();
-				TSharedRef<FEditPropertyChain> EditPropertyChain = PropertyNode->BuildPropertyChain( Property ); 
-				PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(
-					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked), EditPropertyChain, Category->GetObjectName());
+				RightmostWidget = PropertyUpdatedWidgetBuilder->GenerateWidget();
+			}
+			else if(WidgetRow.HasResetToDefaultContent())
+			{
+				RightmostWidget = WidgetRow.ResetToDefaultWidget.Widget;
+			}
+			else
+			{
+				TArray<FPropertyRowExtensionButton> ExtensionButtons;
 
-				if (PropertyUpdatedWidgetBuilder.IsValid())
+				UpdateResetToDefault();
+				FPropertyRowExtensionButton& ResetToDefault = ExtensionButtons.AddDefaulted_GetRef();
+				ResetToDefault.Label = NSLOCTEXT("PropertyEditor", "ResetToDefault", "Reset to Default");
+				ResetToDefault.UIAction = FUIAction(
+					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked),
+					FCanExecuteAction::CreateLambda([this, IsValueEnabledAttribute]()
+						{
+							return IsResetToDefaultVisible() && IsValueEnabledAttribute.Get(true);
+						})
+				);
+
+				// We could just collapse the Reset to Default button by setting the FIsActionButtonVisible delegate,
+				// but this would cause the reset to defaults not to reserve space in the toolbar and not be aligned across all rows.
+				// Instead, we show an empty icon and tooltip and disable the button.
+				static FSlateIcon EnabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "PropertyWindow.DiffersFromDefault");
+				static FSlateIcon DisabledResetToDefaultIcon(FAppStyle::Get().GetStyleSetName(), "NoBrush");
+				ResetToDefault.Icon = TAttribute<FSlateIcon>::Create([this]()
 				{
-					TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailSingleItemRow::IsHovered);
-					PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+					return IsResetToDefaultVisible() ?
+						EnabledResetToDefaultIcon :
+						DisabledResetToDefaultIcon;
+				});
+
+				ResetToDefault.ToolTip = TAttribute<FText>::Create([this]() 
+				{
+					return IsResetToDefaultVisible() ?
+						NSLOCTEXT("PropertyEditor", "ResetToDefaultPropertyValueToolTip", "Reset this property to its default value.") :
+						FText::GetEmpty();
+				});
+
+				CreateGlobalExtensionWidgets(ExtensionButtons);
+
+				FSlimHorizontalToolBarBuilder ToolbarBuilder(TSharedPtr<FUICommandList>(), FMultiBoxCustomization::None);
+				ToolbarBuilder.SetLabelVisibility(EVisibility::Collapsed);
+				ToolbarBuilder.SetStyle(&FAppStyle::Get(), "DetailsView.ExtensionToolBar");
+				ToolbarBuilder.SetIsFocusable(false);
+
+				for (const FPropertyRowExtensionButton& Extension : ExtensionButtons)
+				{
+					ToolbarBuilder.AddToolBarButton(Extension.UIAction, NAME_None, Extension.Label, Extension.ToolTip, Extension.Icon);
 				}
+
+				RightmostWidget = ToolbarBuilder.MakeWidget();
 			}
 
 			Splitter->AddSlot()
@@ -660,9 +683,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				.VAlign(VAlign_Center)
 				.Padding(0.0f)
 				[
-					PropertyUpdatedWidgetBuilder.IsValid() ?
-					         PropertyUpdatedWidgetBuilder->GenerateWidget().ToSharedRef()  :
-					         ToolbarBuilder.MakeWidget()
+					RightmostWidget.ToSharedRef()
 				]
 			];
 		}
@@ -977,13 +998,17 @@ bool SDetailSingleItemRow::CanPasteGroup()
 	}
 
 	const TArray<TSharedPtr<IPropertyHandle>> GroupPropertyHandles = GetPropertyHandles(true);
+	const TArray<TSharedPtr<FPropertyNode>> GroupPropertyNodes = GetPropertyNodesFromHandles(GroupPropertyHandles);
 
-	// @note: Usually we'd check for IsEditConst or IsEditConditionMet, but if used for PP settings,
-	// by default no properties are editable unless explicitly overridden, so this check would in all cases would prevent paste.
-	constexpr bool bHasEditables = true;
-	
+	// @note: We allow pasting to properties that are disabled due to an EditCondition, but not those that are never editable (ie. VisibleAnywhere).
+	const bool bHasEditables = Algo::AnyOf(GroupPropertyNodes, [](const TSharedPtr<FPropertyNode>& InPropertyNode)
+	{
+		constexpr bool bIncludeEditConditionForConstCheck = false;
+		return !InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
+	});
+
 	// No editable properties to write to
-	if constexpr (!bHasEditables)
+	if (!bHasEditables)
 	{
 		return false;
 	}
@@ -1094,7 +1119,7 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 							return CanPasteGroup()
 								? NSLOCTEXT("PropertyView", "PasteGroupProperties_ToolTip", "Paste the copied property values here")
 								// @note: this is specific to the constraint that the destination group has to match the source group (copied from) exactly 
-								: NSLOCTEXT("PropertyView", "CantPasteGroupProperties_ToolTip", "The properties in this group don't match the contents of the clipboard");
+								: NSLOCTEXT("PropertyView", "CantPasteGroupProperties_ToolTip", "The properties in this group don't match the contents of the clipboard, or the properties aren't editable");
 						});
 					}
 					else
@@ -1120,10 +1145,12 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 			FUIAction CopyDisplayNameAction = FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnCopyPropertyDisplayName);
 			CopyDisplayNameAction.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SDetailSingleItemRow::CanCopyPropertyDisplayName);
 
+			static const FTextFormat TooltipFormat = NSLOCTEXT("PropertyView_Single", "CopyPropertyDisplayName_ToolTip", "Copy the display name of this property to the system clipboard:\n{0}");
+
 			EditSection.AddMenuEntry(
 				TEXT("CopyDisplayName"),
 				NSLOCTEXT("PropertyView", "CopyPropertyDisplayName", "Copy Display Name"),
-				NSLOCTEXT("PropertyView", "CopyPropertyDisplayName_ToolTip", "Copy the display name of this property to the system clipboard."),
+				FText::Format(TooltipFormat, GetPropertyDisplayName()),
 				FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Copy"),
 				CopyDisplayNameAction);
 		}
@@ -1133,10 +1160,12 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 			FUIAction CopyInternalNameAction = FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnCopyPropertyInternalName);
 			CopyInternalNameAction.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SDetailSingleItemRow::CanCopyPropertyInternalName);
 
+			static const FTextFormat TooltipFormat = NSLOCTEXT("PropertyView_Single", "CopyPropertyInternalName_ToolTip", "Copy the internal name of this property to the system clipboard:\n{0}");
+
 			EditSection.AddMenuEntry(
 				TEXT("CopyInternalName"),
 				NSLOCTEXT("PropertyView", "CopyPropertyInternalName", "Copy Internal Name"),
-				NSLOCTEXT("PropertyView", "CopyPropertyInternalName_ToolTip", "Copy the internal name of this property to the system clipboard."),
+				FText::Format(TooltipFormat, FText::FromString(GetPropertyInternalName())),
 				FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Copy"),
 				CopyInternalNameAction);
 		}
@@ -1231,7 +1260,7 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 	}
 }
 
-TArray<TSharedPtr<IPropertyHandle>> SDetailSingleItemRow::GetPropertyHandles(const bool& bRecursive) const
+TArray<TSharedPtr<IPropertyHandle>> SDetailSingleItemRow::GetPropertyHandles(const bool bRecursive) const
 {
 	if (TArray<TSharedPtr<IPropertyHandle>> PropertyHandles = SDetailTableRowBase::GetPropertyHandles(bRecursive);
 		!PropertyHandles.IsEmpty())
@@ -1262,111 +1291,91 @@ void SDetailSingleItemRow::OnCopyProperty()
 	}
 }
 
-void SDetailSingleItemRow::OnCopyPropertyDisplayName()
+FText SDetailSingleItemRow::GetPropertyDisplayName() const
 {
 	if (!OwnerTreeNode.IsValid())
 	{
-		return;
+		return { };
 	}
 
-	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	const TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
 	if (!PropertyNode.IsValid())
 	{
-		return;
+		return { };
 	}
 
 	if (PropertyNode->IsOptionalValueNode())
 	{
-		FPropertyEditorClipboard::ClipboardCopy(*PropertyNode->GetParentNode()->GetDisplayName().ToString());
+		return PropertyNode->GetParentNode()->GetDisplayName();
 	}
-	else
-	{
-		FPropertyEditorClipboard::ClipboardCopy(*PropertyNode->GetDisplayName().ToString());
-	}
+
+	return PropertyNode->GetDisplayName();
+}
+
+void SDetailSingleItemRow::OnCopyPropertyDisplayName()
+{
+	FPropertyEditorClipboard::ClipboardCopy(*GetPropertyDisplayName().ToString());
 }
 
 bool SDetailSingleItemRow::CanCopyPropertyDisplayName()
 {
-	if (!OwnerTreeNode.IsValid())
-	{
-		return false;
-	}
-
-	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-	if (!PropertyNode.IsValid())
-	{
-		return false;
-	}
-
-	if (PropertyNode->IsOptionalValueNode() && PropertyNode->GetParentNode()->GetDisplayName().IsEmpty())
-	{
-		return false;
-	}
-	else if (PropertyNode->GetDisplayName().IsEmpty())
-	{
-		return false;
-	}
-
-	return true;
+	return !GetPropertyDisplayName().IsEmpty();
 }
 
-void SDetailSingleItemRow::OnCopyPropertyInternalName()
+FString SDetailSingleItemRow::GetPropertyInternalName() const
 {
 	if (!OwnerTreeNode.IsValid())
 	{
-		return;
+		return { };
 	}
 
-	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	const TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
 	if (!PropertyNode.IsValid())
 	{
-		return;
+		return { };
 	}
 
 	const FProperty* Property = PropertyNode->IsOptionalValueNode() ? PropertyNode->GetParentNode()->GetProperty() : PropertyNode->GetProperty();
 	if (!Property)
 	{
-		return;
+		return { };
 	}
 
-	if (const UStruct* OwnerStruct = Property->GetOwnerStruct())
+	const UStruct* OwnerStruct = Property->GetOwnerStruct();
+	if (!OwnerStruct)
 	{
-		FPropertyEditorClipboard::ClipboardCopy(*OwnerStruct->GetAuthoredNameForField(Property));
+		return { };
+	}
+
+	return OwnerStruct->GetAuthoredNameForField(Property);
+}
+
+void SDetailSingleItemRow::OnCopyPropertyInternalName()
+{
+	const FString InternalName = GetPropertyInternalName();
+	if (!InternalName.IsEmpty())
+	{
+		FPropertyEditorClipboard::ClipboardCopy(*InternalName);
 	}
 }
 
 bool SDetailSingleItemRow::CanCopyPropertyInternalName()
 {
-	if (!OwnerTreeNode.IsValid())
-	{
-		return false;
-	}
-
-	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-	if (!PropertyNode.IsValid())
-	{
-		return false;
-	}
-
-	const FProperty* Property = PropertyNode->IsOptionalValueNode() ? PropertyNode->GetParentNode()->GetProperty() : PropertyNode->GetProperty();
-	if (!Property)
-	{
-		return false;
-	}
-
-	if (const UStruct* OwnerStruct = Property->GetOwnerStruct())
-	{
-		if (OwnerStruct->GetAuthoredNameForField(Property).IsEmpty())
-		{
-			return false;
-		}
-	}
-
-	return true;
+	return !GetPropertyInternalName().IsEmpty();
 }
 
 bool SDetailSingleItemRow::CanPasteProperty() const
 {
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	check(PropertyNode.IsValid());
+
+	// Check if the property is editable first (a failed EditCondition is still considered to be Editable, to make copying to PostProcess settings etc. practical)
+	constexpr bool bIncludeEditConditionForConstCheck = false;
+	if (PropertyNode->IsEditConst(bIncludeEditConditionForConstCheck)) // Ignore EditCondition state
+	{
+		return false;
+	}
+	
 	FString ClipboardContent;
 	FPropertyEditorClipboard::ClipboardPaste(ClipboardContent);
 
@@ -1512,11 +1521,10 @@ bool SDetailSingleItemRow::PasteFromText(const FString& InTag, const FString& In
 
 	const bool bIsTagged = !InTag.IsEmpty();
 
-	// If tagged, add the InteractiveChange flag so as not to run PECP
+	// If tagged, skip individual property transactions. Instead, a single undo will revert all changes in the batch paste.
 	// @todo: would be better to indicate that this is a batched paste rather than checking for a tag
 	if (bIsTagged)
 	{
-		PropertyValueSetFlags |= EPropertyValueSetFlags::InteractiveChange;
 		PropertyValueSetFlags |= EPropertyValueSetFlags::NotTransactable;
 	}
 
@@ -1654,7 +1662,7 @@ void SDetailSingleItemRow::PopulateExtensionWidget()
 		{
 			TSharedPtr<IPropertyHandle> Handle = PropertyEditorHelpers::GetPropertyHandle(Customization->GetPropertyNode().ToSharedRef(), nullptr, nullptr);
 			const UClass* ObjectClass = Handle->GetOuterBaseClass();
-			if (Handle->IsValidHandle() && ObjectClass && ExtensionHandler->IsPropertyExtendable(ObjectClass, *Handle))
+			if (Handle->IsValidHandle() && ExtensionHandler->IsPropertyExtendable(ObjectClass, *Handle))
 			{
 				IDetailLayoutBuilder& DetailLayout = OwnerTreeNodePinned->GetParentCategory()->GetParentLayout();
 				ExtensionHandler->ExtendWidgetRow(WidgetRow, DetailLayout, ObjectClass, Handle);

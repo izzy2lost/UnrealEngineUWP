@@ -200,14 +200,14 @@ void FillIndirectBuffers(uint TileType)
 	// Indirect dispatch
 	WriteDispatchIndirectArgs(TileIndirectDispatchBuffer, TileType,
 		TileCount >= TileCountXY.x ? TileCountXY.x : TileCount,
-		(TileCount + TileCountXY.x - 1) / TileCountXY.x,
+		DivideAndRoundUp(TileCount, TileCountXY.x),
 		1);
 
 	// Indirect dispatch with one thread
 	// At 4k, with 8x8 tiles: 4096 x 4096 / 8 x 8 = 512 x 512 tiles 
 	// With a group size of 64 (8x8), the total dispatch count should be 512 x 512 / 8 x 8 = 64 x 64 = 4096, which is below the 65k limit per dimension
 	WriteDispatchIndirectArgs(TilePerThreadIndirectDispatchBuffer, TileType,
-		(TileCount + TilePerThread_GroupSize - 1) / TilePerThread_GroupSize,
+		DivideAndRoundUp(TileCount, TilePerThread_GroupSize),
 		1,
 		1);
 

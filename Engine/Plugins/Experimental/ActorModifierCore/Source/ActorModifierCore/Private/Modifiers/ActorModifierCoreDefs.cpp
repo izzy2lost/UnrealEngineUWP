@@ -65,6 +65,11 @@ bool FActorModifierCoreMetadata::IsAllowedBefore(const FName& InModifierName) co
 
 bool FActorModifierCoreMetadata::IsCompatibleWith(const AActor* InActor) const
 {
+	if (CompatibilityRuleDelegate.IsBound())
+	{
+		return CompatibilityRuleDelegate.Execute(InActor);
+	}
+
 	return CompatibilityRuleFunction(InActor);
 }
 
@@ -131,6 +136,7 @@ bool FActorModifierCoreMetadata::ResetDefault()
 		bTickAllowed = CDOMetadata.bTickAllowed;
 		bMultipleAllowed = CDOMetadata.bMultipleAllowed;
 		CompatibilityRuleFunction = CDOMetadata.CompatibilityRuleFunction;
+		CompatibilityRuleDelegate = CDOMetadata.CompatibilityRuleDelegate;
 		ProfilerFunction = CDOMetadata.ProfilerFunction;
 
 		return true;
@@ -246,11 +252,17 @@ FActorModifierCoreMetadata& FActorModifierCoreMetadata::SetCompatibilityRule(con
 	return *this;
 }
 
+FActorModifierCoreMetadata& FActorModifierCoreMetadata::SetCompatibilityRule(const FModifierCompatibilityRule& InModifierRule)
+{
+	CompatibilityRuleDelegate = InModifierRule;
+	return *this;
+}
+
 UActorModifierCoreBase* FActorModifierCoreMetadata::CreateModifierInstance(UActorModifierCoreStack* InStack) const
 {
 	if (InStack && InStack->GetModifiedActor())
 	{
-		UActorModifierCoreBase* NewModifierInstance = NewObject<UActorModifierCoreBase>(InStack->GetModifiedActor(), Class, NAME_None, RF_Transactional);
+		UActorModifierCoreBase* NewModifierInstance = NewObject<UActorModifierCoreBase>(InStack, Class, NAME_None, RF_Transactional);
 		NewModifierInstance->PostModifierCreation(InStack);
 		return NewModifierInstance;
 	}

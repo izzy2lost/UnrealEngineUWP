@@ -28,13 +28,17 @@ struct FSinglePropertyParams
 
 	/** Whether to hide an asset thumbnail, if available */
 	bool bHideAssetThumbnail;
-		
+
+	/** Whether to hide the 'reset to default' button */
+	bool bHideResetToDefault;
+
 	FSinglePropertyParams()
 		: NameOverride(FText::GetEmpty())
 		, Font()
 		, NotifyHook( NULL )
 		, NamePlacement( EPropertyNamePlacement::Left )
 		, bHideAssetThumbnail( false )
+		, bHideResetToDefault( false )
 	{
 	}
 };
@@ -54,7 +58,7 @@ public:
 	virtual void SetStruct( const TSharedPtr<class IStructureDataProvider>& InStruct) = 0;
 
 	/** Sets a delegate called when the property value changes */
-	virtual void SetOnPropertyValueChanged( FSimpleDelegate& InOnPropertyValueChanged ) = 0;
+	virtual void SetOnPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged ) = 0;
 
 	/** Whether or not this widget has a valid property */	
 	virtual bool HasValidProperty() const = 0;

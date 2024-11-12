@@ -2,6 +2,7 @@
 
 #include "NetworkAutomationTest.h"
 #include "NetworkAutomationTestMacros.h"
+#include "UObject/CoreNetTypes.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "Iris/ReplicationSystem/Conditionals/ReplicationCondition.h"
@@ -305,6 +306,171 @@ UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, SimulatedIsProperlyReplicated
 	UE_NET_ASSERT_EQ(ClientObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsNoReplayInt, ServerObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsNoReplayInt);
 }
 
+UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, SubObjectSimulatedIsProperlyReplicatedAfterBeingAutonomous)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object with subobject on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject();
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, {.ConnectionFilteredComponentCount = 1});
+	Server->ReplicationSystem->SetDeltaCompressionStatus(ServerSubObject->NetRefHandle, ENetObjectDeltaCompressionStatus::Allow);
+
+	// Set the root object to be autonomous.
+	Server->ReplicationSystem->SetReplicationConditionConnectionFilter(ServerObject->NetRefHandle, EReplicationCondition::RoleAutonomous, Client->ConnectionIdOnServer, true);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Add some values to the simulated only array
+	for (int32 Value : {4711, 1337})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray.Add(Value);
+	}
+
+	// In order to actually send the object we need to modify a non-SimulatedOnly property too
+	ServerSubObject->ConnectionFilteredComponents[0]->NoneInt += 1;
+
+	// We want a new baseline to be created
+	AllowNewBaselineCreation();
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+
+	// Verify the simulated only array is unaffected by the server changes
+	UE_NET_ASSERT_TRUE(ClientSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray.IsEmpty());
+
+	// Set the client to no longer be autonomous, meaning it should be "simulated".
+	Server->ReplicationSystem->SetReplicationConditionConnectionFilter(ServerObject->NetRefHandle, EReplicationCondition::RoleAutonomous, Client->ConnectionIdOnServer, false);
+
+	// Add some values to the simulated only array
+	for (int32 Value : {1, -1})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray.Add(Value);
+	}
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Check that the array is properly replicated in its entirety
+	UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray.Num(), ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray.Num());
+	for (int Index = 0; int32 Value : ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray)
+	{
+		UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->SimulatedOnlyIntArray[Index], Value);
+		++Index;
+	}
+}
+
+UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, SubObjectAutonomousIsProperlyReplicatedAfterBeingSimulated)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object with subobject on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject();
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, {.ConnectionFilteredComponentCount = 1});
+	Server->ReplicationSystem->SetDeltaCompressionStatus(ServerSubObject->NetRefHandle, ENetObjectDeltaCompressionStatus::Allow);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Add some values to the autonomous only array
+	for (int32 Value : {4711, 1337})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray.Add(Value);
+	}
+
+	// In order to actually send the object we need to modify a non-AutonomousOnly property too
+	ServerSubObject->ConnectionFilteredComponents[0]->NoneInt += 1;
+
+	// We want a new baseline to be created
+	AllowNewBaselineCreation();
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+
+	// Verify the autonomous only array is unaffected by the server changes
+	UE_NET_ASSERT_TRUE(ClientSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray.IsEmpty());
+
+	// Set the root object to be autonomous.
+	Server->ReplicationSystem->SetReplicationConditionConnectionFilter(ServerObject->NetRefHandle, EReplicationCondition::RoleAutonomous, Client->ConnectionIdOnServer, true);
+
+	// Add some values to the autonomous only array
+	for (int32 Value : {1, -1})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray.Add(Value);
+	}
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Check that the array is properly replicated in its entirety
+	UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray.Num(), ServerSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray.Num());
+	for (int Index = 0; int32 Value : ServerSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray)
+	{
+		UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->AutonomousOnlyIntArray[Index], Value);
+		++Index;
+	}
+}
+
+UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, SubObjectPhysicsIsProperlyReplicatedWhenEnabled)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object with subobject on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject();
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, {.ConnectionFilteredComponentCount = 1});
+	Server->ReplicationSystem->SetDeltaCompressionStatus(ServerSubObject->NetRefHandle, ENetObjectDeltaCompressionStatus::Allow);
+
+	// Set the root object to be autonomous. This should prevent SimulatedOrPhysics properties to be replicated.
+	Server->ReplicationSystem->SetReplicationConditionConnectionFilter(ServerObject->NetRefHandle, EReplicationCondition::RoleAutonomous, Client->ConnectionIdOnServer, true);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Add some values to the physics array
+	for (int32 Value : {4711, 1337})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray.Add(Value);
+	}
+
+	// In order to actually send the object we need to modify a non-physics property too
+	ServerSubObject->ConnectionFilteredComponents[0]->NoneInt += 1;
+
+	// We want a new baseline to be created
+	AllowNewBaselineCreation();
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+
+	// Verify the physics array is unaffected by the server changes
+	UE_NET_ASSERT_TRUE(ClientSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray.IsEmpty());
+
+	// Enable physics replication
+	Server->ReplicationSystem->SetReplicationCondition(ServerObject->NetRefHandle, EReplicationCondition::ReplicatePhysics, true);
+
+	// Add some values to the physics array
+	for (int32 Value : {1, -1})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray.Add(Value);
+	}
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Check that the array is properly replicated in its entirety
+	UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray.Num(), ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray.Num());
+	for (int Index = 0; int32 Value : ServerSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray)
+	{
+		UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->SimulatedOrPhysicsIntArray[Index], Value);
+		++Index;
+	}
+}
+
 UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, ToOwnerStateIsReplicatedToOwnerAfterBeingNonOwner)
 {
 	FReplicationSystemTestClient* Client = CreateClient();
@@ -348,6 +514,58 @@ UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, ToOwnerStateIsReplicatedToOwn
 	UE_NET_ASSERT_EQ(ClientObject->ConnectionFilteredComponents[0]->ToOwnerB, ServerObject->ConnectionFilteredComponents[0]->ToOwnerB);
 }
 
+UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, SubObjectToOwnerStateIsReplicatedToOwnerAfterBeingNonOwner)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object with subobject on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject();
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, {.ConnectionFilteredComponentCount = 1});
+	Server->ReplicationSystem->SetDeltaCompressionStatus(ServerSubObject->NetRefHandle, ENetObjectDeltaCompressionStatus::Allow);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Add some values to the owner only array
+	for (int32 Value : {4711, 1337})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray.Add(Value);
+	}
+
+	// In order to actually send the object we need to modify a non-owner property too
+	ServerSubObject->ConnectionFilteredComponents[0]->NoneInt += 1;
+
+	// We want a new baseline to be created
+	AllowNewBaselineCreation();
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+
+	// Verify the owner only array is unaffected by the server changes
+	UE_NET_ASSERT_TRUE(ClientSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray.IsEmpty());
+
+	// Set owner
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+
+	// Add some values to the owner only array
+	for (int32 Value : {1, -1})
+	{
+		ServerSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray.Add(Value);
+	}
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Check that the array is properly replicated in its entirety
+	UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray.Num(), ServerSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray.Num());
+	for (int Index = 0; int32 Value : ServerSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray)
+	{
+		UE_NET_ASSERT_EQ(ClientSubObject->ConnectionFilteredComponents[0]->OwnerOnlyIntArray[Index], Value);
+		++Index;
+	}
+}
 UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, InFlightChangesForDisabledConditionAreNotResent)
 {
 	FReplicationSystemTestClient* Client = CreateClient();
@@ -503,6 +721,7 @@ UE_NET_TEST_FIXTURE(FTestObjectDeltaSerialization, LostChangesDuringPendingDestr
 	UE_NET_ASSERT_EQ(ClientObject->DynamicStateComponents[0]->IntArray.Num(), ServerObject->DynamicStateComponents[0]->IntArray.Num());
 	UE_NET_ASSERT_EQ(ClientObject->DynamicStateComponents[0]->IntArray[0], ServerObject->DynamicStateComponents[0]->IntArray[0]);
 }
+
 
 // FTestObjectDeltaSerialization implementation
 void FTestObjectDeltaSerialization::SetUp()

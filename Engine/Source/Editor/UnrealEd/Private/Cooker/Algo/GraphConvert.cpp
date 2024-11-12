@@ -402,7 +402,7 @@ void ConstructPartialTransposeGraph(TConstArrayView<TConstArrayView<FVertex>> Gr
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCondensationGraphTest, "System.Core.Algo.CondensationGraph", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCondensationGraphTest, "System.Core.Algo.CondensationGraph", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FCondensationGraphTest::RunTest(const FString& Parameters)
 {

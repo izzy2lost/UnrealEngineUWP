@@ -4,7 +4,11 @@
 #include "DMComponentPath.h"
 #include "DynamicMaterialModule.h"
 #include "HAL/PlatformTime.h"
-#include "Model/DynamicMaterialModel.h"
+
+#if WITH_EDITOR
+#include "Styling/SlateIconFinder.h"
+#include "Textures/SlateIcon.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "DMMaterialComponent"
 
@@ -74,10 +78,15 @@ UDMMaterialComponent* UDMMaterialComponent::GetSubComponentByPath(FDMComponentPa
 	return nullptr;
 }
 
-void UDMMaterialComponent::Update(EDMUpdateType InUpdateType)
+void UDMMaterialComponent::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 #if WITH_EDITOR
-	OnUpdate.Broadcast(this, InUpdateType);
+	OnUpdate.Broadcast(this, InSource, InUpdateType);
 #endif
 }
 
@@ -151,14 +160,27 @@ FText UDMMaterialComponent::GetComponentDescription() const
 	return GetClass()->GetDisplayNameText();
 }
 
+FSlateIcon UDMMaterialComponent::GetComponentIcon() const
+{
+	FSlateIcon Icon = FSlateIconFinder::FindIconForClass(GetClass());
+
+	if (Icon.IsSet())
+	{
+		return Icon;
+	}
+
+	// Fall back to a default icon.
+	return FSlateIconFinder::FindIconForClass(UDMMaterialComponent::StaticClass());
+}
+
 bool UDMMaterialComponent::CanClean()
 {
 	return (FPlatformTime::Seconds() >= MinCleanTime);
 }
 
-void UDMMaterialComponent::PreventClean(double DelayFor)
+void UDMMaterialComponent::PreventClean(double InDelayFor)
 {
-	MinCleanTime = FMath::Max(MinCleanTime, FPlatformTime::Seconds() + DelayFor);
+	MinCleanTime = FMath::Max(MinCleanTime, FPlatformTime::Seconds() + InDelayFor);
 }
 
 bool UDMMaterialComponent::NeedsClean()
@@ -186,9 +208,9 @@ void UDMMaterialComponent::DoClean()
 	PreventClean(VeryShortTime);
 }
 
-void UDMMaterialComponent::SetComponentState(EDMComponentLifetimeState NewState)
+void UDMMaterialComponent::SetComponentState(EDMComponentLifetimeState InNewState)
 {
-	if (ComponentState == NewState)
+	if (ComponentState == InNewState)
 	{
 		return;
 	}
@@ -198,8 +220,8 @@ void UDMMaterialComponent::SetComponentState(EDMComponentLifetimeState NewState)
 		return;
 	}
 
-	ComponentState = NewState;
-	OnComponentStateChange(NewState);
+	ComponentState = InNewState;
+	OnComponentStateChange(InNewState);
 }
 
 void UDMMaterialComponent::PostLoad()
@@ -228,14 +250,14 @@ bool UDMMaterialComponent::Modify(bool bInAlwaysMarkDirty /*= true*/)
 	return bSaved;
 }
 
-void UDMMaterialComponent::OnComponentStateChange(EDMComponentLifetimeState NewState)
+void UDMMaterialComponent::OnComponentStateChange(EDMComponentLifetimeState InNewState)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	switch (NewState)
+	switch (InNewState)
 	{
 		case EDMComponentLifetimeState::Added:
 			OnComponentAdded();
@@ -264,11 +286,8 @@ void UDMMaterialComponent::OnComponentRemoved()
 
 void UDMMaterialComponent::MarkComponentDirty()
 {
-#if WITH_EDITORONLY_DATA
-	bComponentDirty = true;
-#endif
-
 #if WITH_EDITOR
+	bComponentDirty = true;
 	PreventClean();
 #endif
 }

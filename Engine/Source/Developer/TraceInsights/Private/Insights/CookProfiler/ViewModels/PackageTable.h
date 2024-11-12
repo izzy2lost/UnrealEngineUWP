@@ -2,16 +2,21 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Array.h"
+#include "UObject/NameTypes.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+
+// TraceInsights
 #include "Insights/CookProfiler/ViewModels/PackageEntry.h"
-#include "Insights/Table/ViewModels/Table.h"
 
-namespace Insights
+namespace UE::Insights { class FTableColumn; }
+
+namespace UE::Insights::CookProfiler
 {
-
-class FTableColumn;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -20,10 +25,19 @@ struct FPackageTableColumns
 {
 	static const FName IdColumnId;
 	static const FName NameColumnId;
-	static const FName LoadTimeColumnId;
-	static const FName SaveTimeColumnId;
-	static const FName BeginCacheForCookedPlatformDataTimeColumnId;
-	static const FName GetIsCachedCookedPlatformDataLoadedColumnId;
+
+	static const FName LoadTimeInclColumnId;
+	static const FName LoadTimeExclColumnId;
+
+	static const FName SaveTimeInclColumnId;
+	static const FName SaveTimeExclColumnId;
+
+	static const FName BeginCacheForCookedPlatformDataTimeInclColumnId;
+	static const FName BeginCacheForCookedPlatformDataTimeExclColumnId;
+
+	static const FName GetIsCachedCookedPlatformDataLoadedInclColumnId;
+	static const FName GetIsCachedCookedPlatformDataLoadedExclColumnId;
+
 	static const FName PackageAssetClassColumnId;
 };
 
@@ -53,4 +67,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler

@@ -6,24 +6,32 @@
 #include "DisplayClusterMediaBase.h"
 #include "UObject/GCObject.h"
 
+#include "RenderGraphFwd.h"
+
 #include "RHI.h"
 #include "RHIResources.h"
 
-class FRDGBuilder;
 class UMediaCapture;
 class UMediaOutput;
 class UDisplayClusterMediaOutputSynchronizationPolicy;
 class IDisplayClusterMediaOutputSynchronizationPolicyHandler;
 
 /**
- * Base media capture class
+ * Base media capture adapter class
  */
 class FDisplayClusterMediaCaptureBase
 	: public FDisplayClusterMediaBase
 	, public FGCObject
 {
 public:
-	FDisplayClusterMediaCaptureBase(const FString& MediaId, const FString& ClusterNodeId, UMediaOutput* MediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr);
+	FDisplayClusterMediaCaptureBase(
+		const FString& MediaId,
+		const FString& ClusterNodeId,
+		UMediaOutput* MediaOutput,
+		UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr,
+		bool bInLateOCIO = false
+	);
+
 	virtual ~FDisplayClusterMediaCaptureBase();
 
 public:
@@ -36,19 +44,43 @@ public:
 	//~ End FGCObject interface
 
 public:
+
+	/** Start capturing */
 	virtual bool StartCapture();
+
+	/** Stop capturing */
 	virtual void StopCapture();
 
+	/** Returns current media capture device */
 	UMediaCapture* GetMediaCapture() const
 	{
 		return MediaCapture;
 	}
 
 protected:
-	void ExportMediaData(FRDGBuilder& GraphBuilder, const FMediaTextureInfo& TextureInfo);
+
+	/** Media capture data */
+	struct FMediaOutputTextureInfo
+	{
+		/** Texture to capture by a media capture device */
+		FRDGTextureRef Texture = nullptr;
+
+		/** Subregion to capture */
+		FIntRect Region = { FIntPoint::ZeroValue, FIntPoint::ZeroValue };
+	};
+
+protected:
+
+	/** PostClusterTick event handler. It's used to restart capturing if needed */
 	void OnPostClusterTick();
+
+	/** Re-starts media capturing after failure */
 	bool StartMediaCapture();
 
+	/** Passes capture data request to the capture device */
+	void ExportMediaData_RenderThread(FRDGBuilder& GraphBuilder, const FMediaOutputTextureInfo& TextureInfo);
+
+	/** Returns capture size (main thread) */
 	virtual FIntPoint GetCaptureSize() const = 0;
 
 private:

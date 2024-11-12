@@ -75,6 +75,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
 	static bool DoAssetsExist(const TArray<FString>& AssetPaths);
 
+	/** Returns the object's containing package */
+	UFUNCTION(BlueprintPure, Category = "Editor Scripting | Asset", meta = (Keywords = "outer owner package container asset", BlueprintAutocast))
+	static UPackage* GetPackageForObject(UPARAM(Required) UObject* Object);
 public:
 	/**
 	 * Find Package Referencers for an asset. Only Soft and Hard dependencies would be looked for.
@@ -389,7 +392,8 @@ public:
 
 public:
 	/**
-	 * Sync the Content Browser to the given asset(s)
+	 * Browses to the associated asset and selects it in the most recently used Content Browser (summoning one if necessary)
+	 * This is an asynchronous operation that can take a couple of frames to resolve the request
 	 * @param	AssetPaths	The list of asset paths to sync to in the Content Browser
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Content Browser")

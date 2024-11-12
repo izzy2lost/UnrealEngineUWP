@@ -492,7 +492,7 @@ struct FBoolHandler : TPropertyComponentHandler<FBoolPropertyTraits, bool>
 					auto FieldMask = BoundProperty->GetFieldMask();
 					static_assert(std::is_same_v<decltype(FieldMask), uint8>, "Unexpected size of field mask returned from FBoolProperty::FieldMask");
 
-					OutMetaData.BitFieldSize = static_cast<uint8>(BoundProperty->ElementSize);
+					OutMetaData.BitFieldSize = static_cast<uint8>(BoundProperty->GetElementSize());
 					OutMetaData.BitIndex     = static_cast<uint8>(FMath::CountTrailingZeros(FieldMask));
 				}
 			}
@@ -518,10 +518,21 @@ struct FObjectHandler : TPropertyComponentHandler<FObjectPropertyTraits, FObject
 		FEntityTaskBuilder()
 			.Read(BuiltInComponents->BoundObject)
 			.Read(BuiltInComponents->PropertyBinding)
+			.ReadOptional(BuiltInComponents->CustomPropertyIndex)
 			.Write(TrackComponents->Object.MetaDataComponents.GetType<0>())
 			.FilterAll({ BuiltInComponents->Tags.NeedsLink })
-			.Iterate_PerEntity(&Linker->EntityManager, [](UObject* Object, const FMovieScenePropertyBinding& Binding, FObjectPropertyTraits::FObjectMetadata& OutMetaData)
+			.Iterate_PerEntity(&Linker->EntityManager, [TrackComponents](UObject* Object, const FMovieScenePropertyBinding& Binding, const FCustomPropertyIndex* OptionalCustomPropertyIndex, FObjectPropertyTraits::FObjectMetadata& OutMetaData)
 				{
+					if (OptionalCustomPropertyIndex)
+					{
+						if (const auto* CustomObjectMetaData = TrackComponents->Accessors.Object.MetaData.Find(OptionalCustomPropertyIndex->Value))
+						{
+							OutMetaData.ObjectClass = CustomObjectMetaData->AllowedClass.Get();
+							OutMetaData.bAllowsClear = CustomObjectMetaData->bAllowsClear;
+							return;
+						}
+					}
+
 					FObjectPropertyBase* BoundProperty = CastField<FObjectPropertyBase>(FTrackInstancePropertyBindings::FindProperty(Object, Binding.PropertyPath.ToString()));
 					if (ensure(BoundProperty))
 					{
@@ -552,6 +563,8 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	ComponentRegistry->NewPropertyType(EulerTransform, TEXT("FEulerTransform"));
 	ComponentRegistry->NewPropertyType(ComponentTransform, TEXT("Component Transform"));
 
+	ComponentRegistry->NewPropertyType(Rotator, TEXT("FRotator"));
+
 	ComponentRegistry->NewPropertyType(FloatParameter, TEXT("float parameter"));
 	ComponentRegistry->NewPropertyType(ColorParameter, TEXT("color parameter"));
 
@@ -564,6 +577,10 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	ComponentRegistry->NewComponentType(&QuaternionRotationChannel[0], TEXT("Quaternion Rotation Channel 0"));
 	ComponentRegistry->NewComponentType(&QuaternionRotationChannel[1], TEXT("Quaternion Rotation Channel 1"));
 	ComponentRegistry->NewComponentType(&QuaternionRotationChannel[2], TEXT("Quaternion Rotation Channel 2"));
+
+	ComponentRegistry->NewComponentType(&RotatorChannel[0], TEXT("Rotator Channel Y (Pitch)"));
+	ComponentRegistry->NewComponentType(&RotatorChannel[1], TEXT("Rotator Channel Z (Yaw)"));
+	ComponentRegistry->NewComponentType(&RotatorChannel[2], TEXT("Rotator Channel X (Roll)"));
 
 	ComponentRegistry->NewComponentType(&ConstraintChannel, TEXT("Constraint Channel"));
 
@@ -625,6 +642,7 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	.SetCustomAccessors(&Accessors.Bool)
 	.Commit(FBoolHandler());
 
+	// --------------------------------------------------------------------------------------------
 	// Set up FTransform properties
 	BuiltInComponents->PropertyRegistry.DefineCompositeProperty(Transform, TEXT("Apply FTransform Properties"))
 	.AddComposite(BuiltInComponents->DoubleResult[0], &FIntermediate3DTransform::T_X)
@@ -638,6 +656,16 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	.AddComposite(BuiltInComponents->DoubleResult[8], &FIntermediate3DTransform::S_Z)
 	.SetBlenderSystem<UMovieScenePiecewiseDoubleBlenderSystem>()
 	.Commit();
+
+	// --------------------------------------------------------------------------------------------
+	// Set up FRotator properties
+	BuiltInComponents->PropertyRegistry.DefineCompositeProperty(Rotator, TEXT("Apply FRotator Properties"))
+		.AddComposite(BuiltInComponents->DoubleResult[0], &FRotator::Pitch)
+		.AddComposite(BuiltInComponents->DoubleResult[1], &FRotator::Yaw)
+		.AddComposite(BuiltInComponents->DoubleResult[2], &FRotator::Roll)
+		// Use this blender since we want over rotation 720deg = 2 cycles instead of 720deg = 0, we could later add support for multiple interpolation
+		.SetBlenderSystem<UMovieScenePiecewiseDoubleBlenderSystem>()
+		.Commit();
 
 	// --------------------------------------------------------------------------------------------
 	// Set up byte properties
@@ -787,6 +815,15 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 		ComponentRegistry->Factories.DuplicateChildComponent(QuaternionRotationChannel[Index]);
 		ComponentRegistry->Factories.DefineMutuallyInclusiveComponent(QuaternionRotationChannel[Index], BuiltInComponents->DoubleResult[Index + 3]);
 		ComponentRegistry->Factories.DefineMutuallyInclusiveComponent(QuaternionRotationChannel[Index], BuiltInComponents->EvalTime);
+	}
+
+	// --------------------------------------------------------------------------------------------
+	// Set up rotator components
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(RotatorChannel); ++Index)
+	{
+		ComponentRegistry->Factories.DuplicateChildComponent(RotatorChannel[Index]);
+		ComponentRegistry->Factories.DefineMutuallyInclusiveComponent(RotatorChannel[Index], BuiltInComponents->DoubleResult[Index]);
+		ComponentRegistry->Factories.DefineMutuallyInclusiveComponent(RotatorChannel[Index], BuiltInComponents->EvalTime);
 	}
 
 	// -------------------------------------------------------------------------------------------

@@ -203,10 +203,9 @@ public:
 	virtual void SendFileData(const TArray64<uint8>& ByteData, FString& MimeType, FString& FileExtension) = 0;
 
 	/**
-	 * @brief Kick a player by player id. DEPRECATED
+	 * @brief Kick a player by player id.
 	 * @param PlayerId		- The ID of the player to kick
 	 */
-	UE_DEPRECATED(5.4, "Kick player has been deprecated, will no longer function and will be removed in future versions.")
 	virtual void KickPlayer(FPixelStreamingPlayerId PlayerId) = 0;
 
 	/**
@@ -219,7 +218,7 @@ public:
 
 	/**
 	 * @brief Get the connected players
-	 * 
+	 *
 	 * @return TArray<FPixelStreamingPlayerId> The connected players
 	 */
 	virtual TArray<FPixelStreamingPlayerId> GetConnectedPlayers() = 0;
@@ -292,7 +291,7 @@ public:
 	virtual bool GetConfigOption(const FName& OptionName, FString& OutValue) = 0;
 
 	/**
-	*/
+	 */
 	virtual void PlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate) = 0;
 
 	virtual void RefreshStreamBitrate() = 0;

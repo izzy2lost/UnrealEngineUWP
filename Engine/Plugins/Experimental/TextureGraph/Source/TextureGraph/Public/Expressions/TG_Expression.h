@@ -52,7 +52,7 @@ public:
 	virtual FTG_Name GetDefaultName() const;
 	virtual FName GetCategory() const { return TG_Category::Default; }
 	virtual FTG_SignaturePtr GetSignature() const { return nullptr; }
-	virtual FText GetTooltipText() const { return FText::FromString(TEXT("Texture Scripting Node")); } 
+	virtual FText GetTooltipText() const { return FText::FromString(TEXT("Texture Graph Node")); } 
 
 	virtual void SetTitleName(FName NewName) {}
 	virtual FName GetTitleName() const { return GetDefaultName(); }
@@ -127,6 +127,22 @@ protected:
 	virtual bool AssignCommonVariantType(FTG_Variant::EType InType) const { return false; }
 	virtual void NotifyCommonVariantTypeChanged(FTG_Variant::EType NewType) const {}
 	FTG_Variant::EType EvalExpressionCommonVariantType() const { return GetParentNode()->EvalExpressionCommonVariantType(); }
+
+	// In some cases, evaluation or change in the Expression needs to be feedback to the matching pin's value
+	// This is not needed for the standard flow of evaluation but is sometime required for coupled member.
+	template<typename T> bool FeedbackPinValue(const FName& InPinName, const T& InValue)
+	{
+		UTG_Node* ParentNode = GetParentNode();
+		if (ParentNode)
+		{
+			UTG_Pin* Pin = ParentNode->GetPin(InPinName);
+			if (Pin)
+			{
+				return Pin->SetValue(InValue);
+			}
+		}
+		return false;
+	}
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

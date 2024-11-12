@@ -18,6 +18,7 @@
 #include "EntitySystem/MovieSceneEntityFactoryTypes.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
 #include "EntitySystem/MovieSceneEntitySystemTypes.h"
+#include "EntitySystem/MovieSceneMaybeAtomic.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformCrt.h"
@@ -25,7 +26,6 @@
 #include "Misc/EnumClassFlags.h"
 #include "Misc/InlineValue.h"
 #include "MovieSceneSequenceID.h"
-#include "Templates/Atomic.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/UObjectArray.h"
@@ -66,20 +66,6 @@ enum class EEntityRecursion : uint8
 	Full      = This | Children,
 };
 ENUM_CLASS_FLAGS(EEntityRecursion);
-
-
-/**
- * Enumeration that defines a threading model for this entity manager
- */
-enum class EEntityThreadingModel : uint8
-{
-	/** Specified when the data contained within an entity manager does not satisfy the requirements to justify using threaded evaluation */
-	NoThreading,
-
-	/** Specified when the data contained within an entity manager is large or complex enough to justify threaded evaluation  */
-	TaskGraph,
-};
-
 
 /**
  * Top-level manager class that is responsible for all entity data and interaction/
@@ -777,7 +763,7 @@ public:
 
 	void CheckCanChangeStructure() const
 	{
-		checkf(static_cast<uint16>(IterationCount) == 0, TEXT("Mutation of entities is not permissible while entities are being iterated"));
+		checkf(IterationCount.Load(ThreadingModel) == 0, TEXT("Mutation of entities is not permissible while entities are being iterated"));
 		checkf(LockdownState == ELockdownState::Unlocked, TEXT("Structural changes to the entity manager are not permitted while it is locked down"));
 	}
 
@@ -812,7 +798,7 @@ public:
 	 */
 	FEntityComponentFilter& ModifyGlobalIterationFilter()
 	{
-		ensureMsgf(!IsLockedDown() && static_cast<uint16>(IterationCount) == 0, TEXT("Manipulating the global iteration filter while locked down or iterating is not recommended"));
+		ensureMsgf(!IsLockedDown() && IterationCount.Load(ThreadingModel) == 0, TEXT("Manipulating the global iteration filter while locked down or iterating is not recommended"));
 		return GlobalIterationFilter;
 	}
 
@@ -926,6 +912,11 @@ private:
 
 	MOVIESCENE_API void CheckInvariants();
 
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return 0;
+	}
+
 	friend struct FEntityAllocationProxy;
 	friend struct FEntityAllocationIterator;
 	friend struct FEntityAllocationIteratorProxy;
@@ -1029,7 +1020,7 @@ private:
 	mutable bool bAccumulatedMaskStale;
 
 	/** Atomic counter that is incremented when an iteration begins, and decremented when it finishes */
-	mutable TAtomic<uint16> IterationCount;
+	mutable FEntitySystemMaybeAtomicInt32 IterationCount;
 
 	ENamedThreads::Type GatherThread;
 	ENamedThreads::Type DispatchThread;

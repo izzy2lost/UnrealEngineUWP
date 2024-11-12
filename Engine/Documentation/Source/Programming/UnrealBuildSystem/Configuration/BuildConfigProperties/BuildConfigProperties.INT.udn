@@ -2,7 +2,7 @@ Availability: NoPublish
 Title: Build Configuration Properties Page
 Crumbs:
 Description: This is a procedurally generated markdown page.
-Version: 5.4
+Version: 5.5
 
 ### BuildConfiguration
 
@@ -56,13 +56,17 @@ $ DefaultWarningLevel : Default treatment of uncategorized warnings
 
 $ DeprecationWarningLevel : Level to report deprecation warnings as errors
 
+$ bShowIncludes : Print out files that are included by each source file
+
 $ bDebugBuildsActuallyUseDebugCRT : Enables the debug C++ runtime (CRT) for debug builds. By default we always use the release runtime, since the debug version isn't particularly useful when debugging Unreal Engine projects, and linking against the debug CRT libraries forces our third party library dependencies to also be compiled using the debug CRT (and often perform more slowly). Often it can be inconvenient to require a separate copy of the debug versions of third party static libraries simply so that you can debug your program's code.
 
 $ bLegalToDistributeBinary : Whether the output from this target can be publicly distributed, even if it has dependencies on modules that are in folders with special restrictions (eg. CarefullyRedist, NotForLicensees, NoRedist).
 
 $ bUseVerseBPVM : Whether to use the BPVM to run Verse.
 
-$ bUseAutoRTFMCompiler : Whether to use the AutoRTFM Clang compiler.
+$ bForceNoAutoRTFMCompiler : Whether to use force AutoRTFM Clang compiler off.
+
+$ bUseAutoRTFMVerifier : Whether to enable emitting AutoRTFM verification metadata
 
 $ bUseInlining : Enable inlining for all modules.
 
@@ -95,6 +99,8 @@ $ bWarningsAsErrors : Whether to enable all warnings as errors. UE enables most 
 $ UnsafeTypeCastWarningLevel : Indicates what warning/error level to treat unsafe type casts as on platforms that support it (e.g., double->float or int64->int32)
 
 $ bUndefinedIdentifierErrors : Forces the use of undefined identifiers in conditional expressions to be treated as errors.
+
+$ UndefinedIdentifierWarningLevel : Indicates what warning/error level to treat undefined identifiers in conditional expressions.
 
 $ PCHPerformanceIssueWarningLevel : Indicates what warning/error level to treat potential PCH performance issues.
 
@@ -216,9 +222,11 @@ $ CppStandard : Which C++ standard to use for compiling this target (for non-eng
 
 $ CStandard : Which C standard to use for compiling this target
 
-$ MinCpuArchX64 : Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
+$ MinCpuArchX64 : Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Ignored for arm64. Note that by enabling this you are changing the minspec for the target platform, and the resultant executable will crash on machines without AVX support.
 
 $ ActionStallReportTime : Number of second of no completed actions to trigger an action stall report. If zero, stall reports will not be enabled.
+
+$ ActionStallTerminateTime : Number of second of no completed actions to trigger to terminate the queue. If zero, force termination not be enabled.
 
 $ bStopSNDBSCompilationAfterErrors : When enabled, SN-DBS will stop compiling targets after a compile error occurs.  Recommended, as it saves computing resources for others.
 
@@ -233,6 +241,8 @@ $ BaseLogFileName : Specifies the file to use for logging.
 $ IWYUBaseLogFileName : Specifies the file to use for logging.
 
 $ bStripSymbols : Whether to strip iOS symbols or not (implied by Shipping config).
+
+$ bUseDSYMFiles : Enables the generation of .dsym files. This can be disabled to enable faster iteration times during development.
 
 $ bSkipClangValidation : Disables clang build verification checks on static libraries
 
@@ -249,10 +259,6 @@ $ bEnableMemorySanitizer : Enables memory sanitizer (MSan)
 $ bTuneDebugInfoForLLDB : Turns on tuning of debug info for LLDB
 
 $ bDisableDumpSyms : Whether to globally disable calling dump_syms
-
-$ bUseDSYMFiles : Enables the generation of .dsym files. This can be disabled to enable faster iteration times during development.
-
-$ bWriteSarif : Whether .sarif files containing errors and warnings are written alongside each .obj, if supported
 
 $ bWriteSolutionOptionFile : Whether to write a solution option (suo) file for the sln.
 
@@ -294,6 +300,8 @@ $ bIgnoreStalePGOData : If -PGOOptimize is specified but the linker flags have c
 
 $ bUseFastGenProfile : If specified along with -PGOProfile, then /FASTGENPROFILE will be used instead of /GENPROFILE. This usually means that the PGO data is generated faster, but the resulting data may not yield as efficient optimizations during -PGOOptimize
 
+$ PreMergedPgdFilename : If specified along with -PGOOptimize, will use the specified per-merged pgd file instead of the usual pgd file with loose pgc files.
+
 $ bPGONoExtraCounters : If specified along with -PGOProfile, prevent the usage of extra counters. Please note that by default /FASTGENPROFILE doesnt use extra counters
 
 $ bSampleBasedPGO : If specified along with -PGOProfile, use sample-based PGO instead of instrumented. Currently Intel oneAPI 2024.0+ only.
@@ -314,6 +322,8 @@ $ bAllowClangLinker : True if we should use the Clang linker (LLD) when we are c
 
 $ WindowsSdkVersion : The specific Windows SDK version to use. This may be a specific version number (for example, "8.1", "10.0" or "10.0.10150.0"), or the string "Latest", to select the newest available version. By default, and if it is available, we use the Windows SDK version indicated by WindowsPlatform.DefaultWindowsSdkVersion (otherwise, we use the latest version).
 
+$ bWriteSarif : Whether .sarif files containing errors and warnings are written alongside each .obj, if supported
+
 $ bUpdatedCPPMacro : Enables updated __cplusplus macro (/Zc:__cplusplus).
 
 $ bStrictInlineConformance : Enables inline conformance (Remove unreferenced COMDAT) (/Zc:inline).
@@ -322,17 +332,23 @@ $ bStrictPreprocessorConformance : Enables new preprocessor conformance (/Zc:pre
 
 $ bStrictEnumTypesConformance : Enables enum types conformance (/Zc:enumTypes) in VS2022 17.4 Preview 4.0+.
 
+$ bStrictODRViolationConformance : Enables enforcing standard C++ ODR violations (/Zc:checkGwOdr) in VS2022 17.5 Preview 2.0+
+
 $ bStripPrivateSymbols : Whether to request the linker create a stripped pdb file as part of the build. If enabled the full debug pdb will have the extension .full.pdb
+
+$ bNoLinkerDebugInfo : If you supply -NoDebugInfo, windows platforms still create debug info while linking. Set this to true to not create debug info while linking in this circumstance
 
 $ PCHMemoryAllocationFactor : Determines the amount of memory that the compiler allocates to construct precompiled headers (/Zm).
 
 $ AdditionalLinkerOptions : Allow the target to specify extra options for linking that aren't otherwise noted here
 
+$ bReducedOptimizeHugeFunctions : Whether to reduce optimizations for huge functions over an instruction threshold to improve compile time https://devblogs.microsoft.com/cppblog/msvc-backend-updates-in-visual-studio-2019-versions-16-3-and-16-4/
+
+$ ReducedOptimizeHugeFunctionsThreshold : The instruction threshold to use when reducing optimizations for huge functions, default 20000.
+
 $ bClangTimeTrace : (Experimental) Appends the -ftime-trace argument to the command line for Clang to output a JSON file containing a timeline for the compile. See http://aras-p.info/blog/2019/01/16/time-trace-timeline-flame-chart-profiler-for-Clang/ for more info.
 
 $ bCompilerTrace : Outputs compile timing information so that it can be analyzed.
-
-$ bShowIncludes : Print out files that are included by each source file
 
 $ bSetResourceVersions : If enabled will set the ProductVersion embeded in windows executables and dlls to contain BUILT_FROM_CHANGELIST and BuildVersion Enabled by default for all precompiled and Shipping configurations. Regardless of this setting, the versions from Build.version will be available via the BuildSettings module Note: Embedding these versions will cause resource files to be recompiled whenever changelist is updated which will cause binaries to relink
 
@@ -343,6 +359,8 @@ $ ToolChain : Version of the toolchain to use on Windows platform when a non-msv
 $ ToolchainVersionWarningLevel : Warning level when reporting toolchains that are not in the preferred version list
 
 $ bStrictConformanceMode : Enables strict standard conformance mode (/permissive-).
+
+$ bDisableVolatileMetadata : Volatile Metadata is enabled by default and improves x64 emulation on arm64, but may come at a small perfomance cost (/volatileMetadata-).
 
 ### ModuleConfiguration
 
@@ -361,6 +379,80 @@ $ OptimizeForSizeAndSpeed : List of modules to optimize for size and speed. This
 ### TargetRules
 
 $ bCompileChaosVisualDebuggerSupport : Whether to compile in Chaos Visual Debugger (CVD) support features to record the state of the physics simulation
+
+### UnrealBuildAccelerator
+
+$ bStoreObjFilesCompressed : Store object (.obj) compressed on disk. Requires uba to do link step where it will decompress obj files again
+
+$ bDisableRemote : When set to true, UBA will not use any remote help
+
+$ bForceBuildAllRemote : When set to true, UBA will force all actions that can be built remotely to be built remotely. This will hang if there are no remote agents available
+
+$ bForcedRetry : When set to true, actions that fail locally with UBA will be retried without UBA.
+
+$ bForcedRetryRemote : When set to true, actions that fail remotely with UBA will be retried locally with UBA.
+
+$ bStrict : When set to true, all errors and warnings from UBA will be output at the appropriate severity level to the log (rather than being output as 'information' and attempting to continue regardless).
+
+$ bStoreRaw : If UBA should store cas compressed or raw
+
+$ bLinkRemote : If UBA should distribute linking to remote workers. This needs bandwidth but can be an optimization
+
+$ StoreCapacityGb : The amount of gigabytes UBA is allowed to use to store workset and cached data. It is a good idea to have this >10gb
+
+$ MaxWorkers : Max number of worker threads that can handle messages from remotes.
+
+$ SendSize : Max size of each message sent from server to client
+
+$ Host : Which ip UBA server should listen to for connections
+
+$ Port : Which port UBA server should listen to for connections.
+
+$ RootDir : Which directory to store files for UBA.
+
+$ bUseQuic : Use Quic protocol instead of Tcp (experimental)
+
+$ bLogEnabled : Enable logging of UBA processes
+
+$ bPrintSummary : Prints summary of UBA stats at end of build
+
+$ bLaunchVisualizer : Launch visualizer application which shows build progress
+
+$ bResetCas : Resets the cas cache
+
+$ TraceFile : Provide custom path for trace output file
+
+$ bDetailedTrace : Add verbose details to the UBA trace
+
+$ bDisableWaitOnMem : Disable UBA waiting on available memory before spawning new processes
+
+$ bAllowKillOnMem : Let UBA kill running processes when close to out of memory
+
+$ OutputStatsThresholdMs : Threshold for when executor should output logging for the process. Defaults to never
+
+$ bWriteToDisk : Skip writing intermediate and output files to disk. Useful for validation builds where we don't need the output
+
+$ bDisableCustomAlloc : Set to true to disable mimalloc and detouring of memory allocations.
+
+$ Zone : The zone to use for UBA.
+
+$ bUseCrypto : Set to true to enable encryption when transferring files over the network.
+
+$ bUseKnownInputs : Set to true to provide known inputs to processes that are run remote. This is an experimental feature to speed up build times when ping is higher
+
+$ ActionsOutputFile : Write yaml file with all actions that are queued for build. This can be used to replay using "UbaCli.exe local file.yaml"
+
+$ bDetailedLog : Set to true to see more info about what is happening inside uba and also log output from agents
+
+$ Cache : Address of the uba cache service. Will automatically use cache if connected
+
+$ WriteCache : Set cache to write instead of fetch
+
+$ CacheMaxWorkers : Max number of cache download tasks that can execute in parallel
+
+$ ReportCacheMissReason : Report reason a cache miss happened. Useful when searching for determinism/portability issues
+
+$ bDisableHorde : Disable horde all together
 
 ### TestTargetRules
 
@@ -420,79 +512,11 @@ $ bAllowOverVpn : When set to false, SNDBS will not be enabled when running conn
 
 $ VpnSubnets : List of subnets containing IP addresses assigned by VPN
 
-### UnrealBuildAccelerator
-
-$ bDisableRemote : When set to true, UBA will not use any remote help
-
-$ bForceBuildAllRemote : When set to true, UBA will force all actions that can be built remotely to be built remotely. This will hang if there are no remote agents available
-
-$ bForcedRetry : When set to true, actions that fail locally with UBA will be retried without UBA.
-
-$ bStrict : When set to true, all errors and warnings from UBA will be output at the appropriate severity level to the log (rather than being output as 'information' and attempting to continue regardless).
-
-$ bStoreRaw : If UBA should store cas compressed or raw
-
-$ bLinkRemote : If UBA should distribute linking to remote workers. This needs bandwidth but can be an optimization
-
-$ StoreCapacityGb : The amount of gigabytes UBA is allowed to use to store workset and cached data. It is a good idea to have this >10gb
-
-$ MaxWorkers : Max number of worker threads that can handle messages from remotes.
-
-$ SendSize : Max size of each message sent from server to client
-
-$ Host : Which ip UBA server should listen to for connections
-
-$ Port : Which port UBA server should listen to for connections.
-
-$ RootDir : Which directory to store files for UBA.
-
-$ bUseQuic : Use Quic protocol instead of Tcp (experimental)
-
-$ bLogEnabled : Enable logging of UBA processes
-
-$ bPrintSummary : Prints summary of UBA stats at end of build
-
-$ bLaunchVisualizer : Launch visualizer application which shows build progress
-
-$ bResetCas : Resets the cas cache
-
-$ TraceFile : Provide custom path for trace output file
-
-$ bDetailedTrace : Add verbose details to the UBA trace
-
-$ bDisableWaitOnMem : Disable UBA waiting on available memory before spawning new processes
-
-$ bAllowKillOnMem : Let UBA kill running processes when close to out of memory
-
-$ OutputStatsThresholdMs : Threshold for when executor should output logging for the process. Defaults to never
-
-$ bWriteToDisk : Skip writing intermediate and output files to disk. Useful for validation builds where we don't need the output
-
-$ bDisableCustomAlloc : Set to true to disable mimalloc and detouring of memory allocations.
-
-$ Zone : The zone to use for UBA.
-
-$ bUseCrypto : Set to true to enable encryption when transferring files over the network.
-
-$ bUseKnownInputs : Set to true to provide known inputs to processes that are run remote. This is an experimental feature to speed up build times when ping is higher
-
-$ ActionsOutputFile : Write yaml file with all actions that are queued for build. This can be used to replay using "UbaCli.exe local file.yaml"
-
-$ bDetailedLog : Set to true to see more info about what is happening inside uba and also log output from agents
-
-$ HordeMaxCores : Max cores allowed to be used by build session
-
-$ HordeDelay : How long UBT should wait to ask for help. Useful in build configs where machine can delay remote work and still get same wall time results (pch dependencies etc)
-
-$ bHordeAllowWine : Allow use of Wine. Only applicable to Horde agents running Linux. Can still be ignored if Wine executable is not set on agent.
-
-$ bDisableHorde : Disable horde all together
-
 ### Horde
 
 $ Server : Uri of the Horde server
 
-$ Token : Uri of the Horde server
+$ Token : Auth token for the Horde server
 
 $ OidcProvider : OIDC id for the login to use
 
@@ -506,7 +530,15 @@ $ WindowsPool : Pool for the Horde agent to assign when on Windows
 
 $ Requirements : Requirements for the Horde agent to assign
 
+$ Cluster : Compute cluster ID to use in Horde. Set to "_auto" to let Horde server resolve a suitable cluster. In multi-region setups this is can simplify configuration of UBT/UBA a lot.
+
 $ LocalHost : Which ip UBA server should give to agents. This will invert so host listens and agents connect
+
+$ MaxCores : Max cores allowed to be used by build session
+
+$ StartupDelay : How long UBT should wait to ask for help. Useful in build configs where machine can delay remote work and still get same wall time results (pch dependencies etc)
+
+$ AllowWine : Allow use of Wine. Only applicable to Horde agents running Linux. Can still be ignored if Wine executable is not set on agent.
 
 $ ConnectionMode : Connection mode for agent/compute communication for valid modes.
 
@@ -981,4 +1013,8 @@ $ SshAuthentication : The authentication used for SSH (probably similar to Rsync
 $ bBackupLogFiles : Whether to backup an existing log file, rather than overwriting it.
 
 $ LogFileBackupCount : The number of log file backups to preserve. Older backups will be deleted.
+
+### Telemetry
+
+$ Providers : Providers to load opt-in telemetry connection information from ini. If unset, or the provider categories do not contain connection info, no telemetry will be sent.
 

@@ -37,9 +37,9 @@ namespace MovieScene
 
 FCameraCutPlaybackCapabilityCompatibilityWrapper::FCameraCutPlaybackCapabilityCompatibilityWrapper(const FSequenceInstance& SequenceInstance)
 {
-	TSharedRef<FSharedPlaybackState> PlaybackState = SequenceInstance.GetSharedPlaybackState();
-	CameraCutCapability = PlaybackState->FindCapability<FCameraCutPlaybackCapability>();
-	Player = SequenceInstance.GetPlayer();
+	TSharedRef<FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
+	CameraCutCapability = SharedPlaybackState->FindCapability<FCameraCutPlaybackCapability>();
+	Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 }
 
 bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldUpdateCameraCut()
@@ -292,7 +292,7 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 {
 	using namespace UE::MovieScene;
 
-	auto ForceEditorPreAnimatedStorageOperation = [](UMovieSceneCameraCutTrackInstance* This, UE::MovieScene::EForcedCameraCutPreAnimatedStorageOperation Operation)
+	auto ForceEditorPreAnimatedStorageOperation = [](UMovieSceneCameraCutTrackInstance* This, EForcedCameraCutPreAnimatedStorageOperation Operation)
 	{
 		using namespace UE::MovieScene;
 
@@ -303,6 +303,19 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 			FScopedPreAnimatedCaptureSource CaptureSource(Linker, InputInfo.Input);
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InputInfo.Input.InstanceHandle);
 			FCameraCutEditorHandler::ForcePreAnimatedValueOperation(Linker, SequenceInstance, Operation);
+		}
+	};
+	auto ForceGamePreAnimatedStorageRestore = [](UMovieSceneCameraCutTrackInstance* This)
+	{
+		using namespace UE::MovieScene;
+
+		UMovieSceneEntitySystemLinker* Linker = This->GetLinker();
+		const FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+		for (const FCameraCutInputInfo& InputInfo : This->SortedInputInfos)
+		{
+			FScopedPreAnimatedCaptureSource CaptureSource(Linker, InputInfo.Input);
+			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InputInfo.Input.InstanceHandle);
+			FCameraCutGameHandler::ForcePreAnimatedValueRestore(Linker, SequenceInstance);
 		}
 	};
 
@@ -349,6 +362,10 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 				{
 					ForceEditorPreAnimatedStorageOperation(CameraCutTrackInstance, EForcedCameraCutPreAnimatedStorageOperation::Discard);
 				}
+
+				// If we have a PIE session active, we need to tell the game handler to restore its
+				// pre-animated state.
+				ForceGamePreAnimatedStorageRestore(CameraCutTrackInstance);
 			}
 		}
 	}
@@ -378,6 +395,7 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 	{
 		const FMovieSceneTrackInstanceInput& Input = InputInfo.Input;
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Input.InstanceHandle);
+		const FSequenceInstance& RootSequenceInstance = InstanceRegistry->GetInstance(SequenceInstance.GetRootInstanceHandle());
 		const FMovieSceneContext& Context = SequenceInstance.GetContext();
 
 		const UMovieSceneCameraCutSection* Section = Cast<const UMovieSceneCameraCutSection>(Input.Section);
@@ -403,7 +421,7 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 		else
 		{
 			const UMovieSceneCameraCutTrack* Track = Section->GetTypedOuter<UMovieSceneCameraCutTrack>();
-			const FMovieSceneSequenceTransform SequenceToRootTransform = Context.GetSequenceToRootSequenceTransform();
+			const FMovieSceneInverseSequenceTransform SequenceToRootTransform = Context.GetSequenceToRootSequenceTransform();
 
 			FBlendedCameraCut Params(Input, CameraBindingID, SequenceInstance.GetSequenceID());
 			Params.bCanBlend = Track->bCanBlend;
@@ -420,14 +438,29 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 			if (Section->HasStartFrame() && Section->Easing.GetEaseInDuration() > 0)
 			{
 				Params.LocalEaseInEndTime = Params.LocalStartTime + Section->Easing.GetEaseInDuration();
-				const float RootEaseInTime = SequenceToRootTransform.GetTimeScale() * Context.GetFrameRate().AsSeconds(FFrameNumber(Section->Easing.GetEaseInDuration()));
-				Params.EaseIn = FBlendedCameraCutEasingInfo(RootEaseInTime, Section->Easing.EaseIn);
+
+				TOptional<FFrameTime> RootStart = SequenceToRootTransform.TryTransformTime(Params.LocalStartTime);
+				TOptional<FFrameTime> RootEnd   = SequenceToRootTransform.TryTransformTime(Params.LocalEaseInEndTime);
+
+				if (RootStart && RootEnd)
+				{
+					const float RootEaseInTime = RootSequenceInstance.GetContext().GetFrameRate().AsSeconds(RootEnd.GetValue() - RootStart.GetValue());
+					Params.EaseIn = FBlendedCameraCutEasingInfo(RootEaseInTime, Section->Easing.EaseIn);
+				}
 			}
 			if (Section->HasEndFrame() && Section->Easing.GetEaseOutDuration() > 0)
 			{
 				Params.LocalEaseOutStartTime = Params.LocalEndTime - Section->Easing.GetEaseOutDuration();
-				const float RootEaseOutTime = SequenceToRootTransform.GetTimeScale() * Context.GetFrameRate().AsSeconds(FFrameNumber(Section->Easing.GetEaseOutDuration()));
-				Params.EaseOut = FBlendedCameraCutEasingInfo(RootEaseOutTime, Section->Easing.EaseOut);
+
+
+				TOptional<FFrameTime> RootStart = SequenceToRootTransform.TryTransformTime(Params.LocalEaseOutStartTime);
+				TOptional<FFrameTime> RootEnd   = SequenceToRootTransform.TryTransformTime(Params.LocalEndTime);
+
+				if (RootStart && RootEnd)
+				{
+					const float RootEaseOutTime = RootSequenceInstance.GetContext().GetFrameRate().AsSeconds(RootEnd.GetValue() - RootStart.GetValue());
+					Params.EaseOut = FBlendedCameraCutEasingInfo(RootEaseOutTime, Section->Easing.EaseOut);
+				}
 			}
 
 			// Remember locking option.

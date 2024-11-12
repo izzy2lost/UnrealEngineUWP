@@ -24,5 +24,7 @@ public class OnlineServicesCommon : ModuleRules
 				"CoreUObject"		// CoreUObject temporary dependency
 			}
 		);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

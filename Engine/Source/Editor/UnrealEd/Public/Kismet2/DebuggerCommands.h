@@ -83,6 +83,7 @@ public:
 	/** Play in editor (PIE) */
 	TSharedPtr<FUICommandInfo> RepeatLastPlay;
 	TSharedPtr<FUICommandInfo> PlayInViewport;
+	TSharedPtr<FUICommandInfo> PlaySimulate;
 	TSharedPtr<FUICommandInfo> PlayInEditorFloating;
 	TSharedPtr<FUICommandInfo> PlayInVR;
 	TSharedPtr<FUICommandInfo> PlayInMobilePreview;

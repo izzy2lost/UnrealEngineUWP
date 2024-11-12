@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorOscillate.generated.h"
 
 UENUM(BlueprintType)
@@ -20,15 +20,11 @@ enum class EPropertyAnimatorOscillateFunction : uint8
  * Applies an additive regular oscillate movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorOscillate : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorOscillate : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Oscillate");
-
-	UPropertyAnimatorOscillate();
-
 	PROPERTYANIMATOR_API void SetOscillateFunction(EPropertyAnimatorOscillateFunction InFunction);
 	EPropertyAnimatorOscillateFunction GetOscillateFunction() const
 	{
@@ -37,7 +33,8 @@ public:
 
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
 	//~ End UPropertyAnimatorFloatBase
 
 	/** The oscillate function to feed current time elapsed */

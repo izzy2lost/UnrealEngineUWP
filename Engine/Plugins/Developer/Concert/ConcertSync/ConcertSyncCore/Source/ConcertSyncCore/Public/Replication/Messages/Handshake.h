@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SyncControl.h"
 #include "Replication/Data/ReplicationStream.h"
 #include "Handshake.generated.h"
 
@@ -35,12 +36,10 @@ enum class EJoinReplicationErrorCode : uint8
 	// Invalid input:
 	/** One of the specified classes was null or otherwise invalid */
 	InvalidClass = 6,
-	/** An object selection contained a property twice. */
-	DuplicateProperty = 7,
 	/** Your input contained the same stream id twice. */
-	DuplicateStreamId = 8,
+	DuplicateStreamId = 7,
 	/** Failed to unpack the stream, likely because one of the attribute classes could not be resolved. */
-	FailedToUnpackStream = 9,
+	FailedToUnpackStream = 8,
 	
 	MaxPlusOne,
 	/** The maximum possible entry value */
@@ -86,6 +85,10 @@ struct FConcertReplication_Join_Response
 	/** More information about ErrorCode to help the user resolve the issue. */
 	UPROPERTY()
 	FString DetailedErrorMessage;
+
+	/** This is the initial sync control this client has */
+	UPROPERTY()
+	FConcertReplication_ChangeSyncControl SyncControl;
 };
 
 /** Sent by client to notify server that no more replication data should be sent. */

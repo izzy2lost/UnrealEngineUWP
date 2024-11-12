@@ -80,6 +80,7 @@ struct FAudioPlayerInterface_InstanceData
 	int32 MaxPlaysPerTick = 0;
 	bool bStopWhenComponentIsDestroyed = true;
 	bool bValidOneShotSound = false;
+	bool bSoundToPlayIsLooping = false;
 #if WITH_EDITORONLY_DATA
 	bool bOnlyActiveDuringGameplay = false;
 #endif

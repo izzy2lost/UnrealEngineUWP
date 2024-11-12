@@ -595,8 +595,8 @@ bool FDisplayClusterShadersWarpblend_MPCDI::RenderWarpBlend_MPCDI(FRHICommandLis
 		return false;
 	}
 
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_Mpcdi_WarpBlend, "nDisplay_Mpcdi_WarpBlend");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_Mpcdi_WarpBlend);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_Mpcdi_WarpBlend);
 
 	// Do single-pass warp&blend render
 	bool bIsRenderSuccess = false;

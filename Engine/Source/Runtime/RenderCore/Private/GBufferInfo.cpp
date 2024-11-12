@@ -183,7 +183,7 @@ FGBufferBinding FindGBufferBindingByName(const FGBufferInfo& GBufferInfo, const 
 			Binding.Flags |= TexCreate_SRGB;
 		}
 
-		if (DoesPlatformSupportNanite(ShaderPlatform, true) && NaniteComputeMaterialsSupported())
+		if (DoesPlatformSupportNanite(ShaderPlatform, true))
 		{
 			Binding.Flags |= TexCreate_UAV;
 

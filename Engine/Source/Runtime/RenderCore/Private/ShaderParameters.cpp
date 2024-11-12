@@ -16,26 +16,31 @@
 
 IMPLEMENT_TYPE_LAYOUT(FShaderParameter);
 IMPLEMENT_TYPE_LAYOUT(FShaderResourceParameter);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-IMPLEMENT_TYPE_LAYOUT(FRWShaderParameter);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 IMPLEMENT_TYPE_LAYOUT(FShaderUniformBufferParameter);
+IMPLEMENT_TYPE_LAYOUT(FShaderUniformBufferMemberParameter);
+
+static void FailureToBindNonOptionalParameter(const TCHAR* ParameterType, const TCHAR* ParameterName)
+{
+	if (!UE_LOG_ACTIVE(LogShaders, Log))
+	{
+		UE_LOG(LogShaders, Fatal, TEXT("Failure to bind non-optional %s %s!  The parameter is either not present in the shader, or the shader compiler optimized it out."), ParameterType, ParameterName);
+	}
+	else
+	{
+		UE_LOG(LogShaders, Log, TEXT("Failure to bind non-optional %s %s!  The parameter is either not present in the shader, or the shader compiler optimized it out."), ParameterType, ParameterName);
+
+		// We use a non-Slate message box to avoid problem where we haven't compiled the shaders for Slate.
+		FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, *FText::Format(
+			NSLOCTEXT("UnrealEd", "Error_FailedToBindShaderParameter", "Failure to bind non-optional shader parameter {0}! The parameter is either not present in the shader, or the shader compiler optimized it out. This will be an assert with LogShaders suppressed!"),
+			FText::FromString(ParameterName)).ToString(), TEXT("Warning"));
+	}
+}
 
 void FShaderParameter::Bind(const FShaderParameterMap& ParameterMap,const TCHAR* ParameterName,EShaderParameterFlags Flags)
 {
 	if (!ParameterMap.FindParameterAllocation(ParameterName,BufferIndex,BaseIndex,NumBytes) && Flags == SPF_Mandatory)
 	{
-		if (!UE_LOG_ACTIVE(LogShaders, Log))
-		{
-			UE_LOG(LogShaders, Fatal,TEXT("Failure to bind non-optional shader parameter %s!  The parameter is either not present in the shader, or the shader compiler optimized it out."),ParameterName);
-		}
-		else
-		{
-			// We use a non-Slate message box to avoid problem where we haven't compiled the shaders for Slate.
-			FPlatformMisc::MessageBoxExt( EAppMsgType::Ok, *FText::Format(
-				NSLOCTEXT("UnrealEd", "Error_FailedToBindShaderParameter", "Failure to bind non-optional shader parameter {0}! The parameter is either not present in the shader, or the shader compiler optimized it out. This will be an assert with LogShaders suppressed!"),
-				FText::FromString(ParameterName)).ToString(), TEXT("Warning"));
-		}
+		FailureToBindNonOptionalParameter(TEXT("shader parameter"), ParameterName);
 	}
 }
 
@@ -59,23 +64,23 @@ void FShaderResourceParameter::Bind(const FShaderParameterMap& ParameterMap, con
 	}
 	else if (Flags == SPF_Mandatory)
 	{
-		if (!UE_LOG_ACTIVE(LogShaders, Log))
-		{
-			UE_LOG(LogShaders, Fatal,TEXT("Failure to bind non-optional shader resource parameter %s!  The parameter is either not present in the shader, or the shader compiler optimized it out."),ParameterName);
-		}
-		else
-		{
-			// We use a non-Slate message box to avoid problem where we haven't compiled the shaders for Slate.
-			FPlatformMisc::MessageBoxExt( EAppMsgType::Ok, *FText::Format(
-				NSLOCTEXT("UnrealEd", "Error_FailedToBindShaderParameter", "Failure to bind non-optional shader parameter {0}! The parameter is either not present in the shader, or the shader compiler optimized it out. This will be an assert with LogShaders suppressed!"),
-				FText::FromString(ParameterName)).ToString(), TEXT("Warning"));
-		}
+		FailureToBindNonOptionalParameter(TEXT("shader resource parameter"), ParameterName);
 	}
 }
 
 FArchive& operator<<(FArchive& Ar,FShaderResourceParameter& P)
 {
 	return Ar << P.BaseIndex << P.NumResources;
+}
+
+void FShaderUniformBufferMemberParameter::Bind(const FShaderParameterMap& ParameterMap, const TCHAR* ParameterName)
+{
+	bIsBound = ParameterMap.ContainsParameterAllocation(ParameterName) ? 1 : 0;
+}
+
+FArchive& operator<<(FArchive& Ar, FShaderUniformBufferMemberParameter& P)
+{
+	return Ar << P.bIsBound;
 }
 
 #if WITH_EDITOR
@@ -87,7 +92,7 @@ void FShaderUniformBufferParameter::ModifyCompilationEnvironment(const TCHAR* Pa
 	// if the name matches the struct's name, use the struct's cached version; otherwise, generate it now with the correct variable name.
 	if (FCString::Strcmp(ParameterName, Struct.GetShaderVariableName()) != 0)
 	{
-		const FString Declaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ParameterName, Struct);
+		const FString Declaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ParameterName, Struct, nullptr);
 		OutEnvironment.IncludeVirtualPathToContentsMap.Add(IncludeName, Declaration);
 	}
 	else
@@ -108,27 +113,19 @@ void FShaderUniformBufferParameter::Bind(const FShaderParameterMap& ParameterMap
 	uint16 UnusedBaseIndex = 0;
 	uint16 UnusedNumBytes = 0;
 
-	if(!ParameterMap.FindParameterAllocation(ParameterName,BaseIndex,UnusedBaseIndex,UnusedNumBytes))
+	if (TOptional<FParameterAllocation> Parameter = ParameterMap.FindParameterAllocation(ParameterName))
 	{
-		BaseIndex = 0xffff;
-		if(Flags == SPF_Mandatory)
-		{
-			if (!UE_LOG_ACTIVE(LogShaders, Log))
-			{
-				UE_LOG(LogShaders, Fatal,TEXT("Failure to bind non-optional shader resource parameter %s!  The parameter is either not present in the shader, or the shader compiler optimized it out."),ParameterName);
-			}
-			else
-			{
-				// We use a non-Slate message box to avoid problem where we haven't compiled the shaders for Slate.
-				FPlatformMisc::MessageBoxExt( EAppMsgType::Ok, *FText::Format(
-					NSLOCTEXT("UnrealEd", "Error_FailedToBindShaderParameter", "Failure to bind non-optional shader parameter {0}! The parameter is either not present in the shader, or the shader compiler optimized it out. This will be an assert with LogShaders suppressed!"),
-					FText::FromString(ParameterName)).ToString(), TEXT("Warning"));
-			}
-		}
+		// NOTE: the name difference is intentional (and confusing)
+		BaseIndex = Parameter->BufferIndex;
+		checkf(IsBound(), TEXT("UniformBuffer Parameter '%s' was not bound with a valid index. This can cause instability at runtime."), ParameterName);
 	}
 	else
 	{
-		check(IsBound());
+		BaseIndex = 0xffff;
+		if (Flags == SPF_Mandatory)
+		{
+			FailureToBindNonOptionalParameter(TEXT("shader resource parameter"), ParameterName);
+		}
 	}
 }
 
@@ -174,7 +171,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 		Decl.StructMembers << Member.GetName() << TEXT(");\n");
 	};
 
-	if ((UniformBufferStruct.GetUsageFlags() & (uint32)FShaderParametersMetadata::EUsageFlags::UniformView) != 0)
+	if (EnumHasAnyFlags(UniformBufferStruct.GetUsageFlags(), FShaderParametersMetadata::EUsageFlags::UniformView))
 	{
 		// UniformView struct is expected to have a single SRV member which serves as a uniform view
 		check(StructMembers.Num() == 1);
@@ -247,7 +244,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 						return FShaderParameterParser::kBindlessSamplerPrefix;
 					}
 
-					if (InBaseType == UBMT_UAV || InBaseType == UBMT_RDG_TEXTURE_UAV)
+					if (InBaseType == UBMT_UAV || InBaseType == UBMT_RDG_TEXTURE_UAV || InBaseType == UBMT_RDG_BUFFER_UAV)
 					{
 						return FShaderParameterParser::kBindlessUAVPrefix;
 					}
@@ -364,7 +361,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_SAMPLER(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
-			else if (Member.GetBaseType() == UBMT_UAV || Member.GetBaseType() == UBMT_RDG_TEXTURE_UAV)
+			else if (Member.GetBaseType() == UBMT_UAV || Member.GetBaseType() == UBMT_RDG_TEXTURE_UAV || Member.GetBaseType() == UBMT_RDG_BUFFER_UAV)
 			{
 				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_UAV(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
@@ -379,7 +376,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 }
 
 /** Creates a HLSL declaration of a uniform buffer with the given structure. */
-static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct)
+static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct, const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout)
 {
 	// If the uniform buffer has no members, we don't want to write out anything.  Shader compilers throw errors when faced with empty cbuffers and structs.
 	if (UniformBufferStruct.GetMembers().Num() > 0)
@@ -388,77 +385,90 @@ static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName
 		uint32 HLSLBaseOffset = 0;
 		CreateHLSLUniformBufferStructMembersDeclaration(UniformBufferStruct, UniformBufferName, TEXT(""), TEXT(""), 0, Decl, HLSLBaseOffset);
 
-		return FString::Printf(
-			TEXT("#pragma once\n")
-			TEXT("UB_CB_DEFINITION_START(%s)\n")
-			TEXT("%s")
-			TEXT("UB_CB_DEFINITION_END(%s)\n")
-			TEXT("%s")
-			TEXT("UniformBuffer %s\n")
-			TEXT("{\n")
-			TEXT("%s")
-			TEXT("};\n"),
-			UniformBufferName,
-			*Decl.ConstantBufferMembers,
-			UniformBufferName,
-			*Decl.ResourceMembers,
-			UniformBufferName,
-			*Decl.StructMembers
-		);
+		if (UniformBufferSBLayout && UniformBufferSBLayout->RegisterSpace > 0)
+		{	
+			return FString::Printf(
+				TEXT("#pragma once\n")
+				TEXT("UB_STATIC_CB_DEFINITION_START(%s,%d,%d)\n")
+				TEXT("%s")
+				TEXT("UB_CB_DEFINITION_END(%s)\n")
+				TEXT("%s")
+				TEXT("UniformBuffer %s\n")
+				TEXT("{\n")
+				TEXT("%s")
+				TEXT("};\n"),
+				UniformBufferName,
+				UniformBufferSBLayout->CBVResourceIndex,
+				UniformBufferSBLayout->RegisterSpace,
+				*Decl.ConstantBufferMembers,
+				UniformBufferName,
+				*Decl.ResourceMembers,
+				UniformBufferName,
+				*Decl.StructMembers
+			);
+		}
+		else
+		{
+			return FString::Printf(
+				TEXT("#pragma once\n")
+				TEXT("UB_CB_DEFINITION_START(%s)\n")
+				TEXT("%s")
+				TEXT("UB_CB_DEFINITION_END(%s)\n")
+				TEXT("%s")
+				TEXT("UniformBuffer %s\n")
+				TEXT("{\n")
+				TEXT("%s")
+				TEXT("};\n"),
+				UniformBufferName,
+				*Decl.ConstantBufferMembers,
+				UniformBufferName,
+				*Decl.ResourceMembers,
+				UniformBufferName,
+				*Decl.StructMembers
+			);
+		}
 	}
 
 	return FString(TEXT("\n"));
 }
 
-FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct)
+FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct, const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout)
 {
-	return CreateHLSLUniformBufferDeclaration(UniformBufferName, UniformBufferStruct);
+	return CreateHLSLUniformBufferDeclaration(UniformBufferName, UniformBufferStruct, UniformBufferSBLayout);
 }
 
-static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(uint32 InVariableNameHash, FStringView InVariableNameView)
-{
-#if WITH_EDITOR
-	TMap<FString, FShaderParametersMetadata*>& StringStructMap = FShaderParametersMetadata::GetStringStructMap();
-
-	FShaderParametersMetadata** FoundMetadata = StringStructMap.FindByHash(InVariableNameHash, InVariableNameView);
-	return FoundMetadata ? *FoundMetadata : nullptr;
-#else // WITH_EDITOR
-	for (FShaderParametersMetadata* Metadata : *FShaderParametersMetadata::GetStructList())
-	{
-		if (InVariableName == Metadata->GetShaderVariableName())
-		{
-			return Metadata;
-		}
-	}
-	return nullptr;
-#endif
-}
-
-void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& InUniformBufferNames)
+void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const FShaderParametersMetadata*>& InUniformBuffers)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::ShaderParameters::AddUniformBufferIncludesToEnvironment);
 
 	FString UniformBufferIncludes;
 
-	for (const TCHAR* UniformBufferName : InUniformBufferNames)
+	for (const FShaderParametersMetadata* Metadata : InUniformBuffers)	
 	{
-		FStringView UniformBufferNameView(UniformBufferName);
+		FStringView UniformBufferNameView(Metadata->GetShaderVariableName());
 		uint32 UniformBufferNameHash = GetTypeHash(UniformBufferNameView);
 		if (!OutEnvironment.UniformBufferMap.FindByHash(UniformBufferNameHash, UniformBufferNameView))
 		{
-			if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferNameHash, UniformBufferNameView))
+			FThreadSafeSharedAnsiStringPtr UniformBufferDeclaration;
+
+			// Use the shader binding layout to retrieve the uniform buffer declaration if available
+			if (OutEnvironment.ShaderBindingLayout)
 			{
-				const FThreadSafeSharedAnsiStringPtr UniformBufferDeclaration = Metadata->GetUniformBufferDeclarationAnsiPtr();
-
-				check(UniformBufferDeclaration.Get() != NULL);
-				check(!UniformBufferDeclaration.Get()->IsEmpty());
-
-				UniformBufferIncludes += Metadata->GetUniformBufferInclude();
-
-				OutEnvironment.IncludeVirtualPathToSharedContentsMap.AddByHash(Metadata->GetUniformBufferPathHash(), Metadata->GetUniformBufferPath(), UniformBufferDeclaration);
-
-				Metadata->AddResourceTableEntries(OutEnvironment.ResourceTableMap, OutEnvironment.UniformBufferMap);
+				UniformBufferDeclaration = OutEnvironment.ShaderBindingLayout->GetUniformBufferDeclarationAnsiPtr(Metadata);
 			}
+			else
+			{
+				UniformBufferDeclaration = Metadata->GetUniformBufferDeclarationAnsiPtr();
+			}
+			
+			check(UniformBufferDeclaration.Get() != NULL);
+			check(!UniformBufferDeclaration.Get()->IsEmpty());
+			
+			UniformBufferIncludes += Metadata->GetUniformBufferInclude();
+			
+			OutEnvironment.IncludeVirtualPathToSharedContentsMap.AddByHash(Metadata->GetUniformBufferPathHash(), Metadata->GetUniformBufferPath(), UniformBufferDeclaration);
+			
+			Metadata->AddResourceTableEntries(OutEnvironment.ResourceTableMap, OutEnvironment.UniformBufferMap);
 		}
 	}
 
@@ -470,7 +480,7 @@ void FShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironme
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderType::AddReferencedUniformBufferIncludes);
 
-	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
+	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBuffers);
 }
 
 #endif // WITH_EDITOR
@@ -536,12 +546,9 @@ void FShaderType::GetShaderStableKeyParts(FStableShaderKeyAndValue& SaveKeyVal)
 	SaveKeyVal.ShaderType = FName(GetName() ? GetName() : TEXT("null"));
 }
 
-void FVertexFactoryType::FlushShaderFileCache(const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables)
-{
-}
 void FVertexFactoryType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const
 {
-	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
+	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBuffers);
 }
 
 #endif // WITH_EDITOR

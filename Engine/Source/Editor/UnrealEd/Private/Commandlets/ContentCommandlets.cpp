@@ -5,7 +5,6 @@
 =============================================================================*/
 
 #include "Algo/RemoveIf.h"
-#include "Algo/Unique.h"
 #include "AssetCompilingManager.h"
 #include "AssetRegistry/AssetData.h"
 #include "CollectionManagerModule.h"
@@ -77,6 +76,7 @@ DEFINE_LOG_CATEGORY(LogContentCommandlet);
 #include "Particles/TypeData/ParticleModuleTypeDataMesh.h"
 #include "Engine/LevelStreaming.h"
 #include "EditorBuildUtils.h"
+#include "ExternalPackageHelper.h"
 
 // for UResavePackagesCommandlet::PerformAdditionalOperations building lighting code
 #include "LightingBuildOptions.h"
@@ -157,6 +157,8 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 		}
 		else if( FParse::Value( *CurrentSwitch, TEXT( "PACKAGEFOLDER="), PackageFolder ) )
 		{
+			FPaths::NormalizeDirectoryName(PackageFolder);
+
 			TArray<FString> FilesInPackageFolder;
 			FPackageName::FindPackagesInDirectory(FilesInPackageFolder, PackageFolder);
 			for( int32 FileIndex = 0; FileIndex < FilesInPackageFolder.Num(); FileIndex++ )
@@ -165,6 +167,8 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 				FPaths::MakeStandardFilename(PackageFile);
 				PackageNames.Add( *PackageFile );
 			}
+
+			UE_CLOG(PackageNames.IsEmpty(), LogContentCommandlet, Warning, TEXT("Failed to find any packages in folder: '%s'"), *PackageFolder);
 			bExplicitPackages = true;
 		}
 		else if (FParse::Value(*CurrentSwitch, TEXT("MAP="), Maps))
@@ -430,26 +434,6 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 				TArray<FName> Referencers;
 				AssetRegistry.GetReferencers(AssetData.PackageName, Referencers);
 
-				// For external objects referencers, also add the object's outer package as a referencer so it can be handled by PerformAdditionalOperations.
-				FARFilter Filter;
-				Filter.bIncludeOnlyOnDiskAssets = true;
-				Filter.PackageNames = Referencers;
-
-				TArray<FAssetData> AssetReferencers;
-				AssetRegistry.GetAssets(Filter, AssetReferencers);
-
-				TArray<FName> ReferencerOuters;
-				for (const FAssetData& AssetReferencer : AssetReferencers)
-				{
-					if (!AssetReferencer.GetOptionalOuterPathName().IsNone())
-					{
-						Referencers.Add(FSoftObjectPath(AssetReferencer.GetOptionalOuterPathName().ToString()).GetLongPackageFName());
-					}
-				}
-
-				Referencers.Sort(FNameFastLess());
-				Referencers.SetNum(Algo::Unique(Referencers));
-
 				for (FName Referencer : Referencers)
 				{
 					FString ReferencerFile;
@@ -470,9 +454,29 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 				RedirectorsToFixup.Add(PackageName);
 			}
 
-			if (ReferencerPackages.Contains(PackageName))
+			for (const FString& ReferencerPackage : ReferencerPackages)
 			{
-				PackageNames.Add(PackageName);
+				if (ReferencerPackage == PackageName)
+				{
+					PackageNames.Add(PackageName);
+				}
+				else if (ReferencerPackage.Contains(FPackagePath::GetExternalActorsFolderName()) || ReferencerPackage.Contains(FPackagePath::GetExternalObjectsFolderName()))
+				{
+					FString CleanPackageName = PackageName;
+					if (CleanPackageName.RemoveFromEnd(TEXT(".umap")))
+					{
+						FString WorldReferencerPackage = 
+							ReferencerPackage
+								.Replace(FPackagePath::GetExternalActorsFolderName(), TEXT(""))
+								.Replace(FPackagePath::GetExternalObjectsFolderName(), TEXT(""))
+								.Replace(TEXT("//"), TEXT("/"));
+						WorldReferencerPackage.LeftInline(CleanPackageName.Len());
+						if (WorldReferencerPackage == CleanPackageName)
+						{
+							PackageNames.Add(ReferencerPackage);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1339,6 +1343,10 @@ int32 UResavePackagesCommandlet::Main( const FString& Params )
 	// Make sure any remaining temp files from previous runs are removed
 	CleanTempFiles();
 
+	//Flush Async loading before running the commandlet to ensure packages we want to save that are being loaded asynchronously are loaded before we begin
+	UE_LOG(LogContentCommandlet, Display, TEXT("Flushing Async Loading"));
+	FlushAsyncLoading();
+
 	// Iterate over all packages.
 	for( int32 PackageIndex = 0; PackageIndex < PackageNames.Num(); PackageIndex++ )
 	{
@@ -1898,6 +1906,7 @@ void UResavePackagesCommandlet::PerformAdditionalOperations(class UWorld* World,
 
 	bool bRevertCheckedOutFilesIfNotSaving = true;
 
+	const bool bFixupRedirects = (Switches.Contains(TEXT("FixupRedirects")) || Switches.Contains(TEXT("FixupRedirectors")));
 	const bool bShouldBuildTextureStreamingForWorld = bShouldBuildTextureStreaming && !bShouldBuildTextureStreamingForAll;
 	const bool bBuildingNonHLODData = (bShouldBuildLighting || bShouldBuildTextureStreamingForWorld || bShouldBuildReflectionCaptures);
 
@@ -1905,11 +1914,11 @@ void UResavePackagesCommandlet::PerformAdditionalOperations(class UWorld* World,
 	const bool bShouldCheckoutDirtyPackageOnly = (bShouldBuildHLOD || bShouldBuildNavigationData) && !bBuildingNonHLODData;
 
 	UWorldPartition* WorldPartition = World->GetWorldPartition();
-	const bool bResaveWorldPartitionExternalActors = !!WorldPartition;
+	const bool bResaveWorldPartitionExternalPackages = !!WorldPartition;
 	const int32 DefaultExternalActorGCFreq = 2048;
 
 	// Load and Save Level's external packages
- 	if (!bResaveWorldPartitionExternalActors)
+ 	if (!bResaveWorldPartitionExternalPackages && !bFixupRedirects)
 	{
 		// Use a default GC frequency for external actors if GarbageCollectionFrequency is 0.
 		TGuardValue<int32> ScopedGCFreq(GarbageCollectionFrequency, GarbageCollectionFrequency ? GarbageCollectionFrequency : DefaultExternalActorGCFreq);
@@ -1925,7 +1934,7 @@ void UResavePackagesCommandlet::PerformAdditionalOperations(class UWorld* World,
 		World->RemoveFromRoot();
 	}
 
-	if (!bBuildingNonHLODData && !bShouldBuildHLOD && !bShouldBuildNavigationData && !bResaveWorldPartitionExternalActors)
+	if (!bBuildingNonHLODData && !bShouldBuildHLOD && !bShouldBuildNavigationData && !bResaveWorldPartitionExternalPackages)
 	{
 		return;
 	}
@@ -1942,28 +1951,43 @@ void UResavePackagesCommandlet::PerformAdditionalOperations(class UWorld* World,
 	FScopedEditorWorld EditorWorld(World, IVS);
 
 	// Load and Save world partition actor packages
-	if (bResaveWorldPartitionExternalActors && !bShouldBuildNavigationData)
+	if (bResaveWorldPartitionExternalPackages && !bShouldBuildNavigationData)
 	{
 		// Use a default GC frequency for external actors if GarbageCollectionFrequency is 0.
 		TGuardValue<int32> ScopedGCFreq(GarbageCollectionFrequency, GarbageCollectionFrequency ? GarbageCollectionFrequency : DefaultExternalActorGCFreq);
 
-		FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [this, WorldPartition](const FWorldPartitionActorDescInstance* ActorDescInstance)
+		if (!bFixupRedirects)
 		{
-			++TotalPackagesForResave;
-			// Load & Register World Partition Actor
-			FWorldPartitionReference LoadedActor(WorldPartition, ActorDescInstance->GetGuid());
-			AActor* Actor = LoadedActor.GetActor();
-			UPackage* Package = Actor ? Actor->GetExternalPackage() : nullptr;
-			if (Package == nullptr)
+			auto ResaveExternalPackage = [this](const UPackage* Package)
 			{
-				check(bCanIgnoreFails);
+				++TotalPackagesForResave;
+				if (Package == nullptr)
+				{
+					check(bCanIgnoreFails);
+					return;
+				}
+				const FString PackageFilename = Package->GetLoadedPath().GetLocalFullPath();
+				check(FLinkerLoad::FindExistingLinkerForPackage(Package));
+				LoadAndSaveOnePackage(PackageFilename);
+			};
+
+			// Resave all external actors packages
+			FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [this, WorldPartition, ResaveExternalPackage](const FWorldPartitionActorDescInstance* ActorDescInstance)
+			{
+				// Load & Register World Partition Actor
+				FWorldPartitionReference LoadedActor(WorldPartition, ActorDescInstance->GetGuid());
+				AActor* Actor = LoadedActor.GetActor();
+				UPackage* Package = Actor ? Actor->GetExternalPackage() : nullptr;
+				ResaveExternalPackage(Package);
 				return true;
-			}
-			const FString PackageFilename = Package->GetLoadedPath().GetLocalFullPath();
-			check(FLinkerLoad::FindExistingLinkerForPackage(Package));
-			LoadAndSaveOnePackage(PackageFilename);
-			return true;
-		});
+			});
+
+			// Resave all external objects packages
+			FExternalPackageHelper::LoadObjectsFromExternalPackages<UObject>(World, [this, ResaveExternalPackage](UObject* ExternalObject)
+			{
+				ResaveExternalPackage(ExternalObject->GetPackage());
+			});
+		}
 	}
 
 	if (bBuildingNonHLODData || bShouldBuildHLOD || bShouldBuildNavigationData)
@@ -3214,7 +3238,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 
 			// dump out a line to the .csv file
 			// @todo: sort by size to Excel's 65536 limit gets the biggest objects
-			FString CSVLine = FString::Printf(TEXT("%s,%s,%d%s"), *Object.PackageName, *Object.ObjectName, Object.SerialSize, LINE_TERMINATOR);
+			FString CSVLine = FString::Printf(TEXT("%s,%s,%" INT64_FMT "%s"), *Object.PackageName, *Object.ObjectName, Object.SerialSize, LINE_TERMINATOR);
 			CSVFile->Serialize(TCHAR_TO_ANSI(*CSVLine), CSVLine.Len());
 		}
 	}
@@ -3909,9 +3933,9 @@ int32 ULandscapeGrassTypeCommandlet::Main(const FString& Params)
 			{
 				for (FGrassVariety& GrassVariety : GrassType->GrassVarieties)
 				{
-					GrassVariety.GrassDensityQuality.ConvertQualtiyLevelData(GrassVariety.GrassDensity.PerPlatform, PerPlatformToQualityLevel, GrassVariety.GrassDensity.Default);
-					GrassVariety.StartCullDistanceQuality.ConvertQualtiyLevelData(GrassVariety.StartCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.StartCullDistance.Default);
-					GrassVariety.EndCullDistanceQuality.ConvertQualtiyLevelData(GrassVariety.EndCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.EndCullDistance.Default);
+					GrassVariety.GrassDensityQuality.ConvertQualityLevelData(GrassVariety.GrassDensity.PerPlatform, PerPlatformToQualityLevel, GrassVariety.GrassDensity.Default);
+					GrassVariety.StartCullDistanceQuality.ConvertQualityLevelData(GrassVariety.StartCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.StartCullDistance.Default);
+					GrassVariety.EndCullDistanceQuality.ConvertQualityLevelData(GrassVariety.EndCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.EndCullDistance.Default);
 				}
 			}
 		}

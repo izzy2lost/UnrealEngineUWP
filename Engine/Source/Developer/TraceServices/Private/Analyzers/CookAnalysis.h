@@ -21,9 +21,16 @@ public:
 private:
 	enum : uint16
 	{
+		// Common
 		RouteId_Package,
-		RouteId_PackageStat,
 		RouteId_PackageAssetClass,
+
+		// Version 1
+		RouteId_PackageStat,
+
+		//Version 2 (UE 5.5+)
+		RouteId_PackageStatBeginScope,
+		RouteId_PackageStatEndScope,
 	};
 
 	IAnalysisSession& Session;

@@ -20,6 +20,7 @@ public:
 	void MarkRenderStateDirty() override;
 	void DestroyRenderState() override;
 	void CreateRenderState(FRegisterComponentContext* Context) override;
+	void PrecachePSOs() override;
 
 	FString GetName() const override;
 	FString GetFullName() const override;

@@ -65,7 +65,7 @@ struct FRigVMBranchInfoKey
 				GetTypeHash(InKey.InstructionIndex),
 				GetTypeHash(InKey.ArgumentIndex)
 			),
-			GetTypeHash(InKey.Label)
+			GetTypeHash(InKey.Label.ToString())
 		);
 	}
 
@@ -221,6 +221,7 @@ enum class ERigVMOpCode : uint8
 	JumpToBranch, // jumps to a branch based on a name operand
 	Execute, // single execute op (formerly Execute_0_Operands to Execute_64_Operands)
 	RunInstructions, // runs a set of instructions lazily
+	SetupTraits, // sets up a list of traits on executecontext
 	Invalid,
 	FirstArrayOpCode = ArrayReset,
 	LastArrayOpCode = ArrayReverse,
@@ -334,7 +335,8 @@ struct RIGVM_API FRigVMUnaryOp : public FRigVMBaseOp
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpBackwardIf) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::ChangeType) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpToBranch) ||
-			uint8(InOpCode) == uint8(ERigVMOpCode::RunInstructions)
+			uint8(InOpCode) == uint8(ERigVMOpCode::RunInstructions) ||
+			uint8(InOpCode) == uint8(ERigVMOpCode::SetupTraits)
 		);
 	}
 
@@ -923,7 +925,7 @@ struct RIGVM_API FRigVMInvokeEntryOp : public FRigVMBaseOp
 
 	friend uint32 GetTypeHash(const FRigVMInvokeEntryOp& Op)
 	{
-		return HashCombine(GetTypeHash((const FRigVMBaseOp&)Op), GetTypeHash(Op.EntryName));
+		return HashCombine(GetTypeHash((const FRigVMBaseOp&)Op), GetTypeHash(Op.EntryName.ToString()));
 	}
 
 	void Serialize(FArchive& Ar);
@@ -1011,6 +1013,23 @@ struct RIGVM_API FRigVMRunInstructionsOp : public FRigVMUnaryOp
 	{
 		P.Serialize(Ar);
 		return Ar;
+	}
+};
+
+// sets up a list of traits in the execute context
+USTRUCT()
+struct RIGVM_API FRigVMSetupTraitsOp : public FRigVMUnaryOp
+{
+	GENERATED_USTRUCT_BODY()
+
+	FRigVMSetupTraitsOp()
+		: FRigVMUnaryOp()
+	{
+	}
+
+	FRigVMSetupTraitsOp(FRigVMOperand InTraitListArg)
+		: FRigVMUnaryOp(ERigVMOpCode::SetupTraits, InTraitListArg)
+	{
 	}
 };
 
@@ -1216,6 +1235,9 @@ public:
 	// adds a run instructions op
 	uint64 AddRunInstructionsOp(FRigVMOperand InExecuteStateArg, int32 InStartInstruction, int32 InEndInstruction);
 
+	// adds a setup traits op
+	uint64 AddSetupTraitsOp(FRigVMOperand InTraitListArg);
+
 	// adds information about a branch for an instruction's argument
 	int32 AddBranchInfo(const FRigVMBranchInfo& InBranchInfo);
 	int32 AddBranchInfo(const FName& InBranchLabel, int32 InInstructionIndex, int32 InArgumentIndex, int32 InFirstBranchInstruction, int32 InLastBranchInstruction);
@@ -1407,6 +1429,46 @@ public:
 	void SetOperandsForInstruction(int32 InInstructionIndex, const FRigVMOperandArray& InputOperands, const FRigVMOperandArray& OutputOperands);
 
 #endif
+
+	// returns the traits for the provided memory
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
+
+	// returns the traits for the provided memory and any additional memory handles
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles, const UScriptStruct* InScriptStruct = nullptr) const;
+	
+	// returns the traits of a given type for the provided memory
+	template<typename T>
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
+	{
+		return GetTraits(InLiteralMemory, InWorkMemory, T::StaticStruct());
+	}
+
+	// returns the traits of a given type for the provided memory and any additional memorty handles
+	template<typename T>
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles) const
+	{
+		return GetTraits(InLiteralMemory, InWorkMemory, OutAdditionalMemoryHandles, T::StaticStruct());
+	}
+
+	// returns the traits for the provided memory for a single instruction
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
+
+	// returns the traits for the provided memory for a single instruction and any additional memory handles
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles, const UScriptStruct* InScriptStruct = nullptr) const;
+
+	// returns the traits of a given type for the provided memory for a single instruction
+	template<typename T>
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
+	{
+		return GetTraitsForInstruction(InInstruction, InLiteralMemory, InWorkMemory, T::StaticStruct());
+	}
+
+	// returns the traits of a given type for the provided memory for a single instruction and any additional memory handles
+	template<typename T>
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles) const
+	{
+		return GetTraitsForInstruction(InInstruction, InLiteralMemory, InWorkMemory, T::StaticStruct(), OutAdditionalMemoryHandles);
+	}
 
 private:
 

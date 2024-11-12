@@ -9,7 +9,10 @@
 class UAnimMontage;
 
 
-/** Anim Root Motion Move: handles root motion from a montage played on the associated mesh */
+/** Anim Root Motion Move: handles root motion from a montage played on the primary visual component (skeletal mesh). 
+ * In this method, root motion is extracted independently from anim playback. The move will end itself if the animation
+ * is interrupted on the mesh.
+ */
 USTRUCT(BlueprintType)
 struct MOVER_API FLayeredMove_AnimRootMotion : public FLayeredMoveBase
 {

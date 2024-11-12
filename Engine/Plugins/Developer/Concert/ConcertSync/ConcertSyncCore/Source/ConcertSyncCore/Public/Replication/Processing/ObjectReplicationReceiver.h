@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Templates/SharedPointer.h"
+#include "HAL/Platform.h"
 
 class IConcertSession;
 struct FConcertReplication_BatchReplicationEvent;
@@ -19,7 +19,7 @@ namespace UE::ConcertSyncCore
 	{
 	public:
 
-		FObjectReplicationReceiver(TSharedRef<IConcertSession> Session, TSharedRef<FObjectReplicationCache> ReplicationCache);
+		FObjectReplicationReceiver(IConcertSession& Session UE_LIFETIMEBOUND, FObjectReplicationCache& ReplicationCache UE_LIFETIMEBOUND);
 		virtual ~FObjectReplicationReceiver();
 
 	protected:
@@ -30,9 +30,9 @@ namespace UE::ConcertSyncCore
 	private:
 
 		/** The session that is being received on. */
-		TSharedRef<IConcertSession> Session;
+		IConcertSession& Session;
 		/** Where received data is stored. */
-		TSharedRef<FObjectReplicationCache> ReplicationCache;
+		FObjectReplicationCache& ReplicationCache;
 
 		void HandleBatchReplicationEvent(const FConcertSessionContext& SessionContext, const FConcertReplication_BatchReplicationEvent& Event);
 	};

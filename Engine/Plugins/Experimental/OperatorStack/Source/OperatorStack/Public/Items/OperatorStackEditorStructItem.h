@@ -65,7 +65,12 @@ struct FOperatorStackEditorStructItem : FOperatorStackEditorItem
 		return StructWeak.Pin();
 	}
 
-	virtual bool HasValue() const override
+	virtual uint32 GetValueCount() const override
+	{
+		return 1;
+	}
+
+	virtual bool HasValue(uint32 InIndex) const override
 	{
 		if (const TSharedPtr<FStructOnScope> Struct = StructWeak.Pin())
 		{
@@ -75,13 +80,12 @@ struct FOperatorStackEditorStructItem : FOperatorStackEditorItem
 		return false;
 	}
 
-protected:
 	virtual uint32 GetHash() const override
 	{
 		return CachedHash;
 	}
 
-	virtual void* GetValuePtr() const override
+	virtual void* GetValuePtr(uint32 InIndex) const override
 	{
 		if (const TSharedPtr<FStructOnScope> Struct = StructWeak.Pin())
 		{
@@ -91,6 +95,6 @@ protected:
 		return nullptr;
 	}
 
-	uint32 CachedHash = 0;
+protected:
 	TWeakPtr<FStructOnScope> StructWeak;
 };

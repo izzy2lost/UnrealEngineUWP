@@ -5,6 +5,7 @@
 #include "ScreenPass.h"
 #include "OverridePassSequence.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "PostProcess/LensDistortion.h"
 
 //UE_ENABLE_DEBUG_DRAWING i.e. !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || WITH_EDITOR
 //Only available in Debug/Development/Editor builds due to current use cases, but can be extended in future
@@ -17,7 +18,8 @@ public:
 	static const uint32 kMSAASampleCountMax = 8;
 
 	class FSampleCountDimension : SHADER_PERMUTATION_RANGE_INT("MSAA_SAMPLE_COUNT", 1, kMSAASampleCountMax + 1);
-	using FPermutationDomain = TShaderPermutationDomain<FSampleCountDimension>;
+	class FMSAADontResolve : SHADER_PERMUTATION_BOOL("MSAA_DONT_RESOLVE");
+	using FPermutationDomain = TShaderPermutationDomain<FSampleCountDimension, FMSAADontResolve>;
 
 	static bool ShouldCompilePermutation(const FPermutationDomain& PermutationVector, const EShaderPlatform Platform)
 	{
@@ -58,11 +60,17 @@ struct FCompositePrimitiveInputs
 	// [Optional] Render to the specified output. If invalid, a new texture is created and returned.
 	FScreenPassRenderTarget OverrideOutput;
 
+	// [Optional] Render the depth to the specified output.
+	FScreenPassRenderTarget OverrideDepthOutput;
+
 	// [Required] The scene color to composite with editor primitives.
 	FScreenPassTexture SceneColor;
 
 	// [Required] The scene depth to composite with editor primitives.
 	FScreenPassTexture SceneDepth;
+
+	// [Optional] Lens distortion applied on the scene color.
+	FLensDistortionLUT LensDistortionLUT;
 
 	bool bUseMetalMSAAHDRDecode = false;
 };

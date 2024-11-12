@@ -23,6 +23,39 @@ void FWorldPartitionCookPackageContext::UnregisterPackageCookPackageGenerator(IW
 	verify(CookPackageGenerators.Remove(CookPackageGenerator));
 }
 
+const FWorldPartitionCookPackage* FWorldPartitionCookPackageContext::AddPackageToGenerate(IWorldPartitionCookPackageGenerator* Generator, IWorldPartitionCookPackageObject* InCookPackageObject, const FString& Root, const FString& RelativePath)
+{
+	const FWorldPartitionCookPackage* WorldPartitionCookPackage = nullptr;
+
+	if (InCookPackageObject->IsLevelPackage())
+	{
+		WorldPartitionCookPackage = AddLevelStreamingPackageToGenerate(Generator, Root, RelativePath);
+	}
+	else
+	{
+		WorldPartitionCookPackage = AddGenericPackageToGenerate(Generator, Root, RelativePath);
+	}
+
+	if (WorldPartitionCookPackage)
+	{
+		PackageObjectToPackageId.Add(Cast<UObject>(InCookPackageObject), WorldPartitionCookPackage->PackageId);
+	}
+
+	return WorldPartitionCookPackage;
+}
+
+FString FWorldPartitionCookPackageContext::GetGeneratedPackagePath(IWorldPartitionCookPackageObject* InCookPackageObject) const
+{
+	if (const FWorldPartitionCookPackage::IDType* PackageId = PackageObjectToPackageId.Find(Cast<UObject>(InCookPackageObject)))
+	{
+		if (const TUniquePtr<FWorldPartitionCookPackage>* ExistingPackage = PackagesToCookById.Find(*PackageId))
+		{
+			return (*ExistingPackage)->GetFullGeneratedPath();
+		}
+	}
+	return FString();
+}
+
 const FWorldPartitionCookPackage* FWorldPartitionCookPackageContext::AddLevelStreamingPackageToGenerate(IWorldPartitionCookPackageGenerator* CookPackageGenerator, const FString& Root, const FString& RelativePath)
 {
 	return AddPackageToGenerateInternal(CookPackageGenerator, Root, RelativePath, FWorldPartitionCookPackage::EType::Level);
@@ -85,9 +118,10 @@ const FWorldPartitionCookPackage* FWorldPartitionCookPackageContext::AddPackageT
 	return nullptr;
 }
 
-bool FWorldPartitionCookPackageContext::GatherPackagesToCook()
+bool FWorldPartitionCookPackageContext::GatherPackagesToCook(const FWorldPartitionCookPackageContextParams& InParams)
 {
 	bool bIsSuccess = true;
+	Params = InParams;
 
 	for (IWorldPartitionCookPackageGenerator* CookPackageGenerator : CookPackageGenerators)
 	{
@@ -111,6 +145,11 @@ bool FWorldPartitionCookPackageContext::GatherPackagesToCook()
 	}
 
 	return bIsSuccess;
+}
+
+const FWorldPartitionCookPackageContextParams& FWorldPartitionCookPackageContext::GetParams() const
+{
+	return Params;
 }
 
 #endif

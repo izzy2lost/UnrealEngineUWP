@@ -19,6 +19,7 @@ class UMetaSoundSource;
 namespace Metasound
 {
 	class FMetasoundGenerator;
+	struct FVertexInterfaceChange;
 }
 
 DECLARE_DYNAMIC_DELEGATE_TwoParams(FOnMetasoundOutputValueChanged, FName, OutputName, const FMetaSoundOutput&, Output);
@@ -89,9 +90,17 @@ namespace Metasound
 		DECLARE_DELEGATE(FOnGeneratorIOUpdated);
 
 		/**
-		 * Fires on the game thread when the generator's graph inputs or outputs change
+		 * Fires on the game thread when the generator's graph inputs or outputs change.
 		 */
+		UE_DEPRECATED(5.5, "Use OnGeneratorIOUpdatedWithChanges.")
 		FOnGeneratorIOUpdated OnGeneratorIOUpdated;
+
+		DECLARE_DELEGATE_OneParam(FOnGeneratorIOUpdatedWithChanges, const TArray<FVertexInterfaceChange>&);
+
+		/**
+		 * Fires on the game thread when the generator's graph inputs or outputs change, and includes a list of those changes.
+		 */
+		FOnGeneratorIOUpdatedWithChanges OnGeneratorIOUpdatedWithChanges;
 
 		/**
 		 * Update the current parameter state on this handle and enqueue the changes on the generator.
@@ -149,11 +158,18 @@ namespace Metasound
 			FName AnalyzerName = NAME_None,
 			FName AnalyzerOutputName = NAME_None);
 
+		bool TryCreateAnalyzerAddress(
+			const FName OutputName,
+			const FName AnalyzerName,
+			const FName AnalyzerOutputName,
+			Frontend::FAnalyzerAddress& OutAnalyzerAddress);
+
 		/**
 		 * Update any watched outputs
 		 */
-		void UpdateOutputWatchers();
-
+		UE_DEPRECATED(5.5, "Directly calling UpdateOutputWatchers() is no longer necessary.")
+		void UpdateOutputWatchers() const {}
+		
 		/**
 		 * Map a type name to a passthrough analyzer name to use as a default for UMetasoundOutputSubsystem::WatchOutput()
 		 *
@@ -176,6 +192,11 @@ namespace Metasound
 		* before the metasound is started!
 		*/
 		double GetCPUCoreUtilization() const;
+
+		/**
+		* Returns a text representation of this generator handle, useful for logging
+		*/
+		FString ToString() const;
 
 	private:
 		void SetGenerator(TWeakPtr<FMetasoundGenerator>&& InGenerator);
@@ -212,12 +233,7 @@ namespace Metasound
 			FName AnalyzerName = NAME_None,
 			FName AnalyzerOutputName = NAME_None);
 
-		bool TryCreateAnalyzerAddress(
-			const FName OutputName,
-			const FName AnalyzerName,
-			const FName AnalyzerOutputName,
-			Frontend::FAnalyzerAddress& OutAnalyzerAddress);
-
+		void UpdateOutputWatchersInternal();
 		void FixUpOutputWatchers();
 
 		void CreateOutputWatcher(
@@ -243,7 +259,7 @@ namespace Metasound
 		void HandleGeneratorGraphSet();
 		FDelegateHandle GeneratorGraphSetDelegateHandle;
 
-		void HandleGeneratorVertexInterfaceChanged(FVertexInterfaceData VertexInterfaceData);
+		void HandleGeneratorVertexInterfaceChanged(const TArray<FVertexInterfaceChange>& VertexInterfaceData);
 		FDelegateHandle GeneratorVertexInterfaceChangedDelegateHandle;
 
 		void HandleOutputChanged(
@@ -386,6 +402,8 @@ namespace Metasound
 		std::atomic<int32> ChangedOutputsQueueCount{ 0 };
 		std::atomic<bool> ChangedOutputsQueueShouldLogIfFull{ true };
 
+		std::atomic_flag OutputWatcherUpdateScheduled = ATOMIC_FLAG_INIT;
+
 		bool bRuntimeRenderTimingShouldBeEnabled{ false };
 	};
 }
@@ -393,7 +411,7 @@ namespace Metasound
 /**
  * Blueprint-facing interface to a FMetasoundGenerator on a UAudioComponent.
  */
-UCLASS(BlueprintType,Category="MetaSound")
+UCLASS(BlueprintType, Category = "MetaSound", meta = (DisplayName = "MetaSound Generator Handle"))
 class METASOUNDENGINE_API UMetasoundGeneratorHandle : public UObject
 {
 	GENERATED_BODY()
@@ -450,7 +468,17 @@ public:
 	bool RemoveGraphSetCallback(const FDelegateHandle& Handle);
 
 	DECLARE_MULTICAST_DELEGATE(FOnIOUpdated)
+	UE_DEPRECATED(5.5, "Use OnIOUpdatedWithChanges.")
 	FOnIOUpdated OnIOUpdated;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnIOUpdatedWithChanges, const TArray<Metasound::FVertexInterfaceChange>&)
+	FOnIOUpdatedWithChanges OnIOUpdatedWithChanges;
+
+	bool TryCreateAnalyzerAddress(
+		const FName OutputName,
+		const FName AnalyzerName,
+		const FName AnalyzerOutputName,
+		Metasound::Frontend::FAnalyzerAddress& OutAnalyzerAddress);
 
 	/**
 	 * Watch an output value.
@@ -486,6 +514,7 @@ public:
 	/**
 	 * Update any watched outputs
 	 */
+	UE_DEPRECATED(5.5, "Directly calling UpdateWatchers() is no longer necessary.")
 	UFUNCTION(BlueprintCallable, Category="MetaSoundOutput")
 	void UpdateWatchers() const;
 

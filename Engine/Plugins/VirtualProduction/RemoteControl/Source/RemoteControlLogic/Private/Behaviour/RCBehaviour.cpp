@@ -8,7 +8,7 @@
 #include "Behaviour/RCBehaviourNode.h"
 #include "Controller/RCController.h"
 #include "Engine/Blueprint.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 

@@ -22,12 +22,14 @@
 #include "Settings/EditorLoadingSavingSettings.h"
 #include "SourceControlOperations.h"
 #include "ISourceControlModule.h"
+#include "Templates/GuardValueAccessors.h"
 #include "SourceControlHelpers.h"
 #include "FileHelpers.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "IAssetTools.h"
 #include "AssetToolsModule.h"
+#include "ContentBrowserModule.h"
 #include "Settings/EditorExperimentalSettings.h"
 
 #include "PackagesDialog.h"
@@ -245,7 +247,7 @@ AssetViewUtils::ELoadAssetsResult AssetViewUtils::LoadAssetsIfNeeded(TConstArray
 	bool bSomeObjectsFailedToLoad = false;
 	bool bCancelled = false;
 	{
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 		const ELoadFlags LoadFlags = Settings.bFollowRedirectors ? LOAD_None : LOAD_NoRedirects;
 
 		for (const FSoftObjectPath& ObjectPath : UnloadedObjectPaths)
@@ -410,7 +412,9 @@ void AssetViewUtils::MoveAssets(const TArray<UObject*>& Assets, const FString& D
 			PackagePath = DestPath;
 		}
 
-		new(AssetsAndNames) FAssetRenameData(Asset, PackagePath, ObjectName);
+		const bool bSoftReferenceOnly = false;
+		const bool bAlsoRenameLocalizedVariants = true;
+		new(AssetsAndNames) FAssetRenameData(Asset, PackagePath, ObjectName, bSoftReferenceOnly, bAlsoRenameLocalizedVariants);
 	}
 
 	if ( AssetsAndNames.Num() > 0 )
@@ -1288,6 +1292,9 @@ void AssetViewUtils::SetPathColor(const FString& FolderPath, TOptional<FLinearCo
 
 		// Update the map too
 		PathColors.Add(InPath, InFolderColor);
+
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+		ContentBrowserModule.GetOnSetFolderColor().Broadcast(InPath);
 	};
 
 	auto RemoveColorInternal = [](const FString& InPath)
@@ -1430,15 +1437,6 @@ bool AssetViewUtils::IsValidObjectPathForCreate(const FString& ObjectPath, const
 	}
 
 	const FString FullPath = FPaths::ConvertRelativePathToFull(RelativePathFilename);	// path to file on disk
-	if (ObjectPath.Len() > (FPlatformMisc::GetMaxPathLength() - MAX_CLASS_NAME_LENGTH))
-	{
-		// The full path for the asset is too long
-		OutErrorMessage = FText::Format(LOCTEXT("ObjectPathTooLong", "The object path for the asset is too long, the maximum is '{0}'. \nPlease choose a shorter name for the asset or create it in a shallower folder structure."),
-			FText::AsNumber((FPlatformMisc::GetMaxPathLength() - MAX_CLASS_NAME_LENGTH)));
-		// Return false to indicate that the user should enter a new name
-		return false;
-	}
-		
 	if (FullPath.Len() > CVarMaxFullPathLength->GetValueOnGameThread() )
 	{
 		// The full path for the asset is too long
@@ -1739,8 +1737,8 @@ void GetOutOfDatePackageDependencies(const TArray<FString>& InPackagesThatWillBe
 			// Dependency data may contain files that no longer exist on disk; strip those from the list now
 			if (!FPaths::FileExists(DependencyFilenames[DependencyIndex]))
 			{
-				AllDependencies.RemoveAt(DependencyIndex, 1, EAllowShrinking::No);
-				DependencyFilenames.RemoveAt(DependencyIndex, 1, EAllowShrinking::No);
+				AllDependencies.RemoveAt(DependencyIndex, EAllowShrinking::No);
+				DependencyFilenames.RemoveAt(DependencyIndex, EAllowShrinking::No);
 				--DependencyIndex;
 			}
 		}

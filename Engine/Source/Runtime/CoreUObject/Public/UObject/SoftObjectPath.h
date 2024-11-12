@@ -28,9 +28,13 @@
 #include "UObject/UObjectHash.h"
 
 class FArchive;
+class FCbWriter;
 class FOutputDevice;
 struct FPropertyTag;
 struct FUObjectSerializeContext;
+
+/** Delegate called on completion of async loading a soft object. The UObject will be null if the load failed */
+DECLARE_DELEGATE_TwoParams(FLoadSoftObjectPathAsyncDelegate, const FSoftObjectPath&, UObject*);
 
 /**
  * A struct that contains a string reference to an object, either a package, a top level asset or a subobject.
@@ -97,6 +101,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 		}
 	}
 
+	/** Static methods for more meaningful construction sites. */
+	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, const FString& InSubPathString);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, FString&& InSubPathString);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAsset(FName InPackageName, FName InAssetName);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromAssetPath(FTopLevelAssetPath InAssetPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FString&& InPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FStringView InPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FUtf8StringView InPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromObject(const UObject* InObject);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromObject(const FObjectPtr& InObject);
+	template <typename T>
+	static FSoftObjectPath ConstructFromObject(const TObjectPtr<T>& InObject)
+	{
+		return ConstructFromObject(InObject.Get());
+	}
+
 	FSoftObjectPath& operator=(const FTopLevelAssetPath Path)			{ SetPath(Path); return *this; }
 	FSoftObjectPath& operator=(const FString& Path)						{ SetPath(FStringView(Path)); return *this; }
 	FSoftObjectPath& operator=(FWideStringView Path)					{ SetPath(Path); return *this; }
@@ -122,10 +142,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	/** Append string representation of reference, in form /package/path.assetname[:subpath] */
 	COREUOBJECT_API void ToString(FStringBuilderBase& Builder) const;
+	COREUOBJECT_API void ToString(FUtf8StringBuilderBase& Builder) const;
 
 	/** Append string representation of reference, in form /package/path.assetname[:subpath] */
 	COREUOBJECT_API void AppendString(FString& Builder) const;
 	COREUOBJECT_API void AppendString(FStringBuilderBase& Builder) const;
+	COREUOBJECT_API void AppendString(FUtf8StringBuilderBase& Builder) const;
 
 	/** Returns the top-level asset part of this path, without the subobject path. */
 	FTopLevelAssetPath GetAssetPath() const
@@ -211,6 +233,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	 * @return Loaded UObject, or nullptr if the reference is null or the asset fails to load
 	 */
 	COREUOBJECT_API UObject* TryLoad(FUObjectSerializeContext* InLoadContext = nullptr) const;
+
+	/**
+	 * Attempts to asynchronously load the object referenced by this path.
+	 * This will call LoadAssetAsync to load the top level asset and resolve the sub paths before calling the delegate.
+	 * FStreamableManager can be used for more control over callback timing and garbage collection.
+	 * 
+	 * @param	InCompletionDelegate	Delegate to be invoked when the async load finishes, this will execute on the game thread as soon as the load succeeds or fails
+	 * @param	InOptionalParams		Optional parameters for async loading the asset
+	 * @return Unique ID associated with this load request (the same object or package can be associated with multiple IDs).
+	 */
+	COREUOBJECT_API int32 LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams = FLoadAssetAsyncOptionalParams()) const;
 
 	/**
 	 * Attempts to find a currently loaded object that matches this path
@@ -309,7 +342,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	/** Fixes soft object path for CoreRedirects to handle renamed native objects, returns true if it was modified */
 	COREUOBJECT_API bool FixupCoreRedirects();
 
-	FORCEINLINE friend uint32 GetTypeHash(FSoftObjectPath const& This)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(FSoftObjectPath const& This)
 	{
 		uint32 Hash = 0;
 
@@ -349,6 +382,7 @@ private:
 	COREUOBJECT_API UObject* ResolveObjectInternal() const;
 	COREUOBJECT_API UObject* ResolveObjectInternal(const TCHAR* PathString) const;
 
+	COREUOBJECT_API friend void SerializeForLog(FCbWriter& Writer, const FSoftObjectPath& Value);
 	friend struct Z_Construct_UScriptStruct_FSoftObjectPath_Statics;
 };
 
@@ -371,6 +405,11 @@ struct FSoftObjectPathLexicalLess
 };
 
 inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FSoftObjectPath& Path)
+{
+	Path.ToString(Builder);
+	return Builder;
+}
+inline FUtf8StringBuilderBase& operator<<(FUtf8StringBuilderBase& Builder, const FSoftObjectPath& Path)
 {
 	Path.ToString(Builder);
 	return Builder;
@@ -552,11 +591,11 @@ struct FSoftObjectPathFixupArchive : public FArchiveUObject
 	}
 
 	FSoftObjectPathFixupArchive(const FString& InOldAssetPathString, const FString& InNewAssetPathString)
-		: FSoftObjectPathFixupArchive([OldAssetPathString = InOldAssetPathString, NewAssetPathString = InNewAssetPathString](FSoftObjectPath& Value)
+		: FSoftObjectPathFixupArchive([OldAssetPathString = InOldAssetPathString, NewAssetPath = FTopLevelAssetPath(InNewAssetPathString)](FSoftObjectPath& Value)
 		{
 			if (!Value.IsNull() && Value.GetAssetPathString().Equals(OldAssetPathString, ESearchCase::IgnoreCase))
 			{
-				Value = FSoftObjectPath(NewAssetPathString);
+				Value = FSoftObjectPath(NewAssetPath, Value.GetSubPathString());
 			}
 		})
 	{

@@ -2,12 +2,13 @@
 
 #include "Components/DMMaterialStageBlendFunction.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageBlendFunction"
 
@@ -53,12 +54,12 @@ void UDMMaterialStageBlendFunction::GenerateExpressions(const TSharedRef<FDMMate
 	InBuildState->AddStageSourceExpressions(this, {FunctionCall});
 }
 
-void UDMMaterialStageBlendFunction::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex, UMaterialExpression* InSourceExpression,
-	int32 InSourceOutputIndex, int32 InSourceOutputChannel)
+void UDMMaterialStageBlendFunction::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx, int32 InExpressionInputIndex,
+	UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
 {
 	check(InSourceExpression);
 	check(InSourceExpression->GetOutputs().IsValidIndex(InSourceOutputIndex));
-	check(InInputIndex >= 0 && InInputIndex <= 2);
+	check(InExpressionInputIndex >= 0 && InExpressionInputIndex <= 2);
 
 	const TArray<UMaterialExpression*>& StageSourceExpressions = InBuildState->GetStageSourceExpressions(this);
 	check(!StageSourceExpressions.IsEmpty());
@@ -99,7 +100,7 @@ void UDMMaterialStageBlendFunction::ConnectOutputToInput(const TSharedRef<FDMMat
 		}
 	}
 
-	switch (InInputIndex)
+	switch (InExpressionInputIndex)
 	{
 		case InputA:
 			ConnectOutputToInput_Internal(InBuildState, StageSourceExpressions[0] /* FunctionCall */, InputAIndex, InSourceExpression, InSourceOutputIndex, InSourceOutputChannel);

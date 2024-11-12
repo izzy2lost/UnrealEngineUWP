@@ -63,7 +63,7 @@ void UText3DEngineSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-bool UText3DEngineSubsystem::Exec(UWorld* InWorld, const TCHAR* InCmd, FOutputDevice& InAr)
+bool UText3DEngineSubsystem::Exec_Dev(UWorld* InWorld, const TCHAR* InCmd, FOutputDevice& InAr)
 {
 	if (HasAllFlags(RF_ClassDefaultObject))
 	{

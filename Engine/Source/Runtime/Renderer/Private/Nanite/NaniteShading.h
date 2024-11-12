@@ -9,13 +9,15 @@
 #include "Stats/Stats.h"
 
 struct FNaniteShadingCommands;
-
-DECLARE_CYCLE_STAT_EXTERN(TEXT("NaniteBasePass]"), STAT_CLP_NaniteBasePass, STATGROUP_ParallelCommandListMarkers, );
+class  FLumenCardPassUniformParameters;
+class  FCardPageRenderData;
+class  FSceneRenderer;
 
 namespace Nanite
 {
 
 struct FRasterResults;
+struct FRasterContext;
 
 struct FShadeBinning
 {
@@ -38,12 +40,18 @@ FShadeBinning ShadeBinning(
 	const TConstArrayView<FRDGTextureRef> ClearTargets
 );
 
+enum class EBuildShadingCommandsMode : uint8
+{
+	Default = 0,
+	Custom,
+};
+
 void BuildShadingCommands(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
 	ENaniteMeshPass::Type MeshPass,
 	FNaniteShadingCommands& ShadingCommands,
-	bool bForceBuildCommands
+	EBuildShadingCommandsMode Mode = EBuildShadingCommandsMode::Default
 );
 
 bool LoadBasePassPipeline(
@@ -73,7 +81,18 @@ void DispatchBasePass(
 	const FRasterResults& RasterResults
 );
 
-void CollectShadingPSOInitializers(
+void CollectBasePassShadingPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& Material,
+	const FPSOPrecacheParams& PreCacheParams,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
+	TArray<FPSOPrecacheData>& PSOInitializers
+);
+
+void CollectLumenCardPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FMaterial& Material,
@@ -88,3 +107,20 @@ extern bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI);
 extern uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps);
 
 } // Nanite
+
+void DispatchLumenMeshCapturePass(
+	FRDGBuilder& GraphBuilder,
+	FScene& Scene,
+	FViewInfo* SharedView,
+	TArrayView<const FCardPageRenderData> CardPagesToRender,
+	const Nanite::FRasterResults& RasterResults,
+	const Nanite::FRasterContext& RasterContext,
+	FLumenCardPassUniformParameters* PassUniformParameters,
+	FRDGBufferSRVRef RectMinMaxBufferSRV,
+	uint32 NumRects,
+	FIntPoint ViewportSize,
+	FRDGTextureRef AlbedoAtlasTexture,
+	FRDGTextureRef NormalAtlasTexture,
+	FRDGTextureRef EmissiveAtlasTexture,
+	FRDGTextureRef DepthAtlasTexture
+);

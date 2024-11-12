@@ -22,17 +22,18 @@ namespace UE::Chaos::ClothAsset
 {
 class FClothEditorSimulationVisualization;
 class FChaosClothAssetEditor3DViewportClient;
+struct FClothSimulationNodeDetailExtender;
 }
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	class CHAOSCLOTHASSETEDITOR_API FClothAssetDataflowContext final : public TEngineContext<FContextSingle>
 	{
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FClothAssetDataflowContext);
 
-		FClothAssetDataflowContext(UObject* InOwner, UDataflow* InGraph, FTimestamp InTimestamp)
-			: Super(InOwner, InGraph, InTimestamp)
+		FClothAssetDataflowContext(UObject* InOwner, UDataflow* InGraph)
+			: Super(InOwner)
 		{}
 	};
 }
@@ -47,14 +48,14 @@ namespace UE::Chaos::ClothAsset
  * initializing the Cloth mode.
  * Thus, the FChaosClothAssetEditorToolkit ends up being the central place for the Cloth Asset Editor setup.
  */
-class CHAOSCLOTHASSETEDITOR_API FChaosClothAssetEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject
+class CHAOSCLOTHASSETEDITOR_API FChaosClothAssetEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook
 {
 public:
 
 	explicit FChaosClothAssetEditorToolkit(UAssetEditor* InOwningAssetEditor);
 	virtual ~FChaosClothAssetEditorToolkit();
 
-	TSharedPtr<Dataflow::FEngineContext> GetDataflowContext() const;
+	TSharedPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const;
 	const UDataflow* GetDataflow() const;
 
 private:
@@ -80,7 +81,7 @@ private:
 	virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const override;
 
 	// FAssetEditorToolkit
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder = INDEX_NONE) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
 	virtual void OnClose() override;
@@ -89,6 +90,7 @@ private:
 	virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
 	virtual bool ShouldReopenEditorForSavedAsset(const UObject* Asset) const override;
+	virtual void OnAssetsSaved(const TArray<UObject*>& SavedObjects) override;
 	virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) override;
 
 	// IAssetEditorInstance
@@ -101,6 +103,9 @@ private:
 	virtual FText GetToolkitToolTipText() const override;
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
+
+	// FNotifyHook
+	virtual void NotifyPreChange(class FEditPropertyChain* PropertyAboutToChange) override;
 
 	// Return the cloth asset held by the Cloth Editor
 	UChaosClothAsset* GetAsset() const;
@@ -120,16 +125,15 @@ private:
 	void InvalidateViews();
 
 	// Dataflow
-	UE_DEPRECATED(5.4, "Use EvaluateNode(FDataflowNode*, bool) instead.")
-	void EvaluateNode(FDataflowNode* Node, FDataflowOutput* Out) { EvaluateNode(Node); }
-	void EvaluateNode(FDataflowNode* Node, bool bForceOperation = true);
+	void EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output);
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget();
 	void ReinitializeGraphEditorWidget();
 	TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
 
-	TSharedPtr<FManagedArrayCollection> GetClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context);
-
-	TSharedPtr<FManagedArrayCollection> GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context);
+	TSharedPtr<FManagedArrayCollection> GetClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context);
+	TSharedPtr<FManagedArrayCollection> GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context);
+	TSharedPtr<FDataflowNode> GetSelectedDataflowNode();
+	TSharedPtr<const FDataflowNode> GetSelectedDataflowNode() const;
 
 	// DataflowEditorActions
 	void OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
@@ -162,10 +166,10 @@ private:
 	TSharedPtr<SClothCollectionOutliner> Outliner;
 
 	// Dataflow
-	TSharedPtr<Dataflow::FEngineContext> DataflowContext;
-	Dataflow::FTimestamp LastDataflowNodeTimestamp = Dataflow::FTimestamp::Invalid;
+	TSharedPtr<UE::Dataflow::FEngineContext> DataflowContext;
+	UE::Dataflow::FTimestamp LastDataflowNodeTimestamp = UE::Dataflow::FTimestamp::Invalid;
 	FDelegateHandle OnNodeInvalidatedDelegateHandle;
-	TSharedPtr<FDataflowNode> SelectedDataflowNode;
+	FGuid SelectedDataflowNodeGuid;
 
 	static const FName GraphCanvasTabId;
 	TSharedPtr<SDockTab> GraphEditorTab;
@@ -174,8 +178,11 @@ private:
 	static const FName NodeDetailsTabId;
 	TSharedPtr<SDockTab> NodeDetailsTab;
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
+	TSharedPtr<FClothSimulationNodeDetailExtender> NodeDetailsExtender;
 
 	FDelegateHandle OnPackageReloadedDelegateHandle;
-	
+
+	DECLARE_MULTICAST_DELEGATE(FTickCommands)
+	FTickCommands TickCommands;
 };
 } // namespace UE::Chaos::ClothAsset

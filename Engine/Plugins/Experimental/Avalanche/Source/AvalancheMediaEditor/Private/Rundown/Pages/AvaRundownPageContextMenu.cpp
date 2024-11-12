@@ -117,6 +117,38 @@ void FAvaRundownPageContextMenu::PopulatePageContextMenu(UToolMenu& InMenu, UAva
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), "MainFrame.SaveAll")
 			);
 		}
+
+		if (PageListReference.Type == EAvaRundownPageListType::Instance)
+		{
+			Section.AddSubMenu(TEXT("ResetPages"),
+				LOCTEXT("ResetPagesSubMenu", "Reset Pages ..."),
+				LOCTEXT("ResetPagesSubMenuTooltip", "Reset selected pages to default values."),
+				FNewMenuDelegate::CreateLambda([&RundownCommands](FMenuBuilder& InMenuBuilder)
+					{
+						InMenuBuilder.AddMenuEntry(RundownCommands.ResetValuesToDefaults,
+							TEXT("InstanceResetPages"),
+							LOCTEXT("InstanceResetPages", "Reset to Default"),
+							LOCTEXT("InstanceResetPagesTooltip", "Reset all selected pages to default values."),
+							FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault")));
+
+						InMenuBuilder.AddMenuEntry(RundownCommands.ResetValuesToTemplate,
+							TEXT("TemplateResetPages"),
+							LOCTEXT("TemplateResetPages", "Reset to Template"),
+							LOCTEXT("TemplateResetPagesTooltip", "Reset all selected pages to template values."),
+							FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault")));
+					}),
+				false,
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault"))
+			);
+		}
+		else if (PageListReference.Type == EAvaRundownPageListType::Template)
+		{
+			Section.AddMenuEntry(RundownCommands.ResetValuesToDefaults,
+				LOCTEXT("ResetPages", "Reset to Default"),
+				LOCTEXT("ResetPagesTooltip", "Reset all selected template pages to default values."),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault"))
+			);
+		}
 	}
 
 	// Show Control Actions

@@ -1,17 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildBase;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -24,31 +20,31 @@ namespace AutomationTool.Tasks
 		/// Path to the file to write.
 		/// </summary>
 		[TaskParameter]
-		public FileReference File;
+		public FileReference File { get; set; }
 
 		/// <summary>
 		/// Optional, whether or not to append to the file rather than overwrite.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Append;
+		public bool Append { get; set; }
 
 		/// <summary>
 		/// The text to write to the file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Text;
+		public string Text { get; set; }
 
 		/// <summary>
 		/// If specified, causes the given list of files to be printed after the given message.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
@@ -60,75 +56,75 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task.
 		/// </summary>
-		WriteTextFileTaskParameters Parameters;
+		readonly WriteTextFileTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task.</param>
-		public WriteTextFileTask(WriteTextFileTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task.</param>
+		public WriteTextFileTask(WriteTextFileTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job.</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include.</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job.</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include.</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			string FileText = Parameters.Text;
+			string fileText = _parameters.Text;
 
 			// If any files or tagsets are provided, add them to the text output.
-			if (!String.IsNullOrEmpty(Parameters.Files))
+			if (!String.IsNullOrEmpty(_parameters.Files))
 			{
-				if (!string.IsNullOrWhiteSpace(FileText))
+				if (!string.IsNullOrWhiteSpace(fileText))
 				{
-					FileText += Environment.NewLine;
+					fileText += Environment.NewLine;
 				}
 
-				HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
-				if (Files.Any())
+				HashSet<FileReference> files = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
+				if (files.Any())
 				{
-					FileText += string.Join(Environment.NewLine, Files.Select(f => f.FullName));
+					fileText += string.Join(Environment.NewLine, files.Select(f => f.FullName));
 				}
 			}
 
 			// Make sure output folder exists.
-			if (!DirectoryReference.Exists(Parameters.File.Directory))
+			if (!DirectoryReference.Exists(_parameters.File.Directory))
 			{
-				DirectoryReference.CreateDirectory(Parameters.File.Directory);
+				DirectoryReference.CreateDirectory(_parameters.File.Directory);
 			}
 
-			if (Parameters.Append)
+			if (_parameters.Append)
 			{
-				Logger.LogInformation("{Text}", string.Format("Appending text to file '{0}': {1}", Parameters.File, FileText));
-				await FileReference.AppendAllTextAsync(Parameters.File, Environment.NewLine + FileText);
+				Logger.LogInformation("{Text}", string.Format("Appending text to file '{0}': {1}", _parameters.File, fileText));
+				await FileReference.AppendAllTextAsync(_parameters.File, Environment.NewLine + fileText);
 			}
 			else
 			{
-				Logger.LogInformation("{Text}", string.Format("Writing text to file '{0}': {1}", Parameters.File, FileText));
-				await FileReference.WriteAllTextAsync(Parameters.File, FileText);
+				Logger.LogInformation("{Text}", string.Format("Writing text to file '{0}': {1}", _parameters.File, fileText));
+				await FileReference.WriteAllTextAsync(_parameters.File, fileText);
 			}
 
 			// Apply the optional tag to the build products
-			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).Add(Parameters.File);
+				FindOrAddTagSet(tagNameToFileSet, tagName).Add(_parameters.File);
 			}
 
 			// Add them to the set of build products
-			BuildProducts.Add(Parameters.File);
+			buildProducts.Add(_parameters.File);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -137,9 +133,9 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			foreach(string TagName in FindTagNamesFromFilespec(Parameters.Files))
+			foreach (string tagName in FindTagNamesFromFilespec(_parameters.Files))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 		}
 
@@ -149,7 +145,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

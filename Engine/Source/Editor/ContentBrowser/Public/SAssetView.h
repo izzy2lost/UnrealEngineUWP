@@ -19,6 +19,7 @@
 #include "ContentBrowserTelemetry.h"
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
+#include "Experimental/ContentBrowserViewExtender.h"
 #include "Framework/Views/ITypedTableView.h"
 #include "HAL/Platform.h"
 #include "HistoryManager.h"
@@ -33,6 +34,7 @@
 #include "Misc/Optional.h"
 #include "SourcesData.h"
 #include "Styling/SlateColor.h"
+#include "Templates/PimplPtr.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UniquePtr.h"
@@ -45,11 +47,15 @@
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 
+class FAssetContextMenu;
+class FAssetTextFilter;
 class FAssetThumbnail;
 class FAssetViewItem;
+class FAssetViewItemCollection;
 class FContentBrowserItemDataTemporaryContext;
 class FContentBrowserItemDataUpdate;
 class FDragDropEvent;
+class FFilter_ShowRedirectors;
 class FMenuBuilder;
 class FPathPermissionList;
 class FSlateRect;
@@ -72,6 +78,7 @@ struct FAssetViewInstanceConfig;
 struct FCharacterEvent;
 struct FCollectionNameType;
 struct FContentBrowserInstanceConfig;
+struct FFiltersAdditionalParams;
 struct FFocusEvent;
 struct FGeometry;
 struct FKeyEvent;
@@ -87,6 +94,14 @@ DECLARE_DELEGATE(FOnSearchOptionChanged);
 
 /** Fires whenever asset view options menu is being opened, gives chance for external code to set additional context */
 DECLARE_DELEGATE_OneParam(FOnExtendAssetViewOptionsMenuContext, FToolMenuContext&);
+
+/** Copy types */
+enum class EAssetViewCopyType
+{
+	ExportTextPath,
+	ObjectPath,
+	PackageName
+};
 
 /**
  * A widget to display a list of filtered assets
@@ -124,6 +139,7 @@ public:
 		, _ForceShowPluginContent(false)
 		, _ForceHideScrollbar(false)
 		, _ShowDisallowedAssetClassAsUnsupportedItems(false)
+		, _AllowCustomView(false)
 		{}
 
 		/** Called to check if an asset should be filtered out by external code */
@@ -179,6 +195,12 @@ public:
 
 		/** The filter collection used to further filter down assets returned from the backend */
 		SLATE_ARGUMENT( TSharedPtr<FAssetFilterCollectionType>, FrontendFilters )
+
+		/** Text filter object */
+		SLATE_ARGUMENT(TSharedPtr<FAssetTextFilter>, TextFilter)
+
+		/** If true, redirectors are visible even if not explicitly searching for them. */
+		SLATE_ATTRIBUTE(bool, ShowRedirectors);
 
 		/** Show path view filters submenu in view options menu */
 		SLATE_ARGUMENT( bool, bShowPathViewFilters )
@@ -267,6 +289,9 @@ public:
 		/** Allow the asset view to display the hidden asset class as unsupported items */
 		SLATE_ARGUMENT(bool, ShowDisallowedAssetClassAsUnsupportedItems)
 
+		/** Allow the asset view to display a custom view registered with the Content Browser module */
+		SLATE_ARGUMENT(bool, AllowCustomView)
+
 		/** Called to check if an asset tag should be display in details view. */
 		SLATE_EVENT( FOnShouldDisplayAssetTag, OnAssetTagWantsToBeDisplayed )
 
@@ -284,8 +309,14 @@ public:
 
 		/** The content browser that owns this view if any */
 		SLATE_ARGUMENT(TSharedPtr<SContentBrowser>, OwningContentBrowser)
+
+		/** The menu profile to use for the asset view options. The profile needs to be registered with the ToolMenus API. */
+		SLATE_ARGUMENT(TOptional<FName>, AssetViewOptionsProfile)
 	SLATE_END_ARGS()
 
+	friend FAssetContextMenu;
+
+	SAssetView();
 	~SAssetView();
 
 	/** Constructs this widget with InArgs */
@@ -300,8 +331,14 @@ public:
 	/** Returns true if a real asset path is selected (i.e \Engine\* or \Game\*) */
 	bool IsAssetPathSelected() const;
 
-	/** Notifies the asset view that the filter-list filter has changed */
-	void SetBackendFilter(const FARFilter& InBackendFilter);
+	/**
+	 * @brief Provide a backend filter for the asset view and invalidate current source items.
+	 * 
+	 * @param InBackendFilter Asset registry filter for uassets
+	 * @param InCustomPermissionLists Optional permission lists to allow/deny specific folders.
+	 * 	All folders will be allowed by default, so only denials will have any effect.
+	 */
+	void SetBackendFilter(const FARFilter& InBackendFilter, TArray<TSharedRef<const FPathPermissionList>>* InCustomPermissionLists = nullptr);
 
 	/** Get the current backend filter */
 	const FARFilter& GetBackendFilter() const { return BackendFilter; }
@@ -326,6 +363,9 @@ public:
 
 	/** Selects the specified assets and paths. */
 	void SyncToLegacy( TArrayView<const FAssetData> AssetDataList, TArrayView<const FString> FolderList, const bool bFocusOnSync = true );
+
+	/** Setup Deferred Pending Sync for recently added PendingSyncItems. */
+	void InitDeferredPendingSyncItems();
 
 	/** Sets the state of the asset view to the one described by the history data */
 	void ApplyHistoryData( const FHistoryData& History );
@@ -440,6 +480,8 @@ public:
 	/** Set the filter list attached to this asset view - allows toggling of the the filter bar layout from the view options */
 	void SetFilterBar(TSharedPtr<SFilterList> InFilterBar);
 
+	/** Change the delegate bound via the widget argument OnShouldFilterAsset after construction. */
+	void SetShouldFilterItem(FOnShouldFilterItem InCallback);
 private:
 
 	/** Sets the pending selection to the current selection (used when changing views or refreshing the view). */
@@ -471,6 +513,9 @@ private:
 
 	/** Creates a new column view */
 	TSharedRef<SAssetColumnView> CreateColumnView();
+	
+	/** Creates a custom view (if specified to the content browser module) */
+	TSharedRef<SWidget> CreateCustomView();
 
 	const FSlateBrush* GetRevisionControlColumnIconBadge() const;
 
@@ -522,6 +567,9 @@ private:
 	/** Fill in menu content for when the view combo button is clicked */
 	void PopulateViewButtonMenu(UToolMenu* Menu);
 
+	/** Populate the given params for this AssetView */
+	void PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams);
+
 	/** Toggle whether folders should be shown or not */
 	void ToggleShowFolders();
 
@@ -542,6 +590,9 @@ private:
 
 	/** @return true when we are showing empty folders */
 	bool IsShowingEmptyFolders() const;
+
+	/** @return true when the asset view is showing object redirectors */
+	bool IsShowingRedirectors() const;
 
 	/** Toggle whether localized content should be shown or not */
 	void ToggleShowLocalizedContent();
@@ -605,9 +656,6 @@ private:
 
 	/** @return true when the collections view is docked */
 	bool HasDockedCollections() const;
-
-	/** Toggle whether C++ content should be shown or not */
-	void ToggleShowCppContent();
 
 	/** Whether or not it's possible to show C++ content */
 	bool IsToggleShowCppContentAllowed() const;
@@ -692,6 +740,7 @@ private:
 	/** Handler for column view widget creation */
 	TSharedRef<ITableRow> MakeColumnViewWidget(TSharedPtr<FAssetViewItem> AssetItem, const TSharedRef<STableViewBase>& OwnerTable);
 
+
 	/** Handler for when any asset item widget gets destroyed */
 	void AssetItemWidgetDestroyed(const TSharedPtr<FAssetViewItem>& Item);
 	
@@ -767,6 +816,12 @@ private:
 	/** Gets the current thumbnail scale */
 	float GetThumbnailScale() const;
 
+	/** Gets the current thumbnail size */
+	float GetThumbnailSizeValue() const;
+
+	/** Set the Min/Max Thumbnail size based on the EThumbnailSize chosen */
+	void UpdateThumbnailSizeValue();
+
 	/** Gets the current thumbnail size enum */
 	EThumbnailSize GetThumbnailSize() const { return ThumbnailSize; }
 
@@ -781,6 +836,9 @@ private:
 	
 	/** Gets the final scaled item height for the tile view */
 	float GetTileViewItemHeight() const;
+
+	/** Get the TileView Thumbnail dimension height and width are the same for the thumbnail itself */
+	float GetTileViewThumbnailDimension() const;
 
 	/** Gets the scaled item height for the tile view before the filler scale is applied */
 	float GetTileViewItemBaseHeight() const;
@@ -862,6 +920,7 @@ private:
 	/** Append the current effective backend filter (intersection of BackendFilter and SupportedFilter) to the given filter. */
 	void AppendBackendFilter(FARFilter& FilterToAppendTo) const;
 
+	EContentBrowserItemCategoryFilter DetermineItemCategoryFilter() const;
 	FContentBrowserDataFilter CreateBackendDataFilter(bool bInvalidateCache) const;
 
 	/** Handles updating the view when content items are changed */
@@ -876,23 +935,29 @@ private:
 	/** Get the config struct for this asset view, if one exists. */
 	FAssetViewInstanceConfig* GetAssetViewConfig() const;
 
+	/** Bind our UI commands */
+	void BindCommands();
+
+	/** Populate the given parameters based on the current selection */
+	void PopulateSelectedFilesAndFolders(TArray<FContentBrowserItem>& OutSelectedFolders, TArray<FContentBrowserItem>& OutSelectedFiles) const;
+
+	/** Handler for the CopyReference CopyObjectPath and CopyPackageName */
+	void ExecuteCopy(EAssetViewCopyType InCopyType) const;
+
+	/** Append folders path to the given ClipboardText */
+	void ExecuteCopyFolders(const TArray<FContentBrowserItem>& InSelectedFolders, FString& OutClipboardText) const;
+
+	/** Handler for Paste */
+	void ExecutePaste();
+
+	/** Check if the custom view view is available */
+	bool IsCustomViewSet() const;
+
 private:
 	friend class FAssetViewFrontendFilterHelper;
 
-	/** The available items from querying the backend data sources */
-	TMap<FContentBrowserItemKey, TSharedPtr<FAssetViewItem>> AvailableBackendItems;
-
-	/**
-	 * The items from AvailableBackendItems that are pending a run through any additional filtering before they can be shown in the filtered view list.
-	 * @note This filtering will run without amortization via ProcessItemsPendingFilter, so only use it for items that *must* be processed this frame.
-	 */
-	TSet<TSharedPtr<FAssetViewItem>> ItemsPendingPriorityFilter;
-
-	/**
-	 * The items from AvailableBackendItems that are pending a run through any additional frontend filters before they can be shown in the filtered view list.
-	 * @note This filtering will run amortized on the game thread via ProcessItemsPendingFilter.
-	 */
-	TSet<TSharedPtr<FAssetViewItem>> ItemsPendingFrontendFilter;
+	/** Private type managing data retrieved from the backend and async filtering thereof */
+	TPimplPtr<FAssetViewItemCollection> Items;
 
 	/** The items that are being shown in the filtered view list */
 	TArray<TSharedPtr<FAssetViewItem>> FilteredAssetItems;
@@ -919,7 +984,25 @@ private:
 	TSharedPtr<FPathPermissionList> AssetClassPermissionList;
 	TSharedPtr<FPathPermissionList> FolderPermissionList;
 	TSharedPtr<FPathPermissionList> WritableFolderPermissionList;
+	// Paths which should be filtered out based on current filters the user has selected 
+	//  - not 'permissions' so may be ignore if e.g. the user explicitly selects a filtered folder
+	TArray<TSharedRef<const FPathPermissionList>> BackendCustomPathFilters;
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
+	TSharedPtr<FAssetTextFilter> TextFilter;
+
+	/** Scale when using CTRL+Wheel, will go from 0.f to 1.f and reset accordingly when ThumbnailSize chosen changes\n
+	 * When going over/under the limit will also change the ThumbnailSize
+	 */
+	float ZoomScale = 0.0f;
+
+	/** Vertical padding for the TileViewItem */
+	static constexpr int32 TileViewHeightPadding = 9;
+
+	/** Horizontal padding for the TileViewItem */
+	static constexpr int32 TileViewWidthPadding = 8;
+
+	TAttribute<bool> bShowRedirectors;
+	bool bLastShowRedirectors;
 
 	/** Show path view filters submenu in view options menu  */
 	bool bShowPathViewFilters;
@@ -932,6 +1015,12 @@ private:
 
 	/** The list of items to sync next frame */
 	FSelectionData PendingSyncItems;
+
+	/** The list of items used to ensure all the pending sync items are selected due to async nature of filtering*/
+	FSelectionData DeferredPendingSyncItems;
+
+	/** A Timeout counter to safeguard against infinite deferement of pending sync items*/
+	int32 DeferredSyncTimeoutFrames = 0;
 
 	/** Should we take focus when the PendingSyncAssets are processed? */
 	bool bPendingFocusOnSync;
@@ -984,6 +1073,9 @@ private:
 	/** Called when opening view options menu */
 	FOnExtendAssetViewOptionsMenuContext OnExtendAssetViewOptionsMenuContext;
 
+	/** An optional profile name for the asset view options menu. */
+	TOptional<FName> AssetViewOptionsProfile;
+	
 	/** When true, filtered list items will be sorted next tick. Provided another sort hasn't happened recently or we are renaming an asset */
 	bool bPendingSortFilteredItems;
 	double CurrentTime;
@@ -991,6 +1083,9 @@ private:
 	double SortDelaySeconds;
 
 	/** Weak ptr to the asset that is waiting to be renamed when scrolled into view, and the window is active */
+	TWeakPtr<FAssetViewItem> AwaitingScrollIntoViewForRename;
+
+	/** Weak ptr to the asset that is waiting to be renamed now that it has scrolled into view, if window is active */
 	TWeakPtr<FAssetViewItem> AwaitingRename;
 
 	/** Set when the user is in the process of naming an asset */
@@ -1026,6 +1121,10 @@ private:
 	/** The max and min thumbnail scales as a fraction of the rendered size */
 	float MinThumbnailScale;
 	float MaxThumbnailScale;
+
+	/** The max and min thumbnail sizes */
+	float MinThumbnailSize;
+	float MaxThumbnailSize;
 
 	/** Scalar applied to thumbnail sizes so that users thumbnails are scaled based on users display area size*/
 	float ThumbnailScaleRangeScalar;
@@ -1147,6 +1246,9 @@ private:
 	/** Initial set of item categories that this view should show - may be adjusted further by things like CanShowClasses or legacy delegate bindings */
 	EContentBrowserItemCategoryFilter InitialCategoryFilter;
 
+	/** Commands handled by this widget */
+	TSharedPtr<FUICommandList> Commands;
+
 	bool bShowDisallowedAssetClassAsUnsupportedItems = false;
 
 	/** A struct to hold data for the deferred creation of a file or folder item */
@@ -1198,6 +1300,12 @@ private:
 
 	/** An Id for the cache of the data sources for the filters compilation */
 	FContentBrowserDataFilterCacheIDOwner FilterCacheID;
+
+	/** An extender to create the custom view */
+	TSharedPtr<IContentBrowserViewExtender> ViewExtender;
+
+	/** The actual widget for the custom view */
+	TSharedPtr<SWidget> CustomView;
 	
 	/*
 	 * Telemetry-related fields

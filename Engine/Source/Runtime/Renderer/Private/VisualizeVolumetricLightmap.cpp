@@ -149,7 +149,7 @@ void FDeferredShadingSceneRenderer::VisualizeVolumetricLightmap(
 			RDG_EVENT_NAME("VisualizeVolumetricLightmap"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, VertexShader, PixelShader, &View, VolumetricLightmapData, PassParameters](FRHICommandList& RHICmdList)
+			[this, VertexShader, PixelShader, &View, VolumetricLightmapData, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);

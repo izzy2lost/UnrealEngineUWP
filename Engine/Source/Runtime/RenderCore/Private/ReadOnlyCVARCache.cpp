@@ -19,17 +19,16 @@ bool FReadOnlyCVARCache::bSupportSkyAtmosphere = true;
 
 // Mobile specific
 bool FReadOnlyCVARCache::bMobileHDR = true;
-bool FReadOnlyCVARCache::bMobileAllowMovableDirectionalLights = true;
 bool FReadOnlyCVARCache::bMobileAllowDistanceFieldShadows = true;
 bool FReadOnlyCVARCache::bMobileEnableStaticAndCSMShadowReceivers = true;
 bool FReadOnlyCVARCache::bMobileEnableMovableLightCSMShaderCulling = true;
 bool FReadOnlyCVARCache::bMobileSupportsGPUScene = false;
-int32 FReadOnlyCVARCache::MobileSkyLightPermutationValue = 0;
 int32 FReadOnlyCVARCache::MobileEarlyZPassValue = 0;
 int32 FReadOnlyCVARCache::MobileForwardLocalLightsValue = 1;
-bool FReadOnlyCVARCache::bMobileEnableNoPrecomputedLightingCSMShader = false;
+bool FReadOnlyCVARCache::bMobileForwardParticleLights = false;
 bool FReadOnlyCVARCache::bMobileDeferredShadingValue = false;
 bool FReadOnlyCVARCache::bMobileEnableMovableSpotlightsShadowValue = false;
+int32 FReadOnlyCVARCache::MobileForwardDecalLightingValue = 1;
 
 int32 FReadOnlyCVARCache::MobileEarlyZPassIniValue(EShaderPlatform Platform)
 {
@@ -43,12 +42,27 @@ int32 FReadOnlyCVARCache::MobileForwardLocalLightsIniValue(EShaderPlatform Platf
 	return CVar.Get(Platform);
 }
 
+bool FReadOnlyCVARCache::MobileForwardParticleLightsIniValue(EShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> CVar(TEXT("r.Mobile.Forward.EnableParticleLights"));
+	return CVar.Get(Platform);
+}
+
 bool FReadOnlyCVARCache::MobileDeferredShadingIniValue(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));
 	static TConsoleVariableData<int32>* MobileAllowDeferredShadingOpenGL = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDeferredShadingOpenGL"));
 	// a separate cvar so we can exclude deferred from OpenGL specificaly
-	const bool bSupportedPlatform = !IsOpenGLPlatform(Platform) || (MobileAllowDeferredShadingOpenGL && MobileAllowDeferredShadingOpenGL->GetValueOnAnyThread() != 0);
+
+	bool bIsOpenGLPlatform = IsOpenGLPlatform(Platform);
+#if WITH_EDITOR
+	if (FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform))
+	{
+		EShaderPlatform ParentShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(Platform);
+		bIsOpenGLPlatform = IsOpenGLPlatform(ParentShaderPlatform);
+	}
+#endif
+	const bool bSupportedPlatform = !bIsOpenGLPlatform || (MobileAllowDeferredShadingOpenGL && MobileAllowDeferredShadingOpenGL->GetValueOnAnyThread() != 0);
 	return MobileShadingPathIniValue.Get(Platform) && bSupportedPlatform;
 }
 
@@ -71,13 +85,11 @@ void FReadOnlyCVARCache::Initialize()
 	const auto CVarSupportSkyAtmosphere = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportSkyAtmosphere"));
 	
 	const auto CVarMobileHDR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MobileHDR"));
-	const auto CVarMobileAllowMovableDirectionalLights = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowMovableDirectionalLights"));
 	const auto CVarMobileEnableStaticAndCSMShadowReceivers = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"));
 	const auto CVarMobileEnableMovableLightCSMShaderCulling = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableMovableLightCSMShaderCulling"));
 	const auto CVarMobileAllowDistanceFieldShadows = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDistanceFieldShadows"));
-	const auto CVarMobileSkyLightPermutation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SkyLightPermutation"));
-	const auto CVarMobileEnableNoPrecomputedLightingCSMShader = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableNoPrecomputedLightingCSMShader"));
 	const auto CVarMobileSupportGPUScene = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SupportGPUScene"));
+	const auto CVarMobileForwardDecalLightingValue = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.Forward.DecalLighting"));
 	
 	const bool bForceAllPermutations = CVarSupportAllShaderPermutations && CVarSupportAllShaderPermutations->GetValueOnAnyThread() != 0;
 
@@ -89,17 +101,16 @@ void FReadOnlyCVARCache::Initialize()
 
 	// mobile
 	bMobileHDR = CVarMobileHDR->GetValueOnAnyThread() == 1;
-	bMobileAllowMovableDirectionalLights = CVarMobileAllowMovableDirectionalLights->GetValueOnAnyThread() != 0;
 	bMobileAllowDistanceFieldShadows = CVarMobileAllowDistanceFieldShadows->GetValueOnAnyThread() != 0;
 	bMobileEnableStaticAndCSMShadowReceivers = CVarMobileEnableStaticAndCSMShadowReceivers->GetValueOnAnyThread() != 0;
 	bMobileEnableMovableLightCSMShaderCulling = CVarMobileEnableMovableLightCSMShaderCulling->GetValueOnAnyThread() != 0;
-	MobileSkyLightPermutationValue = CVarMobileSkyLightPermutation->GetValueOnAnyThread();
-	bMobileEnableNoPrecomputedLightingCSMShader = CVarMobileEnableNoPrecomputedLightingCSMShader->GetValueOnAnyThread() != 0;
 	MobileEarlyZPassValue = MobileEarlyZPassIniValue(GMaxRHIShaderPlatform);
 	MobileForwardLocalLightsValue = MobileForwardLocalLightsIniValue(GMaxRHIShaderPlatform);
 	bMobileDeferredShadingValue = MobileDeferredShadingIniValue(GMaxRHIShaderPlatform);
 	bMobileEnableMovableSpotlightsShadowValue = MobileEnableMovableSpotlightsShadowIniValue(GMaxRHIShaderPlatform);
 	bMobileSupportsGPUScene = CVarMobileSupportGPUScene->GetValueOnAnyThread() != 0;
+	bMobileForwardParticleLights = MobileForwardParticleLightsIniValue(GMaxRHIShaderPlatform);
+	MobileForwardDecalLightingValue = CVarMobileForwardDecalLightingValue->GetValueOnAnyThread();
 
 #ifdef PROJECT_CVAR_ALLOW_STATIC_LIGHTING
 	check(!!PROJECT_CVAR_ALLOW_STATIC_LIGHTING == bAllowStaticLighting);

@@ -4,8 +4,10 @@
 
 #include "Components/DMMaterialComponent.h"
 #include "DMDefs.h"
+#include "Templates/SharedPointer.h"
 #include "DMMaterialEffectStack.generated.h"
 
+class FJsonValue;
 class UDMMaterialEffect;
 class UDMMaterialLayerObject;
 class UDMMaterialSlot;
@@ -14,16 +16,31 @@ class UMaterialExpression;
 enum class EDMMaterialEffectTarget : uint8;
 struct FDMMaterialBuildState;
 
+struct FDMMaterialEffectJson
+{
+	TSubclassOf<UDMMaterialEffect> Class = nullptr;
+	TSharedPtr<FJsonValue> Data = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FDMMaterialEffectStackJson
+{
+	GENERATED_BODY()
+
+	bool bEnabled = false;
+	TArray<FDMMaterialEffectJson> Effects = {};
+};
+
 /**
  * Container for effects. Effects can be applied to either layers (on a per stage basis) or to slots.
  */
-UCLASS(BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Effect Stack"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialEffectStack : public UDMMaterialComponent
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Effect Stack"))
+class UDMMaterialEffectStack : public UDMMaterialComponent
 {
 	GENERATED_BODY()
 
 public:
-	static const FString EffectsPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString EffectsPathToken;
 
 	using FEffectCallbackFunc = TFunctionRef<void(UDMMaterialEffect*)>;
 
@@ -39,39 +56,39 @@ public:
 		return CreateEffectStack(InLayer);
 	}
 
-	static UDMMaterialEffectStack* CreateEffectStack(UDMMaterialSlot* InSlot);
-	static UDMMaterialEffectStack* CreateEffectStack(UDMMaterialLayerObject* InLayer);
+	DYNAMICMATERIALEDITOR_API static UDMMaterialEffectStack* CreateEffectStack(UDMMaterialSlot* InSlot);
+	DYNAMICMATERIALEDITOR_API static UDMMaterialEffectStack* CreateEffectStack(UDMMaterialLayerObject* InLayer);
 
-	UDMMaterialEffectStack();
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialSlot* GetSlot() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialEffectStack();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialLayerObject* GetLayer() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialSlot* GetSlot() const;
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialLayerObject* GetLayer() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool IsEnabled() const;
+	DYNAMICMATERIALEDITOR_API bool IsEnabled() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetEnabled(bool bInIsEnabled);
+	DYNAMICMATERIALEDITOR_API bool SetEnabled(bool bInIsEnabled);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialEffect* GetEffect(int32 InIndex) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialEffect* GetEffect(int32 InIndex) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Get Effects"))
-	TArray<UDMMaterialEffect*> BP_GetEffects() const;
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialEffect*> BP_GetEffects() const;
 
-	const TArray<TObjectPtr<UDMMaterialEffect>>& GetEffects() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool HasEffect(const UDMMaterialEffect* InEffect) const;
+	DYNAMICMATERIALEDITOR_API const TArray<TObjectPtr<UDMMaterialEffect>>& GetEffects() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool AddEffect(UDMMaterialEffect* InEffect);
+	DYNAMICMATERIALEDITOR_API bool HasEffect(const UDMMaterialEffect* InEffect) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetEffect(int32 InIndex, UDMMaterialEffect* InEffect);
+	DYNAMICMATERIALEDITOR_API bool AddEffect(UDMMaterialEffect* InEffect);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialEffect* SetEffect(int32 InIndex, UDMMaterialEffect* InEffect);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Move Effect (By Index)"))
 	bool BP_MoveEffectByIndex(int32 InIndex, int32 InNewIndex)
@@ -79,7 +96,7 @@ public:
 		return MoveEffect(InIndex, InNewIndex);
 	}
 
-	bool MoveEffect(int32 InIndex, int32 InNewIndex);
+	DYNAMICMATERIALEDITOR_API bool MoveEffect(int32 InIndex, int32 InNewIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Move Effect (By Value)"))
 	bool BP_MoveEffectByValue(UDMMaterialEffect* InEffect, int32 InNewIndex)
@@ -87,15 +104,15 @@ public:
 		return MoveEffect(InEffect, InNewIndex);
 	}
 
-	bool MoveEffect(UDMMaterialEffect* InEffect, int32 InNewIndex);
+	DYNAMICMATERIALEDITOR_API bool MoveEffect(UDMMaterialEffect* InEffect, int32 InNewIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Remove Effect (By Index)"))
-	bool BP_RemoveEffectByIndex(int32 InIndex)
+	UDMMaterialEffect* BP_RemoveEffectByIndex(int32 InIndex)
 	{
 		return RemoveEffect(InIndex);
 	}
 
-	bool RemoveEffect(int32 InIndex);
+	DYNAMICMATERIALEDITOR_API UDMMaterialEffect* RemoveEffect(int32 InIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Remove Effect (By Value)"))
 	bool BP_RemoveEffectByValue(UDMMaterialEffect* InEffect)
@@ -103,22 +120,31 @@ public:
 		return RemoveEffect(InEffect);
 	}
 
-	bool RemoveEffect(UDMMaterialEffect* InEffect);
+	DYNAMICMATERIALEDITOR_API bool RemoveEffect(UDMMaterialEffect* InEffect);
 
-	bool ApplyEffects(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialEffectTarget InEffectTarget,
+	/** Apply all matching effect types to the expressions and add them to the array. */
+	DYNAMICMATERIALEDITOR_API bool ApplyEffects(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialEffectTarget InEffectTarget,
 		TArray<UMaterialExpression*>& InOutStageExpressions, int32& InOutLastExpressionOutputChannel, int32& InOutLastExpressionOutputIndex) const;
 
+	/** Creates a preset based on the current stage. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API FDMMaterialEffectStackJson CreatePreset();
+
+	/** Apply the given preset to this stack. Does not remove old effects. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API void ApplyPreset(const FDMMaterialEffectStackJson& InPreset);
+
 	//~ Begin UDMMaterialComponent
-	virtual UDMMaterialComponent* GetParentComponent() const override;
-	virtual FString GetComponentPathComponent() const override;
-	virtual FText GetComponentDescription() const override;
-	virtual void Update(EDMUpdateType InUpdateType) override;
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetParentComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostEditUndo() override;
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditUndo() override;
 	//~ End UObject
 
 protected:
@@ -128,9 +154,14 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TArray<TObjectPtr<UDMMaterialEffect>> Effects;
 
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialEffect*> GetIncompatibleEffects(UDMMaterialEffect* InEffect);
+
+	/** Returns the removed effects. */
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialEffect*> RemoveIncompatibleEffects(UDMMaterialEffect* InEffect);
+
 	//~ Begin UDMMaterialComponent
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
 };

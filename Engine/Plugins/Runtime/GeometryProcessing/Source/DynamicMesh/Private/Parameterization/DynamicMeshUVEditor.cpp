@@ -18,6 +18,7 @@
 #include "Parameterization/MeshUVPacking.h"
 #include "Solvers/MeshParameterizationSolvers.h"
 #include "Parameterization/MeshRegionGraph.h"
+#include "DynamicMeshEditor.h"
 
 #include "Async/ParallelFor.h"
 
@@ -552,21 +553,42 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromExpMap(
 
 bool FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, FUVEditResult* Result)
 {
-	return SetTriangleUVsFromFreeBoundaryConformal(Triangles, false, Result);
+	return SetTriangleUVsFromFreeBoundaryConformal(Triangles, false,  Result);
 }
 
 bool FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, FUVEditResult* Result) 
 {
-	return SetTriangleUVsFromConformal(Triangles, bUseExistingUVTopology, false, false, Result);
+	FSetUVsFromConformalOptions Options;
+	Options.bUseExistingUVTopology = bUseExistingUVTopology;
+	Options.bUseSpectral = false;
+	Options.bPreserveIrregularity = false;
+	return SetTriangleUVsFromConformal(Triangles, Options, Result);
+}
+
+bool UE::Geometry::FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, 
+	const TSet<int32>& PinnedElementIDs, FUVEditResult* Result)
+{
+	FSetUVsFromConformalOptions Options;
+	Options.bUseExistingUVTopology = true;
+	Options.bUseSpectral = false;
+	Options.bPreserveIrregularity = false;
+	Options.PinnedElementIDs = &PinnedElementIDs;
+	return SetTriangleUVsFromConformal(Triangles, Options, Result);
 }
 
 bool FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundarySpectralConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bPreserveIrregularity, FUVEditResult* Result) 
 {
-	return SetTriangleUVsFromConformal(Triangles, bUseExistingUVTopology, true, bPreserveIrregularity, Result);
+	FSetUVsFromConformalOptions Options;
+	Options.bUseExistingUVTopology = bUseExistingUVTopology;
+	Options.bUseSpectral = true;
+	Options.bPreserveIrregularity = bPreserveIrregularity;
+	return SetTriangleUVsFromConformal(Triangles, Options, Result);
 }
 
-bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bUseSpectral, bool bPreserveIrregularity, FUVEditResult* Result)
+bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Triangles, const FSetUVsFromConformalOptions& Options, FUVEditResult* Result)
 {
+	bool bUseExistingUVTopology = Options.bUseExistingUVTopology;
+
 	if (ensure(UVOverlay) == false) return false;
 	if (Triangles.Num() == 0) return false;
 
@@ -624,9 +646,12 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 	const TArray<int32>& ConstrainLoop = Loops[LongestLoopIndex].Vertices;
 	int32 LoopNum = ConstrainLoop.Num();
 
-	if (bUseSpectral) 
+	// Potentially used in the non-spectral case
+	TOptional<TPair<int32, FVector2f>> SinglePinnedElement;
+
+	if (Options.bUseSpectral) 
 	{
-		Solver = UE::MeshDeformation::ConstructSpectralConformalParamSolver(Submesh, bPreserveIrregularity);
+		Solver = UE::MeshDeformation::ConstructSpectralConformalParamSolver(Submesh, Options.bPreserveIrregularity);
 		
 		for (int32 Idx = 0; Idx < LoopNum; ++Idx)
 		{
@@ -639,32 +664,81 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 	{
 		Solver = UE::MeshDeformation::ConstructNaturalConformalParamSolver(Submesh);
 
-		// Find a pair of vertices to constrain. The standard procedure is to find the two furthest-apart vertices 
-		// on the largest boundary loop. 
-		FIndex2i MaxDistPair = FIndex2i::Invalid();
-		double MaxDistSqr = 0;
-		for (int32 Idx = 0; Idx < LoopNum; ++Idx)
+		// There are three options for constraints.
+		// 1. No pinned elements: the standard thing is to constrain the two furthest boundary vertices (this is supposed
+		//   to be a geodesic distance, but for now we just do euclidean).
+		// 2. One pinned element: we can do the same thing as 1, except translate afterward to put the pinned element 
+		//   in the desired coordinate.
+		// 3. More than one pinned element: constrain all the pinned elements.
+
+		int32 PinnedElementCount = 0;
+
+		if (Options.PinnedElementIDs)
 		{
-			for (int32 NextIdx = Idx + 1; NextIdx < LoopNum; ++NextIdx)
+			for (int32 ElementID : *Options.PinnedElementIDs)
 			{
-				const double DistSqr = DistanceSquared(Submesh.GetVertex(ConstrainLoop[Idx]), 
-													   Submesh.GetVertex(ConstrainLoop[NextIdx]));
-				if (DistSqr > MaxDistSqr)
+				if (!UVOverlay->IsElement(ElementID))
 				{
-					MaxDistSqr = DistSqr;
-					MaxDistPair = FIndex2i(ConstrainLoop[Idx], ConstrainLoop[NextIdx]);
+					continue;
+				}
+				int32 BaseVert = bUseExistingUVTopology ? ElementID : UVOverlay->GetParentVertex(ElementID);
+				int32* SubmeshVert = BaseToSubmeshV.Find(BaseVert);
+				if (!SubmeshVert)
+				{
+					continue;
+				}
+
+				Solver->AddConstraint(*SubmeshVert, 1.0, FVector2d(UVOverlay->GetElement(ElementID)), false);
+
+				++PinnedElementCount;
+
+				if (!SinglePinnedElement.IsSet())
+				{
+					// We'll clear this later if we have more than one element
+					SinglePinnedElement.Emplace(*SubmeshVert, UVOverlay->GetElement(ElementID));
 				}
 			}
 		}
 
-		if (ensure(MaxDistPair != FIndex2i::Invalid()) == false)
+		if (PinnedElementCount > 1)
 		{
-			return false;
+			// We don't want to trigger our whole island translation code further below
+			SinglePinnedElement.Reset();
 		}
 
-		// pin those vertices
-		Solver->AddConstraint(MaxDistPair.A, 1.0, FVector2d(0.0, 0.5), false);
-		Solver->AddConstraint(MaxDistPair.B, 1.0, FVector2d(1.0, 0.5), false);
+		// Pick our constraints if we have fewer than 2.
+		if (PinnedElementCount < 2)
+		{
+			// In case we had one pinned element, we'll constrain it with our own translation afterward
+			Solver->ClearConstraints(); 
+			
+			// Find a pair of vertices to constrain. The standard procedure is to find the two furthest-apart vertices 
+			// on the largest boundary loop. 
+			FIndex2i MaxDistPair = FIndex2i::Invalid();
+			double MaxDistSqr = 0;
+			for (int32 Idx = 0; Idx < LoopNum; ++Idx)
+			{
+				for (int32 NextIdx = Idx + 1; NextIdx < LoopNum; ++NextIdx)
+				{
+					const double DistSqr = DistanceSquared(Submesh.GetVertex(ConstrainLoop[Idx]), 
+														   Submesh.GetVertex(ConstrainLoop[NextIdx]));
+					if (DistSqr > MaxDistSqr)
+					{
+						MaxDistSqr = DistSqr;
+						MaxDistPair = FIndex2i(ConstrainLoop[Idx], ConstrainLoop[NextIdx]);
+					}
+				}
+			}
+
+			if (ensure(MaxDistPair != FIndex2i::Invalid()) == false)
+			{
+				return false;
+			}
+
+			// pin those vertices
+			Solver->AddConstraint(MaxDistPair.A, 1.0, FVector2d(0.0, 0.5), false);
+			Solver->AddConstraint(MaxDistPair.B, 1.0, FVector2d(1.0, 0.5), false);
+		}
 	}
 
 	// solve for UVs
@@ -674,6 +748,19 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 		return false;
 	}
 
+	// Handle the single-constrained-element case for the natural conformal solver
+	if (SinglePinnedElement.IsSet())
+	{
+		FVector2d DeltaToApply = FVector2d(SinglePinnedElement->Value) - UVBuffer[SinglePinnedElement->Key];
+		if (!DeltaToApply.IsZero())
+		{
+			int32 NumSubVerts = SubmeshToBaseV.Num();
+			for (int32 k = 0; k < NumSubVerts; ++k)
+			{
+				UVBuffer[k] += DeltaToApply;
+			}
+		}
+	}
 
 	int32 NumFailed = 0;
 	if (bUseExistingUVTopology)
@@ -733,309 +820,165 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 
 
 
-// Assuming that SplitVtx is either on a mesh boundary or UV seam, find the two sets of one-ring triangles
-// on either side of edge BaseEdgeID that are edge-connected in the UV overlay. Either set could be empty.
-static bool FindSeamTriSplitSets_BoundaryVtx(const FDynamicMesh3* Mesh, const FDynamicMeshUVOverlay* UVOverlay, 
-	int32 SplitVtx, 
-	int32 BaseEdgeID,
-	TArray<int32> SplitTriSets[2])
+void UE::Geometry::FDynamicMeshUVEditor::MakeSureUVsAreSet(const TSet<int32>& Triangles, 
+	FUVEditResult* Result, TSet<int32>* ChangedTrianglesOut)
 {
-	FIndex2i StartTris = Mesh->GetEdgeT(BaseEdgeID);
-	check(Mesh->IsTriangle(StartTris.A) && Mesh->IsTriangle(StartTris.B));
-
-	for (int32 si = 0; si < 2; ++si)
+	if (!ensure(Mesh && UVOverlay))
 	{
-		int32 StartTri = StartTris[si];
-		SplitTriSets[si].Add(StartTri);
-		
-		int32 EdgeOtherTri = StartTris[si==0?1:0];
-		int32 CurTri = StartTri;
-		int32 PrevTri = EdgeOtherTri;
+		return;
+	}
 
-		bool bDone = false;
-		while (!bDone)
+	TMap<int32, int32> VidToElement;
+	for (int32 Tid : Triangles)
+	{
+		if (UVOverlay->IsSetTriangle(Tid))
 		{
-			FIndex3i NextTri = UE::Geometry::FindNextAdjacentTriangleAroundVtx(Mesh, SplitVtx, CurTri, PrevTri,
-				[&](int32 Tri0, int32 Tri1, int32 Edge) { return UVOverlay->AreTrianglesConnected(Tri0, Tri1); }
-			);
-			if (NextTri.A != IndexConstants::InvalidID)
-			{
-				if (NextTri.A == EdgeOtherTri)		// if we looped around, SplitVtx is not on a boundary and we need to abort
-				{
-					return false;
-				}
+			continue;
+		}
 
-				SplitTriSets[si].Add(NextTri.A);
-				PrevTri = CurTri;
-				CurTri = NextTri.A;
+		FIndex3i ElementsToSet;
+		FIndex3i TriVids = Mesh->GetTriangle(Tid);
+		for (int i = 0; i < 3; ++i)
+		{
+			if (int32* ExistingElement = VidToElement.Find(TriVids[i]))
+			{
+				ElementsToSet[i] = *ExistingElement;
 			}
 			else
 			{
-				bDone = true;
-			}
-		}
-	}
+				int32 Element = UVOverlay->AppendElement(FVector2f::Zero());
+				ElementsToSet[i] = Element;
+				VidToElement.Add(TriVids[i], Element);
 
-	return true;
-}
-
-
-
-// If we want to cut the UV one-ring at SplitVtx with the edge sequence [PrevBaseEdgeID,NextBaseEdgeID], assuming both
-// edges are connected to SplitVtx, we need to find the connected sets of triangles on either side of NextBaseEdgeID
-// (assuming PrevBaseEdgeID was already handled). To do that we walk around the uv-connected-one-ring away from NextBaseEdgeID
-// in either direction.
-static bool FindSeamTriSplitSets_InteriorVtx(const FDynamicMesh3* Mesh, const FDynamicMeshUVOverlay* UVOverlay, 
-	int32 SplitVtx, 
-	int32 PrevBaseEdgeID, int32 NextBaseEdgeID,
-	TArray<int32> SplitTriSets[2] )
-{
-	FIndex2i StartTris = Mesh->GetEdgeT(NextBaseEdgeID);
-	check(Mesh->IsTriangle(StartTris.A) && Mesh->IsTriangle(StartTris.B));
-
-	for (int32 si = 0; si < 2; ++si)
-	{
-		int32 StartTri = StartTris[si];
-		SplitTriSets[si].Add(StartTri);
-
-		int32 EdgeOtherTri = StartTris[si == 0 ? 1 : 0];
-		int32 CurTri = StartTri;
-		int32 PrevTri = EdgeOtherTri;
-
-		bool bDone = false;
-		while (!bDone)
-		{
-			FIndex3i NextTri = UE::Geometry::FindNextAdjacentTriangleAroundVtx(Mesh, SplitVtx, CurTri, PrevTri,
-				[&](int32 Tri0, int32 Tri1, int32 Edge) { return UVOverlay->AreTrianglesConnected(Tri0, Tri1) && Edge != PrevBaseEdgeID && Edge != NextBaseEdgeID; }
-			);
-			if (NextTri.A != IndexConstants::InvalidID)
-			{
-				if (NextTri.A == EdgeOtherTri)		// if we somehow looped around, then the arguments were bad and we need to abort
+				if (Result)
 				{
-					return false;
+					Result->NewUVElements.Add(Element);
 				}
-
-				SplitTriSets[si].Add(NextTri.A);
-				PrevTri = CurTri;
-				CurTri = NextTri.A;
-			}
-			else
-			{
-				bDone = true;
 			}
 		}
-	}
+		UVOverlay->SetTriangle(Tid, ElementsToSet);
 
-	return true;
-}
-
-
-// Find the UV element for MeshVertexID that is contained in the "first" triangle of MeshEdgeID
-static int32 FindUVElementForVertex(const FDynamicMesh3* Mesh, const FDynamicMeshUVOverlay* UVOverlay, int32 MeshVertexID, int32 MeshEdgeID)
-{
-	FIndex2i Tris = Mesh->GetEdgeT(MeshEdgeID);
-	FIndex3i Tri0 = Mesh->GetTriangle(Tris.A);
-	FIndex3i UVTri0 = UVOverlay->GetTriangle(Tris.A);
-	for (int32 j = 0; j < 3; ++j)
-	{
-		if (Tri0[j] == MeshVertexID)
+		if (ChangedTrianglesOut)
 		{
-			return UVTri0[j];
+			ChangedTrianglesOut->Add(Tid);
 		}
 	}
-	return IndexConstants::InvalidID;
 }
 
 
 bool FDynamicMeshUVEditor::RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams)
 {
-	for (int32 Eid : EidsToRemoveAsSeams)
-	{
-		FIndex2i EdgeVids = Mesh->GetEdgeV(Eid);
-
-		// The following logic closely resemebles the logic within FDynamicMeshOverlay::IsSeamEdge,
-		// but since we want to know both if it's a seam and use many of the intermediate values
-		// computed by IsSeamEdge, we replicate it here.
-
-		FIndex2i Tris = Mesh->GetEdgeT(Eid);
-		if (Tris.B == FDynamicMesh3::InvalidID)
-		{
-			continue; // Technically a seam, but we don't want this one because there's no opposite edge to merge.
-		}
-
-		bool bASet = UVOverlay->IsSetTriangle(Tris.A), bBSet = UVOverlay->IsSetTriangle(Tris.B);
-		if (!bASet || !bBSet)
-		{
-			continue; // Similar problem as the above case - could be a seam here, but if one triangle
-					  // in the Overlay isn't set, there's nothing to merge.
-		}
-
-		FIndex3i Triangle0 = UVOverlay->GetTriangle(Tris.A);
-		FIndex3i BaseTriangle0 = Mesh->GetTriangle(Tris.A);
-		int idx_base_a0 = BaseTriangle0.IndexOf(EdgeVids.A);
-		int idx_base_b0 = BaseTriangle0.IndexOf(EdgeVids.B);
-
-		FIndex3i Triangle1 = UVOverlay->GetTriangle(Tris.B);
-		FIndex3i BaseTriangle1 = Mesh->GetTriangle(Tris.B);
-		int idx_base_a1 = BaseTriangle1.IndexOf(EdgeVids.A);
-		int idx_base_b1 = BaseTriangle1.IndexOf(EdgeVids.B);
-
-		int el_a_tri0 = Triangle0[idx_base_a0];
-		int el_b_tri0 = Triangle0[idx_base_b0];
-		int el_a_tri1 = Triangle1[idx_base_a1];
-		int el_b_tri1 = Triangle1[idx_base_b1];
-
-		// This shouldn't ever be the case, but lets just check. If true,
-		// it would indicate that there's a joined seam but somehow our pairwise
-		// vertex matching didn't work above for some reason.
-		ensure(!(el_a_tri0 == el_b_tri1 && el_b_tri0 == el_a_tri1));
-
-		if (el_a_tri0 != el_a_tri1)
-		{
-			UVOverlay->MergeElement(el_a_tri0, el_a_tri1);
-		}
-		if (el_b_tri0 != el_b_tri1)
-		{
-			UVOverlay->MergeElement(el_b_tri0, el_b_tri1);
-
-		}
-	}
-	return true;
+	return FDynamicMeshEditor::RemoveSeamsAtEdges(EidsToRemoveAsSeams, UVOverlay);
 }
-
 
 bool FDynamicMeshUVEditor::CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, FUVEditResult* Result)
 {
-	/**
-	 * @param TidsUntilNextSeam Tids in a fan away from Eid around Vid until the next seam. Will
-	 *  be the entire one-ring if the given Eid is the only seam attached to Vid.
-	 */
-	auto DoesVertHaveAnotherSeamAttached = [this, &EidsToMakeIntoSeams](int32 Eid, int32 Vid, TArray<int32>& TidsUntilNextSeam)
-	{
-		TidsUntilNextSeam.Reset();
-
-		FIndex2i EdgeTids = Mesh->GetEdgeT(Eid);
-		int32 CurrentTid = EdgeTids.A;
-		int32 PreviousTid = EdgeTids.B;
-
-		int32 MaxNumTids = Mesh->GetVtxEdgeCount(Vid);
-		while (true) 
-		{
-			TidsUntilNextSeam.Add(CurrentTid);
-			if (TidsUntilNextSeam.Num() > MaxNumTids) // sanity check
-			{
-				ensure(false);
-				return false;
-			}
-
-			FIndex3i NextTriResult = UE::Geometry::FindNextAdjacentTriangleAroundVtx(Mesh, Vid, CurrentTid, PreviousTid,
-				[this, &EidsToMakeIntoSeams, Eid](int32 Tri0, int32 Tri1, int32 EidBetween) {
-					// We stop at seam or at future seam not including our starting edge (if we walk across the starting
-					// edge we will stop at a later check- we just don't want to think that we reached a true seam).
-					return UVOverlay->AreTrianglesConnected(Tri0, Tri1) && !(EidBetween != Eid && EidsToMakeIntoSeams.Contains(EidBetween)); }
-			);
-			int32 NextTid = NextTriResult.A;
-
-			// See if we've come to a (current or future) seam or wrapped around
-			if (NextTid == IndexConstants::InvalidID)
-			{
-				return true;
-			}
-			else if (NextTid == EdgeTids.A)
-			{
-				return false;
-			}
-			PreviousTid = CurrentTid;
-			CurrentTid = NextTid;
-		}
-	};
-
-	auto SplitEdgeVertElement = [this, Result](int32 Eid, int32 Vid, const TArray<int32>& TidsToModify) {
-		int32 ElementID = FindUVElementForVertex(Mesh, UVOverlay, Vid, Eid);
-		if (ensure(ElementID != IndexConstants::InvalidID))
-		{
-			int32 NewElementID = UVOverlay->SplitElement(ElementID, TidsToModify);
-			if (Result)
-			{
-				Result->NewUVElements.Add(NewElementID);
-			}
-		}
-	};
-
-	for (int32 Eid : EidsToMakeIntoSeams)
-	{
-		FIndex2i EdgeVids = Mesh->GetEdgeV(Eid);
-		bool VertNeedsSplitting[2] = { false, false };
-		TArray<int32> VertTidsToUseForSplit[2];
-
-		if (UVOverlay->IsSeamEdge(Eid))
-		{
-			// If this is already a seam edge, make sure its endpoints are not bowties. We create such edges 
-			// sometimes as we split adjacent edges, and it is also likely to be what the user wants when
-			// selecting edges adjacent to a bowtie.
-			for (int i = 0; i < 2; ++i)
-			{
-				if (UVOverlay->IsBowtieInOverlay(EdgeVids[i]))
-				{
-					UVOverlay->SplitBowtiesAtVertex(EdgeVids[i], 
-						Result ? &Result->NewUVElements : nullptr);
-				}
-			}
-			continue;
-		}
-
-		// If we're not already a seam, then it's going to become one. A vert needs to get split if it
-		// has a present or future seam attached, or else it will become a bowtie if we just split the
-		// other vert.
-		for (int i = 0; i < 2; ++i)
-		{
-			VertNeedsSplitting[i] = DoesVertHaveAnotherSeamAttached(Eid, EdgeVids[i], VertTidsToUseForSplit[i]);
-		}
-			
-		// If neither absolutely has to get split, then one needs to get split anyway so that we
-		// make the edge into a seam.
-		if (!VertNeedsSplitting[0] && !VertNeedsSplitting[1])
-		{
-			// We'll go halfway around the triangle one-ring, rounding up
-			int32 NumTrisToDisconnect = (VertTidsToUseForSplit[0].Num() + 1) / 2;
-
-			// In doing this, we are splitting an adjacent edge and therefore might inadvertantly
-			// introduce a bowtie on the other vert of that edge, which we would like to avoid. 
-			// So keep track of that potential bowtie.
-			int32 OtherSplitEdge = Mesh->FindEdgeFromTriPair(
-				VertTidsToUseForSplit[0][NumTrisToDisconnect - 1],
-				VertTidsToUseForSplit[0][NumTrisToDisconnect]);
-			int32 PotentialBowtieVid = ensure(OtherSplitEdge != IndexConstants::InvalidID) ?
-				IndexUtil::FindEdgeOtherVertex(Mesh->GetEdgeV(OtherSplitEdge), EdgeVids[0])
-				: IndexConstants::InvalidID;
-
-			// Perform the split
-			VertTidsToUseForSplit[0].SetNum(NumTrisToDisconnect);
-			SplitEdgeVertElement(Eid, EdgeVids[0], VertTidsToUseForSplit[0]);
-
-			// Deal with the bowtie if we created one
-			if (ensure(PotentialBowtieVid != IndexConstants::InvalidID) 
-				&& UVOverlay->IsBowtieInOverlay(PotentialBowtieVid))
-			{
-				UVOverlay->SplitBowtiesAtVertex(PotentialBowtieVid,
-					Result ? &Result->NewUVElements : nullptr);
-			}
-		}
-		else
-		{
-			for (int i = 0; i < 2; ++i)
-			{
-				if (VertNeedsSplitting[i])
-				{
-					SplitEdgeVertElement(Eid, EdgeVids[i], VertTidsToUseForSplit[i]);
-				}
-			}
-		}//end if at least one side needed splitting
-	}//end for each edge
-
-	return true;
+	return FDynamicMeshEditor::CreateSeamsAtEdges(EidsToMakeIntoSeams, UVOverlay, Result ? &Result->NewUVElements : nullptr);
 }
 
+
+
+bool UE::Geometry::FDynamicMeshUVEditor::MakeIsland(const TSet<int32>& TidsToMakeIntoIsland, FUVEditResult* Result, TSet<int32>* ChangedTrianglesOut)
+{
+	using namespace FDynamicMeshUVEditorLocals;
+
+	if (!ensure(UVOverlay && Mesh))
+	{
+		return false;
+	}
+	
+	// We may add new elements during either initialization or seam insertion. However, upon welding,
+	//  we might end up destroying them. So we'll accumulate them and then filter them out at the end.
+	ON_SCOPE_EXIT
+	{
+		if (Result)
+		{
+			Result->NewUVElements.RemoveAllSwap([this](int32 Element) { return !UVOverlay->IsElement(Element); });
+		}
+	};
+
+	// First make sure that all the relevant triangles have UVs set.
+	MakeSureUVsAreSet(TidsToMakeIntoIsland, Result, ChangedTrianglesOut);
+
+	// Gather the edges we need to edit
+	TSet<int32> EidsToMakeSeams;
+	TSet<int32> EidsToJoin;
+	TSet<int32> TouchedVids;
+
+	TSet<int32> ProcessedEids;
+	for (int32 Tid : TidsToMakeIntoIsland)
+	{
+		FIndex3i TriEids = Mesh->GetTriEdges(Tid);
+		for (int i = 0; i < 3; ++i)
+		{
+			int32 Eid = TriEids[i];
+			bool bAlreadyProcessed = false;
+			ProcessedEids.Add(Eid, &bAlreadyProcessed);
+			if (bAlreadyProcessed)
+			{
+				continue;
+			}
+
+			FDynamicMesh3::FEdge Edge = Mesh->GetEdge(Eid);
+			if (Edge.Tri.B == IndexConstants::InvalidID)
+			{
+				// Don't need to do anything for edges that are on the mesh boundary
+				continue;
+			}
+
+			bool bIsCurrentlySeam = UVOverlay->IsSeamEdge(Eid);
+			bool bShouldBeSeam = !TidsToMakeIntoIsland.Contains(Edge.Tri.A == Tid ? Edge.Tri.B : Edge.Tri.A);
+			
+			if (bIsCurrentlySeam != bShouldBeSeam)
+			{
+				TouchedVids.Add(Edge.Vert.A);
+				TouchedVids.Add(Edge.Vert.B);
+
+				if (bShouldBeSeam)
+				{
+					EidsToMakeSeams.Add(Eid);
+				}
+				else
+				{
+					EidsToJoin.Add(Eid);
+				}
+			}
+		}
+	}//end gathering edges to edit
+
+	if (EidsToJoin.IsEmpty() && EidsToMakeSeams.IsEmpty())
+	{
+		// There must not have been anything to change
+		return true;
+	}
+
+	// We need to do seam insertion first so that we don't move neighboring triangles unnecessarily while welding
+	//  seams inside the island. This is minorly inconvenient since we'll end up having to filter newly created
+	//  elements after the subsequent join operation, but we have to do that for any newly initialized UVs anyway.
+	UE::Geometry::FUVEditResult AddSeamResult;
+	bool bSuccess = CreateSeamsAtEdges(EidsToMakeSeams, &AddSeamResult);
+	if (Result)
+	{
+		Result->NewUVElements.Append(AddSeamResult.NewUVElements);
+		// These get filtered on exit.
+	}
+
+	bSuccess = RemoveSeamsAtEdges(EidsToJoin) && bSuccess;
+
+	if (ChangedTrianglesOut)
+	{
+		// Some of these didn't actually get changed (if they kept their original element), but this is the easiest
+		//  way to make sure we mark anything whose connectivity might have changed. The ideal thing would have been
+		//  to make CreateSeamsAtEdges and RemoveSeamsAtEdges output changed tids instead.
+		for (int32 Vid : TouchedVids)
+		{
+			TArray<int32> Tids;
+			Mesh->GetVtxTriangles(Vid, Tids);
+			ChangedTrianglesOut->Append(Tids);
+		}
+	}
+	return bSuccess;
+}
 
 
 void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
@@ -1174,6 +1117,9 @@ void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
 		UVOverlay->SetTriangle(tid, ElemTri);
 	}
 
+	// Above process can introduce bowties, so we split any bowties on new element IDs
+	SplitBowtiesOnUVElements(NewUVIndices, true);
+
 	if (Result != nullptr)
 	{
 		Result->NewUVElements = MoveTemp(NewUVIndices);
@@ -1182,7 +1128,20 @@ void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
 
 
 
+void FDynamicMeshUVEditor::SplitBowtiesOnUVElements(TArray<int32>& UVElementIDs, bool bAddNewElementsToInputArray)
+{
+	if (!ensure(UVOverlay)) return;
 
+	const int32 InitialNumElements = UVElementIDs.Num();
+	for (int32 Idx = 0; Idx < InitialNumElements; ++Idx)
+	{
+		int32 ParentVID = UVOverlay->GetParentVertex(UVElementIDs[Idx]);
+		if (UVOverlay->IsBowtieInOverlay(ParentVID))
+		{
+			UVOverlay->SplitBowtiesAtVertex(ParentVID, bAddNewElementsToInputArray ? &UVElementIDs : nullptr);
+		}
+	}
+}
 
 
 void FDynamicMeshUVEditor::SetTriangleUVsFromCylinderProjection(
@@ -1311,6 +1270,9 @@ void FDynamicMeshUVEditor::SetTriangleUVsFromCylinderProjection(
 
 		UVOverlay->SetTriangle(tid, ElemTri);
 	}
+
+	// Above process can introduce bowties, so we split any bowties on new element IDs
+	SplitBowtiesOnUVElements(NewUVIndices, true);
 
 	if (Result != nullptr)
 	{

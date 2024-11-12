@@ -23,6 +23,9 @@ namespace UE::AvaBroadcastOutputUtils
 	/** Retrieves the device provider name from the MediaIOCustomLayout class meta data. */
 	AVALANCHEMEDIA_API FName GetDeviceProviderName(const UMediaOutput* InMediaOutput);
 
+	/** Returns true if the given media output is a game viewport output. */
+	AVALANCHEMEDIA_API bool IsGameViewportOutput(const UMediaOutput* InMediaOutput);
+
 	/** Serializes the given MediaOutput object into a FAvaBroadcastOutputData. */ 
 	AVALANCHEMEDIA_API FAvaBroadcastOutputData CreateMediaOutputData(UMediaOutput* InMediaOutput);
 

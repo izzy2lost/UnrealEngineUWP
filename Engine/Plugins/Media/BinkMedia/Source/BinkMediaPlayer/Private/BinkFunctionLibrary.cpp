@@ -20,7 +20,7 @@ static void Bink_DrawOverlays_Internal(FRHICommandListImmediate &RHICmdList, con
 
 	FVector2D screenSize;
 	gameViewport->GetViewportSize(screenSize);
-	const FTexture2DRHIRef &backbuffer = gameViewport->Viewport->GetRenderTargetTexture();
+	const FTextureRHIRef &backbuffer = gameViewport->Viewport->GetRenderTargetTexture();
 	if(!backbuffer.GetReference()) 
 	{
 		return;

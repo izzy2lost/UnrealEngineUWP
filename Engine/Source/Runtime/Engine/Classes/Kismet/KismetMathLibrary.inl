@@ -273,7 +273,9 @@ int32 UKismetMathLibrary::Clamp(int32 V, int32 A, int32 B)
 KISMET_MATH_FORCEINLINE
 int32 UKismetMathLibrary::Wrap(int32 Value, int32 Min, int32 Max)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return FMath::Wrap(Value, Min, Max);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 KISMET_MATH_FORCEINLINE
@@ -409,12 +411,6 @@ double UKismetMathLibrary::MultiplyMultiply_FloatFloat(double Base, double Exp)
 }
 
 KISMET_MATH_FORCEINLINE
-float UKismetMathLibrary::Multiply_FloatFloat(float A, float B)
-{
-	return A * B;
-}	
-
-KISMET_MATH_FORCEINLINE
 double UKismetMathLibrary::Multiply_IntFloat(int32 A, double B)
 {
 	return A * B;
@@ -494,17 +490,6 @@ double UKismetMathLibrary::Multiply_DoubleDouble(double A, double B)
 }
 
 KISMET_MATH_FORCEINLINE
-float UKismetMathLibrary::Divide_FloatFloat(float A, float B)
-{
-	if (B == 0.f)
-	{
-		ReportError_Divide_FloatFloat();
-		return 0.f;
-	}
-	return A / B;
-}
-
-KISMET_MATH_FORCEINLINE
 double UKismetMathLibrary::Divide_DoubleDouble(double A, double B)
 {
 	if (B == 0.0)
@@ -546,57 +531,9 @@ bool UKismetMathLibrary::EqualEqual_DoubleDouble(double A, double B)
 }
 
 KISMET_MATH_FORCEINLINE
-float UKismetMathLibrary::Add_FloatFloat(float A, float B)
-{
-	return A + B;
-}	
-
-KISMET_MATH_FORCEINLINE
-float UKismetMathLibrary::Subtract_FloatFloat(float A, float B)
-{
-	return A - B;
-}	
-
-KISMET_MATH_FORCEINLINE
-bool UKismetMathLibrary::Less_FloatFloat(float A, float B)
-{
-	return A < B;
-}	
-
-KISMET_MATH_FORCEINLINE
-bool UKismetMathLibrary::Greater_FloatFloat(float A, float B)
-{
-	return A > B;
-}	
-
-KISMET_MATH_FORCEINLINE
-bool UKismetMathLibrary::LessEqual_FloatFloat(float A, float B)
-{
-	return A <= B;
-}	
-
-KISMET_MATH_FORCEINLINE
-bool UKismetMathLibrary::GreaterEqual_FloatFloat(float A, float B)
-{
-	return A >= B;
-}	
-
-KISMET_MATH_FORCEINLINE
-bool UKismetMathLibrary::EqualEqual_FloatFloat(float A, float B)
-{
-	return A == B;
-}	
-
-KISMET_MATH_FORCEINLINE
 bool UKismetMathLibrary::NearlyEqual_FloatFloat(double A, double B, double ErrorTolerance)
 {
 	return FMath::IsNearlyEqual(A, B, ErrorTolerance);
-}
-
-KISMET_MATH_FORCEINLINE
-bool UKismetMathLibrary::NotEqual_FloatFloat(float A, float B)
-{
-	return A != B;
 }
 
 KISMET_MATH_FORCEINLINE
@@ -766,19 +703,19 @@ double UKismetMathLibrary::Square(double A)
 KISMET_MATH_FORCEINLINE
 int32 UKismetMathLibrary::Round(double A)
 {
-	return FMath::RoundToInt(A);
+	return static_cast<int32>(FMath::RoundToInt(A));
 }	
 
 KISMET_MATH_FORCEINLINE
 int32 UKismetMathLibrary::FFloor(double A)
 {
-	return FMath::FloorToInt(A);
+	return static_cast<int32>(FMath::FloorToInt(A));
 }	
 
 KISMET_MATH_FORCEINLINE
 int32 UKismetMathLibrary::FTrunc(double A)
 {
-	return FMath::TruncToInt(A);
+	return static_cast<int32>(FMath::TruncToInt(A));
 }	
 
 KISMET_MATH_FORCEINLINE
@@ -808,7 +745,7 @@ int64 UKismetMathLibrary::FCeil64(double A)
 KISMET_MATH_FORCEINLINE
 int32 UKismetMathLibrary::FCeil(double A)
 {
-	return FMath::CeilToInt(A);
+	return static_cast<int32>(FMath::CeilToInt(A));
 }	
 
 KISMET_MATH_FORCEINLINE
@@ -1143,13 +1080,6 @@ FVector2D UKismetMathLibrary::MakeVector2D(double X, double Y)
 }
 
 KISMET_MATH_FORCEINLINE
-void UKismetMathLibrary::BreakVector2D(FVector2D InVec, float& X, float& Y)
-{
-	X = InVec.X;
-	Y = InVec.Y;
-}
-
-KISMET_MATH_FORCEINLINE
 void UKismetMathLibrary::BreakVector2D(FVector2D InVec, double& X, double& Y)
 {
 	X = InVec.X;
@@ -1373,14 +1303,6 @@ FVector UKismetMathLibrary::Spherical2DToUnitCartesian(FVector2D A)
 }
 
 KISMET_MATH_FORCEINLINE
-void UKismetMathLibrary::ToDirectionAndLength2D(FVector2D A, FVector2D &OutDir, float &OutLength)
-{
-	double OutLengthDbl;	// LWC_TODO: Perf pessimization
-	A.ToDirectionAndLength(OutDir, OutLengthDbl);
-	OutLength = OutLengthDbl;
-}
-
-KISMET_MATH_FORCEINLINE
 void UKismetMathLibrary::ToDirectionAndLength2D(FVector2D A, FVector2D& OutDir, double& OutLength)
 {
 	A.ToDirectionAndLength(OutDir, OutLength);
@@ -1478,14 +1400,6 @@ KISMET_MATH_FORCEINLINE
 void UKismetMathLibrary::Vector_Set(FVector& A, double X, double Y, double Z)
 {
 	A.Set(X, Y, Z);
-}
-
-KISMET_MATH_FORCEINLINE
-void UKismetMathLibrary::BreakVector(FVector InVec, float& X, float& Y, float& Z)
-{
-	X = InVec.X;
-	Y = InVec.Y;
-	Z = InVec.Z;
 }
 
 KISMET_MATH_FORCEINLINE
@@ -2065,9 +1979,9 @@ FVector UKismetMathLibrary::GetDirectionUnitVector(FVector From, FVector To)
 KISMET_MATH_FORCEINLINE
 FIntVector UKismetMathLibrary::FTruncVector(const FVector& InVector)
 {
-	return FIntVector(FMath::TruncToInt(InVector.X),
-		FMath::TruncToInt(InVector.Y),
-		FMath::TruncToInt(InVector.Z));
+	return FIntVector(static_cast<int32>(FMath::TruncToInt(InVector.X)),
+		static_cast<int32>(FMath::TruncToInt(InVector.Y)),
+		static_cast<int32>(FMath::TruncToInt(InVector.Z)));
 }
 
 
@@ -2084,15 +1998,6 @@ KISMET_MATH_FORCEINLINE
 FVector4 UKismetMathLibrary::MakeVector4(double X, double Y, double Z, double W)
 {
 	return FVector4(X, Y, Z, W);
-}
-
-KISMET_MATH_FORCEINLINE
-void UKismetMathLibrary::BreakVector4(const FVector4& InVec, float& X, float& Y, float& Z, float& W)
-{
-	X = InVec.X;
-	Y = InVec.Y;
-	Z = InVec.Z;
-	W = InVec.W;
 }
 
 KISMET_MATH_FORCEINLINE
@@ -2657,31 +2562,31 @@ int32 UKismetMathLibrary::GetSeconds(FTimespan A)
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::GetTotalDays(FTimespan A)
 {
-	return A.GetTotalDays();
+	return static_cast<float>(A.GetTotalDays());
 }
 
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::GetTotalHours(FTimespan A)
 {
-	return A.GetTotalHours();
+	return static_cast<float>(A.GetTotalHours());
 }
 
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::GetTotalMilliseconds(FTimespan A)
 {
-	return A.GetTotalMilliseconds();
+	return static_cast<float>(A.GetTotalMilliseconds());
 }
 
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::GetTotalMinutes(FTimespan A)
 {
-	return A.GetTotalMinutes();
+	return static_cast<float>(A.GetTotalMinutes());
 }
 
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::GetTotalSeconds(FTimespan A)
 {
-	return A.GetTotalSeconds();
+	return static_cast<float>(A.GetTotalSeconds());
 }
 
 KISMET_MATH_FORCEINLINE
@@ -2699,7 +2604,7 @@ FTimespan UKismetMathLibrary::TimespanMinValue()
 KISMET_MATH_INLINE
 float UKismetMathLibrary::TimespanRatio(FTimespan A, FTimespan B)
 {
-	return FTimespan::Ratio(A, B);
+	return static_cast<float>(FTimespan::Ratio(A, B));
 }
 
 KISMET_MATH_FORCEINLINE
@@ -2895,7 +2800,9 @@ FLinearColor UKismetMathLibrary::Conv_FloatToLinearColor(float InFloat)
 KISMET_MATH_FORCEINLINE
 FLinearColor UKismetMathLibrary::Conv_DoubleToLinearColor(double InDouble)
 {
-	return FLinearColor(InDouble, InDouble, InDouble);
+	// potential precision loss by float conversion
+	float Value = static_cast<float>(InDouble);
+	return FLinearColor(Value, Value, Value);
 }
 
 KISMET_MATH_FORCEINLINE
@@ -2993,9 +2900,9 @@ FRotator UKismetMathLibrary::MakeRotFromZY(const FVector& Z, const FVector& Y)
 KISMET_MATH_FORCEINLINE
 void UKismetMathLibrary::BreakRotator(FRotator InRot, float& Roll, float& Pitch, float& Yaw)
 {
-	Pitch = InRot.Pitch;
-	Yaw = InRot.Yaw;
-	Roll = InRot.Roll;
+	Pitch = static_cast<float>(InRot.Pitch);
+	Yaw = static_cast<float>(InRot.Yaw);
+	Roll = static_cast<float>(InRot.Roll);
 }
 
 
@@ -3095,13 +3002,13 @@ FMatrix UKismetMathLibrary::Matrix_GetTransposed(const FMatrix& M)
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Matrix_GetDeterminant(const FMatrix& M)
 {
-	return M.Determinant();
+	return static_cast<float>(M.Determinant());
 }
 
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Matrix_GetRotDeterminant(const FMatrix& M)
 {
-	return M.RotDeterminant();
+	return static_cast<float>(M.RotDeterminant());
 }
 
 KISMET_MATH_FORCEINLINE
@@ -3163,7 +3070,7 @@ FMatrix UKismetMathLibrary::Matrix_ScaleTranslation(const FMatrix& M, FVector Sc
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Matrix_GetMaximumAxisScale(const FMatrix& M)
 {
-	return M.GetMaximumAxisScale();
+	return static_cast<float>(M.GetMaximumAxisScale());
 }
 
 KISMET_MATH_FORCEINLINE
@@ -3324,10 +3231,10 @@ FQuat UKismetMathLibrary::MakeQuat(float X, float Y, float Z, float W)
 KISMET_MATH_FORCEINLINE
 void UKismetMathLibrary::BreakQuat(const FQuat& InQuat, float& X, float& Y, float& Z, float& W)
 {
-	X = InQuat.X;
-	Y = InQuat.Y;
-	Z = InQuat.Z;
-	W = InQuat.W;
+	X = static_cast<float>(InQuat.X);
+	Y = static_cast<float>(InQuat.Y);
+	Z = static_cast<float>(InQuat.Z);
+	W = static_cast<float>(InQuat.W);
 }
 
 KISMET_MATH_FORCEINLINE
@@ -3357,7 +3264,7 @@ bool UKismetMathLibrary::Quat_IsNonFinite(const FQuat& Q)
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Quat_AngularDistance(const FQuat& A, const FQuat& B)
 {
-	return A.AngularDistance(B);
+	return static_cast<float>(A.AngularDistance(B));
 }
 
 KISMET_MATH_FORCEINLINE
@@ -3381,7 +3288,7 @@ FQuat UKismetMathLibrary::Quat_Exp(const FQuat& Q)
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Quat_GetAngle(const FQuat& Q)
 {
-	return Q.GetAngle();
+	return static_cast<float>(Q.GetAngle());
 }
 
 KISMET_MATH_FORCEINLINE
@@ -3486,13 +3393,13 @@ FQuat UKismetMathLibrary::Conv_RotatorToQuaternion(FRotator InRot)
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Quat_Size(const FQuat& Q)
 {
-	return Q.Size();
+	return static_cast<float>(Q.Size());
 }
 
 KISMET_MATH_FORCEINLINE
 float UKismetMathLibrary::Quat_SizeSquared(const FQuat& Q)
 {
-	return Q.SizeSquared();
+	return static_cast<float>(Q.SizeSquared());
 }
 
 KISMET_MATH_FORCEINLINE

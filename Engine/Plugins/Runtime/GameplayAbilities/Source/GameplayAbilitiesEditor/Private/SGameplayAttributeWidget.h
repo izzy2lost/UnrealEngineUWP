@@ -32,6 +32,13 @@ private:
 
 	FText GetSelectedValueAsString() const;
 
+	/**	Called when the widget is clicked using RMB */
+	void OnMenu(const FPointerEvent& MouseEvent);
+
+	void OnCopyAttribute(FProperty* AttributeProperty);
+	bool CanPaste() const;
+	void OnPasteAttribute();
+
 	/** Handles updates when the selected attribute changes */
 	void OnAttributePicked(FProperty* InProperty);
 

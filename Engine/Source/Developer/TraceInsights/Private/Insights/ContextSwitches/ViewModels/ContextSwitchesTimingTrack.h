@@ -2,16 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/TimingEventsTrack.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FThreadTrackEvent;
 
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 class FContextSwitchesSharedState;
@@ -62,4 +62,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} //namespace Insights
+} // namespace UE::Insights::ContextSwitches

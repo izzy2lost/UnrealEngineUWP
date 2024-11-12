@@ -16,6 +16,7 @@
 #include "RendererInterface.h"
 #include "ShaderParameterMacros.h"
 #include "MeshPassProcessor.h"
+#include "RayTracingMeshDrawCommands.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Engine/Scene.h"
@@ -28,7 +29,6 @@
 enum class ERayTracingPrimitiveFlags : uint8;
 
 class FIndirectLightingCacheUniformParameters;
-class FNaniteCommandInfo;
 class FPlanarReflectionSceneProxy;
 class FPrimitiveSceneInfo;
 class FPrimitiveSceneProxy;
@@ -49,12 +49,19 @@ struct FNaniteMaterialSlot;
 struct FNaniteRasterBin;
 struct FNaniteShadingBin;
 struct FRayTracingInstance;
+struct FRayTracingSBTAllocation;
+struct FRayTracingMaskAndFlags;
 
 template<typename ElementType,typename OctreeSemantics> class TOctree2;
 
 namespace Nanite
 {
 	using CoarseMeshStreamingHandle = int16;
+}
+
+namespace RayTracing
+{
+	using GeometryGroupHandle = int32;
 }
 
 /** Data used to track a primitive's allocation in the volume texture atlas that stores indirect lighting. */
@@ -280,6 +287,7 @@ class FPrimitiveSceneInfo : public FDeferredCleanupInterface
 	friend class FSceneRenderer;
 	friend struct FViewDebugInfo;
 public:
+	using FPersistentId = FPersistentPrimitiveIndex;
 
 	/** The render proxy for the primitive. */
 	FPrimitiveSceneProxy* Proxy;
@@ -294,7 +302,8 @@ public:
 	 * Number assigned to this component when it was registered with the world.
 	 * This will only ever be updated if the object is re-registered.
 	 */
-	int32 RegistrationSerialNumber;
+	UE_DEPRECATED(5.5, "RegistrationSerialNumber is no longer used")
+	int32 RegistrationSerialNumber = -1;
 
 	/** 
 	 * The root attachment component id for use with lighting, if valid.
@@ -318,7 +327,6 @@ public:
 
 	TArray<FNaniteRasterBin> NaniteRasterBins[ENaniteMeshPass::Num];
 	TArray<FNaniteShadingBin> NaniteShadingBins[ENaniteMeshPass::Num];
-	TArray<FNaniteCommandInfo> NaniteCommandInfos[ENaniteMeshPass::Num];
 	TArray<FNaniteMaterialSlot> NaniteMaterialSlots[ENaniteMeshPass::Num];
 
 	/** The identifier for the primitive in Scene->PrimitiveOctree. */
@@ -531,7 +539,7 @@ public:
 	void RemoveCachedReflectionCaptures();
 
 	/** Helper function for writing out to the last render times to the game thread */
-	void UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen) const;
+	void UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen);
 
 	/** Updates static lighting uniform buffer, returns the number of entries needed for GPUScene */
 	RENDERER_API int32 UpdateStaticLightingBuffer();
@@ -550,9 +558,15 @@ public:
 
 	bool IsCachedRayTracingGeometryValid() const;
 
+	RENDERER_API FRayTracingGeometry* GetStaticRayTracingGeometry(int8 LODIndex) const;
+	RENDERER_API FRayTracingGeometry* GetValidStaticRayTracingGeometry(int8& InOutLODIndex) const;
+
+	UE_DEPRECATED(5.4, "GetStaticRayTracingGeometryInstance has been deprecated. Use GetStaticRayTracingGeometry / GetValidStaticRayTracingGeometry instead.")
 	RENDERER_API FRHIRayTracingGeometry* GetStaticRayTracingGeometryInstance(int LodLevel) const;
 
 	int GetStaticRayTracingGeometryNum() const { return StaticRayTracingGeometries.Num(); }
+
+	const FRayTracingGeometry* GetCachedRayTracingGeometry() const { return CachedRayTracingGeometry; }
 #endif
 
 	/** Return primitive fullname (for debugging only). */
@@ -566,8 +580,8 @@ public:
 
 	inline FMeshDrawCommandPrimitiveIdInfo GetMDCIdInfo() const { return FMeshDrawCommandPrimitiveIdInfo(PackedIndex, PersistentIndex, InstanceSceneDataOffset);}
 
-	const UPrimitiveComponent* GetComponentForDebugOnly() const;
-	const IPrimitiveComponent* GetComponentInterfaceForDebugOnly() const;
+	UPrimitiveComponent* GetComponentForDebugOnly() const;
+	IPrimitiveComponent* GetComponentInterfaceForDebugOnly() const;
 
 	UE_DEPRECATED(5.3, "NeedsUpdateStaticMeshes has been deprecated.")
 	bool NeedsUpdateStaticMeshes() { return false; }
@@ -595,7 +609,7 @@ public:
 	/**
 	 * Waits for (potential) instance update to produce the data, to avoid a sync, use GetInstanceDataHeader().
 	 */
-	const FInstanceSceneDataBuffers *GetInstanceSceneDataBuffers() const;
+	RENDERER_API const FInstanceSceneDataBuffers* GetInstanceSceneDataBuffers() const;
 
 	/**
 	 * Returns the updated header data in the InstanceDataUpdateTaskInfo without blocking. 
@@ -630,7 +644,7 @@ private:
 	 * Use PrimitiveComponentId instead when a component identifier is needed.
 	 * 	
 	 */	
-	const IPrimitiveComponent*  PrimitiveComponentInterfaceForDebuggingOnly;  
+	IPrimitiveComponent* PrimitiveComponentInterfaceForDebuggingOnly;
 
 	/** 
 	 * Ptr to the FPrimitiveSceneInfoData for this prim, this is used for shared data between the primitive and the component that created the primitive. 
@@ -690,13 +704,48 @@ public:
 	bool bCachedRayTracingInstanceAnySegmentsDecal : 1;
 	bool bCachedRayTracingInstanceAllSegmentsDecal : 1;
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle;
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle;
 
-	TArray<TArray<int32, TInlineAllocator<2>>> CachedRayTracingMeshCommandIndicesPerLOD;
+	struct FRayTracingLODData
+	{
+		FRayTracingCachedMeshCommandFlags CachedMeshCommandFlags;
+		TArray<int32, TInlineAllocator<2>> CachedMeshCommandIndices;
+		FRayTracingSBTAllocation* SBTAllocation = nullptr;
+	};
 
-	TArray<uint64> CachedRayTracingMeshCommandsHashPerLOD;
+	uint32 GetRayTracingLODDataNum() const
+	{
+		return RayTracingLODData.Num();
+	}
+
+	const FRayTracingLODData& GetRayTracingLODData(uint32 Index) const
+	{
+		return RayTracingLODData[Index];
+	}
+
+	const FRayTracingGeometryInstance& GetCachedRayTracingInstance() const
+	{
+		return CachedRayTracingInstance;
+	}
+
+	void SetRayTracingLODData(TArray<FRayTracingLODData> LODData)
+	{
+		RayTracingLODData = MoveTemp(LODData);
+	}
+
+	void SetCachedRayTracingInstanceGeometryRHI(FRHIRayTracingGeometry* Geometry);
+	void UpdateCachedRayTracingInstanceMaskAndFlags(FRayTracingMaskAndFlags& InstanceMaskAndFlags);
+
+private:
+
+	TArray<FRayTracingLODData> RayTracingLODData;
+
+	// Allocate the RayTracing SBT ranges for all the setup LODs
+	void AllocateRayTracingSBT();
+
 	// TODO: this should be placed in FRayTracingScene and we have a pointer/handle here. It's here for now for PoC
 	FRayTracingGeometryInstance CachedRayTracingInstance;
-#endif
+#endif // RHI_RAYTRACING
 
 private:
 	// Don't access this directly, even internally unless you are sure what you're up to. Use GetInstanceSceneDataBuffers() which handles thread safety.
@@ -766,7 +815,7 @@ private:
 
 	/** Updates cached ray tracing instances. Utility closely mirrors CacheRayTracingPrimitives(..) */
 	static void UpdateCachedRayTracingInstances(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);
-	static void UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* SceneInfo, const FRayTracingInstance& CachedRayTracingInstance, const ERayTracingPrimitiveFlags Flags);
+	static void UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* SceneInfo, const FRayTracingInstance& RayTracingInstance, const ERayTracingPrimitiveFlags Flags);
 #endif
 
 public:

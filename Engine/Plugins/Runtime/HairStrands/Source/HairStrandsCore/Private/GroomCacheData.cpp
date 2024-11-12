@@ -5,6 +5,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GroomCacheData)
 
+float GetHairStrandsMaxRadius(const TArray<float>& InPointsRadius);
+
 FGroomAnimationInfo::FGroomAnimationInfo()
 	: NumFrames(0)
 	, SecondsPerFrame(0.0f)
@@ -69,9 +71,11 @@ void FGroomCacheStrandData::Serialize(FArchive& Ar, int32 Version, EGroomCacheAt
 	Ar << CurvesLength;
 }
 
+// Use VertexData.PointsRadius, rather than GroupData, because GroupData.StrandsPoints has been 'moved' to 
+// VertexData by the time we reach the GetHairStrandsMaxRadius function
 FGroomCacheGroupData::FGroomCacheGroupData(FHairStrandsDatas&& GroupData)
 : VertexData(MoveTemp(GroupData.StrandsPoints))
-, StrandData(MoveTemp(GroupData.StrandsCurves), GetHairStrandsMaxLength(GroupData), GetHairStrandsMaxRadius(GroupData))
+, StrandData(MoveTemp(GroupData.StrandsCurves), GetHairStrandsMaxLength(GroupData), GetHairStrandsMaxRadius(VertexData.PointsRadius)) 
 , BoundingBox(GroupData.BoundingBox)
 {
 }

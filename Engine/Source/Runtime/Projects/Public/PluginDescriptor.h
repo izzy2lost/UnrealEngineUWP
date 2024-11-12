@@ -104,6 +104,9 @@ struct FPluginDescriptor
 	/** If to generate Verse source code definitions from assets contained in this plugin */
 	bool bEnableVerseAssetReflection = false;
 
+	/** Use IAD for this plugin */
+	bool bEnableIAD = false;
+
 	/** Whether this plugin should be enabled by default for all projects */
 	EPluginEnabledByDefault EnabledByDefault;
 
@@ -162,6 +165,9 @@ struct FPluginDescriptor
 
 	/** Additional fields to write */
 	TMap<FString, TSharedPtr<FJsonValue>> AdditionalFieldsToWrite;
+
+	/** Additional fields to remove when updating the Json */
+	TSet<FString> AdditionalFieldsToRemove;
 #endif
 
 	/** Return the .uplugin extension (with dot) */

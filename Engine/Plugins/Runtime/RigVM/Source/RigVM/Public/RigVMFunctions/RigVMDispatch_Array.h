@@ -24,20 +24,18 @@ public:
 protected:
 	static FRigVMTemplateArgumentInfo CreateArgumentInfo(const FName& InName, ERigVMPinDirection InDirection);
 	static TMap<uint32, int32> GetArrayHash(FScriptArrayHelper& InArrayHelper, const FArrayProperty* InArrayProperty);
-	
-	static const FName& ExecuteName;
-	static const FName ArrayName;
-	static const FName ValuesName;
-	static const FName NumName;
-	static const FName IndexName;
-	static const FName ElementName;
-	static const FName SuccessName;
-	static const FName OtherName;
-	static const FName CloneName;
-	static const FName CountName;
-	static const FName RatioName;
-	static const FName ResultName;
-	static const FName& CompletedName;
+
+	static inline FLazyName ArrayName = FLazyName(TEXT("Array"));
+	static inline FLazyName ValuesName = FLazyName(TEXT("Values"));
+	static inline FLazyName NumName = FLazyName(TEXT("Num"));
+	static inline FLazyName IndexName = FLazyName(TEXT("Index"));
+	static inline FLazyName ElementName = FLazyName(TEXT("Element"));
+	static inline FLazyName SuccessName = FLazyName(TEXT("Success"));
+	static inline FLazyName OtherName = FLazyName(TEXT("Other"));
+	static inline FLazyName CloneName = FLazyName(TEXT("Clone"));
+	static inline FLazyName CountName = FLazyName(TEXT("Count"));
+	static inline FLazyName RatioName = FLazyName(TEXT("Ratio"));
+	static inline FLazyName ResultName = FLazyName(TEXT("Result"));
 
 	friend class URigVMController;
 };
@@ -149,6 +147,30 @@ public:
 
 protected:
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override { return &FRigVMDispatch_ArraySetNum::Execute; }
+	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates);
+};
+
+USTRUCT(meta=(DisplayName = "Init"))
+struct RIGVM_API FRigVMDispatch_ArrayInit : public FRigVMDispatch_ArrayBaseMutable
+{
+	GENERATED_BODY()
+
+public:
+	FRigVMDispatch_ArrayInit()
+	{
+		FactoryScriptStruct = StaticStruct();
+	}
+
+	virtual FName GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const override;
+	virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const override;
+	virtual FRigVMTemplateTypeMap OnNewArgumentType(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const override;
+#if WITH_EDITOR
+	virtual FText GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const override;
+	virtual FText GetArgumentTooltip(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const override;
+#endif
+
+protected:
+	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override { return &FRigVMDispatch_ArrayInit::Execute; }
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates);
 };
 

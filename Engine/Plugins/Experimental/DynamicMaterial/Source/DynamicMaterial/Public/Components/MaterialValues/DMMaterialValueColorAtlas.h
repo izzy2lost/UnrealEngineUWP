@@ -10,52 +10,72 @@ class UCurveLinearColorAtlas;
 class UCurveLinearColor;
 #endif
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIAL_API UDMMaterialValueColorAtlas : public UDMMaterialValue
+/**
+ * Component representing a color atlas value. Manages its own parameter.
+ */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialValueColorAtlas : public UDMMaterialValue
 {
 	GENERATED_BODY()
 
 public:
+	DYNAMICMATERIAL_API UDMMaterialValueColorAtlas();
+
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	float GetValue() const { return Value; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetValue(float InValue);
+	DYNAMICMATERIAL_API void SetValue(float InValue);
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	float GetDefaultValue() const { return DefaultValue; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetDefaultValue(float InDefaultValue);
+	DYNAMICMATERIAL_API void SetDefaultValue(float InDefaultValue);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UCurveLinearColorAtlas* GetAtlas() const { return Atlas; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetAtlas(UCurveLinearColorAtlas* InAtlas);
+	DYNAMICMATERIAL_API void SetAtlas(UCurveLinearColorAtlas* InAtlas);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UCurveLinearColor* GetCurve() const { return Curve; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetCurve(UCurveLinearColor* InCurve);
+	DYNAMICMATERIAL_API void SetCurve(UCurveLinearColor* InCurve);
 
 	virtual bool IsWholeLayerValue() const override { return true; }
 #endif
 
-	//~ Begin UDMMaterialValue
-	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
 #if WITH_EDITOR
-	virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
-	virtual bool IsDefaultValue() const override;
-	virtual void ApplyDefaultValue() override;
-	virtual void ResetDefaultValue() override;
+	//~ Begin IDMJsonSerializable
+	DYNAMICMATERIAL_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	//~ End IDMJsonSerializable
+#endif
+
+	//~ Begin UDMMaterialValue
+	DYNAMICMATERIAL_API virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
+	DYNAMICMATERIAL_API virtual bool IsDefaultValue() const override;
+	DYNAMICMATERIAL_API virtual void ApplyDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual UDMMaterialValueDynamic* ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic) override;
 #endif
 	//~ End UDMMaterialValue
 
+	//~ Begin UDMMaterialComponent
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
+#endif
+	//~ End UDMMaterialComponent
+
 protected:
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetValue, Setter = SetValue, BlueprintSetter = SetValue, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter, Setter, BlueprintSetter = SetValue, Category = "Material Designer",
 		meta = (DisplayName = "Alpha", AllowPrivateAccess = "true", ClampMin = 0, UIMin = 0, ClampMax = 1, UIMax = 1))
 	float Value;
 
@@ -65,13 +85,11 @@ protected:
 	float DefaultValue;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetAtlas, Category = "Material Designer",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", NotKeyframeable, NoCreate))
 	TObjectPtr<UCurveLinearColorAtlas> Atlas;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetCurve, Category = "Material Designer",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", NotKeyframeable, NoCreate))
 	TObjectPtr<UCurveLinearColor> Curve;
 #endif
-
-	UDMMaterialValueColorAtlas();
 };

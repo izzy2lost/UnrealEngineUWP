@@ -92,6 +92,14 @@ void AGameplayDebuggerPlayerManager::BeginPlay()
 	FGameModeEvents::GameModeLogoutEvent.AddUObject(this, &ThisClass::OnGameModeLogout);
 }
 
+void AGameplayDebuggerPlayerManager::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	// Make sure the tick is completely disabled
+	SetTickableTickType(ETickableTickType::Never);
+}
+
 void AGameplayDebuggerPlayerManager::EndPlay(const EEndPlayReason::Type Reason)
 {
 	Super::EndPlay(Reason);
@@ -161,7 +169,7 @@ void AGameplayDebuggerPlayerManager::UpdateAuthReplicators()
 				TestData.Controller->Cleanup();
 			}
 
-			PlayerData.RemoveAt(Idx, 1, EAllowShrinking::No);
+			PlayerData.RemoveAt(Idx, EAllowShrinking::No);
 		}
 	}
 
@@ -277,8 +285,8 @@ const FGameplayDebuggerPlayerData* AGameplayDebuggerPlayerManager::GetPlayerData
 void AGameplayDebuggerPlayerManager::GetViewPoint(const APlayerController& OwnerPC, FVector& OutViewLocation, FVector& OutViewDirection)
 {
 	UWorld* World = OwnerPC.GetWorld();
-	FVector CameraLocation;
-	FRotator CameraRotation;
+	FVector CameraLocation = FVector::ZeroVector;
+	FRotator CameraRotation = FRotator::ZeroRotator;
 	if (OwnerPC.Player)
 	{
 		// normal game
@@ -352,7 +360,7 @@ void AGameplayDebuggerPlayerManager::OnGameModeLogout(AGameModeBase* GameMode, A
 					TestData.Controller->Cleanup();
 				}
 
-				PlayerData.RemoveAt(Idx, 1, EAllowShrinking::No);
+				PlayerData.RemoveAt(Idx, EAllowShrinking::No);
 				break;
 			}
 		}

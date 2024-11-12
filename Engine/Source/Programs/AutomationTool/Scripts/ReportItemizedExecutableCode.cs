@@ -322,7 +322,7 @@ namespace ReportItemizedExecutableCode.Automation
 			System.Console.WriteLine("\n\n");
 		}
 
-		/** Hack for a quick iteration on formatting - stores the results from bloaty. */
+		// Hack for a quick iteration on formatting - stores the results from bloaty.
 		//string HardCodedResults;
 	}
 }

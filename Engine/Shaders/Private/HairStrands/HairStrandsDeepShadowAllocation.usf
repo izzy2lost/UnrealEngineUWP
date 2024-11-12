@@ -35,9 +35,14 @@ float4x4 ComputeTranslatedWorldToLight(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-float4				LightDirections[MAX_SLOT_COUNT];
-float4				TranslatedLightPositions[MAX_SLOT_COUNT];
-uint4				MacroGroupIndices[MAX_SLOT_COUNT];
+// Mirror of FLightData in HairStrands/HairStrandsDeepShadow.cpp
+struct FLightData
+{
+	float3 LightDirection;
+	uint MacroGroupId;
+	float3 TranslatedLightPosition;
+	uint bIsLightDirectional;
+};
 
 float				RasterizationScale;
 float				AABBScale;
@@ -52,6 +57,7 @@ float2				AtlasTexelSize;
 uint				MinAtlasTileResolution;
 uint				MinAtlasTileResolutionLog2;
 
+StructuredBuffer<FLightData> 			LightDataBuffer;
 Buffer<int>								MacroGroupAABBBuffer;
 RWStructuredBuffer<FDeepShadowViewInfo>	OutShadowViewInfoBuffer;
 
@@ -82,16 +88,12 @@ void ComputeTranslatedWorldToLightClip(
 	inout float		OutMinStrandRadiusAtDepth1,
 	inout float3	OutLightDirection,
 	const FHairAABB TranslatedWorld_AABB,
-	const uint		SlotIndex)
+	const FLightData LightData)
 {
-	const float3 LightDirection			  = LightDirections[SlotIndex].xyz;
-	const float3 TranslatedLightPosition  = TranslatedLightPositions[SlotIndex].xyz;
-	const bool bIsDirectional			  = TranslatedLightPositions[SlotIndex].w == 0;
-
 	float3 Center = GetCenter(TranslatedWorld_AABB);
-	OutLightDirection = bIsDirectional ? LightDirection : -normalize(TranslatedLightPosition - Center);
+	OutLightDirection = LightData.bIsLightDirectional ? LightData.LightDirection : -normalize(LightData.TranslatedLightPosition - Center);
 
-	const float4x4 Coarse_TranslatedWorldToLight = ComputeTranslatedWorldToLight(TranslatedWorld_AABB, LightDirection, TranslatedLightPosition, bIsDirectional);
+	const float4x4 Coarse_TranslatedWorldToLight = ComputeTranslatedWorldToLight(TranslatedWorld_AABB, LightData.LightDirection, LightData.TranslatedLightPosition, LightData.bIsLightDirectional);
 
 	const FHairAABB Light_AABB = Transform(TranslatedWorld_AABB, Coarse_TranslatedWorldToLight);
 	const float3 Light_Extents = GetExtents(Light_AABB);
@@ -104,9 +106,9 @@ void ComputeTranslatedWorldToLightClip(
 	OutMinStrandRadiusAtDepth1 = 1;
 	OutTranslatedWorldToClipTransform = 0;
 
-	if (bIsDirectional) // (LightType == LightType_Directional)
+	if (LightData.bIsLightDirectional)
 	{
-		const float4x4 TranslatedWorldToLight	= LookAtMatrix(Center - LightDirection * abs(MinZ), Center, float3(0, 0, 1));
+		const float4x4 TranslatedWorldToLight	= LookAtMatrix(Center - LightData.LightDirection * abs(MinZ), Center, float3(0, 0, 1));
 		const float4x4 ProjMatrix				= ReversedZOrthoMatrix(Radius, Radius, 1.f / (MaxZ-MinZ), 0);
 		OutTranslatedWorldToClipTransform		= mul(TranslatedWorldToLight, ProjMatrix);
 
@@ -115,15 +117,15 @@ void ComputeTranslatedWorldToLightClip(
 	}
 	else // if (LightType == LightType_Spot || LightType == LightType_Point || LightType == LightType_Rect)
 	{
-		const float LightDistanceToCenter = length(TranslatedLightPosition - Center);
+		const float LightDistanceToCenter = length(LightData.TranslatedLightPosition - Center);
 		MaxZ = max(0.2f, LightDistanceToCenter) + MaxZ;
 		MinZ = max(0.1f, LightDistanceToCenter) + MinZ;
 		MinZ = max(1.0f, MinZ);
 
-		const float SphereDistance			= length(TranslatedLightPosition - Center);
+		const float SphereDistance			= length(LightData.TranslatedLightPosition - Center);
 		const float HalfFov					= min(MaxHafFovInRad, atan(Radius / SphereDistance));
 
-		const float4x4 TranslatedWorldToLight	= LookAtMatrix(TranslatedLightPosition, Center, float3(0, 0, 1));
+		const float4x4 TranslatedWorldToLight	= LookAtMatrix(LightData.TranslatedLightPosition, Center, float3(0, 0, 1));
 		const float4x4 ProjMatrix				= ReversedZPerspectiveMatrix(HalfFov, 1, 1, MinZ, MaxZ);
 		OutTranslatedWorldToClipTransform		= mul(TranslatedWorldToLight, ProjMatrix);
 
@@ -302,18 +304,18 @@ void CreateViewInfo(uint2 DispatchThreadId : SV_DispatchThreadID)
 	}
 	GroupMemoryBarrierWithGroupSync();
 
-	FDeepShadowViewInfo ViewInfo;
+	FDeepShadowViewInfo ViewInfo = (FDeepShadowViewInfo)0;
 	if (SlotIndex < SlotIndexCount)
 	{
-		const uint MacroGroupId = MacroGroupIndices[SlotIndex].x;
+		const FLightData LightData = LightDataBuffer[SlotIndex];
 
 		FHairAABB TranslatedBound = InitHairAABB();
-		if (MacroGroupId < MacroGroupCount)
+		if (LightData.MacroGroupId < MacroGroupCount)
 		{
-			TranslatedBound = ReadHairAABB(MacroGroupId, MacroGroupAABBBuffer);
+			TranslatedBound = ReadHairAABB(LightData.MacroGroupId, MacroGroupAABBBuffer);
 		}
 
-		ComputeTranslatedWorldToLightClip(ViewInfo.TranslatedWorldToClip, ViewInfo.MinRadiusAtDepth1, ViewInfo.ViewForward, TranslatedBound, SlotIndex);
+		ComputeTranslatedWorldToLightClip(ViewInfo.TranslatedWorldToClip, ViewInfo.MinRadiusAtDepth1, ViewInfo.ViewForward, TranslatedBound, LightData);
 
 		float2 ProjectedShadowSize = ComputeProjectedScreenSize(ViewInfo.TranslatedWorldToClip);
 		AddToAtlasTileBin(ProjectedShadowSize, SlotIndex);

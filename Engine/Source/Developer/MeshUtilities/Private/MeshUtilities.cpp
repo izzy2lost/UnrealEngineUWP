@@ -431,6 +431,8 @@ static void SkinnedMeshToRawMeshes(USkinnedMeshComponent* InSkinnedMeshComponent
 				}
 			}
 		}
+
+		RawMesh.CompactMaterialIndices();
 	}
 
 	ProcessMaterials<USkinnedMeshComponent>(InSkinnedMeshComponent, InPackageName, OutMaterials);
@@ -729,7 +731,14 @@ UStaticMesh* FMeshUtilities::ConvertMeshesToStaticMesh(const TArray<UMeshCompone
 				int32 SectionIndex = 0;
 				for (int32 UniqueMaterialIndex : UniqueMaterialIndices)
 				{
-					StaticMesh->GetSectionInfoMap().Set(RawMeshLODIndex, SectionIndex, FMeshSectionInfo(UniqueMaterialIndex));
+					if (RawMesh.MaterialIndexToImportIndex.IsValidIndex(SectionIndex))
+					{
+						StaticMesh->GetSectionInfoMap().Set(RawMeshLODIndex, SectionIndex, FMeshSectionInfo(RawMesh.MaterialIndexToImportIndex[SectionIndex]));
+					}
+					else
+					{
+						StaticMesh->GetSectionInfoMap().Set(RawMeshLODIndex, SectionIndex, FMeshSectionInfo(UniqueMaterialIndex));
+					}
 					SectionIndex++;
 				}
 			}
@@ -964,12 +973,13 @@ void FMeshUtilities::BuildSkeletalModelFromChunks(FSkeletalMeshLODModel& LODMode
 	for (int32 i = 0; i < Chunks.Num(); ++i)
 	{
 		delete Chunks[i];
-		Chunks[i] = NULL;
+		Chunks[i] = nullptr;
 	}
 	Chunks.Empty();
 
 	// Compute the required bones for this model.
-	USkeletalMesh::CalculateRequiredBones(LODModel, RefSkeleton, NULL);
+	USkeletalMesh::CalculateRequiredBones(LODModel, RefSkeleton, nullptr);
+
 #endif // #if WITH_EDITORONLY_DATA
 }
 
@@ -4582,8 +4592,7 @@ bool FMeshUtilities::BuildSkeletalMesh_Legacy(FSkeletalMeshLODModel& LODModel
 
 				FMatrix	TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
 				FVector3f	TangentX = FVector4f(TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal()),
-					TangentY = FVector4f(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal()),
-					TangentZ;
+					TangentY = FVector4f(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal());
 
 				TangentX = TangentX - TriangleNormal * (TangentX | TriangleNormal);
 				TangentY = TangentY - TriangleNormal * (TangentY | TriangleNormal);

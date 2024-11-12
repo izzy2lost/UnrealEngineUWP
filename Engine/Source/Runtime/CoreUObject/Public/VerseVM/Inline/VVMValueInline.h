@@ -50,11 +50,6 @@ inline VValue::VValue(UObject* Object)
 	checkSlow(IsUObject());
 }
 
-inline VValue::VValue(VInt Int)
-	: VValue(Int.Value)
-{
-}
-
 inline bool VValue::IsInt() const
 {
 	return IsInt32() || IsCellOfType<VHeapInt>();
@@ -80,7 +75,7 @@ inline VValue VValue::FromBool(bool Bool)
 	return Bool ? VValue(*GlobalTruePtr.Get()) : VValue(*GlobalFalsePtr.Get());
 }
 
-inline VValue VValue::Follow()
+inline const VValue VValue::Follow() const
 {
 	checkSlow(!IsRoot());
 	if (IsPlaceholder())
@@ -95,7 +90,7 @@ inline VPlaceholder& VValue::GetRootPlaceholder()
 	return AsPlaceholder().Follow().AsPlaceholder();
 }
 
-inline void VValue::EnqueueSuspension(FRunningContext Context, VSuspension& Suspension)
+inline void VValue::EnqueueSuspension(FAccessContext Context, VSuspension& Suspension)
 {
 	GetRootPlaceholder().EnqueueSuspension(Context, Suspension);
 }
@@ -192,22 +187,16 @@ inline uint32 GetTypeHash(VRestValue RestValue)
 	return GetTypeHash(RestValue.Value.Get());
 }
 
-template <typename ContextType>
-inline FOpResult VValue::Melt(ContextType Context, VValue Value)
+inline VValue VValue::Melt(FAllocationContext Context, VValue Value)
 {
-	if (Value.IsPlaceholder())
+	if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
 	{
-		return {FOpResult::ShouldSuspend, Value};
+		return Value.AsCell().Melt(Context);
 	}
-	else if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
-	{
-		return Value.AsCell().Melt(FRunningContext(Context));
-	}
-	return {FOpResult::Normal, Value};
+	return Value;
 }
 
-template <typename ContextType>
-inline FOpResult VValue::Freeze(ContextType Context, VValue Value)
+inline VValue VValue::Freeze(FAllocationContext Context, VValue Value)
 {
 	if (Value.IsPlaceholder())
 	{
@@ -215,9 +204,9 @@ inline FOpResult VValue::Freeze(ContextType Context, VValue Value)
 	}
 	else if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
 	{
-		return Value.AsCell().Freeze(FRunningContext(Context));
+		return Value.AsCell().Freeze(Context);
 	}
-	return {FOpResult::Normal, Value};
+	return Value;
 }
 
 } // namespace Verse

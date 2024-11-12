@@ -15,7 +15,7 @@
  * This data structure can be used to link multiple FChildren under a single accessor so you can always return
  * all children from GetChildren, but internally manage them in their own child lists.
  */
-class FCombinedChildren : public FChildren
+class FCombinedChildren final : public FChildren
 {
 public:
 	using FChildren::FChildren;
@@ -145,15 +145,12 @@ protected:
  * Widgets with no Children can return an instance of FNoChildren.
  * For convenience a shared instance FNoChildren::NoChildrenInstance can be used.
  */
-class FNoChildren : public FChildren
+class FNoChildren final : public FChildren
 {
 public:
 	static SLATECORE_API FNoChildren NoChildrenInstance;
 
 public:
-	UE_DEPRECATED(5.0, "FNoChildren take a valid reference to a SWidget")
-	SLATECORE_API FNoChildren();
-
 	FNoChildren(SWidget* InOwner)
 		: FChildren(InOwner)
 	{
@@ -206,62 +203,12 @@ private:
 
 
 /**
- * Widgets that will only have one child.
- */
-template <typename MixedIntoType>
-class UE_DEPRECATED(5.0, "TSupportsOneChildMixin is deprecated because it got confused between FSlot and FChildren. Use FSingleWidgetChildren.")
-TSupportsOneChildMixin : public FChildren, public TSlotBase<MixedIntoType>
-{
-public:
-	TSupportsOneChildMixin(SWidget* InOwner)
-		: FChildren(InOwner)
-		, TSlotBase<MixedIntoType>(static_cast<const FChildren&>(*this))
-	{
-	}
-
-	TSupportsOneChildMixin(std::nullptr_t) = delete;
-
-	virtual int32 Num() const override { return 1; }
-
-	virtual TSharedRef<SWidget> GetChildAt( int32 ChildIndex ) override
-	{
-		check(ChildIndex == 0);
-		return FSlotBase::GetWidget();
-	}
-
-	virtual TSharedRef<const SWidget> GetChildAt( int32 ChildIndex ) const override
-	{
-		check(ChildIndex == 0);
-		return FSlotBase::GetWidget();
-	}
-
-private:
-	virtual const FSlotBase& GetSlotAt(int32 ChildIndex) const override
-	{
-		check(ChildIndex == 0);
-		return *this;
-	}
-
-	virtual FWidgetRef GetChildRefAt(int32 ChildIndex) override
-	{
-		check(ChildIndex == 0);
-		return FWidgetRef(ReferenceConstruct, FSlotBase::GetWidget().Get());
-	}
-	virtual FConstWidgetRef GetChildRefAt(int32 ChildIndex) const override
-	{
-		check(ChildIndex == 0);
-		return FConstWidgetRef(ReferenceConstruct, FSlotBase::GetWidget().Get());
-	}
-};
-
-
-/**
  * For widgets that do not own their content, but are responsible for presenting someone else's content.
  * e.g. Tooltips are just presented by the owner window; not actually owned by it. They can go away at any time
  *      and then they'll just stop being shown.
  */
 template <typename ChildType>
-class TWeakChild : public FChildren
+class TWeakChild final : public FChildren
 {
 public:
 	using FChildren::FChildren;
@@ -346,21 +293,6 @@ public:
 
 private:
 	TWeakPtr<ChildType> WidgetPtr;
-};
-
-
-template <typename MixedIntoType>
-class UE_DEPRECATED(5.0, "Renamed TSupportsContentPaddingMixin to TAlignmentWidgetSlotMixin to differenciate from FSlot and FChildren.")
-TSupportsContentAlignmentMixin : public TAlignmentWidgetSlotMixin<MixedIntoType>
-{
-	using TAlignmentWidgetSlotMixin<MixedIntoType>::TAlignmentWidgetSlotMixin;
-};
-
-template <typename MixedIntoType>
-class UE_DEPRECATED(5.0, "Renamed TSupportsContentPaddingMixin to TPaddingWidgetSlotMixin to differenciate from FSlot and FChildren.")
-TSupportsContentPaddingMixin : public TPaddingWidgetSlotMixin<MixedIntoType>
-{
-	using TPaddingWidgetSlotMixin<MixedIntoType>::TPaddingWidgetSlotMixin;
 };
 
 
@@ -462,7 +394,7 @@ private:
 
 
 /** A FChildren that has only one child. */
-class FSingleWidgetChildrenWithSlot : public TSingleWidgetChildrenWithSlot<FSingleWidgetChildrenWithSlot>
+class FSingleWidgetChildrenWithSlot final : public TSingleWidgetChildrenWithSlot<FSingleWidgetChildrenWithSlot>
 {
 public:
 	using TSingleWidgetChildrenWithSlot<FSingleWidgetChildrenWithSlot>::TSingleWidgetChildrenWithSlot;
@@ -519,22 +451,13 @@ class FSingleWidgetChildrenWithBasicLayoutSlot : public TSingleWidgetChildrenWit
 };
 
 
-/** A slot that support alignment of content and padding */
-class UE_DEPRECATED(5.0, "FSimpleSlot is deprecated because it got confused from FChildren with FSlot. Use FSingleWidgetChildrenWithSimpleSlot.")
-FSimpleSlot : public FSingleWidgetChildrenWithBasicLayoutSlot
-{
-public:
-	using FSingleWidgetChildrenWithBasicLayoutSlot::FSingleWidgetChildrenWithBasicLayoutSlot;
-};
-
-
 /**
  * A generic FChildren that stores children along with layout-related information.
  * The type containing Widget* and layout info is specified by ChildType.
  * ChildType must have a public member SWidget* Widget;
  */
 template<typename SlotType>
-class TPanelChildren : public FChildren
+class TPanelChildren final : public FChildren
 {
 private:
 	TArray<TUniquePtr<SlotType>> Children;
@@ -580,16 +503,6 @@ public:
 	}
 
 public:
-	UE_DEPRECATED(5.0, "Add a slot directly has been deprecated. use the FSlotArgument to create a new slot")
-	int32 Add( SlotType* Slot )
-	{
-		int32 Index = Children.Add(TUniquePtr<SlotType>(Slot));
-		check(Slot);
-		Slot->SetOwner(*this);
-
-		return Index;
-	}
-
 	int32 AddSlot(typename SlotType::FSlotArguments&& SlotArgument)
 	{
 		TUniquePtr<SlotType> NewSlot = SlotArgument.StealSlot();
@@ -651,14 +564,6 @@ public:
 		// ChildrenCopy will now be emptied and moved back (to preserve any allocated memory)
 		ChildrenCopy.Empty(Slack);
 		Children = MoveTemp(ChildrenCopy);
-	}
-
-	UE_DEPRECATED(5.0, "Insert a slot directly has been deprecated. use the FSlotArgument to create a new slot")
-	void Insert(SlotType* Slot, int32 Index)
-	{
-		check(Slot);
-		Children.Insert(TUniquePtr<SlotType>(Slot), Index);
-		Slot->SetOwner(*this);
 	}
 
 	void InsertSlot(typename SlotType::FSlotArguments&& SlotArgument, int32 Index)
@@ -757,7 +662,7 @@ public:
 
 public:
 	/** At the end of the scope a slot will be constructed and added to the FChildren. */
-	struct FScopedWidgetSlotArguments : public SlotType::FSlotArguments
+	struct FScopedWidgetSlotArguments final : public SlotType::FSlotArguments
 	{
 	public:
 		FScopedWidgetSlotArguments(TUniquePtr<SlotType> InSlot, TPanelChildren<SlotType>& InChildren, int32 InIndex)
@@ -779,7 +684,7 @@ public:
 		FScopedWidgetSlotArguments(FScopedWidgetSlotArguments&&) = default;
 		FScopedWidgetSlotArguments& operator=(FScopedWidgetSlotArguments&&) = default;
 	
-		virtual ~FScopedWidgetSlotArguments()
+		~FScopedWidgetSlotArguments()
 		{
 			if (const SlotType* SlotPtr = this->GetSlot())	// Is nullptr when the FScopedWidgetSlotArguments was moved-constructed.
 			{
@@ -927,7 +832,7 @@ private:
  * TSlotlessChildren should not be used for general-purpose widgets.
  */
 template<typename ChildType>
-class TSlotlessChildren : public FChildren
+class TSlotlessChildren final : public FChildren
 {
 private:
 	TArray<TSharedRef<ChildType>> Children;
@@ -1119,7 +1024,7 @@ private:
 
 /** Required to implement GetChildren() in a way that can dynamically return the currently active child. */
 template<typename SlotType>
-class TOneDynamicChild : public FChildren
+class TOneDynamicChild final : public FChildren
 {
 public:
 	TOneDynamicChild(SWidget* InOwner, TPanelChildren<SlotType>* InAllChildren, const TAttribute<int32>* InWidgetIndex)

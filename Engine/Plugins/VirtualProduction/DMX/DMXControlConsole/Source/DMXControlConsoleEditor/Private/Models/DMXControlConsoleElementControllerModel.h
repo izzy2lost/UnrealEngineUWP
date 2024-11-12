@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "GDTF/AttributeDefinitions/DMXGDTFPhysicalUnit.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleElementController;
 class UDMXControlConsoleFaderBase;
 class UDMXControlConsoleFixturePatchMatrixCell;
@@ -19,7 +21,7 @@ namespace UE::DMX::Private
 	{
 	public:
 		/** Constructor */
-		FDMXControlConsoleElementControllerModel(const TWeakObjectPtr<UDMXControlConsoleElementController> InWeakElementController);
+		FDMXControlConsoleElementControllerModel(const TWeakObjectPtr<UDMXControlConsoleElementController> InWeakElementController, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
 
 		/** Gets the Element Controller this model is based on */
 		UDMXControlConsoleElementController* GetElementController() const;
@@ -29,6 +31,9 @@ namespace UE::DMX::Private
 
 		/** Gets the first Matrix Cell Element in the Controller, if valid */
 		UDMXControlConsoleFixturePatchMatrixCell* GetMatrixCellElement() const;
+
+		/** Gets all Element Controllers in the active layout matching this Element Controller's attribute (or name, if attribute is not valid) */
+		TArray<UDMXControlConsoleElementController*> GetMatchingAttributeElementControllers(bool bSameOwnerControllerOnly = false) const;
 
 		/** Gets the name of the Element Controller, relative to the contained Elements */
 		FString GetRelativeControllerName() const;
@@ -42,11 +47,26 @@ namespace UE::DMX::Private
 		/** Gets the max value of the Element Controller, relative to the contained Elements */
 		float GetRelativeMaxValue() const;
 
+		/** Gets the physical unit of the Element Controller, relative to the contained Elements */
+		EDMXGDTFPhysicalUnit GetPhysicalUnit() const;
+
+		/** Gets the physical value of the Element Controller, relative to the contained Elements */
+		double GetPhysicalValue() const;
+
+		/** Gets the physical from value of the Element Controller, relative to the contained Elements */
+		double GetPhysicalFrom() const;
+
+		/** Gets the physical to value of the Element Controller, relative to the contained Elements */
+		double GetPhysicalTo() const;
+
 		/** True if the Controller has just one Element */
 		bool HasSingleElement() const;
 
 		/** True if the Controller has Elements with the same data type */
 		bool HasUniformDataType() const;
+
+		/** True if the Controller has Elements with the same physical unit */
+		bool HasUniformPhysicalUnit() const;
 
 		/** True if the Controller has Elements with the same value */
 		bool HasUniformValue() const;
@@ -66,5 +86,8 @@ namespace UE::DMX::Private
 	private:
 		/** Weak reference to the Element Controller this model is based on */
 		TWeakObjectPtr<UDMXControlConsoleElementController> WeakElementController;
+
+		/** Weak reference to the Control Console edior model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
 	};
 }

@@ -21,7 +21,7 @@
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FQuicMessageTransportTest,
 	"System.Core.Messaging.Transports.Quic.QuicMessageTransport (may take some minutes!)",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 
 /**

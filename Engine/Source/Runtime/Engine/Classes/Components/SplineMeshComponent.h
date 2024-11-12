@@ -55,6 +55,10 @@ struct FSplineMeshParams
 	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay)
 	float StartRoll;
 
+	/** Roll around spline applied at end, in radians. */
+	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay, meta=(DisplayAfter="EndTangent"))
+	float EndRoll;
+
 	/** Starting offset of the mesh from the spline, in component space. */
 	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay)
 	FVector2D StartOffset;
@@ -70,10 +74,6 @@ struct FSplineMeshParams
 	/** End tangent of spline, in component space. */
 	UPROPERTY(EditAnywhere, Category = SplineMesh)
 	FVector EndTangent;
-
-	/** Roll around spline applied at end, in radians. */
-	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay)
-	float EndRoll;
 
 	/** Ending offset of the mesh from the spline, in component space. */
 	UPROPERTY(EditAnywhere, Category=SplineMesh, AdvancedDisplay)
@@ -93,11 +93,11 @@ struct FSplineMeshParams
 		, StartTangent(ForceInit)
 		, StartScale(ForceInit)
 		, StartRoll(0)
+		, EndRoll(0)
 		, StartOffset(ForceInit)
 		, EndPos(ForceInit)
 		, EndScale(ForceInit)
 		, EndTangent(ForceInit)
-		, EndRoll(0)
 		, EndOffset(ForceInit)
 		, NaniteClusterBoundsScale(1.0f)
 	{
@@ -130,6 +130,13 @@ class USplineMeshComponent : public UStaticMeshComponent, public IInterface_Coll
 	UPROPERTY()
 	FGuid CachedMeshBodySetupGuid;
 
+	/** 
+	* The max draw distance to use in the main pass when also rendering to a runtime virtual texture. 
+	* This is only exposed to the user through the same setting on ULandscapeSplineSegment. 
+	*/
+	UPROPERTY()
+	float VirtualTextureMainPassMaxDrawDistance = 0.f;
+
 	// Navigation bounds can differ from primitive bounds since NavCollision can hold more geometry
 	FBox CachedNavigationBounds;
 
@@ -140,6 +147,10 @@ class USplineMeshComponent : public UStaticMeshComponent, public IInterface_Coll
 	/** Maximum coordinate along the spline forward axis which corresponds to end of spline. If set to 0.0, will use bounding box to determine bounds */
 	UPROPERTY(EditAnywhere, Category = SplineMesh, AdvancedDisplay)
 	float SplineBoundaryMax;
+
+	/** Chooses the forward axis for the spline mesh orientation */
+	UPROPERTY(EditAnywhere, Category=SplineMesh)
+	TEnumAsByte<ESplineMeshAxis::Type> ForwardAxis;
 
 	/** If true, spline mesh properties - StartPos, EndPos, StartTangent and EndTangent- may be edited per instance in the level viewport. Otherwise, the spline mesh should be initialized in the construction script. */
 	UPROPERTY(EditDefaultsOnly, Category = Spline)
@@ -152,17 +163,6 @@ class USplineMeshComponent : public UStaticMeshComponent, public IInterface_Coll
 	// Indicates that the mesh needs updating
 	UPROPERTY(transient)
 	uint8 bMeshDirty : 1;
-
-	/** Chooses the forward axis for the spline mesh orientation */
-	UPROPERTY(EditAnywhere, Category=SplineMesh)
-	TEnumAsByte<ESplineMeshAxis::Type> ForwardAxis;
-
-	/** 
-	 * The max draw distance to use in the main pass when also rendering to a runtime virtual texture. 
-	 * This is only exposed to the user through the same setting on ULandscapeSplineSegment. 
-	 */
-	UPROPERTY()
-	float VirtualTextureMainPassMaxDrawDistance = 0.f;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(transient)
@@ -239,7 +239,7 @@ public:
 public:
 	ENGINE_API virtual class FStaticMeshStaticLightingMesh* AllocateStaticLightingMesh(int32 LODIndex, const TArray<ULightComponent*>& InRelevantLights) override;
 protected:
-	ENGINE_API virtual FPrimitiveSceneProxy* CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite) override;
+	ENGINE_API virtual FPrimitiveSceneProxy* CreateStaticMeshSceneProxy(::Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite) override;
 	//End UStaticMeshComponent Interface
 
 	//~ Begin Interface_CollisionDataProvider Interface

@@ -4,6 +4,8 @@
 LightGridInjection.cpp
 =============================================================================*/
 
+#include "LightGrid.h"
+
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
 #include "HAL/IConsoleManager.h"
@@ -17,6 +19,7 @@ LightGridInjection.cpp
 #include "SceneUtils.h"
 #include "PostProcess/SceneRenderTargets.h"
 #include "LightSceneInfo.h"
+#include "RectLightSceneProxy.h"
 #include "GlobalShader.h"
 #include "SceneRendering.h"
 #include "DeferredShadingRenderer.h"
@@ -32,7 +35,9 @@ LightGridInjection.cpp
 #include "ShaderPrint.h"
 #include "ShaderPrintParameters.h"
 #include "RenderUtils.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
+#include "LightGridDefinitions.h"
+#include "VolumetricFog.h"
 
 int32 GLightGridPixelSize = 64;
 FAutoConsoleVariableRef CVarLightGridPixelSize(
@@ -62,6 +67,30 @@ FAutoConsoleVariableRef CVarLightGridDebug(
 	ECVF_RenderThreadSafe
 );
 
+int32 GForwardLightGridDebugMaxThreshold = 8;
+FAutoConsoleVariableRef CVarLightGridDebugMaxThreshold(
+	TEXT("r.Forward.LightGridDebug.MaxThreshold"),
+	GForwardLightGridDebugMaxThreshold,
+	TEXT("Maximum light threshold for heat map visualization. (default = 8)\n"),
+	ECVF_RenderThreadSafe
+);
+
+int32 GLightGridHZBCull = 1;
+FAutoConsoleVariableRef CVarLightGridHZBCull(
+	TEXT("r.Forward.LightGridHZBCull"),
+	GLightGridHZBCull,
+	TEXT("Whether to use HZB culling to skip occluded grid cells."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+int32 GLightGridRefineRectLightBounds = 1;
+FAutoConsoleVariableRef CVarLightGridRefineRectLightBounds(
+	TEXT("r.Forward.LightGridDebug.RectLightBounds"),
+	GLightGridRefineRectLightBounds,
+	TEXT("Whether to refine rect light bounds (should only be disabled for debugging purposes)."),
+	ECVF_RenderThreadSafe
+);
+
 int32 GMaxCulledLightsPerCell = 32;
 FAutoConsoleVariableRef CVarMaxCulledLightsPerCell(
 	TEXT("r.Forward.MaxCulledLightsPerCell"),
@@ -88,6 +117,37 @@ FAutoConsoleVariableRef CVarLightCullingQuality(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLightCullingWorkloadDistributionMode(
+	TEXT("r.LightCulling.WorkloadDistributionMode"),
+	0,
+	TEXT("0 - single thread per cell.\n")
+	TEXT("1 - thread group per cell (64 threads).\n")
+	TEXT("2 - thread group per cell (32 threads if supported, otherwise single thread).\n")
+	TEXT("(This cvar only applies to fine light grid. When using two levels, coarse grid always uses thread group per cell."),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<bool> CVarLightCullingTwoLevel(
+	TEXT("r.LightCulling.TwoLevel"),
+	true,
+	TEXT("Whether to build light grid in two passes."),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarLightCullingTwoLevelThreshold(
+	TEXT("r.LightCulling.TwoLevel.Threshold"),
+	128,
+	TEXT("Threshold used to determine whether to use two level culling basedon the number of lights in view."),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarLightCullingTwoLevelExponent(
+	TEXT("r.LightCulling.TwoLevel.Exponent"),
+	2,
+	TEXT("Exponent used to derive the coarse grid size (base 2)."),
+	ECVF_RenderThreadSafe
+);
+
 float GLightCullingMaxDistanceOverrideKilometers = -1.0f;
 FAutoConsoleVariableRef CVarLightCullingMaxDistanceOverride(
 	TEXT("r.LightCulling.MaxDistanceOverrideKilometers"),
@@ -97,8 +157,6 @@ FAutoConsoleVariableRef CVarLightCullingMaxDistanceOverride(
 	TEXT(" >0: the far distance in kilometers.\n"),
 	ECVF_RenderThreadSafe
 );
-
-extern TAutoConsoleVariable<int32> CVarVirtualShadowOnePassProjection;
 
 bool ShouldVisualizeLightGrid()
 {
@@ -141,6 +199,8 @@ void SetupDummyForwardLightUniformParameters(FRDGBuilder& GraphBuilder, FForward
 	ForwardLightData.CulledLightDataGrid16Bit = CulledLightDataGridSRV;
 
 	ForwardLightData.LightFunctionAtlasLightIndex = 0;
+
+	ForwardLightData.bAffectsTranslucentLighting = 0;
 }
 
 TRDGUniformBufferRef<FForwardLightData> CreateDummyForwardLightUniformBuffer(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform)
@@ -178,16 +238,19 @@ typedef uint16 FLightIndexType;
 // UINT_MAX indexable light limit
 typedef uint32 FLightIndexType32;
 
-uint32 LightGridInjectionGroupSize = 4;
-
 
 class FLightGridInjectionCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FLightGridInjectionCS);
 	SHADER_USE_PARAMETER_STRUCT(FLightGridInjectionCS, FGlobalShader)
 public:
-	class FUseLinkedListDim : SHADER_PERMUTATION_BOOL("USE_LINKED_CULL_LIST");
-	using FPermutationDomain = TShaderPermutationDomain<FUseLinkedListDim>;
+	class FUseLinkedList : SHADER_PERMUTATION_BOOL("USE_LINKED_CULL_LIST");
+	class FRefineRectLightBounds : SHADER_PERMUTATION_BOOL("REFINE_RECTLIGHT_BOUNDS");
+	class FUseHZBCull : SHADER_PERMUTATION_BOOL("USE_HZB_CULL");
+	class FUseParentLightGrid : SHADER_PERMUTATION_BOOL("USE_PARENT_LIGHT_GRID");
+	class FUseThreadGroupPerCell : SHADER_PERMUTATION_BOOL("USE_THREAD_GROUP_PER_CELL");
+	class FUseThreadGroupSize32 : SHADER_PERMUTATION_BOOL("USE_THREAD_GROUP_SIZE_32");
+	using FPermutationDomain = TShaderPermutationDomain<FUseLinkedList, FRefineRectLightBounds, FUseHZBCull, FUseParentLightGrid, FUseThreadGroupPerCell, FUseThreadGroupSize32>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FReflectionCaptureShaderData, ReflectionCapture)
@@ -197,11 +260,11 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCulledLightDataGrid32Bit)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWCulledLightDataGrid16Bit)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWNextCulledLightLink)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWStartOffsetGrid)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWNextCulledLightData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCulledLightLinks)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightViewSpacePositionAndRadius)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightViewSpaceDirAndPreprocAngle)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, ForwardLocalLightBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightViewSpaceRectPlanes)
 
 		SHADER_PARAMETER(FIntVector, CulledGridSize)
 		SHADER_PARAMETER(uint32, NumReflectionCaptures)
@@ -209,7 +272,29 @@ public:
 		SHADER_PARAMETER(uint32, NumLocalLights)
 		SHADER_PARAMETER(uint32, NumGridCells)
 		SHADER_PARAMETER(uint32, MaxCulledLightsPerCell)
+		SHADER_PARAMETER(uint32, NumAvailableLinks)
 		SHADER_PARAMETER(uint32, LightGridPixelSizeShift)
+		SHADER_PARAMETER(uint32, MegaLightsSupportedStartIndex)
+
+		SHADER_PARAMETER(uint32, LightGridZSliceScale)
+		SHADER_PARAMETER(uint32, LightGridCullMarginXY)
+		SHADER_PARAMETER(uint32, LightGridCullMarginZ)
+		SHADER_PARAMETER(FVector3f, LightGridCullMarginZParams)
+		SHADER_PARAMETER(uint32, LightGridCullMaxZ)
+
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ParentNumCulledLightsGrid)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ParentCulledLightDataGrid32Bit)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ParentCulledLightDataGrid16Bit)
+		SHADER_PARAMETER(FIntVector, ParentGridSize)
+		SHADER_PARAMETER(uint32, NumParentGridCells)
+		SHADER_PARAMETER(uint32, ParentGridSizeFactor)
+
+		SHADER_PARAMETER(FVector2f, HZBSize)
+		SHADER_PARAMETER(FVector2f, HZBViewSize)
+		SHADER_PARAMETER(FIntRect, HZBViewRect)
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -217,58 +302,37 @@ public:
 		return true;
 	}
 
+	static FIntVector GetGroupSize(FPermutationDomain PermutationVector)
+	{
+		if (PermutationVector.Get<FUseThreadGroupSize32>())
+		{
+			return FIntVector(4, 4, 2);
+		}
+		else
+		{
+			return FIntVector(4, 4, 4);
+		}
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_LIGHT_GRID_INJECTION_CS"), 1);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), LightGridInjectionGroupSize);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("LIGHT_LINK_STRIDE"), LightLinkStride);
-		OutEnvironment.SetDefine(TEXT("ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA"), ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA);
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		FIntVector GroupSize = GetGroupSize(PermutationVector);
+
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GroupSize.X * GroupSize.Y * GroupSize.Z);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_X"), GroupSize.X);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_Y"), GroupSize.Y);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_Z"), GroupSize.Z);
 	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FLightGridInjectionCS, "/Engine/Private/LightGridInjection.usf", "LightGridInjectionCS", SF_Compute);
 
-
-class FLightGridCompactCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FLightGridCompactCS)
-	SHADER_USE_PARAMETER_STRUCT(FLightGridCompactCS, FGlobalShader)
-public:
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWNumCulledLightsGrid)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCulledLightDataGrid32Bit)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWCulledLightDataGrid16Bit)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWNextCulledLightData)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, StartOffsetGrid)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CulledLightLinks)
-
-		SHADER_PARAMETER(FIntVector, CulledGridSize)
-		SHADER_PARAMETER(uint32, NumReflectionCaptures)
-		SHADER_PARAMETER(uint32, NumLocalLights)
-		SHADER_PARAMETER(uint32, NumGridCells)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_LIGHT_GRID_COMPACT_CS"), 1);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), LightGridInjectionGroupSize);
-		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("LIGHT_LINK_STRIDE"), LightLinkStride);
-		OutEnvironment.SetDefine(TEXT("MAX_CAPTURES"), GetMaxNumReflectionCaptures(Parameters.Platform));
-		OutEnvironment.SetDefine(TEXT("ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA"), ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FLightGridCompactCS, "/Engine/Private/LightGridInjection.usf", "LightGridCompactCS", SF_Compute);
 
 /**
  */
@@ -304,9 +368,17 @@ FVector GetLightGridZParams(float NearPlane, float FarPlane)
 	return FVector(B, O, S);
 }
 
-static uint32 PackRG16(float In0, float In1)
+uint32 PackRG16(float In0, float In1)
 {
 	return uint32(FFloat16(In0).Encoded) | (uint32(FFloat16(In1).Encoded) << 16);
+}
+
+static uint32 PackRGB10(float In0, float In1, float In2)
+{
+	return 
+		(uint32(FMath::Clamp(In0 * 1023u, 0u, 1023u))      )|
+		(uint32(FMath::Clamp(In1 * 1023u, 0u, 1023u)) << 10)|
+		(uint32(FMath::Clamp(In2 * 1023u, 0u, 1023u)) << 20);
 }
 
 static FVector2f PackLightColor(const FVector3f& LightColor)
@@ -325,6 +397,19 @@ static FVector2f PackLightColor(const FVector3f& LightColor)
 	*(uint32*)(&LightColorPacked.Y) = LightColorDirPacked;
 
 	return LightColorPacked;
+}
+
+static uint32 PackVirtualShadowMapIdAndPrevLocalLightIndex(int32 VirtualShadowMapId, int32 PrevLocalLightIndex)
+{
+	// NOTE: Both of these could possibly be INDEX_NONE, which needs to be represented
+	// We map all negative numbers to 0, and add one to any positive ones
+	uint32 VSMPacked = VirtualShadowMapId < 0 ? 0 : uint32(VirtualShadowMapId + 1);
+	uint32 PrevPacked = PrevLocalLightIndex < 0 ? 0 : uint32(PrevLocalLightIndex + 1);
+
+	// Pack to 16 bits each
+	check(VSMPacked <= MAX_uint16);
+	check(PrevPacked <= MAX_uint16);
+	return (VSMPacked << 16) | (PrevPacked & 0xFFFF);
 }
 
 static void PackLocalLightData(
@@ -359,19 +444,24 @@ static void PackLocalLightData(
 	const uint32 RectPackedZ = FFloat16(-2.f).Encoded;
 
 	// Pack specular scale and IES profile index
-	const float SpecularScale = 1.f;
+	const float SpecularScale = SimpleLight.SpecularScale;
+	const float DiffuseScale  = SimpleLight.DiffuseScale;
 	const float IESAtlasIndex = INDEX_NONE;
-	const uint32 SpecularScaleAndIESData = PackRG16(SpecularScale, IESAtlasIndex);
+
+	// Offset IESAtlasIndex here in order to preserve INDEX_NONE = -1 after encoding
+	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(SpecularScale, DiffuseScale, (IESAtlasIndex + 1) * (1.f / 1023.f));
 
 	const FVector3f LightColor = (FVector3f)SimpleLight.Color * FLightRenderParameters::GetLightExposureScale(View.GetLastEyeAdaptationExposure(), SimpleLight.InverseExposureBlend);
 	const FVector2f LightColorPacked = PackLightColor(LightColor);
+
+	const uint32 VirtualShadowMapIdAndPrevLocalLightIndex = PackVirtualShadowMapIdAndPrevLocalLightIndex(INDEX_NONE, INDEX_NONE);
 
 	Out.LightPositionAndInvRadius							= FVector4f(LightTranslatedWorldPosition, 1.0f / FMath::Max(SimpleLight.Radius, KINDA_SMALL_NUMBER));
 	Out.LightColorAndIdAndFalloffExponent					= FVector4f(LightColorPacked.X, LightColorPacked.Y, INDEX_NONE, SimpleLight.Exponent);
 	Out.LightDirectionAndShadowMapChannelMask				= FVector4f(FVector3f(1, 0, 0), FMath::AsFloat(ShadowMapChannelMask));
 	Out.SpotAnglesAndSourceRadiusPacked						= FVector4f(-2, 1, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
-	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(1.0f, 0.0f, 0.0f, FMath::AsFloat(SpecularScaleAndIESData));
-	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), -1);
+	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(1.0f, 0.0f, 0.0f, FMath::AsFloat(SpecularScale_DiffuseScale_IESData));
+	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), FMath::AsFloat(VirtualShadowMapIdAndPrevLocalLightIndex));
 }
 
 static void PackLocalLightData(
@@ -382,7 +472,6 @@ static void PackLocalLightData(
 	const int32 LightSceneId,
 	const int32 VirtualShadowMapId,
 	const int32 PrevLocalLightIndex,
-	const bool bHandledByManyLights,
 	const float VolumetricScatteringIntensity)
 {
 	const FVector3f LightTranslatedWorldPosition(View.ViewMatrices.GetPreViewTranslation() + LightParameters.WorldPosition);
@@ -402,30 +491,232 @@ static void PackLocalLightData(
 	RectPackedZ |= uint32(FMath::Clamp(LightParameters.RectLightAtlasMaxLevel, 0.f, 63.f)) << 26;			//  6 bits
 
 	// Pack specular scale and IES profile index
-	const uint32 SpecularScaleAndIESData = PackRG16(LightParameters.SpecularScale, LightParameters.IESAtlasIndex); // pack atlas id here? 16bit specular 8bit IES and 8 bit LightFunction
+	// Offset IESAtlasIndex here in order to preserve INDEX_NONE = -1 after encoding
+	// IESAtlasIndex requires scaling because PackRGB10 expects inputs to be [0:1]
+	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(LightParameters.SpecularScale, LightParameters.DiffuseScale, (LightParameters.IESAtlasIndex + 1) * (1.f / 1023.f)); // pack atlas id here? 16bit specular 8bit IES and 8 bit LightFunction
 
 	const FVector2f LightColorPacked = PackLightColor(FVector3f(LightParameters.Color));
 
-	// Since lights don't use VSM and Many Lights simultaneously and
-	// currently PrevLocalLightIndex is only accessed by Many Lights shaders
-	// we can store only one of the values to avoid increasing the size of the struct
-	// TODO: Improve packing to avoid this so that PrevLocalLightIndex can be accessed in other shaders as well
-	const int32 VirtualShadowMapIdOrPrevLocalLightIndex = bHandledByManyLights ? PrevLocalLightIndex : VirtualShadowMapId;
+	const uint32 VirtualShadowMapIdAndPrevLocalLightIndex = 
+		PackVirtualShadowMapIdAndPrevLocalLightIndex(VirtualShadowMapId, PrevLocalLightIndex);
 
-	// NOTE: This cast of VirtualShadowMapIdOrPrevLocalLightIndex to float is not ideal, but bitcast has issues here with INDEX_NONE -> NaN
-	// and 32-bit floats have enough mantissa to cover all reasonable numbers here for now.
 	// NOTE: SpotAngles needs full-precision for VSM one pass projection
 	Out.LightPositionAndInvRadius							= FVector4f(LightTranslatedWorldPosition, LightParameters.InvRadius);
 	Out.LightColorAndIdAndFalloffExponent					= FVector4f(LightColorPacked.X, LightColorPacked.Y, LightSceneId, LightParameters.FalloffExponent);
 	Out.LightDirectionAndShadowMapChannelMask				= FVector4f(LightParameters.Direction, FMath::AsFloat(LightTypeAndShadowMapChannelMaskAndLightFunctionIndexPacked));
 	Out.SpotAnglesAndSourceRadiusPacked						= FVector4f(LightParameters.SpotAngles.X, LightParameters.SpotAngles.Y, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
-	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(LightParameters.Tangent, FMath::AsFloat(SpecularScaleAndIESData));
-	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), float(VirtualShadowMapIdOrPrevLocalLightIndex));
-
-	checkSlow(int32(Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex.W) == VirtualShadowMapIdOrPrevLocalLightIndex);
+	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(LightParameters.Tangent, FMath::AsFloat(SpecularScale_DiffuseScale_IESData));
+	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), FMath::AsFloat(VirtualShadowMapIdAndPrevLocalLightIndex));
 }
 
-FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuilder, bool bCullLightsToGrid, FSortedLightSetSceneInfo& SortedLightSet)
+static const uint32 NUM_PLANES_PER_RECT_LIGHT = 4;
+
+static void CalculateRectLightCullingPlanes(const FRectLightSceneProxy* RectProxy, TArray<FPlane, TInlineAllocator<NUM_PLANES_PER_RECT_LIGHT>>& OutPlanes)
+{
+	const float BarnMaxAngle = GetRectLightBarnDoorMaxAngle();
+	const float AngleRad = FMath::DegreesToRadians(FMath::Clamp(RectProxy->BarnDoorAngle, 0.f, BarnMaxAngle));
+
+	// horizontal barn doors
+	{
+		float HorizontalBarnExtent;
+		float HorizontalBarnDepth;
+		CalculateRectLightCullingBarnExtentAndDepth(RectProxy->SourceWidth, RectProxy->BarnDoorLength, AngleRad, RectProxy->Radius, HorizontalBarnExtent, HorizontalBarnDepth);
+
+		TStaticArray<FVector, 8> Corners;
+		CalculateRectLightBarnCorners(RectProxy->SourceWidth, RectProxy->SourceHeight, HorizontalBarnExtent, HorizontalBarnDepth, Corners);
+
+		OutPlanes.Add(FPlane(Corners[1], Corners[0], Corners[3])); // right
+		OutPlanes.Add(FPlane(Corners[5], Corners[7], Corners[4])); // left
+	}
+	
+	// vertical barn doors
+	{
+		float VerticalBarnExtent;
+		float VerticalBarnDepth;
+		CalculateRectLightCullingBarnExtentAndDepth(RectProxy->SourceHeight, RectProxy->BarnDoorLength, AngleRad, RectProxy->Radius, VerticalBarnExtent, VerticalBarnDepth);
+
+		TStaticArray<FVector, 8> Corners;
+		CalculateRectLightBarnCorners(RectProxy->SourceWidth, RectProxy->SourceHeight, VerticalBarnExtent, VerticalBarnDepth, Corners);
+
+		OutPlanes.Add(FPlane(Corners[4], Corners[6], Corners[0])); // top
+		OutPlanes.Add(FPlane(Corners[1], Corners[3], Corners[5])); // bottom
+	}
+
+	check(OutPlanes.Num() == NUM_PLANES_PER_RECT_LIGHT);
+}
+
+struct FLightGrid
+{
+	FRDGBufferSRVRef CulledLightDataGridSRV = nullptr;
+	FRDGBufferSRVRef NumCulledLightsGridSRV = nullptr;
+};
+
+FLightGrid LightGridInjection(
+	FRDGBuilder& GraphBuilder,
+	FViewInfo& View,
+	FIntVector GridSize,
+	uint32 LightGridPixelSizeShift,
+	uint32 ZSliceScale,
+	uint32 MaxNumCells,
+	FVector3f ZParams,
+	uint32 LightGridCullMarginXY,
+	uint32 LightGridCullMarginZ,
+	FVector3f LightGridCullMarginZParams,
+	uint32 LightGridCullMaxZ,
+	uint32 NumLocalLights,
+	uint32 NumReflectionCaptures,
+	uint32 MegaLightsSupportedStartIndex,
+	bool bUse16BitBuffers,
+	bool bRefineRectLightBounds,
+	FRDGBufferSRVRef LightViewSpacePositionAndRadiusSRV,
+	FRDGBufferSRVRef LightViewSpaceDirAndPreprocAngleSRV,
+	FRDGBufferSRVRef LightViewSpaceRectPlanesSRV,
+	FLightGridViewState* LightGridViewState,
+	bool bThreadGroupPerCell,
+	bool bThreadGroupSize32,
+	// parent params
+	FRDGBufferSRVRef ParentNumCulledLightsGridSRV,
+	FRDGBufferSRVRef ParentCulledLightDataGridSRV,
+	uint32 ParentGridSizeFactor)
+{
+	const uint32 NumCulledLightEntries = MaxNumCells * GMaxCulledLightsPerCell;
+
+	uint32 NumCulledLightLinks = MaxNumCells * GMaxCulledLightsPerCell;
+	
+	if (bThreadGroupPerCell)
+	{
+		ensureMsgf(NumLocalLights <= LIGHT_GRID_CELL_WRITER_MAX_NUM_PRIMITIVES, TEXT("NumLocalLights limited to 16M by FCellWriter."));
+		ensureMsgf(NumReflectionCaptures <= LIGHT_GRID_CELL_WRITER_MAX_NUM_PRIMITIVES, TEXT("NumLocalLights limited to 16M by FCellWriter."));
+
+		NumCulledLightLinks = FMath::Min(NumCulledLightLinks, (uint32)LIGHT_GRID_CELL_WRITER_MAX_NUM_LINKS); // limited to 16M by FCellWriter (will cause warning if exceeded, see FLightGridViewState::Update())
+	}
+
+	const FIntVector ParentGridSize = FIntVector::DivideAndRoundUp(GridSize, ParentGridSizeFactor);
+
+	FRDGBufferRef CulledLightLinksBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumCulledLightLinks * LightLinkStride), TEXT("CulledLightLinks"));
+	FRDGBufferRef NextCulledLightLinkBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("NextCulledLightLink"));
+	FRDGBufferRef NextCulledLightDataBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("NextCulledLightData"));
+	FRDGBufferUAVRef NextCulledLightDataUAV = GraphBuilder.CreateUAV(NextCulledLightDataBuffer);
+	FRDGBufferRef NumCulledLightsGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxNumCells * NumCulledLightsGridStride), TEXT("NumCulledLightsGrid"));
+	FRDGBufferUAVRef NumCulledLightsGridUAV = GraphBuilder.CreateUAV(NumCulledLightsGrid);
+
+	FRDGBufferSRVRef CulledLightDataGridSRV;
+	FRDGBufferUAVRef CulledLightDataGridUAV;
+	if (bUse16BitBuffers)
+	{
+		const SIZE_T LightIndexTypeSize = sizeof(FLightIndexType);
+		const EPixelFormat CulledLightDataGridFormat = PF_R16_UINT;
+		FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(LightIndexTypeSize, NumCulledLightEntries), TEXT("CulledLightDataGrid"));
+		CulledLightDataGridSRV = GraphBuilder.CreateSRV(CulledLightDataGrid, CulledLightDataGridFormat);
+		CulledLightDataGridUAV = GraphBuilder.CreateUAV(CulledLightDataGrid, CulledLightDataGridFormat);
+	}
+	else
+	{
+		const SIZE_T LightIndexTypeSize = sizeof(FLightIndexType32);
+		const EPixelFormat CulledLightDataGridFormat = PF_R32_UINT;
+		FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(LightIndexTypeSize, NumCulledLightEntries), TEXT("CulledLightDataGrid"));
+		CulledLightDataGridSRV = GraphBuilder.CreateSRV(CulledLightDataGrid);
+		CulledLightDataGridUAV = GraphBuilder.CreateUAV(CulledLightDataGrid);
+	}
+
+	FLightGridInjectionCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLightGridInjectionCS::FParameters>();
+
+	PassParameters->View = View.ViewUniformBuffer;
+
+	if (IsMobilePlatform(View.GetShaderPlatform()))
+	{
+		PassParameters->MobileReflectionCaptureData = View.MobileReflectionCaptureUniformBuffer;
+	}
+	else
+	{
+		PassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
+	}
+
+	PassParameters->RWNumCulledLightsGrid = NumCulledLightsGridUAV;
+	PassParameters->RWCulledLightDataGrid32Bit = CulledLightDataGridUAV;
+	PassParameters->RWCulledLightDataGrid16Bit = CulledLightDataGridUAV;
+	PassParameters->RWNextCulledLightLink = GraphBuilder.CreateUAV(NextCulledLightLinkBuffer);
+	PassParameters->RWNextCulledLightData = NextCulledLightDataUAV;
+	PassParameters->RWCulledLightLinks = GraphBuilder.CreateUAV(CulledLightLinksBuffer);
+	PassParameters->CulledGridSize = GridSize;
+	PassParameters->LightGridZParams = ZParams;
+	PassParameters->NumReflectionCaptures = NumReflectionCaptures;
+	PassParameters->NumLocalLights = NumLocalLights;
+	PassParameters->MaxCulledLightsPerCell = GMaxCulledLightsPerCell;
+	PassParameters->NumAvailableLinks = NumCulledLightLinks;
+	PassParameters->NumGridCells = GridSize.X * GridSize.Y * GridSize.Z;
+	PassParameters->LightGridPixelSizeShift = LightGridPixelSizeShift;
+	PassParameters->LightGridZSliceScale = ZSliceScale;
+	PassParameters->LightGridCullMarginXY = LightGridCullMarginXY;
+	PassParameters->LightGridCullMarginZ = LightGridCullMarginZ;
+	PassParameters->LightGridCullMarginZParams = LightGridCullMarginZParams;
+	PassParameters->LightGridCullMaxZ = LightGridCullMaxZ;
+	PassParameters->MegaLightsSupportedStartIndex = MegaLightsSupportedStartIndex;
+
+	PassParameters->ParentNumCulledLightsGrid = ParentNumCulledLightsGridSRV;
+	PassParameters->ParentCulledLightDataGrid32Bit = ParentCulledLightDataGridSRV;
+	PassParameters->ParentCulledLightDataGrid16Bit = ParentCulledLightDataGridSRV;
+	PassParameters->ParentGridSize = ParentGridSize;
+	PassParameters->NumParentGridCells = ParentGridSize.X * ParentGridSize.Y * ParentGridSize.Z;
+	PassParameters->ParentGridSizeFactor = ParentGridSizeFactor;
+
+	PassParameters->LightViewSpacePositionAndRadius = LightViewSpacePositionAndRadiusSRV;
+	PassParameters->LightViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngleSRV;
+	PassParameters->LightViewSpaceRectPlanes = LightViewSpaceRectPlanesSRV;
+
+	{
+		PassParameters->HZBTexture = View.HZB;
+		PassParameters->HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
+		PassParameters->HZBSize = FVector2f(View.HZBMipmap0Size);
+		PassParameters->HZBViewSize = FVector2f(View.ViewRect.Size());
+		PassParameters->HZBViewRect = FIntRect(0, 0, View.ViewRect.Width(), View.ViewRect.Height());
+	}
+
+	FLightGridInjectionCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FLightGridInjectionCS::FUseLinkedList>(GLightLinkedListCulling != 0);
+	PermutationVector.Set<FLightGridInjectionCS::FRefineRectLightBounds>(bRefineRectLightBounds);
+	PermutationVector.Set<FLightGridInjectionCS::FUseHZBCull>(GLightGridHZBCull != 0 && View.HZB != nullptr);
+	PermutationVector.Set<FLightGridInjectionCS::FUseParentLightGrid>(ParentNumCulledLightsGridSRV != nullptr && ParentCulledLightDataGridSRV != nullptr);
+	PermutationVector.Set<FLightGridInjectionCS::FUseThreadGroupPerCell>(bThreadGroupPerCell);
+	PermutationVector.Set<FLightGridInjectionCS::FUseThreadGroupSize32>(bThreadGroupSize32);
+	auto ComputeShader = View.ShaderMap->GetShader<FLightGridInjectionCS>(PermutationVector);
+
+	AddClearUAVPass(GraphBuilder, PassParameters->RWNextCulledLightLink, 0);
+	AddClearUAVPass(GraphBuilder, NextCulledLightDataUAV, 0);
+	AddClearUAVPass(GraphBuilder, NumCulledLightsGridUAV, 0);
+
+	FIntVector NumGroups;
+	if (bThreadGroupPerCell)
+	{
+		NumGroups = GridSize;
+	}
+	else
+	{
+		NumGroups = FComputeShaderUtils::GetGroupCount(GridSize, FLightGridInjectionCS::GetGroupSize(PermutationVector));
+	}
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("LightGridInject %s %s",
+			PermutationVector.Get<FLightGridInjectionCS::FUseLinkedList>() ? TEXT("LinkedList") : TEXT("NoLinkedList"),
+			PermutationVector.Get<FLightGridInjectionCS::FUseThreadGroupPerCell>() ? TEXT("ThreadGroup") : TEXT("SingleThread")),
+		ComputeShader,
+		PassParameters,
+		NumGroups);
+
+	FLightGrid Output;
+	Output.CulledLightDataGridSRV = CulledLightDataGridSRV;
+	Output.NumCulledLightsGridSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(NumCulledLightsGrid));
+
+	if (LightGridViewState != nullptr)
+	{
+		LightGridViewState->FeedbackStatus(GraphBuilder, View, NextCulledLightDataBuffer, NumCulledLightEntries, NextCulledLightLinkBuffer, NumCulledLightLinks);
+	}
+
+	return Output;
+}
+
+FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuilder, bool bCullLightsToGrid, const FSortedLightSetSceneInfo& SortedLightSet)
 {
 	FComputeLightGridOutput Result = {};
 
@@ -435,10 +726,10 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 	const bool bAllowStaticLighting = IsStaticLightingAllowed();
 	const bool bLightGridUses16BitBuffers = LightGridUses16BitBuffers(ShaderPlatform);
+	const bool bRenderRectLightsAsSpotLights = RenderRectLightsAsSpotLights(FeatureLevel);
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	TArray<FForwardLightData*, TInlineAllocator<4>> ForwardLightDataPerView;
 #if WITH_EDITOR
 	bool bMultipleDirLightsConflictForForwardShading = false;
 #endif
@@ -455,10 +746,10 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 		TArray<FForwardLocalLightData, SceneRenderingAllocator> ForwardLocalLightData;
 		TArray<int32, SceneRenderingAllocator>  LocalLightVisibleLightInfosIndex;
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+
 		TArray<FVector4f, SceneRenderingAllocator> ViewSpacePosAndRadiusData;
 		TArray<FVector4f, SceneRenderingAllocator> ViewSpaceDirAndPreprocAngleData;
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+		TArray<FVector4f, SceneRenderingAllocator> ViewSpaceRectPlanesData;
 
 		float FurthestLight = 1000;
 
@@ -467,7 +758,10 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		// Track the end markers for different types
 		int32 SimpleLightsEnd = 0;
 		int32 ClusteredSupportedEnd = 0;
-		int32 ManyLightsSupportedStart = 0;
+		int32 MegaLightsSupportedStart = 0;
+
+		bool bHasRectLights = false;
+		bool bHasTexturedLights = false;
 
 		const float Exposure = View.GetLastEyeAdaptationExposure();
 
@@ -480,10 +774,10 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			{
 				ForwardLocalLightData.Reserve(SimpleLightsEnd);
 				LocalLightVisibleLightInfosIndex.Reserve(SimpleLightsEnd);
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+
 				ViewSpacePosAndRadiusData.Reserve(SimpleLightsEnd);
 				ViewSpaceDirAndPreprocAngleData.Reserve(SimpleLightsEnd);
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+				ViewSpaceRectPlanesData.Reserve(SimpleLightsEnd * NUM_PLANES_PER_RECT_LIGHT);
 
 				const FSimpleLightArray& SimpleLights = SortedLightSet.SimpleLights;
 
@@ -514,19 +808,19 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 					const FSimpleLightPerViewEntry& SimpleLightPerViewData = SimpleLights.GetViewDependentData(SimpleLightIndex, ViewIndex, Views.Num());
 					PackLocalLightData(LightData, View, SimpleLight, SimpleLightPerViewData);
 
-				#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
 					FVector4f ViewSpacePosAndRadius(FVector4f(View.ViewMatrices.GetViewMatrix().TransformPosition(SimpleLightPerViewData.Position)), SimpleLight.Radius);
 					ViewSpacePosAndRadiusData.Add(ViewSpacePosAndRadius);
 					ViewSpaceDirAndPreprocAngleData.AddZeroed();
-				#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+					ViewSpaceRectPlanesData.AddZeroed(NUM_PLANES_PER_RECT_LIGHT);
 				}
 			}
 
+			const uint32 LightShaderParameterFlags = bRenderRectLightsAsSpotLights ? ELightShaderParameterFlags::RectAsSpotLight : 0u;
 			float SelectedForwardDirectionalLightIntensitySq = 0.0f;
 			int32 SelectedForwardDirectionalLightPriority = -1;
 			const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
 			ClusteredSupportedEnd = SimpleLightsEnd;
-			ManyLightsSupportedStart = MAX_int32;
+			MegaLightsSupportedStart = MAX_int32;
 			// Next add all the other lights, track the end index for clustered supporting lights
 			for (int32 SortedIndex = SimpleLightsEnd; SortedIndex < SortedLights.Num(); ++SortedIndex)
 			{
@@ -537,7 +831,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 				if (LightSceneInfo->ShouldRenderLight(View))
 				{
 					FLightRenderParameters LightParameters;
-					LightProxy->GetLightShaderParameters(LightParameters);
+					LightProxy->GetLightShaderParameters(LightParameters, LightShaderParameterFlags);
 
 					if (LightProxy->IsInverseSquared())
 					{
@@ -576,16 +870,16 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ClusteredSupportedEnd = FMath::Max(ClusteredSupportedEnd, ForwardLocalLightData.Num());
 						}
 
-						if (SortedLightInfo.SortKey.Fields.bHandledByManyLights && ManyLightsSupportedStart == MAX_int32)
+						if (SortedLightInfo.SortKey.Fields.bHandledByMegaLights && MegaLightsSupportedStart == MAX_int32)
 						{
-							ManyLightsSupportedStart = ForwardLocalLightData.Num() - 1;
+							MegaLightsSupportedStart = ForwardLocalLightData.Num() - 1;
 						}
 						const float LightFade = GetLightFadeFactor(View, LightProxy);
 						LightParameters.Color *= LightFade;
 						LightParameters.Color *= LightParameters.GetLightExposureScale(Exposure);
 
 						float VolumetricScatteringIntensity = LightProxy->GetVolumetricScatteringIntensity();
-						if (LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(View, LightSceneInfo, VisibleLightInfos[LightSceneInfo->Id]))
+						if (LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(View, LightSceneInfo, VisibleLightInfos[LightSceneInfo->Id], *Scene))
 						{
 							// Disable this lights forward shading volumetric scattering contribution
 							VolumetricScatteringIntensity = 0;
@@ -599,23 +893,49 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							LightSceneInfo->Id,
 							VirtualShadowMapId,
 							PrevLocalLightIndex,
-							SortedLightInfo.SortKey.Fields.bHandledByManyLights,
 							VolumetricScatteringIntensity);
 
 						const FSphere BoundingSphere = LightProxy->GetBoundingSphere();
 						const float Distance = View.ViewMatrices.GetViewMatrix().TransformPosition(BoundingSphere.Center).Z + BoundingSphere.W;
 						FurthestLight = FMath::Max(FurthestLight, Distance);
 
-					#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-						// Note: inverting radius twice seems stupid (but done in shader anyway otherwise)
 						const FVector3f LightViewPosition = FVector4f(View.ViewMatrices.GetViewMatrix().TransformPosition(LightParameters.WorldPosition)); // LWC_TODO: precision loss
+						const FVector3f LightViewDirection = FVector4f(View.ViewMatrices.GetViewMatrix().TransformVector((FVector)LightParameters.Direction)); // LWC_TODO: precision loss
+
+						// Note: inverting radius twice seems stupid (but done in shader anyway otherwise)
 						FVector4f ViewSpacePosAndRadius(LightViewPosition, 1.0f / LightParameters.InvRadius);
 						ViewSpacePosAndRadiusData.Add(ViewSpacePosAndRadius);
 
-						const float PreProcAngle = SortedLightInfo.SortKey.Fields.LightType == LightType_Spot ? GetTanRadAngleOrZero(LightSceneInfo->Proxy->GetOuterConeAngle()) : 0.0f;
-						FVector4f ViewSpaceDirAndPreprocAngle(FVector4f(View.ViewMatrices.GetViewMatrix().TransformVector((FVector)LightParameters.Direction)), PreProcAngle); // LWC_TODO: precision loss
-						ViewSpaceDirAndPreprocAngleData.Add(ViewSpaceDirAndPreprocAngle);
-					#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+						const bool bIsRectLight = !bRenderRectLightsAsSpotLights && LightProxy->IsRectLight();
+						const bool bUseTightRectLightCulling = bIsRectLight && LightParameters.RectLightBarnLength > 0.5f && LightParameters.RectLightBarnCosAngle > FMath::Cos(FMath::DegreesToRadians(GetRectLightBarnDoorMaxAngle()));
+
+						// Pack flags in the LSB of PreProcAngle
+						const float PreProcAngle = SortedLightInfo.SortKey.Fields.LightType == LightType_Spot ? GetTanRadAngleOrZero(LightProxy->GetOuterConeAngle()) : 0.0f;
+						const uint32 PackedPreProcAngleAndFlags = (FMath::AsUInt(PreProcAngle) & 0xFFFFFFF8) | (LightProxy->HasSourceTexture() ? 0x4 : 0) | (bUseTightRectLightCulling ? 0x2 : 0) | (bIsRectLight ? 0x1 : 0);
+						FVector4f ViewSpaceDirAndPreprocAngleAndFlags(LightViewDirection, FMath::AsFloat(PackedPreProcAngleAndFlags)); // LWC_TODO: precision loss
+						ViewSpaceDirAndPreprocAngleData.Add(ViewSpaceDirAndPreprocAngleAndFlags);
+
+						if (bUseTightRectLightCulling)
+						{
+							const FRectLightSceneProxy* RectProxy = (const FRectLightSceneProxy*)LightProxy;
+
+							TArray<FPlane, TInlineAllocator<NUM_PLANES_PER_RECT_LIGHT>> Planes;
+
+							CalculateRectLightCullingPlanes(RectProxy, Planes);
+
+							for (FPlane& Plane : Planes)
+							{
+								const FPlane4f ViewPlane(Plane.TransformBy(LightProxy->GetLightToWorld() * View.ViewMatrices.GetViewMatrix()));
+								ViewSpaceRectPlanesData.Add(FVector4f(FVector3f(ViewPlane), -ViewPlane.W));
+							}
+						}
+						else
+						{
+							ViewSpaceRectPlanesData.AddZeroed(NUM_PLANES_PER_RECT_LIGHT);
+						}
+
+						bHasRectLights |= bIsRectLight;
+						bHasTexturedLights |= LightProxy->HasSourceTexture();
 					}
 					// On mobile there is a separate FMobileDirectionalLightShaderParameters UB which holds all directional light data.
 					else if (SortedLightInfo.SortKey.Fields.LightType == LightType_Directional && ViewFamily.EngineShowFlags.DirectionalLights && !IsMobilePlatform(View.GetShaderPlatform()))
@@ -648,14 +968,15 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ForwardLightData->HasDirectionalLight = 1;
 							ForwardLightData->DirectionalLightColor = FVector3f(LightParameters.Color);
 							ForwardLightData->DirectionalLightVolumetricScatteringIntensity = LightProxy->GetVolumetricScatteringIntensity();
-							ForwardLightData->DirectionalLightSpecularScale = LightProxy->GetSpecularScale();
+							ForwardLightData->DirectionalLightSpecularScale = FMath::Clamp(LightProxy->GetSpecularScale(), 0.f, 1.f);
+							ForwardLightData->DirectionalLightDiffuseScale = FMath::Clamp(LightProxy->GetDiffuseScale(), 0.f, 1.f);
 							ForwardLightData->DirectionalLightDirection = LightParameters.Direction;
 							ForwardLightData->DirectionalLightSourceRadius = LightParameters.SourceRadius;
 							ForwardLightData->DirectionalLightSoftSourceRadius = LightParameters.SoftSourceRadius;
 							ForwardLightData->DirectionalLightShadowMapChannelMask = LightTypeAndShadowMapChannelMaskPacked;
 							ForwardLightData->DirectionalLightVSM = INDEX_NONE;
-							ForwardLightData->DirectionalLightSMRTSettings = GetVirtualShadowMapSMRTSettings(true);
 							ForwardLightData->LightFunctionAtlasLightIndex = LightParameters.LightFunctionAtlasLightIndex;
+							ForwardLightData->bAffectsTranslucentLighting = LightParameters.bAffectsTranslucentLighting;
 
 							const FVector2D FadeParams = LightProxy->GetDirectionalLightDistanceFadeParameters(View.GetFeatureLevel(), LightSceneInfo->IsPrecomputedLightingValid(), View.MaxShadowCascades);
 
@@ -750,6 +1071,9 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 		View.ForwardLightingResources.LocalLightVisibleLightInfosIndex = LocalLightVisibleLightInfosIndex;
 
+		View.bLightGridHasRectLights = bHasRectLights;
+		View.bLightGridHasTexturedLights = bHasTexturedLights;
+
 		const FIntPoint LightGridSizeXY = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), GLightGridPixelSize);
 		ForwardLightData->ForwardLocalLightBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(ForwardLocalLightBuffer));
 		ForwardLightData->NumLocalLights = NumLocalLightsFinal;
@@ -760,7 +1084,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		ForwardLightData->LightGridPixelSizeShift = FMath::FloorLog2(GLightGridPixelSize);
 		ForwardLightData->SimpleLightsEndIndex = SimpleLightsEnd;
 		ForwardLightData->ClusteredDeferredSupportedEndIndex = ClusteredSupportedEnd;
-		ForwardLightData->ManyLightsSupportedStartIndex = FMath::Min<int32>(ManyLightsSupportedStart, NumLocalLightsFinal);
+		ForwardLightData->MegaLightsSupportedStartIndex = FMath::Min<int32>(MegaLightsSupportedStart, NumLocalLightsFinal);
 		ForwardLightData->DirectLightingShowFlag = ViewFamily.EngineShowFlags.DirectLighting ? 1 : 0;
 
 		// Clamp far plane to something reasonable
@@ -783,149 +1107,127 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			}
 		}
 
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-		// Fuse these loops as I see no reason why not and we build some temporary data that is needed in the build pass and is 
-		// not needed to be stored permanently.
-#else // !ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+		check(ViewSpacePosAndRadiusData.Num() == ForwardLocalLightData.Num());
+		check(ViewSpaceDirAndPreprocAngleData.Num() == ForwardLocalLightData.Num());
+		check(ViewSpaceRectPlanesData.Num() == ForwardLocalLightData.Num() * NUM_PLANES_PER_RECT_LIGHT);
 
-		ForwardLightDataPerView.Emplace(ForwardLightData);
-	}
+		FRDGBufferRef LightViewSpacePositionAndRadius = CreateStructuredBuffer(GraphBuilder, TEXT("ViewSpacePosAndRadiusData"), TConstArrayView<FVector4f>(ViewSpacePosAndRadiusData));
+		FRDGBufferRef LightViewSpaceDirAndPreprocAngle = CreateStructuredBuffer(GraphBuilder, TEXT("ViewSpaceDirAndPreprocAngleData"), TConstArrayView<FVector4f>(ViewSpaceDirAndPreprocAngleData));
+		FRDGBufferRef LightViewSpaceRectPlanes = CreateStructuredBuffer(GraphBuilder, TEXT("ViewSpaceRectPlanesData"), TConstArrayView<FVector4f>(ViewSpaceRectPlanesData));
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-	{
-		const FViewInfo& View = Views[ViewIndex];
-		FForwardLightData* ForwardLightData = ForwardLightDataPerView[ViewIndex];
-
-		const FIntPoint LightGridSizeXY = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), GLightGridPixelSize);
-
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+		FRDGBufferSRVRef LightViewSpacePositionAndRadiusSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpacePositionAndRadius));
+		FRDGBufferSRVRef LightViewSpaceDirAndPreprocAngleSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpaceDirAndPreprocAngle));
+		FRDGBufferSRVRef LightViewSpaceRectPlanesSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpaceRectPlanes));
 
 		// Allocate buffers using the scene render targets size so we won't reallocate every frame with dynamic resolution
 		const FIntPoint MaxLightGridSizeXY = FIntPoint::DivideAndRoundUp(View.GetSceneTexturesConfig().Extent, GLightGridPixelSize);
 
 		const int32 MaxNumCells = MaxLightGridSizeXY.X * MaxLightGridSizeXY.Y * GLightGridSizeZ * NumCulledGridPrimitiveTypes;
 
-		const FIntVector NumGroups = FIntVector::DivideAndRoundUp(FIntVector(LightGridSizeXY.X, LightGridSizeXY.Y, GLightGridSizeZ), LightGridInjectionGroupSize);
-
+		uint32 LightGridCullMarginXY = MegaLights::IsEnabled(ViewFamily) ? MegaLights::GetSampleMargin() : 0;
+		uint32 LightGridCullMarginZ = 0;
+		FVector3f LightGridCullMarginZParams = FVector3f::ZeroVector;
+		uint32 LightGridCullMaxZ = 0;
+		if (ShouldRenderVolumetricFog())
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "CullLights %ux%ux%u NumLights %u NumCaptures %u",
-				ForwardLightData->CulledGridSize.X,
-				ForwardLightData->CulledGridSize.Y,
-				ForwardLightData->CulledGridSize.Z,
-				ForwardLightData->NumLocalLights,
-				ForwardLightData->NumReflectionCaptures);
+			uint32 MarginInVolumetricFogGridCells = 1 + (MegaLights::IsEnabled(ViewFamily) && MegaLights::UseVolume() ? MegaLights::GetSampleMargin() : 0);
+			LightGridCullMarginXY = MarginInVolumetricFogGridCells * GetVolumetricFogGridPixelSize();
+			LightGridCullMarginZ = MarginInVolumetricFogGridCells;
 
-			const uint32 CulledLightLinksElements = MaxNumCells * GMaxCulledLightsPerCell * LightLinkStride;
-
-
-			FRDGBufferRef CulledLightLinksBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), CulledLightLinksElements), TEXT("CulledLightLinks"));
-			FRDGBufferRef StartOffsetGridBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxNumCells), TEXT("StartOffsetGrid"));
-			FRDGBufferRef NextCulledLightLinkBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("NextCulledLightLink"));
-			FRDGBufferRef NextCulledLightDataBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("NextCulledLightData"));
-			FRDGBufferUAVRef NextCulledLightDataUAV = GraphBuilder.CreateUAV(NextCulledLightDataBuffer);
-			FRDGBufferSRVRef CulledLightDataGridSRV = nullptr;
-			FRDGBufferUAVRef CulledLightDataGridUAV = nullptr;
-			FRDGBufferRef NumCulledLightsGrid       = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), MaxNumCells * NumCulledLightsGridStride), TEXT("NumCulledLightsGrid"));
-			FRDGBufferUAVRef NumCulledLightsGridUAV = GraphBuilder.CreateUAV(NumCulledLightsGrid);
-
-			if (bLightGridUses16BitBuffers)
-			{
-				const SIZE_T LightIndexTypeSize = sizeof(FLightIndexType);
-				const EPixelFormat CulledLightDataGridFormat = PF_R16_UINT;
-				FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(LightIndexTypeSize, MaxNumCells * GMaxCulledLightsPerCell), TEXT("CulledLightDataGrid"));
-				CulledLightDataGridSRV = GraphBuilder.CreateSRV(CulledLightDataGrid, CulledLightDataGridFormat);
-				CulledLightDataGridUAV = GraphBuilder.CreateUAV(CulledLightDataGrid, CulledLightDataGridFormat);
-			}
-			else
-			{
-				const SIZE_T LightIndexTypeSize = sizeof(FLightIndexType32);
-				const EPixelFormat CulledLightDataGridFormat = PF_R32_UINT;
-				FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(LightIndexTypeSize, MaxNumCells * GMaxCulledLightsPerCell), TEXT("CulledLightDataGrid"));
-				CulledLightDataGridSRV = GraphBuilder.CreateSRV(CulledLightDataGrid);
-				CulledLightDataGridUAV = GraphBuilder.CreateUAV(CulledLightDataGrid);
-			}
-
-			FLightGridInjectionCS::FParameters *PassParameters = GraphBuilder.AllocParameters<FLightGridInjectionCS::FParameters>();
-
-			PassParameters->View                    = View.ViewUniformBuffer;
-			
-			if (IsMobilePlatform(View.GetShaderPlatform()))
-			{
-				PassParameters->MobileReflectionCaptureData = View.MobileReflectionCaptureUniformBuffer;
-			}
-			else
-			{
-				PassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
-			}
-
-			PassParameters->RWNumCulledLightsGrid   = NumCulledLightsGridUAV;
-			PassParameters->RWCulledLightDataGrid32Bit   = CulledLightDataGridUAV;
-			PassParameters->RWCulledLightDataGrid16Bit = CulledLightDataGridUAV;
-			PassParameters->RWNextCulledLightLink   = GraphBuilder.CreateUAV(NextCulledLightLinkBuffer);
-			PassParameters->RWStartOffsetGrid       = GraphBuilder.CreateUAV(StartOffsetGridBuffer);
-			PassParameters->RWCulledLightLinks      = GraphBuilder.CreateUAV(CulledLightLinksBuffer);
-			PassParameters->ForwardLocalLightBuffer = ForwardLightData->ForwardLocalLightBuffer;
-			PassParameters->CulledGridSize          = ForwardLightData->CulledGridSize;
-			PassParameters->LightGridZParams        = ForwardLightData->LightGridZParams;
-			PassParameters->NumReflectionCaptures   = ForwardLightData->NumReflectionCaptures;
-			PassParameters->NumLocalLights          = ForwardLightData->NumLocalLights;
-			PassParameters->MaxCulledLightsPerCell  = GMaxCulledLightsPerCell;
-			PassParameters->NumGridCells            = ForwardLightData->NumGridCells;
-			PassParameters->LightGridPixelSizeShift = ForwardLightData->LightGridPixelSizeShift;
-
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-			check(ViewSpacePosAndRadiusData.Num() == ForwardLocalLightData.Num());
-			check(ViewSpaceDirAndPreprocAngleData.Num() == ForwardLocalLightData.Num());
-
-			FRDGBufferRef LightViewSpacePositionAndRadius  = CreateStructuredBuffer(GraphBuilder, TEXT("ViewSpacePosAndRadiusData"), TConstArrayView<FVector4f>(ViewSpacePosAndRadiusData));
-			FRDGBufferRef LightViewSpaceDirAndPreprocAngle = CreateStructuredBuffer(GraphBuilder, TEXT("ViewSpacePosAndRadiusData"), TConstArrayView<FVector4f>(ViewSpaceDirAndPreprocAngleData));
-
-			PassParameters->LightViewSpacePositionAndRadius  = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpacePositionAndRadius));
-			PassParameters->LightViewSpaceDirAndPreprocAngle = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(LightViewSpaceDirAndPreprocAngle));
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-
-			FLightGridInjectionCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FLightGridInjectionCS::FUseLinkedListDim>(GLightLinkedListCulling != 0);
-			TShaderMapRef<FLightGridInjectionCS> ComputeShader(View.ShaderMap, PermutationVector);
-
-			if (GLightLinkedListCulling != 0)
-			{
-				AddClearUAVPass(GraphBuilder, PassParameters->RWStartOffsetGrid, 0xFFFFFFFF);
-				AddClearUAVPass(GraphBuilder, PassParameters->RWNextCulledLightLink, 0);
-				AddClearUAVPass(GraphBuilder, NextCulledLightDataUAV, 0);
-				AddClearUAVPass(GraphBuilder, NumCulledLightsGridUAV, 0);
-				FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("LightGridInject:LinkedList"), ComputeShader, PassParameters, NumGroups);
-
-				{
-					TShaderMapRef<FLightGridCompactCS> ComputeShaderCompact(View.ShaderMap);
-					FLightGridCompactCS::FParameters *PassParametersCompact = GraphBuilder.AllocParameters<FLightGridCompactCS::FParameters>();
-					PassParametersCompact->View = View.ViewUniformBuffer;
-
-					PassParametersCompact->CulledLightLinks = GraphBuilder.CreateSRV(CulledLightLinksBuffer);
-					PassParametersCompact->RWNumCulledLightsGrid = NumCulledLightsGridUAV;
-					PassParametersCompact->RWCulledLightDataGrid32Bit = CulledLightDataGridUAV;
-					PassParametersCompact->RWCulledLightDataGrid16Bit = CulledLightDataGridUAV;
-					PassParametersCompact->RWNextCulledLightData = NextCulledLightDataUAV;
-					PassParametersCompact->StartOffsetGrid = GraphBuilder.CreateSRV(StartOffsetGridBuffer);
-
-					PassParametersCompact->CulledGridSize = ForwardLightData->CulledGridSize;
-					PassParametersCompact->NumReflectionCaptures = ForwardLightData->NumReflectionCaptures;
-					PassParametersCompact->NumLocalLights = ForwardLightData->NumLocalLights;
-					PassParametersCompact->NumGridCells = ForwardLightData->NumGridCells;
-
-					Result.CompactLinksPass = FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("CompactLinks"), ComputeShaderCompact, PassParametersCompact, NumGroups);
-				}
-			}
-			else
-			{
-				AddClearUAVPass(GraphBuilder, NumCulledLightsGridUAV, 0);
-				FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("LightGridInject:NotLinkedList"), ComputeShader, PassParameters, NumGroups);
-			}
-			ForwardLightData->CulledLightDataGrid32Bit = CulledLightDataGridSRV;
-			ForwardLightData->CulledLightDataGrid16Bit = CulledLightDataGridSRV;
-			ForwardLightData->NumCulledLightsGrid = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(NumCulledLightsGrid));
-			View.ForwardLightingResources.SetUniformBuffer(GraphBuilder.CreateUniformBuffer(ForwardLightData));
+			FVolumetricFogGlobalData VolumetricFogParamaters;
+			SetupVolumetricFogGlobalData(View, VolumetricFogParamaters);
+			LightGridCullMarginZParams = VolumetricFogParamaters.GridZParams;
+			LightGridCullMaxZ = VolumetricFogParamaters.ViewGridSize.Z;
 		}
+
+		RDG_EVENT_SCOPE(GraphBuilder, "CullLights %ux%ux%u NumLights %u NumCaptures %u",
+			ForwardLightData->CulledGridSize.X,
+			ForwardLightData->CulledGridSize.Y,
+			ForwardLightData->CulledGridSize.Z,
+			ForwardLightData->NumLocalLights,
+			ForwardLightData->NumReflectionCaptures);
+
+		FLightGrid ParentLightGrid;
+		uint32 ParentLightGridFactor = 1;
+
+		if(CVarLightCullingTwoLevel.GetValueOnRenderThread() && (int32)ForwardLightData->NumLocalLights > CVarLightCullingTwoLevelThreshold.GetValueOnRenderThread())
+		{
+			ParentLightGridFactor = (uint32)FMath::Pow(2.0f, FMath::Clamp(CVarLightCullingTwoLevelExponent.GetValueOnRenderThread(), 1, 4));
+
+			FIntVector ParentLightGridSize = FIntVector::DivideAndRoundUp(ForwardLightData->CulledGridSize, ParentLightGridFactor);
+
+			ParentLightGrid = LightGridInjection(
+				GraphBuilder,
+				View,
+				ParentLightGridSize,
+				FMath::FloorLog2(GLightGridPixelSize * ParentLightGridFactor),
+				ParentLightGridFactor,
+				MaxNumCells, // TODO: could potentially be reduced on coarse grid
+				ForwardLightData->LightGridZParams,
+				LightGridCullMarginXY,
+				LightGridCullMarginZ,
+				LightGridCullMarginZParams,
+				LightGridCullMaxZ,
+				ForwardLightData->NumLocalLights,
+				ForwardLightData->NumReflectionCaptures,
+				ForwardLightData->MegaLightsSupportedStartIndex,
+				bLightGridUses16BitBuffers,
+				bHasRectLights && (GLightGridRefineRectLightBounds != 0),
+				LightViewSpacePositionAndRadiusSRV,
+				LightViewSpaceDirAndPreprocAngleSRV,
+				LightViewSpaceRectPlanesSRV,
+				View.ViewState != nullptr ? &View.ViewState->LightGrid : nullptr,
+				/*bThreadGroupPerCell*/ true,
+				/*bThreadGroupSize32*/ false,
+				nullptr,
+				nullptr,
+				1);
+		}
+
+		const int32 WorkloadDistributionMode = CVarLightCullingWorkloadDistributionMode.GetValueOnRenderThread();
+
+		uint32 NumThreadsPerCell = 1;
+		
+		if (WorkloadDistributionMode == 1) // thread group per cell (64 threads)
+		{
+			NumThreadsPerCell = 64;
+		}
+		else if (WorkloadDistributionMode == 2 && GRHIMinimumWaveSize <= 32) // thread group per cell (32 threads if supported, otherwise single thread).
+		{
+			NumThreadsPerCell = 32;
+		}
+
+		FLightGrid LightGrid = LightGridInjection(
+			GraphBuilder,
+			View,
+			ForwardLightData->CulledGridSize,
+			ForwardLightData->LightGridPixelSizeShift,
+			1,
+			MaxNumCells,
+			ForwardLightData->LightGridZParams,
+			LightGridCullMarginXY,
+			LightGridCullMarginZ,
+			LightGridCullMarginZParams,
+			LightGridCullMaxZ,
+			ForwardLightData->NumLocalLights,
+			ForwardLightData->NumReflectionCaptures,
+			ForwardLightData->MegaLightsSupportedStartIndex,
+			bLightGridUses16BitBuffers,
+			bHasRectLights && (GLightGridRefineRectLightBounds != 0),
+			LightViewSpacePositionAndRadiusSRV,
+			LightViewSpaceDirAndPreprocAngleSRV,
+			LightViewSpaceRectPlanesSRV,
+			View.ViewState != nullptr ? &View.ViewState->LightGrid : nullptr,
+			NumThreadsPerCell > 1,
+			NumThreadsPerCell == 32,
+			ParentLightGrid.NumCulledLightsGridSRV,
+			ParentLightGrid.CulledLightDataGridSRV,
+			ParentLightGridFactor);
+
+		ForwardLightData->CulledLightDataGrid32Bit = LightGrid.CulledLightDataGridSRV;
+		ForwardLightData->CulledLightDataGrid16Bit = LightGrid.CulledLightDataGridSRV;
+		ForwardLightData->NumCulledLightsGrid = LightGrid.NumCulledLightsGridSRV;
+		View.ForwardLightingResources.SetUniformBuffer(GraphBuilder.CreateUniformBuffer(ForwardLightData));
 	}
 
 #if WITH_EDITOR
@@ -942,17 +1244,11 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 	return Result;
 }
 
-FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLightGrid(FRDGBuilder& GraphBuilder, bool bNeedLightGrid, FSortedLightSetSceneInfo& SortedLightSet)
+FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLightGrid(FRDGBuilder& GraphBuilder, bool bNeedLightGrid, const FSortedLightSetSceneInfo& SortedLightSet)
 {
 	SCOPED_NAMED_EVENT(GatherLightsAndComputeLightGrid, FColor::Emerald);
 	FComputeLightGridOutput Result = {};
 
-	bool bShadowedLightsInClustered = ShouldUseClusteredDeferredShading()
-		&& CVarVirtualShadowOnePassProjection.GetValueOnRenderThread()
-		&& VirtualShadowMapArray.IsEnabled();
-
-	GatherAndSortLights(SortedLightSet, bShadowedLightsInClustered);
-	
 	if (!bNeedLightGrid)
 	{
 		SetDummyForwardLightUniformBufferOnViews(GraphBuilder, ShaderPlatform, Views);
@@ -961,17 +1257,19 @@ FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLig
 
 	bool bAnyViewUsesForwardLighting = false;
 	bool bAnyViewUsesLumen = false;
+	bool bAnyViewUsesRayTracing = false;
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FViewInfo& View = Views[ViewIndex];
 		bAnyViewUsesForwardLighting |= View.bTranslucentSurfaceLighting || ShouldRenderVolumetricFog() || View.bHasSingleLayerWaterMaterial 
 			|| VolumetricCloudWantsToSampleLocalLights(Scene, ViewFamily.EngineShowFlags) || ShouldVisualizeLightGrid() || ShouldRenderLocalFogVolume(Scene, ViewFamily);
 		bAnyViewUsesLumen |= GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::Lumen;
+		bAnyViewUsesRayTracing |= IsRayTracingEnabled() && View.IsRayTracingAllowedForView();
 	}
 	
 	const bool bCullLightsToGrid = GLightCullingQuality 
-		&& (IsForwardShadingEnabled(ShaderPlatform) || bAnyViewUsesForwardLighting || IsRayTracingEnabled() || ShouldUseClusteredDeferredShading() ||
-			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || ManyLights::IsEnabled());
+		&& (IsForwardShadingEnabled(ShaderPlatform) || bAnyViewUsesForwardLighting || bAnyViewUsesRayTracing || ShouldUseClusteredDeferredShading() ||
+			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || MegaLights::IsEnabled(ViewFamily));
 
 	// Store this flag if lights are injected in the grids, check with 'AreLightsInLightGrid()'
 	bAreLightsInLightGrid = bCullLightsToGrid;
@@ -1021,7 +1319,7 @@ void FDeferredShadingSceneRenderer::RenderForwardShadowProjections(
 			}
 		}
 
-		RDG_EVENT_SCOPE(GraphBuilder, "ShadowProjectionOnOpaque");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, ShadowProjection, "ShadowProjectionOnOpaque");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, ShadowProjection);
 
 		// All shadows render with min blending
@@ -1061,7 +1359,7 @@ void FDeferredShadingSceneRenderer::RenderForwardShadowProjections(
 				}
 			}
 
-			RenderCapsuleDirectShadows(GraphBuilder, SceneTextures.UniformBuffer, *LightSceneInfo, ForwardScreenSpaceShadowMask.Target, VisibleLightInfo.CapsuleShadowsToProject, bProjectingForForwardShading);
+			RenderCapsuleDirectShadows(GraphBuilder, *LightSceneInfo, ForwardScreenSpaceShadowMask.Target, VisibleLightInfo.CapsuleShadowsToProject, bProjectingForForwardShading);
 
 			if (LightSceneInfo->GetDynamicShadowMapChannel() >= 0 && LightSceneInfo->GetDynamicShadowMapChannel() < 4)
 			{
@@ -1083,7 +1381,7 @@ void FDeferredShadingSceneRenderer::RenderForwardShadowProjections(
 			OutForwardScreenSpaceShadowMaskSubPixel = ForwardScreenSpaceShadowMaskSubPixel.Target;
 		}
 
-		GraphBuilder.AddPass(RDG_EVENT_NAME("ResolveScreenSpaceShadowMask"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+		GraphBuilder.AddPass(RDG_EVENT_NAME("ResolveScreenSpaceShadowMask"), PassParameters, ERDGPassFlags::Raster, [](FRDGAsyncTask, FRHICommandList&) {});
 	}
 }
 
@@ -1101,6 +1399,7 @@ class FDebugLightGridPS : public FGlobalShader
 		SHADER_PARAMETER_TEXTURE(Texture2D, MiniFontTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
 		SHADER_PARAMETER(uint32, DebugMode)
+		SHADER_PARAMETER(uint32, MaxThreshold)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -1114,6 +1413,11 @@ class FDebugLightGridPS : public FGlobalShader
 		return EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData) && ShaderPrint::IsSupported(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -1123,6 +1427,7 @@ class FDebugLightGridPS : public FGlobalShader
 		OutEnvironment.CompilerFlags.Add(CFLAG_Debug);
 		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG_LIGHT_GRID_PS"), 1);
+		OutEnvironment.SetDefine(TEXT("LIGHT_LINK_STRIDE"), LightLinkStride);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 	}
 };
@@ -1150,6 +1455,7 @@ FScreenPassTexture AddVisualizeLightGridPass(FRDGBuilder& GraphBuilder, const FV
 		PassParameters->MiniFontTexture = GetMiniFontTexture();
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(ScreenPassSceneColor.Texture, ERenderTargetLoadAction::ELoad);
 		PassParameters->DebugMode = GForwardLightGridDebug;
+		PassParameters->MaxThreshold = GForwardLightGridDebugMaxThreshold;
 
 		FRHIBlendState* PreMultipliedColorTransmittanceBlend = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI();
 
@@ -1158,4 +1464,87 @@ FScreenPassTexture AddVisualizeLightGridPass(FRDGBuilder& GraphBuilder, const FV
 	}
 
 	return MoveTemp(ScreenPassSceneColor);
+}
+
+class FLightGridFeedbackStatusCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FLightGridFeedbackStatusCS);
+	SHADER_USE_PARAMETER_STRUCT(FLightGridFeedbackStatusCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, NextCulledLightDataBuffer)
+		SHADER_PARAMETER(uint32, NumCulledLightDataEntries)
+
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, NextCulledLightLinkBuffer)
+		SHADER_PARAMETER(uint32, NumAvailableLinks)
+
+		SHADER_PARAMETER_STRUCT_INCLUDE(GPUMessage::FParameters, GPUMessageParams)
+		SHADER_PARAMETER(uint32, StatusMessageId)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FLightGridFeedbackStatusCS, "/Engine/Private/LightGridInjection.usf", "FeedbackStatusCS", SF_Compute);
+
+FLightGridViewState::FLightGridViewState()
+{
+#if !UE_BUILD_SHIPPING
+	StatusFeedbackSocket = GPUMessage::RegisterHandler(TEXT("LightGrid.StatusFeedback"),
+		[this](GPUMessage::FReader Message)
+		{
+			const uint32 AllocatedEntries = Message.Read<uint32>(0);
+			const uint32 MaxEntries = Message.Read<uint32>(0);
+
+			const uint32 AllocatedLinks = Message.Read<uint32>(0);
+			const uint32 MaxLinks = Message.Read<uint32>(0);
+
+			if (AllocatedEntries > MaxEntries)
+			{
+				bool bWarn = MaxEntries > MaxEntriesHighWaterMark;
+
+				if (bWarn)
+				{
+					UE_LOG(LogRenderer, Warning, TEXT(	"Building light grid exceeded number of available entries (%u / %u). "
+														"Increase r.Forward.MaxCulledLightsPerCell to prevent potential visual artifacts."), AllocatedEntries, MaxEntries);
+				}
+
+				MaxEntriesHighWaterMark = FMath::Max(MaxEntriesHighWaterMark, MaxEntries);
+			}
+
+			if (AllocatedLinks > MaxLinks)
+			{
+				static bool bWarn = true;
+
+				if (bWarn)
+				{
+					UE_LOG(LogRenderer, Warning, TEXT("Building light grid exceeded number of available links, glitches will be visible (%u / %u)."), AllocatedLinks, MaxLinks);
+					bWarn = false;
+				}
+			}
+		});
+#endif
+}
+
+void FLightGridViewState::FeedbackStatus(FRDGBuilder& GraphBuilder, FViewInfo& View, FRDGBufferRef NextCulledLightDataBuffer, uint32 NumCulledLightDataEntries, FRDGBufferRef NextCulledLightLinkBuffer, uint32 NumCulledLightLinks)
+{
+#if !UE_BUILD_SHIPPING
+	FLightGridFeedbackStatusCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLightGridFeedbackStatusCS::FParameters>();
+
+	PassParameters->NextCulledLightDataBuffer = GraphBuilder.CreateSRV(NextCulledLightDataBuffer);
+	PassParameters->NumCulledLightDataEntries = NumCulledLightDataEntries;
+
+	PassParameters->NextCulledLightLinkBuffer = GraphBuilder.CreateSRV(NextCulledLightLinkBuffer);
+	PassParameters->NumAvailableLinks = NumCulledLightLinks;
+
+	PassParameters->GPUMessageParams = GPUMessage::GetShaderParameters(GraphBuilder);
+	PassParameters->StatusMessageId = GetStatusMessageId();
+
+	auto ComputeShader = View.ShaderMap->GetShader<FLightGridFeedbackStatusCS>();
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("LightGridFeedbackStatus"),
+		ComputeShader,
+		PassParameters,
+		FIntVector(1, 1, 1)
+	);
+#endif // !UE_BUILD_SHIPPING
 }

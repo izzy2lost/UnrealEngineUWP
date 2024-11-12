@@ -139,7 +139,6 @@ namespace AutomationTool
 		/// Gets a short project name (QAGame, Elemental, etc)
 		/// </summary>
 		/// <param name="RawProjectPath">Full project path.</param>
-		/// <param name="bIsUProjectFile">True if a uproject.</param>
 		/// <returns>Short project name</returns>
 		public static string GetShortProjectName(FileReference RawProjectPath)
 		{
@@ -162,6 +161,9 @@ namespace AutomationTool
 		/// Gets project properties.
 		/// </summary>
 		/// <param name="RawProjectPath">Full project path.</param>
+		/// <param name="ClientTargetPlatforms"></param>
+		/// <param name="ClientTargetConfigurations"></param>
+		/// <param name="AssetNativizationRequested"></param>
 		/// <returns>Properties of the project.</returns>
 		public static ProjectProperties GetProjectProperties(FileReference RawProjectPath, List<UnrealTargetPlatform> ClientTargetPlatforms = null, List<UnrealTargetConfiguration> ClientTargetConfigurations = null, bool AssetNativizationRequested = false)
 		{
@@ -185,6 +187,8 @@ namespace AutomationTool
 		/// Checks if the project is a UProject file with source code.
 		/// </summary>
 		/// <param name="RawProjectPath">Full project path.</param>
+		/// <param name="ClientTargetPlatforms"></param>
+		/// <param name="ClientTargetConfigurations"></param>
 		/// <returns>True if the project is a UProject file with source code.</returns>
 		public static bool IsCodeBasedUProjectFile(FileReference RawProjectPath, List<UnrealTargetPlatform> ClientTargetPlatforms = null, List < UnrealTargetConfiguration> ClientTargetConfigurations = null)
 		{
@@ -195,6 +199,8 @@ namespace AutomationTool
 		/// Checks if the project is a UProject file with source code.
 		/// </summary>
 		/// <param name="RawProjectPath">Full project path.</param>
+		/// <param name="ClientTargetPlatform"></param>
+		/// <param name="ClientTargetConfigurations"></param>
 		/// <returns>True if the project is a UProject file with source code.</returns>
 		public static bool IsCodeBasedUProjectFile(FileReference RawProjectPath, UnrealTargetPlatform ClientTargetPlatform, List<UnrealTargetConfiguration> ClientTargetConfigurations = null)
 		{
@@ -204,7 +210,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Returns a path to the client binaries folder.
 		/// </summary>
-		/// <param name="RawProjectPath">Full project path.</param>
+		/// <param name="ProjectClientBinariesPath"></param>
 		/// <param name="Platform">Platform type.</param>
 		/// <returns>Path to the binaries folder.</returns>
 		public static DirectoryReference GetProjectClientBinariesFolder(DirectoryReference ProjectClientBinariesPath, UnrealTargetPlatform Platform)
@@ -217,8 +223,11 @@ namespace AutomationTool
 		/// Attempts to autodetect project properties.
 		/// </summary>
 		/// <param name="RawProjectPath">Full project path.</param>
+		/// <param name="ClientTargetPlatforms"></param>
+		/// <param name="ClientTargetConfigurations"></param>
+		/// <param name="AssetNativizationRequested"></param>
 		/// <returns>Project properties.</returns>
-        private static ProjectProperties DetectProjectProperties(FileReference RawProjectPath, List<UnrealTargetPlatform> ClientTargetPlatforms, List<UnrealTargetConfiguration> ClientTargetConfigurations, bool AssetNativizationRequested)
+		private static ProjectProperties DetectProjectProperties(FileReference RawProjectPath, List<UnrealTargetPlatform> ClientTargetPlatforms, List<UnrealTargetConfiguration> ClientTargetConfigurations, bool AssetNativizationRequested)
 		{
 			ProjectProperties Properties = new ProjectProperties();
 			Properties.RawProjectPath = RawProjectPath;
@@ -253,7 +262,7 @@ namespace AutomationTool
 					}
 				}
 
-				if (NativeProjects.ConditionalMakeTempTargetForHybridProject(RawProjectPath, TargetPlatforms, Logger))
+				if (NativeProjects.ConditionalMakeTempTargetForHybridProject(RawProjectPath, Logger))
 				{
 					Properties.bWasGenerated = true;
 					string TempTargetDir = CommandUtils.CombinePaths(Path.GetDirectoryName(RawProjectPath.FullName), "Intermediate", "Source");
@@ -316,7 +325,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="RawProjectPath">Full project path.</param>
 		/// <param name="TargetType">Target type.</param>
-		/// <param name="bIsUProjectFile">True if uproject file.</param>
+		/// <param name="bIsCodeBasedProject">True if a code based project.</param>
 		/// <returns>Binaries path.</returns>
 		public static DirectoryReference GetClientProjectBinariesRootPath(FileReference RawProjectPath, TargetType TargetType, bool bIsCodeBasedProject)
 		{
@@ -371,6 +380,7 @@ namespace AutomationTool
 
 			List<DirectoryReference> GameFolders = new List<DirectoryReference>();
 			DirectoryReference RulesFolder = new DirectoryReference(GetRulesAssemblyFolder());
+			List<DirectoryReference> ExtraSearchDirectories = (ExtraSearchPaths == null) ? null : ExtraSearchPaths.Select(x => new DirectoryReference(x)).ToList();
 			if (Properties.RawProjectPath != null)
 			{
 				Logger.LogDebug("Looking for targets for project {Arg0}", Properties.RawProjectPath);
@@ -378,6 +388,12 @@ namespace AutomationTool
 				TargetsDllFilename = FileReference.Combine(RulesFolder, String.Format("UATRules-{0}.dll", ContentHash.MD5(Properties.RawProjectPath.FullName.ToUpperInvariant()).ToString()));
 
 				FullProjectPath = CommandUtils.GetDirectoryName(Properties.RawProjectPath.FullName).Replace("\\", "/");
+
+				// Extra search root uproject folder if we have /tests/
+				if (FullProjectPath.Contains("/Tests/"))
+				{
+					ExtraSearchDirectories.Add(new DirectoryReference(FullProjectPath));
+				}
 
 				// there is a special case of Programs, where the uproject doesn't align with the Source directory, so we redirect to where
 				// the program's target.cs file(s) are
@@ -402,7 +418,7 @@ namespace AutomationTool
 				CommandUtils.PushDir(SourceDir);
 				DirPushed = true;
 			}
-			List<DirectoryReference> ExtraSearchDirectories = (ExtraSearchPaths == null)? null : ExtraSearchPaths.Select(x => new DirectoryReference(x)).ToList();
+
 			List<FileReference> TargetScripts = Rules.FindAllRulesSourceFiles(Rules.RulesFileType.Target, GameFolders: GameFolders, ForeignPlugins: null, AdditionalSearchPaths: ExtraSearchDirectories);
 			if (DirPushed)
 			{
@@ -686,6 +702,24 @@ namespace AutomationTool
 			}
 			
 			return TargetReceipt.Launch;
+		}
+
+		// Helper function to get the editor executable to run for cooking, etc the given project
+		public static FileSystemReference GetEditorForProject(FileReference ProjectFile)
+		{
+			FileSystemReference EditorExe = null;
+			if (ProjectFile != null)
+			{
+				EditorExe = ProjectUtils.GetProjectTarget(ProjectFile, UnrealBuildTool.TargetType.Editor, BuildHostPlatform.Current.Platform, UnrealTargetConfiguration.Development, true);
+			}
+
+			// if we haven't gotten an editor yet, use the engine shared binary
+			if (EditorExe == null)
+			{
+				EditorExe = new FileReference(HostPlatform.Current.GetUnrealExePath("UnrealEditor-Cmd.exe"));
+			}
+
+			return EditorExe;
 		}
 	}
 

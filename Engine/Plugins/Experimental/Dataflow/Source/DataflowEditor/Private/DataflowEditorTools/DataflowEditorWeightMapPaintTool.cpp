@@ -11,10 +11,15 @@
 #include "Changes/BasicChanges.h"
 #include "ContextObjectStore.h"
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintBrushOps.h"
-#include "Dataflow/DataflowContent.h"
-#include "Dataflow/DataflowEdNode.h"
-#include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
+#include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowObjectInterface.h"
+#include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowEditorCollectionComponent.h"
+#include "Dataflow/DataflowEditorMode.h"
+#include "Dataflow/DataflowConstructionScene.h"
+#include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Drawing/MeshElementsVisualizer.h"
@@ -34,6 +39,7 @@
 #include "Polygon2.h"
 #include "Sculpting/StampFalloffs.h"
 #include "Sculpting/MeshSculptUtil.h"
+#include "Selection.h"
 #include "Selections/MeshConnectedComponents.h"
 #include "Selections/MeshFaceSelection.h"
 #include "Selections/MeshVertexSelection.h"
@@ -48,7 +54,7 @@ using namespace UE::Geometry;
 
 #define LOCTEXT_NAMESPACE "UDataflowEditorWeightMapPaintTool"
 
-namespace Dataflow::Private
+namespace UE::Dataflow::Private
 {
 	// probably should be something defined for the whole tool framework...
 #if WITH_EDITOR
@@ -62,16 +68,15 @@ namespace Dataflow::Private
 /*
  * ToolBuilder
  */
-
-void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const
+void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedConstructionViewModes(const UDataflowContextObject& ContextObject, TArray<const UE::Dataflow::IDataflowConstructionViewMode*>& Modes) const
 {
-	Modes.Add(Dataflow::EDataflowPatternVertexType::Sim3D);
-	//Modes.Add(Dataflow::EDataflowPatternVertexType::Sim2D);
+	//Modes.Add(UE::Dataflow::EDataflowPatternVertexType::Sim3D);
+	//Modes.Add(UE::Dataflow::EDataflowPatternVertexType::Sim2D);
 }
 
 bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	auto HasRenderableCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+	auto HasManagedArrayCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<UE::Dataflow::FEngineContext> Context)
 	{
 		if (InDataflowNode && Context)
 		{
@@ -79,12 +84,7 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 			{
 				if (Output->GetType() == FName("FManagedArrayCollection"))
 				{
-					const FManagedArrayCollection DefaultValue;
-					const FManagedArrayCollection& Collection = Output->GetValue<FManagedArrayCollection>(*Context, DefaultValue);
-					if (Collection.HasGroup("Geometry"))
-					{
-						return true;
-					}
+					return true;
 				}
 			}
 		}
@@ -94,13 +94,22 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 
 	if (UMeshSurfacePointMeshEditingToolBuilder::CanBuildTool(SceneState))
 	{
-		if (UDataflowBaseContent* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowBaseContent>())
+		if (SceneState.SelectedComponents.Num() == 1)
 		{
-			if (const TSharedPtr<Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
+			if (TObjectPtr<UDataflowEditorCollectionComponent> Component = Cast<UDataflowEditorCollectionComponent>(SceneState.SelectedComponents[0]))
 			{
-				if (const FDataflowNode* PrimarySelection = ContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
+				if (UDataflowBaseContent* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowBaseContent>())
 				{
-					return HasRenderableCollection(PrimarySelection, EvaluationContext);
+					if (ContextObject->GetSelectedNode() == Component->Node)
+					{
+						if (const TSharedPtr<UE::Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
+						{
+							if (const FDataflowNode* PrimarySelection = ContextObject->GetSelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
+							{
+								return HasManagedArrayCollection(PrimarySelection, EvaluationContext);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -112,6 +121,7 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 UMeshSurfacePointTool* UDataflowEditorWeightMapPaintToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	UDataflowEditorWeightMapPaintTool* PaintTool = NewObject<UDataflowEditorWeightMapPaintTool>(SceneState.ToolManager);
+	PaintTool->SetEditorMode(Mode);
 	PaintTool->SetWorld(SceneState.World);
 
 	if (UDataflowContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
@@ -157,10 +167,16 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	UMeshSculptToolBase::Setup();
 
 	// Get the selected weight map node
-	WeightMapNodeToUpdate = DataflowEditorContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>();
+	WeightMapNodeToUpdate = DataflowEditorContextObject->GetSelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>();
 	checkf(WeightMapNodeToUpdate, TEXT("No Weight Map Node is currently selected, or more than one node is selected"));
 
 	SetToolDisplayName(LOCTEXT("ToolName", "Paint Weight Maps"));
+
+	// Hide all meshes in the DataflowConstructionScene, as we will be painting onto our own Preview mesh
+	if (FDataflowConstructionScene* Scene = Mode->GetDataflowConstructionScene())
+	{
+		Scene->SetVisibility(false);
+	}
 
 	// create dynamic mesh component to use for live preview
 	FActorSpawnParameters SpawnInfo;
@@ -184,12 +200,12 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	Mesh->Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB) {return true; }, 0.f);
 	FAxisAlignedBox3d Bounds = Mesh->GetBounds(true);
 
-	TFuture<void> PrecomputeFuture = Async(Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
+	TFuture<void> PrecomputeFuture = Async(UE::Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
 	{
 		PrecomputeFilterData();
 	});
 
-	TFuture<void> OctreeFuture = Async(Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
+	TFuture<void> OctreeFuture = Async(UE::Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
 	{
 		// initialize dynamic octree
 		if (Mesh->TriangleCount() > 100000)
@@ -333,9 +349,9 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	// Setup DynamicMeshToWeight conversion
 	if (DataflowEditorContextObject)
 	{
-		if (const TSharedPtr<const FManagedArrayCollection> Collection = DataflowEditorContextObject->GetPrimaryRenderCollection())
+		if (const TSharedPtr<const FManagedArrayCollection> Collection = DataflowEditorContextObject->GetRenderCollection())
 		{
-			using namespace Dataflow;
+			using namespace UE::Dataflow;
 			const FNonManifoldMappingSupport NonManifoldMapping(*Mesh);
 
 			bHaveDynamicMeshToWeightConversion = NonManifoldMapping.IsNonManifoldVertexInSource();
@@ -347,7 +363,16 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 				for (int32 DynamicMeshVert = 0; DynamicMeshVert < Mesh->VertexCount(); ++DynamicMeshVert)
 				{
 					DynamicMeshToWeight[DynamicMeshVert] = NonManifoldMapping.GetOriginalNonManifoldVertexID(DynamicMeshVert);
-					WeightToDynamicMesh[DynamicMeshToWeight[DynamicMeshVert]].Add(DynamicMeshVert);
+					if (0 <= DynamicMeshToWeight[DynamicMeshVert] && DynamicMeshToWeight[DynamicMeshVert] < WeightToDynamicMesh.Num())
+					{
+						WeightToDynamicMesh[DynamicMeshToWeight[DynamicMeshVert]].Add(DynamicMeshVert);
+					}
+					else
+					{
+						bHaveDynamicMeshToWeightConversion = false;
+						UE_LOG(LogTemp, Warning, TEXT("Weight map misalignment."));
+						break;
+					}
 				}
 			}
 		}
@@ -437,6 +462,11 @@ void UDataflowEditorWeightMapPaintTool::Shutdown(EToolShutdownType ShutdownType)
 	{
 		PolygonSelectionMechanic->Shutdown();
 		PolygonSelectionMechanic = nullptr;
+	}
+
+	if (WeightMapNodeToUpdate)
+	{
+		WeightMapNodeToUpdate->Invalidate();
 	}
 
 	UMeshSculptToolBase::Shutdown(ShutdownType);
@@ -820,7 +850,7 @@ bool UDataflowEditorWeightMapPaintTool::SyncWeightBufferWithMesh(const FDynamicM
 	return (NumModified > 0);
 }
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	template<typename RealType>
 	static bool FindPolylineSelfIntersection(
@@ -968,7 +998,7 @@ void UDataflowEditorWeightMapPaintTool::OnPolyLassoFinished(const FCameraPolyLas
 	// Try to clip polyline to be closed, or closed-enough for winding evaluation to work.
 	// If that returns false, the polyline is "too open". In that case we will extend
 	// outwards from the endpoints and then try to create a closed very large polygon
-	if (Dataflow::ApproxSelfClipPolyline(Polyline) == false)
+	if (UE::Dataflow::ApproxSelfClipPolyline(Polyline) == false)
 	{
 		FVector2f StartDirOut = UE::Geometry::Normalized(Polyline[0] - Polyline[1]);
 		FLine2f StartLine(Polyline[0], StartDirOut);
@@ -995,11 +1025,11 @@ void UDataflowEditorWeightMapPaintTool::OnPolyLassoFinished(const FCameraPolyLas
 	// project each mesh vertex to view plane and evaluate winding integral of polyline
 	const FDynamicMesh3* Mesh = GetSculptMesh();
 	TempROIBuffer.SetNum(Mesh->MaxVertexID());
-	ParallelFor(Mesh->MaxVertexID(), [&](int32 vid)
+	ParallelFor(Mesh->MaxVertexID(), [&](int32 VertexIdx)
 	{
-		if (Mesh->IsVertex(vid))
+		if (Mesh->IsVertex(VertexIdx))
 		{
-			FVector3d WorldPos = CurTargetTransform.TransformPosition(Mesh->GetVertex(vid));
+			FVector3d WorldPos = CurTargetTransform.TransformPosition(Mesh->GetVertex(VertexIdx));
 			FVector2f PlanePos = (FVector2f)Lasso.GetProjectedPoint((FVector)WorldPos);
 
 			double WindingSum = 0;
@@ -1012,17 +1042,17 @@ void UDataflowEditorWeightMapPaintTool::OnPolyLassoFinished(const FCameraPolyLas
 			}
 			WindingSum /= FMathd::TwoPi;
 			bool bInside = FMathd::Abs(WindingSum) > 0.3;
-			TempROIBuffer[vid] = bInside ? 1 : 0;
+			TempROIBuffer[VertexIdx] = bInside ? 1 : 0;
 		}
 		else
 		{
-			TempROIBuffer[vid] = -1;
+			TempROIBuffer[VertexIdx] = -1;
 		}
 	});
 
 	// convert to vertex selection, and then select fully-enclosed faces
 	FMeshVertexSelection VertexSelection(Mesh);
-	VertexSelection.SelectByVertexID([&](int32 vid) { return TempROIBuffer[vid] == 1; });
+	VertexSelection.SelectByVertexID([&](int32 VertexIdx) { return TempROIBuffer[VertexIdx] == 1; });
 
 	double SetWeightValue = GetInEraseStroke() ? 0.0 : FilterProperties->AttributeValue;
 	SetVerticesToWeightMap(VertexSelection.AsSet(), SetWeightValue, GetInEraseStroke());
@@ -1041,16 +1071,16 @@ void UDataflowEditorWeightMapPaintTool::ComputeGradient()
 
 	const FDynamicMesh3* const Mesh = DynamicMeshComponent->GetMesh();
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Mesh->VertexIndicesItr())
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 			}
@@ -1058,9 +1088,9 @@ void UDataflowEditorWeightMapPaintTool::ComputeGradient()
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
 	}
 
@@ -1151,9 +1181,9 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 	BeginChange();
 
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Vertices)
+	for (int32 VertexIdx : Vertices)
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (HaveVisibilityFilter())
@@ -1166,9 +1196,9 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 				ActiveWeightMap->SetValue(Idx, &WeightValue);
@@ -1177,13 +1207,13 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{		
-			ActiveWeightMap->SetValue(vid, &WeightValue);
+			ActiveWeightMap->SetValue(VertexIdx, &WeightValue);
 		}
 	}
 
@@ -1209,18 +1239,18 @@ void UDataflowEditorWeightMapPaintTool::ApplyVisibilityFilter(TSet<int32>& Verti
 {
 	ROIBuffer.SetNum(0, EAllowShrinking::No);
 	ROIBuffer.Reserve(Vertices.Num());
-	for (int32 vid : Vertices)
+	for (int32 VertexIdx : Vertices)
 	{
-		ROIBuffer.Add(vid);
+		ROIBuffer.Add(VertexIdx);
 	}
 	
 	OutputBuffer.Reset();
 	ApplyVisibilityFilter(TempROIBuffer, OutputBuffer);
 
 	Vertices.Reset();
-	for (int32 vid : OutputBuffer)
+	for (int32 VertexIdx : OutputBuffer)
 	{
-		Vertices.Add(vid);
+		Vertices.Add(VertexIdx);
 	}
 }
 
@@ -1525,7 +1555,7 @@ void UDataflowEditorWeightMapPaintTool::OnTick(float DeltaTime)
 
 			// append updated ROI to modified region (async)
 			FDynamicMesh3* Mesh = GetSculptMesh();
-			TFuture<void> AccumulateROI = Async(Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
+			TFuture<void> AccumulateROI = Async(UE::Dataflow::Private::WeightPaintToolAsyncExecTarget, [&]()
 			{
 				UE::Geometry::VertexToTriangleOneRing(Mesh, VertexROI, AccumulatedTriangleROI);
 			});
@@ -1581,16 +1611,16 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	const float SetWeightValue = FilterProperties->AttributeValue;
 	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Mesh->VertexIndicesItr())
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 				ActiveWeightMap->SetValue(Idx, &SetWeightValue);
@@ -1599,13 +1629,13 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightMap->SetValue(vid, &SetWeightValue);
+			ActiveWeightMap->SetValue(VertexIdx, &SetWeightValue);
 		}
 	}
 
@@ -1615,7 +1645,6 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	GetToolManager()->PostInvalidation();
 	EndChange();
 }
-
 
 void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 {
@@ -1629,16 +1658,16 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 	float SetWeightValue = 0.0f;
 	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	TempROIBuffer.SetNum(0, EAllowShrinking::No);
-	for (int32 vid : Mesh->VertexIndicesItr())
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
 	{
-		TempROIBuffer.Add(vid);
+		TempROIBuffer.Add(VertexIdx);
 	}
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
 				ActiveWeightMap->SetValue(Idx, &SetWeightValue);
@@ -1647,13 +1676,13 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 	}
 	else
 	{
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
 		}
-		for (int32 vid : TempROIBuffer)
+		for (int32 VertexIdx : TempROIBuffer)
 		{
-			ActiveWeightMap->SetValue(vid, &SetWeightValue);
+			ActiveWeightMap->SetValue(VertexIdx, &SetWeightValue);
 		}
 	}
 
@@ -1664,6 +1693,61 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 	EndChange();
 }
 
+void UDataflowEditorWeightMapPaintTool::InvertCurrentWeightAction(bool bInvertSurfaceOnly)
+{
+	if (!ActiveWeightMap)
+	{
+		return;
+	}
+
+	BeginChange();
+
+
+	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
+	TempROIBuffer.SetNum(0, EAllowShrinking::No);
+	for (int32 VertexIdx : Mesh->VertexIndicesItr())
+	{
+		if (!bInvertSurfaceOnly || Mesh->IsReferencedVertex(VertexIdx))
+		{
+			TempROIBuffer.Add(VertexIdx);
+		}
+	}
+
+	if (bHaveDynamicMeshToWeightConversion)
+	{
+		for (int32 VertexIdx : TempROIBuffer)
+		{
+			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[VertexIdx]])
+			{
+				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
+				float CurrentValue;
+				ActiveWeightMap->GetValue(Idx, &CurrentValue);
+				float SetWeightValue = 1.f - CurrentValue;
+				ActiveWeightMap->SetValue(Idx, &SetWeightValue);
+			}
+		}
+	}
+	else
+	{
+		for (int32 VertexIdx : TempROIBuffer)
+		{
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexIdx, true);
+		}
+		for (int32 VertexIdx : TempROIBuffer)
+		{
+			float CurrentValue;
+			ActiveWeightMap->GetValue(VertexIdx, &CurrentValue);
+			float SetWeightValue = 1.f - CurrentValue;
+			ActiveWeightMap->SetValue(VertexIdx, &SetWeightValue);
+		}
+	}
+
+	// update colors
+	UpdateVertexColorOverlay();
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+	GetToolManager()->PostInvalidation();
+	EndChange();
+}
 
 void UDataflowEditorWeightMapPaintTool::UpdateSelectedNode()
 {
@@ -1675,7 +1759,11 @@ void UDataflowEditorWeightMapPaintTool::UpdateSelectedNode()
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		WeightMapNodeToUpdate->VertexWeights.Init(0.f, WeightToDynamicMesh.Num());
+		if (WeightToDynamicMesh.Num() != WeightMapNodeToUpdate->VertexWeights.Num())
+		{
+			WeightMapNodeToUpdate->VertexWeights.Init(0.f, WeightToDynamicMesh.Num());
+		}
+
 		for (int32 DynamicMeshIdx = 0; DynamicMeshIdx < CurrentWeights.Num(); ++DynamicMeshIdx)
 		{
 			WeightMapNodeToUpdate->VertexWeights[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
@@ -1696,7 +1784,7 @@ void UDataflowEditorWeightMapPaintTool::UpdateSelectedNode()
 // Change Tracking
 //
 
-namespace DataflowWeightPaintLocals
+namespace UE::DataflowWeightPaintLocals
 {
 
 	/**
@@ -1759,11 +1847,11 @@ void UDataflowEditorWeightMapPaintTool::EndChange()
 
 	TUniquePtr<FDynamicMeshChange> EditResult = ActiveWeightEditChangeTracker->EndChange();
 
-	TUniquePtr<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange> DataflowWeightPaintMeshChange =
-		MakeUnique<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>(DynamicMeshComponent.Get(), MoveTemp(EditResult));
+	TUniquePtr<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange> DataflowWeightPaintMeshChange =
+		MakeUnique<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>(DynamicMeshComponent.Get(), MoveTemp(EditResult));
 	ActiveWeightEditChangeTracker = nullptr;
 
-	TUniquePtr<TWrappedToolCommandChange<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>> NewChange = MakeUnique<TWrappedToolCommandChange<DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>>();
+	TUniquePtr<TWrappedToolCommandChange<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>> NewChange = MakeUnique<TWrappedToolCommandChange<UE::DataflowWeightPaintLocals::FDataflowWeightPaintMeshChange>>();
 	NewChange->WrappedChange = MoveTemp(DataflowWeightPaintMeshChange);
 	NewChange->BeforeModify = [this](bool bRevert)
 	{
@@ -1959,6 +2047,14 @@ void UDataflowEditorWeightMapPaintTool::ApplyAction(EDataflowEditorWeightMapPain
 	case EDataflowEditorWeightMapPaintToolActions::ClearAll:
 		ClearAllWeightsAction();
 		break;
+
+	case EDataflowEditorWeightMapPaintToolActions::InvertCurrent:
+		InvertCurrentWeightAction(false);
+		break;
+
+	case EDataflowEditorWeightMapPaintToolActions::InvertCurrentSurface:
+		InvertCurrentWeightAction(true);
+		break;
 	}
 }
 
@@ -2003,5 +2099,14 @@ void UDataflowEditorWeightMapPaintTool::UpdateVertexColorOverlay(const TSet<int>
 	}
 }
 
+void UDataflowEditorWeightMapPaintTool::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	UDataflowEditorWeightMapPaintTool* This = CastChecked<UDataflowEditorWeightMapPaintTool>(InThis);
+	Collector.AddReferencedObject(This->PreviewMeshActor);
+	Collector.AddReferencedObject(This->DynamicMeshComponent);
+	Collector.AddReferencedObject(This->MeshElementsDisplay);
+	Collector.AddReferencedObject(This->DataflowEditorContextObject);
+	Super::AddReferencedObjects(InThis, Collector);
+}
 
 #undef LOCTEXT_NAMESPACE

@@ -32,6 +32,7 @@ class FAssetEditorToolkit;
 class FMenuBuilder;
 class FReply;
 class SGraphPanel;
+class SNotificationItem;
 class SWidget;
 class UEdGraph;
 class UEdGraphNode;
@@ -488,6 +489,20 @@ public:
 		{
 			Implementation->AddNotification(Info, bSuccess);
 		}
+	}
+
+	virtual TSharedPtr<SNotificationItem> AddNotification(FNotificationInfo& Info)
+	{
+		if (Implementation.IsValid())
+		{
+			TSharedPtr<SNotificationItem> Notification = Implementation->AddNotification(Info);
+			
+			if (Notification.IsValid())
+			{
+				return Notification;
+			}
+		}
+		return nullptr;
 	}
 
 	/** Capture keyboard */

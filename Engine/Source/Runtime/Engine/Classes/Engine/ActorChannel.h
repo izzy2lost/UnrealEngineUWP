@@ -202,7 +202,11 @@ public:
 	ENGINE_API virtual void NotifyActorChannelOpen(AActor* InActor, FInBunch& InBunch);
 
 	/** Append any export bunches */
+	UE_DEPRECATED(5.5, "Use GetAdditionalRequiredBunches")
 	ENGINE_API virtual void AppendExportBunches( TArray< FOutBunch* >& OutExportBunches ) override;
+
+	/** Returns any additional bunches (such as exports) needed by the passed-in OutgoingBunch */
+	ENGINE_API virtual TArray<FOutBunch*> GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags) override;
 
 	/** Append any "must be mapped" guids to front of bunch. These are guids that the client will wait on before processing this bunch. */
 	ENGINE_API virtual void AppendMustBeMappedGuids( FOutBunch* Bunch ) override;

@@ -46,6 +46,8 @@ public:
 	FVector2f RenderOffset;
 };
 
+extern int32 GGrassEnable;
+
 static bool ShouldCacheLandscapeGrassShaders(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
 	const bool bIsEditorPlatform = 
@@ -59,10 +61,15 @@ static bool ShouldCacheLandscapeGrassShaders(const FMeshMaterialShaderPermutatio
 	const bool bPlatformUsesRuntimeGen = (GGrassMapUseRuntimeGeneration != 0);
 #endif // WITH_EDITOR
 
-	const bool bShouldBuildForPlatform = 
-		bIsEditorPlatform ||
-		GGrassMapAlwaysBuildRuntimeGenerationResources ||
-		bPlatformUsesRuntimeGen;
+#if WITH_EDITOR
+	static FShaderPlatformCachedIniValue<int32> GrassEnabledPerPlatform(TEXT("grass.Enable"));
+	const bool bGrassEnable = (GrassEnabledPerPlatform.Get(Parameters.Platform) != 0);
+#else 
+	const bool bGrassEnable = GGrassEnable != 0;
+#endif // WITH_EDITOR
+
+	const bool bShouldBuildForPlatform = GGrassMapAlwaysBuildRuntimeGenerationResources || (
+		bGrassEnable && (bIsEditorPlatform || bPlatformUsesRuntimeGen));
 
 	const bool bIsFixedGridVertexFactory =
 		Parameters.VertexFactoryType == FindVertexFactoryType(FName(TEXT("FLandscapeFixedGridVertexFactory"), FNAME_Find));
@@ -183,6 +190,12 @@ public:
 	{
 		checkf(false, TEXT("Default AddMeshBatch can't be used as rendering requires extra parameters per pass."));
 	}
+	
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, 
+		const FMaterial& Material, 
+		const FPSOPrecacheVertexFactoryData& VertexFactoryData, 
+		const FPSOPrecacheParams& PreCacheParams, 
+		TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 private:
 	bool TryAddMeshBatch(
@@ -213,8 +226,10 @@ private:
 	FMeshPassProcessorRenderState PassDrawRenderState;
 };
 
+static const TCHAR* LandscapeGrassWeightMeshPassName = TEXT("LandscapeGrassWeight");
+
 FLandscapeGrassWeightMeshProcessor::FLandscapeGrassWeightMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type InFeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
-	: FMeshPassProcessor(EMeshPass::Num, Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
+	: FMeshPassProcessor(LandscapeGrassWeightMeshPassName, Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
 {
 	PassDrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
 	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
@@ -326,6 +341,58 @@ bool FLandscapeGrassWeightMeshProcessor::Process(
 	return true;
 }
 
+
+void FLandscapeGrassWeightMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
+{
+	// Only support the Landscape fixed grid vertex factory type.
+	if (VertexFactoryData.VertexFactoryType != &FLandscapeFixedGridVertexFactory::StaticType)
+	{
+		return;
+	}
+
+	FMaterialShaderTypes ShaderTypes;
+	ShaderTypes.AddShaderType<FLandscapeGrassWeightVS>();
+	ShaderTypes.AddShaderType<FLandscapeGrassWeightPS>();
+
+	FMaterialShaders Shaders;
+	if (!Material.TryGetShaders(ShaderTypes, VertexFactoryData.VertexFactoryType, Shaders))
+	{
+		return;
+	}
+
+	TMeshProcessorShaders<
+		FLandscapeGrassWeightVS,
+		FLandscapeGrassWeightPS> PassShaders;
+	Shaders.TryGetVertexShader(PassShaders.VertexShader);
+	Shaders.TryGetPixelShader(PassShaders.PixelShader);
+
+	const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
+	const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
+	const ERasterizerCullMode MeshCullMode = CM_None;
+
+	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
+	RenderTargetsInfo.NumSamples = 1;
+	AddRenderTargetInfo(PF_B8G8R8A8, ETextureCreateFlags::RenderTargetable, RenderTargetsInfo);
+	
+	AddGraphicsPipelineStateInitializer(
+		VertexFactoryData,
+		Material,
+		PassDrawRenderState,
+		RenderTargetsInfo,
+		PassShaders,
+		MeshFillMode,
+		MeshCullMode,
+		PT_PointList,
+		EMeshPassFeatures::Default,
+		true /*bRequired*/,
+		PSOInitializers);
+}
+
+IPSOCollector* CreateLandscapeGrassWeightPSOCollector(ERHIFeatureLevel::Type FeatureLevel)
+{
+	return new FLandscapeGrassWeightMeshProcessor(nullptr, FeatureLevel, nullptr, nullptr);
+}
+FRegisterPSOCollectorCreateFunction RegisterLandscapeGrassWeightPSOCollector(&CreateLandscapeGrassWeightPSOCollector, EShadingPath::Deferred, LandscapeGrassWeightMeshPassName);
 
 void FLandscapeGrassWeightExporter_RenderThread::RenderLandscapeComponentToTexture_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
@@ -758,10 +825,6 @@ void FLandscapeGrassWeightExporter::ApplyResults(TMap<ULandscapeComponent*, TUni
 
 		// Assign the new data (thread-safe)
 		Component->GrassData = MakeShareable(ComponentGrassData);
-
-#if WITH_EDITORONLY_DATA
-		Component->GrassData->bIsDirty = true;
-#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 		if (Proxy->bBakeMaterialPositionOffsetIntoCollision)

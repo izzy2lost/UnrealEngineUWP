@@ -18,10 +18,13 @@
 #include "SAvaViewportInfo.h"
 #include "Selection.h"
 #include "Styling/AppStyle.h"
+#include "Styling/SlateIconFinder.h"
+#include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSeparator.h"
@@ -45,29 +48,6 @@ namespace UE::Ava::LevelViewportStatusBarButtons::Private
 	static const FSlateIcon AlphaChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "Icons.PostProcess.Alpha");
 	static const FSlateIcon CheckerboardIcon = FSlateIcon(AppStyleSetName, "Checker");
 
-	static bool IsViewportPostProcessManagerEnabled(const TWeakPtr<SAvaLevelViewportFrame>& InViewportFrameWeak)
-	{
-		const FAvaLevelViewportGuideFrameAndClient FrameAndClient(InViewportFrameWeak);
-
-		return FrameAndClient.IsValid() && FrameAndClient.ViewportClient->GetPostProcessManager().IsValid();
-	}
-
-	static FSlateColor GetPostProcessColor(const TWeakPtr<SAvaLevelViewportFrame>& InViewportFrameWeak, EAvaViewportPostProcessType InPostProcessType,
-		const FSlateColor& InActiveColor, const FSlateColor& InEnabledColor, const FSlateColor& InDisabledColor)
-	{
-		const FAvaLevelViewportGuideFrameAndClient FrameAndClient(InViewportFrameWeak);
-
-		if (FrameAndClient.IsValid())
-		{
-			if (const TSharedPtr<FAvaViewportPostProcessManager> PostProcessManager = FrameAndClient.ViewportClient->GetPostProcessManager())
-			{
-				return PostProcessManager->GetType() == InPostProcessType ? InActiveColor : InEnabledColor;
-			}
-		}
-
-		return InDisabledColor;
-	}
-
 	static void TogglePostProcess(const TWeakPtr<SAvaLevelViewportFrame>& InViewportFrameWeak, EAvaViewportPostProcessType InPostProcessType)
 	{
 		const FAvaLevelViewportGuideFrameAndClient FrameAndClient(InViewportFrameWeak);
@@ -86,6 +66,14 @@ namespace UE::Ava::LevelViewportStatusBarButtons::Private
 					PostProcessManager->SetType(InPostProcessType);
 				}
 			}
+			else
+			{
+				UE_LOG(AvaLevelViewportLog, Warning, TEXT("TogglePostProcess: Unable to find post process manager."));
+			}
+		}
+		else
+		{
+			UE_LOG(AvaLevelViewportLog, Warning, TEXT("TogglePostProcess: Invalid viewport frame/client."));
 		}
 	}
 }
@@ -112,7 +100,7 @@ void SAvaLevelViewportStatusBarButtons::Construct(const FArguments& InArgs, TSha
 
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(0, 0, Padding, 0)
+		.Padding(0, Padding, Padding, Padding)
 		[
 			SNew(SSeparator)
 			.Orientation(EOrientation::Orient_Vertical)
@@ -127,7 +115,7 @@ void SAvaLevelViewportStatusBarButtons::Construct(const FArguments& InArgs, TSha
 
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(0, 0, Padding, 0)
+		.Padding(0, Padding, Padding, Padding)
 		[
 			SNew(SSeparator)
 			.Orientation(EOrientation::Orient_Vertical)
@@ -142,7 +130,7 @@ void SAvaLevelViewportStatusBarButtons::Construct(const FArguments& InArgs, TSha
 
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(0, 0, Padding, 0)
+		.Padding(0, Padding, Padding, Padding)
 		[
 			SNew(SSeparator)
 			.Orientation(EOrientation::Orient_Vertical)
@@ -223,13 +211,52 @@ void SAvaLevelViewportStatusBarButtons::CreateContextMenuWigets()
 				.OnValueCommitted(this, &SAvaLevelViewportStatusBarButtons::OnGridSizeCommitted)
 			];
 	}
+
+	if (!TextureOverlayOpacitySlider.IsValid())
+	{
+		TextureOverlayOpacitySlider = SNew(SSpinBox<float>)
+			.ClearKeyboardFocusOnCommit(true)
+			.MaxFractionalDigits(3)
+			.MinDesiredWidth(50.f)
+			.OnEndSliderMovement(LevelViewport, &SAvaLevelViewport::OnTextureOverlayOpacitySliderEnd)
+			.OnValueCommitted(LevelViewport, &SAvaLevelViewport::OnTextureOverlayOpacityCommitted)
+			.OnValueChanged(LevelViewport, &SAvaLevelViewport::OnTextureOverlayOpacityChanged)
+			.Value(LevelViewport, &SAvaLevelViewport::GetTextureOverlayOpacity)
+			.MinValue(0.f)
+			.MinSliderValue(0.f)
+			.MaxValue(1.f)
+			.MaxSliderValue(1.f);
+	}
+
+	if (!TextureOverlayTextureSelector.IsValid())
+	{
+		TextureOverlayTextureSelector = SNew(SObjectPropertyEntryBox)
+			.AllowClear(true)
+			.AllowedClass(UTexture::StaticClass())
+			.DisplayBrowse(true)
+			.DisplayThumbnail(true)
+			.DisplayCompactSize(true)
+			.DisplayUseSelected(true)
+			.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
+			.EnableContentPicker(true)
+			.ObjectPath(LevelViewport, &SAvaLevelViewport::GetTextureOverlayTextureObjectPath)
+			.OnObjectChanged(LevelViewport, &SAvaLevelViewport::OnTextureOverlayTextureChanged)
+			.OnShouldSetAsset(FOnShouldSetAsset::CreateLambda([](const FAssetData& InAssetData) { return false; }));
+	}
+
+	if (!TextureOverlayStretchCheckBox.IsValid())
+	{
+		TextureOverlayStretchCheckBox = SNew(SCheckBox)
+			.IsChecked(LevelViewport, &SAvaLevelViewport::GetTextureOverlayStretchEnabledCheckBoxState)
+			.OnCheckStateChanged(LevelViewport, &SAvaLevelViewport::OnTextureOverlayStretchEnabledCheckBoxChanged);
+	}
 }
 
 void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizontalBox> InContainer)
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 
 	InContainer->AddSlot()
 		.AutoWidth()
@@ -246,7 +273,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 	TSharedRef<SComboButton> AlignmentButton = ViewportStatusBarButton::MakeMenuButton(
 		LOCTEXT("ActorAlign", "Align Actors"),
 		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetActorAlignmentMenuContent),
-		FAppStyle::Get().GetBrush(TEXT("Icons.Layout")),
+		FAvaLevelViewportStyle::Get().GetBrush(TEXT("Icons.Alignment.Center_Y")),
 		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetActorAlignmentColor)
 	);
 
@@ -261,13 +288,44 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 		[
 			AlignmentButton
 		];
+
+	const FSlateBrush* AnimatorBrush = FSlateIconFinder::FindIconBrushForClass(UPropertyAnimatorCoreBase::StaticClass());
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			ViewportStatusBarButton::MakeButton(
+				this,
+				CommandsRef.EnableAnimators,
+				AnimatorBrush,
+				&SAvaLevelViewportStatusBarButtons::EnableAnimators,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonUnmuteColor
+			)
+		];
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			ViewportStatusBarButton::MakeButton(
+				this,
+				CommandsRef.DisableAnimators,
+				AnimatorBrush,
+				&SAvaLevelViewportStatusBarButtons::DisableAnimators,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetAnimatorButtonMuteColor
+			)
+		];
 }
 
 void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHorizontalBox> InContainer)
 {
 	using namespace UE::AvaLevelViewport::Private;
+	using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
 
-	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
 	const FLevelViewportCommands& ViewportActionsRef = FLevelViewportCommands::Get();
 
 	InContainer->AddSlot()
@@ -276,19 +334,19 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 		[
 			ViewportStatusBarButton::MakeButton(
 				this,
-				ViewportActionsRef.HighResScreenshot,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.HighResScreenshot").GetIcon(),
-				&SAvaLevelViewportStatusBarButtons::HighResScreenshot,
-				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotEnabled,
-				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotColor
+				ViewportActionsRef.ToggleGameView,
+				FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.GameView")),
+				&SAvaLevelViewportStatusBarButtons::ToggleGameView,
+				&SAvaLevelViewportStatusBarButtons::GetToggleGameViewEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetToggleGameViewColor
 			)
 		];
 
 	TSharedRef<SComboButton> PostProcessButton = ViewportStatusBarButton::MakeMenuButton(
 		LOCTEXT("PostProcessEffects", "Post Process Effects"),
 		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent),
-		TAttribute<const FSlateBrush*>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessIcon),
-		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessColor)
+		RGBChannelIcon.GetIcon(),
+		FLinearColor::White
 	);
 
 	PostProcessButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled));
@@ -306,11 +364,11 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 		[
 			ViewportStatusBarButton::MakeButton(
 				this,
-				ViewportActionsRef.ToggleGameView,
-				FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.GameView")),
-				&SAvaLevelViewportStatusBarButtons::ToggleGameView,
-				&SAvaLevelViewportStatusBarButtons::GetToggleGameViewEnabled,
-				&SAvaLevelViewportStatusBarButtons::GetToggleGameViewColor
+				CommandsRef.ToggleIsolateActors,
+				FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.IsolateActors")),
+				&SAvaLevelViewportStatusBarButtons::ToggleIsolateActors,
+				&SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsColor
 			)
 		];
 
@@ -330,15 +388,23 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 
 	InContainer->AddSlot()
 		.AutoWidth()
+		.Padding(5.f)
+		[
+			SNew(SSeparator)
+			.Orientation(EOrientation::Orient_Vertical)
+		];
+
+	InContainer->AddSlot()
+		.AutoWidth()
 		.Padding(ViewportStatusBarButton::Padding)
 		[
 			ViewportStatusBarButton::MakeButton(
 				this,
-				CommandsRef.ToggleIsolateActors,
-				FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.IsolateActors")),
-				&SAvaLevelViewportStatusBarButtons::ToggleIsolateActors,
-				&SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsEnabled,
-				&SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsColor
+				CommandsRef.ToggleOverlay,
+				FAppStyle::GetBrush("Icons.Visible"),
+				&SAvaLevelViewportStatusBarButtons::ToggleOverlay,
+				&SAvaLevelViewportStatusBarButtons::GetToggleOverlayEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetToggleOverlayColor
 			)
 		];
 
@@ -384,38 +450,29 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 			)
 		];
 
-	InContainer->AddSlot()
-		.AutoWidth()
-		.Padding(ViewportStatusBarButton::Padding)
-		[
-			ViewportStatusBarButton::MakeButton(
-				this,
-				CommandsRef.ToggleOverlay,
-				FAppStyle::GetBrush("Icons.Visible"),
-				&SAvaLevelViewportStatusBarButtons::ToggleOverlay,
-				&SAvaLevelViewportStatusBarButtons::GetToggleOverlayEnabled,
-				&SAvaLevelViewportStatusBarButtons::GetToggleOverlayColor
-			)
-		];
-
-	TSharedRef<SAvaMultiComboButton> SnapButton = ViewportStatusBarButton::MakeMultiMenuButton(
-		CommandsRef.ToggleSnapping->GetDescription(),
-		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetSnappingMenuContent),
-		FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.ToggleSnap")),
-		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetToggleSnapColor),
-		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleSnap)
+	TSharedRef<SAvaMultiComboButton> TextureOverlayButton = ViewportStatusBarButton::MakeMultiMenuButton(
+		CommandsRef.ToggleTextureOverlay->GetDescription(),
+		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayMenuContent),
+		FAppStyle::Get().GetBrush(TEXT("GenericCommands.Paste")),
+		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayColor),
+		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleTextureOverlay)
 	);
 
-	SnapButton->SetEnabled(TAttribute<bool>::CreateSP(
-		this,
-		&SAvaLevelViewportStatusBarButtons::GetToggleSnapEnabled
-	));
+	TextureOverlayButton->SetEnabled(TAttribute<bool>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetTextureOverlayEnabled));
 
 	InContainer->AddSlot()
 		.AutoWidth()
 		.Padding(ViewportStatusBarButton::Padding)
 		[
-			SnapButton
+			TextureOverlayButton
+		];
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(5.f)
+		[
+			SNew(SSeparator)
+			.Orientation(EOrientation::Orient_Vertical)
 		];
 
 	TSharedRef<SAvaMultiComboButton> GridButton = ViewportStatusBarButton::MakeMultiMenuButton(
@@ -438,6 +495,40 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 			GridButton
 		];
 
+	TSharedRef<SAvaMultiComboButton> SnapButton = ViewportStatusBarButton::MakeMultiMenuButton(
+		CommandsRef.ToggleSnapping->GetDescription(),
+		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetSnappingMenuContent),
+		FAvaLevelViewportStyle::Get().GetBrush(TEXT("Button.ToggleSnap")),
+		TAttribute<FSlateColor>::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetToggleSnapColor),
+		FOnClicked::CreateSP(this, &SAvaLevelViewportStatusBarButtons::ToggleSnap)
+	);
+
+	SnapButton->SetEnabled(TAttribute<bool>::CreateSP(
+		this,
+		&SAvaLevelViewportStatusBarButtons::GetToggleSnapEnabled
+	));
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			SnapButton
+		];
+
+	InContainer->AddSlot()
+		.AutoWidth()
+		.Padding(ViewportStatusBarButton::Padding)
+		[
+			ViewportStatusBarButton::MakeButton(
+				this,
+				ViewportActionsRef.HighResScreenshot,
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.HighResScreenshot").GetIcon(),
+				&SAvaLevelViewportStatusBarButtons::HighResScreenshot,
+				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotEnabled,
+				&SAvaLevelViewportStatusBarButtons::GetHighResScreenshotColor
+			)
+		];
+
 	TSharedRef<SComboButton> ViewportInfoButton = ViewportStatusBarButton::MakeMenuButton(
 		LOCTEXT("ViewportInfomation", "Viewport Information"),
 		FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetViewportInfoWidget),
@@ -453,70 +544,6 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 		[
 			ViewportInfoButton
 		];
-}
-
-FSlateColor SAvaLevelViewportStatusBarButtons::GetPostProcessColor() const
-{
-	using namespace UE::AvaLevelViewport::Private;
-
-	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
-
-	if (FrameAndClient.IsValid())
-	{
-		if (const TSharedPtr<FAvaViewportPostProcessManager> PostProcessManager = FrameAndClient.ViewportClient->GetPostProcessManager())
-		{
-			return ViewportStatusBarButton::EnabledColor;
-		}
-	}
-
-	return ViewportStatusBarButton::DisabledColor;
-}
-
-const FSlateBrush* SAvaLevelViewportStatusBarButtons::GetPostProcessIcon() const
-{
-	using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
-
-	static const FSlateBrush* RGBBrush = RGBChannelIcon.GetIcon();
-	static const FSlateBrush* BackgroundBrush = BackgroundIcon.GetIcon();
-	static const FSlateBrush* RedChannelBrush = RedChannelIcon.GetIcon();
-	static const FSlateBrush* GreenChannelBrush = GreenChannelIcon.GetIcon();
-	static const FSlateBrush* BlueChannelBrush = BlueChannelIcon.GetIcon();
-	static const FSlateBrush* AlphaChannelBrush = AlphaChannelIcon.GetIcon();
-	static const FSlateBrush* CheckerBrush = CheckerboardIcon.GetIcon();
-
-	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
-
-	if (FrameAndClient.IsValid())
-	{
-		if (const TSharedPtr<FAvaViewportPostProcessManager> PostProcessManager = FrameAndClient.ViewportClient->GetPostProcessManager())
-		{
-			switch (PostProcessManager->GetType())
-			{
-				case EAvaViewportPostProcessType::None:
-					return RGBBrush;
-
-				case EAvaViewportPostProcessType::Background:
-					return BackgroundBrush;
-
-				case EAvaViewportPostProcessType::RedChannel:
-					return RedChannelBrush;
-
-				case EAvaViewportPostProcessType::GreenChannel:
-					return GreenChannelBrush;
-
-				case EAvaViewportPostProcessType::BlueChannel:
-					return BlueChannelBrush;
-
-				case EAvaViewportPostProcessType::AlphaChannel:
-					return AlphaChannelBrush;
-
-				case EAvaViewportPostProcessType::Checkerboard:
-					return CheckerBrush;
-			}
-		}
-	}
-
-	return RGBBrush;
 }
 
 bool SAvaLevelViewportStatusBarButtons::GetPostProcessEnabled() const
@@ -543,138 +570,138 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent
 
 	if (!ContextMenu)
 	{
-		using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
-
 		ContextMenu = Menus->RegisterMenu(BackgroundMenuName, NAME_None, EMultiBoxType::Menu);
 
-		const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
-
-		FToolMenuSection& EffectsSection = ContextMenu->AddSection("Effects", LOCTEXT("Effects", "Effects"));
-
-		FToolUIAction RGBAction;
-		RGBAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::None);
-		RGBAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::None);
-		RGBAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"RGB",
-			LOCTEXT("RGB", "RGB"),
-			CommandsRef.TogglePostProcessNone->GetDescription(),
-			RGBChannelIcon,
-			FToolUIActionChoice(RGBAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolUIAction BackgroundAction;
-		BackgroundAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::Background);
-		BackgroundAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::Background);
-		BackgroundAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Background", 
-			LOCTEXT("Background", "Background"), 
-			CommandsRef.TogglePostProcessBackground->GetDescription(),
-			BackgroundIcon,
-			FToolUIActionChoice(BackgroundAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolUIAction RedAction;
-		RedAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::RedChannel);
-		RedAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::RedChannel);
-		RedAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Red",
-			LOCTEXT("Red", "Red"),
-			CommandsRef.TogglePostProcessChannelRed->GetDescription(),
-			RedChannelIcon,
-			FToolUIActionChoice(RedAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolUIAction GreenAction;
-		GreenAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::GreenChannel);
-		GreenAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::GreenChannel);
-		GreenAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Green",
-			LOCTEXT("Green", "Green"),
-			CommandsRef.TogglePostProcessChannelGreen->GetDescription(),
-			GreenChannelIcon,
-			FToolUIActionChoice(GreenAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolUIAction BlueAction;
-		BlueAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::BlueChannel);
-		BlueAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::BlueChannel);
-		BlueAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Blue",
-			LOCTEXT("Blue", "Blue"),
-			CommandsRef.TogglePostProcessChannelBlue->GetDescription(),
-			BlueChannelIcon,
-			FToolUIActionChoice(BlueAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolUIAction AlphaAction;
-		AlphaAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::AlphaChannel);
-		AlphaAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::AlphaChannel);
-		AlphaAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Alpha",
-			LOCTEXT("Alpha", "Alpha"),
-			CommandsRef.TogglePostProcessChannelAlpha->GetDescription(),
-			AlphaChannelIcon,
-			FToolUIActionChoice(AlphaAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolUIAction CheckerboardAction;
-		CheckerboardAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::Checkerboard);
-		CheckerboardAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::Checkerboard);
-		CheckerboardAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
-
-		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Checkerboard",
-			LOCTEXT("Checkerboard", "Checkerboard"),
-			CommandsRef.TogglePostProcessCheckerboard->GetDescription(),
-			CheckerboardIcon,
-			FToolUIActionChoice(CheckerboardAction),
-			EUserInterfaceActionType::Check
-		));
-
-		FToolMenuSection& OptionsSection = ContextMenu->AddSection("Options", LOCTEXT("Options", "Options"));
-
-		if (PostProcessOpacitySlider.IsValid())
+		if (!ContextMenu)
 		{
-			OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
-				"PostProcessOpacity",
-				PostProcessOpacitySlider.ToSharedRef(),
-				LOCTEXT("PostProcessOpacity", "Opacity"),
-				true
-			));
-		}
-
-		if (BackgroundTextureSelector.IsValid())
-		{
-			OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
-				"PostProcessTexture",
-				BackgroundTextureSelector.ToSharedRef(),
-				LOCTEXT("PostProcessTexture", "Texture"),
-				true
-			));
+			return SNullWidget::NullWidget;
 		}
 	}
 
-	if (!ContextMenu)
+	using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
+
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
+
+	FToolMenuSection& EffectsSection = ContextMenu->FindOrAddSection("Effects", LOCTEXT("Effects", "Effects"));
+
+	FToolUIAction RGBAction;
+	RGBAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::None);
+	RGBAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::None);
+	RGBAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"RGB",
+		LOCTEXT("RGB", "RGB"),
+		CommandsRef.TogglePostProcessNone->GetDescription(),
+		RGBChannelIcon,
+		FToolUIActionChoice(RGBAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolUIAction BackgroundAction;
+	BackgroundAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::Background);
+	BackgroundAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::Background);
+	BackgroundAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"Background", 
+		LOCTEXT("Background", "Background"), 
+		CommandsRef.TogglePostProcessBackground->GetDescription(),
+		BackgroundIcon,
+		FToolUIActionChoice(BackgroundAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolUIAction RedAction;
+	RedAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::RedChannel);
+	RedAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::RedChannel);
+	RedAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"Red",
+		LOCTEXT("Red", "Red"),
+		CommandsRef.TogglePostProcessChannelRed->GetDescription(),
+		RedChannelIcon,
+		FToolUIActionChoice(RedAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolUIAction GreenAction;
+	GreenAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::GreenChannel);
+	GreenAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::GreenChannel);
+	GreenAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"Green",
+		LOCTEXT("Green", "Green"),
+		CommandsRef.TogglePostProcessChannelGreen->GetDescription(),
+		GreenChannelIcon,
+		FToolUIActionChoice(GreenAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolUIAction BlueAction;
+	BlueAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::BlueChannel);
+	BlueAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::BlueChannel);
+	BlueAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"Blue",
+		LOCTEXT("Blue", "Blue"),
+		CommandsRef.TogglePostProcessChannelBlue->GetDescription(),
+		BlueChannelIcon,
+		FToolUIActionChoice(BlueAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolUIAction AlphaAction;
+	AlphaAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::AlphaChannel);
+	AlphaAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::AlphaChannel);
+	AlphaAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"Alpha",
+		LOCTEXT("Alpha", "Alpha"),
+		CommandsRef.TogglePostProcessChannelAlpha->GetDescription(),
+		AlphaChannelIcon,
+		FToolUIActionChoice(AlphaAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolUIAction CheckerboardAction;
+	CheckerboardAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::Checkerboard);
+	CheckerboardAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::Checkerboard);
+	CheckerboardAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+
+	EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"Checkerboard",
+		LOCTEXT("Checkerboard", "Checkerboard"),
+		CommandsRef.TogglePostProcessCheckerboard->GetDescription(),
+		CheckerboardIcon,
+		FToolUIActionChoice(CheckerboardAction),
+		EUserInterfaceActionType::Check
+	));
+
+	FToolMenuSection& OptionsSection = ContextMenu->AddSection("Options", LOCTEXT("Options", "Options"));
+
+	if (PostProcessOpacitySlider.IsValid())
 	{
-		return SNullWidget::NullWidget;
+		OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+			"PostProcessOpacity",
+			PostProcessOpacitySlider.ToSharedRef(),
+			LOCTEXT("PostProcessOpacity", "Opacity"),
+			true
+		));
+	}
+
+	if (BackgroundTextureSelector.IsValid())
+	{
+		OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+			"PostProcessTexture",
+			BackgroundTextureSelector.ToSharedRef(),
+			LOCTEXT("PostProcessTexture", "Texture"),
+			true
+		));
 	}
 
 	return Menus->GenerateWidget(ContextMenu);
@@ -821,6 +848,113 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetActorColorMenuContent(
 	return SAvaLevelViewportActorColorMenu::CreateMenu(LevelEditor.ToSharedRef());
 }
 
+FSlateColor SAvaLevelViewportStatusBarButtons::GetAnimatorButtonMuteColor() const
+{
+	return UE::AvaLevelViewport::Private::ViewportStatusBarButton::EnabledColor;
+}
+
+FSlateColor SAvaLevelViewportStatusBarButtons::GetAnimatorButtonUnmuteColor() const
+{
+	return UE::AvaLevelViewport::Private::ViewportStatusBarButton::ActiveColor;
+}
+
+bool SAvaLevelViewportStatusBarButtons::GetAnimatorButtonEnabled() const
+{
+	return true;
+}
+
+FReply SAvaLevelViewportStatusBarButtons::EnableAnimators()
+{
+	const TSharedPtr<SAvaLevelViewportFrame> ViewportFrame = ViewportFrameWeak.Pin();
+
+	if (!ViewportFrame.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = ViewportFrame->GetViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const FEditorModeTools* ModeTools = ViewportClient->GetModeTools();
+
+	if (!ModeTools)
+	{
+		return FReply::Handled();
+	}
+
+	UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
+	const UWorld* World = ModeTools->GetWorld();
+	const UTypedElementSelectionSet* SelectionSet = ModeTools->GetEditorSelectionSet();
+
+	if (!World || !SelectionSet || !AnimatorSubsystem)
+	{
+		return FReply::Handled();
+	}
+
+	const TSet<AActor*> SelectedActors(SelectionSet->GetSelectedObjects<AActor>());
+
+	if (SelectedActors.IsEmpty())
+	{
+		AnimatorSubsystem->SetLevelAnimatorsEnabled(World, /** Enabled */true, /** Transact */true);
+	}
+	else
+	{
+		AnimatorSubsystem->SetActorAnimatorsEnabled(SelectedActors, /** Enabled */true, /** Transact */true);
+	}
+
+	return FReply::Handled();
+}
+
+FReply SAvaLevelViewportStatusBarButtons::DisableAnimators()
+{
+	const TSharedPtr<SAvaLevelViewportFrame> ViewportFrame = ViewportFrameWeak.Pin();
+
+	if (!ViewportFrame.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = ViewportFrame->GetViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const FEditorModeTools* ModeTools = ViewportClient->GetModeTools();
+
+	if (!ModeTools)
+	{
+		return FReply::Handled();
+	}
+
+	UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
+	const UWorld* World = ModeTools->GetWorld();
+	const UTypedElementSelectionSet* SelectionSet = ModeTools->GetEditorSelectionSet();
+
+	if (!World || !SelectionSet || !AnimatorSubsystem)
+	{
+		return FReply::Handled();
+	}
+
+	const TSet<AActor*> SelectedActors(SelectionSet->GetSelectedObjects<AActor>());
+
+	if (SelectedActors.IsEmpty())
+	{
+		AnimatorSubsystem->SetLevelAnimatorsEnabled(World, /** Enabled */false, /** Transact */true);
+	}
+	else
+	{
+		AnimatorSubsystem->SetActorAnimatorsEnabled(SelectedActors, /** Enabled */false, /** Transact */true);
+	}
+
+	return FReply::Handled();
+}
+
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleSnapColor() const
 {
 	using namespace UE::AvaLevelViewport::Private;
@@ -877,42 +1011,42 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetSnappingMenuContent() 
 
 	if (!ContextMenu)
 	{
-		const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+		ContextMenu = Menus->RegisterMenu(SnapMenuName, NAME_None, EMultiBoxType::Menu);
 
-		if (!FrameAndWidget.IsValid())
+		if (!ContextMenu)
 		{
 			return SNullWidget::NullWidget;
 		}
-
-		ContextMenu = Menus->RegisterMenu(SnapMenuName, NAME_None, EMultiBoxType::Menu);
-
-		FToolMenuSection& Section = ContextMenu->AddSection("SnapTo", LOCTEXT("SnapTo", "Snap To"));
-
-		const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
-
-		Section.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
-			CommandsRef.ToggleGridSnapping,
-			FrameAndWidget.ViewportWidget->GetCommandList(),
-			LOCTEXT("GridSnapping", "Grid")
-		));
-
-		Section.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
-			CommandsRef.ToggleScreenSnapping,
-			FrameAndWidget.ViewportWidget->GetCommandList(),
-			LOCTEXT("ScreenSnapping", "Screen & Guide")
-		));
-
-		Section.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
-			CommandsRef.ToggleActorSnapping,
-			FrameAndWidget.ViewportWidget->GetCommandList(),
-			LOCTEXT("ActorSnapping", "Actor")
-		));
 	}
 
-	if (!ContextMenu)
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (!FrameAndWidget.IsValid())
 	{
 		return SNullWidget::NullWidget;
 	}
+
+	FToolMenuSection& SnapToSection = ContextMenu->FindOrAddSection("SnapTo", LOCTEXT("SnapTo", "Snap To"));
+
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
+
+	SnapToSection.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
+		CommandsRef.ToggleGridSnapping,
+		FrameAndWidget.ViewportWidget->GetCommandList(),
+		LOCTEXT("GridSnapping", "Grid")
+	));
+
+	SnapToSection.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
+		CommandsRef.ToggleScreenSnapping,
+		FrameAndWidget.ViewportWidget->GetCommandList(),
+		LOCTEXT("ScreenSnapping", "Screen & Guide")
+	));
+
+	SnapToSection.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
+		CommandsRef.ToggleActorSnapping,
+		FrameAndWidget.ViewportWidget->GetCommandList(),
+		LOCTEXT("ActorSnapping", "Actor")
+	));
 
 	return Menus->GenerateWidget(ContextMenu);
 }
@@ -923,7 +1057,10 @@ FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleShapeEditorOverlayColor(
 
 	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
 	{
-		return AvaViewportSettings->bEnableShapesEditorOverlay ? ViewportStatusBarButton::ActiveColor : ViewportStatusBarButton::EnabledColor;
+		if (AvaViewportSettings->bEnableViewportOverlay)
+		{
+			return AvaViewportSettings->bEnableShapesEditorOverlay ? ViewportStatusBarButton::ActiveColor : ViewportStatusBarButton::EnabledColor;
+		}
 	}
 
 	return ViewportStatusBarButton::DisabledColor;
@@ -947,7 +1084,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleShapeEditorOverlay()
 	{
 		AvaViewportSettings->bEnableShapesEditorOverlay = !AvaViewportSettings->bEnableShapesEditorOverlay;
 		AvaViewportSettings->SaveConfig();
-		AvaViewportSettings->OnChange.Broadcast(AvaViewportSettings, GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, bEnableShapesEditorOverlay));
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, bEnableShapesEditorOverlay));
 
 		return FReply::Handled();
 	}
@@ -1053,35 +1190,35 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetGridMenuContent() cons
 	{
 		ContextMenu = Menus->RegisterMenu(GridMenuName, NAME_None, EMultiBoxType::Menu);
 
-		FToolMenuSection& Section = ContextMenu->AddSection("Grid", LOCTEXT("Grid", "Grid"));
-
-		const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
-
-		const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
-
-		if (FrameAndWidget.IsValid())
+		if (!ContextMenu)
 		{
-			Section.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
-				CommandsRef.ToggleGridAlwaysVisible,
-				FrameAndWidget.ViewportWidget->GetCommandList(),
-				LOCTEXT("AlwaysShowGrid", "Always On")
-			));
-		}
-
-		if (GridSizeSlider.IsValid())
-		{
-			Section.AddEntry(FToolMenuEntry::InitWidget(
-				"GridSize",
-				GridSizeSlider.ToSharedRef(),
-				LOCTEXT("GridSize", "Size"),
-				true
-			));
+			return SNullWidget::NullWidget;
 		}
 	}
 
-	if (!ContextMenu)
+	FToolMenuSection& GridSection = ContextMenu->FindOrAddSection("Grid", LOCTEXT("Grid", "Grid"));
+
+	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::GetInternal();
+
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid())
 	{
-		return SNullWidget::NullWidget;
+		GridSection.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
+			CommandsRef.ToggleGridAlwaysVisible,
+			FrameAndWidget.ViewportWidget->GetCommandList(),
+			LOCTEXT("AlwaysShowGrid", "Always On")
+		));
+	}
+
+	if (GridSizeSlider.IsValid())
+	{
+		GridSection.AddEntry(FToolMenuEntry::InitWidget(
+			"GridSize",
+			GridSizeSlider.ToSharedRef(),
+			LOCTEXT("GridSize", "Size"),
+			true
+		));
 	}
 
 	return Menus->GenerateWidget(ContextMenu);
@@ -1162,6 +1299,105 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetViewportInfoWidget() c
 	}
 
 	return SNullWidget::NullWidget;
+}
+
+FSlateColor SAvaLevelViewportStatusBarButtons::GetTextureOverlayColor() const
+{
+	using namespace UE::AvaLevelViewport::Private;
+
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid() && FrameAndWidget.ViewportWidget->CanToggleTextureOverlay())
+	{
+		if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+		{
+			return AvaViewportSettings->bEnableTextureOverlay ? ViewportStatusBarButton::ActiveColor : ViewportStatusBarButton::EnabledColor;
+		}
+	}
+
+	return ViewportStatusBarButton::DisabledColor;
+}
+
+bool SAvaLevelViewportStatusBarButtons::GetTextureOverlayEnabled() const
+{
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid())
+	{
+		return FrameAndWidget.ViewportWidget->CanToggleTextureOverlay();
+	}
+
+	return false;
+}
+
+TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetTextureOverlayMenuContent()
+{
+	UToolMenus* Menus = UToolMenus::Get();
+
+	check(Menus);
+
+	static const FName TextureOverlayMenuName = TEXT("AvaLevelViewport.StatusBar.TextureOverlay");
+
+	UToolMenu* ContextMenu = Menus->FindMenu(TextureOverlayMenuName);
+
+	if (!ContextMenu)
+	{
+		using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
+
+		ContextMenu = Menus->RegisterMenu(TextureOverlayMenuName, NAME_None, EMultiBoxType::Menu);
+
+		if (!ContextMenu)
+		{
+			return SNullWidget::NullWidget;
+		}
+	}
+
+	FToolMenuSection& OptionsSection = ContextMenu->FindOrAddSection("TextureOverlay", LOCTEXT("TextureOverlay", "Texture Overlay"));
+
+	if (TextureOverlayOpacitySlider.IsValid())
+	{
+		OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+			"TextureOverlayOpacity",
+			TextureOverlayOpacitySlider.ToSharedRef(),
+			LOCTEXT("TextureOverlayOpacity", "Opacity"),
+			true
+		));
+	}
+
+	if (TextureOverlayTextureSelector.IsValid())
+	{
+		OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+			"TextureOverlayTexture",
+			TextureOverlayTextureSelector.ToSharedRef(),
+			LOCTEXT("TextureOverlayTexture", "Texture"),
+			true
+		));
+	}
+
+	if (TextureOverlayStretchCheckBox.IsValid())
+	{
+		OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
+			"TextureOverlayStretch",
+			TextureOverlayStretchCheckBox.ToSharedRef(),
+			LOCTEXT("TextureOverlayStretch", "Stretch Texture"),
+			true
+		));
+	}
+
+	return Menus->GenerateWidget(ContextMenu);
+}
+
+FReply SAvaLevelViewportStatusBarButtons::ToggleTextureOverlay()
+{
+	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
+
+	if (FrameAndWidget.IsValid() && FrameAndWidget.ViewportWidget->CanToggleSnapping())
+	{
+		FrameAndWidget.ViewportWidget->ExecuteToggleTextureOverlay();
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
 }
 
 bool SAvaLevelViewportStatusBarButtons::CanChangeGridSize() const

@@ -5,6 +5,7 @@
 #include "NavigationSystem.h"
 #include "NavMesh/PImplRecastNavMesh.h"
 #include "NavMesh/RecastNavMesh.h"
+#include <type_traits>
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RecastGraphAStar)
 
@@ -71,7 +72,7 @@ dtStatus FRecastGraphWrapper::ConvertToRecastStatus(const FRecastAStar& Algo, co
 	return FindPathStatus;
 }
 
-static_assert(TIsTriviallyDestructible<FRecastAStarSearchNode>::Value == true, "FRecastAStarSearchNode must be trivially destructible");
+static_assert(std::is_trivially_destructible_v<FRecastAStarSearchNode>, "FRecastAStarSearchNode must be trivially destructible");
 
 dtPolyRef FRecastAStarResult::SetPathInfo(const int32 Index, const FRecastAStarSearchNode& SearchNode)
 {

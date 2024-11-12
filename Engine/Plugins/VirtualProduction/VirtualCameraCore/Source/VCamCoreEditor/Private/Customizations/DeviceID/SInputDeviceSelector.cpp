@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "SInputDeviceSelector"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	static FInputDeviceSelectionSettings GVCamInputCapturingSettings;
 	

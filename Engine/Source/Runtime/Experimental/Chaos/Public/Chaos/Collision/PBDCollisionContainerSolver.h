@@ -58,7 +58,7 @@ namespace Chaos
 
 		void CachePrefetchSolver(const int32 ConstraintIndex) const;
 		void AddConstraint(FPBDCollisionConstraint& Constraint);
-		int32 CalculateCollisionBufferNum(const int32 InTightFittingNum, const int32 InCurrentBufferNum) const;
+		size_t CalculateCollisionBufferSize(const size_t InTightFittingNum, const size_t InCurrentBufferNum) const;
 		int32 CalculateConstraintMaxManifoldPoints(const FPBDCollisionConstraint* Constraint) const;
 		void PrepareSolverBuffer();
 		void UpdatePositionShockPropagation(const FReal Dt, const int32 It, const int32 NumIts, const int32 BeginIndex, const int32 EndIndex, const FPBDCollisionSolverSettings& SolverSettings);

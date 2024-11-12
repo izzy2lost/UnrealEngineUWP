@@ -15,6 +15,8 @@ namespace UE
 {
 	namespace Interchange
 	{
+		struct FAnimationPayloadQuery;
+		struct FAnimationPayloadData;
 		namespace Private
 		{
 			class FPayloadContextBase;
@@ -49,18 +51,19 @@ namespace UE
 					ResultsContainer = Result;
 				}
 
-				void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit)
+				void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit, const bool InbKeepFbxNamespace)
 				{
 					bConvertScene = InbConvertScene;
 					bForceFrontXAxis = InbForceFrontXAxis;
 					bConvertSceneUnit = InbConvertSceneUnit;
+					bKeepFbxNamespace = InbKeepFbxNamespace;
 				}
 
 				//return the fbx helper for this parser
 				const TSharedPtr<FFbxHelper> GetFbxHelper();
 
 				/* Load an fbx file into the fbx sdk, return false if the file could not be load. */
-				bool LoadFbxFile(const FString& Filename);
+				bool LoadFbxFile(const FString& Filename, UInterchangeBaseNodeContainer& NodeContainer);
 
 				/* Extract the fbx data from the sdk into our node container */
 				void FillContainerWithFbxScene(UInterchangeBaseNodeContainer& NodeContainer);
@@ -74,8 +77,11 @@ namespace UE
 				bool FetchMeshPayloadData(const FString& PayloadKey, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData);
 #endif
 
-				/* Extract the fbx data from the sdk into our node container */
-				bool FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath);
+				/* Extract the fbx data from the sdk into our node container
+				* @Param PayloadQueries - Will be grouped based on their TimeDescription Hashes (so that we acquire the same timings in one iteration, avoiding cache rebuilds)
+				*/
+				bool FetchAnimationBakeTransformPayload(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries, const FString& ResultFolder, FCriticalSection* ResultPayloadsCriticalSection, TAtomic<int64>& UniqueIdCounter, TMap<FString, FString>& ResultPayloads/*PayloadUniqueID to FilePath*/);
+				
 				/**
 				 * This function is used to add the given message object directly into the results for this operation.
 				 */
@@ -100,6 +106,7 @@ namespace UE
 
 				double GetFrameRate() { return FrameRate; }
 
+				bool IsCreatorBlender() { return bCreatorIsBlender; }
 				/**
 				 * Critical section to avoid getting multiple payload in same time.
 				 * The FBX evaluator use a cache mechanism for evaluating global transform that is not thread safe.
@@ -108,7 +115,9 @@ namespace UE
 				FCriticalSection PayloadCriticalSection;
 			private:
 
+				void EnsureNodeNameAreValid(const FString& BaseFilename);
 				void CleanupFbxData();
+				void ProcessExtraInformation(UInterchangeBaseNodeContainer& NodeContainer);
 
 				TWeakObjectPtr<UInterchangeResultsContainer> ResultsContainer;
 				FbxManager* SDKManager = nullptr;
@@ -127,6 +136,19 @@ namespace UE
 				bool bConvertScene = true;
 				bool bForceFrontXAxis = false;
 				bool bConvertSceneUnit = true;
+				bool bKeepFbxNamespace = false;
+				bool bCreatorIsBlender = false;
+
+				struct FileDetails
+				{
+					FString FbxFileVersion;
+					FString FbxFileCreator;
+					FString FbxFileCreatorApplication;
+					FString UnitSystem;
+					FString AxisDirection;
+					FString FrameRate;
+				} FileDetails;
+				
 			};
 		}//ns Private
 	}//ns Interchange

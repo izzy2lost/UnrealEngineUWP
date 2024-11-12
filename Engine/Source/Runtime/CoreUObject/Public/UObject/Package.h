@@ -52,6 +52,10 @@ struct FMD5Hash;
 struct FPackageSaveInfo;
 struct FSavePackageArgs;
 
+#if WITH_EDITOR
+namespace UE::Cook { class FCookDependency; }
+#endif
+
 /**
 * Represents the result of saving a package
 */
@@ -109,6 +113,10 @@ struct FSavePackageResultStruct
 	TArray<FName> ImportPackages;
 	TArray<FName> SoftPackageReferences;
 
+#if WITH_EDITOR
+	TArray<UE::Cook::FCookDependency> CookDependencies;
+#endif
+
 	/** Constructors, it will implicitly construct from the result enum */
 	COREUOBJECT_API FSavePackageResultStruct();
 	COREUOBJECT_API FSavePackageResultStruct(ESavePackageResult InResult);
@@ -165,7 +173,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPackageSaved, const FString&, UObject*);					
 	/** delegate type for package saved events ( Params: const FString& PackageFileName, UObject* Outer, FObjectPostSaveContext ObjectSaveContext ) */
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPackageSavedWithContext, const FString&, UPackage*, FObjectPostSaveContext);
-	/** delegate type for when a package is marked as dirty via UObjectBaseUtilty::MarkPackageDirty ( Params: UPackage* ModifiedPackage, bool bWasDirty ) */
+	/** delegate type for when a package is marked as dirty via UObjectBaseUtility::MarkPackageDirty ( Params: UPackage* ModifiedPackage, bool bWasDirty ) */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPackageMarkedDirty, class UPackage*, bool);
 	/** delegate type for when a package is about to be saved */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FPreSavePackage, class UPackage*);
@@ -186,7 +194,7 @@ public:
 	*  Use Package->IsDirty() to get the updated dirty state of the package */
 	COREUOBJECT_API static FOnPackageDirtyStateChanged PackageDirtyStateChangedEvent;
 	/** 
-	* Delegate to notify subscribers when a package is marked as dirty via UObjectBaseUtilty::MarkPackageDirty 
+	* Delegate to notify subscribers when a package is marked as dirty via UObjectBaseUtility::MarkPackageDirty 
 	* Note: Unlike FOnPackageDirtyStateChanged, this is always called, even when the package is already dirty
 	* Use bWasDirty to check the previous dirty state of the package
 	* Use Package->IsDirty() to get the updated dirty state of the package
@@ -203,12 +211,6 @@ private:
 #endif
 
 public:
-
-#if WITH_EDITORONLY_DATA
-	/** True if this packages has been cooked for the editor / opened cooked by the editor */
-	uint8 bIsCookedForEditor:1;
-#endif
-
 	/** Whether this package has been fully loaded (aka had all it's exports created) at some point. */
 	mutable uint8 bHasBeenFullyLoaded:1;
 
@@ -221,6 +223,11 @@ public:
 	uint8 bCanBeImported:1;
 
 #if WITH_EDITORONLY_DATA
+	/** True if this packages has been cooked for the editor / opened cooked by the editor
+        *   Note: This flag is accessed on different threads, do not mix with other bitfields above as the value returned might get corrupted.
+        */
+	bool bIsCookedForEditor{ false };
+
 private:
 	/** True if this package is only referenced by editor-only properties 
 	*   Note: This flag is manipulated on different threads, do not mix with other bitfields above as they might get corrupted.
@@ -243,21 +250,7 @@ public:
 #endif
 
 private:
-	// @note this should probably be entirely deprecated and removed but certain stat dump function are still using it,
-	// just compile it out in shipping for now
-#if !UE_BUILD_SHIPPING
-	/**
-	 * Time in seconds it took to fully load this package.
-	 * 0 if package is either in process of being loaded or has never been fully loaded.
-	 */
-	float LoadTime;
-#endif
-
 #if WITH_EDITORONLY_DATA
-	/** Indicates which folder to display this package under in the Generic Browser's list of packages. If not specified, package is added to the root level. deprecated	*/
-	UE_DEPRECATED(5.1, "Unused property to be removed. Use something like FPackageName::GetLongPackagePath if requiring something similar.")
-	FName FolderName;
-
 	/** Persistent GUID of package if it was loaded from disk. Persistent across saves. */
 	FGuid PersistentGuid;
 
@@ -279,55 +272,56 @@ private:
 
 	/** The PackagePath this package was loaded from */
 	FPackagePath LoadedPath;
-public:
 
+	// @note this should probably be entirely deprecated and removed but certain stat dump function are still using it,
+	// just compile it out in shipping for now
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Time in seconds it took to fully load this package.
+	 * 0 if package is either in process of being loaded or has never been fully loaded.
+	 */
+	float LoadTime;
+#endif
+
+	struct FAdditionalInfo
+	{
 	/** Linker package version this package has been serialized with. This is mostly used by PostLoad **/
-	UE_DEPRECATED(5.0, "Use Get/SetLinkerPackageVersion instead")
-	FPackageFileVersion LinkerPackageVersion;
+		FPackageFileVersion LinkerPackageVersion = GPackageFileUEVersion;
 
 	/** Linker licensee version this package has been serialized with. This is mostly used by PostLoad **/
-	UE_DEPRECATED(5.0, "Use Get/SetLinkerLicenseeVersion instead")
-	int32 LinkerLicenseeVersion;
+		int32 LinkerLicenseeVersion = GPackageFileLicenseeUEVersion;
 
 	/** Linker custom version container this package has been serialized with. This is mostly used by PostLoad **/
-	UE_DEPRECATED(5.0, "Use Get/SetLinkerCustomVersions instead")
 	FCustomVersionContainer LinkerCustomVersion;
 
 	/** Linker load associated with this package */
-	UE_DEPRECATED(5.0, "Use Get/SetLinker instead")
-	FLinkerLoad* LinkerLoad;
+		FLinkerLoad* LinkerLoad = nullptr;
 
 	/** size of the file for this package; if the package was not loaded from a file or was a forced export in another package, this will be zero */
-	UE_DEPRECATED(5.0, "Use Get/SetFileSize instead")
-	uint64 FileSize;
+		uint64 FileSize = 0;
+
+		// World browser information
+		TUniquePtr< FWorldTileInfo > WorldTileInfo;
+	};
+	
+	/** Contains additional information if they differ from the defaults. */
+	TUniquePtr<FAdditionalInfo> AdditionalInfo;
+
+#if WITH_METADATA
+	// MetaData for the editor, or NULL in the game
+	class UMetaData* MetaData;
+#endif // WITH_METADATA
 
 #if WITH_EDITORONLY_DATA
 	/** Editor only: Thumbnails stored in this package */
-	UE_DEPRECATED(5.0, "Use Get/SetThumbnailMap instead")
 	TUniquePtr< FThumbnailMap > ThumbnailMap;
 
-	// MetaData for the editor, or NULL in the game
-	UE_DEPRECATED(5.0, "Use Get/HasMetaData instead")
-	class UMetaData* MetaData;
-
 	/** Editor only: PIE instance ID this package belongs to, INDEX_NONE otherwise */
-	UE_DEPRECATED(5.0, "Use Get/SetPIEInstanceID instead")
 	int32 PIEInstanceID;
 #endif
 
-#if !UE_STRIP_DEPRECATED_PROPERTIES
-	/** The name of the file that this package was loaded from */
-	UE_DEPRECATED(5.0, "Use GetLoadedPath instead")
-	FName FileName;
-#endif
-
-	// World browser information
-	UE_DEPRECATED(5.0, "Use Get/SetWorldTileInfo instead")
-	TUniquePtr< FWorldTileInfo > WorldTileInfo;
-
 #if WITH_RELOAD
 	/** Link list of delegates registered to the package.  The next pointer chain can't be used for this. */
-	UE_DEPRECATED(5.0, "Use Get/SetReloadDelegates instead")
 	TArray<UFunction*> Delegates;
 #endif
 
@@ -340,13 +334,13 @@ public:
 	virtual bool NeedsLoadForClient() const override { return true; }
 	virtual bool NeedsLoadForServer() const override { return true; }
 	virtual bool IsPostLoadThreadSafe() const override;
-	virtual bool IsDestructionThreadSafe() const override { return true; }
 
 #if WITH_EDITORONLY_DATA
-	/** Sets the bLoadedByEditorPropertiesOnly flag */
-	COREUOBJECT_API void SetLoadedByEditorPropertiesOnly(bool bIsEditorOnly, bool bRecursive = false);
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
+	void SetLoadedByEditorPropertiesOnly(bool bIsEditorOnly, bool bRecursive = false) {}
 	/** returns true when the package is only referenced by editor-only flag */
-	bool IsLoadedByEditorPropertiesOnly() const { return bLoadedByEditorPropertiesOnly; }
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
+	bool IsLoadedByEditorPropertiesOnly() const { return false; }
 
 	/** Sets the bIsDynamicPIEPackagePending flag */
 	void SetDynamicPIEPackagePending(bool bInIsDynamicPIEPackagePending)
@@ -394,34 +388,79 @@ private:
 
 	void SetLinker(FLinkerLoad* InLinker)
 	{
-		LinkerLoad = InLinker;
+		LLM_SCOPE_BYNAME(TEXT("Package/AdditionalInfo"));
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->LinkerLoad = InLinker;
+		}
+		else if (InLinker != nullptr)
+		{
+			AdditionalInfo = MakeUnique<FAdditionalInfo>();
+			AdditionalInfo->LinkerLoad = InLinker;
+		}
 	}
 
 	void SetLinkerPackageVersion(FPackageFileVersion InVersion)
 	{
-		LinkerPackageVersion = MoveTemp(InVersion);
+		LLM_SCOPE_BYNAME(TEXT("Package/AdditionalInfo"));
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->LinkerPackageVersion = MoveTemp(InVersion);
+		}
+		else if (InVersion != GPackageFileUEVersion)
+		{
+			AdditionalInfo = MakeUnique<FAdditionalInfo>();
+			AdditionalInfo->LinkerPackageVersion = MoveTemp(InVersion);
+		}
 	}
 
 	void SetLinkerLicenseeVersion(int32 InVersion)
 	{
-		LinkerLicenseeVersion = InVersion;
+		LLM_SCOPE_BYNAME(TEXT("Package/AdditionalInfo"));
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->LinkerLicenseeVersion = InVersion;
+		}
+		else if (InVersion != GPackageFileLicenseeUEVersion)
+		{
+			AdditionalInfo = MakeUnique<FAdditionalInfo>();
+			AdditionalInfo->LinkerLicenseeVersion = InVersion;
+		}
 	}
 
 	void SetLinkerCustomVersions(FCustomVersionContainer InVersions)
 	{
-		LinkerCustomVersion = MoveTemp(InVersions);
+		LLM_SCOPE_BYNAME(TEXT("Package/AdditionalInfo"));
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->LinkerCustomVersion = MoveTemp(InVersions);
+		}
+		else if (!InVersions.GetAllVersions().IsEmpty())
+		{
+			AdditionalInfo = MakeUnique<FAdditionalInfo>();
+			AdditionalInfo->LinkerCustomVersion = MoveTemp(InVersions);
+		}
 	}
 
 	void SetFileSize(int64 InFileSize)
 	{
-		FileSize = InFileSize;
+		LLM_SCOPE_BYNAME(TEXT("Package/AdditionalInfo"));
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->FileSize = InFileSize;
+		}
+		else if (InFileSize != 0)
+		{
+			AdditionalInfo = MakeUnique<FAdditionalInfo>();
+			AdditionalInfo->FileSize = MoveTemp(InFileSize);
+		}
 	}
 
 	void SetMetaData(UMetaData* InMetaData)
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		MetaData = InMetaData;
-#endif
+#endif // WITH_METADATA
 	}
 
 public:
@@ -451,24 +490,35 @@ public:
 
 	FLinkerLoad* GetLinker() const
 	{
-		return LinkerLoad;
+		return AdditionalInfo.IsValid() ? AdditionalInfo->LinkerLoad : nullptr;
 	}
 
 	const FPackageFileVersion& GetLinkerPackageVersion() const
 	{
-		return LinkerPackageVersion;
+		return AdditionalInfo.IsValid() ? AdditionalInfo->LinkerPackageVersion : GPackageFileUEVersion;
 	}
 
 	int32 GetLinkerLicenseeVersion() const
 	{
-		return LinkerLicenseeVersion;
+		return AdditionalInfo.IsValid() ? AdditionalInfo->LinkerLicenseeVersion : GPackageFileLicenseeUEVersion;
 	}
 
 	const FCustomVersionContainer& GetLinkerCustomVersions() const
 	{
-		return LinkerCustomVersion;
+		static FCustomVersionContainer EmptyVersions;
+		return AdditionalInfo.IsValid() ? AdditionalInfo->LinkerCustomVersion : EmptyVersions;
 	}
 
+private:
+	void EmptyLinkerCustomVersion()
+	{
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->LinkerCustomVersion.Empty();
+		}
+	}
+
+public:
 	/**
 	 * Sets the time it took to load this package.
 	 */
@@ -492,27 +542,6 @@ public:
 		return 0.0f;
 #endif
 	}
-
-#if WITH_EDITORONLY_DATA
-	/**
-	* Get the package's folder name
-	* @return		Folder name
-	*/
-	UE_DEPRECATED(5.1, "Unused property to be removed. Use something like FPackageName::GetLongPackagePath if requiring something similar.")
-	FName GetFolderName() const
-	{
-		return FolderName;
-	}
-
-	/**
-	* Set the package's folder name
-	*/
-	UE_DEPRECATED(5.1, "Unused property to be removed. Use something like FPackageName::GetLongPackagePath if requiring something similar.")
-	void SetFolderName (FName name)
-	{
-		FolderName = name;
-	}
-#endif
 
 	/**
 	 * Clear the package dirty flag without any transaction tracking
@@ -798,17 +827,25 @@ public:
 	}
 #endif
 
-
 	/** Get the world tile info if any*/
 	FWorldTileInfo* GetWorldTileInfo() const
 	{
-		return WorldTileInfo.Get();
+		return AdditionalInfo.IsValid() ? AdditionalInfo->WorldTileInfo.Get() : nullptr;
 	}
 
 	/** Set the world tile info */
 	void SetWorldTileInfo(TUniquePtr<FWorldTileInfo> InWorldTileInfo)
 	{
-		WorldTileInfo = MoveTemp(InWorldTileInfo);
+		LLM_SCOPE_BYNAME(TEXT("Package/AdditionalInfo"));
+		if (AdditionalInfo.IsValid())
+		{
+			AdditionalInfo->WorldTileInfo = MoveTemp(InWorldTileInfo);
+		}
+		else if (InWorldTileInfo.IsValid())
+		{
+			AdditionalInfo = MakeUnique<FAdditionalInfo>();
+			AdditionalInfo->WorldTileInfo = MoveTemp(InWorldTileInfo);
+		}
 	}
 
 #if WITH_EDITORONLY_DATA
@@ -846,7 +883,7 @@ public:
 	/** returns our FileSize */
 	FORCEINLINE int64 GetFileSize() const
 	{
-		return FileSize;
+		return AdditionalInfo.IsValid() ? AdditionalInfo->FileSize : 0;
 	}
 
 	/** returns our ChunkIDs */
@@ -907,11 +944,11 @@ public:
 	 */
 	bool HasMetaData() const
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		return MetaData != nullptr;
 #else
 		return false;
-#endif
+#endif // WITH_METADATA
 	}
 
 	/**
@@ -981,6 +1018,7 @@ public:
 	COREUOBJECT_API static bool IsEmptyPackage(UPackage* Package, const UObject* LastReferencer = NULL);
 
 private:
+	friend void DeclareIntrinsicUPackageMembers();
 	static FSavePackageResultStruct Save2(UPackage* InPackage, UObject* InAsset, const TCHAR* InFilename, const FSavePackageArgs& SaveArgs);
 };
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

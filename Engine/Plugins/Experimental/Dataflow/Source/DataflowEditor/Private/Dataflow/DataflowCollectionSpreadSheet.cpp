@@ -1,9 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowCollectionSpreadSheet.h"
-#include "Templates/EnableIf.h"
+#include "Dataflow/DataflowObjectInterface.h"
+#include "Dataflow/DataflowCollectionSpreadSheetWidget.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowSelection.h"
+#include "Templates/EnableIf.h"
 
+//#include "Dataflow/DataflowEdNode.h"
+
+
+FDataflowCollectionSpreadSheet::FDataflowCollectionSpreadSheet(TObjectPtr<UDataflowBaseContent> InContent)
+	: FDataflowNodeView(InContent)
+{
+
+}
 
 void FDataflowCollectionSpreadSheet::SetSupportedOutputTypes()
 {
@@ -25,17 +36,22 @@ void FDataflowCollectionSpreadSheet::UpdateViewData()
 				if (TSharedPtr<FDataflowNode> DataflowNode = GetSelectedNode()->DataflowGraph->FindBaseNode(GetSelectedNode()->DataflowNodeGuid))
 				{
 					TArray<FDataflowOutput*> Outputs = DataflowNode->GetOutputs();
-
-					for (FDataflowOutput* Output : Outputs)
+					if (const TObjectPtr<UDataflowBaseContent> Content = GetEditorContent())
 					{
-						FName Name = Output->GetName();
-						FName Type = Output->GetType();
-
-						if (Output->GetType() == "FManagedArrayCollection")
+						if (TSharedPtr<UE::Dataflow::FEngineContext> Context = Content->GetDataflowContext())
 						{
-							const FManagedArrayCollection& Value = Output->GetValue<FManagedArrayCollection>(*GetContext(), FManagedArrayCollection());
+							for (FDataflowOutput* Output : Outputs)
+							{
+								FName Name = Output->GetName();
+								FName Type = Output->GetType();
 
-							CollectionSpreadSheet->GetCollectionTable()->GetCollectionInfoMap().Add(Name.ToString(), { Value });
+								if (Output->GetType() == "FManagedArrayCollection" && !Output->IsAnyType())
+								{
+									const FManagedArrayCollection& Value = Output->GetValue<FManagedArrayCollection>(*Context, FManagedArrayCollection());
+
+									CollectionSpreadSheet->GetCollectionTable()->GetCollectionInfoMap().Add(Name.ToString(), { Value });
+								}
+							}
 						}
 					}
 				}
@@ -72,5 +88,6 @@ FDataflowCollectionSpreadSheet::~FDataflowCollectionSpreadSheet()
 	if (CollectionSpreadSheet)
 	{
 		CollectionSpreadSheet->GetOnPinnedDownChangedDelegate().Remove(OnPinnedDownChangedDelegateHandle);
+		CollectionSpreadSheet->GetOnRefreshLockedChangedDelegate().Remove(OnRefreshLockedChangedDelegateHandle);
 	}
 }

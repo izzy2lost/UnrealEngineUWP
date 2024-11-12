@@ -9,7 +9,6 @@
 #include "Layout/Visibility.h"
 #include "Misc/Guid.h"
 #include "SlateFwd.h"
-#include "TraceServices/ModuleService.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SSplitter.h"
@@ -17,7 +16,10 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Views/SListView.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/ModuleService.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,6 +27,9 @@
 class FActiveTimerHandle;
 class SVerticalBox;
 class SEditableTextBox;
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -192,3 +197,5 @@ private:
 	TSharedPtr<const TraceServices::IAnalysisSession> AnalysisSession;
 	bool bIsSessionInfoSet = false;
 };
+
+} // namespace UE::Insights

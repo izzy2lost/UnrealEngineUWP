@@ -6,26 +6,63 @@
 #include "Transaction.h"
 
 #include "HAL/Platform.h"
-
-#if PLATFORM_HAS_ASAN_INCLUDE && USING_ADDRESS_SANITISER
-#include <sanitizer/asan_interface.h>
-#endif
+#include "Utils.h"
 
 namespace AutoRTFM
 {
 
+UE_AUTORTFM_FORCEINLINE bool FTransaction::IsOnStack(const void* LogicalAddress) const
+{ 
+    return StackRange.Contains(LogicalAddress);
+}
+
+UE_AUTORTFM_FORCEINLINE bool FTransaction::ShouldRecordWrite(void* LogicalAddress) const
+{
+    // We cannot record writes to stack memory used within the transaction, as
+    // undoing the writes may corrupt stack memory that has been unwound or
+    // is now being used for a different variable from the one the write was
+    // made.
+    if (!IsOnStack(LogicalAddress))
+    {
+        return true;
+    }
+
+    // Writes to the stack under a scoped-transaction can be safely ignored,
+    // because the values on the stack are not visible outside of the scope of
+    // the transaction. In other words, if a scoped-transaction aborts that
+    // memory will cease to be meaningful anyway.
+
+    // Non-scoped transactions, as the name implies, do not impose a lexical
+    // scope that encompasses the transaction. Instead a non-scoped transaction
+    // is started with a call to StartTransaction() and ended with a call to
+    // either AbortTransaction() or CommitTransaction(). Unlike a
+    // scoped transaction, there's no precise stack range for a non-scoped 
+    // transaction, as the scope can freely grow or shrink between the calls to
+    // [Start|Abort|Commit]Transaction() and any recorded writes. The only
+    // guarantee we have is that a non-scoped transaction cannot shrink past the
+    // outer scoped transaction. For this reason, non-scoped transactions
+    // adopt the stack range of the outer transaction, as this is guaranteed
+    // to encompass the non-scoped transaction's scope range.
+
+    // For non-scoped transactions, we assert that we're not writing to a
+    // memory address that's in the transaction's stack range as this cannot be
+    // safely undone, and stack variables may be visible once the transaction is
+    // aborted. We make an exception for stack variables declared within the
+    // scope of a Close(), as writing to these stack variables can be safely
+    // ignored (they have the same constrained visibility as stack variables in
+    // a scoped transaction).
+
+    // Hitting this assert? 
+    // Consider moving the variable being written to an inner scoped 
+    // transaction, or move the variable outside of the nearest parent 
+    // scoped-transaction.
+    ASSERT(bIsStackScoped || LogicalAddress < FContext::Get()->GetClosedStackAddress()); 
+
+    return false;
+}
+
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSized(void* LogicalAddress, size_t Size)
 {
-#if PLATFORM_HAS_ASAN_INCLUDE && USING_ADDRESS_SANITISER
-    // TODO(SOL-5123): Can we detect shadow memory locations at compile-time instead?
-	const char* const Location = __asan_locate_address(LogicalAddress, nullptr, 0, nullptr, nullptr);
-
-    if (strstr(Location, "shadow"))
-	{
-		return;
-	}
-#endif
-
     void* CopyAddress = WriteLogBumpAllocator.Allocate(Size);
     memcpy(CopyAddress, LogicalAddress, Size);
 
@@ -34,22 +71,23 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSi
 
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
-    if (0 == Size)
+    if (UNLIKELY(0 == Size))
     {
         return;
     }
 
-    // If we are recording a stack address that is relative to our current
-    // transactions stack location, we do not need to record the data in the
-    // write log because if that transaction aborted, that memory will cease to
-    // be meaningful anyway!
-    if (Context->IsInnerTransactionStack(LogicalAddress))
+    if (!ShouldRecordWrite(LogicalAddress))
     {
         Stats.Collect<EStatsKind::HitSetSkippedBecauseOfStackLocalMemory>();
         return;
     }
 
-    if (Size <= FWriteLogBumpAllocator::MaxSize)
+	// The cutoff here is arbitrarily any number less than UINT16_MAX, but its a
+	// weigh up what a good size is. Because the hitset doesn't detect when you
+	// are trying to write to a subregion of a previous hit (like memset something,
+	// then write to an individual element), we've got to balance the cost of
+	// recording meaningless hits, against the potential to hit again.
+    if (Size <= 16)
     {
         FMemoryLocation Key(LogicalAddress);
         Key.SetTopTag(static_cast<uint16_t>(Size));
@@ -86,13 +124,9 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* Lo
 
 template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress)
 {
-    static_assert(SIZE <= FWriteLogBumpAllocator::MaxSize);
+    static_assert(SIZE <= 8);
 
-    // If we are recording a stack address that is relative to our current
-    // transactions stack location, we do not need to record the data in the
-    // write log because if that transaction aborted, that memory will cease to
-    // be meaningful anyway!
-    if (Context->IsInnerTransactionStack(LogicalAddress))
+    if (!ShouldRecordWrite(LogicalAddress))
     {
         Stats.Collect<EStatsKind::HitSetSkippedBecauseOfStackLocalMemory>();
         return;
@@ -117,7 +151,7 @@ template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransacti
 
 	Stats.Collect<EStatsKind::NewMemoryTrackerMiss>();
 
-    RecordWriteMaxPageSized(LogicalAddress, SIZE);
+	WriteLog.Push(FWriteLogEntry::CreateSmall<SIZE>(LogicalAddress));
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, const size_t Size)
@@ -156,6 +190,25 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilAbort(TFunction<void()>&& C
 	// transactionalized conditions. By copying, we create an open copy of the callback.
 	TFunction<void()> Copy(Callback);
     AbortTasks.Add(MoveTemp(Copy));
+}
+
+UE_AUTORTFM_FORCEINLINE void FTransaction::PushDeferUntilAbortHandler(const void* Key, TFunction<void()>&& Callback)
+{
+	// We explicitly must copy the function here because the original was allocated
+	// within a transactional context, and thus the memory is allocating under
+	// transactionalized conditions. By copying, we create an open copy of the callback.
+	TFunction<void()> Copy(Callback);
+    AbortTasks.AddKeyed(Key, MoveTemp(Copy));
+}
+
+UE_AUTORTFM_FORCEINLINE bool FTransaction::PopDeferUntilAbortHandler(const void* Key)
+{
+	return AbortTasks.DeleteKey(Key);
+}
+
+UE_AUTORTFM_FORCEINLINE bool FTransaction::PopAllDeferUntilAbortHandlers(const void* Key)
+{
+	return AbortTasks.DeleteAllMatchingKeys(Key);
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::CollectStats() const

@@ -4,6 +4,7 @@
 
 #include "Containers/SortedMap.h"
 #include "CurveEditor.h"
+#include "CurveEditorAxis.h"
 #include "CurveEditorScreenSpace.h"
 #include "CurveEditorSettings.h"
 #include "CurveModel.h"
@@ -41,6 +42,7 @@ void SCurveEditorViewNormalized::Construct(const FArguments& InArgs, TWeakPtr<FC
 {
 	//when created we set the output bounds to be fixed since otherwise it may get fitted
 	bFixedOutputBounds = true;
+	bAllowModelViewTransforms = false;
 	FrameVertical(-0.1, 1.1);
 
 	SInteractiveCurveEditorView::Construct(InArgs, InCurveEditor);
@@ -57,16 +59,16 @@ void SCurveEditorViewNormalized::Construct(const FArguments& InArgs, TWeakPtr<FC
 	];
 }
 
-FTransform2D CalculateViewToCurveTransform(const double OutputMin, const double OutputMax, const double InCurveOutputMin, const double InCurveOutputMax)
+FTransform2d CalculateViewToCurveTransform(const double OutputMin, const double OutputMax, const double InCurveOutputMin, const double InCurveOutputMax)
 {
 	const double Scale = (InCurveOutputMax - InCurveOutputMin);
 	if (InCurveOutputMax > InCurveOutputMin)
 	{
-		return FTransform2D(FScale2D(1.0, Scale), FVector2D(0.0, InCurveOutputMin));
+		return FTransform2d(FScale2d(1.0, Scale), FVector2d(0.0, InCurveOutputMin));
 	}
 	else
 	{
-		return FVector2D(0.f, InCurveOutputMin - 0.5);
+		return FTransform2d(FVector2d(0.f, InCurveOutputMin - 0.5));
 	}
 }
 
@@ -100,7 +102,7 @@ void SCurveEditorViewNormalized::DrawBufferedCurves(const FGeometry& AllottedGeo
 			continue;
 		}
 
-		FTransform2D ViewToBufferedCurveTransform;
+		FTransform2d ViewToBufferedCurveTransform;
 		double CurveOutputMin = BufferedCurve->GetValueMin(), CurveOutputMax = BufferedCurve->GetValueMax();
 
 		ViewToBufferedCurveTransform = CalculateViewToCurveTransform(OutputMin, OutputMax,CurveOutputMin, CurveOutputMax);
@@ -146,10 +148,22 @@ void SCurveEditorViewNormalized::PaintView(const FPaintArgs& Args, const FGeomet
 	}
 }
 
-void SCurveEditorViewNormalized::FrameVertical(double InOutputMin, double InOutputMax)
+void SCurveEditorViewNormalized::FrameVertical(double InOutputMin, double InOutputMax, FCurveEditorViewAxisID AxisID)
 {
-	OutputMin = -0.1;
-	OutputMax = 1.1;;
+	if (!bFixedOutputBounds && InOutputMin < InOutputMax)
+	{
+		if (AxisID)
+		{
+			FAxisInfo& AxisInfo = GetVerticalAxisInfo(AxisID);
+			AxisInfo.Min = -0.1;
+			AxisInfo.Max =  1.1;
+		}
+		else
+		{
+			OutputMin = -0.1;
+			OutputMax =  1.1;
+		}
+	}
 }
 
 void SCurveEditorViewNormalized::UpdateViewToTransformCurves(double InputMin, double InputMax) 

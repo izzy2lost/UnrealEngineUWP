@@ -9,6 +9,7 @@
 #include "Outliner/AvaPropertyAnimatorEditorOutliner.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
 #include "Styling/SlateIconFinder.h"
+#include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "AvaPropertyAnimatorEditorOutlinerProxy"
 
@@ -79,6 +80,24 @@ FText FAvaPropertyAnimatorEditorOutlinerProxy::GetIconTooltipText() const
 	return LOCTEXT("Tooltip", "Shows all the animators found in the property animator component of an actor");
 }
 
+bool FAvaPropertyAnimatorEditorOutlinerProxy::CanDelete() const
+{
+	return IsValid(GetPropertyAnimatorComponent());
+}
+
+bool FAvaPropertyAnimatorEditorOutlinerProxy::Delete()
+{
+	const UPropertyAnimatorCoreComponent* AnimatorComponent = GetPropertyAnimatorComponent();
+	const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
+
+	if (IsValid(AnimatorComponent) && AnimatorSubsystem)
+	{
+		return AnimatorSubsystem->RemoveAnimators(TSet<UPropertyAnimatorCoreBase*>{AnimatorComponent->GetAnimators()}, /** Transact */false);
+	}
+
+	return false;
+}
+
 void FAvaPropertyAnimatorEditorOutlinerProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerItem>& InParent
 	, TArray<FAvaOutlinerItemPtr>& OutChildren, bool bInRecursive)
 {
@@ -107,27 +126,25 @@ void FAvaPropertyAnimatorEditorOutlinerProxy::GetProxiedItems(const TSharedRef<I
 void FAvaPropertyAnimatorEditorOutlinerProxy::BindDelegates()
 {
 	UnbindDelegates();
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.AddSP(this, &FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.AddSP(this, &FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.AddSP(this, &FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().AddSP(this, &FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().AddSP(this, &FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().AddSP(this, &FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated);
 }
 
 void FAvaPropertyAnimatorEditorOutlinerProxy::UnbindDelegates()
 {
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.RemoveAll(this);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.RemoveAll(this);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().RemoveAll(this);
 }
 
-void FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated(UPropertyAnimatorCoreBase* InAnimator)
+void FAvaPropertyAnimatorEditorOutlinerProxy::OnPropertyAnimatorUpdated(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InAnimator)
 {
-	const UPropertyAnimatorCoreComponent* PropertyAnimatorComponent = GetPropertyAnimatorComponent();
+	const UPropertyAnimatorCoreComponent* ActiveAnimatorComponent = GetPropertyAnimatorComponent();
 
-	if (IsValid(InAnimator) && IsValid(PropertyAnimatorComponent))
+	if (IsValid(InAnimator) && IsValid(ActiveAnimatorComponent))
 	{
-		const UPropertyAnimatorCoreComponent* UpdatedComponent = InAnimator->GetTypedOuter<UPropertyAnimatorCoreComponent>();
-
-		if (UpdatedComponent == PropertyAnimatorComponent)
+		if (InComponent == ActiveAnimatorComponent)
 		{
 			RefreshChildren();
 			Outliner.RequestRefresh();

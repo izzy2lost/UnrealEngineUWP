@@ -23,15 +23,15 @@ struct FVTProducerDescription;
 class FTexturePagePool
 {
 public:
-				FTexturePagePool();
-				~FTexturePagePool();
+	FTexturePagePool();
+	~FTexturePagePool();
 
 	void Initialize(uint32 InNumPages);
 
 	FCriticalSection& GetLock() { return CriticalSection; }
 
-	uint32 GetNumPages() const { return NumPages; }
-	uint32 GetNumLockedPages() const { return GetNumPages() - FreeHeap.Num() - NumReservedPages; }
+	uint32 GetNumPages() const { return FMath::Max(NumPages, NumReservedPages) - NumReservedPages; }
+	uint32 GetNumLockedPages() const { return GetNumPages() - FreeHeap.Num(); }
 	uint32 GetNumMappedPages() const { return NumPagesMapped; }
 	uint32 GetNumAllocatedPages() const { return NumPagesAllocated; }
 

@@ -9,6 +9,7 @@ class FLayoutExtender;
 class SDockTab;
 class FSpawnTabArgs;
 class SContentBundleBrowser;
+struct FAssetData;
 
 
 /**
@@ -92,6 +93,11 @@ public:
 	virtual bool IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason) const override;
 
 	/**
+     * Writes various HLOD stats to a file.
+     */ 
+	virtual bool WriteHLODStats(const FWriteHLODStatsParams& Params) const override;
+
+	/**
 	 * Convert the specified map to a world partition map.
 	 */
 	virtual bool ConvertMap(const FString& InLongPackageName) override;
@@ -129,6 +135,11 @@ public:
 	 */
 	bool IsEditingContentBundle(const FGuid& ContentBundleGuid) const;
 
+	/**
+	 * Get the camera location & rotation from the active level viewport.
+	 */
+	static bool GetActiveLevelViewportCameraInfo(FVector& CameraLocation, FRotator& CameraRotation);
+
 private:
 	/** Register menus */
 	void RegisterMenus();
@@ -153,6 +164,7 @@ private:
 private:
 	void RunCommandletAsExternalProcess(const FString& InCommandletArgs, const FText& InOperationDescription, int32& OutResult, bool& bOutCancelled);
 	void OnConvertMap();
+	bool OnIsCrossPluginReferenceAllowed(const FAssetData& ReferencingAssetData, const FAssetData& ReferencedAssetData);
 
 	FDelegateHandle EditorInitializedHandle;
 	FDelegateHandle LevelEditorExtenderDelegateHandle;

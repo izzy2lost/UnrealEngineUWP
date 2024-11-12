@@ -101,6 +101,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SSlider();
+	SLATE_API virtual ~SSlider();
 
 	/**
 	 * Construct the widget.
@@ -206,19 +207,6 @@ protected:
 	SLATE_API const FSlateBrush* GetThumbImage() const;
 
 protected:
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.1, "Direct access to Value is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<float> ValueAttribute;
-	UE_DEPRECATED(5.1, "Direct access to IndentHandle is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<bool> IndentHandle;
-	UE_DEPRECATED(5.1, "Direct access to LockedAttribute is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<bool> LockedAttribute;
-	UE_DEPRECATED(5.1, "Direct access to SliderBarColor is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FSlateColor> SliderBarColor;
-	UE_DEPRECATED(5.1, "Direct access to SliderHandleColor is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FSlateColor> SliderHandleColor;
-#endif
-
 	/** @return an attribute reference of IndentHandle */
 	TSlateAttributeRef<float> GetValueAttribute() const
 	{

@@ -56,6 +56,10 @@ protected:
 	void OnBeginFlattenToolEyeDrop();
 	void OnCompletedFlattenToolEyeDrop(bool Canceled);
 	TOptional<float> GetFlattenValue() const;
+	TOptional<float> GetFlattenTargetValueMin() const;
+	float GetFlattenTargetValueMid() const;
+	TOptional<float> GetFlattenTargetValueMax() const;
+	TOptional<float> GetFlattenTerraceIntervalValueMax() const;
 
 	// Common Error handling
 	EVisibility GetMiscLandscapeErrorVisibility() const;

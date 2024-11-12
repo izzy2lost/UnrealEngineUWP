@@ -11,7 +11,6 @@
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
-#include "Materials/MaterialExpressionAppendVector.h"
 #include "Model/DMMaterialNodeArranger.h"
 #include "Model/DMMaterialBuildUtils.h"
 
@@ -27,7 +26,6 @@ FDMMaterialBuildState::FDMMaterialBuildState(UMaterial* InDynamicMaterial, UDyna
 	, MaterialModel(InMaterialModel)
 	, bDirtyAssets(bInDirtyAssets)
 	, bIgnoreUVs(false)
-	, bIsPreviewMaterial(false)
 	, Utils(MakeShared<FDMMaterialBuildUtils>(*this))
 {
 	check(InDynamicMaterial);
@@ -61,14 +59,24 @@ UDynamicMaterialModel* FDMMaterialBuildState::GetMaterialModel() const
 	return MaterialModel;
 }
 
+const UDMMaterialProperty* FDMMaterialBuildState::GetCurrentMaterialProperty() const
+{
+	return CurrentProperty;
+}
+
+void FDMMaterialBuildState::SetCurrentMaterialProperty(const UDMMaterialProperty* InProperty)
+{
+	CurrentProperty = InProperty;
+}
+
 void FDMMaterialBuildState::SetIgnoreUVs()
 {
 	bIgnoreUVs = true;
 }
 
-void FDMMaterialBuildState::SetPreviewMaterial()
+void FDMMaterialBuildState::SetPreviewObject(UObject* InObject)
 {
-	bIsPreviewMaterial = true;
+	PreviewObject = InObject;
 	DynamicMaterial->MaterialDomain = EMaterialDomain::MD_UI;
 
 	if (UDynamicMaterialEditorSettings::Get()->bPreviewImagesUseTextureUVs == false)
@@ -84,49 +92,65 @@ IDMMaterialBuildUtilsInterface& FDMMaterialBuildState::GetBuildUtils() const
 
 FExpressionInput* FDMMaterialBuildState::GetMaterialProperty(EDMMaterialPropertyType InProperty) const
 {
+	UMaterialEditorOnlyData* EditorOnlyData = DynamicMaterial->GetEditorOnlyData();
+
+	if (!EditorOnlyData)
+	{
+		return nullptr;
+	}
+
 	switch (InProperty)
 	{
 		case EDMMaterialPropertyType::AmbientOcclusion:
-			return &(DynamicMaterial->GetEditorOnlyData()->AmbientOcclusion);
+			return &(EditorOnlyData->AmbientOcclusion);
 
 		case EDMMaterialPropertyType::Anisotropy:
-			return &(DynamicMaterial->GetEditorOnlyData()->Anisotropy);
+			return &(EditorOnlyData->Anisotropy);
 
 		case EDMMaterialPropertyType::BaseColor:
-			return &(DynamicMaterial->GetEditorOnlyData()->BaseColor);
+			return &(EditorOnlyData->BaseColor);
 
 		case EDMMaterialPropertyType::EmissiveColor:
-			return &(DynamicMaterial->GetEditorOnlyData()->EmissiveColor);
+			return &(EditorOnlyData->EmissiveColor);
 
 		case EDMMaterialPropertyType::Metallic:
-			return &(DynamicMaterial->GetEditorOnlyData()->Metallic);
+			return &(EditorOnlyData->Metallic);
 
 		case EDMMaterialPropertyType::Normal:
-			return &(DynamicMaterial->GetEditorOnlyData()->Normal);
+			return &(EditorOnlyData->Normal);
 
 		case EDMMaterialPropertyType::Opacity:
-			return &(DynamicMaterial->GetEditorOnlyData()->Opacity);
+			return &(EditorOnlyData->Opacity);
 
 		case EDMMaterialPropertyType::OpacityMask:
-			return &(DynamicMaterial->GetEditorOnlyData()->OpacityMask);
+			return &(EditorOnlyData->OpacityMask);
 
 		case EDMMaterialPropertyType::PixelDepthOffset:
-			return &(DynamicMaterial->GetEditorOnlyData()->PixelDepthOffset);
+			return &(EditorOnlyData->PixelDepthOffset);
 
 		case EDMMaterialPropertyType::Refraction:
-			return &(DynamicMaterial->GetEditorOnlyData()->Refraction);
+			return &(EditorOnlyData->Refraction);
 
 		case EDMMaterialPropertyType::Roughness:
-			return &(DynamicMaterial->GetEditorOnlyData()->Roughness);
+			return &(EditorOnlyData->Roughness);
 
 		case EDMMaterialPropertyType::Specular:
-			return &(DynamicMaterial->GetEditorOnlyData()->Specular);
+			return &(EditorOnlyData->Specular);
 
 		case EDMMaterialPropertyType::Tangent:
-			return &(DynamicMaterial->GetEditorOnlyData()->Tangent);
+			return &(EditorOnlyData->Tangent);
 
 		case EDMMaterialPropertyType::WorldPositionOffset:
-			return &(DynamicMaterial->GetEditorOnlyData()->WorldPositionOffset);
+			return &(EditorOnlyData->WorldPositionOffset);
+
+		case EDMMaterialPropertyType::Displacement:
+			return &(EditorOnlyData->Displacement);
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return &(EditorOnlyData->SubsurfaceColor);
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return &(EditorOnlyData->SurfaceThickness);
 
 		default:
 			return nullptr;
@@ -384,7 +408,7 @@ void FDMMaterialBuildState::AddStageSourceExpressions(const UDMMaterialStageSour
 {
 	if (ensure(!HasStageSource(InStageSource)))
 	{
-		if (ensure(!InStageSourceExpressions.IsEmpty()))
+		if (!InStageSourceExpressions.IsEmpty())
 		{
 			StageSources.Emplace(InStageSource, InStageSourceExpressions);
 		}
@@ -465,46 +489,6 @@ const TMap<const UDMMaterialValue*, TArray<UMaterialExpression*>>& FDMMaterialBu
 }
 
 ///////////////////////////////////////
-/// Callbacks
-
-bool FDMMaterialBuildState::HasCallback(const UDMMaterialStageSource* InCallback) const
-{
-	return Callbacks.Contains(InCallback);
-}
-
-const TArray<UDMMaterialStageSource*>& FDMMaterialBuildState::GetCallbackExpressions(const UDMMaterialStageSource* InCallback) const
-{
-	const TArray<UDMMaterialStageSource*>* CallbackSources = Callbacks.Find(InCallback);
-
-	if (ensure(CallbackSources))
-	{
-		return *CallbackSources;
-	}
-
-	return UE::DynamicMaterialEditor::Private::EmptySourceSet;
-}
-
-void FDMMaterialBuildState::AddCallbackExpressions(const UDMMaterialStageSource* InCallback, const TArray<UDMMaterialStageSource*>& InCallbackExpressions)
-{
-	if (ensure(!HasCallback(InCallback)))
-	{
-		Callbacks.Emplace(InCallback, InCallbackExpressions);
-	}
-}
-
-TArray<const UDMMaterialStageSource*> FDMMaterialBuildState::GetCallbacks() const
-{
-	TArray<const UDMMaterialStageSource*> Keys;
-	Callbacks.GetKeys(Keys);
-	return Keys;
-}
-
-const TMap<const UDMMaterialStageSource*, TArray<UDMMaterialStageSource*>>& FDMMaterialBuildState::GetCallbackMap() const
-{
-	return Callbacks;
-}
-
-///////////////////////////////////////
 /// Other expression
 
 void FDMMaterialBuildState::AddOtherExpressions(const TArray<UMaterialExpression*>& InOtherExpressions)
@@ -515,4 +499,22 @@ void FDMMaterialBuildState::AddOtherExpressions(const TArray<UMaterialExpression
 const TSet<UMaterialExpression*>& FDMMaterialBuildState::GetOtherExpressions()
 {
 	return OtherExpressions;
+}
+
+///////////////////////////////////////
+/// Global expression
+
+UMaterialExpression* FDMMaterialBuildState::GetGlobalExpression(FName InName) const
+{
+	if (UMaterialExpression* const* GlobalExpressionPtr = GlobalExpressions.Find(InName))
+	{
+		return *GlobalExpressionPtr;
+	}
+
+	return nullptr;
+}
+
+void FDMMaterialBuildState::SetGlobalExpression(FName InName, UMaterialExpression* InExpression)
+{
+	GlobalExpressions.FindOrAdd(InName) = InExpression;
 }

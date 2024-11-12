@@ -7,8 +7,10 @@
 #include "PreviewMesh.h"
 #include "ModelingOperators.h"
 #include "MeshOpPreviewHelpers.h"
+#include "BaseTools/SingleTargetWithSelectionTool.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
+#include "DynamicMesh/MeshSharingUtil.h"
 #include "WeldMeshEdgesTool.generated.h"
 
 // predeclarations
@@ -21,11 +23,13 @@ class FWeldMeshEdgesOp;
  *
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API UWeldMeshEdgesToolBuilder : public USingleSelectionMeshEditingToolBuilder
+class MESHMODELINGTOOLSEXP_API UWeldMeshEdgesToolBuilder : public USingleTargetWithSelectionToolBuilder
 {
 	GENERATED_BODY()
 public:
-	virtual USingleSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+	virtual USingleTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
+	virtual bool RequiresInputSelection() const override { return false; };
 };
 
 UENUM()
@@ -57,6 +61,10 @@ public:
 	/** If enabled, after an initial attempt at Welding, attempt to resolve remaining open edges in T-junction configurations via edge splits, and then retry Weld */
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bResolveTJunctions = false;
+
+	/** If enabled, will split bowtie vertices before welding. This can in some cases enable more edges to be successfully welded */
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bSplitBowties = true;
 
 	/** Initial number of open boundary edges */
 	UPROPERTY(VisibleAnywhere, Category = Statistics)
@@ -110,7 +118,7 @@ public:
  * Mesh Weld Edges Tool
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API UWeldMeshEdgesTool : public USingleSelectionMeshEditingTool
+class MESHMODELINGTOOLSEXP_API UWeldMeshEdgesTool : public USingleTargetWithSelectionTool
 {
 	GENERATED_BODY()
 public:
@@ -144,7 +152,9 @@ protected:
 protected:
 
 	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> SourceMesh;
-
+	
+	// If there is an active selection, SelectedEdges will be initialized
+	TSet<int32> SelectedEdges;
 
 
 

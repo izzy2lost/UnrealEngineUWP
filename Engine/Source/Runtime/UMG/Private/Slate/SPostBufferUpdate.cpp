@@ -24,14 +24,14 @@
 /**
  * Custom Slate drawer to update slate post buffer
  */
-class FPostBufferUpdater : public ICustomSlateElementRHI
+class FPostBufferUpdater : public ICustomSlateElement
 {
 public:
 
-	//~ Begin ICustomSlateElementRHI interface
-	virtual void Draw_RHIRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& InWindowBackBuffer, const FSlateCustomDrawParams& Params, class FSlateRHIRenderingPolicyInterface RenderingPolicyInterface) override;
+	//~ Begin ICustomSlateElement interface
+	virtual void Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs) override;
 	virtual void PostCustomElementAdded(class FSlateElementBatcher& ElementBatcher) const override;
-	//~ End ICustomSlateElementRHI interface
+	//~ End ICustomSlateElement interface
 
 public:
 
@@ -49,67 +49,100 @@ public:
 	 * Additionally, note that this value should be masked against the currently enabled buffers in 'USlateRHIRendererSettings'
 	 */
 	ESlatePostRT BuffersToUpdate_Renderthread = ESlatePostRT::None;
+
+	/** Proxies used to update a post processor within a frame */
+	TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> ProcessorUpdaters;
 };
 
 /////////////////////////////////////////////////////
 // FPostBufferUpdater
 
-void FPostBufferUpdater::Draw_RHIRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& InWindowBackBuffer, const FSlateCustomDrawParams& Params, FSlateRHIRenderingPolicyInterface RenderingPolicyInterface)
+void FPostBufferUpdater::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs)
 {
-	if (FSlateRHIRenderingPolicyInterface::GetProcessSlatePostBuffers())
+	const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get();
+
+	if (!RendererSettings)
 	{
-		for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+		return;
+	}
+
+	struct FActivePostBuffer
+	{
+		FRDGTexture* Texture = nullptr;
+		TSharedPtr<FSlateRHIPostBufferProcessorProxy> Proxy;
+	};
+
+	// Issue internal / external access mode calls in batches before and after to reduce the number of RDG passes.
+	TStaticArray<FActivePostBuffer, (int32)ESlatePostRT::Num> ActivePostBuffers;
+	int32 SlatePostBufferIndex = 0;
+
+	for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(Inputs.UsedSlatePostBuffers & BuffersToUpdate_Renderthread))
+	{
+		ON_SCOPE_EXIT
 		{
-			bool bPostBufferBitUsed = (Params.UsedSlatePostBuffers & SlatePostBufferBit & BuffersToUpdate_Renderthread) != ESlatePostRT::None;
+			SlatePostBufferIndex++;
+		};
 
-			if (bPostBufferBitUsed)
+		UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(RendererSettings->TryGetPostBufferRT(SlatePostBufferBit));
+		if (!SlatePostBuffer)
+		{
+			continue;
+		}
+
+		TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit);
+
+		if (PostProcessorProxy)
+		{
+			if (TSharedPtr<FSlatePostProcessorUpdaterProxy>* ProcessorUpdaterItr = ProcessorUpdaters.Find(SlatePostBufferBit))
 			{
-				UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
-				if (!SlatePostBuffer)
+				if (TSharedPtr<FSlatePostProcessorUpdaterProxy> ProcessorUpdater = *ProcessorUpdaterItr)
 				{
-					continue;
-				}
+					ProcessorUpdater->UpdateProcessor_RenderThread(PostProcessorProxy);
 
-				FRHITexture* Src = InWindowBackBuffer.IsValid() ? InWindowBackBuffer.GetReference() : nullptr;
-				FRHITexture* Dst = SlatePostBuffer->TextureReference.TextureReferenceRHI;
-
-				if (!Src || !Dst)
-				{
-					continue;
-				}
-
-				FIntRect SrcRect = FIntRect(0, 0, Src->GetDesc().Extent.X, Src->GetDesc().Extent.Y);
-				FIntRect DstRect = FIntRect(0, 0, Dst->GetDesc().Extent.X, Dst->GetDesc().Extent.Y);
-
-				if (GIsEditor)
-				{
-					// In PIE, the backbuffer for slate will be the entire editor window, So instead use the ViewRect as our extent
-					SrcRect = Params.ViewRect;
-				}
-				
-				// Note: In PIE we draw the scene even during resizes, the ViewRect can change even after a previous draw
-				// leading to crashes if we do not ensure size, we skip below if sizes do not match. This can result in a PostRT 
-				// with no update in PIE (May appear white during active drag-resizing). However this is not an issue in 
-				// Standalone since we don't draw during active resizes.
-				if (SrcRect.Width() != DstRect.Width() || SrcRect.Height() != DstRect.Height())
-				{
-					continue;
-				}
-
-				if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
-				{
-					PostProcessorProxy->PostProcess_Renderthread(RHICmdList, Src, Dst, SrcRect, DstRect, RenderingPolicyInterface);
-				}
-				else
-				{
-					FRHICopyTextureInfo CopyInfo;
-
-					// Copy just the viewport RT if in PIE, else do entire backbuffer
-					CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
-					CopyInfo.Size = FIntVector(DstRect.Width(), DstRect.Height(), 1);
-					TransitionAndCopyTexture(RHICmdList, Src, Dst, CopyInfo);
+					if (ProcessorUpdater->bSkipBufferUpdate)
+					{
+						continue;
+					}
 				}
 			}
+		}
+
+		FRDGTexture* Texture = RegisterExternalTexture(GraphBuilder, SlatePostBuffer->TextureReference.TextureReferenceRHI, TEXT("SlatePostProcessTexture"));
+
+		ActivePostBuffers[SlatePostBufferIndex] = FActivePostBuffer
+		{
+			  .Texture = Texture
+			, .Proxy = MoveTemp(PostProcessorProxy)
+		};
+
+		GraphBuilder.UseInternalAccessMode(Texture);
+	}
+
+	// Provided output texture is actually the input into our custom post process texture.
+	const FScreenPassTexture InputTexture(Inputs.OutputTexture, Inputs.SceneViewRect);
+
+	for (const FActivePostBuffer& ActivePostBuffer : ActivePostBuffers)
+	{
+		if (ActivePostBuffer.Texture)
+		{
+			const FScreenPassTexture OutputTexture(ActivePostBuffer.Texture);
+	
+			if (ActivePostBuffer.Proxy)
+			{
+				ActivePostBuffer.Proxy->PostProcess_Renderthread(GraphBuilder, InputTexture, OutputTexture);
+			}
+			else
+			{
+				AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), InputTexture, OutputTexture);
+			}
+		}
+	}
+
+	for (const FActivePostBuffer& ActivePostBuffer : ActivePostBuffers)
+	{
+		if (ActivePostBuffer.Texture)
+		{
+			GraphBuilder.UseExternalAccessMode(ActivePostBuffer.Texture, ERHIAccess::SRVMask);
 		}
 	}
 }
@@ -126,23 +159,18 @@ void FPostBufferUpdater::PostCustomElementAdded(FSlateElementBatcher& ElementBat
 	}
 
 	// Give proxies a chance to update their renderthread values.
-	if (FSlateRHIRenderingPolicyInterface::GetProcessSlatePostBuffers())
+	if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 	{
-		for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+		for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(BuffersToUpdate_Renderthread))
 		{
-			if (!USlateRHIRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
+			if (!RendererSettings->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
 			{
 				continue;
 			}
 
-			bool bPostBufferBitUsed = (SlatePostBufferBit & BuffersToUpdate_Renderthread) != ESlatePostRT::None;
-
-			if (bPostBufferBitUsed)
+			if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
 			{
-				if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
-				{
-					PostProcessorProxy->OnUpdateValuesRenderThread();
-				}
+				PostProcessorProxy->OnUpdateValuesRenderThread();
 			}
 		}
 	}
@@ -205,15 +233,28 @@ void SPostBufferUpdate::SetBuffersToUpdate(const TArrayView<ESlatePostRT> InBuff
 	if (PostBufferUpdater && !PostBufferUpdater->bBuffersToUpdateInitialized)
 	{
 		PostBufferUpdater->BuffersToUpdate_Renderthread = ESlatePostRT::None;
-		for (ESlatePostRT BufferToUpdate : BuffersToUpdate)
+		if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 		{
-			if (USlateRHIRendererSettings::Get()->GetSlatePostSetting(BufferToUpdate).bEnabled)
+			for (ESlatePostRT BufferToUpdate : BuffersToUpdate)
 			{
-				PostBufferUpdater->BuffersToUpdate_Renderthread |= BufferToUpdate;
+				if (RendererSettings->GetSlatePostSetting(BufferToUpdate).bEnabled)
+				{
+					PostBufferUpdater->BuffersToUpdate_Renderthread |= BufferToUpdate;
+				}
 			}
 		}
 
 		PostBufferUpdater->bBuffersToUpdateInitialized = true;
+	}
+#endif // !UE_SERVER
+}
+
+void SPostBufferUpdate::SetProcessorUpdaters(TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> InProcessorUpdaters)
+{
+#if !UE_SERVER
+	if (PostBufferUpdater)
+	{
+		PostBufferUpdater->ProcessorUpdaters = InProcessorUpdaters;
 	}
 #endif // !UE_SERVER
 }
@@ -227,7 +268,7 @@ UMG_API void SPostBufferUpdate::ReleasePostBufferUpdater()
 {
 #if !UE_SERVER
 	// Copy the pointer onto a lambda to defer the final deletion to after any pending uses on the renderthread
-	TSharedPtr<FPostBufferUpdater, ESPMode::ThreadSafe> ReleaseMe = PostBufferUpdater;
+	TSharedPtr<FPostBufferUpdater> ReleaseMe = PostBufferUpdater;
 	ENQUEUE_RENDER_COMMAND(ReleaseCommand)([ReleaseMe](FRHICommandList& RHICmdList) mutable
 	{
 		ReleaseMe.Reset();

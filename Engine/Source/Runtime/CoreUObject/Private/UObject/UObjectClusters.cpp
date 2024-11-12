@@ -14,6 +14,7 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UObjectBaseUtility.h"
 #include "UObject/GarbageCollection.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/ReferenceChainSearch.h"
 #include "UObject/LinkerLoad.h"
@@ -148,7 +149,7 @@ void FUObjectClusterContainer::DissolveCluster(FUObjectCluster& Cluster)
 	TArray<int32> ReferencedByClusters = MoveTemp(Cluster.ReferencedByClusters);
 
 	// Unreachable clusters will be removed by GC during BeginDestroy phase (unhashing)
-	if (!RootObjectItem->IsMaybeUnreachable())
+	if (!UE::GC::Private::FGCFlags::IsMaybeUnreachable_ForGC(RootObjectItem))
 	{
 #if UE_GCCLUSTER_VERBOSE_LOGGING
 		UObject* ClusterRootObject = static_cast<UObject*>(RootObjectItem->Object);
@@ -193,7 +194,7 @@ void FUObjectClusterContainer::DissolveClusterAndMarkObjectsAsUnreachable(FUObje
 	{
 		FUObjectItem* ClusterObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ClusterObjectIndex);
 		ClusterObjectItem->SetOwnerIndex(0);
-		ClusterObjectItem->SetMaybeUnreachable();
+		UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(ClusterObjectItem);
 	}
 
 #if !UE_GCCLUSTER_VERBOSE_LOGGING
@@ -209,7 +210,7 @@ void FUObjectClusterContainer::DissolveClusterAndMarkObjectsAsUnreachable(FUObje
 		FUObjectItem* ReferencedByClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedByClusterRootIndex);
 		if (ReferencedByClusterRootItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
 		{
-			ReferencedByClusterRootItem->SetMaybeUnreachable();
+			UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(ReferencedByClusterRootItem);
 			DissolveClusterAndMarkObjectsAsUnreachable(ReferencedByClusterRootItem);
 		}
 	}
@@ -961,7 +962,7 @@ void UObjectBaseUtility::CreateCluster()
 
 #if UE_GCCLUSTER_VERBOSE_LOGGING
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-		FString ExtraDetail = FString::Printf(TEXT(", %d verse cells"), Cluster.MutableCells.Num());
+		FString ExtraDetail = FString::Printf(TEXT(", %d Verse cells"), Cluster.MutableCells.Num());
 #else
 		FString ExtraDetail;
 #endif
@@ -975,7 +976,7 @@ void UObjectBaseUtility::CreateCluster()
 	{
 #if UE_GCCLUSTER_VERBOSE_LOGGING
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-		FString ExtraDetail = FString::Printf(TEXT(", %d verse cells"), Cluster.MutableCells.Num());
+		FString ExtraDetail = FString::Printf(TEXT(", %d Verse cells"), Cluster.MutableCells.Num());
 #else
 		FString ExtraDetail;
 #endif

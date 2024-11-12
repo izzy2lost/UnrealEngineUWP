@@ -36,8 +36,7 @@ FText UPCGFilterByIndexSettings::GetNodeTooltipText() const
 
 FString UPCGFilterByIndexSettings::GetAdditionalTitleInformation() const
 {
-	FString NodeName = TEXT("Index: ");
-
+	FString NodeName = LOCTEXT("FilterIndices", "Indices: ").ToString();
 	NodeName += SelectedIndices.Len() <= PCGFilterByIndexConstants::IndexExpressionTruncation
 		? SelectedIndices
 		: SelectedIndices.Left(PCGFilterByIndexConstants::IndexExpressionTruncation - 3) + TEXT("...");
@@ -70,16 +69,16 @@ bool FPCGFilterByIndexElement::ExecuteInternal(FPCGContext* Context) const
 	{
 		// Error cases are caught for early out.
 		case PCGParser::EPCGParserResult::InvalidCharacter:
-			PCGE_LOG_C(Error, GraphAndLog, Context, LOCTEXT("ErrorInvalidCharacter", "Invalid character in index selection string."));
+			PCGLog::Parsing::LogInvalidCharacterInParsedStringError(Settings->SelectedIndices, Context);
 			return true;
 
 		case PCGParser::EPCGParserResult::InvalidExpression:
-			PCGE_LOG_C(Error, GraphAndLog, Context, LOCTEXT("ErrorInvalidExpression", "Invalid expression in index selection string."));
+			PCGLog::Parsing::LogInvalidExpressionInParsedStringError(Settings->SelectedIndices, Context);
 			return true;
 
 		// If the expression is empty, treat it as though there are simply no selected indices. But, also log.
 		case PCGParser::EPCGParserResult::EmptyExpression:
-			PCGE_LOG_C(Log, LogOnly, Context, LOCTEXT("WarningEmptyExpression", "Empty expression in index selection string."));
+			PCGLog::Parsing::LogEmptyExpressionWarning(Context);
 			break;
 
 		case PCGParser::EPCGParserResult::Success:

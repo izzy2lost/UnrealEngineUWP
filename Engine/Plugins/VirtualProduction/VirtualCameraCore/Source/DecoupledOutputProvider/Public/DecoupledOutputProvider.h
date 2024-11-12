@@ -31,6 +31,7 @@ public:
 	virtual void OnDeactivate() override;
 	virtual UE::VCamCore::EViewportChangeReply PreReapplyViewport() override;
 	virtual void PostReapplyViewport() override;
+	virtual TFuture<FVCamStringPromptResponse> PromptClientForString(const FVCamStringPromptRequest& Request) override;
 	//~ End UVCamOutputProviderBase Interface
 
 	//~ Begin UObject Interface
@@ -39,6 +40,8 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
+	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
+	virtual void PreEditChange(FEditPropertyChain& PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject Interface

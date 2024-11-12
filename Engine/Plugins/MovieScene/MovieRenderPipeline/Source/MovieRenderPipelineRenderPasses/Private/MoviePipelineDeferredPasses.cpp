@@ -35,6 +35,7 @@
 #include "Camera/CameraComponent.h"
 #include "CineCameraComponent.h"
 #include "Interfaces/Interface_PostProcessVolume.h"
+#include "MoviePipelineTelemetry.h"
 #include "MoviePipelineUtils.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "TextureResource.h"
@@ -62,9 +63,26 @@ UMoviePipelineDeferredPassBase::UMoviePipelineDeferredPassBase()
 		FMoviePipelinePostProcessPass& NewPass = AdditionalPostProcessMaterials.AddDefaulted_GetRef();
 		NewPass.Material = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(MaterialPath));
 		NewPass.bEnabled = false;
+		NewPass.bHighPrecisionOutput = MaterialPath.Equals(DefaultDepthAsset);
 	}
 	bRenderMainPass = true;
-	bUse32BitPostProcessMaterials = false;
+}
+
+void UMoviePipelineDeferredPassBase::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (bUse32BitPostProcessMaterials_DEPRECATED)
+	{
+		for (FMoviePipelinePostProcessPass& Pass : AdditionalPostProcessMaterials)
+		{
+			Pass.bHighPrecisionOutput = true;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
 }
 
 FIntPoint UMoviePipelineDeferredPassBase::GetEffectiveOutputResolutionForCamera(const int32 InCameraIndex) const
@@ -74,7 +92,32 @@ FIntPoint UMoviePipelineDeferredPassBase::GetEffectiveOutputResolutionForCamera(
 	UMoviePipelinePrimaryConfig* PrimaryConfig = GetPipeline()->GetPipelinePrimaryConfig();
 	UMoviePipelineExecutorShot* CurrentShot = GetPipeline()->GetActiveShotList()[GetPipeline()->GetCurrentShotIndex()];
 
-	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot);
+	// Get any cached overscan value for this camera. If there is none, query the live overscan value and cache it
+	float CameraOverscan = 0.0f;
+	if (GetPipeline()->HasCachedCameraOverscan(InCameraIndex))
+	{
+		CameraOverscan = GetPipeline()->GetCachedCameraOverscan(InCameraIndex);
+	}
+	else
+	{
+		// Get the camera view info to retrieve the camera's overscan, which is used when the settings to not override the overscan
+		FMinimalViewInfo CameraViewInfo;
+
+		if (GetNumCamerasToRender() == 1)
+		{
+			CameraViewInfo = GetPipeline()->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+		}
+		else
+		{
+			UCameraComponent* CameraComponent;
+			GetPipeline()->GetSidecarCameraData(CurrentShot, InCameraIndex, CameraViewInfo, &CameraComponent);
+		}
+
+		CameraOverscan = CameraViewInfo.GetOverscan();
+		GetPipeline()->CacheCameraOverscan(InCameraIndex, CameraOverscan);
+	}
+	
+	const FIntPoint OutputResolution = UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(PrimaryConfig, CurrentShot, CameraOverscan);
 
 	return OutputResolution;
 }
@@ -165,6 +208,11 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 			if (Material)
 			{
 				ActivePostProcessMaterials.Add(Material);
+				
+				if (AdditionalPass.bHighPrecisionOutput)
+				{
+					ActiveHighPrecisionPostProcessMaterials.Add(Material);
+				}
 			}
 		}
 	}
@@ -195,10 +243,10 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 
 		// We don't always want to allocate a unique history per tile as very large resolutions can OOM the GPU in backbuffer images alone.
 		// But we do need the history for some features (like Lumen) to work, so it's optional.
-		int32 NumHighResTiles = HighResSettings->bAllocateHistoryPerTile ? (HighResSettings->TileCount * HighResSettings->TileCount) : 1;
-		for (int32 TileIndexX = 0; TileIndexX < NumHighResTiles; TileIndexX++)
+		int32 HighResTileCount = HighResSettings->bAllocateHistoryPerTile ? HighResSettings->TileCount : 1;
+		for (int32 TileIndexX = 0; TileIndexX < HighResTileCount; TileIndexX++)
 		{
-			for (int32 TileIndexY = 0; TileIndexY < NumHighResTiles; TileIndexY++)
+			for (int32 TileIndexY = 0; TileIndexY < HighResTileCount; TileIndexY++)
 			{
 				FMultiCameraViewStateData::FPerTile& PerTile = CameraData.TileData.FindOrAdd(FIntPoint(TileIndexX, TileIndexY));
 				// If they want to render the main pass (most likely) add a view state for it
@@ -253,8 +301,6 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 	AccumulatorPool = MakeShared<TAccumulatorPool<FImageOverlappedAccumulator>, ESPMode::ThreadSafe>(PoolSize);
 	
 	PreviousCustomDepthValue.Reset();
-	PreviousDumpFramesValue.Reset();
-	PreviousColorFormatValue.Reset();
 
 	// This scene view extension will be released automatically as soon as Render Sequence is torn down.
 	// One Extension per sequence, since each sequence has its own OCIO settings.
@@ -276,23 +322,6 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 				// during their current session but it's less likely than changing the project settings.
 				CVar->Set(CustomDepthWithStencil, EConsoleVariableFlags::ECVF_SetByProjectSetting);
 			}
-		}
-	}
-	
-	if (bUse32BitPostProcessMaterials)
-	{
-		IConsoleVariable* DumpFramesCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.BufferVisualizationDumpFramesAsHDR"));
-		if (DumpFramesCVar)
-		{
-			PreviousDumpFramesValue = DumpFramesCVar->GetInt();
-			DumpFramesCVar->Set(1, EConsoleVariableFlags::ECVF_SetByConsole);
-		}
-		
-		IConsoleVariable* ColorFormatCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessingColorFormat"));
-		if (ColorFormatCVar)
-		{
-			PreviousColorFormatValue = ColorFormatCVar->GetInt();
-			ColorFormatCVar->Set(1, EConsoleVariableFlags::ECVF_SetByConsole);
 		}
 	}
 
@@ -323,6 +352,7 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 void UMoviePipelineDeferredPassBase::TeardownImpl()
 {
 	ActivePostProcessMaterials.Reset();
+	ActiveHighPrecisionPostProcessMaterials.Reset();
 	UniqueStencilLayerNames.Reset();
 
 	for (FMultiCameraViewStateData& CameraData : CameraViewStateData)
@@ -355,21 +385,6 @@ void UMoviePipelineDeferredPassBase::TeardownImpl()
 				UE_LOG(LogMovieRenderPipeline, Log, TEXT("Restoring custom depth/stencil value to: %d"), PreviousCustomDepthValue.GetValue());
 				CVar->Set(PreviousCustomDepthValue.GetValue(), EConsoleVariableFlags::ECVF_SetByProjectSetting);
 			}
-		}
-	}
-	
-	if (PreviousDumpFramesValue.IsSet())
-	{
-		IConsoleVariable* DumpFramesCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.BufferVisualizationDumpFramesAsHDR"));
-		if (DumpFramesCVar)
-		{
-			DumpFramesCVar->Set(PreviousDumpFramesValue.GetValue(),  EConsoleVariableFlags::ECVF_SetByConsole);
-		}
-		
-		IConsoleVariable* ColorFormatCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessingColorFormat"));
-		if (ColorFormatCVar)
-		{
-			ColorFormatCVar->Set(PreviousColorFormatValue.GetValue(), EConsoleVariableFlags::ECVF_SetByConsole);
 		}
 	}
 
@@ -422,7 +437,8 @@ FSceneViewStateInterface* UMoviePipelineDeferredPassBase::GetSceneViewStateInter
 	int32 LocalCameraIndex = FMath::Clamp(Payload->CameraIndex, 0, Payload->CameraIndex);
 
 	FMultiCameraViewStateData& CameraData = CameraViewStateData[LocalCameraIndex];
-	if (FMultiCameraViewStateData::FPerTile* TileData = CameraData.TileData.Find(Payload->TileIndex))
+	FIntPoint TileIndex = CameraData.TileData.Num() == 1 ? FIntPoint(0, 0) : Payload->TileIndex;
+	if (FMultiCameraViewStateData::FPerTile* TileData = CameraData.TileData.Find(TileIndex))
 	{
 		return TileData->SceneViewStates[Payload->SceneViewIndex].GetReference();
 	}
@@ -456,7 +472,7 @@ void UMoviePipelineDeferredPassBase::GatherOutputPassesImpl(TArray<FMoviePipelin
 		{
 			if (Material)
 			{
-				RenderPasses.Add(Material->GetName());
+				RenderPasses.Add(GetNameForPostProcessMaterial(Material));
 			}
 		}
 
@@ -550,9 +566,11 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 				{
 					continue;
 				}
-				FMoviePipelinePassIdentifier LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + VisMaterial->GetName(), PassIdentifierForCurrentCamera.CameraName);
+
+				FMoviePipelinePassIdentifier LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + GetNameForPostProcessMaterial(VisMaterial), PassIdentifierForCurrentCamera.CameraName);
 
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
+				BufferPipe->bIsExpecting32BitPixelData = ActiveHighPrecisionPostProcessMaterials.Contains(VisMaterial);
 				BufferPipe->AddEndpoint(MakeForwardingEndpoint(LayerPassIdentifier, InOutSampleState));
 
 				View->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);
@@ -571,6 +589,13 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 
 			FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), View->GetFeatureLevel(), FCanvas::CDM_DeferDrawing, 1.0f);
 			GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+			
+			ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+			[RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
+			{
+				// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+				RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+			});
 
 			// Readback + Accumulate.
 			PostRendererSubmission(InOutSampleState, PassIdentifierForCurrentCamera, GetOutputFileSortingOrder(), Canvas);
@@ -698,6 +723,13 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 
 						FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), View->GetFeatureLevel(), FCanvas::CDM_DeferDrawing, 1.0f);
 						GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+						
+						ENQUEUE_RENDER_COMMAND(TransitionTextureSRVState)(
+						[RenderTarget](FRHICommandListImmediate& RHICmdList) mutable
+						{
+							// Transition our render target from a render target view to a shader resource view to allow the UMG preview material to read from this Render Target.
+							RHICmdList.Transition(FRHITransitionInfo(RenderTarget->GetRenderTargetTexture(), ERHIAccess::RTV, ERHIAccess::SRVGraphicsPixel));
+						});
 
 						// Readback + Accumulate.
 						PostRendererSubmission(InOutSampleState, LayerPassIdentifier, GetOutputFileSortingOrder() + 1, Canvas);
@@ -867,40 +899,9 @@ void UMoviePipelineDeferredPassBase::BlendPostProcessSettings(FSceneView* InView
 			return;
 		}
 
-		// For sidecar cameras we need to do the blending of PP volumes
+		// For sidecar cameras we need to do the blending of PP volumes and camera PP manually.
 		FVector ViewLocation = OutCamera->GetComponentLocation();
-		for (IInterface_PostProcessVolume* PPVolume : GetWorld()->PostProcessVolumes)
-		{
-			const FPostProcessVolumeProperties VolumeProperties = PPVolume->GetProperties();
-
-			// Skip any volumes which are disabled
-			if (!VolumeProperties.bIsEnabled)
-			{
-				continue;
-			}
-
-			float LocalWeight = FMath::Clamp(VolumeProperties.BlendWeight, 0.0f, 1.0f);
-
-			if (!VolumeProperties.bIsUnbound)
-			{
-				float DistanceToPoint = 0.0f;
-				PPVolume->EncompassesPoint(ViewLocation, 0.0f, &DistanceToPoint);
-
-				if (DistanceToPoint >= 0 && DistanceToPoint < VolumeProperties.BlendRadius)
-				{
-					LocalWeight *= FMath::Clamp(1.0f - DistanceToPoint / VolumeProperties.BlendRadius, 0.0f, 1.0f);
-				}
-				else
-				{
-					LocalWeight = 0.0f;
-				}
-			}
-
-			InView->OverridePostProcessSettings(*VolumeProperties.Settings, LocalWeight);
-		}
-
-		// After blending all post processing volumes, blend the camera's post process settings too
-		InView->OverridePostProcessSettings(OutViewInfo.PostProcessSettings, OutViewInfo.PostProcessBlendWeight);
+		UE::MoviePipeline::DoPostProcessBlend(ViewLocation, GetWorld(), OutViewInfo, InView);
 	}
 }
 
@@ -1094,6 +1095,21 @@ void UMoviePipelineDeferredPass_PathTracer::SetupImpl(const MoviePipeline::FMovi
 	Super::SetupImpl(InPassInitSettings);
 }
 
+TSharedPtr<FSceneViewFamilyContext> UMoviePipelineDeferredPass_PathTracer::CalculateViewFamily(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload)
+{
+	// remove sub-pixel shift, since the path tracer does its own anti-aliasing
+	InOutSampleState.SpatialShiftX = 0;
+	InOutSampleState.SpatialShiftY = 0;
+	InOutSampleState.OverlappedSubpixelShift = FVector2d(0.5, 0.5);
+	return Super::CalculateViewFamily(InOutSampleState, OptPayload);
+}
+
+void UMoviePipelineDeferredPass_PathTracer::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesPathTracer = true;
+	InTelemetry->bUsesPPMs |= Algo::AnyOf(AdditionalPostProcessMaterials, [](const FMoviePipelinePostProcessPass& Pass) { return Pass.bEnabled; });
+}
+
 bool UMoviePipelineDeferredPassBase::IsUsingDataLayers() const
 {
 	int32 NumDataLayers = 0;
@@ -1206,3 +1222,22 @@ bool UMoviePipelineDeferredPassBase::IsActorInAnyStencilLayer(AActor* InActor) c
 	return bInLayer;
 }
 
+void UMoviePipelineDeferredPassBase::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesDeferred = true;
+	InTelemetry->bUsesPPMs |= Algo::AnyOf(AdditionalPostProcessMaterials, [](const FMoviePipelinePostProcessPass& Pass) { return Pass.bEnabled; });
+}
+
+FString UMoviePipelineDeferredPassBase::GetNameForPostProcessMaterial(const UMaterialInterface* InMaterial)
+{
+	FString MaterialName = InMaterial->GetName();
+
+	// Use the name specified in the post process pass if it's not empty. Otherwise fall back to the material's name.
+	const FMoviePipelinePostProcessPass* MatchingPass = Algo::FindByPredicate(AdditionalPostProcessMaterials, [InMaterial](const FMoviePipelinePostProcessPass& InPass) { return InPass.Material == InMaterial; });
+	if (MatchingPass && !MatchingPass->Name.IsEmpty())
+	{
+		MaterialName = MatchingPass->Name;
+	}
+
+	return MaterialName;
+}

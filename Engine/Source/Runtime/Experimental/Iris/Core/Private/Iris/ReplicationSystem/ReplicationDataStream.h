@@ -29,6 +29,7 @@ private:
 	virtual void EndWrite() override;
 	virtual void ReadData(UE::Net::FNetSerializationContext& Context) override;
 	virtual void ProcessPacketDeliveryStatus(UE::Net::EPacketDeliveryStatus Status, FDataStreamRecord const* Record) override;
+	virtual bool HasAcknowledgedAllReliableData() const override;
 
 private:
 	UE::Net::Private::FReplicationReader* ReplicationReader;

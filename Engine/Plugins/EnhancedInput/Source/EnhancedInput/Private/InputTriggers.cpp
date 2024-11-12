@@ -3,6 +3,7 @@
 #include "InputTriggers.h"
 #include "EnhancedInputModule.h"
 #include "EnhancedPlayerInput.h"
+#include "HAL/IConsoleManager.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -11,6 +12,42 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InputTriggers)
 
 #define LOCTEXT_NAMESPACE "EnhancedInputTriggers"
+
+namespace UE::EnhancedInput
+{
+	static TAutoConsoleVariable<bool> CVarCheckInitialStateForComboTrigger
+	(
+		TEXT("EnhancedInput.Triggers.bCheckInitalStateForComboTrigger"),
+		false,
+		TEXT("When true, combo triggers will check initial state (First input action in the combo array) and return 'Ongoing' if the Combo Step Completion State is met. ")
+		TEXT("Note: Setting this to true was Combo trigger behavior as of 5.4 and before."),
+		ECVF_Default
+	);
+}
+
+namespace UE::Input
+{
+	FString LexToString(const ETriggerEvent TriggerEvent)
+	{
+		if (TriggerEvent == ETriggerEvent::None)
+		{
+			return TEXT("None");
+		}
+
+		FString Result = TEXT("");
+#define TRIGGER_STATE(StatusFlag, DisplayName) if( EnumHasAllFlags(TriggerEvent, StatusFlag) ) Result += (FString(DisplayName) + TEXT("|"));
+		TRIGGER_STATE(ETriggerEvent::Triggered, TEXT("Triggered"));
+		TRIGGER_STATE(ETriggerEvent::Started, TEXT("Started"));
+		TRIGGER_STATE(ETriggerEvent::Ongoing, TEXT("Ongoing"));
+		TRIGGER_STATE(ETriggerEvent::Canceled, TEXT("Canceled"));
+		TRIGGER_STATE(ETriggerEvent::Completed, TEXT("Completed"));
+#undef TRIGGER_STATE
+
+		Result.RemoveFromEnd(TEXT("|"));
+		return Result;
+	}
+}
+
 
 // Abstract trigger bases
 ETriggerState UInputTrigger::UpdateState_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue ModifiedValue, float DeltaTime)
@@ -306,13 +343,17 @@ ETriggerState UInputTriggerCombo::UpdateState_Implementation(const UEnhancedPlay
 		{
 			return ETriggerState::Ongoing;
 		}
-	
-		// Really should account for first combo action being mid-trigger...
-		const FInputActionInstance* InitialState = PlayerInput->FindActionInstanceData(ComboActions[0].ComboStepAction);
-		if (InitialState && InitialState->GetTriggerEvent() > ETriggerEvent::None) // || Cancelled!
+
+		if (UE::EnhancedInput::CVarCheckInitialStateForComboTrigger.GetValueOnAnyThread())
 		{
-			return ETriggerState::Ongoing;
+			// Really should account for first combo action being mid-trigger...
+			const FInputActionInstance* InitialState = PlayerInput->FindActionInstanceData(ComboActions[0].ComboStepAction);
+			if (InitialState && InitialState->GetTriggerEvent() > ETriggerEvent::None) // || Cancelled!
+			{
+				return ETriggerState::Ongoing;
+			}
 		}
+		
 		CurrentTimeBetweenComboSteps = 0;
 	}
 	return ETriggerState::None;

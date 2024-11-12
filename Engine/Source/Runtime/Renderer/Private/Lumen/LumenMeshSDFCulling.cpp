@@ -802,7 +802,7 @@ void CullObjectsToGrid(
 		RDG_EVENT_NAME("ScatterMeshSDFsToGrid"),
 		PassParameters,
 		ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-		[CullGridSize, bReverseCulling, VertexShader, PixelShader, PassParameters](FRHICommandList& RHICmdList)
+		[CullGridSize, bReverseCulling, VertexShader, PixelShader, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FRHIRenderPassInfo RPInfo;
 			RPInfo.ResolveRect.X1 = 0;

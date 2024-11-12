@@ -28,6 +28,9 @@ void SDlgPickAssetPath::Construct(const FArguments& InArgs)
 	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SDlgPickAssetPath::OnPathChange);
 	PathPickerConfig.bAddDefaultPath = true;
 	PathPickerConfig.bAllowReadOnlyFolders = bAllowReadOnlyFolders;
+	PathPickerConfig.bAllowClassesFolder = true;
+	PathPickerConfig.bCanShowDevelopersFolder = true;
+	PathPickerConfig.bShowViewOptions = true;
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 

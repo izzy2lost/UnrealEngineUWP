@@ -9,6 +9,8 @@ using namespace UE::Geometry;
  * FStairGenerator
  */
 
+FStairGenerator::~FStairGenerator() = default;
+
 FMeshShapeGenerator& FStairGenerator::Generate()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StairGenerator_Generate);
@@ -1076,7 +1078,7 @@ FVector3f FCurvedStairGenerator::GenerateNormal(ESide Side, int VertexId)
 	const int Col = VertexIdsToColumnRow[VertexId].A;
 	const int Row = VertexIdsToColumnRow[VertexId].B;
 
-	FVector3f N;
+	FVector3f N = FVector3f::ZeroVector;
 	switch (Side)
 	{
 	case ESide::Right:

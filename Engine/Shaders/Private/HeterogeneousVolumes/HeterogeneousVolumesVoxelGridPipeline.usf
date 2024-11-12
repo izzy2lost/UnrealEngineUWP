@@ -38,9 +38,12 @@ StructuredBuffer<FVectorGridData> ScatteringGridBuffer;
 float3 PrimitiveWorldBoundsMin;
 float3 PrimitiveWorldBoundsMax;
 
-float ShadingRate;
+float ShadingRateInFrustum;
+float ShadingRateOutOfFrustum;
 float MinVoxelSizeInFrustum;
 float MinVoxelSizeOutOfFrustum;
+float DownsampleFactor;
+int bUseProjectedPixelSize;
 
 RWStructuredBuffer<FTopLevelGridData> RWTopLevelGridBuffer;
 
@@ -175,20 +178,25 @@ void TopLevelGridCalculateVoxelSize(
 
 	if (PrimitiveIntersectsVoxel(VoxelBoundsMin, VoxelBoundsMax))
 	{
-		// Initialize the voxel-rate based on view distance
-		float2 TanHalfFOV = GetTanHalfFieldOfView();
-		int HalfWidth = View.ViewSizeAndInvSize.x * 0.5;
-		float PixelWidth = TanHalfFOV.x / HalfWidth;
+		float VoxelSize = MinVoxelSizeOutOfFrustum;
+		float ShadingRate = ShadingRateOutOfFrustum;
+		if (BoxIntersectsViewFrustum(WorldVoxelCenter, WorldVoxelExtent))
+		{
+			VoxelSize = MinVoxelSizeInFrustum;
+			ShadingRate = ShadingRateInFrustum;
+		}
 
-		float3 WorldCameraOrigin = DFHackToFloat(DFFastSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
-		float Distance = length(WorldVoxelCenter - WorldCameraOrigin) - length(WorldVoxelExtent);
-		float VoxelWidth = Distance * PixelWidth * ShadingRate;
+		if (bUseProjectedPixelSize)
+		{
+			float2 TanHalfFOV = GetTanHalfFieldOfView();
+			float HalfWidth = View.ViewSizeAndInvSize.x * 0.5 / DownsampleFactor;
+			float PixelWidth = TanHalfFOV.x / HalfWidth;
 
-		// Frustum intersection determines which min voxel-size to clip by
-		float3 PrimitiveWorldBoundsOrigin = (PrimitiveWorldBoundsMax + PrimitiveWorldBoundsMin) * 0.5;
-		float3 PrimitiveWorldBoundsExtent = (PrimitiveWorldBoundsMax - PrimitiveWorldBoundsMin) * 0.5;
-		float MinVoxelSize = BoxIntersectsViewFrustum(WorldVoxelCenter, WorldVoxelExtent) ? MinVoxelSizeInFrustum : MinVoxelSizeOutOfFrustum;
-		float VoxelSize = max(VoxelWidth, MinVoxelSize);
+			float3 WorldCameraOrigin = DFFastSubtractDemote(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation);
+			float Distance = max(GetDistanceToCameraFromViewVector(WorldVoxelCenter - WorldCameraOrigin) - length(WorldVoxelExtent), 0.0);
+			float VoxelWidth = Distance * PixelWidth * ShadingRate;
+			VoxelSize = max(VoxelWidth, VoxelSize);
+		}
 
 		// Store minimum voxel rate temporarily as the bottom-level index
 		uint LinearIndex = GetLinearIndex(VoxelIndex, TopLevelGridResolution);
@@ -343,7 +351,8 @@ void GenerateRasterTiles(
 		int3 RasterTileCount3 = BottomLevelResolution;
 #else // DIM_ENABLE_INDIRECTION_GRID
 		// NOTE: Always 1, due to limitations of bottom-level grid resolution
-		int3 RasterTileCount3 = ceil(float3(BottomLevelResolution) / RasterTileVoxelResolution);
+		//int3 RasterTileCount3 = ceil(float3(BottomLevelResolution) / RasterTileVoxelResolution);
+		int3 RasterTileCount3 = 1;
 #endif // DIM_ENABLE_INDIRECTION_GRID
 
 		int RasterTileCount = RasterTileCount3.x * RasterTileCount3.y * RasterTileCount3.z;

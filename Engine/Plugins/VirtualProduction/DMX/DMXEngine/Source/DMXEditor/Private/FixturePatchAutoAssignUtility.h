@@ -25,15 +25,28 @@ namespace UE::DMXEditor::AutoAssign::Private
 		FAutoAssignElement(const TRange<int64>& InAbsoluteRange);
 		FAutoAssignElement(UDMXEntityFixturePatch& FixturePatch);
 
+		/** Returns the lower bound value, inclusive */
 		int64 GetLowerBoundValue() const;
+
+		/** Returns the upper bound value, exclusive */
 		int64 GetUpperBoundValue() const;
+
+		/** Returns the size */
 		int64 GetSize() const;
+
+		/** Returns the element as range */
 		const TRange<int64>& GetRange() const { return AbsoluteRange; }
 
+		/** Sets the absolute starting channel */
 		void SetAbsoluteStartingChannel(int64 NewStartingAddress);
 
+		/** Aligns this element after the other */
+		void AlignAfter(const TSharedRef<FAutoAssignElement>& Other);
+
+		/** If the element has a patch, writes the current range to the patch */
 		void ApplyToPatch();
 
+		/** Returns the fixture patch, or nullptr if the element has no patch */
 		UDMXEntityFixturePatch* GetFixturePatch() const;
 
 	private:
@@ -59,8 +72,8 @@ namespace UE::DMXEditor::AutoAssign::Private
 		/** Assigns the elements. Returns the universe of the first assigned patch */
 		static int32 Assign(TArray<TSharedRef<FAutoAssignElement>> ElementsToAssign, int32 AssignToUniverse, int32 AssignToChannel);
 
-		/** Aligns the elements */
-		static void Align(TArray<TSharedRef<FAutoAssignElement>> ElementsToAlign);
+		/** Aligns the elements. If bRetainStacks is true, retains stacks instead of aligning them too. */
+		static void Align(TArray<TSharedRef<FAutoAssignElement>> ElementsToAlign, bool bRetainStacks);
 
 		/** Stacks the elements */
 		static void Stack(TArray<TSharedRef<FAutoAssignElement>> ElementsToStack);
@@ -72,6 +85,9 @@ namespace UE::DMXEditor::AutoAssign::Private
 		static void AutoAssign(const TArray<TSharedRef<FAutoAssignElement>>& FreeElements, TArray<TSharedRef<FAutoAssignElement>> AutoAssignElements);
 
 	private:
+		/** Returns true if the elements are stacked. */
+		static bool AreElementsStacked(const TSharedRef<FAutoAssignElement>& FirstElement, const TSharedRef<FAutoAssignElement>& SecondElement);
+
 		/** Returns true if elments are in valid DMX range. Hits an ensure condition if elements are not valid. */
 		static bool EnsureValidPatchElements(const TArray<TSharedRef<FAutoAssignElement>>& Elements);
 	};

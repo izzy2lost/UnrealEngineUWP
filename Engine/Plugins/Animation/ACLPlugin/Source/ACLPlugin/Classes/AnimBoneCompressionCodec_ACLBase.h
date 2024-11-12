@@ -22,15 +22,16 @@ THIRD_PARTY_INCLUDES_END
 
 #include "AnimBoneCompressionCodec_ACLBase.generated.h"
 
-/** An enum that represents the result of attempting to use a safety fallback codec. */
-enum class ACLSafetyFallbackResult
+struct FACLCompressedAnimDataBase : public ICompressedAnimData
 {
-	Success,	// Safety fallback is used and compressed fine
-	Failure,	// Safety fallback is used but failed to compress
-	Ignored,	// No safety fallback used
+	/** Whether or not compression failed */
+	bool bCompressionFailed = false;
+
+	// ICompressedAnimData implementation
+	virtual void SerializeCompressedData(UObject* DataOwner, FArchive& Ar) override;
 };
 
-struct FACLCompressedAnimData final : public ICompressedAnimData
+struct FACLCompressedAnimData final : public FACLCompressedAnimDataBase
 {
 	/** Holds the compressed_tracks instance */
 	TArrayView<uint8> CompressedByteStream;
@@ -71,6 +72,7 @@ class UAnimBoneCompressionCodec_ACLBase : public UAnimBoneCompressionCodec
 	float ErrorThreshold;
 
 	// UAnimBoneCompressionCodec implementation
+	virtual bool IsHighFidelity(const FCompressibleAnimData& CompressibleAnimData) const override;
 	virtual bool Compress(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult) override;
 	virtual void PopulateDDCKey(const UE::Anim::Compression::FAnimDDCKeyArgs& KeyArgs, FArchive& Ar) override;
 	virtual int64 EstimateCompressionMemoryUsage(const UAnimSequence& AnimSequence) const override;
@@ -79,7 +81,6 @@ class UAnimBoneCompressionCodec_ACLBase : public UAnimBoneCompressionCodec
 	virtual void PostCompression(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult) const {}
 	virtual void GetCompressionSettings(const class ITargetPlatform* TargetPlatform, acl::compression_settings& OutSettings) const PURE_VIRTUAL(UAnimBoneCompressionCodec_ACLBase::GetCompressionSettings, );
 	virtual TArray<class USkeletalMesh*> GetOptimizationTargets() const { return TArray<class USkeletalMesh*>(); }
-	virtual ACLSafetyFallbackResult ExecuteSafetyFallback(acl::iallocator& Allocator, const acl::compression_settings& Settings, const acl::track_array_qvvf& RawClip, const acl::track_array_qvvf& BaseClip, const acl::compressed_tracks& CompressedClipData, const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult);
 #endif
 
 	// UAnimBoneCompressionCodec implementation

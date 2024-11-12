@@ -7,6 +7,7 @@
 #include "UObject/Package.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
+#include "Math/DualQuat.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosCache)
 
@@ -218,7 +219,7 @@ bool UChaosCache::FlushPendingFrames_MainPass(TQueue<FPendingFrameWrite, Mode>& 
 		}
 		return false;
 	};
-
+	
 	while (InPendingWrites.Dequeue(NewData))
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(QSTAT_CacheFlushSingleFramePass2);
@@ -279,6 +280,8 @@ bool UChaosCache::FlushPendingFrames_MainPass(TQueue<FPendingFrameWrite, Mode>& 
 				}
 			}
 		}
+		MinTime = FMath::Min(MinTime,NewData.Time);
+		MaxTime = FMath::Max(MaxTime,NewData.Time);
 
 		const int32 ParticleCount = NewData.PendingParticleData.Num();
 
@@ -381,7 +384,14 @@ void UChaosCache::FlushPendingFrames()
 			}
 		}
 
-		RecordedDuration = Max - Min;
+		RecordedDuration =  Max - Min;
+	}
+	// In case we are not recording to channels/particles/curves datas (USD) we can
+	// use the pending writes time to figure out the recorded duration.
+	// Should probably be the unique way of computing it. 
+	if(ParticleTracks.IsEmpty() && ChannelsTracks.IsEmpty() && (MaxTime > MinTime))
+	{
+		RecordedDuration = MaxTime-MinTime;
 	}
 }
 
@@ -397,6 +407,8 @@ FCacheUserToken UChaosCache::BeginRecord(const UPrimitiveComponent* InComponent,
 			// And there's no playbacks, we can proceed
 			// Setup the cache to begin recording
 			RecordedDuration = 0.0f;
+			MinTime = TNumericLimits<float>::Max();
+			MaxTime = TNumericLimits<float>::Lowest();
 			NumRecordedFrames = 0;
 			ParticleTracks.Reset();
 			ChannelsTracks.Reset();
@@ -723,7 +735,7 @@ FCacheEvaluationResult UChaosCache::Evaluate(const FCacheEvaluationContext& InCo
 		Result.NamedTransforms.Reset();
 		for (const TPair<FName, FNamedTransformTrack>& NamedTransform : NamedTransformTracks)
 		{
-			Result.NamedTransforms.Add(NamedTransform.Key, NamedTransform.Value.Evaluate(InContext.TickRecord.GetTime(), nullptr));
+			Result.NamedTransforms.Add(NamedTransform.Key, NamedTransform.Value.Evaluate(InContext.TickRecord.GetTime(), nullptr, InterpolationMode));
 		}
 	}
 
@@ -782,7 +794,7 @@ void UChaosCache::EvaluateSingle(int32 InIndex, FPlaybackTickRecord& InTickRecor
 
 void UChaosCache::EvaluateTransform(const FPerParticleCacheData& InData, float InTime, const FTransform* MassToLocal, FTransform& OutTransform)
 {
-	OutTransform = InData.TransformData.Evaluate(InTime, MassToLocal);
+	OutTransform = InData.TransformData.Evaluate(InTime, MassToLocal, InterpolationMode);
 }
 
 void UChaosCache::EvaluateCurves(const FPerParticleCacheData& InData, float InTime, TMap<FName, float>& OutCurves)
@@ -850,7 +862,7 @@ void UChaosCache::CompressChannelsData(float ErrorThreshold, float SampleRate)
 	ChannelsTracks.Reset();
 }
 
-FTransform FParticleTransformTrack::Evaluate(float InCacheTime, const FTransform* MassToLocal) const
+FTransform FParticleTransformTrack::Evaluate(float InCacheTime, const FTransform* MassToLocal, EChaosCacheInterpolationMode InterpolationMode) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(QSTAT_EvalParticleTransformTrack);
 	const int32 NumKeys = GetNumKeys();
@@ -875,7 +887,29 @@ FTransform FParticleTransformTrack::Evaluate(float InCacheTime, const FTransform
 
 		if (bChaosCacheUseInterpolation)
 		{
-			Result.Blend(TransformA, TransformB, Alpha);
+			if (InterpolationMode == EChaosCacheInterpolationMode::QuatInterp)
+			{
+				Result.Blend(TransformA, TransformB, Alpha);
+			}
+			else if (InterpolationMode == EChaosCacheInterpolationMode::EulerInterp)
+			{
+				Result.SetTranslation(FMath::Lerp(TransformA.GetTranslation(), TransformB.GetTranslation(), Alpha));
+				Result.SetScale3D(FMath::Lerp(TransformA.GetScale3D(), TransformB.GetScale3D(), Alpha));
+
+				const FRotator RotatorA = TransformA.Rotator();
+				const FRotator RotatorB = TransformB.Rotator();
+				const FRotator DeltaRotator = RotatorB - RotatorA;
+				Result.SetRotation(FQuat(RotatorA + Alpha * DeltaRotator));
+			}
+			else // (InterpolationMode == EChaosCacheInterpolationMode::DualQuatInterp)
+			{
+				FTransform AdjustedTransformB(TransformB);
+				if ((TransformB.GetRotation() | TransformA.GetRotation()) < 0.0f)
+				{
+					AdjustedTransformB.SetRotation(TransformB.GetRotation() * -1.0f);
+				}
+				Result = (FDualQuat(TransformA) * (1 - Alpha) + FDualQuat(AdjustedTransformB) * Alpha).Normalized().AsFTransform(FMath::Lerp(TransformA.GetScale3D(), AdjustedTransformB.GetScale3D(), Alpha));
+			}
 		}
 		else
 		{
@@ -940,6 +974,30 @@ const float FParticleTransformTrack::GetEndTime() const
 	return 0.0f;
 }
 
+void FParticleTransformTrack::CopyTrackEntry(int32 FromIndex, int32 ToIndex)
+{
+	if (FromIndex != ToIndex)
+	{
+		KeyTimestamps[ToIndex] = KeyTimestamps[FromIndex];
+		RawTransformTrack.PosKeys[ToIndex] = RawTransformTrack.PosKeys[FromIndex];
+		RawTransformTrack.RotKeys[ToIndex] = RawTransformTrack.RotKeys[FromIndex];
+		// not sure we use that part anymore ( maybe in older caches ?)
+		RawTransformTrack.ScaleKeys[ToIndex] = RawTransformTrack.ScaleKeys[FromIndex];
+	}
+}
+
+void FParticleTransformTrack::ResizeTrack(int32 NewSize)
+{
+	if (NewSize < KeyTimestamps.Num())
+	{
+		KeyTimestamps.SetNum(NewSize);
+		RawTransformTrack.PosKeys.SetNum(NewSize);
+		RawTransformTrack.RotKeys.SetNum(NewSize);
+		// not sure we use that part anymore ( maybe in older caches ?)
+		RawTransformTrack.ScaleKeys.SetNum(NewSize);
+	}
+}
+
 void FParticleTransformTrack::Compress()
 {
 	// we only need to compress if there's more than 3 keys
@@ -948,12 +1006,18 @@ void FParticleTransformTrack::Compress()
 		// simple compression algorithm to remove similar keys
 		// we compare the resulting transform
 		// the compression can be done in place because the number of resulting keys is always smaller than the original number of keys
+		// when more than 3 consecutive transforms are similar they are compressed using two ( earlier and oldest timestamp )
+		// [A1 A2 A3 A4 B1 C1 C2 C3 D1 E1 E2 E3] will result in [A1 A4 B1 C1 C3 D1 E1 E3 ] 
 
-		int32 CompressedKeyIndex = 1; // set to 1 because we'll always write after KeyIndex
+		int32 CompressedKeyIndex = 0; // index to write to
 
 		for (int32 KeyIndex = 0; KeyIndex < KeyTimestamps.Num(); KeyIndex++)
 		{
 			FTransform CurrentTransform = EvaluateAt(KeyIndex);
+
+			// write current 
+			CopyTrackEntry(KeyIndex, CompressedKeyIndex);
+			CompressedKeyIndex++;
 
 			// find the next index where the transform is different
 			int32 NextIndex = (KeyIndex + 1);
@@ -962,47 +1026,26 @@ void FParticleTransformTrack::Compress()
 				const FTransform NextTransform = EvaluateAt(NextIndex);
 				if (!NextTransform.Equals(CurrentTransform))
 				{
-					// skip write the same value over itself 
-					const int32 LastSimilarIndex = (NextIndex - 1);
-					if (LastSimilarIndex > KeyIndex)
-					{
-						KeyTimestamps[CompressedKeyIndex] = KeyTimestamps[LastSimilarIndex];
-						RawTransformTrack.PosKeys[CompressedKeyIndex] = RawTransformTrack.PosKeys[LastSimilarIndex];
-						RawTransformTrack.RotKeys[CompressedKeyIndex] = RawTransformTrack.RotKeys[LastSimilarIndex];
-						// not sure we use that part anymore ( maybe in older caches ?)
-						RawTransformTrack.ScaleKeys[CompressedKeyIndex] = RawTransformTrack.ScaleKeys[LastSimilarIndex];
-					}
-					CompressedKeyIndex++;
 					break;
 				}
 			}
-			// we we have reached the end and haven't copied the last key we need to do it here 
-			if (NextIndex == KeyTimestamps.Num() && CompressedKeyIndex < KeyTimestamps.Num())
+
+			// if there's at least one identical transform before the new one 
+			const int32 LastSimilarIndex = (NextIndex - 1);
+			if (LastSimilarIndex > KeyIndex)
 			{
-				const int32 LastSimilarIndex = (NextIndex - 1);
-				KeyTimestamps[CompressedKeyIndex] = KeyTimestamps[LastSimilarIndex];
-				RawTransformTrack.PosKeys[CompressedKeyIndex] = RawTransformTrack.PosKeys[LastSimilarIndex];
-				RawTransformTrack.RotKeys[CompressedKeyIndex] = RawTransformTrack.RotKeys[LastSimilarIndex];
-				// not sure we use that part anymore ( maybe in older caches ?)
-				RawTransformTrack.ScaleKeys[CompressedKeyIndex] = RawTransformTrack.ScaleKeys[LastSimilarIndex];
-				
-				// we are now done 
-				CompressedKeyIndex++;
-				break; 
+				// write same transform with oldest timestamp
+				if (CompressedKeyIndex < KeyTimestamps.Num())
+				{
+					CopyTrackEntry(LastSimilarIndex, CompressedKeyIndex);
+					CompressedKeyIndex++;
+				}
+				KeyIndex = (NextIndex - 1); // account for the automatic increment of the loop
 			}
-			// make sure we start back as far as we can
-			KeyIndex = (NextIndex - 1);
 		}
 
-		// we are done we can now shrink the original arrays to the compressed size if necessary
+		// we are done we can now shrink the original arrays to the compressed size
 		const int32 CompressedSize = CompressedKeyIndex;
-		if (CompressedSize < KeyTimestamps.Num())
-		{
-			KeyTimestamps.SetNum(CompressedSize);
-			RawTransformTrack.PosKeys.SetNum(CompressedSize);
-			RawTransformTrack.RotKeys.SetNum(CompressedSize);
-			// not sure we use that part anymore ( maybe in older caches ?)
-			RawTransformTrack.ScaleKeys.SetNum(CompressedSize);
-		}
+		ResizeTrack(CompressedSize);
 	}
 }

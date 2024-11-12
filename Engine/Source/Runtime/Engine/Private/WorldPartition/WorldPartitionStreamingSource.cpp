@@ -57,6 +57,11 @@ FString FWorldPartitionStreamingSource::ToString() const
 		(int32)(Velocity.Size() * 0.0223694f)
 	);
 
+	if (bForce2D)
+	{
+		StringBuilder += TEXT(" | Force2D");
+	}
+
 	if (Shapes.Num())
 	{
 		StringBuilder += TEXT(" | ");
@@ -94,75 +99,70 @@ FString FWorldPartitionStreamingSource::ToString() const
 void FWorldPartitionStreamingSource::UpdateHash()
 {
 	// Update old values when they are changing enough, to avoid the case where we are on the edge of a quantization unit.
-	if (!UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() || 
-		(FVector::Dist(Location, OldLocation) > LocationQuantization))
+	if (FVector::Dist(Location, QuantizedLocation) > LocationQuantization)
 	{
-		OldLocation = Location;
+		QuantizedLocation = Location;
 	}
 	
-	if (!UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() ||
-		(FMath::Abs(Rotation.Pitch - OldRotation.Pitch) > RotationQuantization) ||
-		(FMath::Abs(Rotation.Yaw - OldRotation.Yaw) > RotationQuantization) ||
-		(FMath::Abs(Rotation.Roll - OldRotation.Roll) > RotationQuantization))
+	if (Rotation.GetManhattanDistance(QuantizedRotation) > RotationQuantization)
 	{
-		OldRotation = Rotation;
+		QuantizedRotation = Rotation;
 	}
 
 	FHashBuilder HashBuilder;
-	HashBuilder	<< Name << TargetState << bBlockOnSlowLoading << bReplay << bRemote << Priority << TargetBehavior << TargetGrids << Shapes << ExtraRadius  << ExtraAngle;
+	const uint8 ValuesMask = (bBlockOnSlowLoading ? 1 : 0) | (bUseVelocityContributionToCellsSorting ? 2 : 0) | (bReplay ? 4 : 0) | (bRemote ? 8 : 0) | (bForce2D ? 16 : 0);
+	HashBuilder	<< Name << TargetState << ValuesMask << Priority << TargetBehavior << TargetGrids << Shapes;
 
-	if (LocationQuantization)
+	if (ExtraRadius > 0.f)
 	{
-		HashBuilder << FMath::FloorToInt(OldLocation.X / LocationQuantization) << FMath::FloorToInt(OldLocation.Y / LocationQuantization);
+		HashBuilder << ExtraRadius;
+	}
+
+	if (ExtraAngle > 0.f)
+	{
+		HashBuilder << ExtraAngle;
+	}
+
+	if (LocationQuantization > 0)
+	{
+		HashBuilder << FMath::FloorToInt(QuantizedLocation.X / LocationQuantization) << FMath::FloorToInt(QuantizedLocation.Y / LocationQuantization);
+	}
+	else
+	{
+		HashBuilder << Location.X << Location.Y;
 	}
 
 	if (RotationQuantization > 0)
 	{
-		HashBuilder << FMath::FloorToInt(OldRotation.Yaw / RotationQuantization);
+		HashBuilder << FMath::FloorToInt(Rotation.Yaw / RotationQuantization);
+	}
+	else
+	{
+		HashBuilder << Rotation.Yaw;
 	}
 
 	Hash2D = HashBuilder.GetHash();
 
-	if (LocationQuantization)
+	if (LocationQuantization > 0)
 	{
-		HashBuilder << FMath::FloorToInt(OldLocation.Z / LocationQuantization);
+		HashBuilder << FMath::FloorToInt(QuantizedLocation.Z / LocationQuantization);
+	}
+	else
+	{
+		HashBuilder << Location.Z;
 	}
 
-	if (RotationQuantization)
+	if (RotationQuantization > 0)
 	{
-		HashBuilder << FMath::FloorToInt(OldRotation.Pitch / RotationQuantization) << FMath::FloorToInt(OldRotation.Roll / RotationQuantization);
+		HashBuilder << FMath::FloorToInt(QuantizedRotation.Pitch / RotationQuantization) << FMath::FloorToInt(QuantizedRotation.Roll / RotationQuantization);
+	}
+	else
+	{
+		HashBuilder << QuantizedRotation.Pitch << QuantizedRotation.Roll;
 	}
 
 	Hash3D = HashBuilder.GetHash();
 };
-
-FORCEINLINE static bool IsClockWise(const FVector2D& V1, const FVector2D& V2)
-{
-	return (V1 ^ V2) < 0;
-}
-
-FORCEINLINE static bool IsVectorInsideVectorPair(const FVector2D& TestVector, const FVector2D& V1, const FVector2D& V2)
-{
-	return IsClockWise(V1, TestVector) && !IsClockWise(V2, TestVector);
-}
-
-FORCEINLINE static bool IsPointInsideSector(const FVector2D& TestPoint, const FVector2D& SectorCenter, float SectorRadiusSquared, const FVector2D& SectorStart, const FVector2D& SectorEnd, float SectorAngle)
-{
-	const FVector2D TestVector = TestPoint - SectorCenter;
-	if (TestVector.SizeSquared() > SectorRadiusSquared)
-	{
-		return false;
-	}
-
-	if (SectorAngle <= 180.0f)
-	{
-		return IsVectorInsideVectorPair(TestVector, SectorStart, SectorEnd);
-	}
-	else
-	{
-		return !IsVectorInsideVectorPair(TestVector, SectorEnd, SectorStart);
-	}
-}
 
 TArray<TPair<FVector, FVector>> FSphericalSector::BuildDebugMesh() const
 {
@@ -211,36 +211,78 @@ TArray<TPair<FVector, FVector>> FSphericalSector::BuildDebugMesh() const
 
 bool FSphericalSector::IntersectsBox(const FBox2D& InBox) const
 {
-	const FVector ScaledAxis = FVector(FVector2D(Axis), 0).GetSafeNormal() * Radius;
-	const FVector SectorStart = FRotator(0, 0.5f * Angle, 0).RotateVector(ScaledAxis);
-	const FVector SectorEnd = FRotator(0, -0.5f * Angle, 0).RotateVector(ScaledAxis);
-	const FVector2D SectorCenter(Center);
-	const FVector2D SectorStartVector = FVector2D(SectorStart);
-	const FVector2D SectorEndVector = FVector2D(SectorEnd);
-	const float SectorRadiusSquared = Radius * Radius;
-
-	// Test whether any cell corners are inside sector
-	if (IsPointInsideSector(FVector2D(InBox.Min.X, InBox.Min.Y), SectorCenter, SectorRadiusSquared, SectorStartVector, SectorEndVector, Angle) ||
-		IsPointInsideSector(FVector2D(InBox.Max.X, InBox.Min.Y), SectorCenter, SectorRadiusSquared, SectorStartVector, SectorEndVector, Angle) ||
-		IsPointInsideSector(FVector2D(InBox.Max.X, InBox.Max.Y), SectorCenter, SectorRadiusSquared, SectorStartVector, SectorEndVector, Angle) ||
-		IsPointInsideSector(FVector2D(InBox.Min.X, InBox.Max.Y), SectorCenter, SectorRadiusSquared, SectorStartVector, SectorEndVector, Angle))
+	// First check if the box intersects the radius
+	const FVector2D ClosestPoint = FVector2D::Max(InBox.Min, FVector2D::Min(FVector2D(Center), InBox.Max));
+	if ((ClosestPoint - FVector2D(Center)).SizeSquared() > FMath::Square(Radius))
 	{
-		return true;
+		return false;
 	}
 
-	// Test whether any sector point lies inside the cell bounds
-	if (InBox.IsInside(SectorCenter) ||
-		InBox.IsInside(SectorCenter + SectorStartVector) ||
-		InBox.IsInside(SectorCenter + SectorEndVector))
+	if (Angle < 360.0)
 	{
-		return true;
+		const FVector2D CenterToMinXMinY((FVector2D(InBox.Min.X, InBox.Min.Y) - FVector2D(Center)).GetSafeNormal());
+		const FVector2D CenterToMaxXMinY((FVector2D(InBox.Max.X, InBox.Min.Y) - FVector2D(Center)).GetSafeNormal());
+		const FVector2D CenterToMaxXMaxY((FVector2D(InBox.Max.X, InBox.Max.Y) - FVector2D(Center)).GetSafeNormal());
+		const FVector2D CenterToMinXMaxY((FVector2D(InBox.Min.X, InBox.Max.Y) - FVector2D(Center)).GetSafeNormal());
+
+		if (Angle <= 180.0f)
+		{
+			const FVector2D::FReal SinHalfAngle = FMath::Sin(Angle * 0.5f * UE_PI / 180.0);
+			const FVector2D::FReal SinAngleMinXMinY = FVector2D::CrossProduct(FVector2D(Axis), CenterToMinXMinY);
+			const FVector2D::FReal SinAngleMaxXMinY = FVector2D::CrossProduct(FVector2D(Axis), CenterToMaxXMinY);
+			const FVector2D::FReal SinAngleMaxXMaxY = FVector2D::CrossProduct(FVector2D(Axis), CenterToMaxXMaxY);
+			const FVector2D::FReal SinAngleMinXMaxY = FVector2D::CrossProduct(FVector2D(Axis), CenterToMinXMaxY);
+
+			// Reject completly left
+			if (SinAngleMinXMinY < -SinHalfAngle && SinAngleMaxXMinY < -SinHalfAngle && SinAngleMaxXMaxY < -SinHalfAngle && SinAngleMinXMaxY < -SinHalfAngle)
+			{
+				return false;
+			}
+
+			// Reject completly right
+			if (SinAngleMinXMinY > SinHalfAngle && SinAngleMaxXMinY > SinHalfAngle && SinAngleMaxXMaxY > SinHalfAngle && SinAngleMinXMaxY > SinHalfAngle)
+			{
+				return false;
+			}
+
+			const FVector2D::FReal CosAngleMinXMinY = FVector2D::DotProduct(FVector2D(Axis), CenterToMinXMinY);
+			const FVector2D::FReal CosAngleMaxXMinY = FVector2D::DotProduct(FVector2D(Axis), CenterToMaxXMinY);
+			const FVector2D::FReal CosAngleMaxXMaxY = FVector2D::DotProduct(FVector2D(Axis), CenterToMaxXMaxY);
+			const FVector2D::FReal CosAngleMinXMaxY = FVector2D::DotProduct(FVector2D(Axis), CenterToMinXMaxY);
+
+			// Reject backward half circle
+			if (CosAngleMinXMinY < 0 && CosAngleMaxXMinY < 0 && CosAngleMaxXMaxY < 0 && CosAngleMinXMaxY < 0)
+			{
+				return false;
+			}
+		}
+		else
+		{
+			const FVector2D::FReal CosAngleMinXMinY = FVector2D::DotProduct(FVector2D(Axis),CenterToMinXMinY);
+			const FVector2D::FReal CosAngleMaxXMinY = FVector2D::DotProduct(FVector2D(Axis),CenterToMaxXMinY);
+			const FVector2D::FReal CosAngleMaxXMaxY = FVector2D::DotProduct(FVector2D(Axis),CenterToMaxXMaxY);
+			const FVector2D::FReal CosAngleMinXMaxY = FVector2D::DotProduct(FVector2D(Axis),CenterToMinXMaxY);
+
+			// Include forward half circle
+			if (CosAngleMinXMinY >= 0 || CosAngleMaxXMinY >= 0 || CosAngleMaxXMaxY >= 0 || CosAngleMinXMaxY >= 0)
+			{
+				return true;
+			}
+
+			const FVector2D::FReal InvInSinHalfAngle = FMath::Sin((360.0 - Angle) * 0.5 * UE_PI / 180.0);
+			const FVector2D::FReal InvSinAngleMinXMinY = FVector2D::CrossProduct(-FVector2D(Axis), CenterToMinXMinY);
+			const FVector2D::FReal InvSinAngleMaxXMinY = FVector2D::CrossProduct(-FVector2D(Axis), CenterToMaxXMinY);
+			const FVector2D::FReal InvSinAngleMaxXMaxY = FVector2D::CrossProduct(-FVector2D(Axis), CenterToMaxXMaxY);
+			const FVector2D::FReal InvSinAngleMinXMaxY = FVector2D::CrossProduct(-FVector2D(Axis), CenterToMinXMaxY);
+
+			// Reject completly inside inverted axis test
+			if (InvSinAngleMinXMinY > -InvInSinHalfAngle && InvSinAngleMaxXMinY > -InvInSinHalfAngle && InvSinAngleMaxXMaxY > -InvInSinHalfAngle && InvSinAngleMinXMaxY > -InvInSinHalfAngle &&
+				InvSinAngleMinXMinY < InvInSinHalfAngle && InvSinAngleMaxXMinY < InvInSinHalfAngle && InvSinAngleMaxXMaxY < InvInSinHalfAngle && InvSinAngleMinXMaxY < InvInSinHalfAngle)
+			{
+				return false;
+			}
+		}
 	}
 
-	// Test whether closest point on cell from center is inside sector
-	if (IsPointInsideSector(InBox.GetClosestPointTo(SectorCenter), SectorCenter, SectorRadiusSquared, SectorStartVector, SectorEndVector, Angle))
-	{
-		return true;
-	}
-
-	return false;
+	return true;
 }

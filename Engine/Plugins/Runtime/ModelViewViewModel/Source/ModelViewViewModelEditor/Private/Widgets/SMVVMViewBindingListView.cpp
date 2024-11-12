@@ -15,6 +15,7 @@
 #include "MVVMBlueprintViewBinding.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMBlueprintViewEvent.h"
+#include "MVVMBlueprintViewCondition.h"
 #include "MVVMEditorSubsystem.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -22,6 +23,7 @@
 
 #include "Widgets/BindingEntry/SMVVMBindingRow.h"
 #include "Widgets/BindingEntry/SMVVMEventRow.h"
+#include "Widgets/BindingEntry/SMVVMConditionRow.h"
 #include "Widgets/BindingEntry/SMVVMFunctionParameterRow.h"
 #include "Widgets/BindingEntry/SMVVMGroupRow.h"
 #include "Widgets/SMVVMViewBindingPanel.h"
@@ -71,6 +73,23 @@ namespace Private
 				return Entry;
 			}
 			TSharedPtr<FBindingEntry> Result = FindEvent(Event, Entry->GetAllChildren());
+			if (Result)
+			{
+				return Result;
+			}
+		}
+		return TSharedPtr<FBindingEntry>();
+	}
+
+	TSharedPtr<FBindingEntry> FindCondition(UMVVMBlueprintViewCondition* Condition, TConstArrayView<TSharedPtr<FBindingEntry>> Entries)
+	{
+		for (const TSharedPtr<FBindingEntry>& Entry : Entries)
+		{
+			if (Entry->GetRowType() == FBindingEntry::ERowType::Condition && Entry->GetCondition() == Condition)
+			{
+				return Entry;
+			}
+			TSharedPtr<FBindingEntry> Result = FindCondition(Condition, Entry->GetAllChildren());
 			if (Result)
 			{
 				return Result;
@@ -171,6 +190,9 @@ void SBindingsList::Construct(const FArguments& InArgs, TSharedPtr<SBindingsPane
 	MVVMExtension->OnBlueprintViewChangedDelegate().AddSP(this, &SBindingsList::Refresh);
 	MVVMExtension->GetBlueprintView()->OnBindingsUpdated.AddSP(this, &SBindingsList::Refresh);
 	MVVMExtension->GetBlueprintView()->OnEventsUpdated.AddSP(this, &SBindingsList::Refresh);
+	MVVMExtension->GetBlueprintView()->OnConditionsUpdated.AddSP(this, &SBindingsList::Refresh);
+	MVVMExtension->GetBlueprintView()->OnEventParametersRegenerate.AddSP(this, &SBindingsList::EventParametersRegenerate);
+	MVVMExtension->GetBlueprintView()->OnConditionParametersRegenerate.AddSP(this, &SBindingsList::ConditionParametersRegenerate);
 	MVVMExtension->GetBlueprintView()->OnBindingsAdded.AddSP(this, &SBindingsList::ClearFilterText);
 	MVVMExtension->GetBlueprintView()->OnViewModelsUpdated.AddSP(this, &SBindingsList::ForceRefresh);
 
@@ -183,7 +205,6 @@ void SBindingsList::Construct(const FArguments& InArgs, TSharedPtr<SBindingsPane
 		.OnGetChildren(this, &SBindingsList::GetChildrenOfEntry)
 		.OnContextMenuOpening(this, &SBindingsList::OnSourceConstructContextMenu)
 		.OnSelectionChanged(this, &SBindingsList::OnSourceListSelectionChanged)
-		.ItemHeight(32)
 	];
 
 	Refresh();
@@ -196,6 +217,9 @@ SBindingsList::~SBindingsList()
 		MVVMExtensionPtr->OnBlueprintViewChangedDelegate().RemoveAll(this);
 		MVVMExtensionPtr->GetBlueprintView()->OnBindingsUpdated.RemoveAll(this);
 		MVVMExtensionPtr->GetBlueprintView()->OnEventsUpdated.RemoveAll(this);
+		MVVMExtensionPtr->GetBlueprintView()->OnConditionsUpdated.RemoveAll(this);
+		MVVMExtensionPtr->GetBlueprintView()->OnEventParametersRegenerate.RemoveAll(this);
+		MVVMExtensionPtr->GetBlueprintView()->OnConditionParametersRegenerate.RemoveAll(this);
 		MVVMExtensionPtr->GetBlueprintView()->OnBindingsAdded.RemoveAll(this);
 		MVVMExtensionPtr->GetBlueprintView()->OnViewModelsUpdated.RemoveAll(this);
 	}
@@ -227,6 +251,24 @@ void SBindingsList::RegisterWrapperGraphModified(TEntryValueType* EntryValue, TS
 			FDelegateHandle DelegateHandle = EntryValue->OnWrapperGraphModified.AddSP(this, &SBindingsList::HandleRefreshChildren, ObjectKey);
 			WrapperGraphModifiedDelegates.Add(ObjectKey, { TWeakPtr<FBindingEntry>(BindingEntry), DelegateHandle });
 		}
+	}
+}
+
+void SBindingsList::EventParametersRegenerate(UMVVMBlueprintViewEvent* Event)
+{
+	if (TSharedPtr<FBindingEntry> EventEntry = Private::FindEvent(Event, AllRootGroups))
+	{
+		EventEntry->ResetChildren();
+		Refresh();
+	}
+}
+
+void SBindingsList::ConditionParametersRegenerate(UMVVMBlueprintViewCondition* Condition)
+{
+	if (TSharedPtr<FBindingEntry> ConditionEntry = Private::FindCondition(Condition, AllRootGroups))
+	{
+		ConditionEntry->ResetChildren();
+		Refresh();
 	}
 }
 
@@ -492,6 +534,78 @@ void SBindingsList::Refresh()
 			}
 		}
 
+		FName GroupName = WidgetBlueprint->GetFName();
+		FGuid GroupViewModelId;
+		for (UMVVMBlueprintViewCondition* Condition : BlueprintView->GetConditions())
+		{
+			// Make sure the graph is up to date
+			Condition->GetOrCreateWrapperGraph();
+
+			// Find the group entry
+			FPreviousGroup* PreviousGroupEntry = FindPreviousGroupEntry(GroupName);
+			TSharedPtr<FBindingEntry> GroupEntry = FindGroupEntry(PreviousGroupEntry, GroupName, GroupViewModelId);
+
+			// Create/Find the child entry
+			TSharedPtr<FBindingEntry> ConditionEntry;
+			{
+				if (PreviousGroupEntry)
+				{
+					if (TSharedPtr<FBindingEntry>* FoundBinding = PreviousGroupEntry->Children.FindByPredicate([Condition](const TSharedPtr<FBindingEntry>& Other)
+						{
+							return Other->GetRowType() == FBindingEntry::ERowType::Condition && Other->GetCondition() == Condition;
+						}))
+					{
+						ConditionEntry = *FoundBinding;
+					}
+				}
+
+				if (!ConditionEntry.IsValid())
+				{
+					ConditionEntry = MakeShared<FBindingEntry>();
+					ConditionEntry->SetCondition(Condition);
+
+					NewEntries.Add(ConditionEntry);
+				}
+				GroupEntry->AddChild(ConditionEntry);
+			}
+
+			// Register to any modifications made by the graph
+			RegisterWrapperGraphModified(Condition, ConditionEntry);
+
+			// Create/Find entries for function parameters
+			for (const FMVVMBlueprintPin& Pin : Condition->GetPins())
+			{
+				UEdGraphPin* GraphPin = Condition->GetOrCreateGraphPin(Pin.GetId());
+				if (GraphPin && GraphPin->bHidden)
+				{
+					continue;
+				}
+
+				TSharedPtr<FBindingEntry> ArgumentEntry;
+				if (PreviousGroupEntry)
+				{
+					TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate(
+						[Condition, ArgumentId = Pin.GetId()](const TSharedPtr<FBindingEntry>& Other)
+						{
+							return Other->GetRowType() == FBindingEntry::ERowType::ConditionParameter && Other->GetCondition() == Condition && Other->GetConditionParameterId() == ArgumentId;
+						});
+					if (FoundParameter)
+					{
+						ArgumentEntry = *FoundParameter;
+					}
+				}
+
+				if (!ArgumentEntry.IsValid())
+				{
+					ArgumentEntry = MakeShared<FBindingEntry>();
+					ArgumentEntry->SetConditionParameter(Condition, Pin.GetId());
+
+					NewEntries.Add(ArgumentEntry);
+				}
+				ConditionEntry->AddChild(ArgumentEntry);
+			}
+		}
+
 		Private::FilterEntryList(FilterText.ToString(), AllRootGroups, FilteredRootGroups, BlueprintView, MVVMExtensionPtr);
 	}
 
@@ -546,6 +660,7 @@ TSharedRef<ITableRow> SBindingsList::GenerateEntryRow(TSharedPtr<FBindingEntry> 
 			}
 			case FBindingEntry::ERowType::BindingParameter:
 			case FBindingEntry::ERowType::EventParameter:
+			case FBindingEntry::ERowType::ConditionParameter:
 			{
 				Row = SNew(UE::MVVM::BindingEntry::SFunctionParameterRow, OwnerTable, WeakBlueprintEditor.Pin(), MVVMExtensionPtr->GetWidgetBlueprint(), Entry);
 				break;
@@ -553,6 +668,11 @@ TSharedRef<ITableRow> SBindingsList::GenerateEntryRow(TSharedPtr<FBindingEntry> 
 			case FBindingEntry::ERowType::Event:
 			{
 				Row = SNew(UE::MVVM::BindingEntry::SEventRow, OwnerTable, WeakBlueprintEditor.Pin(), MVVMExtensionPtr->GetWidgetBlueprint(), Entry);
+				break;
+			}
+			case FBindingEntry::ERowType::Condition:
+			{
+				Row = SNew(UE::MVVM::BindingEntry::SConditionRow, OwnerTable, WeakBlueprintEditor.Pin(), MVVMExtensionPtr->GetWidgetBlueprint(), Entry);
 				break;
 			}
 		}
@@ -596,6 +716,15 @@ void SBindingsList::RequestNavigateToBinding(FGuid BindingId)
 void SBindingsList::RequestNavigateToEvent(UMVVMBlueprintViewEvent* Event)
 {
 	TSharedPtr<FBindingEntry> Entry = Private::FindEvent(Event, FilteredRootGroups);
+	if (Entry && TreeView)
+	{
+		TreeView->RequestNavigateToItem(Entry);
+	}
+}
+
+void SBindingsList::RequestNavigateToCondition(UMVVMBlueprintViewCondition* Condition)
+{
+	TSharedPtr<FBindingEntry> Entry = Private::FindCondition(Condition, FilteredRootGroups);
 	if (Entry && TreeView)
 	{
 		TreeView->RequestNavigateToItem(Entry);

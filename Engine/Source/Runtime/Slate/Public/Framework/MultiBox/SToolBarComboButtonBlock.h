@@ -20,18 +20,28 @@ class FToolBarComboButtonBlock
 {
 
 public:
-
 	/**
 	 * Constructor
 	 *
-	 * @param	InAction					UI action that sets the enabled state for this combo button
-	 * @param	InMenuContentGenerator		Delegate that generates a widget for this combo button's menu content.  Called when the menu is summoned.
-	 * @param	InLabel						Optional label for this combo button.
-	 * @param	InToolTip					Tool tip string (required!)
-	 * @param	InIcon						Optional icon to use for the tool bar image
-	 * @param	bInSimpleComboBox			If true, the icon and label won't be displayed
+	 * @param	InAction				UI action that sets the enabled state for this combo button
+	 * @param	InMenuContentGenerator	Delegate that generates a widget for this combo button's menu content.
+	 * Called when the menu is summoned.
+	 * @param	InLabel					Optional label for this combo button.
+	 * @param	InToolTip				Tool tip string (required!)
+	 * @param	InIcon					Optional icon to use for the tool bar image
+	 * @param	bInSimpleComboBox		If true, the icon and label won't be displayed
+	 * @param	InToolbarLabelOverride	Optional label to use when the block appears in a toolbar. If omitted, then the
+	 * label override or command name will be used instead.
 	 */
-	FToolBarComboButtonBlock( const FUIAction& InAction, const FOnGetContent& InMenuContentGenerator, const TAttribute<FText>& InLabel = TAttribute<FText>(), const TAttribute<FText>& InToolTip = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIcon = TAttribute<FSlateIcon>(), bool bInSimpleComboBox = false );
+	FToolBarComboButtonBlock(
+		const FUIAction& InAction,
+		const FOnGetContent& InMenuContentGenerator,
+		const TAttribute<FText>& InLabel = TAttribute<FText>(),
+		const TAttribute<FText>& InToolTip = TAttribute<FText>(),
+		const TAttribute<FSlateIcon>& InIcon = TAttribute<FSlateIcon>(),
+		bool bInSimpleComboBox = false,
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>()
+	);
 
 	/** FMultiBlock interface */
 	virtual void CreateMenuEntry(class FMenuBuilder& MenuBuilder) const override;
@@ -68,6 +78,9 @@ private:
 
 	/** Optional overridden text label for this tool bar button.  If not set, then the action's label will be used instead. */
 	TAttribute<FText> Label;
+
+	/** Optional overridden text label for when this tool bar button appears in a toolbar. If not set, then the label override or the action's label will be used instead. */
+	TAttribute<FText> ToolbarLabelOverride;
 
 	/** Optional overridden tool tip for this tool bar button.  If not set, then the action's tool tip will be used instead. */
 	TAttribute<FText> ToolTip;

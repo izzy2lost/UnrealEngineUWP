@@ -13,7 +13,10 @@
 UE::TConsumeAllMpmcQueue<FRHIResource*> PendingDeletes;
 UE::TConsumeAllMpmcQueue<FRHIResource*> PendingDeletesWithLifetimeExtension;
 
-FRHIResource* FRHIResource::CurrentlyDeleting = nullptr;
+#if DO_CHECK
+// Used to check that we only enter the FRHIResource destructor via the FRHIResource::DeleteResources() function.
+thread_local FRHIResource const* FRHIResource::CurrentlyDeleting = nullptr;
+#endif
 
 FRHIResource::FRHIResource(ERHIResourceType InResourceType)
 	: ResourceType(InResourceType)
@@ -32,14 +35,16 @@ FRHIResource::~FRHIResource()
 {
 	check(IsEngineExitRequested() || CurrentlyDeleting == this);
 	check(AtomicFlags.GetNumRefs(std::memory_order_relaxed) == 0); // this should not have any outstanding refs
+#if DO_CHECK
 	CurrentlyDeleting = nullptr;
+#endif
 
 #if RHI_ENABLE_RESOURCE_INFO
 	EndTrackingResource(this);
 #endif
 }
 
-void FRHIResource::Destroy() const
+void FRHIResource::MarkForDelete() const
 {
 	if (!AtomicFlags.MarkForDelete(std::memory_order_release))
 	{
@@ -54,14 +59,65 @@ void FRHIResource::Destroy() const
 	}
 }
 
+void FRHIResource::DeleteResources(TArray<FRHIResource*> const& Resources)
+{
+	for (FRHIResource* Resource : Resources)
+	{
+		if (Resource->AtomicFlags.Deleting())
+		{
+#if DO_CHECK
+			CurrentlyDeleting = Resource;
+#endif
+			delete Resource;
+
+			check(CurrentlyDeleting == nullptr);
+		}
+	}
+}
+
+DECLARE_CYCLE_STAT(TEXT("Gather Deleted Resources"), STAT_GatherDeletedResources, STATGROUP_RHICMDLIST);
+
+int32 GRHIResourceLifetimeRefCount = 0;
+
+void RHIResourceLifetimeAddRef(int32 NumRefs)
+{
+	check(IsInRenderingThread());
+	GRHIResourceLifetimeRefCount += NumRefs;
+}
+
+void RHIResourceLifetimeReleaseRef(FRHICommandListImmediate& RHICmdList, int32 NumRefs)
+{
+	check(IsInRenderingThread());
+
+	int32 RefCount = GRHIResourceLifetimeRefCount -= NumRefs;
+	check(RefCount >= 0);
+
+	if (!RefCount)
+	{
+		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::DeleteResources);
+	}
+}
+
+void FRHIResource::GatherResourcesToDelete(TArray<FRHIResource*>& OutResources, bool bIncludeExtendedLifetimeResources)
+{
+	SCOPE_CYCLE_COUNTER(STAT_GatherDeletedResources);
+	if (bIncludeExtendedLifetimeResources)
+	{
+		PendingDeletesWithLifetimeExtension.ConsumeAllLifo([&OutResources](FRHIResource* Resource)
+		{
+			OutResources.Emplace(Resource);
+		});
+	}
+
+	PendingDeletes.ConsumeAllLifo([&OutResources](FRHIResource* Resource)
+	{
+		OutResources.Emplace(Resource);
+	});
+}
+
 bool FRHIResource::Bypass()
 {
 	return GRHICommandList.Bypass();
-}
-
-int32 FRHIResource::FlushPendingDeletes(FRHICommandListImmediate& RHICmdList)
-{
-	return RHICmdList.FlushPendingDeletes();
 }
 
 FRHITexture::FRHITexture(const FRHITextureCreateDesc& InDesc)
@@ -163,7 +219,7 @@ FRHIViewDesc::FBuffer::FViewInfo FRHIViewDesc::FBuffer::GetViewInfo(FRHIBuffer* 
 	case EBufferType::AccelerationStructure:
 		checkf(EnumHasAnyFlags(Desc.Usage, BUF_AccelerationStructure), TEXT("The buffer descriptor is not a ray tracing acceleration structure, so is incompatible with this view type."));
 		checkf(Format == PF_Unknown, TEXT("Acceleration structure views should not specify a format."));
-		checkf(Stride == 0, TEXT("Do not specify a stride for acceleration structure views."));
+		checkf(RayTracingScene != nullptr, TEXT("RayTracingScene must be specified when creating view of ray tracing acceleration structures."));
 
 		// Treat acceleration structures as a byte array.
 		Info.StrideInBytes = 1;
@@ -187,8 +243,8 @@ FRHIViewDesc::FBuffer::FViewInfo FRHIViewDesc::FBuffer::GetViewInfo(FRHIBuffer* 
 	// OffsetInBytes == 0 && NumElements == 0 is a special case to mean "whole resource". If offset is non-zero, we need the caller to pass the required number of elements, except for acceleration structures.
 	checkf(Info.BufferType == EBufferType::AccelerationStructure || (OffsetInBytes == 0 || NumElements > 0), TEXT("NumElements field must be non-zero if a byte offset is used."));
 		
-	// When NumElements is zero, use "whole buffer".
-	Info.NumElements = NumElements == 0 ? (Desc.Size - OffsetInBytes) / Info.StrideInBytes : NumElements;
+	// If BufferType is AccelerationStructure or NumElements is zero, use "whole buffer".
+	Info.NumElements = (Info.BufferType == EBufferType::AccelerationStructure || NumElements == 0) ? (Desc.Size - OffsetInBytes) / Info.StrideInBytes : NumElements;
 	Info.SizeInBytes = Info.NumElements * Info.StrideInBytes;
 
 	checkf(Info.OffsetInBytes + Info.SizeInBytes <= Desc.Size,
@@ -246,6 +302,7 @@ FRHIViewDesc::FTexture::FViewInfo FRHIViewDesc::FTexture::GetViewInfo(FRHITextur
 
 	checkf(ArrayRange.Num > 0 || ArrayRange.First == 0, TEXT("ArrayRange.Num cannot be zero, unless creating a view of the entire range."));
 
+#if DO_CHECK
 	// make sure the view fits in the texture
 	{
 		uint16 TextureArraySize = Desc.IsTextureCube() ? Desc.ArraySize * 6 : Desc.ArraySize;
@@ -267,6 +324,7 @@ FRHIViewDesc::FTexture::FViewInfo FRHIViewDesc::FTexture::GetViewInfo(FRHITextur
 			TextureArraySize / SliceDividerForCheckMessage
 		);
 	}
+#endif
 
 	// When ArrayRange.Num == 0, we use the number of elements from the texture. If the view is a 2D array and the texture a cube (array), we need to do x6 on the number of slices
 	// We already checked that we can only create cube views on cube textures, so we only need to take into account the 2D view on cube texture case
@@ -389,8 +447,27 @@ FRHIUniformBufferLayout::FRHIUniformBufferLayout(const FRHIUniformBufferLayoutIn
 	, RenderTargetsOffset(Initializer.RenderTargetsOffset)
 	, StaticSlot(Initializer.StaticSlot)
 	, BindingFlags(Initializer.BindingFlags)
-	, bHasNonGraphOutputs(Initializer.bHasNonGraphOutputs)
-	, bNoEmulatedUniformBuffer(Initializer.bNoEmulatedUniformBuffer)
-	, bUniformView(Initializer.bUniformView)
+	, Flags(Initializer.Flags)
 {
+}
+
+uint32 FRayTracingPipelineStateInitializer::GetMaxLocalBindingDataSize() const
+{
+	uint32 MaxLocalBindingDataSize = 0;
+	
+	// Take max size of all miss, hit and callable shaders
+	for (FRHIRayTracingShader* Shader : MissTable)
+	{
+		MaxLocalBindingDataSize = FMath::Max(MaxLocalBindingDataSize, Shader->LocalBindingDataSize);
+	}
+	for (FRHIRayTracingShader* Shader : HitGroupTable)
+	{
+		MaxLocalBindingDataSize = FMath::Max(MaxLocalBindingDataSize, Shader->LocalBindingDataSize);
+	}
+	for (FRHIRayTracingShader* Shader : CallableTable)
+	{
+		MaxLocalBindingDataSize = FMath::Max(MaxLocalBindingDataSize, Shader->LocalBindingDataSize);
+	}
+
+	return MaxLocalBindingDataSize;
 }

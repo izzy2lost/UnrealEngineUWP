@@ -56,7 +56,7 @@ namespace EpicGames.UHT.Types
 		/// Convert the key to a string
 		/// </summary>
 		/// <returns>String representation</returns>
-		public override string ToString()
+		public override readonly string ToString()
 		{
 			if (Index == UhtMetaData.IndexNone)
 			{
@@ -198,10 +198,7 @@ namespace EpicGames.UHT.Types
 		/// </summary>
 		public void Clear()
 		{
-			if (Dictionary != null)
-			{
-				Dictionary.Clear();
-			}
+			Dictionary?.Clear();
 		}
 
 		/// <summary>
@@ -500,10 +497,7 @@ namespace EpicGames.UHT.Types
 			{
 				if (Config.RedirectMetaDataKey(name, out string remappedName))
 				{
-					if (MessageSite != null)
-					{
-						MessageSite.LogWarning(LineNumber, $"Remapping old metadata key '{name}' to new key '{remappedName}', please update the declaration.");
-					}
+					MessageSite?.LogWarning(LineNumber, $"Remapping old metadata key '{name}' to new key '{remappedName}', please update the declaration.");
 				}
 			}
 			AddInternal(GetDictionary(), new UhtMetaDataKey(name, nameIndex), value, checkValueChange);
@@ -522,10 +516,7 @@ namespace EpicGames.UHT.Types
 			{
 				if (!oldValue.Equals(value, StringComparison.OrdinalIgnoreCase))
 				{
-					if (MessageSite != null)
-					{
-						MessageSite.LogError(LineNumber, $"Metadata key '{key.Name}' first seen with value '{oldValue}' then '{value}'");
-					}
+					MessageSite?.LogError(LineNumber, $"Metadata key '{key.Name}' first seen with value '{oldValue}' then '{value}'");
 				}
 			}
 			else
@@ -541,10 +532,7 @@ namespace EpicGames.UHT.Types
 		/// <param name="nameIndex">Index of the meta data key</param>
 		public void Remove(string name, int nameIndex = IndexNone)
 		{
-			if (Dictionary != null)
-			{
-				Dictionary.Remove(new UhtMetaDataKey(name, nameIndex));
-			}
+			Dictionary?.Remove(new UhtMetaDataKey(name, nameIndex));
 		}
 
 		/// <summary>
@@ -604,10 +592,7 @@ namespace EpicGames.UHT.Types
 
 		private SortedList<UhtMetaDataKey, string> GetDictionary()
 		{
-			if (Dictionary == null)
-			{
-				Dictionary = new SortedList<UhtMetaDataKey, string>(s_comparer);
-			}
+			Dictionary ??= new SortedList<UhtMetaDataKey, string>(s_comparer);
 			return Dictionary;
 		}
 	}

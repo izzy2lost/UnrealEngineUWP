@@ -131,40 +131,40 @@ namespace CrossCompiler
 			{
 				return Data;
 			}
-			void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement)
+			void ResizeAllocation(SizeType CurrentNum, SizeType NewMax, SIZE_T NumBytesPerElement)
 			{
 				void* OldData = Data;
-				if (NumElements)
+				if (NewMax)
 				{
 					// Allocate memory from the stack.
-					Data = (ElementType*)LinearAllocator->Alloc(NumElements * NumBytesPerElement,
+					Data = (ElementType*)LinearAllocator->Alloc(NewMax * NumBytesPerElement,
 						FMath::Max((uint32)sizeof(void*), (uint32)alignof(ElementType))
 						);
 
 					// If the container previously held elements, copy them into the new allocation.
-					if (OldData && PreviousNumElements)
+					if (OldData && CurrentNum)
 					{
-						const SizeType NumCopiedElements = FMath::Min(NumElements, PreviousNumElements);
+						const SizeType NumCopiedElements = FMath::Min(NewMax, CurrentNum);
 						FMemory::Memcpy(Data, OldData, NumCopiedElements * NumBytesPerElement);
 					}
 				}
 			}
-			SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+			SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 			{
-				return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, false);
+				return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, false);
 			}
-			SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+			SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 			{
-				return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, false);
+				return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, false);
 			}
-			SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+			SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 			{
-				return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, false);
+				return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, false);
 			}
 
-			SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+			SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 			{
-				return NumAllocatedElements * NumBytesPerElement;
+				return CurrentMax * NumBytesPerElement;
 			}
 
 			bool HasAllocation() const

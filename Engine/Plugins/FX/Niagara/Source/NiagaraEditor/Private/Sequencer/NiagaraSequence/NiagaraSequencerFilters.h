@@ -2,10 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "SequencerTrackFilterBase.h"
-#include "SequencerTrackFilterExtension.h"
+#include "Filters/SequencerTrackFilterExtension.h"
 #include "NiagaraSequencerFilters.generated.h"
 
 UCLASS()
@@ -14,7 +11,9 @@ class UNiagaraSequencerTrackFilter : public USequencerTrackFilterExtension
 public:
 	GENERATED_BODY()
 
-	// USequencerTrackFilterExtension interface
-	virtual void AddTrackFilterExtensions(TArray< TSharedRef<class FSequencerTrackFilter> >& InOutFilterList) const override;
-	// End of USequencerTrackFilterExtension interface
+	//~ Begin USequencerTrackFilterExtension
+	virtual void AddTrackFilterExtensions(ISequencerTrackFilters& InFilterInterface
+		, const TSharedRef<FFilterCategory>& InPreferredCategory
+		, TArray<TSharedRef<FSequencerTrackFilter>>& InOutFilterList) const override;
+	//~ End USequencerTrackFilterExtension
 };

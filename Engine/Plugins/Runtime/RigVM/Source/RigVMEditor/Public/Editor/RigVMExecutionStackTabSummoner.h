@@ -10,7 +10,8 @@ class FRigVMEditor;
 struct RIGVMEDITOR_API FRigVMExecutionStackTabSummoner : public FWorkflowTabFactory
 {
 public:
-	static const FName TabID;
+
+	static inline const FLazyName TabID = FLazyName(TEXT("Execution Stack"));
 	
 public:
 	FRigVMExecutionStackTabSummoner(const TSharedRef<FRigVMEditor>& InRigVMEditor);

@@ -163,7 +163,7 @@ public:
 	 * automatically.
 	 * 
 	 * @note Only used when TransferMethod == ETransferBoneWeightsMethod::InpaintWeights.
-	 * 		 The size must be equal to the InSourceMesh.MaxVertexID(), otherwise the mask is ignored.
+	 * 		 The size must be equal to the InTargetMesh.MaxVertexID(), otherwise the mask is ignored.
 	 */
 	TArray<float> ForceInpaint;
 
@@ -173,6 +173,11 @@ public:
 	 */
 	FName ForceInpaintWeightMapName = NAME_None;
 
+	/** 
+	 * Optional subset of target mesh vertices to transfer weights to.
+	 * If left empty, skin weights will be transferred to all target mesh vertices.
+	 */
+	TArray<int32> TargetVerticesSubset;
 
 	//
 	// Outputs

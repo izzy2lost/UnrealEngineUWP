@@ -30,27 +30,6 @@ namespace ClothingAssetUtils
 		int32 AssetInternalLodIndex;
 	};
 
-	/**
-	 * Given a skeletal mesh, find all of the currently bound clothing assets and their binding information
-	 * @param InSkelMesh - The skeletal mesh to search
-	 * @param OutBindings - The list of bindings to write to
-	 */
-	UE_DEPRECATED(5.0, "This Handler Is Now Deprecated, use GetAllMeshClothingAssetBindings instead.")
-	void CLOTHINGSYSTEMRUNTIMECOMMON_API 
-	GetMeshClothingAssetBindings(
-		USkeletalMesh* InSkelMesh, 
-		TArray<FClothingAssetMeshBinding>& OutBindings);
-	
-	/**
-	 * Similar to above, but only inspects the specified LOD.
-	 */
-	UE_DEPRECATED(5.0, "This Handler Is Now Deprecated, use GetAllLodMeshClothingAssetBindings instead.")
-	void CLOTHINGSYSTEMRUNTIMECOMMON_API 
-	GetMeshClothingAssetBindings(
-		USkeletalMesh* InSkelMesh, 
-		TArray<FClothingAssetMeshBinding>& OutBindings, 
-		int32 InLodIndex);
-
 #if WITH_EDITOR
 	/**
 	 * Given a skeletal mesh model, find all of the currently bound clothing assets and their binding information
@@ -87,9 +66,6 @@ UCLASS(Abstract, MinimalAPI)
 class UClothingAssetCustomData : public UObject
 {
 	GENERATED_BODY()
-public:
-	virtual void BindToSkeletalMesh(USkeletalMesh* InSkelMesh, int32 InMeshLodIndex, int32 InSectionIndex, int32 InAssetLodIndex)
-	{}
 };
 
 /**
@@ -207,22 +183,6 @@ public:
 	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& ChainEvent) override;
 #endif // WITH_EDITOR
 
-	/**
-	 * Builds self collision data.
-	 * The default behavior is if the \c ClothSimConfig reports that self collisions
-	 * are enabled, it envokes \c BuildSelfCollisionData() on each \c ClothLodData's
-	 * \c ClothPhysicalMeshData member.
-	 */
-	UE_DEPRECATED(5.0, "Cached data are now all rebuilt by calling InvalidateCachedData")
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual void BuildSelfCollisionData() override
-	{
-#if WITH_EDITORONLY_DATA
-		InvalidateFlaggedCachedData(EClothingCachedDataFlagsCommon::SelfCollisionData);
-#endif // WITH_EDITORONLY_DATA
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/** Return a const cloth config pointer of the desired cloth config type, or nullptr if there isn't any suitable. */
 	template<typename ClothConfigType, typename = typename TEnableIf<TIsDerivedFrom<ClothConfigType, UClothConfigBase>::IsDerived>::Type>
 	const ClothConfigType* GetClothConfig() const
@@ -304,13 +264,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY()
 	int32 ReferenceBoneIndex;
 
+#if WITH_EDITORONLY_DATA
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	// Custom data applied by the importer depending on where the asset was imported from.
-	UPROPERTY()
+	UE_DEPRECATED(5.5, "This property is obsolete.")
+	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This property is obsolete."))
 	TObjectPtr<UClothingAssetCustomData> CustomData;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-#if WITH_EDITORONLY_DATA
 	/** 
 	 * Deprecated property for transitioning the \c FClothConfig struct to the 
 	 * \c UClothConfigBase array, in a new property called \c ClothConfigs.

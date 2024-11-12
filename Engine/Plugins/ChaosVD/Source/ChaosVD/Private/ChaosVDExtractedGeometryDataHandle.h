@@ -27,8 +27,8 @@ struct FChaosVDExtractedGeometryDataHandle
 	uint32 GetGeometryKey() const { return GeometryKey; }
 	void SetGeometryKey(const uint32 Key) { GeometryKey = Key; }
 
-	/** Name to be used to create labels in editor for this data */
-	FName GetName() const;
+	/** Name of the type this underlying implicit object this instance represents */
+	FName GetTypeName() const;
 
 	/** Extracted transform of the generated implicit object in component space */
 	const FTransform& GetRelativeTransform() const { return Transform; }
@@ -37,8 +37,8 @@ struct FChaosVDExtractedGeometryDataHandle
 	/** Ptr to the implicit object this handle provides access to and from which the mesh was generated */
 	const Chaos::FImplicitObject* GetImplicitObject() const { return ImplicitObject; }
 
-	/** Returns the Index on which this Implicit object was in the Hierarchy of the root one */
-	int32 GetImplicitObjectIndex() const { return ObjectIndex; }
+	/** Returns the Index to correct the shape data instance in the shape instances array of the particle that owns this geometry */
+	int32 GetShapeInstanceIndex() const { return ShapeInstanceIndex; }
 
 	/** If the object was an union and this was a leaf, this getter returns the root union object, otherwise it will be the same as GetImplicitObject */
 	const Chaos::FImplicitObject* GetRootImplicitObject() const { return RootImplicitObject; }
@@ -47,7 +47,7 @@ struct FChaosVDExtractedGeometryDataHandle
 	void SetImplicitObject(const Chaos::FImplicitObject* InImplicitObject) { ImplicitObject = InImplicitObject; }
 
 	/** Sets the Index on which this Implicit object was in the Hierarchy of the root one */
-	void SetImplicitObjectIndex(int32 InObjectIndex) { ObjectIndex = InObjectIndex; }
+	void SetShapeInstanceIndex(int32 InObjectIndex) { ShapeInstanceIndex = InObjectIndex; }
 	
 	/** Sets the Implicit Object Ptr from which the data was extracted and the mesh was generated */
 	void SetRootImplicitObject(const Chaos::FImplicitObject* InImplicitObject) { RootImplicitObject = InImplicitObject; }
@@ -71,7 +71,7 @@ private:
 	uint32 DataComponentKey = 0;
 
 	/** Index on which this Implicit object was in the Hierarchy of the root one */
-	int32 ObjectIndex = INDEX_NONE;
+	int32 ShapeInstanceIndex = INDEX_NONE;
 
 	/** Extracted transform of the generated implicit object in component space */
 	FTransform Transform;

@@ -10,7 +10,7 @@
 	"DocsURL" : "",
 	"MarketplaceURL" : "",
 	"SupportURL" : "",
-	"EnabledByDefault" : true,
+	"EnabledByDefault" : false,
 	"CanContainContent" : false,
 	"IsBetaVersion" : false,
 	"Installed" : false,
@@ -18,7 +18,7 @@
 	[
 		{
 			"Name" : "OpenImageDenoise",
-			"Type" : "RuntimeAndProgram",
+			"Type" : "ClientOnly",
 			"LoadingPhase" : "Default",
 			"PlatformAllowList": [
 				"Win64"

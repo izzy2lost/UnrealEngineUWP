@@ -102,6 +102,12 @@ static FAutoConsoleVariableRef CVarSlateInputMotionFiresUserInteractionEvents(
 	TEXT("If this is false, LastUserInteractionTimeUpdateEvent events won't be fired based on motion input, and LastInteractionTime won't be updated\n")
 	TEXT("Some motion devices report small tiny changes constantly without filtering, so motion input is unhelpful for determining user activity"));
 
+static bool GSlateInputPointerUpFiresPointerMoveForDragDrop = true;
+static FAutoConsoleVariableRef CVarSlateInputPointerUpFiresPointerMoveForDragDrop(
+	TEXT("Slate.Input.PointerUpFiresPointerMoveForDragDrop"),
+	GSlateInputPointerUpFiresPointerMoveForDragDrop,
+	TEXT("When true, a synthetic pointer move event is fired from pointer up to ensure drag events are called if necessary on any widgets before OnDrop."));
+
 //////////////////////////////////////////////////////////////////////////
 
 bool GSlateEnableGamepadEditorNavigation = true;
@@ -117,6 +123,14 @@ static FAutoConsoleVariableRef CVarSlateUseFixedDeltaTime(
 	GSlateUseFixedDeltaTime,
 	TEXT("True means we use a constant delta time on every widget tick.")
 );
+
+static bool GSlateSkipWidgetDrawingInHeadlessMode = true;
+static FAutoConsoleVariableRef CVarSlateSkipWidgetDrawingInHeadlessMode(
+	TEXT("Slate.SkipWidgetDrawingInHeadlessMode"),
+	GSlateSkipWidgetDrawingInHeadlessMode,
+	TEXT("Skip drawing the widgets when running without rendering (e.g. -nullrhi). On by default, disable if there's non-visual logic in widget's Tick function (as this also skips ticking them).")
+);
+
 //////////////////////////////////////////////////////////////////////////
 
 /** 
@@ -810,6 +824,7 @@ FSlateApplication::FSlateApplication()
 	, bIsFakingTouch(FParse::Param(FCommandLine::Get(), TEXT("simmobile")) || FParse::Param(FCommandLine::Get(), TEXT("faketouches")))
 	, bIsGameFakingTouch( false )
 	, bIsFakingTouched( false )
+	, bAllowFakingTouch( true )
 	, bHandleDeviceInputWhenApplicationNotActive(false)
 	, bTouchFallbackToMouse( true )
 	, bSoftwareCursorAvailable( false )	
@@ -865,6 +880,8 @@ FSlateApplication::FSlateApplication()
 #if WITH_EDITOR
 	FCoreDelegates::OnSafeFrameChangedEvent.AddRaw(this, &FSlateApplication::SwapSafeZoneTypes);
 	OnDebugSafeZoneChanged.AddRaw(this, &FSlateApplication::UpdateCustomSafeZone);
+
+	MenuStack.OnMenuDestroyedEvent().AddRaw(this, &FSlateApplication::OnMenuDestroyed);
 #endif
 
 	IConsoleVariable* CVarGlobalInvalidation = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGlobalInvalidation"));
@@ -885,6 +902,7 @@ FSlateApplication::~FSlateApplication()
 
 #if WITH_EDITOR
 	OnDebugSafeZoneChanged.RemoveAll(this);
+	MenuStack.OnMenuDestroyedEvent().RemoveAll(this);
 #endif
 
 	IConsoleVariable* CVarGlobalInvalidation = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGlobalInvalidation"));
@@ -1269,6 +1287,7 @@ static void PrepassWindowAndChildren(TSharedRef<SWindow> WindowToPrepass, const 
 void FSlateApplication::DrawPrepass( TSharedPtr<SWindow> DrawOnlyThisWindow )
 {
 	SCOPED_NAMED_EVENT_TEXT("Slate::Prepass", FColor::Magenta);
+	CSV_SCOPED_TIMING_STAT(Slate, DrawPrePass);
 
 	TSharedPtr<SWindow> CurrentDebuggingWindowPinned = CurrentDebuggingWindow.Pin();
 
@@ -1325,6 +1344,12 @@ TArray<SWindow*> GatherAllDescendants(const TArray< TSharedRef<SWindow> >& InWin
 
 void FSlateApplication::PrivateDrawWindows( TSharedPtr<SWindow> DrawOnlyThisWindow )
 {
+	if (GSlateSkipWidgetDrawingInHeadlessMode && !FApp::CanEverRender())
+	{
+		// early out, as window "drawing" can take 1-2ms of a -nullrhi PC game
+		return;
+	}
+
 	check(Renderer.IsValid());
 
 	// Grab a scope lock around access to the resource proxy map, just to ensure we never cross over
@@ -1572,6 +1597,7 @@ void FSlateApplication::TickTime()
 void FSlateApplication::TickPlatform(float DeltaTime)
 {
 	SCOPED_NAMED_EVENT_TEXT("Slate::TickPlatform", FColor::Magenta);
+	CSV_SCOPED_TIMING_STAT(Slate, TickPlatform);
 
 #if WITH_ACCESSIBILITY
 	{
@@ -1669,7 +1695,7 @@ void FSlateApplication::TickAndDrawWidgets(float DeltaTime)
 		const double TimeSinceMouseMove = LastTickTime - LastMouseMoveTime;
 	
 		const bool bIsUserIdle = (TimeSinceInput > SleepThreshold) && (TimeSinceMouseMove > SleepThreshold);
-		const bool bAnyActiveTimersPending = AnyActiveTimersArePending();
+		UpdateAnyActiveTimersArePending();
 
 		// skip tick/draw if we are idle and there are no active timers registered that we need to drive slate for.
 		// This effectively means the slate application is totally idle and we don't need to update the UI.
@@ -3728,11 +3754,6 @@ void FSlateApplication::EnterDebuggingMode()
 	GFirstFrameIntraFrameDebugging = true;
 #endif	//WITH_EDITORONLY_DATA
 
-	//Disable GPU Profiler during BluePrint Debugging to prevent leaking memory.
-	IConsoleVariable* CvarMaxQueriesPerFrame = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUStatsMaxQueriesPerFrame"));
-	int MaxQueriesPerFrame = CvarMaxQueriesPerFrame->GetInt();
-	CvarMaxQueriesPerFrame->Set(0);
-
 	// Tick slate from here in the event that we should not return until the modal window is closed.
 	while (!bRequestLeaveDebugMode)
 	{
@@ -3756,8 +3777,6 @@ void FSlateApplication::EnterDebuggingMode()
 		GIntraFrameDebuggingGameThread = !bRequestLeaveDebugMode;
 #endif	//WITH_EDITORONLY_DATA
 	}
-
-	CvarMaxQueriesPerFrame->Set(MaxQueriesPerFrame);
 	
 	Renderer->BeginFrame();
 	bRequestLeaveDebugMode = false;
@@ -3854,14 +3873,28 @@ void FSlateApplication::SetDragTriggerDistance( float ScreenPixels )
 	DragTriggerDistance = ScreenPixels;
 }
 
-bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index /*= INDEX_NONE*/)
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor)
+{
+	return RegisterInputPreProcessor(InputProcessor, FInputPreprocessorRegistrationKey());
+}
+
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index)
+{
+	return RegisterInputPreProcessor(InputProcessor, FInputPreprocessorRegistrationKey{ EInputPreProcessorType::Game, Index });
+}
+
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType Type)
+{
+	return RegisterInputPreProcessor(InputProcessor, FInputPreprocessorRegistrationKey{ Type, INDEX_NONE });
+}
+
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const FInputPreprocessorRegistrationKey& Info)
 {
 	bool bResult = false;
-	if ( InputProcessor.IsValid() )
+	if (InputProcessor.IsValid())
 	{
-		bResult = InputPreProcessors.Add(InputProcessor, Index);
+		bResult = InputPreProcessors.Add(FInputPreprocessorRegistration{ Info, InputProcessor.ToSharedRef() });
 	}
-
 	return bResult;
 }
 
@@ -3870,9 +3903,14 @@ void FSlateApplication::UnregisterInputPreProcessor(TSharedPtr<IInputProcessor> 
 	InputPreProcessors.Remove(InputProcessor);
 }
 
-int32 FSlateApplication::FindInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor) const
+int32 FSlateApplication::FindInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor) const
 {
-	return InputPreProcessors.Find(InputProcessor);
+	return InputPreProcessors.Find(InputProcessor, EInputPreProcessorType::Game);
+}
+
+int32 FSlateApplication::FindInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType& Type) const
+{
+	return InputPreProcessors.Find(InputProcessor, Type);
 }
 
 void FSlateApplication::SetCursorRadius(float NewRadius)
@@ -4597,7 +4635,8 @@ TSharedRef<SImage> FSlateApplication::MakeImage( const TAttribute<const FSlateBr
 TSharedRef<SWidget> FSlateApplication::MakeWindowTitleBar(const FWindowTitleBarArgs& InArgs, TSharedPtr<IWindowTitleBar>& OutTitleBar) const
 {
 	TSharedRef<SWindowTitleBar> TitleBar = SNew(SWindowTitleBar, InArgs.Window, InArgs.CenterContent, InArgs.CenterContentAlignment)
-		.Visibility(EVisibility::SelfHitTestInvisible);
+		.Visibility(EVisibility::SelfHitTestInvisible)
+		.CloseButtonToolTipText(InArgs.CloseButtonToolTipText);
 
 	OutTitleBar = TitleBar;
 
@@ -4756,7 +4795,7 @@ bool FSlateApplication::ProcessKeyDownEvent( const FKeyEvent& InKeyEvent )
 		TSharedRef<FWidgetPath> EventPathRef = SlateUser->GetFocusPath();
 		const FWidgetPath& EventPath = EventPathRef.Get();
 
-		// Switch worlds for widgets inOnPreviewMouseButtonDown the current path
+		// Switch worlds for widgets in the current path
 		FScopedSwitchWorldHack SwitchWorld(EventPath);
 
 		// Tunnel the keyboard event
@@ -4965,7 +5004,7 @@ void FSlateApplication::SetGameIsFakingTouchEvents(const bool bIsFaking, FVector
 	// the only place this is not guarded is in FPIEPreviewDeviceModule::OnWindowReady()
 	if ( bIsGameFakingTouch != bIsFaking )
 	{
-		if (bIsFakingTouched && !bIsFaking && bIsGameFakingTouch && !bIsFakingTouch)
+		if (bAllowFakingTouch && bIsFakingTouched && !bIsFaking && bIsGameFakingTouch && !bIsFakingTouch)
 		{
 			OnTouchEnded((CursorLocation ? *CursorLocation : PlatformApplication->Cursor->GetPosition()), 0, FSlateApplicationBase::SlateAppPrimaryPlatformUser, IPlatformInputDeviceMapper::Get().GetDefaultInputDevice());
 		}
@@ -4974,9 +5013,18 @@ void FSlateApplication::SetGameIsFakingTouchEvents(const bool bIsFaking, FVector
 	}
 }
 
+void FSlateApplication::SetGameAllowsFakingTouchEvents(const bool bAllowFaking)
+{
+	bAllowFakingTouch = bAllowFaking;
+	if(!bAllowFaking && IsFakingTouchEvents())
+	{
+		SetGameIsFakingTouchEvents(bAllowFaking);
+	}
+}
+
 bool FSlateApplication::IsFakingTouchEvents() const
 {
-	return bIsFakingTouch || bIsGameFakingTouch;
+	return bAllowFakingTouch && (bIsFakingTouch || bIsGameFakingTouch);
 }
 
 bool FSlateApplication::OnMouseDown(const TSharedPtr< FGenericWindow >& PlatformWindow, const EMouseButtons::Type Button)
@@ -5319,10 +5367,17 @@ FReply FSlateApplication::RoutePointerUpEvent(const FWidgetPath& WidgetsUnderPoi
 		// Switch worlds widgets in the current path
 		FScopedSwitchWorldHack SwitchWorld(LocalWidgetsUnderPointer);
 
-		// Cache the drag drop content and reset the pointer in case OnMouseButtonUpMessage re-enters as a result of OnDrop
-		// In such a case, we want the re-entrant call to skip any drag-drop stuff (otherwise we'd execute the drop action twice)
 		if (bIsDragDropping)
 		{
+			// Route a synthetic pointer move event to ensure drag events ( e.g. OnDragLeave ) are called if necessary on any widgets before OnDrop
+			if (GSlateInputPointerUpFiresPointerMoveForDragDrop)
+			{
+				const bool bIsSynthetic = true;
+				RoutePointerMoveEvent(LocalWidgetsUnderPointer, PointerEvent, bIsSynthetic);
+			}
+
+			// Cache the drag drop content and reset the pointer in case OnMouseButtonUpMessage re-enters as a result of OnDrop
+			// In such a case, we want the re-entrant call to skip any drag-drop stuff (otherwise we'd execute the drop action twice)
 			LocalDragDropContent = SlateUser->GetDragDropContent();
 			SlateUser->ResetDragDropContent();
 		}
@@ -6294,6 +6349,15 @@ bool FSlateApplication::ExecuteNavigation(const FWidgetPath& NavigationSource, T
 #endif
 
 	return bHandled;
+}
+
+
+void FSlateApplication::OnMenuDestroyed(const TSharedRef<IMenu>& Menu)
+{
+	if (MenuBeingDestroyedEvent.IsBound())
+	{
+		MenuBeingDestroyedEvent.Broadcast(Menu);
+	}
 }
 
 bool FSlateApplication::OnControllerAnalog(FGamepadKeyNames::Type KeyName, FPlatformUserId PlatformUserId, FInputDeviceId InputDeviceId, float AnalogValue)
@@ -7334,12 +7398,9 @@ void FSlateApplication::InputPreProcessorsHelper::Tick(const float DeltaTime, FS
 {
 	TGuardValue<bool> IteratingGuard(bIsIteratingPreProcessors, true);
 
-	for (const TSharedPtr<IInputProcessor>& Preprocessor : InputPreProcessorList)
+	for (const TSharedPtr<IInputProcessor>& Processor : InputPreProcessorsIteratorList)
 	{
-		if (Preprocessor)
-		{
-			Preprocessor->Tick(DeltaTime, SlateApp, Cursor);
-		}
+		Processor->Tick(DeltaTime, SlateApp, Cursor);
 	}
 }
 
@@ -7397,39 +7458,70 @@ bool FSlateApplication::InputPreProcessorsHelper::HandleMotionDetectedEvent(FSla
 		, [&SlateApp, &MotionEvent](IInputProcessor& Processor) { return Processor.HandleMotionDetectedEvent(SlateApp, MotionEvent); });
 }
 
-bool FSlateApplication::InputPreProcessorsHelper::Add(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index /*= INDEX_NONE*/)
+bool FSlateApplication::InputPreProcessorsHelper::Add(const FInputPreprocessorRegistration& Registration)
 {
-	const bool bAlreadyInList = InputPreProcessorList.Contains(InputProcessor);
-	if (!bAlreadyInList)
+	// We check if the processor attempting registration is already registered
+	bool bAlreadyRegistered = false;
+	for (const FProcessorTypeStorage& Storage : InputPreProcessors)
+	{
+		if (Storage.Contains(Registration.InputProcessor))
+		{
+			bAlreadyRegistered = true;
+			break;
+		}
+	}
+
+	if(!bAlreadyRegistered)
 	{
 		if (!bIsIteratingPreProcessors)
 		{
-			AddInternal(InputProcessor, Index);
+			AddInternal(Registration);
 		}
 		else
 		{
-			ProcessorsPendingAddition.Add(InputProcessor, Index);
+			ProcessorsPendingAddition.Add(Registration);
 		}
 	}
 
-	ProcessorsPendingRemoval.Remove(InputProcessor);
+	ProcessorsPendingRemoval.Remove(Registration.InputProcessor);
 
-	return !bAlreadyInList;
+	return !bAlreadyRegistered;
 }
 
-void FSlateApplication::InputPreProcessorsHelper::AddInternal(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index)
+void FSlateApplication::InputPreProcessorsHelper::AddInternal(const FInputPreprocessorRegistration& Registration)
 {
-	if (Index == INDEX_NONE)
+	if (!InputPreProcessors.IsValidIndex((uint32)Registration.Info.Type))
 	{
-		InputPreProcessorList.Add(InputProcessor);
+		InputPreProcessors.EmplaceAt((int32)Registration.Info.Type, FProcessorTypeStorage());
+	}
+
+	FProcessorTypeStorage& Storage = InputPreProcessors[(uint32)Registration.Info.Type];
+
+	if (Registration.Info.Priority == INDEX_NONE)
+	{
+		Storage.Add(Registration.InputProcessor);
 	}
 	else
 	{
-		if (Index >= InputPreProcessorList.Num())
+ 		if (Registration.Info.Priority >= Storage.Num())
+ 		{
+ 			Storage.SetNum(Registration.Info.Priority); // No need for +1, insertion at the Num position doesn't cause an error. +1 would add unneeded empty spaces.
+ 		}
+		Storage.Insert(Registration.InputProcessor, Registration.Info.Priority);
+	}
+
+	// We rebuild the iterator list
+	InputPreProcessorsIteratorList.Reset();
+	for (const FProcessorTypeStorage& TypeStorage : InputPreProcessors)
+	{
+		for (const TSharedPtr<IInputProcessor>& Processor : TypeStorage)
 		{
-			InputPreProcessorList.SetNum(Index + 1);
+			// We won't add the empty spaces in the map to the list
+			if (Processor)
+			{
+				InputPreProcessorsIteratorList.Add(Processor);
+			}
 		}
-		InputPreProcessorList.Insert(InputProcessor, Index);
 	}
 }
 
@@ -7441,30 +7533,52 @@ void FSlateApplication::InputPreProcessorsHelper::Remove(TSharedPtr<IInputProces
 	}
 	else
 	{
-		InputPreProcessorList.Remove(InputProcessor);
+		for (FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			Storage.Remove(InputProcessor);
+		}
+
+		InputPreProcessorsIteratorList.Remove(InputProcessor);
 	}
 
-	ProcessorsPendingAddition.Remove(InputProcessor);
+	ProcessorsPendingAddition.RemoveAllSwap([InputProcessor](const FInputPreprocessorRegistration& Registration)
+		{
+			return Registration.InputProcessor == InputProcessor;
+		});
 }
 
 void FSlateApplication::InputPreProcessorsHelper::RemoveAll()
 {
 	if (bIsIteratingPreProcessors)
 	{
-		ProcessorsPendingRemoval.Append(InputPreProcessorList);
+		for (const FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			ProcessorsPendingRemoval.Append(Storage);
+		}
 	}
 	else
 	{
-		InputPreProcessorList.Reset();
+		for (FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			Storage.Reset();
+		}
+
+		InputPreProcessorsIteratorList.Reset();
 	}
 
 	ProcessorsPendingAddition.Reset();
 }
 
-
-int32 FSlateApplication::InputPreProcessorsHelper::Find(TSharedPtr<IInputProcessor> InputProcessor) const
+int32 FSlateApplication::InputPreProcessorsHelper::Find(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType& Type) const
 {
-	return InputPreProcessorList.Find(InputProcessor);
+	const uint32 TypeInt = static_cast<uint32>(Type);
+	if (InputPreProcessors.IsValidIndex(TypeInt))
+	{
+		const FProcessorTypeStorage& Storage = InputPreProcessors[TypeInt];
+		return Storage.Find(InputProcessor);
+	}
+
+	return INDEX_NONE;
 }
 
 bool FSlateApplication::InputPreProcessorsHelper::PreProcessInput(ESlateDebuggingInputEvent InputEvent, TFunctionRef<bool(IInputProcessor&)> InputProcessFunc)
@@ -7472,30 +7586,34 @@ bool FSlateApplication::InputPreProcessorsHelper::PreProcessInput(ESlateDebuggin
 	TGuardValue<bool> IteratingGuard(bIsIteratingPreProcessors, true);
 
 	bool bShouldExit = false;
-	for (const TSharedPtr<IInputProcessor>& InputPreProcessor : InputPreProcessorList)
+	for (const TSharedPtr<IInputProcessor>& Processor : InputPreProcessorsIteratorList)
 	{
-		if (InputPreProcessor)
-		{
-			bShouldExit = InputProcessFunc(*InputPreProcessor);
+		bShouldExit = InputProcessFunc(*Processor);
+
 #if WITH_SLATE_DEBUGGING
-			FSlateDebugging::BroadcastPreProcessInputEvent(InputEvent, InputPreProcessor->GetDebugName(), bShouldExit);
+		FSlateDebugging::BroadcastPreProcessInputEvent(InputEvent, Processor->GetDebugName(), bShouldExit);
 #endif
-			if (bShouldExit)
-			{
-				break;
-			}
+		if (bShouldExit)
+		{
+			break;
 		}
 	}
 
 	for (int32 Index = ProcessorsPendingRemoval.Num() - 1; Index >= 0; --Index)
 	{
-		InputPreProcessorList.RemoveSingleSwap(ProcessorsPendingRemoval[Index]);
+		TSharedPtr<IInputProcessor>& Processor = ProcessorsPendingRemoval[Index];
+
+		for (FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			Storage.Remove(Processor);
+			InputPreProcessorsIteratorList.Remove(Processor);
+		}
 	}
 	ProcessorsPendingRemoval.Reset();
 
-	for (TPair<TSharedPtr<IInputProcessor>, int32>& ProcessorIndexPair : ProcessorsPendingAddition)
+	for (const FInputPreprocessorRegistration& Registration : ProcessorsPendingAddition)
 	{
-		AddInternal(ProcessorIndexPair.Key, ProcessorIndexPair.Value);
+		AddInternal(Registration);
 	}
 	ProcessorsPendingAddition.Reset();
 

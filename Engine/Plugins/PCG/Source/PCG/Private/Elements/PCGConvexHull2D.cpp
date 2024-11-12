@@ -45,7 +45,7 @@ bool FPCGConvexHull2DElement::ExecuteInternal(FPCGContext* Context) const
 		ConvexHull2D::ComputeConvexHull(PointsPositions, ConvexHullIndices);
 
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
-		UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutputPointData->InitializeFromData(PointData);
 		TArray<FPCGPoint>& OutPoints = OutputPointData->GetMutablePoints();
 		OutPoints.Reserve(ConvexHullIndices.Num());

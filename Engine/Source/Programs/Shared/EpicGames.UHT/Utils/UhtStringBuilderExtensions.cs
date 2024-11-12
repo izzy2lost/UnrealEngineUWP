@@ -144,7 +144,7 @@ namespace EpicGames.UHT.Utils
 					.AppendNameDef(staticsName, namePrefix, name, nameSuffix).Append(metaNameSuffix)
 					.Append("), ")
 					.AppendNameDef(staticsName, namePrefix, name, nameSuffix).Append(metaNameSuffix)
-					.Append(")");
+					.Append(')');
 			}
 			else
 			{
@@ -194,7 +194,7 @@ namespace EpicGames.UHT.Utils
 		{
 			if (!type.MetaData.IsEmpty())
 			{
-				bool isPartOfEngine = type.Package.IsPartOfEngine;
+				bool isPartOfEngine = type.Module.IsPartOfEngine;
 				List<KeyValuePair<string, string>> sortedMetaData = type.MetaData.GetSorted();
 				builder.AppendTabs(tabs).Append("static constexpr UECodeGen_Private::FMetaDataPairParam ").AppendNameDecl(namePrefix, name, nameSuffix).Append(metaNameSuffix).Append("[] = {\r\n");
 				foreach (KeyValuePair<string, string> kvp in sortedMetaData)
@@ -514,7 +514,7 @@ namespace EpicGames.UHT.Utils
 	/// Structure to automate the borrowing and returning of a StringBuilder.
 	/// Use some form of a "using" pattern.
 	/// </summary>
-	public struct BorrowStringBuilder : IDisposable
+	public readonly struct BorrowStringBuilder : IDisposable
 	{
 
 		/// <summary>

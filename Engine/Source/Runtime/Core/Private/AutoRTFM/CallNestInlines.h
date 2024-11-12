@@ -2,6 +2,7 @@
 
 #pragma once
 
+#if (defined(__AUTORTFM) && __AUTORTFM)
 #include "Context.h"
 #include "CallNest.h"
 
@@ -25,3 +26,4 @@ void FCallNest::Try(const TTryFunctor& TryFunctor)
 }
 
 } // namespace AutoRTFM
+#endif

@@ -35,6 +35,13 @@ static FAutoConsoleVariableRef CVarStreamableFlushAllAsyncLoadRequestsOnWait(
 	ECVF_Default
 );
 
+static bool GStreamableStripDebugNameInShipping = false;
+static FAutoConsoleVariableRef CVarStreamableStripDebugNameInShipping(
+	TEXT("s.StreamableStripDebugNameInShipping"),
+	GStreamableStripDebugNameInShipping,
+	TEXT("Whether to strip the bundle names DebugName when changing bundle. Saves memory when disabled, provides more debug information when enabled."),
+	ECVF_Default
+);
 
 const FString FStreamableHandle::HandleDebugName_Preloading = FString(TEXT("Preloading"));
 const FString FStreamableHandle::HandleDebugName_AssetList = FString(TEXT("LoadAssetList"));
@@ -1125,7 +1132,7 @@ void RemoveActiveHandle(FStreamable& Streamable, FStreamableHandle& Handle)
 	{
 		if (ActiveHandles[Idx] == &Handle)
 		{
-			ActiveHandles.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+			ActiveHandles.RemoveAtSwap(Idx, EAllowShrinking::No);
 		}
 	}
 }
@@ -1383,7 +1390,18 @@ FStreamable* FStreamableManager::StreamInternal(const FSoftObjectPath& InTargetN
 	return Existing;
 }
 
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftObjectPath> TargetsToStream, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
+bool FStreamableManager::ShouldStripDebugName()
+{
+	bool bShouldStripDebugName = false;
+#if (PLATFORM_IOS || PLATFORM_ANDROID)
+	bShouldStripDebugName = true;
+#elif UE_BUILD_SHIPPING
+	bShouldStripDebugName = GStreamableStripDebugNameInShipping;
+#endif
+	return bShouldStripDebugName;
+}
+
+TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoadInternal(TArray<FSoftObjectPath>&& TargetsToStream, FStreamableDelegate&& DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString&& DebugName)
 {
 	LLM_SCOPE(ELLMTag::StreamingManager);
 
@@ -1392,9 +1410,8 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftO
 	NewRequest->CompleteDelegate = MoveTemp(DelegateToCall);
 	NewRequest->OwningManager = this;
 	NewRequest->RequestedAssets = MoveTemp(TargetsToStream);
-#if (!PLATFORM_IOS && !PLATFORM_ANDROID)
 	NewRequest->DebugName = MoveTemp(DebugName);
-#endif
+
 	NewRequest->Priority = Priority;
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
 	PackageAccessTracking_Private::FTrackedData* AccumulatedScopeData = PackageAccessTracking_Private::FPackageAccessRefScope::GetCurrentThreadAccumulatedData();
@@ -1498,22 +1515,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftO
 	return NewRequest;
 }
 
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const FSoftObjectPath& TargetToStream, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	return RequestAsyncLoad(TArray<FSoftObjectPath>{TargetToStream}, MoveTemp(DelegateToCall), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(TArray<FSoftObjectPath> TargetsToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	return RequestAsyncLoad(MoveTemp(TargetsToStream), FStreamableDelegate::CreateLambda( MoveTemp( Callback ) ), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const FSoftObjectPath& TargetToStream, TFunction<void()>&& Callback, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, FString DebugName)
-{
-	return RequestAsyncLoad(TargetToStream, FStreamableDelegate::CreateLambda( MoveTemp( Callback ) ), Priority, bManageActiveHandle, bStartStalled, MoveTemp(DebugName));
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(TArray<FSoftObjectPath> TargetsToStream, bool bManageActiveHandle, FString DebugName)
+TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoadInternal(TArray<FSoftObjectPath>&& TargetsToStream, bool bManageActiveHandle, FString&& DebugName)
 {
 	// If in async loading thread or from callback always do sync as recursive tick is unsafe
 	// If in EDL always do sync as EDL internally avoids flushing
@@ -1521,7 +1523,7 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(TArray<FSoftOb
 	bForceSynchronousLoads = IsInAsyncLoadingThread() || IsEventDrivenLoaderEnabled() || !IsAsyncLoading();
 
 	// Do an async load and wait to complete. In some cases this will do a sync load due to safety issues
-	TSharedPtr<FStreamableHandle> Request = RequestAsyncLoad(MoveTemp(TargetsToStream), FStreamableDelegate(), AsyncLoadHighPriority, bManageActiveHandle, false, MoveTemp(DebugName));
+	TSharedPtr<FStreamableHandle> Request = RequestAsyncLoadInternal(MoveTemp(TargetsToStream), FStreamableDelegate(), AsyncLoadHighPriority, bManageActiveHandle, false, MoveTemp(DebugName));
 
 	bForceSynchronousLoads = false;
 
@@ -1534,11 +1536,6 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(TArray<FSoftOb
 	}
 
 	return Request;
-}
-
-TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(const FSoftObjectPath& TargetToStream, bool bManageActiveHandle, FString DebugName)
-{
-	return RequestSyncLoad(TArray<FSoftObjectPath>{TargetToStream}, bManageActiveHandle, MoveTemp(DebugName));
 }
 
 void FStreamableManager::StartHandleRequests(TSharedRef<FStreamableHandle> Handle)
@@ -1604,13 +1601,16 @@ UE_TRACE_EVENT_BEGIN(Cpu, StreamableManager_LoadSynchronous, NoSync)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, AssetPath)
 UE_TRACE_EVENT_END()
 
-UObject* FStreamableManager::LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle, TSharedPtr<FStreamableHandle>* RequestHandlePointer)
+UObject* FStreamableManager::LoadSynchronous(const FSoftObjectPath& Target, bool bManageActiveHandle, TSharedPtr<FStreamableHandle>* RequestHandlePointer, UE::FSourceLocation Location)
 {
 #if CPUPROFILERTRACE_ENABLED
 	UE_TRACE_LOG_SCOPED_T(Cpu, StreamableManager_LoadSynchronous, CpuChannel)
 		<< StreamableManager_LoadSynchronous.AssetPath(*WriteToWideString<FName::StringBufferSize>(Target));
 #endif // CPUPROFILERTRACE_ENABLED
-	TSharedPtr<FStreamableHandle> Request = RequestSyncLoad(Target, bManageActiveHandle, FString::Printf(TEXT("LoadSynchronous of %s"), *Target.ToString()));
+	TSharedPtr<FStreamableHandle> Request = RequestSyncLoadInternal(
+		TArray<FSoftObjectPath>{Target},
+		bManageActiveHandle,
+		FString::Printf(TEXT("LoadSynchronous from %s (%d)"), StringCast<TCHAR>(Location.GetFileName()).Get(), Location.GetLine()));
 
 	if (RequestHandlePointer)
 	{
@@ -1655,7 +1655,7 @@ void FStreamableManager::FindInMemory(FSoftObjectPath& InOutTargetName, struct F
 	}
 	checkSlow(Existing->Target == StaticFindObject(UObject::StaticClass(), nullptr, *InOutTargetName.ToString()));
 
-	if (Existing->Target && Existing->Target->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (Existing->Target && Existing->Target->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		// This can get called from PostLoad on async loaded objects, if it is we do not want to return partially loaded objects and instead want to register for their full load
 		Existing->Target = nullptr;

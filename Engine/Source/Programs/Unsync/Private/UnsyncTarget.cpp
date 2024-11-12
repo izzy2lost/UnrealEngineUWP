@@ -9,6 +9,8 @@
 #include "UnsyncProxy.h"
 #include "UnsyncScavenger.h"
 #include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
+#include "UnsyncChunking.h"
 
 namespace unsync {
 
@@ -25,10 +27,10 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 	std::vector<FNeedBlock>		   RemainingNeedBlocks;
 	const std::vector<FNeedBlock>* NeedBlocks = &OriginalUniqueNeedBlocks;
 
-	std::atomic<bool> bGotError = false;
+	FAtomicError Error;
 
 	const uint32 MaxAttempts = 30;
-	for (uint32 Attempt = 0; Attempt <= MaxAttempts && !bGotError; ++Attempt)
+	for (uint32 Attempt = 0; Attempt <= MaxAttempts && !Error; ++Attempt)
 	{
 		if (!ProxyPool.IsValid())
 		{
@@ -57,20 +59,20 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 
 		const uint64 MaxBytesPerBatch = ProxyPool.RemoteDesc.Protocol == EProtocolFlavor::Jupiter ? 16_MB : 128_MB;
 
-		for (uint64 I = 0; I < NeedBlocks->size() && !bGotError; ++I)
+		for (uint64 BlockIndex = 0; BlockIndex < NeedBlocks->size() && !Error; ++BlockIndex)
 		{
-			const FNeedBlock& Block = (*NeedBlocks)[I];
+			const FNeedBlock& Block = (*NeedBlocks)[BlockIndex];
 
 			if (Batches.back().SizeBytes + Block.Size < MaxBytesPerBatch)
 			{
-				Batches.back().End = I + 1;
+				Batches.back().End = BlockIndex + 1;
 			}
 			else
 			{
-				UNSYNC_ASSERT(Batches.back().End == I);
+				UNSYNC_ASSERT(Batches.back().End == BlockIndex);
 				FDownloadBatch NewBatch = {};
-				NewBatch.Begin			= I;
-				NewBatch.End			= I + 1;
+				NewBatch.Begin			= BlockIndex;
+				NewBatch.End			= BlockIndex + 1;
 				NewBatch.SizeBytes		= 0;
 				Batches.push_back(NewBatch);
 			}
@@ -80,12 +82,11 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 
 		UNSYNC_VERBOSE2(L"Download batches: %lld", Batches.size());
 
-		FTaskGroup DownloadTasks;
+		FTaskGroup DownloadTasks = GScheduler->CreateTaskGroup(&GScheduler->NetworkSemaphore);
 		std::mutex DownloadedBlocksMutex;
 
 		for (FDownloadBatch Batch : Batches)
 		{
-			ProxyPool.ParallelDownloadSemaphore.Acquire();
 			DownloadTasks.run(
 				[NeedBlocks,
 				 Batch,
@@ -96,11 +97,10 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 				 &DownloadedBlocks,
 				 &CompletionCallback,
 				 &NumActiveLogThreads,
-				 &bGotError]
+				 &Error]
 				{
-					if (bGotError)
+					if (Error)
 					{
-						ProxyPool.ParallelDownloadSemaphore.Release();
 						return;
 					}
 
@@ -126,23 +126,27 @@ DownloadBlocks(FProxyPool&					  ProxyPool,
 												CompletionCallback(Block, BlockHash);
 											});
 
-						if (DownloadResult.IsOk())
+						ProxyPool.Dealloc(std::move(Proxy));
+
+						if (const FDownloadError* DownloadError = DownloadResult.TryError())
 						{
-							ProxyPool.Dealloc(std::move(Proxy));
-						}
-						else if (DownloadResult.GetError().RetryMode == EDownloadRetryMode::Abort)
-						{
-							bGotError = true;
-							ProxyPool.Invalidate();
+							if (!DownloadError->CanRetry())
+							{
+								Error.Set(FError(*DownloadError));
+							}
+
+							if (DownloadError->RetryMode == EDownloadRetryMode::Disconnect)
+							{
+								ProxyPool.Invalidate();
+							}
 						}
 					}
-					ProxyPool.ParallelDownloadSemaphore.Release();
 				});
 		}
 
 		DownloadTasks.wait();
 
-		if (DownloadedBlocks.size() == OriginalUniqueNeedBlocks.size() || bGotError)
+		if (DownloadedBlocks.size() == OriginalUniqueNeedBlocks.size() || Error)
 		{
 			break;
 		}
@@ -166,7 +170,23 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 
 	FBuildTargetResult BuildResult;
 
+	if (Params.SourceType == FBuildTargetParams::ESourceType::Server)
+	{
+		if (Params.ProxyPool == nullptr)
+		{
+			UNSYNC_ERROR(L"Connection pool must be provided when syncing from server");
+			return BuildResult;
+		}
+
+		if (!Params.ProxyPool->IsValid())
+		{
+			UNSYNC_ERROR(L"Server connection cannot be established because connection pool is invalid");
+			return BuildResult;
+		}
+	}
+
 	auto TimeBegin = TimePointNow();
+	double ElapsedTime = 0;
 
 	const FNeedListSize			 SizeInfo		  = ComputeNeedListSize(NeedList);
 	const EStrongHashAlgorithmID StrongHasher	  = Params.StrongHasher;
@@ -195,8 +215,10 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	};
 	FStats Stats;
 
-	FSemaphore WriteSemaphore(MAX_ACTIVE_READERS);	// throttle writing tasks to avoid memory bloat
-	FTaskGroup WriteTasks;
+	const uint32 MaxWriteTasks = 64;
+
+	FSchedulerSemaphore WriteSemaphore(*GScheduler, MaxWriteTasks); // // throttle writing tasks to avoid memory bloat
+	FTaskGroup			WriteTasks = GScheduler->CreateTaskGroup(&WriteSemaphore);
 
 	// Remember if parent thread has verbose logging and indentation
 	const bool	 bAllowVerboseLog = GLogVerbose;
@@ -233,7 +255,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	}
 
 	auto ProcessNeedList =
-		[bAllowVerboseLog, LogIndent, &Output, &Error, &WriteSemaphore, &WriteTasks, &bWaitingForBaseData, &Stats, &Params, SizeInfo](
+		[bAllowVerboseLog, LogIndent, &Output, &Error, &WriteTasks, &bWaitingForBaseData, &Stats, &Params, SizeInfo](
 			FIOReader&					   DataProvider,
 			const std::vector<FNeedBlock>& NeedBlocks,
 			uint64						   TotalCopySize,
@@ -326,14 +348,13 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 
 			uint64 ReadBytes = 0;
 
-			auto ReadCallback = [&ReadBytes, &Output, &WriteTasks, &Error, &WriteSemaphore, &Stats, Block, ListType](FIOBuffer CmdBuffer,
-																													 uint64	   CmdOffset,
-																													 uint64	   CmdReadSize,
-																													 uint64	   CmdUserData)
+			auto ReadCallback = [&ReadBytes, &Output, &WriteTasks, &Error, &Stats, Block, ListType](FIOBuffer CmdBuffer,
+																									uint64	  CmdOffset,
+																									uint64	  CmdReadSize,
+																									uint64	  CmdUserData)
 			{
-				WriteSemaphore.Acquire();
 				WriteTasks.run(
-					[Buffer = MakeShared(std::move(CmdBuffer)), CmdReadSize, Block, &Output, &Error, &WriteSemaphore, &Stats, ListType]()
+					[Buffer = MakeShared(std::move(CmdBuffer)), CmdReadSize, Block, &Output, &Error, &Stats, ListType]()
 					{
 						const uint64 WrittenBytes = Output.Write(Buffer->GetData(), Block.TargetOffset, CmdReadSize);
 
@@ -349,8 +370,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 						{
 							UNSYNC_FATAL(L"Unexpected block list type");
 						}
-
-						WriteSemaphore.Release();
 
 						if (WrittenBytes != CmdReadSize)
 						{
@@ -381,8 +400,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 											  (bAllowVerboseLog && (ListType == EBlockListType::Base && bWaitingForBaseData)));
 
 			ProgressLogger.Add(ReadBytes);
-
-			SchedulerYield();
 		}
 
 		DataProvider.FlushAll();
@@ -394,7 +411,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 		bCompletionFlag = true;
 	};
 
-	FTaskGroup BackgroundTasks;
+	FTaskGroup BackgroundTasks = GScheduler->CreateTaskGroup();
 	BackgroundTasks.run(
 		[SizeInfo, ProcessNeedList, &NeedList, &Base, &bBaseDataCopyTaskDone]()
 		{
@@ -415,6 +432,8 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 		UNSYNC_VERBOSE(L"Writing blocks from cache");
 		UNSYNC_LOG_INDENT;
 
+		uint64 BytesFromCache = 0;
+
 		for (const FNeedBlock NeedBlock : FilteredSourceNeedList)
 		{
 			auto It = BlockCache->BlockMap.find(NeedBlock.Hash.ToHash128());
@@ -425,6 +444,7 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 				const uint64 WrittenBytes = Output.Write(BlockBuffer.Data, NeedBlock.TargetOffset, BlockBuffer.Size);
 
 				Stats.WrittenBytesFromSource += WrittenBytes;
+				BytesFromCache += WrittenBytes;
 
 				AddGlobalProgress(NeedBlock.Size, EBlockListType::Source);
 			}
@@ -434,6 +454,17 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 										   FilteredSourceNeedList.end(),
 										   [BlockCache](const FNeedBlock& Block)
 										   { return BlockCache->BlockMap.find(Block.Hash.ToHash128()) != BlockCache->BlockMap.end(); });
+
+
+		// Add some virtual time cost to account for block cache creation
+		if (BytesFromCache != 0)
+		{
+			const uint64 BlockCacheTotalSize = BlockCache->BlockData.Size();
+			const double CacheUsedFraction	 = double(BytesFromCache) / double(BlockCacheTotalSize);
+			const double EstimatedTimeCost	 = CacheUsedFraction * BlockCache->InitDuration.count();
+
+			ElapsedTime += EstimatedTimeCost;
+		}
 
 		FilteredSourceNeedList.erase(FilterResult, FilteredSourceNeedList.end());
 	}
@@ -477,13 +508,13 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 			}
 		}
 
-		FTaskGroup DecompressTasks;
+		// limit how many decompression tasks can be queued up to avoid memory bloat
+		const uint64		MaxConcurrentDecompressionTasks = 64;
+		FSchedulerSemaphore DecompressionSemaphore(*GScheduler, MaxConcurrentDecompressionTasks);
+
+		FTaskGroup DecompressTasks = GScheduler->CreateTaskGroup(&DecompressionSemaphore);
 
 		FLogProgressScope DownloadProgressLogger(EstimatedDownloadSize, ELogProgressUnits::MB);
-
-		// limit how many decompression tasks can be queued up to avoid memory bloat
-		const uint64 MaxConcurrentDecompressionTasks = 64;
-		FSemaphore	 DecompressionSemaphore(MaxConcurrentDecompressionTasks);
 
 		const bool			bParentThreadVerbose = GLogVerbose;
 		const uint32		ParentThreadIndent	 = GLogIndent;
@@ -523,12 +554,11 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 					FBlockWriteCmd Cmd = WriteIt->second;
 
 					// TODO: avoid this copy by storing IOBuffer in DownloadedBlock
-					bool	  bCompressed	 = Block.IsCompressed();
-					uint64	  DownloadedSize = bCompressed ? Block.CompressedSize : Block.DecompressedSize;
-					FIOBuffer DownloadedData = FIOBuffer::Alloc(DownloadedSize, L"downloaded_data");
-					memcpy(DownloadedData.GetData(), Block.Data, DownloadedSize);
+					const bool	 bCompressed	= Block.bCompressed;
+					const uint64 DownloadedSize = bCompressed ? Block.CompressedSize : Block.DecompressedSize;
+					FIOBuffer	 DownloadedData = FIOBuffer::Alloc(DownloadedSize, L"downloaded_data");
 
-					DecompressionSemaphore.Acquire();
+					memcpy(DownloadedData.GetData(), Block.Data, DownloadedSize);
 
 					DecompressTasks.run(
 						[&Output,
@@ -542,7 +572,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 						 &BlockScatterMap,
 						 &DownloadedBlocksMutex,
 						 &DownloadedBlocks,
-						 &DecompressionSemaphore,
 						 &Error,
 						 &NumHashMismatches,
 						 &Stats]()
@@ -633,8 +662,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 								std::lock_guard<std::mutex> LockGuard(DownloadedBlocksMutex);
 								DownloadedBlocks.insert(BlockHash);
 							}
-
-							DecompressionSemaphore.Release();
 						});
 				}
 			});
@@ -657,7 +684,16 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 			FilteredSourceNeedList.erase(FilterResult, FilteredSourceNeedList.end());
 		}
 
-		if (!FilteredSourceNeedList.empty())
+		if (FilteredSourceNeedList.empty())
+		{
+			bSourceDataCopyTaskDone = true;
+		}
+		else if (Params.SourceType == FBuildTargetParams::ESourceType::Server)
+		{
+			Error.Set(AppError(L"Could not download all required data from the server"));
+			bSourceDataCopyTaskDone = true;
+		}
+		else
 		{
 			uint64 RemainingBytes = ComputeSize(FilteredSourceNeedList);
 
@@ -668,10 +704,6 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 			UNSYNC_LOG_INDENT;
 
 			ProcessNeedList(Source, FilteredSourceNeedList, RemainingBytes, EBlockListType::Source, bSourceDataCopyTaskDone);
-		}
-		else
-		{
-			bSourceDataCopyTaskDone = true;
 		}
 	}
 	else if (SizeInfo.SourceBytes)
@@ -688,8 +720,8 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 	BackgroundTasks.wait();
 	WriteTasks.wait();
 
-	double Duration = DurationSec(TimeBegin, TimePointNow());
-	UNSYNC_VERBOSE(L"Done in %.3f sec (%.3f MB / sec)", Duration, SizeMb(double(SizeInfo.TotalBytes) / Duration));
+	ElapsedTime += DurationSec(TimeBegin, TimePointNow());
+	UNSYNC_VERBOSE(L"Done in %.3f sec (%.3f MB / sec)", ElapsedTime, SizeMb(double(SizeInfo.TotalBytes) / ElapsedTime));
 
 	if (GLogVerbose)
 	{

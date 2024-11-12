@@ -671,11 +671,20 @@ typedef struct
 	int length;
 } stbds_array_header;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4200)
+#endif
+
 typedef struct stbds_string_block
 {
 	struct stbds_string_block* next;
 	char storage[];
 } stbds_string_block;
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 struct stbds_string_arena
 {

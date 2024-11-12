@@ -18,6 +18,8 @@ namespace UE
 {
 namespace MovieScene
 {
+	struct FSharedPlaybackState;
+
 	struct FMovieSceneLevelStreamingSharedData
 	{
 		bool HasAnythingToDo() const;
@@ -43,8 +45,8 @@ namespace MovieScene
 			/** Returns whether or not this level name should be visible or not */
 			TOptional<ELevelVisibility> CalculateVisibility() const;
 
-			/** Retrieve all players that are animating this level's visibility */
-			void GetPlayers(FInstanceRegistry* InstanceRegistry, TArray<IMovieScenePlayer*>& OutPlayers) const;
+			/** Retrieve all shared playback states that are animating this level's visibility */
+			void GetSharedPlaybackStates(FInstanceRegistry* InstanceRegistry, TArray<TSharedRef<FSharedPlaybackState>>& OutSharedPlaybackStates) const;
 
 		private:
 			struct FVisibilityRequest

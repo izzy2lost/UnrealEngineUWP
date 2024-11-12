@@ -10,6 +10,7 @@ uint4				{ParameterName}_PackedUniforms0;
 uint4				{ParameterName}_PackedUniforms1;
 int3				{ParameterName}_TextureSize;
 int					{ParameterName}_MipLevels;
+int					{ParameterName}_NumFrames;
 
 
 void LoadSparseVolumeTexture_{ParameterName}(in int TexelX, in int TexelY, in int TexelZ, in int MipLevel, out float4 OutAttributesA, out float4 OutAttributesB)
@@ -28,14 +29,19 @@ void SampleSparseVolumeTexture_{ParameterName}(in float3 UVW, in int MipLevel, o
 	OutAttributesB = SparseVolumeTextureSamplePhysicalTileData({ParameterName}_PhysicalTileDataATexture, {ParameterName}_PhysicalTileDataBTexture, {ParameterName}_TileDataTextureSampler, VoxelUVW, 1);
 }
 
-void GetTextureDimensions_{ParameterName}(int MipLevel, out float3 OutValue)
+void GetTextureDimensions_{ParameterName}(int MipLevel, out int SizeX, out int SizeY, out int SizeZ)
 {
-	OutValue.x = float(max({ParameterName}_TextureSize.x >> MipLevel, 1));
-	OutValue.y = float(max({ParameterName}_TextureSize.y >> MipLevel, 1));
-	OutValue.z = float(max({ParameterName}_TextureSize.z >> MipLevel, 1));
+	SizeX = float(max({ParameterName}_TextureSize.x >> MipLevel, 1));
+	SizeY = float(max({ParameterName}_TextureSize.y >> MipLevel, 1));
+	SizeZ = float(max({ParameterName}_TextureSize.z >> MipLevel, 1));
 }
 
 void GetNumMipLevels_{ParameterName}(out int OutMipLevels)
 {
 	OutMipLevels = {ParameterName}_MipLevels;
+}
+
+void GetNumFrames_{ParameterName}(out int OutNumFrames)
+{
+	OutNumFrames = {ParameterName}_NumFrames;
 }

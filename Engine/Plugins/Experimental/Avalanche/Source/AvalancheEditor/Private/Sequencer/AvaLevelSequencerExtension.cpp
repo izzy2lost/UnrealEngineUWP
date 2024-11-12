@@ -154,7 +154,7 @@ TSharedPtr<ISequencer> FAvaLevelSequencerExtension::GetExternalSequencer() const
 void FAvaLevelSequencerExtension::OnViewedSequenceChanged(UAvaSequence* InOldSequence, UAvaSequence* InNewSequence)
 {
 	IAvaSequenceProvider* SequenceProvider = GetSequenceProvider();
-	if (!SequenceProvider)
+	if (!SequenceProvider || !InNewSequence)
 	{
 		return;
 	}
@@ -162,7 +162,7 @@ void FAvaLevelSequencerExtension::OnViewedSequenceChanged(UAvaSequence* InOldSeq
 	UObject* const Outer = SequenceProvider->ToUObject();
 
 	bool bIsOldOwnedByProvider = InOldSequence && InOldSequence->GetOuter() == Outer;
-	bool bIsNewOwnedByProvider = InNewSequence && InNewSequence->GetOuter() == Outer;
+	bool bIsNewOwnedByProvider = InNewSequence->GetOuter() == Outer;
 
 	// Only avoid re-opening the asset editor if it's changing between two sequences that are owned by the provider
 	if (!bIsOldOwnedByProvider || !bIsNewOwnedByProvider)

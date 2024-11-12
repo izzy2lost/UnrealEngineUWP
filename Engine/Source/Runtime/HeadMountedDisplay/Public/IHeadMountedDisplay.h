@@ -121,20 +121,6 @@ public:
 	 */
 	virtual bool GetHMDDistortionEnabled(EShadingPath ShadingPath) const = 0;
 
-	/** 
-	 * Called just before rendering the current frame on the render thread. Invoked before applying late update, so plugins that want to refresh poses on the
-	 * render thread prior to late update. Use this to perform any initializations prior to rendering.
-	 */
-	UE_DEPRECATED(4.19, "Use IXRTrackingSystem::OnBeginRendering_Renderthread instead")
-	virtual void BeginRendering_RenderThread(const FTransform& NewRelativeTransform, FRHICommandListImmediate& RHICmdList, FSceneViewFamily& ViewFamily) {}
-
-	/**
-	 * Called just before rendering the current frame on the game frame.
-	 */
-	UE_DEPRECATED(4.19, "Use IXRTrackingSystem::OnBeginRendering_GameThread instead")
-	virtual void BeginRendering_GameThread() {}
-
-
 	// Are we outputting so a Spectator Screen now.
 	virtual bool IsSpectatorScreenActive() const { return false; }
 
@@ -163,7 +149,7 @@ public:
 	virtual void SetPixelDensity(const float NewDensity) { };
 
 	/**
-	* Gets the ideal render target size for the device. See vr.pixeldensity description.
+	* Gets the ideal render target size for the device. See xr.SecondaryScreenPercentage.HMDRenderTarget description.
 	*/
 	virtual FIntPoint GetIdealRenderTargetSize() const { check(IsInGameThread() || IsInRenderingThread()); return FIntPoint(); }
 
@@ -215,10 +201,24 @@ public:
 	virtual void DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const {};
 
 	/**
+	* Optional method to draw a view's hidden area mesh where supported.
+	* This can be used to avoid rendering pixels which are not included as input into the final distortion pass.
+	* Supports instanced rendering.
+	*/
+	virtual void DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const {};
+
+	/**
 	* Optional method to draw a view's visible area mesh where supported.
 	* This can be used instead of a full screen quad to avoid rendering pixels which are not included as input into the final distortion pass.
 	*/
 	virtual void DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const {};
+
+	/**
+	* Optional method to draw a view's visible area mesh where supported.
+	* This can be used instead of a full screen quad to avoid rendering pixels which are not included as input into the final distortion pass.
+	* Supports instanced rendering.
+	*/
+	virtual void DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const {};
 
 	virtual void DrawDistortionMesh_RenderThread(struct FHeadMountedDisplayPassContext& Context, const FIntPoint& TextureSize) {}
 

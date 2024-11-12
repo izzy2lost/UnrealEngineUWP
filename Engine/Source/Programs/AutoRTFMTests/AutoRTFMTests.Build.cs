@@ -25,12 +25,13 @@ public class AutoRTFMTests : ModuleRules
 			);
 		}
 
-		bAllowAutoRTFMInstrumentation = true;
-
 		PrivateIncludePaths.AddRange(
 			new string[]
 			{
 				"Runtime/Core/Private"
 			});
+
+		PCHUsage = PCHUsageMode.NoPCHs;
+		FPSemantics = FPSemanticsMode.Precise;
 	}
 }

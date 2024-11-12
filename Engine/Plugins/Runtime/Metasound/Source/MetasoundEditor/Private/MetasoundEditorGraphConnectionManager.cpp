@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundEditorGraphConnectionManager.h"
 
-#include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerEnvelopeFollower.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerForwardValue.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerTriggerDensity.h"
+#include "Analysis/MetasoundVertexAnalyzerAudioBusWriter.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundVertex.h"
@@ -25,7 +25,6 @@ namespace Metasound
 			GraphAnalyzerView->AddAnalyzerForAllSupportedOutputs(FVertexAnalyzerForwardInt::GetAnalyzerName());
 			GraphAnalyzerView->AddAnalyzerForAllSupportedOutputs(FVertexAnalyzerForwardString::GetAnalyzerName());
 
-			GraphAnalyzerView->AddAnalyzerForAllSupportedOutputs(FVertexAnalyzerAudioBuffer::GetAnalyzerName());
 			GraphAnalyzerView->AddAnalyzerForAllSupportedOutputs(FVertexAnalyzerEnvelopeFollower::GetAnalyzerName());
 			GraphAnalyzerView->AddAnalyzerForAllSupportedOutputs(FVertexAnalyzerTriggerDensity::GetAnalyzerName());
 		}
@@ -76,14 +75,41 @@ namespace Metasound
 			Window.SetNumZeroed(InWindowSize);
 		}
 
-		void FGraphConnectionManager::TrackAudioPin(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, Audio::FPatchInput& InPatchInput)
+		FGuid FGraphConnectionManager::AddAudioBusWriter(const FGuid& InNodeID, FVertexName InOutputName, Audio::FDeviceId InDeviceID, const UAudioBus* InAudioBus)
 		{
-			TrackedAudioPins.Add({ InNodeID, InOutputName, InAnalyzerName }, MakeShared<Audio::FPatchInput>(InPatchInput));
+			FGuid AnalyzerInstanceID;
+
+			if (GraphAnalyzerView.IsValid())
+			{
+				const uint32 AudioBusID = InAudioBus->GetUniqueID();
+				const FName AnalyzerName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
+				const FName AnalyzerMemberName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerMemberName(InDeviceID, AudioBusID);
+				AnalyzerInstanceID = GraphAnalyzerView->AddAnalyzerForSpecifiedOutput(InNodeID, InOutputName, AnalyzerName, AnalyzerMemberName);
+			}
+
+			return AnalyzerInstanceID;
 		}
 
-		void FGraphConnectionManager::UntrackAudioPin(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName)
+		void FGraphConnectionManager::RemoveAudioBusWriter(const FGuid& InAnalyzerInstanceID)
 		{
-			TrackedAudioPins.Remove({ InNodeID, InOutputName, InAnalyzerName });
+			if (GraphAnalyzerView.IsValid())
+			{
+				const FName AnalyzerName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
+				GraphAnalyzerView->RemoveAnalyzerInstance(AnalyzerName, InAnalyzerInstanceID);
+			}
+		}
+
+		bool FGraphConnectionManager::HasAudioBusWriter(const FGuid& InAnalyzerInstanceID) const
+		{
+			bool bResult = false;
+
+			if (GraphAnalyzerView.IsValid())
+			{
+				const FName AnalyzerName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
+				bResult = GraphAnalyzerView->HasAnalyzerInstance(AnalyzerName, InAnalyzerInstanceID);
+			}
+
+			return bResult;
 		}
 
 		void FGraphConnectionManager::Update(float InDeltaTime)
@@ -130,23 +156,6 @@ namespace Metasound
 				for (TPair<FString, Audio::FVolumeFader>& Pair : ConnectionFaders)
 				{
 					Pair.Value.Update(InDeltaTime);
-				}
-
-				// Audio Pins update
-				if (const UMetasoundEditorSettings* MetaSoundSettings = GetDefault<UMetasoundEditorSettings>();
-				    MetaSoundSettings && MetaSoundSettings->bShowOscilloscopeOnAudioPinMouseOver)
-				{
-					auto UpdateAudio = [this](const FAnalyzerAddress& InAnalyzerAddress, const FAudioBuffer& InAudioBuffer)
-					{
-						TSharedRef<Audio::FPatchInput>* PatchInput = TrackedAudioPins.Find({ InAnalyzerAddress.NodeID, InAnalyzerAddress.OutputName, InAnalyzerAddress.AnalyzerName });
-
-						if (PatchInput)
-						{
-							(*PatchInput)->PushAudio(InAudioBuffer.GetData(), InAudioBuffer.Num());
-						}
-					};
-				
-					UpdateConnections<FVertexAnalyzerAudioBuffer, FAudioBuffer>(InDeltaTime, UpdateAudio);
 				}
 			}
 		}

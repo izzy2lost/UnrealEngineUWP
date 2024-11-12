@@ -2,6 +2,8 @@
 
 #include "InstanceDataObjectTests.h"
 
+#if WITH_EDITORONLY_DATA
+
 #include "CoreTypes.h"
 #include "InstanceDataObjectFixupToolModule.h"
 #include "WorkspaceMenuStructure.h"
@@ -310,7 +312,7 @@ static UObject* CreateInstanceDataObjectWithSubObjects(UObject* Owner)
 {
 	TArray<UObject*> SubObjects = {Owner};
 	GetObjectsWithOuter(Owner, SubObjects);
-	for (const UObject* SubObject : SubObjects)
+	for (UObject* SubObject : SubObjects)
 	{
 		UE::FPropertyBagRepository::Get().CreateInstanceDataObject(SubObject);
 	}
@@ -332,9 +334,10 @@ static UObject* GenerateTestInstanceDataObject(UObject* ObjectOld, UClass* NewCl
 	{
 		FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 
-		// scoped flag changes to load context to support property bag generation
+		// scoped flag changes to load context to support unknown property tracking
 		TGuardValue<bool> ScopedTrackSerializedPropertyPath(LoadContext->bTrackSerializedPropertyPath, true);
-		TGuardValue<bool> ScopedSerializeUnknownProperty(LoadContext->bSerializeUnknownProperty, true);
+		TGuardValue<bool> ScopedTrackInitializedProperties(LoadContext->bTrackInitializedProperties, true);
+		TGuardValue<bool> ScopedTrackUnknownProperties(LoadContext->bTrackUnknownProperties, true);
 		TGuardValue<bool> ScopedImpersonateProperties(LoadContext->bImpersonateProperties, true);
 		
 		UPackage* TempPackage = CreateTestPackage(NewClass);
@@ -453,3 +456,5 @@ FAutoConsoleCommand TestInstanceDataObjectFixupCommand(
 );
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // WITH_EDITORONLY_DATA

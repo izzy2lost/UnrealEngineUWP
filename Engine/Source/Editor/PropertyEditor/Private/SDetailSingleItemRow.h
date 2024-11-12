@@ -70,7 +70,7 @@ public:
 
 protected:
 	virtual void PopulateContextMenu(UToolMenu* ToolMenu) override;
-	virtual TArray<TSharedPtr<IPropertyHandle>> GetPropertyHandles(const bool& bRecursive = false) const override;
+	virtual TArray<TSharedPtr<IPropertyHandle>> GetPropertyHandles(const bool bRecursive = false) const override;
 
 private:
 	void OnCopyProperty();
@@ -85,6 +85,9 @@ private:
 	bool CanCopyGroup() const;
 	void OnPasteGroup();
 	bool CanPasteGroup();
+
+	FString GetPropertyInternalName() const;
+	FText GetPropertyDisplayName() const;
 
 	/**
 	 * Returns the TSharedRef<SWidget> for the Name column widget

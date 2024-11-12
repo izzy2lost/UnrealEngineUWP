@@ -136,6 +136,14 @@ public:
 		return vec;
 	}
 
+	void addBeginAndEnd(PtrType begin, PtrType end)
+	{
+		std::unique_lock<std::mutex> lock(Mutex);
+
+		PriorityQueue::c.insert(PriorityQueue::c.begin(), begin);
+		PriorityQueue::c.push_back(end);
+	}
+
 	void clear()
 	{
 		std::unique_lock<std::mutex> lock(Mutex);

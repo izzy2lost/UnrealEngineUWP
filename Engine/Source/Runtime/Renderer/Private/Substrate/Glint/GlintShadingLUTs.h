@@ -14,7 +14,7 @@ class FViewInfo;
 struct FGlintShadingLUTsStateData
 {
 	TRefCountPtr<IPooledRenderTarget> GlintShadingLUTs = nullptr;
-	FRHITexture2DArray* RHIGlintShadingLUTs = nullptr;
+	FRHITexture* RHIGlintShadingLUTs = nullptr;
 
 	float Dictionary_Alpha = 0.0f;
 	int32 Dictionary_NDistributionsPerChannel = 0;

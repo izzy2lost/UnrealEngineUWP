@@ -10,18 +10,19 @@
 class UDMMaterialLayerObject;
 class UDMMaterialStageGradient;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageInputGradient : public UDMMaterialStageInputThroughput
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageInputGradient : public UDMMaterialStageInputThroughput
 {
 	GENERATED_BODY()
 
 public:
-	static UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass, UDMMaterialLayerObject* InLayer = nullptr);
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass, UDMMaterialLayerObject* InLayer = nullptr);
 
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableGradients();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputGradient* ChangeStageSource_Gradient(UDMMaterialStage* InStage,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputGradient* ChangeStageSource_Gradient(UDMMaterialStage* InStage,
 		TSubclassOf<UDMMaterialStageGradient> InGradientClass);
 
 	template<typename InGradientClass>
@@ -30,8 +31,14 @@ public:
 		return ChangeStageSource_Gradient(InStage, InGradientClass::StaticClass());
 	}
 
+	/**
+	 * Change the input type of an input on a stage to a gradient.
+	 * @param InInputIdx Index of the source input.
+	 * @param InInputChannel The channel of the input that the input connects to.
+	 * @param InOutputChannel The channel of the output to connect.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputGradient* ChangeStageInput_Gradient(UDMMaterialStage* InStage,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputGradient* ChangeStageInput_Gradient(UDMMaterialStage* InStage,
 		TSubclassOf<UDMMaterialStageGradient> InGradientClass, int32 InInputIdx, int32 InInputChannel, int32 InOutputChannel);
 
 	template<typename InGradientClass>
@@ -42,18 +49,16 @@ public:
 	}
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	TSubclassOf<UDMMaterialStageGradient> GetMaterialStageGradientClass() const;
+	DYNAMICMATERIALEDITOR_API TSubclassOf<UDMMaterialStageGradient> GetMaterialStageGradientClass() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetMaterialStageGradientClass(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass);
+	DYNAMICMATERIALEDITOR_API void SetMaterialStageGradientClass(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialStageGradient* GetMaterialStageGradient() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageGradient* GetMaterialStageGradient() const;
 
 protected:
 	static TArray<TStrongObjectPtr<UClass>> Gradients;
 
 	static void GenerateGradientList();
-
-	UDMMaterialStageInputGradient() = default;
 };

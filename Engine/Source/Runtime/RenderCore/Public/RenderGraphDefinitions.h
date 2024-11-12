@@ -5,6 +5,7 @@
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
 #include "RenderGraphAllocator.h"
 #include "RenderGraphFwd.h"
+#include "RHIBreadcrumbs.h"
 
 /** DEFINES */
 
@@ -33,9 +34,6 @@
 /** Allows to dump all RDG resources of a frame. */
 #define RDG_DUMP_RESOURCES (WITH_DUMPGPU)
 
-/** Allows to dump RDG resource after each draw call. */
-#define RDG_DUMP_RESOURCES_AT_EACH_DRAW (RDG_DUMP_RESOURCES)
-
 /** The type of GPU events the render graph system supports.
  *  RDG_EVENTS == 0 means there is no string processing at all.
  *  RDG_EVENTS == 1 means the format component of the event name is stored as a const TCHAR*.
@@ -52,35 +50,57 @@
 	#else
 		#define RDG_EVENTS RDG_EVENTS_STRING_COPY
 	#endif
-#elif RHI_WANT_BREADCRUMB_EVENTS
+#elif WITH_RHI_BREADCRUMBS
 	#define RDG_EVENTS RDG_EVENTS_STRING_REF
 #else
 	#define RDG_EVENTS RDG_EVENTS_NONE
 #endif
 
-#define RDG_GPU_DEBUG_SCOPES (RDG_EVENTS || HAS_GPU_STATS)
+#define SUPPORTS_VISUALIZE_TEXTURE (WITH_ENGINE && (!UE_BUILD_SHIPPING || WITH_EDITOR))
 
-#if RDG_GPU_DEBUG_SCOPES
-	#define IF_RDG_GPU_DEBUG_SCOPES(Op) Op
-#else
-	#define IF_RDG_GPU_DEBUG_SCOPES(Op)
-#endif
-
-#define RDG_CPU_SCOPES (CSV_PROFILER)
-
-#if RDG_CPU_SCOPES
-	#define IF_RDG_CPU_SCOPES(Op) Op
-#else
-	#define IF_RDG_CPU_SCOPES(Op)
-#endif
-
-#define RDG_CMDLIST_STATS (STATS || ENABLE_STATNAMEDEVENTS)
-
-#if RDG_CMDLIST_STATS
-	#define IF_RDG_CMDLIST_STATS(Op) Op
-#else
-	#define IF_RDG_CMDLIST_STATS(Op)
-#endif
+/** An RDG pass execution lambda MAY be executed in a parallel task IF the lambda references a non-immediate command list AND the builder flags are set to execute in parallel.
+ *  By default, if a pass executes in parallel, the task will be awaited at the end of FRDGBuilder::Execute(). This behavior may be overridden by tagging the lambda with FRDGAsyncTask as the
+ *  first argument. A tagged lambda, when executed in parallel, is NOT awaited at the end of FRDGBuilder::Execute(). Instead, the task is recorded as an outstanding RHI command list task
+ *  (which share semantics with mesh passes or other parallel command list tasks) and can be manually awaited by calling FRDGBuilder::WaitForAsyncExecuteTasks() or formed into a task
+ *  graph with FRDGBuilder::GetAsyncExecuteTask() (both static methods). The lifetime of RDG allocations is tied to these tasks and RDG will not release any memory or allocated objects
+ *  until the last task completes, even though the FRDGBuilder instance itself may go out of scope and destruct.
+ *
+ *  Consider the following examples:
+ *
+ *      // Builder is marked as supporting parallel execute.
+ *      FRDGBuilder GraphBuilder(RDG_EVENT_NAME("MyBuilder"), ERDGBuilderFlags::Parallel)
+ *
+ *      GraphBuilder.AddPass(RDG_EVENT_NAME("..."), PassParameters, PassFlags, [...] (FRHICommandList& RHICmdList)
+ *      {
+ *         // This will execute in parallel and is awaited by RDG on the render thread at the end of FRDGBuilder::Execute().
+ *      });
+ *
+ *      GraphBuilder.AddPass(RDG_EVENT_NAME("..."), PassParameters, PassFlags, [...] (FRHICommandListImmediate& RHICmdList)
+ *      {
+ *         // This will execute inline on the render thread, because the immediate command list is referenced.
+ *      });
+ *
+ *      FMyObject* Object = GraphBuilder.AllocObject<FMyObject>();
+ *
+ *      GraphBuilder.AddPass(RDG_EVENT_NAME("..."), PassParameters, PassFlags, [Object] (FRDGAsyncTask, FRHICommandList& RHICmdList)
+ *      {
+ *         // This will execute in parallel and is NOT awaited at the end of FRDGBuilder::Execute(). Accessing 'Object' is safe.
+ *      });
+ *
+ *      GraphBuilder.Execute();
+ *
+ *  Tasks can be synced in a few different ways. RDG async execute tasks are chained, so syncing the last batch will sync ALL prior batches.
+ *
+ *      // This will sync all RDG async execute tasks.
+ *      RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
+ *
+ *      // This will also sync all RDG async execute tasks.
+ *      FRDGBuilder::WaitForAsyncExecuteTasks();
+ *
+ *      // Launch a task that will do something when RDG async execute tasks complete.
+ *      UE::Tasks::Launch(UE_SOURCE_LOCATION, [...] { ... }, FRDGBuilder::GetAsyncExecuteTask());
+ */
+struct FRDGAsyncTask {};
 
 /** ENUMS */
 
@@ -88,8 +108,18 @@ enum class ERDGBuilderFlags
 {
 	None = 0,
 
+	/** Allows the builder to parallelize AddSetupPass calls. Without this flag, setup passes run serially. */
+	ParallelSetup = 1 << 0,
+	
+	/** Allows the builder to parallelize compilation of the graph. Without this flag, all passes execute on the render thread. */
+	ParallelCompile = 1 << 1,
+
 	/** Allows the builder to parallelize execution of passes. Without this flag, all passes execute on the render thread. */
-	AllowParallelExecute = 1 << 0
+	ParallelExecute = 1 << 2,
+
+	Parallel = ParallelSetup | ParallelCompile | ParallelExecute,
+
+	AllowParallelExecute UE_DEPRECATED(5.5, "Use ERDDGBuilderFlags::Parallel instead.") = Parallel,
 };
 ENUM_CLASS_FLAGS(ERDGBuilderFlags);
 
@@ -122,8 +152,6 @@ enum class ERDGPassFlags : uint16
 
 	/** Pass will never run off the render thread. */
 	NeverParallel = 1 << 7,
-
-	ParallelTranslate = 1 << 8,
 
 	/** Pass uses copy commands but writes to a staging resource. */
 	Readback = Copy | NeverCull
@@ -176,6 +204,17 @@ enum class ERDGTextureFlags : uint8
 	MaintainCompression = 1 << 3,
 };
 ENUM_CLASS_FLAGS(ERDGTextureFlags);
+
+enum class ERDGSetupTaskWaitPoint : uint8
+{
+	/** (Default) Setup task is synced prior to compilation. Use this mode if task mutates RDG resources (e.g. RDG buffer upload contents, buffer size callbacks, etc) */
+	Compile = 0,
+
+	/** Setup task is synced prior to execution. Use this mode if your task is stalling in RDG and doesn't affect RDG compilation in any way. */
+	Execute = 1,
+
+	MAX
+};
 
 /** Flags to annotate a view with when calling CreateUAV. */
 enum class ERDGUnorderedAccessViewFlags : uint8
@@ -310,7 +349,7 @@ public:
 
 	TRDGHandle() = default;
 
-	explicit inline TRDGHandle(int32 InIndex)
+	explicit inline TRDGHandle(uint32 InIndex)
 	{
 		check(InIndex >= 0 && InIndex <= kNullIndex);
 		Index = (IndexType)InIndex;
@@ -320,7 +359,6 @@ public:
 	FORCEINLINE IndexType GetIndexUnchecked() const { return Index; }
 	FORCEINLINE bool IsNull()  const { return Index == kNullIndex; }
 	FORCEINLINE bool IsValid() const { return Index != kNullIndex; }
-	FORCEINLINE operator bool() const { return IsValid(); }
 	FORCEINLINE bool operator==(TRDGHandle Other) const { return Index == Other.Index; }
 	FORCEINLINE bool operator!=(TRDGHandle Other) const { return Index != Other.Index; }
 	FORCEINLINE bool operator<=(TRDGHandle Other) const { check(IsValid() && Other.IsValid()); return Index <= Other.Index; }
@@ -557,30 +595,33 @@ public:
 	void Reset()
 	{
 		Handle = HandleType::Null;
-		bUnique = false;
 	}
 
 	void AddHandle(HandleType InHandle)
 	{
+		checkf(InHandle != NotUniqueHandle, TEXT("Overflowed TRDGHandleUniqueFilter"));
+
 		if (Handle != InHandle && InHandle.IsValid())
 		{
-			bUnique = Handle.IsNull();
-			Handle = InHandle;
+			Handle = Handle.IsNull() ? InHandle : NotUniqueHandle;
 		}
 	}
 
 	HandleType GetUniqueHandle() const
 	{
-		return bUnique ? Handle : HandleType::Null;
+		return Handle != NotUniqueHandle ? Handle : HandleType::Null;
 	}
 
 private:
+	static const HandleType NotUniqueHandle;
 	HandleType Handle;
-	bool bUnique = false;
 };
 
 template <typename ObjectType, typename IndexType>
 const TRDGHandle<ObjectType, IndexType> TRDGHandle<ObjectType, IndexType>::Null;
+
+template <typename HandleType>
+const HandleType TRDGHandleUniqueFilter<HandleType>::NotUniqueHandle(TNumericLimits<typename HandleType::IndexType>::Max() - 1);
 
 struct FRDGTextureDesc : public FRHITextureDesc
 {
@@ -688,8 +729,6 @@ struct FRDGTextureDesc : public FRHITextureDesc
 class FRDGBlackboard;
 
 class FRDGAsyncComputeBudgetScopeGuard;
-class FRDGEventScopeGuard;
-class FRDGGPUStatScopeGuard;
 class FRDGScopedCsvStatExclusive;
 class FRDGScopedCsvStatExclusiveConditional;
 
@@ -702,25 +741,26 @@ class FRDGUserValidation;
 
 class FRDGViewableResource;
 
-using FRDGPassHandle = TRDGHandle<FRDGPass, uint16>;
+using FRDGPassHandle = TRDGHandle<FRDGPass, uint32>;
 using FRDGPassRegistry = TRDGHandleRegistry<FRDGPassHandle>;
 using FRDGPassHandleArray = TArray<FRDGPassHandle, TInlineAllocator<4, FRDGArrayAllocator>>;
 using FRDGPassBitArray = TRDGHandleBitArray<FRDGPassHandle>;
 
-using FRDGUniformBufferHandle = TRDGHandle<FRDGUniformBuffer, uint16>;
+using FRDGUniformBufferHandle = TRDGHandle<FRDGUniformBuffer, uint32>;
 using FRDGUniformBufferRegistry = TRDGHandleRegistry<FRDGUniformBufferHandle>;
 using FRDGUniformBufferBitArray = TRDGHandleBitArray<FRDGUniformBufferHandle>;
 
-using FRDGViewHandle = TRDGHandle<FRDGView, uint16>;
+using FRDGViewHandle = TRDGHandle<FRDGView, uint32>;
 using FRDGViewRegistry = TRDGHandleRegistry<FRDGViewHandle, ERDGHandleRegistryDestructPolicy::Never>;
 using FRDGViewUniqueFilter = TRDGHandleUniqueFilter<FRDGViewHandle>;
 using FRDGViewBitArray = TRDGHandleBitArray<FRDGViewHandle>;
 
-using FRDGTextureHandle = TRDGHandle<FRDGTexture, uint16>;
+using FRDGTextureHandle = TRDGHandle<FRDGTexture, uint32>;
 using FRDGTextureRegistry = TRDGHandleRegistry<FRDGTextureHandle, ERDGHandleRegistryDestructPolicy::Never>;
 using FRDGTextureBitArray = TRDGHandleBitArray<FRDGTextureHandle>;
 
-using FRDGBufferHandle = TRDGHandle<FRDGBuffer, uint16>;
+using FRDGBufferHandle = TRDGHandle<FRDGBuffer, uint32>;
+using FRDGBufferReservedCommitHandle = TRDGHandle<FRDGBuffer, uint16>;
 using FRDGBufferRegistry = TRDGHandleRegistry<FRDGBufferHandle, ERDGHandleRegistryDestructPolicy::Registry>;
 using FRDGBufferBitArray = TRDGHandleBitArray<FRDGBufferHandle>;
 

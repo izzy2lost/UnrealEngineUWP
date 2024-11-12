@@ -16,7 +16,7 @@ struct FLumenRayHitBookmark
 #define NORMAL_INDEX 1
 #define GPU_SCENE_INSTANCE_INDEX 2
 
-// #lumen_todo: Pack more agressively. HitT - 2 bytes, GPUSceneIndex - 3 bytes, MaterialIndex - 3 bytes
+// #lumen_todo: Pack more aggressively. HitT - 2 bytes, GPUSceneIndex - 3 bytes, MaterialIndex - 3 bytes
 struct FLumenMinimalPayload : FMinimalPayload
 {
 	uint PackedData[3];
@@ -54,9 +54,31 @@ struct FLumenMinimalPayload : FMinimalPayload
 		return bIsShadowRay;
 	}
 
+	void SetIsAlphaMasked(uint bIsAlphaMasked)
+	{
+		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xEFFFFFFF) | ((bIsAlphaMasked & 0x01) << 28);
+	}
+
+	uint IsAlphaMasked()
+	{
+		uint bIsAlphaMasked = (PackedData[MATERIAL_INDEX] >> 28) & 0x1;
+		return bIsAlphaMasked;
+	}
+
+	void SetFrontFace(bool bFrontFace)
+	{
+		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xF7FFFFFF) | ((bFrontFace ? 1u : 0u) << 27);
+	}
+
+	uint IsFrontFace()
+	{
+		uint bIsTwoSided = (PackedData[MATERIAL_INDEX] >> 27) & 0x1;
+		return bIsTwoSided;
+	}
+
 	void SetMaterialShaderIndex(uint MaterialShaderIndex)
 	{
-		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xE0000000) | (MaterialShaderIndex & LUMEN_MATERIAL_SHADER_INDEX_MASK);
+		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xFF000000) | (MaterialShaderIndex & LUMEN_MATERIAL_SHADER_INDEX_MASK);
 	}
 
 	uint GetMaterialShaderIndex()

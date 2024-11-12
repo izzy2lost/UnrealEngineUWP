@@ -2,24 +2,35 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorWiggle.generated.h"
 
 /**
- * Applies an additive random wiggle movement with various options on supported float properties
+ * Applies a random wiggle movement with various options on supported numeric properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorWiggle : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorWiggle : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultControllerName = TEXT("Wiggle");
-
 	UPropertyAnimatorWiggle();
+
+	PROPERTYANIMATOR_API void SetFrequency(float InFrequency);
+	float GetFrequency() const
+	{
+		return Frequency;
+	}
 
 protected:
 	//~ Begin UPropertyAnimatorFloatBase
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const override;
+	virtual void OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata) override;
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const override;
+	virtual bool ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue) override;
+	virtual bool ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const override;
 	//~ End UPropertyAnimatorFloatBase
+
+	/** Frequency for the effect, higher values will give you faster movements */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Hz))
+	float Frequency = 1.f;
 };

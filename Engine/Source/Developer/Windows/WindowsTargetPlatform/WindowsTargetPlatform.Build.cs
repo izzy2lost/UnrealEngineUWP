@@ -6,39 +6,16 @@ public class WindowsTargetPlatform : ModuleRules
 {
 	public WindowsTargetPlatform(ReadOnlyTargetRules Target) : base(Target)
 	{
-        PrivateDependencyModuleNames.AddRange(
+		SDKVersionRelevantPlatforms.Add(UnrealTargetPlatform.Win64);
+		
+		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"CoreUObject",
 				"TargetPlatform",
 				"DesktopPlatform",
-                "AudioPlatformConfiguration",
-            }
-		);
-
-		PrivateIncludePathModuleNames.AddRange(
-			new string[] {
-				"Settings"
+				"WindowsTargetPlatformSettings",
+				"WindowsTargetPlatformControls",
 			}
 		);
-
-		PublicIncludePathModuleNames.AddRange(
-			new string[] {
-				"AudioPlatformConfiguration"
-			}
-		);
-
-		// compile with Engine
-		if (Target.bCompileAgainstEngine)
-		{
-			PublicIncludePathModuleNames.Add("Engine");
-			PrivateDependencyModuleNames.AddRange( new string[] {
-				"Engine", 
-				"RHI",
-				"CookedEditor",
-				}
-			);
-            PrivateIncludePathModuleNames.Add("TextureCompressor");
-        }
     }
 }

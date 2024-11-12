@@ -13,6 +13,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Input/SComboBox.h"
 #include "SWarningOrErrorBox.h"
 #include "DetailWidgetRow.h"
 #include "Engine/SkeletalMesh.h"
@@ -91,12 +92,14 @@ namespace UE::MLDeformer
 		TSharedPtr<IPropertyHandle> UseCustomRangeHandle	= PropertyHandles.FindChecked(FMLDeformerGeomCacheTrainingInputAnim::GetUseCustomRangePropertyName());
 		TSharedPtr<IPropertyHandle> StartFrameHandle		= PropertyHandles.FindChecked(FMLDeformerGeomCacheTrainingInputAnim::GetStartFramePropertyName());
 		TSharedPtr<IPropertyHandle> EndFrameHandle			= PropertyHandles.FindChecked(FMLDeformerGeomCacheTrainingInputAnim::GetEndFramePropertyName());
+		TSharedPtr<IPropertyHandle> VertexMapHandle			= PropertyHandles.FindChecked(FMLDeformerGeomCacheTrainingInputAnim::GetVertexMaskPropertyName());
 		check(AnimSequenceHandle.IsValid());
 		check(GeomCacheHandle.IsValid());
 		check(EnabledHandle.IsValid());
 		check(UseCustomRangeHandle.IsValid());
 		check(StartFrameHandle.IsValid());
 		check(EndFrameHandle.IsValid());
+		check(VertexMapHandle.IsValid());
 
 		UMLDeformerGeomCacheModel* Model = FindMLDeformerModel(StructPropertyHandle);
 		check(Model);
@@ -149,6 +152,71 @@ namespace UE::MLDeformer
 
 		ChildBuilder.AddProperty(EndFrameHandle.ToSharedRef())
 			.EditCondition(InputAnim.IsEnabled() && InputAnim.GetUseCustomRange(), nullptr);
+
+		// Vertex Map property.
+		if (EditorModel->GetSupportsPerTrainingInputAnimVertexMask())
+		{
+			EditorModel->UpdateVertexAttributeNames();
+			IDetailPropertyRow& VertexMapRow = ChildBuilder.AddProperty(VertexMapHandle.ToSharedRef());
+			VertexMapRow.EditCondition(InputAnim.IsEnabled(), nullptr);
+			VertexMapRow.CustomWidget()
+			.NameContent()
+			[
+				VertexMapRow.GetPropertyHandle()->CreatePropertyNameWidget()					
+			]
+			.ValueContent()
+			[
+				SNew(SComboBox<TSharedPtr<FName>>)
+				.OptionsSource(&EditorModel->GetVertexAttributeNames())
+				.OnGenerateWidget_Lambda
+				(
+					[&StructCustomizationUtils](const TSharedPtr<FName> Item)
+					{
+						return SNew(STextBlock)
+							.Text(Item.IsValid() ? FText::FromName(*Item) : FText())
+							.Font(StructCustomizationUtils.GetRegularFont());
+					}
+				)
+				.OnSelectionChanged_Lambda(
+					[&InputAnim, EditorModel](TSharedPtr<FName> Item, ESelectInfo::Type)
+					{
+						const auto& VertexAttribNames = EditorModel->GetVertexAttributeNames();
+						if (!VertexAttribNames.IsEmpty() && Item == VertexAttribNames[0])
+						{
+							InputAnim.SetVertexMask(FName());
+						}
+						else
+						{
+							InputAnim.SetVertexMask(Item.IsValid() ? *Item : FName("<unknown>"));
+						}
+					}
+				)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text_Lambda(
+						[&InputAnim]()
+						{
+							return !InputAnim.GetVertexMask().IsNone() ? FText::FromName(InputAnim.GetVertexMask()) : LOCTEXT("DisabledString", "Disabled");
+						}
+					)
+					.ColorAndOpacity_Lambda(
+						[&InputAnim, EditorModel]()
+						{
+							const FName SelectedMask = InputAnim.GetVertexMask();
+							const TSharedPtr<FName>* ItemFound = EditorModel->GetVertexAttributeNames().FindByPredicate(
+								[&SelectedMask](const TSharedPtr<FName>& Item)
+								{
+									return (Item.IsValid() && *Item == SelectedMask);				
+								});
+
+							return ItemFound || SelectedMask.IsNone() ? FSlateColor::UseForeground() : FLinearColor::Red;
+						}
+					)
+					.Font(StructCustomizationUtils.GetRegularFont())
+				]
+			];
+		}
 
 		ChildBuilder.AddProperty(EnabledHandle.ToSharedRef());
 

@@ -50,12 +50,14 @@ void ACaptureCharacter::SetRetargetAsset(UIKRetargeter* InRetargetAsset)
 {
 	RetargetAsset = InRetargetAsset;
 	RetargetComponent->SetRetargetAsset(InRetargetAsset);
+	RetargetComponent->InitiateAnimation();
 }
 
 void ACaptureCharacter::SetForceAllSkeletalMeshesToFollowLeader(bool InFollowLeader)
 {
 	bForceAllSkeletalMeshesToFollowLeader = InFollowLeader;
-	RetargetComponent->bForceOtherMeshesToFollowControlledMesh = bForceAllSkeletalMeshesToFollowLeader;
+	RetargetComponent->SetForceOtherMeshesToFollowControlledMesh(InFollowLeader);
+	RetargetComponent->InitiateAnimation();
 }
 
 void ACaptureCharacter::PostRegisterAllComponents()
@@ -64,7 +66,7 @@ void ACaptureCharacter::PostRegisterAllComponents()
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
 		RetargetComponent->SetControlledMesh(GetSkeletalMeshComponent());
-		SetSourcePerformer(SourcePerformer);
+		SetSourcePerformer(SourcePerformer.Get());
 		RetargetComponent->SetRetargetAsset(RetargetAsset);
 		RetargetComponent->SetForceOtherMeshesToFollowControlledMesh(bForceAllSkeletalMeshesToFollowLeader);
 		RetargetComponent->InitiateAnimation();
@@ -80,7 +82,7 @@ void ACaptureCharacter::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		if(PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(ACaptureCharacter, SourcePerformer))
 		{
-			SetSourcePerformer(SourcePerformer);
+			SetSourcePerformer(SourcePerformer.Get());
 			RetargetComponent->InitiateAnimation();
 		}
 		

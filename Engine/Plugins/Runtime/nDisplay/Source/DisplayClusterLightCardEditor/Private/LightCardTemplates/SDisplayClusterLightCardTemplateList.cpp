@@ -239,7 +239,6 @@ void SDisplayClusterLightCardTemplateList::Construct(const FArguments& InArgs, T
 			[
 				SAssignNew(LightCardTemplateTreeView, STreeView<TSharedPtr<FLightCardTemplateTreeItem>>)
 				.TreeItemsSource(&FilteredLightCardTemplateTree)
-				.ItemHeight(28)
 				.SelectionMode(ESelectionMode::Single)
 				.OnGenerateRow(this, &SDisplayClusterLightCardTemplateList::GenerateTreeItemRow)
 				.OnGetChildren(this, &SDisplayClusterLightCardTemplateList::GetChildrenForTreeItem)

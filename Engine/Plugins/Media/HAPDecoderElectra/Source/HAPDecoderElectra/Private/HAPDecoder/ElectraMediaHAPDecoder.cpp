@@ -54,6 +54,11 @@ public:
 		return UserValue;
 	}
 
+	EOutputType GetOutputType() const
+	{
+		return EOutputType::Output;
+	}
+
 	int32 GetWidth() const override
 	{
 		return Width - Crop.Left - Crop.Right;
@@ -705,7 +710,7 @@ IElectraDecoder::EDecoderError FVideoDecoderHAPElectra::DecodeAccessUnit(const F
 						// note: we share one task sync for all buffers -> this will lead any external task to be executed after ALL tasks we trigger have been done (aka: after the "last" buffer is ready)
 						NewOutput->Buffer_TaskSync = TaskSync;
 					}
-					else	
+					else
 					{
 						uint8* DX12BufferAddr;
 						HRESULT Res = BufferInfo.GPUBuffer.Resource->Map(0, nullptr, (void**)&DX12BufferAddr);

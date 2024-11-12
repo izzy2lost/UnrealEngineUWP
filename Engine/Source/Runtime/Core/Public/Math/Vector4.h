@@ -12,6 +12,9 @@
 #include "Math/Vector2D.h"
 #include "Math/Vector.h"
 #include "Serialization/MemoryLayout.h"
+#include "Templates/Requires.h"
+
+#include <type_traits>
 
 namespace UE
 {
@@ -24,8 +27,8 @@ namespace Math
 template<typename T>
 struct alignas(16) TVector4
 {
-	// Can't have a TEMPLATE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
-	static_assert(TIsFloatingPoint<T>::Value, "TVector4 only supports float and double types.");
+	// Can't have a UE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
+	static_assert(std::is_floating_point_v<T>, "TVector4 only supports float and double types.");
 
 
 public:
@@ -67,7 +70,7 @@ public:
 	 * @param InVector 3D Vector to set first three components.
 	 * @param InW W Coordinate.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector4(const UE::Math::TVector<T>& InVector, FArg InW)
 		: X(InVector.X)
 		, Y(InVector.Y)
@@ -83,7 +86,7 @@ public:
 	 * @param InOverrideW Replaces W Coordinate of InVector.
 	 */
 
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector4(const UE::Math::TVector4<T>& InVector, FArg OverrideW)
 		: X(InVector.X)
 		, Y(InVector.Y)
@@ -129,6 +132,10 @@ public:
 	 * @param InY Y Coordinate.
 	 * @param InZ Z Coordinate.
 	 * @param InW W Coordinate.
+	 *
+	 * NOTE: This default constructor is unlike TVector, TMatrix etc. in that it
+	 *       actually initializes the instance.  Ideally it should be = default;
+	 *       in the same way, but this would break backwards compatibility.
 	 */
 	explicit TVector4(T InX = 0.0f, T InY = 0.0f, T InZ = 0.0f, T InW = 1.0f);
 
@@ -238,7 +245,7 @@ public:
 	 * @param Scale The scaling factor.
 	 * @return The result of vector scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector4<T> operator*(FArg Scale) const
 	{
 		return TVector4(X * Scale, Y * Scale, Z * Scale, W * Scale);
@@ -250,7 +257,7 @@ public:
 	 * @param Scale What to divide by.
 	 * @return The result of division.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector4<T> operator/(FArg Scale) const
 	{
 		const T RScale = T(1.0f) / Scale;
@@ -295,7 +302,7 @@ public:
 	 * @param Scale The scaling factor.
 	 * @return The result of vector scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector4<T> operator*=(FArg Scale)
 	{
 		X *= Scale; Y *= Scale; Z *= Scale; W *= Scale;
@@ -309,7 +316,7 @@ public:
 	 * @param Scale The inverse scaling factor.
 	 * @return The result of vector scaling by 1/Scale.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector4<T> operator/=(FArg Scale)
 	{
 		const T RV = T(1.0f) / Scale;
@@ -515,11 +522,11 @@ public:
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 	
 	// Conversion from other type: double->float
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_same_v<FArg, double> && std::is_same_v<T, float>)>
+	template<typename FArg UE_REQUIRES(std::is_same_v<FArg, double> && std::is_same_v<T, float>)>
 	explicit TVector4(const TVector4<FArg>& From) : TVector4<T>((T)From.X, (T)From.Y, (T)From.Z, (T)From.W) {}
 
 	// Conversion from other type: float->double
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_same_v<FArg, float> && std::is_same_v<T, double>)>
+	template<typename FArg UE_REQUIRES(std::is_same_v<FArg, float> && std::is_same_v<T, double>)>
 	explicit TVector4(const TVector4<FArg>& From) : TVector4<T>((T)From.X, (T)From.Y, (T)From.Z, (T)From.W) {}
 
 	/**
@@ -995,7 +1002,7 @@ namespace Math
 	 * @param V The vector to scale.
 	 * @return The result of scaling.
 	 */
-	template<typename T, typename T2, TEMPLATE_REQUIRES(std::is_arithmetic<T2>::value)>
+	template<typename T, typename T2 UE_REQUIRES(std::is_arithmetic_v<T2>)>
 	FORCEINLINE TVector4<T> operator*(T2 Scale, const TVector4<T>& V)
 	{
 		return V.operator*(Scale);

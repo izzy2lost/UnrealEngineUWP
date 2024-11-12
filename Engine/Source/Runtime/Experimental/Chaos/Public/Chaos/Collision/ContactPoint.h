@@ -169,6 +169,12 @@ namespace Chaos
 	class FSavedManifoldPoint
 	{
 	public:
+		explicit FSavedManifoldPoint(const FVec3f& InShapeContactPoint0, const FVec3f& InShapeContactPoint1, FRealSingle InInitialPhi)
+			: ShapeContactPoints{ InShapeContactPoint0, InShapeContactPoint1 }
+			, InitialPhi(InInitialPhi)
+		{
+		}
+
 		FVec3f ShapeContactPoints[2];			// Contact anchor points for friction
 		FRealSingle InitialPhi;					// Non-resolved initial penetration
 	};

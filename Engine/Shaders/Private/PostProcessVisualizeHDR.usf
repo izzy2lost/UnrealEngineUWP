@@ -18,12 +18,18 @@ SamplerState SceneColorSampler;
 Texture2D HDRSceneColorTexture;
 SamplerState HDRSceneColorSampler;
 
+FScreenTransform ColorUVToLuminanceUV;
+Texture2D LuminanceTexture;
+SamplerState LuminanceSampler;
+
 Texture2D HistogramTexture;
 
 SCREEN_PASS_TEXTURE_VIEWPORT(Input)
 SCREEN_PASS_TEXTURE_VIEWPORT(Output)
 
 float IlluminanceMeterEnabled;
+float UsingIlluminance;
+float LuminanceScale;
 
 // only needed for nice visualization
 float ComputeHistogramMax(Texture2D HistogramTexture)
@@ -240,24 +246,23 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 				OutColor = Texture2DSample(SceneColorTexture, SceneColorSampler, UV); // Influenced area default scene color
 			}
 
-			float3 LuminanceAvg = SceneLuminance(HDRSceneColorAvg);
-			float MaxLuminance = max(LuminanceAvg.r, max(LuminanceAvg.g, LuminanceAvg.b));
+			float LuminanceAvg = Luminance(HDRSceneColorAvg);
 
 			// Luminance
 			int2 TopLeft = OutputViewportCenter + int2(11, 11);
-			if (MaxLuminance < 1000.0f)
+			if (LuminanceAvg < 1000.0f)
 			{
-				PrintFloat(PixelPos, OutColor.xyz, NumberColor, TopLeft, MaxLuminance);
+				PrintFloat(PixelPos, OutColor.xyz, NumberColor, TopLeft, LuminanceAvg);
 				TopLeft.x += 60;
 			}
-			else if (MaxLuminance < 999999.0f)
+			else if (LuminanceAvg < 999999.0f)
 			{
-				PrintFloatNoFractionLarge(PixelPos, OutColor.xyz, NumberColor, TopLeft, MaxLuminance);
+				PrintFloatNoFractionLarge(PixelPos, OutColor.xyz, NumberColor, TopLeft, LuminanceAvg);
 				TopLeft.x += 60;
 			}
 			else
 			{
-				PrintFloatNoFraction(PixelPos, OutColor.xyz, NumberColor, TopLeft, MaxLuminance, 10);
+				PrintFloatNoFraction(PixelPos, OutColor.xyz, NumberColor, TopLeft, LuminanceAvg, 10);
 				TopLeft.x += 100;
 			}
 			PrintCharacter(PixelPos, OutColor.xyz, NumberColor, TopLeft, _N_);
@@ -326,7 +331,7 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 			}
 
 			float3 Illuminance = HDRSceneColorAvg * PI;
-			float MeanIlluminance = SceneLuminance(Illuminance);
+			float MeanIlluminance = Luminance(Illuminance);
 
 			int2 TopLeft = IlluminanceMeterCenter + int2(11, 11);
 			// Mean illuminance
@@ -413,6 +418,27 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 		{
 			OutColor.rgb = float3(0,0,.5);
 		}
+	}
+	else if (EyeAdaptation_VisualizeDebugType == 2)
+	{
+		float Luminance;
+
+		if (UsingIlluminance > 0.5f)
+		{
+			float2 LuminanceUV = ApplyScreenTransform(UV, ColorUVToLuminanceUV);
+
+			Luminance = Texture2DSample(LuminanceTexture, LuminanceSampler, LuminanceUV).r;
+			Luminance *= View.OneOverPreExposure;
+		}
+		else
+		{
+			float4 SceneColor = Texture2DSample(HDRSceneColorTexture, HDRSceneColorSampler, UV);
+			SceneColor.xyz *= View.OneOverPreExposure;
+
+			Luminance = CalculateEyeAdaptationLuminance(SceneColor.xyz);
+		}
+
+		OutColor.rgb = Luminance * LuminanceScale;
 	}
 	else // should never happen?
 	{

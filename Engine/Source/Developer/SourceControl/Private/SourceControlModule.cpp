@@ -23,6 +23,7 @@
 #endif
 
 #if WITH_EDITOR
+	#include "Editor.h"
 	#include "EngineAnalytics.h"
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif
@@ -68,6 +69,10 @@ void FSourceControlModule::StartupModule()
 
 	AssetDataCache.Startup();
 
+#if WITH_EDITOR
+	FEditorDelegates::OnAssetsCanDelete.AddRaw(this, &FSourceControlModule::OnAssetsCanDelete);
+#endif
+	
 	SourceControlFileStatusMonitor = MakeShared<FSourceControlFileStatusMonitor>();
 }
 
@@ -92,6 +97,10 @@ void FSourceControlModule::ShutdownModule()
 	// we don't care about modular features any more
 	IModularFeatures::Get().OnModularFeatureRegistered().RemoveAll(this);
 	IModularFeatures::Get().OnModularFeatureUnregistered().RemoveAll(this);
+
+#if WITH_EDITOR
+	FEditorDelegates::OnAssetsCanDelete.RemoveAll(this);
+#endif
 
 	SourceControlFileStatusMonitor.Reset();
 }
@@ -468,6 +477,51 @@ void FSourceControlModule::HandleModularFeatureUnregistered(const FName& Type, I
 	}
 }
 
+#if WITH_EDITOR
+void FSourceControlModule::OnAssetsCanDelete(const TArray<UObject*>& InObjects, FCanDeleteAssetResult& OutCanDeleteAssetResult) const
+{
+	ISourceControlProvider& SourceControlProvider = GetProvider();
+	if (IsEnabled() && SourceControlProvider.IsAvailable())
+	{
+		TArray<FString> PackagesNames;
+		PackagesNames.Reserve(InObjects.Num());
+		for (UObject* Object : InObjects)
+		{
+			if (Object)
+			{
+				if (UPackage* ObjectPackage = Object->GetPackage())
+				{
+					FString PackageFilename;
+					if (FPackageName::DoesPackageExist(ObjectPackage->GetName(), &PackageFilename))
+					{
+						PackagesNames.Add(PackageFilename);
+					}
+				}
+			}
+		}
+
+		TArray<FSourceControlStateRef> PackageSCCStates;
+		if (PackagesNames.Num())
+		{
+			SourceControlProvider.GetState(PackagesNames, PackageSCCStates, EStateCacheUsage::ForceUpdate);
+		}
+
+		for (const FSourceControlStateRef& SCCState : PackageSCCStates)
+		{
+			if (SCCState->IsSourceControlled())
+			{
+				if (!SCCState->CanDelete())
+				{
+					OutCanDeleteAssetResult.Set(false);
+					UE_LOG(LogSourceControl, Warning, TEXT("Asset(s) can't be deleted because at least one is currently checked out by another user and/or not at latest."));
+					return;
+				}
+			}
+		}
+	}
+}
+#endif
+
 bool FSourceControlModule::GetUseGlobalSettings() const
 {
 	return SourceControlSettings.GetUseGlobalSettings();
@@ -541,6 +595,46 @@ const FSourceControlFilesDeletedDelegate& FSourceControlModule::GetOnFilesDelete
 	return OnFilesDeleted;
 }
 
+void FSourceControlModule::RegisterCustomProjectsDelegate(FSourceControlCustomProjectsDelegate InCustomProjectsDelegate)
+{
+	CustomProjectsDelegate = MoveTemp(InCustomProjectsDelegate);
+}
+
+void FSourceControlModule::UnregisterCustomProjectsDelegate()
+{
+	CustomProjectsDelegate = FSourceControlCustomProjectsDelegate();
+}
+
+TArray<FSourceControlProjectInfo> FSourceControlModule::GetCustomProjects() const
+{
+	return CustomProjectsDelegate.IsBound() ? CustomProjectsDelegate.Execute() : TArray<FSourceControlProjectInfo>();
+}
+
+FString FSourceControlModule::GetSourceControlProjectDir() const
+{
+	{
+		TArray<FSourceControlProjectInfo> CustomProjects = GetCustomProjects();
+		if (!CustomProjects.IsEmpty())
+		{
+			return CustomProjects[0].ProjectDirectory;
+		}
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (SourceControlProjectDirDelegate.IsBound())
+	{
+		FString ProjectDir = SourceControlProjectDirDelegate.Execute();
+		if (!ProjectDir.IsEmpty())
+		{
+			return ProjectDir;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	return FPaths::ProjectDir();
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FSourceControlModule::RegisterSourceControlProjectDirDelegate(const FSourceControlProjectDirDelegate& InSourceControlProjectDirDelegate)
 {
 	SourceControlProjectDirDelegate = InSourceControlProjectDirDelegate;
@@ -551,22 +645,17 @@ void FSourceControlModule::UnregisterSourceControlProjectDirDelegate()
 	SourceControlProjectDirDelegate = FSourceControlProjectDirDelegate();
 }
 
-FString FSourceControlModule::GetSourceControlProjectDir() const
-{
-	if (SourceControlProjectDirDelegate.IsBound())
-	{
-		FString ProjectDir = SourceControlProjectDirDelegate.Execute();
-		if (!ProjectDir.IsEmpty())
-		{
-			return ProjectDir;
-		}
-	}
-	return FPaths::ProjectDir();
-}
-
 bool FSourceControlModule::UsesCustomProjectDir() const
 {
-	if (SourceControlProjectDirDelegate.IsBound())
+	if (CustomProjectsDelegate.IsBound())
+	{
+		TArray<FSourceControlProjectInfo> Projects = CustomProjectsDelegate.Execute();
+		if (!Projects.IsEmpty())
+		{
+			return true;
+		}
+	}
+	else if (SourceControlProjectDirDelegate.IsBound())
 	{
 		FString ProjectDir = SourceControlProjectDirDelegate.Execute();
 		if (!ProjectDir.IsEmpty())
@@ -576,6 +665,7 @@ bool FSourceControlModule::UsesCustomProjectDir() const
 	}
 	return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FSourceControlFileStatusMonitor& FSourceControlModule::GetSourceControlFileStatusMonitor()
 {

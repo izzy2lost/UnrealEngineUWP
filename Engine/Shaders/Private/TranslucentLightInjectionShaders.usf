@@ -16,6 +16,9 @@
 
 #include "DynamicLightingCommon.ush"
 
+#define SUPPORT_CONTACT_SHADOWS 0
+#include "DeferredLightingCommon.ush"
+
 uint VolumeCascadeIndex;
 float4 SimpleLightPositionAndRadius;
 float4 SimpleLightColorAndExponent;
@@ -40,6 +43,32 @@ uint AtmospherePerPixelTransmittanceEnabled;
 #if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 #include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
 #endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+
+float3 GetTranslatedWorldPosition(float2 UV, uint LayerIndex)
+{
+	float ZPosition = View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].z + (LayerIndex + .5f) * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
+	float3 TranslatedWorldPosition = float3(View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].xy + UV / View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].xy - .5f * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w, ZPosition);
+	return TranslatedWorldPosition;
+}
+
+void AccumulateSHLighting(
+	float3 NormalizedLightVector,
+	float3 Lighting,
+	float DirectionalLightContribution,
+	inout float4 OutColor0,
+	inout float4 OutColor1)
+{
+	FTwoBandSHVectorRGB SHLighting = MulSH(SHBasisFunction(NormalizedLightVector), Lighting);
+
+	// Directional light contribution in w
+	OutColor0 += float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, DirectionalLightContribution);
+
+	float3 LuminanceWeights = LuminanceFactors();
+	float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
+	float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
+	float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);
+	OutColor1 += float4(dot(Coefficient0, LuminanceWeights), dot(Coefficient1, LuminanceWeights), dot(Coefficient2, LuminanceWeights), 0);
+}
 
 float CalcSimpleLightAttenuation(float3 TranslatedWorldPosition)
 {
@@ -75,35 +104,70 @@ void SimpleLightInjectMainPS(
 	OutColor0 = 0;
 	OutColor1 = 0;
 
-	// compute XYZ of the position we shader
-	float3 TranslatedWorldPosition;
-	{
-		float ZPosition = View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].z + (Input.LayerIndex + .5f) * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
-
-		TranslatedWorldPosition = float3(View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].xy + Input.Vertex.UV / View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].xy - .5f * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w, ZPosition);
-	}
-
-	// compute UVW of the position we shade in the volume
-	float3 VolumeUVs = float3(Input.Vertex.UV, (Input.LayerIndex + .5f) * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w);
+	float3 TranslatedWorldPosition = GetTranslatedWorldPosition(Input.Vertex.UV, Input.LayerIndex);
 	float3 NormalizedLightVector = normalize(SimpleLightPositionAndRadius.xyz - TranslatedWorldPosition);
+
 	float VoxelSize = View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
 	float3 TranslatedWorldPositionForLighting = TranslatedWorldPosition + 1 * GetBoxPushout(NormalizedLightVector, .5f * VoxelSize);
 
 	float Attenuation = CalcSimpleLightAttenuation(TranslatedWorldPositionForLighting);
 	float3 Lighting = SimpleLightColorAndExponent.rgb / PI * Attenuation;
 
-	FTwoBandSHVectorRGB SHLighting = MulSH(SHBasisFunction(NormalizedLightVector), Lighting);
-	OutColor0 = float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, 0);
+	float DirectionalLightContribution = 0.0f;
+	AccumulateSHLighting(NormalizedLightVector, Lighting, DirectionalLightContribution,
+		OutColor0, OutColor1);
+}
 
-	float3 LuminanceWeights = float3(.3, .59, .11);
-	float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
-	float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
-	float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);
-	OutColor1 = float4(dot(Coefficient0, LuminanceWeights), dot(Coefficient1, LuminanceWeights), dot(Coefficient2, LuminanceWeights), 0);
+float GetBorderLerpFactor(float2 UV, uint LayerIndex)
+{
+	// Larger values result in a shorter transition distance
+	float TransitionScale = 10;
+
+	float3 VolumeUVs = float3(UV, (LayerIndex + .5f) * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w);
+
+	// Rescale the UVs to make the fade go to 0 before the edge of the volume
+	float3 FadeUVs = VolumeUVs * (1 + 4 * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w) - 2 * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w;
+	// Setup a 3d lerp factor going to 0 near the edge of the outer volume
+	float3 LerpFactors = saturate((.5f - abs(FadeUVs - .5f)) * TransitionScale);
+	float FinalLerpFactor = LerpFactors.x * LerpFactors.y * LerpFactors.z;
+
+	return FinalLerpFactor;
+}
+
+float3 GetTranslatedWorldPositionForLighting(float3 TranslatedWorldPosition, float3 NormalizedLightVector)
+{
+	float VoxelSize = View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
+	float3 LightingOffset = 1 * GetBoxPushout(NormalizedLightVector, .5f * VoxelSize);
+	return TranslatedWorldPosition + LightingOffset;
+}
+
+float GetTranslucencyVolumeLocalLightAttenuation(float3 TranslatedWorldPosition, FDeferredLightData LightData)
+{
+	float3 ToLight, L;
+	float Attenuation = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+
+	if (LightData.bRectLight)
+	{
+		if (Attenuation > 0.0f)
+		{
+			// Use a more accurate rect light approximation
+			FRect Rect = GetRect(ToLight, LightData);
+			Attenuation *= IntegrateLight(Rect);
+		}
+	}
+	else if (LightData.bInverseSquared)
+	{
+		// This path still uses the legacy local light attenuation, so add that back in
+		float DistanceSqr = dot(ToLight, ToLight);
+		Attenuation *= 1.0f / (DistanceSqr + 1.0f);
+	}
+
+	return Attenuation;
 }
 
 #if INJECTION_PIXEL_SHADER
 
+#include "LightDataUniforms.ush"
 #include "LightFunctionCommon.ush"
 
 // WorldSpace planes to clip the cascade for ShadoewMethod1
@@ -140,27 +204,18 @@ void InjectMainPS(
 	OutColor0 = 0;
 	OutColor1 = 0;
 
-	// compute XYZ of the position we want to shade
-	float3 TranslatedWorldPosition;
-	{
-		float ZPosition = View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].z + (Input.LayerIndex + .5f) * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
-
-		TranslatedWorldPosition = float3(View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].xy + Input.Vertex.UV / View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].xy - .5f * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w, ZPosition);
-	}
-	float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
-
-	// compute UVW of the position we shade in the volume
-	float3 VolumeUVs = float3(Input.Vertex.UV, (Input.LayerIndex + .5f) * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w);
+	float3 TranslatedWorldPosition = GetTranslatedWorldPosition(Input.Vertex.UV, Input.LayerIndex);
+	
+	FDeferredLightData LightData = InitDeferredLightFromUniforms();
+	float3 LightVector = LightData.Direction;
 
 	// 0: no contribution, 1:full contribution
 	float Masking = 1.0f;
-
-	
 	#if RADIAL_ATTENUATION 
 	{
 		// cull voxels outside the light radius (value is < 0)
-		float3 LightVector = DeferredLightUniforms.TranslatedWorldPosition - TranslatedWorldPosition;
-		clip(1.0f / (DeferredLightUniforms.InvRadius * DeferredLightUniforms.InvRadius) - dot(LightVector, LightVector));
+		LightVector = LightData.TranslatedWorldPosition - TranslatedWorldPosition;
+		clip(1.0f / (LightData.InvRadius * LightData.InvRadius) - dot(LightVector, LightVector));
 	}
 	#else
 	{
@@ -178,34 +233,26 @@ void InjectMainPS(
 	}
 	#endif
 
-	float3 NormalizedLightVector = GetNormalizedLightVector(TranslatedWorldPosition);
-
-	float3 TranslatedWorldPositionForLighting;
-	float3 WorldPositionForLighting;
-	{
-		float VoxelSize = View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
-		float3 LightingOffset = 1 * GetBoxPushout(NormalizedLightVector, .5f * VoxelSize);
-
-		WorldPositionForLighting = WorldPosition + LightingOffset;
-		TranslatedWorldPositionForLighting = TranslatedWorldPosition + LightingOffset;
-	}
+	float3 NormalizedLightVector = normalize(LightVector);
+	float3 TranslatedWorldPositionForLighting = GetTranslatedWorldPositionForLighting(TranslatedWorldPosition, NormalizedLightVector);
 
 	{
-		float3 WorldLightVector;
-		// Calculate radial attenuation using the same biased position used for shadowing
-		// Anything else would cause the extents of the shadowmap to not match up with the cone falloff on a spotlight
-		float Attenuation = CalcLightAttenuation(TranslatedWorldPositionForLighting, WorldLightVector);
+		float Attenuation = 1.0f;
+		float ShadowFactor = 1.0f;
 
-		bool bPointLight = false;
-		bool bSpotLight = false;
+#if RADIAL_ATTENUATION
+		Attenuation *= GetTranslucencyVolumeLocalLightAttenuation(TranslatedWorldPositionForLighting, LightData);
+#endif
 
-		#if RADIAL_ATTENUATION 
-			bPointLight = SpotlightMask < 1;
-			bSpotLight = SpotlightMask >= 1;
-		#endif
-
-		bool bUnused = false;
-		float ShadowFactor = ComputeVolumeShadowing(TranslatedWorldPositionForLighting, bPointLight, bSpotLight, bUnused);
+		{
+			bool bUnused = false;
+			ShadowFactor *= ComputeVolumeShadowing(
+				TranslatedWorldPositionForLighting,
+				// Maintain the legacy logic of "spotlight" vs "everything else"
+				!LightData.bSpotLight,
+				LightData.bSpotLight,
+				bUnused);
+		}
 
 #if VIRTUAL_SHADOW_MAP
 		FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapTranslatedWorld(VirtualShadowMapId, TranslatedWorldPositionForLighting);
@@ -213,7 +260,7 @@ void InjectMainPS(
 #endif
 
 #if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
-		ShadowFactor *= AVSM_SampleTransmittance(TranslatedWorldPositionForLighting, DeferredLightUniforms.TranslatedWorldPosition);
+		ShadowFactor *= AVSM_SampleTransmittance(TranslatedWorldPositionForLighting, LightData.TranslatedWorldPosition);
 #endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
 		// Apply light function (it will also fade out at the edge of the volume so overall dimming of light using light function is not a recommended workflow)
@@ -230,13 +277,7 @@ void InjectMainPS(
 		
 		if (VolumeCascadeIndex == 1)
 		{
-			// Larger values result in a shorter transition distance
-			float TransitionScale = 10;
-			// Rescale the UVs to make the fade go to 0 before the edge of the volume
-			float3 FadeUVs = VolumeUVs * (1 + 4 * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w) - 2 * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w;
-			// Setup a 3d lerp factor going to 0 near the edge of the outer volume
-			float3 LerpFactors = saturate((.5f - abs(FadeUVs - .5f)) * TransitionScale);
-			float FinalLerpFactor = LerpFactors.x * LerpFactors.y * LerpFactors.z;
+			float FinalLerpFactor = GetBorderLerpFactor(Input.Vertex.UV, Input.LayerIndex);
 
 			#if RADIAL_ATTENUATION 
 			// For local lights, fade attenuation to 0 for the border voxels
@@ -249,7 +290,7 @@ void InjectMainPS(
 			#endif
 		}
 
-		float3 Lighting = DeferredLightUniforms.Color / PI * Attenuation * ShadowFactor;
+		float3 Lighting = LightData.Color / PI * Attenuation * ShadowFactor;
 
 		#if RADIAL_ATTENUATION==0
 		// Apply color atmosphere transmittance for atmosphere directional lights only if ndeeded
@@ -260,22 +301,12 @@ void InjectMainPS(
 		}
 		#endif
 
-		FTwoBandSHVectorRGB SHLighting = MulSH(SHBasisFunction(NormalizedLightVector), Lighting);
-
 		float DirectionalLightContribution = 0;
-
-		#if !RADIAL_ATTENUATION 
+#if !RADIAL_ATTENUATION 
 		DirectionalLightContribution = Attenuation * ShadowFactor;
-		#endif
-
-		// Directional light contribution in w
-		OutColor0 = float4(SHLighting.R.V.x, SHLighting.G.V.x, SHLighting.B.V.x, DirectionalLightContribution);
-
-		float3 LuminanceWeights = float3(.3, .59, .11);
-		float3 Coefficient0 = float3(SHLighting.R.V.y, SHLighting.G.V.y, SHLighting.B.V.y);
-		float3 Coefficient1 = float3(SHLighting.R.V.z, SHLighting.G.V.z, SHLighting.B.V.z);
-		float3 Coefficient2 = float3(SHLighting.R.V.w, SHLighting.G.V.w, SHLighting.B.V.w);
-		OutColor1 = float4(dot(Coefficient0, LuminanceWeights), dot(Coefficient1, LuminanceWeights), dot(Coefficient2, LuminanceWeights), 0);
+#endif
+		AccumulateSHLighting(NormalizedLightVector, Lighting, DirectionalLightContribution,
+			OutColor0, OutColor1);
 	}
 
 	// debug, make inner cascase green
@@ -286,6 +317,85 @@ void InjectMainPS(
 }
 
 #endif // #if INJECTION_PIXEL_SHADER
+
+#if INJECTION_BATCH_PIXEL_SHADER
+
+#include "LightGridCommon.ush"
+#include "LightData.ush"
+
+//int VirtualShadowMapId;
+StructuredBuffer<uint> BatchedLocalLights;
+uint MaxBatchedLocalLights;
+
+/** Pixel shader that calculates direct lighting for all the affected voxels of a volume texture. */
+void InjectBatchMainPS(
+	FWriteToSliceGeometryOutput Input,
+	out float4 RTOutColor0 : SV_Target0,
+	out float4 RTOutColor1 : SV_Target1
+)
+{
+	float4 OutColor0 = 0;
+	float4 OutColor1 = 0;
+
+	float3 TranslatedWorldPosition = GetTranslatedWorldPosition(Input.Vertex.UV, Input.LayerIndex);
+	
+	const uint NumUints = (MaxBatchedLocalLights + 31U) / 32U;
+	for (uint UintIndex = 0; UintIndex < NumUints; ++UintIndex)
+	{
+		uint CurrentMask = BatchedLocalLights[UintIndex];
+		while (CurrentMask != 0)
+		{
+			int BitIndex = firstbitlow(CurrentMask);
+			CurrentMask = CurrentMask & ~(1U << BitIndex);
+			uint LocalLightIndex = 32U * UintIndex + BitIndex;
+			
+			{
+				FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+				FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+
+				float3 LightVector = LightData.TranslatedWorldPosition - TranslatedWorldPosition;
+				if (rcp(Square(LightData.InvRadius)) > dot(LightVector, LightVector))
+				{
+					float3 NormalizedLightVector = normalize(LightVector);
+					float3 TranslatedWorldPositionForLighting = GetTranslatedWorldPositionForLighting(TranslatedWorldPosition, NormalizedLightVector);
+
+					float Attenuation = GetTranslucencyVolumeLocalLightAttenuation(TranslatedWorldPositionForLighting, LightData);
+					float ShadowFactor = 1.0f;
+
+					if (Attenuation > 0.0f)
+					{
+#if VIRTUAL_SHADOW_MAP
+						if (LocalLightData.VirtualShadowMapId != INDEX_NONE)
+						{
+							FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapTranslatedWorld(LocalLightData.VirtualShadowMapId, TranslatedWorldPositionForLighting);
+							ShadowFactor *= VirtualShadowMapSample.ShadowFactor;
+						}
+#endif
+						if (VolumeCascadeIndex == 1)
+						{
+							float FinalLerpFactor = GetBorderLerpFactor(Input.Vertex.UV, Input.LayerIndex);
+							// For local lights, fade attenuation to 0 for the border voxels
+							Attenuation = lerp(0, Attenuation, FinalLerpFactor);
+							ShadowFactor = lerp(0.0f, ShadowFactor, FinalLerpFactor);
+						}
+
+						float3 Lighting = LightData.Color / PI * Attenuation * ShadowFactor;
+
+						float DirectionalLightContribution = 0;
+						AccumulateSHLighting(NormalizedLightVector, Lighting, DirectionalLightContribution,
+							OutColor0, OutColor1);
+					}
+				}
+			}
+		}
+	}
+
+	RTOutColor0 = OutColor0;
+	RTOutColor1 = OutColor1;
+}
+
+#endif // #if INJECTION_BATCH_PIXEL_SHADER
+
 
 #if CLEAR_COMPUTE_SHADER
 RWTexture3D<float4> RWAmbient0;

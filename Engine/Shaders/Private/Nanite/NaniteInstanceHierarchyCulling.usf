@@ -148,7 +148,7 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
 			float4x4 PrevLocalToTranslatedWorld = MakeTranslationMatrix(DFFastToTranslatedWorld(CellData.BlockData.WorldPos, NaniteView.PrevPreViewTranslation));
 
 			FBoxCull Cull;
-			Cull.Init(NaniteView, CellData.LocalBoundsCenter, CellData.LocalBoundsExtent, float3(1.0f, 1.0f, 1.0f), LocalToTranslatedWorld, PrevLocalToTranslatedWorld);
+			Cull.Init(NaniteView, CellData.LocalBoundsCenter, CellData.LocalBoundsExtent, float4(1.0f, 1.0f, 1.0f, 1.0f), LocalToTranslatedWorld, PrevLocalToTranslatedWorld);
 			if (CULLING_PASS == CULLING_PASS_OCCLUSION_POST)
 			{
 				Cull.bSkipCullFrustum = true;
@@ -163,7 +163,8 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
             if( Cull.bIsVisible )
             {
 #if VIRTUAL_TEXTURE_TARGET
-                Cull.PageFlagMask = VSM_ALLOCATED_FLAG;
+                Cull.PageFlagMask = VSM_FLAG_ANY_UNCACHED;
+				Cull.bUseStaticOcclusion = true;
 #endif
 				// Note: bClampToPageLevel == true means we might test rather large footprints in the HZB, leading to load imbalance
 				// TODO: rebalance the work in the workgroup? Spawn more work groups / cell? Implement the top (virtual space) HZB hierarchy?
@@ -245,3 +246,17 @@ void InitArgs()
 	OutInstanceWorkArgs1[4] = 0; // num groups (not the same as x dim because we drive also occluded instances from this indirect call)
 #endif
 }
+
+#ifdef InstanceHierarchySanitizeInstanceArgsCS
+
+RWBuffer< uint > InOutInstanceWorkArgs;
+uint GroupWorkArgsMaxCount;
+
+[numthreads(1, 1, 1)]
+void InstanceHierarchySanitizeInstanceArgsCS()
+{
+	InOutInstanceWorkArgs[0] = min(InOutInstanceWorkArgs[0], GroupWorkArgsMaxCount);
+}
+
+#endif
+

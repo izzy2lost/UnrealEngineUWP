@@ -30,6 +30,7 @@ FDNAAssetImportOptions* GetImportOptions(FDNAImporter * DNAImporter, UDNAAssetIm
 	if (bShowOptionDialog)
 	{
 		FDNAAssetImportOptions* ImportOptions = DNAImporter->GetImportOptions();
+		ImportOptions->SkeletalMesh = ImportUI->SkeletalMesh;
 
 		// if SkeletalMesh was set by outside, please make sure copy back to UI
 		if (ImportOptions->SkeletalMesh)
@@ -56,7 +57,7 @@ FDNAAssetImportOptions* GetImportOptions(FDNAImporter * DNAImporter, UDNAAssetIm
 			}
 		}
 
-		DNAImporter->SetDNAFileName(*FPaths::GetCleanFilename(FullPath));
+		DNAImporter->SetDNAFileName(*FPaths::GetCleanFilename(InFilename));
 
 		//This option must always be the same value has the skeletalmesh one.
 		

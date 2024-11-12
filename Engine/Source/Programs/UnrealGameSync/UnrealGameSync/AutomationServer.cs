@@ -5,7 +5,6 @@ using System.IO;
 using System.IO.Pipes;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -136,10 +135,10 @@ namespace UnrealGameSync
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 
 		const string IpcChannel = @"\.\pipe\UGSChannel";
-		readonly ConfiguredTaskAwaitable _ipcTask;
+		readonly Task? _ipcTask;
 
 		public const int DefaultPortNumber = 30422;
-		readonly ConfiguredTaskAwaitable? _tcpTask;
+		readonly Task? _tcpTask;
 
 		readonly Action<AutomationRequest> _postRequest;
 
@@ -153,7 +152,7 @@ namespace UnrealGameSync
 			try
 			{
 				// IPC named pipe
-				_ipcTask = RunIpcAsync(uri, _cancellationSource.Token).ConfigureAwait(false);
+				_ipcTask = Task.Run(() => RunIpcAsync(uri, _cancellationSource.Token), _cancellationSource.Token);
 
 				// TCP listener setup
 				int portNumber = GetPortNumber();
@@ -161,7 +160,7 @@ namespace UnrealGameSync
 				{
 					try
 					{
-						_tcpTask = RunTcpAsync(portNumber, _cancellationSource.Token).ConfigureAwait(false);
+						_tcpTask = Task.Run(() => RunTcpAsync(portNumber, _cancellationSource.Token), _cancellationSource.Token);
 					}
 					catch (Exception ex)
 					{
@@ -243,7 +242,7 @@ namespace UnrealGameSync
 
 		async Task RunTcpAsync(int portNumber, CancellationToken cancellationToken)
 		{
-			TcpListener listener = new TcpListener(IPAddress.Loopback, portNumber);
+			using TcpListener listener = new TcpListener(IPAddress.Loopback, portNumber);
 			using (IDisposable disposable = cancellationToken.Register(() => listener.Stop()))
 			{
 				listener.Start();
@@ -371,22 +370,25 @@ namespace UnrealGameSync
 
 		public async ValueTask DisposeAsync()
 		{
-			_cancellationSource.Cancel();
+			await _cancellationSource.CancelAsync().ConfigureAwait(false);
 
-			try
+			if (_ipcTask != null)
 			{
-				await _ipcTask;
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error awaiting IPC background task");
+				try
+				{
+					await _ipcTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error awaiting IPC background task");
+				}
 			}
 
 			if (_tcpTask != null)
 			{
 				try
 				{
-					await _tcpTask.Value;
+					await _tcpTask.ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{

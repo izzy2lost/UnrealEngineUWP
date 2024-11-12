@@ -103,6 +103,8 @@ public:
 	 * @param Filename				File name to save to, with extension to identify format
 	 * @param InImage				Image to save
 	 * @param Quality				Mainly for JPEG, but special values have some meaning for other formats
+	 *
+	 * If Filename has no extension, an appropriate one is automatically generated based on image format.
 	 */
 	ENGINE_API static bool SaveImageByExtension(const TCHAR * Filename, const FImageView & InImage, int32 Quality=0);
 

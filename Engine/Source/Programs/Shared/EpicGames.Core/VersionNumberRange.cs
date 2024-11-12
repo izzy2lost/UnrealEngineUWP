@@ -26,8 +26,8 @@ namespace EpicGames.Core
 		/// <param name="max"></param>
 		public VersionNumberRange(VersionNumber min, VersionNumber max)
 		{
-			this.Min = min;
-			this.Max = max;
+			Min = min;
+			Max = max;
 		}
 
 		/// <summary>

@@ -14,7 +14,7 @@
 #include "Internationalization/InternationalizationManifest.h"
 #include "Internationalization/InternationalizationArchive.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Serialization/JsonInternationalizationManifestSerializer.h"
 #include "Serialization/JsonInternationalizationArchiveSerializer.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"
@@ -127,8 +127,8 @@ public:
 			return false;
 		}
 
-		const FString Namespace = TextId.GetNamespace().GetChars();
-		const FString Key = TextId.GetKey().GetChars();
+		const FString Namespace = TextId.GetNamespace().ToString();
+		const FString Key = TextId.GetKey().ToString();
 
 		const FString CurrentPackageNamespace = TextNamespaceUtil::ExtractPackageNamespace(Namespace);
 		if (CurrentPackageNamespace.Equals(PackageNamespace, ESearchCase::CaseSensitive))

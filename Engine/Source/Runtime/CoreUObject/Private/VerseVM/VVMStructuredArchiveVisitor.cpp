@@ -12,7 +12,6 @@
 #include "VerseVM/VVMMutableArray.h"
 #include "VerseVM/VVMPlaceholder.h"
 #include "VerseVM/VVMRestValue.h"
-#include "VerseVM/VVMUTF8String.h"
 #include "VerseVM/VVMValue.h"
 
 namespace Verse
@@ -48,6 +47,30 @@ FStructuredArchiveVisitor::ScopedRecord::ScopedRecord(FStructuredArchiveVisitor&
 FStructuredArchiveVisitor::ScopedRecord::~ScopedRecord()
 {
 	Visitor.LeaveObject();
+}
+
+void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext)
+{
+	FRunningContext LocalContext = FRunningContextPromise{};
+	Serialize(LocalContext, InSlot, InOutValue, InSerializeContext);
+}
+
+void FStructuredArchiveVisitor::Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext)
+{
+	if (InSerializeContext == nullptr)
+	{
+		FVCellSerializeContext SerializeContext;
+		Serialize(InContext, InSlot, InOutValue, &SerializeContext);
+		return;
+	}
+
+	FStructuredArchiveVisitor Visitor(InContext, InSerializeContext);
+	VValue Value = InOutValue.Get();
+	Visitor.Serialize(InSlot, Value);
+	if (InSlot.GetUnderlyingArchive().IsLoading())
+	{
+		InOutValue.Set(InContext, Value);
+	}
 }
 
 void FStructuredArchiveVisitor::WriteElementType(FStructuredArchiveRecord Record, FEncodedType EncodedType)
@@ -512,22 +535,12 @@ VValue FStructuredArchiveVisitor::ReadValueBody(FStructuredArchiveRecord Record,
 			return VValue::Char32(Char32);
 		}
 
+		case EEncodedType::False:
+		case EEncodedType::True:
 		case EEncodedType::Cell:
-		{
-			return VValue(*ReadCellBody(Record, EncodedType));
-		}
-
 		case EEncodedType::CellIndex:
-		{
-			if (SerializeContext == nullptr)
-			{
-				V_DIE("Request to deserialize a cell index but no serialization context is available");
-			}
-
-			FPackageIndex PackageIndex;
-			Record.EnterField(CellIdName) << PackageIndex;
-			return VValue(*SerializeContext->ExportMap[PackageIndex.ToExport()]);
-		}
+		case EEncodedType::Batch:
+			return VValue(*ReadCellBody(Record, EncodedType));
 
 		case EEncodedType::Null:
 		default:
@@ -548,14 +561,20 @@ void FStructuredArchiveVisitor::VisitValueBody(FStructuredArchiveRecord Record, 
 	}
 }
 
-void FStructuredArchiveVisitor::Serialize(VCell*& InOutCell)
+void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, VCell*& InOutCell)
 {
+	FStructuredArchiveRecord Child = InSlot.EnterRecord();
+	NestingInfo.Push(NestingEntry(Child, ENestingType::Object));
 	Visit(InOutCell, TEXT(""));
+	LeaveObject();
 }
 
-void FStructuredArchiveVisitor::Serialize(VValue& InOutValue)
+void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, VValue& InOutValue)
 {
+	FStructuredArchiveRecord Child = InSlot.EnterRecord();
+	NestingInfo.Push(NestingEntry(Child, ENestingType::Object));
 	Visit(InOutValue, TEXT(""));
+	LeaveObject();
 }
 
 void FStructuredArchiveVisitor::BeginArray(const TCHAR* ElementName, uint64& NumElements)
@@ -612,14 +631,16 @@ void FStructuredArchiveVisitor::EndMap()
 	LeaveArray(ENestingType::Map);
 }
 
-void FStructuredArchiveVisitor::BeginObject(const TCHAR* ElementName)
+void FStructuredArchiveVisitor::VisitObject(const TCHAR* ElementName, FUtf8StringView TypeName, TFunctionRef<void()> VisitBody)
 {
 	EnterObject(ElementName);
+	VisitBody();
+	LeaveObject();
 }
 
-void FStructuredArchiveVisitor::EndObject()
+void FStructuredArchiveVisitor::VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName)
 {
-	LeaveObject();
+	Slot(ElementName).Serialize(Data, DataSize);
 }
 
 void FStructuredArchiveVisitor::VisitNonNull(VCell*& InCell, const TCHAR* ElementName)
@@ -627,7 +648,7 @@ void FStructuredArchiveVisitor::VisitNonNull(VCell*& InCell, const TCHAR* Elemen
 	VisitCellBody(ScopedRecord(*this, ElementName).Record, InCell);
 }
 
-void FStructuredArchiveVisitor::VisitEmergentType(const VCell* InEmergentType)
+void FStructuredArchiveVisitor::VisitEmergentType(const VEmergentType*)
 {
 	// Any emergent type formatting has already been done
 }
@@ -677,15 +698,40 @@ void FStructuredArchiveVisitor::Visit(int64& Value, const TCHAR* ElementName)
 	Slot(ElementName) << Value;
 }
 
+void FStructuredArchiveVisitor::Visit(uint32& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(int32& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(uint16& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(int16& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(uint8& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(int8& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
 FStructuredArchiveArray FStructuredArchiveVisitor::EnterArray(const TCHAR* ElementName, int32& Num, ENestingType Type)
 {
-	if (NestingInfo.Num() == 0)
-	{
-		FStructuredArchiveArray Child = StructuredArchive.Open().EnterArray(Num);
-		NestingInfo.Push(NestingEntry(Child, Type));
-		return Child;
-	}
-	else if (NestingInfo.Last().Type == ENestingType::Object)
+	check(!NestingInfo.IsEmpty());
+	if (NestingInfo.Last().Type == ENestingType::Object)
 	{
 		FStructuredArchiveRecord& Record = static_cast<FStructuredArchiveRecord&>(NestingInfo.Last().Slot);
 		FStructuredArchiveArray Child = Record.EnterArray(ElementName, Num);
@@ -709,13 +755,8 @@ void FStructuredArchiveVisitor::LeaveArray(ENestingType Type)
 
 FStructuredArchiveRecord FStructuredArchiveVisitor::EnterObject(const TCHAR* ElementName)
 {
-	if (NestingInfo.Num() == 0)
-	{
-		FStructuredArchiveRecord Child = StructuredArchive.Open().EnterRecord();
-		NestingInfo.Push(NestingEntry(Child, ENestingType::Object));
-		return Child;
-	}
-	else if (NestingInfo.Last().Type == ENestingType::Object)
+	check(!NestingInfo.IsEmpty());
+	if (NestingInfo.Last().Type == ENestingType::Object)
 	{
 		FStructuredArchiveRecord& Record = static_cast<FStructuredArchiveRecord&>(NestingInfo.Last().Slot);
 		FStructuredArchiveRecord Child = Record.EnterRecord(ElementName);
@@ -754,17 +795,18 @@ FStructuredArchiveSlot FStructuredArchiveVisitor::Slot(const TCHAR* ElementName)
 
 FArchive* FStructuredArchiveVisitor::GetUnderlyingArchive()
 {
-	return &StructuredArchive.GetUnderlyingArchive();
+	check(!NestingInfo.IsEmpty());
+	return &NestingInfo[0].Slot.GetUnderlyingArchive();
 }
 
 bool FStructuredArchiveVisitor::IsLoading()
 {
-	return StructuredArchive.GetUnderlyingArchive().IsLoading();
+	return GetUnderlyingArchive()->IsLoading();
 }
 
 bool FStructuredArchiveVisitor::IsTextFormat()
 {
-	return StructuredArchive.GetUnderlyingArchive().IsTextFormat();
+	return GetUnderlyingArchive()->IsTextFormat();
 }
 
 FAccessContext FStructuredArchiveVisitor::GetLoadingContext()
@@ -1041,7 +1083,7 @@ private:
 
 void FVCellSerializeContextVistor::VisitNonNull(Verse::VCell*& InCell, const TCHAR* ElementName)
 {
-	if (!InCell->IsA<Verse::VEmergentType>())
+	if (!InCell->IsA<Verse::VEmergentType>() && InCell != GlobalFalsePtr.Get() && InCell != GlobalTruePtr.Get())
 	{
 		Batch.AddCellReference(InCell);
 	}

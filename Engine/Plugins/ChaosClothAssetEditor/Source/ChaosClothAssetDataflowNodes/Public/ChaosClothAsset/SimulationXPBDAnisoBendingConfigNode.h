@@ -8,7 +8,7 @@
 #include "SimulationXPBDAnisoBendingConfigNode.generated.h"
 
 /** XPBD anisotropic bending constraint property configuration node. */
-USTRUCT(Meta = (DataflowCloth))
+USTRUCT(Meta = (DataflowCloth, Deprecated = "5.4"))
 struct FChaosClothAssetSimulationXPBDAnisoBendingConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -122,9 +122,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "XPBDAnisoBending Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000", EditCondition = "XPBDAnisoBucklingRatio != 0"))
 	FChaosClothAssetWeightedValue XPBDAnisoBucklingStiffnessBias = { true, 50.f, 50.f, TEXT("XPBDAnisoBucklingStiffnessBias") };
 
-	FChaosClothAssetSimulationXPBDAnisoBendingConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FChaosClothAssetSimulationXPBDAnisoBendingConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
-	virtual bool IsDeprecated() override { return true; }
 };

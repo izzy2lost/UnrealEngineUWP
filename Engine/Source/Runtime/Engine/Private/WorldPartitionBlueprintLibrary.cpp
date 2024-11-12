@@ -275,7 +275,10 @@ bool UWorldPartitionBlueprintLibrary::GetActorDescsForActors(const TArray<AActor
 	{
 		for (AActor* Actor : InActors)
 		{
-			OutActorDescs.Emplace(*WorldPartition->GetActorDescInstance(Actor->GetActorGuid()));
+			if (FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(Actor->GetActorGuid()))
+			{
+				OutActorDescs.Emplace(*ActorDescInstance);
+			}
 		}
 	}
 #endif

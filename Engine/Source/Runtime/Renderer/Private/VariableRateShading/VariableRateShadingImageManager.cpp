@@ -30,6 +30,46 @@ DEFINE_LOG_CATEGORY(LogVRS);
  * Basic CVars
  */
 
+TAutoConsoleVariable<int32> CVarSupportVRS(
+	TEXT("r.VRS.Support"),
+	1,
+	TEXT("Toggles support for hardware Variable Rate Shading. Requires shader recompilation.")
+	TEXT("0: Off, 1: On"),
+	ECVF_ReadOnly);
+
+void CVarEnableVRSCallback(IConsoleVariable* Var)
+{
+	const int32 Value = Var->GetInt();
+
+	// Maintain deprecated globals
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	GRHIGlobals.VariableRateShading.Enabled = (Value != 0) ? GRHISupportsPipelineVariableRateShading : false;
+	GRHIGlobals.VariableRateShading.AttachmentEnabled = (Value != 0) ? GRHISupportsAttachmentVariableRateShading : false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	// If pipeline VRS is enabled, we need to update static meshes using per-material rates to reflect a change
+	if (GRHISupportsPipelineVariableRateShading)
+	{
+		GVRSImageManager.SetNeedStaticMeshUpdate(true);
+	}
+}
+
+TAutoConsoleVariable<int32> CVarEnableVRS(
+	TEXT("r.VRS.Enable"),
+	0,
+	TEXT("Enables hardware Variable Rate Shading and Shading Rate Image generation (8x8 or 16x16 tile size).")
+	TEXT("0: Off, 1: On"),
+	FConsoleVariableDelegate::CreateStatic(&CVarEnableVRSCallback),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<int32> CVarEnableVRSSoftwareImage(
+	TEXT("r.VRS.EnableSoftware"),
+	0,
+	TEXT("Enables software (2x2 tile size) Shading Rate Image generation for use with Nanite Software VRS. Allows generating iamges even when r.VRS.Enable/r.VRS.Support=0 or Tier 2 VRS is unsupported by the hardware.")
+	TEXT("Image generation will only be enabled if r.Nanite.SoftwareVRS is also set to 1.")
+	TEXT("0: Off, 1: On"),
+	ECVF_RenderThreadSafe);
+
 void CVarVRSPreviewCallback(IConsoleVariable* Var)
 {
 	const int32 RequestedPreview = Var->GetInt();
@@ -63,13 +103,6 @@ FAutoConsoleVariableRef CVarVRSDebugForceRate(
 	GVRSDebugForceRate,
 	TEXT("-1: None, 0: Force 1x1, 1: Force 1x2, 2: Force 2x1, 3: Force 2x2, 4: Force 2x4, 5: Force 4x2, 6: Force 4x4"),
 	FConsoleVariableDelegate::CreateStatic(&CVarVRSDebugForceRateCallback),
-	ECVF_RenderThreadSafe);
-
-TAutoConsoleVariable<int32> CVarVRSSoftwareImage(
-	TEXT("r.VRS.EnableSoftware"),
-	0,
-	TEXT("Generate 2x2 tile size software shading rate images when possible for use with nanite CS. Works even when r.VRS.Enable = 0 or Tier 2 VRS is unsupported by the hardware.")
-	TEXT("0: Off, 1: On"),
 	ECVF_RenderThreadSafe);
 
 
@@ -300,9 +333,17 @@ FVariableRateShadingImageManager::~FVariableRateShadingImageManager() {}
 
 void FVariableRateShadingImageManager::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	if (IsHardwareVRSSupported())
+	if (GRHISupportsPipelineVariableRateShading && GRHISupportsAttachmentVariableRateShading)
 	{
-		UE_LOG(LogVRS, Log, TEXT("Current RHI supports Variable Rate Shading"));
+		UE_LOG(LogVRS, Log, TEXT("Current RHI supports per-draw and screenspace Variable Rate Shading"));
+	}
+	else if (GRHISupportsPipelineVariableRateShading)
+	{
+		UE_LOG(LogVRS, Log, TEXT("Current RHI supports per-draw Variable Rate Shading"));
+	}
+	else if (GRHISupportsAttachmentVariableRateShading)
+	{
+		UE_LOG(LogVRS, Log, TEXT("Current RHI supports screenspace Variable Rate Shading"));
 	}
 	else
 	{
@@ -310,14 +351,9 @@ void FVariableRateShadingImageManager::InitRHI(FRHICommandListBase& RHICmdList)
 	}
 }
 
-void FVariableRateShadingImageManager::ReleaseRHI()
-{
-	GRenderTargetPool.FreeUnusedResources();
-}
-
 bool FVariableRateShadingImageManager::IsHardwareVRSSupported()
 {
-	return GRHISupportsAttachmentVariableRateShading && FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(GMaxRHIShaderPlatform);
+	return (GRHISupportsPipelineVariableRateShading || GRHISupportsAttachmentVariableRateShading);
 }
 
 bool FVariableRateShadingImageManager::IsSoftwareVRSSupported()
@@ -325,30 +361,46 @@ bool FVariableRateShadingImageManager::IsSoftwareVRSSupported()
 	return IsFeatureLevelSupported(GMaxRHIShaderPlatform, ERHIFeatureLevel::SM6);
 }
 
-bool FVariableRateShadingImageManager::IsHardwareVRSEnabled()
+void FVariableRateShadingImageManager::ReleaseRHI()
 {
-	// Currently corresponds to r.VRS.Enable and r.VRS.EnableImage
-	return GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled;
+	GRenderTargetPool.FreeUnusedResources();
 }
 
-bool FVariableRateShadingImageManager::IsSoftwareVRSEnabled()
+bool FVariableRateShadingImageManager::IsPipelineVRSEnabled() const
 {
-	return CVarVRSSoftwareImage.GetValueOnRenderThread() > 0;
+	// This GRHI should be forced to false in DynamicRHI::Init() if r.VRS.Support=0 or bSupportsVariableRateShading=false in the platform's DDPI
+	return GRHISupportsPipelineVariableRateShading && CVarEnableVRS.GetValueOnRenderThread() != 0;
 }
 
-bool FVariableRateShadingImageManager::IsVRSEnabledForFrame()
+bool FVariableRateShadingImageManager::IsAttachmentVRSEnabled() const
+{
+	// Ditto
+	return GRHISupportsAttachmentVariableRateShading && CVarEnableVRS.GetValueOnRenderThread() != 0;
+}
+
+bool FVariableRateShadingImageManager::IsVRSEnabledForFrame() const
 {
 	return bHardwareVRSEnabledForFrame || bSoftwareVRSEnabledForFrame;
 }
 
-bool FVariableRateShadingImageManager::IsHardwareVRSEnabledForFrame()
+bool FVariableRateShadingImageManager::IsHardwareVRSEnabledForFrame() const
 {
 	return bHardwareVRSEnabledForFrame;
 }
 
-bool FVariableRateShadingImageManager::IsSoftwareVRSEnabledForFrame()
+bool FVariableRateShadingImageManager::IsSoftwareVRSEnabledForFrame() const
 {
 	return bSoftwareVRSEnabledForFrame;
+}
+
+bool FVariableRateShadingImageManager::GetNeedStaticMeshUpdate() const
+{
+	return bNeedStaticMeshUpdate;
+}
+
+void FVariableRateShadingImageManager::SetNeedStaticMeshUpdate(bool bInNeedStaticMeshUpdate)
+{
+	bNeedStaticMeshUpdate = bInNeedStaticMeshUpdate;
 }
 
 static EDisplayOutputFormat GetDisplayOutputFormat(const FViewInfo& View)
@@ -423,7 +475,7 @@ FRDGTextureRef FVariableRateShadingImageManager::GetVariableRateShadingImage(FRD
 	// Use debug rate if provided, otherwise bail if no generators available
 	if (VRSForceRateForFrame >= 0)
 	{
-		return GetForceRateImage(GraphBuilder, *ViewInfo.Family, VRSForceRateForFrame, GetImageTypeFromPassType(PassType), bRequestSoftwareImage);
+		return GetForceRateImage(GraphBuilder, *ViewInfo.Family, VRSForceRateForFrame, bRequestSoftwareImage);
 	}
 
 	if (ActiveGenerators.IsEmpty())
@@ -466,10 +518,24 @@ FRDGTextureRef FVariableRateShadingImageManager::GetVariableRateShadingImage(FRD
 	}
 }
 
-void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures)
+void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bLumenEnabled)
 {
-	bHardwareVRSEnabledForFrame = IsHardwareVRSSupported() && IsHardwareVRSEnabled();
-	bSoftwareVRSEnabledForFrame = IsSoftwareVRSSupported() && CVarVRSSoftwareImage.GetValueOnRenderThread() != 0;
+	EShaderPlatform ShaderPlatform = ViewFamily.Scene->GetShaderPlatform();
+	static const auto CVarLocalNaniteSoftwareVRS = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.SoftwareVRS")); // "CVarNaniteSoftwareVRS" would shadow the static declaration in NaniteShading.cpp
+
+	bHardwareVRSEnabledForFrame = 
+		IsAttachmentVRSEnabled() &&
+		HardwareVariableRateShadingSupportedByPlatform(ShaderPlatform); // Additional check is required here for preview levels
+
+	bSoftwareVRSEnabledForFrame = 
+		CVarEnableVRSSoftwareImage.GetValueOnRenderThread() > 0 &&
+		CVarLocalNaniteSoftwareVRS->GetInt() > 0 &&
+		!Substrate::IsSubstrateEnabled() &&
+		IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6)
+		// VRS breaks Lumen denoising, as Lumen is very sensitive to velocity buffer precision
+		// This can be visualized with DEBUG_VISUALIZE_PROBE_WORLD_SPEED 1 in LumenScreenProbeGather.usf
+		&& !bLumenEnabled;
+
 	if (!IsVRSEnabledForFrame())
 	{
 		return;
@@ -595,7 +661,7 @@ void FVariableRateShadingImageManager::DrawDebugPreview(FRDGBuilder& GraphBuilde
 			// Use debug rate if provided
 			if (VRSForceRateForFrame >= 0)
 			{
-				PreviewTexture = GetForceRateImage(GraphBuilder, ViewFamily, VRSForceRateForFrame, PreviewImageType, bUseSoftwareImage);
+				PreviewTexture = GetForceRateImage(GraphBuilder, ViewFamily, VRSForceRateForFrame, bUseSoftwareImage);
 			}
 
 			// Otherwise collate debug images
@@ -622,7 +688,7 @@ void FVariableRateShadingImageManager::DrawDebugPreview(FRDGBuilder& GraphBuilde
 				// Generate a dummy 1x1 image if we have no VRS sources
 				if (!PreviewTexture)
 				{
-					PreviewTexture = GetForceRateImage(GraphBuilder, ViewFamily, VRSSR_1x1, EVRSImageType::Full, bUseSoftwareImage);
+					PreviewTexture = GetForceRateImage(GraphBuilder, ViewFamily, VRSSR_1x1, bUseSoftwareImage);
 				}
 			}
 
@@ -738,24 +804,20 @@ FRDGTextureRef FVariableRateShadingImageManager::CombineShadingRateImages(FRDGBu
 
 }
 
-FRDGTextureRef FVariableRateShadingImageManager::GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex /* = 0*/, EVRSImageType ImageType /* = EVRSImageType::Full*/, bool bGetSoftwareImage)
+FRDGTextureRef FVariableRateShadingImageManager::GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex /* = 0*/, bool bGetSoftwareImage)
 {
 	static const TArray<uint32> ValidShadingRates = { VRSSR_1x1, VRSSR_1x2, VRSSR_2x1, VRSSR_2x2, VRSSR_2x4, VRSSR_4x2, VRSSR_4x4 };
 
-	const int32 NumberOfAvailableRates = GetNumberOfSupportedRates();
-
-	if (RateIndex >= NumberOfAvailableRates)
+	const bool bImageTypeAvailable = bGetSoftwareImage ? bSoftwareVRSEnabledForFrame : bHardwareVRSEnabledForFrame;
+	if (!bImageTypeAvailable)
 	{
-		RateIndex = NumberOfAvailableRates - 1; // Default to maximum shading rate if value exceeds valid rates
-	}
-
-	if (ImageType == EVRSImageType::Disabled)
-	{
-		RateIndex = 0; // Force to minimum shading rate if VRS is disabled for this pass
+		return nullptr;
 	}
 
 	FRDGTextureRef ForceShadingRateTexture = GraphBuilder.CreateTexture(GetSRIDesc(ViewFamily, bGetSoftwareImage), TEXT("ForceShadingRateTexture"));
 	FRDGTextureUAVRef ForceShadingRateUAV = GraphBuilder.CreateUAV(ForceShadingRateTexture);
+
+	RateIndex = FMath::Clamp(RateIndex, 0, GetNumberOfSupportedRates() - 1);
 	AddClearUAVPass(GraphBuilder, ForceShadingRateUAV, ValidShadingRates[RateIndex]);
 
 	return ForceShadingRateTexture;

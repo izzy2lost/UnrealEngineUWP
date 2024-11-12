@@ -41,6 +41,21 @@ FDMXPortManager& FDMXPortManager::Get()
 	return *CurrentManager;
 }
 
+void FDMXPortManager::ClearBuffers()
+{
+	for (const FDMXInputPortSharedRef& InputPort : FDMXPortManager::Get().GetInputPorts())
+	{
+		InputPort->ClearBuffers();
+	}
+
+	for (const FDMXOutputPortSharedRef& OutputPort : FDMXPortManager::Get().GetOutputPorts())
+	{
+		OutputPort->ClearBuffers();
+	}
+
+	OnBuffersClearedDelegate.Broadcast();
+}
+
 FDMXInputPortSharedRef FDMXPortManager::GetInputPortFromConfigChecked(const FDMXInputPortConfig& InputPortConfig)
 {
 	// The config needs a valid guid
@@ -333,7 +348,5 @@ void FDMXPortManager::ShutdownManager()
 {
 	UE_LOG(LogDMXProtocol, Verbose, TEXT("Shutting down DMXPortManager"));
 
-	check(CurrentManager.IsValid());
-	
 	CurrentManager.Reset();
 }

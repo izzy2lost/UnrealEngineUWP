@@ -5,15 +5,19 @@
 #include "../VertexFactoryCommon.ush" // for TransformLocalToTranslatedWorld
 #include "../Nanite/NaniteHZBCull.ush"
 
+// We need to define NUM_THREADS_PER_GROUP before including InstanceCullingSetup as it includes InstanceCullingLoadBalancer.ush which requires declares groupshared uint ItemIndex[NUM_THREADS_PER_GROUP];
+#ifndef NUM_THREADS_PER_GROUP_DEFAULT
+#	define NUM_THREADS_PER_GROUP_DEFAULT 64
+#endif // NUM_THREADS_PER_GROUP_DEFAULT
+
 #ifndef NUM_THREADS_PER_GROUP
-#	define NUM_THREADS_PER_GROUP 64
+#	define NUM_THREADS_PER_GROUP NUM_THREADS_PER_GROUP_DEFAULT
 #endif // NUM_THREADS_PER_GROUP
 
-static const uint GBumpMeToForceRebuild = 2;
-
-// Whether to run per-instance culling step using a CS or perform all the work in the VS
-#ifndef USE_COMPUTE_INSTANCE_CULLING_SETUP
-#	define USE_COMPUTE_INSTANCE_CULLING_SETUP 1
+// InstanceCullingSetup.ush pulls some variables that get set by FInstanceProcessingGPULoadBalancer::SetShaderDefines. We only call that when USE_LOAD_BALANCER == 1
+#if USE_LOAD_BALANCER 
+#define LOAD_BALANCER_SINGLE_INSTANCE_MODE 0
+#include "InstanceCullingSetup.ush"
 #endif
 
 #ifndef HZB_DESIRED_FOOTPRINT_PIXELS
@@ -24,22 +28,23 @@ static const uint GBumpMeToForceRebuild = 2;
 #error This shader requires accessing GPUScene buffers as SRVs from vertex stage
 #endif
 
-RWBuffer<uint> OutVisibilityMask;
+#ifndef DIM_MULTI_VIEW
+#	define DIM_MULTI_VIEW 0
+#endif
+
+RWBuffer<uint> RWVisibilityMask;
 
 uint NumInstances;
 uint InstanceSceneDataSOAStride;
-int4 ViewRect;
+uint ViewMask;
 float OcclusionSlop;
+int2 HZBViewRectSize;
 
 #define EInstanceVisibilityStatus uint // Not all platforms support native enums
 #define IVS_Hidden          0 // Instance is hidden or invalid, no occlusion query needed
 #define IVS_Visible         1 // Instance is definitely visible, no occlusion query needed
 #define IVS_PossiblyVisible 2 // Occlusion query is needed to determine visibility
 #define IVS_Incompatible    3 // Instance can't use occlusion queries
-
-// TODO: Compute appropriate mask value based on current view index and previous mask value
-#define MaskValueVisible 1
-#define MaskValueHidden  0
 
 EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FInstanceSceneData OutInstanceData)
 {
@@ -68,11 +73,11 @@ EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FIns
 	float4x4 LocalToTranslatedWorld = DFMultiplyTranslationDemote(InstanceData.LocalToWorld, ResolvedView.PreViewTranslation);
 
 	FFrustumCullData Cull = BoxCullFrustum(
-		BoxOrigin.xyz, 
+		BoxOrigin.xyz,
 		BoxExtent.xyz,
 		LocalToTranslatedWorld,
 		ResolvedView.TranslatedWorldToClip,
-		ResolvedView.ViewToClip, 
+		ResolvedView.ViewToClip,
 		bIsOrtho, true /* near clip */, false /* skip culling */
 	);
 
@@ -82,7 +87,7 @@ EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FIns
 		return IVS_Visible;
 	}
 
-	if(!Cull.bIsVisible)
+	if (!Cull.bIsVisible)
 	{
 		// Conservative culling heuristic:
 		// If instance is frustum-culled this frame, it may become visible next frame when instance visibility buffer is consumed.
@@ -92,9 +97,10 @@ EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FIns
 		return IVS_Visible;
 	}
 
-	FScreenRect Rect = GetScreenRect(ViewRect, Cull, HZB_DESIRED_FOOTPRINT_PIXELS);
+	int4 HZBViewRect = int4(0, 0, HZBViewRectSize.x, HZBViewRectSize.y);
+	FScreenRect Rect = GetScreenRect(HZBViewRect, Cull, HZB_DESIRED_FOOTPRINT_PIXELS);
 
-	if (any(Rect.Pixels == ViewRect))
+	if (any(Rect.Pixels == HZBViewRect))
 	{
 		// Conservative culling heuristic:
 		// Objects may be visible with HZB test but occluded with per-pixel depth test during this frame.
@@ -106,7 +112,7 @@ EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FIns
 		return IVS_Visible;
 	}
 
-	if (IsVisibleHZB(Rect, true /*bSample4x4*/ ))
+	if (IsVisibleHZB(Rect, true /*bSample4x4*/))
 	{
 		// Instance is visible using conservative HZB test and may benefit from a more accurate per-pixel occlusion test.
 		return IVS_PossiblyVisible;
@@ -129,6 +135,23 @@ RWBuffer<uint> OutInstanceIdBuffer;
 // Remap linear visible index to a visible GPUScene instance index
 Buffer<uint> InstanceIdBuffer;
 
+bool LoadInstanceId(uint3 GroupId, uint GroupThreadIndex, uint DispatchThreadId, inout uint InstanceId)
+{
+#if USE_LOAD_BALANCER
+    // No need to properly fetch the final instance id for dynamic primitives since we're going to skip them anyway
+    uint DynamicInstanceIdOffset = 0;
+    uint DynamicInstanceIdMax = 0;
+	FInstanceCullingSetup InstanceCullingSetup = LoadInstanceCullingSetup(GroupId, GroupThreadIndex, DynamicInstanceIdOffset, DynamicInstanceIdMax, 0);
+	InstanceId = InstanceCullingSetup.InstanceId;
+    return InstanceCullingSetup.bValid && !InstanceCullingSetup.bIsDynamic;
+#else
+	const bool bValidInvocation = DispatchThreadId < NumInstances;
+	uint ClampedThreadId = min(DispatchThreadId, NumInstances - 1);
+	InstanceId = InstanceIdBuffer[ClampedThreadId];
+    return bValidInvocation;
+#endif
+}
+
 [numthreads(NUM_THREADS_PER_GROUP, 1, 1)]
 void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -139,10 +162,8 @@ void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, u
 		GroupNumVisibleInstances = 0;
 	}
 
-	const bool bValidInvocation = DispatchThreadId < NumInstances;
-
-	uint ClampedThreadId = min(DispatchThreadId, NumInstances-1);
-	uint InstanceId = InstanceIdBuffer[ClampedThreadId];
+    uint InstanceId = 0;
+	const bool bValidInvocation = LoadInstanceId(GroupId, GroupThreadIndex, DispatchThreadId, InstanceId);
 
 	GroupMemoryBarrierWithGroupSync();
 
@@ -164,19 +185,26 @@ void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, u
 	{
 		Status = GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
 
+#if DIM_MULTI_VIEW
+		const uint OldVisibilityMask = RWVisibilityMask[InstanceId];
+		const uint MaskValueHidden = OldVisibilityMask & (~ViewMask);
+		const uint MaskValueVisible = OldVisibilityMask | ViewMask;
+#else // DIM_MULTI_VIEW
+		const uint MaskValueHidden = 0;
+		const uint MaskValueVisible = ViewMask;
+#endif // DIM_MULTI_VIEW
+
 		if (Status == IVS_Visible || Status == IVS_Incompatible)
 		{
-			// YURIY_TODO: multi-view support
-			OutVisibilityMask[InstanceId] = MaskValueVisible; // this is the final value
+			RWVisibilityMask[InstanceId] = MaskValueVisible; // this is the final value
 		}
 		else if (Status == IVS_Hidden)
 		{
-			// YURIY_TODO: multi-view support
-			OutVisibilityMask[InstanceId] = MaskValueHidden; // this is the final value
+			RWVisibilityMask[InstanceId] = MaskValueHidden; // this is the final value
 		}
 		else // Status == IVS_PossiblyVisible
 		{
-			OutVisibilityMask[InstanceId] = MaskValueHidden; // clear the value which will be updated by pixel shader later
+			RWVisibilityMask[InstanceId] = MaskValueHidden; // clear the value which will be updated by pixel shader later
 
 			uint LocalOutputIndex = 0;
 			InterlockedAdd(GroupNumVisibleInstances, 1, LocalOutputIndex);
@@ -212,32 +240,21 @@ void MainVS(
 
 	FInstanceSceneData InstanceData = (FInstanceSceneData)0;
 
-#if USE_COMPUTE_INSTANCE_CULLING_SETUP
 	InstanceId = InstanceIdBuffer[InstanceId];
 	GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
-#else
-	EInstanceVisibilityStatus Status = GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
-	if (Status == IVS_Visible || Status == IVS_Incompatible)
-	{
-		// Render a box that covers just one pixel at the near plane which will mark the instance visible
-		float2 ViewRectSize = float2(ViewRect.z - ViewRect.x, ViewRect.w - ViewRect.y);
-		OutPosition = float4(InPosition.xy / ViewRectSize, 1, 1);
-	}
-	else if (Status == IVS_Hidden)
-	{
-		// Output NaN position to cull the primitive, preventing any pixel shader execution
-		OutPosition = asfloat(0xFFFFFFFF).xxxx;
-	}
-	else // Status == IVS_PossiblyVisible
-#endif // USE_COMPUTE_INSTANCE_CULLING_SETUP
-	{
-		float3 LocalPosition = (InPosition * (InstanceData.LocalBoundsExtent + OcclusionSlop) * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
-		float4 WorldPosition = TransformLocalToTranslatedWorld(LocalPosition, InstanceData.LocalToWorld);
-		OutPosition = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
-	}
+
+	float3 LocalPosition = (InPosition * (InstanceData.LocalBoundsExtent + OcclusionSlop) * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
+	float4 WorldPosition = TransformLocalToTranslatedWorld(LocalPosition, InstanceData.LocalToWorld);
+	OutPosition = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
 
 	OutInstanceId = InstanceId;
-	OutVisibilityMask = MaskValueVisible;
+
+#if DIM_MULTI_VIEW
+	const uint OldVisibilityMask = RWVisibilityMask[InstanceId];
+	OutVisibilityMask = OldVisibilityMask | ViewMask;
+#else // DIM_MULTI_VIEW
+	OutVisibilityMask = ViewMask;
+#endif // DIM_MULTI_VIEW
 }
 
 
@@ -248,7 +265,7 @@ void MainPS(
 	out float4 OutColor : SV_Target0
 )
 {
-	OutVisibilityMask[InstanceId] = VisibilityMask;
+	RWVisibilityMask[InstanceId] = VisibilityMask;
 	OutColor = float4(1, 0, 0, 1);
 }
 
@@ -275,21 +292,21 @@ void DebugMainVS(
 
 		OutPosition = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
 
-		const bool bWasVisibleLastFrame = InstanceOcclusionQueryBuffer[InstanceId] != 0; // YURIY_TODO: multi-view support
+		const bool bWasVisibleLastFrame = (InstanceOcclusionQueryBuffer[InstanceId] & ViewMask) == ViewMask;
 
 		if (VisibilityStatus == IVS_PossiblyVisible)
 		{
-			OutDebugVisibility = bWasVisibleLastFrame ? 2 : 3;
+			OutDebugVisibility = bWasVisibleLastFrame ? IVS_PossiblyVisible : IVS_Incompatible;
 		}
 		else
 		{
-			OutDebugVisibility = bWasVisibleLastFrame ? 1 : 0;
+			OutDebugVisibility = bWasVisibleLastFrame ? IVS_Visible : IVS_Hidden;
 		}
 	}
 	else
 	{
 		OutPosition = asfloat(0xFFFFFFFF);
-		OutDebugVisibility = 0;
+		OutDebugVisibility = IVS_Hidden;
 	}
 }
 
@@ -300,23 +317,23 @@ void DebugMainPS(
 {
 	switch (DebugVisibility)
 	{
-	case 0:
+	case IVS_Hidden:
 		// Definitely invisible due to HZB test.
 		// No occlusion query performed.
-		OutColor = float4(0.1, 0.0, 0.0, 0.0);
+		OutColor = float4(0.1, 0.0, 0.0, 0.0); // red
 		break;
-	case 1:
+	case IVS_Visible:
 		// Definitely visible due to near plane intersection or other heuristics.
 		// No occlusion query performed.
-		OutColor = float4(0.1, 0.1, 0.0, 0.0);
+		OutColor = float4(0.1, 0.1, 0.0, 0.0); // yellow
 		break;
-	case 2:
+	case IVS_PossiblyVisible:
 		// Visible due to occlusion query.
-		OutColor = float4(0.0, 0.025, 0.0, 0.0);
+		OutColor = float4(0.0, 0.025, 0.0, 0.0); // green
 		break;
-	case 3:
+	case IVS_Incompatible:
 		// Invisible due to occlusion query.
-		OutColor = float4(0.25, 0.0, 0.25, 0.0);
+		OutColor = float4(0.25, 0.0, 0.25, 0.0); // magenta
 		break;
 	default:
 		OutColor = (float4)0;

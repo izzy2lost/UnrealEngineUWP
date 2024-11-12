@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ConcertClientReplicationBridge.h"
+#include "ConcertSyncSessionFlags.h"
 #include "Replication/IConcertClientReplicationBridge.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Manager/ReplicationManager.h"
@@ -15,10 +16,11 @@ namespace UE::ConcertSyncClient::TestInterface
 {
 	CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationManager> CreateClientReplicationManager(
 		TSharedRef<IConcertClientSession> InLiveSession,
-		IConcertClientReplicationBridge* InBridge
+		IConcertClientReplicationBridge& InBridge,
+		EConcertSyncSessionFlags SessionFlags
 		)
 	{
-		const TSharedRef<Replication::FReplicationManager> Result = MakeShared<Replication::FReplicationManager>(MoveTemp(InLiveSession), InBridge);
+		const TSharedRef<Replication::FReplicationManager> Result = MakeShared<Replication::FReplicationManager>(MoveTemp(InLiveSession), InBridge, SessionFlags);
 		Result->StartAcceptingJoinRequests();
 		return Result;
 	}

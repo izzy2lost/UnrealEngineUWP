@@ -8,44 +8,35 @@
 
 namespace UE::ConcertSyncCore
 {
-	FObjectReplicationCache::FObjectReplicationCache(TSharedRef<IObjectReplicationFormat> ReplicationFormat)
-		: ReplicationFormat(MoveTemp(ReplicationFormat))
+	FObjectReplicationCache::FObjectReplicationCache(IObjectReplicationFormat& ReplicationFormat)
+		: ReplicationFormat(ReplicationFormat)
 	{}
 
-	int32 FObjectReplicationCache::StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertReplication_ObjectReplicationEvent& ObjectReplicationEvent)
+	FCacheStoreStats FObjectReplicationCache::StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FSequenceId SequenceId, const FConcertReplication_ObjectReplicationEvent& ObjectReplicationEvent)
 	{
-		int32 NumAccepted = 0;
+		FCacheStoreStats Stats;
 		
 		const FConcertReplicatedObjectId ObjectId{ { OriginStreamId, ObjectReplicationEvent.ReplicatedObject }, SendingEndpointId };
 		FObjectCache* ObjectCacheBeforeAddition = Cache.Find(ObjectId);
 		if (ObjectCacheBeforeAddition)
 		{
-			// It is important to compare by address and not by TWeakPtr instance because each user has a different TWeakPtr instance (but they all point to the same memory).
-			TSet<FConcertReplication_ObjectReplicationEvent*> CombineOnceDetection;
-			for (const TPair<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertReplication_ObjectReplicationEvent>>& InUseDataPair : ObjectCacheBeforeAddition->DataInUse)
-			{
-				const TWeakPtr<FConcertReplication_ObjectReplicationEvent>& EventData = InUseDataPair.Value;
-				const TSharedPtr<FConcertReplication_ObjectReplicationEvent> EventDataPin = EventData.Pin();
-				if (EventDataPin && !CombineOnceDetection.Contains(EventDataPin.Get()))
-				{
-					CombineOnceDetection.Add(EventDataPin.Get());
-					ReplicationFormat->CombineReplicationEvents(EventDataPin->SerializedPayload, ObjectReplicationEvent.SerializedPayload);
-				}
-			}
+			Stats.NumCacheUpdates = CombineCachedDataWithNewData(ObjectId, SequenceId, ObjectReplicationEvent, *ObjectCacheBeforeAddition);
 		}
 
 		FObjectCache* ObjectCacheAfterAddition = ObjectCacheBeforeAddition ? ObjectCacheBeforeAddition : nullptr;
 		TSharedPtr<FConcertReplication_ObjectReplicationEvent> LazilyCopiedEventPtr;
 		for (const TSharedRef<IReplicationCacheUser>& CacheUser : CacheUsers)
 		{
-			if (ObjectCacheBeforeAddition && ObjectCacheBeforeAddition->DataInUse.Contains(CacheUser))
+			if (ObjectCacheBeforeAddition
+				// They've already had OnDataCached called if they're contained
+				&& ObjectCacheBeforeAddition->DataInUse.Contains(CacheUser))
 			{
 				continue;
 			}
 
 			if (CacheUser->WantsToAcceptObject(ObjectId))
 			{
-				++NumAccepted;
+				++Stats.NumInsertions;
 				
 				// Do the event copy only when somebody wants the data...
 				if (!LazilyCopiedEventPtr.IsValid())
@@ -83,7 +74,7 @@ namespace UE::ConcertSyncCore
 				});
 				
 				const TWeakPtr<FConcertReplication_ObjectReplicationEvent> WeakGuardPtr = GuardPtr;
-				CacheUser->OnDataCached(ObjectId, MoveTemp(GuardPtr));
+				CacheUser->OnDataCached(ObjectId, SequenceId, MoveTemp(GuardPtr));
 				// Was it instantly consumed? Should not really happen but it could technically...
 				if (!LIKELY(WeakGuardPtr.IsValid()))
 				{
@@ -98,7 +89,7 @@ namespace UE::ConcertSyncCore
 			}
 		}
 
-		return NumAccepted;
+		return Stats;
 	}
 
 	void FObjectReplicationCache::RegisterDataCacheUser(TSharedRef<IReplicationCacheUser> User)
@@ -122,5 +113,44 @@ namespace UE::ConcertSyncCore
 				It.RemoveCurrent();
 			}
 		}
+	}
+
+	uint32 FObjectReplicationCache::CombineCachedDataWithNewData(
+		const FConcertReplicatedObjectId& ObjectId,
+		FSequenceId NewSequenceId,
+		const FConcertReplication_ObjectReplicationEvent& NewData,
+		const FObjectCache& ObjectCacheBeforeAddition
+		) const
+	{
+		uint32 NumUpdates = 0;
+		
+		// Caches users may point to the same or different memory depending how fast they process
+		TSet<FConcertReplication_ObjectReplicationEvent*> CombineOnceDetection;
+		for (const TPair<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertReplication_ObjectReplicationEvent>>& InUseDataPair : ObjectCacheBeforeAddition.DataInUse)
+		{
+			const TWeakPtr<IReplicationCacheUser> CacheUser = InUseDataPair.Key;
+			const TWeakPtr<FConcertReplication_ObjectReplicationEvent>& EventData = InUseDataPair.Value;
+
+			// There's no point in updating if either the user has destroyed itself (rudely without telling us) or the user has released that data already.
+			const TSharedPtr<IReplicationCacheUser> CacheUserPin = CacheUser.Pin();
+			const TSharedPtr<FConcertReplication_ObjectReplicationEvent> EventDataPin = EventData.Pin();
+			if (!EventDataPin || !CacheUserPin)
+			{
+				continue;
+			}
+
+			// Multiple cache users may be using the same data so only combine once ...
+			if (!CombineOnceDetection.Contains(EventDataPin.Get()))
+			{
+				CombineOnceDetection.Add(EventDataPin.Get());
+				ReplicationFormat.CombineReplicationEvents(EventDataPin->SerializedPayload, NewData.SerializedPayload);
+			}
+			// ... but let every user know that the data was combined with another SequenceId
+			CacheUserPin->OnCachedDataUpdated(ObjectId, NewSequenceId);
+
+			++NumUpdates;
+		}
+
+		return NumUpdates;
 	}
 }

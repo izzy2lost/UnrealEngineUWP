@@ -10,7 +10,7 @@
 
 class UClothTransferSkinWeightsTool;
 class USkeletalMesh;
-class UClothEditorContextObject;
+class UDataflowContextObject;
 class UTransformProxy;
 class UCombinedTransformGizmo;
 class UMeshOpPreviewWithBackgroundCompute;
@@ -61,7 +61,7 @@ private:
 	// IDynamicMeshOperatorFactory
 	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator() override;
 	
-	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
+	void SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject);
 
 	FTransform TransformFromProperties() const;
 	void SetSRTPropertiesFromTransform(const FTransform& Transform) const;
@@ -77,7 +77,7 @@ private:
 	TObjectPtr<UClothTransferSkinWeightsToolProperties> ToolProperties;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UClothEditorContextObject> ClothEditorContextObject;
+	TObjectPtr<UDataflowContextObject> DataflowContextObject = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshOpPreviewWithBackgroundCompute> TargetClothPreview;

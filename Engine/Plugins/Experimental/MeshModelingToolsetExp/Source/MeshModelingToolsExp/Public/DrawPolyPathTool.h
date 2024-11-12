@@ -192,6 +192,11 @@ public:
 	// IModifierToggleBehaviorTarget
 	virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
 
+	void SetInitialDrawFrame(UE::Geometry::FFrame3d Frame)
+	{
+		DrawPlaneWorld = Frame;
+	}
+
 protected:
 	UWorld* TargetWorld;
 

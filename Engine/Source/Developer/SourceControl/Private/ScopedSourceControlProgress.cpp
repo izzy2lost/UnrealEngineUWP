@@ -236,14 +236,8 @@ void FScopedSourceControlProgress::Tick()
 #if SOURCE_CONTROL_WITH_SLATE
 	if (!(FApp::IsUnattended() || IsRunningCommandlet()) && WindowPtr.IsValid() && FSlateApplication::Get().CanDisplayWindows())
 	{
-		// Testing if we are already ticking the rendering. That is to prevent a double "BeginFrame" in case the user wrongly uses the FSlateApplication::OnPreTick to start a slow task.
+		// Testing if we are already ticking the rendering. That is to prevent a double "EndFrame" in case the user wrongly uses the FSlateApplication::OnPreTick to start a slow task.
 		bool bIsTicking = FSlateApplication::Get().IsTicking();
-
-		// Mark begin frame.
-		if (!bIsTicking && GIsRHIInitialized)
-		{
-			ENQUEUE_RENDER_COMMAND(BeginFrameCmd)([](FRHICommandListImmediate& RHICmdList) { RHICmdList.BeginFrame(); });
-		}
 
 		// Tick Slate application
 		FSlateApplication::Get().Tick();

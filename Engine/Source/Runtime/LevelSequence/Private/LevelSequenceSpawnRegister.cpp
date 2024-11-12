@@ -7,12 +7,16 @@
 #include "LevelSequenceModule.h"
 #include "IMovieSceneObjectSpawner.h"
 #include "Modules/ModuleManager.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
 
 FLevelSequenceSpawnRegister::FLevelSequenceSpawnRegister()
 {
 	FLevelSequenceModule& LevelSequenceModule = FModuleManager::GetModuleChecked<FLevelSequenceModule>("LevelSequence");
 	LevelSequenceModule.GenerateObjectSpawners(MovieSceneObjectSpawners);
 }
+
+FLevelSequenceSpawnRegister::FLevelSequenceSpawnRegister(const FLevelSequenceSpawnRegister&) = default;
+FLevelSequenceSpawnRegister::~FLevelSequenceSpawnRegister() = default;
 
 UObject* FLevelSequenceSpawnRegister::SpawnObject(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
@@ -31,21 +35,28 @@ UObject* FLevelSequenceSpawnRegister::SpawnObject(FMovieSceneSpawnable& Spawnabl
 	return nullptr;
 }
 
-void FLevelSequenceSpawnRegister::DestroySpawnedObject(UObject& Object)
+void FLevelSequenceSpawnRegister::DestroySpawnedObject(UObject& Object, UMovieSceneSpawnableBindingBase* CustomSpawnableBinding)
 {
-	for (TSharedRef<IMovieSceneObjectSpawner> MovieSceneObjectSpawner : MovieSceneObjectSpawners)
+	if (CustomSpawnableBinding)
 	{
-		if (Object.IsA(MovieSceneObjectSpawner->GetSupportedTemplateType()))
-		{
-			MovieSceneObjectSpawner->DestroySpawnedObject(Object);
-			return;
-		}
+		CustomSpawnableBinding->DestroySpawnedObject(&Object);
 	}
+	else
+	{
+		for (TSharedRef<IMovieSceneObjectSpawner> MovieSceneObjectSpawner : MovieSceneObjectSpawners)
+		{
+			if (Object.IsA(MovieSceneObjectSpawner->GetSupportedTemplateType()))
+			{
+				MovieSceneObjectSpawner->DestroySpawnedObject(Object);
+				return;
+			}
+		}
 
-	UE_LOG(
-		LogMovieScene, Error,
-		TEXT("No valid object spawner found to destroy spawned object '%s' of type '%s'."),
-		*Object.GetPathName(), *Object.GetClass()->GetName());
+		UE_LOG(
+			LogMovieScene, Error,
+			TEXT("No valid object spawner found to destroy spawned object '%s' of type '%s'."),
+			*Object.GetPathName(), *Object.GetClass()->GetName());
+	}
 }
 
 #if WITH_EDITOR

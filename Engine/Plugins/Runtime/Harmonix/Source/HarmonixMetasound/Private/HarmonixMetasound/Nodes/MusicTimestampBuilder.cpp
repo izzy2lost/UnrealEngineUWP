@@ -7,6 +7,7 @@
 #include "MetasoundSampleCounter.h"
 #include "MetasoundStandardNodesCategories.h"
 #include "MetasoundVertex.h"
+#include "MetasoundTriggerCompareNode.h"
 
 #include "HarmonixMetasound/Common.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
@@ -17,6 +18,9 @@
 namespace HarmonixMetasound
 {
 	using namespace Metasound;
+
+	using FTriggerCompareNodeMusicTimestamp = TTriggerCompareNode<FMusicTimestamp>;
+	METASOUND_REGISTER_NODE(FTriggerCompareNodeMusicTimestamp)
 
 	class FMusicTimestampBuilderOperator : public TExecutableOperator<FMusicTimestampBuilderOperator>
 	{

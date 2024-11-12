@@ -6,15 +6,87 @@
 #include "NiagaraValidationRule.h"
 #include "NiagaraPlatformSet.h"
 #include "NiagaraRendererProperties.h"
+#include "ViewModels/NiagaraEmitterHandleViewModel.h"
+#include "ViewModels/NiagaraSystemViewModel.h"
+#include "ViewModels/Stack/NiagaraStackEntry.h"
+#include "ViewModels/Stack/NiagaraStackViewModel.h"
 #include "NiagaraValidationRules.generated.h"
 
 class UNiagaraEffectType;
 class UNiagaraScript;
+class UNiagaraStackModuleItem;
+struct FNiagaraPlatformSetConflictInfo;
+class UNiagaraStackRendererItem;
 
 namespace NiagaraValidation
 {
 	NIAGARAEDITOR_API bool HasValidationRules(UNiagaraSystem* NiagaraSystem);
 	NIAGARAEDITOR_API void ValidateAllRulesInSystem(TSharedPtr<FNiagaraSystemViewModel> ViewModel, TFunction<void(const FNiagaraValidationResult& Result)> ResultCallback);
+	
+	template<typename T>
+	TArray<T*> GetStackEntries(UNiagaraStackViewModel* StackViewModel, bool bRefresh = false)
+	{
+		TArray<T*> Results;
+		TArray<UNiagaraStackEntry*> EntriesToCheck;
+		if (UNiagaraStackEntry* RootEntry = StackViewModel->GetRootEntry())
+		{
+			if (bRefresh)
+			{
+				RootEntry->RefreshChildren();
+			}
+			RootEntry->GetUnfilteredChildren(EntriesToCheck);
+		}
+		while (EntriesToCheck.Num() > 0)
+		{
+			UNiagaraStackEntry* Entry = EntriesToCheck.Pop();
+			if (T* ItemToCheck = Cast<T>(Entry))
+			{
+				Results.Add(ItemToCheck);
+			}
+			Entry->GetUnfilteredChildren(EntriesToCheck);
+		}
+		return Results;
+	}
+
+	template<typename T>
+	TArray<T*> GetAllStackEntriesInSystem(TSharedPtr<FNiagaraSystemViewModel> ViewModel, bool bRefresh = false)
+	{
+		TArray<T*> Results;
+		Results.Append(NiagaraValidation::GetStackEntries<T>(ViewModel->GetSystemStackViewModel(), bRefresh));
+		TArray<TSharedRef<FNiagaraEmitterHandleViewModel>> EmitterHandleViewModels = ViewModel->GetEmitterHandleViewModels();
+		for (TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleModel : EmitterHandleViewModels)
+		{
+			Results.Append(NiagaraValidation::GetStackEntries<T>(EmitterHandleModel.Get().GetEmitterStackViewModel(), bRefresh));
+		}
+		return Results;
+	}
+
+	// helper function to retrieve a single stack entry from the system or emitter view model
+	template<typename T>
+	T* GetStackEntry(UNiagaraStackViewModel* StackViewModel, bool bRefresh = false)
+	{
+		TArray<T*> StackEntries = NiagaraValidation::GetStackEntries<T>(StackViewModel, bRefresh);
+		if (StackEntries.Num() > 0)
+		{
+			return StackEntries[0];
+		}
+		return nullptr;
+	}
+
+	// helper function to get renderer stack item
+	NIAGARAEDITOR_API UNiagaraStackRendererItem* GetRendererStackItem(UNiagaraStackViewModel* StackViewModel, UNiagaraRendererProperties* RendererProperties);
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------
+	// Common fixes and links
+	NIAGARAEDITOR_API void AddGoToFXTypeLink(FNiagaraValidationResult& Result, UNiagaraEffectType* FXType);
+	NIAGARAEDITOR_API FNiagaraValidationFix MakeDisableGPUSimulationFix(FVersionedNiagaraEmitterWeakPtr WeakEmitterPtr);
+	NIAGARAEDITOR_API TArray<FNiagaraPlatformSetConflictInfo> GatherPlatformSetConflicts(const FNiagaraPlatformSet* SetA, const FNiagaraPlatformSet* SetB);
+	NIAGARAEDITOR_API FString GetPlatformConflictsString(TConstArrayView<FNiagaraPlatformSetConflictInfo> ConflictInfos, int MaxPlatformsToShow = 4);
+	NIAGARAEDITOR_API FString GetPlatformConflictsString(const FNiagaraPlatformSet& PlatformSetA, const FNiagaraPlatformSet& PlatformSetB, int MaxPlatformsToShow = 4);
+	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> GetEmitterViewModel(const FNiagaraValidationContext& Context, UNiagaraEmitter* NiagaraEmitter);
+	NIAGARAEDITOR_API TOptional<int32> GetModuleStaticInt32Value(const UNiagaraStackModuleItem* Module, FName ParameterName);
+	NIAGARAEDITOR_API void SetModuleStaticInt32Value(UNiagaraStackModuleItem* Module, FName ParameterName, int32 NewValue);
+	NIAGARAEDITOR_API bool StructContainsUObjectProperty(UStruct* Struct);
 }
 
 /** This validation rule ensures that systems don't have a warmup time set. */
@@ -112,6 +184,9 @@ public:
 	FNiagaraPlatformSet Platforms;
 
 	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
 	TArray<TSubclassOf<UNiagaraRendererProperties>> BannedRenderers;
 
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
@@ -128,6 +203,15 @@ public:
 	//Platforms this validation rule will apply to.
 	UPROPERTY(EditAnywhere, Category=Validation)
 	FNiagaraPlatformSet Platforms;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bBanOnGpu = true;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bBanOnCpu = true;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
 
 	UPROPERTY(EditAnywhere, Category = Validation)
 	TArray<TObjectPtr<UNiagaraScript>> BannedModules;
@@ -225,6 +309,31 @@ class UNiagaraValidationRule_InvalidEffectType : public UNiagaraValidationRule
 {
 	GENERATED_BODY()
 public:
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
+/** This validation rule will check if a system has an effect type assigned. Useful for default validation set rules that are enforced globally. */
+UCLASS(Category = "Validation", DisplayName = "Has Effect Type")
+class UNiagaraValidationRule_HasEffectType : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+	
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
+/** This validation rule will check if a system uses emitters that are tagged as Deprecated using the Niagara Asset Tags.
+ *  This is distinct from a Niagara Emitter version that is marked as deprecated, but might have a new, non-deprecated version. */
+UCLASS(Category = "Validation", DisplayName = "Check for Deprecated Emitters")
+class UNiagaraValidationRule_CheckDeprecatedEmitters : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+	
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 
@@ -368,4 +477,27 @@ public:
 	/** If true then the check is not emitter-wide, but only within the same context (e.g. particle update). */
 	UPROPERTY(EditAnywhere, Category = Validation)
 	bool bCheckDetailedUsageContext = false;
+};
+
+/** This validation rule checks that map for nodes are not used with cpu scripts (as they only work on gpu). */
+UCLASS(Category = "Validation", DisplayName = "MapFor on CPU Check")
+class UNiagaraValidationRule_NoMapForOnCpu : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+
+	/** How do we want to report the error in the stack */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Error;
+
+private:
+
+	struct FGraphCheckResult
+	{
+		FGuid ChangeID;
+		bool bContainsMapForNode = false;
+	};
+	mutable TMap<FObjectKey, FGraphCheckResult> CachedResults;
 };

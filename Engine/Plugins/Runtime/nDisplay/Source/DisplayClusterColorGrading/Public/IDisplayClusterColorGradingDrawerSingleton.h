@@ -12,5 +12,5 @@ public:
 	virtual void DockColorGradingDrawer() = 0;
 
 	/** Refreshes the UI of any open color grading drawers */
-	virtual void RefreshColorGradingDrawers(bool bPreserveDrawerState) = 0;
+	virtual void RefreshColorGradingDrawers() = 0;
 };

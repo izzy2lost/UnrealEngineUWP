@@ -27,8 +27,10 @@ struct POSESEARCH_API FTraceMessage
 
 	uint64 AnimInstanceId = 0;
 
-	/** Node Id of the motion matching node associated with this message */
-	int32 NodeId = 0;
+	// motion matching Search Id associated with this message
+	// @todo: rename it to SearchId
+	int32 NodeId = InvalidSearchId;
+	int32 GetSearchId() const { return NodeId; }
 };
 POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMessage& State);
 
@@ -66,6 +68,9 @@ struct POSESEARCH_API FTraceMotionMatchingStateMessage : public FTraceMessage
 	float SimAngularVelocity = 0.f;
 	float AnimLinearVelocity = 0.f;
 	float AnimAngularVelocity = 0.f;
+	float Playrate = 0.f;
+	float AnimLinearVelocityNoTimescale = 0.f;
+	float AnimAngularVelocityNoTimescale = 0.f;
 	
 	float RecordingTime = 0.f;
 	float SearchBestCost = 0.f;
@@ -119,6 +124,8 @@ struct POSESEARCH_API FTraceMotionMatchingStateMessage : public FTraceMessage
 #endif
 	}
 	
+	FText GenerateSearchName() const;
+
 	static const FName Name;
 };
 

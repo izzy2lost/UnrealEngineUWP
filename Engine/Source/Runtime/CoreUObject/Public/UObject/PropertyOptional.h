@@ -26,16 +26,21 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 	FORCEINLINE bool IsSet(const void* Data) const
 	{
 		checkSlow(Data);
-		return IsValueNonNullablePointer()
-			? *reinterpret_cast<void*const*>(Data) != nullptr
+		return ValueProperty->HasIntrusiveUnsetOptionalState()
+			? ValueProperty->IsIntrusiveOptionalValueSet(Data)
 			: *GetIsSetPointer(Data);
 	}
 	FORCEINLINE void* MarkSetAndGetInitializedValuePointerToReplace(void* Data) const
 	{
 		checkSlow(Data);
-		if (IsValueNonNullablePointer())
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
-			ValueProperty->InitializeValue(Data);
+			if (!IsSet(Data))
+			{
+				// Need to destroy the value in its optional unset state first 
+				ValueProperty->DestroyValue(Data);
+				ValueProperty->InitializeValue(Data);
+			}
 		}
 		else
 		{
@@ -51,9 +56,9 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 	FORCEINLINE void MarkUnset(void* Data) const
 	{
 		checkSlow(Data);
-		if (IsValueNonNullablePointer())
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
-			ValueProperty->ClearValue(Data);
+			ValueProperty->ClearIntrusiveOptionalValue(Data);
 		}
 		else
 		{
@@ -128,28 +133,10 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 		checkSlow(Data);
 		return IsSet(Data) ? Data : nullptr;
 	}
-	
-protected:
 
-	FOptionalPropertyLayout() : ValueProperty(nullptr) {}
-
-	// Variables
-	FProperty* ValueProperty; // The type of the value
-
-	FORCEINLINE int32 CalcIsSetOffset() const
-	{
-		check(!IsValueNonNullablePointer());
-		checkfSlow(
-			ValueProperty->GetSize() == Align(ValueProperty->GetSize(), ValueProperty->GetMinAlignment()),
-			TEXT("Expected optional value property to have aligned size, but got misaligned size %i for %s that has minimum alignment %i"),
-			ValueProperty->GetSize(),
-			*ValueProperty->GetFullName(),
-			ValueProperty->GetMinAlignment());
-		return ValueProperty->GetSize();
-	}
 	FORCEINLINE int32 CalcSize() const
 	{
-		if (IsValueNonNullablePointer())
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
 			return ValueProperty->GetSize();
 		}
@@ -158,10 +145,24 @@ protected:
 			return Align(CalcIsSetOffset() + 1, ValueProperty->GetMinAlignment());
 		}
 	}
+	
+protected:
 
-	FORCEINLINE bool IsValueNonNullablePointer() const
+	FOptionalPropertyLayout() : ValueProperty(nullptr) {}
+
+	// Variables
+	FProperty* ValueProperty; // The type of the inner value
+
+	FORCEINLINE int32 CalcIsSetOffset() const
 	{
-		return (ValueProperty->GetPropertyFlags() & CPF_NonNullable) != 0;
+		check(!ValueProperty->HasIntrusiveUnsetOptionalState());
+		checkfSlow(
+			ValueProperty->GetSize() == Align(ValueProperty->GetSize(), ValueProperty->GetMinAlignment()),
+			TEXT("Expected optional value property to have aligned size, but got misaligned size %i for %s that has minimum alignment %i"),
+			ValueProperty->GetSize(),
+			*ValueProperty->GetFullName(),
+			ValueProperty->GetMinAlignment());
+		return ValueProperty->GetSize();
 	}
 
 	FORCEINLINE bool* GetIsSetPointer(void* Data) const
@@ -222,6 +223,8 @@ public:
 	virtual void ClearValueInternal(void* Data) const override;
 	virtual void InitializeValueInternal(void* Data) const override;
 	virtual void DestroyValueInternal(void* Data) const override;
+	virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const override;
+	virtual void FinishDestroyInternal(void* Data) const override;
 	virtual void InstanceSubobjects(void* Data, void const* DefaultData, UObject* Owner, struct FObjectInstancingGraph* InstanceGraph) override;
 	virtual int32 GetMinAlignment() const override;
 	virtual bool ContainsObjectReference(TArray<const FStructProperty*>& EncounteredStructProps, EPropertyObjectReferenceType InReferenceType = EPropertyObjectReferenceType::Strong) const override;
@@ -233,5 +236,10 @@ public:
 	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
 	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
 	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
+	virtual bool HasIntrusiveUnsetOptionalState() const override;
+	virtual bool SameType(const FProperty* Other) const override;
+
+	virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const override;
+	virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const override;
 	// End of FProperty interface
 };

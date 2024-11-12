@@ -4,9 +4,12 @@
 
 #include "Containers/Array.h"
 #include "Containers/ContainerAllocationPolicies.h"
+#include "Delegates/Delegate.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace LowLevelTasks {
+
+DECLARE_TS_MULTICAST_DELEGATE(FOversubscriptionLimitReached);
 
 template<typename NodeType>
 using TAlignedArray = TArray<NodeType, TAlignedHeapAllocator<alignof(NodeType)>>;

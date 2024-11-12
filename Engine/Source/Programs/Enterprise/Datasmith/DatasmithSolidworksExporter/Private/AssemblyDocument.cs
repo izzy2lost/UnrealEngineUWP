@@ -143,6 +143,31 @@ namespace DatasmithSolidworks
 				new Dictionary<FMeshName, HashSet<FComponentName>>();
 
 			public FMeshes Meshes = null;
+			
+			public void ActiveConfigChanged()
+			{
+				CleanComponents?.Clear();
+				DirtyComponents?.Clear();
+				CollectedComponentsMap?.Clear();
+			}
+			
+			public void SetComponentDirty(FComponentName InComponent, EComponentDirtyState InState)
+			{
+				if (CleanComponents.Contains(InComponent))
+				{
+					CleanComponents.Remove(InComponent);
+				}
+				
+				uint DirtyFlags = 0u;
+				DirtyComponents.TryGetValue(InComponent, out DirtyFlags);
+				DirtyFlags |= (1u << (int)InState);
+				DirtyComponents[InComponent] = DirtyFlags;
+			}
+			
+			public void DirtyComponentsUpdated()
+			{
+				DirtyComponents.Clear();
+			}
 		}
 
 		public AssemblyDoc SwAsmDoc { get; private set; } = null;
@@ -169,7 +194,13 @@ namespace DatasmithSolidworks
 
 		public override FMeshes GetMeshes(string ActiveConfigName)
 		{
-			return SyncState.Meshes ?? (SyncState.Meshes = new FMeshes(ActiveConfigName));
+			FMeshes MeshesCurrent = SyncState.Meshes;
+			if (MeshesCurrent != null && (MeshesCurrent.MainConfigurationName == ActiveConfigName))
+			{
+				return MeshesCurrent;
+			}
+
+			return SyncState.Meshes = new FMeshes(ActiveConfigName);
 		}
 
 		// Export to datasmith scene extracted configurations data
@@ -185,7 +216,8 @@ namespace DatasmithSolidworks
 			Debug.Assert(ConfigurationExporter.CombinedTree.Children.Count == 1);
 			ExportComponentRecursive(ActiveVariantName, ConfigurationExporter,
 				ConfigurationExporter.CombinedTree.Children[0], null);
-			SyncState.DirtyComponents.Clear();
+			// All components are exported 
+			SyncState.DirtyComponentsUpdated();
 
 			ConfigurationExporter.FinalizeExport(this);
 
@@ -273,7 +305,7 @@ namespace DatasmithSolidworks
 			}
 			SyncState.ComponentsMaterialsMap[ComponentName] = Materials;
 		}
-
+		
 		public override void AddMeshForComponent(FComponentName ComponentName, FMeshName MeshName)
 		{
 			SyncState.ComponentNameToMeshNameMap.FindOrAdd(ComponentName).Add(MeshName);
@@ -342,26 +374,22 @@ namespace DatasmithSolidworks
 			FConfigurationTree.FComponentConfig ActiveConfig = InNode.Configurations?.Find(Config => Config.ConfigName == ActiveConfigName);
 			FConvertedTransform Transform = GetComponentDatasmithTransform(InNode, ActiveConfig);
 			SyncState.ComponentsTransformsMap[InNode.ComponentName] = Transform;
-
+			
+			FDatasmithActorExportInfo ActorExportInfo = new FDatasmithActorExportInfo();
+			ActorExportInfo.Label = InNode.ComponentName.GetLabel();
+			FActorName ActorName = Exporter.GetComponentActorName(InNode.ComponentName);
+			ActorExportInfo.Name = ActorName;
+			if (InParent != null)
+			{
+				ActorExportInfo.ParentName = Exporter.GetComponentActorName(InParent.ComponentName);
+			}
+			ActorExportInfo.Transform = Transform;
+			ActorExportInfo.bVisible = ActiveConfig?.bVisible ?? InNode.CommonConfig.bVisible;
+			ActorExportInfo.Metadata = InNode.Metadata;
+			
 			if (InNode.bGeometrySame)
 			{
-				FActorName ActorName = Exporter.GetComponentActorName(InNode.ComponentName);
-
-				FDatasmithActorExportInfo ActorExportInfo = new FDatasmithActorExportInfo();
-
-				ActorExportInfo.Label = InNode.ComponentName.GetLabel();
-				ActorExportInfo.Name = ActorName;
-
-				if (InParent != null)
-				{
-					ActorExportInfo.ParentName = Exporter.GetComponentActorName(InParent.ComponentName);
-				}
-
-				ActorExportInfo.bVisible = true;
 				ActorExportInfo.Type = Exporter.GetExportedActorType(ActorName) ?? EActorType.SimpleActor;
-				ActorExportInfo.Transform = Transform;
-
-				ActorExportInfo.bVisible = ActiveConfig?.bVisible ?? InNode.CommonConfig.bVisible;
 
 				if (InNode.IsPartComponent())
 				{
@@ -378,59 +406,51 @@ namespace DatasmithSolidworks
 			}
 			else
 			{
-				Debug.Assert(InNode.IsPartComponent());  // Expecting only Part components to have 'mesh' variants
+				Debug.Assert(InNode.IsPartComponent());  // Seriously, expecting only Part components to have 'mesh' variants
 
-				FActorName ParentName;
-				{
-					FActorName ActorName = Exporter.GetComponentActorName(InNode.ComponentName);
-					ParentName = ActorName;
+				ActorExportInfo.Type = EActorType.SimpleActor;  // Actor for Component with Mesh Variants is a 'simple' actor(i.e. just a node which has children)
 
-					FDatasmithActorExportInfo ActorExportInfo = new FDatasmithActorExportInfo();
-
-					ActorExportInfo.Label = InNode.ComponentName.GetLabel();
-					ActorExportInfo.Name = ActorName;
-
-					if (InParent != null)
-					{
-						ActorExportInfo.ParentName = Exporter.GetComponentActorName(InParent.ComponentName);
-					}
-
-					ActorExportInfo.bVisible = true;
-					ActorExportInfo.Type = EActorType.SimpleActor;  // Actor for Component with Mesh Variants is a 'simple' actor(i.e. just a node which has children)
-					ActorExportInfo.Transform = Transform;
-
-					ActorExportInfo.bVisible = ActiveConfig?.bVisible ?? InNode.CommonConfig.bVisible;
-
-					Exporter.ExportOrUpdateActor(ActorExportInfo);
-				}
+				Exporter.ExportOrUpdateActor(ActorExportInfo);
+				
+				Dictionary<FActorName, FDatasmithActorExportInfo> ConfigurationsActorExportInfo = new Dictionary<FActorName, FDatasmithActorExportInfo>();
 
 				foreach (FConfigurationTree.FComponentConfig ComponentConfig in InNode.Configurations)
 				{
-					FActorName ActorName = ConfigurationExporter.GetMeshActorName(ComponentConfig.ConfigName, InNode.ComponentName);
-					string Label = ActorName.GetString();
+					FActorName MeshActorName = ConfigurationExporter.GetMeshActorName(ComponentConfig.ConfigName, InNode.ComponentName);
+					string MeshActorLabel = MeshActorName.GetString();
 
-					FDatasmithActorExportInfo ActorExportInfo = new FDatasmithActorExportInfo();
+					FDatasmithActorExportInfo MeshActorExportInfo = new FDatasmithActorExportInfo();
 
-					ActorExportInfo.Label = Label;
-					ActorExportInfo.Name = ActorName;
+					MeshActorExportInfo.Label = MeshActorLabel;
+					MeshActorExportInfo.Name = MeshActorName;
+					
+					MeshActorExportInfo.ParentName = ActorName;
 
-					ActorExportInfo.ParentName = ParentName;
+					MeshActorExportInfo.Transform = Transform;
 
-					ActorExportInfo.bVisible = true;
-					ActorExportInfo.Type = Exporter.GetExportedActorType(ActorName) ?? EActorType.SimpleActor;
-					ActorExportInfo.Transform = Transform;
+					SyncState.ComponentsTransformsMap[InNode.ComponentName] = MeshActorExportInfo.Transform;
+					
+					MeshActorExportInfo.bVisible = ComponentConfig.bVisible && (ComponentConfig.ConfigName == ActiveConfigName);
+					MeshActorExportInfo.Type = EActorType.MeshActor;
 
-					SyncState.ComponentsTransformsMap[InNode.ComponentName] = ActorExportInfo.Transform;
-
-					ActorExportInfo.bVisible = ComponentConfig.bVisible && (ComponentConfig.ConfigName == ActiveConfigName);
-
-					ActorExportInfo.Type = EActorType.MeshActor;
-
-					ConfigurationExporter.AddActorForMesh(ActorExportInfo.Name, ComponentConfig.ConfigName, InNode.ComponentName);
-
-					Exporter.ExportOrUpdateActor(ActorExportInfo);
+					ConfigurationExporter.AddActorForMesh(MeshActorExportInfo.Name, ComponentConfig.ConfigName, InNode.ComponentName);
+					
+					if (ConfigurationsActorExportInfo.TryGetValue(MeshActorName, out FDatasmithActorExportInfo ExistingInfo))
+					{
+						Debug.Assert(MeshActorExportInfo.ParentName == ExistingInfo.ParentName);
+						Debug.Assert(MeshActorExportInfo.Type == ExistingInfo.Type);
+						Debug.Assert(MeshActorExportInfo.Type == ExistingInfo.Type);
+					}
+					else
+					{
+						// Only update actor once - for the first configuration in the list
+						// To keep actor's exported state in the default active configuration
+						Exporter.ExportOrUpdateActor(MeshActorExportInfo);
+						ConfigurationsActorExportInfo.Add(MeshActorName, MeshActorExportInfo);
+					}
 				}
 			}
+
 
 			SyncState.CleanComponents.Add(InNode.ComponentName);
 
@@ -496,15 +516,7 @@ namespace DatasmithSolidworks
 
 		public void SetComponentDirty(FComponentName InComponent, EComponentDirtyState InState)
 		{
-			if (SyncState.CleanComponents.Contains(InComponent))
-			{
-				SyncState.CleanComponents.Remove(InComponent);
-			}
-
-			uint DirtyFlags = 0u;
-			SyncState.DirtyComponents.TryGetValue(InComponent, out DirtyFlags);
-			DirtyFlags |= (1u << (int)InState);
-			SyncState.DirtyComponents[InComponent] = DirtyFlags;
+			SyncState.SetComponentDirty(InComponent, InState);
 
 			SetDirty(true);
 		}
@@ -527,9 +539,7 @@ namespace DatasmithSolidworks
 		// Active configuration changed
 		public void ActiveConfigChanged()
 		{
-			SyncState.CleanComponents?.Clear();
-			SyncState.DirtyComponents?.Clear();
-			SyncState.CollectedComponentsMap?.Clear();
+			SyncState.ActiveConfigChanged();
 		}
 
 		public void Tick()

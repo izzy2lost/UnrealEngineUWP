@@ -55,10 +55,11 @@ struct FLayoutSaveRestore
 	 *
 	 * @param InConfigFileName file to be used to load an existing layout.
 	 * @param InSectionName the name of the section to be read.
+	 * @param bIsOptional if false, an error may be output if the section doesn't exist.
 	 *
 	 * @return Loaded FText associated for that section.
 	 */
-	static SLATE_API FText LoadSectionFromConfig(const FString& InConfigFileName, const FString& InSectionName);
+	static SLATE_API FText LoadSectionFromConfig(const FString& InConfigFileName, const FString& InSectionName, const bool bIsOptional = false);
 
 	/**
 	 * Migrates the layout configuration from one config file to another.

@@ -32,9 +32,9 @@ export void BlendTransformOverwrite(const uniform FTransform SourcePose[],
 }
 
 export void BlendTransformAccumulate(const uniform FTransform SourcePose[],
-									uniform FTransform ResultPose[],
-									const uniform float BlendWeight,
-									const uniform int NumBones)
+									 uniform FTransform ResultPose[],
+									 const uniform float BlendWeight,
+									 const uniform int NumBones)
 {
 	for(uniform int BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
 	{
@@ -52,8 +52,8 @@ export void BlendTransformAccumulate(const uniform FTransform SourcePose[],
 }
 
 export void ConvertPoseToAdditive(uniform FTransform TargetPose[],
-								const uniform FTransform BasePose[],
-								const uniform int NumBones)
+								  const uniform FTransform BasePose[],
+								  const uniform int NumBones)
 {
 	for(uniform int BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 	{
@@ -73,8 +73,8 @@ export void ConvertPoseToAdditive(uniform FTransform TargetPose[],
 
 
 export void ConvertPoseToMeshRotation(uniform FTransform LocalPoses[],
-									const uniform int ParentBones[],
-									const uniform int NumBones)
+									  const uniform int ParentBones[],
+									  const uniform int NumBones)
 {
 	for(uniform int BoneIndex = 1; BoneIndex < NumBones; ++BoneIndex)
 	{
@@ -120,14 +120,8 @@ export void AccumulateWithAdditiveScale(uniform FTransform BasePose[],
 		const uniform FVector4 TranslationResult = Base.Translation + (Atom.Translation * BlendWeight);
 		const uniform FVector4 Scale3DResult = Base.Scale3D * ((Atom.Scale3D * BlendWeight) + DefaultScale);
 
-		const uniform float SquareRotationW = BlendedRotation.V[3] * BlendedRotation.V[3];
-
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		if(SquareRotationW < 1.f - DELTA * DELTA)
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			BasePose[BoneIndex].Rotation = VectorQuaternionMultiply2(BlendedRotation, Base.Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		BasePose[BoneIndex].Rotation = VectorQuaternionMultiply2(BlendedRotation, Base.Rotation);
 
 		BasePose[BoneIndex].Translation = TranslationResult;
 		BasePose[BoneIndex].Scale3D = Scale3DResult;
@@ -178,18 +172,18 @@ extern "C" unmasked const uniform unsigned int8 *uniform GetTransformFromArray(c
 
 // blend poses with both mesh space rotation and scaling (we assume uniform scale)
 export void BlendPosesPerBoneFilterScaleRotation(uniform FTransform OutPose[],
-												const uniform FTransform BasePose[],
-												const uniform unsigned int8 *uniform BlendPoseBase,
-												uniform FVector4 SourceRotations[],
-												uniform FVector SourceScales[],
-												uniform FVector4 TargetRotations[],
-												uniform FVector TargetScales[],
-												uniform FVector4 BlendRotations[],
-												uniform FVector BlendScales[],
-												uniform float MaxPoseWeights[],
-												const uniform FPerBoneBlendWeight BoneBlendWeights[],
-												const uniform int ParentBoneArray[],
-												const uniform int NumBones)
+												 const uniform FTransform BasePose[],
+												 const uniform unsigned int8 *uniform BlendPoseBase,
+												 uniform FVector4 SourceRotations[],
+												 uniform FVector SourceScales[],
+												 uniform FVector4 TargetRotations[],
+												 uniform FVector TargetScales[],
+												 uniform FVector4 BlendRotations[],
+												 uniform FVector BlendScales[],
+												 uniform float MaxPoseWeights[],
+												 const uniform FPerBoneBlendWeight BoneBlendWeights[],
+												 const uniform int ParentBoneArray[],
+												 const uniform int NumBones)
 {
 	for(uniform int BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
 	{
@@ -272,15 +266,15 @@ export void BlendPosesPerBoneFilterScaleRotation(uniform FTransform OutPose[],
 
 // blend poses with both mesh space rotation (we assume uniform scale)
 export void BlendPosesPerBoneFilterRotation(uniform FTransform OutPose[],
-										const uniform FTransform BasePose[],
-										const uniform unsigned int8 *uniform BlendPoseBase,
-										uniform FVector4 SourceRotations[],
-										uniform FVector4 TargetRotations[],
-										uniform FVector4 BlendRotations[],
-										uniform float MaxPoseWeights[],
-										const uniform FPerBoneBlendWeight BoneBlendWeights[],
-										const uniform int ParentBoneArray[],
-										const uniform int NumBones)
+											const uniform FTransform BasePose[],
+											const uniform unsigned int8 *uniform BlendPoseBase,
+											uniform FVector4 SourceRotations[],
+											uniform FVector4 TargetRotations[],
+											uniform FVector4 BlendRotations[],
+											uniform float MaxPoseWeights[],
+											const uniform FPerBoneBlendWeight BoneBlendWeights[],
+											const uniform int ParentBoneArray[],
+											const uniform int NumBones)
 {
 	for(uniform int BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
 	{
@@ -345,15 +339,15 @@ export void BlendPosesPerBoneFilterRotation(uniform FTransform OutPose[],
 
 // blend poses with mesh space scaling (we assume uniform scale)
 export void BlendPosesPerBoneFilterScale(uniform FTransform OutPose[],
-										const uniform FTransform BasePose[],
-										const uniform unsigned int8 *uniform BlendPoseBase,
-										uniform FVector SourceScales[],
-										uniform FVector TargetScales[],
-										uniform FVector BlendScales[],
-										uniform float MaxPoseWeights[],
-										const uniform FPerBoneBlendWeight BoneBlendWeights[],
-										const uniform int ParentBoneArray[],
-										const uniform int NumBones)
+										 const uniform FTransform BasePose[],
+										 const uniform unsigned int8 *uniform BlendPoseBase,
+										 uniform FVector SourceScales[],
+										 uniform FVector TargetScales[],
+										 uniform FVector BlendScales[],
+										 uniform float MaxPoseWeights[],
+										 const uniform FPerBoneBlendWeight BoneBlendWeights[],
+										 const uniform int ParentBoneArray[],
+										 const uniform int NumBones)
 {
 	for(uniform int BoneIndex = 0; BoneIndex < NumBones; BoneIndex++)
 	{
@@ -510,11 +504,11 @@ export void BlendCurves(const uniform float SourceCurveWeights[],
 	}
 }
 
-export void LerpBoneTransforms(	uniform FTransform ATransformData[],
-								uniform FTransform BTransformData[],
-								const uniform float Alpha,
-								const uniform unsigned int16 RequiredBonesArray[],
-								const uniform int32 NumOfBones)
+export void LerpBoneTransforms(uniform FTransform ATransformData[],
+							   const uniform FTransform BTransformData[],
+							   const uniform float Alpha,
+							   const uniform unsigned int16 RequiredBonesArray[],
+							   const uniform int32 NumOfBones)
 {
 	// Note: Check FAnimWeight::IsFullWeight(Alpha) as well as !FAnimWeight::IsRelevant(Alpha) before this function runs
 

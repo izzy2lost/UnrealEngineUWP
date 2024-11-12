@@ -2,31 +2,57 @@
 
 #include "Animators/PropertyAnimatorClock.h"
 
-#include "Internationalization/Regex.h"
 #include "Misc/DateTime.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
-UPropertyAnimatorClock::UPropertyAnimatorClock()
+namespace UE::Private::Animator
 {
-	SetAnimatorDisplayName(DefaultControllerName);
-
-	if (!IsTemplate())
-	{
-		OnModeChanged();
-	}
+	static TMap<TCHAR, TFunction<FString(const FDateTime&)>> FormatFunctions;
 }
 
-void UPropertyAnimatorClock::SetMode(EPropertyAnimatorClockMode InMode)
+void UPropertyAnimatorClock::RegisterFormat(const TCHAR InChar, TFunction<FString(const FDateTime&)> InFormatter)
 {
-	if (Mode == InMode)
-	{
-		return;
-	}
+	UE::Private::Animator::FormatFunctions.Add(InChar, InFormatter);
+}
 
-	Mode = InMode;
-	OnModeChanged();
+void UPropertyAnimatorClock::UnregisterFormat(const TCHAR InChar)
+{
+	UE::Private::Animator::FormatFunctions.Remove(InChar);
+}
+
+UPropertyAnimatorClock::UPropertyAnimatorClock()
+{
+	if (IsTemplate())
+	{
+		RegisterFormat(TEXT('a'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%a")); });
+		RegisterFormat(TEXT('A'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%A")); });
+		RegisterFormat(TEXT('w'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%w")); });
+		RegisterFormat(TEXT('y'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%y")); });
+		RegisterFormat(TEXT('Y'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%Y")); });
+		RegisterFormat(TEXT('b'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%b")); });
+		RegisterFormat(TEXT('B'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%B")); });
+		RegisterFormat(TEXT('m'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%m")); });
+		RegisterFormat(TEXT('n'), [](const FDateTime& InDateTime)->FString{ return FString::FromInt(InDateTime.GetMonth()); });
+		RegisterFormat(TEXT('d'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%d")); });
+		RegisterFormat(TEXT('e'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%e")); });
+		RegisterFormat(TEXT('j'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%j")); });
+		RegisterFormat(TEXT('J'), [](const FDateTime& InDateTime)->FString{ return FString::FromInt(InDateTime.GetDayOfYear()); });
+		RegisterFormat(TEXT('l'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%l")); });
+		RegisterFormat(TEXT('I'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%I")); });
+		RegisterFormat(TEXT('H'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%H")); });
+		RegisterFormat(TEXT('h'), [](const FDateTime& InDateTime)->FString{ return FString::FromInt(InDateTime.GetHour()); });
+		RegisterFormat(TEXT('M'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%M")); });
+		RegisterFormat(TEXT('N'), [](const FDateTime& InDateTime)->FString{ return FString::FromInt(InDateTime.GetMinute()); });
+		RegisterFormat(TEXT('S'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%S")); });
+		RegisterFormat(TEXT('s'), [](const FDateTime& InDateTime)->FString{ return FString::FromInt(InDateTime.GetSecond()); });
+		RegisterFormat(TEXT('f'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToString(TEXT("%s")); });
+		RegisterFormat(TEXT('F'), [](const FDateTime& InDateTime)->FString{ return FString::FromInt(InDateTime.GetMillisecond()); });
+		RegisterFormat(TEXT('p'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%p")); });
+		RegisterFormat(TEXT('P'), [](const FDateTime& InDateTime)->FString{ return InDateTime.ToFormattedString(TEXT("%P")); });
+		RegisterFormat(TEXT('t'), [](const FDateTime& InDateTime)->FString{ return LexToString(InDateTime.GetTicks()); });
+	}
 }
 
 void UPropertyAnimatorClock::SetDisplayFormat(const FString& InDisplayFormat)
@@ -34,95 +60,52 @@ void UPropertyAnimatorClock::SetDisplayFormat(const FString& InDisplayFormat)
 	DisplayFormat = InDisplayFormat;
 }
 
-void UPropertyAnimatorClock::SetCountdownDuration(const FString& InDuration)
+FString UPropertyAnimatorClock::FormatDateTime(const FDateTime& InDateTime, const FString& InDisplayFormat)
 {
-	if (CountdownDuration == InDuration)
-	{
-		return;
-	}
+	FString Result;
+	Result.Reserve(InDisplayFormat.Len());
 
-	CountdownDuration = InDuration;
-	OnModeChanged();
+    for (int32 CharIndex = 0; CharIndex < InDisplayFormat.Len(); ++CharIndex)
+    {
+        if (InDisplayFormat[CharIndex] == TEXT('%') && CharIndex + 1 < InDisplayFormat.Len())
+        {
+			if (const TFunction<FString(const FDateTime&)>* Formatter = UE::Private::Animator::FormatFunctions.Find(InDisplayFormat[CharIndex + 1]))
+			{
+				Result += (*Formatter)(InDateTime);
+			}
+
+            ++CharIndex;
+        }
+        else
+        {
+            Result += InDisplayFormat[CharIndex];
+        }
+    }
+
+    return Result;
 }
 
-bool UPropertyAnimatorClock::IsPropertyDirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const
+void UPropertyAnimatorClock::OnAnimatorRegistered(FPropertyAnimatorCoreMetadata& InMetadata)
 {
-	return InPropertyData.IsA<FStrProperty>();
+	Super::OnAnimatorRegistered(InMetadata);
+
+	InMetadata.Name = TEXT("Clock");
 }
 
-bool UPropertyAnimatorClock::IsPropertyIndirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const
+void UPropertyAnimatorClock::EvaluateProperties(FInstancedPropertyBag& InParameters)
 {
-	// Check if a converter supports the conversion
-	if (UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-	{
-		static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::String);
-		const FPropertyBagPropertyDesc PropertyTypeDesc("", InPropertyData.GetLeafProperty());
+	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 
-		return AnimatorSubsystem->IsConversionSupported(AnimatorTypeDesc, PropertyTypeDesc);
-	}
+	const FTimespan ElapsedTimeSpan = FTimespan::FromSeconds(TimeElapsed);
+	const FDateTime DateTime(ElapsedTimeSpan > FTimespan::Zero() ? ElapsedTimeSpan.GetTicks() : 0);
+	const FString FormattedDateTime = FormatDateTime(DateTime, DisplayFormat);
 
-	return false;
-}
-
-void UPropertyAnimatorClock::PostLoad()
-{
-	Super::PostLoad();
-
-	OnModeChanged();
-}
-
-#if WITH_EDITOR
-void UPropertyAnimatorClock::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(InPropertyChangedEvent);
-
-	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
-
-	if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorClock, Mode)
-		|| MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorClock, CountdownDuration))
-	{
-		OnModeChanged();
-	}
-}
-#endif
-
-void UPropertyAnimatorClock::OnModeChanged()
-{
-	if (Mode == EPropertyAnimatorClockMode::LocalTime)
-	{
-		ActiveTimeSpan = FTimespan(FDateTime::Now().GetTicks()) - ElapsedTimeSpan;
-	}
-	else if (Mode == EPropertyAnimatorClockMode::Countdown)
-	{
-		ActiveTimeSpan = ParseTime(CountdownDuration);
-	}
-	else if (Mode == EPropertyAnimatorClockMode::Stopwatch)
-	{
-		ActiveTimeSpan = FTimespan::Zero();
-	}
-}
-
-void UPropertyAnimatorClock::EvaluateProperties(const FPropertyAnimatorCoreEvaluationParameters& InParameters)
-{
-	FString FormattedDateTime;
-
-	if (Mode == EPropertyAnimatorClockMode::Countdown)
-	{
-		ElapsedTimeSpan = ActiveTimeSpan - FTimespan::FromSeconds(InParameters.TimeElapsed);
-		const FDateTime CountdownDateTime(ElapsedTimeSpan > FTimespan::Zero() ? ElapsedTimeSpan.GetTicks() : 0);
-		FormattedDateTime = CountdownDateTime.ToFormattedString(*DisplayFormat);
-	}
-	else if (Mode == EPropertyAnimatorClockMode::Stopwatch || Mode == EPropertyAnimatorClockMode::LocalTime)
-	{
-		ElapsedTimeSpan = ActiveTimeSpan + FTimespan::FromSeconds(InParameters.TimeElapsed);
-		const FDateTime StopWatchDateTime(ElapsedTimeSpan.GetTicks());
-		FormattedDateTime = StopWatchDateTime.ToFormattedString(*DisplayFormat);
-	}
-
-	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, FormattedDateTime](
-		UPropertyAnimatorCoreContext* InContext,
-		const FPropertyAnimatorCoreData& InResolvedProperty,
-		FInstancedPropertyBag& InEvaluatedValues)->bool
+	EvaluateEachLinkedProperty([this, FormattedDateTime](
+		UPropertyAnimatorCoreContext* InContext
+		, const FPropertyAnimatorCoreData& InResolvedProperty
+		, FInstancedPropertyBag& InEvaluatedValues
+		, int32 InRangeIndex
+		, int32 InRangeMax)->bool
 	{
 		const FName DisplayName(InResolvedProperty.GetPathHash());
 
@@ -133,59 +116,32 @@ void UPropertyAnimatorClock::EvaluateProperties(const FPropertyAnimatorCoreEvalu
 	});
 }
 
-void UPropertyAnimatorClock::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty)
+bool UPropertyAnimatorClock::ImportPreset(const UPropertyAnimatorCorePresetBase* InPreset, const TSharedRef<FPropertyAnimatorCorePresetArchive>& InValue)
 {
-	Super::OnPropertyLinked(InLinkedProperty);
-
-	const FPropertyAnimatorCoreData& Property = InLinkedProperty->GetAnimatedProperty();
-	if (Property.IsA<FStrProperty>())
+	if (Super::ImportPreset(InPreset, InValue) && InValue->IsObject())
 	{
-		return;
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = InValue->AsMutableObject();
+
+		FString DisplayFormatValue = DisplayFormat;
+		AnimatorArchive->Get(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorClock, DisplayFormat), DisplayFormatValue);
+		SetDisplayFormat(DisplayFormatValue);
+
+		return true;
 	}
 
-	const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
-	if (!AnimatorSubsystem)
-	{
-		return;
-	}
-
-	static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::String);
-	const FPropertyBagPropertyDesc PropertyTypeDesc("", Property.GetLeafProperty());
-	const TSet<UPropertyAnimatorCoreConverterBase*> Converters = AnimatorSubsystem->GetSupportedConverters(AnimatorTypeDesc, PropertyTypeDesc);
-	check(!Converters.IsEmpty())
-	InLinkedProperty->SetConverterClass(Converters.Array()[0]->GetClass());
+	return false;
 }
 
-FTimespan UPropertyAnimatorClock::ParseTime(const FString& InFormat)
+bool UPropertyAnimatorClock::ExportPreset(const UPropertyAnimatorCorePresetBase* InPreset, TSharedPtr<FPropertyAnimatorCorePresetArchive>& OutValue) const
 {
-	// Regex patterns for different formats
-	static const FRegexPattern HHMMSSPattern(TEXT("^(?:(\\d{2}):)?(\\d{2}):(\\d{2})$")); // 01:00 00:01:00
-	static const FRegexPattern CombinedPattern(TEXT("(?:(\\d+)h)? ?(?:(\\d+)m)? ?(?:(\\d+)s)?")); // 1h 1m 1s
-
-	FRegexMatcher HHMMSSMatcher(HHMMSSPattern, InFormat);
-	FRegexMatcher CombinedMatcher(CombinedPattern, InFormat);
-
-	FTimespan ParsedTimeSpan = FTimespan::Zero();
-
-	if (InFormat.IsNumeric())
+	if (Super::ExportPreset(InPreset, OutValue) && OutValue->IsObject())
 	{
-		const int32 Seconds = FCString::Atoi(*InFormat);
-		ParsedTimeSpan = FTimespan::FromSeconds(Seconds);
-	}
-	else if (HHMMSSMatcher.FindNext())
-	{
-		const int32 Hours = HHMMSSMatcher.GetCaptureGroup(1).IsEmpty() ? 0 : FCString::Atoi(*HHMMSSMatcher.GetCaptureGroup(1));
-		const int32 Minutes = FCString::Atoi(*HHMMSSMatcher.GetCaptureGroup(2));
-		const int32 Seconds = FCString::Atoi(*HHMMSSMatcher.GetCaptureGroup(3));
-		ParsedTimeSpan = FTimespan::FromHours(Hours) + FTimespan::FromMinutes(Minutes) + FTimespan::FromSeconds(Seconds);
-	}
-	else if (CombinedMatcher.FindNext())
-	{
-		const int32 Hours = CombinedMatcher.GetCaptureGroup(1).IsEmpty() ? 0 : FCString::Atoi(*CombinedMatcher.GetCaptureGroup(1));
-		const int32 Minutes = CombinedMatcher.GetCaptureGroup(2).IsEmpty() ? 0 : FCString::Atoi(*CombinedMatcher.GetCaptureGroup(2));
-		const int32 Seconds = CombinedMatcher.GetCaptureGroup(3).IsEmpty() ? 0 : FCString::Atoi(*CombinedMatcher.GetCaptureGroup(3));
-		ParsedTimeSpan = FTimespan::FromHours(Hours) + FTimespan::FromMinutes(Minutes) + FTimespan::FromSeconds(Seconds);
+		const TSharedPtr<FPropertyAnimatorCorePresetObjectArchive> AnimatorArchive = OutValue->AsMutableObject();
+
+		AnimatorArchive->Set(GET_MEMBER_NAME_STRING_CHECKED(UPropertyAnimatorClock, DisplayFormat), DisplayFormat);
+
+		return true;
 	}
 
-	return ParsedTimeSpan;
+	return false;
 }

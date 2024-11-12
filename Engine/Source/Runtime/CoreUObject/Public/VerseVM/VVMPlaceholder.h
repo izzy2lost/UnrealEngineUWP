@@ -97,7 +97,7 @@ struct VPlaceholder : public VCell
 	}
 
 	// TODO: For perf, think through if FIFO or LIFO will be faster.
-	void EnqueueSuspension(FRunningContext Context, VSuspension& Suspension)
+	void EnqueueSuspension(FAccessContext Context, VSuspension& Suspension)
 	{
 		VPlaceholder& Root = Follow().GetRootPlaceholder();
 		if (VSuspension* PreviousSuspension = Root.GetSuspension())

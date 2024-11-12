@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 
 #include "SkeletalMeshVertexAttribute.generated.h"
 
@@ -40,9 +40,6 @@ struct FSkeletalMeshVertexAttributeInfo
 	/** The data type to store the vertex data as for rendering */
 	UPROPERTY(EditAnywhere, Category="Vertex Attributes")
 	ESkeletalMeshVertexAttributeDataType DataType = ESkeletalMeshVertexAttributeDataType::Float;
-
-	/** Returns the name to use for this attribute when */ 
-	ENGINE_API FName GetRequirementName() const;
 
 	/** Returns true if this attribute is enabled for rendering on this platform */
 	ENGINE_API bool IsEnabledForRender() const;

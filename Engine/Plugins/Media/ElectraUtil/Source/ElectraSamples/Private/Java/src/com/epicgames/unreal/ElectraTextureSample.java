@@ -12,11 +12,33 @@ import android.opengl.*;
 import android.graphics.SurfaceTexture;
 import android.view.Surface;
 import java.nio.ByteBuffer;
-
+import android.media.ImageReader;
+import android.media.Image;
+import android.hardware.HardwareBuffer;
 
 public class ElectraTextureSample
 {
-	private static final String TAG = "[ElectraPlayerSDK]";
+	private static final String TAG = "[ElectraTextureSample]";
+
+	public class FImageResources
+	{
+		public void Release()
+		{
+			if (Image != null)
+			{
+				Image.close();
+				Image = null;
+			}
+		}
+
+		public android.media.Image Image = null;
+		public android.hardware.HardwareBuffer HardwareBuffer = null;
+
+		public float UScale = 0.0f;
+		public float UOffset = 0.0f;
+		public float VScale = 0.0f;
+		public float VOffset = 0.0f;
+	}
 
 	public class FFrameUpdateInfo
 	{
@@ -30,6 +52,7 @@ public class ElectraTextureSample
 		public float VScale = 0.0f;
 		public float VOffset = 0.0f;
 		public int NumPending = 0;
+		public FImageResources ImageResources = null;
 	}
 
 	private FBitmapRenderer BitmapRenderer = null;
@@ -38,9 +61,12 @@ public class ElectraTextureSample
 	{
 	}
 
-	public void Initialize(boolean bVulkan)
+	public void Initialize(boolean bNewRenderer, boolean bVulkan, long parentHandle)
 	{
-		BitmapRenderer = new FBitmapRenderer(bVulkan);
+		if (bNewRenderer)
+			BitmapRenderer = new FBitmapRendererNew(bVulkan, parentHandle, 16);
+		else
+			BitmapRenderer = new FBitmapRendererOld(bVulkan);
 	}
 
 	public void Release()
@@ -75,10 +101,17 @@ public class ElectraTextureSample
 	/***************************************************************************************************************************************************/
 	/***************************************************************************************************************************************************/
 
+	abstract class FBitmapRenderer
+	{
+		public abstract void release();
+		public abstract FFrameUpdateInfo GetVideoFrameUpdateInfo(int destTexture, int width, int height, boolean bIs10Bit);
+		public abstract android.view.Surface getSurface();
+	}
+
 	/*
 		All this internal surface view does is manage the offscreen bitmap that the media player decoding can render into for eventual extraction to the UE4 buffers.
 	*/
-	class FBitmapRenderer
+	class FBitmapRendererOld extends FBitmapRenderer
 	{
 		private java.nio.Buffer mFrameData = null;
 		private int mFrameDataSize = 0;
@@ -110,7 +143,7 @@ public class ElectraTextureSample
 
 		public int mNativeDecoderID;
 
-		public FBitmapRenderer(boolean vulkanRenderer)
+		public FBitmapRendererOld(boolean vulkanRenderer)
 		{
 			mVulkanRenderer = vulkanRenderer;
 
@@ -940,7 +973,223 @@ public class ElectraTextureSample
 		}
 	}
 
+	/*
+		All this internal surface view does is manage the offscreen bitmap that the media player decoding can render into for eventual extraction to the UE4 buffers.
+	*/
+	class FBitmapRendererNew extends FBitmapRenderer implements ImageReader.OnImageAvailableListener
+	{
+		private java.nio.Buffer mFrameData = null;
+		private int mFrameDataSize = 0;
+		private android.media.ImageReader mImageReader = null;
+		private android.os.HandlerThread mHandlerThread = null;
+		private android.os.Handler mImageReaderHandler = null;
+		private java.util.concurrent.BlockingQueue<Image> mImageQueue = null;
+		private int mTextureWidth = -1;
+		private int mTextureHeight = -1;
+		private android.view.Surface mSurface = null;
+		private boolean mUseOwnContext = true;
+		private boolean mVulkanRenderer = false;
+		private long mParentHandle = 0;
+
+		public int mNativeDecoderID;
+
+		public FBitmapRendererNew(boolean vulkanRenderer, long parentHandle, int maxQueueLength)
+		{
+			mVulkanRenderer = vulkanRenderer;
+			mParentHandle = parentHandle;
+
+			mImageReader = android.media.ImageReader.newInstance(1, 1, android.graphics.ImageFormat.YUV_420_888, maxQueueLength, android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE);
+
+			mSurface = mImageReader.getSurface();
+
+			mImageQueue = new java.util.concurrent.LinkedBlockingQueue<>(maxQueueLength / 2);
+			// We need to spawn our own thread here, because the main looper cannot be relied on to collect images before the ImageReader queue overflows
+			 mImageReaderHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+			//mHandlerThread = new android.os.HandlerThread("ElectraTextureSampleHandlerThread");
+			//mHandlerThread.start();
+			//mImageReaderHandler = new android.os.Handler(mHandlerThread.getLooper());
+			mImageReader.setOnImageAvailableListener(this, mImageReaderHandler);
+		}
+
+		public void onImageAvailable(ImageReader reader)
+		{
+			// Get image data from Surface / Queue...
+			android.media.Image Image = null;
+			try {
+				Image =  mImageReader.acquireNextImage();
+			} catch(Exception e) {
+				Log.d(TAG, String.format("ImageReader.acquireNextImage() threw: %s", e.toString()));
+			}
+
+			if (Image != null)
+			{
+				// Signal that we received the image
+				// (used on pre API 31 to make sure we only have one image in the queue; NoOp later on!)
+				nativeSignalSurfaceReadEvent(mParentHandle);
+
+				// Deliver new image into our own queue
+				try {
+					mImageQueue.put(Image);
+				} catch(InterruptedException e) {
+					// [...] ?
+				}
+			}
+		}
+
+		public boolean isValid()
+		{
+			return mImageReader != null;
+		}
+
+		public android.view.Surface getSurface()
+		{
+			return mSurface;
+		}
+
+		public FFrameUpdateInfo GetVideoFrameUpdateInfo(int destTexture, int width, int height, boolean bIs10Bit)
+		{
+			mTextureWidth = width;
+			mTextureHeight = height;
+
+			return updateFrameData(bIs10Bit);
+		}
+
+		public FFrameUpdateInfo updateFrameData(boolean bIs10Bit)
+		{
+			synchronized(this)
+			{
+				// Copy surface texture to destination texture.
+				FImageResources ImageResources = getFrameTextureInfo();
+				if (ImageResources == null)
+				{
+					return null;
+				}
+
+				// Get associated frame metadata
+				FFrameUpdateInfo frameUpdateInfo = new FFrameUpdateInfo();
+
+				frameUpdateInfo.ImageResources = ImageResources;
+
+				frameUpdateInfo.Timestamp = -1;
+				frameUpdateInfo.bFrameReady = true;
+				frameUpdateInfo.bRegionChanged = false;
+
+				return frameUpdateInfo;
+			}
+		}
+
+
+		private FImageResources getFrameTextureInfo()
+		{
+			if (null == mImageReader)
+			{
+				// Can't update if there's no surface to update into.
+				return null;
+			}
+
+			// Prepare to capture any resources we need to track for the output image
+			FImageResources ImageResources = new FImageResources();
+
+			// Grab the next image in the queue
+			try {
+				ImageResources.Image = mImageQueue.take();
+			} catch(InterruptedException e) {
+				// [...] ?
+			}
+
+			if (ImageResources.Image == null)
+			{
+				return null;
+			}
+
+			ImageResources.HardwareBuffer = ImageResources.Image.getHardwareBuffer();
+			if (ImageResources.HardwareBuffer == null)
+			{
+				Log.d(TAG, "Could not get HardwareBuffer from Image!");
+				return null;
+			}
+
+/*
+//ALL THIS COULD GO 100% NATIVE POSSIBLY - ONCE WE OWN THE Image WE SHOULD BE GOOD?
+			// Grab the EGLNativeClientBuffer from the Image using native code
+
+			if (mVulkanRenderer)
+			{
+				ImageResources.EglImageNativeHandle = 0;
+				ImageResources.HardwareBuffer = ImageResources.Image.getHardwareBuffer();
+				if (ImageResources.HardwareBuffer == null)
+				{
+					Log.d(TAG, "Could not get HardwareBuffer from Image!");
+					return null;
+				}
+			}
+			else
+			{
+				ImageResources.HardwareBuffer = null;
+				long NativeClientBuffer = nativeGetEGLNativeClientBuffer(ImageResources.Image.getHardwareBuffer());
+				if (NativeClientBuffer < 0)
+				{
+					Log.d(TAG, "Could not get native client buffer!");
+					return null;
+				}
+
+				ImageResources.EglImageNativeHandle = nativeCreateEGLImageKHR(EGL14.eglGetCurrentDisplay().getNativeHandle(), EGL14.eglGetCurrentContext().getNativeHandle(), NativeClientBuffer);
+				if (ImageResources.EglImageNativeHandle == 0)
+				{
+					Log.d(TAG, String.format("Could not create EGLimage from native client buffer! B=0x%x E=0x%x", NativeClientBuffer, EGL14.eglGetError()));
+					return null;
+				}
+
+				Log.d(TAG, String.format("NATIVE HANDLE: 0x%x", ImageResources.EglImageNativeHandle));
+			}
+*/
+			android.graphics.Rect CropRect = ImageResources.Image.getCropRect();
+			ImageResources.UScale = (float)(CropRect.right - CropRect.left) / mTextureWidth;
+			ImageResources.UOffset = (float)CropRect.left / mTextureWidth;
+			ImageResources.VScale = (float)(CropRect.bottom - CropRect.top) / mTextureHeight;
+			ImageResources.VOffset = (float)CropRect.top / mTextureHeight;
+
+			return ImageResources;
+		}
+
+		public FFrameUpdateInfo GetVideoFrameUpdateInfo(int width, int height, boolean bIs10Bit)
+		{
+			mTextureWidth = width;
+			mTextureHeight = height;
+
+			return updateFrameData(bIs10Bit);
+		}
+
+		public void release()
+		{
+			synchronized(this)
+			{
+				if (mImageReader != null)
+				{
+					mImageReader.setOnImageAvailableListener(null, null);
+				}
+			}
+
+			if (null != mSurface)
+			{
+				mSurface.release();
+				mSurface = null;
+			}
+			if (mImageReader != null)
+			{
+				mImageReader.close();
+				mImageReader = null;
+			}
+			if (mHandlerThread != null)
+			{
+				mHandlerThread.stop();
+				mHandlerThread = null;
+			}
+		}
+	}
+
 	public native void nativeClearCachedAttributeState(int PositionAttrib, int TexCoordsAttrib);
+	public native void nativeSignalSurfaceReadEvent(long parentHandle);
 }
 
 

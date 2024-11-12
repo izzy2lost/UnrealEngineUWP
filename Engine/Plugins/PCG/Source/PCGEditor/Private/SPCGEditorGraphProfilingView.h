@@ -7,6 +7,7 @@
 
 #include "Framework/Commands/GenericCommands.h"
 #include "Widgets/Views/ITableRow.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 class FPCGEditor;
@@ -65,8 +66,6 @@ private:
 
 	void OnDebugStackChanged(const FPCGStack& InPCGStack);
 
-	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
-	
 	// Callbacks
 	void RequestRefresh();
 	FReply Refresh();
@@ -76,6 +75,7 @@ private:
 	EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
 	FText GetTotalTimeLabel() const;
 	FText GetTotalWallTimeLabel() const;
+	FText GetTotalDataSizeInMB() const;
 
 	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const;
 	void CopySelectionToClipboard() const;
@@ -87,14 +87,14 @@ private:
 	/** Called when user changes commits text to the search box */
 	void OnSearchTextCommitted(const FText& InText, ETextCommit::Type InCommitType);
 
+	/** Returns the current PCG component */
+	TWeakObjectPtr<UPCGComponent> GetPCGComponent() const;
+
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
 
 	/** Cached PCGGraph being viewed */
 	UPCGEditorGraph* PCGEditorGraph = nullptr;
-
-	/** Cached PCGComponent being viewed */
-	TWeakObjectPtr<UPCGComponent> PCGComponent;
 
 	/** Current stack being viewed */
 	FPCGStack PCGStack;
@@ -110,6 +110,7 @@ private:
 
 	double TotalTime = 0.0;
 	double TotalWallTime = 0.0;
+	double TotalDataSizeInMB = 0.0;
 
 	bool bNeedsRefresh = false;
 

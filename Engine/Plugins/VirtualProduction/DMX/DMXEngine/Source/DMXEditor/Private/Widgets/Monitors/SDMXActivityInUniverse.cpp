@@ -100,8 +100,7 @@ void SDMXActivityInUniverse::Construct(const FArguments& InArgs)
 					.OnGenerateRow(this, &SDMXActivityInUniverse::GenerateChannelRow)
 					.ListItemsSource(&ChannelListSource)
 					.Orientation(EOrientation::Orient_Horizontal)
-					.ScrollbarVisibility(EVisibility::Collapsed)					
-					.ItemHeight(40.0f)
+					.ScrollbarVisibility(EVisibility::Collapsed)
 				]
 			]
 			+ SVerticalBox::Slot()
@@ -142,7 +141,10 @@ void SDMXActivityInUniverse::UpdateChannels()
 	for (const TSharedPtr<FDMXUniverseMonitorChannelItem>& ChannelItem : Channels)
 	{
 		int32 ChannelIndex = ChannelItem->GetChannelID() - 1;
-		check(Buffer.IsValidIndex(ChannelIndex));
+		if (!Buffer.IsValidIndex(ChannelIndex))
+		{
+			return;
+		}
 
 		// Update channels that aren't of zero value or changed to zero to zero value
 		if (ChannelItem->GetValue() != Buffer[ChannelIndex])

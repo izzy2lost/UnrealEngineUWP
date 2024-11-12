@@ -5,12 +5,14 @@
 #include "ChaosVDModule.h"
 
 
-FChaosVDArchiveHeaderProcessor::FChaosVDArchiveHeaderProcessor() : IChaosVDDataProcessor(Chaos::VisualDebugger::FChaosVDArchiveHeader::WrapperTypeName)
+FChaosVDArchiveHeaderProcessor::FChaosVDArchiveHeaderProcessor() : FChaosVDDataProcessorBase(Chaos::VisualDebugger::FChaosVDArchiveHeader::WrapperTypeName)
 {
 }
 
 bool FChaosVDArchiveHeaderProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

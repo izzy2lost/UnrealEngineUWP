@@ -2,6 +2,7 @@
 
 #include "AvaTransitionEditor.h"
 #include "AppModes/AvaTransitionAdvancedMode.h"
+#include "AppModes/AvaTransitionParameterMode.h"
 #include "AppModes/AvaTransitionSimpleMode.h"
 #include "AvaTransitionTree.h"
 #include "AvaTransitionTreeEditorData.h"
@@ -10,6 +11,7 @@
 #include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionEditor"
 
@@ -63,8 +65,9 @@ void FAvaTransitionEditor::RegisterApplicationModes()
 {
 	TSharedRef<FAvaTransitionEditor> This = SharedThis(this);
 
-	const TArray<TSharedRef<FAvaTransitionAppMode>, TFixedAllocator<2>> AppModes = 
+	const TArray<TSharedRef<FAvaTransitionAppMode>, TFixedAllocator<3>> AppModes = 
 	{
+		MakeShared<FAvaTransitionParameterMode>(This),
 		MakeShared<FAvaTransitionSimpleMode>(This),
 		MakeShared<FAvaTransitionAdvancedMode>(This),
 	};
@@ -76,7 +79,7 @@ void FAvaTransitionEditor::RegisterApplicationModes()
 	}
 
 	// set default mode to the first app mode
-	SetCurrentMode(AppModes[0]->GetModeName());
+	SetCurrentMode(FAvaTransitionAppMode::StaticGetModeName(EAvaTransitionEditorMode::Default));
 }
 
 void FAvaTransitionEditor::ExtendMenus()

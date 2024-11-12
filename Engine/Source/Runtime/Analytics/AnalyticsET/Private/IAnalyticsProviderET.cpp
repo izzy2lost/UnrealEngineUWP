@@ -215,6 +215,7 @@ TSharedPtr<IAnalyticsProviderET> FAnalyticsET::CreateAnalyticsProvider(const Con
 		UE_LOG(LogAnalytics, Warning, TEXT("CreateAnalyticsProvider config not contain required parameter %s"), *Config::GetKeyNameForAPIKey());
 		return NULL;
 	}
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	return MakeShared<FAnalyticsProviderET>(ConfigValues);
 }
 
@@ -296,6 +297,13 @@ FAnalyticsProviderET::FAnalyticsProviderET(const FAnalyticsET::Config& ConfigVal
 		UE_LOG(LogAnalytics, Warning, TEXT("AnalyticsET: APIServerET is empty for APIKey (%s), creating as a NULL provider!"), *Config.APIKeyET);
 	}
 
+#if !UE_HTTP_SUPPORT_UNIX_SOCKET
+	if (!Config.APIUnixSocketPathET.IsEmpty())
+	{
+		UE_LOG(LogAnalytics, Warning, TEXT("[%s] Specified UnixSocketPath '%s' but that is not supported on this platform"), *Config.APIKeyET, *Config.APIUnixSocketPathET);
+	}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
+
 	// only need these if we are using the data router protocol.
 	if (!Config.UseLegacyProtocol)
 	{
@@ -319,6 +327,7 @@ FAnalyticsProviderET::FAnalyticsProviderET(const FAnalyticsET::Config& ConfigVal
 
 bool FAnalyticsProviderET::Tick(float DeltaSeconds)
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FAnalyticsProviderET_Tick);
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -374,6 +383,7 @@ FAnalyticsProviderET::~FAnalyticsProviderET()
 
 bool FAnalyticsProviderET::StartSession(FString InSessionID, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	UE_LOG(LogAnalytics, Log, TEXT("[%s] AnalyticsET::StartSession"), *Config.APIKeyET);
 
 	// end/flush previous session before staring new one
@@ -396,6 +406,7 @@ bool FAnalyticsProviderET::StartSession(FString InSessionID, const TArray<FAnaly
  */
 void FAnalyticsProviderET::EndSession()
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	if (bSessionInProgress)
 	{
 		RecordEvent(TEXT("SessionEnd"), TArray<FAnalyticsEventAttribute>());
@@ -410,6 +421,7 @@ void FAnalyticsProviderET::EndSession()
 
 TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FAnalyticsProviderET::CreateRequest()
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	if (!ensure(FModuleManager::Get().IsModuleLoaded("HTTP")))
 	{
 		UE_LOG(LogAnalytics, Display, TEXT("[%s] ET Analytics provider tried to create a new HTTP request when HTTP was shutdown"), *Config.APIKeyET);
@@ -444,6 +456,7 @@ void FAnalyticsProviderET::FlushEvents()
 
 void FAnalyticsProviderET::FlushEventsOnce()
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	// Make sure we don't try to flush too many times. When we are not caching events it's possible this can be called when there are no events in the array.
 	if (!EventCache.CanFlush())
 	{
@@ -499,6 +512,13 @@ void FAnalyticsProviderET::FlushEventsOnce()
 			HttpRequest->SetURL(Config.APIServerET / URLPath);
 			HttpRequest->SetVerb(TEXT("POST"));
 			HttpRequest->SetContent(MoveTemp(Payload));
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+			if (!Config.APIUnixSocketPathET.IsEmpty())
+			{
+				HttpRequest->SetOption(HttpRequestOptions::UnixSocketPath, Config.APIUnixSocketPathET);
+			}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
 
 			// Don't set a response callback if we are in our destructor, as the instance will no longer be there to call.
 			if (!bInDestructor)
@@ -583,6 +603,7 @@ bool FAnalyticsProviderET::ShouldRecordEvent(const FString& EventName) const
 
 void FAnalyticsProviderET::RecordEvent(FString&& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	// let higher level code filter the decision of whether to send the event
 	if (ShouldRecordEvent(EventName))
 	{
@@ -665,6 +686,7 @@ void FAnalyticsProviderET::SetURLEndpoint(const FString& UrlEndpoint, const TArr
 	{
 		return;
 	}
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 
 	// flush existing events before changing URL domains.
 	FlushEvents();
@@ -703,6 +725,7 @@ void FAnalyticsProviderET::SetURLEndpoint(const FString& UrlEndpoint, const TArr
 
 void FAnalyticsProviderET::SetHeader(const FString& HeaderName, const FString& HeaderValue)
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	if (HeaderValue.IsEmpty())
 	{
 		HttpHeaders.Remove(HeaderName);
@@ -715,6 +738,7 @@ void FAnalyticsProviderET::SetHeader(const FString& HeaderName, const FString& H
 
 void FAnalyticsProviderET::BlockUntilFlushed(float InTimeoutSec)
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	FlushEvents();
 	HttpRetryManager->BlockUntilFlushed(InTimeoutSec);
 }
@@ -735,6 +759,7 @@ static inline void AnalyticsProviderETFlushEventLegacyHelper(FString& EventParam
 
 void FAnalyticsProviderET::FlushEventLegacy(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	LLM_SCOPE_BYNAME(TEXT("Analytics"));
 	// this is a legacy pathway that doesn't accept batch payloads of cached data. We'll just send one request for each event, which will be slow for a large batch of requests at once.
 	if (ensure(FModuleManager::Get().IsModuleLoaded("HTTP")))
 	{
@@ -776,6 +801,14 @@ void FAnalyticsProviderET::FlushEventLegacy(const FString& EventName, const TArr
 		URLPath += EventParams;
 		HttpRequest->SetURL(URLPath);
 		HttpRequest->SetVerb(TEXT("GET"));
+
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+		if (!Config.APIUnixSocketPathET.IsEmpty())
+		{
+			HttpRequest->SetOption(HttpRequestOptions::UnixSocketPath, Config.APIUnixSocketPathET);
+		}
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
+
 		if (!bInDestructor)
 		{
 			HttpRequest->OnProcessRequestComplete().BindSP(this, &FAnalyticsProviderET::EventRequestComplete);

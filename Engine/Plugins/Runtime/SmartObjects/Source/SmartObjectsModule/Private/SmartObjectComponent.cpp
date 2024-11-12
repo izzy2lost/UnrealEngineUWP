@@ -130,16 +130,33 @@ void USmartObjectComponent::OnRegister()
 {
 	Super::OnRegister();
 
-	// Component gets registered on BeginPlay for game worlds
 	const UWorld* World = GetWorld();
 	if (World != nullptr && !World->IsGameWorld())
 	{
+		// Component gets registered on BeginPlay for game worlds
 		RegisterToSubsystem();
+
+		// For non-game world in Editor we monitor saved definition,
+		// so we can clear our cached variation when the based definition is saved.
+		// This way we don't stick with the old base definition.
+		OnSavingDefinitionDelegateHandle = UE::SmartObject::Delegates::OnSavingDefinition.AddLambda([this](const USmartObjectDefinition& Definition)
+		{
+			if (CachedDefinitionAssetVariation
+				&& GetBaseDefinition() == &Definition)
+			{
+				CachedDefinitionAssetVariation = nullptr;
+			}
+		});
 	}
 }
 
 void USmartObjectComponent::OnUnregister()
 {
+	if (OnSavingDefinitionDelegateHandle.IsValid())
+	{
+		UE::SmartObject::Delegates::OnSavingDefinition.Remove(OnSavingDefinitionDelegateHandle);
+	}
+
 	// Component gets unregistered on EndPlay for game worlds
 	const UWorld* World = GetWorld();
 	if (World != nullptr && World->IsGameWorld() == false)
@@ -285,7 +302,18 @@ const USmartObjectDefinition* USmartObjectComponent::GetBaseDefinition() const
 
 void USmartObjectComponent::SetDefinition(USmartObjectDefinition* Definition)
 {
+	if (IsBoundToSimulation())
+	{
+		UE_LOG(LogSmartObject, Warning,
+			TEXT("Changing Definition is not supported when the component is registered to the simulation."
+				" Call UnregisterSmartObject before, set the definition, then register again to update the runtime instance with the new definition."));
+		return;
+	}
+
 	DefinitionRef.SetSmartObjectDefinition(Definition);
+
+	// Reset cache so it will get updated next time GetDefinition() gets called.
+	CachedDefinitionAssetVariation = nullptr;
 }
 
 void USmartObjectComponent::SetRegisteredHandle(const FSmartObjectHandle Value, const ESmartObjectRegistrationType InRegistrationType)
@@ -433,7 +461,7 @@ void USmartObjectComponent::OnRuntimeEventReceived(const FSmartObjectEventData& 
 	}
 					
 	UE_CVLOG_LOCATION(Interactor != nullptr, USmartObjectSubsystem::GetCurrent(GetWorld()), LogSmartObject, Display,
-		Interactor->GetActorLocation(), /*Radius*/25.f, FColor::Green, TEXT("%s: %s. Interactor: %s"),
+		Interactor->GetActorLocation(), /*Radius*/25, FColor::Green, TEXT("%s: %s. Interactor: %s"),
 		*GetNameSafe(GetOwner()), *UEnum::GetValueAsString(Event.Reason), *GetNameSafe(Interactor));
 
 	ReceiveOnEvent(Event, Interactor);

@@ -10,6 +10,7 @@ namespace uba
 	VARIABLE_MEM(StringBuffer<512>, g_virtualApplication);
 	VARIABLE_MEM(StringBuffer<512>, g_virtualApplicationDir);
 	VARIABLE_MEM(ProcessStats, g_stats);
+	VARIABLE_MEM(KernelStats, g_kernelStats);
 	VARIABLE_MEM(ReaderWriterLock, g_communicationLock);
 	VARIABLE_MEM(StringBuffer<256>, g_logName);
 	VARIABLE_MEM(StringBuffer<512>, g_virtualWorkingDir);
@@ -25,19 +26,23 @@ namespace uba
 	ApplicationRules* g_rules;
 	bool g_runningRemote;
 	bool g_isChild;
+	bool g_allowKeepFilesInMemory = IsWindows;
+	bool g_allowOutputFiles = IsWindows;
+	bool g_suppressLogging = false;
 
 	void InitSharedVariables()
 	{
 		g_virtualApplicationMem.Create();
 		g_virtualApplicationDirMem.Create();
 		g_statsMem.Create();
+		g_kernelStatsMem.Create();
 		g_communicationLockMem.Create();
 		g_logNameMem.Create();
 		g_virtualWorkingDirMem.Create();
 		g_systemRootMem.Create();
 		g_systemTempMem.Create();
 
-		u64 reserveSizeMb = IsWindows ? 160 : 1024; // The sync primitives on linux/macos is much bigger
+		u64 reserveSizeMb = IsWindows ? 192 : 1024; // The sync primitives on linux/macos is much bigger
 		g_memoryBlockMem.Create(reserveSizeMb * 1024 * 1024);
 		g_directoryTableMem.Create(&g_memoryBlock);
 		g_mappedFileTableMem.Create(g_memoryBlock);
@@ -54,10 +59,6 @@ namespace uba
 	thread_local char t_b[LogBufSize];
 	thread_local u32 t_b_size;
 
-	StringBufferBase& GetLogTlsBuffer()
-	{
-		return t_a;
-	}
 	void GetPrefixExtra(StringBufferBase& out)
 	{
 		#if 0
@@ -70,8 +71,23 @@ namespace uba
 		#endif
 		//out.Appendf(TC("[%7u]"), GetCurrentThreadId());
 	}
-	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope)
+	void WriteDebugLogWithPrefix(const char* prefix, LogScope& scope, const tchar* command, const tchar* format, ...)
 	{
+		#if PLATFORM_MAC
+		static locale_t safeLocale = newlocale(LC_NUMERIC_MASK, "C", duplocale(LC_GLOBAL_LOCALE));
+		locale_t oldLocale = uselocale(safeLocale);
+		#endif
+
+		t_a.Clear().Append(command).Append(' ');
+		if (*format)
+		{
+			va_list arg;
+			va_start(arg, format);
+			t_a.Append(format, arg);
+			va_end(arg);
+		}
+		t_a.Append(TC("\n"));
+
 		u32 size__ = t_b_size;
 		StringBuffer<128> extra;
 		GetPrefixExtra(extra);
@@ -84,9 +100,24 @@ namespace uba
 		if (res__ != -1)
 			t_b_size += res__;
 		scope.Flush();
+
+		#if PLATFORM_MAC
+		uselocale(oldLocale);
+		#endif
 	}
-	void WriteDebugLog()
+
+	void WriteDebugLog(const tchar* format, ...)
 	{
+		t_a.Clear();
+		if (*format)
+		{
+			va_list arg;
+			va_start(arg, format);
+			t_a.Append(format, arg);
+			va_end(arg);
+		}
+		t_a.Append(TC("\n"));
+
 		#if PLATFORM_WINDOWS
 		t_b_size = sprintf_s(t_b, LogBufSize, "%S", t_a.data);
 		WriteDebug(t_b, t_b_size);
@@ -128,8 +159,10 @@ namespace uba
 
 	const tchar* GetApplicationShortName()
 	{
-		if (const tchar* lastBackslash = TStrrchr(g_virtualApplication.data, '\\'))
-			return lastBackslash + 1;
+		const tchar* lastBackslash = TStrrchr(g_virtualApplication.data, '\\');
+		const tchar* lastSlash = TStrrchr(g_virtualApplication.data, '/');
+		if (lastBackslash || lastSlash)
+			return (lastBackslash > lastSlash ? lastBackslash : lastSlash) + 1;
 		return g_virtualApplication.data;
 	}
 
@@ -188,7 +221,7 @@ namespace uba
 	template<typename CharType>
 	void Shared_WriteConsoleT(const CharType* chars, u32 charCount, bool isError)
 	{
-		if (!g_echoOn)
+		if (!g_echoOn || g_suppressLogging)
 			return;
 
 		SCOPED_WRITE_LOCK(g_consoleStringCs, lock);
@@ -239,7 +272,7 @@ namespace uba
 
 		memset(&outAttr.data, 0, sizeof(outAttr.data));
 
-		bool keepInMemory = KeepInMemory(fileName, fileNameForKey.count);
+		bool keepInMemory = KeepInMemory(StringView(fileName, fileNameForKey.count));
 		if (keepInMemory)
 		{
 			SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
@@ -302,15 +335,33 @@ namespace uba
 
 				if (dirTableOffset == ~u32(0))
 				{
-					if (g_runningRemote) // This could be a written file not reported to server yet
+					// This could be a newly written file but process has not fetched latest directory table
+					SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
+					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
+					if (findIt != g_mappedFileTable.m_lookup.end() && !findIt->second.deleted)
 					{
-						SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
-						auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
-						if (findIt != g_mappedFileTable.m_lookup.end() && !findIt->second.deleted)
+						outAttr.exists = true;
+						outAttr.lastError = ErrorSuccess;
+						outAttr.useCache = false;
+
+						if (g_runningRemote)
 						{
-							outAttr.useCache = false;
-							return findIt->second.name;
+							FileInfo& info = findIt->second;
+							outAttr.useCache = true;
+
+							// TODO: This is missing lots of information..
+#if PLATFORM_WINDOWS
+							LARGE_INTEGER li = ToLargeInteger(info.size);
+							outAttr.data.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+							outAttr.data.nFileSizeLow = li.LowPart;
+							outAttr.data.nFileSizeHigh = li.HighPart;
+#else
+							outAttr.data.st_mode = (mode_t)(S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+							outAttr.data.st_size = info.size;
+#endif
 						}
+
+						return findIt->second.name;
 					}
 
 					outAttr.useCache = true;

@@ -11,7 +11,7 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	/// <param name="Guid">Nominal identifier for the type</param>
 	/// <param name="Version">Version number for the serializer</param>
-	public record struct BlobType(Guid Guid, int Version)
+	public readonly record struct BlobType(Guid Guid, int Version)
 	{
 		/// <summary>
 		/// Number of bytes in a serialized blob type instance

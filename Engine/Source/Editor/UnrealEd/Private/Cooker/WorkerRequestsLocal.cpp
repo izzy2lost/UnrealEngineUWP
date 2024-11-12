@@ -3,6 +3,8 @@
 #include "WorkerRequestsLocal.h"
 
 #include "CookTypes.h"
+#include "Cooker/CookGenerationHelper.h"
+#include "Cooker/CookPackageData.h"
 #include "Cooker/CookRequests.h"
 #include "HAL/Event.h"
 #include "HAL/PlatformProcess.h"
@@ -15,7 +17,6 @@ class ITargetPlatform;
 namespace UE::Cook
 {
 struct FInstigator;
-struct FPackageData;
 
 bool FWorkerRequestsLocal::HasExternalRequests() const
 {
@@ -27,7 +28,8 @@ int32 FWorkerRequestsLocal::GetNumExternalRequests() const
 	return ExternalRequests.GetNumRequests();
 }
 
-EExternalRequestType FWorkerRequestsLocal::DequeueNextCluster(TArray<FSchedulerCallback>& OutCallbacks, TArray<FFilePlatformRequest>& OutBuildRequests)
+EExternalRequestType FWorkerRequestsLocal::DequeueNextCluster(TArray<FSchedulerCallback>& OutCallbacks,
+	TArray<FFilePlatformRequest>& OutBuildRequests)
 {
 	return ExternalRequests.DequeueNextCluster(OutCallbacks, OutBuildRequests);
 }
@@ -37,15 +39,26 @@ bool FWorkerRequestsLocal::DequeueSchedulerCallbacks(TArray<FSchedulerCallback>&
 	return ExternalRequests.DequeueCallbacks(OutCallbacks);
 }
 
-void FWorkerRequestsLocal::DequeueAllExternal(TArray<FSchedulerCallback>& OutCallbacks, TArray<FFilePlatformRequest>& OutCookRequests)
+void FWorkerRequestsLocal::DequeueAllExternal(TArray<FSchedulerCallback>& OutCallbacks,
+	TArray<FFilePlatformRequest>& OutCookRequests)
 {
 	ExternalRequests.DequeueAll(OutCallbacks, OutCookRequests);
 }
 
 void FWorkerRequestsLocal::QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
-	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
+	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, EUrgency Urgency,
+	FGenerationHelper* ParentGenerationHelper)
 {
-	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms), bUrgent);
+	// FWorkerRequestsRemote needs to send ParentGenerationHelper data to the director, but in the local case we
+	// already consumed the data in FGenerationHelper::StartQueueGeneratedPackages, so we don't use the value here.
+	(void)ParentGenerationHelper;
+	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms), Urgency);
+}
+
+void FWorkerRequestsLocal::EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS,
+	FGenerationHelper& GenerationHelper)
+{
+	GenerationHelper.EndQueueGeneratedPackagesOnDirector(COTFS, FWorkerId::Local());
 }
 
 void FWorkerRequestsLocal::AddStartCookByTheBookRequest(FFilePlatformRequest&& Request)
@@ -118,7 +131,8 @@ void FWorkerRequestsLocal::GetInitializeConfigSettings(UCookOnTheFlyServer& COTF
 	Settings.LoadLocal(OutputDirectoryOverride);
 }
 
-void FWorkerRequestsLocal::GetBeginCookConfigSettings(UCookOnTheFlyServer& COTFS, FBeginCookContext& BeginContext, UE::Cook::FBeginCookConfigSettings& Settings)
+void FWorkerRequestsLocal::GetBeginCookConfigSettings(UCookOnTheFlyServer& COTFS, FBeginCookContext& BeginContext,
+	UE::Cook::FBeginCookConfigSettings& Settings)
 {
 	Settings.LoadLocal(BeginContext);
 }

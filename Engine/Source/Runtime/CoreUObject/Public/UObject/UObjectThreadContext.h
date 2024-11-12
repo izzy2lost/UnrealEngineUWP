@@ -22,6 +22,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/PropertyPathName.h"
+#include "UObject/ObjectMacros.h"
 
 class FLinkerLoad;
 class FName;
@@ -38,6 +39,11 @@ class COREUOBJECT_API FUObjectThreadContext : public TThreadSingleton<FUObjectTh
 
 	FUObjectThreadContext();
 	virtual ~FUObjectThreadContext();
+#if WITH_EDITORONLY_DATA
+	// Remove declaration of manual constructors after removing deprecated PackagesMarkedEditorOnlyByOtherPackage
+	FUObjectThreadContext(const FUObjectThreadContext& Other);
+	FUObjectThreadContext(FUObjectThreadContext&& Other);
+#endif
 
 	/** Stack of currently used FObjectInitializers for this thread */
 	TArray<FObjectInitializer*> InitializerStack;
@@ -99,6 +105,8 @@ public:
 	void* AsyncPackage;
 	/** Async package loader currently processing objects */
 	IAsyncPackageLoader* AsyncPackageLoader;
+	/** Async loading visibility filter */
+	EInternalObjectFlags AsyncVisibilityFilter = EInternalObjectFlags::None;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** Stack to ensure that PostInitProperties is routed through Super:: calls. **/
@@ -107,7 +115,7 @@ public:
 	TArray<UObject*, TInlineAllocator<16> > DebugPostLoad;
 #endif
 #if WITH_EDITORONLY_DATA
-	/** Maps a package name to all packages marked as editor-only due to the fact it was marked as editor-only */
+	UE_DEPRECATED(5.5, "No longer used; skiponlyeditoronly is used instead and tracks editoronly references via savepackage results.")
 	TMap<FName, TSet<FName>> PackagesMarkedEditorOnlyByOtherPackage;
 #endif
 
@@ -151,8 +159,6 @@ private:
 	TArray<UObject*> ObjectsLoaded;
 	/** List of linkers that we want to close the loaders for (to free file handles) - needs to be delayed until EndLoad is called with GObjBeginLoadCount of 0 */
 	TArray<FLinkerLoad*> DelayedLinkerClosePackages;
-	/** List of linkers associated with this context */
-	TSet<FLinkerLoad*> AttachedLinkers;
 
 public:
 
@@ -168,18 +174,22 @@ public:
 	int32 SerializedExportIndex;
 	/** Points to the most recently used Linker for serialization by CreateExport() */
 	FLinkerLoad* SerializedExportLinker;
+#if WITH_EDITORONLY_DATA
 	/** Path to the property currently being serialized */
 	UE_INTERNAL UE::FPropertyPathName SerializedPropertyPath;
 	/** True when SerializedPropertyPath is being tracked during serialization. */
 	UE_INTERNAL bool bTrackSerializedPropertyPath;
-	/** True when unknown properties will be serialized to or from a property bag for the serialized object. */
-	UE_INTERNAL bool bSerializeUnknownProperty;
+	/** True when initialized properties will be tracked for the serialized object. */
+	UE_INTERNAL bool bTrackInitializedProperties;
+	/** True when serialized properties will be tracked for the serialized object. */
+	UE_INTERNAL bool bTrackSerializedProperties;
+	/** True when unknown properties will be tracked for the serialized object. */
+	UE_INTERNAL bool bTrackUnknownProperties;
+	/** True when unknown enum names will be tracked for the serialized object. */
+	UE_INTERNAL bool bTrackUnknownEnumNames;
 	/** True when the SerializedObject properties are being impersonated. */
 	UE_INTERNAL bool bImpersonateProperties;
-
-	/** event called after each tagged property is deserialized */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTaggedPropertySerialized, const FUObjectSerializeContext&)
-	UE_INTERNAL FOnTaggedPropertySerialized OnTaggedPropertySerialize;
+#endif
 
 	/** Adds a new loaded object */
 	COREUOBJECT_API void AddLoadedObject(UObject* InObject);
@@ -266,12 +276,15 @@ public:
 	}
 
 	/** Attaches a linker to this context */
+	UE_DEPRECATED(5.5, "AttachLinker is not necessary. Remove calls to it.")
 	COREUOBJECT_API void AttachLinker(FLinkerLoad* InLinker);
 	
 	/** Detaches a linker from this context */
+	UE_DEPRECATED(5.5, "DetachLinker is not necessary. Remove calls to it.")
 	COREUOBJECT_API void DetachLinker(FLinkerLoad* InLinker);
 
 	/** Detaches all linkers from this context */
+	UE_DEPRECATED(5.5, "DetachFromLinkers is not necessary. Remove calls to it.")
 	COREUOBJECT_API void DetachFromLinkers();
 
 	//~ TRefCountPtr interface

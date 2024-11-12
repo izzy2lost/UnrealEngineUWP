@@ -209,7 +209,7 @@ void UK2Node_Timeline::DestroyNode()
 		FBlueprintEditorUtils::RemoveTimeline(Blueprint, Timeline, true);
 
 		// Move template object out of the way so that we can potentially create a timeline with the same name either through a paste or a new timeline action
-		Timeline->Rename(NULL, GetTransientPackage(), (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : REN_None));
+		Timeline->Rename(NULL, GetTransientPackage(), REN_None);
 	}
 
 	Super::DestroyNode();
@@ -659,6 +659,29 @@ void UK2Node_Timeline::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGr
 FText UK2Node_Timeline::GetTooltipText() const
 {
 	return LOCTEXT("TimelineTooltip", "Timeline node allows values to be keyframed over time.\nDouble click to open timeline editor.");
+}
+
+FText UK2Node_Timeline::GetToolTipHeading() const
+{
+	const FText ExistingHeading = Super::GetToolTipHeading();
+	
+	if (bReplicated)
+	{
+		const FText ReplicatedLabel = LOCTEXT("ReplicatedTimelineComponent", "Replicated");
+
+		// If the existing heading is empty then we don't need anything other then "Replicated"
+		if (ExistingHeading.IsEmpty())
+		{
+			return ReplicatedLabel;
+		}
+		// otherwise, we need an extra newline character ( '\n' ) to get everything properly formatted 
+		else
+		{
+			return FText::Format(LOCTEXT("UK2Node_Timeline_GetToolTipHeading", "{0}\n{1}"), {ReplicatedLabel, ExistingHeading });	
+		}
+	}
+
+	return ExistingHeading;
 }
 
 FName UK2Node_Timeline::GetCornerIcon() const

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Containers/StringFwd.h"
 
 class FArchive;
 class FString;
@@ -20,7 +21,10 @@ namespace UE::Core
 
 	FArchive& operator<<(FArchive& Ar, FVersePath& VersePath);
 
-	CORE_API FString MangleGuidToVerseIdent(const FString& Guid);
-}
+	uint32 GetTypeHash(const UE::Core::FVersePath& VersePath);
 
-uint32 GetTypeHash(const UE::Core::FVersePath& VersePath); // Must be outside namespace to not break Tuples
+	UE_DEPRECATED(5.5, "Use MakeValidVerseIdentifier instead")
+	CORE_API FString MangleGuidToVerseIdent(const FString& Guid);
+
+	CORE_API FString MakeValidVerseIdentifier(FStringView Str);
+}

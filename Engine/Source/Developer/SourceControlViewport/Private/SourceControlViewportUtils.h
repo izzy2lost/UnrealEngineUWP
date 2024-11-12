@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
+#include "SourceControlViewportUtils.generated.h"
 
 class FViewportClient;
 
@@ -31,5 +32,11 @@ bool GetFeedbackEnabled(FViewportClient* ViewportClient, ESourceControlStatus St
 
 // Helper method to set the viewport feedback on or off on the viewport.
 void SetFeedbackEnabled(FViewportClient* ViewportClient, ESourceControlStatus Status, bool bEnabled);
+
+// Helper method to get the opacity value.
+uint8 GetFeedbackOpacity(FViewportClient* ViewportClient);
+
+// Helper method to set the opacity value.
+void SetFeedbackOpacity(FViewportClient* ViewportClient, uint8 Opacity);
 
 }

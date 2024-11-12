@@ -46,7 +46,7 @@ namespace UnrealBuildTool
 			return SDKVersionString;
 		}
 
-		public override bool TryConvertVersionToInt(string? StringValue, out UInt64 OutValue, string? Hint)
+		public override bool TryConvertVersionToInt(string? StringValue, out ulong OutValue, string? Hint)
 		{
 			if (StringValue != null)
 			{

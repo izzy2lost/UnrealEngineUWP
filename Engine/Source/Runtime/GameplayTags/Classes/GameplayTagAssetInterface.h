@@ -25,7 +25,6 @@ class IGameplayTagAssetInterface
 	 * 
 	 * @param OutTags	[OUT] Set of tags on the asset
 	 */
-	 UFUNCTION(BlueprintCallable, Category = GameplayTags)
 	virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const=0;
 
 	/**
@@ -57,5 +56,12 @@ class IGameplayTagAssetInterface
 	 */
 	UFUNCTION(BlueprintCallable, Category=GameplayTags)
 	GAMEPLAYTAGS_API virtual bool HasAnyMatchingGameplayTags(const FGameplayTagContainer& TagContainer) const;
-};
 
+protected:
+
+	/**
+	 * Gets the owned gameplay tags for the asset.  Exposed to allow redirects of existing GetOwnedGameplayTags calls.  In Blueprints, new nodes will use BlueprintGameplayTagLibrary's version.
+	 */
+	UFUNCTION(BlueprintCallable, Category = GameplayTags, BlueprintInternalUseOnly, meta=(DisplayName="Get Owned Gameplay Tags", AllowPrivateAccess=true))
+	GAMEPLAYTAGS_API virtual UPARAM(DisplayName = "Owned Tags") FGameplayTagContainer BP_GetOwnedGameplayTags() const;
+};

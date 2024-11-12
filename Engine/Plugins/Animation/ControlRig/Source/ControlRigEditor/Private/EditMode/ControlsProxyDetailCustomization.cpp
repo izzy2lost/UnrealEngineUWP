@@ -27,16 +27,13 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 
-#include "MVVM/CurveEditorExtension.h"
 #include "MVVM/ViewModelPtr.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
-#include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
-#include "MVVM/Extensions/IOutlinerExtension.h"
-#include "MVVM/ViewModels/TrackModel.h"
 #include "MVVM/ViewModels/ChannelModel.h"
 #include "Rigs/RigControlHierarchy.h"
+#include "MVVM/CurveEditorExtension.h"
 #include "Tree/SCurveEditorTree.h"
 
 #include "CurveEditor.h"
@@ -300,6 +297,18 @@ void FAnimDetailValueCustomization::CustomizeChildren(TSharedRef<class IProperty
 			.OnMouseButtonDown_Lambda([Proxy, PropertyName, this](const FGeometry&, const FPointerEvent& PointerEvent)
 			{
 				TogglePropertySelection(Proxy, PropertyName);
+				if (Proxy)
+				{
+					UControlRigDetailPanelControlProxies* ProxyOwner = Proxy->GetTypedOuter<UControlRigDetailPanelControlProxies>();
+				}
+				return FReply::Handled();
+			})
+			.OnMouseButtonUp_Lambda([Proxy](const FGeometry&, const FPointerEvent& PointerEvent)
+			{
+				if(Proxy)
+				{
+					UControlRigDetailPanelControlProxies* ProxyOwner = Proxy->GetTypedOuter<UControlRigDetailPanelControlProxies>();
+				}
 				return FReply::Handled();
 			})
 			.Content()
@@ -380,6 +389,12 @@ void FAnimDetailValueCustomization::MakeHeaderRow(TSharedRef<class IPropertyHand
 		[
 			StructPropertyHandle->CreatePropertyNameWidget()
 		]
+	.PasteAction(FUIAction(
+		FExecuteAction::CreateLambda([]()
+			{
+			}),
+		FCanExecuteAction::CreateLambda([]() { return false; }))
+	)
 	.ValueContent()
 		// Make enough space for each child handle
 		.MinDesiredWidth(125.f * SortedChildHandles.Num())
@@ -390,10 +405,11 @@ void FAnimDetailValueCustomization::MakeHeaderRow(TSharedRef<class IPropertyHand
 				.IsEnabled(this, &FMathStructCustomization::IsValueEnabled, StructWeakHandlePtr)
 		];
 
+
 	for (int32 ChildIndex = 0; ChildIndex < SortedChildHandles.Num(); ++ChildIndex)
 	{
 		TSharedRef<IPropertyHandle> ChildHandle = SortedChildHandles[ChildIndex];
-
+		ChildHandle->GetProperty()->SetPropertyFlags(CPF_TextExportTransient); //hack to turn off shift copy/paste
 		// Propagate metadata to child properties so that it's reflected in the nested, individual spin boxes
 		ChildHandle->SetInstanceMetaData(TEXT("UIMin"), StructPropertyHandle->GetMetaData(TEXT("UIMin")));
 		ChildHandle->SetInstanceMetaData(TEXT("UIMax"), StructPropertyHandle->GetMetaData(TEXT("UIMax")));
@@ -481,54 +497,6 @@ EAnimDetailSelectionState FAnimDetailValueCustomization::IsPropertySelected(UCon
 	
 }
 
-//may want this to be under each proxy? need to think about this.
-static bool GetChannelNameForCurve(const TArray<FString>& CurveString, const FRigControlElement* ControlElement, FString& OutChannelName)
-{
-	//if single channel expect one item and the name will match
-	if (ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
-		ControlElement->Settings.ControlType == ERigControlType::Float ||
-		ControlElement->Settings.ControlType == ERigControlType::Bool ||
-		ControlElement->Settings.ControlType == ERigControlType::Integer)
-	{
-		if (CurveString[0] == ControlElement->GetKey().Name)
-		{
-			if (ControlElement->Settings.ControlType == ERigControlType::ScaleFloat ||
-				ControlElement->Settings.ControlType == ERigControlType::Float)
-			{
-				OutChannelName = FString("Float");
-				return true;
-			}
-			if (ControlElement->Settings.ControlType == ERigControlType::Bool)
-			{
-				OutChannelName = FString("Bool");
-				return true;
-			}
-			if (ControlElement->Settings.ControlType == ERigControlType::Integer)
-			{
-				OutChannelName = FString("Integer");
-				return true;
-			}
-		}
-	}
-	else if (CurveString.Num() > 1)
-	{
-		if (CurveString[0] == ControlElement->GetKey().Name)
-		{
-			if (CurveString.Num() == 3)
-			{
-				OutChannelName = CurveString[1] + "." + CurveString[2];
-				return true;
-			}
-			else if (CurveString.Num() == 2)
-			{
-				OutChannelName = CurveString[1];
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
 void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsProxy* Proxy, const FName& PropertyName) const
 {
 	using namespace UE::Sequencer;
@@ -543,7 +511,6 @@ void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsP
 	check(CurveEditorExtension);
 	TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor();
 	TSharedPtr<SCurveEditorTree>  CurveEditorTreeView = CurveEditorExtension->GetCurveEditorTreeView();
-	TSharedPtr<FOutlinerViewModel> OutlinerViewModel = SequencerViewModel->GetOutliner();
 
 	const bool bIsShiftDown = FSlateApplication::Get().GetModifierKeys().IsShiftDown();
 	const bool bIsCtrlDown = FSlateApplication::Get().GetModifierKeys().IsControlDown();
@@ -551,125 +518,8 @@ void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsP
 	{
 		CurveEditorTreeView->ClearSelection();
 	}
-
-	if (Proxy)
-	{
-		for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
-		{
-			if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
-			{
-				for (const FName& CName : Items.Value.ControlElements)
-				{
-					if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
-					{
-						EControlRigContextChannelToKey ChannelToKey = Proxy->GetChannelToKeyFromPropertyName(PropertyName);
-						TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
-						for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
-						{
-							if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
-							{
-								if(UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(TrackModel->GetTrack()))
-								{
-									if (Track->GetControlRig() != ControlRig)
-									{
-										continue;
-									}
-									if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
-									{
-										if (ChannelModel->GetChannel(Track->GetSectionToKey()) == nullptr) //if not section to key we also don't select it.
-										{
-											continue;
-										}
-									}
-									else
-									{
-										continue;
-									}
-									
-									FName ID = OutlinerExtenstionIt->GetIdentifier();
-									FString Name = ID.ToString();
-									TArray<FString> StringArray;
-									Name.ParseIntoArray(StringArray, TEXT("."));
-
-									FString ChannelName;
-									if (GetChannelNameForCurve(StringArray, ControlElement, ChannelName))
-									{
-										EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
-										if (ChannelToKey == ChannelToKeyFromCurve)
-										{
-											if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
-											{
-												FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
-												if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
-												{
-													const bool bSelected = bIsShiftDown ? true : !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem);
-													if (bIsCtrlDown || bSelected)
-													{
-														CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bSelected);
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-		for (const TPair<TWeakObjectPtr<UObject>, FSequencerProxyItem>& SItems : Proxy->SequencerItems)
-		{
-			if (UObject* Object = SItems.Key.Get())
-			{
-				for (const FBindingAndTrack& Element : SItems.Value.Bindings)
-				{
-					EControlRigContextChannelToKey ChannelToKey = Proxy->GetChannelToKeyFromPropertyName(PropertyName);
-					TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
-					for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
-					{
-						if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
-						{
-							if (TrackModel->GetTrack() == Element.WeakTrack.Get())
-							{
-								FName ID = OutlinerExtenstionIt->GetIdentifier();
-								FString Name = ID.ToString();
-								TArray<FString> StringArray;
-								Name.ParseIntoArray(StringArray, TEXT("."));
-
-								FString ChannelName;
-								if (StringArray.Num() == 2)
-								{
-									ChannelName = StringArray[0] + "." + StringArray[1];
-								}
-								else if (StringArray.Num() == 0)
-								{
-									ChannelName = StringArray[0];
-								}
-
-								EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
-								if (ChannelToKey == ChannelToKeyFromCurve)
-								{
-									if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
-									{
-										FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
-										if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
-										{
-											const bool bSelected = bIsShiftDown ? true : !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem);
-											if (bIsCtrlDown || bSelected)
-											{
-												CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bSelected);
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	EAnimDetailPropertySelectionType SelectionType = bIsShiftDown ? EAnimDetailPropertySelectionType::SelectRange : (bIsCtrlDown ? EAnimDetailPropertySelectionType::Toggle : EAnimDetailPropertySelectionType::Select);
+	ProxyOwner->SelectProperty(Proxy, PropertyName, SelectionType);
 }
 
 bool FAnimDetailValueCustomization::IsMultiple(UControlRigControlsProxy* Proxy,const FName& InPropertyName) const
@@ -1100,7 +950,7 @@ void FAnimDetailProxyDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 	}
 	else
 	{
-		AttributesCategory.SetCategoryVisibility(true);
+		AttributesCategory.SetCategoryVisibility(false);
 	}
 }
 

@@ -23,7 +23,7 @@ namespace PCGVolumeSampler
 {
 	UPCGPointData* SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape)
 	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
+		UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		Data->InitializeFromData(Volume);
 
 		const bool bTimeSliceIsEnabled = Context ? Context->TimeSliceIsEnabled() : false;
@@ -81,8 +81,8 @@ namespace PCGVolumeSampler
 				NumIterationsXY64 < MAX_int32 &&
 				NumIterations64 > 0 &&
 				NumIterations64 < MAX_int32 &&
-				(!PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() ||
-					(PCGFeatureSwitches::CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FPlatformMemory::GetStats().AvailablePhysical) >= sizeof(FPCGPoint) * NumIterations64))
+				(!PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread()
+					|| PCGFeatureSwitches::Helpers::GetAvailableMemoryForSamplers() >= sizeof(FPCGPoint) * NumIterations64))
 			{
 				NumIterations = static_cast<int32>(NumIterations64);
 			}
@@ -120,6 +120,8 @@ namespace PCGVolumeSampler
 
 				OutPoint.Seed = PCGHelpers::ComputeSeed(X, Y, Z);
 				OutPoint.Steepness = PointSteepness;
+				// Reset the bounds to the expected bounds, if it was modified by the Sample Point
+				OutPoint.SetLocalBounds(VoxelBox);
 				return true;
 			}
 			else
@@ -150,7 +152,7 @@ TArray<FPCGPinProperties> UPCGVolumeSamplerSettings::InputPinProperties() const
 	));
 	VolumePinProperty.SetRequiredPin();
 
-	// Only one connection allowed, user can union multiple shapes.
+	// Only one connection/data allowed. To avoid ambiguity, samplers should require users to union or intersect multiple shapes.
 	PinProperties.Emplace(PCGVolumeSamplerConstants::BoundingShapeLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/false, /*bAllowMultipleData=*/false, LOCTEXT("VolumeSamplerBoundingShapePinTooltip",
 		"Optional. All sampled points must be contained within this shape."
 	));
@@ -192,7 +194,7 @@ namespace PCGVolumeSamplerHelpers
 		{
 			bool bUnionWasCreated;
 			// Get a union of inputs and if successful, add it to the root. Will be removed and marked for GC in the state destructor
-			OutState.BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
+			OutState.BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(Context, PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
 			if (OutState.BoundingShape && bUnionWasCreated)
 			{
 				Context->TrackObject(OutState.BoundingShape);
@@ -270,7 +272,7 @@ bool FPCGVolumeSamplerElement::PrepareDataInternal(FPCGContext* Context) const
 			check(GeneratingShape);
 
 			OutState.Volume = GeneratingShape;
-			OutState.OutputData = NewObject<UPCGPointData>();
+			OutState.OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			OutState.OutputData->InitializeFromData(OutState.Volume);
 			Outputs[IterationIndex].Data = OutState.OutputData;
 
@@ -341,8 +343,8 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 		for (FPCGTaggedData& Input : TimeSlicedContext->InputData.GetInputs())
 		{
 			// TODO: Empty point data (to preserve previous behavior). Eventually, should be replaced with no output at all
-			FPCGTaggedData& Output = TimeSlicedContext->OutputData.TaggedData.Emplace_GetRef();
-			UPCGPointData* PointData = NewObject<UPCGPointData>();
+			FPCGTaggedData& Output = TimeSlicedContext->OutputData.TaggedData.Add_GetRef(Input);
+			UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			PointData->InitializeFromData(Cast<UPCGSpatialData>(Input.Data));
 			Output.Data = PointData;
 		}
@@ -356,7 +358,7 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
 		{
-			Context->OutputData.TaggedData[IterationIndex].Data = NewObject<UPCGPointData>();
+			Context->OutputData.TaggedData[IterationIndex].Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 
 			return true;
 		}

@@ -107,7 +107,6 @@ FBox FWorldPartitionActorDescInstance::GetRuntimeBounds() const
 
 bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 {
-	static FText FailedToLoad(LOCTEXT("FailedToLoadReason", "Failed to load"));
 	UnloadedReason = nullptr;
 
 	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
@@ -126,26 +125,11 @@ bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 
 		AsyncLoadID = LoadPackageAsync(PackagePath, PackageName, FLoadPackageAsyncDelegate::CreateLambda([this, ActorPackage](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
 		{
-			check(AsyncLoadID != INDEX_NONE);
-			AsyncLoadID = INDEX_NONE;
-
-			if ((Result != EAsyncLoadingResult::Succeeded) || !Package)
+			if (AsyncLoadID != INDEX_NONE)
 			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
-				UnloadedReason = &FailedToLoad;
-				return;
+				AsyncLoadFinished(ActorPackage, PackageName, Package, Result == EAsyncLoadingResult::Succeeded);
+				AsyncLoadID = INDEX_NONE;
 			}
-
-			ActorPtr = FindObject<AActor>(nullptr, * GetActorSoftPath().ToString());
-
-			if (!ActorPtr.IsValid())
-			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("Can't find actor guid `%s` ('%s') in package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
-				UnloadedReason = &FailedToLoad;
-				return;
-			}
-
-			check(ActorPtr->GetPackage() == Package);
 		})
 		, PKG_None, INDEX_NONE, 0, InstancingContext);
 	}
@@ -157,19 +141,48 @@ void FWorldPartitionActorDescInstance::FlushAsyncLoad() const
 {
 	if (AsyncLoadID != INDEX_NONE)
 	{
-		FlushAsyncLoading(AsyncLoadID);
+		// Instead relying on AsyncLoading to call the callback during a flush, we'll do it ourselves here explicitly
+		// This is because during a callstack where we are already async loading, we may not get completion callbacks called before returning from this flush.
+		// Setting AsyncLoadID to INDEX_NONE before flushing so that we do not end up calling AsyncLoadFinished twice in cases where the completion callback is called during the flush
+		int32 IDToFlush = AsyncLoadID;
 		AsyncLoadID = INDEX_NONE;
+		FlushAsyncLoading(IDToFlush);
+
+		// Now call AsyncLoadFinished to assign ActorPtr
+		const FName ActorPackage = GetActorPackage();
+		const FLinkerInstancingContext* InstancingContext = GetContainerInstance()->GetInstancingContext();
+		const FName PackageName = InstancingContext ? InstancingContext->RemapPackage(ActorPackage) : ActorPackage;
+		UPackage* Package = FindPackage(nullptr, *PackageName.ToString());
+		AsyncLoadFinished(ActorPackage, PackageName, Package, Package != nullptr);
 	}
+}
+
+void FWorldPartitionActorDescInstance::AsyncLoadFinished(const FName& ActorPackage, const FName& PackageName, UPackage* Package, bool bSuccessful) const
+{
+	static FText FailedToLoad(LOCTEXT("FailedToLoadReason", "Failed to load"));
+
+	if (!bSuccessful || !Package)
+	{
+		UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *GetGuid().ToString(), *GetActorNameString(), *ActorPackage.ToString());
+		UnloadedReason = &FailedToLoad;
+		return;
+	}
+
+	ActorPtr = FindObject<AActor>(nullptr, *GetActorSoftPath().ToString());
+
+	if (!ActorPtr.IsValid())
+	{
+		UE_LOG(LogWorldPartition, Warning, TEXT("Can't find actor guid `%s` ('%s') in package '%s'"), *GetGuid().ToString(), *GetActorNameString(), *ActorPackage.ToString());
+		UnloadedReason = &FailedToLoad;
+		return;
+	}
+
+	check(ActorPtr->GetPackage() == Package);
 }
 
 void FWorldPartitionActorDescInstance::MarkUnload()
 {
 	FlushAsyncLoad();
-
-	// Notify Desc as it can have some custom code to run on the actor depending on type
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	ActorDesc->OnUnloadingInstance(this);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (AActor* Actor = GetActor())
 	{
@@ -219,6 +232,21 @@ const FText& FWorldPartitionActorDescInstance::GetUnloadedReason() const
 {
 	static FText Unloaded(LOCTEXT("UnloadedReason", "Unloaded"));
 	return UnloadedReason ? *UnloadedReason : Unloaded;
+}
+
+const FString& FWorldPartitionActorDescInstance::GetActorNameString() const
+{
+	return ActorDesc->GetActorNameString();
+}
+
+const FString& FWorldPartitionActorDescInstance::GetActorLabelString() const
+{
+	return ActorDesc->GetActorLabelString();
+}
+
+const FString& FWorldPartitionActorDescInstance::GetDisplayClassNameString() const
+{
+	return ActorDesc->GetDisplayClassNameString();
 }
 
 FString FWorldPartitionActorDescInstance::ToString(FWorldPartitionActorDesc::EToStringMode Mode) const

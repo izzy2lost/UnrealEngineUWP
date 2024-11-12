@@ -281,7 +281,6 @@ namespace UE::Online {
 	TOnlineResult<FGetMutableSessionById> FSessionsCommon::GetMutableSessionById(FGetMutableSessionById::Params&& Params) const
 	{
 		CHECK_PARAMS_ID_HANDLE(Params.SessionId, FGetMutableSessionById)
-
 		if (const TSharedRef<FSessionCommon>* FoundSession = AllSessionsById.Find(Params.SessionId))
 		{
 			return TOnlineResult<FGetMutableSessionById>({ *FoundSession });
@@ -670,7 +669,7 @@ namespace UE::Online {
 		TOnlineResult<FGetSessionById> GetSessionByIdResult = GetSessionById({ Params.SessionId });
 		if (GetSessionByIdResult.IsError())
 		{
-			UE_LOG(LogOnlineServices, Verbose, TEXT("[%s] Session [%s] not found. Please call FindSessions to get an updated list of available sessions "), UTF8_TO_TCHAR(__FUNCTION__), *ToLogString(Params.SessionId));
+			UE_LOG(LogOnlineServices, Verbose, TEXT("[%s] Session [%s] not found. Please call FindSessions to get an updated list of available sessions. Invites should be cached before joining "), UTF8_TO_TCHAR(__FUNCTION__), *ToLogString(Params.SessionId));
 			return TOptional<FOnlineError>(GetSessionByIdResult.GetErrorValue());
 		}
 
@@ -689,7 +688,7 @@ namespace UE::Online {
 			UE_LOG(LogOnlineServices, Verbose, TEXT("[%s] Session [%s] not joinable "), UTF8_TO_TCHAR(__FUNCTION__), *ToLogString(Params.SessionId));
 			return TOptional<FOnlineError>(Errors::AccessDenied());
 		}
-
+		
 		if (Params.bPresenceEnabled)
 		{
 			for (const TPair<FName, FOnlineSessionId>& Entry : LocalSessionsByName)
@@ -886,6 +885,10 @@ namespace UE::Online {
 #undef CHECK_STATE_SESSION_NAME_ALREADY_EXISTS
 
 	// Events
+	TOnlineEvent<void(const FSessionCreated&)> FSessionsCommon::OnSessionCreated()
+	{
+		return SessionEvents.OnSessionCreated;
+	}
 
 	TOnlineEvent<void(const FSessionJoined&)> FSessionsCommon::OnSessionJoined()
 	{

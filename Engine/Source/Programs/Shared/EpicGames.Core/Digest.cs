@@ -14,7 +14,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Struct representing a weakly typed hash value. Counterpart to <see cref="Digest{T}"/> - a strongly typed digest.
 	/// </summary>
-	public struct Digest : IEquatable<Digest>
+	public readonly struct Digest : IEquatable<Digest>
 	{
 		/// <summary>
 		/// Memory storing the digest data
@@ -242,7 +242,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Generic HashValue implementation
 	/// </summary>
-	public struct Digest<T> : IEquatable<Digest<T>> where T : DigestTraits, new()
+	public readonly struct Digest<T> : IEquatable<Digest<T>> where T : DigestTraits, new()
 	{
 		/// <summary>
 		/// Traits instance

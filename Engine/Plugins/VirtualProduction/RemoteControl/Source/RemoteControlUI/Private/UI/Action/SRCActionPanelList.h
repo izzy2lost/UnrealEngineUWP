@@ -8,16 +8,18 @@
 #include "Action/RCPropertyAction.h"
 #include "RCActionModel.h"
 #include "RemoteControlPreset.h"
+#include "SDropTarget.h"
 #include "SlateOptMacros.h"
 #include "SRCActionPanel.h"
-#include "SDropTarget.h"
 #include "Styling/RemoteControlStyles.h"
 #include "UI/Action/Bind/RCActionBindModel.h"
 #include "UI/Action/Conditional/RCActionConditionalModel.h"
 #include "UI/BaseLogicUI/SRCLogicPanelListBase.h"
 #include "UI/Behaviour/RCBehaviourModel.h"
+#include "UI/RCFieldGroupType.h"
 #include "UI/RCUIHelpers.h"
 #include "UI/RemoteControlPanelStyle.h"
+#include "UI/SRCPanelExposedEntitiesGroup.h"
 #include "UI/SRCPanelExposedField.h"
 #include "UI/SRCPanelFieldGroup.h"
 #include "UI/SRemoteControlPanel.h"
@@ -204,6 +206,16 @@ public:
 		return nullptr;
 	}
 
+	/** Adds a PropertyId action with the given PropertyId */
+	URCAction* AddAction(const FName InPropertyId)
+	{
+		if (const TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+		{
+			return ActionPanel->AddAction(InPropertyId);
+		}
+		return nullptr;
+	}
+
 	virtual void AddNewLogicItem(UObject* InLogicItem) override
 	{
 		AddRowToList(Cast<URCAction>(InLogicItem));
@@ -348,17 +360,65 @@ private:
 		{
 			if (DragDropOperation->IsOfType<FExposedEntityDragDrop>())
 			{
-				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
+				if (const TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
-					// Fetch the Exposed Entity
-					for (const FGuid& ExposedEntityId : DragDropOp->GetSelectedIds())
+					// Check this beforehand to avoid calling all this for each PropertyId group later on
+					bool bBehaviorSupportPropertyId = false;
+					if (const TSharedPtr<FRCBehaviourModel>& BehaviorModel = GetBehaviourItem())
 					{
-						if (TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+						if (const URCBehaviour* Behavior = BehaviorModel->GetBehaviour())
 						{
-							// Add Action
-							if (ActionPanel->CanHaveActionForField(ExposedEntityId))
+							bBehaviorSupportPropertyId = Behavior->SupportPropertyId();
+						}
+					}
+
+					// Fetch the Exposed Entities
+					for (const TSharedPtr<SRCPanelTreeNode>& ExposedEntity : DragDropOp->GetSelectedEntities())
+					{
+						const SRCPanelTreeNode::ENodeType NodeType = ExposedEntity->GetRCType();
+						if (NodeType == SRCPanelTreeNode::FieldGroup)
+						{
+							if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(ExposedEntity))
 							{
-								AddAction(ExposedEntityId);
+								const ERCFieldGroupType GroupType = FieldGroup->GetGroupType();
+								// Property Id group
+								if (GroupType == ERCFieldGroupType::PropertyId)
+								{
+									if (bBehaviorSupportPropertyId)
+									{
+										AddAction(FieldGroup->GetFieldKey());
+									}
+								}
+								// Owner group
+								else if (GroupType == ERCFieldGroupType::Owner)
+								{
+									TArray<TSharedPtr<SRCPanelTreeNode>> OwnerGroupChildren;
+									FieldGroup->GetNodeChildren(OwnerGroupChildren);
+									for (const TSharedPtr<SRCPanelTreeNode>& Child : OwnerGroupChildren)
+									{
+										if (Child->GetRCType() == SRCPanelTreeNode::Field)
+										{
+											if (const TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+											{
+												if (ActionPanel->CanHaveActionForField(Child->GetRCId()))
+												{
+													AddAction(Child->GetRCId());
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						// Fields
+						else if (NodeType == SRCPanelTreeNode::Field)
+						{
+							if (const TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+							{
+								if (ActionPanel->CanHaveActionForField(ExposedEntity->GetRCId()))
+								{
+									AddAction(ExposedEntity->GetRCId());
+								}
 							}
 						}
 					}
@@ -379,9 +439,16 @@ private:
 							const TArray<FGuid> GroupFields = Group->GetFields();
 
 							// Add Action for all fields in the Group
-							for (const FGuid RemoteControlFieldId : GroupFields)
+							if (const TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
 							{
-								AddAction(RemoteControlFieldId);
+								for (const FGuid RemoteControlFieldId : GroupFields)
+								{
+									// Add Action
+									if (ActionPanel->CanHaveActionForField(RemoteControlFieldId))
+									{
+										AddAction(RemoteControlFieldId);
+									}
+								}
 							}
 						}
 					}
@@ -399,17 +466,67 @@ private:
 		{
 			if (DragDropOperation->IsOfType<FExposedEntityDragDrop>())
 			{
-				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
+				if (const TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
-					// Fetch the Exposed Entity
-					for (const FGuid& ExposedEntityId : DragDropOp->GetSelectedIds())
+					// Check this beforehand to avoid calling all this for each PropertyId group later on
+					bool bBehaviorSupportPropertyId = false;
+					if (const TSharedPtr<FRCBehaviourModel>& BehaviorModel = GetBehaviourItem())
 					{
-						if (TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+						if (const URCBehaviour* Behavior = BehaviorModel->GetBehaviour())
 						{
-							// Add Action
-							if (ActionPanel->CanHaveActionForField(ExposedEntityId))
+							bBehaviorSupportPropertyId = Behavior->SupportPropertyId();
+						}
+					}
+
+					// Fetch the Exposed Entity
+					for (const TSharedPtr<SRCPanelTreeNode>& ExposedEntity : DragDropOp->GetSelectedEntities())
+					{
+						const SRCPanelTreeNode::ENodeType NodeType = ExposedEntity->GetRCType();
+						if (NodeType == SRCPanelTreeNode::FieldGroup)
+						{
+							if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(ExposedEntity))
 							{
-								return true;
+								const ERCFieldGroupType GroupType = FieldGroup->GetGroupType();
+								// Property Id Group
+								if (GroupType == ERCFieldGroupType::PropertyId)
+								{
+									if (bBehaviorSupportPropertyId)
+									{
+										return true;
+									}
+								}
+								// Owner Group
+								else if (GroupType == ERCFieldGroupType::Owner)
+								{
+									TArray<TSharedPtr<SRCPanelTreeNode>> OwnerGroupChildren;
+									FieldGroup->GetNodeChildren(OwnerGroupChildren);
+									for (const TSharedPtr<SRCPanelTreeNode>& Child : OwnerGroupChildren)
+									{
+										if (Child->GetRCType() == SRCPanelTreeNode::Field)
+										{
+											if (const TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+											{
+												// if at least 1 can be created then enable it
+												if (ActionPanel->CanHaveActionForField(Child->GetRCId()))
+												{
+													return true;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						// Fields
+						else if (NodeType == SRCPanelTreeNode::Field)
+						{
+							if (const TSharedPtr<SRCActionPanel> ActionPanel = GetActionPanel())
+							{
+								// if at least 1 can be created then enable it
+								if (ActionPanel->CanHaveActionForField(ExposedEntity->GetRCId()))
+								{
+									return true;
+								}
 							}
 						}
 					}

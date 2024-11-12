@@ -8,8 +8,6 @@
 
 #define LOCTEXT_NAMESPACE "SAvaVerticalAlignment"
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SAvaVerticalAlignment::Construct(const FArguments& InArgs)
 {
 	Alignment = InArgs._Alignment;
@@ -34,8 +32,6 @@ void SAvaVerticalAlignment::Construct(const FArguments& InArgs)
 			.ToolTip(LOCTEXT("VAlignBottom", "Bottom Align Vertically"))
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 EAvaVerticalAlignment SAvaVerticalAlignment::GetCurrentAlignment() const
 {

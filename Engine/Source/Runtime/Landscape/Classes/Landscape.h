@@ -8,7 +8,11 @@
 #include "LandscapeProxy.h"
 #include "LandscapeBlueprintBrushBase.h"
 #include "LandscapeEditTypes.h"
+#include "LandscapeEditLayerRenderer.h"
 #include "Delegates/DelegateCombinations.h"
+#include "Templates/SubclassOf.h"
+#include "Algo/Transform.h"
+#include "LandscapeLayerInfoObject.h"
 
 #include "Landscape.generated.h"
 
@@ -18,6 +22,7 @@ class ILandscapeEdModeInterface;
 class SNotificationItem;
 class UStreamableRenderAsset;
 class UTextureRenderTarget;
+class ULandscapeEditLayerBase;
 class FMaterialResource;
 struct FLandscapeEditLayerComponentReadbackResult;
 struct FLandscapeNotification;
@@ -25,6 +30,7 @@ struct FTextureToComponentHelper;
 struct FUpdateLayersContentContext;
 struct FEditLayersHeightmapMergeParams;
 struct FEditLayersWeightmapMergeParams;
+enum class ELandscapeNotificationType;
 
 namespace EditLayersHeightmapLocalMerge_RenderThread
 {
@@ -39,19 +45,6 @@ namespace EditLayersWeightmapLocalMerge_RenderThread
 #if WITH_EDITOR
 extern LANDSCAPE_API TAutoConsoleVariable<int32> CVarLandscapeSplineFalloffModulation;
 #endif
-
-UENUM()
-enum UE_DEPRECATED(5.3, "ELandscapeSetupErrors is now unused and deprecated") ELandscapeSetupErrors : int
-{
-	LSE_None,
-	/** No Landscape Info available. */
-	LSE_NoLandscapeInfo,
-	/** There was already component with same X,Y. */
-	LSE_CollsionXY,
-	/** No Layer Info, need to add proper layers. */
-	LSE_NoLayerInfo,
-	LSE_MAX,
-};
 
 UENUM()
 enum class ERTDrawingType : uint8
@@ -110,49 +103,44 @@ enum ELandscapeLayerUpdateMode : uint32;
 
 USTRUCT()
 struct FLandscapeLayerBrush
+#if CPP && WITH_EDITOR // UHT doesn't support inheriting from namespaced class
+	: public UE::Landscape::EditLayers::IEditLayerRendererProvider
+#endif // CPP && WITH_EDITOR
 {
 	GENERATED_USTRUCT_BODY()
 
-	FLandscapeLayerBrush()
-#if WITH_EDITORONLY_DATA
-		: FLandscapeLayerBrush(nullptr)
-#endif
-	{}
+	FLandscapeLayerBrush() = default;
 
 	FLandscapeLayerBrush(ALandscapeBlueprintBrushBase* InBlueprintBrush)
 #if WITH_EDITORONLY_DATA
 		: BlueprintBrush(InBlueprintBrush)
-		, LandscapeSize(MAX_int32, MAX_int32)
-		, LandscapeRenderTargetSize(MAX_int32, MAX_int32)
-#endif
+#endif // WITH_EDITORONLY_DATA
 	{}
 
+	virtual ~FLandscapeLayerBrush() = default;
+
 #if WITH_EDITOR
-	UTextureRenderTarget2D* Render(bool InIsHeightmap, const FIntRect& InLandscapeSize, UTextureRenderTarget2D* InLandscapeRenderTarget, const FName& InWeightmapLayerName = NAME_None);
-	
-	UTextureRenderTarget2D* RenderLayer(const FIntRect& InLandscapeSize, const FLandscapeBrushParameters& InParameters);
+	UTextureRenderTarget2D* RenderLayer(const FLandscapeBrushParameters& InParameters);
 
 	LANDSCAPE_API ALandscapeBlueprintBrushBase* GetBrush() const;
+	bool Affects(ELandscapeToolTargetType InTargetType, const FName& InWeightmapLayerName) const;
 	bool AffectsHeightmap() const;
 	bool AffectsWeightmapLayer(const FName& InWeightmapLayerName) const;
 	bool AffectsVisibilityLayer() const;
 	void SetOwner(ALandscape* InOwner);
-#endif
+
+	//~ Begin UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
+	LANDSCAPE_API virtual TArray<UE::Landscape::EditLayers::FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
+	//~ End UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+#endif // WITH_EDITOR
 
 private:
-
-#if WITH_EDITOR
-	bool Initialize(const FIntRect& InLandscapeExtent, UTextureRenderTarget2D* InLandscapeRenderTarget);
-#endif
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TObjectPtr<ALandscapeBlueprintBrushBase> BlueprintBrush;
-
-	FTransform LandscapeTransform;
-	FIntPoint LandscapeSize;
-	FIntPoint LandscapeRenderTargetSize;
-#endif
+#endif // WITH_EDITORONLY_DATA
 };
 
 UENUM()
@@ -165,6 +153,9 @@ enum ELandscapeBlendMode : int
 
 USTRUCT()
 struct FLandscapeLayer
+#if CPP && WITH_EDITOR // UHT doesn't support inheriting from namespaced class
+	: public UE::Landscape::EditLayers::IEditLayerRendererProvider
+#endif // CPP && WITH_EDITOR
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -178,6 +169,17 @@ struct FLandscapeLayer
 		, BlendMode(LSBM_AdditiveBlend)
 	{}
 
+	virtual ~FLandscapeLayer() = default;
+
+#if WITH_EDITOR
+	//~ Begin UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
+	LANDSCAPE_API virtual TArray<UE::Landscape::EditLayers::FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
+	//~ End UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+#endif // WITH_EDITOR
+
+	// TODO [jonathan.bard] : make those private
+public:
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FGuid Guid;
 
@@ -204,12 +206,51 @@ struct FLandscapeLayer
 
 	UPROPERTY()
 	TMap<TObjectPtr<ULandscapeLayerInfoObject>, bool> WeightmapLayerAllocationBlend; // True -> Substractive, False -> Additive
+
+	UPROPERTY(Instanced)
+	TObjectPtr<ULandscapeEditLayerBase> EditLayer;
+};
+
+enum class ELandscapeEditLayersMergeMode : uint8
+{
+	GlobalMerge = 0,
+	LocalMerge, 
+	BatchedMerge,
+	Invalid 
+};
+
+// TODO [jonathan.bard] : When global merge is a thing of the past, we should pass FOnRenderBatchTargetGroupDoneParams here, or extract some of its higher-level information, because there
+//  is a lot more useful information accessible in there (components being rendered, target layers, validity render targets, etc.)
+struct FOnLandscapeEditLayersMergedParams
+{
+	FOnLandscapeEditLayersMergedParams(UTextureRenderTarget* InRenderTarget, const FIntPoint& InRenderAreaResolution, bool bInIsHeightmapMerge)
+		: RenderTarget(InRenderTarget)
+		, RenderAreaResolution(InRenderAreaResolution)
+		, bIsHeightmapMerge(bInIsHeightmapMerge)
+	{}
+
+	/**
+	* Render target of the section of landscape that was rendered (important note: the render target's resolution can be larger than the actual landscape resolution, so RenderAreaResolution must be used.
+	* In the case of weightmaps, the render target will actually be a UTextureRenderTarget2DArray
+	*/
+	UTextureRenderTarget* RenderTarget = nullptr;
+
+	/** Actual resolution of this render : render targets are usually sized larger than the effective resolution at this point, so this needs to be used instead.
+	 *  Note : it's the true resolution of the landscape : at this point, there are no duplicate vertices in the render target. */
+	FIntPoint RenderAreaResolution = FIntPoint(ForceInit);
+
+	bool bIsHeightmapMerge = false;
 };
 
 UCLASS(MinimalAPI, showcategories=(Display, Movement, Collision, Lighting, LOD, Input), hidecategories=(Mobility))
 class ALandscape : public ALandscapeProxy
+#if CPP && WITH_EDITOR // UHT doesn't support inheriting from namespaced class
+	, public UE::Landscape::EditLayers::IEditLayerRendererProvider
+#endif // CPP && WITH_EDITOR
 {
 	GENERATED_BODY()
+
+	friend class FLandscapeConfigHelper; // For copying/manipulating internal data
 
 public:
 	ALandscape(const FObjectInitializer& ObjectInitializer);
@@ -328,8 +369,24 @@ public:
 	LANDSCAPE_API void RequestLayersContentUpdate(ELandscapeLayerUpdateMode InModeMask);
 	LANDSCAPE_API bool ReorderLayer(int32 InStartingLayerIndex, int32 InDestinationLayerIndex);
 	LANDSCAPE_API FLandscapeLayer* DuplicateLayerAndMoveBrushes(const FLandscapeLayer& InOtherLayer);
-	LANDSCAPE_API int32 CreateLayer(FName InName = NAME_None);
+
+	/** 
+	* Creates a new edit layer
+	* @Param InName is the name of the new edit layer
+	* @Param InEditLayerClass is the class of the edit layer to create. Passing null will create a standard layer of type ULandscapeEditLayer
+	* @return the index of the newly-created layer
+	*/
+	LANDSCAPE_API int32 CreateLayer(FName InName = NAME_None, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass = TSubclassOf<ULandscapeEditLayerBase>());
+
+	/** 
+	* Creates a new edit layer by copying all the settings from the layer passed in parameter
+	* @Param InLayer edit layer to copy from
+	* @return the index of the newly-created layer
+	*/
+	UE_DEPRECATED(5.5, "Use DuplicateLayerAndMoveBrushes")
+	LANDSCAPE_API int32 CreateLayerFrom(const FLandscapeLayer& InLayer);
 	LANDSCAPE_API void CreateDefaultLayer();
+
 	LANDSCAPE_API void CopyOldDataToDefaultLayer();
 	LANDSCAPE_API void CopyOldDataToDefaultLayer(ALandscapeProxy* Proxy);
 	LANDSCAPE_API void AddLayersToProxy(ALandscapeProxy* InProxy);
@@ -339,22 +396,49 @@ public:
 	LANDSCAPE_API void SetLayerAlpha(int32 InLayerIndex, const float InAlpha, bool bInHeightmap);
 	LANDSCAPE_API float GetLayerAlpha(int32 InLayerIndex, bool bInHeightmap) const;
 	LANDSCAPE_API float GetClampedLayerAlpha(float InAlpha, bool bInHeightmap) const;
-	LANDSCAPE_API void SetLayerVisibility(int32 InLayerIndex, bool bInVisible);
+	LANDSCAPE_API void SetLayerVisibility(int32 InLayerIndex, bool bInVisible, bool bInForIntermediateRender = false);
 	LANDSCAPE_API void SetLayerLocked(int32 InLayerIndex, bool bLocked);
+	LANDSCAPE_API void SetLayerBlendMode(int32 InLayerIndex, ELandscapeBlendMode InBlendMode);
 	LANDSCAPE_API uint8 GetLayerCount() const;
-	LANDSCAPE_API struct FLandscapeLayer* GetLayer(int32 InLayerIndex);
-	LANDSCAPE_API const struct FLandscapeLayer* GetLayer(int32 InLayerIndex) const;
-	LANDSCAPE_API const struct FLandscapeLayer* GetLayer(const FGuid& InLayerGuid) const;
-	LANDSCAPE_API const struct FLandscapeLayer* GetLayer(const FName& InLayerName) const;
+	LANDSCAPE_API TArrayView<const FLandscapeLayer> GetLayers() const { return MakeArrayView(LandscapeEditLayers); }
+	LANDSCAPE_API const FLandscapeLayer* GetLayerConst(int32 InLayerIndex) const;
+	LANDSCAPE_API const FLandscapeLayer* GetLayerConst(const FGuid& InLayerGuid) const;
+	LANDSCAPE_API const FLandscapeLayer* GetLayerConst(const FName& InLayerName) const;
+	LANDSCAPE_API int32 GetLayerIndex(const FGuid& InLayerGuid) const;
 	LANDSCAPE_API int32 GetLayerIndex(FName InLayerName) const;
-	LANDSCAPE_API void ForEachLayer(TFunctionRef<void(struct FLandscapeLayer&)> Fn);
+
+	UE_DEPRECATED(5.5, "This has moved to private (GetLayerInternal), use the appropriate setters to mutate the edit layer")
+	LANDSCAPE_API FLandscapeLayer* GetLayer(int32 InLayerIndex) { return nullptr; }
+	UE_DEPRECATED(5.5, "Use GetLayerConst")
+	LANDSCAPE_API const FLandscapeLayer* GetLayer(int32 InLayerIndex) const;
+	UE_DEPRECATED(5.5, "Use GetLayerConst")
+	LANDSCAPE_API const FLandscapeLayer* GetLayer(const FGuid& InLayerGuid) const;
+	UE_DEPRECATED(5.5, "Use GetLayerConst")
+	LANDSCAPE_API const FLandscapeLayer* GetLayer(const FName& InLayerName) const;
+
+	UE_DEPRECATED(5.5, "Use ForEachLayerConst")
+	LANDSCAPE_API void ForEachLayer(TFunctionRef<void(FLandscapeLayer&)> Fn);
+	
+	/**
+	 * Runs the given function on each edit layer, with the possibility of early exit
+	 * Most easily used with a lambda as follows:
+	 * ForEachLayerConst([](const FLandscapeLayer& InLayer) -> bool
+	 * {
+	 *     return continueLoop ? true : false;
+	 * });
+	 */
+	LANDSCAPE_API void ForEachLayerConst(TFunctionRef<bool(const FLandscapeLayer&)> Fn);
+
+	LANDSCAPE_API const FLandscapeLayer* FindLayerOfType(const TSubclassOf<ULandscapeEditLayerBase>& InLayerClass) const;
+	LANDSCAPE_API TArray<const FLandscapeLayer*> GetLayersOfType(const TSubclassOf<ULandscapeEditLayerBase>& InLayerClass) const;
+
 	LANDSCAPE_API void GetUsedPaintLayers(int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*>& OutUsedLayerInfos) const;
 	LANDSCAPE_API void GetUsedPaintLayers(const FGuid& InLayerGuid, TArray<ULandscapeLayerInfoObject*>& OutUsedLayerInfos) const;
 	LANDSCAPE_API void ClearPaintLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo);
 	LANDSCAPE_API void ClearPaintLayer(const FGuid& InLayerGuid, ULandscapeLayerInfoObject* InLayerInfo);
 	LANDSCAPE_API void ClearLayer(int32 InLayerIndex, TSet<TObjectPtr<ULandscapeComponent>>* InComponents = nullptr, ELandscapeClearMode InClearMode = ELandscapeClearMode::Clear_All);
 	LANDSCAPE_API void ClearLayer(const FGuid& InLayerGuid, TSet<TObjectPtr<ULandscapeComponent>>* InComponents = nullptr, ELandscapeClearMode InClearMode = ELandscapeClearMode::Clear_All, bool bMarkPackageDirty = true);
-	LANDSCAPE_API void DeleteLayer(int32 InLayerIndex);
+	LANDSCAPE_API bool DeleteLayer(int32 InLayerIndex);
 	LANDSCAPE_API void CollapseLayer(int32 InLayerIndex);
 	LANDSCAPE_API void DeleteLayers();
 	LANDSCAPE_API void SetEditingLayer(const FGuid& InLayerGuid = FGuid());
@@ -364,15 +448,21 @@ public:
 	LANDSCAPE_API void ShowOnlySelectedLayer(int32 InLayerIndex);
 	LANDSCAPE_API void ShowAllLayers();
 	LANDSCAPE_API void UpdateLandscapeSplines(const FGuid& InLayerGuid = FGuid(), bool bInUpdateOnlySelected = false, bool bInForceUpdateAllCompoments = false);
+
+	UE_DEPRECATED(5.5, "Use CreateLayer with a ULandscapeEditLayerSplines instead")
 	LANDSCAPE_API void SetLandscapeSplinesReservedLayer(int32 InLayerIndex);
+	UE_DEPRECATED(5.5, "Use FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) instead")
 	LANDSCAPE_API struct FLandscapeLayer* GetLandscapeSplinesReservedLayer();
+	UE_DEPRECATED(5.5, "Use FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) instead")
 	LANDSCAPE_API const struct FLandscapeLayer* GetLandscapeSplinesReservedLayer() const;
+	UE_DEPRECATED(5.5, "Use FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()).Guid == GetEditingLayer() instead")
 	LANDSCAPE_API bool IsEditingLayerReservedForSplines() const;
 
 	LANDSCAPE_API bool IsLayerBlendSubstractive(int32 InLayerIndex, const TWeakObjectPtr<ULandscapeLayerInfoObject>& InLayerInfoObj) const;
 	LANDSCAPE_API void SetLayerSubstractiveBlendStatus(int32 InLayerIndex, bool InStatus, const TWeakObjectPtr<ULandscapeLayerInfoObject>& InLayerInfoObj);
+	LANDSCAPE_API void ReplaceLayerSubstractiveBlendStatus(ULandscapeLayerInfoObject* InFromLayerInfo, ULandscapeLayerInfoObject* InToLayerInfo, bool bInShouldDirtyPackage);
 
-	LANDSCAPE_API int32 GetBrushLayer(class ALandscapeBlueprintBrushBase* InBrush) const;
+	LANDSCAPE_API int32 GetBrushLayer(const ALandscapeBlueprintBrushBase* InBrush) const;
 	LANDSCAPE_API void AddBrushToLayer(int32 InLayerIndex, class ALandscapeBlueprintBrushBase* InBrush);
 	LANDSCAPE_API void RemoveBrush(class ALandscapeBlueprintBrushBase* InBrush);
 	LANDSCAPE_API void RemoveBrushFromLayer(int32 InLayerIndex, class ALandscapeBlueprintBrushBase* InBrush);
@@ -390,8 +480,10 @@ public:
 	
 	LANDSCAPE_API void ToggleCanHaveLayersContent();
 	LANDSCAPE_API void ForceUpdateLayersContent(bool bIntermediateRender = false);
+
 	UFUNCTION(BlueprintCallable, Category = "Landscape")
 	LANDSCAPE_API void ForceLayersFullUpdate();
+
 	LANDSCAPE_API void InitializeLandscapeLayersWeightmapUsage();
 
 	LANDSCAPE_API bool ComputeLandscapeLayerBrushInfo(FTransform& OutLandscapeTransform, FIntPoint& OutLandscapeSize, FIntPoint& OutLandscapeRenderTargetSize);
@@ -413,31 +505,44 @@ public:
 
 	LANDSCAPE_API void SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrassMapGeneration);
 
-protected:
-	FName GenerateUniqueLayerName(FName InName = NAME_None) const;
+	LANDSCAPE_API FName GenerateUniqueLayerName(FName InName = NAME_None) const;
 
 private:
+	FLandscapeLayer* GetLayerInternal(int32 InLayerIndex);
+	void OnLayerCreatedInternal(FLandscapeLayer& Layer);
+
 	bool SupportsEditLayersLocalMerge();
 	bool HasNormalCaptureBPBrushLayer();
 
+	ELandscapeEditLayersMergeMode GetEditLayersMergeMode();
 	bool CreateLayersRenderingResource(bool bUseNormalCapture);
 	void PrepareEditLayersLocalMergeResources();
 	void UpdateLayersContent(bool bInWaitForStreaming = false, bool bInSkipMonitorLandscapeEdModeChanges = false, bool bIntermediateRender = false, bool bFlushRender = false);
 	void MonitorShaderCompilation();
 	void MonitorLandscapeEdModeChanges();
+	
+	//~ Begin UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+	virtual TArray<UE::Landscape::EditLayers::FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
+	//~ End UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+
+	UE::Landscape::EditLayers::FMergeRenderContext PrepareEditLayersMergeRenderContext(const UE::Landscape::EditLayers::FMergeRenderParams& InParams);
+
+	FLandscapeBrushParameters BuildLandscapeBrushParameters(bool bInIsHeightmapMerge, const FIntRect& InRenderAreaExtents, UTextureRenderTarget2D* InRenderTarget, FName InWeightmapLayerName = NAME_None);
 
 	int32 RegenerateLayersHeightmaps(const FUpdateLayersContentContext& InUpdateLayersContentContext);
 	int32 PerformLayersHeightmapsLocalMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);
 	int32 PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);
-	void ResolveLayersHeightmapTexture(const FTextureToComponentHelper& MapHelper, const TSet<UTexture2D*>& HeightmapsToResolve, bool bIntermediateRender, bool bFlushRender, TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults);
+	int32 PerformLayersHeightmapsBatchedMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);
+	void ResolveLayersHeightmapTexture(const FTextureToComponentHelper& MapHelper, const TSet<UTexture2D*>& HeightmapsToResolve, bool bIntermediateRender, TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults);
 
 	int32 RegenerateLayersWeightmaps(FUpdateLayersContentContext& InUpdateLayersContentContext);
 	int32 PerformLayersWeightmapsLocalMerge(FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersWeightmapMergeParams& InMergeParams);
 	int32 PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersWeightmapMergeParams& InMergeParams);
-	void ResolveLayersWeightmapTexture(const FTextureToComponentHelper& MapHelper, const TSet<UTexture2D*>& WeightmapsToResolve, bool bIntermediateRender, bool bFlushRender, TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults);
+	int32 PerformLayersWeightmapsBatchedMerge(FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersWeightmapMergeParams& InMergeParams);
+	void ResolveLayersWeightmapTexture(const FTextureToComponentHelper& MapHelper, const TSet<UTexture2D*>& WeightmapsToResolve, bool bIntermediateRender, TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults);
 
-	bool HasTextureDataChanged(TArrayView<const FColor> InOldData, TArrayView<const FColor> InNewData, bool bInIsWeightmap, uint64 InPreviousHash, uint64& OutNewHash) const;
-	bool ResolveLayersTexture(FTextureToComponentHelper const& MapHelper, FLandscapeEditLayerReadback* InCPUReadBack, UTexture2D* InOutputTexture, bool bIntermediateRender,	bool bFlushRender,
+	bool HasTextureDataChanged(TArrayView<const FColor> InOldData, TArrayView<const FColor> InNewData, bool bInIsWeightmap, uint64 InPreviousHash, uint64& OutNewHash, TOptional<uint8>& OutChangedWeightmapChannelsMasks) const;
+	bool ResolveLayersTexture(FTextureToComponentHelper const& MapHelper, FLandscapeEditLayerReadback* InCPUReadBack, UTexture2D* InOutputTexture, bool bIntermediateRender,
 		TArray<FLandscapeEditLayerComponentReadbackResult>& InOutComponentReadbackResults, bool bIsWeightmap);
 
 	static bool IsUpdateFlagEnabledForModes(ELandscapeComponentUpdateFlag InFlag, uint32 InUpdateModes);
@@ -448,7 +553,7 @@ private:
 
 	bool PrepareLayersTextureResources(bool bInWaitForStreaming);
 	bool PrepareLayersTextureResources(const TArray<FLandscapeLayer>& InLayers, bool bInWaitForStreaming);
-	bool PrepareLayersBrushResources(ERHIFeatureLevel::Type InFeatureLevel, bool bInWaitForStreaming);
+	bool PrepareLayersResources(ERHIFeatureLevel::Type InFeatureLevel, bool bInWaitForStreaming);
 	void InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures);
 	void PrepareLayersHeightmapsLocalMergeRenderThreadData(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams, EditLayersHeightmapLocalMerge_RenderThread::FMergeInfo& OutRenderThreadData);
 	void PrepareLayersWeightmapsLocalMergeRenderThreadData(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersWeightmapMergeParams& InMergeParams, EditLayersWeightmapLocalMerge_RenderThread::FMergeInfo& OutRenderThreadData);
@@ -459,7 +564,8 @@ private:
 														  TArray<struct FLandscapeLayerWeightmapExtractMaterialLayersComponentData>& OutComponentData, TMap<ULandscapeLayerInfoObject*, int32>& OutLayerInfoObjects);
 	void PrepareComponentDataToPackMaterialLayersCS(int32 InCurrentWeightmapToProcessIndex, const FIntPoint& InLandscapeBase, const TArray<ULandscapeComponent*>& InAllLandscapeComponents, TArray<UTexture2D*>& InOutProcessedWeightmaps,
 													TArray<FLandscapeEditLayerReadback*>& OutProcessedCPUReadBacks, TArray<struct FLandscapeLayerWeightmapPackMaterialLayersComponentData>& OutComponentData);
-	void ReallocateLayersWeightmaps(FUpdateLayersContentContext& InUpdateLayersContentContext, const TArray<ULandscapeLayerInfoObject*>& InBrushRequiredAllocations);
+	void ReallocateLayersWeightmaps(FUpdateLayersContentContext& InUpdateLayersContentContext, const TArray<ULandscapeLayerInfoObject*>& InBrushRequiredAllocations, 
+		const TMap<ULandscapeComponent*, TArray<ULandscapeLayerInfoObject*>>* InPerComponentAllocations, bool bInRestrictTextureSharingToTheseComponents);
 	void InitializeLayersWeightmapResources();
 	bool GenerateZeroAllocationPerComponents(const TArray<ALandscapeProxy*>& InAllLandscape, const TMap<ULandscapeLayerInfoObject*, bool>& InWeightmapLayersBlendSubstractive);
 
@@ -493,7 +599,7 @@ private:
 	void PrintLayersDebugWeightData(const FString& InContext, const TArray<FColor>& InWeightmapData, const FIntPoint& InDataSize, uint8 InMipRender) const;
 
 	void UpdateWeightDirtyData(ULandscapeComponent* InLandscapeComponent, UTexture2D const* InWeightmap, FColor const* InOldData, FColor const* InNewData, uint8 InChannel);
-	void OnDirtyWeightmap(FTextureToComponentHelper const& MapHelper, UTexture2D const* InWeightmap, FColor const* InOldData, FColor const* InNewData, int32 InMipLevel);
+	void OnDirtyWeightmap(FTextureToComponentHelper const& MapHelper, UTexture2D const* InWeightmap, FColor const* InOldData, FColor const* InNewData, int32 InMipLevel, uint8 ChangedChannelsMask);
 	void UpdateHeightDirtyData(ULandscapeComponent* InLandscapeComponent, UTexture2D const* InHeightmap, FColor const* InOldData, FColor const* InNewData);
 	void OnDirtyHeightmap(FTextureToComponentHelper const& MapHelper, UTexture2D const* InWeightmap, FColor const* InOldData, FColor const* InNewData, int32 InMipLevel);
 
@@ -528,12 +634,14 @@ public:
 	DECLARE_EVENT(ALandscape, FLandscapeBlueprintBrushChangedDelegate);
 	FLandscapeBlueprintBrushChangedDelegate& OnBlueprintBrushChangedDelegate() { return LandscapeBlueprintBrushChangedDelegate; }
 
-	DECLARE_EVENT_OneParam(ALandscape, FLandscapeFullHeightmapRenderDoneDelegate, UTextureRenderTarget2D*);
-	FLandscapeFullHeightmapRenderDoneDelegate& OnFullHeightmapRenderDoneDelegate() { return LandscapeFullHeightmapRenderDoneDelegate; }
+	/** Delegate that will be called whenever an edit layers merge is done */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEditLayersMergedDelegate, const FOnLandscapeEditLayersMergedParams& /*InParams*/);
+	FOnEditLayersMergedDelegate::RegistrationType& OnEditLayersMerged() const { return OnEditLayersMergedDelegate; }
 
 	/** Target Landscape Layer for Landscape Splines */
+	UE_DEPRECATED(5.5, "This has been refactored into the generic ULandscapeEditLayerBase system. Please check for the presence of a ULandscapeEditLayerSplines layer instead")
 	UPROPERTY()
-	FGuid LandscapeSplinesTargetLayerGuid;
+	FGuid LandscapeSplinesTargetLayerGuid_DEPRECATED;
 	
 	/** Current Editing Landscape Layer*/
 	FGuid EditingLayer;
@@ -547,8 +655,9 @@ public:
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient, NonPIEDuplicateTransient)
 	bool bWarnedGlobalMergeDimensionsExceeded = false;
 
+	UE_DEPRECATED(5.5, "This property has moved to private. Use the public accessors instead")
 	UPROPERTY()
-	TArray<FLandscapeLayer> LandscapeLayers;
+	TArray<FLandscapeLayer> LandscapeLayers_DEPRECATED;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextureRenderTarget2D>> HeightmapRTList;
@@ -561,8 +670,11 @@ public:
 	TArray<TWeakObjectPtr<UTexture2D>> TrackedStreamingInTextures;
 
 private:
+	UPROPERTY()
+	TArray<FLandscapeLayer> LandscapeEditLayers;
+
 	FLandscapeBlueprintBrushChangedDelegate LandscapeBlueprintBrushChangedDelegate;
-	FLandscapeFullHeightmapRenderDoneDelegate LandscapeFullHeightmapRenderDoneDelegate;
+	mutable FOnEditLayersMergedDelegate OnEditLayersMergedDelegate;
 
 	/** Components affected by landscape splines (used to partially clear Layer Reserved for Splines) */
 	UPROPERTY(Transient)
@@ -586,7 +698,7 @@ private:
 
 	UPROPERTY(Transient)
 	bool bLandscapeLayersAreInitialized;
-
+	
 	UPROPERTY(Transient)
 	bool bLandscapeLayersAreInitializedForNormalCapture;
 
@@ -602,15 +714,24 @@ private:
 	UPROPERTY(Transient)
 	bool bSplineLayerUpdateRequested;
 
-	/** Time since waiting for landscape resources to be ready (for displaying a notification to the user) */
-	double WaitingForLandscapeTextureResourcesStartTime = -1.0;
+	ELandscapeEditLayersMergeMode CurrentEditLayersMergeMode = ELandscapeEditLayersMergeMode::GlobalMerge;
 
-	/** Time since waiting for brush resources to be ready (for displaying a notification to the user) */
-	double WaitingForLandscapeBrushResourcesStartTime = -1.0;
+	struct FWaitingForResourcesNotificationHelper
+	{
+		void Notify(ALandscape* InLandscape, class FLandscapeNotificationManager* InNotificationManager, ELandscapeNotificationType InNotificationType, const FText& InNotificationText);
+		void Reset();
+
+		/** Time since waiting for resources to be ready */
+		double WaitingForResourcesStartTime = -1.0;
+
+		/** Non-stackable user notification for landscape editor */
+		TSharedPtr<FLandscapeNotification> Notification;
+	};
 
 	/** Non-stackable user notifications for landscape editor */
-	TSharedPtr<FLandscapeNotification> WaitingForTexturesNotification;
-	TSharedPtr<FLandscapeNotification> WaitingForBrushesNotification;
+	FWaitingForResourcesNotificationHelper WaitingForTexturesNotificationHelper;
+	FWaitingForResourcesNotificationHelper WaitingForEditLayerResourcesNotificationHelper;
+
 	TSharedPtr<FLandscapeNotification> InvalidShadingModelNotification;
 
 	// Represent all the resolved paint layer, from all layers blended together (size of the landscape x material layer count)

@@ -26,6 +26,9 @@
 #include "ToolSetupUtil.h"
 #include "AssetUtils/MeshDescriptionUtil.h"
 #include "ModelingToolTargetUtil.h"
+#include "TargetInterfaces/MaterialProvider.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 #include "CanvasTypes.h"
 #include "CanvasItem.h"
@@ -163,6 +166,15 @@ UMaterialInterface* UMeshInspectorMaterialProperties::GetActiveOverrideMaterial(
  * ToolBuilder
  */
 
+const FToolTargetTypeRequirements& UMeshInspectorToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMeshDescriptionProvider::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass(),
+		UMaterialProvider::StaticClass()
+		});
+	return TypeRequirements;
+}
 
 USingleSelectionMeshEditingTool* UMeshInspectorToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
@@ -192,7 +204,9 @@ void UMeshInspectorTool::Setup()
 	DefaultMaterial = PreviewMesh->GetMaterial(0);
 
 	PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::ExternallyProvided);
-	FDynamicMesh3 InputMeshWithTangents = UE::ToolTarget::GetDynamicMeshCopy(Target, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	FDynamicMesh3 InputMeshWithTangents = UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams);
 	PreviewMesh->ReplaceMesh(MoveTemp(InputMeshWithTangents));
 
 	DrawnLineSet = NewObject<ULineSetComponent>(PreviewMesh->GetRootComponent(), "MeshInspectorToolLineSet");

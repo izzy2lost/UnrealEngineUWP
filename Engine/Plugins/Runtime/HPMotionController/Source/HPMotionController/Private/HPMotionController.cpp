@@ -132,11 +132,11 @@ void FHPMotionControllerModule::PostCreateInstance(XrInstance InInstance)
 	ControllerModels.Add(Path, FOpenXRAssetDirectory::HPMixedRealityRight);
 }
 
-bool FHPMotionControllerModule::GetInteractionProfile(XrInstance InInstance, FString& OutKeyPrefix, XrPath& OutPath, bool& OutHasHaptics)
+bool FHPMotionControllerModule::GetInteractionProfiles(XrInstance InInstance, TArray<FString>& OutKeyPrefixes, TArray<XrPath>& OutPaths, TArray<bool>& OutHasHaptics)
 {
-	OutKeyPrefix = "HPMixedRealityController";
-	OutPath = InteractionProfile;
-	OutHasHaptics = true;
+	OutKeyPrefixes.Add("HPMixedRealityController");
+	OutPaths.Add(InteractionProfile);
+	OutHasHaptics.Add(true);
 
 	return true;
 }

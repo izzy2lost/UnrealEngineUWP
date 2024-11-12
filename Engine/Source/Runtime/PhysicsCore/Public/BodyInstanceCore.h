@@ -20,7 +20,6 @@ struct FBodyInstanceCore
 	TWeakObjectPtr<UBodySetupCore> BodySetup;
 
 	PHYSICSCORE_API FBodyInstanceCore();
-	virtual ~FBodyInstanceCore() {}
 
 	/** 
 	 * If true, this body will use simulation. If false, will be 'fixed' (ie kinematic) and move where it is told. 

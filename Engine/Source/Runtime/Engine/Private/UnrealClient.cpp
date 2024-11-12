@@ -172,6 +172,9 @@ float FRenderTarget::GetEngineDisplayGamma() // static
 	}
 }
 
+FRenderTarget::FRenderTarget() = default;
+FRenderTarget::~FRenderTarget() = default;
+
 const FTextureRHIRef& FRenderTarget::GetRenderTargetTexture() const
 {
 	return RenderTargetTextureRHI;
@@ -360,9 +363,15 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 	RawGameThreadTime = FPlatformTime::ToMilliseconds(GGameThreadTime);
 	GameThreadTime = 0.9 * GameThreadTime + 0.1 * RawGameThreadTime;
 
+	RawGameThreadTimeCriticalPath = FPlatformTime::ToMilliseconds(GGameThreadTimeCriticalPath);
+	GameThreadTimeCriticalPath = 0.9 * GameThreadTimeCriticalPath + 0.1 * RawGameThreadTimeCriticalPath;
+
 	/** Number of milliseconds the renderthread was used last frame. */
 	RawRenderThreadTime = FPlatformTime::ToMilliseconds(GRenderThreadTime);
 	RenderThreadTime = 0.9 * RenderThreadTime + 0.1 * RawRenderThreadTime;
+
+	RawRenderThreadTimeCriticalPath = FPlatformTime::ToMilliseconds(GRenderThreadTimeCriticalPath);
+	RenderThreadTimeCriticalPath = 0.9 * RenderThreadTimeCriticalPath + 0.1 * RawRenderThreadTimeCriticalPath;
 
 	RawRHITTime = FPlatformTime::ToMilliseconds(GRHIThreadTime);
 	RHITTime = 0.9 * RHITTime + 0.1 * RawRHITTime;
@@ -411,6 +420,7 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 	float Max_RHITTime = 0.0f;
 	float Max_InputLatencyTime = 0.0f;
 
+	const bool bShowUnitCriticalPathTimes = InViewport->GetClient() ? InViewport->GetClient()->IsStatEnabled(TEXT("UnitCriticalPath")) : false;
 	const bool bShowUnitMaxTimes = InViewport->GetClient() ? InViewport->GetClient()->IsStatEnabled(TEXT("UnitMax")) : false;
 	const bool bShowTSRStatistics = InViewport->GetClient() ? InViewport->GetClient()->IsStatEnabled(TEXT("TSR")) : false;
 #if !UE_BUILD_SHIPPING
@@ -496,14 +506,24 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 		const FColor NoUnitGraphColor(220, 220, 220);
 
 		#define STATUNIT_FORMAT_AVGTIME TEXT("%3.2f ms")
+		#define STATUNIT_FORMAT_CRITICALPATHTIME TEXT("%3.2f ms")
 		#define STATUNIT_FORMAT_MAXTIME TEXT("%4.2f ms")
 		#define STATUNIT_FORMAT_PERCEMT TEXT("%3.2f %%")
 
 		const int32 AvgUnitColumnId = 0;
-		const int32 MaxUnitColumnId = 1;
+		const int32 CriticalPathUnitColumnId = 1;
+		const int32 MaxUnitColumnId = bShowUnitCriticalPathTimes ? 2 : 1;
 
 		const int32 ColumnWidth = Font->GetStringSize(TEXT(" 0000.00 ms "));
-		const int32 ColumnCount = bShowUnitMaxTimes ? 2 : 1;
+		int32 ColumnCount = 1;
+		if (bShowUnitCriticalPathTimes)
+		{
+			++ColumnCount;
+		}
+		if (bShowUnitMaxTimes)
+		{
+			++ColumnCount;
+		}
 
 		int32 X3 = InX * (bStereoRendering ? 0.5f : 1.0f);
 		int32 X2 = X3 - ColumnWidth * (ColumnCount - 1);
@@ -547,11 +567,32 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 		{
 			DrawCell(/* RowId = */ 0, AvgUnitColumnId, ColumnCount, CellText, UnitGraphColor);
 		};
+		auto DrawDefaultCriticalPathCell = [&](const FString& CellText, const FColor& UnitGraphColor)
+		{
+			check(bShowUnitCriticalPathTimes);
+			DrawCell(/* RowId = */ 0, CriticalPathUnitColumnId, ColumnCount, CellText, UnitGraphColor);
+		};
 		auto DrawDefaultMaxCell = [&](const FString& CellText, const FColor& UnitGraphColor)
 		{
 			check(bShowUnitMaxTimes);
 			DrawCell(/* RowId = */ 0, MaxUnitColumnId, ColumnCount, CellText, UnitGraphColor);
 		};
+
+		if (bShowUnitCriticalPathTimes || bShowUnitMaxTimes)
+		{
+			// if there are multiple columns, draw the name of each column
+
+			DrawDefaultAvgCell(TEXT("Avg"), FColor::White);
+			if (bShowUnitCriticalPathTimes)
+			{
+				DrawDefaultCriticalPathCell(TEXT("Critical"), FColor::White);
+			}
+			if (bShowUnitMaxTimes)
+			{
+				DrawDefaultMaxCell(TEXT("Max"), FColor::White);
+			}
+			PushRows(/* RowsCount = */ 1);
+		}
 
 		{
 			DrawTitleString(TEXT("Frame"), /* UnitGraphColor = */ FColor(100, 255, 100));
@@ -573,6 +614,11 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 				const FColor GameThreadAverageColor = GEngine->GetFrameTimeDisplayColor(GameThreadTime);
 				DrawDefaultAvgCell(FString::Printf(STATUNIT_FORMAT_AVGTIME, GameThreadTime), GameThreadAverageColor);
 			}
+			if (bShowUnitCriticalPathTimes)
+			{
+				const FColor CriticalPathFrameTimeColor = GEngine->GetFrameTimeDisplayColor(GameThreadTimeCriticalPath);
+				DrawDefaultCriticalPathCell(FString::Printf(STATUNIT_FORMAT_CRITICALPATHTIME, GameThreadTimeCriticalPath), CriticalPathFrameTimeColor);
+			}
 			if (bShowUnitMaxTimes)
 			{
 				const FColor GameThreadMaxColor = GEngine->GetFrameTimeDisplayColor(Max_GameThreadTime);
@@ -586,6 +632,11 @@ int32 FStatUnitData::DrawStat(FViewport* InViewport, FCanvas* InCanvas, int32 In
 			{
 				const FColor RenderThreadAverageColor = GEngine->GetFrameTimeDisplayColor(RenderThreadTime);
 				DrawDefaultAvgCell(FString::Printf(STATUNIT_FORMAT_AVGTIME, RenderThreadTime), RenderThreadAverageColor);
+			}
+			if (bShowUnitCriticalPathTimes)
+			{
+				const FColor CriticalPathFrameTimeColor = GEngine->GetFrameTimeDisplayColor(RenderThreadTimeCriticalPath);
+				DrawDefaultCriticalPathCell(FString::Printf(STATUNIT_FORMAT_CRITICALPATHTIME, RenderThreadTimeCriticalPath), CriticalPathFrameTimeColor);
 			}
 			if (bShowUnitMaxTimes)
 			{
@@ -1393,7 +1444,6 @@ static void HighResScreenshotBeginFrame(FDummyViewport* DummyViewport)
 		GFrameCounterRenderThread = CurrentFrameCounter;
 		GFrameNumberRenderThread++;
 		GPU_STATS_BEGINFRAME(RHICmdList);
-		RHICmdList.BeginFrame();
 		FCoreDelegates::OnBeginFrameRT.Broadcast();
 		if (DummyViewport)
 		{
@@ -1585,10 +1635,7 @@ void FViewport::EndRenderFrame(FRHICommandListImmediate& RHICmdList, bool bPrese
 		UEngine::SetPresentLatencyMarkerStart(CurrentFrameCounter);
 	});
 
-	{
-		FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUPresent);
-		RHICmdList.EndDrawingViewport(GetViewportRHI(), bPresent, bLockToVsync);
-	}
+	RHICmdList.EndDrawingViewport(GetViewportRHI(), bPresent, bLockToVsync);
 
 	RHICmdList.EnqueueLambda([CurrentFrameCounter = GFrameCounterRenderThread](FRHICommandListImmediate& InRHICmdList)
 	{
@@ -1733,6 +1780,10 @@ void FViewport::Draw( bool bShouldPresent /*= true */)
 							// add any stalls via sleep or fevent
 							GGameThreadTime		= (ThreadTime > GameThread.Waits) ? (ThreadTime - GameThread.Waits) : ThreadTime;
 							GGameThreadWaitTime = GameThread.Waits;
+
+							// Compute GGameThreadTimeCriticalPath
+							uint32 GameThreadNonCriticalPathIdle = GameThread.Waits - GameThread.WaitsCriticalPath;
+							GGameThreadTimeCriticalPath = (ThreadTime > GameThreadNonCriticalPathIdle) ? (ThreadTime - GameThreadNonCriticalPathIdle) : ThreadTime;
 						}
 						else
 						{
@@ -1742,6 +1793,7 @@ void FViewport::Draw( bool bShouldPresent /*= true */)
 						LastFrameUpdated = GFrameCounter;
 						Lastimestamp		= CurrentTime;
 						GameThread.Reset();
+						GameThread.IsCriticalPathCounter = 0;
 					}
 				}
 
@@ -1762,6 +1814,11 @@ void FViewport::Draw( bool bShouldPresent /*= true */)
 				EnqueueEndRenderFrame(bLockToVsync, bShouldPresent);
 
 				GInputLatencyTimer.GameThreadTrigger = false;
+			}
+			else if (World && World->IsGameWorld())
+			{
+				// since we aren't drawing the viewport, we still need to update streaming
+				World->UpdateLevelStreaming();
 			}
 		}
 
@@ -2131,28 +2188,28 @@ void FViewport::UpdateViewportRHI(bool bDestroyed, uint32 NewSizeX, uint32 NewSi
 	}
 }
 
-FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& ViewRect)
+FIntRect FViewport::CalculateViewExtents(float AspectRatio, float DesiredAspectRatio, const FIntRect& ViewRect, const FIntPoint& DestSize)
 {
 	FIntRect Result = ViewRect;
 
 	const float CurrentSizeX = ViewRect.Width();
 	const float CurrentSizeY = ViewRect.Height();
 
-	// the viewport's SizeX/SizeY may not always match the GetDesiredAspectRatio(), so adjust the requested AspectRatio to compensate
-	const float AdjustedAspectRatio = AspectRatio / (GetDesiredAspectRatio() / ((float)GetSizeXY().X / (float)GetSizeXY().Y));
+	// the viewport's SizeX/SizeY may not always match the DesiredAspectRatio, so adjust the requested AspectRatio to compensate
+	const float AdjustedAspectRatio = AspectRatio / (DesiredAspectRatio / ((float)DestSize.X / (float)DestSize.Y));
 
 	// If desired, enforce a particular aspect ratio for the render of the scene. 
 	// Results in black bars at top/bottom etc.
 	const float AspectRatioDifference = AdjustedAspectRatio - (CurrentSizeX / CurrentSizeY);
 
-	if( FMath::Abs( AspectRatioDifference ) > 0.01f )
+	if (FMath::Abs(AspectRatioDifference) > 0.01f)
 	{
 		// If desired aspect ratio is bigger than current - we need black bars on top and bottom.
-		if( AspectRatioDifference > 0.0f )
+		if (AspectRatioDifference > 0.0f)
 		{
 			// Calculate desired Y size.
-			const int32 NewSizeY = FMath::Max(1, FMath::RoundToInt( CurrentSizeX / AdjustedAspectRatio ) );
-			Result.Min.Y = FMath::RoundToInt( 0.5f * (CurrentSizeY - NewSizeY) );
+			const int32 NewSizeY = FMath::Max(1, FMath::RoundToInt(CurrentSizeX / AdjustedAspectRatio));
+			Result.Min.Y = FMath::RoundToInt(0.5f * (CurrentSizeY - NewSizeY));
 			Result.Max.Y = Result.Min.Y + NewSizeY;
 			Result.Min.Y += ViewRect.Min.Y;
 			Result.Max.Y += ViewRect.Min.Y;
@@ -2160,8 +2217,8 @@ FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& View
 		// Otherwise - will place bars on the sides.
 		else
 		{
-			const int32 NewSizeX = FMath::Max(1, FMath::RoundToInt( CurrentSizeY * AdjustedAspectRatio ) );
-			Result.Min.X = FMath::RoundToInt( 0.5f * (CurrentSizeX - NewSizeX) );
+			const int32 NewSizeX = FMath::Max(1, FMath::RoundToInt(CurrentSizeY * AdjustedAspectRatio));
+			Result.Min.X = FMath::RoundToInt(0.5f * (CurrentSizeX - NewSizeX));
 			Result.Max.X = Result.Min.X + NewSizeX;
 			Result.Min.X += ViewRect.Min.X;
 			Result.Max.X += ViewRect.Min.X;
@@ -2169,6 +2226,11 @@ FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& View
 	}
 
 	return Result;
+}
+
+FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& ViewRect)
+{
+	return CalculateViewExtents(AspectRatio, GetDesiredAspectRatio(), ViewRect, GetSizeXY());
 }
 
 /**

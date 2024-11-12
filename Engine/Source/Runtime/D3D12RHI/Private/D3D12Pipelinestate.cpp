@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
+#include "D3D12PipelineState.h"
 #include "D3D12RHIPrivate.h"
 #include "Hash/CityHash.h"
 
@@ -113,6 +114,18 @@ static FD3D12LowLevelGraphicsPipelineStateDesc GetLowLevelGraphicsPipelineStateD
 	// TODO: [PSO API] For now, keep DBT enabled, if available, until it is added as part of a member to the Initializer's DepthStencilState
 	Desc.Desc.DepthStencilState.DepthBoundsTestEnable = GSupportsDepthBoundsTest && Initializer.bDepthBounds;
 #endif
+
+	// The blend state is liable to have non default values for RenderTarget indices that exceed
+	// NumRenderTargets, this will in turn cause them to have a different `D3D12_PIPELINE_STATE_STREAM_DESC`
+	// as far as the driver is concerned.
+	// Which will then cause a hash collision when using driver level pipeline caching, due to the hash
+	// only being derived from the active render target blend states.
+#if !D3D12_USE_DERIVED_PSO || D3D12_USE_DERIVED_PSO_SHADER_EXPORTS
+	for (UINT RenderTarget = Desc.Desc.RTFormatArray.NumRenderTargets; RenderTarget < 8; ++RenderTarget)
+	{
+		Desc.Desc.BlendState.RenderTarget[RenderTarget] = D3D12_RENDER_TARGET_BLEND_DESC{};
+	}
+#endif // !D3D12_USE_DERIVED_PSO || D3D12_USE_DERIVED_PSO_SHADER_EXPORTS
 
 	Desc.bFromPSOFileCache = Initializer.bFromPSOFileCache;
 
@@ -436,8 +449,8 @@ FD3D12GraphicsPipelineState::~FD3D12GraphicsPipelineState()
 }
 
 FD3D12ComputePipelineState::FD3D12ComputePipelineState(FD3D12ComputeShader* InComputeShader, const FD3D12RootSignature* InRootSignature, FD3D12PipelineState* InPipelineState)
-	: FD3D12PipelineStateCommonData(InRootSignature, InPipelineState)
-	, ComputeShader(InComputeShader)
+	: FRHIComputePipelineState(InComputeShader)
+	, FD3D12PipelineStateCommonData(InRootSignature, InPipelineState)
 {
 	bShaderNeedsGlobalConstantBuffer = InComputeShader && InComputeShader->UsesGlobalUniformBuffer();
 }

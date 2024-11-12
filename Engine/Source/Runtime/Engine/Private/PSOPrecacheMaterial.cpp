@@ -14,6 +14,8 @@
 #include "MaterialShared.h"
 #include "VertexFactory.h"
 #include "SceneInterface.h"
+#include "ShaderCodeArchive.h"
+#include "ODSC/ODSCManager.h"
 
 int32 GPSOUseBackgroundThreadForCollection = 1;
 static FAutoConsoleVariableRef CVarPSOUseBackgroundThreadForCollection(
@@ -22,6 +24,16 @@ static FAutoConsoleVariableRef CVarPSOUseBackgroundThreadForCollection(
 	TEXT("Use background threads for PSO precache data collection on the mesh pass processors.\n"),
 	ECVF_ReadOnly
 );
+
+bool GShaderPreloadFilterUniqueRequest = true;
+static FAutoConsoleVariableRef CVarShaderPreloadFilterUniqueRequest(
+	TEXT("r.PSOPrecache.ShaderPreloadFilterUniqueRequest"),
+	GShaderPreloadFilterUniqueRequest,
+	TEXT("Perf improvement (reduce contention on r/w lock). When kicking preload shaders job, only request one preload request per shaderIndex inside the same ShaderMapResource.\n"),
+	ECVF_Default
+);
+
+CSV_DECLARE_CATEGORY_EXTERN(PSOPrecache);
 
 FPSOCollectorCreateManager::FPSOCollectorData FPSOCollectorCreateManager::PSOCollectors[(int32)EShadingPath::Num][FPSOCollectorCreateManager::MaxPSOCollectorCount] = {};
 
@@ -57,8 +69,11 @@ FPSOPrecacheRequestResultArray RequestPrecachePSOs(const FPSOPrecacheDataArray& 
 		case FPSOPrecacheData::EType::Graphics:
 		{
 #if PSO_PRECACHING_VALIDATE
-			PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(PrecacheData.GraphicsPSOInitializer, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, PrecacheData.VertexFactoryType);
-#endif // PSO_PRECACHING_VALIDATE
+			if (PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(PrecacheData.GraphicsPSOInitializer, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, PrecacheData.VertexFactoryType))
+			{
+				CSV_CUSTOM_STAT(PSOPrecache, PrecachedGraphics, 1, ECsvCustomStatOp::Accumulate);
+			}
+#endif // PSO_PRECACHING_VALIDATE			
 
 			FPSOPrecacheRequestResult PSOPrecacheResult = PipelineStateCache::PrecacheGraphicsPipelineState(PrecacheData.GraphicsPSOInitializer);
 			if (PSOPrecacheResult.IsValid() && PrecacheData.bRequired)
@@ -70,9 +85,12 @@ FPSOPrecacheRequestResultArray RequestPrecachePSOs(const FPSOPrecacheDataArray& 
 		case FPSOPrecacheData::EType::Compute:
 		{
 #if PSO_PRECACHING_VALIDATE
-			PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(*PrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, nullptr);
+			if (PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(*PrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, nullptr))
+			{
+				CSV_CUSTOM_STAT(PSOPrecache, PrecachedCompute, 1, ECsvCustomStatOp::Accumulate);
+			}
 #endif // PSO_PRECACHING_VALIDATE
-
+			
 			FPSOPrecacheRequestResult PSOPrecacheResult = PipelineStateCache::PrecacheComputePipelineState(PrecacheData.ComputeShader);
 			if (PSOPrecacheResult.IsValid() && PrecacheData.bRequired)
 			{
@@ -114,7 +132,6 @@ public:
 	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
 };
 
-
 /**
  * Helper task used to offload the PSO collection from the GameThread. The shader decompression
  * takes too long to run this on the GameThread and it isn't blocking anything crucial.
@@ -138,6 +155,11 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 
+	~FMaterialPSOPrecacheCollectionTask()
+	{
+		//check(MaterialInterface == nullptr);  // TODO: reinstate this or replace TStrongObjectPtr* with TStrongObjectPtr..
+	}
+
 public:
 
 	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
@@ -148,6 +170,58 @@ public:
 	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::AnyBackgroundThreadNormalTask; }
 	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+};
+
+
+class FShaderMapPreloadTask
+{
+public:
+	explicit FShaderMapPreloadTask(
+		TStrongObjectPtr<UMaterialInterface>* InMaterialInterface,
+		FMaterialShaderMap* InMaterialShaderMap,
+		FGraphEventRef InShaderPreloadEvents)
+		: MaterialInterface(InMaterialInterface)
+		, MaterialShaderMap(InMaterialShaderMap)
+		, ShaderPreloadEvents(InShaderPreloadEvents)
+	{
+	}
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+
+	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::AnyBackgroundThreadNormalTask; }
+	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+
+private:
+	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
+	FMaterialShaderMap* MaterialShaderMap;
+	FGraphEventRef ShaderPreloadEvents;
+};
+
+class FShaderPreloadCollectionTask
+{
+public:
+	explicit FShaderPreloadCollectionTask(
+		TStrongObjectPtr<UMaterialInterface>* InMaterialInterface,
+		const FMaterialPSOPrecacheParams& InPrecacheParams,
+		FGraphEventRef InShaderPreloadEvents)
+		: MaterialInterface(InMaterialInterface)
+		, PrecacheParams(InPrecacheParams)
+		, ShaderPreloadEvents(InShaderPreloadEvents)
+	{
+	}
+
+	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
+
+	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::AnyBackgroundThreadNormalTask; }
+	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
+
+private:
+	TStrongObjectPtr<UMaterialInterface>* MaterialInterface;
+	FMaterialPSOPrecacheParams PrecacheParams;
+	FGraphEventRef ShaderPreloadEvents;
+	TOptional<uint32> RequestLifecycleID;
 };
 
 
@@ -163,114 +237,165 @@ public:
 	{
 		FMaterialPSOPrecacheRequestID RequestID = INDEX_NONE;		
 
-		// Fast check first with read lock if it's not requested or completely finished already
+		if (GetPSOPrecacheMode() == EPSOPrecacheMode::PreloadShader)
 		{
-			FRWScopeLock ReadLock(RWLock, SLT_ReadOnly);
-			FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
-			if (FindResult != nullptr && FindResult->State == EState::Completed)
-			{
-				return RequestID;
-			}
-		}
-
-		// Offload to background job task graph if threading is enabled
-		// Don't use background thread in editor because shader maps and material resources could be destroyed while the task is running
-		// If it's a perf problem at some point then FMaterialPSOPrecacheRequestID has to be used at material level in the correct places to wait for
-		bool bUseBackgroundTask = GPSOUseBackgroundThreadForCollection && FApp::ShouldUseThreadingForPerformance() && !GIsEditor;
-
-		FGraphEventRef CollectionGraphEvent;
-
-		// Now try and add with write lock
-		{
-			FRWScopeLock WriteLock(RWLock, SLT_Write);
-
-			FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
-			if (FindResult != nullptr)
-			{
-				// Update the list of compiling PSOs and update the internal state
-				bool bBoostPriority = (Priority == EPSOPrecachePriority::High && FindResult->Priority != Priority);
-				CheckCompilingPSOs(*FindResult, bBoostPriority);
-				if (FindResult->State != EState::Completed)
-				{
-					// If there is a collection graph event than task is used for collection and PSO compiles
-					// The collection graph event is extended until all PSOs are compiled and caller only has to wait
-					// for this event to finish
-					if (FindResult->CollectionGraphEvent)
-					{
-						OutGraphEvents.Add(FindResult->CollectionGraphEvent);
-					}
-					else
-					{
-						for (FPSOPrecacheRequestResult& Result : FindResult->ActivePSOPrecacheRequests)
-						{
-							OutGraphEvents.Add(Result.AsyncCompileEvent);
-						}
-					}
-					RequestID = FindResult->RequestID;
-				}
-
-				return RequestID;
-			}
-			else
-			{
-				// Add to array to get the new RequestID
-				RequestID = MaterialPSORequests.Add(Params);
-
-				// Add data to map
-				FPrecacheData PrecacheData;
-				PrecacheData.State = EState::Collecting;
-				PrecacheData.RequestID = RequestID;
-				PrecacheData.Priority = Priority;
-				if (bUseBackgroundTask)
-				{
-					CollectionGraphEvent = FGraphEvent::CreateGraphEvent();
-					PrecacheData.CollectionGraphEvent = CollectionGraphEvent;
-
-					// Create task the clear mark fully complete in the cache when done
-					uint32 RequestLifecycleID = LifecycleID;
-					FFunctionGraphTask::CreateAndDispatchWhenReady(
-						[this, Params, RequestLifecycleID]
-						{
-							MarkCompilationComplete(Params, RequestLifecycleID);
-						},
-						TStatId{}, CollectionGraphEvent
-						);
-				}
-				MaterialPSORequestData.Add(Params, PrecacheData);
-			}
-		}
-
-		if (bUseBackgroundTask)
-		{
-			// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
-			TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Params.Material->GetMaterialInterface());
-
-			// Create and kick the collection task
-			TGraphTask<FMaterialPSOPrecacheCollectionTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, Params, CollectionGraphEvent, LifecycleID);
-			
-			// Need to wait for collection task which will be extented during run with the actual async compile events
-			OutGraphEvents.Add(CollectionGraphEvent);
+			PreloadShaders(Params, OutGraphEvents);
 		}
 		else
 		{
-			// Collect pso data
-			FPSOPrecacheDataArray PSOPrecacheData = Params.Material->GetGameThreadShaderMap()->CollectPSOPrecacheData(Params);
-
-			// Start the async compiles
-			FPSOPrecacheRequestResultArray PrecacheResults = RequestPrecachePSOs(PSOPrecacheData);
-						
-			// Mark collection complete
-			MarkCollectionComplete(Params, PSOPrecacheData, PrecacheResults, LifecycleID);
-			
-			// Add the graph events to wait for
-			for (FPSOPrecacheRequestResult& Result : PrecacheResults)
+			// Fast check first with read lock if it's not requested or completely finished already
 			{
-				check(Result.IsValid());
-				OutGraphEvents.Add(Result.AsyncCompileEvent);
+				FRWScopeLock ReadLock(RWLock, SLT_ReadOnly);
+				FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
+				if (FindResult != nullptr && FindResult->State == EState::Completed)
+				{
+					return RequestID;
+				}
+			}
+
+			// Offload to background job task graph if threading is enabled
+			// Don't use background thread in editor because shader maps and material resources could be destroyed while the task is running
+			// If it's a perf problem at some point then FMaterialPSOPrecacheRequestID has to be used at material level in the correct places to wait for
+			bool bUseBackgroundTask = GPSOUseBackgroundThreadForCollection && FApp::ShouldUseThreadingForPerformance() && !GIsEditor;
+
+			FGraphEventRef CollectionGraphEvent;
+
+			// Now try and add with write lock
+			{
+				FRWScopeLock WriteLock(RWLock, SLT_Write);
+
+				FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
+				if (FindResult != nullptr)
+				{
+					// Update the list of compiling PSOs and update the internal state
+					bool bBoostPriority = (Priority == EPSOPrecachePriority::High && FindResult->Priority != Priority);
+					CheckCompilingPSOs(*FindResult, bBoostPriority);
+					if (FindResult->State != EState::Completed)
+					{
+						// If there is a collection graph event than task is used for collection and PSO compiles
+						// The collection graph event is extended until all PSOs are compiled and caller only has to wait
+						// for this event to finish
+						if (FindResult->CollectionGraphEvent)
+						{
+							OutGraphEvents.Add(FindResult->CollectionGraphEvent);
+						}
+						else
+						{
+							for (FPSOPrecacheRequestResult& Result : FindResult->ActivePSOPrecacheRequests)
+							{
+								OutGraphEvents.Add(Result.AsyncCompileEvent);
+							}
+						}
+						RequestID = FindResult->RequestID;
+					}
+
+					return RequestID;
+				}
+				else
+				{
+					// Add to array to get the new RequestID
+					RequestID = MaterialPSORequests.Add(Params);
+
+					// Add data to map
+					FPrecacheData PrecacheData;
+					PrecacheData.State = EState::Collecting;
+					PrecacheData.RequestID = RequestID;
+					PrecacheData.Priority = Priority;
+					if (bUseBackgroundTask)
+					{
+						CollectionGraphEvent = FGraphEvent::CreateGraphEvent();
+						PrecacheData.CollectionGraphEvent = CollectionGraphEvent;
+
+						// Create task the clear mark fully complete in the cache when done
+						uint32 RequestLifecycleID = LifecycleID;
+						FFunctionGraphTask::CreateAndDispatchWhenReady(
+							[this, Params, RequestLifecycleID]
+							{
+								MarkCompilationComplete(Params, RequestLifecycleID);
+							},
+							TStatId{}, CollectionGraphEvent
+						);
+					}
+					MaterialPSORequestData.Add(Params, PrecacheData);
+				}
+			}
+
+			if (bUseBackgroundTask)
+			{
+				// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
+				TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Params.Material->GetMaterialInterface());
+
+				FGraphEventArray Prereqs;
+				// Create and kick off the PSO collection task.
+				TGraphTask<FMaterialPSOPrecacheCollectionTask>::CreateTask(&Prereqs).ConstructAndDispatchWhenReady(MaterialInterface, Params, CollectionGraphEvent, LifecycleID);
+
+				// Need to wait for collection task which will be extended during run with the actual async compile events.
+				OutGraphEvents.Add(CollectionGraphEvent);
+			}
+			else
+			{
+				// Collect pso data. Note we don't explicitly collect and preload shaders here since we're not using background tasks
+				// and doing so in separate phases wouldn't benefit anything.
+				FPSOPrecacheDataArray PSOPrecacheData = Params.Material->GetGameThreadShaderMap()->CollectPSOPrecacheData(Params);
+
+				// Start the async compiles
+				FPSOPrecacheRequestResultArray PrecacheResults = RequestPrecachePSOs(PSOPrecacheData);
+
+				// Mark collection complete
+				MarkCollectionComplete(Params, PSOPrecacheData, PrecacheResults, LifecycleID);
+
+				// Add the graph events to wait for
+				for (FPSOPrecacheRequestResult& Result : PrecacheResults)
+				{
+					check(Result.IsValid());
+					OutGraphEvents.Add(Result.AsyncCompileEvent);
+				}
 			}
 		}
-		
 		return RequestID;
+	}
+
+	void PreloadShaders(const FMaterialPSOPrecacheParams& Params, FGraphEventArray& OutGraphEvents)
+	{
+		LLM_SCOPE(ELLMTag::PSO);
+
+		if (!IsPSOShaderPreloadingEnabled())
+		{
+			return;
+		}
+
+		// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
+		TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Params.Material->GetMaterialInterface());
+		FMaterialShaderMap* MaterialShaderMap = Params.Material->GetGameThreadShaderMap();
+
+		FGraphEventRef ShadersPreloadedEvent = FGraphEvent::CreateGraphEvent();
+		TGraphTask<FShaderPreloadCollectionTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, Params, ShadersPreloadedEvent);
+
+		FGraphEventArray Prereqs = { ShadersPreloadedEvent };
+		TGraphTask<FMaterialInterfaceReleaseTask>::CreateTask(&Prereqs).ConstructAndDispatchWhenReady(MaterialInterface);
+
+		OutGraphEvents.Add(ShadersPreloadedEvent);
+	}
+
+	void PreloadShaderMap(const FMaterial* Material, FGraphEventArray& OutGraphEvents)
+	{
+		LLM_SCOPE(ELLMTag::PSO);
+
+		if (!IsPSOShaderPreloadingEnabled())
+		{
+			return;
+		}
+
+		// Make sure the material instance isn't garbage collected or destroyed yet (create TStrongObjectPtr which will be destroyed on the GT when the collection is done)
+		TStrongObjectPtr<UMaterialInterface>* MaterialInterface = new TStrongObjectPtr<UMaterialInterface>(Material->GetMaterialInterface());
+		FMaterialShaderMap* MaterialShaderMap = Material->GetGameThreadShaderMap();
+
+		FGraphEventRef ShadersPreloadedEvent = FGraphEvent::CreateGraphEvent();
+		TGraphTask<FShaderMapPreloadTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface, MaterialShaderMap, ShadersPreloadedEvent);
+		FGraphEventArray Prereqs = { ShadersPreloadedEvent };
+		TGraphTask<FMaterialInterfaceReleaseTask>::CreateTask(&Prereqs).ConstructAndDispatchWhenReady(MaterialInterface);
+
+		OutGraphEvents.Add(ShadersPreloadedEvent);
 	}
 
 	void MarkCollectionComplete(const FMaterialPSOPrecacheParams& Params, const FPSOPrecacheDataArray& PrecacheData, const FPSOPrecacheRequestResultArray& PrecacheRequestResults, uint32 RequestLifecycleID)
@@ -301,7 +426,7 @@ public:
 		}
 
 		// Boost priority if requested already
-		if (FindResult->Priority == EPSOPrecachePriority::High)
+		if (FindResult->Priority >= EPSOPrecachePriority::High)
 		{
 			CheckCompilingPSOs(*FindResult, true /*bBoostPriority*/);
 		}
@@ -319,7 +444,7 @@ public:
 		MaterialPSORequests[MaterialPSORequestID] = FMaterialPSOPrecacheParams();
 	}
 
-	void BoostPriority(FMaterialPSOPrecacheRequestID MaterialPSORequestID)
+	void BoostPriority(EPSOPrecachePriority NewPri, FMaterialPSOPrecacheRequestID MaterialPSORequestID)
 	{
 		check(MaterialPSORequestID != INDEX_NONE);
 
@@ -335,7 +460,7 @@ public:
 			FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
 
 			// Only process if not boosted yet and not completed yet
-			if (FindResult == nullptr || FindResult->Priority == EPSOPrecachePriority::High || FindResult->State == EState::Completed)
+			if (FindResult == nullptr || NewPri <= FindResult->Priority || FindResult->State == EState::Completed)
 			{
 				return;
 			}
@@ -345,8 +470,7 @@ public:
 		const FMaterialPSOPrecacheParams& Params = MaterialPSORequests[MaterialPSORequestID];
 		FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
 		check(FindResult);
-		FindResult->Priority = EPSOPrecachePriority::High;
-
+		FindResult->Priority = NewPri;
 		// Boost PSOs which are still compiling
 		CheckCompilingPSOs(*FindResult, true /*bBoostPriority*/);
 	}
@@ -451,7 +575,7 @@ private:
 				}
 				else if (bBoostPriority)
 				{
-					PipelineStateCache::BoostPrecachePriority(RequestResult.RequestID);
+					PipelineStateCache::BoostPrecachePriority(PrecacheData.Priority, RequestResult.RequestID);
 				}
 			}
 
@@ -489,10 +613,15 @@ void FMaterialPSOPrecacheCollectionTask::DoTask(ENamedThreads::Type CurrentThrea
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialPSOPrecacheCollectionTask);
 
+#if WITH_ODSC
+	FODSCSuspendForceRecompileScope ODSCSuspendForceRecompileScope;
+#endif
+
 	// Make sure task is still relevant
 	if (RequestLifecycleID != GMaterialPSORequestManager.GetLifecycleID())
 	{
 		CollectionGraphEvent->DispatchSubsequents();
+		MaterialInterface->Reset();
 		return;
 	}
 
@@ -512,7 +641,7 @@ void FMaterialPSOPrecacheCollectionTask::DoTask(ENamedThreads::Type CurrentThrea
 	GMaterialPSORequestManager.MarkCollectionComplete(PrecacheParams, PSOPrecacheData, PrecacheResults, RequestLifecycleID);
 
 	// Won't touch the material interface anymore - PSO compile jobs take refs to all RHI resources while creating the task
-	TGraphTask<FMaterialInterfaceReleaseTask>::CreateTask().ConstructAndDispatchWhenReady(MaterialInterface);
+	MaterialInterface->Reset();
 
 	// Extend MyCompletionGraphEvent to wait for all the async compile events
 	if (PrecacheResults.Num() > 0)
@@ -527,6 +656,71 @@ void FMaterialPSOPrecacheCollectionTask::DoTask(ENamedThreads::Type CurrentThrea
 	CollectionGraphEvent->DispatchSubsequents();
 }
 
+void FShaderMapPreloadTask::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapPreloadTask);
+
+	FTaskTagScope ParallelGTScope(ETaskTag::EParallelGameThread);
+
+	if (MaterialShaderMap)
+	{
+		FGraphEventArray OutCompletionEvents;
+		MaterialShaderMap->GetResource()->PreloadShaderMap(OutCompletionEvents);
+		for (FGraphEventRef Event : OutCompletionEvents)
+		{
+			ShaderPreloadEvents->DontCompleteUntil(Event);
+		}
+	}
+
+	ShaderPreloadEvents->DispatchSubsequents();
+}
+
+void FShaderPreloadCollectionTask::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderPreloadCollectionTask);
+
+	FTaskTagScope ParallelGTScope(ETaskTag::EParallelGameThread);
+
+	TArray<TShaderRef<FShader>> UniqueShaderRequests;
+	TMap<int32, TArray<int32>> UniqueShaderLibraryMap;
+
+	FPSOPrecacheDataArray PSOPrecacheDataArray;
+	if (PrecacheParams.Material->GetGameThreadShaderMap())
+	{
+		PSOPrecacheDataArray = PrecacheParams.Material->GetGameThreadShaderMap()->CollectPSOPrecacheData(PrecacheParams);
+	}
+
+	for (const FPSOPrecacheData& PrecacheData : PSOPrecacheDataArray)
+	{
+		// Gather unique shader requests
+		for (const TShaderRef<FShader>& Shader : PrecacheData.ShaderPreloadData.Shaders)
+		{
+			TArray<int32>& ShaderLibraryIndexes = UniqueShaderLibraryMap.FindOrAdd(Shader.GetResource()->GetLibraryId());
+			const int32 ShaderGroupIndex = Shader.GetResource()->GetLibraryShaderIndex(Shader->GetResourceIndex());
+
+			if (ShaderLibraryIndexes.Find(ShaderGroupIndex) == INDEX_NONE)
+			{
+				ShaderLibraryIndexes.Add(ShaderGroupIndex);
+				UniqueShaderRequests.Add(Shader);
+			}
+		}
+	}
+
+	for (TShaderRef<FShader>& Shader : UniqueShaderRequests)
+	{
+		// Preload shaders. This will issue IO requests if they haven't been
+		// preloaded yet.
+		FGraphEventArray OutCompletionEvents;
+		Shader.GetResource()->PreloadShader(Shader->GetResourceIndex(), OutCompletionEvents);
+		for (FGraphEventRef Event : OutCompletionEvents)
+		{
+			ShaderPreloadEvents->DontCompleteUntil(Event);
+		}
+	}
+	
+	ShaderPreloadEvents->DispatchSubsequents();
+}
+
 void PrecacheMaterialPSOs(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSOPrecacheRequestIDs, FGraphEventArray& OutGraphEvents)
 {
 	for (const FMaterialInterfacePSOPrecacheParams& MaterialPSOPrecacheParams : PSOPrecacheParamsList)
@@ -536,6 +730,11 @@ void PrecacheMaterialPSOs(const FMaterialInterfacePSOPrecacheParamsList& PSOPrec
 			OutGraphEvents.Append(MaterialPSOPrecacheParams.MaterialInterface->PrecachePSOs(MaterialPSOPrecacheParams.VertexFactoryDataList, MaterialPSOPrecacheParams.PSOPrecacheParams, MaterialPSOPrecacheParams.Priority, OutMaterialPSOPrecacheRequestIDs));
 		}
 	}
+}
+
+void PreloadMaterialShaderMap(const FMaterial* Material, FGraphEventArray& OutGraphEvents)
+{
+	return GMaterialPSORequestManager.PreloadShaderMap(Material, OutGraphEvents);
 }
 
 FMaterialPSOPrecacheRequestID PrecacheMaterialPSOs(const FMaterialPSOPrecacheParams& MaterialPSOPrecacheParams, EPSOPrecachePriority Priority, FGraphEventArray& GraphEvents)
@@ -551,13 +750,13 @@ void ReleasePSOPrecacheData(const TArray<FMaterialPSOPrecacheRequestID>& Materia
 	}
 }
 
-void BoostPSOPriority(const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs)
+void BoostPSOPriority(EPSOPrecachePriority NewPri, const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BoostPSOPriority);
 
 	for (FMaterialPSOPrecacheRequestID RequestID : MaterialPSORequestIDs)
 	{
-		GMaterialPSORequestManager.BoostPriority(RequestID);
+		GMaterialPSORequestManager.BoostPriority(NewPri, RequestID);
 	}
 }
 

@@ -22,6 +22,7 @@ class UToolMenu;
 
 enum class ECheckBoxState : uint8;
 enum class EContentBrowserViewContext : uint8;
+enum class EAssetViewCopyType;
 
 class FAssetContextMenu : public TSharedFromThis<FAssetContextMenu>
 {
@@ -51,10 +52,6 @@ public:
 	/** Delegate for when the context menu requests an item duplication */
 	DECLARE_DELEGATE_OneParam(FOnDuplicateRequested, TArrayView<const FContentBrowserItem> /*OriginalItems*/);
 	void SetOnDuplicateRequested(const FOnDuplicateRequested& InOnDuplicateRequested);
-
-	/** Delegate for when the context menu requests to edit an item */
-	DECLARE_DELEGATE_OneParam(FOnEditRequested, TArrayView<const FContentBrowserItem> /*Items*/);
-	void SetOnEditRequested(const FOnEditRequested& InOnEditRequested);
 
 	/** Delegate for when the context menu requests an asset view refresh */
 	using FOnAssetViewRefreshRequested = UContentBrowserDataMenuContext_FileMenu::FOnRefreshView;
@@ -103,6 +100,21 @@ private:
 	/** Adds asset reference menu options to a menu builder. Returns true if any options were added. */
 	bool AddReferenceMenuOptions(UToolMenu* Menu);
 
+	/** Get the correct Label for the OpenAssetEditor command */
+	FText GetEditAssetEditorLabel(bool bInCanEdit, bool bInCanView) const;
+
+	/** Get the correct Tooltip for the OpenAssetEditor command */
+	FText GetEditAssetEditorTooltip(bool bInCanEdit, bool bInCanView) const;
+
+	/** Get the correct Icon for the OpenAssetEditor command */
+	FSlateIcon GetEditAssetEditorIcon(bool bInCanEdit, bool bInCanView) const;
+	
+	/** Return the tooltip based on the copy type */
+	FText GetCopyTooltip(EAssetViewCopyType InCopyType) const;
+
+	/** Append information on the path for the Copy tooltip based on the current selection */
+	void AppendSelectionInformationForCopy(FString& OutTooltip, EAssetViewCopyType InCopyType) const;
+
 	bool AddPublicStateMenuOptions(UToolMenu* Menu);
 
 	/** Adds menu options related to working with collections */
@@ -113,12 +125,6 @@ private:
 
 	/** Handler for when find in explorer is selected */
 	void ExecuteFindInExplorer();
-
-	/** Handler to check to see if an edit command is allowed */
-	bool CanExecuteEditItems() const;
-
-	/** Handler for when "Edit" is selected */
-	void ExecuteEditItems();
 
 	/** Handler for confirmation of folder deletion */
 	FReply ExecuteDeleteFolderConfirmed();
@@ -146,9 +152,6 @@ private:
 
 	/** Handler for determining the selected asset's Private state */
 	bool IsSelectedAssetPrivate();
-
-	/** Handler for CopyReference */
-	void ExecuteCopyReference();
 
 	/** Handler for CopyFilePath */
 	void ExecuteCopyFilePath();
@@ -183,7 +186,6 @@ private:
 	FOnShowInPathsViewRequested OnShowInPathsViewRequested;
 	FOnRenameRequested OnRenameRequested;
 	FOnDuplicateRequested OnDuplicateRequested;
-	FOnEditRequested OnEditRequested;
 	FOnAssetViewRefreshRequested OnAssetViewRefreshRequested;
 
 	/** Cached CanExecute vars */

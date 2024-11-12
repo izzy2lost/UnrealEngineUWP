@@ -80,7 +80,6 @@ void SUndoHistory::Construct( const FArguments& InArgs )
 										.Padding(FMargin(4.0f, 1.0f))
 										[
 											SAssignNew(UndoListView, SListView<TSharedPtr<FTransactionInfo> >)
-												.ItemHeight(24.0f)
 												.ListItemsSource(&UndoList)
 												.SelectionMode(ESelectionMode::Single)
 												.OnGenerateRow(this, &SUndoHistory::HandleUndoListGenerateRow)

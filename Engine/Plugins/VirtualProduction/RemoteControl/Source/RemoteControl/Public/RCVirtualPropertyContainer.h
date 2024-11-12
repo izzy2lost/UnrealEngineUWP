@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 #include "RCVirtualPropertyContainer.generated.h"
 

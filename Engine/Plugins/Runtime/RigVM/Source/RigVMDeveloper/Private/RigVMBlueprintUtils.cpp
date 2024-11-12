@@ -81,14 +81,11 @@ void FRigVMBlueprintUtils::ForAllRigVMStructs(TFunction<void(UScriptStruct*)> In
 	// Run over all unit types
 	for(TObjectIterator<UStruct> StructIt; StructIt; ++StructIt)
 	{
-		if (*StructIt)
+		if(StructIt->IsChildOf(FRigVMStruct::StaticStruct()) && !StructIt->HasMetaData(FRigVMStruct::AbstractMetaName))
 		{
-			if(StructIt->IsChildOf(FRigVMStruct::StaticStruct()) && !StructIt->HasMetaData(FRigVMStruct::AbstractMetaName))
+			if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(*StructIt))
 			{
-				if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(*StructIt))
-				{
-					InFunction(ScriptStruct);
-				}
+				InFunction(ScriptStruct);
 			}
 		}
 	}
@@ -104,7 +101,7 @@ void FRigVMBlueprintUtils::HandleReconstructAllNodes(UBlueprint* InBlueprint)
 void FRigVMBlueprintUtils::HandleRefreshAllNodes(UBlueprint* InBlueprint)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	// Avoid refreshing EdGraph nodes during cook
 	if (GIsCookerLoadingPackage)
 	{
@@ -144,9 +141,10 @@ void FRigVMBlueprintUtils::HandleAssetDeleted(const FAssetData& InAssetData)
 	if (InAssetData.GetClass() && InAssetData.GetClass()->IsChildOf(URigVMBlueprint::StaticClass()))
 	{
 		// Make sure any RigVMBlueprint removes any TypeActions related to this asset (e.g. public functions)
-		FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-		ActionDatabase.ClearAssetActions(InAssetData.GetClass());
-		ActionDatabase.RefreshClassActions(InAssetData.GetClass());
+		if (FBlueprintActionDatabase* ActionDatabase = FBlueprintActionDatabase::TryGet())
+		{
+			ActionDatabase->ClearAssetActions(InAssetData.GetClass());
+		}
 	}
 }
 

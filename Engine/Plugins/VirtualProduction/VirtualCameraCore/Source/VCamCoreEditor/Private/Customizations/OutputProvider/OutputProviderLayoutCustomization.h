@@ -13,7 +13,7 @@ class IPropertyUtilities;
 class UVCamWidget;
 class UVCamOutputProviderBase;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Exposes all VCam widgets' connection settings for as long as the output provider has a valid widget. */
 	class FOutputProviderLayoutCustomization : public IDetailCustomization
@@ -58,7 +58,6 @@ namespace UE::VCamCoreEditor::Private
 		FDetailWidgetRow ExtendWidgetsRow(IDetailLayoutBuilder& DetailBuilder, IDetailGroup& WidgetGroup);
 		void RebuildWidgetData();
 		void GenerateWidgetRows(IDetailGroup& RootWidgetGroup, IDetailLayoutBuilder& DetailBuilder);
-		TSharedRef<SHorizontalBox> CreateControlWidgets(const TWeakObjectPtr<UVCamWidget>& Widget) const;
 		
 		void OnActivationChanged(bool bNewIsActivated);
 		void ForceRefreshDetailsIfSafe() const;

@@ -10,9 +10,15 @@
 /** Forward declarations */
 struct FInterchangeCurve;
 struct FMeshDescription;
+class UInterchangeBaseNodeContainer;
 class UInterchangeMeshNode;
 class UInterchangeSceneNode;
 class UInterchangeSkeletalAnimationTrackNode;
+
+namespace UE::Interchange
+{
+	struct FAnimationPayloadQuery;
+}
 
 namespace UE::Interchange::Private
 {
@@ -76,7 +82,8 @@ namespace UE::Interchange::Private
 		virtual ~FAnimationPayloadContext() {}
 		virtual FString GetPayloadType() const override { return TEXT("TransformAnimation-PayloadContext"); }
 		virtual bool FetchPayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath) override;
-		virtual bool FetchAnimationBakeTransformPayloadToFile(FFbxParser& Parser, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath) override;
+		virtual bool FetchAnimationBakeTransformPayloadForTime(FFbxParser& Parser, const FbxTime Currenttime, FTransform& Out) override;
+		virtual FbxAnimStack* GetAnimStack() override;
 		
 		TOptional<FNodeTransformFetchPayloadData> NodeTransformFetchPayloadData;
 		TOptional<FAttributeFetchPayloadData> AttributeFetchPayloadData;
@@ -92,7 +99,8 @@ namespace UE::Interchange::Private
 	{
 	public:
 		/** This function add the payload key if the scene node transform is animated. */
-		static bool AddSkeletalTransformAnimation(FbxScene* SDKScene
+		static bool AddSkeletalTransformAnimation(UInterchangeBaseNodeContainer& NodeContainer
+			, FbxScene* SDKScene
 			, FFbxParser& Parser
 			, FbxNode* Node
 			, UInterchangeSceneNode* UnrealNode
@@ -127,6 +135,13 @@ namespace UE::Interchange::Private
 
 		static bool IsFbxPropertyTypeSupported(EFbxType PropertyType);
 		static bool IsFbxPropertyTypeDecimal(EFbxType PropertyType);
-
+		
+		//PayloadQueries arriving here should be of the same start/stop and frequency:
+		static bool FetchAnimationBakeTransformPayload(FFbxParser& Parser, FbxScene* SDKScene,
+			TMap<FString, TSharedPtr<FPayloadContextBase>>& PayloadContexts,
+			const TArray<const UE::Interchange::FAnimationPayloadQuery*>& PayloadQueries, 
+			const FString& ResultFolder, FCriticalSection* ResultPayloadsCriticalSection, 
+			TAtomic<int64>& UniqueIdCounter, TMap<FString, FString>& ResultPayloads,
+			TArray<FText>& OutErrorMessages);
 	};
 }//ns UE::Interchange::Private

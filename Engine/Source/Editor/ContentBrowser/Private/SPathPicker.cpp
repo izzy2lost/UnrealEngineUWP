@@ -8,6 +8,7 @@
 #include "ContentBrowserItem.h"
 #include "ContentBrowserItemData.h"
 #include "ContentBrowserPluginFilters.h"
+#include "ContentBrowserStyle.h"
 #include "Delegates/Delegate.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -42,6 +43,7 @@ void SPathPicker::Construct( const FArguments& InArgs )
 	OnGetPathContextMenuExtender = InArgs._PathPickerConfig.OnGetPathContextMenuExtender;
 	bOnPathSelectedPassesVirtualPaths = InArgs._PathPickerConfig.bOnPathSelectedPassesVirtualPaths;
 
+	// clang-format off
 	ChildSlot
 	[
 		SAssignNew(PathViewPtr, SPathView)
@@ -50,25 +52,25 @@ void SPathPicker::Construct( const FArguments& InArgs )
 		.OnGetItemContextMenu(this, &SPathPicker::GetItemContextMenu) // TODO: Allow this to be wholesale overridden via the picker config
 		.FocusSearchBoxWhenOpened(InArgs._PathPickerConfig.bFocusSearchBoxWhenOpened)
 		.AllowContextMenu(InArgs._PathPickerConfig.bAllowContextMenu)
-		.AllowClassesFolder(InArgs._PathPickerConfig.bAllowClassesFolder)
 		.AllowReadOnlyFolders(InArgs._PathPickerConfig.bAllowReadOnlyFolders)
 		.SelectionMode(ESelectionMode::Single)
 		.CustomFolderPermissionList(InArgs._PathPickerConfig.CustomFolderPermissionList)
 		.ShowFavorites(InArgs._PathPickerConfig.bShowFavorites)
+		.DefaultPath(InArgs._PathPickerConfig.DefaultPath)
+		.CreateDefaultPath(InArgs._PathPickerConfig.bAddDefaultPath)
+		.AllowClassesFolder(InArgs._PathPickerConfig.bAllowClassesFolder)
+		.CanShowDevelopersFolder(InArgs._PathPickerConfig.bCanShowDevelopersFolder)
+		.ForceShowEngineContent(InArgs._PathPickerConfig.bForceShowEngineContent)
+		.ForceShowPluginContent(InArgs._PathPickerConfig.bForceShowPluginContent)
+		.ShowViewOptions(InArgs._PathPickerConfig.bShowViewOptions)
 	];
+	// clang-format on
 
 	const FString& DefaultPath = InArgs._PathPickerConfig.DefaultPath;
-	if ( !DefaultPath.IsEmpty() && PathViewPtr->InternalPathPassesBlockLists(*DefaultPath))
+	if (!DefaultPath.IsEmpty() && PathViewPtr->InternalPathPassesBlockLists(*DefaultPath))
 	{
 		const FName VirtualPath = IContentBrowserDataModule::Get().GetSubsystem()->ConvertInternalPathToVirtual(*DefaultPath);
-		if (InArgs._PathPickerConfig.bAddDefaultPath && !PathViewPtr->FindTreeItem(VirtualPath))
-		{
-			const FString DefaultPathLeafName = FPaths::GetPathLeaf(VirtualPath.ToString());
-			PathViewPtr->AddFolderItem(FContentBrowserItemData(nullptr, EContentBrowserItemFlags::Type_Folder, VirtualPath, *DefaultPathLeafName, FText(), nullptr), /*bUserNamed*/false);
-		}
-
-		PathViewPtr->SetSelectedPaths({ VirtualPath.ToString() });
-
+		// Path is created by SPathView::Construct if necessary
 		if (InArgs._PathPickerConfig.bNotifyDefaultPathSelected)
 		{
 			if (bOnPathSelectedPassesVirtualPaths)
@@ -161,7 +163,7 @@ TSharedPtr<SWidget> SPathPicker::GetFolderContextMenu(const TArray<FString>& Sel
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("NewFolder", "New Folder"),
 		NewFolderToolTip,
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.NewFolderIcon"),
+		FSlateIcon(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetStyleSetName(), "ContentBrowser.NewFolderIcon"),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &SPathPicker::CreateNewFolder, SelectedPaths.Num() > 0 ? SelectedPaths[0] : FString(), InOnCreateNewFolder),
 			FCanExecuteAction::CreateLambda( [bCanCreateNewFolder] { return bCanCreateNewFolder; } )

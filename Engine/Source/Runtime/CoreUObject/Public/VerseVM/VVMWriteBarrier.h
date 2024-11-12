@@ -26,9 +26,9 @@ namespace Verse
 template <typename T>
 struct TWriteBarrier
 {
-	static constexpr bool bIsVValue = std::is_same_v<T, VValue>;
+	static constexpr bool bIsVValue = std::is_same_v<T, VValue> || std::is_same_v<T, VInt>;
 	static constexpr bool bIsAux = IsTAux<T>;
-	using TValue = typename std::conditional_t<bIsAux, T, typename std::conditional_t<bIsVValue, VValue, T*>>;
+	using TValue = typename std::conditional_t<bIsVValue || bIsAux, T, T*>;
 	using TEncodedValue = typename std::conditional<bIsVValue, uint64, T*>::type;
 
 	TWriteBarrier() = default;
@@ -110,7 +110,11 @@ struct TWriteBarrier
 	}
 
 	template <typename TResult = void>
-	std::enable_if_t<bIsVValue, TResult> SetTransactionally(FAccessContext Context, VCell& Owner, TValue NewValue);
+	std::enable_if_t<bIsVValue || bIsAux, TResult> SetTransactionally(FAccessContext Context, VCell* Owner, TValue NewValue);
+	template <typename TResult = void>
+	std::enable_if_t<bIsVValue, TResult> SetTransactionally(FAccessContext Context, UObject* Owner, TValue NewValue);
+	template <typename U, typename TResult = void>
+	std::enable_if_t<bIsVValue, TResult> SetTransactionally(FAccessContext Context, TAux<U> Owner, TValue NewValue);
 
 	template <typename TResult = void>
 	std::enable_if_t<bIsVValue, TResult> SetNonCellNorPlaceholder(VValue NewValue)
@@ -141,9 +145,13 @@ struct TWriteBarrier
 		{
 			return GetTypeHash(WriteBarrier.Get());
 		}
-		else
+		else if (WriteBarrier)
 		{
 			return GetTypeHash(*WriteBarrier.Get());
+		}
+		else
+		{
+			return 0;
 		}
 	}
 
@@ -193,4 +201,30 @@ private:
 	}
 };
 } // namespace Verse
+
+template <class VCellType>
+inline void FReferenceCollector::AddReferencedVerseValue(Verse::TWriteBarrier<VCellType>& InValue, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
+{
+	if constexpr (Verse::TWriteBarrier<VCellType>::bIsAux)
+	{
+		static_assert(!Verse::TWriteBarrier<VCellType>::bIsAux, "AddReferencedVerseValue: Element must be a VValue or a type derived from VCell");
+	}
+	else if constexpr (Verse::TWriteBarrier<VCellType>::bIsVValue)
+	{
+		Verse::VValue Value = InValue.Get();
+		if (Verse::VCell* Cell = Value.ExtractCell())
+		{
+			HandleVCellReference(Cell, ReferencingObject, ReferencingProperty);
+		}
+		else if (UObject* Object = Value.ExtractUObject())
+		{
+			HandleObjectReference(Object, ReferencingObject, ReferencingProperty);
+		}
+	}
+	else
+	{
+		Verse::VCell* Cell = InValue.Get();
+		HandleVCellReference(Cell, ReferencingObject, ReferencingProperty);
+	}
+}
 #endif // WITH_VERSE_VM

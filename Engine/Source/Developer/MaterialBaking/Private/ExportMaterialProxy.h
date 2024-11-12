@@ -211,7 +211,7 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 class FExportMaterialProxy : public FMaterial, public FMaterialRenderProxy
 {
 public:
-	FExportMaterialProxy(UMaterialInterface* InMaterialInterface, EMaterialProperty InPropertyToCompile, const FString& InCustomOutputToCompile = TEXT(""), bool bInSynchronousCompilation = true, bool bTangentSpaceNormal = false, EBlendMode ProxyBlendMode = BLEND_Opaque)
+	FExportMaterialProxy(UMaterialInterface* InMaterialInterface, EMaterialProperty InPropertyToCompile, const FString& InCustomOutputToCompile = TEXT(""), bool bInSynchronousCompilation = true, bool bTangentSpaceNormal = false, EBlendMode ProxyBlendMode = BLEND_Opaque, bool bAllowPixelDepthOffset = true)
 		: FMaterial()
 		, FMaterialRenderProxy(GetPathNameSafe(InMaterialInterface->GetMaterial()))
 		, MaterialInterface(InMaterialInterface)
@@ -224,6 +224,7 @@ public:
 		SetQualityLevelProperties(GMaxRHIFeatureLevel);
 		Material = InMaterialInterface->GetMaterial();
 		ReferencedTextures = InMaterialInterface->GetReferencedTextures();
+		ReferencedTextureCollections = InMaterialInterface->GetReferencedTextureCollections();
 
 		const FMaterialResource* Resource = InMaterialInterface->GetMaterialResource(GMaxRHIFeatureLevel);
 
@@ -272,6 +273,8 @@ public:
 		Usage = ResourceId.Usage;
 		ResourceId.BaseMaterialId = Material->StateId;
 
+		SetAllowPixelDepthOffset(bAllowPixelDepthOffset);
+		
 		CacheShaders(ResourceId, GMaxRHIShaderPlatform);
 	}
 
@@ -299,6 +302,11 @@ public:
 	virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const override
 	{
 		return ReferencedTextures;
+	}
+
+	virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const override
+	{
+		return ReferencedTextureCollections;
 	}
 
 	virtual void GetStaticParameterSet(EShaderPlatform Platform, FStaticParameterSet& OutSet) const override
@@ -484,6 +492,10 @@ public:
 		// Instead we'll just bake them as surface materials.
 		return false;
 	}
+	virtual bool IsUIMaterial() const override
+	{
+		return Material && Material->MaterialDomain == MD_UI;
+	}
 	virtual bool IsVolumetricPrimitive() const override
 	{
 		return Material && Material->MaterialDomain == MD_Volume;
@@ -633,6 +645,7 @@ private:
 	UMaterialInterface* MaterialInterface;
 	UMaterial* Material;
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 	/** The property to compile for rendering the sample */
 	EMaterialProperty PropertyToCompile;
 	/** Stores which exported attribute this proxy is compiling for. */

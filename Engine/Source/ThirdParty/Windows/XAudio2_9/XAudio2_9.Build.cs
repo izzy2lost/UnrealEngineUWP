@@ -13,9 +13,16 @@ public class XAudio2_9 : ModuleRules
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicDelayLoadDLLs.Add("XAudio2_9redist.dll");
-			PublicAdditionalLibraries.Add(XAudio2_9Dir + "/Lib/x64/xaudio2_9redist.lib");
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Windows/XAudio2_9/x64/xaudio2_9redist.dll");
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				PublicSystemLibraries.Add("xaudio2.lib");
+			}
+			else
+			{
+				PublicDelayLoadDLLs.Add("XAudio2_9redist.dll");
+				PublicAdditionalLibraries.Add(XAudio2_9Dir + "/Lib/x64/xaudio2_9redist.lib");
+				RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Windows/XAudio2_9/x64/xaudio2_9redist.dll");
+			}
 			//RuntimeDependencies.Add("$(TargetOutputDir)/XAudio2_9redist.pdb", XAudio2_9Dir + "/Lib/x64/XAudio2_9redist.pdb", StagedFileType.DebugNonUFS);
 		}
 	}

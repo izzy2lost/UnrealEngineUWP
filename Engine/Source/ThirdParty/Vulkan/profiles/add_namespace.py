@@ -13,7 +13,23 @@ with open(r'./debug/vulkan_profiles.hpp', 'r') as f:
     data = data.replace("vkEnumerateDeviceExtensionProperties(","VulkanRHI::vkEnumerateDeviceExtensionProperties(")
     data = data.replace("vkGetPhysicalDeviceProperties(","VulkanRHI::vkGetPhysicalDeviceProperties(")
     data = data.replace("vkCreateDevice(","VulkanRHI::vkCreateDevice(")
+    
+    # Deal with ImportVulkanFunctions_Static compilation
+    data = data.replace("(PFN_vkGetInstanceProcAddr)vkGetInstanceProcAddr;","(PFN_vkGetInstanceProcAddr)VulkanRHI::vkGetInstanceProcAddr;")
+    data = data.replace("(PFN_vkGetDeviceProcAddr)vkGetDeviceProcAddr;","(PFN_vkGetDeviceProcAddr)VulkanRHI::vkGetDeviceProcAddr;")
+    data = data.replace("(PFN_vkEnumerateInstanceVersion)vkEnumerateInstanceVersion;","(PFN_vkEnumerateInstanceVersion)nullptr; // not used")
+    data = data.replace("(PFN_vkEnumerateInstanceExtensionProperties)vkEnumerateInstanceExtensionProperties;","(PFN_vkEnumerateInstanceExtensionProperties)VulkanRHI::vkEnumerateInstanceExtensionProperties;")
+    data = data.replace("(PFN_vkEnumerateDeviceExtensionProperties)vkEnumerateDeviceExtensionProperties;","(PFN_vkEnumerateDeviceExtensionProperties)VulkanRHI::vkEnumerateDeviceExtensionProperties;")
+    data = data.replace("(PFN_vkGetPhysicalDeviceFeatures2)vkGetPhysicalDeviceFeatures2;","(PFN_vkGetPhysicalDeviceFeatures2)VulkanRHI::vkGetPhysicalDeviceFeatures2;")
+    data = data.replace("(PFN_vkGetPhysicalDeviceProperties2)vkGetPhysicalDeviceProperties2;","(PFN_vkGetPhysicalDeviceProperties2)VulkanRHI::vkGetPhysicalDeviceProperties2;")
+    data = data.replace("(PFN_vkGetPhysicalDeviceFormatProperties2)vkGetPhysicalDeviceFormatProperties2;","(PFN_vkGetPhysicalDeviceFormatProperties2)VulkanRHI::vkGetPhysicalDeviceFormatProperties2;")
+    data = data.replace("(PFN_vkGetPhysicalDeviceQueueFamilyProperties2)vkGetPhysicalDeviceQueueFamilyProperties2;","(PFN_vkGetPhysicalDeviceQueueFamilyProperties2)VulkanRHI::vkGetPhysicalDeviceQueueFamilyProperties2;")
+    data = data.replace("(PFN_vkCreateInstance)vkCreateInstance;","(PFN_vkCreateInstance)VulkanRHI::vkCreateInstance;")
+    data = data.replace("(PFN_vkCreateDevice)vkCreateDevice;","(PFN_vkCreateDevice)VulkanRHI::vkCreateDevice;")
 
+    # Fix a build error !?
+    data = data.replace("}#pragma warning(push)"," }\n#pragma warning(push)")
+    
 # Write final header with text namespaces added
 with open(r'./include/vulkan_profiles_ue.h', 'w') as f:
     f.write(data)

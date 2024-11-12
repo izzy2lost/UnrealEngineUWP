@@ -6,7 +6,6 @@
 #include "MovieRenderPipelineDataTypes.h"
 #include "MovieScene.h"
 #include "MovieSceneSequence.h"
-#include "MovieSceneSpawnable.h"
 #include "MovieScenePossessable.h"
 #include "MovieSceneBinding.h"
 #include "LevelSequence.h"
@@ -32,6 +31,7 @@
 #include "Misc/StringBuilder.h"
 #include "MovieSceneSequenceVisitor.h"
 #include "MovieSceneSequenceID.h"
+#include "MovieSceneTransformTypes.h"
 #include "MoviePipelineUtils.h"
 #include "UObject/UObjectHash.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -348,6 +348,8 @@ UMoviePipelineQueue* UMoviePipelineBlueprintLibrary::LoadManifestFileFromString(
 
 void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequence* InSequence, UMoviePipelineExecutorJob* InJob, bool& bShotsChanged)
 {
+	using namespace UE::MovieScene;
+
 	if (!ensureMsgf(InSequence && InJob, TEXT("Cannot generate shot list for null sequence/job.")))
 	{
 		return;
@@ -359,6 +361,8 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 		void GatherFromSection(UMovieSceneTrack* InTrack, const UE::MovieScene::FSubSequenceSpace& LocalSpace, TMovieSceneEvaluationTree<FSequenceRangeInfo>* InTree)
 		{
 			TArray<FSequenceRangeInfo> OutRanges;
+
+			FMovieSceneInverseSequenceTransform LocalToRoot = LocalSpace.RootToSequenceTransform.Inverse();
 
 			for (UMovieSceneSection* Section : InTrack->GetAllSections())
 			{
@@ -379,20 +383,26 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 				UMovieScene* OwningScene = Section->GetTypedOuter<UMovieScene>();
 				TRange<FFrameNumber> LocalCameraRange = Section->GetRange();
 
-				// Intersect it with the root range so that if the parent has trimmed down the sub-section we don't render outside that.
-				TRange<FFrameNumber> RootCameraRange = TRange<FFrameNumber>::Intersection(LocalSpace.RootClampRange, LocalSpace.RootToSequenceTransform.InverseNoLooping().TransformRangeUnwarped(LocalCameraRange));
-				if (!RootCameraRange.IsEmpty())
+				auto Visit = [&LocalSpace, Section, InTree](TRange<FFrameTime> InRange)
 				{
-					if (UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section))
+					// Intersect it with the root range so that if the parent has trimmed down the sub-section we don't render outside that.
+					TRange<FFrameNumber> RootCameraRange = TRange<FFrameNumber>::Intersection(LocalSpace.RootClampRange, ConvertToDiscreteRange(InRange));
+					if (!RootCameraRange.IsEmpty())
 					{
-						// We add the child sequence here so that the hierarchy tree gets built correctly.
-						InTree->Add(RootCameraRange, MakeTuple(Section, ShotSection->GetSequenceID(), LocalSpace.HierarchicalBias));
+						if (UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section))
+						{
+							// We add the child sequence here so that the hierarchy tree gets built correctly.
+							InTree->Add(RootCameraRange, MakeTuple(Section, ShotSection->GetSequenceID(), LocalSpace.HierarchicalBias));
+						}
+						else
+						{
+							InTree->Add(RootCameraRange, MakeTuple(Section, LocalSpace.SequenceID, LocalSpace.HierarchicalBias));
+						}
 					}
-					else
-					{
-						InTree->Add(RootCameraRange, MakeTuple(Section, LocalSpace.SequenceID, LocalSpace.HierarchicalBias));
-					}
-				}
+					return true;
+				};
+
+				LocalToRoot.TransformFiniteRangeWithinRange(ConvertToFrameTimeRange(LocalCameraRange), Visit, LocalSpace.StartBreadcrumbs, LocalSpace.EndBreadcrumbs);
 			}
 		}
 
@@ -432,7 +442,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			TTuple<FString, FString> Name;
 			TSharedPtr<MoviePipeline::FCameraCutSubSectionHierarchyNode> LeafNode;
 			TRange<FFrameNumber> CameraCutWarmUpRange;
-			FMovieSceneSequenceTransform InnerToOuterTransform;
+			FMovieSceneSequenceTransform RootToInnerTransform;
 		};
 
 		TArray<FLinearizedEntity> Entities;
@@ -512,6 +522,8 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			// camera components and track them as sidecar cameras. We do this even if sidecar data isn't being used.
 			if (LeafNode->CameraCutSection.IsValid() && LeafNode->MovieScene.IsValid())
 			{
+				UMovieSceneSequence* Sequence = LeafNode->MovieScene->GetTypedOuter<UMovieSceneSequence>();
+				TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GWorld, Sequence);
 				int32 MainCameraIndex = INDEX_NONE;
 				FMovieSceneObjectBindingID MainBinding = LeafNode->CameraCutSection->GetCameraBindingID();
 
@@ -561,33 +573,28 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 								LastValidGuid = ParentGuid;
 								ParentGuid = ParentAsPossessable->GetParent();
 								SidecarCamera.Name = ParentAsPossessable->GetName();
-							}
-							else if (FMovieSceneSpawnable* ParentAsSpawnable = LeafNode->MovieScene->FindSpawnable(ParentGuid))
-							{
-								FMovieSceneBinding* Binding = LeafNode->MovieScene->FindBinding(ParentAsSpawnable->GetGuid());
-								if (Binding)
+
+								if (MovieSceneHelpers::IsBoundToAnySpawnable(LeafNode->MovieScene->GetTypedOuter<UMovieSceneSequence>(), ParentAsPossessable->GetGuid(), TransientPlaybackState))
 								{
-									const TArray<UMovieSceneTrack*> AllBindingTracks = Binding->GetTracks();
-									for (const UMovieSceneTrack* Track : AllBindingTracks)
+									FMovieSceneBinding* Binding = LeafNode->MovieScene->FindBinding(ParentAsPossessable->GetGuid());
+									if (Binding)
 									{
-										if (const UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(Track))
+										const TArray<UMovieSceneTrack*> AllBindingTracks = Binding->GetTracks();
+										for (const UMovieSceneTrack* Track : AllBindingTracks)
 										{
-											for (const UMovieSceneSection* Section : SpawnTrack->GetAllSections())
+											if (const UMovieSceneSpawnTrack* SpawnTrack = Cast<UMovieSceneSpawnTrack>(Track))
 											{
-												if (const UMovieSceneSpawnSection* BoolSection = Cast<UMovieSceneSpawnSection>(Section))
+												for (const UMovieSceneSection* Section : SpawnTrack->GetAllSections())
 												{
-													bAddCamera = BoolSection->GetChannel().GetDefault().Get(true);
+													if (const UMovieSceneSpawnSection* BoolSection = Cast<UMovieSceneSpawnSection>(Section))
+													{
+														bAddCamera = BoolSection->GetChannel().GetDefault().Get(true);
+													}
 												}
 											}
 										}
 									}
 								}
-
-								// Spawnables will never have a parent
-								LastValidGuid = ParentGuid;
-								ParentGuid.Invalidate(); 
-								
-								SidecarCamera.Name = ParentAsSpawnable->GetName();
 							}
 						}
 
@@ -632,20 +639,34 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 				}
 			}
 
-			FMovieSceneSequenceTransform InnerToOuterTransform;
-			FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(Entity.SequenceID);
-			if (SubSequenceData)
-			{
-				InnerToOuterTransform = SubSequenceData->RootToSequenceTransform.InverseFromAllFirstLoops();
-			}
-
 			// To make the camera cut range detection more consistent, we'll convert the start of this Entity into root sequence space, and then we'll convert the start of the
 			// camera cut into root sequence space, and the difference between them is the range to use. This is a more reliable way than looking at the actual Playback Range.
 			TRange<FFrameNumber> EntityRangeInRoot = Entity.Range;
 			TRange<FFrameNumber> CameraCutRangeInRoot = EntityRangeInRoot;
+
+			FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(Entity.SequenceID);
+			if (SubSequenceData)
+			{
+				Entity.RootToInnerTransform = SubSequenceData->RootToSequenceTransform;
+			}
+
 			if (LeafNode->CameraCutSection.IsValid())
 			{
-				CameraCutRangeInRoot = InnerToOuterTransform.TransformRangeConstrained(LeafNode->CameraCutSection->GetRange());
+				CameraCutRangeInRoot = LeafNode->CameraCutSection->GetRange();
+
+				// Put the camera cut range in root space
+				FMovieSceneInverseSequenceTransform InnerToRoot = Entity.RootToInnerTransform.Inverse();
+
+				FMovieSceneTransformBreadcrumbs RangeStartBreadcrumbs, RangeEndBreadcrumbs;
+				Entity.RootToInnerTransform.TransformTime(UE::MovieScene::DiscreteInclusiveLower(EntityRangeInRoot), UE::MovieScene::FTransformTimeParams().HarvestBreadcrumbs(RangeStartBreadcrumbs));
+				Entity.RootToInnerTransform.TransformTime(UE::MovieScene::DiscreteExclusiveUpper(EntityRangeInRoot), UE::MovieScene::FTransformTimeParams().HarvestBreadcrumbs(RangeEndBreadcrumbs));
+
+				auto Visit = [&CameraCutRangeInRoot](TRange<FFrameTime> InRange)
+				{
+					CameraCutRangeInRoot = ConvertToDiscreteRange(InRange);
+					return false; // only call this once
+				};
+				InnerToRoot.TransformFiniteRangeWithinRange(ConvertToFrameTimeRange(CameraCutRangeInRoot), Visit, RangeStartBreadcrumbs, RangeEndBreadcrumbs);
 			}
 
 			TRange<FFrameNumber> CameraCutWarmUpRange = TRange<FFrameNumber>::Empty();
@@ -661,7 +682,6 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			Entity.CameraCutWarmUpRange = CameraCutWarmUpRange;
 			Entity.LeafNode = LeafNode;
 			Entity.Name = MoviePipeline::GetNameForShot(SequenceHierarchyCache, InSequence, LeafNode);
-			Entity.InnerToOuterTransform = InnerToOuterTransform;
 		}
 
 		// Fallback case for no shot sections detected and no camera cut sections detected.
@@ -680,7 +700,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			Entity.CameraCutWarmUpRange = TRange<FFrameNumber>::Empty();
 			Entity.LeafNode = LeafNode;
 			Entity.Name = MoviePipeline::GetNameForShot(SequenceHierarchyCache, InSequence, LeafNode);
-			Entity.InnerToOuterTransform = FMovieSceneSequenceTransform();
+			Entity.RootToInnerTransform = FMovieSceneSequenceTransform();
 		}
 
 		// We need to generate all of the linearized segments first so that we have all of the names available.
@@ -770,7 +790,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			NewShot->ShotInfo.SubSectionHierarchy = Entity.LeafNode;
 			NewShot->ShotInfo.TotalOutputRangeRoot = Entity.Range;
 			NewShot->ShotInfo.WarmupRangeRoot = Entity.CameraCutWarmUpRange;
-			NewShot->ShotInfo.OuterToInnerTransform = Entity.InnerToOuterTransform.InverseNoLooping();
+			NewShot->ShotInfo.OuterToInnerTransform = Entity.RootToInnerTransform;
 			NewShot->SidecarCameras = Entity.SidecarCameras;
 			UE_LOG(LogMovieRenderPipeline, Log, TEXT("Registering range: %s (InnerName: %s OuterName: %s)"), *LexToString(NewShot->ShotInfo.TotalOutputRangeRoot), *NewShot->InnerName, *NewShot->OuterName);
 		}
@@ -862,7 +882,25 @@ int32 UMoviePipelineBlueprintLibrary::ResolveVersionNumber(FMoviePipelineFilenam
 	return 0;
 }
 
-FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot)
+int32 UMoviePipelineBlueprintLibrary::GetCurrentVersionNumber(const UMoviePipeline* InMoviePipeline)
+{
+	if (!InMoviePipeline)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot get version number from null pipeline!"), ELogVerbosity::Error);
+		return 0;
+	}
+	
+	int32 CurrentShotIndex = InMoviePipeline->GetCurrentShotIndex();
+	if(!InMoviePipeline->GetActiveShotList().IsValidIndex(CurrentShotIndex))
+	{
+		FFrame::KismetExecutionMessage(TEXT("No shot is currently active to get the version number from."), ELogVerbosity::Error);
+		return 0;
+	}
+
+	return InMoviePipeline->GetActiveShotList()[CurrentShotIndex]->ShotInfo.VersionNumber;
+}
+
+FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot, float DefaultOverscan)
 {
 	if (InPrimaryConfig && InPipelineExecutorShot)
 	{
@@ -870,7 +908,7 @@ FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePip
 		const UMoviePipelineCameraSetting* CameraSetting = Cast<const UMoviePipelineCameraSetting>(UMoviePipelineBlueprintLibrary::FindOrGetDefaultSettingForShot(UMoviePipelineCameraSetting::StaticClass(), InPrimaryConfig, InPipelineExecutorShot));
 		check(OutputSetting);
 		check(CameraSetting);
-		return Utility_GetEffectiveOutputResolution(CameraSetting->OverscanPercentage, OutputSetting->OutputResolution);
+		return Utility_GetEffectiveOutputResolution(CameraSetting->bOverrideCameraOverscan ? CameraSetting->OverscanPercentage : DefaultOverscan, OutputSetting->OutputResolution);
 	}
 
 	return FIntPoint();

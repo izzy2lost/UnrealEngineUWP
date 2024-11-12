@@ -25,6 +25,7 @@ UVehicleSimWheelComponent::UVehicleSimWheelComponent()
 	bTractionControlEnabled = true;
 	AxisType = EWheelAxisType::Y;
 	ReverseDirection = false;
+	ForceOffset = FVector::ZeroVector;
 	bAnimationEnabled = true;
 }
 
@@ -48,6 +49,7 @@ Chaos::ISimulationModuleBase* UVehicleSimWheelComponent::CreateNewCoreModule() c
 	Settings.TractionControlEnabled = bTractionControlEnabled;
 	Settings.Axis = (Chaos::EWheelAxis)(AxisType);
 	Settings.ReverseDirection = ReverseDirection;
+	Settings.ForceOffset = ForceOffset;
 
 	Chaos::ISimulationModuleBase* Wheel = new Chaos::FWheelSimModule(Settings);
 	Wheel->SetAnimationEnabled(bAnimationEnabled);

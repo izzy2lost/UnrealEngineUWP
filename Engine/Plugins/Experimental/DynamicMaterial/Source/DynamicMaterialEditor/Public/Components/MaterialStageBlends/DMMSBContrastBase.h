@@ -8,14 +8,14 @@
 class UMaterialExpression;
 struct FDMMaterialBuildState;
 
-UCLASS(BlueprintType, Abstract, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendContrastBase : public UDMMaterialStageBlend
+UCLASS(MinimalAPI, BlueprintType, Abstract, ClassGroup = "Material Designer")
+class UDMMaterialStageBlendContrastBase : public UDMMaterialStageBlend
 {
 	GENERATED_BODY()
 
 public:
-	UDMMaterialStageBlendContrastBase(const FText& InName);
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendContrastBase(const FText& InName);
 
-protected:
+private:
 	UDMMaterialStageBlendContrastBase();
 };

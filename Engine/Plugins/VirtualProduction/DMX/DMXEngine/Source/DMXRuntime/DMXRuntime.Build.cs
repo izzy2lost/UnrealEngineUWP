@@ -14,8 +14,9 @@ public class DMXRuntime : ModuleRules
 				"Core",
                 "CoreUObject",
 				"DatasmithContent",
-				"Engine",
+				"DMXGDTF",
 				"DMXProtocol",
+				"Engine",
 				"JsonUtilities",
 			}
 		);

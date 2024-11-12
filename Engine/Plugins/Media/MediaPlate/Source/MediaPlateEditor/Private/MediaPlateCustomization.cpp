@@ -16,20 +16,17 @@
 #include "MediaPlateEditorStyle.h"
 #include "MediaPlayer.h"
 #include "MediaPlayerEditorModule.h"
-#include "MediaPlaylist.h"
-#include "MediaSource.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
-#include "Widgets/Input/SFilePathPicker.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSegmentedControl.h"
-#include "Widgets/Images/SImage.h"
 #include "Widgets/SMediaPlateEditorMediaDetails.h"
 
 #define LOCTEXT_NAMESPACE "FMediaPlateCustomization"
@@ -39,7 +36,6 @@
 
 
 FMediaPlateCustomization::FMediaPlateCustomization()
-	: bIsMediaSourceAsset(false)
 {
 }
 
@@ -84,112 +80,21 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 		}
 	}
 
-	// Set up media source.
-	UpdateIsMediaSourceAsset();
-	UpdateMediaPath();
-
 	// Add mesh customization.
 	AddMeshCustomization(GeometryCategory);
 
-	// Add playlist.
-	PlaylistCategory.AddCustomRow(FText::FromString("Playlist Asset"))
-		.NameContent()
-		[
-			SNew(STextBlock)
-				.Text(LOCTEXT("PlaylistAsset", "Playlist Asset"))
-				.ToolTipText(LOCTEXT("PlaylistAsset_Tooltip",
-					"The playlist asset to use. If none then an internal asset will be used."))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-		]
-		.ValueContent()
-		[
-			SNew(SObjectPropertyEntryBox)
-				.AllowedClass(UMediaPlaylist::StaticClass())
-				.ObjectPath(this, &FMediaPlateCustomization::GetPlaylistPath)
-				.OnObjectChanged(this, &FMediaPlateCustomization::OnPlaylistChanged)
-		];
-
-	// Add media source type.
-	TAttribute<EVisibility> MediaSourceAssetVisibility(this, &FMediaPlateCustomization::ShouldShowMediaSourceAsset);
-	TAttribute<EVisibility> MediaSourceFileVisibility(this, &FMediaPlateCustomization::ShouldShowMediaSourceFile);
-	PlaylistCategory.AddCustomRow(FText::FromString("First Item In Playlist"))
-		.NameContent()
-		[
-			SNew(STextBlock)
-				.Text(LOCTEXT("FirstItemInPlaylist", "First Item In Playlist"))
-				.ToolTipText(LOCTEXT("FirstItemInPlaylist_ToolTip",
-					"The type of the first item in the playlist.\n"
-					"File lets you select a media file like a .mp4.\n"
-					"Asset lets you select a Media Source asset."))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-		]
-		.ValueContent()
-		[
-			SNew(SSegmentedControl<bool>)
-				.Value_Lambda([WeakSelf]()
-				{
-					const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
-					return Self.IsValid() ? Self->bIsMediaSourceAsset : false;
-				})
-				.OnValueChanged(this, &FMediaPlateCustomization::SetIsMediaSourceAsset)
-
-			+ SSegmentedControl<bool>::Slot(false)
-				.Text(LOCTEXT("File", "File"))
-				.ToolTip(LOCTEXT("File_ToolTip",
-					"Select this if you want to use a file like a .mp4."))
-
-			+ SSegmentedControl<bool>::Slot(true)
-				.Text(LOCTEXT("Asset", "Asset"))
-				.ToolTip(LOCTEXT("Asset_ToolTip",
-					"Select this if you want to use a Media Source asset."))
-		];
-
-	// Add media asset.
-	PlaylistCategory.AddCustomRow(FText::FromString("Media Source Asset"))
-		.Visibility(MediaSourceAssetVisibility)
-		.NameContent()
-		[
-			SNew(STextBlock)
-				.Text(LOCTEXT("MediaAsset", "Media Source Asset"))
-				.ToolTipText(LOCTEXT("MediaAsset_ToolTip", "The Media Source to play."))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-		]
-		.ValueContent()
-		[
-			SNew(SObjectPropertyEntryBox)
-				.AllowedClass(UMediaSource::StaticClass())
-				.ObjectPath(this, &FMediaPlateCustomization::GetMediaSourcePath)
-				.OnObjectChanged(this, &FMediaPlateCustomization::OnMediaSourceChanged)
-		];
-
-	// Add media path.
-	FString FileTypeFilter = TEXT("All files (*.*)|*.*");
-	PlaylistCategory.AddCustomRow(FText::FromString("Media Path"))
-		.Visibility(MediaSourceFileVisibility)
-		.NameContent()
-		[
-			SNew(STextBlock)
-				.Text(LOCTEXT("MediaPath", "Media Path"))
-				.ToolTipText(LOCTEXT("MediaPath_ToolTip", "The path to a media file like a .mp4."))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-		]
-		.ValueContent()
-		[
-			SNew(SFilePathPicker)
-				.BrowseButtonImage(FAppStyle::GetBrush("PropertyWindow.Button_Ellipsis"))
-				.BrowseButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.BrowseButtonToolTip(LOCTEXT("FileButtonToolTipText", "Choose a file from this computer"))
-				.BrowseTitle(LOCTEXT("PropertyEditorTitle", "File picker..."))
-				.FilePath(this, &FMediaPlateCustomization::HandleMediaPath)
-				.FileTypeFilter(FileTypeFilter)
-				.OnPathPicked(this, &FMediaPlateCustomization::HandleMediaPathPicked)
-		];
+	// Add media plate source 
+	MediaPlateResourcePropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMediaPlateComponent, MediaPlateResource));
+	if (MediaPlateResourcePropertyHandle)
+	{
+		PlaylistCategory.AddProperty(MediaPlateResourcePropertyHandle);
+	}
 
 	// Add media player playback slider
 	if (IMediaPlayerEditorModule* MediaPlayerEditorModule = FModuleManager::LoadModulePtr<IMediaPlayerEditorModule>("MediaPlayerEditor"))
 	{
 		const TSharedRef<IMediaPlayerSlider> MediaPlayerSlider =
-			MediaPlayerEditorModule->CreateMediaPlayerSliderWidget(GetMediaPlayer());
+			MediaPlayerEditorModule->CreateMediaPlayerSliderWidget(GetMediaPlayers());
 
 		MediaPlayerSlider->SetSliderHandleColor(FSlateColor(EStyleColor::AccentBlue));
 		MediaPlayerSlider->SetVisibleWhenInactive(EVisibility::Visible);
@@ -834,7 +739,7 @@ TSharedRef<SWidget> FMediaPlateCustomization::OnGetLetterboxAspectRatios()
 {
 	FMenuBuilder MenuBuilder(true, NULL);
 	AddAspectRatiosToMenuBuilder(MenuBuilder, &FMediaPlateCustomization::SetLetterboxAspectRatio);
-	
+
 	FUIAction Action = FUIAction(FExecuteAction::CreateSP(this, &FMediaPlateCustomization::SetLetterboxAspectRatio, 0.0f));
 	MenuBuilder.AddMenuEntry(LOCTEXT("Disable", "Disable"), FText(), FSlateIcon(), Action);
 
@@ -1035,191 +940,6 @@ void FMediaPlateCustomization::OnStaticMeshChanged(const FAssetData& AssetData)
 	}
 }
 
-void FMediaPlateCustomization::UpdateIsMediaSourceAsset()
-{
-	bIsMediaSourceAsset = false;
-
-	// Get the first media plate.
-	if (MediaPlatesList.Num() > 0)
-	{
-		UMediaPlateComponent* MediaPlate = MediaPlatesList[0].Get();
-		if (MediaPlate != nullptr)
-		{
-			UMediaPlaylist* Playlist = MediaPlate->MediaPlaylist;
-			if (Playlist != nullptr)
-			{
-				// Get the first media source in the playlist.
-				UMediaSource* MediaSource = Playlist->Get(0);
-				if (MediaSource != nullptr)
-				{
-					bIsMediaSourceAsset = MediaSource->GetOuter() != MediaPlate;
-				}
-			}
-		}
-	}
-}
-
-void FMediaPlateCustomization::SetIsMediaSourceAsset(bool bIsAsset)
-{
-	if (bIsMediaSourceAsset != bIsAsset)
-	{
-		bIsMediaSourceAsset = bIsAsset;
-
-		{
-			const FScopedTransaction Transaction(LOCTEXT("SetIsMediaSourceAsset", "Media Source Playlist Changed"));
-
-			// Clear out asset.
-			for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
-			{
-				UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-				if (MediaPlate != nullptr)
-				{
-					// Get playlist.
-					UMediaPlaylist* Playlist = MediaPlate->MediaPlaylist;
-					if (Playlist != nullptr)
-					{
-						// Update playlist.
-						if (Playlist->Num() > 0)
-						{
-							Playlist->Modify();
-							Playlist->Replace(0, nullptr);
-						}
-					}
-					break;
-				}
-			}
-		}
-
-		StopMediaPlates();
-		UpdateMediaPath();
-	}
-}
-
-EVisibility FMediaPlateCustomization::ShouldShowMediaSourceAsset() const
-{
-	return bIsMediaSourceAsset ? EVisibility::Visible : EVisibility::Hidden;
-}
-
-EVisibility FMediaPlateCustomization::ShouldShowMediaSourceFile() const
-{
-	return bIsMediaSourceAsset ? EVisibility::Hidden : EVisibility::Visible;
-}
-
-FString FMediaPlateCustomization::GetMediaSourcePath() const
-{
-	FString Path;
-
-	// Get the first media plate.
-	if (MediaPlatesList.Num() > 0)
-	{
-		UMediaPlateComponent* MediaPlate = MediaPlatesList[0].Get();
-		if (MediaPlate != nullptr)
-		{
-			UMediaPlaylist* Playlist = MediaPlate->MediaPlaylist;
-			if (Playlist != nullptr)
-			{
-				// Get the first media source in the playlist.
-				UMediaSource* MediaSource = Playlist->Get(0);
-				if (MediaSource != nullptr)
-				{
-					Path = MediaSource->GetPathName();
-				}
-			}
-		}
-	}
-
-	return Path;
-}
-
-FString FMediaPlateCustomization::GetPlaylistPath() const
-{
-	FString Path;
-
-	// Get the first media plate.
-	if (MediaPlatesList.Num() > 0)
-	{
-		UMediaPlateComponent* MediaPlate = MediaPlatesList[0].Get();
-		if (MediaPlate != nullptr)
-		{
-			UMediaPlaylist* Playlist = MediaPlate->MediaPlaylist;
-			if (Playlist != nullptr)
-			{
-				if (Playlist->GetOuter() != MediaPlate)
-				{
-					Path = Playlist->GetPathName();
-				}
-			}
-		}
-	}
-
-	return Path;
-}
-
-void FMediaPlateCustomization::OnPlaylistChanged(const FAssetData& AssetData)
-{
-	StopMediaPlates();
-
-	{
-		const FScopedTransaction Transaction(LOCTEXT("OnPlaylistChanged", "Media Playlist Changed"));
-		
-		// Update the playlist.
-		UMediaPlaylist* Playlist = Cast<UMediaPlaylist>(AssetData.GetAsset());
-		for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
-		{
-			UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-			if (MediaPlate != nullptr)
-			{
-				MediaPlate->Modify();
-				MediaPlate->MediaPlaylist = Playlist;
-			}
-		}
-	}
-
-	UpdateIsMediaSourceAsset();
-	UpdateMediaPath();
-}
-
-void FMediaPlateCustomization::OnMediaSourceChanged(const FAssetData& AssetData)
-{
-	// Update the playlist with the new media source.
-	UMediaSource* MediaSource = Cast<UMediaSource>(AssetData.GetAsset());
-
-	{
-		const FScopedTransaction Transaction(LOCTEXT("OnMediaSourceChanged", "Media Source Playlist Changed"));
-
-		for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
-		{
-			UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-			if (MediaPlate != nullptr)
-			{
-				// Get playlist.
-				TObjectPtr<UMediaPlaylist>& Playlist = MediaPlate->MediaPlaylist;
-				if (Playlist == nullptr)
-				{
-					Playlist = NewObject<UMediaPlaylist>(MediaPlate, NAME_None, RF_Transactional);
-				}
-				else
-				{
-					Playlist->Modify();
-				}
-
-				// Update playlist.
-				if (Playlist->Num() > 0)
-				{
-					Playlist->Replace(0, MediaSource);
-				}
-				else
-				{
-					Playlist->Add(MediaSource);
-				}
-			}
-		}
-	}
-
-	StopMediaPlates();
-	UpdateMediaPath();
-}
-
 void FMediaPlateCustomization::OnButtonEvent(EMediaPlateEventState State)
 {
 	IMediaAssetsModule* MediaAssets = FModuleManager::LoadModulePtr<IMediaAssetsModule>("MediaAssets");
@@ -1233,7 +953,7 @@ void FMediaPlateCustomization::OnButtonEvent(EMediaPlateEventState State)
 		}
 
 		ActorsPathNames.Add(MediaPlatePtr->GetOwner()->GetPathName());
-			
+
 		if (State == EMediaPlateEventState::Open)
 		{
 			// Tell the editor module that this media plate is playing.
@@ -1247,97 +967,6 @@ void FMediaPlateCustomization::OnButtonEvent(EMediaPlateEventState State)
 		MediaPlatePtr->SwitchStates(State);
 	}
 	MediaAssets->BroadcastOnMediaStateChangedEvent(ActorsPathNames, (uint8)State);
-}
-
-void FMediaPlateCustomization::UpdateMediaPath()
-{
-	MediaPath.Empty();
-
-	// Get the first media plate.
-	if (MediaPlatesList.Num() > 0)
-	{
-		UMediaPlateComponent* MediaPlate = MediaPlatesList[0].Get();
-		if (MediaPlate != nullptr)
-		{
-			UMediaPlaylist* Playlist = MediaPlate->MediaPlaylist;
-			if (Playlist != nullptr)
-			{
-				// Get the first media source in the playlist.
-				UMediaSource* MediaSource = Playlist->Get(0);
-				if (MediaSource != nullptr)
-				{
-					MediaPath = MediaSource->GetUrl();
-
-					// Remove certain types.
-					const FString FilePrefix(TEXT("file://"));
-					const FString ImgPrefix(TEXT("img://"));
-					if (MediaPath.StartsWith(FilePrefix))
-					{
-						MediaPath = MediaPath.RightChop(FilePrefix.Len());
-					}
-					else if (MediaPath.StartsWith(ImgPrefix))
-					{
-						MediaPath = MediaPath.RightChop(ImgPrefix.Len());
-					}
-				}
-			}
-		}
-	}
-}
-
-FString FMediaPlateCustomization::HandleMediaPath() const
-{
-	return MediaPath;
-}
-
-void FMediaPlateCustomization::HandleMediaPathPicked(const FString& PickedPath)
-{
-	// Did we get something?
-	if ((PickedPath.IsEmpty() == false) && (PickedPath != MediaPath))
-	{
-		// Stop playback.
-		StopMediaPlates();
-
-		{
-			const FScopedTransaction Transaction(LOCTEXT("OnMediaPathChanged", "Media Path Changed"));
-
-			// Set up media source for our media plates.
-			for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
-			{
-				UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-				if (MediaPlate != nullptr)
-				{
-					// Get playlist.
-					TObjectPtr<UMediaPlaylist>& Playlist = MediaPlate->MediaPlaylist;
-					if (Playlist == nullptr)
-					{
-						Playlist = NewObject<UMediaPlaylist>(MediaPlate, NAME_None, RF_Transactional);
-					}
-					else
-					{
-						Playlist->Modify();
-					}
-
-					// Create media source for this path.
-					UMediaSource* MediaSource = UMediaSource::SpawnMediaSourceForString(PickedPath, MediaPlate);
-					if (MediaSource != nullptr)
-					{
-						if (Playlist->Num() > 0)
-						{
-							Playlist->Replace(0, MediaSource);
-						}
-						else
-						{
-							Playlist->Add(MediaSource);
-						}
-					}
-				}
-			}
-		}
-
-		// Update the media path.
-		UpdateMediaPath();
-	}
 }
 
 FReply FMediaPlateCustomization::OnOpenMediaPlate()
@@ -1354,7 +983,7 @@ FReply FMediaPlateCustomization::OnOpenMediaPlate()
 	}
 
 	// Open the editor.
-	if (AssetArray.Num() > 0)
+	if (GEditor && AssetArray.Num() > 0)
 	{
 		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets(AssetArray);
 	}
@@ -1381,6 +1010,24 @@ UMediaPlayer* FMediaPlateCustomization::GetMediaPlayer() const
 	}
 
 	return nullptr;
+}
+
+TArray<TWeakObjectPtr<UMediaPlayer>> FMediaPlateCustomization::GetMediaPlayers() const
+{
+	TArray<TWeakObjectPtr<UMediaPlayer>> MediaPlayers;
+	MediaPlayers.Reserve(MediaPlatesList.Num());
+	
+	for (const TWeakObjectPtr<UMediaPlateComponent>& MediaPlateWeak : MediaPlatesList)
+	{
+		if (UMediaPlateComponent* MediaPlate = MediaPlateWeak.Get())
+		{
+			if (UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer())
+			{
+				MediaPlayers.Add(MediaPlayer);
+			}
+		}
+	}
+	return MediaPlayers;
 }
 
 void FMediaPlateCustomization::CustomizeCategories(IDetailLayoutBuilder& InDetailBuilder)

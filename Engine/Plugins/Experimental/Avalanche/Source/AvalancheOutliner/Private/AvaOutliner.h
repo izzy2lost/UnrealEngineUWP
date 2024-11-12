@@ -13,7 +13,9 @@
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
 #include "ItemProxies/IAvaOutlinerItemProxyFactory.h"
 #include "TickableEditorObject.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
+class AActor;
 class FAvaEditorSelection;
 class FAvaOutlinerTreeRoot;
 class FAvaOutlinerView;
@@ -24,6 +26,7 @@ class IAvaOutlinerAction;
 class IAvaOutlinerProvider;
 class IAvaOutlinerView;
 class UAvaOutlinerSubsystem;
+class ULevelStreaming;
 enum class EItemDropZone;
 struct FAttachmentTransformRules;
 struct FAvaOutlinerSaveState;
@@ -101,6 +104,7 @@ public:
 	virtual void OnObjectSelectionChanged(const FAvaEditorSelection& InEditorSelection) override;
 	virtual UWorld* GetWorld() const override;
 	virtual const FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry() const override;
+	virtual bool IsDefaultWorldActorToHide(const UWorld* const InWorld, const AActor* const InActor) const override;
 	//~ End IAvaOutliner
 
 	FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry();
@@ -124,7 +128,12 @@ public:
 	void DuplicateItems(TArray<FAvaOutlinerItemPtr> InItems
 		, FAvaOutlinerItemPtr InRelativeItem
 		, TOptional<EItemDropZone> InRelativeDropZone);
-	
+
+	/**
+	 * Delete a set of items in the outliner by calling their custom delete handler
+	 */
+	void DeleteItems(TArray<FAvaOutlinerItemPtr> InItems);
+
 	/** Unregisters the Outliner View bound to the given id */
 	void UnregisterOutlinerView(int32 InOutlinerViewId);
 
@@ -243,8 +252,11 @@ public:
 	/** Called when an Actor's attachment has changed. This triggers a refresh */
 	void OnActorAttachmentChanged(AActor* InActor, const AActor* InParent, bool bAttach);
 
-	/** Called the engine replaces an object. A common example is when a BP Component is destroyed, and replaced */
+	/** Called when the engine replaces an object. A common example is when a BP Component is destroyed, and replaced */
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplacementMap);
+
+	/** Called when the engine replaces an Actor */
+	void OnActorReplaced(AActor* InOldActor, AActor* InNewActor);
 
 	/** Marks the Outliner dirty. This triggers IAvaOutlinerProvider::OnOutlinerModified on next tick */
 	void SetOutlinerModified();

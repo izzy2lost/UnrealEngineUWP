@@ -49,8 +49,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "UV Layout")
 	FVector2D Translation = FVector2D(0,0);
 
-	/** Allow the Repack layout type to flip the orientation of UV islands to save space. Note that this may cause problems for downstream operations, and therefore is disabled by default. */
+	/** Force the Repack layout type to preserve existing scaling of UV islands. Note, this might lead to the packing not fitting within a unit square, and therefore is disabled by default. */
 	UPROPERTY(EditAnywhere, Category = "UV Layout", meta = (EditCondition = "LayoutType == EUVLayoutType::Repack"))
+	bool bPreserveScale = false;
+
+	/** Force the Repack layout type to preserve existing rotation of UV islands. Note, this might lead to the packing not being as space efficient as possible, and therefore is disabled by default. */
+	UPROPERTY(EditAnywhere, Category = "UV Layout", meta = (EditCondition = "LayoutType == EUVLayoutType::Repack"))
+	bool bPreserveRotation = false;
+
+	/** Allow the Repack layout type to flip the orientation of UV islands to save space. Note that this may cause problems for downstream operations, and therefore is disabled by default. */
+	UPROPERTY(EditAnywhere, Category = "UV Layout", meta = (EditCondition = "LayoutType == EUVLayoutType::Repack && bPreserveRotation == false"))
 	bool bAllowFlips = false;
 
 	/** Enable UDIM aware layout and keep islands within their originating UDIM tiles when laying out.*/

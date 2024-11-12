@@ -22,6 +22,7 @@
 #include "HAL/IConsoleManager.h"
 #include "UObject/Package.h"
 #include "PostProcess/DrawRectangle.h"
+#include "RHIResourceUtils.h"
 #include "RHIStaticStates.h"
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -65,37 +66,22 @@ void FGoogleARCorePassthroughCameraRenderer::InitializeRenderer_RenderThread(FSc
 		// Initialize Index buffer;
 		const uint16 Indices[] = { 0, 1, 2, 2, 1, 3};
 
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> IndexBuffer;
-		uint32 NumIndices = UE_ARRAY_COUNT(Indices);
-		IndexBuffer.AddUninitialized(NumIndices);
-		FMemory::Memcpy(IndexBuffer.GetData(), Indices, NumIndices * sizeof(uint16));
-
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("OverlayIndexBuffer"), &IndexBuffer);
-		OverlayIndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), IndexBuffer.GetResourceDataSize(), BUF_Static, CreateInfo);
+		OverlayIndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("OverlayIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 	
 	if (!OverlayVertexBufferRHI)
 	{
-		TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
-		Vertices.SetNumUninitialized(4);
-
 		// Unreal uses reversed z. 0 is the farthest.
-		Vertices[0].Position = FVector4f(0, 0, 0, 1);
-		Vertices[0].UV = { 0, 0 };
+		const FFilterVertex Vertices[] =
+		{
+			FFilterVertex{ FVector4f(0, 0, 0, 1), FVector2f(0, 0) },
+			FFilterVertex{ FVector4f(0, 1, 0, 1), FVector2f(0, 1) },
+			FFilterVertex{ FVector4f(1, 0, 0, 1), FVector2f(1, 0) },
+			FFilterVertex{ FVector4f(1, 1, 0, 1), FVector2f(1, 1) },
+		};
 
-		Vertices[1].Position = FVector4f(0, 1, 0, 1);
-		Vertices[1].UV = { 0, 1 };
-
-		Vertices[2].Position = FVector4f(1, 0, 0, 1);
-		Vertices[2].UV = { 1, 0 };
-
-		Vertices[3].Position = FVector4f(1, 1, 0, 1);
-		Vertices[3].UV = { 1, 1 };
-
-		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("OverlayVertexBuffer"), &Vertices);
-		OverlayVertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfo);
+		OverlayVertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("OverlayVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 	}
 }
 
@@ -189,7 +175,8 @@ void FGoogleARCorePassthroughCameraRenderer::RenderVideoOverlayWithMaterial(FRHI
 		return;
 	}
 	
-	SCOPED_DRAW_EVENTF(RHICmdList, RenderVideoOverlay, bRenderingOcclusion ? TEXT("VideoOverlay (Occlusion)") : TEXT("VideoOverlay (Background)"));
+	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, RenderVideoOverlay_Occlusion ,  bRenderingOcclusion, TEXT("VideoOverlay (Occlusion)" ));
+	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, RenderVideoOverlay_Background, !bRenderingOcclusion, TEXT("VideoOverlay (Background)"));
 
 	const auto FeatureLevel = InView.GetFeatureLevel();
 	IRendererModule& RendererModule = GetRendererModule();

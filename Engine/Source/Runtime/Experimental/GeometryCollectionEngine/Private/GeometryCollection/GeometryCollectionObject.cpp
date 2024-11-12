@@ -11,6 +11,7 @@
 #include "UObject/DestructionObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/ObjectSaveContext.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "HAL/IConsoleManager.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -25,6 +26,8 @@
 #include "Rendering/NaniteResources.h"
 #include "Engine/AssetUserData.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
+#include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
+#include "Chaos/ErrorReporter.h"
 
 #if WITH_EDITOR
 #include "GeometryCollection/DerivedDataGeometryCollectionCooker.h"
@@ -43,6 +46,7 @@
 #include "Chaos/ChaosArchive.h"
 #include "Chaos/MassProperties.h"
 #include "GeometryCollectionProxyData.h"
+#include "Dataflow/DataflowObject.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
 #include "GeometryCollection/Facades/CollectionInstancedMeshFacade.h"
 
@@ -109,6 +113,7 @@ UGeometryCollection::UGeometryCollection(const FObjectInitializer& ObjectInitial
 	, bStripOnCook(false)
 	, bStripRenderDataOnCook(false)
 	, EnableNanite(false)
+	, bEnableNaniteFallback(false)
 #if WITH_EDITORONLY_DATA
 	, CollisionType_DEPRECATED(ECollisionTypeEnum::Chaos_Volumetric)
 	, ImplicitType_DEPRECATED(EImplicitTypeEnum::Chaos_Implicit_Convex)
@@ -142,6 +147,9 @@ UGeometryCollection::UGeometryCollection(const FObjectInitializer& ObjectInitial
 	bStripOnCook = GeometryCollectionAssetForceStripOnCook;
 #endif
 	PhysicsMaterial = GEngine? GEngine->DefaultPhysMaterial: nullptr;
+
+	// make sure we have at least one size specific entry
+	SizeSpecificData.AddDefaulted();
 }
 
 FGeometryCollectionLevelSetData::FGeometryCollectionLevelSetData()
@@ -491,7 +499,9 @@ void UGeometryCollection::GetSharedSimulationParams(FSharedSimulationParameters&
 	const FGeometryCollectionSizeSpecificData& SizeSpecificDefault = GetDefaultSizeSpecificData();
 
 	// we grab the non cached version because this is going to be used to generate the mass attribute which will eventually cache the density value if necessary
-	OutParams.Mass = GetMassOrDensityInternal(OutParams.bMassAsDensity, false);
+	bool bUseMassAsDensity = false;
+	OutParams.Mass = GetMassOrDensityInternal(bUseMassAsDensity, false);
+	OutParams.bMassAsDensity = bUseMassAsDensity;
 	OutParams.MinimumMassClamp = MinimumMassClamp;
 
 	FGeometryCollectionSizeSpecificData InfSize;
@@ -533,6 +543,11 @@ void UGeometryCollection::GetSharedSimulationParams(FSharedSimulationParameters&
 	OutParams.SizeSpecificData.Sort();	//can we do this at editor time on post edit change?
 }
 
+bool UGeometryCollection::IsEmpty() const
+{
+	return (NumElements(FGeometryCollection::TransformGroup) == 0);
+}
+
 void UGeometryCollection::Reset()
 {
 	if (GeometryCollection.IsValid())
@@ -546,12 +561,31 @@ void UGeometryCollection::Reset()
 	}
 }
 
+namespace UE::Dataflow::Private
+{
+	static void SetRandomBoneColor(TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>& InGeometryCollection)
+	{
+		TManagedArray<FLinearColor>& BoneColors = InGeometryCollection->BoneColor;
+
+		const int32 NumBones = BoneColors.Num();
+		FRandomStream RandomStream(NumBones);
+
+		for (int32 Idx = 0; Idx < NumBones; ++Idx)
+		{
+			const uint8 R = static_cast<uint8>(RandomStream.FRandRange(5, 105));
+			const uint8 G = static_cast<uint8>(RandomStream.FRandRange(5, 105));
+			const uint8 B = static_cast<uint8>(RandomStream.FRandRange(5, 105));
+
+			BoneColors[Idx] = FLinearColor(FColor(R, G, B, 255));
+		}
+	}
+}
+
 void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterial*>& InMaterials, bool bHasInternalMaterials)
 {
+	Reset();
 	if (GeometryCollection.IsValid())
 	{
-		Reset();
-
 		InCollection.CopyTo(GeometryCollection.Get());
 
 		// todo(Chaos) : we could certainly run a "dependent attribute update method here instead of having to known about convex specifically 
@@ -559,6 +593,25 @@ void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection,
 				
 		Materials.Append(InMaterials);
 		InitializeMaterials(bHasInternalMaterials);
+
+		// Randomize BoneColor
+		UE::Dataflow::Private::SetRandomBoneColor(GeometryCollection);
+	}
+}
+
+void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterialInterface*>& InMaterialInstances, bool bHasInternalMaterials)
+{
+	Reset();
+	if (GeometryCollection.IsValid())
+	{
+		InCollection.CopyTo(GeometryCollection.Get());
+		// todo(Chaos) : we could certainly run a "dependent attribute update method here instead of having to known about convex specifically 
+		UpdateConvexGeometryIfMissing();
+		Materials.Append(InMaterialInstances);
+		InitializeMaterials(bHasInternalMaterials);
+
+		// Randomize BoneColor
+		UE::Dataflow::Private::SetRandomBoneColor(GeometryCollection);
 	}
 }
 
@@ -582,9 +635,9 @@ int32 UGeometryCollection::AppendGeometry(const UGeometryCollection & Element, b
 }
 
 /** NumElements */
-int32 UGeometryCollection::NumElements(const FName & Group) const
+int32 UGeometryCollection::NumElements(const FName& Group) const
 {
-	return GeometryCollection->NumElements(Group);
+	return GeometryCollection? GeometryCollection->NumElements(Group): 0;
 }
 
 /** RemoveElements */
@@ -638,12 +691,21 @@ void UGeometryCollection::ReindexMaterialSections()
 	InvalidateCollection();
 }
 
+UMaterialInterface* UGeometryCollection::GetBoneSelectedMaterial()
+{
+#if WITH_EDITORONLY_DATA
+	return LoadObject<UMaterialInterface>(nullptr, GetSelectedMaterialPath(), nullptr, LOAD_None, nullptr);
+#else
+	return nullptr;
+#endif
+}
+
 void UGeometryCollection::InitializeMaterials(bool bHasLegacyInternalMaterialsPairs)
 {
 	Modify();
 
 	// Initialize the BoneSelectedMaterial separate from the materials on the collection
-	BoneSelectedMaterial = LoadObject<UMaterialInterface>(nullptr, GetSelectedMaterialPath(), nullptr, LOAD_None, nullptr);
+	UMaterialInterface* BoneSelectedMaterial = GetBoneSelectedMaterial();
 
 	TManagedArray<int32>& MaterialIDs = GeometryCollection->MaterialID;
 
@@ -894,19 +956,6 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 	if ((bIsCookedOrCooking && Ar.IsSaving()) || (Ar.IsCountingMemory() && Ar.IsFilterEditorOnly()))
 	{
 #if WITH_EDITOR
-		if (bIsCookedOrCooking && Ar.IsSaving())
-		{
-			// if we have a valid selection material, let's make sure we replace it with one that will be cooked
-			// this avoid getting warning about the selected material being reference but not cooked
-			const int32 SelectedMaterialIndex = GetBoneSelectedMaterialIndex();
-			if (!Materials.IsEmpty() && Materials.IsValidIndex(SelectedMaterialIndex))
-			{
-				Materials[SelectedMaterialIndex] = Materials[0];
-			}
-			// Likewise remove the direct reference to the BoneSelectedMaterial on cook
-			BoneSelectedMaterial = nullptr;
-		}
-
 		if (bStripOnCook)
 		{
 			// TODO: Since non-nanite path now stores mesh data in cooked build we may be able to unify 
@@ -1011,10 +1060,12 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 #if WITH_EDITOR
 		if (Ar.IsSaving() && !Ar.IsTransacting())
 		{
-			EnsureDataIsCooked(false /*bInitResources*/, Ar.IsTransacting(), Ar.IsPersistent(), false /*bAllowCopyFromDDC*/);
+			constexpr bool bAllowCopyFromDDC = false;
+			constexpr bool bIsTransacting = false; // the surrounding if statement garantees that 
+			EnsureSimulationDataIsCooked(bIsTransacting, bAllowCopyFromDDC);
 		}
 #endif
-		if (Ar.IsLoading())
+		if (Ar.IsLoading() || (Ar.IsCountingMemory() && !Ar.IsFilterEditorOnly()))
 		{
 			GeometryCollection->Serialize(ChaosAr);
 		}
@@ -1032,8 +1083,13 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 			TArray<Chaos::FImplicitObjectPtr> ImplicitObjects;
 			ImplicitObjects.SetNum(NumElems);
 			
-			if( TManagedArray<TUniquePtr<Chaos::FImplicitObject>>* OldAttrA = ArchiveGeometryCollection->FindAttributeTyped<TUniquePtr<Chaos::FImplicitObject>>(
-				FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup))
+			const TManagedArray<TUniquePtr<Chaos::FImplicitObject>>* OldAttrA = ArchiveGeometryCollection->FindAttributeTyped<TUniquePtr<Chaos::FImplicitObject>>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+			const TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttrB = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup);
+			const TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttrC = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+
+			// Some geometry collection can still store several of those arrays
+			// We need to make sure to remove all of them and keep the last good one 
+			if (OldAttrA)
 			{
 				for (int32 Index = 0; Index < NumElems; ++Index)
 				{
@@ -1044,8 +1100,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 				}
 				ArchiveGeometryCollection->RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 			}
-			else if(TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttrB = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(
-				FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup))
+			if (OldAttrB)
 			{
 				for (int32 Index = 0; Index < NumElems; ++Index)
 				{
@@ -1056,8 +1111,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 				}
 				ArchiveGeometryCollection->RemoveAttribute(FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup);
 			}
-			else if(TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttrC = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(
-				FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup))
+			if (OldAttrC)
 			{
 				for (int32 Index = 0; Index < NumElems; ++Index)
 				{
@@ -1199,13 +1253,8 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading() && !bIsCookedOrCooking && BoneSelectedMaterialIndex != INDEX_NONE)
 	{
-		BoneSelectedMaterial = LoadObject<UMaterialInterface>(nullptr, GetSelectedMaterialPath(), nullptr, LOAD_None, nullptr);
 		if (Materials.IsValidIndex(BoneSelectedMaterialIndex))
 		{
-			if (!BoneSelectedMaterial)
-			{
-				BoneSelectedMaterial = Materials[BoneSelectedMaterialIndex];
-			}
 			// Remove the material assuming it's the last in the list (otherwise, leave it, as it's not clear why it would be in that state)
 			if (BoneSelectedMaterialIndex == Materials.Num() - 1)
 			{
@@ -1241,7 +1290,8 @@ void UGeometryCollection::Serialize(FArchive& Ar)
  	if (Ar.IsLoading())
 	{
 		// note: don't allow copy from DDC here, since we've already loaded the data above, and the DDC data does not include any data migrations performed by the load
-		EnsureDataIsCooked(true /*bInitResources*/, Ar.IsTransacting(), Ar.IsPersistent(), false /*bAllowCopyFromDDC*/);
+		constexpr bool bAllowCopyFromDDC = false;
+		EnsureSimulationDataIsCooked(Ar.IsTransacting(), bAllowCopyFromDDC);
 	}
 #endif
 
@@ -1409,7 +1459,7 @@ void UGeometryCollection::RebuildRenderData()
 	if (RenderDataGuid != StateGuid)
 	{
 		ReleaseResources();
-		RenderData = FGeometryCollectionRenderData::Create(*GetGeometryCollection(), EnableNanite, bUseFullPrecisionUVs, bConvertVertexColorsToSRGB);
+		RenderData = FGeometryCollectionRenderData::Create(*GetGeometryCollection(), EnableNanite, bEnableNaniteFallback, bUseFullPrecisionUVs, bConvertVertexColorsToSRGB);
 		InitResources();
 		PropagateMarkDirtyToComponents();
 		RenderDataGuid = StateGuid;
@@ -1479,20 +1529,12 @@ TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> UGeometryCollection::Genera
 			DuplicateGeometryCollection->AddAttribute<FBox>("BoundingBox", "Transform");
 		}
 
-		if (!DuplicateGeometryCollection->HasAttribute("NaniteIndex", "Transform"))
-		{
-			DuplicateGeometryCollection->AddAttribute<FBox>("NaniteIndex", "Transform");
-		}
-
 		const int32 NumTransforms = GeometryCollection->NumElements(FGeometryCollection::TransformGroup);
-		TManagedArray<int32>& NaniteIndex = DuplicateGeometryCollection->ModifyAttribute<int32>("NaniteIndex", "Transform");
 		TManagedArray<FBox>& TransformBounds = DuplicateGeometryCollection->ModifyAttribute<FBox>("BoundingBox", "Transform");
 		const TManagedArray<FBox>& GeometryBounds = GeometryCollection->GetAttribute<FBox>("BoundingBox", "Geometry");
 
-		NaniteIndex.Fill(INDEX_NONE);
 		for (int TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
 		{
-			NaniteIndex[TransformIndex] = TransformToGeometryIndex[TransformIndex];
 			const int32 GeometryIndex = TransformToGeometryIndex[TransformIndex];
 			if (GeometryIndex != INDEX_NONE)
 			{
@@ -1752,6 +1794,12 @@ FGuid UGeometryCollection::GetStateGuid() const
 
 #if WITH_EDITOR
 
+void UGeometryCollection::PostEditUndo()
+{
+	PropagateTransformUpdateToComponents();
+	Super::PostEditUndo();
+}
+
 void UGeometryCollection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	bool bDoInvalidateCollection = false;
@@ -1765,6 +1813,11 @@ void UGeometryCollection::PostEditChangeProperty(struct FPropertyChangedEvent& P
 		FName PropertyName = PropertyChangedEvent.Property->GetFName();
 
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UGeometryCollection, EnableNanite))
+		{
+			bDoInvalidateCollection = true;
+			bRebuildRenderData = true;
+		}
+		else if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UGeometryCollection, bEnableNaniteFallback))
 		{
 			bDoInvalidateCollection = true;
 			bRebuildRenderData = true;
@@ -1833,6 +1886,7 @@ void UGeometryCollection::PostEditChangeProperty(struct FPropertyChangedEvent& P
 	{
 		RebuildRenderData();
 	}
+	InvalidateDataflowContents();
 }
 
 bool UGeometryCollection::Modify(bool bAlwaysMarkDirty /*= true*/)
@@ -1850,20 +1904,44 @@ bool UGeometryCollection::Modify(bool bAlwaysMarkDirty /*= true*/)
 
 void UGeometryCollection::EnsureDataIsCooked(bool bInitResources, bool bIsTransacting, bool bIsPersistant, bool bAllowCopyFromDDC)
 {
+	EnsureSimulationDataIsCooked(bIsTransacting, bAllowCopyFromDDC);
+
+	EnsureRenderDataIsCooked(bInitResources);
+}
+
+void UGeometryCollection::EnsureSimulationDataIsCooked(bool bIsTransacting, bool bAllowCopyFromDDC = true)
+{
 	if (StateGuid != LastBuiltSimulationDataGuid)
 	{
 		CreateSimulationDataImp(/*bCopyFromDDC=*/ bAllowCopyFromDDC && !bIsTransacting);
+
 		LastBuiltSimulationDataGuid = StateGuid;
 	}
 
-	// Render data only goes through DDC when loading and saving (bIsPersistant).
+	// todo(chaos) - this is temporary solution to make sure the data is computed accordingly if the attribute are missing
+	//				 in the future we should probably get rid of this all cooker logic and have a proper dependent attribute system 
+	if (GeometryCollection)
+	{
+		if (FGeometryCollectionPhysicsProxy::NeedToInitializeSharedCollisionStructures(*GeometryCollection))
+		{
+			FSharedSimulationParameters SharedParams;
+			GetSharedSimulationParams(SharedParams);
+
+			Chaos::FErrorReporter ErrorReporter(GetName());
+			BuildSimulationData(ErrorReporter, *GeometryCollection, SharedParams);
+			// important : this is necessary to make sure we compute mass scale on the instances properly
+			// sadly we cannot call this in BuildSimulationData because we have no access to the asset
+			CacheMaterialDensity();
+		}
+	}
+}
+
+void UGeometryCollection::EnsureRenderDataIsCooked(bool bInitResources)
+{
+	// Render data only goes through DDC when loading and saving ( called from OnPostLoad / OnSave  )
 	// Using DDC during edits isn't worth it especially as we use a continually mutating guid instead of a state hash.
 	// That ensures that all edits are cache misses (slow) and unnecessarily fill up DDC disk space.
-	// TODO: SimulationData currently relies on these calls to update reliably, so we still need to use DDC for edits.
-	//       We could make CreateSimulationData() be reliably called for all edits and then only use DDC for loading and saving.
-	//       If we do that we can combine CreateSimulationDataImp() with CreateRenderDataImp() and FDerivedDataGeometryCollectionCooker
-	//       with FDerivedDataGeometryCollectionRenderDataCooker.
-	if (bIsPersistant && StateGuid != LastBuiltRenderDataGuid)
+	if (StateGuid != LastBuiltRenderDataGuid)
 	{
 		CreateRenderDataImp(/*bCopyFromDDC=*/ bInitResources);
 
@@ -1874,21 +1952,39 @@ void UGeometryCollection::EnsureDataIsCooked(bool bInitResources, bool bIsTransa
 				RenderData->InitResources(*this);
 			}
 		}
-	
+
 		LastBuiltRenderDataGuid = StateGuid;
 	}
 }
+
 #endif
+
+void UGeometryCollection::PreSave(FObjectPreSaveContext SaveContext)
+{
+#if WITH_EDITOR
+	constexpr bool bInitResources = false; 
+	constexpr bool bIsTransacting = false;
+	constexpr bool bIsPersistant = false; // note that this has no effect on the call below  
+	constexpr bool bAllowCopyFromDDC = false;
+	EnsureDataIsCooked(bInitResources, bIsTransacting, bIsPersistant, bAllowCopyFromDDC);
+#endif
+
+	Super::PreSave(SaveContext);
+}
 
 void UGeometryCollection::PostLoad()
 {
 	Super::PostLoad();
 
-	// Initialize rendering resources.
+#if WITH_EDITOR
+	constexpr bool bInitResources = true;
+	EnsureRenderDataIsCooked(bInitResources);
+#else
 	if (FApp::CanEverRender())
 	{
 		InitResources();
 	}
+#endif
 
 #if WITH_EDITORONLY_DATA
 	if (!RootProxy_DEPRECATED.IsNull())
@@ -1996,6 +2092,30 @@ const TArray<UAssetUserData*>* UGeometryCollection::GetAssetUserDataArray() cons
 {
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 }
+
+TObjectPtr<UDataflowBaseContent> UGeometryCollection::CreateDataflowContent()
+{
+	TObjectPtr<UDataflowBaseContent> BaseContent = NewObject<UDataflowBaseContent>();
+
+	BaseContent->SetDataflowOwner(this);
+	BaseContent->SetTerminalAsset(this);
+	
+	WriteDataflowContent(BaseContent);
+	
+	return BaseContent;
+}
+
+void UGeometryCollection::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+{
+	if(const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(DataflowContent))
+	{
+		BaseContent->SetDataflowAsset(DataflowAsset);
+		BaseContent->SetDataflowTerminal(DataflowTerminal);
+	}
+}
+
+void UGeometryCollection::ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+{}
 
 #if WITH_EDITOR
 bool UGeometryCollection::CanEditChange(const FProperty* InProperty) const

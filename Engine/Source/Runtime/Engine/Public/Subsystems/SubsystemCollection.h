@@ -55,6 +55,12 @@ public:
 	/** Collect references held by this collection */
 	ENGINE_API void AddReferencedObjects(UObject* Referencer, FReferenceCollector& Collector);
 protected:
+	struct FSubsystemArray
+	{
+		TArray<USubsystem*> Subsystems;
+		mutable bool bIsIterating = false; // Safety check to avoid removals during iteration but allow index-based iteration
+	};
+
 	/** protected constructor - for use by the template only(FSubsystemCollection<TBaseType>) */
 	ENGINE_API FSubsystemCollectionBase(UClass* InBaseType);
 
@@ -67,25 +73,41 @@ protected:
 	/** Get a Subsystem by type */
 	ENGINE_API USubsystem* GetSubsystemInternal(UClass* SubsystemClass) const;
 
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachSubsystemOfClass or GetSubsystemArrayCopy instead")
 	/** Get a list of Subsystems by type */
 	ENGINE_API const TArray<USubsystem*>& GetSubsystemArrayInternal(UClass* SubsystemClass) const;
+
+	// Fetch a list of subsystems that derive from the given class, populating the cache if necessary
+	ENGINE_API FSubsystemArray& FindAndPopulateSubsystemArrayInternal(UClass* SubsystemClass) const;
+
+	/** Get a list of Subsystems by type */
+	ENGINE_API TArray<USubsystem*> GetSubsystemArrayCopy(UClass* SubsystemClass) const;
+
+	/** 
+	 *  Run the given operation on each registered subsystem.
+	 *  Any new subsystems registered during this operation will also be visited.
+	 *  It is not permitted to remove subsystems (e.g. by calling DeactivateExternalSubsystem) during this operation.
+	 */
+	ENGINE_API void ForEachSubsystem(TFunctionRef<void(USubsystem*)> Operation) const;
+
+	/** Perform an operation on all subsystems that derive from the given class */
+	ENGINE_API void ForEachSubsystemOfClass(UClass* SubsystemClass, TFunctionRef<void(USubsystem*)> Operation) const;
 
 private:
 	ENGINE_API USubsystem* AddAndInitializeSubsystem(UClass* SubsystemClass);
 
 	ENGINE_API void RemoveAndDeinitializeSubsystem(USubsystem* Subsystem);
 
-	ENGINE_API void PopulateSubsystemArrayInternal(UClass* SubsystemClass, TArray<USubsystem*>& SubsystemArray) const;
-
 	TMap<TObjectPtr<UClass>, TObjectPtr<USubsystem>> SubsystemMap;
 
-	mutable TMap<UClass*, TArray<USubsystem*>> SubsystemArrayMap;
+	mutable TMap<UClass*, TUniquePtr<FSubsystemArray>> SubsystemArrayMap;
 
 	UClass* BaseType;
 
 	UObject* Outer;
 
 	bool bPopulating;
+	mutable bool bIterating = false; // True if iterating over SubsystemMap
 
 private:
 	friend class FSubsystemModuleWatcher;
@@ -113,14 +135,35 @@ public:
 
 	/** Get a list of Subsystems by type */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachSubsystem or GetSubsystemArrayCopy instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray(const TSubclassOf<TSubsystemClass>& SubsystemClass) const
 	{
 		// Force a compile time check that TSubsystemClass derives from TBaseType, the internal code only enforces it's a USubsystem
 		TSubclassOf<TBaseType> SubsystemBaseClass = SubsystemClass;
 
-		const TArray<USubsystem*>& Array = GetSubsystemArrayInternal(SubsystemBaseClass);
-		const TArray<TSubsystemClass*>* SpecificArray = reinterpret_cast<const TArray<TSubsystemClass*>*>(&Array);
+		FSubsystemArray& Array = FindAndPopulateSubsystemArrayInternal(SubsystemBaseClass);
+		const TArray<TSubsystemClass*>* SpecificArray = reinterpret_cast<const TArray<TSubsystemClass*>*>(&Array.Subsystems);
 		return *SpecificArray;
+	}
+
+	/** Get a list of Subsystems by type */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy(const TSubclassOf<TSubsystemClass>& SubsystemClass) const
+	{
+		// Force a compile time check that TSubsystemClass derives from TBaseType, the internal code only enforces it's a USubsystem
+		TSubclassOf<TBaseType> SubsystemBaseClass = SubsystemClass;
+
+		FSubsystemArray& Array = FindAndPopulateSubsystemArrayInternal(SubsystemBaseClass);
+		return TArray<TSubsystemClass*>(reinterpret_cast<TSubsystemClass**>(Array.Subsystems.GetData()), Array.Subsystems.Num());
+	}
+
+	/** Perform an operation on all subsystems of a given type in the collection */
+	void ForEachSubsystem(TFunctionRef<void(TBaseType*)> Operation, const TSubclassOf<TBaseType>& SubsystemClass = {}) const
+	{
+		// Force a compile time check that TSubsystemClass derives from TBaseType, the internal code only enforces it's a USubsystem
+		ForEachSubsystemOfClass(SubsystemClass , [Operation=MoveTemp(Operation)](USubsystem* Subsystem){
+			Operation(CastChecked<TBaseType>(Subsystem));
+		});
 	}
 
 	/* FGCObject Interface */
@@ -160,14 +203,43 @@ public:
 
 	/** Get a list of Subsystems by type */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachSubsystem or GetSubsystemArrayCopy instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray(const TSubclassOf<TSubsystemClass>& SubsystemClass) const
 	{
 		// Force a compile time check that TSubsystemClass derives from TBaseType, the internal code only enforces it's a USubsystem
 		TSubclassOf<TBaseType> SubsystemBaseClass = SubsystemClass;
 
-		const TArray<USubsystem*>& Array = GetSubsystemArrayInternal(SubsystemBaseClass);
-		const TArray<TSubsystemClass*>* SpecificArray = reinterpret_cast<const TArray<TSubsystemClass*>*>(&Array);
-		return *SpecificArray;
+		FSubsystemArray& Array = FindAndPopulateSubsystemArrayInternal(SubsystemBaseClass);
+		return TArray<TSubsystemClass*>(reinterpret_cast<TSubsystemClass**>(Array.Subsystems.GetData()), Array.Subsystems.Num());
+	}
+
+	/** Get a list of Subsystems by type */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy(const TSubclassOf<TSubsystemClass>& SubsystemClass) const
+	{
+		// Force a compile time check that TSubsystemClass derives from TBaseType, the internal code only enforces it's a USubsystem
+		TSubclassOf<TBaseType> SubsystemBaseClass = SubsystemClass;
+
+		FSubsystemArray& Array = FindAndPopulateSubsystemArrayInternal(SubsystemBaseClass);
+		return TArray<TSubsystemClass*>(reinterpret_cast<TSubsystemClass**>(Array.Subsystems.GetData()), Array.Subsystems.Num());
+	}
+
+	/** Perform an operation on all subsystems in the collection */
+	void ForEachSubsystem(TFunctionRef<void(TBaseType*)> Operation, const TSubclassOf<TBaseType>& SubsystemClass = {}) const
+	{
+		ForEachSubsystemOfClass(SubsystemClass, [Operation=MoveTemp(Operation)](USubsystem* Subsystem){
+			Operation(CastChecked<TBaseType>(Subsystem));
+		});
+	}
+
+	template <typename TSubsystemInterface>
+	void ForEachSubsystemWithInterface(TFunctionRef<void(TBaseType*)> Operation) const
+	{
+		UClass* SubsystemInterfaceClass = TSubsystemInterface::StaticClass();
+		ForEachSubsystemOfClass(SubsystemInterfaceClass, [Operation = MoveTemp(Operation)](USubsystem* Subsystem)
+		{
+			Operation(CastChecked<TBaseType>(Subsystem));
+		});
 	}
 
 public:

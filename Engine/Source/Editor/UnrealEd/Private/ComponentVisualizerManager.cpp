@@ -88,8 +88,7 @@ bool FComponentVisualizerManager::HandleProxyForComponentVis(FEditorViewportClie
 					{
 						if (!ElementSelectionSet->IsElementSelected(SelectedComponentHandle, FTypedElementIsSelectedOptions()))
 						{
-							TArray<FTypedElementHandle> TmpArray = { SelectedComponentHandle };
-							ElementSelectionSet->SetSelection(TmpArray, FTypedElementSelectionOptions());
+							ElementSelectionSet->SelectElement(SelectedComponentHandle, FTypedElementSelectionOptions());
 						}
 					}
 

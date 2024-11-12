@@ -31,6 +31,7 @@
 
 class UMovieSceneSequence;
 class UMovieSceneSubSection;
+class UMovieSceneCondition;
 struct FMovieSceneSequenceID;
 template <typename ElementType> class TRange;
 
@@ -51,6 +52,13 @@ struct FMovieSceneSubSequenceData
 	 * Construction from a movie scene sequence, and a sub section name, and its valid play range
 	 */
 	MOVIESCENE_API FMovieSceneSubSequenceData(const UMovieSceneSubSection& InSubSection);
+
+	/*~ Defined constructors, operators and destructor to work around deprecation warnings on linux */
+	MOVIESCENE_API FMovieSceneSubSequenceData(const FMovieSceneSubSequenceData&);
+	MOVIESCENE_API FMovieSceneSubSequenceData& operator=(const FMovieSceneSubSequenceData&);
+	MOVIESCENE_API FMovieSceneSubSequenceData(FMovieSceneSubSequenceData&&);
+	MOVIESCENE_API FMovieSceneSubSequenceData& operator=(FMovieSceneSubSequenceData&&);
+	MOVIESCENE_API ~FMovieSceneSubSequenceData();
 
 	/**
 	 * Get this sub sequence's sequence asset, potentially loading it through its soft object path
@@ -75,6 +83,7 @@ struct FMovieSceneSubSequenceData
 	/**
 	 * Re-creates a sub-section parameter struct.
 	 */
+	UE_DEPRECATED(5.5, "This function is no longer supported")
 	MOVIESCENE_API FMovieSceneSectionParameters ToSubSectionParameters() const;
 
 	/** The sequence that the sub section references */
@@ -89,6 +98,24 @@ struct FMovieSceneSubSequenceData
 	UPROPERTY()
 	FMovieSceneSequenceTransform RootToSequenceTransform;
 
+#if WITH_EDITORONLY_DATA
+
+	/** Transform that turns local space into warped local space based on a timewarp track that exists in this sequence. */
+	UPROPERTY()
+	FMovieSceneSequenceTransform LocalToWarpedLocalTransform;
+
+	/** The transform from root space to this sub-sequence's unwarped local space. */
+	UPROPERTY()
+	FMovieSceneSequenceTransform RootToUnwarpedLocalTransform;
+
+	UPROPERTY()
+	FMovieSceneTransformBreadcrumbs StartTimeBreadcrumbs;
+
+	UPROPERTY()
+	FMovieSceneTransformBreadcrumbs EndTimeBreadcrumbs;
+
+#endif // WITH_EDITORONLY_DATA
+
 	/** The tick resolution of the inner sequence. */
 	UPROPERTY()
 	FFrameRate TickResolution;
@@ -96,43 +123,14 @@ struct FMovieSceneSubSequenceData
 	/** This sequence's deterministic sequence ID. Used in editor to reduce the risk of collisions on recompilation. */ 
 	UPROPERTY()
 	FMovieSceneSequenceID DeterministicSequenceID;
-
-	/** The play range of the parent section */
-	UPROPERTY()
-	FMovieSceneFrameRange ParentPlayRange;
-
-	/** The start frame offset of the parent section */
-	UPROPERTY()
-	FFrameNumber ParentStartFrameOffset;
-
-	/** The end frame offset of the parent section */
-	UPROPERTY()
-	FFrameNumber ParentEndFrameOffset;
-
-	/** The offset for the first loop of the sub-sequence */
-	UPROPERTY()
-	FFrameNumber ParentFirstLoopStartFrameOffset;
-
-	/** Whether this sub-sequence can loop */
-	UPROPERTY()
-	bool bCanLoop = false;
 	
 	/** This sub sequence's playback range according to its parent sub section. Clamped recursively during template generation */
 	UPROPERTY()
 	FMovieSceneFrameRange PlayRange;
 
-	/** The sub-sequence's full playback range, in its own local time space. */
+	/** The range of the sub-sequence in its parent space. Unclamped. */
 	UPROPERTY()
-	FMovieSceneFrameRange FullPlayRange;
-
-	/**
-	 * The play range of the parent section, without any warping involved.
-	 * That means that, for a sub-sequence playing with an initial offset of 50 and looping 3 times,
-	 * this play range will start 50 frames after PlayRange's lower bound, and extend much past PlayRange's 
-	 * upper bound (3 times longer).
-	 */
-	UPROPERTY()
-	FMovieSceneFrameRange UnwarpedPlayRange;
+	FMovieSceneFrameRange ParentPlayRange;
 
 	/** The sequence preroll range considering the start offset */
 	UPROPERTY()
@@ -150,17 +148,38 @@ struct FMovieSceneSubSequenceData
 	UPROPERTY()
 	EMovieSceneSubSectionFlags AccumulatedFlags;
 
+	/** Whether this sub-sequence can loop */
+	UPROPERTY()
+	bool bCanLoop = false;
+
 	/** Instance data that should be used for any tracks contained immediately within this sub sequence */
 	UPROPERTY()
 	FMovieSceneSequenceInstanceDataPtr InstanceData;
-
-#if WITH_EDITORONLY_DATA
 
 	/** This sequence's path within its movie scene */
 	UPROPERTY()
 	FName SectionPath;
 
+#if WITH_EDITORONLY_DATA
+
+	/** The sub-sequence's full playback range, in its own local time space. */
+	UE_DEPRECATED(5.5, "Please use GetSequence()->GetMovieScene()->GetPlaybackRange().")
+	FMovieSceneFrameRange FullPlayRange;
+	UE_DEPRECATED(5.5, "This field is no longer supported.")
+	FFrameNumber ParentStartFrameOffset;
+	UE_DEPRECATED(5.5, "This field is no longer supported.")
+	FFrameNumber ParentEndFrameOffset;
+	UE_DEPRECATED(5.5, "This field is no longer supported.")
+	FFrameNumber ParentFirstLoopStartFrameOffset;
+	UE_DEPRECATED(5.5, "This field is no longer used")
+	FMovieSceneFrameRange UnwarpedPlayRange;
+
 #endif
+	
+	/* Optional condition pulled off of the UMovieSceneSubSection or UMovieSceneSubTrack */
+	UPROPERTY()
+	TObjectPtr<const UMovieSceneCondition> Condition;
+
 
 private:
 
@@ -207,11 +226,28 @@ struct FMovieSceneSubSequenceTreeEntry
 {
 	GENERATED_BODY()
 
+	FMovieSceneSubSequenceTreeEntry(FMovieSceneSequenceID InSequenceID, ESectionEvaluationFlags InFlags)
+		: SequenceID(InSequenceID)
+		, Flags(InFlags)
+	{}
+
+	MOVIESCENE_API FMovieSceneSubSequenceTreeEntry();
+
+	MOVIESCENE_API FMovieSceneSubSequenceTreeEntry(const FMovieSceneSubSequenceTreeEntry&);
+	MOVIESCENE_API FMovieSceneSubSequenceTreeEntry& operator=(const FMovieSceneSubSequenceTreeEntry&);
+
+	MOVIESCENE_API FMovieSceneSubSequenceTreeEntry(FMovieSceneSubSequenceTreeEntry&&);
+	MOVIESCENE_API FMovieSceneSubSequenceTreeEntry& operator=(FMovieSceneSubSequenceTreeEntry&&);
+
+	MOVIESCENE_API ~FMovieSceneSubSequenceTreeEntry();
+
 	friend FArchive& operator<<(FArchive& Ar, FMovieSceneSubSequenceTreeEntry& InOutEntry);
 	friend bool operator==(const FMovieSceneSubSequenceTreeEntry& A, const FMovieSceneSubSequenceTreeEntry& B);
 
 	FMovieSceneSequenceID SequenceID;
 	ESectionEvaluationFlags Flags;
+
+	UE_DEPRECATED(5.5, "This member is no longer supported")
 	FMovieSceneWarpCounter RootToSequenceWarpCounter;
 };
 
@@ -319,8 +355,24 @@ struct FMovieSceneSequenceHierarchy
 	/**
 	 * Add an entry for the given sub sequence with the given root time range
 	 */
+	void AddRange(const TRange<FFrameNumber>& RootSpaceRange, FMovieSceneSequenceIDRef InSequenceID, ESectionEvaluationFlags InFlags);
+
+	UE_DEPRECATED(5.5, "The RootToSequenceWarpCounter parameter is no longer required or supported")
 	void AddRange(const TRange<FFrameNumber>& RootSpaceRange, FMovieSceneSequenceIDRef InSequenceID, ESectionEvaluationFlags InFlags, FMovieSceneWarpCounter RootToSequenceWarpCounter);
-	
+
+	/**
+	 * Mutate the sub-data for the specified sequence ID - only to be used during compilation
+	 */
+	FMovieSceneSubSequenceData* MutateSubData(FMovieSceneSequenceIDRef SequenceID)
+	{
+		return SequenceID == MovieSceneSequenceID::Root ? nullptr : SubSequences.Find(SequenceID);
+	}
+
+	void SetRootTransform(FMovieSceneSequenceTransform&& InTransform)
+	{
+		RootTransform = MoveTemp(InTransform);
+	}
+
 	/** Get all sub-sequence IDs */
 	void AllSubSequenceIDs(TArray<FMovieSceneSequenceID>& OutSequenceIDs) const
 	{
@@ -354,6 +406,11 @@ struct FMovieSceneSequenceHierarchy
 		AccumulatedNetworkMask &= Mask;
 	}
 
+	const FMovieSceneSequenceTransform& GetRootTransform() const
+	{
+		return RootTransform;
+	}
+
 #if !NO_LOGGING
 	void LogHierarchy() const;
 	void LogSubSequenceTree() const;
@@ -367,6 +424,9 @@ private:
 
 	UPROPERTY()
 	FMovieSceneSubSequenceTree Tree;
+
+	UPROPERTY()
+	FMovieSceneSequenceTransform RootTransform;
 
 	/** Map of all (recursive) sub sequences found in this template, keyed on sequence ID */
 	UPROPERTY()

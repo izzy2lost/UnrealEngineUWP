@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalThirdParty.h"
 #include "MetalProfiler.h"
 
+class FMetalCommandBuffer;
 class FMetalCommandQueue;
 
 /**
@@ -37,21 +38,11 @@ public:
 #pragma mark - Public Command List Mutators -
 
 	/** 
-	 * Commits the provided buffer to the command-list for execution. When parallel encoding this will be submitted later.
+	 * Finalizes the command buffer ready for submission
 	 * @param Buffer The buffer to submit to the command-list.
 	 * @param CompletionHandlers The completion handlers that should be attached to this command-buffer.
-	 * @param bWait Whether to wait for the command buffer to complete - it is an error to set this to true on a deferred command-list.
-	 * @param bIsLastCommandBuffer True if this is the final command buffer in a frame.
 	 */
-	void Commit(FMetalCommandBuffer* Buffer, TArray<FMetalCommandBufferCompletionHandler> CompletionHandlers, bool const bWait, bool const bIsLastCommandBuffer);
-	
-	/**
-	 * Submits all outstanding command-buffers in the proper commit order to the command-queue.
-	 * When more than one command-list is active the command-queue will buffer the command-lists until all are committed to guarantee order of submission to the GPU.
-	 * @param Index The command-list's intended index in the command-queue.
-	 * @param Count The number of command-lists that will be committed to the command-queue.
-	 */
-	void Submit(uint32 Index, uint32 Count);
+	void FinalizeCommandBuffer(FMetalCommandBuffer* Buffer, TArray<FMetalCommandBufferCompletionHandler> CompletionHandlers);
 	
 #pragma mark - Public Command List Accessors -
 	
@@ -67,6 +58,5 @@ public:
 private:
 #pragma mark - Private Member Variables -
 	FMetalCommandQueue& CommandQueue;
-	TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> FrameCommitedBufferTimings;
 	TSharedPtr<FMetalCommandBufferTiming, ESPMode::ThreadSafe> LastCompletedBufferTiming;
 };

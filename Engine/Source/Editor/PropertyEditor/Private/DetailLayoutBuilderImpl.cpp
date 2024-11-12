@@ -202,11 +202,19 @@ IDetailPropertyRow* FDetailLayoutBuilderImpl::EditDefaultProperty(TSharedPtr<IPr
 			FName CategoryFName = FObjectEditorUtils::GetCategoryFName(Property);
 
 			// Get the layout builder's category builder
-			TSharedPtr<FDetailCategoryImpl> DefaultCategory = DefaultCategoryMap.FindRef(CategoryFName);
-
-			if(DefaultCategory.IsValid())
+			TSharedPtr<FDetailCategoryImpl> Category = DefaultCategoryMap.FindRef(CategoryFName);
+			if (!Category.IsValid())
 			{
-				FDetailLayoutCustomization* Customization = DefaultCategory->GetDefaultCustomization(PropertyNode.ToSharedRef());
+				Category = CustomCategoryMap.FindRef(CategoryFName);
+			}
+			if (!Category.IsValid())
+			{
+				Category = SubCategoryMap.FindRef(CategoryFName);
+			}
+
+			if(Category.IsValid())
+			{
+				FDetailLayoutCustomization* Customization = Category->GetDefaultCustomization(PropertyNode.ToSharedRef());
 				if (Customization)
 				{
 					return Customization->PropertyRow.Get();
@@ -451,12 +459,33 @@ void FDetailLayoutBuilderImpl::GenerateDetailLayout()
 				FDetailNodeList ChildNodes;
 				DetailCategory->GenerateLayout();
 				DetailCategory->GetGeneratedChildren(ChildNodes, /*bIgnoreVisibility*/true, /*bIgnoreAdvancedDropdown*/true);
-
+				TArray<TSharedPtr<FPropertyNode>> AddedNodes;
 				for (const TSharedRef<FDetailTreeNode>& ChildNode : ChildNodes)
 				{
 					TSharedPtr<FPropertyNode> PropertyNode = ChildNode->GetPropertyNode();
 					if (!PropertyNode.IsValid())
 					{
+						// If we don't have a property node, then we're likely a custom generated node from a parent node. 
+						// If so, add the parent node to the parent category if it has a valid property node, but ensure we don't add more than once, 
+						// as there may be more than one custom row added.
+						TWeakPtr<FDetailTreeNode> ParentNode = ChildNode->GetParentNode();
+						if (ParentNode.IsValid())
+						{
+							PropertyNode = ParentNode.Pin()->GetPropertyNode();
+							if (AddedNodes.Contains(PropertyNode))
+							{
+								continue;
+							}
+						}
+						if (!PropertyNode.IsValid())
+						{
+							continue;
+						}
+					}
+					else if (ChildNode->GetExternalRootPropertyNode()) 
+					{
+						// Also skip children that have been added externally, as those are likely generated from one of the other
+						// child nodes, and will be generated again upon moving that node to the outer category
 						continue;
 					}
 
@@ -468,6 +497,7 @@ void FDetailLayoutBuilderImpl::GenerateDetailLayout()
 						InstanceName = ParentNode->GetProperty()->GetFName();
 					}
 					ParentDetailCategory->AddPropertyNode(PropertyNode.ToSharedRef(), InstanceName);
+					AddedNodes.Add(PropertyNode);
 				}
 			}
 
@@ -1109,6 +1139,15 @@ bool FDetailLayoutBuilderImpl::IsPropertyPathAllowed(const FString& InPath) cons
 	}
 
 	return false;
+}
+
+void FDetailLayoutBuilderImpl::DisableInstancedReference(TSharedRef<IPropertyHandle> PropertyHandle) const
+{
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode(PropertyHandle);
+	if (PropertyNode.IsValid())
+	{
+		PropertyNode->SetIgnoreInstancedReference();
+	}
 }
 
 bool FDetailLayoutBuilderImpl::AddEmptyCategoryIfNeeded(TSharedPtr<FComplexPropertyNode> Node)

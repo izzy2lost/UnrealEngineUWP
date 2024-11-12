@@ -9,6 +9,7 @@
 #include "MetasoundParameterPack.h"
 #include "MetasoundRouter.h"
 #include "MetasoundTrigger.h"
+#include "MetasoundRenderCost.h"
 #include "MetasoundVertex.h"
 #include "MetasoundVertexData.h"
 
@@ -79,6 +80,30 @@ namespace Metasound
 		};
 	}
 
+	/** ID for looking up a operator in the operator pool */
+	struct METASOUNDGENERATOR_API FOperatorPoolEntryID final
+	{
+		/** Construct an ID
+		 *
+		 * InOperatorID - ID of the operator.
+		 * InSettings - Operator settings used to create the operator.
+		 */
+		FOperatorPoolEntryID(FGuid InOperatorID, FOperatorSettings InSettings);
+
+		FString ToString() const;
+
+		METASOUNDGENERATOR_API friend bool operator<(const FOperatorPoolEntryID& InLHS, const FOperatorPoolEntryID& InRHS);
+		METASOUNDGENERATOR_API friend bool operator==(const FOperatorPoolEntryID& InLHS, const FOperatorPoolEntryID& InRHS);
+		friend FORCEINLINE uint32 GetTypeHash(const FOperatorPoolEntryID& InID)
+		{
+			return HashCombineFast(GetTypeHash(InID.OperatorID), GetTypeHash(InID.OperatorSettings));
+		}
+
+	private:
+		FGuid OperatorID;
+		FOperatorSettings OperatorSettings;
+	};
+
 	// Struct needed for building the metasound graph
 	struct METASOUNDGENERATOR_API FMetasoundGeneratorInitParams
 	{
@@ -91,8 +116,23 @@ namespace Metasound
 		TArray<FAudioParameter> DefaultParameters;
 		bool bBuildSynchronous = false;
 		TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel;
+		TSharedPtr<FGraphRenderCost> GraphRenderCost;
 
 		static void Reset(FMetasoundGeneratorInitParams& InParams);
+	};
+
+	enum class EVertexInterfaceChangeType : uint8
+	{
+		Added,
+		Updated,
+		Removed
+	};
+
+	struct METASOUNDGENERATOR_API FVertexInterfaceChange
+	{
+		FVertexName VertexName;
+		EMetasoundFrontendClassType VertexType; // Input or Output
+		EVertexInterfaceChangeType ChangeType;
 	};
 
 	DECLARE_TS_MULTICAST_DELEGATE(FOnSetGraph);
@@ -191,6 +231,9 @@ namespace Metasound
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnVertexInterfaceDataUpdated, FVertexInterfaceData);
 		FOnVertexInterfaceDataUpdated OnVertexInterfaceDataUpdated;
 
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnVertexInterfaceDataUpdatedWithChanges, const TArray<FVertexInterfaceChange>&);
+		FOnVertexInterfaceDataUpdatedWithChanges OnVertexInterfaceDataUpdatedWithChanges;
+
 		/**
 		 * Add a vertex analyzer for a named output with the given address info.
 		 *
@@ -213,8 +256,9 @@ namespace Metasound
 
 		//~ Begin FSoundGenerator
 		virtual int32 OnGenerateAudio(float* OutAudio, int32 NumSamples) override;
-		int32 GetDesiredNumSamplesToRenderPerCallback() const override;
-		bool IsFinished() const override;
+		virtual int32 GetDesiredNumSamplesToRenderPerCallback() const override;
+		virtual bool IsFinished() const override;
+		virtual float GetRelativeRenderCost() const override;
 		//~ End FSoundGenerator
 
 		/** Enables the performance timing of the metasound rendering process. You
@@ -225,7 +269,6 @@ namespace Metasound
 
 		/** Fraction of a single CPU core used to render audio on a scale of 0.0 to 1.0 */
 		double GetCPUCoreUtilization() const;
-
 
 		// Called when a new graph has been "compiled" and set up as this generator's graph.
 		// Note: We don't allow direct assignment to the FOnSetGraph delegate
@@ -244,7 +287,7 @@ namespace Metasound
 
 	protected:
 
-		void InitBase(const FMetasoundGeneratorInitParams& InInitParams);
+		void InitBase(FMetasoundGeneratorInitParams& InInitParams);
 
 
 		/** SetGraph directly sets graph. Callers must ensure that no race conditions exist. */
@@ -263,6 +306,7 @@ namespace Metasound
 		void ClearGraph();
 		bool UpdateGraphIfPending();
 
+		UE_DEPRECATED(5.5, "Use VertexInterfaceChangesSinceLastBroadcast to determine if changes have occurred.")
 		std::atomic<bool> bVertexInterfaceHasChanged{ false };
 
 	private:
@@ -306,6 +350,7 @@ namespace Metasound
 	protected:
 		FExecuter RootExecuter;
 		FVertexInterfaceData VertexInterfaceData;
+		TArray<FVertexInterfaceChange> VertexInterfaceChangesSinceLastBroadcast;
 
 		TArray<FAudioBufferReadRef> GraphOutputAudio;
 
@@ -353,6 +398,9 @@ namespace Metasound
 		double RenderTime;
 		bool bDoRuntimeRenderTiming;
 		TUniquePtr<MetasoundGeneratorPrivate::FRenderTimer> RenderTimer;
+
+		TSharedPtr<FGraphRenderCost> GraphRenderCost;
+		std::atomic<float> RelativeRenderCost;
 	};
 
 	/** FMetasoundConstGraphGenerator generates audio from a given metasound IOperator
@@ -378,7 +426,7 @@ namespace Metasound
 
 		TUniquePtr<FMetasoundEnvironment> EnvironmentPtr;
 		TUniquePtr<FAsyncTaskBase> BuilderTask;
-		FGuid OperatorID;
+		TOptional<FOperatorPoolEntryID> OperatorPoolID;
 		bool bUseOperatorPool = false;
 	};
 

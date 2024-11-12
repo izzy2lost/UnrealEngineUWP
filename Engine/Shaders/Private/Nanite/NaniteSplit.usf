@@ -79,7 +79,7 @@ bool FSplitTask::Load( QueueType WorkQueue, uint Offset )
 {
 	checkSlow( Offset < WorkQueue.Size );
 	QueueOffset = Offset;
-	Encoded = WorkQueue.DataBuffer.Load4( Offset * 16 );
+	Encoded = WorkQueue.DataBuffer_Load4( Offset * 16 );
 
 	return
 		Encoded.x != ~0u &&
@@ -97,7 +97,7 @@ void FSplitTask::Store( QueueType WorkQueue, uint Offset )
 		Encoded.z != ~0u &&
 		Encoded.w != ~0u );
 
-	WorkQueue.DataBuffer.Store4( Offset * 16, Encoded );
+	WorkQueue.DataBuffer_Store4( Offset * 16, Encoded );
 }
 
 template< typename QueueType >
@@ -106,7 +106,7 @@ void FSplitTask::Clear( QueueType WorkQueue, uint Offset )
 	// TODO this could be at if( bIsBoundary ) at end of DistributeWork loop if latency is important.
 	WorkQueue.ReleaseTask();
 	if( QueueOffset != ~0u )
-		WorkQueue.DataBuffer.Store4( Offset * 16, ~0u );
+		WorkQueue.DataBuffer_Store4( Offset * 16, ~0u );
 }
 
 uint FSplitTask::Run()
@@ -150,6 +150,8 @@ uint FSplitTask::Run()
 	float3 AvgNormal = 0;
 	float3 PointView[3];
 	float3 NormalLocal[3];
+
+	UNROLL
 	for( int i = 0; i < 3; i++ )
 	{
 		float3 PointPostDeform = 
@@ -164,9 +166,9 @@ uint FSplitTask::Run()
 		PointView[i] = mul( float4( PointTranslatedWorld, 1 ), NaniteView.TranslatedWorldToView ).xyz;
 
 		NormalLocal[i] = 
-			Verts[0].Normal * Patch.Barycentrics[i].x +
-			Verts[1].Normal * Patch.Barycentrics[i].y +
-			Verts[2].Normal * Patch.Barycentrics[i].z;
+			Verts[0].TangentBasis.TangentZ * Patch.Barycentrics[i].x +
+			Verts[1].TangentBasis.TangentZ * Patch.Barycentrics[i].y +
+			Verts[2].TangentBasis.TangentZ * Patch.Barycentrics[i].z;
 		NormalLocal[i] = normalize( NormalLocal[i] );
 
 		AvgNormal += NormalLocal[i];
@@ -196,14 +198,13 @@ uint FSplitTask::Run()
 	BoundsExtent += GetLocalMaxWPOExtent( PrimitiveData, InstanceData, bWPOEnabled );
 
 	FBoxCull Cull;
-	Cull.Init( NaniteView, BoundsCenter, BoundsExtent, InstanceData.NonUniformScale.xyz, InstanceDynamicData.LocalToTranslatedWorld, InstanceDynamicData.PrevLocalToTranslatedWorld );
+	Cull.Init( NaniteView, BoundsCenter, BoundsExtent, InstanceData.NonUniformScale, InstanceDynamicData.LocalToTranslatedWorld, InstanceDynamicData.PrevLocalToTranslatedWorld );
 	Cull.Distance();
 	Cull.GlobalClipPlane();
 
 #if VIRTUAL_TEXTURE_TARGET
 	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
-	const bool bHasMoved = InstanceDynamicData.bHasMoved || bWPOEnabled;
-	Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+	Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 #endif
 
 	Cull.FrustumHZB( true );
@@ -211,7 +212,8 @@ uint FSplitTask::Run()
 	if( !Cull.bIsVisible )
 		return 0;
 
-	float3 TessFactors = GetTessFactors( NaniteView, PointView );
+	const float LowTessDistance = CalcDisplacementLowTessDistance( PrimitiveData, InstanceData, NaniteView );
+	float3 TessFactors = GetTessFactors( NaniteView, PointView, LowTessDistance );
 
 #if 0 // Avoid infinite recursion
 	for( int i = 0; i < 3; i++ )
@@ -253,7 +255,7 @@ uint FSplitTask::Run()
 			{
 			#if NANITE_TESSELLATION_PATCH_REFS
 				RWVisiblePatches.Store2( WriteOffset * 8, uint2( QueueOffset, TessellatedPatch.GetPattern() ) );
-				SplitWorkQueue.DataBuffer.Store4( QueueOffset * 16, Encoded );
+				SplitWorkQueue.DataBuffer_Store4( QueueOffset * 16, Encoded );
 				QueueOffset = ~0u;
 			#else
 				RWVisiblePatches.Store4( WriteOffset * 16, Encoded );
@@ -333,7 +335,7 @@ RWBuffer<uint> OutClearQueueArgs;
 [numthreads(1, 1, 1)]
 void InitClearQueueArgs()
 {
-	const uint NumElements = min(SplitWorkQueue.StateBuffer[0].WriteOffset, SplitWorkQueue.Size);
+	const uint NumElements = min(SplitWorkQueue.GetState(0).WriteOffset, SplitWorkQueue.Size);
 	OutClearQueueArgs[0] = (NumElements + 63) / 64;
 	OutClearQueueArgs[1] = 1;
 	OutClearQueueArgs[2] = 1;
@@ -342,10 +344,10 @@ void InitClearQueueArgs()
 [numthreads(64, 1, 1)]
 void ClearQueue(uint DispatchThreadID : SV_DispatchThreadID)
 {
-	const uint NumElements = min(SplitWorkQueue.StateBuffer[0].WriteOffset, SplitWorkQueue.Size);
+	const uint NumElements = min(SplitWorkQueue.GetState(0).WriteOffset, SplitWorkQueue.Size);
 	if (DispatchThreadID < NumElements)
 	{
-		SplitWorkQueue.DataBuffer.Store4(DispatchThreadID * 16, ~0u);
+		SplitWorkQueue.DataBuffer_Store4(DispatchThreadID * 16, ~0u);
 	}
 }
 

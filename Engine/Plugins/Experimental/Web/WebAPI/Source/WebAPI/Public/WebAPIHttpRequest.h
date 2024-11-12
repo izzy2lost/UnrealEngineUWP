@@ -215,15 +215,6 @@ TRequest<PayloadType>& TRequest<PayloadType>::BindCompletionCallback(TFunction<v
 	return *this;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-template <typename PayloadType>
-TRequest<PayloadType>& TRequest<PayloadType>::BindProgressCallback(TFunction<void(FHttpRequestPtr, int32, int32)> ProgressCallback)
-{
-	InternalRequest->OnRequestProgress().BindLambda(MoveTemp(ProgressCallback));
-	return *this;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 template <typename PayloadType>
 TRequest<PayloadType>& TRequest<PayloadType>::BindProgressCallback64(TFunction<void(FHttpRequestPtr, uint64, uint64)> ProgressCallback)
 {

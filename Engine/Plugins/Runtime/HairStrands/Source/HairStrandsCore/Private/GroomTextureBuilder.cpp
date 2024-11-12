@@ -10,6 +10,7 @@
 #include "RenderGraphUtils.h"
 #include "RHI.h"
 #include "RHIStaticStates.h"
+#include "ShaderCompilerCore.h"
 #include "ShaderParameterStruct.h"
 #include "GlobalShader.h"
 //#include "ShaderPrint.h"
@@ -29,9 +30,6 @@
 // triggering RenderDoc capture when generating groom textures
 #define DEBUG_TEXTURE_GENERATION 0
 #define DEBUG_TEXTURE_RENDERDOC 0
-
-static int32 GHairStrandsTextureDilationPassCount = 8;
-static FAutoConsoleVariableRef CVarHairStrandsTextureDilationPassCount(TEXT("r.HairStrands.Textures.DilationCount"), GHairStrandsTextureDilationPassCount, TEXT("Number of dilation pass run onto the generated hair strands textures (Default:8)."));
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -242,7 +240,7 @@ static void InternalGenerateFollicleTexture_GPU(
 	{
 		if (OutTexture && OutTexture->GetResource() && OutTexture->GetResource()->GetTexture2DRHI())
 		{
-			FRHITexture2D* DstTexture = OutTexture->GetResource()->GetTexture2DRHI();
+			FRHITexture* DstTexture = OutTexture->GetResource()->GetTexture2DRHI();
 			RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
 
 			FRHICopyTextureInfo CopyInfo;
@@ -480,6 +478,11 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		// Work around issues with HLSLcc by switching to DXC
+		if (IsHlslccShaderPlatform(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
 		OutEnvironment.SetDefine(TEXT("SHADER_TEXTURE_CLEAR"), 1);
 	}
 };
@@ -682,17 +685,15 @@ class FHairStrandsTextureVS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FHairStrandsTextureVS);
 	SHADER_USE_PARAMETER_STRUCT(FHairStrandsTextureVS, FGlobalShader)
 
-		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FIntPoint, OutputResolution)
 		SHADER_PARAMETER(uint32, VertexCount)
-
 		SHADER_PARAMETER(uint32, UVsChannelIndex)
 		SHADER_PARAMETER(uint32, UVsChannelCount)
-
 		SHADER_PARAMETER_SRV(Buffer, VertexBuffer)
 		SHADER_PARAMETER_SRV(Buffer, UVsBuffer)
 		SHADER_PARAMETER_SRV(Buffer, NormalsBuffer)
-		END_SHADER_PARAMETER_STRUCT()
+	END_SHADER_PARAMETER_STRUCT()
 
 		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Tool, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -702,19 +703,48 @@ class FHairStrandsTextureVS : public FGlobalShader
 	}
 };
 
+class FHairStrandsTexturePS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FHairStrandsTexturePS);
+	SHADER_USE_PARAMETER_STRUCT(FHairStrandsTexturePS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FIntPoint, OutputResolution)
+		SHADER_PARAMETER(uint32, VertexCount)
+		SHADER_PARAMETER(uint32, UVsChannelIndex)
+		SHADER_PARAMETER(uint32, UVsChannelCount)
+		SHADER_PARAMETER_SRV(Buffer, VertexBuffer)
+		SHADER_PARAMETER_SRV(Buffer, UVsBuffer)
+		SHADER_PARAMETER_SRV(Buffer, NormalsBuffer)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Tool, Parameters.Platform); }
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_PIXEL"), 1);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FHairStrandsTextureVS, "/Engine/Private/HairStrands/HairStrandsTexturesGeneration.usf", "MainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FHairStrandsTexturePS, "/Engine/Private/HairStrands/HairStrandsTexturesGeneration.usf", "MainPS", SF_Pixel);
+
 BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsInstanceRawParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FHairStrandsInstanceCommonParameters, Common)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FHairStrandsInstanceResourceRawParameters, Resources)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FHairStrandsInstanceCullingRawParameters, Culling)
 END_SHADER_PARAMETER_STRUCT()
 
-class FHairStrandsTexturePS : public FGlobalShader
+class FHairStrandsTextureCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FHairStrandsTexturePS);
-	SHADER_USE_PARAMETER_STRUCT(FHairStrandsTexturePS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FHairStrandsTextureCS);
+	SHADER_USE_PARAMETER_STRUCT(FHairStrandsTextureCS, FGlobalShader)
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
+		SHADER_PARAMETER(FIntPoint, TileSize)
+		SHADER_PARAMETER(FIntPoint, TileOffsetInPixels)
 		SHADER_PARAMETER(uint32, LayoutIndex)
 		SHADER_PARAMETER(FIntPoint, OutputResolution)
 		SHADER_PARAMETER(uint32, VertexCount)
@@ -741,19 +771,28 @@ class FHairStrandsTexturePS : public FGlobalShader
 		SHADER_PARAMETER_SRV(Buffer, UVsBuffer)
 		SHADER_PARAMETER_SRV(Buffer, NormalsBuffer)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTexture)
-		RENDER_TARGET_BINDING_SLOTS()
+
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PositionTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TangentTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, BitangentTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, NormalTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UVTexture)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Tool, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_PIXEL"), 1);
+		// Work around issues with HLSLcc by switching to DXC
+		if (IsHlslccShaderPlatform(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
+		OutEnvironment.SetDefine(TEXT("SHADER_COMPUTE"), 1);
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FHairStrandsTextureVS, "/Engine/Private/HairStrands/HairStrandsTexturesGeneration.usf", "MainVS", SF_Vertex);
-IMPLEMENT_GLOBAL_SHADER(FHairStrandsTexturePS, "/Engine/Private/HairStrands/HairStrandsTexturesGeneration.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FHairStrandsTextureCS, "/Engine/Private/HairStrands/HairStrandsTexturesGeneration.usf", "MainCS", SF_Compute);
 
 
 const int32 HairStrandsTextureTileSize = 1024;
@@ -846,114 +885,131 @@ static void InternalGenerateHairStrandsTextures(
 {
 	const FIntPoint OutputResolution = Out.Texture->Desc.Extent;
 	const FIntPoint OutTileCoord = Out.TileCoord;
+	const int32 TileSize = HairStrandsTextureTileSize;
+	const FIntPoint TileOffsetInPixels(OutTileCoord.X * TileSize, OutTileCoord.Y * TileSize);
 
-	FHairStrandsTexturePS::FParameters* ParametersPS = GraphBuilder.AllocParameters<FHairStrandsTexturePS::FParameters>();
-	ParametersPS->LayoutIndex = uint32(Out.Layout);
-	ParametersPS->OutputResolution = OutputResolution;
-	ParametersPS->VertexCount = VertexCount;
-	ParametersPS->VertexBuffer = InMeshVertexBuffer;
-	ParametersPS->UVsBuffer = InMeshUVsBuffer;
-	ParametersPS->NormalsBuffer = InMeshNormalsBuffer;
-	ParametersPS->MaxDistance = FMath::Abs(InMaxDistance);
-	ParametersPS->TracingDirection = InTracingDirection;
+	FRDGTextureRef PositionTexture 	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputResolution, PF_A32B32G32R32F, 	FClearValueBinding(FLinearColor(0, 0, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("HairTextureGeneration.Position"));
+	FRDGTextureRef TangentTexture 	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputResolution, PF_FloatRGBA, 		FClearValueBinding(FLinearColor(0, 0, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("HairTextureGeneration.Tangent"));
+	FRDGTextureRef BitangentTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputResolution, PF_FloatRGBA, 		FClearValueBinding(FLinearColor(0, 0, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("HairTextureGeneration.Bitangent"));
+	FRDGTextureRef NormalTexture 	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputResolution, PF_FloatRGBA, 		FClearValueBinding(FLinearColor(0, 0, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("HairTextureGeneration.Normal"));
+	FRDGTextureRef UVTexture 		= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputResolution, PF_G32R32F, 		FClearValueBinding(FLinearColor(0, 0, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("HairTextureGeneration.UV"));
 
-	ParametersPS->UVsChannelIndex = UVsChannelIndex;
-	ParametersPS->UVsChannelCount = UVsChannelCount;
-
-	ParametersPS->InVF = Instance;
-	
-	ParametersPS->Voxel_MinBound = VoxelMinBound;
-	ParametersPS->Voxel_MaxBound = VoxelMaxBound;
-	ParametersPS->Voxel_Resolution = VoxelResolution;
-	ParametersPS->Voxel_Size = VoxelSize;
-	ParametersPS->Voxel_MaxSegmentPerVoxel = VoxelMaxSegmentPerVoxel;
-	ParametersPS->Voxel_OffsetAndCount = GraphBuilder.CreateSRV(VoxelOffsetAndCount);
-	ParametersPS->Voxel_Data = GraphBuilder.CreateSRV(VoxelData);
-
-	ParametersPS->Voxel_OffsetAndCount_MaxCount = VoxelOffsetAndCount->Desc.NumElements;
-	ParametersPS->Voxel_Data_MaxCount = VoxelData->Desc.NumElements;
-
-	if (ShaderPrintData)
+	// Raster geometry
+	// This pass emits a GBuffer like output. It avoids having multiple PS invocations due to overdraw and lack of early-Z testing (due to SV_Depth output)
 	{
-		ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, ParametersPS->ShaderPrintParameters);
+		FHairStrandsTexturePS::FParameters* ParametersPS = GraphBuilder.AllocParameters<FHairStrandsTexturePS::FParameters>();
+		ParametersPS->OutputResolution = OutputResolution;
+		ParametersPS->VertexCount = VertexCount;
+		ParametersPS->VertexBuffer = InMeshVertexBuffer;
+		ParametersPS->UVsBuffer = InMeshUVsBuffer;
+		ParametersPS->NormalsBuffer = InMeshNormalsBuffer;
+		ParametersPS->UVsChannelIndex = UVsChannelIndex;
+		ParametersPS->UVsChannelCount = UVsChannelCount;
+		ParametersPS->RenderTargets[0] = FRenderTargetBinding(PositionTexture, ERenderTargetLoadAction::EClear);
+		ParametersPS->RenderTargets[1] = FRenderTargetBinding(TangentTexture, ERenderTargetLoadAction::EClear);
+		ParametersPS->RenderTargets[2] = FRenderTargetBinding(BitangentTexture, ERenderTargetLoadAction::EClear);
+		ParametersPS->RenderTargets[3] = FRenderTargetBinding(NormalTexture, ERenderTargetLoadAction::EClear);
+		ParametersPS->RenderTargets[4] = FRenderTargetBinding(UVTexture, ERenderTargetLoadAction::EClear);
+		ParametersPS->RenderTargets[5] = FRenderTargetBinding(Out.TriangleMaskTexture, bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
+		ParametersPS->RenderTargets.DepthStencil = FDepthStencilBinding(
+			Out.DepthTestTexture,
+			bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad,
+			ERenderTargetLoadAction::ENoAction,
+			FExclusiveDepthStencil::DepthWrite_StencilNop);
+
+		TShaderMapRef<FHairStrandsTextureVS> VertexShader(ShaderMap);
+		TShaderMapRef<FHairStrandsTexturePS> PixelShader(ShaderMap);
+
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("HairStrands::TexturePS"),
+			ParametersPS,
+			ERDGPassFlags::Raster,
+			[ParametersPS, VertexShader, PixelShader, InMeshIndexBuffer, VertexCount, PrimitiveCount, IndexBaseIndex, VertexBaseIndex, OutputResolution, OutTileCoord, TileOffsetInPixels](FRDGAsyncTask, FRHICommandList& RHICmdList)
+			{
+				FHairStrandsTextureVS::FParameters ParametersVS;
+				ParametersVS.OutputResolution	= ParametersPS->OutputResolution;
+				ParametersVS.VertexCount 		= ParametersPS->VertexCount;
+				ParametersVS.VertexBuffer 		= ParametersPS->VertexBuffer;
+				ParametersVS.UVsBuffer 			= ParametersPS->UVsBuffer;
+				ParametersVS.NormalsBuffer 		= ParametersPS->NormalsBuffer;
+				ParametersVS.UVsChannelIndex	= ParametersPS->UVsChannelIndex;
+				ParametersVS.UVsChannelCount	= ParametersPS->UVsChannelCount;
+
+				FGraphicsPipelineStateInitializer GraphicsPSOInit;
+				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+				GraphicsPSOInit.BlendState = TStaticBlendState<
+					CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+					CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+					CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+					CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+					CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero> ::GetRHI();
+
+				GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<true, CF_LessEqual>::GetRHI();
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+				GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), ParametersVS);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *ParametersPS);
+
+				RHICmdList.SetStreamSource(0, nullptr, 0);
+				RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
+			
+				// The visibility pass is no longer tile in order to avoid issue at tile borde, preventing to compute derivative during the tracing step
+				RHICmdList.DrawIndexedPrimitive(InMeshIndexBuffer, VertexBaseIndex, 0, VertexCount, IndexBaseIndex, PrimitiveCount, 1);
+			});
 	}
 
-	ParametersPS->OutTexture = GraphBuilder.CreateUAV(Out.Texture);
-	ParametersPS->RenderTargets[0] = FRenderTargetBinding(Out.TriangleMaskTexture, bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
-	ParametersPS->RenderTargets.DepthStencil = FDepthStencilBinding(
-		Out.DepthTestTexture,
-		bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad,
-		ERenderTargetLoadAction::ENoAction,
-		FExclusiveDepthStencil::DepthWrite_StencilNop);
+	// Evaluate material
+	{
+		FHairStrandsTextureCS::FParameters* ParametersCS = GraphBuilder.AllocParameters<FHairStrandsTextureCS::FParameters>();
+		ParametersCS->TileSize = TileSize;
+		ParametersCS->TileOffsetInPixels = TileOffsetInPixels;
+		ParametersCS->LayoutIndex = uint32(Out.Layout);
+		ParametersCS->OutputResolution = OutputResolution;
+		ParametersCS->VertexCount = VertexCount;
+		ParametersCS->VertexBuffer = InMeshVertexBuffer;
+		ParametersCS->UVsBuffer = InMeshUVsBuffer;
+		ParametersCS->NormalsBuffer = InMeshNormalsBuffer;
+		ParametersCS->MaxDistance = FMath::Abs(InMaxDistance);
+		ParametersCS->TracingDirection = InTracingDirection;
+		ParametersCS->UVsChannelIndex = UVsChannelIndex;
+		ParametersCS->UVsChannelCount = UVsChannelCount;
+		ParametersCS->InVF = Instance;
+		ParametersCS->Voxel_MinBound = VoxelMinBound;
+		ParametersCS->Voxel_MaxBound = VoxelMaxBound;
+		ParametersCS->Voxel_Resolution = VoxelResolution;
+		ParametersCS->Voxel_Size = VoxelSize;
+		ParametersCS->Voxel_MaxSegmentPerVoxel = VoxelMaxSegmentPerVoxel;
+		ParametersCS->Voxel_OffsetAndCount = GraphBuilder.CreateSRV(VoxelOffsetAndCount);
+		ParametersCS->Voxel_Data = GraphBuilder.CreateSRV(VoxelData);
+		ParametersCS->Voxel_OffsetAndCount_MaxCount = VoxelOffsetAndCount->Desc.NumElements;
+		ParametersCS->Voxel_Data_MaxCount = VoxelData->Desc.NumElements;
+		
+		ParametersCS->PositionTexture 	= PositionTexture;
+		ParametersCS->TangentTexture 	= TangentTexture;
+		ParametersCS->BitangentTexture  = BitangentTexture;
+		ParametersCS->NormalTexture 	= NormalTexture;
+		ParametersCS->UVTexture 		= UVTexture;
+		ParametersCS->OutTexture 		= GraphBuilder.CreateUAV(Out.Texture);
 
-	TShaderMapRef<FHairStrandsTextureVS> VertexShader(ShaderMap);
-	TShaderMapRef<FHairStrandsTexturePS> PixelShader(ShaderMap);
-
-	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("HairStrandsTexturePS"),
-		ParametersPS,
-		ERDGPassFlags::Raster,
-		[ParametersPS, VertexShader, PixelShader, InMeshIndexBuffer, VertexCount, PrimitiveCount, IndexBaseIndex, VertexBaseIndex, OutputResolution, OutTileCoord](FRHICommandList& RHICmdList)
+		if (ShaderPrintData)
 		{
-			FHairStrandsTextureVS::FParameters ParametersVS;
-			ParametersVS.OutputResolution = ParametersPS->OutputResolution;
-			ParametersVS.VertexCount = ParametersPS->VertexCount;
-			ParametersVS.VertexBuffer = ParametersPS->VertexBuffer;
-			ParametersVS.UVsChannelIndex = ParametersPS->UVsChannelIndex;
-			ParametersVS.UVsChannelCount = ParametersPS->UVsChannelCount;
-			ParametersVS.UVsBuffer = ParametersPS->UVsBuffer;
-			ParametersVS.NormalsBuffer = ParametersPS->NormalsBuffer;
+			ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, ParametersCS->ShaderPrintParameters);
+		}
 
-			FGraphicsPipelineStateInitializer GraphicsPSOInit;
-			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-			GraphicsPSOInit.BlendState = TStaticBlendState<
-				CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
-				CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
-				CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
-				CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
-				CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero> ::GetRHI();
-
-			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<true, CF_LessEqual>::GetRHI();
-			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-			GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-			SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), ParametersVS);
-			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *ParametersPS);
-
-			RHICmdList.SetStreamSource(0, nullptr, 0);
-			RHICmdList.SetViewport(0, 0, 0.0f, OutputResolution.X, OutputResolution.Y, 1.0f);
-			
-			// Divide the rendering work into small batches to reduce risk of TDR as the texture projection implies heavy works 
-			// (i.e. long thread running due the the large amount of strands a groom can have)
-			const int32 TileSize = HairStrandsTextureTileSize;
-			if (OutputResolution.X < TileSize)
-			{
-				RHICmdList.DrawIndexedPrimitive(InMeshIndexBuffer, VertexBaseIndex, 0, VertexCount, IndexBaseIndex, PrimitiveCount, 1);
-
-				// Flush, to ensure that all texture generation is done (TDR)
-				#if 0
-				GDynamicRHI->RHISubmitCommandsAndFlushGPU();
-				GDynamicRHI->RHIBlockUntilGPUIdle();
-				#endif
-			}
-			else
-			{
-				const uint32 OffsetX = OutTileCoord.X * TileSize;
-				const uint32 OffsetY = OutTileCoord.Y * TileSize;
-				RHICmdList.SetScissorRect(true, OffsetX, OffsetY, OffsetX + TileSize, OffsetY + TileSize);
-				RHICmdList.DrawIndexedPrimitive(InMeshIndexBuffer, VertexBaseIndex, 0, VertexCount, IndexBaseIndex, PrimitiveCount, 1);
-
-				// Flush, to ensure that all texture generation is done (TDR)
-				#if 0
-				GDynamicRHI->RHISubmitCommandsAndFlushGPU();
-				GDynamicRHI->RHIBlockUntilGPUIdle();
-				#endif
-			}
-		});
+		TShaderMapRef<FHairStrandsTextureCS> ComputeShader(ShaderMap);
+		const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(TileSize, 8), FMath::DivideAndRoundUp(TileSize, 8), 1);
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("HairStrands::TextureCS"),
+			ComputeShader,
+			ParametersCS,
+			DispatchCount);
+	}
 }
 
 
@@ -1177,7 +1233,7 @@ static bool TraceTextures(
 	return true;
 }
 
-static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FHairStrandsRDGTextures& In)
+static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FHairStrandsRDGTextures& In, uint32 Dilation)
 {
 	const FIntPoint OutputResolution = In.Texture->Desc.Extent;
 
@@ -1191,8 +1247,7 @@ static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobal
 
 	uint32 SourceIndex = 0;
 	uint32 TargetIndex = 0;
-	const uint32 DilationPassCount = FMath::Max(0, GHairStrandsTextureDilationPassCount);
-	for (uint32 DilationIt=0; DilationIt< DilationPassCount; ++DilationIt)
+	for (uint32 DilationIt=0; DilationIt < Dilation; ++DilationIt)
 	{
 		TargetIndex = (SourceIndex + 1) % 2;
 
@@ -1335,7 +1390,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 			#if !DEBUG_TEXTURE_GENERATION
 				if (Textures.IsCompleted())
 				{
-					Textures = DilateTextures(GraphBuilder, ShaderMap, Textures);
+					Textures = DilateTextures(GraphBuilder, ShaderMap, Textures, R->Info.Dilation);
 					CopyTextures(GraphBuilder, ShaderMap, R->Info.Layout, Textures, R->Readback);
 					GStrandsTexturesReadbacks.Enqueue(R);
 				}
@@ -1395,7 +1450,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 
 			if (Textures.IsCompleted())
 			{
-				Textures = DilateTextures(GraphBuilder, ShaderMap, Textures);
+				Textures = DilateTextures(GraphBuilder, ShaderMap, Textures, R->Info.Dilation);
 				CopyTextures(GraphBuilder, ShaderMap, R->Info.Layout, Textures, R->Readback);
 				GStrandsTexturesReadbacks.Enqueue(R);
 			}

@@ -21,7 +21,11 @@ FString UNiagaraStackNote::GetTargetStackEntryKey() const
 
 TOptional<FNiagaraStackNoteData> UNiagaraStackNote::GetTargetStackNoteData() const
 {
-	return GetStackEditorData().GetStackNote(GetTargetStackEntryKey());
+	if (!IsFinalized())
+	{
+		return GetStackEditorData().GetStackNote(GetTargetStackEntryKey());
+	}
+	return {};
 }
 
 void UNiagaraStackNote::ToggleInlineDisplay()

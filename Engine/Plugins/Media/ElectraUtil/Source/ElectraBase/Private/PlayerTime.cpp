@@ -90,7 +90,7 @@ namespace Electra
 			{
 				HNS 		= Numerator;
 				bIsValid	= true;
-				bIsInfinity = false;
+				bIsInfinity = HNS == 0x7fffffffffffffffLL || HNS == -0x7fffffffffffffffLL;
 			}
 			else if (Numerator >= -922337203685LL && Numerator <= 922337203685LL)
 			{
@@ -170,6 +170,11 @@ namespace Electra
 			{
 				LexFromString(Numerator, *(InString.Mid(0, DotIndex)));
 				FString frc = InString.Mid(DotIndex + 1);
+				bool bIsNeg = Numerator < 0;
+				if (bIsNeg)
+				{
+					Numerator = -Numerator;
+				}
 				// Remove all trailing zeros
 				int32 last0 = TimeStringHelpers::FindLastNotOf(frc, kTextZero);
 				if (last0 != INDEX_NONE)
@@ -181,6 +186,10 @@ namespace Electra
 						Numerator = Numerator * 10 + (frc[i] - TCHAR('0'));
 						Denominator *= 10;
 					}
+				}
+				if (bIsNeg)
+				{
+					Numerator = -Numerator;
 				}
 				bIsValid = true;
 			}

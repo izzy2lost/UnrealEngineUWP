@@ -160,6 +160,7 @@ UInteractiveTool* UDrawPolyPathToolBuilder::BuildTool(const FToolBuilderState& S
 {
 	UDrawPolyPathTool* NewTool = NewObject<UDrawPolyPathTool>(SceneState.ToolManager);
 	NewTool->SetWorld(SceneState.World);
+	NewTool->SetInitialDrawFrame(ToolSetupUtil::GetDefaultWorldReferenceFrame(SceneState.ToolManager));
 	return NewTool;
 }
 
@@ -185,8 +186,6 @@ void UDrawPolyPathTool::Setup()
 	HoverBehavior->Initialize(this);
 	HoverBehavior->Modifiers.RegisterModifier(ShiftModifierID, FInputDeviceState::IsShiftKeyDown);
 	AddInputBehavior(HoverBehavior);
-
-	DrawPlaneWorld = FFrame3d();
 
 	PlaneMechanic = NewObject<UConstructionPlaneMechanic>(this);
 	PlaneMechanic->Setup(this);

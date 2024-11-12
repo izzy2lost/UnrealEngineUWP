@@ -1036,10 +1036,7 @@ namespace UnrealBuildTool
 			else
 			{
 				// Remove the existing value and create a new one
-				if (ValueNode.ParentNode != null)
-				{
-					ValueNode.ParentNode.RemoveChild(ValueNode);
-				}
+				ValueNode.ParentNode?.RemoveChild(ValueNode);
 				ValueNode = ConvertValueToPListFormat(Value);
 
 				// Insert the value after the key
@@ -1208,10 +1205,7 @@ namespace UnrealBuildTool
 
 					if (!File.Exists(SourceName))
 					{
-						if (_logger != null)
-						{
-							_logger.LogInformation("Failed to find " + CodeSigningConfig.Program_GameName + "-Info.plist. Please create new .plist or copy a base .plist from a provided game sample.");
-						}
+						_logger?.LogInformation("Failed to find " + CodeSigningConfig.Program_GameName + "-Info.plist. Please create new .plist or copy a base .plist from a provided game sample.");
 					}
 				}
 			}
@@ -1380,12 +1374,12 @@ namespace UnrealBuildTool
 							if (File.Exists(TargetFile))
 							{
 								DestFileInfo = new FileInfo(TargetFile);
-								DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+								DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 							}
 							_logger?.LogInformation("  Copying {0} -> {1}", Provision, TargetFile);
 							File.Copy(Provision, TargetFile, true);
 							DestFileInfo = new FileInfo(TargetFile);
-							DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+							DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 							if (!File.Exists(TargetFile))
 							{
 								_logger?.LogInformation("ERROR: Failed to copy {0} -> {1}", Provision, TargetFile);

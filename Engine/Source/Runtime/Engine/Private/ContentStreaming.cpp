@@ -19,6 +19,9 @@
 #include "AudioCompressionSettingsUtils.h"
 #include "VT/VirtualTextureChunkManager.h"
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
+#include "AutoRTFM/AutoRTFM.h"
+#include "HAL/LowLevelMemStats.h"
+#include "ProfilingDebugging/MetadataTrace.h"
 
 #if WITH_EDITOR
 #include "AudioDevice.h"
@@ -33,8 +36,7 @@
 static TAutoConsoleVariable<int32> CVarMeshStreaming(
 	TEXT("r.MeshStreaming"),
 	0,
-	TEXT("Experimental - ")
-	TEXT("When non zero, enables mesh stremaing.\n"),
+	TEXT("When enabled mesh LODs will stream in based on what is visible on screen."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static int32 GNaniteCoarseMeshStreamingEnabled = 0;
@@ -370,7 +372,15 @@ FStreamingManagerCollection& IStreamingManager::Get()
 {
 	if (StreamingManagerCollection == nullptr)
 	{
-		StreamingManagerCollection = new FStreamingManagerCollection();
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
+		// Since this is a lazily created static global variable we create it
+		// in the open.
+		UE_AUTORTFM_OPEN
+		{
+			StreamingManagerCollection = new FStreamingManagerCollection();
+		};
 	}
 	return *StreamingManagerCollection;
 }
@@ -573,11 +583,11 @@ void IStreamingManager::SetupViewInfos( float DeltaTime )
 		// Check if we're adding any new locations.
 		for ( int32 ViewIndex = 0; ViewIndex < CurrentViewInfos.Num(); ++ViewIndex )
 		{
-			FStreamingViewInfo& ViewInfo = CurrentViewInfos( ViewIndex );
+			FStreamingViewInfo& ViewInfo = CurrentViewInfos[ViewIndex];
 			bool bFound = false;
 			for ( int32 PrevView=0; PrevView < GPrevViewLocations.Num(); ++PrevView )
 			{
-				if ( (ViewInfo.ViewOrigin - GPrevViewLocations(PrevView).ViewOrigin).SizeSquared() < 10000.0f )
+				if ( (ViewInfo.ViewOrigin - GPrevViewLocations[PrevView].ViewOrigin).SizeSquared() < 10000.0f )
 				{
 					bFound = true;
 					break;
@@ -595,8 +605,8 @@ void IStreamingManager::SetupViewInfos( float DeltaTime )
 			bool bFound = false;
 			for ( int32 ViewIndex = 0; ViewIndex < CurrentViewInfos.Num(); ++ViewIndex )
 			{
-				FStreamingViewInfo& ViewInfo = CurrentViewInfos( ViewIndex );
-				if ( (ViewInfo.ViewOrigin - GPrevViewLocations(PrevView).ViewOrigin).SizeSquared() < 10000.0f )
+				FStreamingViewInfo& ViewInfo = CurrentViewInfos[ViewIndex];
+				if ( (ViewInfo.ViewOrigin - GPrevViewLocations[PrevView].ViewOrigin).SizeSquared() < 10000.0f )
 				{
 					bFound = true;
 					break;
@@ -604,7 +614,7 @@ void IStreamingManager::SetupViewInfos( float DeltaTime )
 			}
 			if ( !bFound )
 			{
-				FStreamingViewInfo& PrevViewInfo = GPrevViewLocations(PrevView);
+				FStreamingViewInfo& PrevViewInfo = GPrevViewLocations[PrevView];
 				UE_LOG(LogContentStreaming, Log, TEXT("Removing location: X=%.1f, Y=%.1f, Z=%.1f (override=%d, boost=%.1f)"), PrevViewInfo.ViewOrigin.X, PrevViewInfo.ViewOrigin.Y, PrevViewInfo.ViewOrigin.Z, PrevViewInfo.bOverrideLocation, PrevViewInfo.BoostFactor );
 			}
 		}
@@ -613,7 +623,7 @@ void IStreamingManager::SetupViewInfos( float DeltaTime )
 		GPrevViewLocations.Empty(CurrentViewInfos.Num());
 		for ( int32 ViewIndex = 0; ViewIndex < CurrentViewInfos.Num(); ++ViewIndex )
 		{
-			FStreamingViewInfo& ViewInfo = CurrentViewInfos( ViewIndex );
+			FStreamingViewInfo& ViewInfo = CurrentViewInfos[ ViewIndex ];
 			GPrevViewLocations.Add( ViewInfo );
 		}
 	}
@@ -784,15 +794,8 @@ FStreamingManagerCollection::FStreamingManagerCollection()
 
 	if (FApp::CanEverRenderAudio())
 	{
-		if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-		{
-			FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
-			AudioStreamingManager = new FCachedAudioStreamingManager(Params);
-		}
-		else
-		{
-			AudioStreamingManager = new FLegacyAudioStreamingManager();
-		}
+		FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
+		AudioStreamingManager = new FCachedAudioStreamingManager(Params);
 	}
 	else
 	{
@@ -1275,17 +1278,8 @@ void FStreamingManagerCollection::OnAudioStreamingParamsChanged()
 	FPlatformCompressionUtilities::RecacheCookOverrides();
 
 	// Finally, reinitialize the streaming manager.
-	if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-	{
-		FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
-		AudioStreamingManager = new FCachedAudioStreamingManager(Params);
-	}
-	else
-	{
-		AudioStreamingManager = new FLegacyAudioStreamingManager();
-	}
-
-	AddStreamingManager(AudioStreamingManager);
+	FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
+	AddStreamingManager(new FCachedAudioStreamingManager(Params));
 }
 #endif
 
@@ -1604,4 +1598,9 @@ FAudioChunkHandle IAudioStreamingManager::BuildChunkHandle(const uint8* InData, 
 	}
 
 	return {};
+}
+
+void IAudioStreamingManager::LogWarning()
+{
+	UE_LOG(LogContentStreaming, Warning, TEXT("This function is now deprecated on IAudioStreamingManager and no-ops."));
 }

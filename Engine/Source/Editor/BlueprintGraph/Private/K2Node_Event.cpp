@@ -29,6 +29,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Misc/AssertionMacros.h"
+#include "ObjectTools.h"
 #include "Serialization/Archive.h"
 #include "Styling/AppStyle.h"
 #include "Templates/Casts.h"
@@ -166,7 +167,7 @@ FText UK2Node_Event::GetTooltipText() const
 	UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
 	if (CachedTooltip.IsOutOfDate(this) && (Function != nullptr))
 	{
-		CachedTooltip.SetCachedText(FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function)), this);
+		CachedTooltip.SetCachedText(FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function)), this);
 
 		if (bOverrideFunction || (CustomFunctionName == NAME_None))
 		{
@@ -858,6 +859,10 @@ FEdGraphNodeDeprecationResponse UK2Node_Event::GetDeprecationResponse(EEdGraphNo
 			UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
 			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the event override cannot be resolved.")))
 			{
+				// Check the deprecation type to override the severity
+				FString MessageType = Function->GetMetaData(FBlueprintMetadata::MD_DeprecatedFunction);
+				Response.MessageType = FBlueprintEditorUtils::GetDeprecatedMessageType(MessageType);
+
 				FText EventName = FText::FromName(GetFunctionName());
 				FText DetailedMessage = FText::FromString(Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
 				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(EventName, DetailedMessage);
@@ -960,6 +965,11 @@ void UK2Node_Event::FindDiffs(UEdGraphNode* OtherNode, struct FDiffResults& Resu
 			Results.Add(Diff);
 		}
 	}
+}
+
+UEdGraphPin* UK2Node_Event::GetDelegatePin() const
+{
+	return FindPinChecked(DelegateOutputName);
 }
 
 bool UK2Node_Event::AreEventNodesIdentical(const UK2Node_Event* InNodeA, const UK2Node_Event* InNodeB)

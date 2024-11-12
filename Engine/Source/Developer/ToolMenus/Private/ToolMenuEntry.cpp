@@ -14,27 +14,29 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ToolMenuEntry)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FToolMenuEntry::FToolMenuEntry() :
-	Type(EMultiBlockType::None),
-	UserInterfaceActionType(EUserInterfaceActionType::Button),
-	bShouldCloseWindowAfterMenuSelection(true),
-	ScriptObject(nullptr),
-	StyleNameOverride(NAME_None),
-	bAddedDuringRegister(false),
-	bCommandIsKeybindOnly(false)
+FToolMenuEntry::FToolMenuEntry()
+	: Type(EMultiBlockType::None)
+	, UserInterfaceActionType(EUserInterfaceActionType::Button)
+	, bShouldCloseWindowAfterMenuSelection(true)
+	, ScriptObject(nullptr)
+	, StyleNameOverride(NAME_None)
+	, bAddedDuringRegister(false)
+	, bCommandIsKeybindOnly(false)
+	, ShowInToolbarTopLevel(false)
 {
 }
 
-FToolMenuEntry::FToolMenuEntry(const FToolMenuOwner InOwner, const FName InName, EMultiBlockType InType) :
-	Name(InName),
-	Owner(InOwner),
-	Type(InType),
-	UserInterfaceActionType(EUserInterfaceActionType::Button),
-	bShouldCloseWindowAfterMenuSelection(true),
-	ScriptObject(nullptr),
-	StyleNameOverride(NAME_None),
-	bAddedDuringRegister(false),
-	bCommandIsKeybindOnly(false)
+FToolMenuEntry::FToolMenuEntry(const FToolMenuOwner InOwner, const FName InName, EMultiBlockType InType)
+	: Name(InName)
+	, Owner(InOwner)
+	, Type(InType)
+	, UserInterfaceActionType(EUserInterfaceActionType::Button)
+	, bShouldCloseWindowAfterMenuSelection(true)
+	, ScriptObject(nullptr)
+	, StyleNameOverride(NAME_None)
+	, bAddedDuringRegister(false)
+	, bCommandIsKeybindOnly(false)
+	, ShowInToolbarTopLevel(false)
 {
 }
 
@@ -146,6 +148,13 @@ FToolMenuEntry FToolMenuEntry::InitMenuEntry(const FName InName, const FToolUIAc
 	FToolMenuEntry Entry(UToolMenus::Get()->CurrentOwner(), InName, EMultiBlockType::MenuEntry);
 	Entry.Action = InAction;
 	Entry.MakeCustomWidget.BindLambda([Widget](const FToolMenuContext&, const FToolMenuCustomWidgetContext&) { return Widget; });
+	return Entry;
+}
+
+FToolMenuEntry FToolMenuEntry::InitDynamicEntry(const FName InName, const FNewToolMenuSectionDelegate& InConstruct)
+{
+	FToolMenuEntry Entry(UToolMenus::Get()->CurrentOwner(), InName, EMultiBlockType::MenuEntry);
+	Entry.Construct = InConstruct;
 	return Entry;
 }
 
@@ -295,6 +304,11 @@ bool FToolMenuEntry::TryExecuteToolUIAction(const FToolMenuContext& InContext)
 		}
 	}
 	return bCanExecute;
+}
+
+void FToolMenuEntry::SetShowInToolbarTopLevel(TAttribute<bool> InTopLevel)
+{
+	ShowInToolbarTopLevel = InTopLevel;
 }
 
 bool FToolMenuEntry::IsScriptObjectDynamicConstruct() const

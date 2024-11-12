@@ -11,7 +11,6 @@ void FPCGStaticMeshSpawnerContext::ResetInputIterationData()
 	CurrentOutputPointData = nullptr;
 	MaterialOverrideHelper.Reset();
 	CurrentPointIndex = 0;
-	ValueKeyToMesh.Reset();
 	WeightedMeshInstances.Reset();
 	MeshToValueKey.Reset();
 	CumulativeWeights.Reset();

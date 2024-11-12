@@ -2,7 +2,7 @@ Availability: NoPublish
 Title: Build Configuration Properties Page
 Crumbs:
 Description: This is a procedurally generated markdown page.
-Version: 5.4
+Version: 5.5
 
 ### Read-Only Properties
 
@@ -25,6 +25,12 @@ $ DisableDebugInfoPlugins (HashSet&lt;String&gt;): Plugins that should have debu
 $ DebugInfoLineTablesOnlyModules (HashSet&lt;String&gt;): Modules that should emit line number tables instead of full debug information for compilers that support doing so. Overrides DisableDebugInfoModules
 
 $ DebugInfoLineTablesOnlyPlugins (HashSet&lt;String&gt;): Plugins that should emit line number tables instead of full debug information for compilers that support doing so. Overrides DisableDebugInfoPlugins
+
+$ MergePlugins (List&lt;String&gt;): Experimental: List of plugins (and their dependencies) to each merge into separate libraries. Requires bMergeModules to be enabled
+
+$ MergePluginsShared (Dictionary&lt;String, HashSet&lt;String&gt;&gt;): Experimental: List of merged plugins to move common dependencies to a shared library, requires MergePlugins. Can be chained
+
+$ MergePluginsLaunch (List&lt;String&gt;): Experimental: List of merged plugins to move to the main executable, requires MergePlugins. "Engine" for all shared engine modules and "Common" for shared project modules.
 
 $ GlobalDefinitions (List&lt;String&gt;): Macros to define globally across the whole target.
 
@@ -67,6 +73,8 @@ $ OptionalPlugins (List&lt;String&gt;): Additional plugins that should be includ
 $ InternalPluginDependencies (List&lt;String&gt;): A list of Plugin names that are allowed to exist as dependencies without being defined in the uplugin descriptor
 
 $ DisableMergingModuleAndGeneratedFilesInUnityFiles (String[]): List of modules that disables merging module and generated cpp files in the same unity files.
+
+$ bShowIncludes (Boolean): Print out files that are included by each source file
 
 $ DisableUnityBuildForModules (String[]): List of modules to disable unity builds for
 
@@ -124,6 +132,8 @@ $ bLegalToDistributeBinary (Boolean): Whether the output from this target can be
 
 $ UndecoratedConfiguration (UnrealTargetConfiguration): Specifies the configuration whose binaries do not require a "-Platform-Configuration" suffix.
 
+$ DecoratedSeparator (String): Specifies the separator charcter for binary filenames.
+
 $ bAllowHotReload (Boolean): Whether this target supports hot reload
 
 $ bBuildAllModules (Boolean): Build all the modules that are valid for this target type. Used for CIS and making installed engine builds.
@@ -132,11 +142,17 @@ $ VSTestRunSettingsFile (FileReference): Set this to reference a VSTest run sett
 
 $ bRuntimeDependenciesComeFromBuildPlugins (Boolean): If this is true, then the BuildPlugins list will be used to populate RuntimeDependencies, rather than EnablePlugins
 
+$ bAllowEnginePluginsEnabledByDefault (Boolean): If false, suppress loading "enabled by default" engine plugins not explicitly enabled by the project or target files.
+
 $ DisablePluginsConflictWarningLevel (WarningLevel): How to treat conflicts when a disabled plugin is being enabled by another plugin referencing it
 
 $ PakSigningKeysFile (String): Path to the set of pak signing keys to embed in the executable.
 
 $ SolutionDirectory (String): Allows a Program Target to specify it's own solution folder path.
+
+$ bGenerateProgramProject (Boolean): Force a Target to be treated as a Program for the purposes of project file generation.
+
+$ bExplicitTargetForType (Boolean): If true, GetTargetNameByType will not consider this target, thereby disambiguating -TargetType=X.
 
 $ bBuildInSolutionByDefault (Nullable&lt;Boolean&gt;): Whether the target should be included in the default solution build configuration Setting this to false will skip building when running in the IDE
 
@@ -153,6 +169,10 @@ $ bEnableMeshEditor (Boolean): Whether to enable the mesh editor.
 $ bUseVerseBPVM (Boolean): Whether to use the BPVM to run Verse.
 
 $ bUseAutoRTFMCompiler (Boolean): Whether to use the AutoRTFM Clang compiler.
+
+$ bForceNoAutoRTFMCompiler (Boolean): Whether to use force AutoRTFM Clang compiler off.
+
+$ bUseAutoRTFMVerifier (Boolean): Whether to enable emitting AutoRTFM verification metadata
 
 $ bCompileChaos (Boolean): Whether to compile the Chaos physics plugin.
 
@@ -186,7 +206,11 @@ $ bUseGameplayDebugger (Boolean): Whether to compile with WITH_GAMEPLAY_DEBUGGER
 
 $ bUseGameplayDebuggerCore (Boolean): Set to true when bUseGameplayDebugger is false but GameplayDebugger's core parts are required.
 
+$ bCompileIoStoreOnDemand (Boolean): Whether to use I/O store on-demand
+
 $ bUseIris (Boolean): Whether to use Iris.
+
+$ bTrackRHIResourceInfoForTest (Boolean): Whether to track owner (asset name) of RHI resource for Test configuration. Useful for ListShaderMaps and ListShaderLibraries commands.
 
 $ bBuildEditor (Boolean): Whether we are compiling editor code or not. Prefer the more explicit bCompileAgainstEditor instead.
 
@@ -218,6 +242,8 @@ $ bCompileAgainstApplicationCore (Boolean): Enabled for builds that need to init
 
 $ bEnableTrace (Boolean): Enabled for builds that want to use against the Trace module for profiling and diagnostics.
 
+$ bForceEnableTrace (Boolean): Force enable tracing - used to allow testing programs to verify tracing works as intended.
+
 $ bCompileAgainstEditor (Boolean): Enabled for editor builds (TargetType.Editor). Can be overridden for programs (TargetType.Program) that would need to compile against editor code. Not available for other target types. Mainly drives the value of WITH_EDITOR.
 
 $ bCompileRecast (Boolean): Whether to compile Recast navmesh generation.
@@ -236,9 +262,13 @@ $ bForceEnableObjCExceptions (Boolean): Enable exceptions for all modules.
 
 $ bForceEnableRTTI (Boolean): Enable RTTI for all modules.
 
+$ bEnablePrivateBuildInformation (Boolean): Enable BuildSettings to contain private information about build. Such as machine name, user name and user domain name (exposed in BuildSettings.h)
+
 $ bEnablePIE (Boolean): Enable Position Independent Executable (PIE). Has an overhead cost
 
 $ bEnableStackProtection (Boolean): Enable Stack Protection. Has an overhead cost
+
+$ bWithClientCode (Boolean): Compile client-only code.
 
 $ bWithServerCode (Boolean): Compile server-only code.
 
@@ -322,6 +352,8 @@ $ bIsBuildingConsoleApplication (Boolean): True if this is a console application
 
 $ bBuildAdditionalConsoleApp (Boolean): If true, creates an additional console application. Hack for Windows, where it's not possible to conditionally inherit a parent's console Window depending on how the application is invoked; you have to link the same executable with a different subsystem setting.
 
+$ bBuildConsoleAppOnly (Boolean): If true, only creates an additional console application. Overrides bBuildAdditionalConsoleApp.
+
 $ bDisableSymbolCache (Boolean): True if debug symbols that are cached for some platforms should not be created.
 
 $ bUseUnityBuild (Boolean): Whether to unify C++ code into larger files for faster compilation.
@@ -363,6 +395,8 @@ $ bWarningsAsErrors (Boolean): Whether to enable all warnings as errors. UE enab
 $ UnsafeTypeCastWarningLevel (WarningLevel): Indicates what warning/error level to treat unsafe type casts as on platforms that support it (e.g., double->float or int64->int32)
 
 $ bUndefinedIdentifierErrors (Boolean): Forces the use of undefined identifiers in conditional expressions to be treated as errors.
+
+$ UndefinedIdentifierWarningLevel (WarningLevel): Indicates what warning/error level to treat undefined identifiers in conditional expressions.
 
 $ PCHPerformanceIssueWarningLevel (WarningLevel): Indicates what warning/error level to treat potential PCH performance issues.
 
@@ -414,6 +448,8 @@ $ bPreprocessDepends (Boolean): Generate dependency files by preprocessing. This
 
 $ bWithAssembly (Boolean): Whether to generate assembly data while compiling this target. Works exclusively on MSVC for now.
 
+$ bAllowUbaCompression (Boolean): Experimental: Store object (.obj) compressed on disk. Requires UBA to link, currently MSVC only. Toggling this flag will invalidate MSVC actions. Warning, this option is not currently compatitable with PGO or the the cl-clang linker as those are not detoured and linking will fail.
+
 $ StaticAnalyzer (StaticAnalyzer): Whether static code analysis should be enabled.
 
 $ StaticAnalyzerOutputType (StaticAnalyzerOutputType): The output type to use for the static analyzer. This is only supported for Clang.
@@ -449,6 +485,8 @@ $ bCodeCoverage (Boolean): Whether the target requires code coverage compilation
 $ bSupportEditAndContinue (Boolean): Whether to support edit and continue.
 
 $ bOmitFramePointers (Boolean): Whether to omit frame pointers or not. Disabling is useful for e.g. memory profiling on the PC.
+
+$ bCompressDebugFile (Boolean): If we want to compress the debug files
 
 $ bEnableCppModules (Boolean): Whether to enable support for C++20 modules
 
@@ -494,6 +532,8 @@ $ bDisableLinking (Boolean): Whether to disable linking for this target.
 
 $ bIgnoreBuildOutputs (Boolean): Whether to ignore tracking build outputs for this target.
 
+$ bDisableEngineDeprecations (Boolean): Whether to disable UE_DEPRECATED_FORENGINE deprecation warnings in non-engine modules. This should only be used in the short-term as these deprecations will get removed.
+
 $ bFormalBuild (Boolean): Indicates that this is a formal build, intended for distribution. This flag is automatically set to true when Build.version has a changelist set and is a promoted build. The only behavior currently bound to this flag is to compile the default resource file separately for each binary so that the OriginalFilename field is set correctly. By default, we only compile the resource once to reduce build times.
 
 $ bFlushBuildDirOnRemoteMac (Boolean): Whether to clean Builds directory on a remote Mac before building.
@@ -528,17 +568,23 @@ $ CppStandard (CppStandardVersion): Which C++ standard to use for compiling this
 
 $ CStandard (CStandardVersion): Which C standard to use for compiling this target
 
-$ MinCpuArchX64 (MinimumCpuArchitectureX64): Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
+$ MinCpuArchX64 (MinimumCpuArchitectureX64): Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Ignored for arm64. Note that by enabling this you are changing the minspec for the target platform, and the resultant executable will crash on machines without AVX support.
 
 $ BuildVersion (String): The build version string
 
 $ LinkType (TargetLinkType): Specifies how to link modules in this target (monolithic or modular). This is currently protected for backwards compatibility. Call the GetLinkType() accessor until support for the deprecated ShouldCompileMonolithic() override has been removed.
+
+$ bStripExports (Boolean): Experimental: Strip unused exports from libraries. Only applies when LinkType is Modular
+
+$ bMergeModules (Boolean): Experimental: Merge modular modules into combined libraries. Sets LinkType to Modular and enables bStripExports
 
 $ LaunchModuleName (String): Specifies the name of the launch module. For modular builds, this is the module that is compiled into the target's executable.
 
 $ ExportPublicHeader (String): Specifies the path to write a header containing public definitions for this target. Useful when building a DLL to be consumed by external build processes.
 
 $ BuildEnvironment (TargetBuildEnvironment): Specifies the build environment for this target. See TargetBuildEnvironment for more information on the available options.
+
+$ bAllowSDKOverrideModulesWithSharedEnvironment (Boolean): If this true, a Shared build environment target will allow for any modules that are SDK version sensitive to have a project side module when an SDK is overridden. For instance, if IOSTargetPlatform, which is marked as IOS SDK version relevant, is compiled for a Target with this set to true, and that target overrides the IOS SDK, then this would compile to e.g. MyProject/Binaries/Win64/IOS/MyProject-IOSTargetPlatform.dll
 
 $ bOverrideBuildEnvironment (Boolean): Whether to ignore violations to the shared build environment (eg. editor targets modifying definitions)
 

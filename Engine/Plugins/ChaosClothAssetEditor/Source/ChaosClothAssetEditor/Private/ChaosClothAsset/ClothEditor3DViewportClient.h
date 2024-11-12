@@ -5,6 +5,8 @@
 #include "EditorViewportClient.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "InputBehaviorSet.h"
+#include "BaseBehaviors/BehaviorTargetInterfaces.h"
 
 class UChaosClothComponent;
 class UChaosClothAssetEditorMode;
@@ -23,7 +25,11 @@ class FClothEditorSimulationVisualization;
  * Viewport client for the 3d sim preview in the cloth editor. Currently same as editor viewport
  * client but doesn't allow editor gizmos/widgets.
  */
-class CHAOSCLOTHASSETEDITOR_API FChaosClothAssetEditor3DViewportClient : public FEditorViewportClient, public TSharedFromThis<FChaosClothAssetEditor3DViewportClient>
+class CHAOSCLOTHASSETEDITOR_API FChaosClothAssetEditor3DViewportClient : public FEditorViewportClient, 
+	public TSharedFromThis<FChaosClothAssetEditor3DViewportClient>, 
+	public IClickBehaviorTarget,
+	public IClickDragBehaviorTarget,
+	public IInputBehaviorSource
 {
 public:
 
@@ -84,15 +90,31 @@ private:
 	virtual bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override { return false; }
 	virtual void SetWidgetMode(UE::Widget::EWidgetMode NewMode) override {}
 	virtual UE::Widget::EWidgetMode GetWidgetMode() const override { return UE::Widget::EWidgetMode::WM_None; }
-	virtual void Tick(float DeltaSeconds) override;
 	virtual void ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
+
+	// IClickBehaviorTarget
+	virtual FInputRayHit IsHitByClick(const FInputDeviceRay& ClickPos) override;
+	virtual void OnClicked(const FInputDeviceRay& ClickPos) override;
+
+	// IClickDragBehaviorTarget
+	virtual FInputRayHit CanBeginClickDragSequence(const FInputDeviceRay& PressPos) override;
+	virtual void OnClickPress(const FInputDeviceRay& PressPos) override {}
+	virtual void OnClickDrag(const FInputDeviceRay& DragPos) override {}
+	virtual void OnClickRelease(const FInputDeviceRay& ReleasePos) override {}
+	virtual void OnTerminateDragSequence() override {}
+
+	// IInputBehaviorSource
+	virtual const UInputBehaviorSet* GetInputBehaviors() const override;
 
 	void OnAssetViewerSettingsChanged(const FName& InPropertyName);
 	void SetAdvancedShowFlagsForScene(const bool bAdvancedShowFlags);
 
 	void ComponentSelectionChanged(UObject* NewSelection);
+
+	// Update the selected components based on hitproxy
+	void UpdateSelection(HHitProxy* HitProxy);
 
 	TWeakPtr<FChaosClothPreviewScene> ClothPreviewScene;
 
@@ -106,12 +128,13 @@ private:
 	bool bRenderMeshWireframe = false;
 
 	// Dataflow render support
-	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
+	UE::Dataflow::FTimestamp LastModifiedTimestamp = UE::Dataflow::FTimestamp::Invalid;
 
 	// Gizmo support
 	TObjectPtr<UTransformProxy> TransformProxy = nullptr;
 	TObjectPtr<UCombinedTransformGizmo> Gizmo = nullptr;
 	TSharedPtr<FTransformGizmoDataBinder> DataBinder = nullptr;
 
+	TObjectPtr<UInputBehaviorSet> InputBehaviorSet;
 };
 } // namespace UE::Chaos::ClothAsset

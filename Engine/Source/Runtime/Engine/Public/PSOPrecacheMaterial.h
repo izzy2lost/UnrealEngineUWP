@@ -16,6 +16,7 @@ class FVertexFactoryType;
 class FGraphicsPipelineStateInitializer;
 enum class EVertexInputStreamType : uint8;
 
+
 /**
  * Interface class implemented by the mesh pass processor to collect all possible PSOs
  */
@@ -25,7 +26,7 @@ public:
 
 	IPSOCollector(int32 InPSOCollectorIndex) : PSOCollectorIndex(InPSOCollectorIndex) {}
 	virtual ~IPSOCollector() {}
-	
+
 	UE_DEPRECATED(5.2, "Call CollectPSOInitializers with FPSOPrecacheVertexFactoryData instead.")
 	void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FVertexFactoryType* VertexFactoryType, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
 	{
@@ -122,14 +123,19 @@ private:
 };
 
 /**
- * Precache all PSOs for given material data
+ * Precache all PSOs for the given material data.
  */
 extern ENGINE_API void PrecacheMaterialPSOs(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSOPrecacheRequestIDs, FGraphEventArray& OutGraphEvents);
 
 /**
- * Precache all PSOs for given material and parameters
+ * Precache all PSOs for the given material and parameters.
  */
 extern ENGINE_API FMaterialPSOPrecacheRequestID PrecacheMaterialPSOs(const FMaterialPSOPrecacheParams& MaterialPSOPrecacheParams, EPSOPrecachePriority Priority, FGraphEventArray& GraphEvents);
+
+/**
+ * Preload all shaders for the given material data.
+ */
+extern ENGINE_API void PreloadMaterialShaderMap(const FMaterial* Material, FGraphEventArray& OutGraphEvents);
 
 /**
  * Release PSO material request data
@@ -139,7 +145,7 @@ extern ENGINE_API void ReleasePSOPrecacheData(const TArray<FMaterialPSOPrecacheR
 /**
  * Boost priority for all the PSOs still compiling for the request material request IDs
  */
-extern ENGINE_API void BoostPSOPriority(const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs);
+extern ENGINE_API void BoostPSOPriority(EPSOPrecachePriority NewPri, const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs);
 
 /**
  * Invalidate & clear all the current material PSO requests

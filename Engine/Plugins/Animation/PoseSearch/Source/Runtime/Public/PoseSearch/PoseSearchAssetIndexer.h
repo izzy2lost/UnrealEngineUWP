@@ -35,18 +35,19 @@ struct FAnimationAssetSamplers
 
 	float GetPlayLength() const;
 	bool IsLoopable() const;
-	void ExtractPoseSearchNotifyStates(float Time, TFunction<bool(UAnimNotifyState_PoseSearchBase*)> ProcessPoseSearchBase) const;
-	bool ProcessAllAnimNotifyEvents(TFunction<bool(TConstArrayView<FAnimNotifyEvent>)> ProcessAnimNotifyEvents) const;
+	void ExtractPoseSearchNotifyStates(float Time, const TFunction<bool(UAnimNotifyState_PoseSearchBase*)>& ProcessPoseSearchBase) const;
+	bool ProcessAllAnimNotifyEvents(const TFunction<bool(TConstArrayView<FAnimNotifyEvent>)>& ProcessAnimNotifyEvents) const;
 	const FString GetAssetName() const;
 
 	FTransform ExtractRootTransform(float Time, int32 RoleIndex) const;
 	FTransform GetTotalRootTransform(int32 RoleIndex) const;
 	void ExtractPose(float Time, FCompactPose& OutPose, int32 RoleIndex) const;
+	void ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve, int32 RoleIndex) const;
 	FTransform MirrorTransform(const FTransform& InTransform, int32 RoleIndex) const;
 	void MirrorPose(FCompactPose& Pose, int32 RoleIndex) const;
 
-	TArray<const FAnimationAssetSampler*> AnimationAssetSamplers;
-	TArray<const FMirrorDataCache*> MirrorDataCaches;
+	TArray<const FAnimationAssetSampler*, TInlineAllocator<PreallocatedRolesNum>> AnimationAssetSamplers;
+	TArray<const FMirrorDataCache*, TInlineAllocator<PreallocatedRolesNum>> MirrorDataCaches;
 };
 
 class POSESEARCH_API FAssetIndexer
@@ -67,6 +68,9 @@ public:
 	void Process(int32 AssetIdx);
 	const FStats& GetStats() const { return Stats; }
 
+	// Returns the value of float curve CurveName at time CalculateSampleTime(SampleIdx) + SampleTimeOffset.
+	bool GetSampleCurveValue(float& OutCurveValue, float SampleTimeOffset, int32 SampleIdx, const FName& CurveName, const FRole& SampleRole);
+
 	// Returns OutSampleRotation as the rotation of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at time CalculateSampleTime(SampleIdx) + SampleTimeOffset relative to the
 	// transform of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at time CalculateSampleTime(SampleIdx) + OriginTimeOffset 
 	// Times will be processed by GetPermutationTimeOffsets(PermutationTimeType, ...)
@@ -83,7 +87,7 @@ public:
 	// if bUseCharacterSpaceVelocities is true, velocities will be computed in root bone space, rather than animation (world) space
 	bool GetSampleVelocity(FVector& OutSampleVelocity, float SampleTimeOffset, float OriginTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, bool bUseCharacterSpaceVelocities = true, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, int32 SamplingAttributeId = INDEX_NONE);
 
-	bool ProcessAllAnimNotifyEvents(TFunction<bool(TConstArrayView<FAnimNotifyEvent>)> ProcessAnimNotifyEvents) const;
+	bool ProcessAllAnimNotifyEvents(const TFunction<bool(TConstArrayView<FAnimNotifyEvent>)>& ProcessAnimNotifyEvents) const;
 	const FString GetAssetName() const;
 	float GetPlayLength() const;
 
@@ -111,6 +115,9 @@ private:
 	// bClamped will be true if SampleTime is outside the animation duration boundaries
 	FTransform GetTransform(float SampleTime, const FRole& Role, bool& bClamped, int8 SchemaBoneIdx = RootSchemaBoneIdx);
 	FTransform GetTransform(float SampleTime, int32 RoleIndex, bool& bClamped, const FBoneReference& BoneReference);
+	
+	// Returns the value of float curve CurveName at time SampleTime
+	float GetSampleCurveValueInternal(float SampleTime, const FName& CurveName, const FRole& Role);
 
 	// Returns the component space transform of the bone Schema.BoneReferences[SchemaBoneIdx] at time SampleTime
 	// bClamped will be true if SampleTime is outside the animation duration boundaries
@@ -121,13 +128,26 @@ private:
 	// bClamped will be true if SampleTime or OriginTime are outside the animation duration boundaries
 	bool GetSamplePositionInternal(FVector& OutSamplePosition, float SampleTime, float OriginTime, bool& bClamped, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, int32 SamplingAttributeId);
 
+	struct FCachedCSPose : public FCSPose<FCompactHeapPose>
+	{
+		void InitPose(const FCompactPose& SrcPose)
+		{
+			Pose.CopyBonesFrom(SrcPose);
+			ComponentSpaceFlags.Empty(Pose.GetNumBones());
+			ComponentSpaceFlags.AddZeroed(Pose.GetNumBones());
+			ComponentSpaceFlags[0] = 1;
+		}
+	};
+
 	struct FCachedEntry
 	{
 		float SampleTime = 0.f;
 		bool bClamped = false;
 
+		// RootTransform and ComponentSpacePose are stored mirrored in case SearchIndexAsset.IsMirrored
 		TArray<FTransform> RootTransform;
-		TArray<FCSPose<FCompactHeapPose>> ComponentSpacePose;
+		TArray<FCachedCSPose> ComponentSpacePose;
+		TArray<FBlendedHeapCurve> Curves;
 	};
 
 	void GetSampleInfo(float SampleTime, int32 RoleIndex, FTransform& OutRootTransform, float& OutClipTime, bool& bOutClamped) const;

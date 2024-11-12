@@ -21,7 +21,7 @@ public:
 
 	~FControlRigUnitTestBase()
 	{
-		if (Hierarchy)
+		if (Hierarchy.IsValid())
 		{
 			// we no longer add/remove the controller to/from root since controller is now part of the hierarchy
 			Hierarchy->RemoveFromRoot();
@@ -40,11 +40,11 @@ public:
 			Hierarchy->AddToRoot();
 			// we no longer add the controller to root since controller is now part of the hierarchy
 		}
-		ExecuteContext.Hierarchy = Hierarchy;
+		ExecuteContext.Hierarchy = Hierarchy.Get();
 	}
 
-	URigHierarchy* Hierarchy;
-	URigHierarchyController* Controller;
+	TSoftObjectPtr<URigHierarchy> Hierarchy;
+	TSoftObjectPtr<URigHierarchyController> Controller;
 };
 
 #define CONTROLRIG_RIGUNIT_STRINGIFY(Content) #Content
@@ -55,7 +55,7 @@ public:
 		TUnitStruct##Test( const FString& InName ) \
 		:FControlRigUnitTestBase( InName, false ) {\
 		} \
-		virtual uint32 GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; } \
+		virtual EAutomationTestFlags GetTestFlags() const override { return EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter; } \
 		virtual bool IsStressTest() const { return false; } \
 		virtual uint32 GetRequiredDeviceNum() const override { return 1; } \
 		virtual FString GetTestSourceFileName() const override { return __FILE__; } \

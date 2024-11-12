@@ -73,23 +73,7 @@ public:
 		return *this;
 	}
 
-	~FComponentRecreateRenderStateContext()
-	{
-		if (Component && !Component->IsRenderStateCreated() && Component->IsRegistered())
-		{
-			Component->PrecachePSOs();
-			Component->CreateRenderState_Concurrent(nullptr);
-
-			UpdateAllPrimitiveSceneInfosForSingleComponent(Component, ScenesToUpdateAllPrimitiveSceneInfos);
-		}
-
-		if (ComponentInterface && !ComponentInterface ->IsRenderStateCreated() && ComponentInterface ->IsRegistered())
-		{
-			ComponentInterface ->CreateRenderState(nullptr);
-
-			UpdateAllPrimitiveSceneInfosForSingleComponentInterface(ComponentInterface, ScenesToUpdateAllPrimitiveSceneInfos);
-		}
-	}
+	ENGINE_API ~FComponentRecreateRenderStateContext();
 };
 
 /** Destroys render states for all components or for a provided list of components and then recreates them when this object is destroyed */

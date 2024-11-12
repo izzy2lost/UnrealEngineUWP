@@ -23,6 +23,7 @@ void UEnvQueryGenerator_Composite::GenerateItems(FEnvQueryInstance& QueryInstanc
 			{
 				FScopeCycleCounterUObject GeneratorScope(Generators[Idx]);
 				Generators[Idx]->GenerateItems(QueryInstance);
+				ensureMsgf(!Generators[Idx]->IsCurrentlyRunningAsync(), TEXT("Composite Generators do not yet support asynchronous processing."));
 			}
 		}
 	}
@@ -82,6 +83,8 @@ void UEnvQueryGenerator_Composite::VerifyItemTypes()
 		{
 			if (Generators[Idx])
 			{
+				checkf(!Generators[Idx]->CanRunAsync(), TEXT("Async Generators such as [%s] are not supported members of Composite Generators."), *Generators[Idx]->GetName())
+
 				if (CommonItemType)
 				{
 					if (CommonItemType != Generators[Idx]->ItemType)

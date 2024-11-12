@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Containers/ContainerAllocationPolicies.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "CoreGlobals.h"
@@ -301,6 +302,24 @@ bool LoadFromCompactBinary(FCbFieldView Field, FWideStringBuilderBase& OutValue)
 	return !Field.HasError();
 }
 
+bool LoadFromCompactBinary(FCbFieldView Field, UE::FUtf8SharedString& OutString)
+{
+	OutString = Field.AsString();
+	return !Field.HasError();
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, UE::FWideSharedString& OutString)
+{
+	TWideStringBuilder<512> String;
+	if (LoadFromCompactBinary(Field, String))
+	{
+		OutString = String;
+		return true;
+	}
+	OutString.Reset();
+	return false;
+}
+
 bool LoadFromCompactBinary(FCbFieldView Field, FString& OutValue)
 {
 	OutValue = FString(Field.AsString());
@@ -322,6 +341,18 @@ bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue)
 bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue, const FGuid& Default)
 {
 	OutValue = Field.AsUuid(Default);
+	return !Field.HasError();
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue)
+{
+	OutValue = Field.AsDateTime();
+	return !Field.HasError();
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue, FDateTime Default)
+{
+	OutValue = Field.AsDateTime(Default);
 	return !Field.HasError();
 }
 

@@ -1,39 +1,46 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SPrimaryButton.h"
+
+#include "ToolWidgetsSlateTypes.h"
+#include "ToolWidgetsStyle.h"
+#include "ToolWidgetsUtilitiesPrivate.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Text/STextBlock.h"
 
 void SPrimaryButton::Construct(const FArguments& InArgs)
 {
-	SButton::Construct(SButton::FArguments()
-		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(InArgs._Icon.IsSet() ? "PrimaryButtonLabelAndIcon" : "PrimaryButton"))
-		.OnClicked(InArgs._OnClicked)
-		.ForegroundColor(FSlateColor::UseStyle())
-		.HAlign(HAlign_Center)
-		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(FMargin(0,0,3,0))
-			[
-				SNew(SImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
-				.Image(InArgs._Icon)
-				.Visibility(InArgs._Icon.IsSet() ? EVisibility::HitTestInvisible : EVisibility::Collapsed)
-			]
-			+ SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			.AutoWidth()
-			[
-				SNew(STextBlock)
-				.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("PrimaryButtonText"))
-				.Text(InArgs._Text)
-				.Visibility(InArgs._Text.IsSet() ? EVisibility::HitTestInvisible : EVisibility::Collapsed)
-			]
-		]
-	);
-}
+	const FActionButtonStyle* ActionButtonStyle = &UE::ToolWidgets::FToolWidgetsStyle::Get().GetWidgetStyle<FActionButtonStyle>("PrimaryButton");
 
+	// Check for widget level override, then style override, otherwise unset
+	const TAttribute<const FSlateBrush*> Icon = InArgs._Icon.IsSet()
+		? InArgs._Icon
+		: ActionButtonStyle->IconBrush.IsSet()
+		? &ActionButtonStyle->IconBrush.GetValue()
+		: nullptr;
+
+	const bool bHasIcon = Icon.Get() || Icon.IsBound();
+
+	// Empty/default args will resolve from the ActionButtonStyle
+	const TSharedRef<SWidget> ButtonContent =
+		UE::ToolWidgets::Private::ActionButton::MakeButtonContent(
+			ActionButtonStyle,
+			Icon,
+			{},
+			InArgs._Text,
+			{});
+
+	SButton::Construct(
+		SButton::FArguments()
+		.ContentPadding(ActionButtonStyle->GetButtonContentPadding())
+		.ButtonStyle(bHasIcon ? &ActionButtonStyle->GetIconButtonStyle() : &ActionButtonStyle->ButtonStyle)
+		.IsEnabled(InArgs._IsEnabled)
+		.ToolTipText(InArgs._ToolTipText)
+		.HAlign(static_cast<EHorizontalAlignment>(ActionButtonStyle->HorizontalContentAlignment))
+		.VAlign(VAlign_Center)
+		.OnClicked(InArgs._OnClicked)
+		[
+			ButtonContent
+		]);
+}

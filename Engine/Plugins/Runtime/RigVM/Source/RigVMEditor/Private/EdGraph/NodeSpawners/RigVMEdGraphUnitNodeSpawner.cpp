@@ -185,7 +185,7 @@ URigVMEdGraphNode* URigVMEdGraphUnitNodeSpawner::SpawnNode(UEdGraph* ParentGraph
 				if(UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Pin.CPPTypeObject))
 				{
 					static UScriptStruct* ExecuteScriptStruct = FRigVMExecuteContext::StaticStruct();
-					static const FName ExecuteStructName = *ExecuteScriptStruct->GetStructCPPName();
+					static const FLazyName ExecuteStructName(*ExecuteScriptStruct->GetStructCPPName());
 
 					if(ScriptStruct->IsChildOf(ExecuteScriptStruct))
 					{

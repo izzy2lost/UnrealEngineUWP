@@ -76,10 +76,13 @@ enum class ECollisionGeometryType
 	Capsules = 4,
 	// Fit convex hulls to the inputs
 	ConvexHulls = 5,
+	// Fit multiple convex hulls to each input
+	ConvexDecompositions = 8,
 	// Fit convex hulls to 2D projections of the inputs, and sweep these 2D hulls along the projection dimension
 	SweptHulls = 6,
 	// Fit level sets to the inputs
 	LevelSets = 7,
+	// Note: ConvexDecomposition = 8 is set above, to be next to Convex Hulls in the UI
 	// Fit the boxes, spheres, and capsules to the inputs, and keep the best fitting of these shapes based on volume
 	MinVolume = 10,
 
@@ -104,6 +107,16 @@ enum class EProjectedHullAxis
 	SmallestBoxDimension = 3,
 	// Project along each major axis, and take the result with the smallest volume
 	SmallestVolume = 4
+};
+
+// Method to use to compute convex decomposition
+UENUM()
+enum class EConvexDecompositionMethod
+{
+	// Use the Navigable Space Protection's Error Tolerance and Min Radius settings to control the decomposition
+	NavigationDriven,
+	// Minimize volumetric differences to the input
+	VolumetricError
 };
 
 
@@ -136,14 +149,14 @@ public:
 
 	/** Whether to discard all but MaxCount collision geometries with the largest volume */
 	UPROPERTY(EditAnywhere, Category = Options)
-	bool bEnableMaxCount = true;
+	bool bEnableMaxCount = false;
 
 	/** The maximum number of collision shapes to generate. If necessary, the shapes with smallest volume will be discarded to meet this count. */
 	UPROPERTY(EditAnywhere, Category = Options, meta = (UIMin = "1", UIMax = "100", ClampMin = "1", ClampMax = "9999999", EditCondition = "bEnableMaxCount"))
 	int32 MaxCount = 50;
 
-	/** Generated collision shapes will be expanded if they are smaller than this in any dimension. Not supported for Level Sets or Convex Decompositions (Convex Hulls with more than one hull per mesh). */
-	UPROPERTY(EditAnywhere, Category = Options, AdvancedDisplay, meta = (ClampMin = "0", UIMax = "10", EditCondition = "GeometryType != ECollisionGeometryType::LevelSets && (GeometryType != ECollisionGeometryType::ConvexHulls || MaxHullsPerMesh == 1)"))
+	/** Generated collision shapes will be expanded if they are smaller than this in any dimension. Not supported for Level Sets or Convex Decompositions. */
+	UPROPERTY(EditAnywhere, Category = Options, AdvancedDisplay, meta = (ClampMin = "0", UIMax = "10", EditCondition = "GeometryType != ECollisionGeometryType::LevelSets && GeometryType != ECollisionGeometryType::ConvexDecompositions"))
 	float MinThickness = 0.01;
 
 	/** Whether to override the requested Geometry Type with a box whenever a box closely fits the input shape */
@@ -170,51 +183,67 @@ public:
 	UPROPERTY(EditAnywhere, Category = MergeCollisionShapes, meta = (EditConditionHides, EditCondition = "bMergeCollisionShapes"))
 	bool bUseNegativeSpaceInMerge = false;
 
-	/** Whether to simplify the convex hull */
-	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls"))
+	/** Whether to simplify the convex hull down to at most a target face count. */
+	UPROPERTY(EditAnywhere, DisplayName = "Simplify to Face Count", Category = ConvexHulls, 
+		meta = (EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls || GeometryType == ECollisionGeometryType::ConvexDecompositions"))
 	bool bSimplifyHulls = true;
 
 	/** Target number of faces in the simplified hull */
 	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (UIMin = "4", UIMax = "100", ClampMin = "4", ClampMax = "9999999",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && bSimplifyHulls"))
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls  || GeometryType == ECollisionGeometryType::ConvexDecompositions) && bSimplifyHulls"))
 	int32 HullTargetFaceCount = 20;
 
-	/** How many convex hulls can be used to approximate each mesh */
-	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (UIMin = "1", UIMax = "100", ClampMin = "1",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls"))
-	int32 MaxHullsPerMesh = 1;
+	/** Whether to simplify the input to this edge length before computing convex decomposition. Can give a decomposition result faster for large meshes. */
+	UPROPERTY(EditAnywhere, DisplayName = "Simplify to Edge Length", Category = ConvexHulls,
+		meta = (EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions"))
+	bool bPreSimplifyToEdgeLength = false;
 
-	/** How much to search the space of possible decompositions beyond MaxHullsPerMesh; for larger values, will do additional work to try to better approximate mesh features (but resulting hulls may overlap more) */
-	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (UIMin = "0", UIMax = "2", ClampMin = "0",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1"))
+	/** Simplify the input to this edge length before computing convex decomposition. Can give a decomposition result faster for large meshes. */
+	UPROPERTY(EditAnywhere, DisplayName = "Target Edge Length", Category = ConvexHulls, meta = (UIMin = "0", UIMax = "100", ClampMin = "0",
+		EditConditionHides, EditCondition = "bPreSimplifyToEdgeLength && GeometryType == ECollisionGeometryType::ConvexDecompositions"))
+	double DecompositionTargetEdgeLength = 1.0;
+
+	// What algorithm should be used to perform convex decomposition
+	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions"))
+	EConvexDecompositionMethod DecompositionMethod = EConvexDecompositionMethod::NavigationDriven;
+
+	// Whether to limit the number of convex hulls use in each decomposition
+	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions && DecompositionMethod == EConvexDecompositionMethod::NavigationDriven"))
+	bool bLimitHullsPerShape = false;
+
+	// Maximum number of convex hulls to use in each decomposition
+	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (UIMin = "1", UIMax = "100", ClampMin = "1",
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions && (bLimitHullsPerShape || DecompositionMethod != EConvexDecompositionMethod::NavigationDriven)"))
+	int32 MaxHullsPerShape = 10;
+
+	/** How much to search the space of possible decompositions beyond Max Hulls Per Shape; for larger values, will do additional work to try to better approximate mesh features (but resulting hulls may overlap more) */
+	UPROPERTY(EditAnywhere, DisplayName = "Max Hulls Search Factor", Category = ConvexHulls, meta = (UIMin = "0", UIMax = "2", ClampMin = "0",
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions && (DecompositionMethod != EConvexDecompositionMethod::NavigationDriven)"))
 	float ConvexDecompositionSearchFactor = .5;
 
 	/** Error tolerance for adding more convex hulls, in cm.  For volumetric errors, the value will be cubed (so a value of 10 indicates a 10x10x10 volume worth of error is acceptable). */
 	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (UIMin = "0", UIMax = "1000", ClampMin = "0",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1"))
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions && DecompositionMethod != EConvexDecompositionMethod::NavigationDriven"))
 	float AddHullsErrorTolerance = 0;
 
 	/** Minimum part thickness for convex decomposition, in cm; hulls thinner than this will be merged into adjacent hulls, if possible. */
 	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (UIMin = "0", UIMax = "1", ClampMin = "0",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1"))
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexDecompositions"))
 	float MinPartThickness = 0.1;
 
-	/** Whether to guide the convex decomposition to prioritize not filling negative space of the input shape */
-	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1"))
-	bool bUseNegativeSpaceInDecomposition = false;
-
-	/** Negative space closer to the input than this tolerance distance can be filled in */
-	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0",
-		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
-	double NegativeSpaceTolerance = 3;
-	/** Minimum radius of negative space to protect; tunnels with radius smaller than this could be filled in */
-	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0",
-		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
-	double NegativeSpaceMinRadius = 10;
-	/** Whether to ignore negative space that is not accessible by traversing from the convex hull (via paths w/ radius of at least Negative Space Tolerance) */
-	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (
-		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
+	/** Navigable space closer to the input than this tolerance distance can be filled in */
+	UPROPERTY(EditAnywhere, DisplayName = "Tolerance Distance", Category = NavigableSpaceProtection, meta = (UIMin = "1", UIMax = "100", ClampMin = "0.1",
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexDecompositions && DecompositionMethod == EConvexDecompositionMethod::NavigationDriven) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
+	double NegativeSpaceTolerance = 10;
+	/** Minimum radius of navigable space to protect; tunnels with radius smaller than this could be filled in */
+	UPROPERTY(EditAnywhere, DisplayName = "Min Radius", Category = NavigableSpaceProtection, meta = (UIMin = "1", UIMax = "200", ClampMin = "0.1",
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexDecompositions && DecompositionMethod == EConvexDecompositionMethod::NavigationDriven) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
+	double NegativeSpaceMinRadius = 40;
+	/** Whether to ignore navigable space that is not accessible by from outside (e.g., closed-off interiors / air pockets) */
+	UPROPERTY(EditAnywhere, Category = NavigableSpaceProtection, meta = (
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexDecompositions && DecompositionMethod == EConvexDecompositionMethod::NavigationDriven) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
 	bool bIgnoreInternalNegativeSpace = true;
 
 	/** If > 0, the polygon used to generate the swept hull will be simplified up to this distance tolerance, in cm */
@@ -354,9 +383,7 @@ protected:
 		TArray<TSharedPtr<FDynamicMesh3, ESPMode::ThreadSafe>>& ToMeshes,
 		TFunctionRef<bool(const FDynamicMesh3*, int32, int32)> TrisConnectedPredicate);
 
-	TUniquePtr<UE::Geometry::FPolygroupSet> ActiveGroupSet;
 	void OnSelectedGroupLayerChanged();
-	void UpdateActiveGroupLayer(FDynamicMesh3* GroupLayersMesh);
 
 	FTransform OrigTargetTransform;
 	UE::Geometry::FTransformSequence3d TargetInverseTransform;
@@ -378,4 +405,7 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UPreviewGeometry> GeometrySelectionViz = nullptr;
+
+private:
+	UE::Geometry::FPolygroupSet GetActiveGroupLayer(const FDynamicMesh3* GroupLayersMesh);
 };

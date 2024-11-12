@@ -3,8 +3,9 @@
 
 #include "Algo/Transform.h"
 #include "CoreTypes.h"
-#include "RemoteControlField.h"
+#include "RCModifyOperationFlags.h"
 #include "RemoteControlEntity.h"
+#include "RemoteControlField.h"
 #include "RemoteControlPropertyIdRegistry.h"
 #include "Templates/PimplPtr.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -29,6 +30,7 @@ class URCVirtualPropertyContainerBase;
 class URCVirtualPropertyInContainer;
 class URCVirtualPropertySelfContainer;
 class URemoteControlExposeRegistry;
+class URCSignatureRegistry;
 class URemoteControlBinding;
 class URemoteControlPreset;
 
@@ -408,6 +410,14 @@ public:
 	TWeakPtr<FRemoteControlActor> ExposeActor(AActor* Actor, FRemoteControlPresetExposeArgs Args = FRemoteControlPresetExposeArgs());
 
 	/**
+	 * Gets a given object's property exposed property guid in this preset
+	 * @param InOuterObject the object to check
+	 * @param InFieldPath the path to the property
+	 * @return The exposed property if found, nullptr otherwise
+	 */
+	TSharedPtr<FRemoteControlProperty> FindExposedProperty(UObject* InOuterObject, const FRCFieldPathInfo& InFieldPath) const;
+
+	/**
 	 * Expose a property on this preset.
 	 * @param Object the object that holds the property.
 	 * @param FieldPath The name/path to the property.
@@ -705,6 +715,12 @@ public:
 	/** Generate label from Registry */
 	FName GenerateUniqueLabel(const FName InDesiredName) const;
 
+	/** Returns the preset's signature registry */
+	URCSignatureRegistry* GetSignatureRegistry() const
+	{
+		return Signatures;
+	}
+
 public:
 	/** The visual layout for this preset. */
 	UPROPERTY()
@@ -718,6 +734,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Remote Control Preset")
 	TArray<TObjectPtr<URemoteControlBinding>> Bindings;
 
+	/** This preset's user data */
+	UPROPERTY()
+	TArray<TObjectPtr<UObject>> UserData;
+
+#if WITH_EDITOR
+	/** Current selected world used only in the editor to let you switch world */
+	TWeakObjectPtr<const UWorld> SelectedWorld = nullptr;
+#endif
 	/** ~~~Virtual Property Wrapper Functions ~~~
 	* 
 	* The goal is to hide the Controller Container and provide a simple interface for Controller access to UI and Web.
@@ -874,6 +898,12 @@ public:
 	 */
 	TObjectPtr<URemoteControlPropertyIdRegistry> GetPropertyIdRegistry() const { return PropertyIdRegistry; }
 
+	/** Sets how this preset modifies properties when changed by protocols */
+	void SetModifyOperationFlagsForProtocols(ERCModifyOperationFlags InOperationFlags) { ModifyOperationFlagsForProtocols = InOperationFlags; }
+
+	/** Returns how this preset modifies properties when changed by protocols */
+	ERCModifyOperationFlags GetModifyOperationFlagsForProtocols() const { return ModifyOperationFlagsForProtocols; }
+
 private:
 
 	/** Find a binding that has the same boundobjectmap but that currently points to the object passed as argument. */
@@ -920,6 +950,10 @@ private:
 	UPROPERTY(AssetRegistrySearchable)
 	FGuid PresetId;
 
+	/** Defines how this preset modifies properties when changed by protocols */
+	UPROPERTY()
+	ERCModifyOperationFlags ModifyOperationFlagsForProtocols = ERCModifyOperationFlags::SkipPropertyChangeEvents | ERCModifyOperationFlags::SkipTransactions;
+
 	/** The cache for information about an exposed field. */
 	UPROPERTY(Transient)
 	TMap<FGuid, FRCCachedFieldData> FieldCache;
@@ -928,9 +962,13 @@ private:
 	UPROPERTY(Transient)
 	TMap<FName, FGuid> NameToGuidMap;
 
-	UPROPERTY(Instanced)
 	/** Holds exposed entities on the preset. */
+	UPROPERTY(Instanced)
 	TObjectPtr<URemoteControlExposeRegistry> Registry = nullptr;
+
+	/** Holds all signatures on the preset. */
+	UPROPERTY(Instanced)
+	TObjectPtr<URCSignatureRegistry> Signatures = nullptr;
 
 	/** Holds identities of exposed entities on the preset. */
 	UPROPERTY(Transient)
@@ -1051,7 +1089,6 @@ public:
 #endif
 
 private:
-
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TArray<FName> DetailsTabIdentifierOverrides;

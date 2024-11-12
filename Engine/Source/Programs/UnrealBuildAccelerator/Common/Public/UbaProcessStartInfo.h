@@ -6,6 +6,7 @@
 
 namespace uba
 {
+	class ApplicationRules;
 	class ProcessHandle;
 
 	struct ProcessStartInfo
@@ -13,6 +14,8 @@ namespace uba
 		UBA_API ProcessStartInfo();
 		UBA_API ~ProcessStartInfo();
 		UBA_API ProcessStartInfo(const ProcessStartInfo&);
+
+		UBA_API const tchar* GetDescription() const;	// Use this instead since it will use application name if description is not set
 
 		const tchar* application = TC("");		// Application name, cl.exe etc. Use full path
 		const tchar* arguments = TC("");		// Arguments. Should not include application name
@@ -24,6 +27,8 @@ namespace uba
 		bool trackInputs = false;				// Track all files read. Can read result in ProcessHandle.GetTrackedInputs()
 		bool useCustomAllocator = true;			// Disable detouring of allocator inside processes. If Session.disableCustomAllocator is false this will be overridden
 		bool writeOutputFilesOnFail = false;	// If set to true, output files will be written to disk regardless if process succeeds or not
+		const tchar* breadcrumbs = TC("");		// If not empty, write additional information to the UBA trace file
+		bool startSuspended = false;			// Start process suspended.. a bit internal atm and only supported on windows
 
 		using LogLineCallback = void(void* userData, const tchar* line, u32 length, LogEntryType type);
 		LogLineCallback* logLineFunc = nullptr;	// Callback for when log entries happens
@@ -33,6 +38,7 @@ namespace uba
 		ExitedCallback* exitedFunc = nullptr;	// Callback for when process is done (it has already exited)
 		void* userData = nullptr;				// User data provided to exit callback
 
+		const ApplicationRules* rules = nullptr;// Internal use (for now)
 		int uiLanguage = 1033;					// Internal use
 	};
 }

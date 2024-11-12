@@ -255,13 +255,13 @@ bool ExportFBXInternal(const FSequencerExportFBXParams& InParams, UMovieSceneSeq
 	if (SubSequenceData)
 	{
 		RootToLocalTransform = SubSequenceData->RootToSequenceTransform;
-		StartTime = UE::MovieScene::DiscreteInclusiveLower(SubSequenceData->PlayRange.Value) * RootToLocalTransform.InverseNoLooping();
+		StartTime = RootToLocalTransform.Inverse().TryTransformTime(UE::MovieScene::DiscreteInclusiveLower(SubSequenceData->PlayRange.Value)).Get(StartTime);
 	}
 
 	bool bDidExport = false;
 	
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
 
 		if (SpawnableRestoreState.bWasChanged)
 		{
@@ -269,7 +269,12 @@ bool ExportFBXInternal(const FSequencerExportFBXParams& InParams, UMovieSceneSeq
 			Player->SetPlaybackPosition(FMovieSceneSequencePlaybackParams(StartTime, EUpdatePositionMethod::Play));
 		}
 
-		bDidExport = MovieSceneToolHelpers::ExportFBX(World, MovieScene, Player, Bindings, Tracks, NodeNameAdapter, Template, FBXFileName, RootToLocalTransform);
+		FAnimExportSequenceParameters AESP;
+		AESP.Player = Player;
+		AESP.RootToLocalTransform = RootToLocalTransform;
+		AESP.MovieSceneSequence = Sequence;
+		AESP.RootMovieSceneSequence = RootSequence;
+		bDidExport = MovieSceneToolHelpers::ExportFBX(World, AESP, Bindings, Tracks, NodeNameAdapter, Template, FBXFileName);
 	}
 
 	Player->Stop();
@@ -349,7 +354,7 @@ bool USequencerToolsFunctionLibrary::ExportAnimSequence(UWorld* World, ULevelSeq
 	bool bResult = false;
 	
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
  
 		if (SpawnableRestoreState.bWasChanged)
 		{
@@ -365,7 +370,16 @@ bool USequencerToolsFunctionLibrary::ExportAnimSequence(UWorld* World, ULevelSeq
 		if (SkeletalMeshComp && SkeletalMeshComp->GetSkeletalMeshAsset() && SkeletalMeshComp->GetSkeletalMeshAsset()->GetSkeleton())
 		{
 			AnimSequence->SetSkeleton(SkeletalMeshComp->GetSkeletalMeshAsset()->GetSkeleton());
-			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence,ExportOptions, MovieScene, Player, SkeletalMeshComp, Template, RootToLocalTransform);
+			FAnimExportSequenceParameters AESQ;
+			AESQ.Player = Player;
+			AESQ.RootToLocalTransform = RootToLocalTransform;
+			AESQ.MovieSceneSequence = Sequence;
+			AESQ.RootMovieSceneSequence = Sequence;
+			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESQ, SkeletalMeshComp);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("USequencerToolsFunctionLibrary::ExportAnimSequence: No skel mesh found in Sequencer"));
 		}
 	}
 	
@@ -445,7 +459,8 @@ bool USequencerToolsFunctionLibrary::LinkAnimSequence(ULevelSequence*  Sequence,
 			{
 				for (FLevelSequenceAnimSequenceLinkItem& LevelAnimLinkItem : LevelAnimLink->AnimSequenceLinks)
 				{
-					if (LevelAnimLinkItem.SkelTrackGuid == Binding.BindingID)
+					if (LevelAnimLinkItem.IsEqual(Binding.BindingID, ExportOptions->bUseCustomTimeRange,
+						ExportOptions->CustomStartFrame, ExportOptions->CustomEndFrame, ExportOptions->CustomDisplayRate))
 					{
 						bAddItem = false;
 						UAnimSequence* OtherAnimSequence = LevelAnimLinkItem.ResolveAnimSequence();
@@ -471,6 +486,15 @@ bool USequencerToolsFunctionLibrary::LinkAnimSequence(ULevelSequence*  Sequence,
 						LevelAnimLinkItem.CurveInterpolation = ExportOptions->CurveInterpolation;
 						LevelAnimLinkItem.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
 						LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = ExportOptions->bEvaluateAllSkeletalMeshComponents;
+						
+						LevelAnimLinkItem.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
+						LevelAnimLinkItem.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
+						LevelAnimLinkItem.WarmUpFrames = ExportOptions->WarmUpFrames;
+						LevelAnimLinkItem.DelayBeforeStart = ExportOptions->DelayBeforeStart;
+						LevelAnimLinkItem.bUseCustomTimeRange = ExportOptions->bUseCustomTimeRange;
+						LevelAnimLinkItem.CustomStartFrame = ExportOptions->CustomStartFrame;
+						LevelAnimLinkItem.CustomEndFrame = ExportOptions->CustomEndFrame;
+						LevelAnimLinkItem.CustomDisplayRate = ExportOptions->CustomDisplayRate;
 
 						break;
 					}
@@ -493,6 +517,15 @@ bool USequencerToolsFunctionLibrary::LinkAnimSequence(ULevelSequence*  Sequence,
 				LevelAnimLinkItem.bExportTransforms = ExportOptions->bExportTransforms;
 				LevelAnimLinkItem.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
 				LevelAnimLinkItem.bEvaluateAllSkeletalMeshComponents = ExportOptions->bEvaluateAllSkeletalMeshComponents;
+
+				LevelAnimLinkItem.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
+				LevelAnimLinkItem.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
+				LevelAnimLinkItem.WarmUpFrames = ExportOptions->WarmUpFrames;
+				LevelAnimLinkItem.DelayBeforeStart = ExportOptions->DelayBeforeStart;
+				LevelAnimLinkItem.bUseCustomTimeRange = ExportOptions->bUseCustomTimeRange;
+				LevelAnimLinkItem.CustomStartFrame = ExportOptions->CustomStartFrame;
+				LevelAnimLinkItem.CustomEndFrame = ExportOptions->CustomEndFrame;
+				LevelAnimLinkItem.CustomDisplayRate = ExportOptions->CustomDisplayRate;
 
 				LevelAnimLink->AnimSequenceLinks.Add(LevelAnimLinkItem);
 				AssetUserDataInterface->AddAssetUserData(LevelAnimLink);
@@ -676,7 +709,7 @@ bool ImportFBXInternal(UWorld* World, UMovieSceneSequence* Sequence, const TArra
 	bool bResult = false;
 	FScopedTransaction ImportFBXTransaction(NSLOCTEXT("Sequencer", "ImportFBX", "Import FBX"));
 	{
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
  
 		if (SpawnableRestoreState.bWasChanged)
 		{

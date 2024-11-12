@@ -5,6 +5,9 @@
 #include "PCGContext.h"
 #include "PCGParamData.h"
 #include "Data/PCGPointData.h"
+#include "Helpers/PCGTagHelpers.h"
+#include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttributeTpl.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGConvertToAttributeSet)
 
@@ -60,7 +63,7 @@ bool FPCGConvertToAttributeSetElement::ExecuteInternal(FPCGContext* Context) con
 			continue;
 		}
 
-		UPCGParamData* ParamData = NewObject<UPCGParamData>();
+		UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		check(ParamData->Metadata);
 		ParamData->Metadata->Initialize(SourceMetadata);
 
@@ -76,6 +79,51 @@ bool FPCGConvertToAttributeSetElement::ExecuteInternal(FPCGContext* Context) con
 
 		FPCGTaggedData& Output = Outputs.Emplace_GetRef(Input);
 		Output.Data = ParamData;
+	}
+
+	return true;
+}
+
+TArray<FPCGPinProperties> UPCGTagsToAttributeSetSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Param);
+
+	return PinProperties;
+}
+
+FPCGElementPtr UPCGTagsToAttributeSetSettings::CreateElement() const
+{
+	return MakeShared<FPCGTagsToAttributeSetElement>();
+}
+
+bool FPCGTagsToAttributeSetElement::ExecuteInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGTagsToAttributeSetElement::Execute);
+	check(Context);
+
+	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
+	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+
+	for (const FPCGTaggedData& Input : Inputs)
+	{
+		if (!Input.Data)
+		{
+			continue;
+		}
+
+		UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
+		check(ParamData && ParamData->Metadata);
+
+		FPCGTaggedData& Output = Outputs.Emplace_GetRef(Input);
+		Output.Data = ParamData;
+
+		PCGMetadataEntryKey EntryKey = ParamData->Metadata->AddEntry();
+
+		for (const FString& DataTag : Input.Tags)
+		{
+			PCG::Private::SetAttributeFromTag(DataTag, ParamData->Metadata, EntryKey, /*bCanCreateAttribute=*/true);
+		}
 	}
 
 	return true;

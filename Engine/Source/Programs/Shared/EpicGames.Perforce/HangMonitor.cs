@@ -59,7 +59,7 @@ namespace EpicGames.Perforce
 		{
 			if (_hangTask != null)
 			{
-				_hangTask.DisposeAsync().AsTask().Wait();
+				Task.Run(async () => await _hangTask.DisposeAsync()).Wait();
 				_hangTask = null;
 			}
 		}

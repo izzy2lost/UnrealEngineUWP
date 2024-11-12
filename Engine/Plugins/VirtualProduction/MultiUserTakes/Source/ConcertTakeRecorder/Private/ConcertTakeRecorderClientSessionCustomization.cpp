@@ -437,7 +437,6 @@ void FConcertTakeRecorderClientSessionCustomization::CustomizeDetails(IDetailLay
 		Row.WholeRowContent()
 		[
 			SAssignNew(ClientsListViewWeak,SListView<TSharedPtr<FConcertClientRecordSetting>>)
-			.ItemHeight(20.0f)
 			.SelectionMode(ESelectionMode::None)
 			.ListItemsSource(&Clients)
 			.OnGenerateRow_Lambda(HandleGenerateRow)

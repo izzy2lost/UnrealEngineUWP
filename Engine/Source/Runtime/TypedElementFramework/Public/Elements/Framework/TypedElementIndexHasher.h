@@ -2,14 +2,16 @@
 
 #pragma once
 
+#include "Containers/StringFwd.h"
 #include "Containers/UnrealString.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectPtr.h"
+#include "UObject/SoftObjectPath.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	template<typename T>
 	IndexHash GenerateIndexHash(const T* Object);
@@ -22,7 +24,9 @@ namespace TypedElementDataStorage
 	IndexHash GenerateIndexHash(const TStrongObjectPtr<T>& Object);
 
 	inline IndexHash GenerateIndexHash(const FString& Object);
+	inline IndexHash GenerateIndexHash(FStringView Object);
 	inline IndexHash GenerateIndexHash(FName Object);
-} // namespace TypedElementDataStorage
+	inline IndexHash GenerateIndexHash(const FSoftObjectPath& ObjectPath);
+} // namespace UE::Editor::DataStorage
 
 #include "Elements/Framework/TypedElementIndexHasher.inl"

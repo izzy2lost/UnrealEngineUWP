@@ -40,6 +40,7 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
 
+class FContentBrowserDataDragDropOp;
 class FContentBrowserItemData;
 class FContentBrowserItemDataUpdate;
 class FContentBrowserPluginFilter;
@@ -49,19 +50,21 @@ class ITableRow;
 class SWidget;
 class UToolMenu;
 struct FAssetData;
+struct FFiltersAdditionalParams;
 struct FGeometry;
 struct FHistoryData;
 struct FPathViewConfig;
+struct FPathViewData;
 struct FPointerEvent;
 struct FContentBrowserInstanceConfig;
-
-typedef TTextFilter< const FString& > FolderTextFilter;
 
 /**
  * The tree view of folders which contain content.
  */
 class SPathView : public SCompoundWidget
 {
+	using Super = SCompoundWidget;
+
 public:
 	/** Delegate for when plugin filters have changed */
 	DECLARE_DELEGATE( FOnFrontendPluginFilterChanged );
@@ -76,6 +79,10 @@ public:
 		, _AllowClassesFolder(false)
 		, _AllowReadOnlyFolders(true)
 		, _ShowFavorites(false)
+		, _CanShowDevelopersFolder(false)
+		, _ForceShowEngineContent(false)
+		, _ForceShowPluginContent(false)
+		, _ShowViewOptions(false)
 		, _SelectionMode( ESelectionMode::Multi )
 		{}
 
@@ -115,6 +122,21 @@ public:
 		/** If true, the favorites expander will be displayed */
 		SLATE_ARGUMENT(bool, ShowFavorites);
 
+		/** Indicates if the 'Show Developers' option should be enabled or disabled */
+		SLATE_ARGUMENT(bool, CanShowDevelopersFolder)
+
+		/** Should always show engine content */
+		SLATE_ARGUMENT(bool, ForceShowEngineContent)
+
+		/** Should always show plugin content */
+		SLATE_ARGUMENT(bool, ForceShowPluginContent)
+
+		/** Should show the filter setting button. Note: If ExternalSearch is valid, then view options are not shown regardless of this setting */
+		SLATE_ARGUMENT(bool, ShowViewOptions)
+
+		/** If true, redirectors are taken into consideration when deciding if folders are empty */
+		SLATE_ATTRIBUTE(bool, ShowRedirectors);
+
 		/** The selection mode for the tree view */
 		SLATE_ARGUMENT( ESelectionMode::Type, SelectionMode )
 
@@ -130,6 +152,12 @@ public:
 		/** The instance name of the owning content browser. */
 		SLATE_ARGUMENT( FName, OwningContentBrowserName )
 
+		/** Default path to select use by path picker */
+		SLATE_ARGUMENT(FString, DefaultPath)
+
+		/** If DefaultPath doesn't exist, create it */
+		SLATE_ARGUMENT(bool, CreateDefaultPath)
+
 	SLATE_END_ARGS()
 
 	/** Destructor */
@@ -137,6 +165,12 @@ public:
 
 	/** Constructs this widget with InArgs */
 	virtual void Construct( const FArguments& InArgs );
+
+	/** Tick to poll attributes */
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
+	/** Process the Commands of the PathView */
+	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 
 	/** Selects the closest matches to the supplied paths in the tree. "/" delimited */
 	void SetSelectedPaths(const TArray<FName>& Paths);
@@ -158,12 +192,6 @@ public:
 
 	/** Called when "new folder" is selected in the context menu */
 	void NewFolderItemRequested(const FContentBrowserItemTemporaryContext& NewItemContext);
-
-	/** Adds nodes to the tree in order to construct the specified item. If bUserNamed is true, the user will name the folder and the item includes the default name. */
-	virtual TSharedPtr<FTreeItem> AddFolderItem(FContentBrowserItemData&& InItem, const bool bUserNamed = false, TArray<TSharedPtr<FTreeItem>>* OutItemsCreated = nullptr);
-
-	/** Attempts to remove the item from the tree. Returns true when successful. */
-	bool RemoveFolderItem(const FContentBrowserItemData& InItem);
 
 	/** Sets up an inline rename for the specified folder */
 	void RenameFolderItem(const FContentBrowserItem& InItem);
@@ -199,8 +227,8 @@ public:
 	 */
 	void SyncToLegacy( TArrayView<const FAssetData> AssetDataList, TArrayView<const FString> FolderList, const bool bAllowImplicitSync = false );
 
-	/** Finds the item that represents the specified path, if it exists. */
-	TSharedPtr<FTreeItem> FindTreeItem(FName InPath) const;
+	/** Returns whether the tree contains an item with the given virtual path. */
+	bool DoesItemExist(FName InVirtualPath) const;
 
 	/** Sets the state of the path view to the one described by the history data */
 	void ApplyHistoryData( const FHistoryData& History );
@@ -218,6 +246,12 @@ public:
 	 *	@param InAlreadyCheckedDepth	- Folder depth that has already been checked, 0 if no parts of path already checked
 	*/
 	bool InternalPathPassesBlockLists(const FStringView InInternalPath, const int32 InAlreadyCheckedDepth = 0) const;
+
+	/** 
+	 * Disable any filters which would prevent us from syncing to the given items in the content browser.
+	 * Returns true if any filtering changed. 
+	 */
+	bool DisablePluginPathFiltersThatHideItems(TConstArrayView<FContentBrowserItem> Items);
 
 	/** Populates the tree with all folders that are not filtered out */
 	virtual void Populate(const bool bIsRefreshingFilter = false);
@@ -251,9 +285,6 @@ protected:
 	/** Expands all parents of the specified item */
 	void RecursiveExpandParents(const TSharedPtr<FTreeItem>& Item);
 
-	/** Sort the root items into the correct order */
-	void SortRootItems();
-
 	/** Handles updating the view when content items are changed */
 	virtual void HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems);
 
@@ -262,9 +293,6 @@ protected:
 
 	/** Notification for when the content browser has completed it's initial search */
 	void HandleItemDataDiscoveryComplete();
-
-	/** Query to see whether the given path is currently filtered from the view */
-	virtual bool PathIsFilteredFromViewBySearch(const FString& InPath) const;
 
 	/** Creates a list item for the tree view */
 	virtual TSharedRef<ITableRow> GenerateTreeRow(TSharedPtr<FTreeItem> TreeItem, const TSharedRef<STableViewBase>& OwnerTable);
@@ -301,14 +329,13 @@ protected:
 
 	FContentBrowserDataCompiledFilter CreateCompiledFolderFilter() const;
 
-	/** Clear all root items and clear selection */
-	void ClearTreeItems();
-
 	/** Get this path view's editor config if OwningContentBrowserName is set. */
 	FPathViewConfig* GetPathViewConfig() const;
 
 	/** Get this path view's content browser instance config if OwningContentBrowserName is set. */
 	FContentBrowserInstanceConfig* GetContentBrowserConfig() const;
+
+	virtual void ConfigureTreeView(STreeView<TSharedPtr<FTreeItem>>::FArguments& InArgs);
 
 private:
 	/** Selects the given path only if it exists. Returns true if selected. */
@@ -326,14 +353,8 @@ private:
 	/** Handler for when the search box filter has changed */
 	void FilterUpdated();
 
-	/** Populates OutSearchStrings with the strings that should be used in searching */
-	void PopulateFolderSearchStrings( const FString& FolderName, OUT TArray< FString >& OutSearchStrings ) const;
-
 	/** Returns true if the supplied folder item already exists in the tree. If so, ExistingItem will be set to the found item. */
 	bool FolderAlreadyExists(const TSharedPtr< FTreeItem >& TreeItem, TSharedPtr< FTreeItem >& ExistingItem);
-
-	/** Removes the supplied folder from the tree. */
-	void RemoveFolderItem(const TSharedPtr< FTreeItem >& TreeItem);
 
 	/** True if the specified item is expanded in the asset tree */
 	bool IsTreeItemExpanded(TSharedPtr<FTreeItem> TreeItem) const;
@@ -356,11 +377,14 @@ private:
 	/** Toggle plugin filter. */
 	void PluginPathFilterClicked(TSharedRef<FContentBrowserPluginFilter> Filter);
 
-	/** Returns true if filter is being used. */
-	bool IsPluginPathFilterInUse(TSharedRef<FContentBrowserPluginFilter> Filter) const;
+	/** Return whether the given filter should be shown enabled in the UI. */
+	bool IsPluginPathFilterChecked(TSharedRef<FContentBrowserPluginFilter> Filter) const;
 
-	/** Sorts tree items */
-	void DefaultSort(const FTreeItem* InTreeItem, TArray<TSharedPtr<FTreeItem>>& InChildren);
+	/** 
+	 * Returns true if filter is being used. Note that because some filters are 'inverse' this is not the same as whether
+	 * the filter should be visibly checked in the UI to be shown as 'enabled' to the user. 
+	 */
+	bool IsPluginPathFilterInUse(TSharedRef<FContentBrowserPluginFilter> Filter) const;
 
 	TArray<FName> GetDefaultPathsToExpand() const;
 
@@ -372,6 +396,36 @@ private:
 
 	/** Create a favorites view. */
 	TSharedRef<SWidget> CreateFavoritesView();
+
+	/** Register menu for when the view combo button is clicked */
+	static void RegisterGetViewButtonMenu();
+
+	/** Populate the given params for this PathView */
+	void PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams);
+
+	/** Whether or not it's possible to show C++ content */
+	bool IsToggleShowCppContentAllowed() const;
+
+	/** Whether or not it's possible to toggle developers content */
+	bool IsToggleShowDevelopersContentAllowed() const;
+
+	/** Whether or not it's possible to toggle engine content */
+	bool IsToggleShowEngineContentAllowed() const;
+
+	/** Whether or not it's possible to toggle plugin content */
+	bool IsToggleShowPluginContentAllowed() const;
+
+	/** Whether or not it's possible to show localized content */
+	bool IsToggleShowLocalizedContentAllowed() const;
+
+	/** Handler for when the view combo button is clicked */
+	TSharedRef<SWidget> GetViewButtonContent();
+
+	/** Callback for the Copy command for the PathView */
+	void CopySelectedFolder() const;
+
+	/** Bind our UI commands */
+	void BindCommands();
 
 protected:
 	/** A helper class to manage PreventTreeItemChangedDelegateCount by incrementing it when constructed (on the stack) and decrementing when destroyed */
@@ -415,20 +469,23 @@ protected:
 	/** The path view search interface */
 	TSharedPtr<FSourcesSearch> SearchPtr;
 
-	/** The list of folders in the tree */
-	TArray< TSharedPtr<FTreeItem> > TreeRootItems;
+	/** Items in the tree and associated data. Shared ptr for easy binding to delegates/attributes */
+	TSharedPtr<FPathViewData> TreeData;
 
-	/** The The TextFilter attached to the SearchBox widget */
-	TSharedPtr< FolderTextFilter > SearchBoxFolderFilter;
+	// Last version number retrieved from TreeData so we can decide if the tree view need rebuilding
+	uint64 LastTreeDataVersion = 0;
+
+	/** Should this path tree be flat like the favorites tree */
+	bool bFlat = false;
 
 	/** The paths that were last reported by OnPathSelected event. Used in preserving selection when filtering folders */
 	TSet<FName> LastSelectedPaths;
 
-	/** If not empty, this is the path of the folders to sync once they are available while assets are still being discovered */
+	/**
+	 * If not empty, this is the path of the folders to sync once they are available while assets are still being discovered.
+	 * It should be emptied when user interaction overides the default selections.
+	 */
 	TArray<FName> PendingInitialPaths;
-
-	/** Delay clear until first pending path is found */
-	bool bPendingInitialPathsNeedsSelectionClear = false;
 
 	/** Context information for the folder item that is currently being created, if any */
 	FContentBrowserItemTemporaryContext PendingNewFolderContext;
@@ -441,10 +498,14 @@ protected:
 	/** Writable folder filter */
 	TSharedPtr<FPathPermissionList> WritableFolderPermissionList;
 
-	TMap<FName, TWeakPtr<FTreeItem>> TreeItemLookup;
-
 	/** Custom Folder permissions */
 	TSharedPtr<FPathPermissionList> CustomFolderPermissionList;
+
+	TAttribute<bool> bShowRedirectors;
+	bool bLastShowRedirectors = false;
+
+	/** The config instance to use. */
+	FName OwningContentBrowserName;
 
 private:
 	/** Used to track if the list of last expanded path should be updated */
@@ -460,22 +521,34 @@ private:
 	FOnGetContentBrowserItemContextMenu OnGetItemContextMenu;
 
 	/** If > 0, the selection or expansion changed delegate will not be called. Used to update the tree from an external source or in certain bulk operations. */
-	int32 PreventTreeItemChangedDelegateCount;
+	int32 PreventTreeItemChangedDelegateCount = 0;
 
 	/** Initial set of item categories that this view should show - may be adjusted further by things like AllowClassesFolder */
-	EContentBrowserItemCategoryFilter InitialCategoryFilter;
+	EContentBrowserItemCategoryFilter InitialCategoryFilter = EContentBrowserItemCategoryFilter::IncludeAll;
 
 	/** If false, the context menu will not open when right clicking an item in the tree */
-	bool bAllowContextMenu;
+	bool bAllowContextMenu : 1;
 
 	/** If false, the classes folder will not be added to the tree automatically */
-	bool bAllowClassesFolder;
+	bool bAllowClassesFolder : 1;
 
 	/** If true, read only folders will be displayed */
-	bool bAllowReadOnlyFolders;
+	bool bAllowReadOnlyFolders : 1;
+
+	/** Indicates if the 'Show Developers' option should be enabled or disabled */
+	bool bCanShowDevelopersFolder : 1;
+
+	/** If true, engine content is always shown */
+	bool bForceShowEngineContent : 1;
+
+	/** If true, plugin content is always shown */
+	bool bForceShowPluginContent : 1;
 
 	/** The title of this path view */
 	FText TreeTitle;
+
+	/** Commands handled by this widget */
+	TSharedPtr<FUICommandList> Commands;
 
 	/** The filter collection used to filter plugins */
 	TSharedPtr<FPluginFilterCollectionType> PluginPathFilters;
@@ -483,14 +556,8 @@ private:
 	/** Plugins filters that are currently active */
 	TArray< TSharedRef<FContentBrowserPluginFilter> > AllPluginPathFilters;
 
-	/** Delegate to sort with */
-	FSortTreeItemChildrenDelegate SortOverride;
-
 	/** The favorites path view if one is set. */
 	TSharedPtr<SExpandableArea> FavoritesArea;
-
-	/** The config instance to use. */
-	FName OwningContentBrowserName;
 };
 
 
@@ -501,9 +568,9 @@ private:
 class SFavoritePathView : public SPathView
 {
 public:
-
+	SFavoritePathView();
 	virtual ~SFavoritePathView();
-
+	
 	/** Constructs this widget with InArgs */
 	virtual void Construct(const FArguments& InArgs) override;
 
@@ -515,22 +582,38 @@ public:
 	/** Loads any settings to config that should be persistent between editor sessions */
 	virtual void LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) override;
 
-	/** Adds nodes to the tree in order to construct the specified item. If bUserNamed is true, the user will name the folder and the item includes the default name. */
-	virtual TSharedPtr<FTreeItem> AddFolderItem(FContentBrowserItemData&& InItem, const bool bUserNamed = false, TArray<TSharedPtr<FTreeItem>>* OutItemsCreated=nullptr) override;
+	/** Validate that the drop operation is valid for the favorites. Accept FAssetDragDropOp objects with folders only. */
+	virtual void OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
+
+	/** Restore any cursor overrides, in case once was set for invalid drop in OnDragEnter. */
+	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
+	
+	/** Detect if a folder was dropped in the favorites view and add that folder (or folders) to favorites */
+	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 
 	/** Updates favorites based on an external change. */
 	void FixupFavoritesFromExternalChange(TArrayView<const AssetViewUtils::FMovedContentFolder> MovedFolders);
 
+	DECLARE_DELEGATE_OneParam(FOnFolderFavoriteAdd, const TArray<FString>& /*FoldersToAdd*/)
+	void SetOnFolderFavoriteAdd(const FOnFolderFavoriteAdd& InOnFolderFavoriteAdd);
+	
 private:
 	virtual TSharedRef<ITableRow> GenerateTreeRow(TSharedPtr<FTreeItem> TreeItem, const TSharedRef<STableViewBase>& OwnerTable) override;
+
+	void OnFavoriteAdded();
 
 	/** Handles updating the view when content items are changed */
 	virtual void HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems) override;
 
-	/** Query to see whether the given path is currently filtered from the view */
-	virtual bool PathIsFilteredFromViewBySearch(const FString& InPath) const override;
+	virtual void ConfigureTreeView(STreeView<TSharedPtr<FTreeItem>>::FArguments& InArgs) override;
+
+	/** Returns an FContentBrowserDataDragDropOp object but only if it qualifies as a proper droppable content browser drag drop op */
+	TSharedPtr<FContentBrowserDataDragDropOp> GetContentBrowserDragDropOpFromEvent(const FDragDropEvent& DragDropEvent) const; 
 
 private:
 	TArray<FString> RemovedByFolderMove;
 	FDelegateHandle OnFavoritesChangedHandle;
+	
+	FOnFolderFavoriteAdd OnFolderFavoriteAdd; 
+	bool bIsLoadingSettings = false;
 };

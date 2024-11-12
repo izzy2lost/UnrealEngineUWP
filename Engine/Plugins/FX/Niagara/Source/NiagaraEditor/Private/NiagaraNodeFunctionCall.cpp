@@ -34,6 +34,7 @@
 #include "Editor/UnrealEdEngine.h"
 #include "Preferences/UnrealEdOptions.h"
 #include "Widgets/Input/SComboButton.h"
+#include "ToolMenus.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraNodeFunctionCall)
 
@@ -267,6 +268,28 @@ void UNiagaraNodeFunctionCall::RemoveAllDynamicPins()
 	}
 }
 
+UClass* UNiagaraNodeFunctionCall::GetDIClass()const
+{
+	if(Signature.IsValid())
+	{
+		if (Signature.Inputs.Num() > 0)
+		{
+			if (Signature.Inputs[0].GetType().IsDataInterface() && GetValidateDataInterfaces())
+			{
+				return Signature.Inputs[0].GetType().GetClass();
+			}
+		}
+	}
+	return nullptr;	
+}
+
+void UNiagaraNodeFunctionCall::SetFunctionSpecifier(FName Key, FName Value)
+{
+	Modify();
+	FunctionSpecifiers.FindOrAdd(Key) = Value;
+	MarkNodeRequiresSynchronization(__FUNCTION__, true);
+}
+
 UEdGraphPin* UNiagaraNodeFunctionCall::AddStaticSwitchInputPin(FNiagaraVariable Input)
 {
 	UNiagaraGraph* Graph = GetCalledGraph();
@@ -447,7 +470,7 @@ void UNiagaraNodeFunctionCall::AllocateDefaultPins()
 			NewPin->bDefaultValueIsIgnored = true;
 		}
 
-		for (FNiagaraVariable& Output : Signature.Outputs)
+		for (FNiagaraVariableBase& Output : Signature.Outputs)
 		{
 			UEdGraphPin* NewPin = CreatePin(EGPD_Output, Schema->TypeDefinitionToPinType(Output.GetType()), Output.GetName());
 			NewPin->bDefaultValueIsIgnored = true;
@@ -798,27 +821,24 @@ void UNiagaraNodeFunctionCall::Compile(FTranslator* Translator, TArray<int32>& O
 	}
 	else if (MutableThis->Signature.IsValid())
 	{
-		if (MutableThis->Signature.Inputs.Num() > 0)
+		UClass* DIClass = GetDIClass();
+		if (DIClass)
 		{
-			if (MutableThis->Signature.Inputs[0].GetType().IsDataInterface() && GetValidateDataInterfaces())
+			if (UNiagaraDataInterface* DataInterfaceCDO = Cast<UNiagaraDataInterface>(DIClass->GetDefaultObject()))
 			{
-				UClass* DIClass = MutableThis->Signature.Inputs[0].GetType().GetClass();
-				if (UNiagaraDataInterface* DataInterfaceCDO = Cast<UNiagaraDataInterface>(DIClass->GetDefaultObject()))
+				TArray<FText> ValidationErrors;
+				DataInterfaceCDO->ValidateFunction(Signature, ValidationErrors);
+
+				bError = ValidationErrors.Num() > 0;
+
+				for (FText& ValidationError : ValidationErrors)
 				{
-					TArray<FText> ValidationErrors;
-					DataInterfaceCDO->ValidateFunction(Signature, ValidationErrors);
+					Translator->Error(ValidationError, this, nullptr);
+				}
 
-					bError = ValidationErrors.Num() > 0;
-
-					for (FText& ValidationError : ValidationErrors)
-					{
-						Translator->Error(ValidationError, this, nullptr);
-					}
-
-					if (bError)
-					{
-						return;
-					}
+				if (bError)
+				{
+					return;
 				}
 			}
 		}
@@ -1039,7 +1059,7 @@ void UNiagaraNodeFunctionCall::UpdatePinTooltips()
 	{
 		for (int i = 0; i < OutputPins.Num(); i++)
 		{
-			FNiagaraVariable& Output = Signature.Outputs[i];
+			FNiagaraVariableBase& Output = Signature.Outputs[i];
 			OutputPins[i]->PinToolTip = Signature.OutputDescriptions.Contains(Output) ? Signature.OutputDescriptions[Output].ToString() : FString();
 		}
 	}
@@ -1531,16 +1551,25 @@ void UNiagaraNodeFunctionCall::UpdateOverridePins(const FNiagaraScriptVersionUpg
 	if (FunctionScript)
 	{
 		// Automatically remove old inputs so it does not show a bunch of warnings to the user
-		TMap<FName, FNiagaraTypeDefinition> FunctionInputNames;
-		FPinCollectorArray OverridePins;
+		FPinCollectorArray InputPins;
+		GetInputPins(InputPins);
+		for (UEdGraphPin* Pin : InputPins)
+		{
+			if (Pin->bOrphanedPin)
+			{
+				RemovePin(Pin);
+			}
+		}
 		UNiagaraNodeParameterMapSet* OverrideNode = FNiagaraStackGraphUtilities::GetStackFunctionOverrideNode(*this);
 		if (OverrideNode != nullptr)
 		{
+			FPinCollectorArray OverridePins;
 			OverrideNode->Modify();
 			OverrideNode->GetInputPins(OverridePins);
 
 			if (!OverridePins.IsEmpty())
 			{
+				TMap<FName, FNiagaraTypeDefinition> FunctionInputNames;
 				TArray<FNiagaraVariable> ModuleInputVariables;
 				FNiagaraStackGraphUtilities::GetStackFunctionInputs(*this, ModuleInputVariables, UpgradeContext.ConstantResolver, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
 				for (const FNiagaraVariable& InputVariable : ModuleInputVariables)
@@ -1748,7 +1777,7 @@ void UNiagaraNodeFunctionCall::RefreshSignature()
 				for (int32 i = 0; i < FoundPins.Num(); ++i)
 				{
 					UEdGraphPin* OutputPin = FoundPins[i];
-					FNiagaraVariable InputVariable = UEdGraphSchema_Niagara::PinToNiagaraVariable(OutputPin);
+					FNiagaraVariableBase InputVariable = UEdGraphSchema_Niagara::PinToNiagaraVariable(OutputPin);
 
 					if(!BaseSig->Outputs.Contains(InputVariable) && IsAddPin(OutputPin) == false && IsExecPin(OutputPin) == false)
 					{
@@ -1773,7 +1802,7 @@ bool UNiagaraNodeFunctionCall::IsBaseSignatureOfDataInterfaceFunction(const UEdG
 		if (FNiagaraFunctionSignature* BaseSig = BaseDIFuncs.FindByPredicate([&](const FNiagaraFunctionSignature& CheckSig) { return Signature.Name == CheckSig.Name; }))
 		{
 			FPinCollectorArray FoundPins;
-			TArray<FNiagaraVariable> InputOrOutputVariables;
+			TArray<FNiagaraVariableBase> InputOrOutputVariables;
 
 			if(BaseSig->bRequiresExecPin && IsExecPin(Pin))
 			{
@@ -1783,7 +1812,7 @@ bool UNiagaraNodeFunctionCall::IsBaseSignatureOfDataInterfaceFunction(const UEdG
 			if(Pin->Direction == EGPD_Input)
 			{
 				GetInputPins(FoundPins);
-				InputOrOutputVariables = BaseSig->Inputs;
+				InputOrOutputVariables = BaseSig->GetInputs();
 			}
 			else
 			{
@@ -1791,7 +1820,7 @@ bool UNiagaraNodeFunctionCall::IsBaseSignatureOfDataInterfaceFunction(const UEdG
 				InputOrOutputVariables = BaseSig->Outputs;
 			}
 			
-			FNiagaraVariable Variable = UEdGraphSchema_Niagara::PinToNiagaraVariable(Pin);
+			FNiagaraVariableBase Variable = UEdGraphSchema_Niagara::PinToNiagaraVariable(Pin);
 
 			if(InputOrOutputVariables.Contains(Variable))
 			{

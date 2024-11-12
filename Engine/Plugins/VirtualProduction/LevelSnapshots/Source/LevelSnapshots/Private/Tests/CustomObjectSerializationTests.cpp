@@ -19,7 +19,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	 * Tests all interface functions are called at the correct time.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreActorCustomSubobject, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoreActorCustomSubobject", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreActorCustomSubobject, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoreActorCustomSubobject", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreActorCustomSubobject::RunTest(const FString& Parameters)
 	{
 		enum class EFunctionCall
@@ -201,7 +201,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Makes sure that we can write
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveAndLoadObjectAnnotation, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.SaveAndLoadObjectAnnotation", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveAndLoadObjectAnnotation, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.SaveAndLoadObjectAnnotation", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FSaveAndLoadObjectAnnotation::RunTest(const FString& Parameters)
 	{
 		class FStub : public ICustomObjectSnapshotSerializer
@@ -342,7 +342,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Tests that custom serialization works when an actor adds a subobject dependency to a subobject that also has a custom serializer.
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreNestedCustomSubobject, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoreNestedCustomSubobject", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreNestedCustomSubobject, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoreNestedCustomSubobject", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreNestedCustomSubobject::RunTest(const FString& Parameters)
 	{
 		class FActorSerializer : public ICustomObjectSnapshotSerializer
@@ -492,7 +492,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	*		UObject* OtherObject;
 	* };
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNonEditableObjectPropertyNotRestoredByDefault, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.NonEditableObjectPropertyNotRestoredByDefault", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNonEditableObjectPropertyNotRestoredByDefault, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.NonEditableObjectPropertyNotRestoredByDefault", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FNonEditableObjectPropertyNotRestoredByDefault::RunTest(const FString& Parameters)
 	{
 		ASnapshotTestActor* ChangedPropertiesActor = nullptr;
@@ -534,7 +534,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	* Checks that changed properties on custom restored subobjects are discovered
 	*/
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFilterForPropertiesOnSubobjects, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.FilterForPropertiesOnSubobjects", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFilterForPropertiesOnSubobjects, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.FilterForPropertiesOnSubobjects", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FFilterForPropertiesOnSubobjects::RunTest(const FString& Parameters)
 	{
 		// Handle registering and unregistering of custom serializer
@@ -657,7 +657,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	 * Checks that restoring subobjects which are missing from the editor world are in fact restored.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreSubobjectsMissingFromEditorWorld, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoreSubobjectsMissingFromEditorWorld", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreSubobjectsMissingFromEditorWorld, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoreSubobjectsMissingFromEditorWorld", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreSubobjectsMissingFromEditorWorld::RunTest(const FString& Parameters)
 	{
 		class FStub : public ICustomObjectSnapshotSerializer
@@ -767,7 +767,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	/**
 	 * When an actor is recreated, all of its custom subobjects are recreated as well.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoresCustomSubobjectWhenActorRecreated, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoresCustomSubobjectWhenActorRecreated", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoresCustomSubobjectWhenActorRecreated, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestoresCustomSubobjectWhenActorRecreated", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoresCustomSubobjectWhenActorRecreated::RunTest(const FString& Parameters)
 	{
 		// Handle registering and unregistering of custom serializer
@@ -807,7 +807,7 @@ namespace UE::LevelSnapshots::Private::Tests
 	}
 
 	/** Tests that class archetype data is saved for custom subobjects. That means if a snapshot is taken on an unmodified custom subobject and then changed, it should restore. Fix for UE-168414. */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreCustomSubobjectPropertiesEqualToArchetypeValue, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestorePropertiesEqualToArchetypeValue", (EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter));
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRestoreCustomSubobjectPropertiesEqualToArchetypeValue, "VirtualProduction.LevelSnapshots.Snapshot.CustomObjectSerialization.RestorePropertiesEqualToArchetypeValue", (EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter));
 	bool FRestoreCustomSubobjectPropertiesEqualToArchetypeValue::RunTest(const FString& Parameters)
 	{
 		// Handle registering and unregistering of custom serializer

@@ -21,13 +21,16 @@ namespace uba
 		bool Write(const void* data, u64 dataLen, u64 offset = 0);
 
 		bool OpenRead();
-		bool OpenMemoryRead(u64 offset = 0);
+		bool OpenMemoryRead(u64 offset = 0, bool errorOnFail = true);
 
 
 		const tchar* GetFileName() { return m_fileName; }
 		inline FileHandle GetHandle() { return m_fileHandle; }
 		inline u8* GetData() { return m_data; }
 		inline u64 GetSize() { return m_size; }
+
+		// Can be called if file is opened
+		bool GetFileInformationByHandle(FileInformation& out);
 
 	private:
 		bool InternalClose(bool success, u64* lastWriteTime);
@@ -37,6 +40,7 @@ namespace uba
 		FileMappingHandle m_mappingHandle;
 		u64 m_size = 0;
 		u8* m_data = nullptr;
+		u32 m_flagsAndAttributes = 0;
 		bool m_isWrite = false;
 
 		#if !PLATFORM_WINDOWS

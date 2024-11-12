@@ -1,4 +1,4 @@
-![Horde](Docs/Images/Logo.png#gh-light-mode-only)![Horde](Docs/Images/Logo-DarkMode.png#gh-dark-mode-only)
+![Horde](Docs/Images/ue-horde-black.png#gh-light-mode-only)![Horde](Docs/Images/ue-horde-white.png#gh-dark-mode-only)
 
 **Horde** is a set of services supporting workflows Epic uses to develop Fortnite,
 Unreal Engine, and other titles.
@@ -25,16 +25,15 @@ Read more about our [goals and philosophy](Docs/Goals.md), or check out the [FAQ
 
 ## Status
 
-Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it (particularly
-the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees and offer limited support
-for it.
+Horde is considered production ready for Unreal Engine licensees.
 
 See also: [Feature Status](Docs/Features.md)
 
 ## Getting Started
 
 * **[Install the Horde agent](Docs/Tutorials/InstallHorde.md)**
-* **[Enable remote C++ compilation with Unreal Build Accelerator](Docs/Tutorials/RemoteCompilation.md)**
+* **[Enable remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
+* **[Enable remote shader compilation](Docs/Tutorials/RemoteShaderCompilation.md)**
 * **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
 * **[Enable test automation with Gauntlet](Docs/Tutorials/TestAutomation.md)**
 * **[Get telemetry and analytics for your team](Docs/Tutorials/Analytics.md)**

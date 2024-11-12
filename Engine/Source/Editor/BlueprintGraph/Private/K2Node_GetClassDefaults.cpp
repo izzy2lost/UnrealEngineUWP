@@ -594,7 +594,7 @@ void UK2Node_GetClassDefaults::OnClassPinChanged()
 		UEdGraphPin* OldPin = OldOutputPins[PinIndex];
 		if(OldPin->Direction == EGPD_Input)
 		{
-			OldOutputPins.RemoveAt(PinIndex--, 1, EAllowShrinking::No);
+			OldOutputPins.RemoveAt(PinIndex--, EAllowShrinking::No);
 			Pins.Add(OldPin);
 		}
 	}

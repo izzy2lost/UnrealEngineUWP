@@ -12,6 +12,7 @@ using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
 
 using static AutomationTool.CommandUtils;
+using IdentityModel.Client;
 
 namespace AutomationTool
 {
@@ -212,6 +213,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Allows a platform to add runtime dependencies to UAT that may not be referenced in other ways, but are needed for staging UAT
 		/// </summary>
+		/// <param name="ProjectDirectory"></param>
 		/// <param name="Dependencies"></param>
 		public virtual void GetPlatformUATDependencies(DirectoryReference ProjectDirectory, List<FileReference> Dependencies)
 		{
@@ -274,6 +276,15 @@ namespace AutomationTool
 			return new string[] { };
 		}
 
+		/// <summary>
+		/// Return a list of versions that will be used to create "fake" FileSource objects which are used
+		/// for flash/system updates where no file downloads are needed
+		/// </summary>
+		public virtual string[] GetCodeSpecifiedDeviceSoftwareUpdateVersions()
+		{
+			return new string[] { };
+		}
+
 		public virtual bool GetSDKInstallCommand(out string Command, out string Params, ref bool bRequiresPrivilegeElevation, ref bool bCreateWindow, ITurnkeyContext TurnkeyContext)
 		{
 			Command = null;
@@ -297,11 +308,16 @@ namespace AutomationTool
 		/// Let's the platform handle the result of 
 		/// </summary>
 		/// <param name="ExitCode"></param>
+		/// <param name="TurnkeyContext"></param>
 		/// <param name="Device"></param>
 		/// <returns>True if the installation was a success (defaults to ExitCode == 0)</returns>
 		public virtual bool OnSDKInstallComplete(int ExitCode, ITurnkeyContext TurnkeyContext, DeviceInfo Device)
 		{
 			return ExitCode == 0;
+		}
+
+		public virtual void PersistSdkRootVar()
+		{
 		}
 
 		public virtual string GetSDKCreationHelp()
@@ -330,8 +346,9 @@ namespace AutomationTool
 		/// <summary>
 		/// Package files for the current platform.
 		/// </summary>
-		/// <param name="ProjectPath"></param>
-		/// <param name="ProjectExeFilename"></param>
+		/// <param name="Params"></param>
+		/// <param name="SC"></param>
+		/// <param name="WorkingCL"></param>
 		public virtual void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
 		{
 			throw new AutomationException("{0} does not yet implement Packaging.", PlatformType);
@@ -340,6 +357,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Does the reverse of the output from the package process
 		/// </summary>
+		/// <param name="Params"></param>
 		/// <param name="SourcePath"></param>
 		/// <param name="DestinationPath"></param>
 		public virtual void ExtractPackage(ProjectParams Params, string SourcePath, string DestinationPath)
@@ -360,7 +378,7 @@ namespace AutomationTool
 		/// Get all connected device names for this platform
 		/// </summary>
 		/// <param name="Params"></param>
-		/// <param name="SC"></param>
+		/// <param name="Devices"></param>
 		public virtual void GetConnectedDevices(ProjectParams Params, out List<string> Devices)
 		{
 			Devices = null;
@@ -407,6 +425,7 @@ namespace AutomationTool
 		/// <param name="ClientRunFlags"></param>
 		/// <param name="ClientApp"></param>
 		/// <param name="ClientCmdLine"></param>
+		/// <param name="Params"></param>
 		public virtual IProcessResult RunClient(ERunOptions ClientRunFlags, string ClientApp, string ClientCmdLine, ProjectParams Params)
 		{
 			PushDir(Path.GetDirectoryName(ClientApp));
@@ -431,7 +450,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Allow platform specific clean-up or detection after client has run
 		/// </summary>
-		/// <param name="ClientRunFlags"></param>
+		/// <param name="Result"></param>
+		/// <param name="Params"></param>
 		public virtual void PostRunClient(IProcessResult Result, ProjectParams Params)
 		{
 			// do nothing in the default case
@@ -474,6 +494,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Get the files to deploy, specific to this platform, typically binaries
 		/// </summary>
+		/// <param name="Params"></param>
 		/// <param name="SC">Deployment Context</param>
 		public virtual void GetFilesToDeployOrStage(ProjectParams Params, DeploymentContext SC)
 		{
@@ -483,6 +504,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Get additional platform specific files to stage when staging DLC
 		/// </summary>
+		/// <param name="Params"></param>
 		/// <param name="SC">Deployment Context</param>
 		public virtual void GetFilesToStageForDLC(ProjectParams Params, DeploymentContext SC)
 		{
@@ -500,6 +522,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Get the files to deploy, specific to this platform, typically binaries
 		/// </summary>
+		/// <param name="Params"></param>
 		/// <param name="SC">Deployment Context</param>
 		public virtual void GetFilesToArchive(ProjectParams Params, DeploymentContext SC)
 		{
@@ -581,6 +604,7 @@ namespace AutomationTool
 		/// <summary>
 		/// return true if we need to change the case of a particular file
 		/// </summary>
+		/// <param name="File"></param>
 		/// <param name="FileType">The staged file type to check (UFS vs SsytemNonUFS, etc)</param>
 		/// <returns>true if files should be lower-cased during staging, for the given filetype</returns>
 		public virtual bool DeployLowerCaseFile(FileReference File, StagedFileType FileType)
@@ -728,6 +752,16 @@ namespace AutomationTool
 		}
 
 		/// <summary>
+		/// Get the custom deployment handler for this platform,
+		/// </summary>
+		/// <param name="Params"></param>
+		/// <param name="SC">Deployment Context</param>
+		public virtual CustomDeploymentHandler GetCustomDeploymentHandler(ProjectParams Params, DeploymentContext SC)
+		{
+			return null;
+		}
+
+		/// <summary>
 		/// True if this platform is supported.
 		/// </summary>
 		public virtual bool SupportsMultiDeviceDeploy
@@ -805,6 +839,12 @@ namespace AutomationTool
 		{
 			Logger.LogWarning("GetExecutableSize() has not been implemented for {Arg0}", PlatformType.ToString());
 			return -1;
+		}
+
+		public virtual bool UpdatePatchPackagingParameters( string ProjectRoot, string BuildToUse, string AdditionalOptions )
+		{
+			Logger.LogWarning("UpdatePackagingParameters() has not been implemented for {Arg0}", PlatformType.ToString());
+			return false;
 		}
 
 		/// <summary>

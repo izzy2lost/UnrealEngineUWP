@@ -76,7 +76,7 @@ namespace GeometryCollectionTest
 		 * Implicit box uses Scale X, Y, Z for dimensions.
 		 * Implicit sphere uses Scale X for radius.
 		 */
-		FVector InitialLinearVelocity = FVector::ZeroVector;
+		FVector3f InitialLinearVelocity = FVector3f::ZeroVector;
 		EObjectStateTypeEnum DynamicState = EObjectStateTypeEnum::Chaos_Object_Dynamic;
 		bool Simulating = true;
 		FReal Mass = 1.0;

@@ -22,15 +22,19 @@ class ENGINE_API FActorPrimitiveColorHandler
 public:
 	struct FPrimitiveColorHandler
 	{
-		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InGetColorFunc, const FActivateFunc& InActivateFunc)
+		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, bool bInAvailalbleInEditor, const FGetColorFunc& InGetColorFunc, const FActivateFunc& InActivateFunc, FText InHandlerToolTipText = FText())
 			: HandlerName(InHandlerName)
 			, HandlerText(InHandlerText)
+			, HandlerToolTipText(InHandlerToolTipText)
+			, bAvailalbleInEditor(bInAvailalbleInEditor)
 			, GetColorFunc(InGetColorFunc)
 			, ActivateFunc(InActivateFunc)
 		{}
 
 		FName HandlerName;
 		FText HandlerText;
+		FText HandlerToolTipText;
+		bool bAvailalbleInEditor;
 		FGetColorFunc GetColorFunc;
 		FActivateFunc ActivateFunc;
 	};	
@@ -38,12 +42,15 @@ public:
 	FActorPrimitiveColorHandler();
 	static FActorPrimitiveColorHandler& Get();
 
-	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InHandlerFunc, const FActivateFunc& InActivateFunc = []() {});
+	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InHandlerFunc, const FActivateFunc& InActivateFunc = []() {}, FText InHandlerToolTipText = FText());
+	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, bool bInAvailalbleInEditor, const FGetColorFunc& InHandlerFunc, const FActivateFunc& InActivateFunc = []() {}, FText InHandlerToolTipText = FText());
 	void UnregisterPrimitiveColorHandler(FName InHandlerName);
 	void GetRegisteredPrimitiveColorHandlers(TArray<FPrimitiveColorHandler>& OutPrimitiveColorHandlers) const;
 
 	FName GetActivePrimitiveColorHandler() const;
 	bool SetActivePrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
+
+	FText GetActivePrimitiveColorHandlerDisplayName() const;
 
 	void RefreshPrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
 	void RefreshPrimitiveColorHandler(FName InHandlerName, const TArray<AActor*>& InActors);
@@ -52,9 +59,10 @@ public:
 	FLinearColor GetPrimitiveColor(const UPrimitiveComponent* InPrimitiveComponent) const;
 
 private:
+	void InitActivePrimitiveColorHandler();
+
 #if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	FName ActivePrimitiveColorHandlerName;
-	FText ActivePrimitiveColorHandlerText;
 	FPrimitiveColorHandler* ActivePrimitiveColorHandler;
 	TMap<FName, FPrimitiveColorHandler> Handlers;
 #endif

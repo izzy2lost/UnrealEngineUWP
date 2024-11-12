@@ -9,7 +9,7 @@
 #include "AssetManagerEditorModule.h"
 
 #include "TreeView/AssetTable.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
 
 class FAssetTreeNode;
 

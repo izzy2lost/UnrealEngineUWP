@@ -207,6 +207,8 @@ void UIKRetargetBatchOperation::RetargetAssets(
 {
 	USkeleton* OldSkeleton = Context.SourceMesh->GetSkeleton();
 	USkeleton* NewSkeleton = Context.TargetMesh->GetSkeleton();
+
+	TArray<FAdditiveRetargetSettings> SettingsToRestoreAfterRetarget;
 	
 	for (UAnimationAsset* AssetToRetarget : AnimationAssetsToRetarget)
 	{
@@ -234,14 +236,13 @@ void UIKRetargetBatchOperation::RetargetAssets(
 			Controller.RemoveAllBoneTracks(bShouldTransact);
 
 			// reset all additive animation properties to ensure WYSIWYG playback of additive anims between retargeter and sequence
-			AnimSequenceToRetarget->AdditiveAnimType = EAdditiveAnimationType::AAT_None;
-			AnimSequenceToRetarget->RefPoseType = EAdditiveBasePoseType::ABPT_None;
-			AnimSequenceToRetarget->RefFrameIndex = 0;
-			AnimSequenceToRetarget->RefPoseSeq = nullptr;
+			FAdditiveRetargetSettings SequenceSettings;
+			SequenceSettings.PrepareForRetarget(AnimSequenceToRetarget);
+			SettingsToRestoreAfterRetarget.Add(SequenceSettings);
 			
 			// set the retarget source to the target skeletal mesh
 			AnimSequenceToRetarget->RetargetSource = NAME_None;
-			AnimSequenceToRetarget->RetargetSourceAsset = Context.TargetMesh;
+			AnimSequenceToRetarget->SetRetargetSourceAsset(Context.TargetMesh);
 			Controller.UpdateWithSkeleton(NewSkeleton, bShouldTransact);
 
 			// done editing sequence data, close bracket
@@ -257,8 +258,6 @@ void UIKRetargetBatchOperation::RetargetAssets(
 	// Call PostEditChange after the references of all assets were replaced, to prevent order dependence of post edit
 	// change hooks. If PostEditChange is called right after ReplaceReferredAnimations it can access references that are
 	// still queued for retarget and follow the current asset in the array.
-	static const FName RetargetSourceAssetPropertyName =  GET_MEMBER_NAME_STRING_CHECKED(UAnimSequence, RetargetSourceAsset);
-	static FProperty* RetargetAssetProperty = UAnimSequence::StaticClass()->FindPropertyByName(RetargetSourceAssetPropertyName);
 	for (UAnimationAsset* AssetToRetarget : AnimationAssetsToRetarget)
 	{
 		if (Progress.ShouldCancel())
@@ -269,8 +268,7 @@ void UIKRetargetBatchOperation::RetargetAssets(
 		// force updating of the retarget pose, this is normally done on PreSave() but is guarded against procedural saves
 		if (UAnimSequence* AnimSequenceToRetarget = Cast<UAnimSequence>(AssetToRetarget))
 		{
-			FPropertyChangedEvent RetargetAssetPropertyChangedEvent(RetargetAssetProperty);
-			AnimSequenceToRetarget->PostEditChangeProperty(RetargetAssetPropertyChangedEvent);
+			AnimSequenceToRetarget->UpdateRetargetSourceAssetData();
 		}
 		
 		AssetToRetarget->PostEditChange();
@@ -279,6 +277,15 @@ void UIKRetargetBatchOperation::RetargetAssets(
 
 	// convert the animation using the IK retargeter
 	ConvertAnimation(Context,Progress);
+
+	// optionally restore the additive flags
+	if (Context.bRetainAdditiveFlags)
+	{
+		for (FAdditiveRetargetSettings SettingsToRestore : SettingsToRestoreAfterRetarget)
+		{
+			SettingsToRestore.RestoreOnAsset();
+		}
+	}
 
 	// convert all Animation Blueprints and compile 
 	for (UAnimBlueprint* AnimBlueprint : AnimBlueprintsToRetarget)
@@ -326,7 +333,9 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 	// initialize the retargeter
 	UObject* TransientOuter = Cast<UObject>(GetTransientPackage());
 	UIKRetargetProcessor* Processor = NewObject<UIKRetargetProcessor>(TransientOuter);
-	Processor->Initialize(Context.SourceMesh, Context.TargetMesh, Context.IKRetargetAsset);
+	FRetargetProfile RetargetProfile;
+	Context.IKRetargetAsset->FillProfileWithAssetSettings(RetargetProfile);
+	Processor->Initialize(Context.SourceMesh, Context.TargetMesh, Context.IKRetargetAsset, RetargetProfile);
 	if (!Processor->IsInitialized())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Unable to initialize the IK Retargeter. Newly created animations were not retargeted!"));
@@ -420,9 +429,15 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 				const FName& BoneName = SourceBoneNames[BoneIndex];
 				SourceComponentPose[BoneIndex] = UAnimPoseExtensions::GetBonePose(SourcePoseAtFrame, BoneName, EAnimPoseSpaces::World);
 			}
+			
+			// strip all scale out of the pose values, the translation of a component-space pose has incorporated scale values
+			for (FTransform& Transform : SourceComponentPose)
+			{
+				Transform.SetScale3D(FVector::OneVector);
+			}
 
 			// update goals 
-			Processor->ApplySettingsFromAsset();
+			Processor->CopyIKRigSettingsFromAsset();
 			
 			// calculate the delta time
 			const float TimeAtCurrentFrame = SourceSequence->GetTimeAtFrame(FrameIndex);
@@ -440,8 +455,12 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 				SpeedCurveValues.Add(SpeedCurveName, SourceSequence->EvaluateCurveData(SpeedCurveName, TimeAtCurrentFrame));
 			}
 
+			// get the settings profile
+			FRetargetProfile SettingsProfile;
+			Context.IKRetargetAsset->FillProfileWithAssetSettings(SettingsProfile);
+
 			// run the retargeter
-			const TArray<FTransform>& TargetComponentPose = Processor->RunRetargeter(SourceComponentPose, SpeedCurveValues, DeltaTime);
+			const TArray<FTransform>& TargetComponentPose = Processor->RunRetargeter(SourceComponentPose, SpeedCurveValues, DeltaTime, SettingsProfile);
 
 			// convert to a local-space pose
 			TArray<FTransform> TargetLocalPose = TargetComponentPose;
@@ -727,6 +746,41 @@ void UIKRetargetBatchOperation::CleanupIfCancelled(const FScopedSlowTask& Progre
 	// delete any newly created assets
 	constexpr bool bShowConfirmation = true;
 	ObjectTools::DeleteObjects(NewAssets, bShowConfirmation);
+}
+
+void FAdditiveRetargetSettings::PrepareForRetarget(UAnimSequence* InSequenceAsset)
+{
+	if (!ensure(InSequenceAsset))
+	{
+		return;
+	}
+
+	SequenceAsset = InSequenceAsset;
+
+	// store setting values
+	AdditiveAnimType = SequenceAsset->AdditiveAnimType;
+	RefPoseType = SequenceAsset->RefPoseType;
+	RefFrameIndex = SequenceAsset->RefFrameIndex;
+	RefPoseSeq = SequenceAsset->RefPoseSeq;
+
+	// remove all additive settings so that retarget happens on base motion
+	SequenceAsset->AdditiveAnimType = EAdditiveAnimationType::AAT_None;
+	SequenceAsset->RefPoseType = EAdditiveBasePoseType::ABPT_None;
+	SequenceAsset->RefFrameIndex = 0;
+	SequenceAsset->RefPoseSeq = nullptr;
+}
+
+void FAdditiveRetargetSettings::RestoreOnAsset() const
+{
+	if (!ensure(SequenceAsset))
+	{
+		return;
+	}
+		
+	SequenceAsset->AdditiveAnimType = AdditiveAnimType;
+	SequenceAsset->RefPoseType = RefPoseType;
+	SequenceAsset->RefFrameIndex = RefFrameIndex;
+	SequenceAsset->RefPoseSeq = RefPoseSeq;
 }
 
 TArray<FAssetData> UIKRetargetBatchOperation::DuplicateAndRetarget(

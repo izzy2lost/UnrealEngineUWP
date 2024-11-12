@@ -17,7 +17,7 @@ public:
 
 	virtual void IncrementSwapChainIndex_RHIThread() override final;
 	virtual void WaitCurrentImage_RHIThread(int64 Timeout) override final;
-	virtual void ReleaseCurrentImage_RHIThread() override final;
+	virtual void ReleaseCurrentImage_RHIThread(IRHICommandContext* RHICmdContext) override final;
 
 	XrSwapchain GetHandle() { return Handle; }
 	static XrSwapchain CreateSwapchain(XrSession InSession, uint32 PlatformFormat, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 NumSamples, ETextureCreateFlags CreateFlags, void* Next = nullptr);

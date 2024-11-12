@@ -39,7 +39,7 @@ UDMMaterialStageInputGradient* UDMMaterialStageInputGradient::ChangeStageSource_
 	}
 
 	check(InGradientClass);
-	check(!(InGradientClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InGradientClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	UDMMaterialStageInputGradient* NewInputGradient = InStage->ChangeSource<UDMMaterialStageInputGradient>(
 		[InGradientClass](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
@@ -60,7 +60,7 @@ UDMMaterialStageInputGradient* UDMMaterialStageInputGradient::ChangeStageInput_G
 	check(Source);
 
 	check(InGradientClass);
-	check(!(InGradientClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InGradientClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	UDMMaterialStageInputGradient* NewInputGradient = InStage->ChangeInput<UDMMaterialStageInputGradient>(
 		InInputIdx, InInputChannel, 0, InOutputChannel,

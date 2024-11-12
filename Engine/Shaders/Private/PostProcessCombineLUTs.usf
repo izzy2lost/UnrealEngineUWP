@@ -189,6 +189,7 @@ float4 CombineLUTsCommon(float2 InUV, uint InLayerIndex)
 	float3 LUTEncodedColor = Neutral.rgb;
 	float3 LinearColor;
 	// Decode texture values as ST-2084 (Dolby PQ)
+	BRANCH
 	if (GetOutputDevice() >= TONEMAPPER_OUTPUT_ACES1000nitST2084)
 	{
 		// Since ST2084 returns linear values in nits, divide by a scale factor to convert

@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "InstancedActorsSettings.h"
 #include "InstancedActorsDebug.h"
 #include "InstancedActorsManager.h"
 #include "GameplayTagContainer.h"
 #include "HierarchicalHashGrid2D.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "SharedStruct.h"
+#include "StructUtils/SharedStruct.h"
 #include "UObject/ObjectKey.h"
 #include "InstancedActorsSubsystem.generated.h"
 
@@ -21,6 +20,12 @@ class ULevel;
 struct FInstancedActorsInstanceHandle;
 struct FInstancedActorsManagerHandle;
 struct FInstancedActorsModifierVolumeHandle;
+class UInstancedActorsProjectSettings;
+
+namespace UE::InstancedActors
+{
+struct FExemplarActorData;
+} // UE::InstancedActors
 
 /**
  * Instanced Actor subsystem used to spawn AInstancedActorsManager's and populate their instance data.
@@ -44,14 +49,16 @@ public:
 	* Adds an instance of ActorClass at InstanceTransform location by spawning or reusing a AInstancedActorsManager at InstanceTransform's grid cell location.
 	* @see UInstancedActorsProjectSettings::GridSize
 	*/	
-	INSTANCEDACTORS_API FInstancedActorsInstanceHandle InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags = FGameplayTagContainer());
+	INSTANCEDACTORS_API FInstancedActorsInstanceHandle InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level
+		, const FGameplayTagContainer& InstanceTags = FGameplayTagContainer());
 
 	/** 
 	* Adds an instance of ActorClass at InstanceTransform location by spawning or reusing a AInstancedActorsManager at InstanceTransform's grid cell location.
 	* @see UInstancedActorsProjectSettings::GridSize
 	*/	
 	UFUNCTION(BlueprintCallable, Category = InstancedActors)
-	INSTANCEDACTORS_API FInstancedActorsInstanceHandle InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags, TSubclassOf<AInstancedActorsManager> ManagerClass);
+	INSTANCEDACTORS_API FInstancedActorsInstanceHandle InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level
+		, const FGameplayTagContainer& InstanceTags, TSubclassOf<AInstancedActorsManager> ManagerClass);
 
 	/**
 	 * Removes all instance data for InstanceHandle.	
@@ -68,11 +75,24 @@ public:
 	INSTANCEDACTORS_API bool RemoveActorInstance(const FInstancedActorsInstanceHandle& InstanceHandle, bool bDestroyManagerIfEmpty = true);
 #endif // WITH_EDITOR
 
-	INSTANCEDACTORS_API void ForEachManager(const FBox& QueryBounds, TFunctionRef<bool(AInstancedActorsManager&)> InOperation, TSubclassOf<AInstancedActorsManager> ManagerClass = AInstancedActorsManager::StaticClass()) const;
+	INSTANCEDACTORS_API void ForEachManager(const FBox& QueryBounds, TFunctionRef<bool(AInstancedActorsManager&)> InOperation
+		, TSubclassOf<AInstancedActorsManager> ManagerClass = AInstancedActorsManager::StaticClass()) const;
 	INSTANCEDACTORS_API void ForEachModifierVolume(const FBox& QueryBounds, TFunctionRef<bool(UInstancedActorsModifierVolumeComponent&)> InOperation) const;
-	INSTANCEDACTORS_API void ForEachInstance(const FBox& QueryBounds, TFunctionRef<bool(const FInstancedActorsInstanceHandle&, const FTransform&, FInstancedActorsIterationContext&)> InOperation) const;
+	INSTANCEDACTORS_API void ForEachInstance(const FBox& QueryBounds, TFunctionRef<bool(const FInstancedActorsInstanceHandle&
+		, const FTransform&, FInstancedActorsIterationContext&)> InOperation) const;
 
-	FInstancedActorsManagerHandle AddManager(AInstancedActorsManager& Manager);
+	/** 
+	 * Checks whether there are any instanced actors representing ActorClass or its subclasses inside QueryBounds.
+	 * The check doesn't differentiate between hydrated and dehydrated actors (i.e. whether there's an actor instance 
+	 * associated with the instance or not).
+	 * @param bTestActorsIfSpawned if true then when an instance is found to overlap given bounds, and it has an actor
+	 *	spawned associated with it, then the actor itself will be tested against the bounds for more precise test.
+	 * @param AllowedLODs if provided will be used to filter out InstancedActorData that are at LOD not matching the flags in AllowedLODs
+	 */
+	INSTANCEDACTORS_API bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned = false
+		, const EInstancedActorsBulkLODMask AllowedLODs = EInstancedActorsBulkLODMask::All) const;
+
+	INSTANCEDACTORS_API FInstancedActorsManagerHandle AddManager(AInstancedActorsManager& Manager);
 	void RemoveManager(FInstancedActorsManagerHandle ManagerHandle);
 
 	FInstancedActorsModifierVolumeHandle AddModifierVolume(UInstancedActorsModifierVolumeComponent& ModifierVolume);
@@ -106,8 +126,13 @@ public:
 	 * the main game world.
 	 *
 	 * These 'exemplar' actors are fully constructed, including BP construction scripts up to (but not including) BeginPlay.
-	 */ 
-	INSTANCEDACTORS_API AActor& GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass);
+	 */
+	INSTANCEDACTORS_API TSharedRef<UE::InstancedActors::FExemplarActorData> GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass);
+	
+	/**
+	 * Removes exemplar actor class from the map
+	 */
+	INSTANCEDACTORS_API void UnregisterExemplarActorClass(TSubclassOf<AActor> ActorClass);
 
 	/** 
 	 * Compiles and caches finalized settings for ActorClass based off FInstancedActorsClassSettingsBase found in 
@@ -158,8 +183,39 @@ public:
 	INSTANCEDACTORS_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	INSTANCEDACTORS_API virtual void Deinitialize() override;
 	//~ End USubsystem Overrides
-		
+
+	struct FNextTickSharedFragment
+	{
+		FSharedStruct SharedStruct;
+		double NextTickTime = 0;
+
+		bool operator<(const FNextTickSharedFragment& Other) const
+		{
+			return NextTickTime < Other.NextTickTime;
+		}
+	};
+
+	TArray<UInstancedActorsSubsystem::FNextTickSharedFragment>& GetTickableSharedFragments();
+	void UpdateAndResetTickTime(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment);
+
+	TSubclassOf<AInstancedActorsManager> GetInstancedActorsManagerClass() const 
+	{ 
+		return InstancedActorsManagerClass; 
+	}
+
 protected:
+	/** 
+	 * Fetches all registered FInstancedActorsDataSharedFragment from the EntityManager and adds the missing ones to SortedSharedFragments
+	 * @param InstancedActorsDataSharedFragment optionally the function can check if given shared fragment is amongst 
+	 *	the newly added fragments
+	 * @param returns whether InstancedActorsDataSharedFragment has been found, or `true` if that param is not provided. 
+	 */
+	bool RegisterNewSharedFragmentsInternal(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment = TConstStructView<FInstancedActorsDataSharedFragment>());
+
+	/** The container storing a sorted queue of FSharedStruct instances, ordered by the NextTickTime */
+	TArray<FNextTickSharedFragment> SortedSharedFragments;
+
+	TSharedPtr<FMassEntityManager> EntityManager;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UInstancedActorsProjectSettings> ProjectSettings;
@@ -169,6 +225,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UActorPartitionSubsystem> ActorPartitionSubsystem;
+
+	UPROPERTY()
+	TSubclassOf<AInstancedActorsManager> InstancedActorsManagerClass;
 
 	// Spatially indexed managers. TSparseArray used for stable indices which can be spatially indexed by THierarchicalHashGrid2D
 	// @todo Managers should be indexable by cell coord hashes within their levels, we could leverage this for more efficient spatial
@@ -214,7 +273,7 @@ protected:
 
 	// Lazily created exemplar actors for instance actor classes
 	// @see GetOrCreateExemplarActor
-	TMap<TObjectKey<const UClass>, TObjectPtr<AActor>> ExemplarActors;
+	TMap<TObjectKey<const UClass>, TWeakPtr<UE::InstancedActors::FExemplarActorData>> ExemplarActors;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UScriptStruct> SettingsType;

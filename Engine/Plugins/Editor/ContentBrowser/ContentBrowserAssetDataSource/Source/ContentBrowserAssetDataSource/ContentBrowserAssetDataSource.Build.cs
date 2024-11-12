@@ -38,6 +38,7 @@ namespace UnrealBuildTool.Rules
 					"EditorWidgets",
 					"Projects",
 					"ToolMenus",
+					"ToolWidgets",
 					"Slate",
 					"SlateCore",
 					"InputCore",

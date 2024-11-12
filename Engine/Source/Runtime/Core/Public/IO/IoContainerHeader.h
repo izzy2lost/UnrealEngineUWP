@@ -63,12 +63,32 @@ struct FIoContainerHeaderLocalizedPackage
 	CORE_API friend FArchive& operator<<(FArchive& Ar, FIoContainerHeaderLocalizedPackage& LocalizedPackage);
 };
 
+struct FFilePackageStoreEntrySoftReferences
+{
+	TFilePackageStoreEntryCArrayView<uint32> Indices;
+};
+
+struct FIoContainerHeaderSoftPackageReferences
+{
+	CORE_API void Empty();
+
+	// Deduplicated list of soft referenced package IDs for all packages in the container.
+	TArray<FPackageId> PackageIds;
+	// Indices into the package ID list for all packages in the container serialized as array views.
+	TArray<uint8> PackageIndices; 
+	// Flag indicating whether any soft package references exists.
+	bool bContainsSoftPackageReferences = false;
+
+	CORE_API friend FArchive& operator<<(FArchive& Ar, FIoContainerHeaderSoftPackageReferences& SoftPackageReferences);
+};
+
 enum class EIoContainerHeaderVersion : uint32
 {
 	Initial = 0,
 	LocalizedPackages = 1,
 	OptionalSegmentPackages = 2,
 	NoExportInfo = 3,
+	SoftPackageReferences = 4,
 
 	LatestPlusOne,
 	Latest = LatestPlusOne - 1
@@ -89,6 +109,7 @@ struct FIoContainerHeader
 	TArray<FDisplayNameEntryId> RedirectsNameMap;
 	TArray<FIoContainerHeaderLocalizedPackage> LocalizedPackages;
 	TArray<FIoContainerHeaderPackageRedirect> PackageRedirects;
+	FIoContainerHeaderSoftPackageReferences SoftPackageReferences;
 
 	CORE_API friend FArchive& operator<<(FArchive& Ar, FIoContainerHeader& ContainerHeader);
 };

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/Attribute.h"
+#include "Misc/Optional.h"
 
 /**
  * Structure for optional floating point sizes.
@@ -24,6 +25,15 @@ struct FOptionalSize
 	 */
 	FOptionalSize( const float SpecifiedSize )
 		: Size(SpecifiedSize)
+	{ }
+
+	/**
+	 * Creates a size with the TOptional value.
+	 *
+	 * @param OptionalSize The optional size to set.
+	 */
+	FOptionalSize( const TOptional<float>& OptionalSize )
+		: Size(OptionalSize.Get(Unspecified))
 	{ }
 
 public:
@@ -73,19 +83,22 @@ private:
  *
  * Describes a way in which a parent widget allocates available space to its child widgets.
  *
- * When SizeRule is SizeRule_Auto, the widget's DesiredSize will be used as the space required.
- * When SizeRule is SizeRule_Stretch, the available space will be distributed proportionately between
- * peer Widgets depending on the Value property. Available space is space remaining after all the
- * peers' SizeRule_Auto requirements have been satisfied.
+ * When SizeRule is SizeRule_Auto, the required space is the widget's DesiredSize.
+ * When SizeRule is SizeRule_Stretch, the required space is the available space distributed proportionately between peer Widgets.
+ * When SizeRule is SizeRule_StretchContent, the required space is widget's content size adjusted proportionally to fit the available space.
  *
- * FSizeParam cannot be constructed directly - see FStretch, FAuto, and FAspectRatio
+ * Available space is space remaining after all the peers' SizeRule_Auto requirements have been satisfied.
+ * The available space is distributed proportionally between the peer widgets depending on the Value property.
+ *
+ * FSizeParam cannot be constructed directly - see FStretch, FStretchContent, FAuto, and FAspectRatio
  */
 struct FSizeParam
 {
 	enum ESizeRule
 	{
 		SizeRule_Auto,
-		SizeRule_Stretch
+		SizeRule_Stretch,
+		SizeRule_StretchContent,
 	};
 	
 	/** The sizing rule to use. */
@@ -94,10 +107,18 @@ struct FSizeParam
 	/**
 	 * The actual value this size parameter stores.
 	 *
-	 * This value can be driven by a delegate. It is only used for the Stretch mode.
+	 * This value can be driven by a delegate. It is only used for the Stretch and StretchContent modes.
 	 */
 	TAttribute<float> Value;
-	
+
+	/**
+	 * The actual value this size parameter stores, used for shrinking.
+	 * Treated as unused, if set to negative value.
+	 *
+	 * This value can be driven by a delegate. It is only used for the StretchContent mode.
+	 */
+	TAttribute<float> ShrinkValue;
+
 protected:
 
 	/**
@@ -107,9 +128,10 @@ protected:
 	 *
 	 * @see FAspectRatio, FAuto, FStretch
 	 */
-	FSizeParam( ESizeRule InTypeOfSize, const TAttribute<float>& InValue )
+	FSizeParam( ESizeRule InTypeOfSize, const TAttribute<float>& InValue, const TAttribute<float>& InShrinkValue )
 		: SizeRule(InTypeOfSize)
 		, Value(InValue)
+		, ShrinkValue(InShrinkValue)
 	{ }
 };
 
@@ -117,31 +139,50 @@ protected:
 /**
  * Structure for size parameters with SizeRule = SizeRule_Stretch.
  *
- * @see FAspectRatio
- * @see FAuto
+ * @see FStretchContent, FAspectRatio, FAuto
  */
 struct FStretch
 	: public FSizeParam
 {
 	FStretch( const TAttribute<float>& StretchAmount )
-		: FSizeParam(SizeRule_Stretch, StretchAmount)
+		: FSizeParam(SizeRule_Stretch, StretchAmount, StretchAmount)
 	{ }
 
 	FStretch( )
-		: FSizeParam(SizeRule_Stretch, 1.0f)
+		: FSizeParam(SizeRule_Stretch, 1.0f, 1.0f)
 	{ }
 };
 
+/**
+ * Structure for size parameters with SizeRule = SizeRule_StretchContent.
+ *
+ * @see FStretch, FAspectRatio, FAuto
+ */
+struct FStretchContent
+	: public FSizeParam
+{
+	FStretchContent( const TAttribute<float>& StretchAmount )
+		: FSizeParam(SizeRule_StretchContent, StretchAmount, StretchAmount)
+	{ }
+
+	FStretchContent( const TAttribute<float>& GrowStretchAmount, const TAttribute<float>& ShrinkStretchAmount )
+   		: FSizeParam(SizeRule_StretchContent, GrowStretchAmount, ShrinkStretchAmount)
+   	{ }
+
+	FStretchContent( )
+		: FSizeParam(SizeRule_StretchContent, 1.0f, 1.0f)
+	{ }
+};
 
 /**
  * Structure for size parameters with SizeRule = SizeRule_Auto.
  *
- * @see FAspectRatio, FStretch
+ * @see FAspectRatio, FStretch, FStretchContent
  */
 struct FAuto
 	: public FSizeParam
 {
 	FAuto()
-		: FSizeParam(SizeRule_Auto, 0.0f)
+		: FSizeParam(SizeRule_Auto, 0.0f, 0.0f)
 	{ }
 };

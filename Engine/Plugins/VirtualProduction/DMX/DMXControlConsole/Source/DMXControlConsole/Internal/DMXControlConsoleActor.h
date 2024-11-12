@@ -7,7 +7,6 @@
 #include "DMXControlConsoleActor.generated.h"
 
 class UDMXControlConsoleData;
-
 class USceneComponent;
 
 
@@ -28,15 +27,30 @@ public:
 	/** Returns the Control Console Data used for this actor */
 	UDMXControlConsoleData* GetControlConsoleData() const { return ControlConsoleData; }
 
-	/** Sets current DMX Control Console to start sending DMX data */
+	/** Sets the current DMX Control Console to start sending DMX data */
 	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
 	void StartSendingDMX();
 
-	/** Sets current DMX Control Console to stop sending DMX data */
+	/** Sets the current DMX Control Console to stop sending DMX data */
 	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
 	void StopSendingDMX();
 
+	/** Sets the current DMX Control Console to pause sending DMX data */
+	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
+	void PauseSendingDMX();
+
+	/** Resets all the faders in this Control Console to their default values */
+	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
+	void ResetToDefault();
+
+	/** Resets all the faders in this Control Console to zero */
+	UFUNCTION(BlueprintCallable, Category = "DMX Control Console")
+	void ResetToZero();
+
 #if WITH_EDITOR
+	/** Returns the delegate called when the Control Console has been reset */
+	static FSimpleMulticastDelegate& GetOnControlConsoleReset() { return OnControlConsoleReset; }
+
 	// Property name getters
 	static FName GetControlConsoleDataPropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, ControlConsoleData); }
 	static FName GetAutoActivatePropertyNameChecked() { return GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, bAutoActivate); }
@@ -45,6 +59,7 @@ public:
 
 protected:
 	//~ Begin AActor interface
+	virtual void PostLoad() override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 #if WITH_EDITOR
@@ -53,6 +68,11 @@ protected:
 	//~ End AActor interface
 
 private:
+#if WITH_EDITOR
+	/** Applies the play in editor state. Enables send when auto activate is on, send DMX in editor is enabled and not currently playing */
+	void ApplySendDMXInEditorState();
+#endif // WITH_EDITOR
+
 	/** The Control Console Data used in this actor */
 	UPROPERTY(VisibleAnywhere, Category = "DMX Control Console")
 	TObjectPtr<UDMXControlConsoleData> ControlConsoleData;
@@ -66,6 +86,14 @@ private:
 	UPROPERTY(EditAnywhere, Category = "DMX Control Console", Meta = (DisplayName = "Send DMX in Editor"))
 	bool bSendDMXInEditor = false;
 #endif // WITH_EDITORONLY_DATA
+
+#if WITH_EDITOR
+	/** Called when the Control Console has been reset */
+	static FSimpleMulticastDelegate OnControlConsoleReset;
+
+	/** True while the actor plays in a world */
+	bool bIsPlayInWorld = false;
+#endif // WITH_EDITOR
 
 	/** Scene component to make the Actor easily visible in Editor */
 	UPROPERTY(VisibleAnywhere, Category = "Actor", AdvancedDisplay, Meta = (AllowPrivateAccess = true))

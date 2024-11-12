@@ -8,6 +8,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayInteractionListenSlotEventsTask)
 
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
 FGameplayInteractionListenSlotEventsTask::FGameplayInteractionListenSlotEventsTask()
 {
 	// No tick needed.
@@ -75,3 +77,27 @@ void FGameplayInteractionListenSlotEventsTask::ExitState(FStateTreeExecutionCont
 
 	InstanceData.OnEventHandle.Reset();
 }
+
+#if WITH_EDITOR
+FText FGameplayInteractionListenSlotEventsTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, TargetSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("ListenSlotEventsRich", "<b>Listen Events</> <s>on slot</> {Slot}")
+		: LOCTEXT("ListenSlotEvents", "Listen Events on slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Slot"), SlotValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

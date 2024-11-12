@@ -26,6 +26,68 @@
 
 #define LOCTEXT_NAMESPACE "CallFunctionHandler"
 
+namespace UE::K2NodeCallFunction::Private
+{
+	static bool IsCalledFunctionPure(const UEdGraphNode* Node)
+	{
+		if (const UK2Node_CallFunction* CallFunctionNode = Cast<UK2Node_CallFunction>(Node))
+		{
+			return CallFunctionNode->IsNodePure();
+		}
+		
+		return false;
+	}
+
+	static bool FindMatchingReferencedNetOrFieldNotifyPropertyAndPin(TArray<UEdGraphPin*>& RemainingPins, FProperty* FunctionProperty, FProperty*& NetProperty, FProperty*& FieldNotifyProperty, UEdGraphPin*& PropertyObjectPin)
+	{
+		NetProperty = nullptr;
+		FieldNotifyProperty = nullptr;
+		PropertyObjectPin = nullptr;
+
+		if (UNLIKELY(FunctionProperty->HasAllPropertyFlags(CPF_OutParm | CPF_ReferenceParm) && !FunctionProperty->HasAnyPropertyFlags(CPF_ReturnParm | CPF_ConstParm)))
+		{
+			for (int32 i = 0; i < RemainingPins.Num(); ++i)
+			{
+				if (FunctionProperty->GetFName() == RemainingPins[i]->PinName)
+				{
+					bool bResult = false;
+					UEdGraphPin* ParamPin = RemainingPins[i];
+					RemainingPins.RemoveAtSwap(i);
+					if (UEdGraphPin* PinToTry = FEdGraphUtilities::GetNetFromPin(ParamPin))
+					{
+						// TODO: Should we traverse pin links to find references somehow?
+						//			E.G., How are select statements that pass through references
+						//					to net properties handled?
+
+						if (UK2Node_VariableGet* GetPropertyNode = Cast<UK2Node_VariableGet>(PinToTry->GetOwningNode()))
+						{
+							if (FProperty* ToCheck = GetPropertyNode->GetPropertyForVariable())
+							{
+								if (UNLIKELY(FKismetCompilerUtilities::IsPropertyUsesFieldNotificationSetValueAndBroadcast(ToCheck)))
+								{
+									FieldNotifyProperty = ToCheck;
+									PropertyObjectPin = GetPropertyNode->FindPinChecked(UEdGraphSchema_K2::PN_Self);
+									bResult = true;
+								}
+								if (UNLIKELY(ToCheck->HasAnyPropertyFlags(CPF_Net)))
+								{
+									NetProperty = ToCheck;
+									PropertyObjectPin = GetPropertyNode->FindPinChecked(UEdGraphSchema_K2::PN_Self);
+									bResult = true;
+								}
+							}
+						}
+					}
+
+					return bResult;
+				}
+			}
+		}
+
+		return false;
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // FImportTextErrorContext
 
@@ -474,12 +536,15 @@ void FKCHandler_CallFunction::CreateFunctionCallStatement(FKismetFunctionContext
 				// of a cast node). Otherwise, we'll infer the wrong context type at runtime and corrupt the stack by
 				// reading an interface ptr (16 bytes) into an object ptr (8 bytes) when we process the context opcode.
 				const bool bIsInterfaceContextTerm = Target && Target->AssociatedVarProperty && Target->AssociatedVarProperty->IsA<FInterfaceProperty>();
+				
+				UClass* FunctionOwnerClass = Function->GetOwnerClass();
+				const bool bIsInterfaceFunc = FunctionOwnerClass ? FunctionOwnerClass->HasAnyClassFlags(CLASS_Interface) : false;
 
 				FBlueprintCompiledStatement& Statement = Context.AppendStatementForNode(Node);
 				Statement.FunctionToCall = Function;
 				Statement.FunctionContext = Target;
 				Statement.Type = KCST_CallFunction;
-				Statement.bIsInterfaceContext = IsCalledFunctionFromInterface(Node) || bIsInterfaceContextTerm;
+				Statement.bIsInterfaceContext = bIsInterfaceFunc || bIsInterfaceContextTerm;
 				Statement.bIsParentContext = Node->IsA<UK2Node_CallParentFunction>();
 
 				Statement.LHS = LHSTerm;
@@ -541,7 +606,7 @@ void FKCHandler_CallFunction::CreateFunctionCallStatement(FKismetFunctionContext
 			else
 			{
 				// Generate the output impulse from this node
-				if (!IsCalledFunctionPure(Node))
+				if (!UE::K2NodeCallFunction::Private::IsCalledFunctionPure(Node))
 				{
 					GenerateSimpleThenGoto(Context, *Node);
 				}
@@ -716,58 +781,6 @@ UFunction* FKCHandler_CallFunction::FindFunction(FKismetFunctionContext& Context
 	return nullptr;
 }
 
-namespace UE::BlueprintGraph::Private
-{
-static bool FindMatchingReferencedNetOrFieldNotifyPropertyAndPin(TArray<UEdGraphPin*>& RemainingPins, FProperty* FunctionProperty, FProperty*& NetProperty, FProperty*& FieldNotifyProperty, UEdGraphPin*& PropertyObjectPin)
-{
-	NetProperty = nullptr;
-	FieldNotifyProperty = nullptr;
-	PropertyObjectPin = nullptr;
-
-	if (UNLIKELY(FunctionProperty->HasAllPropertyFlags(CPF_OutParm | CPF_ReferenceParm) && !FunctionProperty->HasAnyPropertyFlags(CPF_ReturnParm | CPF_ConstParm)))
-	{
-		for (int32 i = 0; i < RemainingPins.Num(); ++i)
-		{
-			if (FunctionProperty->GetFName() == RemainingPins[i]->PinName)
-			{
-				bool bResult = false;
-				UEdGraphPin* ParamPin = RemainingPins[i];
-				RemainingPins.RemoveAtSwap(i);
-				if (UEdGraphPin* PinToTry = FEdGraphUtilities::GetNetFromPin(ParamPin))
-				{
-					// TODO: Should we traverse pin links to find references somehow?
-					//			E.G., How are select statements that pass through references
-					//					to net properties handled?
-
-					if (UK2Node_VariableGet* GetPropertyNode = Cast<UK2Node_VariableGet>(PinToTry->GetOwningNode()))
-					{
-						if (FProperty* ToCheck = GetPropertyNode->GetPropertyForVariable())
-						{
-							if (UNLIKELY(FKismetCompilerUtilities::IsPropertyUsesFieldNotificationSetValueAndBroadcast(ToCheck)))
-							{
-								FieldNotifyProperty = ToCheck;
-								PropertyObjectPin = GetPropertyNode->FindPinChecked(UEdGraphSchema_K2::PN_Self);
-								bResult = true;
-							}
-							if (UNLIKELY(ToCheck->HasAnyPropertyFlags(CPF_Net)))
-							{
-								NetProperty = ToCheck;
-								PropertyObjectPin = GetPropertyNode->FindPinChecked(UEdGraphSchema_K2::PN_Self);
-								bResult = true;
-							}
-						}
-					}
-				}
-
-				return bResult;
-			}
-		}
-	}
-
-	return false;
-}
-}
-
 void FKCHandler_CallFunction::Transform(FKismetFunctionContext& Context, UEdGraphNode* Node)
 {
 	// Add an object reference pin for this call
@@ -777,7 +790,7 @@ void FKCHandler_CallFunction::Transform(FKismetFunctionContext& Context, UEdGrap
 		return;
 	}
 
-	const bool bIsPure = CallFuncNode->bIsPureFunc;
+	const bool bIsPure = CallFuncNode->IsNodePure();
 	bool bIsPureAndNoUsedOutputs = false;
 	if (bIsPure)
 	{
@@ -886,7 +899,7 @@ void FKCHandler_CallFunction::Transform(FKismetFunctionContext& Context, UEdGrap
 				// This is similar to the loop in CreateCallFunction
 				for (TFieldIterator<FProperty> It(Function); It; ++It)
 				{
-					if (UE::BlueprintGraph::Private::FindMatchingReferencedNetOrFieldNotifyPropertyAndPin(RemainingPins, *It, NetProperty, FieldNotifyProperty, PropertyObjectPin))
+					if (UE::K2NodeCallFunction::Private::FindMatchingReferencedNetOrFieldNotifyPropertyAndPin(RemainingPins, *It, NetProperty, FieldNotifyProperty, PropertyObjectPin))
 					{
 						if (bIsPure)
 						{
@@ -972,7 +985,7 @@ void FKCHandler_CallFunction::Compile(FKismetFunctionContext& Context, UEdGraphN
 	check(NULL != Node);
 
 	//@TODO: Can probably move this earlier during graph verification instead of compilation, but after island pruning
-	if (!IsCalledFunctionPure(Node))
+	if (!UE::K2NodeCallFunction::Private::IsCalledFunctionPure(Node))
 	{
 		// For imperative nodes, make sure the exec function was actually triggered and not just included due to an output data dependency
 		UEdGraphPin* ExecTriggeringPin = CompilerContext.GetSchema()->FindExecutionPin(*Node, EGPD_Input);

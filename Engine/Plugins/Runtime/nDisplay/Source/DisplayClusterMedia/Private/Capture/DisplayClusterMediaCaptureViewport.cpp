@@ -6,11 +6,14 @@
 #include "IDisplayClusterCallbacks.h"
 
 #include "DisplayClusterConfigurationTypes_Viewport.h"
+#include "DisplayClusterMediaCVars.h"
 #include "DisplayClusterMediaLog.h"
 #include "DisplayClusterRootActor.h"
 
 #include "Config/IDisplayClusterConfigManager.h"
 #include "Game/IDisplayClusterGameManager.h"
+
+#include "PostProcess/PostProcessMaterialInputs.h"
 
 #include "Render/IDisplayClusterRenderManager.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
@@ -18,12 +21,20 @@
 #include "Render/Viewport/IDisplayClusterViewportManagerProxy.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_Context.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
+
 #include "RHICommandList.h"
 #include "RHIResources.h"
 
 
-FDisplayClusterMediaCaptureViewport::FDisplayClusterMediaCaptureViewport(const FString& InMediaId, const FString& InClusterNodeId, const FString& InViewportId, UMediaOutput* InMediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy)
-	: FDisplayClusterMediaCaptureBase(InMediaId, InClusterNodeId, InMediaOutput, SyncPolicy)
+FDisplayClusterMediaCaptureViewport::FDisplayClusterMediaCaptureViewport(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	const FString& InViewportId,
+	UMediaOutput* InMediaOutput,
+	UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy,
+	bool bInLateOCIO
+)
+	: FDisplayClusterMediaCaptureBase(InMediaId, InClusterNodeId, InMediaOutput, SyncPolicy, bInLateOCIO)
 	, ViewportId(InViewportId)
 {
 }
@@ -32,8 +43,17 @@ FDisplayClusterMediaCaptureViewport::FDisplayClusterMediaCaptureViewport(const F
 bool FDisplayClusterMediaCaptureViewport::StartCapture()
 {
 	// Subscribe for events
-	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread);
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState);
+
+	// Depending on late OCIO configuration, grab the image in different places
+	if (IsLateOCIO())
+	{
+		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostTonemapPass_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostTonemapPass_RenderThread);
+	}
+	else
+	{
+		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread);
+	}
 
 	// Start capture
 	const bool bStarted = FDisplayClusterMediaCaptureBase::StartCapture();
@@ -43,8 +63,9 @@ bool FDisplayClusterMediaCaptureViewport::StartCapture()
 
 void FDisplayClusterMediaCaptureViewport::StopCapture()
 {
-	// Unsubscribe from events
+	// Unsubscribe from external events/callbacks
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().RemoveAll(this);
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostTonemapPass_RenderThread().RemoveAll(this);
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().RemoveAll(this);
 
 	// Stop capturing
@@ -53,22 +74,26 @@ void FDisplayClusterMediaCaptureViewport::StopCapture()
 
 void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClusterViewport* InViewport, EDisplayClusterViewportMediaState& InOutMediaState)
 {
-	// Note: Media currently supports only one DCRA.
-	// In the future, after the media redesign, the DCRA name will also need to be checked here.
+	// Set capture flag for the matching viewport
 	if (InViewport && InViewport->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
 	{
 		// Raise flags that this viewport will be captured by media.
 		InOutMediaState |= EDisplayClusterViewportMediaState::Capture;
 
-		if (bForceLateOCIOPass)
+		// Late OCIO flag
+		if (IsLateOCIO())
 		{
-			// Raise flags that this capture requires ForceLateOCIOPass.
-			InOutMediaState |= EDisplayClusterViewportMediaState::Capture_ForceLateOCIOPass;
+			InOutMediaState |= EDisplayClusterViewportMediaState::CaptureLateOCIO;
 		}
 	}
 }
 
 FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const
+{
+	return GetViewportSize();
+}
+
+FIntPoint FDisplayClusterMediaCaptureViewport::GetViewportSize() const
 {
 	FIntPoint CaptureSize{ FIntPoint::ZeroValue };
 
@@ -130,22 +155,70 @@ bool FDisplayClusterMediaCaptureViewport::GetCaptureSizeFromGameProxy(FIntPoint&
 	return false;
 }
 
+void FDisplayClusterMediaCaptureViewport::OnPostTonemapPass_RenderThread(FRDGBuilder& GraphBuilder, const IDisplayClusterViewportProxy* ViewportProxy, const FSceneView& View, const FPostProcessMaterialInputs& Inputs, const uint32 ContextNum)
+{
+	checkSlow(ViewportProxy);
+
+	if (!IsLateOCIO())
+	{
+		return;
+	}
+
+	// Media subsystem does not support stereo, therefore we process context 0 only
+	if (ContextNum != 0)
+	{
+		return;
+	}
+
+	// Check if proxy object is valid
+	if (!ViewportProxy)
+	{
+		return;
+	}
+
+	// Make sure this is our viewport
+	const bool bMatchingViewport = ViewportProxy->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase);
+	if (!bMatchingViewport)
+	{
+		return;
+	}
+
+	// Get current SceneColor texture
+	const FScreenPassTexture& SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
+
+	// Pass it to the media capture pipeline
+	if (SceneColor.IsValid())
+	{
+		FMediaOutputTextureInfo TextureInfo{ SceneColor.Texture, SceneColor.ViewRect };
+		ExportMediaData_RenderThread(GraphBuilder, TextureInfo);
+	}
+}
+
 void FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const IDisplayClusterViewportProxy* ViewportProxy)
 {
-	ensure(ViewportProxy);
+	checkSlow(ViewportProxy);
 
+	// Nothing to do if late OCIO is required. The texture has been exported already on PostTonemap callback.
+	if (IsLateOCIO())
+	{
+		return;
+	}
+
+	// Otherwise, find our viewport and export its texture
 	if (ViewportProxy && ViewportProxy->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
 	{
 		TArray<FRHITexture*> Textures;
 		TArray<FIntRect>     Regions;
 
-		// Get RHI texture
+		// Get RHI texture and pass it to the media capture pipeline
 		if (ViewportProxy->GetResourcesWithRects_RenderThread(EDisplayClusterViewportResourceType::InternalRenderTargetResource, Textures, Regions))
 		{
-			if (Textures.Num() > 0 && Regions.Num() > 0)
+			if (Textures.Num() > 0 && Regions.Num() > 0 && Textures[0])
 			{
-				FMediaTextureInfo TextureInfo{ Textures[0], Regions[0] };
-				ExportMediaData(GraphBuilder, TextureInfo);
+				FRDGTextureRef SrcTextureRef = RegisterExternalTexture(GraphBuilder, Textures[0], TEXT("DCMediaOutViewportTex"));
+
+				FMediaOutputTextureInfo TextureInfo{ SrcTextureRef, Regions[0] };
+				ExportMediaData_RenderThread(GraphBuilder, TextureInfo);
 			}
 		}
 	}

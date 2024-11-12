@@ -19,14 +19,42 @@
 			</Property>
 		</Do>
 	</Extend>
+	
+	<Extend Name="Platform_Agent_Target_Mac_Licensee">
+		<Agent Name="Target VisionOS" Type="Mac_Licensee">
+			<Node Name="Compile UnrealGame VisionOS" Requires="Update Version Files" Produces="#UnrealGame VisionOS">
+				<ForEach Name="Target" Values="UnrealGame;$(OptionalClientTarget)">
+					<ForEach Name="Configuration" Values="$(GameConfigurations)">
+						<Compile Target="$(Target)" Platform="VisionOS" Configuration="$(Configuration)" Tag="#UnrealGame VisionOS" AllowParallelExecutor="$(bAllowParallelExecutor)" Arguments="-precompile -allmodules -nolink $(TargetDebugInfoArg) $(ExtraCompileArgs)"/>
+						<Compile Target="$(Target)" Platform="VisionOS" Configuration="$(Configuration)" Tag="#UnrealGame VisionOS" AllowParallelExecutor="$(bAllowParallelExecutor)" Arguments="-precompile $(TargetDebugInfoArg) $(ExtraCompileArgs)" Clean="false"/>
+					</ForEach>
+				</ForEach>
+				
+				<!-- sharing IOS's strip filter since it's in a InstalledEngineFilters.xml, and we don't want to put VisionOS in there -->
+				<Tag Files="#UnrealGame VisionOS" Filter="$(IOSStripFilter)" With="#UnrealGame VisionOS Unstripped"/>
+				<Strip BaseDir="$(RootDir)" OutputDir="$(SavedOutput)" Platform="VisionOS" Files="#UnrealGame VisionOS Unstripped" Tag="#UnrealGame VisionOS Stripped"/>
+			</Node>
+		</Agent>
+		<Aggregate Name="TargetPlatforms_VisionOS" Label="Target Platforms/VisionOS" Requires="Compile UnrealGame VisionOS"/>
+	</Extend>
 
+	<!-- Adds to 'Installed Build Group Win64' -->
+	<!--
 	<Extend Name="Platform_AddInstalledRequirements">
 		<Do If="$(WithVisionOS)">
 			<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#UnrealGame VisionOS"/>
 		</Do>
 	</Extend>
+	-->
 
-	<Extend Name="Platform_Append_DDCPlatformsWin64">
+	<!-- Adds to 'Installed Build Group Mac' -->
+	<Extend Name="Platform_AddFilterRequirements">
+		<Do If="$(WithVisionOS)">
+			<Property Name="FilterRequirements" Value="$(FilterRequirements);#UnrealGame VisionOS"/>
+		</Do>
+	</Extend>
+
+	<Extend Name="Platform_Append_DDCPlatformsMac">
 		<Do If="$(WithVisionOS)">
 			<Property Name="DDCPlatformsMac" Value="$(DDCPlatformsMac)+VisionOS"/>
 		</Do>
@@ -40,7 +68,7 @@
 	</Extend>
 
 	<Extend Name="Platform_Tag_UnrealGame">
-		<Do If="$(WithVisionOS)">
+		<Do If="$(WithVisionOS) And '$(HostPlatform)' == 'Mac'">
 			<Property Name="CopyVisionOSFilter">
 				<!-- Build Files -->
 				Engine/Build/VisionOS/...
@@ -51,7 +79,8 @@
 			</Property>
 			<Property Name="CopyVisionOSExceptions">
 			</Property>
-			<Tag Files="#UnrealGame VisionOS" With="#Installed Mac"/>
+			<Tag Files="#UnrealGame VisionOS" Except="#UnrealGame VisionOS Unstripped" With="#Installed Mac"/>
+			<Tag Files="#UnrealGame VisionOS Stripped" With="#Saved Output"/>
 			<Property Name="Platforms" Value="$(Platforms)VisionOS;"/>
 			<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyVisionOSFilter)"/>
 			<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyVisionOSExceptions)"/>

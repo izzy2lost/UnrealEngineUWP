@@ -88,7 +88,7 @@ namespace DashUtils
 
 
 
-	class FMatroskaParserDataReader : public IParserMKV::IReader, public TSharedFromThis<FMatroskaParserDataReader, ESPMode::ThreadSafe>
+	class FMatroskaParserDataReader : public IGenericDataReader, public TSharedFromThis<FMatroskaParserDataReader, ESPMode::ThreadSafe>
 	{
 	public:
 		virtual ~FMatroskaParserDataReader() { }
@@ -97,23 +97,25 @@ namespace DashUtils
 			: LoadRequest(MoveTemp(InLoadReq))
 		{ }
 
-		int64 MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override
+		int64 ReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset) override
 		{
 			int64 nr = -1;
 			if (LoadChunk(InNumBytesToRead, InFromOffset) && ResponseBuffer.IsValid())
 			{
-				nr = ResponseBuffer->Buffer.GetLinearReadSize();
-				FMemory::Memcpy(InDestinationBuffer, ResponseBuffer->Buffer.GetLinearReadData(), nr);
+				nr = ResponseBuffer->GetLinearReadSize();
+				FMemory::Memcpy(InDestinationBuffer, ResponseBuffer->GetLinearReadData(), nr);
 			}
 			return nr;
 		}
 
-		int64 MKVGetCurrentFileOffset() const override
+		int64 GetCurrentOffset() const override
 		{ check(!"should not be called!"); return -1; }
-		int64 MKVGetTotalSize() override
+		int64 GetTotalSize() const override
 		{ return FileSize; }
-		bool MKVHasReadBeenAborted() const override
+		bool HasReadBeenAborted() const override
 		{ return false; }
+		bool HasReachedEOF() const override
+		{ check(!"this should not be called"); return false; }
 
 	private:
 		bool LoadChunk(int64 InNumBytesToRead, int64 InFromOffset)
@@ -160,7 +162,7 @@ namespace DashUtils
 
 
 		TSharedPtrTS<FMPDLoadRequestDASH> LoadRequest;
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer;
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer;
 		int64 FileSize = -1;
 	};
 }
@@ -349,6 +351,34 @@ TSharedPtrTS<const FLowLatencyDescriptor> FManifestDASH::GetLowLatencyDescriptor
 	return Manifest.IsValid() ? Manifest->GetLowLatencyDescriptor() : nullptr;
 }
 
+FTimeValue FManifestDASH::CalculateCurrentLiveLatency(const FTimeValue& InCurrentPlaybackPosition, const FTimeValue& InEncoderLatency, bool bViaLatencyElement) const
+{
+	FTimeValue LiveLatency;
+	if (GetPresentationType() != IManifest::EType::OnDemand)
+	{
+		FTimeValue UTCNow = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
+		LiveLatency = UTCNow - InCurrentPlaybackPosition;
+
+		if (bViaLatencyElement)
+		{
+			TSharedPtrTS<const FLowLatencyDescriptor> llDesc = GetLowLatencyDescriptor();
+			if (llDesc.IsValid())
+			{
+				// Low latency Live
+				TSharedPtrTS<IProducerReferenceTimeInfo> ProdRefTime = GetProducerReferenceTimeInfo(llDesc->Latency.ReferenceID);
+				if (ProdRefTime.IsValid())
+				{
+					if (InEncoderLatency.IsValid())
+					{
+						LiveLatency += InEncoderLatency;
+					}
+				}
+			}
+		}
+	}
+	return LiveLatency;
+}
+
 FTimeValue FManifestDASH::GetAnchorTime() const
 {
 	TSharedPtrTS<FManifestDASHInternal> Manifest(CurrentManifest);
@@ -435,6 +465,11 @@ FTimeValue FManifestDASH::GetDesiredLiveLatency() const
 	return Manifest.IsValid() ? Manifest->GetDesiredLiveLatency() : FTimeValue();
 }
 
+IManifest::ELiveEdgePlayMode FManifestDASH::GetLiveEdgePlayMode() const
+{
+	return IManifest::ELiveEdgePlayMode::Default;
+}
+
 
 TSharedPtrTS<IProducerReferenceTimeInfo> FManifestDASH::GetProducerReferenceTimeInfo(int64 ID) const
 {
@@ -468,6 +503,10 @@ void FManifestDASH::GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStrea
 		Manifest->PreparePeriodAdaptationSets(Manifest->GetPeriods()[0], false);
 		Manifest->GetPeriods()[0]->GetMetaData(OutMetadata, StreamType);
 	}
+}
+void FManifestDASH::UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData)
+{
+	// No-op.
 }
 
 void FManifestDASH::UpdateDynamicRefetchCounter()
@@ -534,7 +573,7 @@ IManifest::FResult FManifestDASH::FindPlayPeriod(TSharedPtrTS<IPlayPeriod>& OutP
 	PlayRangeEnd -= Manifest->GetAnchorTime();
 
 	// Quick out if the time falls outside the presentation.
-	FTimeValue TotalEndTime = Manifest->GetLastPeriodEndTime();
+	FTimeValue TotalEndTime = Manifest->GetLastPeriodEndTime(true);
 	TotalEndTime -= Manifest->GetAnchorTime();
 	if (PlayRangeEnd.IsValid() && TotalEndTime.IsValid() && PlayRangeEnd < TotalEndTime)
 	{
@@ -624,7 +663,7 @@ IManifest::FResult FManifestDASH::FindPlayPeriod(TSharedPtrTS<IPlayPeriod>& OutP
 		if (Manifest->IsDynamicEpicEvent())
 		{
 			FTimeValue Now = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
-			FTimeValue End = Manifest->GetLastPeriodEndTime();
+			FTimeValue End = Manifest->GetLastPeriodEndTime(true);
 			if (Now >= End)
 			{
 				return IManifest::FResult(IManifest::FResult::EType::PastEOS);
@@ -1326,7 +1365,7 @@ IManifest::FResult FDASHPlayPeriod::GetStartingSegment(TSharedPtrTS<IStreamSegme
 			SearchOpt.PeriodDuration = Period->GetDuration();
 			if (!SearchOpt.PeriodDuration.IsValid() || SearchOpt.PeriodDuration.IsPositiveInfinity())
 			{
-				SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime() - AST - Period->GetStart();
+				SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime(false) - AST - Period->GetStart();
 			}
 			SearchOpt.PeriodPresentationEnd = PlayRangeEnd;
 			SearchOpt.bHasFollowingPeriod = Period->GetHasFollowingPeriod();
@@ -1605,7 +1644,7 @@ IManifest::FResult FDASHPlayPeriod::GetNextOrRetrySegment(TSharedPtrTS<IStreamSe
 	SearchOpt.PeriodDuration = Period->GetDuration();
 	if (!SearchOpt.PeriodDuration.IsValid() || SearchOpt.PeriodDuration.IsPositiveInfinity())
 	{
-		SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime() - AST;
+		SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime(false) - AST;
 	}
 	SearchOpt.QualityIndex = ActiveQualityIndex.Index;
 	SearchOpt.MaxQualityIndex = ActiveQualityIndex.MaxIndex;
@@ -3337,7 +3376,7 @@ FManifestDASHInternal::FRepresentation::ESearchResult FManifestDASHInternal::FRe
 				if (!bWarnedAboutInconsistentNumbering)
 				{
 					bWarnedAboutInconsistentNumbering = true;
-					LogMessage(InPlayerSessionServices, IInfoLog::ELevel::Warning, FString::Printf(TEXT("Representation \"%s\" <SegmentTimeline> 'n' value %lld is not the expected %d. This may cause playback issues"), *MPDRepresentation->GetID(), (long long int)CurrentN, (long long int)PreviousN+1));
+					LogMessage(InPlayerSessionServices, IInfoLog::ELevel::Warning, FString::Printf(TEXT("Representation \"%s\" <SegmentTimeline> 'n' value %lld is not the expected %lld. This may cause playback issues"), *MPDRepresentation->GetID(), (long long int)CurrentN, (long long int)PreviousN+1));
 				}
 			}
 

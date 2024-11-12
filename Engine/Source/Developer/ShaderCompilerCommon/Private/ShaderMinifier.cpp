@@ -493,6 +493,7 @@ enum class EBlockType : uint8 {
 	NamespaceDelimiter, // e.g. :: in an identifier like Foo::bar
 	PtrOrRef, // e.g. '*' or '&' as part of the type
 	OperatorName, // overladed operator, e.g. '+', '+=', etc.
+	NodeId, // e.g. [NodeID(Foo, 0)]
 };
 
 struct FCodeBlock
@@ -1211,6 +1212,10 @@ static FParsedShader ParseShader(const FShaderSource& InSource, FDiagnostics& Ou
 			{
 				BlockType = EBlockType::Subscript;
 			}
+			else if (Block.Contains(SHADER_SOURCE_LITERAL("NodeID")))
+			{
+				BlockType = EBlockType::NodeId;
+			}
 			else
 			{
 				BlockType = EBlockType::Attribute;
@@ -1777,7 +1782,7 @@ static FShaderSource::FStringType MinifyShader(const FParsedShader& Parsed, TCon
 				continue;
 			}
 
-			if (Chunk.Type == ECodeChunkType::Function && Block.Type != EBlockType::Name)
+			if (Chunk.Type == ECodeChunkType::Function && Block.Type != EBlockType::Name && Block.Type != EBlockType::NodeId)
 			{
 				continue;
 			}
@@ -1792,7 +1797,18 @@ static FShaderSource::FStringType MinifyShader(const FParsedShader& Parsed, TCon
 				continue;
 			}
 
-			if ((Chunk.Type == ECodeChunkType::CBuffer || Chunk.Type == ECodeChunkType::Enum) && Block.Type == EBlockType::Body)
+			if (Chunk.Type == ECodeChunkType::Operator
+				&& Block.Type != EBlockType::Type
+				&& Block.Type != EBlockType::Args)
+			{
+				continue;
+			}
+
+			bool bExtractIdentifiers = (Chunk.Type == ECodeChunkType::CBuffer && Block.Type == EBlockType::Body);
+			bExtractIdentifiers |= (Chunk.Type == ECodeChunkType::Enum && Block.Type == EBlockType::Body);
+			bExtractIdentifiers |= (Chunk.Type == ECodeChunkType::Function && Block.Type == EBlockType::NodeId);
+
+			if (bExtractIdentifiers)
 			{
 				TempIdentifiers.Reset();
 				ExtractIdentifiers(Block, TempIdentifiers);
@@ -1801,13 +1817,6 @@ static FShaderSource::FStringType MinifyShader(const FParsedShader& Parsed, TCon
 					ChunksByIdentifier.FindOrAdd(Identifier).Push(&Chunk);
 				}
 
-				continue;
-			}
-
-			if (Chunk.Type == ECodeChunkType::Operator
-				&& Block.Type != EBlockType::Type
-				&& Block.Type != EBlockType::Args)
-			{
 				continue;
 			}
 
@@ -2471,6 +2480,20 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	{
+		FShaderSource S(SHADER_SOURCE_LITERAL("[Shader(\"node\")] [NodeID(\"WorkgraphNodeArray\", 0)] void WorkgraphNodeArray_0() {}"));
+		auto P = ParseShader(S);
+		TestEqual(TEXT("ParseShader: workgraph node: num chunks"), P.Chunks.Num(), 1);
+		if (P.Chunks.Num() == 1)
+		{
+			TestEqual(TEXT("ParseShader: workgraph node, chunk type"), P.Chunks[0].Type, ECodeChunkType::Function);
+			if (TestEqual(TEXT("ParseShader: workgraph node: chunk 0: num blocks"), P.Chunks[0].Blocks.Num(), 6))
+			{
+				TestEqual(TEXT("ParseShader: workgraph node: chunk 0: block 1: block type"), P.Chunks[0].Blocks[1].Type, EBlockType::NodeId);
+			}
+		}
+	}
+
 	int32 NumErrors = ExecutionInfo.GetErrorTotal();
 
 	return NumErrors == 0;
@@ -2507,6 +2530,12 @@ uint UnreferencedFunction()
 {
 	return GUnreferencedParameter;
 }
+
+_Pragma("")
+
+_Pragma("dxc diagnostic push")
+_Pragma("dxc diagnostic ignored \"-Wall\"") _Pragma("dxc diagnostic ignored \"-Wconversion\"")
+_Pragma("dxc diagnostic pop")
 
 typedef Texture2D<float4> UnreferencedTypedef;
 
@@ -2608,10 +2637,20 @@ enum EEnumUnused
 	ENUM_UNUSED_PART_2,
 };
 
+struct FWorkgraphRecord
+{
+	int Foo;
+};
+
 // Test comment 2
 [numthreads(1,1,1)]
 // Comment during function declaration
-void MainCS()
+void MainCS(
+	NodeOutput<FWorkgraphRecord> WorkgraphNode,
+	EmptyNodeOutput WorkgraphNodeAliased,
+	[NodeID("WorkgraphNodeArray", 0)]
+	EmptyNodeOutputArray WorkgraphNodeArray
+	)
 {
 	using namespace NS1::NS2;
 	using namespace NS3;
@@ -2621,6 +2660,34 @@ void MainCS()
 	float C = FunB(GInitializedAnonymousStructA.Foo + GInitializedAnonymousStructB.Foo);
 	float D = TypedefUsedBuffer[ENUM_USED_PART_1].Foo;
 	OutputBuffer[0] = A + B + D;
+}
+
+[numthreads(1,1,1)]
+void UnreferencedEntryPoint()
+{
+}
+
+[Shader("node")]
+void WorkgraphNode()
+{
+}
+
+[Shader("node")]
+[NodeID("WorkgraphNodeAliased")]
+void WorkgraphNodeFunction()
+{
+}
+
+[Shader("node")]
+[NodeID("WorkgraphNodeArray", 0)]
+void WorkgraphNodeArray_0()
+{
+}
+
+[Shader("node")]
+[NodeID("WorkgraphNodeArray", 1)]
+void WorkgraphNodeArray_1()
+{
 }
 )"));
 
@@ -2682,6 +2749,11 @@ void MainCS()
 		TestTrue(TEXT("MinifyShader: MainCS: contains EEnumUsed"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("EEnumUsed")));
 		TestTrue(TEXT("MinifyShader: MainCS: contains ENUM_USED_PART_1"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_USED_PART_1")));
 		TestTrue(TEXT("MinifyShader: MainCS: contains ENUM_USED_PART_2"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_USED_PART_2")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains struct FWorkgraphRecord"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("struct FWorkgraphRecord")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains void WorkgraphNode()"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("void WorkgraphNode()")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains void WorkgraphNodeFunction()"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("void WorkgraphNodeFunction()")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains void WorkgraphNodeArray_0()"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("void WorkgraphNodeArray_0()")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains void WorkgraphNodeArray_1()"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("void WorkgraphNodeArray_1()")));
 
 		// Expect false:
 		TestFalse(TEXT("MinifyShader: MainCS: contains UnreferencedFunction"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("UnreferencedFunction")));
@@ -2696,6 +2768,7 @@ void MainCS()
 		TestFalse(TEXT("MinifyShader: MainCS: contains EEnumUnused"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("EEnumUnused")));
 		TestFalse(TEXT("MinifyShader: MainCS: contains ENUM_UNUSED_PART_1"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_UNUSED_PART_1")));
 		TestFalse(TEXT("MinifyShader: MainCS: contains ENUM_UNUSED_PART_2"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_UNUSED_PART_2")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains UnreferencedEntryPoint"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("UnreferencedEntryPoint")));
 	}
 
 	int32 NumErrors = ExecutionInfo.GetErrorTotal();

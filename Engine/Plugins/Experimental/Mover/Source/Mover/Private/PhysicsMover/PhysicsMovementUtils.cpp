@@ -5,10 +5,12 @@
 #include "Chaos/PhysicsObjectInternalInterface.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
+#include "Framework/Threading.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
+#include "Physics/GenericPhysicsInterface.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
 #include "WaterBodyActor.h"
 
@@ -18,7 +20,7 @@
 
 extern FPhysicsDrivenMotionDebugParams GPhysicsDrivenMotionDebugParams;
 
-void UPhysicsMovementUtils::FloorSweep(
+void UPhysicsMovementUtils::FloorSweep_Internal(
 	const FVector& Location,
 	const FVector& DeltaPos,
 	const UPrimitiveComponent* UpdatedPrimitive,
@@ -31,6 +33,8 @@ void UPhysicsMovementUtils::FloorSweep(
 	FWaterCheckResult& OutWaterResult
 )
 {
+	Chaos::EnsureIsInPhysicsThreadContext();
+
 	if (const UWorld* World = UpdatedPrimitive->GetWorld())
 	{
 		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(PhysicsFloorTest), false, UpdatedPrimitive->GetOwner());
@@ -55,7 +59,7 @@ void UPhysicsMovementUtils::FloorSweep(
 		FVector Start = Location + DeltaPosHoriz + (QueryRadius + UE_KINDA_SMALL_NUMBER) * UpDir;
 		FVector End = Start - AdjustedQueryDistance * UpDir;
 		FHitResult OutHit;
-		if (World->SweepMultiByChannel(Hits, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(QueryRadius), QueryParams, ResponseParams))
+		if (Chaos::Private::FGenericPhysicsInterface_Internal::SpherecastMulti(World, QueryRadius, Hits, Start, End, CollisionChannel, QueryParams, ResponseParams))
 		{
 			OutHit = Hits.Last();
 		}
@@ -121,18 +125,7 @@ FVector UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(const FVector&
 	{
 		FVector Offset = CharacterPosition - Rigid->GetX();
 		Offset -= Offset.ProjectOnToNormal(FloorHit.ImpactNormal);
-
-		if (Rigid->KinematicTarget().IsSet())
-		{
-			const FVector LinearDisplacement = Rigid->KinematicTarget().GetTargetPosition() - Rigid->GetX();
-			const FQuat RelativeQuat = Rigid->GetR().Inverse() * Rigid->KinematicTarget().GetTargetRotation();
-			const FVector AngularDisplacement = RelativeQuat.ToRotationVector();
-			GroundVelocity = (LinearDisplacement + AngularDisplacement.Cross(Offset)) / DeltaSeconds;
-		}
-		else
-		{
-			GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
-		}
+		GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
 	}
 	return GroundVelocity;
 }
@@ -144,18 +137,7 @@ FVector UPhysicsMovementUtils::ComputeIntegratedGroundVelocityFromHitResult(cons
 	{
 		FVector Offset = CharacterPosition - Rigid->GetX();
 		Offset -= Offset.ProjectOnToNormal(FloorHit.ImpactNormal);
-
-		if (Rigid->KinematicTarget().IsSet())
-		{
-			const FVector LinearDisplacement = Rigid->KinematicTarget().GetTargetPosition() - Rigid->GetX();
-			const FQuat RelativeQuat = Rigid->GetR().Inverse() * Rigid->KinematicTarget().GetTargetRotation();
-			const FVector AngularDisplacement = RelativeQuat.ToRotationVector();
-			GroundVelocity = (LinearDisplacement + AngularDisplacement.Cross(Offset)) / DeltaSeconds;
-		}
-		else
-		{
-			GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
-		}
+		GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
 
 		if (Rigid->IsDynamic() && Rigid->GravityEnabled())
 		{
@@ -166,6 +148,7 @@ FVector UPhysicsMovementUtils::ComputeIntegratedGroundVelocityFromHitResult(cons
 					GroundVelocity += PhysVolume->GetGravityZ() * FVector::UpVector * DeltaSeconds;
 				}
 			}
+
 		}
 	}
 	return GroundVelocity;

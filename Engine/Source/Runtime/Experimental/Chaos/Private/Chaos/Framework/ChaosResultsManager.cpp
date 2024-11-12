@@ -62,7 +62,11 @@ namespace Chaos
 		{
 			if (TProxyType* Proxy = Data.Prev.GetProxy())
 			{
-				Proxy->GetInterpolationData().SetPullDataInterpIdx_External(INDEX_NONE);
+				FProxyInterpolationBase* InterpolationData = Proxy->GetInterpolationData();
+				if (InterpolationData)
+				{
+					InterpolationData->SetPullDataInterpIdx_External(INDEX_NONE);
+				}
 			}
 		}
 		Interpolations.Reset();
@@ -85,19 +89,19 @@ namespace Chaos
 		{
 			if (auto Proxy = Data.GetProxy())
 			{
-				FProxyInterpolationBase& InterpolationData = Proxy->GetInterpolationData();
+				FProxyInterpolationBase* InterpolationData = Proxy->GetInterpolationData();
 				
 				//If proxy is not associated with this channel, do nothing
-				if (InterpolationData.GetInterpChannel_External() != ChannelIdx)
+				if (!InterpolationData || InterpolationData->GetInterpChannel_External() != ChannelIdx)
 				{
 					continue;
 				}
 
-				int32 DataIdx = InterpolationData.GetPullDataInterpIdx_External();
+				int32 DataIdx = InterpolationData->GetPullDataInterpIdx_External();
 				if(DataIdx == INDEX_NONE)
 				{
 					DataIdx = Interpolations.AddDefaulted(1);
-					InterpolationData.SetPullDataInterpIdx_External(DataIdx);
+					InterpolationData->SetPullDataInterpIdx_External(DataIdx);
 
 					if(Mode == ESetPrevNextDataMode::Next)
 					{
@@ -150,8 +154,9 @@ namespace Chaos
 			{
 				if(FSingleParticlePhysicsProxy* Proxy = Data.GetProxy())
 				{
+					FProxyInterpolationBase* InterpolationData = Proxy->GetInterpolationData();
 					// only if the proxy is associated with this channel 
-					if(Proxy->GetInterpolationData().GetInterpChannel_External() == ChannelIdx)
+					if(InterpolationData && InterpolationData->GetInterpChannel_External() == ChannelIdx)
 					{
 						//update leash target
 						if(FDirtyRigidParticleData* ResimTarget = ParticleToResimTarget.Find(Proxy))
@@ -293,14 +298,14 @@ namespace Chaos
 		{
 			FSingleParticlePhysicsProxy* Proxy = Itr.Key;
 
-			FProxyInterpolationBase& InterpolationData = Proxy->GetInterpolationData();
-			if (InterpolationData.IsErrorSmoothing())
+			FProxyInterpolationBase* InterpolationData = Proxy->GetInterpolationData();
+			if (InterpolationData && InterpolationData->IsErrorSmoothing())
 			{
-				if (InterpolationData.GetPullDataInterpIdx_External() == INDEX_NONE)	//not in results array
+				if (InterpolationData->GetPullDataInterpIdx_External() == INDEX_NONE)	//not in results array
 				{
 					//still need to interpolate, so add to results array
 					const int32 DataIdx = Results.RigidInterpolations.AddDefaulted(1);
-					InterpolationData.SetPullDataInterpIdx_External(DataIdx);
+					InterpolationData->SetPullDataInterpIdx_External(DataIdx);
 					FChaosRigidInterpolationData& RigidData = Results.RigidInterpolations[DataIdx];
 
 					RigidData.Next = Itr.Value;			//not dirty from sim, so just use whatever last next was
@@ -399,9 +404,9 @@ namespace Chaos
 		{
 			if (FSingleParticlePhysicsProxy* ResimProxy = ResimDirty.GetProxy())
 			{
-				FProxyInterpolationBase& InterpolationData = ResimProxy->GetInterpolationData(); 
+				FProxyInterpolationBase* InterpolationData = ResimProxy->GetInterpolationData(); 
 				//Mark as resim only if proxy is owned by this channel
-				if(InterpolationData.GetInterpChannel_External() == ChannelIdx)
+				if(InterpolationData && InterpolationData->GetInterpChannel_External() == ChannelIdx)
 				{
 					ParticleToResimTarget.FindOrAdd(ResimProxy) = ResimDirty;
 				}

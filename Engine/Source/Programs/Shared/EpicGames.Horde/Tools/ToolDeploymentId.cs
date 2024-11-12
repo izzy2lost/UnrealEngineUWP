@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 
 namespace EpicGames.Horde.Tools
@@ -11,9 +12,10 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Id">Identifier for the artifact</param>
 	[LogValueType]
 	[JsonSchemaString]
+	[JsonConverter(typeof(BinaryIdJsonConverter<ToolDeploymentId, ToolDeploymentIdConverter>))]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ToolDeploymentId, ToolDeploymentIdConverter>))]
 	[BinaryIdConverter(typeof(ToolDeploymentIdConverter))]
-	public record struct ToolDeploymentId(BinaryId Id)
+	public readonly record struct ToolDeploymentId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static ToolDeploymentId Parse(string text) => new ToolDeploymentId(BinaryId.Parse(text));

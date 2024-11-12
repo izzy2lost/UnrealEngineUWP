@@ -60,19 +60,41 @@ namespace UE::SmartObject::Annotations
 
 		FHitResult HitResult;
 		bool bHasHit = false;
+		constexpr float SphereRadius = 1.f;
 
 		if (TraceParameters.Type == ESmartObjectTraceType::ByChannel)
 		{
-			bHasHit = World.LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, UEngineTypes::ConvertToCollisionChannel(TraceParameters.TraceChannel), CollisionQueryParams);
+			bHasHit = World.SweepSingleByChannel(
+				HitResult,
+				TraceStart,
+				TraceEnd,
+				FQuat::Identity,
+				UEngineTypes::ConvertToCollisionChannel(TraceParameters.TraceChannel),
+				FCollisionShape::MakeSphere(SphereRadius),
+				CollisionQueryParams);
 		}
 		else if (TraceParameters.Type == ESmartObjectTraceType::ByProfile)
 		{
-			bHasHit = World.LineTraceSingleByProfile(HitResult, TraceStart, TraceEnd, TraceParameters.CollisionProfile.Name, CollisionQueryParams);
+			bHasHit = World.SweepSingleByProfile(
+				HitResult,
+				TraceStart,
+				TraceEnd,
+				FQuat::Identity,
+				TraceParameters.CollisionProfile.Name,
+				FCollisionShape::MakeSphere(SphereRadius),
+				CollisionQueryParams);
 		}
 		else if (TraceParameters.Type == ESmartObjectTraceType::ByObjectTypes)
 		{
 			const FCollisionObjectQueryParams ObjectQueryParams(TraceParameters.ObjectTypes);
-			bHasHit = World.LineTraceSingleByObjectType(HitResult, TraceStart, TraceEnd, ObjectQueryParams, CollisionQueryParams);
+			bHasHit = World.SweepSingleByObjectType(
+				HitResult,
+				TraceStart,
+				TraceEnd,
+				FQuat::Identity,
+				ObjectQueryParams,
+				FCollisionShape::MakeSphere(SphereRadius),
+				CollisionQueryParams);
 		}
 
 		if (bHasHit)

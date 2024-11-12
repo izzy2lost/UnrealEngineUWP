@@ -2,24 +2,24 @@
 
 #pragma once
 
-#include "UbaBase.h"
+#include "UbaDefaultConstants.h"
 
 namespace uba
 {
-	// Default constants
-	static constexpr u16 DefaultPort = 1345;
-	static constexpr u16 DefaultStorageProxyPort = DefaultPort + 1;
 	static constexpr u32 SendMaxSize = 256*1024;
-	static constexpr u32 SendDefaultSize = 256*1024;
 
 	static constexpr u8 SystemServiceId = 0;
 	static constexpr u8 StorageServiceId = 1;
 	static constexpr u8 SessionServiceId = 2;
+	static constexpr u8 CacheServiceId = 3;
 	
 	static constexpr u32 SystemNetworkVersion = 1339;
-	static constexpr u32 StorageNetworkVersion = 3;
-	static constexpr u32 SessionNetworkVersion = 30;
+	static constexpr u32 StorageNetworkVersion = 4;
+	static constexpr u32 SessionNetworkVersion = 34;
+	static constexpr u32 CacheNetworkVersion = 5;
 
+	static constexpr u32 CachePathTableMaxSize = 32*1024*1024;
+	static constexpr u32 CacheCasKeyTableMaxSize = 64*1024*1024;
 
 	// Messages used over network between client/server (system, storage and session)
 
@@ -64,14 +64,17 @@ namespace uba
 		UBA_SESSION_MESSAGE(EnsureBinaryFile) \
 		UBA_SESSION_MESSAGE(GetApplication) \
 		UBA_SESSION_MESSAGE(GetFileFromServer) \
+		UBA_SESSION_MESSAGE(GetLongPathName) \
 		UBA_SESSION_MESSAGE(SendFileToServer) \
 		UBA_SESSION_MESSAGE(DeleteFile) \
 		UBA_SESSION_MESSAGE(CopyFile) \
 		UBA_SESSION_MESSAGE(CreateDirectory) \
+		UBA_SESSION_MESSAGE(RemoveDirectory) \
 		UBA_SESSION_MESSAGE(ListDirectory) \
 		UBA_SESSION_MESSAGE(GetDirectoriesFromServer) \
 		UBA_SESSION_MESSAGE(GetNameToHashFromServer) \
 		UBA_SESSION_MESSAGE(ProcessAvailable) \
+		UBA_SESSION_MESSAGE(ProcessInputs) \
 		UBA_SESSION_MESSAGE(ProcessFinished) \
 		UBA_SESSION_MESSAGE(ProcessReturned) \
 		UBA_SESSION_MESSAGE(VirtualAllocFailed) \
@@ -83,6 +86,9 @@ namespace uba
 		UBA_SESSION_MESSAGE(UpdateEnvironment) \
 		UBA_SESSION_MESSAGE(Summary) \
 		UBA_SESSION_MESSAGE(Command) \
+		UBA_SESSION_MESSAGE(SHGetKnownFolderPath) \
+		UBA_SESSION_MESSAGE(DebugFileNotFoundError) \
+		UBA_SESSION_MESSAGE(HostRun) \
 
 	enum SessionMessageType : u8 
 	{
@@ -97,6 +103,26 @@ namespace uba
 		SessionProcessAvailableResponse_None = 0,
 		SessionProcessAvailableResponse_Disconnect = ~u32(0),
 		SessionProcessAvailableResponse_RemoteExecutionDisabled = ~u32(0) - 1,
+	};
+
+	#define UBA_CACHE_MESSAGES \
+		UBA_CACHE_MESSAGE(Connect) \
+		UBA_CACHE_MESSAGE(StorePathTable) \
+		UBA_CACHE_MESSAGE(StoreCasTable) \
+		UBA_CACHE_MESSAGE(StoreEntry) \
+		UBA_CACHE_MESSAGE(StoreEntryDone) \
+		UBA_CACHE_MESSAGE(FetchPathTable) \
+		UBA_CACHE_MESSAGE(FetchCasTable) \
+		UBA_CACHE_MESSAGE(FetchEntries) \
+		UBA_CACHE_MESSAGE(ExecuteCommand) \
+		UBA_CACHE_MESSAGE(RequestShutdown) \
+		UBA_CACHE_MESSAGE(ReportUsedEntry) \
+
+	enum CacheMessageType : u8
+	{
+		#define UBA_CACHE_MESSAGE(x) CacheMessageType_##x,
+		UBA_CACHE_MESSAGES
+		#undef UBA_CACHE_MESSAGE
 	};
 
 	inline constexpr const char EncryptionHandshakeString[] = "This is a test string used to check so encryption keys matches between client and server. This string is 128 characters long...";

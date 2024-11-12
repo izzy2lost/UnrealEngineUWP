@@ -122,6 +122,16 @@ FTimeValue FStreamSegmentRequestDASH::GetFirstPTS() const
 	return AST + AdditionalAdjustmentTime + PeriodStart + FTimeValue((Segment.bFrameAccuracyRequired ? Segment.MediaLocalFirstPTS : Segment.Time) - Segment.PTO, Segment.Timescale);
 }
 
+FTimeRange FStreamSegmentRequestDASH::GetTimeRange() const
+{
+	FTimeRange tr;
+	tr.Start = AST + AdditionalAdjustmentTime + PeriodStart + FTimeValue(Segment.Time - Segment.PTO, Segment.Timescale);
+	tr.End = AST + AdditionalAdjustmentTime + PeriodStart + FTimeValue(Segment.Time + Segment.Duration - Segment.PTO, Segment.Timescale);
+	tr.Start.SetSequenceIndex(TimestampSequenceIndex);
+	tr.End.SetSequenceIndex(TimestampSequenceIndex);
+	return tr;
+}
+
 int32 FStreamSegmentRequestDASH::GetQualityIndex() const
 {
 	return Representation->GetQualityIndex();
@@ -457,6 +467,32 @@ void FStreamReaderDASH::FStreamHandler::HTTPUpdateStats(const FTimeValue& Curren
 
 
 
+void FStreamReaderDASH::FStreamHandler::SetupInitSegmentDownloadStatsFromRequestAndConnectionInfo(Metrics::FSegmentDownloadStats& ds, const TSharedPtrTS<FStreamSegmentRequestDASH>& Request, const HTTP::FConnectionInfo* ci, bool bWasSuccessful)
+{
+	ds.StatsID = FMediaInterlockedIncrement(UniqueDownloadID);
+	ds.StreamType = Request->GetType();
+	ds.SegmentType = Metrics::ESegmentType::Init;
+	ds.URL = Request->Segment.InitializationURL.URL;
+	ds.Range = Request->Segment.InitializationURL.Range;
+	ds.CDN = Request->Segment.InitializationURL.CDN;
+	ds.bWasSuccessful = bWasSuccessful;
+	ds.MediaAssetID = Request->Period.IsValid() ? Request->Period->GetUniqueIdentifier() : "";
+	ds.AdaptationSetID = Request->AdaptationSet.IsValid() ? Request->AdaptationSet->GetUniqueIdentifier() : "";
+	ds.RepresentationID = Request->Representation.IsValid() ? Request->Representation->GetUniqueIdentifier() : "";
+	ds.Bitrate = Request->GetBitrate();
+	ds.QualityIndex = Request->QualityIndex;
+	ds.HighestQualityIndex = Request->MaxQualityIndex;
+	if (ci)
+	{
+		ds.HTTPStatusCode = ci->StatusInfo.HTTPStatus;
+		ds.TimeToFirstByte = ci->TimeUntilFirstByte;
+		ds.TimeToDownload = (ci->RequestEndTime - ci->RequestStartTime).GetAsSeconds();
+		ds.ByteSize = ci->ContentLength;
+		ds.NumBytesDownloaded = ci->BytesReadSoFar;
+	}
+}
+
+
 
 FErrorDetail FStreamReaderDASH::FStreamHandler::LoadInitSegment(TSharedPtrTS<FMPDLoadRequestDASH>& OutLoadRequest, Metrics::FSegmentDownloadStats& ds, const TSharedPtrTS<FStreamSegmentRequestDASH>& Request)
 {
@@ -513,42 +549,28 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::LoadInitSegment(TSharedPtrTS<FMP
 
 	// Set up download stats to be sent to the stream selector.
 	const HTTP::FConnectionInfo* ci = OutLoadRequest->GetConnectionInfo();
-	ds.StatsID = FMediaInterlockedIncrement(UniqueDownloadID);
-	ds.StreamType = Request->GetType();
-	ds.SegmentType = Metrics::ESegmentType::Init;
-	ds.URL = Request->Segment.InitializationURL.URL;
-	ds.Range = Request->Segment.InitializationURL.Range;
-	ds.CDN = Request->Segment.InitializationURL.CDN;
-	ds.bWasSuccessful = LoadResult->bSuccess;
-	ds.HTTPStatusCode = ci->StatusInfo.HTTPStatus;
-	ds.TimeToFirstByte = ci->TimeUntilFirstByte;
-	ds.TimeToDownload = (ci->RequestEndTime - ci->RequestStartTime).GetAsSeconds();
-	ds.ByteSize = ci->ContentLength;
-	ds.NumBytesDownloaded = ci->BytesReadSoFar;
-	ds.MediaAssetID = Request->Period.IsValid() ? Request->Period->GetUniqueIdentifier() : "";
-	ds.AdaptationSetID = Request->AdaptationSet.IsValid() ? Request->AdaptationSet->GetUniqueIdentifier() : "";
-	ds.RepresentationID = Request->Representation.IsValid() ? Request->Representation->GetUniqueIdentifier() : "";
-	ds.Bitrate = Request->GetBitrate();
-	ds.QualityIndex = Request->QualityIndex;
-	ds.HighestQualityIndex = Request->MaxQualityIndex;
+	SetupInitSegmentDownloadStatsFromRequestAndConnectionInfo(ds, Request, ci, LoadResult->bSuccess);
 
 	if (!LoadResult->bSuccess)
 	{
-		Request->ConnectionInfo = *ci;
+		if (ci)
+		{
+			Request->ConnectionInfo = *ci;
+		}
 		StreamSelector->ReportDownloadEnd(ds);
-		return CreateError(FString::Printf(TEXT("Init segment download error: %s"),	*ci->StatusInfo.ErrorDetail.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_DOWNLOAD_ERROR);
+		return CreateError(FString::Printf(TEXT("Init segment download error: %s"),	*Request->ConnectionInfo.StatusInfo.ErrorDetail.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_DOWNLOAD_ERROR);
 	}
 	return FErrorDetail();
 }
 
 FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<const IParserISO14496_12>& OutMP4InitSegment, const TSharedPtrTS<FStreamSegmentRequestDASH>& Request)
 {
-	// Is an init segment required?
-	if (Request->Segment.InitializationURL.URL.IsEmpty())
-	{
-		// No init segment required. We're done.
-		return FErrorDetail();
-	}
+	FString InitURL(Request->Segment.InitializationURL.URL);
+	FString InitRange(Request->Segment.InitializationURL.Range);
+	FString MediaURL(Request->Segment.MediaURL.URL);
+	HTTP::FConnectionInfo ConnectionInfo;
+	Metrics::FSegmentDownloadStats ds;
+
 	// Get the entity cache. If it's not there we return.
 	TSharedPtrTS<IPlayerEntityCache> EntityCache = PlayerSessionService ? PlayerSessionService->GetEntityCache() : nullptr;
 	if (!EntityCache.IsValid())
@@ -557,18 +579,74 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 	}
 	// Check if we already have this cached.
 	IPlayerEntityCache::FCacheItem CachedItem;
-	if (EntityCache->GetCachedEntity(CachedItem, Request->Segment.InitializationURL.URL, Request->Segment.InitializationURL.Range))
+	if (EntityCache->GetCachedEntity(CachedItem, InitURL.IsEmpty() ? MediaURL : InitURL, InitRange))
 	{
 		// Already cached. Use it.
 		OutMP4InitSegment = CachedItem.Parsed14496_12Data;
 		return FErrorDetail();
 	}
-	TSharedPtrTS<FMPDLoadRequestDASH> LoadReq;
-	Metrics::FSegmentDownloadStats ds;
-	FErrorDetail LoadError = LoadInitSegment(LoadReq, ds, Request);
-	if (!LoadReq.IsValid() || LoadError.IsSet())
+
+	FMP4StaticDataReader StaticDataReader;
+
+	// Is an explicit init segment specified?
+	if (InitURL.IsEmpty())
 	{
-		return LoadError;
+		// No, this is a self-initializing segment. We need to locate the moov box manually.
+		InitURL = Request->Segment.MediaURL.URL;
+		UtilsMP4::FMP4RootBoxLocator BoxLocator;
+		TArray<UtilsMP4::FMP4RootBoxLocator::FBoxInfo> Boxes;
+		const TArray<uint32> FirstBox { UtilsMP4::Make4CC('f','t','y','p') };
+		const TArray<uint32> MoovBox { UtilsMP4::Make4CC('m','o','o','v') };
+		bool bSuccess = BoxLocator.LocateRootBoxes(Boxes, PlayerSessionService->GetHTTPManager(), InitURL, FirstBox, MoovBox, MoovBox, UtilsMP4::FMP4RootBoxLocator::FCancellationCheckDelegate::CreateLambda([&]()
+		{
+			return HasReadBeenAborted();
+		}));
+		if (HasReadBeenAborted())
+		{
+			return FErrorDetail();
+		}
+		ConnectionInfo = BoxLocator.GetConnectionInfo();
+		SetupInitSegmentDownloadStatsFromRequestAndConnectionInfo(ds, Request, &ConnectionInfo, bSuccess);
+		if (!bSuccess)
+		{
+			Request->ConnectionInfo = ConnectionInfo;
+			FString ErrMsg = BoxLocator.GetErrorMessage();
+			if (ErrMsg.IsEmpty())
+			{
+				ErrMsg = BoxLocator.GetConnectionInfo().StatusInfo.ErrorDetail.GetMessage();
+			}
+			return CreateError(FString::Printf(TEXT("Init segment download error: %s"),	*ErrMsg), INTERNAL_ERROR_INIT_SEGMENT_DOWNLOAD_ERROR);
+		}
+		const UtilsMP4::FMP4RootBoxLocator::FBoxInfo* Moov = Boxes.FindByPredicate([InType=UtilsMP4::Make4CC('m','o','o','v')](const UtilsMP4::FMP4RootBoxLocator::FBoxInfo& InBox){return InBox.Type == InType;});
+		if (Moov)
+		{
+			StaticDataReader.SetParseData(Moov->DataBuffer);
+		}
+		else
+		{
+			// Pass an empty buffer so parsing will fail below.
+			TSharedPtrTS<FWaitableBuffer> EmptyBuffer = MakeSharedTS<FWaitableBuffer>();
+			EmptyBuffer->SetEOD();
+			StaticDataReader.SetParseData(EmptyBuffer);
+		}
+	}
+	else
+	{
+		TSharedPtrTS<FMPDLoadRequestDASH> LoadReq;
+		FErrorDetail LoadError = LoadInitSegment(LoadReq, ds, Request);
+		if (!LoadReq.IsValid() || LoadError.IsSet())
+		{
+			return LoadError;
+		}
+		if (LoadReq->Request.IsValid() && LoadReq->Request->GetResponseBuffer().IsValid())
+		{
+			StaticDataReader.SetParseData(LoadReq->Request->GetResponseBuffer());
+		}
+		const HTTP::FConnectionInfo* ci = LoadReq->GetConnectionInfo();
+		if (ci)
+		{
+			ConnectionInfo = *ci;
+		}
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_DASH_StreamReader);
@@ -576,12 +654,7 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 
 	TSharedPtrTS<IParserISO14496_12> Init = IParserISO14496_12::CreateParser();
 	UEMediaError parseError = UEMEDIA_ERROR_FORMAT_ERROR;
-	if (LoadReq->Request.IsValid() && LoadReq->Request->GetResponseBuffer().IsValid())
-	{
-		FMP4StaticDataReader StaticDataReader;
-		StaticDataReader.SetParseData(LoadReq->Request->GetResponseBuffer());
-		parseError = Init->ParseHeader(&StaticDataReader, this, PlayerSessionService, nullptr);
-	}
+	parseError = Init->ParseHeader(&StaticDataReader, this, PlayerSessionService, nullptr);
 	if (parseError == UEMEDIA_ERROR_OK || parseError == UEMEDIA_ERROR_END_OF_STREAM)
 	{
 		// Parse the tracks of the init segment. We do this mainly to get to the CSD we might need should we have to insert filler data later.
@@ -590,8 +663,8 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 		{
 			// Add this to the entity cache in case it needs to be retrieved again.
 			IPlayerEntityCache::FCacheItem CacheItem;
-			CacheItem.URL = LoadReq->URL;
-			CacheItem.Range = LoadReq->Range;
+			CacheItem.URL = InitURL;
+			CacheItem.Range = InitRange;
 			CacheItem.Parsed14496_12Data = Init;
 			EntityCache->CacheEntity(CacheItem);
 			OutMP4InitSegment = Init;
@@ -601,17 +674,17 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 		}
 		else
 		{
+			Request->ConnectionInfo = ConnectionInfo;
 			ds.bParseFailure = true;
-			Request->ConnectionInfo = *LoadReq->GetConnectionInfo();
 			StreamSelector->ReportDownloadEnd(ds);
-			return CreateError(FString::Printf(TEXT("Track preparation of init segment \"%s\" failed"), *LoadReq->URL), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
+			return CreateError(FString::Printf(TEXT("Track preparation of init segment \"%s\" failed"), *InitURL), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
 		}
 	}
 	else
 	{
 		ds.bParseFailure = true;
 		StreamSelector->ReportDownloadEnd(ds);
-		return CreateError(FString::Printf(TEXT("Parse error of init segment \"%s\""), *LoadReq->URL), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
+		return CreateError(FString::Printf(TEXT("Parse error of init segment \"%s\""), *InitURL), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
 	}
 }
 
@@ -673,9 +746,13 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::GetInitSegment(TSharedPtrTS<cons
 			else
 			{
 				ds.bParseFailure = true;
-				Request->ConnectionInfo = *LoadReq->GetConnectionInfo();
+				const HTTP::FConnectionInfo* ci = LoadReq->GetConnectionInfo();
+				if (ci)
+				{
+					Request->ConnectionInfo = *ci;
+				}
 				StreamSelector->ReportDownloadEnd(ds);
-				return CreateError(FString::Printf(TEXT("Track preparation of init segment \"%s\" failed. %d"), *LoadReq->URL, *parseError.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
+				return CreateError(FString::Printf(TEXT("Track preparation of init segment \"%s\" failed. %s"), *LoadReq->URL, *parseError.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_PARSE_ERROR);
 			}
 		}
 		else
@@ -773,24 +850,30 @@ FErrorDetail FStreamReaderDASH::FStreamHandler::RetrieveSideloadedFile(TSharedPt
 	ds.Range = Request->Segment.MediaURL.Range;
 	ds.CDN = Request->Segment.MediaURL.CDN;
 	ds.bWasSuccessful = LoadResult->bSuccess;
-	ds.HTTPStatusCode = ci->StatusInfo.HTTPStatus;
-	ds.TimeToFirstByte = ci->TimeUntilFirstByte;
-	ds.TimeToDownload = (ci->RequestEndTime - ci->RequestStartTime).GetAsSeconds();
-	ds.ByteSize = ci->ContentLength;
-	ds.NumBytesDownloaded = ci->BytesReadSoFar;
 	ds.MediaAssetID = Request->Period.IsValid() ? Request->Period->GetUniqueIdentifier() : "";
 	ds.AdaptationSetID = Request->AdaptationSet.IsValid() ? Request->AdaptationSet->GetUniqueIdentifier() : "";
 	ds.RepresentationID = Request->Representation.IsValid() ? Request->Representation->GetUniqueIdentifier() : "";
 	ds.Bitrate = Request->GetBitrate();
+	if (ci)
+	{
+		ds.HTTPStatusCode = ci->StatusInfo.HTTPStatus;
+		ds.TimeToFirstByte = ci->TimeUntilFirstByte;
+		ds.TimeToDownload = (ci->RequestEndTime - ci->RequestStartTime).GetAsSeconds();
+		ds.ByteSize = ci->ContentLength;
+		ds.NumBytesDownloaded = ci->BytesReadSoFar;
+	}
 
 	if (!LoadResult->bSuccess)
 	{
-		Request->ConnectionInfo = *ci;
+		if (ci)
+		{
+			Request->ConnectionInfo = *ci;
+		}
 		StreamSelector->ReportDownloadEnd(ds);
-		return CreateError(FString::Printf(TEXT("Sideloaded media download error: %s"), *ci->StatusInfo.ErrorDetail.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_DOWNLOAD_ERROR);
+		return CreateError(FString::Printf(TEXT("Sideloaded media download error: %s"), *Request->ConnectionInfo.StatusInfo.ErrorDetail.GetMessage()), INTERNAL_ERROR_INIT_SEGMENT_DOWNLOAD_ERROR);
 	}
 
-	OutData = MakeSharedTS<const TArray<uint8>>(TArrayView<uint8>(LoadReq->Request->GetResponseBuffer()->Buffer.GetLinearReadData(), LoadReq->Request->GetResponseBuffer()->Buffer.GetLinearReadSize()));
+	OutData = MakeSharedTS<const TArray<uint8>>(TArrayView<uint8>(LoadReq->Request->GetResponseBuffer()->GetLinearReadData(), LoadReq->Request->GetResponseBuffer()->GetLinearReadSize()));
 
 	// Add this to the entity cache in case it needs to be retrieved again.
 	IPlayerEntityCache::FCacheItem CacheItem;
@@ -1092,7 +1175,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 		else if (!bIsEmptyFillerSegment)
 		{
 			ReadBuffer.Reset();
-			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+			ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 			// Start downloading the segment.
 			TSharedPtrTS<IElectraHttpManager::FProgressListener>	ProgressListener(new IElectraHttpManager::FProgressListener);
@@ -1177,7 +1260,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 							{
 								FTimeValue StartTime = md == MoofMetadata ? Request->GetFirstPTS() : TimeOffset;
 								StartTime.SetSequenceIndex(Request->TimestampSequenceIndex);
-  								PlayerSessionService->SendMessageToPlayer(FPlaylistMetadataUpdateMessage::Create(StartTime, MediaMetadata));
+  								PlayerSessionService->SendMessageToPlayer(FPlaylistMetadataUpdateMessage::Create(StartTime, MediaMetadata, false));
 							}
 						}
 
@@ -1366,8 +1449,6 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 									AccessUnit->LatestPTS += TimeOffset;
 									AccessUnit->LatestPTS.SetSequenceIndex(Request->TimestampSequenceIndex);
 
-									AccessUnit->OffsetFromSegmentStart = TimelineOffset;
-
 									AccessUnit->ProducerReferenceTime = ProducerTime.Base + FTimeValue(AUDTS - ProducerTime.Media, TrackTimescale);
 
 									ElectraCDM::FMediaCDMSampleInfo SampleEncryptionInfo;
@@ -1388,7 +1469,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 									}
 									else if (NumBytesToSkip > 0)
 									{
-										int64 NumSkipped = ReadData(nullptr, NumBytesToSkip);
+										int64 NumSkipped = ReadData(nullptr, NumBytesToSkip, -1);
 										if (NumSkipped != NumBytesToSkip)
 										{
 											FAccessUnit::Release(AccessUnit);
@@ -1406,7 +1487,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 										MoofInfo.PayloadStartOffset = GetCurrentOffset();
 									}
 
-									int64 NumRead = ReadData(AccessUnit->AUData, AccessUnit->AUSize);
+									int64 NumRead = ReadData(AccessUnit->AUData, AccessUnit->AUSize, -1);
 									if (NumRead == AccessUnit->AUSize)
 									{
 										MoofInfo.NumKeyframeBytes += AccessUnit->bIsSyncSample ? AccessUnit->AUSize : 0;
@@ -1934,7 +2015,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 		if (!bIsEmptyFillerSegment)
 		{
 			ReadBuffer.Reset();
-			ReadBuffer.ReceiveBuffer = MakeSharedTS<IElectraHttpManager::FReceiveBuffer>();
+			ReadBuffer.ReceiveBuffer = MakeSharedTS<FWaitableBuffer>();
 
 			// Start downloading the segment.
 			TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener(new IElectraHttpManager::FProgressListener);
@@ -2039,7 +2120,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 
 						int64 NumToRead = Action->GetNumBytesToRead();
 						void* ReadTo = PrepareAccessUnit(NumToRead);
-						int64 nr = ReadData(ReadTo, NumToRead);
+						int64 nr = ReadData(ReadTo, NumToRead, -1);
 						if (nr != NumToRead)
 						{
 							bHasErrored = true;
@@ -2141,7 +2222,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 						const IParserMKV::IClusterParser::IActionSkipOver* Action = static_cast<const IParserMKV::IClusterParser::IActionSkipOver*>(ClusterParser->GetAction());
 						check(Action);
 						int64 NumBytesToSkip = Action->GetNumBytesToSkip();
-						int64 nr = ReadData(nullptr, NumBytesToSkip);
+						int64 nr = ReadData(nullptr, NumBytesToSkip, -1);
 						if (nr != NumBytesToSkip)
 						{
 							bHasErrored = true;
@@ -2598,9 +2679,9 @@ bool FStreamReaderDASH::FStreamHandler::HasErrored() const
  * @param NumBytesToRead The number of bytes to read. Must not read more bytes and no less than requested.
  * @return The number of bytes read or -1 on a read error.
  */
-int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead)
+int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset)
 {
-	FWaitableBuffer& SourceBuffer = ReadBuffer.ReceiveBuffer->Buffer;
+	FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	// Make sure the buffer will have the amount of data we need.
 	while(1)
 	{
@@ -2686,7 +2767,7 @@ int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumByt
  */
 bool FStreamReaderDASH::FStreamHandler::HasReachedEOF() const
 {
-	const FWaitableBuffer& SourceBuffer = ReadBuffer.ReceiveBuffer->Buffer;
+	const FWaitableBuffer& SourceBuffer = *ReadBuffer.ReceiveBuffer;
 	return !HasErrored() && SourceBuffer.GetEOD() && (ReadBuffer.ParsePos >= SourceBuffer.Num() || ReadBuffer.ParsePos >= ReadBuffer.MaxParsePos);
 }
 
@@ -2710,6 +2791,19 @@ bool FStreamReaderDASH::FStreamHandler::HasReadBeenAborted() const
 int64 FStreamReaderDASH::FStreamHandler::GetCurrentOffset() const
 {
 	return ReadBuffer.ParsePos;
+}
+
+int64 FStreamReaderDASH::FStreamHandler::GetTotalSize() const
+{
+	if (CurrentRequest.IsValid())
+	{
+		Metrics::FSegmentDownloadStats& ds = CurrentRequest->DownloadStats;
+		if (ds.ByteSize > 0)
+		{
+			return ds.ByteSize;
+		}
+	}
+	return TNumericLimits<int64>::Max();
 }
 
 
@@ -2743,43 +2837,6 @@ IParserISO14496_12::IBoxCallback::EParseContinuation FStreamReaderDASH::FStreamH
 {
 	return IParserISO14496_12::IBoxCallback::EParseContinuation::Continue;
 }
-
-
-
-int64 FStreamReaderDASH::FStreamHandler::MKVReadData(void* InDestinationBuffer, int64 InNumBytesToRead, int64 InFromOffset)
-{
-	check(InFromOffset == MKVGetCurrentFileOffset());
-	if (InFromOffset != MKVGetCurrentFileOffset())
-	{
-		return -1;
-	}
-	return ReadData(InDestinationBuffer, InNumBytesToRead);
-}
-
-int64 FStreamReaderDASH::FStreamHandler::MKVGetCurrentFileOffset() const
-{
-	return GetCurrentOffset();
-}
-
-int64 FStreamReaderDASH::FStreamHandler::MKVGetTotalSize()
-{
-	if (CurrentRequest.IsValid())
-	{
-		Metrics::FSegmentDownloadStats& ds = CurrentRequest->DownloadStats;
-		if (ds.ByteSize > 0)
-		{
-			return ds.ByteSize;
-		}
-	}
-	return TNumericLimits<int64>::Max();
-}
-
-bool FStreamReaderDASH::FStreamHandler::MKVHasReadBeenAborted() const
-{
-	return HasReadBeenAborted();
-}
-
-
 
 } // namespace Electra
 

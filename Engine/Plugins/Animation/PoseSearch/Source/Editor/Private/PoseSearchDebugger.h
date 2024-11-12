@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "IRewindDebuggerExtension.h"
 #include "IRewindDebuggerTrackCreator.h"
+#include "PoseSearch/PoseSearchDefines.h"
 #include "RewindDebuggerTrack.h"
 #include "SCurveTimelineView.h"
 
@@ -26,9 +27,6 @@ public:
 	virtual void Update(float DeltaTime, IRewindDebugger* InRewindDebugger) override;
 	virtual ~FDebugger() = default;
 
-	virtual void RecordingStarted(IRewindDebugger* RewindDebugger) override;
-	virtual void RecordingStopped(IRewindDebugger* RewindDebugger) override;
-
 	static FDebugger* Get() { return Debugger; }
 	static void Initialize();
 	static void Shutdown();
@@ -42,7 +40,8 @@ public:
 	static const IRewindDebugger* GetRewindDebugger();
 
 	/** Generates the slate debugger view widget */
-	TSharedPtr<SDebuggerView> GenerateInstance(uint64 InAnimInstanceId);
+	TSharedPtr<SDebuggerView> GenerateInstance(uint64 InAnimInstanceId, int32 InWantedSearchId = InvalidSearchId);
+	TWeakPtr<SDebuggerView> GetDebuggerView() { return DebuggerView; }
 
 private:
 	/** Removes the reference from the model array when closed, destroying the model */
@@ -57,8 +56,32 @@ private:
 	/** List of all active debugger instances */
 	TArray<TSharedRef<FDebuggerViewModel>> ViewModels;
 	
+	TWeakPtr<SDebuggerView> DebuggerView;
+
 	/** Internal instance */
 	static FDebugger* Debugger;
+};
+
+class FSearchTrack : public RewindDebugger::FRewindDebuggerTrack
+{
+public:
+	FSearchTrack(uint64 InObjectId, int32 InSearchId, FText InTrackName);
+	int32 GetSearchId() const;
+
+private:
+	virtual FSlateIcon GetIconInternal() override { return Icon;  }
+	virtual TSharedPtr<SWidget> GetTimelineViewInternal() override;
+	virtual TSharedPtr<SWidget> GetDetailsViewInternal() override;
+	virtual FName GetNameInternal() const override { return "PoseSearchTrack"; }
+	virtual FText GetDisplayNameInternal() const override;
+	virtual uint64 GetObjectIdInternal() const override { return ObjectId; }
+	virtual bool UpdateInternal() override;
+
+	TSharedPtr<SCostTimelineView> CostTimelineView;
+
+	uint64 ObjectId;
+	FText TrackName;
+	FSlateIcon Icon;
 };
 
 /**
@@ -68,29 +91,29 @@ private:
 class FDebuggerTrack : public RewindDebugger::FRewindDebuggerTrack
 {
 public:
-	FDebuggerTrack(uint64 InObjectId);
+	explicit FDebuggerTrack(uint64 InObjectId);
 
 private:
-	virtual FSlateIcon GetIconInternal() override;
-	virtual TSharedPtr<SWidget> GetTimelineViewInternal() override;
+	virtual FSlateIcon GetIconInternal() override { return Icon;  }
+	virtual TSharedPtr<SWidget> GetTimelineViewInternal() override { return nullptr; }
 	virtual TSharedPtr<SWidget> GetDetailsViewInternal() override;
-	virtual FName GetNameInternal() const override;
-	virtual FText GetDisplayNameInternal() const override;
+	virtual FName GetNameInternal() const override { return "PoseSearchDebugger"; }
+	virtual FText GetDisplayNameInternal() const override { return NSLOCTEXT("PoseSearchDebugger", "PoseSearchDebuggerTabTitle", "Pose Search"); }
 	virtual uint64 GetObjectIdInternal() const override { return ObjectId; }
+	virtual void IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewindDebuggerTrack> SubTrack)> IteratorFunction) override;
 	virtual bool UpdateInternal() override;
 
-	TSharedPtr<SCostTimelineView> CostTimelineView;
-
-	TWeakPtr<IRewindDebuggerView> View;
-	FSlateIcon Icon;
 	uint64 ObjectId;
+	FSlateIcon Icon;
+
+	TArray<TSharedPtr<FSearchTrack>> SearchTracks;
 };
 
 class FDebuggerTrackCreator : public RewindDebugger::IRewindDebuggerTrackCreator
 {
 private:
-	virtual FName GetTargetTypeNameInternal() const override;
-	virtual FName GetNameInternal() const override;
+	virtual FName GetTargetTypeNameInternal() const override { return "AnimInstance"; }
+	virtual FName GetNameInternal() const override { return "PoseSearchDebugger"; }
 	virtual void GetTrackTypesInternal(TArray<RewindDebugger::FRewindDebuggerTrackType>& Types) const override;
 	virtual TSharedPtr<RewindDebugger::FRewindDebuggerTrack> CreateTrackInternal(uint64 ObjectId) const override;
 	virtual bool HasDebugInfoInternal(uint64 ObjectId) const override;

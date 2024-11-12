@@ -266,6 +266,16 @@ void FUncontrolledChangelistState::RemoveDuplicates(TSet<FString>& InOutAddedAss
 		
 		InOutAddedAssets.Remove(Filename);
 	}
+
+	for (const FString& OfflineFile : OfflineFiles)
+	{
+		InOutAddedAssets.Remove(OfflineFile);
+	}
+
+	for (const FString& DeletedOfflineFile : DeletedOfflineFiles)
+	{
+		InOutAddedAssets.Remove(DeletedOfflineFile);
+	}
 }
 
 void FUncontrolledChangelistState::SetDescription(const FText& InDescription)

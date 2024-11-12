@@ -252,7 +252,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenIrradianceFieldGath
 	LumenRadianceCache::FRadianceCacheInterpolationParameters& TranslucencyVolumeRadianceCacheParameters,
 	ERDGPassFlags ComputePassFlags)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "LumenIrradianceFieldGather");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, LumenIrradianceFieldGather, "LumenIrradianceFieldGather");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LumenIrradianceFieldGather);
 
 	check(GLumenIrradianceFieldGather != 0);
@@ -345,9 +345,12 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenIrradianceFieldGath
 			FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FIrradianceFieldGatherCS::GetGroupSize()));
 	}
 
+	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+
 	FSSDSignalTextures DenoiserOutputs;
 	DenoiserOutputs.Textures[0] = DiffuseIndirect;
-	DenoiserOutputs.Textures[1] = RoughSpecularIndirect;
+	DenoiserOutputs.Textures[1] = SystemTextures.Black;
+	DenoiserOutputs.Textures[2] = RoughSpecularIndirect;
 
 	return DenoiserOutputs;
 }

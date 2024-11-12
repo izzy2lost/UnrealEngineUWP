@@ -45,6 +45,7 @@ enum class ERigVMGraphNotifType : uint8
 	InteractionBracketCanceled, // A bracket has been canceled (Subject == nullptr)
 	PinBoundVariableChanged, // A pin has been bound or unbound to / from a variable (Subject == URigVMPin)
 	NodeRenamed, // A node has been renamed in the graph (Subject == URigVMNode)
+	FunctionRenamed, // A function has been renamed in the graph (Subject == URigVMLibraryNode)
 	NodeReferenceChanged, // A node has changed it's referenced function
 	NodeCategoryChanged, // A node's category has changed (Subject == URigVMNode)
 	NodeKeywordsChanged, // A node's keywords have changed (Subject == URigVMNode)
@@ -52,6 +53,12 @@ enum class ERigVMGraphNotifType : uint8
 	VariableRemappingChanged, // A function reference node's remapping has changed (Subject == URigVMFunctionReferenceNode)
 	LibraryTemplateChanged, // The definition of a library node's template has changed (Subject == URigVMLibraryNode)
 	FunctionAccessChanged, // The function has been made public/private (Subject == URigVMLibraryNode)
+	VariantTagsChanged, // The tags in the header of this function variant have changed (Subject == URigVMLibraryNode)
+	PinDisplayNameChanged, // The display name of a pin has changed - requiring a rebuild of the node user interface (Subject == URigVMPin) 
+	PinCategoryChanged, // The category of a pin has changed - requiring a rebuild of the node user interface (Subject == URigVMPin)
+	PinCategoriesChanged, // The category list of a node has changed - requiring a rebuild of the node user interface (Subject == URigVMNode)
+	PinCategoryExpansionChanged, // The category of a pin expanded / collapsed (Subject == URigVMNode)
+	FunctionVariantGuidChanged, // The guid for a function has changed (Subject == URigVMLibraryNode)
 	Invalid // The max for this enum (used for guarding)
 };
 

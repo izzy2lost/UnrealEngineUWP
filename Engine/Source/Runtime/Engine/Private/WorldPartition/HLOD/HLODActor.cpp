@@ -54,7 +54,7 @@ AWorldPartitionHLOD::AWorldPartitionHLOD(const FObjectInitializer& ObjectInitial
 	bReplicates = true;
 
 	NetDormancy = DORM_Initial;
-	NetUpdateFrequency = 1.f;
+	SetNetUpdateFrequency(1.f);
 
 #if WITH_EDITORONLY_DATA
 	HLODHash = 0;
@@ -315,10 +315,22 @@ void AWorldPartitionHLOD::PreRegisterAllComponents()
 			SetActorEnableCollision(bShouldEnableCollision);
 			ForEachComponent<UPrimitiveComponent>(false, [bShouldEnableCollision](UPrimitiveComponent* PrimitiveComponent)
 			{
-				PrimitiveComponent->SetCollisionEnabled(bShouldEnableCollision ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+				bool bShouldEnableCollisionForComponent = bShouldEnableCollision;
+				if (bShouldEnableCollisionForComponent)
+				{
+					if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(PrimitiveComponent))
+					{
+						UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
+						int32 NumSectionsWithCollision = StaticMesh ? StaticMesh->GetNumSectionsWithCollision() : 0;
+						int32 NumCollisionPrims = StaticMesh ? (StaticMesh->GetBodySetup() ? StaticMesh->GetBodySetup()->AggGeom.GetElementCount() : 0) : 0;
+						bShouldEnableCollisionForComponent = NumSectionsWithCollision != 0 || NumCollisionPrims != 0;
+					}
+				}
+
+				PrimitiveComponent->SetCollisionEnabled(bShouldEnableCollisionForComponent ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 				PrimitiveComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
-				PrimitiveComponent->SetCollisionResponseToChannel(ECC_Visibility, bShouldEnableCollision ? ECR_Block : ECR_Ignore);
-				PrimitiveComponent->SetCollisionResponseToChannel(ECC_Camera, bShouldEnableCollision ? ECR_Block : ECR_Ignore);
+				PrimitiveComponent->SetCollisionResponseToChannel(ECC_Visibility, bShouldEnableCollisionForComponent ? ECR_Block : ECR_Ignore);
+				PrimitiveComponent->SetCollisionResponseToChannel(ECC_Camera, bShouldEnableCollisionForComponent ? ECR_Block : ECR_Ignore);
 			});
 		}
 	}	
@@ -430,6 +442,7 @@ void AWorldPartitionHLOD::SetHLODComponents(const TArray<UActorComponent*>& InHL
 void AWorldPartitionHLOD::SetSourceActors(UWorldPartitionHLODSourceActors* InHLODSourceActors)
 {
 	SourceActors = InHLODSourceActors;
+	InputStats.BuildersReferencedAssets.Reset();
 }
 
 const UWorldPartitionHLODSourceActors* AWorldPartitionHLOD::GetSourceActors() const
@@ -440,6 +453,16 @@ const UWorldPartitionHLODSourceActors* AWorldPartitionHLOD::GetSourceActors() co
 UWorldPartitionHLODSourceActors* AWorldPartitionHLOD::GetSourceActors()
 {
 	return SourceActors;
+}
+
+void AWorldPartitionHLOD::SetInputStats(const FHLODBuildInputStats& InInputStats)
+{
+	InputStats = InInputStats;
+}
+
+const FHLODBuildInputStats& AWorldPartitionHLOD::GetInputStats() const
+{
+	return InputStats;
 }
 
 void AWorldPartitionHLOD::SetSourceCellGuid(const FGuid& InSourceCellGuid)
@@ -457,9 +480,9 @@ void AWorldPartitionHLOD::SetHLODBounds(const FBox& InBounds)
 	HLODBounds = InBounds;
 }
 
-FBox AWorldPartitionHLOD::GetStreamingBounds() const
+void AWorldPartitionHLOD::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	return HLODBounds;
+	OutRuntimeBounds = OutEditorBounds = HLODBounds;
 }
 
 int64 AWorldPartitionHLOD::GetStat(FName InStatName) const

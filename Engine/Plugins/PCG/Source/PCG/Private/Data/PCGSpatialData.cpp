@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Data/PCGSpatialData.h"
+
+#include "PCGContext.h"
 #include "Data/PCGDifferenceData.h"
 #include "Data/PCGIntersectionData.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGProjectionData.h"
 #include "Data/PCGUnionData.h"
+#include "Elements/PCGExecuteBlueprint.h"
 
 #include "Serialization/ArchiveCrc32.h"
 
@@ -174,55 +177,75 @@ void UPCGSpatialData::ProjectPoints(const TArrayView<const TPair<FTransform, FBo
 	}
 }
 
-UPCGIntersectionData* UPCGSpatialData::IntersectWith(const UPCGSpatialData* InOther) const
+UPCGIntersectionData* UPCGSpatialData::K2_IntersectWith(const UPCGSpatialData* InOther) const
 {
-	UPCGIntersectionData* IntersectionData = NewObject<UPCGIntersectionData>();
+	return IntersectWith(UPCGBlueprintElement::ResolveContext(), InOther);
+}
+
+UPCGIntersectionData* UPCGSpatialData::IntersectWith(FPCGContext* InContext, const UPCGSpatialData* InOther) const
+{
+	UPCGIntersectionData* IntersectionData = FPCGContext::NewObject_AnyThread<UPCGIntersectionData>(InContext);
 	IntersectionData->Initialize(this, InOther);
 
 	return IntersectionData;
 }
 
-UPCGSpatialData* UPCGSpatialData::ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
+UPCGSpatialData* UPCGSpatialData::K2_ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
+{
+	return ProjectOn(UPCGBlueprintElement::ResolveContext(), InOther, InParams);
+}
+
+UPCGSpatialData* UPCGSpatialData::ProjectOn(FPCGContext* InContext, const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
 {
 	// Check necessary conditions. Fail to project -> return copy of projection source, i.e. projection not performed.
 	if (!InOther)
 	{
 		UE_LOG(LogPCG, Warning, TEXT("No projection target specified, no projection will occur"));
-		return DuplicateData();
+		return DuplicateData(InContext);
 	}
 
 	if (GetDimension() > InOther->GetDimension())
 	{
 		UE_LOG(LogPCG, Error, TEXT("Dimension of projection source (%d) must be less than or equal to that of the projection target (%d)"), GetDimension(), InOther->GetDimension());
-		return DuplicateData();
+		return DuplicateData(InContext);
 	}
 
 	const UPCGSpatialData* ConcreteTarget = InOther->FindFirstConcreteShapeFromNetwork();
 	if (!ConcreteTarget)
 	{
 		UE_LOG(LogPCG, Error, TEXT("Could not find a concrete shape in the target data to project onto."));
-		return DuplicateData();
+		return DuplicateData(InContext);
 	}
 
-	UPCGProjectionData* ProjectionData = NewObject<UPCGProjectionData>();
+	UPCGProjectionData* ProjectionData = FPCGContext::NewObject_AnyThread<UPCGProjectionData>(InContext);
 	ProjectionData->Initialize(this, ConcreteTarget, InParams);
 
 	return ProjectionData;
 }
 
-UPCGUnionData* UPCGSpatialData::UnionWith(const UPCGSpatialData* InOther) const
+UPCGUnionData* UPCGSpatialData::K2_UnionWith(const UPCGSpatialData* InOther) const
 {
-	UPCGUnionData* UnionData = NewObject<UPCGUnionData>();
+	return UnionWith(UPCGBlueprintElement::ResolveContext(), InOther);
+}
+
+UPCGUnionData* UPCGSpatialData::UnionWith(FPCGContext* InContext, const UPCGSpatialData* InOther) const
+{
+	UPCGUnionData* UnionData = FPCGContext::NewObject_AnyThread<UPCGUnionData>(InContext);
 	UnionData->Initialize(this, InOther);
 
 	return UnionData;
 }
 
-UPCGDifferenceData* UPCGSpatialData::Subtract(const UPCGSpatialData* InOther) const
+UPCGDifferenceData* UPCGSpatialData::K2_Subtract(const UPCGSpatialData* InOther) const
 {
-	UPCGDifferenceData* DifferenceData = NewObject<UPCGDifferenceData>();
+	return Subtract(UPCGBlueprintElement::ResolveContext(), InOther);
+}
+
+UPCGDifferenceData* UPCGSpatialData::Subtract(FPCGContext* InContext, const UPCGSpatialData* InOther) const
+{
+	UPCGDifferenceData* DifferenceData = FPCGContext::NewObject_AnyThread<UPCGDifferenceData>(InContext);
 	DifferenceData->Initialize(this);
-	DifferenceData->AddDifference(InOther);
+	DifferenceData->AddDifference(InContext, InOther);
 
 	return DifferenceData;
 }
@@ -261,9 +284,9 @@ void UPCGSpatialData::InitializeFromData(const UPCGSpatialData* InSource, const 
 	}
 }
 
-UPCGSpatialData* UPCGSpatialData::DuplicateData(bool bInitializeMetadata) const
+UPCGSpatialData* UPCGSpatialData::DuplicateData(FPCGContext* Context, bool bInitializeMetadata) const
 {
-	UPCGSpatialData* NewSpatialData = CopyInternal();
+	UPCGSpatialData* NewSpatialData = CopyInternal(Context);
 	check(NewSpatialData);
 
 	if (bInitializeMetadata)

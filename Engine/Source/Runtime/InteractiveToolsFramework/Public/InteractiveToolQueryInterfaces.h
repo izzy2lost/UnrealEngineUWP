@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InteractiveTool.h" // EToolShutdownType
 #include "UObject/Interface.h"
 #include "InteractiveToolQueryInterfaces.generated.h"
 
@@ -127,6 +128,65 @@ public:
 	virtual bool ExecuteNestedAcceptCommand() { return false; }
 
 
+};
+
+// UInterface for IInteractiveToolShutdownQueryAPI
+UINTERFACE(MinimalAPI)
+class UInteractiveToolShutdownQueryAPI : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Allows an interactive tool to influence the way it is shut down, if the tool host supports
+ * that kind of customization. This can be helpful, for example, if your tool prefers a specific
+ * shutdown type in various situations, but a tool can't rely on this interface being queried unless
+ * it knows that it will only be used by systems that respect it. A simple interactive tools framework
+ * context implementation does not need to bother querying the tool on its preferences (aside from the
+ * already existing CanAccept method on the actual tool object).
+ * 
+ * Note that there are different systems that might choose to query this interface. The tool manager
+ * might want to query it if its ToolSwitchMode is set to be customizable, or the mode or mode toolkit
+ * might query it when shutting down the tool in various situations.
+ */
+class IInteractiveToolShutdownQueryAPI
+{
+	GENERATED_BODY()
+public:
+	enum class EShutdownReason
+	{
+		// Another tool is being activated without the user having explicitly shut down this one.
+		SwitchTool
+
+		//~ We'll add something along these lines once we start querying in other shutdown situations:
+		//~ // The ESC key (or some equivalent) was hit to exit the tool
+		//~ , Escape
+		//~ // The mode was shut down
+		//~ , ModeExit
+	};
+
+	/**
+	 * Given a shutdown situation, tells what kind of shutdown method the tool might prefer.
+	 * @param ShutdownReason Information about the shutdown type
+	 * @param StandardShutdownType Shutdown type that the host would use if it weren't giving the tool a
+	 *   chance to customize the behavior.
+	 * @return Shutdown type that the tool would prefer that the host use in this situation.
+	 */
+	virtual EToolShutdownType GetPreferredShutdownType(EShutdownReason ShutdownReason, EToolShutdownType StandardShutdownType) const
+	{
+		return StandardShutdownType;
+	}
+
+	//~ Not currently supported, but someday we might let tools query the user with an "are you sure"
+	//~ type of message, and allow the tool to ask to NOT be shut down after all. This is one way
+	//~ we might implement the ability for tools to ask for this:
+	//~ struct FShutdownUserQuery
+	//~ {
+	//~ 	FString MessageToUser;
+	//~ 	EAppMsgType::Type QueryType;
+	//~ 	TFunction<void(EAppReturnType::Type UserResponse, bool& bStillShutdownOut, EToolShutdownType& ShutdownTypeOut)> ResponseHandler;
+	//~ };
+	//~ TOptional<FShutdownUserQuery> GetShutdownUserQuery() { return TOptional<FShutdownUserQuery>(); }
 };
 
 

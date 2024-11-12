@@ -30,7 +30,6 @@ TSharedRef<SWidget> UPropertyEditorRowGeneratorTest::GenerateWidget()
 	}
 
 	ListView = SNew(SListView<TSharedPtr<IDetailTreeNode>>)
-		.ItemHeight(24)
 		.ListItemsSource(&DetailsNodes)
 		.OnGenerateRow_UObject(this, &UPropertyEditorRowGeneratorTest::GenerateListRow);
 

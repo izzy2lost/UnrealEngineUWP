@@ -27,6 +27,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Misc/AssertionMacros.h"
+#include "ObjectTools.h"
 #include "Templates/Casts.h"
 #include "Templates/SubclassOf.h"
 #include "Trace/Detail/Channel.h"
@@ -50,7 +51,7 @@ FText UK2Node_Message::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	{
 		if (!CachedNodeTitles.IsTitleCached(TitleType, this))
 		{
-			FText NodeNameText = UK2Node_CallFunction::GetUserFacingFunctionName(Function);
+			FText NodeNameText = ObjectTools::GetUserFacingFunctionName(Function);
 			if (TitleType == ENodeTitleType::MenuTitle)
 			{
 				// FText::Format() is slow, so we cache this to save on performance
@@ -80,25 +81,6 @@ FText UK2Node_Message::GetTooltipText() const
 		CachedTooltip.SetCachedText(FText::Format(LOCTEXT("MessageTooltip", "{0}\nMessage. This does nothing if the target does not implement the required interface."), Super::GetTooltipText()), this);
 	}
 	return CachedTooltip;
-}
-
-void UK2Node_Message::AllocateDefaultPins()
-{
-	UFunction* MessageNodeFunction = GetTargetFunction();
-	// since we have branching logic in ExpandNode(), this has to be an impure
-	// node with exec pins
-	//
-	// @TODO: make it so we can have impure message nodes using a custom 
-	//        FNodeHandlingFunctor, instead of ExpandNode()
-	if (MessageNodeFunction && MessageNodeFunction->HasAnyFunctionFlags(FUNC_BlueprintPure))
-	{
-		// Input - Execution Pin
-		CreatePin(EGPD_Input,  UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
-		// Output - Execution Pin
-		CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
-	}
-
-	Super::AllocateDefaultPins();
 }
 
 UEdGraphPin* UK2Node_Message::CreateSelfPin(const UFunction* Function)
@@ -188,28 +170,55 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 	// Skip ourselves if our exec isn't wired up
 	if (bExecPinConnected)
 	{
+		UClass* InterfaceClass = FunctionReference.GetMemberParentClass(GetBlueprintClassFromNode());
+
 		// Make sure our interface is valid
-		if (FunctionReference.GetMemberParentClass(GetBlueprintClassFromNode()) == NULL)
+		if (InterfaceClass == nullptr)
 		{
 			CompilerContext.MessageLog.Error(*LOCTEXT("MessageNodeInvalid_Error", "Message node @@ has an invalid interface.").ToString(), this);
 			return;
 		}
 
 		UFunction* MessageNodeFunction = GetTargetFunction();
-		if (MessageNodeFunction == NULL)
+		if (MessageNodeFunction == nullptr)
 		{
 			//@TODO: Why do this here in the compiler, it's already done on AllocateDefaultPins() during on-load node reconstruction
-			MessageNodeFunction = FMemberReference::FindRemappedField<UFunction>(FunctionReference.GetMemberParentClass(GetBlueprintClassFromNode()), FunctionReference.GetMemberName());
+			MessageNodeFunction = FMemberReference::FindRemappedField<UFunction>(InterfaceClass, FunctionReference.GetMemberName());
 		}
 
-		if (MessageNodeFunction == NULL)
+		if (MessageNodeFunction == nullptr)
 		{
 			CompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("MessageNodeInvalidFunction_ErrorFmt", "Unable to find function with name {0} for Message node @@."), FText::FromString(FunctionReference.GetMemberName().ToString())).ToString(), this);
 			return;
 		}
 
+		const bool bIsStaticFunc = MessageNodeFunction->HasAllFunctionFlags(FUNC_Static);
+		if (!bIsStaticFunc && !InterfaceClass->HasAnyClassFlags(CLASS_Interface))
+		{
+			CompilerContext.MessageLog.Error(*LOCTEXT("MessageNodeClassNotAnInterface_Error", "Message node @@ uses a class that isn't an interface.").ToString(), this);
+			return;
+		}
+
 		// Check to make sure we have a target
 		UEdGraphPin* MessageSelfPin = Schema->FindSelfPin(*this, EGPD_Input);
+
+		// If we've intentionally hidden the 'self' pin (e.g. we're a static function), the pin can be redirected
+		bool bSelfPinCanBeRedirected = MessageSelfPin->bHidden;
+		if (bSelfPinCanBeRedirected)
+		{
+			// Build up a list of names that could correspond to this self pin (e.g. SomeClass.SomeFunc.self)
+			TArray<FString> PossibleRedirectNames;
+			GetRedirectPinNames(*MessageSelfPin, PossibleRedirectNames);
+
+			// Check for any redirects, and if we have one, try to find that pin
+			FName OutSelfPinName;
+			ERedirectType RedirectType = ShouldRedirectParam(PossibleRedirectNames, OutSelfPinName, this);
+			if (RedirectType != ERedirectType::ERedirectType_None)
+			{
+				MessageSelfPin = FindPin(OutSelfPinName, EEdGraphPinDirection::EGPD_Input);
+			}
+		}
+
 		if( !MessageSelfPin || MessageSelfPin->LinkedTo.Num() == 0 )
 		{
 			CompilerContext.MessageLog.Error(*LOCTEXT("MessageNodeSelfPin_Error", "Message node @@ must have a valid target or reference to self.").ToString(), this);
@@ -219,6 +228,18 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 		// First, create an internal cast-to-interface node
 		UK2Node_DynamicCast* CastToInterfaceNode = CompilerContext.SpawnIntermediateNode<UK2Node_DynamicCast>(this, SourceGraph);
 		CastToInterfaceNode->TargetType = MessageNodeFunction->GetOuterUClass()->GetAuthoritativeClass();
+		if (bSelfPinCanBeRedirected)
+		{
+			if (UObject* PinSubCategoryObj = MessageSelfPin->PinType.PinSubCategoryObject.Get())
+			{
+				UClass* TargetTypeClass = Cast<UClass>(PinSubCategoryObj);
+				if (!TargetTypeClass)
+				{
+					TargetTypeClass = PinSubCategoryObj->GetClass();
+				}
+				CastToInterfaceNode->TargetType = TargetTypeClass->GetAuthoritativeClass();
+			}
+		}
 		CastToInterfaceNode->SetPurity(false);
 		CastToInterfaceNode->AllocateDefaultPins();
 
@@ -255,7 +276,6 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 
 		// Next, create the function call node
 		UK2Node_CallFunction* FunctionCallNode = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
-		FunctionCallNode->bIsInterfaceCall = true;
 		FunctionCallNode->FunctionReference = FunctionReference;
 		FunctionCallNode->AllocateDefaultPins();
 
@@ -274,8 +294,13 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 			LastOutCastSuccessPin = Schema->FindExecutionPin(*FunctionCallNode, EGPD_Output);
 		}
 		
-		// Self pin
-		UEdGraphPin* FunctionCallSelfPin = Schema->FindSelfPin(*FunctionCallNode, EGPD_Input);
+		// Function's actual 'self' pin (since Self Pin can be redirected, let's use its matching name)
+		UEdGraphPin* FunctionCallSelfPin = FunctionCallNode->FindPin(MessageSelfPin->GetName(), EGPD_Input);
+		if (!ensureMsgf(FunctionCallSelfPin, TEXT("Could not find suitable SelfPin '%s' matching input pin on (intermediate) node %s"), *MessageSelfPin->GetName(), *FunctionCallNode->GetDescriptiveCompiledName()))
+		{
+			// Fallback to old code with hardcoded Self name
+			FunctionCallSelfPin = Schema->FindSelfPin(*FunctionCallNode, EGPD_Input);
+		}
 		CastToInterfaceResultPin->MakeLinkTo(FunctionCallSelfPin);
 
 		UFunction* ArrayClearFunction = UKismetArrayLibrary::StaticClass()->FindFunctionByName(FName(TEXT("Array_Clear")));
@@ -285,7 +310,8 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 		UFunction* MapClearFunction = UBlueprintMapLibrary::StaticClass()->FindFunctionByName(FName(TEXT("Map_Clear")));
 		check(MapClearFunction);
 
-		bool const bIsPureMessageFunc = Super::IsNodePure();
+		const bool bIsPureMessageFunc = Super::IsNodePure();
+
 		// Variable pins - Try to associate variable inputs to the message node with the variable inputs and outputs to the call function node
 		for( int32 i = 0; i < Pins.Num(); i++ )
 		{

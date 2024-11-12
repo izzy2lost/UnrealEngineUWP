@@ -49,6 +49,12 @@ static FAutoConsoleVariableRef CVarMaxExpiredTimersToLog(
 	MaxExpiredTimersToLog,
 	TEXT("Maximum number of TimerData exceeding the threshold to log in a single frame."));
 
+static int32 GuaranteeEngineTickDelay = 0;
+static FAutoConsoleVariableRef CVarTimerManagerGuaranteeEngineTickDelay(
+	TEXT("TimerManager.GuaranteeEngineTickDelay"),
+	GuaranteeEngineTickDelay,
+	TEXT("If true, timers delayed until next tick will guarantee the engine tick has advanced. If false, these could run during the same engine tick (default behavior prior to 5.5)."));
+
 #ifndef UE_ENABLE_DUMPALLTIMERLOGSTHRESHOLD
 #define UE_ENABLE_DUMPALLTIMERLOGSTHRESHOLD !UE_BUILD_SHIPPING
 #endif
@@ -106,66 +112,74 @@ struct FTimerSourceList
 	// This is similar to FTimerUnifiedDelegate::ToString() but it tries to find the base class / exclude vptr printout info so that timers are collapsed/aggregated better
 	static FString GetPartialDeduplicateDelegateToString(const FTimerUnifiedDelegate& Delegate)
 	{
-		FString FunctionNameStr;
-		FString ObjectNameStr;
+		FString FunctionNameStr = TEXT("NotBound!");
+		FString ObjectNameStr = TEXT("NotBound!");
 
-		if (Delegate.FuncDelegate.IsBound())
+		if (const FTimerDelegate* FuncDelegate = Delegate.VariantDelegate.TryGet<FTimerDelegate>())
 		{
-			ObjectNameStr = TEXT("NonDynamicDelegate");
-			FName FunctionName;
-#if USE_DELEGATE_TRYGETBOUNDFUNCTIONNAME
-			FunctionName = Delegate.FuncDelegate.TryGetBoundFunctionName();
-#endif
-			if (FunctionName.IsNone())
+			if (FuncDelegate->IsBound())
 			{
-				uint64 ProgramCounter = Delegate.FuncDelegate.GetBoundProgramCounterForTimerManager();
-				if (ProgramCounter != 0)
+				ObjectNameStr = TEXT("NonDynamicDelegate");
+				FName FunctionName;
+#if USE_DELEGATE_TRYGETBOUNDFUNCTIONNAME
+				FunctionName = FuncDelegate->TryGetBoundFunctionName();
+#endif
+				if (FunctionName.IsNone())
 				{
-					// Add the function address
-					if (DumpTimerLogSymbolNames)
+					uint64 ProgramCounter = FuncDelegate->GetBoundProgramCounterForTimerManager();
+					if (ProgramCounter != 0)
 					{
-						// Try to resolve the function address to a symbol
-						FProgramCounterSymbolInfo SymbolInfo;
-						FPlatformStackWalk::ProgramCounterToSymbolInfo(ProgramCounter, /*out*/ SymbolInfo);
-						FunctionNameStr = FString::Printf(TEXT("%s [%s:%d]"), ANSI_TO_TCHAR(SymbolInfo.FunctionName), ANSI_TO_TCHAR(SymbolInfo.Filename), SymbolInfo.LineNumber);
+						// Add the function address
+						if (DumpTimerLogSymbolNames)
+						{
+							// Try to resolve the function address to a symbol
+							FProgramCounterSymbolInfo SymbolInfo;
+							FPlatformStackWalk::ProgramCounterToSymbolInfo(ProgramCounter, /*out*/ SymbolInfo);
+							FunctionNameStr = FString::Printf(TEXT("%s [%s:%d]"), ANSI_TO_TCHAR(SymbolInfo.FunctionName), ANSI_TO_TCHAR(SymbolInfo.Filename), SymbolInfo.LineNumber);
+						}
+						else
+						{
+							FunctionNameStr = FString::Printf(TEXT("func: 0x%llx"), ProgramCounter);
+						}
 					}
 					else
 					{
-						FunctionNameStr = FString::Printf(TEXT("func: 0x%llx"), ProgramCounter);
+						FunctionNameStr = TEXT("0x0");
 					}
 				}
 				else
 				{
-					FunctionNameStr = TEXT("0x0");
+					FunctionNameStr = FunctionName.ToString();
 				}
 			}
-			else
-			{
-				FunctionNameStr = FunctionName.ToString();
-			}
 		}
-		else if (Delegate.FuncDynDelegate.IsBound())
+		else if (const FTimerDynamicDelegate* FuncDynDelegate = Delegate.VariantDelegate.TryGet<FTimerDynamicDelegate>())
 		{
-			const FName FuncFName = Delegate.FuncDynDelegate.GetFunctionName();
-			FunctionNameStr = FuncFName.ToString();
-
-			UClass* SourceClass = nullptr;
-			if (const UObject* Object = Delegate.FuncDynDelegate.GetUObject())
+			if (FuncDynDelegate->IsBound())
 			{
-				SourceClass = Object->GetClass();
-				if (UFunction* Func = SourceClass->FindFunctionByName(FuncFName))
+				const FName FuncFName = FuncDynDelegate->GetFunctionName();
+				FunctionNameStr = FuncFName.ToString();
+
+				UClass* SourceClass = nullptr;
+				if (const UObject* Object = FuncDynDelegate->GetUObject())
 				{
-					SourceClass = Func->GetOwnerClass();
+					SourceClass = Object->GetClass();
+					if (UFunction* Func = SourceClass->FindFunctionByName(FuncFName))
+					{
+						SourceClass = Func->GetOwnerClass();
+					}
 				}
+
+				ObjectNameStr = GetPathNameSafe(SourceClass);
 			}
-
-
-			ObjectNameStr = GetPathNameSafe(SourceClass);
 		}
-		else
+		else if (const FTimerFunction* TimerFunction = Delegate.VariantDelegate.TryGet<FTimerFunction>())
 		{
-			ObjectNameStr = TEXT("NotBound!");
-			FunctionNameStr = TEXT("NotBound!");
+			if (*TimerFunction)
+			{
+				FunctionNameStr = TEXT("TFunction");
+				ObjectNameStr = TEXT("");	
+			}
 		}
 
 		return FString::Printf(TEXT("%s,\"%s\""), *ObjectNameStr, *FunctionNameStr);
@@ -321,82 +335,175 @@ void FTimerManager::OnCrash()
 	UE_LOG(LogEngine, Warning, TEXT("TimerManager %p dump ended"), this);
 }
 
+void FTimerUnifiedDelegate::Execute() const
+{
+	switch (VariantDelegate.GetIndex())
+	{
+	case FTimerDelegateVariant::IndexOfType<FTimerDelegate>():
+		{
+			const FTimerDelegate& FuncDelegate = VariantDelegate.Get<FTimerDelegate>();
+			if (FuncDelegate.IsBound())
+			{
+				FScopeCycleCounterUObject Context(FuncDelegate.GetUObject());
+				FuncDelegate.Execute();
+			}
+			break;
+		}
+	case FTimerDelegateVariant::IndexOfType<FTimerDynamicDelegate>():
+		{
+			const FTimerDynamicDelegate& FuncDynDelegate = VariantDelegate.Get<FTimerDynamicDelegate>();
+			if (FuncDynDelegate.IsBound())
+			{
+				// stat scope is handled by UObject::ProcessEvent for the UFunction.
+				FuncDynDelegate.ProcessDelegate<UObject>(nullptr);
+			}
+			break;
+		}
+	case FTimerDelegateVariant::IndexOfType<FTimerFunction>():
+		{
+			if (const FTimerFunction& TimerFunction = VariantDelegate.Get<FTimerFunction>())
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_FTimerUnifiedDelegate_Execute);
+				TimerFunction();
+			}
+			break;
+		}
+	default:
+		break;
+	}
+}
+
+bool FTimerUnifiedDelegate::IsBound() const
+{
+	switch (VariantDelegate.GetIndex())
+	{
+	case FTimerDelegateVariant::IndexOfType<FTimerDelegate>():
+		return VariantDelegate.Get<FTimerDelegate>().IsBound();
+	case FTimerDelegateVariant::IndexOfType<FTimerDynamicDelegate>():
+		return VariantDelegate.Get<FTimerDynamicDelegate>().IsBound();
+	case FTimerDelegateVariant::IndexOfType<FTimerFunction>():
+		return VariantDelegate.Get<FTimerFunction>()!=nullptr;
+	default:
+		return false;
+	}
+}
+
+const void* FTimerUnifiedDelegate::GetBoundObject() const
+{
+	switch (VariantDelegate.GetIndex())
+	{
+	case FTimerDelegateVariant::IndexOfType<FTimerDelegate>():
+		{
+			const FTimerDelegate& FuncDelegate = VariantDelegate.Get<FTimerDelegate>();
+			if (FuncDelegate.IsBound())
+			{
+				return FuncDelegate.GetObjectForTimerManager();
+			}
+			break;
+		}
+	case FTimerDelegateVariant::IndexOfType<FTimerDynamicDelegate>():
+		{
+			const FTimerDynamicDelegate& FuncDynDelegate = VariantDelegate.Get<FTimerDynamicDelegate>();
+			if (FuncDynDelegate.IsBound())
+			{
+				return FuncDynDelegate.GetUObject();
+			}
+			break;
+		}
+	default:
+		break;
+	}
+	return nullptr;
+}
 
 FString FTimerUnifiedDelegate::ToString() const
 {
-	const UObject* Object = nullptr;
-	FString FunctionNameStr;
-	bool bDynDelegate = false;
-
-	if (FuncDelegate.IsBound())
+	switch (VariantDelegate.GetIndex())
 	{
-		FName FunctionName;
-#if USE_DELEGATE_TRYGETBOUNDFUNCTIONNAME
-		FunctionName = FuncDelegate.TryGetBoundFunctionName();
-#endif
-		if (FunctionName.IsNone())
+	case FTimerDelegateVariant::IndexOfType<FTimerDelegate>():
 		{
-			void** VtableAddr = nullptr;
-#if PLATFORM_COMPILER_CLANG || defined(_MSC_VER)
-			// Add the vtable address
-			const void* UserObject = FuncDelegate.GetObjectForTimerManager();
-			if (UserObject)
+			const FTimerDelegate& FuncDelegate = VariantDelegate.Get<FTimerDelegate>();
+			if (FuncDelegate.IsBound())
 			{
-				VtableAddr = *(void***)UserObject;
-				FunctionNameStr = FString::Printf(TEXT("vtbl: %p"), VtableAddr);
-			}
+				FString FunctionNameStr;
+				FName FunctionName;
+#if USE_DELEGATE_TRYGETBOUNDFUNCTIONNAME
+				FunctionName = FuncDelegate.TryGetBoundFunctionName();
+#endif
+				if (FunctionName.IsNone())
+				{
+					void** VtableAddr = nullptr;
+#if PLATFORM_COMPILER_CLANG || defined(_MSC_VER)
+					// Add the vtable address
+					const void* UserObject = FuncDelegate.GetObjectForTimerManager();
+					if (UserObject)
+					{
+						VtableAddr = *(void***)UserObject;
+						FunctionNameStr = FString::Printf(TEXT("vtbl: %p"), VtableAddr);
+					}
 #endif // PLATFORM_COMPILER_CLANG
 
-			uint64 ProgramCounter = FuncDelegate.GetBoundProgramCounterForTimerManager();
-			if (ProgramCounter != 0)
-			{
-				// Add the function address
+					uint64 ProgramCounter = FuncDelegate.GetBoundProgramCounterForTimerManager();
+					if (ProgramCounter != 0)
+					{
+						// Add the function address
 
 #if PLATFORM_COMPILER_CLANG
-				// See if this is a virtual function. Heuristic is that real function addresses are higher than some value, and vtable offsets are lower
-				const uint64 MaxVTableAddressOffset = 32768;
-				if (DumpTimerLogResolveVirtualFunctions && VtableAddr && ProgramCounter > 0 && ProgramCounter < MaxVTableAddressOffset)
-				{
-					// If the ProgramCounter is just an offset to the vtable (virtual member function) then resolve the actual ProgramCounter here.
-					ProgramCounter = (uint64)VtableAddr[ProgramCounter / sizeof(void*)];
-				}
+						// See if this is a virtual function. Heuristic is that real function addresses are higher than some value, and vtable offsets are lower
+						const uint64 MaxVTableAddressOffset = 32768;
+						if (DumpTimerLogResolveVirtualFunctions && VtableAddr && ProgramCounter > 0 && ProgramCounter < MaxVTableAddressOffset)
+						{
+							// If the ProgramCounter is just an offset to the vtable (virtual member function) then resolve the actual ProgramCounter here.
+							ProgramCounter = (uint64)VtableAddr[ProgramCounter / sizeof(void*)];
+						}
 #endif // PLATFORM_COMPILER_CLANG
 
-				FunctionNameStr += FString::Printf(TEXT(" func: 0x%llx"), ProgramCounter);
+						FunctionNameStr += FString::Printf(TEXT(" func: 0x%llx"), ProgramCounter);
 
-				if (DumpTimerLogSymbolNames)
-				{
-					// Try to resolve the function address to a symbol
-					FProgramCounterSymbolInfo SymbolInfo;
-					SymbolInfo.FunctionName[0] = 0;
-					SymbolInfo.Filename[0] = 0;
-					SymbolInfo.LineNumber = 0;
-					FPlatformStackWalk::ProgramCounterToSymbolInfo(ProgramCounter, SymbolInfo);
-					FunctionNameStr += FString::Printf(TEXT(" %s [%s:%d]"), ANSI_TO_TCHAR(SymbolInfo.FunctionName), ANSI_TO_TCHAR(SymbolInfo.Filename), SymbolInfo.LineNumber);
+						if (DumpTimerLogSymbolNames)
+						{
+							// Try to resolve the function address to a symbol
+							FProgramCounterSymbolInfo SymbolInfo;
+							SymbolInfo.FunctionName[0] = 0;
+							SymbolInfo.Filename[0] = 0;
+							SymbolInfo.LineNumber = 0;
+							FPlatformStackWalk::ProgramCounterToSymbolInfo(ProgramCounter, SymbolInfo);
+							FunctionNameStr += FString::Printf(TEXT(" %s [%s:%d]"), ANSI_TO_TCHAR(SymbolInfo.FunctionName), ANSI_TO_TCHAR(SymbolInfo.Filename), SymbolInfo.LineNumber);
+						}
+					}
+					else
+					{
+						FunctionNameStr = TEXT(" 0x0");
+					}
 				}
-			}
-			else
-			{
-				FunctionNameStr = TEXT(" 0x0");
-			}
-		}
-		else
-		{
-			FunctionNameStr = FunctionName.ToString();
-		}
-	}
-	else if (FuncDynDelegate.IsBound())
-	{
-		Object = FuncDynDelegate.GetUObject();
-		FunctionNameStr = FuncDynDelegate.GetFunctionName().ToString();
-		bDynDelegate = true;
-	}
-	else
-	{
-		FunctionNameStr = TEXT("NotBound!");
-	}
 
-	return FString::Printf(TEXT("%s,%s,%s"), bDynDelegate ? TEXT("DYN DELEGATE") : TEXT("DELEGATE"), Object == nullptr ? TEXT("NO OBJ") : *Object->GetPathName(), *FunctionNameStr);
+				const UObject* const Object = FuncDelegate.GetUObject();
+				return FString::Printf(TEXT("DELEGATE,%s,%s"), Object == nullptr ? TEXT("NO OBJ") : *Object->GetPathName(), *FunctionNameStr);
+			}
+			return TEXT("UNBOUND DELEGATE");
+		}
+	case FTimerDelegateVariant::IndexOfType<FTimerDynamicDelegate>():
+		{
+			const FTimerDynamicDelegate& FuncDynDelegate = VariantDelegate.Get<FTimerDynamicDelegate>();
+			if (FuncDynDelegate.IsBound())
+			{
+				const UObject* Object = FuncDynDelegate.GetUObject();
+				return FString::Printf(TEXT("DYN DELEGATE,%s,%s"), Object == nullptr ? TEXT("NO OBJ") : *Object->GetPathName(), *FuncDynDelegate.GetFunctionName().ToString());
+			}
+			return TEXT("UNBOUND DYN DELEGATE");
+		}
+	case FTimerDelegateVariant::IndexOfType<FTimerFunction>():
+		{
+			if (const FTimerFunction& TimerFunction = VariantDelegate.Get<FTimerFunction>())
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_FTimerUnifiedDelegate_Execute);
+				return TEXT("TFUNCTION");
+			}
+			return TEXT("UNBOUND TFUNCTION");
+		}
+	default:
+		return TEXT("UNSET");
+	}
 }
 
 // ---------------------------------
@@ -449,7 +556,12 @@ FTimerHandle FTimerManager::K2_FindDynamicTimerHandle(FTimerDynamicDelegate InDy
 			for (FTimerHandle Handle : *TimersForObject)
 			{
 				const FTimerData& Data = GetTimer(Handle);
-				if (Data.Status != ETimerStatus::ActivePendingRemoval && Data.TimerDelegate.FuncDynDelegate == InDynamicDelegate)
+				if (Data.Status == ETimerStatus::ActivePendingRemoval)
+				{
+					continue;
+				}
+				const FTimerDynamicDelegate* DynDelegate = Data.TimerDelegate.VariantDelegate.TryGet<FTimerDynamicDelegate>();
+				if (DynDelegate && *DynDelegate == InDynamicDelegate)
 				{
 					Result = Handle;
 					break;
@@ -538,7 +650,6 @@ FTimerHandle FTimerManager::InternalSetTimerForNextTick(FTimerUnifiedDelegate&& 
 	NewTimerData.bRequiresDelegate = true;
 	NewTimerData.TimerDelegate = MoveTemp(InDelegate);
 	NewTimerData.ExpireTime = InternalTime;
-	NewTimerData.Status = ETimerStatus::Active;
 
 	// Set level collection
 	const UWorld* const OwningWorld = OwningGameInstance ? OwningGameInstance->GetWorld() : nullptr;
@@ -547,8 +658,23 @@ FTimerHandle FTimerManager::InternalSetTimerForNextTick(FTimerUnifiedDelegate&& 
 		NewTimerData.LevelCollection = OwningWorld->GetActiveLevelCollection()->GetType();
 	}
 
-	FTimerHandle NewTimerHandle = AddTimer(MoveTemp(NewTimerData));
-	ActiveTimerHeap.HeapPush(NewTimerHandle, FTimerHeapOrder(Timers));
+	// Add to pending timer heap to guarantee it happens next frame if we want to delay
+	const bool bQueueForCurrentFrame = (GuaranteeEngineTickDelay == 0) || HasBeenTickedThisFrame();
+	
+	FTimerHandle NewTimerHandle;
+	if (bQueueForCurrentFrame)
+	{
+		NewTimerData.Status = ETimerStatus::Active;
+		NewTimerHandle = AddTimer(MoveTemp(NewTimerData));
+		ActiveTimerHeap.HeapPush(NewTimerHandle, FTimerHeapOrder(Timers));
+	}
+	else
+	{
+		NewTimerData.Status = ETimerStatus::Pending;
+		NewTimerData.ExpireTime = 0.0;	// Pending timers' ExpireTime means time remaining. It will be converted upon activation.
+		NewTimerHandle = AddTimer(MoveTemp(NewTimerData));
+		PendingTimerSet.Add(NewTimerHandle);
+	}
 
 	return NewTimerHandle;
 }
@@ -771,9 +897,9 @@ FTimerData::FTimerData()
 	, bMaxOncePerFrame(false)
 	, bRequiresDelegate(false)
 	, Status(ETimerStatus::Active)
+	, LevelCollection(ELevelCollectionType::DynamicSourceLevels)
 	, Rate(0)
 	, ExpireTime(0)
-	, LevelCollection(ELevelCollectionType::DynamicSourceLevels)
 {}
 
 // ---------------------------------
@@ -835,7 +961,6 @@ void FTimerManager::Tick(float DeltaTime)
 	InternalTime += DeltaTime;
 
 	UWorld* const OwningWorld = OwningGameInstance ? OwningGameInstance->GetWorld() : nullptr;
-	UWorld* const LevelCollectionWorld = OwningWorld;
 
 #if UE_ENABLE_DUMPALLTIMERLOGSTHRESHOLD
 	// Dump timer info to logs if we have way too many timers active.
@@ -900,7 +1025,7 @@ void FTimerManager::Tick(float DeltaTime)
 			// Set the relevant level context for this timer
 			const int32 LevelCollectionIndex = OwningWorld ? OwningWorld->FindCollectionIndexByType(Top->LevelCollection) : INDEX_NONE;
 			
-			FScopedLevelCollectionContextSwitch LevelContext(LevelCollectionIndex, LevelCollectionWorld);
+			FScopedLevelCollectionContextSwitch LevelContext(LevelCollectionIndex, OwningWorld);
 
 			// Remove it from the heap and store it while we're executing
 			ActiveTimerHeap.HeapPop(CurrentlyExecutingTimer, FTimerHeapOrder(Timers), EAllowShrinking::No);

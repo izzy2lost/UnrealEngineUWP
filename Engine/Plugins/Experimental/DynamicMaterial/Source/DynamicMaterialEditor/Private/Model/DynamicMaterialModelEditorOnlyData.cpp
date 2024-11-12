@@ -1,21 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "Components/DMMaterialLayer.h"
-#include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
-#include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageBlend.h"
-#include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
 #include "Components/MaterialProperties/DMMPAmbientOcclusion.h"
 #include "Components/MaterialProperties/DMMPAnisotropy.h"
 #include "Components/MaterialProperties/DMMPBaseColor.h"
+#include "Components/MaterialProperties/DMMPDisplacement.h"
 #include "Components/MaterialProperties/DMMPEmissiveColor.h"
 #include "Components/MaterialProperties/DMMPMetallic.h"
 #include "Components/MaterialProperties/DMMPNormal.h"
@@ -25,19 +24,18 @@
 #include "Components/MaterialProperties/DMMPRefraction.h"
 #include "Components/MaterialProperties/DMMPRoughness.h"
 #include "Components/MaterialProperties/DMMPSpecular.h"
+#include "Components/MaterialProperties/DMMPSubsurfaceColor.h"
+#include "Components/MaterialProperties/DMMPSurfaceThickness.h"
 #include "Components/MaterialProperties/DMMPTangent.h"
 #include "Components/MaterialProperties/DMMPWorldPositionOffset.h"
-#include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
-#include "Components/MaterialValues/DMMaterialValueFloat1.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
-#include "DMPrivate.h"
+#include "DMTextureSet.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
@@ -46,23 +44,99 @@
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
-#include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Materials/MaterialExpressionMax.h"
-#include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialFunction.h"
 #include "Misc/Guid.h"
 #include "Model/DMMaterialBuildState.h"
-#include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
 #include "UObject/Package.h"
+#include "Utils/DMBuildRequestSubsystem.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 
-const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken       = FString(TEXT("Slots"));
-const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken     = FString(TEXT("RGBSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken = FString(TEXT("OpacitySlot"));
-const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken  = FString(TEXT("Properties"));
+const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken               = FString(TEXT("Slots"));
+const FString UDynamicMaterialModelEditorOnlyData::BaseColorSlotPathToken       = FString(TEXT("BaseColor"));
+const FString UDynamicMaterialModelEditorOnlyData::EmissiveSlotPathToken        = FString(TEXT("Emissive"));
+const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken         = FString(TEXT("Opacity"));
+const FString UDynamicMaterialModelEditorOnlyData::RoughnessPathToken           = FString(TEXT("Roughness"));
+const FString UDynamicMaterialModelEditorOnlyData::SpecularPathToken            = FString(TEXT("Specular"));
+const FString UDynamicMaterialModelEditorOnlyData::MetallicPathToken            = FString(TEXT("Metallic"));
+const FString UDynamicMaterialModelEditorOnlyData::NormalPathToken              = FString(TEXT("Normal"));
+const FString UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken    = FString(TEXT("PDO"));
+const FString UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken = FString(TEXT("WPO"));
+const FString UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken    = FString(TEXT("AO"));
+const FString UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken          = FString(TEXT("Anisotropy"));
+const FString UDynamicMaterialModelEditorOnlyData::RefractionPathToken          = FString(TEXT("Refraction"));
+const FString UDynamicMaterialModelEditorOnlyData::TangentPathToken             = FString(TEXT("Tangent"));
+const FString UDynamicMaterialModelEditorOnlyData::DisplacementPathToken        = FString(TEXT("Displacement"));
+const FString UDynamicMaterialModelEditorOnlyData::SubsurfaceColorPathToken     = FString(TEXT("SubsurfaceColor"));
+const FString UDynamicMaterialModelEditorOnlyData::SurfaceThicknessPathToken    = FString(TEXT("SurfaceThickness"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom1PathToken             = FString(TEXT("Custom1"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom2PathToken             = FString(TEXT("Custom2"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom3PathToken             = FString(TEXT("Custom3"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom4PathToken             = FString(TEXT("Custom4"));
+const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken          = FString(TEXT("Properties"));
+
+namespace UE::DynamicMaterialEditor::Private
+{
+	const TMap<FString, EDMMaterialPropertyType> TokenToPropertyMap = {
+		{UDynamicMaterialModelEditorOnlyData::BaseColorSlotPathToken,       EDMMaterialPropertyType::BaseColor},
+		{UDynamicMaterialModelEditorOnlyData::EmissiveSlotPathToken,        EDMMaterialPropertyType::EmissiveColor},
+		{UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken,         EDMMaterialPropertyType::Opacity},
+		{UDynamicMaterialModelEditorOnlyData::RoughnessPathToken,           EDMMaterialPropertyType::Roughness},
+		{UDynamicMaterialModelEditorOnlyData::SpecularPathToken,            EDMMaterialPropertyType::Specular},
+		{UDynamicMaterialModelEditorOnlyData::MetallicPathToken,            EDMMaterialPropertyType::Metallic},
+		{UDynamicMaterialModelEditorOnlyData::NormalPathToken,              EDMMaterialPropertyType::Normal},
+		{UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken,    EDMMaterialPropertyType::PixelDepthOffset},
+		{UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken, EDMMaterialPropertyType::WorldPositionOffset},
+		{UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken,    EDMMaterialPropertyType::AmbientOcclusion},
+		{UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken,          EDMMaterialPropertyType::Anisotropy},
+		{UDynamicMaterialModelEditorOnlyData::RefractionPathToken,          EDMMaterialPropertyType::Refraction},
+		{UDynamicMaterialModelEditorOnlyData::TangentPathToken,             EDMMaterialPropertyType::Tangent},
+		{UDynamicMaterialModelEditorOnlyData::DisplacementPathToken,        EDMMaterialPropertyType::Displacement},
+		{UDynamicMaterialModelEditorOnlyData::SubsurfaceColorPathToken,     EDMMaterialPropertyType::SubsurfaceColor},
+		{UDynamicMaterialModelEditorOnlyData::SurfaceThicknessPathToken,    EDMMaterialPropertyType::SurfaceThickness},
+		{UDynamicMaterialModelEditorOnlyData::Custom1PathToken,             EDMMaterialPropertyType::Custom1},
+		{UDynamicMaterialModelEditorOnlyData::Custom2PathToken,             EDMMaterialPropertyType::Custom2},
+		{UDynamicMaterialModelEditorOnlyData::Custom3PathToken,             EDMMaterialPropertyType::Custom3},
+		{UDynamicMaterialModelEditorOnlyData::Custom4PathToken,             EDMMaterialPropertyType::Custom4}
+	};
+}
+
+const FName UDynamicMaterialModelEditorOnlyData::AlphaValueName = TEXT("AlphaValue");
+
+const TArray<EMaterialDomain> UDynamicMaterialModelEditorOnlyData::SupportedDomains =
+{
+	EMaterialDomain::MD_Surface,
+	EMaterialDomain::MD_PostProcess,
+	EMaterialDomain::MD_DeferredDecal,
+	EMaterialDomain::MD_LightFunction
+};
+
+const TArray<EBlendMode> UDynamicMaterialModelEditorOnlyData::SupportedBlendModes =
+{
+	EBlendMode::BLEND_Opaque,
+	EBlendMode::BLEND_Masked,
+	EBlendMode::BLEND_Translucent,
+	EBlendMode::BLEND_Additive,
+	EBlendMode::BLEND_Modulate
+};
+
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialModelBase* InModelBase)
+{
+	if (InModelBase)
+	{
+		return Get(InModelBase->ResolveMaterialModel());
+	}
+
+	return nullptr;
+}
+
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(const TWeakObjectPtr<UDynamicMaterialModelBase>& InModelBaseWeak)
+{
+	return Get(InModelBaseWeak.Get());
+}
 
 UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialModel* InModel)
 {
@@ -74,7 +148,7 @@ UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UD
 	return nullptr;
 }
 
-UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(TWeakObjectPtr<UDynamicMaterialModel> InModelWeak)
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(const TWeakObjectPtr<UDynamicMaterialModel>& InModelWeak)
 {
 	return Get(InModelWeak.Get());
 }
@@ -89,56 +163,171 @@ UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(ID
 	return Cast<UDynamicMaterialModelEditorOnlyData>(InInterface);
 }
 
-UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialInstance* InInstance)
 {
-	State = EDMState::Idle;
-
-	BlendMode = EBlendMode::BLEND_Translucent;
-	ShadingModel = EDMMaterialShadingModel::Unlit;
-	bPixelAnimationFlag = false;
-
-	Properties.Emplace(EDMMaterialPropertyType::BaseColor,           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor"));
-	Properties.Emplace(EDMMaterialPropertyType::EmissiveColor,       CreateDefaultSubobject<UDMMaterialPropertyEmissiveColor>(      "MaterialProperty_EmissiveColor"));
-	Properties.Emplace(EDMMaterialPropertyType::Opacity,             CreateDefaultSubobject<UDMMaterialPropertyOpacity>(            "MaterialProperty_Opacity"));
-	Properties.Emplace(EDMMaterialPropertyType::OpacityMask,         CreateDefaultSubobject<UDMMaterialPropertyOpacityMask>(        "MaterialProperty_OpacityMask"));
-	Properties.Emplace(EDMMaterialPropertyType::Metallic,            CreateDefaultSubobject<UDMMaterialPropertyMetallic>(           "MaterialProperty_Metallic"));
-	Properties.Emplace(EDMMaterialPropertyType::Specular,            CreateDefaultSubobject<UDMMaterialPropertySpecular>(           "MaterialProperty_Specular"));
-	Properties.Emplace(EDMMaterialPropertyType::Roughness,           CreateDefaultSubobject<UDMMaterialPropertyRoughness>(          "MaterialProperty_Roughness"));
-	Properties.Emplace(EDMMaterialPropertyType::Anisotropy,          CreateDefaultSubobject<UDMMaterialPropertyAnisotropy>(         "MaterialProperty_Anisotropy"));
-	Properties.Emplace(EDMMaterialPropertyType::Normal,              CreateDefaultSubobject<UDMMaterialPropertyNormal>(             "MaterialProperty_Normal"));
-	Properties.Emplace(EDMMaterialPropertyType::Tangent,             CreateDefaultSubobject<UDMMaterialPropertyTangent>(            "MaterialProperty_Tangent"));
-	Properties.Emplace(EDMMaterialPropertyType::WorldPositionOffset, CreateDefaultSubobject<UDMMaterialPropertyWorldPositionOffset>("MaterialProperty_WorldPositionOffset"));
-	Properties.Emplace(EDMMaterialPropertyType::Refraction,          CreateDefaultSubobject<UDMMaterialPropertyRefraction>(         "MaterialProperty_Refraction"));
-	Properties.Emplace(EDMMaterialPropertyType::AmbientOcclusion,    CreateDefaultSubobject<UDMMaterialPropertyAmbientOcclusion>(   "MaterialProperty_AmbientOcclusion"));
-	Properties.Emplace(EDMMaterialPropertyType::PixelDepthOffset,    CreateDefaultSubobject<UDMMaterialPropertyPixelDepthOffset>(   "MaterialProperty_PixelDepthOffset"));
-
-	Properties.Emplace(EDMMaterialPropertyType::Custom1, UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom1, "MaterialProperty_Custom1"));
-	Properties.Emplace(EDMMaterialPropertyType::Custom2, UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom2, "MaterialProperty_Custom2"));
-	Properties.Emplace(EDMMaterialPropertyType::Custom3, UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom3, "MaterialProperty_Custom3"));
-	Properties.Emplace(EDMMaterialPropertyType::Custom4, UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom4, "MaterialProperty_Custom4"));
-
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
+	if (InInstance)
 	{
-		Pair.Value->SetComponentState(EDMComponentLifetimeState::Added);
+		return Get(InInstance->GetMaterialModel());
 	}
+
+	return nullptr;
+}
+
+UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
+	: State(EDMState::Idle)
+	, Domain(EMaterialDomain::MD_Surface)
+	, BlendMode(EBlendMode::BLEND_Opaque)
+	, ShadingModel(EDMMaterialShadingModel::DefaultLit)
+	, bHasPixelAnimation(false)
+	, bTwoSided(true)
+	, bOutputTranslucentVelocityEnabled(true)
+	, bNaniteTessellationEnabled(true)
+	, bResponsiveAAEnabled(true)
+{
+	BaseColor =           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor");
+	EmissiveColor =       CreateDefaultSubobject<UDMMaterialPropertyEmissiveColor>(      "MaterialProperty_EmissiveColor");
+	Opacity =             CreateDefaultSubobject<UDMMaterialPropertyOpacity>(            "MaterialProperty_Opacity");
+	OpacityMask =         CreateDefaultSubobject<UDMMaterialPropertyOpacityMask>(        "MaterialProperty_OpacityMask");
+	Roughness =           CreateDefaultSubobject<UDMMaterialPropertyRoughness>(          "MaterialProperty_Roughness");
+	Specular =            CreateDefaultSubobject<UDMMaterialPropertySpecular>(           "MaterialProperty_Specular");
+	Metallic =            CreateDefaultSubobject<UDMMaterialPropertyMetallic>(           "MaterialProperty_Metallic");
+	Normal =              CreateDefaultSubobject<UDMMaterialPropertyNormal>(             "MaterialProperty_Normal");
+	PixelDepthOffset =    CreateDefaultSubobject<UDMMaterialPropertyPixelDepthOffset>(   "MaterialProperty_PixelDepthOffset");
+	WorldPositionOffset = CreateDefaultSubobject<UDMMaterialPropertyWorldPositionOffset>("MaterialProperty_WorldPositionOffset");
+	AmbientOcclusion =    CreateDefaultSubobject<UDMMaterialPropertyAmbientOcclusion>(   "MaterialProperty_AmbientOcclusion");
+	Anisotropy =          CreateDefaultSubobject<UDMMaterialPropertyAnisotropy>(         "MaterialProperty_Anisotropy");
+	Refraction =          CreateDefaultSubobject<UDMMaterialPropertyRefraction>(         "MaterialProperty_Refraction");
+	Tangent =             CreateDefaultSubobject<UDMMaterialPropertyTangent>(            "MaterialProperty_Tangent");
+	Displacement =        CreateDefaultSubobject<UDMMaterialPropertyDisplacement>(       "MaterialProperty_Displacement");
+	SubsurfaceColor =     CreateDefaultSubobject<UDMMaterialPropertySubsurfaceColor>(    "MaterialProperty_SubsurfaceColor");
+	SurfaceThickness =    CreateDefaultSubobject<UDMMaterialPropertySurfaceThickness>(   "MaterialProperty_SurfaceThickness");
+
+	Custom1 = UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom1, "MaterialProperty_Custom1");
+	Custom2 = UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom2, "MaterialProperty_Custom2");
+	Custom3 = UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom3, "MaterialProperty_Custom3");
+	Custom4 = UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom4, "MaterialProperty_Custom4");
+
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this](EDMMaterialPropertyType InType)
+		{
+			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
+			{
+				Property->SetComponentState(EDMComponentLifetimeState::Added);
+			}
+
+			return EDMIterationResult::Continue;
+		}
+	);
+}
+
+void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
+{
+	BaseColor          ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalBaseColorValueName));
+	EmissiveColor      ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalEmissiveColorValueName));
+	Opacity            ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName));
+	OpacityMask        ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName));
+	Metallic           ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalMetallicValueName));
+	Specular           ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSpecularValueName));
+	Roughness          ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRoughnessValueName));
+	Normal             ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalNormalValueName));
+	Anisotropy         ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalAnisotropyValueName));
+	WorldPositionOffset->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalWorldPositionOffsetValueName));
+	AmbientOcclusion   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalAmbientOcclusionValueName));
+	Refraction         ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRefractionValueName));
+	Tangent            ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTangentValueName));
+	PixelDepthOffset   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalPixelDepthOffsetValueName));
+	Displacement       ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalDisplacementValueName));
+	SubsurfaceColor    ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSubsurfaceColorValueName));
+	SurfaceThickness   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSurfaceThicknessValueName));
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
+{
+	switch (Domain)
+	{
+		case EMaterialDomain::MD_PostProcess:
+		case EMaterialDomain::MD_LightFunction:
+		{
+			const FDMUpdateGuard Guard;
+
+			// Post process only supports emissive.
+			UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
+			UDMMaterialSlot* EmissiveSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
+
+			if (!EmissiveSlot)
+			{
+				if (BaseColorSlot)
+				{
+					EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+				}
+				else
+				{
+					AddSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
+				}
+			}
+
+			SetShadingModel(EDMMaterialShadingModel::Unlit);
+			SetBlendMode(EBlendMode::BLEND_Opaque);
+			break;
+		}
+
+		case EMaterialDomain::MD_DeferredDecal:
+			SetShadingModel(EDMMaterialShadingModel::DefaultLit);
+			SetBlendMode(EBlendMode::BLEND_Translucent);
+			break;
+	}
+
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnBlendModeChanged()
+{
+	switch (BlendMode)
+	{
+		case EBlendMode::BLEND_Opaque:
+			SetHasPixelAnimation(false);
+			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
+			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
+			break;
+
+		case EBlendMode::BLEND_Masked:
+			SetHasPixelAnimation(false);
+			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
+			break;
+
+		case EBlendMode::BLEND_Translucent:
+		case EBlendMode::BLEND_Additive:
+		case EBlendMode::BLEND_Modulate:
+			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::OpacityMask, EDMMaterialPropertyType::Opacity);
+			break;
+	}
+
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnShadingModelChanged()
+{
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnMaterialFlagChanged()
+{
+	RequestMaterialBuild();
+}
+
+void UDynamicMaterialModelEditorOnlyData::Initialize()
+{
+	if (!Slots.IsEmpty())
+	{
+		return;
+	}
+
+	AssignPropertyAlphaValues();
 }
 
 UMaterial* UDynamicMaterialModelEditorOnlyData::GetGeneratedMaterial() const
 {
 	return IsValid(MaterialModel) ? MaterialModel->DynamicMaterial : nullptr;
-}
-
-void UDynamicMaterialModelEditorOnlyData::ResetData()
-{
-	if (GUndo)
-	{
-		Modify();
-	}
-
-	BlendMode = EBlendMode::BLEND_Translucent;
-	ShadingModel = EDMMaterialShadingModel::Unlit;
-	Slots.Empty();
-	Expressions.Empty();
 }
 
 void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
@@ -157,7 +346,7 @@ void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 			UMaterial::StaticClass(),
 			MaterialModel,
 			NAME_None,
-			RF_DuplicateTransient | RF_TextExportTransient,
+			RF_DuplicateTransient | RF_TextExportTransient | RF_Public,
 			nullptr,
 			GWarn
 		));
@@ -181,15 +370,7 @@ void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 		));
 
 		FAssetRegistryModule::AssetCreated(MaterialModel->DynamicMaterial);
-		Package->FullyLoad();
 	}
-
-	MaterialModel->DynamicMaterial->bOutputTranslucentVelocity = true;
-	MaterialModel->DynamicMaterial->bEnableResponsiveAA = true;
-
-	// Not setting this to true can cause the level associated with this material to dirty itself when it
-	// is used with Niagara. It doesn't negatively affect the material in any meaningful way.
-	MaterialModel->DynamicMaterial->bUsedWithNiagaraMeshParticles = true;
 }
 
 void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
@@ -216,7 +397,18 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	Expressions.Empty();
 	MaterialModel->DynamicMaterial->MaterialDomain = Domain;
 	MaterialModel->DynamicMaterial->BlendMode = BlendMode;
-	MaterialModel->DynamicMaterial->bHasPixelAnimation = bPixelAnimationFlag;
+	MaterialModel->DynamicMaterial->bHasPixelAnimation = bHasPixelAnimation;
+	MaterialModel->DynamicMaterial->TwoSided = bTwoSided;
+	MaterialModel->DynamicMaterial->bOutputTranslucentVelocity = bOutputTranslucentVelocityEnabled;
+	MaterialModel->DynamicMaterial->bEnableTessellation = bNaniteTessellationEnabled;
+	MaterialModel->DynamicMaterial->bEnableResponsiveAA = bResponsiveAAEnabled;
+
+	// Not setting this to true can cause the level associated with this material to dirty itself when it
+	// is used with Niagara. It doesn't negatively affect the material in any meaningful way.
+	MaterialModel->DynamicMaterial->bUsedWithNiagaraMeshParticles = true;
+
+	// If bNaniteTessellationEnabled is false, bUsedWithNanite will be set back to true if there's a displacement property.
+	MaterialModel->DynamicMaterial->bUsedWithNanite = bNaniteTessellationEnabled;
 
 	switch (ShadingModel)
 	{
@@ -233,87 +425,58 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 			break;
 	}
 
-	TSharedRef<FDMMaterialBuildState> BuildState = CreateBuildState(MaterialModel->DynamicMaterial, bInDirtyAssets);
-
-	const bool bIsPostProcessMaterial = Domain == EMaterialDomain::MD_PostProcess;
+	TSharedPtr<FDMMaterialBuildState> BuildState = CreateBuildState(MaterialModel->DynamicMaterial, bInDirtyAssets);
 
 	/**
 	 * Process slots to build base material inputs.
 	 */
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
-	{
-		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, &BuildState](EDMMaterialPropertyType InType)
 		{
-			continue;
-		}
-
-		if (bIsPostProcessMaterial && Pair.Key != EDMMaterialPropertyType::EmissiveColor)
-		{
-			continue;
-		}
-
-		// For now we don't have channel remapping!
-		FExpressionInput* MaterialPropertyPtr = BuildState->GetMaterialProperty(Pair.Key);
-
-		if (!MaterialPropertyPtr)
-		{
-			continue;
-		}
-
-		MaterialPropertyPtr->Expression = nullptr;
-		MaterialPropertyPtr->OutputIndex = 0;
-
-		UMaterialExpression* LastPropertyExpression = nullptr;
-		UDMMaterialSlot* Slot = GetSlotForMaterialProperty(Pair.Key);
-
-		if (Slot && !Slot->GetLayers().IsEmpty())
-		{
-			Slot->GenerateExpressions(BuildState);
-
-			if (BuildState->GetSlotExpressions(Slot).IsEmpty())
+			if (FExpressionInput* Input = BuildState->GetMaterialProperty(InType))
 			{
-				continue;
+				Input->Expression = nullptr;
 			}
 
-			LastPropertyExpression = BuildState->GetLastSlotPropertyExpression(Slot, Pair.Key);
-		}
+			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
+			{
+				if (Property->IsEnabled() && Property->IsMaterialPin() && GetSlotForMaterialProperty(InType))
+				{
+					Property->GenerateExpressions(BuildState.ToSharedRef());
 
-		if (!LastPropertyExpression)
-		{
-			continue;
-		}
+					// Global opacity is handled at later
+					if (InType != EDMMaterialPropertyType::Opacity && InType != EDMMaterialPropertyType::OpacityMask)
+					{
+						Property->AddAlphaMultiplier(BuildState.ToSharedRef());
+					}
+				}
+			}
 
-		MaterialPropertyPtr->Expression = LastPropertyExpression;
-
-		if (Pair.Value->GetInputConnectionMap().Channels.IsEmpty() == false)
-		{
-			MaterialPropertyPtr->OutputIndex = Pair.Value->GetInputConnectionMap().Channels[0].OutputIndex;
+			return EDMIterationResult::Continue;
 		}
-		else
-		{
-			MaterialPropertyPtr->OutputIndex = 0;
-		}
-	}
+	);
 
-	if (!bIsPostProcessMaterial)
+	if (Domain != EMaterialDomain::MD_PostProcess && Domain != EMaterialDomain::MD_LightFunction)
 	{
 		/**
 		 * Generate opacity input based on base/emissive if it doesn't already have an input.
 		 */
 		EDMMaterialPropertyType GenerateOpacityInput = EDMMaterialPropertyType::None;
 
-		if (BlendMode == EBlendMode::BLEND_Translucent)
+		// Masked materials use the mask property.
+		if (BlendMode == EBlendMode::BLEND_Masked)
 		{
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity) == nullptr)
-			{
-				GenerateOpacityInput = EDMMaterialPropertyType::Opacity;
-			}
-		}
-		else if (BlendMode == EBlendMode::BLEND_Masked)
-		{
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask) == nullptr)
+			if (GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::OpacityMask) == nullptr)
 			{
 				GenerateOpacityInput = EDMMaterialPropertyType::OpacityMask;
+			}
+		}
+		// Any other translucent material will use the opacity property.
+		else if (BlendMode != EBlendMode::BLEND_Opaque)
+		{
+			if (GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::Opacity) == nullptr)
+			{
+				GenerateOpacityInput = EDMMaterialPropertyType::Opacity;
 			}
 		}
 
@@ -322,12 +485,12 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 			UDMMaterialSlot* OpacitySlot = nullptr;
 			EDMMaterialPropertyType OpacityProperty = EDMMaterialPropertyType::None;
 
-			if (UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+			if (UDMMaterialSlot* BaseColorSlot = GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::BaseColor))
 			{
 				OpacitySlot = BaseColorSlot;
 				OpacityProperty = EDMMaterialPropertyType::BaseColor;
 			}
-			else if (UDMMaterialSlot* EmissiveSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+			else if (UDMMaterialSlot* EmissiveSlot = GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
 			{
 				OpacitySlot = EmissiveSlot;
 				OpacityProperty = EDMMaterialPropertyType::EmissiveColor;
@@ -338,7 +501,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 				UMaterialExpression* OpacityOutputNode;
 				int32 OutputIndex;
 				int32 OutputChannel;
-				GenerateOpacityExpressions(BuildState, OpacitySlot, OpacityProperty, OpacityOutputNode, OutputIndex, OutputChannel);
+				UDMMaterialProperty::GenerateOpacityExpressions(BuildState.ToSharedRef(), OpacitySlot, OpacityProperty, OpacityOutputNode, OutputIndex, OutputChannel);
 
 				if (OpacityOutputNode)
 				{
@@ -362,116 +525,80 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		}
 
 		/**
-		 * Apply global opacity slider
+		 * Apply global opacity slider after automatic opacity generation
 		 */
-		FExpressionInput* OpacityPropertyPtr = nullptr;
+		UDMMaterialProperty* OpacityProperty = nullptr;
 
-		if (BlendMode == BLEND_Translucent)
+		if (BlendMode == BLEND_Masked)
 		{
-			OpacityPropertyPtr = BuildState->GetMaterialProperty(EDMMaterialPropertyType::Opacity);
+			OpacityProperty = GetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
 		}
-		else if (BlendMode == BLEND_Masked)
+		else if (BlendMode != BLEND_Opaque)
 		{
-			OpacityPropertyPtr = BuildState->GetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
+			OpacityProperty = GetMaterialProperty(EDMMaterialPropertyType::Opacity);
 		}
 
-		if (OpacityPropertyPtr != nullptr && IsValid(MaterialModel) && IsValid(MaterialModel->GlobalOpacityValue))
+		if (OpacityProperty != nullptr && OpacityProperty->IsEnabled())
 		{
-			MaterialModel->GlobalOpacityValue->GenerateExpression(BuildState);
-
-			UMaterialExpression* GlobalOpacityExpression = BuildState->GetLastValueExpression(MaterialModel->GlobalOpacityValue);
-
-			if (OpacityPropertyPtr->Expression)
-			{
-				UMaterialExpressionMultiply* OpacityMultiply = BuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-				OpacityMultiply->A.Expression = OpacityPropertyPtr->Expression;
-				OpacityMultiply->A.Mask = OpacityPropertyPtr->Mask;
-				OpacityMultiply->A.MaskR = OpacityPropertyPtr->MaskR;
-				OpacityMultiply->A.MaskG = OpacityPropertyPtr->MaskG;
-				OpacityMultiply->A.MaskB = OpacityPropertyPtr->MaskB;
-				OpacityMultiply->A.MaskA = OpacityPropertyPtr->MaskA;
-				OpacityMultiply->A.OutputIndex = OpacityPropertyPtr->OutputIndex;
-
-				OpacityMultiply->B.Expression = GlobalOpacityExpression;
-				OpacityMultiply->B.SetMask(1, 1, 0, 0, 0);
-				OpacityMultiply->B.OutputIndex = 0;
-
-				OpacityPropertyPtr->Expression = OpacityMultiply;
-				OpacityPropertyPtr->SetMask(1, 1, 0, 0, 0);
-			}
+			OpacityProperty->AddAlphaMultiplier(BuildState.ToSharedRef());
 		}
 	}
 
 	/**
 	 * Apply output processors.
 	 */
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
-	{
-		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, &BuildState](EDMMaterialPropertyType InType)
 		{
-			continue;
-		}
-
-		UMaterialFunctionInterface* OutputProcessor = Pair.Value->GetOutputProcessor();
-
-		if (!OutputProcessor)
-		{
-			continue;
-		}
-
-		FExpressionInput* MaterialPropertyPtr = BuildState->GetMaterialProperty(Pair.Key);
-
-		if (!MaterialPropertyPtr)
-		{
-			continue;
-		}
-
-		UMaterialExpressionMaterialFunctionCall* MFC = FDMMaterialFunctionLibrary::Get().MakeExpression(
-			BuildState->GetDynamicMaterial(),
-			OutputProcessor,
-			UE_DM_NodeComment_Default
-		);
-
-		TArrayView<FExpressionInput*> Inputs = MFC->GetInputsView();
-
-		if (Inputs.IsEmpty())
-		{
-			continue;
-		}
-
-		UMaterialExpression* LastPropertyExpression = MaterialPropertyPtr->Expression;
-
-		if (!LastPropertyExpression)
-		{
-			LastPropertyExpression = Pair.Value->GetDefaultInput(BuildState);
-
-			if (!LastPropertyExpression)
+			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 			{
-				continue;
+				if (Property->IsMaterialPin() && Property->IsEnabled() && GetSlotForMaterialProperty(InType))
+				{
+					Property->AddOutputProcessor(BuildState.ToSharedRef());
+				}
 			}
+
+			return EDMIterationResult::Continue;
 		}
-
-		LastPropertyExpression->ConnectExpression(Inputs[0], MaterialPropertyPtr->OutputIndex);
-		MFC->ConnectExpression(MaterialPropertyPtr, 0);
-
-		MaterialPropertyPtr->OutputIndex = 0;
-	}
-
-	State = EDMState::Idle;
+	);
 
 	if (IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
 	{
 		MaterialModel->DynamicMaterialInstance->OnMaterialBuilt(MaterialModel);
 	}
 
+	/**
+	 * To generate the statistics, you need to force a material recompile. The build state object does this in its destructor.
+	 * Resetting the build state SharedPtr destroys the object and thus generates the material shaders.
+	 */
+	BuildState.Reset();
+
+	/**
+	 * GetStatistics can call the GC which could potentially delete the material under us.
+	 * Add a reference to it while getting statistics to prevent it being destroyed.
+	 */
+	{
+		TStrongObjectPtr<UObject> ScopeReference(MaterialModel->DynamicMaterial);
+		MaterialStats = UMaterialEditingLibrary::GetStatistics(MaterialModel->DynamicMaterial);
+	}
+
+	State = EDMState::Idle;
+
 	OnMaterialBuiltDelegate.Broadcast(MaterialModel);
 }
 
-void UDynamicMaterialModelEditorOnlyData::RequestMaterialBuild()
+void UDynamicMaterialModelEditorOnlyData::RequestMaterialBuild(bool bInImmediate)
 {
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
-		FDynamicMaterialEditorModule::Get().AddBuildRequest(this, /* Dirty Packages */ !GIsEditorLoadingPackage);
+		if (bInImmediate)
+		{
+			BuildMaterial(/* Dirty Assets */ false);
+		}
+		else if (UDMBuildRequestSubsystem* BuildRequestSubsystem = UDMBuildRequestSubsystem::Get())
+		{
+			BuildRequestSubsystem->AddBuildRequest(this, /* Dirty Packages */ !UE::GetIsEditorLoadingPackage());
+		}
 	}
 }
 
@@ -480,121 +607,11 @@ void UDynamicMaterialModelEditorOnlyData::OnValueListUpdate()
 	OnValueListUpdateDelegate.Broadcast(MaterialModel);
 }
 
-void UDynamicMaterialModelEditorOnlyData::LoadDeprecatedModelData_Base(bool bInCreateMaterialPackage, EBlendMode InBlendMode, 
-	EDMMaterialShadingModel InShadingModel)
+void UDynamicMaterialModelEditorOnlyData::OnPropertyUpdate(UDMMaterialProperty* InProperty)
 {
-	bCreateMaterialPackage = bInCreateMaterialPackage;
+	RequestMaterialBuild();
 
-	if (IsValid(MaterialModel->DynamicMaterial))
-	{
-		BlendMode = MaterialModel->DynamicMaterial->BlendMode;
-
-		ShadingModel = MaterialModel->DynamicMaterial->GetShadingModels().HasShadingModel(EMaterialShadingModel::MSM_DefaultLit)
-			? EDMMaterialShadingModel::DefaultLit
-			: EDMMaterialShadingModel::Unlit;
-	}
-	else if (IsValid(MaterialModel->DynamicMaterialInstance))
-	{
-		BlendMode = MaterialModel->DynamicMaterialInstance->BlendMode;
-
-		ShadingModel = MaterialModel->DynamicMaterialInstance->GetShadingModels().HasShadingModel(EMaterialShadingModel::MSM_DefaultLit)
-			? EDMMaterialShadingModel::DefaultLit
-			: EDMMaterialShadingModel::Unlit;
-	}
-	else
-	{
-		BlendMode = InBlendMode;
-		ShadingModel = InShadingModel;
-	}
-}
-
-void UDynamicMaterialModelEditorOnlyData::LoadDeprecatedModelData_Expressions(TArray<TObjectPtr<UMaterialExpression>>& InExpressions)
-{
-	// Expressions should be parented to the material.
-	Expressions = InExpressions;
-	InExpressions.Empty();
-}
-
-void UDynamicMaterialModelEditorOnlyData::LoadDeprecatedModelData_Properties(TMap<EDMMaterialPropertyType, TObjectPtr<UObject>>& InProperties)
-{
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UObject>>& Pair : InProperties)
-	{
-		UDMMaterialProperty* InProperty = Cast<UDMMaterialProperty>(Pair.Value);
-
-		if (!InProperty)
-		{
-			continue;
-		}
-
-		if (const TObjectPtr<UDMMaterialProperty>* ThisPropertyPtr = Properties.Find(Pair.Key))
-		{
-			if (UDMMaterialProperty* ThisProperty = *ThisPropertyPtr)
-			{
-				ThisProperty->LoadDeprecatedModelData(InProperty);
-			}
-		}
-	}
-
-	InProperties.Empty();
-}
-
-void UDynamicMaterialModelEditorOnlyData::LoadDeprecatedModelData_Slots(TArray<TObjectPtr<UObject>>& InSlots)
-{
-	Slots.Empty();
-	Slots.Reserve(InSlots.Num());
-
-	for (TObjectPtr<UObject>& SlotObject : InSlots)
-	{
-		UDMMaterialSlot* Slot = Cast<UDMMaterialSlot>(SlotObject);
-
-		if (!Slot)
-		{
-			continue;
-		}
-
-		Slots.Add(Slot);
-
-		// Reparent from the model to the editor only data
-		Slot->Rename(nullptr, this, UE::DynamicMaterial::RenameFlags);
-	}
-
-	InSlots.Empty();
-}
-
-void UDynamicMaterialModelEditorOnlyData::LoadDeprecatedModelData_PropertySlotMap(TMap<EDMMaterialPropertyType, TObjectPtr<UObject>>& InPropertySlotMap)
-{
-	PropertySlotMap.Empty();
-	PropertySlotMap.Reserve(InPropertySlotMap.Num());
-
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UObject>>& Pair : InPropertySlotMap)
-	{
-		UDMMaterialSlot* Slot = Cast<UDMMaterialSlot>(Pair.Value);
-
-		if (!Slot)
-		{
-			continue;
-		}
-
-		PropertySlotMap.Add(Pair.Key, Slot);
-	}
-
-	InPropertySlotMap.Empty();
-}
-
-void UDynamicMaterialModelEditorOnlyData::LoadDeprecatedModelData(UDynamicMaterialModel* InMaterialModel)
-{
-	MaterialModel = InMaterialModel;
-	check(InMaterialModel);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-	LoadDeprecatedModelData_Base(MaterialModel->bCreateMaterialPackage, MaterialModel->BlendMode, MaterialModel->ShadingModel);
-	LoadDeprecatedModelData_Expressions(MaterialModel->Expressions);
-	LoadDeprecatedModelData_Properties(InMaterialModel->Properties);
-	LoadDeprecatedModelData_Slots(InMaterialModel->Slots);
-	LoadDeprecatedModelData_PropertySlotMap(InMaterialModel->PropertySlotMap);
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	OnPropertyUpdateDelegate.Broadcast(MaterialModel);
 }
 
 TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBuildState(UMaterial* InMaterialToBuild, bool bInDirtyAssets) const
@@ -602,7 +619,250 @@ TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBui
 	check(MaterialModel);
 	check(InMaterialToBuild);
 
-	return MakeShared<FDMMaterialBuildState>(InMaterialToBuild, MaterialModel, bInDirtyAssets);
+	TSharedRef<FDMMaterialBuildState> BuildState = MakeShared<FDMMaterialBuildState>(InMaterialToBuild, MaterialModel, bInDirtyAssets);
+
+	/**
+	 * Add global UV parameters
+	 */
+	if (UDMMaterialValue* GlobalOffsetValue = MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName))
+	{
+		GlobalOffsetValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalExpression(UDynamicMaterialModel::GlobalOffsetValueName, BuildState->GetLastValueExpression(GlobalOffsetValue));
+	}
+
+	if (UDMMaterialValue* GlobalTilingValue = MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName))
+	{
+		GlobalTilingValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalExpression(UDynamicMaterialModel::GlobalTilingValueName, BuildState->GetLastValueExpression(GlobalTilingValue));
+	}
+
+	if (UDMMaterialValue* GlobalRotationValue = MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName))
+	{
+		GlobalRotationValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalExpression(UDynamicMaterialModel::GlobalRotationValueName, BuildState->GetLastValueExpression(GlobalRotationValue));
+	}
+
+	return BuildState;
+}
+
+bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTextureSet, bool bInReplaceSlots)
+{
+	bool bMadeChange = false;
+
+	for (const TPair<EDMTextureSetMaterialProperty, FDMMaterialTexture>& MaterialTexture : InTextureSet->GetTextures())
+	{
+		if (MaterialTexture.Value.Texture.IsNull())
+		{
+			continue;
+		}
+
+		const EDMMaterialPropertyType PropertyType = FDMUtils::TextureSetMaterialPropertyToMaterialPropertyType(MaterialTexture.Key);
+
+		if (PropertyType == EDMMaterialPropertyType::None)
+		{
+			continue;
+		}
+
+		UDMMaterialProperty* Property = GetMaterialProperty(PropertyType);
+
+		if (!Property)
+		{
+			continue;
+		}
+
+		if (!Property->IsEnabled())
+		{
+			Property->SetEnabled(true);
+		}
+
+		UDMMaterialSlot* Slot = GetSlotForMaterialProperty(PropertyType);
+
+		if (!Slot)
+		{
+			Slot = AddSlotForMaterialProperty(PropertyType);
+
+			if (!Slot)
+			{
+				continue;
+			}
+		}
+
+		UTexture* Texture = MaterialTexture.Value.Texture.LoadSynchronous();
+
+		if (!Texture)
+		{
+			continue;
+		}
+
+		if (GUndo)
+		{
+			Slot->Modify();
+		}
+
+		UDMMaterialLayerObject* Layer = nullptr;
+
+		{
+			const FDMUpdateGuard Guard;
+
+			Layer = Slot->AddDefaultLayer(PropertyType);
+
+			if (!ensure(Layer))
+			{
+				continue;
+			}
+
+			bMadeChange = true;
+
+			UDMMaterialStage* Stage = Layer->GetStage(EDMMaterialLayerStage::Base);
+
+			if (!ensure(Stage))
+			{
+				continue;
+			}
+
+			UDMMaterialStageInputExpression* NewExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSample::StaticClass(),
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
+
+			if (!ensure(NewExpression))
+			{
+				continue;
+			}
+
+			UDMMaterialSubStage* SubStage = NewExpression->GetSubStage();
+
+			if (!ensure(SubStage))
+			{
+				continue;
+			}
+
+			UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				SubStage,
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				EDMValueType::VT_Texture,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
+
+			if (ensure(InputValue))
+			{
+				UDMMaterialValueTexture* InputTexture = Cast<UDMMaterialValueTexture>(InputValue->GetValue());
+
+				if (ensure(InputTexture))
+				{
+
+					InputTexture->SetValue(Texture);
+				}
+			}
+
+			if (UDMMaterialStageBlend* Blend = Cast<UDMMaterialStageBlend>(Stage->GetSource()))
+			{
+				EAvaColorChannel AvaColorChannel = EAvaColorChannel::None;
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Red))
+				{
+					AvaColorChannel |= EAvaColorChannel::Red;
+				}
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Green))
+				{
+					AvaColorChannel |= EAvaColorChannel::Green;
+				}
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Blue))
+				{
+					AvaColorChannel |= EAvaColorChannel::Blue;
+				}
+
+				if (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Alpha))
+				{
+					AvaColorChannel |= EAvaColorChannel::Alpha;
+				}
+
+				if (AvaColorChannel != EAvaColorChannel::RGBA)
+				{
+					Blend->SetBaseChannelOverride(AvaColorChannel);
+				}				
+			}
+
+			if (bInReplaceSlots)
+			{
+				for (int32 Index = Slot->GetLayers().Num() - 1; Index >= 0; --Index)
+				{
+					UDMMaterialLayerObject* LayerIter = Slot->GetLayer(Index);
+
+					if (!LayerIter || LayerIter->GetStage(EDMMaterialLayerStage::Base) == Stage)
+					{
+						continue;
+					}
+
+					Slot->RemoveLayer(LayerIter);
+				}
+			}
+		}
+
+		Layer->Update(Layer, EDMUpdateType::Structure);
+	}
+
+	return bMadeChange;
+}
+
+bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
+{
+	return PropertySlotMap.IsEmpty();
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
+{
+	if (UDynamicMaterialModel* MaterialModelLocal = MaterialModel.Get())
+	{
+		FDynamicMaterialEditorModule::Get().OnWizardComplete(MaterialModelLocal);
+	}
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetName)
+{
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(InPresetName);
+
+	if (!Preset)
+	{
+		return;
+	}
+
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, Preset](EDMMaterialPropertyType InProperty)
+		{
+			if (InProperty == EDMMaterialPropertyType::OpacityMask)
+			{
+				return EDMIterationResult::Continue;
+			}
+
+			if (Preset->IsPropertyEnabled(InProperty))
+			{
+				AddSlotForMaterialProperty(InProperty);
+			}
+			else
+			{
+				RemoveSlotForMaterialProperty(InProperty);
+			}
+
+			return EDMIterationResult::Continue;
+		});
+
+	SetBlendMode(Preset->DefaultBlendMode);
+	SetShadingModel(Preset->DefaultShadingModel);
+	SetHasPixelAnimation(Preset->bDefaultAnimated);
+	SetIsTwoSided(Preset->bDefaultTwoSided);
+}
+
+const FMaterialStatistics& UDynamicMaterialModelEditorOnlyData::GetMaterialStats() const
+{
+	return MaterialStats;
 }
 
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath,
@@ -623,28 +883,6 @@ UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath
 		return nullptr;
 	}
 
-	// @TODO This will probably need to change when other slot types are opened up.
-	if (InPathSegment.GetToken() == RGBSlotPathToken)
-	{
-		if (Slots.IsValidIndex(0))
-		{
-			return Slots[0]->GetComponentByPath(InPath);
-		}
-
-		return nullptr;
-	}
-
-	// @TODO This will probably need to change when other slot types are opened up.
-	if (InPathSegment.GetToken() == OpacitySlotPathToken)
-	{
-		if (Slots.IsValidIndex(1))
-		{
-			return Slots[1]->GetComponentByPath(InPath);
-		}
-
-		return nullptr;
-	}
-
 	if (InPathSegment.GetToken() == PropertiesPathToken)
 	{
 		FString PropertyStr;
@@ -658,11 +896,22 @@ UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath
 			{
 				EDMMaterialPropertyType EnumValue = static_cast<EDMMaterialPropertyType>(IntValue);
 
-				if (const TObjectPtr<UDMMaterialProperty>* PropertyPtr = Properties.Find(EnumValue))
+				if (UDMMaterialProperty* PropertyPtr = GetMaterialProperty(EnumValue))
 				{
-					return (*PropertyPtr)->GetComponentByPath(InPath);
+					return PropertyPtr->GetComponentByPath(InPath);
 				}
 			}
+		}
+	}
+
+	// Channels
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	if (const EDMMaterialPropertyType* PropertyPtr = TokenToPropertyMap.Find(FString(InPathSegment.GetToken())))
+	{
+		if (const TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(*PropertyPtr))
+		{
+			return (*SlotPtr)->GetComponentByPath(InPath);
 		}
 	}
 
@@ -674,9 +923,80 @@ TSharedRef<IDMMaterialBuildStateInterface> UDynamicMaterialModelEditorOnlyData::
 	return CreateBuildState(InMaterialToBuild);
 }
 
+void UDynamicMaterialModelEditorOnlyData::SetPropertyComponent(EDMMaterialPropertyType InPropertyType, FName InComponentName, UDMMaterialComponent* InComponent)
+{
+	if (UDMMaterialProperty* Property = GetMaterialProperty(InPropertyType))
+	{
+		Property->AddComponent(InComponentName, InComponent);
+	}
+}
+
+UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath) const
+{
+	if (InPath.IsLeaf())
+	{
+		// This is not a component
+		return nullptr;
+	}
+
+	// Fetches the first component of the path and removes it from the path
+	const FDMComponentPathSegment FirstComponent = InPath.GetFirstSegment();
+
+	if (UDMMaterialComponent* SubComponent = GetSubComponentByPath(InPath, FirstComponent))
+	{
+		return SubComponent->GetComponentByPath(InPath);
+	}
+
+	return nullptr;
+}
+
 void UDynamicMaterialModelEditorOnlyData::DoBuild_Implementation(bool bInDirtyAssets)
 {
 	BuildMaterial(bInDirtyAssets);
+}
+
+void UDynamicMaterialModelEditorOnlyData::SwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo)
+{
+	UDMMaterialSlot* FromSlot = GetSlotForMaterialProperty(InPropertyFrom);
+	
+	if (!FromSlot)
+	{
+		return;
+	}
+
+	if (UDMMaterialSlot* ToSlot = GetSlotForMaterialProperty(InPropertyTo))
+	{
+		if (ToSlot == FromSlot)
+		{
+			return;
+		}
+
+		RemoveSlotForMaterialProperty(InPropertyFrom);
+	}
+
+	FromSlot->ChangeMaterialProperty(InPropertyFrom, InPropertyTo);
+}
+
+void UDynamicMaterialModelEditorOnlyData::EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo)
+{
+	if (UDMMaterialSlot* ToSlot = GetSlotForMaterialProperty(InPropertyTo))
+	{
+		if (UDMMaterialSlot* FromSlot = GetSlotForMaterialProperty(InPropertyFrom))
+		{
+			if (ToSlot != FromSlot)
+			{
+				RemoveSlotForMaterialProperty(InPropertyFrom);
+			}
+		}
+	}
+	else if (GetSlotForMaterialProperty(InPropertyFrom))
+	{
+		SwapSlotMaterialProperty(InPropertyFrom, InPropertyTo);
+	}
+	else
+	{
+		AddSlotForMaterialProperty(InPropertyTo);
+	}
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetDomain(TEnumAsByte<EMaterialDomain> InDomain)
@@ -688,33 +1008,7 @@ void UDynamicMaterialModelEditorOnlyData::SetDomain(TEnumAsByte<EMaterialDomain>
 
 	Domain = InDomain;
 
-	if (Domain == EMaterialDomain::MD_PostProcess)
-	{
-		// Post process domain only supports a single slot - emissive color. 1 is the opacity slot.
-		if (Slots.IsValidIndex(1))
-		{
-			RemoveSlot(1);
-		}
-
-		SetShadingModel(EDMMaterialShadingModel::Unlit);
-		SetBlendMode(EBlendMode::BLEND_Opaque);
-
-		// Setting it to unlit will set these to base color. Need to reset them to emissive.
-		if (Slots.IsValidIndex(0))
-		{
-			for (UDMMaterialLayerObject* Layer : Slots[0]->GetLayers())
-			{
-				if (GUndo)
-				{
-					Layer->Modify();
-				}
-
-				Layer->SetMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-			}
-		}
-	}
-
-	RequestMaterialBuild();
+	OnDomainChanged();
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> InBlendMode)
@@ -726,48 +1020,7 @@ void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> I
 
 	BlendMode = InBlendMode;
 
-	if (Slots.IsValidIndex(1))
-	{
-		// 1 is the opacity slot
-		if (InBlendMode == EBlendMode::BLEND_Opaque)
-		{
-			RemoveSlot(1);
-		}
-		else
-		{
-			for (UDMMaterialLayerObject* Layer : Slots[0]->GetLayers())
-			{
-				if (GUndo)
-				{
-					Layer->Modify();
-				}
-
-				switch (InBlendMode)
-				{
-					case EBlendMode::BLEND_Masked:
-						Layer->SetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
-						break;
-
-					default:
-						Layer->SetMaterialProperty(EDMMaterialPropertyType::Opacity);
-						break;
-				}
-			}
-		}
-	}
-
-	switch (BlendMode)
-	{
-		case EBlendMode::BLEND_Masked:
-		case EBlendMode::BLEND_Opaque:
-			break;
-
-		default:
-			SetPixelAnimationFlag(false);
-			break;
-	}
-
-	RequestMaterialBuild();
+	OnBlendModeChanged();
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingModel InShadingModel)
@@ -779,29 +1032,92 @@ void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingMode
 
 	ShadingModel = InShadingModel;
 
-	if (Slots.IsValidIndex(0))
+	OnShadingModelChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::GetHasPixelAnimation() const
+{
+	return bHasPixelAnimation;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetHasPixelAnimation(bool bInHasAnimation)
+{
+	if (bHasPixelAnimation == bInHasAnimation)
 	{
-		for (UDMMaterialLayerObject* Layer : Slots[0]->GetLayers())
-		{
-			if (GUndo)
-			{
-				Layer->Modify();
-			}
-
-			switch (ShadingModel)
-			{
-				case EDMMaterialShadingModel::Unlit:
-					Layer->SetMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-					break;
-
-				default:
-					Layer->SetMaterialProperty(EDMMaterialPropertyType::BaseColor);
-					break;
-			}
-		}
+		return;
 	}
 
-	RequestMaterialBuild();
+	bHasPixelAnimation = bInHasAnimation;
+
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::GetIsTwoSided() const
+{
+	return bTwoSided;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetIsTwoSided(bool bInEnabled)
+{
+	if (bTwoSided == bInEnabled)
+	{
+		return;
+	}
+
+	bTwoSided = bInEnabled;
+
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsOutputTranslucentVelocityEnabled() const
+{
+	return bOutputTranslucentVelocityEnabled;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetOutputTranslucentVelocityEnabled(bool bInEnabled)
+{
+	if (bOutputTranslucentVelocityEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bOutputTranslucentVelocityEnabled = bInEnabled;
+
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsNaniteTessellationEnabled() const
+{
+	return bNaniteTessellationEnabled;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetNaniteTessellationEnabled(bool bInEnabled)
+{
+	if (bNaniteTessellationEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bNaniteTessellationEnabled = bInEnabled;
+
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsResponsiveAAEnabled() const
+{
+	return bResponsiveAAEnabled;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetResponsiveAAEnabled(bool bInEnabled)
+{
+	if (bResponsiveAAEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bResponsiveAAEnabled = bInEnabled;
+
+	OnMaterialFlagChanged();
 }
 
 void UDynamicMaterialModelEditorOnlyData::OpenMaterialEditor() const
@@ -819,179 +1135,217 @@ TMap<EDMMaterialPropertyType, UDMMaterialProperty*> UDynamicMaterialModelEditorO
 {
 	TMap<EDMMaterialPropertyType, UDMMaterialProperty*> LocalProperties;
 
-	LocalProperties.Reserve(Properties.Num());
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
-	{
-		LocalProperties.Add(Pair.Key, Pair.Value.Get());
-	}
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, &LocalProperties](EDMMaterialPropertyType InType)
+		{
+			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
+			{
+				LocalProperties.Emplace(InType, Property);
+			}
+
+			return EDMIterationResult::Continue;
+		}
+	);
 
 	return LocalProperties;
 }
 
-UDMMaterialProperty* UDynamicMaterialModelEditorOnlyData::GetMaterialProperty(EDMMaterialPropertyType MaterialProperty) const
+UDMMaterialProperty* UDynamicMaterialModelEditorOnlyData::GetMaterialProperty(EDMMaterialPropertyType InMaterialProperty) const
 {
-	TObjectPtr<UDMMaterialProperty> const* PropertyObjPtr = Properties.Find(MaterialProperty);
-
-	if (PropertyObjPtr)
+	switch (InMaterialProperty)
 	{
-		return *PropertyObjPtr;
+		case EDMMaterialPropertyType::BaseColor:
+			return BaseColor;
+
+		case EDMMaterialPropertyType::EmissiveColor:
+			return EmissiveColor;
+
+		case EDMMaterialPropertyType::Opacity:
+			return Opacity;
+
+		case EDMMaterialPropertyType::OpacityMask:
+			return OpacityMask;
+
+		case EDMMaterialPropertyType::Roughness:
+			return Roughness;
+
+		case EDMMaterialPropertyType::Specular:
+			return Specular;
+
+		case EDMMaterialPropertyType::Metallic:
+			return Metallic;
+
+		case EDMMaterialPropertyType::Normal:
+			return Normal;
+
+		case EDMMaterialPropertyType::PixelDepthOffset:
+			return PixelDepthOffset;
+
+		case EDMMaterialPropertyType::WorldPositionOffset:
+			return WorldPositionOffset;
+
+		case EDMMaterialPropertyType::AmbientOcclusion:
+			return AmbientOcclusion;
+
+		case EDMMaterialPropertyType::Anisotropy:
+			return Anisotropy;
+
+		case EDMMaterialPropertyType::Refraction:
+			return Refraction;
+
+		case EDMMaterialPropertyType::Tangent:
+			return Tangent;
+
+		case EDMMaterialPropertyType::Displacement:
+			return Displacement;
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return SubsurfaceColor;
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return SurfaceThickness;
+
+		case EDMMaterialPropertyType::Custom1:
+			return Custom1;
+
+		case EDMMaterialPropertyType::Custom2:
+			return Custom2;
+
+		case EDMMaterialPropertyType::Custom3:
+			return Custom3;
+
+		case EDMMaterialPropertyType::Custom4:
+			return Custom4;
+
+		default:
+			return nullptr;
+	}	
+}
+
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlot(int32 Index) const
+{
+	if (Slots.IsValidIndex(Index))
+	{
+		return Slots[Index];		
 	}
 
 	return nullptr;
 }
 
-UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlot(int32 Index) const
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty(EDMMaterialPropertyType InType) const
 {
-	if (!Slots.IsValidIndex(Index))
+	if (const TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(InType))
+	{
+		return *SlotPtr;
+	}
+
+	return nullptr;
+}
+
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType InType) const
+{
+	UDMMaterialProperty* Property = GetMaterialProperty(InType);
+
+	if (!Property || !Property->IsEnabled())
 	{
 		return nullptr;
 	}
 
-	return Slots[Index];
+	return GetSlotForMaterialProperty(InType);
 }
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 {
-	EDMMaterialPropertyType NewSlotProperty = EDMMaterialPropertyType::None;
+	UDMMaterialSlot* NewSlot = nullptr;
 
-	if (Slots.IsEmpty())
-	{
-		const FDMUpdateGuard Guard;
-
-		switch (ShadingModel)
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, &NewSlot](EDMMaterialPropertyType InProperty)
 		{
-			case EDMMaterialShadingModel::DefaultLit:
-				NewSlotProperty = EDMMaterialPropertyType::BaseColor;
-				break;
+			if (GetSlotForMaterialProperty(InProperty))
+			{
+				return EDMIterationResult::Continue;
+			}
 
-			case EDMMaterialShadingModel::Unlit:
-				NewSlotProperty = EDMMaterialPropertyType::EmissiveColor;
-				break;
+			NewSlot = AddSlotForMaterialProperty(InProperty);
+			return EDMIterationResult::Break;
+		});
 
-			default:
-				checkNoEntry()
-					break;
-		}
-	}
-	else if (Domain == EMaterialDomain::MD_PostProcess)
+	return NewSlot;
+}
+
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty(EDMMaterialPropertyType InType)
+{
+	if (InType != EDMMaterialPropertyType::EmissiveColor 
+		&& (Domain == EMaterialDomain::MD_PostProcess || Domain == EMaterialDomain::MD_LightFunction))
 	{
 		return nullptr;
 	}
-	else
+	if (InType == EDMMaterialPropertyType::Opacity || InType == EDMMaterialPropertyType::OpacityMask)
 	{
-		for (int64 FirstAvailableEnum = static_cast<int64>(EDMMaterialPropertyType::EmissiveColor) + 1; FirstAvailableEnum < static_cast<int64>(EDMMaterialPropertyType::Any); ++FirstAvailableEnum)
+		switch (BlendMode)
 		{
-			EDMMaterialPropertyType FirstAvailableEnumActual = static_cast<EDMMaterialPropertyType>(FirstAvailableEnum);
-
-			if (GetSlotForMaterialProperty(FirstAvailableEnumActual) == nullptr)
-			{
-				NewSlotProperty = FirstAvailableEnumActual;
+			case EBlendMode::BLEND_Translucent:
+			case EBlendMode::BLEND_Additive:
+			case EBlendMode::BLEND_Modulate:
+				InType = EDMMaterialPropertyType::Opacity;
 				break;
-			}
-		}
 
-		if (NewSlotProperty == EDMMaterialPropertyType::None)
-		{
-			return nullptr;
+			case EBlendMode::BLEND_Masked:
+				InType = EDMMaterialPropertyType::OpacityMask;
+				break;
+
+			case EBlendMode::BLEND_Opaque:
+				return nullptr;
+
+			default:
+				checkNoEntry();
+				break;
 		}
+	}
+
+	if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(InType))
+	{
+		return ExistingSlot;
+	}
+
+	// BaseColor and Emissive are mutually exclusive so if something tries to add one of them, the other must
+	// be checked. If it is found, it is converted and returned. The same goes for Opacity and OpacityMask.
+	switch (InType)
+	{
+		case EDMMaterialPropertyType::Opacity:
+			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask))
+			{
+				SwapSlotMaterialProperty(EDMMaterialPropertyType::OpacityMask, EDMMaterialPropertyType::Opacity);
+				return ExistingSlot;
+			}
+			break;
+
+		case EDMMaterialPropertyType::OpacityMask:
+			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity))
+			{
+				SwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
+				return ExistingSlot;
+			}
+			break;
 	}
 
 	UDMMaterialSlot* NewSlot = NewObject<UDMMaterialSlot>(this, NAME_None, RF_Transactional);
 	check(NewSlot);
+
+	AssignMaterialPropertyToSlot(InType, NewSlot);
 
 	NewSlot->SetIndex(Slots.Num());
 	Slots.Add(NewSlot);
 	NewSlot->SetComponentState(EDMComponentLifetimeState::Added);
 
 	NewSlot->GetOnConnectorsUpdateDelegate().AddUObject(this, &UDynamicMaterialModelEditorOnlyData::OnSlotConnectorsUpdated);
-	NewSlot->Update(EDMUpdateType::Structure);
 
-	UDMMaterialStage* DefaultStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
-	check(DefaultStage);
-
-	DefaultStage->SetBeingEdited(true);
-
-	UDMMaterialStage* MaskStage = UDMMaterialStageThroughputLayerBlend::CreateStage();
-	check(MaskStage);
-
-	NewSlot->AddLayerWithMask(NewSlotProperty, DefaultStage, MaskStage);
-	NewSlot->SetEditingLayers(true);
-
-	AssignMaterialPropertyToSlot(NewSlotProperty, NewSlot);
-
-	UDMMaterialStageInputExpression* BaseInputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(DefaultStage,
-		UDMMaterialStageExpressionTextureSample::StaticClass(), UDMMaterialStageBlendNormal::InputB,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 0,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
-
-	switch (NewSlotProperty)
+	if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 	{
-		case EDMMaterialPropertyType::Opacity:
-		case EDMMaterialPropertyType::OpacityMask:
-			if (UDMMaterialStageExpressionTextureSample* BaseInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(BaseInputExpression->GetMaterialStageExpression()))
-			{
-				BaseInputTextureSample->SetClampTextureEnabled(true);
-
-				if (UDMMaterialStage* BaseTextureInputStage = BaseInputExpression->GetSubStage())
-				{
-					const TArray<UDMMaterialStageInput*> BaseTextureStageInputs = BaseTextureInputStage->GetInputs();
-
-					for (UDMMaterialStageInput* BaseTextureStageInput : BaseTextureStageInputs)
-					{
-						if (UDMMaterialStageInputValue* BaseTextureInputValue = Cast<UDMMaterialStageInputValue>(BaseTextureStageInput))
-						{
-							if (UDMMaterialValueTexture* BaseTextureValue = Cast<UDMMaterialValueTexture>(BaseTextureInputValue->GetValue()))
-							{
-								BaseTextureValue->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultOpacitySlotMask.LoadSynchronous());
-								BaseTextureValue->ApplyDefaultValue();
-								break;
-							}
-						}
-					}
-				}
-			}
-
-			{
-				const TArray<UDMMaterialStageInput*> MaskStageInputs = MaskStage->GetInputs();
-
-				for (UDMMaterialStageInput* MaskStageInput : MaskStageInputs)
-				{
-					if (UDMMaterialStageInputExpression* MaskInputExpression = Cast<UDMMaterialStageInputExpression>(MaskStageInput))
-					{
-						if (UDMMaterialStageExpressionTextureSample* MaskInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(MaskInputExpression->GetMaterialStageExpression()))
-						{
-							MaskInputTextureSample->SetClampTextureEnabled(true);
-
-							if (UDMMaterialStage* MaskTextureInputStage = MaskInputExpression->GetSubStage())
-							{
-								const TArray<UDMMaterialStageInput*> MaskTextureStageInputs = MaskTextureInputStage->GetInputs();
-
-								for (UDMMaterialStageInput* MaskTextureStageInput : MaskTextureStageInputs)
-								{
-									if (UDMMaterialStageInputValue* MaskTextureInputValue = Cast<UDMMaterialStageInputValue>(MaskTextureStageInput))
-									{
-										if (UDMMaterialValueTexture* MaskTextureValue = Cast<UDMMaterialValueTexture>(MaskTextureInputValue->GetValue()))
-										{
-											MaskTextureValue->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultOpaqueTexture.LoadSynchronous());
-											MaskTextureValue->ApplyDefaultValue();
-											break;
-										}
-									}
-								}
-							}
-						}
-
-						break;
-					}
-				}
-			}
-
-			break;
-
-		default:
-			// Do nothing
-			break;
+		Property->OnSlotAdded(NewSlot);
 	}
+
+	NewSlot->Update(NewSlot, EDMUpdateType::Structure);
 
 	OnSlotListUpdateDelegate.Broadcast(MaterialModel);
 
@@ -1000,19 +1354,21 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 	return NewSlot;
 }
 
-void UDynamicMaterialModelEditorOnlyData::RemoveSlot(int32 Index)
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::RemoveSlot(int32 Index)
 {
 	UDMMaterialSlot* Slot = GetSlot(Index);
-	check(Slot);
+	
+	if (!Slot)
+	{
+		return nullptr;
+	}
 	
 	if (GUndo)
 	{
 		Slot->Modify(/* Always mark dirty */ false);
 	}
 
-	TArray<EDMMaterialPropertyType> SlotProperties = GetMaterialPropertiesForSlot(Slot);
-
-	for (EDMMaterialPropertyType MaterialProperty : SlotProperties)
+	for (EDMMaterialPropertyType MaterialProperty : GetMaterialPropertiesForSlot(Slot))
 	{
 		UnassignMaterialProperty(MaterialProperty);
 	}
@@ -1024,34 +1380,50 @@ void UDynamicMaterialModelEditorOnlyData::RemoveSlot(int32 Index)
 		PropertySlotMap.Remove(*Key);
 	}
 
-	Slots.RemoveAt(Index);
+	const int32 SlotIndex = Slots.IndexOfByKey(Slot);
+
+	if (SlotIndex != INDEX_NONE)
+	{
+		Slots.RemoveAtSwap(SlotIndex);
+		
+		if (Slots.IsValidIndex(SlotIndex))
+		{
+			if (GUndo)
+			{
+				Slots[SlotIndex]->Modify(/* Always mark dirty */ false);
+			}
+
+			Slots[SlotIndex]->SetIndex(SlotIndex);
+		}
+	}
+
 	Slot->GetOnConnectorsUpdateDelegate().RemoveAll(this);
 	Slot->SetComponentState(EDMComponentLifetimeState::Removed);
 
 	RequestMaterialBuild();
 
 	OnSlotListUpdateDelegate.Broadcast(MaterialModel);
+	
+	return Slot;
 }
 
-UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty(EDMMaterialPropertyType Property) const
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::RemoveSlotForMaterialProperty(EDMMaterialPropertyType InType)
 {
-	TObjectPtr<UDMMaterialSlot> const* SlotPtr = PropertySlotMap.Find(Property);
-
-	if (!SlotPtr)
+	if (const TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(InType))
 	{
-		return nullptr;
+		return RemoveSlot(Slots.IndexOfByKey(*SlotPtr));
 	}
 
-	return *SlotPtr;
+	return nullptr;
 }
 
-TArray<EDMMaterialPropertyType> UDynamicMaterialModelEditorOnlyData::GetMaterialPropertiesForSlot(UDMMaterialSlot* Slot) const
+TArray<EDMMaterialPropertyType> UDynamicMaterialModelEditorOnlyData::GetMaterialPropertiesForSlot(const UDMMaterialSlot* InSlot) const
 {
 	TArray<EDMMaterialPropertyType> OutProperties;
 
 	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialSlot>>& Pair : PropertySlotMap)
 	{
-		if (Pair.Value == Slot)
+		if (Pair.Value == InSlot)
 		{
 			OutProperties.Add(Pair.Key);
 		}
@@ -1060,72 +1432,47 @@ TArray<EDMMaterialPropertyType> UDynamicMaterialModelEditorOnlyData::GetMaterial
 	return OutProperties;
 }
 
-void UDynamicMaterialModelEditorOnlyData::AssignMaterialPropertyToSlot(EDMMaterialPropertyType Property, UDMMaterialSlot* Slot)
+void UDynamicMaterialModelEditorOnlyData::AssignMaterialPropertyToSlot(EDMMaterialPropertyType InProperty, UDMMaterialSlot* InSlot)
 {
-	if (!Slot)
+	if (!InSlot)
 	{
-		UnassignMaterialProperty(Property);
+		UnassignMaterialProperty(InProperty);
 		return;
 	}
 
-	check(Properties.Contains(Property));
+	UDMMaterialProperty* Property = GetMaterialProperty(InProperty);
+	check(Property);
 
-	PropertySlotMap.FindOrAdd(Property) = Slot;
-	Properties[Property]->ResetInputConnectionMap();
-	Slot->GetOnPropertiesUpdateDelegate().Broadcast(Slot);
-
-	RequestMaterialBuild();
-}
-
-void UDynamicMaterialModelEditorOnlyData::UnassignMaterialProperty(EDMMaterialPropertyType Property)
-{
-	TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(Property);
-	check(SlotPtr);
-
-	PropertySlotMap.Remove(Property);
-	(*SlotPtr)->GetOnPropertiesUpdateDelegate().Broadcast(*SlotPtr);
+	PropertySlotMap.FindOrAdd(InProperty) = InSlot;
+	Property->ResetInputConnectionMap();
+	InSlot->OnPropertiesUpdated();
 
 	RequestMaterialBuild();
 }
 
-bool UDynamicMaterialModelEditorOnlyData::IsPixelAnimationFlagSet() const
+void UDynamicMaterialModelEditorOnlyData::UnassignMaterialProperty(EDMMaterialPropertyType InProperty)
 {
-	return bPixelAnimationFlag;
-}
-
-void UDynamicMaterialModelEditorOnlyData::SetPixelAnimationFlag(bool bInFlagValue)
-{
-	if (bPixelAnimationFlag == bInFlagValue)
+	TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(InProperty);
+	
+	if (!SlotPtr)
 	{
 		return;
 	}
 
-	bPixelAnimationFlag = bInFlagValue;
-
-	if (MaterialModel)
-	{
-		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
-		{
-			if (GUndo)
-			{
-				Material->Modify();
-			}
-
-			Material->bHasPixelAnimation = bPixelAnimationFlag;
-		}
-	}
+	PropertySlotMap.Remove(InProperty);
+	(*SlotPtr)->OnPropertiesUpdated();
 
 	RequestMaterialBuild();
 }
 
-void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
+void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged)
 {
 	RequestMaterialBuild();
 }
 
 void UDynamicMaterialModelEditorOnlyData::PostLoad()
 {
-	Super::PostLoad();
+ 	Super::PostLoad();
 
 	// Backwards compatibility change - materials were originally parented to this object instead of the model.
 	if (IsValid(MaterialModel))
@@ -1140,6 +1487,8 @@ void UDynamicMaterialModelEditorOnlyData::PostLoad()
 	}
 
 	SetFlags(RF_Transactional);
+
+	AssignPropertyAlphaValues();
 
 	ReinitComponents();
 }
@@ -1160,36 +1509,55 @@ void UDynamicMaterialModelEditorOnlyData::PostEditImport()
 	RequestMaterialBuild();
 }
 
-void UDynamicMaterialModelEditorOnlyData::PostDuplicate(bool bDuplicateForPIE)
+void UDynamicMaterialModelEditorOnlyData::PostDuplicate(bool bInDuplicateForPIE)
 {
-	Super::PostDuplicate(bDuplicateForPIE);
+	Super::PostDuplicate(bInDuplicateForPIE);
 
-	PostEditorDuplicate();
-	ReinitComponents();
-	RequestMaterialBuild();
+	if (!bInDuplicateForPIE)
+	{
+		PostEditorDuplicate();
+		ReinitComponents();
+		RequestMaterialBuild();
+	}
+}
+
+void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyChangedChainEvent& InPropertyChangedEvent)
+{
+	UObject::PostEditChangeChainProperty(InPropertyChangedEvent);
+
+	const FName Property = InPropertyChangedEvent.GetMemberPropertyName();
+
+	 if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, Domain))
+	{
+		OnDomainChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, BlendMode))
+	{
+		OnBlendModeChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, ShadingModel))
+	{
+		OnShadingModelChanged();
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bHasPixelAnimation)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bTwoSided)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bOutputTranslucentVelocityEnabled)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bNaniteTessellationEnabled)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bResponsiveAAEnabled))
+	{
+		OnMaterialFlagChanged();
+	}
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType)
 {
 	check(InValue);
 
-	if (InValue->GetMaterialModel() != MaterialModel)
-	{
-		return;
-	}
-
-	if (InUpdateType == EDMUpdateType::Value && IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
-	{
-		InValue->SetMIDParameter(MaterialModel->DynamicMaterialInstance);
-	}
-
-	OnValueUpdateDelegate.Broadcast(MaterialModel, InValue);
-
 	// Non-exported materials have their values update via settings parameters
 	// Exported materials need to be rebuilt to update the main material.
 	const bool bMaterialInDifferentPackage = MaterialModel->DynamicMaterial ? MaterialModel->DynamicMaterial->GetPackage() != GetPackage() : true;
 
-	if (InUpdateType == EDMUpdateType::Structure || bMaterialInDifferentPackage)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure) || bMaterialInDifferentPackage)
 	{
 		RequestMaterialBuild();
 	}
@@ -1198,18 +1566,6 @@ void UDynamicMaterialModelEditorOnlyData::OnValueUpdated(UDMMaterialValue* InVal
 void UDynamicMaterialModelEditorOnlyData::OnTextureUVUpdated(UDMTextureUV* InTextureUV)
 {
 	check(InTextureUV);
-
-	if (InTextureUV->GetMaterialModel() != MaterialModel)
-	{
-		return;
-	}
-
-	if (IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
-	{
-		InTextureUV->SetMIDParameters(MaterialModel->DynamicMaterialInstance);
-	}
-
-	OnTextureUVUpdateDelegate.Broadcast(MaterialModel, InTextureUV);
 
 	// Non-exported materials have their values update via settings parameters
 	// Exported materials need to be rebuilt to update the main material.
@@ -1242,152 +1598,25 @@ FString UDynamicMaterialModelEditorOnlyData::GetMaterialAssetName() const
 	return GetName() + "_Mat";
 }
 
-FString UDynamicMaterialModelEditorOnlyData::GetMaterialPackageName(const FString& MaterialBaseName) const
+FString UDynamicMaterialModelEditorOnlyData::GetMaterialPackageName(const FString& InMaterialBaseName) const
 {
 	return GetPackage()->GetName() + "_Mat";
 }
 
-void UDynamicMaterialModelEditorOnlyData::OnSlotConnectorsUpdated(UDMMaterialSlot* Slot)
+void UDynamicMaterialModelEditorOnlyData::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 {
-	check(Slot);
+	check(InSlot);
 
 	RequestMaterialBuild();
 		
-	TArray<EDMMaterialPropertyType> SlotProperties = GetMaterialPropertiesForSlot(Slot);
+	TArray<EDMMaterialPropertyType> SlotProperties = GetMaterialPropertiesForSlot(InSlot);
 
-	for (EDMMaterialPropertyType Property : SlotProperties)
+	for (EDMMaterialPropertyType SlotProperty : SlotProperties)
 	{
-		Properties[Property]->ResetInputConnectionMap();
-	}
-}
-
-void UDynamicMaterialModelEditorOnlyData::GenerateOpacityExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState, UDMMaterialSlot* InFromSlot,
-	EDMMaterialPropertyType InFromProperty, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const
-{
-	const TArray<TObjectPtr<UDMMaterialLayerObject>>& SlotLayers = InFromSlot->GetLayers();
-	OutExpression = nullptr;
-
-	for (const TObjectPtr<UDMMaterialLayerObject>& Layer : SlotLayers)
-	{
-		// Although we are working with masks, if the base is disabled, this is handled by the GenerateExpressions
-		// of the LayerBlend code (to multiply alpha together, instead of maxing it).
-		if (Layer->GetMaterialProperty() != InFromProperty || !Layer->IsEnabled() || !Layer->IsStageEnabled(EDMMaterialLayerStage::Base))
+		if (UDMMaterialProperty* Property = GetMaterialProperty(SlotProperty))
 		{
-			continue;
-		}
-
-		UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base);
-		UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask);
-
-		MaskStage->GenerateExpressions(InBuildState);
-		UDMMaterialStageThroughputLayerBlend* LayerBlend = Cast<UDMMaterialStageThroughputLayerBlend>(MaskStage->GetSource());
-
-		if (!LayerBlend)
-		{
-			continue;
-		}
-
-		UMaterialExpression* MaskOutputExpression;
-		int32 MaskOutputIndex;
-		int32 MaskOutputChannel;
-		LayerBlend->GetMaskOutput(InBuildState, MaskOutputExpression, MaskOutputIndex, MaskOutputChannel);
-
-		if (!MaskOutputExpression)
-		{
-			continue;
-		}
-
-		if (LayerBlend->UsePremultiplyAlpha())
-		{
-			if (UDMMaterialStageSource* Source = BaseStage->GetSource())
-			{
-				UMaterialExpression* LayerAlphaOutputExpression;
-				int32 LayerAlphaOutputIndex;
-				int32 LayerAlphaOutputChannel;
-
-				Source->GetMaskAlphaBlendNode(InBuildState, LayerAlphaOutputExpression, LayerAlphaOutputIndex, LayerAlphaOutputChannel);
-
-				if (LayerAlphaOutputExpression)
-				{
-					UMaterialExpressionMultiply* AlphaMultiply = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-
-					AlphaMultiply->A.Expression = MaskOutputExpression;
-					AlphaMultiply->A.OutputIndex = MaskOutputIndex;
-					AlphaMultiply->A.Mask = 0;
-
-					if (MaskOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-					{
-						AlphaMultiply->A.Mask = 1;
-						AlphaMultiply->A.MaskR = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-						AlphaMultiply->A.MaskG = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-						AlphaMultiply->A.MaskB = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-						AlphaMultiply->A.MaskA = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-					}
-
-					AlphaMultiply->B.Expression = LayerAlphaOutputExpression;
-					AlphaMultiply->B.OutputIndex = LayerAlphaOutputIndex;
-					AlphaMultiply->B.Mask = 0;
-
-					if (LayerAlphaOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-					{
-						AlphaMultiply->B.Mask = 1;
-						AlphaMultiply->B.MaskR = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-						AlphaMultiply->B.MaskG = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-						AlphaMultiply->B.MaskB = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-						AlphaMultiply->B.MaskA = !!(LayerAlphaOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-					}
-
-					MaskOutputExpression = AlphaMultiply;
-					MaskOutputIndex = 0;
-					MaskOutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
-				}
-			}
-		}
-
-		if (OutExpression == nullptr)
-		{
-			OutExpression = MaskOutputExpression;
-			
-			// The first output will use the node's output info.
-			OutOutputIndex = MaskOutputIndex;
-			OutOutputChannel = MaskOutputChannel;
-			continue;
-		}
-
-		UMaterialExpressionMax* Max = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMax>(UE_DM_NodeComment_Default);
-		check(Max);
-
-		Max->A.Expression = OutExpression;
-		Max->A.OutputIndex = OutOutputIndex;
-		Max->A.Mask = 0;
-
-		if (OutOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-		{
-			Max->A.Mask = 1;
-			Max->A.MaskR = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-			Max->A.MaskG = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-			Max->A.MaskB = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-			Max->A.MaskA = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-		}
-
-		Max->B.Expression = MaskOutputExpression;
-		Max->B.OutputIndex = MaskOutputIndex;
-		Max->B.Mask = 0;
-
-		if (MaskOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-		{
-			Max->B.Mask = 1;
-			Max->B.MaskR = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-			Max->B.MaskG = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-			Max->B.MaskB = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-			Max->B.MaskA = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
-		}
-
-		OutExpression = Max;
-
-		// If we have to combine, it will use the Max node's output info
-		OutOutputIndex = 0;
-		OutOutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+			Property->ResetInputConnectionMap();
+		}		
 	}
 }
 
@@ -1414,18 +1643,22 @@ void UDynamicMaterialModelEditorOnlyData::PostEditorDuplicate()
 		Modify();
 	}
 
-	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
-	{
-		if (UDMMaterialProperty* Property = Pair.Value.Get())
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this](EDMMaterialPropertyType InType)
 		{
-			if (GUndo)
+			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 			{
-				Property->Modify();
+				if (GUndo)
+				{
+					Property->Modify();
+				}
+
+				Property->PostEditorDuplicate(MaterialModel, nullptr);
 			}
 
-			Property->PostEditorDuplicate(MaterialModel, nullptr);
+			return EDMIterationResult::Continue;
 		}
-	}
+	);
 
 	for (UDMMaterialSlot* Slot : Slots)
 	{

@@ -167,7 +167,7 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 							FString& PassFriendlyNames = StatCollections[CategoryBudget.Collection].CategoryPassFriendlyNames[CategoryBudget.CategoryName];
 
 							FCoreDelegates::EOnScreenMessageSeverity Severity = CategoryBudget.PrimitiveBudget < *PrimitiveCount ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
-							OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - %s (%s)"), 
+							OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5" UINT64_FMT "K / %5dK - %s (%s)"), 
 									*PrimitiveCount / 1000, 
 									CategoryBudget.PrimitiveBudget / 1000, 
 									*(CategoryBudget.CategoryName.ToString()),
@@ -203,7 +203,7 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 					
 					if (TotalPrimitivesUntracked)
 					{
-						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK - Total Untracked"), TotalPrimitivesUntracked)));
+						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK - Total Untracked"), TotalPrimitivesUntracked / 1000)));
 					}
 				}
 				else
@@ -234,7 +234,7 @@ FRHIGPUBufferReadback* FMeshDrawCommandStatsManager::QueueDrawRDGIndirectArgsRea
 	// TODO: pool the readback buffers
 	FRHIGPUBufferReadback* GPUBufferReadback = new FRHIGPUBufferReadback(TEXT("InstanceCulling.StatsReadbackQuery"));
 	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("ReadbackIndirectArgs"), DrawIndirectArgsRDG,
-		[GPUBufferReadback, DrawIndirectArgsRDG](FRHICommandList& RHICmdList)
+		[GPUBufferReadback, DrawIndirectArgsRDG](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			GPUBufferReadback->EnqueueCopy(RHICmdList, DrawIndirectArgsRDG->GetRHI(), 0u);
 		});
@@ -422,7 +422,7 @@ void FMeshDrawCommandStatsManager::Update()
 	const bool bShowStats = CVarMeshDrawCommandStats->GetInt() != (int)MeshDrawStatsCollection::None;
 	bCollectStats = bShowStats || bRequestDumpStats;
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	const bool bCsvExport = FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(MeshDrawCommandStats));
 	bCollectStats |= bCsvExport;
 #endif
@@ -487,7 +487,7 @@ void FMeshDrawCommandStatsManager::Update()
 
 		int CollectionIdx = CVarMeshDrawCommandStats->GetInt();
 
-	#if CSV_PROFILER // If capturing for CSV, override the collection to the one requested in the ini file
+	#if CSV_PROFILER_STATS // If capturing for CSV, override the collection to the one requested in the ini file
 		if (FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(MeshDrawCommandStats)))
 		{
 			CollectionIdx = GetDefault<UMeshDrawCommandStatsSettings>()->CollectionForCsvProfiler;
@@ -530,7 +530,7 @@ void FMeshDrawCommandStatsManager::Update()
 		}
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (bCsvExport)
 	{
 		// Output Budget totals

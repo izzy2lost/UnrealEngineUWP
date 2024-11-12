@@ -235,6 +235,30 @@ void FGLTFDelayedMaterialTask::Process()
 					Builder.LogWarning(FString::Printf(TEXT("Failed to export %s and %s for material %s"), *FuzzColorProperty.ToString(), *ClothProperty.ToString(), *Material->GetName()));
 				}
 			}
+
+			if (JsonMaterial->ShadingModel != EGLTFJsonShadingModel::SpecularGlossiness)
+			{
+				const FMaterialPropertyEx AnisotropyProperty = MP_Anisotropy;
+				if (IsPropertyNonDefault(AnisotropyProperty))
+				{
+					if (!TryGetSourceTexture(JsonMaterial->Anisotropy.AnisotropyTexture, AnisotropyProperty, DefaultColorInputMasks))
+					{
+						if (!TryGetBakedMaterialProperty(JsonMaterial->Anisotropy.AnisotropyTexture, JsonMaterial->Anisotropy.AnisotropyStrength, 1.0f, AnisotropyProperty,
+							[](FColor& Color, const uint8& ChannelValueToMove)
+							{
+								Color.B = ChannelValueToMove;
+								
+								Color.R = 255;
+								Color.G = 255;
+								Color.A = 255;
+							}
+						))
+						{
+							Builder.LogWarning(FString::Printf(TEXT("Failed to export %s for material %s"), *AnisotropyProperty.ToString(), *Material->GetName()));
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -346,6 +370,20 @@ void FGLTFDelayedMaterialTask::GetProxyParameters(FGLTFJsonMaterial& OutMaterial
 			GetProxyParameter(FGLTFProxyMaterialInfo::TransmissionFactor, OutMaterial.Transmission.Factor);
 			GetProxyParameter(FGLTFProxyMaterialInfo::TransmissionTexture, OutMaterial.Transmission.Texture);
 		}
+
+		if (OutMaterial.ShadingModel != EGLTFJsonShadingModel::SpecularGlossiness)
+		{
+			GetProxyParameter(FGLTFProxyMaterialInfo::IridescenceFactor, OutMaterial.Iridescence.IridescenceFactor);
+			GetProxyParameter(FGLTFProxyMaterialInfo::IridescenceTexture, OutMaterial.Iridescence.IridescenceTexture);
+			GetProxyParameter(FGLTFProxyMaterialInfo::IridescenceIOR, OutMaterial.Iridescence.IridescenceIOR);
+			GetProxyParameter(FGLTFProxyMaterialInfo::IridescenceThicknessMinimum, OutMaterial.Iridescence.IridescenceThicknessMinimum);
+			GetProxyParameter(FGLTFProxyMaterialInfo::IridescenceThicknessMaximum, OutMaterial.Iridescence.IridescenceThicknessMaximum);
+			GetProxyParameter(FGLTFProxyMaterialInfo::IridescenceThicknessTexture, OutMaterial.Iridescence.IridescenceThicknessTexture);
+
+			GetProxyParameter(FGLTFProxyMaterialInfo::AnisotropyStrength, OutMaterial.Anisotropy.AnisotropyStrength);
+			GetProxyParameter(FGLTFProxyMaterialInfo::AnisotropyRotation, OutMaterial.Anisotropy.AnisotropyRotation);
+			GetProxyParameter(FGLTFProxyMaterialInfo::AnisotropyTexture, OutMaterial.Anisotropy.AnisotropyTexture);
+		}
 	}
 }
 
@@ -380,8 +418,18 @@ void FGLTFDelayedMaterialTask::GetProxyParameter(const FGLTFProxyMaterialTexture
 		return;
 	}
 
+	TextureAddress TextureAddressX = TextureAddress::TA_Wrap;
+	TextureAddress TextureAddressY = TextureAddress::TA_Wrap;
+
+	FLinearColor TilingMethod;
+	if (ParameterInfo.TilingMethod.Get(Material, TilingMethod, true))
+	{
+		TextureAddressX = FGLTFMaterialUtilities::ToTextureAddress(TilingMethod.R);
+		TextureAddressY = FGLTFMaterialUtilities::ToTextureAddress(TilingMethod.G);
+	}
+
 	const bool bSRGB = ParameterInfo == FGLTFProxyMaterialInfo::BaseColor || ParameterInfo == FGLTFProxyMaterialInfo::Emissive;
-	OutValue.Index = Builder.AddUniqueTexture(Texture, bSRGB);
+	OutValue.Index = Builder.AddUniqueTexture(Texture, bSRGB, TextureAddressX, TextureAddressY);
 
 	float UVIndex;
 	if (ParameterInfo.UVIndex.Get(Material, UVIndex, true))

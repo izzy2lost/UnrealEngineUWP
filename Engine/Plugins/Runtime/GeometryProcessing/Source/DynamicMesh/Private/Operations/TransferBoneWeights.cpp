@@ -12,6 +12,7 @@
 #include "BoneIndices.h"
 #include "IndexTypes.h"
 #include "TransformTypes.h"
+#include "Algo/Count.h"
 #include "Solvers/Internal/QuadraticProgramming.h"
 #include "Solvers/LaplacianMatrixAssembly.h"
 #include "Operations/SmoothBoneWeights.h"
@@ -246,18 +247,23 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 	}
 
 	bool bFailed = false;
-	
-	MatchedVertices.Init(false, InOutTargetMesh.MaxVertexID());
 
+	// compute the transfer only for the subset of vertices if necessary  
+	const bool bUseSubset = !TargetVerticesSubset.IsEmpty();
+	const int32 NumVerticesToTransfer = bUseSubset ? TargetVerticesSubset.Num() : InOutTargetMesh.MaxVertexID();
+	
 	if (TransferMethod == ETransferBoneWeightsMethod::ClosestPointOnSurface)
 	{
-		ParallelFor(InOutTargetMesh.MaxVertexID(), [this, &InOutTargetMesh, &TargetBoneToIndex, &TargetSkinWeights, &InternalTargetMeshNormals](int32 VertexID)
+		MatchedVertices.Init(false, NumVerticesToTransfer);
+		
+		ParallelFor(NumVerticesToTransfer, [this, &InOutTargetMesh, &TargetBoneToIndex, &TargetSkinWeights, &InternalTargetMeshNormals, bUseSubset](int32 InVertexID)
 		{
 			if (Cancelled()) 
 			{
 				return;
 			}
-			
+
+			const int32 VertexID = bUseSubset ? TargetVerticesSubset[InVertexID] : InVertexID;
 			if (InOutTargetMesh.IsVertex(VertexID)) 
 			{
 				const FVector3d Point = InOutTargetMesh.GetVertex(VertexID);
@@ -294,7 +300,7 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 					NumMatched++;
 				}
 			}
-			bFailed = NumMatched != InOutTargetMesh.VertexCount();
+			bFailed = NumMatched != NumVerticesToTransfer;
 		}
 	} 
 	else if (TransferMethod == ETransferBoneWeightsMethod::InpaintWeights)
@@ -321,6 +327,8 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
          *      Any vertex for which we found a match must have fixed weights that can't be changed, 
          *      i.e. W(i,j) = KnownWeights(i,j) where i is a vertex for which we found a match on the body.
 		 */
+	
+		MatchedVertices.Init(false, InOutTargetMesh.MaxVertexID());
 		
 		// Check if the target mesh contains the user specifed force inpaint weight map 
 		const FDynamicMeshWeightAttribute* ForceInpaintLayer = nullptr;
@@ -337,8 +345,17 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 			}
 		}
 
+		// because the inpaint algorithm can extract data from regions outside the target vertex subset, a temporary attribute profile is used to modify the weights.
+		// NOTE: make sure to copy the weights of the vertex subset into the complete TargetSkinWeights attribute before exciting the function. (see CopySubsetWeightsIfNeeded) 
+		FDynamicMeshVertexSkinWeightsAttribute SubsetTargetSkinWeights;
+		if (bUseSubset)
+		{
+			SubsetTargetSkinWeights.Copy(*TargetSkinWeights);
+		}
+		FDynamicMeshVertexSkinWeightsAttribute* EditedSkinWeights = bUseSubset ? &SubsetTargetSkinWeights : TargetSkinWeights;
+
 		// For every vertex on the target mesh try to find the match on the source mesh using the distance and normal checks
-		ParallelFor(InOutTargetMesh.MaxVertexID(), [this, &InOutTargetMesh, &ForceInpaintLayer, &TargetBoneToIndex, &TargetSkinWeights, &InternalTargetMeshNormals](int32 VertexID)
+		ParallelFor(InOutTargetMesh.MaxVertexID(), [this, &InOutTargetMesh, &ForceInpaintLayer, &TargetBoneToIndex, &EditedSkinWeights, &InternalTargetMeshNormals](int32 VertexID)
 		{
 			if (Cancelled()) 
 			{
@@ -376,7 +393,7 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 				FBoneWeights Weights;
 				if (TransferWeightsToPoint(Weights, Point, TargetBoneToIndex.Get(), Normal))
 				{
-					TargetSkinWeights->SetValue(VertexID, Weights);
+					EditedSkinWeights->SetValue(VertexID, Weights);
 					MatchedVertices[VertexID] = true;
 				}
 			}
@@ -387,24 +404,23 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 			return false;
 		}
 
-		// Compute linearization so we can store constraints at linearized indices
-		FVertexLinearization VtxLinearization(InOutTargetMesh, false);
-		const TArray<int32>& ToMeshV = VtxLinearization.ToId();
-		const TArray<int32>& ToIndex = VtxLinearization.ToIndex();
-		
 		int32 NumMatched = 0;
-		for (bool Flag : MatchedVertices)
+		if (!bUseSubset)
 		{
-			if (Flag) 
-			{ 
-				NumMatched++;
+			for (bool Flag : MatchedVertices)
+			{
+				if (Flag) 
+				{ 
+					NumMatched++;
+				}
 			}
 		}
-
-		// If all vertices were matched then nothing else to do
-		if (NumMatched == InOutTargetMesh.VertexCount())
+		else
 		{
-			return true;
+			NumMatched = (int32)Algo::CountIf(TargetVerticesSubset, [this](int32 VertexID)
+			{
+				return MatchedVertices.IsValidIndex(VertexID) && MatchedVertices[VertexID];
+			});
 		}
 
 		// If no vertices matched, we have nothing to inpaint.
@@ -413,6 +429,35 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 			return false;
 		}
 
+		auto CopySubsetWeightsIfNeeded = [Subset = TargetVerticesSubset, &EditedSkinWeights, &TargetSkinWeights, &InOutTargetMesh]()
+		{
+			if (EditedSkinWeights && EditedSkinWeights != TargetSkinWeights)
+			{
+				for (const int32 VertexID: Subset)
+				{
+					if (InOutTargetMesh.IsVertex(VertexID))
+					{
+						FBoneWeights Weights;
+						EditedSkinWeights->GetValue(VertexID, Weights);
+						TargetSkinWeights->SetValue(VertexID, Weights);
+					}
+				}
+			}
+		};
+		
+		// If all vertices were matched then nothing else to do
+		if (NumMatched == NumVerticesToTransfer)
+		{
+			// copy weights from the subset skin weights if using subset
+			CopySubsetWeightsIfNeeded();
+			return true;
+		}
+
+		// Compute linearization so we can store constraints at linearized indices
+		FVertexLinearization VtxLinearization(InOutTargetMesh, false);
+		const TArray<int32>& ToMeshV = VtxLinearization.ToId();
+		const TArray<int32>& ToIndex = VtxLinearization.ToIndex();
+		
 		// Setup the sparse matrix FixedValues of known (matched) weight values and the array (FixedIndices) of the matched vertex IDs
 		const int32 TargetNumBones = InOutTargetMesh.Attributes()->GetBoneNames()->GetAttribValues().Num();
 		FSparseMatrixD FixedValues;
@@ -428,7 +473,7 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 			if (InOutTargetMesh.IsVertex(VertexID) && MatchedVertices[VertexID])
 			{
 				FBoneWeights Data;
-				TargetSkinWeights->GetValue(VertexID, Data);
+				EditedSkinWeights->GetValue(VertexID, Data);
 
 				const int32 NumBones = Data.Num();
 				checkSlow(NumBones > 0);
@@ -519,9 +564,12 @@ bool FTransferBoneWeights::TransferWeightsToMesh(FDynamicMesh3& InOutTargetMesh,
 
 				const int32 VertexIDLinearalized = bVariablesOnly ? static_cast<int32>(VaribleRows[ColIdx]) : ColIdx; // linearized vertex ID (matrix row) of the variable in the Energy matrix
 				const int32 VertexID = static_cast<int32>(ToMeshV[VertexIDLinearalized]);
-				TargetSkinWeights->SetValue(VertexID, WeightArray);
+				EditedSkinWeights->SetValue(VertexID, WeightArray);
 			}
 
+			// copy weights from the subset skin weights if using subset
+			CopySubsetWeightsIfNeeded();
+			
 			// Optional post-processing smoothing of the weights at the vertices without a match
 			if (NumSmoothingIterations > 0 && SmoothingStrength > 0)
 			{

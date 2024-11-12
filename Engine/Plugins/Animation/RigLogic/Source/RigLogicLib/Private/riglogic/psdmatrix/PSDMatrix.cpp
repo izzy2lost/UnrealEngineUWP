@@ -3,6 +3,7 @@
 #include "riglogic/psdmatrix/PSDMatrix.h"
 
 #include "riglogic/TypeDefs.h"
+#include "riglogic/utils/Extd.h"
 
 #ifdef _MSC_VER
     #pragma warning(push)
@@ -18,7 +19,8 @@ namespace rl4 {
 
 namespace {
 
-constexpr float maxControlValue = 1.0f;
+constexpr float minPSDValue = 0.0f;
+constexpr float maxPSDValue = 1.0f;
 constexpr std::size_t blockSize = 4ul;
 
 }  // namespace
@@ -61,10 +63,10 @@ void PSDMatrix::calculate(float* inputs, std::uint16_t rawControlCount) const {
         const float weight1 = values[i + 1ul];
         const float weight2 = values[i + 2ul];
         const float weight3 = values[i + 3ul];
-        const float input0 = inputs[col0];
-        const float input1 = inputs[col1];
-        const float input2 = inputs[col2];
-        const float input3 = inputs[col3];
+        const float input0 = extd::clamp(inputs[col0], minPSDValue, maxPSDValue);
+        const float input1 = extd::clamp(inputs[col1], minPSDValue, maxPSDValue);
+        const float input2 = extd::clamp(inputs[col2], minPSDValue, maxPSDValue);
+        const float input3 = extd::clamp(inputs[col3], minPSDValue, maxPSDValue);
         inputs[row0] *= weight0 * input0;
         inputs[row1] *= weight1 * input1;
         inputs[row2] *= weight2 * input2;
@@ -75,13 +77,13 @@ void PSDMatrix::calculate(float* inputs, std::uint16_t rawControlCount) const {
         const std::uint16_t row = rowIndices[i];
         const std::uint16_t col = columnIndices[i];
         const float weight = values[i];
-        const float input = inputs[col];
+        const float input = extd::clamp(inputs[col], minPSDValue, maxPSDValue);
         inputs[row] *= weight * input;
     }
 
     auto psds = inputs + rawControlCount;
     for (std::size_t i = 0ul; i < distinctPSDs; ++i) {
-        psds[i] = std::min(maxControlValue, psds[i]);
+        psds[i] = std::min(maxPSDValue, psds[i]);
     }
 }
 

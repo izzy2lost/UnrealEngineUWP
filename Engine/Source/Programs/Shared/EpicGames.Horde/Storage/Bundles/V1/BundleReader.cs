@@ -8,7 +8,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Bundles.V1
@@ -45,7 +44,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	}
 
 	/// <summary>
-	/// Writes nodes from bundles in an <see cref="IStorageClient"/> instance.
+	/// Writes nodes from bundles in an <see cref="IStorageNamespace"/> instance.
 	/// </summary>
 	public class BundleReader
 	{
@@ -126,7 +125,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		// When reader is uncached, use a smaller default fetch size
 		const int DefaultUncachedFetchSize = 1 * 1024 * 1024;
 
-		readonly BundleStorageClient _store;
+		readonly BundleStorageNamespace _store;
 		readonly BundleCache _cache;
 		readonly ILogger _logger;
 
@@ -150,7 +149,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="store"></param>
 		/// <param name="cache">Cache for data</param>
 		/// <param name="logger">Logger for output</param>
-		public BundleReader(BundleStorageClient store, BundleCache cache, ILogger logger)
+		public BundleReader(BundleStorageNamespace store, BundleCache cache, ILogger logger)
 		{
 			_store = store;
 			_cache = cache;
@@ -546,7 +545,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 			Dictionary<BlobLocator, BundleHandle> locatorToBundleHandle = new Dictionary<BlobLocator, BundleHandle>();
 
-			List<IBlobHandle> imports = new List<IBlobHandle>(export.References.Count);
+			List<IBlobRef> imports = new List<IBlobRef>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
 			{
 				BlobLocator importBlob;

@@ -13,6 +13,11 @@ UPanelSlot::UPanelSlot(const FObjectInitializer& ObjectInitializer)
 {
 }
 
+UWidget* UPanelSlot::GetContent() const
+{
+	return Content;
+}
+
 #if WITH_EDITOR
 bool UPanelSlot::IsDesignTime() const
 {

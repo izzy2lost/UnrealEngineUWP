@@ -153,4 +153,17 @@ bool FDisplayClusterProjectionModule::CameraPolicySetCamera(const TSharedPtr<IDi
 	return false;
 }
 
+UCameraComponent* FDisplayClusterProjectionModule::CameraPolicyGetCameraComponent(const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InPolicy)
+{
+	if (InPolicy.IsValid())
+	{
+		if (FDisplayClusterProjectionCameraPolicy* CameraPolicyInstance = static_cast<FDisplayClusterProjectionCameraPolicy*>(InPolicy.Get()))
+		{
+			return CameraPolicyInstance->GetCameraComponent();
+		}
+	}
+
+	return nullptr;
+}
+
 IMPLEMENT_MODULE(FDisplayClusterProjectionModule, DisplayClusterProjection);

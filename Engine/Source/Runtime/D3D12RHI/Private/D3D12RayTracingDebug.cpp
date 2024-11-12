@@ -19,7 +19,7 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 {
 	// #dxr_todo: this could potentially be generalized and moved to high-level code, to be reused for all RHIs if we implement instance desc structure decoding
 
-	const FRayTracingSceneInitializer2& SceneInitializer = Scene.GetInitializer();
+	const FRayTracingSceneInitializer& SceneInitializer = Scene.GetInitializer();
 
 	FString Name = SceneInitializer.DebugName.ToString();
 	FString Filename = FString::Printf(TEXT("Scene_%s"), *Name);
@@ -38,7 +38,6 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 	// All buffers are vector-aligned to allow efficient loading into GPU memory and subsequent GPU access.
 	// Serialized scene data is expected to be loaded all at once from disk and copied into a single GPU buffer.
 	static constexpr uint32 AlignmentRequirement = 16;
-	static constexpr uint32 MaxNumLayers = 64;
 
 	// Serialized types
 
@@ -58,13 +57,10 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 			uint32 Strings = 0;
 		} Offsets;
 
-		uint32 NumLayers = 0;
-		uint32 PerLayerNumInstances[MaxNumLayers] = {};
 		uint32 NumInstances = 0;
 		uint32 NumGeometries = 0;
 		uint32 NumBuffers = 0;
 		uint32 NumStrings = 0;
-		uint32 Padding[2] = {};
 	};
 	static_assert(sizeof(FSceneHeader) % AlignmentRequirement == 0, "Serialized scene data must be vector-aligned");
 
@@ -149,27 +145,17 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 	checkf(OutputBuffer.Num() == 0, TEXT("Scene header must be written into the buffer first"));
 	Serialize(&SceneHeader, sizeof(SceneHeader), EAlignmentMode::AlignBeginning); // Reserve space for the header
 
-	const int32 NumReferencedGeometries = SceneInitializer.ReferencedGeometries.Num();
+	const int32 NumReferencedGeometries = Scene.ReferencedGeometries.Num();
 	for (int32 GeometryIndex = 0; GeometryIndex < NumReferencedGeometries; ++GeometryIndex)
 	{
-		FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(SceneInitializer.ReferencedGeometries[GeometryIndex].GetReference());
+		FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene.ReferencedGeometries[GeometryIndex].GetReference());
 		TRefCountPtr<FD3D12Buffer> BlasBuffer = Geometry->AccelerationStructureBuffers[0];
 		D3D12_GPU_VIRTUAL_ADDRESS Address = BlasBuffer->ResourceLocation.GetGPUVirtualAddress();
 		GeometryMap.FindOrAdd(Address, GeometryMap.Num());
 	}
 
 	{
-		// Per-layer number of instances
-
-		SceneHeader.NumLayers = FMath::Min<uint32>(MaxNumLayers, Scene.Layers.Num());
-
-		for (uint32 LayerIndex = 0; LayerIndex < SceneHeader.NumLayers; ++LayerIndex)
-		{
-			const FD3D12RayTracingScene::FLayerData& Layer = Scene.Layers[LayerIndex];
-			uint32 NumInstances = Layer.BuildInputs.NumDescs;
-			SceneHeader.PerLayerNumInstances[LayerIndex] = NumInstances;
-			SceneHeader.NumInstances += NumInstances;
-		}
+		SceneHeader.NumInstances = Scene.NumInstances;
 
 		// Instance buffer
 
@@ -223,7 +209,7 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 		{
 			FGeometryHeader GeometryHeader;
 
-			FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(SceneInitializer.ReferencedGeometries[GeometryIndex].GetReference());
+			FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene.ReferencedGeometries[GeometryIndex].GetReference());
 
 			FString DebugName = Geometry->DebugName.ToString();
 			FString OwnerName = Geometry->OwnerName.ToString();

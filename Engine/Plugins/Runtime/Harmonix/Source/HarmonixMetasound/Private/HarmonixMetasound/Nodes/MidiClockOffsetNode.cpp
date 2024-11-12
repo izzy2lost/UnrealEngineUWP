@@ -15,7 +15,6 @@
 #include "HarmonixMetasound/DataTypes/MidiAsset.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-#include "HarmonixMidi/MidiPlayCursor.h"
 #include "HarmonixMidi/MidiVoiceId.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
@@ -109,8 +108,10 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			, MidiClockOut(FMidiClockWriteRef::CreateNew(InSettings))
 			, BlockSize(InSettings.GetNumFramesPerBlock())
 		{
-			TSharedPtr<FMidiFileData> ConductorMidiData = FMidiClock::MakeClockConductorMidiData(120.0f, 4, 4);
-			MidiClockOut->AttachToMidiResource(ConductorMidiData, true, PrerollBars);
+			TSharedPtr<FSongMaps> SongMaps = MakeShared<FSongMaps>(120.0f, 4, 4);
+			MidiClockOut->AttachToSongMapEvaluator(SongMaps, true);
+			MidiClockOut->SetDrivingClock(MidiClockIn->AsShared().ToSharedPtr());
+			bClockOutNeedsPrepare = false;
 		}
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override
@@ -119,7 +120,7 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::OffsetBars), OffsetBarsInPin);
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::OffsetBeats), OffsetBeatsInPin);
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::OffsetMs), OffsetMsInPin);
-			MidiClockOut->AttachToTimeAuthority(*MidiClockIn);
+			MidiClockOut->SetDrivingClock(MidiClockIn->AsShared().ToSharedPtr());
 		}
 		
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
@@ -131,7 +132,9 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 		{
 			BlockSize = Params.OperatorSettings.GetNumFramesPerBlock();
 			CurrentBlockSpanStart = 0;
-			MidiClockOut->ResetAndStart(0, true);
+			MidiClockOut->SeekTo(0,0,0);
+			MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Playing);
+			bClockOutNeedsPrepare = false;
 
 			PrevOffsetBars = 0;
 			PrevOffsetBeats = 0.0f;
@@ -144,86 +147,105 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			if (!FMath::IsNearlyZero(OffsetBeats) || OffsetBars != 0)
 			{
 				int32 BeatsPerBar = 0;
-				FMusicTimestamp OffsetTimestamp = MidiClockIn->GetBarMap().TickToMusicTimestamp(InTick, &BeatsPerBar);
+				FMusicTimestamp OffsetTimestamp = MidiClockIn->GetSongMapEvaluator().TickToMusicTimestamp(InTick, &BeatsPerBar);
 				if (BeatsPerBar != 0)
 				{
 					float Beats = ((OffsetTimestamp.Bar - 1) * BeatsPerBar) + (OffsetTimestamp.Beat - 1);
 					Beats += OffsetBars * BeatsPerBar + OffsetBeats;
 					OffsetTimestamp.Bar = 1 + FMath::Floor(Beats / BeatsPerBar);
 					OffsetTimestamp.Beat = 1 + FMath::Fmod(BeatsPerBar + FMath::Fmod(Beats, BeatsPerBar), BeatsPerBar);
-					OffsetTick = MidiClockIn->GetBarMap().MusicTimestampToTick(OffsetTimestamp);
+					OffsetTick = MidiClockIn->GetSongMapEvaluator().MusicTimestampToTick(OffsetTimestamp);
 				}
 			}
-			const float Ms = MidiClockIn->GetSongMaps().TickToMs(OffsetTick);
-			OffsetTick = MidiClockIn->GetSongMaps().MsToTick(OffsetMs + Ms);
+			if (!FMath::IsNearlyZero(OffsetMs))
+			{
+				const float Ms = MidiClockIn->GetSongMapEvaluator().TickToMs(OffsetTick);
+				OffsetTick = MidiClockIn->GetSongMapEvaluator().MsToTick(OffsetMs + Ms);
+			}
 
 			return OffsetTick;
 		}
 		
 		virtual void Execute()
 		{
+			using namespace MidiClockMessageTypes;
+
 			float OffsetMs = *OffsetMsInPin;
 			int32 OffsetBars = *OffsetBarsInPin;
 			float OffsetBeats = *OffsetBeatsInPin;
-			MidiClockOut->PrepareBlock();
-			MidiClockOut->CopySpeedAndTempoChanges(MidiClockIn.Get());
+
+			// We might not want to "prepare" the clock output because
+			// we may have just initialized it with a tempo map, etc.
+			// in which case it already has events in it for this block!
+			if (bClockOutNeedsPrepare)
+			{
+				MidiClockOut->PrepareBlock();
+			}
+
+			if (MidiClockIn->GetSongMapsChangedInBlock())
+			{
+				MidiClockOut->SongMapsChanged();
+			}
+
+			// next time we definitely want to prepare the block.
+			bClockOutNeedsPrepare = true;
+
 			const TArray<FMidiClockEvent>& MidiClockEvents = MidiClockIn->GetMidiClockEventsInBlock();
 			for (int32 EventIndex = 0; EventIndex < MidiClockEvents.Num(); ++EventIndex)
 			{
 				const FMidiClockEvent& Event = MidiClockEvents[EventIndex];
-				switch (Event.Msg.Type)
+				if (const FSeek* AsSeek = Event.TryGet<FSeek>())
 				{
-				case FMidiClockMsg::EType::SeekTo:
-				case FMidiClockMsg::EType::Reset:
-					{
-						const int32 Tick = GetTickWithOffset(Event.Msg.ToTick(), OffsetBars, OffsetBeats, OffsetMs);
-						FMusicSeekTarget SeekTarget;
-						SeekTarget.Type = ESeekPointType::Millisecond;
-						SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-								
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
-						break;
-					}
-				case FMidiClockMsg::EType::SeekThru:
-					{
-						const int32 Tick = GetTickWithOffset(Event.Msg.ThruTick(), OffsetBars, OffsetBeats, OffsetMs);
-						FMusicSeekTarget SeekTarget;
-						SeekTarget.Type = ESeekPointType::Millisecond;
-						SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
-							
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
-						break;
-					}
-				case FMidiClockMsg::EType::AdvanceThru:
-					{
-						const int32 Tick = GetTickWithOffset(Event.Msg.ThruTick(), OffsetBars, OffsetBeats, OffsetMs);
-						
-						// if our offset changed while we were advancing, seek to the new offset first
-						if (!FMath::IsNearlyEqual(PrevOffsetMs, OffsetMs) || !FMath::IsNearlyEqual(PrevOffsetBeats, OffsetBeats) || PrevOffsetBars != OffsetBars)
-						{
-							PrevOffsetMs = OffsetMs;
-							PrevOffsetBars = OffsetBars;
-							PrevOffsetBeats = OffsetBeats;
+					const int32 NewNextTick = GetTickWithOffset(AsSeek->NewNextTick, OffsetBars, OffsetBeats, OffsetMs);
+					MidiClockOut->SeekTo(Event.BlockFrameIndex, NewNextTick, AsSeek->TempoMapTick);
+				}
+				else if (const FLoop* AsLoop = Event.TryGet<FLoop>())
+				{
+					const int32 FirstTickInLoop = GetTickWithOffset(AsLoop->FirstTickInLoop, OffsetBars, OffsetBeats, OffsetMs);
+					const int32 LastTickAfterLoop = GetTickWithOffset(AsLoop->FirstTickInLoop + AsLoop->LengthInTicks, OffsetBars, OffsetBeats, OffsetMs);
+					MidiClockOut->AdvanceToTick(Event.BlockFrameIndex, LastTickAfterLoop, AsLoop->TempoMapTick);
+					MidiClockOut->AddTransientLoop(Event.BlockFrameIndex, FirstTickInLoop, LastTickAfterLoop - FirstTickInLoop);
+				}
+				else if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
+				{
+					bool bOffsetChanged = !FMath::IsNearlyEqual(PrevOffsetMs, OffsetMs) || !FMath::IsNearlyEqual(PrevOffsetBeats, OffsetBeats) || PrevOffsetBars != OffsetBars;
 
-							FMusicSeekTarget SeekTarget;
-							SeekTarget.Type = ESeekPointType::Millisecond;
-							SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-								
-							MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
-						}
-
-						const float AdvanceToMs = MidiClockOut->GetSongMaps().TickToMs(Tick);
-						const float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(EventIndex);
-						const float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Msg.ThruTick()) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
-						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * AdvanceRatio);
-						MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, AdvanceToMs, true);
-						break;
-					}
-				case FMidiClockMsg::EType::Loop:
+					if (bOffsetChanged)
 					{
-						break;
+						PrevOffsetMs = OffsetMs;
+						PrevOffsetBars = OffsetBars;
+						PrevOffsetBeats = OffsetBeats;
 					}
-							
+					const int32 FirstickToProcess = GetTickWithOffset(AsAdvance->FirstTickToProcess, OffsetBars, OffsetBeats, OffsetMs);
+					// ONLY seek if there is a discontinuity AND the transport changed OR the offset changed.
+					// Otherwise we just want to advance from where we sit to the appropriate destination.
+					if (bOffsetChanged || (!bAdvancedSinceTransportChange && FirstickToProcess != MidiClockOut->GetNextMidiTickToProcess()))
+					{
+						MidiClockOut->SeekTo(Event.BlockFrameIndex, FirstickToProcess, AsAdvance->TempoMapTick);
+					}
+					const int32 ProcessUpToTick = GetTickWithOffset(AsAdvance->FirstTickToProcess + AsAdvance->NumberOfTicksToProcess, OffsetBars, OffsetBeats, OffsetMs);
+					MidiClockOut->AdvanceToTick(Event.BlockFrameIndex, ProcessUpToTick, AsAdvance->TempoMapTick);
+					bAdvancedSinceTransportChange = true;
+				}
+				else if (const MidiClockMessageTypes::FTempoChange* AsTempoChange = Event.TryGet<MidiClockMessageTypes::FTempoChange>())
+				{
+					MidiClockOut->SetTempo(Event.BlockFrameIndex, MidiClockOut->GetNextMidiTickToProcess(), AsTempoChange->Tempo, AsTempoChange->TempoMapTick);
+				}
+				else if (const MidiClockMessageTypes::FTimeSignatureChange* AsTimeSigChange = Event.TryGet<MidiClockMessageTypes::FTimeSignatureChange>())
+				{
+					MidiClockOut->SetTimeSignature(Event.BlockFrameIndex, MidiClockOut->GetNextMidiTickToProcess(), AsTimeSigChange->TimeSignature, AsTimeSigChange->TempoMapTick);
+				}
+				else if (const MidiClockMessageTypes::FSpeedChange* AsSpeedChange = Event.TryGet<MidiClockMessageTypes::FSpeedChange>())
+				{
+					MidiClockOut->SetSpeed(Event.BlockFrameIndex, AsSpeedChange->Speed);
+				}
+				else if (const FTransportChange* AsTransportChange = Event.TryGet<FTransportChange>())
+				{
+					CurrentTransportState = AsTransportChange->TransportState;
+					// We need to know that the transport changed when we get the next advance
+					// so that we know if we should seek on a discontinuity. Otherwise we just
+					// want to advance from where the clock last left off!
+					bAdvancedSinceTransportChange = false;
 				}
 			}
 		}
@@ -242,7 +264,9 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 		//** DATA
 		FSampleCount BlockSize      = 0;
 		int32 CurrentBlockSpanStart = 0;
-
+		EMusicPlayerTransportState CurrentTransportState = EMusicPlayerTransportState::Prepared;
+		bool bAdvancedSinceTransportChange = false;
+		bool bClockOutNeedsPrepare = false;
 		float PrevOffsetMs = 0.0f;
 		int32 PrevOffsetBars = 0;
 		float PrevOffsetBeats = 0.0f;

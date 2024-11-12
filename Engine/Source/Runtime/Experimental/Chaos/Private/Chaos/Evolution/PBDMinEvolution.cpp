@@ -304,9 +304,9 @@ namespace Chaos
 				return;
 			}
 
-			TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
+			FKinematicTarget& KinematicTarget = Particle.KinematicTarget();
 			const FVec3 CurrentX = Particle.GetX();
-			const FRotation3 CurrentR = Particle.GetR();
+			const FRotation3f CurrentR = Particle.GetR();
 			constexpr FReal MinDt = 1e-6f;
 
 			bool bMoved = false;
@@ -330,23 +330,23 @@ namespace Chaos
 				// Move to kinematic target and update velocities to match
 				// Target positions only need to be processed once, and we reset the velocity next frame (if no new target is set)
 				FVec3 NewX;
-				FRotation3 NewR;
+				FRotation3f NewR;
 				if (IsLastStep)
 				{
-					NewX = KinematicTarget.GetTarget().GetLocation();
-					NewR = KinematicTarget.GetTarget().GetRotation();
+					NewX = KinematicTarget.GetPosition();
+					NewR = KinematicTarget.GetRotation();
 					KinematicTarget.SetMode(EKinematicTargetMode::Reset);
 				}
 				else
 				{
 					// as a reminder, stepfraction is the remaing fraction of the step from the remaining steps
 					// for total of 4 steps and current step of 2, this will be 1/3 ( 1 step passed, 3 steps remains )
-					NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetTarget().GetLocation(), StepFraction);
-					NewR = FRotation3::Slerp(CurrentR, KinematicTarget.GetTarget().GetRotation(), decltype(FQuat::X)(StepFraction));
+					NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetPosition(), StepFraction);
+					NewR = FRotation3f::Slerp(CurrentR, KinematicTarget.GetRotation(), decltype(FQuat4f::X)(StepFraction));
 				}
 
 				const bool bPositionChanged = !FVec3::IsNearlyEqual(NewX, CurrentX, UE_SMALL_NUMBER);
-				const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_SMALL_NUMBER);
+				const bool bRotationChanged = !FRotation3f::IsNearlyEqual(NewR, CurrentR, UE_KINDA_SMALL_NUMBER);
 				bMoved = bPositionChanged || bRotationChanged;
 				FVec3 NewV = FVec3(0);
 				FVec3 NewW = FVec3(0);
@@ -362,7 +362,7 @@ namespace Chaos
 					}
 				}
 				Particle.SetX(NewX);
-				Particle.SetR(NewR);
+				Particle.SetRf(NewR);
 				Particle.SetV(NewV);
 				Particle.SetW(NewW);
 
@@ -374,7 +374,7 @@ namespace Chaos
 				// Move based on velocity
 				bMoved = true;
 				Particle.SetX(Particle.GetX() + Particle.GetV() * Dt);
-				Particle.SetR(FRotation3::IntegrateRotationWithAngularVelocity(Particle.GetR(), Particle.GetW(), Dt));
+				Particle.SetRf(FRotation3f::IntegrateRotationWithAngularVelocity(Particle.GetRf(), Particle.GetWf(), static_cast<FRealSingle>(Dt)));
 				break;
 			}
 			}
@@ -382,9 +382,9 @@ namespace Chaos
 			// Set positions and previous velocities if we can
 			// Note: At present kinematics are in fact rigid bodies
 			Particle.SetP(Particle.GetX());
-			Particle.SetQ(Particle.GetR());
+			Particle.SetQf(Particle.GetRf());
 			Particle.SetPreV(Particle.GetV());
-			Particle.SetPreW(Particle.GetW());
+			Particle.SetPreWf(Particle.GetWf());
 
 			if (bMoved)
 			{
@@ -404,9 +404,9 @@ namespace Chaos
 		(FTransientKinematicGeometryParticleHandle& Particle, const int32 ParticleIndex)
 		-> void
 		{
-			TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
+			FKinematicTarget& KinematicTarget = Particle.KinematicTarget();
 			const FVec3 CurrentX = Particle.GetX();
-			const FRotation3 CurrentR = Particle.GetR();
+			const FRotation3f CurrentR = Particle.GetR();
 			constexpr FReal MinDt = 1e-6f;
 
 			bool bMoved = false;
@@ -430,26 +430,26 @@ namespace Chaos
 				// Move to kinematic target and update velocities to match
 				// Target positions only need to be processed once, and we reset the velocity next frame (if no new target is set)
 				FVec3 NewX;
-				FRotation3 NewR;
+				FRotation3f NewR;
 				if (IsLastStep)
 				{
-					NewX = KinematicTarget.GetTarget().GetLocation();
-					NewR = KinematicTarget.GetTarget().GetRotation();
+					NewX = KinematicTarget.GetPosition();
+					NewR = KinematicTarget.GetRotation();
 					KinematicTarget.SetMode(EKinematicTargetMode::Reset);
 				}
 				else
 				{
 					// as a reminder, stepfraction is the remaing fraction of the step from the remaining steps
 					// for total of 4 steps and current step of 2, this will be 1/3 ( 1 step passed, 3 steps remains )
-					NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetTarget().GetLocation(), StepFraction);
-					NewR = FRotation3::Slerp(CurrentR, KinematicTarget.GetTarget().GetRotation(), decltype(FQuat::X)(StepFraction));
+					NewX = FVec3::Lerp(CurrentX, KinematicTarget.GetPosition(), StepFraction);
+					NewR = FRotation3f::Slerp(CurrentR, KinematicTarget.GetRotation(), decltype(FQuat4f::X)(StepFraction));
 				}
 
 				const bool bPositionChanged = !FVec3::IsNearlyEqual(NewX, CurrentX, UE_SMALL_NUMBER);
 				const bool bRotationChanged = !FRotation3::IsNearlyEqual(NewR, CurrentR, UE_SMALL_NUMBER);
 				bMoved = bPositionChanged || bRotationChanged;
 				FVec3 NewV = FVec3(0);
-				FVec3 NewW = FVec3(0);
+				FVec3f NewW = FVec3(0);
 				if (Dt > MinDt)
 				{
 					if (bPositionChanged)
@@ -458,13 +458,13 @@ namespace Chaos
 					}
 					if (bRotationChanged)
 					{
-						NewW = FRotation3::CalculateAngularVelocity(CurrentR, NewR, Dt);
+						NewW = FRotation3f::CalculateAngularVelocity(CurrentR, NewR, static_cast<FRealSingle>(Dt));
 					}
 				}
 				Particle.SetX(NewX);
-				Particle.SetR(NewR);
+				Particle.SetRf(NewR);
 				Particle.SetV(NewV);
-				Particle.SetW(NewW);
+				Particle.SetWf(NewW);
 
 				break;
 			}

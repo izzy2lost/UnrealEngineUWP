@@ -266,33 +266,6 @@ void FWorldDataLayersActorDesc::Serialize(FArchive& Ar)
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FWorldDataLayersActorDesc::OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
-{
-	if (AWorldDataLayers* WorldDataLayers = Cast<AWorldDataLayers>(InActorDescInstance->GetActor()))
-	{
-		if (WorldDataLayers->IsUsingExternalPackageDataLayerInstances())
-		{
-			WorldDataLayers->ForEachDataLayerInstance([this](UDataLayerInstance* DataLayerInstance)
-			{
-				check(DataLayerInstance->IsPackageExternal())
-				ForEachObjectWithPackage(DataLayerInstance->GetPackage(), [](UObject* Object)
-				{
-					if (Object->HasAnyFlags(RF_Public | RF_Standalone))
-					{
-						CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
-					}
-					return true;
-				}, false);
-
-				return true;
-			});
-		}
-	}
-	FWorldPartitionActorDesc::OnUnloadingInstance(InActorDescInstance);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 bool FWorldDataLayersActorDesc::IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const 
 {
 	if (!FWorldPartitionActorDesc::IsRuntimeRelevant(InActorDescInstance))

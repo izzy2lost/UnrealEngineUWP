@@ -2,10 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "HAL/LowLevelMemTracker.h"
-#include "Logging/LogMacros.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Log.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(TraceInsights, Verbose, All);
-
-LLM_DECLARE_TAG(Insights);

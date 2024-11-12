@@ -33,6 +33,14 @@ struct FSelectionData
 	{
 		SelectedVirtualPaths.Empty();
 	}
+
+	void AddMissingVirtualPaths(const FSelectionData& SelectionData)
+	{
+		for (const FName& SelectedVirtualPath : SelectionData.SelectedVirtualPaths)
+		{
+			SelectedVirtualPaths.Add(SelectedVirtualPath);
+		}
+	}
 };
 
 /** The history data object, storing all important history data */
@@ -99,6 +107,16 @@ public:
 	 * @param MenuBuilder The menubuilder to populate with menu items
 	 */
 	void GetAvailableHistoryMenuItems(bool bGetPrior, FMenuBuilder& MenuBuilder);
+
+	/** Rewrite all history data as determined by the passed in predicate */
+	template <class PREDICATE_CLASS>
+	void RewriteHistoryData(const PREDICATE_CLASS& Predicate)
+	{
+		for (FHistoryData& HistoryDataEntry : HistoryData)
+		{
+			Predicate(HistoryDataEntry);
+		}
+	}
 
 	/** Removes all history data as determined by the passed in predicate */
 	template <class PREDICATE_CLASS>

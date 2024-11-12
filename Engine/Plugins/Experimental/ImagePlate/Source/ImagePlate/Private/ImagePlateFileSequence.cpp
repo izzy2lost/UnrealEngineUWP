@@ -142,7 +142,7 @@ bool FImagePlateSourceFrame::EnsureTextureMetrics(UTexture* DestinationTexture) 
 			FlushRenderingCommands();
 		}
 
-		FTexture2DRHIRef Texture2DRHI = DestinationTexture->GetResource()->TextureRHI ? DestinationTexture->GetResource()->TextureRHI->GetTexture2D() : nullptr;
+		FTextureRHIRef Texture2DRHI = DestinationTexture->GetResource()->TextureRHI ? DestinationTexture->GetResource()->TextureRHI->GetTexture2D() : nullptr;
 		if (!Texture2DRHI)
 		{
 			UE_LOG(LogImagePlateFileSequence, Warning, TEXT("Unsupported texture type encountered: Unable to update texture to fit source frame size or bitdepth."));
@@ -197,7 +197,7 @@ TFuture<void> FImagePlateSourceFrame::CopyTo(UTexture* DestinationTexture)
 				return;
 			}
 
-			FTexture2DRHIRef Texture2DRHI = CommandData->DestinationTexture->GetResource()->TextureRHI->GetTexture2D();
+			FTextureRHIRef Texture2DRHI = CommandData->DestinationTexture->GetResource()->TextureRHI->GetTexture2D();
 			if (!Texture2DRHI)
 			{
 				return;
@@ -614,7 +614,7 @@ namespace ImagePlateFrameCache
 						Cache->SetFrameData(Requests[Index].FrameNumber, Requests[Index].Future.Get());
 					}
 
-					Requests.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					Requests.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 		}
@@ -627,7 +627,7 @@ namespace ImagePlateFrameCache
 			{
 				if (!ActiveCaches[Index].Pin().IsValid())
 				{
-					ActiveCaches.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					ActiveCaches.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 		}

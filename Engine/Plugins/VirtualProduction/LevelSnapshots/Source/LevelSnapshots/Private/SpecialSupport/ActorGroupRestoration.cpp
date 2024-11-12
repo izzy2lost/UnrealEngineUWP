@@ -231,7 +231,7 @@ namespace UE::LevelSnapshots::Private::ActorGroupRestoration
 			{
 				if (const TOptional<TNonNullPtr<AActor>> SnapshotActor = Params.DeserializeFromSnapshotFunc())
 				{
-					const AGroupActor* AsGroupActor = Cast<AGroupActor>(SnapshotActor.GetValue());
+					const AGroupActor* AsGroupActor = Cast<AGroupActor>(SnapshotActor->Get());
 					check(AsGroupActor);
 					return Algo::AllOf(AsGroupActor->GroupActors, [](AActor* Actor){ return Actor != nullptr; })
 						? EFilterResult::DoNotCare : EFilterResult::Disallow;

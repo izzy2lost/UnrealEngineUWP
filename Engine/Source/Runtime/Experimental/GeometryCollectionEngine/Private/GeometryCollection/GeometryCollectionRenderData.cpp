@@ -673,11 +673,10 @@ void CreateNaniteData(FGeometryCollectionBuiltMeshData&& InMeshData, FGeometryCo
 		InputMeshData.MaterialIndices.Empty();
 	});
 
-	TArrayView<Nanite::IBuilderModule::FOutputMeshData> OutputLODMeshData;
 	if (!NaniteBuilderModule.Build(
 		*OutRenderData.NaniteResourcesPtr.Get(),
 		InputMeshData,
-		OutputLODMeshData,
+		nullptr, // OutFallbackMeshData
 		NaniteSettings,
 		OnFreeInputMeshData))
 	{
@@ -685,7 +684,7 @@ void CreateNaniteData(FGeometryCollectionBuiltMeshData&& InMeshData, FGeometryCo
 	}
 }
 
-TUniquePtr<FGeometryCollectionRenderData> FGeometryCollectionRenderData::Create(FGeometryCollection& InCollection, bool bInEnableNanite, bool bInUseFullPrecisionUVs, bool bConvertVertexColorsToSRGB)
+TUniquePtr<FGeometryCollectionRenderData> FGeometryCollectionRenderData::Create(FGeometryCollection& InCollection, bool bInEnableNanite, bool bInEnableNaniteFallback, bool bInUseFullPrecisionUVs, bool bConvertVertexColorsToSRGB)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGeometryCollectionRenderData::Create);
 
@@ -694,17 +693,15 @@ TUniquePtr<FGeometryCollectionRenderData> FGeometryCollectionRenderData::Create(
 	FGeometryCollectionBuiltMeshData MeshBuildData;
 	if (BuildMeshDataFromGeometryCollection(InCollection, MeshBuildData, bConvertVertexColorsToSRGB))
 	{
-	{
+		if (!bInEnableNanite || bInEnableNaniteFallback)
+		{
+			CreateMeshData(InCollection, MeshBuildData, bInUseFullPrecisionUVs, *RenderData.Get());
+		}
+
 		if (bInEnableNanite)
 		{
 			CreateNaniteData(MoveTemp(MeshBuildData), *RenderData.Get());
 		}
-		else
-		{
-			// Could always create mesh data if we want to be able to enable/disable nanite at runtime in cooked build.
-			CreateMeshData(InCollection, MeshBuildData, bInUseFullPrecisionUVs, *RenderData.Get());
-		}
-	}
 	}
 
 	return RenderData;
@@ -736,7 +733,22 @@ void FGeometryCollectionRenderData::Serialize(FArchive& Ar, UGeometryCollection&
 	}
 
 	Ar << bHasMeshData;
-	Ar << bHasNaniteData;
+
+#if WITH_EDITOR
+	bool bStripNaniteDataFromCook = Ar.IsCooking() && !DoesTargetPlatformSupportNanite(Ar.CookingTarget());
+#else
+	bool bStripNaniteDataFromCook = false;
+#endif
+
+	if (bStripNaniteDataFromCook)
+	{
+		bool bDummy = false;
+		Ar << bDummy;
+	}
+	else
+	{
+		Ar << bHasNaniteData;
+	}
 
 	if (bHasMeshData)
 	{
@@ -749,7 +761,7 @@ void FGeometryCollectionRenderData::Serialize(FArchive& Ar, UGeometryCollection&
 		MeshDescription = {};
 	}
 
-	if (bHasNaniteData)
+	if (bHasNaniteData && !bStripNaniteDataFromCook)
 	{
 		InitNaniteResources(NaniteResourcesPtr);
 

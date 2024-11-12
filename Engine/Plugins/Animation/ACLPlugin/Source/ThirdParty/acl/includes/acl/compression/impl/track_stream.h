@@ -31,6 +31,7 @@
 #include "acl/core/time_utils.h"
 #include "acl/core/track_formats.h"
 #include "acl/core/track_types.h"
+#include "acl/core/impl/bit_cast.impl.h"
 #include "acl/core/impl/variable_bit_rates.h"
 #include "acl/math/quat_packing.h"
 #include "acl/math/vector4_packing.h"
@@ -128,7 +129,7 @@ namespace acl
 
 			track_stream(iallocator& allocator, uint32_t num_samples, uint32_t sample_size, float sample_rate, animation_track_type8 type, track_format8 format, uint8_t bit_rate)
 				: m_allocator(&allocator)
-				, m_samples(reinterpret_cast<uint8_t*>(allocator.allocate(sample_size * size_t(num_samples) + k_padding, 16)))
+				, m_samples(bit_cast<uint8_t*>(allocator.allocate(sample_size * size_t(num_samples) + k_padding, 16)))
 				, m_num_samples_allocated(num_samples)
 				, m_num_samples(num_samples)
 				, m_sample_size(sample_size)
@@ -180,7 +181,7 @@ namespace acl
 				if (m_allocator != nullptr)
 				{
 					copy.m_allocator = m_allocator;
-					copy.m_samples = reinterpret_cast<uint8_t*>(m_allocator->allocate(m_sample_size * size_t(m_num_samples) + k_padding, 16));
+					copy.m_samples = bit_cast<uint8_t*>(m_allocator->allocate(m_sample_size * size_t(m_num_samples) + k_padding, 16));
 					copy.m_num_samples_allocated = m_num_samples;
 					copy.m_num_samples = m_num_samples;
 					copy.m_sample_size = m_sample_size;
@@ -250,14 +251,14 @@ namespace acl
 					// isn't very accurate on small inputs, we need to normalize
 					return rtm::quat_normalize(rtm::quat_from_positive_w(rotation));
 				default:
-					ACL_ASSERT(false, "Invalid or unsupported rotation format: %s", get_rotation_format_name(m_format.rotation));
+					ACL_ASSERT(false, "Invalid or unsupported rotation format: " ACL_ASSERT_STRING_FORMAT_SPECIFIER, get_rotation_format_name(m_format.rotation));
 					return rtm::vector_to_quat(rotation);
 				}
 			};
 
 			rtm::quatf RTM_SIMD_CALL get_sample_clamped(uint32_t sample_index) const
 			{
-				return get_sample(std::min(sample_index, m_num_samples - 1));
+				return get_sample((std::min)(sample_index, m_num_samples - 1));
 			}
 		};
 
@@ -297,7 +298,7 @@ namespace acl
 
 			rtm::vector4f RTM_SIMD_CALL get_sample_clamped(uint32_t sample_index) const
 			{
-				return get_sample(std::min(sample_index, m_num_samples - 1));
+				return get_sample((std::min)(sample_index, m_num_samples - 1));
 			}
 		};
 
@@ -337,7 +338,7 @@ namespace acl
 
 			rtm::vector4f RTM_SIMD_CALL get_sample_clamped(uint32_t sample_index) const
 			{
-				return get_sample(std::min(sample_index, m_num_samples - 1));
+				return get_sample((std::min)(sample_index, m_num_samples - 1));
 			}
 		};
 
@@ -405,6 +406,16 @@ namespace acl
 
 		struct transform_streams
 		{
+			transform_streams() = default;
+
+			// Can't copy
+			transform_streams(const transform_streams&) = delete;
+			transform_streams& operator=(const transform_streams&) = delete;
+
+			// Can move
+			transform_streams(transform_streams&&) = default;
+			transform_streams& operator=(transform_streams&&) = default;
+
 			rtm::qvvf default_value					= rtm::qvv_identity();
 
 			// Sample 0 before we normalize over the segment.

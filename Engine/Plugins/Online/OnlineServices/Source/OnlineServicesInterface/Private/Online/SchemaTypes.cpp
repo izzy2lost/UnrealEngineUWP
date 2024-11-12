@@ -398,7 +398,7 @@ void LexFromString(FSchemaVariant& OutSchemaVariant, const TCHAR* InStr)
 	if (const TCHAR* ValueStr = FCString::Strchr(InStr, ':'))
 	{
 		const int32 TypeLen = UE_PTRDIFF_TO_INT32(ValueStr - InStr);
-		const FString TypeStr(TypeLen, InStr);
+		const FString TypeStr = FString::ConstructFromPtrSize(InStr, TypeLen);
 		ValueStr++;
 
 		LexFromString(OutSchemaVariant.VariantType, *TypeStr);

@@ -203,9 +203,6 @@ static void AndroidProcessEvents(struct android_app* state);
 //Event thread stuff
 static void* AndroidEventThreadWorker(void* param);
 
-// How often to process (read & dispatch) events, in seconds.
-static const float EventRefreshRate = 1.0f / 20.0f;
-
 // Name of the UE commandline append setprop
 static constexpr char UECommandLineSetprop[] = "debug.ue.commandline";
 
@@ -526,6 +523,7 @@ static void ApplyAndroidCompatConfigRules()
 //Main function called from the android entry point
 int32 AndroidMain(struct android_app* state);
 
+// The function is used only for ASIS
 void* AndroidMain(void* param)
 {
 	struct android_app* state = (struct android_app*)param;
@@ -537,11 +535,6 @@ void* AndroidMain(void* param)
 		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidMain set current GGameThreadId=%d"), GGameThreadId);
 	}
 
-	if (EventThreadID == 0)
-	{
-		EventThreadID = GGameThreadId;
-		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidMain set current EventThreadID=%d"), EventThreadID);
-	}
 	AndroidMain(state);
 	return nullptr;
 }
@@ -903,17 +896,13 @@ bool IsInAndroidEventThread()
 	// Note: leave the commented out line for debug purposes.
 	//STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("IsInAndroidEventThread(), GGameThreadId=%d, EventThreadID=%d, FPlatformTLS::GetCurrentThreadId()=%d"), GGameThreadId, EventThreadID, FPlatformTLS::GetCurrentThreadId());
 
-#if USE_ANDROID_STANDALONE
-	//@TODO: for now always return true to avoid check failures
-	return true;
-#else
 	check(EventThreadID != 0);
 	return EventThreadID == FPlatformTLS::GetCurrentThreadId();
-#endif
 }
 
 static void* AndroidEventThreadWorker( void* param )
 {
+	FTaskTagScope::SwapTag(ETaskTag::EEventThread);
 	pthread_setname_np(pthread_self(), "EventWorker");
 	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEventThreadWorker(begin), GGameThreadId=%d, EventThreadID=%d, FPlatformTLS::GetCurrentThreadId()=%d"), GGameThreadId, EventThreadID, FPlatformTLS::GetCurrentThreadId());
 
@@ -953,11 +942,7 @@ static void* AndroidEventThreadWorker( void* param )
 	//continue to process events until the engine is shutting down
 	while (!IsEngineExitRequested())
 	{
-		//		FPlatformMisc::LowLevelOutputDebugString(TEXT("AndroidEventThreadWorker"));
-
 		AndroidProcessEvents(state);
-
-		sleep(EventRefreshRate);		// this is really 0 since it takes int seconds.
 	}
 	DEVELOPER_LOG_COMMANDCB_CASE(AndroidEventThreadWorker_AfterWhile);
 
@@ -970,20 +955,14 @@ static void* AndroidEventThreadWorker( void* param )
 }
 
 //Called from the separate event processing thread
-static void AndroidProcessEvents(struct android_app* state)
+static void AndroidProcessEvents(struct android_app* State)
 {
-	int ident;
-	int fdesc;
-	int events;
-	struct android_poll_source* source;
+	struct android_poll_source* Source = nullptr;
+	int32 Result = ALooper_pollOnce(-1, nullptr, nullptr, (void**)&Source);
 
-	while ((ident = ALooper_pollAll(-1, &fdesc, &events, (void**)&source)) >= 0)
+	if (Result != ALOOPER_POLL_ERROR && Source != nullptr)
 	{
-		// process this event
-		if (source)
-		{
-			source->process(state, source);
-		}
+		Source->process(State, Source);
 	}
 }
 
@@ -1458,12 +1437,7 @@ static void ActivateApp_EventThread()
 	DEVELOPER_LOG_COMMANDCB_CASE(ActivateApp_EventThread);
 	if (bAppIsActive_EventThread)
 	{
-		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("UNEXPECTED -- event thread, activate app, ALREADY have HW window lock according to bAppIsActive_EventThread. bReadyToProcessEvents=%d, bAppIsActive_EventThread=%d"), bReadyToProcessEvents, bAppIsActive_EventThread);
-
-#if !USE_ANDROID_STANDALONE // SUSPECT TODO should remove the #if?
-		// Seems this can occur.
 		return;
-#endif
 	}
 
 	// Unlock window when we're ready.
@@ -1545,6 +1519,11 @@ static void SuspendApp_EventThread()
 		EMDoneTrigger->Trigger();
 	}));
 
+#if USE_ANDROID_ALTERNATIVE_SUSPEND
+		// Suspend the GT.
+		FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_APP_SUSPENDED);
+#endif
+
 	uint32 StartCycles = FPlatformTime::Cycles();
 
 	FEmbeddedCommunication::WakeGameThread();
@@ -1555,12 +1534,8 @@ static void SuspendApp_EventThread()
 
 	// wait for a period of time before blocking rendering
 	UE_LOG(LogAndroid, Log, TEXT("SuspendApp_EventThread -> , waiting for event manager to process. tid: %d"), FPlatformTLS::GetCurrentThreadId());
-#if USE_ANDROID_STANDALONE
-	//EMDoneTrigger->Reset();
-	bool bSuccess = EMDoneTrigger->Wait(240);
-#else
+
 	bool bSuccess = EMDoneTrigger->Wait(4000);
-#endif
 
 	float ElapsedTimeInMs_EMDoneTrigger_Wait = FPlatformTime::ToMilliseconds(FPlatformTime::Cycles() - StartCycles);
 	UE_CLOG(!bSuccess, LogAndroid, Log, TEXT("SuspendApp_EventThread -> ERROR: backgrounding callback, not responded in timely manner. EMDoneTrigger->Wait, waited '%f' ms"), (float)ElapsedTimeInMs_EMDoneTrigger_Wait);
@@ -1569,7 +1544,10 @@ static void SuspendApp_EventThread()
 	BlockRendering();
 
 	// Suspend the GT.
+#if !USE_ANDROID_ALTERNATIVE_SUSPEND
 	FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_APP_SUSPENDED);
+#endif
+
 	UE_LOG(LogAndroid, Log, TEXT("SuspendApp_EventThread(EOF)"));
 }
 
@@ -2162,6 +2140,13 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeMain(JNI
 	FString projectModuleName = FJavaHelper::FStringFromParam(jenv, projectModule);
 
 	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeMain : use current!, requesting ProjectModule: %s"), *projectModuleName);
+
+	if (EventThreadID == 0)
+	{
+		FTaskTagScope::SwapTag(ETaskTag::EEventThread);
+		EventThreadID = FPlatformTLS::GetCurrentThreadId();
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidMain set current EventThreadID=%d"), EventThreadID);
+	}
 
 	// register some delegates we want to pass back
 	FCoreDelegates::OnInit.AddStatic(InitEvent);

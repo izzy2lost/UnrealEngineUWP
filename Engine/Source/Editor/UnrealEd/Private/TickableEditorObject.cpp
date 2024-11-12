@@ -3,30 +3,18 @@
 #include "TickableEditorObject.h"
 #include "Tickable.h"
 
-TArray<FTickableObjectBase::FTickableObjectEntry>& FTickableEditorObject::GetTickableObjects()
+FTickableObjectBase::FTickableStatics& FTickableEditorObject::GetStatics()
 {
-	static TTickableObjectsCollection TickableObjects;
-	return TickableObjects;
+	static FTickableStatics Singleton;
+	return Singleton;
 }
 
-TArray<FTickableEditorObject*>& FTickableEditorObject::GetPendingTickableObjects()
+FTickableObjectBase::FTickableStatics& FTickableCookObject::GetStatics()
 {
-	static TArray<FTickableEditorObject*> PendingTickableObjects;
-	return PendingTickableObjects;
+	static FTickableStatics Singleton;
+	return Singleton;
 }
 
-TArray<FTickableObjectBase::FTickableObjectEntry>& FTickableCookObject::GetTickableObjects()
-{
-	static TTickableObjectsCollection TickableObjects;
-	return TickableObjects;
-}
+FTickableObjectBase* FTickableEditorObject::ObjectBeingTicked = nullptr;
+FTickableObjectBase* FTickableCookObject::ObjectBeingTicked = nullptr;
 
-TArray<FTickableCookObject*>& FTickableCookObject::GetPendingTickableObjects()
-{
-	static TArray<FTickableCookObject*> PendingTickableObjects;
-	return PendingTickableObjects;
-}
-
-bool FTickableCookObject::bCollectionIntact = true;
-bool FTickableCookObject::bIsTickingObjects = false;
-FTickableCookObject* FTickableCookObject::ObjectBeingTicked = nullptr;

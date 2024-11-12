@@ -70,8 +70,12 @@ struct TViewModelConversions
 		return TSharedPtr<ViewModelType>(*this);
 	}
 	operator TWeakPtr<T>() const
-{
+	{
 		return TSharedPtr<T>(*this);
+	}
+	TWeakViewModelPtr<T> AsWeak() const
+	{
+		return *static_cast<const TViewModelPtr<T>*>(this);
 	}
 };
 template<>
@@ -79,12 +83,16 @@ struct TViewModelConversions<FViewModel>
 {
 	SEQUENCERCORE_API operator TSharedPtr<FViewModel>() const;
 	SEQUENCERCORE_API operator TWeakPtr<FViewModel>() const;
+
+	SEQUENCERCORE_API TWeakViewModelPtr<FViewModel> AsWeak() const;
 };
 template<>
 struct TViewModelConversions<const FViewModel>
 {
 	SEQUENCERCORE_API operator TSharedPtr<const FViewModel>() const;
 	SEQUENCERCORE_API operator TWeakPtr<const FViewModel>() const;
+
+	SEQUENCERCORE_API TWeakViewModelPtr<const FViewModel> AsWeak() const;
 };
 
 /**
@@ -105,6 +113,11 @@ struct TViewModelPtr : TViewModelConversions<T>
 	TViewModelPtr& operator=(const TViewModelPtr&) = default;
 	TViewModelPtr(TViewModelPtr&&) = default;
 	TViewModelPtr& operator=(TViewModelPtr&&) = default;
+
+	explicit TViewModelPtr(T* InViewModelType)
+	{
+		Storage.Set(InViewModelType->AsShared(), InViewModelType);
+	}
 
 	TViewModelPtr(TSharedPtr<ViewModelType> InModel, T* InExtension)
 	{

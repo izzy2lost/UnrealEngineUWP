@@ -41,6 +41,8 @@ public:
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
+	static FString GetPipelineCategory(UClass* AssetClass);
+
 	//Common SkeletalMeshes And Animations Properties Settings Pointer
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties> CommonSkeletalMeshesAndAnimationsProperties;
@@ -118,8 +120,16 @@ public:
 	UPROPERTY()
 	FString SourceAnimationName;
 
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
+
+#if WITH_EDITOR
 	
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override;
+	
+	virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const override;
+
+#endif //WITH_EDITOR
+
 protected:
 
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;

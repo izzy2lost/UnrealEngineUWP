@@ -32,7 +32,7 @@ public:
 
 #if WITH_EDITOR
 	virtual FText GetDisplayName() const override;
-	virtual ETrackSupport IsTrackSupported(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
+	virtual ETrackSupport IsTrackSupportedImpl(TSubclassOf<class UMovieSceneTrack> InTrackClass) const override;
 #endif
 
 #if WITH_EDITORONLY_DATA

@@ -79,6 +79,7 @@ protected:
 	const UScriptStruct* GetFactoryStruct() const;
 	virtual void InvalidateCache() override;
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const override;
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const override;
 	FString GetFactoryDefaultValue() const;
 
 private:

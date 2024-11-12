@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 2, Tag = "Scoped")]
+	[IssueHandler(Tag = "Scoped")]
 	public class ScopedIssueHandler : IssueHandler
 	{
 		const string NodeName = "Node";
@@ -21,6 +21,8 @@ namespace EpicGames.Horde.Issues.Handlers
 		readonly IssueHandlerContext _context;
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
+		/// <inheritdoc/>
+		public override int Priority => 2;
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -62,7 +64,7 @@ namespace EpicGames.Horde.Issues.Handlers
 
 			string fingerprintType = $"Scoped:{scope}";
 
-			string hashSource = logEvent.Message;
+			string hashSource = logEvent.Render();
 
 			if (TryGetHash(hashSource, out Md5Hash hash))
 			{

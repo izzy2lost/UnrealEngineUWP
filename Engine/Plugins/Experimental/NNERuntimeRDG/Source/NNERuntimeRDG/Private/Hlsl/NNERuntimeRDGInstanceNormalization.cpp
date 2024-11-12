@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGInstanceNormalization.h"
+
 #include "NNEHlslShadersInstanceNormalizationCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNEHlslShadersReduceCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -14,23 +16,23 @@ int ValidateInput(const UE::NNE::FTensorShape& Input, const UE::NNE::FTensorShap
 {
 	if (Scale.Rank() != 1)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization input scale should be of rank 1: %d"), Scale.Rank());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("InstanceNormalization: Input scale should be of rank 1: %d"), Scale.Rank());
 		return -1;
 	}
 	if (Scale.GetData()[0] != Input.GetData()[1])
 	{
-		UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization input scale size should be equal to channel count: %d vs %d"), Scale.GetData()[0], Input.GetData()[1]);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("InstanceNormalization: Input scale size should be equal to channel count: %d vs %d"), Scale.GetData()[0], Input.GetData()[1]);
 		return -1;
 	}
 
 	if (Bias.Rank() != 1)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization input B should be of rank 1: %d"), Bias.Rank());
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("InstanceNormalization: Input B should be of rank 1: %d"), Bias.Rank());
 		return -1;
 	}
 	if (Bias.GetData()[0] != Input.GetData()[1])
 	{
-		UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization intput B size should be equal to channel count: : %d vs %d"), Bias.GetData()[0], Input.GetData()[1]);
+		UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("InstanceNormalization: Input B size should be equal to channel count: : %d vs %d"), Bias.GetData()[0], Input.GetData()[1]);
 		return -1;
 	}
 
@@ -88,13 +90,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputRank < 3)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization input data should be at least of rank 3 but got: %d"), InputRank);
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("InstanceNormalization input data should be at least of rank 3 but got: %d"), InputRank);
 				return false;
 			}
 
 			if (InputRank != OutputTensorDescs[0].GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("InstanceNormalization requires the output to have the same rank as the input."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("InstanceNormalization requires the output to have the same rank as the input."));
 				return false;
 			}
 
@@ -120,7 +122,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			constexpr int32 ReductionAxis = 2;
 			check(InputShape.Rank() >= ReductionAxis);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.InstanceNormalization");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorInstanceNormalization, "NNE.Operator.Hlsl.InstanceNormalization");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorInstanceNormalization);
 
 			// First apply Reduction() to temp buffers getting Mean and InvStdDev

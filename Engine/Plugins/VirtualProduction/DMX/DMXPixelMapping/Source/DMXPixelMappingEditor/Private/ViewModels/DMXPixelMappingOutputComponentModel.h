@@ -14,15 +14,11 @@ class UDMXEntityFixturePatch;
 class UDMXMVRFixtureNode;
 class UDMXPixelMappingBaseComponent;
 class UDMXPixelMappingOutputComponent;
-class UDMXPixelMappingScreenComponent;
 
 
 namespace UE::DMX
 {
-	/**
-	 * Model for the Pixel Mapping Output Components.
-	 * For Screen Component, see DMXPixelMappingScreenComponentModel.
-	 */
+	/** Model for the Pixel Mapping Output Components. For Screen Component, see DMXPixelMappingScreenComponentModel. */
 	class FDMXPixelMappingOutputComponentModel
 		: public FGCObject
 		, public TSharedFromThis<FDMXPixelMappingOutputComponentModel>
@@ -106,68 +102,6 @@ namespace UE::DMX
 
 		/** The actual output component */
 		TObjectPtr<UDMXPixelMappingOutputComponent> OutputComponent;
-
-		/** The toolkit from which the Model currently sources */
-		TWeakPtr<FDMXPixelMappingToolkit> WeakToolkit;
-	};
-
-
-	/** Model for Pixel Mapping Screen Components */
-	class FDMXPixelMappingScreenComponentModel
-		: public TSharedFromThis<FDMXPixelMappingScreenComponentModel>
-	{
-	public:
-		/** Constructor */
-		FDMXPixelMappingScreenComponentModel(const TSharedRef<FDMXPixelMappingToolkit>& InToolkit, TWeakObjectPtr<UDMXPixelMappingScreenComponent> InScreenComponent);
-
-		/** Destructor */
-		virtual ~FDMXPixelMappingScreenComponentModel();
-
-		/** Returns the position of the component */
-		FVector2D GetPosition() const;
-
-		/** Returns the size of the component */
-		FVector2D GetSize() const;
-
-		/** Returns the number of Columns of the Screen Component */
-		int32 GetNumColumns() const;
-
-		/** Returns the number of Rows of the Screen Component */
-		int32 GetNumRows() const;
-
-		/** Returns the pixel mapping distribution of the cells */
-		EDMXPixelMappingDistribution GetDistribution() const;
-
-		/** Returns the color format of the cells */
-		EDMXCellFormat GetCellFormat() const;
-
-		/** Returns true if the components wants to show the universe (it has a related property) */
-		bool ComponentWantsToShowUniverse() const;
-
-		/** Returns the universe of the screen component */
-		int32 GetUniverse() const;
-
-		/** Returns true if the components wants to show the channel (it has a related property) */
-		bool ComponentWantsToShowChannel() const;
-
-		/** Returns the starting address of the screen component */
-		int32 GetStartingChannel() const;
-
-		/** Returns the color of the widget */
-		FLinearColor GetColor() const;
-
-		/** Returns true if this Model handles the Other component */
-		bool Equals(UDMXPixelMappingBaseComponent* Other) const;
-
-	private:
-		/** Called when selected Components changed */
-		void OnSelectedComponentsChanged();
-
-		/** True if the component is selected */
-		bool bSelected = false;
-
-		/** The output component */
-		TWeakObjectPtr<UDMXPixelMappingScreenComponent> WeakScreenComponent;
 
 		/** The toolkit from which the Model currently sources */
 		TWeakPtr<FDMXPixelMappingToolkit> WeakToolkit;

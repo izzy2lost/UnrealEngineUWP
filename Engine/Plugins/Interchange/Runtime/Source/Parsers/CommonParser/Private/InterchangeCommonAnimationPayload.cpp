@@ -4,10 +4,37 @@
 
 #include "CoreMinimal.h"
 
+#include "InterchangeHelper.h"
+
+#include "Dom/JsonValue.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonWriter.h"
+#include "Serialization/JsonSerializer.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeCommonAnimationPayload)
 
 namespace UE::Interchange
 {
+	FString Private::HashString(const FString& String)
+	{
+		TArray<uint8> TempBytes;
+		TempBytes.Reserve(64);
+		//The archive is flagged as persistent so that machines of different endianness produce identical binary results.
+		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);
+		//Hack because serialization do not support const
+		FString& NonConst = *const_cast<FString*>(&String);
+		Ar << NonConst;
+		FSHA1 Sha;
+		Sha.Update(TempBytes.GetData(), TempBytes.Num() * TempBytes.GetTypeSize());
+		Sha.Final();
+		// Retrieve the hash and use it to construct a pseudo-GUID.
+		uint32 Hash[5];
+		Sha.GetHash((uint8*)Hash);
+		FGuid Guid = FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
+		return Guid.ToString(EGuidFormats::Base36Encoded);
+	}
+
 	void FAnimationPayloadData::SerializeBaked(FArchive& Ar)
 	{
 		Ar << BakeFrequency;
@@ -19,7 +46,7 @@ namespace UE::Interchange
 	void FAnimationPayloadData::CalculateDataFor(const EInterchangeAnimationPayLoadType& ToType, const FTransform& DefaultTransform)
 	{
 #if WITH_ENGINE
-		if (Type == EInterchangeAnimationPayLoadType::CURVE
+		if (PayloadKey.Type == EInterchangeAnimationPayLoadType::CURVE
 			&& ToType == EInterchangeAnimationPayLoadType::STEPCURVE)
 		{
 
@@ -41,7 +68,7 @@ namespace UE::Interchange
 			}
 			AdditionalSupportedType = ToType;
 		}
-		else if (Type == EInterchangeAnimationPayLoadType::CURVE
+		else if (PayloadKey.Type == EInterchangeAnimationPayLoadType::CURVE
 				 && ToType == EInterchangeAnimationPayLoadType::BAKED)
 		{
 			if (Curves.Num() != 9)
@@ -64,13 +91,12 @@ namespace UE::Interchange
 			}
 			if (RangeEndTime < 0)
 			{
-				return;
+				RangeEndTime = 0;
 			}
 
 			const double BakeInterval = 1.0 / BakeFrequency;
 			const double SequenceLength = FMath::Max<double>(RangeEndTime - RangeStartTime, BakeInterval);
 			int32 BakeKeyCount = FMath::RoundToInt32(SequenceLength * BakeFrequency) + 1;
-			const FFrameRate ResampleFrameRate(BakeFrequency, 1);
 
 			auto EvaluateCurve = [this](const int32& CurveIndex, double CurrentTime, float DefaultValue)
 			{
@@ -114,6 +140,108 @@ namespace UE::Interchange
 			AdditionalSupportedType = ToType;
 		}
 #endif
+	}
+
+	FString FAnimationPayloadQuery::GetHashString() const
+	{
+		if (!HashStringCache.IsSet())
+		{
+			FString ResultPayloadUniqueId = PayloadKey.UniqueId + FString::FromInt(TimeDescription.GetHash());
+			HashStringCache = Private::HashString(ResultPayloadUniqueId);
+		}
+
+		return HashStringCache.GetValue();
+	}
+
+	FString FAnimationPayloadQuery::ToJson() const
+	{
+		TSharedPtr<FJsonObject> QueryObject = MakeShared<FJsonObject>();
+
+		QueryObject->SetStringField(TEXT("SceneNodeUniqueID"), SceneNodeUniqueID);
+		
+		QueryObject->SetStringField(TEXT("PayloadKey.UniqueID"), PayloadKey.UniqueId);
+		QueryObject->SetNumberField(TEXT("PayloadKey.Type"), (uint8)PayloadKey.Type);
+
+		QueryObject->SetNumberField(TEXT("TimeDescription.BakeFrequency"), TimeDescription.BakeFrequency);
+		QueryObject->SetNumberField(TEXT("TimeDescription.RangeStartSecond"), TimeDescription.RangeStartSecond);
+		QueryObject->SetNumberField(TEXT("TimeDescription.RangeStopSecond"), TimeDescription.RangeStopSecond);
+		
+		FString JsonString;
+		TSharedRef<TJsonWriter<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>> JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&JsonString);
+		if (!FJsonSerializer::Serialize(QueryObject.ToSharedRef(), JsonWriter))
+		{
+			// Error creating the json string 
+			return FString();
+		}
+
+		return JsonString;
+	}
+
+	void FAnimationPayloadQuery::FromJson(const FString& JsonString)
+	{
+		TSharedRef<TJsonReader<TCHAR>> Reader = FJsonStringReader::Create(JsonString);
+
+		TSharedPtr<FJsonObject> QueryObject;
+		if (!FJsonSerializer::Deserialize(Reader, QueryObject) || !QueryObject.IsValid())
+		{
+			// Cannot read the json file
+			return;
+		}
+
+		QueryObject->TryGetStringField(TEXT("SceneNodeUniqueID"), SceneNodeUniqueID);
+
+		QueryObject->TryGetStringField(TEXT("PayloadKey.UniqueId"), PayloadKey.UniqueId);
+		uint8 Type;
+		if (QueryObject->TryGetNumberField(TEXT("PayloadKey.Type"), Type))
+		{
+			PayloadKey.Type = EInterchangeAnimationPayLoadType(Type);
+		}
+
+		QueryObject->TryGetNumberField(TEXT("TimeDescription.BakeFrequency"), TimeDescription.BakeFrequency);
+		QueryObject->TryGetNumberField(TEXT("TimeDescription.RangeStartSecond"), TimeDescription.RangeStartSecond);
+		QueryObject->TryGetNumberField(TEXT("TimeDescription.RangeStopSecond"), TimeDescription.RangeStopSecond);
+	}
+
+	FString FAnimationPayloadQuery::ToJson(const TArray<FAnimationPayloadQuery>& Queries)
+	{
+		TArray<TSharedPtr<FJsonValue>> QueriesJsonArray;
+		for (const FAnimationPayloadQuery& Query : Queries)
+		{
+			
+			QueriesJsonArray.Add(MakeShared<FJsonValueString>(Query.ToJson()));
+		}
+
+		FString JsonString;
+		TSharedRef<TJsonWriter<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>> JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&JsonString);
+		if (!FJsonSerializer::Serialize(QueriesJsonArray, JsonWriter))
+		{
+			// Error creating the json string 
+			return FString();
+		}
+		return JsonString;
+	}
+
+	void FAnimationPayloadQuery::FromJson(const FString& JsonString, TArray<FAnimationPayloadQuery>& Queries)
+	{
+		TSharedRef<TJsonReader<TCHAR>> Reader = FJsonStringReader::Create(JsonString);
+
+		TArray<TSharedPtr<FJsonValue>> JsonValueArray;
+		if (!FJsonSerializer::Deserialize(Reader, JsonValueArray))
+		{
+			// Cannot read the json file
+			return;
+		}
+
+		Queries.Reserve(JsonValueArray.Num());
+
+		for (size_t QueryIndex = 0; QueryIndex < JsonValueArray.Num(); QueryIndex++)
+		{
+			FString QueryJsonString = JsonValueArray[QueryIndex]->AsString();
+
+			FAnimationPayloadQuery Query;
+			Query.FromJson(QueryJsonString);
+			Queries.Add(Query);
+		}
 	}
 }
 

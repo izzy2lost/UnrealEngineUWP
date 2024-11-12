@@ -49,9 +49,55 @@ public:
 		return GetSettings()->PhysicsPrediction.bEnablePhysicsPrediction;
 	}
 
+	UE_DEPRECATED(5.5, "GetResimulationErrorThreshold has been renamed, please use GetResimulationErrorPositionThreshold.")
 	virtual float GetResimulationErrorThreshold() const override
 	{
-		return GetSettings()->PhysicsPrediction.ResimulationErrorThreshold;
+		return GetResimulationErrorPositionThreshold();
+	}
+
+	virtual bool GetResimulationErrorPositionThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorPositionThreshold;
+	}
+
+	virtual float GetResimulationErrorPositionThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorPositionThreshold;
+	}
+
+	virtual bool GetResimulationErrorRotationThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorRotationThreshold;
+	}
+
+	virtual float GetResimulationErrorRotationThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorRotationThreshold;
+	}
+
+	virtual bool GetResimulationErrorLinearVelocityThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorLinearVelocityThreshold;
+	}
+
+	virtual float GetResimulationErrorLinearVelocityThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorLinearVelocityThreshold;
+	}
+
+	virtual bool GetResimulationErrorAngularVelocityThresholdEnabled() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.bEnableResimulationErrorAngularVelocityThreshold;
+	}
+
+	virtual float GetResimulationErrorAngularVelocityThreshold() const
+	{
+		return GetSettings()->PhysicsPrediction.ResimulationSettings.ResimulationErrorAngularVelocityThreshold;
+	}
+
+	virtual float GetPhysicsHistoryTimeLength() const
+	{
+		return GetSettings()->PhysicsPrediction.MaxSupportedLatencyPrediction;
 	}
 
 	virtual int32 GetPhysicsHistoryCount() const override
@@ -146,8 +192,24 @@ void UWorld::SetupPhysicsTickFunctions(float DeltaSeconds)
 	FVector DefaultGravity( 0.f, 0.f, GetGravityZ() );
 
 	static const auto CVar_MaxPhysicsDeltaTime = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("p.MaxPhysicsDeltaTime"));
-	PhysScene->SetUpForFrame(&DefaultGravity, DeltaSeconds, UPhysicsSettings::Get()->MinPhysicsDeltaTime, UPhysicsSettings::Get()->MaxPhysicsDeltaTime,
-		UPhysicsSettings::Get()->MaxSubstepDeltaTime, UPhysicsSettings::Get()->MaxSubsteps, UPhysicsSettings::Get()->bSubstepping);
+
+	UPhysicsSettings* Settings = UPhysicsSettings::Get();
+
+	float MinPhysicsDeltaTime = Settings->MinPhysicsDeltaTime;
+	float MaxPhysicsDeltaTime = Settings->MaxPhysicsDeltaTime;
+	float MaxSubstepDeltaTime = Settings->MaxSubstepDeltaTime;
+
+	/* When using physics prediction, allow max delta time at least equal to max supported latency for physics prediction
+	* NOTE: These values clamp how much game thread delta time that can accumulate towards ticking the fixed physics steps, 
+	* if we clamp this accumulation too much we hinder time dilation from correcting desyncs and we also make the client (and server) more prone to desyncing physics due to dropping physics steps. */
+	if (Settings->PhysicsPrediction.bEnablePhysicsPrediction && Settings->bTickPhysicsAsync)
+	{
+		MinPhysicsDeltaTime = 0.0f;
+		MaxPhysicsDeltaTime = MaxPhysicsDeltaTime <= UE_SMALL_NUMBER ? 0.0f : FMath::Max((Settings->PhysicsPrediction.MaxSupportedLatencyPrediction / 1000.0f), MaxPhysicsDeltaTime);
+		MaxSubstepDeltaTime = MaxSubstepDeltaTime <= UE_SMALL_NUMBER ? 0.0f : FMath::Max((Settings->PhysicsPrediction.MaxSupportedLatencyPrediction / 1000.0f) / Settings->MaxSubsteps, MaxSubstepDeltaTime);
+	}
+
+	PhysScene->SetUpForFrame(&DefaultGravity, DeltaSeconds, MinPhysicsDeltaTime, MaxPhysicsDeltaTime, MaxSubstepDeltaTime, Settings->MaxSubsteps, Settings->bSubstepping);
 }
 
 void UWorld::StartPhysicsSim()

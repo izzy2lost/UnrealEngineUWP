@@ -395,7 +395,7 @@ void USCS_Node::RenameComponentTemplate(UActorComponent* ComponentTemplate, cons
 
 		// Rename the component template (archetype) - note that this can be called during compile-on-load, so we include the flag not to reset the BPGC's package loader.
 		const FString NewComponentName = NewName.ToString();
-		ComponentTemplate->Rename(*(NewComponentName + USimpleConstructionScript::ComponentTemplateNameSuffix), nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		ComponentTemplate->Rename(*(NewComponentName + USimpleConstructionScript::ComponentTemplateNameSuffix), nullptr, REN_DontCreateRedirectors);
 
 		// Rename all component instances to match the updated variable name
 		for (UObject* ArchetypeInstance : ArchetypeInstances)
@@ -413,7 +413,7 @@ void USCS_Node::RenameComponentTemplate(UActorComponent* ComponentTemplate, cons
 					Actor->CheckComponentInstanceName(NewName);
 				}
 
-				ArchetypeInstance->Rename(*NewComponentName, nullptr, REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+				ArchetypeInstance->Rename(*NewComponentName, nullptr, REN_DontCreateRedirectors);
 			}
 		}
 	}

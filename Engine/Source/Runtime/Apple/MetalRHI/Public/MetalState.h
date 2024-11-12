@@ -6,11 +6,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "MetalRHIPrivate.h"
 #include "RHI.h"
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
+#include "RHIResources.h"
 
 class FMetalSamplerState : public FRHISamplerState
 {
@@ -19,7 +17,7 @@ public:
 	/** 
 	 * Constructor/destructor
 	 */
-	FMetalSamplerState(class FMetalDeviceContext* Context, const FSamplerStateInitializerRHI& Initializer);
+	FMetalSamplerState(class FMetalDevice& Device, const FSamplerStateInitializerRHI& Initializer);
 	~FMetalSamplerState();
 
 	MTL::SamplerState* State;
@@ -32,6 +30,8 @@ public:
     // TODO: Do we need to support NoAnisoState too? (or is it some leftover we don't care about anymore?)
     virtual FRHIDescriptorHandle GetBindlessHandle() const override final { return BindlessHandle; }
 #endif
+	
+	FMetalDevice& Device;
 };
 
 class FMetalRasterizerState : public FRHIRasterizerState
@@ -93,4 +93,25 @@ private:
 	static TMap<uint32, uint8> BlendSettingsToUniqueKeyMap;
 	static uint8 NextKey;
 	static FCriticalSection Mutex;
+};
+
+template<>
+struct TMetalResourceTraits<FRHISamplerState>
+{
+    typedef FMetalSamplerState TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIRasterizerState>
+{
+    typedef FMetalRasterizerState TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIDepthStencilState>
+{
+    typedef FMetalDepthStencilState TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIBlendState>
+{
+    typedef FMetalBlendState TConcreteType;
 };

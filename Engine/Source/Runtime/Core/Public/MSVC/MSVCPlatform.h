@@ -23,3 +23,12 @@
 #if __has_cpp_attribute(msvc::intrinsic)
 #define UE_INTRINSIC_CAST [[msvc::intrinsic]]
 #endif
+
+// Ensure we can use this builtin - seems to be present on Clang 9, GCC 11 and MSVC 19.26
+#define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST (_MSC_VER >= 1926)
+
+#ifdef __has_cpp_attribute
+	#if __has_cpp_attribute(msvc::lifetimebound)
+		#define UE_LIFETIMEBOUND [[msvc::lifetimebound]]
+	#endif
+#endif

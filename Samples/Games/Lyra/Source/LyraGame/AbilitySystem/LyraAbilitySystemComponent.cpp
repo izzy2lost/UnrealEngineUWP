@@ -51,28 +51,19 @@ void ULyraAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AAc
 		// Notify all abilities that a new pawn avatar has been set
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			ULyraGameplayAbility* LyraAbilityCDO = Cast<ULyraGameplayAbility>(AbilitySpec.Ability);
-			if (!LyraAbilityCDO)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			ensureMsgf(AbilitySpec.Ability && AbilitySpec.Ability->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced, TEXT("InitAbilityActorInfo: All Abilities should be Instanced (NonInstanced is being deprecated due to usability issues)."));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+			TArray<UGameplayAbility*> Instances = AbilitySpec.GetAbilityInstances();
+			for (UGameplayAbility* AbilityInstance : Instances)
 			{
-				continue;
-			}
-
-			if (LyraAbilityCDO->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced)
-			{
-				TArray<UGameplayAbility*> Instances = AbilitySpec.GetAbilityInstances();
-				for (UGameplayAbility* AbilityInstance : Instances)
+				ULyraGameplayAbility* LyraAbilityInstance = Cast<ULyraGameplayAbility>(AbilityInstance);
+				if (LyraAbilityInstance)
 				{
-					ULyraGameplayAbility* LyraAbilityInstance = Cast<ULyraGameplayAbility>(AbilityInstance);
-					if (LyraAbilityInstance)
-					{
-						// Ability instances may be missing for replays
-						LyraAbilityInstance->OnPawnAvatarSet();
-					}
+					// Ability instances may be missing for replays
+					LyraAbilityInstance->OnPawnAvatarSet();
 				}
-			}
-			else
-			{
-				LyraAbilityCDO->OnPawnAvatarSet();
 			}
 		}
 
@@ -120,35 +111,26 @@ void ULyraAbilitySystemComponent::CancelAbilitiesByFunc(TShouldCancelAbilityFunc
 			continue;
 		}
 
-		if (LyraAbilityCDO->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ensureMsgf(AbilitySpec.Ability->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced, TEXT("CancelAbilitiesByFunc: All Abilities should be Instanced (NonInstanced is being deprecated due to usability issues)."));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+		// Cancel all the spawned instances.
+		TArray<UGameplayAbility*> Instances = AbilitySpec.GetAbilityInstances();
+		for (UGameplayAbility* AbilityInstance : Instances)
 		{
-			// Cancel all the spawned instances, not the CDO.
-			TArray<UGameplayAbility*> Instances = AbilitySpec.GetAbilityInstances();
-			for (UGameplayAbility* AbilityInstance : Instances)
-			{
-				ULyraGameplayAbility* LyraAbilityInstance = CastChecked<ULyraGameplayAbility>(AbilityInstance);
+			ULyraGameplayAbility* LyraAbilityInstance = CastChecked<ULyraGameplayAbility>(AbilityInstance);
 
-				if (ShouldCancelFunc(LyraAbilityInstance, AbilitySpec.Handle))
-				{
-					if (LyraAbilityInstance->CanBeCanceled())
-					{
-						LyraAbilityInstance->CancelAbility(AbilitySpec.Handle, AbilityActorInfo.Get(), LyraAbilityInstance->GetCurrentActivationInfo(), bReplicateCancelAbility);
-					}
-					else
-					{
-						UE_LOG(LogLyraAbilitySystem, Error, TEXT("CancelAbilitiesByFunc: Can't cancel ability [%s] because CanBeCanceled is false."), *LyraAbilityInstance->GetName());
-					}
-				}
-			}
-		}
-		else
-		{
-			// Cancel the non-instanced ability CDO.
-			if (ShouldCancelFunc(LyraAbilityCDO, AbilitySpec.Handle))
+			if (ShouldCancelFunc(LyraAbilityInstance, AbilitySpec.Handle))
 			{
-				// Non-instanced abilities can always be canceled.
-				check(LyraAbilityCDO->CanBeCanceled());
-				LyraAbilityCDO->CancelAbility(AbilitySpec.Handle, AbilityActorInfo.Get(), FGameplayAbilityActivationInfo(), bReplicateCancelAbility);
+				if (LyraAbilityInstance->CanBeCanceled())
+				{
+					LyraAbilityInstance->CancelAbility(AbilitySpec.Handle, AbilityActorInfo.Get(), LyraAbilityInstance->GetCurrentActivationInfo(), bReplicateCancelAbility);
+				}
+				else
+				{
+					UE_LOG(LogLyraAbilitySystem, Error, TEXT("CancelAbilitiesByFunc: Can't cancel ability [%s] because CanBeCanceled is false."), *LyraAbilityInstance->GetName());
+				}
 			}
 		}
 	}
@@ -173,8 +155,13 @@ void ULyraAbilitySystemComponent::AbilitySpecInputPressed(FGameplayAbilitySpec& 
 	// Use replicated events instead so that the WaitInputPress ability task works.
 	if (Spec.IsActive())
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const UGameplayAbility* Instance = Spec.GetPrimaryInstance();
+		FPredictionKey OriginalPredictionKey = Instance ? Instance->GetCurrentActivationInfo().GetActivationPredictionKey() : Spec.ActivationInfo.GetActivationPredictionKey();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		// Invoke the InputPressed event. This is not replicated here. If someone is listening, they may replicate the InputPressed event to the server.
-		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, Spec.ActivationInfo.GetActivationPredictionKey());
+		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, OriginalPredictionKey);
 	}
 }
 
@@ -186,8 +173,13 @@ void ULyraAbilitySystemComponent::AbilitySpecInputReleased(FGameplayAbilitySpec&
 	// Use replicated events instead so that the WaitInputRelease ability task works.
 	if (Spec.IsActive())
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const UGameplayAbility* Instance = Spec.GetPrimaryInstance();
+		FPredictionKey OriginalPredictionKey = Instance ? Instance->GetCurrentActivationInfo().GetActivationPredictionKey() : Spec.ActivationInfo.GetActivationPredictionKey();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		// Invoke the InputReleased event. This is not replicated here. If someone is listening, they may replicate the InputReleased event to the server.
-		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, Spec.ActivationInfo.GetActivationPredictionKey());
+		InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, OriginalPredictionKey);
 	}
 }
 
@@ -197,7 +189,7 @@ void ULyraAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Inp
 	{
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			if (AbilitySpec.Ability && (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag)))
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
 			{
 				InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
 				InputHeldSpecHandles.AddUnique(AbilitySpec.Handle);
@@ -212,7 +204,7 @@ void ULyraAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& In
 	{
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			if (AbilitySpec.Ability && (AbilitySpec.DynamicAbilityTags.HasTagExact(InputTag)))
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
 			{
 				InputReleasedSpecHandles.AddUnique(AbilitySpec.Handle);
 				InputHeldSpecHandles.Remove(AbilitySpec.Handle);

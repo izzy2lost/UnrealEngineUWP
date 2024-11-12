@@ -6,7 +6,6 @@
 #include "AvaVisBase.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-class ACEClonerActor;
 class UCEClonerComponent;
 
 struct HAvaClonerActorSpacingHitProxy : HAvaHitProxy
@@ -48,18 +47,17 @@ public:
 	virtual void DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	//~ End FAvaVisualizerBase
 
-	ACEClonerActor* GetClonerActor() const
+	UCEClonerComponent* GetClonerComponent() const
 	{
-		return ClonerActorWeak.Get();
+		return ClonerComponentWeak.Get();
 	}
 
 protected:
-	FVector GetHandleSpacingLocation(const ACEClonerActor* InClonerActor, ECEClonerAxis InAxis) const;
-	void DrawSpacingButton(const ACEClonerActor* InClonerActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, ECEClonerAxis InAxis, FLinearColor InColor) const;
+	FVector GetHandleSpacingLocation(const UCEClonerComponent* InClonerComponent, ECEClonerAxis InAxis) const;
+	void DrawSpacingButton(const UCEClonerComponent* InClonerComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, ECEClonerAxis InAxis, FLinearColor InColor) const;
 
-	void OnPropertyModified(UObject* InPropertyObject, FName InPropertyName, EPropertyChangeType::Type InType = EPropertyChangeType::Interactive);
+	TWeakObjectPtr<UCEClonerComponent> ClonerComponentWeak = nullptr;
 
-	TWeakObjectPtr<ACEClonerActor> ClonerActorWeak = nullptr;
 	FVector InitialSpacing = FVector::ZeroVector;
 	bool bEditingSpacing = false;
 	ECEClonerAxis EditingAxis = ECEClonerAxis::X;

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
+#include "ChaosVDCharacterGroundConstraintDataProviderInterface.h"
 #include "ChaosVDCollisionDataProviderInterface.h"
 #include "ChaosVDGeometryDataComponent.h"
 #include "ChaosVDSceneObjectBase.h"
@@ -8,6 +10,7 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "GameFramework/Actor.h"
+#include "Interfaces/ChaosVDSelectableObject.h"
 #include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
 
 #include "ChaosVDParticleActor.generated.h"
@@ -52,7 +55,8 @@ ENUM_CLASS_FLAGS(EChaosVDHideParticleFlags)
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
 UCLASS(HideCategories=(Transform))
 class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider,
-								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface
+								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface, public IChaosVDGeometryOwnerInterface, public IChaosVDSelectableObject,
+								public IChaosVDCharacterGroundConstraintDataProviderInterface
 {
 	GENERATED_BODY()
 
@@ -65,11 +69,9 @@ public:
 
 	void UpdateGeometry(uint32 NewGeometryHash, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 
-	virtual void SetScene(TWeakPtr<FChaosVDScene> InScene) override;
-
 	virtual void Destroyed() override;
 
-	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return ParticleDataPtr.Get(); }
+	virtual TSharedPtr<const FChaosVDParticleDataWrapper> GetParticleData() override { return ParticleDataPtr; }
 	
 #if WITH_EDITOR
 	virtual bool IsSelectedInEditor() const override;
@@ -100,26 +102,46 @@ public:
 
 	virtual FBox GetComponentsBoundingBox(bool bNonColliding, bool bIncludeFromChildActors) const override;
 
-	//BEGIN IChaosVDCollisionDataProvider Interface
-	virtual void GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound) override;
+	// BEGIN IChaosVDCollisionDataProvider Interface
+	virtual TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>> GetCollisionData() override;
 	virtual bool HasCollisionData() override;
 	virtual FName GetProviderName() override;
-	//END IChaosVDCollisionDataProvider Interface
+	// END IChaosVDCollisionDataProvider Interface
+
+	// BEGIN IChaosVDCharacterGroundConstraintDataProviderInterface
+	virtual void GetCharacterGroundConstraintData(TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>& OutConstraintsFound) override;
+	virtual bool HasCharacterGroundConstraintData() override;
+	// END IChaosVDCharacterGroundConstraintDataProviderInterface
 
 	void SetIsServerParticle(bool bNewIsServer) { bIsServer = bNewIsServer; }
 	bool GetIsServerParticle() const { return bIsServer; }
 
+	void UpdateMeshInstancesSelectionState();
 	virtual void PushSelectionToProxies() override;
 
 	FChaosVDParticleDataUpdatedDelegate& OnParticleDataUpdated() { return ParticleDataUpdatedDelegate; };
 
-	TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const { return MeshDataHandles; }
+	// BEGIN IChaosVDGeometryOwner Interface
+	virtual TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const override { return MeshDataHandles; }
+	virtual void SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& GeometryInstanceToSelect) override;
+	virtual TWeakPtr<FChaosVDMeshDataInstanceHandle> GetSelectedMeshInstance() const override { return CurrentSelectedGeometryInstance; }
+	virtual void HandleNewGeometryLoaded(uint32 GeometryID, const Chaos::FConstImplicitObjectPtr& InGeometryData) override;
+	// END IChaosVDGeometryOwner Interface
+	
+	// BEGIN IChaosVDSelectableObject Interface
+	virtual void HandleSelected() override;
+	virtual void HandleDeSelected() override;
+	// END IChaosVDSelectableObject Interface
+
+	virtual bool Modify(bool bAlwaysMarkDirty) override;
 
 protected:
 
 	void ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles);
 
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetCollisionMidPhasesArray() const;
+
+	const TArray<TSharedPtr<FChaosVDConstraintDataWrapperBase>>* GetCharacterGroundConstraintArray() const;
 
 	void UpdateShapeDataComponents();
 
@@ -143,6 +165,8 @@ protected:
 	bool bIsServer = false;
 
 	EChaosVDHideParticleFlags HideParticleFlags;
+
+	TWeakPtr<FChaosVDMeshDataInstanceHandle> CurrentSelectedGeometryInstance;
 
 	friend FChaosVDParticleActorCustomization;
 };

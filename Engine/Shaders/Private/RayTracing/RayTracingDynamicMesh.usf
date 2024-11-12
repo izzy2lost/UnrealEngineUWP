@@ -62,7 +62,7 @@ void RayTracingDynamicGeometryConverterCS(uint3 DispatchThreadId : SV_DispatchTh
 
 	if (DispatchThreadId.x < NumActualVertices)
 	{
-		FVertexFactoryInput Input = LoadVertexFactoryInputForDynamicUpdate(VertexIndex / 3, VertexIndex % 3, PrimitiveId);
+		FVertexFactoryInput Input = LoadVertexFactoryInputForDynamicUpdate(VertexIndex / 3, VertexIndex % 3, PrimitiveId, InstanceId);
 
 #if USE_INSTANCING
 		Input.InstanceId = InstanceId;
@@ -71,36 +71,40 @@ void RayTracingDynamicGeometryConverterCS(uint3 DispatchThreadId : SV_DispatchTh
 #endif
 		FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
 
-		float4 WorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates);
+		float4 TranslatedWorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates);
 		float3x3 TangentToLocal = VertexFactoryGetTangentToLocal(Input, VFIntermediates);
-		FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, WorldPosition.xyz, TangentToLocal);
+		FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, TranslatedWorldPosition.xyz, TangentToLocal);
 
-		WorldPosition.xyz -= DFHackToFloat(ResolvedView.PreViewTranslation);
 		if (bApplyWorldPositionOffset)
 		{
 			// We must guarantee that no NaNs are produced by WPO to avoid a possibility of producing invalid BLAS.
 			// DXR specification allows NaN positions to mark "inactive" primitives, but only when X component each vertex is NaN.
 			// This is impossible to guarantee here, since WPO is evaluated per vertex and not per triangle.
-			WorldPosition.xyz += MakeFinite(GetMaterialWorldPositionOffset(VertexParameters));
+			TranslatedWorldPosition.xyz += MakeFinite(GetMaterialWorldPositionOffset(VertexParameters));
 		}
 
+		float3 LocalPosition;
 #if USE_INSTANCING || USE_INSTANCE_CULLING
 		//Reverse transform to neutral space
-		WorldPosition = mul(WorldPosition, WorldToInstance);
+		float3 WorldPosition = TranslatedWorldPosition.xyz - DFHackToFloat(ResolvedView.PreViewTranslation);
+		LocalPosition = mul(float4(WorldPosition, 1), WorldToInstance).xyz;
 #elif RAY_TRACING_DYNAMIC_MESH_IN_LOCAL_SPACE
 		// Move the point back into local space because the RT instance will be placed there
 		// This the recommended default behavior so that the transform applied by the VertexFactory and the RT transform are always the same
-		WorldPosition.xyz = DFMultiplyDemote(DFPromote(WorldPosition), VertexFactoryGetWorldToLocal(VFIntermediates)).xyz;
+		float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld(VertexFactoryGetWorldToLocal(VFIntermediates), ResolvedView.PreViewTranslation);
+		LocalPosition = mul(TranslatedWorldPosition, TranslatedWorldToLocal).xyz;
 #elif RAY_TRACING_DYNAMIC_MESH_IN_WORLD_SPACE
 		// There are a few geometry types which natively generate positions in world space and therefore not need any extra processing here.
 		// This behavior must be explicitly opted-in to so as to make the code more self-documenting and avoid un-intended mismatched transforms.
+		LocalPosition = TranslatedWorldPosition.xyz - DFHackToFloat(ResolvedView.PreViewTranslation);
 #else
 #error "Are you sure you want mesh vertices to be in world space? Please update the VertexFactory to report its requirement!"
+		LocalPosition = TranslatedWorldPosition.xyz - DFHackToFloat(ResolvedView.PreViewTranslation);
 #endif
 
-		RWVertexPositions[OutputVertexBaseIndex + VertexIndex * 3 + 0] = WorldPosition.x;
-		RWVertexPositions[OutputVertexBaseIndex + VertexIndex * 3 + 1] = WorldPosition.y;
-		RWVertexPositions[OutputVertexBaseIndex + VertexIndex * 3 + 2] = WorldPosition.z;
+		RWVertexPositions[OutputVertexBaseIndex + VertexIndex * 3 + 0] = LocalPosition.x;
+		RWVertexPositions[OutputVertexBaseIndex + VertexIndex * 3 + 1] = LocalPosition.y;
+		RWVertexPositions[OutputVertexBaseIndex + VertexIndex * 3 + 2] = LocalPosition.z;
 	}
 	else
 	{

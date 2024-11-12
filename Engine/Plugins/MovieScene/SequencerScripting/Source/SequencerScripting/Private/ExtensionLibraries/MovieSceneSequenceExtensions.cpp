@@ -11,6 +11,8 @@
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "MovieSceneSpawnable.h"
 #include "SequencerScriptingRange.h"
+#include "MovieSceneBindingReferences.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequenceExtensions)
 
@@ -732,6 +734,17 @@ TArray<FMovieSceneBindingProxy> UMovieSceneSequenceExtensions::GetSpawnables(UMo
 		}
 	}
 
+	if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+		{
+			if (BindingReference.CustomBinding && BindingReference.CustomBinding->IsA<UMovieSceneSpawnableActorBinding>())
+			{
+				AllSpawnables.Emplace(BindingReference.ID, Sequence);
+			}
+		}
+	}
+
 	return AllSpawnables;
 }
 
@@ -745,14 +758,26 @@ TArray<FMovieSceneBindingProxy> UMovieSceneSequenceExtensions::GetPossessables(U
 
 	TArray<FMovieSceneBindingProxy> AllPossessables;
 
-	UMovieScene* MovieScene = GetMovieScene(Sequence);
-	if (MovieScene)
+	if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
-		int32 Count = MovieScene->GetPossessableCount();
-		AllPossessables.Reserve(Count);
-		for (int32 i = 0; i < Count; ++i)
+		for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
 		{
-			AllPossessables.Emplace(MovieScene->GetPossessable(i).GetGuid(), Sequence);
+			if (!BindingReference.CustomBinding)
+			{
+				AllPossessables.Emplace(BindingReference.ID, Sequence);
+			}
+		}
+	}
+	else
+	{
+		UMovieScene* MovieScene = GetMovieScene(Sequence);
+		if (MovieScene)
+		{
+			int32 Count = MovieScene->GetPossessableCount();
+			for (int32 i = 0; i < Count; ++i)
+			{
+				AllPossessables.Emplace(MovieScene->GetPossessable(i).GetGuid(), Sequence);
+			}
 		}
 	}
 

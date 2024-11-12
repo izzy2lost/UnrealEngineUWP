@@ -118,6 +118,29 @@ void FVariantValue::CopyInternal(const FVariantValue& FromOther)
 	}
 }
 
+FVariant FVariantValue::ToFVariant() const
+{
+	switch(GetDataType())
+	{
+	case EDataType::TypeFString:
+		return FVariant(GetFString());
+	case EDataType::TypeDouble:
+		return FVariant(GetDouble());
+	case EDataType::TypeInt64:
+		return FVariant(GetInt64());
+	case EDataType::TypeBoolean:
+		return FVariant(GetBool());
+	case EDataType::TypeTimeValue:
+		return FVariant(GetTimeValue().GetAsTimespan());
+	case EDataType::TypeVoidPointer:
+		return FVariant(reinterpret_cast<uint64>(GetPointer()));
+	case EDataType::TypeU8Array:
+		return FVariant(GetArray());
+	case EDataType::TypeSharedPointer: // Can't be converted.
+		default:
+			return FVariant();
+	}
+}
 
 void FVariantValue::Clear()
 {
@@ -228,8 +251,7 @@ FVariantValue& FVariantValue::Set(const TArray<uint8>& ArrayValue)
 
 const FString& FVariantValue::GetFString() const
 {
-	check(DataType == EDataType::TypeFString);
-	if (DataType == EDataType::TypeFString)
+	if (ensure(DataType == EDataType::TypeFString))
 	{
 		const FString* Str = reinterpret_cast<const FString*>(&DataBuffer);
 		return *Str;
@@ -243,8 +265,7 @@ const FString& FVariantValue::GetFString() const
 
 const double& FVariantValue::GetDouble() const
 {
-	check(DataType == EDataType::TypeDouble);
-	if (DataType == EDataType::TypeDouble)
+	if (ensure(DataType == EDataType::TypeDouble))
 	{
 		const double* Dbl = reinterpret_cast<const double*>(&DataBuffer);
 		return *Dbl;
@@ -258,8 +279,7 @@ const double& FVariantValue::GetDouble() const
 
 const int64& FVariantValue::GetInt64() const
 {
-	check(DataType == EDataType::TypeInt64);
-	if (DataType == EDataType::TypeInt64)
+	if (ensure(DataType == EDataType::TypeInt64))
 	{
 		const int64* Int = reinterpret_cast<const int64*>(&DataBuffer);
 		return *Int;
@@ -273,8 +293,7 @@ const int64& FVariantValue::GetInt64() const
 
 const bool& FVariantValue::GetBool() const
 {
-	check(DataType == EDataType::TypeBoolean);
-	if (DataType == EDataType::TypeBoolean)
+	if (ensure(DataType == EDataType::TypeBoolean))
 	{
 		const bool* Bool = reinterpret_cast<const bool*>(&DataBuffer);
 		return *Bool;
@@ -288,8 +307,7 @@ const bool& FVariantValue::GetBool() const
 
 const FTimeValue& FVariantValue::GetTimeValue() const
 {
-	check(DataType == EDataType::TypeTimeValue);
-	if (DataType == EDataType::TypeTimeValue)
+	if (ensure(DataType == EDataType::TypeTimeValue))
 	{
 		const FTimeValue* Time = reinterpret_cast<const FTimeValue*>(&DataBuffer);
 		return *Time;
@@ -303,8 +321,7 @@ const FTimeValue& FVariantValue::GetTimeValue() const
 
 void* const & FVariantValue::GetPointer() const
 {
-	check(DataType == EDataType::TypeVoidPointer);
-	if (DataType == EDataType::TypeVoidPointer)
+	if (ensure(DataType == EDataType::TypeVoidPointer))
 	{
 		void** Pointer = (void**)&DataBuffer;
 		return *Pointer;
@@ -318,8 +335,7 @@ void* const & FVariantValue::GetPointer() const
 
 const TArray<uint8>& FVariantValue::GetArray() const
 {
-	check(DataType == EDataType::TypeU8Array);
-	if (DataType == EDataType::TypeU8Array)
+	if (ensure(DataType == EDataType::TypeU8Array))
 	{
 		const TArray<uint8>* Array = reinterpret_cast<const TArray<uint8>*>(&DataBuffer);
 		return *Array;
@@ -457,10 +473,26 @@ void FParamDict::Set(const FName& Key, const FVariantValue& Value)
 	Dictionary.Emplace(Key, Value); 
 }
 
+void FParamDict::Set(const FName& Key, FVariantValue&& Value)
+{
+	Dictionary.Emplace(Key, MoveTemp(Value));
+}
+
 void FParamDict::GetKeys(TArray<FName>& OutKeys) const
 {
 	OutKeys.Empty();
 	Dictionary.GenerateKeyArray(OutKeys);
+}
+
+bool FParamDict::SetValueFrom(FName InKey, const FParamDict& InOther)
+{
+	FVariantValue OtherValue = InOther.GetValue(InKey);
+	const bool bOtherHasKey = OtherValue.IsValid();
+	if (bOtherHasKey)
+	{
+		Set(InKey, MoveTemp(OtherValue));
+	}
+	return bOtherHasKey;
 }
 
 void FParamDict::ConvertKeysStartingWithTo(TMap<FString, FVariant>& OutVariantMap, const FString& InKeyStartsWith, const FString& InAddPrefixToKey) const
@@ -478,47 +510,11 @@ void FParamDict::ConvertKeysStartingWithTo(TMap<FString, FVariant>& OutVariantMa
 
 		NewKey = InAddPrefixToKey;
 		NewKey.Append(s);
-		switch(Pair.Value.GetDataType())
+
+		FVariant ConvertedValue = Pair.Value.ToFVariant();
+		if (!ConvertedValue.IsEmpty())
 		{
-			case FVariantValue::EDataType::TypeFString:
-			{
-				OutVariantMap.Emplace(NewKey, Pair.Value.GetFString());
-				break;
-			}
-			case FVariantValue::EDataType::TypeDouble:
-			{
-				OutVariantMap.Emplace(NewKey, Pair.Value.GetDouble());
-				break;
-			}
-			case FVariantValue::EDataType::TypeInt64:
-			{
-				OutVariantMap.Emplace(NewKey, Pair.Value.GetInt64());
-				break;
-			}
-			case FVariantValue::EDataType::TypeBoolean:
-			{
-				OutVariantMap.Emplace(NewKey, Pair.Value.GetInt64());
-				break;
-			}
-			case FVariantValue::EDataType::TypeTimeValue:
-			{
-				OutVariantMap.Emplace(NewKey, Pair.Value.GetTimeValue().GetAsTimespan());
-				break;
-			}
-			case FVariantValue::EDataType::TypeVoidPointer:
-			{
-				OutVariantMap.Emplace(NewKey, (uint64) Pair.Value.GetPointer());
-				break;
-			}
-			case FVariantValue::EDataType::TypeU8Array:
-			{
-				OutVariantMap.Emplace(NewKey, Pair.Value.GetArray());
-				break;
-			}
-			default:
-			{
-				break;
-			}
+			OutVariantMap.Emplace(NewKey, MoveTemp(ConvertedValue));
 		}
 	}
 }

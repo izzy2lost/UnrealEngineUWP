@@ -63,11 +63,15 @@ namespace EpicGames.Horde.Compute
 			using CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			ExceptionDispatchInfo? exceptionInfo = null;
 
-			void PostException(Exception ex)
+			async Task PostException(Exception ex)
 			{
 				// Capture stack from call site
 				Interlocked.CompareExchange(ref exceptionInfo, ExceptionDispatchInfo.Capture(ex), null);
-				cancellationSource.Cancel();
+#if NET8_0_OR_GREATER
+				await cancellationSource.CancelAsync();
+#else
+				await Task.Run(() => cancellationSource.Cancel(), CancellationToken.None);
+#endif
 			}
 
 			await RunAsync(socket, 0, 4 * 1024 * 1024, PostException, cancellationSource.Token);
@@ -81,7 +85,7 @@ namespace EpicGames.Horde.Compute
 #pragma warning restore CA1508
 		}
 
-		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, Action<Exception> postException, CancellationToken cancellationToken)
+		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, Func<Exception, Task> postException, CancellationToken cancellationToken)
 		{
 			List<Task> childTasks = new List<Task>();
 			using AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize);
@@ -158,7 +162,7 @@ namespace EpicGames.Horde.Compute
 			{
 				_logger.LogInformation(ex, "Compute Channel {ChannelId}: Exception: {Message}", channelId, ex.Message);
 				await channel.SendExceptionAsync(ex, cancellationToken);
-				postException(ex);
+				await postException(ex);
 			}
 			finally
 			{
@@ -187,10 +191,9 @@ namespace EpicGames.Horde.Compute
 			await using BundleCache cache = new BundleCache(new BundleCacheOptions { HeaderCacheSize = 10 * 1024 * 1024, PacketCacheSize = 128 * 1024 * 1024 });
 
 			BundleOptions bundleOptions = ComputeProtocolUtilities.GetBundleOptions(channel.Protocol);
-			using BundleStorageClient store = new BundleStorageClient(innerStore, cache, bundleOptions, _logger);
+			BundleStorageNamespace store = new BundleStorageNamespace(innerStore, cache, bundleOptions, _logger);
 
-			IBlobHandle handle = store.CreateBlobHandle(locator);
-			DirectoryNode directoryNode = await handle.ReadBlobAsync<DirectoryNode>(options, cancellationToken);
+			IBlobRef<DirectoryNode> directoryRef = store.CreateBlobRef<DirectoryNode>(locator, options);
 
 			DirectoryReference outputDir = DirectoryReference.Combine(_sandboxDir, path);
 			if (!outputDir.IsUnderDirectory(_sandboxDir))
@@ -198,8 +201,8 @@ namespace EpicGames.Horde.Compute
 				throw new InvalidOperationException("Cannot write files outside sandbox");
 			}
 
-			await directoryNode.CopyToDirectoryAsync(outputDir.ToDirectoryInfo(), _logger, cancellationToken);
-			await VerifyFilesAsync(outputDir, directoryNode, cancellationToken);
+			await directoryRef.ExtractAsync(outputDir.ToDirectoryInfo(), _logger, cancellationToken);
+			await VerifyFilesAsync(outputDir, directoryRef, cancellationToken);
 
 			using (IAgentMessageBuilder message = await channel.CreateMessageAsync(AgentMessageType.WriteFilesResponse, cancellationToken))
 			{
@@ -207,10 +210,11 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task<bool> VerifyFilesAsync(DirectoryReference outputDir, DirectoryNode directoryNode, CancellationToken cancellationToken = default)
+		async Task<bool> VerifyFilesAsync(DirectoryReference outputDir, IBlobRef<DirectoryNode> directoryRef, CancellationToken cancellationToken = default)
 		{
 			bool result = true;
 
+			DirectoryNode directoryNode = await directoryRef.ReadBlobAsync(cancellationToken);
 			foreach (FileEntry fileEntry in directoryNode.Files)
 			{
 				FileReference file = FileReference.Combine(outputDir, fileEntry.Name);
@@ -238,8 +242,7 @@ namespace EpicGames.Horde.Compute
 
 			foreach (DirectoryEntry directoryEntry in directoryNode.Directories)
 			{
-				DirectoryNode subNode = await directoryEntry.Handle.ReadBlobAsync(cancellationToken: cancellationToken);
-				result &= await VerifyFilesAsync(DirectoryReference.Combine(outputDir, directoryEntry.Name), subNode, cancellationToken);
+				result &= await VerifyFilesAsync(DirectoryReference.Combine(outputDir, directoryEntry.Name), directoryEntry.Handle, cancellationToken);
 			}
 
 			return result;
@@ -410,7 +413,7 @@ namespace EpicGames.Horde.Compute
 					}
 
 					ReadOnlySpan<byte> line = span.Slice(0, newlineIdx);
-					if (line.Length > 0 && line[line.Length - 1] == (byte)'\r')
+					if (line.Length > 0 && line[^1] == (byte)'\r')
 					{
 						line = line.Slice(0, line.Length - 1);
 					}

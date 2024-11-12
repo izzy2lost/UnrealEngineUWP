@@ -2,12 +2,14 @@
 
 #include "NiagaraDataInterfaceCurveTypeEditorUtilities.h"
 
+#include "NiagaraClipboard.h"
 #include "NiagaraDataInterface.h"
 #include "NiagaraDataInterfaceCurve.h"
 #include "NiagaraDataInterfaceVector2DCurve.h"
 #include "NiagaraDataInterfaceVectorCurve.h"
 #include "NiagaraDataInterfaceVector4Curve.h"
 #include "NiagaraDataInterfaceColorCurve.h"
+#include "NiagaraVariant.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
 #include "Modules/ModuleManager.h"
@@ -80,6 +82,58 @@ void FNiagaraDataInterfaceCurveTypeEditorUtilitiesBase::CurveAssetSelected(const
 			DataInterfaceChangedHandler.ExecuteIfBound();
 		}
 	}
+}
+
+bool FNiagaraDataInterfaceCurveTypeEditorUtilitiesBase::TryUpdateClipboardPortableValueFromTypedValue(const FNiagaraTypeDefinition& InSourceType, const FNiagaraVariant& InSourceValue, FNiagaraClipboardPortableValue& InTargetClipboardPortableValue) const
+{
+	if (InSourceType.GetClass()->IsChildOf(UNiagaraDataInterfaceCurveBase::StaticClass()) &&
+		InSourceValue.GetDataInterface() != nullptr &&
+		InSourceValue.GetDataInterface()->IsA<UNiagaraDataInterfaceCurveBase>())
+	{
+		UNiagaraDataInterfaceCurveBase* CurveDataInterface = CastChecked<UNiagaraDataInterfaceCurveBase>(InSourceValue.GetDataInterface());
+		FNiagaraClipboardCurveCollection CurveCollection;
+		TArray<UNiagaraDataInterfaceCurveBase::FCurveData> CurveData;
+		CurveDataInterface->GetCurveData(CurveData);
+		for (const UNiagaraDataInterfaceCurveBase::FCurveData& CurveDataItem : CurveData)
+		{
+			CurveCollection.Curves.Add(*CurveDataItem.Curve);
+		}
+		InTargetClipboardPortableValue = FNiagaraClipboardPortableValue::CreateFromStructValue(*FNiagaraClipboardCurveCollection::StaticStruct(), (uint8*)&CurveCollection);
+		return true;
+	}
+	return false;
+}
+
+bool FNiagaraDataInterfaceCurveTypeEditorUtilitiesBase::CanUpdateTypedValueFromClipboardPortableValue(const FNiagaraClipboardPortableValue& InSourceClipboardPortableValue, const FNiagaraTypeDefinition& InTargetType) const
+{
+	UScriptStruct* CurveCollectionStruct = FNiagaraClipboardCurveCollection::StaticStruct();
+	FNiagaraClipboardCurveCollection CurveCollection;
+	return InSourceClipboardPortableValue.TryUpdateStructValue(*CurveCollectionStruct, (uint8*)&CurveCollection);
+}
+
+bool FNiagaraDataInterfaceCurveTypeEditorUtilitiesBase::TryUpdateTypedValueFromClipboardPortableValue(const FNiagaraClipboardPortableValue& InSourceClipboardPortableValue, const FNiagaraTypeDefinition& InTargetType, FNiagaraVariant& InTargetValue) const
+{
+	if (InTargetType.GetClass()->IsChildOf(UNiagaraDataInterfaceCurveBase::StaticClass()))
+	{
+		UScriptStruct* CurveCollectionStruct = FNiagaraClipboardCurveCollection::StaticStruct();
+		FNiagaraClipboardCurveCollection CurveCollection;
+		if (InSourceClipboardPortableValue.TryUpdateStructValue(*CurveCollectionStruct, (uint8*)&CurveCollection))
+		{
+			UNiagaraDataInterfaceCurveBase* CurveDataInterface = NewObject<UNiagaraDataInterfaceCurveBase>(GetTransientPackage(), InTargetType.GetClass());
+			TArray<UNiagaraDataInterfaceCurveBase::FCurveData> CurveData;
+			CurveDataInterface->GetCurveData(CurveData);
+			if (CurveData.Num() == CurveCollection.Curves.Num())
+			{
+				for (int32 CurveIndex = 0; CurveIndex < CurveData.Num(); CurveIndex++)
+				{
+					*CurveData[CurveIndex].Curve = CurveCollection.Curves[CurveIndex];
+				}
+				InTargetValue.SetDataInterface(CurveDataInterface);
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 FTopLevelAssetPath FNiagaraDataInterfaceCurveTypeEditorUtilities::GetSupportedAssetClassName() const

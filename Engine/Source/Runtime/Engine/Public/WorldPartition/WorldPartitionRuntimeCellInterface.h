@@ -28,8 +28,6 @@ public:
 	virtual bool ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const = 0;
 	/** Returns whether the cell data layers referenced the provided data layer instance or not. */
 	virtual bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const = 0;
-	/** Returns whether the cell content is associated with data layers or not. */
-	bool HasDataLayers() const { return !GetDataLayers().IsEmpty(); }
 	/** Returns whether the cell content is associated with content bundle or not. */
 	virtual bool HasContentBundle() const = 0;
 	/** Returns the cell content associated data layers. */

@@ -41,6 +41,63 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 		Stream.GetChangelist(6).AssertDepotFiles(SyncDir);
 		await Stream.GetChangelist(6).AssertHaveTableAsync(PerforceConnection, useHaveTable);
 	}
+	
+	private class CleanCounter
+	{
+		public int NumCleans { get; private set; } = 0;
+		public int NumFilesDeleted { get; private set; } = 0;
+		public int NumDirsDeleted { get; private set; } = 0;
+		
+		public void OnClean(int numFiles, int numDirs)
+		{
+			NumCleans += 1;
+			NumFilesDeleted += numFiles;
+			NumDirsDeleted += numDirs;
+			Console.WriteLine($"Clean performed: numFiles={numFiles} numDirs={numDirs}");
+		}
+		
+		public CleanCounter Reset()
+		{
+			NumCleans = 0;
+			NumFilesDeleted = 0;
+			NumDirsDeleted = 0;
+			return this;
+		}
+		
+		public CleanCounter Assert(int expectedCount, int expectedNumFilesCleaned, int expectedNumDirsCleaned)
+		{
+			Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual(expectedCount, NumCleans);
+			Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual(expectedNumFilesCleaned, NumFilesDeleted);
+			Microsoft.VisualStudio.TestTools.UnitTesting.Assert.AreEqual(expectedNumDirsCleaned, NumDirsDeleted);
+			return this;
+		}
+	}
+	
+	[TestMethod]
+	[DataRow(true, DisplayName = "With have-table")]
+	public async Task SyncSkipCleanIfPossibleAsync(bool useHaveTable)
+	{
+		ManagedWorkspace ws = await CreateManagedWorkspaceAsync(useHaveTable);
+		await AssertHaveTableFileCountAsync(0);
+		
+		CleanCounter cc = new();
+		ws.OnClean += cc.OnClean;
+		
+		// Sync first time, clean is expected
+		await SyncAsync(ws, 6, assertFiles: true, useHaveTable: useHaveTable);
+		cc.Assert(1, 0, 0).Reset();
+		
+		// Simulate some build output inside workspace
+		await File.WriteAllTextAsync(Path.Join(SyncDir, "build-output.obj"), "somecontent");
+		
+		// Finalize and clean up is called when job finishes
+		await ws.CleanAsync(PerforceConnection, true, CancellationToken.None);
+		cc.Assert(1, 1, 0).Reset();
+		
+		// Syncing again should not result in a clean up, as it was called during finalize and we're using the same P4 client
+		await SyncAsync(ws, 7, assertFiles: true, useHaveTable: useHaveTable);
+		cc.Assert(0, 0, 0).Reset();
+	}
 
 	[TestMethod]
 	public async Task SyncBackwardsToOlderChangelistRemoveUntrackedAsync()
@@ -300,9 +357,14 @@ public class ManagedWorkspaceTest : BasePerforceFixtureTest
 		return ws;
 	}
 
-	private async Task SyncAsync(ManagedWorkspace managedWorkspace, int changeNumber, FileReference? cacheFile = null, bool removeUntracked = true)
+	private async Task SyncAsync(ManagedWorkspace managedWorkspace, int changeNumber, FileReference? cacheFile = null, bool removeUntracked = true, bool assertFiles = false, bool useHaveTable = true)
 	{
 		await managedWorkspace.SyncAsync(PerforceConnection, StreamName, changeNumber, Array.Empty<string>(), removeUntracked, false, cacheFile, CancellationToken.None);
+		if (assertFiles)
+		{
+			Stream.GetChangelist(changeNumber).AssertDepotFiles(SyncDir);
+			await Stream.GetChangelist(changeNumber).AssertHaveTableAsync(PerforceConnection, useHaveTable);
+		}
 	}
 
 	private async Task AssertHaveTableFileCountAsync(int expected)

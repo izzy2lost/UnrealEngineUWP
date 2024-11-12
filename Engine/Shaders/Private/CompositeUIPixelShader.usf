@@ -10,20 +10,7 @@ CompositeUIPixelShader.usf: Filter pixel shader source.
 #define LUT_SCALING	1.05f
 #define LUT_SIZE	32.f
 
-// set this to 1 if you want to restore the legacy behaviour (ie apply ACES to the UI). A value of 0 keeps a consistent look of the UI between SDR and HDR mode
-#define USE_LUT_FOR_UI 0
-
 ///////////////////////////////////////////////////////////////////////////////////////
-uint OutputDevice;
-uint OutputGamut;
-float OutputMaxLuminance;
-
-float4 ACESMinMaxData;
-float4 ACESMidData;
-float4 ACESCoefsLow_0;
-float4 ACESCoefsHigh_0;
-float ACESCoefsLow_4;
-float ACESCoefsHigh_4;
 
 #if APPLY_COLOR_DEFICIENCY
 float ColorVisionDeficiencyType;
@@ -31,53 +18,6 @@ float ColorVisionDeficiencySeverity;
 float bCorrectDeficiency;
 float bSimulateCorrectionWithDeficiency;
 #endif
-
-void GenerateLUTPS(
-	FWriteToSliceGeometryOutput Input,
-	out float4 OutColor : SV_Target0
-	)
-{
-	// Construct the neutral color from a 3D position volume texture
-	float2 UV = Input.Vertex.UV - float2(0.5f / LUT_SIZE, 0.5f / LUT_SIZE);
-	float3 Neutral = float3(UV * LUT_SIZE / (LUT_SIZE - 1), Input.LayerIndex / (LUT_SIZE - 1));
-
-	const float3x3 AP1_2_Output = OuputGamutMappingMatrix(OutputGamut);
-
-	float3 LinearColor = ST2084ToLinear(Neutral);
-
-	FACESTonemapParams LUTTsParams = ComputeACESTonemapParams(ACESMinMaxData, ACESMidData, ACESCoefsLow_0, ACESCoefsHigh_0, ACESCoefsLow_4, ACESCoefsHigh_4, 1.0, 1.0);
-
-	if( OutputDevice == TONEMAPPER_OUTPUT_ACES1000nitST2084 || OutputDevice == TONEMAPPER_OUTPUT_ACES1000nitScRGB)
-	{		
-		// ACES 1000nit transform with PQ/2084 encoding, user specified gamut 
-		float3 ODTColor = ACESOutputTransforms1000(LinearColor, LUTTsParams);
-		// do not apply scRGB here because LUT is not 16F in this format, and scRGB can output negative values
-		if (OutputDevice != TONEMAPPER_OUTPUT_ACES1000nitScRGB)
-		{
-			ODTColor = mul(AP1_2_Output, ODTColor);
-		}
-		OutColor.rgb = LinearToST2084(ODTColor);
-	}	
-	else if( OutputDevice == TONEMAPPER_OUTPUT_ACES2000nitST2084 || OutputDevice == TONEMAPPER_OUTPUT_ACES2000nitScRGB)
-	{		
-		// ACES 2000nit transform with PQ/2084 encoding, user specified gamut 
-		float3 ODTColor = ACESOutputTransforms2000(LinearColor, LUTTsParams);
-		// do not apply scRGB here because LUT is not 16F in this format, and scRGB can output negative values
-		// 
-		if (OutputDevice != TONEMAPPER_OUTPUT_ACES2000nitScRGB)
-		{
-			ODTColor = mul(AP1_2_Output, ODTColor);
-		}
-		OutColor.rgb = LinearToST2084(ODTColor);
-	}
-	else
-	{
-		OutColor.rgb = Neutral;
-	}
-
-	OutColor.rgb = OutColor.rgb / LUT_SCALING;
-	OutColor.a = 0;
-}
 
 ///////////////////////////////////////////////////////////////////////////////////////
 #if PLATFORM_SUPPORTS_RENDERTARGET_WRITE_MASK
@@ -89,9 +29,6 @@ SamplerState UISampler;
 
 Texture2D SceneTexture;
 SamplerState SceneSampler;
-
-Texture3D ColorSpaceLUT;
-SamplerState ColorSpaceLUTSampler;
 
 float UILevel;
 float UILuminance;
@@ -114,13 +51,6 @@ float3 LinearizeColor(float3 EncodedColor)
 
 static const float ScRGBScaleFactor = 80.0f; // used to convert between ScRGB and nits
 
-float3 ColorLookupTable(float3 LinearColor)
-{
-	float3 LUTEncodedColor = LinearToST2084(LinearColor);
-	float3 UVW = LUTEncodedColor * ((LUT_SIZE - 1) / LUT_SIZE) + (0.5f / LUT_SIZE);
-	return ColorSpaceLUT.SampleLevel(ColorSpaceLUTSampler, UVW, 0).rgb * LUT_SCALING;
-}
-
 void HDRBackBufferConvertPS(
 	FScreenVertexOutput Input,
 	out float3 OutColor : SV_Target0
@@ -129,28 +59,6 @@ void HDRBackBufferConvertPS(
 	OutColor = 0;
 	float3 SceneColor = Texture2DSample(SceneTexture, SceneSampler, Input.UV).xyz ;
 	SceneColor = ST2084ToLinear( SceneColor ) / ScRGBScaleFactor; 
-	OutColor.rgb = SceneColor;
-}
-
-// Given an input using Rec709 primaries and a sRGB tranfer function where
-// 1.0 maps to paperwhitenits defined in editor. Remap to Rec2020 with PQ transfer function.
-void HDREditorConvert(
-	FScreenVertexOutput Input,
-	out float4 OutColor : SV_Target0
-	)
-{
-	OutColor = 0;
-	float3 SceneColor = Texture2DSample(SceneTexture, SceneSampler, Input.UV).xyz ;
-
-	// Get color into Rec2020 space
-	SceneColor = sRGBToLinear( SceneColor) ;
-	SceneColor = SceneColor * UILevel ; 
-
-	SceneColor = mul(sRGB_2_XYZ_MAT, SceneColor);
-	SceneColor = mul(XYZ_2_Rec2020_MAT, SceneColor);
-
-	// Do PQ Curve
-	SceneColor = LinearToST2084( SceneColor ); 
 	OutColor.rgb = SceneColor;
 }
 
@@ -198,20 +106,7 @@ float4 ComputeHDRUIColor(float2 InputUV)
 	const float3x3 sRGB_2_Rec2020 = mul(XYZ_2_Rec2020_MAT, sRGB_2_XYZ_MAT);
 	float4 UIColor = Texture2DSample(UITexture, UISampler, InputUV);
 	UIColor.xyz = LinearizeColor(UIColor.xyz);
-#if USE_LUT_FOR_UI
-	UIColor.xyz = ColorLookupTable(UIColor.xyz);
-	// PQ -> Linear
-#if !SCRGB_ENCODING
-	UIColor.xyz = ST2084ToLinear(UIColor.xyz);
-#else
-	UIColor.xyz = ST2084ToScRGB(UIColor.xyz, OutputDevice, OutputMaxLuminance);
 	UIColor.xyz = mul(sRGB_2_Rec2020, UIColor.xyz) * UILuminance;
-#endif
-
-#else // #if USE_LUT_FOR_UI
-	UIColor.xyz = mul(sRGB_2_Rec2020, UIColor.xyz) * UILuminance;
-#endif // #if USE_LUT_FOR_UI
-
 	return UIColor;
 }
 
@@ -258,7 +153,8 @@ void Main(
 
 	OutColor.rgb = ApplyColorDeficiency(OutColor.rgb);
 
-	OutColor.w = 1.f;
+	// This is not compatible when alpha is preserved through post-processing
+	OutColor.w = UIColor.w;
 
 #if !SCRGB_ENCODING
 	// Linear -> PQ
@@ -310,7 +206,9 @@ void CompositeUICS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	SceneColor = ComputeHDRSceneColor(SceneColor);
 	float4 OutColor = 0;
 	OutColor.xyz = ComposeUIAndScene(SceneColor.xyz, UIColor, UILevel);
-	OutColor.w = 1.f;
+	
+	// This is not compatible when alpha is preserved through post-processing
+	OutColor.w = UIColor.w;
 
 	OutColor.rgb = ApplyColorDeficiency(OutColor.rgb);
 
@@ -322,19 +220,16 @@ void CompositeUICS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	OutColor.xyz = mul(Rec2020_2_sRGB, OutColor.xyz / ScRGBScaleFactor);
 #endif
 
-	RWSceneTexture[DispatchThreadId.xy] = float4(OutColor.xyz, 1);
+	RWSceneTexture[DispatchThreadId.xy] = OutColor;
 }
 
 #endif
 
-#if BLIT_UI_TO_HDR
+#if COMPOSITE_UI_FOR_BLUR_PS
 
 float2 UITextureSize;
 
-void BlitUIToHDRPS(
-	FScreenVertexOutput Input,
-	out float4 OutColor : SV_Target0
-	)
+void CompositeUIForBlur(FScreenVertexOutput Input, out float4 OutColor : SV_Target0)
 {
 	float4 UIColor = ComputeHDRUIColor(Input.UV);
 #if PLATFORM_SUPPORTS_RENDERTARGET_WRITE_MASK

@@ -4,8 +4,8 @@
 #include "Components/ActorComponent.h"
 #include "Harmonix/MusicalTimebase.h"
 #include "HarmonixMidi/MidiSongPos.h"
+#include "HarmonixMidi/SongMaps.h"
 #include "Delegates/DelegateCombinations.h"
-#include "HarmonixMidi/SmoothedMidiPlayCursor.h"
 #include "Templates/UniquePtr.h"
 
 #include "MusicClockComponent.generated.h"
@@ -32,10 +32,18 @@ enum class EMusicClockDriveMethod : uint8
 	MetaSound,
 };
 
+UENUM(BlueprintType)
+enum class EMusicTimeDiscontinuityType : uint8
+{
+	Loop,
+	Seek,
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBeatEvent, int, BeatNumber, int, BeatInBar);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBarEvent, int, BarNumber);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FSectionEvent, const FString&, SectionName, float, SectionStartMs, float, SectionLengthMs);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPlayStateEvent, EMusicClockState, State);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMusicTimeDiscontinuityEvent, EMusicTimeDiscontinuityType, Type, FMidiSongPos, PreviousPos, FMidiSongPos, NewPos);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMusicClockConnected);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMusicClockDisconnected);
@@ -126,6 +134,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	float GetBeatsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
+	// NOTE: Working in ticks is a little risky. Midi files have have different numbers of ticks per quarter note,
+	// Ticks change duration with tempo changes, etc. So we don't expose ticks to blueprints and recommend using them
+	// in c++ code. That said, sometimes there is a use for them... so... 
+	float GetTicksFromBarOne(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+	float GetTicksIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
 	// Returns the "classic" musical timestamp in the form Bar (int) & Beat (float). In this form...
 	//    - Bar 1, Beat 1.0 is the "beginning of the song" AFTER count-in/pickups
 	//    - Bar 0, Beat 1.0 would be one bar BEFORE the "beginning of the song"... eg. a bar of count-in or pickup.
@@ -199,10 +213,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	const FMidiSongPos& GetSongPos(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	const FMidiSongPos& GetPreviousSongPos(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
 	/** Returns the remaining time until the end of the MIDI in milliseconds based on the timestamp corresponding to the passed Timebase */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	float GetSongRemainingMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
+	/** Returns true if there was a seek in the specified timebase */
+	// Note: Not const as it might cause the clock to update from its source.
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	bool SeekedThisFrame(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
+	/** Returns true if there was a seek in the specified timebase */
+	// Note: Not const as it might cause the clock to update from its source.
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	bool LoopedThisFrame(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	UFUNCTION(BlueprintPure, Category = "Count In")
 	float GetCountInSeconds() const;
@@ -252,7 +279,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Song Data")
 	float GetSongLengthBars() const;
 
-	const FSongMaps& GetSongMaps() const;
+	const ISongMapEvaluator& GetSongMaps() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MusicClock")
 	ECalibratedMusicTimebase TimebaseForBarAndBeatEvents = ECalibratedMusicTimebase::VideoRenderTime;
@@ -275,6 +302,15 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
 	FMusicClockDisconnected MusicClockDisconnectedEvent;
 
+	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
+	FMusicTimeDiscontinuityEvent AudioRenderMusicTimeDiscontinuityEvent;
+
+	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
+	FMusicTimeDiscontinuityEvent PlayerExperienceMusicTimeDiscontinuityEvent;
+
+	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
+	FMusicTimeDiscontinuityEvent VideoRenderMusicTimeDiscontinuityEvent;
+
 private:
 	// Don't let C++ access these directly! They are a blueprint convenience and only work because 
 	// they specify getter functions!
@@ -284,6 +320,8 @@ private:
 	FMidiSongPos CurrentVideoRenderSongPos;
 	UPROPERTY(BlueprintGetter = GetCurrentPlayerExperiencedSongPos, Category = "MusicClock")
 	FMidiSongPos CurrentPlayerExperiencedSongPos;
+	UPROPERTY(BlueprintGetter = GetCurrentRawAudioRenderSongPos, Category = "MusicClock")
+	FMidiSongPos CurrentRawAudioRenderSongPos;
 
 public:
 	// Getter functions for the Blueprint properties exposed above...
@@ -291,10 +329,22 @@ public:
 	FMidiSongPos GetCurrentSmoothedAudioRenderSongPos() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetPreviousSmoothedAudioRenderSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
 	FMidiSongPos GetCurrentVideoRenderSongPos() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetPreviousVideoRenderSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
 	FMidiSongPos GetCurrentPlayerExperiencedSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetPreviousPlayerExperiencedSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetCurrentRawAudioRenderSongPos() const;
 
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
@@ -315,7 +365,7 @@ public:
 	// Note: Not const as it might cause the clock to update from its source.
 	FMidiSongPos CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
-	const FMidiSongPos& GetRawUnsmoothedAudioRenderPos() const { return RawUnsmoothedAudioRenderPos; }
+	const FMidiSongPos& GetRawUnsmoothedAudioRenderPos() const { return CurrentRawAudioRenderSongPos; }
 
 protected:
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction);
@@ -331,8 +381,9 @@ private:
 	EMusicClockState State = EMusicClockState::Stopped;
 
 	FSongMaps DefaultMaps;
-	FMidiSongPos RawUnsmoothedAudioRenderPos;
 
+	float RawAudioRenderDeltaBarF = 0.0f;
+	float RawAudioRenderDeltaBeatF = 0.0f;
 	float AudioRenderDeltaBarF = 0.0f;
 	float AudioRenderDeltaBeatF = 0.0f;
 	float PlayerExperienceDeltaBarF = 0.0f;
@@ -343,6 +394,14 @@ private:
 	int32 LastBroadcastBeat = -1;
 	FSongSection LastBroadcastSongSection;
 
+	bool AudioRenderSeekDetected = false;
+	bool AudioRenderLoopDetected = false;
+	bool PlayerExperiencedSeekDetected = false;
+	bool PlayerExperiencedLoopDetected = false;
+	bool VideoRenderSeekDetected = false;
+	bool VideoRenderLoopDetected = false;
+
+	FMidiSongPos PrevRawAudioRenderSongPos;
 	FMidiSongPos PrevAudioRenderSongPos;
 	FMidiSongPos PrevPlayerExperiencedSongPos;
 	FMidiSongPos PrevVideoRenderSongPos;
@@ -351,9 +410,11 @@ private:
 
 	void CreateClockDriver();
 	void BroadcastSongPosChanges();
+	void BroadcastSeekLoopDetections();
 	void MakeDefaultSongMap();
 	bool ConnectToMetasound();
 	void ConnectToWallClock();
+	void DisconnectFromClockDriver();
 
 	// Ensures the clock will be updated once per frame.  Should only get called on the game thread.
 	void EnsureClockIsValidForGameFrame() const;// TODO: Cleanup task - UE-205069 - If we find we are able to use the new 
@@ -368,7 +429,7 @@ struct FMusicClockDriverBase : public TSharedFromThis<FMusicClockDriverBase>
 public:
 	FMusicClockDriverBase() = delete;
 	FMusicClockDriverBase(UMusicClockComponent* DrivenClock)
-		: Clock(DrivenClock)
+		: ClockComponent(DrivenClock)
 	{}
 	virtual ~FMusicClockDriverBase() = default;
 
@@ -381,10 +442,11 @@ public:
 	virtual void OnPause() = 0;
 	virtual void OnContinue() = 0;
 	virtual void OnStop() = 0;
-	virtual const FSongMaps* GetCurrentSongMaps() const = 0;
+	virtual const ISongMapEvaluator* GetCurrentSongMapEvaluator() const = 0;
 
 protected:
-	UMusicClockComponent* Clock;
+	UMusicClockComponent* ClockComponent;
+
 private:
 	virtual bool RefreshCurrentSongPos() = 0;
 };

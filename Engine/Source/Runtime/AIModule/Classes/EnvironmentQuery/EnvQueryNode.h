@@ -24,6 +24,13 @@ class UEnvQueryNode : public UObject
 	AIMODULE_API virtual FText GetDescriptionTitle() const;
 	AIMODULE_API virtual FText GetDescriptionDetails() const;
 
+	/**
+	 * To be extended by any Node who offloads its work to another thread.
+	 * Returns false by default, unless overridden.
+	 * If overridden, will return whether or not this Node is currently being processed asynchronously. 
+	 */
+	AIMODULE_API virtual FORCEINLINE bool IsCurrentlyRunningAsync() const { return false; }
+
 #if WITH_EDITOR
 	AIMODULE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif //WITH_EDITOR

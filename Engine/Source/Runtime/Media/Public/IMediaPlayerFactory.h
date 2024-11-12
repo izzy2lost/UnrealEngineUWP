@@ -144,6 +144,20 @@ public:
 	}
 
 	/**
+	 * Returns a confidence score how sure the player thinks it is to be able to play the specified source URL.
+	 *
+	 * @param Url The media source URL to check.
+	 * @param Options Optional media player parameters.
+	 * @param OutWarnings Will contain warning messages (optional).
+	 * @param OutErrors will contain error messages (optional).
+	 * @return A score giving a probability (0-100 (or higher if necessary)) whether or not the media can be played.
+	 */
+	virtual int32 GetPlayabilityConfidenceScore(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const
+	{
+		return CanPlayUrl(Url, Options, OutWarnings, OutErrors) ? 100 : 0;
+	}
+
+	/**
 	 * Whether the player works on the given platform.
 	 *
 	 * @param PlatformName The name of the platform to check.

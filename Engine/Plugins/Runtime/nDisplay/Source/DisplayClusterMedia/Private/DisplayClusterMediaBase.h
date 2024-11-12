@@ -4,41 +4,51 @@
 
 #include "CoreMinimal.h"
 
-class FRHITexture;
+#include "OpenColorIOColorSpace.h"
 
 
 /**
- * Base media class
+ * Base media adapter class
  */
 class FDisplayClusterMediaBase
 {
 public:
-	FDisplayClusterMediaBase(const FString& InMediaId, const FString& InClusterNodeId)
+	FDisplayClusterMediaBase(const FString& InMediaId, const FString& InClusterNodeId, bool bInLateOCIO = false)
 		: MediaId(InMediaId)
 		, ClusterNodeId(InClusterNodeId)
+		, bLateOCIO(bInLateOCIO)
 	{ }
 
 	virtual ~FDisplayClusterMediaBase() = default;
 
 public:
+
+	/** Returns ID of this media adapter */
 	const FString& GetMediaId() const
 	{
 		return MediaId;
 	}
 
+	/** Returns current cluster node ID */
 	const FString& GetClusterNodeId() const
 	{
 		return ClusterNodeId;
 	}
 
-protected:
-	struct FMediaTextureInfo
+	/** Returns current late OCIO configuration/state */
+	bool IsLateOCIO() const
 	{
-		FRHITexture* Texture = nullptr;
-		FIntRect     Region;
-	};
+		return bLateOCIO;
+	}
 
 private:
+
+	/** ID of this media adapter */
 	const FString MediaId;
+
+	/** Cluster node ID we're running on */
 	const FString ClusterNodeId;
+
+	/** Is OCIO expected to be applied late on the receiver side */
+	const bool bLateOCIO = false;
 };

@@ -2,10 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "HAL/Platform.h"
+#include "Misc/EnumClassFlags.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
+	using IndexHash = uint64;
+
 	enum class EQueryTickPhase : uint8
 	{
 		PrePhysics, //< Queries are executed before physics simulation starts.
@@ -20,6 +23,15 @@ namespace TypedElementDataStorage
 	{
 		/** The standard group to run work in. */
 		Default,
+
+		/** General group that prepares for updating. */
+		PreUpdate,
+
+		/** General group that's used for updating data. */
+		Update,
+
+		/** General group that completes for updating. */
+		PostUpdate,
 
 		/**
 		 * The group for queries that need to sync data from external sources such as subsystems or the world into
@@ -66,9 +78,21 @@ namespace TypedElementDataStorage
 		Max //< Value indicating the maximum value in this enum. Not to be used as an enum value.
 	};
 
-	enum class EQueryAccessType : bool
+	enum class EExecutionMode : uint8
 	{
+		Default, //< Use the default for the query callback type or the group default.
+		GameThread, //< The query callback will be executed sequentially on the game thread.
+		Threaded, //< The entire query callback is called on a separate thread, while respecting dependencies.
+		ThreadedChunks //< The query callback is called on a separate thread for each chunk. This can not be set if there are sub-queries.
+	};
+
+	enum class EQueryAccessType : uint8
+	{
+		/** Provide read-only access. */
 		ReadOnly,
+		/** Provide read-only access, but do not include when finding matching tables. */
+		OptionalReadOnly,
+		/** Provide read and write access. */
 		ReadWrite
 	};
 
@@ -106,4 +130,4 @@ namespace TypedElementDataStorage
 		uint32 Count{ 0 }; /** The number of rows were processed. */
 		ECompletion Completed{ ECompletion::Unavailable };
 	};
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

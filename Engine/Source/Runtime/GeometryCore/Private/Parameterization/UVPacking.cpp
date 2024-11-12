@@ -45,9 +45,16 @@ struct FUVIsland
 	double		ScaleToWorld; // Scale factor that would make 1 texel ~= 1 unit in world space
 
 	FVector2d	UVScale;
-	FVector2d	PackingScaleU;
-	FVector2d	PackingScaleV;
+	FMatrix2d   UVRotation;
+	FMatrix2d   UVPackingScale;
+
+	FVector2d   OrientationBiasShift;
 	FVector2d	PackingBias;
+
+	FVector2d   GetPackingBias() const
+	{		
+		return (UVRotation * (UVPackingScale * OrientationBiasShift)) + 0.5 + PackingBias;
+	}
 };
 
 
@@ -71,6 +78,9 @@ public:
 
 	// packing target texture resolution, used to calculate gutter/border size
 	uint32 TextureResolution = 512;
+
+	// if true, disallows any change to island rotations while packing. Implicitly disables bAllowFlips, if set.
+	bool bPreserveRotation = false;
 
 	// if true, UV islands can be mirrored in X and/or Y to improve packing
 	bool bAllowFlips = false;
@@ -115,9 +125,10 @@ bool FStandardChartPacker::FindBestPacking(TArray<FUVIsland>& Charts)
 	for (FUVIsland& Chart : Charts)
 	{
 		Chart.PackingBias = FVector2d::Zero();
-		Chart.PackingScaleU = FVector2d::Zero();
-		Chart.PackingScaleV = FVector2d::Zero();
 		Chart.UVScale = FVector2d::Zero();
+		Chart.UVPackingScale = FMatrix2d::Identity();
+		Chart.UVRotation = FMatrix2d::Identity();
+		Chart.OrientationBiasShift = FVector2d::Zero();
 	}
 
 	// Those might require tuning, changing them won't affect the outcome and will maintain backward compatibility
@@ -244,9 +255,6 @@ bool FStandardChartPacker::FindBestPacking(TArray<FUVIsland>& Charts)
 
 	return true;
 }
-
-
-
 
 
 
@@ -449,15 +457,16 @@ bool FStandardChartPacker::PackCharts(TArray<FUVIsland>& Charts, double UVScale,
 			//	return Rect.X + Rect.Y * TextureResolution <BestRect.X + BestRect.Y * TextureResolution;
 			//};
 
+			int32 MaxOrientation = bPreserveRotation ? 1 : 8;
 			int32 OrientationStep = (bAllowFlips) ? 1 : 2;
-			for (int32 Orientation = 0; Orientation < 8; Orientation += OrientationStep)
+			for (int32 Orientation = 0; Orientation < MaxOrientation; Orientation += OrientationStep)
 			{
 				// TODO If any dimension is less than 1 pixel shrink dimension to zero
 
 				OrientChart(Chart, Orientation);
 
 				FVector2d ChartSize = Chart.MaxUV - Chart.MinUV;
-				ChartSize = ChartSize.X * Chart.PackingScaleU + ChartSize.Y * Chart.PackingScaleV;
+				ChartSize = Chart.UVRotation * Chart.UVPackingScale * ChartSize;
 
 				// Only need half pixel dilate for rects
 				FUVSpaceAllocator::FRect	Rect;
@@ -489,6 +498,13 @@ bool FStandardChartPacker::PackCharts(TArray<FUVIsland>& Charts, double UVScale,
 				}
 				else
 				{
+
+					// This block is a little confusing - the intent here is that orientations
+					// that are flips always follow orientations that are their flip opposite... 
+					// So, we can avoid explicit rasterization for the flip orientations and
+					// just flip the previous iteration's raster instead.
+					// Technically we can rasterize in all cases and then flip, but it would
+					// probably be more expensive?
 					if (Orientation % 4 == 1)
 					{
 						ChartRaster.FlipX(Rect);
@@ -635,55 +651,63 @@ bool FStandardChartPacker::PackCharts(TArray<FUVIsland>& Charts, double UVScale,
 
 void FStandardChartPacker::OrientChart(FUVIsland& Chart, int32 Orientation)
 {
+	Chart.PackingBias = FVector2d::Zero();
+	Chart.UVPackingScale = FMatrix2d(Chart.UVScale.X, 0.0, 0.0, Chart.UVScale.Y);
+
+	/*
+	
+	Note: The packing bias is being initialized here to "correct" the positioning of the chart's bounding box after rotation.
+
+	How this works: 
+
+	1) Rotate the box, assuming 0,0 is the upper left hand corner
+
+	2) Shift box, so that the new upper left hand corner of the rotated box lands at 0,0 again.
+	
+	*/
+
+
 	switch (Orientation)
 	{
 	case 0:
 		// 0 degrees
-		Chart.PackingScaleU = FVector2d(Chart.UVScale.X, 0);
-		Chart.PackingScaleV = FVector2d(0, Chart.UVScale.Y);
-		Chart.PackingBias = -Chart.MinUV.X * Chart.PackingScaleU - Chart.MinUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(1.0, 0.0, 0.0, 1.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MinUV.X, -Chart.MinUV.Y);
 		break;
 	case 1:
 		// 0 degrees, flip x
-		Chart.PackingScaleU = FVector2d(-Chart.UVScale.X, 0);
-		Chart.PackingScaleV = FVector2d(0, Chart.UVScale.Y);
-		Chart.PackingBias = -Chart.MaxUV.X * Chart.PackingScaleU - Chart.MinUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(-1.0, 0.0, 0.0, 1.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MaxUV.X, -Chart.MinUV.Y);
 		break;
 	case 2:
 		// 90 degrees
-		Chart.PackingScaleU = FVector2d(0, -Chart.UVScale.X);
-		Chart.PackingScaleV = FVector2d(Chart.UVScale.Y, 0);
-		Chart.PackingBias = -Chart.MaxUV.X * Chart.PackingScaleU - Chart.MinUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(0.0, 1.0, -1.0, 0.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MaxUV.X, -Chart.MinUV.Y);
 		break;
 	case 3:
 		// 90 degrees, flip x
-		Chart.PackingScaleU = FVector2d(0, Chart.UVScale.X);
-		Chart.PackingScaleV = FVector2d(Chart.UVScale.Y, 0);
-		Chart.PackingBias = -Chart.MinUV.X * Chart.PackingScaleU - Chart.MinUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(0.0, 1.0, 1.0, 0.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MinUV.X, -Chart.MinUV.Y);
 		break;
 	case 4:
 		// 180 degrees
-		Chart.PackingScaleU = FVector2d(-Chart.UVScale.X, 0);
-		Chart.PackingScaleV = FVector2d(0, -Chart.UVScale.Y);
-		Chart.PackingBias = -Chart.MaxUV.X * Chart.PackingScaleU - Chart.MaxUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(-1.0, 0.0, 0.0, -1.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MaxUV.X, -Chart.MaxUV.Y);
 		break;
 	case 5:
 		// 180 degrees, flip x
-		Chart.PackingScaleU = FVector2d(Chart.UVScale.X, 0);
-		Chart.PackingScaleV = FVector2d(0, -Chart.UVScale.Y);
-		Chart.PackingBias = -Chart.MinUV.X * Chart.PackingScaleU - Chart.MaxUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(1.0, 0.0, 0.0, -1.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MinUV.X, -Chart.MaxUV.Y);
 		break;
 	case 6:
 		// 270 degrees
-		Chart.PackingScaleU = FVector2d(0, Chart.UVScale.X);
-		Chart.PackingScaleV = FVector2d(-Chart.UVScale.Y, 0);
-		Chart.PackingBias = -Chart.MinUV.X * Chart.PackingScaleU - Chart.MaxUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(0.0, -1.0, 1.0, 0.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MinUV.X, -Chart.MaxUV.Y);
 		break;
 	case 7:
 		// 270 degrees, flip x
-		Chart.PackingScaleU = FVector2d(0, -Chart.UVScale.X);
-		Chart.PackingScaleV = FVector2d(-Chart.UVScale.Y, 0);
-		Chart.PackingBias = -Chart.MaxUV.X * Chart.PackingScaleU - Chart.MaxUV.Y * Chart.PackingScaleV + 0.5f;
+		Chart.UVRotation = FMatrix2d(0.0, -1.0, -1.0, 0.0);
+		Chart.OrientationBiasShift = FVector2d(-Chart.MaxUV.X, -Chart.MaxUV.Y);
 		break;
 	}
 }
@@ -795,7 +819,7 @@ void FStandardChartPacker::RasterizeChart(const FUVIsland& Chart, uint32 RectW, 
 		for (int k = 0; k <3; k++)
 		{
 			FVector2d UV = (FVector2d)Mesh->GetUV(UVTriangle[k]);
-			Points[k] = (FVector2f)(UV.X * Chart.PackingScaleU + UV.Y * Chart.PackingScaleV + Chart.PackingBias);
+			Points[k] = (FVector2f)((Chart.UVRotation * Chart.UVPackingScale * UV) + Chart.GetPackingBias());
 		}
 
 		InternalRasterizeTriangle<16>(OutChartRaster, Points, RectW, RectH);
@@ -818,6 +842,7 @@ bool FUVPacker::StandardPack(IUVMeshView* Mesh, int NumIslands, TFunctionRef<voi
 	Packer.Mesh = Mesh;
 
 	Packer.TextureResolution = this->TextureResolution;
+	Packer.bPreserveRotation = this->bPreserveRotation;
 	Packer.bAllowFlips = this->bAllowFlips;
 
 	int32 NumCharts = NumIslands;
@@ -849,15 +874,42 @@ bool FUVPacker::StandardPack(IUVMeshView* Mesh, int NumIslands, TFunctionRef<voi
 		return false;
 	}
 
-
 	// Commit chart UVs
 	for (int32 i = 0; i <AllCharts.Num(); i++)
 	{
 		FUVIsland& Chart = AllCharts[i];
 
-		Chart.PackingScaleU /= (double)Packer.TextureResolution;
-		Chart.PackingScaleV /= (double)Packer.TextureResolution;
-		Chart.PackingBias /= (double)Packer.TextureResolution;
+		FVector2d PackingBias = Chart.GetPackingBias();
+		PackingBias /= (double)Packer.TextureResolution;
+		FMatrix2d NormalizedScale = Chart.UVPackingScale * (1.0 / Packer.TextureResolution);
+
+		auto PackUVsWithScaling = [&Mesh, &Chart, &NormalizedScale, &PackingBias](TSet<int32>& IslandElements)
+		{
+			for (int32 elemid : IslandElements)
+			{
+				if (elemid >= 0)
+				{
+					FVector2d UV = (FVector2d)Mesh->GetUV(elemid);
+					FVector2d TransformedUV = (Chart.UVRotation * NormalizedScale * UV) + PackingBias;
+					Mesh->SetUV(elemid, (FVector2f)TransformedUV);
+				}
+			}
+		};
+
+		auto PackUVsWithoutScaling = [&Mesh, &Chart, &NormalizedScale, &PackingBias](TSet<int32>& IslandElements)
+		{
+			FMatrix2d InverseScale = NormalizedScale.Inverse();
+
+			for (int32 elemid : IslandElements)
+			{
+				if (elemid >= 0)
+				{
+					FVector2d UV = (FVector2d)Mesh->GetUV(elemid);
+					FVector2d TransformedUV = InverseScale * ((Chart.UVRotation * NormalizedScale * UV) + PackingBias);
+					Mesh->SetUV(elemid, (FVector2f)TransformedUV);
+				}
+			}
+		};
 
 		TSet<int32> IslandElements;
 
@@ -869,22 +921,18 @@ bool FUVPacker::StandardPack(IUVMeshView* Mesh, int NumIslands, TFunctionRef<voi
 			IslandElements.Add(Triangle.C);
 		}
 
-		for (int32 elemid : IslandElements)
+		if (bPreserveScale)
 		{
-			if (elemid >= 0)
-			{
-				FVector2d UV = (FVector2d)Mesh->GetUV(elemid);
-				FVector2d TransformedUV = UV.X * Chart.PackingScaleU + UV.Y * Chart.PackingScaleV + Chart.PackingBias;
-				Mesh->SetUV(elemid, (FVector2f)TransformedUV);
-			}
+			PackUVsWithoutScaling(IslandElements);
 		}
-
+		else
+		{
+			PackUVsWithScaling(IslandElements);
+		}
 	}
 
 	return bPackingFound;
 }
-
-
 
 bool FUVPacker::StackPack(IUVMeshView* Mesh, int NumIslands, TFunctionRef<void(int, TArray<int32>&)> CopyIsland)
 {

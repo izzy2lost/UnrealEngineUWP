@@ -23,6 +23,8 @@ SamplerState DistanceFieldSampler;
 
 Buffer<uint> PageComposeIndirectArgBuffer;
 
+#ifdef GlobalDistanceFieldAccumulateUpdatedPagesCS
+
 [numthreads(1, 1, 1)]
 void GlobalDistanceFieldAccumulateUpdatedPagesCS(
 	uint3 GroupId : SV_GroupID,
@@ -34,6 +36,10 @@ void GlobalDistanceFieldAccumulateUpdatedPagesCS(
 		InterlockedAdd(RWPageStatsBuffer[2], PageComposeIndirectArgBuffer[0] / GLOBAL_DISTANCE_FIELD_PAGE_GROUP_NUM);
 	}
 }
+
+#endif
+
+#ifdef GlobalDistanceFieldPageStatsCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void GlobalDistanceFieldPageStatsCS(
@@ -83,6 +89,10 @@ void GlobalDistanceFieldPageStatsCS(
 	}
 }
 
+#endif
+
+#ifdef GlobalDistanceFieldDebugCS
+
 [numthreads(1, 1, 1)]
 void GlobalDistanceFieldDebugCS(
 	uint3 GroupId : SV_GroupID,
@@ -128,3 +138,5 @@ void GlobalDistanceFieldDebugCS(
 		Newline(Context);
 	}
 }
+
+#endif

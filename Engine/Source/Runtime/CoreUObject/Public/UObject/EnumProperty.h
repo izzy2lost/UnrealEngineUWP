@@ -31,8 +31,6 @@ class FEnumProperty : public FProperty
 
 public:
 	COREUOBJECT_API FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
-	COREUOBJECT_API FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, UEnum* InEnum);
-	COREUOBJECT_API FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, UEnum* InEnum);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -94,6 +92,15 @@ public:
 	}
 
 	/**
+	 * Set the UEnum of this property.
+	 * @note Internal! Used for creation of enums that use impersonation.
+	 */
+	UE_INTERNAL FORCEINLINE void SetEnumForImpersonation(UEnum* InEnum)
+	{
+		Enum = InEnum;
+	}
+
+	/**
 	 * Returns a pointer to the UEnum of this property.
 	 */
 	FORCEINLINE UEnum* GetEnum() const
@@ -111,6 +118,11 @@ public:
 
 	// Returns the number of bits required by NetSerializeItem to encode this enum, based on the maximum value
 	COREUOBJECT_API uint64 GetMaxNetSerializeBits() const;
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override
+	{
+		return false;
+	}
 
 private:
 	COREUOBJECT_API virtual uint32 GetValueTypeHashInternal(const void* Src) const override;

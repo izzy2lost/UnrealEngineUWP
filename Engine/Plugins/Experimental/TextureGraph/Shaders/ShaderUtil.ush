@@ -45,9 +45,18 @@ float3x3 GetTransform_TS_to_WS(float3x3 _ObjectToWorld, float3 worldNormal, floa
 	return tangentToWorld;
 }
 
-float Grayscale(float3 SourceClr)
+
+float LumaFromRGB(float3 Color)
 {
-	return 0.299 * SourceClr.r + 0.587 * SourceClr.g + 0.114 * SourceClr.b;
+	// ITU-R BT.709 colour luminance gradients
+	return 0.2126 * Color.r + 0.7152 * Color.g + 0.0722* Color.b;
+}
+
+
+float Grayscale(float3 Color)
+{
+	// ITU-R BT.709 colour luminance gradients
+	return LumaFromRGB(Color);
 }
 
 float3 RGBToHSV(float3 c)

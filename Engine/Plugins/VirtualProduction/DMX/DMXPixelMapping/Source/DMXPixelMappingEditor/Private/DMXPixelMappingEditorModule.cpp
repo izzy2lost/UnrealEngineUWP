@@ -26,8 +26,11 @@ void FDMXPixelMappingEditorModule::StartupModule()
 
 	FDMXPixelMappingEditorCommands::Register();
 
-	// Any attempt to use GEditor right now will fail as it hasn't been initialized yet. Waiting for post engine init resolves that.
-	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FDMXPixelMappingEditorModule::OnPostEngineInit);
+	// Access the Pixel Mapping editor style so it gets instantiated and registered early.
+	// This will allow the engine to find related class icon and thumbnail.
+	FDMXPixelMappingEditorStyle::Get();
+
+	UThumbnailManager::Get().RegisterCustomRenderer(UDMXPixelMapping::StaticClass(), UDMXPixelMappingThumbnailRendering::StaticClass());
 }
 
 void FDMXPixelMappingEditorModule::ShutdownModule()
@@ -58,14 +61,6 @@ void FDMXPixelMappingEditorModule::RegisterAssetTypeAction(IAssetTools& AssetToo
 {
 	AssetTools.RegisterAssetTypeActions(Action);
 	CreatedAssetTypeActions.Add(Action);
-}
-
-void FDMXPixelMappingEditorModule::OnPostEngineInit()
-{
-	if (GIsEditor)
-	{
-		UThumbnailManager::Get().RegisterCustomRenderer(UDMXPixelMapping::StaticClass(), UDMXPixelMappingThumbnailRendering::StaticClass());
-	}
 }
 
 IMPLEMENT_MODULE(FDMXPixelMappingEditorModule, DMXPixelMappingEditor)

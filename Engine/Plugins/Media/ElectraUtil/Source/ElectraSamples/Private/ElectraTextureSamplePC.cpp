@@ -5,22 +5,16 @@
 #if PLATFORM_WINDOWS && !UE_SERVER
 
 #include "ElectraTextureSample.h"
+#include "ElectraSamplesModule.h"
 
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
 #include "RenderUtils.h"
 
 #include "ID3D12DynamicRHI.h"
 
-#include "Windows/AllowWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_START
 #ifdef ELECTRA_HAVE_DX11
-#include "D3D11State.h"
-#include "D3D11Resources.h"
+#include "ID3D11DynamicRHI.h"
 #endif
-#include "d3d12.h"
-THIRD_PARTY_INCLUDES_END
-#include "Windows/HideWindowsPlatformTypes.h"
-
 
 /*
 	Short summary of how we get data:
@@ -209,8 +203,24 @@ FRHITexture* FElectraTextureSample::GetTexture() const
 				// Yes...
 				TRefCountPtr<ID3D12Resource> TextureDX12;
 				HRESULT Res = TextureCommon->QueryInterface(__uuidof(ID3D12Resource), (void**)TextureDX12.GetInitReference());
-				check(Res == S_OK);
-				if (Res == S_OK)
+
+				if (Res != S_OK)
+				{
+					// Support shared dxgi resource.
+					TRefCountPtr<IDXGIResource> DxgiResource;
+					Res = TextureCommon->QueryInterface(__uuidof(IDXGIResource), (void**)DxgiResource.GetInitReference());
+					if (Res == S_OK)
+					{
+						HANDLE SharedHandle;
+						Res = DxgiResource->GetSharedHandle(&SharedHandle);
+						if (Res == S_OK)
+						{
+							Res = GetID3D12DynamicRHI()->RHIGetDevice(0)->OpenSharedHandle(SharedHandle, __uuidof(ID3D12Resource), (void**)TextureDX12.GetInitReference());
+						}
+					}
+				}
+
+				if (ensure(Res == S_OK))
 				{
 					// Setup a suitable RHI texture (it will also become an additional owner of the data)
 					ETextureCreateFlags Flags = ETextureCreateFlags::ShaderResource;
@@ -252,10 +262,10 @@ IMediaTextureSampleConverter* FElectraTextureSample::GetMediaTextureSampleConver
 struct FRHICommandCopyResourceDX11 final : public FRHICommand<FRHICommandCopyResourceDX11>
 {
 	TRefCountPtr<ID3D11Texture2D> SampleTexture;
-	FTexture2DRHIRef SampleDestinationTexture;
+	FTextureRHIRef SampleDestinationTexture;
 	bool bCrossDevice;
 
-	FRHICommandCopyResourceDX11(ID3D11Texture2D* InSampleTexture, FRHITexture2D* InSampleDestinationTexture, bool bInCrossDevice)
+	FRHICommandCopyResourceDX11(ID3D11Texture2D* InSampleTexture, FRHITexture* InSampleDestinationTexture, bool bInCrossDevice)
 		: SampleTexture(InSampleTexture)
 		, SampleDestinationTexture(InSampleDestinationTexture)
 		, bCrossDevice(bInCrossDevice)
@@ -302,21 +312,21 @@ struct FRHICommandCopyResourceDX11 final : public FRHICommand<FRHICommandCopyRes
 										// Key is 1 : Texture as just been updated
 										// Key is 2 : Texture as already been updated.
 										// Do not wait to acquire key 1 since there is race no condition between writer and reader.
-										if (KeyedMutex->AcquireSync(1, 0) == S_OK)
+										HRESULT Result = KeyedMutex->AcquireSync(1, 0);
+										if (Result == S_OK)
 										{
 											// Copy from shared texture of FSink device to Rendering device
 											D3D11DeviceContext->CopyResource(DestinationTexture, SharedResource);
 											KeyedMutex->ReleaseSync(2);
 										}
+										else if (Result == ((HRESULT)WAIT_TIMEOUT))
+										{
+											// If key 1 cannot be acquired, the resource has already been shutdown or consumed by another reader
+											UE_LOG(LogElectraSamples, Warning, TEXT("AcquireSync timed out, DecoderOutput has likely been shut down already!"));
+										}
 										else
 										{
-											// If key 1 cannot be acquired, another reader is already copying the resource
-											// and will release key with 2. 
-											// Wait to acquire key 2.
-											if (KeyedMutex->AcquireSync(2, INFINITE) == S_OK)
-											{
-												KeyedMutex->ReleaseSync(2);
-											}
+											UE_LOG(LogElectraSamples, Warning, TEXT("AcquireSync failed with 0x%08x!"), Result);
 										}
 									}
 								}
@@ -341,17 +351,12 @@ struct FRHICommandCopyResourceDX11 final : public FRHICommand<FRHICommandCopyRes
 /**
  * "Converter" for textures - here: a copy from the decoder owned texture (possibly in another device) into a RHI one (as prep for the real conversion to RGB etc.)
  */
-bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints)
+bool FElectraTextureSample::Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 
-	check(IsInRenderingThread());
-
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-	SCOPED_DRAW_EVENT(RHICmdList, WinMediaOutputConvertTexture);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, MediaWinDecoder_Convert, "MediaWinDecoder_Convert");
 	SCOPED_GPU_STAT(RHICmdList, MediaWinDecoder_Convert);
-
 
 	bool bHasTexture = !!VideoDecoderOutputPC->GetTexture();
 
@@ -378,14 +383,44 @@ bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConve
 			//
 			TRefCountPtr<ID3D12Fence> SyncFence;
 			HRESULT Res = SyncCommon->QueryInterface(__uuidof(ID3D12Fence), (void**)SyncFence.GetInitReference());
-			check(SUCCEEDED(Res));
+			
 			if (Res == S_OK)
 			{
 				RHICmdList.EnqueueLambda([SyncFence, SyncFenceValue](FRHICommandList& RHICmdList)
 				{
 					GetID3D12DynamicRHI()->RHIWaitManualFence(RHICmdList, SyncFence, SyncFenceValue);
 				});
+				return true;
 			}
+
+			// Only continue with fallback if no interface so that we don't loose the other errors.
+			if (Res == E_NOINTERFACE)
+			{
+				// Support IDXGIKeyedMutex (d3d11 texture path)
+				TRefCountPtr<IDXGIKeyedMutex> KeyedMutex;
+				Res = SyncCommon->QueryInterface(_uuidof(IDXGIKeyedMutex), (void**)&KeyedMutex);
+				if (Res == S_OK)
+				{
+					// Remark:
+					// In the d3d11 texture path, the VideoDecoderOutputPC::InitializeWithSharedTexture should have already flushed d3d11 context and
+					// the AcquireSync will not wait in that case. Adding the sync command in any case for extra protection.
+
+					RHICmdList.EnqueueLambda([KeyedMutex](FRHICommandList& RHICmdList)
+					{
+						if (KeyedMutex)
+						{
+							// Should we limit the wait as a precaution? ex: 16 ms instead of infinite?
+							if (KeyedMutex->AcquireSync(1, INFINITE) == S_OK)
+							{
+								KeyedMutex->ReleaseSync(2);
+							}
+						}
+					});
+					return true;
+				}
+			}
+
+			check(SUCCEEDED(Res));
 		}
 		return true;
 	}
@@ -437,7 +472,7 @@ bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConve
 			FRHITextureCreateDesc::Create2D(TEXT("FElectraTextureSample"), Dim, Format)
 			.SetFlags(ETextureCreateFlags::Dynamic | ((bCanUseSRGB && IsOutputSrgb()) ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None));
 
-		Texture = RHICreateTexture(Desc);
+		Texture = RHICmdList.CreateTexture(Desc);
 	}
 
 	uint64 SyncValue = 0;

@@ -3,15 +3,18 @@
 #pragma once
 
 // Metal RHI public headers.
-#include <Metal/Metal.h>
+#include "MetalThirdParty.h"
 #include "MetalState.h"
 #include "MetalResources.h"
 #include "MetalViewport.h"
+#include "MetalDevice.h"
+#include "MetalCommandList.h"
+#include "MetalCommandEncoder.h"
+#include "MetalRHIRenderQuery.h"
 #include "RHICore.h"
-#include "BoundShaderStateHistory.h"
 
-class FMetalDeviceContext;
 class FMetalCommandBufferFence;
+class FMetalEventNode;
 
 #if PLATFORM_VISIONOS
 namespace MetalRHIVisionOS
@@ -25,11 +28,20 @@ namespace MetalRHIVisionOS
 class FMetalRHICommandContext : public IRHICommandContext
 {
 public:
-	FMetalRHICommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext);
+	FMetalRHICommandContext(FMetalDevice& Device, class FMetalProfiler* InProfiler);
 	virtual ~FMetalRHICommandContext();
-
-	/** Get the internal context */
-	FORCEINLINE FMetalDeviceContext& GetInternalContext() const { return *Context; }
+	
+	static inline FMetalRHICommandContext& Get(FRHICommandListBase& CmdList)
+	{
+		check(CmdList.IsBottomOfPipe());
+		return static_cast<FMetalRHICommandContext&>(CmdList.GetContext().GetLowestLevelContext());
+	}
+	
+	void ResetContext();
+	void BeginComputeEncoder();
+	void EndComputeEncoder();
+	void BeginBlitEncoder();
+	void EndBlitEncoder();
 	
 	/** Get the profiler pointer */
 	FORCEINLINE class FMetalProfiler* GetProfiler() const { return Profiler; }
@@ -52,13 +64,13 @@ public:
 	virtual void RHICopyTexture(FRHITexture* SourceTextureRHI, FRHITexture* DestTextureRHI, const FRHICopyTextureInfo& CopyInfo) final override;
 	virtual void RHICopyBufferRegion(FRHIBuffer* DstBufferRHI, uint64 DstOffset, FRHIBuffer* SrcBufferRHI, uint64 SrcOffset, uint64 NumBytes) final override;
 
+    virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) final override;
+    
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	
 	void RHIBeginOcclusionQueryBatch(uint32 NumQueriesInBatch);
 	void RHIEndOcclusionQueryBatch();
-	
-	virtual void RHISubmitCommandsHint() override;
 
 	virtual void RHIDiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask) final override;
 	
@@ -67,26 +79,6 @@ public:
 	
 	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) override;
-	
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIBeginFrame() override;
-	
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIEndFrame() override;
-	
-	/**
-		* Signals the beginning of scene rendering. The RHI makes certain caching assumptions between
-		* calls to BeginScene/EndScene. Currently the only restriction is that you can't update texture
-		* references.
-		*/
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIBeginScene() override;
-	
-	/**
-		* Signals the end of scene rendering. See RHIBeginScene.
-		*/
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIEndScene() override;
 	
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
 
@@ -108,20 +100,6 @@ public:
 	
 	virtual void RHISetStaticUniformBuffers(const FUniformBufferStaticBindings& InUniformBuffers) final override;
 
-	void RHISetShaderTexture(FRHIGraphicsShader* Shader, uint32 TextureIndex, FRHITexture* NewTexture);
-	void RHISetShaderTexture(FRHIComputeShader* PixelShader, uint32 TextureIndex, FRHITexture* NewTexture);
-	void RHISetShaderSampler(FRHIComputeShader* ComputeShader, uint32 SamplerIndex, FRHISamplerState* NewState);
-	void RHISetShaderSampler(FRHIGraphicsShader* Shader, uint32 SamplerIndex, FRHISamplerState* NewState);
-	void RHISetUAVParameter(FRHIPixelShader* PixelShaderRHI, uint32 UAVIndex, FRHIUnorderedAccessView* UAVRHI);
-	void RHISetUAVParameter(FRHIComputeShader* ComputeShader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV);
-	void RHISetUAVParameter(FRHIComputeShader* ComputeShader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV, uint32 InitialCount);
-	void RHISetShaderResourceViewParameter(FRHIGraphicsShader* Shader, uint32 SamplerIndex, FRHIShaderResourceView* SRV);
-	void RHISetShaderResourceViewParameter(FRHIComputeShader* ComputeShader, uint32 SamplerIndex, FRHIShaderResourceView* SRV);
-	void RHISetShaderUniformBuffer(FRHIGraphicsShader* Shader, uint32 BufferIndex, FRHIUniformBuffer* Buffer);
-	void RHISetShaderUniformBuffer(FRHIComputeShader* ComputeShader, uint32 BufferIndex, FRHIUniformBuffer* Buffer);
-	void RHISetShaderParameter(FRHIGraphicsShader* Shader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue);
-	void RHISetShaderParameter(FRHIComputeShader* ComputeShader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue);
-	
 	virtual void RHISetShaderParameters(FRHIGraphicsShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) final override;
 	virtual void RHISetShaderParameters(FRHIComputeShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) final override;
 
@@ -157,10 +135,11 @@ public:
 	*/
 	virtual void RHISetDepthBounds(float MinDepth, float MaxDepth) final override;
 
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
-	
-	virtual void RHIPopEvent() final override;
-	
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+	virtual void RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+#endif
+
 	virtual void RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI, FRHIStagingBuffer* DestinationStagingBufferRHI, uint32 Offset, uint32 NumBytes) final override;
 	virtual void RHIWriteGPUFence(FRHIGPUFence* FenceRHI) final override;
 
@@ -168,7 +147,6 @@ public:
 	virtual void RHIEndTransitions(TArrayView<const FRHITransition*> Transitions);
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override;
-
 	virtual void RHIEndRenderPass() final override;
 	
 	virtual void RHINextSubpass() final override;
@@ -178,36 +156,60 @@ public:
 	virtual void RHIBuildAccelerationStructures(const TArrayView<const FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange) final override;
 	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams) final override;
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override;
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT) final override;
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
 		FRHIRayTracingScene* Scene,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
+		uint32 Width, uint32 Height) final override;
+	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height) final override;
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
 		FRHIRayTracingScene* Scene,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
-	virtual void RHISetRayTracingHitGroup(
-		FRHIRayTracingScene* Scene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-		FRHIRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 LooseParameterDataSize, const void* LooseParameterData,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingCallableShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override;
-	virtual void RHISetRayTracingMissShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData) final override;
+	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
 	virtual void RHISetRayTracingBindings(
 		FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
+	virtual void RHISetBindingsOnShaderBindingTable(
+		FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline,
+		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
+		ERayTracingBindingType BindingType) final override;
 #endif // METAL_RHI_RAYTRACING
 
+	void FillBuffer(MTL::Buffer* Buffer, NS::Range Range, uint8 Value);
+	void CopyFromTextureToBuffer(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, FMetalBufferPtr toBuffer, uint32 destinationOffset, uint32 destinationBytesPerRow, uint32 destinationBytesPerImage, MTL::BlitOption options);
+	void CopyFromBufferToTexture(FMetalBufferPtr Buffer, uint32 sourceOffset, uint32 sourceBytesPerRow, uint32 sourceBytesPerImage, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin, MTL::BlitOption options);
+	void CopyFromTextureToTexture(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin);
+	void CopyFromBufferToBuffer(FMetalBufferPtr SourceBuffer, NS::UInteger SourceOffset, FMetalBufferPtr DestinationBuffer, NS::UInteger DestinationOffset, NS::UInteger Size);
+	
+	void CommitRenderResourceTables(void);
+	void PrepareToRender(uint32 PrimitiveType);
+	bool PrepareToDraw(uint32 PrimitiveType);
+	void PrepareToDispatch();
+
+	TArray<FMetalCommandBuffer*> Finalize();
+	
+	void InsertCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>& Fence, FMetalCommandBufferCompletionHandler Handler);
+	
+	void StartTiming(class FMetalEventNode* EventNode);
+	void EndTiming(class FMetalEventNode* EventNode);
+	
+	void SynchronizeResource(MTL::Resource* Resource);
+	void SynchronizeTexture(MTL::Texture* Texture, uint32 Slice, uint32 Level);
+	
+	void AddCompletionHandler(FMetalCommandBufferCompletionHandler& Handler);
+	
+	/** Update the event to capture all GPU work so far enqueued by this encoder. */
+	void SignalEvent(MTLEventPtr Event, uint32_t SignalCount);
+	
+	/** Prevent further GPU work until the event is reached. */
+	void WaitForEvent(MTLEventPtr Event, uint32_t SignalCount);
+	
 #if PLATFORM_VISIONOS
     void BeginRenderingImmersive(const MetalRHIVisionOS::BeginRenderingImmersiveParams& Params);
     cp_frame_t SwiftFrame = nullptr;
@@ -215,56 +217,123 @@ public:
     void SetCustomPresentViewport(FRHIViewport* Viewport) { CustomPresentViewport = Viewport; }
     FRHIViewport* CustomPresentViewport = nullptr;
 
+	FMetalCommandBuffer* GetCurrentCommandBuffer();
+	
 	void BeginRecursiveCommand()
 	{
 		// Nothing to do
 	}
-protected:
-	static TGlobalResource<TBoundShaderStateHistory<10000>> BoundShaderStateHistory;
+    
+    inline const TArray<FRHIUniformBuffer*>& GetStaticUniformBuffers() const
+    {
+        return GlobalUniformBuffers;
+    }
 	
-	/** Context implementation details. */
-	FMetalDeviceContext* Context = nullptr;
+	inline void SetProfiler(FMetalProfiler* InProfiler)
+	{
+		Profiler = InProfiler;
+	}
+	
+	inline FMetalProfiler* GetProfiler()
+	{
+		return Profiler;
+	}
+	
+	inline TSharedRef<FMetalQueryBufferPool, ESPMode::ThreadSafe> GetQueryBufferPool()
+	{
+		return QueryBuffer.ToSharedRef();
+	}
+	
+	inline FMetalStateCache& GetStateCache()
+	{
+		return StateCache;
+	}
+	
+	inline FMetalCommandQueue& GetCommandQueue()
+	{
+		return CommandQueue;
+	}
+	
+	inline FMetalDevice& GetDevice()
+	{
+		return Device;
+	}
+	
+	inline bool IsInsideRenderPass() const
+	{
+		return bWithinRenderPass;
+	}
+	
+	void SplitCommandBuffers()
+	{
+		if(!bWithinRenderPass)
+		{
+			CurrentEncoder.SplitCommandBuffers();
+		}
+	}
+	
+protected:
+	FMetalDevice& Device;
+	
+	/** The wrapper around the device command-queue for creating & committing command buffers to */
+	FMetalCommandQueue& CommandQueue;
+	
+	/** The wrapper around command buffers for ensuring correct parallel execution order */
+	FMetalCommandList CommandList;
+	
+	FMetalCommandEncoder CurrentEncoder;
+	
+	/** The cache of all tracked & accessible state. */
+	FMetalStateCache StateCache;
+	
+	/** A pool of buffers for writing visibility query results. */
+	TSharedPtr<FMetalQueryBufferPool, ESPMode::ThreadSafe> QueryBuffer;
+	
+	MTL::RenderPassDescriptor* RenderPassDesc = nullptr;
 	
 	/** Occlusion query batch fence */
 	TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> CommandBufferFence;
 	
 	/** Profiling implementation details. */
 	class FMetalProfiler* Profiler = nullptr;
-	
-	/** Some local variables to track the pending primitive information used in RHIEnd*UP functions */
-	FMetalBuffer PendingVertexBuffer;
-	uint32 PendingVertexDataStride = 0;
-	
-	FMetalBuffer PendingIndexBuffer;
-	uint32 PendingIndexDataStride = 0;
-	
-	uint32 PendingPrimitiveType = 0;
-	uint32 PendingNumPrimitives = 0;
 
-	template <typename TRHIShader>
-	void ApplyStaticUniformBuffers(TRHIShader* Shader);
-
+	TRefCountPtr<FMetalFence> CurrentEncoderFence;
+	uint64_t UploadSyncCounter = 0;
+	
+	bool bWithinRenderPass = false;
 	void ResolveTexture(UE::RHICore::FResolveTextureInfo Info);
 
 	TArray<FRHIUniformBuffer*> GlobalUniformBuffers;
-
+	
 private:
 	void RHIClearMRT(bool bClearColor, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil);
 };
 
-class FMetalRHIImmediateCommandContext : public FMetalRHICommandContext
+class FMetalRHIUploadContext : public IRHIUploadContext
 {
 public:
-	FMetalRHIImmediateCommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext);
-
-	// FRHICommandContext API accessible only on the immediate device context
-	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
-	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
-	virtual void RHIBeginFrame() final override;
-	virtual void RHIEndFrame() final override;
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
+	FMetalRHIUploadContext(FMetalDevice& Device);
+	~FMetalRHIUploadContext();
 	
-protected:
-	friend class FMetalDynamicRHI;
+	typedef TFunction<void(FMetalRHICommandContext*)> UploadContextFunction;
+	
+	virtual TArray<FMetalCommandBuffer*>* Finalize();
+	
+	virtual void EnqueueFunction(UploadContextFunction Function)
+	{
+		UploadFunctions.Add(Function);
+	}
+	
+private:
+	FMetalRHICommandContext* UploadContext;
+	FMetalRHICommandContext* WaitContext;
+	TArray<UploadContextFunction> UploadFunctions;
+	
+	MTLEventPtr UploadSyncEvent;
+	uint64_t UploadSyncCounter = 0;
+};
+
+struct FMetalContextArray : public TRHIPipelineArray<FMetalRHICommandContext*>
+{
+	FMetalContextArray(FRHIContextArray const& Contexts);
 };

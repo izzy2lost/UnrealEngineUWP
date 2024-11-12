@@ -7,6 +7,12 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "SceneRendering.h"
 
+TAutoConsoleVariable<float> CVarEyeAdaptationVisualizeLuminanceScale(
+	TEXT("r.EyeAdaptation.VisualizeLuminanceScale"),
+	1.0f,
+	TEXT("Scale applied to output when visualizing luminance.\n"),
+	ECVF_RenderThreadSafe);
+
 extern bool IsExtendLuminanceRangeEnabled();
 
 class FVisualizeHDRPS : public FGlobalShader
@@ -23,9 +29,11 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HDRSceneColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistogramTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, LuminanceTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HDRSceneColorSampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, SceneColorSampler)
+		SHADER_PARAMETER_SAMPLER(SamplerState, LuminanceSampler)
 		SHADER_PARAMETER_TEXTURE(Texture2D, MiniFontTexture)
 		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
 		SHADER_PARAMETER(float, FilmSlope)
@@ -33,7 +41,10 @@ public:
 		SHADER_PARAMETER(float, FilmShoulder)
 		SHADER_PARAMETER(float, FilmBlackClip)
 		SHADER_PARAMETER(float, FilmWhiteClip)
+		SHADER_PARAMETER(FScreenTransform, ColorUVToLuminanceUV)
 		SHADER_PARAMETER(float, IlluminanceMeterEnabled)
+		SHADER_PARAMETER(float, UsingIlluminance)
+		SHADER_PARAMETER(float, LuminanceScale)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -79,8 +90,10 @@ FScreenPassTexture AddVisualizeHDRPass(FRDGBuilder& GraphBuilder, const FViewInf
 
 	const FScreenPassTextureViewport InputViewport(Inputs.SceneColor);
 	const FScreenPassTextureViewport OutputViewport(Output);
+	const FScreenPassTextureViewport LuminanceViewport = Inputs.Luminance.IsValid() ? FScreenPassTextureViewport(Inputs.Luminance) : FScreenPassTextureViewport();
 
 	FRHISamplerState* BilinearClampSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	FRHISamplerState* PointSampler = TStaticSamplerState<SF_Point>::GetRHI();
 
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
 
@@ -93,6 +106,8 @@ FScreenPassTexture AddVisualizeHDRPass(FRDGBuilder& GraphBuilder, const FViewInf
 	PassParameters->SceneColorSampler = BilinearClampSampler;
 	PassParameters->HDRSceneColorTexture = Inputs.SceneColorBeforeTonemap.Texture;
 	PassParameters->HDRSceneColorSampler = BilinearClampSampler;
+	PassParameters->LuminanceTexture = Inputs.Luminance.IsValid() ? Inputs.Luminance.Texture : GSystemTextures.GetBlackDummy(GraphBuilder);
+	PassParameters->LuminanceSampler = PointSampler;
 	PassParameters->HistogramTexture = Inputs.HistogramTexture;
 	PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(Inputs.EyeAdaptationBuffer);
 	PassParameters->EyeAdaptation = *Inputs.EyeAdaptationParameters;
@@ -103,8 +118,10 @@ FScreenPassTexture AddVisualizeHDRPass(FRDGBuilder& GraphBuilder, const FViewInf
 	PassParameters->FilmShoulder = Settings.FilmShoulder;
 	PassParameters->FilmBlackClip = Settings.FilmBlackClip;
 	PassParameters->FilmWhiteClip = Settings.FilmWhiteClip;
+	PassParameters->ColorUVToLuminanceUV = FScreenTransform::ChangeTextureUVCoordinateFromTo(InputViewport, LuminanceViewport);
 	PassParameters->IlluminanceMeterEnabled = IsIlluminanceMeterSupportedByView(View) ? 1.0f : 0.0f;
-	
+	PassParameters->UsingIlluminance = IsAutoExposureUsingIlluminanceEnabled(View) ? 1.0f : 0.0f;
+	PassParameters->LuminanceScale = CVarEyeAdaptationVisualizeLuminanceScale.GetValueOnRenderThread();
 
 	TShaderMapRef<FVisualizeHDRPS> PixelShader(View.ShaderMap);
 

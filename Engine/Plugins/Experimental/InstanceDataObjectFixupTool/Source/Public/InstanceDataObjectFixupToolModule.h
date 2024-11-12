@@ -16,5 +16,12 @@ public:
 	}
 
 	// opens the fixup tool 
-	TSharedRef<SDockTab> CreateInstanceDataObjectFixupTab(const FSpawnTabArgs& TabArgs, TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects) const;
+	TSharedRef<SDockTab> CreateInstanceDataObjectFixupTab(
+		const FSpawnTabArgs& TabArgs, 
+		TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, 
+		TObjectPtr<UObject> InstanceDataObjectsOwner = nullptr) const;
+	
+	void CreateInstanceDataObjectFixupDialog(
+		TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, 
+		TObjectPtr<UObject> InstanceDataObjectsOwner = nullptr) const;
 };

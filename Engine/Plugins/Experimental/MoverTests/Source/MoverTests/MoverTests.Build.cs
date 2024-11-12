@@ -26,6 +26,13 @@ public class MoverTests : ModuleRules
 			new string[]
 			{
 				"Core",
+				"CoreUObject",
+				"NetCore",
+				"Engine",
+				"Slate",
+				"SlateCore",
+				"Mover",
+				"MoverExamples"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -34,12 +41,6 @@ public class MoverTests : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
-				"Mover",
-				"MoverExamples"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

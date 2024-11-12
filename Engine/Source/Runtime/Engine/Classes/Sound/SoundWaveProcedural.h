@@ -73,6 +73,7 @@ public:
 	ENGINE_API virtual void InitAudioResource( FByteBulkData& CompressedData ) override;
 	ENGINE_API virtual bool InitAudioResource(FName Format) override;
 	ENGINE_API virtual int32 GetResourceSizeForFormat(FName Format) override;
+	ENGINE_API virtual bool IsSeekable() const override { return false; }
 	//~ End USoundWave Interface.
 
 	// Virtual function to generate PCM audio from the audio render thread. 

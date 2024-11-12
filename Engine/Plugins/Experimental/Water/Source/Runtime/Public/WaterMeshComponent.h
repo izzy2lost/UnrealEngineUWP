@@ -4,6 +4,7 @@
 
 #include "Components/MeshComponent.h"
 #include "WaterQuadTree.h"
+#include "WaterQuadTreeBuilder.h"
 #include "WaterMeshComponent.generated.h"
 
 struct FPSOPrecacheParams;
@@ -49,7 +50,7 @@ public:
 	/** Use this instead of GetMaterialRelevance, since this one will go over all materials from all tiles */
 	FMaterialRelevance GetWaterMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const;
 
-	const FWaterQuadTree& GetWaterQuadTree() const { return WaterQuadTree; }
+	const FWaterQuadTreeBuilder& GetWaterQuadTreeBuilder() const { return WaterQuadTreeBuilder; }
 
 	const TSet<TObjectPtr<UMaterialInterface>>& GetUsedMaterialsSet() const { return UsedMaterials; }
 
@@ -61,8 +62,14 @@ public:
 
 	FIntPoint GetExtentInTiles() const;
 
-	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter);
-	FVector2D GetDynamicWaterMeshCenter() const { return DynamicWaterMeshCenter; }
+	UE_DEPRECATED(5.5, "It is no longer possible to manually set the dynamic mesh center. This is controlled per view by the water view extension.")
+	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter) { }
+	UE_DEPRECATED(5.5, "Dynamic water mesh center is now per-view and must be retrieved through the water view extension (water zone actor provides utilities to do this as well)")
+	FVector2D GetDynamicWaterMeshCenter() const { return FVector2D::ZeroVector; }
+
+	FVector2D GetGlobalWaterMeshCenter() const;
+
+	bool IsLocalOnlyTessellationEnabled() const;
 
 	void SetTileSize(float NewTileSize);
 	float GetTileSize() const { return TileSize; }
@@ -103,8 +110,7 @@ private:
 	UPROPERTY(Transient, VisibleAnywhere, Category = Rendering)
 	mutable FIntPoint QuadTreeResolution = FIntPoint::ZeroValue;
 
-	/** The current center of the dynamic water mesh. Updated by the water view extension whenever the view location crosses the update bounds. */
-	FVector2D DynamicWaterMeshCenter = FVector2D::ZeroVector;
+	FWaterQuadTreeBuilder WaterQuadTreeBuilder;
 
 	/** Tiles containing water, stored in a quad tree */
 	FWaterQuadTree WaterQuadTree;

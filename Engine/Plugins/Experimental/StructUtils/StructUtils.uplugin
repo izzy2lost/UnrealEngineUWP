@@ -15,35 +15,18 @@
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
+	"DeprecatedEngineVersion": "5.5",
 	"SupportedPrograms": [ "LiveLinkHub" ],
 	"Modules": [
 		{
 			"Name": "StructUtils",
-			"Type": "Runtime",
-			"LoadingPhase": "PreDefault",
-			"ProgramAllowList": [ "LiveLinkHub" ]
+			"Type": "Runtime"
 		},
 		{
 			"Name": "StructUtilsEngine",
 			"Type": "Runtime"
-		},
-		{
-			"Name" : "StructUtilsEditor",
-			"Type" : "Editor"
-		},
-		{
-			"Name": "StructUtilsNodes",
-			"Type": "UncookedOnly"
-		},
-		{
-			"Name": "StructUtilsTestSuite",
-			"Type": "UncookedOnly"
 		}
 	],
 	"Plugins": [
-		{
-			"Name": "PropertyAccessEditor",
-			"Enabled": true
-		}
 	]
 }

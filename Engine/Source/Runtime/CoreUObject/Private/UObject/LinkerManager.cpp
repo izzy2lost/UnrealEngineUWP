@@ -9,6 +9,7 @@
 #include "UObject/ObjectResource.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/UObjectThreadContext.h"
+#include "Async/ParallelFor.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
 FLinkerManager& FLinkerManager::Get()
@@ -222,10 +223,20 @@ void FLinkerManager::ResetLoaders(const TSet<FLinkerLoad*>& InLinkerLoads)
 			}
 		}
 	}
+
+	// Parallelize loading the bulk data since that part is thread-safe
+	TArray<FLinkerLoad*> LinkerLoadsArray = InLinkerLoads.Array();
+	ParallelFor(LinkerLoadsArray.Num(),
+		[&LinkerLoadsArray](int32 Index)
+		{
+			LinkerLoadsArray[Index]->LoadAndDetachAllBulkData();
+		},
+		EParallelForFlags::Unbalanced
+	);
+
 	for (FLinkerLoad* LinkerToReset : InLinkerLoads)
 	{
 		// Detach linker, also removes from array and sets LinkerRoot to NULL.
-		LinkerToReset->LoadAndDetachAllBulkData();
 		LinkerToReset->Detach();
 	}
 	// Remove all linkers in the specified set
@@ -233,7 +244,7 @@ void FLinkerManager::ResetLoaders(const TSet<FLinkerLoad*>& InLinkerLoads)
 #if THREADSAFE_UOBJECTS
 		FScopeLock PendingCleanupListLock(&PendingCleanupListCritical);
 #endif
-		PendingCleanupList.Append(InLinkerLoads.Array());
+		PendingCleanupList.Append(LinkerLoadsArray);
 		bHasPendingCleanup = true;
 	}
 }
@@ -284,10 +295,7 @@ void FLinkerManager::DissociateImportsAndForcedExports()
 				// an import that points to a redirector will fail to find the redirector
 				Import.SourceIndex = INDEX_NONE;
 			}
-			if (Linker->GetSerializeContext())
-			{
-				Linker->GetSerializeContext()->ResetImportCount();
-			}
+			FUObjectThreadContext::Get().GetSerializeContext()->ResetImportCount();
 		}
 	}
 
@@ -304,10 +312,7 @@ void FLinkerManager::DissociateImportsAndForcedExports()
 					Export.ResetObject();
 				}
 			}
-			if (Linker->GetSerializeContext())
-			{
-				Linker->GetSerializeContext()->ResetForcedExports();
-			}
+			FUObjectThreadContext::Get().GetSerializeContext()->ResetForcedExports();
 		}
 	}
 }

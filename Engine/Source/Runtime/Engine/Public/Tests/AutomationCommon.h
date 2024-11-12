@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/AutomationTest.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
 
 class AActor;
 class SWindow;
@@ -21,6 +22,131 @@ ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogEngineAutomationTests, Log, All);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEditorAutomationMapLoad, const FString&, bool, FString*);
 
 #endif
+
+/** 
+ * Utility class for creating and destroying a temporary test world, can be used for automation or performance testing.
+ * This can be used with any test framework but has utility functions for FAutomationTestBase.
+ */
+struct FTestWorldWrapper
+{
+	/** This will properly shut down and destroy the test world as needed */
+	ENGINE_API virtual ~FTestWorldWrapper();
+
+	/** Gets the wrapped world, can be null */
+	inline UWorld* GetTestWorld() const {return TestWorld;}
+
+	/** Creates a world of the appropriate world type, returns false on failure */
+	ENGINE_API virtual bool CreateTestWorld(EWorldType::Type WorldType);
+
+	/** Destroys the test world and handles any required cleanup */
+	ENGINE_API virtual bool DestroyTestWorld(bool bForceGarbageCollect);
+
+	/** Starts play in the test world to simulate gameplay */
+	ENGINE_API virtual bool BeginPlayInTestWorld();
+
+	/** Ticks the test world for one frame, defaults to 100 fps */
+	ENGINE_API virtual bool TickTestWorld(float DeltaTime = 0.01f);
+
+	/** Stops play properly */
+	ENGINE_API virtual bool EndPlayInTestWorld();
+
+	/** Registers an error message and marks test as failed, called by the functions above */
+	ENGINE_API virtual void ReportFailure(const TCHAR* ErrorMessage);
+
+	/** Clears any failures and initial state */
+	ENGINE_API virtual void ClearFailureState();
+
+	/** Returns true if there are any errors that should stop further execution */
+	ENGINE_API virtual bool HasFailed() const;
+
+	/** Gets the actual error messages for reporting to the automation framework */
+	ENGINE_API virtual void AppendErrorMessages(TArray<FString>& OutErrorMessages) const;
+
+	/** Reports error messages to a passed in automation test */
+	ENGINE_API virtual void ForwardErrorMessages(FAutomationTestBase* AutomationTest) const;
+
+protected:
+	UWorld* TestWorld = nullptr;
+	uint64 CachedFrameCounter = 0;
+	TArray<FString> FailureErrors;
+};
+
+/**
+ * Utility for setting and restoring of a Console Variable (CVar).
+ * 
+ * Note that race conditions are possible when multiple `FTestConsoleVariable` objects refer to the same Console Variable and get restored/destroyed in an order different than they were set.
+ * Please use `FScopedTestEnvironment` to manage multiple `FTestConsoleVariable` objects.
+ */
+struct FTestConsoleVariable
+{
+	ENGINE_API FTestConsoleVariable(const FString& InConsoleVariableName);
+	ENGINE_API FTestConsoleVariable(FTestConsoleVariable&& Other);
+
+	ENGINE_API ~FTestConsoleVariable();
+
+	/**
+	 * Sets a Console Variable to the specified value. Will keep a reference to the original value regardless of how many times the value has been set.
+	 * @param Value		Value to set on the Console Variable
+	 */
+	ENGINE_API void Set(const FString& Value);
+
+	/** Returns the current value of the Console Variable */
+	ENGINE_API FString Get();
+
+	/** Returns the Console Variable to the original value */
+	ENGINE_API void Restore();
+
+private:
+	bool bModified;
+	FString ConsoleVariableName;
+	FString OriginalValue;
+};
+
+/**
+ * Utility for setting and management of temporary CVars
+ * Will handle restoring the Console Variables (CVars) back to the original state on destruction.
+ */
+struct FScopedTestEnvironment
+{
+	/** Restores all set Console Variables back to the original value */
+	ENGINE_API ~FScopedTestEnvironment();
+
+	/**
+	 * Returns a shared pointer to current instance of the scoped test environment. Will create an instance if current instance is invalid.
+	 * @return the shared pointer to the instance
+	 */
+	static ENGINE_API TSharedPtr<FScopedTestEnvironment> Get();
+
+	/**
+	 * Sets a Console Variable to the specified value. Will keep a reference to the original value regardless of how many times the value has been set.
+	 * @param VariableName	Name of the Console Variable to set
+	 * @param Value			Value to be applied
+	 */
+	ENGINE_API void SetConsoleVariableValue(const FString& ConsoleVariableName, const FString& Value);
+
+	/**
+	 * Gets the current overridden value for the specified Console Variable
+	 * @param VariableName	Name of the Console Variable to fetch the current value from
+	 * @param OutValue		Current value of the Console Variable if it was overridden.
+	 * @return true if the Console Variable was overridden.
+	 */
+	ENGINE_API bool TryGetConsoleVariableValue(const FString& ConsoleVariableName, FString* OutValue);
+
+	/** Restores all set Console Variables back to the original value */
+	ENGINE_API void Restore();
+
+private:
+	FScopedTestEnvironment() = default;
+
+	FScopedTestEnvironment(FScopedTestEnvironment&&) = delete;
+	FScopedTestEnvironment(const FScopedTestEnvironment&) = delete;
+	FScopedTestEnvironment& operator=(FScopedTestEnvironment&&) = delete;
+	FScopedTestEnvironment& operator=(const FScopedTestEnvironment&) = delete;
+
+	TMap<FString, FTestConsoleVariable> Variables;
+
+	static TWeakPtr<struct FScopedTestEnvironment> EnvironmentInstance;
+};
 
 /** Common automation functions */
 namespace AutomationCommon

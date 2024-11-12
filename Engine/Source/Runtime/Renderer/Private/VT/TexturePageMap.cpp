@@ -148,7 +148,7 @@ void FTexturePageMap::UnmapPage(FVirtualTextureSystem* System, FVirtualTextureSp
 		if ((SortedAddIndexes[AddIndex] & 0xffffffff) == PageIndex)
 		{
 			bFoundInAddIndexes = true;
-			SortedAddIndexes.RemoveAtSwap(AddIndex, 1, EAllowShrinking::No);
+			SortedAddIndexes.RemoveAtSwap(AddIndex, EAllowShrinking::No);
 			break;
 		}
 	}

@@ -9,6 +9,7 @@ public interface DownloadProgressListener
 	public void OnDownloadProgress(String RequestID, long BytesWrittenSinceLastCall, long TotalBytesWritten);
 	public void OnDownloadGroupProgress(int GroupID, int Progress, boolean Indeterminate);
 	public void OnDownloadComplete(String RequestID, String CompleteLocation, EDownloadCompleteReason CompleteReason);
+	public void OnDownloadMetrics(String RequestID, long TotalBytesDownloaded, long DownloadDuration);
 	public void OnAllDownloadsComplete(boolean bDidAllRequestsSucceed);
 	public void OnDownloadEnqueued(String RequestID, boolean bEnqueueSuccess);
 }

@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RenderGraphPrivate.h"
+#include "RenderGraphEvent.h"
+#include "RenderGraphTrace.h"
+#include "RenderGraphBuilder.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Misc/CommandLine.h"
 #include "RHICommandList.h"
@@ -60,18 +63,6 @@ FAutoConsoleVariableRef CVarRDGDebugDisableTransientResource(
 	TEXT("r.RDG.Debug.DisableTransientResources"),
 	GRDGDebugDisableTransientResources,
 	TEXT("Filters out transient resources from the transient allocator. Use r.rdg.debug.resourcefilter to specify the filter. Defaults to all resources if enabled."),
-	ECVF_RenderThreadSafe);
-
-int32 GRDGBreakpoint = 0;
-FAutoConsoleVariableRef CVarRDGBreakpoint(
-	TEXT("r.RDG.Breakpoint"),
-	GRDGBreakpoint,
-	TEXT("Breakpoint in debugger when certain conditions are met.\n")
-	TEXT(" 0: off (default);\n")
-	TEXT(" 1: On an RDG warning;\n")
-	TEXT(" 2: When a graph / pass matching the debug filters compiles;\n")
-	TEXT(" 3: When a graph / pass matching the debug filters executes;\n")
-	TEXT(" 4: When a graph / pass / resource matching the debug filters is created or destroyed;\n"),
 	ECVF_RenderThreadSafe);
 
 int32 GRDGClobberResources = 0;
@@ -193,7 +184,7 @@ static float GetClobberValue()
 	case 2:
 		return NAN;
 	case 3:
-		return INFINITY;
+		return std::numeric_limits<float>::infinity();
 	}
 	return 0.0f;
 }
@@ -207,7 +198,8 @@ FLinearColor GetClobberColor()
 uint32 GetClobberBufferValue()
 {
 	float ClobberValue = GetClobberValue();
-	uint32 ClobberValueUint = reinterpret_cast<const uint32*>(&ClobberValue)[0];
+	uint32 ClobberValueUint;
+	FMemory::Memcpy(&ClobberValueUint, &ClobberValue, sizeof(ClobberValueUint));
 	return ClobberValueUint;
 }
 
@@ -238,25 +230,16 @@ void EmitRDGWarning(const FString& WarningMessage)
 		{
 			GAlreadyEmittedWarnings.Add(WarningMessage);
 			UE_LOG(LogRDG, Warning, TEXT("%s"), *WarningMessage);
-
-			if (GRDGBreakpoint == RDG_BREAKPOINT_WARNINGS)
-			{
-				UE_DEBUG_BREAK();
-			}
 		}
 	}
 	else
 	{
 		UE_LOG(LogRDG, Warning, TEXT("%s"), *WarningMessage);
-
-		if (GRDGBreakpoint == RDG_BREAKPOINT_WARNINGS)
-		{
-			UE_DEBUG_BREAK();
-		}
 	}
 }
 
 bool GRDGAllowRHIAccess = false;
+bool GRDGAllowRHIAccessAsync = false;
 
 #endif
 
@@ -321,15 +304,23 @@ FAutoConsoleVariableRef CVarRDGTransientExtractedResource(
 	TEXT(" 2: force enables all external transient resources (not recommended);"),
 	ECVF_RenderThreadSafe);
 
-#if RDG_GPU_DEBUG_SCOPES
-int32 GRDGEvents = 1;
-FAutoConsoleVariableRef CVarRDGEvents(
+int32 GRDGAsyncComputeTransientAliasing = 1;
+FAutoConsoleVariableRef CVarRDGAsyncComputeTransientAliasing(
+	TEXT("r.RDG.AsyncComputeTransientAliasing"), GRDGAsyncComputeTransientAliasing,
+	TEXT("RDG will alias async compute resources on the same heap as graphics resources using fences. This must also be supported by the RHI.")
+	TEXT(" 0: disables transient async compute aliasing;")
+	TEXT(" 1: enables transient async compute aliasing (default);"),
+	ECVF_RenderThreadSafe);
+
+#if RDG_EVENTS
+TAutoConsoleVariable<int32> CVarRDGEvents(
 	TEXT("r.RDG.Events"),
-	GRDGEvents,
+	1,
 	TEXT("Controls how RDG events are emitted.\n")
 	TEXT(" 0: off;\n")
 	TEXT(" 1: events are enabled and RDG_EVENT_SCOPE_FINAL is respected; (default)\n")
-	TEXT(" 2: all events are enabled (RDG_EVENT_SCOPE_FINAL is ignored);"),
+	TEXT(" 2: all events are enabled (RDG_EVENT_SCOPE_FINAL is ignored);\n")
+	TEXT(" 3: same as 2, but RDG pass names are also included."),
 	ECVF_RenderThreadSafe);
 #endif
 
@@ -355,8 +346,9 @@ int32 GRDGParallelExecute = 1;
 FAutoConsoleVariableRef CVarRDGParallelExecute(
 	TEXT("r.RDG.ParallelExecute"), GRDGParallelExecute,
 	TEXT("Whether to enable parallel execution of passes when supported.")
-	TEXT(" 0: off;")
-	TEXT(" 1: on (default)"),
+	TEXT(" 0: off")
+	TEXT(" 1: parallel with all tasks awaited (default)")
+	TEXT(" 2: parallel with async tasks"),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
 	{
 		if (Variable->GetInt())
@@ -384,6 +376,14 @@ int32 GRDGParallelExecutePassMax = 32;
 FAutoConsoleVariableRef CVarRDGParallelExecutePassMax(
 	TEXT("r.RDG.ParallelExecute.PassMax"), GRDGParallelExecutePassMax,
 	TEXT("The maximum span of contiguous passes eligible for parallel execution for the span to be offloaded to a task."),
+	ECVF_RenderThreadSafe);
+
+int32 GRDGParallelExecutePassTaskModeThreshold = 2;
+FAutoConsoleVariableRef CVarRDGParallelExecutePassTaskModeThreshold(
+	TEXT("r.RDG.ParallelExecute.PassTaskModeThreshold"), GRDGParallelExecutePassTaskModeThreshold,
+	TEXT(" 0: A pass that is not marked async will mark the entire parallel pass set as awaited.")
+	TEXT(" 1: A pass that does not match the task mode of the current batch will always flush the current batch.")
+    TEXT(">1: Same as the above, but only if the current batch is larger than the threshold."),
 	ECVF_RenderThreadSafe);
 
 int32 GRDGParallelExecuteStress = 0;
@@ -432,7 +432,7 @@ FAutoConsoleVariableRef CVarRDGIndirectArgBufferTransientAllocated(
 	TEXT("Whether indirect argument buffers should use transient resource allocator. Default: 0"),
 	ECVF_RenderThreadSafe);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 int32 GRDGVerboseCSVStats = 0;
 FAutoConsoleVariableRef CVarRDGVerboseCSVStats(
 	TEXT("r.RDG.VerboseCSVStats"),
@@ -509,10 +509,6 @@ DEFINE_STAT(STAT_RDG_ClearTime);
 DEFINE_STAT(STAT_RDG_FlushRHIResources);
 DEFINE_STAT(STAT_RDG_MemoryWatermark);
 
-#if RDG_EVENTS != RDG_EVENTS_NONE
-int32 GRDGEmitDrawEvents_RenderThread = 0;
-#endif
-
 void InitRenderGraph()
 {
 #if RDG_ENABLE_DEBUG_WITH_ENGINE
@@ -541,12 +537,6 @@ void InitRenderGraph()
 	{
 		// Set to -1 to specify infinite number of frames.
 		GRDGTransitionLog = -1;
-	}
-
-	int32 BreakpointValue = 0;
-	if (FParse::Value(FCommandLine::Get(), TEXT("rdgbreakpoint="), BreakpointValue))
-	{
-		GRDGBreakpoint = BreakpointValue;
 	}
 
 	if (FParse::Param(FCommandLine::Get(), TEXT("rdgclobberresources")))
@@ -617,13 +607,18 @@ void InitRenderGraph()
 		CVarRDGAsyncCompute->Set(AsyncComputeValue);
 	}
 
-#if RDG_GPU_DEBUG_SCOPES
+#if RDG_EVENTS
 	int32 RDGEventValue = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("rdgevents="), RDGEventValue))
 	{
 		CVarRDGEvents->Set(RDGEventValue);
 	}
 #endif
+}
+
+void ShutdownRenderGraph()
+{
+	FRDGBuilder::WaitForAsyncDeleteTask();
 }
 
 bool IsParallelExecuteEnabled()
@@ -663,4 +658,56 @@ bool IsParallelSetupEnabled()
 		// Only run parallel RDG if we have a rendering thread.
 		&& IsInActualRenderingThread()
 		;
+}
+
+FRDGScopeState::FState::FState(bool bInImmediate, bool bInParallelExecute)
+	: bImmediate(bInImmediate),
+	  bParallelExecute(bInParallelExecute)
+#if RDG_EVENTS
+	, ScopeMode([]
+	{
+		bool bRDGChannelEnabled = false;
+		IF_RDG_ENABLE_TRACE(bRDGChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(RDGChannel));
+
+		if (FRDGBuilder::IsDumpingFrame() || GTriggerGPUProfile)
+		{
+			// We want all possible scope and pass names in a DumpGPU/profilegpu trace.
+			return ERDGScopeMode::AllEventsAndPassNames;
+		}
+
+		// This is polled once as a workaround for a race condition since the underlying global is not always changed on the render thread.
+		ERDGScopeMode LocalScopeMode = static_cast<ERDGScopeMode>(CVarRDGEvents.GetValueOnRenderThread());
+
+		switch (LocalScopeMode)
+		{
+		case ERDGScopeMode::Disabled:
+		case ERDGScopeMode::TopLevelOnly:
+		case ERDGScopeMode::AllEvents:
+			// Override to a higher level in some cases
+			if (GRDGDebug != 0 || bRDGChannelEnabled != 0)
+			{
+				LocalScopeMode = ERDGScopeMode::AllEventsAndPassNames;
+			}
+			break;
+
+		case ERDGScopeMode::AllEventsAndPassNames:
+			break;
+
+		default:
+			LocalScopeMode = ERDGScopeMode::Disabled;
+			break;
+		}
+
+		return LocalScopeMode;
+	}())
+#endif // RDG_EVENTS
+{}
+
+bool IsExtendedLifetimeResource(FRDGViewableResource* Resource)
+{
+#if RDG_ENABLE_DEBUG
+	return IsDebugAllowedForResource(Resource->Name) && Resource->ReferenceCount != 0 && Resource->ReferenceCount != FRDGViewableResource::DeallocatedReferenceCount;
+#else
+	return false;
+#endif
 }

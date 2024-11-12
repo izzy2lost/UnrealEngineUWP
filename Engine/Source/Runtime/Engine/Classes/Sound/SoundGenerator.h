@@ -24,6 +24,7 @@ struct FSoundGeneratorInitParams
 	uint64 InstanceID = 0;
 	bool bIsPreviewSound = false;
 	FString GraphName;
+	float StartTime = 0.0f;
 };
 
 class ISoundGenerator
@@ -46,6 +47,13 @@ public:
 
 	// Optional. Can be overridden to end the sound when generating is finished.
 	virtual bool IsFinished() const { return false; }
+
+	// Return the cost to render this sound generator. Derived classes can optionally
+	// override this method.
+	//
+	// This is called repeatedly to track the cost and managing the maximum number
+	// of concurrently rendering voices. 
+	virtual float GetRelativeRenderCost() const { return 1.f; }
 
 	// Retrieves the next buffer of audio from the generator, called from the audio mixer
 	ENGINE_API int32 GetNextBuffer(float* OutAudio, int32 NumSamples, bool bRequireNumberSamples = false);

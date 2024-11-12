@@ -12,6 +12,12 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FSoftClassProperty)
 
+FSoftClassProperty::FSoftClassProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, MetaClass(nullptr)
+{
+}
+
 FSoftClassProperty::FSoftClassProperty(FFieldVariant InOwner, const UECodeGen_Private::FSoftClassPropertyParams& Prop)
 	: Super(InOwner, (const UECodeGen_Private::FObjectPropertyParamsWithoutClass&)Prop, UClass::StaticClass())
 {

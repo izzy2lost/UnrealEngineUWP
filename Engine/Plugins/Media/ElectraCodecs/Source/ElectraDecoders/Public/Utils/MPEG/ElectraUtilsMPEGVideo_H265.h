@@ -127,6 +127,8 @@ namespace ElectraDecodersUtil
 					general_tier_flag = 0;
 					general_profile_idc = 0;
 					FMemory::Memzero(general_profile_compatibility_flag);
+					general_profile_compatibility_flags = 0;
+					general_constraint_indicator_flags = 0;
 					general_progressive_source_flag = 0;
 					general_interlaced_source_flag = 0;
 					general_non_packed_constraint_flag = 0;
@@ -206,6 +208,8 @@ namespace ElectraDecodersUtil
 				uint8 general_tier_flag;								// u(1)
 				uint8 general_profile_idc;								// u(5)
 				uint8 general_profile_compatibility_flag[32];			// u(1)
+				uint32 general_profile_compatibility_flags;				// u(32), same as general_profile_compatibility_flag[32] but in a single word
+				uint64 general_constraint_indicator_flags;				// u(48), bits starting with `general_progressive_source_flag` and extending through the 44 constraint bits
 				uint8 general_progressive_source_flag;					// u(1)
 				uint8 general_interlaced_source_flag;					// u(1)
 				uint8 general_non_packed_constraint_flag;				// u(1)
@@ -614,11 +618,15 @@ namespace ElectraDecodersUtil
 				}
 				int32 GetMaxDPBSize() const;
 				int32 GetDPBSize() const;
+				int32 GetMinCbSizeY() const;
 				int32 GetWidth() const;
 				int32 GetHeight() const;
+				void GetDisplaySize(int32& OutWidth, int32& OutHeight) const;
 				void GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const;
 				void GetAspect(int32& OutSarW, int32& OutSarH) const;
 				FFractionalValue GetTiming() const;
+				uint64 GetConstraintFlags() const;
+				FString GetRFC6381(const TCHAR* SampleTypePrefix) const;
 
 				uint8 sps_video_parameter_set_id;							// u(4)
 				uint8 sps_max_sub_layers_minus1;							// u(3), 0-6
@@ -1349,6 +1357,7 @@ namespace ElectraDecodersUtil
 
 			bool ELECTRADECODERS_API ParseVideoParameterSet(TMap<uint32, FVideoParameterSet>& InOutVideoParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 			bool ELECTRADECODERS_API ParseSequenceParameterSet(TMap<uint32, FSequenceParameterSet>& InOutSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
+			bool ELECTRADECODERS_API ParseSequenceParameterSet(FSequenceParameterSet& OutSequenceParameterSet, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 			bool ELECTRADECODERS_API ParsePictureParameterSet(TMap<uint32, FPictureParameterSet>& InOutPictureParameterSets, const TMap<uint32, FSequenceParameterSet>& InSequenceParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 			bool ELECTRADECODERS_API ParseSliceHeader(TUniquePtr<FRBSP>& OutRBSP, FBitstreamReader& OutRBSPReader, FSliceSegmentHeader& OutSlice, const TMap<uint32, FVideoParameterSet>& InVideoParameterSets, const TMap<uint32, FSequenceParameterSet>& InSequenceParameterSets, const TMap<uint32, FPictureParameterSet>& InPictureParameterSets, const uint8* InBitstream, uint64 InBitstreamLenInBytes);
 

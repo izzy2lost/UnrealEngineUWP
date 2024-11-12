@@ -28,6 +28,7 @@ UDataLayerInstance::UDataLayerInstance(const FObjectInitializer& ObjectInitializ
 	, bIsInitiallyLoadedInEditor(true)
 	, bIsLoadedInEditor(true)
 	, bIsLocked(false)
+	, OverrideBlockOnSlowStreaming(EOverrideBlockOnSlowStreaming::NoOverride)
 #endif
 	, InitialRuntimeState(EDataLayerRuntimeState::Unloaded)
 {}
@@ -237,7 +238,7 @@ bool UDataLayerInstance::CanEditChange(const FProperty* InProperty) const
 
 	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UDataLayerInstance, InitialRuntimeState))
 	{
-		if (!IsRuntime() || IsClientOnly() || IsServerOnly())
+		if (!IsRuntime())
 		{
 			return false;
 		}
@@ -330,6 +331,18 @@ bool UDataLayerInstance::CanAddActor(AActor* InActor, FText* OutReason) const
 		return false;
 	}
 
+	const UExternalDataLayerInstance* ExternalDataLayerInstance = GetRootExternalDataLayerInstance();
+	if (ExternalDataLayerInstance && (ExternalDataLayerInstance != this))
+	{
+		if (InActor->GetExternalDataLayerAsset() != ExternalDataLayerInstance->GetAsset())
+		{
+			if (OutReason)
+			{
+				*OutReason = LOCTEXT("CantAddActorMismatchRootExternalDataLayer", "Can't assign actors to a Data Layer child of an External Data Layer that is not already assigned to the actors");
+			}
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -396,6 +409,19 @@ bool UDataLayerInstance::CanBeChildOf(const UDataLayerInstance* InParent, FText*
 		return false;
 	}
 
+	// Check if root External Data Layer is the same for the parent
+	if (const UExternalDataLayerInstance* ExternalDataLayerInstance = GetRootExternalDataLayerInstance())
+	{
+		if (!InParent || (InParent->GetRootExternalDataLayerInstance() != ExternalDataLayerInstance))
+		{
+			if (OutReason)
+			{
+				*OutReason = LOCTEXT("ParentHasDifferentRootExternalDataLayer", "Can't reparent Data Layer in a different root External Data Layer");
+			}
+			return false;
+		}
+	}
+
 	if (InParent == nullptr)
 	{
 		// nullptr is considered a valid parent
@@ -437,7 +463,7 @@ bool UDataLayerInstance::CanBeChildOf(const UDataLayerInstance* InParent, FText*
 	return true;
 }
 
-bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReason) const
+bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReasonText, IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason* OutReason) const
 {
 	if (InParent == nullptr)
 	{
@@ -448,21 +474,20 @@ bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstanc
 	{
 		if (OutReason)
 		{
-			*OutReason = FText::Format(LOCTEXT("ClientOrServerOnlyCantHaveParent", "{0} Data Layer cannot be a child Data Layer"), IsClientOnly() ? FText::FromString(TEXT("Client-Only")) : FText::FromString(TEXT("Server-Only")));
+			*OutReason = IsClientOnly() ? IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild : IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild;
+		}
+		if (OutReasonText)
+		{
+			*OutReasonText = FText::Format(LOCTEXT("ClientOrServerOnlyCantHaveParent", "{0} Data Layer cannot be a child Data Layer"), IsClientOnly() ? FText::FromString(TEXT("Client-Only")) : FText::FromString(TEXT("Server-Only")));
 		}
 		return false;
 	}
 
-	const EDataLayerType ParentType = InParent->GetType();
-	const EDataLayerType ChildType = GetType();
-
-	if ((ChildType == EDataLayerType::Unknown) ||
-		(ParentType == EDataLayerType::Unknown) || 
-		(ParentType != EDataLayerType::Editor && ChildType != EDataLayerType::Runtime))
+	if (!FDataLayerUtils::AreDataLayerTypesCompatible(InParent->GetType(), GetType(), InParent->IsA<UExternalDataLayerInstance>(), OutReasonText))
 	{
 		if (OutReason)
 		{
-			*OutReason = FText::Format(LOCTEXT("IncompatibleChildType", "{0} Data Layer cannot have {1} child Data Layers"), UEnum::GetDisplayValueAsText(InParent->GetType()), UEnum::GetDisplayValueAsText(GetType()));
+			*OutReason = IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType;
 		}
 		return false;
 	}
@@ -535,10 +560,22 @@ FText UDataLayerInstance::GetDataLayerText(const UDataLayerInstance* InDataLayer
 
 bool UDataLayerInstance::Validate(IStreamingGenerationErrorHandler* ErrorHandler) const
 {
-	if (GetParent() != nullptr && !IsParentDataLayerTypeCompatible(GetParent()))
+	// No need to run the validation for game worlds
+	UWorld* World = GetOuterWorld();
+	if (World->IsGameWorld())
 	{
-		ErrorHandler->OnDataLayerHierarchyTypeMismatch(this, GetParent());
-		return false;
+		return true;
+	}
+
+	if (GetParent() != nullptr)
+	{
+		FText ReasonText;
+		IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason Reason;
+		if (!IsParentDataLayerTypeCompatible(GetParent(), &ReasonText, &Reason))
+		{
+			ErrorHandler->OnDataLayerHierarchyTypeMismatch(this, GetParent(), Reason);
+			return false;
+		}
 	}
 
 	return true;
@@ -546,7 +583,7 @@ bool UDataLayerInstance::Validate(IStreamingGenerationErrorHandler* ErrorHandler
 
 bool UDataLayerInstance::CanBeInActorEditorContext() const
 {
-	return !IsReadOnly();
+	return !IsReadOnly() && GetOuterWorldDataLayers()->ContainsDataLayer(this);
 }
 
 bool UDataLayerInstance::IsActorEditorContextCurrentColorized() const

@@ -30,7 +30,7 @@
 class FContentBrowserItemDataTemporaryContext;
 class FContentBrowserItemDataUpdate;
 class FExtender;
-class FFrontendFilter_Text;
+class FAssetTextFilter;
 class FSourcesSearch;
 class FTabManager;
 class FUICommandList;
@@ -78,6 +78,7 @@ enum class EContentBrowserViewContext : uint8
 class SContentBrowser
 	: public SCompoundWidget
 {
+	using Super = SCompoundWidget;
 public:
 
 	SLATE_BEGIN_ARGS( SContentBrowser )
@@ -318,9 +319,6 @@ private:
 	
 	/** Called when item in the path delimiter arrow menu is clicked */
 	void OnPathMenuItemClicked(FString ClickedPath);
-	
-	/** Called to query whether the crumb menu would contain any content (see also OnGetCrumbDelimiterContent) */
-	bool OnHasCrumbDelimiterContent(const FString& CrumbData) const;
 
 	/** 
 	 * Populates the delimiter arrow with a menu of directories under the current directory that can be navigated to
@@ -413,7 +411,13 @@ private:
 
 	/** Called to handle the Content Browser settings changing */
 	void OnContentBrowserSettingsChanged(FName PropertyName);
-
+	
+	/**
+	 * Called when engine Cvars change to update content browser settings
+	 * e.g. private content feature
+	 */
+	void OnConsoleVariableChanged();
+	
 	/** Handler for clicking the history back button */
 	FReply BackClicked();
 
@@ -504,9 +508,6 @@ private:
 	/** Handler for when the asset context menu requests to duplicate an item */
 	void OnDuplicateRequested(TArrayView<const FContentBrowserItem> OriginalItems);
 
-	/** Handler for when the asset context menu requests to edit an item */
-	void OnEditRequested(TArrayView<const FContentBrowserItem> Items);
-
 	/** Handler for when the asset context menu requests to refresh the asset view */
 	void OnAssetViewRefreshRequested();
 
@@ -567,8 +568,14 @@ private:
 	/** Whether or not the collections view is docked or exists in its own panel in the same area as the sources view */
 	bool IsCollectionViewDocked() const;
 
+	/** Set favorite status of an array of folders unless they're already favorited */
+	void AddFolderFavorite(const TArray<FString>& FolderPaths);
+
 	/** Toggles the favorite status of an array of folders*/
 	void ToggleFolderFavorite(const TArray<FString>& FolderPaths);
+
+	/** Save the favorite paths to settings and optionally select and show the paths passed in */
+	void SaveAndShowNewFolderFavorites(const TArray<FString>& FolderPaths);
 
 	/* Toggles the private show private content state of an array of folders*/
 	void TogglePrivateContentEdit(const TArray<FString>& FolderPaths);
@@ -608,6 +615,18 @@ private:
 	SSplitter::ESizeRule GetPathAreaSizeRule() const;
 	SSplitter::ESizeRule GetCollectionsAreaSizeRule() const;
 
+	/** Called when the Splitter containing the PathView Box gets resized */
+	void OnPathViewBoxColumnResized(float InSize);
+
+	/** Returns the PathView Box width */
+	FOptionalSize GetPathViewBoxWidthOverride() const;
+
+	/** Called when the Splitter containing the filters Box gets resized */
+	void OnFilterBoxColumnResized(float InSize);
+
+	/** Returns the filters Box width */
+	FOptionalSize GetFilterViewBoxWidthOverride() const;
+
 	/** Gets the min size for various areas. When areas are not visible the min size is 0, otherwise there is a minimum size to prevent overlap */
 	float GetFavoritesAreaMinSize() const;
 	float GetCollectionsAreaMinSize() const;
@@ -624,6 +643,7 @@ private:
 	/** Initialize an editor config for this instance if one does not exist. */
 	FContentBrowserInstanceConfig* CreateEditorConfigIfRequired();
 
+	void UpdatePrivateContentFeatureEnabled(bool bUpdateFilterIfChanged);
 private:
 
 	/** The tab that contains this browser */
@@ -719,6 +739,15 @@ private:
 	/** True if source should not be changed from an outside source */
 	bool bIsLocked = false;
 
+	/** True if bShouldEnablePrivateContentFilter was true and we are filtering this->AssetView. */
+	bool bPrivateContentFilterEnabled = false;
+
+	/** Starting width of the PathView Box */
+	float PathViewBoxWidth = 150.f;
+
+	/** Starting width of the Filter Box */
+	float FilterBoxWidth = 100.f;
+
 	/** Cached result of CanWriteToPath to avoid recalculating it every frame */
 	mutable bool bCachedCanWriteToCurrentPath = false;
 	
@@ -731,8 +760,8 @@ private:
 	/** The list of FrontendFilters currently applied to the asset view */
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
 
-	/** The text filter to use on the assets */
-	TSharedPtr< FFrontendFilter_Text > TextFilter;
+	/** The text filter to use on the assets, separate from FrontendFilters so it can be specifically optimized */
+	TSharedPtr<FAssetTextFilter> TextFilter;
 
 	/** Commands handled by this widget */
 	TSharedPtr< FUICommandList > Commands;
@@ -755,6 +784,8 @@ private:
 	/** When viewing a dynamic collection, the active search query will be stashed in this variable so that it can be restored again later */
 	TOptional<FText> StashedSearchBoxText;
 
+	/** Handle to a callback for when CVars change */
+	FConsoleVariableSinkHandle CVarSinkHandle;
 public: 
 
 	/** The section of EditorPerProjectUserSettings in which to save content browser settings */

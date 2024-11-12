@@ -8,10 +8,11 @@ enum
 	PP_RESULT_ok,
 	PP_RESULT_supplementary,			 // extra information associated with previous warning/error
 	PP_RESULT_undef_of_undefined_macro,	 // by default this is not an error
-
+	PP_RESULT_explicit_warning,
+	
 	PP_RESULT_internal_error_out_of_memory,
 
-	PP_RESULT_ERROR = 4,
+	PP_RESULT_ERROR = 5,
 
 	PP_RESULT_counter_overflowed,
 	PP_RESULT_too_many_arguments_to_macro,
@@ -23,6 +24,8 @@ enum
 	PP_RESULT_undef_of_predefined_macro,
 	PP_RESULT_identifier_too_long,
 	PP_RESULT_malformed_pragma_message,
+	PP_RESULT_malformed_line_filename,
+	PP_RESULT_invalid_line_linenumber,
 
 	PP_RESULT_count
 };
@@ -113,7 +116,7 @@ STB_PP_DEF int preprocessor_file_capacity(char* text);
 
 // Append text to the end of a file generated with preprocess_file.  Can save reallocation overhead relative
 // to appending the text later, as there will usually be slack space available.
-STB_PP_DEF void preprocessor_file_append(char* text, const char* appended_text, int appended_text_len);
+STB_PP_DEF char* preprocessor_file_append(char* text, const char* appended_text, int appended_text_len);
 
 // frees memory allocated by preprocess_file (preprocessed results and diagnostic messages)
 STB_PP_DEF void preprocessor_file_free(char* text, pp_diagnostic* pd);

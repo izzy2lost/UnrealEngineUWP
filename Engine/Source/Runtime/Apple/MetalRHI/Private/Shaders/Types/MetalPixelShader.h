@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "Shaders/Types/Templates/MetalBaseShader.h"
+
 
 //------------------------------------------------------------------------------
 
@@ -15,8 +18,8 @@
 class FMetalPixelShader : public TMetalBaseShader<FRHIPixelShader, SF_Pixel>
 {
 public:
-	FMetalPixelShader(TArrayView<const uint8> InCode);
-	FMetalPixelShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
+	FMetalPixelShader(FMetalDevice& Device, TArrayView<const uint8> InCode);
+	FMetalPixelShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 
 	MTLFunctionPtr GetFunction();
 };

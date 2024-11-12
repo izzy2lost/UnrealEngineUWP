@@ -16,6 +16,14 @@ namespace UnrealBuildTool.Rules
 					"AudioExtensions"
 				}
             );
+
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"MathCore",
+					// ... add private dependencies that you statically link with here ...	
+				}
+			);
 		}
 	}
 }

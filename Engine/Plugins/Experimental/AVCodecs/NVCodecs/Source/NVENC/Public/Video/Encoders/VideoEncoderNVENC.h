@@ -25,16 +25,27 @@ private:
 	NV_ENC_OUTPUT_PTR Buffer = nullptr;
 	TQueue<FVideoPacket> Packets;
 
+	NV_ENC_DEVICE_TYPE  SessionDeviceType;
+	void* SessionDevice;
+
+	uint32 MaxDeviceEncodeWidth = 0;
+	uint32 MaxDeviceEncodeHeight = 0;
+	bool bHasMaxDeviceResolution = false;
+
+	FAVResult ReOpen();
+	void SetMaxResolution(FVideoEncoderConfigNVENC& PendingConfig);
+	void GetMaxDeviceEncodeResolution(const FVideoEncoderConfigNVENC& PendingConfig);
+
 public:
 	// Begin matching the TVideoEncoder interface
 	virtual ~FEncoderNVENC();
 	virtual bool IsOpen() const;
 	virtual FAVResult Open(TSharedRef<FAVDevice> const& NewDevice, TSharedRef<FAVInstance> const& NewInstance, TFunction<void(NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS&)> SetupEncoderSessionFunc);
 	virtual void Close();
-	virtual FAVResult ApplyConfig(FVideoEncoderConfigNVENC const& AppliedConfig, FVideoEncoderConfigNVENC const& PendingConfig, TFunction<FAVResult()> ApplyConfigFunc);
+	virtual FAVResult ApplyConfig(FVideoEncoderConfigNVENC const& AppliedConfig, FVideoEncoderConfigNVENC& PendingConfig, TFunction<FAVResult()> ApplyConfigFunc);
 #if PLATFORM_WINDOWS
 	virtual FAVResult CreateD3D11Device(TSharedRef<FAVDevice> const& InDevice, TRefCountPtr<ID3D11Device>& OutEncoderDevice, TRefCountPtr<ID3D11DeviceContext>& OutEncoderDeviceContext);
-	virtual FAVResult SendFrameD3D11(TRefCountPtr<ID3D11Device> Device, TSharedPtr<FVideoResourceD3D11> const& Resource, uint32 Timestamp, bool bForceKeyframe, TFunction<FAVResult()> ApplyConfigFunc);
+	virtual FAVResult SendFrameD3D11( TRefCountPtr<ID3D11Device> Device, TSharedPtr<FVideoResourceD3D11> const& Resource, uint32 Timestamp, bool bForceKeyframe, TFunction<FAVResult()> ApplyConfigFunc);
 #endif // PLATFORM_WINDOWS
 	virtual FAVResult SendFrameCUDA(TSharedPtr<FVideoResourceCUDA> const& Resource, uint32 Timestamp, bool bForceKeyframe, TFunction<FAVResult()> ApplyConfigFunc);
 	virtual FAVResult SendFrame(TSharedPtr<FVideoResource> const& Resource, uint32 Timestamp, bool bForceKeyframe, TFunction<FAVResult()> ApplyConfigFunc, TFunction<void(NV_ENC_REGISTER_RESOURCE&)> SetResourceToRegisterFunc);
@@ -66,7 +77,7 @@ public:
 
 	virtual FAVResult ApplyConfig() override
 	{
-		return Base->ApplyConfig(AppliedConfig, GetPendingConfig(), [this]() {
+		return Base->ApplyConfig(AppliedConfig, EditPendingConfig(), [this]() {
 			return TVideoEncoder::ApplyConfig();
 		});
 	}
@@ -113,7 +124,7 @@ public:
 
 	virtual FAVResult ApplyConfig() override
 	{
-		return Base->ApplyConfig(AppliedConfig, GetPendingConfig(), [this]() {
+		return Base->ApplyConfig(AppliedConfig, EditPendingConfig(), [this]() {
 			return TVideoEncoder::ApplyConfig();
 		});
 	};

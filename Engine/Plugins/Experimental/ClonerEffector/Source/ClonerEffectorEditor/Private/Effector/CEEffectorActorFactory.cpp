@@ -16,6 +16,10 @@ void UCEEffectorActorFactory::PostPlaceAsset(TArrayView<const FTypedElementHandl
 
 	if (!InPlacementOptions.bIsCreatingPreviewElements && FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ClonerEffector.PlaceEffector"));
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Reserve(2);
+		Attributes.Emplace(TEXT("ToolClass"), GetNameSafe(GetClass()));
+		Attributes.Emplace(TEXT("ActorClass"), GetNameSafe(NewActorClass));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceActor"), Attributes);
 	}
 }

@@ -34,6 +34,7 @@
 #include "LevelEditorActions.h"
 #include "Styling/ToolBarStyle.h"
 #include "SEditorViewportToolBarMenu.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "TransformToolBar"
 
@@ -80,23 +81,7 @@ TSharedRef<SWidget> STransformViewportToolBar::GenerateSurfaceSnappingMenu()
 
 	MenuBuilder.BeginSection("SurfaceSnappingSettings", LOCTEXT("SnapToSurfaceSettings", "Settings"));
 	{
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("SnapToSurfaceSettings_Rotation", "Rotate to Surface Normal"),
-			LOCTEXT("SnapToSurfaceSettings_RotationTip", "When checked, snapping an object to a surface will also rotate the object to align to the surface normal"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateStatic([] {
-					auto& Settings = GetMutableDefault<ULevelEditorViewportSettings>()->SnapToSurface;
-					Settings.bSnapRotation = !Settings.bSnapRotation;
-					}),
-				FCanExecuteAction::CreateStatic(IsSnappingEnabled),
-				FIsActionChecked::CreateStatic([] {
-					const auto& Settings = GetDefault<ULevelEditorViewportSettings>()->SnapToSurface;
-					return Settings.bSnapRotation;
-					})),
-				NAME_None,
-			EUserInterfaceActionType::Check);
-
+		MenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().RotateToSurfaceNormal);
 
 		MenuBuilder.AddWidget(
 
@@ -263,20 +248,20 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 		static FName PositionSnapName = FName(TEXT("PositionSnap"));
 
 		// Setup a GridSnapSetting with the UICommand
-		ToolbarBuilder.AddWidget(	
+		ToolbarBuilder.AddWidget(
 			SNew(SViewportToolBarComboMenu)
 				.IsChecked(this, &STransformViewportToolBar::IsLocationGridSnapChecked)
 				.OnCheckStateChanged(this, &STransformViewportToolBar::HandleToggleLocationGridSnap)
-				.Label(this, &STransformViewportToolBar::GetLocationGridLabel)
+				.Label(TAttribute<FText>::Create(&UE::UnrealEd::GetLocationGridLabel))
 				.OnGetMenuContent(this, &STransformViewportToolBar::FillLocationGridSnapMenu)
 				.ToggleButtonToolTip(Command->GetDescription())
 				.MenuButtonToolTip(LOCTEXT("LocationGridSnap_ToolTip", "Set the Position Grid Snap value"))
 				.Icon(Command->GetIcon())
 				.MinDesiredButtonWidth(24.0f)
 				.ParentToolBar(SharedThis(this)),
-			PositionSnapName, 
-			false, 
-			HAlign_Fill, 
+			PositionSnapName,
+			false,
+			HAlign_Fill,
 
 			// explictly specify what this widget should look like as a menu item
 			FNewMenuDelegate::CreateLambda( [this, Command]( FMenuBuilder& InMenuBuilder )
@@ -303,19 +288,19 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 		static FName RotationSnapName = FName(TEXT("RotationSnap"));
 
 		// Setup a GridSnapSetting with the UICommand
-		ToolbarBuilder.AddWidget(	
+		ToolbarBuilder.AddWidget(
 			SNew(SViewportToolBarComboMenu)
 				.IsChecked(this, &STransformViewportToolBar::IsRotationGridSnapChecked)
 				.OnCheckStateChanged(this, &STransformViewportToolBar::HandleToggleRotationGridSnap)
-				.Label(this, &STransformViewportToolBar::GetRotationGridLabel)
+				.Label(TAttribute<FText>::Create(&UE::UnrealEd::GetRotationGridLabel))
 				.OnGetMenuContent(this, &STransformViewportToolBar::FillRotationGridSnapMenu)
 				.ToggleButtonToolTip(Command->GetDescription())
 				.MenuButtonToolTip(LOCTEXT("RotationGridSnap_ToolTip", "Set the Rotation Grid Snap value"))
 				.Icon(Command->GetIcon())
 				.ParentToolBar(SharedThis(this)),
 			RotationSnapName,
-			false, 
-			HAlign_Fill, 
+			false,
+			HAlign_Fill,
 
 			// explictly specify what this widget should look like as a menu item
 			FNewMenuDelegate::CreateLambda( [this, Command]( FMenuBuilder& InMenuBuilder )
@@ -378,22 +363,20 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 	}
 	ToolbarBuilder.EndSection();
 
-
-
 	ToolbarBuilder.BeginSection("ScaleGridSnap");
 	{
-		// Grab the existing UICommand 
+		// Grab the existing UICommand
 		TSharedPtr<FUICommandInfo> Command = FEditorViewportCommands::Get().ScaleGridSnap;
 
 		static FName ScaleSnapName = FName(TEXT("ScaleSnap"));
 
 		// Setup a GridSnapSetting with the UICommand
-		ToolbarBuilder.AddWidget(	
+		ToolbarBuilder.AddWidget(
 			SNew(SViewportToolBarComboMenu)
-				.Cursor( EMouseCursor::Default )
-				.IsChecked(this,&STransformViewportToolBar::IsScaleGridSnapChecked)
+				.Cursor(EMouseCursor::Default)
+				.IsChecked(this, &STransformViewportToolBar::IsScaleGridSnapChecked)
 				.OnCheckStateChanged(this, &STransformViewportToolBar::HandleToggleScaleGridSnap)
-				.Label(this ,&STransformViewportToolBar::GetScaleGridLabel)
+				.Label(TAttribute<FText>::Create(&UE::UnrealEd::GetScaleGridLabel))
 				.OnGetMenuContent(this, &STransformViewportToolBar::FillScaleGridSnapMenu)
 				.ToggleButtonToolTip(Command->GetDescription())
 				.MenuButtonToolTip(LOCTEXT("ScaleGridSnap_ToolTip", "Set scaling options"))
@@ -401,8 +384,8 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 				.MinDesiredButtonWidth(24.0f)
 				.ParentToolBar(SharedThis(this)),
 			ScaleSnapName,
-			false, 
-			HAlign_Fill, 
+			false,
+			HAlign_Fill,
 
 			// explictly specify what this widget should look like as a menu item
 			FNewMenuDelegate::CreateLambda( [this, Command]( FMenuBuilder& InMenuBuilder )
@@ -549,30 +532,12 @@ FReply STransformViewportToolBar::OnCycleCoordinateSystem()
 
 FSlateIcon STransformViewportToolBar::GetLocalToWorldIcon() const
 {
-	if( Viewport.IsValid() && Viewport.Pin()->IsCoordSystemActive(COORD_World) )
+	ECoordSystem CoordSystem = ECoordSystem::COORD_Local;
+	if (TSharedPtr<SEditorViewport> PinnedViewport = Viewport.Pin())
 	{
-		static FName WorldIcon("EditorViewport.RelativeCoordinateSystem_World");
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), WorldIcon);
+		CoordSystem = PinnedViewport->GetViewportClient()->GetWidgetCoordSystemSpace();
 	}
-
-	if( Viewport.IsValid() && Viewport.Pin()->IsCoordSystemActive(COORD_Parent) )
-	{
-		static const FName ParentIcon("Icons.ConstraintManager.ParentHierarchy");
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), ParentIcon);
-	}
-	
-	static FName LocalIcon("Icons.Transform");
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), LocalIcon);
-}
-
-FText STransformViewportToolBar::GetLocationGridLabel() const
-{
-	return FText::AsNumber( GEditor->GetGridSize() );
-}
-
-FText STransformViewportToolBar::GetRotationGridLabel() const
-{
-	return FText::Format(LOCTEXT("GridRotation - Number - DegreeSymbol", "{0}\u00b0"), FText::AsNumber(GEditor->GetRotGridSize().Pitch));
+	return UE::UnrealEd::GetIconFromCoordSystem(CoordSystem);
 }
 
 FText STransformViewportToolBar::GetLayer2DLabel() const
@@ -583,34 +548,14 @@ FText STransformViewportToolBar::GetLayer2DLabel() const
 	{
 		return FText::FromString(Settings2D->SnapLayers[ViewportSettings->ActiveSnapLayerIndex].Name);
 	}
-	
+
 	return FText();
-}
-
-FText STransformViewportToolBar::GetScaleGridLabel() const
-{
-	FNumberFormattingOptions NumberFormattingOptions;
-	NumberFormattingOptions.MaximumFractionalDigits = 5;
-
-	const float CurGridAmount = GEditor->GetScaleGridSize();
-	return (GEditor->UsePercentageBasedScaling()) 
-		? FText::AsPercent(CurGridAmount / 100.0f, &NumberFormattingOptions) 
-		: FText::AsNumber(CurGridAmount, &NumberFormattingOptions);
 }
 
 FText STransformViewportToolBar::GetCameraSpeedLabel() const
 {
-	auto ViewportPin = Viewport.Pin();
-	if (ViewportPin.IsValid() && ViewportPin->GetViewportClient().IsValid())
-	{
-		float CameraSpeed = ViewportPin->GetViewportClient()->GetCameraSpeed();
-		FNumberFormattingOptions FormattingOptions = FNumberFormattingOptions::DefaultNoGrouping();
-		FormattingOptions.MaximumFractionalDigits = CameraSpeed > 1 ? 1 : 3;
-		return FText::AsNumber(CameraSpeed, &FormattingOptions);
-	}
-
-	return FText();
-}	
+	return UE::UnrealEd::GetCameraSpeedLabel(Viewport);
+}
 
 float STransformViewportToolBar::GetCamSpeedSliderPosition() const
 {
@@ -785,52 +730,40 @@ bool STransformViewportToolBar::IsPreserveNonUniformScaleChecked()
 TSharedRef<SWidget> STransformViewportToolBar::FillLocationGridSnapMenu()
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+	TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
+																	 : ViewportSettings->DecimalGridSizes;
 
-	return BuildLocationGridCheckBoxList("Snap", LOCTEXT("LocationSnapText", "Snap Sizes"), ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes : ViewportSettings->DecimalGridSizes );
-}
+	UE::UnrealEd::FLocationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		UE::UnrealEd::FLocationGridCheckboxListExecuteActionDelegate::CreateLambda(
+			[](int CurrGridSizeIndex)
+			{
+				STransformViewportToolBar::SetGridSize(CurrGridSizeIndex);
+			}
+		);
 
-TSharedRef<SWidget> STransformViewportToolBar::BuildLocationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes) const
-{
-	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+	UE::UnrealEd::FLocationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+		UE::UnrealEd::FLocationGridCheckboxListIsCheckedDelegate::CreateLambda(
+			[](int CurrGridSizeIndex)
+			{
+				return STransformViewportToolBar::IsGridSizeChecked(CurrGridSizeIndex);
+			}
+		);
 
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder LocationGridMenuBuilder( bShouldCloseWindowAfterMenuSelection, CommandList );
-
-	LocationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
-	for( int32 CurGridSizeIndex = 0; CurGridSizeIndex < InGridSizes.Num(); ++CurGridSizeIndex )
-	{
-		const float CurGridSize = InGridSizes[ CurGridSizeIndex ];
-
-		LocationGridMenuBuilder.AddMenuEntry(
-			FText::AsNumber( CurGridSize ),
-			FText::Format( LOCTEXT("LocationGridSize_ToolTip", "Sets grid size to {0}"), FText::AsNumber( CurGridSize ) ),
-			FSlateIcon(),
-			FUIAction( FExecuteAction::CreateStatic( &STransformViewportToolBar::SetGridSize, CurGridSizeIndex ),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateStatic( &STransformViewportToolBar::IsGridSizeChecked, CurGridSizeIndex ) ),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton );
-	}
-	LocationGridMenuBuilder.EndSection();
-
-	return LocationGridMenuBuilder.MakeWidget();
+	return UE::UnrealEd::CreateLocationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, GridSizes, CommandList);
 }
 
 TSharedRef<SWidget> STransformViewportToolBar::FillRotationGridSnapMenu()
 {
-	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+	UE::UnrealEd::FRotationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		UE::UnrealEd::FRotationGridCheckboxListExecuteActionDelegate::CreateStatic(&STransformViewportToolBar::SetRotationGridSize
+		);
 
-	return SNew(SUniformGridPanel)
+	UE::UnrealEd::FRotationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+		UE::UnrealEd::FRotationGridCheckboxListIsCheckedDelegate::CreateStatic(
+			&STransformViewportToolBar::IsRotationGridSizeChecked
+		);
 
-		+ SUniformGridPanel::Slot(0, 0)
-		[
-			BuildRotationGridCheckBoxList("Common", LOCTEXT("RotationCommonText", "Common"), ViewportSettings->CommonRotGridSizes, GridMode_Common)
-		]
-
-	+ SUniformGridPanel::Slot(1, 0)
-		[
-			BuildRotationGridCheckBoxList("Div360", LOCTEXT("RotationDivisions360DegreesText", "Divisions of 360\u00b0"), ViewportSettings->DivisionsOf360RotGridSizes, GridMode_DivisionsOf360)
-		];
+	return UE::UnrealEd::CreateRotationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, CommandList);
 }
 
 TSharedRef<SWidget> STransformViewportToolBar::FillLayer2DSnapMenu()
@@ -885,95 +818,51 @@ TSharedRef<SWidget> STransformViewportToolBar::FillLayer2DSnapMenu()
 	return ShowMenuBuilder.MakeWidget();
 }
 
-TSharedRef<SWidget> STransformViewportToolBar::BuildRotationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes, ERotationGridMode InGridMode) const
-{
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder RotationGridMenuBuilder( bShouldCloseWindowAfterMenuSelection, CommandList );
-
-	RotationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
-	for( int32 CurGridAngleIndex = 0; CurGridAngleIndex < InGridSizes.Num(); ++CurGridAngleIndex )
-	{
-		const float CurGridAngle = InGridSizes[ CurGridAngleIndex ];
-
-		FText MenuName = FText::Format( LOCTEXT("RotationGridAngle", "{0}\u00b0"), FText::AsNumber( CurGridAngle ) ); /*degree symbol*/
-		FText ToolTipText = FText::Format( LOCTEXT("RotationGridAngle_ToolTip", "Sets rotation grid angle to {0}"), MenuName ) ; /*degree symbol*/
-
-		RotationGridMenuBuilder.AddMenuEntry(
-			MenuName,
-			ToolTipText,
-			FSlateIcon(),
-			FUIAction( FExecuteAction::CreateStatic( &STransformViewportToolBar::SetRotationGridSize, CurGridAngleIndex, InGridMode ),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateStatic( &STransformViewportToolBar::IsRotationGridSizeChecked, CurGridAngleIndex, InGridMode ) ),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton );
-	}
-	RotationGridMenuBuilder.EndSection();
-
-	return RotationGridMenuBuilder.MakeWidget();
-}
-
 TSharedRef<SWidget> STransformViewportToolBar::FillScaleGridSnapMenu()
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-	const bool bShouldCloseWindowAfterMenuSelection = true;
+	TArray<float> GridSizes = ViewportSettings->ScalingGridSizes;
 
-	FNumberFormattingOptions NumberFormattingOptions;
-	NumberFormattingOptions.MaximumFractionalDigits = 5;
+	UE::UnrealEd::FScaleGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		UE::UnrealEd::FScaleGridCheckboxListExecuteActionDelegate::CreateLambda(
+			[](int CurrGridScaleIndex)
+			{
+				STransformViewportToolBar::SetScaleGridSize(CurrGridScaleIndex);
+			}
+		);
 
-	FMenuBuilder ScaleGridMenuBuilder( bShouldCloseWindowAfterMenuSelection, CommandList );
-
-	ScaleGridMenuBuilder.BeginSection("ScaleSnapOptions", LOCTEXT("ScaleSnapOptions", "Scale Snap"));
-
-	for( int32 CurGridAmountIndex = 0; CurGridAmountIndex < ViewportSettings->ScalingGridSizes.Num(); ++CurGridAmountIndex )
-	{
-		const float CurGridAmount = ViewportSettings->ScalingGridSizes[ CurGridAmountIndex ];
-
-		FText MenuText;
-		FText ToolTipText;
-
-		if( GEditor->UsePercentageBasedScaling() )
+	UE::UnrealEd::FScaleGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+		UE::UnrealEd::FScaleGridCheckboxListIsCheckedDelegate::CreateLambda(
+			[](int CurrGridScaleIndex)
 		{
-			MenuText = FText::AsPercent( CurGridAmount / 100.0f, &NumberFormattingOptions );
-			ToolTipText = FText::Format( LOCTEXT("ScaleGridAmountOld_ToolTip", "Snaps scale values to {0}"), MenuText );
+				return STransformViewportToolBar::IsScaleGridSizeChecked(CurrGridScaleIndex);
 		}
-		else
-		{
-			MenuText = FText::AsNumber( CurGridAmount, &NumberFormattingOptions );
-			ToolTipText = FText::Format( LOCTEXT("ScaleGridAmount_ToolTip", "Snaps scale values to increments of {0}"), MenuText );
-		}
+		);
 
-		ScaleGridMenuBuilder.AddMenuEntry(
-			MenuText,
-			ToolTipText,
-			FSlateIcon(),
-			FUIAction( FExecuteAction::CreateStatic( &STransformViewportToolBar::SetScaleGridSize, CurGridAmountIndex ),
+	return UE::UnrealEd::CreateScaleGridSnapMenu(
+		ExecuteDelegate,
+		IsCheckedDelegate,
+		GridSizes,
+		true,
+		CommandList,
+		true,
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[]()
+				{
+					ULevelEditorViewportSettings* Settings = GetMutableDefault<ULevelEditorViewportSettings>();
+					Settings->PreserveNonUniformScale = !Settings->PreserveNonUniformScale;
+				}
+			),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateStatic( &STransformViewportToolBar::IsScaleGridSizeChecked, CurGridAmountIndex ) ),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton );
-	}
-	ScaleGridMenuBuilder.EndSection();
-
-	if( !GEditor->UsePercentageBasedScaling() )
-	{
-		ScaleGridMenuBuilder.BeginSection("ScaleGeneralOptions", LOCTEXT("ScaleOptions", "Scaling Options"));
-
-		ScaleGridMenuBuilder.AddMenuEntry(
-			LOCTEXT("ScaleGridPreserveNonUniformScale", "Preserve Non-Uniform Scale"),
-			LOCTEXT("ScaleGridPreserveNonUniformScale_ToolTip", "When this option is checked, scaling objects that have a non-uniform scale will preserve the ratios between each axis, snapping the axis with the largest value."),
-			FSlateIcon(),
-			FUIAction( FExecuteAction::CreateStatic( &STransformViewportToolBar::TogglePreserveNonUniformScale ),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateStatic( &STransformViewportToolBar::IsPreserveNonUniformScaleChecked ) ),
-			NAME_None,
-			EUserInterfaceActionType::Check );
-
-		ScaleGridMenuBuilder.EndSection();
-	}
-
-
-	return ScaleGridMenuBuilder.MakeWidget();
+			FIsActionChecked::CreateLambda(
+				[]()
+				{
+					return GetDefault<ULevelEditorViewportSettings>()->PreserveNonUniformScale;
+				}
+			)
+		)
+	);
 }
 
 ECheckBoxState STransformViewportToolBar::IsLocationGridSnapChecked() const

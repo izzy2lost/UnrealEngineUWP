@@ -23,6 +23,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+#include "ObjectTools.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -157,12 +158,12 @@ void UK2Node_WebAPIOperation::AllocateDefaultPins()
 		CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
 	}
 
-	if(!GetThenPin())
+	if(!FindThenPin())
 	{
 		CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
 	}
 
-	TArray<FMulticastDelegateProperty*, TFixedAllocator<2>> DelegateProperties = {
+	TArray<const FMulticastDelegateProperty*, TFixedAllocator<2>> DelegateProperties = {
 		UE::WebAPI::Operation::GetPositiveOutcomeDelegate(OperationClass),
 		UE::WebAPI::Operation::GetNegativeOutcomeDelegate(OperationClass)
 	};
@@ -288,7 +289,7 @@ void UK2Node_WebAPIOperation::AllocateDefaultPins()
 
 FText UK2Node_WebAPIOperation::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	const FText FunctionName = UK2Node_CallFunction::GetUserFacingFunctionName(GetFactoryFunction());
+	const FText FunctionName = ObjectTools::GetUserFacingFunctionName(GetFactoryFunction());
 	FText NamespaceName;
 	FText ServiceName;
 	
@@ -339,7 +340,7 @@ FText UK2Node_WebAPIOperation::GetTooltipText() const
 	}
 	else if (CachedTooltip.IsOutOfDate(this))
 	{
-		FText BaseTooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+		FText BaseTooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("DefaultTooltip"), BaseTooltip);
@@ -910,7 +911,7 @@ TArray<UEdGraphPin*> UK2Node_WebAPIOperation::GetResponsePins() const
 	return UE::WebAPI::Graph::GetResponsePins(this);
 }
 
-UEdGraphPin* UK2Node_WebAPIOperation::GetThenPin() const
+UEdGraphPin* UK2Node_WebAPIOperation::FindThenPin() const
 {
 	return FindPin(UEdGraphSchema_K2::PN_Then, EEdGraphPinDirection::EGPD_Output, UEdGraphSchema_K2::PC_Exec);
 }
@@ -980,7 +981,7 @@ public:
 		ExecIn = InNode->GetExecPin();
 		RequestParameters = InNode->GetRequestPins();
 
-		ExecOut = InNode->GetThenPin();
+		ExecOut = InNode->FindThenPin();
 		ExecPositive = InNode->FindPin(UE::WebAPI::Operation::PositiveOutcomeName, EEdGraphPinDirection::EGPD_Output, UEdGraphSchema_K2::PC_Exec, true);
 		ExecNegative = InNode->FindPin(UE::WebAPI::Operation::NegativeOutcomeName, EEdGraphPinDirection::EGPD_Output, UEdGraphSchema_K2::PC_Exec, true);
 		Responses = InNode->GetResponsePins();
@@ -1081,7 +1082,7 @@ public:
 		check(InNode->PositiveDelegateProperty.IsValid());
 		DelegateProperty = InNode->PositiveDelegateProperty.Get(); // Choose one, doesn't matter
 		
-		ExecOut = InNode->GetThenPin();
+		ExecOut = InNode->FindThenPin();
 		
 		PositiveEventNodeMap = FOutcomeEventPinMap(UE::WebAPI::Operation::PositiveOutcomeName, InPositiveEvent, DelegateProperty->SignatureFunction);
 		NegativeEventNodeMap = FOutcomeEventPinMap(UE::WebAPI::Operation::NegativeOutcomeName, InNegativeEvent, DelegateProperty->SignatureFunction);

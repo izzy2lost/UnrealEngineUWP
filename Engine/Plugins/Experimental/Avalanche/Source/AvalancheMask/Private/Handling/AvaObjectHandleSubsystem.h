@@ -5,7 +5,7 @@
 #include "AvaMaskLog.h"
 #include "IAvaObjectHandle.h"
 #include "Misc/TVariant.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "Subsystems/EngineSubsystem.h"
 
 #include "AvaObjectHandleSubsystem.generated.h"

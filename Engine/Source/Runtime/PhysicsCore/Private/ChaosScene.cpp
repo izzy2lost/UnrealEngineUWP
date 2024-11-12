@@ -35,8 +35,12 @@
 #include "RewindData.h"
 #include "PhysicsSettingsCore.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
+#include "Chaos/AsyncInitBodyHelper.h"
 
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
+
+#include "ChaosDebugDraw/ChaosDDScene.h"
+#include "ChaosDebugDraw/ChaosDDTimeline.h"
 
 DECLARE_CYCLE_STAT(TEXT("Update Kinematics On Deferred SkelMeshes"),STAT_UpdateKinematicsOnDeferredSkelMeshesChaos,STATGROUP_Physics);
 CSV_DEFINE_CATEGORY(ChaosPhysics,true);
@@ -54,9 +58,7 @@ TAutoConsoleVariable<int32> CVar_ApplyProjectSettings(TEXT("p.Chaos.Simulation.A
 FChaosScene::FChaosScene(
 	UObject* OwnerPtr
 	, Chaos::FReal InAsyncDt
-#if CHAOS_DEBUG_NAME
 	, const FName& DebugName
-#endif
 )
 	: SolverAccelerationStructure(nullptr)
 	, ChaosModule(nullptr)
@@ -72,11 +74,7 @@ FChaosScene::FChaosScene(
 
 	Chaos::EThreadingMode ThreadingMode = bForceSingleThread ? Chaos::EThreadingMode::SingleThread : Chaos::EThreadingMode::TaskGraph;
 
-	SceneSolver = ChaosModule->CreateSolver(OwnerPtr, InAsyncDt, ThreadingMode
-#if CHAOS_DEBUG_NAME
-		,DebugName
-#endif
-		);
+	SceneSolver = ChaosModule->CreateSolver(OwnerPtr, InAsyncDt, ThreadingMode, DebugName);
 	check(SceneSolver);
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
@@ -89,14 +87,11 @@ FChaosScene::FChaosScene(
 	SimCallback = SceneSolver->CreateAndRegisterSimCallbackObject_External<FChaosSceneSimCallback>();
 
 	// Apply project settings to the solver
-	if(CVar_ApplyProjectSettings.GetValueOnAnyThread() != 0)
+	if (CVar_ApplyProjectSettings.GetValueOnAnyThread() != 0)
 	{
 		UPhysicsSettingsCore* Settings = UPhysicsSettingsCore::Get();
-		SceneSolver->RegisterSimOneShotCallback([InSolver = SceneSolver, SolverConfigCopy = Settings->SolverOptions, bIsDeterministic = Settings->bEnableEnhancedDeterminism]()
-		{
-			InSolver->ApplyConfig(SolverConfigCopy);
-			InSolver->SetIsDeterministic(bIsDeterministic);
-		});
+		SceneSolver->ApplyConfig(Settings->SolverOptions);
+		SceneSolver->SetIsDeterministic(Settings->bEnableEnhancedDeterminism);
 	}
 
 	// Make sure we have initialized structure on game thread, evolution has already initialized structure, just need to copy.
@@ -287,6 +282,7 @@ void FChaosScene::AddActorsToScene_AssumesLocked(TArray<FPhysicsActorHandle>& In
 	TRACE_CPUPROFILER_EVENT_SCOPE(FChaosScene::AddActorsToScene_AssumesLocked)
 
 	Chaos::FPhysicsSolver* Solver = GetSolver();
+	UE_CHAOS_ASYNC_INITBODY_WRITESCOPELOCK(Solver->GetExternalDataLock_External());
 	Chaos::ISpatialAcceleration<Chaos::FAccelerationStructureHandle,Chaos::FReal,3>* SpatialAcceleration = GetSpacialAcceleration();
 	for(FPhysicsActorHandle& Handle : InHandles)
 	{
@@ -341,7 +337,7 @@ void FChaosScene::SetUpForFrame(const FVector* NewGrav,float InDeltaSeconds /*= 
 
 	if(bSubstepping)
 	{
-		MDeltaTime = FMath::Min(InDeltaSeconds, InMaxSubsteps * InMaxSubstepDeltaTime);
+		MDeltaTime = InMaxSubstepDeltaTime > 0.f ? FMath::Min(InDeltaSeconds, InMaxSubsteps * InMaxSubstepDeltaTime) : InDeltaSeconds;
 	}
 	else
 	{
@@ -375,23 +371,19 @@ void FChaosScene::StartFrame()
 		return;
 	}
 
-	const float UseDeltaTime = OnStartFrame(MDeltaTime);;
+	const float UseDeltaTime = OnStartFrame(MDeltaTime);
 
-	TArray<FPhysicsSolverBase*> SolverList;
-	ChaosModule->GetSolversMutable(Owner,SolverList);
-
-	if(FPhysicsSolver* Solver = GetSolver())
-	{
-		// Make sure our solver is in the list
-		SolverList.AddUnique(Solver);
-	}
-
-
+	TArray<FPhysicsSolverBase*> SolverList = GetPhysicsSolvers();
 	for(FPhysicsSolverBase* Solver : SolverList)
 	{
-		CompletionEvents.Add(Solver->AdvanceAndDispatch_External(UseDeltaTime));
+		if(FGraphEventRef SolverEvent = Solver->AdvanceAndDispatch_External(UseDeltaTime))
+		{
+			if(SolverEvent.IsValid())
+			{
+				CompletionEvents.Add(SolverEvent);
+			}
+		}
 	}
-
 }
 
 void FChaosScene::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
@@ -472,7 +464,7 @@ void GetAABBTreeStats(Chaos::ISpatialAccelerationCollection<Chaos::FAcceleration
 		if (const auto AABBTree = SubStructure->template As<TAABBTree<FAccelerationStructureHandle, TAABBTreeLeafArray<FAccelerationStructureHandle>>>())
 		{
 			OutAABBTreeStatistics.MergeStatistics(AABBTree->GetAABBTreeStatistics());
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 			if (FCsvProfiler::Get()->IsCapturing() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(AABBTreeExpensiveStats)))
 			{
 				OutAABBTreeExpensiveStatistics.MergeStatistics(AABBTree->GetAABBTreeExpensiveStatistics());
@@ -486,6 +478,25 @@ void GetAABBTreeStats(Chaos::ISpatialAccelerationCollection<Chaos::FAcceleration
 	}
 }
 
+TArray<Chaos::FPhysicsSolverBase*> FChaosScene::GetPhysicsSolvers() const
+{
+	// Make a list of solvers to process. This is a list of all solvers registered to our world
+	// And our internal base scene solver.
+	TArray<Chaos::FPhysicsSolverBase*> SolverList;
+	if(const Chaos::FPhysicsSolver* Solver = GetSolver())
+	{
+		if(!Solver->IsStandaloneSolver())
+		{
+			// Get all the solvers with the same owner
+			ChaosModule->GetSolversMutable(Owner,SolverList);
+		}
+
+		// Make sure our solver is in the list
+		SolverList.AddUnique(GetSolver());
+	}
+	return SolverList;
+}
+
 void FChaosScene::EndFrame()
 {
 	using namespace Chaos;
@@ -497,6 +508,8 @@ void FChaosScene::EndFrame()
 	{
 		return;
 	}
+
+	CVD_TRACE_ACCELERATION_STRUCTURES(SolverAccelerationStructure, Chaos::FPhysicsSolver, *SceneSolver, CVDDC_AccelerationStructures);
 
 #if !UE_BUILD_SHIPPING
 	{
@@ -516,7 +529,7 @@ void FChaosScene::EndFrame()
 		CSV_CUSTOM_STAT(ChaosPhysics, AABBTreeDirtyElementNonEmptyCellCount, TreeStats.StatNumNonEmptyCellsInGrid, ECsvCustomStatOp::Set);
 		SET_DWORD_STAT(STAT_ChaosCounter_NumDirtyNonEmptyCellsInGrid, TreeStats.StatNumNonEmptyCellsInGrid);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (FCsvProfiler::Get()->IsCapturing() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(AABBTreeExpensiveStats)))
 		{
 			CSV_CUSTOM_STAT(AABBTreeExpensiveStats, AABBTreeMaxNumLeaves, TreeExpensiveStats.StatMaxNumLeaves, ECsvCustomStatOp::Set);
@@ -525,7 +538,7 @@ void FChaosScene::EndFrame()
 			CSV_CUSTOM_STAT(AABBTreeExpensiveStats, AABBTreeMaxLeafSize, TreeExpensiveStats.StatMaxLeafSize, ECsvCustomStatOp::Set);
 			CSV_CUSTOM_STAT(AABBTreeExpensiveStats, AABBTreeGlobalPayloadsSize, TreeExpensiveStats.StatGlobalPayloadsSize, ECsvCustomStatOp::Set);
 		}
-#endif // CSV_PROFILER
+#endif // CSV_PROFILER_STATS
 	}
 #endif // UE_BUILD_SHIPPING
 
@@ -535,13 +548,7 @@ void FChaosScene::EndFrame()
 
 	// Make a list of solvers to process. This is a list of all solvers registered to our world
 	// And our internal base scene solver.
-	TArray<FPhysicsSolverBase*> SolverList;
-	ChaosModule->GetSolversMutable(Owner,SolverList);
-
-	{
-		// Make sure our solver is in the list
-		SolverList.AddUnique(GetSolver());
-	}
+	TArray<FPhysicsSolverBase*> SolverList = GetPhysicsSolvers();
 
 	// Flip the buffers over to the game thread and sync
 	{
@@ -582,3 +589,16 @@ FGraphEventArray FChaosScene::GetCompletionEvents()
 {
 	return CompletionEvents;
 }
+
+#if CHAOS_DEBUG_DRAW
+void FChaosScene::SetDebugDrawScene(const ChaosDD::Private::FChaosDDScenePtr& InCDDScene)
+{
+	CDDScene = InCDDScene;
+
+	SceneSolver->EnqueueCommandImmediate(
+		[this]()
+		{
+			SceneSolver->SetDebugDrawScene(CDDScene);
+		});
+}
+#endif

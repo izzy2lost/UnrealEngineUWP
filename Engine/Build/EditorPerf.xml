@@ -42,7 +42,7 @@
 	<Property Name="EditorCompileArgs" Value=""/>
 	<Property Name="EditorCompileArgs" Value="-BuildPlugin=$(ExtraPluginsPlusDelims)" If="'$(ExtraPluginsPlusDelims)' != ''"/>
 	<Property Name="EditorCompileArgs" Value="$(EditorCompileArgs) -nodebuginfo" If="$(NoDebugInfo)"/>
-	<Property Name="EditorCompileArgs" Value="$(EditorCompileArgs) -EnableTSAN -Monolithic" If="$(WithTSAN)"/>
+	<Property Name="TSANEditorCompileArgs" Value="-EnableTSAN -Monolithic"/>
 	<Property Name="EditorCompileArgs" Value="$(EditorCompileArgs) $(AdditionalEditorCompileArgs)" If="'$(AdditionalEditorCompileArgs)' != ''"/>
 
 	<!-- Get shared properties -->
@@ -66,67 +66,107 @@
 	<Property Name="BaselineAutomationNetworkOutputDir" Value="$(AutomationNetworkRootDir)/$(BaselineBuildName)"/>
 	<Property Name="BaselineAutomationNetworkOutputDir" Value="$(AutomationOutputDir)" If="$(RunAndBaseline)"/>
 
+	<!-- Options for warm+cold vs cold cache only -->
+	<Option Name="IncludeWarmPhase" DefaultValue="true" Description="Whether to include a warm cache phase. Default is true and will run cold and warm tests. If false, only a cold test will run."/>
+	<Property Name="Phases" Value="Cold;Warm"/>
+	<Property Name="Phases" Value="Cold" If="'$(IncludeWarmPhase)'=='false'"/>
+
 	<!-- Arguments for tracing -->
-	<Option Name="Phases" DefaultValue="Incr;Warm;Cold" Description="The list of phases to perform"/>
-	<Error Message="No phases specified" If="'$(Phases)' == ''"/>
 	<Property Name="TraceDir" Value="$(RootDir)/Engine/Programs/UnrealInsights/Saved/TraceSessions"/>
 
 	<!-- Arguments for phases, keep in mind that these are passed to both the DDCCleanupCommandlet and RunUnreal -->
 	<Option Name="EnableBasePhaseTests" DefaultValue="true" Description="Enable the base phase perf tests."/>
-	<Option Name="ColdArgs" DefaultValue="-ddc=Cold" Description="Arguments to unreal for the cold phase"/>
-	<Option Name="IncrArgs" DefaultValue="-ddc=Warm" Description="Arguments to unreal for the incremental phase"/>
+	<Property Name="EnableBasePhaseTests" Value="false" If="$(WithTSAN)"/>
+	<Option Name="ColdArgs" DefaultValue="-ddc=Cold -NoAssetRegistryCacheRead" Description="Arguments to unreal for the cold phase"/>
 	<Option Name="WarmArgs" DefaultValue="-ddc=Warm" Description="Arguments to unreal for the warm phase"/>
 
 	<!-- Iterations to run and average together -->
 	<Option Name="Iterations" DefaultValue="1" Description="The list of iteration numbers to run. For example '1;2;3' for three iterations"/>
 
-	<!-- Full Map Asset Path to run for tests per project -->
-	<Option Name="MapAssetPerProjects" DefaultValue="" Description="Comma separated pair of project and map asset to load for it (i.e. 'FortniteGame,/Game/MyMap'), each pair are semicolon separated "/>
+	<!-- Option for number of PIE iterations to run (per editor launch) -->
+	<Property Name="DefaultNumIterationsPie" Value="2" />
+	<Option Name="NumIterationsPIE" DefaultValue="$(DefaultNumIterationsPIE)" Description="Specify the number of times to start/stop PIE sessions in a single editor run."/>
+	<Property Name="NumIterationsPIE" Value="1" If="$(WithTSAN)"/>
+	<Do If="'$(NumIterationsPIE)' &lt;= '0'">
+		<Warning Message="NumIterationPIE must be greater than 0. Setting to default of $(DefaultNumIterationsPIE)."/>
+		<Property Name="NumIterationsPIE" Value="$(DefaultNumIterationsPIE)" />
+	</Do>
+	<Property Name="ArgIterationsPIE" Value="-ini:Engine:[ConsoleVariables]:project.iteration.pie.testiterations=$(NumIterationsPIE)" />
 
-	<!-- Full Map Asset Path to run for tests per project -->
-	<Option Name="SpecificArgsPerProjects" DefaultValue="" Description="Hat (^) separated pair of project and commandline arg for it (i.e. 'Juno^-TargetFortReleaseVersion=26.00'), each pair are semicolon separated "/>
+	<!-- Used to determine if we will include internal projects -->
+	<Option Name="IsLicensee" Restrict="true|false" DefaultValue="false" Description="Define to true if this script is used externally."/>
+
+	<!-- Internal property to track all projects that have been declared -->
+	<Property Name="AllProjects" Value=""/>
+
+	<!-- A macro that can be used to easily set up a new test project. -->
+	<Macro Name="SetupPerfProject" Arguments="ProjectName;ProjectPath" OptionalArguments="CopyDefaultsFrom;ProjectTarget;EditorTarget;MapPath;GameSpecificArgs;UseBinariesFrom;ExtraNonCopyableArgs;GauntletTest;GauntletTestArgs">
+		<Property Name="$(ProjectName)__ProjectPath" Value="$(ProjectPath)" CreateInParentScope="true"/>
+		
+		<Property Name="$(ProjectName)__ProjectTarget" Value="$(ProjectName)" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__ProjectTarget" Value="$($(CopyDefaultsFrom)__ProjectTarget)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__ProjectTarget" Value="$(ProjectTarget)" If="'$(ProjectTarget)' != ''"/>
+
+		<Property Name="$(ProjectName)__EditorTarget" Value="$(ProjectName)Editor" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__EditorTarget" Value="$($(CopyDefaultsFrom)__EditorTarget)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__EditorTarget" Value="$(EditorTarget)" If="'$(EditorTarget)' != ''"/>
+
+		<!-- Stash the MapPath so that we can use it later via CopyDefaultsFrom and construct new MapArgs -->
+		<Property Name="$(ProjectName)__BaseMapPath" Value="$(MapPath)" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__BaseMapPath" Value="$($(CopyDefaultsFrom)__BaseMapPath)" If="'$(CopyDefaultsFrom)' != ''"/>
+
+		<Property Name="$(ProjectName)__SpecificArgs" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__SpecificArgs" Value="$($(CopyDefaultsFrom)__SpecificArgs)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__SpecificArgs" Value="$(GameSpecificArgs)" If="'$(GameSpecificArgs)' != ''"/>
+
+		<Property Name="$(ProjectName)__UseBinariesFrom" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__UseBinariesFrom" Value="$(CopyDefaultsFrom)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__UseBinariesFrom" Value="$(UseBinariesFrom)" If="'$(UseBinariesFrom)' != ''"/>
+
+		<Property Name="$(ProjectName)__GauntletTest" Value="EditorTests" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__GauntletTest" Value="$($(CopyDefaultsFrom)__GauntletTest)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__GauntletTest" Value="$(GauntletTest)" If="'$(GauntletTest)' != ''"/>
+
+		<Property Name="$(ProjectName)__GauntletTestArgs" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__GauntletTestArgs" Value="$($(CopyDefaultsFrom)__GauntletTestArgs)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__GauntletTestArgs" Value="$(GauntletTestArgs)" If="'$(GauntletTestArgs)' != ''"/>
+
+		<!-- MapArgs is an "indirect" parameter. We don't ever copy it around, instead we always construct it based on BaseMapPath and others parameters -->
+		<Property Name="$(ProjectName)__MapArgs" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__MapArgs" Value="-ini:Engine:[/Script/Engine.AutomationTestSettings]:MapsToPIETest=\&quot;$($(ProjectName)__BaseMapPath)\&quot;" If="'$($(ProjectName)__BaseMapPath)' != '' and '$($(ProjectName)__GauntletTest)'=='EditorTests'" />
+
+		<!-- Immediately resolve any indirections on UseBinariesFrom. We cannot support them later when we set up the actual nodes. -->
+		<Do If="'$($(ProjectName)__UseBinariesFrom)' != ''">
+			<Property Name="$(ProjectName)__UseBinariesFrom" Value="$($($(ProjectName)__UseBinariesFrom)__UseBinariesFrom)" If="'$($($(ProjectName)__UseBinariesFrom)__UseBinariesFrom)' != ''"/>
+		</Do>
+
+		<Property Name="$(ProjectName)__ExtraNonCopyableArgs" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__ExtraNonCopyableArgs" Value="$(ExtraNonCopyableArgs)" If="'$(ExtraNonCopyableArgs)' != ''"/>
+
+		<Property Name="AllProjects" Value="$(AllProjects);$(ProjectName)" />
+	</Macro>
 
 	<!-- Inject internal projects default argument at the global scope -->
-	<Option Name="IsLicensee" Restrict="true|false" DefaultValue="false" Description="Define to true if this script is used externally."/>
 	<Include Script="../Restricted/NotForLicensees/Build/EditorPerfInternalArgs.xml" If="!$(IsLicensee)" />
-	
-	<!-- Set Project Map Args based on MapAssetPerProjects list -->
-	<ForEach Name="ProjectPair" Values="$(MapAssetPerProjects)" Separator=";">
-		<!-- Split the Pair -->
-		<Property Name="Project" Value=""/>
-		<Property Name="MapAsset" Value=""/>
-		<Regex Pattern="(.*),(.*)" Capture="Project;MapAsset" Input="$(ProjectPair)" />
 
-		<Property Name="$(Project)MapArgs" Value="-ini:Engine:[/Script/Engine.AutomationTestSettings]:MapsToPIETest=\&quot;$(MapAsset)\&quot;" If="'$(MapAsset)' != ''" />
-	</ForEach>
-
-	<!-- Option to retain per-branch asset registry between runs so that incremental is representative of user experience -->
+	<!-- Option to retain per-branch asset registry between runs so that warm is representative of user experience -->
 	<Property Name="AssetRegistryCache_Folder" Value="$(RootDir)/../../../EditorPerfAssetRegistryCache/$(EscapedBranch)/"/>
 
 	<!-- Options for extra runtime args -->
 	<Option Name="AdditionalRuntimeArgs" DefaultValue="" Description="Additional Arguments to pass to RunTest"/>
 
-	<!-- Set Project Specific Args based on SpecificArgsPerProjects list -->
-	<ForEach Name="ProjectPair" Values="$(SpecificArgsPerProjects)" Separator=";">
-		<!-- Split the Pair -->
-		<Property Name="Project" Value=""/>
-		<Property Name="SpecificArgs" Value=""/>
-		<Regex Pattern="(.*)^(.*)" Capture="Project;SpecificArgs" Input="$(ProjectPair)" />
-
-		<Property Name="$(Project)SpecificArgs" Value="$(SpecificArgs)" If="'$(SpecificArgs)' != ''" />
-	</ForEach>
-
 	<!-- Options for extra Zen Loader tests -->
 	<Option Name="EnableZenLoaderTest" DefaultValue="true" Description="Enable additional test per phase that uses the Zen Loader."/>
-	<Option Name="EnableZenAsyncThreadTest" DefaultValue="true" Description="Enable additional test per phase that uses the Zen Loader."/>
-	<Option Name="EnableZenTestsWithoutEditorDomain" DefaultValue="true" Description="Enable additional test per phase that uses the Zen Loader."/>
+	<Option Name="EnableZenLoaderAsyncThreadTest" DefaultValue="true" Description="Enable additional test per phase that uses the Zen Loader with an async loading thread."/>
+	<Option Name="DisableEditorDomainForZenLoaderTests" DefaultValue="true" Description="Explicitly disables editordomain (-noeditordomain) for zen loader tests"/>
 
 	<!-- Zen Loader tests specifc arguments -->
 	<Property Name="ZenLoaderTestArgs" Value="-zenloader"/>
+	<Property Name="NoZenLoaderTestArgs" Value="-nozenloader"/>
 	<Property Name="ZenLoaderAsyncTestArgs" Value="$(ZenLoaderTestArgs) -asyncloadingthread" />
 	
-	<Property Name="ZenLoaderTestArgs" Value="$(ZenLoaderTestArgs) -noeditordomain" If="$(EnableZenTestsWithoutEditorDomain)" />
-	<Property Name="ZenLoaderAsyncTestArgs" Value="$(ZenLoaderAsyncTestArgs) -noeditordomain" If="$(EnableZenTestsWithoutEditorDomain)" />
+	<Property Name="ZenLoaderTestArgs" Value="$(ZenLoaderTestArgs) -noeditordomain" If="$(DisableEditorDomainForZenLoaderTests)" />
+	<Property Name="ZenLoaderAsyncTestArgs" Value="$(ZenLoaderAsyncTestArgs) -noeditordomain" If="$(DisableEditorDomainForZenLoaderTests)" />
 
 	<!-- Options for extra Zen Store tests -->
 	<Option Name="EnableZenStoreDDCTest" DefaultValue="false" Description="Enable additional test on warm phase that uses the Zen Store DDC."/>
@@ -138,23 +178,24 @@
 	<Property Name="ZenStoreDDCTestArgs" Value="$(ZenStoreCommonArgs)"/>
 
 	<!-- Options for extra LazyLoad tests -->
-	<Option Name="EnableLazyLoadTest" DefaultValue="false" Description="Enable additional test on warm phase that uses LazyLoad."/>
-	<Option Name="EnableLazyLoadZenTest" DefaultValue="false" Description="Enable additional test on warm phase that uses LazyLoad with Zen Loader."/>
+	<Option Name="EnableLazyLoadNoZenLoaderTest" DefaultValue="false" Description="Enable additional test on warm phase that uses LazyLoad with Zen Loader disabled."/>
+	<Option Name="EnableLazyLoadZenLoaderTest" DefaultValue="false" Description="Enable additional test on warm phase that uses LazyLoad with Zen Loader enabled."/>
 	
 	<!-- LazyLoad tests specific arguments -->
 	<Property Name="LazyLoadTestArgs" Value="-LazyLoadImports"/>
 	<Property Name="LazyLoadZenTestArgs" Value="$(LazyLoadTestArgs) -zenloader" />
 
 	<!-- Gauntlet arguments for all runs -->
-	<Property Name="GauntletArgs" Value="-build=editor -verbose -tempdir=&quot;$(RootDir)/Tests&quot;"/>
+	<Property Name="GauntletArgs" Value="-build=editor -tempdir=&quot;$(RootDir)/Tests&quot;"/>
 	<Property Name="GauntletArgs" Value="$(GauntletArgs) -branch=$(Branch) -ECBranch=&quot;$(Branch)&quot; -ECChangelist=&quot;$(Change)&quot;"/>
-	<Property Name="GauntletArgs" Value="$(GauntletArgs) -maxduration=28800"/>
+	<Property Name="GauntletArgs" Value="$(GauntletArgs) -verbose -maxduration=7200" If="!$(WithTSAN)"/>
+	<Property Name="GauntletArgs" Value="$(GauntletArgs) -maxduration=7200 -LogIdleTimeout=1800" If="$(WithTSAN)"/>
 
 	<!-- Gauntlet arguments for profile runs -->
-	<Property Name="ProfileArgs" Value="-test=EditorTests -tracefiletrunc"/>
+	<Property Name="ProfileArgs" Value="-tracefiletrunc"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -EnablePlugins=$(ExtraPluginsCommaDelims)" If="'$(ExtraPluginsCommaDelims)' != ''"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -SuppressLogWarnings -SuppressLogErrors"/>
-	<Property Name="ProfileArgs" Value="$(ProfileArgs) -GameInstanceLostTimerSeconds=3600"/>
+	<Property Name="ProfileArgs" Value="$(ProfileArgs) -GameInstanceLostTimerSeconds=600"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -NoLoadLevelAtStartup -Benchmarking -NODDCCLEANUP"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -NoShaderDistrib -VerboseShaderLogging"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -ResumeOnCriticalFailure"/>
@@ -175,83 +216,81 @@
 	<Property Name="ExtraTelemetryArgs" Value="$(ExtraTelemetryArgs) -JobLink=&quot;$(HordeDashboardURL)/job/$(UE_HORDE_JOBID)?step=$(UE_HORDE_STEPID)&quot;" If="'$(HordeDashboardURL)' != ''"/>
 
 	<!-- The main test running macro logic that is expanded with platform and dependency node names -->
+	<Property Name="TestOutputDir" Value=""/>
+	<Property Name="RunTestLogPath" Value=""/>
+	<Property Name="TraceFilePath" Value=""/>
 	<Macro Name="RunTest" Arguments="TestNameSuffix;Platform;ProjectName;ProjectTarget;NodeName;Phase;Iteration;Args;EditorArgs">
 		<Property Name="TestName" Value="EditorPerf$(Phase)$(TestNameSuffix)"/>
-		<Property Name="TestFilter" Value="Project.Iteration.PIE"/>
-		<Property Name="TestFilterArgs" Value="-runtest=$(TestFilter)"/>
+		<Property Name="AssetRegistryCacheRootFolderArg" Value="-AssetRegistryCacheRootFolder=&quot;$(AssetRegistryCache_Folder)&quot;"/>
+		
+		<!-- Don't send telemetry for TSAN jobs as the time won't be comparable -->
+		<Property Name="EditorTelemetryArgs" Value=""/>
+		<Property Name="EditorTelemetryArgs" Value="-ST_SendTelemetry=false" If="$(WithTSAN)"/>
+		
+		<Property Name="TestFilterArgs" Value=""/>
+		<Property Name="CombinedEditorArgs" Value=""/>
+	
+		<Do If="'$($(ProjectName)__GauntletTest)'=='EditorTests'">
+			<Property Name="TestFilter" Value="Project.Iteration.PIE"/>
+			<Property Name="TestFilterArgs" Value="-runtest=$(TestFilter)"/>
+			<Property Name="CombinedEditorArgs" Value="$(EditorArgs) $(TestFilterArgs) $(AssetRegistryCacheRootFolderArg) $(ArgIterationsPIE) $(EditorTelemetryArgs)"/>
+		</Do>
+		<Do If="'$($(ProjectName)__GauntletTest)'!='EditorTests'">
+			<Property Name="CombinedEditorArgs" Value="$(EditorArgs) $(AssetRegistryCacheRootFolderArg) $(EditorTelemetryArgs)"/>
+		</Do>
+
 		<Property Name="IterationSuffix" Value=""/>
 		<Property Name="IterationSuffix" Value="$(Iteration)" If="'$(Iteration)' != '1'"/>
 
 		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorPerf"/>
 
 		<Property Name="IterationName" Value="$(ProjectName)$(Platform)$(TestName)$(IterationSuffix)"/>
-		<Property Name="TraceFilePath" Value="$(TraceDir)/$(IterationName).utrace"/>
+		<Property Name="TraceFileName" Value="$(IterationName).utrace"/>
+		<Property Name="TraceFilePath" Value="$(TraceDir)/$(TraceFileName)"/>
 		<Property Name="TelemetryFileName" Value="$(IterationName)Telemetry.csv"/>
 		<Property Name="TelemetryFilePath" Value="$(TraceDir)/$(TelemetryFileName)"/>
 
 		<Property Name="LogOutputParams" Value="-logdir=&quot;$(TestOutputDir)&quot;"/>
 		<Property Name="ReportParams" Value="-WriteTestResultsForHorde -HordeTestDataKey=&quot;$(NodeName)$(PreflightSuffix)&quot;"/>
 		<Property Name="ArtifactName" Value="$(Phase)$(IterationSuffix)$(TestNameSuffix)"/>
-		<Property Name="AllGauntletArgs" Value="-Project=$(ProjectTarget) -Platform=$(Platform) $(GauntletArgs) $(ReportParams) $(LogOutputParams) -artifactname=&quot;$(ArtifactName)&quot;"/>
-		<Property Name="AssetRegistryCacheRootFolderArg" Value="-AssetRegistryCacheRootFolder=&quot;$(AssetRegistryCache_Folder)&quot;"/>
-		<Property Name="CombinedEditorArgs" Value="$(EditorArgs) $(AssetRegistryCacheRootFolderArg)"/>
-		<Property Name="RunArgs" Value="$(Args) -editorargs=&quot;$(CombinedEditorArgs)&quot;"/>
+		<Property Name="AllGauntletArgs" Value="-Project=$(ProjectTarget) -Platform=$(Platform) $(GauntletArgs) $($(ProjectName)__GauntletTestArgs) $(ReportParams) $(LogOutputParams) -artifactname=&quot;$(ArtifactName)&quot;"/>
+		<Property Name="AllGauntletArgs" Value="-Project=$(ProjectTarget) -Platform=$(Platform) $(GauntletArgs) -stdout -VeryVerbose $($(ProjectName)__GauntletTestArgs) $(ReportParams) $(LogOutputParams) -artifactname=&quot;$(ArtifactName)&quot;" If="$(WithTSAN) and ('$(Phase)' == 'Warm')"/>
+
+		<Property Name="TestArg" Value="-test=$($(ProjectName)__GauntletTest)" />
+		<Property Name="RunArgs" Value="$(TestArg) $(TestFilterArgs) $(Args) -editorargs=&quot;$(CombinedEditorArgs)&quot;"/>
 
 		<!-- Do DDC cleanup outside the editor process, handles Cold cleanup without changing stats -->
 		<!-- <Commandlet Project="$(ProjectTarget)" Name="DDCCleanup" Arguments="$(Args) $(CommandletArgs)"/> -->
 
 		<!-- Run the Gauntlet EditorPerf Tests -->
-		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(TestFilterArgs) $(RunArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;"/>
-
-		<!-- Translate the utrace file into csv data -->
-		<Do If="$(RunTraceSummary)">
-			<Commandlet Project="$(ProjectTarget)" Name="SummarizeTrace" Arguments="-inputfile=&quot;$(TraceFilePath)&quot; -testname=&quot;$(TestName)&quot; $(SummarizeArgs) $(CommandletArgs)"/>
-		</Do>
+		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(RunArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;"/>
 		
-		<Do If="'$(TelemetryConfig)' != ''">
-			<!-- Publish telemetry to the db -->
-			<Command Name="PublishUnrealAutomationTelemetry" Arguments="-CSVFile=&quot;$(TelemetryFilePath)&quot; -project=$(Project) -changelist=$(Change) -branch=$(Branch) -TelemetryConfig=$(TelemetryConfig) $(ExtraTelemetryArgs)"/>
-		</Do>		
+		<!-- Translate the utrace file into csv data --> 
+		<Commandlet Project="$(ProjectTarget)" Name="SummarizeTrace" Arguments="-inputfile=&quot;$(TraceFilePath)&quot; -testname=&quot;$(TestName)&quot; $(SummarizeArgs) $(CommandletArgs)" If="$(RunTraceSummary)"/>
+		
+		<!-- Publish telemetry to the db -->
+		<Command Name="PublishUnrealAutomationTelemetry" Arguments="-CSVFile=&quot;$(TelemetryFilePath)&quot; -project=$(Project) -changelist=$(Change) -branch=$(Branch) -TelemetryConfig=$(TelemetryConfig) $(ExtraTelemetryArgs)" If="'$(TelemetryConfig)' != ''"/>
 	</Macro>
 	
-	<!-- The main editor workflows test running macro logic that is expanded with platform and dependency node names -->
-	<Macro Name="RunEditorWorkflowsTest" Arguments="Platform;ProjectName;NodeName">
-		<Property Name="TestName" Value="Editor.Workflows"/>
-		<Property Name="TestFilterArgs" Value="-runtest=$(TestName)"/>
-
-		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorWorkflows"/>
-		<Property Name="TraceFilePath" Value="$(TraceDir)/$(TestName)/$(ProjectName)$(Platform)EditorWorkflows.utrace" />
-
-		<Property Name="LogOutputParams" Value="-logdir=&quot;$(TestOutputDir)&quot;"/>
-		<Property Name="ReportParams" Value="-WriteTestResultsForHorde -HordeTestDataKey=&quot;$(NodeName)$(PreflightSuffix)&quot;"/>
-		<Property Name="AllGauntletArgs" Value="-Project=$(ProjectName) -Platform=$(Platform) $(GauntletArgs) $(ReportParams) $(LogOutputParams)"/>
-
-		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(TestFilterArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;" />
+	<Property Name="GenerateTSANReportNodeName" Value=""/>
+	<Property Name="GenerateTSANReportNodeList" Value=""/>
+	<Macro Name="GenerateTSANReport" Arguments="NodeName;TestOutputDir;Phase;TestNameSuffix;Requires;IgnoreModified">
+		<Property Name="LogFilePath" Value="$(TestOutputDir)/$(Phase)$(TestNameSuffix)/Editor/EditorOutput.log"/>
+		<Property Name="GenerateTSANReportNodeName" Value="Sanitizer Report - $(NodeName)"/>
+		<Node Name="$(GenerateTSANReportNodeName)" Requires="$(Requires)" IgnoreModified="$(IgnoreModified)">
+			<Command Name="LogSanitizerOutput" Arguments="-logfile=&quot;$(LogFilePath)&quot;" />
+		</Node>
+		<Property Name="GenerateTSANReportNodeList" Value="$(GenerateTSANReportNodeList); $(GenerateTSANReportNodeName)"/>
 	</Macro>
-	
-	<Macro Name="UploadTestTraces" Arguments="Platform;ProjectName">		
+
+	<Macro Name="UploadTestTraces" Arguments="Platform;ProjectName">
 		<!-- Save all files named for this project in the trace directory -->
 		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorPerf"/>
 		<Copy From="$(TraceDir)/$(ProjectName)$(Platform)EditorPerf*.*" To="$(TestOutputDir)"/>
 	</Macro>
 
-	<Macro Name="UploadEditorWorkflowsPerformanceDataAndTraces" Arguments="Platform;ProjectName">
-		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorWorkflows"/>
-		<Property Name="TraceFilePath" Value="$(TraceDir)/Editor.Workflows/$(ProjectName)$(Platform)EditorWorkflows.utrace" />
-
-		<!-- Translate the utrace file into csv data -->
-		<Commandlet Project="$(ProjectName)" Name="SummarizeTraceEditorWorkflows" Arguments="-inputfile=&quot;$(TraceFilePath)&quot; -testname=&quot;Editor.Workflows&quot; $(CommandletArgs)" />
-
-		<!-- Copy the utrace file and the generated csv performance data to the output directory -->
-		<Copy From="$(TraceDir)/Editor.Workflows/*" To="$(TestOutputDir)/Editor.Workflows" Overwrite="true"/>
-
-		<!-- Copy "index.json" that captures the functional results to the output directory -->
-		<Copy From="$(RootDir)/Tests/TestReport/index.json" To="$(TestOutputDir)/Editor.Workflows/index.json" Overwrite="true"/>
-	</Macro>
-
 	<!-- These will be set to the names of all nodes we want to execute based on specified platforms/options -->
 	<Property Name="RunGraphNodes" Value=""/>
-	<Property Name="RunEditorWorkflowsGraphNodes" Value=""/>
 
 	<!-- Mimic of the Runner that retrieves the stashed telemetry file and copies it to the depot location -->
 	<Macro Name="BaselineResult" Arguments="Platform;Project;Phase">
@@ -266,179 +305,215 @@
 		</Do>
 	</Macro>
 
+	<Property Name="NeedToCopyTSanBinaries" Value="$(WithTSAN)"/>
+	<Macro Name="CopyTSANBinariesIfNeeded" Arguments="ProjectBinariesPath">
+		<!-- Perform swap of built artifacts for TSAN builds so we use a non-TSAN build for cold runs and a TSAN build for warm runs -->
+		<Copy From="$(ProjectBinariesPath)_TSAN/..." To="$(ProjectBinariesPath)" ErrorIfNotFound="true" Overwrite="True" If="$(NeedToCopyTSanBinaries)"/>
+		<Property Name="NeedToCopyTSanBinaries" Value="false"/>
+	</Macro>
+	
 	<!-- This will be set to the names of all nodes we want to execute based on specified platforms/options -->
 	<Property Name="BaselineGraphNodes" Value=""/>
 
 	<!-- ForEach Platform to run, generate graph nodes -->
 	<ForEach Name="Platform" Values="$(Platforms)">
 
-		<!-- ForEach Project to run, generate the graph nodes -->
-		<ForEach Name="Project" Values="$(Projects)">
+		<!-- ForEach Project that is defined, generate the graph nodes -->
+		<ForEach Name="Project" Values="$(AllProjects)">
 
-			<!-- We parse the Editor target name from within [] in case it's not $(Project)Editor -->
-			<Property Name="EditorTarget" Value="$(Project)Editor"/>
-			<Regex Pattern="(.*)\[(.*)\]" Capture="Project;EditorTarget" Input="$(Project)" Optional="true"/>
-
-			<!-- We parse the Project target name from within {} in case it's not $(Project) (i.e. Fortnite plugins projects: Juno, DelMar ) -->
-			<Property Name="ProjectTarget" Value="$(Project)"/>
-			<Regex Pattern="(.*)\{(.*)\}" Capture="Project;ProjectTarget" Input="$(Project)" Optional="true"/>
-
-			<!-- Project Map Args-->
-			<Property Name="ProjectCombinedArgs" Value="$($(Project)SpecificArgs) $($(Project)MapArgs) $(AdditionalRuntimeArgs)"/>
+			<!-- Each project should be setup by invoking the SetupPerfProject macro which will set up the various variables we'll need for the tests -->
+			<Property Name="ProjectCombinedArgs" Value="$($(Project)__SpecificArgs) $($(Project)__MapArgs) $($(Project)__ExtraNonCopyableArgs) $(AdditionalRuntimeArgs)"/>
+			<Property Name="ProjectTarget" Value="$($(Project)__ProjectTarget)"/>
+			<Property Name="EditorTarget" Value="$($(Project)__EditorTarget)"/>
 
 			<!-- Use as base string for directories and key for node names -->
 			<Property Name="OutputName" Value="$(Project)$(Platform)EditorPerf"/>
 
-			<!-- Compile the Editor -->
-			<Property Name="CompileNodeName" Value="Compile $(Project) $(Platform)"/>
+			<!-- Compile the Editor. Set up compilation nodes for all projects that have been defined even if we aren't going to test them. This lets the tested projects depend on non-tested ones. -->
+			<Property Name="SharedCompileProduces" Value="#SharedBinaries_$(Project)_$(Platform)"/>
+			<Property Name="CompileNodeName" Value="Compile $(Project) $(Platform)" />
+			<Property Name="CompileNodeNameProduces" Value="#Binaries_$(Project)_$(Platform)"/>
+			<Property Name="TSANCompileNodeNameProduces" Value=""/>
+			<Property Name="TSANCompileNodeNameProduces" Value="#TsanBinaries_$(Project)_$(Platform)" If="$(WithTSAN)"/>
+			<Property Name="ProjectBinariesPath" Value="$(RootDir)/$($(Project)__ProjectPath)/Binaries/$(Platform)"/>
 			<Property Name="AgentModifier" Value=""/>
 			<Property Name="AgentModifier" Value=" $(Project)" If="!$(SingleAgentCompile)"/>
 			<Agent Name="Compile Editor Agent $(Platform)$(AgentModifier" Type="$($(Platform)CompileAgentType)">
-				<Node Name="$(CompileNodeName)">
+				<!-- 
+				If running with TSAN we compile twice, once without TSAN enabled (used for cold runs) and once with TSAN enabled (used for warm runs).
+				TSAN adds too much overhead to enable on cold runs, but we need a cold run to execute to prime the cache for the warm run so we run both.
+				We need to copy out the files to unique directories or else the buildgraph will complain about two nodes using files with the same name but
+				having different contents resulting in unneccessary errors appearing in jobs.
+				-->
+				<Node Name="$(CompileNodeName)" Produces="$(SharedCompileProduces);$(CompileNodeNameProduces);$(TSANCompileNodeNameProduces)" IgnoreModified="$(ProjectBinariesPath)/...">
 					<SetVersion Change="$(Change)" Branch="$(EscapedBranch)" If="$(IsBuildMachine)"/>
-					<Compile Target="ShaderCompileWorker" Platform="$(Platform)" Configuration="Development"/>
-					<Compile Target="CrashReportClientEditor" Platform="$(Platform)" Project="$(ProjectTarget)" Configuration="Shipping"/>
+					<Compile Target="ShaderCompileWorker" Platform="$(Platform)" Configuration="Development" Tag="$(SharedCompileProduces)"/>
+					<Compile Target="CrashReportClientEditor" Platform="$(Platform)" Project="$(ProjectTarget)" Configuration="Shipping" Tag="$(SharedCompileProduces)"/>
 					<Compile Target="$(EditorTarget)" Platform="$(Platform)" Project="$(ProjectTarget)" Configuration="Development" Arguments="$(EditorCompileArgs)"/>
+					
+					<Copy From="$(ProjectBinariesPath)/..." To="$(ProjectBinariesPath)_NonTSAN" Tag="$(CompileNodeNameProduces)" ErrorIfNotFound="true" If="$(WithTSAN)"/>
+					<Compile Target="$(EditorTarget)" Platform="$(Platform)" Project="$(ProjectTarget)" Configuration="Development" Arguments="$(EditorCompileArgs) $(TSANEditorCompileArgs)" If="$(WithTSAN)"/>
+					<Copy From="$(ProjectBinariesPath)/..." To="$(ProjectBinariesPath)_TSAN" Tag="$(TSANCompileNodeNameProduces)" ErrorIfNotFound="true" If="$(WithTSAN)"/>
 				</Node>
 			</Agent>
 			<Label Category="$(CompileCategory)" Name="$(Project) Editor Compile" Requires="$(CompileNodeName)"/>
+			<!-- Store off the name of the compile node so that we can use look it up by Project name from UseBinariesFrom. -->
+			<Property Name="$(Project)__CompileNodeName" Value="$(CompileNodeName)"/>
 
-			<!-- Run the Tests -->
-			<Property Name="RunNodeRequires" Value="$(CompileNodeName)"/>
-			<Property Name="RunNodeList" Value=""/> <!-- Each node in this the nested loops below, they need to depend on predecessors -->
-			<Property Name="UploadNodeList" Value=""/>
-			<Agent Name="EditorPerf Agent $(Platform) $(Project)" Type="EditorPerf$(Platform)">
-				<ForEach Name="Phase" Values="$(Phases)">
-					<Do If="$(EnableBasePhaseTests)">
-						<ForEach Name="Iteration" Values="$(Iterations)">
-							<!-- Only ever do one iteration of incremental, because it will warm up the workspace -->
-							<Do If="'$(Phase)' != 'Incr' or '$(Iteration)' == '1'">
-								<Property Name="IterationSuffix" Value=""/>
-								<Property Name="IterationSuffix" Value="$(Iteration)" If="'$(Iteration)' != '1'"/>
-								<Property Name="RunNodeName" Value="Run $(OutputName) $(Phase)$(IterationSuffix)"/>
-								<Node Name="$(RunNodeName)" Requires="$(RunNodeRequires);$(RunNodeList)">
-									<Expand Name="RunTest" TestNameSuffix="" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeName)" Phase="$(Phase)" Iteration="$(Iteration)" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs)"/>
+			<!-- If the project will be run, set up the test nodes -->
+			<Do If="ContainsItem('$(Projects)', '$(Project)', ';')=='true'">
+				<Property Name="RunNodeList" Value=""/>
+				<Property Name="UploadNodeList" Value=""/>
+				
+				<Agent Name="EditorPerf Agent $(Platform) $(Project)" Type="EditorPerf$(Platform)">
+					<!-- TSAN Nodes -->
+					<Do If="$(WithTSAN)">
+						<!-- Force a Cold Zen Loader run to prime the DDC for our actual test case (whatever it is, zen, legacy, lazy loader etc...) -->
+						<Property Name="RunNodeColdZenName" Value="Run Non-TSAN $(OutputName) Cold ZenLoader"/>
+						<Node Name="$(RunNodeColdZenName)" Requires="$(CompileNodeName);$(SharedCompileProduces);$(CompileNodeNameProduces)" IgnoreModified="$(ProjectBinariesPath)/...">
+							<!-- Perform swap of built artifacts for TSAN builds so we use a non-TSAN build for cold runs and a TSAN build for warm runs -->
+							<Copy From="$(ProjectBinariesPath)_NonTSAN/..." To="$(ProjectBinariesPath)" ErrorIfNotFound="true" Overwrite="True"/>
+							<Expand Name="RunTest" TestNameSuffix="ZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeColdZenName)" Phase="Cold" Iteration="1" Args="$(ColdArgs)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderTestArgs)"/>
+						</Node>
+						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeColdZenName)"/>
+
+						<!-- Zen Loader TestRun -->
+						<Property Name="RunTSANNodeZenName" Value="Run TSAN $(OutputName) Warm ZenLoader"/>
+						<Node Name="$(RunTSANNodeZenName)" Requires="$(RunNodeColdZenName)" IgnoreModified="$(ProjectBinariesPath)/...">
+							<Expand Name="CopyTSANBinariesIfNeeded" ProjectBinariesPath="$(ProjectBinariesPath)"/>
+							<Expand Name="RunTest" TestNameSuffix="ZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunTSANNodeZenName)" Phase="Warm" Iteration="1" Args="$(WarmArgs)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderTestArgs)"/>
+						</Node>
+						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunTSANNodeZenName)"/>
+						<!-- Only depend on the Cold job since the node running TSAN likely will fail and we still want the report to run, even on failed jobs (e.g. it may have failed for TSAN reasons) -->
+						<Expand Name="GenerateTSANReport" NodeName="$(RunTSANNodeZenName)" TestOutputDir="$(TestOutputDir)" Phase="Warm" TestNameSuffix="ZenLoader" IgnoreModified="$(ProjectBinariesPath)/..." Requires="$(RunNodeColdZenName)"/>
+
+						<!-- Zen Loader Async TestRun -->
+						<Property Name="RunNodeTSANZenAsyncName" Value="Run TSAN $(OutputName) Warm ZenLoader Async"/>
+						<Node Name="$(RunNodeTSANZenAsyncName)" Requires="$(RunNodeColdZenName)" IgnoreModified="$(ProjectBinariesPath)/...">
+							<Expand Name="CopyTSANBinariesIfNeeded" ProjectBinariesPath="$(ProjectBinariesPath)"/>
+							<Expand Name="RunTest" TestNameSuffix="ZenLoaderAsync" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeTSANZenAsyncName)" Phase="Warm" Iteration="1" Args="$(WarmArgs)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderAsyncTestArgs)"/>
+						</Node>
+						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeTSANZenAsyncName)"/>
+						<!-- Only depend on the Cold job since the node running TSAN likely will fail and we still want the report to run, even on failed jobs (e.g. it may have failed for TSAN reasons) -->
+						<Expand Name="GenerateTSANReport" NodeName="$(RunNodeTSANZenAsyncName)" TestOutputDir="$(TestOutputDir)" Phase="Warm" TestNameSuffix="ZenLoaderAsync" IgnoreModified="$(ProjectBinariesPath)/..." Requires="$(RunNodeColdZenName)"/>
+					</Do>
+
+					<!-- Non-TSAN Nodes -->
+					<Do If="!$(WithTSAN)">
+						<!-- 
+						Note, each of the nodes has a separate ForEach for Phases (where appropriate) because we want each node type (zen, nozen, async etc...) to be paired: Cold then Warm phase nodes.
+						If we did not order nodes like this, since the nodes run on the same agent it's possible for a cold job to fail and prevent a warm job _from an unrelated node_ to not have 
+						a properly populated DDC, defeating the purpose of the warm run. Thus all node type must run cold then warm, one after the other.
+						-->
+
+						<Property Name="RunNodeCompilationRequires" Value="$(CompileNodeName)"/>
+						<Property Name="RunNodeCompilationRequires" Value="$($($(Project)__UseBinariesFrom)__CompileNodeName)" If="'$($(Project)__UseBinariesFrom)'!=''"/>
+						<Do If="$(EnableBasePhaseTests)">
+							<ForEach Name="Phase" Values="$(Phases)">
+								<ForEach Name="Iteration" Values="$(Iterations)">
+									<Property Name="IterationSuffix" Value=""/>
+									<Property Name="IterationSuffix" Value="$(Iteration)" If="'$(Iteration)' != '1'"/>
+									<Property Name="RunNodeName" Value="Run $(OutputName) $(Phase)$(IterationSuffix)"/>
+									<Property Name="RunNodeRequires" Value="$(RunNodeCompilationRequires)"/>
+									<Property Name="RunNodeRequires" Value="$(RunNodeCompilationRequires); Run $(OutputName) Cold$(IterationSuffix)" If="'$(Phase)' == 'Warm'"/>
+									<Node Name="$(RunNodeName)" Requires="$(RunNodeRequires)" IgnoreModified="$(ProjectBinariesPath)/...">
+										<Expand Name="RunTest" TestNameSuffix="NoZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeName)" Phase="$(Phase)" Iteration="$(Iteration)" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(NoZenLoaderTestArgs)"/>
+									</Node>
+									<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeName)"/>
+								</ForEach>
+							</ForEach>
+						</Do>
+
+						<!--Zen Loader TestRun if enabled-->
+						<Do If="$(EnableZenLoaderTest)">
+							<!-- Setup Zen Loader tests for this phase -->
+							<ForEach Name="Phase" Values="$(Phases)">
+								<Property Name="RunNodeZenName" Value="Run $(OutputName) $(Phase) ZenLoader"/>
+								<Property Name="RunNodeZenRequires" Value="$(RunNodeCompilationRequires)"/>
+								<Property Name="RunNodeZenRequires" Value="$(RunNodeCompilationRequires); Run $(OutputName) Cold ZenLoader" If="'$(Phase)' == 'Warm'"/>
+								<Node Name="$(RunNodeZenName)" Requires="$(RunNodeZenRequires)" IgnoreModified="$(ProjectBinariesPath)/...">
+									<Expand Name="RunTest" TestNameSuffix="ZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderTestArgs)"/>
 								</Node>
-								<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeName)"/>
-							</Do>
+								<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenName)" If="$(EnableZenLoaderTest)"/>
+							</ForEach>
+						</Do>
+
+						<!--Zen Loader Async TestRun if enabled-->
+						<Do If="$(EnableZenLoaderAsyncThreadTest)">
+							<ForEach Name="Phase" Values="$(Phases)">
+								<Property Name="RunNodeZenAsyncName" Value="Run $(OutputName) $(Phase) ZenLoader Async"/>
+								<Property Name="RunNodeZenAsyncRequires" Value="$(RunNodeCompilationRequires)"/>
+								<Property Name="RunNodeZenAsyncRequires" Value="$(RunNodeCompilationRequires); Run $(OutputName) Cold ZenLoader Async" If="'$(Phase)' == 'Warm'"/>
+								<Node Name="$(RunNodeZenAsyncName)" Requires="$(RunNodeZenAsyncRequires)" IgnoreModified="$(ProjectBinariesPath)/...">
+									<Expand Name="RunTest" TestNameSuffix="ZenLoaderAsync" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenAsyncName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderAsyncTestArgs)"/>
+								</Node>
+								<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenAsyncName)" If="$(EnableZenLoaderAsyncThreadTest)"/>
+							</ForEach>
+						</Do>
+
+						<!--Zen Store DDC TestRun if enabled-->
+						<Do If="$(EnableZenStoreDDCTest)">
+							<ForEach Name="Phase" Values="$(Phases)">
+								<Property Name="RunNodeZenStoreDDCName" Value="Run $(OutputName) $(Phase) ZenLoader Store DDC"/>
+								<Property Name="RunNodeZenStoreDDCRequires" Value="$(RunNodeCompilationRequires)"/>
+								<Property Name="RunNodeZenStoreDDCRequires" Value="$(RunNodeCompilationRequires); Run $(OutputName) Cold ZenLoader Store DDC" If="'$(Phase)' == 'Warm'"/>
+								<Node Name="$(RunNodeZenStoreDDCName)" Requires="$(RunNodeZenStoreDDCRequires)" IgnoreModified="$(ProjectBinariesPath)/...">
+									<Expand Name="RunTest" TestNameSuffix="ZenStoreAsyncDDC" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenStoreDDCName)" Phase="$(Phase)" Iteration="1" Args="$(ZenStoreDDCPhaseArgs)" EditorArgs="$(ProjectCombinedArgs) $(ZenStoreDDCTestArgs)"/>
+								</Node>
+								<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenStoreDDCName)" If="$(EnableZenStoreDDCTest)"/>
+							</ForEach>
+						</Do>
+
+						<!--Warm only test runs e.g LazyLoad-->
+						<ForEach Name="Phase" Values="Warm">
+							<!--Legacy LazyLoad TestRun if enabled-->
+							<Property Name="RunNodeLazyLoadName" Value="Run $(OutputName) $(Phase) LazyLoad NoZenLoader"/>
+							<Property Name="RunNodeLazyLoadRequires" Value="$(RunNodeCompilationRequires)"/>
+							<Property Name="RunNodeLazyLoadRequires" Value="$(RunNodeCompilationRequires); Run $(OutputName) Cold LazyLoad NoZenLoader" If="'$(Phase)' == 'Warm'"/>
+							<Node Name="$(RunNodeLazyLoadName)" Requires="$(RunNodeLazyLoadRequires)" IgnoreModified="$(ProjectBinariesPath)/..." If="$(EnableLazyLoadNoZenLoaderTest)">
+								<Expand Name="RunTest" TestNameSuffix="NoZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeLazyLoadName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(LazyLoadTestArgs) $(NoZenLoaderTestArgs)"/>
+							</Node>
+							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeLazyLoadName)" If="$(EnableLazyLoadNoZenLoaderTest)"/>
+
+							<!--Zen LazyLoad TestRun if enabled-->
+							<Property Name="RunNodeLazyLoadZenName" Value="Run $(OutputName) $(Phase) LazyLoad ZenLoader"/>
+							<Property Name="RunNodeLazyLoadZenRequires" Value="$(RunNodeCompilationRequires)"/>
+							<Property Name="RunNodeLazyLoadZenRequires" Value="$(RunNodeCompilationRequires); Run $(OutputName) Cold LazyLoad ZenLoader" If="'$(Phase)' == 'Warm'"/>
+							<Node Name="$(RunNodeLazyLoadZenName)" Requires="$(RunNodeLazyLoadZenRequires);" IgnoreModified="$(ProjectBinariesPath)/..." If="$(EnableLazyLoadZenLoaderTest)">
+								<Expand Name="RunTest" TestNameSuffix="ZenLoader" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeLazyLoadZenName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(LazyLoadZenTestArgs)"/>
+							</Node>
+							<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeLazyLoadZenName)" If="$(EnableLazyLoadZenLoaderTest)"/>
 						</ForEach>
-					</Do>	
-					<!-- Don't run Zen tests on incremental runs -->
-					<Do If="'$(Phase)' != 'Incr'">
-						<!-- Zen Loader TestRun if enabled -->
-						<Property Name="RunNodeZenName" Value="Run $(OutputName) $(Phase) Zen"/>
-						<Node Name="$(RunNodeZenName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableZenLoaderTest)">
-							<Expand Name="RunTest" TestNameSuffix="Zen" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderTestArgs)"/>
-						</Node>
-						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenName)" If="$(EnableZenLoaderTest)"/>
-						<!-- Zen Loader Async TestRun if enabled -->
-						<Property Name="RunNodeZenAsyncName" Value="Run $(OutputName) $(Phase) Zen Async"/>
-						<Node Name="$(RunNodeZenAsyncName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableZenAsyncThreadTest)">
-							<Expand Name="RunTest" TestNameSuffix="ZenAsync" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenAsyncName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(ZenLoaderAsyncTestArgs)"/>
-						</Node>
-						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenAsyncName)" If="$(EnableZenAsyncThreadTest)"/>
-					
-						<!-- Zen Store DDC TestRun if enabled -->
-						<Property Name="RunNodeZenStoreDDCName" Value="Run $(OutputName) $(Phase) Zen Store DDC"/>
-						<Node Name="$(RunNodeZenStoreDDCName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableZenStoreDDCTest)">
-							<Expand Name="RunTest" TestNameSuffix="ZenAsync" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeZenStoreDDCName)" Phase="$(Phase)" Iteration="1" Args="$(ZenStoreDDCPhaseArgs)" EditorArgs="$(ProjectCombinedArgs) $(ZenStoreDDCTestArgs)"/>
-						</Node>
-						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeZenStoreDDCName)" If="$(EnableZenStoreDDCTest)"/>
 					</Do>
-					<!-- Warm only test runs e.g LazyLoad -->
-					<Do If="'$(Phase)' == 'Warm'">
-						<!-- Legacy LazyLoad TestRun if enabled -->
-						<Property Name="RunNodeLazyLoadName" Value="Run $(OutputName) $(Phase) LazyLoad"/>
-						<Node Name="$(RunNodeLazyLoadName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableLazyLoadTest)">
-							<Expand Name="RunTest" TestNameSuffix="Zen" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeLazyLoadName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(LazyLoadTestArgs)"/>
+
+					<Do If="!$(WithTSAN)">
+						<Property Name="RunNodeUploadPhaseTraces" Value="Upload $(OutputName) Traces"/>
+						<Node Name="$(RunNodeUploadPhaseTraces)">
+							<Expand Name="UploadTestTraces" Platform="$(Platform)" ProjectName="$(Project)"/>
 						</Node>
-						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeLazyLoadName)" If="$(EnableLazyLoadTest)"/>
-						<!-- Zen LazyLoad TestRun if enabled -->
-						<Property Name="RunNodeLazyLoadZenName" Value="Run $(OutputName) $(Phase) LazyLoad Zen"/>
-						<Node Name="$(RunNodeLazyLoadZenName)" Requires="$(RunNodeRequires);$(RunNodeList)" If="$(EnableLazyLoadZenTest)">
-							<Expand Name="RunTest" TestNameSuffix="Zen" Platform="$(Platform)" ProjectName="$(Project)" ProjectTarget="$(ProjectTarget)" NodeName="$(RunNodeLazyLoadZenName)" Phase="$(Phase)" Iteration="1" Args="$($(Phase)Args)" EditorArgs="$(ProjectCombinedArgs) $(LazyLoadZenTestArgs)"/>
-						</Node>
-						<Property Name="RunNodeList" Value="$(RunNodeList);$(RunNodeLazyLoadZenName)" If="$(EnableLazyLoadZenTest)"/>
+						<Property Name="UploadNodeList" Value="$(RunNodeUploadPhaseTraces)"/>
 					</Do>
-				</ForEach>
-				<Property Name="RunNodeUploadPhaseTraces" Value="Upload $(OutputName) Traces"/>
-				<Node Name="$(RunNodeUploadPhaseTraces)">
-					<Expand Name="UploadTestTraces" Platform="$(Platform)" ProjectName="$(Project)"/>
-				</Node>
-				<Property Name="UploadNodeList" Value="$(RunNodeUploadPhaseTraces)"/>
-			</Agent>
-			<Label Category="$(RunCategory)" Name="$(Project) Editor Run" Requires="$(RunNodeRequires);$(RunNodeList);$(UploadNodeList)" UgsBadge="$(Project) Editor Run"/>
-			<Property Name="RunGraphNodes" Value="$(RunGraphNodes);$(RunNodeList);$(UploadNodeList)"/>
+				</Agent>
+				<Label Category="$(RunCategory)" Name="$(Project) Editor Run" Requires="$(RunNodeList);$(UploadNodeList)" UgsBadge="$(Project) Editor Run"/>
+				<Property Name="RunGraphNodes" Value="$(RunGraphNodes);$(RunNodeList);$(GenerateTSANReportNodeList);$(UploadNodeList)"/>
 
-			<!-- Baseline the Results -->
-			<Property Name="BaselineNodeName" Value="Baseline $(OutputName)"/>
-			<Property Name="BaselineNodeRequires" Value=""/>
-			<Property Name="BaselineNodeRequires" Value="$(RunNodeName)" If="$(RunAndBaseline)"/>
-			<Property Name="BaselineGraphNodes" Value="$(BaselineGraphNodes);$(BaselineNodeName)"/>
-			<Agent Name="EditorPerf Agent $(Platform) $(Project)" Type="EditorPerf$(Platform)">
-				<Node Name="$(BaselineNodeName)" Requires="$(BaselineNodeRequires)">
-					<ForEach Name="Phase" Values="$(Phases)">
-						<Expand Name="BaselineResult" Platform="$(Platform)" Project="$(Project)" Phase="$(Phase)"/>
-					</ForEach>
-				</Node>
-			</Agent>
-			<Label Category="$(BaselineCategory)" Name="$(Project) Perf Baseline" Requires="$(BaselineNodeName)"/>
-
+				<!--Baseline the Results--> 
+				<Property Name="BaselineNodeName" Value="Baseline $(OutputName)"/>
+				<Property Name="BaselineNodeRequires" Value=""/>
+				<Property Name="BaselineNodeRequires" Value="$(RunNodeName)" If="$(RunAndBaseline)"/>
+				<Property Name="BaselineGraphNodes" Value="$(BaselineGraphNodes);$(BaselineNodeName)"/>
+				<Agent Name="EditorPerf Agent $(Platform) $(Project)" Type="EditorPerf$(Platform)">
+					<Node Name="$(BaselineNodeName)" Requires="$(BaselineNodeRequires)">
+						<ForEach Name="Phase" Values="$(Phases)">
+							<Expand Name="BaselineResult" Platform="$(Platform)" Project="$(Project)" Phase="$(Phase)"/>
+						</ForEach>
+					</Node>
+				</Agent>
+				<Label Category="$(BaselineCategory)" Name="$(Project) Perf Baseline" Requires="$(BaselineNodeName)"/>
+			</Do>
 		</ForEach> <!-- Projects -->
 
 	</ForEach> <!-- Platforms -->
-
-	<!-- Generate graph nodes for each platform to run -->
-	<ForEach Name="Platform" Values="$(Platforms)">
-
-		<Property Name="ProjectName" Value="EngineTest" />
-		<!-- Define output name for the EditorWorkflows test -->
-		<Property Name="EditorWorkflowsOutputName" Value="$(ProjectName)$(Platform)EditorWorkflows"/>
-		<Property Name="CompileNodeName" Value="Compile $(ProjectName) $(Platform) EditorWorkflows"/>
-		<Property Name="AgentModifier" Value=""/>
-		<Property Name="AgentModifier" Value=" $(ProjectName)" If="!$(SingleAgentCompile)"/>
-
-		<!-- Compile Agent configuration -->
-		<Agent Name="Compile Editor Agent $(Platform)$(AgentModifier)" Type="$($(Platform)CompileAgentType)">
-			<Node Name="$(CompileNodeName)">
-				<SetVersion Change="$(Change)" Branch="$(EscapedBranch)" If="$(IsBuildMachine)"/>
-				<Compile Target="ShaderCompileWorker" Platform="$(Platform)" Configuration="Development"/>
-				<Compile Target="CrashReportClientEditor" Platform="$(Platform)" Project="$(ProjectName)" Configuration="Shipping"/>
-				<Compile Target="$(ProjectName)Editor" Platform="$(Platform)" Project="$(ProjectName)" Configuration="Development" Arguments="$(EditorCompileArgs)"/>
-			</Node>
-		</Agent>
-		<Label Category="$(CompileCategory)" Name="$(ProjectName) Editor Compile" Requires="$(CompileNodeName)"/>
-
-		<!-- Set up properties for run and upload nodes -->
-		<Property Name="RunEditorWorkflowsNodeRequires" Value="$(CompileNodeName)"/>
-		<Property Name="UploadEditorWorkflowsNodeList" Value=""/>
-		<Property Name="RunEditorWorkflowsNodeList" Value=""/>
-
-		<!-- Configure EditorWorkflows Agent -->
-		<Agent Name="EditorWorkflows Agent $(Platform) $(ProjectName)" Type="EditorPerf$(Platform)">
-			<Property Name="RunEditorWorkflowsNodeName" Value="Run $(EditorWorkflowsOutputName)" />
-			<Node Name="$(RunEditorWorkflowsNodeName)" Requires="$(RunEditorWorkflowsNodeRequires);$(RunEditorWorkflowsNodeList)">
-				<Expand Name="RunEditorWorkflowsTest" Platform="$(Platform)" ProjectName="$(ProjectName)" NodeName="$(RunEditorWorkflowsNodeName)"/>
-			</Node>
-
-			<Property Name="RunEditorWorkflowsNodeList" Value="$(RunEditorWorkflowsNodeList);$(RunEditorWorkflowsNodeName)" />
-			<Property Name="RunNodeUploadTraces" Value="Upload $(EditorWorkflowsOutputName) Traces"/>
-
-			<!-- Set up Node for uploading traces -->
-			<Node Name="$(RunNodeUploadTraces)">
-				<Expand Name="UploadEditorWorkflowsPerformanceDataAndTraces" Platform="$(Platform)" ProjectName="$(ProjectName)"/>
-			</Node>
-
-			<!-- Update UploadEditorWorkflowsNodeList -->
-			<Property Name="UploadEditorWorkflowsNodeList" Value="$(UploadEditorWorkflowsNodeList);$(RunNodeUploadTraces)"/>
-		</Agent>
-		<Label Category="$(RunCategory)" Name="$(ProjectName) Editor Run" Requires="$(RunEditorWorkflowsNodeRequires);$(RunEditorWorkflowsNodeList);$(UploadEditorWorkflowsNodeList)" UgsBadge="$(ProjectName) Editor Run"/>
-		<Property Name="RunEditorWorkflowsGraphNodes" Value="$(RunEditorWorkflowsGraphNodes);$(RunEditorWorkflowsNodeList);$(UploadEditorWorkflowsNodeList)"/>
-	</ForEach>
-	<!-- End ForEach Platforms -->
-
-	<!-- These Nodes run the Editor Workflows test and gather profile data -->
-	<Aggregate Name="Run EditorWorkflows Tests" Requires="$(RunEditorWorkflowsGraphNodes)"/>
 
 	<!-- These Nodes run the Editor and gather profile data -->
 	<Aggregate Name="Run EditorPerf Tests" Requires="$(RunGraphNodes)"/>

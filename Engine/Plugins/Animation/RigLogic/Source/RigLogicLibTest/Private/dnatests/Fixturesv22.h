@@ -47,18 +47,22 @@ struct RawV2xNewer {
 };
 
 struct RawV2xNewerWithUnknownDataPreservedAndDNARewritten {
-    static const unsigned char header[187];
+    static const unsigned char header[251];
     static const unsigned char descriptor[36];
     static const unsigned char definition[92];
     static const unsigned char behavior[86];
     static const unsigned char geometry[4];
     static const unsigned char machineLearnedBehavior[24];
+    static const unsigned char rbfBehavior[16];
+    static const unsigned char rbfBehaviorExt[8];
+    static const unsigned char jointBehaviorMetaData[4];
+    static const unsigned char twistSwingBehavior[8];
 
     static std::vector<char> getBytes();
 };
 
 struct RawV2xNewerWithUnknownDataIgnoredAndDNARewritten {
-    static const unsigned char header[91];
+    static const unsigned char header[155];
 
     static std::vector<char> getBytes();
 };

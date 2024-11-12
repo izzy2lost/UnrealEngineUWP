@@ -2,21 +2,19 @@
 
 #pragma once
 
-#include "Effector/CEEffectorActor.h"
+#include "Effector/CEEffectorComponent.h"
 #include "AvaVisBase.h"
-
-class UCEEffectorComponent;
 
 struct HAvaEffectorActorZoneHitProxy : HAvaHitProxy
 {
 	DECLARE_HIT_PROXY();
 
-	HAvaEffectorActorZoneHitProxy(const UActorComponent* InComponent, bool bInInnerZone)
+	HAvaEffectorActorZoneHitProxy(const UActorComponent* InComponent, int32 InHandleType)
 		: HAvaHitProxy(InComponent)
-		, bInnerZone(bInInnerZone)
+		, HandleType(InHandleType)
 	{}
 
-	bool bInnerZone = false;
+	int32 HandleType = INDEX_NONE;
 };
 
 /** Custom visualization for effector actor to handle weight zones */
@@ -45,24 +43,53 @@ public:
 	virtual void DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	//~ End FAvaVisualizerBase
 
-	ACEEffectorActor* GetEffectorActor() const { return EffectorActorWeak.Get(); };
-protected:
+	UCEEffectorComponent* GetEffectorComponent() const
+	{
+		return EffectorComponentWeak.Get();
+	}
 
-	FVector GetHandleZoneLocation(const ACEEffectorActor* InEffectorActor, bool bInInnerSize) const;
-	void DrawZoneButton(const ACEEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const;
+protected:
+	FVector GetHandleZoneLocation(const UCEEffectorComponent* InEffectorComponent, int32 InHandleType) const;
+	void DrawZoneButton(const UCEEffectorComponent* InEffectorComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, int32 InHandleType, FLinearColor InColor) const;
 
 	FProperty* InnerRadiusProperty;
 	FProperty* OuterRadiusProperty;
+
 	FProperty* InnerExtentProperty;
 	FProperty* OuterExtentProperty;
+
 	FProperty* PlaneSpacingProperty;
 
-	TWeakObjectPtr<ACEEffectorActor> EffectorActorWeak = nullptr;
+	FProperty* RadialAngleProperty;
+	FProperty* RadialMinRadiusProperty;
+	FProperty* RadialMaxRadiusProperty;
+
+	FProperty* TorusRadiusProperty;
+	FProperty* TorusInnerRadiusProperty;
+	FProperty* TorusOuterRadiusProperty;
+
+	TWeakObjectPtr<UCEEffectorComponent> EffectorComponentWeak = nullptr;
+
 	float InitialInnerRadius = 0.f;
 	float InitialOuterRadius = 0.f;
+
 	FVector InitialInnerExtent = FVector(0.f);
 	FVector InitialOuterExtent = FVector(0.f);
+
 	float InitialPlaneSpacing = 0.f;
-	bool bEditingInnerZone = false;
-	bool bEditingOuterZone = false;
+
+	float InitialRadialAngle = 0.f;
+	float InitialRadialMinRadius = 0.f;
+	float InitialRadialMaxRadius = 0.f;
+
+	float InitialTorusRadius = 0.f;
+	float InitialTorusInnerRadius = 0.f;
+	float InitialTorusOuterRadius = 0.f;
+
+	static constexpr int32 HandleTypeInnerZone = 0;
+	static constexpr int32 HandleTypeOuterZone = 1;
+	static constexpr int32 HandleTypeRadius = 2;
+	static constexpr int32 HandleTypeAngle = 3;
+
+	int32 EditingHandleType = INDEX_NONE;
 };

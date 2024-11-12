@@ -13,6 +13,8 @@
 #include "UObject/ObjectMacros.h"
 #include "Misc/Guid.h"
 #include "Async/AsyncWork.h"
+#include "Async/Mutex.h"
+#include "Async/UniqueLock.h"
 #include "Sound/SoundBase.h"
 #include "Sound/SoundWaveTimecodeInfo.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
@@ -24,7 +26,7 @@
 #include "UObject/ObjectKey.h"
 #include "AudioMixerTypes.h"
 #include "AudioCompressionSettings.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "ContentStreaming.h"
 #include "IAudioProxyInitializer.h"
 #include "IWaveformTransformation.h"
@@ -44,8 +46,6 @@ enum EDecompressionType : int
 {
 	DTYPE_Setup,
 	DTYPE_Invalid,
-	DTYPE_Preview,
-	DTYPE_Native,
 	DTYPE_RealTime,
 	DTYPE_Procedural,
 	DTYPE_Xenon,
@@ -438,7 +438,7 @@ class USoundWave : public USoundBase, public IAudioProxyDataFactory, public IInt
 private:
 
 	/** Platform agnostic compression quality. 1..100 with 1 being best compression and 100 being best quality. ADPCM and PCM sound asset compression types ignore this parameter. */
-	UPROPERTY(EditAnywhere, Category = "Format|Quality", meta = (DisplayName = "Compression", ClampMin = "1", ClampMax = "100", EditCondition = "SoundAssetCompressionType != ESoundAssetCompressionType::PCM && SoundAssetCompressionType != ESoundAssetCompressionType::ADPCM"), AssetRegistrySearchable)
+	UPROPERTY(Config, EditAnywhere, Category = "Format|Quality", meta = (DisplayName = "Compression", ClampMin = "1", ClampMax = "100", EditCondition = "SoundAssetCompressionType != ESoundAssetCompressionType::PCM && SoundAssetCompressionType != ESoundAssetCompressionType::ADPCM"), AssetRegistrySearchable)
 	int32 CompressionQuality;
 
 public:
@@ -469,10 +469,6 @@ public:
 
 private:
 
-	/** The compression type to use for the sound wave asset. */
-	UPROPERTY(EditAnywhere, Category = "Format")
-	ESoundAssetCompressionType SoundAssetCompressionType = ESoundAssetCompressionType::PlatformSpecific;
-
 	// Deprecated compression type properties
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - Property is deprecated. bSeekableStreaming now means ADPCM codec in SoundAssetCompressionType."))
 	uint8 bSeekableStreaming : 1;
@@ -480,11 +476,11 @@ private:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - Property is deprecated. bUseBinkAudio now means Bink codec in SoundAssetCompressionType."))
 	uint8 bUseBinkAudio : 1;
 
+	/** The compression type to use for the sound wave asset. */
+	UPROPERTY(Config, EditAnywhere, Category = "Format", AssetRegistrySearchable)
+	ESoundAssetCompressionType SoundAssetCompressionType = ESoundAssetCompressionType::PlatformSpecific;
+
 public:
-
-	/** the number of sounds currently playing this sound wave. */
-	FThreadSafeCounter NumSourcesPlaying;
-
 	void AddPlayingSource()
 	{
 		NumSourcesPlaying.Increment();
@@ -622,9 +618,11 @@ public:
 	 */
 	ENGINE_API ESoundWaveLoadingBehavior GetLoadingBehavior(bool bCheckSoundClasses = true) const;
 
+#if WITH_EDITORONLY_DATA
 	/** Please use size of First Chunk in Seconds. */
-	UPROPERTY(AdvancedDisplay, meta=(DeprecatedProperty))
+	UPROPERTY(AdvancedDisplay, meta = (DeprecatedProperty))
 	int32 InitialChunkSize_DEPRECATED;
+#endif
 
 #if WITH_EDITOR
 	ENGINE_API const FWaveTransformUObjectConfiguration& GetTransformationChainConfig() const;
@@ -640,8 +638,11 @@ private:
 	/** What state the precache decompressor is in. */
 	FThreadSafeCounter PrecacheState;
 
+public:
 	/** the number of sounds currently playing this sound wave. */
-	mutable FCriticalSection SourcesPlayingCs;
+	FThreadSafeCounter NumSourcesPlaying;
+
+private:
 
 	TArray<FSoundWaveClientPtr> SourcesPlaying;
 
@@ -702,7 +703,7 @@ public:
 
 #if WITH_EDITOR
 	/** The current revision of our compressed audio data. Used to tell when a chunk in the cache is stale. */
-	TSharedPtr<FThreadSafeCounter> CurrentChunkRevision{ MakeShared<FThreadSafeCounter>() };
+	std::atomic<int32> CurrentChunkRevision = 0;
 #endif
 
 private:
@@ -717,8 +718,6 @@ private:
 	// Whether or not the thumbnail supports generation
 	uint8 bNeedsThumbnailGeneration : 1;
 
-	// Whether this was previously cooked with stream caching enabled.
-	uint8 bWasStreamCachingEnabledOnLastCook : 1;
 	// Whether this asset is loaded from cooked data.
 	uint8 bLoadedFromCookedData : 1;
 #endif // !WITH_EDITOR
@@ -737,9 +736,13 @@ public:
 	/** Specifies how and when compressed audio data is loaded for asset if stream caching is enabled. */
 	UPROPERTY(EditAnywhere, Category = "Loading", meta = (DisplayName = "Loading Behavior Override"))
 	mutable ESoundWaveLoadingBehavior LoadingBehavior;
+	
+private:
+	/** the number of sounds currently playing this sound wave. */
+	mutable UE::FMutex SourcesPlayingCs;
 
-#if WITH_EDITORONLY_DATA
 public:
+#if WITH_EDITORONLY_DATA
    	/** How much audio to add to First Audio Chunk (in seconds) */
 	UPROPERTY(EditAnywhere, Category = Loading, meta = (UIMin = 0, UIMax = 10, EditCondition = "LoadingBehavior == ESoundWaveLoadingBehavior::RetainOnLoad || LoadingBehavior == ESoundWaveLoadingBehavior::PrimeOnLoad"), DisplayName="Size of First Audio Chunk (seconds)")
    	FPerPlatformFloat SizeOfFirstAudioChunkInSeconds = 0.0f;
@@ -874,6 +877,9 @@ public:
 	*/
 	static ENGINE_API ITargetPlatform* GetRunningPlatform();
 
+	/** Used to ensure that we recook USoundWaves if the default loading behavior has changed */
+	static ENGINE_API const TCHAR* GetDefaultLoadingBehaviorCVarName();
+
 	static ENGINE_API ESoundWaveLoadingBehavior GetDefaultLoadingBehavior();
 
 	/** Async worker that decompresses the audio data on a different thread */
@@ -971,7 +977,6 @@ public:
 		{
 			return RawData.GetPayloadId();
 		}
-		UE_DEPRECATED(5.4, "GetPayloadSize is provided just for API backwards compatibility.")
 		int64 GetPayloadSize() const
 		{
 			return RawData.GetPayloadSize();
@@ -1093,7 +1098,12 @@ public:
 	// or zero if it is not a streaming source.
 	ENGINE_API uint32 GetNumChunks() const;
 
-	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex);
+	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex) const;
+
+	// Calculates audio streaming cache usage for this sound wave. 
+	// @param OutTotalBytesOfAudioData - The accumulated number of bytes of all audio data of all chunks for this sound wave.
+	// @param OutMaxChunkBytesOfAudioData - The maximum number of bytes of audio data for all audio chunks for this sound wave. 
+	ENGINE_API void GetChunkSizeStats(uint32& OutTotalBytesOfAudioData, uint32& OutMaxChunkBytesOfAudioData) const;
 
 	ENGINE_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
@@ -1116,6 +1126,9 @@ private:
 	ENGINE_API bool RescheduleAsyncTask(FQueuedThreadPool* InThreadPool, EQueuedWorkPriority InPriority);
 	/**  Utility function used internally to wait or poll a task while maintaining thread-safety. */
 	ENGINE_API bool WaitAsyncTaskWithTimeout(float InTimeoutInSeconds);
+
+	/** Creates and initializes a new FSoundWaveData and FSoundWaveProxy. */
+	void CreateNewSoundWaveData();
 
 public:
 #endif // WITH_EDITOR
@@ -1162,7 +1175,7 @@ public:
 	bool IsGeneratingAudio() const
 	{
 		bool bIsGeneratingAudio = false;
-		FScopeLock Lock(&SourcesPlayingCs);
+		UE::TUniqueLock Lock(SourcesPlayingCs);
 		bIsGeneratingAudio = SourcesPlaying.Num() > 0;
 
 		return bIsGeneratingAudio;
@@ -1172,6 +1185,15 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		ImportedSampleRate = InImportedSampleRate;
+#endif
+	}
+	
+	uint32 GetImportedSampleRate() const
+	{
+#if WITH_EDITORONLY_DATA
+		return ImportedSampleRate;
+#else
+		return 0;
 #endif
 	}
 
@@ -1355,13 +1377,15 @@ public:
 	ENGINE_API bool IsStreaming(const TCHAR* PlatformName = nullptr) const;
 	ENGINE_API bool IsStreaming(const FPlatformAudioCookOverrides& Overrides) const;
 
-	/** Returns whether the sound is seekable. */
+	/**
+	 * Queries if Seeking is supported by the Decoder for this Wave.
+	 * @return true if Seeking is supported, false otherwise.
+	 */
 	ENGINE_API virtual bool IsSeekable() const;
 
 	/**
 	 * Checks whether we should use the load on demand cache.
 	 */
-
 	ENGINE_API bool ShouldUseStreamCaching() const;
 
 	/**
@@ -1394,7 +1418,7 @@ public:
 	/*
 	* Returns a sample rate if there is a specific sample rate override for this platform, -1.0 otherwise.
 	*/
-	ENGINE_API float GetSampleRateForCompressionOverrides(const FPlatformAudioCookOverrides* CompressionOverrides);
+	ENGINE_API float GetSampleRateForCompressionOverrides(const FPlatformAudioCookOverrides* CompressionOverrides) const;
 
 	ENGINE_API void SetError(const TCHAR* InErrorMsg=nullptr);
 	ENGINE_API void ResetError();
@@ -1502,9 +1526,10 @@ public:
 		return (ESoundWavePrecacheState)PrecacheState.GetValue();
 	}
 
-	TSharedPtr<FSoundWaveData, ESPMode::ThreadSafe> SoundWaveDataPtr{ MakeShared<FSoundWaveData>() };
 
 private:
+	TSharedPtr<FSoundWaveData, ESPMode::ThreadSafe> SoundWaveDataPtr{ MakeShared<FSoundWaveData>() };
+
 	friend class FSoundWaveProxy;
 	friend class USoundFactory;
 };
@@ -1515,12 +1540,6 @@ class FSoundWaveData
 public:
 	UE_NONCOPYABLE(FSoundWaveData);
 
-	struct MaxChunkSizeResults
-	{
-		uint32 MaxUnevictableSize = 0;
-		uint32 MaxSizeInCache = 0;
-	};
-	
 	FSoundWaveData()
 		: bIsLooping(0)
 		, bIsTemplate(0)
@@ -1554,8 +1573,6 @@ public:
 	const TArray<FSoundWaveCuePoint>& GetCuePoints() const { return CuePoints; }
 	const TArray<FSoundWaveCuePoint>& GetLoopRegions() const { return LoopRegions; }
 	void SetAllCuePoints(const TArray<FSoundWaveCuePoint>& InCuePoints);
-
-	ENGINE_API MaxChunkSizeResults GetMaxChunkSizeResults() const;
 
 	ENGINE_API uint32 GetNumChunks() const;
 	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex) const;
@@ -1617,6 +1634,13 @@ private:
 
 	ENGINE_API FName FindRuntimeFormat(const USoundWave&) const;
 
+	/**
+	 * Cache state that depends on the RuntimeFormat, like things that are dependent on
+	 * the decoder implementation on this platform.
+	 * @param InFormatName Factory Name of the Formats Decoder "ADPCM" etc.
+	 **/
+	ENGINE_API void CacheRuntimeFormatDependentState(const FName InFormatName);
+
 	/** Zeroth Chunk of audio for sources that use Load On Demand. */
 	FBulkDataBuffer<uint8> ZerothChunkData;
 #if WITH_EDITOR
@@ -1645,7 +1669,7 @@ private:
 #endif //WITH_EDITORONLY_DATA
 	
 #if WITH_EDITOR
-	std::atomic<int32> CurrentChunkRevision;
+	int32 CurrentChunkRevision = 0;
 #endif // #if WITH_EDITOR
 
 	FName NameCached;
@@ -1687,7 +1711,7 @@ public:
 
 	ENGINE_API explicit FSoundWaveProxy(USoundWave* InWave);
 
-	FSoundWaveProxy(const FSoundWaveProxy& Other) = default;
+	ENGINE_API FSoundWaveProxy(const FSoundWaveProxy& Other);
 
 	ENGINE_API ~FSoundWaveProxy();
 
@@ -1715,8 +1739,6 @@ public:
 	ENGINE_API uint32 GetSizeOfChunk(uint32 ChunkIndex) const;
 	ENGINE_API const TArray<FSoundWaveCuePoint>& GetCuePoints() const;
 	ENGINE_API const TArray<FSoundWaveCuePoint>& GetLoopRegions() const;
-
-	ENGINE_API FSoundWaveData::MaxChunkSizeResults GetMaxChunkSizeResults() const;
 
 	ENGINE_API bool IsLooping() const;
 	ENGINE_API bool IsTemplate() const;
@@ -1752,8 +1774,14 @@ public:
 	ENGINE_API const uint8* GetResourceData() const;
 
 	ENGINE_API const FSoundWavePtr GetSoundWaveData();
-
+	
+	friend FORCEINLINE uint32 GetTypeHash(const FSoundWaveProxy& InProxy)
+	{
+		return InProxy.TypeHash;
+	}
+	
 private:
 	TSharedPtr<FSoundWaveData, ESPMode::ThreadSafe> SoundWaveDataPtr;
+	uint32 TypeHash = INDEX_NONE;
 };
 

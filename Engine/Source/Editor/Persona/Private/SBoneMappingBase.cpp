@@ -171,7 +171,6 @@ void SBoneMappingBase::Construct(const FArguments& InArgs, FSimpleMulticastDeleg
 			SAssignNew( BoneMappingListView, SBoneMappingListType )
 			.ListItemsSource( &BoneMappingList )
 			.OnGenerateRow( this, &SBoneMappingBase::GenerateBoneMappingRow )
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )

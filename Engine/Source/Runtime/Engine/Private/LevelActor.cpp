@@ -6,6 +6,7 @@
 #include "EngineStats.h"
 #include "Engine/Level.h"
 #include "AI/NavigationSystemBase.h"
+#include "RenderUtils.h"
 #include "UObject/LinkerLoad.h"
 #include "GameFramework/OnlineReplStructs.h"
 #include "Engine/Engine.h"
@@ -533,17 +534,6 @@ AActor* UWorld::SpawnActor( UClass* Class, FTransform const* UserTransformPtr, c
 	bool bNeedGloballyUniqueName = false;
 
 #if WITH_EDITOR
-	// Generate the actor's Guid
-	FGuid ActorGuid;
-	if (SpawnParameters.OverrideActorGuid.IsValid())
-	{
-		ActorGuid = SpawnParameters.OverrideActorGuid;
-	}
-	else
-	{
-		ActorGuid = FGuid::NewGuid();
-	}
-
 	// Generate and set the actor's external package if needed
 	if (SpawnParameters.OverridePackage)
 	{
@@ -690,6 +680,22 @@ AActor* UWorld::SpawnActor( UClass* Class, FTransform const* UserTransformPtr, c
 #if WITH_EDITOR
 	Actor->ClearActorLabel(); // Clear label on newly spawned actors
 
+	// Generate the actor's Guid
+	FGuid ActorGuid;
+	if (SpawnParameters.OverrideActorGuid.IsValid())
+	{
+		ActorGuid = SpawnParameters.OverrideActorGuid;
+	}
+	else if (IsRunningCookCommandlet())
+	{
+		// Generate the guid deterministically when creating actors at cook time
+		ActorGuid = FGuid::NewDeterministicGuid(Actor->GetPathName());
+	}
+	else
+	{
+		ActorGuid = FGuid::NewGuid();
+	}
+
 	// Set the actor's guid
 	FSetActorGuid SetActorGuid(Actor, ActorGuid);
 #endif
@@ -708,8 +714,7 @@ AActor* UWorld::SpawnActor( UClass* Class, FTransform const* UserTransformPtr, c
 	{
 		ModifyLevel( LevelToSpawnIn );
 	}
-	LevelToSpawnIn->Actors.Add( Actor );
-	LevelToSpawnIn->ActorsForGC.Add(Actor);
+	LevelToSpawnIn->TryAddActorToList( Actor, /*bAddUnique*/false);
 
 #if PERF_SHOW_MULTI_PAWN_SPAWN_FRAMES
 	if( Cast<APawn>(Actor) )
@@ -1017,12 +1022,6 @@ bool UWorld::DestroyActor( AActor* ThisActor, bool bNetForce, bool bShouldModify
 /*-----------------------------------------------------------------------------
 	Player spawning.
 -----------------------------------------------------------------------------*/
-
-APlayerController* UWorld::SpawnPlayActor(UPlayer* NewPlayer, ENetRole RemoteRole, const FURL& InURL, const FUniqueNetIdPtr& UniqueId, FString& Error, uint8 InNetPlayerIndex)
-{
-	FUniqueNetIdRepl UniqueIdRepl(UniqueId);
-	return SpawnPlayActor(NewPlayer, RemoteRole, InURL, UniqueIdRepl, Error, InNetPlayerIndex);
-}
 
 APlayerController* UWorld::SpawnPlayActor(UPlayer* NewPlayer, ENetRole RemoteRole, const FURL& InURL, const FUniqueNetIdRepl& UniqueId, FString& Error, uint8 InNetPlayerIndex)
 {
@@ -1514,7 +1513,7 @@ bool UWorld::EncroachingBlockingGeometry(const AActor* TestActor, FVector TestLo
 }
 
 
-void UWorld::LoadSecondaryLevels(bool bForce, TSet<FName>* FilenamesToSkip)
+void UWorld::LoadSecondaryLevels(bool bForce, TSet<FName>* PackageNamesToSkip)
 {
 	check( GIsEditor );
 
@@ -1533,14 +1532,10 @@ void UWorld::LoadSecondaryLevels(bool bForce, TSet<FName>* FilenamesToSkip)
 				// If we are cooking don't cook sub levels multiple times if they've already been cooked
 				FString PackageFilename;
 				const FString StreamingLevelWorldAssetPackageName = StreamingLevel->GetWorldAssetPackageName();
-				if (FilenamesToSkip)
+				if (PackageNamesToSkip)
 				{
-					if (FPackageName::DoesPackageExist(StreamingLevelWorldAssetPackageName, &PackageFilename))
-					{
-						bSkipFile |= FilenamesToSkip->Contains( FName(*PackageFilename) );
-					}
+					bSkipFile |= PackageNamesToSkip->Contains(StreamingLevel->GetWorldAssetPackageFName());
 				}
-
 
 				bool bAlreadyLoaded = false;
 				UPackage* LevelPackage = FindObject<UPackage>(NULL, *StreamingLevelWorldAssetPackageName,true);

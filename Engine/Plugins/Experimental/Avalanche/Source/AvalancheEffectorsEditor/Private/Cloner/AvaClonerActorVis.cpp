@@ -36,26 +36,26 @@ void FAvaClonerActorVisualizer::StoreInitialValues()
 		return;
 	}
 
-	const ACEClonerActor* ClonerActor = ClonerActorWeak.Get();
+	const UCEClonerComponent* ClonerComponent = ClonerComponentWeak.Get();
 
-	if (!ClonerActor)
+	if (!ClonerComponent)
 	{
 		return;
 	}
 
-	if (const UCEClonerGridLayout* GridLayout = ClonerActor->GetActiveLayout<UCEClonerGridLayout>())
+	if (const UCEClonerGridLayout* GridLayout = ClonerComponent->GetActiveLayout<UCEClonerGridLayout>())
 	{
 		InitialSpacing = FVector(GridLayout->GetSpacingX(), GridLayout->GetSpacingY(), GridLayout->GetSpacingZ());
 	}
-	else if (const UCEClonerLineLayout* LineLayout = ClonerActor->GetActiveLayout<UCEClonerLineLayout>())
+	else if (const UCEClonerLineLayout* LineLayout = ClonerComponent->GetActiveLayout<UCEClonerLineLayout>())
 	{
 		InitialSpacing = FVector(LineLayout->GetSpacing());
 	}
-	else if (const UCEClonerHoneycombLayout* HoneycombLayout = ClonerActor->GetActiveLayout<UCEClonerHoneycombLayout>())
+	else if (const UCEClonerHoneycombLayout* HoneycombLayout = ClonerComponent->GetActiveLayout<UCEClonerHoneycombLayout>())
 	{
 		const ECEClonerPlane Plane = HoneycombLayout->GetPlane();
 
-		FVector Spacing;
+		FVector Spacing = FVector::ZeroVector;
 		if (Plane == ECEClonerPlane::XY)
 		{
 			Spacing = FVector(HoneycombLayout->GetWidthSpacing(), HoneycombLayout->GetHeightSpacing(), 0);
@@ -71,15 +71,15 @@ void FAvaClonerActorVisualizer::StoreInitialValues()
 
 		InitialSpacing = Spacing;
 	}
-	else if (const UCEClonerCircleLayout* CircleLayout = ClonerActor->GetActiveLayout<UCEClonerCircleLayout>())
+	else if (const UCEClonerCircleLayout* CircleLayout = ClonerComponent->GetActiveLayout<UCEClonerCircleLayout>())
 	{
 		InitialSpacing = FVector(CircleLayout->GetRadius());
 	}
-	else if (const UCEClonerCylinderLayout* CylinderLayout = ClonerActor->GetActiveLayout<UCEClonerCylinderLayout>())
+	else if (const UCEClonerCylinderLayout* CylinderLayout = ClonerComponent->GetActiveLayout<UCEClonerCylinderLayout>())
 	{
 		InitialSpacing = FVector(0, CylinderLayout->GetRadius(), CylinderLayout->GetHeight());
 	}
-	else if (const UCEClonerSphereUniformLayout* SphereLayout = ClonerActor->GetActiveLayout<UCEClonerSphereUniformLayout>())
+	else if (const UCEClonerSphereUniformLayout* SphereLayout = ClonerComponent->GetActiveLayout<UCEClonerSphereUniformLayout>())
 	{
 		InitialSpacing = FVector(0, SphereLayout->GetRadius(), 0);
 	}
@@ -89,7 +89,7 @@ FBox FAvaClonerActorVisualizer::GetComponentBounds(const UActorComponent* InComp
 {
 	if (const UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InComponent))
 	{
-		if (const ACEClonerActor* ClonerActor = Cast<ACEClonerActor>(ClonerComponent->GetOwner()))
+		if (const AActor* ClonerActor = ClonerComponent->GetOwner())
 		{
 			FVector Origin;
 			FVector Extent;
@@ -108,9 +108,9 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 		return false;
 	}
 
-	const ACEClonerActor* ClonerActor = ClonerActorWeak.Get();
+	const UCEClonerComponent* ClonerComponent = ClonerComponentWeak.Get();
 
-	if (!ClonerActor)
+	if (!ClonerComponent)
 	{
 		EndEditing();
 	}
@@ -118,30 +118,48 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 	{
 		const EAxisList::Type AxisList = GetViewportWidgetAxisList(InViewportClient);
 
-		if (UCEClonerGridLayout* GridLayout = ClonerActor->GetActiveLayout<UCEClonerGridLayout>())
+		if (UCEClonerGridLayout* GridLayout = ClonerComponent->GetActiveLayout<UCEClonerGridLayout>())
 		{
 			if (AxisList & EAxisList::X)
 			{
-				const float SpacingX = InitialSpacing.X + InAccumulatedTranslation.X / FMath::Max(1, GridLayout->GetCountX() / 2.f);
-				GridLayout->SetSpacingX(SpacingX);
-				OnPropertyModified(GridLayout, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingX));
+				ModifyProperty(
+					GridLayout
+					, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingX)
+					, EPropertyChangeType::Interactive
+					, [this, &InAccumulatedTranslation, &GridLayout]()
+				{
+					const float SpacingX = InitialSpacing.X + InAccumulatedTranslation.X / FMath::Max(1, GridLayout->GetCountX() / 2.f);
+					GridLayout->SetSpacingX(SpacingX);
+				});
 			}
 			else if (AxisList & EAxisList::Y)
 			{
-				const float SpacingY = InitialSpacing.Y + InAccumulatedTranslation.Y / FMath::Max(1, GridLayout->GetCountY() / 2.f);
-				GridLayout->SetSpacingY(SpacingY);
-				OnPropertyModified(GridLayout, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingY));
+				ModifyProperty(
+					GridLayout
+					, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingY)
+					, EPropertyChangeType::Interactive
+					, [this, &InAccumulatedTranslation, &GridLayout]()
+				{
+					const float SpacingY = InitialSpacing.Y + InAccumulatedTranslation.Y / FMath::Max(1, GridLayout->GetCountY() / 2.f);
+					GridLayout->SetSpacingY(SpacingY);
+				});
 			}
 			else if (AxisList & EAxisList::Z)
 			{
-				const float SpacingZ = InitialSpacing.Z + InAccumulatedTranslation.Z / FMath::Max(1, GridLayout->GetCountZ() / 2.f);
-				GridLayout->SetSpacingZ(SpacingZ);
-				OnPropertyModified(GridLayout, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingZ));
+				ModifyProperty(
+					GridLayout
+					, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingZ)
+					, EPropertyChangeType::Interactive
+					, [this, &InAccumulatedTranslation, &GridLayout]()
+				{
+					const float SpacingZ = InitialSpacing.Z + InAccumulatedTranslation.Z / FMath::Max(1, GridLayout->GetCountZ() / 2.f);
+					GridLayout->SetSpacingZ(SpacingZ);
+				});
 			}
 
 			return true;
 		}
-		else if (UCEClonerLineLayout* LineLayout = ClonerActor->GetActiveLayout<UCEClonerLineLayout>())
+		else if (UCEClonerLineLayout* LineLayout = ClonerComponent->GetActiveLayout<UCEClonerLineLayout>())
 		{
 			const int32 Count = LineLayout->GetCount();
 			float Spacing = LineLayout->GetSpacing();
@@ -159,12 +177,18 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 				Spacing = InitialSpacing.Z + InAccumulatedTranslation.Z / FMath::Max(1, Count);
 			}
 
-			LineLayout->SetSpacing(Spacing);
-			OnPropertyModified(LineLayout, GET_MEMBER_NAME_CHECKED(UCEClonerLineLayout, Spacing));
+			ModifyProperty(
+				LineLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerLineLayout, Spacing)
+				, EPropertyChangeType::Interactive
+				, [this, &Spacing, &LineLayout]()
+			{
+				LineLayout->SetSpacing(Spacing);
+			});
 
 			return true;
 		}
-		else if (UCEClonerHoneycombLayout* HoneycombLayout = ClonerActor->GetActiveLayout<UCEClonerHoneycombLayout>())
+		else if (UCEClonerHoneycombLayout* HoneycombLayout = ClonerComponent->GetActiveLayout<UCEClonerHoneycombLayout>())
 		{
 			const ECEClonerPlane Plane = HoneycombLayout->GetPlane();
 			const int32 WidthCount = HoneycombLayout->GetWidthCount();
@@ -188,15 +212,27 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 				HeightSpacing = InitialSpacing.Z + InAccumulatedTranslation.Z / FMath::Max(1, HeightCount / 2.f);
 			}
 
-			HoneycombLayout->SetWidthSpacing(WidthSpacing);
-			HoneycombLayout->SetHeightSpacing(HeightSpacing);
+			ModifyProperty(
+				HoneycombLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, WidthSpacing)
+				, EPropertyChangeType::Interactive
+				, [this, &WidthSpacing, &HoneycombLayout]()
+			{
+				HoneycombLayout->SetWidthSpacing(WidthSpacing);
+			});
 
-			OnPropertyModified(HoneycombLayout, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, WidthSpacing));
-			OnPropertyModified(HoneycombLayout, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, HeightSpacing));
+			ModifyProperty(
+				HoneycombLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, HeightSpacing)
+				, EPropertyChangeType::Interactive
+				, [this, &HeightSpacing, &HoneycombLayout]()
+			{
+				HoneycombLayout->SetHeightSpacing(HeightSpacing);
+			});
 
 			return true;
 		}
-		else if (UCEClonerCircleLayout* CircleLayout = ClonerActor->GetActiveLayout<UCEClonerCircleLayout>())
+		else if (UCEClonerCircleLayout* CircleLayout = ClonerComponent->GetActiveLayout<UCEClonerCircleLayout>())
 		{
 			float Radius = CircleLayout->GetRadius();
 
@@ -213,12 +249,18 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 				Radius = InitialSpacing.Z + InAccumulatedTranslation.Z;
 			}
 
-			CircleLayout->SetRadius(Radius);
-			OnPropertyModified(CircleLayout, GET_MEMBER_NAME_CHECKED(UCEClonerCircleLayout, Radius));
+			ModifyProperty(
+				CircleLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerCircleLayout, Radius)
+				, EPropertyChangeType::Interactive
+				, [this, &Radius, &CircleLayout]()
+			{
+				CircleLayout->SetRadius(Radius);
+			});
 
 			return true;
 		}
-		else if (UCEClonerCylinderLayout* CylinderLayout = ClonerActor->GetActiveLayout<UCEClonerCylinderLayout>())
+		else if (UCEClonerCylinderLayout* CylinderLayout = ClonerComponent->GetActiveLayout<UCEClonerCylinderLayout>())
 		{
 			const ECEClonerPlane Plane = CylinderLayout->GetPlane();
 			float Radius = CylinderLayout->GetRadius();
@@ -258,15 +300,27 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 				}
 			}
 
-			CylinderLayout->SetRadius(Radius);
-			CylinderLayout->SetHeight(Height);
+			ModifyProperty(
+				CylinderLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Radius)
+				, EPropertyChangeType::Interactive
+				, [this, &Radius, &CylinderLayout]()
+			{
+				CylinderLayout->SetRadius(Radius);
+			});
 
-			OnPropertyModified(CylinderLayout, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Radius));
-			OnPropertyModified(CylinderLayout, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Height));
+			ModifyProperty(
+				CylinderLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Height)
+				, EPropertyChangeType::Interactive
+				, [this, &Height, &CylinderLayout]()
+			{
+				CylinderLayout->SetHeight(Height);
+			});
 
 			return true;
 		}
-		else if (UCEClonerSphereUniformLayout* SphereLayout = ClonerActor->GetActiveLayout<UCEClonerSphereUniformLayout>())
+		else if (UCEClonerSphereUniformLayout* SphereLayout = ClonerComponent->GetActiveLayout<UCEClonerSphereUniformLayout>())
 		{
 			float Radius = SphereLayout->GetRadius();
 
@@ -275,8 +329,14 @@ bool FAvaClonerActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient* 
 				Radius = InitialSpacing.Y + InAccumulatedTranslation.Y;
 			}
 
-			SphereLayout->SetRadius(Radius);
-			OnPropertyModified(SphereLayout, GET_MEMBER_NAME_CHECKED(UCEClonerSphereUniformLayout, Radius));
+			ModifyProperty(
+				SphereLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerSphereUniformLayout, Radius)
+				, EPropertyChangeType::Interactive
+				, [this, &Radius, &SphereLayout]()
+			{
+				SphereLayout->SetRadius(Radius);
+			});
 
 			return true;
 		}
@@ -291,121 +351,114 @@ void FAvaClonerActorVisualizer::DrawVisualizationEditing(const UActorComponent* 
 
 	const UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InComponent);
 
-	if (!ClonerComponent)
+	if (!ClonerComponent || !ClonerComponent->GetEnabled() || ClonerComponent->GetMeshCount() == 0)
 	{
 		return;
 	}
 
-	const ACEClonerActor* ClonerActor = Cast<ACEClonerActor>(ClonerComponent->GetOwner());
-
-	if (!ClonerActor || !ClonerActor->GetEnabled() || ClonerActor->GetMeshCount() == 0)
-	{
-		return;
-	}
-
-	if (const UCEClonerGridLayout* GridLayout = ClonerActor->GetActiveLayout<UCEClonerGridLayout>())
+	if (const UCEClonerGridLayout* GridLayout = ClonerComponent->GetActiveLayout<UCEClonerGridLayout>())
 	{
 		if (GridLayout->GetCountX() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 
 		if (GridLayout->GetCountY() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 
 		if (GridLayout->GetCountZ() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerLineLayout* LineLayout = ClonerActor->GetActiveLayout<UCEClonerLineLayout>())
+	else if (const UCEClonerLineLayout* LineLayout = ClonerComponent->GetActiveLayout<UCEClonerLineLayout>())
 	{
 		if (LineLayout->GetCount() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, LineLayout->GetAxis(), FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, LineLayout->GetAxis(), FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerHoneycombLayout* HoneycombLayout = ClonerActor->GetActiveLayout<UCEClonerHoneycombLayout>())
+	else if (const UCEClonerHoneycombLayout* HoneycombLayout = ClonerComponent->GetActiveLayout<UCEClonerHoneycombLayout>())
 	{
 		const ECEClonerPlane Plane = HoneycombLayout->GetPlane();
 
 		if (Plane == ECEClonerPlane::XY)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::YZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::XZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerCircleLayout* CircleLayout = ClonerActor->GetActiveLayout<UCEClonerCircleLayout>())
+	else if (const UCEClonerCircleLayout* CircleLayout = ClonerComponent->GetActiveLayout<UCEClonerCircleLayout>())
 	{
 		const ECEClonerPlane Plane = CircleLayout->GetPlane();
 
 		if (Plane == ECEClonerPlane::XY)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::YZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::XZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerCylinderLayout* CylinderLayout = ClonerActor->GetActiveLayout<UCEClonerCylinderLayout>())
+	else if (const UCEClonerCylinderLayout* CylinderLayout = ClonerComponent->GetActiveLayout<UCEClonerCylinderLayout>())
 	{
 		const ECEClonerPlane Plane = CylinderLayout->GetPlane();
 
 		if (Plane == ECEClonerPlane::XY)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::YZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::XZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (ClonerActor->IsActiveLayout<UCEClonerSphereUniformLayout>())
+	else if (ClonerComponent->IsActiveLayout<UCEClonerSphereUniformLayout>())
 	{
-		DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+		DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 		InOutIconIndex++;
 	}
 }
@@ -416,145 +469,138 @@ void FAvaClonerActorVisualizer::DrawVisualizationNotEditing(const UActorComponen
 
 	const UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InComponent);
 
-	if (!ClonerComponent)
+	if (!ClonerComponent || !ClonerComponent->GetEnabled() || ClonerComponent->GetMeshCount() == 0)
 	{
 		return;
 	}
 
-	const ACEClonerActor* ClonerActor = Cast<ACEClonerActor>(ClonerComponent->GetOwner());
-
-	if (!ClonerActor || !ClonerActor->GetEnabled() || ClonerActor->GetMeshCount() == 0)
-	{
-		return;
-	}
-
-	if (const UCEClonerGridLayout* GridLayout = ClonerActor->GetActiveLayout<UCEClonerGridLayout>())
+	if (const UCEClonerGridLayout* GridLayout = ClonerComponent->GetActiveLayout<UCEClonerGridLayout>())
 	{
 		if (GridLayout->GetCountX() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 
 		if (GridLayout->GetCountY() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 
 		if (GridLayout->GetCountZ() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerLineLayout* LineLayout = ClonerActor->GetActiveLayout<UCEClonerLineLayout>())
+	else if (const UCEClonerLineLayout* LineLayout = ClonerComponent->GetActiveLayout<UCEClonerLineLayout>())
 	{
 		if (LineLayout->GetCount() > 0)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, LineLayout->GetAxis(), FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, LineLayout->GetAxis(), FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerHoneycombLayout* HoneycombLayout = ClonerActor->GetActiveLayout<UCEClonerHoneycombLayout>())
+	else if (const UCEClonerHoneycombLayout* HoneycombLayout = ClonerComponent->GetActiveLayout<UCEClonerHoneycombLayout>())
 	{
 		const ECEClonerPlane Plane = HoneycombLayout->GetPlane();
 
 		if (Plane == ECEClonerPlane::XY)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::YZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::XZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerCircleLayout* CircleLayout = ClonerActor->GetActiveLayout<UCEClonerCircleLayout>())
+	else if (const UCEClonerCircleLayout* CircleLayout = ClonerComponent->GetActiveLayout<UCEClonerCircleLayout>())
 	{
 		const ECEClonerPlane Plane = CircleLayout->GetPlane();
 
 		if (Plane == ECEClonerPlane::XY)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::YZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::XZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Custom, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Custom, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (const UCEClonerCylinderLayout* CylinderLayout = ClonerActor->GetActiveLayout<UCEClonerCylinderLayout>())
+	else if (const UCEClonerCylinderLayout* CylinderLayout = ClonerComponent->GetActiveLayout<UCEClonerCylinderLayout>())
 	{
 		const ECEClonerPlane Plane = CylinderLayout->GetPlane();
 
 		if (Plane == ECEClonerPlane::XY)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::YZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::X, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 		else if (Plane == ECEClonerPlane::XZ)
 		{
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Z, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
-			DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+			DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 			InOutIconIndex++;
 		}
 	}
-	else if (ClonerActor->IsActiveLayout<UCEClonerSphereUniformLayout>())
+	else if (ClonerComponent->IsActiveLayout<UCEClonerSphereUniformLayout>())
 	{
-		DrawSpacingButton(ClonerActor, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
+		DrawSpacingButton(ClonerComponent, InView, InPDI, InOutIconIndex, ECEClonerAxis::Y, FAvaVisualizerBase::Inactive);
 		InOutIconIndex++;
 	}
 }
 
-FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const ACEClonerActor* InClonerActor, ECEClonerAxis InAxis) const
+FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const UCEClonerComponent* InClonerComponent, ECEClonerAxis InAxis) const
 {
-	const FRotator ClonerRotation = InClonerActor->GetActorRotation();
-	const FVector ClonerScale = InClonerActor->GetActorScale();
+	const FRotator ClonerRotation = InClonerComponent->GetComponentRotation();
+	const FVector ClonerScale = InClonerComponent->GetComponentScale();
 	FVector OutLocation = FVector::ZeroVector;
 	FVector Axis = InAxis == ECEClonerAxis::X ? FVector::XAxisVector : (InAxis == ECEClonerAxis::Z ? FVector::ZAxisVector : FVector::YAxisVector);
 
-	if (const UCEClonerGridLayout* GridLayout = InClonerActor->GetActiveLayout<UCEClonerGridLayout>())
+	if (const UCEClonerGridLayout* GridLayout = InClonerComponent->GetActiveLayout<UCEClonerGridLayout>())
 	{
 		const FVector Spacing(GridLayout->GetSpacingX(), GridLayout->GetSpacingY(), GridLayout->GetSpacingZ());
 		const FVector Count(GridLayout->GetCountX(), GridLayout->GetCountY(), GridLayout->GetCountZ());
 
 		OutLocation = ClonerRotation.RotateVector(Axis * Spacing * Count / 2);
 	}
-	else if (const UCEClonerLineLayout* LineLayout = InClonerActor->GetActiveLayout<UCEClonerLineLayout>())
+	else if (const UCEClonerLineLayout* LineLayout = InClonerComponent->GetActiveLayout<UCEClonerLineLayout>())
 	{
 		if (InAxis == ECEClonerAxis::Custom)
 		{
@@ -563,7 +609,7 @@ FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const ACEClonerActor
 
 		OutLocation = ClonerRotation.RotateVector(Axis) * LineLayout->GetSpacing() * FVector(LineLayout->GetCount());
 	}
-	else if (const UCEClonerHoneycombLayout* HoneycombLayout = InClonerActor->GetActiveLayout<UCEClonerHoneycombLayout>())
+	else if (const UCEClonerHoneycombLayout* HoneycombLayout = InClonerComponent->GetActiveLayout<UCEClonerHoneycombLayout>())
 	{
 		const ECEClonerPlane Plane = HoneycombLayout->GetPlane();
 		const float WidthSpacing = HoneycombLayout->GetWidthSpacing();
@@ -591,7 +637,7 @@ FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const ACEClonerActor
 
 		OutLocation = ClonerRotation.RotateVector(Axis * Spacing * Count/2);
 	}
-	else if (const UCEClonerCircleLayout* CircleLayout = InClonerActor->GetActiveLayout<UCEClonerCircleLayout>())
+	else if (const UCEClonerCircleLayout* CircleLayout = InClonerComponent->GetActiveLayout<UCEClonerCircleLayout>())
 	{
 		FRotator Rotation = CircleLayout->GetRotation();
 		const FVector Scale = CircleLayout->GetScale();
@@ -613,7 +659,7 @@ FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const ACEClonerActor
 
 		OutLocation = ClonerRotation.RotateVector(Rotation.RotateVector(Axis * Scale)) * Radius;
 	}
-	else if (const UCEClonerCylinderLayout* CylinderLayout = InClonerActor->GetActiveLayout<UCEClonerCylinderLayout>())
+	else if (const UCEClonerCylinderLayout* CylinderLayout = InClonerComponent->GetActiveLayout<UCEClonerCylinderLayout>())
 	{
 		FRotator Rotation = CylinderLayout->GetRotation();
 		const FVector Scale = CylinderLayout->GetScale();
@@ -663,7 +709,7 @@ FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const ACEClonerActor
 
 		OutLocation = ClonerRotation.RotateVector(Rotation.RotateVector(Axis * Scale)) * Dim;
 	}
-	else if (const UCEClonerSphereUniformLayout* SphereLayout = InClonerActor->GetActiveLayout<UCEClonerSphereUniformLayout>())
+	else if (const UCEClonerSphereUniformLayout* SphereLayout = InClonerComponent->GetActiveLayout<UCEClonerSphereUniformLayout>())
 	{
 		const float Radius = SphereLayout->GetRadius();
 		const FVector Scale = SphereLayout->GetScale();
@@ -671,14 +717,14 @@ FVector FAvaClonerActorVisualizer::GetHandleSpacingLocation(const ACEClonerActor
 		OutLocation = ClonerRotation.RotateVector(Axis) * Scale * Radius;
 	}
 
-	return InClonerActor->GetActorLocation() + OutLocation * ClonerScale;
+	return InClonerComponent->GetComponentLocation() + OutLocation * ClonerScale;
 }
 
-void FAvaClonerActorVisualizer::DrawSpacingButton(const ACEClonerActor* InClonerActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, ECEClonerAxis InAxis, FLinearColor InColor) const
+void FAvaClonerActorVisualizer::DrawSpacingButton(const UCEClonerComponent* InClonerComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, ECEClonerAxis InAxis, FLinearColor InColor) const
 {
 	UTexture2D* SpacingSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::BevelSprite);
 
-	if (!SpacingSprite || !SpacingSprite->GetResource() || !InClonerActor->GetEnabled() || InClonerActor->GetMeshCount() == 0)
+	if (!SpacingSprite || !SpacingSprite->GetResource() || !InClonerComponent->GetEnabled() || InClonerComponent->GetMeshCount() == 0)
 	{
 		return;
 	}
@@ -687,36 +733,23 @@ void FAvaClonerActorVisualizer::DrawSpacingButton(const ACEClonerActor* InCloner
 	float IconSize;
 	GetIconMetrics(InView, InIconIndex, IconLocation, IconSize);
 
-	IconLocation = GetHandleSpacingLocation(InClonerActor, InAxis);
+	IconLocation = GetHandleSpacingLocation(InClonerComponent, InAxis);
 
-	InPDI->SetHitProxy(new HAvaClonerActorSpacingHitProxy(InClonerActor->GetRootComponent(), InAxis));
+	InPDI->SetHitProxy(new HAvaClonerActorSpacingHitProxy(InClonerComponent, InAxis));
 	InPDI->DrawSprite(IconLocation, IconSize, IconSize, SpacingSprite->GetResource(), InColor, SDPG_Foreground, 0, 0, 0, 0, SE_BLEND_Opaque);
 	InPDI->SetHitProxy(nullptr);
 }
 
-void FAvaClonerActorVisualizer::OnPropertyModified(UObject* InPropertyObject, FName InPropertyName, EPropertyChangeType::Type InType)
-{
-	if (!InPropertyObject)
-	{
-		return;
-	}
-
-	InPropertyObject->Modify();
-	bHasBeenModified = true;
-	FProperty* PropertyModified = UE::AvaCore::GetProperty<UObject>(InPropertyName);
-	NotifyPropertyModified(InPropertyObject, PropertyModified, InType);
-}
-
 UActorComponent* FAvaClonerActorVisualizer::GetEditedComponent() const
 {
-	return ClonerActorWeak.IsValid() ? ClonerActorWeak->GetRootComponent() : nullptr;
+	return GetClonerComponent();
 }
 
 TMap<UObject*, TArray<FProperty*>> FAvaClonerActorVisualizer::GatherEditableProperties(UObject* InObject) const
 {
-	if (UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InObject))
+	if (const UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InObject))
 	{
-		if (UCEClonerLayoutBase* Layout = ClonerComponent->GetClonerActiveLayout())
+		if (UCEClonerLayoutBase* Layout = ClonerComponent->GetActiveLayout())
 		{
 			TArray<FName> PropertyNames;
 
@@ -789,7 +822,7 @@ bool FAvaClonerActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InVie
 	if (InVisProxy->IsA(HAvaClonerActorSpacingHitProxy::StaticGetType()))
 	{
 		EndEditing();
-		ClonerActorWeak = Cast<ACEClonerActor>(DynMesh->GetOwner());
+		ClonerComponentWeak = DynMesh;
 		bEditingSpacing = true;
 		EditingAxis = static_cast<HAvaClonerActorSpacingHitProxy*>(InVisProxy)->Axis;
 		StartEditing(InViewportClient, DynMesh);
@@ -802,11 +835,11 @@ bool FAvaClonerActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InVie
 
 bool FAvaClonerActorVisualizer::GetWidgetLocation(const FEditorViewportClient* InViewportClient, FVector& OutLocation) const
 {
-	if (const ACEClonerActor* ClonerActor = ClonerActorWeak.Get())
+	if (const UCEClonerComponent* ClonerComponent = ClonerComponentWeak.Get())
 	{
 		if (bEditingSpacing)
 		{
-			OutLocation = GetHandleSpacingLocation(ClonerActor, EditingAxis);
+			OutLocation = GetHandleSpacingLocation(ClonerComponent, EditingAxis);
 			return true;
 		}
 	}
@@ -873,60 +906,108 @@ bool FAvaClonerActorVisualizer::ResetValue(FEditorViewportClient* InViewportClie
 		return Super::ResetValue(InViewportClient, InHitProxy);
 	}
 
-	if (const ACEClonerActor* ClonerActor = Cast<ACEClonerActor>(ComponentHitProxy->Component->GetOwner()))
+	if (const UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(ComponentHitProxy->Component.Get()))
 	{
-		if (UCEClonerGridLayout* GridLayout = ClonerActor->GetActiveLayout<UCEClonerGridLayout>())
+		if (UCEClonerGridLayout* GridLayout = ClonerComponent->GetActiveLayout<UCEClonerGridLayout>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-			GridLayout->SetFlags(RF_Transactional);
 
-			GridLayout->SetSpacingX(100.f);
-			GridLayout->SetSpacingY(100.f);
-			GridLayout->SetSpacingZ(100.f);
+			ModifyProperty(
+				GridLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingX)
+				, EPropertyChangeType::ValueSet
+				, [this, &GridLayout]()
+			{
+				GridLayout->SetSpacingX(100.f);
+			});
 
-			OnPropertyModified(GridLayout, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingX), EPropertyChangeType::ValueSet);
-			OnPropertyModified(GridLayout, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingY), EPropertyChangeType::ValueSet);
-			OnPropertyModified(GridLayout, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingZ), EPropertyChangeType::ValueSet);
+			ModifyProperty(
+				GridLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingY)
+				, EPropertyChangeType::ValueSet
+				, [this, &GridLayout]()
+			{
+				GridLayout->SetSpacingY(100.f);
+			});
+
+			ModifyProperty(
+				GridLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingZ)
+				, EPropertyChangeType::ValueSet
+				, [this, &GridLayout]()
+			{
+				GridLayout->SetSpacingZ(100.f);
+			});
 		}
-		else if (UCEClonerLineLayout* LineLayout = ClonerActor->GetActiveLayout<UCEClonerLineLayout>())
+		else if (UCEClonerLineLayout* LineLayout = ClonerComponent->GetActiveLayout<UCEClonerLineLayout>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-			LineLayout->SetFlags(RF_Transactional);
 
-			LineLayout->SetSpacing(500.f);
-
-			OnPropertyModified(LineLayout, GET_MEMBER_NAME_CHECKED(UCEClonerLineLayout, Spacing), EPropertyChangeType::ValueSet);
+			ModifyProperty(
+				LineLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerLineLayout, Spacing)
+				, EPropertyChangeType::ValueSet
+				, [this, &LineLayout]()
+			{
+				LineLayout->SetSpacing(500.f);
+			});
 		}
-		else if (UCEClonerHoneycombLayout* HoneycombLayout = ClonerActor->GetActiveLayout<UCEClonerHoneycombLayout>())
+		else if (UCEClonerHoneycombLayout* HoneycombLayout = ClonerComponent->GetActiveLayout<UCEClonerHoneycombLayout>())
 		{
 			FScopedTransaction Transaction(LOCTEXT( "VisualizerResetValue", "Visualizer Reset Value"));
-			HoneycombLayout->SetFlags(RF_Transactional);
 
-			HoneycombLayout->SetWidthSpacing(100.f);
-			HoneycombLayout->SetHeightSpacing(100.f);
+			ModifyProperty(
+				HoneycombLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, WidthSpacing)
+				, EPropertyChangeType::ValueSet
+				, [this, &HoneycombLayout]()
+			{
+				HoneycombLayout->SetWidthSpacing(100.f);
+			});
 
-			OnPropertyModified(HoneycombLayout, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, WidthSpacing), EPropertyChangeType::ValueSet);
-			OnPropertyModified(HoneycombLayout, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, HeightSpacing), EPropertyChangeType::ValueSet);
+			ModifyProperty(
+				HoneycombLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerHoneycombLayout, HeightSpacing)
+				, EPropertyChangeType::ValueSet
+				, [this, &HoneycombLayout]()
+			{
+				HoneycombLayout->SetHeightSpacing(100.f);
+			});
 		}
-		else if (UCEClonerCircleLayout* CircleLayout = ClonerActor->GetActiveLayout<UCEClonerCircleLayout>())
+		else if (UCEClonerCircleLayout* CircleLayout = ClonerComponent->GetActiveLayout<UCEClonerCircleLayout>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-			CircleLayout->SetFlags(RF_Transactional);
 
-			CircleLayout->SetRadius(500.f);
-
-			OnPropertyModified(CircleLayout, GET_MEMBER_NAME_CHECKED(UCEClonerCircleLayout, Radius), EPropertyChangeType::ValueSet);
+			ModifyProperty(
+				CircleLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerCircleLayout, Radius)
+				, EPropertyChangeType::ValueSet
+				, [this, &CircleLayout]()
+			{
+				CircleLayout->SetRadius(500.f);
+			});
 		}
-		else if (UCEClonerCylinderLayout* CylinderLayout = ClonerActor->GetActiveLayout<UCEClonerCylinderLayout>())
+		else if (UCEClonerCylinderLayout* CylinderLayout = ClonerComponent->GetActiveLayout<UCEClonerCylinderLayout>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-			CylinderLayout->SetFlags(RF_Transactional);
 
-			CylinderLayout->SetRadius(500.f);
-			CylinderLayout->SetHeight(1000.f);
+			ModifyProperty(
+				CylinderLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Radius)
+				, EPropertyChangeType::ValueSet
+				, [this, &CylinderLayout]()
+			{
+				CylinderLayout->SetRadius(500.f);
+			});
 
-			OnPropertyModified(CylinderLayout, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Radius), EPropertyChangeType::ValueSet);
-			OnPropertyModified(CylinderLayout, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Height), EPropertyChangeType::ValueSet);
+			ModifyProperty(
+				CylinderLayout
+				, GET_MEMBER_NAME_CHECKED(UCEClonerCylinderLayout, Height)
+				, EPropertyChangeType::ValueSet
+				, [this, &CylinderLayout]()
+			{
+				CylinderLayout->SetHeight(1000.f);
+			});
 		}
 	}
 
@@ -947,7 +1028,7 @@ void FAvaClonerActorVisualizer::EndEditing()
 {
 	Super::EndEditing();
 
-	ClonerActorWeak.Reset();
+	ClonerComponentWeak.Reset();
 	InitialSpacing = FVector::ZeroVector;
 	bEditingSpacing = false;
 }

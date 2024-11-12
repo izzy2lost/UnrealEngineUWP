@@ -27,6 +27,7 @@ struct FMovieSceneRootEvaluationTemplateInstance;
 class FMovieSceneSequenceInstance;
 class IMovieScenePlayer;
 class IMovieSceneSequencePlayerObserver;
+struct EMovieSceneViewportParams;
 
 namespace UE::MovieScene
 {
@@ -50,31 +51,6 @@ namespace UE::MovieScene
 		uint16 PlayerIndex = (uint16)-1;
 	};
 }
-
-struct EMovieSceneViewportParams
-{
-	EMovieSceneViewportParams()
-	{
-		FadeAmount = 0.f;
-		FadeColor = FLinearColor::Black;
-		bEnableColorScaling = false;
-	}
-
-	enum SetViewportParam
-	{
-		SVP_FadeAmount   = 0x00000001,
-		SVP_FadeColor    = 0x00000002,
-		SVP_ColorScaling = 0x00000004,
-		SVP_All          = SVP_FadeAmount | SVP_FadeColor | SVP_ColorScaling
-	};
-
-	SetViewportParam SetWhichViewportParam;
-
-	float FadeAmount;
-	FLinearColor FadeColor;
-	FVector ColorScale; 
-	bool bEnableColorScaling;
-};
 
 /** Camera cut parameters */
 struct FMovieSceneCameraCutParams
@@ -136,14 +112,16 @@ public:
 	 *
 	 * @param ViewportParamMap A map from the viewport client to its settings
 	 */
-	virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) = 0;
+	UE_DEPRECATED(5.5, "Viewport settings management has moved to FViewportSettingsPlaybackCapability")
+	virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) {}
 
 	/*
 	 * Get the current perspective viewport settings
 	 *
 	 * @param ViewportParamMap A map from the viewport client to its settings
 	 */
-	virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const = 0;
+	UE_DEPRECATED(5.5, "Viewport settings management has moved to FViewportSettingsPlaybackCapability")
+	virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const {}
 
 	/** @return whether the player is currently playing, scrubbing, etc. */
 	virtual EMovieScenePlayerStatus::Type GetPlaybackStatus() const = 0;
@@ -168,6 +146,8 @@ public:
 	 * @return A pointer to the playback client, or nullptr if one is not available
 	 */
 	virtual IMovieScenePlaybackClient* GetPlaybackClient() { return nullptr; }
+
+	const IMovieScenePlaybackClient* GetPlaybackClient() const { return const_cast<IMovieScenePlayer*>(this)->GetPlaybackClient(); }
 
 	/**
 	 * Obtain an object responsible for managing movie scene spawnables
@@ -274,6 +254,11 @@ public:
 	* Used to access the Observer in MovieSceneSequencePlayer
 	*/
 	virtual TScriptInterface<IMovieSceneSequencePlayerObserver> GetObserver() { return nullptr; }
+
+	/*
+	* Attempts to create a binding for the given object in the given sequence.
+	*/
+	MOVIESCENE_API virtual FGuid CreateBinding(UMovieSceneSequence* InSequence, UObject* InObject);
 
 public:
 
@@ -390,10 +375,12 @@ public:
 	 * Returns the evaluated sequence instance's shared playback state, if any.
 	 */
 	MOVIESCENE_API TSharedPtr<UE::MovieScene::FSharedPlaybackState> FindSharedPlaybackState();
+	MOVIESCENE_API TSharedPtr<const UE::MovieScene::FSharedPlaybackState> FindSharedPlaybackState() const;
 	/**
 	 * Returns the evaluated sequence instance's shared playback state, asserts if there is none.
 	 */
 	MOVIESCENE_API TSharedRef<UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState();
+	MOVIESCENE_API TSharedRef<const UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState() const;
 
 	uint16 GetUniqueIndex() const
 	{

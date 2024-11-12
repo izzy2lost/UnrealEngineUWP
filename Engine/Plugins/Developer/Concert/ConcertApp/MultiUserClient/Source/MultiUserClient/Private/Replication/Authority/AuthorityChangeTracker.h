@@ -6,14 +6,14 @@
 #include "Containers/ContainersFwd.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 }
 
 struct FSoftObjectPath;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IClientAuthoritySynchronizer;
 	enum class EAuthorityMutability : uint8;

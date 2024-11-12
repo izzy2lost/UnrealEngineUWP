@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimToTextureEditorModule.h"
-#include "AnimToTextureAssetActions.h"
 
 #include "AssetToolsModule.h"
 #include "MessageLogModule.h"
@@ -12,11 +11,6 @@ DEFINE_LOG_CATEGORY(LogAnimToTextureEditor);
 
 void FAnimToTextureEditorModule::StartupModule()
 {
-	// Asset actions
-	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked< FAssetToolsModule >("AssetTools");	
-	TSharedPtr<FAnimToTextureAssetActions> AnimToTextureTypeActions = MakeShareable( new FAnimToTextureAssetActions);
-	AssetToolsModule.Get().RegisterAssetTypeActions(AnimToTextureTypeActions.ToSharedRef() );
-
 	// Register Log
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 	FMessageLogInitializationOptions InitOptions;

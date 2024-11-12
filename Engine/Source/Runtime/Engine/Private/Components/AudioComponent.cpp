@@ -108,7 +108,9 @@ UAudioComponent::UAudioComponent(const FObjectInitializer& ObjectInitializer)
 	PitchModulationMin = 1.f;
 	PitchModulationMax = 1.f;
 	bEnableLowPassFilter = false;
+	bEnableHighPassFilter = false;
 	LowPassFilterFrequency = MAX_FILTER_FREQUENCY;
+	HighPassFilterFrequency = MIN_FILTER_FREQUENCY;
 	OcclusionCheckInterval = 0.1f;
 	ActiveCount = 0;
 
@@ -530,7 +532,7 @@ void UAudioComponent::PlayQuantized(
 	const bool bCommandResetsClock = InQuantizationBoundary.bResetClockOnQueued;
 	if (bStealVoiceSlot || bClockIsNotRunning || bCommandResetsClock)
 	{
-		AudioComponentQuartzCommandData.AnticapatoryBoundary = NewComponentCommandInfo.AnticapatoryBoundary = InQuantizationBoundary; // use the desired target boundary
+		AudioComponentQuartzCommandData.AnticipatoryBoundary = NewComponentCommandInfo.AnticipatoryBoundary = InQuantizationBoundary; // use the desired target boundary
 
 		// Add to the list of pending data
 		// todo: avoid this copy for OUR call to PlayQueuedQuantizedInternal()
@@ -579,7 +581,7 @@ void UAudioComponent::PlayQueuedQuantizedInternal(const UObject* WorldContextObj
 				// confirm a valid handle
 				if (Handle != nullptr)
 				{
-					InternalRequestData.QuantizedRequestData = UQuartzSubsystem::CreateRequestDataForSchedulePlaySound(Handle, PendingData.Delegate, PendingData.AnticapatoryBoundary);
+					InternalRequestData.QuantizedRequestData = UQuartzSubsystem::CreateRequestDataForSchedulePlaySound(Handle, PendingData.Delegate, PendingData.AnticipatoryBoundary);
 					UGameplayStatics::PrimeSound(Sound);
 				}
 
@@ -621,7 +623,7 @@ void UAudioComponent::PlayQueuedQuantizedInternal(const UObject* WorldContextObj
 
 			// remove the pending quartz command data from the audio component
 			bFoundQuantizedCommand = true;
-			PendingQuartzCommandData.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			PendingQuartzCommandData.RemoveAtSwap(i, EAllowShrinking::No);
 			break;
 		}
 	}
@@ -750,6 +752,8 @@ void UAudioComponent::PlayInternal(const PlayInternalRequestData& InPlayRequestD
 
 	NewActiveSound.bEnableLowPassFilter = bEnableLowPassFilter;
 	NewActiveSound.LowPassFilterFrequency = LowPassFilterFrequency;
+	NewActiveSound.bEnableHighPassFilter = bEnableHighPassFilter;
+	NewActiveSound.HighPassFilterFrequency = HighPassFilterFrequency;
 	NewActiveSound.RequestedStartTime = FMath::Max(0.f, InPlayRequestData.StartTime);
 
 	if (bOverrideSubtitlePriority)
@@ -1599,6 +1603,18 @@ void UAudioComponent::SetLowPassFilterEnabled(bool InLowPassFilterEnabled)
 	}
 }
 
+void UAudioComponent::SetHighPassFilterEnabled(bool InHighPassFilterEnabled)
+{
+	if (FAudioDevice* AudioDevice = GetAudioDevice())
+	{
+		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.SetHighPassFilterFrequency"), STAT_AudioSetHighPassFilterEnabled, STATGROUP_AudioThreadCommands);
+		AudioDevice->SendCommandToActiveSounds(AudioComponentID, [InHighPassFilterEnabled](FActiveSound& ActiveSound)
+		{
+			ActiveSound.bEnableHighPassFilter = InHighPassFilterEnabled;
+		}, GET_STATID(STAT_AudioSetHighPassFilterEnabled));
+	}
+}
+
 void UAudioComponent::SetLowPassFilterFrequency(float InLowPassFilterFrequency)
 {
 	if (FAudioDevice* AudioDevice = GetAudioDevice())
@@ -1608,6 +1624,18 @@ void UAudioComponent::SetLowPassFilterFrequency(float InLowPassFilterFrequency)
 		{
 			ActiveSound.LowPassFilterFrequency = InLowPassFilterFrequency;
 		}, GET_STATID(STAT_AudioSetLowPassFilterFrequency));
+	}
+}
+
+void UAudioComponent::SetHighPassFilterFrequency(float InHighPassFilterFrequency)
+{
+	if (FAudioDevice* AudioDevice = GetAudioDevice())
+	{
+		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.SetHighPassFilterFrequency"), STAT_AudioSetHighPassFilterFrequency, STATGROUP_AudioThreadCommands);
+		AudioDevice->SendCommandToActiveSounds(AudioComponentID, [InHighPassFilterFrequency](FActiveSound& ActiveSound)
+		{
+			ActiveSound.HighPassFilterFrequency = InHighPassFilterFrequency;
+		}, GET_STATID(STAT_AudioSetHighPassFilterFrequency));
 	}
 }
 
@@ -1853,36 +1881,126 @@ void UAudioComponent::SetModulationRouting(const TSet<USoundModulatorBase*>& Mod
 
 	switch (Destination)
 	{
-	case EModulationDestination::Volume:
-		ModulationRouting.VolumeRouting = RoutingMethod;
-		ModulationRouting.VolumeModulationDestination.Modulators = Modulators;
-		break;
-	case EModulationDestination::Pitch:
-		ModulationRouting.PitchRouting = RoutingMethod;
-		ModulationRouting.PitchModulationDestination.Modulators = Modulators;
-		break;
-	case EModulationDestination::Lowpass:
-		ModulationRouting.LowpassRouting = RoutingMethod;
-		ModulationRouting.LowpassModulationDestination.Modulators = Modulators;
-		break;
-	case EModulationDestination::Highpass:
-		ModulationRouting.HighpassRouting = RoutingMethod;
-		ModulationRouting.HighpassModulationDestination.Modulators = Modulators;
-		break;
-	default:
-	{
-		static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
-		ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
-		return;
-	}
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeRouting = RoutingMethod;
+			ModulationRouting.VolumeModulationDestination.Modulators = Modulators;
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchRouting = RoutingMethod;
+			ModulationRouting.PitchModulationDestination.Modulators = Modulators;
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassRouting = RoutingMethod;
+			ModulationRouting.LowpassModulationDestination.Modulators = Modulators;
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassRouting = RoutingMethod;
+			ModulationRouting.HighpassModulationDestination.Modulators = Modulators;
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
 	}
 
 	// Tell the active sounds on the component to use the new Modulation Routing
 	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewRouting = ModulationRouting](FActiveSound& ActiveSound)
-		{
-			ActiveSound.SetNewModulationRouting(NewRouting);
-		});
+	{
+		ActiveSound.SetNewModulationRouting(NewRouting);
+	});
 
+}
+
+void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination)
+{
+	FAudioDevice* AudioDevice = GetAudioDevice();
+	if (!AudioDevice)
+	{
+		return;
+	}
+
+	TSet<TObjectPtr<USoundModulatorBase>> ConvertedModulators;
+	for (USoundModulatorBase* Modulator : Modulators)
+	{
+		ConvertedModulators.Add(TObjectPtr<USoundModulatorBase>(Modulator));
+	}
+
+	switch (Destination)
+	{
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeRouting = EModulationRouting::Union;
+			ModulationRouting.VolumeModulationDestination.Modulators.Append(ConvertedModulators);
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchRouting = EModulationRouting::Union;
+			ModulationRouting.PitchModulationDestination.Modulators.Append(ConvertedModulators);
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassRouting = EModulationRouting::Union;
+			ModulationRouting.LowpassModulationDestination.Modulators.Append(ConvertedModulators);
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassRouting = EModulationRouting::Union;
+			ModulationRouting.HighpassModulationDestination.Modulators.Append(ConvertedModulators);
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
+	}
+
+	// Tell the active sounds on the component to use the new Modulation Routing
+	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewModulators = ConvertedModulators, Destination](FActiveSound& ActiveSound)
+	{
+		ActiveSound.AddModulationRouting(NewModulators, Destination);
+	});
+}
+
+void UAudioComponent::RemoveModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination)
+{
+	FAudioDevice* AudioDevice = GetAudioDevice();
+	if (!AudioDevice)
+	{
+		return;
+	}
+
+	TSet<TObjectPtr<USoundModulatorBase>> ConvertedModulators;
+	for (USoundModulatorBase* Modulator : Modulators)
+	{
+		ConvertedModulators.Add(TObjectPtr<USoundModulatorBase>(Modulator));
+	}
+
+	switch (Destination)
+	{
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeModulationDestination.Modulators = ModulationRouting.VolumeModulationDestination.Modulators.Difference(ConvertedModulators);
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchModulationDestination.Modulators = ModulationRouting.PitchModulationDestination.Modulators.Difference(ConvertedModulators);
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassModulationDestination.Modulators = ModulationRouting.LowpassModulationDestination.Modulators.Difference(ConvertedModulators);
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassModulationDestination.Modulators = ModulationRouting.HighpassModulationDestination.Modulators.Difference(ConvertedModulators);
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
+	}
+
+	// Tell the active sounds on the component to use the new Modulation Routing
+	AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewModulators = ConvertedModulators, Destination](FActiveSound& ActiveSound)
+	{
+		ActiveSound.RemoveModulationRouting(NewModulators, Destination);
+	});
 }
 
 TSet<USoundModulatorBase*> UAudioComponent::GetModulators(const EModulationDestination Destination)
@@ -1897,24 +2015,24 @@ TSet<USoundModulatorBase*> UAudioComponent::GetModulators(const EModulationDesti
 
 	switch (Destination)
 	{
-	case EModulationDestination::Volume:
-		ModulatorSet = &ModulationRouting.VolumeModulationDestination.Modulators;
-		break;
-	case EModulationDestination::Pitch:
-		ModulatorSet = &ModulationRouting.PitchModulationDestination.Modulators;
-		break;
-	case EModulationDestination::Lowpass:
-		ModulatorSet = &ModulationRouting.LowpassModulationDestination.Modulators;
-		break;
-	case EModulationDestination::Highpass:
-		ModulatorSet = &ModulationRouting.HighpassModulationDestination.Modulators;
-		break;
-	default:
-	{
-		static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
-		ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
-		return TSet<USoundModulatorBase*>();
-	}
+		case EModulationDestination::Volume:
+			ModulatorSet = &ModulationRouting.VolumeModulationDestination.Modulators;
+			break;
+		case EModulationDestination::Pitch:
+			ModulatorSet = &ModulationRouting.PitchModulationDestination.Modulators;
+			break;
+		case EModulationDestination::Lowpass:
+			ModulatorSet = &ModulationRouting.LowpassModulationDestination.Modulators;
+			break;
+		case EModulationDestination::Highpass:
+			ModulatorSet = &ModulationRouting.HighpassModulationDestination.Modulators;
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return TSet<USoundModulatorBase*>();
+		}
 	}
 
 	check(ModulatorSet);

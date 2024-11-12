@@ -58,6 +58,7 @@ public:
 	virtual void SortCategories(const FOnCategorySortOrderFunction& SortFunction) override;
 	virtual void SetPropertyGenerationAllowListPaths(const TSet<FString>& InPropertyGenerationAllowListPaths) override;
 	virtual bool IsPropertyPathAllowed(const FString& InPath) const override;
+	virtual void DisableInstancedReference(TSharedRef<IPropertyHandle> PropertyHandle) const override;
 
 	/**
 	 * Creates an empty category row if there currently are no categories and one is required for the

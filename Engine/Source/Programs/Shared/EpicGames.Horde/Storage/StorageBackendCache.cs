@@ -83,8 +83,8 @@ namespace EpicGames.Horde.Storage
 
 			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteAsync(key, stream, cancellationToken);
 			public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.DeleteAsync(key, cancellationToken);
-			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
 			public Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.ExistsAsync(key, cancellationToken);
+			public Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.GetSizeAsync(key, cancellationToken);
 			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(key, cancellationToken);
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(key, cancellationToken);
 
@@ -130,9 +130,20 @@ namespace EpicGames.Horde.Storage
 				return storageObject.Slice(offset, length);
 			}
 
-			public Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteBlobAsync(stream, prefix, cancellationToken);
-			public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => _inner.TryGetBlobReadRedirectAsync(locator, cancellationToken);
-			public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _inner.TryGetBlobWriteRedirectAsync(prefix, cancellationToken);
+			public Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default) 
+				=> _inner.WriteBlobAsync(stream, imports, prefix, cancellationToken);
+
+			public Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+				=> _inner.WriteBlobAsync(locator, stream, imports, cancellationToken);
+
+			public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) 
+				=> _inner.TryGetBlobReadRedirectAsync(locator, cancellationToken);
+
+			public ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+				=> _inner.TryGetBlobWriteRedirectAsync(locator, imports, cancellationToken);
+
+			public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default) 
+				=> _inner.TryGetBlobWriteRedirectAsync(imports, prefix, cancellationToken);
 
 			public void GetStats(StorageStats stats)
 			{
@@ -155,10 +166,10 @@ namespace EpicGames.Horde.Storage
 
 			#region Refs
 
-			public Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+			public Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 				=> _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
 
-			public Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+			public Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 				=> _inner.WriteRefAsync(name, value, options, cancellationToken);
 
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
@@ -223,7 +234,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="logger">Logger for error/warning messages</param>
 		public StorageBackendCache(DirectoryReference? cacheDir, long? maxSize, ILogger logger)
 		{
-			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid().ToString("n")}"));
+			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid():n}"));
 			FileUtils.ForceDeleteDirectoryContents(cacheDir);
 
 			_memoryMappedFileCache = new MemoryMappedFileCache();
@@ -374,5 +385,9 @@ namespace EpicGames.Horde.Storage
 			stats.Add("backend.cache.write_time_ms", (_writeTimeTicks * 1000) / Stopwatch.Frequency);
 			stats.Add("backend.cache.fetch_bytes", _fetchBytes);
 		}
+
+		/// <inheritdoc cref="MemoryMappedFileCache.WriteRefStats(ILogger)"/>
+		public void WriteRefStats(ILogger logger)
+			=> _memoryMappedFileCache.WriteRefStats(logger);
 	}
 }

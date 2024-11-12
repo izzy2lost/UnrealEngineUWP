@@ -25,7 +25,7 @@ DECLARE_UNIFORM_BUFFER_STRUCT(FSceneUniformParameters, RENDERER_API)
 
 #if RHI_RAYTRACING
 class FRHIRayTracingScene;
-class FVisibleRayTracingMeshCommand;
+class FRayTracingShaderBindingData;
 #endif
 
 namespace UE::FXRenderingUtils
@@ -75,11 +75,12 @@ namespace UE::FXRenderingUtils
 		RENDERER_API bool HasRayTracingScene(const FSceneInterface* Scene);
 		RENDERER_API FRHIRayTracingScene* GetRayTracingScene(const FSceneInterface* Scene);
 		RENDERER_API FRHIShaderResourceView* GetRayTracingSceneView(FRHICommandListBase& RHICmdList, const FSceneInterface* Scene);
-		
+
+		RENDERER_API FShaderBindingTableRHIRef CreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FSceneInterface* Scene,  uint32 LocalBindingDataSize);		
+		RENDERER_API TConstArrayView<FRayTracingShaderBindingData> GetDirtyRayTracingShaderBindings(const FSceneView& View);
+
 		UE_DEPRECATED(5.3, "GetRayTracingSceneView now requires a command list.")
 		RENDERER_API FRHIShaderResourceView* GetRayTracingSceneView(const FSceneInterface* Scene);
-
-		RENDERER_API TConstArrayView<FVisibleRayTracingMeshCommand> GetVisibleRayTracingMeshCommands(const FSceneView& View);
 	}
 #endif
 }

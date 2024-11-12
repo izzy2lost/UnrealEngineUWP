@@ -13,6 +13,7 @@
 #include "Logging/MessageLog.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/EnumerateRange.h"
+#include "StateTreeNodeBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeNodeClassCache)
 
@@ -80,6 +81,21 @@ UStruct* FStateTreeNodeClassData::GetStruct(bool bSilent)
 	return Ret;
 }
 
+const UStruct* FStateTreeNodeClassData::GetInstanceDataStruct(bool bSilent /*= false*/)
+{
+	if (!InstanceDataStruct.IsValid())
+	{
+		if (const UScriptStruct* ScriptStruct = GetScriptStruct(bSilent))
+		{
+			TInstancedStruct<FStateTreeNodeBase> NodeInstance;
+			NodeInstance.InitializeAsScriptStruct(ScriptStruct);
+
+			InstanceDataStruct = NodeInstance.Get().GetInstanceDataType();
+		}
+	}
+
+	return InstanceDataStruct.Get();
+}
 
 //----------------------------------------------------------------------//
 //  FStateTreeNodeClassCache
@@ -139,7 +155,7 @@ void FStateTreeNodeClassCache::AddRootStruct(UStruct* RootStruct)
 	InvalidateCache();
 }
 
-void FStateTreeNodeClassCache::GetStructs(UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
+void FStateTreeNodeClassCache::GetStructs(const UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
 {
 	AvailableClasses.Reset();
 	

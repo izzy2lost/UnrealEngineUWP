@@ -1,14 +1,20 @@
 <?xml version='1.0' ?>
 <BuildGraph xmlns="http://www.epicgames.com/BuildGraph" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../Schema.xsd" >
 	<EnvVar Name="UE_HORDE_JOBID"/>
+	<EnvVar Name="UE_HORDE_STEPID"/>
+	<EnvVar Name="UE_HORDE_TEMPLATEID"/>
+	<EnvVar Name="UE_HORDE_LAST_WARNING_CL"/>
 	
 	<EnvVar Name="UE-CloudPublishHost"/>
 	<EnvVar Name="UE-CloudPublishHttpVersion"/>
 	<EnvVar Name="UE-CloudPublishDescriptorHost"/>
 	<EnvVar Name="UE-CloudPublishDescriptorHttpVersion"/>
 	<EnvVar Name="UE-CloudPublishNamespace"/>
+	<EnvVar Name="UE-ZenPublishHost"/>
 
-	<Option Name="Horde" Restrict="true|false" DefaultValue="$(IsBuildMachine)" Description="Whether the build is running under Horde"/>
+	<Property Name="IsHordeEnv" Value="false"/>
+	<Property Name="IsHordeEnv" Value="true" If="'$(UE_HORDE_JOBID)' != ''"/>
+	<Option Name="Horde" DefaultValue="$(IsBuildMachine) And $(IsHordeEnv)" Description="Whether the build is running under Horde"/>
 	
 	<!-- Project Options -->
 	<Option Name="ProjectFile" DefaultValue="" Restrict=".*" Description="Path to the project file. Can be used instead of specifying ProjectName and ProjectPath separately."/>
@@ -70,9 +76,12 @@
 	<Option Name="SymbolServerPath" DefaultValue="" Description="Symbol server path"/>
 
 	<Option Name="PublishCloudSnapshot" DefaultValue="false" Restrict="true|false" Description="Publish build to cloud host" />
+	<Option Name="PublishZenSnapshot" DefaultValue="false" Restrict="true|false" Description="Publish build to zen host" />
 
 	<Option Name="EnableSymbolStore" DefaultValue="$(IsBuildMachine)" Restrict="true|false" Description="Enables the upload of debugging symbols" />
-	<Property Name="SymbolServerPath" Value="" If="$(EnableSymbolStore) == 'false'"/>
+	<Property Name="SymbolServerPath" Value="" If="$(EnableSymbolStore) == 'false'" />
+
+	<Option Name="CheckBuildSizePlatforms" DefaultValue="" Description="List of Platforms to CheckBuildSize on, format is Name:000000 separated by ;" />
 
 	<!-- This will define options for all platforms and create lists called EditorPlatforms, RequiredEditorPlatforms, and TargetPlatforms. E.g. TargetPlatforms=Win64+Mac+Android -->
 	<Include Script="Inc/PlatformOptions.xml" />
@@ -112,11 +121,32 @@
 	<Option Name="TargetPlatformsToSkipBootTests" DefaultValue="$(TargetPlatformsToSkipTests)" Description="Target platforms that should skip boot tests."/>
 	<Option Name="CookedEditorPlatformsToSkipBootTests" DefaultValue="$(CookedEditorPlatformsToSkipTests)" Description="Cooked editor platforms that should skip boot tests."/>
 
+	<!-- Macro that allows adding additional per-platform, per-configuration test nodes -->
+	<!-- Expand the macro inside the AdditionalTestNodesExtendFile --> 
+	<Option Name="AdditionalTestNodesExtendFile" DefaultValue="" Description="For extend the AdditionalTestNodes Macro" />
+	<Macro Name="AdditionalTestNodes" />
+	<Do If="'$(AdditionalTestNodesExtendFile)' != ''">
+		<Error Message="$(AdditionalTestNodesExtendFile) does not seem to exist" If="!Exists('$(AdditionalTestNodesExtendFile)')" />
+		<Include Script="$(AdditionalTestNodesExtendFile)" />
+	</Do>
+
 	<Option Name="TestsRequireEditor" DefaultValue="false" Description="Whether to force tests to require editor compilation"/>
+
+	<!-- Macros that allows custom pre-steps -->
+	<Macro Name="PreCookStep"/>
+	
+	<!-- Macros that allow custom post tests steps -->
+	<Option Name="PostEditorTestsExtendFile" DefaultValue="" Description="Path to the file containing all post editor tests macro extends"/>
+	<Macro Name="PostEditorTestsStep"/>
+	<Do If="'$(PostEditorTestsExtendFile)' != ''">
+		<Error Message="Post Editor Tests Extend File $(PostEditorTestsExtendFile) does not exist" If="!Exists('$(PostEditorTestsExtendFile)')"/>
+		<Include Script="$(PostEditorTestsExtendFile)"/>
+	</Do>
 
 	<!-- Settings files that can be overriden -->
 	<Option Name="PathSettingsFile" DefaultValue="Inc/PathSettings.xml" Description="Path settings to use" />
 	<Option Name="GauntletSettingsFile" DefaultValue="Inc/GauntletSettings.xml" Description="Gauntlet settings to use" />
+	<Option Name="PreStepsExtendFile" DefaultValue="" Description="Path to the file containing all pre-step macro extends"/>
 
     <!-- Annotations notif settings -->
 	<Option Name="AnnotationsTarget" DefaultValue="" Description="Set annotations target" />
@@ -129,6 +159,10 @@
 	<!-- Common settings but can be overidden -->
 	<Include Script="$(PathSettingsFile)" />
 	<Include Script="$(GauntletSettingsFile)" />
+	<Do If="'$(PreStepsExtendFile)' != ''">
+		<Error Message="Pre Steps Extend file $(PreStepsExtendFile) does not exist" If="!Exists('$(PreStepsExtendFile)')"/>
+		<Include Script="$(PreStepsExtendFile)"/>
+	</Do>
 
 	<!-- At this point we have all options so calculate a few things -->
 
@@ -161,6 +195,14 @@
 		<Property Name="ExtraToolCompileArguments" Value="$(ExtraToolCompileArguments) -allmodules -nodebuginfo -Strict -WarningsAsErrors"/>
 		<Property Name="ExtraEditorCompileArguments" Value="$(ExtraEditorCompileArguments) -allmodules -nodebuginfo -Strict -WarningsAsErrors"/>
 		<Property Name="ExtraTargetCompileArguments" Value="$(ExtraTargetCompileArguments) -nodebuginfo -WarningsAsErrors"/>
+	</Do>
+
+	<!-- On Epic build machines, we want to:
+		1. Write dependency information into the cooked output so that it is suitable for use as a base upon which to cook incrementally.
+		2. Cook incrementally if the initial state at the start of the job is not empty/blank.
+	-->
+	<Do If="$(IsEpicBuildMachine)">
+		<Property Name="ExtraCookArguments" Value="$(ExtraCookArguments) -cookincremental"/>
 	</Do>
 
 	<!-- Detect the type of the client based on the target name -->
@@ -296,6 +338,9 @@
 				<!-- Add each test node to our generated list -->
 				<Property Name="PlatformEditorTestNodes" Value="$(PlatformEditorTestNodes);$(TestNodeName)" />
 			</ForEach>
+			
+			<!-- Expand Post Editor Tests step -->
+			<Expand Name="PostEditorTestsStep"/>
 
 			<!-- Create Labels -->
 			<Label Category="Editors" Name="$(PreLabelName)Editor DDC $(EditorPlatform)" Requires="$(ProjectEditorDDC)" />
@@ -456,11 +501,15 @@
 		<Property Name="PlatformHashNodeName" Value="$(PreNodeName)Hash $(TargetPlatform)" />
 		<Property Name="PlatformPublishStagedNodeName" Value="$(PreNodeName)Publish Staged $(TargetPlatform)" />
 		<Property Name="PlatformPublishPackagedNodeName" Value="$(PreNodeName)Publish Packaged $(TargetPlatform)" />
+		<Property Name="PlatformCheckBuildSizeNodeName" Value="$(PreNodeName)Check Build Size $(TargetPlatform)" />
 		<Property Name="PlatformStagedArtifactNodeName" Value="$(PlatformPublishStagedNodeName) (Horde)" />
-		<Property Name="RequirePlatformStaged" Value="$(PlatformStageNodeName);$(PlatformStagedArtifactNodeName)" />
+		<Property Name="HordeArtifactPlatformPackagedNodeName" Value="$(PlatformPublishPackagedNodeName) (Horde)" />
+		<Property Name="RequirePlatformStaged" Value="$(PlatformStageNodeName)" />
+		<Property Name="RequirePlatformStaged" Value="$(RequirePlatformStaged);$(PlatformStagedArtifactNodeName)" If="$(Horde)"/>
 		<Property Name="RequirePlatformStaged" Value="$(RequirePlatformStaged);$(PlatformPublishStagedNodeName)" If="!$(SkipPublish) And $(PublishBuilds)"/>
 		<Property Name="RequirePlatformPackaged" Value="$(PlatformPackageNodeName)" />
-		<Property Name="RequirePlatformPackaged" Value="$(PlatformPublishPackagedNodeName)"  If="!$(SkipPublish) And $(PublishBuilds)"/>
+		<Property Name="RequirePlatformPackaged" Value="$(RequirePlatformPackaged);$(HordeArtifactPlatformPackagedNodeName)" If="$(Horde)"/>
+		<Property Name="RequirePlatformPackaged" Value="$(RequirePlatformPackaged);$(PlatformPublishPackagedNodeName)"  If="!$(SkipPublish) And $(PublishBuilds)"/>
 		
 		<!-- Set CookPlatform since it isn't always the same as the target -->
 		<Property Name="CookPlatform" Value="$(TargetPlatform)" />
@@ -487,6 +536,9 @@
 		<Property Name="StageAndPackageArguments" Value="$(StageAndPackageArguments) $(TargetPlatformFilteredExtraStageAndPackageArguments)" If="'$(TargetPlatformFilteredExtraStageAndPackageArgumentsFilter)' != '' and ContainsItem('$(TargetPlatformFilteredExtraStageAndPackageArgumentsFilter)', '$(TargetPlatform)', '+')" />
 		<Property Name="PackageOnlyArguments" Value="$(ExtraPackageOnlyArguments)"/>
 		<Property Name="PackageOnlyArguments" Value="$(PackageOnlyArguments) -archive -archivedirectory=&quot;$(ProjectOutputDirectory)/$(StagedPlatformFolder)&quot;" If="$(IsMobilePlatform)" />
+
+		<Property Name="BuildSizeLimit" Value=""/>
+		<Regex Pattern="(?&lt;!\w)$(TargetPlatform):([0-9]+)" Capture="BuildSizeLimit" Input="$(CheckBuildSizePlatforms)"/>
 
 		<!-- Build the client and if necessary a server-->
 		<Agent Name="Compile $(PlatformAgentName)" Type="$(CompileAgentType)">
@@ -526,8 +578,9 @@
 			<!-- Cook -->
 			<Node Name="$(PlatformCookNodeName)" Requires="$(PlatformEditorNodeName)" Produces="#$(PlatformCookNodeName) Complete" RunEarly="true">
 				<Do If="!$(SkipCook)">
+					<Expand Name="PreCookStep"/>
 					<Property Name="CookArgs" Value="" />
-					<Property Name="CookArgs" Value="-MapIniSection=$(MapIniSection) $(CookPlatform)" If="'$(MapIniSection)' != ''"/>				
+					<Property Name="CookArgs" Value="-MapIniSection=&quot;$(MapIniSection)&quot; $(CookPlatform)" If="'$(MapIniSection)' != ''"/>				
 					<Cook Project="$(TargetProject)" Platform="$(CookPlatform)" TagOutput="false" Arguments="$(CookArgs) $(ExtraCookArguments)"/>
 				</Do>
 			</Node>
@@ -553,14 +606,43 @@
 				</Do>
 			</Node>
 
-			<!-- (Optional) Publish to Cloud -->
+			<!-- (Optional) Publish from local Zen to Cloud or remote Zen server -->
 			<Property Name="PlatformPublishStageDependencyName" Value="$(PlatformHashNodeName)" />
-			<Do If="$(PublishBuilds) and $(PublishCloudSnapshot) and '$(UE-CloudPublishHost)' != '' and '$(UE-CloudPublishNamespace)' != ''">
-				<Property Name="PlatformCloudPublishNodeName" Value="$(PreNodeName)Cloud Publish $(TargetPlatform)" />
-				<Node Name="$(PlatformCloudPublishNodeName)" Requires="$(PlatformHashNodeName)">
-					<ZenExportSnapshot Project="$(TargetProject)" Platform="$(CookPlatform)" DestinationStorageType="Cloud" DestinationCloudHost="$(UE-CloudPublishHost)" DestinationCloudHttpVersion="$(UE-CloudPublishHttpVersion)" SnapshotDescriptorCloudHost="$(UE-CloudPublishDescriptorHost)" SnapshotDescriptorCloudHttpVersion="$(UE-CloudPublishDescriptorHttpVersion)" DestinationCloudNamespace="$(UE-CloudPublishNamespace)" DestinationIdentifier="$(EscapedBranch)/$(BuildNamePath)" SnapshotDescriptorFile="$(NetworkOutputDirectory)/$(StagedPlatformFolder)/SnapshotDescriptor.json"/>
+			<Property Name="ShouldSnapshotPublishCloud" Value="false"/>
+			<Property Name="ShouldSnapshotPublishCloud" Value="true" If="$(PublishCloudSnapshot) and '$(UE-CloudPublishHost)' != '' and '$(UE-CloudPublishNamespace)' != ''"/>
+			<Property Name="ShouldSnapshotPublishZen" Value="false"/>
+			<Property Name="ShouldSnapshotPublishZen" Value="true" If="$(IsBuildMachine) and !$(IsPreflight) and $(PublishZenSnapshot) and '$(UE-ZenPublishHost)' != ''"/>
+			<Property Name="ShouldSnapshotPublish" Value="false"/>
+			<Property Name="ShouldSnapshotPublish" Value="true" If="$(IsBuildMachine) and !$(IsPreflight) and $(ShouldSnapshotPublishCloud) or $(ShouldSnapshotPublishZen)"/>
+			<Do If="$(PublishBuilds) and $(ShouldSnapshotPublish)">
+				<Property Name="PlatformSnapshotPublishNodeName" Value="$(PreNodeName)Snapshot Publish $(TargetPlatform)" />
+				<Node Name="$(PlatformSnapshotPublishNodeName)" Requires="$(PlatformHashNodeName)" Produces="#SnapshotDescriptor_$(StagedPlatformFolder)">
+					<Property Name="SnapshotLocalDir" Value="$(RootDir)/Snapshots" />
+					<Property Name="SnapshotIdentifier" Value="$(EscapedBranch)/$(BuildNamePath)"/>
+					<Property Name="SnapshotIdentifier" Value="$(UE_HORDE_TEMPLATEID).$(BuildVersion).$(UE_HORDE_JOBID:-6).$(UE_HORDE_STEPID)" If="'$(UE_HORDE_JOBID)' != '' and '$(UE_HORDE_STEPID)' != '' and '$(UE_HORDE_TEMPLATEID)' != ''"/>
+					<Property Name="SnapshotFilenamePrefix" Value="SnapshotDescriptor"/>
+					<Property Name="SnapshotFilenamePrefix" Value="$(UE_HORDE_TEMPLATEID)" If="'$(UE_HORDE_TEMPLATEID)' != ''"/>
+					<Property Name="SnapshotLongTermStorageDir" Value="$(NetworkSnapshotDescFileRoot)/$(EscapedBranch)/$(ProjectName)/$(StagedPlatformFolder)/$(Change)"  If="'$(NetworkSnapshotDescFileRoot)' != ''"/>
+					<Do If="$(ShouldSnapshotPublishCloud)">
+						<Property Name="SnapshotBaseDescriptorFile" Value=""/>
+						<Property Name="SnapshotBaseDescriptorFile" Value="$(NetworkSnapshotDescFileRoot)/$(EscapedBranch)/$(ProjectName)/$(StagedPlatformFolder)/$(UE_HORDE_LAST_WARNING_CL)/$(SnapshotFilenamePrefix)-cloud.json"  If="'$(NetworkSnapshotDescFileRoot)' != '' and '$(UE_HORDE_LAST_WARNING_CL)' != ''"/>
+						<ZenExportSnapshot Project="$(TargetProject)" Platform="$(CookPlatform)" DestinationStorageType="Cloud" DestinationCloudHost="$(UE-CloudPublishHost)" DestinationCloudHttpVersion="$(UE-CloudPublishHttpVersion)" SnapshotDescriptorCloudHost="$(UE-CloudPublishDescriptorHost)" SnapshotDescriptorCloudHttpVersion="$(UE-CloudPublishDescriptorHttpVersion)" DestinationCloudNamespace="$(UE-CloudPublishNamespace)" DestinationCloudBucket="$(EscapedBranch).$(CookPlatform)" DestinationIdentifier="$(SnapshotIdentifier)" SnapshotDescriptorFile="$(SnapshotLocalDir)/$(StagedPlatformFolder)/$(SnapshotFilenamePrefix)-cloud.json" SnapshotBaseDescriptorFile="$(SnapshotBaseDescriptorFile)"/>
+						<Copy From="$(SnapshotLocalDir)/$(StagedPlatformFolder)/$(SnapshotFilenamePrefix)-cloud.json" To="$(NetworkOutputDirectory)/$(StagedPlatformFolder)/SnapshotDescriptor.json"/>
+						<Do If="'$(SnapshotLongTermStorageDir)' != ''">
+							<Copy From="$(SnapshotLocalDir)/$(StagedPlatformFolder)/$(SnapshotFilenamePrefix)-cloud.json" To="$(SnapshotLongTermStorageDir)/$(SnapshotFilenamePrefix)-cloud.json"/>
+						</Do>
+					</Do>
+					<Do If="$(ShouldSnapshotPublishZen)">
+						<ZenExportSnapshot Project="$(TargetProject)" Platform="$(CookPlatform)" DestinationStorageType="Zen" DestinationZenHost="$(UE-ZenPublishHost)" DestinationIdentifier="$(SnapshotIdentifier)" SnapshotDescriptorFile="$(SnapshotLocalDir)/$(StagedPlatformFolder)/$(SnapshotFilenamePrefix)-zen.json"/>
+						<Copy From="$(SnapshotLocalDir)/$(StagedPlatformFolder)/$(SnapshotFilenamePrefix)-zen.json" To="$(NetworkOutputDirectory)/$(StagedPlatformFolder)/SnapshotDescriptorZen.json"/>
+						<Do If="'$(SnapshotLongTermStorageDir)' != ''">
+							<Copy From="$(SnapshotLocalDir)/$(StagedPlatformFolder)/$(SnapshotFilenamePrefix)-zen.json" To="$(SnapshotLongTermStorageDir)/$(SnapshotFilenamePrefix)-zen.json"/>
+						</Do>
+					</Do>
+					<Tag Files="$(SnapshotLocalDir)/..." With="#SnapshotDescriptor_$(StagedPlatformFolder)"/>
 				</Node>
-				<Property Name="PlatformPublishStageDependencyName" Value="$(PlatformCloudPublishNodeName)" />
+				<Artifact Name="ci-snapshot-$(StagedPlatformFolder)" Description="Snapshot ($(StagedPlatformFolder))" Type="ugs-snapshot" BasePath="Snapshots" Keys="ugs-project=$(TargetProject)" Metadata="ArchiveType=SnapshotDescriptor_$(StagedPlatformFolder);dashboard-category=Snapshots" Tag="#SnapshotDescriptor_$(StagedPlatformFolder)"/>
+				<Property Name="PlatformPublishStageDependencyName" Value="$(PlatformSnapshotPublishNodeName)" />
 			</Do>
 			
 			<!-- Publish (Staged) -->
@@ -573,7 +655,7 @@
 			<Node Name="$(PlatformStagedArtifactNodeName)" Requires="$(PlatformStageNodeName)" Produces="#$(PlatformStageNodeName) Files">
 				<Tag Files="$(ProjectOutputDirectory)/$(StagedPlatformFolder)/..." With="#$(PlatformStageNodeName) Files"/>
 			</Node>
-			<Artifact Name="$(PlatformPackageArtifactName)" Type="packaged-build" BasePath="$(ProjectOutputDirectory)/$(StagedPlatformFolder)" Tag="#$(PlatformStageNodeName) Files"/>
+			<Artifact Name="$(PlatformPackageArtifactName) (Staged)" Type="staged-build" BasePath="$(ProjectOutputDirectory)/$(StagedPlatformFolder)" Keys="Project=$(ProjectName)" Metadata="Stream=$(Branch);Platform=$(StagedPlatformFolder);BuildName=$(BuildNamePath);dashboard-category=Staged Builds" Tag="#$(PlatformStageNodeName) Files"/>
 
 			<!-- Package -->
 			<Node Name="$(PlatformPackageNodeName)" Requires="$(PlatformPublishStageDependencyName)">
@@ -590,6 +672,31 @@
 				</ForEach>
 			</Node>
 			
+			<!-- Publish (Packages) (Horde) -->
+			<Property Name="PackagedArtifactTags" Value=""/>
+			<Property Name="HordePackageSkipBCRArguments" Value="-stage -package"/>
+			<Property Name="HordePackageSkipBCRArguments" Value="-skipstage -skippackage" If="'$(TargetPlatform)' == 'Mac'"/>
+
+			<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
+				<Property Name="PackagedArtifactTags" Value="#$(PlatformPackageNodeName) $(PackageConfiguration) Files;$(PackagedArtifactTags)"/>
+			</ForEach>
+			<Node Name="$(HordeArtifactPlatformPackagedNodeName)" Requires="$(PlatformPackageNodeName)" Produces="$(PackagedArtifactTags)">
+				<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
+					<Command Name="BuildCookRun" Arguments="$(BCRArgs) -configuration=$(PackageConfiguration) $(StageAndPackageArguments) -skipbuild -skipcook -skippak $(HordePackageSkipBCRArguments) -archive -archivedirectory=&quot;$(ProjectOutputDirectory)/Packages/$(StagedPlatformFolder)/$(PackageConfiguration)&quot;" />
+					<Tag Files="$(ProjectOutputDirectory)/Packages/$(StagedPlatformFolder)/$(PackageConfiguration)/..." With="#$(PlatformPackageNodeName) $(PackageConfiguration) Files"/>
+				</ForEach>
+			</Node>
+			<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
+				<Artifact Name="$(PlatformPackageArtifactName) ($(PackageConfiguration))" Type="packaged-build" BasePath="$(ProjectOutputDirectory)/Packages/$(StagedPlatformFolder)/$(PackageConfiguration)" Keys="Project=$(ProjectName)" Metadata="Stream=$(Branch);Platform=$(StagedPlatformFolder);Configuration=$(PackageConfiguration);BuildName=$(BuildNamePath);dashboard-category=$(PackageConfiguration) Builds" Tag="#$(PlatformPackageNodeName) $(PackageConfiguration) Files"/>
+			</ForEach>			
+
+			<!-- Check Build Size -->
+			<Node Name="$(PlatformCheckBuildSizeNodeName)" Requires="$(PlatformPublishPackagedNodeName)">
+				<ForEach Name="PackageConfiguration" Values="$(PackageConfigurations)" Separator="+">
+					<Command Name="CheckBuildSize" Arguments="-project=$(TargetName) -platform=$(TargetPlatform) -packagesize=$(BuildSizeLimit) -build=&quot;$(NetworkOutputDirectory)&quot; -configuration=$(PackageConfiguration)" />
+				</ForEach>
+			</Node>
+			
 		</Agent>
 		
 		<!-- Test Time! -->
@@ -602,8 +709,9 @@
 				<Property Name="NodeAnnotations" Value=""/>
 
 				<!-- Prerequisites for the test to run -->
+				<Property Name="UsePackaged" Value="(ContainsItem('$(PlatformsThatRequirePackaging)', '$(TargetPlatform)', '+') Or !ContainsItem('$(PlatformsToSkipPackaging)', '$(TargetPlatform)', '+'))" />
 				<Property Name="TestPrerequisites" Value="$(RequirePlatformStaged)" />
-				<Property Name="TestPrerequisites" Value="$(RequirePlatformPackaged)" If="ContainsItem('$(PlatformsThatRequirePackaging)', '$(TargetPlatform)', '+') Or !ContainsItem('$(PlatformsToSkipPackaging)', '$(TargetPlatform)', '+')"/>
+				<Property Name="TestPrerequisites" Value="$(RequirePlatformPackaged)" If="$(UsePackaged)"/>
 				<Property Name="TestPrerequisites" Value="$(PlatformToolsNodeName)" If="'$(GeneratedBuildVersion)' != ''"/>
 				<Property Name="TestPrerequisites" Value="$(PlatformToolsNodeName);$(PlatformEditorNodeName)" If="'$(GeneratedBuildVersion)' != '' and $(TestsRequireEditor)"/>
 				
@@ -613,10 +721,8 @@
 				<Do If="'$(NetworkOutputDirectory)' != '' Or '$(GeneratedBuildVersion)' != ''">
 					<Property Name="TestDirectory" Value="$(NetworkOutputDirectory)" />
 					<Property Name="TestDirectory" Value="$(GeneratedBuildDir)" If="'$(GeneratedBuildVersion)' != ''"/>
-					<Do If="Exists('$(TestDirectory)/$(StagedPlatformFolder)/Packages/$(TestConfiguration)')">
-						<Property Name="TestDirectory" Value="$(TestDirectory)/$(StagedPlatformFolder)/Packages/$(TestConfiguration)" />
-					</Do>
 					<Property Name="GauntletBuildArg" Value="-build=&quot;$(TestDirectory)&quot;" />
+					<Property Name="GauntletBuildArg" Value="$(GauntletBuildArg) -packaged" If="$(UsePackaged)" />
 					<Property Name="GauntletBuildArg" Value="$(GauntletBuildArg) -destlocalinstalldir=&quot;$(LocalInstallDirectory)&quot;" If="!$(IsLocalPlatform) And $(WithDeviceReservation)"/>
 				</Do>
 
@@ -689,9 +795,13 @@
 						<Property Name="AllPlatformTestNodes" Value="$(AllPlatformTestNodes);$(TestNodeName)"/>
 					</Do>
 				</ForEach>
+				
+				<!-- Expand the tests here -->
+				<Expand Name="AdditionalTestNodes"/>
+				
 			</ForEach>
 		</Agent>
-
+		
 		<!-- Declare labels for CIS -->
 		<Label Category="Clients" Name="$(PreLabelName)$(TargetPlatform)" Requires="$(PlatformCompileNodeName);$(UploadSymbolsNodeName)" />
 		<Label Category="Clients" Name="$(PreLabelName)Content $(TargetPlatform)" Requires="$(PlatformCookNodeName);$(PlatformStageNodeName);$(PlatformPackageNodeName)" />
@@ -707,7 +817,8 @@
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(RequirePlatformStaged)" If="!$(SkipPublish)" />
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(RequirePlatformPackaged)" If="!$(SkipPackage) and !$(SkipPublish)" />
 		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformHashNodeName)"  If="$(PublishHashedStagingData)" />	
-		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)" />		
+		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)" />
+		<Property Name="PlatformTasks" Value="$(PlatformTasks);$(PlatformCheckBuildSizeNodeName)" If="'$(BuildSizeLimit)' != ''" />
 
 		<Property Name="GeneratedTargetNodes" Value="$(GeneratedTargetNodes);$(PlatformTasks)"/>
 		<Property Name="GeneratedTargetTestNodes" Value="$(GeneratedTargetTestNodes);$(AllPlatformBootTestNodes);$(AllPlatformTestNodes)"/>

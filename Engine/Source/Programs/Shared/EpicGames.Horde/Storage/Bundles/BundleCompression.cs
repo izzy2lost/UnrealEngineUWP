@@ -9,6 +9,9 @@ using K4os.Compression.LZ4;
 
 namespace EpicGames.Horde.Storage.Bundles
 {
+	using ZstdCompressor = ZstdSharp.Compressor;
+	using ZstdDecompressor = ZstdSharp.Decompressor;
+
 	/// <summary>
 	/// Indicates the compression format in the bundle
 	/// </summary>
@@ -38,6 +41,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// Brotli compression
 		/// </summary>
 		Brotli = 4,
+
+		/// <summary>
+		/// ZStandard compression
+		/// </summary>
+		Zstd = 5,
 	}
 
 	/// <summary>
@@ -46,12 +54,25 @@ namespace EpicGames.Horde.Storage.Bundles
 	public static class BundleData
 	{
 		/// <summary>
+		/// Compress a block of data into a newly allocated block of memory
+		/// </summary>
+		/// <param name="format">Format for the compressed data</param>
+		/// <param name="input">The data to compress</param>
+		/// <returns>The compressed data</returns>
+		public static byte[] Compress(BundleCompressionFormat format, ReadOnlyMemory<byte> input)
+		{
+			ArrayMemoryWriter writer = new ArrayMemoryWriter(0);
+			Compress(format, input, writer);
+			return writer.WrittenMemory.ToArray();
+		}
+
+		/// <summary>
 		/// Compress a data packet
 		/// </summary>
 		/// <param name="format">Format for the compressed data</param>
 		/// <param name="input">The data to compress</param>
 		/// <param name="writer">Writer for output data</param>
-		/// <returns>The compressed data</returns>
+		/// <returns>Length of the compressed data</returns>
 		public static int Compress(BundleCompressionFormat format, ReadOnlyMemory<byte> input, IMemoryWriter writer)
 		{
 			switch (format)
@@ -106,6 +127,21 @@ namespace EpicGames.Horde.Storage.Bundles
 						writer.Advance(encodedLength);
 						return encodedLength;
 					}
+				case BundleCompressionFormat.Zstd:
+					{
+						int maxSize = ZstdCompressor.GetCompressBound(input.Length);
+
+						using ZstdCompressor compressor = new ZstdCompressor();
+
+						Span<byte> buffer = writer.GetSpan(maxSize);
+						if (!compressor.TryWrap(input.Span, buffer, out int encodedLength))
+						{
+							throw new InvalidOperationException("Unable to compress data using Zstd");
+						}
+
+						writer.Advance(encodedLength);
+						return encodedLength;
+					}
 				default:
 					throw new InvalidDataException($"Invalid compression format '{(int)format}'");
 			}
@@ -138,7 +174,18 @@ namespace EpicGames.Horde.Storage.Bundles
 						using ReadOnlyMemoryStream inputStream = new ReadOnlyMemoryStream(input);
 						using GZipStream inflatedStream = new GZipStream(inputStream, CompressionMode.Decompress, true);
 
-						int length = inflatedStream.Read(output.Span);
+						int length = 0;
+						for (; ; )
+						{
+							int count = inflatedStream.Read(output.Span.Slice(length));
+							if (count == 0)
+							{
+								break;
+							}
+
+							length += count;
+						}
+
 						if (length != output.Length)
 						{
 							throw new InvalidDataException($"Decoded data is shorter than expected (expected {output.Length} bytes, got {length} bytes)");
@@ -158,6 +205,15 @@ namespace EpicGames.Horde.Storage.Bundles
 						if (!BrotliDecoder.TryDecompress(input.Span, output.Span, out bytesWritten) || bytesWritten != output.Length)
 						{
 							throw new InvalidOperationException("Unable to decompress data using Brotli");
+						}
+						break;
+					}
+				case BundleCompressionFormat.Zstd:
+					{
+						using ZstdDecompressor decompressor = new ZstdDecompressor();
+						if (!decompressor.TryUnwrap(input.Span, output.Span, out int bytesWritten) || bytesWritten != output.Length)
+						{
+							throw new InvalidOperationException("Unable to decompress data using Zstd");
 						}
 						break;
 					}

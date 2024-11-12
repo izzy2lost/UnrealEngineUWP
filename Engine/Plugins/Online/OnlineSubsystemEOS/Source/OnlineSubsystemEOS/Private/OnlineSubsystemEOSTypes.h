@@ -14,6 +14,11 @@
 #include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystemEOSPackage.h" // IWYU pragma: keep
 
+#if defined(EOS_PLATFORM_BASE_FILE_NAME)
+#include EOS_PLATFORM_BASE_FILE_NAME
+#endif
+#include "eos_sessions_types.h"
+
 #define EOS_OSS_BUCKET_ID_STRING_LENGTH 60
 #define EOS_OSS_STRING_BUFFER_LENGTH 256 + 1 // 256 plus null terminator
 
@@ -37,26 +42,20 @@ public:
 
 	/** global static instance of invalid (zero) id */
 	static const FUniqueNetIdEOSRef& EmptyId();
+	static const FUniqueNetIdEOSRef& DedicatedServerId();
 
 	static FName GetTypeStatic();
 
 	virtual FName GetType() const override;
 	virtual const uint8* GetBytes() const override;
 	virtual int32 GetSize() const override;
+
 	virtual bool IsValid() const override;
 	virtual uint32 GetTypeHash() const override;
 	virtual FString ToString() const override;
 	virtual FString ToDebugString() const override;
-
-	virtual const EOS_EpicAccountId GetEpicAccountId() const override
-	{
-		return EpicAccountId;
-	}
-
-	virtual const EOS_ProductUserId GetProductUserId() const override
-	{
-		return ProductUserId;
-	}
+	virtual const EOS_EpicAccountId GetEpicAccountId() const override;
+	virtual const EOS_ProductUserId GetProductUserId() const override;
 
 private:
 	EOS_EpicAccountId EpicAccountId = nullptr;
@@ -73,6 +72,7 @@ private:
 
 	FUniqueNetIdEOS() = default;
 	
+	bool IsDSValue() const;
 	explicit FUniqueNetIdEOS(const uint8* Bytes, int32 Size);
 	explicit FUniqueNetIdEOS(EOS_EpicAccountId InEpicAccountId, EOS_ProductUserId InProductUserId);
 };
@@ -121,6 +121,8 @@ private:
 #define USER_ATTR_DISPLAY_NAME TEXT("display_name")
 #define USER_ATTR_COUNTRY TEXT("country")
 #define USER_ATTR_LANG TEXT("language")
+
+#define SESSION_ATTR_SERVERPORT TEXT("port")
 
 #if WITH_EOS_SDK
 
@@ -558,8 +560,6 @@ private:
 	}
 };
 
-#include "eos_sessions_types.h"
-
 struct FSessionDetailsEOS : FNoncopyable
 {
 	EOS_HSessionDetails SessionDetailsHandle;
@@ -605,43 +605,31 @@ protected:
 
 PACKAGE_SCOPE:
 	/** Constructor */
-	FOnlineSessionInfoEOS();
+	FOnlineSessionInfoEOS() = default;
+	
+	FOnlineSessionInfoEOS(const FOnlineSessionInfoEOS&) = default;
 
-	FOnlineSessionInfoEOS(const FOnlineSessionInfoEOS& Src)
-		: FOnlineSessionInfo(Src)
-		, HostAddr(Src.HostAddr)
-		, SessionId(Src.SessionId)
-		, SessionHandle(Src.SessionHandle)
-		, LobbyHandle(Src.LobbyHandle)
-		, bIsFromClone(true)
-	{
-	}
-
-	FOnlineSessionInfoEOS(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FSessionDetailsEOS>& InSessionHandle, const TSharedPtr<FLobbyDetailsEOS>& InLobbyHandle);
-
-	static FOnlineSessionInfoEOS Create(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId);
-	static FOnlineSessionInfoEOS Create(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FSessionDetailsEOS>& InSessionHandle);
-	static FOnlineSessionInfoEOS Create(const FString& InHostIp, FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FLobbyDetailsEOS>& InLobbyHandle);
+	static FOnlineSessionInfoEOS Create(FUniqueNetIdStringRef UniqueNetId);
+	static FOnlineSessionInfoEOS Create(FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FSessionDetailsEOS>& SessionHandle);
+	static FOnlineSessionInfoEOS Create(FUniqueNetIdStringRef UniqueNetId, const TSharedPtr<FLobbyDetailsEOS>& LobbyHandle);
 
 	/**
 	 * Initialize LAN session
 	 */
 	void InitLAN(FOnlineSubsystemEOS* Subsystem);
 
-	FString EOSAddress;
 	/** The ip & port that the host is listening on (valid for LAN/GameServer) */
-	TSharedPtr<class FInternetAddr> HostAddr;
+	TSharedPtr<class FInternetAddr> HostAddr = nullptr;
 	/** Unique Id for this session */
-	FUniqueNetIdStringRef SessionId;
+	FUniqueNetIdStringRef SessionId = FUniqueNetIdString::EmptyId();
 	/** EOS session handle. The same handle can be shared between a local session and a search result. The struct type will call the release API automatically upon destruction */
-	TSharedPtr<FSessionDetailsEOS> SessionHandle;
+	TSharedPtr<FSessionDetailsEOS> SessionHandle = nullptr;
 	/** EOS lobby handle. The same handle can be shared between a local session and a search result. The struct type will call the release API automatically upon destruction */
-	TSharedPtr<FLobbyDetailsEOS> LobbyHandle;
-	/** Whether we should delete this handle or not */
-	bool bIsFromClone;
+	TSharedPtr<FLobbyDetailsEOS> LobbyHandle = nullptr;
 
 public:
-	virtual ~FOnlineSessionInfoEOS();
+	virtual ~FOnlineSessionInfoEOS() = default;
+
 	bool operator==(const FOnlineSessionInfoEOS& Other) const
 	{
 		return false;

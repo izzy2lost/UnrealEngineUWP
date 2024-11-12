@@ -112,6 +112,13 @@ public:
 	virtual void OnDestroySession() = 0;
 };
 
+struct FInputKeyOpenXRProperties
+{
+	FString InputKey;
+	FString InteractionProfile;
+	FString OpenXRPath;
+};
+
 class IOpenXRExtensionPlugin : public IModularFeature
 {
 public:
@@ -179,6 +186,14 @@ public:
 		return nullptr;
 	}
 
+	/**
+	* If true pass the rhi context into some xr functions via XrRHIContextEpic.  Intended to be used where an unreal plugin wraps a XR platform api in the OpenXR api.
+	*/	
+	virtual bool RequiresRHIContext() const
+	{
+		return false;
+	}
+
 
 	/**
 	* Fill the array with extensions required by the plugin
@@ -201,7 +216,16 @@ public:
 	/**
 	* Set the output parameters to add an interaction profile to OpenXR Input
 	*/
+	UE_DEPRECATED(5.5, "Deprecated in favor of the same-name function which allows the addition of multiple interaction profiles.")
 	virtual bool GetInteractionProfile(XrInstance InInstance, FString& OutKeyPrefix, XrPath& OutPath, bool& OutHasHaptics)
+	{
+		return false;
+	}
+
+	/**
+	* Set the output parameters to add multiple interaction profiles to OpenXR Input
+	*/
+	virtual bool GetInteractionProfiles(XrInstance InInstance, TArray<FString>& OutKeyPrefixes, TArray<XrPath>& OutPaths, TArray<bool>& OutHasHaptics)
 	{
 		return false;
 	}
@@ -212,6 +236,16 @@ public:
 	 * If false is returned the bindings will be ignored.
 	 */
 	virtual bool GetSuggestedBindings(XrPath InInteractionProfile, TArray<XrActionSuggestedBinding>& OutBindings)
+	{
+		return false;
+	}
+
+	/**
+	 * Set the output parameter to explicitly define an interaction profile and path for the given key.
+	 * The same key can contain multiple entries if the key is relevant to multiple interaction profiles.
+	 * If false is returned the overrides will be ignored.
+	 */
+	virtual bool GetInputKeyOverrides(TArray<FInputKeyOpenXRProperties>& OutOverrides)
 	{
 		return false;
 	}
@@ -245,20 +279,6 @@ public:
 	virtual bool GetSpectatorScreenController(FHeadMountedDisplayBase* InHMDBase, TUniquePtr<FDefaultSpectatorScreenController>& OutSpectatorScreenController)
 	{
 		return false;
-	}
-
-	/**
-	* Add any actions provided by the plugin to Actions.
-	* This allows a plugin to 'hard code' an action so that the plugin can use it.
-	*/
-	UE_DEPRECATED(5.1, "Use Enhanced Input through IMotionController::SetPlayerMappableInputConfig instead.")
-	virtual void AddActions(XrInstance Instance, TFunction<XrAction(XrActionType InActionType, const FName& InName, const TArray<XrPath>& InSubactionPaths)> AddAction)
-	{
-	}
-
-	UE_DEPRECATED(5.1, "Functionality moved to AttachActionSets().")
-	virtual void AddActionSets(TArray<XrActiveActionSet>& OutActionSets)
-	{
 	}
 
 	/**
@@ -361,6 +381,14 @@ public:
 	}
 
 	// OpenXRHMD::OnBeginRendering_RHIThread
+	virtual const void* OnBeginFrame_RHIThread(XrSession InSession, XrTime DisplayTime, const void* InNext)	
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return OnBeginFrame(InSession, DisplayTime, InNext);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.5, "Please replace with OnBeginFrame_RHIThread.")
 	virtual const void* OnBeginFrame(XrSession InSession, XrTime DisplayTime, const void* InNext)
 	{
 		return InNext;
@@ -381,9 +409,17 @@ public:
 	{
 	}
 
-	// FOpenXRHMD::OnFinishRendering_RHIThread
+	UE_DEPRECATED(5.5, "Please replace with the version that takes an array of non-const XrCompositionLayerBaseHeader*, which allows chain structs to be added via the next pointer.")
 	virtual void UpdateCompositionLayers(XrSession InSession, TArray<const XrCompositionLayerBaseHeader*>& Headers)
 	{
+	}
+	
+	// FOpenXRHMD::OnFinishRendering_RHIThread
+	virtual void UpdateCompositionLayers(XrSession InSession, TArray<XrCompositionLayerBaseHeader*>& Headers)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UpdateCompositionLayers(InSession, reinterpret_cast<TArray<const XrCompositionLayerBaseHeader*>&>(Headers));
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	virtual const void* OnEndProjectionLayer(XrSession InSession, int32 InLayerIndex, const void* InNext, XrCompositionLayerFlags& OutFlags)

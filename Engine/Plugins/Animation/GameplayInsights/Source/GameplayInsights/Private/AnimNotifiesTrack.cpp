@@ -1,18 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNotifiesTrack.h"
-#include "Insights/ViewModels/ITimingViewDrawHelper.h"
-#include "GameplayProvider.h"
+
 #include "AnimationProvider.h"
-#include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/ViewModels/TimingEvent.h"
 #include "AnimationSharedData.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Insights/ViewModels/TimingEventSearch.h"
-#include "Insights/ViewModels/TooltipDrawState.h"
-#include "Insights/Common/TimeUtils.h"
-#include "VariantTreeNode.h"
+#include "GameplayProvider.h"
 #include "TraceServices/Model/Frames.h"
+#include "VariantTreeNode.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
+#include "Insights/ViewModels/ITimingViewDrawHelper.h"
+#include "Insights/ViewModels/TimingEvent.h"
+#include "Insights/ViewModels/TimingEventSearch.h"
+#include "Insights/ViewModels/TimingTrackViewport.h"
+#include "Insights/ViewModels/TooltipDrawState.h"
 
 #define LOCTEXT_NAMESPACE "AnimNotifiesTrack"
 
@@ -148,8 +153,8 @@ void FAnimNotifiesTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEv
 			}
 		}
 
-		Tooltip.AddNameValueTextLine(LOCTEXT("EventDuration", "Duration").ToString(), TimeUtils::FormatTimeAuto(InFoundEndTime - InFoundStartTime));
-		Tooltip.AddNameValueTextLine(LOCTEXT("EventTime", "Time").ToString(), TimeUtils::FormatTimeAuto(InFoundStartTime));
+		Tooltip.AddNameValueTextLine(LOCTEXT("EventDuration", "Duration").ToString(), UE::Insights::FormatTimeAuto(InFoundEndTime - InFoundStartTime));
+		Tooltip.AddNameValueTextLine(LOCTEXT("EventTime", "Time").ToString(), UE::Insights::FormatTimeAuto(InFoundStartTime));
 
 		if(InMessage.NotifyEventType != EAnimNotifyMessageType::SyncMarker)
 		{

@@ -9,8 +9,10 @@
 #include "RenderingThread.h"
 #include "Rendering/SlateRenderer.h"
 
-void FBinkMediaTextureResource::InitRHI(FRHICommandListBase&) 
+void FBinkMediaTextureResource::InitRHI(FRHICommandListBase& RHICmdListBase) 
 {
+	FRHICommandListImmediate& RHICmdList = RHICmdListBase.GetAsImmediate();
+
 	int w = Owner->GetSurfaceWidth() > 0 ? Owner->GetSurfaceWidth() : 1;
 	int h = Owner->GetSurfaceHeight() > 0 ? Owner->GetSurfaceHeight() : 1;
 	// Enforce micro-tile restrictions for render targets.
@@ -46,7 +48,7 @@ void FBinkMediaTextureResource::InitRHI(FRHICommandListBase&)
 		.SetFlags(TexCreateFlags | ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ShaderResource)
 		.SetInitialState(ERHIAccess::SRVMask);
 
-	TextureRHI = RenderTargetTextureRHI = RHICreateTexture(Desc);
+	TextureRHI = RenderTargetTextureRHI = RHICmdList.CreateTexture(Desc);
 
 	// Don't bother updating if its not a valid video
 	if (Owner->GetSurfaceWidth() && Owner->GetSurfaceHeight()) 
@@ -64,9 +66,8 @@ void FBinkMediaTextureResource::InitRHI(FRHICommandListBase&)
 
 	SamplerStateRHI = RHICreateSamplerState(SamplerStateInitializer);
 
-	RHIUpdateTextureReference(Owner->TextureReference.TextureReferenceRHI, RenderTargetTextureRHI.GetReference());
+	RHICmdList.UpdateTextureReference(Owner->TextureReference.TextureReferenceRHI, RenderTargetTextureRHI.GetReference());
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 	{
 		FRHIRenderPassInfo RPInfo(TextureRHI, ERenderTargetActions::Clear_Store);
 		RHICmdList.Transition(FRHITransitionInfo(TextureRHI.GetReference(), ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -92,7 +93,7 @@ void FBinkMediaTextureResource::UpdateDeferredResource(FRHICommandListImmediate&
 	{
 		return;
 	}
-	FTexture2DRHIRef tex = TextureRHI->GetTexture2D();
+	FTextureRHIRef tex = TextureRHI->GetTexture2D();
 	if (!tex.GetReference()) 
 	{
 		return;
@@ -112,7 +113,7 @@ void FBinkMediaTextureResource::Clear()
 	w = (w + 7) & -8;
 	h = (h + 7) & -8;
 
-	FTexture2DRHIRef ref = RenderTargetTextureRHI;
+	FTextureRHIRef ref = RenderTargetTextureRHI;
 	FTextureRHIRef ref2 = TextureRHI;
 	ENQUEUE_RENDER_COMMAND(BinkMediaPlayer_Draw)([ref,ref2,w,h](FRHICommandListImmediate& RHICmdList) 
 	{ 

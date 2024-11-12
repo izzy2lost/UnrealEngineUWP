@@ -47,6 +47,36 @@ struct FActorPlacementDataLayers
 	}
 };
 
+struct FWorldDataLayersEffectiveStates
+{
+	FWorldDataLayersEffectiveStates();
+	const TSet<FName>& GetAllEffectiveActiveDataLayerNames() const;
+	const TSet<FName>& GetAllEffectiveLoadedDataLayerNames() const;
+	EDataLayerRuntimeState GetDataLayerEffectiveRuntimeStateByName(FName InDataLayerName) const;
+	int32 GetUpdateEpoch() const { return UpdateEpoch; }
+
+protected:
+	void Reset();
+	void SetReplicatedEffectiveActiveDataLayerNames(const TArray<FName>& InRepEffectiveActiveDataLayerNames);
+	void SetReplicatedEffectiveLoadedDataLayerNames(const TArray<FName>& InRepEffectiveLoadedDataLayerNames);
+	bool SetDataLayerEffectiveRuntimeState(FName InDataLayerName, bool bIsLocalDataLayer, EDataLayerRuntimeState NewEffectiveRuntimeState, EDataLayerRuntimeState& OutOldEffectiveRuntimeState);
+	const TSet<FName>& GetReplicatedEffectiveActiveDataLayerNames() const { return ReplicatedEffectiveActiveDataLayerNames; }
+	const TSet<FName>& GetReplicatedEffectiveLoadedDataLayerNames() const { return ReplicatedEffectiveLoadedDataLayerNames; }
+	friend class AWorldDataLayers;
+
+private:
+	TSet<FName> ReplicatedEffectiveActiveDataLayerNames;
+	TSet<FName> ReplicatedEffectiveLoadedDataLayerNames;
+	TSet<FName> LocalEffectiveActiveDataLayerNames;
+	TSet<FName> LocalEffectiveLoadedDataLayerNames;
+
+	int32 UpdateEpoch;
+	mutable int32 AllEffectiveActiveDataLayerNamesEpoch;
+	mutable int32 AllEffectiveLoadedDataLayerNamesEpoch;
+	mutable TSet<FName> AllEffectiveActiveDataLayerNames;
+	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
+};
+
 /**
  * Actor containing data layers instances within a world.
  */
@@ -56,11 +86,14 @@ class AWorldDataLayers : public AInfo, public IDataLayerInstanceProvider
 	GENERATED_UCLASS_BODY()
 
 public:
+	//~ Begin UObject Interface
 	ENGINE_API virtual void PostLoad() override;
-	ENGINE_API virtual void RewindForReplay() override;
-	ENGINE_API virtual void BeginPlay() override;
 	virtual void Serialize(FArchive& Ar) override;
+	//~ End UObject Interface
 
+	//~ Begin AActor Interface
+	ENGINE_API virtual void RewindForReplay() override;
+	ENGINE_API virtual void PostRegisterAllComponents() override;
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
@@ -72,6 +105,8 @@ public:
 	virtual bool ActorTypeSupportsDataLayer() const override { return false; }
 	virtual bool ActorTypeSupportsExternalDataLayer() const override { return false; }
 	ENGINE_API virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
+	virtual void OnLoadedActorRemovedFromLevel() override;
+	//~ End AActor Interface
 
 	static ENGINE_API AWorldDataLayers* Create(UWorld* World, FName InWorldDataLayerName = NAME_None);
 	static ENGINE_API AWorldDataLayers* Create(const FActorSpawnParameters& SpawnParameters);
@@ -111,6 +146,9 @@ public:
 	ENGINE_API bool SupportsExternalPackageDataLayerInstances() const;
 	ENGINE_API bool IsUsingExternalPackageDataLayerInstances() const { return bUseExternalPackageDataLayerInstances; }
 	ENGINE_API bool SetUseExternalPackageDataLayerInstances(bool bInNewValue, bool bInInteractiveMode = false);
+
+
+	ENGINE_API bool CanReferenceDataLayerAsset(const UDataLayerAsset* InDataLayerAsset, FText* OutFailureReason) const;
 #endif
 
 	UE_DEPRECATED(5.4, "Use GetWorldPartitionWorldDataLayersName() instead.")
@@ -122,7 +160,7 @@ public:
 	ENGINE_API bool ContainsDataLayer(const UDataLayerInstance* InDataLayer) const;
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstance(const FName& InDataLayerInstanceName) const;
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstance(const UDataLayerAsset* InDataLayerAsset) const;
-	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const;
+	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const;
 
 	UE_DEPRECATED(5.4, "Use ForEachDataLayerInstance() instead.")
 	ENGINE_API void ForEachDataLayer(TFunctionRef<bool(UDataLayerInstance*)> Func) { return ForEachDataLayerInstance(Func); }
@@ -138,7 +176,7 @@ public:
 	ENGINE_API bool IsExternalDataLayerWorldDataLayers() const;
 
 	// DataLayer Runtime State
-	ENGINE_API void SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bIsRecursive = false);
+	ENGINE_API bool SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bIsRecursive = false);
 	ENGINE_API EDataLayerRuntimeState GetDataLayerRuntimeStateByName(FName InDataLayerName) const;
 	ENGINE_API EDataLayerRuntimeState GetDataLayerEffectiveRuntimeStateByName(FName InDataLAyerName) const;
 	const TSet<FName>& GetEffectiveActiveDataLayerNames() const;
@@ -207,15 +245,30 @@ protected:
 	ENGINE_API void OnRep_EffectiveLoadedDataLayerNames();
 
 private:
+	enum class ESetDataLayerRuntimeStateError
+	{
+		NotRuntime,
+		ClientOnlyFromServer,
+		ServerOnlyFromClient,
+		AuthoritativeFromClient
+	};
+
+	ENGINE_API const FWorldDataLayersEffectiveStates& GetEffectiveStates() const;
+
 	// External Data Layers
 	bool AddExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
 	bool RemoveExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
 	ENGINE_API UExternalDataLayerInstance* GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 
+#if WITH_EDITOR
+	// ExternalPackage Data Layer Instances
+	ENGINE_API void InitializeExternalPackageDataLayerInstances();
+#endif
+
 	ENGINE_API void OnDataLayerManagerInitialized();
-	ENGINE_API void OnDataLayerManagerDeinitialized();
 	ENGINE_API void ResolveEffectiveRuntimeState(const UDataLayerInstance* InDataLayer, bool bInNotifyChange = true);
 	ENGINE_API void DumpDataLayerRecursively(const UDataLayerInstance* DataLayer, FString Prefix, FOutputDevice& OutputDevice) const;
+	bool CanChangeDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, ESetDataLayerRuntimeStateError* OutReason = nullptr) const;
 
 	//~ Begin IDataLayerInstanceProvider interface
 	ENGINE_API virtual TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() override;
@@ -308,17 +361,7 @@ private:
 	UPROPERTY(Transient, Replicated, ReplicatedUsing=OnRep_EffectiveLoadedDataLayerNames)
 	TArray<FName> RepEffectiveLoadedDataLayerNames;
 
-	// TSet do not support replication so we replicate an array and update the set in the OnRep_EffectiveActiveDataLayerNames/OnRep_EffectiveLoadedDataLayerNames
-	TSet<FName> EffectiveActiveDataLayerNames;
-	TSet<FName> EffectiveLoadedDataLayerNames;
-
-	TSet<FName> LocalEffectiveActiveDataLayerNames;
-	TSet<FName> LocalEffectiveLoadedDataLayerNames;
-
-	mutable int32 AllEffectiveActiveDataLayerNamesEpoch;
-	mutable TSet<FName> AllEffectiveActiveDataLayerNames;
-	mutable int32 AllEffectiveLoadedDataLayerNamesEpoch;
-	mutable TSet<FName> AllEffectiveLoadedDataLayerNames;
+	FWorldDataLayersEffectiveStates EffectiveStates;
 
 	int32 DataLayersStateEpoch;
 
@@ -329,13 +372,22 @@ private:
 	friend class UDataLayerManager;
 	friend class UExternalDataLayerManager;
 	friend class UDataLayerEditorSubsystem;
-
-public:
-	DECLARE_DELEGATE_RetVal_ThreeParams(bool, FDataLayersFilterDelegate, FName /*DataLayerName*/, EDataLayerRuntimeState /*CurrentState*/, EDataLayerRuntimeState /*TargetState*/);
-
-	UE_DEPRECATED(5.0, "do not use, will be replaced by another mechanism for initial release.")
-	FDataLayersFilterDelegate DataLayersFilterDelegate;
+	friend struct FWorldDataLayersEffectiveStatesAccessor;
 };
+
+struct FWorldDataLayersEffectiveStatesAccessor
+{
+private:
+	static const FWorldDataLayersEffectiveStates& Get(const AWorldDataLayers* InWorldDataLayers)
+	{
+		check(InWorldDataLayers);
+		return InWorldDataLayers->GetEffectiveStates();
+	}
+	friend struct FWorldPartitionStreamingContext;
+	friend class UWorldPartitionStreamingPolicy;
+	friend class UDataLayerManager;
+};
+
 
 DEFINE_ACTORDESC_TYPE(AWorldDataLayers, FWorldDataLayersActorDesc);
 
@@ -447,9 +499,9 @@ void AWorldDataLayers::OverwriteDataLayerRuntimeStates(const TArray<IdentifierTy
 		});
 
 		MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepEffectiveActiveDataLayerNames, this);
-		RepEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames.Array();
+		RepEffectiveActiveDataLayerNames = EffectiveStates.GetReplicatedEffectiveActiveDataLayerNames().Array();
 		MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, RepEffectiveLoadedDataLayerNames, this);
-		RepEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames.Array();
+		RepEffectiveLoadedDataLayerNames = EffectiveStates.GetReplicatedEffectiveLoadedDataLayerNames().Array();
 	}
 }
 

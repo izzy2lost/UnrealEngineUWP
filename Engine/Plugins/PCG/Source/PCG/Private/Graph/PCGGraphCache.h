@@ -4,8 +4,10 @@
 
 #include "PCGCrc.h"
 #include "PCGData.h"
+#include "Graph/IPCGGraphCache.h"
 
 #include "Containers/LruCache.h"
+#include "Misc/SpinLock.h"
 #include "UObject/GCObject.h"
 
 class IPCGElement;
@@ -61,16 +63,17 @@ private:
 * In cases where we have some subgraph reuse. Under that premise, we can then
 * instead store by element, as we will never recreate elements (except for arbitrary tasks)
 */
-struct FPCGGraphCache : public FGCObject
+class FPCGGraphCache : public FGCObject, public IPCGGraphCache
 {
+public:
 	FPCGGraphCache();
 	~FPCGGraphCache();
 
 	/** Returns true if data was found from the cache, in which case the outputs are written in OutOutput. InNode is optional and for logging only. */
-	bool GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InCrc, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const;
+	virtual bool GetFromCache(const FPCGGetFromCacheParams& Params, FPCGDataCollection& OutCollection) const override;
 
 	/** Stores data in the cache for later use */
-	void StoreInCache(const IPCGElement* InElement, const FPCGCrc& InCrc, const FPCGDataCollection& InOutput);
+	virtual void StoreInCache(const FPCGStoreInCacheParams& Params, const FPCGDataCollection& InCollection) override;
 
 	/** Removes all entries from the cache, unroots data, etc. */
 	void ClearCache();
@@ -114,5 +117,5 @@ private:
 	/** Total memory usage by all data objects in cache. */
 	uint64 TotalMemoryUsed = 0;
 
-	mutable FRWLock CacheLock;
+	mutable UE::FSpinLock CacheLock;
 };

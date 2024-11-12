@@ -143,21 +143,13 @@ void FOpenColorIOEditorModule::RegisterViewMenuExtension()
 	FToolMenuOwnerScoped ToolMenuOwnerScoped(this);
 
 	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelViewportToolBar.View");
-	const FName ColorManagementSection = "ColorManagement";
-	FToolMenuSection* Section = Menu->FindSection(ColorManagementSection);
-	if (Section == nullptr)
-	{
-		//Section not found, create one with the label
-		Section = &Menu->AddSection(ColorManagementSection, LOCTEXT("ColorManagement_Label", "Color Management"));
-	}
-
-	check(Section);
-
-	Section->AddSubMenu(
-		"OCIODisplaySubMenu",
+	FToolMenuSection& Section = Menu->FindOrAddSection(
+		"ColorManagement", LOCTEXT("ColorManagement_Label", "Color Management"));
+	Section.AddSubMenu("OCIODisplaySubMenu",
 		LOCTEXT("OCIODisplaySubMenu_Label", "OCIO Display"),
 		LOCTEXT("OCIODisplaySubMenu_ToolTip", "Configure the viewport to use an OCIO display configuration"),
-		FNewToolMenuDelegate::CreateRaw(this, &FOpenColorIOEditorModule::AddOpenColorIODisplaySubMenu), false);
+		FNewToolMenuDelegate::CreateRaw(this, &FOpenColorIOEditorModule::AddOpenColorIODisplaySubMenu),
+		false);
 }
 
 void FOpenColorIOEditorModule::UnregisterViewMenuExtension()
@@ -172,26 +164,41 @@ void FOpenColorIOEditorModule::UnregisterViewMenuExtension()
 
 void FOpenColorIOEditorModule::AddOpenColorIODisplaySubMenu(UToolMenu* Menu)
 {
-	//Viewport menu was clicked, get which one was hit
-	FViewport* CurrentViewport = GEditor->GetActiveViewport();
+	// Disable searching in this parent menu because the contents of this menu is added as a
+	// menu-in-a-menu which leads to double search fields if the parent is searchable too.
+	Menu->bSearchable = false;
 
-	//Make sure we know about that viewport
-	TrackNewViewportIfRequired(CurrentViewport);
-	
-	//Fetch configuration for this viewport. If none were made, we'll populate UI with default values
-	const FOpenColorIODisplayConfiguration& Configuration = IOpenColorIOModule::Get().GetDisplayManager().FindOrAddDisplayConfiguration(CurrentViewport->GetClient());
+	FToolMenuSection& Section = Menu->AddDynamicSection("DynamicDisplayConfiguration",
+		FNewToolMenuDelegate::CreateLambda([this](UToolMenu* DynamicSectionMenu) -> void {
+			// Viewport menu was clicked, get which one was hit
+			FViewport* CurrentViewport = GEditor->GetActiveViewport();
 
-	//Add OCIO display section
-	FToolMenuSection& Section = Menu->AddSection("DisplayConfiguration", LOCTEXT("DisplayConfiguration_Label", "Display Configuration"));
-	Section.AddEntry(FToolMenuEntry::InitWidget(
-		"DisplayConfigurationWidget"
-		, SNew(SOpenColorIODisplay)
-			.Viewport(CurrentViewport)
-			.InitialConfiguration(Configuration)
-			.OnConfigurationChanged(FOnDisplayConfigurationChanged::CreateRaw(this, &FOpenColorIOEditorModule::OnDisplayConfigurationChanged))
-		,FText::GetEmpty() //No Label
-		,true //bNoIndent
-		,false)); //bSearchable
+			// If no viewport has yet been set, we have nothing more to do.
+			if (!CurrentViewport)
+			{
+				return;
+			}
+
+			// Make sure we know about that viewport
+			TrackNewViewportIfRequired(CurrentViewport);
+
+			// Fetch configuration for this viewport. If none were made, we'll populate UI with default values
+			const FOpenColorIODisplayConfiguration& Configuration =
+				IOpenColorIOModule::Get().GetDisplayManager().FindOrAddDisplayConfiguration(CurrentViewport->GetClient());
+
+			// Add OCIO display section
+			FToolMenuSection& Section = DynamicSectionMenu->AddSection(
+				"DisplayConfiguration", LOCTEXT("DisplayConfiguration_Label", "Display Configuration"));
+			Section.AddEntry(FToolMenuEntry::InitWidget("DisplayConfigurationWidget",
+				SNew(SOpenColorIODisplay)
+					.Viewport(CurrentViewport)
+					.InitialConfiguration(Configuration)
+					.OnConfigurationChanged(FOnDisplayConfigurationChanged::CreateRaw(
+						this, &FOpenColorIOEditorModule::OnDisplayConfigurationChanged)),
+				FText::GetEmpty(), // No Label
+				true, // bNoIndent
+				false)); // bSearchable
+		}));
 }
 
 void FOpenColorIOEditorModule::OnDisplayConfigurationChanged(const FOpenColorIODisplayConfiguration& NewConfiguration)
@@ -278,8 +285,7 @@ void FOpenColorIOEditorModule::TrackNewViewportIfRequired(FViewport* Viewport)
 		const TArray<FLevelEditorViewportClient*> LevelViewportClients = GEditor->GetLevelViewportClients();
 		FLevelEditorViewportClient* const* AssociatedClient = LevelViewportClients.FindByPredicate([Viewport](const FLevelEditorViewportClient* Other) { return Other == Viewport->GetClient(); });
 
-		// Active viewport should always have a client
-		if (ensure(AssociatedClient))
+		if (AssociatedClient)
 		{
 			FLevelEditorViewportClient* Client = *AssociatedClient;
 			TSharedPtr<SLevelViewport> LevelViewport = StaticCastSharedPtr<SLevelViewport>(Client->GetEditorViewportWidget());

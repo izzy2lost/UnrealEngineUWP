@@ -242,7 +242,6 @@ TSharedRef<SWidget> SConversationDiff::GenerateDiffListWidget()
 			.FillHeight(1.f)
 			[
 				SAssignNew(DiffList, SListViewType)
-				.ItemHeight(24)
 				.ListItemsSource(&DiffListSource)
 				.OnGenerateRow(this, &SConversationDiff::OnGenerateRow)
 				.SelectionMode(ESelectionMode::Single)

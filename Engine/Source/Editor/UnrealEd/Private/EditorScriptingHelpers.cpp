@@ -11,8 +11,6 @@
 
 namespace EditorScriptingHelpersInternal
 {
-	// Like !FName::IsValidGroupName(Path)), but with another list and no conversion to from FName
-    // InvalidChar may be INVALID_OBJECTPATH_CHARACTERS or INVALID_LONGPACKAGE_CHARACTERS or ...
 	FString RemoveFullName(const FString& AnyAssetPath, FString& OutFailureReason)
 	{
 		FString Result = AnyAssetPath.TrimStartAndEnd();
@@ -58,112 +56,87 @@ namespace EditorScriptingHelpersInternal
 
 	FString ConvertAnyPathToObjectPathInternal(const FString& AnyAssetPath, bool bIncludeSubObject, FString& OutFailureReason)
 	{
-		if (AnyAssetPath.Len() < 2) // minimal length to have /G
-		{
-			OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because the Root path need to be specified. ie /Game/"), *AnyAssetPath);
-			return FString();
-		}
-
-		// Remove class name from Reference Path
+		// Convert "AssetClass'/Game/Folder/MyAsset.MyAsset'" -> "/Game/Folder/MyAsset.MyAsset"
 		FString TextPath = FPackageName::ExportTextPathToObjectPath(AnyAssetPath);
 
-		// Remove class name Fullname
+		// Convert "AssetClass /Game/Folder/MyAsset.MyAsset" -> "/Game/Folder/MyAsset.MyAsset"
 		TextPath = EditorScriptingHelpersInternal::RemoveFullName(TextPath, OutFailureReason);
 		if (TextPath.IsEmpty())
 		{
 			return FString();
 		}
 
-		// Extract the subobject path if any
+		// Convert \ to /
+		TextPath.ReplaceInline(TEXT("\\"), TEXT("/"), ESearchCase::CaseSensitive);
+		FPaths::RemoveDuplicateSlashes(TextPath);
+
+		// Extract the subobject path, if any
 		FString SubObjectPath;
-		int32 SubObjectDelimiterIdx;
-		if (TextPath.FindChar(SUBOBJECT_DELIMITER_CHAR, SubObjectDelimiterIdx))
+		if (int32 SubObjectDelimiterIdx = INDEX_NONE;
+			TextPath.FindChar(SUBOBJECT_DELIMITER_CHAR, SubObjectDelimiterIdx))
 		{
 			SubObjectPath = TextPath.Mid(SubObjectDelimiterIdx + 1);
 			TextPath.LeftInline(SubObjectDelimiterIdx);
 		}
 
-		// Convert \ to /
-		TextPath.ReplaceInline(TEXT("\\"), TEXT("/"), ESearchCase::CaseSensitive);
-		FPaths::RemoveDuplicateSlashes(TextPath);
-
-		// Get asset full name, i.e."PackageName.ObjectName:InnerAssetName.2ndInnerAssetName" from "/Game/Folder/PackageName.ObjectName:InnerAssetName.2ndInnerAssetName"
-		FString AssetFullName;
+		// Extract and validate the object name
+		FString ObjectName;
+		if (int32 ObjectDelimiterIdx = INDEX_NONE;
+			TextPath.FindChar(TEXT('.'), ObjectDelimiterIdx))
 		{
-			// Get everything after the last slash
-			int32 IndexOfLastSlash = INDEX_NONE;
-			TextPath.FindLastChar('/', IndexOfLastSlash);
-
-			FString Folders = TextPath.Left(IndexOfLastSlash);
-			// Test for invalid characters
-			if (!EditorScriptingHelpers::IsAValidPath(Folders, INVALID_LONGPACKAGE_CHARACTERS, OutFailureReason))
-			{
-				return FString();
-			}
-
-			AssetFullName = TextPath.Mid(IndexOfLastSlash + 1);
+			ObjectName = TextPath.Mid(ObjectDelimiterIdx + 1);
+			TextPath.LeftInline(ObjectDelimiterIdx);
 		}
-
-		// Get the object name
-		FString ObjectName = FPackageName::ObjectPathToSubObjectPath(AssetFullName);
+		else
+		{
+			// Infer from the package name
+			ObjectName = FPackageName::GetShortName(TextPath);
+		}
 		if (ObjectName.IsEmpty())
 		{
 			OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it doesn't contain an asset name."), *AnyAssetPath);
 			return FString();
 		}
-
-		// Test for invalid characters
 		if (!EditorScriptingHelpers::IsAValidPath(ObjectName, INVALID_OBJECTNAME_CHARACTERS, OutFailureReason))
 		{
 			return FString();
 		}
 
-		// Confirm that we have a valid Root Package and get the valid PackagePath /Game/MyFolder/MyAsset
-		FString PackagePath;
-		if (!FPackageName::TryConvertFilenameToLongPackageName(TextPath, PackagePath, &OutFailureReason))
+		// TextPath should now be a valid package name, so verify that
+		if (!EditorScriptingHelpers::IsAValidPath(TextPath, INVALID_LONGPACKAGE_CHARACTERS, OutFailureReason))
 		{
 			return FString();
 		}
 
-		if (PackagePath.Len() == 0)
-		{
-			OutFailureReason = FString::Printf(TEXT("Can't convert path '%s' because the PackagePath is empty."), *AnyAssetPath);
-			return FString();
-		}
-
-		if (PackagePath[0] != TEXT('/'))
-		{
-			OutFailureReason = FString::Printf(TEXT("Can't convert path '%s' because the PackagePath '%s' doesn't start with a '/'."), *AnyAssetPath, *PackagePath);
-			return FString();
-		}
-
-		FString ObjectPath = FString::Printf(TEXT("%s.%s"), *PackagePath, *ObjectName);
-
-		if (bIncludeSubObject && !SubObjectPath.IsEmpty())
-		{
-			ObjectPath += TEXT(":");
-			ObjectPath += SubObjectPath;
-		}
-
-		if (FPackageName::IsScriptPackage(ObjectPath))
+		// Reject disallowed roots
+		if (FPackageName::IsScriptPackage(TextPath))
 		{
 			OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it start with /Script/"), *AnyAssetPath);
 			return FString();
 		}
-		if (FPackageName::IsMemoryPackage(ObjectPath))
+		if (FPackageName::IsMemoryPackage(TextPath))
 		{
 			OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it start with /Memory/"), *AnyAssetPath);
 			return FString();
 		}
 
-		// Confirm that the PackagePath starts with a valid root
-		if (!EditorScriptingHelpers::HasValidRoot(PackagePath))
+		// Confirm that the path starts with a valid root
+		if (!FPackageName::IsValidPath(TextPath))
 		{
 			OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it does not map to a root."), *AnyAssetPath);
 			return FString();
 		}
 
-		return ObjectPath;
+		// Rebuild the full object path
+		TextPath += TEXT(".");
+		TextPath += ObjectName;
+		if (bIncludeSubObject && !SubObjectPath.IsEmpty())
+		{
+			TextPath += TEXT(":");
+			TextPath += SubObjectPath;
+		}
+
+		return TextPath;
 	}
 }
 
@@ -189,18 +162,10 @@ bool EditorScriptingHelpers::CheckIfInEditorAndPIE()
 
 FString EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(const FString& AnyPath, FString& OutFailureReason)
 {
-	if (AnyPath.Len() < 2) // minimal length to have /G
-	{
-		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because the Root path need to be specified. ie /Game/"), *AnyPath);
-		return FString();
-	}
-
-	// Prepare for TryConvertFilenameToLongPackageName
-
-	// Remove class name from Reference Path
+	// Convert "AssetClass'/Game/Folder/MyAsset.MyAsset'" -> "/Game/Folder/MyAsset.MyAsset"
 	FString TextPath = FPackageName::ExportTextPathToObjectPath(AnyPath);
 
-	// Remove class name Fullname
+	// Convert "AssetClass /Game/Folder/MyAsset.MyAsset" -> "/Game/Folder/MyAsset.MyAsset"
 	TextPath = EditorScriptingHelpersInternal::RemoveFullName(TextPath, OutFailureReason);
 	if (TextPath.IsEmpty())
 	{
@@ -211,93 +176,52 @@ FString EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(const FString& A
 	TextPath.ReplaceInline(TEXT("\\"), TEXT("/"), ESearchCase::CaseSensitive);
 	FPaths::RemoveDuplicateSlashes(TextPath);
 
+	// Remove the object path, if any
+	if (int32 ObjectDelimiterIdx = INDEX_NONE;
+		TextPath.FindChar(TEXT('.'), ObjectDelimiterIdx))
 	{
-		// Remove .
-		int32 ObjectDelimiterIdx;
-		if (TextPath.FindChar(TEXT('.'), ObjectDelimiterIdx))
-		{
-			TextPath.LeftInline(ObjectDelimiterIdx);
-		}
-
-		// Remove :
-		if (TextPath.FindChar(TEXT(':'), ObjectDelimiterIdx))
-		{
-			TextPath.LeftInline(ObjectDelimiterIdx);
-		}
+		TextPath.LeftInline(ObjectDelimiterIdx);
 	}
 
-	// Test for invalid characters
-	if (!IsAValidPath(TextPath, INVALID_LONGPACKAGE_CHARACTERS, OutFailureReason))
+	// TextPath should now be a valid package name, so verify that
+	if (!EditorScriptingHelpers::IsAValidPath(TextPath, INVALID_LONGPACKAGE_CHARACTERS, OutFailureReason))
 	{
 		return FString();
 	}
 
-	// Confirm that we have a valid Root Package and get the valid PackagePath /Game/MyFolder
-	FString PackagePath;
-	if (!FPackageName::TryConvertFilenameToLongPackageName(TextPath, PackagePath, &OutFailureReason))
+	// Reject disallowed roots
+	if (FPackageName::IsScriptPackage(TextPath))
 	{
+		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it start with /Script/"), *AnyPath);
+		return FString();
+	}
+	if (FPackageName::IsMemoryPackage(TextPath))
+	{
+		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it start with /Memory/"), *AnyPath);
 		return FString();
 	}
 
-	if (PackagePath.Len() == 0)
-	{
-		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because of an internal error. TryConvertFilenameToLongPackageName should have return false."), *AnyPath);
-		return FString();
-	}
-
-	if (PackagePath[0] != TEXT('/'))
-	{
-		OutFailureReason = FString::Printf(TEXT("Can't convert path '%s' because the PackagePath '%s' doesn't start with a '/'."), *AnyPath, *PackagePath);
-		return FString();
-	}
-
-	if (PackagePath[PackagePath.Len() - 1] == TEXT('/'))
-	{
-		PackagePath.RemoveAt(PackagePath.Len() - 1);
-	}
-
-	if (FPackageName::IsScriptPackage(PackagePath))
-	{
-		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it starts with /Script/"), *AnyPath);
-		return FString();
-	}
-	if (FPackageName::IsMemoryPackage(PackagePath))
-	{
-		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it starts with /Memory/"), *AnyPath);
-		return FString();
-	}
-
-	// Confirm that the PackagePath start with a valid root
-	if (!HasValidRoot(PackagePath))
+	// Confirm that the path starts with a valid root
+	if (!FPackageName::IsValidPath(TextPath))
 	{
 		OutFailureReason = FString::Printf(TEXT("Can't convert the path '%s' because it does not map to a root."), *AnyPath);
 		return FString();
 	}
 
-	return PackagePath;
+	return TextPath;
 }
 
 bool EditorScriptingHelpers::HasValidRoot(const FString& ObjectPath)
 {
-	FString Filename;
-	bool bValidRoot = true;
-	if (!ObjectPath.IsEmpty() && ObjectPath[ObjectPath.Len() - 1] == TEXT('/'))
-	{
-		bValidRoot = FPackageName::TryConvertLongPackageNameToFilename(ObjectPath, Filename);
-	}
-	else
-	{
-		FString ObjectPathWithSlash = ObjectPath;
-		ObjectPathWithSlash.AppendChar(TEXT('/'));
-		bValidRoot = FPackageName::TryConvertLongPackageNameToFilename(ObjectPathWithSlash, Filename);
-	}
-
-	return bValidRoot;
+	FStringView PackageName = FPackageName::ObjectPathToPackageName(FStringView(ObjectPath));
+	return FPackageName::IsValidPath(PackageName);
 }
 
 // Test for invalid characters
 bool EditorScriptingHelpers::IsAValidPath(const FString& Path, const TCHAR* InvalidChar, FString& OutFailureReason)
 {
+	// Like !FName::IsValidGroupName(Path)), but with another list and no conversion to from FName
+    // InvalidChar may be INVALID_OBJECTPATH_CHARACTERS or INVALID_LONGPACKAGE_CHARACTERS or ...
 	const int32 StrLen = FCString::Strlen(InvalidChar);
 	for (int32 Index = 0; Index < StrLen; ++Index)
 	{

@@ -21,7 +21,7 @@ void UPerformerComponent::DestroyComponent(bool bPromoteChildren)
 	for (USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
 	{
 		SkeletalMeshComponent->SetUpdateAnimationInEditor(false/* NewUpdateState */);
-		SkeletalMeshComponent->SetAnimClass(nullptr);
+		SkeletalMeshComponent->SetAnimInstanceClass(nullptr);
 		SkeletalMeshComponent->InitAnim(true/* bForceReinit */);
 	}
 	
@@ -140,7 +140,7 @@ void UPerformerComponent::InitiateAnimation()
 	{
 		for (USkeletalMeshComponent* OwnerSkeletalMeshComponent : OwnerSkeletalMeshComponents)
 		{
-			OwnerSkeletalMeshComponent->SetAnimClass(nullptr);
+			OwnerSkeletalMeshComponent->SetAnimInstanceClass(nullptr);
 			OwnerSkeletalMeshComponent->InitAnim(true /*bForceReinit*/);
 			OwnerSkeletalMeshComponent->SetUpdateAnimationInEditor(true);
 		}
@@ -156,7 +156,7 @@ void UPerformerComponent::InitiateAnimation()
 		//Skip any skeletal meshes that already have anim instance set that's not a LiveLinkInstance
 		if(OwnerSkeletalMeshComponent->GetAnimClass()==ULiveLinkInstance::StaticClass())
 		{
-			OwnerSkeletalMeshComponent->SetAnimClass(nullptr);
+			OwnerSkeletalMeshComponent->SetAnimInstanceClass(nullptr);
 			OwnerSkeletalMeshComponent->InitAnim(true /*bForceReinit*/);
 			OwnerSkeletalMeshComponent->SetUpdateAnimationInEditor(true);
 		}
@@ -175,7 +175,7 @@ void UPerformerComponent::InitiateAnimation()
 
 	if(IsValid(ControlledMesh))
 	{
-		ControlledMesh->SetAnimClass(ULiveLinkInstance::StaticClass());
+		ControlledMesh->SetAnimInstanceClass(ULiveLinkInstance::StaticClass());
 		ControlledMesh->InitAnim(true /*bForceReinit*/);
 		ControlledMesh->SetUpdateAnimationInEditor(true);
 		ControlledMesh->bPropagateCurvesToFollowers = true;

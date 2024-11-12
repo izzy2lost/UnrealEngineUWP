@@ -3,20 +3,19 @@
 #include "ChaosVDModule.h"
 
 #include "ChaosVDCommands.h"
-#include "ChaosVDStyle.h"
+#include "ChaosVDEngine.h"
 #include "ChaosVDParticleActorCustomization.h"
+#include "ChaosVDSettingsManager.h"
+#include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
+#include "Misc/App.h"
+#include "Misc/Guid.h"
+#include "Trace/ChaosVDTraceManager.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SChaosVDMainTab.h"
-#include "PropertyEditorModule.h"
-#include "ChaosVDEngine.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
-#include "DetailsCustomizations/ChaosVDGeometryComponentCustomization.h"
-#include "DetailsCustomizations/ChaosVDParticleDataWrapperCustomization.h"
-#include "DetailsCustomizations/ChaosVDQueryDataWrappersCustomizationDetails.h"
-#include "Trace/ChaosVDTraceManager.h"
-#include "Misc/Guid.h"
+#include "DetailsCustomizations/ChaosVDShapeDataCustomization.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -31,6 +30,8 @@ FAutoConsoleCommand ChaosVDSpawnNewCVDInstance(
 	})
 );
 
+FString FChaosVDModule::ChaosVisualDebuggerProgramName = TEXT("ChaosVisualDebugger");
+
 FChaosVDModule& FChaosVDModule::Get()
 {
 	return FModuleManager::Get().LoadModuleChecked<FChaosVDModule>(TEXT("ChaosVD"));
@@ -42,8 +43,6 @@ void FChaosVDModule::StartupModule()
 	
 	FChaosVDCommands::Register();
 
-	RegisterClassesCustomDetails();
-
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FChaosVDTabID::ChaosVisualDebuggerTab, FOnSpawnTab::CreateRaw(this, &FChaosVDModule::SpawnMainTab))
 								.SetDisplayName(LOCTEXT("VisualDebuggerTabTitle", "Chaos Visual Debugger"))
 								.SetTooltipText(LOCTEXT("VisualDebuggerTabDesc", "Opens the Chaos Visual Debugger window"))
@@ -51,6 +50,13 @@ void FChaosVDModule::StartupModule()
 								.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsDebugCategory());
 
 	ChaosVDTraceManager = MakeShared<FChaosVDTraceManager>();
+
+	if (IsStandaloneChaosVisualDebugger())
+	{
+		// In the standalone app, once the engine is initialized we need to spawn the main tab otherwise there will be no UI
+		// because we intentionally don't load the mainframe / rest of the editor UI
+		FCoreDelegates::OnFEngineLoopInitComplete.AddRaw(this, &FChaosVDModule::SpawnCVDTab);
+	}
 
 	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FChaosVDModule::CloseActiveInstances);
 }
@@ -67,29 +73,27 @@ void FChaosVDModule::ShutdownModule()
 	{
 		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(TabID);
 	}
-	
+
+	if (IsStandaloneChaosVisualDebugger())
+	{
+		FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
+	}
+
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 
 	CloseActiveInstances();
-}
-
-void FChaosVDModule::RegisterClassesCustomDetails() const
-{
-	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomClassLayout("ChaosVDParticleActor", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDParticleActorCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDInstancedStaticMeshComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDStaticMeshComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDQueryVisitStep", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDQueryVisitDataCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("ChaosVDQueryDataWrapper", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDQueryDataWrapperCustomization::MakeInstance));
-
-	//TODO: Rename FChaosVDParticleDataWrapperCustomization to something generic as currently works with any type that wants to hide properties of type FChaosVDWrapperDataBase with invalid data.
-	// Or another option is create a new custom layout intended to be generic from the get go
-	PropertyModule.RegisterCustomPropertyTypeLayout("ChaosVDQueryDataWrapper", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
-	PropertyModule.RegisterCustomPropertyTypeLayout("ChaosVDQueryVisitStep", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
+	
+	FChaosVDSettingsManager::TearDown();
 }
 
 void FChaosVDModule::SpawnCVDTab()
 {
+	if (IsStandaloneChaosVisualDebugger())
+	{
+		// In the standalone app, we need to load the status bar module so the status bar subsystem is initialized
+		FModuleManager::Get().LoadModule("StatusBar");
+	}
+
 	// Registering new tab spawners with random names is not the best idea to spawn new tabs, but it is good enough to test we can run multiple instances of CVD withing the editor.
 	// This is also why spawning new tabs it is only exposed via console commands for now.
 	// When this feature is deemed stable and exposed in the UI I will investigate a more correct way of implementing this
@@ -136,6 +140,12 @@ TSharedRef<SDockTab> FChaosVDModule::SpawnMainTab(const FSpawnTabArgs& Args)
 
 void FChaosVDModule::HandleTabClosed(TSharedRef<SDockTab> ClosedTab, FGuid InstanceGUID)
 {
+	if (IsStandaloneChaosVisualDebugger())
+	{
+		// If this is the standalone CVD app, we can assume that tab closed indicates an exit request
+		RequestEngineExit(TEXT("MainCVDTabClosed"));
+	}
+
 	// Workaround. Currently the ChaosVD Engine instance determines the lifetime of the Editor world and other objects
 	// Some widgets, like UE Level viewport tries to iterate on these objects on destruction
 	// For now we can avoid any crashes by just de-initializing ChaosVD Engine on the next frame but that is not the real fix.
@@ -208,6 +218,10 @@ void FChaosVDModule::CloseActiveInstances()
 	ActiveCVDTabs.Reset();
 }
 
+bool FChaosVDModule::IsStandaloneChaosVisualDebugger()
+{
+	return FPlatformProperties::IsProgram() && FApp::GetProjectName() == ChaosVisualDebuggerProgramName;
+}
 
 #undef LOCTEXT_NAMESPACE
 	

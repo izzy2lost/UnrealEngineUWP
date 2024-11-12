@@ -567,7 +567,7 @@ void FArchiveStackTraceWriter::Serialize(void* Data, int64 Length)
 
 	if (Length > 0)
 	{
-		UObject* SerializedObject = SerializeContext ? SerializeContext->SerializedObject : nullptr;
+		UObject* SerializedObject = FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject;
 		TArrayView<const FName> DebugStack;
 #if WITH_EDITOR
 		DebugStack = DebugDataStack;
@@ -592,21 +592,6 @@ void FArchiveStackTraceWriter::Serialize(void* Data, int64 Length)
 	}
 }
 
-void FArchiveStackTraceWriter::SetSerializeContext(FUObjectSerializeContext* Context)
-{
-	SerializeContext = Context;
-
-	if (bInnerArchiveDisabled == false)
-	{
-		InnerArchive.SetSerializeContext(Context);
-	}
-}
-
-FUObjectSerializeContext* FArchiveStackTraceWriter::GetSerializeContext()
-{
-	return SerializeContext;
-}
-
 FArchiveStackTraceMemoryWriter::FArchiveStackTraceMemoryWriter(
 	FArchiveCallstacks& Callstacks,
 	const FArchiveDiffMap* DiffMap,
@@ -628,16 +613,6 @@ void FArchiveStackTraceMemoryWriter::Serialize(void* Memory, int64 Length)
 	FLargeMemoryWriter::Serialize(Memory, Length);
 }
 
-void FArchiveStackTraceMemoryWriter::SetSerializeContext(FUObjectSerializeContext* Context)
-{
-	StackTraceWriter.SetSerializeContext(Context);
-}
-
-FUObjectSerializeContext* FArchiveStackTraceMemoryWriter::GetSerializeContext()
-{
-	return StackTraceWriter.GetSerializeContext();
-}
-
 FArchiveStackTrace::FArchiveStackTrace(UObject* InAsset, const TCHAR* InFilename, bool bInCollectCallstacks, const FArchiveDiffMap* InDiffMap)
 	: FLargeMemoryWriter(0, false, InFilename)
 	, Callstacks(InAsset)
@@ -656,16 +631,6 @@ void FArchiveStackTrace::Serialize(void* Memory, int64 Length)
 {
 	StackTraceWriter.Serialize(Memory, Length);
 	FLargeMemoryWriter::Serialize(Memory, Length);
-}
-
-void FArchiveStackTrace::SetSerializeContext(FUObjectSerializeContext* Context)
-{
-	StackTraceWriter.SetSerializeContext(Context);
-}
-
-FUObjectSerializeContext* FArchiveStackTrace::GetSerializeContext()
-{
-	return StackTraceWriter.GetSerializeContext();
 }
 
 bool FArchiveStackTrace::LoadPackageIntoMemory(const TCHAR* InFilename, FPackageData& OutPackageData,

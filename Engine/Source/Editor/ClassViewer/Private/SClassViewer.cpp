@@ -1085,6 +1085,7 @@ void FClassHierarchy::CreateNodesForLoadedClasses(TSharedPtr<FClassViewerNode>& 
 		UClass* CurrentClass = *ClassIt;
 		// Ignore deprecated and temporary trash classes.
 		if (CurrentClass->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists | CLASS_Hidden) ||
+			FBlueprintSupport::IsClassPlaceholder(CurrentClass) ||
 			FKismetEditorUtilities::IsClassABlueprintSkeleton(CurrentClass))
 		{
 			continue;
@@ -1568,8 +1569,6 @@ void SClassViewer::Construct(const FArguments& InArgs, const FClassViewerInitial
 		.OnContextMenuOpening(OnContextMenuOpening)
 		// Find out when the user selects something in the tree
 		.OnSelectionChanged(this, &SClassViewer::OnClassViewerSelectionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
@@ -1593,8 +1592,6 @@ void SClassViewer::Construct(const FArguments& InArgs, const FClassViewerInitial
 		.OnSelectionChanged(this, &SClassViewer::OnClassViewerSelectionChanged)
 		// Called when the expansion state of an item changes
 		.OnExpansionChanged(this, &SClassViewer::OnClassViewerExpansionChanged)
-		// Allow for some spacing between items with a larger item height.
-		.ItemHeight(20.0f)
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
@@ -2557,6 +2554,7 @@ void SClassViewer::Populate()
 		if (ClassNode)
 		{
 			ClassTree->SetSelection(ClassNode);
+			ClassTree->RequestScrollIntoView(ClassNode);
 		}
 	}
 	else
@@ -2611,6 +2609,7 @@ void SClassViewer::Populate()
 			if(TSharedPtr<FClassViewerNode>* ClassNode = RootTreeItems.FindByPredicate([ClassPathNameToSelect](const TSharedPtr< FClassViewerNode > InClassNode) { return InClassNode->Class.IsValid() && (InClassNode->Class->GetPathName() == ClassPathNameToSelect); }))
 			{
 				ClassList->SetSelection(*ClassNode);
+				ClassList->RequestScrollIntoView(*ClassNode);
 			}
 			InitOptions.InitiallySelectedClass = nullptr;
 		}

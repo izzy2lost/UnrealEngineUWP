@@ -7,7 +7,7 @@
 #include "Engine/World.h"
 #include "Misc/EnumerateRange.h"
 
-#if WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#if WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 
 FGameplayDebuggerCategory_SmartObject::FGameplayDebuggerCategory_SmartObject()
 {
@@ -99,7 +99,12 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			{
 				if (!DataPack.bDisplaySlotDetails)
 				{
-					AddShape(FGameplayDebuggerShape::MakeBox(Location, FVector(50), /*Thickness*/3, DebugColor));
+					AddShape(FGameplayDebuggerShape::MakeBox(Location, FVector(50), /*Thickness*/3, DebugColor
+#if !UE_ENABLE_DEBUG_DRAWING
+					// Add some text when debug drawing is not defined since this is the only that can be rendered
+					, TEXT("SO")
+#endif // UE_ENABLE_DEBUG_DRAWING
+						));
 				}
 
 				if (DataPack.bDisplayInstanceTags)
@@ -181,6 +186,7 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 				}
 			}
 
+#if UE_ENABLE_DEBUG_DRAWING
 			const FVector AxisX = SlotTransform.GetUnitAxis(EAxis::X);
 			const FVector AxisY = SlotTransform.GetUnitAxis(EAxis::Y);
 			if (SlotShape == ESmartObjectSlotShape::Circle)
@@ -195,6 +201,10 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			}
 			
 			AddShape(FGameplayDebuggerShape::MakeArrow(Pos, Pos + Dir * 2.0f * SlotSize, DebugArrowHeadSize, DebugArrowThickness, DebugColor));
+#else
+			// Using small dummy shape with text when debug drawing is not defined since text still works 
+			AddShape(FGameplayDebuggerShape::MakePoint(Pos, /*Radius*/ 1.0f, FColorList::White, TEXT("Slot")));
+#endif // UE_ENABLE_DEBUG_DRAWING
 
 			if (DataPack.bDisplayInstanceTags)
 			{
@@ -278,4 +288,4 @@ void FGameplayDebuggerCategory_SmartObject::FReplicationData::Serialize(FArchive
 	Ar << bDisplaySlotDetails;
 }
 
-#endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#endif // WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG

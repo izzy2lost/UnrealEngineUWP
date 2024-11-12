@@ -14,8 +14,9 @@
 #include "EditMode/SControlRigDetails.h"
 #include "EditMode/SControlRigOutliner.h"
 #include "ISequencer.h"
-#include "SequencerSettings.h"
-#include "Sections/MovieSceneSpawnSection.h"
+#include "ISequencer.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/Selection/Selection.h"
 #include "MovieScene.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
@@ -76,11 +77,34 @@
 #include "DragTool_FrustumSelect.h"
 #include "AnimationEditorViewportClient.h"
 #include "EditorInteractiveGizmoManager.h"
+#include "Editor/ControlRigViewportToolbarExtensions.h"
+#include "Editor/Sequencer/Private/SSequencer.h"
+#include "Slate/SceneViewport.h"
 #include "Tools/BakingHelper.h"
+#include "Sequencer/AnimLayers/AnimLayers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
 TAutoConsoleVariable<bool> CVarClickSelectThroughGizmo(TEXT("ControlRig.Sequencer.ClickSelectThroughGizmo"), false, TEXT("When false you can't click through a gizmo and change selection if you will select the gizmo when in Animation Mode, default to false."));
+
+namespace CRModeLocals
+{
+
+	const TCHAR* FocusModeName = TEXT("AnimMode.PendingFocusMode");
+
+static bool bFocusMode = false;
+static FAutoConsoleVariableRef CVarSetFocusOnHover(
+   FocusModeName,
+   bFocusMode,
+   TEXT("Force setting focus on the hovered viewport when entering a key.")
+   );
+
+IConsoleVariable* GetFocusModeVariable()
+{
+	return IConsoleManager::Get().FindConsoleVariable(FocusModeName);
+}
+	
+}
 
 void UControlRigEditModeDelegateHelper::OnPoseInitialized()
 {
@@ -130,9 +154,6 @@ void UControlRigEditModeDelegateHelper::RemoveDelegates()
 	}
 }
 
-
-FName FControlRigEditMode::ModeName("EditMode.ControlRig");
-
 #define LOCTEXT_NAMESPACE "ControlRigEditMode"
 
 /** The different parts of a transform that manipulators can support */
@@ -154,7 +175,8 @@ namespace ControlRigSelectionConstants
 }
 
 FControlRigEditMode::FControlRigEditMode()
-	: bIsChangingControlShapeTransform(false)
+	: PendingFocus(FPendingWidgetFocus::MakeNoTextEdit())
+	, bIsChangingControlShapeTransform(false)
 	, bIsTracking(false)
 	, bManipulatorMadeChange(false)
 	, bSelecting(false)
@@ -218,6 +240,14 @@ bool FControlRigEditMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 {
 	if (InSequencer != WeakSequencer)
 	{
+		if (WeakSequencer.IsValid())
+		{
+			static constexpr bool bDisable = false;
+			TSharedPtr<ISequencer> PreviousSequencer = WeakSequencer.Pin();
+			TSharedRef<SSequencer> PreviousSequencerWidget = StaticCastSharedRef<SSequencer>(PreviousSequencer->GetSequencerWidget());
+			PreviousSequencerWidget->EnablePendingFocusOnHovering(bDisable);
+		}
+		
 		WeakSequencer = InSequencer;
 
 		DetailKeyFrameCache->UnsetDelegates();
@@ -249,6 +279,11 @@ bool FControlRigEditMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 			LastMovieSceneSig = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetSignature();
 			DetailKeyFrameCache->SetDelegates(WeakSequencer, this);
 			ControlProxy->SetSequencer(WeakSequencer);
+
+			{
+				TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer->GetSequencerWidget());
+				SequencerWidget->EnablePendingFocusOnHovering(CRModeLocals::bFocusMode);
+			}
 		}
 		SetObjects_Internal();
 		if (FControlRigEditModeToolkit::Details.IsValid())
@@ -263,17 +298,17 @@ bool FControlRigEditMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 	return false;
 }
 
-bool FControlRigEditMode::AddControlRigObject(UControlRig* ControlRig, TWeakPtr<ISequencer> InSequencer)
+bool FControlRigEditMode::AddControlRigObject(UControlRig* InControlRig, const TWeakPtr<ISequencer>& InSequencer)
 {
-	if (ControlRig)
+	if (InControlRig)
 	{
-		if (RuntimeControlRigs.Contains(ControlRig) == false)
+		if (RuntimeControlRigs.Contains(InControlRig) == false)
 		{
 			if (InSequencer.IsValid())
 			{
 				if (SetSequencer(InSequencer) == false) //was already there so just add it,otherwise this function will add everything in the active 
 				{
-					AddControlRigInternal(ControlRig);
+					AddControlRigInternal(InControlRig);
 					SetObjects_Internal();
 				}
 				return true;
@@ -386,7 +421,7 @@ void FControlRigEditMode::SetObjects_Internal()
 	else
 	{
 		// create default manipulation layer
-		RequestToRecreateControlShapeActors(nullptr);
+		RequestToRecreateControlShapeActors();
 	}
 }
 
@@ -440,7 +475,20 @@ void FControlRigEditMode::Enter()
 	if (const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>())
 	{
 		GetModeManager()->SetWidgetScale(Settings->GizmoScale);
+
+		if (!Settings->OnSettingsChange.IsBoundToObject(this))
+		{
+			Settings->OnSettingsChange.AddSP(this, &FControlRigEditMode::OnSettingsChanged);
+		}
 	}
+
+	UE::ControlRig::PopulateControlRigViewportToolbarTransformsSubmenu("LevelEditor.ViewportToolbar.Transform");
+	UE::ControlRig::PopulateControlRigViewportToolbarSelectionSubmenu("LevelEditor.ViewportToolbar.Select");
+	UE::ControlRig::PopulateControlRigViewportToolbarShowSubmenu(
+		"LevelEditor.ViewportToolbar.Show", GetToolkit()->GetToolkitCommands()
+	);
+
+	RegisterPendingFocusMode();
 }
 
 //todo get working with Persona
@@ -463,6 +511,10 @@ static void ClearOutAnyActiveTools()
 
 void FControlRigEditMode::Exit()
 {
+	UE::ControlRig::RemoveControlRigViewportToolbarExtensions();
+
+	UnregisterPendingFocusMode();
+	
 	ClearOutAnyActiveTools();
 	OnControlRigAddedOrRemovedDelegate.Clear();
 	OnControlRigSelectedDelegate.Clear();
@@ -504,6 +556,7 @@ void FControlRigEditMode::Exit()
 	if (Toolkit.IsValid())
 	{
 		FToolkitManager::Get().CloseToolkit(Toolkit.ToSharedRef());
+		Toolkit.Reset();
 	}
 
 	DestroyShapesActors(nullptr);
@@ -530,6 +583,11 @@ void FControlRigEditMode::Exit()
 	//make sure the widget is reset
 	ResetControlShapeSize();
 
+	if (const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>())
+	{
+		Settings->OnSettingsChange.RemoveAll(this);
+	}
+	
 	// Call parent implementation
 	FEdMode::Exit();
 }
@@ -544,15 +602,6 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 		return;
 	}
 	CheckMovieSceneSig();
-
-	if (bool* GameView = ViewportToGameView.Find(ViewportClient->Viewport))
-	{
-		*GameView = ViewportClient->IsInGameView();
-	} 
-	else
-	{
-		ViewportToGameView.Add(ViewportClient->Viewport, ViewportClient->IsInGameView());
-	}
 
 	if(DeferredItemsToFrame.Num() > 0)
 	{
@@ -576,21 +625,6 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 	if (!AreEditingControlRigDirectly() == false)
 	{
 		ViewportClient->Invalidate();
-	}
-
-	// check if the settings for xray rendering are different for any of the control shape actors
-	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
-	if(bShowControlsAsOverlay != Settings->bShowControlsAsOverlay)
-	{
-		bShowControlsAsOverlay = Settings->bShowControlsAsOverlay;
-		for (TWeakObjectPtr<UControlRig>& RuntimeRigPtr : RuntimeControlRigs)
-		{
-			if (UControlRig* RuntimeControlRig = RuntimeRigPtr.Get())
-			{
-				UpdateSelectabilityOnSkeletalMeshes(RuntimeControlRig, !bShowControlsAsOverlay);
-			}
-		}
-		RequestToRecreateControlShapeActors();
 	}
 
 	// Defer creation of shapes if manipulating the viewport
@@ -770,18 +804,15 @@ TSet<FName> FControlRigEditMode::GetActiveControlsFromSequencer(UControlRig* Con
 				{
 					if (ControlRigParameterTrack->GetControlRig() == ControlRig)
 					{
-						UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey());
-						if (ActiveSection)
+						TArray<FRigControlElement*> Controls;
+						ControlRig->GetControlsInOrder(Controls);
+						int Index = 0;
+						for (FRigControlElement* ControlElement : Controls)
 						{
-							TArray<FRigControlElement*> Controls;
-							ControlRig->GetControlsInOrder(Controls);
-							TArray<bool> Mask = ActiveSection->GetControlsMask();
-
-							TArray<FName> Names;
-							int Index = 0;
-							for (FRigControlElement* ControlElement : Controls)
+							UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey(ControlElement->GetFName()));
+							if (ActiveSection)
 							{
-								if (Mask[Index])
+								if (ActiveSection->GetControlNameMask(ControlElement->GetFName()))
 								{
 									ActiveControls.Add(ControlElement->GetFName());
 								}
@@ -802,7 +833,8 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 	DragToolHandler.Render3DDragTool(View, PDI);
 
 	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
-	const bool bIsInGameView = !AreEditingControlRigDirectly() ? (ViewportToGameView.Find(Viewport) && ViewportToGameView[Viewport]) : false;
+	FEditorViewportClient* EditorViewportClient = (FEditorViewportClient*)Viewport->GetClient();
+	const bool bIsInGameView = !AreEditingControlRigDirectly() ? EditorViewportClient && EditorViewportClient->IsInGameView() : false;
 	bool bRender = !Settings->bHideControlShapes;
 	for (TWeakObjectPtr<UControlRig>& ControlRigPtr : RuntimeControlRigs)
 	{
@@ -1425,6 +1457,14 @@ bool FControlRigEditMode::HandleClick(FEditorViewportClient* InViewportClient, H
 								GEditor->SelectNone(false, true);
 								GEditor->NoteSelectionChange();
 							}
+							//also need to clear explicitly in sequencer
+							if (WeakSequencer.IsValid())
+							{
+								if (ISequencer* SequencerPtr = WeakSequencer.Pin().Get())
+								{
+									SequencerPtr->GetViewModel()->GetSelection()->Empty();
+								}
+							}
 						}
 						ClearRigElementSelection(ValidControlTypeMask());
 						SetRigElementSelection(ShapeActor->ControlRig.Get(),ERigElementType::Control, ControlName, true);
@@ -1817,19 +1857,13 @@ bool FControlRigEditMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorV
 	}
 	
 	//need to check for a zero frustum since ComponentIsTouchingSelectionFrustum will return true, selecting everything, when this is the case
-	const bool bMalformedFrustum = (InFrustum.Planes[0].IsNearlyZero() && InFrustum.Planes[2].IsNearlyZero()) || (InFrustum.Planes[3].IsNearlyZero() &&
-		InFrustum.Planes[4].IsNearlyZero());
+	// cf. FDragTool_ActorFrustumSelect::CalculateFrustum 
+	const bool bAreTopBottomMalformed = InFrustum.Planes[0].IsNearlyZero() && InFrustum.Planes[2].IsNearlyZero();
+	const bool bAreRightLeftMalformed = InFrustum.Planes[1].IsNearlyZero() && InFrustum.Planes[3].IsNearlyZero();
+	const bool bMalformedFrustum = bAreTopBottomMalformed || bAreRightLeftMalformed;
 	if (bMalformedFrustum || InViewportClient->IsInGameView() == true || Settings->bHideControlShapes)
 	{
-		if (Settings->bOnlySelectRigControls)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-		return FEdMode::FrustumSelect(InFrustum, InViewportClient, InSelect);
+		return Settings->bOnlySelectRigControls;
 	}
 
 	FScopedTransaction ScopedTransaction(LOCTEXT("SelectControlTransaction", "Select Control"), !AreEditingControlRigDirectly() && !GIsTransacting);
@@ -1844,14 +1878,16 @@ bool FControlRigEditMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorV
 	{
 		for (AControlRigShapeActor* ShapeActor : Pairs.Value)
 		{
-			for (UActorComponent* Component : ShapeActor->GetComponents())
+			const bool bTreatShape = ShapeActor && ShapeActor->ControlRig.IsValid() && ShapeActor->ControlRig->GetControlsVisible() &&
+				ShapeActor->IsSelectable() && !ShapeActor->IsTemporarilyHiddenInEditor();
+			if (bTreatShape)
 			{
-				UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
-				if (PrimitiveComponent && PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsVisibleInEditor())
+				for (UActorComponent* Component : ShapeActor->GetComponents())
 				{
-					if (PrimitiveComponent->IsShown(InViewportClient->EngineShowFlags) && PrimitiveComponent->ComponentIsTouchingSelectionFrustum(InFrustum, false /*only bsp*/, false/*encompass entire*/))
+					UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component);
+					if (PrimitiveComponent && PrimitiveComponent->IsRegistered() && PrimitiveComponent->IsVisibleInEditor())
 					{
-						if (ShapeActor->IsSelectable() && ShapeActor->ControlRig.IsValid() &&  ShapeActor->ControlRig->GetControlsVisible() )
+						if (PrimitiveComponent->IsShown(InViewportClient->EngineShowFlags) && PrimitiveComponent->ComponentIsTouchingSelectionFrustum(InFrustum, false /*only bsp*/, false/*encompass entire*/))
 						{
 							bSomethingSelected = true;
 							const FName& ControlName = ShapeActor->ControlName;
@@ -2809,6 +2845,10 @@ void FControlRigEditMode::BindCommands()
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ToggleControlShapeTransformEdit));
 
 	CommandBindings->MapAction(
+		Commands.SetAnimLayerPassthroughKey,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::SetAnimLayerPassthroughKey));
+
+	CommandBindings->MapAction(
 		Commands.OpenSpacePickerWidget,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::OpenSpacePickerWidget));
 }
@@ -3083,6 +3123,29 @@ bool FControlRigEditMode::IsDragAnimSliderToolPressed(FViewport* InViewport)
 	return false;
 }
 
+void FControlRigEditMode::SetAnimLayerPassthroughKey()
+{
+	ISequencer* Sequencer = WeakSequencer.Pin().Get();
+	if (Sequencer)
+	{
+		if (UAnimLayers* AnimLayers = UAnimLayers::GetAnimLayers(Sequencer))
+		{
+			const FScopedTransaction Transaction(LOCTEXT("SetPassthroughKey_Transaction", "Set Passthrough Key"), !GIsTransacting);
+			for (UAnimLayer* AnimLayer : AnimLayers->AnimLayers)
+			{
+				if (AnimLayer->GetSelectedInList())
+				{
+					int32 Index = AnimLayers->GetAnimLayerIndex(AnimLayer);
+					if (Index != INDEX_NONE)
+					{
+						AnimLayers->SetPassthroughKey(Sequencer, Index);
+					}
+				}
+			}
+		}
+	}
+}
+
 void FControlRigEditMode::OpenSpacePickerWidget()
 {
 	TMap<UControlRig*, TArray<FRigElementKey>> SelectedControlRigsAndControls;
@@ -3292,6 +3355,31 @@ void FControlRigEditMode::ToggleAllManipulators()
 	}
 }
 
+bool FControlRigEditMode::AreControlsVisible() const
+{
+	if (!AreEditingControlRigDirectly())
+	{
+		TMap<UControlRig*, TArray<FRigElementKey>> SelectedControls;
+		GetAllSelectedControls(SelectedControls);
+		TArray<UControlRig*> ControlRigs;
+		SelectedControls.GenerateKeyArray(ControlRigs);
+		for (UControlRig* ControlRig : ControlRigs)
+		{
+			if (ControlRig)
+			{
+				if (!ControlRig->bControlsVisible)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	
+	UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>();
+	return !Settings->bHideControlShapes;
+}
+
 void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 {
 	// Gather up the control rigs for the selected controls
@@ -3312,6 +3400,8 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 	}
 
 	FScopedTransaction Transaction(LOCTEXT("HierarchyZeroTransforms", "Zero Transforms"));
+	FRigControlModifiedContext Context;
+	Context.SetKey = EControlRigSetKey::DoNotCare;
 
 	for (UControlRig* ControlRig : ControlRigs)
 	{
@@ -3404,10 +3494,11 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 			}
 			if (ControlElement)
 			{
-				ControlRig->SetControlLocalTransform(ElementToReset.Name, InitialLocalTransform, true, FRigControlModifiedContext(), true, true);
+				ControlRig->SetControlLocalTransform(ElementToReset.Name, InitialLocalTransform, true, Context, true, true);
 				const FVector InitialAngles = ControlRig->GetHierarchy()->GetControlPreferredEulerAngles(ControlElement, ControlElement->Settings.PreferredRotationOrder, true);
 				ControlRig->GetHierarchy()->SetControlPreferredEulerAngles(ControlElement, InitialAngles, ControlElement->Settings.PreferredRotationOrder);
-				NotifyDrivenControls(ControlRig, ElementToReset);
+				NotifyDrivenControls(ControlRig, ElementToReset, Context);
+
 				if (bHasNonDefaultParent == false)
 				{
 					ControlRig->ControlModified().Broadcast(ControlRig, ControlElement, EControlRigSetKey::DoNotCare);
@@ -3441,7 +3532,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 						FTransform GlobalTransform = ControlRig->GetHierarchy()->GetGlobalTransform(ElementToReset);
 						GlobalTransforms.Add(ElementToReset, GlobalTransform);
 					}
-					NotifyDrivenControls(ControlRig, ElementToReset);
+					NotifyDrivenControls(ControlRig, ElementToReset,Context);
 				}
 				else
 				{
@@ -3483,7 +3574,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 							{
 								ControlRig->SetControlGlobalTransform(ElementToReset.Name, *GlobalTransform, true);
 								ControlRig->Evaluate_AnyThread();
-								NotifyDrivenControls(ControlRig, ElementToReset);
+								NotifyDrivenControls(ControlRig, ElementToReset, Context);
 							}
 						}
 						else
@@ -3513,7 +3604,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 			ControlRig->Evaluate_AnyThread();
 			for (const FRigElementKey& ControlToReset : ControlsToReset)
 			{
-				NotifyDrivenControls(ControlRig, ControlToReset);
+				NotifyDrivenControls(ControlRig, ControlToReset, Context);
 			}
 		}
 	}
@@ -3572,19 +3663,46 @@ void FControlRigEditMode::InvertInputPose(bool bSelectionOnly)
 	}
 }
 
-bool FControlRigEditMode::MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y)
+bool FControlRigEditMode::MouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InX, int32 InY)
 {
-	// Inform units of hover state
-	HActor* ActorHitProxy = HitProxyCast<HActor>(Viewport->GetHitProxy(x, y));
-	if(ActorHitProxy && ActorHitProxy->Actor)
+	// avoid hit proxy cast as much as possible
+	// NOTE: with synthesized mouse moves, this is being called a lot sadly so playing in sequencer with the mouse over the viewport leads to fps drop
+	auto HasAnyHoverableShapeActor = [this, InViewportClient]()
 	{
-		if (ActorHitProxy->Actor->IsA<AControlRigShapeActor>())
+		if (!InViewportClient || InViewportClient->IsInGameView())
 		{
-			for (auto& ShapeActors : ControlRigShapeActors)
+			return false;
+		}
+		
+		for (auto&[ControlRig, ShapeActors]: ControlRigShapeActors)
+		{
+			for (const AControlRigShapeActor* ShapeActor : ShapeActors)
 			{
-				for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
+				if (ShapeActor && ShapeActor->IsSelectable() && !ShapeActor->IsTemporarilyHiddenInEditor())
 				{
-					ShapeActor->SetHovered(ShapeActor == ActorHitProxy->Actor);
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	
+	if (HasAnyHoverableShapeActor())
+	{	
+		const HActor* ActorHitProxy = HitProxyCast<HActor>(InViewport->GetHitProxy(InX, InY));
+		const AControlRigShapeActor* HitShape = ActorHitProxy && ActorHitProxy->Actor ? Cast<AControlRigShapeActor>(ActorHitProxy->Actor) : nullptr;
+		auto IsHovered = [HitShape](const AControlRigShapeActor* InShapeActor)
+		{
+			return HitShape ? InShapeActor == HitShape : false;
+		};
+
+		for (const auto& [ControlRig, Shapes] : ControlRigShapeActors)
+		{
+			for (AControlRigShapeActor* ShapeActor : Shapes)
+			{
+				if (ShapeActor)
+				{
+					ShapeActor->SetHovered(IsHovered(ShapeActor));
 				}
 			}
 		}
@@ -3593,8 +3711,32 @@ bool FControlRigEditMode::MouseMove(FEditorViewportClient* ViewportClient, FView
 	return false;
 }
 
-bool FControlRigEditMode::MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport)
+bool FControlRigEditMode::MouseEnter(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InX, int32 InY)
 {
+	if (PendingFocus.IsEnabled() && InViewportClient)
+	{
+		const FEditorModeTools* ModeTools = GetModeManager();  
+		if (ModeTools && ModeTools == &GLevelEditorModeTools())
+		{
+			FEditorViewportClient* HoveredVPC = ModeTools->GetHoveredViewportClient();
+			if (HoveredVPC == InViewportClient)
+			{
+				const TWeakPtr<SViewport> ViewportWidget = InViewportClient->GetEditorViewportWidget()->GetSceneViewport()->GetViewportWidget();
+				if (ViewportWidget.IsValid())
+				{
+					PendingFocus.SetPendingFocusIfNeeded(ViewportWidget.Pin()->GetContent());
+				}
+			}
+		}
+	}
+
+	return IPersonaEditMode::MouseEnter(InViewportClient, InViewport, InX, InY);
+}
+
+bool FControlRigEditMode::MouseLeave(FEditorViewportClient* /*InViewportClient*/, FViewport* /*InViewport*/)
+{
+	PendingFocus.ResetPendingFocus();
+	
 	for (auto& ShapeActors : ControlRigShapeActors)
 	{
 		for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
@@ -3604,6 +3746,56 @@ bool FControlRigEditMode::MouseLeave(FEditorViewportClient* ViewportClient, FVie
 	}
 
 	return false;
+}
+
+void FControlRigEditMode::RegisterPendingFocusMode()
+{
+	if (!IsInLevelEditor())
+	{
+		return;
+	}
+	
+	static IConsoleVariable* UseFocusMode = CRModeLocals::GetFocusModeVariable();
+	if (ensure(UseFocusMode))
+	{
+		auto OnFocusModeChanged = [this](IConsoleVariable*)
+		{
+			PendingFocus.Enable(CRModeLocals::bFocusMode);
+			if (WeakSequencer.IsValid())
+			{
+				TSharedPtr<ISequencer> PreviousSequencer = WeakSequencer.Pin();
+				TSharedRef<SSequencer> PreviousSequencerWidget = StaticCastSharedRef<SSequencer>(PreviousSequencer->GetSequencerWidget());
+				PreviousSequencerWidget->EnablePendingFocusOnHovering(CRModeLocals::bFocusMode);
+			}
+		};
+		if (!PendingFocusHandle.IsValid())
+		{
+			PendingFocusHandle = UseFocusMode->OnChangedDelegate().AddLambda(OnFocusModeChanged);
+		}		
+		OnFocusModeChanged(UseFocusMode);
+	}
+}
+
+void FControlRigEditMode::UnregisterPendingFocusMode()
+{
+	static constexpr bool bDisable = false;
+	if (WeakSequencer.IsValid())
+	{
+		TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(WeakSequencer.Pin()->GetSequencerWidget());
+		SequencerWidget->EnablePendingFocusOnHovering(bDisable);
+	}
+
+	PendingFocus.Enable(bDisable);
+	
+	if (PendingFocusHandle.IsValid())
+	{
+		static IConsoleVariable* UseFocusMode = CRModeLocals::GetFocusModeVariable();
+		if (ensure(UseFocusMode))
+		{
+			UseFocusMode->OnChangedDelegate().Remove(PendingFocusHandle);
+		}
+		PendingFocusHandle.Reset();
+	}
 }
 
 bool FControlRigEditMode::CheckMovieSceneSig()
@@ -3785,10 +3977,133 @@ static bool IsSupportedControlType(const ERigControlType ControlType)
 	return false;
 }
 
-void FControlRigEditMode::RecreateControlShapeActors(const TArray<FRigElementKey>& InSelectedElements)
+bool FControlRigEditMode::TryUpdatingControlsShapes(UControlRig* InControlRig)
+{
+	using namespace ControlRigEditMode::Shapes;
+	
+	const URigHierarchy* Hierarchy = InControlRig ? InControlRig->GetHierarchy() : nullptr;
+	if (!Hierarchy)
+	{
+		return false;
+	}
+
+	const auto* ShapeActors = ControlRigShapeActors.Find(InControlRig);
+	if (!ShapeActors)
+	{
+		// create the shapes if they don't already exist
+		CreateShapeActors(InControlRig);
+		return true;
+	}
+	
+	// get controls which need shapes
+	TArray<FRigControlElement*> Controls;
+	GetControlsEligibleForShapes(InControlRig, Controls);
+
+	if (Controls.IsEmpty())
+	{
+		// not control needing shape so clear the shape actors
+		DestroyShapesActors(InControlRig);
+		return true;
+	}
+	
+	const TArray<TObjectPtr<AControlRigShapeActor>>& Shapes = *ShapeActors;
+	const int32 NumShapes = Shapes.Num();
+
+	TArray<FRigControlElement*> ControlPerShapeActor;
+	ControlPerShapeActor.SetNumZeroed(NumShapes);
+
+	if (Controls.Num() == NumShapes)
+	{
+		//unfortunately n*n-ish but this should be very rare and much faster than recreating them
+		for (int32 ShapeActorIndex = 0; ShapeActorIndex < NumShapes; ShapeActorIndex++)
+		{
+			if (const AControlRigShapeActor* Actor = Shapes[ShapeActorIndex].Get())
+			{
+				const int32 ControlIndex = Controls.IndexOfByPredicate([Actor](const FRigControlElement* Control)
+				{
+					return Control && Control->GetFName() == Actor->ControlName;
+				});
+				if (ControlIndex != INDEX_NONE)
+				{
+					ControlPerShapeActor[ShapeActorIndex] = Controls[ControlIndex];
+					Controls.RemoveAtSwap(ControlIndex);
+				}
+			}
+			else //no actor just recreate
+			{
+				return false;
+			}
+		}
+	}
+
+	// Some controls don't have associated shape so recreate them 
+	if (!Controls.IsEmpty())
+	{
+		return false;
+	}
+
+	// we have matching controls - we should at least sync their settings.
+	// PostPoseUpdate / TickControlShape is going to take care of color, visibility etc.
+	// MeshTransform has to be handled here.
+	const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& ShapeLibraries = InControlRig->GetShapeLibraries();
+	for (int32 ShapeActorIndex = 0; ShapeActorIndex < NumShapes; ShapeActorIndex++)
+	{
+		const AControlRigShapeActor* ShapeActor = Shapes[ShapeActorIndex].Get();
+		FRigControlElement* ControlElement = ControlPerShapeActor[ShapeActorIndex];
+		if (ShapeActor && ControlElement)
+		{
+			const FTransform ShapeTransform = Hierarchy->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal);
+			if (const FControlRigShapeDefinition* ShapeDef = UControlRigShapeLibrary::GetShapeByName(ControlElement->Settings.ShapeName, ShapeLibraries, InControlRig->ShapeLibraryNameMap))
+			{
+				const FTransform& MeshTransform = ShapeDef->Transform;
+				if (UStaticMesh* ShapeMesh = ShapeDef->StaticMesh.LoadSynchronous())
+				{
+					if(ShapeActor->StaticMeshComponent->GetStaticMesh() != ShapeMesh)
+					{
+						ShapeActor->StaticMeshComponent->SetStaticMesh(ShapeMesh);
+					}
+				}
+				ShapeActor->StaticMeshComponent->SetRelativeTransform(MeshTransform * ShapeTransform);
+			}
+			else
+			{
+				ShapeActor->StaticMeshComponent->SetRelativeTransform(ShapeTransform);
+			}
+		}
+	}
+
+	// equivalent to PostPoseUpdate for those shapes only
+	FTransform ComponentTransform = FTransform::Identity;
+	if (!AreEditingControlRigDirectly())
+	{
+		ComponentTransform = GetHostingSceneComponentTransform(InControlRig);
+	}
+		
+	const FShapeUpdateParams Params(InControlRig, ComponentTransform, IsControlRigSkelMeshVisible(InControlRig));
+	for (int32 ShapeActorIndex = 0; ShapeActorIndex < NumShapes; ShapeActorIndex++)
+	{
+		AControlRigShapeActor* ShapeActor = Shapes[ShapeActorIndex].Get();
+		FRigControlElement* ControlElement = ControlPerShapeActor[ShapeActorIndex];
+		if (ShapeActor && ControlElement)
+		{
+			UpdateControlShape(ShapeActor, ControlElement, Params);
+		}
+
+		// workaround for UE-225122, FPrimitiveSceneProxy currently lazily updates the transform, but due to a thread sync issue,
+		// if we are setting the transform to 0 at tick 1 and setting it to the correct value like 100 at tick2, depending on
+		// the value of the cached transform, only one of the two sets would be committed. This call clears the cached transform to 0 such that
+		// set to 0(here) is always ignored and set to 100(TickControlShape) is always accepted.
+		ShapeActor->MarkComponentsRenderStateDirty();
+	}
+
+	return true;
+}
+
+void FControlRigEditMode::RecreateControlShapeActors()
 {
 	if (RecreateControlShapesRequired == ERecreateControlRigShape::RecreateAll)
 	{
+		// recreate all control rigs shape actors
 		for (TWeakObjectPtr<UControlRig>& RuntimeRigPtr : RuntimeControlRigs)
 		{
 			if (UControlRig* RuntimeControlRig = RuntimeRigPtr.Get())
@@ -3797,184 +4112,122 @@ void FControlRigEditMode::RecreateControlShapeActors(const TArray<FRigElementKey
 				CreateShapeActors(RuntimeControlRig);
 			}
 		}
+		RecreateControlShapesRequired = ERecreateControlRigShape::RecreateNone;
+		return;
 	}
-	else if (ControlRigsToRecreate.Num() > 0)
+
+	if (ControlRigsToRecreate.IsEmpty())
 	{
-		TArray < UControlRig*> ControlRigsCopy = ControlRigsToRecreate;
-		for (UControlRig* ControlRig : ControlRigsCopy)
-		{
-			//check to see if actors have really changed, if not don't do it
-			bool bRecreateThem = true;
-			if (auto* ShapeActors = ControlRigShapeActors.Find(ControlRig))
-			{
-				TArray<FRigControlElement*> Controls = ControlRig->AvailableControls();
-				TArray<FRigControlElement*> ControlPerShapeActor;
-				ControlPerShapeActor.SetNumZeroed(ShapeActors->Num());
-				
-				if(Controls.Num() == ShapeActors->Num())
-				{
-					for (int32 ControlIndex = Controls.Num() - 1; ControlIndex >= 0; --ControlIndex)
-					{
-						FRigControlElement* ControlElement = Controls[ControlIndex];
-						if (!ControlElement->Settings.SupportsShape() || !IsSupportedControlType(ControlElement->Settings.ControlType))
-						{
-							Controls.RemoveAtSwap(ControlIndex);
-						}
-					}
-					//unfortunately n*n-ish but this should be very rare and much faster than recreating them
-					for (int32 ShapeActorIndex = 0; ShapeActorIndex < ShapeActors->Num(); ShapeActorIndex++)
-					{
-						const AControlRigShapeActor* Actor = ShapeActors->operator[](ShapeActorIndex).Get();
-						if (Actor)
-						{
-							for (int32 ControlIndex = 0; ControlIndex < Controls.Num(); ++ControlIndex)
-							{
-								FRigControlElement* Element = Controls[ControlIndex];
-								if (Element && Element->GetFName() == Actor->ControlName)
-								{
-									Controls.RemoveAtSwap(ControlIndex);
-									ControlPerShapeActor[ShapeActorIndex] = Element;
-									break;
-								}
-							}
-						}
-						else //no actor just recreate
-						{
-							break;
-						}
-					}
-				}
-				if (Controls.Num() == 0)
-				{
-					bRecreateThem = false;
-
-					// we have matching controls - we should at least sync their settings.
-					// PostPoseUpdate / TickControlShape is going to take care of color, visibility etc.
-					// MeshTransform has to be handled here.
-					for (int32 ShapeActorIndex = 0; ShapeActorIndex < ShapeActors->Num(); ShapeActorIndex++)
-					{
-						const AControlRigShapeActor* ShapeActor = ShapeActors->operator[](ShapeActorIndex).Get();
-						FRigControlElement* ControlElement = ControlPerShapeActor[ShapeActorIndex];
-						if (ShapeActor && ControlElement)
-						{
-							const FTransform ShapeTransform = ControlRig->GetHierarchy()->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal);
-							FTransform MeshTransform = FTransform::Identity;
-							if (const FControlRigShapeDefinition* ShapeDef = UControlRigShapeLibrary::GetShapeByName(ControlElement->Settings.ShapeName, ControlRig->GetShapeLibraries(), ControlRig->ShapeLibraryNameMap))
-							{
-								MeshTransform = ShapeDef->Transform;
-
-								if(UStaticMesh* ShapeMesh = ShapeDef->StaticMesh.LoadSynchronous())
-								{
-									if(ShapeActor->StaticMeshComponent->GetStaticMesh() != ShapeMesh)
-									{
-										ShapeActor->StaticMeshComponent->SetStaticMesh(ShapeMesh);
-									}
-								}
-							}
-							ShapeActor->StaticMeshComponent->SetRelativeTransform(MeshTransform * ShapeTransform);
-						}
-					}
-					
-					PostPoseUpdate();
-				}
-			}
-			if (bRecreateThem)
-			{
-				DestroyShapesActors(ControlRig);
-				CreateShapeActors(ControlRig);
-			}
-		}
-		ControlRigsToRecreate.SetNum(0);
+		// nothing to update
+		return;
 	}
+	
+	// update or recreate all control rigs in ControlRigsToRecreate
+	TArray<UControlRig*> ControlRigsCopy = ControlRigsToRecreate;
+	for (UControlRig* ControlRig : ControlRigsCopy)
+	{
+		const bool bUpdated = TryUpdatingControlsShapes(ControlRig);
+		if (!bUpdated)
+		{
+			DestroyShapesActors(ControlRig);
+			CreateShapeActors(ControlRig);
+		}
+	}
+	RecreateControlShapesRequired = ERecreateControlRigShape::RecreateNone;
+	ControlRigsToRecreate.SetNum(0);
 }
 
-void FControlRigEditMode::CreateShapeActors(UControlRig* ControlRig)
+void FControlRigEditMode::CreateShapeActors(UControlRig* InControlRig)
 {
-	// create gizmo actors
-	FActorSpawnParameters ActorSpawnParameters;
-	ActorSpawnParameters.bTemporaryEditorActor = true;
-
+	using namespace ControlRigEditMode::Shapes;
+	
 	if(bShowControlsAsOverlay)
 	{
 		// enable translucent selection
 		GetMutableDefault<UEditorPerProjectUserSettings>()->bAllowSelectTranslucent = true;
 	}
 
-	TArray<FRigControlElement*> Controls = ControlRig->AvailableControls();
-	const TArray<TSoftObjectPtr<UControlRigShapeLibrary>> ShapeLibraries = ControlRig->GetShapeLibraries();
-	int32 ControlRigIndex = RuntimeControlRigs.Find(ControlRig);
+	const TArray<TSoftObjectPtr<UControlRigShapeLibrary>> ShapeLibraries = InControlRig->GetShapeLibraries();
+
+	const int32 ControlRigIndex = RuntimeControlRigs.Find(InControlRig);
+	const URigHierarchy* Hierarchy = InControlRig->GetHierarchy();
+
+	// get controls for which shapes are needed in the editor
+	TArray<FRigControlElement*> Controls;
+	GetControlsEligibleForShapes(InControlRig, Controls);
+
+	// new shape actors to be created
+	TArray<AControlRigShapeActor*> NewShapeActors;
+	NewShapeActors.Reserve(Controls.Num());
+
 	for (FRigControlElement* ControlElement : Controls)
 	{
-		if (!ControlElement->Settings.SupportsShape())
+		const FRigControlSettings& ControlSettings = ControlElement->Settings;
+		
+		FControlShapeActorCreationParam Param;
+		Param.ManipObj = InControlRig;
+		Param.ControlRigIndex = ControlRigIndex;
+		Param.ControlRig = InControlRig;
+		Param.ControlName = ControlElement->GetFName();
+		Param.ShapeName = ControlSettings.ShapeName;
+		Param.SpawnTransform = InControlRig->GetControlGlobalTransform(ControlElement->GetFName());
+		Param.ShapeTransform = Hierarchy->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal);
+		Param.bSelectable = ControlSettings.IsSelectable(false);
+
+		if (const FControlRigShapeDefinition* ShapeDef = UControlRigShapeLibrary::GetShapeByName(ControlSettings.ShapeName, ShapeLibraries, InControlRig->ShapeLibraryNameMap))
 		{
-			continue;
+			Param.MeshTransform = ShapeDef->Transform;
+			Param.StaticMesh = ShapeDef->StaticMesh;
+			Param.Material = ShapeDef->Library->DefaultMaterial;
+			if (bShowControlsAsOverlay)
+			{
+				TSoftObjectPtr<UMaterial> XRayMaterial = ShapeDef->Library->XRayMaterial;
+				if (XRayMaterial.IsPending())
+				{
+					XRayMaterial.LoadSynchronous();
+				}
+				if (XRayMaterial.IsValid())
+				{
+					Param.Material = XRayMaterial;
+				}
+			}
+			Param.ColorParameterName = ShapeDef->Library->MaterialColorParameter;
 		}
-		if (IsSupportedControlType(ControlElement->Settings.ControlType))
+
+		Param.Color = ControlSettings.ShapeColor;
+
+		// create a new shape actor that will represent that control in the editor
+		AControlRigShapeActor* NewShapeActor = FControlRigShapeHelper::CreateDefaultShapeActor(WorldPtr, Param);
+		if (NewShapeActor)
 		{
-			FControlShapeActorCreationParam Param;
-			Param.ManipObj = ControlRig;
-			Param.ControlRigIndex = ControlRigIndex;
-			Param.ControlRig = ControlRig;
-			Param.ControlName = ControlElement->GetFName();
-			Param.ShapeName = ControlElement->Settings.ShapeName;
-			Param.SpawnTransform = ControlRig->GetControlGlobalTransform(ControlElement->GetFName());
-			Param.ShapeTransform = ControlRig->GetHierarchy()->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal);
-			Param.bSelectable = ControlElement->Settings.IsSelectable(false);
-
-			if (const FControlRigShapeDefinition* ShapeDef = UControlRigShapeLibrary::GetShapeByName(ControlElement->Settings.ShapeName, ShapeLibraries, ControlRig->ShapeLibraryNameMap))
-			{
-				Param.MeshTransform = ShapeDef->Transform;
-				Param.StaticMesh = ShapeDef->StaticMesh;
-				Param.Material = ShapeDef->Library->DefaultMaterial;
-				if (bShowControlsAsOverlay)
-				{
-					TSoftObjectPtr<UMaterial> XRayMaterial = ShapeDef->Library->XRayMaterial;
-					if (XRayMaterial.IsPending())
-					{
-						XRayMaterial.LoadSynchronous();
-					}
-					if (XRayMaterial.IsValid())
-					{
-						Param.Material = XRayMaterial;
-					}
-				}
-				Param.ColorParameterName = ShapeDef->Library->MaterialColorParameter;
-			}
-
-			Param.Color = ControlElement->Settings.ShapeColor;
-
-			AControlRigShapeActor* ShapeActor = FControlRigShapeHelper::CreateDefaultShapeActor(WorldPtr, Param);
-			if (ShapeActor)
-			{
-				//not drawn in game or in game view.
-				ShapeActor->SetActorHiddenInGame(true);
-				auto* ShapeActors = ControlRigShapeActors.Find(ControlRig);
-				if (ShapeActors)
-				{
-					ShapeActors->Add(ShapeActor);
-				}
-				else
-				{
-					TArray<AControlRigShapeActor*> NewShapeActors;
-					NewShapeActors.Add(ShapeActor);
-					ControlRigShapeActors.Add(ControlRig, ObjectPtrWrap(NewShapeActors));
-				}
-			}
+			//not drawn in game or in game view.
+			NewShapeActor->SetActorHiddenInGame(true);
+			NewShapeActors.Add(NewShapeActor);
 		}
 	}
 
-
-	USceneComponent* Component = GetHostingSceneComponent(ControlRig);
-	if (Component)
+	// add or replace shape actors
+	auto* ShapeActors = ControlRigShapeActors.Find(InControlRig);
+	if (ShapeActors)
 	{
-		AActor* PreviewActor = Component->GetOwner();
+		// this shouldn't happen but make sure we destroy any existing shape
+		DestroyShapesActorsFromWorld(*ShapeActors);
+		*ShapeActors = NewShapeActors;
+	}
+	else
+	{
+		ShapeActors = &ControlRigShapeActors.Emplace(InControlRig, ObjectPtrWrap(NewShapeActors));
+	}
 
-		const auto* ShapeActors = ControlRigShapeActors.Find(ControlRig);
-		if (ShapeActors)
+	// setup shape actors
+	if(ensure(ShapeActors))
+	{
+		const USceneComponent* Component = GetHostingSceneComponent(InControlRig);
+		if (AActor* PreviewActor = Component ? Component->GetOwner() : nullptr)
 		{
 			for (AControlRigShapeActor* ShapeActor : *ShapeActors)
 			{
-				// attach to preview actor, so that we can communicate via relative transfrom from the previewactor
+				// attach to preview actor, so that we can communicate via relative transform from the preview actor
 				ShapeActor->AttachToActor(PreviewActor, FAttachmentTransformRules::KeepWorldTransform);
 
 				TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
@@ -3987,24 +4240,14 @@ void FControlRigEditMode::CreateShapeActors(UControlRig* ControlRig)
 			}
 		}
 	}
+
 	if (!AreEditingControlRigDirectly())
 	{
-
 		if (ControlProxy)
 		{
-			ControlProxy->RecreateAllProxies(ControlRig);
+			ControlProxy->RecreateAllProxies(InControlRig);
 		}
 	}
-	/** MZ got rid of this make sure it's okay
-	for (const FRigElementKey& SelectedElement : InSelectedElements)
-	{
-		if(FRigControlElement* ControlElement = ControlRig->FindControl(SelectedElement.Name))
-		{
-			OnHierarchyModified(ERigHierarchyNotification::ElementSelected, ControlRig->GetHierarchy(), ControlElement);
-		}
-	}
-	*/
-	
 }
 
 FControlRigEditMode* FControlRigEditMode::GetEditModeFromWorldContext(UWorld* InWorldContext)
@@ -4225,7 +4468,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
             	case ERigElementType::Null:
             	case ERigElementType::Curve:
             	case ERigElementType::Control:
-            	case ERigElementType::RigidBody:
+            	case ERigElementType::Physics:
             	case ERigElementType::Reference:
             	case ERigElementType::Connector:
             	case ERigElementType::Socket:
@@ -4303,7 +4546,13 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 														ParentControlElement->GetKey() == ControlElement->GetKey())
 													{
 														ControlProxy->SelectProxy(ControlRig, AnimationChannelControl, bSelected);
+														return true;
 													}
+												}
+												if(AnimationChannelControl->Settings.Customization.AvailableSpaces.Contains(ControlElement->GetKey()))
+												{
+													ControlProxy->SelectProxy(ControlRig, AnimationChannelControl, bSelected);
+													return true;
 												}
 											}
 											return true;
@@ -4525,6 +4774,28 @@ bool FControlRigEditMode::CanChangeControlShapeTransform()
 	return false;
 }
 
+void FControlRigEditMode::OnSettingsChanged(const UControlRigEditModeSettings* InSettings)
+{
+	if (!InSettings)
+	{
+		return;
+	}
+	
+	// check if the settings for xray rendering are different for any of the control shape actors
+	if(bShowControlsAsOverlay != InSettings->bShowControlsAsOverlay)
+	{
+		bShowControlsAsOverlay = InSettings->bShowControlsAsOverlay;
+		for (TWeakObjectPtr<UControlRig>& RuntimeRigPtr : RuntimeControlRigs)
+		{
+			if (UControlRig* RuntimeControlRig = RuntimeRigPtr.Get())
+			{
+				UpdateSelectabilityOnSkeletalMeshes(RuntimeControlRig, !bShowControlsAsOverlay);
+			}
+		}
+		RequestToRecreateControlShapeActors();
+	}
+}
+
 void FControlRigEditMode::SetControlShapeTransform(
 	const AControlRigShapeActor* InShapeActor,
 	const FTransform& InGlobalTransform,
@@ -4615,175 +4886,147 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 	const bool bRotation, FRotator& InRot, const bool bScale, FVector& InScale, const FTransform& ToWorldTransform,
 	bool bUseLocal, bool bCalcLocal, FTransform& InOutLocal)
 {
+	UControlRig* ControlRig = ShapeActor ? ShapeActor->ControlRig.Get() : nullptr;
+	if (!ensure(ControlRig))
+	{
+		return;
+	}
+
 	bool bTransformChanged = false;
 
-	auto RotatorToStr = [](const FRotator& InRotator)
+	// In case for some reason the shape actor was detached, make sure to attach it again to the scene component
+	if (!ShapeActor->GetAttachParentActor())
 	{
-		FRigPreferredEulerAngles EulerAngles;
-		EulerAngles.SetRotator(InRotator);
-		return EulerAngles.Current.ToString();
-	};
-
-	auto UpdatePreferredEulerAngles = [ShapeActor, bRotation, InRot, RotatorToStr](UControlRig* InControlRig)
-	{
-		if(bRotation)
+		if (USceneComponent* SceneComponent = GetHostingSceneComponent(ControlRig))
 		{
-			if(FRigControlElement* ControlElement = InControlRig->GetHierarchy()->Find<FRigControlElement>(ShapeActor->GetElementKey()))
+			if (AActor* OwnerActor = SceneComponent->GetOwner())
 			{
-				//if(ControlElement->Settings.bUsePreferredRotationOrder) always set rotation order since
-				//sequencer depends upon it
-				{
-					FRotator Rot = ControlElement->PreferredEulerAngles.GetRotator();
-
-					// Split the current rotation between winding and remainder
-					FRotator CurrentRotWind, CurrentRotRem;
-					Rot.GetWindingAndRemainder(CurrentRotWind, CurrentRotRem);
-
-					// Apply the delta to the current remainder, and normalize
-					FRotator NewRotRem = CurrentRotRem + InRot;
-					NewRotRem.Normalize();
-
-					// Add the current winding to the new remainder
-					const FRotator Final = CurrentRotWind + NewRotRem;
-					
-					InControlRig->GetHierarchy()->SetControlPreferredRotator(ControlElement, Final, false, false);
-				}
+				ShapeActor->AttachToActor(OwnerActor, FAttachmentTransformRules::KeepWorldTransform);
 			}
 		}
-	};
+	}
 	
 	//first case is where we do all controls by the local diff.
 	if (bUseLocal)
 	{
-		if (UControlRig* ControlRig = ShapeActor->ControlRig.Get())
-		{
-			FRigControlModifiedContext Context;
-			Context.EventName = FRigUnit_BeginExecution::EventName;
-			FTransform CurrentLocalTransform = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
-			if (bRotation)
-			{
-
-				FQuat CurrentRotation = CurrentLocalTransform.GetRotation();
-				CurrentRotation = (CurrentRotation * InOutLocal.GetRotation());
-				CurrentLocalTransform.SetRotation(CurrentRotation);
-				bTransformChanged = true;
-			}
-
-			if (bTranslation)
-			{
-				FVector CurrentLocation = CurrentLocalTransform.GetLocation();
-				CurrentLocation = CurrentLocation + InOutLocal.GetLocation();
-				CurrentLocalTransform.SetLocation(CurrentLocation);
-				bTransformChanged = true;
-			}
-
-			if (bTransformChanged)
-			{
-				ControlRig->InteractionType = InteractionType;
-				ControlRig->ElementsBeingInteracted.AddUnique(ShapeActor->GetElementKey());
-				
-				ControlRig->SetControlLocalTransform(ShapeActor->ControlName, CurrentLocalTransform,true, FRigControlModifiedContext(), true, /*fix eulers*/ true);
-				//UpdatePreferredEulerAngles(ControlRig);
-
-				FTransform CurrentTransform  = ControlRig->GetControlGlobalTransform(ShapeActor->ControlName);			// assumes it's attached to actor
-				CurrentTransform = ToWorldTransform * CurrentTransform;
-
-				// make the transform relative to the offset transform again.
-				// first we'll make it relative to the offset used at the time of starting the drag
-				// and then we'll make it absolute again based on the current offset. these two can be
-				// different if we are interacting on a control on an animated character
-				CurrentTransform = CurrentTransform.GetRelativeTransform(ShapeActor->OffsetTransform);
-				CurrentTransform = CurrentTransform * ControlRig->GetHierarchy()->GetGlobalControlOffsetTransform(ShapeActor->GetElementKey(), false);
-				
-				ShapeActor->SetGlobalTransform(CurrentTransform);
-
-				ControlRig->Evaluate_AnyThread();
-			}
-		}
-	}
-	if(!bTransformChanged) //not local or doing scale.
-	{
-		FTransform CurrentTransform = GetControlShapeTransform(ShapeActor) * ToWorldTransform;
+		FTransform CurrentLocalTransform = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
 
 		if (bRotation)
 		{
-			FQuat CurrentRotation = CurrentTransform.GetRotation();
-			CurrentRotation = (InRot.Quaternion() * CurrentRotation);
-			CurrentTransform.SetRotation(CurrentRotation);
+			FQuat CurrentRotation = CurrentLocalTransform.GetRotation();
+			CurrentRotation = (CurrentRotation * InOutLocal.GetRotation());
+			CurrentLocalTransform.SetRotation(CurrentRotation);
 			bTransformChanged = true;
 		}
 
 		if (bTranslation)
 		{
-			FVector CurrentLocation = CurrentTransform.GetLocation();
-			CurrentLocation = CurrentLocation + InDrag;
-			CurrentTransform.SetLocation(CurrentLocation);
-			bTransformChanged = true;
-		}
-
-		if (bScale)
-		{
-			FVector CurrentScale = CurrentTransform.GetScale3D();
-			CurrentScale = CurrentScale + InScale;
-			CurrentTransform.SetScale3D(CurrentScale);
+			FVector CurrentLocation = CurrentLocalTransform.GetLocation();
+			CurrentLocation = CurrentLocation + InOutLocal.GetLocation();
+			CurrentLocalTransform.SetLocation(CurrentLocation);
 			bTransformChanged = true;
 		}
 
 		if (bTransformChanged)
 		{
-			if (UControlRig* ControlRig = ShapeActor->ControlRig.Get())
-			{
-				ControlRig->InteractionType = InteractionType;
-				ControlRig->ElementsBeingInteracted.AddUnique(ShapeActor->GetElementKey());
+			ControlRig->InteractionType = InteractionType;
+			ControlRig->ElementsBeingInteracted.AddUnique(ShapeActor->GetElementKey());
+			
+			ControlRig->SetControlLocalTransform(ShapeActor->ControlName, CurrentLocalTransform,true, FRigControlModifiedContext(), true, /*fix eulers*/ true);
 
-				FTransform NewTransform = CurrentTransform.GetRelativeTransform(ToWorldTransform);
-				FRigControlModifiedContext Context;
-				Context.EventName = FRigUnit_BeginExecution::EventName;
-				Context.bConstraintUpdate = true;
-				if (bCalcLocal)
-				{
-					InOutLocal = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
-				}
+			FTransform CurrentTransform  = ControlRig->GetControlGlobalTransform(ShapeActor->ControlName);			// assumes it's attached to actor
+			CurrentTransform = ToWorldTransform * CurrentTransform;
 
-				bool bPrintPythonCommands = false;
-				if (UWorld* World = ControlRig->GetWorld())
-				{
-					bPrintPythonCommands = World->IsPreviewWorld();
-				}
+			// make the transform relative to the offset transform again.
+			// first we'll make it relative to the offset used at the time of starting the drag
+			// and then we'll make it absolute again based on the current offset. these two can be
+			// different if we are interacting on a control on an animated character
+			CurrentTransform = CurrentTransform.GetRelativeTransform(ShapeActor->OffsetTransform);
+			CurrentTransform = CurrentTransform * ControlRig->GetHierarchy()->GetGlobalControlOffsetTransform(ShapeActor->GetElementKey(), false);
+			
+			ShapeActor->SetGlobalTransform(CurrentTransform);
 
-				bool bIsTransientControl = false;
-				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
-				{
-					bIsTransientControl = ControlElement->Settings.bIsTransientControl;
-				}
+			ControlRig->Evaluate_AnyThread();
 
-				// if we are operating on a PIE instance which is playing we need to reapply the input pose
-				// since the hierarchy will also have been brought into the solved pose. by reapplying the
-				// input pose we avoid double transformation / double forward solve results.
-				if(bIsTransientControl && ControlRig->GetWorld()->IsPlayInEditor() && !ControlRig->GetWorld()->IsPaused())
-				{
-					ControlRig->GetHierarchy()->SetPose(ControlRig->InputPoseOnDebuggedRig);
-				}
-				
-				ControlRig->Evaluate_AnyThread();
-				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, /*fix flips*/ true);
-				//UpdatePreferredEulerAngles(ControlRig);
-				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey());
-				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
-				{
-					if(!bIsTransientControl)
-					{
-						ControlRig->Evaluate_AnyThread();
-					}
-				}
-				ShapeActor->SetGlobalTransform(CurrentTransform);
-				if (bCalcLocal)
-				{
-					FTransform NewLocal = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
-					InOutLocal = NewLocal.GetRelativeTransform(InOutLocal);
-				}
+			return;
+		}
+	}
 
-			}
+
+	//not local or doing scale.
+	FTransform CurrentTransform = GetControlShapeTransform(ShapeActor) * ToWorldTransform;
+
+	if (bRotation)
+	{
+		FQuat CurrentRotation = CurrentTransform.GetRotation();
+		CurrentRotation = (InRot.Quaternion() * CurrentRotation);
+		CurrentTransform.SetRotation(CurrentRotation);
+		bTransformChanged = true;
+	}
+
+	if (bTranslation)
+	{
+		FVector CurrentLocation = CurrentTransform.GetLocation();
+		CurrentLocation = CurrentLocation + InDrag;
+		CurrentTransform.SetLocation(CurrentLocation);
+		bTransformChanged = true;
+	}
+
+	if (bScale)
+	{
+		FVector CurrentScale = CurrentTransform.GetScale3D();
+		CurrentScale = CurrentScale + InScale;
+		CurrentTransform.SetScale3D(CurrentScale);
+		bTransformChanged = true;
+	}
+
+	if (bTransformChanged)
+	{
+		ControlRig->InteractionType = InteractionType;
+		ControlRig->ElementsBeingInteracted.AddUnique(ShapeActor->GetElementKey());
+
+		FTransform NewTransform = CurrentTransform.GetRelativeTransform(ToWorldTransform);
+		
+		FRigControlModifiedContext Context;
+		Context.EventName = FRigUnit_BeginExecution::EventName;
+		Context.bConstraintUpdate = true;
+
+		if (bCalcLocal)
+		{
+			InOutLocal = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
+		}
+
+		const UWorld* World = ControlRig->GetWorld();
+		const bool bPrintPythonCommands = World ? World->IsPreviewWorld() : false;
+
+		const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName);
+		const bool bIsTransientControl = ControlElement ? ControlElement->Settings.bIsTransientControl : false;
+
+		// if we are operating on a PIE instance which is playing we need to reapply the input pose
+		// since the hierarchy will also have been brought into the solved pose. by reapplying the
+		// input pose we avoid double transformation / double forward solve results.
+		if(bIsTransientControl && World && World->IsPlayInEditor() && !World->IsPaused())
+		{
+			ControlRig->GetHierarchy()->SetPose(ControlRig->InputPoseOnDebuggedRig);
+		}
+		
+		ControlRig->Evaluate_AnyThread();
+		//fix flips and do rotation orders only if not additive
+		const bool bFixEulerFlips = !ControlRig->IsAdditive();
+		SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, bFixEulerFlips);
+		NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey(),Context);
+
+		if (ControlElement && !bIsTransientControl)
+		{
+			ControlRig->Evaluate_AnyThread();
+		}
+		
+		ShapeActor->SetGlobalTransform(CurrentTransform);
+
+		if (bCalcLocal)
+		{
+			FTransform NewLocal = ControlRig->GetControlLocalTransform(ShapeActor->ControlName);
+			InOutLocal = NewLocal.GetRelativeTransform(InOutLocal);
 		}
 	}
 }
@@ -4956,13 +5199,13 @@ bool FControlRigEditMode::ModeSupportedByShapeActor(const AControlRigShapeActor*
 	return false;
 }
 
-bool FControlRigEditMode::IsControlRigSkelMeshVisible(UControlRig* ControlRig) const
+bool FControlRigEditMode::IsControlRigSkelMeshVisible(const UControlRig* InControlRig) const
 {
 	if (IsInLevelEditor())
 	{
-		if (ControlRig)
+		if (InControlRig)
 		{
-			if (USceneComponent* SceneComponent = GetHostingSceneComponent(ControlRig))
+			if (const USceneComponent* SceneComponent = GetHostingSceneComponent(InControlRig))
 			{
 				const AActor* Actor = SceneComponent->GetTypedOuter<AActor>();
 				return Actor ? (Actor->IsHiddenEd() == false && SceneComponent->IsVisibleInEditor()) : SceneComponent->IsVisibleInEditor();
@@ -4989,7 +5232,7 @@ void FControlRigEditMode::TickControlShape(AControlRigShapeActor* ShapeActor, co
 					|| (IsControlRigSkelMeshVisible(ControlRig) == false);
 
 				bool bIsVisible = ControlElement->Settings.IsVisible();
-				bool bRespectVisibilityForSelection = true; 
+				bool bRespectVisibilityForSelection = IsInLevelEditor() ? false: true;
 
 				if(!bControlsHiddenInViewport)
 				{
@@ -5298,53 +5541,35 @@ void FControlRigEditMode::FMarqueeDragTool::RenderDragTool(const FSceneView* Vie
 	}
 }
 
-void FControlRigEditMode::DestroyShapesActors(UControlRig* ControlRig)
+void FControlRigEditMode::DestroyShapesActors(UControlRig* InControlRig)
 {
-	if (ControlRig == nullptr)
+	using namespace ControlRigEditMode::Shapes;
+	
+	if (!InControlRig)
 	{
+		// destroy all control rigs shape actors
 		for(auto& ShapeActors: ControlRigShapeActors)
 		{
-			for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
-			{
-				UWorld* World = ShapeActor->GetWorld();
-				if (World)
-				{
-					ShapeActor->UnregisterAllComponents();
-					if (ShapeActor->GetAttachParentActor())
-					{
-						ShapeActor->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
-					}
-					World->EditorDestroyActor(ShapeActor, true);
-				}
-			}
+			DestroyShapesActorsFromWorld(ShapeActors.Value);
 		}
+		
 		ControlRigShapeActors.Reset();
 		ControlRigsToRecreate.Reset();
+		
 		if (OnWorldCleanupHandle.IsValid())
 		{
 			FWorldDelegates::OnWorldCleanup.Remove(OnWorldCleanupHandle);
 		}
+		
+		return;
 	}
-	else
+
+	// only destroy control rigs shape actors related to InControlRig
+	ControlRigsToRecreate.Remove(InControlRig);
+	if (const auto* ShapeActors = ControlRigShapeActors.Find(InControlRig))
 	{
-		ControlRigsToRecreate.Remove(ControlRig);
-		const auto* ShapeActors = ControlRigShapeActors.Find(ControlRig);
-		if (ShapeActors)
-		{
-			for (AControlRigShapeActor* ShapeActor : *ShapeActors)
-			{
-				UWorld* World = ShapeActor->GetWorld();
-				if (World)
-				{
-					if (ShapeActor->GetAttachParentActor())
-					{
-						ShapeActor->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
-					}
-					World->EditorDestroyActor(ShapeActor,true);
-				}
-			}
-			ControlRigShapeActors.Remove(ControlRig);
-		}
+		DestroyShapesActorsFromWorld(*ShapeActors);
+		ControlRigShapeActors.Remove(InControlRig);
 	}
 }
 
@@ -5401,7 +5626,7 @@ FTransform FControlRigEditMode::GetHostingSceneComponentTransform(const UControl
 			ControlRig = GetControlRigs()[0].Get();
 		}
 
-		USceneComponent* HostingComponent = GetHostingSceneComponent(ControlRig);
+		const USceneComponent* HostingComponent = GetHostingSceneComponent(ControlRig);
 		return HostingComponent ? HostingComponent->GetComponentTransform() : FTransform::Identity;
 	}
 	return FTransform::Identity;
@@ -5429,14 +5654,15 @@ void FControlRigEditMode::PostPoseUpdate() const
 
 }
 
-void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey)
+void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey, const FRigControlModifiedContext& InContext)
 {
 	// if we are changing a proxy control - we also need to notify the change for the driven controls
 	if (FRigControlElement* ControlElement = InControlRig->GetHierarchy()->Find<FRigControlElement>(InKey))
 	{
 		if(ControlElement->CanDriveControls())
 		{
-			FRigControlModifiedContext Context;
+			const bool bFixEulerFlips = InControlRig->IsAdditive() == false ? true : false;
+			FRigControlModifiedContext Context(InContext);
 			Context.EventName = FRigUnit_BeginExecution::EventName;
 
 			for(const FRigElementKey& DrivenKey : ControlElement->Settings.DrivenControls)
@@ -5444,7 +5670,7 @@ void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const 
 				if(DrivenKey.Type == ERigElementType::Control)
 				{
 					const FTransform DrivenTransform = InControlRig->GetControlLocalTransform(DrivenKey.Name);
-					InControlRig->SetControlLocalTransform(DrivenKey.Name, DrivenTransform, true, Context, false /*undo*/, true/* bFixEulerFlips*/);
+					InControlRig->SetControlLocalTransform(DrivenKey.Name, DrivenTransform, true, Context, false /*undo*/, bFixEulerFlips);
 				}
 			}
 		}
@@ -5516,6 +5742,7 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 			}
 		}
 	}
+	
 
 	if (InObjectClass
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyTransform::StaticClass())
@@ -5527,6 +5754,11 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyBool::StaticClass())
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyInteger::StaticClass())
 		)
+	{
+		return true;
+	}
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimLayer::StaticClass()))
 	{
 		return true;
 	}
@@ -5627,16 +5859,23 @@ void FDetailKeyFrameCacheAndHandler::OnKeyPropertyClicked(const IPropertyHandle&
 	{
 		return;
 	}
+	FScopedTransaction ScopedTransaction(LOCTEXT("KeyAttribute", "Key Attribute"), !GIsTransacting);
 	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
 
 	TArray<UObject*> Objects;
 	KeyedPropertyHandle.GetOuterObjects(Objects);
 	for (UObject* Object : Objects)
 	{
-		UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object);
-		if (Proxy)
+		if (Object)
 		{
-			Proxy->SetKey(SequencerPtr, KeyedPropertyHandle);
+			if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object))
+			{
+				Proxy->SetKey(SequencerPtr, KeyedPropertyHandle);
+			}
+			else if (UAnimLayer* AnimLayer = (Object->GetTypedOuter<UAnimLayer>()))
+			{
+				AnimLayer->SetKey(SequencerPtr, KeyedPropertyHandle);
+			}
 		}
 	}
 }
@@ -5677,9 +5916,16 @@ EPropertyKeyedStatus FDetailKeyFrameCacheAndHandler::GetPropertyKeyedStatus(cons
 	
 	for (UObject* Object : OuterObjects)
 	{
-		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object))
+		if (Object)
 		{
-			KeyedStatus = Proxy->GetPropertyKeyedStatus(SequencerPtr,PropertyHandle);
+			if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object))
+			{
+				KeyedStatus = Proxy->GetPropertyKeyedStatus(SequencerPtr, PropertyHandle);
+			}
+			else if (UAnimLayer* AnimLayer = (Object->GetTypedOuter<UAnimLayer>()))
+			{
+				KeyedStatus = AnimLayer->GetPropertyKeyedStatus(SequencerPtr, PropertyHandle);
+			}
 		}
 		//else check to see if it's in sequencer
 	}
@@ -5762,5 +6008,105 @@ void FDetailKeyFrameCacheAndHandler::UpdateIfDirty()
 	}
 }
 
+namespace ControlRigEditMode::Shapes
+{
+
+void GetControlsEligibleForShapes(UControlRig* InControlRig, TArray<FRigControlElement*>& OutControls)
+{
+	OutControls.Reset();
+
+	const URigHierarchy* Hierarchy = InControlRig ? InControlRig->GetHierarchy() : nullptr;
+	if (!Hierarchy)
+	{
+		return;
+	}
+
+	OutControls = Hierarchy->GetFilteredElements<FRigControlElement>([](const FRigControlElement* ControlElement)
+	{
+		const FRigControlSettings& ControlSettings = ControlElement->Settings;
+		return ControlSettings.SupportsShape() && IsSupportedControlType(ControlSettings.ControlType);
+	});
+}
+
+void DestroyShapesActorsFromWorld(const TArray<TObjectPtr<AControlRigShapeActor>>& InShapeActorsToDestroy)
+{
+	// NOTE: should UWorld::EditorDestroyActor really modify the level when removing the shapes?
+	// kept for legacy but I guess this should be set to false
+	static constexpr bool bShouldModifyLevel = true;
+
+	for (const TObjectPtr<AControlRigShapeActor>& ShapeActorPtr: InShapeActorsToDestroy)
+	{
+		if (AControlRigShapeActor* ShapeActor = ShapeActorPtr.Get())
+		{
+			if (UWorld* World = ShapeActor->GetWorld())
+			{
+				if (ShapeActor->GetAttachParentActor())
+				{
+					ShapeActor->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
+				}
+				World->EditorDestroyActor(ShapeActor,bShouldModifyLevel);
+			}			
+		}
+	}
+}
+
+FShapeUpdateParams::FShapeUpdateParams(const UControlRig* InControlRig, const FTransform& InComponentTransform, const bool InSkeletalMeshVisible)
+	: ControlRig(InControlRig)
+	, Hierarchy(InControlRig->GetHierarchy())
+	, Settings(GetDefault<UControlRigEditModeSettings>())
+	, ComponentTransform(InComponentTransform)
+	, bIsSkeletalMeshVisible(InSkeletalMeshVisible)
+{}
+
+bool FShapeUpdateParams::IsValid() const
+{
+	return ControlRig && Hierarchy && Settings;
+}
+
+void UpdateControlShape(AControlRigShapeActor* InShapeActor, FRigControlElement* InControlElement, const FShapeUpdateParams& InUpdateParams)
+{
+	if (!InShapeActor || !InControlElement || !InUpdateParams.IsValid())
+	{
+		return;
+	}
+
+	// update transform
+	const FTransform Transform = InUpdateParams.Hierarchy->GetTransform(InControlElement, ERigTransformType::CurrentGlobal);
+	InShapeActor->SetActorTransform(Transform * InUpdateParams.ComponentTransform);
+
+	const FRigControlSettings& ControlSettings = InControlElement->Settings;
+
+	// update visibility & color
+	bool bIsVisible = ControlSettings.IsVisible();
+	bool bRespectVisibilityForSelection = true; 
+
+	const bool bControlsHiddenInViewport =
+		InUpdateParams.Settings->bHideControlShapes ||
+		!InUpdateParams.ControlRig->GetControlsVisible() ||
+		!InUpdateParams.bIsSkeletalMeshVisible;
+	
+	if (!bControlsHiddenInViewport)
+	{
+		if (ControlSettings.AnimationType == ERigControlAnimationType::ProxyControl)
+		{					
+			bRespectVisibilityForSelection = false;
+			if (InUpdateParams.Settings->bShowAllProxyControls)
+			{
+				bIsVisible = true;
+			}
+		}
+	}
+
+	InShapeActor->SetIsTemporarilyHiddenInEditor(!bIsVisible || bControlsHiddenInViewport);
+
+	// update color
+	InShapeActor->SetShapeColor(InShapeActor->OverrideColor.A < SMALL_NUMBER ?
+		ControlSettings.ShapeColor : InShapeActor->OverrideColor);
+	
+	// update selectability
+	InShapeActor->SetSelectable( ControlSettings.IsSelectable(bRespectVisibilityForSelection) );
+}
+	
+}
 
 #undef LOCTEXT_NAMESPACE

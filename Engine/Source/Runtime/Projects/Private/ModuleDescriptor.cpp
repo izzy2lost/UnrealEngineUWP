@@ -225,7 +225,11 @@ bool FModuleDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 
 	// Read the additional dependencies
 	Object.TryGetStringArrayField(TEXT("AdditionalDependencies"), AdditionalDependencies);
-
+	
+	// Read the allow/deny list for game targets
+	Object.TryGetStringArrayField(TEXT("GameTargetAllowList"), GameTargetAllowList);
+	Object.TryGetStringArrayField(TEXT("GameTargetDenyList"), GameTargetDenyList);
+	
 	return true;
 }
 
@@ -401,7 +405,34 @@ void FModuleDescriptor::UpdateJson(FJsonObject& JsonObject) const
 	{
 		JsonObject.RemoveField(TEXT("ProgramDenyList"));
 	}
+	if (GameTargetAllowList.Num() > 0)
+	{
+		TArray<TSharedPtr<FJsonValue>> GameTargetAllowListValues;
+		for (const FString& Program : ProgramAllowList)
+		{
+			GameTargetAllowListValues.Add(MakeShareable(new FJsonValueString(Program)));
+		}
+		JsonObject.SetArrayField(TEXT("GameTargetAllowList"), GameTargetAllowListValues);
+	}
+	else
+	{
+		JsonObject.RemoveField(TEXT("GameTargetAllowList"));
+	}
 
+	if (GameTargetDenyList.Num() > 0)
+	{
+		TArray<TSharedPtr<FJsonValue>> GameTargetDenyListValues;
+		for (const FString& Program : ProgramDenyList)
+		{
+			GameTargetDenyListValues.Add(MakeShareable(new FJsonValueString(Program)));
+		}
+		JsonObject.SetArrayField(TEXT("GameTargetDenyList"), GameTargetDenyListValues);
+	}
+	else
+	{
+		JsonObject.RemoveField(TEXT("GameTargetDenyList"));
+	}
+	
 	if (AdditionalDependencies.Num() > 0)
 	{
 		TArray<TSharedPtr<FJsonValue>> AdditionalDependencyValues;
@@ -513,7 +544,19 @@ bool FModuleDescriptor::IsCompiledInConfiguration(const FString& Platform, EBuil
 			return false;
 		}
 	}
-
+	else
+	{
+		if(GameTargetAllowList.Num() > 0 && !GameTargetAllowList.Contains(TargetName))
+		{
+			return false;
+		}
+				
+		if(GameTargetDenyList.Contains(TargetName))
+		{
+			return false;
+		}
+	}
+	
 	// Check the module is compatible with this target.
 	switch (Type)
 	{
@@ -560,12 +603,13 @@ bool FModuleDescriptor::IsLoadedInCurrentConfiguration() const
 		return false;
 	}
 
+	
 	// Always respect the allow/deny lists for program targets
 	EBuildTargetType TargetType = FApp::GetBuildTargetType();
 	if(TargetType == EBuildTargetType::Program)
 	{
 		const FString TargetName = UE_APP_NAME;
-
+			
 		// Check the program name is allowed. Note that this behavior is slightly different to other allow/deny list checks; we will allow a module of any type if it's explicitly allowed for this program.
 		if(ProgramAllowList.Num() > 0)
 		{
@@ -574,6 +618,20 @@ bool FModuleDescriptor::IsLoadedInCurrentConfiguration() const
 				
 		// Check the program name is not denied
 		if(ProgramDenyList.Contains(TargetName))
+		{
+			return false;
+		}
+	}
+	else
+	{
+		const FString TargetName = UE_APP_NAME;
+		
+		if(GameTargetAllowList.Num() > 0 && !GameTargetAllowList.Contains(TargetName))
+		{
+			return false;
+		}
+				
+		if(GameTargetDenyList.Contains(TargetName))
 		{
 			return false;
 		}

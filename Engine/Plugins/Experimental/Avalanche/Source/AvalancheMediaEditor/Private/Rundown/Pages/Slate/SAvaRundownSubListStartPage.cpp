@@ -3,9 +3,10 @@
 #include "SAvaRundownSubListStartPage.h"
 
 #include "Rundown/AvaRundownEditor.h"
+#include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownSubListStartPage"
@@ -16,10 +17,12 @@ void SAvaRundownSubListStartPage::Construct(const FArguments& InArgs, TSharedPtr
 
 	ChildSlot
 	[
-		SNew(SBox)
+		SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
 		.Padding(10.f, 10.f)
 		.HAlign(EHorizontalAlignment::HAlign_Center)
 		.VAlign(EVerticalAlignment::VAlign_Top)
+		.AutoHeight()
 		[
 			SNew(SButton)
 			.ToolTipText(LOCTEXT("AddSubListTooltip", "Add Page View"))
@@ -29,25 +32,46 @@ void SAvaRundownSubListStartPage::Construct(const FArguments& InArgs, TSharedPtr
 				.Text(LOCTEXT("AddSubList", "Add Page View"))
 			]
 		]
+		+ SVerticalBox::Slot()
+		.Padding(10.f, 10.f)
+		.HAlign(EHorizontalAlignment::HAlign_Center)
+		.VAlign(EVerticalAlignment::VAlign_Top)
+		.AutoHeight()
+		[
+			SNew(SButton)
+			.ToolTipText(LOCTEXT("ShowAllSubListTooltip", "Show All Page Views"))
+			.OnClicked(this, &SAvaRundownSubListStartPage::OnShowAllSubListsClicked)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("ShowAllSubList", "Show All Page Views"))
+			]
+		]
 	];
 }
 
 FReply SAvaRundownSubListStartPage::OnCreateSubListClicked()
 {
-	TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin();
-
-	if (RundownEditor.IsValid())
-	{
-		UAvaRundown* Rundown = RundownEditor->GetRundown();
-
-		if (IsValid(Rundown))
+	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
+	{		
+		if (UAvaRundown* Rundown = RundownEditor->GetRundown())
 		{
-			Rundown->AddSubList();
-
+			FScopedTransaction Transaction(LOCTEXT("AddPageView", "Add PageView"));
+			Rundown->Modify();
+			const FAvaRundownPageListReference CreatedSubListReference = Rundown->AddSubList();
+			Rundown->SetActivePageList(CreatedSubListReference);
 			return FReply::Handled();
 		}
 	}
+	return FReply::Unhandled();
+}
 
+FReply SAvaRundownSubListStartPage::OnShowAllSubListsClicked()
+{
+	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
+	{
+		RundownEditor->RefreshSubListTabs();
+		return FReply::Handled();
+	}
 	return FReply::Unhandled();
 }
 

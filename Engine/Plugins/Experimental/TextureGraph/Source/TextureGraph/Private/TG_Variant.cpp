@@ -39,7 +39,7 @@ FTG_Variant::FTG_Variant(FTG_Texture RHS)
 bool FTG_Variant::Serialize(FArchive& Ar)
 {
 	Ar << *this;
-	UE_LOG(LogTextureGraph, Log, TEXT("FTG_Variant::Serialize"));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("FTG_Variant::Serialize"));
 	return true;
 }
 
@@ -137,7 +137,7 @@ FTG_Texture FTG_Variant::GetTexture(FTG_EvaluationContext* InContext, FTG_Textur
 		return Texture;
 	}
 
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 	FString Name;
 	BufferFormat TexelFormat = BufferFormat::Byte;
 

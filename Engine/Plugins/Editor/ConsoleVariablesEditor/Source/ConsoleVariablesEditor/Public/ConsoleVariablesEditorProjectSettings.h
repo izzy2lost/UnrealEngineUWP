@@ -11,6 +11,27 @@ enum class EConsoleVariablesEditorRowDisplayType : uint8
 	ShowLastEnteredValue
 };
 
+UENUM(BlueprintType)
+enum class EConsoleVariablesEditorPresetImportMode : uint8
+{
+	/**
+	 * Add the list of variables from the imported preset to the current preset, replacing the values of any overlapping
+	 * variables with the values from the imported preset.
+	 */
+	AddToExisting,
+
+	/**
+	 * Completely replace the list of variables in the current preset, resetting them to their default values and removing
+	 * them from the list before importing the new preset's variable list.
+	 */
+	ReplaceExisting,
+
+	/**
+	 * Use the global import setting.
+	 */
+	UseDefault UMETA(Hidden)
+};
+
 UCLASS(config = Engine, defaultconfig)
 class CONSOLEVARIABLESEDITOR_API UConsoleVariablesEditorProjectSettings : public UObject
 {
@@ -20,6 +41,7 @@ public:
 	UConsoleVariablesEditorProjectSettings(const FObjectInitializer& ObjectInitializer)
 	{
 		UncheckedRowDisplayType = EConsoleVariablesEditorRowDisplayType::ShowCurrentValue;
+		PresetImportMode = EConsoleVariablesEditorPresetImportMode::AddToExisting;
 		
 		bAddAllChangedConsoleVariablesToCurrentPreset = true;
 
@@ -37,6 +59,12 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category="Console Variables Editor")
 	EConsoleVariablesEditorRowDisplayType UncheckedRowDisplayType;
+
+	/**
+	 * When importing a console variable preset, the variables 
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Console Variables Editor")
+	EConsoleVariablesEditorPresetImportMode PresetImportMode;
 
 	/**
 	 *When variables are changed outside the Console Variables Editor, this option will add the variables to the current preset.

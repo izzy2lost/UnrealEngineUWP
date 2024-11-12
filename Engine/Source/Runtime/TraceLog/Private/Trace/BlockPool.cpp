@@ -2,7 +2,7 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Platform.h"
 #include "Trace/Detail/Atomic.h"
@@ -190,4 +190,4 @@ void Writer_ShutdownPool()
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

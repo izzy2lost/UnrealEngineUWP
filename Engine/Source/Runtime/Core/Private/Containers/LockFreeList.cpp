@@ -102,7 +102,7 @@ public:
 	* @return Pointer to the allocated memory.
 	* @see Free
 	*/
-	TLinkPtr Pop() TSAN_SAFE
+	TLinkPtr Pop()
 	{
 		FThreadLocalCache& TLS = GetTLS();
 
@@ -123,8 +123,8 @@ public:
 					{
 						TLink* Event = FLockFreeLinkPolicy::IndexToLink(FirstIndex + Index);
 						Event->DoubleNext.Init();
-						Event->SingleNext = 0;
-						Event->Payload = (void*)UPTRINT(TLS.PartialBundle);
+						Event->SingleNext.store(0, std::memory_order_relaxed);
+						Event->Payload.store((void*)UPTRINT(TLS.PartialBundle), std::memory_order_relaxed);
 						TLS.PartialBundle = FLockFreeLinkPolicy::IndexToPtr(FirstIndex + Index);
 					}
 				}
@@ -133,11 +133,11 @@ public:
 		}
 		TLinkPtr Result = TLS.PartialBundle;
 		TLink* ResultP = FLockFreeLinkPolicy::DerefLink(TLS.PartialBundle);
-		TLS.PartialBundle = TLinkPtr(UPTRINT(ResultP->Payload));
+		TLS.PartialBundle = TLinkPtr(UPTRINT(ResultP->Payload.load(std::memory_order_relaxed)));
 		TLS.NumPartial--;
 		//checkLockFreePointerList(TLS.NumPartial >= 0 && ((!!TLS.NumPartial) == (!!TLS.PartialBundle)));
-		ResultP->Payload = nullptr;
-		checkLockFreePointerList(!ResultP->DoubleNext.GetPtr() && !ResultP->SingleNext);
+		ResultP->Payload.store(nullptr, std::memory_order_relaxed);
+		checkLockFreePointerList(!ResultP->DoubleNext.GetPtr() && !ResultP->SingleNext.load(std::memory_order_relaxed));
 		return Result;
 	}
 
@@ -147,7 +147,7 @@ public:
 	* @param Item The item to free.
 	* @see Allocate
 	*/
-	void Push(TLinkPtr Item) TSAN_SAFE
+	void Push(TLinkPtr Item)
 	{
 		FThreadLocalCache& TLS = GetTLS();
 		if (TLS.NumPartial >= NUM_PER_BUNDLE)
@@ -163,8 +163,8 @@ public:
 		}
 		TLink* ItemP = FLockFreeLinkPolicy::DerefLink(Item);
 		ItemP->DoubleNext.SetPtr(0);
-		ItemP->SingleNext = 0;
-		ItemP->Payload = (void*)UPTRINT(TLS.PartialBundle);
+		ItemP->SingleNext.store(0, std::memory_order_relaxed);
+		ItemP->Payload.store((void*)UPTRINT(TLS.PartialBundle), std::memory_order_relaxed);
 		TLS.PartialBundle = Item;
 		TLS.NumPartial++;
 	}
@@ -212,7 +212,7 @@ static LockFreeLinkAllocator_TLSCache& GetLockFreeAllocator()
 	static bool bIsInitialized = false;
 	if (!bIsInitialized)
 	{
-		new(Data)LockFreeLinkAllocator_TLSCache();
+		::new((void*)Data)LockFreeLinkAllocator_TLSCache();
 		bIsInitialized = true;
 	}
 	return *(LockFreeLinkAllocator_TLSCache*)Data;
@@ -223,11 +223,11 @@ void FLockFreeLinkPolicy::FreeLockFreeLink(FLockFreeLinkPolicy::TLinkPtr Item)
 	GetLockFreeAllocator().Push(Item);
 }
 
-FLockFreeLinkPolicy::TLinkPtr FLockFreeLinkPolicy::AllocLockFreeLink() TSAN_SAFE
+FLockFreeLinkPolicy::TLinkPtr FLockFreeLinkPolicy::AllocLockFreeLink()
 {
 	FLockFreeLinkPolicy::TLinkPtr Result = GetLockFreeAllocator().Pop();
 	// this can only really be a mem stomp
-	checkLockFreePointerList(Result && !FLockFreeLinkPolicy::DerefLink(Result)->DoubleNext.GetPtr() && !FLockFreeLinkPolicy::DerefLink(Result)->Payload && !FLockFreeLinkPolicy::DerefLink(Result)->SingleNext);
+	checkLockFreePointerList(Result && !FLockFreeLinkPolicy::DerefLink(Result)->DoubleNext.GetPtr() && !FLockFreeLinkPolicy::DerefLink(Result)->Payload.load(std::memory_order_relaxed) && !FLockFreeLinkPolicy::DerefLink(Result)->SingleNext.load(std::memory_order_relaxed));
 	return Result;
 }
 

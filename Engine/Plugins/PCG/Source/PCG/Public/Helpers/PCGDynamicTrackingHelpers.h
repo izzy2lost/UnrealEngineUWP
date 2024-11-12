@@ -29,6 +29,9 @@ public:
 	/** Convenient function to push just a single tracking key to the component. */
 	static void AddSingleDynamicTrackingKey(FPCGContext* InContext, FPCGSelectionKey&& InKey, bool bIsCulled);
 
+	/** Convenience function to push just a single selector as a tracking key to the component. */
+	static void AddSingleDynamicTrackingKey(FPCGContext* InContext, const FPCGActorSelectorSettings& InSelector);
+
 private:
 	bool bDynamicallyTracked = false;
 	TWeakObjectPtr<UPCGComponent> CachedComponent;

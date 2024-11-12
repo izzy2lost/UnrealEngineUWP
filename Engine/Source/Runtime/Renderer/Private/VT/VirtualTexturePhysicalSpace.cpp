@@ -12,7 +12,7 @@
 #include "VT/VirtualTextureScalability.h"
 #include "VT/VirtualTextureSystem.h"
 #include "RHIUtilities.h"
-#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
 
 DECLARE_MEMORY_STAT_POOL(TEXT("Total Physical Memory"), STAT_TotalPhysicalMemory, STATGROUP_VirtualTextureMemory, FPlatformMemory::MCR_GPU);
 
@@ -91,6 +91,21 @@ FVirtualTexturePhysicalSpace::FVirtualTexturePhysicalSpace(uint16 InID, const FV
 			FormatString += TEXT(", ");
 		}
 	}
+
+#if !UE_BUILD_SHIPPING
+	// Store string for resorce debug names.
+	for (uint32 Layer = 0; Layer < Description.NumLayers; ++Layer)
+	{
+		if (Description.NumLayers > 1)
+		{
+			PooledRenderTargetDebugNames[Layer] = FString::Printf(TEXT("VirtualTexture_Physical (%s) %d/%d"), *FormatString, Layer + 1, Description.NumLayers);
+		}
+		else
+		{
+			PooledRenderTargetDebugNames[Layer] = FString::Printf(TEXT("VirtualTexture_Physical (%s)"), *FormatString);
+		}
+	}
+#endif
 }
 
 FVirtualTexturePhysicalSpace::~FVirtualTexturePhysicalSpace()
@@ -104,6 +119,11 @@ static EPixelFormat GetUnorderedAccessViewFormat(EPixelFormat InFormat)
 	if (IsBlockCompressedFormat(InFormat))
 	{
 		return GRHISupportsUAVFormatAliasing ? GetBlockCompressedFormatUAVAliasFormat(InFormat) : PF_Unknown;
+	}
+
+	if (InFormat == PF_B5G5R5A1_UNORM || InFormat == PF_R5G6B5_UNORM)
+	{
+		return PF_Unknown;
 	}
 
 	return InFormat;
@@ -128,7 +148,7 @@ void FVirtualTexturePhysicalSpace::InitRHI(FRHICommandListBase& RHICmdList)
 	{
 		const EPixelFormat FormatSRV = RemapVirtualTexturePhysicalSpaceFormat(Description.Format[Layer]);
 		const EPixelFormat FormatUAV = GetUnorderedAccessViewFormat(FormatSRV);
-		const bool bCreateAliasedUAV = (FormatUAV != PF_Unknown) && (FormatUAV != FormatSRV);
+		const bool bCreateUAV = (FormatUAV != PF_Unknown);
 		
 		// Not all RHIs support sRGB views/aliasing. On those platforms create texture in an expected storage format 
 		const bool bDefaultToSRGB = Description.bHasLayerSrgbView[Layer];
@@ -143,16 +163,15 @@ void FVirtualTexturePhysicalSpace::InitRHI(FRHICommandListBase& RHICmdList)
 			FormatSRV,
 			FClearValueBinding::None,
 			VT_SRGB,
-			// GPULightmass hack: always create UAV for PF_A32B32G32R32F
-			(bCreateAliasedUAV || FormatSRV == PF_A32B32G32R32F) ? TexCreate_ShaderResource | TexCreate_UAV : TexCreate_ShaderResource,
+			bCreateUAV ? TexCreate_ShaderResource | TexCreate_UAV : TexCreate_ShaderResource,
 			false);
 
-		if (bCreateAliasedUAV)
+		if (bCreateUAV)
 		{
 			Desc.UAVFormat = FormatUAV;
 		}
 
-		GRenderTargetPool.FindFreeElement(RHICmdList, Desc, PooledRenderTarget[Layer], TEXT("VirtualPhysicalTexture"));
+		GRenderTargetPool.FindFreeElement(RHICmdList, Desc, PooledRenderTarget[Layer], TEXT("VirtualTexture_Physical"));
 		FRHITexture* TextureRHI = PooledRenderTarget[Layer]->GetRHI();
 
 		// Create sRGB and non-sRGB shader resource views into the physical texture
@@ -180,14 +199,14 @@ void FVirtualTexturePhysicalSpace::ReleaseRHI()
 	}
 }
 
-void FVirtualTexturePhysicalSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
+void FVirtualTexturePhysicalSpace::FinalizeTextures(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	for (int32 Layer = 0; Layer < Description.NumLayers; ++Layer)
 	{
 		// It's only necessary to enable external access mode on textures modified by RDG this frame.
 		if (FRDGTexture* Texture = GraphBuilder.FindExternalTexture(PooledRenderTarget[Layer]))
 		{
-			GraphBuilder.UseExternalAccessMode(Texture, ERHIAccess::SRVMask);
+			ExternalAccessQueue.Add(Texture, ERHIAccess::SRVMask);
 		}
 	}
 }
@@ -343,7 +362,7 @@ void FVirtualTexturePhysicalSpace::DrawResidencyGraph(FCanvas* Canvas, FBox2D Ca
 
 void FVirtualTexturePhysicalSpace::UpdateCsvStats() const
 {
-#if CSV_PROFILER && !UE_BUILD_SHIPPING
+#if CSV_PROFILER_STATS && !UE_BUILD_SHIPPING
 	FCsvProfiler* Profiler = FCsvProfiler::Get();
 	if (Profiler->IsCapturing_Renderthread())
 	{

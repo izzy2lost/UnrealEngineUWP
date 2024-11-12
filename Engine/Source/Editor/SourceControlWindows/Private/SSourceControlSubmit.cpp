@@ -245,7 +245,6 @@ void SSourceControlSubmitWidget::Construct(const FArguments& InArgs)
 		SNew(SBorder)
 		[
 			SAssignNew(ListView, SListView<TSharedPtr<FFileTreeItem>>)
-			.ItemHeight(20)
 			.ListItemsSource(&ListViewItems)
 			.OnGenerateRow(this, &SSourceControlSubmitWidget::OnGenerateRowForList)
 			.OnContextMenuOpening(this, &SSourceControlSubmitWidget::OnCreateContextMenu)
@@ -283,7 +282,7 @@ void SSourceControlSubmitWidget::Construct(const FArguments& InArgs)
 		const FName ChangelistWarningsIconName = TEXT("Icons.WarningWithColor.Large");
 		const FName ChangelistErrorsIconName = TEXT("Icons.ErrorWithColor.Large");
 
-		if (bAllowSubmit)
+		if (ChangelistResultWarningsText.IsEmpty() && ChangelistResultErrorsText.IsEmpty())
 		{
 			Contents->AddSlot()
 			.AutoHeight()

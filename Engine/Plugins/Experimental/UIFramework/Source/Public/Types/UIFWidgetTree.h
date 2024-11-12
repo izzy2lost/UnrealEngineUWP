@@ -4,6 +4,7 @@
 
 #include "Net/Serialization/FastArraySerializer.h"
 #include "Types/UIFWidgetId.h"
+#include "UObject/ObjectKey.h"
 
 #include "UIFWidgetTree.generated.h"
 
@@ -82,6 +83,11 @@ public:
 		return FFastArraySerializer::FastArrayDeltaSerialize<FUIFrameworkWidgetTreeEntry, FUIFrameworkWidgetTree>(Entries, DeltaParms, *this);
 	}
 
+	AActor* GetReplicationOwner() const
+	{
+		return ReplicatedOwner;
+	}
+
 	bool ReplicateSubWidgets(UActorChannel* Channel, FOutBunch* Bunch, FReplicationFlags* RepFlags);
 
 	/** Add a new widget to the top hierarchy. */
@@ -144,7 +150,7 @@ private:
 	UPROPERTY(NotReplicated, Transient)
 	TObjectPtr<AActor> ReplicatedOwner;
 
-	TMap<TWeakObjectPtr<UUIFrameworkWidget>, int32> AuthorityIndexByWidgetMap;
+	TMap<FObjectKey, int32> AuthorityIndexByWidgetMap;
 	TMap<FUIFrameworkWidgetId, TWeakObjectPtr<UUIFrameworkWidget>> WidgetByIdMap;
 	IUIFrameworkWidgetTreeOwner* Owner = nullptr;
 };

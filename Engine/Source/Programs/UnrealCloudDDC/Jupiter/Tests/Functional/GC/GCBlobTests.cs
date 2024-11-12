@@ -5,17 +5,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Storage;
+using EpicGames.Serialization;
 using Jupiter.Implementation;
 using Jupiter.Implementation.Blob;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
-using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
 
 namespace Jupiter.FunctionalTests.GC
 {
@@ -64,7 +64,7 @@ namespace Jupiter.FunctionalTests.GC
 					new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
 					new KeyValuePair<string, string?>("GC:CleanOldBlobs", true.ToString()),
 					new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
-					
+
 				})
 				.Build();
 
@@ -83,7 +83,7 @@ namespace Jupiter.FunctionalTests.GC
 
 			_blobService = server.Services.GetService<IBlobService>()!;
 
-			MemoryBlobStore memoryBlobStore = (MemoryBlobStore) ((BlobService)_blobService).BlobStore.First();
+			MemoryBlobStore memoryBlobStore = (MemoryBlobStore)((BlobService)_blobService).BlobStore.First();
 			byte[] emptyContents = Array.Empty<byte>();
 			await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object0id);
 			await memoryBlobStore.PutObjectAsync(TestNamespace, emptyContents, object1id);// this is not in the index
@@ -107,7 +107,7 @@ namespace Jupiter.FunctionalTests.GC
 			Assert.IsNotNull(refService);
 			(BlobId ob0_hash, CbObject ob0_cb) = GetCBWithAttachment(object0id);
 			await refService.PutAsync(TestNamespace, testBucket, RefId.FromName("object0"), ob0_hash, ob0_cb);
-		   
+
 			(BlobId ob2_hash, CbObject ob2_cb) = GetCBWithAttachment(object2id);
 			await refService.PutAsync(TestNamespace, testBucket, RefId.FromName("object2"), ob2_hash, ob2_cb);
 
@@ -126,13 +126,13 @@ namespace Jupiter.FunctionalTests.GC
 			IBlobIndex? blobIndex = server.Services.GetService<IBlobIndex>()!;
 			Assert.IsNotNull(blobIndex);
 			await blobIndex.AddBlobToIndexAsync(TestNamespace, object0id);
-			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object0"), new [] {object0id });
+			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object0"), new[] { object0id });
 			await blobIndex.AddBlobToIndexAsync(TestNamespace, object2id);
-			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object2"), new [] {object2id });
+			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object2"), new[] { object2id });
 			await blobIndex.AddBlobToIndexAsync(TestNamespace, object3id);
-			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object3"), new [] {object3id });
+			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object3"), new[] { object3id });
 			await blobIndex.AddBlobToIndexAsync(TestNamespace, object6id);
-			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object6"), new [] {object6id });
+			await blobIndex.AddRefToBlobsAsync(TestNamespace, testBucket, RefId.FromName("object6"), new[] { object6id });
 		}
 
 		protected abstract string GetImplementation();
@@ -158,12 +158,12 @@ namespace Jupiter.FunctionalTests.GC
 			ulong countOfRemovedBlobs = await cleanup.CleanupAsync(cts.Token);
 			Assert.AreEqual(3u, countOfRemovedBlobs);
 
-			foreach (BlobId blob in new BlobId[] {object1id, object4id, object5id})
+			foreach (BlobId blob in new BlobId[] { object1id, object4id, object5id })
 			{
 				Assert.IsFalse(await _blobService!.ExistsAsync(TestNamespace, blob));
 			}
 
-			foreach (BlobId blob in new BlobId[] {object2id, object3id, object6id})
+			foreach (BlobId blob in new BlobId[] { object2id, object3id, object6id })
 			{
 				Assert.IsTrue(await _blobService!.ExistsAsync(TestNamespace, blob));
 			}

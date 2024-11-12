@@ -6,6 +6,7 @@
 
 #include "PCGCommon.h"
 #include "PCGActorAndComponentMapping.h"
+#include "Grid/PCGGridDescriptor.h"
 #include "Grid/PCGComponentOctree.h"
 #include "UObject/ObjectKey.h"
 #include "Utils/PCGNodeVisualLogs.h"
@@ -14,13 +15,15 @@
 
 class APCGPartitionActor;
 class APCGWorldActor;
+class FPCGRuntimeGenScheduler;
+class UPCGComputeGraph;
 class UPCGGraph;
 class UPCGLandscapeCache;
-class FPCGRuntimeGenScheduler;
 
 enum class EPCGComponentDirtyFlag : uint8;
 enum class ETickableTickType : uint8;
 
+class IPCGGraphCache;
 class FPCGGraphCompiler;
 class FPCGGraphExecutor;
 struct FPCGContext;
@@ -34,7 +37,13 @@ typedef TSharedPtr<IPCGElement, ESPMode::ThreadSafe> FPCGElementPtr;
 class UWorld;
 
 #if WITH_EDITOR
+/** Deprecated - use FPCGOnPCGComponentUnregistered */
+DECLARE_MULTICAST_DELEGATE(FPCGOnComponentUnregistered);
+/** Deprecated - use FPCGOnPCGComponentGenerationDone */
 DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnComponentGenerationCompleteOrCancelled, UPCGSubsystem*);
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnPCGComponentUnregistered, UPCGComponent*);
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FPCGOnPCGComponentGenerationDone, UPCGSubsystem*, UPCGComponent*, EPCGGenerationStatus);
 #endif // WITH_EDITOR
 
 /**
@@ -46,7 +55,9 @@ class PCG_API UPCGSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	friend class UPCGComponent;
 	friend FPCGActorAndComponentMapping;
+	friend struct FPCGWorldPartitionBuilder;
 
 	UPCGSubsystem();
 
@@ -71,6 +82,10 @@ public:
 
 	/** Will return the subsystem from the World if it exists and if it is initialized */
 	static UPCGSubsystem* GetInstance(UWorld* World);
+
+	/** Adds an action that will be executed once at the beginning of this subsystem's next Tick(). */
+	using FTickAction = TFunction<void()>;
+	void RegisterBeginTickAction(FTickAction&& Action);
 
 #if WITH_EDITOR
 	/** Returns PIE world if it is active, otherwise returns editor world. */
@@ -163,8 +178,18 @@ public:
 	/** Cancels currently running generation on given graph */
 	void CancelGeneration(UPCGGraph* Graph);
 
-	/** Asks the runtime generation scheduler to refresh a given GenerateAtRuntime component. bRemovePartitionActors will also perform a full cleanup of PAs and local components. */
+	/** Asks the runtime generation scheduler to refresh a given GenerateAtRuntime component. ChangeType should be 'GenerationGrid' to perform a full cleanup of PAs and local components. */
 	void RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, EPCGChangeType ChangeType = EPCGChangeType::None);
+
+	/** Asks the runtime generation scheduler to refresh all GenerateAtRuntime components. ChangeType should be 'GenerationGrid' to perform a full cleanup of PAs and local components. */
+	void RefreshAllRuntimeGenComponents(EPCGChangeType ChangeType = EPCGChangeType::None);
+
+#if WITH_EDITOR
+	/** Refresh all components selected by the filter (runtime generated or otherwise). */
+	void RefreshAllComponentsFiltered(const TFunction<bool(UPCGComponent*)>& ComponentFilter, EPCGChangeType ChangeType = EPCGChangeType::None);
+#endif
+
+	FPCGRuntimeGenScheduler* GetRuntimeGenScheduler() const { return RuntimeGenScheduler; }
 
 	/** Returns true if there are any tasks for this graph currently scheduled or executing. */
 	bool IsGraphCurrentlyExecuting(UPCGGraph* Graph);
@@ -177,6 +202,9 @@ public:
 
 	/** Gets the output data for a given task */
 	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);
+
+	/** Clears the output data for a given task. Should only be called on tasks with bNeedsManualClear set to true */
+	void ClearOutputData(FPCGTaskId InTaskId);
 
 	/** Register a new PCG Component or update it, will be added to the octree if it doesn't exists yet. Returns true if it was added/updated. Thread safe */
 	bool RegisterOrUpdatePCGComponent(UPCGComponent* InComponent, bool bDoActorMapping = true) { return ActorAndComponentMapping.RegisterOrUpdatePCGComponent(InComponent, bDoActorMapping); }
@@ -195,6 +223,9 @@ public:
 
 	TSet<UPCGComponent*> GetAllRegisteredPartitionedComponents() const { return ActorAndComponentMapping.GetAllRegisteredPartitionedComponents(); }
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const { return ActorAndComponentMapping.GetAllRegisteredComponents(); }
+
+	/** Returns the interface to the cache, required for element per-data caching */
+	IPCGGraphCache* GetCache();
 
 	/** Flushes the graph cache completely, use only for debugging */
 	void FlushCache();
@@ -218,24 +249,38 @@ public:
 	 * Call InFunc to all partition grid cells matching 'InGridSizes' and overlapping with 'InBounds'. 'InFunc' can schedule work or execute immediately.
 	 * 'InGridSizes' should be sorted in descending order. If 'bCanCreateActor' is true, it will create the partition actor at that cell if necessary.
 	 */
-	FPCGTaskId ForAllOverlappingCells(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes, bool bCanCreateActor, const TArray<FPCGTaskId>& Dependencies, TFunctionRef<FPCGTaskId(APCGPartitionActor*, const FBox&)> InFunc) const;
+	UE_DEPRECATED(5.5, "Use version with UPCGComponent")
+	FPCGTaskId ForAllOverlappingCells(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes, bool bCanCreateActor, const TArray<FPCGTaskId>& Dependencies, TFunctionRef<FPCGTaskId(APCGPartitionActor*, const FBox&)> InFunc) const { return InvalidPCGTaskId;  }
 
+	FPCGTaskId ForAllOverlappingCells(UPCGComponent* InPCGComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes, bool bCanCreateActor, const TArray<FPCGTaskId>& Dependencies, TFunctionRef<FPCGTaskId(APCGPartitionActor*, const FBox&)> InFunc) const;
+		
 	/** Immediately cleanup the local components associated with an original component. */
 	void CleanupLocalComponentsImmediate(UPCGComponent* InOriginalComponent, bool bRemoveComponents);
 
-	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component found. */
+	UE_DEPRECATED(5.5, "Use FPCGGridDescriptor version")
 	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient = false) const;
 
-	/** Retrieves a registered partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
+	UE_DEPRECATED(5.5, "Use FPCGGridDescriptor version")
 	APCGPartitionActor* GetRegisteredPCGPartitionActor(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated = false) const;
 
-	/** Creates a new partition actor if one does not already exist with the same grid size, coords, and generation mode. */
+	UE_DEPRECATED(5.5, "Use FPCGGridDescriptor verison")
 	APCGPartitionActor* FindOrCreatePCGPartitionActor(const FGuid& Guid, uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated, bool bCanCreateActor = true) const;
 
+	/** Retrieves a local component using grid descriptor and grid coordinates, returns nullptr if no such component is found. */
+	UPCGComponent* GetLocalComponent(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent) const;
+
+	/** Retrieves a registered partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
+	APCGPartitionActor* GetRegisteredPCGPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords) const;
+
+	/** Creates a new partition actor if one does not already exist with the same grid size, coords, and generation mode. */
+	APCGPartitionActor* FindOrCreatePCGPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords, bool bCanCreateActor = true, bool bHideFromOutliner = false) const;
+	
 	/** True if graph cache debugging is enabled. */
 	bool IsGraphCacheDebuggingEnabled() const;
 
 	FPCGGenSourceManager* GetGenSourceManager() const;
+	FPCGGraphCompiler* GetGraphCompiler();
+	UPCGComputeGraph* GetComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex);
 
 #if WITH_EDITOR
 public:
@@ -272,9 +317,6 @@ public:
 	/** Clears the landscape data cache */
 	void ClearLandscapeCache();
 
-	/** Returns the graph compiler so we can figure out task info in the profiler view **/
-	FPCGGraphCompiler* GetGraphCompiler();
-
 	/** Get the execution stack information for the given component. */
 	bool GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext);
 
@@ -297,8 +339,16 @@ public:
 	void ClearExecutedStacks(FPCGStack BeginningWithStack);
 	void ClearExecutedStacks(const UPCGGraph* InContainingGraph);
 
+	UE_DEPRECATED(5.5, "Deprecated in favor of OnPCGComponentUnregistered, will not be notified anymore")
+	FPCGOnComponentUnregistered OnComponentUnregistered;
+
+	UE_DEPRECATED(5.5, "Deprecated in favor of OnPCGComponentGenerationDone, will not be notified anymore")
 	FPCGOnComponentGenerationCompleteOrCancelled OnComponentGenerationCompleteOrCancelled;
 
+	FPCGOnPCGComponentUnregistered OnPCGComponentUnregistered;
+	FPCGOnPCGComponentGenerationDone OnPCGComponentGenerationDone;
+
+	void CreateMissingPartitionActors();
 private:
 	enum class EOperation : uint32
 	{
@@ -307,12 +357,37 @@ private:
 		Generate
 	};
 
-	void CreatePartitionActorsWithinBounds(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
+	void OnPCGGraphCancelled(UPCGComponent* InComponent);
+	void OnPCGGraphStartGenerating(UPCGComponent* InComponent);
+	void OnPCGGraphGenerated(UPCGComponent* InComponent);
+	void OnPCGGraphCleaned(UPCGComponent* InComponent);
+
+	void CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
+	void UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
+	TSet<TObjectPtr<APCGPartitionActor>> GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const;
 
 	FPCGNodeVisualLogs NodeVisualLogs;
 #endif // WITH_EDITOR
 	
 private:
+	void CancelGeneration(UPCGComponent* Component, bool bCleanupUnusedResources);
+
+	UPCGData* GetPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetInputPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetActorPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId);
+	UPCGData* GetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId);
+
+	void SetPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetInputPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+	void SetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData);
+
+	void ExecuteBeginTickActions();
+
 	APCGWorldActor* PCGWorldActor = nullptr;
 	FPCGGraphExecutor* GraphExecutor = nullptr;
 	FPCGRuntimeGenScheduler* RuntimeGenScheduler = nullptr;
@@ -323,15 +398,33 @@ private:
 	TArray<FPCGStack> ExecutedStacks;
 	mutable FRWLock ExecutedStacksLock;
 
+	/** Functions will be executed at the beginning of the tick and then removed from this array. */
+	TArray<FTickAction> BeginTickActions;
+
 #if WITH_EDITOR
 	FCriticalSection PCGWorldActorLock;
 		
 	using FConstructionScriptSourceComponents = TMap<FName, TObjectKey<UPCGComponent>>;
 	TMap<TObjectKey<AActor>, FConstructionScriptSourceComponents> PerActorConstructionScriptSourceComponents;
+
+	static TSet<UWorld*> DisablePartitionActorCreationForWorld;
+
+	// Used by UPCGWorldPartitonBuilder to disable PA creation while outside of a certain scope
+	static void SetDisablePartitionActorCreationForWorld(UWorld* InWorld, bool bDisable) 
+	{ 
+		if (bDisable)
+		{
+			DisablePartitionActorCreationForWorld.Add(InWorld);
+		}
+		else
+		{
+			DisablePartitionActorCreationForWorld.Remove(InWorld);
+		}
+	}
+
+	static bool IsPartitionActorCreationDisabledForWorld(UWorld* InWorld)
+	{
+		return DisablePartitionActorCreationForWorld.Contains(InWorld);
+	}
 #endif
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PCGComponent.h"
-#include "PCGVolume.h"
-#endif

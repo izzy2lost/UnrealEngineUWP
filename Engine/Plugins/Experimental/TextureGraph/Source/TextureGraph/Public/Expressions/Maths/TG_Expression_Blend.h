@@ -25,6 +25,13 @@ public:
 	// The opacity to be used in conjunction with the mask. The final blend value = 'Mask[RedChannel] * Opacity'
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1"))
 	float Opacity = 1.0;
+
+	// If true, it will ignore the alpha channel blending and keep the background alpha.  
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Ignore Alpha"))
+	bool bIgnoreAlpha = true;
+
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Clamp"))
+	bool bClamp = true;
 	
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
 	FTG_Texture Output;

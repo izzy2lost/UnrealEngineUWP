@@ -80,6 +80,74 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Request to batch update items in the database
+	/// </summary>
+	public class UpdateNamespaceRequest
+	{
+		/// <summary>
+		/// List of aliases to add
+		/// </summary>
+		public List<AddAliasRequest> AddAliases { get; set; } = new List<AddAliasRequest>();
+
+		/// <summary>
+		/// List of aliases to remove
+		/// </summary>
+		public List<RemoveAliasRequest> RemoveAliases { get; set; } = new List<RemoveAliasRequest>();
+
+		/// <summary>
+		/// List of refs to add
+		/// </summary>
+		public List<AddRefRequest> AddRefs { get; set; } = new List<AddRefRequest>();
+
+		/// <summary>
+		/// List of refs to remove
+		/// </summary>
+		public List<RemoveRefRequest> RemoveRefs { get; set; } = new List<RemoveRefRequest>();
+	}
+
+	/// <summary>
+	/// Request object for adding an alias
+	/// </summary>
+	public class AddAliasRequest
+	{
+		/// <summary>
+		/// Name of the alias
+		/// </summary>
+		public string Name { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Rank for the new alias
+		/// </summary>
+		public int Rank { get; set; }
+
+		/// <summary>
+		/// Data to store with the ref
+		/// </summary>
+		public byte[]? Data { get; set; }
+
+		/// <summary>
+		/// Path to the target blob
+		/// </summary>
+		public BlobLocator Target { get; set; }
+	}
+
+	/// <summary>
+	/// Request object for removing an alias
+	/// </summary>
+	public class RemoveAliasRequest
+	{
+		/// <summary>
+		/// Name of the alias
+		/// </summary>
+		public string Name { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Path to the target blob
+		/// </summary>
+		public BlobLocator Target { get; set; }
+	}
+
+	/// <summary>
 	/// Request object for writing a ref
 	/// </summary>
 	public class WriteRefRequest
@@ -118,6 +186,28 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Request object for removing a ref
+	/// </summary>
+	public class AddRefRequest : WriteRefRequest
+	{
+		/// <summary>
+		/// Name of the ref
+		/// </summary>
+		public RefName RefName { get; set; }
+	}
+
+	/// <summary>
+	/// Request object for removing a ref
+	/// </summary>
+	public class RemoveRefRequest
+	{
+		/// <summary>
+		/// Name of the ref
+		/// </summary>
+		public RefName RefName { get; set; }
+	}
+
+	/// <summary>
 	/// Response object for reading a ref
 	/// </summary>
 	public class ReadRefResponse
@@ -136,5 +226,10 @@ namespace EpicGames.Horde.Storage
 		/// Link to information about the target node
 		/// </summary>
 		public string Link { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Base path for this storage backend
+		/// </summary>
+		public string BasePath { get; set; } = String.Empty;
 	}
 }

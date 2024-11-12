@@ -423,7 +423,8 @@ bool UCommonButtonBase::Initialize()
 		RootButtonRaw->SetClickMethod(ClickMethod);
 		RootButtonRaw->SetTouchMethod(TouchMethod);
 		RootButtonRaw->SetPressMethod(PressMethod);
-		RootButtonRaw->SetButtonFocusable(IsFocusable());
+		//Force the RootButton to not be focusable if it has a DesiredFocusWidgetName set which was stealing the focus and preventing DesiredFocusWidget from getting the FocusReceived event.
+		RootButtonRaw->SetButtonFocusable(GetDesiredFocusWidgetName().IsNone() && IsFocusable());
 		RootButtonRaw->SetButtonEnabled(bButtonEnabled);
 		RootButtonRaw->SetInteractionEnabled(bInteractionEnabled);
 		RootButton = RootButtonRaw;
@@ -490,19 +491,20 @@ void UCommonButtonBase::SetIsEnabled(bool bInIsEnabled)
 {
 	bool bValueChanged = bButtonEnabled != bInIsEnabled;
 
+	// Change the underlying enabled bool but do not broadcast because we don't want to propagate it to the underlying SWidget
+	bool bOldBroadcastState = bShouldBroadcastState;
+	bShouldBroadcastState = false;
 	if (bInIsEnabled)
 	{
-		TGuardValue<bool> StateBroadcastGuard(bShouldBroadcastState, false);
 		Super::SetIsEnabled(bInIsEnabled);
 		EnableButton();
 	}
 	else
 	{
-		// Change the underlying enabled bool but do not call the case because we don't want to propogate it to the underlying SWidget
-		TGuardValue<bool> StateBroadcastGuard(bShouldBroadcastState, false);
 		Super::SetIsEnabled(bInIsEnabled);
 		DisableButton();
 	}
+	bShouldBroadcastState = bOldBroadcastState;
 
 	if (bValueChanged)
 	{
@@ -585,6 +587,8 @@ void UCommonButtonBase::BindTriggeringInputActionToClick()
 	{
 		FBindUIActionArgs BindArgs(TriggeringEnhancedInputAction, false, FSimpleDelegate::CreateUObject(this, &UCommonButtonBase::HandleTriggeringActionCommited));
 		BindArgs.OnHoldActionProgressed.BindUObject(this, &UCommonButtonBase::NativeOnActionProgress);
+		BindArgs.OnHoldActionPressed.BindUObject(this, &UCommonButtonBase::NativeOnPressed);
+		BindArgs.OnHoldActionReleased.BindUObject(this, &UCommonButtonBase::NativeOnReleased);
 		BindArgs.bIsPersistent = bIsPersistentBinding;
 
 		BindArgs.InputMode = InputModeOverride;
@@ -712,6 +716,7 @@ void UCommonButtonBase::SetIsInteractionEnabled(bool bInIsInteractionEnabled)
 			NativeOnUnhovered();
 		}
 	}
+	SetButtonStyle();
 }
 
 void UCommonButtonBase::SetHideInputAction(bool bInHideInputAction)
@@ -1508,6 +1513,10 @@ void UCommonButtonBase::NativeOnClicked()
 	{
 		BP_OnLockClicked();
 		OnLockClicked().Broadcast();
+		if (OnButtonBaseLockClicked.IsBound())
+		{
+			OnButtonBaseLockClicked.Broadcast(this);
+		}
 	}
 }
 
@@ -1526,6 +1535,10 @@ void UCommonButtonBase::NativeOnDoubleClicked()
 	{
 		BP_OnLockDoubleClicked();
 		OnLockDoubleClicked().Broadcast();
+		if (OnButtonBaseLockDoubleClicked.IsBound())
+		{
+			OnButtonBaseLockDoubleClicked.Broadcast(this);
+		}
 	}
 }
 
@@ -1895,6 +1908,15 @@ void UCommonButtonBase::DisableButton()
 			UpdateInputActionWidget();
 			InputActionWidget->SetIsEnabled(bButtonEnabled);
 		}
+	}
+}
+
+void UCommonButtonBase::SetRequiresHold(bool bInRequiresHold)
+{
+	bRequiresHold = bInRequiresHold;
+	if (const UCommonInputSubsystem* CommonInputSubsystem = GetInputSubsystem())
+	{
+		UpdateHoldData(CommonInputSubsystem->GetCurrentInputType());
 	}
 }
 

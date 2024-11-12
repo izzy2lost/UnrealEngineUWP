@@ -4,49 +4,58 @@
 
 #include "CoreTypes.h"
 #include "UObject/Object.h"
+#include "Core/CameraDirectorEvaluator.h"
 
 #include "CameraDirector.generated.h"
 
-class UCameraEvaluationContext;
-class UCameraMode;
+namespace UE::Cameras { class FCameraBuildLog; }
+
+#if WITH_EDITOR
 
 /**
- * Parameter structure for running a camera director.
+ * Parameter struct passed by an asset factory when a new camera asset is created.
+ * This lets a camera director setup data before the editor opens.
  */
-struct FCameraDirectorRunParams
+struct FCameraDirectorFactoryCreateParams
 {
-	/** Time interval for the update. */
-	float DeltaTime = 0.f;
-
-	/** The context in which this director runs. */
-	const UCameraEvaluationContext* OwnerContext = nullptr;
 };
 
-/**
- * Result struct for running a camera director.
- */
-struct FCameraDirectorRunResult
-{
-	/** The camera mode(s) that the director says should be active this frame. */
-	TArray<TObjectPtr<const UCameraMode>, TInlineAllocator<2>> ActiveCameraModes;
-};
+#endif
 
 /**
  * Base class for a camera director.
  */
-UCLASS(Abstract, DefaultToInstanced, MinimalAPI)
-class UCameraDirector : public UObject
+UCLASS(Abstract, DefaultToInstanced)
+class GAMEPLAYCAMERAS_API UCameraDirector : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	
-	/** Runs the camera director to determine what camera mode(s) should be active this frame. */
-	void Run(const FCameraDirectorRunParams& Params, FCameraDirectorRunResult& OutResult);
+
+	using FCameraDirectorEvaluatorBuilder = UE::Cameras::FCameraDirectorEvaluatorBuilder;
+
+	/** Build the evaluator for this director. */
+	FCameraDirectorEvaluatorPtr BuildEvaluator(FCameraDirectorEvaluatorBuilder& Builder) const;
+
+	/** Builds and validates this camera director. */
+	void BuildCameraDirector(UE::Cameras::FCameraBuildLog& BuildLog);
+
+#if WITH_EDITOR
+	/** Called by the asset factories to setup new data before the editor opens. */
+	void FactoryCreateAsset(const FCameraDirectorFactoryCreateParams& InParams);
+#endif
 
 protected:
 
-	/** Runs the camera director to determine what camera mode(s) should be active this frame. */
-	virtual void OnRun(const FCameraDirectorRunParams& Params, FCameraDirectorRunResult& OutResult) {}
+	/** Build the evaluator for this director. */
+	virtual FCameraDirectorEvaluatorPtr OnBuildEvaluator(FCameraDirectorEvaluatorBuilder& Builder) const { return nullptr; }
+
+	/** Builds and validates this camera director. */
+	virtual void OnBuildCameraDirector(UE::Cameras::FCameraBuildLog& BuildLog) {}
+
+#if WITH_EDITOR
+	/** Called by the asset factories to setup new data before the editor opens. */
+	virtual void OnFactoryCreateAsset(const FCameraDirectorFactoryCreateParams& InParams) {}
+#endif
 };
 

@@ -18,14 +18,33 @@
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/ActorDescContainerSubsystem.h"
+#include "DeletedObjectPlaceholder.h"
 
 UActorDescContainer::FActorDescContainerInitializeDelegate UActorDescContainer::OnActorDescContainerInitialized;
+
+FUObjectAnnotationSparse<FDeletedObjectPlaceholderAnnotation, true> UActorDescContainer::DeletedObjectPlaceholdersAnnotation;
+
+FDeletedObjectPlaceholderAnnotation::FDeletedObjectPlaceholderAnnotation(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder, const FString& InActorDescContainerName)
+	: DeletedObjectPlaceholder(InDeletedObjectPlaceholder)
+	, ActorDescContainerName(InActorDescContainerName)
+{
+}
+
+UActorDescContainer* FDeletedObjectPlaceholderAnnotation::GetActorDescContainer() const
+{
+	UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get();
+	UActorDescContainer* ActorDescContainer = ActorDescContainerSubsystem ? ActorDescContainerSubsystem->GetActorDescContainer(ActorDescContainerName) : nullptr;
+	return ActorDescContainer;
+}
+
 #endif
 
 UActorDescContainer::UActorDescContainer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 #if WITH_EDITOR
 	, bContainerInitialized(false)
+	, bRegisteredDelegates(false)
 #endif
 {}
 
@@ -33,8 +52,12 @@ UActorDescContainer::UActorDescContainer(const FObjectInitializer& ObjectInitial
 void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UActorDescContainer::Initialize);
-
 	check(!bContainerInitialized);
+	if (InitParams.PreInitialize)
+	{
+		InitParams.PreInitialize(this);
+	}
+
 	ContainerPackageName = InitParams.PackageName;
 	if (InitParams.ExternalDataLayerAsset)
 	{
@@ -46,33 +69,68 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		ContentBundleGuid = InitParams.ContentBundleGuid;
 	}
 
-	TArray<FAssetData> Assets;
-	if (!ContainerPackageName.IsNone())
+	TArray<FAssetData> ExternalAssets;
+	TArray<FString> InternalAssets;
+	if (!ContainerPackageName.IsNone() && !FPackageName::IsTempPackage(ContainerPackageName.ToString()))
 	{
 		const FString ContainerExternalActorsPath = GetExternalActorPath();
 
-		// Do a synchronous scan of the level external actors path.					
 		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+		// Do a synchronous scan of the level external actors path.
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ScanSynchronous);
 			AssetRegistry.ScanSynchronous({ ContainerExternalActorsPath }, TArray<FString>());
 		}
 
-		FARFilter Filter;
-		Filter.bRecursivePaths = true;
-		Filter.bIncludeOnlyOnDiskAssets = true;
-		Filter.PackagePaths.Add(*ContainerExternalActorsPath);
+		// Gather external actors
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetExternalAssets);
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(GetAssets);
-		FExternalPackageHelper::GetSortedAssets(Filter, Assets);
+			FARFilter Filter;
+			Filter.bRecursivePaths = true;
+			Filter.bIncludeOnlyOnDiskAssets = true;
+			Filter.PackagePaths.Add(*ContainerExternalActorsPath);
+
+			FExternalPackageHelper::GetSortedAssets(Filter, ExternalAssets);
+		}
+
+		// Gather non-external actors
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetInternalAssets);
+
+			FARFilter Filter;
+			Filter.bIncludeOnlyOnDiskAssets = true;
+			Filter.PackageNames.Add(ContainerPackageName);
+
+			TArray<FAssetData> WorldAssetData;
+			AssetRegistry.GetAssets(Filter, WorldAssetData);
+
+			// Transform world assets
+			static FName NAME_ActorsMetaData(TEXT("ActorsMetaData"));
+			for (const FAssetData& AssetData : WorldAssetData)
+			{
+				FString ActorsMetaDataStr;
+				if (AssetData.GetTagValue(NAME_ActorsMetaData, ActorsMetaDataStr))
+				{
+					TArray<FString> ActorsMetaData;
+					if (ActorsMetaDataStr.ParseIntoArray(ActorsMetaData, TEXT(";")))
+					{
+						InternalAssets.Append(ActorsMetaData);
+					}
+				}
+			}
+		}
 	}
+
+	UE_LOG(LogWorldPartition, Verbose, TEXT("Parsed actor descriptor container package '%s': %d external actors, %d internal actors"), *InitParams.PackageName.ToString(), ExternalAssets.Num(), InternalAssets.Num());
 
 	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(GatherDescriptorsClass);
 		
 		TSet<FTopLevelAssetPath> ClassPaths;
-		for (const FAssetData& Asset : Assets)
+		for (const FAssetData& Asset : ExternalAssets)
 		{
 			ClassPaths.Add(Asset.AssetClassPath);
 		}
@@ -85,7 +143,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		TRACE_CPUPROFILER_EVENT_SCOPE(CreateDescriptors);
 
 		TMap<FName, FWorldPartitionActorDesc*> ActorDescsByPackage;
-		for (const FAssetData& Asset : Assets)
+		for (const FAssetData& Asset : ExternalAssets)
 		{
 			TUniquePtr<FWorldPartitionActorDesc> ActorDesc = FWorldPartitionActorDescUtils::GetActorDescriptorFromAssetData(Asset);
 								
@@ -97,7 +155,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 			else if (!ActorDesc->GetNativeClass().IsValid())
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Invalid actor native class: Actor: '%s' (guid '%s') from package '%s'"),
-					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetActorNameString(),
 					*ActorDesc->GetGuid().ToString(),
 					*ActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
@@ -106,7 +164,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Unknown actor base class `%s`: Actor: '%s' (guid '%s') from package '%s'"),
 					*ActorDesc->GetBaseClass().ToString(),
-					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetActorNameString(),
 					*ActorDesc->GetGuid().ToString(),
 					*ActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
@@ -121,8 +179,8 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 			{
 				UE_LOG(LogWorldPartition, Warning, TEXT("Duplicate actor descriptor in package `%s`: Actor: '%s' -> Existing actor '%s'"), 
 					*ActorDesc->GetActorPackage().ToString(), 
-					*ActorDesc->GetActorName().ToString(), 
-					*ExistingDescPackage->GetActorName().ToString());
+					*ActorDesc->GetActorNameString(), 
+					*ExistingDescPackage->GetActorNameString());
 
 				// No need to add all actors in the same package several times as we only want to open the package for delete when repairing
 				if (ValidActorDescs.Contains(ActorDesc->GetGuid()))
@@ -137,9 +195,9 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 				check(ExistingActorDesc->GetGuid() == ActorDesc->GetGuid());
 				UE_LOG(LogWorldPartition, Warning, TEXT("Duplicate actor descriptor guid `%s`: Actor: '%s' from package '%s' -> Existing actor '%s' from package '%s'"), 
 					*ActorDesc->GetGuid().ToString(), 
-					*ActorDesc->GetActorName().ToString(), 
+					*ActorDesc->GetActorNameString(), 
 					*ActorDesc->GetActorPackage().ToString(),
-					*ExistingActorDesc->GetActorName().ToString(),
+					*ExistingActorDesc->GetActorNameString(),
 					*ExistingActorDesc->GetActorPackage().ToString());
 				InvalidActors.Emplace(Asset);
 			}
@@ -148,6 +206,16 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 				ActorDescsByPackage.Add(ActorDesc->GetActorPackage(), ActorDesc.Get());
 				ValidActorDescs.Add(ActorDesc->GetGuid(), MoveTemp(ActorDesc));
 			}
+		}
+
+		for (const FString& InternalAsset : InternalAssets)
+		{
+			FWorldPartitionActorDescUtils::FActorDescInitParams ActorDescInitParams(InternalAsset);
+
+			TUniquePtr<FWorldPartitionActorDesc> ActorDesc = FWorldPartitionActorDescUtils::GetActorDescriptorFromInitParams(ActorDescInitParams, ContainerPackageName);
+
+			ActorDescsByPackage.Add(ActorDesc->GetActorPackage(), ActorDesc.Get());
+			ValidActorDescs.Add(ActorDesc->GetGuid(), MoveTemp(ActorDesc));
 		}
 	}
 
@@ -164,7 +232,12 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		OnActorDescContainerInitialized.Broadcast(this);
 	}
 
-	RegisterEditorDelegates();
+	bRegisteredDelegates = InitParams.bShouldRegisterEditorDeletages && ShouldRegisterDelegates();
+	
+	if (bRegisteredDelegates)
+	{
+		RegisterEditorDelegates();
+	}
 
 	bContainerInitialized = true;
 }
@@ -173,7 +246,11 @@ void UActorDescContainer::Uninitialize()
 {
 	if (bContainerInitialized)
 	{
-		UnregisterEditorDelegates();
+		if (bRegisteredDelegates)
+		{
+			UnregisterEditorDelegates();
+			bRegisteredDelegates = false;
+		}
 		bContainerInitialized = false;
 	}
 
@@ -210,7 +287,7 @@ bool UActorDescContainer::HasExternalContent() const
 	return ExternalDataLayerAsset ? true : GetContentBundleGuid().IsValid();
 }
 
-bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
+bool UActorDescContainer::IsActorDescHandled(const AActor* InActor, bool bInUseLoadedPath) const
 {
 	// Actor External Content Guid must match Container's External Content Guid to be considered
 	// AWorldDataLayers actors are an exception as they don't have an External Content Guid
@@ -218,14 +295,20 @@ bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
 		(!HasExternalContent() && !InActor->HasExternalContent()) ||
 		(ExternalDataLayerAsset && (ExternalDataLayerAsset == InActor->GetExternalDataLayerAsset())) ||
 		(ContentBundleGuid.IsValid() && (ContentBundleGuid == InActor->GetContentBundleGuid()));
-	
+
 	if (bIsCandidateActor)
 	{
-		const FString ActorPackageName = InActor->GetPackage()->GetName();
+		const FName LoadedPackageName = InActor->GetPackage()->GetLoadedPath().GetPackageFName();
+		const FString ActorPackageName = bInUseLoadedPath && !LoadedPackageName.IsNone() ? LoadedPackageName.ToString() : InActor->GetPackage()->GetName();
 		const FString ExternalActorPath = GetExternalActorPath() / TEXT("");
 		return ActorPackageName.StartsWith(ExternalActorPath);
 	}
 	return false;
+}
+
+bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
+{
+	return IsActorDescHandled(InActor, false);
 }
 
 void UActorDescContainer::RegisterActorDescriptor(FWorldPartitionActorDesc* ActorDesc)
@@ -241,12 +324,17 @@ void UActorDescContainer::UnregisterActorDescriptor(FWorldPartitionActorDesc* Ac
 {
 	FActorDescList::RemoveActorDescriptor(ActorDesc);
 	ActorDesc->SetContainer(nullptr);
-	verifyf(ActorsByName.Remove(ActorDesc->GetActorName()), TEXT("Missing actor '%s' from container '%s'"), *ActorDesc->GetActorName().ToString(), *ContainerPackageName.ToString());
+	verifyf(ActorsByName.Remove(ActorDesc->GetActorName()), TEXT("Missing actor '%s' from container '%s'"), *ActorDesc->GetActorNameString(), *ContainerPackageName.ToString());
+}
+
+bool UActorDescContainer::ShouldHandleActorEvent(const AActor* Actor, bool bInUseLoadedPath) const
+{
+	return Actor && IsActorDescHandled(Actor, bInUseLoadedPath) && Actor->IsMainPackageActor() && Actor->GetLevel();
 }
 
 bool UActorDescContainer::ShouldHandleActorEvent(const AActor* Actor)
 {
-	return Actor && IsActorDescHandled(Actor) && Actor->IsMainPackageActor() && Actor->GetLevel();
+	return ShouldHandleActorEvent(Actor, false);
 }
 
 const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByPath(const FString& ActorPath) const
@@ -276,6 +364,33 @@ const FWorldPartitionActorDesc* UActorDescContainer::GetActorDescByName(FName Ac
 	return nullptr;
 }
 
+bool UActorDescContainer::ShouldHandleDeletedObjectPlaceholderEvent(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder) const
+{
+	const FExternalDataLayerUID ContainerExternalDataLayerUID = ExternalDataLayerAsset ? ExternalDataLayerAsset->GetUID() : FExternalDataLayerUID();
+	if (ContainerExternalDataLayerUID == InDeletedObjectPlaceholder->GetExternalDataLayerUID())
+	{
+		const FString PackageName = InDeletedObjectPlaceholder->GetPackage()->GetName();
+		const FString ContainerExternalActorPath = GetExternalActorPath() / TEXT("");
+		return PackageName.StartsWith(ContainerExternalActorPath);
+	}
+	return false;
+};
+
+void UActorDescContainer::OnDeletedObjectPlaceholderCreated(const UDeletedObjectPlaceholder* InDeletedObjectPlaceholder)
+{
+	const UObject* OriginalObject = InDeletedObjectPlaceholder->GetOriginalObject();
+	if (const AActor* Actor = Cast<AActor>(OriginalObject))
+	{
+		if (ShouldHandleDeletedObjectPlaceholderEvent(InDeletedObjectPlaceholder))
+		{
+			if (GetActorDescriptor(Actor->GetActorGuid()))
+			{
+				DeletedObjectPlaceholdersAnnotation.AddAnnotation(Actor, FDeletedObjectPlaceholderAnnotation(InDeletedObjectPlaceholder, GetContainerName()));
+			}
+		}
+	}
+}
+
 void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext SaveContext)
 {
 	if (!SaveContext.IsProceduralSave() && !(SaveContext.GetSaveFlags() & SAVE_FromAutosave))
@@ -285,6 +400,23 @@ void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext
 			if (ShouldHandleActorEvent(Actor))
 			{
 				check(IsValidChecked(Actor));
+
+				// Handle the case where the actor changed package but the old/empty package has not been processed/deleted
+				// One case where this can happen is if the user choses to save the new package but unchecks the deleted package
+				// Remove(unhash) the corresponding original actor (guid) from its original container before adding the new one (unhash before hashing)
+				if (FDeletedObjectPlaceholderAnnotation Annotation = DeletedObjectPlaceholdersAnnotation.GetAndRemoveAnnotation(Actor); Annotation.IsValid())
+				{
+					// In the case where the object changed to a new container and created a new package, then changed back to its original location,
+					// OnDeletedObjectPlaceholderCreated will not be called for the newly created package
+					// This is why we need to validate that the annotation's container is still relevant by the annotation's DeletedObjectPlaceholder using ShouldHandleDeletedObjectPlaceholderEvent
+					UActorDescContainer* ActorDescContainer = Annotation.GetActorDescContainer();
+					if (ActorDescContainer && ActorDescContainer->ShouldHandleDeletedObjectPlaceholderEvent(Annotation.GetDeletedObjectPlaceholder()))
+					{
+						check(Annotation.GetDeletedObjectPlaceholder()->GetOriginalObject() == Actor);
+						verify(ActorDescContainer->RemoveActor(Actor->GetActorGuid()));
+					}
+				}
+				
 				if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDesc = GetActorDescriptor(Actor->GetActorGuid()))
 				{
 					// Existing actor
@@ -306,11 +438,26 @@ void UActorDescContainer::OnObjectPreSave(UObject* Object, FObjectPreSaveContext
 
 void UActorDescContainer::OnPackageDeleted(UPackage* Package)
 {
-	AActor* Actor = AActor::FindActorInPackage(Package);
-
-	if (ShouldHandleActorEvent(Actor))
+	if (const AActor* Actor = AActor::FindActorInPackage(Package))
 	{
-		RemoveActor(Actor->GetActorGuid());
+		if (ShouldHandleActorEvent(Actor))
+		{
+			RemoveActor(Actor->GetActorGuid());
+		}
+	}
+	else if (UDeletedObjectPlaceholder* DeletedObjectPlaceholder = UDeletedObjectPlaceholder::FindInPackage(Package))
+	{
+		if (ShouldHandleDeletedObjectPlaceholderEvent(DeletedObjectPlaceholder))
+		{
+			// Here we validate that we didn't already processed the DeletedObjectPlaceholder in OnObjectPreSave
+			const AActor* OriginalActor = CastChecked<AActor>(DeletedObjectPlaceholder->GetOriginalObject());
+			if (FDeletedObjectPlaceholderAnnotation Annotation = DeletedObjectPlaceholdersAnnotation.GetAndRemoveAnnotation(OriginalActor); Annotation.IsValid())
+			{
+				check(Annotation.GetDeletedObjectPlaceholder() == DeletedObjectPlaceholder);
+				check(Annotation.GetActorDescContainer() == this);
+				verify(RemoveActor(OriginalActor->GetActorGuid()));
+			}
+		}
 	}
 }
 
@@ -376,33 +523,31 @@ bool UActorDescContainer::RemoveActor(const FGuid& ActorGuid)
 	return false;
 }
 
-bool UActorDescContainer::ShouldRegisterDelegates()
+bool UActorDescContainer::ShouldRegisterDelegates() const
 {
 	return GEditor && !IsTemplate() && !IsRunningCookCommandlet();
 }
 
 void UActorDescContainer::RegisterEditorDelegates()
 {
-	if (ShouldRegisterDelegates())
-	{
-		FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UActorDescContainer::OnObjectPreSave);
-		FEditorDelegates::OnPackageDeleted.AddUObject(this, &UActorDescContainer::OnPackageDeleted);
+	FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UActorDescContainer::OnObjectPreSave);
+	FEditorDelegates::OnPackageDeleted.AddUObject(this, &UActorDescContainer::OnPackageDeleted);
 
-		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
-		ClassDescRegistry.OnClassDescriptorUpdated().AddUObject(this, &UActorDescContainer::OnClassDescriptorUpdated);
-	}
+	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
+	ClassDescRegistry.OnClassDescriptorUpdated().AddUObject(this, &UActorDescContainer::OnClassDescriptorUpdated);
+
+	UDeletedObjectPlaceholder::OnObjectCreated.AddUObject(this, &UActorDescContainer::OnDeletedObjectPlaceholderCreated);
 }
 
 void UActorDescContainer::UnregisterEditorDelegates()
 {
-	if (ShouldRegisterDelegates())
-	{
-		FCoreUObjectDelegates::OnObjectPreSave.RemoveAll(this);
-		FEditorDelegates::OnPackageDeleted.RemoveAll(this);
+	FCoreUObjectDelegates::OnObjectPreSave.RemoveAll(this);
+	FEditorDelegates::OnPackageDeleted.RemoveAll(this);
 
-		FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
-		ClassDescRegistry.OnClassDescriptorUpdated().RemoveAll(this);
-	}
+	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
+	ClassDescRegistry.OnClassDescriptorUpdated().RemoveAll(this);
+
+	UDeletedObjectPlaceholder::OnObjectCreated.RemoveAll(this);
 }
 
 void UActorDescContainer::OnActorDescAdded(FWorldPartitionActorDesc* NewActorDesc)

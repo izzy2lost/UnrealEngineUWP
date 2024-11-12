@@ -13,6 +13,7 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Framework/Application/SlateApplication.h"
+#include "ToolMenuSection.h"
 
 #define LOCTEXT_NAMESPACE "AnimAssetFindReplace"
 
@@ -253,7 +254,7 @@ void UAnimAssetFindReplaceProcessor_StringBase::ExtendToolbar(FToolMenuSection& 
 			MatchCaseCheckbox,
 			LOCTEXT("MatchCaseCheckboxLabel", "Match Case"),
 			LOCTEXT("MatchCaseCheckboxTooltip", "Whether to match case when searching."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Clipboard"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Persona.FindReplace.MatchCase"),
 			EUserInterfaceActionType::ToggleButton));
 
 	FToolUIAction MatchWholeWordCheckbox;
@@ -273,7 +274,7 @@ void UAnimAssetFindReplaceProcessor_StringBase::ExtendToolbar(FToolMenuSection& 
 			MatchWholeWordCheckbox,
 			LOCTEXT("MatchWholeWordCheckboxLabel", "Match Whole Word"),
 			LOCTEXT("MatchWholeWordCheckboxTooltip", "Whether to match the whole word or just part of the word when searching."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Use"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Persona.FindReplace.MatchWholeWord"),
 			EUserInterfaceActionType::ToggleButton));
 
 	InSection.AddSeparator(NAME_None);

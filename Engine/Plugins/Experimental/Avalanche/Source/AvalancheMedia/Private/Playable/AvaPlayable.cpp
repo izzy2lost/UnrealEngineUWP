@@ -54,11 +54,22 @@ namespace UE::AvaPlayable::Private
 		{
 			return FString::Printf(TEXT("Id:%s, Asset:%s, Status:%s"),
 				*InPlayable->GetInstanceId().ToString(),
-				*InPlayable->GetSourceAssetPath().ToString(),
-				*StaticEnum<EAvaPlayableStatus>()->GetNameByValue(static_cast<int32>(InPlayable->GetPlayableStatus())).ToString());
+				*InPlayable->GetSourceAssetPath().GetAssetName(),
+				*AvaPlayback::Utils::StaticEnumToString(InPlayable->GetPlayableStatus()));
 		}
 		return TEXT("(nullptr)");
 	}
+	
+	FString GetPrettySequenceInfo(const UAvaSequence* InSequence)
+	{
+		if (InSequence)
+		{
+			return FString::Printf(TEXT("Name:%s, Label:%s"),
+				*InSequence->GetFName().ToString(),
+				*InSequence->GetLabel().ToString());
+		}
+		return TEXT("(nullptr)");
+	}		
 
 	FString GetBriefFrameInfo()
 	{
@@ -68,7 +79,7 @@ namespace UE::AvaPlayable::Private
 	FString GetPrettySequenceCommandInfo(EAvaPlaybackAnimAction InAnimAction, const FAvaPlaybackAnimPlaySettings& InAnimPlaySettings)
 	{
 		return FString::Printf(TEXT("Action:%s, Name:%s"),
-			*StaticEnum<EAvaPlaybackAnimAction>()->GetNameByValue(static_cast<int32>(InAnimAction)).ToString(),
+			*AvaPlayback::Utils::StaticEnumToString(InAnimAction),
 			*InAnimPlaySettings.AnimationName.ToString());
 	}
 }
@@ -180,21 +191,23 @@ EAvaPlayableCommandResult UAvaPlayable::ExecuteAnimationCommand(EAvaPlaybackAnim
 		// Remark: if the command doesn't specify the sequence name, we run the command on all the sequences.
 		if (Sequence && (Sequence->GetFName() == InAnimPlaySettings.AnimationName || InAnimPlaySettings.AnimationName.IsNone()))
 		{
-			if (InAnimAction == EAvaPlaybackAnimAction::Play || InAnimAction == EAvaPlaybackAnimAction::PreviewFrame)
+			switch (InAnimAction)
 			{
-				UAvaSequencePlayer* const SequencePlayer = PlaybackObject->PlaySequence(Sequence, InAnimPlaySettings.AsPlayParams());
-				if (InAnimAction == EAvaPlaybackAnimAction::PreviewFrame && SequencePlayer)
-				{
-					SequencePlayer->PreviewFrame();
-				}
-			}
-			else if (InAnimAction == EAvaPlaybackAnimAction::Continue)
-			{
+			case EAvaPlaybackAnimAction::Play:
+				PlaybackObject->PlaySequence(Sequence, InAnimPlaySettings.AsPlayParams());
+				break;
+
+			case EAvaPlaybackAnimAction::Continue:
 				PlaybackObject->ContinueSequence(Sequence);
-			}
-			else if (InAnimAction == EAvaPlaybackAnimAction::Stop)
-			{
+				break;
+
+			case EAvaPlaybackAnimAction::Stop:
 				PlaybackObject->StopSequence(Sequence);
+				break;
+
+			case EAvaPlaybackAnimAction::PreviewFrame:
+				PlaybackObject->PreviewFrame(Sequence);
+				break;
 			}
 		}
 	}
@@ -254,6 +267,8 @@ EAvaPlayableCommandResult UAvaPlayable::UpdateRemoteControlCommand(const TShared
 	// during page edition and the resulting entity values are already captured.
 	InRemoteControlValues->ApplyEntityValuesToRemoteControlPreset(RemoteControlPreset);
 
+	OnRemoteControlValuesApplied();
+
 	return EAvaPlayableCommandResult::Executed;
 }
 
@@ -272,6 +287,7 @@ void UAvaPlayable::BeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings
 		
 		// Playable events need to transit through playback events to reach the rundown for proper impl layer separation.
 		UAvaSequencePlayer::OnSequenceStarted().AddUObject(this, &UAvaPlayable::HandleOnSequenceStarted);
+		UAvaSequencePlayer::OnSequencePaused().AddUObject(this, &UAvaPlayable::HandleOnSequencePaused);
 		UAvaSequencePlayer::OnSequenceFinished().AddUObject(this, &UAvaPlayable::HandleOnSequenceFinished);
 
 		OnPlay();
@@ -287,18 +303,14 @@ void UAvaPlayable::EndPlay(EAvaPlayableEndPlayOptions InOptions)
 
 	bIsPlaying = false;
 	UAvaSequencePlayer::OnSequenceStarted().RemoveAll(this);
+	UAvaSequencePlayer::OnSequencePaused().RemoveAll(this);
 	UAvaSequencePlayer::OnSequenceFinished().RemoveAll(this);
 	OnEndPlay();
 
-	if (PlayableGroup)
+	if (PlayableGroup && EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ConditionalEndPlayWorld) && !PlayableGroup->HasPlayingPlayables())
 	{
-		PlayableGroup->UpdateCameraSetup();
-
-		if (EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ConditionalEndPlayWorld) && !PlayableGroup->HasPlayingPlayables())
-		{
-			const bool bForceImmediate = EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ForceImmediate);
-			PlayableGroup->RequestEndPlayWorld(bForceImmediate);
-		}
+		const bool bForceImmediate = EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ForceImmediate);
+		PlayableGroup->RequestEndPlayWorld(bForceImmediate);
 	}
 }
 
@@ -346,9 +358,20 @@ void UAvaPlayable::HandleOnSequenceStarted(UAvaSequencePlayer* InSequencePlayer,
 	if (HasSequence(InSequence))
 	{
 		using namespace UE::AvaPlayable::Private;
-		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence \"%s\" started."),
-			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this), *InSequence->GetFName().ToString());
-		OnSequenceEventDelegate.Broadcast(this, InSequence->GetFName(), EAvaPlayableSequenceEventType::Started);
+		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence {%s} started."),
+			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this),  *GetPrettySequenceInfo(InSequence));
+		OnSequenceEventDelegate.Broadcast(this, InSequence->GetLabel(), EAvaPlayableSequenceEventType::Started);
+	}
+}
+
+void UAvaPlayable::HandleOnSequencePaused(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence)
+{
+	if (HasSequence(InSequence))
+	{
+		using namespace UE::AvaPlayable::Private;
+		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence {%s} paused."),
+			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this),  *GetPrettySequenceInfo(InSequence));
+		OnSequenceEventDelegate.Broadcast(this, InSequence->GetLabel(), EAvaPlayableSequenceEventType::Paused);
 	}
 }
 
@@ -357,9 +380,9 @@ void UAvaPlayable::HandleOnSequenceFinished(UAvaSequencePlayer* InSequencePlayer
 	if (HasSequence(InSequence))
 	{
 		using namespace UE::AvaPlayable::Private;
-		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence \"%s\" finished."),
-			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this), *InSequence->GetFName().ToString());
-		OnSequenceEventDelegate.Broadcast(this, InSequence->GetFName(), EAvaPlayableSequenceEventType::Finished);
+		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence {%s} finished."),
+			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this),  *GetPrettySequenceInfo(InSequence));
+		OnSequenceEventDelegate.Broadcast(this, InSequence->GetLabel(), EAvaPlayableSequenceEventType::Finished);
 	}
 }
 

@@ -55,10 +55,7 @@ void AStaticMeshActor::BeginPlay()
 		SetReplicates(true);
 	}	
 
-	if (StaticMeshComponent && StaticMeshComponent->BodyInstance.bSimulatePhysics)
-	{
-		SetPhysicsReplicationMode(StaticMeshPhysicsReplicationMode);
-	}
+	SetPhysicsReplicationMode(StaticMeshPhysicsReplicationMode);
 
 	Super::BeginPlay();
 }

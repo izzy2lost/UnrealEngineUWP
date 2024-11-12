@@ -31,6 +31,14 @@ DECLARE_DELEGATE_TwoParams(FBackgroundHttpRequestCompleteDelegate, FBackgroundHt
 DECLARE_DELEGATE_ThreeParams(FBackgroundHttpProgressUpdateDelegate, FBackgroundHttpRequestPtr /*Request*/, int32 /*TotalBytesWritten*/, int32 /*BytesWrittenSinceLastUpdate*/);
 
 /**
+ * Delegate called when a Background Http request metrics are ready
+ * @param Request Background Http Request for which the metrics were calculated
+ * @param TotalBytesDownloaded The count of bytes downloaded in this request
+ * @param DownloadDuration The duration of the download in seconds
+ */
+DECLARE_DELEGATE_ThreeParams(FBackgroundHttpRequestMetricsDelegate, FBackgroundHttpRequestPtr /* Request */, int32 /* TotalBytesDownloaded */, float /* DownloadDuration */);
+
+/**
  * Enum used to describe download priority. Higher priorities will be downloaded first.
  * Note: Should always be kept in High -> Low priority order if adding more Priorities!
  */
@@ -134,6 +142,11 @@ public:
 	* Delegate called when the request has a progress update.
 	*/
 	virtual FBackgroundHttpProgressUpdateDelegate& OnProgressUpdated() = 0;
+	
+	/**
+	 * Delegate called when the request's metrics were calculated
+	 */
+	virtual FBackgroundHttpRequestMetricsDelegate& OnRequestMetrics() = 0;
 
 	/**
 	* Called to begin processing the request.
@@ -209,5 +222,12 @@ public:
 	* Destructor for overrides 
 	*/
 	virtual ~IBackgroundHttpRequest() = default;
+
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Returns debug text for download screen to help troubleshoot download issues
+	 */
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };
 

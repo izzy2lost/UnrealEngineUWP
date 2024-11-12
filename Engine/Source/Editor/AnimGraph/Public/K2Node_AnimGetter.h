@@ -71,6 +71,8 @@ public:
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostPasteNode() override;
+	virtual void PostLoad() override;
+	virtual void BeginDestroy() override;
 	// End of UObject interface
 
 	// UEdGraphNode interface
@@ -78,6 +80,7 @@ public:
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual bool CanCreateUnderSpecifiedSchema(const UEdGraphSchema* Schema) const override;
 	virtual bool IsActionFilteredOut(FBlueprintActionFilter const& Filter) override;
+	virtual void PostPlacedNewNode();
 	// End of UEdGraphNode interface
 
 	// UK2Node interface
@@ -137,4 +140,14 @@ protected:
 
 	/** Generates a title for the node based on its function and the context it is in */
 	static FText GenerateTitle(UFunction* Getter, UAnimStateNodeBase* SourceStateNode, UAnimGraphNode_Base* SourceNode);
+
+	// UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	// End of UK2Node_CallFunction interface
+
+	virtual void RegisterDelegates();
+	virtual void UnregisterDelegates();
+
+private:
+	FDelegateHandle GraphRenameHandle;
 };

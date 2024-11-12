@@ -21,7 +21,7 @@ uint32 INTERCHANGEPIPELINES_API GetTypeHash(EInterchangeMaterialXSettings Key);
 
 bool INTERCHANGEPIPELINES_API operator==(EInterchangeMaterialXSettings Lhs, EInterchangeMaterialXSettings Rhs);
 
-UCLASS(config = Interchange, meta = (DisplayName = "Interchange MaterialX"))
+UCLASS(config = Interchange, meta = (DisplayName = "MaterialX Settings", ToolTip = "Interchange MaterialX Pipeline Settings"))
 class INTERCHANGEPIPELINES_API UMaterialXPipelineSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -101,7 +101,7 @@ public:
 	TObjectPtr<UMaterialXPipelineSettings> MaterialXSettings;
 
 protected:
-	virtual void AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset) override;
+	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath) override;
 
 	virtual bool CanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask) override

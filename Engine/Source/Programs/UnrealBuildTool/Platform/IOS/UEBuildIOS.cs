@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -19,12 +18,12 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// IOS Simulator
 		/// </summary>
-		public static UnrealArch IOSSimulator = FindOrAddByName("iossimulator", bIsX64: false);
+		public static UnrealArch IOSSimulator { get; } = FindOrAddByName("iossimulator", bIsX64: false);
 
 		/// <summary>
 		/// TVOS Simulator
 		/// </summary>
-		public static UnrealArch TVOSSimulator = FindOrAddByName("tvossimulator", bIsX64: false);
+		public static UnrealArch TVOSSimulator { get; } = FindOrAddByName("tvossimulator", bIsX64: false);
 
 		private static IReadOnlyDictionary<UnrealArch, string> AppleToolchainArchitectures = new Dictionary<UnrealArch, string>()
 		{
@@ -83,6 +82,8 @@ namespace UnrealBuildTool
 		/// Don't generate crashlytics data
 		/// </summary>
 		[CommandLine("-alwaysgeneratedsym", Value = "true")]
+		[CommandLine("-EnableDSYM", Value = "true")]
+		[XmlConfigFile(Category = "BuildConfiguration", Name = "bUseDSYMFiles")]
 		public bool bGeneratedSYM = false;
 
 		/// <summary>
@@ -286,6 +287,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/IOSRuntimeSettings.IOSRuntimeSettings", "SigningCertificate")]
 		public readonly string SigningCertificate = "";
+
+		/// <summary>
+		/// true if notifications are enabled
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/IOSRuntimeSettings.IOSRuntimeSettings", "bEnableStoreKitSupport")]
+		public readonly bool bEnableStoreKitSupport = true;
 
 		/// <summary>
 		/// true if notifications are enabled
@@ -600,7 +607,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		void IPPDataReceivedHandler(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+		void IPPDataReceivedHandler(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 		{
 			if ((Line != null) && (Line.Data != null))
 			{
@@ -933,7 +940,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		public override bool CanUseXGE()
@@ -1022,33 +1029,48 @@ namespace UnrealBuildTool
 		/// <param name="Target">The target being build</param>
 		public override void ModifyModuleRulesForOtherPlatform(string ModuleName, ModuleRules Rules, ReadOnlyTargetRules Target)
 		{
+			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
+			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
+
 			// don't do any target platform stuff if SDK is not available
-			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target))
+			if (!bIsPlatformAvailableForTarget)
 			{
 				return;
 			}
 
 			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Mac))
 			{
-				bool bBuildShaderFormats = Target.bForceBuildShaderFormats;
+				// For Windows we use the MetalDeveloperTools and we will check if the toolchain is present at runtime
+				bool bBuildShaderFormats = Target.bForceBuildShaderFormats || Target.Platform == UnrealTargetPlatform.Win64;
 				if (!Target.bBuildRequiresCookedData)
 				{
 					if (ModuleName == "Engine")
 					{
 						if (Target.bBuildDeveloperTools)
 						{
-							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
-							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformSettings");
+
+							if (bIsPlatformAvailableForTargetWithSDK)
+							{
+								Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
+								Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformControls");
+								Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+								Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformControls");
+							}
 						}
 					}
 					else if (ModuleName == "TargetPlatform")
 					{
-						bBuildShaderFormats = true;
-						Rules.DynamicallyLoadedModuleNames.Add("TextureFormatASTC");
-						Rules.DynamicallyLoadedModuleNames.Add("TextureFormatETC2");
-						if (Target.bBuildDeveloperTools && Target.bCompileAgainstEngine)
+						if (bIsPlatformAvailableForTargetWithSDK)
 						{
-							Rules.DynamicallyLoadedModuleNames.Add("AudioFormatADPCM");
+							bBuildShaderFormats = true;
+							Rules.DynamicallyLoadedModuleNames.Add("TextureFormatASTC");
+							Rules.DynamicallyLoadedModuleNames.Add("TextureFormatETC2");
+							if (Target.bBuildDeveloperTools && Target.bCompileAgainstEngine)
+							{
+								Rules.DynamicallyLoadedModuleNames.Add("AudioFormatADPCM");
+							}
 						}
 					}
 				}
@@ -1058,8 +1080,16 @@ namespace UnrealBuildTool
 				{
 					if (Target.bForceBuildTargetPlatforms)
 					{
-						Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
-						Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+						Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformSettings");
+						Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformSettings");
+
+						if (bIsPlatformAvailableForTargetWithSDK)
+						{
+							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatformControls");
+							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatformControls");
+						}
 					}
 
 					if (bBuildShaderFormats)
@@ -1068,7 +1098,7 @@ namespace UnrealBuildTool
 					}
 				}
 
-				if (ModuleName == "UnrealEd")
+				if (ModuleName == "UnrealEd" && bIsPlatformAvailableForTargetWithSDK)
 				{
 					Rules.DynamicallyLoadedModuleNames.Add("IOSPlatformEditor");
 				}
@@ -1120,6 +1150,12 @@ namespace UnrealBuildTool
 			}
 
 			CompileEnvironment.Definitions.Add("PLATFORM_IOS=1");
+			// set a define that is _only_ on iPhones, and not AppleTV, etc
+			if (Target.Platform == UnrealTargetPlatform.IOS)
+			{
+				CompileEnvironment.Definitions.Add("UE_PLATFORM_IOS_ONLY=1");
+			}
+
 			CompileEnvironment.Definitions.Add("PLATFORM_APPLE=1");
 
 			CompileEnvironment.Definitions.Add("WITH_TTS=0");
@@ -1188,9 +1224,17 @@ namespace UnrealBuildTool
 			CompileEnvironment.Definitions.Add("MINIMUM_UE_COMPILED_IOS_VERSION=" + TargetNum);
 
 			LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("GameKit"));
-			LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("StoreKit"));
 			LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("DeviceCheck"));
 
+			if (ProjectSettings.bEnableStoreKitSupport)
+			{
+				CompileEnvironment.Definitions.Add("UE_WITH_STORE_KIT=1");
+				LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("StoreKit"));
+			}
+			else
+			{
+				CompileEnvironment.Definitions.Add("UE_WITH_STORE_KIT=0");
+			}
 		}
 
 		/// <summary>

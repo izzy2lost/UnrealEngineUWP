@@ -54,8 +54,7 @@ void UFollowSplineMode::OnGenerateMove(const FMoverTickStartData& StartState, co
 void UFollowSplineMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
 	const FMoverTickStartData& StartState = Params.StartState;
-	USceneComponent* UpdatedComponent = Params.UpdatedComponent;
-	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
+	const FMovingComponentSet& MovingComps = Params.MovingComps;
 
 	const FMoverDefaultSyncState* StartingMoveState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	const FFollowSplineState* StartingPathState		= StartState.SyncState.SyncStateCollection.FindDataByType<FFollowSplineState>();
@@ -122,7 +121,7 @@ void UFollowSplineMode::OnSimulationTick(const FSimulationTickParams& Params, FM
 	if (CanMove(MappedSplineTime))
 	{
 		// Move the object
-		const FTransform SplineTransform = GetTransformAtTime(MappedSplineTime, UpdatedComponent->GetComponentRotation());
+		const FTransform SplineTransform = GetTransformAtTime(MappedSplineTime, MovingComps.UpdatedComponent->GetComponentRotation());
 		const FVector MoveDelta = SplineTransform.GetLocation() - StartingLocation;
 		const FVector Velocity = MoveDelta / DeltaSeconds;
 
@@ -131,14 +130,13 @@ void UFollowSplineMode::OnSimulationTick(const FSimulationTickParams& Params, FM
 		
 		FHitResult MoveHitResult;
 		
-		UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, MoveDelta, SplineTransform.GetRotation(), true, MoveHitResult, ETeleportType::None, MoveRecord);
+		UMovementUtils::TrySafeMoveUpdatedComponent(MovingComps, MoveDelta, SplineTransform.GetRotation(), true, MoveHitResult, ETeleportType::None, MoveRecord);
 
 		UpdatePathState(OutputPathState);
 
 		// Update Move State
-		OutputMoveState.SetTransforms_WorldSpace(UpdatedComponent->GetComponentLocation(),
-
-			UpdatedComponent->GetComponentRotation(),
+		OutputMoveState.SetTransforms_WorldSpace(MovingComps.UpdatedComponent->GetComponentLocation(),
+			MovingComps.UpdatedComponent->GetComponentRotation(),
 			Velocity,
 			nullptr); // no movement base
 	}

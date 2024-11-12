@@ -47,7 +47,7 @@ public:
 	static FString DebugDump( PtrType InPtr )
 	{
 		UE::Sequencer::TViewModelPtr<ExtensionType> Pinned = InPtr.Pin();
-		return Pinned ? FString::Printf(TEXT("0x%08x"), Pinned.AsModel().Get()) : FString(TEXT("nullptr"));
+		return Pinned ? FString::Printf(TEXT("0x%08" UPTRINT_x_FMT), (UPTRINT)Pinned.AsModel().Get()) : FString(TEXT("nullptr"));
 	}
 
 	class SerializerType{};

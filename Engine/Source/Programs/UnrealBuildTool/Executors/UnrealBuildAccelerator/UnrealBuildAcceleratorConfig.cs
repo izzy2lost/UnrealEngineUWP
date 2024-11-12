@@ -33,6 +33,13 @@ namespace UnrealBuildTool
 		public bool bForcedRetry { get; set; } = false;
 
 		/// <summary>
+		/// When set to true, actions that fail remotely with UBA will be retried locally with UBA.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-UBAForcedRetryRemote")]
+		public bool bForcedRetryRemote { get; set; } = false;
+
+		/// <summary>
 		/// When set to true, all errors and warnings from UBA will be output at the appropriate severity level to the log (rather than being output as 'information' and attempting to continue regardless).
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
@@ -79,7 +86,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-UBAHost")]
-		public string Host { get; set; } = String.Empty;
+		public string Host { get; set; } = "0.0.0.0";
 
 		/// <summary>
 		/// Which port UBA server should listen to for connections.
@@ -159,6 +166,13 @@ namespace UnrealBuildTool
 		public bool bAllowKillOnMem { get; set; }
 
 		/// <summary>
+		/// Store object (.obj) compressed on disk. Requires uba to do link step where it will decompress obj files again
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-UBAStoreObjFilesCompressed", Value = "true")]
+		public bool bStoreObjFilesCompressed { get; set; }
+
+		/// <summary>
 		/// Threshold for when executor should output logging for the process. Defaults to never
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
@@ -213,5 +227,33 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-UBADetailedLog", Value = "true")]
 		public bool bDetailedLog { get; set; } = false;
+
+		/// <summary>
+		/// Address of the uba cache service. Will automatically use cache if connected
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "Cache")]
+		[CommandLine("-UBACache=")]
+		public string? CacheServer { get; set; }
+
+		/// <summary>
+		/// Set cache to write instead of fetch
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "WriteCache")]
+		[CommandLine("-UBAWriteCache")]
+		public bool bWriteCache { get; set; }
+
+		/// <summary>
+		/// Max number of cache download tasks that can execute in parallel
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "CacheMaxWorkers")]
+		[CommandLine("-UBACacheMaxWorkers")]
+		public int CacheMaxWorkers { get; set; } = 32;
+
+		/// <summary>
+		/// Report reason a cache miss happened. Useful when searching for determinism/portability issues
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator", Name = "ReportCacheMissReason")]
+		[CommandLine("-UBAReportCacheMissReason")]
+		public bool bReportCacheMissReason { get; set; }
 	}
 }

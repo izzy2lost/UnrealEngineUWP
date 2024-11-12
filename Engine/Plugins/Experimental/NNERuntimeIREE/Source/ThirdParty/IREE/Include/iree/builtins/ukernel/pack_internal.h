@@ -9,6 +9,26 @@
 
 #include "iree/builtins/ukernel/pack.h"
 
+typedef struct iree_uk_pack_params_t {
+  const void* in_buffer;
+  iree_uk_index_t in_offset;
+  iree_uk_index_t in_stride0;
+  void* out_buffer;
+  iree_uk_index_t out_offset;
+  iree_uk_index_t out_stride0;
+  iree_uk_index_t in_size0;
+  iree_uk_index_t in_size1;
+  iree_uk_index_t out_size0;
+  iree_uk_index_t out_size1;
+  iree_uk_index_t out_size2;
+  iree_uk_index_t out_size3;
+  iree_uk_uint64_t padding_value;
+  iree_uk_uint32_t flags;
+  const iree_uk_uint64_t* cpu_data;
+} iree_uk_pack_params_t;
+
+void iree_uk_pack_p(const iree_uk_pack_params_t* params);
+
 typedef enum iree_uk_pack_type_t {
   iree_uk_pack_type_f32f32 = IREE_UK_TIE_2_TYPES_LITERAL(FLOAT_32, FLOAT_32),
   iree_uk_pack_type_i8i8 = IREE_UK_TIE_2_TYPES_LITERAL(INT_8, INT_8),
@@ -31,7 +51,8 @@ static inline iree_uk_pack_type_t iree_uk_pack_type(iree_uk_uint32_t flags) {
     case IREE_UK_FLAG_PACK_TYPE_BF16BF16:
       return iree_uk_pack_type_bf16bf16;
     default:
-      IREE_UK_ASSUME_UNREACHABLE;
+      // Shouldn't happen, validated earlier.
+      return (iree_uk_pack_type_t)0;
   }
 }
 

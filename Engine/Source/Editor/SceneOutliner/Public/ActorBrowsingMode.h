@@ -48,6 +48,7 @@ public:
 	SCENEOUTLINER_API virtual bool HasErrors() const;
 	SCENEOUTLINER_API virtual FText GetErrorsText() const;
 	SCENEOUTLINER_API virtual void RepairErrors() const;	
+	SCENEOUTLINER_API virtual void BindCommands(const TSharedRef<FUICommandList>& OutCommandList) override;
 	SCENEOUTLINER_API virtual FFolder CreateNewFolder() override;
 	SCENEOUTLINER_API virtual FFolder GetFolder(const FFolder& ParentPath, const FName& LeafName) override;
 	SCENEOUTLINER_API virtual bool CreateFolder(const FFolder& NewFolder) override;
@@ -117,7 +118,19 @@ private:
 	static void RegisterContextMenu();
 	static void FillDefaultContextBaseMenu(UToolMenu* InMenu);
 	bool CanPasteFoldersOnlyFromClipboard() const;
-	
+
+	/** Delete the current selection */
+	void OnExecuteDelete();
+
+	/** Refresh the Outliner */
+	void OnExecuteRefresh();
+
+	/** Rename the selected Item (Only work with 1 selected Item) */
+	void OnExecuteRename();
+
+	/** Check whether the Rename can be executed */
+	bool CanExecuteRename();
+
 	void SynchronizeSelectedActorDescs();
 
 	void OnActorEditorContextSubsystemChanged();
@@ -143,6 +156,9 @@ private:
 
 	void OnToggleFolderDoubleClickMarkCurrentFolder();
 	bool DoesFolderDoubleClickMarkCurrentFolder() const;
+
+	void OnToggleShouldUpdateContentWhileInPIEFocused();
+	bool ShouldUpdateContentWhileInPIEFocused() const;
 
 	/**
 	 * Get a mutable version of the ActorBrowser config for setting values.

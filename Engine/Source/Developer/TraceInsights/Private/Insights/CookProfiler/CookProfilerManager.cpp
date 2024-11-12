@@ -2,26 +2,28 @@
 
 #include "CookProfilerManager.h"
 
-#include "Common/ProviderLock.h" // TraceServices
 #include "Features/IModularFeatures.h"
 #include "Framework/Docking/TabManager.h"
 #include "Modules/ModuleManager.h"
-#include "TraceServices/Model/CookProfilerProvider.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceServices
+#include "Common/ProviderLock.h"
+#include "TraceServices/Model/CookProfilerProvider.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 #include "Insights/CookProfiler/Widgets/SPackageTableTreeView.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
+
+#define LOCTEXT_NAMESPACE "UE::Insights::CookProfiler"
+
+namespace UE::Insights::CookProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define LOCTEXT_NAMESPACE "CookProfilerManager"
-
-namespace Insights
-{
 
 const FName FCookProfilerTabs::PackageTableTreeViewTabID(TEXT("PackageTableTreeView"));
 
@@ -187,7 +189,7 @@ void FCookProfilerManager::RegisterTimingProfilerLayoutExtensions(FInsightsMajor
 	FMinorTabConfig& MinorTabConfig = InOutExtender.AddMinorTabConfig();
 	MinorTabConfig.TabId = FCookProfilerTabs::PackageTableTreeViewTabID;
 	MinorTabConfig.TabLabel = LOCTEXT("PackageTableTreeViewTabTitle", "Packages");
-	MinorTabConfig.TabTooltip = LOCTEXT("PackageTableTreeViewTabTitleTooltip", "Opens the Packages Tree View tab, that allows cook profilling.");
+	MinorTabConfig.TabTooltip = LOCTEXT("PackageTableTreeViewTabTitleTooltip", "Opens the Packages Tree View tab, that allows cook profiling.");
 	MinorTabConfig.TabIcon = FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.PackagesView");
 	MinorTabConfig.OnSpawnTab = FOnSpawnTab::CreateRaw(this, &FCookProfilerManager::SpawnTab_PackageTableTreeView);
 	MinorTabConfig.CanSpawnTab = FCanSpawnTab::CreateRaw(this, &FCookProfilerManager::CanSpawnTab_PackageTableTreeView);
@@ -204,6 +206,7 @@ TSharedRef<SDockTab> FCookProfilerManager::SpawnTab_PackageTableTreeView(const F
 {
 	TSharedRef<FPackageTable> PackageTable = MakeShared<FPackageTable>();
 	PackageTable->Reset();
+	PackageTable->SetDisplayName(LOCTEXT("PackageTableTreeViewTabTitle", "Packages"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
@@ -260,6 +263,6 @@ void FCookProfilerManager::OnWindowClosedEvent()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler
 
 #undef LOCTEXT_NAMESPACE

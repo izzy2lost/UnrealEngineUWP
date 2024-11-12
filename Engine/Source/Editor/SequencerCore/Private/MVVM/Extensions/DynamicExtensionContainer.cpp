@@ -18,6 +18,19 @@ const void* FDynamicExtensionContainer::CastDynamic(FViewModelTypeID Type) const
 	return nullptr;
 }
 
+void FDynamicExtensionContainer::RemoveDynamicExtension(FViewModelTypeID Type)
+{
+	for (int32 Index = DynamicExtensions.Num()-1; Index >= 0; --Index)
+	{
+		const FDynamicExtensionInfo& DynamicExtension = DynamicExtensions[Index];
+		if (DynamicExtension.TypeTable->Cast(&DynamicExtension.Extension.Get(), Type.GetTypeID()) != nullptr)
+		{
+			DynamicExtensions.RemoveAt(Index, 1);
+			return;
+		}
+	}
+}
+
 FDynamicExtensionContainerIterator::FDynamicExtensionContainerIterator(IteratorType&& InIterator, FViewModelTypeID InType)
 	: CurrentExtension(nullptr)
 	, Iterator(MoveTemp(InIterator))

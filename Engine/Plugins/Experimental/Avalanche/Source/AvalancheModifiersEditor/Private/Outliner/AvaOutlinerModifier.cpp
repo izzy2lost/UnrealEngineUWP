@@ -85,6 +85,26 @@ void FAvaOutlinerModifier::OnVisibilityChanged(EAvaOutlinerVisibilityType InVisi
 	}
 }
 
+bool FAvaOutlinerModifier::CanDelete() const
+{
+	return Modifier.IsValid();
+}
+
+bool FAvaOutlinerModifier::Delete()
+{
+	if (const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
+	{
+		FText FailReason;
+		FActorModifierCoreStackRemoveOp RemoveOp;
+		RemoveOp.FailReason = &FailReason;
+		RemoveOp.bShouldTransact = false;
+
+		return ModifierSubsystem->RemoveModifiers({Modifier.Get()}, RemoveOp);
+	}
+
+	return false;
+}
+
 void FAvaOutlinerModifier::SetObject_Impl(UObject* InObject)
 {
 	FAvaOutlinerObject::SetObject_Impl(InObject);

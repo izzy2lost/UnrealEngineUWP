@@ -27,6 +27,7 @@
 #include "Engine/LocalPlayer.h"
 #include "SceneView.h"
 #include "UObject/UObjectIterator.h"
+#include "Logging/StructuredLog.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraWorldManager)
 
@@ -137,7 +138,7 @@ static FAutoConsoleVariableRef CVarEnableNiagaraInstanceCountCulling(
 	ECVF_Default
 );
 
-static int GEnableNiagaraGlobalBudgetCulling = 1;
+int GEnableNiagaraGlobalBudgetCulling = 1;
 static FAutoConsoleVariableRef CVarEnableNiagaraGlobalBudgetCulling(
 	TEXT("fx.Niagara.Scalability.GlobalBudgetCulling"),
 	GEnableNiagaraGlobalBudgetCulling,
@@ -250,6 +251,7 @@ FAutoConsoleCommandWithWorldAndArgs GCmdNiagaraScalabilityCullingMode(
 );
 
 FDelegateHandle FNiagaraWorldManager::OnWorldInitHandle;
+FDelegateHandle FNiagaraWorldManager::OnPostWorldInitHandle;
 FDelegateHandle FNiagaraWorldManager::OnWorldCleanupHandle;
 FDelegateHandle FNiagaraWorldManager::OnPostWorldCleanupHandle;
 FDelegateHandle FNiagaraWorldManager::OnPreWorldFinishDestroyHandle;
@@ -399,8 +401,6 @@ void FNiagaraWorldManager::Init(UWorld* InWorld)
 	//Possibly a later hook we can use.
 	//PrimePoolForAllSystems();
 
-	DataChannelManager->Init();
-
 #if WITH_NIAGARA_DEBUGGER
 	NiagaraDebugHud.Reset(new FNiagaraDebugHud(World));
 #endif
@@ -413,6 +413,11 @@ void FNiagaraWorldManager::Init(UWorld* InWorld)
 
 	// Make sure we update our component settings, this includes ban lists, etc
 	FNiagaraComponentSettings::UpdateSettings();
+}
+
+void FNiagaraWorldManager::OnPostWorldInit()
+{
+	DataChannelManager->Init();
 }
 
 FNiagaraWorldManager::~FNiagaraWorldManager()
@@ -436,6 +441,7 @@ FNiagaraWorldManager* FNiagaraWorldManager::Get(const UWorld* World)
 void FNiagaraWorldManager::OnStartup()
 {
 	OnWorldInitHandle = FWorldDelegates::OnPreWorldInitialization.AddStatic(&FNiagaraWorldManager::OnWorldInit);
+	OnPostWorldInitHandle = FWorldDelegates::OnPostWorldInitialization.AddStatic(&FNiagaraWorldManager::OnPostWorldInit);
 	OnWorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddStatic(&FNiagaraWorldManager::OnWorldCleanup);
 	OnPostWorldCleanupHandle = FWorldDelegates::OnPostWorldCleanup.AddStatic(&FNiagaraWorldManager::OnPostWorldCleanup);
 	OnPreWorldFinishDestroyHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddStatic(&FNiagaraWorldManager::OnPreWorldFinishDestroy);
@@ -472,6 +478,7 @@ void FNiagaraWorldManager::OnStartup()
 void FNiagaraWorldManager::OnShutdown()
 {
 	FWorldDelegates::OnPreWorldInitialization.Remove(OnWorldInitHandle);
+	FWorldDelegates::OnPostWorldInitialization.Remove(OnPostWorldInitHandle);
 	FWorldDelegates::OnWorldCleanup.Remove(OnWorldCleanupHandle);
 	FWorldDelegates::OnPostWorldCleanup.Remove(OnPostWorldCleanupHandle);
 	FWorldDelegates::OnPreWorldFinishDestroy.Remove(OnPreWorldFinishDestroyHandle);
@@ -490,18 +497,20 @@ void FNiagaraWorldManager::OnShutdown()
 	}
 
 	//Should have cleared up all world managers by now.
-	check(WorldManagers.Num() == 0);
-	for (TPair<UWorld*, FNiagaraWorldManager*> Pair : WorldManagers)
+	if (!ensure(WorldManagers.Num() == 0))
 	{
-		FNiagaraWorldManager* WorldMan = Pair.Value;
-		if(ensure(WorldMan))
+		for (TPair<UWorld*, FNiagaraWorldManager*> Pair : WorldManagers)
 		{
-			delete WorldMan;
-		}
+			FNiagaraWorldManager* WorldMan = Pair.Value;
+			if (ensure(WorldMan))
+			{
+				delete WorldMan;
+			}
 		
-		Pair.Value = nullptr;
+			Pair.Value = nullptr;
+		}
+		WorldManagers.Empty();
 	}
-	WorldManagers.Empty();
 }
 
 void FNiagaraWorldManager::AddReferencedObjects(FReferenceCollector& Collector)
@@ -572,6 +581,7 @@ UNiagaraCullProxyComponent* FNiagaraWorldManager::GetCullProxy(UNiagaraComponent
 void FNiagaraWorldManager::TickParameterCollections()
 {
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTickParamCollections);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraTickParameterCollections);
 
 	//-TODO: Do we need to do this per tick group?
 	for (TPair<UNiagaraParameterCollection*, UNiagaraParameterCollectionInstance*> CollectionInstPair : ParameterCollections)
@@ -646,13 +656,17 @@ FNiagaraSystemSimulationRef FNiagaraWorldManager::GetSystemSimulation(ETickingGr
 	//The async work for this system can then properly be chained to the tick task so that everything completes on time.
 	//Most systems most of the time will no need this and we'll clear this requirement as soon as all systems no longer need it.
 	//TODO: This should go away when we move over to the new task graph system and rejig our dependency tracking.
-	if(System->AsyncWorkCanOverlapTickGroups())
+	if(!System->AsyncWorkCanOverlapTickGroups())
 	{
 		TickFunctions[ActualTickGroup].EndTickGroup = (ETickingGroup)ActualTickGroup;
 	}
 
 #if WITH_EDITOR
-	System->OnSystemPostEditChange().AddRaw(this, &FNiagaraWorldManager::OnSystemPostChange);
+	if (!SystemPostChangeDelegateHandles.Contains(System))
+	{
+		SystemPostChangeDelegateHandles.Emplace(System,
+			System->OnSystemPostEditChange().AddRaw(this, &FNiagaraWorldManager::OnSystemPostChange));
+	}
 #endif
 
 	return Sim;
@@ -675,7 +689,11 @@ void FNiagaraWorldManager::DestroySystemSimulation(UNiagaraSystem* System)
 	ComponentPool->RemoveComponentsBySystem(System);
 
 #if WITH_EDITOR
-	System->OnSystemPostEditChange().RemoveAll(this);
+	if (FDelegateHandle* Handle = SystemPostChangeDelegateHandles.Find(System))
+	{
+		System->OnSystemPostEditChange().Remove(*Handle);
+		SystemPostChangeDelegateHandles.Remove(System);
+	}
 #endif
 }
 
@@ -701,12 +719,11 @@ void FNiagaraWorldManager::OnSystemPostChange(UNiagaraSystem* System)
 
 void FNiagaraWorldManager::OnComputeDispatchInterfaceDestroyed_Internal(FNiagaraGpuComputeDispatchInterface* InComputeDispatchInterface)
 {
+	GetDataChannelManager().OnComputeDispatchInterfaceDestroyed(InComputeDispatchInterface);
+
 	// Process the deferred deletion queue before deleting the ComputeDispatchInterface of this world.
 	// This is required because the ComputeDispatchInterface is accessed in FNiagaraEmitterInstance::~FNiagaraEmitterInstance
-	if (FNiagaraGpuComputeDispatchInterface::Get(World) == InComputeDispatchInterface)
-	{
-		DeferredDeletionQueue.Empty();
-	}
+	DeferredDeletionQueue.Empty();
 }
 
 void FNiagaraWorldManager::OnWorldBeginTearDown()
@@ -729,9 +746,6 @@ void FNiagaraWorldManager::OnWorldCleanup(bool bSessionEnded, bool bCleanupResou
 	{
 		for (TPair<UNiagaraSystem*, FNiagaraSystemSimulationRef>& SimPair : SystemSimulations[TG])
 		{
-#if WITH_EDITOR
-			SimPair.Key->OnSystemPostEditChange().RemoveAll(this);
-#endif
 			SimPair.Value->Destroy();
 		}
 		SystemSimulations[TG].Empty();
@@ -747,6 +761,17 @@ void FNiagaraWorldManager::OnWorldCleanup(bool bSessionEnded, bool bCleanupResou
 
 	CullProxyMap.Empty();
 	DIGeneratedData.Empty();
+
+#if WITH_EDITOR
+	for (FSystemDelegateMap::TConstIterator DelegateIt(SystemPostChangeDelegateHandles); DelegateIt; ++DelegateIt)
+	{
+		if (UNiagaraSystem* System = DelegateIt.Key().Get())
+		{
+			System->OnSystemPostEditChange().Remove(DelegateIt.Value());
+		}
+	}
+	SystemPostChangeDelegateHandles.Empty();
+#endif
 }
 
 void FNiagaraWorldManager::OnPostWorldCleanup(bool bSessionEnded, bool bCleanupResources)
@@ -881,6 +906,19 @@ void FNiagaraWorldManager::OnWorldInit(UWorld* World, const UWorld::Initializati
 	NewManager->Init(World);
 }
 
+void FNiagaraWorldManager::OnPostWorldInit(UWorld* World, const UWorld::InitializationValues IVS)
+{
+	FNiagaraWorldManager** Manager = WorldManagers.Find(World);
+	if (Manager)
+	{
+		FNiagaraWorldManager* WorldMan = *Manager;
+		if (ensure(WorldMan))
+		{
+			WorldMan->OnPostWorldInit();
+		}
+	}
+}
+
 void FNiagaraWorldManager::OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
 {
 	//Cleanup world manager contents but not the manager itself.
@@ -951,7 +989,11 @@ void FNiagaraWorldManager::OnComputeDispatchInterfaceDestroyed(FNiagaraGpuComput
 {
 	for (TPair<UWorld*, FNiagaraWorldManager*>& Pair : WorldManagers)
 	{
-		Pair.Value->OnComputeDispatchInterfaceDestroyed_Internal(InComputeDispatchInterface);
+		UWorld* World = Pair.Key;
+		if (FNiagaraGpuComputeDispatchInterface::Get(World) == InComputeDispatchInterface)
+		{
+			Pair.Value->OnComputeDispatchInterfaceDestroyed_Internal(InComputeDispatchInterface);
+		}
 	}
 }
 
@@ -990,6 +1032,7 @@ void FNiagaraWorldManager::OnPreGarbageCollect()
 
 void FNiagaraWorldManager::OnPostReachabilityAnalysis()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FNiagaraWorldManager::OnPostReachabilityAnalysis);
 	for (TPair<UWorld*, FNiagaraWorldManager*>& Pair : WorldManagers)
 	{
 		Pair.Value->PostReachabilityAnalysis();
@@ -1031,6 +1074,7 @@ void FNiagaraWorldManager::TickStart(float DeltaSeconds)
 #if WITH_NIAGARA_LEAK_DETECTOR
 	if (ComponentLeakDetector.IsValid() && HasActiveWorld())
 	{
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraLeakDetector);
 		ComponentLeakDetector->Tick(World);
 	}
 #endif
@@ -1070,12 +1114,15 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 		}
 
 		// Update tick groups
-		for (int32 i = 0; i < SimulationsWithPostActorWork.Num(); ++i)
 		{
-			FNiagaraSystemSimulationRef& Simulation = SimulationsWithPostActorWork[i];
-			if (Simulation->IsValid())
+			CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraPostActorUpdateTickGroups);
+			for (int32 i = 0; i < SimulationsWithPostActorWork.Num(); ++i)
 			{
-				Simulation->UpdateTickGroups_GameThread();
+				FNiagaraSystemSimulationRef& Simulation = SimulationsWithPostActorWork[i];
+				if (Simulation->IsValid())
+				{
+					Simulation->UpdateTickGroups_GameThread();
+				}
 			}
 		}
 
@@ -1114,6 +1161,7 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 	if (NiagaraDebugHud != nullptr)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_NiagaraDebugHUD);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDebugHUD);
 		NiagaraDebugHud->GatherSystemInfo();
 	}
 #endif
@@ -1345,42 +1393,45 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 			return;
 		}
 
-		bool bUseWorldCachedViews = !World->GetPlayerControllerIterator();
+		{
+			CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraCacheViewInformation);
+			bool bUseWorldCachedViews = !World->GetPlayerControllerIterator();
 #if WITH_EDITOR
-		if (GCurrentLevelEditingViewportClient && (GCurrentLevelEditingViewportClient->GetWorld() == World))
-		{
-			bUseWorldCachedViews = true;
-		}
-#endif
-		// Cache player view info for all system instances to access
-		//-TODO: Do we need to do this per tick group?
-		if (bUseWorldCachedViews)
-		{
-			for (int32 i = 0; i < World->CachedViewInfoRenderedLastFrame.Num(); ++i)
+			if (GCurrentLevelEditingViewportClient && (GCurrentLevelEditingViewportClient->GetWorld() == World))
 			{
-				FWorldCachedViewInfo& WorldViewInfo = World->CachedViewInfoRenderedLastFrame[i];
-
-				FNiagaraCachedViewInfo& ViewInfo = CachedViewInfo.AddDefaulted_GetRef();
-				ViewInfo.Init(WorldViewInfo);
+				bUseWorldCachedViews = true;
 			}
-		}
-		else
-		{
-			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+#endif
+			// Cache player view info for all system instances to access
+			//-TODO: Do we need to do this per tick group?
+			if (bUseWorldCachedViews)
 			{
-				APlayerController* PlayerController = Iterator->Get();
-				if (PlayerController && PlayerController->IsLocalPlayerController())
+				for (int32 i = 0; i < World->CachedViewInfoRenderedLastFrame.Num(); ++i)
 				{
+					FWorldCachedViewInfo& WorldViewInfo = World->CachedViewInfoRenderedLastFrame[i];
+
 					FNiagaraCachedViewInfo& ViewInfo = CachedViewInfo.AddDefaulted_GetRef();
-					
-					const bool bIsValid = PrepareCachedViewInfo(PlayerController, ViewInfo);
-					if (!bIsValid)
-					{
-						CachedViewInfo.RemoveAt(CachedViewInfo.Num() - 1);
-					}
+					ViewInfo.Init(WorldViewInfo);
 				}
 			}
-		}		
+			else
+			{
+				for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+				{
+					APlayerController* PlayerController = Iterator->Get();
+					if (PlayerController && PlayerController->IsLocalPlayerController())
+					{
+						FNiagaraCachedViewInfo& ViewInfo = CachedViewInfo.AddDefaulted_GetRef();
+					
+						const bool bIsValid = PrepareCachedViewInfo(PlayerController, ViewInfo);
+						if (!bIsValid)
+						{
+							CachedViewInfo.RemoveAt(CachedViewInfo.Num() - 1);
+						}
+					}
+				}
+			}		
+		}
 
 		UpdateScalabilityManagers(DeltaSeconds, false);
 
@@ -1394,9 +1445,12 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 	}
 
 	// Tick generated data
-	for (auto& GeneratedData : DIGeneratedData)
 	{
-		GeneratedData.Value->Tick(TickGroup, DeltaSeconds);
+		CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraDIGeneratedData);
+		for (auto& GeneratedData : DIGeneratedData)
+		{
+			GeneratedData.Value->Tick(TickGroup, DeltaSeconds);
+		}
 	}
 
 	// Now tick all system instances. 
@@ -1431,6 +1485,10 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 	{
 		//Set here but this wont take effect until next tick.
 		TickFunctions[ActualTickGroup].EndTickGroup = TG_LastDemotable;
+	}
+	else
+	{
+		TickFunctions[ActualTickGroup].EndTickGroup = (ETickingGroup)ActualTickGroup;
 	}
 
 	ActiveNiagaraTickGroup = -1;
@@ -1502,7 +1560,7 @@ FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location)const
 			const FVector::FReal DistanceToEffectSqr = FVector(ViewInfo.ViewToWorld.GetOrigin() - Location).SizeSquared();
 			LODDistanceSqr = FMath::Min(LODDistanceSqr, DistanceToEffectSqr);
 		}
-		LODDistance = FVector::FReal(FMath::Sqrt(LODDistanceSqr));
+		LODDistance = FMath::Sqrt(LODDistanceSqr);
 	}
 	else
 	{
@@ -1528,16 +1586,24 @@ FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location)const
 			PlayerViewLocations = World->ViewLocationsRenderedLastFrame;
 		}
 
-		if (PlayerViewLocations.Num() > 0)
+		LODDistance = GetLODDistance(Location, PlayerViewLocations);
+	}
+	return LODDistance;
+}
+
+FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location, TConstArrayView<FVector> ViewPoints) const
+{
+	FVector::FReal LODDistance = 0.0f;
+
+	if (ViewPoints.Num() > 0)
+	{
+		FVector::FReal LODDistanceSqr = FMath::Square(WORLD_MAX);
+		for (const FVector& ViewLocation : ViewPoints)
 		{
-			FVector::FReal LODDistanceSqr = FMath::Square(WORLD_MAX);
-			for (const FVector& ViewLocation : PlayerViewLocations)
-			{
-				const FVector::FReal DistanceToEffectSqr = FVector(ViewLocation - Location).SizeSquared();
-				LODDistanceSqr = FMath::Min(LODDistanceSqr, DistanceToEffectSqr);
-			}
-			LODDistance = FVector::FReal(FMath::Sqrt(LODDistanceSqr));
+			const FVector::FReal DistanceToEffectSqr = FVector(ViewLocation - Location).SizeSquared();
+			LODDistanceSqr = FMath::Min(LODDistanceSqr, DistanceToEffectSqr);
 		}
+		LODDistance = FVector::FReal(FMath::Sqrt(LODDistanceSqr));
 	}
 	return LODDistance;
 }
@@ -1545,6 +1611,7 @@ FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location)const
 void FNiagaraWorldManager::UpdateScalabilityManagers(float DeltaSeconds, bool bNewSpawnsOnly)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdateScalabilityManagers);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraUpdateScalabilityManagers);
 
 	for (auto& Pair : ScalabilityManagers)
 	{
@@ -1740,8 +1807,12 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 	
 	if(GetScalabilityCullingMode() == ENiagaraScalabilityCullingMode::Enabled && GEnableNiagaraInstanceCountCulling)
 	{
-		int32 SystemInstanceMax = ScalabilitySettings.MaxSystemInstances;
-		int32 EffectTypeInstanceMax = ScalabilitySettings.MaxInstances;
+		UNiagaraSystem* System = Component->GetAsset();
+		check(System);
+
+		int32 SystemInstanceMax = 0;
+		int32 EffectTypeInstanceMax = 0;
+		System->GetMaxInstanceCounts(SystemInstanceMax, EffectTypeInstanceMax, false);
 
 		bCull = ScalabilitySettings.bCullMaxInstanceCount && EffectTypeInstCount >= EffectTypeInstanceMax;
 		bCull |= ScalabilitySettings.bCullPerSystemMaxInstanceCount && SystemInstCount >= SystemInstanceMax;
@@ -1754,22 +1825,13 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 			OutState.bCulledByGlobalBudget = false;
 #endif
 		}
-		else if (bBudgetCullEnabled && ScalabilitySettings.BudgetScaling.bCullByGlobalBudget)
-	 	{
-			float Usage = FFXBudget::GetWorstAdjustedUsage();
+		else if (bBudgetCullEnabled)
+		{
+			//Grab Adjusted instance counts.
+			System->GetMaxInstanceCounts(SystemInstanceMax, EffectTypeInstanceMax, bBudgetCullEnabled);
 
-			if (ScalabilitySettings.bCullMaxInstanceCount && ScalabilitySettings.BudgetScaling.bScaleMaxInstanceCountByGlobalBudgetUse)
-			{
-				const float Scale = ScalabilitySettings.BudgetScaling.MaxInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
-				EffectTypeInstanceMax = int32(float(EffectTypeInstanceMax) * Scale);
-				bCull = EffectTypeInstCount >= EffectTypeInstanceMax;
-			}
-			if (ScalabilitySettings.bCullPerSystemMaxInstanceCount && ScalabilitySettings.BudgetScaling.bScaleSystemInstanceCountByGlobalBudgetUse)
-			{
-				const float Scale = ScalabilitySettings.BudgetScaling.MaxSystemInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
-				SystemInstanceMax = int32(float(SystemInstanceMax) * Scale);
-				bCull |= SystemInstCount >= SystemInstanceMax;
-			}
+			bCull = ScalabilitySettings.bCullMaxInstanceCount && EffectTypeInstCount >= EffectTypeInstanceMax;
+			bCull |= ScalabilitySettings.bCullPerSystemMaxInstanceCount && SystemInstCount >= SystemInstanceMax;
 
 #if DEBUG_SCALABILITY_STATE
 			OutState.bCulledByGlobalBudget |= bCull;
@@ -1780,6 +1842,8 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 	OutState.bCulled |= bCull;
 
 	//Only increment the instance counts if this is not culled. Including other causes of culling.
+	//This considers only culled state and will only affect which components we *want* to turn on.
+	//There is another check inside the apply that will limit instance counts to ensure they never exceed the max that are actually running (or winding down)
 	if(OutState.bCulled == false)
 	{
 		++EffectTypeInstCount;
@@ -1837,11 +1901,11 @@ void FNiagaraWorldManager::ViewBasedCulling(UNiagaraEffectType* EffectType, cons
 	float TimeSinceInsideView = 0.0f;
 	if (bInsideAnyView)
 	{
-		OutState.LastVisibleTime = World->GetTimeSeconds();
+		OutState.LastVisibleTime = static_cast<float>(World->GetTimeSeconds());
 	}
 	else
 	{
-		TimeSinceInsideView = World->GetTimeSeconds() - OutState.LastVisibleTime;
+		TimeSinceInsideView = static_cast<float>(World->GetTimeSeconds() - OutState.LastVisibleTime);
 	}
 
 	bool bCullByOutsideViewFrustum = ScalabilitySettings.VisibilityCulling.bCullByViewFrustum &&
@@ -1849,7 +1913,6 @@ void FNiagaraWorldManager::ViewBasedCulling(UNiagaraEffectType* EffectType, cons
 		TimeSinceInsideView > ScalabilitySettings.VisibilityCulling.MaxTimeOutsideViewFrustum;
 
 	//Check for the component having been rendered recently. If the app doesn't have focus we skip this to avoid issues when alt-tabbing away from the game/editor.
-	float TimeSinceWorldRendered = World->GetTimeSeconds() - World->LastRenderTime;	
 	bool bCullByNotRendered =	bAppHasFocus && 
 								ScalabilitySettings.VisibilityCulling.bCullWhenNotRendered && 
 		ComponentTimeSinceRendered > ScalabilitySettings.VisibilityCulling.MaxTimeWithoutRender;

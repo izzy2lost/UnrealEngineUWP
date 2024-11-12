@@ -60,15 +60,10 @@ public:
 	 */
 	virtual bool IsTracing() const = 0;
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 	/**
 	 * Gets the store client.
 	 */
 	virtual UE::Trace::FStoreClient* GetStoreClient() = 0;
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

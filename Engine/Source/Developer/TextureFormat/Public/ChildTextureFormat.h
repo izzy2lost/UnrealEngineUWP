@@ -16,7 +16,7 @@
  * several platforms that need to modify already compressed texture data for optimal data.
  * 
  * There are 3 ways a texture can get processed:
- *		-- ITextureFormat::IsTiling returns true. This should only be for the old Oodle RAD Game Tools supplied texture encoder 
+ *		-- ITextureFormat::SupportsTiling returns true. This should only be for the old Oodle RAD Game Tools supplied texture encoder 
  *			and is being deprecated in favor of the new built-in Oodle texture encoder (TextureFormatOodle). In this case,
  *			the child format passes the images to the encoder to split apart prior to passing to the platform tools.
  *		-- FChildTextureFormat::GetTiler returns nullptr. This is being phased out because the linear version of the input texture
@@ -44,7 +44,7 @@ public:
 	*	Return the texture tiler for this platform. If present, then the texture build process
 	*	will try to use the cached linear encoding for the texture as input rather than rebuilding
 	*	the linear texture prior to tiling. Confusingly, this can not happen if the base texture
-	*	formate returns true for SupportsTiling, as that refers to the texture encoder, not the format.
+	*	format returns true for SupportsTiling, as that refers to the texture encoder, not the format.
 	*/
 	virtual const ITextureTiler* GetTiler() const
 	{

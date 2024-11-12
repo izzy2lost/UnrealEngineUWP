@@ -50,6 +50,10 @@ public:
 
 	/** Returns the Niagara cache track on which the cache manager will be recorded */
 	TWeakObjectPtr<UMovieSceneNiagaraCacheTrack> GetNiagaraCacheTrack() const {return NiagaraCacheTrack;}
+
+protected:
+	void SetRecordingEnabled(bool bEnabled);
+	void OnRecordFrame(float DeltaSeconds);
 	
 private:
 	
@@ -62,14 +66,13 @@ private:
 	/** Object to record from */
 	TLazyObjectPtr<UNiagaraComponent> SystemToRecord;
 
-	/** The time at the start of this recording section */
-	double RecordStartTime;
-
-	/** The frame at the start of this recording section */
-	FFrameNumber RecordStartFrame;
-
 	TOptional<FFrameNumberRange> RecordRange;
-	bool bRecordedFirstFrame = false;
+
+	bool			bRecordedFirstFrame = false;
+	bool			bRecordingEnabled = false;
+	bool			bRequestFinalize = false;
+	FFrameNumber	RecordingFrameNumber;
+	FDelegateHandle	PostEditorTickHandle;
 
 	friend FMovieSceneNiagaraTrackRecorderFactory;
 };

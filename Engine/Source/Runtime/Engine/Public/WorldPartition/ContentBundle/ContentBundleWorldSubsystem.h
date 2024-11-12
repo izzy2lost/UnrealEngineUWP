@@ -42,6 +42,8 @@ public:
 	ENGINE_API TSharedPtr<FContentBundleEditor> GetEditorContentBundle(const FGuid& ContentBundleGuid) const;
 
 	UContentBundleDuplicateForPIEHelper* GetPIEDuplicateHelper() const { return PIEDuplicateHelper; }
+
+	ENGINE_API void CheckForErrors() const;
 #endif
 
 	ENGINE_API const FContentBundleBase* GetContentBundle(const UWorld* InWorld, const FGuid& Guid) const;

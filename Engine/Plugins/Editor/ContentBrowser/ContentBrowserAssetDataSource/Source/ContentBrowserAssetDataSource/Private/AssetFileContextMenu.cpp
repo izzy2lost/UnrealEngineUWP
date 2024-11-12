@@ -5,7 +5,7 @@
 #include "AssetDefinition.h"
 #include "AssetDefinitionRegistry.h"
 #include "Engine/Blueprint.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "IAssetTypeActions.h"
 #include "Misc/MessageDialog.h"
@@ -191,7 +191,7 @@ bool FAssetFileContextMenu::AddImportedAssetMenuOptions(UToolMenu* Menu)
 				Section.AddSubMenu(
 					"Reimport",
 					LOCTEXT("Reimport", "Reimport"),
-					LOCTEXT("ReimportEmptyTooltip", ""),
+					FText(),
 					FNewToolMenuDelegate::CreateLambda(CreateSubMenu, false),
 					false,
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Import"));
@@ -199,7 +199,7 @@ bool FAssetFileContextMenu::AddImportedAssetMenuOptions(UToolMenu* Menu)
 				Section.AddSubMenu(
 					"ReimportWithNewFile",
 					LOCTEXT("ReimportWithNewFile", "Reimport With New File"),
-					LOCTEXT("ReimportEmptyTooltip", ""),
+					FText(),
 					FNewToolMenuDelegate::CreateLambda(CreateSubMenu, true),
 					false,
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Import"));
@@ -649,6 +649,7 @@ void FAssetFileContextMenu::MakeAssetLocalizationSubMenu(UToolMenu* Menu)
 		bool bIncludeEngineCultures = false;
 		bool bIncludeProjectCultures = false;
 
+		TSet<FString> Roots;
 		for (const FAssetData& Asset : SelectedAssets)
 		{
 			const FString AssetPath = Asset.GetObjectPathString();
@@ -662,18 +663,21 @@ void FAssetFileContextMenu::MakeAssetLocalizationSubMenu(UToolMenu* Menu)
 				bIncludeProjectCultures = true;
 			}
 
+			FString AssetLocalizationRoot;
+			if (FPackageLocalizationUtil::GetLocalizedRoot(AssetPath, FString(), AssetLocalizationRoot))
 			{
-				FString AssetLocalizationRoot;
-				if (FPackageLocalizationUtil::GetLocalizedRoot(AssetPath, FString(), AssetLocalizationRoot))
-				{
-					FString AssetLocalizationFileRoot;
-					if (FPackageName::TryConvertLongPackageNameToFilename(AssetLocalizationRoot, AssetLocalizationFileRoot))
-					{
-						TArray<FString> CulturePaths;
-						CulturePaths.Add(MoveTemp(AssetLocalizationFileRoot));
-						CultureNames.Append(TextLocalizationResourceUtil::GetLocalizedCultureNames(CulturePaths));
-					}
-				}
+				Roots.Add(AssetLocalizationRoot);	
+			}
+		}
+
+		for (const FString& AssetLocalizationRoot : Roots)
+		{
+			FString AssetLocalizationFileRoot;
+			if (FPackageName::TryConvertLongPackageNameToFilename(AssetLocalizationRoot, AssetLocalizationFileRoot))
+			{
+				TArray<FString> CulturePaths;
+				CulturePaths.Add(MoveTemp(AssetLocalizationFileRoot));
+				CultureNames.Append(TextLocalizationResourceUtil::GetLocalizedCultureNames(CulturePaths));
 			}
 		}
 
@@ -1406,19 +1410,6 @@ struct WorldReferenceGenerator : public FFindReferencedAssets
 					FReferencedAssets* LevelReferencer = new(Referencers) FReferencedAssets(Level);			
 					FFindAssetsArchive(Level, LevelReferencer->AssetList, &ReferenceGraph, MaxRecursionDepth, bIncludeClasses, bIncludeDefaults, bReverseReferenceGraph);
 				}
-			}
-		}
-
-		TArray<UObject*> ReferencedObjects;
-		// Special case for blueprints
-		for (AActor* Actor : FActorRange(World))
-		{
-			ReferencedObjects.Reset();
-			Actor->GetReferencedContentObjects(ReferencedObjects);
-			for(UObject* Reference : ReferencedObjects)
-			{
-				auto& Objects = ReferenceGraph.FindOrAdd(Reference);
-				Objects.Add(Actor);
 			}
 		}
 	}

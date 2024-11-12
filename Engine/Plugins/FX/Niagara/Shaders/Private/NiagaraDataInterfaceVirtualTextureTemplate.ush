@@ -41,7 +41,7 @@ void GetAttributesValid_{ParameterName}(out bool BaseColorValid, out bool Specul
 			NormalValid = true;
 			break;
 
-		case ERuntimeVirtualTextureMaterialType_BaseColor_Normal_DEPRECATED:
+		case ERuntimeVirtualTextureMaterialType_Mask4:
 		case ERuntimeVirtualTextureMaterialType_BaseColor_Normal_Specular:
 			BaseColorValid = true;
 			SpecularValid = true;
@@ -106,22 +106,22 @@ void SampleRVT_{ParameterName}(in float3 WorldPosition, out bool bInsideVolume, 
 	{
 		case ERuntimeVirtualTextureMaterialType_BaseColor:
 		{
-			BaseColor = LayerSample[0].xyz;
+			BaseColor = LayerSample[0].rgb;
 			break;
 		}
 
 		case ERuntimeVirtualTextureMaterialType_BaseColor_Normal_Roughness:
 		{
-			BaseColor = VirtualTextureUnpackBaseColorSRGB(LayerSample[0]);
+			BaseColor = LayerSample[0].rgb;
 			Roughness = LayerSample[1].y;
 			Normal = VirtualTextureUnpackNormalBGR565(LayerSample[1]);
 			break;
 		}
 
-		case ERuntimeVirtualTextureMaterialType_BaseColor_Normal_DEPRECATED:
+		case ERuntimeVirtualTextureMaterialType_Mask4:
 		case ERuntimeVirtualTextureMaterialType_BaseColor_Normal_Specular:
 		{
-			BaseColor = LayerSample[0].xyz;
+			BaseColor = LayerSample[0].rgb;
 			Specular = LayerSample[1].x;
 			Roughness = LayerSample[1].y;
 			Normal = VirtualTextureUnpackNormalBC3BC3(LayerSample[0], LayerSample[1]);

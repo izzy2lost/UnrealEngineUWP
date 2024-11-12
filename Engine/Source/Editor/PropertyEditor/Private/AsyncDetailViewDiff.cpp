@@ -22,7 +22,7 @@ namespace AsyncDetailViewDiffHelpers
 
 
 
-bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreValuesEqual(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB) const
+bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreValuesEqual(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB, TArray<FPropertySoftPath>* OutDifferingProperties) const
 {
 	const TSharedPtr<FDetailTreeNode> PinnedTreeNodeA = TreeNodeA.Pin();
 	const TSharedPtr<FDetailTreeNode> PinnedTreeNodeB = TreeNodeB.Pin();
@@ -62,10 +62,16 @@ bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreValuesEqual(const TWe
 	{
 		return true;
 	}
+
+	if (OutDifferingProperties)
+	{
+		return DiffUtils::Identical(*OutDifferingProperties, PropertyHandleA, PropertyHandleB, OwningObjectsA, OwningObjectsB);
+	}
+
 	return DiffUtils::Identical(PropertyHandleA, PropertyHandleB, OwningObjectsA, OwningObjectsB);
 }
 
-bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB) const
+bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB, TArray<FPropertySoftPath>* OutDifferingProperties) const
 {
 	const TSharedPtr<FDetailTreeNode> PinnedTreeNodeA = TreeNodeA.Pin();
 	const TSharedPtr<FDetailTreeNode> PinnedTreeNodeB = TreeNodeB.Pin();
@@ -92,6 +98,12 @@ bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakP
 		{
 			const TArray<TWeakObjectPtr<UObject>> OwningObjectsA = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeA);
 			const TArray<TWeakObjectPtr<UObject>> OwningObjectsB = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeB);
+
+			if (OutDifferingProperties)
+			{
+				return DiffUtils::Identical(*OutDifferingProperties, PropertyHandleA, PropertyHandleB, OwningObjectsA, OwningObjectsB);
+			}
+
 			return DiffUtils::Identical(KeyHandleA, KeyHandleB, OwningObjectsA, OwningObjectsB);
 		}
 
@@ -102,6 +114,12 @@ bool TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>::AreMatching(const TWeakP
 			// match set elements by value
 			const TArray<TWeakObjectPtr<UObject>> OwningObjectsA = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeA);
 			const TArray<TWeakObjectPtr<UObject>> OwningObjectsB = AsyncDetailViewDiffHelpers::GetObjects(PinnedTreeNodeB);
+
+			if (OutDifferingProperties)
+			{
+				return DiffUtils::Identical(*OutDifferingProperties, PropertyHandleA, PropertyHandleB, OwningObjectsA, OwningObjectsB);
+			}
+
 			return DiffUtils::Identical(PropertyHandleA, PropertyHandleB, OwningObjectsA, OwningObjectsB);
 		}
 		
@@ -178,24 +196,36 @@ void FAsyncDetailViewDiff::GetPropertyDifferences(TArray<FSingleObjectDiffEntry>
 		}
 		
 		EPropertyDiffType::Type PropertyDiffType;
-        switch(Node->DiffResult)
-        {
-        case ETreeDiffResult::MissingFromTree1: 
-            PropertyDiffType = EPropertyDiffType::PropertyAddedToB;
-            break;
-        case ETreeDiffResult::MissingFromTree2: 
-            PropertyDiffType = EPropertyDiffType::PropertyAddedToA;
-            break;
-        case ETreeDiffResult::DifferentValues: 
-            PropertyDiffType = EPropertyDiffType::PropertyValueChanged;
-            break;
-        default:
-        	// only include changes
-            return ETreeTraverseControl::Continue;
-        }
+		switch (Node->DiffResult)
+		{
+		case ETreeDiffResult::MissingFromTree1:
+			PropertyDiffType = EPropertyDiffType::PropertyAddedToB;
+			break;
+		case ETreeDiffResult::MissingFromTree2:
+			PropertyDiffType = EPropertyDiffType::PropertyAddedToA;
+			break;
+		case ETreeDiffResult::DifferentValues:
+			PropertyDiffType = EPropertyDiffType::PropertyValueChanged;
+			break;
+		default:
+			// only include changes
+			return ETreeTraverseControl::Continue;
+		}
 
-		OutDiffEntries.Add(FSingleObjectDiffEntry(PropertyPath, PropertyDiffType));
-        return ETreeTraverseControl::SkipChildren; // only include top-most properties
+		const FPropertySoftPath RootPath(PropertyPath);
+		if (Node->DifferingProperties.Num())
+		{
+			for (FPropertySoftPath& DifferingProperty : Node->DifferingProperties)
+			{
+				OutDiffEntries.Add(FSingleObjectDiffEntry(FPropertySoftPath(RootPath, DifferingProperty), PropertyDiffType));
+			}
+		}
+		else
+		{
+			OutDiffEntries.Add(FSingleObjectDiffEntry(RootPath, PropertyDiffType));
+		}
+
+		return ETreeTraverseControl::SkipChildren; // only include top-most properties
 	});
 }
 

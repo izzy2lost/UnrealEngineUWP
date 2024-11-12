@@ -165,7 +165,7 @@ TGlobalResource<FParticleCurveInjectionVertexDeclaration> GParticleCurveInjectio
 */
 static void InjectCurves(
 	FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* CurveTextureRHI,
+	FRHITexture* CurveTextureRHI,
 	TArray<FCurveSamples>& InPendingCurves)
 {
 	static bool bFirstCall = true;

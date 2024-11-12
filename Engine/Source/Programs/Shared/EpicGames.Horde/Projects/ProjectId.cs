@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Projects
 	[TypeConverter(typeof(StringIdTypeConverter<ProjectId, ProjectIdConverter>))]
 	[StringIdConverter(typeof(ProjectIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<ProjectId, ProjectIdConverter>))]
-	public record struct ProjectId(StringId Id)
+	public readonly record struct ProjectId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

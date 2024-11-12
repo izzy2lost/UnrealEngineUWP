@@ -115,7 +115,7 @@ bool FPCGOuterIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		bool bDummy;
-		if (const UPCGSpatialData* UnionData = Context->InputData.GetSpatialUnionOfInputsByPin(InputPin->Properties.Label, bDummy))
+		if (const UPCGSpatialData* UnionData = Context->InputData.GetSpatialUnionOfInputsByPin(Context, InputPin->Properties.Label, bDummy))
 		{
 			SecondarySourceUnionArray.Push(UnionData);
 		}
@@ -146,7 +146,7 @@ bool FPCGOuterIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 		const UPCGSpatialData* IntersectionData = PrimarySpatialData;
 		for (const UPCGSpatialData* SecondarySourceUnionData : SecondarySourceUnionArray)
 		{
-			UPCGIntersectionData* TempIntersectionData = IntersectionData->IntersectWith(SecondarySourceUnionData);
+			UPCGIntersectionData* TempIntersectionData = IntersectionData->IntersectWith(Context, SecondarySourceUnionData);
 			// Propagate settings
 			TempIntersectionData->DensityFunction = Settings->DensityFunction;
 			TempIntersectionData->bKeepZeroDensityPoints = Settings->bKeepZeroDensityPoints;

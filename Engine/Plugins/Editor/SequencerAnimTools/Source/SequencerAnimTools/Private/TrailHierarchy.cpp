@@ -315,7 +315,6 @@ bool FTrailHierarchy::IsAnythingSelected() const
 {
 	for (const TPair<FGuid, TUniquePtr<FTrail>>& GuidTrailPair : GetAllTrails())
 	{
-		FVector Location;
 		bool bHandled = GuidTrailPair.Value->IsAnythingSelected();
 		if (bHandled)
 		{

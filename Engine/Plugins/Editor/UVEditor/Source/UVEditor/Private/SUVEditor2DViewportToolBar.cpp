@@ -11,7 +11,7 @@
 #include "UVEditor2DViewportClient.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "SViewportToolBarComboMenu.h"
-#include "Widgets/Layout/SUniformGridPanel.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "UVEditor2DViewportToolbar"
 
@@ -318,124 +318,80 @@ TSharedRef<SWidget> SUVEditor2DViewportToolBar::FillLocationGridSnapMenu()
 	{
 		GridSizes.Add(FUVEditorUXSettings::LocationSnapValue(Index));
 	}
-	return BuildLocationGridCheckBoxList("Snap", LOCTEXT("LocationSnapText", "Snap Delta Distances"), GridSizes);
-}
 
-TSharedRef<SWidget> SUVEditor2DViewportToolBar::BuildLocationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes) const
-{
-	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+	using namespace UE::UnrealEd;
 
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder LocationGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
+	FLocationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		FLocationGridCheckboxListExecuteActionDelegate::CreateLambda(
+			[this, GridSizes](int CurrGridSizeIndex)
+			{
+				const float CurrGridSize = GridSizes[CurrGridSizeIndex];
+				Viewport2DClient->SetLocationGridSnapValue(CurrGridSize);
+			}
+		);
 
-	LocationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
-	for (int32 CurGridSizeIndex = 0; CurGridSizeIndex < InGridSizes.Num(); ++CurGridSizeIndex)
-	{
-		const float CurGridSize = InGridSizes[CurGridSizeIndex];
+	FLocationGridCheckboxListIsCheckedDelegate IsCheckedDelegate = FLocationGridCheckboxListIsCheckedDelegate::CreateLambda(
+		[this, GridSizes](int CurrGridSizeIndex)
+		{
+			const float CurrGridSize = GridSizes[CurrGridSizeIndex];
+			return FMath::IsNearlyEqual(Viewport2DClient->GetLocationGridSnapValue(), CurrGridSize);
+		}
+	);
 
-		LocationGridMenuBuilder.AddMenuEntry(
-			FText::AsNumber(CurGridSize),
-			FText::Format(LOCTEXT("LocationGridSize_ToolTip", "Sets snap delta to {0}"), FText::AsNumber(CurGridSize)),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([this, CurGridSize]() {Viewport2DClient->SetLocationGridSnapValue(CurGridSize); }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([this, CurGridSize]() { return FMath::IsNearlyEqual(Viewport2DClient->GetLocationGridSnapValue(), CurGridSize); })),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton);
-	}
-	LocationGridMenuBuilder.EndSection();
-
-	return LocationGridMenuBuilder.MakeWidget();
+	return CreateLocationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, GridSizes, CommandList);
 }
 
 TSharedRef<SWidget> SUVEditor2DViewportToolBar::FillRotationGridSnapMenu()
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
 
-	return SNew(SUniformGridPanel)
+	TArray<float> GridSizes = ViewportSettings->CommonRotGridSizes;
 
-		+ SUniformGridPanel::Slot(0, 0)
-		[
-			BuildRotationGridCheckBoxList("Common", LOCTEXT("RotationCommonText", "Common"), ViewportSettings->CommonRotGridSizes)
-		]
+	using namespace UE::UnrealEd;
+	FRotationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		FRotationGridCheckboxListExecuteActionDelegate::CreateLambda(
+			[this, GridSizes](int InCurrGridAngleIndex, ERotationGridMode InGridMode)
+			{
+				const float CurrGridAngle = GridSizes[InCurrGridAngleIndex];
+				Viewport2DClient->SetRotationGridSnapValue(CurrGridAngle);
+			}
+		);
 
-	+ SUniformGridPanel::Slot(1, 0)
-		[
-			BuildRotationGridCheckBoxList("Div360", LOCTEXT("RotationDivisions360DegreesText", "Divisions of 360\u00b0"), ViewportSettings->DivisionsOf360RotGridSizes)
-		];
-}
+	FRotationGridCheckboxListIsCheckedDelegate IsCheckedDelegate = FRotationGridCheckboxListIsCheckedDelegate::CreateLambda(
+		[this, GridSizes](int InCurrGridAngleIndex, ERotationGridMode InGridMode)
+		{
+			const float CurrGridAngle = GridSizes[InCurrGridAngleIndex];
+			return FMath::IsNearlyEqual(Viewport2DClient->GetRotationGridSnapValue(), CurrGridAngle);
+		}
+	);
 
-TSharedRef<SWidget> SUVEditor2DViewportToolBar::BuildRotationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes) const
-{
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder RotationGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
-
-	RotationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
-	for (int32 CurGridAngleIndex = 0; CurGridAngleIndex < InGridSizes.Num(); ++CurGridAngleIndex)
-	{
-		const float CurGridAngle = InGridSizes[CurGridAngleIndex];
-
-		FText MenuName = FText::Format(LOCTEXT("RotationGridAngle", "{0}\u00b0"), FText::AsNumber(CurGridAngle)); /*degree symbol*/
-		FText ToolTipText = FText::Format(LOCTEXT("RotationGridAngle_ToolTip", "Sets rotation snap angle to {0}"), MenuName); /*degree symbol*/
-
-		RotationGridMenuBuilder.AddMenuEntry(
-			MenuName,
-			ToolTipText,
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([this, CurGridAngle]() {Viewport2DClient->SetRotationGridSnapValue(CurGridAngle); }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([this, CurGridAngle]() {return FMath::IsNearlyEqual(Viewport2DClient->GetRotationGridSnapValue(), CurGridAngle); })),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton);
-	}
-	RotationGridMenuBuilder.EndSection();
-
-	return RotationGridMenuBuilder.MakeWidget();
+	return CreateRotationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, CommandList);
 }
 
 TSharedRef<SWidget> SUVEditor2DViewportToolBar::FillScaleGridSnapMenu()
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-	const bool bShouldCloseWindowAfterMenuSelection = true;
+	TArray<float> GridSizes = ViewportSettings->ScalingGridSizes;
 
-	FNumberFormattingOptions NumberFormattingOptions;
-	NumberFormattingOptions.MaximumFractionalDigits = 5;
-
-	FMenuBuilder ScaleGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
-
-	ScaleGridMenuBuilder.BeginSection("ScaleSnapOptions", LOCTEXT("ScaleSnapOptions", "Scale Snap"));
-
-	for (int32 CurGridAmountIndex = 0; CurGridAmountIndex < ViewportSettings->ScalingGridSizes.Num(); ++CurGridAmountIndex)
-	{
-		const float CurGridAmount = ViewportSettings->ScalingGridSizes[CurGridAmountIndex];
-
-		FText MenuText;
-		FText ToolTipText;
-
-		if (GEditor->UsePercentageBasedScaling())
-		{
-			MenuText = FText::AsPercent(CurGridAmount / 100.0f, &NumberFormattingOptions);
-			ToolTipText = FText::Format(LOCTEXT("ScaleGridAmountOld_ToolTip", "Snaps scale values to {0}"), MenuText);
+	UE::UnrealEd::FScaleGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		UE::UnrealEd::FScaleGridCheckboxListExecuteActionDelegate::CreateLambda(
+			[this, GridSizes](int CurrGridScaleIndex)
+			{
+				const float CurGridAmount = GridSizes[CurrGridScaleIndex];
+				Viewport2DClient->SetScaleGridSnapValue(CurGridAmount);
 		}
-		else
+		);
+
+	UE::UnrealEd::FScaleGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+		UE::UnrealEd::FScaleGridCheckboxListIsCheckedDelegate::CreateLambda(
+			[this, GridSizes](int CurrGridScaleIndex)
 		{
-			MenuText = FText::AsNumber(CurGridAmount, &NumberFormattingOptions);
-			ToolTipText = FText::Format(LOCTEXT("ScaleGridAmount_ToolTip", "Snaps scale values to increments of {0}"), MenuText);
+				const float CurrGridAmount = GridSizes[CurrGridScaleIndex];
+				return FMath::IsNearlyEqual(Viewport2DClient->GetScaleGridSnapValue(), CurrGridAmount);
 		}
+		);
 
-		ScaleGridMenuBuilder.AddMenuEntry(
-			MenuText,
-			ToolTipText,
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([this, CurGridAmount]() {Viewport2DClient->SetScaleGridSnapValue(CurGridAmount); }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([this, CurGridAmount]() {return FMath::IsNearlyEqual(Viewport2DClient->GetScaleGridSnapValue(), CurGridAmount); })),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton);
-	}
-	ScaleGridMenuBuilder.EndSection();
-
-	return ScaleGridMenuBuilder.MakeWidget();
+	return UE::UnrealEd::CreateScaleGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, GridSizes, CommandList);
 }
 
 ECheckBoxState SUVEditor2DViewportToolBar::IsLocationGridSnapChecked() const

@@ -194,17 +194,17 @@ int32 GetSSSFilter()
 
 int32 GetSSSSampleSet()
 {
-	return CVarSSSSampleSet.GetValueOnRenderThread();
+	return CVarSSSSampleSet.GetValueOnAnyThread();
 }
 
 int32 GetSSSQuality()
 {
-	return CVarSSSQuality.GetValueOnRenderThread();
+	return CVarSSSQuality.GetValueOnAnyThread();
 }
 
 int32 GetSSSBurleyBilateralFilterKernelFunctionType()
 {
-	return CVarSSSBurleyBilateralFilterKernelFunctionType.GetValueOnRenderThread();
+	return CVarSSSBurleyBilateralFilterKernelFunctionType.GetValueOnAnyThread();
 }
 
 // Returns the current subsurface mode required by the current view.
@@ -675,6 +675,21 @@ public:
 	using FPermutationDomain = TShaderPermutationDomain<FSubsurfacePassFunction, FDimensionQuality, 
 		FBilateralFilterKernelFunctionType, FSubsurfaceType, FDimensionHalfRes, FRunningInSeparable, FDimensionEnableProfileIDCache>;
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDimensionQuality>() != GetQuality())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		if (PermutationVector.Get<FBilateralFilterKernelFunctionType>() != GetBilateralFilterKernelFunctionType())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	// Returns the sampler state based on the requested SSS filter CVar setting and half resolution setting.
 	static FRHISamplerState* GetSamplerState(bool bHalfRes)
 	{
@@ -1036,6 +1051,7 @@ void AddSubsurfaceViewPass(
 	FRDGTextureRef QualityHistoryTexture = RegisterExternalRenderTarget(GraphBuilder, QualityHistoryState, SceneColorTextureDescriptor.Extent, TEXT("Subsurface.QualityHistoryTexture"));
 	FRDGTextureRef NewQualityHistoryTexture = nullptr;
 
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SubsurfaceScattering, "SubsurfaceScattering");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SubsurfaceScattering);
 
 	FSubsurfaceTiles Tiles;

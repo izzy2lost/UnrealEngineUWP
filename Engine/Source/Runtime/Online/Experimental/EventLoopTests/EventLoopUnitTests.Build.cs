@@ -3,7 +3,14 @@ using UnrealBuildTool;
 
 public class EventLoopUnitTests : TestModuleRules
 {
-	public EventLoopUnitTests(ReadOnlyTargetRules Target) : base(Target)
+    static EventLoopUnitTests()
+    {
+		TestMetadata = new Metadata();
+        TestMetadata.TestName = "EventLoop";
+        TestMetadata.TestShortName = "EventLoop";
+    }
+
+    public EventLoopUnitTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		OptimizeCode = CodeOptimization.Never;
 
@@ -13,7 +20,5 @@ public class EventLoopUnitTests : TestModuleRules
 				"EventLoop",
 				"Sockets"
 			});
-
-		UpdateBuildGraphPropertiesFile(new Metadata() { TestName = "EventLoop", TestShortName = "EventLoop" });
 	}
 }

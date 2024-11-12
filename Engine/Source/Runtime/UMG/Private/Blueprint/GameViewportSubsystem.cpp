@@ -144,7 +144,7 @@ bool UGameViewportSubsystem::AddToScreen(UWidget* Widget, ULocalPlayer* Player, 
 	UGameViewportClient* ViewportClient = World->GetGameViewport();
 	if (!ViewportClient)
 	{
-		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("No game viewport was found."), *Widget->GetName()), ELogVerbosity::Warning);
+		FFrame::KismetExecutionMessage(TEXT("No game viewport was found."), ELogVerbosity::Warning);
 		return false;
 	}
 
@@ -260,7 +260,7 @@ void UGameViewportSubsystem::SetWidgetSlot(UWidget* Widget, FGameViewportWidgetS
 			SlotInfo.FullScreenWidgetSlot->SetAutoSize(OffsetArgument.Get<1>());
 			SlotInfo.FullScreenWidgetSlot->SetAnchors(Slot.Anchors);
 			SlotInfo.FullScreenWidgetSlot->SetAlignment(Slot.Alignment);
-			SlotInfo.FullScreenWidgetSlot->SetZOrder(Slot.ZOrder);
+			SlotInfo.FullScreenWidgetSlot->SetZOrder(static_cast<float>(Slot.ZOrder));
 			WidgetHost->Invalidate(EInvalidateWidgetReason::Layout);
 		}
 	}
@@ -274,8 +274,9 @@ FGameViewportWidgetSlot UGameViewportSubsystem::SetWidgetSlotPosition(FGameViewp
 		Position /= Scale;
 	}
 
-	Slot.Offsets.Left = Position.X;
-	Slot.Offsets.Top = Position.Y;
+	const FVector2f NewPosition = UE::Slate::CastToVector2f(Position);
+	Slot.Offsets.Left = NewPosition.X;
+	Slot.Offsets.Top = NewPosition.Y;
 	Slot.Anchors = FAnchors(0.f, 0.f);
 
 	return Slot;
@@ -283,8 +284,9 @@ FGameViewportWidgetSlot UGameViewportSubsystem::SetWidgetSlotPosition(FGameViewp
 
 FGameViewportWidgetSlot UGameViewportSubsystem::SetWidgetSlotDesiredSize(FGameViewportWidgetSlot Slot, FVector2D Size)
 {
-	Slot.Offsets.Right = Size.X;
-	Slot.Offsets.Bottom = Size.Y;
+	const FVector2f NewSize = UE::Slate::CastToVector2f(Size);
+	Slot.Offsets.Right = NewSize.X;
+	Slot.Offsets.Bottom = NewSize.Y;
 	Slot.Anchors = FAnchors(0.f, 0.f);
 	return Slot;
 }

@@ -508,13 +508,36 @@ float3 F_Fresnel( float3 SpecularColor, float VoH )
 	return 0.5 * Square( (g - VoH) / (g + VoH) ) * ( 1 + Square( ((g+VoH)*VoH - 1) / ((g-VoH)*VoH + 1) ) );
 }
 
+#if SUPPORTS_INDEPENDENT_SAMPLERS
+	#define SharedSheenLTCSampler	View.SharedBilinearClampedSampler
+#else
+	#define SharedSheenLTCSampler	InSheenSampler
+#endif
+
 float4 SheenLTC_Cofficients(float NoV, float Roughness, Texture2D InSheenLTCTexture, SamplerState InSheenSampler)
 {
+#if 1
 	const float Alpha = sqrt(Roughness);
 	const float SatNoV = saturate(abs(NoV) + 1e-5);
 	float2 UV = float2(Alpha, SatNoV);
 	UV = UV * (31.0 / 32.0) + (0.5 / 32.0);
-	return InSheenLTCTexture.SampleLevel(InSheenSampler, UV, 0);
+	return InSheenLTCTexture.SampleLevel(SharedSheenLTCSampler, UV, 0);
+#else
+	// Sheen model LUT approximation with ALU under the MaterialX TPS.
+	// SUBSTRATE_TODO: measure if this is worth it on some platforms.
+	float x = saturate(abs(NoV) + 1e-5);
+	float y = sqrt(Roughness);
+
+	float A = ((2.58126 * x + 0.813703 * y) * y) / (1.0 + 0.310327 * x * x + 2.60994 * x * y);
+	float B = sqrt(1.0 - x) * (y - 1.0) * y * y * y / (0.0000254053 + 1.71228 * x - 1.71506 * x * y + 1.34174 * y * y);
+
+	float s = y * (0.0206607 + 1.58491 * y) / (0.0379424 + y * (1.32227 + y));
+	float m = y * (-0.193854 + y * (-1.14885 + y * (1.7932 - 0.95943 * y * y))) / (0.046391 + y);
+	float o = y * (0.000654023 + (-0.0207818 + 0.119681 * y) * y) / (1.26264 + y * (-1.92021 + y));
+	float R = exp(-0.5 * Square((x - m) / s)) / (s * sqrt(2.0 * PI)) + o;
+
+	return float4(A, B, R, 0.0f);
+#endif
 }
 
 float SheenLTC_DirectionalAlbedo(float NoV, float Roughness, Texture2D InSheenLTCTexture, SamplerState InSheenSampler)
@@ -528,7 +551,8 @@ float3 SheenLTC_Sample(float3 CosSample, float3 V, half3 N, float NoV, float Rou
 	const float4 LTC = SheenLTC_Cofficients(NoV, Roughness, InSheenLTCTexture, InSheenSampler);
 	const float aInv = LTC.x;
 	const float bInv = LTC.y;
-	const float3 LocalL = normalize(float3(CosSample.x / aInv - CosSample.z * bInv / aInv, CosSample.y / aInv, CosSample.z));
+	// NOTE: The vector is scaled by aInv compared to the reference implementation to avoid unecessary divides
+	const float3 LocalL = normalize(float3(CosSample.x - CosSample.z * bInv, CosSample.y, aInv * CosSample.z));
 
 	// Rotate L into tangent space
 	const float3 T1 = normalize(V - N * NoV);
@@ -539,6 +563,7 @@ float3 SheenLTC_Sample(float3 CosSample, float3 V, half3 N, float NoV, float Rou
 }
 
 // [Zeltner et al. 2022, "Practical Multiple-Scattering Sheen Using Linearly Transformed Cosines"]
+// The "OutDirectionalAlbedo" should be multiplied by the result (it is kept separate because in the sampling case it needs to be only included in the weight, not the pdf)
 float SheenLTC_Eval(float3 V, float3 L, half3 N, float NoV, float Roughness, Texture2D InSheenLTCTexture, SamplerState InSheenSampler, inout float OutDirectionalAlbedo)
 {
 	// Rotate L into tangent space
@@ -560,16 +585,16 @@ float SheenLTC_Eval(float3 V, float3 L, half3 N, float NoV, float Roughness, Tex
 		aInv * LocalL.y,
 		LocalL.z);
 
-	const float LenWrappedLocalL = length(WrappedLocalL);
+	const float InvLenWrappedLocalL2 = rcp(length2(WrappedLocalL));
 	// Jabobian is defined as: det(InvLTC) / ||InvLTC . L||
-	const float Jacobian = Pow2(aInv) / Pow3(LenWrappedLocalL);
+	// Jacobian should be aInv^2/Length^3 but since we skip the normalization
+	// we end up with aInv^2/Length^4 which is cheaper to compute
+	const float Jacobian = Pow2(aInv * InvLenWrappedLocalL2);
 
-	// Normalized wrapped direction
-	WrappedLocalL /= LenWrappedLocalL;
 
-	// Evaluation a normalized cos distribution
+	// Evaluation a normalized cos distribution (note: WrappedLocalL was not normalized, we folded the extra length division into the Jacobian)
 	const float CosDistribution = WrappedLocalL.z / PI;
-	const float Out = OutDirectionalAlbedo * CosDistribution * Jacobian; // Fs * CosTheta
+	const float Out = CosDistribution * Jacobian;
 
 	return max(Out, 0.f);
 }

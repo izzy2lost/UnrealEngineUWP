@@ -64,7 +64,7 @@ bool FPCGSplitPointsElement::ExecuteInternal(FPCGContext* Context) const
 		const TArray<FPCGPoint>& InputPoints = InputPointData->GetPoints();
 
 		FPCGTaggedData& OutputA = Outputs.Add_GetRef(Inputs[i]);
-		UPCGPointData* OutPointDataA = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointDataA = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutPointDataA->InitializeFromData(InputPointData);
 		TArray<FPCGPoint>& PointsA = OutPointDataA->GetMutablePoints();
 		PointsA.SetNumUninitialized(InputPoints.Num());
@@ -72,7 +72,7 @@ bool FPCGSplitPointsElement::ExecuteInternal(FPCGContext* Context) const
 		OutputA.Pin = PCGSplitPointsConstants::OutputALabel;
 
 		FPCGTaggedData& OutputB = Outputs.Add_GetRef(Inputs[i]);
-		UPCGPointData* OutPointDataB = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointDataB = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutPointDataB->InitializeFromData(InputPointData);
 		TArray<FPCGPoint>& PointsB = OutPointDataB->GetMutablePoints();
 		PointsB.SetNumUninitialized(InputPoints.Num());

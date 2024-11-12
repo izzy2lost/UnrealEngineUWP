@@ -236,6 +236,11 @@ FString UDataRegistrySource_DataTable::GetDebugString() const
 	return Super::GetDebugString();
 }
 
+FSoftObjectPath UDataRegistrySource_DataTable::GetSourceAssetPath() const
+{
+	return SourceTable.ToSoftObjectPath();
+}
+
 bool UDataRegistrySource_DataTable::Initialize()
 {
 	if (Super::Initialize())
@@ -337,6 +342,11 @@ void UDataRegistrySource_DataTable::PreSave(FObjectPreSaveContext ObjectSaveCont
 
 	// Force load it to validate type on save
 	SetCachedTable(true);
+}
+
+void UDataRegistrySource_DataTable::EditorRefreshSource()
+{
+	SetCachedTable(false);
 }
 
 #endif // WITH_EDITOR

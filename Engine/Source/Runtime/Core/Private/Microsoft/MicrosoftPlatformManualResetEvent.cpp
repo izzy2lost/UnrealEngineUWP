@@ -4,7 +4,7 @@
 
 #include "HAL/PlatformMath.h"
 #include "Misc/MonotonicTime.h"
-
+#include "Async/Fundamental/Scheduler.h"
 #include "Microsoft/WindowsHWrapper.h"
 
 namespace UE::HAL::Private
@@ -20,6 +20,9 @@ bool FMicrosoftPlatformManualResetEvent::WaitUntil(FMonotonicTimePoint WaitTime)
 	bool bLocalWait = true;
 	if (WaitTime.IsInfinity())
 	{
+		// Let the scheduler know one of its thread might be waiting.
+		LowLevelTasks::FOversubscriptionScope _;
+
 		for (;;)
 		{
 			if (WaitOnAddress(&bWait, &bLocalWait, sizeof(bool), INFINITE) && !bWait)
@@ -30,6 +33,9 @@ bool FMicrosoftPlatformManualResetEvent::WaitUntil(FMonotonicTimePoint WaitTime)
 	}
 	else
 	{
+		// Let the scheduler know one of its thread might be waiting.
+		LowLevelTasks::FOversubscriptionScope _(WaitTime - FMonotonicTimePoint::Now() > FMonotonicTimeSpan::Zero());
+
 		for (;;)
 		{
 			FMonotonicTimeSpan WaitSpan = WaitTime - FMonotonicTimePoint::Now();

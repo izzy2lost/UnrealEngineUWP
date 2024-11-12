@@ -4,6 +4,8 @@
 
 #include "Editor.h"
 #include "EngineAnalytics.h"
+#include "HAL/PlatformApplicationMisc.h"
+#include "HoldoutCompositeComponent.h"
 #include "IPlacementModeModule.h"
 #include "ISequencerModule.h"
 #include "LevelEditor.h"
@@ -13,9 +15,10 @@
 #include "MediaPlateComponent.h"
 #include "MediaPlateCustomization.h"
 #include "MediaPlateEditorStyle.h"
-#include "MediaPlayer.h"
+#include "MediaPlateResourceCustomization.h"
 #include "MediaSoundComponent.h"
 #include "MediaSource.h"
+#include "MediaTexture.h"
 #include "Models/MediaPlateEditorCommands.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -40,10 +43,14 @@ void FMediaPlateEditorModule::StartupModule()
 
 	// Register customizations.
 	MediaPlateName = UMediaPlateComponent::StaticClass()->GetFName();
+	MediaPlateResourceName = FMediaPlateResource::StaticStruct()->GetFName();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomClassLayout(MediaPlateName,
 		FOnGetDetailCustomizationInstance::CreateStatic(&FMediaPlateCustomization::MakeInstance));
+
+	PropertyModule.RegisterCustomPropertyTypeLayout(MediaPlateResourceName,
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMediaPlateResourceCustomization::MakeInstance));
 
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 	TrackEditorBindingHandle = SequencerModule.RegisterPropertyTrackEditor<FMediaPlateTrackEditor>();
@@ -87,6 +94,7 @@ void FMediaPlateEditorModule::ShutdownModule()
 	// Unregister customizations.
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.UnregisterCustomClassLayout(MediaPlateName);
+	PropertyModule.UnregisterCustomPropertyTypeLayout(MediaPlateResourceName);
 }
 
 void FMediaPlateEditorModule::Tick(float DeltaTime)
@@ -153,7 +161,7 @@ const FPlacementCategoryInfo* FMediaPlateEditorModule::GetMediaCategoryRegistere
 	const IPlacementModeModule& PlacementModeModule = IPlacementModeModule::Get();
 	const FName PlacementModeCategoryHandle = TEXT("MediaPlate");
 
-	if (const FPlacementCategoryInfo* RegisteredInfo =
+	if (const FPlacementCategoryInfo* RegisteredInfo = 
 		PlacementModeModule.GetRegisteredPlacementCategory(PlacementModeCategoryHandle))
 	{
 		return RegisteredInfo;
@@ -170,6 +178,7 @@ const FPlacementCategoryInfo* FMediaPlateEditorModule::GetMediaCategoryRegistere
 			26 // Determines where the category shows up in the list with respect to the others.
 		);
 
+		Info.ShortDisplayName = LOCTEXT("MediaPlateShortCategoryName", "Media");
 		IPlacementModeModule::Get().RegisterPlacementCategory(Info);
 
 		return PlacementModeModule.GetRegisteredPlacementCategory(PlacementModeCategoryHandle);
@@ -343,7 +352,7 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 						const ISlateStyle* Style = &FMediaPlateEditorStyle::Get().Get();
 						check(Style);
 
-						FUIAction Action_ConfigureComposite(
+						FUIAction Action_ConfigureHoldoutComposite(
 							FExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor)
 								{
 									if (!IsValid(InMediaPlateActor))
@@ -351,7 +360,86 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 										return;
 									}
 
-									const FScopedTransaction Transaction(LOCTEXT("ApplyOverlayCompositeMats", "Apply Overlay Composite Materials"));
+									if (!IsValid(InMediaPlateActor->StaticMeshComponent))
+									{
+										UE_LOG(LogMediaPlateEditor, Warning, TEXT("Could not setup holdout composite on media plate, invalid static mesh component."));
+										return;
+									}
+
+									if (InMediaPlateActor->FindComponentByClass<UHoldoutCompositeComponent>() != nullptr)
+									{
+										// Already present, do nothing
+										return;
+									}
+
+									const FScopedTransaction Transaction(LOCTEXT("ApplyHoldoutComposite", "Apply Holdout Composite"));
+									InMediaPlateActor->Modify();
+
+									UHoldoutCompositeComponent* HoldoutComponent = NewObject<UHoldoutCompositeComponent>(InMediaPlateActor
+										, MakeUniqueObjectName(InMediaPlateActor, UHoldoutCompositeComponent::StaticClass())
+										, RF_Transactional);
+
+									InMediaPlateActor->AddInstanceComponent(HoldoutComponent);
+
+									HoldoutComponent->SetupAttachment(InMediaPlateActor->StaticMeshComponent);
+									HoldoutComponent->OnComponentCreated();
+									HoldoutComponent->RegisterComponent();
+
+									// Used to update the sub-object tree-view list
+									FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+									LevelEditor.BroadcastComponentsEdited();
+								}
+								, MediaPlateActor),
+							FCanExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor) -> bool
+								{
+									// Disable when the media plate has an overlay material or an existing holdout
+									return IsValid(InMediaPlateActor) ? !IsValid(InMediaPlateActor->GetCurrentOverlayMaterial()) && !InMediaPlateActor->FindComponentByClass<UHoldoutCompositeComponent>() : false;
+								}
+								, MediaPlateActor)
+						);
+
+						FUIAction Action_RemoveHoldoutComposite(
+							FExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor)
+								{
+									if (!IsValid(InMediaPlateActor))
+									{
+										return;
+									}
+
+									UHoldoutCompositeComponent* HoldoutComponent = InMediaPlateActor->FindComponentByClass<UHoldoutCompositeComponent>();
+									if (IsValid(HoldoutComponent))
+									{
+										const FScopedTransaction Transaction(LOCTEXT("RemoveHoldoutComposite", "Remove Holdout Composite"));
+
+										InMediaPlateActor->RemoveInstanceComponent(HoldoutComponent);
+
+										HoldoutComponent->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
+										HoldoutComponent->UnregisterComponent();
+										HoldoutComponent->DestroyComponent();
+
+										// Used to update the sub-object tree-view list
+										FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+										LevelEditor.BroadcastComponentsEdited();
+									}
+								}
+								, MediaPlateActor),
+							FCanExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor) -> bool
+								{
+									return IsValid(InMediaPlateActor) ? InMediaPlateActor->FindComponentByClass<UHoldoutCompositeComponent>() != nullptr : false;
+								}
+								, MediaPlateActor)
+						);
+
+						// Note: Could be removed now that we have the holdout composite alternative.
+						FUIAction Action_ConfigureOverlayComposite(
+							FExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor)
+								{
+									if (!IsValid(InMediaPlateActor))
+									{
+										return;
+									}
+
+									const FScopedTransaction Transaction(LOCTEXT("ApplyOverlayCompositeMats", "Apply Overlay Composite Materials (Deprecated)"));
 									InMediaPlateActor->Modify();
 
 									UMaterial* BasePassMaterial = LoadObject<UMaterial>(NULL, TEXT("/MediaPlate/M_MediaPlate_Masked"), NULL, LOAD_None, NULL);
@@ -362,7 +450,12 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 
 									UE::MediaPlate::Private::ApplyTranslucencyScreenPercentageCVar(1);
 								}
-								,MediaPlateActor)
+								, MediaPlateActor),
+							FCanExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor) -> bool
+								{
+									return IsValid(InMediaPlateActor) ? !InMediaPlateActor->FindComponentByClass<UHoldoutCompositeComponent>() : false;
+								}
+								, MediaPlateActor)
 						);
 
 						FUIAction Action_ResetDefault(
@@ -383,12 +476,44 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 								, MediaPlateActor)
 						);
 
+						FUIAction Action_CopyMediaTextureReference(
+							FExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor)
+								{
+									if (!IsValid(InMediaPlateActor))
+									{
+										return;
+									}
+
+									if (UMediaPlateComponent* MediaPlateComponent = InMediaPlateActor->MediaPlateComponent)
+									{
+										if (const UMediaTexture* MediaTexture = MediaPlateComponent->GetMediaTexture(0))
+										{
+											FPlatformApplicationMisc::ClipboardCopy(*FAssetData(MediaTexture).GetExportTextName());
+										}
+									}
+								}
+								, MediaPlateActor)
+						);
+
 						MenuBuilder.BeginSection("MediaPlate", LOCTEXT("MediaPlateHeading", "Media Plate"));
 						MenuBuilder.AddMenuEntry(
-							LOCTEXT("ApplyOverlayCompositeMats", "Apply Overlay Composite Materials"),
-							LOCTEXT("ApplyOverlayCompositeMats_Tooltip", "Setup the media plate for overlay-compositing to avoid TSR artifacts by replacing relevant materials. This technique is only effective on opaque media currently."),
+							LOCTEXT("AddHoldoutComposite", "Apply Holdout Composite"),
+							LOCTEXT("AddHoldoutComposite_Tooltip", "Setup the media plate for alpha holdout compositing to avoid TSR artifacts and the tone curve. Translucency rendered in front is preserved. This technique is preferred but only effective on opaque media currently."),
 							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
-							Action_ConfigureComposite
+							Action_ConfigureHoldoutComposite
+						);
+						MenuBuilder.AddMenuEntry(
+							LOCTEXT("RemoveHoldoutComposite", "Remove Holdout Composite"),
+							LOCTEXT("RemoveHoldoutComposite_Tooltip", "Remove and destroy the holdout composite component, if present."),
+							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
+							Action_RemoveHoldoutComposite
+						);
+						MenuBuilder.AddSeparator();
+						MenuBuilder.AddMenuEntry(
+							LOCTEXT("ApplyOverlayCompositeMats", "Apply Overlay Composite Materials (Deprecated)"),
+							LOCTEXT("ApplyOverlayCompositeMats_Tooltip", "Setup the media plate for overlay compositing to avoid TSR artifacts by replacing relevant materials. This technique is only effective on opaque media currently."),
+							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
+							Action_ConfigureOverlayComposite
 						);
 						MenuBuilder.AddMenuEntry(
 							LOCTEXT("ResetDefaultMats", "Reset Default Materials"),
@@ -396,14 +521,21 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
 							Action_ResetDefault
 						);
+
+						MenuBuilder.AddSeparator();
+						MenuBuilder.AddMenuEntry(
+							LOCTEXT("CopyMediaTextureReference", "Copy Media Texture Reference"),
+							LOCTEXT("CopyMediaTextureReference_Tooltip", "Copy Embedded Media Texture Reference to Clipboard."),
+							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
+							Action_CopyMediaTextureReference
+						);
+
 						MenuBuilder.EndSection();
 					},
 					MediaPlateActor
 				)
 			);
 		}
-
-
 	}
 
 	return Extender.ToSharedRef();

@@ -5,15 +5,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
+using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
@@ -26,6 +27,9 @@ using UnrealBuildBase;
 
 namespace UnrealBuildTool
 {
+	// statusRow, statusColumn, statusText, statusType, statusLink
+	using StatusUpdateAction = Action<uint, uint, string, EpicGames.UBA.LogEntryType, string?>;
+
 	class UBAHordeSession : IAsyncDisposable
 	{
 		/// <summary>
@@ -34,9 +38,8 @@ namespace UnrealBuildTool
 		readonly Guid _id = Guid.NewGuid();
 
 		const string ResourceLogicalCores = "LogicalCores";
-		readonly ClusterId _clusterId = new("default");
+		ClusterId? _clusterId;
 
-		readonly Uri _hordeUri;
 		readonly string? _pool;
 		readonly bool _allowWine;
 		readonly int _maxCores;
@@ -47,31 +50,33 @@ namespace UnrealBuildTool
 		readonly ILogger _logger;
 
 		readonly UBAExecutor _owner;
+		internal StatusUpdateAction? _updateStatus;
 
-		readonly BundleStorageClient _storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+		readonly BundleStorageNamespace _storage = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 		BlobLocator _ubaAgentLocator;
 
 		readonly ServiceProvider _serviceProvider;
 		readonly string _crypto;
 		IComputeClient? _client;
+		HordeHttpClient? _hordeHttpClient;
 
-		public struct Worker
+		public class Worker
 		{
-			public Task BackgroundTask { get; set; }
+			public Stopwatch? StartTime { get; init; }
+			public string? Ip { get; init; }
+			public ConnectionMetadataPort? Port { get; init; }
+			public ConnectionMetadataPort? ProxyPort { get; init; }
+
 			public int NumLogicalCores { get; set; }
-			public Stopwatch StartTime { get; set; }
-			public bool Started { get; set; }
-			public string Ip { get; set; }
-			public ConnectionMetadataPort Port { get; set; }
-			public ConnectionMetadataPort ProxyPort { get; set; }
+			public bool Active { get; set; }
+			public Task? BackgroundTask { get; set; }
 		}
 
 		readonly List<Worker> _workers = new();
 
-		public UBAHordeSession(UBAExecutor owner, Uri hordeUri, AuthenticationHeaderValue? authHeader, string? pool, bool allowWine, int maxCores, bool strict, ConnectionMode? connectionMode, Encryption? encryption, ILogger logger)
+		public UBAHordeSession(UBAExecutor owner, Uri? serverUrl, string? accessToken, string? pool, bool allowWine, int maxCores, bool strict, ConnectionMode? connectionMode, Encryption? encryption, ILogger logger)
 		{
 			_owner = owner;
-			_hordeUri = hordeUri;
 			_pool = pool;
 			_allowWine = allowWine;
 			_maxCores = maxCores;
@@ -81,14 +86,13 @@ namespace UnrealBuildTool
 			_logger = logger;
 			_crypto = owner.Crypto;
 
-			void ConfigureHttpClient(HttpClient httpClient)
-			{
-				httpClient.BaseAddress = _hordeUri;
-				httpClient.DefaultRequestHeaders.Authorization = authHeader;
-			}
-
 			ServiceCollection services = new();
-			services.AddHttpClient<HordeHttpClient>(ConfigureHttpClient);
+			services.AddLogging(builder => builder.AddEpicDefault());
+			services.AddHorde(options =>
+			{
+				options.ServerUrl = serverUrl;
+				options.AccessToken = accessToken;
+			});
 			_serviceProvider = services.BuildServiceProvider();
 
 			if (connectionMode == ConnectionMode.Relay && String.IsNullOrEmpty(_crypto))
@@ -102,27 +106,29 @@ namespace UnrealBuildTool
 		{
 			if (_workers.Count > 0) // Should handle double-dispose, prevent cancelling twice
 			{
+#if NET8_0_OR_GREATER
+				await _cancellationTokenSource.CancelAsync();
+#else
 				_cancellationTokenSource.Cancel();
+#endif
 
 				for (int idx = _workers.Count - 1; idx >= 0; idx--)
 				{
-					await _workers[idx].BackgroundTask;
+					await _workers[idx].BackgroundTask!;
 					_workers.RemoveAt(idx);
 				}
 			}
 
 			if (_client != null)
 			{
+				IComputeClient client = _client;
+				_client = null;
 				// Set CPU resource need to zero (will also expire on the server if not updated)
 				await UpdateCpuCoreNeedAsync(0);
-				await _client.DisposeAsync();
-				_client = null;
 			}
 
 			await _serviceProvider.DisposeAsync();
 			_cancellationTokenSource.Dispose();
-
-			_storage.Dispose();
 		}
 
 		public async Task InitAsync(bool useSentry, CancellationToken cancellationToken)
@@ -132,26 +138,15 @@ namespace UnrealBuildTool
 				throw new InvalidOperationException("Session has already been initialized");
 			}
 
-			string? sessionId = null;
-			string? jobId = Environment.GetEnvironmentVariable("UE_HORDE_JOBID");
-			string? batchId = Environment.GetEnvironmentVariable("UE_HORDE_BATCHID");
-			string? stepId = Environment.GetEnvironmentVariable("UE_HORDE_STEPID");
+			_client = _serviceProvider.GetRequiredService<IHordeClient>().Compute;
+			_hordeHttpClient = _serviceProvider.GetRequiredService<IHordeClient>().CreateHttpClient();
+			GetServerInfoResponse serverInfo = await _hordeHttpClient.GetServerInfoAsync(cancellationToken);
+			_logger.LogInformation("Horde server: {ServerVersion}, agent: {AgentVersion}", serverInfo.ServerVersion, serverInfo.AgentVersion);
 
-			if (jobId != null && batchId != null && stepId != null)
-			{
-				sessionId = $"{jobId}-{batchId}-{stepId}";
-			}
-
-			_client = new ServerComputeClient(_serviceProvider.GetRequiredService<IHttpClientFactory>(), sessionId, _logger);
-
-			_logger.LogInformation("Creating tool bundle...");
-			DirectoryReference ubaDir;
+			DirectoryReference ubaDir = UBAExecutor.UbaBinariesDir;
 			List<string> agentFiles = new();
 			if (OperatingSystem.IsWindows())
 			{
-#pragma warning disable CA1308 // Normalize strings to uppercase
-				ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
-#pragma warning restore CA1308 // Normalize strings to uppercase
 				agentFiles.Add("UbaAgent.exe");
 				if (useSentry)
 				{
@@ -170,24 +165,10 @@ namespace UnrealBuildTool
 					agentFiles.Add("libclang_rt.tsan.so"); // Needs to be copied from autosdk
 					agentFiles.Add("llvm-symbolizer"); // Needs to be copied from autosdk
 				}
-
-				if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
-				{
-					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
-				}
-				else if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-				{
-					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "LinuxArm64", "UnrealBuildAccelerator");
-				}
-				else
-				{
-					throw new PlatformNotSupportedException();
-				}
 			}
 			else if (OperatingSystem.IsMacOS())
 			{
 				agentFiles.Add("UbaAgent");
-				ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Mac", "UnrealBuildAccelerator");
 			}
 			else
 			{
@@ -199,44 +180,57 @@ namespace UnrealBuildTool
 
 		async Task<BlobLocator> CreateToolAsync(DirectoryReference baseDir, IEnumerable<FileReference> files, CancellationToken cancellationToken)
 		{
-			BlobSerializerOptions serializerOptions = new();
-			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(2)); // Lock to v2 for now. Could change based on protocol version.
+			// TODO: should drive this off API version reported by server
+			BlobSerializerOptions serializerOptions = BlobSerializerOptions.Create(HordeApiVersion.Initial);
 
 			await using IBlobWriter writer = _storage.CreateBlobWriter(serializerOptions: serializerOptions);
 			DirectoryNode sandbox = new();
 			await sandbox.AddFilesAsync(baseDir, files, writer, cancellationToken: cancellationToken);
-			IBlobRef<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox, cancellationToken);
+			IHashedBlobRef<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox, cancellationToken);
 			await writer.FlushAsync(cancellationToken);
 			return handle.GetLocator();
 		}
-
-		public int NumLogicalCores { get; private set; } = 0;
 
 		public async void RemoveCompleteWorkersAsync()
 		{
 			for (int idx = 0; idx < _workers.Count; idx++)
 			{
 				Worker worker = _workers[idx];
-				if (worker.BackgroundTask.IsCompleted)
+				if (worker.BackgroundTask!.IsCompleted)
 				{
 					await worker.BackgroundTask;
-					NumLogicalCores -= worker.NumLogicalCores;
-					_workers.RemoveAt(idx--);
+					lock (_workers)
+						_workers.RemoveAt(idx--);
 				}
 			}
 		}
 
-		public int QueuedUpCores()
+		public void GetCoreCount(out int active, out int queued, out int activeAgents, out int queuedAgents)
 		{
-			int count = 0;
-			foreach (Worker worker in _workers)
+			active = 0;
+			queued = 0;
+			activeAgents = 0;
+			queuedAgents = 0;
+			lock (_workers)
 			{
-				if (!worker.Started)
+				foreach (Worker worker in _workers)
 				{
-					count += worker.NumLogicalCores;
+					if (worker.NumLogicalCores == 0)
+					{
+						continue;
+					}
+					if (worker.Active)
+					{
+						++activeAgents;
+						active += worker.NumLogicalCores;
+					}
+					else
+					{
+						++queuedAgents;
+						queued += worker.NumLogicalCores;
+					}
 				}
 			}
-			return count;
 		}
 
 		int _workerId = 0;
@@ -251,11 +245,11 @@ namespace UnrealBuildTool
 				"LogicalCores"
 			};
 
-		public async Task<bool> AddWorkerAsync(Requirements requirements, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken)
+		public async Task<bool> AddWorkerAsync(Requirements requirements, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken, int activeCores)
 		{
 			if (_client == null)
 			{
-				throw new InvalidOperationException("Call init first");
+				throw new InvalidOperationException($"Session not initialized. Call {nameof(InitAsync)} first");
 			}
 
 			PrefixLogger workerLogger = new($"[Worker{_workerId}]", _logger);
@@ -278,12 +272,14 @@ namespace UnrealBuildTool
 					Encryption = _encryption,
 					Ports = { { UbaPortName, UbaPort }, { UbaProxyPortName, UbaProxyPort } }
 				};
+				
+				await ResolveClusterIdAsync(hordeConfig, requirements, requestId, cmr, workerLogger, cancellationToken);
 				lease = await _client.TryAssignWorkerAsync(_clusterId, requirements, requestId, cmr, workerLogger, cancellationToken);
 				if (lease == null)
 				{
 					_logger.LogDebug("Unable to assign a remote worker");
 
-					int missingNumCores = Math.Max(0, _maxCores - NumLogicalCores);
+					int missingNumCores = Math.Max(0, _maxCores - activeCores);
 					await UpdateCpuCoreNeedAsync(missingNumCores, cancellationToken);
 					return false;
 				}
@@ -337,10 +333,11 @@ namespace UnrealBuildTool
 					ProxyPort = ubaProxyPort,
 				};
 				worker.BackgroundTask = RunWorkerAsync(worker, lease, locator, exeName, workerLogger, hordeConfig, _cancellationTokenSource.Token);
-				_workers.Add(worker);
+				lock (_workers)
+					_workers.Add(worker);
+				UpdateHordeStatus(null);
 				lease = null; // Will be disposed by RunWorkerAsync
 
-				NumLogicalCores += numLogicalCores;
 				return true;
 			}
 			finally
@@ -352,20 +349,49 @@ namespace UnrealBuildTool
 			}
 		}
 
+		int _targetCoreCount;
+
 		async Task UpdateCpuCoreNeedAsync(int targetCoreCount, CancellationToken cancellationToken = default)
 		{
-			if (_client != null && _pool != null)
+			if (_client != null && _pool != null && _clusterId != null && targetCoreCount != _targetCoreCount)
 			{
+				_targetCoreCount = targetCoreCount;
+
 				_logger.LogDebug("Setting CPU core need to {TargetCoreCount}", targetCoreCount);
 				Dictionary<string, int> resourceNeeds = new() { { ResourceLogicalCores, targetCoreCount } };
 				try
 				{
-					await _client.DeclareResourceNeedsAsync(_clusterId, _pool, resourceNeeds, cancellationToken);
+					await _client.DeclareResourceNeedsAsync(_clusterId.Value, _pool, resourceNeeds, cancellationToken);
 				}
 				catch (Exception e)
 				{
-					_logger.Log(_strict ? LogLevel.Error : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, e, "Failed updating resource need to {TargetCoreCount} cores", targetCoreCount);
+					_logger.Log(_strict ? LogLevel.Error : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, e, "Failed updating resource need to {TargetCoreCount} cores", targetCoreCount);
 				}
+			}
+		}
+		
+		private async Task ResolveClusterIdAsync(UnrealBuildAcceleratorHordeConfig config, Requirements requirements, string requestId, ConnectionMetadataRequest cmr, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			if (_client == null)
+			{
+				throw new InvalidOperationException($"Session not initialized. Call {nameof(InitAsync)} first");
+			}
+			
+			if (_clusterId == null)
+			{
+				if (config.HordeCluster == UnrealBuildAcceleratorHordeConfig.ClusterAuto)
+				{
+					_clusterId = await _client.GetClusterAsync(requirements, requestId, cmr, logger, cancellationToken);
+				}
+				else if (!String.IsNullOrEmpty(config.HordeCluster))
+				{
+					_clusterId = new ClusterId(config.HordeCluster);
+				}
+				else
+				{
+					_clusterId = new ClusterId(UnrealBuildAcceleratorHordeConfig.ClusterDefault);
+				}
+				_logger.LogInformation("Horde cluster resolved as '{ClusterId}'", _clusterId.ToString());
 			}
 		}
 
@@ -377,48 +403,31 @@ namespace UnrealBuildTool
 				return null;
 			}
 
-			string? server = hordeConfig.HordeServer;
-			string? token = hordeConfig.HordeToken;
-			string? oidcProvider = hordeConfig.HordeOidcProvider;
-
-			if (String.IsNullOrEmpty(server))
+			if (String.IsNullOrEmpty(hordeConfig.HordeServer) && HordeOptions.GetServerUrlFromEnvironment() == null && HordeOptions.GetDefaultServerUrl() == null)
 			{
-				server = Environment.GetEnvironmentVariable("UE_HORDE_URL");
-				if (String.IsNullOrEmpty(server))
-				{
-					logger.LogInformation("Horde URL not specified in BuildConfiguration.xml or via UE_HORDE_URL environment variable");
-					return null;
-				}
-				if (String.IsNullOrEmpty(token))
-				{
-					token = Environment.GetEnvironmentVariable("UE_HORDE_TOKEN");
-				}
+				logger.LogInformation("Horde disabled. Url not set.");
+				return null;
 			}
+
+			Uri? server = (hordeConfig.HordeServer == null) ? null : new Uri(hordeConfig.HordeServer);
+			string? token = hordeConfig.HordeToken;
 
 			ConnectionMode? connectionMode = Enum.TryParse(hordeConfig.HordeConnectionMode, true, out ConnectionMode cm) ? cm : null;
 			Encryption? encryption = Enum.TryParse(hordeConfig.HordeEncryption, true, out Encryption enc) ? enc : null;
 
-			oidcProvider ??= Environment.GetEnvironmentVariable("UE_HORDE_OIDC_PROVIDER");
+			// Default to SSL encryption for relay mode if unset
+			if (connectionMode == ConnectionMode.Relay && encryption == null)
+			{
+				encryption = Encryption.Ssl;
+			}
 
-			bool hasOidcProvider = !String.IsNullOrEmpty(oidcProvider);
-			logger.LogInformation("Horde URL: {Server}, Pool: {Pool}, Condition: {Condition}, OIDC: {OidcProvider}, Connection: {Connection} HordeEncryption: {Encryption}",
-				server, hordeConfig.HordePool ?? "(none)", hordeConfig.HordeCondition ?? "(none)", hasOidcProvider ? oidcProvider! : "Disabled", connectionMode?.ToString() ?? "(none)", encryption?.ToString() ?? "(none)");
+			logger.LogInformation("Horde URL: {Server}, Pool: {Pool}, Cluster {Cluster}, Condition: {Condition}, Connection: {Connection} HordeEncryption: {Encryption}",
+				server, hordeConfig.HordePool ?? "(none)", hordeConfig.HordeCluster ?? "(none)", hordeConfig.HordeCondition ?? "(none)", connectionMode?.ToString() ?? "(none)", encryption?.ToString() ?? "(none)");
 			try
 			{
-				if (String.IsNullOrEmpty(token) && hasOidcProvider)
-				{
-					token = await GetOidcBearerTokenAsync(null, oidcProvider!, logger, cancellationToken);
-				}
-
-				AuthenticationHeaderValue? authHeader = null;
-				if (!String.IsNullOrEmpty(token))
-				{
-					authHeader = new AuthenticationHeaderValue("Bearer", token);
-				}
-
 				bool allowWine = hordeConfig.bHordeAllowWine && OperatingSystem.IsWindows();
 
-				UBAHordeSession session = new(executor, new Uri(server), authHeader, hordeConfig.HordePool, allowWine, hordeConfig.HordeMaxCores, bStrictErrors, connectionMode, encryption, logger);
+				UBAHordeSession session = new(executor, server, token, hordeConfig.HordePool, allowWine, hordeConfig.HordeMaxCores, bStrictErrors, connectionMode, encryption, logger);
 				await session.InitAsync(useSentry: !String.IsNullOrEmpty(hordeConfig.UBASentryUrl), cancellationToken);
 				return session;
 			}
@@ -448,7 +457,7 @@ namespace UnrealBuildTool
 			}
 			catch (NotLoggedInException)
 			{
-				result = await oidcTokenManager.Login(oidcProvider, cancellationToken);
+				result = await oidcTokenManager.LoginAsync(oidcProvider, cancellationToken);
 			}
 
 			if (result.AccessToken == null)
@@ -481,7 +490,7 @@ namespace UnrealBuildTool
 						}
 						catch (TimeoutException)
 						{
-							logger.Log(_strict ? LogLevel.Error : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, "Waited {Time}s on attach message. Giving up", (int)attachTimeout.TotalSeconds);
+							logger.Log(_strict ? LogLevel.Error : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, "Waited {Time}s on attach message. Giving up", (int)attachTimeout.TotalSeconds);
 							throw;
 						}
 
@@ -503,7 +512,8 @@ namespace UnrealBuildTool
 						}
 						else
 						{
-							arguments.Add($"-Listen={self.Port.AgentPort}");
+							arguments.Add($"-Listen={self.Port!.AgentPort}");
+							arguments.Add("-ListenTimeout=10");
 						}
 
 						if (!String.IsNullOrEmpty(_crypto))
@@ -517,7 +527,7 @@ namespace UnrealBuildTool
 						{
 							arguments.Add($"-Sentry=\"{hordeConfig.UBASentryUrl}\"");
 						}
-						arguments.Add("-ProxyPort=" + self.ProxyPort.AgentPort);
+						arguments.Add("-ProxyPort=" + self.ProxyPort!.AgentPort);
 						if (_owner.UBAConfig.bUseQuic)
 						{
 							arguments.Add("-quic");
@@ -535,6 +545,7 @@ namespace UnrealBuildTool
 						arguments.Add("-Dir=%UE_HORDE_SHARED_DIR%\\Uba");
 						arguments.Add("-Eventfile=%UE_HORDE_TERMINATION_SIGNAL_FILE%");
 						arguments.Add("-MaxIdle=15");
+
 						if (_owner.UBAConfig.bLogEnabled)
 						{
 							arguments.Add("-Log");
@@ -547,7 +558,7 @@ namespace UnrealBuildTool
 						ExecuteProcessFlags execFlags = _allowWine ? ExecuteProcessFlags.UseWine : ExecuteProcessFlags.None;
 						await using AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null, execFlags, cancellationToken);
 						bool shouldConnect = !useListen;
-						self.Started = true;
+						bool isFirstRead = true;
 						string? line;
 
 						while ((line = await process.ReadLineAsync(cancellationToken)) != null)
@@ -556,15 +567,32 @@ namespace UnrealBuildTool
 
 							if (shouldConnect && line.Contains("Listening on", StringComparison.OrdinalIgnoreCase)) // This log entry means that the agent is ready for connections.
 							{
-								long totalMs = self.StartTime.ElapsedMilliseconds;
+								long totalMs = self.StartTime!.ElapsedMilliseconds;
 								logger.LogInformation("Connecting to UbaAgent on {Ip}:{Port} (local agent port {AgentPort}) {Seconds}.{Milliseconds} seconds after assigned",
-									self.Ip, self.Port.Port, self.Port.AgentPort, totalMs / 1000, totalMs % 1000);
+									self.Ip, self.Port!.Port, self.Port.AgentPort, totalMs / 1000, totalMs % 1000);
 
-								_owner.Server!.AddClient(self.Ip, self.Port.Port, _crypto);
+								if (!_owner.Server!.AddClient(self.Ip!, self.Port.Port, _crypto))
+								{
+									break;
+								}
 								shouldConnect = false;
 							}
+
+							if (isFirstRead)
+							{
+								isFirstRead = false;
+								self.Active = true;
+								UpdateHordeStatus(null);
+							}
 						}
+						self.NumLogicalCores = 0;
+						UpdateHordeStatus(null);
 						logger.LogDebug("Shutting down process");
+						int ExitCode = await process.WaitForExitAsync(cancellationToken);
+						if (ExitCode != 0)
+						{
+							logger.LogInformation($"UbaAgent exited with exit code: {ExitCode}");
+						}
 					}
 
 					logger.LogDebug("Closing channel");
@@ -573,27 +601,93 @@ namespace UnrealBuildTool
 			}
 			catch (TimeoutException)
 			{
+				self.NumLogicalCores = 0;
+				UpdateHordeStatus(null);
+			}
+			catch (ComputeExecutionCancelledException ex) 
+			{
+				// Cancellations are expected to happen due to spot instance interruptions or unscheduled maintenance of agents
+				self.NumLogicalCores = 0;
+				UpdateHordeStatus(null);
+				
+				if (!cancellationToken.IsCancellationRequested)
+				{
+					logger.Log(_strict ? LogLevel.Information : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, ex, "Compute lease cancelled");
+				}
 			}
 			catch (Exception ex)
 			{
+				self.NumLogicalCores = 0;
+				UpdateHordeStatus(null);
+
 				if (!cancellationToken.IsCancellationRequested)
 				{
-					logger.Log(_strict ? LogLevel.Error : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "Exception in worker task: {Ex}", ex.ToString());
+					logger.Log(_strict ? LogLevel.Error : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, ex, "Exception in worker task: {Ex}", ex.ToString());
 
 					// Add additional properties to aid debugging
-					logger.LogInformation(KnownLogEvents.Systemic_Horde_Compute, ex, "UBA agent locator {UBAAgentLocator}", _ubaAgentLocator.ToString());
+					logger.Log(_strict ? LogLevel.Information : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, ex, "UBA agent locator {UBAAgentLocator}", _ubaAgentLocator.ToString());
 				}
+			}
+		}
+
+		string _additionalStatus = "";
+		string _lastStatus = "";
+
+		internal void UpdateHordeStatus(string? additionalStatus)
+		{
+			if (additionalStatus != null)
+			{
+				_additionalStatus = additionalStatus;
+			}
+
+			if (_updateStatus == null)
+			{
+				return;
+			}
+
+			int activeCores;
+			int queuedCores;
+			int activeAgents;
+			int queuedAgents;
+			GetCoreCount(out activeCores, out queuedCores, out activeAgents, out queuedAgents);
+			string status = $"Running. {activeAgents} agent{(activeAgents != 1 ? "s" : "")} ({activeCores} cores){_additionalStatus} {(queuedAgents != 0 ? $"(Preparing {queuedAgents} agent{(queuedAgents != 1 ? "s" : "")})" : "")}";
+			if (_lastStatus != status)
+			{
+				_lastStatus = status;
+				_updateStatus(0, 6, status, EpicGames.UBA.LogEntryType.Info, null);
 			}
 		}
 	}
 
 	class UBAAgentCoordinatorHorde : IUBAAgentCoordinator, IDisposable
 	{
-		public UBAAgentCoordinatorHorde(ILogger logger, UnrealBuildAcceleratorConfig ubaConfig, CommandLineArguments? additionalArguments = null)
+		public string? Server => HordeConfig.HordeServer;
+		public bool Enabled => !HordeConfig.bDisableHorde;
+		public string ConnectionModeString => (Enum.TryParse(HordeConfig.HordeConnectionMode, true, out ConnectionMode cm) ? cm : ConnectionMode.Direct).ToString();
+
+		public UBAAgentCoordinatorHorde(ILogger logger, UnrealBuildAcceleratorConfig ubaConfig, CommandLineArguments? additionalArguments = null, DirectoryReference? projectDir = null)
 		{
 			_logger = logger;
 			_ubaConfig = ubaConfig;
 
+			ConfigCache.ReadSettings(projectDir, BuildHostPlatform.Current.Platform, HordeConfig);
+			if (HordeConfig.HordeEnabled?.Equals("BuildMachineOnly", StringComparison.OrdinalIgnoreCase) == true && !Unreal.IsBuildMachine())
+			{
+				// reset
+				HordeConfig = new();
+			}
+			if (Unreal.IsBuildMachine())
+			{
+				string? hordeUrl = System.Environment.GetEnvironmentVariable("UE_HORDE_URL");
+				if (!String.IsNullOrEmpty(hordeUrl))
+				{
+					HordeConfig.HordeServer = hordeUrl;
+				}
+			}	
+			if (HordeConfig.HordeEnabled?.Equals("False", StringComparison.OrdinalIgnoreCase) == true)
+			{
+				HordeConfig.bDisableHorde = true;
+			}
 			XmlConfig.ApplyTo(HordeConfig);
 			additionalArguments?.ApplyTo(HordeConfig);
 
@@ -621,40 +715,65 @@ namespace UnrealBuildTool
 				return;
 			}
 
+			_executor = executor;
 			_cancellationSource = new CancellationTokenSource();
 			_hordeSessionTask = UBAHordeSession.TryCreateHordeSessionAsync(HordeConfig, executor, _ubaConfig.bStrict, _logger, _cancellationSource.Token);
 			await _hordeSessionTask;
+			executor.AgentCoordinatorInitialized(this, _hordeSessionTask.IsCompletedSuccessfully && _hordeSessionTask.Result != null);
 		}
 
-		public void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely)
+		public void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely, StatusUpdateAction updateStatus)
 		{
+			_updateStatus = updateStatus;
+
 			int timerPeriod = 5000;
 			bool shownNoAgentsFoundMessage = false;
 
-			if (_hordeSessionTask == null)
+			UBAHordeSession? hordeSession = _hordeSessionTask?.Result;
+
+			string? link = null;
+			if (HordeConfig.HordeServer != null)
 			{
+				link = $"{HordeConfig.HordeServer!.TrimEnd('/')}/agents";
+				if (HordeConfig.HordePool != string.Empty)
+				{
+					link += $"?agent={HordeConfig.HordePool}";
+				}
+			}
+			updateStatus(0, 1, "Horde", EpicGames.UBA.LogEntryType.Info, link);
+
+			if (hordeSession == null)
+			{
+				updateStatus(0, 6, "Not created (check log)", EpicGames.UBA.LogEntryType.Info, null);
 				return;
 			}
+
+			hordeSession._updateStatus = _updateStatus;
+			hordeSession.UpdateHordeStatus(null);
+
+			int requestCounter = 0;
+
 			_timer = new(async (_) =>
 			{
 				_timer?.Change(Timeout.Infinite, Timeout.Infinite);
 
-				if (_cancellationSource!.IsCancellationRequested)
+				if (_hordeSessionTask == null)
 				{
 					return;
 				}
 
-				UBAHordeSession? hordeSession = await _hordeSessionTask!;
+				UBAHordeSession? hordeSession = await _hordeSessionTask;
 
 				if (hordeSession == null)
 				{
 					return;
 				}
 
-				hordeSession.RemoveCompleteWorkersAsync();
+				//hordeSession.RemoveCompleteWorkersAsync();
 
-				if (queue.IsDone)
+				if (queue.IsDone || _cancellationSource!.IsCancellationRequested)
 				{
+					hordeSession.UpdateHordeStatus(" - Requests stopped");
 					return;
 				}
 
@@ -663,40 +782,44 @@ namespace UnrealBuildTool
 
 				try
 				{
-					double queueWeight = queue.EnumerateReadyToCompileActions().Where(x => canRunRemotely(x)).Sum(x => x.Weight);
-
-					queueWeight -= hordeSession.QueuedUpCores();
 					while (true)
 					{
-						int currentLogicalCores = hordeSession.NumLogicalCores;
+						if (_cancellationSource!.IsCancellationRequested)
+						{
+							hordeSession.UpdateHordeStatus(" - Requests stopped");
+							return;
+						}
 
-						if (queueWeight <= queueThreshold || currentLogicalCores >= HordeConfig.HordeMaxCores || _cancellationSource!.IsCancellationRequested)
+						hordeSession.RemoveCompleteWorkersAsync();
+
+						double queueWeight = queue.EnumerateReadyToCompileActions().Where(x => canRunRemotely(x)).Sum(x => x.Weight);
+
+						int activeCores;
+						int queuedCores;
+						int activeAgents;
+						int queuedAgents;
+						hordeSession.GetCoreCount(out activeCores, out queuedCores, out activeAgents, out queuedAgents);
+
+						queueWeight -= queuedCores;
+
+						bool isSatisfied = queueWeight <= queueThreshold || (activeCores + queuedCores) >= HordeConfig.HordeMaxCores || _cancellationSource!.IsCancellationRequested;
+
+						hordeSession.UpdateHordeStatus(isSatisfied ? " - Requests paused" : $" - Requesting agent{("....".Substring(0, (requestCounter++ % 4)))}");
+
+						if (isSatisfied)
 						{
 							break;
 						}
 
-						Requirements requirements = new()
+						Requirements requirements = GetRequirements(HordeConfig);
+						if (!await hordeSession.AddWorkerAsync(requirements, HordeConfig, _cancellationSource.Token, activeCores))
 						{
-							Exclusive = true
-						};
-
-						if (!String.IsNullOrEmpty(HordeConfig.HordePool))
-						{
-							requirements.Pool = HordeConfig.HordePool;
-						}
-
-						if (HordeConfig.HordeCondition != null)
-						{
-							requirements.Condition = Condition.Parse(HordeConfig.HordeCondition);
-						}
-
-						if (!await hordeSession.AddWorkerAsync(requirements, HordeConfig, _cancellationSource.Token))
-						{
-							_logger.LogDebug("No additional workers available");
+							await Task.Delay(500); // Sleep a little bit to make sure previous horde status is visible
+							string status = (queuedAgents + activeAgents) == 0 ? " - No agents available" : " - No additional agents available";
+							hordeSession.UpdateHordeStatus(status);
+							_logger.LogDebug(status);
 							break;
 						}
-						int coresAdded = hordeSession.NumLogicalCores - currentLogicalCores;
-						queueWeight -= coresAdded;
 					}
 				}
 				catch (NoComputeAgentsFoundException ex)
@@ -711,14 +834,8 @@ namespace UnrealBuildTool
 				{
 					if (!_cancellationSource!.IsCancellationRequested)
 					{
-						if (_ubaConfig.bStrict)
-						{
-							_logger.Log(LogLevel.Error, KnownLogEvents.Systemic_Horde_Compute, ex, "Unable to get worker: {Ex}", ex.ToString());
-						}
-						else
-						{
-							_logger.Log(LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, "Unable to get worker: {Ex}", ex.ToString());
-						}
+						hordeSession.UpdateHordeStatus(" - " + ex.Message);
+						_logger.Log(_ubaConfig.bStrict ? LogLevel.Warning : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "Unable to get worker: {Ex}", ex.ToString());
 					}
 				}
 
@@ -741,9 +858,18 @@ namespace UnrealBuildTool
 			}
 
 			UBAHordeSession? hordeSession = await _hordeSessionTask;
+			_hordeSessionTask = null;
 			if (hordeSession != null)
 			{
 				await hordeSession.DisposeAsync();
+			}
+		}
+
+		public void Done()
+		{
+			if (_updateStatus != null)
+			{
+				_updateStatus(0, 6, "Done", EpicGames.UBA.LogEntryType.Info, null);
 			}
 		}
 
@@ -765,13 +891,58 @@ namespace UnrealBuildTool
 				_timer = null;
 			}
 		}
+		
+		private static Requirements GetRequirements(UnrealBuildAcceleratorHordeConfig config)
+		{
+			Requirements requirements = new() { Exclusive = true };
+			
+			if (!string.IsNullOrEmpty(config.HordeCluster))
+			{
+				// Apply filtering options when a cluster, either explicit or auto is specified, ensuring the cluster options take precidence.
+				string condition = "";
+				if (OperatingSystem.IsWindows())
+				{
+					condition = $"({KnownPropertyNames.OsFamily} == 'Windows' || {KnownPropertyNames.WineEnabled} == 'true')";
+				}
+				else if (OperatingSystem.IsMacOS())
+				{
+					condition = $"{KnownPropertyNames.OsFamily} == 'MacOS'";
+				}
+				else if (OperatingSystem.IsLinux())
+				{
+					condition = $"{KnownPropertyNames.OsFamily} == 'Linux'";
+				}
+				
+				if (config.HordeCondition != null)
+				{
+					condition = " " + config.HordeCondition;
+				}
+				requirements.Condition = Condition.Parse(condition);
+			}
+			else
+			{
+				if (!String.IsNullOrEmpty(config.HordePool))
+				{
+					requirements.Pool = config.HordePool;
+				}
+				
+				if (config.HordeCondition != null)
+				{
+					requirements.Condition = Condition.Parse(config.HordeCondition);
+				}
+			}
+			
+			return requirements;
+		}
 
 		readonly ILogger _logger;
 		readonly UnrealBuildAcceleratorConfig _ubaConfig;
 		UnrealBuildAcceleratorHordeConfig HordeConfig { get; init; } = new();
 
+		UBAExecutor? _executor;
 		CancellationTokenSource? _cancellationSource;
 		Task<UBAHordeSession?>? _hordeSessionTask;
+		StatusUpdateAction? _updateStatus;
 		Timer? _timer;
 	}
 }

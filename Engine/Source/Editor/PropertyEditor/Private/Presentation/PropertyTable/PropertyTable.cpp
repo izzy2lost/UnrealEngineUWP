@@ -1275,7 +1275,7 @@ void FPropertyTable::UpdateColumns()
 {
 	if( Orientation == EPropertyTableOrientation::AlignPropertiesInColumns)
 	{
-		TMultiMap< FProperty*, TSharedRef< IPropertyTableColumn > > ColumnsMap;
+		TMultiMap< const FProperty*, TSharedRef< IPropertyTableColumn > > ColumnsMap;
 		for (int ColumnIdx = 0; ColumnIdx < Columns.Num(); ++ColumnIdx)
 		{
 			TSharedRef< IDataSource > DataSource = Columns[ColumnIdx]->GetDataSource();

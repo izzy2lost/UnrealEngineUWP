@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNEHlslShadersElementWiseVariadicCS.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 
 namespace UE::NNEHlslShaders::Internal
 {
@@ -38,11 +38,11 @@ namespace UE::NNEHlslShaders::Internal
 
 		if (OpFunc == "")
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Undefined ElementWise Variadic operator name for operator:%d"), int(OpType));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Undefined ElementWise Variadic operator name for operator:%d"), int(OpType));
 		}
 
 		return OpFunc;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TElementWiseVariadicCS, "/NNE/NNEHlslShadersElementWiseVariadic.usf", "ElementWiseVariadic", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TElementWiseVariadicCS, "/NNEHlslShaders/NNEHlslShadersElementWiseVariadic.usf", "ElementWiseVariadic", SF_Compute);
 } // UE::NNEHlslShaders::Internal

@@ -172,6 +172,9 @@ struct FSoundParseParameters
 
 	// The lowpass filter frequency to apply (if enabled)
 	float LowPassFilterFrequency;
+	
+	// The highpass filter frequency to apply (if enabled)
+	float HighPassFilterFrequency;
 
 	// The lowpass filter frequency to apply due to distance attenuation
 	float AttenuationLowpassFilterFrequency;
@@ -206,6 +209,9 @@ struct FSoundParseParameters
 
 	// Whether we have enabled low-pass filtering of this sound
 	uint8 bEnableLowPassFilter:1;
+	
+	// Whether we have enabled high-pass filtering of this sound
+	uint8 bEnableHighPassFilter:1;
 
 	// Whether this sound is occluded
 	uint8 bIsOccluded:1;
@@ -253,6 +259,7 @@ struct FSoundParseParameters
 		, AudioLinkSettingsOverride(nullptr)
 		, SourceEffectChain(nullptr)
 		, LowPassFilterFrequency(MAX_FILTER_FREQUENCY)
+		, HighPassFilterFrequency(MIN_FILTER_FREQUENCY)
 		, AttenuationLowpassFilterFrequency(MAX_FILTER_FREQUENCY)
 		, AttenuationHighpassFilterFrequency(MIN_FILTER_FREQUENCY)
 		, OcclusionFilterFrequency(MAX_FILTER_FREQUENCY)
@@ -264,6 +271,7 @@ struct FSoundParseParameters
 		, bUseSpatialization(false)
 		, bLooping(false)
 		, bEnableLowPassFilter(false)
+		, bEnableHighPassFilter(false)
 		, bIsOccluded(false)
 		, bIsPaused(false)
 		, bEnableRetrigger(false)
@@ -277,6 +285,7 @@ struct FActiveSound : public ISoundModulatable
 public:
 
 	ENGINE_API FActiveSound();
+	ENGINE_API FActiveSound(const FActiveSound&);
 	ENGINE_API ~FActiveSound();
 
 	static ENGINE_API FActiveSound* CreateVirtualCopy(const FActiveSound& ActiveSoundToCopy, FAudioDevice& AudioDevice);
@@ -357,7 +366,7 @@ public:
 		bShouldSourceBufferListenerZeroBuffer = bShouldZeroBuffer;
 	}
 
-	int32 GetClosestListenerIndex() const { return ClosestListenerIndex; }
+	ENGINE_API int32 GetClosestListenerIndex() const;
 
 	/** Returns whether or not the active sound can be deleted. */
 	bool CanDelete() const { return !bAsyncOcclusionPending; }
@@ -373,6 +382,9 @@ public:
 
 	/** Whether or not sound reference is valid and set to play when silent. */
 	ENGINE_API bool IsPlayWhenSilent() const;
+
+	/** The priority used for concurrency calculations */
+	float GetConcurrencyPriority() const;
 
 	FAudioDevice* AudioDevice;
 
@@ -497,6 +509,9 @@ public:
 
 	/** Whether or not we have a low-pass filter enabled on this active sound. */
 	uint8 bEnableLowPassFilter : 1;
+	
+	/** Whether or not we have a low-pass filter enabled on this active sound. */
+	uint8 bEnableHighPassFilter : 1;
 
 	/** Whether or not this active sound will update play percentage. Based on set delegates on audio component. */
 	uint8 bUpdatePlayPercentage:1;
@@ -559,6 +574,9 @@ public:
 
 	/** The low-pass filter frequency to apply if bEnableLowPassFilter is true. */
 	float LowPassFilterFrequency;
+	
+	/** The high-pass filter frequency to apply if bEnableHighPassFilter is true. */
+	float HighPassFilterFrequency;
 
 	/** Fader that tracks component volume */
 	Audio::FVolumeFader ComponentVolumeFader;
@@ -709,8 +727,17 @@ public:
 	/** Resets internal data of new Source Bus Sends */
 	ENGINE_API void ResetNewBusSends();
 
-	/* Gives new Modulation Routing settings to the Active Sound. */
+	/* Gives new Modulation Routing settings to the ActiveSound. This overwrites all previous Modulation Routing settings. */
 	ENGINE_API void SetNewModulationRouting(const FSoundModulationDefaultRoutingSettings& NewRouting);
+
+	/* Adds additional Modulators to the ActiveSound, if possible. 
+	 * This function forces the Destination's routing method to Union.
+	 * To replace existing modulators or set a different routing method, use SetNewModulationRouting.
+	 */
+	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
+
+	/* Removes given Modulators from the ActiveSound, if possible. */
+	ENGINE_API void RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
 
 	/* Determines which of the provided listeners is the closest to the sound */
 	ENGINE_API int32 FindClosestListener( const TArray<struct FListener>& InListeners ) const;
@@ -776,7 +803,7 @@ private:
 	static ENGINE_API FTraceDelegate ActiveSoundTraceDelegate;
 
 	/** Cached index to the closest listener. So we don't have to do the work to find it twice. */
-	int32 ClosestListenerIndex;
+	int32 ClosestListenerIndex = INDEX_NONE;
 
 	/** This is a friend so the audio device can call Stop() on the active sound. */
 	friend class FAudioDevice;

@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Storage
 	[LogValueType]
 	[TypeConverter(typeof(StringIdTypeConverter<WorkspaceLayerId, WorkspaceLayerIdConverter>))]
 	[BinaryIdConverter(typeof(WorkspaceLayerIdConverter))]
-	public record struct WorkspaceLayerId(StringId Id)
+	public readonly record struct WorkspaceLayerId(StringId Id)
 	{
 		/// <summary>
 		/// Name of the default layer

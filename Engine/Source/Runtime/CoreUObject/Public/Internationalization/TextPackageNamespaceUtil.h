@@ -100,6 +100,16 @@ COREUOBJECT_API void ForcePackageNamespace(UObject* InObject, const FString& InN
 COREUOBJECT_API FText CopyTextToPackage(const FText& InText, UPackage* InPackage, const ETextCopyMethod InCopyMethod = ETextCopyMethod::NewKey, const bool bAlwaysApplyPackageNamespace = false);
 COREUOBJECT_API FText CopyTextToPackage(const FText& InText, UObject* InObject, const ETextCopyMethod InCopyMethod = ETextCopyMethod::NewKey, const bool bAlwaysApplyPackageNamespace = false);
 
+#if WITH_EDITORONLY_DATA
+/**
+ * Generate a deterministic package namespace based on the given package info.
+ * @note This key will be formatted like a GUID, but the value will actually be based on deterministic hashes.
+ *
+ * @param InPackage						The package to generate the namespace for.
+ */
+COREUOBJECT_API FString GenerateDeterministicPackageNamespace(const UPackage* InPackage);
+#endif // WITH_EDITORONLY_DATA
+
 /**
  * Generate a random text key.
  * @note This key will be a GUID.
@@ -152,5 +162,20 @@ COREUOBJECT_API void GetTextIdForEdit(UPackage* InPackage, const ETextEditAction
  * @return True if edit was possible, or false if not.
  */
 COREUOBJECT_API bool EditTextProperty(UObject* InTextOwner, const FTextProperty* InTextProperty, const ETextEditAction InEditAction, const FString& InEditValue, TFunctionRef<FString()> InTextKeyGenerator = &GenerateRandomTextKey, const bool bApplyPackageNamespace = true);
+
+/**
+ * Edit an attribute of the given text property, akin to what happens when editing a text property in a details panel.
+ *
+ * @param InPackage						The package that hosts the text value.
+ * @param InTextValue					The raw value of the TextProperty to be edited.
+ * @param InTextProperty				The text property to edit.
+ * @param InEditAction					How has the given text been edited?
+ * @param InEditValue					The new value of the attribute that was edited.
+ * @param InTextKeyGenerator			Generator for the new text key. Will generate a random key by default.
+ * @param bApplyPackageNamespace		If true, apply the package namespace to the generated text ID (when USE_STABLE_LOCALIZATION_KEYS is true).
+ *
+ * @return True if edit was possible, or false if not.
+ */
+COREUOBJECT_API bool EditTextProperty_Direct(UPackage* InPackage, void* InTextValue, const FTextProperty* InTextProperty, const ETextEditAction InEditAction, const FString& InEditValue, TFunctionRef<FString()> InTextKeyGenerator = &GenerateRandomTextKey, const bool bApplyPackageNamespace = true);
 
 }

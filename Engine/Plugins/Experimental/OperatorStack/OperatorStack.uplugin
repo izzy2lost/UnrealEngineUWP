@@ -22,10 +22,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "CustomDetailsView",
 			"Enabled": true
 		}

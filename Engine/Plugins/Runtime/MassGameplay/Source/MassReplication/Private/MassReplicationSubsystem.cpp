@@ -294,7 +294,7 @@ void UMassReplicationSubsystem::SynchronizeClientViewers(const TArray<FViewerInf
 					}
 					else //remove invalid ClientViewer, but dont increment the ViewerIdx
 					{
-						ClientReplicationInfo.Handles.RemoveAt(ViewerIdx, 1, EAllowShrinking::No);
+						ClientReplicationInfo.Handles.RemoveAt(ViewerIdx, EAllowShrinking::No);
 					}
 				}
 			}

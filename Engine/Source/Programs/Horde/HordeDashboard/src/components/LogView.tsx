@@ -7,7 +7,7 @@ import moment from 'moment-timezone';
 import React, { useEffect, useId, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import backend from '../backend';
-import { ArtifactContextType, ArtifactData, EventSeverity, GetChangeSummaryResponse, GetJobStepRefResponse, GetLogEventResponse, LogLevel } from '../backend/Api';
+import { ArtifactContextType, EventSeverity, GetChangeSummaryResponse, GetJobStepRefResponse, GetLogEventResponse, LogLevel } from '../backend/Api';
 import { CommitCache } from '../backend/CommitCache';
 import dashboard from '../backend/Dashboard';
 import { JobDetails } from '../backend/JobDetails';
@@ -16,12 +16,12 @@ import { useWindowSize } from '../base/utilities/hooks';
 import { displayTimeZone, getElapsedString } from '../base/utilities/timeUtils';
 import { getHordeStyling } from '../styles/Styles';
 import { getHordeTheme } from '../styles/theme';
+import { AgentTelemetrySparkline } from "./agents/AgentTelemetrySparkline";
 import { JobArtifactsModal } from './artifacts/ArtifactsModal';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ChangeContextMenu, ChangeContextMenuTarget } from './ChangeButton';
 import { HistoryModal } from './HistoryModal';
 import { IssueModalV2 } from './IssueViewV2';
-import { JobDetailArtifacts } from './JobDetailArtifacts';
 import { useQuery } from './JobDetailCommon';
 import { LogItem, renderLine } from './LogRender';
 import { JobLogSource, LogSource } from './LogSource';
@@ -29,6 +29,33 @@ import { getLogStyles, logMetricNormal, logMetricSmall } from "./LogStyle";
 import { PrintException } from './PrintException';
 import { StepRefStatusIcon } from './StatusIcon';
 import { TopNav } from './TopNav';
+
+function getQueryLine(): number | undefined {
+
+   const search = new URLSearchParams(window.location.search);
+
+   if (search.get("lineindex")) {
+      return parseInt(search.get("lineindex")!) + 1;
+   }
+
+   if (search.get("lineIndex")) {
+      return parseInt(search.get("lineIndex")!);
+   }
+
+   return undefined;
+
+}
+
+function updateLineQuery(line: number, navigate: any) {
+
+   const search = new URLSearchParams(window.location.search);
+   search.set("lineIndex", line.toString());
+   search.delete("lineindex");
+   const url = `${window.location.pathname}?` + search.toString();
+
+   navigate(url, { replace: true })
+
+}
 
 class LogHandler {
 
@@ -48,11 +75,94 @@ class LogHandler {
    }
 
    logSource?: LogSource;
-   currentWarning: number | undefined;
-   currentError: number | undefined;
+   currentLine?: number;
    trailing?: boolean;
    scroll?: number;
    initialRender = true;
+
+   getCurrentEvent() {
+      return this.getLogEvent(this.currentLine)
+   }
+
+   getNextLogEvent(warnings?: boolean) {
+
+      let currentLine = -1;
+      if (this.currentLine !== undefined) {
+         currentLine = this.currentLine - 1;
+      }
+
+      const startLine = currentLine + 1;
+
+      const events = this.events.filter(e => {
+         if (warnings && e.severity !== EventSeverity.Warning) {
+            return false;
+         }
+         if (!warnings && e.severity !== EventSeverity.Error) {
+            return false;
+         }
+         return true;
+      });
+
+      let event = events.find(e => e.lineIndex >= startLine);
+
+      if (!event && events.length) {
+         event = events[0];
+      }
+
+      return event;
+   }
+
+   getPrevLogEvent(warnings?: boolean) {
+
+      let currentLine = 0;
+      if (this.currentLine !== undefined) {
+         currentLine = this.currentLine - 1;
+      }
+
+      const startLine = currentLine - 1;
+
+      const events = this.events.filter(e => {
+         if (warnings && e.severity !== EventSeverity.Warning) {
+            return false;
+         }
+         if (!warnings && e.severity !== EventSeverity.Error) {
+            return false;
+         }
+         return true;
+      }).reverse();
+
+      if (startLine < 0) {
+         if (events.length) {
+            return events[0];
+         }
+         return undefined;
+      }
+
+      let event = events.find(e => e.lineIndex <= startLine)
+
+      if (!event && events.length) {
+         event = events[0];
+      }
+
+      return event;
+   }
+
+   getLogEvent(line: number | undefined) {
+
+      if (line === undefined) {
+         return undefined;
+      }
+
+      line--;
+
+      return this.events.find(e => line >= e.lineIndex && line < (e.lineIndex + e.lineCount));
+   }
+
+   get events(): GetLogEventResponse[] {
+      const events = this.logSource?.errors.map(e => e) ?? [];
+      events.push(...(this.logSource?.warnings.map(e => e) ?? []))
+      return events;
+   }
 
    infoLine?: number;
 
@@ -131,12 +241,7 @@ let logListKey = 0;
 let globalHandler: LogHandler | undefined;
 let globalSearchState: { search?: string, results?: number[], curRequest?: any } | undefined;
 
-const searchUp = () => {
-
-   if (globalHandler) {
-      globalHandler.currentWarning = undefined;
-      globalHandler.currentError = undefined;
-   }
+const searchUp = (navigate: any) => {
 
    if (globalSearchState?.results?.length) {
 
@@ -146,7 +251,15 @@ const searchUp = () => {
       }
 
       globalHandler?.stopTrailing();
-      let lineIdx = globalSearchState.results[curSearchIdx] - 10;
+      let lineIdx = globalSearchState.results[curSearchIdx];
+
+      if (globalHandler) {
+         globalHandler.currentLine = lineIdx + 1;
+      }
+
+      updateLineQuery(lineIdx + 1, navigate);
+
+      lineIdx -= 10;
       if (lineIdx < 0) {
          lineIdx = 0;
       }
@@ -162,12 +275,7 @@ const searchUp = () => {
 
 }
 
-const searchDown = () => {
-
-   if (globalHandler) {
-      globalHandler.currentWarning = undefined;
-      globalHandler.currentError = undefined;
-   }
+const searchDown = (navigate: any) => {
 
    if (globalSearchState?.results?.length) {
 
@@ -177,7 +285,16 @@ const searchDown = () => {
       }
 
       globalHandler?.stopTrailing();
-      let lineIdx = globalSearchState.results[curSearchIdx] - 10;
+
+      let lineIdx = globalSearchState.results[curSearchIdx];
+
+      if (globalHandler) {
+         globalHandler.currentLine = lineIdx + 1;
+      }
+
+      updateLineQuery(lineIdx + 1, navigate);
+
+      lineIdx -= 10;
       if (lineIdx < 0) {
          lineIdx = 0;
       }
@@ -233,6 +350,8 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
       return null;
    }
 
+   const step = jobDetails.stepById(stepId);
+
    type HistoryItem = {
       ref: GetJobStepRefResponse;
    };
@@ -259,7 +378,7 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
 
 
       if (column.name === "Name") {
-         return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 0, padding: 0 }} style={{ width: "100%", height: "100%" }} >{<StepRefStatusIcon stepRef={ref} />}<Text>{jobDetails.nodeByStepId(stepId)?.name}</Text></Stack>;
+         return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 0, padding: 0 }} style={{ width: "100%", height: "100%" }} >{<StepRefStatusIcon stepRef={ref} />}<Text>{step?.name}</Text></Stack>;
       }
 
       if (column.name === "Change") {
@@ -409,41 +528,6 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
    </Modal>);
 });
 
-const StepArtifactsModal: React.FC<{ jobDetails: JobDetails, stepId: string | undefined, onClose: () => void }> = observer(({ jobDetails, stepId, onClose }) => {
-
-   const { hordeClasses } = getHordeStyling();
-
-   let artifacts: ArtifactData[] = jobDetails.artifacts;
-   if (stepId) {
-      artifacts = artifacts.filter(artifact => artifact.stepId === stepId);
-   }
-
-   let height = Math.min(36 * artifacts.length + 60, 500) + 200;
-
-   const hordeTheme = getHordeTheme();
-
-   return (<Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: height, backgroundColor: hordeTheme.horde.contentBackground } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
-
-      <Stack styles={{ root: { paddingTop: 8, paddingLeft: 24, paddingRight: 12, paddingBottom: 16 } }}>
-         <Stack tokens={{ childrenGap: 12 }}>
-            <Stack horizontal styles={{ root: { padding: 8 } }}>
-               <Stack grow horizontalAlign="end">
-                  <IconButton
-                     iconProps={{ iconName: 'Cancel' }}
-                     onClick={() => { onClose(); }}
-                  />
-               </Stack>
-            </Stack>
-
-            <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingBottom: 4 } }}>
-               <JobDetailArtifacts jobDetails={jobDetails} stepId={stepId} topPadding={0} />
-            </Stack>
-         </Stack>
-      </Stack>
-   </Modal>);
-
-});
-
 const LogProgressIndicator: React.FC<{ logSource: LogSource }> = observer(({ logSource }) => {
 
    // subscribe
@@ -458,6 +542,39 @@ const LogProgressIndicator: React.FC<{ logSource: LogSource }> = observer(({ log
 });
 
 
+const LogLineIndicator: React.FC<{ lineIndex: number }> = ({ lineIndex }) => {
+
+   useQuery();
+
+   if (!globalHandler) {
+      return null;
+   }
+
+   let prefix = "";
+   const event = globalHandler.getLogEvent(globalHandler.currentLine);
+
+   const queryLine = getQueryLine();
+
+   if (queryLine) {
+      if (lineIndex === queryLine) {
+         prefix = ">>> ";
+      }
+   } else if (event && lineIndex >= event.lineIndex && (lineIndex < event.lineIndex + event.lineCount)) {
+      prefix = ">>> ";
+   } else if (globalSearchState?.results?.length && curSearchIdx < globalSearchState.results.length) {
+      if (lineIndex === globalSearchState.results[curSearchIdx]) {
+         prefix = ">>> ";
+      }
+   }
+
+   if (!prefix) {
+      return null;
+   }
+
+   return <span>{">>>"}</span>
+}
+
+
 export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    const windowSize = useWindowSize();
@@ -470,6 +587,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    const [issueHistory, setIssueHistory] = useState(false);
    const [logHistory, setLogHistory] = useState(false);
    const [logArtifacts, setLogArtifacts] = useState("");
+   const [logTelemetry, setLogTelemetry] = useState(false);
    const [logError, setLogError] = useState("")
 
    let [historyAgentId, setHistoryAgentId] = useState<string | undefined>(undefined);
@@ -480,6 +598,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    const artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
    const artifactPath = !!query.get("artifactPath") ? query.get("artifactPath")! : undefined;
+   const artifactId = !!query.get("artifactId") ? query.get("artifactId")! : undefined;
 
    globalHandler = handler;
    globalSearchState = searchState;
@@ -495,9 +614,9 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          if (e.keyCode === 114) {
             e.preventDefault();
             if (e.shiftKey) {
-               searchUp();
+               searchUp(navigate);
             } else {
-               searchDown();
+               searchDown(navigate);
             }
 
          }
@@ -558,6 +677,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          }
 
          handler.logSource = source;
+         handler.currentLine = source.startLine;
          setHandler(handler);
       }).catch((reason) => {
          setLogError(reason);
@@ -574,7 +694,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    const errors = logSource.errors.sort((a, b) => a.lineIndex - b.lineIndex);
    const issues = logSource.issues;
 
-   handler.compact = !!(logSource.logItems?.length > 1000000);
+   handler.compact = !!(logSource.logItems?.length > 500000);
 
    const onRenderCell = (item?: LogItem, index?: number, isScrolling?: boolean): JSX.Element => {
 
@@ -608,8 +728,6 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                   </Stack>
                </div>
             </Stack>
-
-
 
          }
 
@@ -673,81 +791,65 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                fontFamily: "Horde Open Sans SemiBold, sans-serif, sans-serif", color: error ? "#FFFFFF" : modeColors.text, fontSize: handler.fontSize, textDecoration: !item!.issue?.resolvedAt ? undefined : "line-through"
             }
 
-            return <Stack>
+            return <Stack style={{width: 80}}>
                <TooltipHost
                   content={timestamp}
                   id={tooltipId}
                   calloutProps={{ gapSpace: 0 }}
-                  styles={{ root: { display: 'inline-block' } }}>
+                  styles={{ root: { display: 'inline-block', width: 80 } }}>
                   <DefaultButton className={error ? styles.errorButton : styles.warningButton}
                      href={href}
-                     style={{ padding: 0, margin: 0, width: tsWidth, paddingLeft: 8, paddingRight: 8, height: "100%", fontWeight: "unset" }}
-
+                     style={{ padding: 0, margin: 0, minWidth: 65, width: 65, paddingLeft: 4, paddingRight: 6, height: "100%", fontWeight: "unset" }}
                      onClick={(ev) => {
                         ev.preventDefault();
                         ev.stopPropagation();
-                        location.search = `?issue=${issueId}`;
+                        location.search = `?issue=${issueId}`
                         setIssueHistory(true);
                         navigate(location);
                      }}>
-                     <Text variant="small" style={{ ...fontStyle }}>Issue</Text><div style={{ ...fontStyle }}>&nbsp;</div><Text variant="small" style={{ ...fontStyle }}>{`${issueId}`}</Text>
+                     <Text variant="small" style={{ ...fontStyle }}>{`${issueId}`}</Text>
                   </DefaultButton>
                </TooltipHost>
             </Stack>
          }
 
-         let prefix = "";
-         const lineIndex = item.lineNumber - 1;
-         if (errors.length && handler.currentError !== undefined) {
-            const error = errors[handler.currentError];
-            if (lineIndex >= error.lineIndex && lineIndex < error.lineIndex + error.lineCount) {
-               prefix = ">>> ";
-            }
-         }
-         else if (warnings.length && handler.currentWarning !== undefined) {
-            const warning = warnings[handler.currentWarning];
-            if (lineIndex >= warning.lineIndex && lineIndex < warning.lineIndex + warning.lineCount) {
-               prefix = ">>> ";
-            }
-         } else if (globalSearchState?.results?.length && curSearchIdx < globalSearchState.results.length) {
-            if (lineIndex === globalSearchState.results[curSearchIdx]) {
-               prefix = ">>> ";
-            }
-         } else {
-
-            if (query.get("lineindex")) {
-               if (lineIndex === parseInt(query.get("lineindex")!)) {
-                  prefix = ">>> ";
-               }
-            }
-         }
-
          const eyeColor = modeColors.text + "44";
 
          return (
-            <Stack key={`key_log_line_${item.lineNumber}`} style={{ width: "max-content", height: handler.lineHeight }} onClick={() => {
-               const search = new URLSearchParams(window.location.search);
-               search.set("lineindex", (item.lineNumber - 1).toString());
-               const url = `${window.location.pathname}?` + search.toString();
+            <Stack key={`key_log_line_${item.lineNumber}`} style={{ width: "max-content", height: handler.lineHeight }}
+               onMouseEnter={(ev) => {
 
-               navigate(url, { replace: true })
-            }}>
+                  if (item.line?.time) {
+                     let time = item.line?.time;
+                     if (!time.endsWith("Z")) {
+                        time += "Z";
+                     }
+                     logSource?.agentTelemetry?.setCurrentTime(new Date(time));
+                  }
+               }}
+               onClick={() => {
+                  updateLineQuery(item.lineNumber, navigate);
+                  handler.currentLine = item.lineNumber;
+               }}>
                <div style={{ position: "relative" }}>
                   <Stack className={styles.logLine} style={{ position: "relative" }} tokens={{ childrenGap: 8 }} horizontal disableShrink={true}>
-                     <Stack styles={{ root: { color: "#c0c0c0", width: 80, textAlign: "right", userSelect: "none", fontSize: handler.fontSize } }}>{prefix + item.lineNumber}</Stack>
+                     <Stack horizontal styles={{ root: { color: "#c0c0c0", width: 80, textAlign: "right", userSelect: "none", fontSize: handler.fontSize } }}>
+                        <LogLineIndicator lineIndex={item.lineNumber} />
+                        <Stack styles={{ root: { color: "#c0c0c0", width: 80, textAlign: "right", userSelect: "none", fontSize: handler.fontSize } }}>{item.lineNumber}</Stack>
+                     </Stack>
                      <Stack className={style} horizontal disableShrink={true}>
                         <Stack className={gutterStyle}></Stack>
                         {(!item.issueId || !ev) && <Stack styles={{ root: { color: "#8a8a8a", width: tsWidth, whiteSpace: "nowrap", fontSize: handler.fontSize, userSelect: "none" } }}> {timestamp}</Stack>}
                         {!!item.issueId && !!ev && <IssueButton item={item} event={ev!} />}
                         <div className={styles.logLineOuter}> <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, position: "relative", verticalAlign: "center" } }}> {renderLine(navigate, item.line, item.lineNumber, handler.lineRenderStyle, searchState.search)}
-                           <Stack id={`callout_target_${item?.lineNumber}`} style={{ position: "absolute", cursor: "pointer", userSelect: "none", left: "-12px", top: "0px" }} onClick={() => {
+                           <Stack id={`callout_target_${item?.lineNumber}`} style={{ position: "absolute", cursor: "pointer", userSelect: "none", left: "-12px", top: "0px", zIndex: 100 }} onClick={() => {
                               handler.infoLine = item.lineNumber;
                               handler.externalUpdate();
                            }}><FontIcon id="infoview" style={{ fontSize: 14, color: eyeColor }} iconName="Eye" /></Stack>
                            {handler.infoLine === item.lineNumber && <Callout
                               styles={{ root: { padding: "32px 24px", maxWidth: 1300 } }}
                               role="dialog"
-                              gapSpace={12}
+                              gapSpace={4}
                               target={`#callout_target_${item?.lineNumber}`}
                               isBeakVisible={true}
                               beakWidth={12}
@@ -755,7 +857,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                                  handler.infoLine = undefined;
                                  handler.externalUpdate();
                               }}
-                              directionalHint={DirectionalHint.rightCenter}
+                              directionalHint={DirectionalHint.bottomCenter}
                               setInitialFocus>
                               <Stack style={{ maxWidth: 1140 }}>
                                  <Stack style={{ paddingBottom: 24 }}>
@@ -824,8 +926,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    const doQuery = (newValue: string) => {
 
-      handler.currentWarning = undefined;
-      handler.currentError = undefined;
+      handler.currentLine = undefined;
 
       if (!newValue) {
 
@@ -865,6 +966,8 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                      lineIdx = 0;
                   }
 
+                  updateLineQuery(lines[curSearchIdx] + 1, navigate);
+
                   // oof
                   inTimeout = true;
                   setTimeout(() => {
@@ -891,6 +994,9 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          curSearchIdx = 0;
 
          if (searchState.results?.length) {
+
+            updateLineQuery(searchState.results[curSearchIdx] + 1, navigate);
+
             handler.stopTrailing();
             let lineIdx = searchState.results[curSearchIdx] - 10;
             if (lineIdx < 0) {
@@ -909,195 +1015,169 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    if (fixme) {
 
-      let artifacts: ArtifactData[] = [];
 
-      if (fixme.artifacts) {
-         const artifactStepId = fixme!.stepByLogId(logId)?.id
-         if (artifactStepId) {
-            artifacts = fixme.artifacts.filter(artifact => artifact.stepId === artifactStepId);
-         }
+      const stepArtifacts = (logSource as JobLogSource).artifactsV2;
+
+      const atypes = new Map<ArtifactContextType, number>();
+      const knownTypes = new Set<string>(["step-saved", "step-output", "step-trace"]);
+
+      stepArtifacts?.forEach(a => {
+         let c = atypes.get(a.type) ?? 0;
+         c++;
+         atypes.set(a.type, c);
+      });
+
+      const opsList: IContextualMenuItem[] = [];
+
+      const navigateToArtifacts = (context: string) => {
+         const search = new URLSearchParams(window.location.search);
+         search.set("artifactContext", encodeURIComponent(context));
+         const url = `${window.location.pathname}?` + search.toString();
+         navigate(url, { replace: true })
       }
 
-      if (!fixme.jobdata?.useArtifactsV2) {
-         menuProps.items.push({
-            key: 'jobstep_artifacts',
-            disabled: artifacts.length === 0,
-            text: `Step Artifacts`,
-            onClick: () => setLogArtifacts("legacy")
-         })
-      } else {
-
-         const stepArtifacts = (logSource as JobLogSource).artifactsV2;
-
-         const atypes = new Map<ArtifactContextType, number>();
-         const knownTypes = new Set<string>(["step-saved", "step-output", "step-trace"]);
-
-         stepArtifacts?.forEach(a => {
-            let c = atypes.get(a.type) ?? 0;
-            c++;
-            atypes.set(a.type, c);
-         });
-
-         const opsList: IContextualMenuItem[] = [];
-
-         const navigateToArtifacts = (context: string) => {
-            const search = new URLSearchParams(window.location.search);
-            search.set("artifactContext", encodeURIComponent(context));
-            const url = `${window.location.pathname}?` + search.toString();
-            navigate(url, { replace: true })
+      opsList.push({
+         key: 'stepops_artifacts_step',
+         text: "Logs",
+         iconProps: { iconName: "Folder" },
+         disabled: !atypes.get("step-saved"),
+         onClick: () => {
+            navigateToArtifacts("step-saved");
          }
+      });
 
+      opsList.push({
+         key: 'stepops_artifacts_output',
+         text: "Temp Storage",
+         iconProps: { iconName: "MenuOpen" },
+         disabled: !atypes.get("step-output"),
+         onClick: () => {
+            navigateToArtifacts("step-output");
+         }
+      });
+
+      opsList.push({
+         key: 'stepops_artifacts_trace',
+         text: "Traces",
+         iconProps: { iconName: "SearchTemplate" },
+         disabled: !atypes.get("step-trace"),
+         onClick: () => {
+            navigateToArtifacts("step-trace");
+         }
+      });
+
+      const custom = stepArtifacts?.filter(a => !knownTypes.has(a.type)).sort((a, b) => a.type.localeCompare(b.type));
+      custom?.forEach(c => {
          opsList.push({
-            key: 'stepops_artifacts_step',
-            text: "Logs",
-            iconProps: { iconName: "Folder" },
-            disabled: !atypes.get("step-saved"),
-            onClick: () => {
-               navigateToArtifacts("step-saved");
-            }
+            key: `stepops_artifacts_${c.type}`,
+            text: c.description ?? c.name,
+            iconProps: { iconName: "Clean" },
+            onClick: () => { navigateToArtifacts(c.type) }
          });
-
-         opsList.push({
-            key: 'stepops_artifacts_output',
-            text: "Temp Storage",
-            iconProps: { iconName: "MenuOpen" },
-            disabled: !atypes.get("step-output"),
-            onClick: () => {
-               navigateToArtifacts("step-output");
-            }
-         });
-
-         opsList.push({
-            key: 'stepops_artifacts_trace',
-            text: "Traces",
-            iconProps: { iconName: "SearchTemplate" },
-            disabled: !atypes.get("step-trace"),
-            onClick: () => {
-               navigateToArtifacts("step-trace");
-            }
-         });
-
-         const custom = stepArtifacts?.filter(a => !knownTypes.has(a.type)).sort((a, b) => a.type.localeCompare(b.type));
-         custom?.forEach(c => {
-            opsList.push({
-               key: `stepops_artifacts_${c.type}`,
-               text: c.description ?? c.name,
-               iconProps: { iconName: "Clean" },
-               onClick: () => { navigateToArtifacts(c.type) }
-            });
-         })
-
-
-         menuProps.items.push({
-            key: 'jobstep_artifacts',
-            text: `Artifacts`,
-            subMenuProps: {
-               items: opsList
-            }
-         })
-      }
-
-      menuProps.items.push({
-         key: 'jobstep_history',
-         text: 'Step History',
-         onClick: () => setLogHistory(true)
       })
 
 
+      menuProps.items.push({
+         key: 'jobstep_artifacts',
+         text: `Artifacts`,
+         subMenuProps: {
+            items: opsList
+         }
+      })
    }
 
-   function updateError() {
-      if (!handler || handler.currentError === undefined) return;
-      handler.currentWarning = undefined;
-      handler.stopTrailing();
-      let lineIdx = errors[handler.currentError].lineIndex;
-      const search = new URLSearchParams(window.location.search);
-      search.set("lineindex", (lineIdx).toString());
-      const url = `${window.location.pathname}?` + search.toString();               
-      lineIdx -= 10;
-      if (lineIdx < 0) {
-         lineIdx = 0;
-      }
-      handler.externalUpdate();
-      listRef?.scrollToIndex(lineIdx, () => handler.lineHeight, ScrollToMode.top);
+   menuProps.items.push({
+      key: 'jobstep_history',
+      text: 'Step History',
+      onClick: () => setLogHistory(true)
+   })
 
-      navigate(url, { replace: true })
+   if (logSource.agentTelemetry) {
+      menuProps.items.push({
+         key: 'jobstep_agent_telemetry',
+         text: logTelemetry ? 'Hide Telemetry' : 'Show Telemetry',
+         onClick: () => {
+            logSource.agentTelemetry?.show(!logTelemetry);
+            setLogTelemetry(!logTelemetry)
+         }
+      })
+   }
+
+   function updateEvent() {
+
+      const event = handler?.getCurrentEvent();
+      if (!handler || !event) {
+         return;
+      }
+
+      handler.stopTrailing();
+
+      updateLineQuery(event.lineIndex + 1, navigate);
+      handler.externalUpdate();
+      listRef?.scrollToIndex(event.lineIndex - 10 < 0 ? 0 : event.lineIndex - 10, () => handler.lineHeight, ScrollToMode.top);
    }
 
    function prevError() {
-      if (!handler || !errors.length) return;
 
-      if (handler.currentError === undefined) {
-         handler.currentError = errors.length - 1;
-      } else {
-         handler.currentError--;
-         if (handler.currentError < 0) {
-            handler.currentError = errors.length - 1;
-         }
+      if (!handler) {
+         return;
       }
-      updateError();
+
+      const event = handler.getPrevLogEvent();
+
+      if (event) {
+         handler.currentLine = event.lineIndex + 1;
+      }
+
+      updateEvent();
+
    }
 
    function nextError() {
-      if (!handler) return;
 
-      if (handler.currentError === undefined) {
-         handler.currentError = 0;
-      } else {
-         handler.currentError++;
-         handler.currentError %= errors.length;
+      if (!handler) {
+         return;
       }
 
-      updateError();
-   }
+      const event = handler.getNextLogEvent();
 
-   function updateWarning() {
-      if (!handler || handler.currentWarning === undefined) return;
-
-      handler.currentError = undefined;
-
-      handler.stopTrailing();
-      let lineIdx = warnings[handler.currentWarning].lineIndex ;
-      const search = new URLSearchParams(window.location.search);
-      search.set("lineindex", (lineIdx).toString());
-      const url = `${window.location.pathname}?` + search.toString();               
-
-      lineIdx -= 10
-      if (lineIdx < 0) {
-         lineIdx = 0;
+      if (event) {
+         handler.currentLine = event.lineIndex + 1;
       }
-      handler.externalUpdate();
-      listRef?.scrollToIndex(lineIdx, () => handler.lineHeight, ScrollToMode.top);
 
-      navigate(url, { replace: true })
+      updateEvent();
    }
+
 
    function prevWarning() {
 
-      if (!handler || !warnings.length) return;
-
-      if (handler.currentWarning === undefined) {
-         handler.currentWarning = warnings.length - 1;
-      } else {
-         handler.currentWarning--;
-         if (handler.currentWarning < 0) {
-            handler.currentWarning = warnings.length - 1;
-         }
+      if (!handler) {
+         return;
       }
 
-      updateWarning();
+      const event = handler.getPrevLogEvent(true);
+
+      if (event) {
+         handler.currentLine = event.lineIndex + 1;
+      }
+
+      updateEvent();
+
    }
 
    function nextWarning() {
-      if (!handler) return;
-
-      if (handler.currentWarning === undefined) {
-         handler.currentWarning = 0;
-      } else {
-         handler.currentWarning++;
-         handler.currentWarning %= warnings.length;
+      if (!handler) {
+         return;
       }
-      updateWarning();
+
+      const event = handler.getNextLogEvent(true);
+
+      if (event) {
+         handler.currentLine = event.lineIndex + 1;
+      }
+
+      updateEvent();
+
    }
 
    let warningsText = "";
@@ -1123,11 +1203,21 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    const buttonNoneText = dashboard.darktheme ? "#949898" : "#616e85";
 
+   let heightAdjust = 292;
+   if (logTelemetry) {
+      // sparkline height
+      heightAdjust += 120;
+   }
+
+   const nextErrorEnabled = handler?.getNextLogEvent() ? true : false;
+   const prevErrorEnablesd = handler?.getPrevLogEvent() ? true : false;
+   const nextWarningEnabled = handler?.getNextLogEvent(true) ? true : false;
+   const prevWarningEnabled = handler?.getPrevLogEvent(true) ? true : false;
+
    return <Stack>
       {!!fixme && <IssueModalV2 issueId={query.get("issue")} popHistoryOnClose={issueHistory} />}
       {!!fixme && logHistory && <StepHistoryModal jobDetails={fixme!} stepId={fixme!.stepByLogId(logId)?.id} onClose={() => setLogHistory(false)} />}
-      {!!fixme && logArtifacts === "legacy" && <StepArtifactsModal jobDetails={fixme!} stepId={fixme!.stepByLogId(logId)?.id} onClose={() => setLogArtifacts("")} />}
-      {!!fixme && !!artifactContext && logArtifacts !== "legacy" && <JobArtifactsModal jobId={fixme!.jobdata!.id} stepId={fixme!.stepByLogId(logId)?.id!} artifacts={(logSource as JobLogSource).artifactsV2} contextType={artifactContext} artifactPath={artifactPath} onClose={() => { navigate(window.location.pathname, { replace: true }) }} />}
+      {!!fixme && !!artifactContext && logArtifacts !== "legacy" && <JobArtifactsModal jobId={fixme!.jobdata!.id} stepId={fixme!.stepByLogId(logId)?.id!} artifacts={(logSource as JobLogSource).artifactsV2} contextType={artifactContext} artifactPath={artifactPath} artifactId={artifactId} onClose={() => { navigate(window.location.pathname, { replace: true }) }} />}
       {!!historyAgentId && <HistoryModal agentId={historyAgentId} onDismiss={() => { navigate(baseUrl, { replace: true }); setHistoryAgentId(undefined) }} />}
       <Breadcrumbs items={logSource?.crumbs ?? []} title={logSource?.crumbTitle} />
       <Stack tokens={{ childrenGap: 0 }} style={{ backgroundColor: hordeTheme.horde.contentBackground, paddingTop: 12 }}>
@@ -1137,7 +1227,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                <Stack horizontal style={{ paddingBottom: 4 }}>
                   <Stack className={hordeClasses.button} horizontal horizontalAlign={"start"} verticalAlign="center" tokens={{ childrenGap: 8 }}>
                      <Stack horizontal tokens={{ childrenGap: 2 }}>
-                        <DefaultButton disabled={!errors.length} className={errors.length ? handler.style.errorButton : handler.style.errorButtonDisabled}
+                        <DefaultButton disabled={!nextErrorEnabled} className={nextErrorEnabled ? handler.style.errorButton : handler.style.errorButtonDisabled}
                            text={`${errorText} ${errors.length === 1 ? "Error" : "Errors"}`}
                            onClick={() => {
                               nextError();
@@ -1147,7 +1237,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                         </DefaultButton>
 
                         {!!errors.length && <Stack>
-                           <IconButton className={handler.style.errorButton} style={{ height: 30, fontSize: 19, padding: 8 }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
+                           <IconButton disabled={!prevErrorEnablesd} className={prevErrorEnablesd ? handler.style.errorButton : handler.style.errorButtonDisabled} style={{ height: 30, fontSize: 19, padding: 8 }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
                               event?.stopPropagation();
                               prevError();
 
@@ -1157,16 +1247,16 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
 
                         <Stack horizontal style={{ paddingLeft: 12 }} tokens={{ childrenGap: 2 }}>
-                           <DefaultButton disabled={!warnings.length} className={warnings.length ? handler.style.warningButton : handler.style.warningButtonDisabled}
+                           <DefaultButton disabled={!nextWarningEnabled} className={nextWarningEnabled ? handler.style.warningButton : handler.style.warningButtonDisabled}
                               text={`${warningsText} ${warnings.length === 1 ? "Warning" : "Warnings"}`}
                               onClick={() => {
                                  nextWarning();
                               }}
-                              style={{ color: (dashboard.darktheme && warnings.length) ? "#F9F9FB" : buttonNoneText, padding: 15 }} >
+                              style={{ color: (dashboard.darktheme && nextWarningEnabled) ? "#F9F9FB" : buttonNoneText, padding: 15 }} >
                               {!!warnings.length && <Icon style={{ fontSize: 19, paddingLeft: 12 }} iconName='ChevronDown' />}
                            </DefaultButton>
                            {!!warnings.length && <Stack>
-                              <IconButton className={handler.style.warningButton} style={{ height: 30, fontSize: 19, padding: 8, color: (dashboard.darktheme && warnings.length) ? "#F9F9FB" : buttonNoneText }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
+                              <IconButton disabled={!prevWarningEnabled} className={prevWarningEnabled ? handler.style.warningButton : handler.style.warningButtonDisabled} style={{ height: 30, fontSize: 19, padding: 8, color: (dashboard.darktheme && nextWarningEnabled) ? "#F9F9FB" : buttonNoneText }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
                                  event?.stopPropagation();
                                  prevWarning();
 
@@ -1212,7 +1302,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
                                        if (ev.key === "Enter" && !searchState.curRequest && !inTimeout) {
                                           if (searchBox.current?.value === searchState.search) {
-                                             searchDown();
+                                             searchDown(navigate);
                                           } else {
                                              doQuery(searchBox.current?.value ?? "");
                                           }
@@ -1231,10 +1321,10 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                                  />
                                  <Stack horizontal style={{ borderWidth: 1, borderStyle: "solid", borderColor: dashboard.darktheme ? "#3F3F3F" : "rgb(96, 94, 92)", height: 32, borderLeft: 0 }}>
                                     <IconButton style={{ height: 30 }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
-                                       searchUp();
+                                       searchUp(navigate);
                                     }} />
                                     <IconButton style={{ height: 30 }} iconProps={{ iconName: 'ChevronDown' }} onClick={(event: any) => {
-                                       searchDown();
+                                       searchDown(navigate);
                                     }} />
 
                                  </Stack>
@@ -1274,6 +1364,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                         <Markdown>{summaryText}</Markdown>
                      </Stack>
                   </Stack>
+                  {logTelemetry && !!logSource.agentTelemetry && <AgentTelemetrySparkline handler={logSource.agentTelemetry} />}
                   <Stack horizontalAlign="center" style={{ paddingBottom: 12 }}>
                      <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: dashboard.darktheme ? '#313638' : '#D3D2D1' } } } }} />
                   </Stack>
@@ -1282,10 +1373,11 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
             </Stack>
          </Stack>
 
+
          <Stack style={{ backgroundColor: hordeTheme.horde.contentBackground, paddingLeft: "24px", paddingRight: "24px" }}>
             <Stack tokens={{ childrenGap: 0 }}>
                <FocusZone direction={FocusZoneDirection.vertical} isInnerZoneKeystroke={() => { return true; }} defaultActiveElement="#LogList" style={{ padding: 0, margin: 0 }} >
-                  <div className={handler.style.container} data-is-scrollable={true}
+                  <div className={handler.style.container} data-is-scrollable={true} style={{ height: `calc(100vh - ${heightAdjust}px)` }}
                      onScroll={(ev) => {
 
                         const element: any = ev.target;
@@ -1320,7 +1412,8 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                                     if (handler.initialRender && listRef) {
                                        handler.initialRender = false;
                                        if (logSource?.startLine !== undefined) {
-                                          listRef.scrollToIndex(logSource.startLine - 1, () => handler.lineHeight, ScrollToMode.center);
+
+                                          listRef?.scrollToIndex(logSource?.startLine - 10 < 0 ? 0 : logSource?.startLine - 10, () => handler.lineHeight, ScrollToMode.top);
                                        } else if (handler.trailing) {
                                           listRef.scrollToIndex(logSource.logData!.lineCount - 1, undefined, ScrollToMode.bottom);
                                        }

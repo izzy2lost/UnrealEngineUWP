@@ -48,6 +48,20 @@ IEOSPlatformHandlePtr FWindowsEOSSDKManager::CreatePlatform(const FEOSSDKPlatfor
 	return FEOSSDKManager::CreatePlatform(PlatformConfig, PlatformOptions);
 }
 
+FString FWindowsEOSSDKManager::GetCacheDirBase() const
+{
+	if (FPlatformMisc::IsCacheStorageAvailable())
+	{
+		// return folder path in AppData and not Documents to accomodate both user and system accounts
+		return FWindowsPlatformProcess::UserSettingsDir();
+	}
+	else
+	{
+		return FString();
+	}
+
+}
+
 const void* FWindowsEOSSDKManager::GetIntegratedPlatformOptions()
 {
 	return &PlatformSteamOptions;

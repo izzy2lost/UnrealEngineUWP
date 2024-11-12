@@ -13,6 +13,8 @@ namespace UnrealBuildTool
 
 	class VisionOSToolChain : IOSToolChain
 	{
+		private VisionOSToolChainSettings Settings => (VisionOSToolChainSettings)ToolChainSettings.Value;
+
 		public VisionOSToolChain(ReadOnlyTargetRules InTarget, VisionOSProjectSettings InProjectSettings, ILogger InLogger)
 			: base(InTarget, InProjectSettings, () => new VisionOSToolChainSettings(InLogger), ClangToolChainOptions.None, InLogger)
 		{
@@ -21,6 +23,11 @@ namespace UnrealBuildTool
 		public override string GetXcodeMinVersionParam(UnrealArch Architecture)
 		{
 			return "";
+		}
+
+		public float GetSDKVersionFloat()
+		{
+			return Settings.SDKVersionFloat;
 		}
 	}
 }

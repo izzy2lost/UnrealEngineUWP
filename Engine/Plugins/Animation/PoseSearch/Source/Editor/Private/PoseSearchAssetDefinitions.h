@@ -4,6 +4,7 @@
 
 #include "AssetDefinitionDefault.h"
 #include "PoseSearch/PoseSearchDatabase.h"
+#include "PoseSearch/PoseSearchInteractionAsset.h"
 #include "PoseSearch/PoseSearchNormalizationSet.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchAssetDefinitions.generated.h"
@@ -56,6 +57,21 @@ public:
 
 	virtual FText GetAssetDisplayName() const override { return NSLOCTEXT("PoseSearchAssetDefinition", "DisplayName_UPoseSearchNormalizationSet", "Pose Search Normalization Set"); }
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UPoseSearchNormalizationSet::StaticClass(); }
+};
+
+UCLASS(Experimental)
+class UAssetDefinition_PoseSearchInteractionAsset : public UAssetDefinitionDefault
+{
+	GENERATED_BODY()
+
+public:
+	virtual FLinearColor GetAssetColor() const override { return UE::PoseSearch::GetAssetColor(); }
+	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override { return UE::PoseSearch::GetAssetCategories(); }
+	virtual UThumbnailInfo* LoadThumbnailInfo(const FAssetData& InAssetData) const override { return UE::PoseSearch::LoadThumbnailInfo(InAssetData); }
+
+	virtual FText GetAssetDisplayName() const override { return NSLOCTEXT("PoseSearchInteractionAssetDefinition", "DisplayName_PoseSearchInteractionAsset", "Pose Search Interaction Asset"); }
+	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UPoseSearchInteractionAsset::StaticClass(); }
+	virtual EAssetCommandResult OpenAssets(const FAssetOpenArgs& OpenArgs) const override;
 };
 
 

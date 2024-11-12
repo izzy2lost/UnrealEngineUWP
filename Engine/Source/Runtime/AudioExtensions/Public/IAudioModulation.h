@@ -71,6 +71,8 @@ namespace Audio
 		// Whether or not unit conversion is required
 		bool bRequiresConversion = false;
 
+		uint32 TypeHash = INDEX_NONE;
+
 #if WITH_EDITORONLY_DATA
 		FText UnitDisplayName;
 
@@ -89,6 +91,11 @@ namespace Audio
 		static AUDIOEXTENSIONS_API const FModulationMixFunction& GetDefaultMixFunction();
 		static AUDIOEXTENSIONS_API const FModulationUnitConversionFunction& GetDefaultUnitConversionFunction();
 		static AUDIOEXTENSIONS_API const FModulationNormalizedConversionFunction& GetDefaultNormalizedConversionFunction();
+
+		friend FORCEINLINE uint32 GetTypeHash(const FModulationParameter& InModulationParameter)
+		{
+			return InModulationParameter.TypeHash;
+		}
 	};
 
 	AUDIOEXTENSIONS_API bool IsModulationParameterRegistered(FName InName);

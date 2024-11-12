@@ -2,7 +2,7 @@
 
 set -e
 
-ISPC_VERSION=1.21.0
+ISPC_VERSION=1.24.0
 
 UE_MODULE_LOCATION=`pwd`
 
@@ -54,6 +54,7 @@ cmake --install . --config Release
 
 popd
 
+p4 edit "$UE_MODULE_LOCATION/bin/Linux/ispc"
 cp "$ISPC_INSTALL_LOCATION/bin/ispc" "$UE_MODULE_LOCATION/bin/Linux/ispc"
 
 echo Done.

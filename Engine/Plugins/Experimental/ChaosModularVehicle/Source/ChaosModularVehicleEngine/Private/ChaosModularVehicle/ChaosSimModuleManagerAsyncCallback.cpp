@@ -8,10 +8,12 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
+#include "SimModule/ModuleFactoryRegister.h"
 
 FSimModuleDebugParams GSimModuleDebugParams;
 
 DECLARE_CYCLE_STAT(TEXT("AsyncCallback:OnPreSimulate_Internal"), STAT_AsyncCallback_OnPreSimulate, STATGROUP_ChaosSimModuleManager);
+DECLARE_CYCLE_STAT(TEXT("AsyncCallback:OnContactModification_Internal"), STAT_AsyncCallback_OnContactModification, STATGROUP_ChaosSimModuleManager);
 
 FName FChaosSimModuleManagerAsyncCallback::GetFNameForStatId() const
 {
@@ -110,7 +112,53 @@ void FChaosSimModuleManagerAsyncCallback::OnPreSimulate_Internal()
  */
 void FChaosSimModuleManagerAsyncCallback::OnContactModification_Internal(Chaos::FCollisionContactModifier& Modifications)
 {
+	using namespace Chaos;
 
+	SCOPE_CYCLE_COUNTER(STAT_AsyncCallback_OnContactModification);
+
+	float DeltaTime = GetDeltaTime_Internal();
+	float SimTime = GetSimTime_Internal();
+
+	const FChaosSimModuleManagerAsyncInput* Input = GetConsumerInput_Internal();
+	if (Input == nullptr)
+	{
+		return;
+	}
+
+	const int32 NumVehicles = Input->VehicleInputs.Num();
+
+	UWorld* World = Input->World.Get();	//only safe to access for scene queries
+	if (World == nullptr || NumVehicles == 0)
+	{
+		//world is gone so don't bother.
+		return;
+	}
+
+	Chaos::FPhysicsSolver* PhysicsSolver = static_cast<Chaos::FPhysicsSolver*>(GetSolver());
+	if (PhysicsSolver == nullptr)
+	{
+		return;
+	}
+
+	const TArray<TUniquePtr<FModularVehicleAsyncInput>>& InputVehiclesBatch = Input->VehicleInputs;
+
+	// beware running the vehicle simulation in parallel, code must remain threadsafe
+	auto LambdaParallelUpdate = [&Modifications, &InputVehiclesBatch](int32 Idx)
+	{
+		const FModularVehicleAsyncInput& VehicleInput = *InputVehiclesBatch[Idx];
+
+		if (VehicleInput.Proxy == nullptr)
+		{
+			return;
+		}
+
+		bool bWake = false;
+		VehicleInput.OnContactModification(Modifications);
+
+	};
+
+	bool ForceSingleThread = !GSimModuleDebugParams.EnableMultithreading;
+	PhysicsParallelFor(InputVehiclesBatch.Num(), LambdaParallelUpdate, ForceSingleThread);
 }
 
 
@@ -139,9 +187,17 @@ TUniquePtr<FModularVehicleAsyncOutput> FModularVehicleAsyncInput::Simulate(UWorl
 	return MoveTemp(Output);
 }
 
+void FModularVehicleAsyncInput::OnContactModification(Chaos::FCollisionContactModifier& Modifications) const
+{
+	if (Vehicle && Vehicle->VehicleSimulationPT)
+	{
+		Vehicle->VehicleSimulationPT->OnContactModification(Modifications, Proxy);
+	}
+}
+
 void FModularVehicleAsyncInput::ApplyDeferredForces() const
 {
-	if (Vehicle && Proxy)
+	if (Vehicle && Proxy && Vehicle->VehicleSimulationPT)
 	{
 		if (Proxy->GetType() == EPhysicsProxyType::ClusterUnionProxy)
 		{
@@ -186,24 +242,16 @@ void FModularVehicleAsyncInput::ProcessInputs()
 	{
 		PhysicsInputs.NetworkInputs.VehicleInputs = VehicleSim->VehicleInputs;
 	}
-
 }
 
 bool FNetworkModularVehicleInputs::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	FNetworkPhysicsData::SerializeFrames(Ar);
 
-	Ar << VehicleInputs.Steering;
-	Ar << VehicleInputs.Throttle;
-	Ar << VehicleInputs.Brake;
-	Ar << VehicleInputs.Handbrake;
-	Ar << VehicleInputs.Pitch;
-	Ar << VehicleInputs.Roll;
-	Ar << VehicleInputs.Yaw;
-	Ar << VehicleInputs.Boost;
-	Ar << VehicleInputs.Drift;
 	Ar << VehicleInputs.Reverse;
 	Ar << VehicleInputs.KeepAwake;
+
+	VehicleInputs.Container.Serialize(Ar, Map, bOutSuccess);
 
 	bOutSuccess = true;
 	return bOutSuccess;
@@ -213,20 +261,26 @@ void FNetworkModularVehicleInputs::ApplyData(UActorComponent* NetworkComponent) 
 {
 	if (GSimModuleDebugParams.EnableNetworkStateData)
 	{
-		if (FModularVehicleSimulationCU* VehicleSimulation = Cast<UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
+		if (UModularVehicleBaseComponent* ModularBaseComponent = Cast<UModularVehicleBaseComponent>(NetworkComponent))
 		{
-			VehicleSimulation->VehicleInputs = VehicleInputs;
+			if (FModularVehicleSimulationCU* VehicleSimulation = ModularBaseComponent->VehicleSimulationPT.Get())
+			{
+				VehicleSimulation->VehicleInputs = VehicleInputs;
+			}
 		}
 	}
 }
 
 void FNetworkModularVehicleInputs::BuildData(const UActorComponent* NetworkComponent)
 {
-	if (GSimModuleDebugParams.EnableNetworkStateData && NetworkComponent)
+	if (GSimModuleDebugParams.EnableNetworkStateData)
 	{
-		if (const FModularVehicleSimulationCU* VehicleSimulation = Cast<const UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
+		if (const UModularVehicleBaseComponent* ModularBaseComponent = Cast<const UModularVehicleBaseComponent>(NetworkComponent))
 		{
-			VehicleInputs = VehicleSimulation->VehicleInputs;
+			if (const FModularVehicleSimulationCU* VehicleSimulation = ModularBaseComponent->VehicleSimulationPT.Get())
+			{
+				VehicleInputs = VehicleSimulation->VehicleInputs;
+			}
 		}
 	}
 }
@@ -238,17 +292,15 @@ void FNetworkModularVehicleInputs::InterpolateData(const FNetworkPhysicsData& Mi
 
 	const float LerpFactor = (LocalFrame - MinInput.LocalFrame) / (MaxInput.LocalFrame - MinInput.LocalFrame);
 
-	VehicleInputs.Steering = FMath::Lerp(MinInput.VehicleInputs.Steering, MaxInput.VehicleInputs.Steering, LerpFactor);
-	VehicleInputs.Throttle = FMath::Lerp(MinInput.VehicleInputs.Throttle, MaxInput.VehicleInputs.Throttle, LerpFactor);
-	VehicleInputs.Brake = FMath::Lerp(MinInput.VehicleInputs.Brake, MaxInput.VehicleInputs.Brake, LerpFactor);
-	VehicleInputs.Handbrake = FMath::Lerp(MinInput.VehicleInputs.Handbrake, MaxInput.VehicleInputs.Handbrake, LerpFactor);
-	VehicleInputs.Pitch = FMath::Lerp(MinInput.VehicleInputs.Pitch, MaxInput.VehicleInputs.Pitch, LerpFactor);
-	VehicleInputs.Roll = FMath::Lerp(MinInput.VehicleInputs.Roll, MaxInput.VehicleInputs.Roll, LerpFactor);
-	VehicleInputs.Yaw = FMath::Lerp(MinInput.VehicleInputs.Yaw, MaxInput.VehicleInputs.Yaw, LerpFactor);
-	VehicleInputs.Boost = FMath::Lerp(MinInput.VehicleInputs.Boost, MaxInput.VehicleInputs.Boost, LerpFactor);
-	VehicleInputs.Drift = FMath::Lerp(MinInput.VehicleInputs.Drift, MaxInput.VehicleInputs.Drift, LerpFactor);
 	VehicleInputs.Reverse = MinInput.VehicleInputs.Reverse;
 	VehicleInputs.KeepAwake = MinInput.VehicleInputs.KeepAwake;
+	VehicleInputs.Container.Lerp(MinInput.VehicleInputs.Container, MaxInput.VehicleInputs.Container, LerpFactor);
+}
+
+void FNetworkModularVehicleInputs::MergeData(const FNetworkPhysicsData& FromData)
+{
+	const FNetworkModularVehicleInputs& FromInput = static_cast<const FNetworkModularVehicleInputs&>(FromData);
+	VehicleInputs.Container.Merge(FromInput.VehicleInputs.Container);
 }
 
 bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
@@ -257,94 +309,44 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 
 	int32 NumNetModules = ModuleData.Num();
 	Ar << NumNetModules;
-
+	if(Ar.IsLoading() && NumNetModules != ModuleData.Num())
+	{
+		ModuleData.Reserve(NumNetModules);
+	}
 	for (int I = 0; I < NumNetModules; I++)
 	{
 		if (Ar.IsLoading())
 		{
 			if (NumNetModules > 0)
 			{
-				int32 ModuleType = Chaos::eSimType::Undefined;
+				uint32 ModuleTypeHash = 0;
 				int32 SimArrayIndex = 0;
-				Ar << ModuleType;
+				Ar << ModuleTypeHash;
 				Ar << SimArrayIndex;
 
-				if (!ModuleData.IsEmpty())
+				if (I >= ModuleData.Num())
 				{
-					ensure(I <= ModuleData.Num());
+					if (TSharedPtr<Chaos::FModuleNetData> Data = Chaos::FModuleFactoryRegister::Get().GenerateNetData(ModuleTypeHash, SimArrayIndex))
+					{
+						ModuleData.Emplace(Data);
+					}
 				}
-
-				if (ModuleData.Num() != NumNetModules)
+				if(I <= ModuleData.Num() && ModuleData[I].IsValid())
 				{
-					ModuleData.Reserve(NumNetModules);
-					switch (ModuleType)
-					{
-					case Chaos::eSimType::Suspension:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FSuspensionSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					case Chaos::eSimType::Transmission:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FTransmissionSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					case Chaos::eSimType::Engine:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FEngineSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					case Chaos::eSimType::Clutch:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FClutchSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					case Chaos::eSimType::Wheel:
-					{
-						ModuleData.Emplace(MakeShared<Chaos::FWheelSimModuleDatas>(SimArrayIndex
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-							, FString()
-#endif
-						));
-					}
-					break;
-
-					default:
-					{
-						checkf(false, TEXT("Unhandled NetModuleType case"));
-					}
-					}
+					check(ModuleTypeHash == Chaos::FModuleFactoryRegister::GetModuleHash(ModuleData[I]->GetSimType()));
+					ModuleData[I]->Serialize(Ar);
 				}
 			}
 		}
 		else
 		{
-			int32 ModuleType = (int32)ModuleData[I]->GetType();
-			Ar << ModuleType;
+			int ModuleTypeHash = Chaos::FModuleFactoryRegister::GetModuleHash(ModuleData[I]->GetSimType());
+			
+			Ar << ModuleTypeHash;
 			Ar << ModuleData[I]->SimArrayIndex;
+			ModuleData[I]->Serialize(Ar);
 		}
 
-		ModuleData[I]->Serialize(Ar);
 	}
 
 	return true;
@@ -352,9 +354,12 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 
 void FNetworkModularVehicleStates::ApplyData(UActorComponent* NetworkComponent) const
 {
-	if (FModularVehicleSimulationCU* VehicleSimulation = Cast<UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
+	if (UModularVehicleBaseComponent* ModularBaseComponent = Cast<UModularVehicleBaseComponent>(NetworkComponent))
 	{
-		VehicleSimulation->AccessSimComponentTree()->SetSimState(ModuleData);
+		if (FModularVehicleSimulationCU* VehicleSimulation = ModularBaseComponent->VehicleSimulationPT.Get())
+		{
+			VehicleSimulation->AccessSimComponentTree()->SetSimState(ModuleData);
+		}
 	}
 }
 
@@ -379,8 +384,8 @@ void FNetworkModularVehicleStates::InterpolateData(const FNetworkPhysicsData& Mi
 	for (int I = 0; I < ModuleData.Num(); I++)
 	{
 		// if these don't match then something has gone terribly wrong
-		check(ModuleData[I]->GetType() == MinState.ModuleData[I]->GetType());
-		check(ModuleData[I]->GetType() == MaxState.ModuleData[I]->GetType());
+		check(ModuleData[I]->GetSimType() == MinState.ModuleData[I]->GetSimType());
+		check(ModuleData[I]->GetSimType() == MaxState.ModuleData[I]->GetSimType());
 
 		ModuleData[I]->Lerp(LerpFactor, *MinState.ModuleData[I].Get(), *MaxState.ModuleData[I].Get());
 	}

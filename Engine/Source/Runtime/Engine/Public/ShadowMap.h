@@ -4,9 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RenderingThread.h"
-#endif
 #include "RenderDeferredCleanup.h"
 #include "SceneManagement.h"
 
@@ -261,7 +258,7 @@ public:
 	}
 	void Release()
 	{
-		check(IsInGameThread() || IsInAsyncLoadingThread() || IsInGarbageCollectorThread());
+		check(IsInGameThread() || IsInAsyncLoadingThread());
 		checkSlow(NumRefs > 0);
 		if (--NumRefs == 0)
 		{
@@ -286,15 +283,15 @@ public:
 
 	/**
 	 * Executes all pending shadow-map encoding requests.
-	 * @param	InWorld				World in which the textures exist
+	 * @param	LightingContext				Context in which the textures exist
 	 * @param	bLightingSuccessful	Whether the lighting build was successful or not.
 	 */
-	static ENGINE_API void EncodeTextures(UWorld* InWorld, ULevel* LightingScenario, bool bLightingSuccessful, bool bMultithreadedEncode =false );
+	static ENGINE_API void EncodeTextures(const FStaticLightingBuildContext* LightingContext, bool bLightingSuccessful, bool bMultithreadedEncode =false );
 
 	/**
 	 * Constructs mip maps for a single shadowmap texture.
 	 */
-	static ENGINE_API int32 EncodeSingleTexture(ULevel* LightingScenario, struct FShadowMapPendingTexture& PendingTexture, UShadowMapTexture2D* Texture, TArray< TArray<FFourDistanceFieldSamples>>& MipData);
+	static ENGINE_API int32 EncodeSingleTexture(const FStaticLightingBuildContext* LightingContext, struct FShadowMapPendingTexture& PendingTexture, UShadowMapTexture2D* Texture, TArray< TArray<FFourDistanceFieldSamples>>& MipData);
 
 	static ENGINE_API TRefCountPtr<FShadowMap2D> AllocateShadowMap(
 		UObject* LightMapOuter,

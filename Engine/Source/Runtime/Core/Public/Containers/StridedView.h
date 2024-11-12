@@ -51,7 +51,10 @@ public:
 
 	TStridedView() = default;
 
-	template <typename OtherElementType, decltype(ImplicitConv<ElementType* const*>((OtherElementType**)nullptr))* = nullptr>
+	template <
+		typename OtherElementType
+		UE_REQUIRES(std::is_convertible_v<OtherElementType**, ElementType* const*>)
+	>
 	FORCEINLINE TStridedView(SizeType InBytesBetweenElements, OtherElementType* InFirstElementPtr, SizeType InNumElements)
 		: FirstElementPtr(InFirstElementPtr)
 		, BytesBetweenElements(InBytesBetweenElements)
@@ -62,7 +65,10 @@ public:
 		check(BytesBetweenElements % alignof(ElementType) == 0);
 	}
 
-	template <typename OtherElementType, decltype(ImplicitConv<ElementType* const*>((OtherElementType**)nullptr))* = nullptr>
+	template <
+		typename OtherElementType
+		UE_REQUIRES(std::is_convertible_v<OtherElementType**, ElementType* const*>)
+	>
 	FORCEINLINE TStridedView(const TStridedView<OtherElementType, SizeType>& Other)
 		: FirstElementPtr(nullptr)
 		, BytesBetweenElements(Other.GetStride())
@@ -149,7 +155,7 @@ private:
 		using ByteType = typename std::conditional_t<std::is_const_v<ElementType>, const uint8, uint8>;
 
 		ByteType* AsBytes = reinterpret_cast<ByteType*>(FirstElementPtr);
-		ElementType* AsElement = reinterpret_cast<ElementType*>(AsBytes + Index * BytesBetweenElements);
+		ElementType* AsElement = reinterpret_cast<ElementType*>(AsBytes + uint64(Index) * uint64(BytesBetweenElements));
 
 		return AsElement;
 	}

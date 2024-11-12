@@ -2,13 +2,15 @@
 #pragma once
 
 #include "SCSDiff.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
+#include "Algo/Transform.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "DetailsDiff.h"
 #include "DiffResults.h"
 #include "IAssetTypeActions.h"
 #include "IDetailsView.h"
 #include "ReviewComments.h"
-#include "Algo/Transform.h"
 #include "Widgets/SWidget.h"
 #include "DiffUtils.h"
 
@@ -111,6 +113,10 @@ public:
 
 	// to support comment posting, set this to the tree view that contains the comments.
 	virtual void EnableComments(TWeakPtr<STreeView<TSharedPtr<FBlueprintDifferenceTreeEntry>>> TreeView) override;
+
+	DiffUtils::FOnGenerateCustomDiffEntries GenerateCustomEntriesCallback;
+	DiffUtils::FOnGenerateCustomDiffEntryWidget GenerateCustomEntryWidgetCallback;
+	DiffUtils::FOnOrganizeDiffEntries OrganizeEntriesCallback;
 protected:
 	virtual void OnSelectDiffEntry(FPropertySoftPath PropertyName);
 	TAttribute<TArray<FVector2f>> GetLinkedScrollRateAttribute(const TSharedRef<IDetailsView>& OldDetailsView, const TSharedRef<IDetailsView>& NewDetailsView);

@@ -5,16 +5,18 @@
 #include "PoseSearchDebugger.h"
 #include "PoseSearchDatabaseEdMode.h"
 #include "PoseSearchDatabaseEditorCommands.h"
+#include "PoseSearchInteractionAssetEditor.h"
 
 #include "Animation/AnimSequence.h"
-#include "Modules/ModuleManager.h"
 #include "AssetToolsModule.h"
 #include "Editor.h"
-#include "PropertyEditorModule.h"
-#include "Subsystems/AssetEditorSubsystem.h"
 #include "IAnimationEditor.h"
 #include "IPersonaToolkit.h"
 #include "IPersonaPreviewScene.h"
+#include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+
 #include "Trace/PoseSearchTraceAnalyzer.h"
 #include "Trace/PoseSearchTraceModule.h"
 
@@ -43,7 +45,6 @@ private:
 	
 private:
 	void RegisterPropertyTypeCustomizations();
-	void RegisterObjectCustomizations();
 	void UnregisterCustomizations();
 	void RegisterCustomClassLayout(FName ClassName, FOnGetDetailCustomizationInstance DetailLayoutDelegate);
 	void RegisterCustomPropertyTypeLayout(FName PropertyTypeName, FOnGetPropertyTypeCustomizationInstance PropertyTypeLayoutDelegate);
@@ -68,12 +69,12 @@ void FEditorModule::StartupModule()
 		IModularFeatures::Get().RegisterModularFeature(FDebuggerTrackCreator::ModularFeatureName, DebuggerTrackCreator.Get());
 		IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, TraceModule.Get());
 		
-		// Register Ed Mode used by pose search database
+		// Register Ed Modes used by PoseSearchDatabase and PoseSearchInteractionAsset
 		FEditorModeRegistry::Get().RegisterMode<FDatabaseEdMode>(FDatabaseEdMode::EdModeId, LOCTEXT("PoseSearchDatabaseEdModeName", "PoseSearchDatabase"));
+		FEditorModeRegistry::Get().RegisterMode<FInteractionAssetEdMode>(FInteractionAssetEdMode::EdModeId, LOCTEXT("FPoseSearchInteractionAssetEdModeName", "PoseSearchInteractionAsset"));
 	}
 
 	RegisterPropertyTypeCustomizations();
-	RegisterObjectCustomizations();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.NotifyCustomizationModuleChanged();
@@ -87,9 +88,10 @@ void FEditorModule::ShutdownModule()
 	}
 	ConsoleCommands.Empty();
 
-	// Unregister Ed Mode
+	// Unregister Ed Modes
 	FEditorModeRegistry::Get().UnregisterMode(FDatabaseEdMode::EdModeId);
-	
+	FEditorModeRegistry::Get().UnregisterMode(FInteractionAssetEdMode::EdModeId);
+
 	UnregisterCustomizations();
 
 	// Unregister Asset Editor Commands
@@ -124,11 +126,6 @@ void FEditorModule::RegisterCustomPropertyTypeLayout(FName PropertyTypeName, FOn
 void FEditorModule::RegisterPropertyTypeCustomizations()
 {
 	RegisterCustomPropertyTypeLayout("PoseSearchDatabaseSequence", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPoseSearchDatabaseSequenceCustomization::MakeInstance));
-}
-
-void FEditorModule::RegisterObjectCustomizations()
-{
-	RegisterCustomClassLayout("PoseSearchDatabase", FOnGetDetailCustomizationInstance::CreateStatic(&FPoseSearchDatabaseDetails::MakeInstance));
 }
 
 void FEditorModule::UnregisterCustomizations()

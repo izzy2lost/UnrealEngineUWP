@@ -95,7 +95,11 @@ private:
 	static void PostDuplicateEventSection(UMovieSceneEventSectionBase* Section);
 	static void RemoveForCookEventSection(UMovieSceneEventSectionBase* Section);
 	static bool IsTrackClassAllowed(UClass* InClass);
+	static bool IsCustomBindingClassAllowed(UClass* InClass);
+	static bool IsConditionClassAllowed(const UClass* InClass);
 	static void PostDuplicateEvent(ULevelSequence* LevelSequence);
+	static void FixupDynamicBindingsEvent(ULevelSequence* LevelSequence);
+	static void FixupPayloadParameterNameForDirectorBlueprintCondition(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName);
 
 private:
 
@@ -110,6 +114,7 @@ private:
 	FDelegateHandle DoubleVectorPropertyTrackCreateEditorHandle;
 	FDelegateHandle TransformPropertyTrackCreateEditorHandle;
 	FDelegateHandle EulerTransformPropertyTrackCreateEditorHandle;
+	FDelegateHandle RotatorPropertyTrackCreateEditorHandle;
 	FDelegateHandle VisibilityPropertyTrackCreateEditorHandle;
 	FDelegateHandle ActorReferencePropertyTrackCreateEditorHandle;
 	FDelegateHandle StringPropertyTrackCreateEditorHandle;
@@ -139,15 +144,19 @@ private:
 	FDelegateHandle CVarTrackCreateEditorHandle;
 	FDelegateHandle CustomPrimitiveDataTrackCreateEditorHandle;
 	FDelegateHandle BindingLifetimeTrackCreateEditorHandle;
+	FDelegateHandle TimeWarpTrackCreateEditorHandle;
 
 	FDelegateHandle CameraCutTrackModelHandle;
 	FDelegateHandle CinematicShotTrackModelHandle;
 	FDelegateHandle BindingLifetimeTrackModelHandle;
+	FDelegateHandle TimeWarpTrackModelHandle;
 
 	FDelegateHandle GenerateEventEntryPointsHandle;
 	FDelegateHandle FixupDynamicBindingPayloadParameterNameHandle;
 	FDelegateHandle FixupEventSectionPayloadParameterNameHandle;
 	FDelegateHandle UpgradeLegacyEventEndpointHandle;
+	FDelegateHandle FixupDynamicBindingsHandle;
+	FDelegateHandle FixupDirectorBlueprintConditionPayloadParameterNameHandle;
 
 	FDelegateHandle OnObjectsReplacedHandle;
 

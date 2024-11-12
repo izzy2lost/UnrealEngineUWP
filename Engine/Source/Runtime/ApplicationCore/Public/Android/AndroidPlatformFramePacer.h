@@ -50,7 +50,7 @@ private:
 
 struct FAndroidVulkanFramePacer : public IAndroidFramePacer
 {
-	virtual void Init() override {}
+	virtual void Init() override;
 	virtual ~FAndroidVulkanFramePacer() {}
 	virtual bool SupportsFramePace(int32 QueryFramePace) override;
 private:
@@ -73,6 +73,7 @@ struct FAndroidPlatformRHIFramePacer : public FGenericPlatformRHIFramePacer
 	static void SwapBuffers(bool bLockToVsync) { if (ensure(FramePacer)) { FramePacer->SwapBuffers(bLockToVsync); } }
 
 	static TAutoConsoleVariable<int32> CVarUseSwappyForFramePacing;
+	static TAutoConsoleVariable<int32> CVarSwappyGPUFrameTimeFence;
 	static TAutoConsoleVariable<int32> CVarSupportNonVSyncMultipleFrameRates;
 
 	// Legacy pacer stuff

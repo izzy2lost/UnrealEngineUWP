@@ -2,6 +2,7 @@
 
 #include "OnlineSubsystemFacebook.h"
 #include "OnlineSubsystemFacebookPrivate.h"
+#include "OnlineExternalUIInterfaceFacebook.h"
 #include "OnlineIdentityFacebook.h"
 #include "OnlineFriendsFacebook.h"
 #include "OnlineSharingFacebook.h"
@@ -23,6 +24,7 @@ bool FOnlineSubsystemFacebook::Init()
 	FacebookFriends = MakeShared<FOnlineFriendsFacebook>(this);
 	FacebookSharing = MakeShared<FOnlineSharingFacebook>(this);
     FacebookUser = MakeShared<FOnlineUserFacebook>(this);
+	FacebookExternalUI = MakeShared<FOnlineExternalUIFacebook>(this);
 	return true;
 #else
 	return false;

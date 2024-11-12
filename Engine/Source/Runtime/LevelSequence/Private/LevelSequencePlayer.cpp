@@ -96,8 +96,6 @@ void ULevelSequencePlayer::Initialize(ULevelSequence* InLevelSequence, ULevel* I
 	Level = InLevel;
 	CameraSettings = InCameraSettings;
 
-	SpawnRegister = MakeShareable(new FLevelSequenceSpawnRegister);
-
 	UMovieSceneSequencePlayer::Initialize(InLevelSequence);
 
 	// The parent player class' root evaluation template may or may not have re-initialized itself.
@@ -117,7 +115,7 @@ void ULevelSequencePlayer::SetSourceActorContext(UWorld* InStreamingWorld, FActo
 	SourceAssetPath = InSourceAssetPath;
 }
 
-void ULevelSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void ULevelSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
 	using namespace UE::UniversalObjectLocator;
 	using namespace UE::MovieScene;
@@ -126,19 +124,40 @@ void ULevelSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FReso
 
 	if (bAllowDefault)
 	{
-		if (ResolveParams.ParameterBuffer == nullptr)
+		if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
 		{
-			// Allocate temporary local buffer for this
-			TInlineResolveParameterBuffer<128> Buffer;
-			ResolveParams.ParameterBuffer = &Buffer;
-			ResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
-			InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
-			ResolveParams.ParameterBuffer = nullptr;
+			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID, LocatorResolveParams.Context };
+			if (LocatorResolveParams.ParameterBuffer == nullptr)
+			{
+				// Allocate temporary local buffer for this
+				TInlineResolveParameterBuffer<128> Buffer;
+				LocatorResolveParams.ParameterBuffer = &Buffer;
+				LocatorResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
+				BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<ULevelSequencePlayer*>(this)->FindSharedPlaybackState()), OutObjects);
+				LocatorResolveParams.ParameterBuffer = nullptr;
+			}
+			else
+			{
+				LocatorResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
+				BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<ULevelSequencePlayer*>(this)->FindSharedPlaybackState()), OutObjects);
+			}
 		}
 		else
 		{
-			ResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
-			InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+			if (LocatorResolveParams.ParameterBuffer == nullptr)
+			{
+				// Allocate temporary local buffer for this
+				TInlineResolveParameterBuffer<128> Buffer;
+				LocatorResolveParams.ParameterBuffer = &Buffer;
+				LocatorResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
+				InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, GetSharedPlaybackState(), OutObjects);
+				LocatorResolveParams.ParameterBuffer = nullptr;
+			}
+			else
+			{
+				LocatorResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
+				InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, GetSharedPlaybackState(), OutObjects);
+			}
 		}
 	}
 }
@@ -156,19 +175,6 @@ void ULevelSequencePlayer::OnStartedPlaying()
 void ULevelSequencePlayer::OnStopped()
 {
 	EnableCinematicMode(false);
-
-	if (World != nullptr && World->GetGameInstance() != nullptr)
-	{
-		APlayerController* PC = World->GetGameInstance()->GetFirstLocalPlayerController();
-
-		if (PC != nullptr)
-		{
-			if (PC->PlayerCameraManager)
-			{
-				PC->PlayerCameraManager->bClientSimulatingViewTarget = false;
-			}
-		}
-	}
 }
 
 void ULevelSequencePlayer::UpdateMovieSceneInstance(FMovieSceneEvaluationRange InRange, EMovieScenePlayerStatus::Type PlayerStatus, const FMovieSceneUpdateArgs& Args)
@@ -260,6 +266,8 @@ void ULevelSequencePlayer::GetEventContexts(UWorld& InWorld, TArray<UObject*>& O
 void ULevelSequencePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState)
 {
 	using namespace UE::MovieScene;
+
+	SpawnRegister = MakeShareable(new FLevelSequenceSpawnRegister);
 
 	Super::InitializeRootInstance(NewSharedPlaybackState);
 

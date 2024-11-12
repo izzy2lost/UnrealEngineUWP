@@ -93,6 +93,7 @@ void SSearchBox::Construct( const FArguments& InArgs )
 				SNew(SImage)
 				.Image( &InArgs._Style->UpArrowImage )
 				.ColorAndOpacity( FSlateColor::UseForeground() )
+				.DesiredSizeOverride( InArgs._Style->ImageSizeOverride )
 			]
 		];
 		// Next result button
@@ -115,6 +116,7 @@ void SSearchBox::Construct( const FArguments& InArgs )
 				SNew(SImage)
 				.Image( &InArgs._Style->DownArrowImage )
 				.ColorAndOpacity( FSlateColor::UseForeground() )
+				.DesiredSizeOverride( InArgs._Style->ImageSizeOverride )
 			]
 		];
 	}
@@ -140,10 +142,10 @@ void SSearchBox::Construct( const FArguments& InArgs )
 			.Visibility(this, &SSearchBox::GetSearchGlassVisibility)
 			.Image(&InArgs._Style->GlassImage)
 			.ColorAndOpacity(FSlateColor::UseForeground())
+			.DesiredSizeOverride(InArgs._Style->ImageSizeOverride)
 		];
 
 	// Add an X to clear the search whenever there is some text typed into it
-	FMargin ClearButtonMargin = FMargin(2.f, 0.f);
 	Box->InsertSlot(ClearButtonIndex)
 	.AutoWidth()
 	.HAlign(HAlign_Center)
@@ -151,8 +153,8 @@ void SSearchBox::Construct( const FArguments& InArgs )
 	[
 		SNew(SButton)
 		.Visibility(this, &SSearchBox::GetXVisibility)
-		.ButtonStyle(FAppStyle::Get(), "HoverOnlyButton")
-		.ContentPadding(ClearButtonMargin)
+		.ButtonStyle(FAppStyle::Get(), "ThinHoverOnlyButton")
+		.ContentPadding(InArgs._Style->ImagePadding)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
 		.OnClicked(this, &SSearchBox::OnClearSearch)
@@ -163,6 +165,7 @@ void SSearchBox::Construct( const FArguments& InArgs )
 			SNew(SImage)
 			.Image(&InArgs._Style->ClearImage)
 			.ColorAndOpacity(FSlateColor::UseForeground())
+			.DesiredSizeOverride(InArgs._Style->ImageSizeOverride)
 		]
 	];
 

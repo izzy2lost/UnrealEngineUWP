@@ -2,6 +2,8 @@
 
 #include "/Engine/Private/Common.ush"
 
+#define NUM_CHANNELS (PERMUTATION_CHANNELS + 1)
+
 #if PARTIAL_TILES
 struct FTileDesc
 {
@@ -31,40 +33,21 @@ int2 NumTiles;
 /** Number of channels per pixel. */
 int NumChannels;
 
-/**
-* This function extracts the 16bit (float) data stored in uint (32 bit)
-*/
-float UintContainingFloatToFloat(in uint Value)
-{
-	int Sign = (Value >> 15) & 0x00000001;
-	int Exponent = (Value >> 10) & 0x0000001f;
-	int Mantissa = Value & 0x000003ff;
-
-	Exponent = Exponent + (127 - 15);
-	Mantissa = Mantissa << 13;
-
-	return asfloat((Sign << 31) | (Exponent << 23) | Mantissa);
-}
-
 /** Unpacks data from the provided structured buffer. */
-int GetValueFromTheBuffer(int Offset, int2 TextureSize, int ChannelIndex)
+half GetBufferValue(int Offset, int2 TextureSize, int ChannelIndex)
 {
-#if CUSTOM_EXR
-	int UnpackedLocation = Offset + ChannelIndex;
-#else
 	// the location as if it would've been if the buffer was unpacked.
 	int UnpackedLocation = Offset + TextureSize.x * ChannelIndex;
-#endif
 	// Byte offset within the 4 byte packed value.
 	int Remainder = UnpackedLocation % 2;
 
 	// Position in a packed buffer.
 	int PackedPosition = (UnpackedLocation - Remainder) >> 1;
 
+	uint PackedValue = (UnswizzledBuffer[PackedPosition] >> (16 * Remainder)) & 0xffff;
 
-	uint PackedFourByteValue = UnswizzledBuffer[PackedPosition];
-	int ReturnValue = ((PackedFourByteValue >> (16 * Remainder)) & 0xffff);
-	return ReturnValue;
+	// Convert from uint32 to f16
+	return (half)f16tof32(PackedValue);
 }
 
 
@@ -96,11 +79,7 @@ void GetStartScanlinePosition_PartialTiles(in int2 PixelPos, out int2 SampleSize
 	int PreviousTilesOffset = TileDesc.BufferOffset / 2;
 
 	// Current tile position.
-#if CUSTOM_EXR
-	StartPosition = PreviousTilesOffset + yCoord * TileDesc.TileResolution.x * NumChannels + xCoord * NumChannels;
-#else
 	StartPosition = PreviousTilesOffset + yCoord * TileDesc.TileResolution.x * NumChannels + xCoord + TilePadding;
-#endif //CUSTOM_EXR
 }
 #endif
 
@@ -120,15 +99,9 @@ void GetStartScanlinePosition(in int2 PixelPos, out int2 SampleSize, out int Sta
 	const int TilePadding = 10;
 
 	// Current tile position.
-#if CUSTOM_EXR
-	int TileBufferStride = TileSize.x * TileSize.y * NumChannels;
-	int PreviousTilesOffset = (NumTiles.x * TileY + TileX) * TileBufferStride;
-	StartPosition = PreviousTilesOffset + yCoord * TileSize.x * NumChannels + xCoord * NumChannels;
-#else
 	int TileBufferStride = TileSize.x * TileSize.y * NumChannels;
 	int PreviousTilesOffset = (NumTiles.x * TileY + TileX) * TileBufferStride;
 	StartPosition = PreviousTilesOffset + yCoord * TileSize.x * NumChannels + xCoord + (TileY * NumTiles.x + TileX + 1) * TilePadding;
-#endif
 
 #else
 	SampleSize.x = TextureSize.x;
@@ -161,33 +134,25 @@ half4 MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0) : SV_Target0
 #endif
 
 	int ChannelIndex = 0;
+	half4 Color = half4(0.0f, 0.0f, 0.0f, 1.0f);
 
-#if NUM_CHANNELS == 3
-	half A = UintContainingFloatToFloat(GetValueFromTheBuffer(StartBufferPosition, SampleSize, ChannelIndex++));
-#else
-	half A = 1.;
+#if NUM_CHANNELS == 4
+	Color.a = GetBufferValue(StartBufferPosition, SampleSize, ChannelIndex++);
+#endif
+#if NUM_CHANNELS >= 3
+	Color.b = GetBufferValue(StartBufferPosition, SampleSize, ChannelIndex++);
+#endif
+#if NUM_CHANNELS >= 2
+	Color.g = GetBufferValue(StartBufferPosition, SampleSize, ChannelIndex++);
+#endif
+#if NUM_CHANNELS >= 1
+	Color.r = GetBufferValue(StartBufferPosition, SampleSize, ChannelIndex++);
 #endif
 
-	half B = UintContainingFloatToFloat(GetValueFromTheBuffer(StartBufferPosition, SampleSize, ChannelIndex++));
-#if NUM_CHANNELS == 0
-	half G = B;
-#else
-	half G = UintContainingFloatToFloat(GetValueFromTheBuffer(StartBufferPosition, SampleSize, ChannelIndex++));
+	// Special case for single channel EXRs: we convert to grayscale by duplicating the red channel.
+#if NUM_CHANNELS == 1
+	Color.rgb = Color.r;
 #endif
-#if NUM_CHANNELS <= 1
-	half R = B;
-#else
-	half R = UintContainingFloatToFloat(GetValueFromTheBuffer(StartBufferPosition, SampleSize, ChannelIndex++));
-#endif
-	half3 Rgb = half3(R, G, B);
 
-#if CUSTOM_EXR
-	#if NUM_CHANNELS == 3
-		return half4(A, Rgb.zyx);
-	#else
-		return half4(Rgb.zyx, A);
-	#endif
-#else
-	return half4(Rgb, A);
-#endif
+	return Color;
 }

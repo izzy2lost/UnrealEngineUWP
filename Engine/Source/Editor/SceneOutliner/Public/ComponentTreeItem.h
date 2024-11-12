@@ -35,7 +35,9 @@ public:
 	static const FSceneOutlinerTreeItemType Type;
 
 	/** Construct this item from an Component */
-	FComponentTreeItem(UActorComponent* InComponent);
+	FComponentTreeItem(UActorComponent* InComponent, bool bInSearchComponentsByActorName = false);
+
+	bool GetSearchComponentByActorName() const;
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
 	virtual bool IsValid() const override { return Component.IsValid(); }
@@ -47,6 +49,10 @@ public:
 public:
 	/** true if this item exists in both the current world and PIE. */
 	bool bExistsInCurrentWorldAndPIE;
+
+	/** If true components will be shown if the owning actor is searched for even if the search text does not match the component */
+	bool bSearchComponentsByActorName;
+	
 	/** Cache the string displayed */
 	FString CachedDisplayString;
 };

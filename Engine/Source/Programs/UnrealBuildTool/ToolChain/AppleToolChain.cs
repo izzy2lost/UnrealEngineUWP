@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -242,19 +241,47 @@ namespace UnrealBuildTool
 	{
 		protected class AppleToolChainInfo : ClangToolChainInfo
 		{
-			public AppleToolChainInfo(FileReference Clang, FileReference Archiver, ILogger Logger)
-				: base(Clang, Archiver, Logger)
+			Tuple<Version, Version>[] AppleVersionToLLVMVersion;
+
+			public AppleToolChainInfo(UnrealTargetPlatform Platform, DirectoryReference DeveloperDir, FileReference Clang, FileReference Archiver, ILogger Logger)
+				: base(DeveloperDir, Clang, Archiver, Logger)
 			{
+				// get the mapping from Apple_SDK.json (turning "version ranges" into a mapping list)
+				UEBuildPlatformSDK SDK = UEBuildPlatformSDK.GetSDKForPlatform(Platform.ToString())!;
+				
+				AppleVersionToLLVMVersion = SDK.GetVersionNumberRangeArrayFromConfig("AppleVersionToLLVMVersions").
+					Select(x => new Tuple<Version, Version>(new Version(x.Min.ToString()), new Version(x.Max.ToString()))).ToArray();
 			}
 
 			// libtool doesn't provide version, just use clang's version string
 			/// <inheritdoc/>
 			protected override string QueryArchiverVersionString() => ClangVersionString;
+
+			protected override Version QueryClangVersion()
+			{
+				// get the clang version from the clang -v
+				Version AppleVersion = base.QueryClangVersion();
+
+					// now look up this version in mappings
+				for (int MappingIndex = AppleVersionToLLVMVersion.Length - 1; MappingIndex >= 0; MappingIndex--)
+				{
+					if (AppleVersion >= AppleVersionToLLVMVersion[MappingIndex].Item1)
+					{
+						Version LLVMVersion = AppleVersionToLLVMVersion[MappingIndex].Item2;
+						Logger.LogDebug("Converted Apple version {AppleVersion} to LLVM version {LLVMVersion}", AppleVersion, LLVMVersion);
+						return LLVMVersion;
+					}
+				}
+
+				throw new BuildException($"Failed to find mapping of Apple clang version {AppleVersion} in Apple_SDK.json");
+			}
+
+			// get the actual Apple version, not the LLVM version (only Apple platform code should use this)
+			public VersionNumber AppleClangVersion => VersionNumber.Parse(base.QueryClangVersion().ToString());
 		}
 
 		public Lazy<AppleToolChainSettings> ToolChainSettings;
 
-		protected FileReference? ProjectFile;
 		public readonly ReadOnlyTargetRules? Target;
 
 		// cache some ini settings
@@ -316,6 +343,10 @@ namespace UnrealBuildTool
 			foreach (FileItem SourceFile in InputFiles)
 			{
 				Action CompileAction = CompileCPPFile(CompileEnvironment, SourceFile, OutputDir, ModuleName, Graph, GlobalArguments, Result);
+				if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
+				{
+					CompileAction.bCanExecuteInUBA = false;
+				}
 				CompileAction.PrerequisiteItems.UnionWith(FrameworkTokenFiles);
 			}
 			return Result;
@@ -361,9 +392,22 @@ namespace UnrealBuildTool
 			FileReference OutputVersionFile = FileReference.Combine(ProductDirectory, "Intermediate/Build/Versions.xcconfig");
 			DestFile = FileItem.GetItemByFileReference(OutputVersionFile);
 
+			// grab a changlist version if we have it to pass to the script to use if desired
+			int Changelist = 0;
+			BuildVersion? Version;
+			if (BuildVersion.TryRead(BuildVersion.GetDefaultFileName(), out Version))
+			{
+				Changelist = Version.Changelist;
+			}
+
 			// make path to the script
-			FileItem BundleScript = FileItem.GetItemByFileReference(FileReference.Combine(Unreal.EngineDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh"));
-			UpdateVersionAction.CommandArguments = $"\"{BundleScript.AbsolutePath}\" \"{ProductDirectory}\" {LinkEnvironment.Platform}";
+			FileReference VersionScript = FileReference.Combine(ProductDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh");
+			if (!FileReference.Exists(VersionScript))
+			{
+				VersionScript = FileReference.Combine(Unreal.EngineDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh");
+			}
+			FileItem BundleScript = FileItem.GetItemByFileReference(VersionScript);
+			UpdateVersionAction.CommandArguments = $"\"{BundleScript.AbsolutePath}\" \"{ProductDirectory}\" {LinkEnvironment.Platform} {Changelist}";
 			UpdateVersionAction.PrerequisiteItems.Add(Prerequisite);
 			UpdateVersionAction.PrerequisiteItems.Add(BundleScript);
 			UpdateVersionAction.ProducedItems.Add(DestFile);
@@ -420,7 +464,6 @@ namespace UnrealBuildTool
 			return ProjectDirectory;
 		}
 
-
 		/// <inheritdoc/>
 		protected override string EscapePreprocessorDefinition(string Definition)
 		{
@@ -474,14 +517,6 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-unknown-warning-option");
 			Arguments.Add("-Wno-range-loop-analysis");
 			Arguments.Add("-Wno-single-bit-bitfield-constant-conversion");
-
-			// Disable warnings for Xcode 16 for now
-			if (Info.ClangVersion.CompareTo(new Version(16, 0, 0)) >= 0)
-			{
-            	Arguments.Add("-Wno-shadow");
-				Arguments.Add("-Wno-invalid-unevaluated-string");
-				Arguments.Add("-Wno-deprecated-this-capture");
-			}
 		}
 
 		/// <inheritdoc/>
@@ -592,9 +627,9 @@ namespace UnrealBuildTool
 					Arguments.Add(GetUserIncludePathArgument(OutputInteropHeader.GetDirectoryItem().Location));
 					CompileAction.PrerequisiteItems.Add(OutputInteropHeader);
 				}
-
 			}
 			Arguments.Add("-DUE_USE_SWIFT_UI_MAIN=" + (bUseSwiftUIMain ? "1" : "0"));
+					
 			return Output;
 		}
 
@@ -638,12 +673,16 @@ namespace UnrealBuildTool
 
 			Arguments.Add("-enable-objc-interop");
 			Arguments.Add("-cxx-interoperability-mode=default");
-			Arguments.Add($"-import-objc-header {Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h");
+			Arguments.Add($"-import-objc-header \"{Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h\"");
 			Arguments.Add($"-module-name Launch");
 
 			if (bUseSwiftUIMain)
 			{
 				Arguments.Add("-DUE_USE_SWIFT_UI_MAIN");
+				if (ToolChainSettings.Value.SDKVersionFloat < 2.0)
+				{
+					Arguments.Add("-DUE_SDK_VERSION_1");
+				}
 			}
 
 			Action CompileAction = Graph.CreateAction(ActionType.Compile);
@@ -679,7 +718,7 @@ namespace UnrealBuildTool
 
 				//Arguments.Add("-enable-objc-interop");
 				//Arguments.Add("-cxx-interoperability-mode=default");
-				Arguments.Add($"-import-objc-header {Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h");
+				Arguments.Add($"-import-objc-header \"{Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h\"");
 
 				// platform settings
 				Arguments.Add($"-target {ToolChainSettings.Value.GetTargetTuple(CompileEnvironment.Architecture)}");
@@ -692,7 +731,12 @@ namespace UnrealBuildTool
 				if (bUseSwiftUIMain)
 				{
 					Arguments.Add("-DUE_USE_SWIFT_UI_MAIN");
+					if (ToolChainSettings.Value.SDKVersionFloat < 2.0)
+					{
+						Arguments.Add("-DUE_SDK_VERSION_1");
+					}
 				}
+
 
 				// now make an action to export the swift code as a header Obj-C bridging
 				Action HeaderAction = Graph.CreateAction(ActionType.CompileModuleInterface);
@@ -798,14 +842,19 @@ namespace UnrealBuildTool
 			return OutputFiles;
 		}
 
+		private static VersionNumber? AppleClangVersion = null;
+
 		protected virtual void GetLinkArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)
 		{
-			// The Apple's new linker in Xcode 15 beta 5 (clang version 1500.0.38.1) has issues with some templated classes and dynamic linking.
-			// Fall back to using the classic.
-			if (Info.ClangVersion.CompareTo(new Version(15, 0, 38)) >= 0 && Info.ClangVersion.CompareTo(new Version(16, 0, 0)) < 0)
-            {
-                Arguments.Add(" -ld_classic");
-            }
+			if (AppleClangVersion == null)
+			{
+				AppleClangVersion = ((AppleToolChainInfo)GetToolChainInfo()).AppleClangVersion;
+			}
+			// Temp solution for UE-191350
+			if (AppleClangVersion >= new VersionNumber(15) && AppleClangVersion < new VersionNumber(16))
+			{
+				Arguments.Add(" -ld_classic");
+			}
 		}
 
 		#region Stub Xcode Projects
@@ -1127,7 +1176,7 @@ namespace UnrealBuildTool
 			}
 
 			// run the script
-			Utils.RunLocalProcessAndReturnStdOut("sh", $"\"{SignProjectScript.FullName}\"");
+			Utils.RunLocalProcessAndReturnStdOut("/bin/sh", $"\"{SignProjectScript.FullName}\"");
 
 			// Set parameters to make sure it uses the correct identity and keychain
 			// pass back the comandline arguments to xcodebuild to use these certicicates
@@ -1150,7 +1199,7 @@ namespace UnrealBuildTool
 				CleanWriter.WriteLine("security list-keychain -s login.keychain");
 			}
 
-			Utils.RunLocalProcessAndReturnStdOut("sh", $"\"{CleanProjectScript.FullName}\"");
+			Utils.RunLocalProcessAndReturnStdOut("/bin/sh", $"\"{CleanProjectScript.FullName}\"");
 		}
 
 		private static FileItem GetPostBuildOutputFile(FileReference Executable, string TargetName, UnrealTargetPlatform Platform)

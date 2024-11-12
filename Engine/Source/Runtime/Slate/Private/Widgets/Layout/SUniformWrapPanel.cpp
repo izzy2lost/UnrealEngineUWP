@@ -29,6 +29,8 @@ SUniformWrapPanel::SUniformWrapPanel()
 {
 }
 
+SUniformWrapPanel::~SUniformWrapPanel() = default;
+
 void SUniformWrapPanel::Construct( const FArguments& InArgs )
 {
 	SlotPadding.Assign(*this, InArgs._SlotPadding);
@@ -191,6 +193,12 @@ FVector2D SUniformWrapPanel::ComputeDesiredSize( float ) const
 			NumRows = FMath::CeilToInt((float)NumVisibleChildren / (float)NumColumns);
 			return FVector2D(NumColumns * MaxChildDesiredSize.X, NumRows * MaxChildDesiredSize.Y);
 		}
+		
+		/* If we have gotten this far we may be small enough that the best fit formulas fail yet we still have visible children to show ~
+		 * default to one column the width of the child desired size and the number of children rows times their height */
+		NumRows = NumVisibleChildren;
+		NumColumns = 1;
+		return FVector2D(MaxChildDesiredSize.X, NumRows * MaxChildDesiredSize.Y);
 	}
 
 	return FVector2D::ZeroVector;

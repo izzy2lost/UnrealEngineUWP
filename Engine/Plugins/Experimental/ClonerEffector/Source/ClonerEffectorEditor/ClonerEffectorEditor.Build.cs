@@ -13,10 +13,11 @@ public class ClonerEffectorEditor : ModuleRules
 	        {
 		        "Core",
 		        "CoreUObject",
+				"EditorSubsystem",
 		        "Engine",
 		        "Slate",
 		        "SlateCore",
-		        "UnrealEd",
+		        "UnrealEd"
 	        }
         );
 
@@ -25,7 +26,14 @@ public class ClonerEffectorEditor : ModuleRules
 	        {
 		        "ClonerEffector",
 		        "InputCore",
+				"MovieScene",
+				"Niagara",
+		        "NiagaraEditor",
+		        "NiagaraSimCaching",
 		        "Projects",
+				"PropertyEditor",
+				"Sequencer",
+				"ToolMenus"
 	        }
         );
 

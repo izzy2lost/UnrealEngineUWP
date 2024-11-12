@@ -1,8 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaScheduler.h"
+#include "UbaApplicationRules.h"
+#include "UbaCacheClient.h"
+#include "UbaConfig.h"
+#include "UbaNetworkServer.h"
 #include "UbaProcess.h"
 #include "UbaProcessStartInfoHolder.h"
+#include "UbaRootPaths.h"
 #include "UbaSessionServer.h"
 #include "UbaStringBuffer.h"
 
@@ -25,6 +30,7 @@ namespace uba
 		const u8* knownInputs;
 		u32 knownInputsCount;
 		float weight = 1.0f;
+		u64 queryCacheTime = 0;
 	};
 
 
@@ -41,19 +47,48 @@ namespace uba
 	class SkippedProcess : public Process
 	{
 	public:
-		SkippedProcess(const ProcessStartInfo& i) : holder(i) {}
+		SkippedProcess(const ProcessStartInfo& i) : startInfo(i) {}
 		virtual u32 GetExitCode() override { return ProcessCancelExitCode; }
 		virtual bool HasExited() override { return true; }
 		virtual bool WaitForExit(u32 millisecondsTimeout) override{ return true; }
-		virtual const ProcessStartInfo& GetStartInfo() override { return holder.startInfo; }
-		virtual const Vector<ProcessLogLine>& GetLogLines() override { static Vector<ProcessLogLine> v{ProcessLogLine{TC("Skipped"), LogEntryType_Warning}}; return v; }
-		virtual const Vector<u8>& GetTrackedInputs() override { static Vector<u8> v; return v;}
+		virtual const ProcessStartInfo& GetStartInfo() const override { return startInfo; }
+		virtual const Vector<ProcessLogLine>& GetLogLines() const override { static Vector<ProcessLogLine> v{ProcessLogLine{TC("Skipped"), LogEntryType_Warning}}; return v; }
+		virtual const Vector<u8>& GetTrackedInputs() const override { static Vector<u8> v; return v;}
+		virtual const Vector<u8>& GetTrackedOutputs() const override { static Vector<u8> v; return v;}
 		virtual bool IsRemote() const override { return false; }
-		virtual bool IsDetoured() const { return false; }
-		ProcessStartInfoHolder holder;
+		virtual ProcessExecutionType GetExecutionType() const override { return ProcessExecutionType_Native; }
+		ProcessStartInfoHolder startInfo;
 	};
 
-	
+	class CachedProcess : public Process
+	{
+	public:
+		CachedProcess(const ProcessStartInfo& i) : startInfo(i) {}
+		virtual u32 GetExitCode() override { return 0; }
+		virtual bool HasExited() override { return true; }
+		virtual bool WaitForExit(u32 millisecondsTimeout) override{ return true; }
+		virtual const ProcessStartInfo& GetStartInfo() const override { return startInfo; }
+		virtual const Vector<ProcessLogLine>& GetLogLines() const override { return logLines; }
+		virtual const Vector<u8>& GetTrackedInputs() const override { static Vector<u8> v; return v;}
+		virtual const Vector<u8>& GetTrackedOutputs() const override { static Vector<u8> v; return v;}
+		virtual bool IsRemote() const override { return false; }
+		virtual ProcessExecutionType GetExecutionType() const override { return ProcessExecutionType_FromCache; }
+		ProcessStartInfoHolder startInfo;
+		Vector<ProcessLogLine> logLines;
+	};
+
+	void SchedulerCreateInfo::Apply(Config& config)
+	{
+		if (const ConfigTable* table = config.GetTable(TC("Scheduler")))
+		{
+			table->GetValueAsBool(enableProcessReuse, TC("EnableProcessReuse"));
+			table->GetValueAsBool(forceRemote, TC("ForceRemote"));
+			table->GetValueAsBool(forceNative, TC("ForceNative"));
+			table->GetValueAsU32(maxLocalProcessors, TC("MaxLocalProcessors"));
+		}
+	}
+
+
 	Scheduler::Scheduler(const SchedulerCreateInfo& info)
 	:	m_session(info.session)
 	,	m_maxLocalProcessors(info.maxLocalProcessors != ~0u ? info.maxLocalProcessors : GetLogicalProcessorCount())
@@ -61,6 +96,9 @@ namespace uba
 	,	m_enableProcessReuse(info.enableProcessReuse)
 	,	m_forceRemote(info.forceRemote)
 	,	m_forceNative(info.forceNative)
+	,	m_processConfigs(info.processConfigs)
+	,	m_cacheClient(info.cacheClient)
+	,	m_writeToCache(info.writeToCache && info.cacheClient)
 	{
 		m_session.RegisterGetNextProcess([this](Process& process, NextProcessInfo& outNextProcess, u32 prevExitCode)
 			{
@@ -71,6 +109,8 @@ namespace uba
 	Scheduler::~Scheduler()
 	{
 		Stop();
+		for (auto rt : m_rootPaths)
+			delete rt;
 	}
 
 	void Scheduler::Start()
@@ -123,7 +163,13 @@ namespace uba
 		}
 
 		auto info2 = new ProcessStartInfo2(info.info, ki, info.knownInputsCount);
+		info2->Expand();
 		info2->weight = info.weight;
+
+		const ApplicationRules* rules = m_session.GetRules(*info2);
+		info2->rules = rules;
+
+		bool useCache = m_cacheClient && !m_writeToCache && rules->IsCacheable();
 
 		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		u32 index = u32(m_processEntries.size());
@@ -131,9 +177,25 @@ namespace uba
 		entry.info = info2;
 		entry.dependencies = dep;
 		entry.dependencyCount = info.dependencyCount;
-		entry.status = ProcessStatus_Queued;
+		entry.status = useCache ? ProcessStatus_QueuedForCache : ProcessStatus_QueuedForRun;
 		entry.canDetour = info.canDetour;
 		entry.canExecuteRemotely = info.canExecuteRemotely && info.canDetour;
+
+		if (m_processConfigs)
+		{
+			auto name = info2->application;
+			if (auto lastSeparator = TStrrchr(name, PathSeparator))
+				name = lastSeparator + 1;
+			StringBuffer<128> lower(name);
+			lower.MakeLower();
+			lower.Replace('.', '_');
+			if (const ConfigTable* processConfig = m_processConfigs->GetTable(lower.data))
+			{
+				processConfig->GetValueAsBool(entry.canExecuteRemotely, TC("CanExecuteRemotely"));
+				processConfig->GetValueAsBool(entry.canDetour, TC("CanDetour"));
+			}
+		}
+
 		lock.Leave();
 
 		UpdateQueueCounter(1);
@@ -153,6 +215,24 @@ namespace uba
 	void Scheduler::SetProcessFinishedCallback(const Function<void(const ProcessHandle&)>& processFinished)
 	{
 		m_processFinished = processFinished;
+	}
+
+	u32 Scheduler::GetProcessCountThatCanRunRemotelyNow()
+	{
+		u32 count = 0;
+		SCOPED_READ_LOCK(m_processEntriesLock, lock);
+		for (auto& entry : m_processEntries)
+		{
+			if (!entry.canExecuteRemotely)
+				continue;
+			if (entry.status != ProcessStatus_QueuedForRun)
+				continue;
+			++count;
+		}
+
+		count += m_activeRemoteProcesses;
+
+		return count;
 	}
 
 	void Scheduler::ThreadLoop()
@@ -182,8 +262,29 @@ namespace uba
 		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		if (m_processEntries[processIndex].status != ProcessStatus_Running)
 			return;
-		m_processEntries[processIndex].status = ProcessStatus_Queued;
+		m_processEntries[processIndex].status = ProcessStatus_QueuedForRun;
 		m_processEntriesStart = Min(m_processEntriesStart, processIndex);
+		lock.Leave();
+
+		UpdateQueueCounter(1);
+		UpdateActiveProcessCounter(false, -1);
+		m_updateThreadLoop.Set();
+	}
+
+	void Scheduler::HandleCacheMissed(ExitProcessInfo* ei)
+	{
+		u32 processIndex = ei->processIndex;
+		delete ei;
+
+		if (processIndex == ~0u)
+			return;
+
+		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
+		if (m_processEntries[processIndex].status != ProcessStatus_Running)
+			return;
+		m_processEntries[processIndex].status = ProcessStatus_QueuedForRun;
+		m_processEntriesStart = Min(m_processEntriesStart, processIndex);
+		--m_activeCacheQueries;
 		lock.Leave();
 
 		UpdateQueueCounter(1);
@@ -210,15 +311,20 @@ namespace uba
 			return;
 		}
 
-		ExitProcess(*info, *handle.m_process, handle.m_process->GetExitCode());
+		if (si->queryCacheTime) // A bit hacky but we know this is a local process
+		{
+			Timer& timer = ((ProcessImpl*)handle.m_process)->m_processStats.queryCache;
+			timer.count = 1;
+			timer.time = si->queryCacheTime;
+		}
+
+		ExitProcess(*info, *handle.m_process, handle.m_process->GetExitCode(), false);
 	}
 
-	u32 Scheduler::PopProcess(bool isLocal)
+	u32 Scheduler::PopProcess(bool isLocal, ProcessStatus& outPrevStatus)
 	{
-		if (isLocal)
-			if (m_activeLocalProcessWeight >= float(m_maxLocalProcessors))
-				return ~0u;
-
+		bool atMaxLocalWeight = m_activeLocalProcessWeight >= float(m_maxLocalProcessors);
+		bool atMaxCacheQueries = m_activeCacheQueries >= 16;
 		auto processEntries = m_processEntries.data();
 		bool allFinished = true;
 
@@ -226,7 +332,7 @@ namespace uba
 		{
 			auto& entry = processEntries[i];
 			auto status = entry.status;
-			if (status != ProcessStatus_Queued)
+			if (status != ProcessStatus_QueuedForCache && status != ProcessStatus_QueuedForRun)
 			{
 				if (allFinished)
 				{
@@ -239,17 +345,32 @@ namespace uba
 			}
 			allFinished = false;
 
-			if (!isLocal && !entry.canExecuteRemotely)
-				continue;
-
-			if (isLocal && m_forceRemote && entry.canExecuteRemotely)
-				continue;
+			if (isLocal)
+			{
+				if (m_forceRemote && entry.canExecuteRemotely)
+					continue;
+				if (status == ProcessStatus_QueuedForRun && atMaxLocalWeight)
+					continue;
+				if (status == ProcessStatus_QueuedForCache && atMaxCacheQueries)
+					continue;
+			}
+			else
+			{
+				if (!entry.canExecuteRemotely)
+					continue;
+				if (status == ProcessStatus_QueuedForCache)
+					continue;
+			}
 
 			bool canRun = true;
 			for (u32 j=0, je=entry.dependencyCount; j!=je; ++j)
 			{
 				auto depIndex = entry.dependencies[j];
-				UBA_ASSERTF(depIndex < m_processEntries.size(), TC("Found dependency on index %u but there are only %u processes registered"), depIndex, u32(m_processEntries.size()));
+				if (depIndex >= m_processEntries.size())
+				{
+					m_session.GetLogger().Error(TC("Found dependency on index %u but there are only %u processes registered"), depIndex, u32(m_processEntries.size()));
+					return ~0u;
+				}
 				auto depStatus = processEntries[depIndex].status;
 				if (depStatus == ProcessStatus_Failed || depStatus == ProcessStatus_Skipped)
 				{
@@ -267,8 +388,14 @@ namespace uba
 				continue;
 
 			if (isLocal)
-				m_activeLocalProcessWeight += entry.info->weight;
+			{
+				if (status == ProcessStatus_QueuedForRun)
+					m_activeLocalProcessWeight += entry.info->weight;
+				else
+					++m_activeCacheQueries;
+			}
 
+			outPrevStatus = entry.status;
 			entry.status = ProcessStatus_Running;
 			return i;
 		}
@@ -280,8 +407,9 @@ namespace uba
 	{
 		while (true)
 		{
+			ProcessStatus prevStatus;
 			SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
-			u32 indexToRun = PopProcess(isLocal);
+			u32 indexToRun = PopProcess(isLocal, prevStatus);
 			if (indexToRun == ~0u)
 				return false;
 
@@ -307,13 +435,41 @@ namespace uba
 			exitInfo->isLocal = isLocal;
 			exitInfo->processIndex = indexToRun;
 
-			ProcessStartInfo si = info->startInfo;
+			ProcessStartInfo si = *info;
 			si.userData = exitInfo;
 			si.exitedFunc = [](void* userData, const ProcessHandle& handle)
 				{
 					auto ei = (ExitProcessInfo*)userData;
 					ei->scheduler->ProcessExited(ei, handle);
 				};
+
+			UBA_ASSERT(si.rules);
+			if (m_writeToCache && si.rules->IsCacheable())
+				si.trackInputs = true;
+			else if (prevStatus == ProcessStatus_QueuedForCache)
+			{
+				// TODO: This should not use work manager since it is mostly waiting on network
+				m_session.GetServer().AddWork([this, exitInfo]()
+					{
+						ProcessStartInfo& si = *exitInfo->startInfo;
+						u64 startTime = GetTime();
+
+						CacheResult cacheResult;
+						if (m_cacheClient->FetchFromCache(cacheResult, *m_rootPaths[0], 0, si) && cacheResult.hit)
+						{
+							auto process = new CachedProcess(si);
+							ProcessHandle ph(process);
+							exitInfo->startInfo->queryCacheTime = GetTime() - startTime;
+							ExitProcess(*exitInfo, *process, 0, true);
+						}
+						else
+						{
+							exitInfo->startInfo->queryCacheTime = GetTime() - startTime;
+							HandleCacheMissed(exitInfo);
+						}
+					}, 1, TC("DownloadCache"));
+				return true;
+			}
 
 			if (isLocal)
 				m_session.RunProcess(si, true, canDetour);
@@ -333,7 +489,7 @@ namespace uba
 		if (!ei) // If null, process has already exited from some other thread
 			return false;
 
-		ExitProcess(*ei, process, prevExitCode);
+		ExitProcess(*ei, process, prevExitCode, false);
 
 		ei->startInfo = nullptr;
 		ei->processIndex = ~0u;
@@ -344,10 +500,12 @@ namespace uba
 
 		while (true)
 		{
+			ProcessStatus prevStatus;
 			SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
-			u32 indexToRun = PopProcess(isLocal);
+			u32 indexToRun = PopProcess(isLocal, prevStatus);
 			if (indexToRun == ~0u)
 				return false;
+			UBA_ASSERT(prevStatus != ProcessStatus_QueuedForCache);
 			auto& processEntry = m_processEntries[indexToRun];
 			auto newInfo = processEntry.info;
 			bool wasSkipped = processEntry.status == ProcessStatus_Skipped;
@@ -366,24 +524,39 @@ namespace uba
 			ei->startInfo = newInfo;
 			ei->processIndex = indexToRun;
 
-			auto& si = newInfo->startInfo;
-			UBA_ASSERT(Equals(currentStartInfo.application, si.application));
+			auto& si = *newInfo;
 			outNextProcess.arguments = si.arguments;
 			outNextProcess.workingDir = si.workingDir;
 			outNextProcess.description = si.description;
 			outNextProcess.logFile = si.logFile;
+
+			#if UBA_DEBUG
+			auto PrepPath = [this](StringBufferBase& out, const ProcessStartInfo& psi)
+				{
+					if (IsAbsolutePath(psi.application))
+						FixPath(psi.application, nullptr, 0, out);
+					else
+						SearchPathForFile(m_session.GetLogger(), out, psi.application, psi.workingDir);
+				};
+			StringBuffer<> temp1;
+			StringBuffer<> temp2;
+			PrepPath(temp1, currentStartInfo);
+			PrepPath(temp2, si);
+			UBA_ASSERTF(temp1.Equals(temp2.data), TC("%s vs %s"), temp1.data, temp2.data);
+			#endif
+			
 			return true;
 		}
 	}
 
-	void Scheduler::ExitProcess(ExitProcessInfo& info, Process& process, u32 exitCode)
+	void Scheduler::ExitProcess(ExitProcessInfo& info, Process& process, u32 exitCode, bool fromCache)
 	{
 		ProcessHandle ph;
 		ph.m_process = &process;
 
 		auto si = info.startInfo;
-		if (auto func = si->startInfo.exitedFunc)
-			func(si->startInfo.userData, ph);
+		if (auto func = si->exitedFunc)
+			func(si->userData, ph);
 
 		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		auto& entry = m_processEntries[info.processIndex];
@@ -392,7 +565,12 @@ namespace uba
 		entry.info = nullptr;
 		entry.dependencies = nullptr;
 		if (info.isLocal)
-			m_activeLocalProcessWeight -= si->weight;
+		{
+			if (fromCache)
+				--m_activeCacheQueries;
+			else
+				m_activeLocalProcessWeight -= si->weight;
+		}
 		lock.Leave();
 
 		UpdateActiveProcessCounter(info.isLocal, -1);
@@ -401,21 +579,27 @@ namespace uba
 		delete[] dependencies;
 		delete si;
 
+		if (m_writeToCache && exitCode == 0)
+		{
+			// TODO: Read dep.json file
+			UBA_ASSERTF(false, TC("Not implemented"));
+		}
+
 		ph.m_process = nullptr;
 	}
 
 	void Scheduler::SkipProcess(ProcessStartInfo2& info)
 	{
-		ProcessHandle ph(new SkippedProcess(info.startInfo));
-		if (auto func = info.startInfo.exitedFunc)
-			func(info.startInfo.userData, ph);
+		ProcessHandle ph(new SkippedProcess(info));
+		if (auto func = info.exitedFunc)
+			func(info.userData, ph);
 		FinishProcess(ph);
 	}
 
 	void Scheduler::UpdateQueueCounter(int offset)
 	{
 		m_queuedProcesses += u32(offset);
-		m_session.UpdateStatus(1, 1, TC("Queue"), 4, StringBuffer<32>().Appendf(TC("%u"), m_queuedProcesses.load()).data, LogEntryType_Info);
+		m_session.UpdateProgress(m_queuedProcesses + m_activeLocalProcesses + m_activeRemoteProcesses + m_finishedProcesses, m_finishedProcesses, 0);
 	}
 
 	void Scheduler::UpdateActiveProcessCounter(bool isLocal, int offset)
@@ -424,7 +608,6 @@ namespace uba
 			m_activeLocalProcesses += u32(offset);
 		else
 			m_activeRemoteProcesses += u32(offset);
-		m_session.UpdateStatus(2, 1, TC("Active"), 4, StringBuffer<32>().Appendf(TC("Local %u Remote %u"), m_activeLocalProcesses.load(), m_activeRemoteProcesses.load()).data, LogEntryType_Info);
 	}
 
 	void Scheduler::FinishProcess(const ProcessHandle& handle)
@@ -432,52 +615,7 @@ namespace uba
 		++m_finishedProcesses;
 		if (m_processFinished)
 			m_processFinished(handle);
-		m_session.UpdateStatus(3, 1, TC("Finished"), 4, StringBuffer<32>().Appendf(TC("%u"), m_finishedProcesses.load()).data, LogEntryType_Info);
-	}
-
-	template<typename LineFunc>
-	bool ReadLines(Logger& logger, const tchar* file, const LineFunc& lineFunc)
-	{
-		FileHandle handle;
-		if (!OpenFileSequentialRead(logger, file, handle))
-			return logger.Error(TC("Failed to open file %s"), file);
-		auto fg = MakeGuard([&]() { CloseFile(file, handle); });
-		u64 fileSize = 0;
-		if (!GetFileSizeEx(fileSize, handle))
-			return logger.Error(TC("Failed to get size of file %s"), file);
-		char buffer[512];
-		u64 left = fileSize;
-		std::string line;
-		while (left)
-		{
-			u64 toRead = Min(left, u64(sizeof(buffer)));
-			left -= toRead;
-			if (!ReadFile(logger, file, handle, buffer, toRead))
-				return false;
-
-			u64 start = 0;
-			for (u64 i=0;i!=toRead;++i)
-			{
-				if (buffer[i] != '\n')
-					continue;
-				u64 end = i;
-				if (i > 0 && buffer[i-1] == '\r')
-					--end;
-				line.append(buffer + start, end - start);
-				if (!line.empty())
-					if (!lineFunc(TString(line.begin(), line.end())))
-						return false;
-				line.clear();
-				start = i + 1;
-			}
-			if (toRead && buffer[toRead - 1] == '\r')
-				--toRead;
-			line.append(buffer + start, toRead - start);
-		}
-		if (!line.empty())
-			if (!lineFunc(TString(line.begin(), line.end())))
-				return false;
-		return true;
+		m_session.UpdateProgress(m_queuedProcesses + m_activeLocalProcesses + m_activeRemoteProcesses + m_finishedProcesses, m_finishedProcesses, 0);
 	}
 
 	bool Scheduler::EnqueueFromFile(const tchar* yamlFilename)
@@ -506,7 +644,8 @@ namespace uba
 				StringBuffer<> logFile;
 				if (true)
 				{
-					GetNameFromArguments(logFile, si.arguments, true);
+					static u32 processId = 1; // TODO: This should be done in a better way.. or not at all?
+					GenerateNameForProcess(logFile, si.arguments, ++processId);
 					logFile.Append(TC(".log"));
 					si.logFile = logFile.data;
 				};
@@ -529,6 +668,15 @@ namespace uba
 				weight = 1.0f;
 			};
 
+		enum InsideArray
+		{
+			InsideArray_None,
+			InsideArray_CacheRoots,
+			InsideArray_Processes,
+		};
+
+		InsideArray insideArray = InsideArray_None;
+
 		auto readLine = [&](const TString& line)
 			{
 				const tchar* keyStart = line.c_str();
@@ -536,69 +684,113 @@ namespace uba
 					++keyStart;
 				if (!*keyStart)
 					return true;
-				const tchar* colon = TStrchr(keyStart, ':');
-				if (!colon)
-					return false;
-				if (*keyStart == '-')
-				{
-					keyStart += 2;
-					if (!app.empty())
-						enqueueProcess();
-				}
+				u32 indentation = u32(keyStart - line.c_str());
+
+				if (insideArray != InsideArray_None && !indentation)
+					insideArray = InsideArray_None;
 
 				StringBuffer<32> key;
-				key.Append(keyStart, colon - keyStart);
-				const tchar* valueStart = colon + 1;
-				while (*valueStart && *valueStart == ' ')
-					++valueStart;
+				const tchar* valueStart = nullptr;
 
-				if (key.Equals(TC("environment")))
+				if (*keyStart == '-')
 				{
-					#if PLATFORM_WINDOWS
-					SetEnvironmentVariable(TC("PATH"), valueStart);
-					#endif
+					UBA_ASSERT(insideArray != InsideArray_None);
+					valueStart = keyStart + 2;
 				}
-				else if (key.Equals(TC("processes")))
-					return true;
-				else if (key.Equals(TC("app")))
-					app = valueStart;
-				else if (key.Equals(TC("arg")))
-					arg = valueStart;
-				else if (key.Equals(TC("dir")))
-					dir = valueStart;
-				else if (key.Equals(TC("desc")))
-					desc = valueStart;
-				else if (key.Equals(TC("detour")))
-					allowDetour = !Equals(valueStart, TC("false"));
-				else if (key.Equals(TC("remote")))
-					allowRemote = !Equals(valueStart, TC("false"));
-				else if (key.Equals(TC("weight")))
-					StringBuffer<32>(valueStart).Parse(weight);
-				else if (key.Equals(TC("dep")))
+				else
 				{
-					const tchar* depStart = TStrchr(valueStart, '[');
-					if (!depStart)
+					const tchar* colon = TStrchr(keyStart, ':');
+					if (!colon)
 						return false;
-					++depStart;
-					StringBuffer<32> depStr;
-					for (const tchar* it = depStart; *it; ++it)
-					{
-						if (*it != ']' && *it != ',')
-						{
-							if (*it != ' ')
-								depStr.Append(*it);
-							continue;
-						}
-						u32 depIndex;
-						if (!depStr.Parse(depIndex))
-							return false;
-						depStr.Clear();
-						deps.push_back(depIndex);
+					key.Append(keyStart, colon - keyStart);
+					valueStart = colon + 1;
+					while (*valueStart && *valueStart == ' ')
+						++valueStart;
+				}
 
-						if (!*it)
-							break;
-						depStart = it + 1;
+				switch (insideArray)
+				{
+				case InsideArray_None:
+				{
+					if (key.Equals(TC("environment")))
+					{
+						#if PLATFORM_WINDOWS
+						SetEnvironmentVariable(TC("PATH"), valueStart);
+						#endif
+						return true;
 					}
+					if (key.Equals(TC("cacheroots")))
+					{
+						insideArray = InsideArray_CacheRoots;
+						return true;
+					}
+					if (key.Equals(TC("processes")))
+					{
+						insideArray = InsideArray_Processes;
+						return true;
+					}
+					return true;
+				}
+				case InsideArray_CacheRoots:
+				{
+					auto& rootPaths = *m_rootPaths.emplace_back(new RootPaths());
+					if (Equals(valueStart, TC("SystemRoots")))
+						rootPaths.RegisterSystemRoots(logger);
+					else
+						rootPaths.RegisterRoot(logger, valueStart);
+					return true;
+				}
+				case InsideArray_Processes:
+				{
+					if (*keyStart == '-')
+					{
+						keyStart += 2;
+						if (!app.empty())
+							enqueueProcess();
+					}
+
+					if (key.Equals(TC("app")))
+						app = valueStart;
+					else if (key.Equals(TC("arg")))
+						arg = valueStart;
+					else if (key.Equals(TC("dir")))
+						dir = valueStart;
+					else if (key.Equals(TC("desc")))
+						desc = valueStart;
+					else if (key.Equals(TC("detour")))
+						allowDetour = !Equals(valueStart, TC("false"));
+					else if (key.Equals(TC("remote")))
+						allowRemote = !Equals(valueStart, TC("false"));
+					else if (key.Equals(TC("weight")))
+						StringBuffer<32>(valueStart).Parse(weight);
+					else if (key.Equals(TC("dep")))
+					{
+						const tchar* depStart = TStrchr(valueStart, '[');
+						if (!depStart)
+							return false;
+						++depStart;
+						StringBuffer<32> depStr;
+						for (const tchar* it = depStart; *it; ++it)
+						{
+							if (*it != ']' && *it != ',')
+							{
+								if (*it != ' ')
+									depStr.Append(*it);
+								continue;
+							}
+							u32 depIndex;
+							if (!depStr.Parse(depIndex))
+								return false;
+							depStr.Clear();
+							deps.push_back(depIndex);
+
+							if (!*it)
+								break;
+							depStart = it + 1;
+						}
+					}
+					return true;
+				}
 				}
 				return true;
 			};

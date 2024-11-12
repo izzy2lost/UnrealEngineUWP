@@ -3,6 +3,7 @@
 #include "VirtualTexturingEditorModule.h"
 
 #include "IPlacementModeModule.h"
+#include "MeshPaintVirtualTextureThumbnailRenderer.h"
 #include "PropertyEditorModule.h"
 #include "RuntimeVirtualTextureAssetTypeActions.h"
 #include "RuntimeVirtualTextureBuildStreamingMips.h"
@@ -12,6 +13,7 @@
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "VirtualTextureBuilderAssetTypeActions.h"
 #include "VirtualTextureBuilderThumbnailRenderer.h"
+#include "VT/MeshPaintVirtualTexture.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "VT/RuntimeVirtualTextureVolume.h"
 #include "VT/VirtualTextureBuilder.h"
@@ -59,6 +61,7 @@ void FVirtualTexturingEditorModule::StartupModule()
 
 	UThumbnailManager::Get().RegisterCustomRenderer(URuntimeVirtualTexture::StaticClass(), URuntimeVirtualTextureThumbnailRenderer::StaticClass());
 	UThumbnailManager::Get().RegisterCustomRenderer(UVirtualTextureBuilder::StaticClass(), UVirtualTextureBuilderThumbnailRenderer::StaticClass());
+	UThumbnailManager::Get().RegisterCustomRenderer(UMeshPaintVirtualTexture::StaticClass(), UMeshPaintVirtualTextureThumbnailRenderer::StaticClass());
 }
 
 void FVirtualTexturingEditorModule::ShutdownModule()

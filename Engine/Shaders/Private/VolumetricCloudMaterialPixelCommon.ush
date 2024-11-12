@@ -43,7 +43,8 @@ FCloudLayerParameters GetCloudLayerParams(
 
 // Function to update the material parameter structure for an evaluation
 void UpdateMaterialCloudParam(inout FMaterialPixelParameters MaterialParameters,
-                              float3 TranslatedWorldPosition, in ViewState InputView, in FCloudLayerParameters CloudLayerParams,
+                              float3 TranslatedWorldPosition, float3 WorldPositionDDX, float3 WorldPositionDDY,
+							  in ViewState InputView, in FCloudLayerParameters CloudLayerParams,
                               in float ShadowSampleDistance, in float EmptySpaceSkippingSliceDepth)
 {
 	MaterialParameters.AbsoluteWorldPosition = DFFastSubtract(TranslatedWorldPosition, InputView.PreViewTranslation);
@@ -52,7 +53,9 @@ void UpdateMaterialCloudParam(inout FMaterialPixelParameters MaterialParameters,
 	//MaterialParameters.WorldPosition_NoOffsets;				// TODO
 	//MaterialParameters.LWCData.WorldPosition_NoOffsets;	// TODO
 	//MaterialParameters.WorldPosition_NoOffsets_CamRelative;	// TODO
-	MaterialParameters.CameraVector = normalize(InputView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	MaterialParameters.CameraVector = select(IsOrthoProjection(InputView), InputView.ViewForward, normalize(InputView.TranslatedWorldCameraOrigin - TranslatedWorldPosition));
+	MaterialParameters.WorldPosition_DDX = WorldPositionDDX;
+	MaterialParameters.WorldPosition_DDY = WorldPositionDDY;
 
 	float3 AbsoluteWorldPositionTruncated = TranslatedWorldPosition - DFHackToFloat(InputView.PreViewTranslation);
 	float CloudSampleAltitude = length(AbsoluteWorldPositionTruncated - CloudLayerParams.CloudLayerCenter);

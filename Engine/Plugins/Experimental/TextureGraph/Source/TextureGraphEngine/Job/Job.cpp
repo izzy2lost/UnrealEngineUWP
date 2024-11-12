@@ -280,7 +280,7 @@ BufferDescriptor Job::GetCombinedDesc(BufferDescriptor& ArgsDescCombined, size_t
 		JobArgPtr Arg = Args[ArgIndex];
 		const BufferDescriptor* ArgDesc = Arg->GetDescriptor();
 
-		if (ArgDesc)
+		if (ArgDesc && !Arg->IgnoreDesc())
 		{
 			Descs.push_back(*ArgDesc);
 		}
@@ -662,7 +662,7 @@ bool Job::CheckCulled(JobRunInfo InRunInfo)
 
 	/// Nothing to do over here. We just call the BeginNative and EndNative here
 	/// so that the job collects timing information
-	BeginNative(RunInfo);
+	BeginNative(InRunInfo);
 	EndNative();
 
 	/// Make sure that the promise is resolved over here, if the job is culled
@@ -801,7 +801,7 @@ AsyncPrepareResult Job::PrepareTargets(JobBatch* Batch)
 			}
 			else
 			{
-				UE_LOG(LogJob, Log, TEXT("Transform: %s (Tile: %d, %d) => %s"), *Transform->GetName(), (int32)TileX, (int32)TileY, *TileBlob->Name());
+				UE_LOG(LogJob, VeryVerbose, TEXT("Transform: %s (Tile: %d, %d) => %s"), *Transform->GetName(), (int32)TileX, (int32)TileY, *TileBlob->Name());
 				TileInvalidationMatrix[TileX][TileY] = false;
 			}
 
@@ -923,17 +923,18 @@ AsyncTransformResultPtr Job::ExecTransform(JobRunInfo InRunInfo, BlobTransformPt
 
 	if (TransformObj->GeneratesData())
 	{
-		check(Result && Result->IsPromise());
-		TiledBlob_PromisePtr result = GetResultPromise();
-
 		TransArgs.Target = GetResultRef();
 
-		if (TileX >= 0 && TileY >= 0 && result->TiledTarget())
+		if (TileX >= 0 && TileY >= 0 && Result->TiledTarget())
 		{
-			BlobRef TileResult = result->GetTile(TileX, TileY);
+			BlobRef TileResult = Result->GetTile(TileX, TileY);
 			
 			/// This should've been prepared in the PrepareResources function
 			check(TileResult);
+
+			/// If the tile result has already been finalised then we don't do anything to it
+			if (TileResult->IsFinalised())
+				return cti::make_ready_continuable(std::make_shared<TransformResult>());
 
 			TransArgs.Target = TileResult.get();
 
@@ -1042,9 +1043,10 @@ AsyncJobResultPtr Job::Run(JobRunInfo InRunInfo)
 //////////////////////////////////////////////////////////////////////////
 AsyncInt Job::BeginNative(JobRunInfo InRunInfo)
 {
+	RunInfo = InRunInfo;
+
 	UE_LOG(LogJob, VeryVerbose, TEXT("Job::BeginNative: %llu.%llu.%s"), RunInfo.Batch->GetBatchId(), Id, *Transform->GetName());
 
-	RunInfo = InRunInfo;
 	Stats.BeginNativeTime = Util::Time();
 
 	if (bIsCulled)
@@ -1063,10 +1065,13 @@ void Job::MarkJobDone()
 
 	check((!Result || Result->IsFinalised()) && (!ResultOrg || ResultOrg->IsFinalised()));
 	if (RunInfo.Batch)
+	{
 		RunInfo.Batch->OnJobDone(this, GetJobId());
+		
+		UE_LOG(LogJob, VeryVerbose, TEXT("Job::Done: %llu.%d.%s"), RunInfo.Batch->GetBatchId(), GetJobId(), *Transform->GetName());
+	}
 
 	DeviceNativeTask::bIsDone = true;
-	UE_LOG(LogJob, VeryVerbose, TEXT("Job::Done: %llu.%d.%s"), RunInfo.Batch->GetBatchId(), GetJobId(), *Transform->GetName());
 
 	Prev.clear();
 }
@@ -1098,8 +1103,6 @@ void Job::AddResultToBlobber()
 #endif 
 
 		Result = TextureGraphEngine::GetBlobber()->AddTiledResult(TempHash, ResultOrg, CacheOpt);
-		//ResultOrg = nullptr;
-
 		check(Result && Result->IsTiled());
 	}
 }

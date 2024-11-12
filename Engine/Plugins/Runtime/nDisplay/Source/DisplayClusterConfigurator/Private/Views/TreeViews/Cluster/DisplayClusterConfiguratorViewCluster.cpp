@@ -659,8 +659,7 @@ void FDisplayClusterConfiguratorViewCluster::AddNewViewport(FVector2D PresetSize
 bool FDisplayClusterConfiguratorViewCluster::CanAddNewViewport() const
 {
 	// Can only add a new viewport if there is at least one cluster node to add it to.
-	UDisplayClusterConfigurationCluster* Cluster = ToolkitPtr.Pin()->GetEditorData()->Cluster;
-	return Cluster->Nodes.Num() > 0;
+	return UE::DisplayClusterConfiguratorClusterEditorUtils::CanAddNewViewportToToolkit(ToolkitPtr);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -10,6 +10,7 @@
 #include "DMXControlConsoleFixturePatchCellAttributeFader.h"
 #include "DMXControlConsoleFixturePatchFunctionFader.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
+#include "DMXControlConsoleMainStreamObjectVersion.h"
 #include "DMXControlConsoleRawFader.h"
 #include "DMXSubsystem.h"
 #include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
@@ -181,8 +182,7 @@ void UDMXControlConsoleFaderGroup::GenerateFromFixturePatch(UDMXEntityFixturePat
 	SubscribeToFixturePatchDelegates();
 
 	Modify();
-	SoftFixturePatchPtr = InFixturePatch;
-	CachedWeakFixturePatch = InFixturePatch;
+	FixturePatchRef = InFixturePatch;
 
 	FaderGroupName = InFixturePatch->GetDisplayName();
 	
@@ -215,10 +215,17 @@ void UDMXControlConsoleFaderGroup::GenerateFromFixturePatch(UDMXEntityFixturePat
 	OnFixturePatchChangedDelegate.Broadcast(this, InFixturePatch);
 }
 
+UDMXEntityFixturePatch* UDMXControlConsoleFaderGroup::GetFixturePatch() const
+{
+	return FixturePatchRef.GetFixturePatch();
+}
+
 void UDMXControlConsoleFaderGroup::ReloadFixturePatch()
 {
-	CachedWeakFixturePatch = SoftFixturePatchPtr.LoadSynchronous();
-	UpdateFaderGroupFromFixturePatch(CachedWeakFixturePatch.Get());
+	if (UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.GetFixturePatch())
+	{
+		UpdateFaderGroupFromFixturePatch(FixturePatch);
+	}
 }
 
 bool UDMXControlConsoleFaderGroup::HasFixturePatch() const
@@ -376,8 +383,7 @@ void UDMXControlConsoleFaderGroup::Clear()
 {
 	FaderGroupName = GetName();
 
-	SoftFixturePatchPtr.Reset();
-	CachedWeakFixturePatch.Reset();
+	FixturePatchRef = nullptr;
 	ClearElements();
 
 	OnFixturePatchChangedDelegate.Broadcast(this, nullptr);
@@ -430,27 +436,49 @@ void UDMXControlConsoleFaderGroup::PostInitProperties()
 	FaderGroupName = GetName();
 }
 
+void UDMXControlConsoleFaderGroup::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FDMXControlConsoleMainStreamObjectVersion::GUID);
+
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		// Upgrade to use a Fixture Patch Ref instead of a Soft Object Ptr.
+		// This avoids issues where Fader Groups could lose their patches in some cases.
+		if (Ar.CustomVer(FDMXControlConsoleMainStreamObjectVersion::GUID) < FDMXControlConsoleMainStreamObjectVersion::DMXControlConsoleFaderGroupUsesFixturePatchRef)
+		{
+			if (UDMXEntityFixturePatch* FixturePatch = SoftFixturePatchPtr_DEPRECATED.LoadSynchronous())
+			{
+				FixturePatchRef = FixturePatch;
+			}
+		}
+	}
+#endif // WITH_EDITOR
+}
+
 void UDMXControlConsoleFaderGroup::PostLoad()
 {
 	Super::PostLoad();
 
-	CachedWeakFaderGroupController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
-	if (!CachedWeakFaderGroupController.IsValid())
+#if WITH_EDITOR
+	// Only cleanup controllers when not with editor and not PIE or standalone
+	if (GIsEditor)
 	{
-		Destroy();
-		return;
+		CachedWeakFaderGroupController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
+		if (!CachedWeakFaderGroupController.IsValid())
+		{
+			Destroy();
+			return;
+		}
 	}
+#endif // WITH_EDITOR
 
-	if (SoftFixturePatchPtr.IsNull())
-	{
-		return;
-	}
-
-	CachedWeakFixturePatch = Cast<UDMXEntityFixturePatch>(SoftFixturePatchPtr.ToSoftObjectPath().TryLoad());
-	if (CachedWeakFixturePatch.IsValid())
+	if (UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.GetFixturePatch())
 	{
 		SubscribeToFixturePatchDelegates();	
-		UpdateFaderGroupFromFixturePatch(CachedWeakFixturePatch.Get());
+		UpdateFaderGroupFromFixturePatch(FixturePatch);
 	}
 	else
 	{
@@ -458,19 +486,6 @@ void UDMXControlConsoleFaderGroup::PostLoad()
 		Clear();
 	}
 }
-
-#if WITH_EDITOR
-void UDMXControlConsoleFaderGroup::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, SoftFixturePatchPtr))
-	{
-		CachedWeakFixturePatch = Cast<UDMXEntityFixturePatch>(SoftFixturePatchPtr.ToSoftObjectPath().TryLoad());
-	}
-}
-#endif // WITH_EDITOR
 
 void UDMXControlConsoleFaderGroup::OnFixturePatchRemovedFromLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities)
 {

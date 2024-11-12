@@ -37,6 +37,7 @@ public:
 	virtual TArray<URigVMPin*> GetAggregateInputs() const override;
 	virtual TArray<URigVMPin*> GetAggregateOutputs() const override;
 	virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const override;
+	virtual FName GetDisplayNameForPin(const FString& InPinPath) const override;
 
 	virtual bool IsOutDated() const override;
 	virtual FString GetDeprecatedMetadata() const override;
@@ -95,13 +96,11 @@ public:
 
 	virtual uint32 GetStructureHash() const override;
 
-	// allows the node to support non-native pins
-	virtual bool HasNonNativePins() const { return false; }
-
 protected:
 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const override;
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const override;
 	void EnumeratePropertiesOnHostAndStructInstance(
 		URigVMHost* InHost,
 		TSharedPtr<FStructOnScope> InInstance, 

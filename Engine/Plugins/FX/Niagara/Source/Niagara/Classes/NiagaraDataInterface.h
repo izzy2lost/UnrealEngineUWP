@@ -25,6 +25,10 @@ class FNiagaraGPUSystemTick;
 struct FNiagaraSimStageData;
 class FNiagaraSystemInstance;
 struct FNiagaraDataInterfaceHlslGenerationContext;
+class FNiagaraGPUInstanceCountManager;
+class FNiagaraGpuReadbackManager;
+
+namespace ERHIFeatureLevel { enum Type : int; }
 
 struct FNDITransformHandlerNoop
 {
@@ -289,7 +293,7 @@ protected:
 
 struct FNDIGpuComputeContext
 {
-	FNDIGpuComputeContext(FRDGBuilder& InGraphBuilder, const FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface)
+	FNDIGpuComputeContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface)
 		: GraphBuilder(InGraphBuilder)
 		, ComputeDispatchInterface(InComputeDispatchInterface)
 	{
@@ -298,16 +302,18 @@ struct FNDIGpuComputeContext
 	FRDGBuilder& GetGraphBuilder() const { return GraphBuilder; }
 	NIAGARA_API FRDGExternalAccessQueue& GetRDGExternalAccessQueue() const;
 
+	// Expose only const direct access to the DispatchInterface.
+	// For any non-const operations this and child context structs should expose only necessary and safe non const operations for that context.
 	const FNiagaraGpuComputeDispatchInterface& GetComputeDispatchInterface() const { return ComputeDispatchInterface; }
 
 protected:
 	FRDGBuilder& GraphBuilder;
-	const FNiagaraGpuComputeDispatchInterface& ComputeDispatchInterface;
+	FNiagaraGpuComputeDispatchInterface& ComputeDispatchInterface;
 };
 
 struct FNDIGpuComputeResetContext : public FNDIGpuComputeContext
 {
-	FNDIGpuComputeResetContext(FRDGBuilder& InGraphBuilder, const FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, FNiagaraSystemInstanceID InSystemInstanceID)
+	FNDIGpuComputeResetContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, FNiagaraSystemInstanceID InSystemInstanceID)
 		: FNDIGpuComputeContext(InGraphBuilder, InComputeDispatchInterface)
 		, SystemInstanceID(InSystemInstanceID)
 	{
@@ -321,7 +327,7 @@ protected:
 
 struct FNDIGpuComputePrePostStageContext : public FNDIGpuComputeContext
 {
-	FNDIGpuComputePrePostStageContext(FRDGBuilder& InGraphBuilder, const FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, const FNiagaraGPUSystemTick& InSystemTick, const FNiagaraComputeInstanceData& InComputeInstanceData, const FNiagaraSimStageData& InSimStageData)
+	FNDIGpuComputePrePostStageContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, const FNiagaraGPUSystemTick& InSystemTick, const FNiagaraComputeInstanceData& InComputeInstanceData, const FNiagaraSimStageData& InSimStageData)
 		: FNDIGpuComputeContext(InGraphBuilder, InComputeDispatchInterface)
 		, SystemTick(InSystemTick)
 		, ComputeInstanceData(InComputeInstanceData)
@@ -340,6 +346,8 @@ struct FNDIGpuComputePrePostStageContext : public FNDIGpuComputeContext
 
 	void SetDataInterfaceProxy(FNiagaraDataInterfaceProxy* InDataInterfaceProxy) { DataInterfaceProxy = InDataInterfaceProxy; }
 
+	FNiagaraGPUInstanceCountManager& GetInstanceCountManager()const;
+
 protected:
 	const FNiagaraGPUSystemTick& SystemTick;
 	const FNiagaraComputeInstanceData& ComputeInstanceData;
@@ -347,12 +355,25 @@ protected:
 	FNiagaraDataInterfaceProxy* DataInterfaceProxy = nullptr;
 };
 
-using FNDIGpuComputePreStageContext = FNDIGpuComputePrePostStageContext;
-using FNDIGpuComputePostStageContext = FNDIGpuComputePrePostStageContext;
+struct FNDIGpuComputePreStageContext : public FNDIGpuComputePrePostStageContext
+{
+	FNDIGpuComputePreStageContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, const FNiagaraGPUSystemTick& InSystemTick, const FNiagaraComputeInstanceData& InComputeInstanceData, const FNiagaraSimStageData& InSimStageData)
+		: FNDIGpuComputePrePostStageContext(InGraphBuilder, InComputeDispatchInterface, InSystemTick, InComputeInstanceData, InSimStageData)
+	{
+	}
+};
+
+struct FNDIGpuComputePostStageContext : public FNDIGpuComputePrePostStageContext
+{
+	FNDIGpuComputePostStageContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, const FNiagaraGPUSystemTick& InSystemTick, const FNiagaraComputeInstanceData& InComputeInstanceData, const FNiagaraSimStageData& InSimStageData)
+		: FNDIGpuComputePrePostStageContext(InGraphBuilder, InComputeDispatchInterface, InSystemTick, InComputeInstanceData, InSimStageData)
+	{
+	}
+};
 
 struct FNDIGpuComputePostSimulateContext : public FNDIGpuComputeContext
 {
-	FNDIGpuComputePostSimulateContext(FRDGBuilder& InGraphBuilder, const FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, FNiagaraSystemInstanceID InSystemInstanceID, bool InFinalPostSimulate)
+	FNDIGpuComputePostSimulateContext(FRDGBuilder& InGraphBuilder, FNiagaraGpuComputeDispatchInterface& InComputeDispatchInterface, FNiagaraSystemInstanceID InSystemInstanceID, bool InFinalPostSimulate)
 		: FNDIGpuComputeContext(InGraphBuilder, InComputeDispatchInterface)
 		, SystemInstanceID(InSystemInstanceID)
 		, bFinalPostSimulate(InFinalPostSimulate)
@@ -361,6 +382,8 @@ struct FNDIGpuComputePostSimulateContext : public FNDIGpuComputeContext
 
 	FNiagaraSystemInstanceID GetSystemInstanceID() const { return SystemInstanceID; }
 	bool IsFinalPostSimulate() const { return bFinalPostSimulate; }
+
+	FNiagaraGPUInstanceCountManager& GetInstanceCountManager()const;
 
 protected:
 	FNiagaraSystemInstanceID SystemInstanceID = FNiagaraSystemInstanceID();
@@ -699,6 +722,10 @@ public:
 	virtual bool RequiresDepthBuffer() const { return false; }
 	virtual bool RequiresEarlyViewData() const { return false; }
 	virtual bool RequiresRayTracingScene() const { return false; }
+	virtual bool RequiresCurrentFrameNDC() const { return false; }
+
+	//Returns an estimate allocation count for the GPU instance count manager. This is experimental and will likely be modified in the future.
+	virtual uint32 GetGpuCountBufferEstimate() const { return 0; }
 
 	virtual bool HasTickGroupPrereqs() const { return false; }
 	virtual ETickingGroup CalculateTickGroup(const void* PerInstanceData) const { return NiagaraFirstTickGroup; }

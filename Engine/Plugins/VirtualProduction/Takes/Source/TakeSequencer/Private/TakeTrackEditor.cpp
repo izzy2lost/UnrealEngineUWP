@@ -71,7 +71,8 @@ bool FTakeTrackEditor::ImportAnimatedProperty(const FString& InPropertyName, con
 		InPropertyName != GetDefault<UMovieSceneTakeSettings>()->MinutesName && 
 		InPropertyName != GetDefault<UMovieSceneTakeSettings>()->SecondsName && 
 		InPropertyName != GetDefault<UMovieSceneTakeSettings>()->FramesName && 
-		InPropertyName != GetDefault<UMovieSceneTakeSettings>()->SubFramesName)
+		InPropertyName != GetDefault<UMovieSceneTakeSettings>()->SubFramesName &&
+		InPropertyName != GetDefault<UMovieSceneTakeSettings>()->RateName)
 	{
 		return false;
 	}
@@ -132,6 +133,10 @@ bool FTakeTrackEditor::ImportAnimatedProperty(const FString& InPropertyName, con
 	else if (InPropertyName == GetDefault<UMovieSceneTakeSettings>()->SubFramesName)
 	{
 		TakeSection->SubFramesCurve.Set(KeyTimes, KeyFloatValues);
+	}
+	else if (InPropertyName == GetDefault<UMovieSceneTakeSettings>()->RateName)
+	{
+		TakeSection->RateCurve.Set(KeyTimes, KeyFloatValues);
 	}
 
 	TOptional<TRange<FFrameNumber> > AutoSizeRange = TakeSection->GetAutoSizeRange();

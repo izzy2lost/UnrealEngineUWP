@@ -198,6 +198,9 @@ bool FOggVorbisEncoder::EndFile(TArray<uint8>& OutBytes)
 {
 	check(PrivateState != nullptr);
 
+	// Finish handing over any compressed data.
+	PrivateState->FlushPages(OutBytes);
+
 	// Finalize the DSP analyzer:
 	vorbis_analysis_wrote(&PrivateState->DspState, 0);
 

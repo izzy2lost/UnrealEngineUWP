@@ -2,9 +2,10 @@
 
 #include "RHICore.h"
 #include "Modules/ModuleManager.h"
+#include "RHICoreNvidiaAftermath.h"
+#include "Misc/CommandLine.h"
 
 DEFINE_LOG_CATEGORY(LogRHICore);
-IMPLEMENT_MODULE(FDefaultModuleImpl, RHICore);
 
 namespace UE
 {
@@ -56,6 +57,11 @@ FRHIViewDesc::EDimension AdjustViewInfoDimensionForNarrowing(const FRHIViewDesc:
 	return ViewInfoDimension;
 }
 
+bool AllowVendorDevice()
+{
+	static const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
+	return bAllowVendorDevice;
+}
 
 } //! RHICore
 } //! UE

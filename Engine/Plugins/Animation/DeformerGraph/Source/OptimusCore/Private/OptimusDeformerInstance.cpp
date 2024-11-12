@@ -6,6 +6,7 @@
 #include "ComputeFramework/ComputeFramework.h"
 #include "ComputeWorkerInterface.h"
 #include "IOptimusPersistentBufferProvider.h"
+#include "IOptimusValueProvider.h"
 #include "DataInterfaces/OptimusDataInterfaceGraph.h"
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
 #include "OptimusComputeGraph.h"
@@ -347,6 +348,8 @@ void UOptimusDeformerInstance::SetInstanceSettings(UOptimusDeformerInstanceSetti
 
 void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 {
+	const EMeshDeformerOutputBuffer PreviousOutputBuffer = GetOutputBuffers();
+	
 	// If we're doing a recompile, ditch all stored render resources.
 	ReleaseResources();
 
@@ -377,6 +380,10 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 	
 	// Create the persistent buffer pool
 	BufferPool = MakeShared<FOptimusPersistentBufferPool>();
+	
+	// Create local storage for deformer graph constants/variables
+	ValueMap = InDeformer->ValueMap;
+	DataInterfacePropertyOverrideMap = InDeformer->DataInterfacePropertyOverrideMap;
 	
 	// (Re)Create and bind data providers.
 	ComputeGraphExecInfos.Reset();
@@ -434,33 +441,16 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 		}
 	}
 	
-	// Create local storage for deformer graph variables.
-	Variables = NewObject<UOptimusVariableContainer>(this);
-	Variables->Descriptions.Reserve(InDeformer->GetVariables().Num());
-	TSet<const UOptimusVariableDescription*> Visited;
-	for (const UOptimusVariableDescription* VariableDescription : InDeformer->GetVariables())
-	{
-		if (!VariableDescription)
-		{
-			continue;
-		}
-		if (Visited.Contains(VariableDescription))
-		{
-			continue;
-		}
-		Visited.Add(VariableDescription);
-		
-		UOptimusVariableDescription* VariableDescriptionCopy = NewObject<UOptimusVariableDescription>();
-		VariableDescriptionCopy->Guid = VariableDescription->Guid;
-		VariableDescriptionCopy->VariableName = VariableDescription->VariableName;
-		VariableDescriptionCopy->DataType = VariableDescription->DataType;
-		VariableDescriptionCopy->DefaultValue = nullptr; // No need to copy the default value.
-		VariableDescriptionCopy->ValueData = VariableDescription->ValueData;
-		Variables->Descriptions.Add(VariableDescriptionCopy);
-	}
 
 	if (UMeshComponent* Ptr = MeshComponent.Get())
 	{
+		// In case we are writing to different buffers, notify the mesh component such that it can recreate render state and allocate necessary
+		// passthrough vertex factories
+		const EMeshDeformerOutputBuffer CurrentOutputBuffer = GetOutputBuffers();
+		if (CurrentOutputBuffer != PreviousOutputBuffer)
+		{
+			Ptr->MarkRenderStateDirty();
+		}
 		Ptr->MarkRenderDynamicDataDirty();
 	}
 }
@@ -469,6 +459,27 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 void UOptimusDeformerInstance::SetCanBeActive(bool bInCanBeActive)
 {
 	bCanBeActive = bInCanBeActive;
+}
+
+FOptimusValueContainerStruct UOptimusDeformerInstance::GetDataInterfacePropertyOverride(const UComputeDataInterface* DataInterface, FName PinName)
+{
+	if (const FOptimusDataInterfacePropertyOverrideInfo* OverrideInfoPtr = DataInterfacePropertyOverrideMap.Find(DataInterface))
+	{
+		if (const FOptimusValueIdentifier* Overrider = OverrideInfoPtr->PinNameToValueIdMap.Find(PinName))
+		{
+			return ValueMap[*Overrider].Value;
+		}
+	}
+
+	// No override
+	return {};
+}
+
+const FShaderValueContainer& UOptimusDeformerInstance::GetShaderValue(
+	const FOptimusValueIdentifier& InValueId
+	) const
+{
+	return ValueMap[InValueId].ShaderValue;
 }
 
 void UOptimusDeformerInstance::AllocateResources()
@@ -494,7 +505,7 @@ void UOptimusDeformerInstance::ReleaseResources()
 	}
 }
 
-void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
+void UOptimusDeformerInstance::EnqueueWork(UMeshDeformerInstance::FEnqueueWorkDesc const& InDesc)
 {
 	// Convert execution group enum to ComputeTaskExecutionGroup name.
 	FName ExecutionGroupName;
@@ -541,7 +552,7 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 			{
 				if (Info.GraphType == EOptimusNodeGraphType::Update || GraphsToRun.Contains(Info.GraphName))
 				{
-					bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, InDesc.FallbackDelegate, this);
+					bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, InDesc.FallbackDelegate, this, GraphSortPriorityOffset);
 				}
 			}
 		}
@@ -563,73 +574,208 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 	}
 }
 
+EMeshDeformerOutputBuffer UOptimusDeformerInstance::GetOutputBuffers() const
+{
+	EMeshDeformerOutputBuffer Result = EMeshDeformerOutputBuffer::None;
+
+	for (const FOptimusDeformerInstanceExecInfo& ExecInfo : ComputeGraphExecInfos)
+	{
+		if (const UOptimusComputeGraph* ComputeGraph = Cast<UOptimusComputeGraph>(ExecInfo.ComputeGraph))
+		{
+			Result |= ComputeGraph->GetOutputBuffers();
+		}
+	}
+
+	return Result;
+}
+
 namespace
 {
 	template <typename T>
-	bool SetVariableValue(UOptimusVariableContainer const* InVariables, FName InVariableName, FName InTypeName, T const& InValue)
+	bool SetValue(TMap<FOptimusValueIdentifier, FOptimusValueDescription>& InValueMap, const FOptimusValueIdentifier& InValueId, FName InTypeName, T const& InValue)
 	{
 		FOptimusDataTypeHandle WantedType = FOptimusDataTypeRegistry::Get().FindType(InTypeName);
-		for (UOptimusVariableDescription* VariableDesc : InVariables->Descriptions)
+
+		if (FOptimusValueDescription* Description = InValueMap.Find(InValueId))
 		{
-			if (VariableDesc->VariableName == InVariableName && VariableDesc->DataType == WantedType)
+			if (Description->DataType == WantedType)
 			{
 				TUniquePtr<FProperty> Property(WantedType->CreateProperty(nullptr, NAME_None));
 				if (ensure(Property->GetSize() == sizeof(T)))
 				{
 					const uint8* ValueBytes = reinterpret_cast<const uint8*>(&InValue);
-					FShaderValueType::FValue ValueResult = WantedType->MakeShaderValue();
-					WantedType->ConvertPropertyValueToShader(TArrayView<const uint8>(ValueBytes, sizeof(T)), ValueResult);
-					VariableDesc->ValueData = MoveTemp(ValueResult.ShaderValue);
+					TArrayView<const uint8> ValueView(ValueBytes, sizeof(T));
+					if (Description->ValueUsage == EOptimusValueUsage::GPU)
+					{
+						WantedType->ConvertPropertyValueToShader(ValueView, Description->ShaderValue);
+					}
+					
+					if (Description->ValueUsage == EOptimusValueUsage::CPU)
+					{
+						Description->Value.SetValue(Description->DataType, ValueView);
+					}
 				}
-
-				return true;
+				
+				return true;	
 			}
 		}
 
 		return false;
+	}
+	
+	template <typename T>
+	bool SetVariableValue(TMap<FOptimusValueIdentifier, FOptimusValueDescription>& InValueMap, FName InVariableName, FName InTypeName, T const& InValue)
+	{
+		return SetValue(InValueMap, {EOptimusValueType::Variable, InVariableName}, InTypeName, InValue);
 	}
 }
 
 
 bool UOptimusDeformerInstance::SetBoolVariable(FName InVariableName, bool InValue)
 {
-	return SetVariableValue(Variables, InVariableName, FBoolProperty::StaticClass()->GetFName(), InValue);
+	return SetVariableValue(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(*FBoolProperty::StaticClass()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetBoolArrayVariable(FName InVariableName, const TArray<bool>& InValue)
+{
+	return SetVariableValue(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(*FBoolProperty::StaticClass()), InValue);
 }
 
 bool UOptimusDeformerInstance::SetIntVariable(FName InVariableName, int32 InValue)
 {
-	return SetVariableValue<int32>(Variables, InVariableName, FIntProperty::StaticClass()->GetFName(), InValue);
+	return SetVariableValue<int32>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(*FIntProperty::StaticClass()), InValue);
 }
+
+bool UOptimusDeformerInstance::SetIntArrayVariable(FName InVariableName, const TArray<int32>& InValue)
+{
+	return SetVariableValue<TArray<int32>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(*FIntProperty::StaticClass()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetInt2Variable(FName InVariableName, const FIntPoint& InValue)
+{
+	return SetVariableValue<FIntPoint>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FIntPoint>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetInt2ArrayVariable(FName InVariableName, const TArray<FIntPoint>& InValue)
+{
+	return SetVariableValue<TArray<FIntPoint>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FIntPoint>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetInt3Variable(FName InVariableName, const FIntVector& InValue)
+{
+	return SetVariableValue<FIntVector>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FIntVector>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetInt3ArrayVariable(FName InVariableName, const TArray<FIntVector>& InValue)
+{
+	return SetVariableValue<TArray<FIntVector>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FIntVector>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetInt4Variable(FName InVariableName, const FIntVector4& InValue)
+{
+	return SetVariableValue<FIntVector4>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FIntVector4>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetInt4ArrayVariable(FName InVariableName, const TArray<FIntVector4>& InValue)
+{
+	return SetVariableValue<TArray<FIntVector4>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FIntVector4>::Get()), InValue);
+}
+
 
 bool UOptimusDeformerInstance::SetFloatVariable(FName InVariableName, double InValue)
 {
-	if (SetVariableValue<double>(Variables, InVariableName, FDoubleProperty::StaticClass()->GetFName(), InValue))
+	if (SetVariableValue<double>(ValueMap, InVariableName, FDoubleProperty::StaticClass()->GetFName(), InValue))
 	{
 		return true;
 	}
 	
 	// Fall back on float
-	return SetVariableValue<float>(Variables, InVariableName, FFloatProperty::StaticClass()->GetFName(), static_cast<float>(InValue));
+	return SetVariableValue<float>(ValueMap, InVariableName, FFloatProperty::StaticClass()->GetFName(), static_cast<float>(InValue));
+}
+
+bool UOptimusDeformerInstance::SetFloatArrayVariable(FName InVariableName, const TArray<double>& InValue)
+{
+	return SetVariableValue<TArray<double>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(FDoubleProperty::StaticClass()->GetFName()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetVector2Variable(FName InVariableName, const FVector2D& InValue)
+{
+	return SetVariableValue<FVector2D>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FVector2D>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetVector2ArrayVariable(FName InVariableName, const TArray<FVector2D>& InValue)
+{
+	return SetVariableValue<TArray<FVector2D>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FVector2D>::Get()), InValue);
 }
 
 bool UOptimusDeformerInstance::SetVectorVariable(FName InVariableName, const FVector& InValue)
 {
-	return SetVariableValue<FVector>(Variables, InVariableName, "FVector", InValue);
+	return SetVariableValue<FVector>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FVector>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetVectorArrayVariable(FName InVariableName, const TArray<FVector>& InValue)
+{
+	return SetVariableValue<TArray<FVector>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FVector>::Get()), InValue);
 }
 
 bool UOptimusDeformerInstance::SetVector4Variable(FName InVariableName, const FVector4& InValue)
 {
-	return SetVariableValue<FVector4>(Variables, InVariableName, "FVector4", InValue);
+	return SetVariableValue<FVector4>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FVector4>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetVector4ArrayVariable(FName InVariableName, const TArray<FVector4>& InValue)
+{
+	return SetVariableValue<TArray<FVector4>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FVector4>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetLinearColorVariable(FName InVariableName, const FLinearColor& InValue)
+{
+	return SetVariableValue<FLinearColor>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FLinearColor>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetLinearColorArrayVariable(FName InVariableName, const TArray<FLinearColor>& InValue)
+{
+	return SetVariableValue<TArray<FLinearColor>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FLinearColor>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetQuatVariable(FName InVariableName, const FQuat& InValue)
+{
+	return SetVariableValue<FQuat>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FQuat>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetQuatArrayVariable(FName InVariableName, const TArray<FQuat>& InValue)
+{
+	return SetVariableValue<TArray<FQuat>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FQuat>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetRotatorVariable(FName InVariableName, const FRotator& InValue)
+{
+	return SetVariableValue<FRotator>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FRotator>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetRotatorArrayVariable(FName InVariableName, const TArray<FRotator>& InValue)
+{
+	return SetVariableValue<TArray<FRotator>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FRotator>::Get()), InValue);
 }
 
 bool UOptimusDeformerInstance::SetTransformVariable(FName InVariableName, const FTransform& InValue)
 {
-	return SetVariableValue<FTransform>(Variables, InVariableName, "FTransform", InValue);
+	return SetVariableValue<FTransform>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(TBaseStructure<FTransform>::Get()), InValue);
 }
 
-const TArray<UOptimusVariableDescription*>& UOptimusDeformerInstance::GetVariables() const
+bool UOptimusDeformerInstance::SetTransformArrayVariable(FName InVariableName, const TArray<FTransform>& InValue)
 {
-	return Variables->Descriptions;
+	return SetVariableValue<TArray<FTransform>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(TBaseStructure<FTransform>::Get()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetNameVariable(FName InVariableName, const FName& InValue)
+{
+	return SetVariableValue<FName>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetTypeName(*FNameProperty::StaticClass()), InValue);
+}
+
+bool UOptimusDeformerInstance::SetNameArrayVariable(FName InVariableName, const TArray<FName>& InValue)
+{
+	return SetVariableValue<TArray<FName>>(ValueMap, InVariableName, FOptimusDataTypeRegistry::GetArrayTypeName(*FNameProperty::StaticClass()), InValue);
 }
 
 
@@ -649,21 +795,24 @@ bool UOptimusDeformerInstance::EnqueueTriggerGraph(FName InTriggerGraphName)
 }
 
 
-void UOptimusDeformerInstance::SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue)
+void UOptimusDeformerInstance::SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, FOptimusValueContainerStruct const& InValue)
 {
-	// Poke constants into the UGraphDataProvider objects.
 	// This is an editor only operation when constant nodes are edited in the graph and we want to see the result without a full compile step.
-	// Not sure that this is the best approach, or whether to store constants on the UOptimusDeformerInstance like variables?
-	for (FOptimusDeformerInstanceExecInfo& ExecInfo : ComputeGraphExecInfos)
+	if (IOptimusValueProvider* ValueProvider = Cast<IOptimusValueProvider>(InSourceObject.LoadSynchronous()))
 	{
-		TArray< TObjectPtr<UComputeDataProvider> >& DataProviders = ExecInfo.ComputeGraphInstance.GetDataProviders();
-		for (UComputeDataProvider* DataProvider : DataProviders)
+		if (FOptimusValueDescription* Description = ValueMap.Find(ValueProvider->GetValueIdentifier()))
 		{
-			if (UOptimusGraphDataProvider* GraphDataProvider = Cast<UOptimusGraphDataProvider>(DataProvider))
+			check(Description->DataType == ValueProvider->GetValueDataType());
+			
+			if (Description->ValueUsage == EOptimusValueUsage::CPU)
 			{
-				GraphDataProvider->SetConstant(InSourceObject, InValue);
-				break;
+				Description->Value = InValue;
 			}
-		}
+			
+			if (Description->ValueUsage == EOptimusValueUsage::GPU)
+			{
+				Description->ShaderValue = InValue.GetShaderValue(ValueProvider->GetValueDataType());
+			}
+		}	
 	}
 }

@@ -13,9 +13,8 @@
 #include "OpenXRCore.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
+#include "Misc/MessageDialog.h"
 
-
-DEFINE_LOG_CATEGORY_STATIC(LogXRScribeEmulate, Log, All);
 
 // TODO
 // * useful error logs at fail points
@@ -265,30 +264,54 @@ bool FOpenXREmulationLayer::SupportsInstanceExtension(const ANSICHAR* ExtensionN
 
 bool FOpenXREmulationLayer::LoadCaptureFromFile(const FString& EmulationLoadPath)
 {
-	if (FFileHelper::LoadFileToArray(CaptureDecoder.GetEncodedData(), *EmulationLoadPath))
+	if (FFileHelper::LoadFileToArray(CaptureDecoder.GetEncodedData(), *EmulationLoadPath, EFileRead::FILEREAD_Silent))
 	{
 		UE_LOG(LogXRScribeEmulate, Log, TEXT("Capture successfully loaded: %s"), *EmulationLoadPath);
-		CaptureDecoder.DecodeDataFromMemory();
+		if (CaptureDecoder.DecodeDataFromMemory())
+		{
+			PostLoadActions();
+			return true;
+		}
+		else
+		{
+			UE_LOG(LogXRScribeEmulate, Error, TEXT("Failed to decode capture"));
+
+			// On Windows, a workaround in FOpenXRHMDModule::PreInit means we may end up initializing XRScribe twice
+			// For now we'll always load the same file, if it's invalid we should only display an error message once
+			static bool bDisplayedErrorMessage = false;
+
+			if (!bDisplayedErrorMessage)
+			{
+				FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, FText::FromString(FString("XRScribe capture at ") + EmulationLoadPath + FString(" was malformed or captured with a different version of the plugin. Emulation layer will be disabled.\n\nSee log for details.")));
+				bDisplayedErrorMessage = true;
+			}
+			
+			// Clean up loaded data
+			CaptureDecoder.GetEncodedData().Empty();
+			return false;
+		}
 	}
 	else
 	{
-		UE_LOG(LogXRScribeEmulate, Error, TEXT("Capture failed to load"));
+		UE_LOG(LogXRScribeEmulate, Log, TEXT("Capture '%s' failed to load."), *EmulationLoadPath);
 		return false;
 	}
-
-	PostLoadActions();
-
-	return true;
 }
 
 bool FOpenXREmulationLayer::LoadCaptureFromData(const TArray<uint8>& EncodedData)
 {
 	CaptureDecoder.GetEncodedData().Append(EncodedData);
-	CaptureDecoder.DecodeDataFromMemory();
 
-	PostLoadActions();
-
-	return true;
+	if (CaptureDecoder.DecodeDataFromMemory())
+	{
+		PostLoadActions();
+		return true;
+	}
+	else
+	{
+		CaptureDecoder.GetEncodedData().Empty();
+		return false;
+	}
 }
 
 void FOpenXREmulationLayer::PostLoadActions()

@@ -62,6 +62,7 @@ int bJitter;
 
 // Dispatch data
 int3 GroupCount;
+int DownsampleFactor;
 
 // Volume data
 int MipLevel;
@@ -239,7 +240,11 @@ void GenerateRayMarchingTiles(
 
 	uint4 Viewport = uint4(DispatchThreadId.xy * THREADGROUP_SIZE_2D, (DispatchThreadId.xy + 1) * THREADGROUP_SIZE_2D);
 	uint2 PixelOffset = Viewport.xy;
-	if (any(PixelOffset >= View.ViewSizeAndInvSize.xy))
+
+	// Scale to full-res
+	Viewport *= DownsampleFactor;
+	uint2 ViewPixelOffset = Viewport.xy;
+	if (any(ViewPixelOffset >= View.ViewSizeAndInvSize.xy))
 	{
 		return;
 	}
@@ -421,6 +426,12 @@ FTraceVoxelResult TraceVoxels(float3 LocalRayOrigin, float3 LocalRayDirection, f
 	return TraceVoxelResult;
 }
 
+// TODO: Implement ambient occlusion for preshading pipeline
+float EvalAmbientOcclusion(float3 WorldPosition)
+{
+	return 1.0;
+}
+
 #include "HeterogeneousVolumesRayMarchingUtils.ush"
 
 RWTexture3D<float3> RWLightingCacheTexture;
@@ -503,6 +514,11 @@ RWStructuredBuffer<FVoxelDataPacked> RWVoxelOutputBuffer;
 StructuredBuffer<FRayMarchingTile> RayMarchingTilesBuffer;
 Buffer<uint> NumRayMarchingTilesBuffer;
 
+float2 GetDispatchSize()
+{
+	return View.ViewSizeAndInvSize.xy / DownsampleFactor;
+}
+
 [numthreads(THREADGROUP_SIZE_1D, 1, 1)]
 void RenderSingleScatteringWithPreshadingCS(
 	uint GroupId : SV_GroupID,
@@ -515,20 +531,22 @@ void RenderSingleScatteringWithPreshadingCS(
 	uint2 TileCoord = uint2(GroupThreadId % THREADGROUP_SIZE_2D, GroupThreadId / THREADGROUP_SIZE_2D);
 	//float2 PixelCoord = View.ViewRectMin.xy + RayMarchingTile.PixelOffset + TileCoord;
 	float2 PixelCoord = RayMarchingTile.PixelOffset + TileCoord;
+	float2 ViewPixelCoord = PixelCoord * DownsampleFactor;
 
 	float3 Radiance = 0.0;
-	float3 Transmittance = 1.0 - RWLightingTexture[PixelCoord].a;
+	float4 LightingTexture = RWLightingTexture[PixelCoord];
+	float3 Transmittance = LightingTexture.aaa;
 	float PrevOpacity = Luminance(1.0 - Transmittance);
 
 	// Create screen ray
-	if (any(PixelCoord.xy >= View.ViewSizeAndInvSize.xy))
+	if (any(PixelCoord.xy >= GetDispatchSize()))
 	{
 		return;
 	}
 	PixelCoord += View.ViewRectMin.xy;
 
 	// Extract depth
-	float DeviceZ = SceneDepthTexture.Load(int3(PixelCoord, 0)).r;
+	float DeviceZ = SceneDepthTexture.Load(int3(ViewPixelCoord, 0)).r;
 #if HAS_INVERTED_Z_BUFFER
 	DeviceZ = max(0.000000000001, DeviceZ);
 #endif // HAS_INVERTED_Z_BUFFER
@@ -537,12 +555,12 @@ void RenderSingleScatteringWithPreshadingCS(
 	float SceneDepth = min(ConvertFromDeviceZ(DeviceZ), MaxTraceDistance);
 	DeviceZ = ConvertToDeviceZ(SceneDepth);
 
-	float Jitter = bJitter ? InterleavedGradientNoise(PixelCoord, View.StateFrameIndexMod8) : 0.0;
+	float Jitter = bJitter ? InterleavedGradientNoise(ViewPixelCoord, View.StateFrameIndexMod8) : 0.0;
 
 	// Intersect ray with bounding volume
 	// TODO: LWC integration..
-	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
-	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
+	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord + View.TemporalAAJitter.xy), PrimaryView.PreViewTranslation));
+	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(ViewPixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
 	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 	float WorldRayLength = length(WorldRayDirection);
 	WorldRayDirection /= WorldRayLength;
@@ -628,31 +646,37 @@ void RenderSingleScatteringWithPreshadingCS(
 	}
 
 	// Radiance
-	float Opacity = bApplyEmissionAndTransmittance ? Luminance(1.0 - Transmittance) : 0.0;
-	RWLightingTexture[PixelCoord] = float4(RWLightingTexture[PixelCoord].rgb + (Radiance * View.PreExposure), Opacity);
+	LightingTexture.rgb += Radiance * View.PreExposure;
+	if (bApplyEmissionAndTransmittance)
+	{
+		float Opacity = Luminance(1.0 - Transmittance);
+		LightingTexture.a = Luminance(Transmittance);
 
 #if DIM_WRITE_VELOCITY
-	bool bWriteVelocity =
-		(WorldHitTMin < WorldRayLength) &&
-		(PrevOpacity < 0.5) &&
-		(Opacity > 0.5);
+		bool bWriteVelocity =
+			(WorldHitTMin < WorldRayLength) &&
+			(PrevOpacity < 0.5) &&
+			(Opacity > 0.5);
 
-	if (bWriteVelocity)
-	{
-		float3 Velocity = Calculate3DVelocityAtWorldPos(WorldRayOrigin, WorldRayDirection, WorldHitTMin);
-		RWVelocityTexture[PixelCoord] = EncodeVelocityToTexture(Velocity);
-	}
+		if (bWriteVelocity)
+		{
+			float3 Velocity = Calculate3DVelocityAtWorldPos(WorldRayOrigin, WorldRayDirection, WorldHitTMin);
+			RWVelocityTexture[PixelCoord] = EncodeVelocityToTexture(Velocity);
+		}
 #endif // DIM_WRITE_VELOCITY
 
 #if DIM_DEBUG
-	//if (!all(DispatchThreadId))
-	if (GroupId == 0 && GroupThreadId == 0)
-	{
-		RWVoxelOutputBuffer[0].MipLevel = GetNumVoxels();
-		for (uint VoxelIndex = 0; VoxelIndex < GetNumVoxels(); ++VoxelIndex)
+		//if (!all(DispatchThreadId))
+		if (GroupId == 0 && GroupThreadId == 0)
 		{
-			RWVoxelOutputBuffer[VoxelIndex + 1] = GetVoxelDataPacked(VoxelIndex);
+			RWVoxelOutputBuffer[0].MipLevel = GetNumVoxels();
+			for (uint VoxelIndex = 0; VoxelIndex < GetNumVoxels(); ++VoxelIndex)
+			{
+				RWVoxelOutputBuffer[VoxelIndex + 1] = GetVoxelDataPacked(VoxelIndex);
+			}
 		}
-	}
 #endif
+	}
+
+	RWLightingTexture[PixelCoord] = LightingTexture;
 }

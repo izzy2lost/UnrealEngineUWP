@@ -19,7 +19,7 @@ void FDisplayClusterViewportResources::FreezeRendering(const EDisplayClusterView
 	}
 }
 
-bool FDisplayClusterViewportResources::GetRHIResources_RenderThread(const EDisplayClusterViewportResource InResourceType, TArray<FRHITexture2D*>& OutResources) const
+bool FDisplayClusterViewportResources::GetRHIResources_RenderThread(const EDisplayClusterViewportResource InResourceType, TArray<FRHITexture*>& OutResources) const
 {
 	OutResources.Reset();
 
@@ -32,7 +32,7 @@ bool FDisplayClusterViewportResources::GetRHIResources_RenderThread(const EDispl
 				// When resource accessed on rendering thread, update this flag
 				EnumAddFlags(ViewportResourceIt->GetResourceState(), EDisplayClusterViewportResourceState::UpdatedOnRenderingThread);
 
-				if (FRHITexture2D* RHITexture2D = ViewportResourceIt->GetViewportResourceRHI_RenderThread())
+				if (FRHITexture* RHITexture2D = ViewportResourceIt->GetViewportResourceRHI_RenderThread())
 				{
 					// Collects only valid resources.
 					OutResources.Add(RHITexture2D);

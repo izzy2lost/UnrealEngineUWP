@@ -116,25 +116,25 @@ protected:
 	}
 
 	UPROPERTY()
-	UAvaSingleClickAndDragBehavior* LeftClickBehavior = nullptr;
+	TObjectPtr<UAvaSingleClickAndDragBehavior> LeftClickBehavior = nullptr;
 
 	UPROPERTY()
-	UAvaInteractiveToolsRightClickBehavior* RightClickBehavior = nullptr;
+	TObjectPtr<UAvaInteractiveToolsRightClickBehavior> RightClickBehavior = nullptr;
 
 	UPROPERTY()
-	USingleKeyCaptureBehavior* EscapeKeyBehavior = nullptr;
+	TObjectPtr<USingleKeyCaptureBehavior> EscapeKeyBehavior = nullptr;
 
 	UPROPERTY()
 	TSubclassOf<UAvaInteractiveToolsToolViewportPlanner> ViewportPlannerClass = nullptr;
 
 	UPROPERTY()
-	UAvaInteractiveToolsToolViewportPlanner* ViewportPlanner = nullptr;
+	TObjectPtr<UAvaInteractiveToolsToolViewportPlanner> ViewportPlanner = nullptr;
 
 	UPROPERTY()
-	AActor* PreviewActor = nullptr;
+	TObjectPtr<AActor> PreviewActor = nullptr;
 
 	UPROPERTY()
-	AActor* SpawnedActor = nullptr;
+	TObjectPtr<AActor> SpawnedActor = nullptr;
 
 	bool bPerformingDefaultAction = false;
 

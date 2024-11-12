@@ -21,6 +21,7 @@
 #include "ActorPickerMode.h"
 #include "SceneDepthPickerMode.h"
 #include "IDetailPropertyRow.h"
+#include "ClassViewerModule.h"
 
 class AActor;
 class FAssetThumbnailPool;
@@ -89,11 +90,71 @@ struct FPropertyComboBoxArgs
 	{}
 };
 
+struct FPropertyFunctionCallArgs
+{
+	TWeakObjectPtr<UFunction> Function;
+
+	TOptional<FText> LabelOverride;
+
+	TOptional<FText> ToolTipTextOverride;
+
+	using FOnExecute = TDelegate<FReply(TWeakObjectPtr<UFunction>)>;
+	FOnExecute OnExecute;
+
+	using FOnCanExecute = TDelegate<bool(TWeakObjectPtr<UFunction>)>;
+	FOnCanExecute OnCanExecute;
+
+	FTextBuilder* SearchText = nullptr;
+
+	FPropertyFunctionCallArgs(
+		UFunction* InFunction,
+		const FOnExecute& InOnExecute,
+		const FOnCanExecute& InOnCanExecute = {},
+		const TOptional<FText>& InLabelOverride = {},
+		const TOptional<FText>& InToolTipTextOverride = {},
+		FTextBuilder* InSearchText = nullptr)
+		: Function(InFunction)
+		, LabelOverride(InLabelOverride)
+		, ToolTipTextOverride(InToolTipTextOverride)
+		, OnExecute(InOnExecute)
+		, OnCanExecute(InOnCanExecute)
+		, SearchText(InSearchText)
+	{
+	}
+};
+
+/** The callbacks, if specified, are used when invoking function calls. */
+struct FPropertyFunctionCallDelegates
+{
+	using FOnGetExecutionContext = TDelegate<TArray<TWeakObjectPtr<UObject>>(TWeakObjectPtr<UFunction>)>;
+	FOnGetExecutionContext OnGetExecutionContext;
+
+	using FOnExecute = TDelegate<FReply(TWeakObjectPtr<UFunction>)>;
+	FOnExecute OnExecute;
+
+	using FOnCanExecute = TDelegate<bool(TWeakObjectPtr<UFunction>)>;
+	FOnCanExecute OnCanExecute;
+
+	FPropertyFunctionCallDelegates(
+		const FOnExecute& InOnExecute,
+		const FOnCanExecute& InOnCanExecute = {})
+		: OnExecute(InOnExecute)
+		, OnCanExecute(InOnCanExecute)
+	{
+	}
+
+	FPropertyFunctionCallDelegates(const FOnGetExecutionContext& InOnGetExecutionContext)
+		: OnGetExecutionContext(InOnGetExecutionContext)
+	{
+	}
+};
+
 namespace PropertyCustomizationHelpers
 {
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeResetButton(FSimpleDelegate OnResetClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeAddButton( FSimpleDelegate OnAddClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true );
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeRemoveButton( FSimpleDelegate OnRemoveClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true );
+	PROPERTYEDITOR_API TSharedRef<SWidget> MakeEditButton( FSimpleDelegate OnEditClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true );
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeEmptyButton( FSimpleDelegate OnEmptyClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true );
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeInsertDeleteDuplicateButton( FExecuteAction OnInsertClicked, FExecuteAction OnDeleteClicked, FExecuteAction OnDuplicateClicked );
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeDeleteButton( FSimpleDelegate OnDeleteClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true );
@@ -109,7 +170,7 @@ namespace PropertyCustomizationHelpers
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeAssetPickerWithMenu( const FAssetData& InitialObject, const bool AllowClear, const bool AllowCopyPaste, const TArray<const UClass*>& AllowedClasses, const TArray<const UClass*>& DisallowedClasses, const TArray<UFactory*>& NewAssetFactories, FOnShouldFilterAsset OnShouldFilterAsset, FOnAssetSelected OnSet, FSimpleDelegate OnClose, const TSharedPtr<IPropertyHandle>& PropertyHandle = TSharedPtr<IPropertyHandle>(), const TArray<FAssetData>& OwnerAssetArray = TArray<FAssetData>());
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeActorPickerAnchorButton( FOnGetActorFilters OnGetActorFilters, FOnActorSelected OnActorSelectedFromPicker );
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeActorPickerWithMenu( AActor* const InitialActor, const bool AllowClear, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected );
-	PROPERTYEDITOR_API TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected);
+	PROPERTYEDITOR_API TSharedRef<SWidget> MakeActorPickerWithMenu(AActor* const InitialActor, const bool AllowClear, const bool AllowPickingLevelInstanceContent, FOnShouldFilterActor ActorFilter, FOnActorSelected OnSet, FSimpleDelegate OnClose, FSimpleDelegate OnUseSelected, bool bDisplayUseSelected=true);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeComponentPickerWithMenu( UActorComponent* const InitialComponent, const bool AllowClear, FOnShouldFilterActor ActorFilter, FOnShouldFilterComponent ComponentFilter, FOnComponentSelected OnSet, FSimpleDelegate OnClose );
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeInteractiveActorPicker(FOnGetAllowedClasses OnGetAllowedClasses, FOnShouldFilterActor OnShouldFilterActor, FOnActorSelected OnActorSelectedFromPicker);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeSceneDepthPicker(FOnSceneDepthLocationSelected OnSceneDepthLocationSelected);
@@ -118,6 +179,11 @@ namespace PropertyCustomizationHelpers
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeSaveButton(FSimpleDelegate OnSaveClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeSetOptionalButton(FSimpleDelegate OnSetOptionalClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeClearOptionalButton(FSimpleDelegate OnClearOptionalClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
+	PROPERTYEDITOR_API TSharedRef<SWidget> MakeFunctionCallButton(const FPropertyFunctionCallArgs& InArgs);
+	PROPERTYEDITOR_API void AddFunctionCallWidgets(IDetailGroup& RootGroup, const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs);
+	PROPERTYEDITOR_API void AddFunctionCallWidgets(IDetailLayoutBuilder& DetailBuilder, const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs);
+	PROPERTYEDITOR_API void AddCallInEditorFunctionCallWidgetsForClass(IDetailGroup& RootGroup, const UClass* Class, const FPropertyFunctionCallDelegates& InArgs);
+	PROPERTYEDITOR_API void AddCallInEditorFunctionCallWidgetsForClass(IDetailLayoutBuilder& DetailBuilder, const UClass* Class, const FPropertyFunctionCallDelegates& InArgs);
 
 	/** @return the FBoolProperty edit condition property if one exists. */
 	PROPERTYEDITOR_API FBoolProperty* GetEditConditionProperty(const FProperty* InProperty, bool& bNegate);
@@ -160,6 +226,33 @@ namespace PropertyCustomizationHelpers
 	 * The metadata string is likely from something like AllowedClasses or DisallowedClasses.
 	 */
 	PROPERTYEDITOR_API TArray<const UClass*> GetClassesFromMetadataString(const FString& MetadataString);
+
+	/**
+	 * Parse and load the given metadata string into a list of allowed structs.
+	 * The metadata string is likely from something like AllowedClasses or DisallowedClasses.
+	 */
+	PROPERTYEDITOR_API TArray<const UScriptStruct*> GetStructsFromMetadataString(const FString& MetadataString);
+	
+	/**
+	 *
+	 */
+	PROPERTYEDITOR_API void GetCallInEditorFunctionsForClass(const UClass* InClass, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags = EFieldIterationFlags::IncludeSuper);
+
+	/**
+	 *	@param InFunctionFilter	A filter to select candidate UFunctions
+	 */
+	PROPERTYEDITOR_API void GetCallInEditorFunctionsForClass(const UClass* InClass, const TFunctionRef<bool(const UFunction*)>& InFunctionFilter, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags = EFieldIterationFlags::IncludeSuper);
+
+	/*
+	*	Makes a class picker widget for the given instanced editinline UObject property handle. Shares code with SPropertyEditorInline, but doesn't create a combo button, just the class picker.
+	*/
+	PROPERTYEDITOR_API TSharedRef<SWidget> MakeEditInlineObjectClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnClassPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter=nullptr);
+
+	/*
+	* Creates a new instance of the given object class inside the given property handle, mimicking what the SPropertyEditorEditInline widget does on class selection
+	*/
+	PROPERTYEDITOR_API void CreateNewInstanceOfEditInlineObjectClass(TSharedRef<IPropertyHandle> PropertyHandle, UClass* Class, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags);
+
 }
 
 
@@ -227,6 +320,8 @@ public:
 		SLATE_ATTRIBUTE(FIntPoint, ThumbnailSizeOverride)
 		/** Called to check if an actor is valid to use */
 		SLATE_EVENT(FOnShouldFilterActor, OnShouldFilterActor)
+		/** When this is true, the drop target will only get recognized when entering while drag & dropping. */
+		SLATE_ATTRIBUTE(bool, bOnlyRecognizeOnDragEnter)
 	SLATE_END_ARGS()
 
 	PROPERTYEDITOR_API void Construct( const FArguments& InArgs );
@@ -289,6 +384,10 @@ public:
 		SLATE_ARGUMENT(const UClass*, MetaClass)
 		/** An interface that the selected class must implement (optional) */
 		SLATE_ARGUMENT(const UClass*, RequiredInterface)
+		/** Allowed class that the selected class must be a child-of. (optional) */
+		SLATE_ARGUMENT(TArray<const UClass*>, AllowedClasses)
+		/** Classes that the selected class cannot be a child-of. (optional) */
+		SLATE_ARGUMENT(TArray<const UClass*>, DisallowedClasses)
 		/** Whether or not abstract classes are allowed (optional) */
 		SLATE_ARGUMENT(bool, AllowAbstract)
 		/** Should only base blueprints be displayed? (optional) */

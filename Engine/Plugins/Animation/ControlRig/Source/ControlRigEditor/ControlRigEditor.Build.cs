@@ -81,7 +81,8 @@ namespace UnrealBuildTool.Rules
                     "AnimationEditorWidgets",
                     "ActorPickerMode",
                     "Constraints",
-                    "AnimationEditMode"
+                    "AnimationEditMode",
+					"SequencerWidgets"
 				}
             );
 

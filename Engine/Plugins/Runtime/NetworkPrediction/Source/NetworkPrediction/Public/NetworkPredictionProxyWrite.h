@@ -45,10 +45,62 @@ const TSyncState* FNetworkPredictionProxy::WriteSyncState(TFunctionRef<void(TSyn
 	return nullptr;
 }
 
+template<typename TSyncState>
+const TSyncState* FNetworkPredictionProxy::WritePresentationSyncState(TFunctionRef<void(TSyncState&)> WriteFunc, const FAnsiStringView& TraceMsg)
+{
+	if (TSyncState* SyncState = static_cast<TSyncState*>(View.PresentationSyncState))
+	{
+		WriteFunc(*SyncState);
+		UE_NP_TRACE_OOB_STATE_MOD(ID.GetTraceID(), View.PendingFrame, TraceMsg);
+		ConfigFunc(this, FNetworkPredictionID(), EConfigAction::TraceSync);
+		return SyncState;
+	}
+	return nullptr;
+}
+
+template<typename TSyncState>
+const TSyncState* FNetworkPredictionProxy::WritePrevPresentationSyncState(TFunctionRef<void(TSyncState&)> WriteFunc, const FAnsiStringView& TraceMsg)
+{
+	if (TSyncState* SyncState = static_cast<TSyncState*>(View.PrevPresentationSyncState))
+	{
+		WriteFunc(*SyncState);
+		UE_NP_TRACE_OOB_STATE_MOD(ID.GetTraceID(), View.PendingFrame, TraceMsg);
+		ConfigFunc(this, FNetworkPredictionID(), EConfigAction::TraceSync);
+		return SyncState;
+	}
+	return nullptr;
+}
+
 template<typename TAuxState>
 const TAuxState* FNetworkPredictionProxy::WriteAuxState(TFunctionRef<void(TAuxState&)> WriteFunc, const FAnsiStringView& TraceMsg)
 {
 	if (TAuxState* AuxState = static_cast<TAuxState*>(View.PendingAuxState))
+	{
+		WriteFunc(*AuxState);
+		UE_NP_TRACE_OOB_STATE_MOD(ID.GetTraceID(), View.PendingFrame, TraceMsg);
+		ConfigFunc(this, FNetworkPredictionID(), EConfigAction::TraceAux);
+		return AuxState;
+	}
+	return nullptr;
+}
+
+template<typename TAuxState>
+const TAuxState* FNetworkPredictionProxy::WritePresentationAuxState(TFunctionRef<void(TAuxState&)> WriteFunc, const FAnsiStringView& TraceMsg)
+{
+	if (TAuxState* AuxState = static_cast<TAuxState*>(View.PresentationAuxState))
+	{
+		WriteFunc(*AuxState);
+		UE_NP_TRACE_OOB_STATE_MOD(ID.GetTraceID(), View.PendingFrame, TraceMsg);
+		ConfigFunc(this, FNetworkPredictionID(), EConfigAction::TraceAux);
+		return AuxState;
+	}
+	return nullptr;
+}
+
+template<typename TAuxState>
+const TAuxState* FNetworkPredictionProxy::WritePrevPresentationAuxState(TFunctionRef<void(TAuxState&)> WriteFunc, const FAnsiStringView& TraceMsg)
+{
+	if (TAuxState* AuxState = static_cast<TAuxState*>(View.PrevPresentationAuxState))
 	{
 		WriteFunc(*AuxState);
 		UE_NP_TRACE_OOB_STATE_MOD(ID.GetTraceID(), View.PendingFrame, TraceMsg);

@@ -63,6 +63,16 @@ public:
 	virtual bool IsEditable() const = 0;
 
 	/**
+	 * @return Whether or not the property is expanded
+	 */
+	virtual bool IsExpanded() const = 0;
+
+	/**
+	 * Sets the expanded flag for this property.
+	 */
+	virtual void SetExpanded(bool bExpanded) = 0;
+
+	/**
 	 * Gets the class of the property being edited
 	 */
 	virtual const FFieldClass* GetPropertyClass() const = 0;
@@ -573,6 +583,12 @@ public:
 	 * Generates a list of possible enum/class options for the property
 	 */
 	virtual bool GeneratePossibleValues(TArray< TSharedPtr<FString> >& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems) = 0;
+
+	/**
+	* Generates a list of possible enum/class options for the property
+	* DisplayNames is optional
+	*/
+	virtual bool GeneratePossibleValues(TArray<FString>& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems, TArray<FText>* OutDisplayNames) = 0;
 
 	/**
 	 * Marks this property has hidden by customizaton (will not show up in the default place)

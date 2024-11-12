@@ -35,10 +35,10 @@ float4 FSH_Subtract(float2 uv : TEXCOORD0) : SV_Target0
 
 float4 FSH_Dot(float2 uv : TEXCOORD0) : SV_Target0
 {
-	float4 op1 = Operand1.Sample(SamplerStates_Wrap, uv);
-	float4 op2 = Operand2.Sample(SamplerStates_Wrap, uv);
+	float3 op1 = Operand1.Sample(SamplerStates_Wrap, uv).rgb;
+	float3 op2 = Operand2.Sample(SamplerStates_Wrap, uv).rgb;
 	float dp = dot(op1, op2);
-	return float4(dp, dp, dp, dp);
+	return float4(dp, dp, dp, 1);
 }
 
 float4 FSH_Cross(float2 uv : TEXCOORD0) : SV_Target0
@@ -54,5 +54,12 @@ float4 FSH_Pow(float2 uv : TEXCOORD0) : SV_Target0
 	float4 op1 = Operand1.Sample(SamplerStates_Wrap, uv);
 	float4 op2 = Operand2.Sample(SamplerStates_Wrap, uv);
 	return pow(op1, op2);
+}
+
+float4 FSH_Step(float2 uv : TEXCOORD0) : SV_Target0
+{
+	float4 op1 = Operand1.Sample(SamplerStates_Wrap, uv);
+	float4 op2 = Operand2.Sample(SamplerStates_Wrap, uv);
+	return step(op1, op2);
 }
 

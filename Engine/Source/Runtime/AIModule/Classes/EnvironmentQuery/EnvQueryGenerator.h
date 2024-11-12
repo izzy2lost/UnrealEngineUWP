@@ -35,7 +35,13 @@ class UEnvQueryGenerator : public UEnvQueryNode
 
 	virtual void GenerateItems(FEnvQueryInstance& QueryInstance) const { checkNoEntry(); }
 	virtual bool IsValidGenerator() const { return ItemType != nullptr; }
+	bool CanRunAsync() const { return bCanRunAsync; }
 
 	AIMODULE_API virtual void PostLoad() override;
 	AIMODULE_API void UpdateNodeVersion() override;
+
+protected:
+	/** To be overwritten by MassEnvQueryGenerators to indicate that they will run asynchronously. */
+	UPROPERTY(EditDefaultsOnly, Category = Option, AdvancedDisplay)
+	uint32 bCanRunAsync : 1;
 };

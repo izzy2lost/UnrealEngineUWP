@@ -12,6 +12,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/IShaderFormat.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "ShaderCodeLibrary.h"
 #include "ShaderCore.h"
 #include "ShaderCompilerCore.h"
@@ -24,10 +25,15 @@
 #include "Misc/LargeWorldRenderPosition.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ShaderPlatformCachedIniValue.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Interfaces/IShaderFormat.h"
+#endif
+
+#if WITH_EDITOR
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
 #endif
 
 #if RHI_RAYTRACING
@@ -239,7 +245,9 @@ FShaderType::FShaderType(
 	ConstructSerializedType InConstructSerializedRef,
 	ConstructCompiledType InConstructCompiledRef,
 	ShouldCompilePermutationType InShouldCompilePermutationRef,
+	ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 	GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+	GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 	ValidateCompiledResultType InValidateCompiledResultRef,
@@ -261,7 +269,9 @@ FShaderType::FShaderType(
 	ConstructSerializedRef(InConstructSerializedRef),
 	ConstructCompiledRef(InConstructCompiledRef),
 	ShouldCompilePermutationRef(InShouldCompilePermutationRef),
+	ShouldPrecachePermutationRef(InShouldPrecachePermutationRef),
 	GetRayTracingPayloadTypeRef(InGetRayTracingPayloadTypeRef),
+	GetShaderBindingLayoutTypeRef(InGetShaderBindingLayoutTypeRef),
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentRef(InModifyCompilationEnvironmentRef),
 	ValidateCompiledResultRef(InValidateCompiledResultRef),
@@ -422,11 +432,41 @@ bool FShaderType::ShouldCompilePermutation(const FShaderPermutationParameters& P
 	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) && (*ShouldCompilePermutationRef)(Parameters);
 }
 
+EShaderPermutationPrecacheRequest FShaderType::ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const
+{
+	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) ? (*ShouldPrecachePermutationRef)(Parameters) : EShaderPermutationPrecacheRequest::NotUsed;
+}
+
+const FShaderBindingLayout* FShaderType::GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) const
+{
+	return (*GetShaderBindingLayoutTypeRef)(Parameters);
+}
+
+
 #if WITH_EDITOR
 
 void FShaderType::ModifyCompilationEnvironment(const FShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) const
 {
 	(*ModifyCompilationEnvironmentRef)(Parameters, OutEnvironment);
+	
+	OutEnvironment.ShaderBindingLayout = GetShaderBindingLayout(Parameters);
+	if (OutEnvironment.ShaderBindingLayout)
+	{
+		// Store copy of RHI version of the shader binding layout in the environment so it can be serialized for the shader compiler workers
+		OutEnvironment.RHIShaderBindingLayout = OutEnvironment.ShaderBindingLayout->RHILayout;
+	}
+
+	if (Frequency == SF_RayHitGroup)
+	{
+		// TODO: add a define for each of the 3 possible entry points?
+		// See UE::ShaderCompilerCommon::ParseRayTracingEntryPoint for how to parse them
+	}
+	else
+	{
+		// define the function name as itself so one can use #ifdef to isolate the shader being compiled within a larger .usf file
+		OutEnvironment.SetDefine(FunctionName, FunctionName);
+	}
+
 #if RHI_RAYTRACING
 	ERayTracingPayloadType RayTracingPayloadType = GetRayTracingPayloadType(Parameters.PermutationId);
 	switch (Frequency)
@@ -480,8 +520,8 @@ bool FShaderType::ValidateCompiledResult(EShaderPlatform Platform, const FShader
 
 void FShaderType::UpdateReferencedUniformBufferNames(const TMap<FString, TArray<const TCHAR*>>& ShaderFileToUniformBufferVariables)
 {
-	ReferencedUniformBufferNames.Empty();
-	GenerateReferencedUniformBufferNames(SourceFilename, Name, ShaderFileToUniformBufferVariables, ReferencedUniformBufferNames);
+	ReferencedUniformBuffers.Empty();
+	GenerateReferencedUniformBuffers(SourceFilename, Name, ShaderFileToUniformBufferVariables, ReferencedUniformBuffers);
 }
 #endif // WITH_EDITOR
 
@@ -508,14 +548,26 @@ void FShaderType::Initialize(const TMap<FString, TArray<const TCHAR*> >& ShaderF
 #if UE_BUILD_DEBUG
 		TArray<FShaderType*> UniqueShaderTypes;
 #endif
+		TArray<UE::Tasks::TTask<void>> Tasks;
+		Tasks.Reserve(FShaderType::GetNameToTypeMap().Num());
+
 		for(TLinkedList<FShaderType*>::TIterator It(FShaderType::GetTypeList()); It; It.Next())
 		{
 			FShaderType* Type = *It;
 #if UE_BUILD_DEBUG
 			UniqueShaderTypes.Add(Type);
 #endif
-			Type->UpdateReferencedUniformBufferNames(ShaderFileToUniformBufferVariables);
+			Tasks.Emplace(
+				UE::Tasks::Launch(
+					TEXT("UpdateReferencedUniformBufferNames"),
+					[Type, &ShaderFileToUniformBufferVariables]() mutable
+					{
+						Type->UpdateReferencedUniformBufferNames(ShaderFileToUniformBufferVariables);
+					}
+				)
+			);
 		}
+		UE::Tasks::Wait(Tasks);
 	
 #if UE_BUILD_DEBUG
 		// Check for duplicated shader type names
@@ -529,11 +581,6 @@ void FShaderType::Initialize(const TMap<FString, TArray<const TCHAR*> >& ShaderF
 #endif // WITH_EDITOR
 
 	bInitializedSerializationHistory = true;
-}
-
-void FShaderType::Uninitialize()
-{
-	bInitializedSerializationHistory = false;
 }
 
 int32 FShaderMapPointerTable::AddIndexedPointer(const FTypeLayoutDesc& TypeDesc, void* Ptr)
@@ -622,7 +669,7 @@ FShaderCompiledShaderInitializerType::FShaderCompiledShaderInitializerType(
 	: Type(InType)
 	, Parameters(InParameters)
 	, Target(CompilerOutput.Target)
-	, Code(CompilerOutput.ShaderCode.GetReadAccess())
+	, Code(CompilerOutput.ShaderCode.GetReadView())
 	, ParameterMap(CompilerOutput.ParameterMap)
 	, OutputHash(CompilerOutput.OutputHash)
 	, MaterialShaderMapHash(InMaterialShaderMapHash)
@@ -683,11 +730,6 @@ FShader::FShader(const CompiledShaderInitializerType& Initializer)
 	{
 		// Store off the VF source hash that this shader was compiled with
 		VFSourceHash = Initializer.VertexFactoryType->GetSourceHash(Initializer.Target.GetPlatform());
-	}
-
-	for (const TPair<FString, FShaderStatVariant>& Pair : Initializer.ShaderStatistics)
-	{
-		ShaderStatistics.Add(FMemoryImageName(FName(Pair.Key)), Pair.Value);
 	}
 #endif // WITH_EDITORONLY_DATA
 
@@ -1109,13 +1151,6 @@ void FShaderPipelineType::Initialize()
 	bInitialized = true;
 }
 
-void FShaderPipelineType::Uninitialize()
-{
-	check(bInitialized);
-
-	bInitialized = false;
-}
-
 const FShaderPipelineType* FShaderPipelineType::GetShaderPipelineTypeByName(const FHashedName& Name)
 {
 	FShaderPipelineType** FoundType = GetNameToTypeMap().Find(Name);
@@ -1148,6 +1183,113 @@ bool FShaderPipelineType::ShouldCompilePermutation(const FShaderPermutationParam
 	}
 	return true;
 }
+
+EShaderPermutationPrecacheRequest FShaderPipelineType::ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const
+{
+	EShaderPermutationPrecacheRequest Result = EShaderPermutationPrecacheRequest::NotUsed;
+	for (const FShaderType* ShaderType : Stages)
+	{
+		EShaderPermutationPrecacheRequest ShaderTypeRequest = ShaderType->ShouldPrecachePermutation(Parameters);
+		if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::Precached)
+		{
+			return ShaderTypeRequest;
+		}
+		else if (ShaderTypeRequest == EShaderPermutationPrecacheRequest::NotPrecached)
+		{
+			Result = ShaderTypeRequest;
+		}
+	}
+	return Result;
+}
+
+void FShaderTypeDependency::RefreshCachedSourceHash(EShaderPlatform ShaderPlatform)
+{
+	const FShaderType*const* ShaderTypePtr = FShaderType::GetNameToTypeMap().Find(ShaderTypeName);
+	const FShaderType* ShaderType = ShaderTypePtr ? *ShaderTypePtr : nullptr;
+	if (!ShaderType)
+	{
+		SourceHash = FSHAHash();
+		return;
+	}
+	SourceHash = ShaderType->GetSourceHash(ShaderPlatform);
+}
+
+void FShaderPipelineTypeDependency::RefreshCachedSourceHash(EShaderPlatform ShaderPlatform)
+{
+	const FShaderPipelineType* ShaderPipelineType =
+		FShaderPipelineType::GetShaderPipelineTypeByName(ShaderPipelineTypeName);
+	if (!ShaderPipelineType)
+	{
+		StagesSourceHash = FSHAHash();
+		return;
+	}
+	StagesSourceHash = ShaderPipelineType->GetSourceHash(ShaderPlatform);
+}
+
+#if WITH_EDITOR
+
+void FShaderTypeDependency::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << ShaderTypeName;
+	Writer << SourceHash;
+	Writer << PermutationId;
+	Writer.EndArray();
+}
+
+bool FShaderTypeDependency::TryLoad(FCbFieldView Field)
+{
+	*this = FShaderTypeDependency();
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	if (!LoadFromCompactBinary(ElementField++, ShaderTypeName))
+	{
+		return false;
+	}
+	if (!LoadFromCompactBinary(ElementField++, SourceHash))
+	{
+		return false;
+	}
+	PermutationId = ElementField.AsInt32();
+	if ((ElementField++).HasError())
+	{
+		return false;
+	}
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FShaderTypeDependency& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+
+void FShaderPipelineTypeDependency::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << ShaderPipelineTypeName;
+	Writer << StagesSourceHash;
+	Writer.EndArray();
+}
+
+bool FShaderPipelineTypeDependency::TryLoad(FCbFieldView Field)
+{
+	*this = FShaderPipelineTypeDependency();
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	if (!LoadFromCompactBinary(ElementField++, ShaderPipelineTypeName))
+	{
+		return false;
+	}
+	if (!LoadFromCompactBinary(ElementField++, StagesSourceHash))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FShaderPipelineTypeDependency& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+#endif // WITH_EDITOR
 
 void FShaderPipeline::AddShader(FShader* Shader, int32 PermutationId)
 {
@@ -1453,13 +1595,8 @@ bool IsDxcEnabledForPlatform(EShaderPlatform Platform, bool bHlslVersion2021)
 		static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.D3D.ForceDXC"));
 		return ((CVar && CVar->GetInt() != 0));
 	}
-	if (IsOpenGLPlatform(Platform))
-	{
-		static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.OpenGL.ForceDXC"));
-		return (bHlslVersion2021 || (CVar && CVar->GetInt() != 0));
-	}
-	// Hlslcc has been removed for Metal and Vulkan. There is only DXC now.
-	if (IsMetalPlatform(Platform) || IsVulkanPlatform(Platform))
+	// Hlslcc has been removed for Metal, Vulkan, and OpenGL backends. There is only DXC now.
+	if (IsMetalPlatform(Platform) || IsVulkanPlatform(Platform) || IsOpenGLPlatform(Platform))
 	{
 		return true;
 	}
@@ -1470,41 +1607,39 @@ bool IsUsingEmulatedUniformBuffers(EShaderPlatform Platform)
 {
 	if (IsOpenGLPlatform(Platform))
 	{
-		// Currently DXC only supports emulated uniform buffers on GLES
-		static const auto CForceDXCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.OpenGL.ForceDXC"));
-		if (CForceDXCVar && CForceDXCVar->GetInt() != 0)
-		{
-			return true;
-		}
-
-		static auto* CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("OpenGL.UseEmulatedUBs"));
-		return (CVar && CVar->GetValueOnAnyThread() != 0);
+		// DXC only supports emulated uniform buffers on GLES
+		return true;
 	}
-
 	return false;
 }
 
 void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
+{
+	FShaderKeyGenerator KeyGen(KeyString);
+	ShaderMapAppendKey(Platform, KeyGen);
+}
+
+void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 {
 	const FName ShaderFormatName = LegacyShaderPlatformToShaderFormat(Platform);
 
 	for (const FAutoConsoleObject* ConsoleObject : FAutoConsoleObject::AccessGeneralShaderChangeCvars())
 	{
 		FString ConsoleObjectName = IConsoleManager::Get().FindConsoleObjectName(ConsoleObject->AsVariable());
-		KeyString += TEXT("_");
-		KeyString += ConsoleObjectName;
-		KeyString += TEXT("_");
-		KeyString += ConsoleObject->AsVariable()->GetString();
+		KeyGen.AppendSeparator();
+		KeyGen.Append(ConsoleObjectName);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(ConsoleObject->AsVariable()->GetString());
 	}
 	if (IsMobilePlatform(Platform))
 	{
 		for (const FAutoConsoleObject* ConsoleObject : FAutoConsoleObject::AccessMobileShaderChangeCvars())
 		{
 			FString ConsoleObjectName = IConsoleManager::Get().FindConsoleObjectName(ConsoleObject->AsVariable());
-			KeyString += TEXT("_");
-			KeyString += ConsoleObjectName;
-			KeyString += TEXT("_");
-			KeyString += ConsoleObject->AsVariable()->GetString();
+			KeyGen.AppendSeparator();
+			KeyGen.Append(ConsoleObjectName);
+			KeyGen.AppendSeparator();
+			KeyGen.Append(ConsoleObject->AsVariable()->GetString());
 		}
 	}
 	else if (IsConsolePlatform(Platform))
@@ -1512,10 +1647,10 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		for (const FAutoConsoleObject* ConsoleObject : FAutoConsoleObject::AccessDesktopShaderChangeCvars())
 		{
 			FString ConsoleObjectName = IConsoleManager::Get().FindConsoleObjectName(ConsoleObject->AsVariable());
-			KeyString += TEXT("_");
-			KeyString += ConsoleObjectName;
-			KeyString += TEXT("_");
-			KeyString += ConsoleObject->AsVariable()->GetString();
+			KeyGen.AppendSeparator();
+			KeyGen.Append(ConsoleObjectName);
+			KeyGen.AppendSeparator();
+			KeyGen.Append(ConsoleObject->AsVariable()->GetString());
 		}
 	}
 
@@ -1524,27 +1659,32 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("Compat.UseDXT5NormalMaps"));
-		KeyString += (CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("_DXTN") : TEXT("_BC5N");
+		KeyGen.AppendSeparator();
+		KeyGen.Append((CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("DXTN") : TEXT("BC5N"));
 	}
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ClearCoatNormal"));
-		KeyString += (CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("_CCBN") : TEXT("_NoCCBN");
+		KeyGen.AppendSeparator();
+		KeyGen.Append((CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("CCBN") : TEXT("NoCCBN"));
 	}
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.IrisNormal"));
-		KeyString += (CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("_Iris") : TEXT("_NoIris");
+		KeyGen.AppendSeparator();
+		KeyGen.Append((CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("Iris") : TEXT("NoIris"));
 	}
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.CompileShadersForDevelopment"));
-		KeyString += (CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("_DEV") : TEXT("_NoDEV");
+		KeyGen.AppendSeparator();
+		KeyGen.Append((CVar && CVar->GetValueOnAnyThread() != 0) ? TEXT("DEV") : TEXT("NoDEV"));
 	}
 
 	{
 		const bool bValue = IsStaticLightingAllowed();
-		KeyString += bValue ? TEXT("_SL") : TEXT("_NoSL");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(bValue ? TEXT("SL") : TEXT("NoSL"));
 	}
 
 	{
@@ -1552,16 +1692,20 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		const int32 LWCTruncateValue = CVar ? CVar->GetValueOnAnyThread() : 0;
 		if (LWCTruncateValue == 1)
 		{
-			KeyString += TEXT("_LWC1");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LWC1"));
 		}
 		else if (LWCTruncateValue == 2)
 		{
-			KeyString += TEXT("_LWC2");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LWC2"));
 		}
 	}
 
+	if (IsUsingBasePassVelocity(Platform))
 	{
-		KeyString += IsUsingBasePassVelocity(Platform) ? TEXT("_GV") : TEXT("");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("GV"));
 	}
 
 	{
@@ -1569,63 +1713,100 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 		if (Aspects.IsInstancedStereoEnabled())
 		{
-			KeyString += TEXT("_VRIS");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("VRIS"));
 
 			if (Aspects.IsInstancedMultiViewportEnabled())
 			{
-				KeyString += TEXT("_MVIEW");
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("MVIEW"));
 			}
 		}
 
 		if (Aspects.IsMobileMultiViewEnabled())
 		{
-			KeyString += TEXT("_MMVIEW");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MMVIEW"));
 		}
 	}
 
 	{
-		KeyString += IsUsingSelectiveBasePassOutputs(Platform) ? TEXT("_SO") : TEXT("");
+		if (IsUsingSelectiveBasePassOutputs(Platform))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SO"));
+		}
 	}
 
 	{
 		// PreExposure is always used
-		KeyString += TEXT("_PreExp");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("PreExp"));
 	}
 
 	{
-		KeyString += IsUsingDBuffers(Platform) ? TEXT("_DBuf") : TEXT("_NoDBuf");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(IsUsingDBuffers(Platform) ? TEXT("DBuf") : TEXT("NoDBuf"));
 	}
 
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AllowGlobalClipPlane"));
-		KeyString += (CVar && CVar->GetInt() != 0) ? TEXT("_ClipP") : TEXT("");
+		if (CVar && CVar->GetInt() != 0)
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("ClipP"));
+		}
 	}
 
 	{
 		// Extra data (names, etc)
-		KeyString += ShouldEnableExtraShaderData(ShaderFormatName) ? TEXT("_ExtraData") : TEXT("");
+		if (ShouldEnableExtraShaderData(ShaderFormatName))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("ExtraData"));
+		}
 		// Symbols and/or SymbolsInfo and version if symbols serialization changes
-		KeyString += ShouldGenerateShaderSymbols(ShaderFormatName) ? TEXT("_Symbols") : TEXT("");
-		KeyString += ShouldGenerateShaderSymbolsInfo(ShaderFormatName) ? TEXT("_SymbolsInfo") : TEXT("");
+		if (ShouldGenerateShaderSymbols(ShaderFormatName))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("Symbols"));
+		}
+		if (ShouldGenerateShaderSymbolsInfo(ShaderFormatName))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SymbolsInfo"));
+		}
 		// Are symbols based on source or results
-		KeyString += ShouldAllowUniqueShaderSymbols(ShaderFormatName) ? TEXT("_FullDbg") : TEXT("");
+		if (ShouldAllowUniqueShaderSymbols(ShaderFormatName))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("FullDbg"));
+		}
 	}
 
+	if (!ShouldOptimizeShaders(ShaderFormatName))
 	{
-		KeyString += ShouldOptimizeShaders(ShaderFormatName) ? TEXT("") : TEXT("_NoOpt");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("NoOpt"));
 	}
 	
 	{
 		// Always default to fast math unless specified
 		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.FastMath"));
-		KeyString += (CVar && CVar->GetInt() == 0) ? TEXT("_NoFastMath") : TEXT("");
+		if ((CVar && CVar->GetInt() == 0))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoFastMath"));
+		}
 	}
 
 	{
 		static FShaderPlatformCachedIniValue<int32> CVarWarningsAsErrorsPerPlatform(TEXT("r.Shaders.WarningsAsErrors"));
 		if (const int32 Level = CVarWarningsAsErrorsPerPlatform.Get(Platform); Level != 0)
 		{
-			KeyString.Appendf(TEXT("_WX%d"), Level);
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("WX"));
+			KeyGen.Append(Level);
 		}
 	}
 	
@@ -1634,7 +1815,9 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		// Note: Since 1 is the default, we don't modify the hash for this case, so as to not force a rebuild, and to keep the hash shorter.
 		if (CVar && (CVar->GetInt() == 0 || CVar->GetInt() == 2))
 		{
-			KeyString.Appendf(TEXT("_C%d"), CVar->GetInt());
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("C"));
+			KeyGen.Append(CVar->GetInt());
 		}
 	}
 	
@@ -1645,10 +1828,12 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			switch(CVar->GetInt())
 			{
 				case 2:
-					KeyString += TEXT("_AvoidFlow");
+					KeyGen.AppendSeparator();
+					KeyGen.Append(TEXT("AvoidFlow"));
 					break;
 				case 1:
-					KeyString += TEXT("_PreferFlow");
+					KeyGen.AppendSeparator();
+					KeyGen.Append(TEXT("PreferFlow"));
 					break;
 				case 0:
 				default:
@@ -1659,61 +1844,94 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 	if (!AllowPixelDepthOffset(Platform))
 	{
-		KeyString += TEXT("_NoPDO");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("NoPDO"));
 	}
 
 	if (!AllowPerPixelShadingModels(Platform))
 	{
-		KeyString += TEXT("_NoPPSM");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("NoPPSM"));
 	}
 	
 	if (UseRemoveUnsedInterpolators(Platform) && !IsOpenGLPlatform(Platform))
 	{
-		KeyString += TEXT("_UnInt");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("UnInt"));
 	}
 
 	if (ForwardShadingForcesSkyLightCubemapBlending(Platform))
 	{
-		KeyString += TEXT("_FwdSkyBlnd");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("FwdSkyBlnd"));
 	}
 
 	if (IsMobilePlatform(Platform))
 	{
 		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(IsMobileHDR() ? TEXT("HDR") : TEXT("LDR"));
+		}
+		
+		{
 			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.DisableVertexFog"));
-			KeyString += (CVar && CVar->GetInt() != 0) ? TEXT("_NoVFog") : TEXT("");
+			if (CVar && CVar->GetInt() != 0)
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("NoVFog"));
+			}
 		}
 		
 		{
 			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.FloatPrecisionMode"));
-			if(CVar && CVar->GetInt() > 0)
+			if (CVar && CVar->GetInt() > 0)
 			{
-				KeyString.Appendf(TEXT("_highp%d"), CVar->GetInt());
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("highp"));
+				KeyGen.Append(CVar->GetInt());
 			}
 		}
 
 		{
 			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AllowDitheredLODTransition"));
-			KeyString += (CVar && CVar->GetInt() != 0) ? TEXT("_DLODT") : TEXT("");
+			if (CVar && CVar->GetInt() != 0)
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("DLODT"));
+			}
 		}
 		
-		KeyString += IsUsingEmulatedUniformBuffers(Platform) ? TEXT("_NoUB") : TEXT("");
+		if (IsUsingEmulatedUniformBuffers(Platform))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoUB"));
+		}
 
 		{
 			const bool bMobileMovableSpotlightShadowsEnabled = IsMobileMovableSpotlightShadowsEnabled(Platform);
-			KeyString += bMobileMovableSpotlightShadowsEnabled ? TEXT("S") : TEXT("");
+			if (bMobileMovableSpotlightShadowsEnabled)
+			{
+				KeyGen.Append(TEXT("S"));
+			}
 		}
 		
 		{
 			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.UseHWsRGBEncoding"));
-			KeyString += (CVar && CVar->GetInt() != 0) ? TEXT("_HWsRGB") : TEXT("");
+			if (CVar && CVar->GetInt() != 0)
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("HWsRGB"));
+			}
 		}
 		
 		{
 			// make it per shader platform ?
 			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.SupportGPUScene"));
-			bool bMobileGpuScene = (CVar && CVar->GetInt() != 0);
-			KeyString += bMobileGpuScene ? TEXT("_MobGPUSc") : TEXT("");
+			if (CVar && CVar->GetInt() != 0)
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("MobGPUSc"));
+			}
 		}
 
 		{
@@ -1721,14 +1939,16 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 			if (bIsMobileDeferredShading)
 			{
-				KeyString += (MobileUsesExtenedGBuffer(Platform) ? TEXT("_MobDShEx") : TEXT("_MobDSh"));
+				KeyGen.AppendSeparator();
+				KeyGen.Append(MobileUsesExtenedGBuffer(Platform) ? TEXT("MobDShEx") : TEXT("MobDSh"));
 			}
 			else
 			{
 				static IConsoleVariable* MobileForwardEnableClusteredReflectionsCVAR = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.Forward.EnableClusteredReflections"));
 				if (MobileForwardEnableClusteredReflectionsCVAR && MobileForwardEnableClusteredReflectionsCVAR->GetInt() != 0)
 				{
-					KeyString += TEXT("_MobFCR");
+					KeyGen.AppendSeparator();
+					KeyGen.Append(TEXT("MobFCR"));
 				}
 			}
 		}
@@ -1737,45 +1957,83 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			static IConsoleVariable* MobileGTAOPreIntegratedTextureTypeCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.GTAOPreIntegratedTextureType"));
 			static IConsoleVariable* MobileAmbientOcclusionCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.AmbientOcclusion"));
 			int32 GTAOPreIntegratedTextureType = MobileGTAOPreIntegratedTextureTypeCVar ? MobileGTAOPreIntegratedTextureTypeCVar->GetInt() : 0;
-			KeyString += ((MobileAmbientOcclusionCVar && MobileAmbientOcclusionCVar->GetInt() != 0) && IsMobileHDR()) ? FString::Printf(TEXT("_MobileAO_%d"), GTAOPreIntegratedTextureType) : TEXT("");
+			if (MobileAmbientOcclusionCVar && MobileAmbientOcclusionCVar->GetInt() != 0 && IsMobileHDR())
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("MobileAO"));
+				KeyGen.AppendSeparator();
+				KeyGen.Append(GTAOPreIntegratedTextureType);
+			}
 		}
 
+		if (IsMobileDistanceFieldEnabled(Platform))
 		{
-			KeyString += IsMobileDistanceFieldEnabled(Platform) ? TEXT("_MobSDF") : TEXT("");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MobSDF"));
 		}
 
 		{
 			static FShaderPlatformCachedIniValue<bool> EnableCullBeforeFetchIniValue(TEXT("r.CullBeforeFetch"));
 			if (EnableCullBeforeFetchIniValue.Get(Platform) == 1)
 			{
-				KeyString += TEXT("_CBF");
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("CBF"));
 			}
 			static FShaderPlatformCachedIniValue<bool> EnableWarpCullingIniValue(TEXT("r.WarpCulling"));
 			if (EnableWarpCullingIniValue.Get(Platform) == 1)
 			{
-				KeyString += TEXT("_WC");
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("WC"));
 			}
 		}
 
+		if (MobileUsesFullDepthPrepass(Platform))
 		{
-			KeyString += MobileUsesFullDepthPrepass(Platform) ? TEXT("_MobFDP") : TEXT("");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MobFDP"));
+		}
+
+		if (AreMobileScreenSpaceReflectionsEnabled(Platform))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MobSSR"));
+		}
+
+		if (MobileAllowFramebufferFetch(Platform) == false)
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoFBF"));
 		}
 	}
 	else
 	{
-		KeyString += IsUsingEmulatedUniformBuffers(Platform) ? TEXT("_NoUB") : TEXT("");
+		if (IsUsingEmulatedUniformBuffers(Platform))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoUB"));
+		}
 	}
 
+	if (RenderRectLightsAsSpotLights(GetMaxSupportedFeatureLevel(Platform)))
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("R2S"));
+	}
+	
 	uint32 PlatformShadingModelsMask = GetPlatformShadingModelsMask(Platform);
 	if (PlatformShadingModelsMask != 0xFFFFFFFF)
 	{
-		KeyString +=  FString::Printf(TEXT("SMM_%X"), PlatformShadingModelsMask);
+		KeyGen.Append(TEXT("SMM"));
+		KeyGen.AppendSeparator();
+		KeyGen.AppendHex(PlatformShadingModelsMask);
 	}
 
 	const IShaderFormat* ShaderFormat = GetTargetPlatformManagerRef().FindShaderFormat(ShaderFormatName);
 	if (ShaderFormat)
 	{
-		ShaderFormat->AppendToKeyString(KeyString);
+		FString ShaderFormatExtraData;
+		ShaderFormat->AppendToKeyString(ShaderFormatExtraData);
+		KeyGen.Append(ShaderFormatExtraData);
 	}
 
 	ITargetPlatform* TargetPlatform = GetTargetPlatformManagerRef().FindTargetPlatformWithSupport(TEXT("ShaderFormat"), ShaderFormatName);
@@ -1784,7 +2042,10 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 	if (SupportedHardwareMask != 0)
 	{
-		KeyString += FString::Printf(TEXT("_SHM_%X"), SupportedHardwareMask);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SHM"));
+		KeyGen.AppendSeparator();
+		KeyGen.AppendHex(SupportedHardwareMask);
 	}
 
 	// Encode the Metal standard into the shader compile options so that they recompile if the settings change.
@@ -1792,30 +2053,48 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	{
 		{
 			static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.ZeroInitialise"));
-			KeyString += (CVar && CVar->GetInt() != 0) ? TEXT("_ZeroInit") : TEXT("");
+			if (CVar && CVar->GetInt() != 0)
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("ZeroInit"));
+			}
 		}
 		{
 			static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.BoundsChecking"));
-			KeyString += (CVar && CVar->GetInt() != 0) ? TEXT("_BoundsChecking") : TEXT("");
+			if (CVar && CVar->GetInt() != 0)
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("BoundsChecking"));
+			}
 		}
 		{
-			KeyString += RHISupportsManualVertexFetch(Platform) ? TEXT("_MVF_") : TEXT("");
+			if (RHISupportsManualVertexFetch(Platform))
+			{
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("MVF"));
+				KeyGen.AppendSeparator();
+			}
 		}
 		
 		uint32 ShaderVersion = RHIGetMetalShaderLanguageVersion(Platform);
-		KeyString += FString::Printf(TEXT("_MTLSTD%u_"), ShaderVersion);
-		
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("MTLSTD"));
+		KeyGen.Append(ShaderVersion);
+		KeyGen.AppendSeparator();
+
 		bool bAllowFastIntrinsics = false;
 		bool bEnableMathOptimisations = true;
 		bool bForceFloats = false;
         bool bSupportAppleA8 = false;
 		int32 IndirectArgumentTier = 0;
-        
+		bool bMetalOptimizeBySize = false;
+
 		if (IsPCPlatform(Platform))
 		{
 			GConfig->GetBool(TEXT("/Script/MacTargetPlatform.MacTargetSettings"), TEXT("UseFastIntrinsics"), bAllowFastIntrinsics, GEngineIni);
 			GConfig->GetBool(TEXT("/Script/MacTargetPlatform.MacTargetSettings"), TEXT("EnableMathOptimisations"), bEnableMathOptimisations, GEngineIni);
 			GConfig->GetInt(TEXT("/Script/MacTargetPlatform.MacTargetSettings"), TEXT("IndirectArgumentTier"), IndirectArgumentTier, GEngineIni);
+			GConfig->GetBool(TEXT("/Script/MacTargetPlatform.MacTargetSettings"), TEXT("MetalOptimizeBySize"), bMetalOptimizeBySize, GEngineIni);
 		}
 		else
 		{
@@ -1824,37 +2103,51 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("ForceFloats"), bForceFloats, GEngineIni);
 			GConfig->GetInt(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("IndirectArgumentTier"), IndirectArgumentTier, GEngineIni);
             GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportAppleA8"), bSupportAppleA8, GEngineIni);
+			GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("MetalOptimizeBySize"), bMetalOptimizeBySize, GEngineIni);
 		}
 		
 		if (bAllowFastIntrinsics)
 		{
-			KeyString += TEXT("_MTLSL_FastIntrin");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MTLSL_FastIntrin"));
 		}
 		
 		// Same as console-variable above, but that's global and this is per-platform, per-project
 		if (!bEnableMathOptimisations)
 		{
-			KeyString += TEXT("_NoFastMath");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoFastMath"));
 		}
 		
 		if (bForceFloats)
 		{
-			KeyString += TEXT("_FP32");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("FP32"));
 		}
 		
         if(bSupportAppleA8)
         {
-            KeyString += TEXT("_A8GPU");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("A8GPU"));
+        }
+		
+		if(bMetalOptimizeBySize)
+        {
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("Os"));
         }
         
-		KeyString += FString::Printf(TEXT("_IAB%d"), IndirectArgumentTier);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("IAB"));
+		KeyGen.Append(IndirectArgumentTier);
 		
 		// Shaders built for archiving - for Metal that requires compiling the code in a different way so that we can strip it later
 		bool bArchive = false;
 		GConfig->GetBool(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("bSharedMaterialNativeLibraries"), bArchive, GGameIni);
 		if (bArchive)
 		{
-			KeyString += TEXT("_ARCHIVE");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("ARCHIVE"));
 		}
 	}
 
@@ -1864,19 +2157,22 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		GConfig->GetBool(TEXT("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings"), TEXT("bStripShaderReflection"), bStripReflect, GEngineIni);
 		if (!bStripReflect)
 		{
-			KeyString += TEXT("_NoStripReflect");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("NoStripReflect"));
 		}
 	}
 
 	// Is DXC shader compiler enabled for this platform?
-	KeyString += (IsDxcEnabledForPlatform(Platform) ? TEXT("_DXC1") : TEXT("_DXC0"));
+	KeyGen.AppendSeparator();
+	KeyGen.Append(IsDxcEnabledForPlatform(Platform) ? TEXT("DXC1") : TEXT("DXC0"));
 
 	if (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5))
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.StencilForLODDither"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{
-			KeyString += TEXT("_SD");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SD"));
 		}
 	}
 
@@ -1896,44 +2192,27 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 		if (bForwardShading)
 		{
-			KeyString += TEXT("_FS");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("FS"));
 		}
 	}
 
 	{
-		int PropagateAlphaType = 0;
-		if (IsMobilePlatform(Platform))
-		{
-			static FShaderPlatformCachedIniValue<int32> MobilePropagateAlphaIniValue(TEXT("r.Mobile.PropagateAlpha"));
-			int MobilePropagateAlphaIniValueInt = MobilePropagateAlphaIniValue.Get((EShaderPlatform)Platform);
-			PropagateAlphaType = MobilePropagateAlphaIniValueInt > 0 ? 2 : 0;
-		}
-		else
-		{
-			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-			if (CVar)
-			{
-				PropagateAlphaType = CVar->GetValueOnAnyThread();
-			}
-		}
+		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Deferred.SupportPrimitiveAlphaHoldout"));
+		const bool bDeferredSupportPrimitiveAlphaHoldout = CVar ? CVar->GetBool() : false;
 
-		if (PropagateAlphaType > 0)
+		if (bDeferredSupportPrimitiveAlphaHoldout)
 		{
-			if (PropagateAlphaType == 2)
-			{
-				KeyString += TEXT("_SA2");
-			}
-			else
-			{
-				KeyString += TEXT("_SA");
-			}
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("PAH"));
 		}
 	}
 
 	if (TargetPlatform && 
 		TargetPlatform->SupportsFeature(ETargetPlatformFeatures::NormalmapLAEncodingMode))
 	{
-		KeyString += TEXT("_NLA");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("NLA"));
 	}
 
 	{
@@ -1953,7 +2232,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 		if (bVertexFoggingForOpaque)
 		{
-			KeyString += TEXT("_VFO");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("VFO"));
 		}
 	}
 
@@ -1963,14 +2243,16 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		bSupportLocalFogVolumes = CVar && CVar->GetInt() > 0;
 		if (bSupportLocalFogVolumes)
 		{
-			KeyString += TEXT("_LFV");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LFV"));
 		}
 	}
 
 	{
 		if (DoesProjectSupportLumenRayTracedTranslucentRefraction())
 		{
-			KeyString += TEXT("_LTRRT");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LTRRT"));
 		}
 	}
 
@@ -1979,7 +2261,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		const bool bLocalFogVolumesApplyOnTranclucent = CVar && CVar->GetInt() > 0;
 		if (bSupportLocalFogVolumes && bLocalFogVolumesApplyOnTranclucent)
 		{
-			KeyString += TEXT("_LFVTRA");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LFVTRA"));
 		}
 	}
 
@@ -1987,27 +2270,39 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportSkyAtmosphere"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{
-			KeyString += TEXT("_SKYATM");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SKYATM"));
 
 			static const auto CVarHeightFog = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportSkyAtmosphereAffectsHeightFog"));
 			if (CVarHeightFog && CVarHeightFog->GetValueOnAnyThread() > 0)
 			{
-				KeyString += TEXT("_SKYHF");
+				KeyGen.AppendSeparator();
+				KeyGen.Append(TEXT("SKYHF"));
 			}
 		}
 	}
 
-	const bool bNeedsSeparateMainDirLightTexture = IsWaterDistanceFieldShadowEnabled(Platform) || IsWaterVirtualShadowMapFilteringEnabled(Platform);
+	{
+		if (DoesProjectSupportExpFogMatchesVolumetricFog())
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("EXPVFOG"));
+		}
+	}
+
+	const bool bNeedsSeparateMainDirLightTexture = IsWaterSeparateMainDirLightEnabled(Platform);
 	if (bNeedsSeparateMainDirLightTexture)
 	{
-		KeyString += TEXT("_SLWSMDLT");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SLWSMDLT"));
 	}
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportCloudShadowOnForwardLitTranslucent"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{
-			KeyString += TEXT("_CLDTRANS");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("CLDTRANS"));
 		}
 	}
 
@@ -2015,7 +2310,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		const bool bTranslucentUsesLightRectLights = GetTranslucentUsesLightRectLights();
 		if (bTranslucentUsesLightRectLights)
 		{
-			KeyString += TEXT("_RECTTRANS");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("RECTTRANS"));
 		}
 	}
 
@@ -2023,7 +2319,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		const bool bTranslucentUsesLightIESProfiles = GetTranslucentUsesLightIESProfiles();
 		if (bTranslucentUsesLightIESProfiles)
 		{
-			KeyString += TEXT("_IESTRANS");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("IESTRANS"));
 		}
 	}
 
@@ -2031,70 +2328,88 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Shadow.Virtual.TranslucentQuality"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{
-			KeyString += TEXT("_VSMTRANSQUALITY");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("VSMTRANSQUALITY"));
 		}
 	}
 
 	if (GetHairStrandsUsesTriangleStrips())
 	{
-		KeyString += FString::Printf(TEXT("_STRDSTRIP"));
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("STRDSTRIP"));
 	}
 
 	if (Substrate::IsSubstrateEnabled())
 	{
 		{
-			KeyString += TEXT("_SUBSTRATE");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SUBSTRATE"));
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_BUDGET%u"), Substrate::GetBytePerPixel(Platform));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("BUDGET"));
+			KeyGen.Append(Substrate::GetBytePerPixel(Platform));
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_CLOSURE%u"), Substrate::GetClosurePerPixel(Platform));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("CLOSURE"));
+			KeyGen.Append(Substrate::GetClosurePerPixel(Platform));
 		}
 
 		if (Substrate::IsDBufferPassEnabled(Platform))
 		{
-			KeyString += FString::Printf(TEXT("_DBUFFERPASS"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("DBUFFERPASS"));
 		}
 
 		if (Substrate::IsBackCompatibilityEnabled())
 		{
-			KeyString += FString::Printf(TEXT("_BACKCOMPAT"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("BACKCOMPAT"));
 		}
 
 		if (Substrate::IsOpaqueRoughRefractionEnabled())
 		{
-			KeyString += FString::Printf(TEXT("_ROUGHDIFF"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("ROUGHDIFF"));
 		}
 
 		if (Substrate::GetNormalQuality() > 0)
 		{
-			KeyString += FString::Printf(TEXT("_STRTNRMQ"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("STRTNRMQ"));
 		}
 
 		if (Substrate::IsAdvancedVisualizationEnabled())
 		{
-			KeyString += FString::Printf(TEXT("_ADVDEBUG"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("ADVDEBUG"));
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_STSHQL%u"), Substrate::GetShadingQuality(Platform));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("STSHQL"));
+			KeyGen.Append(Substrate::GetShadingQuality(Platform));
 		}
 
 		{
-			KeyString += FString::Printf(TEXT("_SSHEEN%u"), Substrate::GetSheenQuality(Platform));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SSHEEN"));
+			KeyGen.Append(Substrate::GetSheenQuality(Platform));
 		}
 
 		if (Substrate::IsGlintEnabled(Platform))
 		{
-			KeyString += FString::Printf(TEXT("_STRTGLT"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("STRTGLT"));
 		}
 
 		if (Substrate::IsSpecularProfileEnabled(Platform))
 		{
-			KeyString += FString::Printf(TEXT("_STRTSP"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("STRTSP"));
 		}
 	}
 
@@ -2102,7 +2417,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Material.RoughDiffuse"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{
-			KeyString += FString::Printf(TEXT("_MATRDIFF"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MATRDIFF"));
 		}
 	}
 
@@ -2110,19 +2426,23 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		int32 LightFunctionAtlasFormat = GetLightFunctionAtlasFormat();
 		if (LightFunctionAtlasFormat > 0)
 		{
-			KeyString += FString::Printf(TEXT("_LFAC%u"), LightFunctionAtlasFormat);
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LFAC"));
+			KeyGen.Append(static_cast<uint32>(LightFunctionAtlasFormat));
 		}
 
 		bool bSingleLayerWaterUsesLightFunctionAtlas = GetSingleLayerWaterUsesLightFunctionAtlas();
 		if (bSingleLayerWaterUsesLightFunctionAtlas)
 		{
-			KeyString += FString::Printf(TEXT("_SLWLFA"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("SLWLFA"));
 		}
 
 		bool bTranslucentUsesLightFunctionAtlas = GetTranslucentUsesLightFunctionAtlas();
 		if (bTranslucentUsesLightFunctionAtlas)
 		{
-			KeyString += FString::Printf(TEXT("_FWDLFA"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("FWDLFA"));
 		}
 
 	}
@@ -2131,14 +2451,16 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Material.EnergyConservation"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{
-			KeyString += FString::Printf(TEXT("_MATENERGY"));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MATENERGY"));
 		}
 	}
 
 	{
 		if (MaskedInEarlyPass(Platform))
 		{
-			KeyString += TEXT("_EZPMM");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("EZPMM"));
 		}
 	}
 	
@@ -2146,35 +2468,35 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.GPUSkin.Limit2BoneInfluences"));
 		if (CVar && CVar->GetValueOnAnyThread() != 0)
 		{
-			KeyString += TEXT("_2bi");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("2bi"));
 		}
 	}
 	{
 		if(UseGPUScene(Platform, GetMaxSupportedFeatureLevel(Platform)))
 		{
-			KeyString += TEXT("_gs1");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("gs1"));
 		}
 		else
 		{
-			KeyString += TEXT("_gs0");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("gs0"));
 		}
 	}
 
 	if (FDataDrivenShaderPlatformInfo::GetSupportSceneDataCompressedTransforms(Platform))
 	{
-		KeyString += TEXT("_sdct");
-	}
-
-	if (FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(Platform) && GRHIAttachmentVariableRateShadingEnabled)
-	{
-		KeyString += TEXT("_VRS");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("sdct"));
 	}
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.GBufferDiffuseSampleOcclusion"));
 		if (CVar && CVar->GetValueOnAnyThread() != 0)
 		{
-			KeyString += TEXT("_GDSO");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("GDSO"));
 		}
 	}
 
@@ -2202,7 +2524,16 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 		const bool VTSupported = TargetPlatform != nullptr && TargetPlatform->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming);
 
- 		KeyString += FString::Printf(TEXT("_VT-%d-%d-%d-%d"), VTLightmaps, VTTextures, VTSupported, VTFiltering);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("VT"));
+		KeyGen.AppendDebugText(TEXT("-"));
+		KeyGen.Append(VTLightmaps);
+		KeyGen.AppendDebugText(TEXT("-"));
+		KeyGen.Append(VTTextures);
+		KeyGen.AppendDebugText(TEXT("-"));
+		KeyGen.Append(VTSupported);
+		KeyGen.AppendDebugText(TEXT("-"));
+		KeyGen.Append(VTFiltering);
 	}
 
 	{
@@ -2215,7 +2546,17 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			WCSHash ^= GetTypeHash(WCS.GetGreenChromaticity());
 			WCSHash ^= GetTypeHash(WCS.GetBlueChromaticity());
 			WCSHash ^= GetTypeHash(WCS.GetWhiteChromaticity());
-			KeyString += FString::Printf(TEXT("_WCS-%u"), WCSHash);
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("WCS"));
+			KeyGen.AppendDebugText(TEXT("-"));
+			KeyGen.Append(WCSHash);
+		}
+
+		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+		if (CVar && CVar->GetInt() != 0)
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("LLF"));
 		}
 	}
 
@@ -2223,7 +2564,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Shaders.RemoveDeadCode"));
 		if (CVar && CVar->GetValueOnAnyThread() != 0)
 		{
-			KeyString += TEXT("_MIN");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MIN"));
 		}
 	}
 
@@ -2231,43 +2573,51 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.ShaderCompiler.PreprocessedJobCache"));
 		if (CVar && CVar->GetValueOnAnyThread())
 		{
-			KeyString += TEXT("_PJC");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("PJC"));
 		}
 	}
 
 	if (RHISupportsShaderRootConstants(Platform))
 	{
-		KeyString += TEXT("_SHRC");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SHRC"));
 	}
 
 	if (RHISupportsShaderBundleDispatch(Platform))
 	{
-		KeyString += TEXT("_SHBD");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SHBD"));
 	}
 
 	if (RHISupportsRenderTargetWriteMask(Platform))
 	{
-		KeyString += TEXT("_RTWM");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("RTWM"));
 	}
 
 	if (FDataDrivenShaderPlatformInfo::GetSupportsPerPixelDBufferMask(Platform))
 	{
-		KeyString += TEXT("_PPDBM");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("PPDBM"));
 	}
 
 	if (FDataDrivenShaderPlatformInfo::GetSupportsDistanceFields(Platform))
 	{
-		KeyString += TEXT("_DF");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("DF"));
 	}
 
 	if (RHISupportsMeshShadersTier0(Platform))
 	{
-		KeyString += TEXT("_MS_T0");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("MS_T0"));
 	}
 
 	if (RHISupportsMeshShadersTier1(Platform))
 	{
-		KeyString += TEXT("_MS_T1");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("MS_T1"));
 	}
 
 	if (RHIGetBindlessSupport(Platform) != ERHIBindlessSupport::Unsupported)
@@ -2277,25 +2627,42 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 
 		if (ResourcesConfig != ERHIBindlessConfiguration::Disabled)
 		{
-			KeyString += ResourcesConfig == ERHIBindlessConfiguration::RayTracingShaders ? TEXT("_BNDLSRTRES") : TEXT("_BNDLSRES");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(ResourcesConfig == ERHIBindlessConfiguration::RayTracingShaders ?
+				TEXT("BNDLSRTRES") : TEXT("BNDLSRES"));
 		}
 
 		if (SamplersConfig != ERHIBindlessConfiguration::Disabled)
 		{
-			KeyString += SamplersConfig == ERHIBindlessConfiguration::RayTracingShaders ? TEXT("_BNDLSRTSAM") : TEXT("_BNDLSSAM");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(SamplersConfig == ERHIBindlessConfiguration::RayTracingShaders ?
+				TEXT("BNDLSRTSAM") : TEXT("BNDLSSAM"));
 		}
+	}
+
+	const ERHIStaticShaderBindingLayoutSupport StaticShaderBindingLayoutSupport = FDataDrivenShaderPlatformInfo::GetStaticShaderBindingLayoutSupport(Platform);
+	if (StaticShaderBindingLayoutSupport != ERHIStaticShaderBindingLayoutSupport::Unsupported)
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(StaticShaderBindingLayoutSupport == ERHIStaticShaderBindingLayoutSupport::RayTracingOnly ?
+		              TEXT("SSBL-RT") : TEXT("SSBL"));
 	}
 
 	if (ShouldCompileRayTracingShadersForProject(Platform))
 	{
-		static const auto CVarCompileCHS = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.CompileMaterialCHS"));
-		static const auto CVarCompileAHS = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.CompileMaterialAHS"));
+		static FShaderPlatformCachedIniValue<int32> CVarCompileRayTracingMaterialCHS(TEXT("r.RayTracing.CompileMaterialCHS"));
+		static FShaderPlatformCachedIniValue<int32> CVarCompileRayTracingMaterialAHS(TEXT("r.RayTracing.CompileMaterialAHS"));
+
 		static const auto CVarTextureLod = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing.UseTextureLod"));
 
-		KeyString += FString::Printf(TEXT("_RAY-CHS%dAHS%dLOD%d"),
-			CVarCompileCHS && CVarCompileCHS->GetBool() ? 1 : 0,
-			CVarCompileAHS && CVarCompileAHS->GetBool() ? 1 : 0,
-			CVarTextureLod && CVarTextureLod->GetBool() ? 1 : 0);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("RAY"));
+		KeyGen.AppendDebugText(TEXT("-CHS"));
+		KeyGen.AppendBoolInt(CVarCompileRayTracingMaterialCHS.Get(Platform) != 0);
+		KeyGen.AppendDebugText(TEXT("AHS"));
+		KeyGen.AppendBoolInt(CVarCompileRayTracingMaterialAHS.Get(Platform) != 0);
+		KeyGen.AppendDebugText(TEXT("LOD"));
+		KeyGen.AppendBoolInt(CVarTextureLod && CVarTextureLod->GetBool());
 	}
 
 	if (DoesPlatformSupportHeterogeneousVolumes(Platform))
@@ -2303,81 +2670,101 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		static const auto ShadowCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.HeterogeneousVolumes.Shadows"));
 		if (ShadowCVar && ShadowCVar->GetValueOnAnyThread() != 0)
 		{
-			KeyString += TEXT("_HVSHADOW");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("HVSHADOW"));
 		}
 
 		static const auto CompTranslucencyCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Translucency.HeterogeneousVolumes"));
 		if (CompTranslucencyCVar && CompTranslucencyCVar->GetValueOnAnyThread() != 0)
 		{
-			KeyString += TEXT("_HVCOMPTRANSL");
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("HVCOMPTRANSL"));
 		}
 	}
 
 	if (ForceSimpleSkyDiffuse(Platform))
 	{
-		KeyString += TEXT("_SSD");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SSD"));
 	}
 
 	if (VelocityEncodeDepth(Platform))
 	{
-		KeyString += TEXT("_VED");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("VED"));
 	}
 
 	{
 		const bool bSupportsAnisotropicMaterials = FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(Platform);
-		KeyString += FString::Printf(TEXT("_Aniso-%d"), bSupportsAnisotropicMaterials ? 1 : 0);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("Aniso"));
+		KeyGen.AppendDebugText(TEXT("-"));
+		KeyGen.AppendBoolInt(bSupportsAnisotropicMaterials);
 	}
 
 	{
 		// add shader compression format
-		KeyString += TEXT("_Compr");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("Compr"));
 		FName CompressionFormat = GetShaderCompressionFormat();
-		KeyString += CompressionFormat.ToString();
+		KeyGen.Append(CompressionFormat);
 		if (CompressionFormat == NAME_Oodle)
 		{
 			FOodleDataCompression::ECompressor OodleCompressor;
 			FOodleDataCompression::ECompressionLevel OodleLevel;
 			GetShaderCompressionOodleSettings(OodleCompressor, OodleLevel);
-			KeyString += FString::Printf(TEXT("_Compr%d_Lev%d"), static_cast<int32>(OodleCompressor), static_cast<int32>(OodleLevel));
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("Compr"));
+			KeyGen.Append(static_cast<int32>(OodleCompressor));
+			KeyGen.AppendSeparator();
+			KeyGen.AppendDebugText(TEXT("Lev"));
+			KeyGen.Append(static_cast<int32>(OodleLevel));
 		}
 	}
 
 	{
 		// add whether or not non-pipelined shader types are included
-		KeyString += FString::Printf(TEXT("_ExclNonPipSh-%d"), ExcludeNonPipelinedShaderTypes(Platform));
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("ExclNonPipSh-"));
+		KeyGen.AppendBoolInt(ExcludeNonPipelinedShaderTypes(Platform));
 	}
 
-	KeyString += FString::Printf(TEXT("_LWC-%d"), FMath::FloorToInt(FLargeWorldRenderScalar::GetTileSize()));
+	KeyGen.AppendSeparator();
+	KeyGen.Append(TEXT("LWC-"));
+	KeyGen.Append(FMath::FloorToInt(FLargeWorldRenderScalar::GetTileSize()));
 
 	uint64 ShaderPlatformPropertiesHash = FDataDrivenShaderPlatformInfo::GetShaderPlatformPropertiesHash(Platform);
-	KeyString += FString::Printf(TEXT("_%u"), ShaderPlatformPropertiesHash);
+	KeyGen.AppendSeparator();
+	KeyGen.Append(ShaderPlatformPropertiesHash);
 
 	if (IsSingleLayerWaterDepthPrepassEnabled(Platform, GetMaxSupportedFeatureLevel(Platform)))
 	{
-		KeyString += TEXT("_SLWDP");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SLWDP"));
 	}
 
 	if (IsGPUSkinPassThroughSupported(Platform))
 	{
-		KeyString += TEXT("_SKPassThrough1");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SKPassThrough1"));
 	}
 	else
 	{
-		KeyString += TEXT("_SKPassThrough0");
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SKPassThrough0"));
 	}
 
-	if (UseNanite(Platform))
+	if (DoesRuntimeSupportNanite(Platform, false, true))
 	{
-		static const auto CVarAllowTess = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowTessellation"));
-		static const auto CVarAllowCSMat = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowComputeMaterials"));
-		static const auto CVarAllowPSMat = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowLegacyMaterials"));
+		static const auto CVarAllowSpline = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowSplineMeshes"));
+		static const auto CVarAllowSkinned = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowSkinnedMeshes"));
 
-		KeyString.Appendf(
-			TEXT("_Nanite-Tess%dCSMat%dPSMat%d"),
-			CVarAllowTess ? CVarAllowTess->GetInt() : 0,
-			CVarAllowCSMat ? CVarAllowCSMat->GetInt() : 0,
-			CVarAllowPSMat ? CVarAllowPSMat->GetInt() : 0
-		);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("Nanite-"));
+		KeyGen.AppendDebugText(TEXT("Spline"));
+		KeyGen.Append(CVarAllowSpline ? CVarAllowSpline->GetInt() : 0);
+		KeyGen.AppendDebugText(TEXT("Skinned"));
+		KeyGen.Append(CVarAllowSkinned ? CVarAllowSkinned->GetInt() : 0);
 	}
 }
 

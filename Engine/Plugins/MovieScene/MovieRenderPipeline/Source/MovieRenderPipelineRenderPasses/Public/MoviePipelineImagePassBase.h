@@ -120,8 +120,6 @@ protected:
 protected:
 	virtual void GetViewShowFlags(FEngineShowFlags& OutShowFlag, EViewModeIndex& OutViewModeIndex) const;
 	virtual TSharedPtr<FSceneViewFamilyContext> CalculateViewFamily(FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload = nullptr);
-	UE_DEPRECATED(5.1, "Use the overload that provides the InOutSampleState and IViewCalcPayload instead.")
-	virtual void BlendPostProcessSettings(FSceneView* InView) {}
 	virtual void BlendPostProcessSettings(FSceneView* InView, FMoviePipelineRenderPassMetrics& InOutSampleState, IViewCalcPayload* OptPayload = nullptr);
 	virtual void SetupViewForViewModeOverride(FSceneView* View);
 	virtual void MoviePipelineRenderShowFlagOverride(FEngineShowFlags& OutShowFlag) {}

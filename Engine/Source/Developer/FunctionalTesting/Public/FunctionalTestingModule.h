@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "FunctionalTest.h"
 
 FUNCTIONALTESTING_API DECLARE_LOG_CATEGORY_EXTERN(LogFunctionalTest, Log, All);
 
@@ -39,7 +40,16 @@ public:
 	virtual void SetLooping(const bool bLoop) = 0;
 
 	/** Gets a list of maps/tests in the current project */
+	UE_DEPRECATED(5.5, "GetMapTests() with four parameters has been deprecated.")
 	virtual void GetMapTests(bool bEditorOnlyTests, TArray<FString>& OutBeautifiedNames, TArray<FString>& OutTestCommands, TArray<FString>& OutTestMapAssets) const = 0;
+
+	/**
+	 * Gets a list of tests and maps in the current project
+	 * @param bEditorOnlyTests	Only collect tests which run in the Editor
+	 * @param OutTestInfo		Updated to contain execution information for each test
+	 * @param OutTestMapAssets	Updated with the unique *.umap assets which contain tests
+	 */
+	virtual void GetMapTests(bool bEditorOnlyTests, TArray<FFunctionalTestInfo>& OutTestInfo, TArray<FString>& OutTestMapAssets) const = 0;
 
 	/** Gets the debugger singleton or returns NULL */
 	static IFunctionalTestingModule& Get()

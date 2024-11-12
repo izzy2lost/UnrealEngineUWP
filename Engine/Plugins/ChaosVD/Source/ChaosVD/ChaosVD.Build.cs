@@ -15,6 +15,7 @@ public class ChaosVD : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
 				"CoreUObject",
 				"Engine",
 				"RenderCore",
@@ -46,7 +47,9 @@ public class ChaosVD : ModuleRules
 				"StatusBar",
 				"SubobjectEditor",
 				"SubobjectDataInterface",
-				"PropertyEditor"
+				"PropertyEditor",
+				"CommonMenuExtensions", 
+				"EditorWidgets"
 			}
 			);
 

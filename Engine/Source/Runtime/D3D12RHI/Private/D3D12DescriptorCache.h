@@ -2,15 +2,34 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Containers/Set.h"
+#include "Misc/AssertionMacros.h"
+#include "Templates/UnrealTemplate.h"
+#include "D3D12RHICommon.h"
+#include "D3D12Descriptors.h"
+
+class FD3D12CommandContext;
 class FD3D12DynamicRHI;
-struct FD3D12DefaultViews;
+class FD3D12DepthStencilView;
+class FD3D12ExplicitDescriptorCache;
+class FD3D12RenderTargetView;
+class FD3D12ShaderResourceView;
+class FD3D12UnorderedAccessView;
 class FD3D12DescriptorCache;
+class FD3D12RootSignature;
+
+struct FD3D12DefaultViews;
 struct FD3D12VertexBufferCache;
 struct FD3D12IndexBufferCache;
 struct FD3D12ConstantBufferCache;
 struct FD3D12ShaderResourceViewCache;
 struct FD3D12UnorderedAccessViewCache;
 struct FD3D12SamplerStateCache;
+class FD3D12StateCache;
+
+class FD3D12SyncPoint;
+using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
 // Like a TMap<KeyType, ValueType>
 // Faster lookup performance, but possibly has false negatives
@@ -79,11 +98,11 @@ private:
 	TArray<Entry> Table;
 };
 
-uint32 GetTypeHash(const D3D12_SAMPLER_DESC& Desc);
 struct FD3D12SamplerArrayDesc
 {
 	uint32 Count;
 	uint16 SamplerID[MAX_SAMPLERS];
+
 	inline bool operator==(const FD3D12SamplerArrayDesc& rhs) const
 	{
 		check(Count <= UE_ARRAY_COUNT(SamplerID));
@@ -100,7 +119,10 @@ struct FD3D12SamplerArrayDesc
 		}
 	}
 };
+
+uint32 GetTypeHash(const D3D12_SAMPLER_DESC& Desc);
 uint32 GetTypeHash(const FD3D12SamplerArrayDesc& Key);
+
 typedef FD3D12ConservativeMap<FD3D12SamplerArrayDesc, D3D12_GPU_DESCRIPTOR_HANDLE> FD3D12SamplerMap;
 
 struct FD3D12UniqueSamplerTable
@@ -112,17 +134,14 @@ struct FD3D12UniqueSamplerTable
 		FMemory::Memcpy(CPUTable, Table, Key.Count * sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
 	}
 
-	FORCEINLINE uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table)
-	{
-		return FD3D12PipelineStateCache::HashData((void*)Table.Key.SamplerID, Table.Key.Count * sizeof(Table.Key.SamplerID[0]));
-	}
-
 	FD3D12SamplerArrayDesc Key{};
 	D3D12_CPU_DESCRIPTOR_HANDLE CPUTable[MAX_SAMPLERS]{};
 
 	// This will point to the table start in the global heap
 	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle{};
 };
+uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table);
+
 
 struct FD3D12UniqueSamplerTableKeyFuncs : BaseKeyFuncs<FD3D12UniqueSamplerTable, FD3D12UniqueSamplerTable, /*bInAllowDuplicateKeys = */ false>
 {
@@ -174,7 +193,7 @@ public:
 	uint32 ReserveSlots(uint32 NumSlotsRequested);
 
 	void SetNextSlot(uint32 NextSlot);
-	uint32 GetNextSlotIndex() const { return NextSlotIndex;  }
+	uint32 GetNextSlotIndex() const { return NextSlotIndex; }
 
 	// Function which can/should be implemented by the derived classes
 	virtual bool RollOver() = 0;
@@ -182,8 +201,6 @@ public:
 	virtual void OpenCommandList () { }
 	virtual void CloseCommandList() { }
 	virtual uint32 GetTotalSize() { return Heap->GetNumDescriptors(); }
-
-	static const uint32 HeapExhaustedValue = uint32(-1);
 
 protected:
 	// Keeping this ptr around is basically just for lifetime management
@@ -258,53 +275,29 @@ public:
 	// Override FD3D12OnlineHeap functions
 	virtual bool RollOver() final override;
 	virtual void HeapLoopedAround() final override;
+	virtual void OpenCommandList () final override;
 	virtual void CloseCommandList() final override;
 
 private:
-	struct SyncPointEntry
+	struct FSyncPointEntry
 	{
 		FD3D12SyncPointRef SyncPoint;
-		uint32 LastSlotInUse;
-
-		SyncPointEntry() : LastSlotInUse(0)
-		{}
-
-		SyncPointEntry(const SyncPointEntry& InSyncPoint) : SyncPoint(InSyncPoint.SyncPoint), LastSlotInUse(InSyncPoint.LastSlotInUse)
-		{}
-
-		SyncPointEntry& operator = (const SyncPointEntry& InSyncPoint)
-		{
-			SyncPoint = InSyncPoint.SyncPoint;
-			LastSlotInUse = InSyncPoint.LastSlotInUse;
-
-			return *this;
-		}
+		uint32 LastSlotInUse = 0;
 	};
-	TQueue<SyncPointEntry> SyncPoints;
+	TQueue<FSyncPointEntry> SyncPoints;
 
-	struct PoolEntry
+	struct FPoolEntry
 	{
 		TRefCountPtr<FD3D12DescriptorHeap> Heap;
 		FD3D12SyncPointRef SyncPoint;
-
-		PoolEntry() 
-		{}
-
-		PoolEntry(const PoolEntry& InPoolEntry) : Heap(InPoolEntry.Heap), SyncPoint(InPoolEntry.SyncPoint)
-		{}
-
-		PoolEntry& operator = (const PoolEntry& InPoolEntry)
-		{
-			Heap = InPoolEntry.Heap;
-			SyncPoint = InPoolEntry.SyncPoint;
-			return *this;
-		}
 	};
-	PoolEntry Entry;
-	TQueue<PoolEntry> ReclaimPool;
+	FPoolEntry Entry {};
+	TQueue<FPoolEntry> ReclaimPool;
 
 	FD3D12DescriptorCache& DescriptorCache;
 	FD3D12CommandContext& Context;
+
+	void RecycleSlots();
 };
 
 class FD3D12DescriptorCache : public FD3D12DeviceChild, public FD3D12SingleNodeGPUObject
@@ -353,7 +346,7 @@ public:
 	void SetSRVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ShaderResourceViewCache& Cache, uint32 SlotsNeeded, const D3D12_GPU_DESCRIPTOR_HANDLE& BindDescriptor);
 
 	void SetConstantBufferViews(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask, uint32 Count, uint32& HeapSlot);
-	void SetRootConstantBuffers(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask);
+	void SetRootConstantBuffers(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ConstantBufferCache& Cache, CBVSlotMask SlotsNeededMask, FD3D12StateCache* StateCache);
 
 	void PrepareBindlessViews(EShaderFrequency ShaderStage, TConstArrayView<FD3D12ShaderResourceView*> SRVs, TConstArrayView<FD3D12UnorderedAccessView*> UAVs);
 
@@ -365,11 +358,11 @@ public:
 	bool SwitchToContextLocalSamplerHeap();
 	void SwitchToGlobalSamplerHeap();
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	void SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap);
+	bool SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap);
 #endif
 
-	void OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap, ID3D12DescriptorHeap* SamplerHeap);
-	void RestoreAfterExternalHeapsSet();
+	void SetExplicitDescriptorCache(FD3D12ExplicitDescriptorCache& ExplicitDescriptorCache);
+	void UnsetExplicitDescriptorCache();
 
 	inline bool UsingGlobalSamplerHeap() const { return CurrentSamplerHeap != &LocalSamplerHeap; }
 	FD3D12SamplerSet& GetLocalSamplerSet() { return *LocalSamplerSet.Get(); }
@@ -398,6 +391,11 @@ public:
 	{
 		return BindlessSamplersHeap;
 	}
+
+	bool IsActiveViewHeapBindless() const
+	{
+		return IsUsingBindlessResources() || (BindlessResourcesHeap != nullptr) || (bUsingExplicitCacheHeaps && bExplicitViewHeapIsBindless);
+	}
 #endif
 
 protected:
@@ -421,7 +419,9 @@ private:
 	TArray<FD3D12UniqueSamplerTable> UniqueTables;
 
 	TSharedPtr<FD3D12SamplerSet> LocalSamplerSet;
-	bool bHeapsOverridden = false;
+	bool bUsingExplicitCacheHeaps = false;
+	bool bExplicitViewHeapIsBindless = false;
+	bool bLocalSamplerHeapOpen = false;
 	bool bUsingViewHeap = true;
 
 	uint32 NumLocalViewDescriptors = 0;

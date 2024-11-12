@@ -40,7 +40,6 @@ namespace HarmonixMidiTests::ConformMidiFileLength
 
 		// These will be useful below...
 		const FSongMaps* SongMaps = InMidiFile->GetSongMaps();
-		const FBarMap& BarMap = SongMaps->GetBarMap();
 
 		RemovableNotes = 0;
 		RemoveableControlChanges = 0;
@@ -54,7 +53,7 @@ namespace HarmonixMidiTests::ConformMidiFileLength
 			{
 				for (int32 Bar = 0; Bar < FMath::FloorToInt32(InFileLengthBars); ++Bar)
 				{
-					int32 DestinationTick = BarMap.BarBeatTickIncludingCountInToTick(Bar, 1, 0);
+					int32 DestinationTick = SongMaps->BarBeatTickIncludingCountInToTick(Bar, 1, 0);
 					int32 Duration = SongMaps->SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization::Beat, DestinationTick) - 1;
 					AddNoteOnNoteOffPairToFile(InMidiFile, DefaultNoteNumber, DefaultNoteVelocity, TrackIndex, Channel, DestinationTick, Duration);
 
@@ -81,7 +80,7 @@ namespace HarmonixMidiTests::ConformMidiFileLength
 				// If bar length is a fractional number, add additional midi events after the last integer bar
 				if (InFileLengthBars != (int32)InFileLengthBars)
 				{
-					int32 DestinationTick = BarMap.FractionalBarIncludingCountInToTick(InFileLengthBars);
+					int32 DestinationTick = SongMaps->FractionalBarIncludingCountInToTick(InFileLengthBars);
 					int32 Duration = SongMaps->SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization::Beat, DestinationTick) - 1;
 					int32 NoteDestinationTick = DestinationTick - (Duration + 1);
 					DestinationTick--;

@@ -10,9 +10,7 @@ namespace PCGIndexing
 	/** A simple data structure to represent a range of indices [X,Y]. Validating ranges are client responsibility. */
 	struct FPCGIndexRange
 	{
-		FPCGIndexRange(const int32 InStartIndex, const int32 InEndIndex) : StartIndex(InStartIndex), EndIndex(InEndIndex)
-		{
-		}
+		FPCGIndexRange(const int32 InStartIndex, const int32 InEndIndex) : StartIndex(InStartIndex), EndIndex(InEndIndex) {}
 
 		/** Returns true if the index can be found in this range. */
 		bool ContainsIndex(int32 Index) const;
@@ -32,11 +30,11 @@ namespace PCGIndexing
 	class FPCGIndexCollection
 	{
 	public:
+		static FPCGIndexCollection Invalid() { return {}; }
+
 		/** The constructor must accept the size of the array to support negative terminating indices. */
-		explicit FPCGIndexCollection(const int32 InArraySize) : ArraySize(InArraySize)
-		{
-			check(InArraySize > 0);
-		}
+		explicit FPCGIndexCollection(const int32 InArraySize) : ArraySize(FMath::Max(InArraySize, static_cast<int32>(INDEX_NONE))) {}
+
 
 		/** Add a new index range to the collection directly via start and end indices. */
 		bool AddRange(int32 StartIndex, int32 EndIndex);
@@ -59,10 +57,20 @@ namespace PCGIndexing
 		/** Gets the total number of concrete indices within the collection. */
 		int32 GetTotalIndexCount() const;
 
+		/** The index collection has a valid array size. */
+		bool IsValid() const;
+
+		/** The index collection has no ranges. */
+		bool IsEmpty() const;
+
 		bool operator==(const FPCGIndexCollection& Other) const;
+		FPCGIndexCollection& operator+=(const FPCGIndexCollection& Other);
 
 	private:
-		int32 AdjustIndex(int32 Index) const;
+		FPCGIndexCollection() = default;
+
+		/** Adjusts indices into a positive range, including offsetting the EndIndex if they are equal. */
+		FPCGIndexRange AdjustIndicesAndCreateRange(int32 StartIndex, int32 EndIndex) const;
 
 		/** Checks two ranges for an overlap and returns true if they overlap. */
 		bool CheckOverlap(const FPCGIndexRange& FirstRange, const FPCGIndexRange& SecondRange) const;
@@ -71,9 +79,9 @@ namespace PCGIndexing
 		FPCGIndexRange MergeRanges(const FPCGIndexRange& FirstRange, const FPCGIndexRange& SecondRange) const;
 
 		/** The size of the representative array associated with this collection. Needed for negative terminating indices. */
-		int32 ArraySize = 0;
+		int32 ArraySize = INDEX_NONE;
 
 		/** A collection of the abstract index ranges in the collection. */
-		TArray<FPCGIndexRange> IndexRanges;
+		TArray<FPCGIndexRange, TInlineAllocator<64>> IndexRanges;
 	};
 }

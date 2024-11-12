@@ -603,16 +603,12 @@ bool CouldBeUsedTogether(const FStableShaderKeyAndValue& A, const FStableShaderK
 	static FName NAME_FWriteToSliceVS("FWriteToSliceVS");
 	static FName NAME_FScreenPassVS("FScreenPassVS");
 	static FName NAME_FWriteToSliceGS("FWriteToSliceGS");
-	static FName NAME_FNaniteIndirectMaterialVS("FNaniteIndirectMaterialVS");
-	static FName NAME_FNaniteMultiViewMaterialVS("FNaniteMultiViewMaterialVS");
 	if (
 		A.ShaderType == NAME_FDeferredDecalVS || B.ShaderType == NAME_FDeferredDecalVS ||
 		A.ShaderType == NAME_FDeferredLightVS || B.ShaderType == NAME_FDeferredLightVS ||
 		A.ShaderType == NAME_FWriteToSliceVS || B.ShaderType == NAME_FWriteToSliceVS ||
 		A.ShaderType == NAME_FScreenPassVS || B.ShaderType == NAME_FScreenPassVS ||
-		A.ShaderType == NAME_FWriteToSliceGS || B.ShaderType == NAME_FWriteToSliceGS ||
-		A.ShaderType == NAME_FNaniteIndirectMaterialVS || B.ShaderType == NAME_FNaniteIndirectMaterialVS ||
-		A.ShaderType == NAME_FNaniteMultiViewMaterialVS || B.ShaderType == NAME_FNaniteMultiViewMaterialVS
+		A.ShaderType == NAME_FWriteToSliceGS || B.ShaderType == NAME_FWriteToSliceGS
 		)
 	{
 		// oddball mix and match with any material shader.
@@ -676,14 +672,25 @@ bool CouldBeUsedTogether(const FStableShaderKeyAndValue& A, const FStableShaderK
 	return true;
 }
 
-int32 DumpStableKeysFile(const FString& Token)
+int32 DumpStableKeysFile(const FString& Token, const TMap<FString, FString>& ParamVals)
 {
 	const FStringView File = Token;
+	FString OutputHashToSearch;
+	if (const FString* Param = ParamVals.Find(TEXT("outputhash")))
+	{
+		OutputHashToSearch = *Param;
+	}
+
 	TMultiMap<FStableShaderKeyAndValue, FSHAHash> StableMap;
 	LoadStableShaderKeysMultiple(StableMap, MakeArrayView(&File, 1));
 	UE_LOG(LogShaderPipelineCacheTools, Display, TEXT("    %s"), *FStableShaderKeyAndValue::HeaderLine());
 	for (const auto& Pair : StableMap)
 	{
+		if (!OutputHashToSearch.IsEmpty() && Pair.Key.OutputHash.ToString() != OutputHashToSearch)
+		{
+			continue;
+		}
+
 		FStableShaderKeyAndValue Temp(Pair.Key);
 		UE_LOG(LogShaderPipelineCacheTools, Display, TEXT("    %s"), *Temp.ToString());
 	}
@@ -935,9 +942,6 @@ bool SaveStablePipelineCacheDeprecated(const FString& OutputFilename, const TArr
 			{
 				FPipelineCacheFileFormatPSO::GraphicsDescriptor Desc;
 				FMemory::Memzero(Desc);
-
-				// Serialize ray tracing PSO state description in backwards-compatible way, reusing graphics PSO fields. This is only required due to legacy.
-				Desc.DepthStencilFlags = Item.PSO->RayTracingDesc.bAllowHitGroupIndexing ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
 
 				PSOLine += FString::Printf(TEXT("\"%s\""), *Desc.StateToString());
 
@@ -1576,7 +1580,6 @@ static TSet<FPipelineCacheFileFormatPSO> ParseStableCSV(const FString& FileName,
 				PSO.RayTracingDesc.ShaderHash = Match;
 				// See corresponding serialization code in ExpandPSOSC()
 				PSO.RayTracingDesc.Frequency = EShaderFrequency(AdjustedSlotIndex);
-				PSO.RayTracingDesc.bAllowHitGroupIndexing = static_cast<uint64>(PSO.GraphicsDesc.DepthStencilFlags) != 0;
 				break;
 			default:
 				UE_LOG(LogShaderPipelineCacheTools, Error, TEXT("Unexpected shader frequency"));
@@ -2870,7 +2873,7 @@ int32 UShaderPipelineCacheToolsCommandlet::StaticMain(const FString& Params)
 				}
 				if (Tokens[Index].EndsWith(ShaderStableKeysFileExt))
 				{
-					return DumpStableKeysFile(Tokens[Index]);
+					return DumpStableKeysFile(Tokens[Index], ParamVals);
 				}
 			}
 		}
@@ -2886,9 +2889,9 @@ int32 UShaderPipelineCacheToolsCommandlet::StaticMain(const FString& Params)
 		}
 	}
 	
-	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Dump SCLInfo.%s [...]] - dumps stable keys file.\n"), ShaderStableKeysFileExt);
+	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Dump SCLInfo.%s [...] [-outputhash=X] - dumps stable keys file, optionally only dumping keys that match the specified output hash value.\n"), ShaderStableKeysFileExt);
 	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Dump PSOCache.upipelinecache [SCLInfo.%s] - dumps recorded PSOs. If optional stable keys file, converts shader hashes to readable stable shader descriptions.\n"), ShaderStableKeysFileExt);
-	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Dump StablePSOCache.csv[.compressed] - dumps content of a stable PSO.\n"), ShaderStableKeysFileExt);
+	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Dump StablePSOCache.csv[.compressed] - dumps content of a stable PSO.\n"));
 	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Diff ShaderCache1.stablepc.csv ShaderCache1.stablepc.csv [...]]\n"));
 	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Expand Input1.upipelinecache Dir2/*.upipelinecache InputSCLInfo1.%s Dir2/*.%s InputSCLInfo3.%s [...] Output.stablepc.csv\n"), ShaderStableKeysFileExt, ShaderStableKeysFileExt, ShaderStableKeysFileExt);
 	UE_LOG(LogShaderPipelineCacheTools, Warning, TEXT("Usage: Build Input.stablepc.csv InputDir2/*.stablepc.csv InputSCLInfo1.%s Dir2/*.%s InputSCLInfo3.%s [...] Output.upipelinecache\n"), ShaderStableKeysFileExt, ShaderStableKeysFileExt, ShaderStableKeysFileExt);

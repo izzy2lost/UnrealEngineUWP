@@ -11,13 +11,17 @@
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowOverrideNode.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSNode.h"
+#include "Dataflow/DataflowToolRegistry.h"
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintTool.h"
 #include "EdGraphNode_Comment.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Editor.h"
+#include "IDetailsView.h"
 #include "IStructureDetailsView.h"
+#include "IStructureDataProvider.h"
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
 #include "Dataflow/DataflowGraph.h"
@@ -30,8 +34,11 @@
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
-const FString FDataflowEditorCommandsImpl::BeginWeightMapPaintToolIdentifier = TEXT("BeginWeightMapPaintTool");
 const FString FDataflowEditorCommandsImpl::AddWeightMapNodeIdentifier = TEXT("AddWeightMapNode");
+const FString FDataflowEditorCommandsImpl::RebuildSimulationSceneIdentifier = TEXT("RebuildSimulationScene");
+const FString FDataflowEditorCommandsImpl::PauseSimulationSceneIdentifier = TEXT("PauseSimulationScene");
+const FString FDataflowEditorCommandsImpl::StartSimulationSceneIdentifier = TEXT("StartSimulationScene");
+const FString FDataflowEditorCommandsImpl::StepSimulationSceneIdentifier = TEXT("StepSimulationScene");
 
 // @todo(brice) Remove Example Tools
 //const FString FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier = TEXT("BeginAttributeEditorTool");
@@ -59,47 +66,61 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 	UI_COMMAND(RemoveOptionPin, "RemoveOptionPin", "Remove the last option pin from the selected nodes.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ZoomToFitGraph, "ZoomToFitGraph", "Fit the graph in the graph editor viewport.", EUserInterfaceActionType::None, FInputChord(EKeys::F));
 
-	UI_COMMAND(BeginWeightMapPaintTool, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::None, FInputChord());
 	UI_COMMAND(AddWeightMapNode, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RebuildSimulationScene, "RebuildSimulationScene", "Rebuild the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(PauseSimulationScene, "PauseSimulationScene", "Pause the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(StartSimulationScene, "StartSimulationScene", "Start the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(StepSimulationScene, "StepSimulationScene", "Step the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
 
-
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	for (const TPair<FName, TUniquePtr<UE::Dataflow::IDataflowConstructionViewMode>>& NameAndMode : UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
 	{
-		for (Dataflow::FFactoryParameters Parameters : Factory->RegisteredParameters())
-		{
-			TSharedPtr< FUICommandInfo > AddNode;
-			FUICommandInfo::MakeCommandInfo(
-				this->AsShared(),
-				AddNode,
-				Parameters.TypeName,
-				LOCTEXT("DataflowButton", "New Dataflow Node"),
-				LOCTEXT("NewDataflowNodeTooltip", "New Dataflow Node Tooltip"),
-				FSlateIcon(),
-				EUserInterfaceActionType::Button,
-				FInputChord()
-			);
-			CreateNodesMap.Add(Parameters.TypeName, AddNode);
-		}
-	}		
+		TSharedPtr< FUICommandInfo > SetViewModeCommand;
+		
+		const UE::Dataflow::IDataflowConstructionViewMode* const ViewMode = NameAndMode.Value.Get();
+		checkf(ViewMode, TEXT("Registered mode in FRenderingViewModeFactory has no associated IDataflowConstructionViewMode object. Registered name: %s"), *NameAndMode.Key.ToString());
+
+		FUICommandInfo::MakeCommandInfo(
+			this->AsShared(),
+			SetViewModeCommand,
+			ViewMode->GetName(),
+			ViewMode->GetButtonText(),
+			ViewMode->GetTooltipText(),
+			FSlateIcon(),
+			EUserInterfaceActionType::Button,
+			FInputChord()
+		);
+		SetConstructionViewModeCommands.Add(ViewMode->GetName(), SetViewModeCommand);
+	}
+
+	UE::Dataflow::FDataflowToolRegistry& ToolRegistry = UE::Dataflow::FDataflowToolRegistry::Get();
+	const TArray<FName> NodeNames = ToolRegistry.GetNodeNames();
+	for (const FName& NodeName : NodeNames)
+	{
+		FUICommandInfo::MakeCommandInfo(
+			this->AsShared(),
+			ToolRegistry.GetToolCommandForNode(NodeName),
+			FName(NodeName.ToString() + "_Tool"),
+			LOCTEXT("DataflowTool", "Dataflow Tool"),					// TODO: Replace placeholder names
+			LOCTEXT("DataflowToolTooltip", "Dataflow Tool Tooltip"),	// TODO: Replace placeholder names
+			FSlateIcon(),
+			EUserInterfaceActionType::Button,
+			FInputChord()
+		);
+	}
+
 }
 
-void FDataflowEditorCommandsImpl::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
-{
-	ToolCDOs.Add(GetMutableDefault<UDataflowEditorWeightMapPaintTool>());
-}
 
 void FDataflowEditorCommandsImpl::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)
 {
-	if (FDataflowEditorCommandsImpl::IsRegistered())
+	UE::Dataflow::FDataflowToolRegistry& ToolRegistry = UE::Dataflow::FDataflowToolRegistry::Get();
+	if (bUnbind)
 	{
-		if (bUnbind)
-		{
-			FDataflowEditorCommandsImpl::Get().UnbindActiveCommands(UICommandList);
-		}
-		else
-		{
-			FDataflowEditorCommandsImpl::Get().BindCommandsForCurrentTool(UICommandList, Tool);
-		}
+		ToolRegistry.UnbindActiveCommands(UICommandList);
+	}
+	else
+	{
+		ToolRegistry.BindCommandsForCurrentTool(UICommandList, Tool);
 	}
 }
 
@@ -118,150 +139,61 @@ void FDataflowEditorCommands::Unregister()
 	return FDataflowEditorCommandsImpl::Unregister();
 }
 
-void FDataflowEditorCommands::EvaluateSelectedNodes(const FGraphPanelSelectionSet& SelectedNodes, FDataflowEditorCommands::FGraphEvaluationCallback Evaluate)
+bool FDataflowEditorCommands::IsRegistered()
 {
-	const bool bIsInPIEOrSimulate = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
-	if (!bIsInPIEOrSimulate)
-	{
-		for (UObject* Node : SelectedNodes)
-		{
-			if (UDataflowEdNode* EdNode = dynamic_cast<UDataflowEdNode*>(Node))
-			{
-				if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = EdNode->GetDataflowGraph())
-				{
-					if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
-					{
-						if (DataflowNode->bActive)
-						{
-							if (DataflowNode->GetOutputs().Num())
-							{
-								for (FDataflowConnection* NodeOutput : DataflowNode->GetOutputs())
-								{
-									Evaluate(DataflowNode.Get(), (FDataflowOutput*)NodeOutput);
-								}
-							}
-							else
-							{
-								Evaluate(DataflowNode.Get(), nullptr);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	return FDataflowEditorCommandsImpl::IsRegistered();
 }
 
-void FDataflowEditorCommands::EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& OutLastNodeTimestamp,
-	const UDataflow* Dataflow, const FDataflowNode* InNode, const FDataflowOutput* Output, FString NodeName)
-{
-	const bool bIsInPIEOrSimulate = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
-	if (!bIsInPIEOrSimulate)
-	{
-		if (Dataflow)
-		{
-			const FDataflowNode* Node = InNode;
-			if (Node == nullptr)
-			{
-				if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
-				{
-					if (TSharedPtr<const FDataflowNode> GraphNode = Graph->FindBaseNode(FName(NodeName)))
-					{
-						Node = GraphNode.Get();
-					}
-				}
-			}
 
-			if (Node != nullptr)
-			{
-				if (Output == nullptr)
-				{
-					if (Node->GetTimestamp() >= OutLastNodeTimestamp)
-					{
-						Context.Evaluate(Node, nullptr);
-						OutLastNodeTimestamp = Context.GetTimestamp();
-					}
-				}
-				else // Output != nullptr
-				{
-					if (!Context.HasData(Output->CacheKey(), Context.GetTimestamp()))
-					{
-						Context.Evaluate(Node, Output);
-					}
-				}
-			}
+const FDataflowNode* FDataflowEditorCommands::EvaluateNode(UE::Dataflow::FContext& Context, UE::Dataflow::FTimestamp& InOutLastNodeTimestamp,
+	const UDataflow* Dataflow, const FDataflowNode* Node, const FDataflowOutput* Output, const FString& NodeName, UObject* Asset)
+{
+	UE_LOG(LogChaosDataflow, VeryVerbose, TEXT("FDataflowEditorCommands::EvaluateNode(): Node [%s], NodeName [%s] Output [%s]"), Node ? *Node->GetName().ToString() : TEXT("nullptr"), *NodeName, Output ? *Output->GetName().ToString() : TEXT("nullptr"));
+
+	if (!Node && Dataflow)
+	{
+		if (const TSharedPtr<const UE::Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+		{
+			Node = Graph->FindBaseNode(FName(NodeName)).Get();
 		}
 	}
-}
-
-void FDataflowEditorCommands::EvaluateTerminalNode(Dataflow::FContext& Context, Dataflow::FTimestamp& OutLastNodeTimestamp,
-	const UDataflow* Dataflow, const FDataflowNode* InNode, const FDataflowOutput* Output, UObject* InAsset, FString NodeName)
-{
-	const bool bIsInPIEOrSimulate = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
-	if (!bIsInPIEOrSimulate)
+	if (Node && InOutLastNodeTimestamp < Node->GetTimestamp())
 	{
-		if (Dataflow)
+		// Note: If the node is deactivated and has any outputs, then these outputs might still need to be forwarded.
+		//       Therefore the Evaluate method has to be called for whichever value of bActive.
+		//       This however isn't the case of SetAssetValue() for which the active state needs to be checked before the call.
+		Context.Evaluate(Node, Output);
+
+		if (const FDataflowTerminalNode* const TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 		{
-			const FDataflowNode* Node = InNode;
-			if (Node == nullptr)
+			if (TerminalNode->bActive && Asset)
 			{
-				if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
-				{
-					if (TSharedPtr<const FDataflowNode> GraphNode = Graph->FindBaseNode(FName(NodeName)))
-					{
-						Node = GraphNode.Get();
-					}
-				}
-			}
-
-			if (Node != nullptr)
-			{
-				if (Output == nullptr)
-				{
-					if (Node->GetTimestamp() >= OutLastNodeTimestamp)
-					{
-						if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
-						{
-							if (InAsset)
-							{
-								TerminalNode->SetAssetValue(InAsset, Context);  // Must set asset value before call to Evaluate
-							}
-						}
-
-						Context.Evaluate(Node, nullptr);
-						OutLastNodeTimestamp = Context.GetTimestamp();
-					}
-				}
-				else // Output != nullptr
-				{
-					if (!Context.HasData(Output->CacheKey(), Context.GetTimestamp()))
-					{
-						if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
-						{
-							if (InAsset)
-							{
-								TerminalNode->SetAssetValue(InAsset, Context);  // Must set asset value before call to Evaluate
-							}
-						}
-
-						Context.Evaluate(Node, Output);
-					}
-				}
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowTerminalNode::SetAssetValue(): TerminalNode [%s], Asset [%s]"), *TerminalNode->GetName().ToString(), *Asset->GetName());
+				TerminalNode->SetAssetValue(Asset, Context);
 			}
 		}
-	}
-}
 
+		InOutLastNodeTimestamp = Node->GetTimestamp();
+	}
+	return Node;
+}
 
 bool FDataflowEditorCommands::OnNodeVerifyTitleCommit(const FText& NewText, UEdGraphNode* GraphNode, FText& OutErrorMessage)
 {
+	const FString NewString = NewText.ToString();
+	const int32 NewStringLen = NewString.Len();
+	if (NewStringLen >= NAME_SIZE)
+	{
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Name length is %d characters which exceeds the maximum allowed of %d characters"), NewStringLen, NAME_SIZE - 1));
+		return false;
+	}
 	if (GraphNode)
 	{
 		if (UDataflowEdNode* DataflowNode = Cast<UDataflowEdNode>(GraphNode))
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
 			{
-				if( Graph->FindBaseNode(FName(NewText.ToString())).Get()==nullptr )
+				if( Graph->FindBaseNode(FName(NewString)).Get()==nullptr )
 				{
 					return true;
 				}
@@ -272,7 +204,7 @@ bool FDataflowEditorCommands::OnNodeVerifyTitleCommit(const FText& NewText, UEdG
 			return true;
 		}
 	}
-	OutErrorMessage = FText::FromString(FString::Printf(TEXT("Non-unique name for graph node (%s)"), *NewText.ToString()));
+	OutErrorMessage = FText::FromString(FString::Printf(TEXT("Non-unique name for graph node (%s)"), *NewString));
 	return false;
 }
 
@@ -288,7 +220,7 @@ void FDataflowEditorCommands::OnNodeTitleCommitted(const FText& InNewText, EText
 	{
 		if (UDataflowEdNode* DataflowNode = Cast<UDataflowEdNode>(GraphNode))
 		{
-			if (TSharedPtr<Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
+			if (TSharedPtr<UE::Dataflow::FGraph> Graph = DataflowNode->GetDataflowGraph())
 			{
 				if (TSharedPtr<FDataflowNode> Node = Graph->FindBaseNode(DataflowNode->GetDataflowNodeGuid()))
 				{
@@ -303,6 +235,36 @@ void FDataflowEditorCommands::OnNodeTitleCommitted(const FText& InNewText, EText
 		}
 	}
 }
+
+void FDataflowEditorCommands::OnNotifyPropertyPreChange(TSharedPtr<IStructureDetailsView> PropertiesEditor, UDataflow* Graph, class FEditPropertyChain* PropertyAboutToChange)
+{
+	// Find the associated UDataflowEdNode(s) and call Modify on them for Undo/Redo.
+	if (PropertiesEditor && Graph)
+	{
+		if (TSharedPtr<const IStructureDataProvider> StructProvider = PropertiesEditor->GetStructureProvider())
+		{
+			const UStruct* const BaseStruct = StructProvider->GetBaseStructure();
+			if (BaseStruct && BaseStruct->IsChildOf(FDataflowNode::StaticStruct()))
+			{
+				TArray<TSharedPtr<FStructOnScope>> StructData;
+				StructProvider->GetInstances(StructData, FDataflowNode::StaticStruct());
+				for (const TSharedPtr<FStructOnScope>& StructOnScope : StructData)
+				{
+					if (StructOnScope.IsValid() && StructOnScope->IsValid())
+					{
+						const FDataflowNode* const Node = reinterpret_cast<FDataflowNode*>(StructOnScope->GetStructMemory());
+						check(Node);
+						if (const TObjectPtr<UDataflowEdNode> EdNode = Graph->FindEdNodeByDataflowNodeGuid(Node->GetGuid()))
+						{
+							EdNode->Modify();
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 
 void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowBaseContent> Content, const FPropertyChangedEvent& InPropertyChangedEvent)
 {
@@ -337,38 +299,44 @@ void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowBa
 	}
 }
 
-void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSharedPtr<Dataflow::FEngineContext>& Context, Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent, const TSet<UObject*>& SelectedNodes)
+void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSharedPtr<UE::Dataflow::FEngineContext>& Context, UE::Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent, const TSet<TObjectPtr<UObject> >& SelectedNodes)
 {
-	if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+	switch (InPropertyChangedEvent.ChangeType)
 	{
-		TSharedPtr<const FDataflowNode> UpdatedNode = nullptr;
-		if (OutDataflow && InPropertyChangedEvent.Property && InPropertyChangedEvent.Property->GetOwnerUObject())
+	case EPropertyChangeType::ValueSet:
+	case EPropertyChangeType::ArrayAdd:
+	case EPropertyChangeType::ArrayRemove:
+	case EPropertyChangeType::ArrayClear:
+	case EPropertyChangeType::ArrayMove:
+	case EPropertyChangeType::Duplicate:
+	case EPropertyChangeType::ToggleEditable:
+		if (ensure(OutDataflow && InPropertyChangedEvent.Property && InPropertyChangedEvent.Property->GetOwnerUObject()))
 		{
-			//			OutDataflow->MarkPackageDirty();
-			OutDataflow->Modify();
+			OutDataflow->Modify();  // Modify must be called even if SelectedNodes is empty because comment nodes aren't part of the selection set but still have properties
 
-			for (UObject* SelectedNode : SelectedNodes)
+			for (UObject* const SelectedNode : SelectedNodes)
 			{
-				if (UDataflowEdNode* Node = Cast<UDataflowEdNode>(SelectedNode))
+				if (UDataflowEdNode* const Node = Cast<UDataflowEdNode>(SelectedNode))
 				{
 					if (TSharedPtr<FDataflowNode> DataflowNode = Node->GetDataflowNode())
 					{
-						UpdatedNode = DataflowNode;
 						DataflowNode->Invalidate();
+						OutLastNodeTimestamp = UE::Dataflow::FTimestamp::Invalid;
+
+						// Reflect the active state on the drawing of the node
+						if (DataflowNode->bActive != Node->IsNodeEnabled())
+						{
+							Node->SetEnabledState(DataflowNode->bActive ? ENodeEnabledState::Enabled : ENodeEnabledState::Disabled);
+						}
 					}
 				}
 			}
 		}
-
-		if (!UpdatedNode && Context)
-		{
-			// Some base properties dont link back to the parent, so just clobber the cache for now. 
-			Context.Reset();
-		}
-		OutLastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+		break;
+	default:
+		break;
 	}
 }
-
 
 void FDataflowEditorCommands::DeleteNodes(UDataflow* Graph, const FGraphPanelSelectionSet& SelectedNodes)
 {
@@ -378,7 +346,7 @@ void FDataflowEditorCommands::DeleteNodes(UDataflow* Graph, const FGraphPanelSel
 		{
 			if (UDataflowEdNode* EdNode = dynamic_cast<UDataflowEdNode*>(Node))
 			{
-				if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = EdNode->GetDataflowGraph())
+				if (const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = EdNode->GetDataflowGraph())
 				{
 					Graph->RemoveNode(EdNode);
 					if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
@@ -398,33 +366,60 @@ void FDataflowEditorCommands::DeleteNodes(UDataflow* Graph, const FGraphPanelSel
 	}
 }
 
-void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetailsView> PropertiesEditor, UObject* Asset, UDataflow* Graph, const TSet<UObject*>& NewSelection)
+void FDataflowEditorCommands::RenameNode(const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor, UEdGraphNode* EdNode)
+{
+	if (EdNode && DataflowGraphEditor.IsValid())
+	{
+		// GMelich: There is no direct rename function, this function can rename a node without recentering the selected node
+		DataflowGraphEditor->IsNodeTitleVisible(EdNode, /*bRequestRename*/true);
+	}
+}
+
+void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetailsView> PropertiesEditor, UObject* Asset, UDataflow* Graph, const TSet<TObjectPtr<UObject> >& NewSelection)
 {
 	PropertiesEditor->SetStructureData(nullptr);
 
 	if (Graph && PropertiesEditor)
 	{
-		if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = Graph->GetDataflow())
+		if (const TSharedPtr<UE::Dataflow::FGraph> DataflowGraph = Graph->GetDataflow())
 		{
-			FGraphPanelSelectionSet SelectedNodes = NewSelection;
+			auto AsRawPointers = [](const TSet<TObjectPtr<UObject> >& NewSelection) {
+				TSet<UObject*> Raw; for (UObject* Elem : NewSelection) Raw.Add(Elem);
+				return Raw;
+			};
+			FGraphPanelSelectionSet SelectedNodes = AsRawPointers(NewSelection);
 			if (SelectedNodes.Num())
 			{
-				TArray<UObject*> Objects;
+				TArray<TSharedPtr<FStructOnScope>> StructData;
+				StructData.Reserve(SelectedNodes.Num());
 				for (UObject* SelectedObject : SelectedNodes)
 				{
 					if (UDataflowEdNode* EdNode = Cast<UDataflowEdNode>(SelectedObject))
 					{
 						if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
 						{
-							TSharedPtr<FStructOnScope> Struct(DataflowNode->NewStructOnScope());
-							PropertiesEditor->SetStructureData(Struct);
+							FIsPropertyReadOnly Delegate = FIsPropertyReadOnly::CreateLambda(
+								[DataflowNode](const FPropertyAndParent& PropertyAndParent)
+								{
+									if (const FDataflowInput* Input = DataflowNode->FindInput(PropertyAndParent.Property.GetFName()))
+									{
+										return (Input->GetConnection() != nullptr);
+									}
+									return false;
+								});
+							PropertiesEditor->GetDetailsView()->SetIsPropertyReadOnlyDelegate(Delegate);
+
+							StructData.Emplace(DataflowNode->NewStructOnScope());
 						}
 					}
 					else if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(SelectedObject))
 					{
-						TSharedPtr<FStructOnScope> Struct(new FStructOnScope(UEdGraphNode_Comment::StaticClass(), (uint8*)CommentNode));
-						PropertiesEditor->SetStructureData(Struct);
+						StructData.Emplace(new FStructOnScope(UEdGraphNode_Comment::StaticClass(), (uint8*)CommentNode));
 					}
+				}
+				if (StructData.Num())
+				{
+					PropertiesEditor->SetStructureProvider(MakeShared<FStructOnScopeStructureDataProvider>(StructData));
 				}
 			}
 		}
@@ -484,7 +479,7 @@ void FDataflowEditorCommands::DuplicateNodes(UDataflow* Graph, const TSharedPtr<
 		}
 
 		FDataflowAssetEdit Edit = Graph->EditDataflow();
-		if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+		if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 		{
 			// Process Dataflow nodes
 			TSet<UDataflowEdNode*> DuplicatedEdNodes;
@@ -683,7 +678,7 @@ void FDataflowEditorCommands::CopyNodes(UDataflow* InGraph, const TSharedPtr<SDa
 			}
 
 			FDataflowAssetEdit Edit = InGraph->EditDataflow();
-			if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+			if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 			{
 				FDataflowCopyPasteContent CopyPasteContent;
 
@@ -923,24 +918,28 @@ void FDataflowEditorCommands::PasteNodes(UDataflow* Graph, const TSharedPtr<SDat
 				const FName OutputputName = *PropertyOut;
 
 				FDataflowAssetEdit Edit = Graph->EditDataflow();
-				if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+				if (UE::Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
 				{
 					if (TSharedPtr<FDataflowNode> DataflowNodeFrom = DataflowGraph->FindBaseNode(GuidOut))
 					{
 						if (TSharedPtr<FDataflowNode> DataflowNodeTo = DataflowGraph->FindBaseNode(GuidIn))
 						{
-							FDataflowInput* InputConnection = DataflowNodeTo->FindInput(InputputName);
-							FDataflowOutput* OutputConnection = DataflowNodeFrom->FindOutput(OutputputName);
-
-							DataflowGraph->Connect(OutputConnection, InputConnection);
-
-							if (UEdGraphPin* OutputPin = GetPin(EdNodeMap[NodeOut], EEdGraphPinDirection::EGPD_Output, OutputputName))
+							// first connect the edgraph as this may affect the dataflow inputs ( for AnyType )
+							UEdGraphPin* OutputPin = GetPin(EdNodeMap[NodeOut], EEdGraphPinDirection::EGPD_Output, OutputputName);
+							UEdGraphPin* InputPin = GetPin(EdNodeMap[NodeIn], EEdGraphPinDirection::EGPD_Input, InputputName);
+							if (OutputPin && InputPin)
 							{
-								if (UEdGraphPin* InputPin = GetPin(EdNodeMap[NodeIn], EEdGraphPinDirection::EGPD_Input, InputputName))
+								if (UEdGraph* EdGraph = EdNodeMap[NodeOut]->GetGraph())
 								{
-									OutputPin->MakeLinkTo(InputPin);
+									EdGraph->GetSchema()->TryCreateConnection(OutputPin, InputPin);
 								}
 							}
+
+							// now connect the dataflow
+							FDataflowInput* InputConnection = DataflowNodeTo->FindInput(InputputName);
+							FDataflowOutput* OutputConnection = DataflowNodeFrom->FindOutput(OutputputName);
+							DataflowGraph->Connect(OutputConnection, InputConnection);
+
 						}
 					}
 				}
@@ -979,7 +978,7 @@ void FDataflowEditorCommands::PasteNodes(UDataflow* Graph, const TSharedPtr<SDat
 			ShowNotificationMessage(FText::Format(MessageFormat, NumPastedNodes), SNotificationItem::CS_Success);
 		}
 
-		// Display message stating that comment boxe(s) were pasted to clipboard
+		// Display message stating that comment box(es) were pasted to clipboard
 		const int32 NumPastedComments = CopyPasteContent.CommentNodeData.Num();
 		if (NumPastedComments > 0)
 		{

@@ -18,6 +18,8 @@ namespace VirtualTextureScalability
 	ENGINE_API int32 GetMaxAllocatedVTReleasedPerFrame();
 	/** Get the number of frames a page must be unused, before it's considered free */
 	ENGINE_API uint32 GetPageFreeThreshold();
+	/** Get the number of frames a page must be unused, before it is unmapped instead of updated during RVT page invalidation. */
+	ENGINE_API uint32 GetKeepDirtyPageMappedFrameThreshold();
 	/** Get resolution bias for runtime virtual textures. */
 	ENGINE_API int32 GetRuntimeVirtualTextureSizeBias();
 	/** Get resolution bias for runtime virtual textures. */

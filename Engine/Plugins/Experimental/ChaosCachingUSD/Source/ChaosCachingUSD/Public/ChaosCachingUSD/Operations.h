@@ -16,15 +16,6 @@
 
 namespace UE::ChaosCachingUSD
 {
-	template <class TV>
-	pxr::VtArray<pxr::GfVec3f> ToVtVec3Array(const TArray<TV>& V3Array)
-	{
-		FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
-		pxr::VtArray<pxr::GfVec3f> RetVal(static_cast<size_t>(V3Array.Num()));
-		for (int32 i = 0; i < V3Array.Num(); i++) RetVal[i].Set(V3Array[i][0], V3Array[i][1], V3Array[i][2]);
-		return RetVal;
-	}
-
 	bool ValuesDiffer(const pxr::VtArray<pxr::GfVec3f>& A, const pxr::VtArray<pxr::GfVec3f>& B, const float Tolerance = 1.0e-8, const uint64 stride = 1)
 	{
 		if (A.size() != B.size()) return true;
@@ -138,6 +129,10 @@ namespace UE::ChaosCachingUSD
 	/** Copy \p Points and \p Vels to \c VtArray (with USD memory allocator), then write to USD stage. */
 	CHAOSCACHINGUSD_API bool WritePoints(UE::FUsdStage& Stage, const FString& PrimPath, const double Time, const TArray<Chaos::TVector<float, 3>>& Points, const TArray<Chaos::TVector<float, 3>>& Vels);
 
+	/** Copy \p Points and \p Vels within the specified indices range to \c VtArray (with USD memory allocator), then write to USD stage. */
+	CHAOSCACHINGUSD_API bool WritePoints(UE::FUsdStage& Stage, const FString& PrimPath, const double Time, const TArray<Chaos::TVector<float, 3>>& Points, const TArray<Chaos::TVector<float, 3>>& Vels, const FIntVector2& PointsRange);
+	
+
 	/** Get time samples for an attribute. */
 	CHAOSCACHINGUSD_API bool ReadTimeSamples(const UE::FUsdStage& Stage, const FString& PrimPath, const FString& AttrName, TArray<double>& TimeSamples);
 	/** Get time samples for the points attribute. */
@@ -150,6 +145,8 @@ namespace UE::ChaosCachingUSD
 
 	/** Get points from an attribute. Default time is used if \p Time is \c -DBL_MAX. */
 	CHAOSCACHINGUSD_API bool ReadPoints(const UE::FUsdStage& Stage, const FString& PrimPath, const FString& AttrPath, const double Time, pxr::VtArray<pxr::GfVec3f>& Points);
+	CHAOSCACHINGUSD_API bool ReadPoints(const UE::FUsdStage& Stage, const FString& PrimPath, const FString& AttrPath, const double Time, TArray<Chaos::TVector<Chaos::FRealSingle,3>>& Points);
+
 	/** Get points from the points attribute. Default time is used if \p Time is \c -DBL_MAX. */
 	CHAOSCACHINGUSD_API bool ReadPoints(const UE::FUsdStage& Stage, const FString& PrimPath, const double Time, pxr::VtArray<pxr::GfVec3f>& Points, pxr::VtArray<pxr::GfVec3f>& VtVels);
 

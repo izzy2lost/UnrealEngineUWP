@@ -258,7 +258,7 @@ void MarkValid_PrepareCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 void MarkValid_PrepareCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint4 PageIndexResolutionAndOffset = PageIndexResolutionAndOffsetBuffer.Load(MacroGroupId);
-	const int3 PageIndexResolution = PageIndexResolutionAndOffset.xyz;
+	const uint3 PageIndexResolution = PageIndexResolutionAndOffset.xyz;
 	const uint PageIndexOffset = PageIndexResolutionAndOffset.w;
 
 	const uint3 Coord = DispatchThreadId;
@@ -560,7 +560,7 @@ void FeedbackCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	// but the voxel size does not match the (more precise) target).
 	// In this case, we add a threshold/margin to to the target, so that there is no oscillation.
 	const float VolumeRatio_Thres = float(GPUAllocatedPageCount) / float(CPUAllocatedPageCount * AdaptiveCorrectionThreshold);
-	const float LinearRatio_Thres = pow(VolumeRatio_Thres, 1.f / 3.f);
+	const float LinearRatio_Thres = pow(max(VolumeRatio_Thres, 0.f), 1.f / 3.f);
 
 	// If the page pool is not large enough increase voxel size
 	float NextVoxelWorldSize = CPUMinVoxelWorldSize;
@@ -769,7 +769,7 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 		const float Radius = lerp(CP0.WorldRadius, CP1.WorldRadius, U);
 
 		const float3 HitP = TranslatedWP0 + StepIt * StepD + Jitter * Radius;
-		const int3 VolumeCoord = PositionToCoord(HitP, NodeDesc.TranslatedWorldMinAABB, NodeDesc.TranslatedWorldMaxAABB, NodeDesc.VirtualResolution);
+		const int3 VolumeCoord = clamp((HitP - NodeDesc.TranslatedWorldMinAABB) / NodeDesc.VoxelWorldSize, 0, NodeDesc.VirtualResolution-1);
 		const int3 PageIndexCoord = VolumeCoord / CommonDesc.PageResolution;
 
 		// Update page index only when needed
@@ -842,13 +842,16 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint LinearVoxelCoord = DispatchThreadId.x;
 	const uint AllocatedPageIndex = DispatchThreadId.z;
-	const bool bValidVoxel = AllocatedPageIndex < VirtualVoxelParams_AllocatedPageCountBuffer[0] && LinearVoxelCoord < VirtualVoxelParams_PageCount;
+	const uint VoxelCountPerPage = VirtualVoxelParams_PageResolution.x * VirtualVoxelParams_PageResolution.x * VirtualVoxelParams_PageResolution.x;
+	const bool bValidVoxel = AllocatedPageIndex < VirtualVoxelParams_AllocatedPageCountBuffer[0] && LinearVoxelCoord < VirtualVoxelParams_PageCount * VoxelCountPerPage;
 	if (!bValidVoxel)
 	{
 		return;
 	}
 
-	const uint3 VoxelCoordOffset = IndexToCoord(LinearVoxelCoord, VirtualVoxelParams_PageResolution.xxx);
+	uint3 VoxelCoordOffset = IndexToCoord(LinearVoxelCoord, VirtualVoxelParams_PageResolution.xxx);
+	VoxelCoordOffset.y = VoxelCoordOffset.y % VirtualVoxelParams_PageResolution.x;
+	VoxelCoordOffset.z = VoxelCoordOffset.z % VirtualVoxelParams_PageResolution.x;
 
 	const FVirtualVoxelNodeDesc NodeDesc = UnpackVoxelNode(VirtualVoxelParams_NodeDescBuffer[MacroGroupId], VirtualVoxelParams_PageResolution);
 
@@ -864,7 +867,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		{
 			const uint3 VoxelCoordBase = PageIndexCoord.xyz * VirtualVoxelParams_PageResolution;
 			const uint3 VoxelCoord = VoxelCoordBase + VoxelCoordOffset;
-			const float3 TranslatedWorldPosition = VoxelCoord / float3(NodeDesc.VirtualResolution) * (NodeDesc.TranslatedWorldMaxAABB - NodeDesc.TranslatedWorldMinAABB) + NodeDesc.TranslatedWorldMinAABB;
+			const float3 TranslatedWorldPosition = VoxelCoord * NodeDesc.VoxelWorldSize + NodeDesc.TranslatedWorldMinAABB;
 
 			float4 ClipPos = mul(float4(TranslatedWorldPosition, 1), PrimaryView.TranslatedWorldToClip);
 			ClipPos /= ClipPos.w;
@@ -910,8 +913,6 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 ///////////////////////////////////////////////////////////////////////////
 
 #if SHADER_DEPTH_INJECTION
-float4x4 CPU_TranslatedWorldToClip;
-
 float2 OutputResolution;
 uint MacroGroupId;
 uint AtlasSlotIndex;
@@ -919,7 +920,6 @@ uint AtlasSlotIndex;
 float3 LightDirection;
 uint bIsDirectional;
 float3 TranslatedLightPosition;
-uint bIsGPUDriven;
 
 StructuredBuffer<FDeepShadowViewInfo> DeepShadowViewInfoBuffer;
 
@@ -993,12 +993,8 @@ void MainVS(
 	case 35: TranslatedWorldPosition = Position7; break;
 	}
 
-	float4x4 TranslatedWorldToClipMatrix = CPU_TranslatedWorldToClip;
-	if (bIsGPUDriven)
-	{
-		FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
-		TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
-	}
+	const FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
+	const float4x4 TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
 
 	OutTranslatedWorldPosition = TranslatedWorldPosition;
 	OutPosition = mul(float4(TranslatedWorldPosition, 1), TranslatedWorldToClipMatrix);
@@ -1013,6 +1009,7 @@ void MainPS(
 	in float3 InTranslatedWorldPosition : WORLD_POSITION,
 	out float OutDepth : SV_DEPTH)
 {
+	OutDepth = 0;
 	const float2 PixelCoord = InPosition.xy;
 	const float2 UV = PixelCoord / float2(OutputResolution); // todo view rect offset
 
@@ -1058,12 +1055,8 @@ void MainPS(
 
 	if (bIsValid)
 	{
-		float4x4 TranslatedWorldToClipMatrix = CPU_TranslatedWorldToClip;
-		if (bIsGPUDriven)
-		{
-			FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
-			TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
-		}
+		const FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
+		const float4x4 TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
 		const float3 HitP = TranslatedWP0 + normalize(TranslatedWP1 - TranslatedWP0) * TraversalResult.HitT;
 		float4 ClipP = mul(float4(HitP, 1), TranslatedWorldToClipMatrix);
 		OutDepth = ClipP.z /= ClipP.w;
@@ -1167,6 +1160,7 @@ groupshared uint g_Density4[64][GROUP_SIZE_Z];
 groupshared uint g_Density2[8][GROUP_SIZE_Z];
 #endif
 
+// GroupSize is [64u,1u,16u]
 [numthreads(GROUP_SIZE_X, 1, GROUP_SIZE_Z)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint3 GroupThreadId : SV_GroupThreadID)
 {
@@ -1174,6 +1168,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint3 GroupThreadId : 
 	const uint3 PageCoord = IndexToCoord(PageIndex, PageCountResolution);
 	const bool bValid = PageIndex < AllocatedPageCountBuffer[0];
 	
+	// Dummy initialization for pleasing compiler
+	#if PERMUTATION_MIP_AGGREGATE && COMPILER_FXC
+	if (GroupThreadId.x < 8 && GroupThreadId.z < GROUP_SIZE_Z)
+	{
+		g_Density2[GroupThreadId.x][GroupThreadId.z] = 0;
+	}
+	#endif
+
 	uint Total = 0;
 	if (bValid)
 	{

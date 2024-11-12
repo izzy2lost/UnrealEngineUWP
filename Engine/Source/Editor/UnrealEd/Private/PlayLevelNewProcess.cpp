@@ -181,7 +181,7 @@ void UEditorEngine::LaunchNewProcess(const FRequestPlaySessionParams& InParams, 
 	// VRPreview handling
 	if (InParams.SessionPreviewTypeOverride.Get(EPlaySessionPreviewType::NoPreview) == EPlaySessionPreviewType::VRPreview)
 	{
-		if (!InParams.EditorPlaySettings->IsOneHeadsetEachProcess())
+		if (InParams.EditorPlaySettings->IsHMDForPrimaryProcessOnly())
 		{
 			// If they're trying to launch a new process (from the editor) in VR, this will fail because the editor
 			// owns the HMD resource, so we warn, and then fall back. They will need to use single-process for VR preview.

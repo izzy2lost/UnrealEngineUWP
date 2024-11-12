@@ -6,6 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "GameplayTagContainer.h"
 #include "BehaviorTree/BTDecorator.h"
+#include "BehaviorTree/ValueOrBBKey.h"
 #include "BTDecorator_SetTagCooldown.generated.h"
 
 /**
@@ -23,11 +24,11 @@ class UBTDecorator_SetTagCooldown : public UBTDecorator
 
 	/** Value we will add or set to the Cooldown tag when this task runs. */
 	UPROPERTY(Category = Decorator, EditAnywhere)
-	float CooldownDuration;
+	FValueOrBBKey_Float CooldownDuration;
 
 	/** True if we are adding to any existing duration, false if we are setting the duration (potentially invalidating an existing end time). */
-	UPROPERTY(Category = Decorator, EditAnywhere)
-	bool bAddToExistingDuration;
+	UPROPERTY(Category = Decorator, EditAnywhere, DisplayName = AddToExistingDuration)
+	FValueOrBBKey_Bool bAddToExistingDuration;
 
 	AIMODULE_API virtual FString GetStaticDescription() const override;
 

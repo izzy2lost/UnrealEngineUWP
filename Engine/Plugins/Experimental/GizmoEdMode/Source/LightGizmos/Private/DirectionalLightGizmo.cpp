@@ -111,7 +111,7 @@ void UDirectionalLightGizmo::Render(IToolsContextRenderAPI* RenderAPI)
 	FVector LineEnd = Start + LineDir * ArrowLength;
 
 	const FSceneView* View = RenderAPI->GetSceneView();
-	float PixelToWorld = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, LineEnd);
+	float PixelToWorld = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, LineEnd);
 
 	// Calculate the "true" end point in world space (We want the line to be the same length in screen space)
 	FVector LineEndWorld = Start + LineDir * ArrowLength * PixelToWorld;

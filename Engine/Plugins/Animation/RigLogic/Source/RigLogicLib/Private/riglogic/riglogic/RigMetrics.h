@@ -16,10 +16,12 @@ struct RigMetrics {
     std::uint16_t rawControlCount;
     std::uint16_t psdControlCount;
     std::uint16_t mlControlCount;
+    std::uint16_t rbfControlCount;
     std::uint16_t jointAttributeCount;
     std::uint16_t blendShapeCount;
     std::uint16_t animatedMapCount;
     std::uint16_t neuralNetworkCount;
+    std::uint16_t rbfSolverCount;
 
     explicit RigMetrics(MemoryResource*  /*unused*/) :
         lodCount{},
@@ -27,10 +29,12 @@ struct RigMetrics {
         rawControlCount{},
         psdControlCount{},
         mlControlCount{},
+        rbfControlCount{},
         jointAttributeCount{},
         blendShapeCount{},
         animatedMapCount{},
-        neuralNetworkCount{} {
+        neuralNetworkCount{},
+        rbfSolverCount{} {
     }
 
     template<class Archive>
@@ -40,10 +44,12 @@ struct RigMetrics {
                 rawControlCount,
                 psdControlCount,
                 mlControlCount,
+                rbfControlCount,
                 jointAttributeCount,
                 blendShapeCount,
                 animatedMapCount,
-                neuralNetworkCount);
+                neuralNetworkCount,
+                rbfSolverCount);
     }
 
 };

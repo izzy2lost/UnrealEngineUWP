@@ -1,15 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
  
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat1Dynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
+#include "Utils/DMUtils.h"
 #endif
  
 #define LOCTEXT_NAMESPACE "DMMaterialValueFloat1"
@@ -36,7 +39,12 @@ void UDMMaterialValueFloat1::GenerateExpression(const TSharedRef<IDMMaterialBuil
 		return;
 	}
  
-	UMaterialExpressionScalarParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionScalarParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(), 
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = Value;
@@ -52,6 +60,42 @@ void UDMMaterialValueFloat1::ApplyDefaultValue()
 void UDMMaterialValueFloat1::ResetDefaultValue()
 {
 	DefaultValue = 0.f;
+}
+
+UDMMaterialValueDynamic* UDMMaterialValueFloat1::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat1Dynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat1Dynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat1::GetComponentPathComponent() const
+{
+	return TEXT("Scalar");
+}
+
+FText UDMMaterialValueFloat1::GetComponentDescription() const
+{
+	return LOCTEXT("Scalar", "Scalar");
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueFloat1::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueFloat1::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	float ValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, ValueJson))
+	{
+		SetValue(ValueJson);
+		return true;
+	}
+
+	return false;
 }
 
 void UDMMaterialValueFloat1::SetDefaultValue(float InDefaultValue)
@@ -79,7 +123,7 @@ void UDMMaterialValueFloat1::SetValue(float InValue)
  
 	Value = InValue;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
  
 void UDMMaterialValueFloat1::SetMIDParameter(UMaterialInstanceDynamic* InMID) const

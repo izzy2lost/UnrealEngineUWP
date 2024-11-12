@@ -6,13 +6,12 @@
 #include "Converters/GLTFConverter.h"
 #include "Converters/GLTFBuilderContext.h"
 #include "Converters/GLTFMeshSection.h"
+#include "Converters/GLTFMeshAttributesArray.h"
 
 class FPositionVertexBuffer;
 class FColorVertexBuffer;
 class FStaticMeshVertexBuffer;
 class FSkinWeightVertexBuffer;
-class FGLTFNormalArray;
-class FGLTFUVArray;
 
 typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFMeshSection*, const FPositionVertexBuffer*> IGLTFPositionBufferConverter;
 typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFMeshSection*, const FColorVertexBuffer*> IGLTFColorBufferConverter;
@@ -22,10 +21,15 @@ typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFMeshSection*, const FStati
 typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFMeshSection*, const FSkinWeightVertexBuffer*, uint32> IGLTFBoneIndexBufferConverter;
 typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFMeshSection*, const FSkinWeightVertexBuffer*, uint32> IGLTFBoneWeightBufferConverter;
 typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFMeshSection*> IGLTFIndexBufferConverter;
-typedef TGLTFConverter<FGLTFJsonAccessor*, const FPositionVertexBuffer*> IGLTFPositionBufferConverterRaw;
-typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFIndexArray*, FString> IGLTFIndexBufferConverterRaw;
-typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFNormalArray*> IGLTFNormalBufferConverterRaw;
-typedef TGLTFConverter<FGLTFJsonAccessor*, const FGLTFUVArray*> IGLTFUVBufferConverterRaw;
+
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFPositionArray> IGLTFPositionBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFIndexArray, FString> IGLTFIndexBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFNormalArray> IGLTFNormalBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFUVArray> IGLTFUVBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFColorArray> IGLTFColorBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFTangentArray> IGLTFTangentBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFJointInfluenceArray> IGLTFBoneIndexBufferConverterRaw;
+typedef TGLTFConverter<FGLTFJsonAccessor*, FGLTFJointWeightArray> IGLTFBoneWeightBufferConverterRaw;
 
 
 class GLTFEXPORTER_API FGLTFPositionBufferConverter : public FGLTFBuilderContext, public IGLTFPositionBufferConverter
@@ -154,37 +158,28 @@ protected:
 class GLTFEXPORTER_API FGLTFPositionBufferConverterRaw : public FGLTFBuilderContext, public IGLTFPositionBufferConverterRaw
 {
 public:
-
 	using FGLTFBuilderContext::FGLTFBuilderContext;
 
 protected:
-
-	virtual FGLTFJsonAccessor* Convert(const FPositionVertexBuffer* VertexBuffer) override;
+	virtual FGLTFJsonAccessor* Convert(FGLTFPositionArray VertexBuffer) override;
 };
 
 class GLTFEXPORTER_API FGLTFIndexBufferConverterRaw : public FGLTFBuilderContext, public IGLTFIndexBufferConverterRaw
 {
 public:
-
 	using FGLTFBuilderContext::FGLTFBuilderContext;
 
 protected:
-	virtual FGLTFJsonAccessor* Convert(const FGLTFIndexArray* IndexBuffer, FString MeshName) override;
+	virtual FGLTFJsonAccessor* Convert(FGLTFIndexArray IndexBuffer, FString MeshName) override;
 };
 
 class GLTFEXPORTER_API FGLTFNormalBufferConverterRaw : public FGLTFBuilderContext, public IGLTFNormalBufferConverterRaw
 {
 public:
-
 	using FGLTFBuilderContext::FGLTFBuilderContext;
 
 protected:
-
-	virtual FGLTFJsonAccessor* Convert(const FGLTFNormalArray* NormalSource) override;
-
-private:
-
-	FGLTFJsonBufferView* ConvertBufferView(const FGLTFNormalArray* NormalSource);
+	virtual FGLTFJsonAccessor* Convert(FGLTFNormalArray NormalsSource) override;
 };
 
 class GLTFEXPORTER_API FGLTFUVBufferConverterRaw : public FGLTFBuilderContext, public IGLTFUVBufferConverterRaw
@@ -194,10 +189,41 @@ public:
 	using FGLTFBuilderContext::FGLTFBuilderContext;
 
 protected:
+	virtual FGLTFJsonAccessor* Convert(FGLTFUVArray UVSource) override;
+};
 
-	virtual FGLTFJsonAccessor* Convert(const FGLTFUVArray* UVSource) override;
+class GLTFEXPORTER_API FGLTFColorBufferConverterRaw : public FGLTFBuilderContext, public IGLTFColorBufferConverterRaw
+{
+public:
+	using FGLTFBuilderContext::FGLTFBuilderContext;
 
-private:
+protected:
+	virtual FGLTFJsonAccessor* Convert(FGLTFColorArray VertexColorBuffer) override;
+};
 
-	FGLTFJsonBufferView* ConvertBufferView(const FGLTFUVArray* UVSource);
+class GLTFEXPORTER_API FGLTFTangentBufferConverterRaw : public FGLTFBuilderContext, public IGLTFTangentBufferConverterRaw
+{
+public:
+	using FGLTFBuilderContext::FGLTFBuilderContext;
+
+protected:
+	virtual FGLTFJsonAccessor* Convert(FGLTFTangentArray TangentSource) override;
+};
+
+class GLTFEXPORTER_API FGLTFBoneIndexBufferConverterRaw : public FGLTFBuilderContext, public IGLTFBoneIndexBufferConverterRaw
+{
+public:
+	using FGLTFBuilderContext::FGLTFBuilderContext;
+
+protected:
+	virtual FGLTFJsonAccessor* Convert(FGLTFJointInfluenceArray Joints) override;
+};
+
+class GLTFEXPORTER_API FGLTFBoneWeightBufferConverterRaw : public FGLTFBuilderContext, public IGLTFBoneWeightBufferConverterRaw
+{
+public:
+	using FGLTFBuilderContext::FGLTFBuilderContext;
+
+protected:
+	virtual FGLTFJsonAccessor* Convert(FGLTFJointWeightArray Weights) override;
 };

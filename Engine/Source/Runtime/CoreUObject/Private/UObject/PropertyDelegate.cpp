@@ -15,15 +15,21 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FDelegateProperty)
 
+FDelegateProperty::FDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, SignatureFunction(nullptr)
+{
+}
+
 FDelegateProperty::FDelegateProperty(FFieldVariant InOwner, const UECodeGen_Private::FDelegatePropertyParams& Prop)
-	: FDelegateProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	SignatureFunction = Prop.SignatureFunctionFunc ? Prop.SignatureFunctionFunc() : nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
 FDelegateProperty::FDelegateProperty(UField* InField)
-	: FDelegateProperty_Super(InField)
+	: Super(InField)
 {
 	UDelegateProperty* SourceProperty = CastChecked<UDelegateProperty>(InField);
 	SignatureFunction = SourceProperty->SignatureFunction;

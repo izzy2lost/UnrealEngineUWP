@@ -43,7 +43,7 @@ public:
 	FOnCurrentMovieClipFinished OnCurrentMovieClipFinishedDelegate;
 	virtual FOnCurrentMovieClipFinished& OnCurrentMovieClipFinished() override { return OnCurrentMovieClipFinishedDelegate; }
 
-	virtual FTexture2DRHIRef GetTexture() override { return Texture.IsValid() ? Texture->GetRHIRef() : nullptr; }
+	virtual FTextureRHIRef GetTexture() override { return Texture.IsValid() ? Texture->GetRHIRef() : nullptr; }
 
 private:
 	/** Opens up the next movie in the movie path queue */
@@ -53,7 +53,7 @@ private:
 	/** Cleans up rendering resources once movies are done playing */
 	void CleanupRenderingResources();
 	/** Use shader to generate final image */
-	void ConvertSample();
+	void ConvertSample(FRHICommandListImmediate& RHICmdList);
 
 private:
 	/** A list of all the stored movie paths we have enqueued for playing */
@@ -77,7 +77,7 @@ private:
 	TArray<TSharedPtr<FSlateTexture2DRHIRef, ESPMode::ThreadSafe>> TextureFreeList;
 
 	/** Input texture for conversion shader */
-	TRefCountPtr<FRHITexture2D> InputTarget;
+	TRefCountPtr<FRHITexture> InputTarget;
 
 	/** The video player and sample grabber for use of Media Foundation */
 	class FVideoPlayer* VideoPlayer;

@@ -18,6 +18,8 @@ namespace uba
 		const tchar* zone = nullptr;
 		u32 maxProcessorCount = 0;
 		u32 index = 0;
+		bool createSession = true;
+		bool addDirSuffix = true;
 	};
 
 	class Client
@@ -33,7 +35,10 @@ namespace uba
 				return false;
 
 			StringBuffer<> clientRootDir;
-			clientRootDir.Append(info.rootDir).Append("Agent").AppendValue(info.index);
+			clientRootDir.Append(info.rootDir);
+			if (info.addDirSuffix)
+				clientRootDir.Append("Agent").AppendValue(info.index);
+
 			StorageClientCreateInfo storageClientInfo(*networkClient, clientRootDir.data);
 			storageClientInfo.zone = info.zone;
 			storageClientInfo.getProxyBackendCallback = [](void* ud, const tchar* h) -> NetworkBackend& { return ((Client*)ud)->GetProxyBackend(h); };
@@ -42,15 +47,20 @@ namespace uba
 			storageClientInfo.startProxyUserData = this;
 			storageClient = new StorageClient(storageClientInfo);
 
-			SessionClientCreateInfo sessionClientInfo(*storageClient, *networkClient, info.logWriter);
-			sessionClientInfo.maxProcessCount = info.maxProcessorCount;
-			sessionClientInfo.rootDir = clientRootDir.data;
-			sessionClientInfo.deleteSessionsOlderThanSeconds = 1;
-
-			sessionClient = new SessionClient(sessionClientInfo);
+			storageClient->LoadCasTable(false);
 
 			storageClient->Start();
-			sessionClient->Start();
+
+			if (info.createSession)
+			{
+				SessionClientCreateInfo sessionClientInfo(*storageClient, *networkClient, info.logWriter);
+				sessionClientInfo.maxProcessCount = info.maxProcessorCount;
+				sessionClientInfo.rootDir = clientRootDir.data;
+				sessionClientInfo.deleteSessionsOlderThanSeconds = 1;
+
+				sessionClient = new SessionClient(sessionClientInfo);
+				sessionClient->Start();
+			}
 			
 			return networkClient->Connect(*networkBackend, info.host, info.port);
 		}

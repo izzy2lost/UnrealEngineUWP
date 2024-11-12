@@ -42,7 +42,7 @@ struct MOVIERENDERPIPELINECORE_API FMoviePipelineSurfaceReader
 	/**
 	* Issues a command to the GPU to copy the given SourceSurfaceSample to our local ReadbackTexture for this surface.
 	*/
-	void ResolveSampleToReadbackTexture_RenderThread(const FTexture2DRHIRef& SourceSurfaceSample);
+	void ResolveSampleToReadbackTexture_RenderThread(const FTextureRHIRef& SourceSurfaceSample);
 
 	/**
 	* Maps the ReadbackTexture to the CPU (which should have been resolved to before this point) and copies the data over.
@@ -86,7 +86,7 @@ public:
 	FMoviePipelineSurfaceQueue& operator=(const FMoviePipelineSurfaceQueue&) = delete;
 public:
 
-	void OnRenderTargetReady_RenderThread(const FTexture2DRHIRef InRenderTarget, TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> InPayload, TUniqueFunction<void(TUniquePtr<FImagePixelData>&&)>&& InFunctionCallback);
+	void OnRenderTargetReady_RenderThread(const FTextureRHIRef InRenderTarget, TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> InPayload, TUniqueFunction<void(TUniquePtr<FImagePixelData>&&)>&& InFunctionCallback);
 
 	void BlockUntilAnyAvailable();
 	void Shutdown();

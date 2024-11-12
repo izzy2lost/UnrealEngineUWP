@@ -20,6 +20,8 @@ SWrapBox::SWrapBox()
 {
 }
 
+SWrapBox::~SWrapBox() = default;
+
 SWrapBox::FScopedWidgetSlotArguments SWrapBox::AddSlot()
 {
 	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), Slots, INDEX_NONE };
@@ -30,19 +32,12 @@ int32 SWrapBox::RemoveSlot( const TSharedRef<SWidget>& SlotWidget )
 	return Slots.Remove(SlotWidget);
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void SWrapBox::Construct( const FArguments& InArgs )
 {
 	PreferredSize.Assign(*this, InArgs._PreferredSize);
 
-	// Handle deprecation of PreferredWidth
-	if (!InArgs._PreferredSize.IsSet() && !InArgs._PreferredSize.IsBound())
-	{
-		PreferredSize.Assign(*this, InArgs._PreferredWidth);
-	}
-
 	InnerSlotPadding = InArgs._InnerSlotPadding;
-	bUseAllottedSize = InArgs._UseAllottedSize || InArgs._UseAllottedWidth;
+	bUseAllottedSize = InArgs._UseAllottedSize;
 	Orientation = InArgs._Orientation;
 	HAlign.Assign(*this, InArgs._HAlign);
 
@@ -51,7 +46,6 @@ void SWrapBox::Construct( const FArguments& InArgs )
 
 	SetCanTick(bUseAllottedSize);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void SWrapBox::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 {
@@ -442,19 +436,9 @@ void SWrapBox::SetInnerSlotPadding(FVector2D InInnerSlotPadding)
 	}
 }
 
-void SWrapBox::SetWrapWidth(TAttribute<float> InWrapWidth)
-{
-	SetWrapSize(MoveTemp(InWrapWidth));
-}
-
 void SWrapBox::SetWrapSize(TAttribute<float> InWrapSize)
 {
 	PreferredSize.Assign(*this, MoveTemp(InWrapSize));
-}
-
-void SWrapBox::SetUseAllottedWidth(bool bInUseAllottedWidth)
-{
-	SetUseAllottedSize(bInUseAllottedWidth);
 }
 
 void SWrapBox::SetUseAllottedSize(bool bInUseAllottedSize)

@@ -48,6 +48,14 @@
 		{
 			"Name" : "VirtualCameraCore",
 			"Enabled": true
+		},
+		{
+			"Name": "CineCameraSceneCapture",
+			"Enabled": true
+		},
+		{
+			"Name": "BlueprintFileUtils",
+			"Enabled": true
 		}
 	]
 }

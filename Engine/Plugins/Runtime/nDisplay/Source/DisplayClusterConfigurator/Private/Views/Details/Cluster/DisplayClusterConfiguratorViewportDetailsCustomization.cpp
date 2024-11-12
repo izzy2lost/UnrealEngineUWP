@@ -22,7 +22,7 @@ void FDisplayClusterConfiguratorViewportDetailsCustomization::CustomizeDetails(I
 	Super::CustomizeDetails(InLayoutBuilder);
 
 	ConfigurationViewportPtr = nullptr;
-	NoneOption = MakeShared<FString>("None");
+	DefaultViewPointComponentNameOption = MakeShared<FString>("DefaultViewPoint");
 
 	// Set config data pointer
 	UDisplayClusterConfigurationData* ConfigurationData = GetConfigData();
@@ -48,7 +48,7 @@ void FDisplayClusterConfiguratorViewportDetailsCustomization::CustomizeDetails(I
 
 	if (!bDisplayICVFX)
 	{
-		IDetailCategoryBuilder& Category = InLayoutBuilder.EditCategory(TEXT("In Camera VFX"));
+		IDetailCategoryBuilder& Category = InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::InCameraVFXCategory);
 		Category.SetCategoryVisibility(false);
 	}
 
@@ -151,12 +151,6 @@ void FDisplayClusterConfiguratorViewportDetailsCustomization::ResetCameraOptions
 		// Default sort isn't compatible with TSharedPtr<FString>.
 		return *A < *B;
 	});
-
-	// Add None option
-	if (!ConfigurationViewport->Camera.IsEmpty())
-	{
-		CameraOptions.Add(NoneOption);
-	}
 }
 
 TSharedRef<SWidget> FDisplayClusterConfiguratorViewportDetailsCustomization::CreateCustomCameraWidget()
@@ -194,7 +188,7 @@ void FDisplayClusterConfiguratorViewportDetailsCustomization::OnCameraSelected(T
 		UDisplayClusterConfigurationViewport* ConfigurationViewport = ConfigurationViewportPtr.Get();
 		check(ConfigurationViewport != nullptr);
 		// Handle empty case
-		if (InCamera->Equals(*NoneOption.Get()))
+		if (InCamera->Equals(*DefaultViewPointComponentNameOption.Get()))
 		{
 			CameraHandle->SetValue(TEXT(""));
 		}
@@ -214,7 +208,8 @@ FText FDisplayClusterConfiguratorViewportDetailsCustomization::GetSelectedCamera
 	FString SelectedOption = ConfigurationViewportPtr.Get()->Camera;
 	if (SelectedOption.IsEmpty())
 	{
-		SelectedOption = *NoneOption.Get();
+		SelectedOption = *DefaultViewPointComponentNameOption.Get();
 	}
+
 	return FText::FromString(SelectedOption);
 }

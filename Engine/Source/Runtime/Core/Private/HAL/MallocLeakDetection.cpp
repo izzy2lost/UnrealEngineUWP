@@ -60,7 +60,7 @@ FMallocLeakDetection& FMallocLeakDetection::Get()
 }
 
 FMallocLeakDetection::~FMallocLeakDetection()
-{	
+{
 	OpenPointers.Empty(); // clean up the state
 	SetAllocationCollection(false); // disable collection to avoid a call back to this instance when its members are destroyed
 }
@@ -127,7 +127,7 @@ void FMallocLeakDetection::AddCallstack(FCallstackTrack& Callstack)
 		UniqueCallstack.Size += Callstack.Size;
 		UniqueCallstack.LastFrame = Callstack.LastFrame;
 	}
-	UniqueCallstack.Count++;	
+	UniqueCallstack.Count++;
 	TotalTracked += Callstack.Size;
 }
 
@@ -146,7 +146,7 @@ void FMallocLeakDetection::RemoveCallstack(FCallstackTrack& Callstack)
 			UniqueCallstack = nullptr;
 			UniqueCallstacks.Remove(CallstackHash);
 		}
-		
+
 		TotalTracked -= Callstack.Size;
 	}
 }
@@ -191,7 +191,7 @@ void FMallocLeakDetection::GetOpenCallstacks(TArray<uint32>& OutCallstacks, SIZE
 			}
 
 			// Filter out allocations that free/resize down?
-			if (Options.OnlyNonDeleters 
+			if (Options.OnlyNonDeleters
 				&& (KnownDeleters.Contains(Callstack.CachedHash) || KnownTrimmers.Contains(Callstack.CachedHash)))
 			{
 				continue;
@@ -212,7 +212,7 @@ void FMallocLeakDetection::GetOpenCallstacks(TArray<uint32>& OutCallstacks, SIZE
 			if (Callstack.Size < Options.SizeFilter)
 			{
 				continue;
-			}			
+			}
 
 			HashesToAllocRate.Add(Callstack.CachedHash, Callstack.BytesPerFrame);
 
@@ -236,7 +236,7 @@ void FMallocLeakDetection::GetOpenCallstacks(TArray<uint32>& OutCallstacks, SIZE
 			{
 				return Left.CachedHash < Right.CachedHash;
 			}
-				
+
 			// else sort by Ascending size
 			return Left.Size >= Right.Size;
 		});
@@ -302,19 +302,31 @@ int32 FMallocLeakDetection::DumpOpenCallstacks(const TCHAR* FileName, const FMal
 	{
 		return 0;
 	}
-	
+
 	FOutputDevice* ReportAr = nullptr;
 	FArchive* FileAr = nullptr;
 	FOutputDeviceArchiveWrapper* FileArWrapper = nullptr;
 
-	const FString PathName = *(FPaths::ProfilingDir() + TEXT("memreports/"));
-	IFileManager::Get().MakeDirectory(*PathName);
+	if (Options.OutputDevice)
+	{
+		ReportAr = Options.OutputDevice;
+	}
+	else
+	{
+#if ALLOW_DEBUG_FILES
+		const FString PathName = *(FPaths::ProfilingDir() + TEXT("memreports/"));
+		IFileManager::Get().MakeDirectory(*PathName);
 
-	FString FilePath = PathName + CreateProfileFilename(FileName, TEXT(""), true);
+		FString FilePath = PathName + CreateProfileFilename(FileName, TEXT(""), true);
 
-	FileAr = IFileManager::Get().CreateDebugFileWriter(*FilePath);
-	FileArWrapper = new FOutputDeviceArchiveWrapper(FileAr);
-	ReportAr = FileArWrapper;
+		FileAr = IFileManager::Get().CreateDebugFileWriter(*FilePath);
+		FileArWrapper = new FOutputDeviceArchiveWrapper(FileAr);
+		ReportAr = FileArWrapper;
+#else
+		// We can't create debug files because we aren't allowed, so bail!
+		return 0;
+#endif
+	}
 
 	const float InvToMb = 1.0 / (1024 * 1024);
 	FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
@@ -341,7 +353,7 @@ int32 FMallocLeakDetection::DumpOpenCallstacks(const TCHAR* FileName, const FMal
 	FMemory::Memzero(CallstackString);
 
 	for (const auto& Key : SortedKeys)
-	{		
+	{
 		FCallstackTrack Callstack;
 
 		{
@@ -448,7 +460,7 @@ void FMallocLeakDetection::Malloc(void* Ptr, SIZE_T Size)
 		bool Enabled = bCaptureAllocs && IsDisabledForThisThread() == false;
 
 		if (Enabled && (MinAllocationSize == 0 || Size >= MinAllocationSize))
-		{			
+		{
 			FScopeLock Lock(&AllocatedPointersCritical);
 
 			if (!bRecursive)
@@ -491,10 +503,10 @@ void FMallocLeakDetection::Malloc(void* Ptr, SIZE_T Size)
 
 				bRecursive = false;
 			}
-		}		
+		}
 	}
 
-	
+
 }
 
 void FMallocLeakDetection::Realloc(void* OldPtr, SIZE_T OldSize, void* NewPtr, SIZE_T NewSize)
@@ -509,7 +521,7 @@ void FMallocLeakDetection::Realloc(void* OldPtr, SIZE_T OldSize, void* NewPtr, S
 		}
 
 		// realloc may return the same pointer, if so skip this
-	
+
 		if (OldPtr != NewPtr)
 		{
 			FCallstackTrack* Callstack = OpenPointers.Find(OldPtr);
@@ -604,7 +616,7 @@ void FMallocLeakDetection::Free(void* Ptr)
 	{
 		if (bCaptureAllocs || OpenPointers.Num())
 		{
-			FScopeLock Lock(&AllocatedPointersCritical);			
+			FScopeLock Lock(&AllocatedPointersCritical);
 			if (!bRecursive)
 			{
 				bRecursive = true;

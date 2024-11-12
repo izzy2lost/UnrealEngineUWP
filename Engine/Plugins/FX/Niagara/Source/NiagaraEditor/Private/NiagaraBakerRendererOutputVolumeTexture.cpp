@@ -476,12 +476,11 @@ void FNiagaraBakerRendererOutputVolumeTexture::BakeFrame(FNiagaraBakerFeedbackCo
 			const FString AssetFullName	= OutputVolumeTexture->GetAssetPath(OutputVolumeTexture->FramesAssetPathFormat, FrameIndex);
 			if (UVolumeTexture* OutputTexture = UNiagaraBakerOutput::GetOrCreateAsset<UVolumeTexture, UVolumeTextureFactory>(AssetFullName))
 			{
+				OutputTexture->PreEditChange(nullptr);
 				OutputTexture->Source.Init(TextureSize.X, TextureSize.Y, TextureSize.Z, 1, TSF_RGBA16F, (const uint8*)(TextureData.GetData()));
 				OutputTexture->PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 				OutputTexture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
-				OutputTexture->UpdateResource();
 				OutputTexture->PostEditChange();
-				OutputTexture->MarkPackageDirty();
 			}
 		}
 
@@ -527,6 +526,7 @@ void FNiagaraBakerRendererOutputVolumeTexture::EndBake(FNiagaraBakerFeedbackCont
 		const FString AssetFullName = OutputVolumeTexture->GetAssetPath(OutputVolumeTexture->AtlasAssetPathFormat, 0);
 		if (UVolumeTexture* OutputTexture = UNiagaraBakerOutput::GetOrCreateAsset<UVolumeTexture, UVolumeTextureFactory>(AssetFullName))
 		{
+			OutputTexture->PreEditChange(nullptr);
 			OutputTexture->Source.Init(BakeAtlasTextureSize.X, BakeAtlasTextureSize.Y, BakeAtlasTextureSize.Z, 1, TSF_RGBA16F, (const uint8*)(BakeAtlasTextureData.GetData()));
 			OutputTexture->PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 			OutputTexture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;

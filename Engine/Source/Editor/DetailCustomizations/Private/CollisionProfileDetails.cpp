@@ -1449,7 +1449,6 @@ void FCollisionProfileDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 			.MaxDesiredHeight(200.f)
 			[
 				SAssignNew(ObjectChannelListView, SChannelListView)
-				.ItemHeight(15.f)
 				.ListItemsSource(&ObjectChannelList)
 				.OnGenerateRow(this, &FCollisionProfileDetails::HandleGenerateChannelWidget)
 				.OnMouseButtonDoubleClick(this, &FCollisionProfileDetails::OnObjectChannelListItemDoubleClicked)
@@ -1547,7 +1546,6 @@ void FCollisionProfileDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 			.MaxDesiredHeight(400.f)
 			[
 				SAssignNew(TraceChannelListView, SChannelListView)
-				.ItemHeight(15.0f)
 				.ListItemsSource(&TraceChannelList)
 				.OnGenerateRow(this, &FCollisionProfileDetails::HandleGenerateChannelWidget)
 				.OnMouseButtonDoubleClick(this, &FCollisionProfileDetails::OnTraceChannelListItemDoubleClicked)
@@ -1644,7 +1642,6 @@ void FCollisionProfileDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 			.MaxDesiredHeight(600.f)
 			[
 				SAssignNew(ProfileListView, SProfileListView)
-				.ItemHeight(20.0f)
 				.ListItemsSource(&ProfileList)
 				.OnGenerateRow(this, &FCollisionProfileDetails::HandleGenerateProfileWidget)
 				.OnMouseButtonDoubleClick(this, &FCollisionProfileDetails::OnProfileListItemDoubleClicked)

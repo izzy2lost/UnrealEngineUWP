@@ -302,7 +302,29 @@ void FNiagaraBakerRendererOutputSparseVolumeTexture::BakeFrame(FNiagaraBakerFeed
 			return;
 		}
 
-		if (!SVTAsset->AppendFrame(SparseTextureData, FTransform::Identity))
+		FTransform TransformToUse = FTransform::Identity;
+								
+		FNiagaraVariableBase& BoundWorldSizeVar = OutputVolumeTexture->VolumeWorldSpaceSizeBinding.ResolvedParameter;
+
+		if (BoundWorldSizeVar.IsValid())
+		{
+			FVector3f WorldGridScale =
+				BakerRenderer.GetPreviewComponent()->GetOverrideParameters().GetParameterValueOrDefault<FVector3f>(BoundWorldSizeVar, FVector3f(1, 1, 1));
+			
+			if (WorldGridScale.Length() < SMALL_NUMBER)
+			{
+				WorldGridScale = FVector3f(1, 1, 1);
+			}
+
+			FVector WorldScaleFVector(WorldGridScale.X, WorldGridScale.Y, WorldGridScale.Z);
+
+			// scale by volume resolution to get proper world space scale rendering
+			const FVector FloatResolution(VolumeResolution.X, VolumeResolution.Y, VolumeResolution.Z);
+			WorldScaleFVector /= FloatResolution;
+			TransformToUse.SetScale3D(WorldScaleFVector);
+		}
+
+		if (!SVTAsset->AppendFrame(SparseTextureData, TransformToUse))
 		{
 			UE_LOG(LogNiagaraBaker, Error, TEXT("Cannot append frame to SVT"));
 		}

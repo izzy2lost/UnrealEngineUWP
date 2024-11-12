@@ -6,13 +6,34 @@
 #include "LearningAgentsInteractor.h"
 #include "LearningExperience.h"
 #include "LearningLog.h"
-#include "LearningImitationTrainer.h"
+#include "LearningNeuralNetwork.h"
+#include "LearningExternalTrainer.h"
+#include "LearningAgentsCommunicator.h"
 #include "LearningAgentsRecording.h"
 #include "LearningAgentsPolicy.h"
 
-#include "GenericPlatform/GenericPlatformMisc.h"
-#include "HAL/FileManager.h"
+#include "Dom/JsonObject.h"
 #include "Misc/Paths.h"
+
+TSharedRef<FJsonObject> FLearningAgentsImitationTrainerTrainingSettings::AsJsonConfig() const
+{
+	TSharedRef<FJsonObject> ConfigObject = MakeShared<FJsonObject>();
+
+	ConfigObject->SetNumberField(TEXT("IterationNum"), NumberOfIterations);
+	ConfigObject->SetNumberField(TEXT("LearningRate"), LearningRate);
+	ConfigObject->SetNumberField(TEXT("LearningRateDecay"), LearningRateDecay);
+	ConfigObject->SetNumberField(TEXT("WeightDecay"), WeightDecay);
+	ConfigObject->SetNumberField(TEXT("BatchSize"), BatchSize);
+	ConfigObject->SetNumberField(TEXT("Window"), Window);
+	ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), ActionRegularizationWeight);
+	ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), ActionEntropyWeight);
+	ConfigObject->SetNumberField(TEXT("Seed"), RandomSeed);
+	ConfigObject->SetStringField(TEXT("Device"), UE::Learning::Trainer::GetDeviceString(UE::Learning::Agents::GetTrainingDevice(Device)));
+	ConfigObject->SetBoolField(TEXT("UseTensorBoard"), bUseTensorboard);
+	ConfigObject->SetBoolField(TEXT("SaveSnapshots"), bSaveSnapshots);
+
+	return ConfigObject;
+}
 
 ULearningAgentsImitationTrainer::ULearningAgentsImitationTrainer() : Super(FObjectInitializer::Get()) {}
 ULearningAgentsImitationTrainer::ULearningAgentsImitationTrainer(FVTableHelper& Helper) : Super(Helper) {}
@@ -29,10 +50,12 @@ void ULearningAgentsImitationTrainer::BeginDestroy()
 }
 
 ULearningAgentsImitationTrainer* ULearningAgentsImitationTrainer::MakeImitationTrainer(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsPolicy* InPolicy,
-	TSubclassOf<ULearningAgentsImitationTrainer> Class)
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
+	ULearningAgentsPolicy*& InPolicy,
+	const FLearningAgentsCommunicator& Communicator,
+	TSubclassOf<ULearningAgentsImitationTrainer> Class,
+	const FName Name)
 {
 	if (!InManager)
 	{
@@ -46,15 +69,12 @@ ULearningAgentsImitationTrainer* ULearningAgentsImitationTrainer::MakeImitationT
 		return nullptr;
 	}
 
-	const FName UniqueName = MakeUniqueObjectName(InManager, Class, TEXT("ImitationTrainer"), EUniqueObjectNameOptions::GloballyUnique);
+	const FName UniqueName = MakeUniqueObjectName(InManager, Class, Name, EUniqueObjectNameOptions::GloballyUnique);
 
 	ULearningAgentsImitationTrainer* ImitationTrainer = NewObject<ULearningAgentsImitationTrainer>(InManager, Class, UniqueName);
 	if (!ImitationTrainer) { return nullptr; }
 
-	ImitationTrainer->SetupImitationTrainer(
-		InManager,
-		InInteractor,
-		InPolicy);
+	ImitationTrainer->SetupImitationTrainer(InManager, InInteractor, InPolicy, Communicator);
 
 	return ImitationTrainer->IsSetup() ? ImitationTrainer : nullptr;
 }
@@ -62,7 +82,8 @@ ULearningAgentsImitationTrainer* ULearningAgentsImitationTrainer::MakeImitationT
 void ULearningAgentsImitationTrainer::SetupImitationTrainer(
 	ULearningAgentsManager* InManager,
 	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsPolicy* InPolicy)
+	ULearningAgentsPolicy* InPolicy,
+	const FLearningAgentsCommunicator& Communicator)
 {
 	if (IsSetup())
 	{
@@ -100,9 +121,16 @@ void ULearningAgentsImitationTrainer::SetupImitationTrainer(
 		return;
 	}
 
+	if (!Communicator.Trainer)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Communicator's Trainer is nullptr."), *GetName());
+		return;
+	}
+
 	Manager = InManager;
 	Interactor = InInteractor;
 	Policy = InPolicy;
+	Trainer = Communicator.Trainer;
 
 	bIsSetup = true;
 
@@ -113,14 +141,8 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 	const ULearningAgentsRecording* Recording,
 	const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings,
 	const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings,
-	const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings)
+	const FLearningAgentsTrainerProcessSettings& ImitationTrainerPathSettings)
 {
-	if (!PLATFORM_WINDOWS)
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Training currently only supported on Windows."), *GetName());
-		return;
-	}
-
 	if (!IsSetup())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
@@ -145,10 +167,6 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 		return;
 	}
 
-	// Record Timeout Setting
-
-	TrainerTimeout = ImitationTrainerSettings.TrainerCommunicationTimeout;
-
 	// Check Paths
 
 	const FString PythonExecutablePath = UE::Learning::Trainer::GetPythonExecutablePath(ImitationTrainerPathSettings.GetIntermediatePath());
@@ -172,7 +190,6 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 
 	const int32 ObservationNum = Interactor->GetObservationVectorSize();
 	const int32 ActionNum = Interactor->GetActionVectorSize();
-	const int32 MemoryStateNum = Policy->GetMemoryStateSize();
 
 	// Get Number of Steps
 
@@ -235,96 +252,192 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 	UE_LEARNING_CHECK(EpisodeIdx == TotalEpisodeNum);
 	UE_LEARNING_CHECK(StepIdx == TotalStepNum);
 
-	// Begin Training Properly
+	const int32 ObservationSchemaId = 0;
+	const int32 ActionSchemaId = 0;
 
-	UE_LOG(LogLearning, Display, TEXT("%s: Imitation Training Started"), *GetName());
-
-
-	UE::Learning::FImitationTrainerTrainingSettings ImitationTrainingSettings;
-	ImitationTrainingSettings.IterationNum = ImitationTrainerTrainingSettings.NumberOfIterations;
-	ImitationTrainingSettings.LearningRate = ImitationTrainerTrainingSettings.LearningRate;
-	ImitationTrainingSettings.LearningRateDecay = ImitationTrainerTrainingSettings.LearningRateDecay;
-	ImitationTrainingSettings.WeightDecay = ImitationTrainerTrainingSettings.WeightDecay;
-	ImitationTrainingSettings.BatchSize = ImitationTrainerTrainingSettings.BatchSize;
-	ImitationTrainingSettings.Window = ImitationTrainerTrainingSettings.Window;
-	ImitationTrainingSettings.ActionRegularizationWeight = ImitationTrainerTrainingSettings.ActionRegularizationWeight;
-	ImitationTrainingSettings.ActionEntropyWeight = ImitationTrainerTrainingSettings.ActionEntropyWeight;
-	ImitationTrainingSettings.Seed = ImitationTrainerTrainingSettings.RandomSeed;
-	ImitationTrainingSettings.Device = UE::Learning::Agents::GetTrainerDevice(ImitationTrainerTrainingSettings.Device);
-	ImitationTrainingSettings.bUseTensorboard = ImitationTrainerTrainingSettings.bUseTensorboard;
-	ImitationTrainingSettings.bSaveSnapshots = ImitationTrainerTrainingSettings.bSaveSnapshots;
-
-	ImitationTrainer = MakeUnique<UE::Learning::FSharedMemoryImitationTrainer>(
-		GetName(),
-		PythonExecutablePath,
-		TEXT(""),
-		PythonContentPath,
-		IntermediatePath,
+	// Create Replay Buffer from Records
+	ReplayBuffer = MakeUnique<UE::Learning::FReplayBuffer>();
+	ReplayBuffer->AddRecords(
 		TotalEpisodeNum,
 		TotalStepNum,
+		ObservationSchemaId,
 		ObservationNum,
+		ActionSchemaId,
 		ActionNum,
-		MemoryStateNum,
-		*Policy->GetPolicyNetworkAsset()->NeuralNetworkData,
-		*Policy->GetEncoderNetworkAsset()->NeuralNetworkData,
-		*Policy->GetDecoderNetworkAsset()->NeuralNetworkData,
-		Interactor->GetObservationSchema(),
-		Interactor->GetObservationSchemaElement(),
-		Interactor->GetActionSchema(),
-		Interactor->GetActionSchemaElement(),
-		ImitationTrainingSettings);
+		RecordedEpisodeStarts,
+		RecordedEpisodeLengths,
+		RecordedObservations,
+		RecordedActions);
 
-	UE_LOG(LogLearning, Display, TEXT("%s: Sending / Receiving initial policy..."), *GetName());
+	// We need to setup the trainer prior to sending the config
+	PolicyNetworkId = Trainer->AddNetwork(*Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
+	EncoderNetworkId = Trainer->AddNetwork(*Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
+	DecoderNetworkId = Trainer->AddNetwork(*Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
+	ReplayBufferId = Trainer->AddReplayBuffer(*ReplayBuffer);
 
+	TSharedRef<FJsonObject> ConfigObject = CreateConfig(ImitationTrainerTrainingSettings);
+
+	UE_LOG(LogLearning, Display, TEXT("%s: Sending config..."), *GetName());
+	SendConfig(ConfigObject);
+
+	UE_LOG(LogLearning, Display, TEXT("%s: Imitation Training Started"), *GetName());
 	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
 
-	Response = ImitationTrainer->SendPolicy(*Policy->GetPolicyNetworkAsset()->NeuralNetworkData, TrainerTimeout);
+	UE_LOG(LogLearning, Display, TEXT("%s: Sending / Receiving initial policy..."), *GetName());
+	Response = Trainer->SendNetwork(PolicyNetworkId, *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending policy to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
-		ImitationTrainer->Terminate();
 		bHasTrainingFailed = true;
+		Trainer->Terminate();
 		return;
 	}
 
-	Response = ImitationTrainer->SendEncoder(*Policy->GetEncoderNetworkAsset()->NeuralNetworkData, TrainerTimeout);
+	Response = Trainer->SendNetwork(EncoderNetworkId, *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending encoder to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
-		ImitationTrainer->Terminate();
 		bHasTrainingFailed = true;
+		Trainer->Terminate();
 		return;
 	}
 
-	Response = ImitationTrainer->SendDecoder(*Policy->GetDecoderNetworkAsset()->NeuralNetworkData, TrainerTimeout);
+	Response = Trainer->SendNetwork(DecoderNetworkId, *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending decoder to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
-		ImitationTrainer->Terminate();
 		bHasTrainingFailed = true;
+		Trainer->Terminate();
 		return;
 	}
 
 	UE_LOG(LogLearning, Display, TEXT("%s: Sending Experience..."), *GetName());
-
-	// Send Experience
-
-	Response = ImitationTrainer->SendExperience(
-		RecordedEpisodeStarts,
-		RecordedEpisodeLengths,
-		RecordedObservations, 
-		RecordedActions, 
-		TrainerTimeout);
-
+	Response = Trainer->SendReplayBuffer(ReplayBufferId, *ReplayBuffer);
 	if (Response != UE::Learning::ETrainerResponse::Success)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Error sending experience to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
 		bHasTrainingFailed = true;
-		ImitationTrainer->Terminate();
+		Trainer->Terminate();
 		return;
 	}
 
 	bIsTraining = true;
+}
+
+TSharedRef<FJsonObject> ULearningAgentsImitationTrainer::CreateConfig(const FLearningAgentsImitationTrainerTrainingSettings& TrainingSettings) const
+{
+	TSharedRef<FJsonObject> ConfigObject = MakeShared<FJsonObject>();
+	
+	// Add Training Config Entries
+	ConfigObject->SetStringField(TEXT("TaskName"), TEXT("Training"));
+	ConfigObject->SetStringField(TEXT("TrainerMethod"), TEXT("BehaviorCloning"));
+	ConfigObject->SetStringField(TEXT("TimeStamp"), *FDateTime::Now().ToFormattedString(TEXT("%Y-%m-%d_%H-%M-%S")));
+
+	const int32 ObservationSchemaId = 0;
+	const int32 ActionSchemaId = 0;
+
+	// Add Neural Network Config Entries
+	TArray<TSharedPtr<FJsonValue>> NetworkObjects;
+
+	// Policy
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), PolicyNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Policy->GetPolicyNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Policy->GetPolicyNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	// Encoder
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), EncoderNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Policy->GetEncoderNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Policy->GetEncoderNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+		NetworkObject->SetNumberField(TEXT("InputSchemaId"), ObservationSchemaId);
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	// Decoder
+	{
+		TSharedPtr<FJsonObject> NetworkObject = MakeShared<FJsonObject>();
+		NetworkObject->SetNumberField(TEXT("Id"), DecoderNetworkId);
+		NetworkObject->SetStringField(TEXT("Name"), Policy->GetDecoderNetworkAsset()->GetFName().ToString());
+		NetworkObject->SetNumberField(TEXT("MaxByteNum"), Policy->GetDecoderNetworkAsset()->NeuralNetworkData->GetSnapshotByteNum());
+		NetworkObject->SetNumberField(TEXT("OutputSchemaId"), ActionSchemaId);
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(NetworkObject);
+		NetworkObjects.Add(JsonValue);
+	}
+
+	ConfigObject->SetArrayField(TEXT("Networks"), NetworkObjects);
+
+	// Add Replay Buffers Config Entries
+	TArray<TSharedPtr<FJsonValue>> ReplayBufferObjects;
+	TSharedRef<FJsonValueObject> ReplayBufferJsonValue = MakeShared<FJsonValueObject>(ReplayBuffer->AsJsonConfig(ReplayBufferId));
+	ReplayBufferObjects.Add(ReplayBufferJsonValue);
+	ConfigObject->SetArrayField(TEXT("ReplayBuffers"), ReplayBufferObjects);
+
+	// Schemas
+	TSharedPtr<FJsonObject> SchemasObject = MakeShared<FJsonObject>();
+
+	// Add the observation schemas
+	TArray<TSharedPtr<FJsonValue>> ObservationSchemaObjects;
+	{
+		// For this trainer, add the one observation schema we have
+		TSharedPtr<FJsonObject> ObservationSchemaObject = MakeShared<FJsonObject>();
+		ObservationSchemaObject->SetNumberField(TEXT("Id"), ObservationSchemaId);
+		ObservationSchemaObject->SetStringField(TEXT("Name"), "Default");
+		ObservationSchemaObject->SetObjectField(TEXT("Schema"),
+			UE::Learning::Trainer::ConvertObservationSchemaToJSON(Interactor->GetObservationSchema()->ObservationSchema,
+				Interactor->GetObservationSchemaElement().SchemaElement));
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(ObservationSchemaObject);
+		ObservationSchemaObjects.Add(JsonValue);
+	}
+	SchemasObject->SetArrayField(TEXT("Observations"), ObservationSchemaObjects);
+
+	// Add the action schemas
+	TArray<TSharedPtr<FJsonValue>> ActionSchemaObjects;
+	{
+		// For this trainer, add the one action schema we have
+		TSharedPtr<FJsonObject> ActionSchemaObject = MakeShared<FJsonObject>();
+		ActionSchemaObject->SetNumberField(TEXT("Id"), ActionSchemaId);
+		ActionSchemaObject->SetStringField(TEXT("Name"), "Default");
+		ActionSchemaObject->SetObjectField(TEXT("Schema"),
+			UE::Learning::Trainer::ConvertActionSchemaToJSON(Interactor->GetActionSchema()->ActionSchema,
+				Interactor->GetActionSchemaElement().SchemaElement));
+
+		TSharedRef<FJsonValueObject> JsonValue = MakeShared<FJsonValueObject>(ActionSchemaObject);
+		ActionSchemaObjects.Add(JsonValue);
+	}
+	SchemasObject->SetArrayField(TEXT("Actions"), ActionSchemaObjects);
+
+	ConfigObject->SetObjectField(TEXT("Schemas"), SchemasObject);
+
+	// Add Imitation Specific Config Entries
+	ConfigObject->SetObjectField(TEXT("BehaviorCloningSettings"), TrainingSettings.AsJsonConfig());
+	ConfigObject->SetNumberField(TEXT("MemoryStateNum"), Policy->GetMemoryStateSize());
+
+	return ConfigObject;
+}
+
+void ULearningAgentsImitationTrainer::SendConfig(const TSharedRef<FJsonObject>& ConfigObject)
+{
+	UE::Learning::ETrainerResponse Response = UE::Learning::ETrainerResponse::Success;
+	Response = Trainer->SendConfig(ConfigObject, UE::Learning::ELogSetting::Normal); // todo pipe the log settings up to the blueprint graph
+
+	if (Response != UE::Learning::ETrainerResponse::Success)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Error sending config to trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
+		bHasTrainingFailed = true;
+		Trainer->Terminate();
+		return;
+	}
 }
 
 void ULearningAgentsImitationTrainer::DoneTraining()
@@ -338,10 +451,10 @@ void ULearningAgentsImitationTrainer::DoneTraining()
 	if (IsTraining())
 	{
 		// Wait for Trainer to finish
-		ImitationTrainer->Wait(1.0f);
+		Trainer->Wait();
 
 		// If not finished in time, terminate
-		ImitationTrainer->Terminate();
+		Trainer->Terminate();
 
 		bIsTraining = false;
 	}
@@ -358,7 +471,7 @@ void ULearningAgentsImitationTrainer::EndTraining()
 	if (IsTraining())
 	{
 		UE_LOG(LogLearning, Display, TEXT("%s: Stopping training..."), *GetName());
-		ImitationTrainer->SendStop();
+		Trainer->SendStop();
 		DoneTraining();
 	}
 }
@@ -379,9 +492,11 @@ void ULearningAgentsImitationTrainer::IterateTraining()
 		return;
 	}
 
-	if (ImitationTrainer->HasPolicyOrCompleted())
+	if (Trainer->HasNetworkOrCompleted())
 	{
-		UE::Learning::ETrainerResponse Response = ImitationTrainer->RecvPolicy(*Policy->GetPolicyNetworkAsset()->NeuralNetworkData, TrainerTimeout);
+		UE_LOG(LogLearning, Display, TEXT("Receiving trained networks..."));
+
+		UE::Learning::ETrainerResponse Response = Trainer->ReceiveNetwork(PolicyNetworkId, *Policy->GetPolicyNetworkAsset()->NeuralNetworkData);
 		if (Response == UE::Learning::ETrainerResponse::Completed)
 		{
 			UE_LOG(LogLearning, Display, TEXT("%s: Trainer completed training."), *GetName());
@@ -397,7 +512,7 @@ void ULearningAgentsImitationTrainer::IterateTraining()
 		}
 		Policy->GetPolicyNetworkAsset()->ForceMarkDirty();
 
-		Response = ImitationTrainer->RecvEncoder(*Policy->GetEncoderNetworkAsset()->NeuralNetworkData, TrainerTimeout);
+		Response = Trainer->ReceiveNetwork(EncoderNetworkId, *Policy->GetEncoderNetworkAsset()->NeuralNetworkData);
 		if (Response != UE::Learning::ETrainerResponse::Success)
 		{
 			UE_LOG(LogLearning, Error, TEXT("%s: Error receiving encoder from trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
@@ -407,7 +522,7 @@ void ULearningAgentsImitationTrainer::IterateTraining()
 		}
 		Policy->GetEncoderNetworkAsset()->ForceMarkDirty();
 
-		Response = ImitationTrainer->RecvDecoder(*Policy->GetDecoderNetworkAsset()->NeuralNetworkData, TrainerTimeout);
+		Response = Trainer->ReceiveNetwork(DecoderNetworkId, *Policy->GetDecoderNetworkAsset()->NeuralNetworkData);
 		if (Response != UE::Learning::ETrainerResponse::Success)
 		{
 			UE_LOG(LogLearning, Error, TEXT("%s: Error receiving decoder from trainer: %s. Check log for additional errors."), *GetName(), UE::Learning::Trainer::GetResponseString(Response));
@@ -423,7 +538,7 @@ void ULearningAgentsImitationTrainer::RunTraining(
 	const ULearningAgentsRecording* Recording,
 	const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings,
 	const FLearningAgentsImitationTrainerTrainingSettings& ImitationTrainerTrainingSettings,
-	const FLearningAgentsTrainerPathSettings& ImitationTrainerPathSettings)
+	const FLearningAgentsTrainerProcessSettings& ImitationTrainerPathSettings)
 {
 	if (!IsSetup())
 	{

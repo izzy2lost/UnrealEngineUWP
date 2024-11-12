@@ -165,6 +165,14 @@ bool UDataLayerInstanceWithAsset::Validate(IStreamingGenerationErrorHandler* Err
 		return false;
 	}
 
+	FText ReasonText;
+	const AWorldDataLayers* WorldDataLayers = GetDirectOuterWorldDataLayers();
+	if (WorldDataLayers && !WorldDataLayers->CanReferenceDataLayerAsset(GetAsset(), &ReasonText))
+	{
+		ErrorHandler->OnInvalidWorldDataLayersReference(WorldDataLayers, this, ReasonText);
+		return false;
+	}
+
 	// Get the DataLayerManager for this DataLayerInstance which will be the one of its outer world
 	UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(this);
 	if (ensure(DataLayerManager))

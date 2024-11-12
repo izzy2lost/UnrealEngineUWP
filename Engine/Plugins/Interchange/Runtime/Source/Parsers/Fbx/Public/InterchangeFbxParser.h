@@ -16,6 +16,7 @@ namespace UE
 {
 	namespace Interchange
 	{
+		struct FAnimationPayloadQuery;
 		namespace Private
 		{
 			class FFbxParser;
@@ -33,7 +34,7 @@ namespace UE
 
 			void SetResultContainer(UInterchangeResultsContainer* Result);
 
-			void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit);
+			void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit, const bool InbKeepFbxNamespace);
 			/**
 			 * Parse a file support by the fbx sdk. It just extract all the fbx node and create a FBaseNodeContainer and dump it in a json file inside the ResultFolder
 			 * @param - Filename is the file that the fbx sdk will read (.fbx or .obj)
@@ -75,15 +76,10 @@ namespace UE
 #endif
 			
 			/**
-			 * Extract bake transform animation payload data from the fbx, the key tell the translator what payload the client ask
-			 * @param - PayloadKey is the key that describe the payload data to extract from the fbx file
-			 * @param - BakeFrequency is the Hz at which we should bake the transform
-			 * @param - RangeStartTime is the start time of the bake
-			 * @param - RangeEndTime is the end time of the bake
-			 * @param - ResultFolder is the folder where we must put any result file
-			 * @return - Return the 'ResultPayloads' key unique id. We cannot use only the payload key because the bake parameter can be different.
+			 * Extract bake transform animation payload data from the fbx
 			 */
-			FString FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder);
+			void FetchAnimationBakeTransformPayloads(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries, const FString& ResultFolder);
+			TMap<FString, FString> FetchAnimationBakeTransformPayloads(const FString& PayloadQueriesJsonString, const FString& ResultFolder);
 
 			FString GetResultFilepath() const { return ResultFilepath; }
 			FString GetResultPayloadFilepath(const FString& PayloadKey) const

@@ -20,8 +20,13 @@
 
 #define LOCTEXT_NAMESPACE "NearestNeighborModelDetails"
 
-namespace UE::NearestNeighborModel
+namespace UE::NearestNeighborModel	
 {
+
+	static bool bShowFileCacheCategory = false;
+	FAutoConsoleVariableRef CVarNearestNeighborShowFileCacheCategory(TEXT("MLDeformer.NearestNeighbor.ShowFileCacheCategory"), bShowFileCacheCategory, TEXT("Whether or not to show the file cache category in the NearestNeighbor details panel"));
+
+
 	TSharedRef<IDetailCustomization> FNearestNeighborModelDetails::MakeInstance()
 	{
 		return MakeShareable(new FNearestNeighborModelDetails());
@@ -92,47 +97,48 @@ namespace UE::NearestNeighborModel
 				];
 		}
 
-		void AddFileCacheRow(IDetailCategoryBuilder& CategoryBuilder, const FText& FilterString, const FText& Name, const FGetTextDelegate ValueDelegate, TSharedRef<SWidget>& ValueWidget, TAttribute<bool> bIsEnabled)
+		void AddFileCacheRow(IDetailCategoryBuilder& CategoryBuilder, const FText& FilterString, const FText& Name, const FGetTextDelegate ValueDelegate, TSharedRef<SWidget>& ValueWidget, TAttribute<bool> bIsEnabled, TAttribute<EVisibility> IsVisible)
 		{
 			check(ValueDelegate.IsBound());
 			CategoryBuilder.AddCustomRow(FilterString)
 				.NameContent()
 				[
 					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.Padding(2, 2)
-					.VAlign(VAlign_Center)
-					[
-						SNew(STextBlock)
-						.Text(Name)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
+						+ SHorizontalBox::Slot()
+						.Padding(2, 2)
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock)
+								.Text(Name)
+								.Font(IDetailLayoutBuilder::GetDetailFont())
+						]
 				]
 				.ValueContent()
 				.MinDesiredWidth(300.f)
 				.MaxDesiredWidth(300.f)
 				[
 					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.Padding(2, 2)
-					.VAlign(VAlign_Center)
-					.FillWidth(0.6f)
-					[
-						SNew(STextBlock)
-						.Text_Lambda([ValueDelegate]
-						{
-							return ValueDelegate.Execute();
-						})
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-					+SHorizontalBox::Slot()
-					.FillWidth(0.4f)
-					.VAlign(VAlign_Center)
-					[
-						ValueWidget
-					]
+						+ SHorizontalBox::Slot()
+						.Padding(2, 2)
+						.VAlign(VAlign_Center)
+						.FillWidth(0.6f)
+						[
+							SNew(STextBlock)
+								.Text_Lambda([ValueDelegate]
+									{
+										return ValueDelegate.Execute();
+									})
+								.Font(IDetailLayoutBuilder::GetDetailFont())
+						]
+						+ SHorizontalBox::Slot()
+						.FillWidth(0.4f)
+						.VAlign(VAlign_Center)
+						[
+							ValueWidget
+						]
 				]
-				.IsEnabled(bIsEnabled);
+				.IsEnabled(bIsEnabled)
+				.Visibility(IsVisible);
 		}
 
 		FDateTime ToLocalTime(const FDateTime& UtcTime)
@@ -192,7 +198,7 @@ namespace UE::NearestNeighborModel
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetInputDimPropertyName());
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetHiddenLayerDimsPropertyName());
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetOutputDimPropertyName());
-		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetNumEpochsPropertyName());
+		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetNumIterationsPropertyName());
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetBatchSizePropertyName());
 		TrainingSettingsCategoryBuilder->AddProperty(UNearestNeighborModel::GetLearningRatePropertyName());
 	}
@@ -410,13 +416,18 @@ namespace UE::NearestNeighborModel
 	{
 		IDetailCategoryBuilder& Builder = DetailLayoutBuilder->EditCategory("File Cache", FText::GetEmpty(), ECategoryPriority::Important);
 
-		Builder.AddProperty(UNearestNeighborModel::GetUseFileCachePropertyName());
+		TAttribute<EVisibility> IsVisible = TAttribute<EVisibility>::Create([this]
+			{
+				UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
+				return ((NearestNeighborModel && NearestNeighborModel->DoesUseFileCache()) || bShowFileCacheCategory) ? EVisibility::Visible : EVisibility::Collapsed;
+			});
+
+
+		Builder.AddProperty(UNearestNeighborModel::GetUseFileCachePropertyName())
+			.Visibility(IsVisible);
+
 		Builder.AddCustomRow(FText::FromString("FileCacheWarning"))
-		.Visibility(TAttribute<EVisibility>::Create([this]
-		{
-			const UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
-			return NearestNeighborModel && NearestNeighborModel->DoesUseFileCache() ? EVisibility::Visible : EVisibility::Collapsed;
-		}))
+		.Visibility(IsVisible)
 		.WholeRowContent()
 		[
 			SNew(SBox)
@@ -524,7 +535,8 @@ namespace UE::NearestNeighborModel
 					return NearestNeighborModel->GetCachedDeltasTimestamp();
 				}),
 				Widget,
-				bIsEnabled);
+				bIsEnabled,
+				IsVisible);
 		}
 		{
 			TSharedRef<SWidget> Widget = CreateDeleteButton([NearestNeighborModel]()
@@ -539,7 +551,8 @@ namespace UE::NearestNeighborModel
 					return NearestNeighborModel->GetCachedPCATimestamp();
 				}),
 				Widget,
-				bIsEnabled);
+				bIsEnabled,
+				IsVisible);
 		}
 		{
 			TSharedRef<SWidget> Widget = CreateDeleteButton([NearestNeighborModel]()
@@ -554,7 +567,8 @@ namespace UE::NearestNeighborModel
 					return NearestNeighborModel->GetCachedNetworkTimestamp();
 				}),
 				Widget,
-				bIsEnabled);
+				bIsEnabled,
+				IsVisible);
 		}
 
 		Builder.AddCustomRow(FText::FromString("FileCacheRefresh")).WholeRowContent()
@@ -572,6 +586,7 @@ namespace UE::NearestNeighborModel
 					return FReply::Handled();
 				})
 				.IsEnabled(bIsEnabled)
+				.Visibility(IsVisible)
 			]
 		];
 	}

@@ -125,7 +125,7 @@ static TAutoConsoleVariable<bool> CVarRemapDeviceIdForOffsetPlayerGamepadIds(
 	TEXT("Note: This CVar will be removed in a future release, this is a temporary wrapper for bug fix behavior."),
 	ECVF_Default);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 struct FCsvLocalPlayer
 {
 	FCsvLocalPlayer()
@@ -146,7 +146,7 @@ static TMap<uint32, FCsvLocalPlayer> GCsvLocalPlayers;
 
 void UGameViewportClient::EnableCsvPlayerStats(int32 LocalPlayerCount)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	if (GCsvLocalPlayers.Num() < LocalPlayerCount)
 	{
 		for (int PlayerIndex = GCsvLocalPlayers.Num(); PlayerIndex < LocalPlayerCount; PlayerIndex++)
@@ -170,7 +170,7 @@ void UGameViewportClient::EnableCsvPlayerStats(int32 LocalPlayerCount)
 
 void UGameViewportClient::UpdateCsvCameraStats(const TMap<ULocalPlayer*, FSceneView*>& PlayerViewMap)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	UWorld* MyWorld = GetWorld();
 	if (!ensure(World))
 	{
@@ -1429,7 +1429,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 	ViewFamily.DebugDPIScale = GetDPIScale();
 
 #if WITH_EDITOR
-	if (GIsEditor)
+	if (GIsEditor && ViewFamily.SupportsScreenPercentage())
 	{
 		// Force enable view family show flag for HighDPI derived's screen percentage.
 		ViewFamily.EngineShowFlags.ScreenPercentage = true;
@@ -1506,13 +1506,8 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		checkf(ViewFamily.GetScreenPercentageInterface() == nullptr,
 			TEXT("Some code has tried to set up an alien screen percentage driver, that could be wrong if not supported very well by the RHI."));
 
-		// Force screen percentage show flag to be turned off if not supported.
-		if (!ViewFamily.SupportsScreenPercentage())
-		{
-			ViewFamily.EngineShowFlags.ScreenPercentage = false;
-		}
-
-		// Set up secondary resolution fraction for the view family.
+		// Set up secondary resolution fraction for the view family (r.SecondaryScreenPercentage.GameViewport).
+		// If stereo rendering is enabled, we use xr.SecondaryScreenPercentage.HMDRenderTarget rather than r.SecondaryScreenPercentage.GameViewport.
 		if (!bStereoRendering && ViewFamily.SupportsScreenPercentage())
 		{
 			float CustomSecondaruScreenPercentage = CVarSecondaryScreenPercentage.GetValueOnGameThread();
@@ -1559,11 +1554,11 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 			}
 
 			// Feed approximated resolution fraction to CSV
-			#if CSV_PROFILER
+#if CSV_PROFILER
 			if (DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] >= 0.0f)
 			{
 				// Keep same name as before for primary screen percentage
-				CSV_CUSTOM_STAT_GLOBAL(DynamicResolutionPercentage, DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);
+				CSV_CUSTOM_STAT_MINIMAL_GLOBAL(DynamicResolutionPercentage, DynamicResolutionStateInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);
 				CSV_CUSTOM_STAT_GLOBAL(DynamicResolutionPercentageMax, DynamicResolutionStateInfos.ResolutionFractionUpperBounds[GDynamicPrimaryResolutionFraction] * 100.0f, ECsvCustomStatOp::Set);
 			}
 			for (TLinkedList<DynamicRenderScaling::FBudget*>::TIterator BudgetIt(DynamicRenderScaling::FBudget::GetGlobalList()); BudgetIt; BudgetIt.Next())
@@ -1580,7 +1575,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 				TRACE_CSV_PROFILER_INLINE_STAT(NameChar, CSV_CATEGORY_INDEX_GLOBAL);
 				FCsvProfiler::RecordCustomStat(NameChar, CSV_CATEGORY_INDEX_GLOBAL, Value, ECsvCustomStatOp::Set);
 			}
-			#endif
+#endif // CSV_PROFILER
 		}
 		#endif
 
@@ -1735,7 +1730,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		}
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	UpdateCsvCameraStats(PlayerViewMap);
 #endif
 
@@ -1804,7 +1799,12 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		{
 			float GlobalResolutionFraction = 1.0f;
 
-			if (ViewFamily.EngineShowFlags.ScreenPercentage && !bDisableWorldRendering && ViewFamily.Views.Num() > 0)
+			// Although mobile LDR can technically support r.ScreenPercentage when using the OpenXR compositor, xr.SecondaryScreenPercentage.HMDRenderTarget should be used instead
+			// for fixed percentages, since it supports percentages >100 and will not cause an oversized render target for percentages <100. These are necessary trade-offs for
+			// dynamic resolution to avoid flushing commands and re-allocating the render target each time dynamic resolution is changed.
+			const bool bIsMobileLDR = (ViewFamily.GetFeatureLevel() <= ERHIFeatureLevel::ES3_1 && !IsMobileHDR());
+
+			if (ViewFamily.EngineShowFlags.ScreenPercentage && !bDisableWorldRendering && ViewFamily.Views.Num() > 0 && !bIsMobileLDR)
 			{
 				// Get global view fraction.
 				FStaticResolutionFractionHeuristic StaticHeuristic;
@@ -1824,9 +1824,9 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		// Make sure the engine show flag for screen percentage is still what it was when setting up the screen percentage interface
 		ViewFamily.EngineShowFlags.ScreenPercentage = bFinalScreenPercentageShowFlag;
 
-		if (bStereoRendering && bUsesDynamicResolution)
+		if (bStereoRendering && bUsesDynamicResolution && !IsMobileHDR())
 		{
-			// Change screen percentage method to raw output when doing dynamic resolution with VR if not using TAA upsample.
+			// Change screen percentage method to raw output when doing dynamic resolution with XR if not using TAA upsample.
 			for (FSceneView* View : Views)
 			{
 				if (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale)
@@ -1838,6 +1838,9 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 	}
 
 	ViewFamily.bIsHDR = GetWindow().IsValid() ? GetWindow().Get()->GetIsHDR() : false;
+
+	ViewFamily.bSplitScreenDebugAllowed = true;
+	ViewFamily.bIsMainViewFamily = true;
 
 	// Draw the player views.
 	if (!bDisableWorldRendering && PlayerViewMap.Num() > 0 && FSlateApplication::Get().GetPlatformApplication()->IsAllowedToRender()) //-V560
@@ -2101,6 +2104,7 @@ bool ProcessScreenshotData(TArray<FColorType>& Bitmap, FIntVector Size, TChannel
 			ScreenShotName += ToExtension;
 		}
 
+#if UE_SCREENSHOT_TRACE_ENABLED
 		bool bSuppressWritingToFile = false;
 		if (SHOULD_TRACE_SCREENSHOT())
 		{
@@ -2114,6 +2118,7 @@ bool ProcessScreenshotData(TArray<FColorType>& Bitmap, FIntVector Size, TChannel
 			FImageView Image((const FColorType*)Bitmap.GetData(), Size.X, Size.Y);
 			bIsScreenshotSaved = FImageUtils::SaveImageByExtension(*ScreenShotName, Image);
 		}
+#endif
 	}
 
 	return bIsScreenshotSaved;
@@ -2195,7 +2200,9 @@ bool UGameViewportClient::ProcessScreenShots(FViewport* InViewport)
 		}
 
 		FScreenshotRequest::Reset();
+#if UE_SCREENSHOT_TRACE_ENABLED
 		FTraceScreenshot::Reset();
+#endif
 		FScreenshotRequest::OnScreenshotRequestProcessed().Broadcast();
 
 		// Reeanble screen messages - if we are NOT capturing a movie
@@ -3671,7 +3678,6 @@ bool UGameViewportClient::HandleViewModeCommand( const TCHAR* Cmd, FOutputDevice
 		ViewModeIndex = VMI_Lit;
 	}
 
-#if RHI_RAYTRACING
 	if (!GRHISupportsRayTracing || !GRHISupportsRayTracingShaders)
 	{
 		if (ViewModeIndex == VMI_PathTracing)
@@ -3686,7 +3692,6 @@ bool UGameViewportClient::HandleViewModeCommand( const TCHAR* Cmd, FOutputDevice
 			ViewModeIndex = VMI_Lit;
 		}
 	}
-#endif
 #endif
 
 	ApplyViewMode((EViewModeIndex)ViewModeIndex, true, EngineShowFlags);

@@ -301,17 +301,19 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Cloud", new IMAGE_BRUSH("Icons/icon_Downloads_16x", Icon16x16));
 		Style->Set("Icons.Local", new IMAGE_BRUSH_SVG("Starship/Common/server", Icon16x16));
 
+		Style->Set("Icons.Alert", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Foreground));
+
 		Style->Set("Icons.Error", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16));
 		Style->Set("Icons.Error.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32));
 		Style->Set("Icons.ErrorWithColor", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Error));
 		Style->Set("Icons.ErrorWithColor.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32, FStyleColors::Error));
-
+		
 		Style->Set("Icons.Warning", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16));
 		Style->Set("Icons.Warning.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32));
 		Style->Set("Icons.WarningWithColor", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle", Icon16x16, FStyleColors::Warning));
 		Style->Set("Icons.WarningWithColor.Large", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-large", Icon32x32, FStyleColors::Warning));
 		Style->Set("Icons.WarningWithColor.Thumbnail", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-64", Icon64x64));
-
+		
 		Style->Set("Icons.Info", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon16x16));
 		Style->Set("Icons.Info.Small", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon14x14));
 		Style->Set("Icons.Info.Large", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon32x32));
@@ -343,6 +345,7 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Delete", new IMAGE_BRUSH_SVG("Starship/Common/delete-outline", Icon16x16));
 		Style->Set("Icons.Save", new IMAGE_BRUSH_SVG("Starship/Common/save", Icon16x16));
 		Style->Set("Icons.SaveModified", new IMAGE_BRUSH_SVG("Starship/Common/save-modified", Icon16x16));
+		Style->Set("Icons.Favorites.Small", new IMAGE_BRUSH_SVG("Starship/Common/Favorite", Icon20x20));
 
 		Style->Set("Icons.Import", new IMAGE_BRUSH_SVG("Starship/Common/import", Icon16x16));
 		Style->Set("Icons.Filter", new IMAGE_BRUSH_SVG("Starship/Common/filter", Icon16x16));
@@ -351,7 +354,7 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Lock", new IMAGE_BRUSH_SVG("Starship/Common/lock", Icon16x16));
 		Style->Set("Icons.Unlock", new IMAGE_BRUSH_SVG("Starship/Common/lock-unlocked", Icon16x16));
 
-		Style->Set("Icons.Normalize", new IMAGE_BRUSH("Starship/Common/normalize", Icon16x16));
+		Style->Set("Icons.Normalize", new IMAGE_BRUSH_SVG("Starship/Common/normalize", Icon16x16));
 
 		Style->Set("Icons.CircleArrowLeft", new IMAGE_BRUSH_SVG("Starship/Common/circle-arrow-left", Icon16x16));
 		Style->Set("Icons.CircleArrowRight", new IMAGE_BRUSH_SVG("Starship/Common/circle-arrow-right", Icon16x16));
@@ -394,6 +397,7 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Unlink", new IMAGE_BRUSH_SVG("Starship/Common/Unlinked", Icon16x16));
 
 		Style->Set("Icons.BulletPoint", new IMAGE_BRUSH_SVG("Starship/Common/bullet-point", Icon8x8));
+		Style->Set("Icons.BulletPoint16", new IMAGE_BRUSH_SVG("Starship/Common/bullet-point16", Icon16x16));
 
 		Style->Set("Icons.SortDown", new IMAGE_BRUSH_SVG("Starship/Common/SortDown", Icon16x16));
 		Style->Set("Icons.SortUp", new IMAGE_BRUSH_SVG("Starship/Common/SortUp", Icon16x16));
@@ -411,8 +415,9 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Layout", new IMAGE_BRUSH_SVG("Starship/Common/Layout", Icon16x16));
 		Style->Set("Icons.Recent", new IMAGE_BRUSH_SVG("Starship/Common/Recent", Icon16x16));
 
+		Style->Set("Icons.Badge", new IMAGE_BRUSH_SVG("Starship/Common/badge", Icon16x16));
 		Style->Set("Icons.BadgeModified", new IMAGE_BRUSH_SVG("Starship/Common/badge-modified", Icon16x16));
-		
+
 		// Toolbar Size Icons
 		Style->Set("Icons.Toolbar.Settings", new IMAGE_BRUSH_SVG("Starship/Common/settings", Icon20x20));
 
@@ -798,8 +803,8 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 
 	// Standard Dialog Settings
 	{
-		Style->Set("StandardDialog.ContentPadding", FMargin(12.0f, 2.0f));
-		Style->Set("StandardDialog.SlotPadding", FMargin(6.0f, 0.0f, 0.0f, 0.0f));
+		Style->Set("StandardDialog.ContentPadding", FMargin(16.0f, 3.0f));
+		Style->Set("StandardDialog.SlotPadding", FMargin(8.0f, 0.0f, 0.0f, 0.0f));
 		Style->Set("StandardDialog.MinDesiredSlotWidth", 80.0f);
 		Style->Set("StandardDialog.MinDesiredSlotHeight", 0.0f);
 		Style->Set("StandardDialog.SmallFont", StyleFonts.Small);
@@ -1307,7 +1312,8 @@ void FStarshipCoreStyle::SetupTextStyles(TSharedRef<FStyle>& Style)
 			.SetDownArrowImage(IMAGE_BRUSH_SVG("Starship/Common/chevron-down", Icon16x16, FStyleColors::Foreground))
 			.SetGlassImage(IMAGE_BRUSH_SVG("Starship/Common/search", Icon16x16))
 			.SetClearImage(IMAGE_BRUSH_SVG("Starship/Common/close", Icon16x16))
-			.SetImagePadding(FMargin(3.f, 0.f, 0.f, 0.f))
+			.SetImagePadding(FMargin(4.f, 0.f, 0.f, 0.f))
+			.SetImageSizeOverride(FVector2D(14.0f))
 			.SetLeftAlignSearchResultButtons(true)
 			.SetLeftAlignGlassImageAndClearButton(true)
 		);
@@ -1448,6 +1454,13 @@ void FStarshipCoreStyle::SetupButtonStyles(TSharedRef<FStyle>& Style)
 			.SetPressedPadding(FMargin(2.0f, 0.f));
 
 		Style->Set("HoverOnlyButton", SimpleButtonIconOnly);
+
+		SimpleButtonIconOnly
+			.SetNormalPadding(0.0f)
+			.SetPressedPadding(0.0f);
+
+		// A HoverOnlyButton that has no padding at all
+		Style->Set("ThinHoverOnlyButton", SimpleButtonIconOnly);
 	}
 }
 
@@ -1881,7 +1894,7 @@ void FStarshipCoreStyle::SetupDockingStyles(TSharedRef<FStyle>& Style)
 	StatusBarToolBarStyle.SetBackground(FSlateNoResource());
 	StatusBarToolBarStyle.SetLabelPadding(FMargin(5, 5, 0, 5));
 	StatusBarToolBarStyle.SetIconSize(Icon16x16);
-	StatusBarToolBarStyle.SetBackgroundPadding(FMargin(4.f, 4.f, 0.f, 4.f));
+	StatusBarToolBarStyle.SetBackgroundPadding(FMargin(4.f, 4.f));
 
 	Style->Set("StatusBarToolBar", StatusBarToolBarStyle);
 
@@ -2127,7 +2140,7 @@ void FStarshipCoreStyle::SetupMultiboxStyles(TSharedRef<FStyle>& Style)
 		FToolBarStyle NormalToolbarStyle =
 			FToolBarStyle()
 			.SetBackground(FSlateColorBrush(FStyleColors::Panel))
-			.SetBackgroundPadding(FMargin(0.f, 4.f, 0.f, 4.f))
+			.SetBackgroundPadding(FMargin(0.f, 4.f))
 			.SetExpandBrush(IMAGE_BRUSH("Icons/toolbar_expand_16x", Icon16x16))
 			.SetComboButtonPadding(FMargin(4.0f, 0.0f))
 			.SetButtonPadding(FMargin(2.0f, 0.f))
@@ -2189,7 +2202,7 @@ void FStarshipCoreStyle::SetupMultiboxStyles(TSharedRef<FStyle>& Style)
 		FToolBarStyle SlimToolbarStyle =
 			FToolBarStyle()
 			.SetBackground(*SlimToolbarBackground)
-			.SetBackgroundPadding(FMargin(4.f, 6.f, 0.f, 6.f))
+			.SetBackgroundPadding(FMargin(4.f, 6.f))
 			.SetExpandBrush(IMAGE_BRUSH("Icons/toolbar_expand_16x", Icon16x16))
 			.SetComboButtonPadding(FMargin(0.0f, 0.0f))
 			.SetButtonPadding(FMargin(4.0f, 0.0f))

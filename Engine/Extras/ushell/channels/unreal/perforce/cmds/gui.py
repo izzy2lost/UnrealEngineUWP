@@ -25,7 +25,6 @@ _check_for_existing = _check_for_existing_nt if os.name == "nt" else lambda x: "
 #-------------------------------------------------------------------------------
 class Gui(flow.cmd.Cmd):
     """ Opens the clientspec for the current directory in P4V """
-    filename = flow.cmd.Arg(Path(), "Path to select in the workspace/depot tree")
     p4vargs  = flow.cmd.Arg([str], "Additional arguments to pass to P4V")
     def main(self):
         self.print_info("Fetching Perforce info")
@@ -60,13 +59,10 @@ class Gui(flow.cmd.Cmd):
             "-p", p4_port,
             "-u", username,
             "-c", client,
-            "-t", "pending",
         )
 
-        if self.args.filename.is_file():
-            filename = self.args.filename.resolve()
-            args = (*args, "-s", str(filename))
+        p4v_cwd = Path(os.getenv("TEMP", client_dir)).resolve()
 
         print("p4v", *args)
-        subprocess.Popen(("p4v", *args, *self.args.p4vargs), cwd=client_dir)
+        subprocess.Popen(("p4v", *args, *self.args.p4vargs), cwd=p4v_cwd)
         print("Done!")

@@ -26,8 +26,10 @@ static bool IsSubstrateDebugVisualizationSupported(EShaderPlatform InPlatform, b
 {
 	return 
 		Substrate::IsSubstrateEnabled() && 
+		Substrate::UsesSubstrateMaterialBuffer(InPlatform) &&
 		GetMaxSupportedFeatureLevel(InPlatform) >= ERHIFeatureLevel::SM5 &&
-		!IsVulkanPlatform(InPlatform) && // Does not compile and fails to package games. Fixing this would require a deeper investigation.
+		!IsVulkanPlatform(InPlatform) &&    // Does not compile and fails to package games. Fixing this would require a deeper investigation.
+        !IsMetalPlatform(InPlatform) &&     // Fails to launch editor on MAC
 		(bIsEditorOnly ? (IsPCPlatform(InPlatform) || EnumHasAllFlags(Flags, EShaderPermutationFlags::HasEditorOnlyData)) : true);
 }
 
@@ -89,6 +91,7 @@ class FVisualizeMaterialCountPS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, ViewMode)
+		SHADER_PARAMETER(uint32, bRealTimeUpdate)
 		SHADER_PARAMETER(uint32, bOverrideCursorPosition)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
@@ -313,6 +316,7 @@ static void AddVisualizeMaterialCountPasses(FRDGBuilder & GraphBuilder, const FV
 	FVisualizeMaterialCountPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeMaterialCountPS::FParameters>();
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	PassParameters->ViewMode = FMath::Clamp(ViewMode, 2, 3);
+	PassParameters->bRealTimeUpdate = View.Family->bRealtimeUpdate ? 1 : 0;
 	PassParameters->bOverrideCursorPosition = WITH_EDITOR ? 0u : 1u;
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, View);
@@ -341,11 +345,12 @@ static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewI
 	ShaderPrint::RequestSpaceForCharacters(1024);
 
 	const FRDGTextureDesc MaterialBufferDesc = View.SubstrateViewData.SceneData->MaterialTextureArray->Desc;
+	const FShadingEnergyConservationData ShadingEnergyConservationData = ShadingEnergyConservation::GetData(View);
 
 	FSubstrateSystemInfoCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSubstrateSystemInfoCS::FParameters>();
 	PassParameters->bAdvancedDebugEnabled = IsAdvancedVisualizationEnabled() ? 1u : 0u;
-	PassParameters->bEnergyConservation = View.ViewState ? View.ViewState->ShadingEnergyConservationData.bEnergyConservation : false;;
-	PassParameters->bEnergyPreservation = View.ViewState ? View.ViewState->ShadingEnergyConservationData.bEnergyPreservation : false;;
+	PassParameters->bEnergyConservation = ShadingEnergyConservationData.bEnergyConservation;
+	PassParameters->bEnergyPreservation = ShadingEnergyConservationData.bEnergyPreservation;
 	PassParameters->bDbufferPass = IsDBufferPassEnabled(View.GetShaderPlatform()) ? 1 : 0;
 	PassParameters->ClassificationCMask = SupportsCMask(View.GetShaderPlatform()) ? 1 : 0;
 	PassParameters->ClassificationAsync = IsClassificationAsync() ? 1 : 0;

@@ -190,7 +190,7 @@ namespace UnrealGameSync
 						}
 
 						ListViewItem existingItem = IssueListView.Items[itemIdx];
-						IssueData existingIssue = (IssueData)existingItem.Tag;
+						IssueData existingIssue = (IssueData)existingItem.Tag!;
 						if (existingIssue == null || existingIssue.Id < issue.Id)
 						{
 							IssueList_InsertItem(itemIdx, issue, midnight);
@@ -297,7 +297,7 @@ namespace UnrealGameSync
 			ListViewHitTestInfo hitTest = IssueListView.HitTest(e.Location);
 			if (hitTest.Item != null)
 			{
-				IssueData issue = (IssueData)hitTest.Item.Tag;
+				IssueData issue = (IssueData)hitTest.Item.Tag!;
 				ShowIssue(issue);
 			}
 		}
@@ -363,7 +363,7 @@ namespace UnrealGameSync
 
 		private void ShowIssue(IssueData issue)
 		{
-			IssueDetailsWindow.Show(Owner, _issueMonitor, _perforceSettings, _serverTimeOffset, issue, _serviceProvider, _currentStream);
+			IssueDetailsWindow.Show(Owner!, _issueMonitor, _perforceSettings, _serverTimeOffset, issue, _serviceProvider, _currentStream);
 		}
 
 		private void IssueListView_DrawColumnHeader(object sender, DrawListViewColumnHeaderEventArgs e)
@@ -415,7 +415,7 @@ namespace UnrealGameSync
 				return;
 			}
 
-			IssueData issue = (IssueData)e.Item.Tag;
+			IssueData issue = (IssueData)e.Item.Tag!;
 			if (e.ColumnIndex == IconHeader.Index)
 			{
 				if (!issue.ResolvedAt.HasValue && issue.FixChange == 0)

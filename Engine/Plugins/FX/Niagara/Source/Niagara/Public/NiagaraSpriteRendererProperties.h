@@ -106,7 +106,7 @@ namespace ENiagaraSpriteVFLayout
 class FAssetThumbnailPool;
 class SWidget;
 
-UCLASS(editinlinenew, meta = (DisplayName = "Sprite Renderer"), MinimalAPI)
+UCLASS(editinlinenew, meta = (DisplayName = "Sprite Renderer", SupportsStateless), MinimalAPI)
 class UNiagaraSpriteRendererProperties : public UNiagaraRendererProperties
 {
 public:
@@ -133,7 +133,7 @@ public:
 	NIAGARA_API virtual FNiagaraRenderer* CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel, const FNiagaraEmitterInstance* Emitter, const FNiagaraSystemInstanceController& InController) override;
 	NIAGARA_API virtual class FNiagaraBoundsCalculator* CreateBoundsCalculator() override;
 	NIAGARA_API virtual void GetUsedMaterials(const FNiagaraEmitterInstance* InEmitter, TArray<UMaterialInterface*>& OutMaterials) const override;
-	NIAGARA_API virtual float GetMaterialStreamingScale() const override { return FMath::Max(FMath::Max(SubImageSize.X, SubImageSize.Y), 1.0f); }
+	NIAGARA_API virtual float GetMaterialStreamingScale() const override { return static_cast<float>(FMath::Max(FMath::Max(SubImageSize.X, SubImageSize.Y), 1.0)); }
 	NIAGARA_API virtual const FVertexFactoryType* GetVertexFactoryType() const override;
 	virtual bool IsSimTargetSupported(ENiagaraSimTarget InSimTarget) const override { return true; };
 	NIAGARA_API virtual bool PopulateRequiredBindings(FNiagaraParameterStore& InParameterStore)  override;

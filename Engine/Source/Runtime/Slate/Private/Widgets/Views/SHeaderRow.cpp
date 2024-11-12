@@ -771,10 +771,14 @@ void SHeaderRow::RegenerateWidgets()
 				TSharedRef<SWidget> HeaderMenuContent = SomeColumn.HeaderMenuContent.Widget;
 				if ( bCanSelectGeneratedColumn && HeaderMenuContent != SNullWidget::NullWidget )
 				{
-					const bool CloseAfterSelection = true;
-					const bool bNoIndent = true;
-					FMenuBuilder MenuBuilder(CloseAfterSelection, nullptr);
-					MenuBuilder.AddWidget(SomeColumn.HeaderMenuContent.Widget, FText::GetEmpty(), bNoIndent);
+					static constexpr bool bCloseAfterSelection = true;
+					static constexpr bool bNoIndent = true;
+
+					FMenuEntryStyleParams StyleParams;
+					StyleParams.bNoIndent = bNoIndent;
+
+					FMenuBuilder MenuBuilder(bCloseAfterSelection, nullptr);
+					MenuBuilder.AddWidget(SomeColumn.HeaderMenuContent.Widget, FText::GetEmpty(), StyleParams);
 					MenuBuilder.AddMenuSeparator();
 					MenuBuilder.AddSubMenu(
 						LOCTEXT("SelectColumns", "Select Columns"),

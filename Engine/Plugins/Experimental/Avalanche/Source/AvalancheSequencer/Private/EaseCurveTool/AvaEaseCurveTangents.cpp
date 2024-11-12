@@ -56,6 +56,14 @@ FAvaEaseCurveTangents::FAvaEaseCurveTangents(const FString& InTangentsString)
 	FAvaEaseCurveTangents::FromString(InTangentsString, *this);
 }
 
+bool FAvaEaseCurveTangents::IsNearlyEqual(const FAvaEaseCurveTangents& InOther, const double InErrorTolerance) const
+{
+	return FMath::IsNearlyEqual(Start, InOther.Start, InErrorTolerance)
+		&& FMath::IsNearlyEqual(StartWeight, InOther.StartWeight, InErrorTolerance)
+		&& FMath::IsNearlyEqual(End, InOther.End, InErrorTolerance)
+		&& FMath::IsNearlyEqual(EndWeight, InOther.EndWeight, InErrorTolerance);
+}
+
 FText FAvaEaseCurveTangents::ToDisplayText() const
 {
 	const FNumberFormattingOptions NumberFormat = DefaultNumberFormattingOptions();
@@ -280,7 +288,7 @@ double FAvaEaseCurveTangents::CalculateCurveLength(const int32 SampleCount) cons
 
 	// Sample points along the curve and use those points to calculate the length of the curve
 	FVector2d SamplePoint;
-	FVector2d PreviousSamplePoint;
+	FVector2d PreviousSamplePoint = FVector2d::ZeroVector;
 	double Length = 0.0;
 
 	for (int32 Index = 0; Index <= SampleCount; Index++)
@@ -301,6 +309,27 @@ double FAvaEaseCurveTangents::CalculateCurveLength(const int32 SampleCount) cons
 	}
 
 	return Length;
+}
+
+bool FAvaEaseCurveTangents::IsEaseCurveKey(const FRichCurveKey& InKey)
+{
+	return InKey.TangentMode == RCTM_Break
+		&& InKey.TangentWeightMode == RCTWM_WeightedBoth
+		&& InKey.InterpMode == RCIM_Cubic;
+}
+
+bool FAvaEaseCurveTangents::IsEaseCurveKey(const FMovieSceneDoubleValue& InValue)
+{
+	return InValue.TangentMode == RCTM_Break
+		&& InValue.Tangent.TangentWeightMode == RCTWM_WeightedBoth
+		&& InValue.InterpMode == RCIM_Cubic;
+}
+
+bool FAvaEaseCurveTangents::IsEaseCurveKey(const FMovieSceneFloatValue& InValue)
+{
+	return InValue.TangentMode == RCTM_Break
+		&& InValue.Tangent.TangentWeightMode == RCTWM_WeightedBoth
+		&& InValue.InterpMode == RCIM_Cubic;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -11,10 +11,12 @@
 #include "PropertyHandle.h"
 #include "PropertyPath.h"
 
+class IRCPanelExposedEntitiesListSettingsForProtocol;
 class IToolkitHost;
 class SRemoteControlPanel;
 class UMeshComponent;
 class URemoteControlPreset;
+enum class ERCPanelMode : uint8;
 
 /**
  * A Remote Control module that allows exposing objects and properties from the editor.
@@ -56,6 +58,16 @@ public:
 	virtual void UnregisterMetadataCustomization(FName MetadataKey) override;
 	virtual URemoteControlPreset* GetActivePreset() const override;
 	virtual uint32 GetRemoteControlAssetCategory() const override;
+	virtual void RegisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) override;
+	virtual void UnregisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) override;
+	virtual void RegisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings) override;
+	virtual void UnregisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings) override;
+	virtual void RegisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender) override;
+	virtual void UnregisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender) override;
+	virtual void RegisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory) override;
+	virtual void UnregisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory) override;
+	virtual void RegisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory) override;
+	virtual void UnregisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory) override;
 	virtual void RegisterWidgetFactoryForType(UScriptStruct* RemoteControlEntityType, const FOnGenerateRCWidget& OnGenerateRCWidgetDelegate) override;
 	virtual void UnregisterWidgetFactoryForType(UScriptStruct* RemoteControlEntityType) override;
 	virtual void HighlightPropertyInDetailsPanel(const FPropertyPath& Path) const override;
@@ -79,6 +91,25 @@ public:
 	{
 		return ExternalEntityMetadataCustomizations;
 	}
+
+	TConstArrayView<TSharedRef<IRCSignatureCustomization>> GetSignatureCustomizations() const
+	{
+		return SignatureCustomizations;
+	}
+
+	TConstArrayView<TSharedRef<IRCExposedEntitiesPanelExtender>> GetExposedEntitiesPanelExtenders() const
+	{
+		return ExposedEntitiesPanelExtenders;
+	}
+
+	/** Returns the exposed entity list settings for a protocol, or nullptr if no entities list settings could be found */
+	const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>* GetExposedEntitiesListSettingsForProtocol(const FName& ProtocolName) const;
+
+	/** Returns the exposed entities group widget factory, or nullptr if no widget factory is registered for the specified protocol and column name. */
+	const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>* GetExposedEntitiesGroupWidgetFactory(const FName& ForColumnName, const FName& InActiveProtocol) const;
+
+	/** Returns the exposed entity widget factory, or nullptr if no widget factory is registered for the specified protocol and column name. */
+	const TSharedRef<IRCPanelExposedEntityWidgetFactory>* GetExposedEntityWidgetFactory(const FName& ForColumnName, const FName& InActiveProtocol) const;
 
 public:
 	static const FName RemoteControlPanelTabName;
@@ -117,6 +148,15 @@ private:
 	void RegisterEvents();
 	void UnregisterEvents();
 
+	/** Extend context row menu */
+	void ExtendPropertyRowContextMenu() const;
+
+	/** Fills the RemoteControl details view row context menu  */
+	void FillRemoteControlRowContextSection(UToolMenu* InToolMenu) const;
+
+	/** Create the SubProperty expose/unexpose sub menu for the details view row context menu */
+	void GetSubPropertySubMenu(UToolMenu* InToolMenu, FRCExposesPropertyArgs InExposesPropertyArgs) const;
+
 	/** Handle creating the row extensions.  */
 	void HandleCreatePropertyRowExtension(const FOnGenerateGlobalRowExtensionArgs& InArgs, TArray<FPropertyRowExtensionButton>& OutExtensions);
 
@@ -129,16 +169,16 @@ private:
 	TSharedPtr<SRemoteControlPanel> GetPanelForPropertyChangeEvent(const FPropertyChangedEvent& InPropertyChangeEvent) const;
 
 	/** Handle getting the icon displayed in the row extension. */
-	FSlateIcon OnGetExposedIcon(const FRCExposesPropertyArgs& InArgs) const;
+	FSlateIcon OnGetPropertyActionIcon(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle getting the expose button visibility. */
-	bool CanToggleExposeProperty(const FRCExposesPropertyArgs InArgs) const;
+	bool CanExecutePropertyAction(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Is the property currently exposed? */
 	ECheckBoxState GetPropertyExposedCheckState(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle clicking the expose button. */
-	void OnToggleExposeProperty(const FRCExposesPropertyArgs InArgs);
+	void ExecutePropertyAction(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle clicking the expose SubProperty button. */
 	void OnToggleExposeSubProperty(const FRCExposesPropertyArgs InArgs, const FString InDesiredName = TEXT("")) const;
@@ -164,7 +204,7 @@ private:
 	EPropertyExposeStatus GetPropertyExposeStatus(const FRCExposesPropertyArgs& InArgs) const;
 
 	/** Handle getting the icon displayed in the row extension. */
-	FSlateIcon OnGetOverrideMaterialsIcon(const FRCExposesPropertyArgs& InArgs) const;
+	FSlateIcon OnGetOverrideMaterialsIcon(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Handle getting the override materials button visibility. */
 	bool IsStaticOrSkeletalMaterialProperty(const FRCExposesPropertyArgs InArgs) const;
@@ -195,10 +235,10 @@ private:
 	void RegisterWidgetFactories();
 
 	/** Returns expose button tooltip based on exposed state */
-	FText GetExposePropertyButtonTooltip(const FRCExposesPropertyArgs InArgs) const;
+	FText GetPropertyActionTooltip(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Returns expose button text based on exposed state */
-	FText GetExposePropertyButtonText(const FRCExposesPropertyArgs InArgs) const;
+	FText GetPropertyActionText(const FRCExposesPropertyArgs InArgs) const;
 
 	/** Attempts to replace the static or skeletal materials with their corressponding overrides. */
 	void TryOverridingMaterials(const FRCExposesPropertyArgs InArgs);
@@ -210,7 +250,7 @@ private:
 	void RefreshPanels();
 
 	/** Check if a sub menu should be created when ctrl+click on the eyeball icon in the details view */
-	bool ShouldCreateSubMenuForChildProperties(const FRCExposesPropertyArgs InPropertyArgs) const;
+	bool ShouldCreateSubMenuForChildProperties(const TSharedPtr<SRemoteControlPanel>& InPanel, const FRCExposesPropertyArgs InPropertyArgs) const;
 
 	/** Check if the property has child properties that can be exposed */
 	bool HasChildProperties(const FProperty* InProperty) const;
@@ -258,6 +298,21 @@ private:
 
 	/** Map of metadata key to customization handler. */
 	TMap<FName, FOnCustomizeMetadataEntry> ExternalEntityMetadataCustomizations;
+
+	/** Registered Signature Customizations */
+	TArray<TSharedRef<IRCSignatureCustomization>> SignatureCustomizations; 
+
+	/** Registered Exposed Entities List Settings for Protocols */
+	TArray<TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>> ExposedEntitiesListSettingsForProtocols;
+
+	/** Registered Exposed Entities Panel Extenders */
+	TArray<TSharedRef<IRCExposedEntitiesPanelExtender>> ExposedEntitiesPanelExtenders;
+
+	/** Registered Exposed Entities Group Widget Factories */
+	TArray<TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>> ExposedEntitiesGroupWidgetFactories;
+
+	/** Registered Exposed Entity Widget Factories */
+	TArray<TSharedRef<IRCPanelExposedEntityWidgetFactory>> ExposedEntityWidgetFactories;
 
 	TMap<TWeakObjectPtr<UScriptStruct>, FOnGenerateRCWidget> GenerateWidgetDelegates;
 

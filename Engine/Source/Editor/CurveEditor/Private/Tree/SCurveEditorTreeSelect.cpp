@@ -70,7 +70,7 @@ FReply SCurveEditorTreeSelect::SelectAll()
 		{
 			TArray<FKeyHandle> KeyHandles;
 			KeyHandles.Reserve(CurveModel->GetNumKeys());
-			CurveModel->GetKeys(*CurveEditor.Get(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
+			CurveModel->GetKeys(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max(), KeyHandles);
 		
 			if (bIsControlDown)
 			{

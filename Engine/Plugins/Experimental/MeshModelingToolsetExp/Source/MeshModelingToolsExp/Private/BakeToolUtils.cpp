@@ -39,7 +39,9 @@ UPreviewMesh* CreateBakePreviewMesh(
 	UToolTarget* ToolTarget,
 	UWorld* World)
 {
-	const FDynamicMesh3 InputMesh = UE::ToolTarget::GetDynamicMeshCopy(ToolTarget, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	const FDynamicMesh3 InputMesh = UE::ToolTarget::GetDynamicMeshCopy(ToolTarget, GetMeshParams);
 	const FTransformSRT3d BaseToWorld = UE::ToolTarget::GetLocalToWorldTransform(ToolTarget);
 	const FComponentMaterialSet MaterialSet = UE::ToolTarget::GetMaterialSet(ToolTarget);
 

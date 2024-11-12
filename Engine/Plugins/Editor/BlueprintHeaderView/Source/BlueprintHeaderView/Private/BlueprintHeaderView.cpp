@@ -10,7 +10,7 @@
 #include "SBlueprintHeaderView.h"
 #include "ContentBrowserModule.h"
 #include "Engine/Blueprint.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "ToolMenuSection.h"
 #include "ToolMenus.h"
 #include "Toolkits/AssetEditorToolkit.h"

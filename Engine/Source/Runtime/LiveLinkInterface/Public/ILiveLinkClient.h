@@ -10,6 +10,7 @@
 #include "LiveLinkPresetTypes.h"
 #include "Misc/Guid.h"
 #include "Templates/SubclassOf.h"
+#include "ILiveLinkClient.generated.h"
 
 
 class ILiveLinkSource;
@@ -18,6 +19,24 @@ struct FLiveLinkSubjectFrameData;
 struct FTimecode;
 class ULiveLinkSourceSettings;
 
+
+/** Describes the state of a live link subject */
+UENUM()
+enum class ELiveLinkSubjectState : uint8
+{
+	/** The input is connected. */
+	Connected,
+	/** The input is connected but no data is available. */
+	Unresponsive,
+	/** The input is not connected. */
+	Disconnected,
+	/** The subject is invalid or disabled */
+	InvalidOrDisabled,
+	/** The state of the subject is unknown. e.g. It cannot be queried */
+	Unknown
+};
+
+
 DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnLiveLinkSourceChangedDelegate, FGuid /*SourceGuid*/);
 DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnLiveLinkSubjectChangedDelegate, FLiveLinkSubjectKey /*SubjectKey*/);
 DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnLiveLinkSubjectStaticDataReceived, const FLiveLinkStaticDataStruct& /*InStaticData*/)
@@ -25,6 +44,7 @@ DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnLiveLinkSubjectFrameDataReceived, cons
 DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnLiveLinkSubjectStaticDataAdded, FLiveLinkSubjectKey /*InSubjectKey*/, TSubclassOf<ULiveLinkRole> /*SubjectRole*/, const FLiveLinkStaticDataStruct& /*InStaticData*/)
 DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnLiveLinkSubjectFrameDataAdded, FLiveLinkSubjectKey /*InSubjectKey*/, TSubclassOf<ULiveLinkRole> /*SubjectRole*/, const FLiveLinkFrameDataStruct& /*InFrameData*/)
 DECLARE_TS_MULTICAST_DELEGATE_FiveParams(FOnLiveLinkSubjectEvaluated, FLiveLinkSubjectKey /*InSubjectKey*/, TSubclassOf<ULiveLinkRole> /*RequestedRole*/, const FLiveLinkTime& /*RequestedTime*/, bool /*bResult*/, const FLiveLinkTime& /*EvaluatedFrameTime*/)
+
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class ILiveLinkClient_Base_DEPRECATED : public IModularFeature
@@ -253,6 +273,9 @@ public:
 	/** Whether the subject key points to a virtual subject */
 	virtual bool IsVirtualSubject(const FLiveLinkSubjectKey& SubjectKey) const = 0;
 
+	/** Returns the state of the given subject name. */
+	virtual ELiveLinkSubjectState GetSubjectState(FLiveLinkSubjectName InSubjectName) const = 0;
+
 	/** Get a list of name of subjects supporting a certain role */
 	virtual TArray<FLiveLinkSubjectKey> GetSubjectsSupportingRole(TSubclassOf<ULiveLinkRole> SupportedRole, bool bIncludeDisabledSubject, bool bIncludeVirtualSubject) const = 0;
 
@@ -278,6 +301,19 @@ public:
 	 * @note If subject is a VirtualSubject, the VirtualSubject itself is returned.
 	 */
 	virtual UObject* GetSubjectSettings(const FLiveLinkSubjectKey& SubjectKey) const = 0;
+
+	/** Get the source name override for a given subject. Allows subjects to modify the source's display name in the UI when needed. */
+	virtual FText GetSourceNameOverride(const FLiveLinkSubjectKey& SubjectKey) const = 0;
+
+	/** Get the display name for a subject. Returns an empty text if the source is invalid. */
+	virtual FText GetSubjectDisplayName(const FLiveLinkSubjectKey& SubjectKey) const = 0;
+
+	/**
+	 * Utility method to grab a subject's static data. Used by the RecordingController when static data is missing from the recording.
+	 * @param InSubjectKey The subject key to use.
+	 * @param bGetOverrideData Whether to get static override data if it exists.
+	 */
+	virtual const FLiveLinkStaticDataStruct* GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, bool bGetOverrideData=true) const = 0;
 
 	/**
 	 * Return the evaluated subject from a specific source snapshot for a specific role.
@@ -327,6 +363,12 @@ public:
 	*/
 	virtual void ForceTick() = 0;
 
+	/** Returns true if the client has pending subject frames to process during its next tick */
+	virtual bool HasPendingSubjectFrames() = 0;
+
+	/** Claer the override static data used by the subject remapper. */
+	virtual void ClearOverrideStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) = 0;
+
 	/** Notify when the list of sources has changed. */
 	virtual FSimpleMulticastDelegate& OnLiveLinkSourcesChanged() = 0;
 
@@ -367,6 +409,8 @@ public:
 	 * @return True if the subject was found and the delegates were registered. False otherwise.
 	 */
 	virtual bool RegisterForSubjectFrames(FLiveLinkSubjectName SubjectName, const FOnLiveLinkSubjectStaticDataAdded::FDelegate& OnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& OnFrameDataAddedd, FDelegateHandle& OutStaticDataAddedHandle, FDelegateHandle& OutFrameDataAddeddHandle, TSubclassOf<ULiveLinkRole>& OutSubjectRole, FLiveLinkStaticDataStruct* OutStaticData = nullptr) = 0;
+
 	/** Unregister delegates registered with RegisterForSubjectFrames. */
 	virtual void UnregisterSubjectFramesHandle(FLiveLinkSubjectName SubjectName, FDelegateHandle StaticDataAddedHandle, FDelegateHandle FrameDataAddedHandle) = 0;
+
 };

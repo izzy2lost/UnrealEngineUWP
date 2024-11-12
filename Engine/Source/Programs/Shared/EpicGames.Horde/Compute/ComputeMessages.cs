@@ -108,7 +108,18 @@ namespace EpicGames.Horde.Compute
 	}
 
 	/// <summary>
-	/// Request a machine to execute compute requests
+	/// Response to a cluster lookup request
+	/// </summary>
+	public class GetClusterResponse
+	{
+		/// <summary>
+		/// Compute cluster ID
+		/// </summary>
+		public ClusterId ClusterId { get; set; }
+	}
+	
+	/// <summary>
+	/// Response to compute allocation request
 	/// </summary>
 	public class AssignComputeResponse
 	{
@@ -162,11 +173,21 @@ namespace EpicGames.Horde.Compute
 		/// X.509 certificate used for SSL/TLS encryption
 		/// </summary>
 		public string Certificate { get; set; } = String.Empty;
+		
+		/// <summary>
+		/// Which cluster this remote machine belongs to
+		/// </summary>
+		public ClusterId ClusterId { get; set; }
 
 		/// <summary>
 		/// Identifier for the remote machine
 		/// </summary>
 		public AgentId AgentId { get; set; }
+		
+		/// <summary>
+		/// Agent version for the remote machine
+		/// </summary>
+		public string? AgentVersion { get; set; }
 
 		/// <summary>
 		/// Identifier for the new lease on the remote machine

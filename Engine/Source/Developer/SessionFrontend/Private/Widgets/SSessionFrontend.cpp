@@ -16,6 +16,8 @@
 #include "Interfaces/IScreenShotToolsModule.h"
 #include "Interfaces/IScreenShotComparisonModule.h"
 #include "ISessionServicesModule.h"
+#include "SessionFrontendStyle.h"
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
 #include "Widgets/Browser/SSessionBrowser.h"
 #include "Widgets/Console/SSessionConsole.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -37,6 +39,8 @@ static const FName AutomationTabId("AutomationPanel");
 static const FName SessionBrowserTabId("SessionBrowser");
 static const FName SessionConsoleTabId("SessionConsole");
 static const FName SessionScreenTabId("ScreenComparison");
+static const FName TraceControlTabId("TraceControl");
+
 static const FName ProfilerTabId("Profiler");
 
 
@@ -55,33 +59,38 @@ void SSessionFrontend::Construct( const FArguments& InArgs, const TSharedRef<SDo
 
 	TabManager->RegisterTabSpawner(AutomationTabId, FOnSpawnTab::CreateRaw(this, &SSessionFrontend::HandleTabManagerSpawnTab, AutomationTabId))
 		.SetDisplayName(LOCTEXT("AutomationTabTitle", "Automation"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "SessionFrontEnd.Tabs.Automation"))
+		.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "SessionFrontEnd.Tabs.Automation"))
 		.SetGroup(AppMenuGroup);
 
 	TabManager->RegisterTabSpawner(SessionBrowserTabId, FOnSpawnTab::CreateRaw(this, &SSessionFrontend::HandleTabManagerSpawnTab, SessionBrowserTabId))
 		.SetDisplayName(LOCTEXT("SessionBrowserTitle", "Session Browser"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "SessionFrontEnd.Tabs.Tools"))
+		.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "SessionFrontEnd.Tabs.Tools"))
 		.SetGroup(AppMenuGroup);
 
 	TabManager->RegisterTabSpawner(SessionConsoleTabId, FOnSpawnTab::CreateRaw(this, &SSessionFrontend::HandleTabManagerSpawnTab, SessionConsoleTabId))
 		.SetDisplayName(LOCTEXT("ConsoleTabTitle", "Console"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "SessionFrontEnd.Tabs.Console"))
+		.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "SessionFrontEnd.Tabs.Console"))
+		.SetGroup(AppMenuGroup);
+
+	TabManager->RegisterTabSpawner(TraceControlTabId, FOnSpawnTab::CreateRaw(this, &SSessionFrontend::HandleTabManagerSpawnTab, TraceControlTabId))
+		.SetDisplayName(LOCTEXT("TraceControlTabTitle", "Trace Control"))
+		.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "SessionFrontEnd.Tabs.TraceControl"))
 		.SetGroup(AppMenuGroup);
 
 	TabManager->RegisterTabSpawner(SessionScreenTabId, FOnSpawnTab::CreateRaw(this, &SSessionFrontend::HandleTabManagerSpawnTab, SessionScreenTabId))
 		.SetDisplayName(LOCTEXT("ScreenTabTitle", "Screen Comparison"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "SessionFrontEnd.Tabs.ScreenComparison"))
+		.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "SessionFrontEnd.Tabs.ScreenComparison"))
 		.SetGroup(AppMenuGroup);
 
 #if STATS && UE_DEPRECATED_PROFILER_ENABLED
 	TabManager->RegisterTabSpawner(ProfilerTabId, FOnSpawnTab::CreateRaw(this, &SSessionFrontend::HandleTabManagerSpawnTab, ProfilerTabId))
 		.SetDisplayName(LOCTEXT("ProfilerTabTitle", "Profiler"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Profiler.Tab"))
+		.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "Profiler.Tab"))
 		.SetGroup(AppMenuGroup);
 #endif
 	
 	// create tab layout
-	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("SessionFrontendLayout_v1.2")
+	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("SessionFrontendLayout_v1.4")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()
@@ -98,6 +107,7 @@ void SSessionFrontend::Construct( const FArguments& InArgs, const TSharedRef<SDo
 				(
 					// applications
 					FTabManager::NewStack()
+						->AddTab(TraceControlTabId, ETabState::OpenedTab)
 						->AddTab(SessionConsoleTabId, ETabState::OpenedTab)
 						->AddTab(AutomationTabId, ETabState::OpenedTab)
 						->AddTab(SessionScreenTabId, ETabState::OpenedTab)
@@ -105,7 +115,7 @@ void SSessionFrontend::Construct( const FArguments& InArgs, const TSharedRef<SDo
 						->AddTab(ProfilerTabId, ETabState::OpenedTab)
 #endif
 						->SetSizeCoefficient(0.75f)
-						->SetForegroundTab(SessionConsoleTabId)
+						->SetForegroundTab(TraceControlTabId)
 				)							
 		);
 
@@ -160,6 +170,7 @@ void SSessionFrontend::InitializeControllers()
 	DeviceProxyManager = TargetDeviceServicesModule.GetDeviceProxyManager();
 	SessionManager = SessionServicesModule.GetSessionManager();
 	ScreenShotManager = ScreenShotModule.GetScreenShotManager();
+	TraceController = SessionServicesModule.GetTraceController();
 }
 
 
@@ -214,6 +225,10 @@ TSharedRef<SDockTab> SSessionFrontend::HandleTabManagerSpawnTab( const FSpawnTab
 	else if (TabIdentifier == SessionConsoleTabId)
 	{
 		TabWidget = SNew(SSessionConsole, SessionManager.ToSharedRef());
+	}
+	else if (TabIdentifier == TraceControlTabId)
+	{
+		TabWidget = FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools").CreateTraceControlWidget(TraceController);
 	}
 	else if (TabIdentifier == SessionScreenTabId)
 	{

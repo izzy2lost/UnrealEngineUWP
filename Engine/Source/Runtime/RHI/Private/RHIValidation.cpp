@@ -90,25 +90,40 @@ namespace RHIValidation
 			CreateDesc.DebugName);
 	}
 
-	void FTextureResource::InitBarrierTracking(int32 InNumMips, int32 InNumArraySlices, EPixelFormat PixelFormat, ETextureCreateFlags Flags, ERHIAccess InResourceState, const TCHAR* InDebugName)
+	int32 FTextureResource::GetNumPlanesFromFormat(EPixelFormat Format)
+	{
+		int32 NumPlanes = 1;
+
+		// @todo: htile tracking
+		if (IsStencilFormat(Format))
+		{
+			NumPlanes = 2; // Depth + Stencil
+		}
+		else
+		{
+			NumPlanes = 1; // Depth only
+		}
+
+		return NumPlanes;
+	}
+
+	void FTextureResource::InitBarrierTracking(int32 InNumMips, int32 InNumArraySlices, EPixelFormat PixelFormat, ETextureCreateFlags /*Flags*/, ERHIAccess InResourceState, const TCHAR* InDebugName)
 	{
 		FResource* Resource = GetTrackerResource();
 		if (!Resource)
 			return;
 
-		int32 InNumPlanes = 1;
+		Resource->InitBarrierTracking(InNumMips, InNumArraySlices, GetNumPlanesFromFormat(PixelFormat), InResourceState, InDebugName);
+	}
 
-		// @todo: htile tracking
-		if (IsStencilFormat(PixelFormat))
-		{
-			InNumPlanes = 2; // Depth + Stencil
-		}
-		else
-		{
-			InNumPlanes = 1; // Depth only
-		}
+	void FTextureResource::CheckValidationLayout(int32 InNumMips, int32 InNumArraySlices, EPixelFormat PixelFormat)
+	{
+		FResource* Resource = GetTrackerResource();
+		check(Resource);
 
-		Resource->InitBarrierTracking(InNumMips, InNumArraySlices, InNumPlanes, InResourceState, InDebugName);
+		check(Resource->NumMips == InNumMips);
+		check(Resource->NumArraySlices == InNumArraySlices);
+		check(Resource->NumPlanes == GetNumPlanesFromFormat(PixelFormat));
 	}
 
 	FResourceIdentity FTextureResource::GetViewIdentity(uint32 InMipIndex, uint32 InNumMips, uint32 InArraySlice, uint32 InNumArraySlices, uint32 InPlaneIndex, uint32 InNumPlanes)
@@ -352,26 +367,11 @@ IRHICommandContext* FValidationRHI::RHIGetDefaultContext()
 	return HighLevelContext;
 }
 
-IRHIComputeContext* FValidationRHI::RHIGetDefaultAsyncComputeContext()
-{
-	IRHIComputeContext* LowLevelContext = RHI->RHIGetDefaultAsyncComputeContext();
-	IRHIComputeContext* HighLevelContext = &LowLevelContext->GetHighestLevelContext();
-
-	if (LowLevelContext == HighLevelContext)
-	{
-		FValidationComputeContext* ValidationContext = new FValidationComputeContext(FValidationComputeContext::EType::Default);
-		ValidationContext->LinkToContext(LowLevelContext);
-		HighLevelContext = ValidationContext;
-	}
-
-	return HighLevelContext;
-}
-
 struct FValidationCommandList : public IRHIPlatformCommandList
 {
 	ERHIPipeline Pipeline;
-	IRHIPlatformCommandList* InnerCommandList;
-	RHIValidation::FOperationsList CompletedOpList;
+	TRHIPipelineArray<IRHIPlatformCommandList*> InnerCommandLists;
+	TArray<RHIValidation::FOperation> CompletedOpList;
 };
 
 IRHIComputeContext* FValidationRHI::RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask)
@@ -401,62 +401,89 @@ IRHIComputeContext* FValidationRHI::RHIGetCommandContext(ERHIPipeline Pipeline, 
 	}
 }
 
-IRHIPlatformCommandList* FValidationRHI::RHIFinalizeContext(IRHIComputeContext* OuterContext)
+void FValidationRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
-	IRHIComputeContext& InnerContext = OuterContext->GetLowestLevelContext();
-
-	FValidationCommandList* OuterCommandList = new FValidationCommandList();
-
-	// RHIFinalizeContext makes the context available to other threads, so finalize the tracker beforehand.
-	OuterCommandList->CompletedOpList = InnerContext.Tracker->Finalize();
-	OuterCommandList->InnerCommandList = RHI->RHIFinalizeContext(&InnerContext);
-	OuterCommandList->Pipeline = OuterContext->GetPipeline();
-
-	switch (OuterCommandList->Pipeline)
+	FRHIFinalizeContextArgs FinalArgs;
+	
+	TRHIPipelineArray<IRHIPlatformCommandList*> FinalizedCommandLists { InPlace, nullptr };
+	TRHIPipelineArray<FValidationCommandList*> OuterCommandLists { InPlace, nullptr };
+	
+	// Re-combine the args so that the validation matches a normal call to RHIFinalizeContext
+	for(IRHIComputeContext* Context : Args.Contexts)
 	{
-	case ERHIPipeline::Graphics:
-		if (static_cast<FValidationContext*>(OuterContext)->Type == FValidationContext::EType::Parallel)
-			delete OuterContext;
-		break;
-
-	case ERHIPipeline::AsyncCompute:
-		if (static_cast<FValidationComputeContext*>(OuterContext)->Type == FValidationComputeContext::EType::Parallel)
-			delete OuterContext;
-		break;
-
-	default:
-		checkNoEntry();
-		break;
+		IRHIComputeContext& InnerContext = Context->GetLowestLevelContext();
+		
+		FValidationCommandList* OuterCommandList = new FValidationCommandList();
+		
+		// RHIFinalizeContext makes the context available to other threads, so finalize the tracker beforehand.
+		OuterCommandList->CompletedOpList = InnerContext.Tracker->Finalize();
+		OuterCommandList->Pipeline = Context->GetPipeline();
+		OuterCommandLists[OuterCommandList->Pipeline] = OuterCommandList;
+		
+		FinalArgs.Contexts.Add(&InnerContext);
 	}
-
-	return OuterCommandList;
+	FinalArgs.UploadContext = Args.UploadContext;
+	
+	RHI->RHIFinalizeContext(MoveTemp(FinalArgs), FinalizedCommandLists);
+	
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		FValidationCommandList* ValidationCmdList = OuterCommandLists[Context->GetPipeline()];
+		switch (ValidationCmdList->Pipeline)
+		{
+		case ERHIPipeline::Graphics:
+			if (static_cast<FValidationContext*>(Context)->Type == FValidationContext::EType::Parallel)
+				delete Context;
+			break;
+			
+		case ERHIPipeline::AsyncCompute:
+			if (static_cast<FValidationComputeContext*>(Context)->Type == FValidationComputeContext::EType::Parallel)
+				delete Context;
+			break;
+			
+		default:
+			checkNoEntry();
+			break;
+		}
+		
+		ValidationCmdList->InnerCommandLists = FinalizedCommandLists[ValidationCmdList->Pipeline];
+		Output[ValidationCmdList->Pipeline] = ValidationCmdList;
+	}
 }
 
-void FValidationRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> OuterCommandLists, bool bFlushResources)
+void FValidationRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
-	FMemMark Mark(FMemStack::Get());
-	TArray<IRHIPlatformCommandList*, TMemStackAllocator<>> InnerCommandLists;
-	InnerCommandLists.Reserve(OuterCommandLists.Num());
+	FDynamicRHI::FRHISubmitCommandListsArgs InnerArgs;
+	InnerArgs.CommandLists.Reserve(Args.CommandLists.Num());
 
-	for (IRHIPlatformCommandList* CmdList : OuterCommandLists)
+	for (IRHIPlatformCommandList* CmdList : Args.CommandLists)
 	{
 		FValidationCommandList* OuterCommandList = static_cast<FValidationCommandList*>(CmdList);
+#if WITH_RHI_BREADCRUMBS
+		OuterCommandList->CompletedOpList.Insert(RHIValidation::FOperation::SetBreadcrumbRange(CmdList->BreadcrumbRange), 0);
+#endif
 
 		// Replay or queue any barrier operations to validate resource barrier usage.
-		RHIValidation::FTracker::ReplayOpQueue(OuterCommandList->Pipeline, MoveTemp(OuterCommandList->CompletedOpList));
+		RHIValidation::FTracker::SubmitValidationOps(OuterCommandList->Pipeline, MoveTemp(OuterCommandList->CompletedOpList));
 
-		if (OuterCommandList->InnerCommandList)
+		for(IRHIPlatformCommandList* InnerCmdList : OuterCommandList->InnerCommandLists)
 		{
-			InnerCommandLists.Add(MoveTemp(OuterCommandList->InnerCommandList));
+			if(!InnerCmdList)
+			{
+				continue;
+			}
+#if WITH_RHI_BREADCRUMBS
+			// Forward the breadcrumb range and allocators
+			InnerCmdList->BreadcrumbAllocators = MoveTemp(CmdList->BreadcrumbAllocators);
+			InnerCmdList->BreadcrumbRange = CmdList->BreadcrumbRange;
+#endif
+			InnerArgs.CommandLists.Add(InnerCmdList);
 		}
 
 		delete OuterCommandList;
 	}
 
-	if (InnerCommandLists.Num() || bFlushResources)
-	{
-		RHI->RHISubmitCommandLists(InnerCommandLists, bFlushResources);
-	}
+	RHI->RHISubmitCommandLists(MoveTemp(InnerArgs));
 }
 
 void FValidationRHI::ValidatePipeline(const FGraphicsPipelineStateInitializer& PSOInitializer)
@@ -508,51 +535,38 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 	const ERHIPipeline SrcPipelines = CreateInfo.SrcPipelines;
 	const ERHIPipeline DstPipelines = CreateInfo.DstPipelines;
 
-	struct FFenceEdge
-	{
-		FFence* Fence = nullptr;
-		ERHIPipeline SrcPipe = ERHIPipeline::None;
-		ERHIPipeline DstPipe = ERHIPipeline::None;
-	};
-
-	TArray<FFenceEdge> Fences;
+	TArray<FFence*> Fences;
 
 	if (SrcPipelines != DstPipelines)
 	{
-		for (ERHIPipeline SrcPipe : GetRHIPipelines())
+		for (ERHIPipeline SrcPipe : MakeFlagsRange(SrcPipelines))
 		{
-			if (!EnumHasAnyFlags(SrcPipelines, SrcPipe))
+			for (ERHIPipeline DstPipe : MakeFlagsRange(DstPipelines))
 			{
-				continue;
-			}
-
-			for (ERHIPipeline DstPipe : GetRHIPipelines())
-			{
-				if (!EnumHasAnyFlags(DstPipelines, DstPipe) || SrcPipe == DstPipe)
+				if (SrcPipe == DstPipe)
 				{
 					continue;
 				}
 
-				FFenceEdge FenceEdge;
-				FenceEdge.Fence = new FFence;
-				FenceEdge.SrcPipe = SrcPipe;
-				FenceEdge.DstPipe = DstPipe;
-				Fences.Add(FenceEdge);
+				FFence* Fence = new FFence;
+				Fence->SrcPipe = SrcPipe;
+				Fence->DstPipe = DstPipe;
+				Fences.Add(Fence);
 			}
 		}
 	}
 
-	TArray<FOperation> SignalOps, WaitOps, AliasingOps, AliasingOverlapOps, BeginOps, EndOps;
-	SignalOps .Reserve(Fences.Num());
-	WaitOps   .Reserve(Fences.Num());
-	AliasingOps.Reserve(CreateInfo.AliasingInfos.Num());
+	TRHIPipelineArray<TArray<FOperation>> SignalOps, WaitOps;
+	
+	TArray<FOperation> AliasingOps, AliasingOverlapOps, BeginOps, EndOps;
 	AliasingOverlapOps.Reserve(CreateInfo.AliasingInfos.Num());
-	BeginOps  .Reserve(CreateInfo.TransitionInfos.Num());
-	EndOps    .Reserve(CreateInfo.TransitionInfos.Num());
+	AliasingOps       .Reserve(CreateInfo.AliasingInfos.Num());
+	BeginOps          .Reserve(CreateInfo.TransitionInfos.Num());
+	EndOps            .Reserve(CreateInfo.TransitionInfos.Num());
 
-	for (const FFenceEdge& FenceEdge : Fences)
+	for (FFence* Fence : Fences)
 	{
-		WaitOps.Emplace(FOperation::Wait(FenceEdge.Fence, FenceEdge.DstPipe));
+		WaitOps[Fence->DstPipe].Emplace(FOperation::Wait(Fence));
 	}
 
 	// Take a backtrace of this transition creation if any of the resources it contains have logging enabled.
@@ -581,7 +595,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 		if (Info.IsAcquire())
 		{
 			checkf(Resource->TransientState.bTransient, TEXT("Acquiring resource %s which is not transient. Only transient resources can be acquired."), Resource->GetDebugName());
-			checkf(SrcPipelines == ERHIPipeline::Graphics, TEXT("Acquiring a transient resource (%s) must begin on the graphics pipe."), Resource->GetDebugName());
 
 			AliasingOps.Emplace(FOperation::AcquireTransientResource(Resource, nullptr));
 
@@ -603,14 +616,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 				AliasingOverlapOps.Emplace(FOperation::AliasingOverlap(ResourceBefore, Resource, nullptr));
 			}
 		}
-		else
-		{
-			checkf(Info.Overlaps.IsEmpty(), TEXT("Aliasing overlaps provided on a Discard for resource %s. Overlaps must be provided on an acquire."), Resource->GetDebugName());
-			checkf(Resource->TransientState.bTransient, TEXT("Discarding resource %s which is not transient. Only transient resources can be discarded."), Resource->GetDebugName());
-			checkf(DstPipelines == ERHIPipeline::Graphics, TEXT("Discarding a transient resource (%s) must end on the graphics pipe."), Resource->GetDebugName());
-
-			AliasingOps.Emplace(FOperation::DiscardTransientResource(Resource, nullptr));
-		}
 	}
 
 	for (int32 Index = 0; Index < CreateInfo.TransitionInfos.Num(); ++Index)
@@ -624,9 +629,6 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 
 		if (const FRHICommitResourceInfo* CommitInfo = Info.CommitInfo.GetPtrOrNull())
 		{
-			RHI_VALIDATION_CHECK((SrcPipelines == ERHIPipeline::Graphics && DstPipelines == ERHIPipeline::Graphics),
-				TEXT("Reserved resource commit operations are only supported on the graphics pipeline and must not cross pipeline boundary."));
-
 			if (Info.Type == FRHITransitionInfo::EType::Buffer)
 			{
 				const FRHIBuffer* Buffer = Info.Buffer;
@@ -668,7 +670,7 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 		FState PreviousState = FState(Info.AccessBefore, SrcPipelines);
 		FState NextState = FState(Info.AccessAfter, DstPipelines);
 
-		BeginOps.Emplace(FOperation::BeginTransitionResource(Identity, PreviousState, NextState, Info.Flags, nullptr));
+		BeginOps.Emplace(FOperation::BeginTransitionResource(Identity, PreviousState, NextState, Info.Flags, CreateInfo.Flags, nullptr));
 		EndOps  .Emplace(FOperation::EndTransitionResource(Identity, PreviousState, NextState, nullptr));
 	}
 
@@ -683,28 +685,25 @@ void FValidationRHI::RHICreateTransition(FRHITransition* Transition, const FRHIT
 			case EOpType::AcquireTransient:
 				Op.Data_AcquireTransient.CreateBacktrace = Backtrace;
 				break;
-			case EOpType::DiscardTransient:
-				Op.Data_DiscardTransient.CreateBacktrace = Backtrace;
-				break;
 			}
 		}
 
 		for (FOperation& Op : AliasingOverlapOps) { Op.Data_AliasingOverlap.CreateBacktrace = Backtrace; }
-		for (FOperation& Op : BeginOps) { Op.Data_BeginTransition.CreateBacktrace = Backtrace; }
-		for (FOperation& Op : EndOps) { Op.Data_EndTransition.CreateBacktrace = Backtrace; }
+		for (FOperation& Op : BeginOps          ) { Op.Data_BeginTransition.CreateBacktrace = Backtrace; }
+		for (FOperation& Op : EndOps            ) { Op.Data_EndTransition  .CreateBacktrace = Backtrace; }
 	}
 
-	for (const FFenceEdge& FenceEdge : Fences)
+	for (FFence* Fence : Fences)
 	{
-		SignalOps.Emplace(FOperation::Signal(FenceEdge.Fence, FenceEdge.SrcPipe));
+		SignalOps[Fence->SrcPipe].Emplace(FOperation::Signal(Fence));
 	}
 
-	Transition->PendingSignals.Operations = MoveTemp(SignalOps);
-	Transition->PendingWaits.Operations = MoveTemp(WaitOps);
-	Transition->PendingAliases.Operations = MoveTemp(AliasingOps);
-	Transition->PendingAliasingOverlaps.Operations = MoveTemp(AliasingOverlapOps);
-	Transition->PendingOperationsBegin.Operations = MoveTemp(BeginOps);
-	Transition->PendingOperationsEnd.Operations = MoveTemp(EndOps);
+	Transition->PendingSignals          = MoveTemp(SignalOps);
+	Transition->PendingWaits            = MoveTemp(WaitOps);
+	Transition->PendingAliases          = MoveTemp(AliasingOps);
+	Transition->PendingAliasingOverlaps = MoveTemp(AliasingOverlapOps);
+	Transition->PendingOperationsBegin  = MoveTemp(BeginOps);
+	Transition->PendingOperationsEnd    = MoveTemp(EndOps);
 
 	return RHI->RHICreateTransition(Transition, CreateInfo);
 }
@@ -754,27 +753,44 @@ void* FValidationRHI::RHILockBufferMGPU(class FRHICommandListBase& RHICmdList, F
 	return RHI->RHILockBufferMGPU(RHICmdList, Buffer, GPUIndex, Offset, SizeRHI, LockMode);
 }
 
-class FRHIValidationBreadcrumbScope
+class FRHIValidationQueueScope
 {
+	RHIValidation::FOpQueueState* Prev;
+
 public:
-	FRHIValidationBreadcrumbScope(TConstArrayView<const TCHAR*> InBreadcrumbs)
+	FRHIValidationQueueScope(RHIValidation::FOpQueueState& Queue)
+		: Prev(ActiveQueue)
 	{
-		Breadcrumbs = InBreadcrumbs;
+		ActiveQueue = &Queue;
 	}
 
-	~FRHIValidationBreadcrumbScope()
+	~FRHIValidationQueueScope()
 	{
-		Breadcrumbs = {};
+		ActiveQueue = Prev;
 	}
 
-	thread_local static TConstArrayView<const TCHAR*> Breadcrumbs;
+	thread_local static RHIValidation::FOpQueueState* ActiveQueue;
 };
 
-thread_local TConstArrayView<const TCHAR*> FRHIValidationBreadcrumbScope::Breadcrumbs;
+thread_local RHIValidation::FOpQueueState* FRHIValidationQueueScope::ActiveQueue = nullptr;
 
 static FString GetBreadcrumbPath()
 {
-	return FString::Join(FRHIValidationBreadcrumbScope::Breadcrumbs, TEXT("/"));
+#if WITH_RHI_BREADCRUMBS
+	RHIValidation::FOpQueueState* Queue = FRHIValidationQueueScope::ActiveQueue;
+	if (Queue && Queue->Breadcrumbs.Current)
+	{
+		return Queue->Breadcrumbs.Current->GetFullPath();
+	}
+	
+	return {};
+
+#else
+
+	return TEXT("<breadcrumbs not enabled>");
+
+#endif
+	
 }
 
 // FlushType: Thread safe
@@ -831,14 +847,14 @@ void FValidationRHI::ReportValidationFailure(const TCHAR* InMessage)
 	}
 
 	FString Message;
-
-	if (!FRHIValidationBreadcrumbScope::Breadcrumbs.IsEmpty())
+	FString BreadcrumbPath = GetBreadcrumbPath();
+	if (!BreadcrumbPath.IsEmpty())
 	{
 		Message = FString::Printf(
 			TEXT("%s")
 			TEXT("Breadcrumbs: %s\n")
 			TEXT("--------------------------------------------------------------------\n"),
-			InMessage, *GetBreadcrumbPath());
+			InMessage, *BreadcrumbPath);
 	}
 	else
 	{
@@ -857,6 +873,59 @@ void FValidationRHI::ReportValidationFailure(const TCHAR* InMessage)
 	}
 }
 
+static void ValidateBoundUniformBuffers(FRHIShader* Shader, const RHIValidation::FStaticUniformBuffers& StaticUniformBuffers, const RHIValidation::FStageBoundUniformBuffers& BoundUniformBuffers)
+{
+	const TCHAR* FreqName = GetShaderFrequencyString(Shader->GetFrequency(), false);
+	const TArray<uint32>& LayoutHashes = Shader->GetShaderResourceTable().ResourceTableLayoutHashes;
+
+	const TArray<FUniformBufferStaticSlot>& StaticSlots = Shader->GetStaticSlots();
+	if (LayoutHashes.Num() != StaticSlots.Num())
+	{
+		RHI_VALIDATION_CHECK(false, *FString::Printf(TEXT("Shader %s(%s): The number of layout hashes (%d) is different from the number of static slots (%d)."), Shader->GetShaderName(), FreqName, LayoutHashes.Num(), StaticSlots.Num()));
+		return;
+	}
+
+	for (int32 BindIndex = 0; BindIndex < LayoutHashes.Num(); ++BindIndex)
+	{
+		uint32 ExpectedLayoutHash = LayoutHashes[BindIndex];
+		if (ExpectedLayoutHash == 0)
+		{
+			continue;
+		}
+
+		FRHIUniformBuffer* BoundBuffer = nullptr;
+		bool bIsStatic = false;
+
+		const FUniformBufferStaticSlot StaticSlot = StaticSlots[BindIndex];
+		if (IsUniformBufferStaticSlotValid(StaticSlot) && StaticSlot < StaticUniformBuffers.Bindings.Num())
+		{
+			BoundBuffer = StaticUniformBuffers.Bindings[StaticSlot];
+			if (BoundBuffer)
+			{
+				bIsStatic = true;
+			}
+		}
+
+		if (BoundBuffer == nullptr && BindIndex < BoundUniformBuffers.Buffers.Num())
+		{
+			BoundBuffer = BoundUniformBuffers.Buffers[BindIndex];
+		}
+
+		if (BoundBuffer != nullptr)
+		{
+			const FRHIUniformBufferLayout& Layout = BoundBuffer->GetLayout();
+			uint32 UniformBufferHash = Layout.GetHash();
+			RHI_VALIDATION_CHECK(UniformBufferHash == ExpectedLayoutHash, *FString::Printf(TEXT("Shader %s(%s): Invalid layout hash %u for uniform buffer \"%s\" at bind index %d (static: %s). Expecting a buffer called \"%s\", hash %u.)"),
+				Shader->GetShaderName(), FreqName, UniformBufferHash, *Layout.GetDebugName(), BindIndex, bIsStatic ? TEXT("yes") : TEXT("no"), *Shader->GetUniformBufferName(BindIndex), ExpectedLayoutHash));
+		}
+		else
+		{
+			RHI_VALIDATION_CHECK(false, *FString::Printf(TEXT("Shader %s(%s): missing uniform buffer \"%s\" at index %d."),
+				Shader->GetShaderName(), FreqName , *Shader->GetUniformBufferName(BindIndex), BindIndex));
+		}
+	}
+}
+
 FValidationComputeContext::FValidationComputeContext(EType InType)
 	: Type(InType)
 {
@@ -864,12 +933,24 @@ FValidationComputeContext::FValidationComputeContext(EType InType)
 	Tracker = &State.TrackerInstance;
 }
 
+void FValidationComputeContext::ValidateDispatch()
+{
+	if (State.BoundShader == nullptr)
+	{
+		RHI_VALIDATION_CHECK(false, TEXT("A compute PSO has to be set before dispatching a compute shader."));
+		return;
+	}
+
+	ValidateBoundUniformBuffers(State.BoundShader, State.StaticUniformBuffers, State.BoundUniformBuffers);
+}
+
 void FValidationComputeContext::FState::Reset()
 {
 	ComputePassName.Reset();
-	bComputePSOSet = false;
+	BoundShader = nullptr;
 	TrackerInstance.ResetAllUAVState();
 	StaticUniformBuffers.Reset();
+	BoundUniformBuffers.Reset();
 }
 
 FValidationContext::FValidationContext(EType InType)
@@ -879,37 +960,16 @@ FValidationContext::FValidationContext(EType InType)
 	Tracker = &State.TrackerInstance;
 }
 
-void FValidationContext::RHIBeginFrame()
+void FValidationRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
-	++State.BeginEndFrameCounter;
-	if (State.BeginEndFrameCounter != 1)
-	{
-		ensureMsgf(0, TEXT("RHIBeginFrame called twice in a row! Previous callstack: (void**)0x%p,32"), State.PreviousBeginFrame);
-	}
-	delete [] (uint64*)State.PreviousBeginFrame;
-	State.PreviousBeginFrame = RHIValidation::CaptureBacktrace();
-
-	State.Reset();
-	RHIContext->RHIBeginFrame();
+	RenderThreadFrameID++;
+	RHI->RHIEndFrame_RenderThread(RHICmdList);
 }
 
-void FValidationContext::RHIEndFrame()
+void FValidationRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
-	RHIContext->RHIEndFrame();
-
-	// The RHI thread should always be updated at its own frequency (called from RHI thread if available)
-	// The RenderThread FrameID is update in RHIAdvanceFrameFence which is called on the RenderThread
-	FValidationRHI* ValidateRHI = (FValidationRHI*)GDynamicRHI;
-	ValidateRHI->RHIThreadFrameID++;
-
-	--State.BeginEndFrameCounter;
-	if (State.BeginEndFrameCounter != 0)
-	{
-		ensureMsgf(0, TEXT("RHIEndFrame called twice in a row! Previous callstack: (void**)0x%p,32"), State.PreviousEndFrame);
-		State.BeginEndFrameCounter = 0;
-	}
-	delete [] (uint64*)State.PreviousEndFrame;
-	State.PreviousEndFrame = RHIValidation::CaptureBacktrace();
+	RHIThreadFrameID++;
+	RHI->RHIEndFrame(Args);
 }
 
 namespace RHIValidation
@@ -943,6 +1003,35 @@ void FValidationComputeContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferR
 	RHIContext->RHICopyToStagingBuffer(SourceBufferRHI, DestinationStagingBufferRHI, InOffset, InNumBytes);
 }
 
+void FValidationContext::ValidateDispatch()
+{
+	if (State.BoundShaders[SF_Compute] == nullptr)
+	{
+		RHI_VALIDATION_CHECK(false, TEXT("A compute PSO has to be set before dispatching a compute shader."));
+		return;
+	}
+
+	ValidateBoundUniformBuffers(State.BoundShaders[SF_Compute], State.StaticUniformBuffers, State.BoundUniformBuffers.Get(SF_Compute));
+}
+
+void FValidationContext::ValidateDrawing()
+{
+	if (!State.bGfxPSOSet)
+	{
+		RHI_VALIDATION_CHECK(false, TEXT("A graphics PSO has to be set in order to be able to draw!"));
+		return;
+	}
+
+	for (int32 FrequencyIndex = 0; FrequencyIndex < SF_NumFrequencies; ++FrequencyIndex)
+	{
+		EShaderFrequency Frequency = (EShaderFrequency)FrequencyIndex;
+		if (IsValidGraphicsFrequency(Frequency) && State.BoundShaders[Frequency])
+		{
+			ValidateBoundUniformBuffers(State.BoundShaders[Frequency], State.StaticUniformBuffers, State.BoundUniformBuffers.Get(Frequency));
+		}
+	}
+}
+
 void FValidationContext::FState::Reset()
 {
 	bInsideBeginRenderPass = false;
@@ -950,9 +1039,10 @@ void FValidationContext::FState::Reset()
 	RenderPassName.Reset();
 	PreviousRenderPassName.Reset();
 	ComputePassName.Reset();
-	bComputePSOSet = false;
+	FMemory::Memset(BoundShaders, 0);
 	TrackerInstance.ResetAllUAVState();
 	StaticUniformBuffers.Reset();
+	BoundUniformBuffers.Reset();
 }
 
 namespace RHIValidation
@@ -988,10 +1078,38 @@ namespace RHIValidation
 		}
 	}
 
+	FStageBoundUniformBuffers::FStageBoundUniformBuffers()
+	{
+		Buffers.Reserve(32);
+	}
+
+	void FStageBoundUniformBuffers::Reset()
+	{
+		Buffers.SetNum(0);
+	}
+
+	void FStageBoundUniformBuffers::Bind(uint32 Index, FRHIUniformBuffer* UniformBuffer)
+	{
+		if (Index >= (uint32)Buffers.Num())
+		{
+			Buffers.AddZeroed(Index + 1 - Buffers.Num());
+		}
+
+		Buffers[Index] = UniformBuffer;
+	}
+
+	void FBoundUniformBuffers::Reset()
+	{
+		for (FStageBoundUniformBuffers& Stage : StageBindings)
+		{
+			Stage.Reset();
+		}
+	}
+
 	ERHIAccess DecayResourceAccess(ERHIAccess AccessMask, ERHIAccess RequiredAccess, bool bAllowUAVOverlap)
 	{
 		using T = __underlying_type(ERHIAccess);
-		checkf((T(RequiredAccess) & (T(RequiredAccess) - 1)) == 0, TEXT("Only one required access bit may be set at once."));
+		checkf(RequiredAccess == ERHIAccess::SRVGraphics || (T(RequiredAccess) & (T(RequiredAccess) - 1)) == 0, TEXT("Only one required access bit may be set at once."));
 		
 		if (EnumHasAnyFlags(RequiredAccess, ERHIAccess::UAVMask | ERHIAccess::BVHWrite))
 		{
@@ -1267,19 +1385,6 @@ namespace RHIValidation
 			*GetReasonString_DuplicateBackTrace(PreviousAcquireTrace, CurrentAcquireTrace));
 	}
 
-	static inline FString GetReasonString_DuplicateDiscardTransient(FResource* Resource, void* PreviousDiscardTrace, void* CurrentDiscardTrace)
-	{
-		FString DebugName = GetResourceDebugName(Resource, {});
-		return FString::Printf(
-			BARRIER_TRACKER_LOG_PREFIX_RESNAME
-			TEXT("Mismatched discard of transient resource %s. A transient resource may only be discarded once in its lifetime.\n")
-			TEXT("%s")
-			BARRIER_TRACKER_LOG_SUFFIX,
-			*DebugName,
-			*DebugName,
-			*GetReasonString_DuplicateBackTrace(PreviousDiscardTrace, CurrentDiscardTrace));
-	}
-
 	static inline FString GetReasonString_DiscardWithoutAcquireTransient(FResource* Resource, void* DiscardTrace)
 	{
 		FString DebugName = GetResourceDebugName(Resource, {});
@@ -1290,7 +1395,20 @@ namespace RHIValidation
 			BARRIER_TRACKER_LOG_SUFFIX,
 			*DebugName,
 			*DebugName,
-			*GetReasonString_Backtrace(TEXT("acquire"), TEXT("RHICreateTransition"), DiscardTrace));
+			*GetReasonString_Backtrace(TEXT("discard"), TEXT("RHICreateTransition"), DiscardTrace));
+	}
+	
+	static inline FString GetReasonString_AlreadyDiscarded(FResource* Resource, void* DiscardTrace)
+	{
+		FString DebugName = GetResourceDebugName(Resource, {});
+		return FString::Printf(
+			BARRIER_TRACKER_LOG_PREFIX_RESNAME
+			TEXT("Attempted to transition transient resource %s to ERHIAccess::Discard, but it has already been discarded.\n")
+			TEXT("%s")
+			BARRIER_TRACKER_LOG_SUFFIX,
+			*DebugName,
+			*DebugName,
+			*GetReasonString_Backtrace(TEXT("discard"), TEXT("RHICreateTransition"), DiscardTrace));
 	}
 
 	static inline FString GetReasonString_DuplicateBeginTransition(
@@ -1337,6 +1455,28 @@ namespace RHIValidation
 			*GetRHIPipelineName(ActualCurrentState.Pipelines),
 			*GetRHIAccessName(ActualCurrentState.Access),
 			*GetRHIAccessName(CurrentStateFromRHI.Access));
+	}
+	
+	static inline FString GetReasonString_IncorrectFencing(
+		FResource* Resource, FSubresourceIndex const& SubresourceIndex,
+		ERHIPipeline SrcPipelineSkipped,
+		ERHIPipeline DstPipeline)
+	{
+		FString DebugName = GetResourceDebugName(Resource, SubresourceIndex);
+		FString SrcPipelineName = *GetRHIPipelineName(SrcPipelineSkipped);
+		FString DstPipelineName = *GetRHIPipelineName(DstPipeline);
+		return FString::Printf(
+			BARRIER_TRACKER_LOG_PREFIX_RESNAME
+			TEXT("Attemped to begin a resource transition for resource %s on the %s pipeline but skipping the transition on the %s pipeline (which is allowed with the NoFence flag), however no external\n")
+			TEXT("fence was issued between these two pipelines between this begin transition and the last end transition call on the %s pipeline. You must insert a manual fence from '%s' to '%s'.\n")
+			BARRIER_TRACKER_LOG_SUFFIX,
+			*DebugName,
+			*DebugName,
+			*DstPipelineName,
+			*SrcPipelineName,
+			*SrcPipelineName,
+			*SrcPipelineName,
+			*DstPipelineName);
 	}
 
 	static inline FString GetReasonString_IncorrectPreviousExplicitState(
@@ -1508,28 +1648,33 @@ namespace RHIValidation
 			AcquireBacktrace = CreateTrace;
 		}
 
+		NumAcquiredSubresources = Resource->GetNumSubresources() * GetRHIPipelineCount();
+
 		if (Resource->LoggingMode != ELoggingMode::None)
 		{
 			Log(Resource, {}, CreateTrace, TEXT("Acquire"), TEXT("Acquire"), TEXT("Transient Acquire"));
 		}
 	}
 
-	void FTransientState::Discard(FResource* Resource, void* CreateTrace)
+	void FTransientState::Discard(FResource* Resource, void* CreateTrace, ERHIPipeline DiscardPipelines)
 	{
 		RHI_VALIDATION_CHECK(bTransient, *GetReasonString_DiscardNonTransient(Resource));
-
 		RHI_VALIDATION_CHECK(Status != EStatus::None, *GetReasonString_DiscardWithoutAcquireTransient(Resource, CreateTrace));
-		RHI_VALIDATION_CHECK(Status != EStatus::Discarded, *GetReasonString_DuplicateDiscardTransient(Resource, DiscardBacktrace, CreateTrace));
-		Status = EStatus::Discarded;
+		RHI_VALIDATION_CHECK(Status != EStatus::Discarded, *GetReasonString_AlreadyDiscarded(Resource, CreateTrace));
 
-		if (!DiscardBacktrace)
-		{
-			DiscardBacktrace = CreateTrace;
-		}
+		// When discarding from all pipes, each pipe will call Discard separately. Otherwise it's just one call.
+		const uint32 NumDerefs = DiscardPipelines == ERHIPipeline::All ? 1 : 2;
 
-		if (Resource->LoggingMode != ELoggingMode::None)
+		NumAcquiredSubresources -= NumDerefs;
+
+		if (NumAcquiredSubresources == 0)
 		{
-			Log(Resource, {}, CreateTrace, TEXT("Discard"), TEXT("Discard"), TEXT("Transient Discard"));
+			Status = EStatus::Discarded;
+
+			if (Resource->LoggingMode != ELoggingMode::None)
+			{
+				Log(Resource, {}, CreateTrace, TEXT("Discard"), TEXT("Discard"), TEXT("Transient Discard"));
+			}
 		}
 	}
 
@@ -1579,7 +1724,7 @@ namespace RHIValidation
 		}
 	}
 
-	void FSubresourceState::BeginTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, EResourceTransitionFlags NewFlags, ERHIPipeline ExecutingPipeline, void* CreateTrace)
+	void FSubresourceState::BeginTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, EResourceTransitionFlags NewFlags, ERHITransitionCreateFlags CreateFlags, ERHIPipeline ExecutingPipeline, const TRHIPipelineArray<uint64>& PipelineMaxAwaitedFenceValues, void* CreateTrace)
 	{
 		FPipelineState& State = States[ExecutingPipeline];
 
@@ -1600,7 +1745,22 @@ namespace RHIValidation
 
 		if (Resource->TransientState.bTransient)
 		{
-			RHI_VALIDATION_CHECK(Resource->TransientState.IsAcquired() || (Resource->TransientState.IsDiscarded() && TargetState.Access == ERHIAccess::Discard), *GetReasonString_TransitionWithoutAcquire(Resource));
+			RHI_VALIDATION_CHECK(Resource->TransientState.IsAcquired(), *GetReasonString_TransitionWithoutAcquire(Resource));
+
+			if (TargetState.Access == ERHIAccess::Discard)
+			{
+				Resource->TransientState.Discard(Resource, CreateTrace, CurrentStateFromRHI.Pipelines);
+			}
+		}
+
+		// If we are collapsing multiple pipes to one pipe (only allowed when not fencing), check that the other pipes were fenced prior to this call.
+		if (EnumHasAnyFlags(CreateFlags, ERHITransitionCreateFlags::NoFence))
+		{
+			for (ERHIPipeline AlreadyFencedPipeline : MakeFlagsRange(State.Previous.Pipelines & ~CurrentStateFromRHI.Pipelines))
+			{
+				// The max awaited fence value should be higher than the last transitioned fence value, otherwise a fence was not issued.
+				RHI_VALIDATION_CHECK(LastTransitionFences[AlreadyFencedPipeline] < PipelineMaxAwaitedFenceValues[AlreadyFencedPipeline], *GetReasonString_IncorrectFencing(Resource, SubresourceIndex, AlreadyFencedPipeline, ExecutingPipeline));
+			}
 		}
 
 		// Check we're not already transitioning
@@ -1611,15 +1771,25 @@ namespace RHIValidation
 			// Check for the correct pipeline
 			RHI_VALIDATION_CHECK(EnumHasAllFlags(CurrentStateFromRHI.Pipelines, ExecutingPipeline), *GetReasonString_WrongPipeline(Resource, SubresourceIndex, State.Current, TargetState));
 
+			const auto HasMatchingPipelines = [CreateFlags] (ERHIPipeline Previous, ERHIPipeline Next)
+			{
+				// If no fence is being issued we only need to validate that the transition is happening from one of the previous pipes.
+				if (EnumHasAnyFlags(CreateFlags, ERHITransitionCreateFlags::NoFence))
+				{
+					return EnumHasAllFlags(Previous, Next);
+				}
+				return Previous == Next;
+			};
+
 			if (CurrentStateFromRHI.Access == ERHIAccess::Unknown)
 			{
-				RHI_VALIDATION_CHECK(Resource->TrackedAccess == State.Previous.Access && CurrentStateFromRHI.Pipelines == State.Previous.Pipelines,
+				RHI_VALIDATION_CHECK(Resource->TrackedAccess == State.Previous.Access && HasMatchingPipelines(State.Previous.Pipelines, CurrentStateFromRHI.Pipelines),
 					*GetReasonString_IncorrectPreviousTrackedState(Resource, SubresourceIndex, State.Previous, CurrentStateFromRHI.Pipelines));
 			}
 			else
 			{
 				// Check the current RHI state passed in matches the tracked state for the resource.
-				RHI_VALIDATION_CHECK(CurrentStateFromRHI.Access == State.Previous.Access && CurrentStateFromRHI.Pipelines == State.Previous.Pipelines,
+				RHI_VALIDATION_CHECK(CurrentStateFromRHI.Access == State.Previous.Access && HasMatchingPipelines(State.Previous.Pipelines, CurrentStateFromRHI.Pipelines),
 					*GetReasonString_IncorrectPreviousExplicitState(Resource, SubresourceIndex, State.Previous, CurrentStateFromRHI));
 			}
 		}
@@ -1639,16 +1809,13 @@ namespace RHIValidation
 		State.bTransitioning = true;
 
 		// Replicate the state to other pipes that are not part of the begin pipe mask.
-		for (ERHIPipeline OtherPipeline : GetRHIPipelines())
+		for (ERHIPipeline OtherPipeline : MakeFlagsRange(ERHIPipeline::All & ~CurrentStateFromRHI.Pipelines))
 		{
-			if (!EnumHasAnyFlags(CurrentStateFromRHI.Pipelines, OtherPipeline))
-			{
-				States[OtherPipeline] = State;
-			}
+			States[OtherPipeline] = State;
 		}
 	}
 
-	void FSubresourceState::EndTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, ERHIPipeline ExecutingPipeline, void* CreateTrace)
+	void FSubresourceState::EndTransition(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& CurrentStateFromRHI, const FState& TargetState, ERHIPipeline ExecutingPipeline, uint64 ExecutingPipelineFenceValue, void* CreateTrace)
 	{
 		if (Resource->LoggingMode != ELoggingMode::None
 #if LOG_UNNAMED_RESOURCES
@@ -1670,22 +1837,19 @@ namespace RHIValidation
 		State.bTransitioning = false;
 		State.BeginTransitionBacktrace = nullptr;
 
-		if (Resource->TransientState.bTransient)
-		{
-			RHI_VALIDATION_CHECK(Resource->TransientState.IsAcquired() || (Resource->TransientState.IsDiscarded() && TargetState.Access == ERHIAccess::Discard), *GetReasonString_TransitionWithoutAcquire(Resource));
-		}
-
 		// Check that the end matches the begin.
 		RHI_VALIDATION_CHECK(TargetState == State.Current, *GetReasonString_MismatchedEndTransition(Resource, SubresourceIndex, State.Current, TargetState));
 
 		// Replicate the state to other pipes that are not part of the end pipe mask.
-		for (ERHIPipeline OtherPipeline : GetRHIPipelines())
+		for (ERHIPipeline OtherPipeline : MakeFlagsRange(ERHIPipeline::All))
 		{
 			if (!EnumHasAnyFlags(TargetState.Pipelines, OtherPipeline))
 			{
 				States[OtherPipeline] = State;
 			}
 		}
+
+		LastTransitionFences[ExecutingPipeline] = ExecutingPipelineFenceValue;
 	}
 
 	void FSubresourceState::Assert(FResource* Resource, FSubresourceIndex const& SubresourceIndex, const FState& RequiredState, bool bAllowAllUAVsOverlap)
@@ -1806,27 +1970,149 @@ namespace RHIValidation
 		}
 	}
 
-	EReplayStatus FOperation::Replay(ERHIPipeline Pipeline, bool& bAllowAllUAVsOverlap, FBreadcrumbStack& Breadcrumbs) const
+#if WITH_RHI_BREADCRUMBS
+	bool IsInRange(FRHIBreadcrumbRange const& Range, FRHIBreadcrumbNode* const Target, ERHIPipeline Pipeline)
+	{
+		for (FRHIBreadcrumbNode* Current : Range.Enumerate(Pipeline))
+		{
+			if (Current == Target)
+				return true;
+		}
+
+		// Include all parent nodes above Last
+		for (FRHIBreadcrumbNode* Current = Range.Last; Current; Current = Current->GetParent())
+		{
+			if (Current == Target)
+				return true;
+		}
+
+		// Include all parent nodes above First
+		for (FRHIBreadcrumbNode* Current = Range.First; Current; Current = Current->GetParent())
+		{
+			if (Current == Target)
+				return true;
+		}
+
+		return false;
+	}
+
+	int32 CountLevels(FRHIBreadcrumbNode* Node)
+	{
+		auto Recurse = [](auto const& Recurse, FRHIBreadcrumbNode* Current) -> int32
+		{
+			check(Current != FRHIBreadcrumbNode::Sentinel);
+			return Current
+				? Recurse(Recurse, Current->GetParent()) + 1
+				: 0;
+		};
+		return Recurse(Recurse, Node) - 1;
+	}
+
+	void LogNode(FRHIBreadcrumbNode* Node, bool bBegin, ERHIPipeline Pipeline)
+	{
+		static bool bOutputBreadcrumbLog = FParse::Param(FCommandLine::Get(), TEXT("RHIValidationBreadcrumbLog"));
+		if (bOutputBreadcrumbLog)
+		{
+			int32 Levels = CountLevels(Node);
+			FString Output = TEXT("");
+			for (int32 Index = 0; Index < Levels; ++Index)
+			{
+				Output += TEXT("\t");
+			}
+			FRHIBreadcrumb::FBuffer Buffer;
+			const TCHAR* Str = Node->Name.GetTCHAR(Buffer);
+			Output += Str;
+			UE_LOG(LogRHI, Display, TEXT(" ## BC (0x%016p, 0x%08x) [%12s] [%s]: %s")
+				, Node
+				, Node->Name.ID
+				, *GetRHIPipelineName(Pipeline)
+				, bBegin ? TEXT("BEGIN") : TEXT(" END ")
+				, *Output
+			);
+		}
+	}
+#endif // WITH_RHI_BREADCRUMBS
+
+	bool FOperation::Replay(FOpQueueState& Queue) const
 	{
 		switch (Type)
 		{
-		case EOpType::PushBreadcrumb:
-			Breadcrumbs.Push(Data_PushBreadcrumb.Breadcrumb);
-			return EReplayStatus::Normal;
+		default:
+			checkNoEntry();
+			break;
 
-		case EOpType::PopBreadcrumb:
-			if (!Breadcrumbs.IsEmpty())
+#if WITH_RHI_BREADCRUMBS
+		case EOpType::BeginBreadcrumbGPU:
 			{
-				delete[] Breadcrumbs.Last();
-				Breadcrumbs.Pop();
+				FRHIBreadcrumbNode* Node = Data_Breadcrumb.Breadcrumb;
+
+				check(Node && Node != FRHIBreadcrumbNode::Sentinel);
+				check(Node->GetParent() != FRHIBreadcrumbNode::Sentinel);
+				check(Node->GetParent() == Queue.Breadcrumbs.Current);
+				check(GRHICommandList.Bypass() || IsInRange(Queue.Breadcrumbs.Range, Node, Queue.Pipeline));
+				check(EnumHasAllFlags(static_cast<ERHIPipeline>(Node->BeginPipes.load()), Queue.Pipeline));
+
+				LogNode(Node, true, Queue.Pipeline);
+
+				Queue.Breadcrumbs.Current = Node;
 			}
-			return EReplayStatus::Normal;
-		}
+			break;
 
-		FRHIValidationBreadcrumbScope BreadcrumbScope(Breadcrumbs);
+		case EOpType::EndBreadcrumbGPU:
+			{
+				FRHIBreadcrumbNode* Node = Data_Breadcrumb.Breadcrumb;
 
-		switch (Type)
-		{
+				check(Node && Node != FRHIBreadcrumbNode::Sentinel);
+				check(Node->GetParent() != FRHIBreadcrumbNode::Sentinel);
+				check(Node == Queue.Breadcrumbs.Current);
+				check(GRHICommandList.Bypass() || IsInRange(Queue.Breadcrumbs.Range, Node, Queue.Pipeline));
+				check(EnumHasAllFlags(static_cast<ERHIPipeline>(Node->EndPipes.load()), Queue.Pipeline));
+
+				LogNode(Node, false, Queue.Pipeline);
+
+				Queue.Breadcrumbs.Current = Node->GetParent();
+			}
+			break;
+
+		case EOpType::SetBreadcrumbRange:
+			{
+				Queue.Breadcrumbs.Range = Data_BreadcrumbRange.Range;
+				check(!Queue.Breadcrumbs.Range.First == !Queue.Breadcrumbs.Range.Last);
+
+				TSet<FRHIBreadcrumbAllocator*> AllAllocators;
+				for (FRHIBreadcrumbNode* Node : Queue.Breadcrumbs.Range.Enumerate(Queue.Pipeline))
+				{
+					AllAllocators.Add(Node->Allocator);
+
+					// Check current node and all parents are valid
+					for (FRHIBreadcrumbNode* Other = Node; Other; Other = Other->GetParent())
+					{
+						check(Other != FRHIBreadcrumbNode::Sentinel);
+						check(Other->GetParent() != FRHIBreadcrumbNode::Sentinel);
+					}
+				}
+
+				// Check for circular references in the allocator parent pointers
+				for (FRHIBreadcrumbAllocator* Allocator : AllAllocators)
+				{
+					auto Recurse = [](FRHIBreadcrumbAllocator* Current, auto& Recurse) -> void
+					{
+						checkf(!Current->bVisited, TEXT("Circular reference detected in breadcrumb allocators."));
+						Current->bVisited = true;
+						
+						for (auto const& Parent : Current->GetParents())
+						{
+							Recurse(&Parent.Get(), Recurse);
+						}
+
+						Current->bVisited = false;
+					};
+					Recurse(Allocator, Recurse);
+				}
+			}
+			break;
+#endif // WITH_RHI_BREADCRUMBS
+
 		case EOpType::Rename:
 			Data_Rename.Resource->SetDebugName(Data_Rename.DebugName, Data_Rename.Suffix);
 			delete[] Data_Rename.DebugName;
@@ -1834,7 +2120,7 @@ namespace RHIValidation
 			break;
 
 		case EOpType::BeginTransition:
-			Data_BeginTransition.Identity.Resource->EnumerateSubresources(Data_BeginTransition.Identity.SubresourceRange, [this, Pipeline](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
+			Data_BeginTransition.Identity.Resource->EnumerateSubresources(Data_BeginTransition.Identity.SubresourceRange, [this, &Queue](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
 			{
 				State.BeginTransition(
 					Data_BeginTransition.Identity.Resource,
@@ -1842,7 +2128,9 @@ namespace RHIValidation
 					Data_BeginTransition.PreviousState,
 					Data_BeginTransition.NextState,
 					Data_BeginTransition.Flags,
-					Pipeline,
+					Data_BeginTransition.CreateFlags,
+					Queue.Pipeline,
+					Queue.MaxAwaitedFenceValues,
 					Data_BeginTransition.CreateBacktrace);
 
 			}, true);
@@ -1850,14 +2138,15 @@ namespace RHIValidation
 			break;
 
 		case EOpType::EndTransition:
-			Data_EndTransition.Identity.Resource->EnumerateSubresources(Data_EndTransition.Identity.SubresourceRange, [this, Pipeline](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
+			Data_EndTransition.Identity.Resource->EnumerateSubresources(Data_EndTransition.Identity.SubresourceRange, [this, &Queue](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
 			{
 				State.EndTransition(
 					Data_EndTransition.Identity.Resource,
 					SubresourceIndex,
 					Data_EndTransition.PreviousState,
 					Data_EndTransition.NextState,
-					Pipeline,
+					Queue.Pipeline,
+					Queue.FenceValue,
 					Data_EndTransition.CreateBacktrace);
 			});
 			Data_EndTransition.Identity.Resource->ReleaseOpRef();
@@ -1870,12 +2159,12 @@ namespace RHIValidation
 			break;
 
 		case EOpType::SetTrackedAccess:
-			Data_Assert.Identity.Resource->EnumerateSubresources(Data_SetTrackedAccess.Resource->GetWholeResourceRange(), [this, Pipeline](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
+			Data_Assert.Identity.Resource->EnumerateSubresources(Data_SetTrackedAccess.Resource->GetWholeResourceRange(), [this, &Queue](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
 			{
 				State.AssertTracked(
 					Data_SetTrackedAccess.Resource,
 					SubresourceIndex,
-					FState(Data_SetTrackedAccess.Access, Pipeline));
+					FState(Data_SetTrackedAccess.Access, Queue.Pipeline));
 			});
 			Data_SetTrackedAccess.Resource->TrackedAccess = Data_SetTrackedAccess.Access;
 			Data_SetTrackedAccess.Resource->ReleaseOpRef();
@@ -1886,133 +2175,128 @@ namespace RHIValidation
 			Data_AcquireTransient.Resource->ReleaseOpRef();
 			break;
 
-		case EOpType::DiscardTransient:
-			Data_DiscardTransient.Resource->TransientState.Discard(Data_DiscardTransient.Resource, Data_DiscardTransient.CreateBacktrace);
-			Data_AcquireTransient.Resource->ReleaseOpRef();
+		case EOpType::InitTransient:
+			Data_InitTransient.Resource->InitTransient(Data_InitTransient.DebugName);
+			delete[] Data_InitTransient.DebugName;
+			Data_InitTransient.Resource->ReleaseOpRef();
 			break;
 
 		case EOpType::Assert:
-			Data_Assert.Identity.Resource->EnumerateSubresources(Data_Assert.Identity.SubresourceRange, [this, Pipeline, &bAllowAllUAVsOverlap](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
+			Data_Assert.Identity.Resource->EnumerateSubresources(Data_Assert.Identity.SubresourceRange, [this, &Queue](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
 			{
 				State.Assert(
 					Data_Assert.Identity.Resource,
 					SubresourceIndex,
 					Data_Assert.RequiredState,
-					bAllowAllUAVsOverlap);
+					Queue.bAllowAllUAVsOverlap);
 			});
 			Data_Assert.Identity.Resource->ReleaseOpRef();
 			break;
 
 		case EOpType::Signal:
-			if (Data_Signal.Pipeline != Pipeline)
-			{
-				break;
-			}
-
+			check(Data_Signal.Fence->SrcPipe == Queue.Pipeline);
 			Data_Signal.Fence->bSignaled = true;
-			return EReplayStatus::Signaled;
+			Data_Signal.Fence->FenceValue = ++Queue.FenceValue;
+			break;
 
 		case EOpType::Wait:
-			if (Data_Wait.Pipeline != Pipeline)
 			{
-				break;
-			}
+				FFence* Fence = Data_Wait.Fence;
+				check(Fence->DstPipe == Queue.Pipeline);
+				if (!Fence->bSignaled)
+				{
+					return false;
+				}
 
-			if (Data_Wait.Fence->bSignaled)
-			{
+				Queue.MaxAwaitedFenceValues[Fence->SrcPipe] = FMath::Max(Fence->FenceValue, Queue.MaxAwaitedFenceValues[Fence->SrcPipe]);
+
 				// The fence has been completed. Free it now.
-				delete Data_Wait.Fence;
-
-				return EReplayStatus::Normal;
+				delete Fence;
 			}
-			else
-			{
-				return EReplayStatus::Waiting;
-			}
+			break;
 
 		case EOpType::AllUAVsOverlap:
-			RHI_VALIDATION_CHECK(bAllowAllUAVsOverlap != Data_AllUAVsOverlap.bAllow, *GetReasonString_MismatchedAllUAVsOverlapCall(Data_AllUAVsOverlap.bAllow));
-			bAllowAllUAVsOverlap = Data_AllUAVsOverlap.bAllow;
+			RHI_VALIDATION_CHECK(Queue.bAllowAllUAVsOverlap != Data_AllUAVsOverlap.bAllow, *GetReasonString_MismatchedAllUAVsOverlapCall(Data_AllUAVsOverlap.bAllow));
+			Queue.bAllowAllUAVsOverlap = Data_AllUAVsOverlap.bAllow;
 			break;
 
 		case EOpType::SpecificUAVOverlap:
-			Data_SpecificUAVOverlap.Identity.Resource->EnumerateSubresources(Data_SpecificUAVOverlap.Identity.SubresourceRange, [this, Pipeline](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
+			Data_SpecificUAVOverlap.Identity.Resource->EnumerateSubresources(Data_SpecificUAVOverlap.Identity.SubresourceRange, [this, &Queue](FSubresourceState& State, FSubresourceIndex const& SubresourceIndex)
 			{
 				State.SpecificUAVOverlap(
 					Data_SpecificUAVOverlap.Identity.Resource,
 					SubresourceIndex,
-					Pipeline,
+					Queue.Pipeline,
 					Data_SpecificUAVOverlap.bAllow);
 			});
 			Data_SpecificUAVOverlap.Identity.Resource->ReleaseOpRef();
 			break;
 		}
 
-		return EReplayStatus::Normal;
+		return true;
 	}
 
 	void FTracker::AddOp(const RHIValidation::FOperation& Op)
 	{
-		if (GRHICommandList.Bypass() && CurrentList.Operations.Num() == 0)
+		if (GRHICommandList.Bypass() && CurrentList.IsEmpty())
 		{
-			auto& OpQueue = OpQueues[GetOpQueueIndex(Pipeline)];
-			if (!EnumHasAllFlags(Op.Replay(Pipeline, OpQueue.bAllowAllUAVsOverlap, OpQueue.Breadcrumbs), EReplayStatus::Waiting))
+			if (Op.Replay(GetQueue(Pipeline)))
 			{
 				return;
 			}
 		}
 
-		CurrentList.Operations.Add(Op);
+		CurrentList.Add(Op);
 	}
 
-	void FTracker::ReplayOpQueue(ERHIPipeline DstOpQueue, FOperationsList&& InOpsList)
+	void FOpQueueState::AppendOps(FValidationCommandList* CommandList)
 	{
-		int32 DstOpQueueIndex = GetOpQueueIndex(DstOpQueue);
-		FOpQueueState& DstQueue = OpQueues[DstOpQueueIndex];
+		Ops.Emplace(MoveTemp(CommandList->CompletedOpList));
+	}
 
-		// Replay any barrier operations to validate resource barrier usage.
-		EReplayStatus Status;
-		OpQueues[DstOpQueueIndex].bWaiting |= InOpsList.Incomplete();
+	bool FOpQueueState::Execute()
+	{
+		if (!Ops.Num())
+			return false;
+
+		bool bProgressMade = false;
+		FRHIValidationQueueScope Scope(*this);
+
+		while (Ops.Num())
+		{
+			for (FOpsList& List = Ops[0]; List.ReplayPos < List.Num(); ++List.ReplayPos)
+			{
+				if (!List[List.ReplayPos].Replay(*this))
+				{
+					// Queue is blocked
+					return bProgressMade;
+				}
+
+				bProgressMade = true;
+			}
+
+			Ops.RemoveAt(0);
+		}
+
+		return bProgressMade;
+	}
+
+	void FTracker::SubmitValidationOps(ERHIPipeline Pipeline, TArray<RHIValidation::FOperation>&& Ops)
+	{
+		GetQueue(Pipeline).Ops.Emplace(MoveTemp(Ops));
+
+		// Keep executing until no more progress is made,
+		// (i.e. until queues are empty or blocked on fences).
+		bool bProgressMade;
 		do
 		{
-			Status = EReplayStatus::Normal;
-			for (int32 CurrentIndex = 0; CurrentIndex < int32(ERHIPipeline::Num); ++CurrentIndex)
+			bProgressMade = false;
+			for (FOpQueueState& CurrentQueue : OpQueues)
 			{
-				const ERHIPipeline CurrentPipeline = ERHIPipeline(1 << CurrentIndex);
-				FOpQueueState& CurrentQueue = OpQueues[CurrentIndex];
-				if (CurrentQueue.bWaiting)
-				{
-					Status = CurrentQueue.Ops.Replay(CurrentPipeline, CurrentQueue.bAllowAllUAVsOverlap, CurrentQueue.Breadcrumbs);
-					if (!EnumHasAllFlags(Status, EReplayStatus::Waiting))
-					{
-						CurrentQueue.Ops.Reset();
-						if (CurrentIndex == DstOpQueueIndex && InOpsList.Incomplete())
-						{
-							Status |= InOpsList.Replay(CurrentPipeline, CurrentQueue.bAllowAllUAVsOverlap, CurrentQueue.Breadcrumbs);
-							CurrentQueue.bWaiting = InOpsList.Incomplete();
-						}
-						else
-						{
-							CurrentQueue.bWaiting = false;
-						}
-					}
-
-					if (EnumHasAllFlags(Status, EReplayStatus::Signaled))
-					{
-						// run through the queues again to release any waits
-						break;
-					}
-				}
+				bProgressMade |= CurrentQueue.Execute();
 			}
-		} while (EnumHasAllFlags(Status, EReplayStatus::Signaled));
 
-		// enqueue incomplete operations
-		if (InOpsList.Incomplete())
-		{
-			DstQueue.Ops.Append(InOpsList);
-			InOpsList.Reset();
-			DstQueue.bWaiting = true;
-		}
+		} while (bProgressMade);
 	}
 
 
@@ -2047,7 +2331,7 @@ namespace RHIValidation
 
 		RHI_VALIDATION_CHECK(bContainsNullContents == false, TEXT("Uniform buffer created with null contents is now being bound for rendering on an RHI context. The contents must first be updated."));
 
-		if (UniformBufferUsage != UniformBuffer_MultiFrame && AllocatedFrameID != ValidateRHI->RHIThreadFrameID)
+		if (UniformBufferUsage != UniformBuffer_MultiFrame && AllocatedFrameID < ValidateRHI->RHIThreadFrameID)
 		{
 			FString ErrorMessage = TEXT("Non MultiFrame Uniform buffer has been allocated in a previous frame. The data could have been deleted already!");
 			if (AllocatedCallstack != nullptr)
@@ -2058,8 +2342,29 @@ namespace RHIValidation
 		}
 	}
 
-	
-	FTracker::FOpQueueState FTracker::OpQueues[int32(ERHIPipeline::Num)] = {};
+	FOpQueueState FTracker::OpQueues[int32(ERHIPipeline::Num)]
+	{
+		ERHIPipeline::Graphics,
+		ERHIPipeline::AsyncCompute
+	};
+
+	FOpQueueState& FTracker::GetQueue(ERHIPipeline Pipeline)
+	{
+		uint32 Index;
+		switch (Pipeline)
+		{
+		default: checkNoEntry(); [[fallthrough]];
+		case ERHIPipeline::Graphics:
+			Index = 0;
+			break;
+
+		case ERHIPipeline::AsyncCompute:
+			Index = 1;
+			break;
+		}
+
+		return OpQueues[Index];
+	}
 
 	void* CaptureBacktrace()
 	{
@@ -2071,7 +2376,7 @@ namespace RHIValidation
 		return Backtrace;
 	}
 
-	bool ValidateDimension(EShaderCodeResourceBindingType Type, FRHIViewDesc::EDimension Dimension, bool SRV)
+	bool ValidateDimension(EShaderCodeResourceBindingType Type, FRHIViewDesc::EDimension Dimension, ERHITexturePlane TexturePlane, bool SRV)
 	{
 		// Ignore invalid types
 		if (Type == EShaderCodeResourceBindingType::Invalid)
@@ -2084,23 +2389,42 @@ namespace RHIValidation
 			return false;
 		}
 
+		if (Type == EShaderCodeResourceBindingType::RWStructuredBuffer || Type == EShaderCodeResourceBindingType::StructuredBuffer)
+		{
+			return TexturePlane == ERHITexturePlane::HTile;
+		}
+
+		if (Type == EShaderCodeResourceBindingType::RWByteAddressBuffer || Type == EShaderCodeResourceBindingType::ByteAddressBuffer)
+		{
+			return TexturePlane == ERHITexturePlane::CMask;
+		}
+		
+		if (Type == EShaderCodeResourceBindingType::RWBuffer || Type == EShaderCodeResourceBindingType::Buffer)
+		{
+			return TexturePlane == ERHITexturePlane::PrimaryCompressed || TexturePlane == ERHITexturePlane::CMask;
+		}
+
 		if (Type == EShaderCodeResourceBindingType::Texture2D || Type == EShaderCodeResourceBindingType::RWTexture2D || Type == EShaderCodeResourceBindingType::Texture2DMS)
 		{
 			return Dimension == FRHIViewDesc::EDimension::Texture2D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
+
+		if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
 		{
-			return Dimension == FRHIViewDesc::EDimension::Texture2DArray;
+			return Dimension == FRHIViewDesc::EDimension::Texture2DArray || Dimension == FRHIViewDesc::EDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
+
+		if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
 		{
 			return Dimension == FRHIViewDesc::EDimension::Texture3D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
 		{
 			return Dimension == FRHIViewDesc::EDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
 		{
 			return Dimension == FRHIViewDesc::EDimension::TextureCubeArray;
 		}
@@ -2120,19 +2444,23 @@ namespace RHIValidation
 		{
 			return Dimension == ETextureDimension::Texture2D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
+
+		if (Type == EShaderCodeResourceBindingType::Texture2DArray || Type == EShaderCodeResourceBindingType::RWTexture2DArray)
 		{
-			return Dimension == ETextureDimension::Texture2DArray;
+			return Dimension == ETextureDimension::Texture2DArray || Dimension == ETextureDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
+
+		if (Type == EShaderCodeResourceBindingType::Texture3D || Type == EShaderCodeResourceBindingType::RWTexture3D)
 		{
 			return Dimension == ETextureDimension::Texture3D;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCube || Type == EShaderCodeResourceBindingType::RWTextureCube)
 		{
 			return Dimension == ETextureDimension::TextureCube;
 		}
-		else if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
+
+		if (Type == EShaderCodeResourceBindingType::TextureCubeArray)
 		{
 			return Dimension == ETextureDimension::TextureCubeArray;
 		}
@@ -2159,7 +2487,7 @@ namespace RHIValidation
 		}
 		else if (Type == EShaderCodeResourceBindingType::StructuredBuffer || Type == EShaderCodeResourceBindingType::RWStructuredBuffer)
 		{
-			return BufferType == FRHIViewDesc::EBufferType::Structured;
+			return BufferType == FRHIViewDesc::EBufferType::Structured || BufferType == FRHIViewDesc::EBufferType::AccelerationStructure;
 		}
 		else if (Type == EShaderCodeResourceBindingType::Buffer || Type == EShaderCodeResourceBindingType::RWBuffer)
 		{
@@ -2205,7 +2533,7 @@ namespace RHIValidation
 			{
 				FString SRVName = GetSRVName(SRV, ViewIdentity);
 				uint16 ExpectedStride = RHIShaderBase->DebugStrideValidationData[FoundIndex].Stride;
-				if (ExpectedStride != SRVValidationStride.Stride)
+				if (ExpectedStride != SRVValidationStride.Stride && SRV->GetDesc().Buffer.SRV.BufferType != FRHIViewDesc::EBufferType::AccelerationStructure)
 				{
 					
 					FString ErrorMessage = FString::Printf(TEXT("Shader %s: Buffer stride for \"%s\" must match structure size declared in the shader"), RHIShaderBase->GetShaderName(), *SRVName);
@@ -2229,7 +2557,7 @@ namespace RHIValidation
 
 				if (SRV->IsTexture())
 				{
-					if (!ValidateDimension(ExpectedType, SRV->GetDesc().Texture.SRV.Dimension, true))
+					if (!ValidateDimension(ExpectedType, SRV->GetDesc().Texture.SRV.Dimension, SRV->GetDesc().Texture.SRV.Plane, true))
 					{
 						FString SRVName = GetSRVName(SRV, ViewIdentity);
 						FString ErrorMessage = FString::Printf(TEXT("Shader %s: Dimension for SRV \"%s\" must match type declared in the shader"), RHIShaderBase->GetShaderName(), *SRVName);
@@ -2358,7 +2686,7 @@ namespace RHIValidation
 
 				if (UAV->IsTexture())
 				{
-					if (!ValidateDimension(ExpectedType, UAV->GetDesc().Texture.UAV.Dimension, false))
+					if (!ValidateDimension(ExpectedType, UAV->GetDesc().Texture.UAV.Dimension, UAV->GetDesc().Texture.UAV.Plane, false))
 					{
 						FString UAVName = GetUAVName(UAV, ViewIdentity);
 						FString ErrorMessage = FString::Printf(TEXT("Shader %s: Dimension for UAV \"%s\" must match type declared in the shader"), RHIShaderBase->GetShaderName(), *UAVName);
@@ -2409,8 +2737,30 @@ namespace RHIValidation
 	/** Validates that the Uniform conforms to what the shader expects */
 	void ValidateUniformBuffer(const FRHIShader* RHIShaderBase, uint32 BindIndex, FRHIUniformBuffer* UB)
 	{
+		if (!UB)
+		{
+			return;
+		}
+
+		const FRHIUniformBufferLayout& Layout = UB->GetLayout();
+
+		const TArray<uint32>& LayoutHashes = RHIShaderBase->GetShaderResourceTable().ResourceTableLayoutHashes;
+		if (BindIndex >= (uint32)LayoutHashes.Num())
+		{
+			FString ErrorMessage = FString::Printf(TEXT("Shader %s: Invalid bind index %u for uniform buffer \"%s\" (UB table size: %d)"), RHIShaderBase->GetShaderName(), BindIndex, *Layout.GetDebugName(), LayoutHashes.Num());
+			RHI_VALIDATION_CHECK(false, *ErrorMessage);
+			return;
+		}
+
+		uint32 ShaderTableHash = LayoutHashes[BindIndex];
+		uint32 UniformBufferHash = Layout.GetHash();
+		if (ShaderTableHash != 0 && UniformBufferHash != ShaderTableHash)
+		{
+			FString ErrorMessage = FString::Printf(TEXT("Shader %s: Invalid layout hash %u for uniform buffer \"%s\" at bind index %u, expecting %u"), RHIShaderBase->GetShaderName(), UniformBufferHash, *Layout.GetDebugName(), BindIndex, ShaderTableHash);
+			RHI_VALIDATION_CHECK(false, *ErrorMessage);
+		}
+
 #if RHI_INCLUDE_SHADER_DEBUG_DATA
-		if (UB)
 		{
 			// Validate Type
 			static const auto ShaderCodeValidationUBSizePredicate = [](const FShaderCodeValidationUBSize& lhs, const FShaderCodeValidationUBSize& rhs) -> bool { return lhs.BindPoint < rhs.BindPoint; };
@@ -2423,8 +2773,6 @@ namespace RHIValidation
 
 				if(Size > 0 && Size > UB->GetSize())
 				{
-					const FRHIUniformBufferLayout& Layout = UB->GetLayout();
-
 					FString ErrorMessage = FString::Printf(TEXT("Shader %s: Uniform buffer \"%s\" has unexpected size"), RHIShaderBase->GetShaderName(), *Layout.GetDebugName());
 					ErrorMessage += FString::Printf(TEXT("\nBind point: %d, HLSL size: %d, Actual size: %d"), BindIndex, Size, UB->GetSize());
 					RHI_VALIDATION_CHECK(false, *ErrorMessage);
@@ -2455,11 +2803,16 @@ FValidationTransientResourceAllocator::~FValidationTransientResourceAllocator()
 	checkf(!RHIAllocator, TEXT("Release was not called on FRHITransientResourceAllocator."));
 }
 
-FRHITransientTexture* FValidationTransientResourceAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+void FValidationTransientResourceAllocator::SetCreateMode(ERHITransientResourceCreateMode InCreateMode)
+{
+	// Validation intentionally doesn't pass through the create mode. It's always inline.
+}
+
+FRHITransientTexture* FValidationTransientResourceAllocator::CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
 	check(FRHITextureCreateInfo::CheckValidity(InCreateInfo, InDebugName));
 
-	FRHITransientTexture* TransientTexture = RHIAllocator->CreateTexture(InCreateInfo, InDebugName, InPassIndex);
+	FRHITransientTexture* TransientTexture = RHIAllocator->CreateTexture(InCreateInfo, InDebugName, Fences);
 
 	if (!TransientTexture)
 	{
@@ -2468,34 +2821,32 @@ FRHITransientTexture* FValidationTransientResourceAllocator::CreateTexture(const
 
 	FRHITexture* RHITexture = TransientTexture->GetRHI();
 
-	// Store allocation data
-	FAllocatedResourceData ResourceData;
-	ResourceData.DebugName = InDebugName;
-	ResourceData.ResourceType = FAllocatedResourceData::EType::Texture;
-	ResourceData.Texture.Flags = InCreateInfo.Flags;
-	ResourceData.Texture.Format = InCreateInfo.Format;
-	ResourceData.Texture.ArraySize = InCreateInfo.ArraySize;
-	ResourceData.Texture.NumMips = InCreateInfo.NumMips;
-	AllocatedResourceMap.Add(RHITexture, ResourceData);
+	checkf(!AllocatedResourceMap.Contains(RHITexture), TEXT("Platform RHI returned an FRHITexture (0x%p) which was already in use by another transient texture resource on this allocator (0x%p)."), RHITexture, this);
+	AllocatedResourceMap.Add(RHITexture, { InDebugName, FAllocatedResourceData::EType::Texture });
 
-	if (RHIValidation::FResource* Resource = RHITexture->GetTrackerResource())
+	RHIValidation::FResource* Resource = RHITexture->GetTrackerResource();
+	check(Resource);
+
+	if (!Resource->IsBarrierTrackingInitialized())
 	{
-		if (!Resource->IsBarrierTrackingInitialized())
-		{
-			RHITexture->InitBarrierTracking(InCreateInfo.NumMips, InCreateInfo.ArraySize * (InCreateInfo.IsTextureCube() ? 6 : 1), InCreateInfo.Format, InCreateInfo.Flags, ERHIAccess::Discard, InDebugName);
-		}
-		else
-		{
-			AllocatedResourcesToInit.Emplace(RHITexture, ResourceData);
-		}
+		RHITexture->InitBarrierTracking(InCreateInfo.NumMips, InCreateInfo.ArraySize * (InCreateInfo.IsTextureCube() ? 6 : 1), InCreateInfo.Format, InCreateInfo.Flags, ERHIAccess::Discard, InDebugName);
+	}
+	else
+	{
+		// The existing resource returned by the platform RHI should have the layout we expect.
+		RHITexture->CheckValidationLayout(InCreateInfo.NumMips, InCreateInfo.ArraySize * (InCreateInfo.IsTextureCube() ? 6 : 1), InCreateInfo.Format);
+
+		// @todo dev-pr debug names are global properties of resources. It seems wrong to require the graphics pipe here. Decouple this.
+		// @todo we should validate the resource was in the Discard state rather than forcing it
+		PendingPipelineOps[ERHIPipeline::Graphics].Emplace(RHIValidation::FOperation::InitTransient(Resource, InDebugName));
 	}
 
 	return TransientTexture;
 }
 
-FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex)
+FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences)
 {
-	FRHITransientBuffer* TransientBuffer = RHIAllocator->CreateBuffer(InCreateInfo, InDebugName, InPassIndex);
+	FRHITransientBuffer* TransientBuffer = RHIAllocator->CreateBuffer(InCreateInfo, InDebugName, Fences);
 
 	if (!TransientBuffer)
 	{
@@ -2504,11 +2855,8 @@ FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const F
 
 	FRHIBuffer* RHIBuffer = TransientBuffer->GetRHI();
 
-	// Store allocation data
-	FAllocatedResourceData ResourceData;
-	ResourceData.DebugName = InDebugName;
-	ResourceData.ResourceType = FAllocatedResourceData::EType::Buffer;
-	AllocatedResourceMap.Add(RHIBuffer, ResourceData);
+	checkf(!AllocatedResourceMap.Contains(RHIBuffer), TEXT("Platform RHI returned an FRHIBuffer (0x%p) which was already in use by another transient buffer resource on this allocator (0x%p)."), RHIBuffer, this);
+	AllocatedResourceMap.Add(RHIBuffer, { InDebugName, FAllocatedResourceData::EType::Buffer });
 
 	if (!RHIBuffer->IsBarrierTrackingInitialized())
 	{
@@ -2516,27 +2864,29 @@ FRHITransientBuffer* FValidationTransientResourceAllocator::CreateBuffer(const F
 	}
 	else
 	{
-		AllocatedResourcesToInit.Emplace(RHIBuffer, ResourceData);
+		// @todo dev-pr debug names are global properties of resources. It seems wrong to require the graphics pipe here. Decouple this.
+		// @todo we should validate the resource was in the Discard state rather than forcing it
+		PendingPipelineOps[ERHIPipeline::Graphics].Emplace(RHIValidation::FOperation::InitTransient(RHIBuffer, InDebugName));
 	}
 
 	return TransientBuffer;
 }
 
-void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientTexture* InTransientTexture, uint32 InPassIndex)
+void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientTexture* InTransientTexture, const FRHITransientAllocationFences& Fences)
 {
 	check(InTransientTexture);
 
-	RHIAllocator->DeallocateMemory(InTransientTexture, InPassIndex);
+	RHIAllocator->DeallocateMemory(InTransientTexture, Fences);
 
 	checkf(AllocatedResourceMap.Contains(InTransientTexture->GetRHI()), TEXT("DeallocateMemory called on texture %s, but it is not marked as allocated."), InTransientTexture->GetName());
 	AllocatedResourceMap.Remove(InTransientTexture->GetRHI());
 }
 
-void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientBuffer* InTransientBuffer, uint32 InPassIndex)
+void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientBuffer* InTransientBuffer, const FRHITransientAllocationFences& Fences)
 {
 	check(InTransientBuffer);
 
-	RHIAllocator->DeallocateMemory(InTransientBuffer, InPassIndex);
+	RHIAllocator->DeallocateMemory(InTransientBuffer, Fences);
 
 	checkf(AllocatedResourceMap.Contains(InTransientBuffer->GetRHI()), TEXT("DeallocateMemory called on buffer %s, but it is not marked as allocated."), InTransientBuffer->GetName());
 	AllocatedResourceMap.Remove(InTransientBuffer->GetRHI());
@@ -2544,75 +2894,115 @@ void FValidationTransientResourceAllocator::DeallocateMemory(FRHITransientBuffer
 
 void FValidationTransientResourceAllocator::Flush(FRHICommandListImmediate& RHICmdList, FRHITransientAllocationStats* OutHeapStats)
 {
-	RHICmdList.EnqueueLambda([AllocatedResourcesToInit = MoveTemp(AllocatedResourcesToInit)](FRHICommandListImmediate& InRHICmdList)
+	// Insert pending ops into context trackers
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 	{
-		// Tracking will be re-initialized, so we need to flush any remaining references.
-		static_cast<FValidationContext&>(InRHICmdList.GetContext()).FlushValidationOps();
-		InitBarrierTracking(AllocatedResourcesToInit);
-	});
+		if (PendingPipelineOps[Pipeline].Num())
+		{
+			FRHICommandListScopedPipeline Scope(RHICmdList, Pipeline);
+			RHICmdList.EnqueueLambda([Pipeline, PendingOps = MoveTemp(PendingPipelineOps[Pipeline])](FRHICommandListImmediate& InRHICmdList)
+			{
+				IRHIComputeContext& Context = InRHICmdList.GetComputeContext().GetLowestLevelContext();
+				Context.Tracker->AddOps(PendingOps);
+			});
+		}
+	}
 
 	RHIAllocator->Flush(RHICmdList, OutHeapStats);
 }
 
 void FValidationTransientResourceAllocator::Release(FRHICommandListImmediate& RHICmdList)
 {
-	// Check all allocated resource data and make sure all memory is freed again
-	{
-		if (AllocatedResourceMap.Num() > 0)
-		{
-			FString ErrorMessage = FString::Printf(
-				TRANSIENT_RESOURCE_LOG_PREFIX_REASON("Open transient allocations")
-				TEXT("%d Transient Resource allocations still have memory allocated. Call 'DeallocateMemory' on all transient allocated resources prior to releasing the allocator.\n\n")
-				TEXT("Resources with Allocated Memory:\n"),
-				AllocatedResourceMap.Num());
-
-			for (const auto& KeyValue : AllocatedResourceMap)
-			{
-				const FAllocatedResourceData& ResourceData = KeyValue.Value;
-
-				ErrorMessage += FString::Printf(TEXT("         %s (%s)\n"), *ResourceData.DebugName, ResourceData.ResourceType == FAllocatedResourceData::EType::Texture ? TEXT("Texture") : TEXT("Buffer"));
-			}
-			ErrorMessage += FString::Printf(TRANSIENT_RESOURCE_LOG_SUFFIX);
-			FValidationRHI::ReportValidationFailure(*ErrorMessage);
-		}
-	}
-
 	RHIAllocator->Release(RHICmdList);
 	RHIAllocator = nullptr;
 	delete this;
 }
 
-void FValidationTransientResourceAllocator::InitBarrierTracking(const FAllocatedResourceDataArray& AllocatedResourcesToInit)
+void ValidateShaderParameters(FRHIShader* RHIShader, RHIValidation::FTracker* Tracker, RHIValidation::FStaticUniformBuffers& StaticUniformBuffers, RHIValidation::FStageBoundUniformBuffers& BoundUniformBuffers, TConstArrayView<FRHIShaderParameterResource> InParameters, ERHIAccess InRequiredAccess, RHIValidation::EUAVMode InRequiredUAVMode)
 {
-	// Barrier tracking initialization has to happen on the RHI thread, because RHI resources are pooled and reused.
-
-	for (const auto& Entry : AllocatedResourcesToInit)
+	for (const FRHIShaderParameterResource& Parameter : InParameters)
 	{
-		FRHIResource* Resource = Entry.Key;
-		const FAllocatedResourceData& ResourceData = Entry.Value;
-
-		switch (ResourceData.ResourceType)
+		switch (Parameter.Type)
 		{
-		case FAllocatedResourceData::EType::Texture:
-		{
-			FRHITexture* Texture = static_cast<FRHITexture*>(Resource);
-
-			int32 ArraySize = ResourceData.Texture.ArraySize;
-
-			if (Texture->GetTextureCube() != nullptr)
+		case FRHIShaderParameterResource::EType::Texture:
+			if (FRHITexture* Texture = static_cast<FRHITexture*>(Parameter.Resource))
 			{
-				ArraySize *= 6;
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.Index, Texture);
+				}
+				Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
 			}
+			break;
+		case FRHIShaderParameterResource::EType::ResourceView:
+			if (FRHIShaderResourceView* SRV = static_cast<FRHIShaderResourceView*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateShaderResourceView(RHIShader, Parameter.Index, SRV);
+				}
+				Tracker->Assert(SRV->GetViewIdentity(), InRequiredAccess);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::UnorderedAccessView:
+			if (FRHIUnorderedAccessView* UAV = static_cast<FRHIUnorderedAccessView*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateUnorderedAccessView(RHIShader, Parameter.Index, UAV);
+				}
+				Tracker->AssertUAV(static_cast<FRHIUnorderedAccessView*>(Parameter.Resource), InRequiredUAVMode, Parameter.Index);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::Sampler:
+			// No validation
+			break;
+		case FRHIShaderParameterResource::EType::UniformBuffer:
+			if (FRHIUniformBuffer* UniformBuffer = static_cast<FRHIUniformBuffer*>(Parameter.Resource))
+			{
+				if (GRHIValidationEnabled)
+				{
+					RHIValidation::ValidateUniformBuffer(RHIShader, Parameter.Index, UniformBuffer);
+				}
 
-			Texture->InitBarrierTracking(ResourceData.Texture.NumMips, ArraySize, ResourceData.Texture.Format, ResourceData.Texture.Flags, ERHIAccess::Discard, *ResourceData.DebugName);
-		}
-		break;
-		case FAllocatedResourceData::EType::Buffer:
-		{
-			FRHIBuffer* Buffer = static_cast<FRHIBuffer*>(Resource);
-			Buffer->InitBarrierTracking(ERHIAccess::Discard, *ResourceData.DebugName);
-		}
-		break;
+				BoundUniformBuffers.Bind(Parameter.Index, UniformBuffer);
+				StaticUniformBuffers.ValidateSetShaderUniformBuffer(UniformBuffer);
+			}
+			break;
+		case FRHIShaderParameterResource::EType::ResourceCollection:
+			if (const FRHIResourceCollection* ResourceCollection = static_cast<const FRHIResourceCollection*>(Parameter.Resource))
+			{
+				for (const FRHIResourceCollectionMember& Member : ResourceCollection->Members)
+				{
+					switch (Member.Type)
+					{
+					case FRHIResourceCollectionMember::EType::Texture:
+						if (FRHITexture* Texture = static_cast<FRHITexture*>(Member.Resource))
+						{
+							Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+						}
+						break;
+					case FRHIResourceCollectionMember::EType::TextureReference:
+						if (FRHITextureReference* Texture = static_cast<FRHITextureReference*>(Member.Resource))
+						{
+							Tracker->Assert(Texture->GetWholeResourceIdentitySRV(), InRequiredAccess);
+						}
+						break;
+					case FRHIResourceCollectionMember::EType::ShaderResourceView:
+						if (FRHIShaderResourceView* SRV = static_cast<FRHIShaderResourceView*>(Parameter.Resource))
+						{
+							Tracker->Assert(SRV->GetViewIdentity(), InRequiredAccess);
+						}
+						break;
+					default:
+						break;
+					}
+				}
+			}
+			break;
+		default:
+			checkf(false, TEXT("Unhandled resource type?"));
+			break;
 		}
 	}
 }

@@ -53,6 +53,14 @@ struct FMinimalViewInfo
 	UPROPERTY(Transient)
 	float DesiredFOV;
 
+	/** The horizontal field of view (in degrees) used for primitives tagged as "IsFirstPerson". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	float FirstPersonFOV;
+
+	/** The scale to apply to primitives tagged as "IsFirstPerson". This is used to scale down primitives towards the camera such that they are small enough not to intersect with the scene. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	float FirstPersonScale;
+
 	/** The desired width (in world units) of the orthographic view (ignored in Perspective mode) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	float OrthoWidth;
@@ -96,6 +104,10 @@ struct FMinimalViewInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	uint32 bConstrainAspectRatio:1; 
 
+	// If bUseFirstPersonParameters is true, FirstPersonFOV and FirstPersonScale should be applied to primitives tagged as "IsFirstPerson".
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	uint32 bUseFirstPersonParameters : 1;
+
 	// If true, account for the field of view angle when computing which level of detail to use for meshes.
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=CameraSettings)
 	uint32 bUseFieldOfViewForLOD:1;
@@ -119,7 +131,18 @@ struct FMinimalViewInfo
 	/** Optional transform to be considered as this view's previous transform */
 	TOptional<FTransform> PreviousViewTransform;
 
+	/** Resolution fraction that scales with the amount of overscan added to the view */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
+	float OverscanResolutionFraction;
+	
+	/** The fraction between 0.0 and 1.0 of the view to crop to during the final post process upscale, with 1.0 meaning no crop */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera, meta=(ClampMin=0.0, UIMin=0.0, ClampMax=1.0, UIMax=1.0))
+	float CropFraction;
+	
 private:
+	/** The amount of overscan that has been applied to the view's frustum, with 0.0 meaning no overscan and 1.0 meaning 100% overscan */
+	float Overscan;
+	
 	// Only used for Ortho camera auto plane calculations, tells the Near plane of the extra distance that needs to be added.
 	FVector CameraToViewTarget;
 
@@ -130,6 +153,8 @@ public:
 		, Rotation(ForceInit)
 		, FOV(90.0f)
 		, DesiredFOV(90.0f)
+		, FirstPersonFOV(90.0f)
+		, FirstPersonScale(1.0f)
 		, OrthoWidth(512.0f)
 		, bAutoCalculateOrthoPlanes(true)
 		, AutoPlaneShift(0.0f)
@@ -140,10 +165,14 @@ public:
 		, PerspectiveNearClipPlane(-1.0f)
 		, AspectRatio(1.33333333f)
 		, bConstrainAspectRatio(false)
+		, bUseFirstPersonParameters(false)
 		, bUseFieldOfViewForLOD(true)
 		, ProjectionMode(ECameraProjectionMode::Perspective)
 		, PostProcessBlendWeight(0.0f)
 		, OffCenterProjectionOffset(ForceInitToZero)
+		, OverscanResolutionFraction(1.0f)
+		, CropFraction(1.0f)
+		, Overscan(0.0f)
 		, CameraToViewTarget(FVector::ZeroVector)
 	{
 	}
@@ -183,8 +212,37 @@ public:
 	{
 		CameraToViewTarget = ActorLocation - Location;
 	}
-};
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif
+	/**
+	 * Transforms a world space location into "first person space". This function mirrors the morphing that is applied to first person primitives
+	 * when they are rendered on the GPU, so it can be used for spawning objects (e.g. projectiles or ejected shell casings) relative to the morphed
+	 * first person geometry on screen.
+	 * Setting bIgnoreFirstPersonScale to true only applies the field of view morphing and is useful for cases where a full size projectile is spawned in front
+	 * of the first person weapon. By ignoring the first person scale for the spawn location, the spawned full-size projectile will be spawned a bit further away from the camera,
+	 * but its on-screen size will look correct.
+	 */
+	ENGINE_API FVector TransformWorldToFirstPerson(const FVector& WorldPosition, bool bIgnoreFirstPersonScale) const;
+
+	/**
+	 * Correction factor to apply to the first person transform used on primitives tagged as "IsFirstPerson" to achieve a first person specific field of view.
+	 * It is computed as tan(SceneFOVRadians * 0.5) / tan(FirstPersonFOVRadians * 0.5).
+	 */
+	ENGINE_API float CalculateFirstPersonFOVCorrectionFactor() const;
+
+	/**
+	 * Apply overscan to the view info, which scales the field of view and ortho width to simulate expanding the view frustum.
+	 * 
+	 * @param InOverscan - The amount of overscan to apply, from 0.0 meaning no overscan to 1.0 meaning 100% overscan
+	 * @param bScaleResolutionWithOverscan - Indicates that the view's resolution should be scaled with the amount of overscan, so that the original frustum remains the same resolution
+	 * @param bCropOverscan - Indicates that the view should be cropped during the final post process pass to remove the overscanned pixels
+	 */
+	ENGINE_API void ApplyOverscan(float InOverscan, bool bScaleResolutionWithOverscan = false, bool bCropOverscan = false);
+
+	/** Gets the total amount of overscan that has been applied to the view's frustum, with 0.0 meaning no overscan and 1.0 meaning 100% overscan */
+	ENGINE_API float GetOverscan() const { return Overscan; }
+	
+	/**
+	 * Removes all overscan from the view info.
+	 */
+	ENGINE_API void ClearOverscan();
+};

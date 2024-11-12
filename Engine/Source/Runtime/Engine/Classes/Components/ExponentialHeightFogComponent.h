@@ -66,6 +66,9 @@ class UExponentialHeightFogComponent : public USceneComponent
 	UPROPERTY()
 	FLinearColor FogInscatteringColor_DEPRECATED;
 
+	/**
+	 * Note: when r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored and the volumetric fog Emissive is used instead.
+	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=ExponentialHeightFogComponent, meta = (DisplayName = "Fog Inscattering Color"))
 	FLinearColor FogInscatteringLuminance;
 
@@ -98,14 +101,18 @@ class UExponentialHeightFogComponent : public USceneComponent
 
 	/** 
 	 * Controls the size of the directional inscattering cone, which is used to approximate inscattering from a directional light.  
-	 * Note: there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 * Note: 
+	 *   - there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 *   - When r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored and the volumetric fog Scattering Distribution is used instead.
 	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=DirectionalInscattering, meta=(UIMin = "2", UIMax = "64"))
 	float DirectionalInscatteringExponent;
 
 	/** 
 	 * Controls the start distance from the viewer of the directional inscattering, which is used to approximate inscattering from a directional light. 
-	 * Note: there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 * Note: 
+	 *   - There must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 *   - When r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored.
 	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=DirectionalInscattering)
 	float DirectionalInscatteringStartDistance;
@@ -115,7 +122,9 @@ class UExponentialHeightFogComponent : public USceneComponent
 
 	/** 
 	 * Controls the color of the directional inscattering, which is used to approximate inscattering from a directional light. 
-	 * Note: there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 * Note:
+	 *   - there must be a directional light with bUsedAsAtmosphereSunLight enabled for DirectionalInscattering to be used.
+	 *   - When r.SupportExpFogMatchesVolumetricFog = 1, this value is ignored.
 	 */
 	UPROPERTY(BlueprintReadOnly, interp, Category=DirectionalInscattering, meta = (DisplayName = "Directional Inscattering Color"))
 	FLinearColor DirectionalInscatteringLuminance;
@@ -131,6 +140,10 @@ class UExponentialHeightFogComponent : public USceneComponent
 	/** Distance from the camera that the fog will start, in world units. */
 	UPROPERTY(BlueprintReadOnly, interp, Category=ExponentialHeightFogComponent, meta=(UIMin = "0", UIMax = "5000"))
 	float StartDistance;
+
+	/** Distance from the camera, on the horizontal XY plane, that the fog will end integrating the lighting and transmittance. Disabled when 0. */
+	UPROPERTY(BlueprintReadOnly, interp, Category = ExponentialHeightFogComponent, meta = (UIMin = "0", UIMax = "500000"))
+	float EndDistance;
 
 	/** Scene elements past this distance will not have fog applied.  This is useful for excluding skyboxes which already have fog baked in. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ExponentialHeightFogComponent, meta=(UIMin = "100000", UIMax = "20000000"))
@@ -180,7 +193,7 @@ class UExponentialHeightFogComponent : public USceneComponent
 	/** 
 	 * Distance from the camera that the volumetric fog will start, in world units. 
 	 */
-	UPROPERTY(BlueprintReadOnly, interp, Category= VolumetricFog, meta=(DisplayName = "Start Distance", UIMin = "0", UIMax = "5000"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category= VolumetricFog, meta=(DisplayName = "Start Distance", UIMin = "0", UIMax = "5000"))
 	float VolumetricFogStartDistance;
 
 	/** 
@@ -200,7 +213,7 @@ class UExponentialHeightFogComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = VolumetricFog, AdvancedDisplay)
 	bool bOverrideLightColorsWithFogInscatteringColors;
 
-	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature required the project setting "Enable alpha channel support in post processing". */
+	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature requires activating the project setting(s) "Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, Interp)
 	uint8 bHoldout : 1;
 
@@ -257,6 +270,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|ExponentialHeightFog")
 	ENGINE_API void SetStartDistance(float Value);
+	
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|ExponentialHeightFog")
+	ENGINE_API void SetEndDistance(float Value);
 
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|ExponentialHeightFog")
 	ENGINE_API void SetFogCutoffDistance(float Value);
@@ -278,6 +294,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Rendering|VolumetricFog")
 	ENGINE_API void SetVolumetricFogDistance(float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|VolumetricFog")
+	ENGINE_API void SetVolumetricFogStartDistance(float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|VolumetricFog")
+	ENGINE_API void SetVolumetricFogNearFadeInDistance(float NewValue);
 
 	UFUNCTION(BlueprintCallable, Category="Rendering|VolumetricFog")
 	ENGINE_API void SetSecondFogData(FExponentialHeightFogData NewValue);

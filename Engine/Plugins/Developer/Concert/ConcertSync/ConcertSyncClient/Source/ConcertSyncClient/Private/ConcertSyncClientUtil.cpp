@@ -44,6 +44,7 @@
 	#include "PackageTools.h"
 	#include "Selection.h"
 	#include "Subsystems/AssetEditorSubsystem.h"
+	#include "Subsystems/EditorActorSubsystem.h"
 	#include "UnrealEdGlobals.h"
 #endif
 
@@ -167,13 +168,10 @@ void AddActorToOwnerLevel(AActor* InActor)
 {
 	if (ULevel* Level = InActor->GetLevel())
 	{
-		if (Level->Actors.Contains(InActor))
+		if (!Level->TryAddActorToList(InActor, /*bAddUnique*/true))
 		{
 			return;
 		}
-
-		Level->Actors.Add(InActor);
-		Level->ActorsForGC.Add(InActor);
 
 #if WITH_EDITOR
 		if (GIsEditor)
@@ -209,7 +207,7 @@ int32 GetObjectPathDepth(UObject* InObjToTest)
 	return Depth;
 }
 
-FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNewName, const FName InNewOuterPath, const FName InNewPackageName, const bool bAllowCreate)
+FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNewName, const FName InNewOuterPath, const FName InNewPackageName, const FSoftObjectPath& InSourceObject, const bool bAllowCreate)
 {
 	const bool bIsRename = !InNewName.IsNone();
 	const bool bIsOuterChange = !InNewOuterPath.IsNone();
@@ -353,6 +351,18 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 
 		if (bAllowCreate)
 		{
+			UObject* SourceObject = nullptr;
+			if (!InSourceObject.IsNull())
+			{
+				SourceObject = InSourceObject.ResolveObject();
+				UE_CLOG(!SourceObject, LogConcert, Warning, TEXT("Failed to find source object '%s' for '%s'. This object will be created from its CDO instead."), *InSourceObject.ToString(), *ObjectNameToCreate.ToString());
+			}
+			if (SourceObject && SourceObject->GetClass() != ObjectClass)
+			{
+				UE_LOG(LogConcert, Warning, TEXT("Discarding source object '%s' for '%s' as it was not the expected class (%s). This object will be created from its CDO instead."), *InSourceObject.ToString(), *ObjectNameToCreate.ToString(), *ObjectClass->GetPathName());
+				SourceObject = nullptr;
+			}
+
 			FGetObjectResult ObjectResult;
 			ObjectResult.Factory = Factory;
 
@@ -360,7 +370,14 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 			bool bFactoryHandledCreation = false;
 			if (Factory)
 			{
-				bFactoryHandledCreation = Factory->CreateObject(ObjectResult.Obj, NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
+				if (SourceObject)
+				{
+					bFactoryHandledCreation = Factory->DuplicateObject(ObjectResult.Obj, SourceObject, NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
+				}
+				else
+				{
+					bFactoryHandledCreation = Factory->CreateObject(ObjectResult.Obj, NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
+				}
 			}
 			if (!bFactoryHandledCreation)
 			{
@@ -380,13 +397,38 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 							UObject* ExistingObjectOfDifferentClass = StaticFindObjectFast(nullptr, OuterLevel, ObjectNameToCreate);
 							if (!ExistingObjectOfDifferentClass)
 							{
-								FActorSpawnParameters SpawnParams;
-								SpawnParams.Name = ObjectNameToCreate;
-								SpawnParams.OverrideLevel = OuterLevel;
-								SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-								SpawnParams.bNoFail = true;
-								SpawnParams.ObjectFlags = (EObjectFlags)InObjectId.ObjectPersistentFlags;
-								ObjectResult.Obj = OwnerWorld->SpawnActor<AActor>(ObjectClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+								if (SourceObject)
+								{
+#if WITH_EDITOR
+									if (GIsEditor && !OwnerWorld->IsPlayInEditor())
+									{
+										UEditorActorSubsystem::FActorDuplicateParameters DuplicateParams;
+										DuplicateParams.LevelOverride = OuterLevel;
+										DuplicateParams.bTransact = false;
+										ObjectResult.Obj = GUnrealEd->GetEditorSubsystem<UEditorActorSubsystem>()->DuplicateActor(CastChecked<AActor>(SourceObject), OwnerWorld, FVector::ZeroVector, DuplicateParams);
+										if (ObjectResult.Obj)
+										{
+											ObjectResult.Obj->SetFlags((EObjectFlags)InObjectId.ObjectPersistentFlags);
+											ObjectResult.Obj->Rename(*ObjectNameToCreate.ToString(), nullptr, REN_NonTransactional | REN_DoNotDirty);
+										}
+									}
+									else
+#endif	// WITH_EDITOR
+									{
+										// TODO: There is no direct equivalent of DuplicateActor for runtime use, though DuplicateObject *might* work. There is currently no use-case for this, so revisit a solution if it becomes an issue
+										checkf(false, TEXT("Duplicating an actor outside of the editor is not currently supported!"));
+									}
+								}
+								else
+								{
+									FActorSpawnParameters SpawnParams;
+									SpawnParams.Name = ObjectNameToCreate;
+									SpawnParams.OverrideLevel = OuterLevel;
+									SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+									SpawnParams.bNoFail = true;
+									SpawnParams.ObjectFlags = (EObjectFlags)InObjectId.ObjectPersistentFlags;
+									ObjectResult.Obj = OwnerWorld->SpawnActor<AActor>(ObjectClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+								}
 							}
 							else
 							{
@@ -406,7 +448,18 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 				}
 				else
 				{
-					ObjectResult.Obj = NewObject<UObject>(NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
+					if (SourceObject)
+					{
+						ObjectResult.Obj = DuplicateObject<UObject>(SourceObject, NewObjectOuter, *ObjectNameToCreate.ToString());
+						if (ObjectResult.Obj)
+						{
+							ObjectResult.Obj->SetFlags((EObjectFlags)InObjectId.ObjectPersistentFlags);
+						}
+					}
+					else
+					{
+						ObjectResult.Obj = NewObject<UObject>(NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
+					}
 
 					if (UActorComponent* NewComponent = Cast<UActorComponent>(ObjectResult.Obj))
 					{
@@ -783,13 +836,15 @@ bool IsWorldPartitionWorld()
 	return false;
 }
 
-void FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType, FConcertPackageInfo& OutPackageInfo)
+FConcertPackageInfo FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType)
 {
+	FConcertPackageInfo OutPackageInfo;
 	UObject* Asset = InAsset ? InAsset : InPackage->FindAssetInPackage();
 	OutPackageInfo.PackageName = InPackage->GetFName();
 	OutPackageInfo.AssetClass = Asset ? Asset->GetClass()->GetPathName() : FString();
 	OutPackageInfo.PackageFileExtension = Asset && Asset->IsA<UWorld>()? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension();
 	OutPackageInfo.PackageUpdateType = InPackageUpdateType;
+	return OutPackageInfo;
 }
 
 }

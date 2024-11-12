@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "IMultiReplicationStreamModel.h"
-
 #include "Delegates/Delegate.h"
 #include "Misc/EBreakBehavior.h"
+#include "IEditableReplicationStreamModel.h"
+#include "IMultiReplicationStreamModel.h"
+#include "IReplicationStreamModel.h"
 #include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSharedSlate
@@ -31,7 +32,7 @@ namespace UE::ConcertSharedSlate
 		 */
 		virtual TSet<TSharedRef<IEditableReplicationStreamModel>> GetEditableStreams() const = 0;
 
-		/** Util for iterating through both read-only and  */
+		/** Util for iterating through both read-only and editable streams. */
 		void ForEachStream(TFunctionRef<EBreakBehavior(const TSharedRef<IReplicationStreamModel>& Model)> Callback) const
 		{
 			const TSet<TSharedRef<IReplicationStreamModel>> ReadableModels = GetReadOnlyStreams();

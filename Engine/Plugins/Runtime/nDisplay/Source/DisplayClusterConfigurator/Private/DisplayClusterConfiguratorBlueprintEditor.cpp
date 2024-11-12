@@ -2,73 +2,72 @@
 
 #include "DisplayClusterConfiguratorBlueprintEditor.h"
 
-#include "Framework/Application/SlateApplication.h"
-#include "IDisplayClusterConfigurator.h"
-#include "DisplayClusterConfigurationTypes.h"
-#include "DisplayClusterConfiguratorCommands.h"
-#include "DisplayClusterConfiguratorEditorMode.h"
-#include "DisplayClusterConfiguratorEditorSubsystem.h"
-#include "DisplayClusterConfiguratorModule.h"
-#include "DisplayClusterConfiguratorStyle.h"
-#include "DisplayClusterConfiguratorUtils.h"
-#include "DisplayClusterConfiguratorLog.h"
-
-#include "DisplayClusterRootActor.h"
-#include "DisplayClusterProjectionStrings.h"
 #include "Blueprints/DisplayClusterBlueprint.h"
+#include "Blueprints/DisplayClusterBlueprintGeneratedClass.h"
+#include "ClusterConfiguration/DisplayClusterConfiguratorClusterUtils.h"
 #include "Components/DisplayClusterCameraComponent.h"
 #include "Components/DisplayClusterOriginComponent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterXformComponent.h"
-
-#include "ClusterConfiguration/DisplayClusterConfiguratorClusterUtils.h"
+#include "DisplayClusterConfigurationTypes.h"
+#include "DisplayClusterConfiguratorCommands.h"
+#include "DisplayClusterConfiguratorEditorMode.h"
+#include "DisplayClusterConfiguratorEditorSubsystem.h"
+#include "DisplayClusterConfiguratorLog.h"
+#include "DisplayClusterConfiguratorModule.h"
 #include "DisplayClusterConfiguratorPropertyUtils.h"
+#include "DisplayClusterConfiguratorStyle.h"
+#include "DisplayClusterConfiguratorUtils.h"
 #include "DisplayClusterConfiguratorVersionUtils.h"
+#include "DisplayClusterProjectionStrings.h"
+#include "DisplayClusterRootActor.h"
+#include "IDisplayClusterConfigurator.h"
+#include "Settings/DisplayClusterConfiguratorSettings.h"
+#include "Views/DisplayClusterConfiguratorToolbar.h"
 #include "Views/OutputMapping/DisplayClusterConfiguratorViewOutputMapping.h"
+#include "Views/SCSEditor/SDisplayClusterConfiguratorComponentCombo.h"
 #include "Views/TreeViews/Cluster/DisplayClusterConfiguratorViewCluster.h"
 #include "Views/Viewport/DisplayClusterConfiguratorSCSEditorViewport.h"
 #include "Views/Viewport/DisplayClusterConfiguratorSCSEditorViewportClient.h"
-#include "Views/SCSEditor/SDisplayClusterConfiguratorComponentCombo.h"
-#include "Views/DisplayClusterConfiguratorToolbar.h"
-#include "Settings/DisplayClusterConfiguratorSettings.h"
 
-#include "Engine/SimpleConstructionScript.h"
-
-#include "Components/ActorComponent.h"
 #include "Camera/CameraComponent.h"
-#include "GameFramework/Actor.h"
-
+#include "ComponentAssetBroker.h"
+#include "Components/ActorComponent.h"
+#include "DesktopPlatformModule.h"
 #include "EditorDirectories.h"
 #include "EditorSupportDelegates.h"
 #include "EditorViewportTabContent.h"
-#include "ISCSEditorUICustomization.h"
-#include "SBlueprintEditorToolbar.h"
-#include "SubobjectEditorExtensionContext.h"
-#include "SKismetInspector.h"
-#include "SSCSEditor.h"
-#include "ToolMenu.h"
-#include "ToolMenus.h"
-#include "ComponentAssetBroker.h"
-#include "DesktopPlatformModule.h"
-#include "SSubobjectEditor.h"
-#include "SubobjectDataSubsystem.h"
-#include "Tools/BaseAssetToolkit.h"
 #include "Engine/Selection.h"
+#include "Engine/SimpleConstructionScript.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "Widgets/SOverlay.h"
-#include "Widgets/Docking/SDockTab.h"
-#include "Widgets/Notifications/SNotificationList.h"
+#include "GameFramework/Actor.h"
 #include "HAL/ConsoleManager.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "ISCSEditorUICustomization.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/DebuggerCommands.h"
-#include "Subsystems/PanelExtensionSubsystem.h"
-#include "ScopedTransaction.h"
-#include "Blueprints/DisplayClusterBlueprintGeneratedClass.h"
 #include "Misc/DisplayClusterHelpers.h"
 #include "MPCDI/DisplayClusterConfiguratorMPCDIImporter.h"
+#include "SBlueprintEditorToolbar.h"
+#include "ScopedTransaction.h"
+#include "SKismetInspector.h"
+#include "SKismetInspector.h"
+#include "SSCSEditor.h"
+#include "SSubobjectEditor.h"
+#include "SubobjectDataSubsystem.h"
+#include "SubobjectEditorExtensionContext.h"
+#include "Subsystems/PanelExtensionSubsystem.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "Tools/BaseAssetToolkit.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SOverlay.h"
+
+
 
 #define LOCTEXT_NAMESPACE "DisplayClusterConfiguratorBlueprintEditor"
 
@@ -92,8 +91,8 @@ public:
 		return Instance.ToSharedRef();
 	}
 
-	virtual bool HideAddComponentButton() const override { return true; }
-	virtual bool HideBlueprintButtons() const override { return true; }
+	virtual bool HideAddComponentButton(TArrayView<UObject*> Context) const override { return true; }
+	virtual bool HideBlueprintButtons(TArrayView<UObject*> Context) const override { return true; }
 	virtual EChildActorComponentTreeViewVisualizationMode GetChildActorVisualizationMode() const override { return EChildActorComponentTreeViewVisualizationMode::UseDefault; }
 
 private:
@@ -643,7 +642,11 @@ bool FDisplayClusterConfiguratorBlueprintEditor::LoadWithOpenFileDialog()
 		{
 			FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_IMPORT, OpenFilenames[0]);
 
-			return LoadFromFile(OpenFilenames[0]);
+			// The system relative path is not associated with the project directory.
+			// We must convert it to the relative path of the UE project
+			const FString RelativeFilePath = DisplayClusterHelpers::filesystem::GetRelativePathForConfigResource(FPaths::ConvertRelativePathToFull(OpenFilenames[0]));
+
+			return LoadFromFile(RelativeFilePath);
 		}
 	}
 
@@ -919,7 +922,7 @@ void FDisplayClusterConfiguratorBlueprintEditor::CreateWidgets()
 
 	// Set the visibility
 	{
-		bool bReadOnly = false;// FConsoleManager::Get().FindConsoleVariable(TEXT("nDisplay.configurator.ReadOnly"))->GetBool();
+		bool bReadOnly = false;// IConsoleManager::Get().FindConsoleVariable(TEXT("nDisplay.configurator.ReadOnly"))->GetBool();
 
 		ViewOutputMapping->SetEnabled(!bReadOnly);
 		ViewCluster->SetEnabled(!bReadOnly);
@@ -1107,10 +1110,14 @@ void FDisplayClusterConfiguratorBlueprintEditor::ImportMPCDI_Clicked()
 			const FString& FileName = OpenFileNames[0];
 			FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_IMPORT, FileName);
 
+			// The system relative path is not associated with the project directory.
+			// We must convert it to the relative path of the UE project
+			const FString RelativeFilePath = DisplayClusterHelpers::filesystem::GetRelativePathForConfigResource(FPaths::ConvertRelativePathToFull(FileName));
+
 			UDisplayClusterBlueprint* Blueprint = LoadedBlueprint.Get();
 
 			FDisplayClusterConfiguratorMPCDIImporterParams ImportParams {};
-			if (FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(FileName, Blueprint, ImportParams))
+			if (FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(RelativeFilePath, Blueprint, ImportParams))
 			{
 				GetEditorData()->MarkPackageDirty();
 				ClusterChanged();
@@ -1157,6 +1164,24 @@ void FDisplayClusterConfiguratorBlueprintEditor::Compile()
 {
 	const FSelectionScope SelectionScope(this, ESelectionSource::Refresh);
 	FBlueprintEditor::Compile();
+}
+
+void FDisplayClusterConfiguratorBlueprintEditor::CreateDefaultTabContents(const TArray<UBlueprint*>& InBlueprints)
+{
+	Super::CreateDefaultTabContents(InBlueprints);
+
+	Inspector =
+		SNew(SKismetInspector)
+		.HideNameArea(true)
+		.ViewIdentifier(FName("BlueprintInspector"))
+		.Kismet2(SharedThis(this))
+		.OnFinishedChangingProperties(FOnFinishedChangingProperties::FDelegate::CreateSP(this, &FDisplayClusterConfiguratorBlueprintEditor::OnFinishedChangingProperties))
+		.ShowSectionSelector(true);
+}
+
+void FDisplayClusterConfiguratorBlueprintEditor::OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::OnFinishedChangingProperties(PropertyChangedEvent);
 }
 
 void FDisplayClusterConfiguratorBlueprintEditor::OnSelectionUpdated(const TArray<TSharedPtr<class FSubobjectEditorTreeNode>>& SelectedNodes)

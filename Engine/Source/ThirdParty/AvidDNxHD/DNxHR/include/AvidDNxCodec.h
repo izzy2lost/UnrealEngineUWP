@@ -18,8 +18,8 @@
 #define DNXCODECSDK_H
 
 #define DNX_VERSION_MAJOR 2
-#define DNX_VERSION_MINOR 5
-#define DNX_VERSION_PATCH 2
+#define DNX_VERSION_MINOR 6
+#define DNX_VERSION_PATCH 1
 
 #ifdef BUILD_NUMBER
 #define DNX_VERSION_BUILD BUILD_NUMBER
@@ -113,7 +113,7 @@ Usage of V3 compressions for V1/2 workflows.
 #define DNX_FORBIDDEN_WORKFLOW            -1012
 
 /**
-Alpha is forbidden for LB compression ID.
+Wrong usage alpha options in codec settings.
 */
 #define DNX_INVALID_ALPHA_USAGE           -1013
 
@@ -288,9 +288,9 @@ depth                 Workflow bitdepth, used only for RI compressions, might be
                       8/10/12 bit for DNX_HQ_COMPRESSION_ID, DNX_SQ_COMPRESSION_ID, DNX_LB_COMPRESSION_ID. Not the same as SBD field (7.2.3 of ST 2019-1) in bit-stream.
 PARC, PARN            Pixel aspect ratio as defined in VC-3, might be nonzero only for RI compressions. In this case 0<PARC,PARN<1024.
 CRCpresence           If nonzero, an encoder shall calculate and write to a bitstream CRC value.
-VBR                   If nonzero, a bitstream encoded in VBR mode, if zero CBR mode was used. For HD compressions VBR is ignored.
-alphaPresence         If nonzero, a bitstream stores an encoded alpha. For HD compressions alphaPresence is ignored.
-losslessAlpha         If nonzero, an alpha stored in a bitstream is compressed lossless RLE-based technique.
+VBR                   If nonzero, a bitstream encoded in VBR mode, if zero CBR mode was used. For HD compressions VBR is ignored. DNX_DecodeFrame call ignores the field and use value from bit-stream instead.
+alphaPresence         If nonzero, a bitstream stores an encoded alpha.
+losslessAlpha         If nonzero, an alpha stored in a bitstream is compressed lossless RLE-based technique. DNX_DecodeFrame call ignores the field and use value from bit-stream instead.
 premultAlpha          If nonzero, a video fill stored in a bitstream is premultiplied by alpha channel.
 */
 typedef struct DNX_CompressedParams_t

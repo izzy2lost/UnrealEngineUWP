@@ -14,31 +14,18 @@
 #include "RHIValidationContext.h"
 #include "HAL/FileManager.h"
 #include "RenderCore.h"
-
-#if NV_AFTERMATH
-#include "GFSDK_Aftermath_GpuCrashDump.h"
-#include "GFSDK_Aftermath_GpuCrashDumpDecoding.h"
-#endif
+#include "RHICoreNvidiaAftermath.h"
 
 FVulkanDynamicRHI*	GVulkanRHI = nullptr;
 
 extern CORE_API bool GIsGPUCrashed;
 
+#if (RHI_NEW_GPU_PROFILER == 0)
 
 static FString		EventDeepString(TEXT("EventTooDeep"));
 static const uint32	EventDeepCRC = FCrc::StrCrc32<TCHAR>(*EventDeepString);
 static const uint32 BUFFERED_TIMING_QUERIES = 1;
 static const uint32 TIMING_QUERY_RETRIES = 1;
-
-#if NV_AFTERMATH
-	float GVulkanNVAfterMathDumpWaitTime = 10.0f;
-	static FAutoConsoleVariableRef CVarVulkanNVAfterMathDumpWaitTime(
-		TEXT("r.VulkanNVAfterMathDumpWaitTime"),
-		GVulkanNVAfterMathDumpWaitTime,
-		TEXT("Amount of time to wait for NV Aftermath to finish processing GPU crash dumps."),
-		ECVF_Default
-	);
-#endif
 
 /**
  * Initializes the static variables, if necessary.
@@ -61,101 +48,19 @@ void FVulkanGPUTiming::PlatformStaticInitialize(void* UserData)
 			return;
 		}
 		SetTimingFrequency((uint64)((1000.0 * 1000.0 * 1000.0) / Limits.timestampPeriod));
+
+		CalibrateTimers(*Caller->Device);
 		GIsSupported = true;
 	}
 }
 
-void FVulkanGPUTiming::CalibrateTimers(FVulkanCommandListContext& InCmdContext)
+void FVulkanGPUTiming::CalibrateTimers(FVulkanDevice& Device)
 {
-	FVulkanDevice* Device = InCmdContext.GetDevice();
-	if (Device->GetOptionalExtensions().HasEXTCalibratedTimestamps)
+	if (Device.GetOptionalExtensions().HasEXTCalibratedTimestamps)
 	{
-		FGPUTimingCalibrationTimestamp CalibrationTimestamp = Device->GetCalibrationTimestamp();
+		FGPUTimingCalibrationTimestamp CalibrationTimestamp = Device.GetCalibrationTimestamp();
 		SetCalibrationTimestamp(CalibrationTimestamp);
 	}
-}
-
-void FVulkanDynamicRHI::RHICalibrateTimers()
-{
-	check(IsInRenderingThread());
-
-	FScopedRHIThreadStaller StallRHIThread(FRHICommandListExecutor::GetImmediateCommandList());
-
-	FVulkanGPUTiming::CalibrateTimers(GetDevice()->GetImmediateContext());
-}
-
-
-FVulkanStagingBuffer::~FVulkanStagingBuffer()
-{
-	if (StagingBuffer)
-	{
-		check(Device);
-		Device->GetStagingManager().ReleaseBuffer(nullptr, StagingBuffer);
-	}
-}
-
-void* FVulkanStagingBuffer::Lock(uint32 Offset, uint32 NumBytes)
-{
-	check(!bIsLocked);
-	bIsLocked = true;
-	const uint32 EndOffset = Offset + NumBytes;
-	checkf(EndOffset <= QueuedNumBytes, TEXT("Lock at Offset (%u) and NumBytes (%u) reads beyond the allocated size of the staging buffer (%u)"), Offset, NumBytes, QueuedNumBytes);
-	// make sure cached memory is invalidated
-	StagingBuffer->InvalidateMappedMemory();
-	return (void*)((uint8*)StagingBuffer->GetMappedPointer() + Offset);
-}
-
-void FVulkanStagingBuffer::Unlock()
-{
-	check(bIsLocked);
-	bIsLocked = false;
-}
-
-FStagingBufferRHIRef FVulkanDynamicRHI::RHICreateStagingBuffer()
-{
-	return new FVulkanStagingBuffer();
-}
-
-void* FVulkanDynamicRHI::RHILockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI, FRHIGPUFence* FenceRHI, uint32 Offset, uint32 NumBytes)
-{
-	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
-
-	if (FenceRHI && !FenceRHI->Poll())
-	{
-		Device->SubmitCommandsAndFlushGPU();
-
-		// SubmitCommandsAndFlushGPU might update fence state if it was tied to a previously submitted command buffer.
-		// Its state will have been updated from Submitted to NeedReset, and would assert in WaitForCmdBuffer (which is not needed in such a case)
-		if (!FenceRHI->Poll())
-		{
-			FVulkanGPUFence* Fence = ResourceCast(FenceRHI);
-			Device->GetImmediateContext().GetCommandBufferManager()->WaitForCmdBuffer(Fence->GetCmdBuffer());
-		}
-	}
-
-	return StagingBuffer->Lock(Offset, NumBytes);
-}
-
-void FVulkanDynamicRHI::RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI)
-{
-	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
-	StagingBuffer->Unlock();
-}
-
-void FVulkanGPUFence::Clear()
-{
-	CmdBuffer = nullptr;
-	FenceSignaledCounter = MAX_uint64;
-}
-
-bool FVulkanGPUFence::Poll() const
-{
-	return (CmdBuffer && (FenceSignaledCounter < CmdBuffer->GetFenceSignaledCounter()));
-}
-
-FGPUFenceRHIRef FVulkanDynamicRHI::RHICreateGPUFence(const FName& Name)
-{
-	return new FVulkanGPUFence(Name);
 }
 
 FVulkanGPUTiming::~FVulkanGPUTiming()
@@ -542,23 +447,19 @@ FVulkanGPUProfiler::FVulkanGPUProfiler(FVulkanCommandListContext* InCmd, FVulkan
 	: bCommandlistSubmitted(false)
 	, Device(InDevice)
 	, CmdContext(InCmd)
-	, LocalTracePointsQueryPool(nullptr)
 	, bBeginFrame(false)
 {
+	BeginFrame();
 }
 
 FVulkanGPUProfiler::~FVulkanGPUProfiler()
 {
-	if (LocalTracePointsQueryPool != nullptr)
-	{
-		delete LocalTracePointsQueryPool;
-	}
 }
 
 void FVulkanGPUProfiler::BeginFrame()
 {
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GGPUCrashDebuggingEnabled)
+	if (UE::RHI::UseGPUCrashDebugging())
 	{
 		static auto* CrashCollectionEnableCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.gpucrash.collectionenable"));
 		static auto* CrashCollectionDataDepth = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.gpucrash.datadepth"));
@@ -566,22 +467,13 @@ void FVulkanGPUProfiler::BeginFrame()
 		GPUCrashDataDepth = CrashCollectionDataDepth ? CrashCollectionDataDepth->GetValueOnRenderThread() : -1;
 		if (GPUCrashDataDepth == -1 || GPUCrashDataDepth > GMaxCrashBufferEntries)
 		{
-			if (Device->GetOptionalExtensions().HasAMDBufferMarker)
+			static bool bChecked = false;
+			if (!bChecked)
 			{
-				static bool bChecked = false;
-				if (!bChecked)
-				{
-					bChecked = true;
-					UE_LOG(LogVulkanRHI, Warning, TEXT("Clamping r.gpucrash.datadepth to %d"), GMaxCrashBufferEntries);
-				}
-				GPUCrashDataDepth = GMaxCrashBufferEntries;
+				bChecked = true;
+				UE_LOG(LogVulkanRHI, Warning, TEXT("Clamping r.gpucrash.datadepth to %d"), GMaxCrashBufferEntries);
 			}
-		}
-
-		// Use local tracepoints if no extension is available
-		if (!Device->GetOptionalExtensions().HasGPUCrashDumpExtensions() && LocalTracePointsQueryPool == nullptr)
-		{
-			LocalTracePointsQueryPool = new FVulkanTimingQueryPool(Device, CmdContext->GetCommandBufferManager(), GMaxCrashBufferEntries);
+			GPUCrashDataDepth = GMaxCrashBufferEntries;
 		}
 	}
 #endif
@@ -590,15 +482,6 @@ void FVulkanGPUProfiler::BeginFrame()
 	CurrentEventNode = NULL;
 	check(!bTrackingEvents);
 	check(!CurrentEventNodeFrame); // this should have already been cleaned up and the end of the previous frame
-
-	if (GGPUCrashDebuggingEnabled && !Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
-	{
-		VulkanRHI::vkCmdResetQueryPool(Device->GetImmediateContext().GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), LocalTracePointsQueryPool->GetHandle(), 0, GMaxCrashBufferEntries);
-
-		PushPopStack.Reset();
-		CrashMarkers.Reset();
-		CrashMarkers.AddZeroed(GMaxCrashBufferEntries);
-	}
 
 	bBeginFrame = true;
 
@@ -639,11 +522,6 @@ void FVulkanGPUProfiler::BeginFrame()
 		SetEmitDrawEvents(bOriginalGEmitDrawEvents);
 	}
 	bPreviousLatchedGProfilingGPUHitches = bLatchedGProfilingGPUHitches;
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FVulkanGPUProfiler::EndFrameBeforeSubmit()
@@ -703,14 +581,9 @@ void FVulkanGPUProfiler::EndFrame()
 }
 
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-void FVulkanGPUProfiler::PushMarkerForCrash(VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TCHAR* Name)
-{
-	if (!Device->GetOptionalExtensions().HasGPUCrashDumpExtensions() && !bBeginFrame)
-	{
-		// If using local trace points, ignore any markers pushed before begin frame or after end frame.
-		return;
-	}
 
+void FVulkanGPUProfiler::PushMarkerForCrash(FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TCHAR* Name)
+{
 	uint32 CRC = 0;
 	if (GPUCrashDataDepth < 0 || PushPopStack.Num() < GPUCrashDataDepth)
 	{
@@ -734,45 +607,35 @@ void FVulkanGPUProfiler::PushMarkerForCrash(VkCommandBuffer CmdBuffer, VkBuffer 
 
 	PushPopStack.Push(CRC);
 	FVulkanPlatform::WriteCrashMarker(Device->GetOptionalExtensions(), CmdBuffer, DestBuffer, TArrayView<uint32>(PushPopStack), true);
-
-	if (GGPUCrashDebuggingEnabled && !Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
-	{
-		VulkanRHI::vkCmdWriteTimestamp(CmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, LocalTracePointsQueryPool->GetHandle(), PushPopStack.Num() - 1);
-	}
 }
 
-void FVulkanGPUProfiler::PopMarkerForCrash(VkCommandBuffer CmdBuffer, VkBuffer DestBuffer)
+void FVulkanGPUProfiler::PopMarkerForCrash(FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer)
 {
-	if (!Device->GetOptionalExtensions().HasGPUCrashDumpExtensions() && !bBeginFrame)
-	{
-		// If using local trace points, ignore any markers popped before begin frame or after end frame.
-		return;
-	}
-
 	if (PushPopStack.Num() > 0)
 	{
-		if (Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
-		{
-			PushPopStack.Pop(EAllowShrinking::No);
-			FVulkanPlatform::WriteCrashMarker(Device->GetOptionalExtensions(), CmdBuffer, DestBuffer, TArrayView<uint32>(PushPopStack), false);
-		}
-		else if (GGPUCrashDebuggingEnabled)
-		{
-			VulkanRHI::vkGetQueryPoolResults(Device->GetInstanceHandle(), LocalTracePointsQueryPool->GetHandle(), 0, PushPopStack.Num(), sizeof(uint64) * GMaxCrashBufferEntries, CrashMarkers.GetData(), sizeof(uint64), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
-		}
+		PushPopStack.Pop(EAllowShrinking::No);
+		FVulkanPlatform::WriteCrashMarker(Device->GetOptionalExtensions(), CmdBuffer, DestBuffer, TArrayView<uint32>(PushPopStack), false);
 	}
 }
 
 void FVulkanGPUProfiler::DumpCrashMarkers(void* BufferData)
 {
-	if (Device->GetOptionalExtensions().HasAMDBufferMarker)
 	{
+		if (Device->GetOptionalExtensions().HasAMDBufferMarker)
+		{
+			UE_LOG(LogVulkanRHI, Error, TEXT("Breadcrumbs using VK_AMD_buffer_marker extension"));
+		}
+		else
+		{
+			UE_LOG(LogVulkanRHI, Error, TEXT("Breadcrumbs without extensions"));
+		}
+
 		uint32* Entries = (uint32*)BufferData;
 		uint32 NumCRCs = *Entries++;
 		for (uint32 Index = 0; Index < NumCRCs; ++Index)
 		{
 			const FString* Frame = CachedStrings.Find(*Entries);
-			UE_LOG(LogVulkanRHI, Error, TEXT("[VK_AMD_buffer_info] %i: %s (CRC 0x%x)"), Index, Frame ? *(*Frame) : TEXT("<undefined>"), *Entries);
+			UE_LOG(LogVulkanRHI, Error, TEXT("[GPU Breadcrumb] %i: %s (CRC 0x%x)"), Index, Frame ? *(*Frame) : TEXT("<undefined>"), *Entries);
 			++Entries;
 		}
 	}
@@ -806,139 +669,104 @@ void FVulkanGPUProfiler::DumpCrashMarkers(void* BufferData)
 			GLog->Panic();
 		}
 	}
-
-	if (!Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
-	{
-		UE_LOG(LogVulkanRHI, Warning, TEXT("Printing trace points."));
-
-		for (int32 i = 0; i < PushPopStack.Num(); ++i)
-		{
-			const FString* InsertedFrame = CachedStrings.Find(PushPopStack[i]);
-			const FString FrameName = InsertedFrame ? *InsertedFrame : TEXT("<undefined>");
-
-			UE_LOG(LogVulkanRHI, Warning, TEXT("[gpu_crash_markers] %s"), (CrashMarkers[i] != 0) ? *FrameName : TEXT("unavailable"));
-		}
-
-		GLog->Panic();
-	}
 }
 #endif // VULKAN_SUPPORTS_GPU_CRASH_DUMPS
 
 #if NV_AFTERMATH
-void AftermathGpuCrashDumpCallback(const void* CrashDump, const uint32 CrashDumpSize, void* UserData)
-{
-	const FString DateTimeString = FDateTime::Now().ToString();
-
-	// Create a GPU crash dump decoder object for the GPU crash dump.
-	GFSDK_Aftermath_GpuCrashDump_Decoder Decoder = {};
-	{
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_GpuCrashDump_CreateDecoder(GFSDK_Aftermath_Version_API, CrashDump, CrashDumpSize, &Decoder);
-		if (Result != GFSDK_Aftermath_Result_Success)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to initialize create Aftermath decoder (Result %d, CrashDumpSize=%d)"), (int32)Result, CrashDumpSize);
-		}
-	}
-
-	// Use the decoder object to read basic information, like application
-	// name, PID, etc. from the GPU crash dump.
-	GFSDK_Aftermath_GpuCrashDump_BaseInfo BaseInfo = {};
-	{
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_GpuCrashDump_GetBaseInfo(Decoder, &BaseInfo);
-		if (Result != GFSDK_Aftermath_Result_Success)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to get Aftermath base info (Result %d)"), (int32)Result);
-		}
-	}
-
-	{
-		const FString Filename = FPaths::ProjectLogDir() / FString::Printf(TEXT("vulkan.%s.nv-gpudmp"), *DateTimeString);
-		FArchive* Writer = IFileManager::Get().CreateFileWriter(*Filename);
-		if (Writer)
-		{
-			Writer->Serialize((void*)CrashDump, CrashDumpSize);
-			Writer->Close();
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Generated Aftermath crash dump at '%s'"), *Filename);
-		}
-	}
-
-	// Decode the crash dump to a JSON string.
-	// Step 1: Generate the JSON and get the size.
-	uint32 JsonSize = 0;
-	{
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_GpuCrashDump_GenerateJSON(
-			Decoder,
-			GFSDK_Aftermath_GpuCrashDumpDecoderFlags_ALL_INFO,
-			GFSDK_Aftermath_GpuCrashDumpFormatterFlags_NONE,
-			nullptr/*ShaderDebugInfoLookupCallback*/,
-			nullptr/*ShaderLookupCallback*/,
-			nullptr/*ShaderSourceDebugInfoLookupCallback*/,
-			UserData,
-			&JsonSize);
-
-			if (Result == GFSDK_Aftermath_Result_Success)
-			{
-				// Step 2: Allocate a buffer and fetch the generated JSON.
-				TArray<ANSICHAR> Json;
-				Json.AddZeroed(JsonSize);
-				GFSDK_Aftermath_Result ResultJson = GFSDK_Aftermath_GpuCrashDump_GetJSON(Decoder, (uint32)Json.Num(), Json.GetData());
-				if (ResultJson == GFSDK_Aftermath_Result_Success)
-				{
-					const FString Filename = FPaths::ProjectLogDir() / FString::Printf(TEXT("vulkan.%s.nv-gpudmp.json"), *DateTimeString);
-					FArchive* Writer = IFileManager::Get().CreateFileWriter(*Filename);
-					if (Writer)
-					{
-						Writer->Serialize((void*)Json.GetData(), Json.Num());
-						Writer->Close();
-						UE_LOG(LogVulkanRHI, Warning, TEXT("Generated Aftermath crash dump json at '%s'"), *Filename);
-					}
-				}
-				else
-				{
-					UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to get Aftermath JSON (Result %d)"), (int32)Result);
-				}
-			}
-			else
-			{
-				UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to get Aftermath JSON Size (Result %d)"), (int32)Result);
-			}
-	}
-}
-
-void AftermathShaderDebugInfoCallback(const void* pShaderDebugInfo, const uint32 shaderDebugInfoSize, void* pUserData)
-{
-}
-
-void AftermathCrashDumpDescriptionCallback(PFN_GFSDK_Aftermath_AddGpuCrashDumpDescription AddDescription, void* pUserData)
-{
-	// Add some basic description about the crash. This is called after the GPU crash happens, but before
-	// the actual GPU crash dump callback. The provided data is included in the crash dump and can be
-	// retrieved using GFSDK_Aftermath_GpuCrashDump_GetDescription().
-	FTCHARToUTF8 ProjectNameConverter(FApp::GetProjectName());
-	FTCHARToUTF8 VersionConverter(FApp::GetBuildVersion());
-	AddDescription(GFSDK_Aftermath_GpuCrashDumpDescriptionKey_ApplicationName, ProjectNameConverter.Get());
-	AddDescription(GFSDK_Aftermath_GpuCrashDumpDescriptionKey_ApplicationVersion, VersionConverter.Get());
-	AddDescription(GFSDK_Aftermath_GpuCrashDumpDescriptionKey_UserDefined, "Vulkan GPU crash");
-}
-
-void AftermathResolveMarkerCallback(const void* pMarker, void* pUserData, void** resolvedMarkerData, uint32_t* markerSize)
+void AftermathResolveMarkerCallback(const void* Marker, void** ResolvedMarkerData, uint32_t* MarkerSize)
 {
 #if VULKAN_SUPPORTS_NV_DIAGNOSTICS
-	FVulkanDevice* VulkanDevice = (FVulkanDevice*)pUserData;
+	FVulkanDevice* VulkanDevice = FVulkanDynamicRHI::Get().GetDevice();
 	if (VulkanDevice->GetOptionalExtensions().HasNVDiagnosticCheckpoints)
 	{
-		const uint32 Value = (uint32)(size_t)pMarker;
+		const uint32 Value = (uint32)(size_t)Marker;
 		const FString* MarkerName = VulkanDevice->GetImmediateContext().GetGPUProfiler().CachedStrings.Find(Value);
 		UE_LOG(LogVulkanRHI, Display, TEXT("[AftermathResolveMarkerCallback] Requested %u [%s]"), Value, MarkerName ? *(*MarkerName) : TEXT("<undefined>"));
-		if (MarkerName && !MarkerName->IsEmpty() && resolvedMarkerData && markerSize)
+		if (MarkerName && !MarkerName->IsEmpty() && ResolvedMarkerData && MarkerSize)
 		{
 			const TArray<TCHAR, FString::AllocatorType>& CharArray = MarkerName->GetCharArray();
-			(*resolvedMarkerData) = (void*)CharArray.GetData();
-			(*markerSize) = CharArray.Num() * CharArray.GetTypeSize();
+			(*ResolvedMarkerData) = (void*)CharArray.GetData();
+			(*MarkerSize) = CharArray.Num() * CharArray.GetTypeSize();
 		}
 	}
 #endif // VULKAN_SUPPORTS_NV_DIAGNOSTICS
 }
 #endif
+
+#endif // (RHI_NEW_GPU_PROFILER == 0)
+
+FVulkanStagingBuffer::~FVulkanStagingBuffer()
+{
+	if (StagingBuffer)
+	{
+		check(Device);
+		Device->GetStagingManager().ReleaseBuffer(nullptr, StagingBuffer);
+	}
+}
+
+void* FVulkanStagingBuffer::Lock(uint32 Offset, uint32 NumBytes)
+{
+	check(!bIsLocked);
+	bIsLocked = true;
+	const uint32 EndOffset = Offset + NumBytes;
+	checkf(EndOffset <= QueuedNumBytes, TEXT("Lock at Offset (%u) and NumBytes (%u) reads beyond the allocated size of the staging buffer (%u)"), Offset, NumBytes, QueuedNumBytes);
+	// make sure cached memory is invalidated
+	StagingBuffer->InvalidateMappedMemory();
+	return (void*)((uint8*)StagingBuffer->GetMappedPointer() + Offset);
+}
+
+void FVulkanStagingBuffer::Unlock()
+{
+	check(bIsLocked);
+	bIsLocked = false;
+}
+
+FStagingBufferRHIRef FVulkanDynamicRHI::RHICreateStagingBuffer()
+{
+	return new FVulkanStagingBuffer();
+}
+
+void* FVulkanDynamicRHI::RHILockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI, FRHIGPUFence* FenceRHI, uint32 Offset, uint32 NumBytes)
+{
+	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
+
+	if (FenceRHI && !FenceRHI->Poll())
+	{
+		Device->SubmitCommandsAndFlushGPU();
+
+		// SubmitCommandsAndFlushGPU might update fence state if it was tied to a previously submitted command buffer.
+		// Its state will have been updated from Submitted to NeedReset, and would assert in WaitForCmdBuffer (which is not needed in such a case)
+		if (!FenceRHI->Poll())
+		{
+			FVulkanGPUFence* Fence = ResourceCast(FenceRHI);
+			Device->GetImmediateContext().GetCommandBufferManager()->WaitForCmdBuffer(Fence->GetCmdBuffer());
+		}
+	}
+
+	return StagingBuffer->Lock(Offset, NumBytes);
+}
+
+void FVulkanDynamicRHI::RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBufferRHI)
+{
+	FVulkanStagingBuffer* StagingBuffer = ResourceCast(StagingBufferRHI);
+	StagingBuffer->Unlock();
+}
+
+void FVulkanGPUFence::Clear()
+{
+	CmdBuffer = nullptr;
+	FenceSignaledCounter = MAX_uint64;
+}
+
+bool FVulkanGPUFence::Poll() const
+{
+	return (CmdBuffer && (FenceSignaledCounter < CmdBuffer->GetFenceSignaledCounter()));
+}
+
+FGPUFenceRHIRef FVulkanDynamicRHI::RHICreateGPUFence(const FName& Name)
+{
+	return new FVulkanGPUFence(Name);
+}
 
 namespace VulkanRHI
 {
@@ -967,7 +795,7 @@ namespace VulkanRHI
 
 			VkDeviceFaultCountsEXT FaultCounts;
 			ZeroVulkanStruct(FaultCounts, VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT);
-			Result = vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, nullptr);
+			Result = VulkanRHI::vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, nullptr);
 			if (Result == VK_SUCCESS)
 			{
 				VkDeviceFaultInfoEXT FaultInfo;
@@ -985,7 +813,7 @@ namespace VulkanRHI
 				VendorBinaryData.SetNumZeroed(FaultCounts.vendorBinarySize);
 				FaultInfo.pVendorBinaryData = VendorBinaryData.GetData();
 
-				Result = vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, &FaultInfo);
+				Result = VulkanRHI::vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, &FaultInfo);
 				if (Result == VK_SUCCESS)
 				{
 					// :todo-jn: match these up to resources
@@ -1092,37 +920,24 @@ namespace VulkanRHI
 		{
 			FVulkanDevice* Device = GVulkanRHI->GetDevice();
 
+#if RHI_NEW_GPU_PROFILER
+			checkNoEntry(); // @todo - new gpu profiler
+#else
+
 #if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-			if (GGPUCrashDebuggingEnabled)
+			if (UE::RHI::UseGPUCrashDebugging())
 			{
 				Device->GetImmediateContext().GetGPUProfiler().DumpCrashMarkers(Device->GetCrashMarkerMappedPointer());
 			}
+#endif
+
 #endif
 
 			CheckDeviceFault(Device);
 
 			// Make sure we wait on the Aftermath crash dump before we crash.
 #if NV_AFTERMATH
-			if (GGPUCrashDebuggingEnabled && GVulkanNVAftermathModuleLoaded)
-			{
-				GFSDK_Aftermath_CrashDump_Status AftermathStatus{};
-				GFSDK_Aftermath_GetCrashDumpStatus(&AftermathStatus);
-				if (AftermathStatus != GFSDK_Aftermath_CrashDump_Status_Unknown)
-				{
-					const float StartTime = FPlatformTime::Seconds();
-					const float EndTime = StartTime + GVulkanNVAfterMathDumpWaitTime;
-					while (
-						((AftermathStatus == GFSDK_Aftermath_CrashDump_Status_NotStarted)
-						|| (AftermathStatus != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed
-						&& AftermathStatus != GFSDK_Aftermath_CrashDump_Status_Finished))
-						&& FPlatformTime::Seconds() < EndTime)
-					{
-						FPlatformProcess::Sleep(0.01f);
-						GFSDK_Aftermath_GetCrashDumpStatus(&AftermathStatus);
-					}
-				}
-				UE_LOG(LogVulkanRHI, Warning, TEXT("Final Aftermath status was %d."), (int32)AftermathStatus);
-			}
+			UE::RHICore::Nvidia::Aftermath::OnGPUCrash();
 #endif
 		}
 
@@ -1133,8 +948,8 @@ namespace VulkanRHI
 		}
 #endif
 
-		UE_LOG(LogVulkanRHI, Fatal, TEXT("%s failed, VkResult=%d\n at %s:%u \n with error %s"),
-			ANSI_TO_TCHAR(VkFunction), (int32)Result, ANSI_TO_TCHAR(Filename), Line, *ErrorString);
+		// Force shutdown, we can't do anything useful anymore.
+		FPlatformMisc::RequestExit(true, TEXT("VerifyVulkanResult"));
 	}
 }
 

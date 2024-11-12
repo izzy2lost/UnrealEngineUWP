@@ -32,7 +32,7 @@ class UNavigationPath : public UObject
 	TArray<FVector> PathPoints;
 
 	UPROPERTY(BlueprintReadOnly, Category = Navigation)
-	TEnumAsByte<ENavigationOptionFlag::Type> RecalculateOnInvalidation;
+	ENavigationOptionFlag RecalculateOnInvalidation = ENavigationOptionFlag::Default;
 
 private:	
 	uint32 bIsValid : 1;
@@ -61,7 +61,7 @@ public:
 
 	/** if enabled path will request recalculation if it gets invalidated due to a change to underlying navigation */
 	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")
-	NAVIGATIONSYSTEM_API void EnableRecalculationOnInvalidation(TEnumAsByte<ENavigationOptionFlag::Type> DoRecalculation);
+	NAVIGATIONSYSTEM_API void EnableRecalculationOnInvalidation(ENavigationOptionFlag DoRecalculation);
 
 	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")
 	NAVIGATIONSYSTEM_API double GetPathLength() const;

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common/TargetPlatformBase.h"
+#include "Common/TargetPlatformControlsBase.h"
 #include "HAL/IConsoleManager.h"
 #include "DeviceBrowserDefaultPlatformWidgetCreator.h"
 #include "Interfaces/IProjectBuildMutatorFeature.h"
@@ -14,6 +15,8 @@
 #include "AnalyticsEventAttribute.h"
 
 #define LOCTEXT_NAMESPACE "TargetPlatform"
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 bool FTargetPlatformBase::UsesForwardShading() const
 {
@@ -54,6 +57,11 @@ bool FTargetPlatformBase::UsesRayTracing() const
 {
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing"));
 	return CVar ? (CVar->GetInt() != 0) : false;
+}
+
+ERayTracingRuntimeMode FTargetPlatformBase::GetRayTracingMode() const
+{
+	return ERayTracingRuntimeMode::Disabled;
 }
 
 uint32 FTargetPlatformBase::GetSupportedHardwareMask() const
@@ -406,6 +414,13 @@ void FTargetPlatformBase::GetWaveFormatModuleHints(TArray<FName>& OutModuleNames
 	GetAudioFormatSettings().GetWaveFormatModuleHints(OutModuleNames);
 }
 
+void FTargetPlatformBase::GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const
+{
+	FTargetPlatformControlsBase::GetTextureSizeLimitsDefault(GetConfigSystem(),OutMaximumSurfaceBytes,OutMaximumPackageBytes);
+}
+
 #endif // WITH_ENGINE
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE

@@ -25,6 +25,7 @@ class USphereWithOwnerBoostNetObjectPrioritizer : public USphereNetObjectPriorit
 protected:
 	// UNetObjectPrioritizer interface
 	IRISCORE_API virtual void Init(FNetObjectPrioritizerInitParams& Params) override;
+	IRISCORE_API virtual void Deinit() override;
 	IRISCORE_API virtual bool AddObject(uint32 ObjectIndex, FNetObjectPrioritizerAddObjectParams& Params) override;
 	IRISCORE_API virtual void RemoveObject(uint32 ObjectIndex, const FNetObjectPrioritizationInfo& Info) override;
 	IRISCORE_API virtual void UpdateObjects(FNetObjectPrioritizerUpdateParams&) override;

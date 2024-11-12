@@ -22,9 +22,12 @@
 
 #define DEBUG_VISUALIZE_TRACE_TYPES 0
 
+
 RWTexture2DArray<float>  RWTraceHit;
 RWTexture2DArray<float3> RWTraceRadiance;
 RWTexture2DArray<uint>   RWTraceMaterialId;
+
+#ifdef ReflectionClearTracesCS
 
 [numthreads(REFLECTION_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionClearTracesCS(
@@ -44,13 +47,16 @@ void ReflectionClearTracesCS(
 	}
 	#endif
 }
- 
+#endif
+
 float MaxTraceDistance;
 float4 HZBUvFactorAndInvFactor;
 float MaxHierarchicalScreenTraceIterations;
 float RelativeDepthThickness;
 float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
+
+#ifdef ReflectionTraceScreenTexturesCS
 
 [numthreads(REFLECTION_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionTraceScreenTexturesCS(
@@ -69,7 +75,6 @@ void ReflectionTraceScreenTexturesCS(
 		if (SceneDepth > 0.0f)
 		{
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 			FRayData RayData = GetRayData(ReflectionTracingCoord.CoordFlatten);
 
 			float3 TranslatedRayOrigin = TranslatedWorldPosition;
@@ -221,10 +226,14 @@ void ReflectionTraceScreenTexturesCS(
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWCompactedTraceTexelAllocator;
 RWBuffer<uint> RWReflectionCompactionIndirectArgs;
 Buffer<uint> ReflectionTracingTileIndirectArgs;
 uint CompactionThreadGroupSize;
+
+#ifdef SetupCompactionIndirectArgsCS
 
 [numthreads(64, 1, 1)]
 void SetupCompactionIndirectArgsCS(uint GroupThreadId : SV_GroupThreadID)
@@ -243,6 +252,8 @@ void SetupCompactionIndirectArgsCS(uint GroupThreadId : SV_GroupThreadID)
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWCompactedTraceTexelData;
 
 // LumenReflections::ETraceCompactionMode
@@ -257,18 +268,13 @@ float NearFieldMaxTraceDistance;
 float FarFieldDitheredStartDistanceFactor;
 Texture2DArray<uint> TraceMaterialId;
 
+#ifdef ReflectionCompactTracesCS
+
 groupshared uint SharedGlobalTraceTexelStartOffset;
 
-#if WAVE_OPS
-	#define MIN_SUPPORTED_WAVE_SIZE 32
-	#define NUM_WAVE_SUMS ((THREADGROUP_SIZE + MIN_SUPPORTED_WAVE_SIZE - 1) / MIN_SUPPORTED_WAVE_SIZE)
-	groupshared uint SharedWaveSums[NUM_WAVE_SUMS];
-#endif
-
 //@todo - ordered compaction for non-wave ops path
-#define ORDERED_COMPACTION WAVE_OPS
-#if ORDERED_COMPACTION
-	groupshared uint SharedTexelValid[THREADGROUP_SIZE];
+#if WAVE_OPS
+	groupshared uint SharedGroupSum;
 #else
 	groupshared uint SharedTraceTexelAllocator;
 	groupshared uint SharedTraceTexels[THREADGROUP_SIZE];
@@ -282,13 +288,18 @@ void ReflectionCompactTracesCS(
 	uint GroupId : SV_GroupID,
 	uint GroupThreadId : SV_GroupThreadID)
 {
-#if ORDERED_COMPACTION
-	SharedTexelValid[GroupThreadId] = 0;
+	if (GroupThreadId == 0)
+#if WAVE_OPS
+	{
+		SharedGroupSum = 0;
+	}
 #else
-	SharedTraceTexelAllocator = 0;
-#endif
+	{
+		SharedTraceTexelAllocator = 0;
+	}
 
 	GroupMemoryBarrierWithGroupSync();
+#endif
 
 	uint ReflectionTileIndex = GroupId * (THREADGROUP_SIZE / REFLECTION_THREADGROUP_SIZE_1D) + GroupThreadId / REFLECTION_THREADGROUP_SIZE_1D;
 	uint ReflectionGroupThreadId = GroupThreadId % REFLECTION_THREADGROUP_SIZE_1D;
@@ -335,9 +346,8 @@ void ReflectionCompactTracesCS(
 				&& (CullByDistanceFromCamera == 0 || SceneDepth < CompactionTracingEndDistanceFromCamera)
 				&& TraceHitDistance <= CompactionMaxTraceDistance)
 			{
-#if ORDERED_COMPACTION
+#if WAVE_OPS
 				bTraceValid = true;
-				SharedTexelValid[GroupThreadId] = 1;
 				TraceTexelForThisThread = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.ClosureIndex);
 #else
 				uint SharedTexelOffset;
@@ -350,48 +360,36 @@ void ReflectionCompactTracesCS(
 
 	GroupMemoryBarrierWithGroupSync();
 
-#if ORDERED_COMPACTION
+#if WAVE_OPS
 
-	const uint WaveIndex = GroupThreadId / WaveGetLaneCount();
+	const uint LastLaneIndex = WaveGetLaneCount() - 1;
 	const uint LaneIndex = WaveGetLaneIndex();
+	const uint OffsetInWave = WavePrefixCountBits(bTraceValid);
+	uint OffsetInGroup = 0;
 
-	uint Value = SharedTexelValid[GroupThreadId];
-	uint ThisWaveSum = WaveActiveSum(Value);
-
-	if (LaneIndex == 0)
+	if (LaneIndex == LastLaneIndex)
 	{
-		SharedWaveSums[WaveIndex] = ThisWaveSum;
+		const uint ThisWaveSum = OffsetInWave + (bTraceValid ? 1 : 0);
+		InterlockedAdd(SharedGroupSum, ThisWaveSum, OffsetInGroup);
 	}
+	OffsetInGroup = WaveReadLaneAt(OffsetInGroup, LastLaneIndex) + OffsetInWave;
 
 	GroupMemoryBarrierWithGroupSync();
 
-	if (WaveIndex == 0 && LaneIndex < NUM_WAVE_SUMS)
-	{
-		SharedWaveSums[LaneIndex] = WavePrefixSum(SharedWaveSums[LaneIndex]);
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-
-	uint PayloadGroupSize = SharedWaveSums[WaveIndex] + WavePrefixSum(Value) + Value;
-
-	uint WaveLaneCount = WaveGetLaneCount();
-	uint LastWaveIndex = (THREADGROUP_SIZE - 1) / WaveLaneCount;
-
-	// Last lane of last wave has the max index used by the group
 	// Allocate this group's compacted traces from the global allocator
-	if (WaveIndex == LastWaveIndex && LaneIndex == WaveLaneCount - 1 && PayloadGroupSize > 0)
+	if (GroupThreadId == 0)
 	{
-		InterlockedAdd(RWCompactedTraceTexelAllocator[0], PayloadGroupSize, SharedGlobalTraceTexelStartOffset);
+		InterlockedAdd(RWCompactedTraceTexelAllocator[0], SharedGroupSum, SharedGlobalTraceTexelStartOffset);
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
 	if (bTraceValid)
 	{
-		RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + PayloadGroupSize - 1] = TraceTexelForThisThread;
+		RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + OffsetInGroup] = TraceTexelForThisThread;
 	}
 
-#else // !ORDERED_COMPACTION
+#else // !WAVE_OPS
 	uint ThreadIndex = GroupThreadId;
 
 	if (ThreadIndex == 0)
@@ -407,6 +405,10 @@ void ReflectionCompactTracesCS(
 	}
 #endif
 }
+
+#endif
+
+#ifdef SetupCompactedTracesIndirectArgsCS
 
 RWBuffer<uint> RWReflectionCompactTracingIndirectArgs;
 RWBuffer<uint> RWReflectionCompactRayTraceDispatchIndirectArgs;
@@ -427,6 +429,10 @@ void SetupCompactedTracesIndirectArgsCS()
 	WriteDispatchIndirectArgs(RWReflectionCompactRayTraceDispatchIndirectArgs, 0, CompactedTraceTexelAllocator[0], 1, 1);
 }
 
+#endif
+
+#ifdef ReflectionSortTracesByMaterialCS
+
 #ifndef THREADGROUP_SIZE_1D
 	#define THREADGROUP_SIZE_1D 1
 #endif
@@ -434,9 +440,7 @@ void SetupCompactedTracesIndirectArgsCS()
 groupshared uint Bins[NUM_BINS];
 
 #if DIM_WAVE_OPS
-#define MIN_SUPPORTED_WAVE_SIZE 32
-#define NUM_WAVE_SUMS ((NUM_BINS+MIN_SUPPORTED_WAVE_SIZE-1) / MIN_SUPPORTED_WAVE_SIZE)
-groupshared uint WaveSums[NUM_WAVE_SUMS];
+groupshared uint SharedGroupSum;
 #define Offsets Bins // No need for a separate array of offsets as prefix sum is computed in-place
 #else // DIM_WAVE_OPS
 #if NUM_BINS > 0
@@ -449,7 +453,7 @@ groupshared uint Offsets[1];
 #define ELEMENTS_PER_THREAD 16
 #define NUM_ELEMENTS THREADGROUP_SIZE_1D * ELEMENTS_PER_THREAD
 
-#if COMPILER_SUPPORTS_WAVE_SIZE && WAVE_OPS
+#if COMPILER_SUPPORTS_WAVE_SIZE && DIM_WAVE_OPS
 	WAVESIZE(32)
 #endif
 [numthreads(THREADGROUP_SIZE_1D, 1, 1)]
@@ -458,6 +462,13 @@ void ReflectionSortTracesByMaterialCS(
 	uint GroupThreadId : SV_GroupThreadID)
 {
 	const uint GroupOffset = GroupId * NUM_ELEMENTS;
+
+#if DIM_WAVE_OPS
+	if (GroupThreadId == 0)
+	{
+		SharedGroupSum = 0;
+	}
+#endif
 
 	if (GroupThreadId < NUM_BINS)
 	{
@@ -492,27 +503,31 @@ void ReflectionSortTracesByMaterialCS(
 
 #if DIM_WAVE_OPS
 	{
-		const uint WaveIndex = GroupThreadId / WaveGetLaneCount();
+		const uint LastLaneIndex = WaveGetLaneCount() - 1;
 		const uint LaneIndex = WaveGetLaneIndex();
+		const uint BinIndex = GroupThreadId;
+		
 		uint Value = 0;
-		if (GroupThreadId < NUM_BINS)
+		if (BinIndex < NUM_BINS)
 		{
-			Value = Bins[GroupThreadId];
-			uint ThisWaveSum = WaveActiveSum(Value);
-			if (LaneIndex == 0)
-			{
-				WaveSums[WaveIndex] = ThisWaveSum;
-			}
+			Value = Bins[BinIndex];
 		}
-		GroupMemoryBarrierWithGroupSync();
-		if (WaveIndex == 0 && LaneIndex < NUM_WAVE_SUMS)
+
+		uint BinOffset = WavePrefixSum(Value);
+		const uint ThisWaveSum = BinOffset + Value;
+		
+		uint WaveOffset = 0;
+		if (LaneIndex == LastLaneIndex && ThisWaveSum > 0)
 		{
-			WaveSums[LaneIndex] = WavePrefixSum(WaveSums[LaneIndex]);
+			InterlockedAdd(SharedGroupSum, ThisWaveSum, WaveOffset);
 		}
+		BinOffset += WaveReadLaneAt(WaveOffset, LastLaneIndex);
+
 		GroupMemoryBarrierWithGroupSync();
-		if (GroupThreadId < NUM_BINS)
+
+		if (BinIndex < NUM_BINS)
 		{
-			Offsets[GroupThreadId] = WaveSums[WaveIndex] + WavePrefixSum(Value);
+			Offsets[BinIndex] = BinOffset;
 		}
 	}
 #else // DIM_WAVE_OPS
@@ -539,6 +554,8 @@ void ReflectionSortTracesByMaterialCS(
 		}
 	}
 }
+
+#endif
 
 uint CardGridPixelSizeShift;
 float3 CardGridZParams;
@@ -638,7 +655,7 @@ void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHi
 	{
 		float CoverageForFog = saturate(1.0 - Transparency);	// LUMEN_TODO single evaluation for now even if we can hit translucent hair above.
 		float3 OriginToCollider = RayData.Direction * TraceResult.OpaqueHitDistance;
-		Lighting.rgb = GetFogOnLuminance(Lighting.rgb, CoverageForFog, OriginToCollider);
+		Lighting.rgb = GetFogOnLuminance(Lighting.rgb, CoverageForFog, TranslatedWorldPosition, RayData.Direction, TraceResult.OpaqueHitDistance);
 	}
 
 	Transparency = lerp(Transparency, 1, DistanceFade);
@@ -674,6 +691,8 @@ void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHi
 	#define REFLECTION_TRACE_THREADGROUP_SIZE_1D 64
 #endif
 
+#ifdef ReflectionTraceMeshSDFsCS
+
 [numthreads(REFLECTION_TRACE_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionTraceMeshSDFsCS(uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -687,6 +706,8 @@ void ReflectionTraceMeshSDFsCS(uint DispatchThreadId : SV_DispatchThreadID)
 		TraceMeshSDFs(ReflectionTracingCoord, TraceHitDistance);
 	}
 }
+
+#endif
 
 void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitDistance)
 {
@@ -846,7 +867,7 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 	if (SampleHeightFog > 0)
 	{
 		float3 OriginToCollider = RayData.Direction * TraceHitDistance;
-		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
+		TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, TranslatedWorldPosition, RayData.Direction, TraceHitDistance);
 	}
 
 	float MaxLighting = max3(TraceResult.Lighting.x, TraceResult.Lighting.y, TraceResult.Lighting.z);
@@ -865,6 +886,8 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 	RWTraceHit[ReflectionTracingCoord.CoordFlatten] = EncodeRayDistance(TraceHitDistance, bHit);
 }
 
+#ifdef ReflectionTraceVoxelsCS
+
 [numthreads(REFLECTION_TRACE_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionTraceVoxelsCS(uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -878,6 +901,10 @@ void ReflectionTraceVoxelsCS(uint DispatchThreadId : SV_DispatchThreadID)
 		TraceVoxels(ReflectionTracingCoord, TraceHitDistance);
 	}
 }
+
+#endif
+
+#ifdef VisualizeReflectionTracesCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void VisualizeReflectionTracesCS(
@@ -928,3 +955,5 @@ void VisualizeReflectionTracesCS(
 		}
 	}
 }
+
+#endif

@@ -26,6 +26,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "ActorModifierCoreBlueprint",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "ActorModifierCoreEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
@@ -34,10 +39,6 @@
 	"Plugins": [
 		{
 			"Name": "OperatorStack",
-			"Enabled": true
-		},
-		{
-			"Name": "StructUtils",
 			"Enabled": true
 		}
 	]

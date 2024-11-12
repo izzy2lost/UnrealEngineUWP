@@ -1,10 +1,10 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0.0",
+	"VersionName": "1.0",
 	"FriendlyName": "NNERuntimeORT",
-	"Description": "ONNXRuntime accelerated runtimes for the NNE plugin (deep learning and neural network inference in Unreal Engine) backed by the Cpu and Dml execution providers.",
-	"Category": "AI",
+	"Description": "ONNX Runtime backed runtime for the Neural Network Engine (NNE), accelerated by the CPU and DirectML execution providers.",
+	"Category": "ML",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
 	"DocsURL": "https://dev.epicgames.com/community/learning/courses/e7w/unreal-engine-neural-network-engine-nne",
@@ -15,20 +15,11 @@
 	"IsBetaVersion": true,
 	"IsExperimentalVersion": false,
 	"Installed": false,
-	"TargetAllowList": [
-		"EditorAndProgram"
-	],
 	"Modules": [
 		{
 			"Name": "NNERuntimeORT",
-			"Type": "EditorAndProgram",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
-		},
-		{
-			"Name": "NNEUtilities",
-			"Type": "EditorAndProgram",
-			"LoadingPhase": "Default",
+			"Type": "RuntimeAndProgram",
+			"LoadingPhase": "PreDefault",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	]

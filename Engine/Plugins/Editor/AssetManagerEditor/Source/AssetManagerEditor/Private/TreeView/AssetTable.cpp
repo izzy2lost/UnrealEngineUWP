@@ -9,12 +9,12 @@
 
 // AssetManagerEditor
 #include "AssetTreeNode.h"
-#include "Insights/Common/Log.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Common/Log.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
 
 #define LOCTEXT_NAMESPACE "FAssetTable"
 

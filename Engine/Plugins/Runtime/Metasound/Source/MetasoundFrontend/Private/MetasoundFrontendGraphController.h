@@ -7,12 +7,22 @@
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentAccessPtr.h"
 
+
+// Forward Declarations
 class UClass;
 
 namespace Metasound
 {
+	// Forward Declarations
+	class INodeTemplate;
+
 	namespace Frontend
 	{
+		// Convenience functions used for finding targeted graph to mutate as the transition away from controllers
+		// is on-going, however documents can now contain multiple graph topologies (i.e. paged graphs) to select from.
+		const FMetasoundFrontendGraph& FindConstBuildGraphChecked(const FMetasoundFrontendGraphClass& InGraphClass);
+		FMetasoundFrontendGraph& FindBuildGraphChecked(FMetasoundFrontendGraphClass& InGraphClass);
+
 		/** FGraphController represents a Metasound graph class. */
 		class FGraphController : public IGraphController
 		{
@@ -117,7 +127,6 @@ namespace Metasound
 			FNodeHandle GetOutputNodeWithName(const FVertexName& InName) override;
 
 			FNodeHandle AddInputVertex(const FMetasoundFrontendClassInput& InDescription) override;
-			FNodeHandle AddInputVertex(const FVertexName& InName, const FName InTypeName, const FMetasoundFrontendLiteral* InDefaultValue) override;
 			bool RemoveInputVertex(const FVertexName& InName) override;
 
 			FNodeHandle AddOutputVertex(const FMetasoundFrontendClassOutput& InDescription) override;
@@ -177,7 +186,7 @@ namespace Metasound
 			FNodeHandle AddNode(const FNodeRegistryKey& InNodeClass, FGuid InNodeGuid) override;
 			FNodeHandle AddNode(const FMetasoundFrontendClassMetadata& InClassMetadata, FGuid InNodeGuid) override;
 			FNodeHandle AddDuplicateNode(const INodeController& InNode) override;
-			FNodeHandle AddTemplateNode(const FNodeRegistryKey& InKey, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid) override;
+			FNodeHandle AddTemplateNode(const INodeTemplate& InNodeTemplate, FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeGuid = FGuid::NewGuid()) override;
 
 			// Remove the node corresponding to this node handle.
 			// On success, invalidates the received node handle.
@@ -195,6 +204,12 @@ namespace Metasound
 
 			FDocumentHandle GetOwningDocument() override;
 			FConstDocumentHandle GetOwningDocument() const override;
+
+			// Exposed to aid in transition of controller API to Document Builder API
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName) const;
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID) const;
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName) const;
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID) const;
 
 		protected:
 
@@ -253,16 +268,12 @@ namespace Metasound
 			FConstNodeHandle GetNodeHandle(const FConstNodeAndClass& InNodeAndClass) const;
 
 			FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName);
-			const FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName) const;
 
 			FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID);
-			const FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID) const;
 
 			FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName);
-			const FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName) const;
 
 			FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID);
-			const FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID) const;
 
 			FClassInputAccessPtr FindInputDescriptionWithNodeID(FGuid InNodeID);
 			FConstClassInputAccessPtr FindInputDescriptionWithNodeID(FGuid InNodeID) const;

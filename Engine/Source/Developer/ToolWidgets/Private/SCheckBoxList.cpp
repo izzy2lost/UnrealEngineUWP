@@ -123,7 +123,6 @@ void SCheckBoxList::Construct(const FArguments& InArgs, const TArray<TSharedRef<
 		SAssignNew(ListView, SListView<TSharedRef<CheckBoxList::FItemPair>>)
 		.ListItemsSource(&Items)
 		.OnGenerateRow(this, &SCheckBoxList::HandleGenerateRow)
-		.ItemHeight(20)
 		.HeaderRow(HeaderRowWidget)
 		.SelectionMode(ESelectionMode::None)
 	];
@@ -141,6 +140,12 @@ int32 SCheckBoxList::AddItem(TSharedRef<SWidget> Widget, bool bIsChecked)
 	int32 ReturnValue = Items.Add(MakeShared<CheckBoxList::FItemPair>(Widget, bIsChecked));
 	ListView->RebuildList();
 	return ReturnValue;
+}
+
+void SCheckBoxList::RemoveAll()
+{
+	Items.Reset();
+	ListView->RebuildList();
 }
 
 void SCheckBoxList::RemoveItem(int32 Index)

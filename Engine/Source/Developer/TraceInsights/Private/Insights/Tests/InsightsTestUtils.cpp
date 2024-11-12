@@ -2,20 +2,27 @@
 
 #include "Insights/Tests/InsightsTestUtils.h"
 
-#include "Modules/ModuleManager.h"
-#include "Misc/FileHelper.h"
 #include "HAL/FileManagerGeneric.h"
-
-#include "TraceServices/AnalysisService.h"
-#include "TraceServices/Model/AnalysisSession.h"
-#include "TraceServices/ITraceServicesModule.h"
-#include "TraceServices/ModuleService.h"
-#include "Trace/StoreClient.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/IUnrealInsightsModule.h"
-#include "Insights/InsightsManager.h"
-
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Modules/ModuleManager.h"
+
+// TraceAnalysis
+#include "Trace/StoreClient.h"
+
+// TraceServices
+#include "TraceServices/AnalysisService.h"
+#include "TraceServices/ITraceServicesModule.h"
+#include "TraceServices/Model/AnalysisSession.h"
+#include "TraceServices/ModuleService.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
+#include "Insights/InsightsManager.h"
+#include "Insights/IUnrealInsightsModule.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +56,7 @@ bool FInsightsTestUtils::AnalyzeTrace(const TCHAR* Path) const
 		return false;
 	}
 
-	FStopwatch StopWatch;
+	UE::Insights::FStopwatch StopWatch;
 	StopWatch.Start();
 
 	double Duration = 0.0f;
@@ -85,6 +92,7 @@ bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FSt
 	{
 		if (!FPaths::FileExists(PathToFile))
 		{
+			Test->AddInfo("Unable to find EngineTest.log at " + PathToFile);
 			FPlatformProcess::Sleep(0.1f);
 		}
 		else
@@ -176,7 +184,7 @@ bool FInsightsTestUtils::SetupUTS(double Timeout, bool bUseFork) const
 		return true;
 	}
 
-	FString UTSPath = FPlatformProcess::GenerateApplicationPath("UnrealTraceServer", EBuildConfiguration::Development);
+	const FString UTSPath = GetUTSPath();
 	if (!FPaths::FileExists(UTSPath))
 	{
 		Test->AddError(FString::Printf(TEXT("UTS executable can't be found at '%s'"), *UTSPath));
@@ -244,7 +252,7 @@ bool FInsightsTestUtils::KillUTS(double Timeout) const
 {
 	const FString UnrealTraceServerName = TEXT("UnrealTraceServer");
 
-	FString UTSPath = FPlatformProcess::GenerateApplicationPath("UnrealTraceServer", EBuildConfiguration::Development);
+	const FString UTSPath = GetUTSPath();
 	FString UTSParameters = TEXT("kill");
 	constexpr bool bLaunchDetached = true;
 	constexpr bool bLaunchHidden = false;
@@ -280,8 +288,12 @@ bool FInsightsTestUtils::KillUTS(double Timeout) const
 
 void FInsightsTestUtils::ResetSession() const
 {
+	using namespace UE::Insights;
 	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
-	InsightsManager->ResetSession();
+	if (InsightsManager.IsValid())
+	{
+		InsightsManager->ResetSession();
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -368,4 +380,36 @@ FString FInsightsTestUtils::GetLiveTrace(const TCHAR* Host, int32 Port) const
 	Test->AddInfo(TEXT("There isn't any live trace"));
 	delete StoreClient;
 	return TEXT("");
+}
+
+FString FInsightsTestUtils::FInsightsTestUtils::GetUTSPath() const
+{
+	#if PLATFORM_WINDOWS
+		const FString EnginePathToUTS = FString(TEXT("Engine/Binaries/Win64/UnrealTraceServer.exe"));
+	#endif
+
+	#if PLATFORM_MAC
+		const FString EnginePathToUTS = FString(TEXT("Engine/Binaries/Mac/UnrealTraceServer"));
+	#endif
+
+	#if PLATFORM_LINUX
+		const FString EnginePathToUTS = FString(TEXT("Engine/Binaries/Linux/UnrealTraceServer"));
+	#endif
+
+	FString RootDirectory = FPaths::RootDir();
+	FString EntireUTSPath = FPaths::Combine(*RootDirectory, EnginePathToUTS);
+	while (FPaths::DirectoryExists(RootDirectory) && !FPaths::FileExists(EntireUTSPath))
+	{
+		EntireUTSPath = FPaths::Combine(*RootDirectory, EnginePathToUTS);
+		if (!FPaths::FileExists(EntireUTSPath))
+		{
+			RootDirectory = FPaths::GetPath(RootDirectory);
+		}
+	}
+	if (!FPaths::DirectoryExists(RootDirectory)) {
+		Test->AddError(TEXT("Coudln't find UTS file"));
+		EntireUTSPath = FString();
+	}
+
+	return EntireUTSPath;
 }

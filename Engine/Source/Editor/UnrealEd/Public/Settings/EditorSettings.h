@@ -115,6 +115,13 @@ class UEditorSettings : public UObject
 	UPROPERTY(EditAnywhere, Category="Derived Data Cache S3", meta = (DisplayName = "Global Local S3DDC Path", ConfigRestartRequired = true, EditCondition = "bEnableS3DDC"))
 	FDirectoryPath GlobalS3DDCPath;
 
+	// Horde Settings
+	// =====================================================================
+
+	/** URL of the Horde server */
+	UPROPERTY(EditAnywhere, Category = "Horde", meta = (DisplayName = "Horde Server URL", ConfigRestartRequired = true))
+	FString HordeUrl;
+
 	// =====================================================================
 
 	/** When checked, the most recently loaded project will be auto-loaded at editor startup if no other project was specified on the command line */

@@ -66,6 +66,7 @@ private:
 
 	/** SWidget interface */
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
+	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 	/** Rebuild the tree view */
 	void RefreshTreeView(bool bRebuildContent = true);
@@ -81,6 +82,12 @@ private:
 
 	/** Create a new item */
 	void HandleNewItem(ERigElementType InElementType, bool bIsAnimationChannel);
+
+	/** Check we can find the references of an item */
+	bool CanFindReferencesOfItem() const;
+
+	/** Find all references of an item */
+	void HandleFindReferencesOfItem();
 
 	/** Check whether we can deleting the selected item(s) */
 	bool CanDuplicateItem() const;
@@ -208,6 +215,7 @@ private:
 	bool bIsChangingRigHierarchy;
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void OnHierarchyModified_AnyThread(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
+	void OnModularRigModified(EModularRigNotification InNotif, const FRigModuleReference* InModule);
 	void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint);
 	void HandleSetObjectBeingDebugged(UObject* InObject);
 	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);

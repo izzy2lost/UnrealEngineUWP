@@ -106,7 +106,9 @@ static FAutoConsoleVariableRef CVarParallelGatherDynamicMeshElements(
 
 bool IsParallelGatherDynamicMeshElementsEnabled()
 {
-	return GParallelGatherDynamicMeshElements;
+	return GParallelGatherDynamicMeshElements &&
+		// parallel GDME creates RHI resources on a task threads which is not supported by some RHIs (eg. OpenGL)
+		GSupportsParallelRenderingTasksWithSeparateRHIThread;
 }
 
 bool FPrimitiveSceneProxy::ShouldRenderCustomDepth() const
@@ -259,10 +261,12 @@ static FRenderBounds PadLocalRenderBounds(const FRenderBounds& InBounds, const F
 FPrimitiveSceneProxyDesc::FPrimitiveSceneProxyDesc(const UPrimitiveComponent* InComponent)
 	: FPrimitiveSceneProxyDesc()
 {
-	InitializeFrom(InComponent);
+	InitializeFromPrimitiveComponent(InComponent);
 }
 
-void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InComponent)
+FPrimitiveSceneProxy::FPrimitiveSceneProxy(FPrimitiveSceneProxy const&) = default;
+
+void FPrimitiveSceneProxyDesc::InitializeFromPrimitiveComponent(const UPrimitiveComponent* InComponent)
 {
 	CastShadow = InComponent->CastShadow;
 	bReceivesDecals = InComponent->bReceivesDecals;
@@ -303,7 +307,9 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 	bHiddenInSceneCapture = InComponent->bHiddenInSceneCapture;
 	bRayTracingFarField = InComponent->bRayTracingFarField;
 	bHoldout = InComponent->bHoldout;
-
+	bWantsEditorEffects = InComponent->bWantsEditorEffects;
+	bIsFirstPerson = InComponent->FirstPersonPrimitiveType == EFirstPersonPrimitiveType::FirstPerson;
+	
 	bIsVisible = InComponent->IsVisible();
 	bIsVisibleEditor = InComponent->GetVisibleFlag();
 	bSelected = InComponent->IsSelected();
@@ -336,7 +342,7 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 	Mobility = InComponent->Mobility;;
 	TranslucencySortPriority = InComponent->TranslucencySortPriority;
 	TranslucencySortDistanceOffset = InComponent->TranslucencySortDistanceOffset;
-	LightmapType = InComponent->LightmapType ;
+	LightmapType = InComponent->GetLightmapType();
 	ViewOwnerDepthPriorityGroup = InComponent->ViewOwnerDepthPriorityGroup;
 	CustomDepthStencilValue = InComponent->CustomDepthStencilValue;
 	CustomDepthStencilWriteMask = InComponent->CustomDepthStencilWriteMask;
@@ -373,6 +379,7 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 
 #if WITH_EDITOR
 	HiddenEditorViews = InComponent->GetHiddenEditorViews();
+	OverlayColor = InComponent->OverlayColor;
 #endif
 	bShouldRenderProxyFallbackToDefaultMaterial = InComponent->ShouldRenderProxyFallbackToDefaultMaterial();
 
@@ -430,7 +437,9 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bCollisionEnabled(InProxyDesc.IsCollisionEnabled())
 ,	bTreatAsBackgroundForOcclusion(InProxyDesc.bTreatAsBackgroundForOcclusion)
 ,	bSupportsParallelGDME(true)
+,	bSinglePassGDME(false)
 ,	bVisibleInLumenScene(false)
+,	bOpaqueOrMasked(true)
 ,	bCanSkipRedundantTransformUpdates(true)
 ,	bGoodCandidateForCachedShadowmap(true)
 ,	bNeedsUnbuiltPreviewLighting(!InProxyDesc.IsPrecomputedLightingValid())
@@ -479,9 +488,12 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bShouldNotifyOnWorldAddRemove(false)
 ,	bWantsSelectionOutline(true)
 ,	bVerifyUsedMaterials(true)
+,   bWantsEditorEffects(InProxyDesc.bWantsEditorEffects)
 ,	bAllowApproximateOcclusion(InProxyDesc.Mobility != EComponentMobility::Movable)
 ,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
+,	bSkinnedMesh(false)
+,	bIsFirstPerson(InProxyDesc.bIsFirstPerson)
 ,	bUseAsOccluder(InProxyDesc.bUseAsOccluder)
 ,	bSelectable(InProxyDesc.bSelectable)
 ,	bHasPerInstanceHitProxies(InProxyDesc.bHasPerInstanceHitProxies)
@@ -514,6 +526,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 #if WITH_EDITOR
 // by default we are always drawn
 ,	HiddenEditorViews(0)
+,   OverlayColor(InProxyDesc.OverlayColor)
 ,   SelectionOutlineColorIndex(0)
 ,	DrawInAnyEditMode(0)
 ,   bIsFoliage(false)
@@ -671,6 +684,18 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 	{
 		bHasWorldPositionOffsetVelocity = true;
 	}
+
+#if UE_WITH_PSO_PRECACHING
+	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InProxyDesc.Component))
+	{
+		check(!PrimitiveComponent->ShouldRenderProxyFallbackToDefaultMaterial() || !PrimitiveComponent->MaterialPSOPrecacheRequestIDs.IsEmpty());
+		if (ShouldBoostPSOPrecachePriorityOnDraw() && PrimitiveComponent->IsPSOPrecaching() && PrimitiveComponent->PSOPrecacheRequestPriority == EPSOPrecachePriority::High)
+		{
+			SetPSORequestsToBoostOnDraw(PrimitiveComponent->MaterialPSOPrecacheRequestIDs);
+		}
+	}
+#endif
+
 }
 
 bool FPrimitiveSceneProxy::OnLevelAddedToWorld_RenderThread()
@@ -785,6 +810,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 	);
 
 	bOutputVelocity |= AlwaysHasVelocity();
+	bOutputVelocity |= (IsNaniteMesh() && IsSkinnedMesh());
 
 	FBoxSphereBounds PreSkinnedLocalBounds;
 	GetPreSkinnedLocalBounds(PreSkinnedLocalBounds);
@@ -830,20 +856,23 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.PrimitiveComponentId(GetPrimitiveComponentId().PrimIDValue)
 			.EditorColors(GetWireframeColor(), GetPrimitiveColor())
 			.SplineMesh(IsSplineMesh())
+			.SkinnedMesh(IsSkinnedMesh())
 			.HasPixelAnimation(AnyMaterialHasPixelAnimation())
 			.RayTracingFarField(IsRayTracingFarField())
-			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId);
+			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId)
+			.MeshPaintTextureDescriptor(GetMeshPaintTextureDescriptor())
+			.IsFirstPersonPrimitive(bIsFirstPerson);
 
-		if (PrimitiveSceneInfo != nullptr)
-		{
-			Builder.LightmapDataIndex(PrimitiveSceneInfo->GetLightmapDataOffset())
+	if (PrimitiveSceneInfo != nullptr)
+	{
+		Builder.LightmapDataIndex(PrimitiveSceneInfo->GetLightmapDataOffset())
 			.CacheShadowAsStatic(PrimitiveSceneInfo->ShouldCacheShadowAsStatic())
 			.InstanceSceneDataOffset(PrimitiveSceneInfo->GetInstanceSceneDataOffset())
 			.NumInstanceSceneDataEntries(PrimitiveSceneInfo->GetNumInstanceSceneDataEntries())
 			.InstancePayloadDataOffset(PrimitiveSceneInfo->GetInstancePayloadDataOffset())
 			.InstancePayloadDataStride(PrimitiveSceneInfo->GetInstancePayloadDataStride())
 			.PersistentPrimitiveIndex(PrimitiveSceneInfo->GetPersistentIndex().Index);
-		}
+	}
 
 	if (IsNaniteMesh())
 	{
@@ -856,14 +885,20 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 		uint32 NaniteFilterFlags = uint32(NaniteProxy->GetFilterFlags());
 		uint32 NaniteRayTracingDataOffset = NaniteProxy->GetRayTracingDataOffset();
 		bool bReverseCulling = NaniteProxy->IsCullingReversedByComponent(); // needed because Nanite doesn't use raster state
+		float PixelProgrammableDistance = NaniteProxy->GetPixelProgrammableDistance();
+		float MaterialDisplacementFadeOutSize = NaniteProxy->GetMaterialDisplacementFadeOutSize();
 		
 		Builder.NaniteResourceID(NaniteResourceID)
 			.NaniteHierarchyOffset(NaniteHierarchyOffset)
 			.NaniteImposterIndex(NaniteImposterIndex)
 			.NaniteFilterFlags(NaniteFilterFlags)
 			.NaniteRayTracingDataOffset(NaniteRayTracingDataOffset)
-			.ReverseCulling(bReverseCulling);
+			.ReverseCulling(bReverseCulling)
+			.PixelProgrammableDistance(PixelProgrammableDistance)
+			.MaterialDisplacementFadeOutSize(MaterialDisplacementFadeOutSize)
+			.HasPerClusterDisplacementFallbackRaster(NaniteProxy->HasPerClusterDisplacementFallbackRaster());
 	}
+
 
 	FVector2f InstanceDrawDistanceMinMax;
 	if (GetInstanceDrawDistanceMinMax(InstanceDrawDistanceMinMax))
@@ -882,6 +917,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 		const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
 		if (GetInstanceDataHeader().NumInstances > 0)
 		{
+			// Getting the static mesh bounds from element 0 should always be valid, even if instance data is GPU-only.
 			Builder.InstanceLocalBounds(InstanceSceneDataBuffers->GetInstanceLocalBounds(0));
 		}
 	}
@@ -985,6 +1021,11 @@ bool FPrimitiveSceneProxy::UseSingleSampleShadowFromStationaryLights() const
 		|| LightmapType == ELightmapType::ForceVolumetric; 
 }
 
+bool FPrimitiveSceneProxy::IsInstanceDataGPUOnly() const
+{
+	return GetInstanceDataHeader().bInstanceDataIsGPUOnly;
+}
+
 #if ENABLE_DRAW_DEBUG
 void FPrimitiveSceneProxy::SetDebugMassData(const TArray<FDebugMassData>& InDebugMassData)
 {
@@ -1004,6 +1045,12 @@ void FPrimitiveSceneProxy::SetSelection_RenderThread(const bool bInParentSelecte
 	bParentSelected = bInParentSelected;
 	bIndividuallySelected = bInIndividuallySelected;
 	const bool bIsSelected = IsSelected();
+
+	if (bWantsEditorEffects == true)
+	{
+		GetScene().UpdatePrimitiveSelectedState_RenderThread(GetPrimitiveSceneInfo(), true);
+		return;
+	}
 
 	// The renderer may have cached the selected state, let it know that this primitive is updated
 	if ((bWasSelected && !bIsSelected) || 
@@ -1257,7 +1304,7 @@ FInstanceDataBufferHeader FPrimitiveSceneProxy::GetInstanceDataHeader() const
 
 	if (InstanceSceneDataBuffersInternal)
 	{
-		InstanceSceneDataBuffersInternal->GetHeader();
+		return InstanceSceneDataBuffersInternal->GetHeader();
 	}
 	return FInstanceDataBufferHeader::SinglePrimitiveHeader;
 }
@@ -1338,6 +1385,18 @@ void FPrimitiveSceneProxy::SetIsBeingMovedByEditor_GameThread(bool bIsBeingMoved
 		});
 }
 
+void FPrimitiveSceneProxy::SetSelectionOverride_GameThread(bool bForceSelection)
+{
+	check(IsInGameThread());
+
+	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
+		[this, bForceSelection](FRHICommandListImmediate&)
+		{
+			bWantsEditorEffects = bForceSelection;
+			SetSelection_RenderThread(bParentSelected, bIndividuallySelected);
+		});
+}
+
 void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorIndex)
 {
 	check(IsInGameThread());
@@ -1349,6 +1408,17 @@ void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorI
 		[this, ColorIndex](FRHICommandListImmediate&)
 		{
 			SelectionOutlineColorIndex = ColorIndex;
+		});
+}
+
+void FPrimitiveSceneProxy::SetOverlayColor_GameThread(FColor InOverlayColor)
+{
+	check(IsInGameThread());
+
+	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
+		[this, InOverlayColor](FRHICommandListImmediate&)
+		{
+			OverlayColor = InOverlayColor;
 		});
 }
 #endif
@@ -1766,6 +1836,22 @@ bool FPrimitiveSceneProxy::GetMaterialTextureScales(int32 LODIndex, int32 Sectio
 }
 
 #endif // WITH_EDITORONLY_DATA
+
+#if UE_WITH_PSO_PRECACHING
+void FPrimitiveSceneProxy::BoostPrecachedPSORequestsOnDraw()
+{
+	if (!PSOPrecacheRequestsToBoostOnDraw.IsEmpty())
+	{
+		BoostPSOPriority(EPSOPrecachePriority::Highest, PSOPrecacheRequestsToBoostOnDraw);
+		PSOPrecacheRequestsToBoostOnDraw.Empty();
+	}
+}
+
+void FPrimitiveSceneProxy::SetPSORequestsToBoostOnDraw(const TArray<FMaterialPSOPrecacheRequestID>& PSORequestsToBoostOnDrawIN)
+{
+	PSOPrecacheRequestsToBoostOnDraw = PSORequestsToBoostOnDrawIN;
+}
+#endif // UE_WITH_PSO_PRECACHING
 
 #if RHI_RAYTRACING
 ERayTracingPrimitiveFlags FPrimitiveSceneProxy::GetCachedRayTracingInstance(FRayTracingInstance& OutRayTracingInstance)

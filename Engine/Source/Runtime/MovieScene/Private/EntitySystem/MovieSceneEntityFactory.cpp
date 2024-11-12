@@ -8,6 +8,7 @@
 #include "EntitySystem/MovieSceneEntitySystemTask.h"
 #include "EntitySystem/MovieSceneEntityFactoryTemplates.h"
 #include "MovieSceneFwd.h"
+#include "Conditions/MovieSceneCondition.h"
 
 namespace UE
 {
@@ -153,7 +154,19 @@ FBoundObjectTask::FBoundObjectTask(UMovieSceneEntitySystemLinker* InLinker)
 	: Linker(InLinker)
 {}
 
-void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings)
+void FBoundObjectTask::Apply()
+{
+	for (TTuple<FEntityAllocationProxy, FObjectFactoryBatch>& Pair : Batches)
+	{
+		// Determine the type for the new entities
+		if (Pair.Value.Num() != 0)
+		{
+			Pair.Value.Apply(Linker, Pair.Key);
+		}
+	}
+}
+
+void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings, TReadOptional<FBoundObjectResolver> Resolvers)
 {
 	const FEntityAllocation* Allocation = AllocationProxy.GetAllocation();
 	const FComponentTypeID TagHasUnresolvedBinding = FBuiltInComponentTypes::Get()->Tags.HasUnresolvedBinding;
@@ -161,15 +174,19 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 	// Check whether every binding in this allocation is currently unresolved
 	const bool bWasUnresolvedBinding = Allocation->FindComponentHeader(TagHasUnresolvedBinding) != nullptr;
 
-	FObjectFactoryBatch& Batch = AddBatch(AllocationProxy);
+	FObjectFactoryBatch& Batch = Batches.Emplace(AllocationProxy);
 	Batch.StaleEntitiesToPreserve = &StaleEntitiesToPreserve;
 
 	const int32 Num = Allocation->Num();
+	
+	TOptionalComponentReader<TObjectPtr<const UMovieSceneCondition>> Conditions = Allocation->TryReadComponents(FBuiltInComponentTypes::Get()->Condition);
 
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 
 	// Keep track of existing bindings so we can preserve any components on them
 	TComponentTypeID<UObject*> BoundObjectComponent = FBuiltInComponentTypes::Get()->BoundObject;
+
+	const FBoundObjectResolver* ResolverPtr = Resolvers.AsPtr();
 
 	for (int32 Index = 0; Index < Num; ++Index)
 	{
@@ -190,24 +207,60 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 			}
 		}
 
-		const FObjectFactoryBatch::EResolveError Error = Batch.ResolveObjects(InstanceRegistry, Instances[Index], Index, ObjectBindings[Index]);
-		if (Error == FObjectFactoryBatch::EResolveError::None)
+		bool bIsResolvedBinding = false;
+
+		const FSequenceInstance&     SequenceInstance = InstanceRegistry->GetInstance(Instances[Index]);
+		TArrayView<TWeakObjectPtr<>> BoundObjects     = SequenceInstance.GetSharedPlaybackState()->FindBoundObjects(ObjectBindings[Index], SequenceInstance.GetSequenceID());
+		
+		bool bCheckedCondition = false;
+		for (TWeakObjectPtr<> WeakObject : BoundObjects)
 		{
-			// We have successfully resolved a binding, so remove the HasUnresolvedBinding tag
-			if (bWasUnresolvedBinding)
+			UObject* Object = WeakObject.Get();
+
+			// Pass the object through the resolver component if necessary
+			if (ResolverPtr && Object)
 			{
-				constexpr bool bAddComponent = false;
-				EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
+				Object = (ResolverPtr[Index])(Object);
+			}
+
+			if (Object)
+			{
+				if (!ensureMsgf(!FBuiltInComponentTypes::IsBoundObjectGarbage(Object), TEXT("Attempting to bind an object that is garbage or unreachable")))
+				{
+					continue;
+				}
+
+				if (!bCheckedCondition && Conditions && Conditions[Index] && Conditions[Index]->GetConditionScope() != EMovieSceneConditionScope::Global)
+				{
+					// If this entity has a condition that could depend on a bound object, then it hasn't yet been tested, and we must test it here. \
+					// Note that it will only be tested once here, and then the entity ledger will take care of testing it again if it needs to
+					// and it is a per-tick condition.
+					bCheckedCondition = true;
+					if (!SequenceInstance.EvaluateCondition(ObjectBindings[Index], SequenceInstance.GetSequenceID(), Conditions[Index], Conditions[Index]->GetTypedOuter<UMovieSceneSignedObject>()))
+					{
+						// Condition has failed, don't add this entity to the batch
+						break;
+					}
+				}
+
+				// Make a child entity for this resolved binding
+				Batch.Add(Index, Object);
+				bIsResolvedBinding = true;
 			}
 		}
-		else if (Error == FObjectFactoryBatch::EResolveError::UnresolvedBinding)
+
+
+		if (bIsResolvedBinding && bWasUnresolvedBinding)
 		{
-			if (!bWasUnresolvedBinding)
-			{
-				// Only bother attempting to add the HasUnresolvedBindingTag if it is not already tagged in such a way
-				constexpr bool bAddComponent = true;
-				EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
-			}
+			// We have successfully resolved a binding, so remove the HasUnresolvedBinding tag
+			constexpr bool bAddComponent = false;
+			EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
+		}
+		else if (!bIsResolvedBinding && !bWasUnresolvedBinding)
+		{
+			// Only bother attempting to add the HasUnresolvedBindingTag if it is not already tagged in such a way
+			constexpr bool bAddComponent = true;
+			EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
 		}
 	}
 
@@ -264,16 +317,6 @@ void FEntityFactories::DefineComplexInclusiveComponents(const FComplexInclusivit
 {
 	MutualInclusivityGraph.DefineComplexInclusionRule(InFilter, InComponents, MoveTemp(Params));
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FEntityFactories::DefineComplexInclusiveComponents(const FComplexInclusivity& InInclusivity)
-{
-	for (FComponentMaskIterator It(InInclusivity.ComponentsToInclude.Iterate()); It; ++It)
-	{
-		MutualInclusivityGraph.DefineComplexInclusionRule(InInclusivity.Filter, { FComponentTypeID::FromBitIndex(It.GetIndex()) });
-	}
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 int32 FEntityFactories::ComputeChildComponents(const FComponentMask& ParentComponentMask, FComponentMask& ChildComponentMask)
 {

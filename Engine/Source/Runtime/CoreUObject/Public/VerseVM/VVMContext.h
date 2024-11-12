@@ -155,6 +155,11 @@ protected:
 	uintptr_t EncodedWord = 0;
 };
 
+struct FIOContextPromise
+{
+	FIOContextPromise() = default;
+};
+
 // Having an IO context means:
 //
 // - You cannot access the heap.
@@ -173,18 +178,36 @@ struct FIOContext : FContext
 		CheckIOInvariants();
 	}
 
+	FIOContext(const FIOContextPromise& Other)
+		: FContext(FContextImpl::GetCurrentImpl(), EIsInHandshake::No)
+	{
+		CheckIOInvariants();
+	}
+
 	// Create the context for this thread and run some code in it without heap access. You can only have one
 	// context created per thread.
 	template <typename TFunc>
-	static void Create(const TFunc& Func, EContextHeapRole HeapRole = EContextHeapRole::Mutator)
-	{
-		FIOContext Context(FContextImpl::ClaimOrAllocateContext(HeapRole), EIsInHandshake::No);
-		Func(Context);
-		Context.GetImpl()->ReleaseContext();
-	}
+	static decltype(auto) Create(const TFunc& Func, EContextHeapRole HeapRole = EContextHeapRole::Mutator);
 
 	template <typename TFunc>
 	void AcquireAccess(const TFunc& Func) const;
+
+	// Create the context for this thread, and enable manual stack scanning.
+	// Makes sense in places like the UE game thread that manage their own GC marking without conservative stack.
+	static FIOContext CreateForManualStackScanning()
+	{
+		FIOContext Context(FContextImpl::ClaimOrAllocateContext(EContextHeapRole::Mutator), EIsInHandshake::No);
+		Context.EnableManualStackScanning();
+		return Context;
+	}
+
+	void ReleaseForManualStackScanning()
+	{
+		checkSlow(UsesManualStackScanning());
+		GetImpl()->ReleaseContext();
+	}
+
+	FRunningContext AcquireAccessForManualStackScanning();
 
 	// Wait until the target context runs the given function. If that context doesn't have access, the action
 	// runs immediately and on the calling thread.
@@ -259,9 +282,34 @@ protected:
 	}
 
 private:
+	friend struct FIOContextScope;
+
 	friend struct FRunningContext;
 
 	FIOContext(const FRunningContext& Other);
+};
+
+struct FIOContextScope
+{
+	explicit FIOContextScope(EContextHeapRole HeapRole = EContextHeapRole::Mutator)
+		: Context{FContextImpl::ClaimOrAllocateContext(HeapRole), EIsInHandshake::No}
+	{
+	}
+
+	FIOContextScope(const FIOContext&) = delete;
+
+	FIOContextScope& operator=(const FIOContextScope&) = delete;
+
+	FIOContextScope(FIOContextScope&&) = delete;
+
+	FIOContextScope& operator=(FIOContextScope&&) = delete;
+
+	~FIOContextScope()
+	{
+		Context.GetImpl()->ReleaseContext();
+	}
+
+	FIOContext Context;
 };
 
 // Our barriers need to be able to run without being passed an FAccessContext in some cases, like copy constructors and operator=.
@@ -372,6 +420,27 @@ struct FAccessContext : FContext
 		GetImpl()->SetCurrentTransaction(Transaction);
 	}
 
+	const FNativeContext& NativeContext() const
+	{
+		return GetImpl()->NativeContext();
+	}
+
+	// Run the functor in the same transaction with the given native context stashed in this context
+	// TFunctor is ()->void
+	template <typename TFunctor>
+	void RunInNativeContext(VFailureContext* FailureContext, VTask* Task, const TFunctor& F)
+	{
+		GetImpl()->RunInNativeContext(FailureContext, Task, F);
+	}
+
+	// Run the functor in a new transaction with a fresh native context (i.e. new failure context) stashed in this context
+	// TFunctor is ()->void
+	template <typename TFunctor>
+	void TransactInNewNativeContext(const TFunctor& F)
+	{
+		GetImpl()->TransactInNewNativeContext(F);
+	}
+
 protected:
 	friend struct FContextImpl;
 
@@ -448,6 +517,14 @@ struct FRunningContext : FAccessContext
 			GetImpl()->AcquireAccess();
 		});
 		CheckInvariants();
+	}
+
+	FIOContext RelinquishAccessForManualStackScanning()
+	{
+		checkSlow(UsesManualStackScanning());
+		CheckInvariants();
+		GetImpl()->RelinquishAccess();
+		return FIOContext(*this);
 	}
 
 	void CheckForHandshake() const
@@ -573,6 +650,14 @@ struct FAllocationContext : FAccessContext
 	}
 
 protected:
+	friend struct FContextImpl;
+
+	FAllocationContext(FContextImpl* Impl, EIsInHandshake IsInHandshake)
+		: FAccessContext(Impl, IsInHandshake)
+	{
+		CheckAllocationInvariants();
+	}
+
 	void CheckAllocationInvariants() const
 	{
 		checkSlow(IsInHandshake() == EIsInHandshake::No);
@@ -626,6 +711,13 @@ inline FIOContext::FIOContext(const FRunningContext& Other)
 }
 
 template <typename TFunc>
+decltype(auto) FIOContext::Create(const TFunc& Func, EContextHeapRole HeapRole)
+{
+	FIOContextScope Scope{HeapRole};
+	return Func(Scope.Context);
+}
+
+template <typename TFunc>
 void FIOContext::AcquireAccess(const TFunc& Func) const
 {
 	GetImpl()->AcquireAccess();
@@ -633,6 +725,34 @@ void FIOContext::AcquireAccess(const TFunc& Func) const
 		Func(FRunningContext(*this));
 	});
 	GetImpl()->RelinquishAccess();
+}
+
+inline FRunningContext FIOContext::AcquireAccessForManualStackScanning()
+{
+	checkSlow(UsesManualStackScanning());
+	GetImpl()->AcquireAccess();
+	return FRunningContext(*this);
+}
+
+template <typename TFunctor>
+void FContextImpl::RunInNativeContext(VFailureContext* FailureContext, VTask* Task, const TFunctor& F)
+{
+	check(!AutoRTFM::IsClosed()); // This is meant to be run in the open
+
+	TGuardValue<FNativeContext> NativeContextGuard(_NativeContext, {FailureContext, Task});
+	F();
+}
+
+template <typename TFunctor>
+void FContextImpl::TransactInNewNativeContext(const TFunctor& F)
+{
+	AutoRTFM::TransactThenOpen([&] {
+		TGuardValue<FNativeContext> NativeContextGuard(_NativeContext, MakeNewNativeContext());
+		FRunningContext Context(this, EIsInHandshake::No);
+		_NativeContext.Start(Context);
+		F();
+		_NativeContext.Commit(Context);
+	});
 }
 
 } // namespace Verse

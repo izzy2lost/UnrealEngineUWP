@@ -8,7 +8,29 @@
 #include "MotionMatchingAnimNodeLibrary.generated.h"
 
 struct FAnimNode_MotionMatching;
+enum class EAlphaBlendOption : uint8;
+class UBlendProfile;
 class UPoseSearchDatabase;
+
+USTRUCT(BlueprintType)
+struct FMotionMatchingBlueprintBlendSettings
+{
+	GENERATED_BODY()
+
+	FMotionMatchingBlueprintBlendSettings();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	float BlendTime;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	TObjectPtr<UBlendProfile> BlendProfile;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	EAlphaBlendOption BlendOption;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	bool bUseInertialBlend;
+};
 
 USTRUCT(BlueprintType)
 struct FMotionMatchingAnimNodeReference : public FAnimNodeReference
@@ -40,6 +62,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe, DisplayName = "Get Motion Matching Search Result"))
 	static void GetMotionMatchingSearchResult(const FMotionMatchingAnimNodeReference& MotionMatchingNode, FPoseSearchBlueprintResult& Result, bool& bIsResultValid);
+
+	// Get current blend settings used when blending into a new asset
+	UFUNCTION(BlueprintPure, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe, DisplayName = "Get Motion Matching Blend Settings"))
+	static void GetMotionMatchingBlendSettings(const FMotionMatchingAnimNodeReference& MotionMatchingNode, FMotionMatchingBlueprintBlendSettings& BlendSettings, bool& bIsResultValid);
+
+	// Override current blend settings for motion matching. Note that any pinned parameters will stomp this override on the next update.
+	UFUNCTION(BlueprintCallable, Category = "Animation|MotionMatching", meta = (BlueprintThreadSafe, DisplayName = "Override Motion Matching Blend Settings"))
+	static void OverrideMotionMatchingBlendSettings(const FMotionMatchingAnimNodeReference& MotionMatchingNode, const FMotionMatchingBlueprintBlendSettings& BlendSettings, bool& bIsResultValid);
 
 	/**
 	 * Set the database to search on the motion matching node. This overrides the Database property on the motion matching node.

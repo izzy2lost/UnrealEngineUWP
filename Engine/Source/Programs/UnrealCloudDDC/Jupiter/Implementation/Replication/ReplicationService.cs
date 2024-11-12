@@ -71,6 +71,8 @@ namespace Jupiter.Implementation
 			{
 				case ReplicatorVersion.Refs:
 					return ActivatorUtilities.CreateInstance<RefsReplicator>(provider, replicatorSettings);
+				case ReplicatorVersion.Blobs:
+					return ActivatorUtilities.CreateInstance<BlobsReplicator>(provider, replicatorSettings);
 				default:
 					throw new NotImplementedException($"Unknown replicator version: {replicatorSettings.Version}");
 			}
@@ -106,7 +108,7 @@ namespace Jupiter.Implementation
 							_logger.LogError(replicationTask.Exception, "Unhandled exception in replicator {Name}", replicator.Info.ReplicatorName);
 							continue;
 						}
-					 
+
 						DateTime time = DateTime.Now;
 						_logger.LogInformation("Joining replication task for replicator {Name}", replicator.Info.ReplicatorName);
 						await replicationTask;
@@ -145,7 +147,7 @@ namespace Jupiter.Implementation
 				replicator.Dispose();
 			}
 		}
-		
+
 		public IEnumerable<IReplicator> GetReplicators(NamespaceId ns)
 		{
 			return State.Replicators

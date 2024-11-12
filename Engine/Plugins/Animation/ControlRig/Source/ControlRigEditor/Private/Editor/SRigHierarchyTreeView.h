@@ -25,7 +25,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 		bShowBones = true;
 		bShowControls = true;
 		bShowNulls = true;
-		bShowRigidBodies = true;
+		bShowPhysics = true;
 		bShowReferences = true;
 		bShowSockets = true;
 		bShowConnectors = true;
@@ -55,8 +55,8 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 	/** Whether or not to show spaces in the hierarchy */
 	bool bShowNulls;
 
-	/** Whether or not to show rigidbodies in the hierarchy */
-	bool bShowRigidBodies;
+	/** Whether or not to show physics elements in the hierarchy */
+	bool bShowPhysics;
 
 	/** Whether or not to show references in the hierarchy */
 	bool bShowReferences;
@@ -288,9 +288,11 @@ public:
 
 	SLATE_BEGIN_ARGS(SRigHierarchyTreeView)
 		: _AutoScrollEnabled(false)
+		, _PopulateOnConstruct(false)
 	{}
 		SLATE_ARGUMENT(FRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(bool, AutoScrollEnabled)
+		SLATE_ARGUMENT(bool, PopulateOnConstruct)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -335,6 +337,7 @@ public:
 		}
 	}
 
+	TSharedPtr<FRigTreeElement> FindElement(const FRigElementKey& InElementKey) const;
 	static TSharedPtr<FRigTreeElement> FindElement(const FRigElementKey& InElementKey, TSharedPtr<FRigTreeElement> CurrentItem);
 	bool AddElement(FRigElementKey InKey, FRigElementKey InParentKey = FRigElementKey());
 	bool AddElement(const FRigBaseElement* InElement);
@@ -384,7 +387,9 @@ class SSearchableRigHierarchyTreeView : public SCompoundWidget
 {
 public:
 
-	SLATE_BEGIN_ARGS(SSearchableRigHierarchyTreeView) {}
+	SLATE_BEGIN_ARGS(SSearchableRigHierarchyTreeView)
+		:_MaxHeight(0.f)
+	{}
 		SLATE_ARGUMENT(FRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(FText, InitialFilterText)
 		SLATE_ARGUMENT(float, MaxHeight)

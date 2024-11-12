@@ -233,7 +233,10 @@ public:
 		BuildSizeMB(InBuildSizeMB),
 		BuildCount(InAssetsBuilt),
 		GameThreadTimeSec(bIsGameThreadTime ? InLoadTimeSec + InBuildTimeSec : 0.0)
-	{}
+	{
+		TotalCount = LoadCount + BuildCount;
+		Efficiency = TotalCount>0? (double)LoadCount / (double)TotalCount : 1.0;
+	}
 
 	const FDerivedDataCacheResourceStat& operator+(const FDerivedDataCacheResourceStat& OtherStat)
 	{
@@ -246,6 +249,9 @@ public:
 		BuildCount += OtherStat.BuildCount;
 		BuildTimeSec += OtherStat.BuildTimeSec;
 		BuildSizeMB += OtherStat.BuildSizeMB;
+
+		TotalCount = LoadCount + BuildCount;
+		Efficiency = TotalCount > 0 ? (double)LoadCount / (double)TotalCount : 1.0;
 
 		return *this;
 	}
@@ -261,6 +267,9 @@ public:
 		BuildCount -= OtherStat.BuildCount;
 		BuildTimeSec -= OtherStat.BuildTimeSec;
 		BuildSizeMB -= OtherStat.BuildSizeMB;
+
+		TotalCount = LoadCount + BuildCount;
+		Efficiency = TotalCount > 0 ? (double)LoadCount / (double)TotalCount : 1.0;
 
 		return *this;
 	}
@@ -279,13 +288,16 @@ public:
 
 	FString AssetType;
 
-	double LoadTimeSec;
-	double LoadSizeMB;
-	int64 LoadCount;
+	double LoadTimeSec = 0;
+	double LoadSizeMB = 0;
+	int64 LoadCount = 0;
 
-	double BuildTimeSec;
-	double BuildSizeMB;
-	int64 BuildCount;
+	double BuildTimeSec = 0;
+	double BuildSizeMB = 0;
+	int64 BuildCount = 0;
+
+	int64 TotalCount = 0;
+	double Efficiency = 0;
 
 	double GameThreadTimeSec;
 };

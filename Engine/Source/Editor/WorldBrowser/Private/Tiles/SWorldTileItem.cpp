@@ -389,7 +389,7 @@ bool SWorldTileItem::IsItemEnabled() const
 {
 	if (WorldModel->IsSimulating())
 	{
-		return TileModel->IsVisible();
+		return TileModel->IsVisibleInEditor();
 	}
 	else
 	{

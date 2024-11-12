@@ -48,7 +48,7 @@ float GetHairDualScatteringRoughnessOverride();
 
 float SampleCountToSubPixelSize(uint32 SamplePerPixelCount);
 
-FIntRect ComputeVisibleHairStrandsMacroGroupsRect(const FIntRect& ViewRect, const FHairStrandsMacroGroupDatas& Datas);
+FIntRect ComputeVisibleHairStrandsMacroGroupsRect(const FViewInfo& View, const FIntRect& ViewRect, const FHairStrandsMacroGroupDatas& Datas);
 
 bool IsHairStrandsViewRectOptimEnable();
 

@@ -14,8 +14,6 @@ public:
 	UAvaClonerActorTool();
 
 	//~ Begin UAvaInteractiveToolsToolBase
-	virtual bool UseIdentityLocation() const override { return false; }
-	virtual bool UseIdentityRotation() const override;
 	virtual FName GetCategoryName() override;
 	virtual FAvaInteractiveToolsToolParameters GetToolParameters() const override;
 	//~ End UAvaInteractiveToolsToolBase

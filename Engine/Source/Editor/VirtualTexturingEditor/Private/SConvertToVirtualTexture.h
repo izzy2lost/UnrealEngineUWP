@@ -71,7 +71,7 @@ public:
 	SLATE_ATTRIBUTE(TSharedPtr<SWindow>, ParentWindow)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, bool bBackwards);
 
 	void SetBackwards(bool bSetBackwards);
 
@@ -144,6 +144,4 @@ private:
 	bool bThresholdVisible;
 
 	TArray<TSharedPtr<int32>> TextureSizes;
-
-	bool bFilterButtonEnabled;
 };

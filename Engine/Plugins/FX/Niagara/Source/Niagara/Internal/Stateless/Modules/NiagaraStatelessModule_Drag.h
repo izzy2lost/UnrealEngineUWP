@@ -9,6 +9,7 @@
 
 #include "NiagaraStatelessModule_Drag.generated.h"
 
+// Applies Drag directly to particle velocity, irrespective of Mass.
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Drag"))
 class UNiagaraStatelessModule_Drag : public UNiagaraStatelessModule
 {
@@ -20,7 +21,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Drag", DisableBindingDistribution))
 	FNiagaraDistributionRangeFloat DragDistribution = FNiagaraDistributionRangeFloat(DefaultDrag);
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		if (!IsModuleEnabled())
 		{

@@ -70,11 +70,11 @@ private:
 	* Returns bit mask with a single set bit that should be used to access the occlusion results.
 	* Returns 0 if maximum number of supported views is reached, falling back to no-occlusion-query code path.
 	*/
-	uint32 RegisterView(const FViewInfo& View);
+	uint32 FindOrAddViewSlot(const FViewInfo& View);
 
 	FRDGBufferRef CurrentInstanceOcclusionQueryBuffer = {};
 
-	static constexpr uint32 MaxViews = 1; // -- YURIY_TODO: we could theoretically support up to 8 views for uint8 or 32 for uint32 mask
+	static constexpr uint32 MaxViews = 8; // Visibility mask is stored as uint8
 	TArray<uint32> CurrentRenderedViewIDs;
 
 	uint32 AllocatedNumInstances = 0;

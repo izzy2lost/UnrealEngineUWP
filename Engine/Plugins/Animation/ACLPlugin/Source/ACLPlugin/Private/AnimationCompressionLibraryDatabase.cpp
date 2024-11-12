@@ -4,7 +4,7 @@
 #include "AnimationCompressionLibraryDatabase.h"
 #include "AnimBoneCompressionCodec_ACLDatabase.h"
 #include "Engine/Engine.h"
-#include "UE4DatabaseStreamer.h"
+#include "UEDatabaseStreamer.h"
 
 #include "LatentActions.h"
 #include "Containers/Ticker.h"
@@ -19,7 +19,7 @@
 #include "UObject/UObjectIterator.h"
 
 #include "ACLImpl.h"
-#include "UE4DatabasePreviewStreamer.h"
+#include "UEDatabasePreviewStreamer.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <acl/compression/compress.h>
@@ -52,10 +52,18 @@ UAnimationCompressionLibraryDatabase::UAnimationCompressionLibraryDatabase(const
 	, StripLowestImportanceTier(false)	// By default we don't strip the lowest tier
 #endif
 	, MaxStreamRequestSizeKB(1024)		// By default we stream 1 MB (1 chunk) at a time
+	, DefaultVisualFidelity(ACLVisualFidelity::Lowest)
 #if WITH_EDITORONLY_DATA
 	// By default, in the editor we preview the full quality.
 	// Our database context won't be used until we need to build the database for preview if we change this value.
 	, PreviewVisualFidelity(ACLVisualFidelity::Highest)
+	, NumAnimSequences(0)
+	, AnimSequencesOldSizeKB(0)
+	, AnimSequencesNewSizeKB(0)
+	, DatabaseSizeKB(0)
+	, DatabaseMetadataSizeKB(0)
+	, MediumImportanceSizeKB(0)
+	, LowImportanceSizeSizeKB(0)
 #endif
 {
 }
@@ -143,12 +151,19 @@ void UAnimationCompressionLibraryDatabase::PreSave(FObjectPreSaveContext ObjectS
 	}
 }
 
-void UAnimationCompressionLibraryDatabase::BuildDatabase(TArray<uint8>& OutCompressedBytes, TArray<uint64>& OutAnimSequenceMappings, TArray<uint8>& OutBulkData, bool bStripLowestTier) const
+void UAnimationCompressionLibraryDatabase::BuildDatabase(TArray<uint8>& OutCompressedBytes, TArray<uint64>& OutAnimSequenceMappings, TArray<uint8>& OutBulkData, bool bStripLowestTier)
 {
 	// Clear any stale data we might have
 	OutCompressedBytes.Empty(0);
 	OutAnimSequenceMappings.Empty(0);
 	OutBulkData.Empty(0);
+	NumAnimSequences = 0;
+	AnimSequencesOldSizeKB = 0;
+	AnimSequencesNewSizeKB = 0;
+	DatabaseSizeKB = 0;
+	DatabaseMetadataSizeKB = 0;
+	MediumImportanceSizeKB = 0;
+	LowImportanceSizeSizeKB = 0;
 
 	// We are cooking or previewing, iterate over every animation sequence that references this database
 	// and merge them together into our final database instance. Note that the mapping could
@@ -236,7 +251,7 @@ void UAnimationCompressionLibraryDatabase::BuildDatabase(TArray<uint8>& OutCompr
 	{
 		checkSlow(MergedDB->is_valid(true).empty());
 
-		acl::database_context<UE4DefaultDatabaseSettings> DebugDatabaseContext;
+		acl::database_context<UEDefaultDatabaseSettings> DebugDatabaseContext;
 		const bool ContextInitResult = DebugDatabaseContext.initialize(ACLAllocatorImpl, *MergedDB);
 		checkf(ContextInitResult, TEXT("ACL failed to initialize the database context"));
 
@@ -346,6 +361,16 @@ void UAnimationCompressionLibraryDatabase::BuildDatabase(TArray<uint8>& OutCompr
 	UE_LOG(LogAnimationCompression, Log, TEXT("    DB medium tier is %.2f MB"), BytesToMB(BulkDataSizeMedium));
 	UE_LOG(LogAnimationCompression, Log, TEXT("    DB lowest tier is %.2f MB%s"), BytesToMB(BulkDataSizeLow), bStripLowestTier ? TEXT(" (stripped)") : TEXT(""));
 
+	auto BytesToCeilKB = [](SIZE_T NumBytes) { return int32((NumBytes + 1023) / 1024); };
+
+	NumAnimSequences = NumSequences;
+	AnimSequencesOldSizeKB = BytesToCeilKB(TotalSizeSeqOld);
+	AnimSequencesNewSizeKB = BytesToCeilKB(TotalSizeSeqNew);
+	DatabaseSizeKB = BytesToCeilKB(SplitDB->get_total_size());
+	DatabaseMetadataSizeKB = BytesToCeilKB(SplitDB->get_size());
+	MediumImportanceSizeKB = BytesToCeilKB(BulkDataSizeMedium);
+	LowImportanceSizeSizeKB = BytesToCeilKB(BulkDataSizeLow);
+
 	// Make sure to sort our array, it'll be sorted by hash first since it lives in the top bits
 	OutAnimSequenceMappings.Sort();
 
@@ -409,7 +434,7 @@ void UAnimationCompressionLibraryDatabase::UpdatePreviewState(bool bBuildDatabas
 		PreviewDatabaseStreamer.Reset();
 		DatabaseContext.reset();
 
-		BuildDatabase(PreviewCompressedBytes, PreviewAnimSequenceMappings, PreviewBulkData, false);
+		BuildDatabase(PreviewCompressedBytes, PreviewAnimSequenceMappings, PreviewBulkData);
 
 		if (PreviewCompressedBytes.Num() != 0)
 		{
@@ -417,7 +442,7 @@ void UAnimationCompressionLibraryDatabase::UpdatePreviewState(bool bBuildDatabas
 			const acl::compressed_database* CompressedDatabase = acl::make_compressed_database(PreviewCompressedBytes.GetData());
 			check(CompressedDatabase != nullptr && CompressedDatabase->is_valid(false).empty());
 
-			PreviewDatabaseStreamer = MakeUnique<UE4DatabasePreviewStreamer>(*CompressedDatabase, PreviewBulkData);
+			PreviewDatabaseStreamer = MakeUnique<UEDatabasePreviewStreamer>(*CompressedDatabase, PreviewBulkData);
 
 			const bool ContextInitResult = DatabaseContext.initialize(ACLAllocatorImpl, *CompressedDatabase, *PreviewDatabaseStreamer, *PreviewDatabaseStreamer);
 			checkf(ContextInitResult, TEXT("ACL failed to initialize the database context"));
@@ -537,7 +562,7 @@ void UAnimationCompressionLibraryDatabase::BeginDestroy()
 	if (DatabaseStreamer)
 	{
 		// Wait for any pending IO requests
-		UE4DatabaseStreamer* Streamer = (UE4DatabaseStreamer*)DatabaseStreamer.Release();
+		UEDatabaseStreamer* Streamer = (UEDatabaseStreamer*)DatabaseStreamer.Release();
 		Streamer->WaitForStreamingToComplete();
 
 		// Reset our context to make sure it no longer references the streamer
@@ -559,7 +584,7 @@ void UAnimationCompressionLibraryDatabase::BeginDestroy()
 #endif
 
 	// Manually run the destructor since the container is opaque
-	DatabaseContext.~database_context<UE4DefaultDatabaseSettings>();
+	DatabaseContext.~database_context<UEDefaultDatabaseSettings>();
 }
 
 void UAnimationCompressionLibraryDatabase::PostLoad()
@@ -571,10 +596,17 @@ void UAnimationCompressionLibraryDatabase::PostLoad()
 		const acl::compressed_database* CompressedDatabase = acl::make_compressed_database(CookedCompressedBytes.GetData());
 		check(CompressedDatabase != nullptr && CompressedDatabase->is_valid(false).empty());
 
-		DatabaseStreamer = MakeUnique<UE4DatabaseStreamer>(*CompressedDatabase, CookedBulkData);
+		DatabaseStreamer = MakeUnique<UEDatabaseStreamer>(*CompressedDatabase, CookedBulkData);
 
 		const bool ContextInitResult = DatabaseContext.initialize(ACLAllocatorImpl, *CompressedDatabase, *DatabaseStreamer, *DatabaseStreamer);
 		checkf(ContextInitResult, TEXT("ACL failed to initialize the database context"));
+	}
+
+	if (!GIsEditor)
+	{
+		// When launching outside the editor, we set the default visual fidelity
+		// In the editor, we use the preview fidelity instead
+		SetVisualFidelity(DefaultVisualFidelity);
 	}
 }
 
@@ -837,8 +869,7 @@ bool UAnimationCompressionLibraryDatabase::UpdateVisualFidelityTicker(float Delt
 			// We have highest fidelity
 			// The medium/lowest importance tiers are already streamed in
 
-			checkf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value"));
-			if (Request.Fidelity != ACLVisualFidelity::Medium)
+			if (!ensureMsgf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value")))
 			{
 				// Something wrong happened, ignore all change requests
 				FailAllRequests(FidelityChangeRequests);
@@ -930,8 +961,7 @@ bool UAnimationCompressionLibraryDatabase::UpdateVisualFidelityTicker(float Delt
 			// We have lowest fidelity
 			// Nothing is currently streamed in
 
-			checkf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value"));
-			if (Request.Fidelity != ACLVisualFidelity::Medium)
+			if (!ensureMsgf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value")))
 			{
 				// Something wrong happened, ignore all change requests
 				FailAllRequests(FidelityChangeRequests);

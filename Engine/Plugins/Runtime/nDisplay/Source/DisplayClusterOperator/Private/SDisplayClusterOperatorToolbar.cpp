@@ -12,6 +12,7 @@
 #include "LevelEditorActions.h"
 #include "EditorSupportDelegates.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Misc/TransactionObjectEvent.h"
 #include "Toolkits/AssetEditorToolkit.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/STextComboBox.h"
@@ -29,6 +30,11 @@ SDisplayClusterOperatorToolbar::~SDisplayClusterOperatorToolbar()
 	{
 		FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 		LevelEditor.OnMapChanged().Remove(MapChangedHandle);
+	}
+
+	if (OnObjectTransactedHandle.IsValid())
+	{
+		FCoreUObjectDelegates::OnObjectTransacted.Remove(OnObjectTransactedHandle);
 	}
 	
 	FEditorSupportDelegates::PrepareToCleanseEditorObject.RemoveAll(this);
@@ -116,6 +122,8 @@ void SDisplayClusterOperatorToolbar::Construct(const FArguments& InArgs)
 	MapChangedHandle = LevelEditor.OnMapChanged().AddRaw(this, &SDisplayClusterOperatorToolbar::HandleMapChanged);
 
 	FEditorSupportDelegates::PrepareToCleanseEditorObject.AddSP(this, &SDisplayClusterOperatorToolbar::OnPrepareToCleanseEditorObject);
+
+	OnObjectTransactedHandle = FCoreUObjectDelegates::OnObjectTransacted.AddSP(this, &SDisplayClusterOperatorToolbar::OnObjectTransacted);
 }
 
 TSharedPtr<FString> SDisplayClusterOperatorToolbar::FillRootActorList(const FString& InitiallySelectedRootActor)
@@ -142,7 +150,7 @@ TSharedPtr<FString> SDisplayClusterOperatorToolbar::FillRootActorList(const FStr
 
 void SDisplayClusterOperatorToolbar::ClearSelectedRootActor()
 {
-	if (ADisplayClusterRootActor* ActiveRootActor = ViewModel->GetRootActor())
+	if (ADisplayClusterRootActor* ActiveRootActor = ViewModel->GetRootActor(/*bEvenIfPendingKill*/ true))
 	{
 		if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(ActiveRootActor->GetClass()))
 		{
@@ -239,7 +247,7 @@ FText SDisplayClusterOperatorToolbar::GetRootActorComboBoxText() const
 
 void SDisplayClusterOperatorToolbar::OnLevelActorDeleted(AActor* Actor)
 {
-	if (Actor == ViewModel->GetRootActor())
+	if (Actor == ViewModel->GetRootActor(/*bEvenIfPendingKill*/ true))
 	{
 		if (Actor && Actor->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists))
 		{
@@ -272,6 +280,17 @@ void SDisplayClusterOperatorToolbar::OnPrepareToCleanseEditorObject(UObject* Obj
 			// no UI elements continue to reference the root actor
 			ClearSelectedRootActor();
 		}
+	}
+}
+
+void SDisplayClusterOperatorToolbar::OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent)
+{
+	if (TransactionObjectEvent.GetEventType() == ETransactionObjectEventType::UndoRedo
+		&& TransactionObjectEvent.HasPendingKillChange()
+		&& Object == ViewModel->GetRootActor(/*bEvenIfPendingKill*/ true))
+	{
+		// In this case the user has redone a deletion, and we need to update appropriately.
+		ClearSelectedRootActor();
 	}
 }
 

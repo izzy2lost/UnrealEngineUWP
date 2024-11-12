@@ -3,14 +3,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceServices
 #include "TraceServices/Model/AllocationsProvider.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemAllocTable.h"
 #include "Insights/Table/Widgets/SSessionTableTreeView.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 class FCallstackFrameGroupNode;
@@ -67,6 +71,7 @@ public:
 		TSharedPtr<FMemoryRuleSpec> Rule;
 		double TimeMarkers[4] = { 0.0, 0.0, 0.0, 0.0 };
 		bool bIncludeHeapAllocs = false;
+		bool bIncludeSwapAllocs = false;
 	};
 
 	void SetQueryParams(const FQueryParams& InQueryParams)
@@ -77,6 +82,7 @@ public:
 		TimeMarkers[2] = InQueryParams.TimeMarkers[2];
 		TimeMarkers[3] = InQueryParams.TimeMarkers[3];
 		bIncludeHeapAllocs = InQueryParams.bIncludeHeapAllocs;
+		bIncludeSwapAllocs = InQueryParams.bIncludeSwapAllocs;
 		OnQueryInvalidated();
 	}
 
@@ -129,7 +135,7 @@ private:
 	FText GetFooterLeftText() const;
 	FText GetFooterCenterText() const;
 
-	virtual void TreeView_OnSelectionChanged(Insights::FTableTreeNodePtr SelectedItem, ESelectInfo::Type SelectInfo) override;
+	virtual void TreeView_OnSelectionChanged(FTableTreeNodePtr SelectedItem, ESelectInfo::Type SelectInfo) override;
 
 	virtual void UpdateFilterContext(const FFilterConfigurator& InFilterConfigurator, const FTableTreeNode& InNode) const override;
 	virtual void InitFilterConfigurator(FFilterConfigurator& InOutFilterConfigurator) override;
@@ -139,15 +145,20 @@ private:
 	ECheckBoxState CallstackGroupingByFunction_IsChecked() const;
 
 	void InitAvailableViewPresets();
-	void PopulateLLMTagSuggestionList(const FString& Text, TArray<FString>& OutSuggestions);
+	void PopulateLLMTagSuggestionList(const FString& Text, TArray<FString>& OutSuggestions) const;
+	void PopulateThreadSuggestionList(const FString& Text, TArray<FString>& OutSuggestions) const;
 
 private:
 	const static int32 FullCallStackIndex;
 	const static int32 LLMFilterIndex;
+	const static int32 AllocThreadFilterIndex;
+	const static int32 FreeThreadFilterIndex;
+
 	int32 TabIndex = -1;
 	TSharedPtr<FMemoryRuleSpec> Rule = nullptr;
 	double TimeMarkers[4];
 	bool bIncludeHeapAllocs = false;
+	bool bIncludeSwapAllocs = false;
 	TraceServices::IAllocationsProvider::FQueryHandle Query = 0;
 	FText QueryInfo;
 	FText QueryInfoTooltip;
@@ -159,4 +170,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

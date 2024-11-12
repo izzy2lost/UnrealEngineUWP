@@ -832,8 +832,10 @@ public:
 	/**	Request an array of virtual texture page requests that was captured with SetVirtualTextureRequestRecordBuffer. Note that the array will be moved and ownership is taken. */
 	virtual void RequestVirtualTextureTiles(TArray<uint64>&& InPageRequests) = 0;
 
-	/** Evict all data from virtual texture caches*/
+	/** Evict all data from virtual texture caches. */
 	virtual void FlushVirtualTextureCache() = 0;
+	/** Evict all data from virtual texture cache for a given allocated virtual texture. */
+	virtual void FlushVirtualTextureCache(IAllocatedVirtualTexture* AllocatedVT, const FVector2f& InUV0, const FVector2f& InUV1) = 0;
 
 	/** Allocate a buffer and record all nanite page requests until the next call to either SetNaniteRequestRecordBuffer or GetNaniteRequestRecordBuffer. */
 	virtual void SetNaniteRequestRecordBuffer(uint64 Handle) = 0;

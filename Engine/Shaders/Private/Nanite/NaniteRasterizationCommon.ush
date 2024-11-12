@@ -10,6 +10,7 @@
 #include "../VirtualShadowMaps/VirtualShadowMapPageAccessCommon.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageOverlap.ush"
 #include "NaniteWritePixel.ush"
+#include "NaniteCullingCommon.ush"
 
 // Material includes
 #include "/Engine/Generated/Material.ush"
@@ -25,6 +26,14 @@
 
 #define ENABLE_EARLY_Z_TEST (NANITE_PIXEL_PROGRAMMABLE)
 
+// For shadows in displacement fallback raster bins, we need to apply minimum displacement on cluster triangles
+#define ENABLE_FALLBACK_DISPLACEMENT (SHADOW_DEPTH_SHADER && ( \
+	FIXED_DISPLACEMENT_FALLBACK || \
+	(NANITE_VERTEX_PROGRAMMABLE && USES_DISPLACEMENT && !NANITE_TESSELLATION) \
+))
+
+#define MATERIAL_SHADER_HAS_DOMAIN (NANITE_TESSELLATION && (NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE))
+#define MATERIAL_SHADER_HAS_DISPLACEMENT (ENABLE_FALLBACK_DISPLACEMENT || (MATERIAL_SHADER_HAS_DOMAIN && USES_DISPLACEMENT))
 
 // State encompassing mapping a pixel position to memory address
 struct FRaster
@@ -166,7 +175,7 @@ void DeduplicateVertIndexes( uint3 VertIndexes, uint GroupThreadIndex, bool bTri
 		}
 	}
 
-	uint2 UsedVertMask;
+	uint2 UsedVertMask = uint2(0,0);
 	BRANCH
 	if( LaneCount < 32 )
 	{
@@ -353,39 +362,53 @@ struct TNaniteWritePixel
 
 struct FMaterialShader
 {
-#if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
 	FNaniteView					NaniteView;
+	FPrimitiveSceneData 		PrimitiveData;
 	FInstanceSceneData			InstanceData;
 	FInstanceDynamicData		InstanceDynamicData;
 	FCluster					Cluster;
+	FVisibleCluster				VisibleCluster;
 	FNaniteVertTransforms		VertTransforms;
 	FNaniteTransformedTri		TransformedTri;
+	FMaterialVertexParameters	VertexParameters;
+
+#if MATERIAL_SHADER_HAS_DISPLACEMENT
+	FNaniteMaterialDisplacementParams	DisplacementParams;
+	float								DisplacementFadeSlope;
+	float								DisplacementFadeOffset;
 #endif
 
-#if USES_DISPLACEMENT
-	float DisplacementCenter;
-	float DisplacementMagnitude;
+	void InitVertexParameters(FNanitePostDeformVertex InputVert)
+	{
+	#if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
+		// Should be Pow2(InvScale) but that requires renormalization
+		float3x3 LocalToWorld = DFToFloat3x3(InstanceData.LocalToWorld);
+		float3 InvScale = InstanceData.InvNonUniformScale;
+		LocalToWorld[0] *= InvScale.x;
+		LocalToWorld[1] *= InvScale.y;
+		LocalToWorld[2] *= InvScale.z;
+
+		VertexParameters = MakeInitializedMaterialVertexParameters();
+		SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, true /* WPO */);
+		SetVertexParameterAttributeData(VertexParameters, InputVert, InstanceDynamicData.LocalToTranslatedWorld, LocalToWorld);
+	#endif
+	}
+
+#if NANITE_PIXEL_PROGRAMMABLE && NUM_TEX_COORD_INTERPOLATORS > 0
+	void GetCustomizedUVs(inout float2 OutCustomizedUVs[NUM_TEX_COORD_INTERPOLATORS])
+	{
+		GetMaterialCustomizedUVs(VertexParameters, OutCustomizedUVs);
+		GetCustomInterpolators(VertexParameters, OutCustomizedUVs);
+	}
 #endif
 
-	float3 EvaluateWorldPositionOffset( FNanitePostDeformVertex InputVert )
+	float3 EvaluateWorldPositionOffset()
 	{
 		float3 WorldPositionOffset = 0.0f;
 	#if NANITE_VERTEX_PROGRAMMABLE
-		FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 		BRANCH
 		if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET) != 0u)
 		{
-			// Should be Pow2(InvScale) but that requires renormalization
-			float3x3 LocalToWorld = DFToFloat3x3(InstanceData.LocalToWorld);
-			float3 InvScale = InstanceData.InvNonUniformScale;
-			LocalToWorld[0] *= InvScale.x;
-			LocalToWorld[1] *= InvScale.y;
-			LocalToWorld[2] *= InvScale.z;
-
-			FMaterialVertexParameters VertexParameters = MakeInitializedMaterialVertexParameters();
-			SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, true /* WPO */);
-			SetVertexParameterAttributeData(VertexParameters, InputVert, InstanceDynamicData.LocalToTranslatedWorld, LocalToWorld);
-
 		#if ENABLE_NEW_HLSL_GENERATOR
 			EvaluateVertexMaterialAttributes(VertexParameters);
 		#endif
@@ -395,7 +418,67 @@ struct FMaterialShader
 		return WorldPositionOffset;
 	}
 
-#if NANITE_TESSELLATION && (NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE)
+#if MATERIAL_SHADER_HAS_DISPLACEMENT
+	void InitDisplacement(FNaniteMaterialDisplacementParams InParams)
+	{
+		DisplacementParams = InParams;
+	
+	#if USES_DISPLACEMENT
+		if (DisplacementParams.FadeSizeStop > 0.0f)
+		{
+			// Solve fade slope/offset relative to view depth
+			// NOTE: This isn't the same as fading linearly with projected depth, but makes EvaluateDomain cheaper
+			const float InstanceScale = InstanceData.NonUniformScale.w;
+			const float MaxDisplacement = GetAbsMaxMaterialDisplacement( PrimitiveData );
+			const float StartDepth = (MaxDisplacement * NaniteView.LODScale * InstanceScale) / DisplacementParams.FadeSizeStart;
+			const float StopDepth = (MaxDisplacement * NaniteView.LODScale * InstanceScale) / DisplacementParams.FadeSizeStop;
+			DisplacementFadeSlope = 1.0f / (StartDepth - StopDepth);
+			DisplacementFadeOffset = -StopDepth * DisplacementFadeSlope;
+
+			const bool bIsOrtho = NaniteView.ViewToClip[3][3] >= 1.0f;
+			if (bIsOrtho)
+			{
+				// Displacement fade is uniform at all depths, so just solve it now rather than branch/condmask below
+				DisplacementFadeOffset = saturate(DisplacementFadeSlope + DisplacementFadeOffset);
+				DisplacementFadeSlope = 0.0f;
+			}
+		}
+		else
+	#endif
+		{
+			DisplacementFadeSlope = 0.0f;
+			DisplacementFadeOffset = 1.0f;
+		}
+	}
+
+	bool ApplyFallbackDisplacement(inout FNanitePostDeformVertex InOutVert)
+	{
+	#if ENABLE_FALLBACK_DISPLACEMENT
+	#if FIXED_DISPLACEMENT_FALLBACK
+		// We know that all clusters rasterized by this bin are displacement fallbacks, so save the extra check
+		const bool bApplyDisplacement = true;
+	#else
+		const bool bApplyDisplacement = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0 &&
+			(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f ||
+			PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f);
+	#endif // FIXED_DISPLACEMENT_FALLBACK
+
+		// For shadows in fixed function or fallback rasterization with WPO enabled, if we're rasterizing a cluster with
+		// displacement disabled, apply minimum displacement to avoid shadowing objects that have displacement in the main
+		// view	(prevents false self-shadow artifacts)
+		if (bApplyDisplacement)
+		{
+			const float Displacement = -DisplacementParams.Center * DisplacementParams.Magnitude;
+			InOutVert.Position += InOutVert.TangentBasis.TangentZ * Displacement;
+			return true;
+		}
+	#endif // ENABLE_FALLBACK_DISPLACEMENT
+
+		return false;
+	}
+#endif // MATERIAL_SHADER_HAS_DISPLACEMENT
+
+#if MATERIAL_SHADER_HAS_DOMAIN
 	float4 EvaluateDomain( float4 UVDensities, FBarycentrics Barycentrics )
 	{
 		float3 PointPostDeform = Lerp( 
@@ -415,8 +498,6 @@ struct FMaterialShader
 		SvPosition.xyz = BaseClip.xyz / BaseClip.w;
 		SvPosition.xy = ( float2(0.5, -0.5) * SvPosition.xy + 0.5 ) * NaniteView.ViewSizeAndInvSize.xy + NaniteView.ViewRect.xy;
 		SvPosition.w = 1;
-
-		FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 
 		FVertexFactoryInterpolantsVSToPS Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
 		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters( PrimitiveData, InstanceData, InstanceDynamicData, NaniteView, TransformedTri, Cluster, Barycentrics, Interpolants, SvPosition );
@@ -446,9 +527,21 @@ struct FMaterialShader
 			MaterialParameters.WorldPosition_NoOffsets_CamRelative );
 
 	#if USES_DISPLACEMENT
-		const float NormalizedDisplacement = GetMaterialDisplacement(PixelMaterialInputs);
-		const float CenterScaled = DisplacementCenter * DisplacementMagnitude;
-		const float Displacement = (NormalizedDisplacement * DisplacementMagnitude) - CenterScaled;
+		// Determine Displacement with a distance fade based on depth
+		float NormalizedDisplacement = GetMaterialDisplacement(PixelMaterialInputs);
+		float DisplacementFade = saturate(BaseClip.w * DisplacementFadeSlope + DisplacementFadeOffset);
+
+	#if DEPTH_ONLY // AKA Shadows
+		if (DisplacementFade < 1.0f)
+		{
+			// Always push to the minimum displacement (instead of 0 displacement) for shadows to prevent self-shadowing
+			// artifacts in the fade out region (more details above in ApplyFallbackDisplacement)
+			NormalizedDisplacement = 0.0f;
+			DisplacementFade = 1.0f;
+		}
+	#endif // DEPTH_ONLY
+
+		const float Displacement = (NormalizedDisplacement - DisplacementParams.Center) * DisplacementParams.Magnitude * DisplacementFade;
 
 	#if NANITE_TESSELLATION_NORMALIZE 
 		float3 Normal = Lerp(
@@ -490,8 +583,6 @@ struct FMaterialShader
 	bool EvaluatePixel( FBarycentrics Barycentrics, float4 SvPosition, bool bBackFace, inout FVisBufferPixel Pixel )
 	{
 	#if NANITE_PIXEL_PROGRAMMABLE
-		FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
-
 		FVertexFactoryInterpolantsVSToPS Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
 	
 		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters( PrimitiveData, InstanceData, InstanceDynamicData, NaniteView, TransformedTri, Cluster, Barycentrics, Interpolants, SvPosition );
@@ -540,7 +631,7 @@ void FetchAndCachePageTableEntry(FNaniteView NaniteView, uint2 vPageStart, uint2
 	if (all(vPageStart + CacheCoords <= vPageEnd))
 	{
 		FShadowPhysicalPage PhysicalPage = ShadowGetPhysicalPage( CalcPageOffset( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, vPageStart + CacheCoords ) );
-		uint2 pPageAddress = PhysicalPage.bThisLODValid ? PhysicalPage.PhysicalAddress : 0xffff;
+		uint2 pPageAddress = PhysicalPage.bThisLODValidForRendering ? PhysicalPage.PhysicalAddress : 0xffff;
 		VsmPageTableStore(pPageAddress, CacheCoords);
 	}
 }
@@ -571,9 +662,9 @@ struct FFetchPageTable
 	bool operator()( inout FVisBufferPixel Pixel )
 	{
 	#if VIRTUAL_TEXTURE_TARGET
-		if( !VirtualToPhysicalTexel_PageTableLevelOffset( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
+		if( !VirtualToPhysicalTexelForRendering( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
 		{
-			// mapped to non-commited space.
+			// Not committed or should not be rendered into
 			return false;
 		}
 	#endif

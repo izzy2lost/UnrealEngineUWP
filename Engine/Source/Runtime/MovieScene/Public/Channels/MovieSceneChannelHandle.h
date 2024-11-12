@@ -54,6 +54,14 @@ public:
 		return !(A == B);
 	}
 
+	template<typename ChannelType>
+	static void TrackChannelTypeName()
+	{
+#if DO_CHECK
+		TrackChannelTypeNameInternal(ChannelType::StaticStruct());
+#endif
+	}
+
 public:
 
 	/**
@@ -104,6 +112,20 @@ public:
 	MOVIESCENE_API const void* GetExtendedEditorData() const;
 
 #endif // WITH_EDITOR
+
+private:
+
+#if DO_CHECK
+	MOVIESCENE_API static void TrackChannelTypeNameInternal(UStruct* ChannelType);
+	MOVIESCENE_API static UStruct* GetChannelTypeByName(FName ChannelName);
+	MOVIESCENE_API bool IsCastValidInternal(UStruct* OtherType) const;
+
+	template<typename OtherChannelType>
+	bool IsCastValid() const
+	{
+		return IsCastValidInternal(OtherChannelType::StaticStruct());
+	}
+#endif // DO_CHECK
 
 private:
 
@@ -182,12 +204,17 @@ protected:
 	TMovieSceneChannelHandle(TWeakPtr<FMovieSceneChannelProxy> InWeakChannelProxy, FName InChannelTypeName, int32 InChannelIndex)
 		: TMovieSceneChannelHandle<typename ChannelType::Super>(InWeakChannelProxy, InChannelTypeName, InChannelIndex)
 	{}
+
+	friend FMovieSceneChannelHandle;
 };
 
 
 template<typename OtherChannelType>
 TMovieSceneChannelHandle<OtherChannelType> FMovieSceneChannelHandle::Cast() const
 {
-	check(OtherChannelType::StaticStruct()->GetFName() == ChannelTypeName);
-	return TMovieSceneChannelHandle<OtherChannelType>(WeakChannelProxy, ChannelIndex);
+#if DO_CHECK
+	checkf(IsCastValid<OtherChannelType>(), TEXT("Invalid cast between unrelated channel types"));
+#endif
+
+	return TMovieSceneChannelHandle<OtherChannelType>(WeakChannelProxy, ChannelTypeName, ChannelIndex);
 }

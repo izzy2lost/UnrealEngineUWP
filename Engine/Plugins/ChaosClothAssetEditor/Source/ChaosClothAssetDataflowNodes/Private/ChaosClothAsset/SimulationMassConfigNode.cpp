@@ -8,12 +8,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationMassConfigNode)
 
-FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&UniformMassWeighted.WeightMap);
-	RegisterInputConnection(&DensityWeighted.WeightMap);
+	RegisterInputConnection(&UniformMassWeighted.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&DensityWeighted.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 }
 
 void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

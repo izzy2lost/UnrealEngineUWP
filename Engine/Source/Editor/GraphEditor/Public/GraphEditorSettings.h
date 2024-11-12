@@ -52,6 +52,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = GeneralStyle)
 	EGraphPanningMouseButton PanningMouseButton;
 
+	/** Whether to use high precision mouse movement for more accurate mouse movement without mouse ballistics (defaults to true) */
+	UPROPERTY(config, EditAnywhere, Category = GeneralStyle)
+	bool bUseHighPrecisionMouseMovement;
+
+	/** Whether to interpolate movement when manually panning a graph for smoother movement (defaults to false) */
+	UPROPERTY(config, EditAnywhere, Category = GeneralStyle)
+	bool bUseInterpolationWithManualPanning;
+
 	/** The amount of padding above a pin (defaults to 4) */
 	UPROPERTY(config, EditAnywhere, Category=GeneralStyle, AdvancedDisplay)
 	float PaddingAbovePin;

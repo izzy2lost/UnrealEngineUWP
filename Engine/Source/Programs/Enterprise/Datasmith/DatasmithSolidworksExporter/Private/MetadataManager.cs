@@ -3,8 +3,8 @@
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using DatasmithSolidworks.Names;
+using static DatasmithSolidworks.Addin;
 
 namespace DatasmithSolidworks
 {
@@ -78,48 +78,10 @@ namespace DatasmithSolidworks
 
 	public class FMetadataManager
 	{
-
-		public FMetadataManager()
+		public static bool ExportCustomProperties(ModelDoc2 InModeldoc, FMetadata InMetadata, string CfgName="")
 		{
-		}
+			LogDebug($"ExportCustomProperties {InModeldoc.GetPathName()}, Config:{CfgName} ");
 
-		static public void AddDocumentMetadataToCommand(ModelDoc2 InModelDoc, FMetadata InMetadata)
-		{
-			string Doctype = "";
-			bool bIsPart = false;
-			if (InModelDoc is AssemblyDoc)
-			{
-				Doctype = "Assembly";
-			}
-			else if (InModelDoc is PartDoc)
-			{
-				Doctype = "Part";
-				bIsPart = true;
-			}
-			InMetadata.AddPair("Document_Type", Doctype);
-			InMetadata.AddPair("Document_Filename", System.IO.Path.GetFileName(InModelDoc.GetPathName()));
-
-			ExportCustomProperties(InModelDoc, InMetadata);
-			ExportCurrentConfigurationCustomProperties(InModelDoc, InMetadata);
-
-			if (bIsPart == false)
-			{
-				AddAssemblyDisplayStateMetadata(InModelDoc as AssemblyDoc, InMetadata);
-			}
-
-			ExportCommentsandBOM(InModelDoc, InMetadata);
-		}        
-
-		static private bool ExportCurrentConfigurationCustomProperties(ModelDoc2 InModeldoc, FMetadata InMetadata)
-		{
-			Configuration ActiveConf = InModeldoc.GetActiveConfiguration();            
-			CustomPropertyManager ActiveConfCustomPropertyManager = ActiveConf.CustomPropertyManager;
-
-			return ExportCustomPropertyManagerToMetadata(ActiveConfCustomPropertyManager, InMetadata, "Active_Configuration_Custom_Property_");
-		}
-
-		static private bool ExportCustomProperties(ModelDoc2 InModeldoc, FMetadata InMetadata)
-		{
 			ModelDocExtension Ext = InModeldoc.Extension;
 			if (Ext == null)
 			{
@@ -127,90 +89,46 @@ namespace DatasmithSolidworks
 			}
 
 			// Add document related custom properties metadata
-			CustomPropertyManager PropertyManager = Ext.get_CustomPropertyManager("");
+			CustomPropertyManager PropertyManager = Ext.get_CustomPropertyManager(CfgName);
 
 			if (PropertyManager == null)
 			{
 				return false;
 			}
-			return ExportCustomPropertyManagerToMetadata(PropertyManager, InMetadata, "Document_Custom_Property_");
+			
+			return ExportCustomPropertyManagerToMetadata(PropertyManager, InMetadata, string.IsNullOrEmpty(CfgName) ?  $"Document_Custom_Property_" : $"Document_Configuration_Property_{CfgName}_");
 		}
-
-		static private bool ExportPartProperties(PartDoc InPartDoc, FMetadata InMetadata)
+		
+		// Recursively visit all sub-features of the feature
+		// e.g. BomFeat is a suf-feature of a TableFolder feature
+		public static bool TraverseFeature(Feature Feat, System.Func<Feature, bool> Callback)
 		{
-			EnumBodies2 Enum3 = InPartDoc.EnumBodies3((int)swBodyType_e.swAllBodies, false);
-			Body2 Body = null;
-			do
+			LogDebug($"Feature: {Feat.Name} <{Feat.GetTypeName2()}>");
+			
+			if (!Callback(Feat))
 			{
-				int Fetched = 0;
-				Enum3.Next(1, out Body, ref Fetched);
-				if (Body != null)
-				{
-					ExportBodiesProperties(Fetched, Body, InMetadata);
-				}
-			} while (Body != null);
-
-			return true;
-		}
-
-		static private bool ExportBodiesProperties(int InBodyIndex, Body2 InBody, FMetadata InMetadata)
-		{
-			//SOLIDWORKS recommends that you use the IAttribute, IAttributeDef, and IParameter interfaces
-			//instead of the IBody2::AddPropertyExtension2 method
-
-			//IAttribute
-			//body.FindAttribute(attributedef
-			//How to list the attributedef ??
-			string BodyIndexStr = "Body_" + InBodyIndex;
-			InMetadata.AddPair(BodyIndexStr, InBody.Name);
-
-			//parse features
-			object[] Features = (object[]) InBody.GetFeatures();
-			Feature Feat = null;
-			for (int Idx = 0; Idx < InBody.GetFeatureCount(); Idx++)
+				return false;
+			}
+			
+			Feature SubFeat = (Feature)Feat.GetFirstSubFeature();
+			
+			while (SubFeat != null)
 			{
-				Feat = (Feature) Features[Idx];
-				InMetadata.AddPair(BodyIndexStr + "_Feature_" + Feat.GetTypeName2() , Feat.Name);
-
-				//failed attempt
-				//string featuretype = feature.GetTypeName2();
-				//if (featuretype == "Attribute")
-				//{
-				//    Attribute attr = (Attribute)feature.GetSpecificFeature2();
-				//    System.Diagnostics.Debug.WriteLine(attr.GetName());
-				//    AttributeDef def = attr.GetDefinition();
-				//    if (false == attr.GetEntityState((int)swAssociatedEntityStates_e.swIsEntityInvalid) & false == attr.GetEntityState((int)swAssociatedEntityStates_e.swIsEntitySuppressed) & false == attr.GetEntityState((int)swAssociatedEntityStates_e.swIsEntityAmbiguous) & false == attr.GetEntityState((int)swAssociatedEntityStates_e.swIsEntityDeleted))
-				//    {
-				//        bool valid = true;
-				//        //Parameter paramname = (Parameter)attr.GetParameter(????? );//no way to get attribute name from AttributeDef ????
-				//        //Parameter paramvalue = (Parameter)attr.GetParameter(???);//same for attribute value name ?
-				//        //Debug.Print("Attribute " + swParamName.GetStringValue() + " found.");
-				//        //Debug.Print("  Value = " + swParamValue.GetDoubleValue());
-
-				//    }
-				//}
-
-				dynamic Faces = Feat.GetFaces();
-				if (Faces != null)
+				using (LogScopedIndent())
 				{
-					int J = 0;
-					foreach (var Obj in Faces)
+					if (!TraverseFeature(SubFeat, Callback))
 					{
-						ExportFaceProperties(J, (Face2)Obj, InMetadata);
-						J++;
+						return false;
 					}
 				}
+				
+				SubFeat = (Feature)SubFeat.GetNextSubFeature();
 			}
+			
 			return true;
 		}
-
-		static private bool ExportFaceProperties(int InFaceindex, Face2 InFace, FMetadata InMetadata)
-		{
-			//InMetadata.AddPair("Face_" + InFaceindex, FDocument.GetFaceId(InFace).ToString());
-			return true;
-		}
-
-		static private bool ExportCommentsandBOM(ModelDoc2 InModelDoc, FMetadata InMetadata)
+		
+		public static bool ExportCommentsAndBom(ModelDoc2 InModelDoc, FMetadata InMetadata)
 		{
 			FeatureManager FeatureMan = InModelDoc.FeatureManager;
 			if (FeatureMan == null)
@@ -219,60 +137,59 @@ namespace DatasmithSolidworks
 			}
 
 			Feature Feat = InModelDoc.FirstFeature();
-			string Featuretype = null;
-			CommentFolder CommentFolder = null;
-			object[] Comments = null;
-			Comment Comment = null;
-
-			//BomFeature bomFeature = null;
-
-			int CommentCount = 0;
+			
 			while (Feat !=  null)
 			{
-				Featuretype = Feat.GetTypeName2();
-				if (Featuretype == null)
+				TraverseFeature(Feat, F =>
 				{
-					Feat = Feat.GetNextFeature();
-					continue;
-				}                
+					ExtractFeatureMetadata(F, F.GetTypeName2(), InMetadata);
+					return true;
+				});
 
-				if (Featuretype == "CommentsFolder")
-				{
-					CommentFolder = (CommentFolder)Feat.GetSpecificFeature2();
-					CommentCount = CommentFolder.GetCommentCount();
-					if (CommentFolder != null && CommentCount != 0)
-					{
-						Comments = (object[])CommentFolder.GetComments();
-						if (Comments != null)
-						{
-							for (int i = 0; i < CommentCount; i++)
-							{
-								Comment = (Comment)Comments[i];
-								InMetadata.AddPair("Comment_" + Comment.Name, Comment.Text);
-							}
-						}
-					}
-				}
-				//BOM feature reading disabled until we
-				//handle BOM in configuration handling context
-				/*
-				//"BomFeat" is not found if BOM is added to Tables list. Is there another way to add a BOM that would create "BomFeat" feature ? 
-				//used insert > table > BOM from main menu to add a BOM
-				else if (featuretype == "BomFeat") 
-				{
-					bomFeature = (BomFeature)feature.GetSpecificFeature2();
-					if (bomFeature != null)
-					{
-						ExportBOMFeature(bomFeature, metadatacommand);
-					}                    
-				}
-				*/
 				Feat = Feat.GetNextFeature();
 			}
 			return true;
 		}
+		
+		private static void ExtractFeatureMetadata(Feature Feat, string FeatureType, FMetadata InMetadata)
+		{
+			switch (FeatureType)
+			{
+				case "CommentsFolder":
+				{
+					CommentFolder CommentFolder = (CommentFolder)Feat.GetSpecificFeature2();
+					if (CommentFolder != null)
+					{
+						int CommentCount = CommentFolder.GetCommentCount();
+						if (CommentCount > 0)
+						{
+							object[] Comments = (object[])CommentFolder.GetComments();
+							if (Comments != null)
+							{
+								for (int I = 0; I < CommentCount; I++)
+								{
+									Comment Comment = (Comment)Comments[I];
+									InMetadata.AddPair("Comment_" + Comment.Name, Comment.Text);
+								}
+							}
+						}
+					}
+					break;
+				}
 
-		private bool ExportBOMFeature(BomFeature InBomFeature, FMetadata InMetadata)
+				case "BomFeat":
+				{
+					BomFeature BomFeat = (BomFeature)Feat.GetSpecificFeature2();
+					if (BomFeat != null)
+					{
+						ExportBomFeature(BomFeat, InMetadata);
+					}
+					break;
+				}
+			}
+		}
+		
+		public static bool ExportBomFeature(BomFeature InBomFeature, FMetadata InMetadata)
 		{
 			Feature Feat = InBomFeature.GetFeature();
 			string FeatureName = Feat.Name;
@@ -290,38 +207,36 @@ namespace DatasmithSolidworks
 			}
 			return true;
 		}
-
-		private void ExportTable(TableAnnotation InTable, FMetadata InMetadata, string FeatureNamePrefix)
+		
+		public static void ExportTable(TableAnnotation InTable, FMetadata InMetadata, string FeatureNamePrefix)
 		{
-			int NBHearders = InTable.GetHeaderCount();
-			if (NBHearders == 0)
+			int HeaderCount = InTable.GetHeaderCount();
+			if (HeaderCount == 0)
 			{
-				//TOD log error here
 				return;
 			}
+
 			int Index = 0;
 			int SplitCount = 0;
 			int RangeStart = 0;
 			int RangeEnd = 0;
-			int NBRows = 0;
-			int NBCols = 0;
-
+			int ColumnCount = 0;
 			swTableSplitDirection_e SplitDir = (swTableSplitDirection_e) InTable.GetSplitInformation(ref Index, ref SplitCount, ref RangeStart, ref RangeEnd);
 
 			if (SplitDir == swTableSplitDirection_e.swTableSplit_None)
 			{
-				NBRows = InTable.RowCount;
-				NBCols = InTable.ColumnCount;
-				RangeStart = NBHearders;
-				RangeEnd = NBRows - 1;
+				int RowCount = InTable.RowCount;
+				ColumnCount = InTable.ColumnCount;
+				RangeStart = HeaderCount;
+				RangeEnd = RowCount - 1;
 			}
 			else
 			{
-				NBCols = InTable.ColumnCount;
+				ColumnCount = InTable.ColumnCount;
 				if (Index == 1)
 				{
 					// Add header offset for first portion of table
-					RangeStart += NBHearders;
+					RangeStart += HeaderCount;
 				}
 			}
 
@@ -330,48 +245,34 @@ namespace DatasmithSolidworks
 				InMetadata.AddPair("BOMTable_Feature_" + FeatureNamePrefix, InTable.Title);
 			}
 
-			string[] HeadersTitles = new string[NBHearders];
-			for (int i = 0; i < NBHearders; i++)
+			string[] HeadersTitles = new string[ColumnCount];
+			for (int ColumnIndex = 0; ColumnIndex < ColumnCount; ColumnIndex++)
 			{
-				HeadersTitles[i] = (string)InTable.GetColumnTitle2(i, true);
+				HeadersTitles[ColumnIndex] = InTable.GetColumnTitle2(ColumnIndex, true);
 			}
 
-			for (int I = RangeStart; I <= RangeEnd; I++)
+			for (int RowIndex = RangeStart; RowIndex <= RangeEnd; RowIndex++)
 			{
-				for (int J = 0; J < NBCols; J++)
+				for (int ColumnIndex = 0; ColumnIndex < ColumnCount; ColumnIndex++)
 				{
-					InMetadata.AddPair("BOMTable_Feature_" + FeatureNamePrefix + "_" + HeadersTitles[J], InTable.Text2[I, J, true]);
+					string HeadersTitle = HeadersTitles[ColumnIndex];
+					InMetadata.AddPair("BOMTable_Feature_" + FeatureNamePrefix + "_" + HeadersTitle, InTable.Text2[RowIndex, ColumnIndex, true]);
 				}
 			}
-
 		}
 
-		static public bool AddAssemblyComponentMetadata(Component2 InComponent, FMetadata InMetadata)
-		{
-			//object[] varComp = (object[])(assemblydoc.GetComponents(false));
-			//int nbcomponents = assemblydoc.GetComponentCount(false);
-			//Component2 component = null;
-			//for (int i = 0; i < nbcomponents; i++)
-			//{
-			//    component = (Component2)varComp[i];
-			//}
-			InMetadata.AddPair("ComponentReference", InComponent.ComponentReference);
-
-			return true;
-		}
-
-		static private bool AddAssemblyDisplayStateMetadata(AssemblyDoc InAssemblyDoc, FMetadata InMetadata)
+		public static void AddAssemblyDisplayStateMetadata(AssemblyDoc InAssemblyDoc, FMetadata InMetadata)
 		{
 			ModelDocExtension Ext = ((ModelDoc2)InAssemblyDoc).Extension;
 			if (Ext == null)
 			{
-				return false;
+				return;
 			}
 
-			ConfigurationManager CFM = ((ModelDoc2)InAssemblyDoc).ConfigurationManager;
-			if (CFM != null)
+			ConfigurationManager Cfm = ((ModelDoc2)InAssemblyDoc).ConfigurationManager;
+			if (Cfm != null)
 			{
-				Configuration ActiveConf = CFM.ActiveConfiguration;
+				Configuration ActiveConf = Cfm.ActiveConfiguration;
 				object[] DisplayStates = ActiveConf.GetDisplayStates();
 				if (DisplayStates != null)
 				{
@@ -384,50 +285,50 @@ namespace DatasmithSolidworks
 			}
 
 			object[] VarComp = (object[])(InAssemblyDoc.GetComponents(false));
-			int NBComponents = InAssemblyDoc.GetComponentCount(false);
-			Component2[] ListComp = new Component2[NBComponents];
+			int ComponentCount = InAssemblyDoc.GetComponentCount(false);
+			Component2[] ListComp = new Component2[ComponentCount];
 			DisplayStateSetting DSS = Ext.GetDisplayStateSetting((int)swDisplayStateOpts_e.swThisDisplayState);
 			DSS.Option = (int)swDisplayStateOpts_e.swThisDisplayState;
 
-			for (int i = 0; i < NBComponents; i++)
+			for (int ComponentIndex = 0; ComponentIndex < ComponentCount; ComponentIndex++)
 			{
-				ListComp[i] = (Component2)VarComp[i];
+				ListComp[ComponentIndex] = (Component2)VarComp[ComponentIndex];
 			}
 			DSS.Entities = ListComp;
 
-			System.Array displaymodearray = (System.Array)Ext.DisplayMode[DSS];
-			System.Array transparencyarray = (System.Array)Ext.Transparency[DSS];
-			for (int Idx = 0; Idx < NBComponents; Idx++)
+			System.Array DisplayModes = (System.Array)Ext.DisplayMode[DSS];
+			System.Array Transparencies = (System.Array)Ext.Transparency[DSS];
+			for (int Idx = 0; Idx < ComponentCount; Idx++)
 			{
-				InMetadata.AddPair("Component_Display_State_DisplayMode_" + ((Component2)VarComp[Idx]).Name2, ((swDisplayMode_e)displaymodearray.GetValue(Idx)).ToString());
-				InMetadata.AddPair("Component_Display_State_Transparency_" + ((Component2)VarComp[Idx]).Name2, ((swTransparencyState_e)transparencyarray.GetValue(Idx)).ToString());
+				InMetadata.AddPair("Component_Display_State_DisplayMode_" + ((Component2)VarComp[Idx]).Name2, ((swDisplayMode_e)DisplayModes.GetValue(Idx)).ToString());
+				InMetadata.AddPair("Component_Display_State_Transparency_" + ((Component2)VarComp[Idx]).Name2, ((swTransparencyState_e)Transparencies.GetValue(Idx)).ToString());
 			}
-			return true;
+			return;
 		}
 
-		static private bool ExportCustomPropertyManagerToMetadata(CustomPropertyManager InCustomPropertyManager, FMetadata InMetadata, string InPrefix)
+		private static bool ExportCustomPropertyManagerToMetadata(CustomPropertyManager InCustomPropertyManager, FMetadata InMetadata, string InPrefix)
 		{
 			if (InCustomPropertyManager == null)
 			{
+				LogDebug($"    NULL");
 				return false;
 			}
 
 			object PropertiesNamesObject = null;
 			object PropertiesValuesObject = null;
-			string[] PropertiesNames;
-			object[] PropertiesValues;
-			int[] PropertiesTypes;
-			object PropertiestypesObject = null;
+			object PropertiesTypesObject = null;
 			object ResolvedObject = false;
-			object LinktopropObject = false;
+			object LinkToPropObject = false;
 
-			InCustomPropertyManager.GetAll3(ref PropertiesNamesObject, ref PropertiestypesObject, ref PropertiesValuesObject, ref ResolvedObject, ref LinktopropObject);
-			PropertiesNames = (string[])PropertiesNamesObject;
-			PropertiesValues = (object[])PropertiesValuesObject;
-			PropertiesTypes = (int[])PropertiestypesObject;
-
+			InCustomPropertyManager.GetAll3(ref PropertiesNamesObject, ref PropertiesTypesObject, ref PropertiesValuesObject, ref ResolvedObject, ref LinkToPropObject);
+			string[] PropertiesNames = (string[])PropertiesNamesObject;
+			object[] PropertiesValues = (object[])PropertiesValuesObject;
+			int[] PropertiesTypes = (int[])PropertiesTypesObject;
+			
+			LogDebug($"  Count: {InCustomPropertyManager.Count}");
 			for (int Idx = 0; Idx < InCustomPropertyManager.Count; Idx++)
 			{
+				LogDebug($"    {PropertiesNames[Idx]}: Type={PropertiesTypes[Idx]}, Value={PropertiesValues[Idx]}");
 				switch (PropertiesTypes[Idx])
 				{
 					case (int)swCustomInfoType_e.swCustomInfoUnknown:

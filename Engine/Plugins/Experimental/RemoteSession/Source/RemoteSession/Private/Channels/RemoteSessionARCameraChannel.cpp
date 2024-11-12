@@ -30,6 +30,7 @@
 
 #include "PostProcess/DrawRectangle.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
+#include "RHIResourceUtils.h"
 
 #define CAMERA_MESSAGE_ADDRESS TEXT("/ARCamera")
 
@@ -192,24 +193,15 @@ void FARCameraSceneViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphB
 
 	if (VertexBufferRHI == nullptr || !VertexBufferRHI.IsValid())
 	{
-		// Setup vertex buffer
-		TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
-		Vertices.SetNumUninitialized(4);
+		const FFilterVertex Vertices[] =
+		{
+			{ FVector4f(0.0f, 0.0f, 0.0f, 1.0f), FVector2f(0.0f, 0.0f) },
+			{ FVector4f(1.0f, 0.0f, 0.0f, 1.0f), FVector2f(1.0f, 0.0f) },
+			{ FVector4f(0.0f, 1.0f, 0.0f, 1.0f), FVector2f(0.0f, 1.0f) },
+			{ FVector4f(1.0f, 1.0f, 0.0f, 1.0f), FVector2f(1.0f, 1.0f) },
+		};
 
-		Vertices[0].Position = FVector4f(0.f, 0.f, 0.f, 1.f);
-		Vertices[0].UV = FVector2f(0.f, 0.f);
-
-		Vertices[1].Position = FVector4f(1.f, 0.f, 0.f, 1.f);
-		Vertices[1].UV = FVector2f(1.f, 0.f);
-
-		Vertices[2].Position = FVector4f(0.f, 1.f, 0.f, 1.f);
-		Vertices[2].UV = FVector2f(0.f, 1.f);
-
-		Vertices[3].Position = FVector4f(1.f, 1.f, 0.f, 1.f);
-		Vertices[3].UV = FVector2f(1.f, 1.f);
-
-		FRHIResourceCreateInfo CreateInfoVB(TEXT("FARCameraSceneViewExtension"), &Vertices);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfoVB);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FARCameraSceneViewExtension"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 	}
 
 	if (IndexBufferRHI == nullptr || !IndexBufferRHI.IsValid())
@@ -217,13 +209,7 @@ void FARCameraSceneViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphB
 		// Setup index buffer
 		const uint16 Indices[] = { 0, 1, 2, 2, 1, 3 };
 
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> IndexBuffer;
-		const uint32 NumIndices = UE_ARRAY_COUNT(Indices);
-		IndexBuffer.AddUninitialized(NumIndices);
-		FMemory::Memcpy(IndexBuffer.GetData(), Indices, NumIndices * sizeof(uint16));
-
-		FRHIResourceCreateInfo CreateInfoIB(TEXT("FARCameraSceneViewExtension"), &IndexBuffer);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), IndexBuffer.GetResourceDataSize(), BUF_Static, CreateInfoIB);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FARCameraSceneViewExtension"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	PPMaterial = Channel.GetPostProcessMaterial();

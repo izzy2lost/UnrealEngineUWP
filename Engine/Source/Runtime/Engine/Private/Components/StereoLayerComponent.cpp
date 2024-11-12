@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/StereoLayerComponent.h"
-#include "UObject/VRObjectVersion.h"
 #include "Engine/Engine.h"
 #include "TextureResource.h"
 #include "Engine/Texture.h"
@@ -30,7 +29,6 @@ UStereoLayerComponent::UStereoLayerComponent(const FObjectInitializer& ObjectIni
 	, bTextureNeedsUpdate(false)
 	, LastTransform(FTransform::Identity)
 	, bLastVisible(false)
-	, bNeedsPostLoadFixup(false)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.TickGroup = TG_PrePhysics;
@@ -40,6 +38,8 @@ UStereoLayerComponent::UStereoLayerComponent(const FObjectInitializer& ObjectIni
 
 void UStereoLayerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	Super::EndPlay(EndPlayReason);
+
 	if (EndPlayReason == EEndPlayReason::EndPlayInEditor || EndPlayReason == EEndPlayReason::Quit)
 	{
 		FStereoLayerAdditionalFlagsManager::Destroy();
@@ -58,55 +58,9 @@ void UStereoLayerComponent::OnUnregister()
 	}
 }
 
-void UStereoLayerComponent::Serialize(FArchive& Ar)
-{
-	Ar.UsingCustomVersion(FVRObjectVersion::GUID);
-	Super::Serialize(Ar);
-	if (Ar.IsLoading() && Ar.CustomVer(FVRObjectVersion::GUID) < FVRObjectVersion::UseSubobjectForStereoLayerShapeProperties)
-	{
-		bNeedsPostLoadFixup = true; // Postponing fixups until after load, as we need to modify subobjects.
-	}
-}
-
 void UStereoLayerComponent::PostLoad()
 {
 	Super::PostLoad();
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (bNeedsPostLoadFixup)
-	{
-		switch (StereoLayerShape_DEPRECATED)
-		{
-			case SLSH_QuadLayer:
-			{
-				Shape = NewObject<UStereoLayerShapeQuad>(this, NAME_None, RF_Public);
-				break;
-			}
-			case SLSH_CubemapLayer:
-			{
-				Shape = NewObject<UStereoLayerShapeCubemap>(this, NAME_None, RF_Public);
-				break;
-			}
-			case SLSH_CylinderLayer:
-			{
-				auto Cylinder = NewObject<UStereoLayerShapeCylinder>(this, NAME_None, RF_Public);
-				Shape = Cylinder;
-				Cylinder->Height = CylinderHeight_DEPRECATED;
-				Cylinder->OverlayArc = CylinderOverlayArc_DEPRECATED;
-				Cylinder->Radius = CylinderRadius_DEPRECATED;
-				break;
-			}
-			case SLSH_EquirectLayer:
-			{
-				auto Equirect = NewObject<UStereoLayerShapeEquirect>(this, NAME_None, RF_Public);
-				Shape = Equirect;
-				Equirect->SetEquirectProps(EquirectProps_DEPRECATED);
-				break;
-			}
-		}
-		bNeedsPostLoadFixup = false;
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	if (Shape == nullptr)
 	{
 		Shape = NewObject<UStereoLayerShapeQuad>(this, NAME_None, RF_Public);
@@ -161,7 +115,7 @@ void UStereoLayerComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 		}
 		if (LeftTexture)
 		{
-			Texture->SetForceMipLevelsToBeResident(30.0f);
+			LeftTexture->SetForceMipLevelsToBeResident(30.0f);
 			LayerDesc.LeftTexture = LeftTexture->GetResource()->TextureRHI;
 		}
 				

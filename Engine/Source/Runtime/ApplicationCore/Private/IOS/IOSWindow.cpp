@@ -133,6 +133,14 @@ FPlatformRect FIOSWindow::GetScreenRect()
 		ScreenRect.Left = FMath::TruncToInt(Frame.origin.x * Scale);
 		ScreenRect.Bottom = FMath::TruncToInt((Frame.origin.y + Frame.size.height) * Scale);
 		ScreenRect.Right = FMath::TruncToInt((Frame.origin.x + Frame.size.width) * Scale);
+		
+		// see QuantizeSceneBufferSize
+		const uint32 DividableBy = 4;
+		const uint32 Mask = ~(DividableBy - 1);
+		ScreenRect.Top = (ScreenRect.Top + DividableBy - 1) & Mask;
+		ScreenRect.Left = (ScreenRect.Left + DividableBy - 1) & Mask;
+		ScreenRect.Bottom = (ScreenRect.Bottom + DividableBy - 1) & Mask;
+		ScreenRect.Right = (ScreenRect.Right + DividableBy - 1) & Mask;
 	}
 #if PLATFORM_VISIONOS
 	else if (AppDelegate.SwiftLayer != nullptr)

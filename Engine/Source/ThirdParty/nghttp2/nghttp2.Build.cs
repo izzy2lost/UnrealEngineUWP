@@ -36,9 +36,15 @@ public class nghttp2 : ModuleRules
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Mac", "Release", "libnghttp2.a"));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win64)
+		else if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Win64", "Release", "nghttp2.lib"));
+			string PlatformSubdir = "Win64";
+			if (Target.Architecture == UnrealArch.Arm64)
+			{
+				// BuildForUE puts the arm64 in <Platform>/<Arch>
+				PlatformSubdir = Path.Combine(PlatformSubdir, "arm64");
+			}
+			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, PlatformSubdir, "Release", "nghttp2.lib"));
 			PublicDefinitions.Add("NGHTTP2_STATICLIB=1");
 		}
 

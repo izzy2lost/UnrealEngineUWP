@@ -70,7 +70,7 @@ namespace Metasound::Test
 			Input.TypeName = GetMetasoundDataTypeName<DataType>();
 			Input.VertexID = FGuid::NewGuid();
 			Input.AccessType = EMetasoundFrontendVertexAccessType::Value;
-			Input.DefaultLiteral.Set(Value);
+			Input.InitDefault().Set(Value);
 			return RootGraph->AddInputVertex(Input);
 		}
 
@@ -129,7 +129,7 @@ namespace Metasound::Test
 			Input.TypeName = GetMetasoundDataTypeName<InputDataType>();
 			Input.VertexID = FGuid::NewGuid();
 			Input.AccessType = EMetasoundFrontendVertexAccessType::Value;
-			Input.DefaultLiteral.Set(Value);
+			Input.InitDefault().Set(Value);
 			
 			Frontend::FNodeHandle InputNode = RootGraph->AddInputVertex(Input);
 

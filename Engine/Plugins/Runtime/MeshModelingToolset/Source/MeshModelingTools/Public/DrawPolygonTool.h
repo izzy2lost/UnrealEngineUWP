@@ -216,6 +216,11 @@ public:
 
 	virtual void ApplyUndoPoints(const TArray<FVector3d>& ClickPointsIn, const TArray<FVector3d>& PolygonVerticesIn);
 
+	void SetInitialDrawFrame(UE::Geometry::FFrame3d Frame)
+	{
+		InitialDrawFrame = Frame;
+	}
+
 
 protected:
 	// flags used to identify modifier keys/buttons
@@ -259,6 +264,8 @@ protected:
 	bool AllowDrawPlaneUpdates();
 
 	// polygon drawing
+
+	UE::Geometry::FFrame3d InitialDrawFrame;
 
 	bool bAbortActivePolygonDraw;
 

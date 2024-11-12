@@ -223,6 +223,13 @@ public:
 	 */
 	GEOMETRYCORE_API bool DisconnectTriangles(const TSet<int>& TriangleSet, const TArray<FEdgeLoop>& BoundaryLoops, TArray<FLoopPairSet>& LoopSetOut, bool bAllowBoundaryVertices);
 
+	/**
+	 * Disconnect triangles along the given Edges, so that all input edges become boundary edges.
+	 * @param Edges IDs of edges to disconnect
+	 * @param AddedVertexIDs Optional array of vertices added by this operation
+	 */
+	GEOMETRYCORE_API bool DisconnectTrianglesAlongEdges(const TSet<int32>& Edges, TArray<int32>* AddedVertexIDs = nullptr);
+
 
 
 	/**
@@ -239,9 +246,17 @@ public:
 	GEOMETRYCORE_API void SplitBowties(FDynamicMeshEditResult& ResultOut);
 
 	/**
+	 * Splits any bowties specifically on the given vertex, and (if not null) updates (does not reset!) NewVertices with any added vertices
+	 */
+	GEOMETRYCORE_API void SplitBowties(int VertexID, TArray<int32>* NewVertices = nullptr);
+
+	/**
 	 * Splits any bowties specifically on the given vertex, and updates (does not reset!) ResultOut with any added vertices
 	 */
-	GEOMETRYCORE_API void SplitBowties(int VertexID, FDynamicMeshEditResult& ResultOut);
+	void SplitBowties(int VertexID, FDynamicMeshEditResult& ResultOut)
+	{
+		SplitBowties(VertexID, &ResultOut.NewVertices);
+	}
 
 	/**
 	 * Splits bowties attached to any of the given triangles, and updates (does not reset!) ResultOut with any added vertices
@@ -362,7 +377,7 @@ public:
 	/**
 	 * For a 'tube' of triangles connecting loops of corresponded vertices, set smooth normals such that corresponding vertices have corresponding normals
 	 */
-	GEOMETRYCORE_API void SetTubeNormals(const TArray<int>& Triangles, const TArray<int>& VertexIDs1, const TArray<int>& MatchedIndices1, const TArray<int>& VertexIDs2, const TArray<int>& MatchedIndices2);
+	GEOMETRYCORE_API void SetTubeNormals(const TArray<int>& Triangles, const TArray<int>& VertexIDs1, const TArray<int>& MatchedIndices1, const TArray<int>& VertexIDs2, const TArray<int>& MatchedIndices2, bool bReverseNormals = false);
 
 
 	//////////////////////////////////////////////////////////////////////////
@@ -500,7 +515,8 @@ public:
 	 */
 	GEOMETRYCORE_API void AppendMesh(const FDynamicMesh3* AppendMesh, FMeshIndexMappings& IndexMapsOut, 
 		TFunction<FVector3d(int, const FVector3d&)> PositionTransform = nullptr,
-		TFunction<FVector3d(int, const FVector3d&)> NormalTransform = nullptr);
+		TFunction<FVector3d(int, const FVector3d&)> NormalTransform = nullptr,
+		bool bReverseOrientation = false);
 
 	/**
 	 * Append input mesh to our internal Mesh. If the internal Mesh has attributes enabled,
@@ -607,6 +623,46 @@ public:
 	 * @return true if needed split, false if there were not multiple mesh ids so no split was needed
 	 */
 	static GEOMETRYCORE_API bool SplitMesh(const FDynamicMesh3* SourceMesh, TArray<FDynamicMesh3>& SplitMeshes, TFunctionRef<int(int)> TriIDToMeshID, int DeleteMeshID = -1);
+
+	/**
+	 * Merge any seams in the given 2D attribute Overlay along the given mesh edge IDs
+	 *
+	 * @param EidsToRemoveAsSeams list of edges to remove seams from
+	 * @return true on success
+	 */
+	static GEOMETRYCORE_API bool RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams, TDynamicMeshOverlay<float, 2>* Overlay);
+	/**
+	 * Merge any seams in the given (3D attribute) Overlay along the given mesh edge IDs
+	 *
+	 * @param EidsToRemoveAsSeams list of edges to remove seams from
+	 * @return true on success
+	 */
+	static GEOMETRYCORE_API bool RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams, TDynamicMeshOverlay<float, 3>* Overlay);
+
+	/**
+	 * Cut existing 2D attribute overlay topology with a set of edges. This allows for creating partial seams/darts, interior cuts, etc.
+	 *
+	 * Avoids creating bowties in the overlay. In cases where an edge is not next to any present or future seams/borders, some
+	 * adjacent edge will be picked to be made into a seam as well, since it's impossible to make the original
+	 * into a seam otherwise.
+
+	 * @param EidsToMakeIntoSeams list of edges to turn into seams
+	 * @param AddedElementIDs if non-null, list of new elements created along the path will be stored here (not ordered)
+	 * @return true on success
+	 */
+	static GEOMETRYCORE_API bool CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, TDynamicMeshOverlay<float, 2>* Overlay, TArray<int32>* AddedElementIDs = nullptr);
+	/**
+	 * Cut existing 3D attribute overlay topology with a set of edges. This allows for creating partial seams/darts, interior cuts, etc.
+	 *
+	 * Avoids creating bowties in the overlay. In cases where an edge is not next to any present or future seams/borders, some
+	 * adjacent edge will be picked to be made into a seam as well, since it's impossible to make the original
+	 * into a seam otherwise.
+
+	 * @param EidsToMakeIntoSeams list of edges to turn into seams
+	 * @param AddedElementIDs if non-null, list of new elements created along the path will be stored here (not ordered)
+	 * @return true on success
+	 */
+	static GEOMETRYCORE_API bool CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, TDynamicMeshOverlay<float, 3>* Overlay, TArray<int32>* AddedElementIDs = nullptr);
 
 };
 

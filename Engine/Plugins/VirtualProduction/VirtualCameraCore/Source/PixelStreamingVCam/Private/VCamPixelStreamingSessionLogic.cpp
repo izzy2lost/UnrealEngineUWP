@@ -3,67 +3,121 @@
 #include "VCamPixelStreamingSessionLogic.h"
 
 #include "BuiltinProviders/VCamPixelStreamingSession.h"
+#include "IDecoupledOutputProviderModule.h"
+#include "Media/PixelStreamingMediaOutput.h"
 #include "Output/VCamOutputComposure.h"
 #include "VCamComponent.h"
-#include "VCamPixelStreamingLiveLink.h"
 #include "VCamPixelStreamingSubsystem.h"
 
 #include "Async/Async.h"
 #include "Containers/UnrealString.h"
 #include "Editor/EditorPerformanceSettings.h"
+#include "GameFramework/Actor.h"
 #include "IPixelStreamingStats.h"
 #include "IPixelStreamingModule.h"
 #include "IPixelStreamingInputModule.h"
-#include "IPixelStreamingEditorModule.h"
+#include "Math/Matrix.h"
+#include "Misc/CoreDelegates.h"
+#include "PixelStreamingDelegates.h"
 #include "PixelStreamingInputEnums.h"
 #include "PixelStreamingInputMessage.h"
 #include "PixelStreamingInputProtocol.h"
-#include "PixelStreamingMediaOutput.h"
-#include "PixelStreamingServers.h"
 #include "PixelStreamingVCamLog.h"
 #include "PixelStreamingVCamModule.h"
-#include "Math/Matrix.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "Serialization/MemoryReader.h"
 #include "Slate/SceneViewport.h"
 #include "Widgets/SVirtualWindow.h"
 #include "Widgets/VPFullScreenUserWidget.h"
 
+#if WITH_EDITOR
+#include "Framework/Application/SlateApplication.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "FVCamPixelStreamingSessionLogic"
+
+
 namespace UE::PixelStreamingVCam::Private
 {
-	int32 FVCamPixelStreamingSessionLogic::NextDefaultStreamerId = 1;
+	static FString GenerateDefaultStreamerName(const UVCamPixelStreamingSession& Session)
+	{
+		using namespace VCamCore;
+		const bool bContainsOtherPixelStreamingOutput = Session.GetVCamComponent()->GetOutputProviders().ContainsByPredicate([&Session](const TObjectPtr<UVCamOutputProviderBase>& OtherOutputProvider)
+		{
+			return OtherOutputProvider != &Session && OtherOutputProvider->GetClass()->IsChildOf(Session.GetClass());
+		});
+		return GenerateUniqueOutputProviderName(Session, bContainsOtherPixelStreamingOutput ? ENameGenerationFlags::None : ENameGenerationFlags::SkipAppendingIndex);
+	}
+	
+	/** Sets the owning VCam's live link subject to this the subject created by this session, if this behaviour is enabled. */
+	static void ConditionallySetLiveLinkSubjectToThis(const UVCamPixelStreamingSession& Session)
+	{
+		UVCamComponent* VCamComponent = Session.GetTypedOuter<UVCamComponent>();
+		if (Session.bAutoSetLiveLinkSubject && IsValid(VCamComponent) && Session.IsActive())
+		{
+			VCamComponent->SetLiveLinkSubobject(FName(Session.StreamerId));
+		}
+	}
+
+	/** Makes sure that all systems relying on the subject name have the latest name. */
+	static void UpdateLiveLinkSubject(const UVCamPixelStreamingSession& Session)
+	{
+		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
+		{
+			PixelStreamingSubsystem->UpdateLiveLinkSource(Session);
+		}
+
+		// Also need to make sure that the VCam uses the new subject name
+		ConditionallySetLiveLinkSubjectToThis(Session);
+	}
+}
+
+namespace UE::PixelStreamingVCam
+{
+	FVCamPixelStreamingSessionLogic::FVCamPixelStreamingSessionLogic(const DecoupledOutputProvider::FOutputProviderLogicCreationArgs& Args)
+		: ManagedOutputProvider(Cast<UVCamPixelStreamingSession>(Args.Provider))
+	{
+#if WITH_EDITOR
+		FCoreDelegates::OnActorLabelChanged.AddRaw(this, &FVCamPixelStreamingSessionLogic::OnActorLabelChanged);
+#endif
+	}
+	
+	FVCamPixelStreamingSessionLogic::~FVCamPixelStreamingSessionLogic()
+	{
+		UnregisterPixelStreamingDelegates();
+#if WITH_EDITOR
+		FCoreDelegates::OnActorLabelChanged.RemoveAll(this);
+#endif
+	}
 
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
-		if (MediaOutput)
-		{
-			MediaOutput->ConditionalBeginDestroy();
-			MediaOutput = nullptr;
-		}
+		UnregisterPixelStreamingDelegates();
+		CleanupMediaOutput();
 	}
 
 	void FVCamPixelStreamingSessionLogic::OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
-		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
-
-		if (!This->IsInitialized())
+		UVCamPixelStreamingSession* This = ManagedOutputProvider.Get();
+		AActor* OwningActor = This ? This->GetTypedOuter<AActor>() : nullptr;
+		if (!ensure(This && OwningActor))
 		{
-			UE_LOG(LogPixelStreamingVCam, Warning, TEXT("Trying to start Pixel Streaming, but has not been initialized yet"));
-			This->SetActive(false);
 			return;
 		}
-
+		
+		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
 		if (This->StreamerId.IsEmpty())
 		{
-			This->StreamerId = FString::Printf(TEXT("VCam%d"), NextDefaultStreamerId++);
+			RefreshStreamerName(*This);
 		}
 
 		// Setup livelink source
-		UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(This);
 		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
 		{
 			PixelStreamingSubsystem->RegisterActiveOutputProvider(This);
-			ConditionallySetLiveLinkSubjectToThis(This);
+			Private::ConditionallySetLiveLinkSubjectToThis(*This);
 		}
 
 		// If we don't have a UMG assigned, we still need to create an empty 'dummy' UMG in order to properly route the input back from the RemoteSession device
@@ -75,8 +129,11 @@ namespace UE::PixelStreamingVCam::Private
 		}
 
 		// create a new media output if we dont already have one, or its not valid, or if the id has changed
-		if (MediaOutput == nullptr || !MediaOutput->IsValid() || MediaOutput->GetStreamer()->GetId() != This->StreamerId)
+		if (!MediaOutput || !MediaOutput->IsValid() || MediaOutput->GetStreamer()->GetId() != This->StreamerId)
 		{
+			// If there already is a MediaOutput, unregister from the below delegates.
+			CleanupMediaOutput();
+			
 			MediaOutput = UPixelStreamingMediaOutput::Create(GetTransientPackage(), This->StreamerId);
 			MediaOutput->OnRemoteResolutionChanged().AddSP(this, &FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged, WeakThisUObjectPtr);
 			MediaOutput->GetStreamer()->OnPreConnection().AddSP(this, &FVCamPixelStreamingSessionLogic::OnPreStreaming, WeakThisUObjectPtr);
@@ -98,7 +155,7 @@ namespace UE::PixelStreamingVCam::Private
 		// We setup custom handling of ARKit transforms coming from iOS devices here
 		SetupCustomInputHandling(This);
 		// We need signalling server to be up before we can start streaming
-		SetupSignallingServer();
+		SetupSignallingServer(*This);
 
 		if (MediaOutput)
 		{
@@ -106,6 +163,11 @@ namespace UE::PixelStreamingVCam::Private
 
 			// Start streaming here, this will trigger capturer to start
 			MediaOutput->StartStreaming();
+		}
+
+		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
+		{
+			Delegates->OnAllConnectionsClosedNative.AddRaw(this, &FVCamPixelStreamingSessionLogic::OnAllConnectionsClosed);
 		}
 
 		FPixelStreamingVCamModule::Get().AddActiveSession(WeakThisUObjectPtr);
@@ -119,7 +181,7 @@ namespace UE::PixelStreamingVCam::Private
 			PixelStreamingSubsystem->UnregisterActiveOutputProvider(This);
 		}
 
-		StopEverything();
+		StopEverything(*This);
 
 		Args.ExecuteSuperFunction();
 		if (bUsingDummyUMG)
@@ -132,6 +194,13 @@ namespace UE::PixelStreamingVCam::Private
 		Settings->bThrottleCPUWhenNotForeground = bOldThrottleCPUWhenNotForeground;
 		Settings->PostEditChange();
 
+		UnregisterPixelStreamingDelegates();
+		
+		for (TPair<int32, TPromise<FVCamStringPromptResponse>>& PromisePair : StringPromptPromises)
+		{
+			PromisePair.Value.EmplaceValue(FVCamStringPromptResponse(EVCamStringPromptResult::Disconnected));
+		}
+
 		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
 		FPixelStreamingVCamModule::Get().RemoveActiveSession(WeakThisPtr);
 	}
@@ -143,13 +212,22 @@ namespace UE::PixelStreamingVCam::Private
 
 	void FVCamPixelStreamingSessionLogic::PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
-		StopCapture();
-		
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		check(This);
-		
-		SetupCapture(This);
-		SetupCustomInputHandling(This);
+		// We're called as part of UVCamOutputProviderBase::ReinitializeViewport, which has called FViewportManager::RequestResolutionRefresh.
+		// RequestResolutionRefresh may update the viewport resolution at the end of the tick. If that happens, and we called SetupCapture now,
+		// we'd get an EMediaCaptureState::Error in OnCaptureStateChanged (I don't know why).
+		// This restarts the capture when the viewport is ready for it.
+		This->GetWorld()->GetTimerManager().SetTimerForNextTick([this, WeakThis = TWeakObjectPtr(This)]
+		{
+			if (UVCamPixelStreamingSession* This = WeakThis.Get();
+				This && This->IsOutputting())
+			{
+				StopCapture();
+
+				SetupCapture(This);
+				SetupCustomInputHandling(This);
+			}
+		});
 	}
 
 	void FVCamPixelStreamingSessionLogic::StopCapture()
@@ -187,10 +265,10 @@ namespace UE::PixelStreamingVCam::Private
 		StopCapture();
 	}
 
-	void FVCamPixelStreamingSessionLogic::StopEverything()
+	void FVCamPixelStreamingSessionLogic::StopEverything(UVCamPixelStreamingSession& Session)
 	{
-		StopStreaming();
-		StopSignallingServer();
+		CleanupMediaOutput();
+		StopSignallingServer(Session);
 		StopCapture();
 	}
 
@@ -200,10 +278,44 @@ namespace UE::PixelStreamingVCam::Private
 		Collector.AddReferencedObject(MediaCapture, &Args.GetOutputProvider());
 	}
 
+	TFuture<FVCamStringPromptResponse> FVCamPixelStreamingSessionLogic::PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request)
+	{
+		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+
+		TSharedPtr<IPixelStreamingStreamer> Streamer = IPixelStreamingModule::Get().FindStreamer(This->StreamerId);
+		if (!Streamer)
+		{
+			return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+		}
+
+		TPromise<FVCamStringPromptResponse>& ResponsePromise = StringPromptPromises.Emplace(NextStringRequestId);
+
+		TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
+		JsonObject->SetStringField(TEXT("command"), TEXT("stringPrompt"));
+		JsonObject->SetStringField(TEXT("defaultValue"), Request.DefaultValue);
+		JsonObject->SetStringField(TEXT("promptTitle"), Request.PromptTitle);
+		JsonObject->SetNumberField(TEXT("requestId"), NextStringRequestId);
+
+		++NextStringRequestId;
+
+		FString Descriptor;
+		TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> JsonWriter = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Descriptor);
+		FJsonSerializer::Serialize(JsonObject.ToSharedRef(), JsonWriter);
+
+		Streamer->SendPlayerMessage(FPixelStreamingInputProtocol::FromStreamerProtocol.Find("Command")->GetID(), Descriptor);
+
+		return ResponsePromise.GetFuture();
+	}
+
 #if WITH_EDITOR
+
 	void FVCamPixelStreamingSessionLogic::OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+		if (!This)
+		{
+			return;
+		}
 
 		FProperty* Property = PropertyChangedEvent.MemberProperty;
 		if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
@@ -215,58 +327,87 @@ namespace UE::PixelStreamingVCam::Private
 			}
 			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, bAutoSetLiveLinkSubject))
 			{
-				ConditionallySetLiveLinkSubjectToThis(This);
+				Private::ConditionallySetLiveLinkSubjectToThis(*This);
 			}
 		}
+		
+		OnEditStreamId(*This);
+	}
+	
+	void FVCamPixelStreamingSessionLogic::OnEditStreamId(UVCamPixelStreamingSession& This) const
+	{
+		const TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput && MediaOutput->GetStreamer() ? MediaOutput->GetStreamer() : nullptr;
+		if (!Streamer || !This.IsOutputting())
+		{
+			Private::UpdateLiveLinkSubject(This);
+			return;
+		}
+
+		if (!This.bOverrideStreamerName)
+		{
+			RefreshStreamerName(This);
+		}
+		Private::UpdateLiveLinkSubject(This);
+		
+		const FString OldStreamerId = Streamer->GetId();
+		if (OldStreamerId != This.StreamerId
+			&& This.IsActive())
+		{
+			This.SetActive(false);
+			This.SetActive(true);
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::OnActorLabelChanged(AActor* Actor) const
+	{
+		UVCamPixelStreamingSession* Session = ManagedOutputProvider.Get();
+		const bool bIsApplicable = Session
+			// User wants the StreamerId to be the actor label?
+			&& !Session->bOverrideStreamerName
+			// Did our owning actor's name change?
+			&& Session->GetTypedOuter<AActor>() == Actor;
+		if (!bIsApplicable)
+		{
+			return;
+		}
+		
+		const FString OldStreamId = Session->StreamerId;
+		const FString NewStreamerName = Private::GenerateDefaultStreamerName(*Session);
+		if (OldStreamId == NewStreamerName)
+		{
+			return;
+		}
+
+		// Avoid marking the map dirty for innocent GetActorLabel(bCreateIfNone=true) calls, which can happen during map load.
+		// If this function is called in response to a user edit operation, then GUndo will be set and the change will be recorded as well.
+		if (GUndo)
+		{
+			Session->Modify();
+		}
+		Session->StreamerId = NewStreamerName;
+		OnEditStreamId(*ManagedOutputProvider);
 	}
 #endif
 
-	void FVCamPixelStreamingSessionLogic::SetupSignallingServer()
+	void FVCamPixelStreamingSessionLogic::RefreshStreamerName(UVCamPixelStreamingSession& Session) const
 	{
-		// Only start the signalling server if we aren't using an external signalling server
-		UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get();
-		if (PixelStreamingSubsystem && !IPixelStreamingEditorModule::Get().UseExternalSignallingServer())
+		Session.StreamerId = Private::GenerateDefaultStreamerName(Session);
+	}
+
+	void FVCamPixelStreamingSessionLogic::SetupSignallingServer(UVCamPixelStreamingSession& Session)
+	{
+		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
 		{
-			PixelStreamingSubsystem->LaunchSignallingServer();
+			PixelStreamingSubsystem->LaunchSignallingServerIfNeeded(Session);
 		}
 	}
 
-	void FVCamPixelStreamingSessionLogic::StopSignallingServer()
+	void FVCamPixelStreamingSessionLogic::StopSignallingServer(UVCamPixelStreamingSession& Session)
 	{
-		IPixelStreamingEditorModule& PSEditorModule = IPixelStreamingEditorModule::Get();
-
-		if(PSEditorModule.UseExternalSignallingServer())
+		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
 		{
-			UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot stop an `external` signalling server from UE - skipping stopping signalling server."));
-			return;
+			PixelStreamingSubsystem->StopSignallingServerIfNeeded(Session);
 		}
-
-		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = PSEditorModule.GetSignallingServer();
-
-		if(!SignallingServer)
-		{
-			UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot stop internal signalling server because it is already null - skipping stopping signalling server."));
-			return;
-		}
-
-		// Asynchronously get the number of streamers and if it we have more than just this connect do not shut down the SS it might be used by something else
-		SignallingServer->GetNumStreamers([](uint16 NumStreamers){
-			if(NumStreamers > 1)
-			{
-				UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot shutdown internal signalling server because there are still multiple streamers connected."));
-				return;
-			}
-
-			// Only stop the signalling server if we've been the ones to start it
-			UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get();
-
-			if(!PixelStreamingSubsystem)
-			{
-				return;
-			}
-
-			PixelStreamingSubsystem->StopSignallingServer();
-		});
 	}
 
 	void FVCamPixelStreamingSessionLogic::SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
@@ -361,18 +502,23 @@ namespace UE::PixelStreamingVCam::Private
 
 		if (MediaOutput)
 		{
-			IPixelStreamingInputModule& PixelStreamingInputModule = IPixelStreamingInputModule::Get();
 			typedef EPixelStreamingMessageTypes EType;
+			
 			/*
 			 * ====================
 			 * ARKit Transform
 			 * ====================
 			 */
-			FPixelStreamingInputMessage ARKitMessage = FPixelStreamingInputMessage(100, { // 4x4 Transform
-																							EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float, EType::Float,
-																							// Timestamp
-																							EType::Double });
-
+			const FPixelStreamingInputMessage ARKitMessage = FPixelStreamingInputMessage(100,
+				{
+					// 4x4 Transform
+					EType::Float, EType::Float, EType::Float, EType::Float,
+					EType::Float, EType::Float, EType::Float, EType::Float,
+					EType::Float, EType::Float, EType::Float, EType::Float,
+					EType::Float, EType::Float, EType::Float, EType::Float,
+					// Timestamp
+					EType::Double
+				});
 			const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
 			const IPixelStreamingInputHandler::MessageHandlerFn ARKitHandler = [this, WeakThisUObjectPtr](FString PlayerId, FMemoryReader Ar)
 			{
@@ -400,16 +546,63 @@ namespace UE::PixelStreamingVCam::Private
 				double Timestamp;
 				Ar << Timestamp;
 
-				if (const TSharedPtr<FPixelStreamingLiveLinkSource> LiveLinkSource = UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(WeakThisUObjectPtr.Get()))
+				UVCamPixelStreamingSubsystem::Get()->PushTransformForSubject(*WeakThisUObjectPtr.Get(), FTransform(ARKitMatrix), Timestamp);
+			};
+
+			/*
+			 * ====================
+			 * String Prompt
+			 * ====================
+			 */
+			FPixelStreamingInputMessage StringPromptMessage = FPixelStreamingInputMessage(101,
+				{ // Request ID
+					EType::Int16,
+					// Cancelled (bool)
+					EType::Uint8,
+					// User-provided string
+					EType::String
+				});
+
+			const IPixelStreamingInputHandler::MessageHandlerFn StringPromptHandler = [this, WeakThisUObjectPtr](FString PlayerId, FMemoryReader Ar)
+			{
+				if (!WeakThisUObjectPtr.IsValid())
 				{
-					LiveLinkSource->PushTransformForSubject(FName(WeakThisUObjectPtr->StreamerId), FTransform(ARKitMatrix), Timestamp);
+					return;
+				}
+
+				int16 RequestId;
+				Ar << RequestId;
+
+				uint8 CancelledUint;
+				Ar << CancelledUint;
+
+				uint16 EntryLength;
+				Ar << EntryLength;
+
+				FString Entry;
+				Entry.GetCharArray().SetNumUninitialized(EntryLength / 2 + 1); // wchar uses 2 bytes per char (plus null terminator)
+				Ar.Serialize(Entry.GetCharArray().GetData(), EntryLength);
+
+				if (TPromise<FVCamStringPromptResponse>* ResponsePromise = StringPromptPromises.Find(RequestId))
+				{
+					FVCamStringPromptResponse Response;
+					Response.Result = CancelledUint == 0 ? EVCamStringPromptResult::Submitted : EVCamStringPromptResult::Cancelled;
+					Response.Entry = Entry;
+
+					ResponsePromise->EmplaceValue(Response);
+
+					StringPromptPromises.Remove(RequestId);
 				}
 			};
 
+			// Register custom message protocols + handlers
 			FPixelStreamingInputProtocol::ToStreamerProtocol.Add("ARKitTransform", ARKitMessage);
+			FPixelStreamingInputProtocol::ToStreamerProtocol.Add("VCamStringPromptResponse", StringPromptMessage);
+			
 			if (TSharedPtr<IPixelStreamingInputHandler> InputHandler = MediaOutput->GetStreamer()->GetInputHandler().Pin())
 			{
 				InputHandler->RegisterMessageHandler("ARKitTransform", ARKitHandler);
+				InputHandler->RegisterMessageHandler("VCamStringPromptResponse", StringPromptHandler);
 			}
 		}
 		else
@@ -472,16 +665,7 @@ namespace UE::PixelStreamingVCam::Private
 
 		// Set the override resolution on the output provider base, this will trigger a resize
 		WeakThisUObjectPtr->OverrideResolution = RemoteResolution;
-		WeakThisUObjectPtr->ReapplyOverrideResolution();
-	}
-
-	void FVCamPixelStreamingSessionLogic::ConditionallySetLiveLinkSubjectToThis(UVCamPixelStreamingSession* This) const
-	{
-		UVCamComponent* VCamComponent = This->GetTypedOuter<UVCamComponent>();
-		if (This->bAutoSetLiveLinkSubject && IsValid(VCamComponent) && This->IsActive())
-		{
-			VCamComponent->SetLiveLinkSubobject(FName(This->StreamerId));
-		}
+		WeakThisUObjectPtr->RequestResolutionRefresh();
 	}
 
 	void FVCamPixelStreamingSessionLogic::SetupARKitResponseTimer(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
@@ -512,4 +696,50 @@ namespace UE::PixelStreamingVCam::Private
 			GWorld->GetTimerManager().ClearTimer(ARKitResponseTimer);
 		}
 	}
+
+	void FVCamPixelStreamingSessionLogic::OnAllConnectionsClosed(FString StreamerId)
+	{
+		for (TPair<int32, TPromise<FVCamStringPromptResponse>>& PromisePair : StringPromptPromises)
+		{
+			PromisePair.Value.EmplaceValue(FVCamStringPromptResponse(EVCamStringPromptResult::Disconnected));
+		}
+
+		StringPromptPromises.Empty();
+	}
+
+	void FVCamPixelStreamingSessionLogic::UnregisterPixelStreamingDelegates()
+	{
+		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
+		{
+			Delegates->OnAllConnectionsClosedNative.RemoveAll(this);
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::CleanupMediaOutput()
+	{
+		if (MediaOutput)
+		{
+			// BeginDestroy will
+			// 1. call UPixelStreamingMediaOutput::StopStreaming, and
+			// 2. set its Streamer to nullptr - so get it beforehand
+			const TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput->GetStreamer();
+			MediaOutput->ConditionalBeginDestroy();
+			MediaOutput->OnRemoteResolutionChanged().RemoveAll(this);
+
+			// We should clean this up because of good RAII practices, however, there is one more reason:
+			// Our MediaOutput is usually the only to have registered Streamer, so it should be nullptr by now.
+			// However, Streamer is a shared system resource, and technically some other system may be referencing it, e.g. because they called
+			// IPixelStreamingModule::CreateStreamer with the same streamer ID as us. 
+			if (Streamer)
+			{
+				Streamer->OnPreConnection().RemoveAll(this);
+				Streamer->OnStreamingStarted().RemoveAll(this);
+				Streamer->OnStreamingStopped().RemoveAll(this);
+			}
+
+			MediaOutput = nullptr;
+		}
+	}
 }
+
+#undef LOCTEXT_NAMESPACE

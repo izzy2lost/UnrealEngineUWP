@@ -10,12 +10,6 @@
 namespace Chaos::Softs
 {
 
-// Stiffness is in kg cm /s^2
-UE_DEPRECATED(5.2, "Use FXPBDSpringConstraints::MinStiffness instead.")
-static const FSolverReal XPBDSpringMinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
-UE_DEPRECATED(5.2, "Use FXPBDSpringConstraints::MaxStiffness instead.")
-static const FSolverReal XPBDSpringMaxStiffness = (FSolverReal)1e9;
-
 class FXPBDSpringConstraints : public FPBDSpringConstraintsBase
 {
 	typedef FPBDSpringConstraintsBase Base;
@@ -26,32 +20,7 @@ public:
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDampingRatio = (FSolverReal)1000.;
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
-	UE_DEPRECATED(5.2, "Use the other constructor instead.")
-	FXPBDSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVector<int32, Valence>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const FSolverVec2& InStiffness,
-		bool bTrimKinematicConstraints = false)
-		: Base(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			InStiffness,
-			true /*bTrimKinematicConstraints*/,
-			MaxStiffness)
-		, DampingRatio(FSolverVec2::ZeroVector)
-	{
-		Lambdas.Init((FSolverReal)0., Constraints.Num());
-		InitColor(Particles);
-	}	
-	
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	FXPBDSpringConstraints(
 		const FSolverParticlesRange& Particles,
 		const TArray<TVector<int32, Valence>>& InConstraints,
@@ -77,7 +46,7 @@ public:
 		InitColor(Particles);
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
 	FXPBDSpringConstraints(
 		const FSolverParticlesRange& Particles,
@@ -105,7 +74,7 @@ public:
 		InitColor(Particles);
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	FXPBDSpringConstraints(
 		const FSolverParticles& Particles,
 		int32 ParticleOffset,
@@ -138,7 +107,7 @@ public:
 		InitColor(Particles);
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
 	FXPBDSpringConstraints(
 		const FSolverParticles& Particles,
@@ -309,40 +278,11 @@ public:
 		, XPBDEdgeSpringDampingIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FXPBDEdgeSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec3<int32>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& DampingMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints = false)
-		: FXPBDSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			DampingMultipliers,
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)))
-		, XPBDEdgeSpringStiffnessIndex(PropertyCollection)
-		, XPBDEdgeSpringDampingIndex(PropertyCollection)
-	{}
-
 	virtual ~FXPBDEdgeSpringConstraints() override = default;
 
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
-	}
 
 private:
 	using FXPBDSpringConstraints::Constraints;
@@ -439,40 +379,11 @@ public:
 		, XPBDBendingSpringDampingIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FXPBDBendingSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec2<int32>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& DampingMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints = false)
-		: FXPBDSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			DampingMultipliers,
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)))
-		, XPBDBendingSpringStiffnessIndex(PropertyCollection)
-		, XPBDBendingSpringDampingIndex(PropertyCollection)
-	{}
-
 	virtual ~FXPBDBendingSpringConstraints() override = default;
 
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
-	}
 
 private:
 	using FXPBDSpringConstraints::Constraints;
@@ -487,11 +398,13 @@ private:
 
 }  // End namespace Chaos::Softs
 
+#if !defined(CHAOS_XPBD_SPRING_ISPC_ENABLED_DEFAULT)
+#define CHAOS_XPBD_SPRING_ISPC_ENABLED_DEFAULT 1
+#endif
+
 // Support ISPC enable/disable in non-shipping builds
-#if !INTEL_ISPC
-const bool bChaos_XPBDSpring_ISPC_Enabled = false;
-#elif UE_BUILD_SHIPPING
-const bool bChaos_XPBDSpring_ISPC_Enabled = true;
+#if !INTEL_ISPC || UE_BUILD_SHIPPING
+static constexpr bool bChaos_XPBDSpring_ISPC_Enabled = INTEL_ISPC && CHAOS_XPBD_SPRING_ISPC_ENABLED_DEFAULT;
 #else
 extern CHAOS_API bool bChaos_XPBDSpring_ISPC_Enabled;
 #endif

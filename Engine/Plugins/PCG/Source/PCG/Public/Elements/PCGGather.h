@@ -20,8 +20,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGGatherSettings", "NodeTitle", "Gather"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGGatherSettings", "NodeTooltip", "Gathers multiple data in a single collection. Can also be used to order execution through the dependency-only pin."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
+
+	virtual bool HasDynamicPins() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -41,8 +42,3 @@ namespace PCGGather
 	/** Gathers the input data into a single data collection and updates the tags */
 	FPCGDataCollection GatherDataForPin(const FPCGDataCollection& InputData, const FName InputLabel = PCGPinConstants::DefaultInputLabel, const FName OutputLabel = PCGPinConstants::DefaultOutputLabel);
 }
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

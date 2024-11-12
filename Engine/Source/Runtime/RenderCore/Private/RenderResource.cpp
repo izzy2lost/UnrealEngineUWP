@@ -122,7 +122,10 @@ void FRenderResource::ReleaseRHIForAllResources()
 /** Initialize all resources initialized before the RHI was initialized */
 void FRenderResource::InitPreRHIResources()
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
+
+	RHICmdList.InitializeImmediateContexts();
 
 	FRenderResourceList& PreResourceList = FRenderResourceList::Get<FRenderResource::EInitPhase::Pre>();
 	FRenderResourceList& DefaultResourceList = FRenderResourceList::Get<FRenderResource::EInitPhase::Default>();
@@ -161,8 +164,7 @@ void FRenderResource::ChangeFeatureLevel(ERHIFeatureLevel::Type NewFeatureLevel)
 
 FRHICommandListBase& FRenderResource::GetImmediateCommandList()
 {
-	check(IsInRenderingThread());
-	return FRHICommandListExecutor::GetImmediateCommandList();
+	return FRHICommandListImmediate::Get();
 }
 
 void FRenderResource::InitResource(FRHICommandListBase& RHICmdList)
@@ -214,8 +216,7 @@ void FRenderResource::ReleaseResource()
 
 void FRenderResource::UpdateRHI()
 {
-	check(IsInRenderingThread());
-	UpdateRHI(FRHICommandListExecutor::GetImmediateCommandList());
+	UpdateRHI(FRHICommandListImmediate::Get());
 }
 
 void FRenderResource::UpdateRHI(FRHICommandListBase& RHICmdList)
@@ -237,6 +238,11 @@ FRenderResource::FRenderResource(ERHIFeatureLevel::Type InFeatureLevel)
 	, FeatureLevel(InFeatureLevel)
 {
 }
+
+FRenderResource::FRenderResource(const FRenderResource&) = default;
+FRenderResource::FRenderResource(FRenderResource&&) = default;
+FRenderResource& FRenderResource::operator=(const FRenderResource& Other) = default;
+FRenderResource& FRenderResource::operator=(FRenderResource&& Other) = default;
 
 FRenderResource::~FRenderResource()
 {
@@ -418,6 +424,10 @@ TGlobalResource<FTextureSamplerStateCache> GTextureSamplerStateCache;
 
 FTexture::FTexture() = default;
 FTexture::~FTexture() = default;
+FTexture::FTexture(const FTexture&) = default;
+FTexture::FTexture(FTexture&&) = default;
+FTexture& FTexture::operator=(const FTexture& Other) = default;
+FTexture& FTexture::operator=(FTexture&& Other) = default;
 
 uint32 FTexture::GetSizeX() const
 {
@@ -546,6 +556,8 @@ FString FTextureReference::GetFriendlyName() const
 // FVertexBuffer
 
 FVertexBuffer::FVertexBuffer() = default;
+FVertexBuffer::FVertexBuffer(const FVertexBuffer&) = default;
+FVertexBuffer& FVertexBuffer::operator=(const FVertexBuffer& Other) = default;
 FVertexBuffer::~FVertexBuffer() = default;
 
 void FVertexBuffer::ReleaseRHI()
@@ -580,6 +592,8 @@ void FVertexBufferWithSRV::ReleaseRHI()
 // FIndexBuffer
 
 FIndexBuffer::FIndexBuffer() = default;
+FIndexBuffer::FIndexBuffer(const FIndexBuffer&) = default;
+FIndexBuffer& FIndexBuffer::operator=(const FIndexBuffer& Other) = default;
 FIndexBuffer::~FIndexBuffer() = default;
 
 void FIndexBuffer::ReleaseRHI()

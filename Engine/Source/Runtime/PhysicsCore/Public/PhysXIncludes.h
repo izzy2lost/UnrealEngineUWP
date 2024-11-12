@@ -4,6 +4,6 @@
 
 // HEADER_UNIT_SKIP - Deprecated
 
-#pragma message (__FILE__"(5): warning: PhysXIncludes.h is no longer useful")
+UE_DEPRECATED_HEADER(5.4, "PhysXIncludes.h is no longer useful.")
 
 #include "CoreMinimal.h"

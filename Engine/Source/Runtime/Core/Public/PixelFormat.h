@@ -106,7 +106,8 @@ enum EPixelFormat : uint8
 	PF_ASTC_8x8_NORM_RG		=89,	
 	PF_ASTC_10x10_NORM_RG	=90,	
 	PF_ASTC_12x12_NORM_RG	=91,	
-	PF_MAX					=92,
+	PF_R16G16_SINT			=92,
+	PF_MAX					=93,
 };
 #define FOREACH_ENUM_EPIXELFORMAT(op) \
 	op(PF_Unknown) \
@@ -200,7 +201,8 @@ enum EPixelFormat : uint8
 	op(PF_ASTC_6x6_NORM_RG) \
 	op(PF_ASTC_8x8_NORM_RG) \
 	op(PF_ASTC_10x10_NORM_RG) \
-	op(PF_ASTC_12x12_NORM_RG)
+	op(PF_ASTC_12x12_NORM_RG) \
+	op(PF_R16G16_SINT)
 
 // Defines which channel is valid for each pixel format
 enum class EPixelFormatChannelFlags : uint8
@@ -261,6 +263,19 @@ ENUM_CLASS_FLAGS(EPixelFormatCapabilities);
 // should be updated to take an EPixelFormat instead, but in the interim this allows fixing
 // type conversion warnings
 #define UE_PIXELFORMAT_TO_UINT8(argument) static_cast<uint8>(argument)
+
+static inline bool IsETCBlockCompressedPixelFormat(EPixelFormat PixelFormat)
+{
+	switch (PixelFormat)
+	{
+	case PF_ETC2_RGB:
+	case PF_ETC2_RGBA:
+	case PF_ETC2_R11_EAC:
+	case PF_ETC2_RG11_EAC:
+		return true;
+	}
+	return false;
+}
 
 FORCEINLINE bool IsASTCBlockCompressedTextureFormat(EPixelFormat PixelFormat)
 {
@@ -331,6 +346,7 @@ FORCEINLINE bool IsInteger(EPixelFormat PixelFormat)
 	case PF_R32G32B32_SINT:
 	case PF_R8_SINT:
 	case PF_R64_UINT:
+	case PF_R16G16_SINT:
 		return true;
 	}
 	return false;

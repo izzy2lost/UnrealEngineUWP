@@ -16,6 +16,7 @@
 #include "Engine/TextureCube.h"
 #include "RHIUtilities.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "GenerateMips.h"
 
 #if WITH_EDITOR
 #include "Components/SceneCaptureComponentCube.h"
@@ -34,7 +35,11 @@ UTextureRenderTargetCube::UTextureRenderTargetCube(const FObjectInitializer& Obj
 	bHDR = true;
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
+	bSupportsUAV = false;
 	bForceLinearGamma = true;
+	bAutoGenerateMips = false;
+	MipsSamplerFilter = Filter;
+	NumMips = 0;
 	// note bool SRGB not set
 }
 
@@ -128,6 +133,20 @@ void UTextureRenderTargetCube::GetResourceSizeEx(FResourceSizeEx& CumulativeReso
 
 FTextureResource* UTextureRenderTargetCube::CreateResource()
 {
+	if (bSupportsUAV)
+	{
+		bCanCreateUAV = 1;
+	}
+
+	if (bAutoGenerateMips)
+	{
+		NumMips = FMath::FloorLog2(SizeX) + 1;
+	}
+	else
+	{
+		NumMips = 1;
+	}
+
 	return new FTextureRenderTargetCubeResource(this);
 }
 
@@ -149,8 +168,9 @@ void UTextureRenderTargetCube::PostEditChangeProperty(FPropertyChangedEvent& Pro
 
 	// Notify any scene capture components that point to this texture that they may need to refresh
 	static const FName SizeXName = GET_MEMBER_NAME_CHECKED(UTextureRenderTargetCube, SizeX);
+	static const FName AutoGenerateMipsName = GET_MEMBER_NAME_CHECKED(UTextureRenderTargetCube, bAutoGenerateMips);
 
-	if (PropertyChangedEvent.GetPropertyName() == SizeXName)
+	if (PropertyChangedEvent.GetPropertyName() == SizeXName || PropertyChangedEvent.GetPropertyName() == AutoGenerateMipsName)
 	{
 		for (TObjectIterator<USceneCaptureComponentCube> It; It; ++It)
 		{
@@ -260,6 +280,24 @@ void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 		{
 			TexCreateFlags |= ETextureCreateFlags::UAV;
 		}
+		
+		if (Owner->bAutoGenerateMips)
+		{
+			if (FGenerateMips::WillFormatSupportCompute(Owner->GetFormat()))
+			{
+				TexCreateFlags |= ETextureCreateFlags::UAV;
+			}
+			else
+			{
+				// Required in FGenerateMips::ExecuteRaster for FRenderTargetBinding to work on individual slice
+				TexCreateFlags |= ETextureCreateFlags::TargetArraySlicesIndependently;
+			}
+		}
+
+		if (Owner->bTargetArraySlicesIndependently)
+		{
+			TexCreateFlags |= ETextureCreateFlags::TargetArraySlicesIndependently;
+		}
 
 		{
 			const FRHITextureCreateDesc Desc =
@@ -330,7 +368,7 @@ void FTextureRenderTargetCubeResource::ReleaseRHI()
 
 /**
  * Updates (resolves) the render target texture.
- * Optionally clears each face of the render target to green.
+ * Optionally clears each face of the render target to the clear color.
  * This is only called by the rendering thread.
  */
 void FTextureRenderTargetCubeResource::UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/)

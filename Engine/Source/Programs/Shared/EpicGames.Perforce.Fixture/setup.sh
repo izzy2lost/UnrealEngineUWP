@@ -128,4 +128,4 @@ p4 delete -c 8 main.cpp
 p4 shelve -c 8
 
 # Stop server running in background
-kill "$(pidof p4d)"
+pkill p4d

@@ -14,7 +14,7 @@ struct FPhysicsControlLimbSetupData;
  * Structure that determines a Physics Control used during initialization of the physics control actor
  */
 USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FInitialPhysicsControl
+struct FInitialPhysicsControl
 {
 	GENERATED_BODY()
 
@@ -83,7 +83,7 @@ struct PHYSICSCONTROL_API FInitialPhysicsControl
  * Structure that determines a Body Modifier used during initialization of the physics control actor
  */
 USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FInitialBodyModifier
+struct FInitialBodyModifier
 {
 	GENERATED_BODY()
 
@@ -129,12 +129,12 @@ struct PHYSICSCONTROL_API FInitialBodyModifier
  * Structure that holds the data necessary to set up a default set of limb controls for a character
  */
 USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FInitialCharacterControls
+struct FInitialCharacterControls
 {
 	GENERATED_BODY()
 
-	FInitialCharacterControls();
-	~FInitialCharacterControls();
+	PHYSICSCONTROL_API FInitialCharacterControls();
+	PHYSICSCONTROL_API ~FInitialCharacterControls();
 
 	/** The owner of the character skeletal mesh */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
@@ -164,12 +164,12 @@ struct PHYSICSCONTROL_API FInitialCharacterControls
  * 
  */
 UCLASS(meta = (BlueprintSpawnableComponent), ClassGroup = Physics, Experimental)
-class PHYSICSCONTROL_API UPhysicsControlInitializerComponent : public USceneComponent
+class UPhysicsControlInitializerComponent : public USceneComponent
 {
 	GENERATED_UCLASS_BODY()
 
 public:
-	virtual void BeginPlay() override;
+	PHYSICSCONTROL_API virtual void BeginPlay() override;
 
 public:
 	/**
@@ -177,7 +177,7 @@ public:
 	 * or you can opt to have it called at BeginPlay using CreateControlsAtBeginPlay.
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void CreateControls(UPhysicsControlComponent* PhysicsControlComponent);
+	PHYSICSCONTROL_API void CreateControls(UPhysicsControlComponent* PhysicsControlComponent);
 
 	/**
 	 * This can be filled in to automatically create whole-character controls (by specifying limbs etc) for

@@ -13,15 +13,27 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FSoftObjectProperty)
 
+FSoftObjectProperty::FSoftObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+{
+}
+
 FSoftObjectProperty::FSoftObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FSoftObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+	: Super(InOwner, Prop)
 {
 }
 
 FSoftObjectProperty::FSoftObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParamsWithoutClass& Prop, UClass* InClass)
-	: TFObjectPropertyBase(InOwner, Prop, InClass)
+	: Super(InOwner, Prop, InClass)
 {
 }
+
+#if WITH_EDITORONLY_DATA
+FSoftObjectProperty::FSoftObjectProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FSoftObjectProperty::GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerNativeTypeName) const
 {
@@ -267,14 +279,14 @@ UObject* FSoftObjectProperty::LoadObjectPropertyValue(const void* PropertyValueA
 	return GetPropertyValue(PropertyValueAddress).LoadSynchronous();
 }
 
-TObjectPtr<UObject> FSoftObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
-{
-	return TObjectPtr<UObject>(GetPropertyValue(PropertyValueAddress).Get());
-}
-
 UObject* FSoftObjectProperty::GetObjectPropertyValue(const void* PropertyValueAddress) const
 {
 	return GetPropertyValue(PropertyValueAddress).Get();
+}
+
+TObjectPtr<UObject> FSoftObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
+{
+	return TObjectPtr<UObject>(GetPropertyValue(PropertyValueAddress).Get());
 }
 
 UObject* FSoftObjectProperty::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
@@ -284,14 +296,31 @@ UObject* FSoftObjectProperty::GetObjectPropertyValue_InContainer(const void* Con
 	return Result;
 }
 
-void FSoftObjectProperty::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
+TObjectPtr<UObject> FSoftObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FSoftObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
+}
+
+void FSoftObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
 	SetPropertyValue(PropertyValueAddress, TCppType(Value));
 }
 
-void FSoftObjectProperty::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+void FSoftObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
+{
+	SetPropertyValue(PropertyValueAddress, TCppType(Ptr));
+}
+
+void FSoftObjectProperty::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
 {
 	SetWrappedUObjectPtrValues<FSoftObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
+}
+
+void FSoftObjectProperty::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	SetWrappedUObjectPtrValues<FSoftObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
 }
 
 bool FSoftObjectProperty::AllowCrossLevel() const

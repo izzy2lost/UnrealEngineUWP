@@ -648,7 +648,7 @@ public:
 	ENGINE_API UEdGraphPin* GetPinWithDirectionAt(int32 Index, EEdGraphPinDirection PinDirection) const;
 
 	/** Break all links on this node */
-	ENGINE_API void BreakAllNodeLinks();
+	ENGINE_API void BreakAllNodeLinks(bool bAlwaysMarkDirty = true);
 
 	/** Snap this node to a specified grid size */
 	ENGINE_API void SnapToGrid(uint32 GridSnapSize);

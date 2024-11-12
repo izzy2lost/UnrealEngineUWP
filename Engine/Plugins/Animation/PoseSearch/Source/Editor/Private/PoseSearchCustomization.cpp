@@ -44,9 +44,9 @@ void FPoseSearchDatabaseSequenceCustomization::CustomizeHeader(TSharedRef<IPrope
 		FPoseSearchDatabaseSequence* PoseSearchDatabaseSequence = (FPoseSearchDatabaseSequence*)InStructPropertyHandle->GetValueBaseAddress((uint8*)Objects[0]);
 		check(PoseSearchDatabaseSequence);
 		
-		if (PoseSearchDatabaseSequence->Sequence)
+		if (const UObject* AnimationAsset = PoseSearchDatabaseSequence->GetAnimationAsset())
 		{
-			SequenceNameText = FText::FromName(PoseSearchDatabaseSequence->Sequence->GetFName());
+			SequenceNameText = FText::FromName(AnimationAsset->GetFName());
 		}
 		else
 		{
@@ -77,26 +77,6 @@ void FPoseSearchDatabaseSequenceCustomization::CustomizeChildren(TSharedRef<IPro
 	for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
 	{
 		StructBuilder.AddProperty(InStructPropertyHandle->GetChildHandle(ChildIndex).ToSharedRef());
-	}
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// FPoseSearchDatabaseDetails
-
-TSharedRef<IDetailCustomization> FPoseSearchDatabaseDetails::MakeInstance()
-{
-	return MakeShareable(new FPoseSearchDatabaseDetails);
-}
-
-void FPoseSearchDatabaseDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
-	TArray<TSharedPtr<IPropertyHandle>> HiddenHandles;
-	HiddenHandles.Add(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UPoseSearchDatabase, AnimationAssets)));
-
-	for (TSharedPtr<IPropertyHandle> PropertyHandle : HiddenHandles)
-	{
-		DetailBuilder.HideProperty(PropertyHandle);
 	}
 }
 

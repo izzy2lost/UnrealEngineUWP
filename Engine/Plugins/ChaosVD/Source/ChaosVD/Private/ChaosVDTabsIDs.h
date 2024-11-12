@@ -14,9 +14,10 @@ public:
 	static const FName DetailsPanel;
 	static const FName OutputLog;
 	static const FName SolversTrack;
-	static const FName CVDEditorSettings;
 	static const FName StatusBar;
 	static const FName CollisionDataDetails;
 	static const FName SceneQueryDataDetails;
-	static const FName JointsDataDetails;
+	static const FName ConstraintsInspector;
+	static const FName SceneQueryBrowser;
+	static const FName RecordedOutputLog;
 };

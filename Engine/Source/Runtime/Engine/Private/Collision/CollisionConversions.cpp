@@ -16,6 +16,7 @@
 
 #include "PhysicsEngine/CollisionQueryFilterCallback.h"
 #include "Engine/ActorInstanceManagerInterface.h"
+#include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 
@@ -183,6 +184,15 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 		}
 	}
 
+	if (OutResult.PhysicsObject != nullptr)
+	{
+		OutResult.PhysicsObjectOwner = OwningComponent;
+		if (FChaosUserEntityAppend* ChaosUserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Actor.UserData()))
+		{
+			OutResult.PhysicsObjectOwner = ChaosUserEntityAppend->GetOwnerObject();
+		}
+	}
+
 	OutResult.PhysMaterial = nullptr;
 
 	// Grab actor/component
@@ -232,11 +242,24 @@ const FPhysicsShape* GetGTShape<false>(const FPhysicsShape* PTShape, const FPhys
 
 const FPhysicsActor* GetGTActor(const Chaos::FGeometryParticleHandle* PTActor)
 {
-	//TODO: need to pass in context so that in PT we always return null
-	//In frozen GT this is ok because object can't be unregistered while we're holding on to this
-	//On PT this is only true if we acquire a gt lock which is not great
-	auto Proxy = static_cast<const Chaos::FSingleParticlePhysicsProxy*>(PTActor->PhysicsProxy());
-	return Proxy->GetParticle_LowLevel();
+	const IPhysicsProxyBase* Proxy = PTActor->PhysicsProxy();
+	if (Proxy)
+	{
+		const EPhysicsProxyType ProxyType = Proxy->GetType();
+		switch (ProxyType)
+		{
+		case EPhysicsProxyType::ClusterUnionProxy:
+			return static_cast<const Chaos::FClusterUnionPhysicsProxy*>(Proxy)->GetParticle_External();
+		case EPhysicsProxyType::GeometryCollectionType:
+			return static_cast<const FGeometryCollectionPhysicsProxy*>(Proxy)->GetInitialRootParticle_External();
+		case EPhysicsProxyType::SingleParticleProxy:
+			return static_cast<const Chaos::FSingleParticlePhysicsProxy*>(Proxy)->GetParticle_LowLevel();
+		default:
+			break;
+		}
+	}
+
+	return nullptr;
 }
 
 template <typename THitLocation>
@@ -616,6 +639,15 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
 			OutOverlap.ItemIndex = OwnerComponent->bMultiBodyOverlap ? BodyInst->InstanceBodyIndex : INDEX_NONE;
 		}
 		OutOverlap.PhysicsObject = BodyInst->ActorHandle ? BodyInst->ActorHandle->GetPhysicsObject() : nullptr;
+
+		if (OutOverlap.PhysicsObject != nullptr)
+		{
+			OutOverlap.PhysicsObjectOwner = OutOverlap.Component;
+			if (FChaosUserEntityAppend* ChaosUserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Actor.UserData()))
+			{
+				OutOverlap.PhysicsObjectOwner = ChaosUserEntityAppend->GetOwnerObject();
+			}
+		}
 	}
 	else
 	{
@@ -630,6 +662,18 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
 			OutOverlap.OverlapObjectHandle = FActorInstanceHandle::MakeActorHandleToResolve(PossibleOwner, INDEX_NONE);
 			OutOverlap.Component = PossibleOwner;
 			OutOverlap.ItemIndex = INDEX_NONE;
+
+			// If this is a geometry collection, we can do more to extract the properly ItemIndex.
+			if (const IPhysicsProxyBase* ActorProxy = Actor.GetProxy())
+			{
+				if (ActorProxy->GetType() == EPhysicsProxyType::GeometryCollectionType)
+				{
+					const FGeometryCollectionPhysicsProxy* ConcreteProxy = static_cast<const FGeometryCollectionPhysicsProxy*>(ActorProxy);
+					const FGeometryCollectionItemIndex ItemIndex = ConcreteProxy->GetItemIndexFromGTParticle_External(Actor.CastToRigidParticle());
+					OutOverlap.ItemIndex = ItemIndex.GetItemIndex();
+				}
+			}
+
 		}
 		else
 		{
@@ -790,6 +834,7 @@ FHitResult ConvertOverlapToHitResult(const FOverlapResult& Overlap)
 	Hit.Item = Overlap.ItemIndex;
 	Hit.Component = Overlap.Component;
 	Hit.PhysicsObject = Overlap.PhysicsObject;
+	Hit.PhysicsObjectOwner = Overlap.PhysicsObjectOwner;
 	Hit.HitObjectHandle = Overlap.OverlapObjectHandle;
 	return Hit;
 }

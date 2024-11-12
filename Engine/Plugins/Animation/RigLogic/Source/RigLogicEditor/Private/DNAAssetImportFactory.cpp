@@ -68,6 +68,7 @@ EReimportResult::Type UDNAAssetImportFactory::Reimport(UObject* Obj, int32 Sourc
 {
 	// This is done here in oreder to enable importing of the dna file with the same name as 
 	// skeletal mesh. This is treated as an normal import but engine is recognizing it as an skeletal mesh reimport.
+	// Also this is called for regular Import since DNA import and reimport don't differ that much
 
 	UPackage* Pkg = Obj->GetPackage();
 	FString Name = FPaths::GetBaseFilename(PreferredReimportPath);
@@ -136,6 +137,18 @@ UObject* UDNAAssetImportFactory::FactoryCreateFile(UClass* InClass, UObject* InP
 	//We are not re-importing
 	ImportUI->bIsReimport = false;
 	ImportUI->ReimportMesh = nullptr;
+
+	USkeletalMesh* SkeletalMeshForDNAImport = nullptr;
+	ForEachObjectWithOuter(InParent, [&SkeletalMeshForDNAImport](UObject* Object)
+	{
+		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+		{
+			SkeletalMeshForDNAImport = SkeletalMesh;
+			return false;
+		}
+		return true;
+	});
+	ImportUI->SkeletalMesh = SkeletalMeshForDNAImport;
 
 	// Show the import dialog only when not in a "yes to all" state or when automating import
 	bool bIsAutomated = IsAutomatedImport();

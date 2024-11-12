@@ -11,15 +11,18 @@
 
 namespace UE::MultiUserClient
 {
-	class FClientChangeOperation;
-	class FReplicationClientManager;
-	class FSubmissionQueue;
 	class IClientChangeOperation;
+	struct FChangeClientReplicationRequest;
 	
 	enum class EChangeAuthorityOperationResult : uint8;
 	enum class EChangeStreamOperationResult : uint8;
-	
-	struct FChangeClientReplicationRequest;
+}
+
+namespace UE::MultiUserClient::Replication
+{
+	class FClientChangeOperation;
+	class FOnlineClientManager;
+	class FSubmissionQueue;
 	
 	/**
 	 * Handles change requests made by external modules via IMultiUserReplication::EnqueueChanges.

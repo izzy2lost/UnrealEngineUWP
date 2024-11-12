@@ -112,6 +112,18 @@ public:
 	 * @param DebugMLDeformerComponent The debug ML Deformer component to copy data from.
 	 */
 	virtual void CopyDataFromDebugActor(const AActor* DebugActor, const UMLDeformerComponent* DebugMLDeformerComponent) {}
+
+	/**
+	 * Set the frame index that we use to sample the ground truth vertex positions when showing the heat map in ground truth mode.
+	 * @param FrameIndex The frame number in the geometry cache that we sample the ground truth positions from.
+	 */
+	void SetGroundTruthFrameIndex(int32 FrameIndex);
+
+	/**
+	 * Get the frame index that we use to sample the ground truth vertex positions when showing the heat map in ground truth mode.
+	 * @return The frame number inside the geometry cache that we sample the ground truth positions from.
+	 */
+	int32 GetGroundTruthFrameIndex() const;
 #endif
 
 	/**
@@ -263,4 +275,9 @@ protected:
 
 	/** Has this instance had a successful UMLDeformerModel::PostMLDeformerComponentInit call? */
 	bool bHasPostInitialized = false;
+
+#if WITH_EDITOR
+	/** The current ground truth frame index. This is used for displaying heatmaps versus the ground truth accurately. */
+	int32 GroundTruthFrameIndex = 0;
+#endif
 };

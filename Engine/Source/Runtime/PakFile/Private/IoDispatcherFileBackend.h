@@ -7,8 +7,9 @@
 #include "IO/IoStore.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
+#include "Containers/SpscQueue.h"
 #include "Stats/Stats.h"
-#include "Async/TaskGraphInterfaces.h"
+#include "Tasks/Task.h"
 #include "HAL/Runnable.h"
 #include "Misc/AES.h"
 #include "GenericPlatform/GenericPlatformFile.h"
@@ -109,12 +110,12 @@ public:
 	void Shutdown() override;
 	TIoStatusOr<FIoContainerHeader> Mount(const TCHAR* InTocPath, int32 Order, const FGuid& EncryptionKeyGuid, const FAES::FAESKey& EncryptionKey);
 	bool Unmount(const TCHAR* InTocPath);
-	bool Resolve(FIoRequestImpl* Request) override;
+	void ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
 	void CancelIoRequest(FIoRequestImpl* Request) override;
 	void UpdatePriorityForIoRequest(FIoRequestImpl* Request) override;
 	bool DoesChunkExist(const FIoChunkId& ChunkId) const override;
 	TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const;
-	FIoRequestImpl* GetCompletedRequests() override;
+	FIoRequestImpl* GetCompletedIoRequests() override;
 	TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
 	void ReopenAllFileHandles();
 
@@ -125,38 +126,8 @@ public:
 	uint32 GetThreadId() const;
 
 private:
-	class FDecompressAsyncTask
-	{
-	public:
-		FDecompressAsyncTask(FFileIoStore& InOuter, FFileIoStoreCompressedBlock* InCompressedBlock)
-			: Outer(InOuter)
-			, CompressedBlock(InCompressedBlock)
-		{
 
-		}
-
-		static FORCEINLINE TStatId GetStatId()
-		{
-			RETURN_QUICK_DECLARE_CYCLE_STAT(FIoStoreDecompressTask, STATGROUP_TaskGraphTasks);
-		}
-
-		static ENamedThreads::Type GetDesiredThread();
-
-		FORCEINLINE static ESubsequentsMode::Type GetSubsequentsMode()
-		{
-			return ESubsequentsMode::FireAndForget;
-		}
-
-		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-		{
-			Outer.ScatterBlock(CompressedBlock, true);
-		}
-
-	private:
-		FFileIoStore& Outer;
-		FFileIoStoreCompressedBlock* CompressedBlock;
-	};
-
+	bool Resolve(FIoRequestImpl* Request);
 	void OnNewPendingRequestsAdded();
 	void ReadBlocks(FFileIoStoreResolvedRequest& ResolvedRequest);
 	void FreeBuffer(FFileIoStoreBuffer& Buffer);
@@ -182,6 +153,7 @@ private:
 	mutable FRWLock IoStoreReadersLock;
 	TArray<TUniquePtr<FFileIoStoreReader>> IoStoreReaders;
 	TArray<TUniquePtr<FFileIoStoreCompressionContext>> CompressionContexts;
+	TSpscQueue<UE::Tasks::FTask> DecompressionTasks;
 	FFileIoStoreCompressionContext* FirstFreeCompressionContext = nullptr;
 	FFileIoStoreCompressedBlock* ReadyForDecompressionHead = nullptr;
 	FFileIoStoreCompressedBlock* ReadyForDecompressionTail = nullptr;
@@ -189,6 +161,7 @@ private:
 	FFileIoStoreCompressedBlock* FirstDecompressedBlock = nullptr;
 	FIoRequestImpl* CompletedRequestsHead = nullptr;
 	FIoRequestImpl* CompletedRequestsTail = nullptr;
+	FDelegateHandle OversubscriptionLimitReached;
 };
 
 TSharedRef<FFileIoStore> CreateIoDispatcherFileBackend();

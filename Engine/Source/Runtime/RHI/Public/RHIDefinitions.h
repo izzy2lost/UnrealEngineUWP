@@ -12,6 +12,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/EnumClassFlags.h"
 #include "ProfilingDebugging/CsvProfilerConfig.h" // TODO Move defines into RHIDefinitions
+#include "UObject/NameTypes.h"
 
 #ifndef USE_STATIC_SHADER_PLATFORM_ENUMS
 #define USE_STATIC_SHADER_PLATFORM_ENUMS 0
@@ -33,10 +34,6 @@ static_assert(sizeof(void*) <= SHADER_PARAMETER_POINTER_ALIGNMENT, "The alignmen
 	#define PLATFORM_DISPATCH_INDIRECT_ARGUMENT_BOUNDARY_SIZE	0
 #endif
 
-#ifndef RHI_COMMAND_LIST_DEBUG_TRACES
-#define RHI_COMMAND_LIST_DEBUG_TRACES 0
-#endif
-
 #ifndef USE_STATIC_SHADER_PLATFORM_INFO
 #define USE_STATIC_SHADER_PLATFORM_INFO 0
 #endif
@@ -46,8 +43,42 @@ static_assert(sizeof(void*) <= SHADER_PARAMETER_POINTER_ALIGNMENT, "The alignmen
 #endif
 
 #ifndef HAS_GPU_STATS
-#define HAS_GPU_STATS ((STATS || CSV_PROFILER || GPUPROFILERTRACE_ENABLED) && (!UE_BUILD_SHIPPING))
+#define HAS_GPU_STATS ((STATS || CSV_PROFILER_STATS || GPUPROFILERTRACE_ENABLED) && (!UE_BUILD_SHIPPING))
 #endif
+
+/**
+ * A type used only for printing a string for debugging/profiling.
+ * Adds Number as a suffix to the printed string even if the base name includes a number, so may prints a string like: Base_1_1
+ * This type will always store a numeric suffix explicitly inside itself and never in the name table so it will always be at least 12 bytes
+ * regardless of the value of UE_FNAME_OUTLINE_NUMBER.
+ * It is not comparable or convertible to other name types to encourage its use only for debugging and avoid using more storage than necessary
+ * for the primary use cases of FName (names of objects, assets etc which are widely used and therefor deduped in the name table).
+ */
+class FDebugName
+{
+public:
+	RHI_API FDebugName();
+	RHI_API FDebugName(FName InName);
+	RHI_API FDebugName(FName InName, int32 InNumber);
+
+	RHI_API FDebugName& operator=(FName Other);
+
+	RHI_API FString ToString() const;
+	RHI_API uint32 ToString(TCHAR* Out, uint32 OutSize) const;
+
+	template<int N>
+	uint32 ToString(TCHAR(&Out)[N]) const
+	{
+		return ToString(Out, N);
+	}
+
+	bool IsNone() const { return Name.IsNone() && Number == NAME_NO_NUMBER_INTERNAL; }
+	RHI_API void AppendString(FStringBuilderBase& Builder) const;
+
+private:
+	FName Name;
+	uint32 Number;
+};
 
 enum class ERHIInterfaceType
 {
@@ -85,20 +116,31 @@ enum class ERHIBindlessSupport : uint8
 	NumBits = 2
 };
 
+enum class ERHIStaticShaderBindingLayoutSupport : uint8
+{
+	Unsupported,
+	RayTracingOnly,
+	AllShaderTypes,
+
+	NumBits = 2
+};
+
 enum EShaderFrequency : uint8
 {
-	SF_Vertex			= 0,
-	SF_Mesh				= 1,
-	SF_Amplification	= 2,
-	SF_Pixel			= 3,
-	SF_Geometry			= 4,
-	SF_Compute			= 5,
-	SF_RayGen			= 6,
-	SF_RayMiss			= 7,
-	SF_RayHitGroup		= 8,
-	SF_RayCallable		= 9,
+	SF_Vertex				= 0,
+	SF_Mesh					= 1,
+	SF_Amplification		= 2,
+	SF_Pixel				= 3,
+	SF_Geometry				= 4,
+	SF_Compute				= 5,
+	SF_RayGen				= 6,
+	SF_RayMiss				= 7,
+	SF_RayHitGroup			= 8,
+	SF_RayCallable			= 9,
+	SF_WorkGraphRoot		= 10,
+	SF_WorkGraphComputeNode	= 11,
 
-	SF_NumFrequencies	= 10,
+	SF_NumFrequencies	= 12,
 
 	// Number of standard shader frequencies for graphics pipeline (excluding compute)
 	SF_NumGraphicsFrequencies = 5,
@@ -469,6 +511,8 @@ enum class EShaderCodeResourceBindingType : uint8
 
 	RasterizerOrderedTexture2D,
 
+	ResourceCollection,
+
 	MAX
 };
 
@@ -486,6 +530,7 @@ inline bool IsResourceBindingTypeSRV(EShaderCodeResourceBindingType Type)
 	case EShaderCodeResourceBindingType::StructuredBuffer:
 	case EShaderCodeResourceBindingType::Buffer:
 	case EShaderCodeResourceBindingType::RaytracingAccelerationStructure:
+	case EShaderCodeResourceBindingType::ResourceCollection:
 		return true;
 	case EShaderCodeResourceBindingType::RWTexture2D:
 	case EShaderCodeResourceBindingType::RWTexture2DArray:
@@ -528,6 +573,7 @@ enum EUniformBufferBaseType : uint8
 	UBMT_RDG_TEXTURE_ACCESS,
 	UBMT_RDG_TEXTURE_ACCESS_ARRAY,
 	UBMT_RDG_TEXTURE_SRV,
+	UBMT_RDG_TEXTURE_NON_PIXEL_SRV,
 	UBMT_RDG_TEXTURE_UAV,
 	UBMT_RDG_BUFFER_ACCESS,
 	UBMT_RDG_BUFFER_ACCESS_ARRAY,
@@ -546,6 +592,8 @@ enum EUniformBufferBaseType : uint8
 
 	// Structure dedicated to setup render targets for a rasterizer pass.
 	UBMT_RENDER_TARGET_BINDING_SLOTS,
+
+	UBMT_RESOURCE_COLLECTION,
 
 	EUniformBufferBaseType_Num,
 	EUniformBufferBaseType_NumBits = 5,
@@ -569,6 +617,25 @@ enum class EUniformBufferBindingFlags : uint8
 	StaticAndShader = Static | Shader
 };
 ENUM_CLASS_FLAGS(EUniformBufferBindingFlags);
+
+/** Flags for Uniform Buffers */
+enum class ERHIUniformBufferFlags : uint8
+{
+	None                    = 0,
+
+	/** Whether to force a real uniform buffer when using emulated uniform buffers */
+	NoEmulatedUniformBuffer = 1 << 0,
+
+	/** Signals if the uniform buffer members need to be included in shader reflection */
+	NeedsReflectedMembers   = 1 << 1,
+
+	/** Whether this layout may contain non-render-graph outputs (e.g. RHI UAVs). */
+	HasNonGraphOutputs      = 1 << 2,
+
+	/** This struct is a view into uniform buffer object, on platforms that support UBO */
+	UniformView             = 1 << 3,
+};
+ENUM_CLASS_FLAGS(ERHIUniformBufferFlags);
 
 /** Numerical type used to store the static slot indices. */
 using FUniformBufferStaticSlot = uint8;
@@ -762,8 +829,7 @@ enum class EBufferUsageFlags : uint32
 	/** Buffer that the GPU will use as a source for a copy. */
 	SourceCopy              = 1 << 5,
 
-	/** Create a buffer that can be bound as a stream output target. */
-	StreamOutput            UE_DEPRECATED(5.3, "StreamOut is not supported") = 1 << 6,
+	UNUSED_BIT_6            = 1 << 6,
 
 	/** Create a buffer which contains the arguments used by DispatchIndirect or DrawIndirect. */
 	DrawIndirect            = 1 << 7,
@@ -779,6 +845,9 @@ enum class EBufferUsageFlags : uint32
 
 	/** Buffer should go in fast vram (hint only). Requires BUF_Transient */
 	FastVRAM                = 1 << 10,
+
+	/** Buffer is used by NNE.  DirectML requires NNE resources to be in single device memory heaps when multi-GPU is active. */
+	NNE						= 1 << 11,
 
 	/** Create a buffer that can be shared with an external RHI or process. */
 	Shared                  = 1 << 12,
@@ -915,11 +984,16 @@ enum ERHIResourceType : uint8
 	RRT_UnorderedAccessView,
 	RRT_ShaderResourceView,
 	RRT_RayTracingAccelerationStructure,
+	RRT_RayTracingShaderBindingTable,
 	RRT_StagingBuffer,
 	RRT_CustomPresent,
 	RRT_ShaderLibrary,
 	RRT_PipelineBinaryLibrary,
 	RRT_ShaderBundle,
+	RRT_WorkGraphShader,
+	RRT_WorkGraphPipelineState,
+	RRT_StreamSourceSlot,
+	RRT_ResourceCollection,
 
 	RRT_Num
 };
@@ -966,7 +1040,11 @@ enum class ETextureCreateFlags : uint64
     // This texture has no GPU or CPU backing. It only exists in tile memory on TBDR GPUs (i.e., mobile).
     Memoryless                        = 1ull << 12,
     // Create the texture with the flag that allows mip generation later, only applicable to D3D11
-    GenerateMipCapable                = 1ull << 13,
+    GenerateMipCapable UE_DEPRECATED(5.5,
+		"The GenerateMipCapable flag is no longer used."
+		" Use ETextureCreateFlags::UAV to make a texture compatible with compute-based mip generation,"
+		" or use ETextureCreateFlags::RenderTargetable for raster-based mip generation.")
+		                              = 1ull << 13,
     // The texture can be partially allocated in fastvram
     FastVRAMPartialAlloc              = 1ull << 14,
     // Do not create associated shader resource view, only applicable to D3D11 and D3D12
@@ -1263,9 +1341,10 @@ enum class ERequestedGPUCrash : uint8
 	Type_Hang = 1 << 0,
 	Type_PageFault = 1 << 1,
 	Type_PlatformBreak = 1 << 2,
+	Type_Assert = 1 << 3,
 
-	Queue_Direct = 1 << 3,
-	Queue_Compute = 1 << 4
+	Queue_Direct = 1 << 4,
+	Queue_Compute = 1 << 5,
 };
 ENUM_CLASS_FLAGS(ERequestedGPUCrash);
 
@@ -1275,6 +1354,7 @@ inline bool IsRDGTextureReferenceShaderParameterType(EUniformBufferBaseType Base
 	return
 		BaseType == UBMT_RDG_TEXTURE ||
 		BaseType == UBMT_RDG_TEXTURE_SRV ||
+		BaseType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 		BaseType == UBMT_RDG_TEXTURE_UAV ||
 		BaseType == UBMT_RDG_TEXTURE_ACCESS ||
 		BaseType == UBMT_RDG_TEXTURE_ACCESS_ARRAY;
@@ -1306,15 +1386,28 @@ inline bool IsRDGResourceReferenceShaderParameterType(EUniformBufferBaseType Bas
 	return IsRDGTextureReferenceShaderParameterType(BaseType) || IsRDGBufferReferenceShaderParameterType(BaseType) || BaseType == UBMT_RDG_UNIFORM_BUFFER;
 }
 
+inline bool IsShaderParameterTypeReadOnlyRHIResource(EUniformBufferBaseType BaseType)
+{
+	return
+		BaseType == UBMT_TEXTURE ||
+		BaseType == UBMT_SRV ||
+		BaseType == UBMT_SAMPLER ||
+		BaseType == UBMT_RESOURCE_COLLECTION;
+}
+
+inline bool IsShaderParameterTypeRHIResource(EUniformBufferBaseType BaseType)
+{
+	return
+		IsShaderParameterTypeReadOnlyRHIResource(BaseType) ||
+		BaseType == UBMT_UAV;
+}
+
 /** Returns whether the shader parameter type needs to be passdown to RHI through FRHIUniformBufferLayout when creating an uniform buffer. */
 inline bool IsShaderParameterTypeForUniformBufferLayout(EUniformBufferBaseType BaseType)
 {
 	return
 		// RHI resource referenced in shader parameter structures.
-		BaseType == UBMT_TEXTURE ||
-		BaseType == UBMT_SRV ||
-		BaseType == UBMT_SAMPLER ||
-		BaseType == UBMT_UAV ||
+		IsShaderParameterTypeRHIResource(BaseType) ||
 
 		// RHI is able to access RHI resources from RDG.
 		IsRDGResourceReferenceShaderParameterType(BaseType) ||
@@ -1384,6 +1477,18 @@ inline bool IsRayTracingShaderFrequency(EShaderFrequency Frequency)
 	}
 }
 
+inline bool IsWorkGraphShaderFrequency(EShaderFrequency Frequency)
+{
+	switch (Frequency)
+	{
+	case SF_WorkGraphRoot:
+	case SF_WorkGraphComputeNode:
+		return true;
+	default:
+		return false;
+	}
+}
+
 inline ERHIResourceType GetRHIResourceType(ETextureDimension Dimension)
 {
 	switch (Dimension)
@@ -1432,18 +1537,3 @@ struct FShaderCodeValidationUBSize
 	uint16 BindPoint;
 	uint32 Size;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "DataDrivenShaderPlatformInfo.h"
-#include "HAL/IConsoleManager.h"
-#include "PixelFormat.h"
-#include "RHIFeatureLevel.h"
-#include "RHIImmutableSamplerState.h"
-#include "RHIShaderPlatform.h"
-#include "RHIStrings.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Serialization/MemoryLayout.h"
-#endif

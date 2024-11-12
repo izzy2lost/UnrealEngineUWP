@@ -75,6 +75,9 @@ public:
 	 */
 	virtual UWorld* GetCurrentWorld() const = 0;
 
+	/** Return value from the DCRA function GetWorldDeltaSeconds(). */
+	virtual float GetRootActorWorldDeltaSeconds(const EDisplayClusterRootActorType InRootActorType = EDisplayClusterRootActorType::Scene) const = 0;
+
 	/**
 	 * Gets a reference to the DCRA by type.
 	 * If a DCRA with the specified type is not assigned, the default DCRA is used.

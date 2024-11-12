@@ -16,28 +16,28 @@ struct FScopedMallocTimer;
 
 FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::Malloc(SIZE_T Count, uint32 Alignment)
 {
-	void* Ptr = nullptr; // Silence bogus static analysis warnings.
-
 	// AutoRTFM: For non-transactional code, all of these calls optimize away and the
 	// behavior is the same as it always has been.
 	// For transactional code, we call the allocator in the 'open' as an optimization, so that
 	// we don't end up keeping track of the writes to the allocator's internal data structures.
 	// This is because allocators are already transactional - malloc can be rolled back by
 	// calling free.
-	UE_AUTORTFM_OPEN(
+	void* Ptr = AutoRTFM::Open([Count, Alignment]
 	{
+		void* Alloc = nullptr;
 		if (!FMEMORY_INLINE_GMalloc)
 		{
-			Ptr = MallocExternal(Count, Alignment);
+			Alloc = MallocExternal(Count, Alignment);
 		}
 		else
 		{
 			DoGamethreadHook(0);
 			FScopedMallocTimer Timer(0);
-			Ptr = FMEMORY_INLINE_GMalloc->Malloc(Count, Alignment);
+			Alloc = FMEMORY_INLINE_GMalloc->Malloc(Count, Alignment);
 		}
 		// optional tracking of every allocation
-		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, Ptr, Count, ELLMTag::Untagged, ELLMAllocType::FMalloc));
+		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, Alloc, Count, ELLMTag::Untagged, ELLMAllocType::FMalloc));
+		return Alloc;
 	});
 
 	// AutoRTFM: This is a no-op for non-transactional code.
@@ -55,7 +55,7 @@ FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::Malloc(SIZE_T Count, uint32 Ali
 
 FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::Realloc(void* Original, SIZE_T Count, uint32 Alignment)
 {
-	if(AutoRTFM::IsClosed())
+	if (AutoRTFM::IsClosed())
 	{
 		// AutoRTFM: For transactional code, we have to do a little dance to handle Realloc
 		// properly. We turn realloc into Malloc + Memcpy + Free and never call into the
@@ -71,17 +71,33 @@ FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::Realloc(void* Original, SIZE_T 
 		// if we new that the Original pointer was allocated in this transaction, we could
 		// call into the underlying realloc - however we would also have to account for the
 		// malloc deferring a call to free, so we would also have to erase that call to free.
-		void* Ptr = Malloc(Count, Alignment);
-		if (!Ptr)
+
+		void* Ptr = nullptr;
+
+		// Depending on the underlying implementation `Malloc` here, even if `Count` is zero,
+		// could do an actual allocation (it is implementation-defined what occurs). So
+		// instead, since we are fine to return null with a `Count` of zero, we check for
+		// that case and skip the `Malloc` call entirely.
+		if (Count > 0)
 		{
-			return nullptr;
+			Ptr = Malloc(Count, Alignment);
+
+			if (!Ptr)
+			{
+				return nullptr;
+			}
 		}
 
 		if (Original)
 		{
-			SIZE_T OriginalCount = GetAllocSize(Original);
-			SIZE_T CopyCount = FGenericPlatformMath::Min(Count, OriginalCount); // handle the case where the new size is smaller
-			Memcpy(Ptr, Original, CopyCount);
+			if (Ptr)
+			{
+				SIZE_T OriginalCount = GetAllocSize(Original);
+				SIZE_T CopyCount = FGenericPlatformMath::Min(Count, OriginalCount); // handle the case where the new size is smaller
+
+				Memcpy(Ptr, Original, CopyCount);
+			}
+			
 			Free(Original);
 		}
 
@@ -131,7 +147,7 @@ FMEMORY_INLINE_FUNCTION_DECORATOR void FMemory::Free(void* Original)
 	// AutoRTFM: For transactional code, in order to support the transaction 
 	// aborting and needing to 'roll back' the Free, we defer the actual
 	// free until commit time.
-	UE_AUTORTFM_ONCOMMIT(
+	UE_AUTORTFM_ONCOMMIT(=)
 	{
 		// optional tracking of every allocation
 		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Default, Original, ELLMAllocType::FMalloc));
@@ -146,13 +162,13 @@ FMEMORY_INLINE_FUNCTION_DECORATOR void FMemory::Free(void* Original)
 		FMEMORY_INLINE_GMalloc->Free(Original);
 
 		AutoRTFM::DidFree(Original);
-	});
+	};
 }
 
 FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::GetAllocSize(void* Original)
 {
 	SIZE_T Result;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		if (!FMEMORY_INLINE_GMalloc)
 		{
@@ -161,17 +177,65 @@ FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::GetAllocSize(void* Original)
 		else
 		{
 			SIZE_T Size = 0;
-			Result = FMEMORY_INLINE_GMalloc->GetAllocationSize(Original, Size) ? Size : 0;
+			const bool bGotSize = FMEMORY_INLINE_GMalloc->GetAllocationSize(Original, Size);
+			Result = bGotSize ? Size : 0;
+
+			// This folds away at compile time so that the check is only ever performed inside transactional
+			// code paths. The check is to ensure that the allocator used will return the correct allocation
+			// size, which is a cornerstone requirement for AutoRTFM to function.
+			if (AutoRTFM::IsClosed())
+			{
+				checkf(bGotSize, TEXT("For AutoRTFM to function it must be able to get the size of an allocation"));
+			}
 		}
-	});
+	};
 
 	return Result;
+}
+
+FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::MallocZeroed(SIZE_T Count, uint32 Alignment)
+{
+	void* Ptr = nullptr; // Silence bogus static analysis warnings.
+
+	// AutoRTFM: For non-transactional code, all of these calls optimize away and the
+	// behavior is the same as it always has been.
+	// For transactional code, we call the allocator in the 'open' as an optimization, so that
+	// we don't end up keeping track of the writes to the allocator's internal data structures.
+	// This is because allocators are already transactional - malloc can be rolled back by
+	// calling free.
+	UE_AUTORTFM_OPEN
+		{
+			if (!FMEMORY_INLINE_GMalloc)
+			{
+				Ptr = MallocZeroedExternal(Count, Alignment);
+			}
+			else
+			{
+				DoGamethreadHook(0);
+				FScopedMallocTimer Timer(0);
+				Ptr = FMEMORY_INLINE_GMalloc->MallocZeroed(Count, Alignment);
+			}
+	// optional tracking of every allocation
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, Ptr, Count, ELLMTag::Untagged, ELLMAllocType::FMalloc));
+		};
+
+	// AutoRTFM: This is a no-op for non-transactional code.
+	// For transactional code, this defers a call to Free if the transaction aborts,
+	// so that rolling back this allocation will end up freeing the memory.
+	AutoRTFM::OnAbort([Ptr]
+		{
+			// Disable the code analysis warning that complains that Free is being passed
+			// a pointer that may be null. Free explicitly handles this case already.
+			Free(Ptr); //-V575
+		});
+
+	return AutoRTFM::DidAllocate(Ptr, Count);
 }
 
 FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::QuantizeSize(SIZE_T Count, uint32 Alignment)
 {
 	SIZE_T Result;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		if (!FMEMORY_INLINE_GMalloc)
 		{
@@ -181,7 +245,7 @@ FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::QuantizeSize(SIZE_T Count, uin
 		{
 			Result = FMEMORY_INLINE_GMalloc->QuantizeSize(Count, Alignment);
 		}
-	});
+	};
 
 	return Result;
 }

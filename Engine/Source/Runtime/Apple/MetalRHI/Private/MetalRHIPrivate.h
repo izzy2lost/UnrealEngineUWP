@@ -6,27 +6,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/ScopeLock.h"
-#include "Misc/CommandLine.h"
+#include "MetalRHI.h"
+#include "MetalThirdParty.h"
 #include "PixelFormat.h"
+#include "RHICommandList.h"
+#include "RHIGlobals.h"
 
-// Metal C++ wrapper
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
+class FMetalDevice;
+class FMetalSurface;
+
+DECLARE_LOG_CATEGORY_EXTERN(LogMetal, Display, All);
 
 DECLARE_DELEGATE_OneParam(FMetalCommandBufferCompletionHandler, MTL::CommandBuffer*);
-
-inline uint32 GetTypeHash(const MTLTexturePtr& TexturePtr)
-{
-    return GetTypeHash(TexturePtr.get());
-}
-
-inline uint32 GetTypeHash(const MTLBufferPtr& BufferPtr)
-{
-    return GetTypeHash(BufferPtr.get());
-}
 
 // Whether the Metal RHI is initialized sufficiently to handle resources
 extern bool GIsMetalInitialized;
@@ -50,26 +41,21 @@ const uint32 MetalBufferBytesSize = BufferOffsetAlignment * 2;
 const uint32 MetalBufferBytesSize = BufferOffsetAlignment * 32;
 #endif
 
-#define METAL_RHI_RAYTRACING (0)
+
 #define METAL_USE_METAL_SHADER_CONVERTER PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 // Metal Shader Converter
 #if METAL_USE_METAL_SHADER_CONVERTER
 THIRD_PARTY_INCLUDES_START
-#include "metal_irconverter.h"
-#define IR_RUNTIME_METALCPP 1
-#define IR_PRIVATE_IMPLEMENTATION 1
-#include "metal_irconverter_runtime.h"
+    #include "metal_irconverter.h"
+    #define IR_RUNTIME_METALCPP 1
+    #define IR_PRIVATE_IMPLEMENTATION 1
+    #include "metal_irconverter_runtime.h"
 THIRD_PARTY_INCLUDES_END
 
-constexpr uint64_t kIRStandardHeapBindPoint 			   = 0;
+constexpr uint64_t kIRStandardHeapBindPoint                = 0;
 
 #endif
-
-#include "MetalInclude.h"
-#include "MetalRHI.h"
-#include "MetalDynamicRHI.h"
-#include "RHI.h"
 
 #define BUFFER_CACHE_MODE MTL::ResourceCPUCacheModeDefaultCache
 
@@ -106,6 +92,7 @@ enum EMTLTextureType
 #define METAL_SUPPORTS_INDIRECT_ARGUMENT_BUFFERS 1
 #define METAL_SUPPORTS_CAPTURE_MANAGER 1
 #define METAL_SUPPORTS_TILE_SHADERS 1
+
 // In addition to compile-time SDK checks we also need a way to check if these are available on runtime
 extern bool GMetalSupportsCaptureManager;
 
@@ -121,24 +108,24 @@ extern FMetalBufferFormat GMetalBufferFormats[PF_MAX];
 
 #define METAL_DEBUG_OPTIONS !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #if METAL_DEBUG_OPTIONS
-#define METAL_DEBUG_OPTION(Code) Code
+    #define METAL_DEBUG_OPTION(Code) Code
 #else
-#define METAL_DEBUG_OPTION(Code)
+    #define METAL_DEBUG_OPTION(Code)
 #endif
 
 extern bool GMetalCommandBufferDebuggingEnabled;
 
 /** Set to 1 to enable GPU events in Xcode frame debugger */
 #ifndef ENABLE_METAL_GPUEVENTS_IN_TEST
-	#define ENABLE_METAL_GPUEVENTS_IN_TEST 0
+    #define ENABLE_METAL_GPUEVENTS_IN_TEST 0
 #endif
-#define ENABLE_METAL_GPUEVENTS	(UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT || (UE_BUILD_TEST && ENABLE_METAL_GPUEVENTS_IN_TEST))
-#define ENABLE_METAL_GPUPROFILE	(ENABLE_METAL_GPUEVENTS && 1)
+#define ENABLE_METAL_GPUEVENTS    (UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT || (UE_BUILD_TEST && ENABLE_METAL_GPUEVENTS_IN_TEST))
+#define ENABLE_METAL_GPUPROFILE    (ENABLE_METAL_GPUEVENTS && 1)
 
 #if ENABLE_METAL_GPUPROFILE
-#define METAL_GPUPROFILE(Code) Code
+    #define METAL_GPUPROFILE(Code) Code
 #else
-#define METAL_GPUPROFILE(Code) 
+    #define METAL_GPUPROFILE(Code)
 #endif
 
 #define UNREAL_TO_METAL_BUFFER_INDEX(Index) ((MaxMetalStreams - 1) - Index)
@@ -157,26 +144,6 @@ extern bool GMetalCommandBufferDebuggingEnabled;
 	#define METAL_IGNORED(Func)
 #endif
 
-// Access the internal context for the device-owning DynamicRHI object
-FMetalDeviceContext& GetMetalDeviceContext();
-
-// Safely release a metal object, correctly handling the case where the RHI has been destructed first
-void METALRHI_API SafeReleaseMetalObject(NS::Object* Object);
-
-// Safely release a metal texture, correctly handling the case where the RHI has been destructed first
-void SafeReleaseMetalTexture(MTLTexturePtr Object);
-
-// Safely release a metal buffer, correctly handling the case where the RHI has been destructed first
-void SafeReleaseMetalBuffer(FMetalBufferPtr Buffer);
-
-// Safely release a fence, correctly handling cases where fences aren't supported or the debug implementation is used.
-void SafeReleaseMetalFence(class FMetalFence* Object);
-
-// Safely release a render pass descriptor so that it may be reused.
-void SafeReleaseMetalRenderPassDescriptor(MTL::RenderPassDescriptor* Desc);
-
-void SafeReleaseFunction(TFunction<void()> ReleaseFunction);
-
 FORCEINLINE bool IsMetalBindlessEnabled()
 {
 	return GRHIBindlessSupport != ERHIBindlessSupport::Unsupported &&
@@ -188,18 +155,12 @@ FMetalSurface* GetMetalSurfaceFromRHITexture(FRHITexture* Texture);
 
 #define NOT_SUPPORTED(Func) UE_LOG(LogMetal, Fatal, TEXT("'%s' is not supported"), TEXT(Func));
 
-// Verifies we are on the correct thread to mutate internal MetalRHI resources.
-FORCEINLINE void CheckMetalThread()
-{
-    check((IsInRenderingThread() && (!IsRunningRHIInSeparateThread() || !FRHICommandListExecutor::IsRHIThreadActive())) || IsInRHIThread());
-}
-
 FORCEINLINE bool MetalIsSafeToUseRHIThreadResources()
 {
 	// we can use RHI thread resources if we are on the RHIThread or on RenderingThread when there's no RHI thread, or the RHI thread is stalled or inactive
-	return (GIsMetalInitialized && !GIsRHIInitialized) ||
-			IsInRHIThread() ||
-			(IsInRenderingThread() && (!IsRunningRHIInSeparateThread() || !FRHICommandListExecutor::IsRHIThreadActive() || FRHICommandListImmediate::IsStalled() || FRHICommandListExecutor::IsRHIThreadCompletelyFlushed()));
+	return (GIsMetalInitialized && !GIsRHIInitialized)
+		|| IsInRHIThread()
+		|| (IsInRenderingThread() && (!IsRunningRHIInSeparateThread() || !FRHICommandListExecutor::AreRHITasksActive() || FRHICommandListImmediate::IsStalled()));
 }
 
 FORCEINLINE int32 GetMetalCubeFace(ECubeFace Face)
@@ -234,9 +195,14 @@ MTL::PrimitiveType TranslatePrimitiveType(uint32 PrimitiveType);
 MTL::PrimitiveTopologyClass TranslatePrimitiveTopology(uint32 PrimitiveType);
 #endif
 
-MTL::PixelFormat UEToMetalFormat(EPixelFormat UEFormat, bool bSRGB);
+MTL::PixelFormat UEToMetalFormat(FMetalDevice& Device, EPixelFormat UEFormat, bool bSRGB);
 
 uint8 GetMetalPixelFormatKey(MTL::PixelFormat Format);
+
+template<class T>
+struct TMetalResourceTraits
+{
+};
 
 template<typename TRHIType>
 static FORCEINLINE typename TMetalResourceTraits<TRHIType>::TConcreteType* ResourceCast(TRHIType* Resource)
@@ -248,10 +214,6 @@ static FORCEINLINE FMetalSurface* ResourceCast(FRHITexture* Texture)
 {
 	return GetMetalSurfaceFromRHITexture(Texture);
 }
-
-uint32 SafeGetRuntimeDebuggingLevel();
-
-extern int32 GMetalBufferZeroFill;
 
 MTL::LanguageVersion ValidateVersion(uint32 Version);
 
@@ -332,5 +294,6 @@ FORCEINLINE NS::String* FStringToNSString(const FString& InputString)
     return ((NS::String*)InputString.GetCFString())->autorelease();
 }
 
-#include "MetalStateCache.h"
-#include "MetalContext.h"
+// helper functions to reduce copy and pasted checks all around
+bool ShouldUseMemoryless(ETextureCreateFlags Flags);
+bool AllowMSAA();

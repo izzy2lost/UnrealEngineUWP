@@ -8,7 +8,9 @@
 #include "GroomManager.h"
 #include "Engine/StaticMesh.h"
 #include "GroomAsset.h"
+#include "GroomBindingCompiler.h"
 #include "GroomCreateBindingOptions.h"
+#include "AssetCompilingManager.h"
 #include "UObject/Package.h"
 
 IMPLEMENT_MODULE(FHairStrandsCore, HairStrandsCore);
@@ -23,6 +25,10 @@ void FHairStrandsCore::StartupModule()
 {
 	RegisterBookmarkFunction(ProcessHairStrandsBookmark);
 
+#if WITH_EDITOR
+	FAssetCompilingManager::Get().RegisterManager(&FGroomBindingCompilingManager::Get());
+#endif
+
 	// Maps virtual shader source directory /Plugin/FX/Niagara to the plugin's actual Shaders directory.
 	FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("HairStrands"))->GetBaseDir(), TEXT("Shaders"));
 	AddShaderSourceDirectoryMapping(TEXT("/Plugin/Runtime/HairStrands"), PluginShaderDir);
@@ -31,6 +37,10 @@ void FHairStrandsCore::StartupModule()
 
 void FHairStrandsCore::ShutdownModule()
 {
+#if WITH_EDITOR
+	FAssetCompilingManager::Get().UnregisterManager(&FGroomBindingCompilingManager::Get());
+#endif
+
 	SetGroomEnabled(false);
 }
 

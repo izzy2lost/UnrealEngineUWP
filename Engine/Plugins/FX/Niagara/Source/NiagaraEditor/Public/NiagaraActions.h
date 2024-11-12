@@ -93,7 +93,7 @@ private:
 class FNiagaraMenuActionCollector
 {
 public:
-	void AddAction(TSharedPtr<FNiagaraMenuAction> Action, int32 SortOrder, const FString& Category = FString());
+	void AddAction(TSharedPtr<FNiagaraMenuAction> Action, int32 SortOrder);
 	void AddAllActionsTo(FGraphActionListBuilderBase& ActionBuilder);
 
 private:
@@ -101,7 +101,6 @@ private:
 	{
 		TSharedPtr<FNiagaraMenuAction> Action;
 		int32 SortOrder;
-		FString Category;
 	};
 
 	TArray<FCollectedAction> Actions;
@@ -418,6 +417,8 @@ public:
 	/** Allows DIs to add actions for add pins on the DI function call nodes. */
 	virtual void CollectAddPinActionsImpl(FNiagaraMenuActionCollector& Collector, UEdGraphPin* AddPin) const {}
 
+	virtual TSharedPtr<SWidget> GetCustomFunctionSpecifierWidgetImpl(UNiagaraNodeFunctionCall* FunctionCallNode) const { return nullptr; }
+
 	template<typename DIClass, typename ActionProviderClass>
 	static void Register();
 
@@ -437,6 +438,8 @@ public:
 	static void CollectAddPinActions(FNiagaraMenuActionCollector& Collector, UEdGraphPin* AddPin);
 
 	static NIAGARAEDITOR_API void CollectAddPinActions(UClass* DIClass, FNiagaraMenuActionCollector& Collector, UEdGraphPin* AddPin);
+
+	static NIAGARAEDITOR_API TSharedPtr<SWidget> GetCustomFunctionSpecifierWidget(UClass* DIClass, UNiagaraNodeFunctionCall* FunctionCallNode);
 
 	/** All currently registered action providers. */
 	static NIAGARAEDITOR_API TMap<FName, TUniquePtr<INiagaraDataInterfaceNodeActionProvider>> RegisteredActionProviders;
@@ -482,6 +485,12 @@ class FNiagaraDataInterfaceNodeActionProvider_DataChannelWrite : public INiagara
 public:
 
 	virtual void GetNodeContextMenuActionsImpl(UToolMenu* Menu, UGraphNodeContextMenuContext* Context, FNiagaraFunctionSignature Signature) const override;
+	virtual void CollectAddPinActionsImpl(FNiagaraMenuActionCollector& Collector, UEdGraphPin* AddPin)const override;
+	virtual void GetInlineNodeContextMenuActionsImpl(UToolMenu* ToolMenu) const override;
+	virtual FInlineMenuDisplayOptions GetInlineMenuDisplayOptionsImpl(UClass* DIClass, UEdGraphNode* Source) const override;
+
+private:
+	static void AddDataChannelInitActions(UToolMenu* ToolMenu);
 };
 
 class FNiagaraDataInterfaceNodeActionProvider_DataChannelRead : public INiagaraDataInterfaceNodeActionProvider
@@ -492,6 +501,7 @@ public:
 	virtual void GetInlineNodeContextMenuActionsImpl(UToolMenu* ToolMenu) const override;
 	virtual FInlineMenuDisplayOptions GetInlineMenuDisplayOptionsImpl(UClass* DIClass, UEdGraphNode* Source) const override;
 	virtual void CollectAddPinActionsImpl(FNiagaraMenuActionCollector& Collector, UEdGraphPin* AddPin)const override;
+	virtual TSharedPtr<SWidget> GetCustomFunctionSpecifierWidgetImpl(UNiagaraNodeFunctionCall* FunctionCallNode) const override;
 
 private:
 	static void AddDataChannelInitActions(UToolMenu* ToolMenu);

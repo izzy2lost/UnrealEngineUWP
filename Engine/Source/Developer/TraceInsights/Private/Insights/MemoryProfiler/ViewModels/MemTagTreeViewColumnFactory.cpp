@@ -2,14 +2,19 @@
 
 #include "MemTagTreeViewColumnFactory.h"
 
-// Insights
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemTagNodeGroupingAndSorting.h"
 #include "Insights/MemoryProfiler/ViewModels/MemTagNodeHelper.h"
 
-#define LOCTEXT_NAMESPACE "SMemTagTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemTagTreeView"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Column identifiers
@@ -24,7 +29,7 @@ const FName FMemTagTreeViewColumns::AverageValueColumnID(TEXT("Average"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemTagTreeViewColumnFactory::CreateMemTagTreeViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns)
+void FMemTagTreeViewColumnFactory::CreateMemTagTreeViewColumns(TArray<TSharedRef<FTableColumn>>& Columns)
 {
 	Columns.Reset();
 
@@ -39,10 +44,8 @@ void FMemTagTreeViewColumnFactory::CreateMemTagTreeViewColumns(TArray<TSharedRef
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateNameColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateNameColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::NameColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -74,10 +77,8 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateNameColum
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateTypeColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateTypeColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::TypeColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -120,10 +121,8 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateTypeColum
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateTrackerColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateTrackerColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::TrackerColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -165,10 +164,8 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateTrackerCo
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateInstanceCountColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateInstanceCountColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::InstanceCountColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -211,10 +208,8 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateInstanceC
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateMinValueColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateMinValueColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::MinValueColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -256,10 +251,8 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateMinValueC
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateMaxValueColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateMaxValueColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::MaxValueColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -301,10 +294,8 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateMaxValueC
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateAverageValueColumn()
+TSharedRef<FTableColumn> FMemTagTreeViewColumnFactory::CreateAverageValueColumn()
 {
-	using namespace Insights;
-
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemTagTreeViewColumns::AverageValueColumnID);
 	FTableColumn& Column = *ColumnRef;
 
@@ -345,5 +336,7 @@ TSharedRef<Insights::FTableColumn> FMemTagTreeViewColumnFactory::CreateAverageVa
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

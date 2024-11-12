@@ -4,6 +4,7 @@
 
 #include "Engine/Engine.h"
 #include "InteractiveToolsContext.h"
+#include "InteractiveToolQueryInterfaces.h"
 #include "ContextObjectStore.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InteractiveToolManager)
@@ -149,7 +150,36 @@ bool UInteractiveToolManager::ActivateTool(EToolSide Side)
 
 	if (ActiveLeftTool != nullptr)
 	{
-		DeactivateTool(EToolSide::Left, ActiveLeftTool->CanAccept() ? EToolShutdownType::Accept : EToolShutdownType::Completed);
+		// Decide how to shut down the currently active tool based on ToolSwitchMode
+		EToolShutdownType ShutdownType = EToolShutdownType::Completed;
+		switch (ToolSwitchMode)
+		{
+		case EToolManagerToolSwitchMode::AcceptIfAble:
+		case EToolManagerToolSwitchMode::CustomizableAcceptIfAble:
+			ShutdownType = 
+				CanAcceptActiveTool(EToolSide::Left) ? EToolShutdownType::Accept : 
+				CanCancelActiveTool(EToolSide::Left) ? EToolShutdownType::Cancel : EToolShutdownType::Completed;
+			break;
+		case EToolManagerToolSwitchMode::CancelIfAble:
+		case EToolManagerToolSwitchMode::CustomizableCancelIfAble:
+			ShutdownType = CanCancelActiveTool(EToolSide::Left) ? EToolShutdownType::Cancel : EToolShutdownType::Completed;
+			break;
+		default:
+			ensure(false);
+		}
+
+		// If the tool switch mode is set to be customizable, see if the tool wants to customize it
+		if (ToolSwitchMode == EToolManagerToolSwitchMode::CustomizableAcceptIfAble
+			|| ToolSwitchMode == EToolManagerToolSwitchMode::CustomizableCancelIfAble)
+		{
+			if (IInteractiveToolShutdownQueryAPI* ShutdownQueryAPI = Cast<IInteractiveToolShutdownQueryAPI>(ActiveLeftTool))
+			{
+				ShutdownType = ShutdownQueryAPI->GetPreferredShutdownType(
+					IInteractiveToolShutdownQueryAPI::EShutdownReason::SwitchTool, ShutdownType);
+			}
+		}
+
+		DeactivateTool(EToolSide::Left, ShutdownType);
 	}
 
 	if (ActiveLeftBuilder == nullptr || ActivateToolInternal(Side) == false)
@@ -184,11 +214,6 @@ bool UInteractiveToolManager::ActivateTool(EToolSide Side)
 
 bool UInteractiveToolManager::ActivateToolInternal(EToolSide Side)
 {
-	// We'll keep track of whether the last activated tool has dealt with the stored
-	// tool selection, because we want the default behavior to be a clear of the stored
-	// tool selection on the invocation of any tool that doesn't do anything with it.
-	bActiveToolMadeSelectionStoreRequest = false; // TODO: When we support multiple sides, this approach will need adjustment
-
 	// construct input state we will pass to tools
 	FToolBuilderState InputState;
 	QueriesAPI->GetCurrentSelectionState(InputState);

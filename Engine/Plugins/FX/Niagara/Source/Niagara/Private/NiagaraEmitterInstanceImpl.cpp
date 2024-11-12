@@ -362,7 +362,7 @@ void FNiagaraEmitterInstanceImpl::Init(int32 InEmitterIndex)
 		{
 			GPUExecContext = new FNiagaraComputeExecutionContext();
 			GPUExecContext->InitParams(EmitterData->GetGPUComputeScript(), EmitterData->GetSimStageExcecutionData(), EmitterData->SimTarget);
-			GPUExecContext->SetDebugSimName(EmitterData->GetDebugSimName());
+			GPUExecContext->SetDebugSimName(EmitterData->GetDebugSimName(), ParentSystemInstance ? ParentSystemInstance->GetSystem()->GetFName() : NAME_None);
 			GPUExecContext->ProfilingComponentPtr = ParentSystemInstance ? ParentSystemInstance->GetAttachComponent() : nullptr;
 			GPUExecContext->ProfilingEmitterPtr = VersionedEmitter.ToWeakPtr();
 			GPUExecContext->MainDataSet = ParticleDataSet;
@@ -1050,6 +1050,11 @@ void FNiagaraEmitterInstanceImpl::TickRapidIterationParameters()
 	}
 }
 #endif
+
+bool FNiagaraEmitterInstanceImpl::ShouldTick() const
+{
+	return ExecutionState == ENiagaraExecutionState::Active || GetNumParticles() > 0;
+}
 
 /** 
   * PreTick - handles killing dead particles, emitter death, and buffer swaps

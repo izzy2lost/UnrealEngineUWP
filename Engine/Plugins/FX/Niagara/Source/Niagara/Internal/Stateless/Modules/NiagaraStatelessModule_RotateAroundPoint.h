@@ -15,9 +15,9 @@ class UNiagaraStatelessModule_RotateAroundPoint : public UNiagaraStatelessModule
 public:
 	using FParameters = NiagaraStateless::FRotateAroundPointModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(Units="deg/s"))
 	float RateMin = 360.f;
-	UPROPERTY(EditAnywhere, Category = "Parameters")
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(Units="deg/s"))
 	float RateMax = 360.f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
@@ -29,6 +29,14 @@ public:
 	float InitialPhaseMin = 0.f;
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	float InitialPhaseMax = 0.f;
+
+	//-TODO: Add support for GPU once we settle on a feature set for this module
+	virtual ENiagaraStatelessFeatureMask GetFeatureMask() const override { return ENiagaraStatelessFeatureMask::ExecuteGPU; }
+
+	virtual void BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const override
+	{
+		ShaderParametersBuilder.AddParameterNestedStruct<FParameters>();
+	}
 
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{

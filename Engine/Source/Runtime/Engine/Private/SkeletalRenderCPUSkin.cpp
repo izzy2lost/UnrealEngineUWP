@@ -73,6 +73,9 @@ FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectCPUSkin(USkinnedMeshComponent* In
 	}
 
 	InitResources(InMeshComponent);
+
+	// This must be disabled since mesh caching doesn't support recreating the vertex factory on demand.
+	bSupportsStaticRelevance = false;
 }
 
 
@@ -315,6 +318,11 @@ void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce, FRHI
 
 const FVertexFactory* FSkeletalMeshObjectCPUSkin::GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
 {
+	return GetStaticSkinVertexFactory(LODIndex, ChunkIdx, VFMode);
+}
+
+const FVertexFactory* FSkeletalMeshObjectCPUSkin::GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
+{
 	check( LODs.IsValidIndex(LODIndex) );
 	return &LODs[LODIndex].VertexFactory;
 }
@@ -416,7 +424,7 @@ void FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD::InitResources(FSkelMesh
 					GeometrySections.Add(Segment);
 				}
 				Initializer.Segments = GeometrySections;
-				Initializer.SourceGeometry = SourceGeometry.RayTracingGeometryRHI;
+				Initializer.SourceGeometry = SourceGeometry.GetRHI();
 
 				RayTracingGeometry.SetInitializer(Initializer);
 				RayTracingGeometry.InitResource(RHICmdList);
@@ -525,7 +533,16 @@ FDynamicSkelMeshObjectDataCPUSkin::FDynamicSkelMeshObjectDataCPUSkin(
 ,	MorphTargetWeights(InMorphTargetWeights)
 ,	ClothBlendWeight(0.0f)
 {
-	UpdateRefToLocalMatrices( ReferenceToLocal, InMeshComponent, InSkelMeshRenderData, LODIndex );
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	MeshComponentSpaceTransforms = InMeshComponent->GetComponentSpaceTransforms();
+
+	const bool bCalculateComponentSpaceTransformsFromLeader = MeshComponentSpaceTransforms.IsEmpty(); // This will be empty for follower components.
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = bCalculateComponentSpaceTransformsFromLeader ? &MeshComponentSpaceTransforms : nullptr;
+#else
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = nullptr;
+#endif
+
+	UpdateRefToLocalMatrices( ReferenceToLocal, InMeshComponent, InSkelMeshRenderData, LODIndex, nullptr, LeaderBoneMappedMeshComponentSpaceTransforms);
 
 	// Update the clothing simulation mesh positions and normals
 	FMatrix LocalToWorld;
@@ -536,10 +553,6 @@ FDynamicSkelMeshObjectDataCPUSkin::FDynamicSkelMeshObjectDataCPUSkin(
 	{
 		ClothBlendWeight = 0.f;
 	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	MeshComponentSpaceTransforms = InMeshComponent->GetComponentSpaceTransforms();
-#endif
 }
 
 FDynamicSkelMeshObjectDataCPUSkin::~FDynamicSkelMeshObjectDataCPUSkin() = default;

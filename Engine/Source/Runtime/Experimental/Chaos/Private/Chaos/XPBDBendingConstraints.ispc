@@ -62,6 +62,49 @@ export void InitXPBDBendingConstraintsIsBuckled(const uniform FVector3f X[],
 	}
 }
 
+export void InitXPBDBendingConstraintsIsBuckledWithMaps(const uniform FVector3f X[],
+							const uniform int32 ConstraintIndex1[],
+							const uniform int32 ConstraintIndex2[],
+							const uniform int32 ConstraintIndex3[],
+							const uniform int32 ConstraintIndex4[],
+							const uniform float RestAngles[],
+							uniform bool IsBuckled[],
+							uniform FVector3f X1Out[],
+							uniform FVector3f X2Out[],
+							uniform FVector3f X3Out[],
+							uniform FVector3f X4Out[],
+							const uniform uint8 BucklingRatioIndices[],
+							const uniform float BucklingRatioTable[],
+							const uniform int32 NumConstraints)
+{
+	foreach(i = 0 ... NumConstraints)
+	{
+		const varying int32 Index1 = ConstraintIndex1[i];
+		const varying int32 Index2 = ConstraintIndex2[i];
+		const varying int32 Index3 = ConstraintIndex3[i];
+		const varying int32 Index4 = ConstraintIndex4[i];
+		const varying int8 BucklingRatioIndex = BucklingRatioIndices[i];
+
+		const varying FVector3f X1 = VectorGather(&X[Index1]);
+		const varying FVector3f X2 = VectorGather(&X[Index2]);
+		const varying FVector3f X3 = VectorGather(&X[Index3]);
+		const varying FVector3f X4 = VectorGather(&X[Index4]);
+		
+		#pragma ignore warning(perf)
+		const varying float BucklingRatio = BucklingRatioTable[BucklingRatioIndex];
+		const varying float RestAngle = RestAngles[i];
+		const varying float BucklingAngle = BucklingRatio * (FLOAT_PI - abs(RestAngle));
+
+		const varying float Angle = CalcAngle(X1, X2, X3, X4);
+		IsBuckled[i] = FLOAT_PI - abs(Angle) < BucklingAngle;
+
+		VectorStore(&X1Out[extract(i,0)], X1);
+		VectorStore(&X2Out[extract(i,0)], X2);
+		VectorStore(&X3Out[extract(i,0)], X3);
+		VectorStore(&X4Out[extract(i,0)], X4);
+	}
+}
+
 export void ApplyXPBDBendingConstraints(uniform FVector4f PandInvM[],
 									const uniform int32 ConstraintIndex1[],
 									const uniform int32 ConstraintIndex2[],

@@ -349,13 +349,14 @@ FOptimusNodeGraphAction_DuplicateNode::FOptimusNodeGraphAction_DuplicateNode(
 {
 	if (ensure(InSourceNode != nullptr))
 	{
+		SourceNodePath = InSourceNode->GetNodePath();
 		GraphPath = InTargetGraphPath;
 		NodeName = InNodeName;
 		NodeClassPath = InSourceNode->GetClass()->GetPathName();
 		ConfigureNodeFunc = InConfigureNodeFunc;
-		
-		// Photocopy the node.
-		Optimus::FBinaryObjectWriter(InSourceNode, NodeData);
+
+		FMemoryWriter NodeArchive(CachedNodeData);
+		InSourceNode->ExportState(NodeArchive);
 	}
 }
 
@@ -372,10 +373,26 @@ bool FOptimusNodeGraphAction_DuplicateNode::Do(
 	IOptimusPathResolver* InRoot
 	)
 {
-	auto BootstrapNodeFunc = [this](UOptimusNode* InNode) -> bool
+	UOptimusNode* SourceNode = InRoot->ResolveNodePath(SourceNodePath);
+
+	TArray<uint8> NodeData;
+	if (!SourceNode)
 	{
-		// Paste the data from the old node onto the new one.
-		Optimus::FBinaryObjectReader(InNode, NodeData);
+		// Used the cached data if we are duplicating from a clipboard graph
+		NodeData = CachedNodeData;
+	}
+	else
+	{
+		FMemoryWriter NodeArchive(NodeData);
+		SourceNode->ExportState(NodeArchive);
+	}
+	
+	
+	auto BootstrapNodeFunc = [NodeData, this](UOptimusNode* InNode) -> bool
+	{
+		FMemoryReader NodeArchive(NodeData);
+		InNode->ImportState(NodeArchive);
+		
 		if (!ConfigureNodeFunc)
 		{
 			return true;
@@ -473,9 +490,8 @@ bool FOptimusNodeGraphAction_RemoveNode::Do(
 		return false;
 	}
 
-	// Take a copy of the node's contents but not sub-data (like pins).
 	FMemoryWriter NodeArchive(NodeData);
-	Node->SaveState(NodeArchive);
+	Node->ExportState(NodeArchive);
 
 	return Graph->RemoveNodeDirect(Node);
 }
@@ -499,7 +515,7 @@ bool FOptimusNodeGraphAction_RemoveNode::Undo(
 	UOptimusNode* Node = Graph->CreateNodeDirect(NodeClass, NodeName, [this](UOptimusNode* InNode)
 	{
 		FMemoryReader NodeArchive(NodeData);
-		InNode->RestoreState(NodeArchive);
+		InNode->ImportState(NodeArchive);
 		return true;
 	});
 

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "AssetRenameManager.h"
+#include "AssetDefinitionRegistry.h"
 #include "Serialization/ArchiveUObject.h"
 #include "UObject/Class.h"
 #include "Misc/PackageName.h"
@@ -46,6 +46,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/RedirectCollector.h"
 #include "Settings/BlueprintEditorProjectSettings.h"
+#include "Settings/EditorProjectSettings.h"
 #include "AssetToolsLog.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -53,6 +54,10 @@
 #include "GameMapsSettings.h"
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
+#include "Internationalization/PackageLocalizationUtil.h"
+#include "IAssetTools.h"
+#include "ILocalizedAssetTools.h"
+#include "SFileListReportDialog.h"
 
 #define LOCTEXT_NAMESPACE "AssetRenameManager"
 
@@ -124,140 +129,29 @@ struct FAssetRenameDataWithReferencers : public FAssetRenameData
 	}
 };
 
-class SRenameFailures : public SCompoundWidget
-{
-public:
-	SLATE_BEGIN_ARGS(SRenameFailures){}
-
-		SLATE_ARGUMENT(TArray<FText>, FailedRenames)
-
-	SLATE_END_ARGS()
-
-	BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-	void Construct( const FArguments& InArgs )
-	{
-		for (const FText& RenameText : InArgs._FailedRenames)
-		{
-			FailedRenames.Add( MakeShareable( new FText(RenameText) ) );
-		}
-
-		ChildSlot
-		[
-			SNew(SBorder)
-			.BorderImage( FAppStyle::GetBrush("Docking.Tab.ContentAreaBrush") )
-			.Padding(FMargin(4, 8, 4, 4))
-			[
-				SNew(SVerticalBox)
-
-				// Title text
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					SNew(STextBlock) .Text( LOCTEXT("RenameFailureTitle", "The following assets could not be renamed.") )
-				]
-
-				// Failure list
-				+SVerticalBox::Slot()
-				.Padding(0, 8)
-				.FillHeight(1.f)
-				[
-					SNew(SBorder)
-					.BorderImage( FAppStyle::GetBrush("ToolPanel.GroupBorder") )
-					[
-						SNew(SListView<TSharedRef<FText>>)
-						.ListItemsSource(&FailedRenames)
-						.SelectionMode(ESelectionMode::None)
-						.OnGenerateRow(this, &SRenameFailures::MakeListViewWidget)
-					]
-				]
-
-				// Close button
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(0, 4)
-				.HAlign(HAlign_Right)
-				[
-					SNew(SButton)
-					.OnClicked(this, &SRenameFailures::CloseClicked)
-					.Text(LOCTEXT("RenameFailuresCloseButton", "Close"))
-				]
-			]
-		];
-	}
-	END_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
-	static void OpenRenameFailuresDialog(const TArray<FText>& InFailedRenames)
-	{
-		TSharedRef<SWindow> RenameWindow = SNew(SWindow)
-			.Title(LOCTEXT("FailedRenamesDialog", "Failed Renames"))
-			.ClientSize(FVector2D(800,400))
-			.SupportsMaximize(false)
-			.SupportsMinimize(false)
-			[
-				SNew(SRenameFailures).FailedRenames(InFailedRenames)
-			];
-
-		IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
-
-		if (MainFrameModule.GetParentWindow().IsValid())
-		{
-			FSlateApplication::Get().AddWindowAsNativeChild(RenameWindow, MainFrameModule.GetParentWindow().ToSharedRef());
-		}
-		else
-		{
-			FSlateApplication::Get().AddWindow(RenameWindow);
-		}
-	}
-
-private:
-	TSharedRef<ITableRow> MakeListViewWidget(TSharedRef<FText> Item, const TSharedRef<STableViewBase>& OwnerTable)
-	{
-		return
-			SNew(STableRow< TSharedRef<FText> >, OwnerTable)
-			[
-				SNew(STextBlock).Text(Item.Get())
-			];
-	}
-
-	FReply CloseClicked()
-	{
-		TSharedPtr<SWindow> Window = FSlateApplication::Get().FindWidgetWindow(AsShared());
-
-		if (Window.IsValid())
-		{
-			Window->RequestDestroyWindow();
-		}
-
-		return FReply::Handled();
-	}
-
-private:
-	TArray< TSharedRef<FText> > FailedRenames;
-};
-
-
 ///////////////////////////
 // FAssetRenameManager
 ///////////////////////////
 
-/** Renames assets using the specified names. */
 bool FAssetRenameManager::RenameAssets(const TArray<FAssetRenameData>& AssetsAndNames) const
 {
-	// If the asset registry is still loading assets, we cant check for referencers, so we must open the rename dialog
+	const bool bAutoCheckout = true;
+	const bool bWithDialog = false;
+
+	// If the asset registry is still loading assets, we cant check for referencers and we cant open dialogs so we fail
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	if (AssetRegistryModule.Get().IsLoadingAssets())
 	{
 		UE_LOG(LogAssetTools, Warning, TEXT("Unable To Rename While Discovering Assets"));
 		return false;
 	}
-	const bool bAutoCheckout = true;
-	const bool bWithDialog = false;
-	return FixReferencesAndRename(AssetsAndNames, bAutoCheckout, bWithDialog);
+
+	return RenameAssetsAndVariants(AssetsAndNames, bAutoCheckout, bWithDialog);
 }
 
 EAssetRenameResult FAssetRenameManager::RenameAssetsWithDialog(const TArray<FAssetRenameData>& AssetsAndNames, bool bAutoCheckout) const
 {
-	bool bWithDialog = true;
+	const bool bWithDialog = true;
 
 	// If the asset registry is still loading assets, we cant check for referencers, so we must open the rename dialog
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
@@ -265,17 +159,15 @@ EAssetRenameResult FAssetRenameManager::RenameAssetsWithDialog(const TArray<FAss
 	{
 		// Open a dialog asking the user to wait while assets are being discovered
 		SDiscoveringAssetsDialog::OpenDiscoveringAssetsDialog(
-			SDiscoveringAssetsDialog::FOnAssetsDiscovered::CreateSP(this, &FAssetRenameManager::FixReferencesAndRenameCallback, AssetsAndNames, bAutoCheckout, bWithDialog)
+			SDiscoveringAssetsDialog::FOnAssetsDiscovered::CreateSP(this, &FAssetRenameManager::RenameAssetsAndVariantsCallback, AssetsAndNames, bAutoCheckout, bWithDialog)
 		);
 		return EAssetRenameResult::Pending;
 	}
-	else
-	{
-		// No need to wait, attempt to fix references and rename now.
-		return FixReferencesAndRename(AssetsAndNames, bAutoCheckout, bWithDialog)
-			? EAssetRenameResult::Success
-			: EAssetRenameResult::Failure;
-	}
+
+	// No need to wait, check for variants and attempt to fix references now.
+	return RenameAssetsAndVariants(AssetsAndNames, bAutoCheckout, bWithDialog)
+		? EAssetRenameResult::Success
+		: EAssetRenameResult::Failure;
 }
 
 void FAssetRenameManager::FindSoftReferencesToObject(FSoftObjectPath TargetObject, TArray<UObject*>& ReferencingObjects) const
@@ -320,13 +212,168 @@ void FAssetRenameManager::FindSoftReferencesToObjects(const TArray<FSoftObjectPa
 	GatherReferencingObjects(AssetsToRename, ReferencingObjects);
 }
 
-void FAssetRenameManager::FixReferencesAndRenameCallback(TArray<FAssetRenameData> AssetsAndNames, bool bAutoCheckout, bool bWithDialog) const
+void FAssetRenameManager::RenameAssetsAndVariantsCallback(TArray<FAssetRenameData> InAssetsRenameData, bool bAutoCheckout, bool bWithDialog) const
 {
-	FixReferencesAndRename(AssetsAndNames, bAutoCheckout, bWithDialog);
+	RenameAssetsAndVariants(InAssetsRenameData, bAutoCheckout, bWithDialog);
 }
 
-bool FAssetRenameManager::FixReferencesAndRename(const TArray<FAssetRenameData>& AssetsAndNames, bool bAutoCheckout, bool bWithDialog) const
+bool FAssetRenameManager::RenameAssetsAndVariants(const TArray<FAssetRenameData>& InAssetsRenameData, bool bAutoCheckout, bool bWithDialog) const
 {
+	FScopedSlowTask RenamingSlowTask(11.0f, LOCTEXT("RenamingSlowTask", "Renaming assets..."), bWithDialog);
+	bool bShowCancelButton = false;
+	bool bAllowInPIE = true;
+	RenamingSlowTask.MakeDialog(bShowCancelButton, bAllowInPIE);
+	RenamingSlowTask.EnterProgressFrame(2.0f, LOCTEXT("CheckingForLocalizedVariantsSlowTask", "Checking for localized variants... This might take a long time."));
+	RenamingSlowTask.ForceRefresh();
+
+	TArray<FAssetRenameData> AssetsAndVariants;
+
+	TArray<FAssetRenameData> AssetsToCheckForVariants;
+	if (RequiresCheckingForVariants(InAssetsRenameData, AssetsAndVariants, AssetsToCheckForVariants))
+	{
+		// Build a list of packages to check for variants (and build the map to remap the rename data later)
+		TArray<FName> SourcePackagesToCheckForVariants;
+		TMap<FName, const FAssetRenameData*> MapSourcePackageToRenameData;
+		SourcePackagesToCheckForVariants.Reserve(AssetsToCheckForVariants.Num());
+		MapSourcePackageToRenameData.Reserve(AssetsToCheckForVariants.Num());
+		for (const FAssetRenameData& AssetToCheckForVariants : AssetsToCheckForVariants)
+		{
+			FString SourcePackageString;
+			FPackageLocalizationUtil::ConvertToSource(AssetToCheckForVariants.Asset->GetOuter()->GetName(), SourcePackageString);
+			FName SourcePackage(SourcePackageString);
+			SourcePackagesToCheckForVariants.Add(SourcePackage);
+			MapSourcePackageToRenameData.Add(SourcePackage, &AssetToCheckForVariants);
+		}
+
+		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+		TSharedPtr<ILocalizedAssetTools> LocalizedAssetTools = AssetTools.GetLocalizedAssetTools();
+
+		TArray<FName> SourcePackagesWithoutVariants;
+		TMap<FName, TArray<FName>> VariantsBySourcesOnDisk;
+		TMap<FName, TArray<FName>> VariantsBySourcesOnlyInRevisionControl;
+		bool bNeedToCheckInRevisionControl = USourceControlPreferences::RequiresRevisionControlToRenameLocalizableAssets();
+		ELocalizedAssetsResult Result = LocalizedAssetTools->GetLocalizedVariants(SourcePackagesToCheckForVariants, VariantsBySourcesOnDisk, bNeedToCheckInRevisionControl, VariantsBySourcesOnlyInRevisionControl, &SourcePackagesWithoutVariants);
+		bool bRevisionControlWasNeeded = (Result == ELocalizedAssetsResult::RevisionControlNotAvailable);
+
+		// If all variants are accessible (not in Revision Control), we can now
+		// rebuild all the renaming data from the localized variants information
+		if (!bRevisionControlWasNeeded && VariantsBySourcesOnlyInRevisionControl.IsEmpty())
+		{
+			IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
+
+			// Let's process each "VariantsBySourcesOnDisk" one-by-one and map it back to its rename data
+			for (const TPair<FName, TArray<FName>>& VariantsBySourceOnDisk : VariantsBySourcesOnDisk)
+			{
+				// Find the rename data that match this source
+				const FAssetRenameData& CurrentRenameData = *MapSourcePackageToRenameData[VariantsBySourceOnDisk.Key];
+
+				// Get some rename data information (at this point, we don't know if it is a Source Asset or a Localized Variant rename data information)
+				FSoftObjectPath OldAssetSoftObjectPath(CurrentRenameData.Asset.Get());
+				FString OldAssetPackageName = OldAssetSoftObjectPath.GetLongPackageName();
+				FString OldAssetPath = OldAssetSoftObjectPath.GetAssetPath().ToString();
+
+				// Create and add the Source Asset Rename Data
+				FString SourceAssetOldPath;
+				FPackageLocalizationUtil::ConvertToSource(OldAssetPath, SourceAssetOldPath);
+				UObject* SourceObjectPtr = AssetRegistry.GetAssetByObjectPath(SourceAssetOldPath).GetAsset();
+				FString SourceNewPackagePath;
+				FPackageLocalizationUtil::ConvertToSource(CurrentRenameData.NewPackagePath, SourceNewPackagePath);
+				FAssetRenameData CurrentAssetRenameData(SourceObjectPtr,
+					SourceNewPackagePath,
+					CurrentRenameData.NewName,
+					CurrentRenameData.bOnlyFixSoftReferences,
+					CurrentRenameData.bAlsoRenameLocalizedVariants);
+				AssetsAndVariants.Add(CurrentAssetRenameData);
+
+				// Create and add all Variants Asset Rename Data
+				for (const FName& Variant : VariantsBySourceOnDisk.Value)
+				{
+					FString Culture;
+					FPackageLocalizationUtil::ExtractCultureFromLocalized(Variant.ToString(), Culture);
+
+					FString OldLocalizedAssetPath;
+					FString NewLocalizedPackagePath;
+					FPackageLocalizationUtil::ConvertSourceToLocalized(SourceAssetOldPath, Culture, OldLocalizedAssetPath);
+					FPackageLocalizationUtil::ConvertSourceToLocalized(SourceNewPackagePath, Culture, NewLocalizedPackagePath);
+
+					UObject* LocalizedObjectPtr = AssetRegistry.GetAssetByObjectPath(OldLocalizedAssetPath).GetAsset();
+
+					// Create the renaming data for the localized variant then add it to the list of files to be renamed
+					CurrentAssetRenameData.Asset = LocalizedObjectPtr;
+					CurrentAssetRenameData.NewPackagePath = NewLocalizedPackagePath;
+					AssetsAndVariants.Add(CurrentAssetRenameData);
+				}
+			}
+
+			// Finally, let's add back all the assets that don't have any variants as-is
+			for (const FName& SourcePackageWithoutVariants : SourcePackagesWithoutVariants)
+			{
+				AssetsAndVariants.Add(*MapSourcePackageToRenameData[SourcePackageWithoutVariants]);
+			}
+		}
+
+		// Process error and interrupt the renaming process if necessary
+		if (bRevisionControlWasNeeded)
+		{
+			// Revision Control is not available. Renaming must fail.
+			UE_LOG(LogAssetTools, Warning, TEXT("%s"), *LocalizedAssetTools->GetRevisionControlIsNotAvailableWarningText().ToString());
+			RenameInterrupted(InAssetsRenameData, LocalizedAssetTools->GetRevisionControlIsNotAvailableWarningText(), bWithDialog);
+			if (bWithDialog)
+			{
+				LocalizedAssetTools->OpenRevisionControlRequiredDialog();
+			}
+			return false;
+		}
+		else if (!VariantsBySourcesOnlyInRevisionControl.IsEmpty())
+		{
+			TArray<FText> LocalizedVariantsPathsRequiredToSync;
+			for (const TPair<FName, TArray<FName>>& VariantsBySourceOnlyInRevisionControl : VariantsBySourcesOnlyInRevisionControl)
+			{
+				for (const FName& VariantInRevisionControl : VariantsBySourceOnlyInRevisionControl.Value)
+				{
+					LocalizedVariantsPathsRequiredToSync.Add(FText::AsCultureInvariant(VariantInRevisionControl.ToString()));
+				}
+			}
+
+			UE_LOG(LogAssetTools, Warning, TEXT("A file that needs to be renamed was detected in Revision Control but not on your disk."));
+			RenameInterrupted(InAssetsRenameData, LocalizedAssetTools->GetFilesNeedToBeOnDiskWarningText(), bWithDialog);
+			if (bWithDialog)
+			{
+				LocalizedAssetTools->OpenFilesInRevisionControlRequiredDialog(LocalizedVariantsPathsRequiredToSync);
+			}
+			return false;
+		}
+		
+		// Display newly added rename data if possible
+		if (bWithDialog)
+		{
+			TArray<FText> NewAssetsAdded;
+			for (const FAssetRenameData& AssetRenameData : AssetsAndVariants)
+			{
+				if (!InAssetsRenameData.ContainsByPredicate([&AssetRenameData](const FAssetRenameData& InAssetRenameData) { return AssetRenameData.Asset == InAssetRenameData.Asset; }))
+				{
+					const FString& AssetNameStr = AssetRenameData.Asset->GetOuter()->GetName();
+					UE_LOG(LogAssetTools, Display, TEXT("Also trying to rename: %s"), *AssetNameStr);
+					NewAssetsAdded.Add(FText::AsCultureInvariant(AssetNameStr));
+				}
+			}
+			if (!NewAssetsAdded.IsEmpty())
+			{
+				LocalizedAssetTools->OpenLocalizedVariantsListMessageDialog(LOCTEXT("AddedLocalizedVariantsHeader", "Renaming localized variants too"),
+					LOCTEXT("AddedLocalizedVariantsMessage", "The following localized variants (or source assets) are also going to be renamed alongside the selected assets."),
+					NewAssetsAdded);
+			}
+		}
+	}
+
+	// We now have a full list of Assets to rename and their variants if applicable. Let's continue the renaming process.
+	return FixReferencesAndRename(AssetsAndVariants, bAutoCheckout, bWithDialog, RenamingSlowTask);
+}
+
+bool FAssetRenameManager::FixReferencesAndRename(const TArray<FAssetRenameData>& AssetsAndNames, bool bAutoCheckout, bool bWithDialog, FScopedSlowTask& RenamingSlowTask) const
+{
+	RenamingSlowTask.EnterProgressFrame(0.9f, LOCTEXT("FixingReferencesSlowTask", "Finding references..."));
+
 	bool bSoftReferencesOnly = true;
 	// Prep a list of assets to rename with an extra boolean to determine if they should leave a redirector or not
 	TArray<FAssetRenameDataWithReferencers> AssetsToRename;
@@ -422,6 +469,7 @@ bool FAssetRenameManager::FixReferencesAndRename(const TArray<FAssetRenameData>&
 		LoadReferencingPackages(AssetsToRename, bSoftReferencesOnly, true, ReferencingPackagesToSave, SoftReferencingObjects);
 
 		// Prompt to check out source package and all referencing packages, leave redirectors for assets referenced by packages that are not checked out and remove those packages from the save list.
+		RenamingSlowTask.EnterProgressFrame(0.1f, LOCTEXT("CheckOutPackagesSlowTask", "Check out packages..."));
 		const bool bUserAcceptedCheckout = CheckOutPackages(AssetsToRename, ReferencingPackagesToSave, bAutoCheckout);
 
 		if (bUserAcceptedCheckout || bSoftReferencesOnly)
@@ -440,7 +488,7 @@ bool FAssetRenameManager::FixReferencesAndRename(const TArray<FAssetRenameData>&
 				if (ReferencingPackagesToSave.Num() > 0)
 				{
 					// Only do the rename if there are actually packages with references
-					PerformAssetRename(AssetsToRename);
+					PerformAssetRename(AssetsToRename, RenamingSlowTask);
 
 					for (const FAssetRenameDataWithReferencers& RenameData : AssetsToRename)
 					{
@@ -476,7 +524,7 @@ bool FAssetRenameManager::FixReferencesAndRename(const TArray<FAssetRenameData>&
 			{
 				// Perform the rename, leaving redirectors only for assets which need them
 				// Also save all packages that were referencing any of the assets that were moved without redirectors
-				PerformAssetRename(AssetsToRename, ReferencingPackagesToSave);
+				PerformAssetRename(AssetsToRename, ReferencingPackagesToSave, RenamingSlowTask);
 
 				// Issue post rename event
 				AssetPostRenameEvent.Broadcast(AssetsAndNames);
@@ -537,7 +585,7 @@ struct FSoftObjectPathRenameSerializer : public FArchiveUObject
 		}
 
 		FFieldClass* PropertyClass = InProperty->GetClass();
-		if (PropertyClass->GetCastFlags() & (CASTCLASS_FBoolProperty | CASTCLASS_FNameProperty | CASTCLASS_FStrProperty | CASTCLASS_FMulticastDelegateProperty))
+		if (PropertyClass->GetCastFlags() & (CASTCLASS_FBoolProperty | CASTCLASS_FNameProperty | CASTCLASS_FStrProperty | CASTCLASS_FTextProperty | CASTCLASS_FMulticastDelegateProperty))
 		{
 			return true;
 		}
@@ -709,7 +757,7 @@ void FAssetRenameManager::FindCDOReferences(const TArrayView<FAssetRenameDataWit
 
 				// Resolve to the redirected asset path if necessary
 				FSoftObjectPath FinalSoftObjPath = SoftRefObjPath.GetWithoutSubPath();
-			
+
 				if (!Object.IsValid() && SoftRefObjPath.IsValid())
 				{
 					FSoftObjectPath RedirObjectPath = GRedirectCollector.GetAssetPathRedirection(SoftRefObjPath.GetWithoutSubPath());
@@ -804,35 +852,50 @@ void FAssetRenameManager::PopulateAssetReferencers(TArray<FAssetRenameDataWithRe
 	}
 }
 
-bool FAssetRenameManager::UpdatePackageStatus(const TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const
+bool FAssetRenameManager::UpdatePackageStatus(TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const
 {
+	bool bSucceeded = true;
+
 	if (ISourceControlModule::Get().IsEnabled())
 	{
 		ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 
 		// Update the source control server availability to make sure we can do the rename operation
 		SourceControlProvider.Login();
-		if (!SourceControlProvider.IsAvailable())
-		{
-			FMessageDialog::Open(EAppMsgType::Ok, NSLOCTEXT("UnrealEd", "SourceControl_ServerUnresponsive", "Revision Control is unresponsive. Please check your connection and try again."));
-			return false;
-		}
 
-		// Gather asset package names to update SCC states in a single SCC request
-		TArray<UPackage*> PackagesToUpdate;
-		for (auto AssetIt = AssetsToRename.CreateConstIterator(); AssetIt; ++AssetIt)
+		if (SourceControlProvider.IsAvailable())
 		{
-			UObject* Asset = (*AssetIt).Asset.Get();
-			if (Asset)
+			// Gather asset package names to update SCC states in a single SCC request
+			TArray<UPackage*> PackagesToUpdate;
+			PackagesToUpdate.Reserve(AssetsToRename.Num());
+
+			for (const FAssetRenameDataWithReferencers& RenameData : AssetsToRename)
 			{
-				PackagesToUpdate.AddUnique(Asset->GetOutermost());
+				if (UObject* Asset = RenameData.Asset.Get())
+				{
+					PackagesToUpdate.AddUnique(Asset->GetOutermost());
+				}
 			}
-		}
 
-		SourceControlProvider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), PackagesToUpdate);
+			bSucceeded = SourceControlProvider.Execute(ISourceControlOperation::Create<FUpdateStatus>(), PackagesToUpdate) == ECommandResult::Succeeded;
+		}
+		else
+		{
+			bSucceeded = false;
+		}
 	}
 
-	return true;
+	if (!bSucceeded)
+	{
+		// Mark the renames as a failure to report it later
+		for (FAssetRenameDataWithReferencers& RenameData : AssetsToRename)
+		{
+			RenameData.bRenameFailed = true;
+			RenameData.FailureReason = LOCTEXT("RenameFailedUnavailable", "Revision control is unresponsive.");
+		}
+	}
+
+	return bSucceeded;
 }
 
 void FAssetRenameManager::LoadReferencingPackages(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, bool bLoadAllPackages, bool bCheckStatus, TArray<UPackage*>& OutReferencingPackagesToSave, TArray<UObject*>& OutSoftReferencingObjects) const
@@ -869,7 +932,7 @@ void FAssetRenameManager::LoadReferencingPackages(TArray<FAssetRenameDataWithRef
 		{
 			GWarn->StatusUpdate(AssetIdx, AssetsToRename.Num(), ReferenceUpdateSlowTask);
 		}
-		
+
 		FAssetRenameDataWithReferencers& RenameData = AssetsToRename[AssetIdx];
 
 		TSet<FName> ReferencingExternalPackageNames;
@@ -955,7 +1018,7 @@ void FAssetRenameManager::LoadReferencingPackages(TArray<FAssetRenameDataWithRef
 			// Don't load package if this is a soft reference fix and the project settings say not to
 			if (!Package && (!RenameData.bOnlyFixSoftReferences || bLoadPackagesForSoftReferences))
 			{
-				if(!bStartedSlowTask)
+				if (!bStartedSlowTask)
 				{
 					bStartedSlowTask = true;
 					GWarn->BeginSlowTask(ReferenceUpdateSlowTask, true);
@@ -964,7 +1027,7 @@ void FAssetRenameManager::LoadReferencingPackages(TArray<FAssetRenameDataWithRef
 			}
 
 			if (Package)
-			{				
+			{
 				bool bFoundSoftReference = CheckPackageForSoftObjectReferences(Package, ModifiedPaths, OutSoftReferencingObjects);
 
 				// Only add to list if we're doing a hard reference fixup or we found a soft reference
@@ -1247,7 +1310,7 @@ void FAssetRenameManager::SetupPublicAssets(TArray<FAssetRenameDataWithReference
 		return;
 	}
 
-	FScopedSlowTask SlowTask((float)AssetsToRename.Num(), LOCTEXT("SetupPublicAssets", "Setting up public assets..."));
+	FScopedSlowTask SlowTask(static_cast<float>(AssetsToRename.Num()), LOCTEXT("SetupPublicAssets", "Setting up public assets..."));
 	SlowTask.MakeDialog();
 
 	IAssetTools& AssetTools = IAssetTools::Get();
@@ -1263,7 +1326,7 @@ void FAssetRenameManager::SetupPublicAssets(TArray<FAssetRenameDataWithReference
 	TArray<UPackage*> PackagesToMakePublic;
 	TSet<FName> RenamedReferencedPackageNames;
 	bool bSomeAssetCannotBeMovedToAnotherPlugin = false;
-	
+
 	// Determine which moved asset need to become public
 	for (FAssetRenameDataWithReferencers& RenameData : AssetsToRename)
 	{
@@ -1425,7 +1488,7 @@ void FAssetRenameManager::SetupPublicAssets(TArray<FAssetRenameDataWithReference
 				else
 				{
 					RenameData.FailureReason = FText::Format(
-						LOCTEXT("AssetCannotBePublic", "Cannot move asset to {0} because it cannot be made public in order to be referenced from a different plugin by {1}"), 
+						LOCTEXT("AssetCannotBePublic", "Cannot move asset to {0} because it cannot be made public in order to be referenced from a different plugin by {1}"),
 						FText::FromStringView(NewPackageMountPoint),
 						FText::FromString(ReferencingAssetInDifferentMountPoint));
 				}
@@ -1480,7 +1543,7 @@ void FAssetRenameManager::SetupPublicAssets(TArray<FAssetRenameDataWithReference
 	}
 }
 
-void FAssetRenameManager::RenameReferencingSoftObjectPaths(const TArray<UPackage *> PackagesToCheck, const TMap<FSoftObjectPath, FSoftObjectPath>& AssetRedirectorMap) const
+void FAssetRenameManager::RenameReferencingSoftObjectPaths(const TArray<UPackage*> PackagesToCheck, const TMap<FSoftObjectPath, FSoftObjectPath>& AssetRedirectorMap) const
 {
 	// Add redirects as needed
 	for (const TPair<FSoftObjectPath, FSoftObjectPath>& Pair : AssetRedirectorMap)
@@ -1631,32 +1694,30 @@ bool FAssetRenameManager::CheckPackageForSoftObjectReferences(UPackage* Package,
 	return bFoundReference;
 }
 
-void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename) const
+void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, FScopedSlowTask& RenamingSlowTask) const
 {
-	PerformAssetRename(AssetsToRename, TArray<UPackage*>());
+	PerformAssetRename(AssetsToRename, TArray<UPackage*>(), RenamingSlowTask);
 }
 
-void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, const TArray<UPackage*>& ReferencingPackagesToSave) const
+void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferencers>& AssetsToRename, const TArray<UPackage*>& ReferencingPackagesToSave, FScopedSlowTask& RenamingSlowTask) const
 {
-	const FText AssetRenameSlowTask = LOCTEXT("AssetRenameSlowTask", "Renaming Assets");
-	GWarn->BeginSlowTask(AssetRenameSlowTask, true);
-
 	/**
 	 * We need to collect and check those cause dependency graph is only
 	 * representing on-disk state and we want to support rename for in-memory
 	 * objects. It is only needed for string references as in memory references
 	 * for other objects are pointers, so renames doesn't apply to those.
 	 */
-	TArray<UPackage *> DirtyPackagesToCheckForSoftReferences;
+	TArray<UPackage*> DirtyPackagesToCheckForSoftReferences;
 
 	FEditorFileUtils::GetDirtyWorldPackages(DirtyPackagesToCheckForSoftReferences);
 	FEditorFileUtils::GetDirtyContentPackages(DirtyPackagesToCheckForSoftReferences);
 
 	TArray<UPackage*> PackagesToSave = ReferencingPackagesToSave;
 	TArray<UPackage*> PotentialPackagesToDelete;
+	float ProgressStep = 2.0f / static_cast<float>(AssetsToRename.Num());
 	for (int32 AssetIdx = 0; AssetIdx < AssetsToRename.Num(); ++AssetIdx)
 	{
-		GWarn->StatusUpdate(AssetIdx, AssetsToRename.Num(), AssetRenameSlowTask);
+		RenamingSlowTask.EnterProgressFrame(ProgressStep);
 
 		FAssetRenameDataWithReferencers& RenameData = AssetsToRename[AssetIdx];
 
@@ -1667,7 +1728,7 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 		}
 
 		UObject* Asset = RenameData.Asset.Get();
-		TArray<UPackage *> PackagesToCheckForSoftReferences;
+		TArray<UPackage*> PackagesToCheckForSoftReferences;
 
 		bool bIsCaseChangeOnly = false;
 		if (!RenameData.bOnlyFixSoftReferences)
@@ -1698,7 +1759,7 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 				FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 				FString PackageName;
 				FString AssetName;
-				FString BasePath = RenameData.NewPackagePath + TEXT("/RenameTmp") ;
+				FString BasePath = RenameData.NewPackagePath + TEXT("/RenameTmp");
 				AssetToolsModule.Get().CreateUniqueAssetName(BasePath, TEXT(""), PackageName, AssetName);
 
 				ObjectTools::FPackageGroupName TempPGN;
@@ -1812,7 +1873,7 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 		}
 	}
 
-	GWarn->EndSlowTask();
+	RenamingSlowTask.EnterProgressFrame(0.5f, LOCTEXT("SavingRenamedAssetSlowTask", "Saving renamed assets..."));
 
 	// Save all renamed assets and any redirectors that were left behind
 	if (PackagesToSave.Num() > 0)
@@ -1828,6 +1889,9 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 
 		ISourceControlModule::Get().QueueStatusUpdate(Filenames);
 	}
+
+	const FText& UpdatingRevisionControlSlowTask = LOCTEXT("UpdatingRevisionControlSlowTask", "Updating Revision Control...");
+	RenamingSlowTask.EnterProgressFrame(0.5f, UpdatingRevisionControlSlowTask);
 
 	// Bulk update SCC status for old packages since it is faster than doing it one by one below
 	if (ISourceControlModule::Get().IsEnabled())
@@ -1856,9 +1920,15 @@ void FAssetRenameManager::PerformAssetRename(TArray<FAssetRenameDataWithReferenc
 		}
 	}
 
+	RenamingSlowTask.EnterProgressFrame(5.0f, UpdatingRevisionControlSlowTask);
+	FScopedSlowTask BuildingRelationshipSlowTask(5.0f, LOCTEXT("BranchingRenamedAssetsSlowTask", "Building a relationship between the renamed files in Revision Control..."));
+
 	// Now branch the files in source control if possible
+	ProgressStep = 2.9f / static_cast<float>(AssetsToRename.Num());
 	for (const FAssetRenameDataWithReferencers& RenameData : AssetsToRename)
 	{
+		BuildingRelationshipSlowTask.EnterProgressFrame(ProgressStep);
+
 		UPackage* OldPackage = FindPackage(nullptr, *RenameData.OldObjectPath.GetLongPackageName());
 		UPackage* NewPackage = FindPackage(nullptr, *RenameData.NewObjectPath.GetLongPackageName());
 
@@ -1910,6 +1980,19 @@ void FAssetRenameManager::SaveReferencingPackages(const TArray<UPackage*>& Refer
 	}
 }
 
+void FAssetRenameManager::RenameInterrupted(const TArray<FAssetRenameData>& AssetsToRename, const FText& InterruptionReason, bool bWithDialog) const
+{
+	TArray<FAssetRenameDataWithReferencers> AssetsToRenameWithReferencers;
+	for (const FAssetRenameData& AssetRenameData : AssetsToRename)
+	{
+		FAssetRenameDataWithReferencers AssetToRenameWithReferencers(AssetRenameData);
+		AssetToRenameWithReferencers.bRenameFailed = true;
+		AssetToRenameWithReferencers.FailureReason = InterruptionReason;
+		AssetsToRenameWithReferencers.Add(AssetToRenameWithReferencers);
+	}
+	ReportFailures(AssetsToRenameWithReferencers, bWithDialog);
+}
+
 int32 FAssetRenameManager::ReportFailures(const TArray<FAssetRenameDataWithReferencers>& AssetsToRename, bool bWithDialog) const
 {
 	TArray<FText> FailedRenames;
@@ -1937,7 +2020,9 @@ int32 FAssetRenameManager::ReportFailures(const TArray<FAssetRenameDataWithRefer
 	{
 		if (bWithDialog)
 		{
-			SRenameFailures::OpenRenameFailuresDialog(FailedRenames);
+			SFileListReportDialog::OpenDialog(LOCTEXT("FailedRenamesDialog", "Failed Renames"),
+				LOCTEXT("RenameFailureTitle", "The following assets could not be renamed."),
+				FailedRenames);
 		}
 		else
 		{
@@ -1949,6 +2034,39 @@ int32 FAssetRenameManager::ReportFailures(const TArray<FAssetRenameDataWithRefer
 	}
 
 	return FailedRenames.Num();
+}
+
+bool FAssetRenameManager::RequiresCheckingForVariants(const TArray<FAssetRenameData>& InAssetsToRename, TArray<FAssetRenameData>& OutAssetsAndVariants, TArray<FAssetRenameData>& OutAssetsToCheckForVariants) const
+{
+	const UAssetDefinitionRegistry* AssetDefinitionRegistry = UAssetDefinitionRegistry::Get();
+
+	const UEditorProjectAssetSettings* Settings = GetDefault<UEditorProjectAssetSettings>();
+	bool bSettingsRequiresCheckingForVariants = !(Settings && !Settings->bRenameLocalizedVariantsAlongsideSourceAsset);
+	if (bSettingsRequiresCheckingForVariants)
+	{
+		OutAssetsAndVariants.Reserve(InAssetsToRename.Num());
+		OutAssetsToCheckForVariants.Reserve(InAssetsToRename.Num());
+		for (const FAssetRenameData& AssetAndName : InAssetsToRename)
+		{
+			UClass* CurrentAssetClass = AssetAndName.Asset != nullptr ? AssetAndName.Asset->GetClass() : nullptr;
+			const UAssetDefinition* CurrentAssetDefinition = AssetDefinitionRegistry->GetAssetDefinitionForClass(CurrentAssetClass);
+			bool bAssetRequiresCheckingForVariant = AssetAndName.bAlsoRenameLocalizedVariants && CurrentAssetDefinition != nullptr && CurrentAssetDefinition->CanLocalize(FAssetData()).IsSupported();
+			if (bAssetRequiresCheckingForVariant)
+			{
+				OutAssetsToCheckForVariants.Add(AssetAndName);
+			}
+			else
+			{
+				OutAssetsAndVariants.Add(AssetAndName);
+			}
+		}
+	}
+	else
+	{
+		OutAssetsAndVariants = InAssetsToRename;
+	}
+
+	return !OutAssetsToCheckForVariants.IsEmpty();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -4,12 +4,13 @@
 
 #include "PCGInstanceDataPackerBase.generated.h"
 
+class FPCGMetadataAttributeBase;
+class IPCGAttributeAccessor;
+class IPCGAttributeAccessorKeys;
 class UPCGMetadata;
+class UPCGSpatialData;
 struct FPCGContext;
 struct FPCGMeshInstanceList;
-
-class UPCGSpatialData;
-class FPCGMetadataAttributeBase;
 
 USTRUCT(BlueprintType)
 struct FPCGPackedCustomData
@@ -45,10 +46,10 @@ public:
 
 	/** Build a PackedCustomData by processing each attribute in order for each point in the InstanceList */
 	void PackCustomDataFromAttributes(const FPCGMeshInstanceList& InstanceList, const TArray<const FPCGMetadataAttributeBase*>& Attributes, FPCGPackedCustomData& OutPackedCustomData) const;
-};
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "MeshSelectors/PCGMeshSelectorBase.h"
-#include "PCGElement.h"
-#endif
+	/** Build a PackedCustomData by processing each accessor in order for each point in the InstanceList */
+	void PackCustomDataFromAccessors(const FPCGMeshInstanceList& InstanceList, TArray<TUniquePtr<const IPCGAttributeAccessor>> Accessors, TArray<TUniquePtr<const IPCGAttributeAccessorKeys>> AccessorKeys, FPCGPackedCustomData& OutPackedCustomData) const;
+
+	/** If OutNames is not null, returns a list of all attributes that will be packed. Returns true if this list can be statically determined (prior to execution). */
+	virtual bool GetAttributeNames(TArray<FName>* OutNames) { return false; }
+};

@@ -36,9 +36,12 @@ namespace AutomationUtils.Matchers
 				}
 				return builder.ToMatch(LogEventPriority.High, LogLevel.Information, KnownLogEvents.Systemic_PdbUtil);
 			}
-			if (cursor.IsMatch(s_roboMerge))
+			if (cursor.Contains("failed to submit"))
 			{
-				return new LogEventBuilder(cursor).ToMatch(LogEventPriority.Low, LogLevel.Information, KnownLogEvents.Systemic_RoboMergeGateLocked);
+				if (cursor.CurrentLineNumber != cursor.MatchForwardsLimited(cursor.CurrentLineNumber, s_roboMerge, 5))
+				{
+					return new LogEventBuilder(cursor).ToMatch(LogEventPriority.Low, LogLevel.Information, KnownLogEvents.Systemic_RoboMergeGateLocked);
+				}
 			}
 			if (cursor.IsMatch(s_hostDown))
 			{

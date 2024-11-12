@@ -70,6 +70,13 @@ namespace UE::NNE::Internal
 			PreparedData.Append(DataAsByte);
 		}
 
+		bool IsEmpty() const
+		{
+			bool IsEmpty = GetDataType() == ENNETensorDataType::None;
+			ensureMsgf(!IsEmpty || (Shape.Rank() == 1 && Shape.GetData()[0] == 0), TEXT("Empty tensor should have a shape of [0]."));
+			return IsEmpty;
+		}
+
 		bool HasPreparedData() const
 		{
 			return !PreparedData.IsEmpty();

@@ -432,14 +432,14 @@ void UMassActorSpawnerSubsystem::ProcessPendingDestruction(const double MaxTimeS
 	check(World);
 
 	const ENetMode CurrentWorldNetMode = World->GetNetMode();
-	const double HasToDestroyAllActorsOnServerSide = CurrentWorldNetMode != NM_Client && CurrentWorldNetMode != NM_Standalone;
+	const bool bHasToDestroyAllActorsOnServerSide = CurrentWorldNetMode != NM_Client && CurrentWorldNetMode != NM_Standalone;
 	const double TimeSliceEnd = FPlatformTime::Seconds() + MaxTimeSlicePerTick;
 
 	{
 		// Try release to pool actors or destroy them
 		TRACE_CPUPROFILER_EVENT_SCOPE(DestroyActors);
 		while ((DeactivatedActorsToDestroy.Num() || ActorsToDestroy.Num()) && 
-			   (HasToDestroyAllActorsOnServerSide || FPlatformTime::Seconds() <= TimeSliceEnd))
+			   (bHasToDestroyAllActorsOnServerSide || FPlatformTime::Seconds() <= TimeSliceEnd))
 		{
 			AActor* ActorToDestroy = DeactivatedActorsToDestroy.Num() ? DeactivatedActorsToDestroy.Pop(EAllowShrinking::No) : ActorsToDestroy.Pop(EAllowShrinking::No);
 			if (ActorToDestroy && !ReleaseActorToPool(ActorToDestroy))

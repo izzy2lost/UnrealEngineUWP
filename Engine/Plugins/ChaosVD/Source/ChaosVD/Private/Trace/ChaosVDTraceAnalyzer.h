@@ -21,7 +21,7 @@ DECLARE_MULTICAST_DELEGATE(FChaosVDTraceAnalysisComplete)
 class FChaosVDTraceAnalyzer final : public UE::Trace::IAnalyzer
 {
 public:
-	FChaosVDTraceAnalyzer(TraceServices::IAnalysisSession& Session, const TSharedPtr<FChaosVDTraceProvider>& InChaosVDTraceProvider)
+	FChaosVDTraceAnalyzer(TraceServices::IAnalysisSession& Session, const TSharedRef<FChaosVDTraceProvider>& InChaosVDTraceProvider)
 	: Session(Session),
 	ChaosVDTraceProvider(InChaosVDTraceProvider)
 	{
@@ -50,11 +50,12 @@ private:
 		RouteId_ChaosVDParticleDestroyed,
 		RouteId_ChaosVDNonSolverLocation,
 		RouteId_ChaosVDNonSolverTransform,
+		RouteId_ChaosVDNetworkTickOffset,
 	};
 
 	TraceServices::IAnalysisSession& Session;
 
-	TSharedPtr<FChaosVDTraceProvider> ChaosVDTraceProvider;
+	TSharedRef<FChaosVDTraceProvider> ChaosVDTraceProvider;
 	
 	FChaosVDTraceAnalysisComplete ChaosVDTraceAnalysisCompleteDelegate;
 };

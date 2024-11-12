@@ -55,18 +55,6 @@ TSharedRef<SWidget> FRCControllerModel::GetWidget() const
 {
 	const FNodeWidgets NodeWidgets = DetailTreeNodeWeakPtr.Pin()->CreateNodeWidgets();
 
-	// We need to add this metadata to the ColorController to avoid the update when dragging causing a lot of lag
-	const TSharedPtr<IPropertyHandle> PropertyHandle = DetailTreeNodeWeakPtr.Pin()->CreatePropertyHandle();
-	if (PropertyHandle.IsValid())
-	{
-		FStructProperty* StructProperty = CastField<FStructProperty>(PropertyHandle->GetProperty());
-		if (StructProperty && StructProperty->Struct &&
-			StructProperty->Struct.GetFName() == FName("Color") &&
-			!StructProperty->HasMetaData("OnlyUpdateOnInteractionEnd"))
-		{
-			StructProperty->AppendMetaData({{FName("OnlyUpdateOnInteractionEnd"), TEXT("true")}});
-		}
-	}
 	const TSharedRef<SHorizontalBox> FieldWidget = SNew(SHorizontalBox);
 	if (VirtualPropertyWeakPtr.IsValid())
 	{
@@ -85,7 +73,6 @@ TSharedRef<SWidget> FRCControllerModel::GetWidget() const
 		{
 			FieldWidget->AddSlot()
 				.Padding(SlotMargin)
-				.HAlign(HAlign_Left)
 				[
 					NodeWidgets.ValueWidget.ToSharedRef()
 				];
@@ -117,7 +104,22 @@ TSharedRef<SWidget> FRCControllerModel::GetDescriptionWidget() const
 {
 	return SNew(SBox).Padding(10.f, 2.f)
 		[
-			ControllerDescriptionTextBox.ToSharedRef()
+			SNew(SOverlay)
+			+SOverlay::Slot()
+			.VAlign(VAlign_Center)
+			[
+				ControllerDescriptionTextBox.ToSharedRef()
+			]
+
+			+SOverlay::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("RemoteControlDescriptionPlaceholder", "Double click to change description"))
+				.IsEnabled(false)
+				.Visibility(this, &FRCControllerModel::GetPlaceholderVisibility)
+			]
 		];
 }
 
@@ -235,15 +237,12 @@ void FRCControllerModel::OnControllerNameCommitted(const FText& InNewControllerN
 
 void FRCControllerModel::OnControllerDescriptionCommitted(const FText& InNewControllerDescription, ETextCommit::Type InCommitInfo)
 {
-	if (URemoteControlPreset* Preset = GetPreset())
+	if (URCVirtualPropertyBase* Controller = GetVirtualProperty())
 	{
-		if (URCVirtualPropertyBase* Controller = GetVirtualProperty())
-		{
-			FScopedTransaction Transaction(LOCTEXT("ChangedControllerDescription", "Update controller description"));
-			Controller->Modify();
-			Controller->Description = InNewControllerDescription;
-			ControllerDescriptionTextBox->SetText(InNewControllerDescription);
-		}
+		FScopedTransaction Transaction(LOCTEXT("ChangedControllerDescription", "Update controller description"));
+		Controller->Modify();
+		Controller->Description = InNewControllerDescription;
+		ControllerDescriptionTextBox->SetText(InNewControllerDescription);
 	}
 }
 
@@ -288,13 +287,23 @@ void FRCControllerModel::OnTextControlValueTypeChanged(TSharedPtr<FString, ESPMo
 
 void FRCControllerModel::OnPropertyValueChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
 {	
-	if (URCVirtualPropertyBase* ControllerProperty = GetVirtualProperty())
+	if (OnValueChanged.IsBound())
 	{
-		if (OnValueChanged.IsBound())
-		{
-			OnValueChanged.Broadcast(ControllerProperty);
-		}
+		OnValueChanged.Broadcast(StaticCastSharedRef<FRCControllerModel>(AsShared()));
 	}
+}
+
+EVisibility FRCControllerModel::GetPlaceholderVisibility() const
+{
+	if (ControllerDescriptionTextBox.IsValid())
+	{
+		if (ControllerDescriptionTextBox->IsInEditMode())
+		{
+			return EVisibility::Collapsed;
+		}
+		return ControllerDescriptionTextBox->GetText().IsEmpty() ? EVisibility::Visible : EVisibility:: Collapsed;
+	}
+	return EVisibility::Collapsed;
 }
 
 void FRCControllerModel::InitControlledTypes()

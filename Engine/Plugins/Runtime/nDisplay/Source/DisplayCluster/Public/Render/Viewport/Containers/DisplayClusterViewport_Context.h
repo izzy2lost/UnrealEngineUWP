@@ -64,6 +64,17 @@ public:
 	// This values updated from function FDisplayClusterViewport::CalculateProjectionMatrix()
 	FCachedProjectionData ProjectionData;
 
+	/** Additional data for the Depth of Field (DoF). */
+	struct FDepthOfFieldSettings
+	{
+		// Focal length of the Depth of Field effect camera in mm.
+		float SensorFocalLength = 0.f;
+
+		// This is the squeeze factor for the DOF, which emulates the properties of anamorphic lenses.
+		float SqueezeFactor = 1.f;
+
+	} DepthOfField;
+
 	// World scale
 	float WorldToMeters = 100.f;
 

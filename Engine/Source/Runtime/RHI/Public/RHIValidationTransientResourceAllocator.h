@@ -16,11 +16,12 @@ public:
 	virtual ~FValidationTransientResourceAllocator();
 
 	// Implementation of FRHITransientResourceAllocator interface
+	virtual void SetCreateMode(ERHITransientResourceCreateMode InCreateMode) override final;
 	virtual bool SupportsResourceType(ERHITransientResourceType InType) const override final { return RHIAllocator->SupportsResourceType(InType); }
-	virtual FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override final;
-	virtual FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, uint32 InPassIndex) override final;
-	virtual void DeallocateMemory(FRHITransientTexture* InTexture, uint32 InPassIndex) override final;
-	virtual void DeallocateMemory(FRHITransientBuffer* InBuffer, uint32 InPassIndex) override final;
+	virtual FRHITransientTexture* CreateTexture(const FRHITextureCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences) override final;
+	virtual FRHITransientBuffer* CreateBuffer(const FRHIBufferCreateInfo& InCreateInfo, const TCHAR* InDebugName, const FRHITransientAllocationFences& Fences) override final;
+	virtual void DeallocateMemory(FRHITransientTexture* InTexture, const FRHITransientAllocationFences& Fences) override final;
+	virtual void DeallocateMemory(FRHITransientBuffer* InBuffer, const FRHITransientAllocationFences& Fences) override final;
 	virtual void Flush(FRHICommandListImmediate&, FRHITransientAllocationStats*) override final;
 	virtual void Release(FRHICommandListImmediate&) override final;
 
@@ -39,24 +40,10 @@ private:
 
 		FString DebugName;
 		EType ResourceType = EType::Texture;
-
-		struct FTexture
-		{
-			ETextureCreateFlags Flags = TexCreate_None;
-			EPixelFormat Format = PF_Unknown;
-			uint16 ArraySize = 0;
-			uint8 NumMips = 0;
-		} Texture;
 	};
 
-	using FAllocatedResourceDataMap = TMap<FRHIResource*, FAllocatedResourceData>;
-	using FAllocatedResourceDataArray = TArray<TPair<FRHIResource*, FAllocatedResourceData>>;
-
-	friend class FValidationContext;
-	static void InitBarrierTracking(const FAllocatedResourceDataArray& AllocatedResourcesToInit);
-
-	FAllocatedResourceDataMap AllocatedResourceMap;
-	FAllocatedResourceDataArray AllocatedResourcesToInit;
+	TMap<FRHIResource*, FAllocatedResourceData> AllocatedResourceMap;
+	TRHIPipelineArray<TArray<RHIValidation::FOperation>> PendingPipelineOps;
 };
 
 #endif	// ENABLE_RHI_VALIDATION

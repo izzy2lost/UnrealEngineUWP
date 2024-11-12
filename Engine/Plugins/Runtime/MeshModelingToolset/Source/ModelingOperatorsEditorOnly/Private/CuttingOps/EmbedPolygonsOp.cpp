@@ -208,6 +208,9 @@ void FEmbedPolygonsOp::BooleanPath(FProgressCancel* Progress)
 	case EEmbeddedPolygonOpMethod::CutThrough:
 		BoolOp = FMeshBoolean::EBooleanOp::Difference;
 		break;
+	case EEmbeddedPolygonOpMethod::CutOutside:
+		BoolOp = FMeshBoolean::EBooleanOp::Intersect;
+		break;
 	default:
 		unimplemented();
 	}
@@ -299,7 +302,7 @@ void FEmbedPolygonsOp::BooleanPath(FProgressCancel* Progress)
 
 	// Non-mesh-boundary cut boundary edges can be detected by the group change across the cut. Not relevant to trim
 	// operations, where we get them from the created boundary edges above.
-	if (Operation == EEmbeddedPolygonOpMethod::CutThrough || Operation == EEmbeddedPolygonOpMethod::InsertPolygon)
+	if (Operation == EEmbeddedPolygonOpMethod::CutOutside || Operation == EEmbeddedPolygonOpMethod::CutThrough || Operation == EEmbeddedPolygonOpMethod::InsertPolygon)
 	{
 		for (int EID : ResultMesh->EdgeIndicesItr())
 		{
@@ -357,7 +360,7 @@ void FEmbedPolygonsOp::CalculateResult(FProgressCancel* Progress)
 	}
 
 	int SecondHit = 1;
-	if (Operation == EEmbeddedPolygonOpMethod::CutThrough)
+	if (Operation == EEmbeddedPolygonOpMethod::CutThrough || Operation == EEmbeddedPolygonOpMethod::CutOutside)
 	{
 		while (SecondHit < SortedHitTriangles.Num() && FMath::IsNearlyEqual(SortedHitTriangles[SecondHit].Key, SortedHitTriangles[0].Key))
 		{
@@ -518,12 +521,13 @@ void FEmbedPolygonsOp::CalculateResult(FProgressCancel* Progress)
 	{
 		DeleteMethod = EDeleteMethod::DeleteNone;
 	}
-	else if (Operation == EEmbeddedPolygonOpMethod::TrimOutside)
+	else if (Operation == EEmbeddedPolygonOpMethod::TrimOutside || Operation == EEmbeddedPolygonOpMethod::CutOutside)
 	{
 		DeleteMethod = EDeleteMethod::DeleteOutside;
 	}
 
-	if (Operation != EEmbeddedPolygonOpMethod::CutThrough || SecondHit == -1)
+	bool bIsCutOperation = Operation == EEmbeddedPolygonOpMethod::CutThrough || Operation == EEmbeddedPolygonOpMethod::CutOutside;
+	if (!bIsCutOperation || SecondHit == -1)
 	{
 		TArray<int> PathVertIDs, PathVertCorrespond;
 		bool bCutSide1 = CutHole(*ResultMesh, Frame, SortedHitTriangles[0].Value, Polygon, DeleteMethod, PathVertIDs, PathVertCorrespond, bCollapseDegenerateEdges);
@@ -534,7 +538,7 @@ void FEmbedPolygonsOp::CalculateResult(FProgressCancel* Progress)
 			return;
 		}
 	}
-	else //Operation == EEmbeddedPolygonOpMethod::CutThrough
+	else // bIsCutOperation == true
 	{
 		TArray<int> HitTris;
 		HitTris.Add(SortedHitTriangles[0].Value);
@@ -550,7 +554,8 @@ void FEmbedPolygonsOp::CalculateResult(FProgressCancel* Progress)
 		}
 		FDynamicMeshEditor MeshEditor(ResultMesh.Get());
 		FDynamicMeshEditResult ResultOut;
-		bool bStitched = MeshEditor.StitchSparselyCorrespondedVertexLoops(AllPathVertIDs[0], AllPathVertCorrespond[0], AllPathVertIDs[1], AllPathVertCorrespond[1], ResultOut);
+		bool bReverseOrientation = Operation == EEmbeddedPolygonOpMethod::CutOutside;
+		bool bStitched = MeshEditor.StitchSparselyCorrespondedVertexLoops(AllPathVertIDs[0], AllPathVertCorrespond[0], AllPathVertIDs[1], AllPathVertCorrespond[1], ResultOut, bReverseOrientation);
 		if (!bStitched)
 		{
 			// Don't set bOperationSucceeded to true
@@ -558,7 +563,7 @@ void FEmbedPolygonsOp::CalculateResult(FProgressCancel* Progress)
 		}
 		if (ResultMesh->HasAttributes())
 		{
-			MeshEditor.SetTubeNormals(ResultOut.NewTriangles, AllPathVertIDs[0], AllPathVertCorrespond[0], AllPathVertIDs[1], AllPathVertCorrespond[1]);
+			MeshEditor.SetTubeNormals(ResultOut.NewTriangles, AllPathVertIDs[0], AllPathVertCorrespond[0], AllPathVertIDs[1], AllPathVertCorrespond[1], bReverseOrientation);
 			TArray<float> UValues; UValues.SetNumUninitialized(AllPathVertCorrespond[1].Num() + 1);
 			FVector3f ZVec = -(FVector3f)Frame.Z();
 			float Along = 0;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointerFwd.h"
 
@@ -24,5 +25,11 @@ private:
 
 	void RegisterComponentVisualizers();
 
+	void RegisterOutlinerItems();
+	void UnregisterOutlinerItems();
+
 	TArray<TSharedPtr<FComponentVisualizer>> Visualizers;
+
+	FDelegateHandle OutlinerContextClonerDelegateHandle;
+	FDelegateHandle OutlinerContextEffectorDelegateHandle;
 };

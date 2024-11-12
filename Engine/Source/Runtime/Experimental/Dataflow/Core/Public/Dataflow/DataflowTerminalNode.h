@@ -31,7 +31,7 @@ struct FDataflowTerminalNode : public FDataflowNode
 	FDataflowTerminalNode()
 		: Super() { }
 
-	FDataflowTerminalNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+	FDataflowTerminalNode(const UE::Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
 		: Super(Param,InGuid) {
 	}
 
@@ -43,25 +43,27 @@ struct FDataflowTerminalNode : public FDataflowNode
 	{ 
 		return InType.ToString().Equals(StaticType().ToString()) 
 			|| Super::IsA(InType); 
-	} 
+	}
+
+	/** Return the terminal asset */
+	virtual TObjectPtr<UObject> GetTerminalAsset() const {return nullptr;}
 
 	//
 	// Error Checking
 	//
-	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const { ensure(false); }
+	virtual void SetAssetValue(TObjectPtr<UObject> Asset, UE::Dataflow::FContext& Context) const { ensure(false); }
 
 	//
 	// Evaluate
 	//
 
-	virtual void Evaluate(Dataflow::FContext& Context) const { ensure(false); }
+	virtual void Evaluate(UE::Dataflow::FContext& Context) const { ensure(false); }
 
 private:
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override
 	{
 		Evaluate(Context);
 	};
-
 };
 
 

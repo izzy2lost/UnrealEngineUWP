@@ -7,7 +7,7 @@
 #include "RigVMCore/RigVMUnknownType.h"
 #include "UObject/Interface.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
@@ -46,21 +46,24 @@ private:
 
 namespace RigVMTypeUtils
 {
-	const TCHAR TArrayPrefix[] = TEXT("TArray<");
-	const TCHAR TObjectPtrPrefix[] = TEXT("TObjectPtr<");
-	const TCHAR TSubclassOfPrefix[] = TEXT("TSubclassOf<");
-	const TCHAR TScriptInterfacePrefix[] = TEXT("TScriptInterface<");
-	const TCHAR TArrayTemplate[] = TEXT("TArray<%s>");
-	const TCHAR TObjectPtrTemplate[] = TEXT("TObjectPtr<%s%s>");
-	const TCHAR TSubclassOfTemplate[] = TEXT("TSubclassOf<%s%s>");
-	const TCHAR TScriptInterfaceTemplate[] = TEXT("TScriptInterface<%s%s>");
+	constexpr TCHAR TArrayPrefix[] = TEXT("TArray<");
+	constexpr TCHAR TObjectPtrPrefix[] = TEXT("TObjectPtr<");
+	constexpr TCHAR TSubclassOfPrefix[] = TEXT("TSubclassOf<");
+	constexpr TCHAR TScriptInterfacePrefix[] = TEXT("TScriptInterface<");
+	constexpr TCHAR TArrayTemplate[] = TEXT("TArray<%s>");
+	constexpr TCHAR TObjectPtrTemplate[] = TEXT("TObjectPtr<%s%s>");
+	constexpr TCHAR TSubclassOfTemplate[] = TEXT("TSubclassOf<%s%s>");
+	constexpr TCHAR TScriptInterfaceTemplate[] = TEXT("TScriptInterface<%s%s>");
 
 	const inline TCHAR* BoolType = TEXT("bool");
 	const inline TCHAR* FloatType = TEXT("float");
 	const inline TCHAR* DoubleType = TEXT("double");
+	const inline TCHAR* IntType = TEXT("int");
 	const inline TCHAR* Int32Type = TEXT("int32");
-	const inline TCHAR* UInt32Type = TEXT("uint32");
+	const inline TCHAR* Int64Type = TEXT("int64");
 	const inline TCHAR* UInt8Type = TEXT("uint8");
+	const inline TCHAR* UInt32Type = TEXT("uint32");
+	const inline TCHAR* UInt64Type = TEXT("uint64");
 	const inline TCHAR* FNameType = TEXT("FName");
 	const inline TCHAR* FStringType = TEXT("FString");
 	const inline TCHAR* FTextType = TEXT("FText");
@@ -77,9 +80,12 @@ namespace RigVMTypeUtils
 	const FLazyName BoolTypeName(BoolType);
 	const FLazyName FloatTypeName(FloatType);
 	const FLazyName DoubleTypeName(DoubleType);
+	const FLazyName IntTypeName(IntType);
 	const FLazyName Int32TypeName(Int32Type);
-	const FLazyName UInt32TypeName(UInt32Type);
+	const FLazyName Int64TypeName(Int64Type);
 	const FLazyName UInt8TypeName(UInt8Type);
+	const FLazyName UInt32TypeName(UInt32Type);
+	const FLazyName UInt64TypeName(UInt64Type);
 	const FLazyName FNameTypeName(FNameType);
 	const FLazyName FStringTypeName(FStringType);
 	const FLazyName FTextTypeName(FTextType);
@@ -185,9 +191,9 @@ namespace RigVMTypeUtils
 		return WildCardCPPType;
 	}
 
-	static const FName& GetWildCardCPPTypeName()
+	static const FLazyName& GetWildCardCPPTypeName()
 	{
-		static const FName WildCardCPPTypeName = *GetWildCardCPPType(); 
+		static const FLazyName WildCardCPPTypeName(*GetWildCardCPPType()); 
 		return WildCardCPPTypeName;
 	}
 
@@ -197,9 +203,9 @@ namespace RigVMTypeUtils
 		return WildCardArrayCPPType;
 	}
 
-	static const FName& GetWildCardArrayCPPTypeName()
+	static const FLazyName& GetWildCardArrayCPPTypeName()
 	{
-		static const FName WildCardArrayCPPTypeName = *GetWildCardArrayCPPType(); 
+		static const FLazyName WildCardArrayCPPTypeName(*GetWildCardArrayCPPType()); 
 		return WildCardArrayCPPTypeName;
 	}
 
@@ -339,7 +345,7 @@ namespace RigVMTypeUtils
 		{
 			if (InClassArgType == EClassArgType::AsClass)
 			{
-				return FString::Printf(RigVMTypeUtils::TSubclassOfPrefix, Class->GetPrefixCPP(), *Class->GetName());
+				return FString::Printf(RigVMTypeUtils::TSubclassOfTemplate, Class->GetPrefixCPP(), *Class->GetName());
 			}
 			else if (Class->IsChildOf(UInterface::StaticClass()))
 			{

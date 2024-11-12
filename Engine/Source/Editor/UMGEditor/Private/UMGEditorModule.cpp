@@ -34,16 +34,28 @@
 
 #include "ISettingsModule.h"
 #include "SequencerSettings.h"
+#include "Settings/LevelEditorPlaySettings.h"
 
 #include "BlueprintEditorModule.h"
 #include "PropertyEditorModule.h"
 #include "Customizations/DynamicEntryBoxDetails.h"
 #include "Customizations/IBlueprintWidgetCustomizationExtender.h"
 #include "Customizations/ListViewBaseDetails.h"
+#include "Customizations/UIComponentCustomizationExtender.h"
 #include "WidgetBlueprintThumbnailRenderer.h"
 #include "Customizations/WidgetThumbnailCustomization.h"
+#include "Widgets/SBindWidgetView.h"
+#include "MovieSceneDynamicBindingUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
+
+#include "Extensions/UIComponentContainer.h"
+#include "Extensions/UIComponentContainerDesignerExtension.h"
+#include "UIComponentUtils.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
+
+DEFINE_LOG_CATEGORY_STATIC(LogUMGEditor, Log, All);
 
 const FName UMGEditorAppIdentifier = FName(TEXT("UMGEditorApp"));
 static TAutoConsoleVariable<bool> CVarThumbnailRenderEnable(
@@ -60,6 +72,7 @@ public:
 		: Settings(nullptr)
 		, bThumbnailRenderersRegistered(false)
 		, bOnPostEngineInitHandled(false)
+		, bCachedArePostBuffersEnabled(false)
 	{
 	}
 
@@ -70,10 +83,13 @@ public:
 
 		// Any attempt to use GEditor right now will fail as it hasn't been initialized yet. Waiting for post engine init resolves that.
 		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FUMGEditorModule::OnPostEngineInit);
+		FEditorDelegates::StartPIE.AddRaw(this, &FUMGEditorModule::OnStartPIE);
+		FEditorDelegates::EndPIE.AddRaw(this, &FUMGEditorModule::OnEndPIE);
 
 		if (GIsEditor)
 		{
 			FDesignerCommands::Register();
+			FBindWidgetCommands::Register();
 		}
 
 		MenuExtensibilityManager = MakeShared<FExtensibilityManager>();
@@ -81,13 +97,21 @@ public:
 		DesignerExtensibilityManager = MakeShared<FDesignerExtensibilityManager>();
 
 		DesignerExtensibilityManager->AddDesignerExtensionFactory(SWidgetDesignerNavigation::MakeDesignerExtension());
+		DesignerExtensibilityManager->AddDesignerExtensionFactory(MakeShared<FUIComponentContainerDesignerExtensionFactory>());
 
 		PropertyBindingExtensibilityManager = MakeShared<FPropertyBindingExtensibilityManager>();
+		ClipboardExtensibilityManager = MakeShared<FClipboardExtensibilityManager>();
+		WidgetDragDropExtensibilityManager = MakeShared<FWidgetDragDropExtensibilityManager>();
+
+		UIComponentCustomizationExtender = FUIComponentCustomizationExtender::MakeInstance();
+		AddWidgetCustomizationExtender(UIComponentCustomizationExtender.ToSharedRef());
 
 		// Register widget blueprint compiler we do this no matter what.
 		IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
 		KismetCompilerModule.GetCompilers().Add(&WidgetBlueprintCompiler);
 		KismetCompilerModule.OverrideBPTypeForClass(UUserWidget::StaticClass(), UWidgetBlueprint::StaticClass());
+
+		FBlueprintEditorUtils::OnRenameVariableReferencesEvent.AddRaw(this, &FUMGEditorModule::HandleRenameVariableReferences);
 
 		// Add Customization for variable in Graph editor
 		if (FBlueprintEditorModule* BlueprintEditorModule = FModuleManager::GetModulePtr<FBlueprintEditorModule>("Kismet"))
@@ -126,12 +150,18 @@ public:
 		FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
 
 		CVarThumbnailRenderEnable->AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FUMGEditorModule::ThumbnailRenderingEnabled));
+
+		FixupDynamicBindingPayloadParameterNameHandle = UMovieScene::FixupDynamicBindingPayloadParameterNameEvent.AddStatic(FixupPayloadParameterNameForDynamicBinding);
+		FixupWidgetDynamicBindingsHandle = UWidgetAnimation::FixupWidgetDynamicBindingsEvent.AddStatic(FixupWidgetDynamicBindings);
 	}
 
 	/** Called before the module is unloaded, right before the module object is destroyed. */
 	virtual void ShutdownModule() override
 	{
 		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
+		FEditorDelegates::StartPIE.RemoveAll(this);
+		FEditorDelegates::EndPIE.RemoveAll(this);
+
 		FModuleManager::Get().OnModulesChanged().Remove(ModuleChangedHandle);
 
 		if (UObjectInitialized() && bThumbnailRenderersRegistered && IConsoleManager::Get().FindConsoleVariable(TEXT("UMGEditor.ThumbnailRenderer.Enable"))->GetBool())
@@ -141,6 +171,7 @@ public:
 
 		MenuExtensibilityManager.Reset();
 		ToolBarExtensibilityManager.Reset();
+		FBlueprintEditorUtils::OnRenameVariableReferencesEvent.RemoveAll(this);
 
 		if (IKismetCompilerInterface* KismetCompilerModule = FModuleManager::GetModulePtr<IKismetCompilerInterface>("KismetCompiler"))
 		{
@@ -195,6 +226,8 @@ public:
 			FEdGraphUtilities::UnregisterVisualPinFactory(GraphPanelPinFactory);
 		}
 
+		RemoveWidgetCustomizationExtender(UIComponentCustomizationExtender.ToSharedRef());
+
 		//// Unregister the setting
 		//ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 
@@ -203,6 +236,9 @@ public:
 		//	SettingsModule->UnregisterSettings("Editor", "ContentEditors", "WidgetDesigner");
 		//	SettingsModule->UnregisterSettings("Project", "Editor", "UMGEditor");
 		//}
+
+		UMovieScene::FixupDynamicBindingPayloadParameterNameEvent.Remove(FixupDynamicBindingPayloadParameterNameHandle);
+		UWidgetAnimation::FixupWidgetDynamicBindingsEvent.Remove(FixupWidgetDynamicBindingsHandle);
 	}
 
 	/** Gets the extensibility managers for outside entities to extend gui page editor's menus and toolbars */
@@ -210,6 +246,8 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetToolBarExtensibilityManager() override { return ToolBarExtensibilityManager; }
 	virtual TSharedPtr<FDesignerExtensibilityManager> GetDesignerExtensibilityManager() override { return DesignerExtensibilityManager; }
 	virtual TSharedPtr<FPropertyBindingExtensibilityManager> GetPropertyBindingExtensibilityManager() override { return PropertyBindingExtensibilityManager; }
+	virtual TSharedPtr<FClipboardExtensibilityManager> GetClipboardExtensibilityManager() override { return ClipboardExtensibilityManager; }
+	virtual TSharedPtr<FWidgetDragDropExtensibilityManager> GetWidgetDragDropExtensibilityManager() override { return WidgetDragDropExtensibilityManager; }
 
 	/** Register settings objects. */
 	void RegisterSettings()
@@ -361,6 +399,50 @@ private:
 		bOnPostEngineInitHandled = true;
 	}
 
+	void OnStartPIE(const bool bIsSimulating)
+	{
+		if (UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine))
+		{
+			if (TOptional<FRequestPlaySessionParams> PlayRequest = EditorEngine->GetPlaySessionRequest())
+			{
+				if (!PlayRequest.GetValue().EditorPlaySettings)
+				{
+					return;
+				}
+
+				int32 NumClients;
+				PlayRequest.GetValue().EditorPlaySettings->GetPlayNumberOfClients(NumClients);
+
+				if (NumClients > 1)
+				{
+					if (IConsoleVariable* PostBuffersEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.CopyBackbufferToSlatePostRenderTargets")))
+					{
+						UE_LOG(LogUMGEditor, Log, TEXT("Disabling Slate Post Buffers for multi-window PIE session, currently not supported."));
+
+						bCachedArePostBuffersEnabled = PostBuffersEnabled->GetBool();
+						PostBuffersEnabled->Set(false);
+					}
+				}
+			}
+		}
+	}
+
+	void OnEndPIE(const bool bIsSimulating)
+	{
+		if (bCachedArePostBuffersEnabled)
+		{
+			if (IConsoleVariable* PostBuffersEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.CopyBackbufferToSlatePostRenderTargets")))
+			{
+				if (!PostBuffersEnabled->GetBool())
+				{
+					UE_LOG(LogUMGEditor, Warning, TEXT("Restoring Slate Post Buffers, previously disabled due to multi-window PIE session."));
+
+					PostBuffersEnabled->Set(bCachedArePostBuffersEnabled);
+				}
+			}
+		}
+	}
+
 	static void ThumbnailRenderingEnabled(IConsoleVariable* Variable)
 	{
 		FUMGEditorModule* UMGEditorModule = FModuleManager::GetModulePtr<FUMGEditorModule>(TEXT("UMGEditor"));
@@ -377,17 +459,80 @@ private:
 		}
 	}
 
+	static void FixupPayloadParameterNameForDynamicBinding(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName)
+	{
+		using namespace UE::MovieScene;
+
+		check(MovieScene);
+
+		auto FixupPayloadParameterName = [InNode, OldPinName, NewPinName](FMovieSceneDynamicBinding& DynamicBinding)
+		{
+			if (DynamicBinding.WeakEndpoint.Get() == InNode)
+			{
+				if (FMovieSceneDynamicBindingPayloadVariable* Variable = DynamicBinding.PayloadVariables.Find(OldPinName))
+				{
+					DynamicBinding.PayloadVariables.Add(NewPinName, MoveTemp(*Variable));
+					DynamicBinding.PayloadVariables.Remove(OldPinName);
+				}
+			}
+		};
+
+		UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), ThisSequence);
+
+		if (UWidgetAnimation* WidgetAnimation = MovieScene->GetTypedOuter<UWidgetAnimation>())
+		{
+			for (FWidgetAnimationBinding& WidgetAnimationBinding : WidgetAnimation->AnimationBindings)
+			{
+				FixupPayloadParameterName(WidgetAnimationBinding.DynamicBinding);
+			}
+		}
+	}
+
+	static void FixupWidgetDynamicBindings(UWidgetAnimation* WidgetAnimation)
+	{
+		if (WidgetAnimation)
+		{
+			FMovieSceneSequenceEditor* SequenceEditor = FMovieSceneSequenceEditor::Find(WidgetAnimation);
+			if (!SequenceEditor)
+			{
+				return;
+			}
+
+			UBlueprint* SequenceDirectorBP = SequenceEditor->GetOrCreateDirectorBlueprint(WidgetAnimation);
+			if (!SequenceDirectorBP)
+			{
+				return;
+			}
+
+			FMovieSceneDynamicBindingUtils::EnsureBlueprintExtensionCreated(WidgetAnimation, SequenceDirectorBP);
+			FKismetEditorUtilities::CompileBlueprint(SequenceDirectorBP);
+		}
+	}
+
+	void HandleRenameVariableReferences(UBlueprint* Blueprint, UClass* VariableClass, const FName& OldVarName, const FName& NewVarName)
+	{
+		if (UUIComponentContainer* ComponentsContainer = FUIComponentUtils::GetUIComponentContainerFromWidgetBlueprint(Cast<UWidgetBlueprint>(Blueprint)))
+		{
+			ComponentsContainer->RenameWidget(OldVarName, NewVarName);
+		}
+	}
+
 private:
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 	TSharedPtr<FDesignerExtensibilityManager> DesignerExtensibilityManager;
 	TSharedPtr<FPropertyBindingExtensibilityManager> PropertyBindingExtensibilityManager;
+	TSharedPtr<FClipboardExtensibilityManager> ClipboardExtensibilityManager;
+	TSharedPtr<FWidgetDragDropExtensibilityManager> WidgetDragDropExtensibilityManager;
 	TSharedPtr<FGraphPanelPinFactory> GraphPanelPinFactory;
 
 	FDelegateHandle SequenceEditorHandle;
 	FDelegateHandle MarginTrackEditorCreateTrackEditorHandle;
 	FDelegateHandle TransformTrackEditorCreateTrackEditorHandle;
 	FDelegateHandle WidgetMaterialTrackEditorCreateTrackEditorHandle;
+
+	TSharedPtr<FUIComponentCustomizationExtender> UIComponentCustomizationExtender;
 
 	/** All created asset type actions.  Cached here so that we can unregister it during shutdown. */
 	TArray< TSharedPtr<IAssetTypeActions> > CreatedAssetTypeActions;
@@ -418,9 +563,12 @@ private:
 	FDelegateHandle BlueprintVariableCustomizationHandle;
 	/** Handle for FBlueprintEditorModule::RegisterFunctionCustomization */
 	FDelegateHandle BlueprintFunctionCustomizationHandle;
+	FDelegateHandle FixupDynamicBindingPayloadParameterNameHandle;
+	FDelegateHandle FixupWidgetDynamicBindingsHandle;
 
 	bool bThumbnailRenderersRegistered;
 	bool bOnPostEngineInitHandled;
+	bool bCachedArePostBuffersEnabled;
 };
 
 IMPLEMENT_MODULE(FUMGEditorModule, UMGEditor);

@@ -197,8 +197,7 @@ void SFilterSearchBox::Construct( const FArguments& InArgs )
 				.SelectionMode( ESelectionMode::Single )
 				.OnGenerateRow(this, &SFilterSearchBox::MakeSearchHistoryRowWidget)
 				.OnSelectionChanged( this, &SFilterSearchBox::OnSelectionChanged)
-				.ItemHeight(18)
-				.ScrollbarDragFocusCause(EFocusCause::SetDirectly) 
+				.ScrollbarDragFocusCause(EFocusCause::SetDirectly)
 			]
 		)
 	];
@@ -305,10 +304,12 @@ TSharedRef<ITableRow> SFilterSearchBox::MakeSearchHistoryRowWidget(TSharedPtr<FT
 	RowWidget->AddSlot()
 	.HAlign(TextAlignment)
 	.VAlign(VAlign_Center)
+	.MaxWidth(500.0f)
 	.FillWidth(1.0)
 	[
 		SNew(STextBlock)
 		.Text(*SearchText.Get())
+		.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 	];
 	
 	return SNew(STableRow< TSharedPtr<FString> >, OwnerTable)

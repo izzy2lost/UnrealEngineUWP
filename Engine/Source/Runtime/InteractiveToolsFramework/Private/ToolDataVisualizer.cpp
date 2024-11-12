@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ToolDataVisualizer.h"
-#include "SceneManagement.h" 
+#include "MaterialShared.h"
 #include "ToolContextInterfaces.h"
 #include "SceneManagement.h"   // DrawCircle
 #include "BaseGizmos/GizmoMath.h"
@@ -24,6 +24,8 @@ FToolDataVisualizer::FToolDataVisualizer()
 	PopAllTransforms();
 }
 
+FToolDataVisualizer::FToolDataVisualizer(const FToolDataVisualizer&) = default;
+FToolDataVisualizer::~FToolDataVisualizer() = default;
 
 void FToolDataVisualizer::BeginFrame(IToolsContextRenderAPI* RenderAPI, const FViewCameraState& CameraStateIn)
 {
@@ -212,4 +214,20 @@ void FToolDataVisualizer::InternalDrawViewFacingX(const FVector& Position, float
 		WorldPosition + UpOffset - RightOffset,
 		WorldPosition - UpOffset + RightOffset,
 		Color, LineThicknessIn, bDepthTestedIn);
+}
+
+void FToolDataVisualizer::InternalDrawDisc(const FVector& Position, const FVector& Normal, float Radius, int Steps, const FColor& Color, FMaterialRenderProxy* RenderProxy, bool bDepthTestedIn)
+{
+	const FVector TransformNormal = TransformN(Normal);
+	FVector Tan1;
+	FVector Tan2;
+	GizmoMath::MakeNormalPlaneBasis(TransformNormal, Tan1, Tan2);
+	Tan1.Normalize(); 
+	Tan2.Normalize();
+
+	// this function is from SceneManagement.h
+	const uint8 DepthPriority = uint8( (bDepthTestedIn) ? SDPG_World : SDPG_Foreground );
+	const FVector TransformPosition = TransformP(Position);
+	::DrawDisc(CurrentPDI, TransformPosition, Tan1, Tan2, Color, Radius, Steps, RenderProxy,
+	           DepthPriority);
 }

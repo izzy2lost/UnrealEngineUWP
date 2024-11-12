@@ -11,23 +11,22 @@ public class ClonerEffector : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ClonerEffectorMeshBuilder",
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"Niagara",
-				"NiagaraCore"
+				"Niagara"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"DeveloperSettings",
 				"GeometryCore",
 				"GeometryFramework",
 				"GeometryScriptingCore",
-				"DynamicMesh",
-				"ProceduralMeshComponent",
-				"StaticMeshDescription"
+				"NiagaraCore"
 			}
 		);
 

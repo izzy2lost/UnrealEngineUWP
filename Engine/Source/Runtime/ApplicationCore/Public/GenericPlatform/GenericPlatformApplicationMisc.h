@@ -311,7 +311,7 @@ struct FGenericPlatformApplicationMisc
 	 * If we know or can approximate the pixel density of the screen we will convert the incoming inches
 	 * to pixels on the device.  If the accuracy is unknown OutPixels will be set to 0.
 	 */
-	template<typename T, typename T2, TEMPLATE_REQUIRES(TIsFloatingPoint<T>::Value && TIsFloatingPoint<T2>::Value)>
+	template<typename T, typename T2 UE_REQUIRES(std::is_floating_point_v<T> && std::is_floating_point_v<T2>)>
 	static EScreenPhysicalAccuracy ConvertInchesToPixels(T Inches, T2& OutPixels)
 	{
 		int32 ScreenDensity = 0;
@@ -333,7 +333,7 @@ struct FGenericPlatformApplicationMisc
 	 * If we know or can approximate the pixel density of the screen we will convert the incoming pixels
 	 * to inches on the device.  If the accuracy is unknown OutInches will be set to 0.
 	 */
-	template<typename T, typename T2, TEMPLATE_REQUIRES(TIsFloatingPoint<T>::Value && TIsFloatingPoint<T2>::Value)>
+	template<typename T, typename T2 UE_REQUIRES(std::is_floating_point_v<T> && std::is_floating_point_v<T2>)>
 	static EScreenPhysicalAccuracy ConvertPixelsToInches(T Pixels, T2& OutInches)
 	{
 		int32 ScreenDensity = 0;

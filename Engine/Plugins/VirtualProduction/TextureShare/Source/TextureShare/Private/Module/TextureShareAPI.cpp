@@ -233,7 +233,7 @@ void FTextureShareAPI::OnResolvedSceneColor_RenderThread(FRDGBuilder& GraphBuild
 	}
 }
 
-void FTextureShareAPI::OnBackBufferReadyToPresent_RenderThread(SWindow& InWindow, const FTexture2DRHIRef& InBackbuffer)
+void FTextureShareAPI::OnBackBufferReadyToPresent_RenderThread(SWindow& InWindow, const FTextureRHIRef& InBackbuffer)
 {
 	check(IsInRenderingThread());
 

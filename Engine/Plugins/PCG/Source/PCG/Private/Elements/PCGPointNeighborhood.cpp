@@ -79,7 +79,7 @@ bool FPCGPointNeighborhoodElement::ExecuteInternal(FPCGContext* Context) const
 
 		const TArray<FPCGPoint>& SrcPoints = InputPointData->GetPoints();
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[i]);
-		UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutputPointData->InitializeFromData(InputPointData);
 		TArray<FPCGPoint>& OutputPoints = OutputPointData->GetMutablePoints();
 		OutputPoints.SetNumUninitialized(SrcPoints.Num());

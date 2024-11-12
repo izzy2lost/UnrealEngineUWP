@@ -3,6 +3,7 @@
 #include "GeometryUtil.h"
 
 #include "Vector3D.hpp"
+#include "Math/RotationMatrix.h"
 
 BEGIN_NAMESPACE_UE_AC
 
@@ -90,21 +91,28 @@ FQuat FGeometryUtil::GetRotationQuat(const double Matrix[3][4])
 	return FQuat(FVector(float(RotAxis.x), float(-RotAxis.y), float(RotAxis.z)), float(RotAngle)).Inverse();
 }
 
-// Return the Quat equivalent to the direction vector
-FQuat FGeometryUtil::GetRotationQuat(const ModelerAPI::Vector& Direction)
+// Convert Archicad direction vector to Unreal one
+FVector GetDirectionVector(const ModelerAPI::Vector& Vec)
 {
-	const Geometry::Vector3< double > DefaultDirVec(1.0, 0.0, 0.0);
-	Geometry::Vector3< double >		  DirVec(Direction.x, -Direction.y, Direction.z);
-	DirVec.NormalizeVector();
-
-	const double distToDirSqr = (DirVec - DefaultDirVec).GetLengthSqr();
-	const double RotAngle = acos((2.0 - distToDirSqr) * 0.5); // Rotation angle in radian
-
-	Geometry::Vector3< double > RotAxis = DefaultDirVec ^ DirVec;
-	RotAxis.NormalizeVector();
-
-	return FQuat(FVector(float(RotAxis.x), float(RotAxis.y), float(RotAxis.z)), float(RotAngle));
+	return FVector(Vec.x, -Vec.y, Vec.z);
 }
+
+// Return the Quat equivalent of rotation defined by Direction and Up vectors
+FQuat FGeometryUtil::GetRotationQuat(const ModelerAPI::Vector& Direction, const ModelerAPI::Vector& Up)
+{
+	FVector DirVec = GetDirectionVector(Direction);
+	if (!DirVec.Normalize())
+	{
+		return FQuat::Identity;
+	}
+	FVector UpVec = GetDirectionVector(Up);
+	if (!UpVec.Normalize())
+	{
+		return FQuat::Identity;
+	}
+	return FQuat(FRotationMatrix::MakeFromXZ(DirVec, UpVec));
+}
+
 
 // Convert Archicad camera rotation to an Unreal Quat
 FQuat FGeometryUtil::GetRotationQuat(const double PitchInDegrees, const double YawInDegrees, const double RollInDegrees)

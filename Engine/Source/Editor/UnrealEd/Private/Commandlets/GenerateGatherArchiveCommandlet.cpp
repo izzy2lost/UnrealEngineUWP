@@ -16,6 +16,7 @@
 #include "Logging/LogMacros.h"
 #include "Templates/SharedPointer.h"
 #include "Trace/Detail/Channel.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGenerateArchiveCommandlet, Log, All);
 
@@ -140,6 +141,7 @@ UGenerateGatherArchiveCommandlet::UGenerateGatherArchiveCommandlet(const FObject
 
 int32 UGenerateGatherArchiveCommandlet::Main( const FString& Params )
 {
+	UE_SCOPED_TIMER(TEXT("UGenerateGatherArchiveCommandlet::Main"), LogGenerateArchiveCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;

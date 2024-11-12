@@ -71,6 +71,7 @@ static TAutoConsoleVariable<float> CVarControlRigEnableDrawInterfaceInGame(
 UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 #if WITH_EDITOR
+	, bIsRunningInPIE(false)
 	, bEnableAnimAttributeTrace(false)
 #endif 
 	, DataSourceRegistry(nullptr)
@@ -128,6 +129,9 @@ void UControlRig::ResetRecordedTransforms(const FName& InEventName)
 
 void UControlRig::BeginDestroy()
 {
+	BeginDestroyEvent.Broadcast(this);
+	BeginDestroyEvent.Clear();
+	
 	Super::BeginDestroy();
 	SetRigVMExtendedExecuteContext(nullptr);
 
@@ -192,6 +196,10 @@ void UControlRig::Initialize(bool bRequestInit)
 	{
 		GetHierarchy()->GetController(true);
 	}
+
+#if WITH_EDITOR
+	bIsRunningInPIE = GEditor && GEditor->IsPlaySessionInProgress();
+#endif
 	
 	// should refresh mapping 
 	RequestConstruction();
@@ -558,6 +566,9 @@ void UControlRig::InitializeFromCDO()
 			UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
 			URigHierarchy* Hierarchy = GetHierarchy();
 
+			// copy physics solvers
+			PhysicsSolvers = CDO->PhysicsSolvers;
+
 			// copy hierarchy
 			{
 				FRigHierarchyValidityBracket ValidityBracketA(Hierarchy);
@@ -566,6 +577,25 @@ void UControlRig::InitializeFromCDO()
 				TGuardValue<bool> Guard(Hierarchy->GetSuspendNotificationsFlag(), true);
 				Hierarchy->CopyHierarchy(CDO->GetHierarchy());
 				Hierarchy->ResetPoseToInitial(ERigElementType::All);
+			}
+
+			// update the physics solvers with new unique IDs and remap the physics solver IDs within hierarchy
+			{
+				TMap<FRigPhysicsSolverID, FRigPhysicsSolverID> PhysicsSolverMap;
+				for(FRigPhysicsSolverDescription& Solver : PhysicsSolvers)
+				{
+					const FRigPhysicsSolverID OldID = Solver.ID;
+					Solver.ID = FRigPhysicsSolverDescription::MakeID(GetPathName(), Solver.Name);
+					PhysicsSolverMap.Add(OldID, Solver.ID);
+				}
+				const TArray<FRigPhysicsElement*> PhysicsElements = Hierarchy->GetPhysicsElements();
+				for(FRigPhysicsElement* PhysicsElement : PhysicsElements)
+				{
+					if(const FRigPhysicsSolverID* NewID = PhysicsSolverMap.Find(PhysicsElement->Solver))
+					{
+						PhysicsElement->Solver = *NewID;
+					}
+				}
 			}
 
 #if WITH_EDITOR
@@ -719,6 +749,8 @@ bool UControlRig::Execute(const FName& InEventName)
 	const bool bIsEventFirstInQueue = !LocalEventQueueToRun.IsEmpty() && LocalEventQueueToRun[0] == InEventName; 
 	const bool bIsEventLastInQueue = !LocalEventQueueToRun.IsEmpty() && LocalEventQueueToRun.Last() == InEventName;
 	const bool bIsConstructionEvent = InEventName == FRigUnit_PrepareForExecution::EventName;
+	const bool bIsPostConstructionEvent = InEventName == FRigUnit_PostPrepareForExecution::EventName;
+	const bool bPostConstructionEventInQueue = LocalEventQueueToRun.Contains(FRigUnit_PostPrepareForExecution::EventName) && SupportsEvent(FRigUnit_PostPrepareForExecution::EventName);
 	const bool bPreForwardSolveInQueue = LocalEventQueueToRun.Contains(FRigUnit_PreBeginExecution::EventName);
 	const bool bPostForwardSolveInQueue = LocalEventQueueToRun.Contains(FRigUnit_PostBeginExecution::EventName);
 	const bool bIsPreForwardSolve = InEventName == FRigUnit_PreBeginExecution::EventName;
@@ -742,6 +774,9 @@ bool UControlRig::Execute(const FName& InEventName)
 	PublicContext.SetDeltaTime(DeltaTime);
 	PublicContext.SetAbsoluteTime(AbsoluteTime);
 	PublicContext.SetFramesPerSecond(GetCurrentFramesPerSecond());
+#if WITH_EDITOR
+	PublicContext.SetHostBeingDebugged(bIsBeingDebugged);
+#endif
 
 #if UE_RIGVM_DEBUG_EXECUTION
 	PublicContext.bDebugExecution = bDebugExecutionEnabled;
@@ -787,8 +822,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	bool bEnableDrawInterface = false;
 #if WITH_EDITOR
 	const bool bEnabledDuringGame = CVarControlRigEnableDrawInterfaceInGame->GetInt() != 0;
-	const bool bInGame = !(GEditor && !GEditor->GetPIEWorldContext());
-	if (bEnabledDuringGame || !bInGame)
+	if (bEnabledDuringGame || !bIsRunningInPIE)
 	{
 		bEnableDrawInterface = true;
 	}	
@@ -828,6 +862,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	Context.InteractionType = InteractionType;
 	Context.ElementsBeingInteracted = ElementsBeingInteracted;
 	PublicContext.Hierarchy = GetHierarchy();
+	PublicContext.ControlRig = this;
 
 	// allow access to the hierarchy
 	Context.HierarchySettings = HierarchySettings;
@@ -850,7 +885,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	}
 
 	// disable any controller access outside of the construction event
-	FRigHierarchyEnableControllerBracket DisableHierarchyController(PublicContext.Hierarchy, bIsConstructionEvent);
+	FRigHierarchyEnableControllerBracket DisableHierarchyController(PublicContext.Hierarchy, bIsConstructionEvent || bIsPostConstructionEvent);
 
 	// given the outer scene component configure
 	// the transform lookups to map transforms from rig space to world space
@@ -904,7 +939,9 @@ bool UControlRig::Execute(const FName& InEventName)
 #if WITH_EDITOR
 	TSharedPtr<TGuardValue<bool>> RecordTransformsPerInstructionGuard;
 #endif
-	if(URigHierarchy* Hierarchy = GetHierarchy())
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+	if(Hierarchy)
 	{
 		Hierarchy->UpdateReferences(&PublicContext);
 
@@ -928,7 +965,7 @@ bool UControlRig::Execute(const FName& InEventName)
 		UE_LOG(LogControlRig, Warning, TEXT("%s: Execute is being called recursively."), *GetPathName());
 		return false;
 	}
-	if(bIsConstructionEvent)
+	if(bIsConstructionEvent || bIsPostConstructionEvent)
 	{
 		if(IsRunningPreConstruction() || IsRunningPostConstruction())
 		{
@@ -938,12 +975,15 @@ bool UControlRig::Execute(const FName& InEventName)
 	}
 
 	bool bSuccess = true;
+	bool bPostConstructionEventWasRun = false;
 
 	// we'll special case the construction event here
 	if (bIsConstructionEvent)
 	{
+		check(Hierarchy);
+		
 		// remember the previous selection
-		const TArray<FRigElementKey> PreviousSelection = GetHierarchy()->GetSelectedKeys();
+		const TArray<FRigElementKey> PreviousSelection = Hierarchy->GetSelectedKeys();
 
 		// construction mode means that we are running the construction event
 		// constantly for testing purposes.
@@ -965,36 +1005,37 @@ bool UControlRig::Execute(const FName& InEventName)
 #endif
 
 			// disable selection notifications from the hierarchy
-			TGuardValue<bool> DisableSelectionNotifications(GetHierarchy()->GetController(true)->bSuspendSelectionNotifications, true);
+			TGuardValue<bool> DisableSelectionNotifications(Hierarchy->GetController(true)->bSuspendSelectionNotifications, true);
 			{
 				FRigPose CurrentPose;
 				// We might want to reset the input pose after construction
 				if (bResetCurrentTransformsAfterConstruction)
 				{
-					CurrentPose = GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
+					CurrentPose = Hierarchy->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
 				}
 				
 				{
 					// Copy the hierarchy from the default object onto this one
 #if WITH_EDITOR
-					FTransientControlScope TransientControlScope(GetHierarchy());
+					FTransientControlScope TransientControlScope(Hierarchy);
 	#endif
 					{
 						// maintain the initial pose if it ever was set by the client
 						FRigPose InitialPose;
 						if(!bResetInitialTransformsBeforeConstruction)
 						{
-							InitialPose = GetHierarchy()->GetPose(true, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
+							InitialPose = Hierarchy->GetPose(true, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
 						}
 
 						if(bCopyHierarchyBeforeConstruction)
 						{
-							GetHierarchy()->ResetToDefault();
+							Hierarchy->ResetToDefault();
 						}
 
 						if(InitialPose.Num() > 0)
 						{
-							GetHierarchy()->SetPose(InitialPose, ERigTransformType::InitialLocal);
+							const TGuardValue<bool> DisableRecordingCurveChanges(Hierarchy->GetRecordCurveChangesFlag(), false);
+							Hierarchy->SetPose(InitialPose, ERigTransformType::InitialLocal);
 						}
 					}
 
@@ -1008,7 +1049,7 @@ bool UControlRig::Execute(const FName& InEventName)
 						}
 	#endif
 						// reset the pose to initial such that construction event can run from a deterministic initial state
-						GetHierarchy()->ResetPoseToInitial(ERigElementType::All);
+						Hierarchy->ResetPoseToInitial(ERigElementType::All);
 					}
 
 					RestoreShapeLibrariesFromCDO();
@@ -1022,21 +1063,32 @@ bool UControlRig::Execute(const FName& InEventName)
 					bSuccess = Execute_Internal(FRigUnit_PrepareForExecution::EventName);
 					
 				} // destroy FTransientControlScope
-				
-				RunPostConstructionEvent();
+
+				if(!bPostConstructionEventInQueue && !bPostConstructionEventWasRun)
+				{
+					RunPostConstructionEvent();
+					bPostConstructionEventWasRun = true;
+				}
 
 				// Reset the input pose after construction
 				if (CurrentPose.Num() > 0)
 				{
-					GetHierarchy()->SetPose(CurrentPose, ERigTransformType::CurrentLocal);
+					const TGuardValue<bool> DisableRecordingCurveChanges(Hierarchy->GetRecordCurveChangesFlag(), false);
+					Hierarchy->SetPose(CurrentPose, ERigTransformType::CurrentLocal);
 				}
 			}
 			
 			// set it here to reestablish the selection. the notifications
 			// will be eaten since we still have the bSuspend flag on in the controller.
-			GetHierarchy()->GetController()->SetSelection(PreviousSelection);
+			Hierarchy->GetController()->SetSelection(PreviousSelection);
 			
 		} // destroy DisableSelectionNotifications
+
+		if ((bIsPostConstructionEvent || (bIsConstructionEvent && !bPostConstructionEventInQueue)) && !bPostConstructionEventWasRun)
+		{
+			RunPostConstructionEvent();
+			bPostConstructionEventWasRun = true;
+		}
 
 		if (bConstructionModeEnabled)
 		{
@@ -1048,25 +1100,25 @@ bool UControlRig::Execute(const FName& InEventName)
 				TransientControlPoseScope = MakeUnique<FTransientControlPoseScope>(this);
 			}
 #endif
-			GetHierarchy()->ResetPoseToInitial(ERigElementType::Bone);
+			Hierarchy->ResetPoseToInitial(ERigElementType::Bone);
 		}
 
 		// synchronize the selection now with the new hierarchy after running construction
-		const TArray<const FRigBaseElement*> CurrentSelection = GetHierarchy()->GetSelectedElements();
+		const TArray<const FRigBaseElement*> CurrentSelection = Hierarchy->GetSelectedElements();
 		for(const FRigBaseElement* SelectedElement : CurrentSelection)
 		{
 			if(!PreviousSelection.Contains(SelectedElement->GetKey()))
 			{
-				GetHierarchy()->Notify(ERigHierarchyNotification::ElementSelected, SelectedElement);
+				Hierarchy->Notify(ERigHierarchyNotification::ElementSelected, SelectedElement);
 			}
 		}
 		for(const FRigElementKey& PreviouslySelectedKey : PreviousSelection)
 		{
-			if(const FRigBaseElement* PreviouslySelectedElement = GetHierarchy()->Find(PreviouslySelectedKey))
+			if(const FRigBaseElement* PreviouslySelectedElement = Hierarchy->Find(PreviouslySelectedKey))
 			{
 				if(!CurrentSelection.Contains(PreviouslySelectedElement))
 				{
-					GetHierarchy()->Notify(ERigHierarchyNotification::ElementDeselected, PreviouslySelectedElement);
+					Hierarchy->Notify(ERigHierarchyNotification::ElementDeselected, PreviouslySelectedElement);
 				}
 			}
 		}
@@ -1172,16 +1224,16 @@ bool UControlRig::Execute(const FName& InEventName)
 		EventContext.Event = ERigEvent::CloseUndoBracket;
 		EventContext.SourceEventName = InEventName;
 		EventContext.LocalTime = PublicContext.GetAbsoluteTime();
-		HandleHierarchyEvent(GetHierarchy(), EventContext);
+		HandleHierarchyEvent(Hierarchy, EventContext);
 	}
 
 	if (PublicContext.GetDrawInterface() && PublicContext.GetDrawContainer() && bIsEventLastInQueue) 
 	{
 		PublicContext.GetDrawInterface()->Instructions.Append(PublicContext.GetDrawContainer()->Instructions);
 
-		FRigHierarchyValidityBracket ValidityBracket(GetHierarchy());
+		FRigHierarchyValidityBracket ValidityBracket(Hierarchy);
 		
-		GetHierarchy()->ForEach<FRigControlElement>([this](FRigControlElement* ControlElement) -> bool
+		Hierarchy->ForEach<FRigControlElement>([this, Hierarchy](FRigControlElement* ControlElement) -> bool
 		{
 			const FRigControlSettings& Settings = ControlElement->Settings;
 
@@ -1190,7 +1242,7 @@ bool UControlRig::Execute(const FName& InEventName)
 				Settings.bDrawLimits &&
 				Settings.LimitEnabled.Contains(FRigControlLimitEnabled(true, true)))
 			{
-				FTransform Transform = GetHierarchy()->GetGlobalControlOffsetTransformByIndex(ControlElement->GetIndex());
+				FTransform Transform = Hierarchy->GetGlobalControlOffsetTransformByIndex(ControlElement->GetIndex());
 				FRigVMDrawInstruction Instruction(ERigVMDrawSettings::Lines, Settings.ShapeColor, 0.f, Transform);
 
 				switch (Settings.ControlType)
@@ -1414,6 +1466,10 @@ bool UControlRig::Execute(const FName& InEventName)
 	{
 		RemoveRunOnceEvent(FRigUnit_PrepareForExecution::EventName);
 	}
+	if(bIsPostConstructionEvent)
+	{
+		RemoveRunOnceEvent(FRigUnit_PostPrepareForExecution::EventName);
+	}
 
 	return bSuccess;
 }
@@ -1556,6 +1612,7 @@ void UControlRig::RequestInit()
 void UControlRig::RequestConstruction()
 {
 	RequestRunOnceEvent(FRigUnit_PrepareForExecution::EventName, 0);
+	RequestRunOnceEvent(FRigUnit_PostPrepareForExecution::EventName, 1);
 }
 
 bool UControlRig::IsConstructionRequired() const
@@ -1574,6 +1631,14 @@ void UControlRig::AdaptEventQueueForEvaluate(TArray<FName>& InOutEventQueueToRun
 
 	for (int32 i=0; i<InOutEventQueueToRun.Num(); ++i)
 	{
+		if (InOutEventQueueToRun[i] == FRigUnit_PrepareForExecution::EventName)
+		{
+			if (SupportsEvent(FRigUnit_PostPrepareForExecution::EventName))
+			{
+				i++; // skip construction
+				InOutEventQueueToRun.Insert(FRigUnit_PostPrepareForExecution::EventName, i);
+			}
+		}
 		if (InOutEventQueueToRun[i] == FRigUnit_BeginExecution::EventName)
 		{
 			if (SupportsEvent(FRigUnit_PreBeginExecution::EventName))
@@ -1646,6 +1711,13 @@ UAnimationDataSourceRegistry* UControlRig::GetDataSourceRegistry()
 	{
 		DataSourceRegistry = NewObject<UAnimationDataSourceRegistry>(this, NAME_None, RF_Transient);
 
+		if (!IsInGameThread())
+		{
+			// If the object was created on a non-game thread, clear the async flag immediately, so that it can be
+			// garbage collected in the future. 
+			(void)DataSourceRegistry->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
+		}
+
 		if (HasAnyFlags(RF_ClassDefaultObject) && GetClass()->IsNative())
 		{
 			DataSourceRegistry->AddToRoot();
@@ -1685,8 +1757,7 @@ TArray<UControlRig*> UControlRig::FindControlRigs(UObject* Outer, TSubclassOf<UC
 	for (TObjectIterator<UControlRig> Itr; Itr; ++Itr)
 	{
 		UControlRig* RigInstance = *Itr;
-		const UClass* RigInstanceClass = RigInstance ? RigInstance->GetClass() : nullptr;
-		if (OptionalClass == nullptr || (RigInstanceClass && RigInstanceClass->IsChildOf(OptionalClass)))
+		if (OptionalClass == nullptr || RigInstance->GetClass()->IsChildOf(OptionalClass))
 		{
 			if(RigInstance->IsInOuter(Outer))
 			{
@@ -1727,6 +1798,15 @@ void UControlRig::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
+
+	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::ControlRigStoresPhysicsSolvers)
+	{
+		Ar << PhysicsSolvers;
+	}
+	else
+	{
+		PhysicsSolvers.Reset();
+	}
 }
 
 void UControlRig::PostLoad()
@@ -1942,7 +2022,7 @@ void UControlRig::CreateRigControlsForCurveContainer()
 				Settings.bDrawLimits = false;
 
 				FRigControlValue Value;
-				Value.Set<float>(CurveElement->Value);
+				Value.Set<float>(CurveElement->Get());
 
 				Controller->AddControl(CurveElement->GetFName(), FRigElementKey(), Settings, Value, FTransform::Identity, FTransform::Identity); 
 			}
@@ -3362,7 +3442,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 			if (ObjectFound)
 			{
 				FName NewName = MakeUniqueObjectName(GetTransientPackage(), URigHierarchy::StaticClass(), TEXT("DynamicHierarchy_Deleted"));
-				ObjectFound->Rename(*NewName.ToString(), GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+				ObjectFound->Rename(*NewName.ToString(), GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 				ObjectFound->MarkAsGarbage();
 			}
 		}
@@ -3370,6 +3450,13 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 		if(!IsRigModuleInstance())
 		{
 			DynamicHierarchy = NewObject<URigHierarchy>(this, TEXT("DynamicHierarchy"), SubObjectFlags);
+
+			if (!IsInGameThread())
+			{
+				// If the object was created on a non-game thread, clear the async flag immediately, so that it can be
+				// garbage collected in the future. 
+				(void)DynamicHierarchy->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
+			}
 		}
 	}
 
@@ -3404,6 +3491,13 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 		if (VM == nullptr)
 		{
 			VM = NewObject<URigVM>(this, TEXT("ControlRig_VM"), SubObjectFlags);
+
+			if (!IsInGameThread())
+			{
+				// If the object was created on a non-game thread, clear the async flag immediately, so that it can be
+				// garbage collected in the future. 
+				(void)VM->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
+			}
 		}
 
 		// for default objects we need to check if the CDO is rooted. specialized Control Rigs
@@ -3439,7 +3533,7 @@ void UControlRig::SetDynamicHierarchy(TObjectPtr<URigHierarchy> InHierarchy)
 	if (DynamicHierarchy->GetOuter() == this)
 	{
 		DynamicHierarchy->OnUndoRedo().RemoveAll(this);
-		DynamicHierarchy->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		DynamicHierarchy->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		DynamicHierarchy->MarkAsGarbage();
 	}
 	DynamicHierarchy = InHierarchy;
@@ -3475,7 +3569,7 @@ UTransformableControlHandle* UControlRig::CreateTransformableControlHandle(
 	
 	UTransformableControlHandle* CtrlHandle = NewObject<UTransformableControlHandle>(GetTransientPackage(), NAME_None, RF_Transactional);
 	check(CtrlHandle);
-	CtrlHandle->ControlRig = this;
+	CtrlHandle->ControlRig = const_cast<UControlRig*>(this);
 	CtrlHandle->ControlName = InControlName;
 	CtrlHandle->RegisterDelegates();
 	return CtrlHandle;
@@ -3490,6 +3584,62 @@ void UControlRig::OnHierarchyTransformUndoRedo(URigHierarchy* InHierarchy, const
 			ControlModified().Broadcast(this, ControlElement, FRigControlModifiedContext(EControlRigSetKey::Never));
 		}
 	}
+}
+
+int32 UControlRig::NumPhysicsSolvers() const
+{
+	return PhysicsSolvers.Num();
+}
+
+const FRigPhysicsSolverDescription* UControlRig::GetPhysicsSolver(int32 InIndex) const
+{
+	if(PhysicsSolvers.IsValidIndex(InIndex))
+	{
+		return &PhysicsSolvers[InIndex];
+	}
+	return nullptr;
+}
+
+const FRigPhysicsSolverDescription* UControlRig::FindPhysicsSolver(const FRigPhysicsSolverID& InID) const
+{
+	return PhysicsSolvers.FindByPredicate([InID](const FRigPhysicsSolverDescription& Solver) -> bool
+	{
+		return Solver.ID == InID;
+	});
+}
+
+const FRigPhysicsSolverDescription* UControlRig::FindPhysicsSolverByName(const FName& InName) const
+{
+	return PhysicsSolvers.FindByPredicate([InName](const FRigPhysicsSolverDescription& Solver) -> bool
+	{
+		return Solver.Name == InName;
+	});
+}
+
+FRigPhysicsSolverID UControlRig::AddPhysicsSolver(FName InName, bool bSetupUndo, bool bPrintPythonCommand)
+{
+#if WITH_EDITOR
+	if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
+	{
+		return FRigPhysicsSolverID();
+	}
+#endif
+
+	if(InName.IsNone())
+	{
+		return FRigPhysicsSolverID();
+	}
+
+	const FName Name = UtilityHelpers::CreateUniqueName(InName, [this](const FName& InName) -> bool
+	{
+		return FindPhysicsSolverByName(InName) == nullptr;
+	});
+
+	FRigPhysicsSolverDescription Solver;
+	Solver.ID = FRigPhysicsSolverDescription::MakeID(GetPathName(), Name);
+	Solver.Name = Name;
+	PhysicsSolvers.Add(Solver);
+	return Solver.ID;
 }
 
 UControlRig::FPoseScope::FPoseScope(UControlRig* InControlRig, ERigElementType InFilter, const TArray<FRigElementKey>& InElements, const ERigTransformType::Type InTransformType)

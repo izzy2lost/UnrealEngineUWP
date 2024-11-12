@@ -26,6 +26,12 @@
 #include "Windows/WindowsHWrapper.h"
 #endif
 
+#if 0
+// for saving image dumps:
+#include "IImageWrapperModule.h"
+#include "Misc/FileHelper.h"
+#endif
+
 static TAutoConsoleVariable<int32> CVarDetailedMipAlphaLogging(
 	TEXT("r.DetailedMipAlphaLogging"),
 	0,
@@ -926,7 +932,7 @@ static void GenerateMipSharpenedSeparable(
 * @param FilterTable2D - [FilterTableSize * FilterTableSize]
 * @param FilterTableSize - >= 2
 * @param ScaleFactor 1 / 2:for downsampling
-* @param bUseNewMipFilter - pass true to use new separatble mip filter
+* @param bUseNewMipFilter - pass true to use new separable mip filter
 */
 template <EMipGenAddressMode AddressMode>
 static void GenerateSharpenedMipB8G8R8A8Templ(
@@ -1501,17 +1507,62 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 				
 		// choose Filter from ETextureDownscaleOptions
 		FImageCore::EResizeImageFilter Filter;
-
-		if ( Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::Unfiltered )
+		
+		// unlike MinGen, the ETextureDownscaleOptions does not have "Blur" options, only Sharpen
+		/*0=no sharpening but better quality which is softer, 1=little, 5=medium, 10=extreme. */
+		
+		switch( (ETextureDownscaleOptions)Settings.DownscaleOptions )
+		{
+		case ETextureDownscaleOptions::Default:
+			Filter = FImageCore::EResizeImageFilter::CubicMitchell;
+			break;
+		case ETextureDownscaleOptions::Unfiltered:
 			Filter = FImageCore::EResizeImageFilter::PointSample;
-		else if ( Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::SimpleAverage )
+			break;
+		case ETextureDownscaleOptions::SimpleAverage:
 			Filter = FImageCore::EResizeImageFilter::Triangle;
-		else if ( Settings.DownscaleOptions >= (uint8)ETextureDownscaleOptions::Sharpen5 ) // sharpest
+			break;
+			
+		// cubic Mitchells in order of B: (from highest B to lowest; eg. smoothest to sharpest)
+		// CubicGaussian  // B = 1
+		// CubicMitchell // B = 1/3
+		// MitchellOneQuarter // B = 1/4
+		// MitchellOneSixth // B = 1/6
+		// CubicSharp  // B = 0
+
+		case ETextureDownscaleOptions::Sharpen0:
+			Filter = FImageCore::EResizeImageFilter::CubicGaussian;
+			break;
+		case ETextureDownscaleOptions::Sharpen1:
+		case ETextureDownscaleOptions::Sharpen2:
+			Filter = FImageCore::EResizeImageFilter::CubicMitchell;
+			break;
+		case ETextureDownscaleOptions::Sharpen3:
+		case ETextureDownscaleOptions::Sharpen4:
+			Filter = FImageCore::EResizeImageFilter::MitchellOneQuarter;
+			break;
+		case ETextureDownscaleOptions::Sharpen5:
+		case ETextureDownscaleOptions::Sharpen6:
+			Filter = FImageCore::EResizeImageFilter::MitchellOneSixth;
+			break;			
+		case ETextureDownscaleOptions::Sharpen7:
+		case ETextureDownscaleOptions::Sharpen8:
 			Filter = FImageCore::EResizeImageFilter::CubicSharp;
-		else if ( Settings.DownscaleOptions >= (uint8)ETextureDownscaleOptions::Sharpen0 ) // sharp
-			Filter = FImageCore::EResizeImageFilter::AdaptiveSharp;		
-		else
-			Filter = FImageCore::EResizeImageFilter::AdaptiveSmooth;		
+			break;
+		case ETextureDownscaleOptions::Sharpen9:
+			//Filter = FImageCore::EResizeImageFilter::Lanczos4;
+			Filter = FImageCore::EResizeImageFilter::MitchellNegOneSixth;
+			break;
+		case ETextureDownscaleOptions::Sharpen10:
+			//Filter = FImageCore::EResizeImageFilter::Lanczos5;
+			Filter = FImageCore::EResizeImageFilter::MitchellNegOneThird;
+			break;
+
+		default:
+			UE_LOG(LogTextureCompressor, Warning, TEXT("Downscale option not recognized : %d"),(int)Settings.DownscaleOptions);
+			Filter = FImageCore::EResizeImageFilter::CubicMitchell;
+			break;
+		}
 
 		FImage Temp; // needed because Src == Dst
 		FImageCore::ResizeImageAllocDest(SrcImage,Temp,FinalSizeX,FinalSizeY,Filter);
@@ -1546,7 +1597,7 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	AllocateTempForMips(TempData, SrcImage.SizeX, SrcImage.SizeY, FMath::Max(1, SrcImage.SizeX / 2), FMath::Max(1, SrcImage.SizeY / 2), false, AvgKernel, 2, false, bUnfiltered, bUseNewMipFilter);
 
 	int32 NumIterations = 0;
-	while(Downscale > 2.0f)
+	while(Downscale > 2.0f) // NOT == 2.0
 	{
 		int32 DstSizeX = FMath::Max(1, ImageChain[0]->SizeX / 2 );
 		int32 DstSizeY = FMath::Max(1, ImageChain[0]->SizeY / 2 );
@@ -1586,14 +1637,21 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	
 	int32 KernelSize = 2;
 	float Sharpening = 0.0f;
+	bool bBilinear = false;
 	if (Settings.DownscaleOptions >= (uint8)ETextureDownscaleOptions::Sharpen0 && Settings.DownscaleOptions <= (uint8)ETextureDownscaleOptions::Sharpen10)
 	{
 		// 0 .. 2.0f
 		Sharpening = (float)((int32)Settings.DownscaleOptions - (int32)ETextureDownscaleOptions::Sharpen0) * 0.2f;
 		KernelSize = 8;
 	}
-	
-	bool bBilinear = Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::SimpleAverage;
+	else
+	{
+		// Default should have mapped to SimpleAverage before getting here (in GetDownscaleOptions)
+		check( Settings.DownscaleOptions != (uint8)ETextureDownscaleOptions::Default );
+
+		bBilinear = Settings.DownscaleOptions == (uint8)ETextureDownscaleOptions::SimpleAverage;
+		check( bBilinear || bUnfiltered );
+	}	
 	
 	FImageKernel2D KernelSharpen;
 	KernelSharpen.BuildSeparatableGaussWithSharpen(KernelSize, Sharpening);
@@ -1635,6 +1693,12 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 			}
 			else if(bBilinear)
 			{
+				// in the common case of Downscale == 2.0
+				//	this is actually not bilinar at all, or a 2x2 downsample
+				//	it's just point sampled
+				//	because of the way the pixel centers are not offset correctly
+				//	this is just sampling pixels at 0,2,4,..
+				//FilteredColor = LookupSourceMipBilinear(SrcImageData, SourceX + 0.5, SourceY + 0.5); // <- correct offsets for Downscale == 2.0
 				FilteredColor = LookupSourceMipBilinear(SrcImageData, SourceX, SourceY);
 			}
 			else
@@ -2187,27 +2251,6 @@ static inline FVector ComputeWSCubeDirectionAtTexelCenter(uint32 CubemapFace, ui
 	return DirectionWS;
 }
 
-static uint32 ComputeLongLatCubemapExtents(int32 SrcImageSizeX, const uint32 MaxCubemapTextureResolution)
-{
-	// MaxCubemapTextureResolution when not set is 0xFFFFFFFF
-
-	uint32 Out = 1U << FMath::FloorLog2(SrcImageSizeX / 2);
-
-	if ( Out <= 32 || MaxCubemapTextureResolution <= 32 )
-	{
-		return 32;
-	}
-	else if ( Out > MaxCubemapTextureResolution )
-	{
-		// RoundDownToPowerOfTwo
-		return 1U << FMath::FloorLog2(MaxCubemapTextureResolution);
-	}
-	else
-	{
-		return Out;
-	}
-}
-
 void ITextureCompressorModule::GenerateBaseCubeMipFromLongitudeLatitude2D(FImage* OutMip, const FImage& SrcImage, const uint32 MaxCubemapTextureResolution, uint8 SourceEncodingOverride)
 {
 	FTextureBuildSettings TempBuildSettings;
@@ -2226,7 +2269,7 @@ void ITextureCompressorModule::GenerateBaseCubeMipFromLongitudeLatitude2D(FImage
 	LinearizeToWorkingColorSpace(SrcImage, LongLatImage, InBuildSettings);
 
 	// TODO_TEXTURE: Expose target size to user.
-	uint32 Extent = ComputeLongLatCubemapExtents(LongLatImage.SizeX, InBuildSettings.MaxTextureResolution);
+	uint32 Extent = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(LongLatImage.SizeX, InBuildSettings.MaxTextureResolution);
 	float InvExtent = 1.0f / (float)Extent;
 	OutMip->Init(Extent, Extent, SrcImage.NumSlices * 6, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
 
@@ -2969,6 +3012,8 @@ void ITextureCompressorModule::AdjustImageColors(FImage& Image, const FTextureBu
 	}
 }
 
+// if alpha cannot be determined, returns false and does not fill bOutAlphaIsTransparent
+// if possible, returns true, fills out bOutAlphaIsTransparent
 bool ITextureCompressorModule::DetermineAlphaChannelTransparency(const FTextureBuildSettings& InBuildSettings, const FLinearColor& InChannelMin, const FLinearColor& InChannelMax, bool& bOutAlphaIsTransparent)
 {
 	// Settings that affect alpha:
@@ -3042,13 +3087,21 @@ bool ITextureCompressorModule::DetermineAlphaChannelTransparency(const FTextureB
 		ChannelMinMax[0].A = ChannelMinMax[0].R;
 		ChannelMinMax[1].A = ChannelMinMax[1].R;
 	}
+	
+	// use the same test as FImageCore::DetectAlphaChannel
+	// @todo : this is NOT the same threshold used for RGBA16 in DetectAlphaChannel
+	const float FloatNonOpaqueAlpha = 254.5f / 255.f; // the U8 alpha threshold
 
-	bOutAlphaIsTransparent = false;
-	if (ChannelMinMax[0].A < 1 ||
-		ChannelMinMax[1].A < 1)
+	float MinAlpha = FMath::Min(ChannelMinMax[0].A ,ChannelMinMax[1].A);
+
+	bOutAlphaIsTransparent = ( MinAlpha <= FloatNonOpaqueAlpha );
+	
+	// detect ambiguity zone where alpha could easily cross the threshold due to float math :
+	if ( MinAlpha >= (254.4f/255.f) && MinAlpha <= (254.6f/255.f) )
 	{
-		bOutAlphaIsTransparent = true;
+		return false; // not possible to answer bOutAlphaIsTransparent
 	}
+
 	return true;
 }
 
@@ -3404,6 +3457,24 @@ void FTextureBuildSettings::GetEncodedTextureDescription(FEncodedTextureDescript
 	GetEncodedTextureDescriptionWithPixelFormat(OutTextureDescription, EncodedPixelFormat, InEncodedMip0SizeX, InEncodedMip0SizeY, InEncodedMip0NumSlices, InMipCount);
 }
 
+bool FTextureBuildSettings::GetEncodedTextureDescriptionFromSourceMips(
+	FEncodedTextureDescription* OutTextureDescription, const ITextureFormat* InTextureFormat, 
+	int32 InSourceMip0SizeX, int32 InSourceMip0SizeY, int32 InSourceMip0NumSlices, int32 InSourceMipCount, 
+	bool bInImageHasAlphaChannel) const
+{
+	int32 EncodedSizeX, EncodedSizeY, EncodedNumSlices, EncodedMipCount;
+	if (!GetOutputMipInfo(
+		InSourceMip0SizeX, InSourceMip0SizeY, InSourceMip0NumSlices, InSourceMipCount, 
+		EncodedSizeX, EncodedSizeY, EncodedNumSlices, EncodedMipCount))
+	{
+		return false;
+	}
+
+	EPixelFormat EncodedPixelFormat = InTextureFormat->GetEncodedPixelFormat(*this, bInImageHasAlphaChannel);
+	GetEncodedTextureDescriptionWithPixelFormat(OutTextureDescription, EncodedPixelFormat, EncodedSizeX, EncodedSizeY, EncodedNumSlices, EncodedMipCount);
+	return true;
+}
+
 // compress mip-maps in InMipChain and add mips to Texture, might alter the source content
 static bool CompressMipChain(
 	const ITextureFormat* TextureFormat,
@@ -3455,8 +3526,7 @@ static bool CompressMipChain(
 	// unbalanced and there's not much use spawning extra tasks past that: for a 2D texture,
 	// the entire tail after the base mip (all remaining mips combined) has 1/3 the number of
 	// pixels the base mip does.
-	OutMips.Empty(MipCount);
-	OutMips.AddDefaulted(MipCount);
+	OutMips.SetNum(MipCount);
 
 	FIntVector3 Mip0Dimensions = TextureDescription.GetMipDimensions(0);
 	int32 Mip0NumSlicesNoDepth = TextureDescription.GetNumSlices_NoDepth();
@@ -3492,7 +3562,13 @@ static bool CompressMipChain(
 				OutMips[MipIndex]
 			);
 
-			MipChain[MipIndex].RawData.Empty();
+			{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.CompressImage.Free);
+			// CompressImageEx can free images as it works on them
+			//	go ahead and always immediately free here for consistency
+
+			MipChain[MipIndex].FreeData(true);
+			}
 		}
 
 		return bSuccess;
@@ -3510,6 +3586,7 @@ static bool CompressMipChain(
 				return ProcessMips(1, FirstMipTailIndex + 1);
 			},
 			LowLevelTasks::ETaskPriority::BackgroundNormal
+			//IsInGameThread() ? ETaskPriority::Normal : ETaskPriority::BackgroundNormal // ??
 		);
 
 		// Compress base mip on this thread, join with async compress of other mips
@@ -3529,7 +3606,7 @@ static bool CompressMipChain(
 		FCompressedImage2D& DestMip = OutMips[MipIndex];
 		DestMip.SizeX = FMath::Max(1, PrevMip.SizeX >> 1);
 		DestMip.SizeY = FMath::Max(1, PrevMip.SizeY >> 1);
-		DestMip.SizeZ = Settings.bVolume ? FMath::Max(1, PrevMip.SizeZ >> 1) : PrevMip.SizeZ;
+		DestMip.NumSlicesWithDepth = Settings.bVolume ? FMath::Max(1, PrevMip.NumSlicesWithDepth >> 1) : PrevMip.NumSlicesWithDepth;
 		DestMip.PixelFormat = PrevMip.PixelFormat;
 	}
 
@@ -3590,14 +3667,14 @@ static void NormalizeMip(FImage& InOutMip)
 	}, EParallelForFlags::Unbalanced);
 }
 
-
-int32 ITextureCompressorModule::GetMipCountForBuildSettings(
-	int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices,
-	int32 InExistingMipCount,
-	const FTextureBuildSettings& BuildSettings,
-	int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices)
+bool FTextureBuildSettings::GetOutputMipInfo(
+	int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, int32 InExistingMipCount,
+	int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices, int32& OutMipCount) const
 {
-	if (BuildSettings.bCPUAccessible)
+	// NOTE: This gets called for the seperate blocks in a VT build and bVirtualStreaming is true for those
+	// even though it's not a massive VT texture we're referring to.
+
+	if (this->bCPUAccessible)
 	{
 		// CPU accessible texture generates a placeholder gpu texture with 1 mip in all cases.
 		FImageInfo PlaceholderInfo;
@@ -3605,39 +3682,38 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 		OutMip0SizeX = PlaceholderInfo.SizeX;
 		OutMip0SizeY = PlaceholderInfo.SizeY;
 		OutMip0NumSlices = PlaceholderInfo.NumSlices;
-		return 1;
+		OutMipCount = 1;
+		return true;
 	}
 
-	// AFAICT LatLongCubeMaps don't do any of this - pow2 is broken with them but it runs, and max texture stuff
-	// is handled internally in the extents function.
 	int32 BaseSizeX = InMip0SizeX;
 	int32 BaseSizeY = InMip0SizeY;
-	int32 BaseSizeZ = BuildSettings.bVolume ? InMip0NumSlices : 1; // Volume textures are the only type that mip their Z, arrays and cubes are fixed.
+	int32 BaseSizeZ = this->bVolume ? InMip0NumSlices : 1; // Volume textures are the only type that mip their Z, arrays and cubes are fixed.
+	
+	ETexturePowerOfTwoSetting::Type PowerOfTwoModeLocal = (ETexturePowerOfTwoSetting::Type)this->PowerOfTwoMode;
+	if (this->MipGenSettings != TMGS_LeaveExistingMips &&
+		PowerOfTwoModeLocal != ETexturePowerOfTwoSetting::None)
+	{
+		int32 TargetSizeX, TargetSizeY, TargetSizeZ;
+		bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume, PowerOfTwoModeLocal, this->ResizeDuringBuildX, this->ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
+		if (NeedsAdjustment)
+		{
+			// In this case we are regenerating the entire mip chain.
+			InExistingMipCount = 1;
+			BaseSizeX = TargetSizeX;
+			BaseSizeY = TargetSizeY;
+			BaseSizeZ = TargetSizeZ; // volume textures already accounted for
+		}
+		// Otherwise we have valid pow2 so we can reuse any existing mips and regenerate
+		// any missing tail mips.
+	}
 
 	// LatLong sources are clamped in ComputeLongLatCubemapExtents
-	if (BuildSettings.bLongLatSource == false)
+	if (this->bLongLatSource == false)
 	{
-		ETexturePowerOfTwoSetting::Type PowerOfTwoMode = (ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode;
-		if (BuildSettings.MipGenSettings != TMGS_LeaveExistingMips &&
-			PowerOfTwoMode != ETexturePowerOfTwoSetting::None)
-		{
-			int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-			bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
-			if (NeedsAdjustment)
-			{
-				// In this case we are regenerating the entire mip chain.
-				InExistingMipCount = 1;
-				BaseSizeX = TargetSizeX;
-				BaseSizeY = TargetSizeY;
-				BaseSizeZ = TargetSizeZ; // volume textures already accounted for
-			}
-			// Otherwise we have valid pow2 so we can reuse any existing mips and regenerate
-			// any missing tail mips.
-		}
-
 		// Max texture resolution strips off mips that are above the limit.
-		int64 MaxTextureResolution = BuildSettings.MaxTextureResolution;
-		int32 GeneratedMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume);
+		//int64 MaxTextureResolution = this->MaxTextureResolution; ... ? why was this getting promoted to 64 bit.. probably because of the signed comparison below?
+		int32 GeneratedMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume);
 		int32 i = 0;
 		for (; i < GeneratedMipCount; i++)
 		{
@@ -3646,10 +3722,10 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 			// there's ever a case where volume textures have a Z that's bigger than X/Y.
 			int32 MipSizeX = FMath::Max<uint32>(1, BaseSizeX >> i);
 			int32 MipSizeY = FMath::Max<uint32>(1, BaseSizeY >> i);
-			int32 MipSizeZ = BuildSettings.bVolume ? FMath::Max<uint32>(1, BaseSizeZ >> i) : BaseSizeZ;
+			int32 MipSizeZ = this->bVolume ? FMath::Max<uint32>(1, BaseSizeZ >> i) : BaseSizeZ;
 
-			if (MipSizeX <= MaxTextureResolution &&
-				MipSizeY <= MaxTextureResolution)
+			if ((uint32)MipSizeX <= this->MaxTextureResolution &&
+				(uint32)MipSizeY <= this->MaxTextureResolution)
 			{
 				BaseSizeX = MipSizeX;
 				BaseSizeY = MipSizeY;
@@ -3658,23 +3734,23 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 			}
 		}
 
-		if (BuildSettings.Downscale > 1.0f)
+		if (this->Downscale > 1.0f)
 		{
 			int32 DownscaledSizeX = 0, DownscaledSizeY = 0;
-			GetDownscaleFinalSizeAndClampedDownscale(BaseSizeX, BaseSizeY, FTextureDownscaleSettings(BuildSettings), DownscaledSizeX, DownscaledSizeY);
+			GetDownscaleFinalSizeAndClampedDownscale(BaseSizeX, BaseSizeY, FTextureDownscaleSettings(*this), DownscaledSizeX, DownscaledSizeY);
 
-			if (BuildSettings.bVolume)
+			if (this->bVolume)
 			{
 				UE_LOG(LogTextureCompressor, Error, TEXT("Downscaling volumes not yet supported - should have been handled in GetTextureBuildSettings!"));
+				return false;
 			}
-			check(BuildSettings.bVolume == false);
 
 			BaseSizeX = DownscaledSizeX;
 			BaseSizeY = DownscaledSizeY;
 		}
 
 		// Volumes are the only thing where num slices changes.
-		if (BuildSettings.bVolume == false)
+		if (this->bVolume == false)
 		{
 			OutMip0NumSlices = InMip0NumSlices;
 		}
@@ -3685,7 +3761,7 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 	}
 	else
 	{
-		uint32 LongLatCubemapExtents = ComputeLongLatCubemapExtents(BaseSizeX, BuildSettings.MaxTextureResolution);
+		uint32 LongLatCubemapExtents = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(BaseSizeX, this->MaxTextureResolution);
 		BaseSizeX = LongLatCubemapExtents;
 		BaseSizeY = LongLatCubemapExtents;
 		OutMip0NumSlices = 6 * InMip0NumSlices;
@@ -3695,21 +3771,24 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 	OutMip0SizeX = BaseSizeX;
 	OutMip0SizeY = BaseSizeY;
 
-	if (BuildSettings.MipGenSettings == TMGS_NoMipmaps)
+	if (this->MipGenSettings == TMGS_NoMipmaps)
 	{
-		return 1;
+		OutMipCount = 1;
+		return true;
 	}
 
 	// LeaveExisting is often unintentionally used as "NoMipmaps", so if they bring in 1 mip, leave it as 1 mip.
-	if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips &&
+	if (this->MipGenSettings == TMGS_LeaveExistingMips &&
 		InExistingMipCount == 1)
 	{
-		return 1;
+		OutMipCount = 1;
+		return true;
 	}
 
 	// NumOutputMips is the number of mips that would be made if you made a full mip chain
 	//  eg. 256 makes 9 mips , 300 also makes 9 mips
-	return FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume);
+	OutMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume);
+	return true;
 }
 
 
@@ -3726,12 +3805,16 @@ public:
 	// compute a hash used to identify the contents of a mip chain
 	// this is used by bulkdata diff tool, stored in asset registry
 	// it is for debug tools only and skipping it is optional
-	static uint64 ComputeMipChainHash(TArray<FImage>& IntermediateMipChain)
+	// ComputeMipChainHash is synchronous; it starts tasks but waits on them before returning
+	static uint64 ComputeMipChainHash(const TArray<FImage>& IntermediateMipChain)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.ComputeMipChainHash);
 
 		TArray<UE::Tasks::TTask<FXxHash64>, TInlineAllocator<16>> MipHashTasks;
 		MipHashTasks.Reserve(IntermediateMipChain.Num());
+
+		TArray<FXxHash64> MipHashResults;
+		MipHashResults.Reserve(IntermediateMipChain.Num());
 
 		// Hash the mips before we compress them. This gets saved as part of the derived data and then added to the
 		// diff tags during cook so we can catch determinism issues.
@@ -3747,22 +3830,42 @@ public:
 			MipHashBuilder.Update(&Info->GammaSpace, sizeof(Info->GammaSpace));
 
 			check( Mip.RawData.Num() != 0 );
+			
+			const int64 ChunkSize = 256*1024;
+			auto MipMem = MakeMemoryView(Mip.RawData);
 
-			MipHashTasks.Add(UE::Tasks::Launch(TEXT("ComputeMipChainHash"), [&Mip] { return FXxHash64::HashBufferChunked(MakeMemoryView(Mip.RawData), 256 << 10); }));
+			if ( Mip.RawData.Num() >= ChunkSize )
+			{
+				// large mip, start async task
+				MipHashTasks.Add(UE::Tasks::Launch(TEXT("ComputeMipChainHash"), [MipMem] { return FXxHash64::HashBufferChunked(MipMem, ChunkSize); }));
+			}
+			else
+			{
+				// do tiny mips here on the calling thread while the large mip tasks run
+				MipHashResults.Add( FXxHash64::HashBufferChunked(MipMem, ChunkSize) );
+			}
 		}
 
+		// now wait on the async tasks for the large mips :
 		for (UE::Tasks::TTask<FXxHash64>& HashTask : MipHashTasks)
 		{
-			FXxHash64 MipHash = HashTask.GetResult();
+			FXxHash64 MipHash = HashTask.GetResult(); // <- wait
+			MipHashBuilder.Update(&MipHash.Hash, sizeof(MipHash.Hash));
+		}
+		
+		// add in the hashes of the small mips :
+		for (const FXxHash64 & MipHash : MipHashResults)
+		{
 			MipHashBuilder.Update(&MipHash.Hash, sizeof(MipHash.Hash));
 		}
 
 		return MipHashBuilder.Finalize().Hash;
 	}
 
+	// SourceMips can be freed by this call
 	virtual bool BuildTexture(
-		const TArray<FImage>& SourceMips,
-		const TArray<FImage>& AssociatedNormalSourceMips,
+		TArray<FImage>& SourceMips,
+		TArray<FImage>& AssociatedNormalSourceMips,
 		const FTextureBuildSettings& BuildSettings,
 		FStringView DebugTexturePathName,
 		TArray<FCompressedImage2D>& OutTextureMips,
@@ -3814,6 +3917,8 @@ public:
 			return false;
 		}
 		
+		SourceMips.Empty();
+
 		// apply roughness adjustment depending on normal map variation
 		if (AssociatedNormalSourceMips.Num())
 		{
@@ -3851,6 +3956,8 @@ public:
 
 				return false;
 			}
+
+			AssociatedNormalSourceMips.Empty();
 
 			if (!ApplyCompositeTextureToMips(IntermediateMipChain, IntermediateAssociatedNormalSourceMipChain, BuildSettings.CompositeTextureMode, BuildSettings.CompositePower, BuildSettings.LODBias))
 			{
@@ -3908,59 +4015,44 @@ public:
 				}
 			}
 		}
-
 		
-		UE::Tasks::TTask<uint64> HashingTask;
-		TArray<FImageInfo> SaveImageInfos;
-
 		if (OutMetadata)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.MipHashBuilder);
 
-			SaveImageInfos.SetNum(IntermediateMipChain.Num());
-			for (int32 i=0;i<IntermediateMipChain.Num();++i)
-			{
-				SaveImageInfos[i] = IntermediateMipChain[i];
-			}
-
 			OutMetadata->PreEncodeMipsHash = ComputeMipChainHash(IntermediateMipChain);
 		}
 		
+		// CompressMipChain may free IntermediateMipChain
 		bool bCompressSucceeded = CompressMipChain(TextureFormat, IntermediateMipChain, BuildSettings, bImageHasAlphaChannel, DebugTexturePathName,
 					OutTextureMips, OutNumMipsInTail, OutExtData);
-
-		if (OutMetadata)
-		{
-			// (rough) check that IntermediateMipChain was not modified by the TextureFormats :
-			check( SaveImageInfos.Num() == IntermediateMipChain.Num() );
-			for (int32 i=0;i<IntermediateMipChain.Num();++i)
-			{
-				// check that FImageInfo is the same
-				// does not check pixel values
-				check( SaveImageInfos[i] == IntermediateMipChain[i] );
-			}
-		}
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Texture.Free_IntermediateMipChain);
 
-			// this is quite slow; detach to an async task?
-			//IntermediateMipChain.Empty();
+			// this is no longer slow because mips are freed as they're consumed in CompressMipChain
+			IntermediateMipChain.Empty();
+		}
 
-			TArray<FImage>* PtrIntermediateMipChain = new TArray<FImage>( MoveTemp(IntermediateMipChain) );
-			
-			//TArray<FImage>* PtrIntermediateMipChain = new TArray<FImage>;
-			//Swap(*PtrIntermediateMipChain,IntermediateMipChain);
+		if ( bCompressSucceeded )
+		{
+			// make sure this log is done before the decode for platform preview
+			//  -logcmds="LogTextureUpload Verbose,LogTextureCompressor Verbose"
 
-			UE::Tasks::Launch(TEXT("Texture.Free_IntermediateMipChain.Task"),
-				[PtrIntermediateMipChain]() // by value, not ref
-				{
-					TRACE_CPUPROFILER_EVENT_SCOPE(Texture.Free_IntermediateMipChain.Task);
-					PtrIntermediateMipChain->Empty();
-					delete PtrIntermediateMipChain;
-					return true;
-				},
-				LowLevelTasks::ETaskPriority::BackgroundNormal);
+			for(int32 MipIndex=0;MipIndex < OutTextureMips.Num();MipIndex++)
+			{
+				const FCompressedImage2D & CompressedImage = OutTextureMips[MipIndex];
+
+				int64 CompressedDataSize = CompressedImage.RawData.Num();
+
+				// log what the TextureFormat built :
+				UE_LOG(LogTextureCompressor, Verbose, TEXT("Built texture: [%.*s] Compressed Mip %d PF=%d=%s : %dx%dx%d : CompressedDataSize=%lld"),
+					DebugTexturePathName.Len(),DebugTexturePathName.GetData(),
+					MipIndex, (int)CompressedImage.PixelFormat,
+					GetPixelFormatString((EPixelFormat)CompressedImage.PixelFormat),
+					CompressedImage.SizeX, CompressedImage.SizeY, CompressedImage.NumSlicesWithDepth,
+					CompressedDataSize);
+			}
 		}
 
 		return bCompressSucceeded;
@@ -3980,8 +4072,9 @@ public:
 private:
 
 
+	// InSourceMipChain can be freed by this call
 	bool BuildTextureMips(
-		const TArray<FImage>& InSourceMipChain,
+		TArray<FImage>& InSourceMipChain,
 		const FTextureBuildSettings& BuildSettings,
 		const bool bNeedLinearize,
 		TArray<FImage>& OutMipChain,
@@ -3991,6 +4084,14 @@ private:
 		
 		check(InSourceMipChain.Num() > 0);
 		check(InSourceMipChain[0].SizeX > 0 && InSourceMipChain[0].SizeY > 0 && InSourceMipChain[0].NumSlices > 0);
+		
+		int32 InSourceMipChainNum = InSourceMipChain.Num();
+
+		// Calculation check before we change anything, because source mips can be freed :
+		int32 CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices;
+		int32 CalculatedMipCount = GetMipCountForBuildSettings(
+			InSourceMipChain[0].SizeX, InSourceMipChain[0].SizeY, InSourceMipChain[0].NumSlices, InSourceMipChain.Num(), BuildSettings,
+			CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices);
 
 		// Identify long-lat cubemaps.
 		const bool bLongLatCubemap = BuildSettings.bLongLatSource;
@@ -4016,7 +4117,8 @@ private:
 		//	but that will change output :(
 
 		// pSourceMips will track the current FImages we consider to be "source"
-		const TArray<FImage> * pSourceMips = &InSourceMipChain;
+		//	whenever pSourceMips is changed, previous pSourceMips is freed
+		TArray<FImage> * pSourceMips = &InSourceMipChain;
 
 		// first pad up to pow2 if requested
 		ETexturePowerOfTwoSetting::Type PowerOfTwoMode = (ETexturePowerOfTwoSetting::Type) BuildSettings.PowerOfTwoMode;
@@ -4038,26 +4140,17 @@ private:
 
 			if (bPadOrStretchTexture)
 			{
-				bool bResizeTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution;
 				if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips)
 				{
 					// pad/stretch+leave existing is broken
 					UE_LOG(LogTextureCompressor, Error,	TEXT("Texture padding or resizing is not allowed when leaving existing mips."));
 					return false;
 				}
-				if ( bLongLatCubemap )
-				{
-					if (bResizeTexture)
-					{
-						UE_LOG(LogTextureCompressor, Warning, TEXT("In order to improve the quality of the generated texture, resizing LongLat cubemaps should be avoided."));
-					}
-					else
-					{
-						UE_LOG(LogTextureCompressor, Warning, TEXT("Padding of a LongLat cubemap may result in incorrect mapping of the texture pixels to the cubemap faces and should be avoided."));
-					}
-				}
 
 				// Want to stretch or pad the texture
+				bool bResizeTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution;
+				// if not bResizeTexture, then padding
+
 				bool bSuitableFormat = FirstSourceMipImage.Format == ERawImageFormat::RGBA32F;
 
 				FImage Temp;
@@ -4075,7 +4168,12 @@ private:
 				{		
 					// changed resizer for "stretch to power of two" , bumped ddc key
 
-					// choice of Filter?
+					// choice of Filter? wrap or clamp?
+
+					// if you have multiple resize operations on a texture, such as StrechToPow2 and then also MaxTextureSize or Downscale
+					//	currently those are done one by one, which is not great
+					//	would be better to compute the net output size of all the operations
+					//	and do just one resize to get directly from source to final size
 
 					FImageCore::ResizeImageAllocDest(SourceImage,TargetImage, TargetTextureSizeX, TargetTextureSizeY);
 				}
@@ -4157,6 +4255,7 @@ private:
 					}
 				}
 				// change pSourceMips to point at the one padded image we made
+				pSourceMips->Empty();
 				pSourceMips = &PaddedSourceMips;
 			}
 		}		
@@ -4196,19 +4295,11 @@ private:
 				// the source is larger than the compressor allows and no mip image exists to act as a smaller source.
 				// We must generate a suitable source image:
 				const FImage& BaseImage = pSourceMips->Last();
-				bool bSuitableFormat = BaseImage.Format == ERawImageFormat::RGBA32F;
 			
 				check( MaxTextureResolution > 0 );
 				check( BaseImage.SizeX > MaxTextureResolution || 
 					   BaseImage.SizeY > MaxTextureResolution );
-
-				FImage Temp;
-				if (!bSuitableFormat)
-				{
-					// convert to RGBA32F
-					BaseImage.CopyTo(Temp, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
-				}
-
+					   
 				UE_LOG(LogTextureCompressor, Verbose,
 					TEXT("Source image %dx%d too large for compressors max dimension (%d). Resizing."),
 					BaseImage.SizeX,
@@ -4216,39 +4307,88 @@ private:
 					BuildSettings.MaxTextureResolution
 					);
 
-				// make sure BuildSourceImageMips doesn't reallocate :
-				constexpr int BuildSourceImageMipsMaxCount = 20; // plenty
-				BuildSourceImageMips.Empty(BuildSourceImageMipsMaxCount);
-
-				// Max Texture Size resizing happens here :
-				// note we do not check for TMGS_Angular here
-				// note that TMGS_NoMipMaps *can* use this path; in that case it generates mips using 2x2 simple average
-				const FImage& BaseMip = bSuitableFormat ? BaseImage : Temp;
-				GenerateMipChain(BuildSettings, BaseMip, BuildSourceImageMips, 1);
-
-				// mip data not needed anymore
-				// @todo: this could free "BaseMip" image instead, if it's ok with caller (currently const type used)
-				Temp.RawData.Empty();
-
-				while( BuildSourceImageMips.Last().SizeX > MaxTextureResolution || 
-					   BuildSourceImageMips.Last().SizeY > MaxTextureResolution )
+				if ( BuildSettings.bUseNewMipFilter && 
+					! BuildSettings.bVolume && ! BuildSettings.bDoScaleMipsForAlphaCoverage && ! BuildSettings.bPreserveBorder )
 				{
-					// note: now making mips one by one, rather than N in one call
-					//	this is not exactly the same if AlphaCoverage processing is on
-					check( BuildSourceImageMips.Num() < BuildSourceImageMipsMaxCount );
-					FImage& LastMip = BuildSourceImageMips.Last();
-					GenerateMipChain(BuildSettings, LastMip, BuildSourceImageMips, 1);
+					// BuildSourceImageMips will be used as the source for further steps, fill it :
+					BuildSourceImageMips.SetNum(1);
+					FImage & DestImage = BuildSourceImageMips[0];
+
+					// note we could resize directly to MaxTextureResolution
+					//	for now we will replicate the old logic of only doing 2X mip size steps
+					//	this results in output that is in (MaxTextureResolution/2,MaxTextureResolution]
+					int64 DestSizeX = BaseImage.SizeX;
+					int64 DestSizeY = BaseImage.SizeY;
+					while( DestSizeX > MaxTextureResolution || DestSizeY > MaxTextureResolution )
+					{
+						DestSizeX = FMath::Max(DestSizeX>>1,1);
+						DestSizeY = FMath::Max(DestSizeY>>1,1);
+					}
+
+					DestImage.Init(DestSizeX,DestSizeY,BaseImage.NumSlices,ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+
+					// rather than doing a bunch of mip-step resizes,
+					//	just resize once directly to dest size using ResizeImage
+					//	also the BaseImage stays in BGRA8, no need to promote it to RGBA32F
+
+					// ResizeImage does work with Slices for cubes/arrays , but not volumes
+					check( ! BuildSettings.bVolume );
+
+					// @todo : find closest ResizeFilter that matches MipGen settings (maybe?)
+					//	 I mean, maybe not?  Most of the time MipGen is "SimpleAverage" which produces a really bad resize
+					//	-> wrap/clamp ?
+					FImageCore::EResizeImageFilter ResizeFilter = FImageCore::EResizeImageFilter::Default;
+					FImageCore::ResizeImage(BaseImage,DestImage,ResizeFilter);
+				}
+				else
+				{
+					// old way
+
+					FImage Temp;
+					bool bSuitableFormat = BaseImage.Format == ERawImageFormat::RGBA32F;
+					if (!bSuitableFormat)
+					{
+						// convert to RGBA32F
+						BaseImage.CopyTo(Temp, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+					}
+
+					// make sure BuildSourceImageMips doesn't reallocate :
+					constexpr int BuildSourceImageMipsMaxCount = 20; // plenty
+					BuildSourceImageMips.Empty(BuildSourceImageMipsMaxCount);
+
+					// Max Texture Size resizing happens here :
+					// note we do not check for TMGS_Angular here
+					// note that TMGS_NoMipMaps *can* use this path; in that case it generates mips using 2x2 simple average
+					const FImage& BaseMip = bSuitableFormat ? BaseImage : Temp;
+					GenerateMipChain(BuildSettings, BaseMip, BuildSourceImageMips, 1);
 
 					// mip data not needed anymore
-					LastMip.RawData.Empty();
-				}
-			
-				check( BuildSourceImageMips.Last().SizeX <= MaxTextureResolution &&
-					   BuildSourceImageMips.Last().SizeY <= MaxTextureResolution );
+					Temp.RawData.Empty();					
+					pSourceMips->Empty();
 
-				// change pSourceMips to point at the mip chain we made
+					// note: on volumes, only XY size is checked, but Z size changes too
+					while( BuildSourceImageMips.Last().SizeX > MaxTextureResolution || 
+						   BuildSourceImageMips.Last().SizeY > MaxTextureResolution )
+					{
+						// note: now making mips one by one, rather than N in one call
+						//	this is not exactly the same if AlphaCoverage processing is on
+						check( BuildSourceImageMips.Num() < BuildSourceImageMipsMaxCount );
+						FImage& LastMip = BuildSourceImageMips.Last();
+						GenerateMipChain(BuildSettings, LastMip, BuildSourceImageMips, 1);
+
+						// mip data not needed anymore
+						LastMip.RawData.Empty();
+					}
+				}				
+
+				check( BuildSourceImageMips.Last().SizeX <= MaxTextureResolution &&
+						BuildSourceImageMips.Last().SizeY <= MaxTextureResolution );
+
+				// change pSourceMips to point at the mip chain we made				
+				pSourceMips->Empty();
 				pSourceMips = &BuildSourceImageMips;
 				StartMip = BuildSourceImageMips.Num() - 1;
+
 				// [StartMip] will now references BuildSourceImageMips.Last()
 			}
 		}
@@ -4274,7 +4414,8 @@ private:
 			//  eg. 256 makes 9 mips , 300 also makes 9 mips
 			if (bLongLatCubemap)
 			{
-				NumOutputMips = FImageCoreUtils::GetMipCountFromDimensions(ComputeLongLatCubemapExtents(TopMip.SizeX, BuildSettings.MaxTextureResolution), 1, 1, false);
+				uint32 Extents = UE::TextureBuildUtilities::ComputeLongLatCubemapExtents(TopMip.SizeX, BuildSettings.MaxTextureResolution);
+				NumOutputMips = FImageCoreUtils::GetMipCountFromDimensions(Extents, Extents, 6, false);
 			}
 			else
 			{
@@ -4284,7 +4425,7 @@ private:
 			// LeaveExistingMips is often inadvertently used as "NoMips", so if they only brought in 1 mip, leave it as
 			// 1 mip.
 			if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips &&
-				InSourceMipChain.Num() == 1)
+				InSourceMipChainNum == 1)
 			{
 				NumOutputMips = 1;
 				check(CopyCount == 1);
@@ -4309,11 +4450,11 @@ private:
 		const bool bLinearize = bNeedLinearize || (GenerateCount > 0) || BuildSettings.bRenormalizeTopMip || (BuildSettings.Downscale > 1.f)
 			|| BuildSettings.bHasColorSpaceDefinition || BuildSettings.bComputeBokehAlpha || BuildSettings.bFlipGreenChannel
 			|| BuildSettings.bReplicateRed || BuildSettings.bReplicateAlpha || BuildSettings.bApplyYCoCgBlockScale
-			|| BuildSettings.SourceEncodingOverride != 0 || bNeedAdjustImageColors || BuildSettings.bNormalizeNormals;
+			|| (BuildSettings.SourceEncodingOverride != 0) || bNeedAdjustImageColors || BuildSettings.bNormalizeNormals;
 
 		for (int32 MipIndex = StartMip; MipIndex < StartMip + CopyCount; ++MipIndex)
 		{
-			const FImage& Image = (*pSourceMips)[MipIndex];
+			FImage& Image = (*pSourceMips)[MipIndex];
 
 			if (bDoDetailedAlphaLogging)
 			{
@@ -4368,28 +4509,19 @@ private:
 					}
 					else
 					{
-						// if image is in BGRA8 format leave it, otherwise convert to RGBA32F
-						//  we only support leaving images in source format if they are BGRA8 and require no processing (eg VT tiles)
-						ERawImageFormat::Type DestFormat = Image.Format;
-						EGammaSpace DestGammaSpace = Image.GammaSpace;
-						if ( Image.Format != ERawImageFormat::BGRA8 )
-						{
-							DestFormat = ERawImageFormat::RGBA32F;
-							DestGammaSpace = EGammaSpace::Linear;
-						}
-						Image.CopyTo(Mip, DestFormat, DestGammaSpace);
-						
+						// just move Image to Mip, no copy
+						Image.Swap(Mip);
+
 						if (bDoDetailedAlphaLogging)
 						{
 							UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Copy: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
 						}
-						//@todo : when Mip format == Image format, we can Move instead of Copy
-						//	have to make sure that's okay with SourceMips/TextureData
 					}
 				}
 			}
 
-			//@todo Oodle: free SourceMips as we consume them?
+			// free pSourceMips as we consume them (detached)
+			Image.FreeData(true);
 
 			if (BuildSettings.Downscale > 1.f)
 			{		
@@ -4428,6 +4560,10 @@ private:
 		check( OutMipChain.Num() == CopyCount );
 		check( GenerateCount == NumOutputMips - OutMipChain.Num() );
 
+		// no further reads from source:
+		pSourceMips->Empty();
+		pSourceMips = nullptr;
+
 		// Generate any missing mips in the chain.
 		if ( GenerateCount > 0 )
 		{
@@ -4459,10 +4595,6 @@ private:
 		}
 		check(OutMipChain.Num() == NumOutputMips);
 
-		int32 CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices;
-		int32 CalculatedMipCount = GetMipCountForBuildSettings(
-			InSourceMipChain[0].SizeX, InSourceMipChain[0].SizeY, InSourceMipChain[0].NumSlices, InSourceMipChain.Num(), BuildSettings,
-			CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices);
 		if (CalculatedMipCount != NumOutputMips ||
 			CalculatedMip0SizeX != OutMipChain[0].SizeX ||
 			CalculatedMip0SizeY != OutMipChain[0].SizeY ||

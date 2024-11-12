@@ -7,9 +7,11 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Interfaces/Interface_PostProcessVolume.h"
 #include "WaterBodyManager.h"
+#include "WaterTerrainComponent.h"
 #include "WaterZoneActor.h"
 #include "WaterSubsystem.generated.h"
 
+class UWaterTerrainComponent;
 class UStaticMesh;
 
 DECLARE_STATS_GROUP(TEXT("Water"), STATGROUP_Water, STATCAT_Advanced);
@@ -171,7 +173,15 @@ public:
 	static TSoftObjectPtr<AWaterZone> FindWaterZone(const UWorld* World, const FBox2D& Bounds, const TSoftObjectPtr<const ULevel> PreferredLevel = {});
 	TSoftObjectPtr<AWaterZone> FindWaterZone(const FBox2D& Bounds, const TSoftObjectPtr<const ULevel> PreferredLevel = {}) const;
 
+	void RegisterWaterTerrainComponent(UWaterTerrainComponent* WaterTerrainComponent);
+	void UnregisterWaterTerrainComponent(UWaterTerrainComponent* WaterTerrainComponent);
+
+	/** Returns a list of all water terrain components registered to the water subsystem. Can be used instead of searching all actors to find them. */
+	void GetWaterTerrainComponents(TArray<UWaterTerrainComponent*>& OutWaterTerrainComponents) const;
+
 #if WITH_EDITOR
+	void OnActorMoved(AActor* MovedActor);
+
 	/** Little scope object to temporarily change the value of bAllowWaterSubsystemOnPreviewWorld */
 	struct WATER_API FScopedAllowWaterSubsystemOnPreviewWorld
 	{
@@ -197,6 +207,10 @@ private:
 	void SetMPCTime(float Time, float PrevTime);
 	void AdjustUnderwaterWaterInfoQueryFlags(EWaterBodyQueryFlags& InOutFlags);
 	void ApplyRuntimeSettings(const UWaterRuntimeSettings* Settings, EPropertyChangeType::Type ChangeType);
+
+	void OnMarkRenderStateDirty(UActorComponent& Component);
+
+	void OnWaterTerrainActorChanged(const AActor* TerrainActor);
 
 	FWaterBodyManager& GetWaterBodyManagerInternal();
 
@@ -247,6 +261,12 @@ private:
 	FUnderwaterPostProcessVolume UnderwaterPostProcessVolume;
 
 	FWaterBodyManager WaterBodyManager;
+
+	/**
+	 * Keeps track of all actors that have WaterTerrainComponents so we can avoid extra work iterating
+	 * every actors components to find one when global events are triggered.
+	 */
+	TMultiMap<const AActor*, TWeakObjectPtr<UWaterTerrainComponent>> WaterTerrainActors;
 
 #if WITH_EDITOR
 	FDelegateHandle OnHeightmapStreamedHandle;

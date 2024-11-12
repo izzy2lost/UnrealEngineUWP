@@ -16,6 +16,9 @@ public:
 
 	FPresenceCommon(FOnlineServicesCommon& InServices);
 
+	// IOnlineComponent
+	virtual void RegisterCommands() override;
+
 	// IPresence
 	virtual TOnlineAsyncOpHandle<FQueryPresence> QueryPresence(FQueryPresence::Params&& Params) override;
 	virtual TOnlineAsyncOpHandle<FBatchQueryPresence> BatchQueryPresence(FBatchQueryPresence::Params&& Params) override;

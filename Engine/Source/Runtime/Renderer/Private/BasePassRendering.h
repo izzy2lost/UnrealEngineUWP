@@ -139,6 +139,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FTranslucentBasePassUniformParameters,)
 	SHADER_PARAMETER_SAMPLER(SamplerState, SceneColorCopySampler)
 	SHADER_PARAMETER_STRUCT(FBlueNoiseParameters, BlueNoise)
 	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
+	SHADER_PARAMETER(int, TranslucencyPass)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 DECLARE_GPU_DRAWCALL_STAT_EXTERN(Basepass);
@@ -167,7 +168,8 @@ extern TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslu
 	const FTranslucencyLightingVolumeTextures& TranslucencyLightingVolumeTextures = {},
 	FRDGTextureRef SceneColorCopyTexture = nullptr,
 	const ESceneTextureSetupMode SceneTextureSetupMode = ESceneTextureSetupMode::None,
-	bool bLumenGIEnabled = false);
+	bool bLumenGIEnabled = false,
+	ETranslucencyPass::Type TranslucencyPass = ETranslucencyPass::TPT_MAX);
 
 extern bool IsGBufferLayoutSupportedForMaterial(EGBufferLayout Layout, const FMeshMaterialShaderPermutationParameters& Params);
 extern void ModifyBasePassCSPSCompilationEnvironment(const FMeshMaterialShaderPermutationParameters& Params, EGBufferLayout GBufferLayout, bool bEnableSkyLight, FShaderCompilerEnvironment& OutEnvironment);
@@ -274,6 +276,11 @@ public:
 	{
 		LightMapPolicyType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		Super::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		if (HardwareVariableRateShadingSupportedByPlatform(Parameters.Platform) && Parameters.MaterialParameters.bAllowVariableRateShading)
+		{
+			OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), true);
+		}
 	}
 };
 
@@ -309,6 +316,19 @@ public:
 	}
 };
 
+BEGIN_UNIFORM_BUFFER_STRUCT(FComputeShadingOutputs, )
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget0)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget1)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget2)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget3)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget4)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget5)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget6)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget7)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, OutTargets)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<SUBSTRATE_TOP_LAYER_TYPE>, OutTopLayerTarget)
+END_UNIFORM_BUFFER_STRUCT()
+
 /**
  * The base type for compute shaders that render the emissive color, and light-mapped/ambient lighting of a mesh.
  * The base type is shared between the versions with and without sky light.
@@ -343,20 +363,21 @@ public:
 		LightMapPolicyType::ComputeParametersType::Bind(Initializer.ParameterMap);
 
 		ReflectionCaptureBuffer.Bind(Initializer.ParameterMap, TEXT("ReflectionCapture"));
+		ShadingOutputsParam.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs"));
 
 		ViewRectParam.Bind(Initializer.ParameterMap, TEXT("ViewRect"));
 		PassDataParam.Bind(Initializer.ParameterMap, TEXT("PassData"));
 
-		Target0.Bind(Initializer.ParameterMap, TEXT("OutTarget0"), SPF_Optional);
-		Target1.Bind(Initializer.ParameterMap, TEXT("OutTarget1"), SPF_Optional);
-		Target2.Bind(Initializer.ParameterMap, TEXT("OutTarget2"), SPF_Optional);
-		Target3.Bind(Initializer.ParameterMap, TEXT("OutTarget3"), SPF_Optional);
-		Target4.Bind(Initializer.ParameterMap, TEXT("OutTarget4"), SPF_Optional);
-		Target5.Bind(Initializer.ParameterMap, TEXT("OutTarget5"), SPF_Optional);
-		Target6.Bind(Initializer.ParameterMap, TEXT("OutTarget6"), SPF_Optional);
-		Target7.Bind(Initializer.ParameterMap, TEXT("OutTarget7"), SPF_Optional);
+		Target0.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget0"));
+		Target1.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget1"));
+		Target2.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget2"));
+		Target3.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget3"));
+		Target4.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget4"));
+		Target5.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget5"));
+		Target6.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget6"));
+		Target7.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget7"));
 
-		Targets.Bind(Initializer.ParameterMap, TEXT("OutTargets"), SPF_Optional);
+		Targets.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTargets"));
 
 		// These parameters should only be used nested in the base pass uniform buffer
 		check(!Initializer.ParameterMap.ContainsParameterAllocation(FFogUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName()));
@@ -378,32 +399,25 @@ public:
 		FRHIBatchedShaderParameters& BatchedParameters,
 		const FUintVector4& ViewRect,
 		const FUintVector4& PassData,
-		FRHIUnorderedAccessView* Target0UAV,
-		FRHIUnorderedAccessView* Target1UAV,
-		FRHIUnorderedAccessView* Target2UAV,
-		FRHIUnorderedAccessView* Target3UAV,
-		FRHIUnorderedAccessView* Target4UAV,
-		FRHIUnorderedAccessView* Target5UAV,
-		FRHIUnorderedAccessView* Target6UAV,
-		FRHIUnorderedAccessView* Target7UAV,
-		FRHIUnorderedAccessView* Targets
+		FRHIUniformBuffer* ShadingOutputs
 	);
 
 	uint32 GetBoundTargetMask() const;
 
 private:
-	LAYOUT_FIELD(FShaderUniformBufferParameter,	ReflectionCaptureBuffer);
-	LAYOUT_FIELD(FShaderParameter,				ViewRectParam);
-	LAYOUT_FIELD(FShaderParameter,				PassDataParam);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target0);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target1);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target2);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target3);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target4);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target5);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target6);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target7);
-	LAYOUT_FIELD(FShaderResourceParameter,		Targets);
+	LAYOUT_FIELD(FShaderUniformBufferParameter,       ReflectionCaptureBuffer);
+	LAYOUT_FIELD(FShaderUniformBufferParameter,       ShadingOutputsParam);
+	LAYOUT_FIELD(FShaderParameter,                    ViewRectParam);
+	LAYOUT_FIELD(FShaderParameter,                    PassDataParam);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target0);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target1);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target2);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target3);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target4);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target5);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target6);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target7);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Targets);
 };
 
 /**
@@ -435,7 +449,7 @@ public:
 };
 
 /** The concrete base pass compute shader type. */
-template<typename LightMapPolicyType, bool bEnableSkyLight>
+template<typename LightMapPolicyType, bool bEnableSkyLight, EShaderFrequency ShaderFrequency>
 class TBasePassCS : public TBasePassComputeShaderBaseType<LightMapPolicyType>
 {
 	DECLARE_SHADER_TYPE(TBasePassCS,MeshMaterial);
@@ -471,6 +485,11 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADED"), 1);
 
+		if (ShaderFrequency == SF_WorkGraphComputeNode)
+		{
+			OutEnvironment.SetDefine(TEXT("WORKGRAPH_NODE"), 1);
+		}
+
 		const bool bTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
 		const bool bIsSingleLayerWater = Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater);
 		const bool bSingleLayerWaterUsesLightFunctionAtlas = bIsSingleLayerWater && GetSingleLayerWaterUsesLightFunctionAtlas();
@@ -503,6 +522,11 @@ public:
 	{
 		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+
+		if (HardwareVariableRateShadingSupportedByPlatform(Parameters.Platform) && Parameters.MaterialParameters.bAllowVariableRateShading)
+		{
+			OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), true);
+		}
 	}
 
 	static bool ValidateCompiledResult(EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutError)
@@ -668,15 +692,29 @@ public:
  */
 
 template <typename LightMapPolicyType>
-void AddBasePassComputeShader(bool bEnableSkyLight, FMaterialShaderTypes& OutShaderTypes)
+void AddBasePassComputeShader(bool bEnableSkyLight, EShaderFrequency ShaderFrequency, FMaterialShaderTypes& OutShaderTypes)
 {
-	if (bEnableSkyLight)
+	if (ShaderFrequency == SF_Compute)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true>>();
+		if (bEnableSkyLight)
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, SF_Compute>>();
+		}
+		else
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_Compute>>();
+		}
 	}
-	else
+	else if (ShaderFrequency == SF_WorkGraphComputeNode)
 	{
-		OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false>>();
+		if (bEnableSkyLight)
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, SF_WorkGraphComputeNode>>();
+		}
+		else
+		{
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_WorkGraphComputeNode>>();
+		}
 	}
 }
 
@@ -687,6 +725,7 @@ bool GetBasePassShader(
 	LightMapPolicyType LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
+	EShaderFrequency ShaderFrequency,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<LightMapPolicyType>>* ComputeShader
 )
 {
@@ -694,7 +733,7 @@ bool GetBasePassShader(
 
 	if (ComputeShader)
 	{
-		AddBasePassComputeShader<LightMapPolicyType>(bEnableSkyLight, ShaderTypes);
+		AddBasePassComputeShader<LightMapPolicyType>(bEnableSkyLight, ShaderFrequency, ShaderTypes);
 	}
 
 	FMaterialShaders Shaders;
@@ -703,7 +742,7 @@ bool GetBasePassShader(
 		return false;
 	}
 
-	Shaders.TryGetComputeShader(ComputeShader);
+	Shaders.TryGetShader(ShaderFrequency, ComputeShader);
 	return true;
 }
 
@@ -714,6 +753,7 @@ bool GetBasePassShader<FUniformLightMapPolicy>(
 	FUniformLightMapPolicy LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
+	EShaderFrequency ShaderFrequency,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
 );
 
@@ -828,6 +868,7 @@ public:
 		ETranslucencyPass::Type InTranslucencyPassType = ETranslucencyPass::TPT_MAX);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
+	
 	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
 
 	FMeshPassProcessorRenderState PassDrawRenderState;

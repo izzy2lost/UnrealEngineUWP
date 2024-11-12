@@ -55,6 +55,11 @@ namespace Gauntlet
 		UnrealTargetConfiguration Configuration { get; }
 
 		/// <summary>
+		/// Does this build support additional loose files be copied to the device
+		/// </summary>
+		bool SupportsAdditionalFileCopy { get; }
+
+		/// <summary>
 		/// Check if this buld is able to support the provided role
 		/// </summary>
 		/// <param name="Role"></param>

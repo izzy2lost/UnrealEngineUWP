@@ -1,14 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaViewportPostProcessManager.h"
-
+#include "AvalancheViewportModule.h"
 #include "AvaTypeSharedPointer.h"
 #include "AvaViewportDataSubsystem.h"
-#include "AvaVisibleArea.h"
 #include "Interaction/AvaCameraZoomController.h"
-#include "Viewport/Interaction/AvaViewportPostProcessInfo.h"
-#include "Viewport/Interaction/IAvaViewportDataProvider.h"
-#include "Viewport/Interaction/IAvaViewportDataProxy.h"
 #include "ViewportClient/IAvaViewportClient.h"
 #include "Visualizers/AvaViewportBackgroundVisualizer.h"
 #include "Visualizers/AvaViewportChannelVisualizer.h"
@@ -32,6 +28,7 @@ FAvaViewportPostProcessInfo* FAvaViewportPostProcessManager::GetPostProcessInfo(
 
 	if (!AvaViewportClient.IsValid())
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::GetPostProcessInfo: Invalid viewport client."));
 		return nullptr;
 	}
 
@@ -39,6 +36,7 @@ FAvaViewportPostProcessInfo* FAvaViewportPostProcessManager::GetPostProcessInfo(
 
 	if (!DataSubsystem)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::GetPostProcessInfo: Failed to find data subsystem."));
 		return nullptr;
 	}
 
@@ -47,6 +45,7 @@ FAvaViewportPostProcessInfo* FAvaViewportPostProcessManager::GetPostProcessInfo(
 		return &Data->PostProcessInfo;
 	}
 
+	UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::GetPostProcessInfo: Missing viewport data."));
 	return nullptr;
 }
 
@@ -75,6 +74,7 @@ void FAvaViewportPostProcessManager::UpdateSceneView(FSceneView* InSceneView)
 
 	Visualizer->UpdateForViewport(
 		AvaViewportClient->GetZoomedVisibleArea(),
+		AvaViewportClient->GetViewportOffset(),
 		AvaViewportClient->GetViewportWidgetSize(),
 		PanOffset
 	);
@@ -88,6 +88,7 @@ void FAvaViewportPostProcessManager::LoadPostProcessInfo()
 
 	if (!Visualizer.IsValid())
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::LoadPostProcessInfo: Invalid visualizer."));
 		return;
 	}
 
@@ -110,6 +111,7 @@ void FAvaViewportPostProcessManager::SetType(EAvaViewportPostProcessType InType)
 
 	if (!PostProcessInfo)
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("AvaViewportPostProcessManager::SetType: Invalid post process info."));
 		return;
 	}
 
@@ -122,6 +124,7 @@ void FAvaViewportPostProcessManager::SetType(EAvaViewportPostProcessType InType)
 
 	if (NewVisualizer.IsValid() && !NewVisualizer->CanActivate(/* bInSilent */ false))
 	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("AvaViewportPostProcessManager::SetType: Cannot activate new visualizer."));
 		return;
 	}
 
@@ -145,6 +148,7 @@ float FAvaViewportPostProcessManager::GetOpacity()
 		return PostProcessInfo->Opacity;
 	}
 
+	UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::GetOpacity: Missing post process info."));
 	return 1.f;
 }
 
@@ -155,6 +159,10 @@ void FAvaViewportPostProcessManager::SetOpacity(float InOpacity)
 		PostProcessInfo->Opacity = InOpacity;
 		LoadPostProcessInfo();
 	}
+	else
+	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::SetOpacity: Missing post process info."));
+	}
 }
 
 TSharedPtr<IAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::GetVisualizer(EAvaViewportPostProcessType InType) const
@@ -162,6 +170,11 @@ TSharedPtr<IAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::Ge
 	if (const TSharedPtr<IAvaViewportPostProcessVisualizer>* VisualizerPtr = Visualizers.Find(InType))
 	{
 		return *VisualizerPtr;
+	}
+
+	if (InType != EAvaViewportPostProcessType::None)
+	{
+		UE_LOG(AvaViewportLog, Warning, TEXT("FAvaViewportPostProcessManager::GetVisualizer: Missing visualizer."));
 	}
 
 	return nullptr;

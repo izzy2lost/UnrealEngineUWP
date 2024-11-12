@@ -6,6 +6,7 @@
 #include "MLDeformerGeomCacheEditorModel.h"
 #include "MLDeformerGeomCacheSampler.h"
 #include "MLDeformerEditorActor.h"
+#include "MLDeformerMasking.h"
 #include "Rendering/ColorVertexBuffer.h"
 
 class UMLDeformerMorphModel;
@@ -28,12 +29,14 @@ namespace UE::MLDeformer
 		// ~END FGCObject overrides.
 
 		// FMLDeformerEditorModel overrides.
+		virtual void CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel) override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;
 		virtual FString GetHeatMapDeformerGraphPath() const override;
 		virtual void OnPreTraining() override;
 		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
 		virtual void OnMaxNumLODsChanged() override;
+		virtual void OnObjectModified(UObject* Object) override;
 		// ~END FMLDeformerEditorModel overrides.
 
 		/**
@@ -141,6 +144,25 @@ namespace UE::MLDeformer
 		UE_DEPRECATED(5.4, "This method will be removed.")
 		TArray<int32> BuildVirtualParentTable(const FReferenceSkeleton& RefSkel, const TArray<FName>& IncludedBoneNames) const;
 
+		/**
+		 * Apply the mask info to the mask buffer of floats.
+		 * @param SkeletalMesh The skeletal mesh that the mask relates to.
+		 * @param MaskInfo The mask info object to apply to the float mask buffer.
+		 * @param ItemMaskBuffer The mask buffer for this item. This should be an array view of size NumBaseMeshVerts.
+		 */
+		void ApplyMaskInfoToBuffer(const USkeletalMesh* SkeletalMesh, const FMLDeformerMaskInfo& MaskInfo, TArrayView<float> ItemMaskBuffer);
+
+		/**
+		 * Apply a generated mask to a specific vertex attribute.
+		 * This copy the generated values one to one to the vertex attribute, but it applies some scaling to the attributes to give better results.
+		 * If we don't do this scaling then the values often look too small and the vertex attribute visually looks very light, rather than clearly defining the area.
+		 * This will also ensure the mask gets generated, even if the MaskInfo masking mode is set to something non-generated.
+		 * @param SkeletalMesh The skeletal mesh that the vertex attribute is on.
+		 * @param MaskInfo The mask info object that we generate the mask from.
+		 * @param AttributeRef The output vertex attributes to write to.
+		 */
+		void ApplyGeneratedMaskToVertexAttributes(USkeletalMesh* SkeletalMesh, FMLDeformerMaskInfo& MaskInfo, TVertexAttributesRef<float> AttributeRef);
+
 		// Helpers.
 		UMLDeformerMorphModel* GetMorphModel() const;
 		UMLDeformerMorphModelVizSettings* GetMorphModelVizSettings() const;
@@ -183,6 +205,20 @@ namespace UE::MLDeformer
 		UE_DEPRECATED(5.3, "Please use the CalcMorphTargetNormals method that takes more parameters.")
 		virtual void CalcMorphTargetNormals(int32 LOD, USkeletalMesh* SkelMesh, int32 MorphTargetIndex, TArrayView<const FVector3f> Deltas, TArrayView<const FVector3f> BaseVertexPositions, TArrayView<FVector3f> BaseNormals, TArray<FVector3f>& OutDeltaNormals);
 
+		UE_DEPRECATED(5.5, "Please use the CalcMorphTaretNormals that takes an array named GlobalMaskWeights.")
+		virtual void CalcMorphTargetNormals(
+			int32 LOD,
+			const USkeletalMesh* SkelMesh,
+			int32 MorphTargetIndex,
+			const TArrayView<const FVector3f> Deltas,
+			const TArrayView<const FVector3f> BaseVertexPositions,
+			const TArrayView<const FVector3f> BaseNormals,
+			const TArrayView<const int32> ImportedVertexToRenderVertexMapping,
+			const FColorVertexBuffer& ColorBuffer,
+			EMLDeformerMaskChannel MaskChannel,
+			bool bInvertGlobalMaskChannel,
+			TArray<FVector3f>& OutDeltaNormals);
+
 		/**
 		 * Calculate the delta normals for a given morph target.
 		 * @param LOD The LOD level.
@@ -195,6 +231,7 @@ namespace UE::MLDeformer
 		 * @param ColorBuffer The color buffer to use when calculating the global mask.
 		 * @param MaskChannel The global mask channel, for example which color channel to use from the color buffer.
 		 * @param bInvertGlobalMask Set to true when you want the global mask to be inverted.
+		 * @param GlobalMaskWeights The array of weights, one for each render vertex.
 		 * @param OutDeltaNormals The array that we will write the generated normals to. This will automatically be resized by this method.
 		 */
 		virtual void CalcMorphTargetNormals(
@@ -208,6 +245,7 @@ namespace UE::MLDeformer
 			const FColorVertexBuffer& ColorBuffer,
 			EMLDeformerMaskChannel MaskChannel,
 			bool bInvertGlobalMaskChannel,
+			const TArray<float>& GlobalMaskWeights,
 			TArray<FVector3f>& OutDeltaNormals);
 
 		/**
@@ -282,15 +320,18 @@ namespace UE::MLDeformer
 		 */
 		bool ProcessVertexDelta(FVector3f& OutScaledDelta, FVector3f& OutScaledDeltaNormal, const FVector3f RawDelta, const FVector3f RawDeltaNormal, float DeltaThreshold, float MorphMaskWeight, float GlobalMaskWeight) const;
 
+		UE_DEPRECATED(5.5, "Please use the CalcGlobalMaskWeights method instead")
+		float CalcGlobalMaskWeight(int32 RenderVertexIndex, const FColorVertexBuffer& ColorBuffer, EMLDeformerMaskChannel MaskChannel, bool bInvertMaskChannel) const;
+
 		/**
 		 * Calculate the global mask weight for a specific render vertex, using a color buffer and specified mask channel settings.
-		 * @param RenderVertexIndex The render vertex index to calculate the global deformer mask weight for.
+		 * @param VertexMap The render vertex to import vertex map.
 		 * @param ColorBuffer The color buffer which we can grab color values from, which are used to calculate the mask weight.
 		 * @param MaskChannel The channel to grab the weight value from. This specifieds whether the mask is enabled and if so, from what channel (r, g, b, a) we grab the weight value.
 		 * @param bInvertMaskChannel Set to true when we should invert the weight value.
-		 * @return Returns the mask weight. A value of 1.0 is returned when the mask channel is set to disable the mask. The return value is always between 0 and 1.
+		 * @return An array with a weight per render vertex. A value of 1.0 is returned when the mask channel is set to disable the mask. The return value is always between 0 and 1.
 		 */
-		float CalcGlobalMaskWeight(int32 RenderVertexIndex, const FColorVertexBuffer& ColorBuffer, EMLDeformerMaskChannel MaskChannel, bool bInvertMaskChannel) const;
+		TArray<float> CalcGlobalMaskWeights(const TArray<int32>& VertexMap, const FColorVertexBuffer& ColorBuffer, EMLDeformerMaskChannel MaskChannel, bool bInvertMaskChannel) const;
 
 	protected:
 		/**

@@ -3,7 +3,10 @@
 #pragma once
 
 #include "Subsystems/EngineSubsystem.h"
+
 #include "ConcertPropertyChainWrapper.h"
+#include "Data/MultiUserClientDisplayInfo.h"
+
 #include "MultiUserReplicationSubsystem.generated.h"
 
 struct FMultiUserObjectReplicationSettings;
@@ -20,6 +23,7 @@ public:
 	// This would be the right place to expose additional MU specific replication functions in the future
 	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnServerStateChanged, const FGuid&, EndpointId);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOfflineClientsChanged);
 	
 	/**
 	 * @return Whether the client is replicating the object.
@@ -46,11 +50,13 @@ public:
 	TArray<FConcertPropertyChainWrapper> GetPropertiesRegisteredToObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const;
 
 	/**
-	 * Gets the objects the client has registered with the server.
+	 * Gets the objects the online or offline client has registered with the server.
 	 *
-	 * Just because an object is replicated, it does not mean that the object is being replicated.
-	 * Objects must be registered with the server so registration is just the first step.
-	 * GetReplicatedObjects() will always contain GetRegisteredObjects().
+	 * Just because an object is returned here, it does not mean that the object is being replicated:
+	 * - If ClientId is an offline client, then the object is not being replicated by that client.
+	 * - If ClientId is an online client, then the object(s) may only be registered with the server.
+	 *
+	 * To find out which objects are actually being replicated, use GetReplicatedObjects(), which will always contain GetRegisteredObjects().
 	 * 
 	 * @param ClientId The client of which to get the registered objects. 
 	 * @return The objects the client has
@@ -73,7 +79,28 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Multi-user")
 	TArray<FSoftObjectPath> GetReplicatedObjects(const FGuid& ClientId) const;
-	
+
+	/**
+	 * A list of offline clients that, upon rejoining a session, will attempt to reclaim properties 
+	 * they previously registered for an object, regardless of whether the client left gracefully or due to a crash.
+	 * 
+	 * By default, when a client disconnects (either gracefully or due to a crash) and later rejoins a session,
+	 * the client attempts to re-register the properties it had previously registered for the object.
+	 * 
+	 * @return A list of client descriptions representing offline clients that will attempt to reclaim properties 
+	 * associated with the object when they rejoin.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Multi-user", meta = (Keywords = "Owning Offline Disconnected  Reclaim Join Rejoin Client Find Stream Registered"))
+	TArray<FGuid> GetOwningOfflineClients(const FSoftObjectPath& ObjectPath) const;
+
+	/** @return Whether any offline clients will try to register properties for ObjectPath upon rejoining.*/
+	UFUNCTION(BlueprintPure, Category = "Multi-user", meta = (Keywords = "Owning Offline Disconnected  Reclaim Join Rejoin Client Find Stream Registered"))
+	bool IsOwnedByOfflineClient(const FSoftObjectPath& ObjectPath) const { return !GetOwningOfflineClients(ObjectPath).IsEmpty(); }
+
+	/** @return The list of offline clients. Each entry is an endpoint ID that a user had in the past. */
+	UFUNCTION(BlueprintPure, Category = "Multi-user", meta = (Keywords = "Get Offline Disconnected Clients"))
+	TArray<FGuid> GetOfflineClientIds() const;
+
 	//~ Begin USubsystem Interface
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -93,6 +120,14 @@ private:
 	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
 	FOnServerStateChanged OnClientAuthorityServerStateChanged;
 
+	/** Event triggered when the local list of offline clients has changed. */
+	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
+	FOnOfflineClientsChanged OnOfflineClientsChanged;
+
+	/** Event triggered when the content that an offline client will attempt to re-claim changes. */
+	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
+	FOnServerStateChanged OnOfflineClientContentChanged;
+
 	/**
 	 * This is used only for when the adds an object through the Add button in the UI.
 	 * 
@@ -103,6 +138,8 @@ private:
 	 */
 	TSharedPtr<UE::MultiUserClientLibrary::FUObjectAdapterReplicationDiscoverer> UObjectAdapter;
 
-	void OnClientStreamsChanged(const FGuid& EndpointId) const { OnClientStreamServerStateChanged.Broadcast(EndpointId); }
-	void OnClientAuthorityChanged(const FGuid& EndpointId) const { OnClientAuthorityServerStateChanged.Broadcast(EndpointId); }
+	void BroadcastStreamsChanged(const FGuid& EndpointId) const { OnClientStreamServerStateChanged.Broadcast(EndpointId); }
+	void BroadcastAuthorityChanged(const FGuid& EndpointId) const { OnClientAuthorityServerStateChanged.Broadcast(EndpointId); }
+	void BroadcastOfflineClientsChanged() const { OnOfflineClientsChanged.Broadcast(); }
+	void BroadcastOfflineClientContentChanged(const FGuid& EndpointId) const { OnOfflineClientContentChanged.Broadcast(EndpointId); }
 };

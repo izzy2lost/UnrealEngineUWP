@@ -1,8 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
-#include "Context.h"
-#include "DecoratorBase/LatentPropertyHandle.h"
+#include "TraitCore/LatentPropertyHandle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextGraphEvaluator)
 
@@ -27,10 +26,11 @@ namespace UE::AnimNext::Private
 void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext& RigVMExecuteContext, FRigVMMemoryHandleArray RigVMMemoryHandles, FRigVMPredicateBranchArray RigVMBranches)
 {
 	const FAnimNextExecuteContext& VMExecuteContext = RigVMExecuteContext.GetPublicData<FAnimNextExecuteContext>();
+	const FAnimNextGraphContextData& GraphContextData = VMExecuteContext.GetContextData<FAnimNextGraphContextData>();
 
-	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles = VMExecuteContext.GetLatentHandles();
-	uint8* DestinationBasePtr = (uint8*)VMExecuteContext.GetDestinationBasePtr();
-	const bool bIsFrozen = VMExecuteContext.IsFrozen();
+	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles = GraphContextData.GetLatentHandles();
+	uint8* DestinationBasePtr = (uint8*)GraphContextData.GetDestinationBasePtr();
+	const bool bIsFrozen = GraphContextData.IsFrozen();
 
 	for (UE::AnimNext::FLatentPropertyHandle Handle : LatentHandles)
 	{
@@ -48,11 +48,9 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 
 		FRigVMMemoryHandle& MemoryHandle = RigVMMemoryHandles[Handle.GetLatentPropertyIndex()];
 
-		// This should be an assert. If this triggers, it means that we have a bug in how lazy memory handles
-		// are assigned during compilation. We keep it as an ensure because in this case, we can recover
-		// as even if the memory handle isn't lazy, it remains valid and we can use it. It won't have the
-		// value we expect but it'll work. The ensure will signal that we need to fix the bug.
-		if (ensure(MemoryHandle.IsLazy()))
+		// We cannot currently determine from our memory handle whether this value is a direct wire-up to a variable, in which
+		// case it will not be lazy, thus we cannot verify lazy-correctness before calling into this so we just guard instead.
+		if (MemoryHandle.IsLazy())
 		{
 			MemoryHandle.ComputeLazyValueIfNecessary(RigVMExecuteContext, RigVMExecuteContext.GetSliceHash());
 		}

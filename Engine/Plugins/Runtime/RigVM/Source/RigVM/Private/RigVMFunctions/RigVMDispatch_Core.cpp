@@ -6,15 +6,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Core)
 
-
-const FName FRigVMDispatch_CoreEquals::AName = TEXT("A");
-const FName FRigVMDispatch_CoreEquals::BName = TEXT("B");
-const FName FRigVMDispatch_CoreEquals::ResultName = TEXT("Result");
-
-
 FName FRigVMDispatch_CoreEquals::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		AName,
 		BName,
 		ResultName
@@ -75,27 +69,27 @@ FRigVMFunctionPtr FRigVMDispatch_CoreEquals::GetDispatchFunctionImpl(const FRigV
 	{
 		return &FRigVMDispatch_CoreEquals::StringEquals;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FVector>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FVector>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FVector>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FVector2D>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FVector2D>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FVector2D>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FRotator>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FRotator>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FRotator>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FQuat>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FQuat>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FQuat>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FTransform>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FTransform>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FTransform>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FLinearColor>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FLinearColor>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FLinearColor>;
 	}

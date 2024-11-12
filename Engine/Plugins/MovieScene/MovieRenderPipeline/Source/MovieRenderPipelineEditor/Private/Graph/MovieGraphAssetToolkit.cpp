@@ -2,35 +2,46 @@
 
 #include "MovieGraphAssetToolkit.h"
 
+#include "Customizations/Graph/MovieGraphApplyCVarPresetNodeCustomization.h"
 #include "Customizations/Graph/MovieGraphCollectionsCustomization.h"
 #include "Customizations/Graph/MovieGraphFormatTokenCustomization.h"
 #include "Customizations/Graph/MovieGraphMemberCustomization.h"
+#include "Customizations/Graph/MovieGraphMetadataAttributeCustomization.h"
 #include "Customizations/Graph/MovieGraphModifiersCustomization.h"
 #include "Customizations/Graph/MovieGraphNamedResolutionCustomization.h"
 #include "Customizations/Graph/MovieGraphNodeCustomization.h"
+#include "Customizations/Graph/MovieGraphPathTracedRendererNodeCustomization.h"
 #include "Customizations/Graph/MovieGraphSelectNodeCustomization.h"
+#include "Customizations/Graph/MovieGraphSetCVarValueNodeCustomization.h"
 #include "Customizations/Graph/MovieGraphShowFlagsCustomization.h"
 #include "Customizations/Graph/MovieGraphVersioningSettingsCustomization.h"
 #include "Graph/Renderers/MovieGraphShowFlags.h"
 
 #include "Graph/MovieGraphConfig.h"
+#include "Graph/Nodes/MovieGraphApplyCVarPresetNode.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphCommandLineEncoderNode.h"
+#include "Graph/Nodes/MovieGraphDebugNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
+#include "Graph/Nodes/MovieGraphPathTracerPassNode.h"
 #include "Graph/Nodes/MovieGraphSelectNode.h"
+#include "Graph/Nodes/MovieGraphSetMetadataAttributesNode.h"
+#include "Graph/Nodes/MovieGraphSetCVarValueNode.h"
 #include "MovieEdGraphNode.h"
 #include "MovieGraphSchema.h"
+#include "MoviePipelineCommands.h"
 #include "MovieRenderPipelineSettings.h"
 #include "SMovieGraphActiveRenderSettingsTabContent.h"
 #include "SMovieGraphMembersTabContent.h"
 
 #include "Framework/Commands/GenericCommands.h"
+#include "GraphEditor.h"
 #include "IDetailRootObjectCustomization.h"
+#include "ObjectEditorUtils.h"
 #include "PropertyEditorModule.h"
 #include "Selection.h"
 #include "ToolMenus.h"
-#include "Graph/Nodes/MovieGraphDebugNode.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Graph/SMovieGraphConfigPanel.h"
 
@@ -262,6 +273,7 @@ void FMovieGraphAssetToolkit::InitMovieGraphAssetToolkit(const EToolkitMode::Typ
 	InitAssetEditor(Mode, InitToolkitHost, AppIdentifier, Layout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, InitGraph);
 
 	BindGraphCommands();
+	ExtendToolkitMenu();
 }
 
 TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphEditor(const FSpawnTabArgs& Args)
@@ -360,6 +372,9 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 	DetailsViewArgs.ViewIdentifier = "MovieGraphSettings";
 	DetailsViewArgs.bLockable = false;
+	DetailsViewArgs.bShowSectionSelector = true;
+
+	RegisterDetailsViewSections();
 
 	SelectedGraphObjectsDetailsWidget = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	SelectedGraphObjectsDetailsWidget->SetRootObjectCustomizationInstance(
@@ -376,6 +391,14 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
 		UMovieGraphSelectNode::StaticClass(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphSelectNodeCustomization::MakeInstance));
+	
+	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
+		UMovieGraphSetCVarValueNode::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphSetCVarValueNodeCustomization::MakeInstance));
+
+	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
+		UMovieGraphApplyCVarPresetNode::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphApplyCVarPresetNodeCustomization::MakeInstance));
 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyTypeLayout(
 		UMovieGraphShowFlags::StaticClass()->GetFName(),
@@ -385,6 +408,10 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 		FMovieGraphNamedResolution::StaticStruct()->GetFName(),
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieGraphNamedResolutionCustomization::MakeInstance));
 
+	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyTypeLayout(
+		FMovieGraphMetadataAttribute::StaticStruct()->GetFName(),
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieGraphMetadataAttributeCustomization::MakeInstance));
+	
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyTypeLayout(
 		FMovieGraphVersioningSettings::StaticStruct()->GetFName(),
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieGraphVersioningSettingsCustomization::MakeInstance));
@@ -408,6 +435,10 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
 		UMovieGraphDebugSettingNode::StaticClass(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphFormatTokenCustomization::MakeInstance));
+	
+	SelectedGraphObjectsDetailsWidget->RegisterInstancedCustomPropertyLayout(
+		UMovieGraphPathTracerRenderPassNode::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphPathTracedRendererNodeCustomization::MakeInstance));
 	
 	TSharedRef<SWidget> CustomContent = SAssignNew(NameAreaCustomContent, SHorizontalBox)
 	+ SHorizontalBox::Slot()
@@ -452,11 +483,76 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphActiveRenderSe
 		];
 }
 
+void FMovieGraphAssetToolkit::RegisterDetailsViewSections()
+{
+	static const FName PropertyEditor("PropertyEditor");
+	static const FName CategoryMetadataKey("Category");
+	static const TArray<FString> CategoriesToExclude = { FString(TEXT("Tags")) };
+	
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
+
+	// Do a 1:1 mapping of node categories to section names
+	for (const UClass* NodeClass : UMovieGraphSchema::GetNodeClasses())
+	{
+		for (TFieldIterator<FProperty> PropertyIt(NodeClass); PropertyIt; ++PropertyIt)
+		{
+			const FProperty* NodeProperty = *PropertyIt;
+
+			const FString* CategoryMetadata = NodeProperty->FindMetaData(CategoryMetadataKey);
+			if (CategoryMetadata && !CategoryMetadata->IsEmpty() && !CategoriesToExclude.Contains(*CategoryMetadata))
+			{
+				const FName SectionName = FName(*CategoryMetadata);
+				const FText LocalizedCategory = FObjectEditorUtils::GetCategoryText(NodeProperty);
+				
+				const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(NodeClass->GetFName(), SectionName, LocalizedCategory);
+				Section->AddCategory(SectionName);
+			}
+		}
+	}
+}
+
 void FMovieGraphAssetToolkit::BindGraphCommands()
 {
 	ToolkitCommands->MapAction(FGenericCommands::Get().Delete,
 		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::DeleteSelectedMembers),
 		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanDeleteSelectedMembers));
+
+	ToolkitCommands->MapAction(FGenericCommands::Get().Duplicate,
+		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::DuplicateSelectedMembers),
+		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanDuplicateSelectedMembers),
+		FIsActionChecked::CreateLambda([]() { return false; }),
+		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::IsDuplicateVisible));
+
+	ToolkitCommands->MapAction(FMoviePipelineCommands::Get().ZoomToWindow,
+			FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::OnZoomToWindow),
+			FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanZoomToWindow));
+		
+	ToolkitCommands->MapAction(FMoviePipelineCommands::Get().ZoomToSelection,
+		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::OnZoomToSelection),
+		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanZoomToSelection));
+}
+
+void FMovieGraphAssetToolkit::ExtendToolkitMenu() const
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();	
+	if (UToolMenu* MainMenu = ToolMenus->ExtendMenu(GetToolMenuName()))
+	{
+		FToolMenuSection& Section = MainMenu->FindOrAddSection(NAME_None);
+		if (!Section.FindEntry("View"))
+		{
+			Section.AddSubMenu(
+				"View",
+				LOCTEXT("ViewMenu", "View"),
+				LOCTEXT("ViewMenu_ToolTip", "Open the View menu"),
+				FNewToolMenuDelegate::CreateLambda([this](UToolMenu* InMenu)
+				{
+					FToolMenuSection& ZoomSection = InMenu->AddSection("ViewZoom", LOCTEXT("ViewMenuZoomHeading", "Zoom"));
+					ZoomSection.AddMenuEntryWithCommandList(FMoviePipelineCommands::Get().ZoomToWindow, ToolkitCommands);
+					ZoomSection.AddMenuEntryWithCommandList(FMoviePipelineCommands::Get().ZoomToSelection, ToolkitCommands);
+				})
+			).InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
+		}
+	}
 }
 
 void FMovieGraphAssetToolkit::DeleteSelectedMembers()
@@ -475,6 +571,63 @@ bool FMovieGraphAssetToolkit::CanDeleteSelectedMembers()
 	}
 
 	return false;
+}
+
+void FMovieGraphAssetToolkit::DuplicateSelectedMembers()
+{
+	if (MembersTabContent.IsValid())
+	{
+		MembersTabContent->DuplicateSelectedMembers();
+	}
+}
+
+bool FMovieGraphAssetToolkit::CanDuplicateSelectedMembers()
+{
+	if (MembersTabContent.IsValid())
+	{
+		return MembersTabContent->CanDuplicateSelectedMembers();
+	}
+
+	return false;
+}
+
+bool FMovieGraphAssetToolkit::IsDuplicateVisible()
+{
+	return CanDuplicateSelectedMembers();
+}
+
+void FMovieGraphAssetToolkit::OnZoomToWindow() const
+{
+	if (MovieGraphWidget.IsValid())
+	{
+		if (const TSharedPtr<SGraphEditor> GraphEditor = MovieGraphWidget->GetGraphEditor().Pin())
+		{
+			constexpr bool bOnlySelection = false;
+			GraphEditor->ZoomToFit(bOnlySelection);
+		}
+	}
+}
+
+bool FMovieGraphAssetToolkit::CanZoomToWindow() const
+{
+	return MovieGraphWidget.IsValid() && MovieGraphWidget->GetGraphEditor().IsValid();
+}
+
+void FMovieGraphAssetToolkit::OnZoomToSelection() const
+{
+	if (MovieGraphWidget.IsValid())
+	{
+		if (const TSharedPtr<SGraphEditor> GraphEditor = MovieGraphWidget->GetGraphEditor().Pin())
+		{
+			constexpr bool bOnlySelection = true;
+			GraphEditor->ZoomToFit(bOnlySelection);
+		}
+	}
+}
+
+bool FMovieGraphAssetToolkit::CanZoomToSelection() const
+{
+	return MovieGraphWidget.IsValid() && MovieGraphWidget->GetGraphEditor().IsValid();
 }
 
 void FMovieGraphAssetToolkit::PersistEditorOnlyNodes() const
@@ -566,6 +719,25 @@ void FMovieGraphAssetToolkit::SaveAsset_Execute()
 	FAssetEditorToolkit::SaveAsset_Execute();
 
 	// TODO: Any custom save logic here
+}
+
+void FMovieGraphAssetToolkit::OnAssetsSavedAs(const TArray<UObject*>& SavedObjects)
+{
+	FAssetEditorToolkit::OnAssetsSavedAs(SavedObjects);
+
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+
+	// The default behavior for SaveAs in the toolkit doesn't properly re-open the assets that were saved during a SaveAs, it only closes the assets
+	// that were the source of the SaveAs. After a SaveAs, the graph potentially goes through a complete data change, and re-opening is the most
+	// reliable way to make sure that the graph and editor are properly in sync. Without this, connections, delegates, etc can get badly out-of-sync
+	// after a SaveAs. Generally a crash won't result, but the graph will be in a nearly unusable state.
+	for (UObject* SavedObject : SavedObjects)
+	{
+		AssetEditorSubsystem->CloseAllEditorsForAsset(SavedObject);
+		AssetEditorSubsystem->NotifyAssetClosed(SavedObject, this);
+	}
+
+	AssetEditorSubsystem->OpenEditorForAssets_Advanced(SavedObjects, ToolkitMode, ToolkitHost.Pin());
 }
 
 void FMovieGraphAssetToolkit::OnClose()

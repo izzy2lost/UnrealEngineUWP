@@ -159,14 +159,14 @@ namespace Chaos
 		}
 
 		template<typename TParticleContainer>
-		void GenericThrottleReleasedParticlesIfNecessary(TParticleContainer& Container, typename FRigidClustering::FRigidEvolution& MEvolution)
+		void GenericThrottleReleasedParticlesIfNecessary(TParticleContainer& Container, FRigidClustering& Clustering)
 		{
 			if (!CVarShouldThrottleParticleRelease())
 			{
 				return;
 			}
 
-			const float RatioOfParticlesToDisable = GetRatioOfReleasedParticlesToDisable(MEvolution);
+			const float RatioOfParticlesToDisable = GetRatioOfReleasedParticlesToDisable(Clustering.GetEvolution());
 			const int32 NumberOfParticlesToDisable = (int32)((float)Container.Num() * RatioOfParticlesToDisable);
 			if (NumberOfParticlesToDisable > 0)
 			{ 
@@ -176,8 +176,8 @@ namespace Chaos
 					if (FPBDRigidParticleHandle* Child = *ChildIt)
 					{
 						DisabledParticleCount++;
-						MEvolution.DisableParticle(Child);
-						MEvolution.GetParticles().MarkTransientDirtyParticle(Child);
+						Clustering.DisableParticle(Child);
+						Clustering.GetEvolution().GetParticles().MarkTransientDirtyParticle(Child);
 						ChildIt.RemoveCurrent();
 					}
 					if (DisabledParticleCount >= NumberOfParticlesToDisable)
@@ -708,8 +708,29 @@ namespace Chaos
 					return ECollisionVisitorResult::Continue;
 				}
 
-				// Track this collision
-				BreakingCollisions.Add(TPair<FPBDCollisionConstraint*, FPBDRigidParticleHandle*>(&Collision, OtherRigid));
+				// Flip the impulse if we're restoring particle 0's momentum.
+				// This is because by convention constraint impulses point from 1 to 0.
+				const FVec3 CollisionImpulse = 
+					(Collision.GetParticle0() == OtherRigid)
+					? -Collision.AccumulatedImpulse
+					: Collision.AccumulatedImpulse;
+
+				FConstGenericParticleHandle Generic(OtherRigid);
+				// Compute the angular impulse based on distance from the contact point to the CoM
+				const FVec3 Location = Collision.CalculateWorldContactLocation();
+				const Chaos::FVec3 AngularImpulse = Chaos::FVec3::CrossProduct(Location - Generic->PCom(), CollisionImpulse);
+
+				// Compute impulse velocities
+				const FVec3 ImpulseVelocity = Generic->InvM() * CollisionImpulse;
+
+				const FMatrix33 OtherInvI = Utilities::ComputeWorldSpaceInertia(Generic->QCom(), Generic->ConditionedInvI());
+				const FVec3 AngularImpulseVelocity = OtherInvI * AngularImpulse;
+
+				// Update linear and angular impulses for the body, to be integrated next solve
+
+				FMomentumRestoringData& MomentumRestoringData = MomentumRestoringDataByParticle.FindOrAdd(OtherRigid);
+				MomentumRestoringData.V += ImpulseVelocity * RestoreBreakingMomentumPercent;
+				MomentumRestoringData.W += AngularImpulseVelocity * RestoreBreakingMomentumPercent;
 
 				return ECollisionVisitorResult::Continue;
 			});
@@ -718,35 +739,20 @@ namespace Chaos
 
 	void FRigidClustering::RestoreBreakingMomentum()
 	{
-		for (TPair<FPBDCollisionConstraint*, FPBDRigidParticleHandle*>& Pair : BreakingCollisions)
+		for (TPair<FPBDRigidParticleHandle*, FMomentumRestoringData> Pair : MomentumRestoringDataByParticle)
 		{
-			FPBDCollisionConstraint& Collision = *Pair.Key;
-			FPBDRigidParticleHandle& Rigid = *Pair.Value;
-			FConstGenericParticleHandle Generic(&Rigid);
-
-			// Flip the impulse if we're restoring particle 0's momentum.
-			// This is because by convention constraint impulses point from 1 to 0.
-			uint8 OtherIdx = Collision.GetParticle0() == &Rigid ? 1 : 0;
-			const FVec3 Impulse
-				= OtherIdx == 0
-				? Collision.AccumulatedImpulse
-				: -Collision.AccumulatedImpulse;
-
-			// Compute the angular impulse based on distance from the contact point to the CoM
-			const FVec3 Location = Collision.CalculateWorldContactLocation();
-			const Chaos::FVec3 AngularImpulse = Chaos::FVec3::CrossProduct(Location - Generic->PCom(), Impulse);
-
-			// Compute impulse velocities
-			const FVec3 ImpulseVelocity = Generic->InvM() * Impulse;
-
-			const FMatrix33 OtherInvI = Utilities::ComputeWorldSpaceInertia(Generic->QCom(), Generic->ConditionedInvI());
-			const FVec3 AngularImpulseVelocity = OtherInvI * AngularImpulse;
-
-			// Update linear and angular impulses for the body, to be integrated next solve
-			const float RestorationPercent = RestoreBreakingMomentumPercent;
-			Rigid.SetV(Rigid.GetV() + ImpulseVelocity * RestorationPercent);
-			Rigid.SetW(Rigid.GetW() + AngularImpulseVelocity * RestorationPercent);
+			if (FPBDRigidParticleHandle* Particle = Pair.Key)
+			{
+				const FMomentumRestoringData& Data = Pair.Value;
+				Particle->SetV(Particle->GetV() + Data.V);
+				Particle->SetW(Particle->GetW() + Data.W);
+			}
 		}
+	}
+
+	void FRigidClustering::RemoveFromMomentumRestoringStructures(const FPBDRigidParticleHandle* ParticleToRemove)
+	{
+		MomentumRestoringDataByParticle.Remove(ParticleToRemove);
 	}
 
 	void FRigidClustering::SendBreakingEvent(FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bFromCrumble)
@@ -919,7 +925,7 @@ namespace Chaos
 				if (ClusteredParent->InternalCluster() && Children->IsEmpty() && ClusteredParent->PhysicsProxy() && ClusteredParent->PhysicsProxy()->GetType() == EPhysicsProxyType::GeometryCollectionType)
 				{
 					// It's safe to disable the particle until we get to the point where we want to destroy the particle.
-					MEvolution.DisableParticle(ClusteredParent);
+					DisableParticle(ClusteredParent);
 
 					// We shouldn't ever need to do an AddUnique here since when we remove a child from a parent, the parent should only ever turn empty once.
 					EmptyInternalClustersPerProxy.FindOrAdd(ClusteredParent->PhysicsProxy()).Add(ClusteredParent);
@@ -936,7 +942,7 @@ namespace Chaos
 			const int32 Index = Children->Find(Child);
 			if (Index != INDEX_NONE)
 			{
-				Children->RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Children->RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 
@@ -1076,48 +1082,6 @@ namespace Chaos
 
 		return ReleaseClusterParticlesImpl(ClusteredParticle, bForceRelease, false /*bCreateNewClusters*/);
 	}
-	
-	void GenerateEdges(FGeometryCollectionPhysicsProxy& ConcreteGCProxy, FPBDRigidClusteredParticleHandle& ClusteredParticle, FClusterUnionManager& ClusterUnionManager)
-	{
-		ConcreteGCProxy.CreateChildrenGeometry_Internal();
-		if (Chaos::FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(&ClusteredParticle))
-		{
-			bool bHasBuiltAllEdges = false;
-			FClusterUnionParticleProperties* Properties = ClusterUnion->ChildProperties.Find(&ClusteredParticle);
-			if (Properties)
-			{
-				bHasBuiltAllEdges = Properties->bEdgesAreGenerated;
-			}
-
-			bool bAllNeighborsHasBuiltEdges = true;
-			const TArray<Chaos::TConnectivityEdge<Chaos::FReal>> Edges = ClusteredParticle.ConnectivityEdges();
-			for (const Chaos::TConnectivityEdge<Chaos::FReal>& Edge : Edges)
-			{
-				if (Edge.Sibling != nullptr && Edge.Sibling->GetParticleType() == Chaos::EParticleType::Clustered)
-				{
-					Chaos::FPBDRigidClusteredParticleHandle* Sibling = Edge.Sibling->CastToClustered();
-					if (Sibling->PhysicsProxy()->GetType() == FGeometryCollectionPhysicsProxy::ConcreteType())
-					{
-						FGeometryCollectionPhysicsProxy* GCProxy = GetConcreteProxy<FGeometryCollectionPhysicsProxy>(Sibling);
-						GCProxy->CreateChildrenGeometry_Internal();
-						if (FClusterUnionParticleProperties* SiblingProperties = ClusterUnion->ChildProperties.Find(Sibling))
-						{
-							bAllNeighborsHasBuiltEdges &= SiblingProperties->bEdgesAreGenerated;
-						}
-					}
-				}
-			}
-			// If has current GC has built all edges or if all neighbors have build all edges don't need to compute neighbors edges. 
-			if (!(bHasBuiltAllEdges || bAllNeighborsHasBuiltEdges))
-			{
-				ClusterUnionManager.AddParticleToConnectionGraphInCluster(*ClusterUnion, &ClusteredParticle);
-				if (Properties)
-				{
-					Properties->bEdgesAreGenerated = true;
-				}
-			}
-		}
-	}
 
 	TSet<FPBDRigidParticleHandle*> FRigidClustering::ReleaseClusterParticlesImpl(
 		FPBDRigidClusteredParticleHandle* ClusteredParticle,
@@ -1150,7 +1114,7 @@ namespace Chaos
 			
 			if (bBuildGeometryForChildrenOnPT == false)
 			{
-				GenerateEdges(*ConcreteGCProxy, *ClusteredParticle, ClusterUnionManager);
+				ConcreteGCProxy->CreateChildrenGeometry_Internal();
 			}
 		}
 
@@ -1205,9 +1169,17 @@ namespace Chaos
 					const FClusterUnionIndex ClusterUnionIndex = ClusterUnionManager.FindClusterUnionIndexFromParticle(ClusteredParticle);
 					if (ClusterUnionIndex != INDEX_NONE)
 					{
+						// Generating intercluster edges depends on the parent particle's node connections existing. Thus this must go before RemoveNodeConnections.
+						// Our parent particle is being removed from the cluster union - initialize intercluster edges if necessary.
+						if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnion(ClusterUnionIndex))
+						{
+							ClusterUnionManager.GenerateInterclusterEdgesForParticle(*ClusterUnion, ClusteredParticle);
+						}
+
 						// Remove node connections here immediately just in case we need to manage connectivity on the cluster union.
 						RemoveNodeConnections(ClusteredParticle);
 						ClusterUnionsToConsiderForConnectivity.Add(ClusterUnionIndex);
+
 						ClusterUnionManager.HandleRemoveOperationWithClusterLookup({ ClusteredParticle }, EClusterUnionOperationTiming::Defer);
 					}
 					bFoundFirstRelease = true;
@@ -1233,7 +1205,7 @@ namespace Chaos
 					// Remove from the children array without freeing memory yet. 
 					// We're looping over Children and it'd be silly to free the array
 					// 1 entry at a time.
-					Children.RemoveAtSwap(ChildIdx, 1, EAllowShrinking::No);
+					Children.RemoveAtSwap(ChildIdx, EAllowShrinking::No);
 				}
 				ActivatedChildren.Add(Child);
 				SendBreakingEvent(Child, bParentCrumbled);
@@ -1493,7 +1465,7 @@ namespace Chaos
 
 				for (int32 RemoveIndex = IslandIndicesToRemove.Num() - 1; RemoveIndex >= 0; --RemoveIndex)
 				{
-					Islands.RemoveAtSwap(IslandIndicesToRemove[RemoveIndex], 1, EAllowShrinking::No);
+					Islands.RemoveAtSwap(IslandIndicesToRemove[RemoveIndex], EAllowShrinking::No);
 				}
 
 				if (bCreateNewClusters)
@@ -1510,12 +1482,8 @@ namespace Chaos
 							// just got re-enabled in RemoveParticlesFromCluster.
 							for (FPBDRigidParticleHandle* Particle : Island)
 							{
-								if (FPBDRigidClusteredParticleHandle* ClusterParticle = Particle->CastToClustered())
-								{
-									TopLevelClusterParentsStrained.Remove(Particle->CastToClustered());
-									TopLevelClusterParents.Remove(Particle->CastToClustered());
-								}
-								MEvolution.DisableParticle(Particle);
+								// Particles may be re-enabled again at a later stage  so we do not want to remove them from the children map 
+								DisableParticle(Particle, /*bRemoveFromChildrenMap*/ false);
 							}
 						}
 					}
@@ -1722,27 +1690,32 @@ namespace Chaos
 
 			auto ProcessClusteredParticle = [&ParticlesToProcess, &bPotentialBreak, this](FPBDRigidClusteredParticleHandle* Particle)
 			{
-				TArray<FRigidHandle>& ParentToChildren = MChildren[Particle];
-
 				bool bAddParent = false;
-				for(FRigidHandle Child : ParentToChildren)
+				if (TArray<FRigidHandle>* ParentToChildren = MChildren.Find(Particle))
 				{
-					if(FClusterHandle ClusteredChild = Child->CastToClustered())
+					for (FRigidHandle Child : *ParentToChildren)
 					{
-						if(ClusteredChild->GetInternalStrains() <= 0.f)
+						if (FClusterHandle ClusteredChild = Child->CastToClustered())
 						{
-							bAddParent = true;
-							// #TODO remove need to set this here so we can early out as soon as we
-							// find one child that requires processing for breaks
-							ClusteredChild->CollisionImpulse() = FLT_MAX;
-							MCollisionImpulseArrayDirty = true;
-						}
-						else if(ClusteredChild->GetExternalStrain() > 0 || ClusteredChild->CollisionImpulse() > 0)
-						{
-							bAddParent = true;
-							bPotentialBreak = true;
+							if (ClusteredChild->GetInternalStrains() <= 0.f)
+							{
+								bAddParent = true;
+								// #TODO remove need to set this here so we can early out as soon as we
+								// find one child that requires processing for breaks
+								ClusteredChild->CollisionImpulse() = FLT_MAX;
+								MCollisionImpulseArrayDirty = true;
+							}
+							else if (ClusteredChild->GetExternalStrain() > 0 || ClusteredChild->CollisionImpulse() > 0)
+							{
+								bAddParent = true;
+								bPotentialBreak = true;
+							}
 						}
 					}
+				}
+				else
+				{
+					ensureMsgf(false, TEXT("Could not find an entry in MChildrenMap for a cluster to process, this is not expected. Skipping the processing"));
 				}
 
 				// Ensure we only add the parent once.
@@ -1913,9 +1886,6 @@ namespace Chaos
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BreakingModel_AllParticles);
 		
-		// Clear the set tracking breaking collisions
-		BreakingCollisions.Empty();
-
 		//make copy because release cluster modifies active indices. We want to iterate over original active indices
 		TArray<FPBDRigidClusteredParticleHandle*> ClusteredParticlesToProcess;
 		for(FTransientPBDRigidParticleHandle& Particle : MEvolution.GetNonDisabledClusteredView())
@@ -1973,8 +1943,7 @@ namespace Chaos
 
 		FrameProcessedClusters += InParticles.Num();
 
-		// Clear the set tracking breaking collisions
-		BreakingCollisions.Empty();
+		MomentumRestoringDataByParticle.Empty();
 
 		bool bHasReleasedParticles = false;
 		for(FPBDRigidClusteredParticleHandle* ClusteredParticle : InParticles)
@@ -1997,6 +1966,7 @@ namespace Chaos
 				RestoreBreakingMomentum();
 			}
 		}
+		MomentumRestoringDataByParticle.Empty();
 		return bHasReleasedParticles;
 	}
 
@@ -2129,7 +2099,7 @@ namespace Chaos
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::GenerateConnectionGraph"), STAT_GenerateConnectionGraph, STATGROUP_Chaos);
 	void
 	FRigidClustering::GenerateConnectionGraph(
-		TArray<FPBDRigidParticleHandle*> Particles,
+		const TArray<FPBDRigidParticleHandle*>& Particles,
 		const FClusterCreationParameters& Parameters,
 		const TSet<FPBDRigidParticleHandle*>* FromParticles,
 		const TSet<FPBDRigidParticleHandle*>* ToParticles)
@@ -2441,12 +2411,30 @@ namespace Chaos
 	void FRigidClustering::DisableCluster(FPBDRigidClusteredParticleHandle* ClusteredParticle)
 	{
 		// #note: we don't recursively descend to the children
-		MEvolution.DisableParticle(ClusteredParticle);
-		TopLevelClusterParents.Remove(ClusteredParticle);
-		TopLevelClusterParentsStrained.Remove(ClusteredParticle);
-		GetChildrenMap().Remove(ClusteredParticle);
+		DisableParticle(ClusteredParticle);
 		ClusteredParticle->ClusterIds() = ClusterId();
 		ClusteredParticle->ClusterGroupIndex() = 0;
+	}
+
+	void FRigidClustering::DisableParticle(FPBDRigidParticleHandle* ParticleToDisable, bool bRemoveFromChildrenMap)
+	{
+		if (ParticleToDisable)
+		{
+			// Before disabling the particle, we need to make sure to remove the recorded breaking collision from BreakingCollisions
+			// to avoid it crashing later when processing it 
+			RemoveFromMomentumRestoringStructures(ParticleToDisable);
+
+			MEvolution.DisableParticle(ParticleToDisable);
+			if (FPBDRigidClusteredParticleHandle* ClusteredParticle = ParticleToDisable->CastToClustered())
+			{
+				TopLevelClusterParents.Remove(ClusteredParticle);
+				TopLevelClusterParentsStrained.Remove(ClusteredParticle);
+				if (bRemoveFromChildrenMap)
+				{
+					MChildren.Remove(ClusteredParticle);
+				}
+			}
+		}
 	}
 
 	void FRigidClustering::ApplyStrainModifiers(const TArray<FPBDRigidClusteredParticleHandle*>& StrainedParticles)
@@ -2468,6 +2456,10 @@ namespace Chaos
 	{
 		FClusterHandle ParentParticle = nullptr;
 
+		// Before derstroying the particle, we need to make sure to remove the recorded breaking collision from BreakingCollisions
+		// to avoid it crashing later when processing it 
+		RemoveFromMomentumRestoringStructures(ClusteredParticle);
+
 		// detach connections to thie parent from the children
 		if (MChildren.Contains(ClusteredParticle))
 		{
@@ -2486,7 +2478,7 @@ namespace Chaos
 		// disable within the solver
 		if (!ClusteredParticle->Disabled())
 		{
-			MEvolution.DisableParticle(ClusteredParticle);
+			DisableParticle(ClusteredParticle);
 			ensure(ClusteredParticle->ClusterIds().Id == nullptr);
 		}
 
@@ -3074,14 +3066,14 @@ namespace Chaos
 		return CVarShouldThrottleParticleRelease();
 	}
 
-	void FRigidClustering::ThrottleReleasedParticlesIfNecessary(TSet<FPBDRigidParticleHandle*>& Particles) const
+	void FRigidClustering::ThrottleReleasedParticlesIfNecessary(TSet<FPBDRigidParticleHandle*>& Particles)
 	{
-		GenericThrottleReleasedParticlesIfNecessary(Particles, MEvolution);
+		GenericThrottleReleasedParticlesIfNecessary(Particles, *this);
 	}
 
-	void FRigidClustering::ThrottleReleasedParticlesIfNecessary(TArray<FPBDRigidParticleHandle*>& Particles) const
+	void FRigidClustering::ThrottleReleasedParticlesIfNecessary(TArray<FPBDRigidParticleHandle*>& Particles)
 	{
-		GenericThrottleReleasedParticlesIfNecessary(Particles, MEvolution);
+		GenericThrottleReleasedParticlesIfNecessary(Particles, *this);
 	}
 
 } // namespace Chaos

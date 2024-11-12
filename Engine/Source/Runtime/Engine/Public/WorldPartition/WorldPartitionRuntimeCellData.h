@@ -3,10 +3,12 @@
 
 #include "CoreMinimal.h"
 #include "StringDev.h"
+#include "Misc/HierarchicalLogArchive.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartitionRuntimeCellData.generated.h"
 
 class UActorContainer;
+struct FWorldPartitionStreamingContext;
 
 /** Caches information on streaming source that will be used later on to sort cell. */
 UCLASS(MinimalAPI)
@@ -20,8 +22,12 @@ class UWorldPartitionRuntimeCellData : public UObject
 	ENGINE_API void Serialize(FArchive& Ar);
 	//~End UObject Interface
 
-	ENGINE_API virtual void ResetStreamingSourceInfo() const;
-	ENGINE_API virtual void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const;
+#if WITH_EDITOR
+	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
+#endif
+
+	ENGINE_API virtual void ResetStreamingSourceInfo(const FWorldPartitionStreamingContext& Context) const;
+	ENGINE_API virtual void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape, const FWorldPartitionStreamingContext& Context) const;
 	ENGINE_API virtual void MergeStreamingSourceInfo() const {}
 	ENGINE_API virtual int32 SortCompare(const UWorldPartitionRuntimeCellData* InOther) const;
 
@@ -37,8 +43,12 @@ class UWorldPartitionRuntimeCellData : public UObject
 	virtual bool IsDebugShown() const { return true; }
 	ENGINE_API virtual FString GetDebugName() const;
 
-	static ENGINE_API int32 StreamingSourceCacheEpoch;
-	static inline void DirtyStreamingSourceCacheEpoch() { ++StreamingSourceCacheEpoch; }
+	//~Begin Deprecation
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	ENGINE_API virtual void ResetStreamingSourceInfo() const {}
+	UE_DEPRECATED(5.5, "Use version that takes FWorldPartitionStreamingContext instead.")
+	ENGINE_API virtual void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const {}
+	//~End Deprecation
 
 	// Minimum affecting source priority
 	mutable uint8 CachedMinSourcePriority;

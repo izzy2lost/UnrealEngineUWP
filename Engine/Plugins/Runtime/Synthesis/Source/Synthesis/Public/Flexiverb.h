@@ -46,20 +46,20 @@ namespace Audio
 	/* https://ccrma.stanford.edu/~jos/pasp/Householder_Feedback_Matrix.html        */
 	/********************************************************************************/
 
-	class SYNTHESIS_API FFlexiverb
+	class FFlexiverb
 	{
 	public:
-		FFlexiverb();
-		~FFlexiverb();
+		SYNTHESIS_API FFlexiverb();
+		SYNTHESIS_API ~FFlexiverb();
 
 		// Initialize the reverb with the given sample rate and initial settings.
-		void Init(const int32 InSampleRate, const FFlexiverbSettings Settings = FFlexiverbSettings());
+		SYNTHESIS_API void Init(const int32 InSampleRate, const FFlexiverbSettings Settings = FFlexiverbSettings());
 
 		// Updates the current settings of this reverb.
-		void SetSettings(const FFlexiverbSettings& InSettings);
+		SYNTHESIS_API void SetSettings(const FFlexiverbSettings& InSettings);
 
 		// Process a single audio frame.
-		void ProcessAudioFrame(const float* InBuffer, const int32 InChannels, float* OutBuffer, const int32 OutChannels);
+		SYNTHESIS_API void ProcessAudioFrame(const float* InBuffer, const int32 InChannels, float* OutBuffer, const int32 OutChannels);
 
 	private:
 		// Calculates coefficients based on the current settings.

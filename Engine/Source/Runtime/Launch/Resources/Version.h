@@ -56,15 +56,15 @@
 // newer than a 5.11.* version, regardless of the changelist that it was built with)
 // When updating these, also update the static_assert below
 #define ENGINE_MAJOR_VERSION	5
-#define ENGINE_MINOR_VERSION	4
-#define ENGINE_PATCH_VERSION	4
+#define ENGINE_MINOR_VERSION	5
+#define ENGINE_PATCH_VERSION	0
 
 // If this static_assert fires then Version.h has been updated without updating this code.
 // This line exists to cause conflicts when merging Version.h between streams so if one stream updates
 // the minor version while another updates the patch, you do not get a silently combined version that
 // was unintended.
 #ifdef __cplusplus
-static_assert(ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION == 4 && ENGINE_PATCH_VERSION == 4); //-V501
+static_assert(ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION == 5 && ENGINE_PATCH_VERSION == 0); //-V501
 #endif // __cplusplus
 
 // Macros for encoding strings

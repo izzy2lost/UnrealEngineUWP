@@ -18,14 +18,18 @@
 class FPathPermissionList;
 class FSlateRect;
 class SAssetView;
+class SFilterList;
 class SPathView;
 class SWidget;
 struct FARFilter;
 struct FAssetData;
 struct FContentBrowserDataFilter;
+struct FContentBrowserInstanceConfig;
 struct FContentBrowserItem;
 struct FContentBrowserItemPath;
+struct FPathViewConfig;
 enum class EContentBrowserIsFolderVisibleFlags : uint8;
+enum class EContentBrowserItemAttributeFilter : uint8;
 
 namespace ContentBrowserUtils
 {
@@ -41,11 +45,23 @@ namespace ContentBrowserUtils
 	/** Returns references to the specified items */
 	FString GetItemReferencesText(const TArray<FContentBrowserItem>& Items);
 
+	/** Returns object path of the specified items */
+	FString GetItemObjectPathText(const TArray<FContentBrowserItem>& Items);
+
+	/** Returns package name of the specified items */
+	FString GetItemPackageNameText(const TArray<FContentBrowserItem>& Items);
+
 	/** Returns references to the specified folders */
 	FString GetFolderReferencesText(const TArray<FContentBrowserItem>& Folders);
 
 	/** Copies references to the specified items to the clipboard */
 	void CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
+
+	/** Copies object path of the specified items to the clipboard */
+	void CopyItemObjectPathToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
+
+	/** Copies package name of the specified items to the clipboard */
+	void CopyItemPackageNameToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
 
 	/** Copies references to the specified folders to the clipboard */
 	void CopyFolderReferencesToClipboard(const TArray<FContentBrowserItem>& FoldersToCopy);
@@ -70,6 +86,12 @@ namespace ContentBrowserUtils
 
 	/** Check whether the given item is the root folder of a plugin */
 	bool IsItemPluginRootFolder(const FContentBrowserItem& InItem);
+
+	/** Given a Folder, work out the BrushName and ShadowBrushName to use for it */
+	bool TryGetFolderBrushAndShadowName(const FContentBrowserItem& InFolder, FName& OutBrushName, FName& OutShadowBrushName);
+
+	/** Given a Folder, work out the small version of the BrushName and ShadowBrushName to use for it */
+	bool TryGetFolderBrushAndShadowNameSmall(const FContentBrowserItem& InFolder, FName& OutBrushName, FName& OutShadowBrushName);
 
 	/** Check to see whether the given path is rooted against a collection directory, optionally extracting the collection name and share type from the path */
 	bool IsCollectionPath(const FString& InPath, FName* OutCollectionName = nullptr, ECollectionShareType::Type* OutCollectionShareType = nullptr);
@@ -140,4 +162,37 @@ namespace ContentBrowserUtils
 
 	/** Returns whether we should display icons for plugins in the content browser */
 	bool ShouldShowPluginFolderIcon();
+	
+	/** Returns whether the content browser should be showing redirectors based on the current filter state or content browser settings */
+	bool ShouldShowRedirectors(TSharedPtr<SFilterList> Filters);
+
+	/**
+	 * Returns config settings for the given content browser name.
+	 * A name of none returns null.
+	 */
+	FContentBrowserInstanceConfig* GetContentBrowserConfig(FName InstanceName);
+	
+	/** 
+	 * returns config settings for the path view for the given content browser name.
+	 * A name of none returns null.
+	 */
+	FPathViewConfig* GetPathViewConfig(FName InstanceName);
+
+	/**
+	 * Returns the attribute filter to use when retrieving conent browser data for the given instance.
+	 * An instance name of None gives global settings.
+	 */
+	EContentBrowserItemAttributeFilter GetContentBrowserItemAttributeFilter(FName InstanceName);
+
+	/** 
+	 * Try and find a valid content browser item from a path provided from user text input.
+	 * Examples of paths:
+	 * 	- A full virtual folder or item path such as /All/Game/Maps /All/Game/Maps/Arena.Arena
+	 *  - An internal asset path such as /Game/Maps/Arena.Arena
+	 *  - An internal package name such as /Game/Maps/Arena 
+	 * 	- An internal package path such as /Game/Maps
+	 * 	- An 'export text' path / asset reference such as /Script/Engine.World'/Game/Maps/Arena.Arena'
+	 *  - A filesystem path to a uasset or umap file.
+	 */
+	FContentBrowserItem TryGetItemFromUserProvidedPath(FStringView RequestedPathView);
 }

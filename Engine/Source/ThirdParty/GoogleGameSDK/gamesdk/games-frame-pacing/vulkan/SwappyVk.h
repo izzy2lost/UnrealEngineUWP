@@ -98,6 +98,10 @@ class SwappyVk {
                           uint32_t image);
     void clearStats(VkSwapchainKHR swapchain);
 
+    void resetFramePacing(VkSwapchainKHR swapchain);
+    void enableFramePacing(VkSwapchainKHR swapchain, bool enable);
+    void enableBlockingWait(VkSwapchainKHR swapchain, bool enable);
+
    private:
     std::map<VkPhysicalDevice, bool> doesPhysicalDeviceHaveGoogleDisplayTiming;
     std::map<VkSwapchainKHR, std::shared_ptr<SwappyVkBase>>
@@ -117,6 +121,9 @@ class SwappyVk {
     // Forbid copies.
     SwappyVk(SwappyVk const&) = delete;
     void operator=(SwappyVk const&) = delete;
+
+    std::mutex tracer_list_lock;
+    std::list<SwappyTracer> tracer_list GUARDED_BY(tracer_list_lock);
 };
 
 }  // namespace swappy

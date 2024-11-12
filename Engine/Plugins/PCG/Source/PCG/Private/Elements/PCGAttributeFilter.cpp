@@ -8,6 +8,7 @@
 #include "PCGPin.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Helpers/PCGHelpers.h"
 #include "Metadata/Accessors/IPCGAttributeAccessorTpl.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGCustomAccessor.h"
@@ -152,7 +153,7 @@ namespace PCGAttributeFilterHelpers
 		return true;
 	}
 
-	bool PrepareThresholdInfoFromInput(FPCGContext* InContext, const UPCGData* InputData, const int32 NumInput, const FPCGAttributeFilterThresholdSettings& ThresholdSettings, ThresholdInfo& InOutThresholdInfo, int16 TargetType, bool bCheckCompare, bool bCheckStringSearch, const ThresholdInfo* OtherInfo = nullptr)
+	bool PrepareThresholdInfoFromInput(FPCGContext* InContext, const UPCGData* InputData, const int32 NumInput, const FPCGAttributeFilterThresholdSettings& ThresholdSettings, ThresholdInfo& InOutThresholdInfo, int16 TargetType, bool bCheckCompare, bool bCheckStringSearch, bool bWarnOnDataMissingAttribute, const ThresholdInfo* OtherInfo = nullptr)
 	{
 		check(InContext && InputData);
 
@@ -175,7 +176,7 @@ namespace PCGAttributeFilterHelpers
 				// Reset the point data and reserving some points
 				// No need to reserve the full number of points, since we'll go by chunk
 				// Only allocate the chunk size
-				InOutThresholdInfo.ThresholdPointData = NewObject<UPCGPointData>();
+				InOutThresholdInfo.ThresholdPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 				InOutThresholdInfo.ThresholdPointData->InitializeFromData(InOutThresholdInfo.ThresholdSpatialData);
 				InOutThresholdInfo.ThresholdPointData->GetMutablePoints().SetNum(PCGAttributeFilterConstants::ChunkSize);
 			}
@@ -188,7 +189,11 @@ namespace PCGAttributeFilterHelpers
 
 		if (!InOutThresholdInfo.ThresholdAccessor.IsValid() || !InOutThresholdInfo.ThresholdKeys.IsValid())
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("AttributeMissingForFilter", "DataToFilter does not have '{0}' threshold attribute/property"), FText::FromName(ThresholdSettings.ThresholdAttribute.GetName())));
+			if (bWarnOnDataMissingAttribute)
+			{
+				PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("AttributeMissingForFilter", "Filter data does not have '{0}' threshold attribute/property"), FText::FromName(ThresholdSettings.ThresholdAttribute.GetName())));
+			}
+
 			return false;
 		}
 
@@ -228,10 +233,10 @@ namespace PCGAttributeFilterHelpers
 			return false;
 		}
 
-		// Check that if we have points as threshold, that the point data has the same number of point that the input data
+		// Check that if we have points as threshold, that the point data has the same number of point that the input data, or there is just a single point
 		if (InOutThresholdInfo.ThresholdSpatialData != nullptr && !InOutThresholdInfo.bUseSpatialQuery)
 		{
-			if (InOutThresholdInfo.ThresholdKeys->GetNum() != NumInput)
+			if (InOutThresholdInfo.ThresholdKeys->GetNum() != NumInput && InOutThresholdInfo.ThresholdKeys->GetNum() != 1)
 			{
 				PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("InvalidNumberOfThresholdPoints", "Threshold point data doesn't have the same number of elements ({0}) than the input data ({1})."), InOutThresholdInfo.ThresholdKeys->GetNum(), NumInput));
 				return false;
@@ -332,6 +337,12 @@ UPCGAttributeFilteringSettings::UPCGAttributeFilteringSettings()
 	// Recreate the same default
 	TargetAttribute.SetPointProperty(EPCGPointProperties::Density);
 	ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
+
+	// Change the default for spatial query to be false
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		bUseSpatialQuery = false;
+	}
 }
 
 #if WITH_EDITOR
@@ -439,6 +450,13 @@ UPCGAttributeFilteringRangeSettings::UPCGAttributeFilteringRangeSettings()
 	TargetAttribute.SetPointProperty(EPCGPointProperties::Density);
 	MinThreshold.ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
 	MaxThreshold.ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
+
+	// Change the default for spatial query to be false
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		MinThreshold.bUseSpatialQuery = false;
+		MaxThreshold.bUseSpatialQuery = false;
+	}
 }
 
 
@@ -508,7 +526,7 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::OutputPinProperti
 // FPCGAttributeFilterElementBase
 ////////////////////////////////////////
 
-bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& InTargetAttribute, bool bHasSpatialToPointDeprecation, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold) const
+bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& InTargetAttribute, bool bHasSpatialToPointDeprecation, bool bWarnOnDataMissingAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterElementBase::DoFiltering);
 	check(Context);
@@ -518,6 +536,7 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		const TArray<FPCGPoint>* OriginalPoints = nullptr;
 		TArray<FPCGPoint>* InFilterPoints = nullptr;
 		TArray<FPCGPoint>* OutFilterPoints = nullptr;
+		TBitArray<TInlineAllocator<2048>> FilterBitArray;
 
 		const UPCGMetadata* OriginalMetadata = nullptr;
 		UPCGMetadata* InFilterMetadata = nullptr;
@@ -630,7 +649,11 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 
 		if (!TargetAccessor.IsValid() || !TargetKeys.IsValid())
 		{
-			PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("TargetMissingAttribute", "TargetData doesn't have target attribute/property '{0}'"), FText::FromName(TargetAttribute.GetName())));
+			if (bWarnOnDataMissingAttribute)
+			{
+				PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("TargetMissingAttribute", "Input data doesn't have target attribute/property '{0}'"), FText::FromName(TargetAttribute.GetName())));
+			}
+
 			ForwardInputToOutFilterPin();
 			continue;
 		}
@@ -646,13 +669,13 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 			continue;
 		}
 
-		if (!PCGAttributeFilterHelpers::PrepareThresholdInfoFromInput(Context, OriginalData, NumInput, FirstThreshold, FirstThresholdInfo, TargetType, bCheckCompare, bCheckStringSearch))
+		if (!PCGAttributeFilterHelpers::PrepareThresholdInfoFromInput(Context, OriginalData, NumInput, FirstThreshold, FirstThresholdInfo, TargetType, bCheckCompare, bCheckStringSearch, bWarnOnDataMissingAttribute))
 		{
 			ForwardInputToInFilterPin();
 			continue;
 		}
 
-		if (SecondThreshold && !PCGAttributeFilterHelpers::PrepareThresholdInfoFromInput(Context, OriginalData, NumInput , *SecondThreshold, SecondThresholdInfo, TargetType, bCheckCompare, bCheckStringSearch, &FirstThresholdInfo))
+		if (SecondThreshold && !PCGAttributeFilterHelpers::PrepareThresholdInfoFromInput(Context, OriginalData, NumInput , *SecondThreshold, SecondThresholdInfo, TargetType, bCheckCompare, bCheckStringSearch, bWarnOnDataMissingAttribute, &FirstThresholdInfo))
 		{
 			ForwardInputToInFilterPin();
 			continue;
@@ -664,8 +687,8 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		if (OperationData.bIsInputPointData)
 		{
 			const UPCGPointData* OriginalPointData = CastChecked<UPCGPointData>(OriginalData);
-			UPCGPointData* InFilterPointData = NewObject<UPCGPointData>();
-			UPCGPointData* OutFilterPointData = NewObject<UPCGPointData>();
+			UPCGPointData* InFilterPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
+			UPCGPointData* OutFilterPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 
 			OperationData.OriginalPoints = &OriginalPointData->GetPoints();
 
@@ -674,8 +697,8 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 			OperationData.InFilterPoints = &InFilterPointData->GetMutablePoints();
 			OperationData.OutFilterPoints = &OutFilterPointData->GetMutablePoints();
 
-			OperationData.InFilterPoints->Reserve(OriginalPointData->GetPoints().Num());
-			OperationData.OutFilterPoints->Reserve(OriginalPointData->GetPoints().Num());
+			// Will be set individually in batches
+			OperationData.FilterBitArray.SetNumUninitialized(OriginalPointData->GetPoints().Num());
 
 			InFilterData = InFilterPointData;
 			OutFilterData = OutFilterPointData;
@@ -684,8 +707,8 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		{
 			// Param data
 			const UPCGParamData* OriginalParamData = CastChecked<UPCGParamData>(OriginalData);
-			UPCGParamData* InFilterParamData = NewObject<UPCGParamData>();
-			UPCGParamData* OutFilterParamData = NewObject<UPCGParamData>();
+			UPCGParamData* InFilterParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
+			UPCGParamData* OutFilterParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 
 			OperationData.OriginalMetadata = OriginalParamData->Metadata;
 
@@ -710,10 +733,10 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 				return false;
 			}
 
-			TArray<Type, TInlineAllocator<PCGAttributeFilterConstants::ChunkSize>> TargetValues;
-			TArray<Type, TInlineAllocator<PCGAttributeFilterConstants::ChunkSize>> FirstThresholdValues;
-			TArray<Type, TInlineAllocator<PCGAttributeFilterConstants::ChunkSize>> SecondThresholdValues;
-			TArray<bool, TInlineAllocator<PCGAttributeFilterConstants::ChunkSize>> SkipTests;
+			TArray<Type, TFixedAllocator<PCGAttributeFilterConstants::ChunkSize>> TargetValues;
+			TArray<Type, TFixedAllocator<PCGAttributeFilterConstants::ChunkSize>> FirstThresholdValues;
+			TArray<Type, TFixedAllocator<PCGAttributeFilterConstants::ChunkSize>> SecondThresholdValues;
+			TArray<bool, TFixedAllocator<PCGAttributeFilterConstants::ChunkSize>> SkipTests;
 			TargetValues.SetNum(PCGAttributeFilterConstants::ChunkSize);
 			FirstThresholdValues.SetNum(PCGAttributeFilterConstants::ChunkSize);
 			SecondThresholdValues.SetNum(PCGAttributeFilterConstants::ChunkSize);
@@ -789,9 +812,7 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 				{
 					if (OperationData.bIsInputPointData)
 					{
-						TArray<FPCGPoint>* Points = bInFilter ? OperationData.InFilterPoints : OperationData.OutFilterPoints;
-						check(Points && OperationData.OriginalPoints);
-						Points->Add((*OperationData.OriginalPoints)[Index]);
+						OperationData.FilterBitArray[Index] = bInFilter;
 					}
 					else
 					{
@@ -830,6 +851,29 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 
 		if (PCGMetadataAttribute::CallbackWithRightType(TargetAccessor->GetUnderlyingType(), Operation))
 		{
+			if (OperationData.bIsInputPointData)
+			{
+				check(OperationData.OriginalPoints);
+
+				const int32 NumInFilterPoints = OperationData.FilterBitArray.CountSetBits();
+				const int32 NumOutFilterPoints = OperationData.OriginalPoints->Num() - NumInFilterPoints;
+
+				OperationData.InFilterPoints->Reserve(NumInFilterPoints);
+				OperationData.OutFilterPoints->Reserve(NumOutFilterPoints);
+
+				for (int32 Index = 0; Index < OperationData.FilterBitArray.Num(); ++Index)
+				{
+					if (OperationData.FilterBitArray[Index])
+					{
+						OperationData.InFilterPoints->Add((*OperationData.OriginalPoints)[Index]);
+					}
+					else
+					{
+						OperationData.OutFilterPoints->Add((*OperationData.OriginalPoints)[Index]);
+					}
+				}
+			}
+
 			FPCGTaggedData& InFilterOutput = Outputs.Add_GetRef(Input);
 			InFilterOutput.Pin = PCGPinConstants::DefaultInFilterLabel;
 			InFilterOutput.Data = InFilterData;
@@ -879,7 +923,7 @@ bool FPCGAttributeFilterElement::ExecuteInternal(FPCGContext* Context) const
 	ThresholdSettings.ThresholdAttribute = Settings->ThresholdAttribute;
 	ThresholdSettings.AttributeTypes = Settings->AttributeTypes;
 
-	return DoFiltering(Context, Settings->Operator, Settings->TargetAttribute, Settings->bHasSpatialToPointDeprecation, ThresholdSettings);
+	return DoFiltering(Context, Settings->Operator, Settings->TargetAttribute, Settings->bHasSpatialToPointDeprecation, Settings->bWarnOnDataMissingAttribute, ThresholdSettings);
 }
 
 ////////////////////////////////////////
@@ -904,7 +948,7 @@ bool FPCGAttributeFilterRangeElement::ExecuteInternal(FPCGContext* Context) cons
 	const UPCGAttributeFilteringRangeSettings* Settings = Context->GetInputSettings<UPCGAttributeFilteringRangeSettings>();
 	check(Settings);
 
-	return DoFiltering(Context, EPCGAttributeFilterOperator::InRange, Settings->TargetAttribute, Settings->bHasSpatialToPointDeprecation, Settings->MinThreshold, &Settings->MaxThreshold);
+	return DoFiltering(Context, EPCGAttributeFilterOperator::InRange, Settings->TargetAttribute, Settings->bHasSpatialToPointDeprecation, Settings->bWarnOnDataMissingAttribute, Settings->MinThreshold, &Settings->MaxThreshold);
 }
 
 #undef LOCTEXT_NAMESPACE

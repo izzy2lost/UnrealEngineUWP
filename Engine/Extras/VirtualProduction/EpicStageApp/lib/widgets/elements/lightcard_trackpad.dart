@@ -2,72 +2,68 @@
 
 import 'dart:async';
 
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:vector_math/vector_math_64.dart' as vec;
 
 import '../../models/actor_data/light_card_actor_data.dart';
-import '../../models/settings/delta_widget_settings.dart';
-import '../../models/unreal_property_controller.dart';
-import '../../models/settings/selected_actor_settings.dart';
-
 import '../../models/property_modify_operations.dart';
+import '../../models/settings/delta_widget_settings.dart';
+import '../../models/settings/selected_actor_settings.dart';
 import '../../models/unreal_actor_manager.dart';
+import '../../models/unreal_property_controller.dart';
 import '../../models/unreal_types.dart';
 import '../../utilities/constants.dart';
+import 'unreal_widget_base.dart';
 
-enum _TrackpadOperation { negative, positive }
-
-/// Trackpad widget to moving and positioning LCs, works like an actual trackpad.
-class LightCardTrackPad extends StatefulWidget {
-  const LightCardTrackPad({super.key});
+/// Turns the area into a virtual trackpad, allowing the user to control the selected actors' latitude and longitude
+/// by dragging on it.
+class LightCardTrackpad extends StatefulWidget {
+  const LightCardTrackpad({super.key});
 
   @override
-  State<LightCardTrackPad> createState() => _LightCardTrackPadState();
+  State<LightCardTrackpad> createState() => _LightCardTrackpadState();
 }
 
-class _LightCardTrackPadState extends State<LightCardTrackPad> {
+class _LightCardTrackpadState extends State<LightCardTrackpad> {
+  /// List of actor classes that can be controlled by the trackpad.
+  static const List<String> _controllableClasses = [lightCardClassName, ...colorCorrectWindowClassNames];
+
+  /// Base change rate of latitude/longitude per logical pixel of change in the user's pointer position.
+  static const double _positionalDeltaMultiplier = 0.4;
+
+  /// Base change rate of UV coordinates per logical pixel of change in the user's pointer position.
+  static const double _uvDeltaMultiplier = 0.004;
+
+  /// Maximum value of latitude at which the "north" pole sits. "South" pole is assumed to be at the negation of this.
+  static const _latitudeMax = 90;
+
+  /// Operation used for all property modifications.
+  static const _propertyOperation = const AddOperation();
+
   late final UnrealActorManager _actorManager;
   late final SelectedActorSettings _selectedActorSettings;
-
   late final DeltaWidgetSettings _deltaSettings;
 
-  /// Property Controller for latitude.
+  /// Property controller for latitude.
   late final UnrealPropertyController<double> _latitudeController;
 
   /// Property controller for longitude.
   late final UnrealPropertyController<double> _longitudeController;
 
-  /// List containing whether or not the trackpad is reversed for each selected actor.
-  List<bool> _listBIsTrackpadReversed = [];
+  /// Property controller for UV coordinates.
+  late final UnrealPropertyController<vec.Vector2> _uvController;
 
-  /// Gets a list of selected actor paths.
-  List<String> _getSelectedActorPaths() {
-    final List<String> positionedActorClasses = [lightCardClassName];
-    positionedActorClasses.addAll(colorCorrectWindowClassNames);
-
-    final List<String> nonUVActorPaths = [];
-
-    for (final String actorPath in _selectedActorSettings.selectedActors.getValue()) {
-      final UnrealObject? actor = _actorManager.getActorAtPath(actorPath);
-      if (!(actor?.isAny(positionedActorClasses) ?? false)) {
-        // Actor is not a class with position properties, so leave it out entirely
-        continue;
-      }
-
-      final LightCardActorData? lightCardActorData = actor!.getPerClassData<LightCardActorData>();
-      if (lightCardActorData?.bIsUV == false) {
-        nonUVActorPaths.add(actorPath);
-      }
-    }
-
-    return nonUVActorPaths;
-  }
-
-  /// Getter for list of selected actors path.
-  List<String> get _paths => _getSelectedActorPaths();
+  /// Set of property indices for actors whose trackpad controls are reversed for the current drag operation.
+  Set<int> _reversedControls = {};
 
   /// stream subscriptions for watching changes to selected actors.
   StreamSubscription? _selectedActorsSubscription;
+
+  /// True if the user is currently interacting with the trackpad.
+  bool _bIsPointerDown = false;
 
   @override
   void initState() {
@@ -77,12 +73,17 @@ class _LightCardTrackPadState extends State<LightCardTrackPad> {
 
     _latitudeController = UnrealPropertyController(context, bShouldInitTransaction: false);
     _longitudeController = UnrealPropertyController(context, bShouldInitTransaction: false);
+    _uvController = UnrealPropertyController(context, bShouldInitTransaction: false);
 
-    _handleUpdateTrackedProperties();
+    _updateTrackedProperties();
 
     _selectedActorsSubscription = _selectedActorSettings.selectedActors.listen((event) {
-      _handleUpdateTrackedProperties();
+      if (mounted) {
+        _updateTrackedProperties();
+      }
     });
+
+    _actorManager.watchExistingSubscriptions(_onManagedActorsChanged);
 
     super.initState();
   }
@@ -90,215 +91,237 @@ class _LightCardTrackPadState extends State<LightCardTrackPad> {
   @override
   void dispose() {
     super.dispose();
+    _actorManager.stopWatchingExistingSubscriptions(_onManagedActorsChanged);
+    _selectedActorsSubscription?.cancel();
     _latitudeController.dispose();
     _longitudeController.dispose();
-    _selectedActorsSubscription?.cancel();
+    _uvController.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
-      onPanCancel: _onPanCancel,
-      onPanStart: _onPanStart,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          color: Colors.black,
+    return Container(
+      color: UnrealColors.gray14.withOpacity(0.5),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanDown: _onPanDown,
+        onPanUpdate: _onPanUpdate,
+        onPanEnd: _onPanEnd,
+        onPanCancel: _onPanCancel,
+        child: Center(
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            scale: _bIsPointerDown ? 1.15 : 1,
+            child: AssetIcon(
+              path: 'assets/images/icons/trackpad.svg',
+              size: 96,
+              color: UnrealColors.white.withOpacity(0.2),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  /// Handle vertical drag/pan across the trackpad widget providing Drag [details] containing positions on the x
-  /// and y axis.
-  void _onVerticalDrag(DragUpdateDetails details) {
-    List<double> summations = [];
+  /// Gets a list of selected actor paths, filtering out any actors that can't be controlled by the trackpad.
+  /// If [bGetUVActors] is true, return a list of only UV light cards. Otherwise, return a list of only non-UV actors.
+  List<String> _getSelectedActorPaths({required bool bGetUVActors}) {
+    final List<String> validActorPaths = [];
 
-    double yAxis = details.delta.dy * _deltaSettings.sensitivity.getValue();
+    for (final String actorPath in _selectedActorSettings.selectedActors.getValue()) {
+      final UnrealObject? actor = _actorManager.getActorAtPath(actorPath);
 
-    /// get actors latitude (property value) at [index].
-    double _getPropertyValue(int index) {
-      if (_latitudeController.makeValueDataList().isNotEmpty) {
-        return _latitudeController.makeValueDataList()[index]?.value ?? 0;
+      if (actor == null) {
+        continue;
       }
-      return 0;
-    }
 
-    /// increment the actors longitude at [index] with [value].
-    void _incrementLongitude(double value, int index) {
-      _modifyProperty(value, index, _longitudeController, PropertyMinMaxBehaviour.loop);
-    }
-
-    /// increment the actors longitude at [index] by 180° only when the actors latitude value at [index] is at 90° or
-    /// -90°.
-    void _incrementLongitudeByOneEighty(int index) {
-      if (_getPropertyValue(index) == 90 || _getPropertyValue(index) == -90) {
-        _incrementLongitude(180, index);
+      if (!actor.isAny(_controllableClasses)) {
+        // Actor is not a class with position properties, so leave it out entirely
+        continue;
       }
+
+      // Filter to UV/non-UV actors
+      final LightCardActorData? lightCardActorData = actor.getPerClassData<LightCardActorData>();
+      if (lightCardActorData?.bIsUV != bGetUVActors) {
+        continue;
+      }
+
+      validActorPaths.add(actorPath);
     }
 
-    /// handle bounce back for when we hit the north pole or its opposite side, specifying a negative/positive
-    /// [operation] indicated whether the actors latitude is at 90° or -90° respectively, [summation]
-    /// which denotes the to be position on the Y-axis derived from adding the current y-position and the incoming
-    /// position from [details.delta.dy], and [index] which is the property index to be modified.
-    void _handleBounceBack(_TrackpadOperation operation, double summation, int index) {
-      // remainder from after we drive the latitude to 90° or -90°.
-      double overflow = operation == _TrackpadOperation.positive ? summation - 90 : -90 - summation;
+    return validActorPaths;
+  }
 
-      // Drive the latitude to the max of 90° or -90°
-      _modifyProperty(yAxis - overflow, index, _latitudeController);
+  /// Update tracked properties for both latitude and longitude controllers.
+  void _updateTrackedProperties() {
+    _reversedControls.clear();
 
-      _incrementLongitudeByOneEighty(index);
+    _longitudeController.trackAllProperties(_getPositionalProperties('Longitude'));
+    _latitudeController.trackAllProperties(_getPositionalProperties('Latitude'));
+    _uvController.trackAllProperties(
+      _getSelectedActorPaths(bGetUVActors: true)
+          .map((String actorPath) => UnrealProperty(objectPath: actorPath, propertyName: 'UVCoordinates'))
+          .toList(growable: false),
+    );
+  }
 
-      // Drive the latitude in the reverse direction with the [overflow].
-      double tempValue = operation == _TrackpadOperation.positive ? -overflow * 2 : overflow * 2;
+  /// Called when the user's input suggests a pan gesture may be about to start.
+  void _onPanDown(DragDownDetails details) {
+    setState(() {
+      _bIsPointerDown = true;
+    });
+  }
 
-      _modifyProperty(tempValue, index, _latitudeController);
+  /// Called whenever a pan gesture's position updates based on new user input.
+  void _onPanUpdate(DragUpdateDetails details) {
+    // Transaction is global, so this will be shared with the latitude controller
+    _longitudeController.beginTransaction();
 
-      // specify that we want our trackpad to now be reversed.
-      _listBIsTrackpadReversed[index] = true;
-    }
+    final Offset baseDelta = details.delta * _deltaSettings.sensitivity.getValue();
+    final Offset positionalDelta = baseDelta * _positionalDeltaMultiplier;
 
-    /// handle case for where the trackpad is marked as reversed.
-    void _handleReverseTrackpad(double summation, int index) {
-      bool bIsTrackpadReversed = _listBIsTrackpadReversed[index];
+    // Longitude is a simple loop operation at the min/max values, so we can update it directly
+    _longitudeController.modifyProperties(
+      _propertyOperation,
+      values: List.generate(
+        _longitudeController.properties.length,
+        (_) => positionalDelta.dx,
+        growable: false,
+      ),
+      minMaxBehaviour: PropertyMinMaxBehaviour.loop,
+    );
 
-      if (bIsTrackpadReversed) {
-        double currentPosition = _getPropertyValue(index);
+    // Latitude requires special handling at the min/max values. When we reach either pole, the longitude rotates by
+    // 180 degrees and changes in latitude delta reverses direction to continue moving smoothly.
+    // For example, if the user is dragging up to move north, once they reach the north pole, they expect to continue
+    // circling the globe in the same direction, i.e. starting to move south on the opposite longitudinal side of the
+    // globe.
+    _latitudeController.properties.indexed.forEach((propertyPair) {
+      final int propertyIndex = propertyPair.$1;
+      final WidgetControlledUnrealProperty<double>? property = propertyPair.$2;
 
-        if (summation < 90) {
-          _modifyProperty(-yAxis, index, _latitudeController);
-
-          if (currentPosition == 90) {
-            _incrementLongitudeByOneEighty(index);
-            _listBIsTrackpadReversed[index] = false;
-          }
-        }
-
-        if (currentPosition == -90) {
-          _incrementLongitudeByOneEighty(index);
-          _modifyProperty(yAxis, index, _latitudeController);
-
-          _listBIsTrackpadReversed[index] = false;
-        }
-
+      final double? currentValue = property?.value;
+      if (currentValue == null) {
         return;
       }
 
-      _modifyProperty(yAxis, index, _latitudeController);
-    }
+      final bool bIsReversed = _reversedControls.contains(propertyIndex);
 
-    /// get (summations) to be positions of all actors on the y-axis by adding the value of [details.delta.dy] to an
-    /// actors current position.
-    for (int index = 0; index < _paths.length; index++) {
-      double latitude = 0;
+      double deltaY = positionalDelta.dy;
 
-      /// check to make sure all selected actors have a valid position on the y-axis and that the length of paths
-      /// matches the length of data values for the actors.
-      if (_latitudeController.makeValueDataList().isNotEmpty &&
-          _paths.length == _latitudeController.makeValueDataList().length) {
-        latitude = _latitudeController.makeValueDataList()[index]?.value ?? 0;
+      // Latitude moves the opposite direction of where the user would expect on a trackpad, so negate it by default
+      if (!bIsReversed) {
+        deltaY = -deltaY;
       }
 
-      /// sum of incoming dy [yAxis] and the current Y position [latitude] of LC'(s).
-      double summation = latitude + yAxis;
+      double newValue = currentValue + deltaY;
+      final double absNewValue = newValue.abs();
 
-      summations.add(summation);
-    }
+      if (absNewValue < _latitudeMax) {
+        // Just move the distance specified
+        _latitudeController.modifyProperty(_propertyOperation, propertyIndex, value: deltaY);
+        return;
+      }
 
-    /// handle when we hit either the negative or positive south pole.
-    for (int index = 0; index < summations.length; index++) {
-      double sum = summations[index];
-      if (sum > 90) {
-        _handleBounceBack(_TrackpadOperation.positive, sum, index);
-      } else if (sum < -90) {
-        _handleBounceBack(_TrackpadOperation.negative, sum, index);
+      // Move to the pole
+      final double distanceToPole = (_latitudeMax - absNewValue) * newValue.sign;
+      _latitudeController.modifyProperty(_propertyOperation, propertyIndex, value: distanceToPole);
+
+      // Flip longitude
+      _longitudeController.modifyProperty(
+        const AddOperation(),
+        propertyIndex,
+        value: 180,
+        minMaxBehaviour: PropertyMinMaxBehaviour.loop,
+      );
+
+      // Move the remaining distance away from the pole
+      final double remainingDistance = (_latitudeMax - absNewValue) * newValue.sign;
+      _latitudeController.modifyProperty(_propertyOperation, propertyIndex, value: remainingDistance);
+
+      // Toggle whether this latitude's direction is reversed
+      if (bIsReversed) {
+        _reversedControls.remove(propertyIndex);
       } else {
-        _handleReverseTrackpad(sum, index);
+        _reversedControls.add(propertyIndex);
+      }
+    });
+
+    // UV coordinates can be modified directly without any clamping/looping
+    final Offset uvDelta = baseDelta * _uvDeltaMultiplier;
+    final uvDeltaVector = vec.Vector2(uvDelta.dx, uvDelta.dy);
+
+    _uvController.modifyProperties(
+      _propertyOperation,
+      values: List.generate(
+        _uvController.properties.length,
+        (_) => uvDeltaVector,
+        growable: false,
+      ),
+      minMaxBehaviour: PropertyMinMaxBehaviour.ignore,
+    );
+  }
+
+  /// Called when pan/drag gestures ends.
+  void _onPanEnd(DragEndDetails details) {
+    _onPanFinished();
+  }
+
+  /// Called when pan/drag gesture is cancelled.
+  void _onPanCancel() {
+    _onPanFinished();
+  }
+
+  /// Called when a pan gesture ends for any reason.
+  void _onPanFinished() {
+    setState(() {
+      _bIsPointerDown = false;
+    });
+
+    _longitudeController.endTransaction();
+    _reversedControls.clear();
+  }
+
+  /// Get a list of UnrealProperties corresponding to the [propertyName] on all of the selected, controllable non-UV
+  /// actors. This will modify the property name to account for actor types where the parameters are in a nested struct.
+  List<UnrealProperty> _getPositionalProperties(String propertyName) {
+    return _getSelectedActorPaths(bGetUVActors: false).map((actorPath) {
+      final UnrealObject? actor = _actorManager.getActorAtPath(actorPath);
+
+      final String pathToProperty;
+
+      if (actor?.isAny(colorCorrectWindowClassNames) == true) {
+        // CCWs store their positional properties in a sub-structure
+        pathToProperty = 'PositionalParams.' + propertyName;
+      } else {
+        pathToProperty = propertyName;
+      }
+
+      return UnrealProperty(objectPath: actorPath, propertyName: pathToProperty);
+    }).toList(growable: false);
+  }
+
+  /// Called when any of the actors in the [UnrealActorManager] changes.
+  void _onManagedActorsChanged(ActorUpdateDetails details) {
+    if (!mounted) {
+      return;
+    }
+
+    final Set<String> newActorPaths = details.addedActors.map((actor) => actor.path).toSet();
+
+    // If any selected actors were added, update our tracked properties.
+    // This is necessary to catch new actors, which may be selected before they're registered with the actor manager.
+    bool bShouldUpdate = false;
+    for (final String actorPath in _selectedActorSettings.selectedActors.getValue()) {
+      if (newActorPaths.contains(actorPath)) {
+        bShouldUpdate = true;
+        break;
       }
     }
-  }
 
-  /// Handle horizontal drag/pan across the trackpad widget providing Drag [details] containing positions on the x
-  /// and y axis.
-  void _onHorizontalDrag(DragUpdateDetails details) {
-    double dx = details.delta.dx * _deltaSettings.sensitivity.getValue();
-    for (var index = 0; index < _paths.length; index++) {
-      _modifyProperty(dx, index, _longitudeController, PropertyMinMaxBehaviour.loop);
+    if (bShouldUpdate) {
+      _updateTrackedProperties();
     }
   }
-
-  /// Track all properties and update a property with [name] at the specified [index], modifying the property with
-  /// [value], using the related UnrealPropertyController [controller], optionally providing a
-  /// PropertyMinMaxBehaviour [behaviour] or [PropertyMinMaxBehaviour.clamp] will be used as default.
-  void _modifyProperty(double value, int index, UnrealPropertyController controller,
-      [PropertyMinMaxBehaviour behaviour = PropertyMinMaxBehaviour.clamp]) {
-    controller.modifyProperty(controller.modifyOperation, index, value: value, minMaxBehaviour: behaviour);
-  }
-
-  /// update tracked properties for both latitude and longitude controllers.
-  void _handleUpdateTrackedProperties() {
-    _latitudeController
-        .trackAllProperties(_getProperties('Latitude', _paths, modifierFn: _modifyPositionalPropertyNameBasedOnClass));
-    _longitudeController
-        .trackAllProperties(_getProperties('Longitude', _paths, modifierFn: _modifyPositionalPropertyNameBasedOnClass));
-  }
-
-  /// Handles all sort of drag/pan gestures on the trackpad, whether vertically or horizontally, providing Drag
-  /// update [details] which contains x [details.delta.dx] & y [details.delta.dy] positions.
-  void _onPanUpdate(DragUpdateDetails details) {
-    _longitudeController.beginTransaction();
-    _onVerticalDrag(details);
-    _onHorizontalDrag(details);
-  }
-
-  /// Called when pan/drag gestures end's, providing Drag end [details].
-  void _onPanEnd(DragEndDetails details) {
-    _longitudeController.endTransaction();
-    _listBIsTrackpadReversed = _paths.map((e) => false).toList();
-  }
-
-  /// Called when pan/drag gesture is canceled.
-  void _onPanCancel() {
-    _longitudeController.endTransaction();
-    _listBIsTrackpadReversed = _paths.map((e) => false).toList();
-  }
-
-  /// Called when pan/drag gesture starts.
-  void _onPanStart(DragStartDetails details) {
-    _listBIsTrackpadReversed = _paths.map((e) => false).toList();
-  }
-
-  /// Given an [actorPath] and a [propertyName], return a modified positional property name accounting for the actor's
-  /// type.
-  String _modifyPositionalPropertyNameBasedOnClass(String actorPath, String propertyName) {
-    final UnrealObject? actor = _actorManager.getActorAtPath(actorPath);
-
-    if (actor != null && actor.isAny(colorCorrectWindowClassNames)) {
-      // CCWs store their positional properties in a sub-structure.
-      return 'PositionalParams.' + propertyName;
-    }
-
-    return propertyName;
-  }
-}
-
-/// A simple type definition used by the [_geProperties] function.
-typedef ModifierFn = String Function(String path, String name);
-
-/// Get a list of properties with the given [name] for all of the actors with path in [paths].
-/// If [modifierFn] is provided, it will be called for each [actorPath] and the [propertyName] of the property,
-/// and its return value will be used in place of [name].
-List<UnrealProperty> _getProperties(String name, List<String> paths, {ModifierFn? modifierFn, String? overrideName}) {
-  return paths
-      .map(
-        (actorPath) => UnrealProperty(
-          objectPath: actorPath,
-          propertyName: (modifierFn != null) ? modifierFn(actorPath, name) : name,
-          typeNameOverride: overrideName,
-        ),
-      )
-      .toList();
 }

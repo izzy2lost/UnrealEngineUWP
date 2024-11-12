@@ -55,8 +55,6 @@ namespace UnrealBuildTool
 			}
 		}
 
-		protected FileReference? ProjectFile;
-
 		// Version string from the Android specific build of clang. E.g in Android (6317467 based on r365631c1) clang version 9.0.8
 		// this would be 6317467)
 		protected static string? AndroidClangBuild;
@@ -81,17 +79,17 @@ namespace UnrealBuildTool
 		};
 
 		private static Dictionary<UnrealArch, string[]> ModulesToSkip = new() {
-			{ UnrealArch.Arm64, new string[] {  } },
+			{ UnrealArch.Arm64, Array.Empty<string>() },
 			{ UnrealArch.X64,   new string[] { "OnlineSubsystemOculus", "OculusHMD", "OculusMR" } }
 		};
 
 		private static Dictionary<UnrealArch, string[]> GeneratedModulesToSkip = new() {
-			{ UnrealArch.Arm64, new string[] {  } },
+			{ UnrealArch.Arm64, Array.Empty<string>() },
 			{ UnrealArch.X64,   new string[] { "OculusEntitlementCallbackProxy", "OculusCreateSessionCallbackProxy", "OculusFindSessionsCallbackProxy", "OculusIdentityCallbackProxy", "OculusNetConnection", "OculusNetDriver", "OnlineSubsystemOculus_init" } }
 		};
 
 		public string? NDKToolchainVersion;
-		public UInt64 NDKVersionInt;
+		public ulong NDKVersionInt;
 
 		int ClangVersionMajor = -1;
 		int ClangVersionMinor = -1;
@@ -246,7 +244,7 @@ namespace UnrealBuildTool
 
 		protected override ClangToolChainInfo GetToolChainInfo()
 		{
-			return new ClangToolChainInfo(FileReference.FromString(ClangPath)!, FileReference.FromString(ArPathArm64)!, Logger);
+			return new ClangToolChainInfo(DirectoryReference.FromString(AndroidPlatformSDK.GetNDKRoot()), FileReference.FromString(ClangPath)!, FileReference.FromString(ArPathArm64)!, Logger);
 		}
 
 		public static string GetGLESVersion(bool bBuildForES31)
@@ -319,7 +317,7 @@ namespace UnrealBuildTool
 			return NDKVersionInt;
 		}
 
-		public UInt64 GetNdkVersionInt()
+		public ulong GetNdkVersionInt()
 		{
 			return NDKVersionInt;
 		}
@@ -664,11 +662,6 @@ namespace UnrealBuildTool
 			Arguments.Add("-D_FORTIFY_SOURCE=2");       // FORTIFY default
 			Arguments.Add($"-DPLATFORM_USED_NDK_VERSION_INTEGER={NDKApiLevel64Int}");       // NDK version
 			Arguments.Add("-DPLATFORM_64BITS=1");       // NDK version
-
-			if (CompileEnvironment.bCompileISPC)
-			{
-				Arguments.Add("-DINTEL_ISPC=1");
-			}
 
 			if (CompileEnvironment.Architecture == UnrealArch.Arm64)
 			{
@@ -1043,7 +1036,7 @@ namespace UnrealBuildTool
 				// This is used by Crypto code in Core
 				ModifiedInputFiles.Add(FileItem.GetItemByPath(GetCpuFeaturesPath()));
 				HasHandledCoreModule.Add(CompileEnvironment.Architecture);
-				
+
 			}
 
 			return base.CompileCPPFiles(CompileEnvironment, ModifiedInputFiles, OutputDir, ModuleName, Graph);
@@ -1074,328 +1067,6 @@ namespace UnrealBuildTool
 			return DirectoryReference.Combine(PathRef, "include", Arch.ToString());
 		}
 
-		public override CPPOutput GenerateISPCHeaders(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
-		{
-			CPPOutput Result = new CPPOutput();
-
-			if (!CompileEnvironment.bCompileISPC)
-			{
-				return Result;
-			}
-
-			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, CompileEnvironment.Architecture);
-
-			CompileEnvironment.UserIncludePaths.Add(InlineArchIncludeFolder(OutputDir, CompileEnvironment.Architecture));
-
-			foreach (FileItem ISPCFile in InputFiles)
-			{
-				Action CompileAction = Graph.CreateAction(ActionType.Compile);
-				CompileAction.CommandDescription = "Compile";
-				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
-				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
-				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
-				CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
-
-				// Disable remote execution to workaround mismatched case on XGE
-				CompileAction.bCanExecuteRemotely = false;
-
-				List<string> Arguments = new List<string>();
-
-				// Add the ISPC obj file as a prerequisite of the action.
-				Arguments.Add(String.Format(" \"{0}\"", ISPCFile.AbsolutePath));
-
-				// Add the ISPC h file to the produced item list.
-				FileItem ISPCIncludeHeaderFile = FileItem.GetItemByFileReference(
-					FileReference.Combine(
-						InlineArchIncludeFolder(OutputDir, CompileEnvironment.Architecture),
-						Path.GetFileName(ISPCFile.AbsolutePath) + ".generated.dummy.h"
-						)
-					);
-
-				// Add the ISPC file to be compiled.
-				Arguments.Add(String.Format("-h \"{0}\"", ISPCIncludeHeaderFile));
-
-				// Build target string. No comma on last
-				string TargetString = "";
-				foreach (string Target in CompileTargets)
-				{
-					if (Target == CompileTargets.Last())
-					{
-						TargetString += Target;
-					}
-					else
-					{
-						TargetString += Target + ",";
-					}
-				}
-
-				// Build target triplet
-				Arguments.Add(String.Format("--target-os=\"{0}\"", GetISPCOSTarget(CompileEnvironment.Platform)));
-				Arguments.Add(String.Format("--arch=\"{0}\"", GetISPCArchTarget(CompileEnvironment.Platform, CompileEnvironment.Architecture)));
-				Arguments.Add(String.Format("--target=\"{0}\"", TargetString));
-
-				Arguments.Add("--pic");
-
-				// Include paths. Don't use AddIncludePath() here, since it uses the full path and exceeds the max command line length.
-				foreach (DirectoryReference IncludePath in CompileEnvironment.UserIncludePaths)
-				{
-					Arguments.Add(String.Format("-I\"{0}\"", IncludePath));
-				}
-
-				// System include paths.
-				foreach (DirectoryReference SystemIncludePath in CompileEnvironment.SystemIncludePaths)
-				{
-					Arguments.Add(String.Format("-I\"{0}\"", SystemIncludePath));
-				}
-
-				// Generate the included header dependency list
-				FileItem DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, InlineArchName(Path.GetFileName(ISPCFile.AbsolutePath) + ".d", CompileEnvironment.Architecture, true)));
-				Arguments.Add(String.Format("-M -MF \"{0}\"", DependencyListFile.AbsolutePath.Replace('\\', '/')));
-				CompileAction.DependencyListFile = DependencyListFile;
-				CompileAction.ProducedItems.Add(DependencyListFile);
-
-				CompileAction.ProducedItems.Add(ISPCIncludeHeaderFile);
-
-				CompileAction.CommandArguments = String.Join(" ", Arguments);
-
-				// Add the source file and its included files to the prerequisite item list.
-				CompileAction.PrerequisiteItems.Add(ISPCFile);
-				CompileAction.StatusDescription = String.Format("[{0}] {1}", CompileEnvironment.Architecture, Path.GetFileName(ISPCFile.AbsolutePath));
-
-				FileItem ISPCFinalHeaderFile = FileItem.GetItemByFileReference(
-					FileReference.Combine(
-						InlineArchIncludeFolder(OutputDir, CompileEnvironment.Architecture),
-						Path.GetFileName(ISPCFile.AbsolutePath) + ".generated.h"
-						)
-					);
-
-				// Fix interrupted build issue by copying header after generation completes
-				FileReference SourceFile = ISPCIncludeHeaderFile.Location;
-				FileReference TargetFile = ISPCFinalHeaderFile.Location;
-
-				FileItem SourceFileItem = FileItem.GetItemByFileReference(SourceFile);
-				FileItem TargetFileItem = FileItem.GetItemByFileReference(TargetFile);
-
-				Action CopyAction = Graph.CreateAction(ActionType.BuildProject);
-				CopyAction.CommandDescription = "Copy";
-				CopyAction.CommandPath = BuildHostPlatform.Current.Shell;
-				if (BuildHostPlatform.Current.ShellType == ShellType.Cmd)
-				{
-					CopyAction.CommandArguments = String.Format("/C \"copy /Y \"{0}\" \"{1}\" 1>nul\"", SourceFile, TargetFile);
-				}
-				else
-				{
-					CopyAction.CommandArguments = String.Format("-c 'cp -f \"{0}\" \"{1}\"'", SourceFile.FullName, TargetFile.FullName);
-				}
-				CopyAction.WorkingDirectory = Unreal.EngineSourceDirectory;
-				CopyAction.PrerequisiteItems.Add(SourceFileItem);
-				CopyAction.ProducedItems.Add(TargetFileItem);
-				CopyAction.StatusDescription = TargetFileItem.Location.GetFileName();
-				CopyAction.bCanExecuteRemotely = false;
-				CopyAction.bShouldOutputStatusDescription = false;
-
-				Result.GeneratedHeaderFiles.Add(TargetFileItem);
-
-				Logger.LogDebug("   ISPC Generating Header {StatusDescription}: \"{CommandPath}\" {CommandArguments}", CompileAction.StatusDescription, CompileAction.CommandPath, CompileAction.CommandArguments);
-			}
-
-			return Result;
-		}
-
-		public override CPPOutput CompileISPCFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, IActionGraphBuilder Graph)
-		{
-			CPPOutput Result = new CPPOutput();
-
-			if (!CompileEnvironment.bCompileISPC)
-			{
-				return Result;
-			}
-
-			List<string> CompileTargets = GetISPCCompileTargets(CompileEnvironment.Platform, CompileEnvironment.Architecture);
-
-			foreach (FileItem ISPCFile in InputFiles)
-			{
-				Action CompileAction = Graph.CreateAction(ActionType.Compile);
-				CompileAction.CommandDescription = "Compile";
-				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
-				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
-				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
-
-				// Disable remote execution to workaround mismatched case on XGE
-				CompileAction.bCanExecuteRemotely = false;
-
-				List<string> Arguments = new List<string>();
-
-				// Add the ISPC file to be compiled.
-				Arguments.Add(String.Format(" \"{0}\"", ISPCFile.AbsolutePath));
-
-				List<FileItem> CompiledISPCObjFiles = new List<FileItem>();
-				List<FileItem> FinalISPCObjFiles = new List<FileItem>();
-				string TargetString = "";
-
-				foreach (string Target in CompileTargets)
-				{
-					string ObjTarget = Target;
-
-					if (Target.Contains('-'))
-					{
-						// Remove lane width and gang size from obj file name
-						ObjTarget = Target.Split('-')[0];
-					}
-
-					FileItem CompiledISPCObjFile;
-					FileItem FinalISPCObjFile;
-
-					if (CompileTargets.Count > 1)
-					{
-						CompiledISPCObjFile = FileItem.GetItemByFileReference(
-						FileReference.Combine(
-							OutputDir,
-							Path.GetFileNameWithoutExtension(InlineArchName(Path.GetFileName(ISPCFile.AbsolutePath) + ".o", CompileEnvironment.Architecture, true)) + "_" + ObjTarget + ".o"
-							)
-						);
-
-						FinalISPCObjFile = FileItem.GetItemByFileReference(
-						FileReference.Combine(
-							OutputDir,
-							Path.GetFileName(ISPCFile.AbsolutePath) + "_" + ObjTarget + InlineArchName(".o", CompileEnvironment.Architecture, true)
-							)
-						);
-					}
-					else
-					{
-						CompiledISPCObjFile = FileItem.GetItemByFileReference(
-							FileReference.Combine(
-								OutputDir,
-								InlineArchName(Path.GetFileName(ISPCFile.AbsolutePath) + ".o", CompileEnvironment.Architecture, true)
-								)
-							);
-
-						FinalISPCObjFile = CompiledISPCObjFile;
-					}
-
-					// Add the ISA specific ISPC obj files to the produced item list.
-					CompiledISPCObjFiles.Add(CompiledISPCObjFile);
-					FinalISPCObjFiles.Add(FinalISPCObjFile);
-
-					// Build target string. No comma on last
-					if (Target == CompileTargets.Last())
-					{
-						TargetString += Target;
-					}
-					else
-					{
-						TargetString += Target + ",";
-					}
-				}
-
-				// Add the common ISPC obj file to the produced item list.
-				FileItem CompiledISPCObjFileNoISA = FileItem.GetItemByFileReference(
-					FileReference.Combine(
-						OutputDir,
-						InlineArchName(Path.GetFileName(ISPCFile.AbsolutePath) + ".o", CompileEnvironment.Architecture, true)
-						)
-					);
-
-				CompiledISPCObjFiles.Add(CompiledISPCObjFileNoISA);
-				FinalISPCObjFiles.Add(CompiledISPCObjFileNoISA);
-
-				// Add the output ISPC obj file
-				Arguments.Add(String.Format("-o \"{0}\"", CompiledISPCObjFileNoISA));
-
-				// Build target triplet
-				Arguments.Add(String.Format("--target-os=\"{0}\"", GetISPCOSTarget(CompileEnvironment.Platform)));
-				Arguments.Add(String.Format("--arch=\"{0}\"", GetISPCArchTarget(CompileEnvironment.Platform, CompileEnvironment.Architecture)));
-				Arguments.Add(String.Format("--target=\"{0}\"", TargetString));
-
-				if (CompileEnvironment.Configuration == CppConfiguration.Debug)
-				{
-					Arguments.Add("-g -O0");
-				}
-				else
-				{
-					Arguments.Add("-O2");
-				}
-
-				Arguments.Add("--pic");
-
-				// Add include paths to the argument list (filtered by architecture)
-				foreach (DirectoryReference IncludePath in CompileEnvironment.SystemIncludePaths)
-				{
-					if (IsDirectoryForArch(IncludePath.FullName, CompileEnvironment.Architecture))
-					{
-						Arguments.Add(String.Format(" -I\"{0}\"", IncludePath));
-					}
-				}
-				foreach (DirectoryReference IncludePath in CompileEnvironment.UserIncludePaths)
-				{
-					if (IsDirectoryForArch(IncludePath.FullName, CompileEnvironment.Architecture))
-					{
-						Arguments.Add(String.Format(" -I\"{0}\"", IncludePath));
-					}
-				}
-
-				// Preprocessor definitions.
-				foreach (string Definition in CompileEnvironment.Definitions)
-				{
-					Arguments.Add(String.Format(" -D\"{0}\"", Definition));
-				}
-
-				// Consume the included header dependency list
-				FileItem DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, InlineArchName(Path.GetFileName(ISPCFile.AbsolutePath) + ".d", CompileEnvironment.Architecture, true)));
-				CompileAction.DependencyListFile = DependencyListFile;
-				CompileAction.PrerequisiteItems.Add(DependencyListFile);
-
-				CompileAction.ProducedItems.UnionWith(CompiledISPCObjFiles);
-
-				CompileAction.CommandArguments = String.Join(" ", Arguments);
-
-				// Add the source file and its included files to the prerequisite item list.
-				CompileAction.PrerequisiteItems.Add(ISPCFile);
-
-				CompileAction.StatusDescription = String.Format("[{0}] [{1}]", CompileEnvironment.Architecture, Path.GetFileName(ISPCFile.AbsolutePath));
-
-				for (int i = 0; i < CompiledISPCObjFiles.Count; i++)
-				{
-					// ISPC compiler can't add suffix on the end of the arch, so copy to put into what linker expects
-					FileReference SourceFile = CompiledISPCObjFiles[i].Location;
-					FileReference TargetFile = FinalISPCObjFiles[i].Location;
-
-					if (SourceFile.Equals(TargetFile))
-					{
-						continue;
-					}
-
-					FileItem SourceFileItem = FileItem.GetItemByFileReference(SourceFile);
-					FileItem TargetFileItem = FileItem.GetItemByFileReference(TargetFile);
-
-					Action CopyAction = Graph.CreateAction(ActionType.BuildProject);
-					CopyAction.CommandDescription = "Copy";
-					CopyAction.CommandPath = BuildHostPlatform.Current.Shell;
-					if (BuildHostPlatform.Current.ShellType == ShellType.Cmd)
-					{
-						CopyAction.CommandArguments = String.Format("/C \"copy /Y \"{0}\" \"{1}\" 1>nul\"", SourceFile, TargetFile);
-					}
-					else
-					{
-						CopyAction.CommandArguments = String.Format("-c 'cp -f \"{0}\" \"{1}\"'", SourceFile.FullName, TargetFile.FullName);
-					}
-					CopyAction.WorkingDirectory = Unreal.EngineSourceDirectory;
-					CopyAction.PrerequisiteItems.Add(SourceFileItem);
-					CopyAction.ProducedItems.Add(TargetFileItem);
-					CopyAction.StatusDescription = TargetFileItem.Location.GetFileName();
-					CopyAction.bCanExecuteRemotely = false;
-					CopyAction.bShouldOutputStatusDescription = false;
-				}
-
-				Result.ObjectFiles.AddRange(FinalISPCObjFiles);
-
-				Logger.LogDebug("   ISPC Compiling {StatusDescription}: \"{CommandPath}\" {CommandArguments}", CompileAction.StatusDescription, CompileAction.CommandPath, CompileAction.CommandArguments);
-			}
-
-			return Result;
-		}
-
 		public override FileItem? LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, IActionGraphBuilder Graph)
 		{
 			if (!LinkEnvironment.bIsBuildingLibrary)
@@ -1408,6 +1079,7 @@ namespace UnrealBuildTool
 
 			// Create an action that invokes the linker.
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
+			LinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 			LinkAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 
 			if (LinkEnvironment.bIsBuildingLibrary)
@@ -1671,7 +1343,7 @@ namespace UnrealBuildTool
 
 		// captures stderr from clang
 		private static string LinkerCommandline = "";
-		public static void OutputReceivedForLinker(Object Sender, DataReceivedEventArgs Line)
+		public static void OutputReceivedForLinker(object Sender, DataReceivedEventArgs Line)
 		{
 			if ((Line != null) && (Line.Data != null) && (Line.Data.Contains("--sysroot")))
 			{
@@ -1720,7 +1392,7 @@ namespace UnrealBuildTool
 			*/
 		}
 
-		public static void OutputReceivedDataEventHandler(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+		public static void OutputReceivedDataEventHandler(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 		{
 			if ((Line != null) && (Line.Data != null))
 			{

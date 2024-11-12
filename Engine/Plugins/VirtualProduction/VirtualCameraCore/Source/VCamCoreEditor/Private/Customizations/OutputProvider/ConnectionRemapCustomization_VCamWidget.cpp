@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "FConnectionRemapCustomization_VCamWidget"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedRef<IConnectionRemapCustomization> FConnectionRemapCustomization_VCamWidget::Make()
 	{

@@ -8,7 +8,11 @@
 namespace UE::MVVM
 {
 	class FAssetTypeActions_ViewModelBlueprint;
+	class FBlueprintViewDesignerExtensionFactory;
+	class FClipboardExtension;
+	class FWidgetDragDropExtension;
 	class FMVVMListViewBaseExtensionCustomizationExtender;
+	class FMVVMPanelWidgetExtensionCustomizationExtender;
 	class FMVVMPropertyBindingExtension;
 }
 
@@ -39,11 +43,16 @@ private:
 	void HandleActivateMode(FWidgetBlueprintApplicationMode& InDesignerMode);
 	void HandleWidgetBlueprintAssetTags(const UWidgetBlueprint* Widget, FAssetRegistryTagsContext Context);
 	void HandleClassBlueprintAssetTags(const UWidgetBlueprintGeneratedClass* GeneratedClass, FAssetRegistryTagsContext Context);
+	void HandleCollectSaveOverrides(const UWidgetBlueprintGeneratedClass* GeneratedClass, FObjectCollectSaveOverridesContext SaveContext);
 	void HandleRegisterMenus();
 	void UnregisterMenus();
 
 private:
 	TSharedPtr<UE::MVVM::FMVVMPropertyBindingExtension> PropertyBindingExtension;
+	TSharedPtr<UE::MVVM::FClipboardExtension> ClipboardExtension;
+	TSharedPtr<UE::MVVM::FWidgetDragDropExtension> DragDropExtension;
 	TSharedPtr<UE::MVVM::FAssetTypeActions_ViewModelBlueprint> ViewModelBlueprintActions;
 	TSharedPtr<UE::MVVM::FMVVMListViewBaseExtensionCustomizationExtender> ListViewBaseCustomizationExtender;
+	TSharedPtr<UE::MVVM::FMVVMPanelWidgetExtensionCustomizationExtender> PanelWidgetCustomizationExtender;
+	TSharedPtr<UE::MVVM::FBlueprintViewDesignerExtensionFactory> BlueprintViewDesignerExtensionFactory;
 };

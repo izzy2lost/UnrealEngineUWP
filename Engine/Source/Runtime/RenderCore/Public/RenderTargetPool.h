@@ -65,6 +65,8 @@ struct FPooledRenderTarget final : public IPooledRenderTarget
 	RENDERCORE_API uint32 ComputeMemorySize() const override;
 
 private:
+	RENDERCORE_API void SetDebugLabelName(FRHICommandListBase& RHICmdList, const TCHAR* Name);
+
 	/** Pointer back to the pool for render targets which are actually pooled, otherwise NULL. */
 	FRenderTargetPool* RenderTargetPool;
 	
@@ -156,7 +158,32 @@ public:
 	RENDERCORE_API void DumpMemoryUsage(FOutputDevice& OutputDevice);
 
 private:
-	RENDERCORE_API void FreeElementAtIndex(int32 Index);
+	void FreeElementAtIndex(int32 Index);
+
+	FPooledRenderTarget* CreateRenderTarget(FRHICommandListBase& RHICmdList, const FRHITextureCreateInfo& Desc, uint32 DescHash, const TCHAR* Name);
+
+	template <typename T>
+	FPooledRenderTarget* TryFindRenderTarget(const FRHITextureCreateInfo& Desc, uint32 DescHash, T&& Predicate) const;
+
+	FPooledRenderTarget* TryFindRenderTarget(const FRHITextureCreateInfo& Desc, uint32 DescHash) const
+	{
+		return TryFindRenderTarget(Desc, DescHash, [](FPooledRenderTarget*) { return true; });
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+	// Methods for scheduling allocations for RDG
+
+	FPooledRenderTarget* ScheduleAllocation(
+		FRHICommandListBase& RHICmdList,
+		FRHITextureCreateInfo Desc,
+		const TCHAR* Name,
+		const FRHITransientAllocationFences& Fences);
+
+	void ScheduleDeallocation(FPooledRenderTarget* RenderTarget, const FRHITransientAllocationFences& Fences);
+
+	void FinishSchedule(FRHICommandListBase& RHICmdList, FPooledRenderTarget* RenderTarget, const TCHAR* Name);
+
+	//////////////////////////////////////////////////////////////////////////
 
 	mutable UE::FRecursiveMutex Mutex;
 
@@ -172,7 +199,7 @@ private:
 	bool bCurrentlyOverBudget = false;
 
 	// could be done on the fly but that makes the RenderTargetPoolEvents harder to read
-	RENDERCORE_API void CompactPool();
+	void CompactPool();
 
 	friend struct FPooledRenderTarget;
 	friend class FVisualizeTexture;

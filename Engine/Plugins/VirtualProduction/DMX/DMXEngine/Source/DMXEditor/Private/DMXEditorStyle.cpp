@@ -202,6 +202,9 @@ FDMXEditorStyle::FDMXEditorStyle()
 			.SetActiveBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, FLinearColor(.3f, .3f, .3f, .6f)))
 			.SetActiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, FLinearColor(.3f, .3f, .3f, .8f)))
 			.SetSelectorFocusedBrush(CORE_BORDER_BRUSH("Common/Selector", FMargin(4.f / 16.f), FLinearColor(1.f, 1.f, 1.f, .7f)))
+			.SetDropIndicator_Above(CORE_BOX_BRUSH("Common/DropZoneIndicator_Above", FMargin(10.0f / 16.0f, 10.0f / 16.0f, 0, 0), FLinearColor(1.f, 1.f, 1.f, .7f)))
+			.SetDropIndicator_Onto(CORE_BOX_BRUSH("Common/DropZoneIndicator_Onto", FMargin(4.0f / 16.0f), FLinearColor(1.f, 1.f, 1.f, .7f)))
+			.SetDropIndicator_Below(CORE_BOX_BRUSH("Common/DropZoneIndicator_Below", FMargin(10.0f / 16.0f, 0, 0, 10.0f / 16.0f), FLinearColor(1.f, 1.f, 1.f, .7f)))
 		);
 
 		Set("FixturePatchFragment.ConflictBackground", new IMAGE_BRUSH("FixturePatch_ConflictBack_36x", FVector2D(36.f, 36.f), FStyleColors::Warning, ESlateBrushTileType::Both));

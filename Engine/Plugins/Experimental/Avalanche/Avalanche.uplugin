@@ -34,6 +34,12 @@
 			"TargetDenyList": [ "Server" ]
 		},
 		{
+			"Name": "AvalancheCamera",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetDenyList": [ "Server" ]
+		},
+		{
 			"Name": "AvalancheEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
@@ -228,6 +234,16 @@
 			"Name": "AvalancheAttributeEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "AvalancheSceneRig",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "AvalancheSceneRigEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -301,10 +317,6 @@
 		},
 		{
 			"Name": "StateTree",
-			"Enabled": true
-		},
-		{
-			"Name": "StructUtils",
 			"Enabled": true
 		},
 		{

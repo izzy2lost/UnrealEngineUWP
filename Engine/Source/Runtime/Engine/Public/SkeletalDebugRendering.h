@@ -40,6 +40,7 @@ public:
 	float BoneDrawSize;
 	bool bForceDraw;
 	bool bAddHitProxy;
+	bool bUseMultiColorAsDefaultColor;
 	FLinearColor DefaultBoneColor;
 	FLinearColor AffectedBoneColor;
 	FLinearColor SelectedBoneColor;
@@ -140,6 +141,19 @@ ENGINE_API void DrawBones(
 	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
 	const FSkelDebugDrawConfig& DrawConfig);
 
+/* Alternative signature that allows overriding the drawn bones that're computed from EBoneDrawMode */
+ENGINE_API void DrawBones(
+	FPrimitiveDrawInterface* PDI,
+	const FVector& ComponentOrigin,
+	const TArray<FBoneIndexType>& RequiredBones,
+	const FReferenceSkeleton& RefSkeleton,
+	const TArray<FTransform>& WorldTransforms,
+	const TArray<int32>& InSelectedBones,
+	const TArray<FLinearColor>& BoneColors,
+	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
+	const FSkelDebugDrawConfig& DrawConfig,
+	const TBitArray<>& BonesToDrawOverride);
+
 
 void DrawBonesInternal(
 	FPrimitiveDrawInterface* PDI,
@@ -150,5 +164,15 @@ void DrawBonesInternal(
 	const TArray<int32>& InSelectedBones,
 	const TArray<FLinearColor>& BoneColors,
 	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
-	const FSkelDebugDrawConfig& DrawConfig);
+	const FSkelDebugDrawConfig& DrawConfig,
+	const TBitArray<>& BonesToDrawOverride);
+
+ENGINE_API FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex, float Value=1.0f, float Saturation=0.75f);
+ENGINE_API void FillWithMultiColors(TArray<FLinearColor>& BoneColors, const int32 NumBones);
+
+ENGINE_API void CalculateBonesToDraw(
+	const TArray<int32>& ParentIndices,
+	const TArray<int32>& InSelectedBones,
+	const EBoneDrawMode::Type BoneDrawMode,
+	TBitArray<>& OutBonesToDraw);
 }

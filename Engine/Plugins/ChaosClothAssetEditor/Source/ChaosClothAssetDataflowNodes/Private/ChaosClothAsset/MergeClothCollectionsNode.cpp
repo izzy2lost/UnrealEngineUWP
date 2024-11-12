@@ -329,14 +329,210 @@ namespace UE::Chaos::ClothAsset::Private
 	}
 }
 
-FChaosClothAssetMergeClothCollectionsNode::FChaosClothAssetMergeClothCollectionsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetMergeClothCollectionsNode_v2::FChaosClothAssetMergeClothCollectionsNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowNode(InParam, InGuid)
+{
+	check(GetNumInputs() == NumRequiredInputs);
+
+	// Add two sets of pins to start.
+	for (int32 Index = 0; Index < NumInitialOptionalInputs; ++Index)
+	{
+		AddPins();
+	}
+	RegisterOutputConnection(&Collection)
+		.SetPassthroughInput(GetConnectionReference(0));
+}
+
+void FChaosClothAssetMergeClothCollectionsNode_v2::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FManagedArrayCollection>(&Collection))
+	{
+		using namespace UE::Chaos::ClothAsset;
+		using namespace Chaos::Softs;
+
+		// Evaluate in collection 0.
+		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, GetConnectionReference(0));
+		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
+
+		// Keep track of whether any of these collections are valid cloth collections
+		FCollectionClothFacade ClothFacade(ClothCollection);
+		bool bAreAnyValid = ClothFacade.IsValid();
+
+		// Make it a valid cloth collection if needed
+		if (!bAreAnyValid)
+		{
+			ClothFacade.DefineSchema();
+		}
+
+		FCollectionPropertyMutableFacade PropertyFacade(ClothCollection);
+		bAreAnyValid |= PropertyFacade.IsValid();
+
+		FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
+		bAreAnyValid |= SelectionFacade.IsValid();
+
+		// Iterate through the inputs and append them to LOD 0
+		for (int32 InputIndex = 1; InputIndex < Collections.Num(); ++InputIndex)
+		{
+			FManagedArrayCollection OtherCollection = GetValue<FManagedArrayCollection>(Context, GetConnectionReference(InputIndex));  // Can't use a const reference here sadly since the facade needs a SharedRef to be created
+			const TSharedRef<const FManagedArrayCollection> OtherClothCollection = MakeShared<const FManagedArrayCollection>(MoveTemp(OtherCollection));
+
+			// Selections need to update with offsets. Gather offsets before appending cloth data.
+			const FCollectionClothSelectionConstFacade OtherSelectionFacade(OtherClothCollection);
+			TMap<FName, int32> GroupNameOffsets;
+			if (OtherSelectionFacade.IsValid())
+			{
+				const TArray<FName> SelectionNames = OtherSelectionFacade.GetNames();
+				for (const FName& SelectionName : SelectionNames)
+				{
+					const FName GroupName = OtherSelectionFacade.GetSelectionGroup(SelectionName);
+					if (!GroupNameOffsets.Find(GroupName))
+					{
+						GroupNameOffsets.Add(GroupName) = ClothCollection->NumElements(GroupName); // NumElements will return zero if the group doesn't exist.
+					}
+				}
+			}
+
+			// Append cloth
+			const FCollectionClothConstFacade OtherClothFacade(OtherClothCollection);
+			if (OtherClothFacade.IsValid() && Private::AreSkeletalMeshesCompatible(*this, ClothFacade, OtherClothFacade))
+			{
+				ClothFacade.Append(OtherClothFacade);
+				bAreAnyValid = true;
+			}
+
+			// Append selections (with offsets)
+			if (OtherSelectionFacade.IsValid())
+			{
+				constexpr bool bUpdateExistingSelections = true; // Want last one wins.
+				SelectionFacade.AppendWithOffsets(OtherSelectionFacade, bUpdateExistingSelections, GroupNameOffsets);
+				bAreAnyValid = true;
+			}
+
+			// Copy properties
+			const FCollectionPropertyConstFacade OtherPropertyFacade(OtherClothCollection);
+			if (OtherPropertyFacade.IsValid())
+			{
+				// Change that boolean to come back to the old behavior
+				static constexpr bool bOverrideProperties = false;
+				if(bOverrideProperties)
+				{
+					constexpr bool bUpdateExistingProperties = true; // Want last one wins.
+					PropertyFacade.Append(OtherClothCollection.ToSharedPtr(), bUpdateExistingProperties);
+				}
+				else
+				{
+					Private::AppendInputProperties(*this, OtherClothFacade, ClothFacade, OtherPropertyFacade, PropertyFacade);
+				}
+				bAreAnyValid = true;
+			}
+		}
+
+		// Set the output
+		if (bAreAnyValid)
+		{
+			// Use the merged cloth collection, but only if there were at least one valid input cloth collections
+			SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+		}
+		else
+		{
+			// Otherwise pass through the first input unchanged
+			SafeForwardInput(Context, GetConnectionReference(0), &Collection);
+		}
+	}
+}
+
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode_v2::AddPins()
+{
+	const int32 Index = Collections.AddDefaulted();
+	const FDataflowInput& Input = RegisterInputArrayConnection(GetConnectionReference(Index));
+	return { { UE::Dataflow::FPin::EDirection::INPUT, Input.GetType(), Input.GetName() } };
+}
+
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode_v2::GetPinsToRemove() const
+{
+	const int32 Index = Collections.Num() - 1;
+	check(Collections.IsValidIndex(Index));
+	if (const FDataflowInput* const Input = FindInput(GetConnectionReference(Index)))
+	{
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
+	}
+	return Super::GetPinsToRemove();
+}
+
+void FChaosClothAssetMergeClothCollectionsNode_v2::OnPinRemoved(const UE::Dataflow::FPin& Pin)
+{
+	const int32 Index = Collections.Num() - 1;
+	check(Collections.IsValidIndex(Index));
+#if DO_CHECK
+	const FDataflowInput* const Input = FindInput(GetConnectionReference(Index));
+	check(Input);
+	check(Input->GetName() == Pin.Name);
+	check(Input->GetType() == Pin.Type);
+#endif
+	Collections.SetNum(Index);
+
+	return Super::OnPinRemoved(Pin);
+}
+
+void FChaosClothAssetMergeClothCollectionsNode_v2::PostSerialize(const FArchive& Ar)
+{
+	if (Ar.IsLoading())
+	{
+		check(Collections.Num() >= NumInitialOptionalInputs);
+
+		for (int32 Index = 0; Index < NumInitialOptionalInputs; ++Index)
+		{
+			check(FindInput(GetConnectionReference(Index)));
+		}
+
+		for (int32 Index = NumInitialOptionalInputs; Index < Collections.Num(); ++Index)
+		{
+			FindOrRegisterInputArrayConnection(GetConnectionReference(Index));
+		}
+		if (Ar.IsTransacting())
+		{
+			const int32 OrigNumRegisteredInputs = GetNumInputs();
+			check(OrigNumRegisteredInputs >= NumRequiredInputs + NumInitialOptionalInputs);
+			const int32 OrigNumCollections = Collections.Num();
+			const int32 OrigNumRegisteredCollections = OrigNumRegisteredInputs - NumRequiredInputs;
+			if (OrigNumRegisteredCollections > OrigNumCollections)
+			{
+				// Inputs have been removed.
+				// Temporarily expand Collections so we can get connection references.
+				Collections.SetNum(GetNumInputs() - 1);
+				for (int32 Index = OrigNumCollections; Index < Collections.Num(); ++Index)
+				{
+					UnregisterInputConnection(GetConnectionReference(Index));
+				}
+				Collections.SetNum(OrigNumCollections);
+			}
+		}
+		else
+		{
+			ensureAlways(Collections.Num() == GetNumInputs());
+		}
+	}
+}
+
+UE::Dataflow::TConnectionReference<FManagedArrayCollection> FChaosClothAssetMergeClothCollectionsNode_v2::GetConnectionReference(int32 Index) const
+{
+	return { &Collections[Index], Index, &Collections };
+}
+
+
+
+
+FChaosClothAssetMergeClothCollectionsNode::FChaosClothAssetMergeClothCollectionsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
-	RegisterOutputConnection(&Collection, &Collection);
+	RegisterOutputConnection(&Collection)
+		.SetPassthroughInput(&Collection);
+
+	check(GetNumInputs() == NumRequiredInputs + NumInitialOptionalInputs); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
-void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetMergeClothCollectionsNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -408,7 +604,7 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 			{
 				// Change that boolean to come back to the old behavior
 				static constexpr bool bOverrideProperties = false;
-				if(bOverrideProperties)
+				if (bOverrideProperties)
 				{
 					constexpr bool bUpdateExistingProperties = true; // Want last one wins.
 					PropertyFacade.Append(OtherClothCollection.ToSharedPtr(), bUpdateExistingProperties);
@@ -436,13 +632,13 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 	}
 }
 
-Dataflow::FPin FChaosClothAssetMergeClothCollectionsNode::AddPin()
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::AddPins()
 {
-	auto AddInput = [this](const FManagedArrayCollection* InCollection) -> Dataflow::FPin
+	auto AddInput = [this](const FManagedArrayCollection* InCollection) -> TArray<UE::Dataflow::FPin>
 	{
 		RegisterInputConnection(InCollection);
 		const FDataflowInput* const Input = FindInput(InCollection);
-		return { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() };
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 	};
 
 	switch (NumInputs)
@@ -455,16 +651,16 @@ Dataflow::FPin FChaosClothAssetMergeClothCollectionsNode::AddPin()
 	default: break;
 	}
 
-	return Super::AddPin();
+	return Super::AddPins();
 }
 
-Dataflow::FPin FChaosClothAssetMergeClothCollectionsNode::GetPinToRemove() const
+TArray<UE::Dataflow::FPin> FChaosClothAssetMergeClothCollectionsNode::GetPinsToRemove() const
 {
-	auto PinToRemove = [this](const FManagedArrayCollection* InCollection) -> Dataflow::FPin
+	auto PinToRemove = [this](const FManagedArrayCollection* InCollection) -> TArray<UE::Dataflow::FPin>
 	{
 		const FDataflowInput* const Input = FindInput(InCollection);
 		check(Input);
-		return { Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() };
+		return { { UE::Dataflow::FPin::EDirection::INPUT, Input->GetType(), Input->GetName() } };
 	};
 
 	switch (NumInputs - 1)
@@ -476,14 +672,14 @@ Dataflow::FPin FChaosClothAssetMergeClothCollectionsNode::GetPinToRemove() const
 	case 5: return PinToRemove(&Collection5);
 	default: break;
 	}
-	return Super::GetPinToRemove();
+	return Super::GetPinsToRemove();
 }
 
-void FChaosClothAssetMergeClothCollectionsNode::OnPinRemoved(const Dataflow::FPin& Pin)
+void FChaosClothAssetMergeClothCollectionsNode::OnPinRemoved(const UE::Dataflow::FPin& Pin)
 {
 	auto CheckPinRemoved = [this, &Pin](const FManagedArrayCollection* InCollection)
 	{
-		check(Pin.Direction == Dataflow::FPin::EDirection::INPUT);
+		check(Pin.Direction == UE::Dataflow::FPin::EDirection::INPUT);
 #if DO_CHECK
 		const FDataflowInput* const Input = FindInput(InCollection);
 		check(Input);
@@ -543,17 +739,47 @@ TArray<const FManagedArrayCollection*> FChaosClothAssetMergeClothCollectionsNode
 	return Collections;
 }
 
-void FChaosClothAssetMergeClothCollectionsNode::Serialize(FArchive& Ar)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // Unexpected deprecation message on some platforms otherwise
+const FManagedArrayCollection* FChaosClothAssetMergeClothCollectionsNode::GetCollection(int32 Index) const
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+{
+	switch (Index)
+	{
+	case 0: return &Collection;
+	case 1: return &Collection1;
+	case 2: return &Collection2;
+	case 3: return &Collection3;
+	case 4: return &Collection4;
+	case 5: return &Collection5;
+	default: check(false) return nullptr;
+	}
+}
+
+void FChaosClothAssetMergeClothCollectionsNode::PostSerialize(const FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
-		const int32 NumInputsToAdd = NumInputs - 1;
-		NumInputs = 1;  // AddPin will increment it again
-		for (int32 InputIndex = 0; InputIndex < NumInputsToAdd; ++InputIndex)
+		const int32 OrigNumRegisteredInputs = GetNumInputs() - NumRequiredInputs;
+		const int32 OrigNumInputs = NumInputs;
+		const int32 NumInputsToAdd = OrigNumInputs - OrigNumRegisteredInputs;
+		check(Ar.IsTransacting() || OrigNumRegisteredInputs == NumInitialOptionalInputs)
+		if (NumInputsToAdd > 0)
 		{
-			AddPin();
+			NumInputs = OrigNumRegisteredInputs;  // AddPin will increment it again
+			for (int32 InputIndex = 0; InputIndex < NumInputsToAdd; ++InputIndex)
+			{
+				AddPins();
+			}
 		}
-		check(NumInputsToAdd == NumInputs - 1);
+		else if (NumInputsToAdd < 0)
+		{
+			check(Ar.IsTransacting());
+			for (int32 Index = NumInputs; Index < OrigNumRegisteredInputs; ++Index)
+			{
+				UnregisterInputConnection(GetCollection(Index));
+			}
+		}
+		check(NumInputs + NumRequiredInputs == GetNumInputs());
 	}
 }
 

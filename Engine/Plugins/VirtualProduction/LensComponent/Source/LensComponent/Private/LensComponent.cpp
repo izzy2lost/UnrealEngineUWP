@@ -2,6 +2,8 @@
 
 #include "LensComponent.h"
 
+#include "Camera/CameraActor.h"
+#include "CameraCalibrationSettings.h"
 #include "CameraCalibrationSubsystem.h"
 #include "CineCameraComponent.h"
 #include "Controllers/LiveLinkTransformController.h"
@@ -115,6 +117,8 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		bWasDistortionEvaluated = false;
 		TObjectPtr<ULensDistortionModelHandlerBase> LensDistortionHandler = LensDistortionHandlerMap.FindRef(LensModel);
 
+		FDisplacementMapBlendingParams BlendState;
+
 		if (LensDistortionHandler)
 		{
 			switch (DistortionStateSource)
@@ -129,6 +133,8 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 				LensFile->EvaluateDistortionData(EvalInputs.Focus, EvalInputs.Zoom, FVector2D(EvalInputs.Filmback.SensorWidth, EvalInputs.Filmback.SensorHeight), LensDistortionHandler);
 
 				DistortionState = LensDistortionHandler->GetCurrentDistortionState();
+
+				LensFile->GetBlendState(EvalInputs.Focus, EvalInputs.Zoom, FVector2D(EvalInputs.Filmback.SensorWidth, EvalInputs.Filmback.SensorHeight), BlendState);
 
 				// Adjust overscan by the overscan multiplier
 				if (bScaleOverscan)
@@ -149,6 +155,9 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 			{
 				LensDistortionHandler->SetDistortionState(DistortionState);
 				LensDistortionHandler->SetCameraFilmback(CineCameraComponent->Filmback);
+
+				BlendState.States[0] = DistortionState;
+				BlendState.BlendType = EDisplacementMapBlendType::OneFocusOneZoom;
 
 				//Recompute overscan factor for the distortion state
 				float OverscanFactor = LensDistortionHandler->ComputeOverscanFactor();
@@ -177,30 +186,52 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		{
 			if (LensDistortionHandler && bWasDistortionEvaluated)
 			{
-				// Get the current distortion MID from the lens distortion handler
-				UMaterialInstanceDynamic* NewDistortionMID = LensDistortionHandler->GetDistortionMID();
-
-				// If the MID has changed
-				if (LastDistortionMID != NewDistortionMID)
+				if (DistortionRenderingMode == EDistortionRenderingMode::PostProcessMaterial)
 				{
-					CineCameraComponent->RemoveBlendable(LastDistortionMID);
-					CineCameraComponent->AddOrUpdateBlendable(NewDistortionMID);
+					// Get the current distortion MID from the lens distortion handler
+					UMaterialInstanceDynamic* NewDistortionMID = LensDistortionHandler->GetDistortionMID();
+
+					// If the MID has changed
+					if (LastDistortionMID != NewDistortionMID)
+					{
+						CineCameraComponent->RemoveBlendable(LastDistortionMID);
+						CineCameraComponent->AddOrUpdateBlendable(NewDistortionMID);
+					}
+
+					// Cache the latest distortion MID
+					LastDistortionMID = NewDistortionMID;
+
+					bIsDistortionSetup = true;
+				}
+				else if (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension)
+				{
+					if (UCameraCalibrationSubsystem* SubSystem = GEngine->GetEngineSubsystem<UCameraCalibrationSubsystem>())
+					{
+						if (ACameraActor* CameraActor = Cast<ACameraActor>(GetOwner()))
+						{
+							SubSystem->SetLensDistortionSVEState(CameraActor, BlendState);
+						}
+					}
+
+					bIsDistortionSetup = true;
 				}
 
-				// Cache the latest distortion MID
-				LastDistortionMID = NewDistortionMID;
+				// Set the camera's overscan settings
+				if (bOverrideCameraOverscan)
+				{
+					const float DesiredOverscan = FMath::Clamp(LensDistortionHandler->GetOverscanFactor() - 1.0f, 0.0f, 1.0f);
 
-				// Get the overscan factor and use it to modify the target camera's FOV
-				const float OverscanFactor = LensDistortionHandler->GetOverscanFactor();
-				const float OverscanSensorWidth = GetDesqueezedSensorWidth(CineCameraComponent) * OverscanFactor;
-				const float OverscanFOV = FMath::RadiansToDegrees(2.0f * FMath::Atan(OverscanSensorWidth / (2.0f * OriginalFocalLength)));
-				CineCameraComponent->SetFieldOfView(OverscanFOV);
+					// Only override the camera overscan if the existing amount is too small for lens distortion
+					if (CineCameraComponent->Overscan < DesiredOverscan)
+					{
+						CineCameraComponent->Overscan = DesiredOverscan;
+					}
 
-				// Update the minimum and maximum focal length of the camera (if needed)
-				CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
-				CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
+					// The overscan factor used by the post process material needs to be equivalent to what is set on the camera in order for the PPM and SVE paths to render the same
+					LensDistortionHandler->SetOverscanFactor(CineCameraComponent->Overscan + 1.0f);
 
-				bIsDistortionSetup = true;
+ 					CineCameraComponent->bCropOverscan = (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension);
+				}
 			}
 			else
 			{
@@ -311,6 +342,13 @@ void ULensComponent::PostEditChangeProperty(struct FPropertyChangedEvent& Proper
 			}
 		}
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ULensComponent, DistortionRenderingMode))
+	{
+		if (UCineCameraComponent* const CineCameraComponent = Cast<UCineCameraComponent>(TargetCameraComponent.GetComponent(GetOwner())))
+		{
+			CleanupDistortion(CineCameraComponent);
+		}
+	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ULensComponent, TargetCameraComponent))
 	{
 		// Clean up distortion on the last target camera
@@ -359,7 +397,7 @@ void ULensComponent::ReapplyNodalOffset()
 	if (TrackedComponent.IsValid())
 	{
 		// Reset the tracked component back to its original relative transform (before nodal offset was originally applied)
-		TrackedComponent->SetRelativeTransform(OriginalTrackedComponentTransform);
+		TrackedComponent->SetRelativeTransform(GetOriginalTrackedComponentTransform());
 
 		// Now, reapply the nodal offset to the tracked component
 		ApplyNodalOffset();
@@ -391,7 +429,7 @@ void ULensComponent::ApplyNodalOffset()
 	LensFile->EvaluateNodalPointOffset(EvalInputs.Focus, EvalInputs.Zoom, Offset);
 
 	// Cache the original transform before applying the offset, so that nodal offset can potentially be re-evaluated in the future
-	OriginalTrackedComponentTransform = TrackedComponent.Get()->GetRelativeTransform();
+	SetOriginalTrackedComponentTransform(TrackedComponent.Get()->GetRelativeTransform());
 
 	TrackedComponent.Get()->AddLocalOffset(Offset.LocationOffset);
 	TrackedComponent.Get()->AddLocalRotation(Offset.RotationOffset);
@@ -435,10 +473,34 @@ void ULensComponent::ApplyNodalOffset(USceneComponent* ComponentToOffset, bool b
 	}
 
 	// Cache the original transform before applying the offset, so that nodal offset can potentially be re-evaluated in the future
-	OriginalTrackedComponentTransform = ComponentToOffset->GetRelativeTransform();
+	SetOriginalTrackedComponentTransform(ComponentToOffset->GetRelativeTransform());
 
 	ComponentToOffset->AddLocalOffset(Offset.LocationOffset);
 	ComponentToOffset->AddLocalRotation(Offset.RotationOffset);
+}
+
+FTransform ULensComponent::GetOriginalTrackedComponentTransform()
+{
+	OriginalTrackedComponentTransform.SetLocation(OriginalTrackedComponentLocation);
+
+	FRotator TrackedRotator;
+	TrackedRotator.Pitch = OriginalTrackedComponentRotation.Y;
+	TrackedRotator.Yaw = OriginalTrackedComponentRotation.Z;
+	TrackedRotator.Roll = OriginalTrackedComponentRotation.X;
+
+	OriginalTrackedComponentTransform.SetRotation(TrackedRotator.Quaternion());
+	return OriginalTrackedComponentTransform;
+}
+
+void ULensComponent::SetOriginalTrackedComponentTransform(const FTransform& NewTransform)
+{
+	OriginalTrackedComponentTransform = NewTransform;
+	OriginalTrackedComponentLocation = NewTransform.GetLocation();
+
+	FRotator NewRotator = NewTransform.GetRotation().Rotator();
+	OriginalTrackedComponentRotation.X = NewRotator.Roll;
+	OriginalTrackedComponentRotation.Y = NewRotator.Pitch;
+	OriginalTrackedComponentRotation.Z = NewRotator.Yaw;
 }
 
 void ULensComponent::EvaluateFocalLength(UCineCameraComponent* CineCameraComponent)
@@ -576,6 +638,13 @@ void ULensComponent::SetCroppedFilmback(FCameraFilmbackSettings Filmback)
 const FLensFileEvaluationInputs& ULensComponent::GetLensFileEvaluationInputs() const 
 {
 	return EvalInputs;
+}
+
+void ULensComponent::SetLensFileEvaluationInputs(float InFocus, float InZoom)
+{
+	EvalInputs.Focus = InFocus;
+	EvalInputs.Zoom = InZoom;
+	EvalInputs.bIsValid = true;
 }
 
 bool ULensComponent::ShouldApplyNodalOffsetOnTick() const
@@ -737,13 +806,13 @@ void ULensComponent::CleanupDistortion(UCineCameraComponent* const CineCameraCom
 			LastDistortionMID = nullptr;
 		}
 
-		// Restore the original FOV of the target camera
-		const float UndistortedFOV = FMath::RadiansToDegrees(2.0f * FMath::Atan(GetDesqueezedSensorWidth(CineCameraComponent) / (2.0f * OriginalFocalLength)));
-		CineCameraComponent->SetFieldOfView(UndistortedFOV);
-
-		// Update the minimum and maximum focal length of the camera (if needed)
-		CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
-		CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
+		if (UCameraCalibrationSubsystem* SubSystem = GEngine->GetEngineSubsystem<UCameraCalibrationSubsystem>())
+		{
+			if (ACameraActor* CameraActor = Cast<ACameraActor>(GetOwner()))
+			{
+				SubSystem->ClearLensDistortionSVEState(CameraActor);
+			}
+		}
 	}
 
 	bIsDistortionSetup = false;
@@ -888,9 +957,9 @@ void ULensComponent::UpdateLensFileEvaluationInputs(UCineCameraComponent* CineCa
 		EvalInputs.Zoom = OriginalFocalLength;
 		EvalInputs.bIsValid = true;
 	}
-	else if (EvaluationMode == EFIZEvaluationMode::UseRecordedValues)
+	else if ((EvaluationMode == EFIZEvaluationMode::UseRecordedValues) || (EvaluationMode == EFIZEvaluationMode::Manual))
 	{
-		// Do nothing, the values for EvalInputs.Focus and EvalInputs.Zoom are already loaded from the recorded sequence
+		// Do nothing, the values for EvalInputs.Focus and EvalInputs.Zoom are already valid
 		EvalInputs.bIsValid = true;
 	}
 }

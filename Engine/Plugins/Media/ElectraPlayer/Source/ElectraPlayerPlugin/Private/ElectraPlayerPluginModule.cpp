@@ -35,14 +35,11 @@ public:
 	{
 		if (bInitialized)
 		{
-			FElectraPlayerPlugin* NewRawPlayer = new FElectraPlayerPlugin();
-			if (NewRawPlayer)
+			TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> NewPlayer = MakeShared<FElectraPlayerPlugin, ESPMode::ThreadSafe>();
+			check(NewPlayer.IsValid());
+			if (NewPlayer->Initialize(EventSink, SendAnalyticMetricsDelegate, SendAnalyticMetricsPerMinuteDelegate, ReportVideoStreamingErrorDelegate, ReportSubtitlesMetricsDelegate))
 			{
-				TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> NewPlayer = MakeShareable(NewRawPlayer);
-				if (NewRawPlayer->Initialize(EventSink, SendAnalyticMetricsDelegate, SendAnalyticMetricsPerMinuteDelegate, ReportVideoStreamingErrorDelegate, ReportSubtitlesMetricsDelegate))
-				{
-					return NewPlayer;
-				}
+				return NewPlayer;
 			}
 		}
 		return nullptr;
@@ -112,7 +109,7 @@ public:
 		}
 		Event = FFunctionGraphTask::CreateAndDispatchWhenReady(MoveTemp(CodeToRun), GET_STATID(STAT_ElectraAsyncJob), &Events);
 	}
-	
+
 	void StartupModule() override
 	{
 		// Check that we have the player module and that it has initialized successfully.

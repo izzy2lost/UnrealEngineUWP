@@ -10,15 +10,11 @@ namespace UE::Chaos::ClothAsset
 {
 	struct FClothSimulationContext;
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	class FClothSimulationMesh : public ::Chaos::FClothingSimulationMesh
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 	public:
 		FClothSimulationMesh(const FChaosClothSimulationModel& InClothSimulationModel, const FClothSimulationContext& InClothSimulationContext, const FString& DebugName);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		virtual ~FClothSimulationMesh() override = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		FClothSimulationMesh(const FClothSimulationMesh&) = delete;
 		FClothSimulationMesh(FClothSimulationMesh&&) = delete;
@@ -39,11 +35,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		virtual TConstArrayView<uint32> GetPatternIndices(int32 LODIndex) const override;
 		virtual TConstArrayView<uint32> GetPatternToWeldedIndices(int32 LODIndex) const override;
 		virtual TArray<FName> GetWeightMapNames(int32 LODIndex) const override;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TArray<FName> GetWeightMapNames() const override { return GetWeightMapNames(0); }
 		virtual TMap<FString, int32> GetWeightMapIndices(int32 LODIndex) const override;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TMap<FString, int32> GetWeightMapIndices() const override { return GetWeightMapIndices(0); }
 		virtual TArray<TConstArrayView<::Chaos::FRealSingle>> GetWeightMaps(int32 LODIndex) const override;
 		virtual TMap<FString, const TSet<int32>*> GetVertexSets(int32 LODIndex) const override;
 		virtual TMap<FString, const TSet<int32>*> GetFaceSets(int32 LODIndex) const override;

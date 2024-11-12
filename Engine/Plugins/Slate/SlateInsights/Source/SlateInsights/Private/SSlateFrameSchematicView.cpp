@@ -1,32 +1,34 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SSlateFrameSchematicView.h"
+
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Views/TableViewMetadata.h"
+#include "HAL/FileManager.h"
+#include "Internationalization/Regex.h"
+#include "ISourceCodeAccessModule.h"
+#include "ISourceCodeAccessor.h"
+#include "Modules/ModuleManager.h"
+#include "SlateInsightsStyle.h"
 #include "SlateProvider.h"
 #include "SSlateTraceFlags.h"
-
-#include "Insights/Common/TimeUtils.h"
-#include "Insights/ITimingViewSession.h"
-#include "Insights/ViewModels/ITimingEvent.h"
 #include "Widgets/Input/NumericTypeInterface.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SHeader.h"
-#include "Widgets/Input/SMultiLineEditableTextBox.h"
-
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Framework/Application/SlateApplication.h"
-
-#include "HAL/FileManager.h"
-#include "Modules/ModuleManager.h"
-#include "Internationalization/Regex.h"
-#include "SlateInsightsStyle.h"
-#include "ISourceCodeAccessModule.h"
-#include "ISourceCodeAccessor.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Views/STreeView.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
+#include "Insights/ITimingViewSession.h"
+#include "Insights/ViewModels/ITimingEvent.h"
 
 #define LOCTEXT_NAMESPACE "SSlateFrameSchematicView"
 
@@ -177,7 +179,7 @@ namespace Private
 			else if (Column == ColumnDuration)
 			{
 				return SNew(STextBlock)
-					.Text(FText::FromString(TimeUtils::FormatTimeAuto(Info->Duration)));
+					.Text(FText::FromString(UE::Insights::FormatTimeAuto(Info->Duration)));
 			}
 			else if (Column == ColumnFlag)
 			{
@@ -333,9 +335,9 @@ namespace Private
 						DebugInfoWidget->SetText(FText::FromString(WidgetInfo->DebugInfo));
 
 						const double StartTime = SlateProvider->GetWidgetTimeline().GetEventStartTime(WidgetInfo->EventIndex);
-						CreatedTimeWidget->SetText(FText::FromString(TimeUtils::FormatTime(StartTime, TimeUtils::Milisecond)));
+						CreatedTimeWidget->SetText(FText::FromString(UE::Insights::FormatTime(StartTime, UE::Insights::FTimeValue::Millisecond)));
 						const double EndTime = SlateProvider->GetWidgetTimeline().GetEventEndTime(WidgetInfo->EventIndex);
-						DestroyedTimeWidget->SetText(FText::FromString(TimeUtils::FormatTime(EndTime, TimeUtils::Milisecond)));
+						DestroyedTimeWidget->SetText(FText::FromString(UE::Insights::FormatTime(EndTime, UE::Insights::FTimeValue::Millisecond)));
 					}
 				}
 			}
@@ -422,7 +424,6 @@ void SSlateFrameSchematicView::Construct(const FArguments& InArgs)
 				.FillHeight(1.f)
 				[
 					SAssignNew(WidgetInvalidateInfoListView, STreeView<TSharedPtr<Private::FWidgetUniqueInvalidatedInfo>>)
-					.ItemHeight(24.0f)
 					.TreeItemsSource(&WidgetInvalidationInfos)
 					.OnGenerateRow(this, &SSlateFrameSchematicView::HandleUniqueInvalidatedMakeTreeRowWidget)
 					.OnGetChildren(this, &SSlateFrameSchematicView::HandleUniqueInvalidatedChildrenForInfo)
@@ -481,7 +482,6 @@ void SSlateFrameSchematicView::Construct(const FArguments& InArgs)
 				[
 					SAssignNew(WidgetUpdateInfoListView, SListView<TSharedPtr<Private::FWidgetUpdateInfo>>)
 					.ScrollbarVisibility(EVisibility::Visible)
-					.ItemHeight(24.0f)
 					.ListItemsSource(&WidgetUpdateInfos)
 					.SelectionMode(ESelectionMode::SingleToggle)
 					.OnGenerateRow(this, &SSlateFrameSchematicView::HandleWidgetUpdateInfoGenerateWidget)
@@ -540,7 +540,7 @@ SSlateFrameSchematicView::~SSlateFrameSchematicView()
 	}
 }
 
-void SSlateFrameSchematicView::SetSession(Insights::ITimingViewSession* InTimingViewSession, const TraceServices::IAnalysisSession* InAnalysisSession)
+void SSlateFrameSchematicView::SetSession(UE::Insights::Timing::ITimingViewSession* InTimingViewSession, const TraceServices::IAnalysisSession* InAnalysisSession)
 {
 	if (TimingViewSession)
 	{
@@ -656,7 +656,7 @@ EColumnSortMode::Type SSlateFrameSchematicView::HandleWidgetUpdateGetSortMode(FN
 		: EColumnSortMode::None;
 }
 
-void SSlateFrameSchematicView::HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker)
+void SSlateFrameSchematicView::HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker)
 {
 	if (!FMath::IsNearlyEqual(StartTime, InTimeMarker) && !FMath::IsNearlyEqual(EndTime, InTimeMarker))
 	{
@@ -667,7 +667,7 @@ void SSlateFrameSchematicView::HandleTimeMarkerChanged(Insights::ETimeChangedFla
 	}
 }
 
-void SSlateFrameSchematicView::HandleSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
+void SSlateFrameSchematicView::HandleSelectionChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
 {
 	if (!FMath::IsNearlyEqual(StartTime, InStartTime) && !FMath::IsNearlyEqual(EndTime, InEndTime))
 	{

@@ -213,7 +213,7 @@ protected:
 
 	void DrawThumbnail(FTrackEditorThumbnail& TrackEditorThumbnail);
 
-	void DrawViewportThumbnail(FTrackEditorThumbnail& TrackEditorThumbnail);
+	void DrawViewportThumbnail(FTrackEditorThumbnail& TrackEditorThumbnail) const;
 
 	void ComputeNewThumbnails();
 

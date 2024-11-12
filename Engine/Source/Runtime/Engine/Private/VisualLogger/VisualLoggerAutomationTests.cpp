@@ -12,10 +12,10 @@
 
 namespace
 {
-	UWorld* GetSimpleEngineAutomationTestWorld(const int32 TestFlags)
+	UWorld* GetSimpleEngineAutomationTestWorld(const EAutomationTestFlags TestFlags)
 	{
-		// Accessing the game world is only valid for game-only 
-		if (((TestFlags & EAutomationTestFlags::EditorContext) || (TestFlags & EAutomationTestFlags::ClientContext)) == false)
+		// Accessing the game world is only valid for game-only
+		if (!(TestFlags & EAutomationTestFlags::EditorContext) && !(TestFlags & EAutomationTestFlags::ClientContext))
 		{
 			return nullptr;
 		}

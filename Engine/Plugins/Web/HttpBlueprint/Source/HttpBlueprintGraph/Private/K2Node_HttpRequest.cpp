@@ -472,11 +472,4 @@ UEdGraphPin* UK2Node_HttpRequest::GetErrorPin() const
 	return Pin;
 }
 
-UEdGraphPin* UK2Node_HttpRequest::GetThenPin() const
-{
-	UEdGraphPin* Pin = FindPinChecked(UEdGraphSchema_K2::PN_Then);
-	check(Pin->Direction == EGPD_Output);
-	return Pin;
-}
-
 #undef LOCTEXT_NAMESPACE

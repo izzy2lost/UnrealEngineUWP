@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define UBA_IS_DETOURED_INCLUDE 1
+
 #include "UbaDetoursFileMappingTable.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryTable.h"
@@ -40,10 +42,13 @@ using namespace uba;
 #define DETOURED_FUNCTIONS \
 	DETOURED_FUNCTION(chdir) \
 	DETOURED_FUNCTION(fchdir) \
+	DETOURED_FUNCTION(mkdir) \
+	DETOURED_FUNCTION(rmdir) \
 	DETOURED_FUNCTION(chroot) \
 	DETOURED_FUNCTION(getcwd) \
 	DETOURED_FUNCTION(getenv) \
 	DETOURED_FUNCTION(setenv) \
+	DETOURED_FUNCTION(unsetenv) \
 	DETOURED_FUNCTION(realpath) \
 	DETOURED_FUNCTION(readlink) \
 	DETOURED_FUNCTION(readlinkat) \
@@ -78,6 +83,8 @@ using namespace uba;
 	DETOURED_FUNCTION(renameat) \
 	DETOURED_FUNCTION(utimensat) \
 	DETOURED_FUNCTION(remove) \
+	DETOURED_FUNCTION(link) \
+	DETOURED_FUNCTION(unlink) \
 	DETOURED_FUNCTION(symlink) \
 	DETOURED_FUNCTION(access) \
 	DETOURED_FUNCTION(posix_spawn) \
@@ -88,10 +95,16 @@ using namespace uba;
 	DETOURED_FUNCTION(wait3) \
 	DETOURED_FUNCTION(wait4) \
 	DETOURED_FUNCTION(system) \
+	DETOURED_FUNCTION(dlopen) \
+	DETOURED_FUNCTION(dladdr) \
 	DETOURED_FUNCTION(execv) \
 	DETOURED_FUNCTION(execve) \
 	DETOURED_FUNCTION(execvp) \
+	DETOURED_FUNCTION(execl) \
+	DETOURED_FUNCTION(execle) \
+	DETOURED_FUNCTION(execlp) \
 	DETOURED_FUNCTION(fork) \
+	DETOURED_FUNCTION(vfork) \
 	DETOURED_FUNCTION(popen) \
 	DETOURED_FUNCTION(exit) \
 	DETOURED_FUNCTION(_exit) \
@@ -115,6 +128,7 @@ using namespace uba;
 #define DETOURED_FUNCTION_LINUX \
 	DETOURED_FUNCTION(get_current_dir_name) \
 	DETOURED_FUNCTION(fopen64) \
+	DETOURED_FUNCTION(secure_getenv) \
 	DETOURED_FUNCTION(fcntl) \
 	DETOURED_FUNCTION(__xstat) \
 	DETOURED_FUNCTION(__xstat64) \
@@ -124,12 +138,12 @@ using namespace uba;
 	DETOURED_FUNCTION(__fxstatat64) \
 	DETOURED_FUNCTION(open64) \
 	DETOURED_FUNCTION(fstatat64) \
-	DETOURED_FUNCTION(vfork) \
 
 #else
 #define DETOURED_FUNCTION_LINUX
 #define DETOURED_FUNCTION_MACOS \
 	DETOURED_FUNCTION(_NSGetExecutablePath) \
+	DETOURED_FUNCTION(execvP) \
 
 #endif
 
@@ -148,6 +162,8 @@ using namespace uba;
 			__attribute__ ((section ("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacement, (const void*)(unsigned long)&_replacee };
 	#endif // DYLD_INTERPOSE
 
+	#include "UbaMacBinDependencyParser.h"
+
 #else
 	#define UBA_WRAPPER(func) func
 	#define TRUE_WRAPPER(func) True_##func
@@ -157,6 +173,8 @@ using namespace uba;
 		Symbol_##func* True_##func; 
 	DETOURED_FUNCTIONS
 	#undef DETOURED_FUNCTION
+
+	#include "UbaLinuxBinDependencyParser.h"
 
 #endif
 
@@ -197,6 +215,8 @@ using namespace uba;
 #define	ERANGE		34	/* Math result not representable */
 #endif
 
+void CloseCom();
+
 namespace uba
 {
 	template<typename TrueFunc>
@@ -232,7 +252,6 @@ namespace uba
 		return strerror(error);
 	}
 
-	enum : u8 { AccessFlag_Read = 1, AccessFlag_Write = 2 };
 	u8 GetFileAccessFlags(int flags)
 	{
 		u8 access = 0;
@@ -274,24 +293,33 @@ namespace uba
 	}
 }
 
+bool CanDetour2(const StringView& file)
+{
+	return g_isDetouring && !t_disallowDetour
+		&& !file.StartsWith("/dev/")
+		&& !file.StartsWith("/etc/")
+		&& !file.StartsWith(g_systemTemp.data)
+		;
+}
+
 // Shared functions
 
 template<typename TrueOpen>
 int Shared_open(const char* funcName, const char* file, int flags, int mode, const TrueOpen& trueOpen)
 {
-	if (!g_isDetouring || t_disallowDetour || strncmp(file, "/dev/", 5) == 0 || strncmp(file, "/etc/", 5) == 0)
+	StringBuffer<> fileName;
+	FixPath(fileName, file);
+
+	if (!CanDetour2(fileName))
 	{
 		int res = trueOpen(file, flags, mode);
 		DEBUG_LOG_TRUE(funcName, "NODETOUR (%s) -> %i", file, res);
 		return res;
 	}
-	StringBuffer<> fileName;
-	FixPath(fileName, file);
 
 	StringKey fileNameKey = ToFilenameKey(fileName);
 
 	bool keepInMemory = false;
-	bool isSystemOrTempFile = StartsWith(file, g_systemTemp.data);
 
 	const char* realFileName = fileName.data;
 	u64 size = InvalidValue;
@@ -306,7 +334,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 
 	if (g_allowDirectoryCache)
 	{
-		if (!isWrite && !isSystemOrTempFile) // We need to skip SystemTemp.. lots of stuff going on there.
+		if (!isWrite) // We need to skip SystemTemp.. lots of stuff going on there.
 		{
 			dirTableOffset = Rpc_GetEntryOffset(fileNameKey, fileName.data, fileName.count, false);
 			bool allowEarlyOut = true;
@@ -334,6 +362,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 				g_directoryTable.GetEntryInformation(entryInfo, dirTableOffset);
 				if (entryInfo.attributes == 0)
 				{
+					DEBUG_LOG_DETOURED(funcName, "DELETED (%s) (%s) -> -1", fileName.data, KeyToString(fileNameKey).data);
 					errno = ENOENT;
 					return -1;
 				}
@@ -351,7 +380,7 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 	{
 		info.originalName = g_memoryBlock.Strdup(fileName.data);
 		info.name = info.originalName;
-		if (!keepInMemory && !isSystemOrTempFile)
+		if (!keepInMemory)
 		{
 			char newFileName[512];
 			Rpc_CreateFileW(realFileName, fileNameKey, u8(desiredAccess), newFileName, sizeof_array(newFileName), size, closeId, false);
@@ -464,7 +493,16 @@ FILE* Shared_fopen(const char* funcName, const char* path, const char* mode, con
 	bool p = strchr(mode, '+');
 	//bool b = strchr(mode, 'b');
 	//bool t = strchr(mode, 't');
-	UBA_ASSERTF(!a, "%s with append not implemented (%s)", funcName, mode);
+	if (a)
+	{
+		//if (StartsWith(path, g_systemTemp.data))
+		{
+			FILE* res = TRUE_WRAPPER(fopen)(path, mode);
+			DEBUG_LOG_TRUE(funcName, "(%s  %s) -> %p", path, mode, res);
+			return res;
+		}
+		//UBA_ASSERTF(false, "%s with append (%s) not implemented (%s)", funcName, mode, path);
+	}
 
 	int flags = 0;
 	if (r)
@@ -560,7 +598,7 @@ int Shared_fstat(const char* funcName, int fd, struct stat* attr, const True_fst
 		return res;
 	}
 
-	FileAttributes fileAttr;
+	FileAttributes fileAttr = {};
 	const char* realName = Shared_GetFileAttributes(fileAttr, fi.originalName);
 
 	if (!fileAttr.useCache)
@@ -577,7 +615,8 @@ int Shared_fstat(const char* funcName, int fd, struct stat* attr, const True_fst
 	DEBUG_LOG_DETOURED(funcName, "(%i) (name: %s size: %llu id: %llu dev: %u)-> %i (%s)", fd, fi.originalName, fileAttr.data.st_size, fileAttr.data.st_ino, fileAttr.data.st_dev, res, StrError(res, fileAttr.lastError));
 
 	errno = fileAttr.lastError;
-	memcpy(attr, &fileAttr.data, sizeof(struct stat));
+	if (res == 0)
+		memcpy(attr, &fileAttr.data, sizeof(struct stat));
 
 	#if UBA_DEBUG_VALIDATE
 	if (!g_runningRemote)
@@ -609,17 +648,17 @@ template<typename True_stat>
 int Shared_stat(const char* funcName, const char* file, struct stat* attr, const True_stat& trueStat)
 {
 	StringBuffer<> fixedFile;
-	if (!FixPath(fixedFile, file) || fixedFile.Equals("/") || fixedFile.StartsWith("/etc/") || fixedFile.StartsWith(g_systemTemp.data))//(access(file, F_OK) != 0))
+	if (!FixPath(fixedFile, file) || fixedFile.Equals("/") || !CanDetour2(fixedFile))
 	{
-		int res =  trueStat(file, attr);
+		int res = trueStat(file, attr);
 		return res;
 	}
 
 	UBA_ASSERTF(fixedFile.count, "FixPath failed with %s", file);
 
-	StringBuffer<> temp;
 	if (g_runningRemote && fixedFile.StartsWith(g_exeDir.data))
 	{
+		StringBuffer<> temp;
 		temp.Append(g_virtualApplicationDir).Append(fixedFile.data + g_exeDir.count);
 		fixedFile.Clear().Append(temp);
 	}
@@ -639,15 +678,17 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 	DEBUG_LOG_DETOURED(funcName, "%s (%s size: %llu id: %llu dev: %u)-> %i (%s)", file, realName, fileAttr.data.st_size, fileAttr.data.st_ino, fileAttr.data.st_dev, res, StrError(res, fileAttr.lastError));
 
 	errno = fileAttr.lastError;
-	memcpy(attr, &fileAttr.data, sizeof(fileAttr.data));
+
+	if (res == 0) // This check is important.. dont write to attr unless success. (some programs rely on that)
+		memcpy(attr, &fileAttr.data, sizeof(fileAttr.data));
 
 	#if UBA_DEBUG_VALIDATE
-	if (!g_runningRemote)
+	if (!g_runningRemote && *file)
 	{
 		struct stat attr2;
 		int res2 = trueStat(file, &attr2);
-		UBA_ASSERTF(res == res2, "stat: return value differs for %s (cached %i vs actual %i) [fixed: %s]", file, res, res2, fixedFile.data);
-		if (res != -1)
+		UBA_ASSERTF(res == res2, "%s: return value differs for %s (cached %i vs actual %i) [fixed: %s]", funcName, file, res, res2, fixedFile.data, StrError(res2, errno));
+		if (res == 0)
 		{
 			bool isDir = S_ISDIR(attr->st_mode);
 			UBA_ASSERT(isDir == S_ISDIR(attr2.st_mode));
@@ -678,10 +719,16 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 UBA_EXPORT int UBA_WRAPPER(_NSGetExecutablePath)(char* buf, uint32_t* bufsize)
 {
 	if (!g_isDetouring)
-	{
 		return TRUE_WRAPPER(_NSGetExecutablePath)(buf, bufsize);
-	}
-	memcpy(buf, g_virtualApplication.data, g_virtualApplication.count + 1);
+	if (bufsize == nullptr)
+		return -1;
+	const uint32_t requiredBufsize = g_virtualApplication.count + 1;
+	const uint32_t initialBufsize = *bufsize;
+	*bufsize = requiredBufsize;
+	if (initialBufsize < requiredBufsize)
+		return -1;
+	if (buf != nullptr)
+		memcpy(buf, g_virtualApplication.data, requiredBufsize);
 	return 0;
 }
 
@@ -705,8 +752,21 @@ UBA_EXPORT int UBA_WRAPPER(_NSGetExecutablePath)(char* buf, uint32_t* bufsize)
 UBA_EXPORT int UBA_WRAPPER(chdir)(const char* path)
 {
 	UBA_INIT_DETOUR(chdir, path);
-	UBA_ASSERTF(false, "chdir not implemented");
-	return TRUE_WRAPPER(chdir)(path);
+	if (path == nullptr || *path == '\0')
+	{
+		errno = ENOENT;
+		return -1;
+	}
+	size_t pathlen = strlen(path);
+	if (pathlen >= g_virtualWorkingDir.capacity)
+	{
+		errno = ENAMETOOLONG;
+		return -1;
+	}
+	memcpy(g_virtualWorkingDir.data, path, pathlen + 1);
+	setenv("PWD", g_virtualWorkingDir.data, 1);
+	g_virtualWorkingDir.EnsureEndsWithSlash();
+	return 0;
 }
 
 UBA_EXPORT int UBA_WRAPPER(fchdir)(int fd)
@@ -714,6 +774,82 @@ UBA_EXPORT int UBA_WRAPPER(fchdir)(int fd)
 	UBA_INIT_DETOUR(fchdir, fd);
 	UBA_ASSERTF(false, "fchdir not implemented");
 	return TRUE_WRAPPER(fchdir)(fd);
+}
+
+UBA_EXPORT int UBA_WRAPPER(mkdir)(const char* path, mode_t mode)
+{
+	UBA_INIT_DETOUR(mkdir, path, mode);
+
+	StringBuffer<> pathName;
+	if (!FixPath(pathName, path) || !CanDetour2(pathName))
+	{
+		int res = TRUE_WRAPPER(mkdir)(path, mode);
+		DEBUG_LOG_TRUE("mkdir", "%s -> %i", path, res);
+		return res;
+	}
+
+	u32 directoryTableSize;
+	int res;
+	u32 errorCode = 0;
+	StringKey pathNameKey = ToFilenameKey(pathName);
+
+	{
+		TimerScope ts(g_stats.createFile);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_CreateDirectory);
+		writer.WriteStringKey(pathNameKey);
+		writer.WriteString(pathName);
+		writer.Flush();
+		BinaryReader reader;
+		res = reader.ReadBool() ? 0 : -1;
+		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
+	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
+
+	errno = errorCode;
+	DEBUG_LOG_DETOURED("mkdir", "%s -> %i (%u)", path, res, errorCode);
+	return res;
+}
+
+UBA_EXPORT int UBA_WRAPPER(rmdir)(const char* path)
+{
+	UBA_INIT_DETOUR(rmdir, path);
+
+	StringBuffer<> pathName;
+	if (!FixPath(pathName, path) || !CanDetour2(pathName))
+	{
+		int res = TRUE_WRAPPER(rmdir)(path);
+		DEBUG_LOG_TRUE("rmdir", "%s -> %i", path, res);
+		return res;
+	}
+
+	u32 directoryTableSize;
+	bool res;
+	u32 errorCode = 0;
+	StringKey pathNameKey = ToFilenameKey(pathName);
+
+	{
+		TimerScope ts(g_stats.deleteFile);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_RemoveDirectory);
+		writer.WriteStringKey(pathNameKey);
+		writer.WriteString(pathName);
+		writer.Flush();
+		BinaryReader reader;
+		res = reader.ReadBool();
+		errorCode = reader.ReadU32();
+		directoryTableSize = reader.ReadU32();
+	}
+
+	g_directoryTable.ParseDirectoryTable(directoryTableSize);
+
+	errno = errorCode;
+	DEBUG_LOG_DETOURED("rmdir", "%s -> %i (%u)", path, res, errorCode);
+	return res ? 0 : -1;
 }
 
 UBA_EXPORT int UBA_WRAPPER(chroot)(const char* path)
@@ -745,6 +881,14 @@ UBA_EXPORT int UBA_WRAPPER(setenv)(const char* name, const char* value, int repl
 	UBA_INIT_DETOUR(setenv, name, value, replace);
 	auto res = TRUE_WRAPPER(setenv)(name, value, replace);
 	DEBUG_LOG_TRUE("setenv", "(%s) -> %s (%i)", name, value, res);
+	return res;
+}
+
+UBA_EXPORT int UBA_WRAPPER(unsetenv)(const char* name)
+{
+	UBA_INIT_DETOUR(unsetenv, name);
+	auto res = TRUE_WRAPPER(unsetenv)(name);
+	DEBUG_LOG_TRUE("unsetenv", "(%s) -> (%i)", name, res);
 	return res;
 }
 
@@ -851,6 +995,14 @@ UBA_EXPORT int UBA_WRAPPER(open64)(const char* file, int flags, ...)
 	UBA_INIT_DETOUR(open64, file, flags, mode);
 	return Shared_open("open64", file, flags, mode, [](const char* realFile, int flags, int mode) { return TRUE_WRAPPER(open64)(realFile, flags, mode); });
 }
+UBA_EXPORT char* UBA_WRAPPER(secure_getenv)(const char* name)
+{
+	UBA_INIT_DETOUR(secure_getenv, name);
+	auto res = TRUE_WRAPPER(secure_getenv)(name);
+	DEBUG_LOG_TRUE("secure_getenv", "(%s) -> %s", name, res ? res : "<null>");
+	return res;
+}
+
 #endif
 
 UBA_EXPORT int UBA_WRAPPER(open)(const char* file, int flags, ...)
@@ -992,25 +1144,82 @@ UBA_EXPORT int UBA_WRAPPER(fclose)(FILE* stream)
 	return res;
 }
 
+struct DirInfo
+{
+	Vector<u32> fileTableOffsets;
+	int it = -1;
+	dirent ent;
+};
+
+bool IsDirInfo(DIR* dir) { return (u64(dir) & 0x1000'0000'0000'0000) != 0; }
+DirInfo* AsDirInfo(DIR* dir) { return (DirInfo*)(uintptr_t(dir) & ~0x1000'0000'0000'0000); }
+
 UBA_EXPORT DIR* UBA_WRAPPER(opendir)(const char* name)
 {
 	UBA_INIT_DETOUR(opendir, name);
 	StringBuffer<> dirName;
-	FixPath(dirName, name);
 
-	DIR* res = TRUE_WRAPPER(opendir)(dirName.data);
-	DEBUG_LOG_TRUE("opendir", "(%s) -> %p", dirName.data, res);
-	if (!res)
+	if (!FixPath(dirName, name) || !CanDetour2(dirName))
+	{
+		DIR* res = TRUE_WRAPPER(opendir)(dirName.data);
+		DEBUG_LOG_TRUE("opendir", "(%s) -> %p", dirName.data, res);
 		return res;
-	res = (DIR*)(u64(res) | 0x1000'0000'0000'0000);
+	}
 
-	return res;
+	StringBuffer<> forHash(dirName);
+	if (CaseInsensitiveFs)
+		forHash.MakeLower();
+	DirHash hash(forHash.data,forHash.count);
+
+	SCOPED_WRITE_LOCK(g_directoryTable.m_lookupLock, lookLock);
+	auto insres = g_directoryTable.m_lookup.try_emplace(hash.key, &g_memoryBlock);
+	DirectoryTable::Directory& dir = insres.first->second;
+	if (insres.second)
+		if (g_directoryTable.EntryExistsNoLock(hash.key, forHash.data, forHash.count) != DirectoryTable::Exists_No)
+			Rpc_UpdateDirectory(hash.key, dirName.data, dirName.count, false);
+\
+	bool exists = false;
+	if (dir.tableOffset != InvalidTableOffset)
+	{
+		u32 entryOffset = dir.tableOffset | 0x80000000;
+		DirectoryTable::EntryInformation entryInfo;
+		g_directoryTable.GetEntryInformation(entryInfo, entryOffset);
+		exists = entryInfo.attributes != 0;
+	}
+
+	if (!exists)
+	{
+		errno = ENOENT;
+		DEBUG_LOG_DETOURED("opendir", "(%s) -> %p", dirName.data, nullptr);
+		return nullptr;
+	}
+
+	g_directoryTable.PopulateDirectory(hash.open, dir);
+
+	auto dirInfo = new DirInfo();
+	
+	SCOPED_READ_LOCK(dir.lock, lock);
+	dirInfo->fileTableOffsets.resize(dir.files.size());
+	u32 it = 0;
+	for (auto& pair : dir.files)
+		dirInfo->fileTableOffsets[it++] = pair.second;
+	lock.Leave();
+	
+	DEBUG_LOG_DETOURED("opendir", "(%s) -> %p", dirName.data, dirInfo);
+
+	return (DIR*)(u64(dirInfo) | 0x1000'0000'0000'0000);
 }
 
 UBA_EXPORT int UBA_WRAPPER(dirfd)(DIR* dirp)
 {
 	UBA_INIT_DETOUR(dirfd, dirp);
-	dirp = (DIR*)(u64(dirp) & ~0x1000'0000'0000'0000);
+
+	if (IsDirInfo(dirp))
+	{
+		UBA_ASSERT(false);
+		return 1;
+	}
+
 	int res = TRUE_WRAPPER(dirfd)(dirp);
 	DEBUG_LOG_TRUE("dirfd", "(%p) -> %i", dirp, res);
 	return res;
@@ -1019,7 +1228,38 @@ UBA_EXPORT int UBA_WRAPPER(dirfd)(DIR* dirp)
 UBA_EXPORT dirent* UBA_WRAPPER(readdir)(DIR* dirp)
 {
 	UBA_INIT_DETOUR(readdir, dirp);
-	dirp = (DIR*)(u64(dirp) & ~0x1000'0000'0000'0000);
+
+	if (IsDirInfo(dirp))
+	{
+		auto& dirInfo = *AsDirInfo(dirp);
+		while (true)
+		{
+			++dirInfo.it;
+			if (dirInfo.it >= dirInfo.fileTableOffsets.size())
+			{
+				DEBUG_LOG_DETOURED("readdir", "(%p) -> nullptr", dirp);
+				return nullptr;
+			}
+			u32 fileTableOffset = dirInfo.fileTableOffsets[dirInfo.it];
+
+			DirectoryTable::EntryInformation info;
+			g_directoryTable.GetEntryInformation(info, fileTableOffset, dirInfo.ent.d_name, 256);
+			if (info.attributes == 0) // File was deleted
+				continue;
+
+			dirInfo.ent.d_ino = info.fileIndex;
+			#if PLATFORM_LINUX
+			dirInfo.ent.d_off = 0;
+			#endif
+			dirInfo.ent.d_reclen = sizeof(dirent);
+			dirInfo.ent.d_type = S_ISDIR(info.attributes) ? DT_DIR : DT_REG;
+			return &dirInfo.ent;
+		}
+
+		DEBUG_LOG_DETOURED("readdir", "(%p) -> %p", dirp, &dirInfo.ent);
+		return &dirInfo.ent;
+	}
+
 	auto res = TRUE_WRAPPER(readdir)(dirp);
 	DEBUG_LOG_TRUE("readdir", "(%p) -> %p", dirp, res);
 	return res;
@@ -1028,7 +1268,7 @@ UBA_EXPORT dirent* UBA_WRAPPER(readdir)(DIR* dirp)
 UBA_EXPORT void UBA_WRAPPER(rewinddir)(DIR* dirp)
 {
 	UBA_INIT_DETOUR(rewinddir, dirp);
-	UBA_ASSERTF(false, "rewinddir");
+	UBA_ASSERTF(!IsDirInfo(dirp), "rewinddir");
 	DEBUG_LOG_TRUE("rewinddir", "(%p)", dirp);
 	return TRUE_WRAPPER(rewinddir)(dirp);
 }
@@ -1036,14 +1276,14 @@ UBA_EXPORT void UBA_WRAPPER(rewinddir)(DIR* dirp)
 UBA_EXPORT int UBA_WRAPPER(scandir)(const char* dirp, dirent*** namelist, int (*filter)(const dirent*), int (*compar)(const dirent**, const dirent**))
 {
 	UBA_INIT_DETOUR(scandir, dirp, namelist, filter, compar);
-	UBA_ASSERTF(false, "scandir");
+	UBA_ASSERTF(!g_runningRemote, "scandir not implemented for remote");
 	DEBUG_LOG_TRUE("scandir", "(%p)", dirp);
 	return TRUE_WRAPPER(scandir)(dirp, namelist, filter, compar);
 }
 UBA_EXPORT void UBA_WRAPPER(seekdir)(DIR* dirp, long loc)
 {
 	UBA_INIT_DETOUR(seekdir, dirp, loc);
-	UBA_ASSERTF(false, "seekdir");
+	UBA_ASSERTF(!IsDirInfo(dirp), "seekdir");
 	DEBUG_LOG_TRUE("seekdir", "(%p)", dirp);
 	return TRUE_WRAPPER(seekdir)(dirp, loc);
 }
@@ -1051,7 +1291,7 @@ UBA_EXPORT void UBA_WRAPPER(seekdir)(DIR* dirp, long loc)
 UBA_EXPORT long UBA_WRAPPER(telldir)(DIR* dirp)
 {
 	UBA_INIT_DETOUR(telldir, dirp);
-	UBA_ASSERTF(false, "telldir");
+	UBA_ASSERTF(!IsDirInfo(dirp), "telldir");
 	DEBUG_LOG_TRUE("telldir", "(%p)", dirp);
 	return TRUE_WRAPPER(telldir)(dirp);
 }
@@ -1067,7 +1307,14 @@ UBA_EXPORT DIR* UBA_WRAPPER(fdopendir)(int fd)
 UBA_EXPORT int UBA_WRAPPER(closedir)(DIR* dirp)
 {
 	UBA_INIT_DETOUR(closedir, dirp);
-	dirp = (DIR*)(u64(dirp) & ~0x1000'0000'0000'0000);
+
+	if (IsDirInfo(dirp))
+	{
+		delete (DirInfo*)AsDirInfo(dirp);
+		DEBUG_LOG_DETOURED("closedir", "(%p)", dirp);
+		return 0;
+	}
+
 	DEBUG_LOG_TRUE("closedir", "(%p)", dirp);
 	return TRUE_WRAPPER(closedir)(dirp);
 }
@@ -1114,9 +1361,11 @@ UBA_EXPORT int UBA_WRAPPER(access)(const char* pathname, int mode)
 	UBA_INIT_DETOUR(access, pathname, mode);
 
 	StringBuffer<> fixedPath;
-	if (!FixPath(fixedPath, pathname) || fixedPath.StartsWith(g_systemTemp.data) || fixedPath.StartsWith("/proc"))
+	if (!FixPath(fixedPath, pathname) || fixedPath.StartsWith("/proc") || !CanDetour2(fixedPath))
 	{
-		return TRUE_WRAPPER(access)(pathname, mode);
+		auto res = TRUE_WRAPPER(access)(pathname, mode);
+		DEBUG_LOG_TRUE("access", "%s %i -> %i (%s)", pathname, mode, res, StrError(res, errno));
+		return res;
 	}
 
 	bool checkIfDir = false;
@@ -1247,6 +1496,23 @@ UBA_EXPORT int UBA_WRAPPER(rename)(const char* oldpath, const char* newpath)
 		}
 	}
 
+	bool canDetourOld = CanDetour2(fixedOldPath);
+	bool canDetourNew = CanDetour2(fixedNewPath);
+	if (!canDetourOld)
+	{
+		if (!canDetourNew)
+		{
+			int res = TRUE_WRAPPER(rename)(oldpath, newpath);
+			DEBUG_LOG_TRUE("rename", "(from %s to %s) -> %i (%s)", fixedOldPath.data, fixedNewPath.data, res, StrError(res, errno));
+			return res;
+		}
+	}
+	else
+	{
+		//UBA_ASSERT(!canDetourNew);
+	}
+
+
 	u32 directoryTableSize;
 	u32 errorCode;
 	bool result;
@@ -1270,6 +1536,20 @@ UBA_EXPORT int UBA_WRAPPER(rename)(const char* oldpath, const char* newpath)
 
 	//DEBUG_LOG_DETOURED(L"rena", L"(PIPE) (%ls to %ls) -> %ls", lpExistingFileName, lpNewFileName, ToString(result));
 
+	// We need to add new into g_mappingFileTable since it will not be part of directory table (SHOULD THIS BE FIXED?)
+	if (g_runningRemote)
+	{
+		SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, _);
+		auto insres = g_mappedFileTable.m_lookup.try_emplace(newKey);
+		FileInfo& info = insres.first->second;
+
+		auto findIt = g_mappedFileTable.m_lookup.find(oldKey);
+		if (findIt != g_mappedFileTable.m_lookup.end())
+			info = findIt->second;
+		info.originalName = g_memoryBlock.Strdup(fixedNewPath.data);
+		info.name = info.originalName;
+	}
+
 	g_directoryTable.ParseDirectoryTable(directoryTableSize);
 	g_mappedFileTable.SetDeleted(oldKey, fixedOldPath.data, true);
 	g_mappedFileTable.SetDeleted(newKey, fixedNewPath.data, false);
@@ -1288,6 +1568,14 @@ UBA_EXPORT int UBA_WRAPPER(chmod)(const char* pathname, mode_t mode)
 
 	StringBuffer<> fixedName;
 	FixPath(fixedName, pathname);
+
+	if (!CanDetour2(fixedName))
+	{
+		int res = TRUE_WRAPPER(chmod)(pathname, mode);
+		DEBUG_LOG_TRUE("chmod", "%s %i -> %i (%s)", pathname, mode, res, StrError(res, errno));
+		return res;
+	}
+
 	StringKey key = ToFilenameKey(fixedName);
 	u32 errorCode;
 	{
@@ -1309,13 +1597,13 @@ UBA_EXPORT int UBA_WRAPPER(chmod)(const char* pathname, mode_t mode)
 
 	errno = errorCode;
 	return res;
-	//return TRUE_WRAPPER(chmod)(pathname, mode);
 }
 
 UBA_EXPORT int UBA_WRAPPER(renameat)(int olddirfd, const char* oldpath, int newdirfd, const char* newpath)
 {
 	UBA_INIT_DETOUR(renameat, olddirfd, oldpath, newdirfd, newpath);
 	DEBUG_LOG_TRUE("renameat", "(from %s to %s)", oldpath, newpath);
+	UBA_ASSERTF(false, "Not implemented");
 	return TRUE_WRAPPER(renameat)(olddirfd, oldpath, newdirfd, newpath);
 }
 
@@ -1323,13 +1611,27 @@ UBA_EXPORT int UBA_WRAPPER(utimensat)(int dirfd, const char* pathname, const str
 {
 	UBA_INIT_DETOUR(utimensat, dirfd, pathname, times, flags);
 	DEBUG_LOG_TRUE("utimensat", "(%s)", pathname);
+	UBA_ASSERTF(false, "Not implemented");
 	return TRUE_WRAPPER(utimensat)(dirfd, pathname, times, flags);
 }
 
 UBA_EXPORT int UBA_WRAPPER(symlink)(const char* path1, const char* path2)
 {
 	UBA_INIT_DETOUR(symlink, path1, path2);
-	DEBUG_LOG_TRUE("symlink", "(from %s to %s)", path1, path2);
+
+	StringBuffer<> fixedPath1;
+	FixPath(fixedPath1, path1);
+	StringBuffer<> fixedPath2;
+	FixPath(fixedPath2, path2);
+
+	if (!CanDetour2(fixedPath1) && !CanDetour2(fixedPath2))
+	{
+		DEBUG_LOG_TRUE("symlink", "(from %s to %s)", path1, path2);
+		return TRUE_WRAPPER(symlink)(path1, path2);
+	}
+
+	UBA_ASSERTF(false, "symlink not implemented (from %s to %s)", path1, path2);
+	DEBUG_LOG_DETOURED("symlink", "(from %s to %s)", path1, path2);
 	return TRUE_WRAPPER(symlink)(path1, path2);
 }
 
@@ -1355,25 +1657,18 @@ UBA_EXPORT ssize_t UBA_WRAPPER(read)(int fd, void *buf, size_t nbyte)
 	return TRUE_WRAPPER(read)(fd, buf, nbyte);
 }
 
-
-UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
+int Shared_DeleteFile(const char* funcName, const char* pathname)
 {
-	UBA_INIT_DETOUR(remove, pathname);
 	StringBuffer<> fixedName;
 	FixPath(fixedName, pathname);
 
-	//if (!CanDetour(fixedName.data))
-	//{
-	//	DEBUG_LOG_TRUE(L"DeleteFile", L"(%ls)", original);
-	//	return TRUE_WRAPPER(remove)(pathname);
-	//}
+	if (!CanDetour2(fixedName))
+	{
+		int res = TRUE_WRAPPER(unlink)(pathname);
+		DEBUG_LOG_TRUE(funcName, "(%s) -> %i (%s)", pathname, res, StrError(res, errno));
+		return res;
+	}
 
-	//if (KeepInMemory(fixedName.data, fixedName.count))
-	//{
-	//	DEBUG_LOG_DETOURED(L"DeleteFile", L"(INMEMORY) (%ls) -> Success", lpFileName);
-	//	SetLastError(ERROR_SUCCESS);
-	//	return TRUE;
-	//}
 
 	StringKey fileNameKey = ToFilenameKey(fixedName);
 
@@ -1395,7 +1690,7 @@ UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 		errorCode = reader.ReadU32();
 		directoryTableSize = reader.ReadU32();
 		pcs.Leave();
-		DEBUG_LOG_PIPE(L"DeleteFile", L"%ls", lpFileName);
+		DEBUG_LOG_PIPE(L"DeleteFile", L"%s", lpFileName);
 	}
 	//DEBUG_LOG_DETOURED(L"DeleteFile", L"(%ls) -> %ls", pathname, ToString(result));
 
@@ -1403,35 +1698,212 @@ UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 	g_mappedFileTable.SetDeleted(fileNameKey, fixedName.data, true);
 
 	int res = result != 0 ? 0 : -1;
-	DEBUG_LOG_DETOURED("remove", "(%s) -> %i (%s)", pathname, res, StrError(res, errorCode));
+	DEBUG_LOG_DETOURED(funcName, "(%s) -> %i (%s)", pathname, res, StrError(res, errorCode));
 	errno = errorCode;
 	return res;
-	//return TRUE_WRAPPER(remove)(pathname);
+}
+
+UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
+{
+	UBA_INIT_DETOUR(remove, pathname);
+	// TODO: Should check if pathname is a dir, in that case call rmdir
+	return Shared_DeleteFile("remove", pathname);
+}
+
+UBA_EXPORT int UBA_WRAPPER(link)(const char* oldpath, const char* newpath)
+{
+	UBA_INIT_DETOUR(link, oldpath, newpath);
+
+	StringBuffer<> fixedOldPath;
+	FixPath(fixedOldPath, oldpath);
+	StringBuffer<> fixedNewPath;
+	FixPath(fixedNewPath, newpath);
+
+	if (!CanDetour2(fixedNewPath))
+	{
+		UBA_ASSERT(!CanDetour2(fixedOldPath));
+		int res = TRUE_WRAPPER(link)(oldpath, newpath);
+		DEBUG_LOG_TRUE("link", "(%s -> %s) -> %i (%s)", oldpath, newpath, res, StrError(res, errno));
+		return res;
+	}
+
+	UBA_ASSERT(false);
+	int res = TRUE_WRAPPER(link)(oldpath, newpath);
+	return res;
+}
+
+UBA_EXPORT int UBA_WRAPPER(unlink)(const char* pathname)
+{
+	UBA_INIT_DETOUR(unlink, pathname);
+	return Shared_DeleteFile("unlink", pathname);
 }
 
 thread_local int t_inVfork;
 
-UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const argv[], char* const envp[])
+void FlattenArgs(StringBufferBase& out, const char* const argv[])
+{
+	if (!argv)
+		return;
+	for (u32 i = 0; argv[i]; ++i)
+	{
+		if (i != 0)
+			out.Append(' ');
+		out.Append(argv[i]);
+	}
+}
+
+bool ExecuteHostRun(StringBufferBase& out, const char* const* argv)
+{
+	{
+		StringBuffer<4096> command;
+		FlattenArgs(command, argv);
+		DEBUG_LOG_DETOURED("HostRun", "%s", command.data)
+	}
+	TimerScope ts(g_stats.getFullFileName);
+	SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+	BinaryWriter writer;
+	writer.WriteByte(MessageType_HostRun);
+	u16& size = *(u16*)writer.AllocWrite(2);
+	u64 pos = writer.GetPosition();
+	for (u32 i = 0; argv[i]; ++i)
+		writer.WriteString(argv[i]);
+	size = u16(writer.GetPosition() - pos);
+	writer.Flush();
+
+	BinaryReader reader;
+	bool success = reader.ReadBool();
+	reader.ReadString(out);
+	
+	if (out.count && out.data[out.count-1] == '\n')
+		out.Resize(out.count-1);
+
+	if (!success)
+		DEBUG_LOG("HOSTRUN FAILED: %s", out.data)
+	return success;
+}
+
+int SpawnEcho(char* str, pid_t* pid, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const envp[])
+{
+#if 0
+	static Atomic<u32> counter;
+	StringBuffer<> tempFile;
+	tempFile.Append(g_systemTemp).EnsureEndsWithSlash().Append("UbaTempFile").AppendValue(getpid()).Append('_').AppendValue(counter++);
+	int fd = TRUE_WRAPPER(open)(tempFile.data, O_CREAT|O_TRUNC|O_WRONLY, S_IRUSR | S_IWUSR);
+	TRUE_WRAPPER(write)(fd, str, strlen(str));
+	TRUE_WRAPPER(close)(fd);
+
+	DEBUG_LOG("Created %s for cat", tempFile.data);
+	char cmd[] = "/bin/cat"; 
+	char* const argv2[] = { cmd, tempFile.data, nullptr };
+	int res = TRUE_WRAPPER(posix_spawn)(pid, cmd, file_actions, attrp, argv2, envp);
+	DEBUG_LOG_TRUE("posix_spawn", "(CAT) %s (pid: %u) -> %i", str, *pid, res);
+#else
+	char* const env[] = { nullptr };
+	char cmd[] = "/bin/echo"; 
+	char* const argv2[] = { str, nullptr };
+	int res = TRUE_WRAPPER(posix_spawn)(pid, cmd, file_actions, attrp, argv2, env);
+	DEBUG_LOG_TRUE("posix_spawn", "(ECHO) %s (pid: %u) -> %i", str, *pid, res);
+#endif
+	return res;
+}
+
+void UnsupportedHostRun(char* const argv[], const char* msg)
+{
+	StringBuffer<4096> command;
+	FlattenArgs(command, argv);
+	UbaAssert(msg, __FILE__, __LINE__, command.data, 1999);
+}
+
+int shared_posix_spawn(pid_t* pid, const char* path, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const argv[], char* const envp[])
 {
 	UBA_INIT_DETOUR(posix_spawn, pid, path, file_actions, attrp, argv, envp);
 
 	t_inVfork = 0;
 
+	{
+		//StringBuffer<4096> command;
+		//FlattenArgs(command, argv);
+		//DEBUG_LOG("RUNNING: %s", command.data);
+	}
+
+	const char* tempArgv[1024];
+	StringBuffer<> result;
+	StringBuffer<> additionalArg;
+
+	if (strstr(path, "xcode-select"))
+	{
+		if (strcmp(argv[1], "--print-path") != 0)
+			UbaAssert("xcode-select only supported with --print-path", __FILE__, __LINE__, "", 1999);
+		if (!ExecuteHostRun(result, argv))
+			return -1;
+		return SpawnEcho(result.data, pid,  file_actions, attrp, envp);
+	}
+	else if(strstr(path, "xcrun"))
+	{
+		if (strcmp(argv[1], "--sdk") != 0)
+			UnsupportedHostRun(argv, "xcrun unsupported first param");
+
+		if (strcmp(argv[3], "--find") == 0)
+		{
+			if (!ExecuteHostRun(result, argv))
+				return -1;
+			return SpawnEcho(result.data, pid,  file_actions, attrp, envp);
+		}
+		
+		if (strcmp(argv[3], "metal") != 0 && strcmp(argv[3], "metallib") != 0)
+			UnsupportedHostRun(argv, "xcrun unsupported third param");
+
+		const char* argv2[] = { argv[0], argv[1], argv[2], "--find", argv[3], 0 };
+		if (!ExecuteHostRun(result, argv2))
+			return -1;
+		// This will return the trampoline metal which we don't want
+		if (const char* usrbin = strstr(result.data, "/bin/metal"))
+		{
+			result.Resize(usrbin - result.data);
+			result.Append("/metal/");
+			if (strcmp(argv[2], "macosx") == 0)
+				result.Append("macos");
+			else
+				result.Append("ios");
+			result.Append("/bin/").Append(argv[3]);
+		}
+
+		path = result.data;
+
+		u32 argc3 = 0;
+		tempArgv[argc3++] = result.data;
+		for (int i=4;argv[i]; ++i)
+			tempArgv[argc3++] = argv[i];
+		if (Equals(argv[3], "metal"))
+		{
+			// This is needed because we want clang cache to be local to machine and not be under the host machine's temp (which might not match remote machine's temp)
+			additionalArg.Append("-fmodules-cache-path=").Append(g_systemTemp).EnsureEndsWithSlash().Append("clangcache");
+			tempArgv[argc3++] = additionalArg.data;
+		}
+		tempArgv[argc3] = 0;
+		argv = (char*const*)tempArgv;
+	}
+
+	//DEBUG_LOG("LIBRARY_SEARCH_PATHS: %s", getenv("LIBRARY_SEARCH_PATHS"));
+	//DEBUG_LOG("PATH: %s", getenv("PATH"));
+
 	TString cmdLine;
+	u32 argc = 0;
 	for (u32 i = 0; argv[i]; ++i)
 	{
 		if (i != 0)
 			cmdLine.append(" ");
 		cmdLine.append(argv[i]);
+		++argc;
 	}
-	
+
 	TString realApplication;
 	TString commandLine;
 	u32 processId = 0;
 	StringBuffer<512> currentDir;
 	StringBuffer<256> comIdVar;
 	StringBuffer<32> rulesStr;
-	StringBuffer<256> logFile;
+	StringBuffer<512> logFile;
 
 	{
 		TimerScope ts(g_stats.createProcess);
@@ -1453,12 +1925,19 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		writer.WriteString(path); // Application
 		writer.WriteString(cmdLine); // Full command line
 		writer.WriteString(pwd); // Current dir
+		writer.WriteBool(false); // Start suspended
+		writer.WriteBool(true); // Is child
 		writer.Flush();
 
 		BinaryReader reader;
 		processId = reader.ReadU32();
-		UBA_ASSERTF(processId > 0, "Process id was zero");
 
+		if (!processId) // Can happen if session client got disconnected from server session
+		{
+			errno = EINVAL; // This is not really correct but there is no errno for this failure
+			return -1;
+		}
+		
 		rulesStr.Append("UBA_RULES=").AppendValue(reader.ReadU32());
 
 		u32 dllNameSize = reader.ReadU32();
@@ -1486,8 +1965,7 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		envvars.push_back(comIdVar.data);
 		envvars.push_back(currentDir.data);
 		envvars.push_back(rulesStr.data);
-		if (logFile.count > 12)
-			envvars.push_back(logFile.data);
+		envvars.push_back(logFile.data);
 		//envvars.push_back("LD_DEBUG=bindings");
 		envvars.push_back(nullptr);
 	}
@@ -1501,7 +1979,7 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 //	}
 	
 	#if UBA_DEBUG_LOG_ENABLED
-	DEBUG_LOG_TRUE("posix_spawn", "%s", realApplication.data());
+	DEBUG_LOG_TRUE("posix_spawn", "%s (%s)", realApplication.data(), logFile.data);
 	for (u32 i = 0; argv[i]; ++i)
 		DEBUG_LOG("            %s", argv[i]);
 	#endif
@@ -1528,6 +2006,11 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 	return res;
 }
 
+UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const argv[], char* const envp[])
+{
+	return shared_posix_spawn(pid, path, file_actions, attrp, argv, envp);
+}
+
 UBA_EXPORT int UBA_WRAPPER(posix_spawnp)(pid_t* pid, const char* file, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* attrp, char* const argv[], char* const envp[])
 {
 	UBA_INIT_DETOUR(posix_spawnp, pid, file, file_actions, attrp, argv, envp);
@@ -1538,8 +2021,9 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawnp)(pid_t* pid, const char* file, const pos
 UBA_EXPORT pid_t UBA_WRAPPER(wait)(int* status)
 {
 	UBA_INIT_DETOUR(wait, status);
-	DEBUG_LOG_TRUE("wait", "");
-	return TRUE_WRAPPER(wait)(status);
+	pid_t res = TRUE_WRAPPER(wait)(status);
+	DEBUG_LOG_TRUE("wait", "%i -> %i", status ? *status : 0, res);
+	return res;
 }
 
 UBA_EXPORT pid_t UBA_WRAPPER(waitpid)(pid_t pid, int* status, int options)
@@ -1547,17 +2031,40 @@ UBA_EXPORT pid_t UBA_WRAPPER(waitpid)(pid_t pid, int* status, int options)
 	UBA_INIT_DETOUR(waitpid, pid, status, options);
 	// TODO: Should probably report id to session
 	auto res = TRUE_WRAPPER(waitpid)(pid, status, options);
-	DEBUG_LOG_TRUE("waitpid", "(%i) -> ", pid, res);
+	DEBUG_LOG_TRUE("waitpid", "(%i) -> %i", pid, res);
+	if (WIFEXITED(*status))
+		Rpc_UpdateTables();
 	return res;
+}
+
+const char* GetResult(siginfo_t* info)
+{
+	if (!info)
+		return "null";
+	int code = info->si_code;
+	if (code == CLD_EXITED)
+		return "Exited";
+	if (code == CLD_KILLED)
+		return "Killed";
+	if (code == CLD_STOPPED)
+		return "Stopped";
+	if (code == CLD_CONTINUED)
+		return "Continued";
+	if (code == CLD_TRAPPED)
+		return "Trapped";
+	return "Running";
 }
 
 UBA_EXPORT int UBA_WRAPPER(waitid)(idtype_t idtype, id_t id, siginfo_t* infop, int options)
 {
 	UBA_INIT_DETOUR(waitid, idtype, id, infop, options);
-	DEBUG_LOG_TRUE("waitid", "");
 	UBA_ASSERTF(!t_inVfork, "waitid: is in fork");
 	// TODO: Should probably report id to session
-	return TRUE_WRAPPER(waitid)(idtype, id, infop, options);
+	auto res = TRUE_WRAPPER(waitid)(idtype, id, infop, options);
+	DEBUG_LOG_TRUE("waitid", "%i -> %i (%s)", id, res, GetResult(infop));
+	if (infop->si_code == CLD_EXITED)
+		Rpc_UpdateTables();
+	return res;
 }
 
 UBA_EXPORT pid_t UBA_WRAPPER(wait3)(int* status, int options, struct rusage* rusage)
@@ -1579,10 +2086,73 @@ UBA_EXPORT pid_t UBA_WRAPPER(wait4)(pid_t pid, int* status, int options, struct 
 	return res;
 }
 
+Set<TString> g_handledLibraries;
+
+void Shared_LoadLibrary(const char*& path, const char* const* loaderPaths, StringBufferBase& tempBuf)
+{
+#if PLATFORM_MAC
+	u64 nameLen = 0;
+	Rpc_GetFullFileName(path, nameLen, tempBuf, false, loaderPaths);
+
+	StringBuffer<> error;
+	FindImports(path, [&](const tchar* import, bool isKnown, const char* const* importLoaderPaths)
+	{
+		if (!g_handledLibraries.insert(import).second)
+			return;
+		StringBuffer<> temp;
+		Shared_LoadLibrary(import, importLoaderPaths, temp);
+	}, error);
+	if (error.count)
+		DEBUG_LOG(error.data);
+#endif
+}
+
+UBA_EXPORT void* UBA_WRAPPER(dlopen)(const char* path, int mode)
+{
+	UBA_INIT_DETOUR(dlopen, path, mode);
+
+#if PLATFORM_MAC
+	StringBuffer<> tempBuf;
+	if (g_runningRemote)
+	{
+		auto originalPath = path;
+		if (StartsWith(path, "@rpath/"))
+		{
+			path += 7;
+			const char* loaderPaths[] = { "/", 0 };
+			if (g_handledLibraries.insert(path).second)
+				Shared_LoadLibrary(path, loaderPaths, tempBuf);
+		}
+		else if (!StartsWith(path, "/System") && !StartsWith(path, "/usr/lib"))
+		{
+			u64 nameLen = 0;
+			Rpc_GetFullFileName(path, nameLen, tempBuf, false);
+		}
+	}
+#endif
+	void* res = TRUE_WRAPPER(dlopen)(path, mode);
+	DEBUG_LOG_TRUE("dlopen", "%s (%i) -> 0x%x", path, mode, res);
+	return res;
+}
+
+UBA_EXPORT int UBA_WRAPPER(dladdr)(const void *addr, Dl_info *info)
+{
+	UBA_INIT_DETOUR(dladdr, addr, info);
+	int res = TRUE_WRAPPER(dladdr)(addr, info);
+	if (StartsWith(info->dli_fname, g_exeDir.data))
+	{
+		StringBuffer<> newPath;
+		newPath.Append(g_virtualApplication.data).Append(info->dli_fname + g_exeDir.count - 1); // TODO: Make g_handledLibraries a map and store the real path
+		info->dli_fname = g_memoryBlock.Strdup(newPath.data);
+	}
+	DEBUG_LOG_TRUE("dladdr", "%s -> %i", info->dli_fname, res);
+	return res;
+}
+
 UBA_EXPORT int UBA_WRAPPER(execv)(const char* path, char* const argv[])
 {
 	UBA_INIT_DETOUR(execv, path, argv);
-	DEBUG_LOG_TRUE("execv", "");
+	DEBUG_LOG_TRUE("execv", "%s", path);
 	return TRUE_WRAPPER(execv)(path, argv);
 }
 
@@ -1590,11 +2160,11 @@ int Internal_execve(const char* pathname, char* const _Nullable argv[], char* co
 {
 	UBA_INIT_DETOUR(execve, pathname, argv, envp);
 	// We are most likely in a vfork/fork here, which means that we won't see the exit call since _exit will drop back out to the entrance of fork.
-	DEBUG_LOG_TRUE("execve", "");
+	DEBUG_LOG_TRUE("execve", "%s", pathname);
 
 	bool inVfork = t_inVfork != 0;
 	pid_t pid;
-	int res = posix_spawn(&pid, pathname, nullptr, nullptr, argv, envp);
+	int res = shared_posix_spawn(&pid, pathname, nullptr, nullptr, argv, envp);
 	if (inVfork)
 		t_inVfork = pid;
 
@@ -1626,6 +2196,8 @@ int Internal_execve(const char* pathname, char* const _Nullable argv[], char* co
 UBA_EXPORT int UBA_WRAPPER(execve)(const char* pathname, char* const _Nullable argv[], char* const _Nullable envp[])
 {
 	int res = Internal_execve(pathname, argv, envp);
+	Deinit();
+	CloseCom();
 	TRUE_WRAPPER(_exit)(res);
 	return 0;
 }
@@ -1637,7 +2209,35 @@ UBA_EXPORT int UBA_WRAPPER(execvp)(const char* file, char* const argv[])
 	return TRUE_WRAPPER(execvp)(file , argv);
 }
 
+UBA_EXPORT int UBA_WRAPPER(execl)(const char *path, const char *arg0, ...)
+{
+	DEBUG_LOG_TRUE("execl", "");
+	UBA_ASSERT(false);
+	return -1;
+}
+
+UBA_EXPORT int UBA_WRAPPER(execle)(const char *path, const char *arg0, ...)
+{
+	DEBUG_LOG_TRUE("execle", "");
+	UBA_ASSERT(false);
+	return -1;
+}
+
+UBA_EXPORT int UBA_WRAPPER(execlp)(const char *file, const char *arg0, ...)
+{
+	DEBUG_LOG_TRUE("execlp", "");
+	UBA_ASSERT(false);
+	return -1;
+}
+
 #if PLATFORM_MAC
+UBA_EXPORT int UBA_WRAPPER(execvP)(const char *file, const char *search_path, char *const argv[])
+{
+	DEBUG_LOG_TRUE("execvP", "");
+	UBA_ASSERT(false);
+	return -1;
+}
+
 UBA_EXPORT pid_t UBA_WRAPPER(fork)(void)
 {
 	UBA_INIT_DETOUR(fork);
@@ -1647,7 +2247,10 @@ UBA_EXPORT pid_t UBA_WRAPPER(fork)(void)
 #endif
 
 
-#if PLATFORM_LINUX
+#if PLATFORM_MAC
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 UBA_EXPORT pid_t UBA_WRAPPER(vfork)(void)
 {
 	UBA_INIT_DETOUR(vfork);
@@ -1662,7 +2265,6 @@ UBA_EXPORT pid_t UBA_WRAPPER(vfork)(void)
 	}
 	return pid;
 }
-#endif
 
 UBA_EXPORT FILE* UBA_WRAPPER(popen)(const char* command, const char* type)
 {
@@ -1671,14 +2273,12 @@ UBA_EXPORT FILE* UBA_WRAPPER(popen)(const char* command, const char* type)
 	return TRUE_WRAPPER(popen)(command, type);
 }
 
-void CloseCom();
-
 UBA_EXPORT void UBA_WRAPPER(exit)(int status)
 {
 	//UBA_INIT_DETOUR(exit, status);
 	DEBUG_LOG_TRUE("exit", "(%i)", status);
-	Deinit();
-	CloseCom();
+	//Deinit();
+	//CloseCom();
 	TRUE_WRAPPER(exit)(status);
 }
 
@@ -1782,7 +2382,6 @@ namespace uba
 #endif
 	}
 
-
 	void PreInit(const char* logFile)
 	{
 		g_exeDirMem.Create();
@@ -1845,6 +2444,10 @@ namespace uba
 			}
 			DEBUG_LOG("");
 #endif
+			DEBUG_LOG("SystemTemp: %s", g_systemTemp.data);
+			if (g_runningRemote)
+				DEBUG_LOG("RunningRemote: true");
+			DEBUG_LOG("");
 		}
 		#endif
 
@@ -1879,6 +2482,7 @@ namespace uba
 			BinaryReader reader;
 
 			bool echoOn = reader.ReadBool();
+			g_isChild = reader.ReadBool();
 
 			reader.ReadString(g_virtualApplication);
 			reader.ReadString(g_virtualWorkingDir);
@@ -1916,6 +2520,15 @@ namespace uba
 		u8* dirTableMem = (u8*)mmap(NULL, DirTableMemSize, PROT_READ, MAP_SHARED, dirTableFd, 0);
 		UBA_ASSERTF(dirTableMem != MAP_FAILED, "mmap for dirtable mem failed (%s)", strerror(errno));
 		g_directoryTable.Init(dirTableMem, directoryTableCount, directoryTableSize);
+
+		if (g_runningRemote && g_isChild)
+			Rpc_GetParentWrittenFiles();
+
+		//pthread_atfork([]()
+		//{
+		//	DEBUG_LOG("FORKING!!");
+		//},[](){},[](){});
+
 
 		g_isDetouring = true;
 		DEBUG_LOG("Detouring enabled");
@@ -1959,6 +2572,7 @@ namespace uba
 		writer.WriteU32(0); // Exit code
 		writer.WriteString(""); // Log name
 		g_stats.Write(writer);
+		g_kernelStats.Write(writer);
 
 		// This can't wait for response since the session process might move on and reuse shared memory with someone else
 		// Note, if we start using memory mapped files we need to change this to true for child processes since Exit message is writing files to disk..
@@ -1999,6 +2613,7 @@ namespace uba
 		writer.WriteU32(terminateCode); // Exit code
 		writer.WriteString(""); // Log name
 		g_stats.Write(writer);
+		g_kernelStats.Write(writer);
 		writer.Flush(false);
 
 		CloseCom();
@@ -2022,7 +2637,7 @@ extern "C"
 			writer.WriteByte(MessageType_GetNextProcess);
 			writer.WriteU32(prevExitCode);
 			g_stats.Write(writer);
-
+			g_kernelStats.Write(writer);
 
 			writer.Flush();
 			BinaryReader reader;
@@ -2038,6 +2653,7 @@ extern "C"
 
 		if (newProcess)
 		{
+			g_kernelStats = {};
 			g_stats = {};
 
 			//#if UBA_DEBUG_LOG_ENABLED

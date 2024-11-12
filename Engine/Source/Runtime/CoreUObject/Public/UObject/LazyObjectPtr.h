@@ -14,9 +14,12 @@
 #include "Serialization/Archive.h"
 #include "Serialization/StructuredArchive.h"
 #include "Templates/Casts.h"
+#include "Templates/Requires.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Object.h"
 #include "UObject/PersistentObjectPtr.h"
+
+#include <type_traits>
 
 template <typename T> struct TIsPODType;
 template <typename T> struct TIsWeakPointerType;
@@ -50,7 +53,7 @@ struct FUniqueObjectGuid
 	COREUOBJECT_API void FromString(const FString& From);
 
 	/** Fixes up this UniqueObjectID to add or remove the PIE prefix depending on what is currently active */
-	COREUOBJECT_API FUniqueObjectGuid FixupForPIE(int32 PlayInEditorID = GPlayInEditorID) const;
+	COREUOBJECT_API FUniqueObjectGuid FixupForPIE(int32 PlayInEditorID = UE::GetPlayInEditorID()) const;
 
 	/**
 	 * Attempts to find a currently loaded object that matches this object ID
@@ -193,14 +196,20 @@ public:
 	TLazyObjectPtr<T>& operator=(const TLazyObjectPtr<T>&) = default;
 
 	/** Construct from another lazy pointer with implicit upcasting allowed */
-	template<typename U, typename = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TLazyObjectPtr(const TLazyObjectPtr<U>& Other) :
 		FLazyObjectPtr((const FLazyObjectPtr&)Other)
 	{
 	}
 	
 	/** Assign from another lazy pointer with implicit upcasting allowed */
-	template<typename U, typename = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TLazyObjectPtr<T>& operator=(const TLazyObjectPtr<U>& Other)
 	{
 		FLazyObjectPtr::operator=((const FLazyObjectPtr&)Other);

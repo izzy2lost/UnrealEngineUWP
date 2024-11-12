@@ -2,7 +2,7 @@
 
 #include "GeoReferencingSystem.h"
 
-#include "CartesianCoordinates.h"
+#include "GameFramework/WorldSettings.h"
 #include "Interfaces/IPluginManager.h"
 #include "Ellipsoid.h"
 #include "Kismet/GameplayStatics.h"
@@ -151,6 +151,12 @@ void AGeoReferencingSystem::PostActorCreated()
 
 void AGeoReferencingSystem::Initialize()
 {
+	if (GetWorld() && GetWorld()->GetWorldSettings()->bEnableWorldBoundsChecks)
+	{
+		UE_LOG(LogGeoReferencing, Display, TEXT("Enable World Bounds Checks is enabled in your World Settings. You might consider disabling it when working with large terrains, otherwise your pawns won't be able to go too far from the Origin"));
+	}
+
+
 	Impl = MakePimpl<FGeoReferencingSystemInternals>();
 
 	Impl->InitPROJLibrary();
@@ -177,98 +183,6 @@ void AGeoReferencingSystem::BeginDestroy()
 		Impl->DeInitPROJLibrary();
 	}
 }
-
-#pragma region Old deprecated Prototypes
-
-void AGeoReferencingSystem::EngineToProjected(const FVector& EngineCoordinates, FCartesianCoordinates& ProjectedCoordinates)
-{
-	FVector Result;
-	EngineToProjected(EngineCoordinates, Result);
-	ProjectedCoordinates = FCartesianCoordinates(Result);
-}
-
-void AGeoReferencingSystem::ProjectedToEngine(const FCartesianCoordinates& ProjectedCoordinates, FVector& EngineCoordinates)
-{
-	ProjectedToEngine(ProjectedCoordinates.ToVector(), EngineCoordinates);
-}
-
-void AGeoReferencingSystem::EngineToECEF(const FVector& EngineCoordinates, FCartesianCoordinates& ECEFCoordinates)
-{
-	FVector Result;
-	EngineToECEF(EngineCoordinates, Result);
-	ECEFCoordinates = FCartesianCoordinates(Result);
-}
-
-void AGeoReferencingSystem::ECEFToEngine(const FCartesianCoordinates& ECEFCoordinates, FVector& EngineCoordinates)
-{
-	ECEFToEngine(ECEFCoordinates.ToVector(), EngineCoordinates);
-}
-
-
-void AGeoReferencingSystem::ProjectedToGeographic(const FCartesianCoordinates& ProjectedCoordinates, FGeographicCoordinates& GeographicCoordinates)
-{
-	ProjectedToGeographic(ProjectedCoordinates.ToVector(), GeographicCoordinates);
-}
-
-void AGeoReferencingSystem::GeographicToProjected(const FGeographicCoordinates& GeographicCoordinates, FCartesianCoordinates& ProjectedCoordinates)
-{
-	FVector Result;
-	GeographicToProjected(GeographicCoordinates, Result);
-	ProjectedCoordinates = FCartesianCoordinates(Result);
-}
-
-void AGeoReferencingSystem::ProjectedToECEF(const FCartesianCoordinates& ProjectedCoordinates, FCartesianCoordinates& ECEFCoordinates)
-{
-	FVector Result;
-	ProjectedToECEF(ProjectedCoordinates.ToVector(), Result);
-	ECEFCoordinates = FCartesianCoordinates(Result);
-}
-
-void AGeoReferencingSystem::ECEFToProjected(const FCartesianCoordinates& ECEFCoordinates, FCartesianCoordinates& ProjectedCoordinates)
-{
-	FVector Result;
-	ECEFToProjected(ECEFCoordinates.ToVector(), Result);
-	ProjectedCoordinates = FCartesianCoordinates(Result);
-}
-
-void AGeoReferencingSystem::GeographicToECEF(const FGeographicCoordinates& GeographicCoordinates, FCartesianCoordinates& ECEFCoordinates)
-{
-	FVector Result;
-	GeographicToECEF(GeographicCoordinates, Result);
-	ECEFCoordinates = FCartesianCoordinates(Result);
-}
-
-void AGeoReferencingSystem::ECEFToGeographic(const FCartesianCoordinates& ECEFCoordinates, FGeographicCoordinates& GeographicCoordinates)
-{
-	ECEFToGeographic(ECEFCoordinates.ToVector(), GeographicCoordinates);
-}
-
-void AGeoReferencingSystem::GetENUVectorsAtProjectedLocation(const FCartesianCoordinates& ProjectedCoordinates, FVector& East, FVector& North, FVector& Up)
-{
-	GetENUVectorsAtProjectedLocation(ProjectedCoordinates.ToVector(), East, North, Up);
-}
-
-void AGeoReferencingSystem::GetENUVectorsAtECEFLocation(const FCartesianCoordinates& ECEFCoordinates, FVector& East, FVector& North, FVector& Up)
-{
-	GetENUVectorsAtECEFLocation(ECEFCoordinates.ToVector(), East, North, Up);
-}
-
-void AGeoReferencingSystem::GetECEFENUVectorsAtECEFLocation(const FCartesianCoordinates& ECEFCoordinates, FVector& ECEFEast, FVector& ECEFNorth, FVector& ECEFUp)
-{
-	GetECEFENUVectorsAtECEFLocation(ECEFCoordinates.ToVector(), ECEFEast, ECEFNorth, ECEFUp);
-}
-
-FTransform AGeoReferencingSystem::GetTangentTransformAtProjectedLocation(const FCartesianCoordinates& ProjectedCoordinates)
-{
-	return GetTangentTransformAtProjectedLocation(ProjectedCoordinates.ToVector());
-}
-
-FTransform AGeoReferencingSystem::GetTangentTransformAtECEFLocation(const FCartesianCoordinates& ECEFCoordinates)
-{
-	return GetTangentTransformAtECEFLocation(ECEFCoordinates.ToVector());
-}
-#pragma endregion
-
 
 void AGeoReferencingSystem::EngineToProjected(const FVector& EngineCoordinates, FVector& ProjectedCoordinates)
 {
@@ -655,7 +569,7 @@ FTransform AGeoReferencingSystem::GetPlanetCenterTransform()
 			// Don't go to transform yet, we must stay in double to apply the rebasing offset. 
 
 			// Get Origin, and convert UE units to meters, invert the Y coordinate because of left-handed UE Frame
-			FVector UEOrigin = TransformMatrix.GetOrigin() * FVector(100.0, -100.0, 100.0);
+			FVector UEOrigin = TransformMatrix.GetOrigin() * FVector(100.0, 100.0, 100.0);
 			TransformMatrix.SetOrigin(UEOrigin);
 
 			return FTransform(TransformMatrix);

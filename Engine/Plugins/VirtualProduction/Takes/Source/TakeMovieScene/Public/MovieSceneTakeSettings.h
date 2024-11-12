@@ -40,6 +40,10 @@ public:
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Take Recorder")
 	FString SubFramesName;
 
+	/** Rate Name */
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Take Recorder")
+	FString RateName;
+
 	/** Slate Name */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Take Recorder")
 	FString SlateName;

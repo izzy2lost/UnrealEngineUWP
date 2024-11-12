@@ -35,6 +35,7 @@ DECLARE_DELEGATE_RetVal_TwoParams(FName, FRigVMCreateExternalVariableDelegate, F
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FRigVMBindPinToExternalVariableDelegate, FString, FString)
 
 struct FRigVMStruct;
+class URigVMController;
 
 /** Context as of why the node was created */
 enum class ERigVMNodeCreatedReason : uint8
@@ -49,7 +50,7 @@ enum class ERigVMNodeCreatedReason : uint8
 /**
  * A context struct passed to FRigVMStruct::OnUnitNodeCreated
  */
-struct RIGVM_API FRigVMUnitNodeCreatedContext
+struct FRigVMUnitNodeCreatedContext
 {
 public:
 
@@ -74,28 +75,32 @@ public:
 	};
 
 	/** Returns true if this context is valid to use */
-	bool IsValid() const;
+	RIGVM_API bool IsValid() const;
 
 	/** Get the reason why this node was created */
 	ERigVMNodeCreatedReason GetReason() const { return Reason; }
+
+#if WITH_EDITOR
+	URigVMController* GetController() const { return Controller; }
+#endif
 
 	/** Get the name of this node */
 	FName GetNodeName() const { return NodeName; }
 
 	/** Returns all currently existing external variables */
-	TArray<FRigVMExternalVariable> GetExternalVariables() const;
+	RIGVM_API TArray<FRigVMExternalVariable> GetExternalVariables() const;
 
 	/** Creates a new variable within the host of this VM */
-	FName AddExternalVariable(const FRigVMExternalVariable& InVariableToCreate, FString InDefaultValue = FString());
+	RIGVM_API FName AddExternalVariable(const FRigVMExternalVariable& InVariableToCreate, FString InDefaultValue = FString());
 
 	/** Binds a pin to an external variable on the created node */
-	bool BindPinToExternalVariable(FString InPinPath, FString InVariablePath);
+	RIGVM_API bool BindPinToExternalVariable(FString InPinPath, FString InVariablePath);
 
 	/** Returns a variable given a name (or a non-valid variable if not found) */
-	FRigVMExternalVariable FindVariable(FName InVariableName) const;
+	RIGVM_API FRigVMExternalVariable FindVariable(FName InVariableName) const;
 
 	/** Returns the name of the first variable given a(or NAME_None if not found) */
-	FName FindFirstVariableOfType(FName InCPPTypeName) const;
+	RIGVM_API FName FindFirstVariableOfType(FName InCPPTypeName) const;
 
 	/** Returns the name of the first variable given a type (or NAME_None if not found) */
 	template <
@@ -142,14 +147,17 @@ public:
 	FRigVMBindPinToExternalVariableDelegate& GetBindPinToExternalVariableDelegate() { return BindPinToExternalVariableDelegate; }
 
 private:
-	
+
+#if WITH_EDITOR
+	URigVMController* Controller;
+#endif
 	FName NodeName = NAME_None;
 	ERigVMNodeCreatedReason Reason = ERigVMNodeCreatedReason::Unknown;
 	FRigVMGetExternalVariablesDelegate AllExternalVariablesDelegate;
 	FRigVMCreateExternalVariableDelegate CreateExternalVariableDelegate;
 	FRigVMBindPinToExternalVariableDelegate BindPinToExternalVariableDelegate;
 
-	FName FindFirstVariableOfType(UObject* InCPPTypeObject) const;
+	RIGVM_API FName FindFirstVariableOfType(UObject* InCPPTypeObject) const;
 
 	friend class URigVMController;
 	friend struct FScope;
@@ -159,7 +167,7 @@ private:
  * The base class for all RigVM enabled structs.
  */
 USTRUCT()
-struct RIGVM_API FRigVMStruct
+struct FRigVMStruct
 {
 	GENERATED_BODY()
 
@@ -179,29 +187,30 @@ public:
 	virtual void Execute() {}
 
 	// control flow related
-	bool IsForLoop() const;
-	bool IsControlFlowNode() const; 
+	RIGVM_API bool IsForLoop() const;
+	RIGVM_API bool IsControlFlowNode() const; 
 	virtual int32 GetNumSlices() const { return 1; }
-	const TArray<FName>& GetControlFlowBlocks() const;
+	RIGVM_API const TArray<FName>& GetControlFlowBlocks() const;
 	virtual const bool IsControlFlowBlockSliced(const FName& InBlockName) const { return false; }
 
 	// node creation
 	virtual void OnUnitNodeCreated(FRigVMUnitNodeCreatedContext& InContext) const {}
 
 	// user workflow
-	TArray<FRigVMUserWorkflow> GetWorkflows(ERigVMUserWorkflowType InType, const UObject* InSubject) const; 
+	RIGVM_API TArray<FRigVMUserWorkflow> GetWorkflows(ERigVMUserWorkflowType InType, const UObject* InSubject) const; 
 
 #if WITH_EDITOR
-	static bool ValidateStruct(UScriptStruct* InStruct, FString* OutErrorMessage);
-	static bool CheckPinType(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType, FString* OutErrorMessage = nullptr);
-	static bool CheckPinDirection(UScriptStruct* InStruct, const FName& PinName, const FName& InDirectionMetaName);
-	static ERigVMPinDirection GetPinDirectionFromProperty(FProperty* InProperty);
-	static bool CheckPinExists(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType = FString(), FString* OutErrorMessage = nullptr);
-	static bool CheckMetadata(UScriptStruct* InStruct, const FName& PinName, const FName& InMetadataKey, FString* OutErrorMessage = nullptr);
-	static bool CheckFunctionExists(UScriptStruct* InStruct, const FName& FunctionName, FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool ValidateStruct(UScriptStruct* InStruct, FString* OutErrorMessage);
+	RIGVM_API static bool CheckPinType(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType, FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool CheckPinDirection(UScriptStruct* InStruct, const FName& PinName, const FName& InDirectionMetaName);
+	RIGVM_API static ERigVMPinDirection GetPinDirectionFromProperty(FProperty* InProperty);
+	RIGVM_API static bool CheckPinExists(UScriptStruct* InStruct, const FName& PinName, const FString& ExpectedType = FString(), FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool CheckMetadata(UScriptStruct* InStruct, const FName& PinName, const FName& InMetadataKey, FString* OutErrorMessage = nullptr);
+	RIGVM_API static bool CheckFunctionExists(UScriptStruct* InStruct, const FName& FunctionName, FString* OutErrorMessage = nullptr);
+	RIGVM_API virtual bool ShouldCreatePinForProperty(const FProperty* InProperty) const; 
 #endif
-	static FString ExportToFullyQualifiedText(const FProperty* InMemberProperty, const uint8* InMemberMemoryPtr, bool bUseQuotes = true);
-	static FString ExportToFullyQualifiedText(const UScriptStruct* InStruct, const uint8* InStructMemoryPtr, bool bUseQuotes = true);
+	RIGVM_API static FString ExportToFullyQualifiedText(const FProperty* InMemberProperty, const uint8* InMemberMemoryPtr, bool bUseQuotes = true);
+	RIGVM_API static FString ExportToFullyQualifiedText(const UScriptStruct* InStruct, const uint8* InStructMemoryPtr, bool bUseQuotes = true);
 
 	template <
 		typename T,
@@ -221,65 +230,64 @@ public:
 		return ExportToFullyQualifiedText(T::StaticStruct(), (const uint8*)&InStructValue);
 	}
 
-	FString ExportToFullyQualifiedText(const UScriptStruct* InScriptStruct, const FName& InPropertyName, const uint8* InStructMemoryPointer = nullptr, bool bUseQuotes = true) const;
+	RIGVM_API FString ExportToFullyQualifiedText(const UScriptStruct* InScriptStruct, const FName& InPropertyName, const uint8* InStructMemoryPointer = nullptr, bool bUseQuotes = true) const;
 	
-	virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const;
+	RIGVM_API virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const;
 	virtual FRigVMStructUpgradeInfo GetUpgradeInfo() const { return FRigVMStructUpgradeInfo(); }
 
-	static const FName DeprecatedMetaName;
-	static const FName InputMetaName;
-	static const FName OutputMetaName;
-	static const FName IOMetaName;
-	static const FName HiddenMetaName;
-	static const FName VisibleMetaName;
-	static const FName DetailsOnlyMetaName;
-	static const FName AbstractMetaName;
-	static const FName CategoryMetaName;
-	static const FName DisplayNameMetaName;
-	static const FName MenuDescSuffixMetaName;
-	static const FName ShowVariableNameInTitleMetaName;
-	static const FName CustomWidgetMetaName;
-	static const FName ConstantMetaName;
-	static const FName TitleColorMetaName;
-	static const FName NodeColorMetaName;
+	static inline const FLazyName DeprecatedMetaName = FLazyName(TEXT("Deprecated"));
+	static inline const FLazyName InputMetaName = FLazyName(TEXT("Input"));
+	static inline const FLazyName OutputMetaName = FLazyName(TEXT("Output"));
+	static inline const FLazyName IOMetaName = FLazyName(TEXT("IO"));
+	static inline const FLazyName HiddenMetaName = FLazyName(TEXT("Hidden"));
+	static inline const FLazyName VisibleMetaName = FLazyName(TEXT("Visible"));
+	static inline const FLazyName DetailsOnlyMetaName = FLazyName(TEXT("DetailsOnly"));
+	static inline const FLazyName AbstractMetaName = FLazyName(TEXT("Abstract"));
+	static inline const FLazyName CategoryMetaName = FLazyName(TEXT("Category"));
+	static inline const FLazyName DisplayNameMetaName = FLazyName(TEXT("DisplayName"));
+	static inline const FLazyName MenuDescSuffixMetaName = FLazyName(TEXT("MenuDescSuffix"));
+	static inline const FLazyName ShowVariableNameInTitleMetaName = FLazyName(TEXT("ShowVariableNameInTitle"));
+	static inline const FLazyName CustomWidgetMetaName = FLazyName(TEXT("CustomWidget"));
+	static inline const FLazyName ConstantMetaName = FLazyName(TEXT("Constant"));
+	static inline const FLazyName TitleColorMetaName = FLazyName(TEXT("TitleColor"));
+	static inline const FLazyName NodeColorMetaName = FLazyName(TEXT("NodeColor"));
 	// icon meta name format: StyleSetName|StyleName|SmallStyleName|StatusOverlayStyleName
 	// the last two names are optional, see FSlateIcon() for reference
 	// Example: Icon="EditorStyle|GraphEditor.Sequence_16x"
-	static const FName IconMetaName;
-	static const FName KeywordsMetaName;
-	static const FName TemplateNameMetaName;
-	static const FName FixedSizeArrayMetaName;
-	static const FName ShowOnlySubPinsMetaName;
-	static const FName HideSubPinsMetaName;
-	static const FName ArraySizeMetaName;
-	static const FName AggregateMetaName;
-	static const FName ExpandPinByDefaultMetaName;
-	static const FName DefaultArraySizeMetaName;
-	static const FName VaryingMetaName;
-	static const FName SingletonMetaName;
-	static const FName SliceContextMetaName;
-	static const FName ExecuteName;
-	static const FName ExecuteContextName;
-	static const FName ForLoopCountPinName;
-	static const FName ForLoopContinuePinName;
-	static const FName ForLoopCompletedPinName;
-	static const FName ForLoopIndexPinName;
-	static const FName ComputeLazilyMetaName;
-	static const FName ControlFlowBlockToRunName;
-	static const FName ControlFlowCompletedName;
-	static const FName ControlFlowCountName;
-	static const FName ControlFlowIndexName;
+	static inline const FLazyName IconMetaName = FLazyName(TEXT("Icon"));
+	static inline const FLazyName KeywordsMetaName = FLazyName(TEXT("Keywords"));
+	static inline const FLazyName FixedSizeArrayMetaName = FLazyName(TEXT("FixedSizeArray"));
+	static inline const FLazyName ShowOnlySubPinsMetaName = FLazyName(TEXT("ShowOnlySubPins"));
+	static inline const FLazyName HideSubPinsMetaName = FLazyName(TEXT("HideSubPins"));
+	static inline const FLazyName ArraySizeMetaName = FLazyName(TEXT("ArraySize"));
+	static inline const FLazyName AggregateMetaName = FLazyName(TEXT("Aggregate"));
+	static inline const FLazyName ExpandPinByDefaultMetaName = FLazyName(TEXT("ExpandByDefault"));
+	static inline const FLazyName DefaultArraySizeMetaName = FLazyName(TEXT("DefaultArraySize"));
+	static inline const FLazyName VaryingMetaName = FLazyName(TEXT("Varying"));
+	static inline const FLazyName SingletonMetaName = FLazyName(TEXT("Singleton"));
+	static inline const FLazyName SliceContextMetaName = FLazyName(TEXT("SliceContext"));
+	static inline const FLazyName ExecuteName = FLazyName(TEXT("Execute"));
+	static inline const FLazyName ExecuteContextName = FLazyName(TEXT("ExecuteContext"));
+	static inline const FLazyName ForLoopCountPinName = FLazyName(TEXT("Count"));
+	static inline const FLazyName ForLoopContinuePinName = FLazyName(TEXT("Continue"));
+	static inline const FLazyName ForLoopCompletedPinName = FLazyName(TEXT("Completed"));
+	static inline const FLazyName ForLoopIndexPinName = FLazyName(TEXT("Index"));
+	static inline const FLazyName ComputeLazilyMetaName = FLazyName(TEXT("Lazy"));
+	static inline const FLazyName ControlFlowBlockToRunName = FLazyName(TEXT("BlockToRun"));
+	static inline const FLazyName ControlFlowCompletedName = FLazyName(TEXT("Completed"));
+	static inline const FLazyName ControlFlowCountName = FLazyName(TEXT("Count"));
+	static inline const FLazyName ControlFlowIndexName = FLazyName(TEXT("Index"));
 
 protected:
 
-	static float GetRatioFromIndex(int32 InIndex, int32 InCount);
-	TMap<FName, FString> GetDefaultValues(UScriptStruct* InScriptStruct) const;
-	bool ApplyUpgradeInfo(const FRigVMStructUpgradeInfo& InUpgradeInfo);
+	RIGVM_API static float GetRatioFromIndex(int32 InIndex, int32 InCount);
+	RIGVM_API TMap<FName, FString> GetDefaultValues(UScriptStruct* InScriptStruct) const;
+	RIGVM_API bool ApplyUpgradeInfo(const FRigVMStructUpgradeInfo& InUpgradeInfo);
 	virtual TArray<FRigVMUserWorkflow> GetSupportedWorkflows(const UObject* InSubject) const { return TArray<FRigVMUserWorkflow>(); }
-	virtual const TArray<FName>& GetControlFlowBlocks_Impl() const;
+	RIGVM_API virtual const TArray<FName>& GetControlFlowBlocks_Impl() const;
 
 #if WITH_EDITOR
-	static void ValidateControlFlowBlocks(const TArray<FName>& InBlocks);
+	RIGVM_API static void ValidateControlFlowBlocks(const TArray<FName>& InBlocks);
 #endif
 
 	friend struct FRigVMStructUpgradeInfo;
@@ -292,7 +300,7 @@ protected:
  * The base mutable class for all RigVM enabled structs.
  */
 USTRUCT()
-struct RIGVM_API FRigVMStructMutable : public FRigVMStruct
+struct FRigVMStructMutable : public FRigVMStruct
 {
 	GENERATED_BODY()
 

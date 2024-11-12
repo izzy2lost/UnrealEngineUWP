@@ -13,7 +13,7 @@ bool FOpenXRLayer::NeedReallocateRightTexture()
 		return false;
 	}
 
-	FRHITexture2D* Texture = Desc.Texture->GetTexture2D();
+	FRHITexture* Texture = Desc.Texture->GetTexture2D();
 	if (!Texture)
 	{
 		return false;
@@ -34,7 +34,7 @@ bool FOpenXRLayer::NeedReallocateLeftTexture()
 		return false;
 	}
 
-	FRHITexture2D* Texture = Desc.LeftTexture->GetTexture2D();
+	FRHITexture* Texture = Desc.LeftTexture->GetTexture2D();
 	if (!Texture)
 	{
 		return false;

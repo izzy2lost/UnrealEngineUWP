@@ -48,6 +48,15 @@ public:
 		Closed,			// Socket has already been closed and shouldn't be used.
 	};
 
+	/**
+	 * Mode of a socket read
+	 */
+	enum class EReceiveFlags : uint8
+	{
+		DontWait,		// Read as much there is on the wire up to the buffer size
+		WaitAll,		// Block read and wait until the buffer is filled
+	};
+
 public:
 
 	/**
@@ -61,12 +70,23 @@ public:
 
 	/**
 	 * Receive data from the connected host PC (blocking operation).
-	 * 
+	 *
 	 * @param Buffer         Data to be sent.
 	 * @param BytesToReceive The number of bytes to receive (Buffer has to be large enough).
 	 * @return               Status value indicating error or success.
 	 */
 	virtual EResultNet Receive(void* Buffer, uint64 BytesToReceive) = 0;
+
+	/**
+	 * Receive data from the connected host PC.
+	 * 
+	 * @param Buffer         Data to be sent.
+	 * @param BytesToReceive The number of bytes to receive (Buffer has to be large enough).
+	 * @param BytesReceived  Number of bytes that have been received (equals to BytesToReceive if ReadMode is EReceiveFlags::WaitAll)
+	 * @param ReadMode       DontWait if this call should return immediately with the data available and not wait for BytesToReceive number of bytes
+	 * @return               Status value indicating error or success.
+	 */
+	virtual EResultNet Receive(void* Buffer, uint64 BytesToReceive, uint64& BytesReceived, EReceiveFlags ReadMode = EReceiveFlags::WaitAll) = 0;
 
 	/**
 	 * Get the state of the socket (determines if the host pc is connected and communication is possible).

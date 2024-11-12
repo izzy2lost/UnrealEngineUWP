@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/AudioBuffer.h"
+#include "Algo/ForEach.h"
+#include "DSP/MultichannelBuffer.h"
 #include "HarmonixDsp/Ramper.h"
 #include "HarmonixDsp/TimeSyncOption.h"
 #include "HarmonixDsp/Effects/Settings/DelaySettings.h"
@@ -17,7 +18,7 @@ namespace Harmonix::Dsp::Effects
 		class FTestDelay;
 	}
 
-	class HARMONIXDSP_API FDelay
+	class FDelay
 	{
 	public:
 		
@@ -27,20 +28,22 @@ namespace Harmonix::Dsp::Effects
 		// The max number of channels we expect to support with the delay
 		inline static constexpr int32 AbsoluteMaxChannels = 12;
 		
-		FDelay();
+		HARMONIXDSP_API FDelay();
 
-		void Prepare(float InSampleRate, uint32 InMaxChannels, float InMaxDelayTimeMs);
+		HARMONIXDSP_API void Prepare(float InSampleRate, uint32 InMaxChannels, float InMaxDelayTimeMs);
 
-		void Unprepare();
+		HARMONIXDSP_API void Unprepare();
 
-		virtual ~FDelay()
-		{
-			FreeUpMemory();
-		}
+		HARMONIXDSP_API virtual ~FDelay();
 
 		void Clear()
 		{
-			DelayLineInterleaved.ZeroData();
+			// zero the delay line
+			if (DelayLineInterleaved.Num() > 0)
+			{
+				FMemory::Memzero(DelayLineInterleaved.GetData(), DelayLineInterleaved.Num() * sizeof(float));
+			}
+			
 			DelayPos = 0;
 			CanSlamParams = true;
 		}
@@ -77,74 +80,74 @@ namespace Harmonix::Dsp::Effects
 
 		*/
 
-		void Process(TAudioBuffer<float>& InOutData);
+		HARMONIXDSP_API void Process(Audio::FMultichannelBufferView& InOutBuffer);
 
-		float CalculateSecsToIdle();
+		HARMONIXDSP_API float CalculateSecsToIdle();
 
 		float GetSampleRate() const { return SampleRate; }
 		
 		// units are either seconds or beats, depending on beat-sync setting
-		void  SetDelaySeconds(float Seconds);
+		HARMONIXDSP_API void  SetDelaySeconds(float Seconds);
 		float GetDelaySeconds() const { return DelayTimeSeconds; }
 
 		// in beat-sync mode, delays are specified in beats, not seconds, and the
 		//  delay must be notified when the tempo changes.
-		void  SetTimeSyncOption(ETimeSyncOption Option);
+		HARMONIXDSP_API void  SetTimeSyncOption(ETimeSyncOption Option);
 		ETimeSyncOption  GetTimeSyncOption() const { return TimeSyncOption; }
 
-		void  SetTempo(float Bpm);
+		HARMONIXDSP_API void  SetTempo(float Bpm);
 		float GetTempo() const { return TempoBpm; }
 
-		void  SetSpeed(float Speed);
+		HARMONIXDSP_API void  SetSpeed(float Speed);
 		float GetSpeed() const { return Speed; }
 
 		float GetOutputGain() const { return OutputGain; }
 		void SetOutputGain(const float InGain) { OutputGain = InGain; }
 
-		void SetFeedbackGain(float Gain);
-		float GetFeedbackGain() const;
+		HARMONIXDSP_API void SetFeedbackGain(float Gain);
+		HARMONIXDSP_API float GetFeedbackGain() const;
 
-		void SetWetGain(float Gain);
-		float GetWetGain() const;
+		HARMONIXDSP_API void SetWetGain(float Gain);
+		HARMONIXDSP_API float GetWetGain() const;
 
-		void SetDryGain(float Gain);
-		float GetDryGain() const;
+		HARMONIXDSP_API void SetDryGain(float Gain);
+		HARMONIXDSP_API float GetDryGain() const;
 
-		void SetWetFilterEnabled(bool Enabled);
+		HARMONIXDSP_API void SetWetFilterEnabled(bool Enabled);
 		bool GetWetFilterEnabled() const { return WetFilters.GetSettings().IsEnabled; }
 
-		void SetFeedbackFilterEnabled(bool Enabled);
+		HARMONIXDSP_API void SetFeedbackFilterEnabled(bool Enabled);
 		bool GetFeedbackFilterEnabled() const { return FeedbackFilters.GetSettings().IsEnabled; }
 		
-		void SetFilterFreq(float Freq);
+		HARMONIXDSP_API void SetFilterFreq(float Freq);
 		float GetFilterFreq() const { return WetFilters.GetSettings().Freq; }
 
-		void SetFilterQ(float Q);
+		HARMONIXDSP_API void SetFilterQ(float Q);
 		float GetFilterQ() const { return WetFilters.GetSettings().Q; }
 
-		void SetFilterType(EDelayFilterType Type);
-		void SetFilterType(EBiquadFilterType Type);
+		HARMONIXDSP_API void SetFilterType(EDelayFilterType Type);
+		HARMONIXDSP_API void SetFilterType(EBiquadFilterType Type);
 		EBiquadFilterType GetFilterType() const { return WetFilters.GetSettings().Type; }
 
-		void SetLfoEnabled(bool bEnabled);
+		HARMONIXDSP_API void SetLfoEnabled(bool bEnabled);
 		bool GetLfoEnabled() const { return LfoSettings.IsEnabled; }
 
-		void SetLfoTimeSyncOption(ETimeSyncOption Option);
+		HARMONIXDSP_API void SetLfoTimeSyncOption(ETimeSyncOption Option);
 		ETimeSyncOption GetLfoTimeSyncOption() const { return LfoSyncOption; }
 
-		void SetLfoFreq(float Freq);
+		HARMONIXDSP_API void SetLfoFreq(float Freq);
 		float GetLfoFreq() const { return LfoSettings.Freq; }
 
-		void SetLfoDepth(float InDepth);
-		float GetLfoDepth() const;
+		HARMONIXDSP_API void SetLfoDepth(float InDepth);
+		HARMONIXDSP_API float GetLfoDepth() const;
 
-		void SetStereoSpreadLeft(float Spread);
+		HARMONIXDSP_API void SetStereoSpreadLeft(float Spread);
 		float GetStereoSpreadLeft() const { return DelaySpreadLeft.GetCurrent(); }
 
-		void SetStereoSpreadRight(float Spread);
+		HARMONIXDSP_API void SetStereoSpreadRight(float Spread);
 		float GetStereoSpreadRight() const { return DelaySpreadRight.GetCurrent(); }
 
-		void SetStereoType(EDelayStereoType Type);
+		HARMONIXDSP_API void SetStereoType(EDelayStereoType Type);
 		EDelayStereoType GetStereoType() const { return DelayType; }
 
 	private:
@@ -171,8 +174,8 @@ namespace Harmonix::Dsp::Effects
 		uint32 MaxBlockSize = 0;
 
 		uint32 Length = 0;
-		TAudioBuffer<float> DelayLineInterleaved;
-		TAudioBuffer<float> WetChannelInterleaved;
+		Audio::FAlignedFloatBuffer DelayLineInterleaved;
+		Audio::FAlignedFloatBuffer WetChannelInterleaved;
 		uint32 DelayPos = 0;
 		uint32 PosMask;
 

@@ -3,8 +3,12 @@
 #pragma once
 
 #include "IMessageContext.h"
+#include "UObject/SoftObjectPath.h"
 
 class FAvaPlaybackManager;
+class IAvaBroadcastSettings;
+struct FAvaInstanceSettings;
+struct FAvaPlayableSettings;
 
 class IAvaPlaybackServer
 {
@@ -61,6 +65,12 @@ public:
 	 * Will return nullptr if no clients are connected.
 	 */
 	virtual const FAvaInstanceSettings* GetAvaInstanceSettings() const = 0;
+
+	/**
+	 * Access Motion Design Playable settings replicated from connected client(s).
+	 * Will return nullptr if no clients are connected.
+	 */
+	virtual const FAvaPlayableSettings* GetPlayableSettings() const = 0;
 	
 	/** Access the server's playback manager. */
 	virtual const FAvaPlaybackManager& GetPlaybackManager() const = 0;

@@ -28,11 +28,7 @@ public:
 	inline const TArray<FGuid>& GetChildHLODActors() const { return ChildHLODActors; }
 	inline const FTopLevelAssetPath& GetSourceHLODLayer() const { return SourceHLODLayer; }
 	inline const FStats& GetStats() const { return HLODStats; }
-	int64 GetStat(FName InStatName) const;
-
-	//~ Begin FWorldPartitionActorDesc Interface.
-	virtual FBox GetEditorBounds() const override { return EditorBounds; }
-	//~ End FWorldPartitionActorDesc Interface.
+	ENGINE_API int64 GetStat(FName InStatName) const;
 
 protected:
 	ENGINE_API FHLODActorDesc();
@@ -50,7 +46,5 @@ protected:
 	FTopLevelAssetPath SourceHLODLayer;
 
 	FStats HLODStats;
-
-	FBox EditorBounds;
 };
 #endif

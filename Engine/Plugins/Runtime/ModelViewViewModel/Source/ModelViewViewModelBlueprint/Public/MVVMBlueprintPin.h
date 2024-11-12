@@ -103,7 +103,7 @@ public:
 	explicit FMVVMBlueprintPin(FMVVMBlueprintPinId PinId);
 	explicit FMVVMBlueprintPin(const TArrayView<const FName> PinName);
 
-	UE_DEPRECATED(5.4, "GetName is deprecated. Use GetNames instead")
+	UE_DEPRECATED(5.4, "GetName is deprecated. Use GetId().GetNames instead")
 	FName GetName() const
 	{
 		return Id.GetNames().Num() > 0 ? Id.GetNames().Last() : FName();

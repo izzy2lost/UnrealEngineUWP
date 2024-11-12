@@ -14,7 +14,8 @@ public class MikkTSpace : ModuleRules
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicAdditionalLibraries.Add(MikkTSpacePath + "lib/Win64/VS2017/MikkTSpace.lib");
+			string PlatformSubdir = Target.Architecture == UnrealArch.Arm64 ? "WinArm64" : "Win64/VS2017";
+			PublicAdditionalLibraries.Add(System.IO.Path.Combine(MikkTSpacePath, "lib", PlatformSubdir, "MikkTSpace.lib"));
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{

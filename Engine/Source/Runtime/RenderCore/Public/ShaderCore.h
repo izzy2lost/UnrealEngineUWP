@@ -17,6 +17,8 @@
 #include "HAL/Platform.h"
 #include "HAL/UnrealMemory.h"
 #include "Logging/LogMacros.h"
+#include "Memory/CompositeBuffer.h"
+#include "Memory/SharedBuffer.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/CString.h"
 #include "Misc/CoreStats.h"
@@ -27,6 +29,7 @@
 #include "Misc/TVariant.h"
 #include "PixelFormat.h"
 #include "RHIDefinitions.h"
+#include "RHIShaderBindingLayout.h"
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryLayout.h"
 #include "ShaderParameterMetadata.h"
@@ -50,13 +53,34 @@ class FMemoryUnfreezeContent;
 class FPointerTableBase;
 class FShaderCompilerDefinitions;
 class FShaderCompileUtilities;
+class FShaderKeyGenerator;
 class FShaderPreprocessorUtilities;
 class FSHA1;
 class ITargetPlatform;
 
-using FShaderStatVariant = TVariant<bool, float, int32, uint32>;
-DECLARE_INTRINSIC_TYPE_LAYOUT(FShaderStatVariant);
+using FShaderStatVariant = TVariant<bool, float, int32, uint32, FString>;
 
+bool operator==(const FShaderStatVariant LHS, const FShaderStatVariant RHS);
+
+struct FGenericShaderStat
+{
+public:
+	enum class EFlags : uint8
+	{
+		None = 0,
+		Hidden = 1 << 0, // If set this stat will not be shown to the user in the shader stats UI (i.e. stat is for internal use only)
+	};
+	FName StatName;
+	FShaderStatVariant Value;
+	EFlags Flags = EFlags::None;
+
+	FGenericShaderStat() = default;
+
+	friend FArchive& operator<<(FArchive& Ar, FGenericShaderStat& Stat);
+	bool operator==(const FGenericShaderStat& RHS) const;
+};
+
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, Shaders);
 /**
  * Controls whether shader related logs are visible.
  * Note: The runtime verbosity is driven by the console variable 'r.ShaderDevelopmentMode'
@@ -92,32 +116,35 @@ DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Transparent Material Shaders"),S
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Opaque Material Shaders"),STAT_ShaderCompiling_NumOpaqueMaterialShaders,STATGROUP_ShaderCompiling, RENDERCORE_API);
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Masked Material Shaders"),STAT_ShaderCompiling_NumMaskedMaterialShaders,STATGROUP_ShaderCompiling, RENDERCORE_API);
 
+// Shaders that have been loaded in memory (in a compressed form). Can also be called "preloaded" shaders.
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Loaded"),STAT_Shaders_NumShadersLoaded,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shader Resources Loaded"),STAT_Shaders_NumShaderResourcesLoaded,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shader Maps Registered"),STAT_Shaders_NumShaderMaps,STATGROUP_Shaders, RENDERCORE_API);
+// Shaders that have been created as an RHI shader (i.e. exist in terms of underlying graphics API). Can also be called "used" shaders, although in theory some code may create but not use.
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Created"), STAT_Shaders_NumShadersCreated, STATGROUP_Shaders, RENDERCORE_API);
+// Shaders maps (essentially, material assets) that have been loaded in memory. This squarely correlates with the number of assets in memory (but assets can share SMs or have more than one SM - e.g. diff quality levels).
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num ShaderMaps Loaded"), STAT_Shaders_NumShaderMaps,STATGROUP_Shaders, RENDERCORE_API);
+// Shaders maps that has had RHI shaders created for them. This usually means that the asset referencing this shadermap was rendered at least in some pass.
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num ShaderMaps Used"), STAT_Shaders_NumShaderMapsUsedForRendering, STATGROUP_Shaders, RENDERCORE_API);
+
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT Shader Load Time"),STAT_Shaders_RTShaderLoadTime,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Used"),STAT_Shaders_NumShadersUsedForRendering,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_FLOAT_ACCUMULATOR_STAT_EXTERN(TEXT("Total RT Shader Init Time"),STAT_Shaders_TotalRTShaderInitForRenderingTime,STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_CYCLE_STAT_EXTERN(TEXT("Frame RT Shader Init Time"),STAT_Shaders_FrameRTShaderInitForRenderingTime,STATGROUP_Shaders, RENDERCORE_API);
+
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Shader Memory"),STAT_Shaders_ShaderMemory,STATGROUP_Shaders, RENDERCORE_API);
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Shader Resource Mem"),STAT_Shaders_ShaderResourceMemory,STATGROUP_Shaders, RENDERCORE_API);
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Shader Preload Mem"), STAT_Shaders_ShaderPreloadMemory, STATGROUP_Shaders, RENDERCORE_API);
 
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Registered"), STAT_Shaders_NumShadersRegistered, STATGROUP_Shaders, RENDERCORE_API);
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Duplicated"), STAT_Shaders_NumShadersDuplicated, STATGROUP_Shaders, RENDERCORE_API);
-
 inline TStatId GetMemoryStatType(EShaderFrequency ShaderFrequency)
 {
-	static_assert(10 == SF_NumFrequencies, "EShaderFrequency has a bad size.");
+	static_assert(12 == SF_NumFrequencies, "EShaderFrequency has a bad size.");
 
 	switch(ShaderFrequency)
 	{
-		case SF_Pixel:				return GET_STATID(STAT_PixelShaderMemory);
-		case SF_Compute:			return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayGen:				return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayMiss:			return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayHitGroup:		return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayCallable:		return GET_STATID(STAT_PixelShaderMemory);
+		case SF_Pixel:					return GET_STATID(STAT_PixelShaderMemory);
+		case SF_Compute:				return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayGen:					return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayMiss:				return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayHitGroup:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayCallable:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_WorkGraphRoot:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_WorkGraphComputeNode:	return GET_STATID(STAT_PixelShaderMemory);
 	}
 	return GET_STATID(STAT_VertexShaderMemory);
 }
@@ -133,9 +160,6 @@ extern RENDERCORE_API void CheckShaderHashCacheInclude(const FString& VirtualFil
 
 /** Initializes cached shader type data.  This must be called before creating any FShaderType. */
 extern RENDERCORE_API void InitializeShaderTypes();
-
-/** Uninitializes cached shader type data.  This is needed before unloading modules that contain FShaderTypes. */
-extern RENDERCORE_API void UninitializeShaderTypes();
 
 /** Returns true if debug viewmodes are allowed for the current platform. */
 extern RENDERCORE_API bool AllowDebugViewmodes();
@@ -293,14 +317,18 @@ public:
 	FShaderParameterMap()
 	{}
 
-	RENDERCORE_API TOptional<FParameterAllocation> FindParameterAllocation(const FString& ParameterName) const;
-	RENDERCORE_API bool FindParameterAllocation(const TCHAR* ParameterName,uint16& OutBufferIndex,uint16& OutBaseIndex,uint16& OutSize) const;
-	RENDERCORE_API bool ContainsParameterAllocation(const TCHAR* ParameterName) const;
-	RENDERCORE_API void AddParameterAllocation(const TCHAR* ParameterName,uint16 BufferIndex,uint16 BaseIndex,uint16 Size,EShaderParameterType ParameterType);
-	RENDERCORE_API void RemoveParameterAllocation(const TCHAR* ParameterName);
+	RENDERCORE_API TOptional<FParameterAllocation> FindParameterAllocation(FStringView ParameterName) const;
+	RENDERCORE_API TOptional<FParameterAllocation> FindAndRemoveParameterAllocation(FStringView ParameterName);
+	RENDERCORE_API bool FindParameterAllocation(FStringView ParameterName, uint16& OutBufferIndex, uint16& OutBaseIndex, uint16& OutSize) const;
+	RENDERCORE_API bool ContainsParameterAllocation(FStringView ParameterName) const;
+	RENDERCORE_API void AddParameterAllocation(FStringView ParameterName, uint16 BufferIndex, uint16 BaseIndex, uint16 Size, EShaderParameterType ParameterType);
+	RENDERCORE_API void RemoveParameterAllocation(FStringView ParameterName);
 
 	/** Returns an array of all parameters with the given type. */
-	RENDERCORE_API TArray<FString> GetAllParameterNamesOfType(EShaderParameterType InType) const;
+	RENDERCORE_API TArray<FStringView> GetAllParameterNamesOfType(EShaderParameterType InType) const;
+
+	/** Returns a count of all parameters of the given type. */
+	RENDERCORE_API uint32 CountParametersOfType(EShaderParameterType InType) const;
 
 	/** Checks that all parameters are bound and asserts if any aren't in a debug build
 	* @param InVertexFactoryType can be 0
@@ -317,71 +345,18 @@ public:
 		return Ar;
 	}
 
-	inline void GetAllParameterNames(TArray<FString>& OutNames) const
+	void GetAllParameterNames(TArray<FString>& OutNames) const
 	{
 		ParameterMap.GenerateKeyArray(OutNames);
 	}
 
-	inline const TMap<FString, FParameterAllocation>& GetParameterMap() const { return ParameterMap; }
+	const TMap<FString, FParameterAllocation>& GetParameterMap() const
+	{
+		return ParameterMap;
+	}
 
 	TMap<FString,FParameterAllocation> ParameterMap;
 };
-
-struct FShaderResourceTable
-{
-	/** Bits indicating which resource tables contain resources bound to this shader. */
-	uint32 ResourceTableBits = 0;
-
-	/** Mapping of bound SRVs to their location in resource tables. */
-	TArray<uint32> ShaderResourceViewMap;
-
-	/** Mapping of bound sampler states to their location in resource tables. */
-	TArray<uint32> SamplerMap;
-
-	/** Mapping of bound UAVs to their location in resource tables. */
-	TArray<uint32> UnorderedAccessViewMap;
-
-	/** Hash of the layouts of resource tables at compile time, used for runtime validation. */
-	TArray<uint32> ResourceTableLayoutHashes;
-
-	/** Mapping of bound Textures to their location in resource tables. */
-	TArray<uint32> TextureMap;
-
-	friend bool operator==(const FShaderResourceTable&A, const FShaderResourceTable& B)
-	{
-		bool bEqual = true;
-		bEqual &= (A.ResourceTableBits == B.ResourceTableBits);
-		bEqual &= (A.ShaderResourceViewMap    .Num() == B.ShaderResourceViewMap    .Num());
-		bEqual &= (A.SamplerMap               .Num() == B.SamplerMap               .Num());
-		bEqual &= (A.UnorderedAccessViewMap   .Num() == B.UnorderedAccessViewMap   .Num());
-		bEqual &= (A.ResourceTableLayoutHashes.Num() == B.ResourceTableLayoutHashes.Num());
-		bEqual &= (A.TextureMap               .Num() == B.TextureMap               .Num());
-
-		if (!bEqual)
-		{
-			return false;
-		}
-
-		bEqual &= (FMemory::Memcmp(A.ShaderResourceViewMap    .GetData(), B.ShaderResourceViewMap    .GetData(), A.ShaderResourceViewMap    .GetTypeSize() * A.ShaderResourceViewMap    .Num()) == 0);
-		bEqual &= (FMemory::Memcmp(A.SamplerMap               .GetData(), B.SamplerMap               .GetData(), A.SamplerMap               .GetTypeSize() * A.SamplerMap               .Num()) == 0);
-		bEqual &= (FMemory::Memcmp(A.UnorderedAccessViewMap   .GetData(), B.UnorderedAccessViewMap   .GetData(), A.UnorderedAccessViewMap   .GetTypeSize() * A.UnorderedAccessViewMap   .Num()) == 0);
-		bEqual &= (FMemory::Memcmp(A.ResourceTableLayoutHashes.GetData(), B.ResourceTableLayoutHashes.GetData(), A.ResourceTableLayoutHashes.GetTypeSize() * A.ResourceTableLayoutHashes.Num()) == 0);
-		bEqual &= (FMemory::Memcmp(A.TextureMap               .GetData(), B.TextureMap               .GetData(), A.TextureMap               .GetTypeSize() * A.TextureMap               .Num()) == 0);
-		return bEqual;
-	}
-};
-
-inline FArchive& operator<<(FArchive& Ar, FShaderResourceTable& SRT)
-{
-	Ar << SRT.ResourceTableBits;
-	Ar << SRT.ShaderResourceViewMap;
-	Ar << SRT.SamplerMap;
-	Ar << SRT.UnorderedAccessViewMap;
-	Ar << SRT.ResourceTableLayoutHashes;
-	Ar << SRT.TextureMap;
-
-	return Ar;
-}
 
 inline FArchive& operator<<(FArchive& Ar, FUniformResourceEntry& Entry)
 {
@@ -399,14 +374,14 @@ inline FArchive& operator<<(FArchive& Ar, FUniformResourceEntry& Entry)
 inline FArchive& operator<<(FArchive& Ar, FUniformBufferEntry& Entry)
 {
 	Ar << Entry.StaticSlotName;
-	Ar << Entry.LayoutHash;
-	Ar << Entry.BindingFlags;
-	Ar << Entry.bNoEmulatedUniformBuffer;
 	if (Ar.IsLoading())
 	{
 		Entry.MemberNameBuffer = MakeShareable(new TArray<TCHAR>());
 	}
 	Ar << *Entry.MemberNameBuffer.Get();
+	Ar << Entry.LayoutHash;
+	Ar << Entry.BindingFlags;
+	Ar << Entry.Flags;
 	return Ar;
 }
 
@@ -475,6 +450,54 @@ private:
 	uint64 Data;
 };
 
+/**
+RenderCore wrapper around FRHIShaderBindingLayout which can also cache the uniform buffer declarations used during shader code generation
+*/
+class FShaderBindingLayout
+{
+public:
+
+	FRHIShaderBindingLayout RHILayout;
+
+#if WITH_EDITOR
+	FThreadSafeSharedAnsiStringPtr GetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata) const;
+	void SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi);
+
+	RENDERCORE_API void AddRequiredSymbols(TArray<FString>& RequiredSymbols) const;
+
+protected:
+		
+	TMap<FString, FThreadSafeSharedAnsiStringPtr> UniformBufferMap;
+#endif
+};
+
+/**
+Static shader binding layout object managing all possible binding type versions of the FShaderBindingLayout
+*/
+class FShaderBindingLayoutContainer
+{
+public:
+	enum class EBindingType : uint8
+	{
+		Bindless,
+		NotBindless,
+		Num
+	};
+
+	const FShaderBindingLayout& GetLayout(EBindingType BindingType) const
+	{
+		return Layouts[(uint8)BindingType];
+	}
+	void SetLayout(EBindingType BindingType, const FShaderBindingLayout& InLayout)
+	{
+		Layouts[(uint8)BindingType] = InLayout;
+	}
+
+protected:
+
+	FShaderBindingLayout Layouts[(uint8)EBindingType::Num];
+};
+
 struct FShaderResourceTableMap
 {
 	TArray<FUniformResourceEntry> Resources;
@@ -499,9 +522,12 @@ struct FShaderCompilerEnvironment
 	TMap<uint32,uint8> RenderTargetOutputFormatsMap;
 	FShaderResourceTableMap ResourceTableMap;
 	TMap<FString, FUniformBufferEntry> UniformBufferMap;
+	
+	// Optional shader binding layout which can be used build the Uniform buffer map
+	const FShaderBindingLayout* ShaderBindingLayout = nullptr;
 
-	UE_DEPRECATED(5.3, "RemoteServerData field is deprecated (no longer used in compilation backends).")
-	TMap<FString, FString> RemoteServerData;
+	// Serialized version of the shader binding layout which can be used during platform specific shader code generation and serialization
+	FRHIShaderBindingLayout RHIShaderBindingLayout;
 
 	const ITargetPlatform* TargetPlatform = nullptr;
 
@@ -510,6 +536,9 @@ struct FShaderCompilerEnvironment
 
 	/** Default constructor. */
 	RENDERCORE_API FShaderCompilerEnvironment();
+
+	/** Constructor used when enviroment is constructed temporarily purely for the purpose of hashing for inclusion in DDC keys. */
+	RENDERCORE_API FShaderCompilerEnvironment(FMemoryHasherBlake3& Hasher);
 
 	/** Initialization constructor. */
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -526,7 +555,7 @@ struct FShaderCompilerEnvironment
 	virtual ~FShaderCompilerEnvironment() = default;
 
 	// Explicitly default assignment operator and copy constructor operator with warnings disabled
-	// to avoid warnings in implicitly-generated functions due to deprecation of RemoteServerData. 
+	// to avoid warnings in implicitly-generated functions due to deprecation of IncludeVirtualPathToExternalContentsMap. 
 	// These can be removed entirely (revert to implicitly-generated) when the field itself is.
 	FShaderCompilerEnvironment(const FShaderCompilerEnvironment&) = default;
 	FShaderCompilerEnvironment& operator=(const FShaderCompilerEnvironment&) = default;
@@ -564,15 +593,22 @@ struct FShaderCompilerEnvironment
 	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, bool Value);
 	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, float Value);
 
+	UE_DEPRECATED(5.5,	"Accessing definition values via FShaderCompilerEnvironment is no longer allowed outside of the core shader system.\n"
+						"Please use Get/SetCompileArgument mechanism for additional properties required by compilation.")
 	RENDERCORE_API int32 GetIntegerValue(FName Name) const;
+	UE_DEPRECATED(5.5,	"Accessing definition values via FShaderCompilerEnvironment is no longer allowed outside of the core shader system.\n"
+						"Please use Get/SetCompileArgument mechanism for additional properties required by compilation.")
 	RENDERCORE_API int32 GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound = 0) const;
 
+	UE_DEPRECATED(5.5, "ContainsDefinition will be made private in the future and should not be called by downstream code.")
 	RENDERCORE_API bool ContainsDefinition(FName Name) const;
 
 	template <typename ValueType> void SetDefineIfUnset(const TCHAR* Name, ValueType Value)
 	{
 		FName NameKey(Name);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (!ContainsDefinition(NameKey))
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			SetDefine(NameKey, Value);
 		}
@@ -636,12 +672,6 @@ struct FShaderCompilerEnvironment
 		return false;
 	}
 
-	UE_DEPRECATED(5.3, "GetDefinitions is deprecated; preprocessor defines must now only be accessed by core shader system code. Use Get/SetCompileArgument for generic params instead.")
-	const TMap<FString,FString>& GetDefinitions() const
-	{
-		return UnusedStringDefinitions;
-	}
-
 	void SetRenderTargetOutputFormat(uint32 RenderTargetIndex, EPixelFormat PixelFormat)
 	{
 		RenderTargetOutputFormatsMap.Add(RenderTargetIndex, UE_PIXELFORMAT_TO_UINT8(PixelFormat));
@@ -676,6 +706,8 @@ private:
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	TPimplPtr<FShaderCompilerDefinitions, EPimplPtrMode::DeepCopy> Definitions;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	FMemoryHasherBlake3* Hasher = nullptr;
 
 	TMap<FString, TVariant<bool, float, int32, uint32, FString>> CompileArgs;
 
@@ -722,6 +754,7 @@ enum class EShaderOptionalDataKey : uint8
 	UniformBuffers       = uint8('u'),
 	Validation           = uint8('V'),
 	VendorExtension      = uint8('v'),
+	ShaderBindingLayout  = uint8('s'),
 };
 
 enum class EShaderResourceUsageFlags : uint8
@@ -732,6 +765,7 @@ enum class EShaderResourceUsageFlags : uint8
 	RootConstants         = 1 << 3,
 	NoDerivativeOps       = 1 << 4,
 	ShaderBundle          = 1 << 5,
+	DiagnosticBuffer      = 1 << 6,
 };
 ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 
@@ -764,7 +798,7 @@ enum class EShaderCodeFeatures : uint16
 	SixteenBitTypes         = 1 << 1,
 	TypedUAVLoadsExtended   = 1 << 2,
 	Atomic64                = 1 << 3,
-	DiagnosticBuffer        = 1 << 4,
+	DiagnosticBuffer UE_DEPRECATED(5.5, "EShaderCodeFeatures::DiagnosticBuffer is superseded by EShaderResourceUsageFlags::DiagnosticBuffer") = 1 << 4,
 	BindlessResources       = 1 << 5,
 	BindlessSamplers        = 1 << 6,
 	StencilRef              = 1 << 7,
@@ -792,6 +826,12 @@ struct FShaderCodeUniformBuffers
 {
 	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::UniformBuffers;
 	// We store an array of FString objects
+};
+
+struct FShaderCodeShaderResourceTableDataDesc
+{
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::ShaderBindingLayout;
+	// We store FRHIShaderBindingLayout
 };
 
 // if this changes you need to make sure all shaders get invalidated
@@ -904,10 +944,10 @@ typedef uint32 RENDERCORE_ATTRIBUTE_UNALIGNED unaligned_uint32;
 // later we can transform that to the actual class passed around at the RHI level
 class FShaderCodeReader
 {
-	TArrayView<const uint8> ShaderCode;
+	TConstArrayView<uint8> ShaderCode;
 
 public:
-	FShaderCodeReader(TArrayView<const uint8> InShaderCode)
+	FShaderCodeReader(TConstArrayView<uint8> InShaderCode)
 		: ShaderCode(InShaderCode)
 	{
 		check(ShaderCode.Num());
@@ -918,9 +958,9 @@ public:
 		return ShaderCode.Num() - GetOptionalDataSize();
 	}
 
-	TArrayView<const uint8> GetOffsetShaderCode(int32 Offset)
+	TConstArrayView<uint8> GetOffsetShaderCode(int32 Offset)
 	{
-		return MakeArrayView(ShaderCode.GetData() + Offset, GetActualShaderCodeSize() - Offset);
+		return MakeConstArrayView(ShaderCode.GetData() + Offset, GetActualShaderCodeSize() - Offset);
 	}
 
 	// for convenience
@@ -1049,12 +1089,116 @@ public:
 	}
 };
 
+class FShaderCode;
+
+class FShaderCodeResource
+{
+	struct FHeader
+	{
+		int32 UncompressedSize = 0;		// full size of code array before compression
+		int32 ShaderCodeSize = 0;		// uncompressed size excluding optional data
+		EShaderFrequency Frequency = EShaderFrequency::SF_NumFrequencies;
+		uint8 _Pad0 = 0;
+		uint16 _Pad1 = 0;
+	};
+	// header is cloned into shared buffer to avoid needing to determine what offsets FArchive serialization wrote everything at
+	// as such it needs explicitly initialized padding, so we ensure no additional padding was added by the compiler
+	static_assert(std::has_unique_object_representations_v<FHeader>);
+
+	FSharedBuffer Header;		// The above FHeader struct persisted in a shared buffer
+	FSharedBuffer Code;			// The bytecode buffer as constructed by FShaderCode::FinalizeShaderCode
+
+	friend class FShaderCode;
+	friend RENDERCORE_API FArchive& operator<<(FArchive& Ar, FShaderCode& Code);
+	friend FArchive& operator<<(FArchive& Ar, FShaderCodeResource& Resource);
+
+public:
+
+	/* Returns a uint8 array view representation of the Code FSharedBuffer, for compatibility's sake (much downstream
+	 * usage of shader code expects an array of uint8)
+	 */
+	TConstArrayView<uint8> GetCodeView() const
+	{
+		return MakeConstArrayView(reinterpret_cast<const uint8*>(Code.GetData()), static_cast<int32>(Code.GetSize()));
+	}
+
+	/* Return the buffer storing just the shader code for this resource */
+	FSharedBuffer GetCodeBuffer() const
+	{
+		return Code;
+	}
+
+	/* Returns a single composite buffer referencing both the header and code data to be cached. */
+	FCompositeBuffer GetCacheBuffer() const
+	{
+		return FCompositeBuffer(Header, Code);
+	}
+
+	/* Unpacks the given FSharedBuffer into separate header/code buffer views and returns them as a 2-segment composite buffer. 
+	 * Note that this is required since when pushing a composite buffer to DDC it does not maintain the segment structure.
+	 */
+	static FCompositeBuffer Unpack(FSharedBuffer MonolithicBuffer)
+	{
+		FMemoryView FullBufferView = MonolithicBuffer.GetView();
+
+		return FCompositeBuffer(
+			MonolithicBuffer.MakeView(FullBufferView.Left(sizeof(FHeader)), MonolithicBuffer),
+			MonolithicBuffer.MakeView(FullBufferView.RightChop(sizeof(FHeader)), MonolithicBuffer));
+	}
+	
+	/* Sets the Header and Code shared buffer references in this resource to the segments referenced
+	 * by the given composite buffer.
+	 */
+	void PopulateFromComposite(FCompositeBuffer CacheBuffer)
+	{
+		check(CacheBuffer.GetSegments().Num() == 2);
+		Header = CacheBuffer.GetSegments()[0];
+		check(Header.GetSize() == sizeof(FHeader));
+		Code = CacheBuffer.GetSegments()[1];
+	}
+
+	/* Populates the header for this code resource with the given sizes and frequency. 
+	 * Note that this is done as a separate process from the construction of the Code buffer
+	 * as the shader frequency is only known by the owning job, and not stored in the FShaderCode.
+	 */
+	void PopulateHeader(int32 UncompressedSize, int32 ShaderCodeSize, EShaderFrequency Frequency)
+	{
+		check(Code);
+		FHeader HeaderData{ UncompressedSize, ShaderCodeSize, Frequency };
+		Header = FSharedBuffer::Clone(&HeaderData, sizeof(HeaderData));
+	}
+
+	/* Retrieves the uncompressed size of the shader code as stored in the FHeader buffer. */
+	int32 GetUncompressedSize() const
+	{
+		check(Header);
+		return reinterpret_cast<const FHeader*>(Header.GetData())->UncompressedSize;
+	}
+
+	/* Retrieves the actual shader code size (excluding optional data) as stored in the FHeader buffer. */
+	int32 GetShaderCodeSize() const
+	{
+		check(Header);
+		return reinterpret_cast<const FHeader*>(Header.GetData())->ShaderCodeSize;
+	}
+
+	/* Retrieves the shader frequency as stored in the FHeader buffer. */
+	EShaderFrequency GetFrequency() const
+	{
+		check(Header);
+		return reinterpret_cast<const FHeader*>(Header.GetData())->Frequency;
+	}
+
+};
+
 class FShaderCode
 {
 	// -1 if ShaderData was finalized
 	mutable int32 OptionalDataSize;
 	// access through class methods
 	mutable TArray<uint8> ShaderCodeWithOptionalData;
+
+	mutable FShaderCodeResource ShaderCodeResource;
 
 	/** ShaderCode may be compressed in SCWs on demand. If this value isn't null, the shader code is compressed. */
 	mutable int32 UncompressedSize;
@@ -1086,12 +1230,14 @@ public:
 	// adds CustomData or does nothing if that was already done before
 	void FinalizeShaderCode() const
 	{
-		if(OptionalDataSize != -1)
+		if (OptionalDataSize != -1)
 		{
 			checkf(UncompressedSize == 0, TEXT("FShaderCode::FinalizeShaderCode() was called after compressing the code"));
 			OptionalDataSize += sizeof(OptionalDataSize);
 			ShaderCodeWithOptionalData.Append((const uint8*)&OptionalDataSize, sizeof(OptionalDataSize));
 			OptionalDataSize = -1;
+
+			ShaderCodeResource.Code = MakeSharedBufferFromArray(MoveTemp(ShaderCodeWithOptionalData));
 		}
 	}
 
@@ -1116,17 +1262,32 @@ public:
 		{
 			FinalizeShaderCode();
 
-			FShaderCodeReader Wrapper(ShaderCodeWithOptionalData);
-			return Wrapper.GetShaderCodeSize();
+			if (UncompressedSize != 0) // already compressed, get code size from resource
+			{
+				return ShaderCodeResource.GetShaderCodeSize();
+			}
+			else
+			{
+				// code buffer has been populated but not compressed, can still read additional fields from code buffer
+				FShaderCodeReader Wrapper(ShaderCodeResource.GetCodeView());
+				return Wrapper.GetShaderCodeSize();
+			}
 		}
 	}
 
-	// for read access, can have additional data attached to the end. Can also be compressed
+	UE_DEPRECATED(5.5, "Use GetReadView")
 	const TArray<uint8>& GetReadAccess() const
+	{
+		static TArray<uint8> Dummy;
+		return Dummy;
+	}
+
+	// for read access, can have additional data attached to the end. Can also be compressed
+	TConstArrayView<uint8> GetReadView() const
 	{
 		FinalizeShaderCode();
 
-		return ShaderCodeWithOptionalData;
+		return ShaderCodeResource.GetCodeView();
 	}
 
 	bool IsCompressed() const
@@ -1187,6 +1348,92 @@ public:
 		AddOptionalData(Key, (uint8*)InString, Size);
 	}
 
+	// Populates FShaderCodeResource's header buffer and returns the fully populated resource struct
+	const FShaderCodeResource& GetFinalizedResource(EShaderFrequency Frequency, FSHAHash OutputHash) const
+	{
+		// shader code must be finalized prior to calling this function
+		// the finalize process will have created the code FSharedBuffer on the resource already
+		check(OptionalDataSize == -1);
+
+		// If the header is already populated, resource has already been finalized, early out
+		if (ShaderCodeResource.Header)
+		{
+			// sanity check
+			check(ShaderCodeResource.GetFrequency() == Frequency);
+			return ShaderCodeResource;
+		}
+
+		// Validate that compression settings used for this ShaderCode by the compilation process match what is expected
+		FName ShaderCompressionFormat = GetShaderCompressionFormat();
+		if (ShaderCompressionFormat != NAME_None)
+		{
+			// we trust that SCWs also obeyed by the same CVar, so we expect a compressed shader code at this point
+			// However, if we see an uncompressed shader, it perhaps means that SCW tried to compress it, but the result was worse than uncompressed. 
+			// Because of that we special-case NAME_None here
+			if (ShaderCompressionFormat != GetCompressionFormat())
+			{
+				if (GetCompressionFormat() != NAME_None)
+				{
+					UE_LOG(LogShaders, Fatal, TEXT("Shader %s is expected to be compressed with %s, but it is compressed with %s instead."),
+						*OutputHash.ToString(),
+						*ShaderCompressionFormat.ToString(),
+						*GetCompressionFormat().ToString()
+					);
+					// unreachable
+					return ShaderCodeResource;
+				}
+
+				// assume uncompressed due to worse ratio than the compression
+				UE_LOG(LogShaders, Verbose, TEXT("Shader %s is expected to be compressed with %s, but it arrived uncompressed (size=%d). Assuming compressing made it longer and storing uncompressed."),
+					*OutputHash.ToString(),
+					*ShaderCompressionFormat.ToString(),
+					ShaderCodeWithOptionalData.Num()
+				);
+			}
+			else if (ShaderCompressionFormat == NAME_Oodle)
+			{
+				// check if Oodle-specific settings match
+				FOodleDataCompression::ECompressor OodleCompressorSetting;
+				FOodleDataCompression::ECompressionLevel OodleLevelSetting;
+				GetShaderCompressionOodleSettings(OodleCompressorSetting, OodleLevelSetting);
+
+				if (GetOodleCompressor() != OodleCompressorSetting || GetOodleLevel() != OodleLevelSetting)
+				{
+					UE_LOG(LogShaders, Fatal, TEXT("Shader %s is expected to be compressed with Oodle compressor %d level %d, but it is compressed with compressor %d level %d instead."),
+						*OutputHash.ToString(),
+						static_cast<int32>(OodleCompressorSetting),
+						static_cast<int32>(OodleLevelSetting),
+						static_cast<int32>(GetOodleCompressor()),
+						static_cast<int32>(GetOodleLevel())
+					);
+					// unreachable
+					return ShaderCodeResource;
+				}
+			}
+		}
+
+		// Shader library/shader map usage expects uncompressed size to be set to the full code buffer size if uncompressed; so we need to apply that
+		// transformation here (and reverse it when populating from a FShaderCodeResource, see mirroring code in SetFromResource below)
+		ShaderCodeResource.PopulateHeader(UncompressedSize == 0 ? static_cast<int32>(ShaderCodeResource.Code.GetSize()) : UncompressedSize, GetShaderCodeSize(), Frequency);
+		return ShaderCodeResource;
+	}
+
+	void SetFromResource(FShaderCodeResource&& Resource)
+	{
+		ShaderCodeResource = MoveTemp(Resource);
+		// Set the internal state of this FShaderCode to that of a finalized (and possibly compressed) ShaderCode object
+		OptionalDataSize = -1;
+		ShaderCodeSize = ShaderCodeResource.GetShaderCodeSize();
+
+		// as above, set UncompressedSize to 0 if not compressed, indicated by the resource uncompressed size matching the code buffer size.
+		int32 ResourceUncompressedSize = ShaderCodeResource.GetUncompressedSize();
+		UncompressedSize = ResourceUncompressedSize == ShaderCodeResource.Code.GetSize() ? 0 : ResourceUncompressedSize;
+
+		// already validated that compression settings matched when serializing the resource, so we can just initialize them to the known-correct values
+		CompressionFormat = GetShaderCompressionFormat();
+		GetShaderCompressionOodleSettings(OodleCompressor, OodleLevel);
+	}
+
 	friend RENDERCORE_API FArchive& operator<<(FArchive& Ar, FShaderCode& Output);
 };
 
@@ -1223,17 +1470,21 @@ extern RENDERCORE_API void GetShaderIncludes(const TCHAR* EntryPointVirtualFileP
  * Calculates a Hash for the given filename if it does not already exist in the Hash cache.
  * @param Filename - shader file to Hash
  * @param ShaderPlatform - shader platform to Hash
+ * @return Reference to the Hash created and stored for the file, or to an empty FSHAHash if not found.
+ * Logs an error if the file is not loadable.
  */
 extern RENDERCORE_API const class FSHAHash& GetShaderFileHash(const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform);
-
 /**
- * Calculates a hash for the given source file and all files included from it.
- * @param HashingArchive - hash to update
- * @param VirtualFilePath - name of this source code path (won't be loaded, as it is expected to be generated)
- * @param FileContents - shader source code to Hash (included files will be hashed, too)
+ * Calculates a Hash for the given filename if it does not already exist in the Hash cache.
+ * @param Filename - shader file to Hash
  * @param ShaderPlatform - shader platform to Hash
- * @param bOnlyHashIncludedFiles - skip hashing contents of the file itself (useful if it was already hashed outside of this function)
+ * @param OutErrorMessage - If non-null, receives the errormessage if nullptr is returned.
+ * @return Pointer to the Hash created and stored for the file, or nullptr if not found.
  */
+extern RENDERCORE_API const FSHAHash* TryGetShaderFileHash(const TCHAR* VirtualFilePath,
+	EShaderPlatform ShaderPlatform, FString* OutErrorMessage = nullptr);
+
+UE_DEPRECATED(5.5, "HashShaderFileWithIncludes is no longer used by the shader compilation system and so no longer supported.")
 extern RENDERCORE_API void HashShaderFileWithIncludes(FArchive& HashingArchive, const TCHAR* VirtualFilePath, const FString& FileContents, EShaderPlatform ShaderPlatform, bool bOnlyHashIncludedFiles);
 
 /**
@@ -1265,11 +1516,11 @@ RENDERCORE_API void UpdateReferencedUniformBufferNames(
 	TArrayView<const FShaderPipelineType*> OutdatedShaderPipelineTypes);
 
 /** Parses the given source file and its includes for references of uniform buffers. */
-extern void GenerateReferencedUniformBufferNames(
+extern void GenerateReferencedUniformBuffers(
 	const TCHAR* SourceFilename,
 	const TCHAR* ShaderTypeName,
 	const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables,
-	TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& UniformBufferNames);
+	TSet<const FShaderParametersMetadata*>& UniformBuffers);
 
 struct FUniformBufferNameSortOrder
 {
@@ -1303,6 +1554,13 @@ extern RENDERCORE_API void AppendKeyStringShaderDependencies(
 	FPlatformTypeLayoutParameters LayoutParams,
 	FString& OutKeyString,
 	bool bIncludeSourceHashes = true);
+extern RENDERCORE_API void AppendShaderDependencies(
+	FShaderKeyGenerator& KeyGen,
+	TConstArrayView<FShaderTypeDependency> ShaderTypeDependencies,
+	TConstArrayView<FShaderPipelineTypeDependency> ShaderPipelineTypeDependencies,
+	TConstArrayView<FVertexFactoryTypeDependency> VertexFactoryTypeDependencies,
+	FPlatformTypeLayoutParameters LayoutParams,
+	bool bIncludeSourceHashes = true);
 #endif // WITH_EDITOR
 
 /** Create a block of source code to be injected in the preprocessed shader code. The Block will be put into a #line directive
@@ -1325,6 +1583,11 @@ extern RENDERCORE_API void ResetAllShaderSourceDirectoryMappings();
  * @param RealShaderDirectory FPlatformProcess::BaseDir() relative path of the directory map.
  */
 extern RENDERCORE_API void AddShaderSourceDirectoryMapping(const FString& VirtualShaderDirectory, const FString& RealShaderDirectory);
+/**
+ * Specifies that the virtual shader directory and all subdirectories should contain only .h files that are shared between C++ / shader
+ * @param VirtualShaderDirectory Unique absolute path of the virtual shader directory (ex: /Project/Shared/).
+ */
+extern RENDERCORE_API void AddShaderSourceSharedVirtualDirectory(const FString& VirtualShaderDirectory);
 
 extern RENDERCORE_API void AddShaderSourceFileEntry(TArray<FString>& OutVirtualFilePaths, FString VirtualFilePath, EShaderPlatform ShaderPlatform, const FName* ShaderPlatformName = nullptr);
 extern RENDERCORE_API void GetAllVirtualShaderSourcePaths(TArray<FString>& OutVirtualFilePaths, EShaderPlatform ShaderPlatform, const FName* ShaderPlatformName = nullptr);

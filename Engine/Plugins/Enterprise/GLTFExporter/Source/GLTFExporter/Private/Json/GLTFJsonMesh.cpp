@@ -30,9 +30,28 @@ void FGLTFJsonAttributes::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 }
 
+bool FGLTFJsonAttributes::HasValue() const
+{
+	return (Position && Position->Count)
+		|| (Color0 && Color0->Count)
+		|| (Normal && Normal->Count)
+		|| (Tangent && Tangent->Count)
+		|| TexCoords.Num()
+		|| Joints.Num()
+		|| Weights.Num();
+}
+
 void FGLTFJsonPrimitive::WriteObject(IGLTFJsonWriter& Writer) const
 {
-	Writer.Write(TEXT("attributes"), Attributes);
+	if (!(Attributes.HasValue() && Indices != nullptr))
+	{
+		return;
+	}
+
+	if (Attributes.HasValue())
+	{
+		Writer.Write(TEXT("attributes"), Attributes);
+	}
 
 	if (Indices != nullptr)
 	{
@@ -61,6 +80,11 @@ void FGLTFJsonPrimitive::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 }
 
+bool FGLTFJsonPrimitive::HasValue() const
+{
+	return (Attributes.HasValue() && Indices != nullptr);
+}
+
 void FGLTFJsonMesh::WriteObject(IGLTFJsonWriter& Writer) const
 {
 	if (!Name.IsEmpty())
@@ -68,5 +92,26 @@ void FGLTFJsonMesh::WriteObject(IGLTFJsonWriter& Writer) const
 		Writer.Write(TEXT("name"), Name);
 	}
 
-	Writer.Write(TEXT("primitives"), Primitives);
+	Writer.SetIdentifier(TEXT("primitives"));
+	Writer.StartArray();
+	for (const FGLTFJsonPrimitive& Primitive : Primitives)
+	{
+		if (Primitive.HasValue())
+		{
+			Writer.Write(Primitive);
+		}
+	}
+	Writer.EndArray();
+}
+
+bool FGLTFJsonMesh::HasValue() const
+{
+	for (const FGLTFJsonPrimitive& Primitive : Primitives)
+	{
+		if (Primitive.HasValue())
+		{
+			return true;
+		}
+	}
+	return false;
 }

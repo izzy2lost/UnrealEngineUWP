@@ -23,14 +23,27 @@ UTransformableComponentHandle* UConstraintsScriptingLibrary::CreateTransformable
 
 UTransformableHandle* UConstraintsScriptingLibrary::CreateTransformableHandle(UWorld* InWorld, UObject* InObject, const FName& InAttachmentName)
 {
-	
+	if (!InObject)
+	{
+		if (InAttachmentName == NAME_None)
+		{
+			UE_LOG(LogTemp, Error, TEXT("CreateTransformableHandle: InObject in null."));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("CreateTransformableHandle ('%s'): InObject in null."), *InAttachmentName.ToString());
+		}
+		return nullptr;	
+	}
+		
 	// look for customized transform handle
 	const FTransformableRegistry& Registry = FTransformableRegistry::Get();
 	if (const FTransformableRegistry::CreateHandleFuncT CreateFunction = Registry.GetCreateFunction(InObject->GetClass()))
 	{
 		return CreateFunction(InObject, InAttachmentName);
 	}
-	
+
+	UE_LOG(LogTemp, Error, TEXT("CreateTransformableHandle: Object Class '%s' not supported."), *InObject->GetClass()->GetName());
 	return nullptr;
 }
 

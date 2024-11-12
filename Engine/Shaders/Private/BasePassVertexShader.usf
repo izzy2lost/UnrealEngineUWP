@@ -66,6 +66,16 @@ void Main(
 	{
 		float4 RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPosition);
 		ClipSpacePosition = mul(RasterizedWorldPosition, ResolvedView.TranslatedWorldToClip);
+#if MATERIAL_IS_SKY
+		if (IsOrthoProjection())
+		{
+			//Ortho rendering doesn't stretch to LWC typically, so clamp the sky to as close to the reverse-z far plane as possible unless the dome is already closer to the camera.
+			if(ConvertFromDeviceZ(ClipSpacePosition.z) > ResolvedView.OrthoFarPlane)
+			{
+				ClipSpacePosition.z = FarDepthValue;
+			}
+		}
+#endif
 		Output.Position = INVARIANT(ClipSpacePosition);
 	}
 
@@ -84,7 +94,7 @@ void Main(
 
 // Calculate the fog needed for translucency
 #if NEEDS_BASEPASS_VERTEX_FOGGING
-	Output.BasePassInterpolants.VertexFog = CalculateHeightFog(WorldPosition.xyz - ResolvedView.TranslatedWorldCameraOrigin);
+	Output.BasePassInterpolants.VertexFog = CalculateHeightFog(WorldPosition.xyz - ResolvedView.TranslatedWorldCameraOrigin, EyeIndex, ResolvedView);
 
 	const float OneOverPreExposure = ResolvedView.OneOverPreExposure;
 
@@ -106,20 +116,16 @@ void Main(
 #endif
 #endif // NEEDS_BASEPASS_VERTEX_FOGGING
 
+#if NEEDS_BASEPASS_VERTEX_FOGGING
+
 	// Apply local fog volume to if enabled. It is always enabled per vertex as of today, that is why it is out ofr the NEEDS_BASEPASS_VERTEX_FOGGING defines.
 #if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
 	float4 VertexClipSpacePosition			= mul(float4(WorldPosition.xyz, 1), ResolvedView.TranslatedWorldToClip);
 	float2 SvPosition						= (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * ResolvedView.ViewSizeAndInvSize.xy;
 	uint2 TilePos							= clamp(uint2(SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
 	float4 LFVContribution					= GetLFVContribution(ResolvedView, TilePos, WorldPosition.xyz);
-	#if NEEDS_BASEPASS_VERTEX_FOGGING
 	Output.BasePassInterpolants.VertexFog	= float4(LFVContribution.rgb + Output.BasePassInterpolants.VertexFog.rgb * LFVContribution.a, LFVContribution.a * Output.BasePassInterpolants.VertexFog.a);
-	#else
-	Output.BasePassInterpolants.VertexFog	= LFVContribution; // path when Output.BasePassInterpolants.VertexFog has not been initialised
-	#endif
 #endif // LOCAL_FOG_VOLUME_ON_TRANSLUCENT
-
-#if NEEDS_BASEPASS_VERTEX_FOGGING
 
 #if MATERIAL_ENABLE_TRANSLUCENCY_CLOUD_FOGGING
 	if (TranslucentBasePass.ApplyVolumetricCloudOnTransparent > 0.0f)
@@ -238,7 +244,7 @@ void Main(
 		if ((GetPrimitiveData(VertexParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0)
 		{
 			PrevTranslatedWorldPosition = VertexFactoryGetPreviousWorldPosition( Input, VFIntermediates );	
-			VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, PrevTranslatedWorldPosition.xyz, TangentToLocal);
+			VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, PrevTranslatedWorldPosition.xyz, TangentToLocal, true);
 			PrevTranslatedWorldPosition.xyz += GetMaterialPreviousWorldPositionOffset(VertexParameters);
 	
 			PrevTranslatedWorldPosition = mul(float4(PrevTranslatedWorldPosition.xyz, 1), ResolvedView.PrevTranslatedWorldToClip);

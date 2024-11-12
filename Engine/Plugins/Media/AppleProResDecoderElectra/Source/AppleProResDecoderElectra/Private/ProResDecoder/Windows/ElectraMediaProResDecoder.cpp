@@ -56,6 +56,11 @@ public:
 		return UserValue;
 	}
 
+	EOutputType GetOutputType() const
+	{
+		return EOutputType::Output;
+	}
+
 	int32 GetWidth() const override
 	{
 		return ImageWidth;

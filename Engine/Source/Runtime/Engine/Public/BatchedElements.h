@@ -12,16 +12,6 @@
 #include "Containers/DynamicRHIResourceArray.h"
 #include "Math/DoubleFloat.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Misc/LargeWorldRenderPosition.h"
-#include "RHI.h"
-#include "HitProxies.h"
-#include "SceneView.h"
-#include "StaticBoundShaderState.h"
-#include "PipelineStateCache.h"
-#endif
-
 class FGraphicsPipelineStateInitializer;
 class FHitProxyId;
 class FRHICommandList;

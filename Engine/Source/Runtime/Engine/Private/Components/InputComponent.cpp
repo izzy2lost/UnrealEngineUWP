@@ -25,6 +25,8 @@ UInputComponent::UInputComponent( const FObjectInitializer& ObjectInitializer )
 
 void UInputComponent::ConditionalBuildKeyMap(UPlayerInput* PlayerInput)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInputComponent::ConditionalBuildKeyMap);
+	
 	if (!ensure(PlayerInput))
 	{
 		return;
@@ -48,7 +50,7 @@ void UInputComponent::ConditionalBuildKeyMap(UPlayerInput* PlayerInput)
 		}
 		else if (CachedInfoToPopulate->PlayerInput == nullptr)
 		{
-			CachedKeyToActionInfo.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			CachedKeyToActionInfo.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 
 		CachedInfoToPopulate = nullptr;
@@ -94,26 +96,30 @@ void UInputComponent::ConditionalBuildKeyMap(UPlayerInput* PlayerInput)
 
 void UInputComponent::OnInputOwnerEndPlayed(AActor* InOwner, EEndPlayReason::Type EndPlayReason)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInputComponent::OnInputOwnerEndPlayed);
+	
 	for (int32 Index = CachedKeyToActionInfo.Num() - 1; Index >= 0; --Index)
 	{
 		FCachedKeyToActionInfo& CachedInfo = CachedKeyToActionInfo[Index];
 		const UPlayerInput* CachedInput = CachedInfo.PlayerInput.Get();
 		if (CachedInput && CachedInput->GetTypedOuter<AActor>() == InOwner)
 		{
-			CachedKeyToActionInfo.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			CachedKeyToActionInfo.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 }
 
 void UInputComponent::ClearBindingsForObject(UObject* InOwner)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInputComponent::ClearBindingsForObject);
+	
 	for (int32 Index = CachedKeyToActionInfo.Num() - 1; Index >= 0; --Index)
 	{
 		FCachedKeyToActionInfo& CachedInfo = CachedKeyToActionInfo[Index];
 		const UPlayerInput* CachedInput = CachedInfo.PlayerInput.Get();
 		if (CachedInput && CachedInput->GetTypedOuter<UObject>() == InOwner)
 		{
-			CachedKeyToActionInfo.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			CachedKeyToActionInfo.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 }
@@ -201,7 +207,7 @@ float UInputComponent::GetAxisKeyValue( const FKey AxisKey ) const
 
 FVector UInputComponent::GetVectorAxisValue( const FKey AxisKey ) const
 {
-	FVector AxisValue;
+	FVector AxisValue = FVector::ZeroVector;
 	bool bFound = false;
 
 	for (const FInputVectorAxisBinding& AxisBinding : VectorAxisBindings)
@@ -342,7 +348,7 @@ void UInputComponent::RemoveActionBinding(const FInputActionBinding &BindingToRe
 		}
 	}
 
-	ActionBindings.RemoveAt(BindingIndex, 1, EAllowShrinking::No);
+	ActionBindings.RemoveAt(BindingIndex, EAllowShrinking::No);
 	for (FCachedKeyToActionInfo& CachedInfo : CachedKeyToActionInfo)
 	{
 		CachedInfo.KeyMapBuiltForIndex = 0;
@@ -389,7 +395,7 @@ void UInputComponent::RemoveAxisBinding(FName AxisName)
 		const FInputAxisBinding& Binding = AxisBindings[AxisIdx];
 		if (Binding.AxisName == AxisName)
 		{
-			AxisBindings.RemoveAt(AxisIdx, 1, EAllowShrinking::No);
+			AxisBindings.RemoveAt(AxisIdx, EAllowShrinking::No);
 		}
 	}
 }

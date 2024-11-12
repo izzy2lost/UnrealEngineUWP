@@ -53,27 +53,16 @@ FSlateWindowElementList::FSlateWindowElementList(const TSharedPtr<SWindow>& InPa
 	, ResolveToDeferredIndex()
 	, WindowSize(FVector2f(0.0f, 0.0f))
 	, bIsInGameLayer(false)
-	//, bReportReferences(true)
 {
 	if (InPaintWindow.IsValid())
 	{
 		WindowSize = UE::Slate::CastToVector2f(InPaintWindow->GetSizeInScreen());
 	}
-
-	// Only keep UObject resources alive if this window element list is born on the game thread.
-/*
-	if (IsInGameThread())
-	{
-		ResourceGCRoot = MakeUnique<FWindowElementGCObject>(this);
-	}*/
 }
 
 FSlateWindowElementList::~FSlateWindowElementList()
 {
-	/*if (ResourceGCRoot.IsValid())
-	{
-		ResourceGCRoot->ClearOwner();
-	}*/
+	FinishMergeRenderBatches();
 }
 
 void FSlateWindowElementList::SetIsInGameLayer(bool bInGameLayer)
@@ -84,6 +73,25 @@ void FSlateWindowElementList::SetIsInGameLayer(bool bInGameLayer)
 bool FSlateWindowElementList::GetIsInGameLayer()
 {
 	return bIsInGameLayer;
+}
+
+void FSlateWindowElementList::StartMergeRenderBatches()
+{
+	if (!BatchData.GetRenderBatches().IsEmpty() || !BatchDataHDR.GetRenderBatches().IsEmpty())
+	{
+		MergeBatchDataTask = UE::Tasks::Launch(TEXT("Slate::MergeRenderBatches"), [this]
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE("Slate::MergeRenderBatches")
+			BatchData.MergeRenderBatches();
+			BatchDataHDR.MergeRenderBatches();
+		});
+	}
+}
+
+void FSlateWindowElementList::FinishMergeRenderBatches()
+{
+	MergeBatchDataTask.Wait();
+	MergeBatchDataTask = {};
 }
 
 FSlateWindowElementList::FDeferredPaint::FDeferredPaint( const TSharedRef<const SWidget>& InWidgetToPaint, const FPaintArgs& InArgs, const FGeometry InAllottedGeometry, const FWidgetStyle& InWidgetStyle, bool InParentEnabled )
@@ -149,7 +157,7 @@ int32 FSlateWindowElementList::PaintDeferred(int32 LayerId, const FSlateRect& My
 
 	for ( int32 i = DeferredPaintList.Num() - 1; i >= ResolveIndex; --i )
 	{
-		DeferredPaintList.RemoveAt(i, 1, EAllowShrinking::No);
+		DeferredPaintList.RemoveAt(i, EAllowShrinking::No);
 	}
 
 	return LayerId;
@@ -197,38 +205,6 @@ FSlateCachedElementsHandle FSlateWindowElementList::PopPaintingWidget(const SWid
 
 	return FSlateCachedElementsHandle::Invalid;
 }
-
-/*
-int32 FSlateWindowElementList::PushBatchPriortyGroup(const SWidget& CurrentWidget)
-{
-	int32 NewPriorityGroup = 0;
-/ *
-	if (GSlateEnableGlobalInvalidation)
-	{
-		NewPriorityGroup = BatchDepthPriorityStack.Add_GetRef(CurrentWidget.FastPathProxyHandle.IsValid() ? CurrentWidget.FastPathProxyHandle.GetIndex() : 0);
-	}
-	else
-	{
-		NewPriorityGroup = BatchDepthPriorityStack.Add_GetRef(MaxPriorityGroup + 1);
-		//NewPriorityGroup = BatchDepthPriorityStack.Add_GetRef(0);
-	}
-
-	// Should be +1 or the first overlay slot will not appear on top of stuff below it?
-	// const int32 NewPriorityGroup = BatchDepthPriorityStack.Add_GetRef(BatchDepthPriorityStack.Num() ? BatchDepthPriorityStack.Top()+1 : 1);
-
-	MaxPriorityGroup = FMath::Max(NewPriorityGroup, MaxPriorityGroup);* /
-	return NewPriorityGroup;
-}
-
-int32 FSlateWindowElementList::PushAbsoluteBatchPriortyGroup(int32 BatchPriorityGroup)
-{
-	return 0;// return BatchDepthPriorityStack.Add_GetRef(BatchPriorityGroup);
-}
-
-void FSlateWindowElementList::PopBatchPriortyGroup()
-{
-	//BatchDepthPriorityStack.Pop();
-}*/
 
 void FSlateWindowElementList::PushCachedElementData(FSlateCachedElementData& CachedElementData)
 {
@@ -378,6 +354,7 @@ void FSlateWindowElementList::ResetElementList()
 
 	DeferredPaintList.Reset();
 
+	FinishMergeRenderBatches();
 	BatchData.ResetData();
 	BatchDataHDR.ResetData();
 
@@ -560,13 +537,6 @@ void FSlateCachedElementList::ClearCachedElements()
 	DestroyCachedData();
 
 	CachedRenderingData = new FSlateCachedFastPathRenderingData;
-
-#if 0 // enable this if you want to know why a widget is invalidated after it has been drawn but before it has been batched (probably a child or parent invalidating a relation)
-	if (ensure(!bNewData))
-	{
-		UE_LOG(LogSlate, Log, TEXT("Cleared out data in cached ElementList for Widget: %s before it was batched"), *Widget->GetTag().ToString());
-	}
-#endif
 }
 
 FSlateRenderBatch& FSlateCachedElementList::AddRenderBatch(int32 InLayer, const FShaderParams& InShaderParams, const FSlateShaderResource* InResource, ESlateDrawPrimitive InPrimitiveType, ESlateShader InShaderType, ESlateDrawEffect InDrawEffects, ESlateBatchDrawFlag InDrawFlags, int8 SceneIndex)
@@ -580,8 +550,6 @@ FSlateRenderBatch& FSlateCachedElementList::AddRenderBatch(int32 InLayer, const 
 	CachedRenderBatchIndices.Add(RenderBatchIndex);
 
 	return AddedBatchRef;
-	
-	//return CachedBatches.Emplace_GetRef(InLayer, InShaderParams, InResource, InPrimitiveType, InShaderType, InDrawEffects, InDrawFlags, SceneIndex, &CachedRenderingData->Vertices, &CachedRenderingData->Indices, CachedRenderingData->Vertices.Num(), CachedRenderingData->Indices.Num());
 }
 
 void FSlateCachedElementList::AddCachedClipState(FSlateCachedClipState& ClipStateToCache)
@@ -622,7 +590,7 @@ bool FSlateCachedElementList::IsEmpty()
 
 	VisitTupleElements(CheckElementsExist, DrawElements);
 
-	return bElementsFound;
+	return !bElementsFound;
 }
 
 int32 FSlateCachedElementList::NumElements()

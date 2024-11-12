@@ -564,7 +564,7 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 		for(UGeometryCollectionComponent* GeometryCollectionComponent : GeometryCollectionComponents)
 		{
 			GeometryCollectionComponent->SetEmbeddedGeometrySelectable(true);
-			GeometryCollectionComponent->EnableRootProxyStaticMeshComponents(false);
+			GeometryCollectionComponent->ForceNativeRendering(true);
 			
 			FGeometryCollectionEdit RestCollectionEdit = GeometryCollectionComponent->EditRestCollection(GeometryCollection::EEditUpdate::None);
 			if (!RestCollectionEdit.GetRestCollection())
@@ -583,7 +583,11 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 			constexpr bool bForceUpdate = true; // Force the bone selection and highlight to refresh so bone colors reflect the selection
 			FScopedColorEdit ShowBoneColorsEdit(GeometryCollectionComponent, bForceUpdate);
 			ShowBoneColorsEdit.SetEnableBoneSelection(true);
-			// ShowBoneColorsEdit.SetLevelViewMode(ViewLevel);
+			if (ViewLevel != ShowBoneColorsEdit.GetViewLevel())
+			{
+				ShowBoneColorsEdit.SetLevelViewMode(ViewLevel);
+				ShowBoneColorsEdit.FilterSelectionToLevel();
+			}
 			ShowBoneColorsEdit.Sanitize(); // Clean any stale data (e.g. due to the geometry being edited via a different component)
 
 			NewGeomSelection.Add(GeometryCollectionComponent);
@@ -602,9 +606,7 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 			ShowBoneColorsEdit.SetEnableBoneSelection(false);
 
 			ExistingSelection->SetEmbeddedGeometrySelectable(false);
-
-			// should we restore the previous state ? 
-			ExistingSelection->EnableRootProxyStaticMeshComponents(true);
+			ExistingSelection->ForceNativeRendering(false);
 
 			// If we have a Hide array on the collection, remove it.
 			if (const UGeometryCollection* RestCollection = ExistingSelection->GetRestCollection())

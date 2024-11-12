@@ -24,7 +24,7 @@ bool FStateTreePropertyBindingCompiler::Init(FStateTreePropertyBindings& InPrope
 	return true;
 }
 
-bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> BatchPropertyBindings, int32& OutBatchIndex)
+bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> BatchPropertyBindings, FStateTreeIndex16 PropertyFuncsBegin, FStateTreeIndex16 PropertyFuncsEnd, int32& OutBatchIndex)
 {
 	check(Log);
 	check(PropertyBindings);
@@ -123,15 +123,17 @@ bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStr
 
 		FStateTreePropertyCopyBatch& Batch = PropertyBindings->CopyBatches.AddDefaulted_GetRef();
 		Batch.TargetStruct = TargetStruct;
-		Batch.BindingsBegin = IntCastChecked<uint16>(BindingsBegin);
-		Batch.BindingsEnd = IntCastChecked<uint16>(BindingsEnd);
+		Batch.BindingsBegin = FStateTreeIndex16(BindingsBegin);
+		Batch.BindingsEnd = FStateTreeIndex16(BindingsEnd);
+		Batch.PropertyFunctionsBegin = PropertyFuncsBegin;
+		Batch.PropertyFunctionsEnd = PropertyFuncsEnd;
 		OutBatchIndex = PropertyBindings->CopyBatches.Num() - 1;
 	}
 
 	return true;
 }
 
-bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView)
+bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView, const TMap<FGuid, const FStateTreeDataView>& IDToStructValue)
 {
 	for (const FStateTreePropertyPathBinding& Binding : PropertyReferenceBindings)
 	{
@@ -149,10 +151,17 @@ bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindab
 			return false;
 		}
 
+		const FStateTreeDataView* SourceDataView = IDToStructValue.Find(Binding.GetSourcePath().GetStructID());
+		if (!SourceDataView)
+		{
+			Log->Reportf(EMessageSeverity::Error, TargetStruct,
+				TEXT("Could not find a binding source data view."));
+			return false;
+		}
+
 		FString Error;
 		TArray<FStateTreePropertyPathIndirection> SourceIndirections;
-		
-		if (!Binding.GetSourcePath().ResolveIndirections(SourceStruct->Struct, SourceIndirections, &Error))
+		if (!Binding.GetSourcePath().ResolveIndirectionsWithValue(*SourceDataView, SourceIndirections, &Error))
 		{
 			Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Resolving path in %s: %s"), *SourceStruct->ToString(), *Error);
 			return false;
@@ -167,16 +176,19 @@ bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindab
 			return false;
 		}
 
-		TArray<FStateTreePropertyIndirection> TargetIndirections;
-		FStateTreePropertyIndirection TargetFirstIndirection;
-		FStateTreePropertyPathIndirection TargetLeafIndirection;
-		if (!FStateTreePropertyBindings::ResolvePath(InstanceDataView.GetStruct(), Binding.GetTargetPath(), TargetIndirections, TargetFirstIndirection, TargetLeafIndirection))
+		TArray<FStateTreePropertyPathIndirection> TargetIndirections;
+		if (!Binding.GetTargetPath().ResolveIndirectionsWithValue(InstanceDataView, TargetIndirections, &Error))
 		{
 			Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Resolving path in %s: %s"), *TargetStruct.ToString(), *Error);
 			return false;
 		}
 
-		if (!UE::StateTree::PropertyRefHelpers::IsPropertyRefCompatibleWithProperty(*TargetLeafIndirection.GetProperty(), *SourceIndirections.Last().GetProperty()))
+		FStateTreePropertyPathIndirection& TargetLeafIndirection = TargetIndirections.Last();
+		FStateTreePropertyRef* PropertyRef = reinterpret_cast<FStateTreePropertyRef*>(const_cast<uint8*>(TargetLeafIndirection.GetPropertyAddress()));
+		check(PropertyRef);
+
+		FStateTreePropertyPathIndirection& SourceLeafIndirection = SourceIndirections.Last();
+		if (!UE::StateTree::PropertyRefHelpers::IsPropertyRefCompatibleWithProperty(*TargetLeafIndirection.GetProperty(), *SourceLeafIndirection.GetProperty(), PropertyRef, SourceLeafIndirection.GetPropertyAddress()))
 		{
 			Log->Reportf(EMessageSeverity::Error, TargetStruct,
 				TEXT("%s cannot reference %s, types are incompatible."),		
@@ -202,8 +214,10 @@ bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindab
 
 		if (!ReferenceIndex.IsValid())
 		{
-			// If referencing another PropertyRef, reuse it's index.
-			if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*SourceIndirections.Last().GetProperty()))
+			// If referencing another non global or subtree parameter PropertyRef, reuse it's index.
+			if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*SourceIndirections.Last().GetProperty()) 
+				&& SourceStruct->DataHandle.GetSource() != EStateTreeDataSourceType::GlobalParameterData 
+				&& SourceStruct->DataHandle.GetSource() != EStateTreeDataSourceType::SubtreeParameterData)
 			{
 				const FCompiledReference* ReferencedReference = CompiledReferences.FindByPredicate([&Binding](const FCompiledReference& CompiledReference)
 				{
@@ -234,9 +248,7 @@ bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindab
 		}
 
 		// Store index in instance data.
-		uint8* RawData = FStateTreePropertyBindings::GetAddress(InstanceDataView, TargetIndirections, TargetFirstIndirection, TargetLeafIndirection.GetProperty());
-		check(RawData);
-		reinterpret_cast<FStateTreePropertyRef*>(RawData)->RefAccessIndex = ReferenceIndex;
+		PropertyRef->RefAccessIndex = ReferenceIndex;
 
 		FCompiledReference& CompiledReference = CompiledReferences.AddDefaulted_GetRef();
 		CompiledReference.Path = Binding.GetTargetPath();

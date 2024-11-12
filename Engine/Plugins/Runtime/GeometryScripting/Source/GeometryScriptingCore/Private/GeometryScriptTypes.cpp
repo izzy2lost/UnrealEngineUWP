@@ -7,17 +7,49 @@
 #include "CompGeom/ConvexDecomposition3.h"
 
 
+static FString FindCurrentBPFunction()
+{
+#if WITH_EDITOR
+	const FBlueprintContextTracker* ContextTracker = FBlueprintContextTracker::TryGet();
+	if (ContextTracker && !ContextTracker->GetCurrentScriptStack().IsEmpty())
+	{
+		TStringBuilder<256> StringBuilder;
+		ContextTracker->GetCurrentScriptStack().Last()->GetStackDescription(StringBuilder);
+		return StringBuilder.ToString();
+	}
+#endif
+	return {};
+}
+
 FGeometryScriptDebugMessage UE::Geometry::MakeScriptError(EGeometryScriptErrorType ErrorTypeIn, const FText& MessageIn)
 {
-	UE_LOG(LogGeometry, Warning, TEXT("GeometryScriptError: %s"), *MessageIn.ToString() );
+	FString CurrentBPFunction = FindCurrentBPFunction();
+	
+	if (CurrentBPFunction.IsEmpty())
+	{
+		UE_LOG(LogGeometry, Error, TEXT("%s"), *MessageIn.ToString() );
+	}
+	else
+	{
+		UE_LOG(LogGeometry, Error, TEXT("%s [Called from: %s]"), *MessageIn.ToString(), *CurrentBPFunction);
+	}
 
 	return FGeometryScriptDebugMessage{ EGeometryScriptDebugMessageType::ErrorMessage, ErrorTypeIn, MessageIn };
 }
 
 FGeometryScriptDebugMessage UE::Geometry::MakeScriptWarning(EGeometryScriptErrorType WarningTypeIn, const FText& MessageIn)
 {
-	UE_LOG(LogGeometry, Warning, TEXT("GeometryScriptWarning: %s"), *MessageIn.ToString() );
-
+	FString CurrentBPFunction = FindCurrentBPFunction();
+	
+	if (CurrentBPFunction.IsEmpty())
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("%s"), *MessageIn.ToString() );
+	}
+	else
+	{
+		UE_LOG(LogGeometry, Warning, TEXT("%s [Called from: %s]"), *MessageIn.ToString(), *CurrentBPFunction);
+	}
+	
 	return FGeometryScriptDebugMessage{ EGeometryScriptDebugMessageType::WarningMessage, WarningTypeIn, MessageIn };
 }
 
@@ -73,11 +105,11 @@ void FGeometryScriptSphereCovering::Reset()
 }
 
 
-void FGeometryScriptGeneralPolygonList::Reset()
+void FGeometryScriptGeneralPolygonList::Reset(int32 Num)
 {
 	if (!Polygons.IsValid())
 	{
 		Polygons = MakeShared<TArray<UE::Geometry::FGeneralPolygon2d>>();
 	}
-	Polygons->Reset();
+	Polygons->Reset(Num);
 }

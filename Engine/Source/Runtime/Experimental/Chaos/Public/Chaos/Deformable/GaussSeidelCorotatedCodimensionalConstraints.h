@@ -17,7 +17,6 @@ namespace Chaos::Softs
 	{
 
 	public:
-		//this one only accepts tetmesh input and mesh
 		FGaussSeidelCorotatedCodimensionalConstraints(
 			const ParticleType& InParticles,
 			const TArray<TVector<int32, 3>>& InMesh,
@@ -35,6 +34,28 @@ namespace Chaos::Softs
 			LambdaElementArray.Init(Lambda, MeshConstraints.Num());
 
 			InitializeCodimensionData(InParticles);
+		}
+
+		FGaussSeidelCorotatedCodimensionalConstraints(
+			const ParticleType& InParticles,
+			const TArray<TVector<int32, 3>>& InMesh,
+			const TArray<T>& EMeshArray,
+			const T& NuMesh = (T).3
+		)
+			: MeshConstraints(InMesh)
+		{
+			ensureMsgf(EMeshArray.Num() == InMesh.Num(), TEXT("Input Young Modulus Array Size is wrong"));
+			Measure.Init((T)0., MeshConstraints.Num());
+
+			InitializeCodimensionData(InParticles);
+			LambdaElementArray.Init((T)0., MeshConstraints.Num());
+			MuElementArray.Init((T)0., MeshConstraints.Num());
+			
+			for (int32 e = 0; e < InMesh.Num(); e++)
+			{
+				LambdaElementArray[e] = EMeshArray[e] * NuMesh / (((T)1. + NuMesh) * ((T)1. - (T)2. * NuMesh));
+				MuElementArray[e] = EMeshArray[e] / ((T)2. * ((T)1. + NuMesh));
+			}
 		}
 
 		virtual ~FGaussSeidelCorotatedCodimensionalConstraints() {}

@@ -84,6 +84,7 @@ public:
 
 	/** Default constructor. */
 	SLATE_API SViewport();
+	SLATE_API virtual ~SViewport();
 
 	/**
 	 * Construct the widget.

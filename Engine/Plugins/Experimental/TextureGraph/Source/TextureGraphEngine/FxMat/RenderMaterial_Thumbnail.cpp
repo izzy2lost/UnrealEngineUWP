@@ -14,7 +14,7 @@
 
 ////////////////////////////////////////////////////////////////////////// RenderMaterial_Thumbnail //////////////////////////////////////////////////////////////////////////
 
-RenderMaterial_Thumbnail::RenderMaterial_Thumbnail(FString InName, UMaterial* InMaterial, UMaterialInstanceDynamic* instance /*= nullptr*/) : RenderMaterial_BP(InName, InMaterial, instance)
+RenderMaterial_Thumbnail::RenderMaterial_Thumbnail(FString InName, UMaterialInterface* InMaterial, UMaterialInstanceDynamic* instance /*= nullptr*/) : RenderMaterial_BP(InName, InMaterial, instance)
 {
 }
 

@@ -4,6 +4,8 @@
 #include "NiagaraCompileHashVisitor.h"
 #include "TextureResource.h"
 #include "CanvasTypes.h"
+#include "ImageCoreUtils.h"
+#include "ImageUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
 
 #include "NDIRenderTargetVolumeSimCacheData.h"
@@ -576,10 +578,14 @@ bool UNiagaraDataInterfaceRenderTarget2D::RenderVariableToCanvas(FNiagaraSystemI
 
 NIAGARA_API UObject* UNiagaraDataInterfaceRenderTarget2D::SimCacheBeginWrite(UObject* InSimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
 {
+	if (!OptionalPerInstanceData)
+	{
+		return nullptr;
+	}
+
 	UNDIRenderTargetVolumeSimCacheData* SimCacheData = nullptr;
 	SimCacheData = NewObject<UNDIRenderTargetVolumeSimCacheData>(InSimCache);
 	SimCacheData->CompressionType = NDIRenderTarget2DLocal::GetSimCacheCompressionType();
-
 	return SimCacheData;	
 }
 
@@ -761,6 +767,90 @@ NIAGARA_API bool UNiagaraDataInterfaceRenderTarget2D::SimCacheReadFrame(UObject*
 	}
 
 	return true;
+}
+
+namespace NiagaraRenderTarget2DImageHelper
+{
+	void ConvertPixel(const uint8* SourceData, EPixelFormat Format, FFloat16Color& OutColor)
+	{
+		switch (Format)
+		{
+		case PF_FloatRGB:
+			OutColor.R = *reinterpret_cast<const float*>(SourceData);
+			OutColor.G = *reinterpret_cast<const float*>(SourceData + 4);
+			OutColor.B = *reinterpret_cast<const float*>(SourceData + 8);
+		case PF_FloatRGBA:
+			OutColor.R = *reinterpret_cast<const float*>(SourceData);
+			OutColor.G = *reinterpret_cast<const float*>(SourceData + 4);
+			OutColor.B = *reinterpret_cast<const float*>(SourceData + 8);
+			OutColor.A = *reinterpret_cast<const float*>(SourceData + 12);
+		case PF_G16R16F:
+		case PF_G16R16F_FILTER:
+			FMemory::Memcpy(&OutColor.R, SourceData, 4); //-V512
+		default: // do nothing;
+			break;
+		}
+	}
+}
+
+TSharedPtr<FJsonObject> UNiagaraDataInterfaceRenderTarget2D::SimCacheToJson(const UObject* StorageObject, int FrameIndex, TOptional<FString> TargetFolder, TOptional<FString> FilenamePrefix) const
+{
+	const UNDIRenderTargetVolumeSimCacheData* SimCacheData = CastChecked<UNDIRenderTargetVolumeSimCacheData>(StorageObject);
+	if (SimCacheData->Frames.IsValidIndex(FrameIndex))
+	{
+		FNDIRenderTargetVolumeSimCacheFrame CacheFrame = SimCacheData->Frames[FrameIndex];
+		TSharedPtr<FJsonObject> JsonCacheObject = MakeShared<FJsonObject>();
+		JsonCacheObject->SetStringField(TEXT("CompressionType"), SimCacheData->CompressionType.ToString());
+		JsonCacheObject->SetNumberField(TEXT("PixelFormat"), static_cast<int32>(CacheFrame.Format));
+		JsonCacheObject->SetNumberField(TEXT("CompressedSize"), CacheFrame.CompressedSize);
+		JsonCacheObject->SetNumberField(TEXT("UncompressedSize"), CacheFrame.UncompressedSize);
+		JsonCacheObject->SetNumberField(TEXT("SizeX"), CacheFrame.Size.X);
+		JsonCacheObject->SetNumberField(TEXT("SizeY"), CacheFrame.Size.Y);
+		
+		const uint8* PixelData = CacheFrame.GetPixelData();
+		if (!PixelData || !TargetFolder.IsSet() || !FilenamePrefix.IsSet())
+		{
+			return JsonCacheObject;
+		}
+
+		ERawImageFormat::Type ImageFormat = FImageCoreUtils::GetRawImageFormatForPixelFormat(CacheFrame.Format);
+		if (ImageFormat != ERawImageFormat::RGBA16F)
+		{
+			UE_LOG(LogNiagara, Error, TEXT("Unable to save render target to file with current pixel format"));
+			return JsonCacheObject;
+		}
+
+		uint32 PixelCount = CacheFrame.Size.X * CacheFrame.Size.Y;
+		uint32 BlockBytes = GPixelFormats[CacheFrame.Format].BlockBytes;
+		TArray<uint8> Decompressed;
+		if (CacheFrame.CompressedSize > 0)
+		{
+			Decompressed.AddUninitialized(BlockBytes * PixelCount);
+			if (!FCompression::UncompressMemory(SimCacheData->CompressionType, Decompressed.GetData(), Decompressed.Num(), PixelData, CacheFrame.CompressedSize))
+			{
+				UE_LOG(LogNiagara, Error, TEXT("Error decompressing render target data"));
+				return JsonCacheObject;
+			}
+		}
+		const uint8* SrcData = Decompressed.Num() > 0 ? Decompressed.GetData() : PixelData;
+
+		// we need to convert the raw pixel data into a format that the image utils understand 
+		TArray<FFloat16Color> ImagePixelData;
+		ImagePixelData.AddZeroed(PixelCount);
+		for (uint32 Index = 0; Index < PixelCount; Index++)
+		{
+			uint32 Offset = Index * BlockBytes;
+			NiagaraRenderTarget2DImageHelper::ConvertPixel(SrcData + Offset, CacheFrame.Format, ImagePixelData[Index]);
+		}
+		
+		FImageView ImageView(ImagePixelData.GetData(), CacheFrame.Size.X, CacheFrame.Size.Y, ImageFormat);
+		if (FImageUtils::SaveImageByExtension(*FPaths::Combine(TargetFolder.GetValue(), FilenamePrefix.GetValue() + ".exr"), ImageView))
+		{
+			JsonCacheObject->SetStringField(TEXT("TextureData"), FilenamePrefix.GetValue() + ".exr");
+			return JsonCacheObject;
+		}		
+	}
+	return TSharedPtr<FJsonObject>();
 }
 
 void UNiagaraDataInterfaceRenderTarget2D::VMSetSize(FVectorVMExternalFunctionContext& Context)

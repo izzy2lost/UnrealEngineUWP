@@ -3,12 +3,18 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMContextImpl.h"
 #include "Experimental/Async/MultiUniqueLock.h"
+#include "VerseVM/VVMBytecode.h"
+#include "VerseVM/VVMBytecodesAndCaptures.h"
 #include "VerseVM/VVMConservativeStackEntryFrame.h"
 #include "VerseVM/VVMConservativeStackExitFrame.h"
+#include "VerseVM/VVMContext.h"
+#include "VerseVM/VVMFailureContext.h"
+#include "VerseVM/VVMFrame.h"
 #include "VerseVM/VVMHardHandshakeContext.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMNeverDestroyed.h"
 #include "VerseVM/VVMSanitizers.h"
+#include "VerseVM/VVMTask.h"
 #include "VerseVM/VVMThreadLocalContextHolder.h"
 #include "VerseVM/VVMTransaction.h"
 #include "VerseVM/VVMTrue.h"
@@ -692,9 +698,9 @@ void FContextImpl::RelinquishAccessSlow()
 
 void FContextImpl::CheckForHandshakeSlow()
 {
-	using namespace UE;
 	V_DIE_UNLESS(State & HasAccessBit);
-	ExitConservativeStack([this]() {
+
+	auto Check = [this]() {
 		if (State & HandshakeRequestedBit)
 		{
 			AcknowledgeHandshakeRequest();
@@ -704,7 +710,16 @@ void FContextImpl::CheckForHandshakeSlow()
 			RelinquishAccess();
 			AcquireAccess();
 		}
-	});
+	};
+
+	if (InConservativeStack())
+	{
+		ExitConservativeStack(Check);
+	}
+	else
+	{
+		Check();
+	}
 }
 
 VCell* FContextImpl::RunWeakReadBarrierNonNullSlow(VCell* Cell)
@@ -727,6 +742,43 @@ void* FContextImpl::RunAuxWeakReadBarrierNonNullSlow(void* Aux)
 		return Aux;
 	}
 	return RunWeakReadBarrierUnmarkedWhenActive(Aux, [this](const void* Aux) { MarkStack.MarkAuxNonNull(Aux); });
+}
+
+FNativeContext FContextImpl::MakeNewNativeContext()
+{
+	check(!AutoRTFM::IsClosed());
+	extern FOpErr StopInterpreterSentry;
+	FAllocationContext Context(this, EIsInHandshake::No);
+
+	VTask* Task = _NativeContext.Task;
+	VFailureContext* FailureContext = _NativeContext.FailureContext;
+	if (!FailureContext)
+	{
+		// We're at top level - create a new outer task
+		Task = &VTask::New(Context, &StopInterpreterSentry, VFrame::GlobalEmptyFrame.Get(), /*YieldTask*/ nullptr, /*Parent*/ nullptr);
+	}
+	return {
+		&VFailureContext::New(
+			Context,
+			Task,
+			FailureContext,
+			*VFrame::GlobalEmptyFrame.Get(),
+			VValue(), // IncomingEffectToken doesn't matter here, since we bail out if we fail.
+			&StopInterpreterSentry),
+		Task};
+}
+
+void FNativeContext::Start(FRunningContext Context) const
+{
+	FailureContext->Transaction.Start(Context);
+}
+
+void FNativeContext::Commit(FRunningContext Context) const
+{
+	if (!FailureContext->Transaction.bHasAborted)
+	{
+		FailureContext->Transaction.Commit(Context);
+	}
 }
 
 } // namespace Verse

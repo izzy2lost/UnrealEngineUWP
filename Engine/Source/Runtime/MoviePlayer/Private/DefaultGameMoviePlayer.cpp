@@ -536,9 +536,7 @@ void FDefaultGameMoviePlayer::WaitForMovieToFinish(bool bAllowEngineTick)
 				ENQUEUE_RENDER_COMMAND(BeginLoadingMovieFrameAndTickMovieStreamer)(
 					[InMoviePlayer, DeltaTime](FRHICommandListImmediate& RHICmdList)
 					{
-						GFrameNumberRenderThread++;
-						GRHICommandList.GetImmediateCommandList().BeginFrame();
-				
+						GFrameNumberRenderThread++;				
 						InMoviePlayer->TickStreamer(DeltaTime);
 					}
 				);
@@ -711,7 +709,6 @@ void FDefaultGameMoviePlayer::Tick( float DeltaTime )
 			if(SyncMechanism->IsSlateDrawPassEnqueued())
 			{
 				GFrameNumberRenderThread++;
-				GRHICommandList.GetImmediateCommandList().BeginFrame();
 				TickStreamer(DeltaTime);
 				SyncMechanism->ResetSlateDrawPassEnqueued();
 				GRHICommandList.GetImmediateCommandList().EndFrame();
@@ -735,7 +732,7 @@ void FDefaultGameMoviePlayer::TickStreamer(float DeltaTime)
 		/*IXRLoadingScreen* LoadingScreen;
 		if (GEngine && GEngine->XRSystem.IsValid() && (LoadingScreen = GEngine->XRSystem->GetLoadingScreen()) != nullptr)
 		{
-			FTexture2DRHIRef Movie2DTexture = ActiveMovieStreamer->GetTexture();
+			FTextureRHIRef Movie2DTexture = ActiveMovieStreamer->GetTexture();
 			LoadingScreen->ClearSplashes();
 			if (Movie2DTexture.IsValid() && !bMovieIsDone)
 			{

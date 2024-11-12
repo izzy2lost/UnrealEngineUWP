@@ -44,10 +44,10 @@ float3 BilinearQuadWarp(float2 uv, float W00, float W01, float W10, float W11) {
 	return float3(u, v, pdf);
 }
 
-// #dxr_todo: This method should be moved to RectLight.ush
-// #dxr_todo: Analyze the overall efficiency (MSE reduction vs. time)
+// TODO: This method should be moved to RectLight.ush
+// TODO: Analyze the overall efficiency (MSE reduction vs. time)
 //  Projected solid angle sampling converges faster at equal sample count, but is a bit slower
-// #dxr_todo: Should we switch to plain area sampling at some distance?
+// TODO: Unify with UniformSampleSphericalRect so both return the same struct, making them easier to interchange
 float4 SampleApproxProjectionSphericalRect(float2 Rand, FSphericalRect SphericalRect, float3 WorldNormal)
 {
 	// Construct the quad vertices
@@ -67,7 +67,7 @@ float4 SampleApproxProjectionSphericalRect(float2 Rand, FSphericalRect Spherical
 	float3 WarpedRand = BilinearQuadWarp(Rand, W00, W01, W10, W11);
 
 	// Proceed with uniform sampling of the spherical rectangle
-	float3 Direction = UniformSampleSphericalRect(WarpedRand.xy, SphericalRect);
+	float3 Direction = UniformSampleSphericalRect(WarpedRand.xy, SphericalRect).Direction;
 	float OutPdf = isfinite(SphericalRect.SolidAngle) ? 1.0 / SphericalRect.SolidAngle : 0.0;
 
 	// Return Direction vector and adjusted PDF
@@ -110,11 +110,12 @@ FLightHit RectLight_TraceLight(FRayDesc Ray, int LightId)
 				// stored color is radiance
 				float3 Radiance = GetColor(LightId) * ComputeIESAttenuation(LightId, Ray.Origin);
 				Radiance *= ComputeAttenuationFalloff(dot(LightDirection, LightDirection), LightId);
-				float SolidAngle = BuildSphericalRect(Rect).SolidAngle;
+				FSphericalRect SphericalRect = BuildSphericalRect(Rect);
 #if USE_RECT_LIGHT_TEXTURES
 				Radiance *= EvaluateTexture(LightId, (UV + LightExtent) / (LightExtent * 2));
 #endif
-				return CreateLightHit(Radiance, SolidAngle > 0 ? rcp(SolidAngle) : 0.0, t);
+				float Pdf = rcp(GetSphericalRectInversePdf(Ray.Direction, t * t, SphericalRect));
+				return CreateLightHit(Radiance, Pdf, t);
 			}
 		}
 	}
@@ -151,26 +152,15 @@ FLightSample RectLight_SampleLight(
 	}
 	FSphericalRect SphericalRect = BuildSphericalRect(Rect);
 
+	float3 Radiance = GetColor(LightId) * ComputeIESAttenuation(LightId, TranslatedWorldPos);
+	float DistanceSquared = length2(LightDirection);
+	Radiance *= ComputeAttenuationFalloff(DistanceSquared, LightId);
+	FSphericalRectSample Sample = UniformSampleSphericalRect(RandSample, SphericalRect);
 #if USE_RECT_LIGHT_TEXTURES
-	FSphericalRectSample Sample = UniformSampleSphericalRectWithUV(RandSample, SphericalRect);
-	float2 ClippedUV = Sample.UV;
-	float3 Direction = Sample.Direction;
-#else
-	float3 Direction = UniformSampleSphericalRect(RandSample, SphericalRect);
+	float2 UV = 0.5 * ((2 * Sample.UV - 1) * Rect.Extent + Rect.Offset) / Rect.FullExtent + 0.5;
+	Radiance *= EvaluateTexture(LightId, UV);
 #endif
-
-	float3 RadianceOverPdf = GetColor(LightId) * SphericalRect.SolidAngle * ComputeIESAttenuation(LightId, TranslatedWorldPos);
-	RadianceOverPdf *= ComputeAttenuationFalloff(dot(LightDirection, LightDirection), LightId);
-#if USE_RECT_LIGHT_TEXTURES
-	float2 UV = 0.5 * ((2 * ClippedUV - 1) * Rect.Extent + Rect.Offset) / Rect.FullExtent + 0.5;
-	RadianceOverPdf *= EvaluateTexture(LightId, UV);
-#endif
-
-	if (SphericalRect.SolidAngle > 0)
-	{
-		return CreateLightSample(RadianceOverPdf, 1.0 / SphericalRect.SolidAngle, normalize(Direction), length(Direction));
-	}
-	return NullLightSample();
+	return CreateLightSample(Radiance * Sample.InvPdf, rcp(Sample.InvPdf), Sample.Direction, Sample.Distance);
 }
 
 float RectLight_EstimateLight(

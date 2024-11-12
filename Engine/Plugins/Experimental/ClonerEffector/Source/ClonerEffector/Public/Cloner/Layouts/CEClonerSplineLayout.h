@@ -18,6 +18,10 @@ class UCEClonerSplineLayout : public UCEClonerLayoutBase
 	friend class FAvaClonerActorVisualizer;
 
 public:
+#if WITH_EDITOR
+	static CLONEREFFECTOR_API FName GetSplineActorWeakName();
+#endif
+
 	UCEClonerSplineLayout()
 		: UCEClonerLayoutBase(
 			TEXT("Spline")
@@ -62,7 +66,7 @@ public:
 
 #if WITH_EDITOR
 	/** Spawns an actor with a spline component and linked it to this cloner layout */
-	UFUNCTION(CallInEditor, Category="Cloner|Layout")
+	UFUNCTION(CallInEditor, Category="Layout")
 	CLONEREFFECTOR_API void SpawnLinkedSplineActor();
 #endif
 
@@ -81,19 +85,19 @@ protected:
 	void OnSampleSplineTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType);
 	void OnSampleSplineRenderStateUpdated(UActorComponent& InComponent);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCount", Getter="GetCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 Count = 3 * 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSplineActorWeak", Getter="GetSplineActorWeak", DisplayName="SampleActor", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="SampleActor", Category="Layout")
 	TWeakObjectPtr<AActor> SplineActorWeak;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetOrientMesh", Getter="GetOrientMesh", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter="SetOrientMesh", Getter="GetOrientMesh", Category="Layout")
     bool bOrientMesh = false;
 
+private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<USplineComponent> SplineComponentWeak;
 
-private:
 #if WITH_EDITOR
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<UCEClonerSplineLayout> PropertyChangeDispatcher;

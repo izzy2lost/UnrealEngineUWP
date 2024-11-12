@@ -2,15 +2,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/EngineTypes.h"
-#include "BonePose.h"
+#include "PhysicsControlPoseData.h"
 
 // Use the simulation space functions from the RBAN
 #include "BoneControllers/AnimNode_RigidBody.h" 
 
 struct FComponentSpacePoseContext;
 
-namespace RigidBodyWithControl
+namespace UE
+{
+namespace PhysicsControl
 {
 
 //======================================================================================================================
@@ -18,6 +19,7 @@ struct FOutputBoneData
 {
 	FOutputBoneData()
 		: CompactPoseBoneIndex(INDEX_NONE), CompactPoseParentBoneIndex(INDEX_NONE)
+		, BodyIndex(0), ParentBodyIndex(0)
 	{}
 
 	TArray<FCompactPoseBoneIndex> BoneIndicesToParentBody;
@@ -27,51 +29,15 @@ struct FOutputBoneData
 	int32 ParentBodyIndex;
 };
 
-//======================================================================================================================
-// Simple minimal implementation of a "FTransform without scale"
-struct FPosQuat
-{
-	FPosQuat(const FVector& Pos, const FQuat& Quat) : Translation(Pos), Rotation(Quat) {}
-	FPosQuat(const FQuat& Quat, const FVector& Pos) : Translation(Pos), Rotation(Quat) {}
-	FPosQuat(const FRotator& Rotator, const FVector& Pos) : Translation(Pos), Rotation(Rotator) {}
-	FPosQuat() : Translation(EForceInit::ForceInitToZero), Rotation(EForceInit::ForceInit) {}
-	FPosQuat(const FTransform& TM) : Translation(TM.GetTranslation()), Rotation(TM.GetRotation()) {}
-	FPosQuat(ENoInit) {}
-
-	FORCEINLINE FVector GetTranslation() const { return Translation; }
-	FORCEINLINE FQuat GetRotation() const { return Rotation; }
-
-	FORCEINLINE FTransform ToTransform() const
-	{
-		return FTransform(Rotation, Translation);
-	}
-
-	// Note that multiplication operates in the same sense as FTransform (i.e. "backwards")
-	FORCEINLINE FPosQuat operator*(const FPosQuat& Other) const
-	{
-		FQuat OutRotation = Other.Rotation * Rotation;
-		FVector OutTranslation = Other.Rotation * (Translation) + Other.Translation;
-		return FPosQuat(OutTranslation, OutRotation);
-	}
-
-	FORCEINLINE FVector operator*(const FVector& Position) const
-	{
-		return Translation + Rotation * Position;
-	}
-
-	FORCEINLINE FPosQuat Inverse() const
-	{
-		const FQuat OutRotation = Rotation.Inverse();
-		return FPosQuat(OutRotation * -Translation, OutRotation);
-	}
-
-	FVector Translation;
-	FQuat Rotation;
-};
 
 //======================================================================================================================
+// Caches the pose for RigidBodyWithControl
 struct FRigidBodyPoseData
 {
+public:
+	FRigidBodyPoseData() {}
+
+public:
 	void Update(
 		FComponentSpacePoseContext&    ComponentSpacePoseContext,
 		const TArray<FOutputBoneData>& OutputBoneData,
@@ -79,14 +45,17 @@ struct FRigidBodyPoseData
 		const FBoneReference&          BaseBoneRef,
 		const FGraphTraversalCounter&  InUpdateCounter);
 
-	FPosQuat GetTM(int32 Index) const { return BoneTMs[Index]; }
+	UE::PhysicsControl::FPosQuat GetTM(int32 Index) const { 
+		check(IsValidIndex(Index)); check(!BoneTMs[Index].ContainsNaN()); return BoneTMs[Index]; }
 	bool IsValidIndex(const int32 Index) const { return BoneTMs.IsValidIndex(Index); }
 	bool IsEmpty() const { return BoneTMs.IsEmpty(); }
+
+	void SetSize(const int32 NumBones) { BoneTMs.SetNum(NumBones); }
 
 	/**
 	 * The cached skeletal data, updated at the start of each tick
 	 */
-	TArray<FPosQuat> BoneTMs;
+	TArray<UE::PhysicsControl::FPosQuat> BoneTMs;
 
 	// Track when we were currently/last updated so the user can detect missing updates if calculating
 	// velocity etc
@@ -96,4 +65,5 @@ struct FRigidBodyPoseData
 	FGraphTraversalCounter ExpectedUpdateCounter;
 };
 
-}
+} // namespace PhysicsControl
+} // namespace UE

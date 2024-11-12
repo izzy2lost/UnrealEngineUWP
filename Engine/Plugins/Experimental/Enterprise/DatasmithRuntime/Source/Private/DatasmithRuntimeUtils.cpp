@@ -422,7 +422,7 @@ namespace DatasmithRuntime
 					{
 						Entry.Value->ClearFlags(RF_Public);
 						Entry.Value->SetFlags(RF_Transient);
-						Entry.Value->Rename(nullptr, nullptr, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+						Entry.Value->Rename(nullptr, nullptr, REN_NonTransactional | REN_DontCreateRedirectors);
 						Entry.Value->MarkAsGarbage();
 						Entry.Value.Reset();
 

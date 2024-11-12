@@ -9,6 +9,7 @@
 
 class FSerializedShaderArchive;
 class FShaderPreprocessOutput;
+class FSharedBuffer;
 struct FShaderCompilerEnvironment;
 struct FShaderCompilerInput;
 struct FShaderCompilerOutput;
@@ -63,6 +64,19 @@ public:
 	*/
 	virtual bool SupportsShaderArchives() const { return false; }
 	
+	UE_DEPRECATED(5.5, "Use version accepting a TArray of FSharedBuffer code buffers.")
+	virtual bool CreateShaderArchive(FString const& LibraryName,
+		FName ShaderFormatAndShaderPlatformName,
+		const FString& WorkingDirectory,
+		const FString& OutputDir,
+		const FString& DebugOutputDir,
+		const FSerializedShaderArchive& SerializedShaders,
+		const TArray<TArray<uint8>>& ShaderCode,
+		TArray<FString>* OutputFiles) const
+	{ 
+		return false; 
+	}
+
 	/**
      * Create a format specific archive for precompiled shader code.
      *
@@ -80,9 +94,11 @@ public:
 		const FString& OutputDir,
 		const FString& DebugOutputDir,
 		const FSerializedShaderArchive& SerializedShaders,
-		const TArray<TArray<uint8>>& ShaderCode,
+		const TArray<FSharedBuffer>& ShaderCode,
 		TArray<FString>* OutputFiles) const
-	{ return false; }
+	{ 
+		return false; 
+	}
 	
 	/**
 	 * Can the shader format compile shaders to the native binary format for the platform.
@@ -108,7 +124,7 @@ public:
 	 * Called when a shader resource is cooked, so the shader format can perform platform-specific operations on the debug data.
 	 * Does nothing on platforms that make no use of the platform debug data.
 	 */
-	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format) const { }
+	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format, const FString& DebugInfo = FString()) const { }
 
 	/** Called at the end of a cook to free resources and finalize artifacts created during the cook. */
 	virtual void NotifyShaderCompilersShutdown(FName Format) const { }
@@ -118,13 +134,6 @@ public:
 	 * @param KeyString String that will get shader key text appended to.
 	 */
 	virtual void AppendToKeyString(FString& KeyString) const { }
-
-	/**
-	 * Can the shader compiler use the HLSLcc library when compiling shaders
-	 * @returns True if the shader compiler can use the HLSLcc library when compiling shaders, otherwise false.
-	 */
-	UE_DEPRECATED(5.3, "UsesHLSLcc function is no longer used")
-	virtual bool UsesHLSLcc(const FShaderCompilerInput& Input) const { return false; }
 
 	/**
 	 * Execute all shader preprocessing steps, storing the output in the PreprocessOutput struct

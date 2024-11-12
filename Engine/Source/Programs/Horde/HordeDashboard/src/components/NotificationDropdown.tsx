@@ -10,6 +10,7 @@ import { JobDetailsV2 } from './jobDetailsV2/JobDetailsViewCommon';
 import { useQuery } from "./JobDetailCommon";
 import { getHordeStyling } from "../styles/Styles";
 
+
 type NotificationType = "Job" | "Step" | "Label";
 type NotificationOutcome = "Warnings" | "Success" | "Failure";
 
@@ -125,10 +126,10 @@ class SubscriptionHandler  {
          stepName = details.getStepName(this.stepId);
       }
 
-      const label = details.labelByIndex(this.labelIdx);
+      const label = details.labelByIndex(this.labelIdx)?.stateResponse
 
-      const labelName = label?.name;
-      const categoryName = label?.category;
+      const labelName = label?.dashboardName;
+      const categoryName = label?.dashboardCategory;
 
       const streamId = details.stream!.id;
 
@@ -306,10 +307,10 @@ class SubscriptionHandler  {
          return (s.event.type === type) && (s.event.streamId === details.stream?.id) && (s.event.templateId === templateId);
       });
 
-      let label = details.labelByIndex(this.labelIdx);
+      let label = details.labelByIndex(this.labelIdx)?.stateResponse;
 
       if (label) {
-         subs = subs?.filter((s) => (s.event as LabelCompleteEventRecord).labelName === label!.name && (s.event as LabelCompleteEventRecord).categoryName === label!.category);
+         subs = subs?.filter((s) => (s.event as LabelCompleteEventRecord).labelName === label!.dashboardName && (s.event as LabelCompleteEventRecord).categoryName === label!.dashboardCategory);
       }
 
       if (this.stepId) {
@@ -479,7 +480,7 @@ export const NotificationDropdown: React.FC<{ jobDetails: JobDetailsV2 }> = obse
    }
    if (label) {
       type = "Label";
-      const aggregate = jobDetails.findLabel(label.name, label.category)!;
+      const aggregate = jobDetails.findLabel(label.stateResponse.dashboardName ?? "", label.stateResponse.dashboardCategory)!;
       complete = aggregate?.stateResponse?.state === LabelState.Complete;
       subscribed = subHandler.nlabel?.slack ?? false;
    }
@@ -633,4 +634,3 @@ export const NotificationDropdown: React.FC<{ jobDetails: JobDetailsV2 }> = obse
 
    return <CommandBar items={notificationItems} onReduceData={() => undefined} />
 });
-

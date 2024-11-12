@@ -173,6 +173,25 @@ public:
 	{
 		return Impl::GetDefaultFromChannel(ChannelHandle).IsSet();
 	}
+
+	/**
+	* Set this channel to evaluate linear keys with interpolation.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Keys", meta = (DisplayName = "Set Interpolate Linear Keys (Integer)"))
+	void SetInterpolateLinearKeys(bool bInInterpolateLinearKeys)
+	{
+		ChannelHandle.Get()->bInterpolateLinearKeys = bInInterpolateLinearKeys;
+	}
+
+	/**
+	* Get whether this channel will evaluate linear keys with interpolation.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Keys", meta = (DisplayName = "Get Interpolate Linear Keys (Integer)"))
+	bool GetInterpolateLinearKeys() const
+	{
+		return ChannelHandle.Get()->bInterpolateLinearKeys;
+	}
+
 public:
 	TWeakObjectPtr<UMovieSceneSequence> OwningSequence;
 	TMovieSceneChannelHandle<FMovieSceneIntegerChannel> ChannelHandle;

@@ -119,6 +119,12 @@ private:
 	 */
 	void HandleTraceStopRequest(FTraceAuxiliary::EConnectionType TraceType, const FString& TraceDestination);
 
+	bool WaitForTraceSessionDisconnect();
+
+	void EnableRequiredTraceChannels();
+	void SaveAndDisabledCurrentEnabledTraceChannels();
+	void RestoreTraceChannelsToPreRecordingState();
+
 	bool bIsRecording = false;
 	bool bRequestedStop = false;
 
@@ -135,6 +141,8 @@ private:
 	FThreadSafeCounter LastGeneratedID;
 
 	FString LastRecordingFileNamePath;
+
+	TMap<FString, bool> OriginalTraceChannelsState;
 
 	static FRWLock DelegatesRWLock;
 };

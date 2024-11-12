@@ -124,7 +124,7 @@ void MainPS(
 				const float2 E = Hammersley(SampleIt, NumSamples[Set], 0);
 
 				// Sample generation
-				float3 L, H;
+				float3 L = 0, H = 0;
 				if (Set == 0)
 				{
 					H = TangentToWorld(ImportanceSampleGGX(E, Pow4(Roughness)).xyz, N);
@@ -183,6 +183,7 @@ void MainPS(
 					LightData.SourceLength				= 0.f;
 					LightData.SoftSourceRadius			= 0.f;
 					LightData.SpecularScale				= 1.0f;
+					LightData.DiffuseScale				= 1.0f;
 					LightData.ContactShadowLength		= 0.f;
 					LightData.ContactShadowLengthInWS	= 0.f;
 					LightData.ContactShadowCastingIntensity = 1.f;
@@ -212,7 +213,6 @@ void MainPS(
 						CameraVector, 
 						ScreenSpaceData.GBuffer, 
 						ScreenSpaceData.AmbientOcclusion, 
-						ScreenSpaceData.GBuffer.ShadingModelID, 
 						LightData, 
 						PixelLightAttenuation,
 						Dither, 

@@ -43,7 +43,7 @@ public:
 	static CHAOS_API int32 ClusterBonesUnderNewNodeWithParent(FGeometryCollection* GeometryCollection, const int32 ParentOfNewNode, const TArray<int32>& SelectedBones, bool CalcNewLocalTransform, bool Validate = true);
 
 	/** Cluster all existing bones under a new root node, so there is now only one root node and a completely flat hierarchy underneath it */
-	static CHAOS_API void ClusterAllBonesUnderNewRoot(FGeometryCollection* GeometryCollection);
+	static CHAOS_API void ClusterAllBonesUnderNewRoot(FGeometryCollection* GeometryCollection, FName RootName = NAME_None, bool bUpdateChildBoneNames = true);
 
 	/** Cluster all source bones under an existing node, algorithm chooses best node to add to 'closest to root' */
 	static CHAOS_API void ClusterBonesUnderExistingNode(FGeometryCollection* GeometryCollection, const TArray<int32>& SourceElements);

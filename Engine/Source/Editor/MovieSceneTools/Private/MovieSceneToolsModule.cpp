@@ -26,6 +26,7 @@
 #include "TrackEditors/PropertyTrackEditors/VectorPropertyTrackEditor.h"
 #include "TrackEditors/PropertyTrackEditors/TransformPropertyTrackEditor.h"
 #include "TrackEditors/PropertyTrackEditors/EulerTransformPropertyTrackEditor.h"
+#include "TrackEditors/PropertyTrackEditors/RotatorPropertyTrackEditor.h"
 #include "TrackEditors/PropertyTrackEditors/VisibilityPropertyTrackEditor.h"
 #include "TrackEditors/PropertyTrackEditors/ActorReferencePropertyTrackEditor.h"
 #include "TrackEditors/PropertyTrackEditors/StringPropertyTrackEditor.h"
@@ -55,6 +56,7 @@
 #include "TrackEditors/CVarTrackEditor.h"
 #include "TrackEditors/CustomPrimitiveDataTrackEditor.h"
 #include "TrackEditors/BindingLifetimeTrackEditor.h"
+#include "TrackEditors/TimeWarpTrackEditor.h"
 
 #include "Channels/PerlinNoiseChannelInterface.h"
 
@@ -67,6 +69,8 @@
 #include "MovieSceneObjectBindingIDCustomization.h"
 #include "MovieSceneDynamicBindingCustomization.h"
 #include "MovieSceneEventCustomization.h"
+#include "MovieSceneTimeWarpVariantCustomization.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
 #include "SequencerClipboardReconciler.h"
 #include "ClipboardTypes.h"
 #include "ISettingsModule.h"
@@ -81,6 +85,7 @@
 #include "Channels/MovieSceneByteChannel.h"
 #include "Channels/MovieSceneChannel.h"
 #include "Channels/MovieSceneEventChannel.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "Channels/MovieSceneObjectPathChannel.h"
 #include "Channels/MovieSceneCameraShakeSourceTriggerChannel.h"
 #include "Channels/MovieSceneStringChannel.h"
@@ -117,13 +122,24 @@
 #include "TransformableHandle.h"
 #include "Constraints/ComponentConstraintChannelInterface.h"
 #include "Constraints/TransformConstraintChannelInterface.h"
+#include "Bindings/MovieSceneReplaceableDirectorBlueprintBinding.h"
+#include "Bindings/MovieSceneSpawnableDirectorBlueprintBinding.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "MovieSceneDynamicBindingUtils.h"
+#include "EditModes/SubTrackEditorMode.h"
+#include "Kismet2/KismetEditorUtilities.h"
+
+#include "Conditions/MovieSceneDirectorBlueprintCondition.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionUtils.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
+#include "Conditions/MovieScenePlatformConditionCustomization.h"
 
 #define LOCTEXT_NAMESPACE "FMovieSceneToolsModule"
 
 TAutoConsoleVariable<bool> CVarDuplicateLinkedAnimSequence(TEXT("Sequencer.DuplicateLinkedAnimSequence"), false, TEXT("When true when we duplicate a level sequence that has a linked anim sequence it will duplicate and link the anim sequencel, if false we leave any link alone."));
 
 #if !IS_MONOLITHIC
-	UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
+UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 #endif
 
 void FMovieSceneToolsModule::StartupModule()
@@ -154,6 +170,7 @@ void FMovieSceneToolsModule::StartupModule()
 		DoubleVectorPropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FDoubleVectorPropertyTrackEditor>();
 		TransformPropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FTransformPropertyTrackEditor>();
 		EulerTransformPropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FEulerTransformPropertyTrackEditor>();
+		RotatorPropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FRotatorPropertyTrackEditor>();
 		VisibilityPropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FVisibilityPropertyTrackEditor>();
 		ActorReferencePropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FActorReferencePropertyTrackEditor>();
 		StringPropertyTrackCreateEditorHandle = SequencerModule.RegisterPropertyTrackEditor<FStringPropertyTrackEditor>();
@@ -184,11 +201,13 @@ void FMovieSceneToolsModule::StartupModule()
 		CVarTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FCVarTrackEditor::CreateTrackEditor));
 		CustomPrimitiveDataTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FCustomPrimitiveDataTrackEditor::CreateTrackEditor));
 		BindingLifetimeTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FBindingLifetimeTrackEditor::CreateTrackEditor));
+		TimeWarpTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FTimeWarpTrackEditor::CreateTrackEditor));
 
 		// register track models
 		CameraCutTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FCameraCutTrackModel::CreateTrackModel));
 		CinematicShotTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FCinematicShotTrackModel::CreateTrackModel));
 		BindingLifetimeTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FBindingLifetimeTrackModel::CreateTrackModel));
+		TimeWarpTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FTimeWarpTrackEditor::CreateTrackModel));
 
 		RegisterClipboardConversions();
 
@@ -201,8 +220,13 @@ void FMovieSceneToolsModule::StartupModule()
 		PropertyModule.RegisterCustomClassLayout("MovieSceneDoublePerlinNoiseChannelContainer", FOnGetDetailCustomizationInstance::CreateStatic(&FMovieSceneDoublePerlinNoiseChannelDetailsCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneObjectBindingID", FOnGetPropertyTypeCustomizationInstance::CreateLambda(&MakeShared<FMovieSceneObjectBindingIDCustomization>));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneDynamicBinding", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance));
+		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneEvent", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneEventCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneCVarOverrides", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&UE::MovieScene::FCVarOverridesPropertyTypeCustomization::MakeInstance));
+		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneTimeWarpVariant", FOnGetPropertyTypeCustomizationInstance::CreateLambda(&MakeShared<UE::MovieScene::FMovieSceneTimeWarpVariantCustomization>));
+		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneConditionCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout("MovieScenePlatformCondition", FOnGetDetailCustomizationInstance::CreateStatic(&FMovieScenePlatformConditionCustomization::MakeInstance));
+
 
 		SequencerModule.RegisterChannelInterface<FMovieSceneBoolChannel>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneByteChannel>();
@@ -214,6 +238,7 @@ void FMovieSceneToolsModule::StartupModule()
 		SequencerModule.RegisterChannelInterface<FMovieSceneActorReferenceData>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneEventSectionData>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneObjectPathChannel>();
+		SequencerModule.RegisterChannelInterface<FMovieSceneTimeWarpChannel>();
 
 		SequencerModule.RegisterChannelInterface<FMovieSceneAudioTriggerChannel>();
 
@@ -249,7 +274,13 @@ void FMovieSceneToolsModule::StartupModule()
 	UMovieSceneEventSectionBase::PostDuplicateSectionEvent.BindStatic(PostDuplicateEventSection);
 	UMovieSceneEventSectionBase::RemoveForCookEvent.BindStatic(RemoveForCookEventSection);
 	UMovieScene::IsTrackClassAllowedEvent.BindStatic(IsTrackClassAllowed);
+	UMovieScene::IsCustomBindingClassAllowedEvent.BindStatic(IsCustomBindingClassAllowed);
+	UMovieScene::IsConditionClassAllowedEvent.BindStatic(IsConditionClassAllowed);
 	ULevelSequence::PostDuplicateEvent.BindStatic(PostDuplicateEvent);
+	FixupDynamicBindingsHandle = ULevelSequence::FixupDynamicBindingsEvent.AddStatic(FixupDynamicBindingsEvent); 
+	FixupDirectorBlueprintConditionPayloadParameterNameHandle = UMovieScene::FixupDirectorBlueprintConditionPayloadParameterNameEvent.AddStatic(FixupPayloadParameterNameForDirectorBlueprintCondition);
+
+
 
 	auto OnObjectsReplaced = [](const TMap<UObject*, UObject*>& ReplacedObjects)
 	{
@@ -273,6 +304,12 @@ void FMovieSceneToolsModule::StartupModule()
 		FSlateIcon(),
 		false);
 
+	FEditorModeRegistry::Get().RegisterMode<FSubTrackEditorMode>(
+		FSubTrackEditorMode::ModeName,
+		NSLOCTEXT("SubTrackEditorMode", "SubTrackEditMode", "Sub Track Mode"),
+		FSlateIcon(),
+		false);
+
 	// register UTransformableComponentHandle animatable interface
 	FConstraintChannelInterfaceRegistry& ConstraintChannelInterfaceRegistry = FConstraintChannelInterfaceRegistry::Get();
 	ConstraintChannelInterfaceRegistry.RegisterConstraintChannelInterface<UTransformableComponentHandle>(MakeUnique<FComponentConstraintChannelInterface>());
@@ -286,7 +323,11 @@ void FMovieSceneToolsModule::ShutdownModule()
 	UMovieSceneEventSectionBase::PostDuplicateSectionEvent = UMovieSceneEventSectionBase::FPostDuplicateEvent();
 	UMovieSceneEventSectionBase::RemoveForCookEvent = UMovieSceneEventSectionBase::FRemoveForCookEvent();
 	UMovieScene::IsTrackClassAllowedEvent = UMovieScene::FIsTrackClassAllowedEvent();
+	UMovieScene::IsCustomBindingClassAllowedEvent = UMovieScene::FIsCustomBindingClassAllowedEvent();
+	UMovieScene::IsConditionClassAllowedEvent = UMovieScene::FIsConditionClassAllowedEvent();
 	ULevelSequence::PostDuplicateEvent = ULevelSequence::FPostDuplicateEvent();
+	ULevelSequence::FixupDynamicBindingsEvent.Remove(FixupDynamicBindingsHandle);
+	UMovieScene::FixupDirectorBlueprintConditionPayloadParameterNameEvent.Remove(FixupDirectorBlueprintConditionPayloadParameterNameHandle);
 
 	if (ICurveEditorModule* CurveEditorModule = FModuleManager::GetModulePtr<ICurveEditorModule>("CurveEditor"))
 	{
@@ -319,6 +360,7 @@ void FMovieSceneToolsModule::ShutdownModule()
 	SequencerModule.UnRegisterTrackEditor( DoubleVectorPropertyTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( TransformPropertyTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( EulerTransformPropertyTrackCreateEditorHandle );
+	SequencerModule.UnRegisterTrackEditor( RotatorPropertyTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( VisibilityPropertyTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( ActorReferencePropertyTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( StringPropertyTrackCreateEditorHandle );
@@ -349,10 +391,13 @@ void FMovieSceneToolsModule::ShutdownModule()
 	SequencerModule.UnRegisterTrackEditor( CVarTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( CustomPrimitiveDataTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( BindingLifetimeTrackCreateEditorHandle );
+	SequencerModule.UnRegisterTrackEditor( TimeWarpTrackCreateEditorHandle );
 
 	// unregister track models
 	SequencerModule.UnregisterTrackModel( CameraCutTrackModelHandle );
 	SequencerModule.UnregisterTrackModel( CinematicShotTrackModelHandle );
+	SequencerModule.UnregisterTrackModel( BindingLifetimeTrackModelHandle );
+	SequencerModule.UnregisterTrackModel( TimeWarpTrackModelHandle );
 
 	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{	
@@ -362,9 +407,14 @@ void FMovieSceneToolsModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout("EAlphaBlendOption");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneObjectBindingID");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneEvent");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneDynamicBinding");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneConditionContainer");
+		PropertyModule.UnregisterCustomClassLayout("MovieScenePlatformCondition");
 	}
 
 	FEditorModeRegistry::Get().UnregisterMode(FSkeletalAnimationTrackEditMode::ModeName);
+	FEditorModeRegistry::Get().UnregisterMode(FSubTrackEditorMode::ModeName);
 
 }
 
@@ -436,6 +486,19 @@ void FMovieSceneToolsModule::PostDuplicateEvent(ULevelSequence* LevelSequence)
 					}
 				}
 			}
+		}
+	}
+}
+
+
+void FMovieSceneToolsModule::FixupDynamicBindingsEvent(ULevelSequence* LevelSequence)
+{
+	if (LevelSequence)
+	{
+		if (UBlueprint* DirectorBlueprint = LevelSequence->GetDirectorBlueprint())
+		{
+			FMovieSceneDynamicBindingUtils::EnsureBlueprintExtensionCreated(LevelSequence, DirectorBlueprint);
+			FKismetEditorUtilities::CompileBlueprint(DirectorBlueprint);
 		}
 	}
 }
@@ -537,7 +600,7 @@ bool FMovieSceneToolsModule::UpgradeLegacyEventEndpointForSection(UMovieSceneEve
 	return true;
 }
 
-bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
+bool IsMovieSceneClassAllowed(const UClass* InClass)
 {
 	if (!InClass)
 	{
@@ -555,6 +618,28 @@ bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
 	}
 
 	return true;
+}
+
+bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
+{
+	return IsMovieSceneClassAllowed(InClass);
+}
+
+bool FMovieSceneToolsModule::IsCustomBindingClassAllowed(UClass* InClass)
+{
+	// For now this has the same implementation as IsTrackClassAllowed, but has been kept a separate function and event in the case we want
+	// different behavior here.
+
+	return IsMovieSceneClassAllowed(InClass);
+}
+
+
+bool FMovieSceneToolsModule::IsConditionClassAllowed(const UClass* InClass)
+{
+	// For now this has the same implementation as IsTrackClassAllowed, but has been kept a separate function and event in the case we want
+	// different behavior here.
+
+	return IsMovieSceneClassAllowed(InClass);
 }
 
 void FMovieSceneToolsModule::FixupPayloadParameterNameForSection(UMovieSceneEventSectionBase* Section, UK2Node* InNode, FName OldPinName, FName NewPinName)
@@ -583,6 +668,8 @@ void FMovieSceneToolsModule::FixupPayloadParameterNameForSection(UMovieSceneEven
 
 void FMovieSceneToolsModule::FixupPayloadParameterNameForDynamicBinding(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName)
 {
+	using namespace UE::MovieScene;
+
 	check(MovieScene);
 
 	auto FixupPayloadParameterName = [InNode, OldPinName, NewPinName](FMovieSceneDynamicBinding& DynamicBinding)
@@ -597,15 +684,48 @@ void FMovieSceneToolsModule::FixupPayloadParameterNameForDynamicBinding(UMovieSc
 		}
 	};
 
-	for (int32 Index = 0, PossessableCount = MovieScene->GetPossessableCount(); Index < PossessableCount; ++Index)
-	{
-		FixupPayloadParameterName(MovieScene->GetPossessable(Index).DynamicBinding);
-	}
+	UMovieSceneSequence* ThisSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+	TSharedRef<UE::MovieScene::FSharedPlaybackState> TransientPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(GEditor->GetEditorWorldContext().World(), ThisSequence);
 
-	for (int32 Index = 0, SpawnableCount = MovieScene->GetSpawnableCount(); Index < SpawnableCount; ++Index)
+	if (FMovieSceneBindingReferences* BindingReferences = MovieScene->GetTypedOuter<UMovieSceneSequence>()->GetBindingReferences())
 	{
-		FixupPayloadParameterName(MovieScene->GetSpawnable(Index).DynamicBinding);
+		for (FMovieSceneBindingReference& BindingReference : BindingReferences->GetAllReferences())
+		{
+			if (BindingReference.CustomBinding)
+			{
+				if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableDirectorBlueprintBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(BindingReference.CustomBinding))
+				{
+					FixupPayloadParameterName(ReplaceableDirectorBlueprintBinding->DynamicBinding);
+				}
+
+				if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableDirectorBlueprintBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(BindingReference.CustomBinding->AsSpawnable(TransientPlaybackState)))
+				{
+					FixupPayloadParameterName(SpawnableDirectorBlueprintBinding->DynamicBinding);
+				}
+			}
+		}
 	}
+}
+
+void FMovieSceneToolsModule::FixupPayloadParameterNameForDirectorBlueprintCondition(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName)
+{
+	using namespace UE::MovieScene;
+
+	check(MovieScene);
+
+	auto FixupPayloadParameterName = [InNode, OldPinName, NewPinName](FMovieSceneDirectorBlueprintConditionData& DirectorBlueprintConditionData)
+	{
+		if (DirectorBlueprintConditionData.WeakEndpoint.Get() == InNode)
+		{
+			if (FMovieSceneDirectorBlueprintConditionPayloadVariable* Variable = DirectorBlueprintConditionData.PayloadVariables.Find(OldPinName))
+			{
+				DirectorBlueprintConditionData.PayloadVariables.Add(NewPinName, MoveTemp(*Variable));
+				DirectorBlueprintConditionData.PayloadVariables.Remove(OldPinName);
+			}
+		}
+	};
+
+	FMovieSceneDirectorBlueprintConditionUtils::IterateDirectorBlueprintConditions(MovieScene, FixupPayloadParameterName);
 }
 
 void FMovieSceneToolsModule::RegisterClipboardConversions()

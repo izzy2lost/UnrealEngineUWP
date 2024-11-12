@@ -4,7 +4,7 @@
 #include "Installer/Controllable.h"
 #include "Common/SpeedRecorder.h"
 #include "BuildPatchManifest.h"
-
+#include "Interfaces/IBuildInstallerSharedContext.h"
 
 namespace BuildPatchServices
 {
@@ -91,7 +91,7 @@ namespace BuildPatchServices
 		 * @param StagedFileDirectory   A stage directory for updated files, ignored if empty string. If a file exists here, it will be checked instead of the one in VerifyDirectory.
 		 * @return     Ref of an object that can be used to perform the operation.
 		 */
-		static IVerifier* Create(IFileSystem* FileSystem, IVerifierStat* VerifierStat, EVerifyMode VerifyMode, IBuildManifestSet* ManifestSet, FString VerifyDirectory, FString StagedFileDirectory);
+		static IVerifier* Create(IFileSystem* FileSystem, IVerifierStat* VerifierStat, EVerifyMode VerifyMode, IBuildInstallerSharedContextPtr SharedContext, IBuildManifestSet* ManifestSet, FString VerifyDirectory, FString StagedFileDirectory);
 	};
 
 	/**

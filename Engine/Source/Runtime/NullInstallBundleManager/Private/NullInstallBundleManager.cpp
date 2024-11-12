@@ -4,9 +4,9 @@
 #include "InstallBundleManagerModule.h"
 #include "Modules/ModuleManager.h"
 
-class FNullInstallBundleManager : public IInstallBundleManager
+class FNullInstallBundleManager final : public IInstallBundleManager
 {
-	virtual bool HasBundleSource(EInstallBundleSourceType SourceType) const override
+	virtual bool HasBundleSource(FInstallBundleSourceType SourceType) const override
 	{
 		return false;
 	}
@@ -132,7 +132,9 @@ class FNullInstallBundleManager : public IInstallBundleManager
 	}
 	virtual void UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags) override
 	{
-
+	}
+	virtual void SetCellularPreference(int32 Value) override
+	{
 	}
 
 	virtual void SetCacheSize(FName CacheName, uint64 CacheSize) override

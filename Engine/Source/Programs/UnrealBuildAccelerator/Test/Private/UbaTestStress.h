@@ -72,9 +72,7 @@ namespace uba
 			cinfo.workDir = coordinatorWorkDir.data;
 			cinfo.binariesDir = binariesDir.data;
 
-			cinfo.uri = TC("https://horde-uri");
 			cinfo.pool = TC("PoolToUse");
-			cinfo.oidc = TC("Oidc");
 
 
 			cinfo.maxCoreCount = 400;
@@ -128,7 +126,7 @@ namespace uba
 
 					if (u32 exitCode = ph.GetExitCode())
 					{
-						rec->logger.Error(TC("Process %s failed with exit code %u"), ph.GetStartInfo().description, exitCode);
+						rec->logger.Error(TC("Process %s failed with exit code %u"), ph.GetStartInfo().GetDescription(), exitCode);
 						rec->error = true;
 					}
 					else

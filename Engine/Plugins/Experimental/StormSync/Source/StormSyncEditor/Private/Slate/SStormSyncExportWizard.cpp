@@ -28,8 +28,6 @@ namespace StormSync::ExportWizardInternal
 	static FString Default_FileExtension = TEXT(".spak");
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SStormSyncExportWizard::Construct(const FArguments& InArgs, const TArray<FName>& InInitialPackageNames, const TArray<FName>& InPackageNames, const FOnExportWizardCompleted& InOnExportWizardCompleted)
 {
 	OnWizardCompleted = InOnExportWizardCompleted;
@@ -240,8 +238,6 @@ void SStormSyncExportWizard::Construct(const FArguments& InArgs, const TArray<FN
 		]
 	];
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SStormSyncExportWizard::OpenWizard(const TArray<FName>& InInitialPackageNames, const TArray<FName>& PackageNames, const FOnExportWizardCompleted& InOnExportWizardCompleted)
 {

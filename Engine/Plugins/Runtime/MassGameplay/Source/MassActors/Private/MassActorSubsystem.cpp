@@ -17,11 +17,14 @@ void FMassActorFragment::SetAndUpdateHandleMap(const FMassEntityHandle MassAgent
 {
 	SetNoHandleMapUpdate(MassAgent, InActor, bInIsOwnedByMass);
 
-	UWorld* World = InActor->GetWorld();
-	check(World);
-	if (UMassActorSubsystem* MassActorSubsystem = UWorld::GetSubsystem<UMassActorSubsystem>(World))
+	if (InActor)
 	{
-		MassActorSubsystem->SetHandleForActor(InActor, MassAgent);
+		UWorld* World = InActor->GetWorld();
+		check(World);
+		if (UMassActorSubsystem* MassActorSubsystem = UWorld::GetSubsystem<UMassActorSubsystem>(World))
+		{
+			MassActorSubsystem->SetHandleForActor(InActor, MassAgent);
+		}
 	}
 }
 

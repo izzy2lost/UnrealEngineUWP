@@ -44,12 +44,33 @@ bool CollectExternalData(const FStateTreeExecutionContext& Context, const UState
 			{
 				if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
 				{
+					UE_LOG(LogMass, Error, TEXT("Missing Fragment: %s"), *GetNameSafe(ScriptStruct));
+
 					// Note: Not breaking here, so that we can validate all missing ones in one go.
 					bFoundAll = false;
 				}
 			}
 		}
 		else if (DataDesc.Struct->IsChildOf(FMassSharedFragment::StaticStruct()))
+		{
+			const UScriptStruct* ScriptStruct = Cast<const UScriptStruct>(DataDesc.Struct);
+			FStructView Fragment = EntityView.GetSharedFragmentDataStruct(ScriptStruct);
+			if (Fragment.IsValid())
+			{
+				OutDataViews[Index] = FStateTreeDataView(Fragment.GetScriptStruct(), Fragment.GetMemory());
+			}
+			else
+			{
+				if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
+				{
+					UE_LOG(LogMass, Error, TEXT("Missing Shared Fragment: %s"), *GetNameSafe(ScriptStruct));
+
+					// Note: Not breaking here, so that we can validate all missing ones in one go.
+					bFoundAll = false;
+				}
+			}
+		}
+		else if (DataDesc.Struct->IsChildOf(FMassConstSharedFragment::StaticStruct()))
 		{
 			const UScriptStruct* ScriptStruct = Cast<const UScriptStruct>(DataDesc.Struct);
 			FConstStructView Fragment = EntityView.GetConstSharedFragmentDataStruct(ScriptStruct);
@@ -61,6 +82,8 @@ bool CollectExternalData(const FStateTreeExecutionContext& Context, const UState
 			{
 				if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
 				{
+					UE_LOG(LogMass, Error, TEXT("Missing Const Shared Fragment: %s"), *GetNameSafe(ScriptStruct));
+
 					// Note: Not breaking here, so that we can validate all missing ones in one go.
 					bFoundAll = false;
 				}
@@ -78,6 +101,8 @@ bool CollectExternalData(const FStateTreeExecutionContext& Context, const UState
 			{
 				if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
 				{
+					UE_LOG(LogMass, Error, TEXT("Missing Subsystem: %s"), *GetNameSafe(SubClass));
+
 					// Note: Not breaking here, so that we can validate all missing ones in one go.
 					bFoundAll = false;
 				}

@@ -3,7 +3,6 @@
 #include "CameraCalibrationStepsController.h"
 
 #include "AssetRegistry/AssetData.h"
-#include "CalibrationPointComponent.h"
 #include "Camera/CameraActor.h"
 #include "CameraCalibrationEditorLog.h"
 #include "CameraCalibrationSettings.h"
@@ -16,6 +15,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "CompositingCaptureBase.h"
 #include "CompositingElement.h"
+#include "ContentBrowserDataSubsystem.h"
 #include "CompositingElements/CompositingElementInputs.h"
 #include "CompositingElements/CompositingElementOutputs.h"
 #include "CompositingElements/CompositingElementPasses.h"
@@ -26,6 +26,7 @@
 #include "Engine/UserDefinedEnum.h"
 #include "EngineUtils.h"
 #include "ICompElementManager.h"
+#include "IContentBrowserDataModule.h"
 #include "Input/Events.h"
 #include "Kismet/KismetRenderingLibrary.h"
 #include "LensComponent.h"
@@ -33,10 +34,10 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MediaPlayer.h"
+#include "MediaPlaylist.h"
 #include "MediaSource.h"
 #include "MediaTexture.h"
 #include "Misc/MessageDialog.h"
-#include "Models/SphericalLensModel.h"
 #include "Modules/ModuleManager.h"
 #include "Profile/IMediaProfileManager.h"
 #include "Profile/MediaProfile.h"
@@ -66,6 +67,40 @@ namespace CameraCalibrationStepsController
 			return CompElementManager.Get();
 		}
 		return nullptr;
+	}
+
+	/** Gets all assets of type TObject from the content browser */
+	template<typename TObject>
+	TArray<TSoftObjectPtr<TObject>> GetUObjectAssets()
+	{
+		TArray<TSoftObjectPtr<TObject>> Assets;
+	
+		UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+
+		FContentBrowserDataFilter Filter;
+		Filter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFiles;
+		Filter.ItemCategoryFilter = EContentBrowserItemCategoryFilter::IncludeAssets | EContentBrowserItemCategoryFilter::IncludeClasses | EContentBrowserItemCategoryFilter::IncludeCollections;
+		Filter.ItemAttributeFilter = EContentBrowserItemAttributeFilter::IncludeProject;
+		Filter.bRecursivePaths = true;
+	
+		FContentBrowserDataClassFilter& ClassFilter = Filter.ExtraFilters.FindOrAddFilter<FContentBrowserDataClassFilter>();
+		ClassFilter.ClassNamesToInclude.Add(TObject::StaticClass()->GetClassPathName().ToString());
+		ClassFilter.bRecursiveClassNamesToInclude = true;
+		ClassFilter.bRecursiveClassNamesToExclude = false;
+
+		ContentBrowserData->EnumerateItemsUnderPath(TEXT("/"), Filter, [&Assets](FContentBrowserItemData&& InItemData)
+		{
+			TSoftObjectPtr<TObject> MediaSourcePtr(FSoftObjectPath(InItemData.GetInternalPath().ToString()));
+
+			if (MediaSourcePtr.IsValid() || MediaSourcePtr.IsPending())
+			{
+				Assets.Add(MediaSourcePtr);
+			}
+		
+			return true;
+		});
+
+		return Assets;
 	}
 }
 
@@ -683,15 +718,7 @@ void FCameraCalibrationStepsController::CreateComp()
 			NewFlagSetting.ShowFlagName = FEngineShowFlags::FindNameByIndex(FEngineShowFlags::EShowFlag::SF_Fog);
 			NewFlagSetting.Enabled = false;
 
-			CaptureComponent->ShowFlagSettings.Add(NewFlagSetting);
-
-			if (FProperty* ShowFlagSettingsProperty = CaptureComponent->GetClass()->FindPropertyByName(
-				GET_MEMBER_NAME_CHECKED(USceneCaptureComponent2D, ShowFlagSettings)))
-			{
-				// This PostEditChange will ensure that ShowFlags is updated.
-				FPropertyChangedEvent PropertyChangedEvent(ShowFlagSettingsProperty);
-				CaptureComponent->PostEditChangeProperty(PropertyChangedEvent);
-			}
+			CaptureComponent->SetShowFlagSettings({ NewFlagSetting });
 		}
 	}
 
@@ -1191,6 +1218,18 @@ bool FCameraCalibrationStepsController::OnSimulcamViewportInputKey(const FKey& I
 	return bStepHandled;
 }
 
+void FCameraCalibrationStepsController::OnSimulcamViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition)
+{
+	for (TStrongObjectPtr<UCameraCalibrationStep>& Step : CalibrationSteps)
+	{
+		if (Step.IsValid() && Step->IsActive())
+		{
+			Step->OnViewportMarqueeSelect(StartPosition, EndPosition);
+			break;
+		}
+	}
+}
+
 FReply FCameraCalibrationStepsController::OnRewindButtonClicked()
 {
 	// Rewind to the beginning of the media
@@ -1526,43 +1565,121 @@ const ULensDistortionModelHandlerBase* FCameraCalibrationStepsController::GetDis
 	return nullptr;
 }
 
-bool FCameraCalibrationStepsController::SetMediaSourceUrl(const FString& InMediaSourceUrl)
+bool FCameraCalibrationStepsController::SetMediaSource(UMediaSource* InMediaSource)
 {
-	const UMediaProfile* MediaProfile = IMediaProfileManager::Get().GetCurrentMediaProfile();
-
-	if (!MediaProfile || !MediaPlayer.IsValid())
+	ClearMedia();
+	
+	if (!MediaPlayer.IsValid())
 	{
 		return false;
 	}
 
-	// If we're already playing it, we're done
-	if (InMediaSourceUrl == GetMediaSourceUrl())
+	if (!InMediaSource)
 	{
 		return true;
 	}
+	
+	MediaPlayer->OpenSource(InMediaSource);
+	MediaPlayer->Play();
+	return false;
+}
 
-	if (InMediaSourceUrl == TEXT("None") || !InMediaSourceUrl.Len())
+bool FCameraCalibrationStepsController::SetMediaTexture(UMediaTexture* InMediaTexture)
+{
+	ClearMedia();
+	
+	if (!MediaPlate.IsValid())
 	{
-		MediaPlayer->Close();
-		return true;
+		return false;
+	}
+	
+	ExternalMediaTexture = InMediaTexture;
+
+	UMediaTexture* Texture = nullptr;
+	if (ExternalMediaTexture.IsValid())
+	{
+		Texture = ExternalMediaTexture.Get();
+	}
+	else
+	{
+		Texture = MediaTexture.Get();
+	}
+
+	if (Texture)
+	{
+		for (UCompositingElementInput* Input : MediaPlate->GetInputsList())
+		{
+			UMediaTextureCompositingInput* MediaInput = Cast<UMediaTextureCompositingInput>(Input);
+
+			if (!MediaInput)
+			{
+				continue;
+			}
+
+			MediaInput->MediaSource = Texture;
+			break;
+		}
+	}
+	
+	return true;
+}
+
+void FCameraCalibrationStepsController::ClearMedia()
+{
+	if (!MediaPlate.IsValid())
+	{
+		return;
+	}
+
+	MediaPlayer->Close();
+
+	ExternalMediaTexture = nullptr;
+	if (MediaTexture.IsValid())
+	{
+		for (UCompositingElementInput* Input : MediaPlate->GetInputsList())
+		{
+			UMediaTextureCompositingInput* MediaInput = Cast<UMediaTextureCompositingInput>(Input);
+
+			if (!MediaInput)
+			{
+				continue;
+			}
+
+			MediaInput->MediaSource = MediaTexture.Get();
+			break;
+		}
+	}
+}
+
+void FCameraCalibrationStepsController::GetMediaProfileSources(TArray<TWeakObjectPtr<UMediaSource>>& OutSources) const
+{
+	const UMediaProfile* MediaProfile = IMediaProfileManager::Get().GetCurrentMediaProfile();
+	if (!MediaProfile)
+	{
+		return;
 	}
 
 	for (int32 MediaSourceIdx = 0; MediaSourceIdx < MediaProfile->NumMediaSources(); ++MediaSourceIdx)
 	{
-		UMediaSource* MediaSource = MediaProfile->GetMediaSource(MediaSourceIdx);
-
-		if (!MediaSource || (MediaSource->GetUrl() != InMediaSourceUrl))
+		if (UMediaSource* MediaSource = MediaProfile->GetMediaSource(MediaSourceIdx))
 		{
-			continue;
+			// Media player will only play valid media sources, so only return the valid media sources from the profile
+			if (MediaSource->Validate())
+			{
+				OutSources.Add(TWeakObjectPtr<UMediaSource>(MediaSource));
+			}
 		}
-
-		MediaPlayer->OpenSource(MediaSource);
-		MediaPlayer->Play();
-
-		return true;
 	}
+}
 
-	return false;
+TArray<TSoftObjectPtr<UMediaSource>> FCameraCalibrationStepsController::GetMediaSourceAssets() const
+{
+	return CameraCalibrationStepsController::GetUObjectAssets<UMediaSource>();
+}
+
+TArray<TSoftObjectPtr<UMediaTexture>> FCameraCalibrationStepsController::GetMediaTextureAssets() const
+{
+	return CameraCalibrationStepsController::GetUObjectAssets<UMediaTexture>();
 }
 
 /** Gets the current media source url being played. Empty if None */
@@ -1576,22 +1693,19 @@ FString FCameraCalibrationStepsController::GetMediaSourceUrl() const
 	return MediaPlayer->GetUrl();
 }
 
-void FCameraCalibrationStepsController::FindMediaSourceUrls(TArray<TSharedPtr<FString>>& OutMediaSourceUrls) const
+UMediaSource* FCameraCalibrationStepsController::GetMediaSource() const
 {
-	const UMediaProfile* MediaProfile = IMediaProfileManager::Get().GetCurrentMediaProfile();
-
-	if (!MediaProfile)
+	if (!MediaPlayer.IsValid())
 	{
-		return;
+		return nullptr;
 	}
 
-	for (int32 MediaSourceIdx = 0; MediaSourceIdx < MediaProfile->NumMediaSources(); ++MediaSourceIdx)
-	{
-		if (const UMediaSource* MediaSource = MediaProfile->GetMediaSource(MediaSourceIdx))
-		{
-			OutMediaSourceUrls.Add(MakeShared<FString>(MediaSource->GetUrl()));
-		}
-	}
+	return MediaPlayer->GetPlaylist()->Get(MediaPlayer->GetPlaylistIndex());
+}
+
+UMediaTexture* FCameraCalibrationStepsController::GetMediaTexture() const
+{
+	return ExternalMediaTexture.Get();
 }
 
 const TConstArrayView<TStrongObjectPtr<UCameraCalibrationStep>> FCameraCalibrationStepsController::GetCalibrationSteps() const

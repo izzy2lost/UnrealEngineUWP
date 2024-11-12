@@ -27,6 +27,9 @@ class UBrowserBinding : public UObject
 private:
 	void SwitchDragDropOp(TArray<FString> URLs, TSharedRef<FAssetDragDropOp> DragDropOperation);
 	
+	void OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, const TArray<AActor*>& DroppedActors);
+	void OnApplyObjectToActor(UObject* DroppedObj, AActor* TargetActor);
+
 public:
 	FOnDialogSuccess DialogSuccessDelegate;
 	FOnDialogFail DialogFailDelegate;

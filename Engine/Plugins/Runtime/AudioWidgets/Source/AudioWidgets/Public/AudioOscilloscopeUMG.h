@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AudioOscilloscopeEnums.h"
 #include "AudioOscilloscopePanelStyle.h"
 #include "AudioWidgetsEnums.h"
 #include "Components/Widget.h"
@@ -39,60 +40,68 @@ public:
 #endif
 
 	/** Starts the oscilloscope processing. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Oscilloscope")
 	void StartProcessing();
 
 	/** Stops the oscilloscope processing. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Oscilloscope")
 	void StopProcessing();
 
 	/** The oscilloscope panel style */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Style", meta=(DisplayName="Style"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Style", meta=(DisplayName="Style"))
 	FAudioOscilloscopePanelStyle OscilloscopeStyle;
 
 	/** The audio bus used to obtain audio samples for the oscilloscope */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (DesignerRebuild = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (DesignerRebuild = "True"))
 	TObjectPtr<UAudioBus> AudioBus = nullptr;
 
+	/** The max time window in milliseconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (UIMin = 10.0, UIMax = 5000.0, ClampMin = 10.0, ClampMax = 5000.0))
+	float MaxTimeWindowMs = 5000.0f;
+
 	/** The time window in milliseconds. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (UIMin = 10, UIMax = 5000, ClampMin = 10, ClampMax = 5000))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (UIMin = 10.0, ClampMin = 10.0))
 	float TimeWindowMs = 10.0f;
 
 	/** The analysis period in milliseconds. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (UIMin = 10, UIMax = 1000, ClampMin = 10, ClampMax = 1000))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (UIMin = 10, UIMax = 1000, ClampMin = 10, ClampMax = 1000))
 	float AnalysisPeriodMs = 10.0f;
 
 	/** Show/Hide the time grid. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values")
 	bool bShowTimeGrid = true;
 
 	/** Define the time grid labels unit. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values")
 	EXAxisLabelsUnit TimeGridLabelsUnit = EXAxisLabelsUnit::Samples;
 
 	/** Show/Hide the amplitude grid. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values")
 	bool bShowAmplitudeGrid = true;
 
 	/** Show/Hide the amplitude labels. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values")
 	bool bShowAmplitudeLabels = true;
 
 	/** Define the amplitude grid labels unit. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values")
 	EYAxisLabelsUnit AmplitudeGridLabelsUnit = EYAxisLabelsUnit::Linear;
 
-	/** Show/Hide the trigger threshold line. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
-	bool bShowTriggerThresholdLine = false;
+	/** The trigger detection behavior. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (EditCondition = "CanTriggeringBeSet()", EditConditionHides))
+	EAudioOscilloscopeTriggerMode TriggerMode = EAudioOscilloscopeTriggerMode::None;
 
 	/** The trigger threshold position in the Y axis. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (UIMin = -1, UIMax = 1, ClampMin = -1, ClampMax = 1))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (UIMin = -1, UIMax = 1, ClampMin = -1, ClampMax = 1, EditCondition = "CanTriggeringBeSet() && TriggerMode != EAudioOscilloscopeTriggerMode::None", EditConditionHides))
 	float TriggerThreshold = 0.0f;
 
 	/** Show/Hide advanced panel layout. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (DesignerRebuild = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (DesignerRebuild = "True"))
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
+
+	/** The channel to analyze with the oscilloscope (only available if PanelLayoutType is set to "Advanced"). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Oscilloscope Values", meta = (EditCondition = "PanelLayoutType == EAudioPanelLayoutType::Advanced", EditConditionHides))
+	int32 ChannelToAnalyze = 1;
 
 private:
 	void CreateDummyOscilloscopeWidget();
@@ -102,6 +111,9 @@ private:
 	// UWidget overrides
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	
+	UFUNCTION()
+	bool CanTriggeringBeSet();
+
 	// The underlying audio samples data provider
 	TSharedPtr<AudioWidgets::FWaveformAudioSamplesDataProvider> AudioSamplesDataProvider;
 
@@ -112,6 +124,8 @@ private:
 	static constexpr uint32 DummySampleRate   = 48000;
 	static constexpr int32 DummyMaxNumSamples = DummySampleRate * 5;
 	static constexpr int32 DummyNumChannels   = 1;
+
+	int32 NumChannels = DummyNumChannels;
 
 	TArray<float> DummyAudioSamples;
 	FFixedSampledSequenceView DummyDataView;

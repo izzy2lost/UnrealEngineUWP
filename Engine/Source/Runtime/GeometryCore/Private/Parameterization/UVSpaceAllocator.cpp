@@ -432,6 +432,12 @@ bool FUVSpaceAllocator::TestOneRun(const FRun& ThisRun, const FRun& OtherRun, ui
 
 void FUVSpaceAllocator::FlipX( const FRect& Rect )
 {
+	// If we don't actually have anything in our rasterization, then there's no point in flipping anything. Return Early.
+	if (RasterHeight == 0 && RasterWidth == 0)
+	{
+		return;
+	}
+
 	// If we have empty padding around the Rect, keep it there
 	uint32 MaxX = 0;
 	uint32 MaxY = RasterHeight - 1;
@@ -472,6 +478,12 @@ void FUVSpaceAllocator::FlipX( const FRect& Rect )
 
 void FUVSpaceAllocator::FlipY( const FRect& Rect )
 {
+	// If we don't actually have anything in our rasterization, then there's no point in flipping anything. Return Early.
+	if (RasterHeight == 0 && RasterWidth == 0)
+	{
+		return;
+	}
+
 	uint32 MinY = 0;
 	uint32 MaxY = RasterHeight - 1;
 

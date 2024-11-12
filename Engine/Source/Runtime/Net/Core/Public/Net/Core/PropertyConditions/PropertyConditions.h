@@ -24,9 +24,10 @@ public:
 
 	static NETCORE_API FNetPropertyConditionManager& Get();
 
-	NETCORE_API void SetPropertyActive(const FObjectKey ObjectKey, const uint16 RepIndex, const bool bActive);
-	NETCORE_API void SetPropertyDynamicCondition(const FObjectKey ObjectKey, const uint16 RepIndex, const ELifetimeCondition Condition);
-
+	NETCORE_API void SetPropertyActive(const UObject* Object, const uint16 RepIndex, const bool bActive);
+	NETCORE_API void SetPropertyActiveOverride(const UObject* Object, const uint16 RepIndex, const bool bIsActive);
+	NETCORE_API void SetPropertyDynamicCondition(const UObject* Object, const uint16 RepIndex, const ELifetimeCondition Condition);
+	
 	NETCORE_API void NotifyObjectDestroyed(const FObjectKey ObjectKey);
 
 	NETCORE_API TSharedPtr<FRepChangedPropertyTracker> FindOrCreatePropertyTracker(const FObjectKey ObjectKey);
@@ -34,14 +35,27 @@ public:
 
 	NETCORE_API void LogMemory(FOutputDevice& Ar);
 
-	static NETCORE_API void SetPropertyActiveOverride(IRepChangedPropertyTracker& Tracker, UObject* OwningObject, const uint16 RepIndex, const bool bIsActive);
+	class FAllowCreateTrackerFromSetPropertyActiveOverrideScope
+	{
+	public:
+		FAllowCreateTrackerFromSetPropertyActiveOverrideScope(FNetPropertyConditionManager& ConditionManager)
+		: GuardValue(ConditionManager.bAllowCreateTrackerFromSetPropertyActiveOverride, true) {};
+	private:
+		TGuardValue<bool> GuardValue;
+	};
 
 private:
+	friend class FAllowCreateTrackerFromSetPropertyActiveOverrideScope;
+
 	void PostGarbageCollect();
 
 	FDelegateHandle PostGarbageCollectHandle;
 
 	TMap<FObjectKey, TSharedPtr<FRepChangedPropertyTracker>> PropertyTrackerMap;
+
+	FObjectKey LastFoundTrackerKey;
+	FRepChangedPropertyTracker* LastFoundTracker = nullptr;
+	bool bAllowCreateTrackerFromSetPropertyActiveOverride = false;
 };
 
 }; // UE::Net::Private

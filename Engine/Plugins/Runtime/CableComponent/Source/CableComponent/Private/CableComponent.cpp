@@ -5,6 +5,7 @@
 #include "PrimitiveSceneProxy.h"
 #include "MaterialDomain.h"
 #include "SceneManagement.h"
+#include "PrimitiveUniformShaderParametersBuilder.h"
 #include "Engine/CollisionProfile.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
@@ -107,21 +108,7 @@ public:
 
 #if RHI_RAYTRACING
 		bSupportRayTracing = IsRayTracingEnabled();
-		bDynamicRayTracingGeometry = false;
-		bNeedsDynamicRayTracingGeometries = false;
-		
-		bNeedsToUpdateRayTracingCache = true;
-
-		if (IsRayTracingAllowed() && bSupportRayTracing)
-		{
-			const bool bWantsRayTracingWPO = MaterialRelevance.bUsesWorldPositionOffset;
-
-			if (bWantsRayTracingWPO)
-			{
-				bDynamicRayTracingGeometry = true;
-				bNeedsDynamicRayTracingGeometries = true;
-			}
-		}
+		bDynamicRayTracingGeometry = bSupportRayTracing && MaterialRelevance.bUsesWorldPositionOffset;
 #endif
 
 		ENQUEUE_RENDER_COMMAND(InitCableResources)(UE::RenderCommandPipe::Cable,
@@ -134,13 +121,13 @@ public:
 			if (bSupportRayTracing)
 			{
 				FRayTracingGeometry& RayTracingGeometry = StaticRayTracingGeometry;
-				UpdateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
-			}
+				CreateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
+				bNeedsToUpdateRayTracingCache = true;
 
-			if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
-			{
-				check(bDynamicRayTracingGeometry);
-				CreateDynamicRayTracingGeometries(RHICmdList);
+				if (bDynamicRayTracingGeometry)
+				{
+					CreateDynamicRayTracingGeometries(RHICmdList);
+				}
 			}
 #endif
 		});
@@ -304,7 +291,7 @@ public:
 				if (RayTracingGeometry.IsValid())
 				{
 					RayTracingGeometry.ReleaseResource();
-					UpdateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
+					CreateRayTracingGeometry_RenderingThread(RayTracingGeometry, RHICmdList);
 					bNeedsToUpdateRayTracingCache = true;
 				}
 			}
@@ -378,15 +365,11 @@ public:
 				Mesh.VertexFactory = &VertexFactory;
 				Mesh.MaterialRenderProxy = MaterialProxy;
 
-				bool bHasPrecomputedVolumetricLightmap;
-				FMatrix PreviousLocalToWorld;
-				int32 SingleCaptureIndex;
-				bool bOutputVelocity;
-				GetScene().GetPrimitiveUniformShaderParameters_RenderThread(GetPrimitiveSceneInfo(), bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
-				bOutputVelocity |= AlwaysHasVelocity();
-
 				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), GetLocalToWorld(), PreviousLocalToWorld, GetBounds(), GetLocalBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
+				FPrimitiveUniformShaderParametersBuilder Builder;
+				BuildUniformShaderParameters(Builder);
+				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), Builder);
+
 				BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 
 				BatchElement.FirstIndex = 0;
@@ -458,7 +441,7 @@ public:
 	uint32 GetAllocatedSize( void ) const { return( FPrimitiveSceneProxy::GetAllocatedSize() ); }
 
 #if RHI_RAYTRACING
-	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override
+	virtual void GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector) override
 	{
 		if (CVarRayTracingCableMeshes.GetValueOnRenderThread() == 0)
 		{
@@ -476,7 +459,7 @@ public:
 		
 		if (bEvaluateWPO && CVarRayTracingCableMeshesWPOCulling.GetValueOnRenderThread() > 0)
 		{
-			const FVector ViewCenter = Context.ReferenceView->ViewMatrices.GetViewOrigin();
+			const FVector ViewCenter = Collector.GetReferenceView()->ViewMatrices.GetViewOrigin();
 			const FVector MeshCenter = GetBounds().Origin;
 			const float CullingRadius = CVarRayTracingCableMeshesWPOCullingRadius.GetValueOnRenderThread();
 			const float BoundingRadius = GetBounds().SphereRadius;
@@ -502,7 +485,7 @@ public:
 			return;
 		}
 
-		FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.AddDefaulted_GetRef();
+		FRayTracingInstance RayTracingInstance;
 
 		const int32 NumRayTracingMaterialEntries = 1;
 
@@ -520,21 +503,17 @@ public:
 			MeshBatch.Type = PT_TriangleList;
 			MeshBatch.DepthPriorityGroup = SDPG_World;
 			MeshBatch.bCanApplyViewModeOverrides = false;
-			MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
+			MeshBatch.CastRayTracedShadow = IsShadowCast(Collector.GetReferenceView());
 			MeshBatch.DepthPriorityGroup = GetStaticDepthPriorityGroup();
 
 			FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
 			BatchElement.IndexBuffer = &IndexBuffer;
 
-			bool bHasPrecomputedVolumetricLightmap;
-			FMatrix PreviousLocalToWorld;
-			int32 SingleCaptureIndex;
-			bool bOutputVelocity;
-			GetScene().GetPrimitiveUniformShaderParameters_RenderThread(GetPrimitiveSceneInfo(), bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
-			bOutputVelocity |= AlwaysHasVelocity();
+			FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+			FPrimitiveUniformShaderParametersBuilder Builder;
+			BuildUniformShaderParameters(Builder);
+			DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), Builder);
 
-			FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-			DynamicPrimitiveUniformBuffer.Set(Context.RHICmdList, GetLocalToWorld(), PreviousLocalToWorld, GetBounds(), GetLocalBounds(), GetLocalBounds(), ReceivesDecals(), bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
 			BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer.UniformBuffer;
 			BatchElement.FirstIndex = 0;
 			BatchElement.NumPrimitives = GetRequiredIndexCount() / 3;
@@ -557,6 +536,7 @@ public:
 		const FMatrix& ThisLocalToWorld = GetLocalToWorld();
 		RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
 
+		// TODO: Checking if VertexFactory.GetType()->SupportsRayTracingDynamicGeometry() should be done when initializing bDynamicRayTracingGeometry otherwise we end up with unbuilt BLAS
 		if (bEvaluateWPO && VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 		{
 			// Use the shared vertex buffer - needs to be updated every frame
@@ -564,7 +544,7 @@ public:
 
 			const uint32 VertexCount = VertexBuffers.PositionVertexBuffer.GetNumVertices() + 1;
 
-			Context.DynamicRayTracingGeometriesToUpdate.Add(
+			Collector.AddRayTracingGeometryUpdate(
 				FRayTracingDynamicGeometryUpdateParams
 				{
 					CachedRayTracingMaterials, // TODO: this copy can be avoided if FRayTracingDynamicGeometryUpdateParams supported array views
@@ -583,13 +563,15 @@ public:
 		checkf(RayTracingInstance.Geometry->Initializer.Segments.Num() == CachedRayTracingMaterials.Num(), TEXT("Segments/Materials mismatch. Number of segments: %d. Number of Materials: %d."),
 			RayTracingInstance.Geometry->Initializer.Segments.Num(),
 			CachedRayTracingMaterials.Num());
+
+		Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 	}
 
 	virtual bool HasRayTracingRepresentation() const override { return bSupportRayTracing; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual bool IsRayTracingStaticRelevant() const override { return false; }
 
-	void UpdateRayTracingGeometry_RenderingThread(FRayTracingGeometry& RayTracingGeometry, FRHICommandListBase& RHICmdList)
+	void CreateRayTracingGeometry_RenderingThread(FRayTracingGeometry& RayTracingGeometry, FRHICommandListBase& RHICmdList)
 	{
 		FRayTracingGeometryInitializer Initializer;
 		static const FName DebugName("FCableSceneProxy");
@@ -647,7 +629,6 @@ private:
 
 	bool bSupportRayTracing : 1;
 	bool bDynamicRayTracingGeometry : 1;
-	bool bNeedsDynamicRayTracingGeometries : 1;
 	bool bNeedsToUpdateRayTracingCache : 1;
 
 	FRayTracingGeometry StaticRayTracingGeometry;

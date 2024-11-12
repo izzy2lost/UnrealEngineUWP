@@ -13,12 +13,14 @@
 #include "MetasoundDataReference.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendSearchEngine.h"
+#include "MetasoundTrigger.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "Tests/AutomationCommon.h"
 
-
 #if WITH_DEV_AUTOMATION_TESTS
+
 namespace EngineTestMetaSoundPatchBuilderPrivate
 {
 	UMetaSoundPatchBuilder& CreatePatchBuilderChecked(FAutomationTestBase& Test, FName BuilderName, const TArray<FName>& InterfaceNamesToAdd)
@@ -41,7 +43,7 @@ namespace EngineTestMetaSoundPatchBuilderPrivate
 	{
 		UMetaSoundPatchBuilder& Builder = CreatePatchBuilderChecked(Test, FName(PatchName + TEXT(" Builder")), InterfaceNamesToAdd);
 
-		UMetaSoundPatch* InputPatch = CastChecked<UMetaSoundPatch>(Builder.Build(nullptr, FMetaSoundBuilderOptions { FName(PatchName) }).GetObject());
+		UMetaSoundPatch* InputPatch = CastChecked<UMetaSoundPatch>(Builder.BuildNewMetaSound(FName(PatchName)).GetObject());
 		Test.AddErrorIfFalse(InputPatch != nullptr, FString::Printf(TEXT("Failed to build MetaSound patch '%s'"), *PatchName));
 		return InputPatch;
 	}
@@ -193,8 +195,8 @@ bool FAudioMetaSoundBuilderInterfaceBindingConnectAndDisconnect::RunTest(const F
 }
 
 // This test creates a MetaSound patch, then adds and connects sin oscillator, attempts to retrieve a default input set, then clears it, and finally retrieves the class default
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAudioMetasoundNodeClassQueryFunctions, "Audio.Metasound.Builder.NodeClassQueryFunctions", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FAudioMetasoundNodeClassQueryFunctions::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAudioMetaSoundNodeClassQueryFunctions, "Audio.Metasound.Builder.NodeClassQueryFunctions", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FAudioMetaSoundNodeClassQueryFunctions::RunTest(const FString& Parameters)
 {
 	using namespace EngineTestMetaSoundPatchBuilderPrivate;
 	using namespace Metasound;
@@ -203,7 +205,7 @@ bool FAudioMetasoundNodeClassQueryFunctions::RunTest(const FString& Parameters)
 	constexpr float NodeDefaultFreq = 100.0f;
 
 	EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-	UMetaSoundPatchBuilder& Builder = CreatePatchBuilderChecked(*this, "DefaultLiteralAssignment", { });
+	UMetaSoundPatchBuilder& Builder = CreatePatchBuilderChecked(*this, "DefaultLiteralAssignment_Test", { });
 
 	// Sine Oscillator Node
 	const FMetaSoundNodeHandle OscNode = Builder.AddNodeByClassName({ "UE", "Sine", "Audio" }, Result, 1);
@@ -268,6 +270,64 @@ bool FAudioMetasoundNodeClassQueryFunctions::RunTest(const FString& Parameters)
 		const bool bIsConstructorPin = Builder.GetNodeOutputIsConstructorPin(CtorTest);
 		AddErrorIfFalse(bIsConstructorPin, TEXT("Input handle is constructor pin but GetNodeInputIsConstructorPin is returning false"));
 	}
+
+	return true;
+}
+
+// This test creates a MetaSound patch, adds a frequency input, connects a sin oscillator, and if the editor is loaded, and then attempts to inject template input nodes.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAudioMetaSoundInjectTemplateNodes, "Audio.Metasound.Builder.InjectInputTemplateNodes", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FAudioMetaSoundInjectTemplateNodes::RunTest(const FString& Parameters)
+{
+	using namespace EngineTestMetaSoundPatchBuilderPrivate;
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
+	constexpr float NodeDefaultFreq = 100.0f;
+
+	EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
+	UMetaSoundPatchBuilder& Builder = CreatePatchBuilderChecked(*this, "TemplateInputInjection_Test", { });
+
+	// Sine Oscillator Node
+	const FMetaSoundNodeHandle OscNode = Builder.AddNodeByClassName({ "UE", "Sine", "Audio" }, Result, 1);
+	AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded && OscNode.IsSet(), TEXT("Failed to create new MetaSound node by class name"));
+
+	auto MakeAndConnectSinInputToGraphInput = [&](FName InputName, FName TypeName, const FVector2D* Location, const FMetasoundFrontendLiteral& InLiteral, bool bIsCtorPin)
+	{
+		const FMetaSoundBuilderNodeOutputHandle InputNodeOutputHandle = Builder.AddGraphInputNode(InputName, TypeName, InLiteral, Result, bIsCtorPin);
+		AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded && InputNodeOutputHandle.IsSet(), TEXT("Failed to create new MetaSound graph input"));
+
+		const FMetaSoundBuilderNodeInputHandle OscNodeInput = Builder.FindNodeInputByName(OscNode, InputName, Result);
+		AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded && OscNodeInput.IsSet(), TEXT("Failed to find Sine Oscillator node input"));
+
+		Builder.ConnectNodes(InputNodeOutputHandle, OscNodeInput, Result);
+		AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded, TEXT("Failed to connect input node to node input"));
+
+#if WITH_EDITOR
+		if (Location)
+		{
+			Builder.SetNodeLocation(FMetaSoundNodeHandle{ InputNodeOutputHandle.NodeID }, *Location, Result);
+			AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded, TEXT("Failed to set input node location"));
+		}
+#endif // WITH_EDITOR
+	};
+	FMetasoundFrontendLiteral Literal;
+
+	Literal.Set(true);
+	MakeAndConnectSinInputToGraphInput("Enabled", GetMetasoundDataTypeName<bool>(), nullptr, Literal, true);
+
+	Literal.Set(100.0f);
+	FVector2D FreqLoc(100, 100);
+	MakeAndConnectSinInputToGraphInput("Frequency", GetMetasoundDataTypeName<float>(), nullptr, Literal, false);
+
+	Literal.Set(FMetasoundFrontendLiteral::FDefault { });
+	FVector2D SyncLoc(300, 300);
+	MakeAndConnectSinInputToGraphInput("Sync", GetMetasoundDataTypeName<FTrigger>(), nullptr, Literal, false);
+
+#if WITH_EDITOR
+	constexpr bool bForceNodeCreation = false;
+	Builder.InjectInputTemplateNodes(bForceNodeCreation, Result);
+	AddErrorIfFalse(Result == EMetaSoundBuilderResult::Succeeded, TEXT("Failed to inject input template node"));
+#endif // WITH_EDITOR
 
 	return true;
 }

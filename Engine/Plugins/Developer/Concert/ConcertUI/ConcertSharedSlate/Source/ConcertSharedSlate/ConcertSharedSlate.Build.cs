@@ -12,10 +12,11 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Concert",
+					"ConcertSyncCore",
 					"Core",
 					"CoreUObject",
 					"Slate",
-					"UndoHistory",
+					"UndoHistory", 
 				}
 			);
 

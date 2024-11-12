@@ -26,6 +26,9 @@ class MESHMODELINGTOOLSEXP_API UBakeTransformToolBuilder : public UMultiSelectio
 	GENERATED_BODY()
 public:
 	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 

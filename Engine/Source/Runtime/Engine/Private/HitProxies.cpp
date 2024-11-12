@@ -74,7 +74,7 @@ static struct FForceInitHitProxyBeforeMain
 
 FHitProxyId::FHitProxyId(FColor Color)
 {
-	Index = ((int32)Color.R << 16) | ((int32)Color.G << 8) | ((int32)Color.B << 0);
+	Index = ((int32)Color.R << 16) | ((int32)Color.G << 8) | ((int32)Color.B << 0) | ((int32)Color.A << 24);
 }
 
 FColor FHitProxyId::GetColor() const
@@ -83,7 +83,7 @@ FColor FHitProxyId::GetColor() const
 		((Index >> 16) & 0xff),
 		((Index >> 8) & 0xff),
 		((Index >> 0) & 0xff),
-		0
+		((Index >> 24) & 0xff)
 		);
 }
 
@@ -139,7 +139,8 @@ FTypedElementHandle HHitProxy::GetElementHandle() const
 
 HHitProxy* GetHitProxyById(FHitProxyId Id)
 {
-	return FHitProxyArray::Get().GetHitProxyById(Id.Index);
+	int32 IndexIgnoringAlpha = Id.Index & 0xffffff;
+	return FHitProxyArray::Get().GetHitProxyById(IndexIgnoringAlpha);
 }
 
 ENGINE_API const TSparseArray<HHitProxy*>& GetAllHitProxies()

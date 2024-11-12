@@ -93,3 +93,19 @@ ENGINE_API bool FGenericPhysicsInterface::GeomSweepMulti(const UWorld* World, co
 
 template<>
 ENGINE_API bool FGenericPhysicsInterface::GeomOverlapMulti(const UWorld* World, const FPhysicsGeometryCollection& InGeom, const FVector& InPosition, const FQuat& InRotation, TArray<FOverlapResult>& OutOverlaps, ECollisionChannel TraceChannel, const FCollisionQueryParams& Params, const FCollisionResponseParams& ResponseParams, const FCollisionObjectQueryParams& ObjectParams);
+
+namespace Chaos::Private
+{
+	struct FGenericPhysicsInterface_Internal
+	{
+		/**
+		*  INTERNAL USE ONLY
+		*  Physics thread sphere query:
+		*  Trace a sphere against the world and return touching hits and then first blocking hit
+		*  Results are sorted, so a blocking hit (if found) will be the last element of the array
+		*  Only the single closest blocking result will be generated, no tests will be done after that.
+		*  Falls back to a raycast is the query radius is less than or equal to zero.
+		*/
+		static ENGINE_API bool SpherecastMulti(const UWorld* World, float QueryRadius, TArray<FHitResult>& OutHits, FVector Start, FVector End, ECollisionChannel TraceChannel, const FCollisionQueryParams& Params, const FCollisionResponseParams& ResponseParams, const FCollisionObjectQueryParams& ObjectParams = FCollisionObjectQueryParams::DefaultObjectQueryParam);
+	};
+}

@@ -145,6 +145,10 @@
 #define PLATFORM_REQUIRES_UNWRAPPED_MESH_SHADER_ARGS 0
 #endif
 
+#ifndef COMPILER_SUPPORTS_TYPEDSTORE
+#define COMPILER_SUPPORTS_TYPEDSTORE 0
+#endif
+
 #ifndef PLATFORM_SUPPORTS_ROV
 #define PLATFORM_SUPPORTS_ROV 0
 #endif
@@ -236,8 +240,6 @@
 
 #ifndef PLATFORM_SUPPORTS_REAL_TYPES
 #define PLATFORM_SUPPORTS_REAL_TYPES 0
-#elif FORCE_FLOATS
-#error Collision between FORCE_FLOATS and PLATFORM_SUPPORTS_REAL_TYPES
 #endif
 
 #ifndef COMPILER_SUPPORTS_WAVE_32_64_MODE
@@ -285,13 +287,54 @@
 #define COMPILER_NEEDS_DETERMINANT 0
 #endif
 
+#if COMPILER_DXC == 1
+
+#define SHADER_PUSH_WARNINGS_STATE  _Pragma("dxc diagnostic push")
+#define SHADER_POP_WARNINGS_STATE   _Pragma("dxc diagnostic pop")
+
+// DXC requires several pragmas because there isn't a warning group that covers all cases
+#define SHADER_DISABLE_WARNINGS 								\
+	_Pragma("dxc diagnostic ignored \"-Wall\"") 				\
+	_Pragma("dxc diagnostic ignored \"-Wconversion\"") 			\
+	_Pragma("dxc diagnostic ignored \"-Wfor-redefinition\"") 	\
+	_Pragma("dxc diagnostic ignored \"-Winline-asm\"")			\
+	_Pragma("dxc diagnostic ignored \"-Wunsequenced\"")
+
+#endif
+
+// If the shader compiler does not suport disabling warnings locally, these macros will be empty
+#ifndef SHADER_DISABLE_WARNINGS
+#define SHADER_DISABLE_WARNINGS
+#endif
+
+#ifndef SHADER_PUSH_WARNINGS_STATE
+#define SHADER_PUSH_WARNINGS_STATE
+#endif
+
+#ifndef SHADER_POP_WARNINGS_STATE
+#define SHADER_POP_WARNINGS_STATE
+#endif
+
 // ---------------------------------------------------- Alternative floating point types
 
 #ifndef FORCE_FLOATS
 #define FORCE_FLOATS 0
 #endif
 
-#if ((!(ES3_1_PROFILE || METAL_PROFILE)) && !PLATFORM_SUPPORTS_REAL_TYPES) || FORCE_FLOATS
+#if COMPILER_DXC && !FORCE_FLOATS && (ES3_1_PROFILE || METAL_PROFILE)
+	#pragma dxc diagnostic ignored "-Wconversion"
+#endif
+
+#if ES3_1_PROFILE && MOBILE_EMULATION && !FORCE_FLOATS
+	#define half min16float
+	#define half1 min16float1
+	#define half2 min16float2
+	#define half3 min16float3
+	#define half4 min16float4
+	#define half3x3 min16float3x3
+	#define half3x4 min16float3x4
+	#define half4x4 min16float4x4
+#elif ((!(ES3_1_PROFILE || METAL_PROFILE)) && !PLATFORM_SUPPORTS_REAL_TYPES) || FORCE_FLOATS
 	// Always use floats when using the ES3/METAL compiler, because platforms not optimized for lower precision, 
 	// And we don't want potential side effects on other platforms
 	#define half float
@@ -444,7 +487,11 @@
 	#define UB_INT(Dim)         int##Dim
 	#define UB_UINT(Dim)        uint##Dim
 	#define UB_FLOAT(Dim)       float##Dim
-	#define UB_HALF_FLOAT(Dim)  half##Dim
+	#if METAL_PROFILE || COMPILER_HLSL
+		#define UB_HALF_FLOAT(Dim)  float##Dim
+	#else
+		#define UB_HALF_FLOAT(Dim)  half##Dim
+	#endif
 	#define UB_FIXED_FLOAT(Dim) fixed##Dim
 #else
 	#define UB_INT(Dim)         int##Dim
@@ -472,6 +519,7 @@
 	#define UB_DECL_RESOURCE(UBName, StructName, GlobalName)  UBName##.##StructName = UBName##_##GlobalName
 #else
 	#define UB_CB_DEFINITION_START(      UBName                    ) cbuffer UBName {
+	#define UB_STATIC_CB_DEFINITION_START(UBName, ResourceIndex, Space) cbuffer UBName : register(b##ResourceIndex, space##Space) {
 	#define UB_CB_MEMBER_NAME(           UBName,         MemberName) UBName##_##MemberName
 	#define UB_CB_PREFIXED_MEMBER_NAME(  UBName, Prefix, MemberName) Prefix##UBName##_##MemberName
 	#define UB_CB_DEFINITION_END(        UBName                    ) }
@@ -498,12 +546,11 @@
 #define MOBILE_EMULATION 0
 #endif
 
-// Whether the platform supports independent texture and samplers
+// Whether the platform supports independent texture and samplers (defined in DDSPI)
 // When enabled, different texture lookups can share samplers to allow more artist samplers in the base pass
 // Ideally this would just be enabled for all SM4 and above feature level platforms
-// @todo metal mrt: No reason this can't work with Metal, once cross compiler is fixed
 #ifndef SUPPORTS_INDEPENDENT_SAMPLERS
-#define SUPPORTS_INDEPENDENT_SAMPLERS (SM6_PROFILE || SM5_PROFILE || METAL_MRT_PROFILE || METAL_SM5_PROFILE || METAL_SM6_PROFILE || VULKAN_PROFILE_SM5 || VULKAN_PROFILE_SM6 || VULKAN_PROFILE)
+#define SUPPORTS_INDEPENDENT_SAMPLERS 0
 #endif
 
 // Whether the platform support pixel coverage on MSAA targets (SV_Coverage).
@@ -521,6 +568,12 @@
 #ifndef PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS
 #define PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS 1
 #endif
+
+// Whether the platform supports binding UAVs to the vertex shader stage.
+#ifndef PLATFORM_SUPPORTS_VERTEX_SHADER_UAVS
+#define PLATFORM_SUPPORTS_VERTEX_SHADER_UAVS 0
+#endif
+
 
 // ---------------------------------------------------- Compiler specific defaults and fallbacks
 
@@ -811,6 +864,11 @@ precise float4 MakePrecise(in precise float4 v) { precise float4 pv = v; return 
 #define RWCoherentByteAddressBufferRef RWByteAddressBuffer
 #endif
 
+// Flag to say if the compiler needs globallycoherent locals of RWCoherentByteAddressBufferRef/etc
+#ifndef COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS
+#define COMPILER_NEEDS_GLOBALLYCOHERENT_LOCALS 0
+#endif
+
 #ifndef ISOLATE
 #define ISOLATE
 #endif
@@ -835,8 +893,16 @@ precise float4 MakePrecise(in precise float4 v) { precise float4 pv = v; return 
 #define DISABLE_TARGET_OCCUPANCY_WARNING
 #endif
 
+#ifndef DISABLE_POTENTIALLY_UNINITIALIZED_WARNING
+#define DISABLE_POTENTIALLY_UNINITIALIZED_WARNING
+#endif
+
 #ifndef ALLOW_NO_PS_EXPORT
 #define ALLOW_NO_PS_EXPORT
+#endif
+
+#ifndef ADAPTIVE_LICM
+#define ADAPTIVE_LICM
 #endif
 
 // ---------------------------------------------------- Interpolator attribute fallbacks

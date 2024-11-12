@@ -5,7 +5,7 @@
 #include "Containers/UnrealString.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
-#include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/Inline/VVMUniqueStringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMFunction.h"
@@ -25,20 +25,13 @@ namespace
 {
 void AppendDebugName(FStringBuilderBase& Builder, const VEmergentType& EmergentType)
 {
-	if (EmergentType.CppClassInfo == &VUTF8String::StaticCppClassInfo)
+	FString Name = EmergentType.CppClassInfo->DebugName();
+	FStringView NameView(Name);
+	if (NameView.Len() > 0 && NameView[0] == 'V')
 	{
-		Builder.Append(TEXT("String"));
+		NameView.RightChopInline(1);
 	}
-	else
-	{
-		FString Name = EmergentType.CppClassInfo->DebugName();
-		FStringView NameView(Name);
-		if (NameView.Len() > 0 && NameView[0] == 'V')
-		{
-			NameView.RightChopInline(1);
-		}
-		Builder.Append(NameView);
-	}
+	Builder.Append(NameView);
 }
 } // namespace
 
@@ -102,15 +95,12 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void BeginObject(const TCHAR* ElementName) override
+	virtual void VisitObject(const TCHAR* ElementName, FUtf8StringView, TFunctionRef<void()> VisitBody) override
 	{
 		BeginElement(ElementName);
 		PushNesting(ENestingType::Object);
 		Builder.Append(TEXT("("));
-	}
-
-	virtual void EndObject() override
-	{
+		VisitBody();
 		PopNesting(ENestingType::Object);
 		Builder.Append(TEXT(")"));
 	}
@@ -121,7 +111,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Formatter.Append(Builder, Context, *InCell);
 	}
 
-	virtual void VisitEmergentType(const VCell* InEmergentType) override
+	virtual void VisitEmergentType(const VEmergentType* InEmergentType) override
 	{
 		// Any emergent type formatting has already been done
 	}
@@ -170,6 +160,24 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 	{
 		BeginElement(ElementName);
 		Builder.Append(bValue ? TEXT("true") : TEXT("false"));
+	}
+
+	void Visit(uint8& Value, const TCHAR* ElementName) override
+	{
+		BeginElement(ElementName);
+		Builder.Append(FString::Printf(TEXT("%d"), Value));
+	}
+
+	void Visit(uint32& Value, const TCHAR* ElementName) override
+	{
+		BeginElement(ElementName);
+		Builder.Append(FString::Printf(TEXT("%d"), Value));
+	}
+
+	void Visit(int32& Value, const TCHAR* ElementName) override
+	{
+		BeginElement(ElementName);
+		Builder.Append(FString::Printf(TEXT("%d"), Value));
 	}
 
 	virtual void Visit(FString& Value, const TCHAR* ElementName) override

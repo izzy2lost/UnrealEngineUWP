@@ -54,10 +54,6 @@
 #include "Installer/Statistics/VerifierStatistics.h"
 #include "Installer/Statistics/FileOperationTracker.h"
 
-#if !defined(ENABLE_PATCH_DISK_OVERFLOW_STORE)
-#	define ENABLE_PATCH_DISK_OVERFLOW_STORE 1
-#endif
-
 DEFINE_LOG_CATEGORY_STATIC(LogBPSInstallerConfig, Log, All);
 
 namespace ConfigHelpers
@@ -178,6 +174,7 @@ namespace InstallerHelpers
 		UE_LOG(LogBuildPatchServices, Log, TEXT("Build Stat: FailureReasonText: %s"), *BuildStats.FailureReasonText.BuildSourceString());
 		UE_LOG(LogBuildPatchServices, Log, TEXT("Build Stat: FailureType: %s"), *EnumToString(BuildStats.FailureType));
 		UE_LOG(LogBuildPatchServices, Log, TEXT("Build Stat: NumInstallRetries: %u"), BuildStats.NumInstallRetries);
+		UE_LOG(LogBuildPatchServices, Log, TEXT("Build Stat: MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested: %s"), *FText::AsNumber(BuildStats.MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested).ToString());
 		check(BuildStats.NumInstallRetries == BuildStats.RetryFailureTypes.Num() && BuildStats.NumInstallRetries == BuildStats.RetryErrorCodes.Num());
 		for (uint32 RetryIdx = 0; RetryIdx < BuildStats.NumInstallRetries; ++RetryIdx)
 		{
@@ -421,6 +418,8 @@ namespace BuildPatchServices
 		Cloud
 	};
 
+	static uint64 DetermineInstallMaxDiskSizeIfDeletingChunkDbs(const TArray<FString>& ChunkDbFiles, IBuildManifestSet* ManifestSet, IFileSystem* FileSystem, const FString& InstallDirectory, const TArray<FString>& CorruptFiles, bool bIsPrereqOnly);
+
 	/* FBuildPatchInstaller implementation
 	*****************************************************************************/
 	FBuildPatchInstaller::FBuildPatchInstaller(FBuildInstallerConfiguration InConfiguration, TMultiMap<FString, FBuildPatchAppManifestRef> InInstallationInfo, const FString& InLocalMachineConfigFile, TSharedPtr<IAnalyticsProvider> InAnalytics, FBuildPatchInstallerDelegate InStartDelegate, FBuildPatchInstallerDelegate InCompleteDelegate)
@@ -612,6 +611,26 @@ namespace BuildPatchServices
 		return Configuration;
 	}
 
+#if !UE_BUILD_SHIPPING
+	void FBuildPatchInstaller::GetDebugText(TArray<FString>& Output)
+	{
+		if (!DownloadServiceStatistics.IsValid())
+		{
+			return;
+		}
+
+		TArray<FDownload> Downloads = DownloadServiceStatistics->GetCurrentDownloads();
+		for (const FDownload& Download: Downloads)
+		{
+			Output.Add(FString::Printf(TEXT("BPI %s downloaded %.2f MBytes / %.2f MBytes"),
+				*Download.Data,
+				(double)Download.Received / (1024.0 * 1024.0),
+				(double)Download.Size / (1024.0 * 1024.0)
+			));
+		}
+	}
+#endif
+
 	bool FBuildPatchInstaller::StartInstallation()
 	{
 		if (Thread == nullptr)
@@ -732,7 +751,7 @@ namespace BuildPatchServices
 
 		// We can now build out any systems that need late construction but can survive between retries.
 		ManifestSet.Reset(FBuildManifestSetFactory::Create(InstallerActions));
-		Verifier.Reset(FVerifierFactory::Create(FileSystem.Get(), VerifierStatistics.Get(), Configuration.VerifyMode, ManifestSet.Get(), Configuration.InstallDirectory, Configuration.InstallMode == EInstallMode::StageFiles ? InstallStagingDir : FString()));
+		Verifier.Reset(FVerifierFactory::Create(FileSystem.Get(), VerifierStatistics.Get(), Configuration.VerifyMode, Configuration.SharedContext, ManifestSet.Get(), Configuration.InstallDirectory, Configuration.InstallMode == EInstallMode::StageFiles ? InstallStagingDir : FString()));
 
 		// Add systems to controllables.
 		{
@@ -816,109 +835,120 @@ namespace BuildPatchServices
 		InitializeTimer.Start();
 		bool bProcessSuccess = Initialize();
 
-		// Run if successful init
-		if (bProcessSuccess)
-		{
-			// Keep track of files that failed verify
-			TArray<FString> CorruptFiles;
-
-			// Keep retrying the install while it is not canceled, or caused by download error
-			bProcessSuccess = false;
-			bool bCanRetry = true;
-			int32 InstallRetries = ConfigHelpers::NumInstallerRetries();
-			while (!bProcessSuccess && bCanRetry)
+		uint64 MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested = 0;
+		if (Configuration.bCalculateDeleteChunkDbMaxDiskSpaceAndExit)
+		{		
+			if (bProcessSuccess)
 			{
-				// Inform file operation tracker of the selected manifest.
-				FileOperationTracker->OnManifestSelection(ManifestSet.Get());
-				MemoryChunkStoreStatistics->SetMultipleReferencedChunk(InstallerHelpers::GetMultipleReferencedChunks(ManifestSet.Get()));
+				MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested = DetermineInstallMaxDiskSizeIfDeletingChunkDbs(Configuration.ChunkDatabaseFiles, ManifestSet.Get(), FileSystem.Get(), Configuration.InstallDirectory, {}, Configuration.InstallMode == EInstallMode::PrereqOnly);
+			}
+		}
+		else
+		{
+			// Run if successful init 
+			if (bProcessSuccess)
+			{
+				// Keep track of files that failed verify
+				TArray<FString> CorruptFiles;
 
-				// Run the install
-				bool bInstallSuccess = RunInstallation(CorruptFiles);
-
-				// Backup local changes then move generated files
-				bInstallSuccess = bInstallSuccess && RunBackupAndMove();
-
-				// Setup file attributes
-				bInstallSuccess = bInstallSuccess && RunFileAttributes();
-
-				// Run Verification
-				CorruptFiles.Empty();
-				bProcessSuccess = bInstallSuccess && RunVerification(CorruptFiles);
-
-				// Clean staging if INSTALL success, we still do cleanup if we failed at the verify stage.
-				if (bInstallSuccess)
+				// Keep retrying the install while it is not canceled, or caused by download error
+				bProcessSuccess = false;
+				bool bCanRetry = true;
+				int32 InstallRetries = ConfigHelpers::NumInstallerRetries();
+				while (!bProcessSuccess && bCanRetry)
 				{
-					CleanUpTimer.Start();
-					if (Configuration.InstallMode == EInstallMode::StageFiles)
+					// Inform file operation tracker of the selected manifest.
+					FileOperationTracker->OnManifestSelection(ManifestSet.Get());
+					MemoryChunkStoreStatistics->SetMultipleReferencedChunk(InstallerHelpers::GetMultipleReferencedChunks(ManifestSet.Get()));
+
+					// Run the install
+					bool bInstallSuccess = RunInstallation(CorruptFiles);
+
+					// Backup local changes then move generated files
+					bInstallSuccess = bInstallSuccess && RunBackupAndMove();
+
+					// Setup file attributes
+					bInstallSuccess = bInstallSuccess && RunFileAttributes();
+
+					// Run Verification
+					CorruptFiles.Empty();
+					bProcessSuccess = bInstallSuccess && RunVerification(CorruptFiles);
+
+					// Clean staging if INSTALL success, we still do cleanup if we failed at the verify stage.
+					if (bInstallSuccess)
 					{
-						UE_LOG(LogBuildPatchServices, Log, TEXT("Deleting litter from staging area."));
-						IFileManager::Get().DeleteDirectory(*DataStagingDir, false, true);
+						CleanUpTimer.Start();
+						if (Configuration.InstallMode == EInstallMode::StageFiles)
+						{
+							UE_LOG(LogBuildPatchServices, Log, TEXT("Deleting litter from staging area."));
+							IFileManager::Get().DeleteDirectory(*DataStagingDir, false, true);
+						}
+						else
+						{
+							UE_LOG(LogBuildPatchServices, Log, TEXT("Deleting staging area."));
+							IFileManager::Get().DeleteDirectory(*Configuration.StagingDirectory, false, true);
+							CleanupEmptyDirectories(Configuration.InstallDirectory);
+						}
+						CleanUpTimer.Stop();
 					}
-					else
+					BuildProgress.SetStateProgress(EBuildPatchState::CleanUp, 1.0f);
+
+					// Set if we can retry
+					--InstallRetries;
+					bCanRetry = InstallRetries > 0 && !InstallerError->IsCancelled() && InstallerError->CanRetry();
+					const bool bWillRetry = !bProcessSuccess && bCanRetry;
+
+					// If successful or we will retry, remove the moved files marker
+					if (bProcessSuccess || bCanRetry)
 					{
-						UE_LOG(LogBuildPatchServices, Log, TEXT("Deleting staging area."));
-						IFileManager::Get().DeleteDirectory(*Configuration.StagingDirectory, false, true);
-						CleanupEmptyDirectories(Configuration.InstallDirectory);
+						UE_LOG(LogBuildPatchServices, Log, TEXT("Reset MM."));
+						IFileManager::Get().Delete(*PreviousMoveMarker, false, true);
 					}
-					CleanUpTimer.Stop();
-				}
-				BuildProgress.SetStateProgress(EBuildPatchState::CleanUp, 1.0f);
 
-				// Set if we can retry
-				--InstallRetries;
-				bCanRetry = InstallRetries > 0 && !InstallerError->IsCancelled() && InstallerError->CanRetry();
-				const bool bWillRetry = !bProcessSuccess && bCanRetry;
+					// Setup end of attempt stats
+					bFirstInstallIteration = false;
+					float TempFinalProgress = BuildProgress.GetProgressNoMarquee();
+					{
+						FScopeLock Lock(&ThreadLock);
+						BuildStats.NumInstallRetries = ConfigHelpers::NumInstallerRetries() - (InstallRetries + 1);
+						BuildStats.FinalProgress = TempFinalProgress;
+						// If we failed, and will retry, record this failure type and reset the abort flag
+						if (bWillRetry)
+						{
+							BuildStats.RetryFailureTypes.Add(InstallerError->GetErrorType());
+							BuildStats.RetryErrorCodes.Add(InstallerError->GetErrorCode());
+							bShouldAbort = false;
+						}
+					}
 
-				// If successful or we will retry, remove the moved files marker
-				if (bProcessSuccess || bCanRetry)
-				{
-					UE_LOG(LogBuildPatchServices, Log, TEXT("Reset MM."));
-					IFileManager::Get().Delete(*PreviousMoveMarker, false, true);
-				}
-
-				// Setup end of attempt stats
-				bFirstInstallIteration = false;
-				float TempFinalProgress = BuildProgress.GetProgressNoMarquee();
-				{
-					FScopeLock Lock(&ThreadLock);
-					BuildStats.NumInstallRetries = ConfigHelpers::NumInstallerRetries() - (InstallRetries + 1);
-					BuildStats.FinalProgress = TempFinalProgress;
-					// If we failed, and will retry, record this failure type and reset the abort flag
+					// If we will retry the install, reset progress states.
 					if (bWillRetry)
 					{
-						BuildStats.RetryFailureTypes.Add(InstallerError->GetErrorType());
-						BuildStats.RetryErrorCodes.Add(InstallerError->GetErrorCode());
-						bShouldAbort = false;
+						InitializeTimer.Start();
+						BuildProgress.CancelAbort();
+						BuildProgress.SetStateProgress(EBuildPatchState::Initializing, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::Resuming, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::Downloading, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::Installing, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::MovingToInstall, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::SettingAttributes, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::BuildVerification, 0.0f);
+						BuildProgress.SetStateProgress(EBuildPatchState::CleanUp, 0.0f);
 					}
 				}
+			}
 
-				// If we will retry the install, reset progress states.
-				if (bWillRetry)
+			if (bProcessSuccess)
+			{
+				// Run the prerequisites installer if this is our first install and the manifest has prerequisites info
+				if (bInstallPrereqs)
 				{
-					InitializeTimer.Start();
-					BuildProgress.CancelAbort();
-					BuildProgress.SetStateProgress(EBuildPatchState::Initializing, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::Resuming, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::Downloading, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::Installing, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::MovingToInstall, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::SettingAttributes, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::BuildVerification, 0.0f);
-					BuildProgress.SetStateProgress(EBuildPatchState::CleanUp, 0.0f);
+					PrereqTimer.Start();
+					bProcessSuccess &= RunPrerequisites();
+					PrereqTimer.Stop();
 				}
 			}
-		}
-
-		if (bProcessSuccess)
-		{
-			// Run the prerequisites installer if this is our first install and the manifest has prerequisites info
-			if (bInstallPrereqs)
-			{
-				PrereqTimer.Start();
-				bProcessSuccess &= RunPrerequisites();
-				PrereqTimer.Stop();
-			}
-		}
+		} // end if doing normal installation
 
 		// Make sure all timers are stopped
 		InitializeTimer.Stop();
@@ -950,6 +980,7 @@ namespace BuildPatchServices
 			BuildStats.ErrorCode = InstallerError->GetErrorCode();
 			BuildStats.FailureReasonText = InstallerError->GetErrorText();
 			BuildStats.FailureType = InstallerError->GetErrorType();
+			BuildStats.MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested = MaxDiskSpaceNeededWhenDeletingChunkDbsIfRequested;
 		}
 
 		// Mark that we are done
@@ -1001,6 +1032,8 @@ namespace BuildPatchServices
 		// Load reopen retry time.
 		GConfig->GetFloat(TEXT("Portal.BuildPatch"), TEXT("ChunkDbSourceChunkDbOpenRetryTime"), ChunkDbSourceConfig.ChunkDbOpenRetryTime, GEngineIni);
 		ChunkDbSourceConfig.ChunkDbOpenRetryTime = FMath::Clamp<float>(ChunkDbSourceConfig.ChunkDbOpenRetryTime, 0.5f, 60.0f);
+
+		ChunkDbSourceConfig.bDeleteChunkDBAfterUse = Configuration.bDeleteChunkDbFilesAfterUse;
 
 		return ChunkDbSourceConfig;
 	}
@@ -1145,6 +1178,112 @@ namespace BuildPatchServices
 		return ConnectionCountConfiguration;
 	}
 
+
+	static void GenerateFilesToConstruct(TSet<FString>& FilesToConstruct, IBuildManifestSet* ManifestSet, const TArray<FString>& CorruptFiles, const TSet<FString>& TaggedFiles, const TSet<FString>& OutdatedFiles, bool bIsPrereqOnly)
+	{
+		// Get the list of files actually needing construction
+		FilesToConstruct.Empty();
+		if (CorruptFiles.Num())
+		{
+			FilesToConstruct.Append(CorruptFiles);
+		}
+		else if (bIsPrereqOnly)
+		{
+			TArray<FPreReqInfo> PreReqInfos;
+			ManifestSet->GetPreReqInfo(PreReqInfos);
+			for (FPreReqInfo PreReqInfo : PreReqInfos)
+			{
+				FilesToConstruct.Add(PreReqInfo.Path);
+			}
+		}
+		else
+		{
+			FilesToConstruct = OutdatedFiles.Intersect(TaggedFiles);
+		}
+		FilesToConstruct.Sort(TLess<FString>());
+	}
+
+	//
+	// Returns how much disk space is needed in order to complete the install or patch.
+	// 
+	// This includes the ChunkDB size, the staging size (with destructive install), and any increases to the
+	// installation directory.
+	//
+	// It's possible this is 0 if, for example, the patch perfectly deletes segments from files such
+	// that no new chunks are required, the first file is completely deleted (no staging size), and the
+	// staging size of further files fits in that freed up space.
+	//
+	static uint64 DetermineInstallMaxDiskSizeIfDeletingChunkDbs(const TArray<FString>& ChunkDbFiles, IBuildManifestSet* ManifestSet, IFileSystem* FileSystem, const FString& InstallDirectory, const TArray<FString>& CorruptFiles, bool bIsPrereqOnly)
+	{
+		TSet<FString> FilesToConstructSet;
+
+		TSet<FString> TaggedFiles;
+		ManifestSet->GetExpectedFiles(TaggedFiles);
+		TSet<FString> OutdatedFiles;
+		ManifestSet->GetOutdatedFiles(InstallDirectory, OutdatedFiles);
+
+		GenerateFilesToConstruct(FilesToConstructSet, ManifestSet, CorruptFiles, TaggedFiles, OutdatedFiles, bIsPrereqOnly);
+
+		// Generate the list of chunks we will consume, in order.
+		TUniquePtr<IChunkReferenceTracker> ChunkReferenceTracker(FChunkReferenceTrackerFactory::Create(
+			ManifestSet,
+			FilesToConstructSet));
+		TArray<FGuid> ReferenceChain;
+		ChunkReferenceTracker->CopyOutOrderedUseList(ReferenceChain);
+
+		TArray<FString> FilesToConstruct = FilesToConstructSet.Array();
+
+		// NOTE - removed files are done at the END of installation, not the beginning (because of chunk sources? could be better!)
+		// so it doesn't affect how much disk space we need (it's consumed the whole time).
+	
+		//
+		// Calculating the disk size requried to install:
+		//
+		// We have a bunch of chunkdbs on disk that sum to the size of the end install
+		// We know that we can delete many - but not all - of the input chunkdbs when a file is
+		// completed.
+		//
+		// After each file completion we have:
+		// 
+		// Size of all remaining chunkdbs + size of installed files thus far.
+		//
+		// So we get the actual required size by iterating over the file list
+		// and asking the chunk db system how many chunkdbs are left at the current
+		// reference level.
+		//
+		// For patches, we adjust this by compensating the installed file size with
+		// the size of the replaced files.
+		int32 CurrentPosition = 0;
+
+		TArray<int32> FileCompletionPositions;
+		for (const FString& FileToConstruct : FilesToConstruct)
+		{
+			const FFileManifest* FileManifest = ManifestSet->GetNewFileManifest(FileToConstruct);
+			if (!FileManifest)
+			{
+				// This is an error condition that will fail to install, but we don't want to crash here...
+				continue;
+			}
+
+			// We will be advancing the chunk reference tracker by this many chunks.
+			int32 AdvanceCount = FileManifest->ChunkParts.Num();
+
+			CurrentPosition += AdvanceCount;
+
+			FileCompletionPositions.Add(CurrentPosition);
+		}
+
+		TArray<uint64> ChunkDbSizesAtPosition;
+		uint64 TotalChunkDbSize = IChunkDbChunkSource::GetChunkDbSizesAtIndexes(ChunkDbFiles, FileSystem, ReferenceChain, FileCompletionPositions, ChunkDbSizesAtPosition);
+
+		uint64 MaxDiskSize = FBuildPatchUtils::CalculateDiskSpaceRequirementsWithDeleteDuringInstall(
+			FilesToConstruct, 0, ManifestSet,
+			ChunkDbSizesAtPosition, TotalChunkDbSize);
+
+		return MaxDiskSize;
+	}
+
+
 	bool FBuildPatchInstaller::RunInstallation(TArray<FString>& CorruptFiles)
 	{
 		UE_LOG(LogBuildPatchServices, Log, TEXT("Starting Installation"));
@@ -1171,26 +1310,7 @@ namespace BuildPatchServices
 		const bool bIsPrereqOnly = Configuration.InstallMode == EInstallMode::PrereqOnly;
 		const bool bHasCorruptFiles = CorruptFiles.Num() > 0;
 
-		// Get the list of files actually needing construction
-		FilesToConstruct.Empty();
-		if (bHasCorruptFiles)
-		{
-			FilesToConstruct.Append(CorruptFiles);
-		}
-		else if (bIsPrereqOnly)
-		{
-			TArray<FPreReqInfo> PreReqInfos;
-			ManifestSet->GetPreReqInfo(PreReqInfos);
-			for (FPreReqInfo PreReqInfo : PreReqInfos)
-			{
-				FilesToConstruct.Add(PreReqInfo.Path);
-			}
-		}
-		else
-		{
-			FilesToConstruct = OutdatedFiles.Intersect(TaggedFiles);
-		}
-		FilesToConstruct.Sort(TLess<FString>());
+		GenerateFilesToConstruct(FilesToConstruct, ManifestSet.Get(), CorruptFiles, TaggedFiles, OutdatedFiles, bIsPrereqOnly);
 		UE_LOG(LogBuildPatchServices, Log, TEXT("Requiring %d files"), FilesToConstruct.Num());
 
 		// Check if we should skip out of this process due to existing installation,
@@ -1257,6 +1377,10 @@ namespace BuildPatchServices
 		const int32 DefaultInstallMaxRead = FInstallSourceConfig().BatchFetchMaximum;
 		const int32 DefaultCloudMaxRead = FCloudSourceConfig({}).PreFetchMaximum;
 		int32 ChunkStoreMemorySize = DefaultCloudMaxRead + DefaultChunkDbMaxRead + DefaultInstallMaxRead;
+		
+		// Add 50% because we dont evict chunks if they can be used again, so we end up dropping to disk unecessarily.
+		ChunkStoreMemorySize += ChunkStoreMemorySize / 2;
+
 		// Load overridden size from config.
 		if (!GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkStoreMemorySize"), ChunkStoreMemorySize, GEngineIni))
 		{
@@ -1270,8 +1394,42 @@ namespace BuildPatchServices
 				ChunkStoreMemorySize = CloudChunkStoreMemorySize + InstallChunkStoreMemorySize;
 			}
 		}
+
 		// Clamp to sensible limits.
 		ChunkStoreMemorySize = FMath::Clamp<int32>(ChunkStoreMemorySize, 64, 2048);
+
+		// Check for new config - optionally fill memory up to a limit.
+		int32 ChunkStoreMemoryHeadRoomMB = 2000;
+		if (GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkStoreMemoryHeadRoomMB"), ChunkStoreMemoryHeadRoomMB, GEngineIni) &&
+			ChunkStoreMemoryHeadRoomMB > 500) // We have to leave at least SOME room.
+		{
+			// Memory store works in chunks and we don't know how big the chunks are.
+			int32 ChunkSizeEach = 1 << 20; // default to 1MB
+			GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkStoreMemoryChunkSizeBytes"), ChunkSizeEach, GEngineIni);
+
+			uint64 AvailableMem = FPlatformMemory::GetStats().AvailablePhysical;
+
+			uint64 RequestedHeadRoom = ((uint64)ChunkStoreMemoryHeadRoomMB << 20);
+
+			if (RequestedHeadRoom < AvailableMem)
+			{
+				uint64 MemoryStoreMem = AvailableMem - RequestedHeadRoom;
+				ChunkStoreMemorySize = MemoryStoreMem / ChunkSizeEach;
+
+				UE_LOG(LogBPSInstallerConfig, Display, TEXT("ChunkStoreMemoryHeadroom: Using %d as a result of %llu requested out of %llu available"), ChunkStoreMemorySize, RequestedHeadRoom, AvailableMem);
+			}
+			else
+			{
+				// Cap at available.
+				if (ChunkStoreMemorySize > (AvailableMem / ChunkSizeEach))
+				{
+					ChunkStoreMemorySize = AvailableMem / ChunkSizeEach;
+				}
+
+				UE_LOG(LogBPSInstallerConfig, Display, TEXT("ChunkStoreMemoryHeadroom: Requested more than available - Using %d as a result of %llu requested out of %llu available"), ChunkStoreMemorySize, RequestedHeadRoom, AvailableMem);
+			}
+		}
+
 		// Cache the last download requirement in case we are running a retry.
 		PreviousTotalDownloadRequired.Add(CloudChunkSourceStatistics->GetRequiredDownloadSize());
 		// Reset so that we don't double count data.
@@ -1282,6 +1440,8 @@ namespace BuildPatchServices
 		{
 			TUniquePtr<IChunkDataSerialization> ChunkDataSerialization(FChunkDataSerializationFactory::Create(
 				FileSystem.Get()));
+
+			// Generate the list of chunks we will need and the order in which we will need them.
 			TUniquePtr<IChunkReferenceTracker> ChunkReferenceTracker(FChunkReferenceTrackerFactory::Create(
 				ManifestSet.Get(),
 				FilesToConstruct));
@@ -1289,20 +1449,29 @@ namespace BuildPatchServices
 			TUniquePtr<IChunkEvictionPolicy> MemoryEvictionPolicy(FChunkEvictionPolicyFactory::Create(
 				ChunkReferenceTracker.Get()));
 			TUniquePtr<IDiskChunkStore> DiskOverflowStore;
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
-			FDiskChunkStoreConfig DiskChunkStoreConfig(DataStagingDir);
-			DiskChunkStoreConfig.SharedContext = Configuration.SharedContext.Get();
-			DiskOverflowStore.Reset(FDiskChunkStoreFactory::Create(
-				FileSystem.Get(),
-				ChunkDataSerialization.Get(),
-				DiskChunkStoreStatistics.Get(),
-				MoveTemp(DiskChunkStoreConfig)));
-#endif // ENABLE_PATCH_DISK_OVERFLOW_STORE
+			bool bUseDiskOverflowStore = true;
+			GConfig->GetBool(TEXT("BuildPatchServices"), TEXT("bEnableDiskOverflowStore"), bUseDiskOverflowStore, GEngineIni);
+			UE_LOG(LogBPSInstallerConfig, Display, TEXT("DiskOverflowStore is: %s"), bUseDiskOverflowStore ? TEXT("Enabled") : TEXT("Disabled"));
+
+			if (bUseDiskOverflowStore)
+			{
+				FDiskChunkStoreConfig DiskChunkStoreConfig(DataStagingDir);
+				DiskChunkStoreConfig.SharedContext = Configuration.SharedContext.Get();
+				DiskOverflowStore.Reset(FDiskChunkStoreFactory::Create(
+					FileSystem.Get(),
+					ChunkDataSerialization.Get(),
+					DiskChunkStoreStatistics.Get(),
+					MoveTemp(DiskChunkStoreConfig)));
+			}
+
 			TUniquePtr<IMemoryChunkStore> CloudChunkStore(FMemoryChunkStoreFactory::Create(
 				ChunkStoreMemorySize,
 				MemoryEvictionPolicy.Get(),
 				DiskOverflowStore.Get(),
-				MemoryChunkStoreStatistics.Get()));
+				MemoryChunkStoreStatistics.Get(),
+				ChunkReferenceTracker.Get()));
+
+			// Add a source for pulling from chunk "databases", basically tarballs of chunks.
 			TUniquePtr<IChunkDbChunkSource> ChunkDbChunkSource(FChunkDbChunkSourceFactory::Create(
 				BuildChunkDbSourceConfig(),
 				Platform.Get(),
@@ -1313,6 +1482,9 @@ namespace BuildPatchServices
 				MessagePump.Get(),
 				InstallerError.Get(),
 				ChunkDbChunkSourceStatistics.Get()));
+
+			// Add a source for pulling from the existing directory (for patching). This uses the manifest for the
+			// currently deployed files to create a list of available chunks to read from.
 			TUniquePtr<IInstallChunkSource> InstallChunkSource(FInstallChunkSourceFactory::Create(
 				BuildInstallSourceConfig(ChunkDbChunkSource->GetAvailableChunks()),
 				FileSystem.Get(),
@@ -1322,10 +1494,14 @@ namespace BuildPatchServices
 				InstallChunkSourceStatistics.Get(),
 				InstallationInfo,
 				ManifestSet.Get()));
+
+			// Sub out the chunks we have available on disk - anything we don't we have to download.
 			TSet<FGuid> InitialDownloadChunks = ReferencedChunks.Difference(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks());
 			FileOperationTracker->OnDataStateUpdate(ReferencedChunks.Intersect(ChunkDbChunkSource->GetAvailableChunks()), EFileOperationState::PendingLocalChunkDbData);
 			FileOperationTracker->OnDataStateUpdate(ReferencedChunks.Intersect(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks()), EFileOperationState::PendingLocalInstallData);
 			FileOperationTracker->OnDataStateUpdate(InitialDownloadChunks, EFileOperationState::PendingRemoteCloudData);
+
+			// Add the source for downloading chunks we don't have on disk.
 			TUniquePtr<IDownloadConnectionCount> DownloadConnectionCount(FDownloadConnectionCountFactory::Create(BuildConnectionCountConfig(), DownloadServiceStatistics.Get()));
 			TUniquePtr<ICloudChunkSource> CloudChunkSource(FCloudChunkSourceFactory::Create(
 				BuildCloudSourceConfig(),
@@ -1340,26 +1516,28 @@ namespace BuildPatchServices
 				CloudChunkSourceStatistics.Get(),
 				ManifestSet.Get(),
 				MoveTemp(InitialDownloadChunks)));
+
+			// Set up a fallback chain of sources.
 			TArray<IChunkSource*> ChunkSources;
 			ChunkSources.Add(ChunkDbChunkSource.Get());
 			ChunkSources.Add(InstallChunkSource.Get());
 			ChunkSources.Add(CloudChunkSource.Get());
 			TUniquePtr<IChainedChunkSource> ChainedChunkSource(FChainedChunkSourceFactory::Create(
 				ChunkSources));
-			TUniquePtr<FBuildPatchFileConstructor> FileConstructor(new FBuildPatchFileConstructor(
-				FFileConstructorConfig({
-					ManifestSet.Get(),
-					Configuration.InstallDirectory,
-					InstallStagingDir,
-					MetaStagingDir,
-					FilesToConstruct.Array(),
-					Configuration.InstallMode}),
-				FileSystem.Get(),
-				ChainedChunkSource.Get(),
-				ChunkReferenceTracker.Get(),
-				InstallerError.Get(),
-				InstallerAnalytics.Get(),
-				FileConstructorStatistics.Get()));
+
+			// Set up the class that actually requests chunks and writes them to disk.
+			FFileConstructorConfig FCC;
+			FCC.ConstructList = FilesToConstruct.Array();
+			FCC.InstallDirectory = Configuration.InstallDirectory;
+			FCC.InstallMode = Configuration.InstallMode;
+			FCC.ManifestSet = ManifestSet.Get();
+			FCC.MetaDirectory = MetaStagingDir;
+			FCC.SharedContext = Configuration.SharedContext.Get();
+			FCC.StagingDirectory = InstallStagingDir;
+
+			TUniquePtr<FBuildPatchFileConstructor> FileConstructor(
+				new FBuildPatchFileConstructor(FCC, FileSystem.Get(), ChainedChunkSource.Get(), ChunkDbChunkSource.Get(), ChunkReferenceTracker.Get(), InstallerError.Get(),InstallerAnalytics.Get(),FileConstructorStatistics.Get())
+			);
 			FDelegateHandle OnBeforeDeleteFileHandle = FileConstructor->OnBeforeDeleteFile().AddLambda([this, &InstallChunkSource](const FString& FilePath)
 			{
 				FString BuildRelativeFilename = FilePath;
@@ -1372,9 +1550,10 @@ namespace BuildPatchServices
 			{
 				ChainedChunkSource->AddRepeatRequirement(LostChunk);
 			};
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
-			DiskOverflowStore->SetLostChunkCallback(LostChunkCallback);
-#endif // ENABLE_PATCH_DISK_OVERFLOW_STORE
+			if (DiskOverflowStore)
+			{
+				DiskOverflowStore->SetLostChunkCallback(LostChunkCallback);
+			}
 			CloudChunkStore->SetLostChunkCallback(LostChunkCallback);
 
 
@@ -1392,6 +1571,7 @@ namespace BuildPatchServices
 				BuildStats.ChunksQueuedForDownload = InitialDownloadChunks.Num();
 				BuildStats.ChunksLocallyAvailable = ReferencedChunks.Intersect(InstallChunkSource->GetAvailableChunks()).Num();
 				BuildStats.ChunksInChunkDbs = ReferencedChunks.Intersect(ChunkDbChunkSource->GetAvailableChunks()).Num();
+				UE_LOG(LogBPSInstallerConfig, Display, TEXT("Chunk Locations: Cloud %d Install %d ChunkDb %d"), BuildStats.ChunksQueuedForDownload, BuildStats.ChunksLocallyAvailable, BuildStats.ChunksInChunkDbs);
 			}
 
 			// Setup some weightings for the progress tracking

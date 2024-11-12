@@ -10,11 +10,11 @@ class SVerticalBox;
 
 namespace UE::ConcertSharedSlate { class IReplicationStreamModel; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 
-	DECLARE_DELEGATE_OneParam(FForEachReplicatedObject, TFunctionRef<void(const FSoftObjectPath&)> Consumer);
+	DECLARE_DELEGATE_OneParam(FForEachObjectInStream, TFunctionRef<void(const FSoftObjectPath&)> Consumer);
 	
 	/**
 	 * Displays a text "Replicating x Objects for y Actors".
@@ -29,11 +29,11 @@ namespace UE::MultiUserClient
 
 		SLATE_BEGIN_ARGS(SReplicationStatus)
 		{}
-			/** The clients to show statistics for */
-			SLATE_ATTRIBUTE(TSet<FGuid>, DisplayedClients)
+			/** The clients that may be replicating, for which we show the stats. */
+			SLATE_ATTRIBUTE(TSet<FGuid>, ReplicatableClients)
 
-			/** Delegate which enumerates every replicated object. */
-			SLATE_EVENT(FForEachReplicatedObject, ForEachReplicatedObject)
+			/** Delegate which enumerates every object registered in a stream - independent of whether it is being replicated or not. */
+			SLATE_EVENT(FForEachObjectInStream, ForEachObjectInStream)
 		SLATE_END_ARGS()
 
 		/** Adds a separator and SReplicationStatus to the bottom of the VerticalBox- */
@@ -50,17 +50,17 @@ namespace UE::MultiUserClient
 		/** Used to get authority state of objects and informs us when authority changes. */
 		FGlobalAuthorityCache* AuthorityCache = nullptr;
 
-		/** The clients to show statistics for */
-		TAttribute<TSet<FGuid>> DisplayedClientsAttribute;
-		/** Delegate which enumerates every replicated object. */
-		FForEachReplicatedObject ForEachReplicatedObjectDelegate;
+		/** The clients that may be replicating, for which we show the stats. */
+		TAttribute<TSet<FGuid>> ReplicatableClientsAttribute;
+		/** Delegate which enumerates every object registered in a stream - independent of whether it is being replicated or not. */
+		FForEachObjectInStream ForEachObjectInStreamDelegate;
 
 		/** Updated when authority changes. Displays subobjects in bold. */
 		TSharedPtr<STextBlock> ObjectsText;
 		/** Updated when authority changes. Displays actors in bold. */
 		TSharedPtr<STextBlock> ActorsText;
 
-		void OnAuthorityCacheChanged(const FGuid& ClientId) { RefreshStatusText(); }
+		void OnAuthorityCacheChanged(const FGuid&) { RefreshStatusText(); }
 	};
 }
 

@@ -3,6 +3,7 @@
 #include "XRCreativeITFComponent.h"
 #include "XRCreativeAvatar.h"
 #include "XRCreativeITFRenderComponent.h"
+#include "XRCreativeGizmos.h"
 #include "XRCreativeLog.h"
 #include "XRCreativePointerComponent.h"
 #include "SelectionInteraction.h"
@@ -353,6 +354,58 @@ protected:
 //////////////////////////////////////////////////////////////////////////
 
 
+class FXRCreativeTransformGizmoActorFactory : public FCombinedTransformGizmoActorFactory
+{
+public:
+	FXRCreativeTransformGizmoActorFactory(
+		UGizmoViewContext* InGizmoViewContext,
+		UXRCreativeITFComponent* InITFComponent
+	)
+		: FCombinedTransformGizmoActorFactory(InGizmoViewContext)
+		, ITFComponent(InITFComponent)
+	{
+		ensure(InGizmoViewContext);
+		ensure(InITFComponent);
+	}
+
+	virtual ACombinedTransformGizmoActor* CreateNewGizmoActor(UWorld* World) const override
+	{
+		TSubclassOf<AXRCreativeCombinedTransformGizmoActor> GizmoClass =
+			ITFComponent->GetCombinedGizmoActorClass();
+
+		AXRCreativeCombinedTransformGizmoActor* Gizmo =
+			World->SpawnActor<AXRCreativeCombinedTransformGizmoActor>(GizmoClass);
+
+		if (!GizmoClass || !ensure(Gizmo))
+		{
+			// Fall back to base
+			return FCombinedTransformGizmoActorFactory::CreateNewGizmoActor(World);
+		}
+
+		Gizmo->SetEnabledElements(EnableElements);
+
+		TInlineComponentArray<UXRCreativeGizmoMeshComponent*> GizmoMeshes;
+		Gizmo->GetComponents(GizmoMeshes);
+		for (UXRCreativeGizmoMeshComponent* GizmoMesh : GizmoMeshes)
+		{
+			GizmoMesh->Initialize();
+		}
+
+		ITFComponent->GizmoActor = Gizmo;
+
+		Gizmo->OwnerAvatar = Cast<AXRCreativeAvatar>(ITFComponent->GetOwner());
+		
+		return Gizmo;
+	}
+
+protected:
+	UXRCreativeITFComponent* ITFComponent;
+};
+
+
+//////////////////////////////////////////////////////////////////////////
+
+
 UXRCreativeITFComponent::UXRCreativeITFComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -461,8 +514,17 @@ void UXRCreativeITFComponent::InitializeComponent()
 	}
 
 	// create transform interaction
+	UGizmoViewContext* GizmoViewContext =
+		ToolsContext->GizmoManager->GetContextObjectStore()->FindContext<UGizmoViewContext>();
+
+	TSharedRef<FXRCreativeTransformGizmoActorFactory> GizmoActorFactory =
+		MakeShared<FXRCreativeTransformGizmoActorFactory>(GizmoViewContext, this);
+
 	TransformInteraction = NewObject<UXRCreativeTransformInteraction>(this);
-	TransformInteraction->Initialize(GetSelectionSet(), ToolsContext->GizmoManager,
+	TransformInteraction->Initialize(
+		GizmoActorFactory,
+		GetSelectionSet(),
+		ToolsContext->GizmoManager,
 		[this]() { return HaveActiveTool() == false; }
 	);
 	TransformInteraction->ForceUpdateGizmoState();

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NiagaraDataInterfaceSimpleCounter.h"
+#include "DataInterface/NiagaraDataInterfaceSimpleCounter.h"
 #include "NiagaraClearCounts.h"
 #include "NiagaraCompileHashVisitor.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
@@ -479,8 +479,7 @@ void UNiagaraDataInterfaceSimpleCounter::PushToRenderThreadImpl()
 
 UObject* UNiagaraDataInterfaceSimpleCounter::SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
 {
-	UNDISimpleCounterSimCacheData* CacheData = NewObject<UNDISimpleCounterSimCacheData>(SimCache);
-	return CacheData;
+	return OptionalPerInstanceData ? NewObject<UNDISimpleCounterSimCacheData>(SimCache) : nullptr;
 }
 
 bool UNiagaraDataInterfaceSimpleCounter::SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
@@ -567,10 +566,10 @@ bool UNiagaraDataInterfaceSimpleCounter::SimCacheReadFrame(UObject* StorageObjec
 	return true;
 }
 
-bool UNiagaraDataInterfaceSimpleCounter::SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const
+bool UNiagaraDataInterfaceSimpleCounter::SimCacheCompareFrame(const UObject* LhsStorageObject, const UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const
 {
-	UNDISimpleCounterSimCacheData* LhsCacheData = CastChecked<UNDISimpleCounterSimCacheData>(LhsStorageObject);
-	UNDISimpleCounterSimCacheData* RhsCacheData = CastChecked<UNDISimpleCounterSimCacheData>(RhsStorageObject);
+	const UNDISimpleCounterSimCacheData* LhsCacheData = CastChecked<const UNDISimpleCounterSimCacheData>(LhsStorageObject);
+	const UNDISimpleCounterSimCacheData* RhsCacheData = CastChecked<const UNDISimpleCounterSimCacheData>(RhsStorageObject);
 
 	const int32 ValueOffset = FrameIndex * 2;
 	const int32 ExpectedValues = ValueOffset + 2;

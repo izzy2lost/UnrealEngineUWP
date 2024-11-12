@@ -2,7 +2,7 @@
 
 #include "Utils/RenderGridRemoteControlUtils.h"
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
 #include "Backends/JsonStructDeserializerBackend.h"
@@ -260,7 +260,7 @@ void StructTypeToJson(const void* Value, UStruct& ValueTypeInfo, FString& Json)
 	Writer.Close();
 
 	const FUTF16ToTCHAR ConvertedString(reinterpret_cast<UTF16CHAR*>(Bytes.GetData()), Bytes.Num() / sizeof(UTF16CHAR));
-	Json = FString(ConvertedString.Length(), ConvertedString.Get()).TrimStartAndEnd();
+	Json = FString::ConstructFromPtrSize(ConvertedString.Get(), ConvertedString.Length()).TrimStartAndEnd();
 }
 
 void StructTypeToJson(const FInstancedStruct& Value, FString& Json)

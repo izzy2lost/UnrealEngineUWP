@@ -38,8 +38,9 @@ UE_TRACE_EVENT_BEGIN(Animation, TickRecord2)
 	UE_TRACE_EVENT_FIELD(bool, IsBlendSpace)
 UE_TRACE_EVENT_END()
 
-UE_TRACE_EVENT_BEGIN(Animation, SkeletalMesh2, NoSync|Important)
+UE_TRACE_EVENT_BEGIN(Animation, SkeletalMesh3, NoSync|Important)
 	UE_TRACE_EVENT_FIELD(uint64, Id)
+	UE_TRACE_EVENT_FIELD(uint64, SkeletonId)
 	UE_TRACE_EVENT_FIELD(int32[], ParentIndices)
 UE_TRACE_EVENT_END()
 
@@ -61,6 +62,7 @@ UE_TRACE_EVENT_BEGIN(Animation, SkeletalMeshComponent4)
 	UE_TRACE_EVENT_FIELD(double, RecordingTime)
 	UE_TRACE_EVENT_FIELD(uint64, ComponentId)
 	UE_TRACE_EVENT_FIELD(uint64, MeshId)
+	UE_TRACE_EVENT_FIELD(bool, IsVisible)
 	UE_TRACE_EVENT_FIELD(float[], ComponentToWorld)
 	UE_TRACE_EVENT_FIELD(float[], Pose)
 	UE_TRACE_EVENT_FIELD(uint32[], CurveIds)
@@ -522,6 +524,7 @@ void FAnimTrace::OutputSkeletalMesh(const USkeletalMesh* InMesh)
 	}
 
 	TRACE_OBJECT(InMesh);
+	TRACE_OBJECT(InMesh->GetSkeleton());
 
 	uint32 BoneCount = (uint32)InMesh->GetRefSkeleton().GetNum();
 
@@ -535,9 +538,10 @@ void FAnimTrace::OutputSkeletalMesh(const USkeletalMesh* InMesh)
 		ParentIndices[BoneIndex++] = BoneInfo.ParentIndex;
 	}
 
-	UE_TRACE_LOG(Animation, SkeletalMesh2, AnimationChannel, ParentIndices.Num() * sizeof(int32))
-		<< SkeletalMesh2.Id(FObjectTrace::GetObjectId(InMesh))
-		<< SkeletalMesh2.ParentIndices(ParentIndices.GetData(), ParentIndices.Num());
+	UE_TRACE_LOG(Animation, SkeletalMesh3, AnimationChannel, ParentIndices.Num() * sizeof(int32))
+		<< SkeletalMesh3.Id(FObjectTrace::GetObjectId(InMesh))
+		<< SkeletalMesh3.SkeletonId(FObjectTrace::GetObjectId(InMesh->GetSkeleton()))
+		<< SkeletalMesh3.ParentIndices(ParentIndices.GetData(), ParentIndices.Num());
 
 	GSkeletalMeshTraceAnnotations.Set(InMesh);
 }
@@ -667,6 +671,7 @@ void FAnimTrace::OutputSkeletalMeshComponent(const USkeletalMeshComponent* InCom
 			<< SkeletalMeshComponent4.RecordingTime(FObjectTrace::GetWorldElapsedTime(InComponent->GetWorld()))
 			<< SkeletalMeshComponent4.ComponentId(FObjectTrace::GetObjectId(InComponent))
 			<< SkeletalMeshComponent4.MeshId(FObjectTrace::GetObjectId(InComponent->GetSkeletalMeshAsset()))
+			<< SkeletalMeshComponent4.IsVisible(InComponent->GetVisibleFlag())
 			<< SkeletalMeshComponent4.ComponentToWorld(reinterpret_cast<const float*>(&InComponent->GetComponentToWorld()), sizeof(FTransform) / sizeof(float))
 			<< SkeletalMeshComponent4.Pose(reinterpret_cast<const float*>(InComponent->GetComponentSpaceTransforms().GetData()), BoneCount * (sizeof(FTransform) / sizeof(float)))
 			<< SkeletalMeshComponent4.CurveIds(CurveIds.GetData(), CurveIds.Num())

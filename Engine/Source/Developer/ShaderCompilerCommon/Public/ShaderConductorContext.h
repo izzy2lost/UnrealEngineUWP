@@ -86,9 +86,6 @@ namespace CrossCompiler
 		/** Enables separate samplers in GLSL via extensions. */
 		bool bEnableSeparateSamplersInGlsl = false;
 
-		/** Enables re-mapping of input/output attribute locations to include padding for arrays. */
-		bool bRemapAttributeLocations = false;
-
 		/** Decorate SV_Position implicitly as invariant. This can drastically reduce Z-fighting but also prevent certain optimizations. */
 		bool bSvPositionImplicitInvariant = true;
 
@@ -98,6 +95,9 @@ namespace CrossCompiler
 		/** Preserve storage inputs used for OpenGL */
 		bool bPreserveStorageInput = false;
         bool bForceStorageImageFormat = false;
+
+		/** Treat warnigns as errors. This adds '-WX' to the DXC arguments. See CFLAG_WarningsAsErrors. */
+		bool bWarningsAsErrors = false;
 
 		enum class ETargetEnvironment
 		{
@@ -208,6 +208,7 @@ namespace CrossCompiler
 
 		/** Rewrites the specified HLSL shader source code. This allows to reduce the HLSL code by removing unused global resources for instance.
 		This will update the internally loaded source (see 'LoadSource'), so the output parameter 'OutSource' is optional. */
+		UE_DEPRECATED(5.5, "DXC rewriter has been deprecated since UE5.5. FShaderConductorContext::RewriteHlsl will be removed in future versions.")
 		bool RewriteHlsl(const FShaderConductorOptions& Options, FString* OutSource = nullptr);
 
         /** Compiles the specified HLSL shader source code to DXIL. */

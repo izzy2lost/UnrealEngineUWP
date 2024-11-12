@@ -8,4 +8,7 @@ ArrayView<float> JointsNullOutputInstance::getOutputBuffer() {
     return {};
 }
 
+void JointsNullOutputInstance::resetOutputBuffer() {
+}
+
 }  // namespace rl4

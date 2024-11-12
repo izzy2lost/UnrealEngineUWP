@@ -2,40 +2,49 @@
 
 #include "ChaosVDSolverCollisionDataComponentVisualizer.h"
 
-#include "ChaosVDCollisionDataDetailsTab.h"
-#include "ChaosVDEditorSettings.h"
+#include "ChaosVDComponentVisualizerBase.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDTabsIDs.h"
-#include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
+#include "Settings/ChaosVDCollisionVisualizationSettings.h"
+#include "ToolMenu.h"
+#include "ToolMenus.h"
+#include "ToolMenuEntry.h"
+#include "ToolMenuSection.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Widgets/SChaosVDCollisionDataInspector.h"
-#include "Widgets/SChaosVDMainTab.h"
+#include "Widgets/SChaosVDViewportToolbar.h"
 
-IMPLEMENT_HIT_PROXY(HChaosVDContactPointProxy, HComponentVisProxy)
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-void FChaosVDCollisionDataFinder::SetIsSelected(bool bNewSelected)
-{
-	if (TSharedPtr<FChaosVDParticlePairMidPhase> MidPhaseData = OwningMidPhase.Pin())
-	{
-		if (OwningConstraint && OwningConstraint->ManifoldPoints.IsValidIndex(ContactIndex))
-		{
-			OwningConstraint->ManifoldPoints[ContactIndex].bIsSelectedInEditor = bNewSelected;
-		}
-	}
-}
-
 FChaosVDSolverCollisionDataComponentVisualizer::FChaosVDSolverCollisionDataComponentVisualizer()
 {
+	FChaosVDSolverCollisionDataComponentVisualizer::RegisterVisualizerMenus();
+
+	InspectorTabID = FChaosVDTabID::CollisionDataDetails;
 }
 
 FChaosVDSolverCollisionDataComponentVisualizer::~FChaosVDSolverCollisionDataComponentVisualizer()
 {
+}
+
+void FChaosVDSolverCollisionDataComponentVisualizer::RegisterVisualizerMenus()
+{
+	FName MenuSection("CollisionDataVisualization.Show");
+	FText MenuSectionLabel = LOCTEXT("CollisionDataVisualizationShowMenuLabel", "Collision Data Visualization");
+	FText FlagsMenuLabel = LOCTEXT("CollisionVisualizationFlagsMenuLabel", "Collision Data Flags");
+	FText FlagsMenuTooltip = LOCTEXT("CollisionVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of collisionData");
+	FSlateIcon FlagsMenuIcon = FSlateIcon(FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("ShowFlagsMenu.Collision")));
+
+	FText SettingsMenuLabel = LOCTEXT("CollisionVisualizationSettingsMenuLabel", "Collision Visualization Settings");
+	FText SettingsMenuTooltip = LOCTEXT("CollisionVisualizationSettingsMenuToolTip", "Options to change how the recorded collision Data is debug drawn");
+	
+	CreateGenericVisualizerMenu<UChaosVDCollisionDataVisualizationSettings, EChaosVDCollisionVisualizationFlags>(SChaosVDViewportToolbar::ShowMenuName, MenuSection, MenuSectionLabel, FlagsMenuLabel, FlagsMenuTooltip, FlagsMenuIcon, SettingsMenuLabel, SettingsMenuTooltip);
 }
 
 bool FChaosVDSolverCollisionDataComponentVisualizer::ShowWhenSelected()
@@ -66,11 +75,8 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawVisualization(const UAc
 	VisualizationContext.SolverID = SolverInfoContainer->GetSolverID();
 	VisualizationContext.CVDScene = SolverInfoContainer->GetScene();
 	VisualizationContext.SpaceTransform = SolverInfoContainer->GetSimulationTransform();
-
-	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
-	{
-		VisualizationContext.VisualizationFlags = EditorSettings->GlobalCollisionDataVisualizationFlags;
-	}
+	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDCollisionDataVisualizationSettings::GetDataVisualizationFlags());
+	VisualizationContext.DebugDrawSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCollisionDataVisualizationSettings>();
 
 	if (!EnumHasAnyFlags(EChaosVDCollisionVisualizationFlags::EnableDraw, static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags)))
 	{
@@ -101,58 +107,9 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawVisualization(const UAc
 	}
 }
 
-bool FChaosVDSolverCollisionDataComponentVisualizer::VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click)
+bool FChaosVDSolverCollisionDataComponentVisualizer::CanHandleClick(const HChaosVDComponentVisProxy& VisProxy)
 {
-	const HChaosVDContactPointProxy* ContactProxy = HitProxyCast<HChaosVDContactPointProxy>(VisProxy);
-	if (ContactProxy == nullptr)
-	{
-		ClearCurrentSelection();
-		return false;
-	}
-
-	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = InViewportClient->GetModeTools() ? StaticCastSharedPtr<SChaosVDMainTab>(InViewportClient->GetModeTools()->GetToolkitHost()) : nullptr;
-	if (!MainTabToolkitHost.IsValid())
-	{
-		return false;
-	}
-
-	const TSharedPtr<FChaosVDCollisionDataDetailsTab> CollisionDataDetailsTab = MainTabToolkitHost->GetTabSpawnerInstance<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails).Pin();
-	if (!CollisionDataDetailsTab)
-	{
-		return false;
-	}
-
-	const TSharedPtr<FTabManager> TabManager = MainTabToolkitHost->GetTabManager();
-	if (!TabManager)
-	{
-		return false;
-	}
-
-	TabManager->TryInvokeTab(FChaosVDTabID::CollisionDataDetails);
-	
-	const TSharedPtr<SChaosVDCollisionDataInspector> CollisionInspector = CollisionDataDetailsTab->GetCollisionInspectorInstance().Pin();
-	if (!CollisionInspector)
-	{
-		return false;
-	}
-
-	if (ContactProxy->ContactFinder.OwningMidPhase.Pin())
-	{
-		
-		CollisionInspector->SetSingleContactDataToInspect(ContactProxy->ContactFinder);
-		
-		ClearCurrentSelection();
-		CurrentSelectedContactData = ContactProxy->ContactFinder;
-		CurrentSelectedContactData.SetIsSelected(true);
-		return true;
-	}
-
-	return false;
-}
-
-void FChaosVDSolverCollisionDataComponentVisualizer::ClearCurrentSelection()
-{
-	CurrentSelectedContactData.SetIsSelected(false);
+	return VisProxy.DataSelectionHandle && VisProxy.DataSelectionHandle->IsA<FChaosVDParticlePairMidPhase>();
 }
 
 void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UActorComponent* Component, const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase, const FChaosVDVisualizationContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI)
@@ -163,10 +120,10 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 		return;
 	}
 
-	FChaosVDContactDebugDrawSettings DebugDrawSettings;
-	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
+	const UChaosVDCollisionDataVisualizationSettings* DebugDrawSettings = Cast<UChaosVDCollisionDataVisualizationSettings>(VisualizationContext.DebugDrawSettings);
+	if (!VisualizationContext.DebugDrawSettings)
 	{
-		DebugDrawSettings = EditorSettings->ContactDebugDrawSettings;
+		return;
 	}
 	
 	if (MidPhase.IsValid())
@@ -177,14 +134,28 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 			return;
 		}
 		
-		const FChaosVDParticleDataWrapper* ParticleDataViewer = ParticleActor->GetParticleData();
+		TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataViewer = ParticleActor->GetParticleData();
 		if (!ensure(ParticleDataViewer))
 		{
 			return;
 		}
 
-		EChaosVDCollisionVisualizationFlags VisualizationFlags = static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags);
+		TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin();
+		if (!ensure(SolverDataSelectionObject))
+		{
+			return;
+		}
 
+		TSharedPtr<FChaosVDSolverDataSelectionHandle> CurrentSelection = SolverDataSelectionObject->GetCurrentSelectionHandle();
+		FChaosVDCollisionDataSelectionContext* CurrentSelectionContext = nullptr;
+
+		if (CurrentSelection && CurrentSelection->IsA<FChaosVDParticlePairMidPhase>())
+		{
+			CurrentSelectionContext = CurrentSelection->GetContextData<FChaosVDCollisionDataSelectionContext>();
+		}
+
+		EChaosVDCollisionVisualizationFlags VisualizationFlags = static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags);
+		
 		for (FChaosVDConstraint& Constraint : MidPhase->Constraints)
 		{
 			int32 ContactIndex = INDEX_NONE;
@@ -192,10 +163,14 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 			{
 				ContactIndex++;
 
-				FChaosVDCollisionDataFinder HitPRoxyDataFinder;
-				HitPRoxyDataFinder.OwningMidPhase = MidPhase;
-				HitPRoxyDataFinder.OwningConstraint = &Constraint;
-				HitPRoxyDataFinder.ContactIndex = ContactIndex;
+				TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle = SolverDataSelectionObject->MakeSelectionHandle(MidPhase);
+
+				FChaosVDCollisionDataSelectionContext ContextData;
+				ContextData.MidPhase = MidPhase;
+				ContextData.ConstraintDataPtr = &Constraint;
+				ContextData.ContactDataIndex = ContactIndex;
+
+				SelectionHandle->SetHandleContext(MoveTemp(ContextData));
 
 				const bool bIsProbe = Constraint.bIsProbe;
 				const bool bIsActive = ManifoldPoint.bIsValid && (!ManifoldPoint.NetPushOut.IsNearlyZero() || !ManifoldPoint.NetImpulse.IsNearlyZero() || (!Constraint.bUseManifold && !Constraint.AccumulatedImpulse.IsNearlyZero()));
@@ -213,10 +188,10 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 					continue;
 				}
 
-				PDI->SetHitProxy(new HChaosVDContactPointProxy(Component, HitPRoxyDataFinder));
+				PDI->SetHitProxy(new HChaosVDComponentVisProxy(Component, SelectionHandle));
 
-				const FChaosVDParticleDataWrapper* ParticleDataActor1 = CVDParticleActor1->GetParticleData();
-				const FChaosVDParticleDataWrapper* ParticleDataActor0 = CVDParticleActor0->GetParticleData();
+				TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataActor1 = CVDParticleActor1->GetParticleData();
+				TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataActor0 = CVDParticleActor0->GetParticleData();
 				const FTransform WorldActorTransform1 = ParticleDataActor1 && ParticleDataActor1->ParticlePositionRotation.HasValidData() ? FTransform(ParticleDataActor1->ParticlePositionRotation.MR, ParticleDataActor1->ParticlePositionRotation.MX) : FTransform();
 				const FTransform WorldActorTransform0 = ParticleDataActor0 && ParticleDataActor0->ParticlePositionRotation.HasValidData() ? FTransform(ParticleDataActor0->ParticlePositionRotation.MR, ParticleDataActor0->ParticlePositionRotation.MX) : FTransform();
 
@@ -290,7 +265,8 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 				{
 					if (ManifoldPoint.bIsValid && !ManifoldPoint.NetPushOut.IsNearlyZero())
 					{
-						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPointPlaneLocation, WorldPointPlaneLocation + VisualizationContext.SpaceTransform.TransformPosition(ManifoldPoint.NetPushOut),  UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::NetPushOut), PushOutImpulseColor, DebugDrawSettings.DepthPriority);
+						const FText& DebugText = DebugDrawSettings->bShowDebugText ? UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::NetPushOut) : FText::GetEmpty();
+						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPointPlaneLocation, WorldPointPlaneLocation + VisualizationContext.SpaceTransform.TransformPosition(ManifoldPoint.NetPushOut), DebugText, PushOutImpulseColor, DebugDrawSettings->DepthPriority);
 					}
 				}
 
@@ -298,7 +274,8 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 				{
 					if (ManifoldPoint.bIsValid && !ManifoldPoint.NetImpulse.IsNearlyZero())
 					{
-						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPointPlaneLocation, WorldPointPlaneLocation + VisualizationContext.SpaceTransform.TransformPosition(ManifoldPoint.NetImpulse), UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::NetImpulse), ImpulseColor, DebugDrawSettings.DepthPriority);
+						const FText& DebugText = DebugDrawSettings->bShowDebugText ? UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::NetImpulse) : FText::GetEmpty();
+						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPointPlaneLocation, WorldPointPlaneLocation + VisualizationContext.SpaceTransform.TransformPosition(ManifoldPoint.NetImpulse), DebugText, ImpulseColor, DebugDrawSettings->DepthPriority);
 					}
 				}
 
@@ -309,26 +286,29 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 					static FText ManifoldPointDebugText = FText::FormatOrdered(LOCTEXT("ManifoldPointDebugText", "{0} | Manifold Point"), ContactPointsDebugBaseFText);
 					static FText ManifoldInitialPhiDebugText = FText::FormatOrdered(LOCTEXT("ManifoldInitialPhiDebugText", "{0} | Manifold Initial Phi"), ContactPointsDebugBaseFText);
 	
-					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation, DebugDrawSettings.ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), ManifoldPlaneDebugText, DebugDrawSettings.DepthPriority);
-					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPointLocation, 0.5f * DebugDrawSettings.ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), ManifoldPointDebugText, DebugDrawSettings.DepthPriority);
+					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation, DebugDrawSettings->ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), DebugDrawSettings->bShowDebugText ? ManifoldPlaneDebugText : FText::GetEmpty(), DebugDrawSettings->DepthPriority);
+					FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPointLocation, 0.5f * DebugDrawSettings->ContactCircleRadius, CircleSegments, DiscColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z),  DebugDrawSettings->bShowDebugText ? ManifoldPointDebugText : FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 					if (ManifoldPoint.InitialPhi != 0)
 					{
-						FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation + ManifoldPoint.InitialPhi * WorldPlaneNormal, 0.25f * DebugDrawSettings.ContactCircleRadius, CircleSegments, InitialPhiColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z), ManifoldInitialPhiDebugText, DebugDrawSettings.DepthPriority);
+						FChaosVDDebugDrawUtils::DrawCircle(PDI, WorldPlaneLocation + ManifoldPoint.InitialPhi * WorldPlaneNormal, 0.25f * DebugDrawSettings->ContactCircleRadius, CircleSegments, InitialPhiColor, LinesThickness, Axes.GetUnitAxis(EAxis::Y), Axes.GetUnitAxis(EAxis::Z),
+							DebugDrawSettings->bShowDebugText ? ManifoldInitialPhiDebugText : FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 					}
 				}
 
 				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::ContactNormal))
 				{
 					FColor NormalColor = ((ManifoldPoint.ContactPoint.ContactType != EChaosVDContactPointType::EdgeEdge) ? PlaneNormalColor : EdgeNormalColor);
-					const int32 Scale = DebugDrawSettings.ContactNormalScale * ContactLenScale;
-					FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPlaneLocation, WorldPlaneLocation + WorldPlaneNormal * Scale, UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::ContactNormal), NormalColor, DebugDrawSettings.DepthPriority);
+					const int32 Scale = DebugDrawSettings->ContactNormalScale * ContactLenScale;
+					const FText& DebugText = DebugDrawSettings->bShowDebugText ? UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::ContactNormal) : FText::GetEmpty();
+					FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldPlaneLocation, WorldPlaneLocation + WorldPlaneNormal * Scale, DebugText, NormalColor, DebugDrawSettings->DepthPriority);
 				}
 
 				if (EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::AccumulatedImpulse))
 				{
 					if (!Constraint.AccumulatedImpulse.IsNearlyZero())
 					{
-						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldActorTransform0.GetLocation(), WorldActorTransform0.GetLocation() + Constraint.AccumulatedImpulse, UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::AccumulatedImpulse), FColor::White, DebugDrawSettings.DepthPriority);
+						const FText& DebugText = DebugDrawSettings->bShowDebugText ? UEnum::GetDisplayValueAsText(EChaosVDCollisionVisualizationFlags::AccumulatedImpulse) : FText::GetEmpty();
+						FChaosVDDebugDrawUtils::DrawArrowVector(PDI, WorldActorTransform0.GetLocation(), WorldActorTransform0.GetLocation() + Constraint.AccumulatedImpulse, DebugText, FColor::White, DebugDrawSettings->DepthPriority);
 					}
 				}
 
@@ -338,35 +318,35 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 					Transform.SetRotation(FRotationMatrix::MakeFromZ(WorldPlaneNormal).ToQuat());
 					Transform.SetLocation(WorldPlaneLocation);
 
-					FVector BoxExtents(DebugDrawSettings.ContactCircleRadius, DebugDrawSettings.ContactCircleRadius, 0.01f);
+					FVector BoxExtents(DebugDrawSettings->ContactCircleRadius, DebugDrawSettings->ContactCircleRadius, 0.01f);
 					FColor Color;
 
 					if (Constraint.bWasManifoldRestored)
 					{
 						Color = FColor::Blue;
-						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, Color, Transform, FText::GetEmpty(), DebugDrawSettings.DepthPriority);
+						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, Color, Transform, FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 					}
 					else if (ManifoldPoint.bWasRestored)
 					{
 						Color = FColor::Purple;
-						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, Color, Transform, FText::GetEmpty(), DebugDrawSettings.DepthPriority);
+						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, Color, Transform, FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 					}
 					else if (ManifoldPoint.bWasReplaced)
 					{
 						Color = FColor::Orange;
-						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, Color, Transform, FText::GetEmpty(), DebugDrawSettings.DepthPriority);
+						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, Color, Transform, FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 					}
 
 					if (MidPhase->bIsSleeping)
 					{
 						// This box should surround the debug draw box we made before
-						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents * 1.1f, FColor::Black, Transform, FText::GetEmpty(), DebugDrawSettings.DepthPriority);
+						FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents * 1.1f, FColor::Black, Transform, FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 					}
 				}
 
 				PDI->SetHitProxy(nullptr);
 
-				if (ManifoldPoint.bIsSelectedInEditor)
+				if (CurrentSelectionContext && CurrentSelectionContext->ConstraintDataPtr == &Constraint && CurrentSelectionContext->ContactDataIndex == ContactIndex)
 				{
 					// We don't have an easy way to show a contact is selected with debug draw
 					// but 3D box surrounding the contact is better than nothing
@@ -375,10 +355,10 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 					SelectionBoxTransform.SetLocation(WorldPlaneLocation);
 
 					// The Selection box should be a bit bigger than the configured circle radius for the debug draw contact
-					const float ContactSelectionBoxSize = DebugDrawSettings.ContactCircleRadius * 1.5f;
+					const float ContactSelectionBoxSize = DebugDrawSettings->ContactCircleRadius * 1.5f;
 
 					FVector SelectionBoxExtents(ContactSelectionBoxSize,ContactSelectionBoxSize,ContactSelectionBoxSize);
-					FChaosVDDebugDrawUtils::DrawBox(PDI, SelectionBoxExtents, FColor::Yellow, SelectionBoxTransform, FText::GetEmpty(), DebugDrawSettings.DepthPriority);
+					FChaosVDDebugDrawUtils::DrawBox(PDI, SelectionBoxExtents, FColor::Yellow, SelectionBoxTransform, FText::GetEmpty(), DebugDrawSettings->DepthPriority);
 				}
 			}
 		}

@@ -56,6 +56,7 @@ class FViewport;
 class IEngineLoop;
 class ILauncherWorker;
 class ILayers;
+class IAssetReferenceFixer;
 class IAssetViewport;
 class ITargetPlatform;
 class SViewport;
@@ -226,9 +227,12 @@ struct FPreviewPlatformInfo
 	,	PreviewShaderFormatName(NAME_None)
 	,	bPreviewFeatureLevelActive(false)
 	,	PreviewShaderPlatformName(NAME_None)
-	{}
+	,	PreviewShaderPlatformFriendlyName()
+	{
+		InternalSetFriendlyName();
+	}
 
-	FPreviewPlatformInfo(ERHIFeatureLevel::Type InFeatureLevel, EShaderPlatform InShaderPlatform = EShaderPlatform::SP_NumPlatforms, FName InPreviewPlatformName = NAME_None, FName InPreviewShaderFormatName = NAME_None, FName InDeviceProfileName = NAME_None, bool InbPreviewFeatureLevelActive = false, FName InShaderPlatformName = NAME_None)
+	FPreviewPlatformInfo(ERHIFeatureLevel::Type InFeatureLevel, EShaderPlatform InShaderPlatform = EShaderPlatform::SP_NumPlatforms, FName InPreviewPlatformName = NAME_None, FName InPreviewShaderFormatName = NAME_None, FName InDeviceProfileName = NAME_None, bool InbPreviewFeatureLevelActive = false, FName InShaderPlatformName = NAME_None, FText InPreviewShaderPlatformFriendlyName = FText())
 	:	PreviewFeatureLevel(InFeatureLevel)
 	,	ShaderPlatform(InShaderPlatform)
 	,	PreviewPlatformName(InPreviewPlatformName)
@@ -236,7 +240,10 @@ struct FPreviewPlatformInfo
 	,	DeviceProfileName(InDeviceProfileName)
 	,	bPreviewFeatureLevelActive(InbPreviewFeatureLevelActive)
 	,	PreviewShaderPlatformName(InShaderPlatformName)
-	{}
+	,	PreviewShaderPlatformFriendlyName(InPreviewShaderPlatformFriendlyName)
+	{
+		InternalSetFriendlyName();
+	}
 
 	/** The feature level we should use when loading or creating a new world */
 	ERHIFeatureLevel::Type PreviewFeatureLevel;
@@ -273,12 +280,59 @@ struct FPreviewPlatformInfo
 
 	/** returns the preview feature level if active, or GMaxRHIFeatureLevel otherwise */
 	UNREALED_API ERHIFeatureLevel::Type GetEffectivePreviewFeatureLevel() const;
+	
+	/** Returns the Friendly Name of the Preview*/
+	UNREALED_API FText GetFriendlyName() const { return PreviewShaderPlatformFriendlyName; }
+	
+	/** Returns the Shader Platform of the Preview*/
+	UNREALED_API EShaderPlatform GetShaderPlatform() const;
+private:
+	/**Cache Preview ShaderPlatform Name*/
+	FText PreviewShaderPlatformFriendlyName;
+	
+	UNREALED_API void InternalSetFriendlyName();
+};
+
+enum class EAssetReferenceFilterProperties : uint8
+{
+	None = 0,
+	EditorOnly = 1
+};
+ENUM_CLASS_FLAGS(EAssetReferenceFilterProperties);
+
+struct FAssetReferenceFilterReferencerInfo
+{
+	FAssetData Data;
+	EAssetReferenceFilterProperties Properties;
+
+	FAssetReferenceFilterReferencerInfo() : Properties(EAssetReferenceFilterProperties::None) {}
+	FAssetReferenceFilterReferencerInfo(const FAssetData& InData) : Data(InData), Properties(EAssetReferenceFilterProperties::None) {}
+	FAssetReferenceFilterReferencerInfo(const FAssetData& InData, EAssetReferenceFilterProperties InProperties) : Data(InData), Properties(InProperties) {}
+	bool operator==(const FAssetReferenceFilterReferencerInfo& Other) const
+	{
+		return Data == Other.Data && Properties == Other.Properties;
+	}
+
+	bool operator!=(const FAssetReferenceFilterReferencerInfo& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 /** Struct used in filtering allowed references between assets. Passes context about the referencers to game-level filters */
 struct FAssetReferenceFilterContext
 {
+	UNREALED_API void AddReferencingAsset(const FAssetData& InReferencingAsset, EAssetReferenceFilterProperties InProperties = EAssetReferenceFilterProperties::None);
+	UNREALED_API void AddReferencingAssets(const TArray<FAssetData>& InReferencingAssets, EAssetReferenceFilterProperties InProperties = EAssetReferenceFilterProperties::None);
+	UNREALED_API void AddReferencingAssetsFromPropertyHandle(const TSharedPtr<class IPropertyHandle>& PropertyHandle);
+
+	const TArray<FAssetReferenceFilterReferencerInfo>& GetReferencingAssets() const { return ReferencingAssetInfo; }
+
+	UE_DEPRECATED(5.5, "ReferencingAssets is deprecated. Use the AddReferencingAsset functions to add referencers and GetReferencingAssets to get them.")
 	TArray<FAssetData> ReferencingAssets;
+
+private:
+	TArray<FAssetReferenceFilterReferencerInfo> ReferencingAssetInfo;
 };
 
 /**
@@ -548,7 +602,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FPreviewPlatformChanged);
 	FPreviewPlatformChanged PreviewPlatformChanged;
 
-	/** An array of delegates that can force disable throttling cpu usage if any of them return false. */
+	/** An array of delegates that can force disable throttling cpu usage if any of them return true. */
 	DECLARE_DELEGATE_RetVal(bool, FShouldDisableCPUThrottling);
 	TArray<FShouldDisableCPUThrottling> ShouldDisableCPUThrottlingDelegates;
 
@@ -558,6 +612,10 @@ public:
 
 	/** Whether or not the editor is currently compiling */
 	bool bIsCompiling;
+
+protected:
+	/** Used to prevent reentrant calls to RebuildAlteredBSP(). */
+	bool bIsRebuildingAlteredBSP;
 
 private:
 
@@ -1241,6 +1299,7 @@ public:
 	 * 
 	 * @param Factory - the Factory to use to create Actors
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ReplaceSelectedActors instead.")
 	UNREALED_API void ReplaceSelectedActors(UActorFactory* Factory, const FAssetData& AssetData, bool bCopySourceProperties = true);
 
 	/**
@@ -1252,6 +1311,7 @@ public:
 	 * @param ActorsToReplace - Actors to replace
 	 * @param OutNewActors - Actors that were created
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ReplaceActors instead.")
 	UNREALED_API void ReplaceActors(UActorFactory* Factory, const FAssetData& AssetData, const TArray<AActor*>& ActorsToReplace, TArray<AActor*>* OutNewActors = nullptr, bool bCopySourceProperties = true);
 
 	/**
@@ -1263,6 +1323,7 @@ public:
 	 *
 	 * @return							Returns the newly created actor with the newly created static mesh.
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertBrushesToStaticMesh instead.")
 	UNREALED_API AActor* ConvertBrushesToStaticMesh(const FString& InStaticMeshPackageName, TArray<ABrush*>& InBrushesToConvert, const FVector& InPivotLocation);
 
 	/**
@@ -1274,6 +1335,7 @@ public:
 	 *
 	 * @param	ConvertToClass	The light class we are going to convert to.
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertLightActors instead.")
 	UNREALED_API void ConvertLightActors( UClass* ConvertToClass );
 
 	/**
@@ -1291,6 +1353,7 @@ public:
 	 * @param	bUseSpecialCases			If true, looks for classes that can be handled by hardcoded conversions
 	 * @param	InStaticMeshPackageName		The name to save the brushes to.
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::DoConvertActors instead.")
 	UNREALED_API void DoConvertActors( const TArray<AActor*>& ActorsToConvert, UClass* ConvertToClass, const TSet<FString>& ComponentsToConsider, bool bUseSpecialCases, const FString& InStaticMeshPackageName );
 
 	/**
@@ -1302,6 +1365,7 @@ public:
 	 * @param	ComponentsToConsider	Names of components to consider for property copying as well
 	 * @param	bUseSpecialCases		If true, looks for classes that can be handled by hardcoded conversions
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertActors instead.")
 	UNREALED_API void ConvertActors( const TArray<AActor*>& ActorsToConvert, UClass* ConvertToClass, const TSet<FString>& ComponentsToConsider, bool bUseSpecialCases = false );
 
 	/**
@@ -2252,6 +2316,7 @@ public:
 	  *
 	  * @param	VolumeClass	Class of volume that selected brushes should be converted into
 	  */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertSelectedBrushesToVolumes instead.")
 	UNREALED_API void ConvertSelectedBrushesToVolumes( UClass* VolumeClass );
 
 	/**
@@ -2260,6 +2325,7 @@ public:
 	 * @param FromClass The class converting from
 	 * @param ToClass	The class converting to
 	 */
+	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertActorsFromClass instead.")
 	UNREALED_API void ConvertActorsFromClass( UClass* FromClass, UClass* ToClass );
 
 	/**
@@ -2348,6 +2414,11 @@ public:
 	FOnMakeAssetReferenceFilter& OnMakeAssetReferenceFilter() { return OnMakeAssetReferenceFilterDelegate; }
 	TSharedPtr<IAssetReferenceFilter> MakeAssetReferenceFilter(const FAssetReferenceFilterContext& Context) { return OnMakeAssetReferenceFilterDelegate.IsBound() ? OnMakeAssetReferenceFilterDelegate.Execute(Context) : nullptr; }
 
+	/** Returns a fixer to resolve illegal references between assets */
+	DECLARE_DELEGATE_RetVal(TSharedPtr<IAssetReferenceFixer>, FOnMakeAssetReferenceFixer);
+	FOnMakeAssetReferenceFixer& OnMakeAssetReferenceFixer() { return OnMakeAssetReferenceFixerDelegate; }
+	TSharedPtr<IAssetReferenceFixer> MakeAssetReferenceFixer() { return OnMakeAssetReferenceFixerDelegate.IsBound() ? OnMakeAssetReferenceFixerDelegate.Execute() : nullptr; }
+
 	DECLARE_DELEGATE_RetVal(ULevelEditorDragDropHandler*, FOnCreateLevelEditorDragDropHandler);
 	FOnCreateLevelEditorDragDropHandler& OnCreateLevelEditorDragDropHandler() { return OnCreateLevelEditorDragDropHandlerDelegate; }
 	UNREALED_API ULevelEditorDragDropHandler* GetLevelEditorDragDropHandler() const;
@@ -2371,6 +2442,7 @@ private:
 	mutable TObjectPtr<ULevelEditorDragDropHandler> DragDropHandler;
 
 	FOnMakeAssetReferenceFilter OnMakeAssetReferenceFilterDelegate;
+	FOnMakeAssetReferenceFixer OnMakeAssetReferenceFixerDelegate;
 	FOnCreateLevelEditorDragDropHandler OnCreateLevelEditorDragDropHandlerDelegate;
 	FOnFilterCopiedActors OnFilterCopiedActorsDelegate;
 
@@ -3009,6 +3081,18 @@ private:
 	/** Handler for when an asset finishes compiling (used to notify AssetRegistry to update tags after Load) */
 	UNREALED_API void OnAssetPostCompile(const TArray<FAssetCompileData>& CompiledAssets);
 
+	/** Handler for when the timecode provider changed, so that we can register the BlueprintCompiled delegate to it.*/
+	UNREALED_API void RegisterTimecodeProviderCompiledDelegate();
+
+	/** Handler for when the custom timestep changed, so that we can register the BlueprintCompiled delegate to it.*/
+	UNREALED_API void RegisterCustomTimeStepCompiledDelegate();
+
+	/** Handler used to reinitialize Timecode when their blueprint is compiled. */
+	UNREALED_API void HandleTimecodeProviderCompiled(UBlueprint* InBlueprint);
+
+	/** Handler used to reinitialize CustomTimeStep when their blueprint is compiled. */
+	UNREALED_API void HandleCustomTimeStepCompiled(UBlueprint* InBlueprint);
+
 	/** Handler for when a world is duplicated in the editor */
 	UNREALED_API void InitializeNewlyCreatedInactiveWorld(UWorld* World);
 
@@ -3027,6 +3111,10 @@ public:
 
 	/** This function should be called to notify the editor that new materials were added to our scene or some materials were modified */
 	UNREALED_API void OnSceneMaterialsModified();
+
+	/** Called when a scene material is added or modified. */
+	DECLARE_EVENT(UEditorEngine, FSceneMaterialsModifiedEvent);
+	FSceneMaterialsModifiedEvent& OnSceneMaterialsModifiedEvent() { return SceneMaterialsModifiedEvent; }
 
 	/** Call this function to change the feature level and to override the material quality platform of the editor and PIE worlds */
 	UNREALED_API void SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPlatform, bool bSaveSettings);
@@ -3079,12 +3167,23 @@ protected:
 	TObjectPtr<class UActorGroupingUtils> ActorGroupingUtils;
 private:
 	FTimerHandle CleanupPIEOnlineSessionsTimerHandle;
+	
+	FDelegateHandle WorldAddExtraDeletionObjectsHandle;
 
 	/** Delegate handle for game viewport close requests in PIE sessions. */
 	FDelegateHandle ViewportCloseRequestedDelegateHandle;
 
+	/** Delegate handle for when a TimecodeProvider blueprint is compiled. */
+	FDelegateHandle TimecodeProviderCompiledDelegateHandle;
+
+	/** Delegate handle for when a CustomTimeStep blueprint is compiled. */
+	FDelegateHandle CustomTimeStepCompiledDelegateHandle;
+
 	/** Minimized Windows during PIE */
 	TArray<TWeakPtr<SWindow>> MinimizedWindowsDuringPIE;
+
+	/** Delegate broadcast when a scene material is added or modified. */
+	FSceneMaterialsModifiedEvent SceneMaterialsModifiedEvent;
 
 public:
 	/**
@@ -3112,9 +3211,33 @@ public:
 	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use GetSubsystemArrayCopy or ForEachSubsystem instead")
 	const TArray<TSubsystemClass*>& GetEditorSubsystemArray() const
 	{
 		return EditorSubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+	
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetEditorSubsystemArrayCopy() const
+	{
+		return EditorSubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachEditorSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UEngineSubsystem>::IsDerived, "TSubsystemClass must be derived from UEditorSubsystem");
+		return EditorSubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UEditorSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
 	}
 
 private:

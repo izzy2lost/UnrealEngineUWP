@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetasoundFrontendRegistryKey.h"
+#include "MetasoundAssetManager.h"
 
 
 namespace Metasound::Frontend
@@ -107,6 +108,13 @@ namespace Metasound::Frontend
 		Parse(InKeyString, *this);
 	}
 
+	FNodeRegistryKey::FNodeRegistryKey(const FAssetKey& AssetKey)
+		: Type(EMetasoundFrontendClassType::External)
+		, ClassName(AssetKey.ClassName)
+		, Version(AssetKey.Version)
+	{
+	}
+
 	const FNodeRegistryKey& FNodeRegistryKey::GetInvalid()
 	{
 		static const FNodeRegistryKey InvalidKey;
@@ -130,7 +138,7 @@ namespace Metasound::Frontend
 		TStringBuilder<128> KeyStringBuilder;
 		KeyStringBuilder.Append(LexToString(Type));
 		KeyStringBuilder.AppendChar('_');
-		KeyStringBuilder.Append(ClassName.GetFullName().ToString());
+		KeyStringBuilder.Append(ClassName.ToString());
 		KeyStringBuilder.AppendChar('_');
 		KeyStringBuilder.Append(FString::FromInt(Version.Major));
 		KeyStringBuilder.AppendChar('.');

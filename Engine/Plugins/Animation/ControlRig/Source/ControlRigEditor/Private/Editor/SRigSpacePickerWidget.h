@@ -35,7 +35,7 @@ public:
 		, _AllowReorder(false)
 		, _AllowDelete(false)
 		, _AllowAdd(false)
-		, _ShowBakeButton(false)
+		, _ShowBakeAndCompensateButton(false)
 		, _Title()
 		, _BackgroundBrush(FAppStyle::GetBrush("Menu.Background"))
 		{}
@@ -47,7 +47,7 @@ public:
 		SLATE_ARGUMENT(bool, AllowReorder)
 		SLATE_ARGUMENT(bool, AllowDelete)
 		SLATE_ARGUMENT(bool, AllowAdd)
-		SLATE_ARGUMENT(bool, ShowBakeButton)
+		SLATE_ARGUMENT(bool, ShowBakeAndCompensateButton)
 		SLATE_ARGUMENT(FText, Title)
 		SLATE_ARGUMENT(const FSlateBrush*, BackgroundBrush)
 	
@@ -56,7 +56,9 @@ public:
 		SLATE_EVENT(FRigSpacePickerActiveSpaceChanged::FDelegate, OnActiveSpaceChanged)
 		SLATE_EVENT(FRigSpacePickerSpaceListChanged::FDelegate, OnSpaceListChanged)
 		SLATE_ARGUMENT(FRigSpacePickerGetAdditionalSpaces, GetAdditionalSpaces)
-		SLATE_EVENT( FOnClicked, OnBakeButtonClicked )
+		SLATE_EVENT(FOnClicked, OnCompensateKeyButtonClicked)
+		SLATE_EVENT(FOnClicked, OnCompensateAllButtonClicked)
+		SLATE_EVENT(FOnClicked, OnBakeButtonClicked )
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -79,6 +81,8 @@ public:
 		}
 		return nullptr;
 	}
+
+	const FRigTreeDisplaySettings& GetHierarchyDisplaySettings() const { return HierarchyDisplaySettings; }
 	const URigHierarchy* GetHierarchyConst() const { return GetHierarchy(); }
 	
 	const TArray<FRigElementKey>& GetControls() const { return ControlKeys; }
@@ -156,7 +160,7 @@ private:
 	bool bAllowReorder;
 	bool bAllowDelete;
 	bool bAllowAdd;
-	bool bShowBakeButton;
+	bool bShowBakeAndCompensateButton;
 	bool bLaunchingContextMenu;
 
 	FRigSpacePickerGetControlCustomization GetControlCustomizationDelegate;
@@ -171,6 +175,7 @@ private:
 	TWeakPtr<IMenu> ContextMenu;
 	FDelegateHandle HierarchyModifiedHandle;
 	FDelegateHandle ActiveSpaceChangedWindowHandle;
+	FRigTreeDisplaySettings HierarchyDisplaySettings;
 
 	static FRigElementKey InValidKey;
 };

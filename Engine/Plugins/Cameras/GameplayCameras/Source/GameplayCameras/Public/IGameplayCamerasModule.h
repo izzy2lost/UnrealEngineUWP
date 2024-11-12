@@ -3,26 +3,31 @@
 #pragma once
 
 #include "Modules/ModuleInterface.h"
-#include "Stats/Stats.h"
+#include "Templates/SharedPointer.h"
+
+namespace UE::Cameras
+{
 
 #if WITH_EDITOR
 class IGameplayCamerasLiveEditManager;
 #endif
 
-DECLARE_STATS_GROUP(TEXT("Camera System Evaluation"), STATGROUP_CameraSystem, STATCAT_Advanced)
-DECLARE_STATS_GROUP(TEXT("Camera Animation Evaluation"), STATGROUP_CameraAnimation, STATCAT_Advanced)
+}  // namespace UE::Cameras
 
 class IGameplayCamerasModule : public IModuleInterface
 {
 public:
+
 	/**
 	 * Singleton-like access to ICameraModule
 	 *
 	 * @return The ICameraModule instance, loading the module on demand if needed
 	 */
-	static IGameplayCamerasModule& Get();
+	GAMEPLAYCAMERAS_API static IGameplayCamerasModule& Get();
 
 #if WITH_EDITOR
+	using IGameplayCamerasLiveEditManager = UE::Cameras::IGameplayCamerasLiveEditManager;
+
 	/**
 	 * Gets the live edit manager.
 	 */

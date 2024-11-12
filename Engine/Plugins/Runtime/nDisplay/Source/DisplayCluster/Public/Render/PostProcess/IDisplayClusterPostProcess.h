@@ -170,6 +170,6 @@ public:
 	* @param RHICmdList - RHI command list
 	* @param FrameTargets - Frame textures array (1 for mono, 2 for stereo)
 	*/
-	virtual void PerformPostProcessFrameAfterWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, const TArray<FRHITexture2D*>* InFrameTargets = nullptr, const TArray<FRHITexture2D*>* InAdditionalFrameTargets = nullptr) const
+	virtual void PerformPostProcessFrameAfterWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, const TArray<FRHITexture*>* InFrameTargets = nullptr, const TArray<FRHITexture*>* InAdditionalFrameTargets = nullptr) const
 	{ }
 };

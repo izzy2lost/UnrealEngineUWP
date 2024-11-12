@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -24,7 +24,7 @@ namespace ProtocolEntityViewModel
 }
 
 /** Contains all bindings for a given Entity (ie. Property) */
-class REMOTECONTROLPROTOCOLWIDGETS_API FProtocolEntityViewModel
+class FProtocolEntityViewModel
 	: public TSharedFromThis<FProtocolEntityViewModel>
 	, public FEditorUndoClient
 	, public TRCValidatableViewModel<ProtocolEntityViewModel::EValidity>
@@ -32,41 +32,44 @@ class REMOTECONTROLPROTOCOLWIDGETS_API FProtocolEntityViewModel
 {
 public:
 	/** Create a new ViewModel for the given Preset and EntityId */
-	static TSharedRef<FProtocolEntityViewModel> Create(URemoteControlPreset* InPreset, const FGuid& InEntityId);
-	virtual ~FProtocolEntityViewModel() override;
+	REMOTECONTROLPROTOCOLWIDGETS_API static TSharedRef<FProtocolEntityViewModel> Create(URemoteControlPreset* InPreset, const FGuid& InEntityId);
+	REMOTECONTROLPROTOCOLWIDGETS_API virtual ~FProtocolEntityViewModel() override;
 
 	/** Check if the bound entity type is supported by Protocol Binding */
-	bool CanAddBinding(const FName& InProtocolName, FText& OutMessage);
+	REMOTECONTROLPROTOCOLWIDGETS_API bool CanAddBinding(const FName& InProtocolName, FText& OutMessage);
 
 	/** Add a new Protocol Binding */
-	TSharedPtr<FProtocolBindingViewModel> AddBinding(const FName& InProtocolName);
+	REMOTECONTROLPROTOCOLWIDGETS_API TSharedPtr<FProtocolBindingViewModel> AddBinding(const FName& InProtocolName);
 
 	/** Remove a Protocol Binding by Id */
-	void RemoveBinding(const FGuid& InBindingId);
+	REMOTECONTROLPROTOCOLWIDGETS_API void RemoveBinding(const FGuid& InBindingId);
 
 	/** Get the Entity Id */
 	const FGuid& GetId() const { return PropertyId; }
 
 	/** Get the bound FProperty */
-	TWeakFieldPtr<FProperty> GetProperty();
+	REMOTECONTROLPROTOCOLWIDGETS_API TWeakFieldPtr<FProperty> GetProperty();
 
 	/** Get the Protocol Binding ViewModels */
 	const TArray<TSharedPtr<FProtocolBindingViewModel>>& GetBindings() const { return Bindings; }
 
 	/** Get the Protocol Binding ViewModels, filtered by the provided list of hidden protocol type names */
-	TArray<TSharedPtr<FProtocolBindingViewModel>> GetFilteredBindings(const TSet<FName>& InHiddenProtocolTypeNames);
+	REMOTECONTROLPROTOCOLWIDGETS_API TArray<TSharedPtr<FProtocolBindingViewModel>> GetFilteredBindings(const TSet<FName>& InHiddenProtocolTypeNames);
 	
 	/** Checks if this entity is bound to one or more objects. */
-	bool IsBound() const;
+	REMOTECONTROLPROTOCOLWIDGETS_API bool IsBound() const;
 
 	/** Get logical children of this ViewModel */
-	virtual bool GetChildren(TArray<TSharedPtr<IRCTreeNodeViewModel>>& OutChildren) override;
+	REMOTECONTROLPROTOCOLWIDGETS_API virtual bool GetChildren(TArray<TSharedPtr<IRCTreeNodeViewModel>>& OutChildren) override;
 
 	/** Checks (non-critical, fixable) validity */
-	virtual bool IsValid(FText& OutMessage) override;
+	REMOTECONTROLPROTOCOLWIDGETS_API virtual bool IsValid(FText& OutMessage) override;
 
 	/** Checks validity of this ViewModel */
-	bool IsValid() const;
+	REMOTECONTROLPROTOCOLWIDGETS_API bool IsValid() const;
+
+	/** Returns the preset of this view model or nullptr if there is no outer preset */
+	URemoteControlPreset* GetPreset() const;
 
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBindingAdded, TSharedRef<FProtocolBindingViewModel> /* InBindingViewModel */);
@@ -85,7 +88,7 @@ private:
 	
 public:
 	FProtocolEntityViewModel(FPrivateToken) {}
-	FProtocolEntityViewModel(FPrivateToken, URemoteControlPreset* InPreset, const FGuid& InEntityId);
+	REMOTECONTROLPROTOCOLWIDGETS_API FProtocolEntityViewModel(FPrivateToken, URemoteControlPreset* InPreset, const FGuid& InEntityId);
 
 protected:
 	void Initialize();

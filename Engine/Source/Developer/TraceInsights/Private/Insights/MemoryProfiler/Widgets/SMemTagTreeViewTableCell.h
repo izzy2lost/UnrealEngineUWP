@@ -3,21 +3,25 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-// Insights
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemTagNode.h"
 
 class ITableRow;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 }
 
-DECLARE_DELEGATE_ThreeParams(FSetHoveredMemTagTreeViewTableCell, TSharedPtr<Insights::FTable> /*TablePtr*/, TSharedPtr<Insights::FTableColumn> /*ColumnPtr*/, FMemTagNodePtr /*MemTagNodePtr*/);
+namespace UE::Insights::MemoryProfiler
+{
+
+DECLARE_DELEGATE_ThreeParams(FSetHoveredMemTagTreeViewTableCell, TSharedPtr<FTable> /*TablePtr*/, TSharedPtr<FTableColumn> /*ColumnPtr*/, FMemTagNodePtr /*MemTagNodePtr*/);
 
 class SMemTagTreeViewTableCell : public SCompoundWidget
 {
@@ -25,8 +29,8 @@ public:
 	SLATE_BEGIN_ARGS(SMemTagTreeViewTableCell) {}
 		SLATE_EVENT(FSetHoveredMemTagTreeViewTableCell, OnSetHoveredCell)
 		SLATE_ATTRIBUTE(FText, HighlightText)
-		SLATE_ARGUMENT(TSharedPtr<Insights::FTable>, TablePtr)
-		SLATE_ARGUMENT(TSharedPtr<Insights::FTableColumn>, ColumnPtr)
+		SLATE_ARGUMENT(TSharedPtr<FTable>, TablePtr)
+		SLATE_ARGUMENT(TSharedPtr<FTableColumn>, ColumnPtr)
 		SLATE_ARGUMENT(FMemTagNodePtr, MemTagNodePtr)
 		SLATE_ARGUMENT(bool, IsNameColumn)
 	SLATE_END_ARGS()
@@ -169,13 +173,15 @@ protected:
 
 protected:
 	/** A shared pointer to the table view model. */
-	TSharedPtr<Insights::FTable> TablePtr; // TODO: TSharedRef
+	TSharedPtr<FTable> TablePtr; // TODO: TSharedRef
 
 	/** A shared pointer to the table column view model. */
-	TSharedPtr<Insights::FTableColumn> ColumnPtr; // TODO: TSharedRef
+	TSharedPtr<FTableColumn> ColumnPtr; // TODO: TSharedRef
 
 	/** A shared pointer to the timer node. */
 	FMemTagNodePtr MemTagNodePtr; // TODO: TSharedRef
 
 	FSetHoveredMemTagTreeViewTableCell SetHoveredCellDelegate;
 };
+
+} // namespace UE::Insights::MemoryProfiler

@@ -6,7 +6,7 @@
 #include "EdGraph/TG_EditorGraphNodeFactory.h"
 #include "EdGraph/TG_EditorGraphPanelPinFactory.h"
 #include "TextureGraphEngine.h"
-#include "TG_AssetTypeActions.h"
+#include "AssetDefinition_TextureGraph.h"
 #include "TG_Editor.h"
 #include "TG_EditorCommands.h"
 #include "TG_Style.h"
@@ -16,6 +16,7 @@
 #include "Customizations/TG_VariantCustomization.h"
 #include "Customizations/TG_ScalarCustomization.h"
 #include "Customizations/TG_MaterialMappingInfoCustomization.h"
+#include "Customizations/TG_ViewportSettingsCustomization.h"
 #include "Customizations/TG_OutputSettingsCustomization.h"
 #include "Customizations/TG_LevelsSettingsCustomization.h"
 
@@ -28,18 +29,19 @@ void FTextureGraphEditorModule::StartupModule()
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 	// Register all custom AssetTypeActions here.
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	RegisterAssetTypeAction(AssetTools, MakeShareable(new FAssetTypeActions_TSX()));
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_ParameterInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ParameterInfoCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_Texture", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_TextureCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_Variant", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_VariantCustomization::Create));
-	auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
-	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ScalarCustomization::Create), ScalarIdentifier);
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ScalarCustomization::Create), MakeShared<FTG_ScalarTypeIdentifier>());
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("MaterialMappingInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_MaterialMappingInfoCustomization::Create));
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("ViewportSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ViewportSettingsCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("OutputSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_OutputSettingsCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_LevelsSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_LevelsSettingsCustomization::Create));
-
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("OutputExpressionInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_OutputExpressionInfoCustomization::Create));
+	PropertyEditorModule.NotifyCustomizationModuleChanged();
+	
 	// Register slate style overrides
 	FTG_Style::Register();
 	FTG_EditorCommands::Register();
@@ -49,6 +51,8 @@ void FTextureGraphEditorModule::StartupModule()
 
 	GraphPanelPinFactory = MakeShared<FTG_EditorGraphPanelPinFactory>();
 	FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
+	
+	TG_Exporter = MakeUnique<FTG_Exporter>();
 	
 	StartTextureGraphEngine();
 }
@@ -61,14 +65,20 @@ void FTextureGraphEditorModule::ShutdownModule()
 	FTG_EditorCommands::Unregister();
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_ParameterInfo");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_Texture");
-	auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("FloatProperty", ScalarIdentifier);
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("MaterialMappingInfo");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("OutputSettings");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_LevelsSettings");
-
+	// Unregister the details customization
+	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	{
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_ParameterInfo");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_Texture");
+		auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("FloatProperty", ScalarIdentifier);
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("MaterialMappingInfo");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("OutputSettings");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_LevelsSettings");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_OutputExpressionInfoCustomization");
+		
+		PropertyEditorModule.NotifyCustomizationModuleChanged();
+	}
 	FEdGraphUtilities::UnregisterVisualPinFactory(GraphPanelPinFactory);
 	FEdGraphUtilities::UnregisterVisualNodeFactory(GraphNodeFactory);
 	// Unregister slate style overrides
@@ -76,6 +86,12 @@ void FTextureGraphEditorModule::ShutdownModule()
 	
 	ShutdownTextureGraphEngine();
 }
+
+void FTextureGraphEditorModule::PreUnloadCallback()
+{
+	TG_Exporter.Reset();
+}
+
 void FTextureGraphEditorModule::StartTextureGraphEngine()
 {
 	if (!TextureGraphEngine::GetInstance())

@@ -30,6 +30,12 @@ enum class EModularRigNotification : uint8
 	
 	InteractionBracketCanceled, // A bracket has been canceled
 
+	ModuleClassChanged,
+
+	ModuleSelected,
+
+	ModuleDeselected,
+
 	/** MAX - invalid */
 	Max UMETA(Hidden),
 };
@@ -316,8 +322,13 @@ public:
 	
 	bool IsModuleParentedTo(const FRigModuleReference* InChildModule, const FRigModuleReference* InParentModule) const;
 
+	TArray<const FRigModuleReference*> FindModuleInstancesOfClass(const FString& InModuleClassPath) const;
+	TArray<const FRigModuleReference*> FindModuleInstancesOfClass(const FAssetData& InModuleAsset) const;
+	TArray<const FRigModuleReference*> FindModuleInstancesOfClass(TSoftClassPtr<UControlRig> InClass) const;
+
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
+	TArray<FString> SelectedModulePaths;
 
 	friend class UModularRigController;
 	friend struct FRigModuleReference;

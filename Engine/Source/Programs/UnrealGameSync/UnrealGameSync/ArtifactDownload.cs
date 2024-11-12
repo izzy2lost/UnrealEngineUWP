@@ -31,7 +31,7 @@ namespace UnrealGameSync
 
 			public void Report(IExtractStats value)
 			{
-				_inner.Report($"Copied {value.Count} files ({value.Size / (1024.0 * 1024.0):n1}mb, {value.Rate / (1024.0 * 1024.0):n1}mb/s)...");
+				_inner.Report($"Copied {value.NumFiles} files ({value.ExtractSize / (1024.0 * 1024.0):n1}mb, {value.ExtractRate / (1024.0 * 1024.0):n1}mb/s)...");
 			}
 		}
 
@@ -55,14 +55,14 @@ namespace UnrealGameSync
 				await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 
 				IHordeClient hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
-				using IStorageClient storageClient = hordeClient.CreateStorageClient(baseUri.AbsolutePath);
+				IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(baseUri.AbsolutePath);
 
 				progress.Report("Connecting to server...");
 
-				DirectoryNode? node = await storageClient.ReadRefTargetAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
+				IBlobRef<DirectoryNode>? blobRef = await storageNamespace.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 
 				progress.Report("Starting...");
-				await node.CopyToDirectoryAsync(outputDir.ToDirectoryInfo(), new CopyProgressAdapter(progress), TimeSpan.FromSeconds(0.2), serviceProvider.GetRequiredService<ILogger<ArtifactDownload>>(), cancellationToken);
+				await blobRef.ExtractAsync(outputDir.ToDirectoryInfo(), new CopyProgressAdapter(progress), TimeSpan.FromSeconds(0.2), serviceProvider.GetRequiredService<ILogger<ArtifactDownload>>(), cancellationToken);
 			}
 		}
 
@@ -137,6 +137,10 @@ namespace UnrealGameSync
 			try
 			{
 				DownloadProgressWindow.Execute((p, ctx) => DoSyncAsync(descriptor.BaseUrl, descriptor.RefName, outputDir, p, ctx), CancellationToken.None);
+			}
+			catch (OperationCanceledException)
+			{
+				return;
 			}
 			catch (Exception ex)
 			{

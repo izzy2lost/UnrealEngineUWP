@@ -28,10 +28,6 @@ UFractureToolMeshCut::UFractureToolMeshCut(const FObjectInitializer& ObjInit)
 {
 	MeshCutSettings = NewObject<UFractureMeshCutSettings>(GetTransientPackage(), UFractureMeshCutSettings::StaticClass());
 	MeshCutSettings->OwnerTool = this;
-	CutterSettings->bDrawSitesToggleEnabled = false;
-	CutterSettings->bNoisePreviewToggleEnabled = false;
-	DisableNoiseSettings();
-	DisableGroutSetting();
 }
 
 FText UFractureToolMeshCut::GetDisplayText() const
@@ -221,6 +217,7 @@ public:
 	int Seed;
 	FTransform Transform;
 	UE::Geometry::FDynamicMesh3 CuttingMesh;
+	bool bSplitIslands = true;
 
 	// TGenericDataOperator interface:
 	virtual void CalculateResult(FProgressCancel* Progress) override
@@ -242,7 +239,8 @@ public:
 			}
 
 			FProgressCancel::FProgressScope ProgressScope(Progress, ProgressFrac);
-			int32 Index = CutWithMesh(CuttingMesh, ScatterTransform, InternalSurfaceMaterials, *CollectionCopy, BonesToCut, PointSpacing, Transform);
+			constexpr bool bSetDefaultInternalMaterialsFromCollection = true;
+			int32 Index = CutWithMesh(CuttingMesh, ScatterTransform, InternalSurfaceMaterials, *CollectionCopy, BonesToCut, PointSpacing, Transform, bSetDefaultInternalMaterialsFromCollection, Progress, bSplitIslands);
 			if (Progress && Progress->Cancelled())
 			{
 				return;
@@ -319,6 +317,7 @@ int32 UFractureToolMeshCut::ExecuteFracture(const FFractureToolContext& Fracture
 		MeshCutOp->PointSpacing = CollisionSettings->GetPointSpacing();
 		MeshCutOp->Seed = FractureContext.GetSeed();
 		MeshCutOp->Transform = FractureContext.GetTransform();
+		MeshCutOp->bSplitIslands = CutterSettings->bSplitIslands;
 		if (LocalCutSettings->CutDistribution == EMeshCutDistribution::SingleCut)
 		{
 			MeshCutOp->MeshTransforms.Add(LocalCutSettings->CuttingActor->GetTransform());

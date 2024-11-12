@@ -32,21 +32,30 @@ FRasterTri SetupTriangle( int4 ScissorRect, float4 Verts[3] )
 	Tri.bIsValid = true;
 	Tri.InvW = float3( Verts[0].w, Verts[1].w, Verts[2].w );
 
-	float3 v01 = Verts[1].xyz - Verts[0].xyz;
-	float3 v02 = Verts[2].xyz - Verts[0].xyz;
-
-	float DetXY = v01.x * v02.y - v01.y * v02.x;
-	const bool bBackFace = (DetXY >= 0.0f);
-
-	Tri.bBackFace = bBackFace;
-
-	if( bBackFaceCull )
-		Tri.bIsValid = !bBackFace;
-
 	// 16.8 fixed point
 	float2 Vert0 = Verts[0].xy;
 	float2 Vert1 = Verts[1].xy;
 	float2 Vert2 = Verts[2].xy;
+
+	// 4.8 fixed point
+	Tri.Edge01 = Vert0 - Vert1;
+	Tri.Edge12 = Vert1 - Vert2;
+	Tri.Edge20 = Vert2 - Vert0;
+
+	float DetXY = Tri.Edge01.y * Tri.Edge20.x - Tri.Edge01.x * Tri.Edge20.y;
+	Tri.bBackFace = (DetXY >= 0.0f);
+
+	if( bBackFaceCull )
+		Tri.bIsValid = !Tri.bBackFace;
+
+	BRANCH
+	if( !bBackFaceCull && Tri.bBackFace )
+	{
+		// Swap winding order
+		Tri.Edge01 *= -1.0f;
+		Tri.Edge12 *= -1.0f;
+		Tri.Edge20 *= -1.0f;
+	}
 
 	// Bounding rect
 	const float2 MinSubpixel = min3( Vert0, Vert1, Vert2 );
@@ -60,29 +69,12 @@ FRasterTri SetupTriangle( int4 ScissorRect, float4 Verts[3] )
 	Tri.MinPixel = max( Tri.MinPixel, ScissorRect.xy );
 	Tri.MaxPixel = min( Tri.MaxPixel, ScissorRect.zw - 1 );
 	
-	// Force 1 pixel
-	//MaxPixel = max( MaxPixel, MinPixel );
-	
 	// Limit the rasterizer bounds to a sensible max.
-	Tri.MaxPixel = min(Tri.MaxPixel, Tri.MinPixel + 63);
+	Tri.MaxPixel = min( Tri.MaxPixel, Tri.MinPixel + 63 );
 
 	// Cull when no pixels covered
 	if( any( Tri.MinPixel > Tri.MaxPixel ) )
 		Tri.bIsValid = false;
-
-	// 4.8 fixed point
-	Tri.Edge01 = -v01.xy;
-	Tri.Edge12 = Vert1 - Vert2;
-	Tri.Edge20 = v02.xy;
-
-	BRANCH
-	if( !bBackFaceCull && bBackFace )
-	{
-		// Swap winding order to support two sided materials
-		Tri.Edge01 *= -1.0f;
-		Tri.Edge12 *= -1.0f;
-		Tri.Edge20 *= -1.0f;
-	}
 	
 	// Rebase off MinPixel with half pixel offset
 	// 4.8 fixed point
@@ -97,6 +89,9 @@ FRasterTri SetupTriangle( int4 ScissorRect, float4 Verts[3] )
 	Tri.C0 = Tri.Edge12.y * Vert1.x - Tri.Edge12.x * Vert1.y;
 	Tri.C1 = Tri.Edge20.y * Vert2.x - Tri.Edge20.x * Vert2.y;
 	Tri.C2 = Tri.Edge01.y * Vert0.x - Tri.Edge01.x * Vert0.y;
+
+	// Sum C before nudging for fill convention. Afterwards it could be zero.
+	const float ScaleToUnit = SubpixelSamples / ( Tri.C0 + Tri.C1 + Tri.C2 );
 
 	// Correct for fill convention
 	// Top left rule for CCW
@@ -123,15 +118,13 @@ FRasterTri SetupTriangle( int4 ScissorRect, float4 Verts[3] )
 	Tri.C2 *= (1.0f / SubpixelSamples);
 #endif
 
-	const float ScaleToUnit = 1.0f / ( Tri.C0 + Tri.C1 + Tri.C2 );
 	Tri.Barycentrics_dx = float3( -Tri.Edge12.y, -Tri.Edge20.y, -Tri.Edge01.y ) * ScaleToUnit;
 	Tri.Barycentrics_dy = float3(  Tri.Edge12.x,  Tri.Edge20.x,  Tri.Edge01.x ) * ScaleToUnit;
 
 	Tri.DepthPlane.x = Verts[0].z;
 	Tri.DepthPlane.y = Verts[1].z - Verts[0].z;
 	Tri.DepthPlane.z = Verts[2].z - Verts[0].z;
-
-	Tri.DepthPlane.yz /= Tri.C0 + Tri.C1 + Tri.C2;
+	Tri.DepthPlane.yz *= ScaleToUnit;
 
 	return Tri;
 }
@@ -272,10 +265,13 @@ void RasterizeTri_Scanline( FRasterTri Tri, FWritePixel WritePixel )
 
 		x0 += Tri.MinPixel.x;
 		x1 += Tri.MinPixel.x;
-		for( float x = x0; x <= x1; x++ )
+
+		// NOTE: In some cases x0 > x1 and we need to avoid writing pixels in those situations
+		// or else artifacts can appear, particularly in VSM near page edges.
+		for (float x = x0; x <= x1; x++)
 		{
-			if( min3( CX0, CX1, CX2 ) >= 0 )
-				WritePixel( uint2(x,y), float3(CX0, CX1, CX2), Tri );
+			if (min3(CX0, CX1, CX2) >= 0)
+				WritePixel(uint2(x, y), float3(CX0, CX1, CX2), Tri);
 
 			CX0 -= Tri.Edge12.y;
 			CX1 -= Tri.Edge20.y;

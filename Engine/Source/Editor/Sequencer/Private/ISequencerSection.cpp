@@ -24,6 +24,7 @@
 #include "ISequencerModule.h"
 #include "Modules/ModuleManager.h"
 #include "MVVM/ViewModels/ViewDensity.h"
+#include "Widgets/SOverlay.h"
 
 struct FMovieSceneChannel;
 
@@ -34,6 +35,7 @@ struct FGroupData
 		: GroupText(InGroupText)
 		, GetGroupTooltipTextDelegate(InGetGroupTooltipTextDelegate)
 		, SortOrder(-1)
+		, bSortEmptyGroupsLast(true)
 	{}
 
 	void AddChannel(ISequencerSection::FChannelData&& InChannel)
@@ -42,6 +44,7 @@ struct FGroupData
 		{
 			SortOrder = InChannel.MetaData.SortOrder;
 		}
+		bSortEmptyGroupsLast = InChannel.MetaData.bSortEmptyGroupsLast;
 
 		Channels.Add(MoveTemp(InChannel));
 	}
@@ -54,6 +57,9 @@ struct FGroupData
 
 	/** Sort order of the group */
 	uint32 SortOrder;
+
+	/** By default if a channel has no FText::Group specified, we put it last, by setting this to false we use SortIndex instead */
+	bool bSortEmptyGroupsLast;
 
 	/** Array of channels within this group */
 	TArray<ISequencerSection::FChannelData, TInlineAllocator<4>> Channels;
@@ -114,7 +120,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 
 	ISequencerModule* SequencerModule = &FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
 
-	auto ChannelFactory = [this, SequencerModule](FName InChannelName, const FMovieSceneChannelHandle& InChannel)
+	auto ChannelFactory = [this, SequencerModule](FName InChannelName, const FSectionModel& InSection, const FMovieSceneChannelHandle& InChannel)
 	{
 		TSharedPtr<FChannelModel> ChannelModel = this->ConstructChannelModel(InChannelName, InChannel);
 		if (!ChannelModel)
@@ -122,7 +128,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 			ISequencerChannelInterface* EditorInterface = SequencerModule->FindChannelEditorInterface(InChannel.GetChannelTypeName());
 			if (EditorInterface)
 			{
-				ChannelModel = EditorInterface->CreateChannelModel_Raw(InChannel, InChannelName);
+				ChannelModel = EditorInterface->CreateChannelModel_Raw(InChannel, InSection, InChannelName);
 			}
 		}
 
@@ -161,12 +167,21 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 	{
 		if (A.IsNone())
 		{
-			return false;
+			const bool bSortEmptyGroupsLast = GroupToChannelsMap.FindChecked(A).bSortEmptyGroupsLast;
+			if(bSortEmptyGroupsLast)
+			{ 
+				return false;
+			}
 		}
 		else if (B.IsNone())
 		{
-			return true;
+			const bool bSortEmptyGroupsLast = GroupToChannelsMap.FindChecked(B).bSortEmptyGroupsLast;
+			if (bSortEmptyGroupsLast)
+			{
+				return true;
+			}
 		}
+
 
 		const int32 SortOrderA = GroupToChannelsMap.FindChecked(A).SortOrder;
 		const int32 SortOrderB = GroupToChannelsMap.FindChecked(B).SortOrder;
@@ -198,6 +213,18 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 		{
 			LayoutBuilder.PopCategory();
 		}
+	}
+}
+
+void ISequencerSection::CreateViewWidgets(const UE::Sequencer::FCreateSectionViewWidgetParams& Params)
+{
+	TSharedRef<SWidget> LegacyGeneratedWidget = GenerateSectionWidget();
+	if (LegacyGeneratedWidget != SNullWidget::NullWidget)
+	{
+		Params.Overlay->AddSlot(UE::Sequencer::FCreateSectionViewWidgetParams::DefaultWidgetOrder)
+		[
+			LegacyGeneratedWidget
+		];
 	}
 }
 

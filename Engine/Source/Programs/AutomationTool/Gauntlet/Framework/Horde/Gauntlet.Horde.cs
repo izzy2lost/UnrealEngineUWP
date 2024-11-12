@@ -34,7 +34,7 @@ namespace Gauntlet
 			}
 		}
 
-		public static void GenerateSummary()
+		public static void GenerateSummary(string ArtifactPath)
 		{
 			try
 			{
@@ -49,7 +49,7 @@ namespace Gauntlet
 
 				// file:// is attractive here, and file://\\computer\share\folder\file.txt does work ok in Chrome, but it does not Firefox
 				// so, lacking a uniform way to link to a network filesystem, just put the path here as static text and escaped for markdown
-				string Markdown = System.Text.RegularExpressions.Regex.Replace($"Gauntlet Artifacts: {Globals.LogDir}", @"([|\\*\+])", @"\$1");
+				string Markdown = System.Text.RegularExpressions.Regex.Replace($"Gauntlet Artifacts: {ArtifactPath}", @"([|\\*\+])", @"\$1");
 
 				File.WriteAllText(Path.Combine(LogFolder, MarkdownFilename), Markdown);
 

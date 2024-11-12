@@ -134,9 +134,12 @@ struct FDirtyClusterUnionData : public TBasePullData<FClusterUnionPhysicsProxy, 
 struct FJointConstraintOutputData {
 	bool bIsBreaking = false;
 	bool bIsBroken = false;
+	bool bIsViolating = false;
 	bool bDriveTargetChanged = false;
 	FVector Force = FVector(0);
 	FVector Torque = FVector(0);
+	float LinearViolation = 0.f;
+	float AngularViolation = 0.f;
 };
 
 class FJointConstraint;

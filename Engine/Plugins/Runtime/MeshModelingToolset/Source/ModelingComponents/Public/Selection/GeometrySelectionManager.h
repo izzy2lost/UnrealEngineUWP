@@ -10,6 +10,7 @@
 
 #include "GeometrySelectionManager.generated.h"
 
+class UPreviewGeometry;
 class IGeometrySelector;
 class UInteractiveToolsContext;
 class IToolsContextRenderAPI;
@@ -17,6 +18,30 @@ class IToolsContextTransactionsAPI;
 class UGeometrySelectionEditCommand;
 class UGeometrySelectionEditCommandArguments;
 
+USTRUCT()
+struct FMeshElementSelectionParams
+{
+	GENERATED_BODY()
+	TStaticArray<FString, 3> Identifiers {};
+	float DepthBias = 0.0f;
+	float LineThickness = 0.0f;
+	float PointSize = 0.0f;
+	FColor Color = FColor(0,0,0);
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> SelectionFillColor = nullptr;
+};
+
+enum class EEnumerateRenderCachesDirtyFlags: uint8
+{
+	None = 0,
+
+	SelectionCachesDirty = 1 << 0,
+	UnselectedCachesDirty = 1 << 1, //SelectableRenderCaches
+	PreviewCachesDirty = 1 << 2,
+
+	Default = SelectionCachesDirty | UnselectedCachesDirty | PreviewCachesDirty,
+};
+ENUM_CLASS_FLAGS(EEnumerateRenderCachesDirtyFlags);
 
 /**
  * UGeometrySelectionManager provides the infrastructure for "Element Selection", ie 
@@ -100,6 +125,14 @@ public:
 	virtual EMeshTopologyMode GetMeshTopologyMode() const { return MeshTopologyMode; }
 	virtual EGeometryTopologyType GetSelectionTopologyType() const;
 
+	// Switch the selection mode and type, optionally converting any existing selection to the new type and mode
+	virtual void SetMeshSelectionTypeAndMode(EGeometryElementType NewElementType, EMeshTopologyMode NewSelectionMode, bool bConvertSelection);
+
+	/**
+	 * Removes Triangle, Line, and Point sets with the given SetIdentifier prefix
+	 * Full Identifier strings are in the format: SetIdentifier_Triangles, SetIdentifier_Lines, and SetIdentifier_Points
+	 */
+	void RemoveSets(const TArrayView<FString>& SetIdentifiers) const;
 	
 
 
@@ -112,6 +145,12 @@ public:
 	 * @return true if there are any active selection targets
 	 */
 	bool HasActiveTargets() const;
+
+	/**
+	 * Attempt to validate the current selection state; can be called to detect if e.g. selected objects have been deleted from under the selection manager.
+	 * @return true if current active selection state appears to be valid (i.e., does not include stale / deleted objects)
+	 */
+	bool ValidateSelectionState() const;
 	
 	/**
 	 * Empty the active selection target set
@@ -153,9 +192,10 @@ public:
 	);
 
 	/**
-	 * Invalidates all cached selection elements.
+	 * Invalidates all cached selection elements by default.
+	 * When desired, can choose to not mark the Selectable render cache as dirty
 	 */
-	void MarkRenderCachesDirty();
+	void MarkRenderCachesDirty(bool bMarkSelectableDirty = true);
 	
 	//
 	// Selection Updates
@@ -296,7 +336,7 @@ public:
 	virtual bool HasSelection() const;
 
 	/** 
-	 * Get avaialble information about the active selection/state
+	 * Get available information about the active selection/state
 	 */
 	virtual void GetActiveSelectionInfo(EGeometryTopologyType& TopologyTypeOut, EGeometryElementType& ElementTypeOut, int& NumTargetsOut, bool& bIsEmpty) const;
 
@@ -392,8 +432,15 @@ public:
 	virtual void DebugPrintSelection();
 	/** Visualize the active selection using PDI drawing */
 	virtual void DebugRender(IToolsContextRenderAPI* RenderAPI);
+	
+	/** Set the colors to be used during mesh element selection for:
+	 * Unselected elements, Hover over selection, Hover over non-selection, and Selected elements
+	 */
+	void SetSelectionColors(FLinearColor UnselectedCol, FLinearColor HoverOverSelectedCol, FLinearColor HoverOverUnselectedCol, FLinearColor GeometrySelectedCol);
 
-
+	/** Disconnect and cleanup for PreviewGeometry object. */
+	void DisconnectPreviewGeometry();
+	
 protected:
 
 	// current selection mode settings
@@ -460,16 +507,44 @@ protected:
 	void OnTargetGeometryModified(IGeometrySelector* Selector);
 
 	
-	// todo [nickolas.drake]: cane we move CachedSelectionRenderElements, CachedPreviewRenderElements, and bSelectionRenderCachesDirty to private?
+	// todo [nickolas.drake]: cane we move CachedSelectionRenderElements, Cached[Un]selectedPreviewRenderElements, and bSelectionRenderCachesDirty to private?
+
+	UPROPERTY()
+	TObjectPtr<UPreviewGeometry> PreviewGeometry = nullptr;
+
+	/**
+	 * Calls the CreateOrUpdate function for Triangle, Line, and Point sets to build sets for PreviewGeometry
+	 * @param SelectionParams struct containing information (color, depth bias, line thickness, identifier) for the type of selection we are currently
+	 * building a set for (as Selected, Selectable, HoverSelected, HoverUnselected all have different visual information needed to contruct their sets)
+	 */
+	void CreateOrUpdateAllSets(const FGeometrySelectionElements& Elements, const FMeshElementSelectionParams SelectionParams) const;
 	
 	TArray<FGeometrySelectionElements> CachedSelectionRenderElements;				// Cached 3D geometry for current selection
-	bool bSelectionRenderCachesDirty = false;
 	void UpdateSelectionRenderCacheOnTargetChange();
 	void RebuildSelectionRenderCaches();
 
-    FGeometrySelection ActivePreviewSelection;										// Selection representing the active preview
-	FGeometrySelectionElements CachedPreviewRenderElements;							// Cached 3D geometry for active preview elements
+    FGeometrySelection ActivePreviewSelection;
+	FGeometrySelection SelectedActivePreviewSelection;
+	FGeometrySelection UnselectedActivePreviewSelection;
+	
+	FGeometrySelectionElements CachedSelectedPreviewRenderElements;		// Cached 3D geometry for active preview elements that are in the current selection
+	FGeometrySelectionElements CachedUnselectedPreviewRenderElements;  // Cached 3D geometry for active preview elements that are NOT in the current selection
     void ClearActivePreview();
+
+	inline static TStaticArray<FString, 3> UnselectedSetIds = { "Unselected_Vertices", "Unselected_Lines", "Unselected_Triangles"};
+	inline static TStaticArray<FString, 3> HoverOverSelectedSetIds = {  "HoverSelected_Vertices", "HoverSelected_Lines", "HoverSelected_Triangles"};
+	inline static TStaticArray<FString, 3> HoverOverUnselectedSetIds = { "HoverUnselected_Vertices", "HoverUnselected_Lines", "HoverUnselected_Triangles" };
+	inline static TStaticArray<FString, 3> SelectedSetIds = {"Selected_Vertices", "Selected_Lines", "Selected_Triangles"};
+
+	UPROPERTY()
+	FMeshElementSelectionParams UnselectedParams {UnselectedSetIds, 5.f, 2.f, 8.f};
+	UPROPERTY()
+	FMeshElementSelectionParams HoverOverSelectedParams {HoverOverSelectedSetIds, 10.f, 6.f, 10.f};
+	UPROPERTY()
+	FMeshElementSelectionParams HoverOverUnselectedParams {HoverOverUnselectedSetIds, 10.f, 6.f, 10.f};
+	UPROPERTY()
+	FMeshElementSelectionParams SelectedParams {SelectedSetIds, 6.f, 6.f, 10.f};
+	
 
 	
 	// various change types need internal access
@@ -495,19 +570,20 @@ private:
 	// 3D geometry for element selections of each ActiveTarget is cached
 	// to improve rendering performance
 	//
-	
-	// todo [nickolas.drake]: refactor Rebuild_X_RenderCache() functions below to populate a UPreviewGeometry with the accumulated elements and remove PDI rendering
-	
+
 	void RebuildSelectionRenderCache();
 	
 	TArray<FGeometrySelectionElements> CachedSelectableRenderElements;				// Cached 3D geometry for all selectable elements
 	void RebuildSelectableRenderCache();
-	bool bSelectableRenderCachesDirty = false;
 	
 	void RebuildPreviewRenderCache();
-	bool bPreviewRenderCachesDirty = false;
 
-	
+	EEnumerateRenderCachesDirtyFlags RenderCachesDirtyFlags = EEnumerateRenderCachesDirtyFlags::None;
+
+	void RemoveAllSets() const;
+
+	void RebuildSelectable() const;
+
 	// Tracks saved selection state. Useful when the selection is temporarily cleared (e.g., for a tool)
 	struct FSavedSelection
 	{

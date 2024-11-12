@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Selections/GeometrySelection.h"
+#include "Selections/GeometrySelectionUtil.h"
 #include "CoreMinimal.h"
 
 class UInteractiveToolManager;
@@ -34,6 +35,17 @@ namespace ToolSelectionUtil
 	 */
 	MODELINGCOMPONENTS_API void SetNewActorSelection(UInteractiveToolManager* ToolManager, const TArray<AActor*>& Actors);
 
+	/** Prefer AccumulateSelectionElements with Flags parameter. */
+	UE_DEPRECATED(5.5, "AccumulateSelectionElements which takes a bMapFacesToEdges boolean is deprecated."
+				"Please use the function of the same name which takes EEnumerateSelectionMapping flags instead")
+	MODELINGCOMPONENTS_API bool AccumulateSelectionElements(
+		UE::Geometry::FGeometrySelectionElements& Elements,
+		const UE::Geometry::FGeometrySelection& Selection,
+		const UE::Geometry::FDynamicMesh3& SourceMesh,
+		const UE::Geometry::FGroupTopology* Topology = nullptr,
+		const FTransform* ApplyTransform = nullptr,
+		bool bMapFacesToEdges = false);
+
 	/**
 	 * Add the geometry selection elements corresponding to the given Selection to Elements. This function does not
 	 * reset Elements before adding elements. If the Selection has Polygroup topology then use the given Topology to
@@ -42,12 +54,12 @@ namespace ToolSelectionUtil
 	 * Return false if there was an error and true otherwise
 	 */
 	MODELINGCOMPONENTS_API bool AccumulateSelectionElements(
-			UE::Geometry::FGeometrySelectionElements& Elements,
-			const UE::Geometry::FGeometrySelection& Selection,
-			const UE::Geometry::FDynamicMesh3& SourceMesh,
-			const UE::Geometry::FGroupTopology* Topology = nullptr,
-			const FTransform* ApplyTransform = nullptr,
-			bool bMapFacesToEdges = false);
+		UE::Geometry::FGeometrySelectionElements& Elements,
+		const UE::Geometry::FGeometrySelection& Selection,
+		const UE::Geometry::FDynamicMesh3& SourceMesh,
+		const UE::Geometry::FGroupTopology* Topology = nullptr,
+		const FTransform* ApplyTransform = nullptr,
+		const UE::Geometry::EEnumerateSelectionMapping Flags = UE::Geometry::EEnumerateSelectionMapping::Default);
 	
 	/**
 	 * Render the given Elements using FPrimitiveDrawInterface
@@ -65,7 +77,8 @@ namespace ToolSelectionUtil
 		FLinearColor LineColor,
 		float PointSize,
 		FLinearColor PointColor,
-		float DepthBias = 0.f);
+		float DepthBias = 0.f,
+		FLinearColor FillColor = FLinearColor(1.0f, 0.0f, 0.0f));
 }
 
 namespace UE::Geometry

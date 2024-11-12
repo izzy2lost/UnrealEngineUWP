@@ -16,9 +16,11 @@ public:
 	virtual void StartThread() override final;
 	virtual void StopThread() override final;
 	virtual void UpdateConfigs() override final;
-	virtual void AddRequest(IHttpThreadedRequest* Request) override final;
-	virtual void CancelRequest(IHttpThreadedRequest* Request) override final;
-	virtual void GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests) override final;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual void AddRequest(FHttpRequestCommon* Request) override final;
+	virtual void CancelRequest(FHttpRequestCommon* Request) override final;
+	virtual void GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests) override final;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FSingleThreadRunnable Interface
 	// Cannot be overridden to ensure identical behavior with the threaded tick

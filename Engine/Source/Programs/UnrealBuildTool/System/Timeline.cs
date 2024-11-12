@@ -240,7 +240,7 @@ namespace UnrealBuildTool
 				Prefix.AppendFormat(" {0,6}          ", FormatTime(StartTime - OuterEvents[Idx].StartTime));
 			}
 
-			Prefix.AppendFormat("[{0,6}]", FormatTime(StartTime - OuterEvents[OuterEvents.Count - 1].StartTime));
+			Prefix.AppendFormat("[{0,6}]", FormatTime(StartTime - OuterEvents[^1].StartTime));
 
 			if (!FinishTime.HasValue)
 			{

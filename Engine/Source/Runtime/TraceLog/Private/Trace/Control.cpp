@@ -2,8 +2,6 @@
 
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
-
 #include "Trace/Platform.h"
 #include "Trace/Message.h"
 #include "Trace/Detail/Channel.h"
@@ -17,7 +15,7 @@ namespace UE {
 namespace Trace {
 namespace Private {
 
-#if !defined(TRACE_PRIVATE_CONTROL_ENABLED) || TRACE_PRIVATE_CONTROL_ENABLED
+#if TRACE_PRIVATE_ALLOW_TCP_CONTROL
 
 ////////////////////////////////////////////////////////////////////////////////
 bool	Writer_SendTo(const ANSICHAR*, uint32=0, uint32=0);
@@ -134,6 +132,7 @@ static bool Writer_ControlListen()
 		return false;
 	}
 
+	UE_TRACE_MESSAGE_F(Display, "Control listening on port %u", GControlPort);
 	GControlState = EControlState::Listening;
 	return true;
 }
@@ -286,11 +285,6 @@ void Writer_UpdateControl()
 ////////////////////////////////////////////////////////////////////////////////
 void Writer_InitializeControl()
 {
-#if PLATFORM_SWITCH
-	GControlState = EControlState::Failed;
-	return;
-#endif
-
 	Writer_ControlAddCommand("SendTo", nullptr,
 		[] (void*, uint32 ArgC, ANSICHAR const* const* ArgV)
 		{
@@ -347,11 +341,9 @@ void	Writer_InitializeControl()	{}
 void	Writer_ShutdownControl()	{}
 void	Writer_UpdateControl()		{}
 uint32	Writer_GetControlPort()		{ return ~0u; }
-
-#endif // TRACE_PRIVATE_CONTROL_ENABLED
+	
+#endif // TRACE_PRIVATE_ALLOW_TCP_CONTROL
 
 } // namespace Private
 } // namespace Trace
 } // namespace UE
-
-#endif // UE_TRACE_ENABLED

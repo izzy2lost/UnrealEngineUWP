@@ -25,10 +25,15 @@
 
 #define LOCTEXT_NAMESPACE "PCGDeterminism"
 
+static TAutoConsoleVariable<int32> CVarDeterminismGraphTestCycleLimit(
+	TEXT("pcg.DeterminismGraphTestCycleLimit"),
+	10000,
+	TEXT("How many execution attempts before discarding a graph test."));
+
 static TAutoConsoleVariable<int32> CVarDeterminismPermutationLimit(
 	TEXT("pcg.DeterminismPermutationLimit"),
 	10000,
-	TEXT("A limit for the maximium amount of input permutations before autofailing a basic determinism test"));
+	TEXT("A limit for the maximum amount of input permutations before auto-failing a basic determinism test."));
 
 namespace PCGDeterminismTests
 {
@@ -82,14 +87,22 @@ namespace PCGDeterminismTests
 		OutResult.DataTypesTested |= InputPCGData->GetDataType();
 
 		// Clone the actor and component
-		const AActor* PCGActor = InPCGComponent->GetOwner();
+		AActor* PCGActor = InPCGComponent->GetOwner();
 		check(PCGActor);
 
-		AActor* PCGActorCopy = DuplicateObject<AActor>(PCGActor, GetTransientPackage());
-		PCGActorCopy->SetFlags(RF_Transient);
+		FObjectDuplicationParameters DuplicateParams(PCGActor, PCGActor->GetOuter());
+		DuplicateParams.ApplyFlags = RF_Transient;
+
+		AActor* PCGActorCopy = nullptr;
+		{
+			FGCScopeGuard Scope;
+			PCGActorCopy = Cast<AActor>(StaticDuplicateObjectEx(DuplicateParams));
+		}
+
+		PCGActorCopy->AddToRoot();
+
 		UPCGComponent* PCGComponentCopy = PCGActorCopy->FindComponentByClass<UPCGComponent>();
 		check(PCGComponentCopy);
-		PCGComponentCopy->SetFlags(RF_Transient);
 		PCGComponentCopy->SetIsPartitioned(false);
 		if (PCGActor->GetWorld())
 		{
@@ -98,7 +111,24 @@ namespace PCGDeterminismTests
 
 		FPCGGraphExecutor Executor;
 
-		auto ScheduleAndWaitForExecution = [&Executor, PCGComponentCopy](FPCGTaskId FinalTaskID)
+		ON_SCOPE_EXIT
+		{
+			if (Executor.IsGraphCurrentlyExecuting(InPCGGraph))
+			{
+				Executor.CancelAll();
+			}
+
+			// Clean up anything generated
+			PCGComponentCopy->Cleanup();
+
+			// Clean up the debug actor
+			PCGActorCopy->UnregisterAllComponents();
+			PCGActorCopy->MarkComponentsAsGarbage();
+			PCGActorCopy->RemoveFromRoot();
+			PCGActorCopy->MarkAsGarbage();
+		};
+
+		auto ScheduleAndWaitForExecution = [&Executor, PCGComponentCopy](FPCGTaskId FinalTaskID) -> bool
 		{
 			// TODO: Consider randomizing/iterating through possible input orders
 			volatile bool bTasksComplete = false;
@@ -113,11 +143,25 @@ namespace PCGDeterminismTests
 				return true;
 			}, PCGComponentCopy, {FinalTaskID});
 
-			// Run first iteration
+			// TODO: Reshape the test framework to run a graph independently and use the callback events from the context.
+			/* Implementor's Note: Async loading or other frame bound activities can cause this to stall out, so the
+			 * cycle limit will stop early if needed.
+			 **/
+			int32 ExecutionCount = 0;
 			while (!bTasksComplete)
 			{
-				Executor.Execute();
+				if (ExecutionCount++ < CVarDeterminismGraphTestCycleLimit.GetValueOnAnyThread())
+				{
+					Executor.Execute();
+				}
+				else
+				{
+					Executor.CancelAll();
+					return false;
+				}
 			}
+
+			return true;
 		};
 
 		TMap<FPCGTaskId, TTuple<const UPCGNode*, const FPCGDataCollection>> IntermediateOutputArray;
@@ -131,18 +175,39 @@ namespace PCGDeterminismTests
 
 		// Schedule the graph execution
 		FPCGTaskId FinalTaskID = Executor.ScheduleDebugWithTaskCallback(PCGComponentCopy, RecordMappedOutput);
-		ScheduleAndWaitForExecution(FinalTaskID);
 
-		// Copy the first array over, so it can be used again
-		TMap<FPCGTaskId, TTuple<const UPCGNode*, const FPCGDataCollection>> FirstIntermediateOutputArray = IntermediateOutputArray;
+		TMap<FPCGTaskId, TTuple<const UPCGNode*, const FPCGDataCollection>> FirstIntermediateOutputArray;
+		bool bExecutionCompleted = ScheduleAndWaitForExecution(FinalTaskID);
+		if (bExecutionCompleted)
+		{
+			// Copy the first array over, so it can be used again
+			FirstIntermediateOutputArray = IntermediateOutputArray;
 
-		// Clean up generated content
-		IntermediateOutputArray.Empty();
-		PCGComponentCopy->Cleanup();
+			// Clean up generated content
+			IntermediateOutputArray.Empty();
+			PCGComponentCopy->Cleanup();
 
-		// Run again
-		FinalTaskID = Executor.ScheduleDebugWithTaskCallback(PCGComponentCopy, RecordMappedOutput);
-		ScheduleAndWaitForExecution(FinalTaskID);
+			// Run again
+			FinalTaskID = Executor.ScheduleDebugWithTaskCallback(PCGComponentCopy, RecordMappedOutput);
+			bExecutionCompleted &= ScheduleAndWaitForExecution(FinalTaskID);
+		}
+
+		// Early out if one of the executions was unable to complete
+		if (!bExecutionCompleted)
+		{
+			OutResult.bFlagRaised = true;
+			UpdateTestResults(Defaults::GraphResultName, OutResult, EDeterminismLevel::NoDeterminism);
+			OutResult.AdditionalDetails.Add(TEXT("Required async or timed out"));
+			return;
+		}
+
+		if (IntermediateOutputArray.IsEmpty() || FirstIntermediateOutputArray.IsEmpty())
+		{
+			OutResult.bFlagRaised = true;
+			UpdateTestResults(Defaults::GraphResultName, OutResult, EDeterminismLevel::NoDeterminism);
+			OutResult.AdditionalDetails.Add(TEXT("No output was generated"));
+			return;
+		}
 
 		// Early out for mismatched outputs
 		if (IntermediateOutputArray.Num() != FirstIntermediateOutputArray.Num())
@@ -163,7 +228,7 @@ namespace PCGDeterminismTests
 			const UPCGNode* NodePtr = NodeDataTuple.Get<0>();
 			const FString NodeNameString = NodePtr->GetName();
 
-			UE_LOG(LogPCG, Log, TEXT("[%s] Evaluating Node [%d]..."), *InPCGGraph->GetName(), *NodeNameString);
+			UE_LOG(LogPCG, Log, TEXT("[%s] Evaluating Node [%s]..."), *InPCGGraph->GetName(), *NodeNameString);
 
 			const FPCGDataCollection& FirstOutput = NodeDataTuple.Get<1>();
 			const FPCGDataCollection& SecondOutput = IntermediateOutputArray[TaskIdKey].Get<1>();
@@ -205,13 +270,6 @@ namespace PCGDeterminismTests
 					break;
 				}
 			}
-		}
-
-		// Clean up anything generated
-		PCGComponentCopy->Cleanup();
-		if (PCGComponentCopy->IsRegistered())
-		{
-			PCGComponentCopy->UnregisterComponent();
 		}
 
 		// Finalize the results
@@ -1340,12 +1398,12 @@ namespace PCGDeterminismTests
 
 	void ShuffleInputOrder(PCGTestsCommon::FTestData& TestData)
 	{
-		ShuffleArray<FPCGTaggedData>(TestData.InputData.TaggedData, TestData.RandomStream);
+		PCGHelpers::ShuffleArray<FPCGTaggedData>(TestData.RandomStream, TestData.InputData.TaggedData);
 	}
 
 	void ShuffleOutputOrder(PCGTestsCommon::FTestData& TestData)
 	{
-		ShuffleArray<FPCGTaggedData>(TestData.OutputData.TaggedData, TestData.RandomStream);
+		PCGHelpers::ShuffleArray<FPCGTaggedData>(TestData.RandomStream, TestData.OutputData.TaggedData);
 	}
 
 	void ShuffleAllInternalData(PCGTestsCommon::FTestData& TestData)
@@ -1355,14 +1413,14 @@ namespace PCGDeterminismTests
 			if (DataCanBeShuffled(TaggedData.Data))
 			{
 				UPCGPointData* PointData = const_cast<UPCGPointData*>(CastChecked<UPCGPointData>(TaggedData.Data));
-				ShuffleArray<FPCGPoint>(PointData->GetMutablePoints(), TestData.RandomStream);
+				PCGHelpers::ShuffleArray<FPCGPoint>(TestData.RandomStream, PointData->GetMutablePoints());
 			}
 		}
 	}
 
 	void ShiftInputOrder(PCGTestsCommon::FTestData& TestData, int32 NumShifts)
 	{
-		ShiftArrayElements<FPCGTaggedData>(TestData.InputData.TaggedData, NumShifts);
+		PCGHelpers::ShiftArrayElements<FPCGTaggedData>(TestData.InputData.TaggedData, NumShifts);
 	}
 
 	TArray<EPCGDataType> FilterTestableDataTypes(EPCGDataType AllowedTypes, int32 NumMultipleInputs)
@@ -1589,4 +1647,3 @@ namespace PCGDeterminismTests
 }
 
 #undef LOCTEXT_NAMESPACE
-

@@ -175,8 +175,7 @@ struct FPipelineCacheFileFormatPSO
 		FSHAHash ShaderHash;
 		uint32 DeprecatedMaxPayloadSizeInBytes = 0;
 		EShaderFrequency Frequency = SF_RayGen;
-		bool bAllowHitGroupIndexing = true;
-
+		
 		FPipelineFileCacheRayTracingDesc() = default;
 		FPipelineFileCacheRayTracingDesc(const FRayTracingPipelineStateInitializer& Initializer, const FRHIRayTracingShader* ShaderRHI);
 
@@ -188,15 +187,13 @@ struct FPipelineCacheFileFormatPSO
 		friend uint32 GetTypeHash(const FPipelineFileCacheRayTracingDesc& Desc)
 		{
 			return GetTypeHash(Desc.ShaderHash) ^
-				GetTypeHash(Desc.Frequency) ^
-				GetTypeHash(Desc.bAllowHitGroupIndexing);
+				GetTypeHash(Desc.Frequency);
 		}
 
 		bool operator == (const FPipelineFileCacheRayTracingDesc& Other) const
 		{
 			return ShaderHash == Other.ShaderHash &&
-				Frequency == Other.Frequency &&
-				bAllowHitGroupIndexing == Other.bAllowHitGroupIndexing;
+				Frequency == Other.Frequency;
 		}
 	};
 	enum class DescriptorType : uint32
@@ -367,6 +364,12 @@ public:
 	 * Gets the event delegate to register for pipeline state logging events.
 	 */
 	RHI_API static FPipelineStateLoggedEvent& OnPipelineStateLogged();
+
+	/*
+	 * If the delegate is set, broadcasts any new PSOs that were encountered since the last time the delegate was broadcast.
+	 * The broadcast is scheduled to be run on the game thread.
+	 */
+	RHI_API static void BroadcastNewPSOsDelegate();
 	
 	RHI_API static void GetOrderedPSOHashes(const FString& PSOCacheKey, TArray<FPipelineCachePSOHeader>& PSOHashes, PSOOrder Order, int64 MinBindCount, TSet<uint32> const& AlreadyCompiledHashes);
 	RHI_API static void FetchPSODescriptors(const FString& PSOCacheKey, TDoubleLinkedList<FPipelineCacheFileFormatPSORead*>& LoadedBatch);
@@ -431,6 +434,7 @@ private:
 	static TMap<uint32, FPSOUsageData> NewPSOUsage;				// For mask or engine updates - Merged + Saved (Our internal PSO hash to latest usage data) - temp working scratch, only holds updates since last "save" so is not the authority on state
 	static TMap<uint32, FPipelineStateStats*> Stats;
 	static TSet<FPipelineCacheFileFormatPSO> NewPSOs;
+	static TArray<FPipelineCacheFileFormatPSO> NewPSOsToReport; // New PSOs that will be broadcast via a delegate (if bound). Cleared when the delegate is broadcast.
  	static TSet<uint32> NewPSOHashes;
 	static uint32 NumNewPSOs;
 	static PSOOrder RequestedOrder;

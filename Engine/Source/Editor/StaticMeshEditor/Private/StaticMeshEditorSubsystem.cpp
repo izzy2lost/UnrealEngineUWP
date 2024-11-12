@@ -668,8 +668,8 @@ int32 UStaticMeshEditorSubsystem::ImportLOD(UStaticMesh* BaseStaticMesh, const i
 		return INDEX_NONE;
 	}
 
-
-	if (!FbxMeshUtils::ImportStaticMeshLOD(BaseStaticMesh, ResolveFilename, LODIndex))
+	constexpr bool bAsyncFalse = false;
+	if (!FbxMeshUtils::ImportStaticMeshLOD(BaseStaticMesh, ResolveFilename, LODIndex, bAsyncFalse))
 	{
 		UE_LOG(LogStaticMeshEditorSubsystem, Error, TEXT("StaticMesh ImportLOD: Cannot import mesh LOD."));
 		return INDEX_NONE;
@@ -1162,46 +1162,78 @@ int32 UStaticMeshEditorSubsystem::AddSimpleCollisionsWithNotification(UStaticMes
 	case EScriptCollisionShapeType::Box:
 	{
 		PrimIndex = GenerateBoxAsSimpleCollision(StaticMesh);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.BoxElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::Sphere:
 	{
 		PrimIndex = GenerateSphereAsSimpleCollision(StaticMesh);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.SphereElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::Capsule:
 	{
 		PrimIndex = GenerateSphylAsSimpleCollision(StaticMesh);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.SphylElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::NDOP10_X:
 	{
 		TArray<FVector>	DirArray(KDopDir10X, 10);
 		PrimIndex = GenerateKDopAsSimpleCollision(StaticMesh, DirArray);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.ConvexElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::NDOP10_Y:
 	{
 		TArray<FVector>	DirArray(KDopDir10Y, 10);
 		PrimIndex = GenerateKDopAsSimpleCollision(StaticMesh, DirArray);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.ConvexElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::NDOP10_Z:
 	{
 		TArray<FVector>	DirArray(KDopDir10Z, 10);
 		PrimIndex = GenerateKDopAsSimpleCollision(StaticMesh, DirArray);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.ConvexElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::NDOP18:
 	{
 		TArray<FVector>	DirArray(KDopDir18, 18);
 		PrimIndex = GenerateKDopAsSimpleCollision(StaticMesh, DirArray);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.ConvexElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	case EScriptCollisionShapeType::NDOP26:
 	{
 		TArray<FVector>	DirArray(KDopDir26, 26);
 		PrimIndex = GenerateKDopAsSimpleCollision(StaticMesh, DirArray);
+		if(PrimIndex != INDEX_NONE)
+		{
+			StaticMesh->GetBodySetup()->AggGeom.ConvexElems[PrimIndex].bIsGenerated = true;
+		}
 		break;
 	}
 	}

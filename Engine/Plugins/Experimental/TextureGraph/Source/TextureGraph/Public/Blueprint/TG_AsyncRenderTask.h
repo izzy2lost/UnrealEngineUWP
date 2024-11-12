@@ -11,6 +11,7 @@
 #include "Data/Blob.h"
 #include "Data/TiledBlob.h"
 #include "TG_AsyncTask.h"
+#include "Engine/World.h"
 #include "TG_AsyncRenderTask.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTSRenderTaskDelegate, const TArray<UTextureRenderTarget2D*>&, OutputRts);
@@ -28,6 +29,8 @@ public:
 
 	virtual void FinishDestroy() override;
 
+	virtual void SetReadyToDestroy() override;
+
 	UPROPERTY(BlueprintAssignable, Category = "TextureGraph")
 	FTSRenderTaskDelegate OnDone;
 
@@ -36,11 +39,18 @@ private:
 
 	AsyncBool GetRenderTextures();
 
+	void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool CleanupResources);
+
 	TArray<UTextureRenderTarget2D*> OutputRts;
 
 	TArray<BlobPtr> OutputBlobs;
 
 	UTextureGraph* OriginalTextureGraphPtr;
+
 	UTextureGraph* TextureGraphPtr;
+
+	bool bShouldDestroyOnRenderComplete = false;
+
+	bool bRenderComplete = false;
 };
 

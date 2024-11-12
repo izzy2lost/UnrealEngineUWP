@@ -264,15 +264,6 @@ struct FGenericPlatformAtomics
 	}
 
 	/**
-	 * Atomic read of 64 bit value with an implicit memory barrier.
-	 */
-	UE_DEPRECATED(4.19, "AtomicRead64 has been deprecated, please use AtomicRead's overload instead")
-	static FORCEINLINE int64 AtomicRead64(volatile const int64* Src)
-	{
-		return AtomicRead(Src);
-	}
-
-	/**
 	 * Atomically compares the pointer to comparand and replaces with the exchange
 	 * pointer if they are equal and returns the original value
 	 */

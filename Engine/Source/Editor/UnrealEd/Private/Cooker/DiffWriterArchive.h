@@ -24,6 +24,7 @@ class FLinkerLoad;
 class FProperty;
 class FUObjectThreadContext;
 class UObject;
+namespace UE::Cook { class FDeterminismManager; }
 struct FUObjectSerializeContext;
 
 
@@ -32,6 +33,7 @@ namespace UE::DiffWriter
 
 class FAccumulator;
 class FDiffArchive;
+class FPackageHeaderData;
 
 typedef TUniqueFunction<void(ELogVerbosity::Type, FStringView)> FMessageCallback;
 using EPackageHeaderFormat = ICookedPackageWriter::EPackageHeaderFormat;
@@ -101,8 +103,20 @@ public:
 	/** Offset and callstack pair */
 	struct FCallstackAtOffset
 	{
-		/** Offset of a Serialize call */
+		/**
+		 * Offset of a block written by Serialize call. Equal to SerializeCallOffset unless the block was split by a
+		 * separate Serialize call.
+		 */
 		int64 Offset = -1;
+		/**
+		 * Length of a block written by Serialize call. Equal to SerializeCallLength unless the block was split by a
+		 * separate Serialize call.
+		 */
+		int64 Length = -1;
+		/** The offset written to by the Serialize call. */
+		int64 SerializeCallOffset = -1;
+		/** The length written by the Serialize call. */
+		int64 SerializeCallLength = -1;
 		/** Callstack CRC for the Serialize call */
 		uint32 Callstack = 0;
 		/** Collected inside of a scope that indicates diff should be recorded but logging should be suppressed */
@@ -182,19 +196,6 @@ public:
 		return UniqueCallstacks[CallstackOffset.Callstack];
 	}
 
-	/** Returns the size of serialized data at the specified offset. */
-	int64 GetSerializedDataSizeForOffsetIndex(int32 InOffsetIndex) const
-	{
-		if (InOffsetIndex < CallstackAtOffsetMap.Num() - 1)
-		{
-			return CallstackAtOffsetMap[InOffsetIndex + 1].Offset - CallstackAtOffsetMap[InOffsetIndex].Offset;
-		}
-		else
-		{
-			return EndOffset - CallstackAtOffsetMap[InOffsetIndex].Offset;
-		}
-	}
-
 	int64 GetEndOffset() const
 	{
 		return EndOffset;
@@ -262,6 +263,7 @@ public:
 	void CompareWithPrevious(const TCHAR* CallstackCutoffText, TMap<FName,FArchiveDiffStats>& OutStats);
 
 	void SetHeaderSize(int64 InHeaderSize);
+	void SetDeterminismManager(UE::Cook::FDeterminismManager& InDeterminismManager);
 	void SetCollectingCallstacks(bool bInCollectingCallstacks);
 	FName GetAssetClass() const;
 	bool IsWriterUsingPostSaveTransforms() const;
@@ -271,6 +273,7 @@ private:
 	void GenerateDiffMap();
 	/** Compares two packages and logs the differences and calltacks. */
 	void CompareWithPreviousForSection(const FPackageData& SourcePackage, const FPackageData& DestPackage,
+		FPackageHeaderData& SourceHeader, FPackageHeaderData& DestHeader,
 		const TCHAR* CallstackCutoffText, int32& InOutLoggedDiffs,TMap<FName, FArchiveDiffStats>& OutStats,
 		const FString& SectionFilename);
 
@@ -283,6 +286,7 @@ private:
 	TArray<uint8> FirstSaveLinkerData;
 	int64 FirstSaveLinkerSize = 0;
 	FAccumulatorGlobals& Globals;
+	UE::Cook::FDeterminismManager* DeterminismManager = nullptr;
 
 	FDiffMap DiffMap;
 	FMessageCallback MessageCallback;

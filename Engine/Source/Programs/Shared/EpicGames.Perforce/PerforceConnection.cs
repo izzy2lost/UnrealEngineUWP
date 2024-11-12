@@ -1022,6 +1022,10 @@ namespace EpicGames.Perforce
 			{
 				arguments.Add("-l");
 			}
+			if ((options & ChangesOptions.Reverse) != 0)
+			{
+				arguments.Add("-r");
+			}
 			if ((options & ChangesOptions.TruncatedLongOutput) != 0)
 			{
 				arguments.Add("-L");
@@ -2288,7 +2292,7 @@ namespace EpicGames.Perforce
 		#region p4 have
 
 		/// <summary>
-		/// Dtermine files currently synced to the client
+		/// Determine files currently synced to the client
 		/// </summary>
 		/// <param name="connection">Connection to the Perforce server</param>
 		/// <param name="fileSpec">Files to query</param>
@@ -2300,7 +2304,7 @@ namespace EpicGames.Perforce
 		}
 
 		/// <summary>
-		/// Dtermine files currently synced to the client
+		/// Determine files currently synced to the client
 		/// </summary>
 		/// <param name="connection">Connection to the Perforce server</param>
 		/// <param name="fileSpec">Files to query</param>

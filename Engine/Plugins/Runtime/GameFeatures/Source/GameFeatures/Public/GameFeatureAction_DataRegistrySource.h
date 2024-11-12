@@ -72,7 +72,7 @@ public:
 
 private:
 	/** List of sources to add when this feature is activated */
-	UPROPERTY(EditAnywhere, Category = "Registry Data")
+	UPROPERTY(EditAnywhere, Category = "Registry Data", meta=(TitleProperty="RegistryToAddTo"))
 	TArray<FDataRegistrySourceToAdd> SourcesToAdd;
 
 	/** If true, this will preload the sources when the feature is registered in the editor to support the editor pickers */

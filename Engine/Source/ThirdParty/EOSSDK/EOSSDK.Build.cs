@@ -248,19 +248,13 @@ public class EOSSDK : ModuleRules
 
 		bool bIsMonolithic = Target.LinkType == TargetLinkType.Monolithic;
 		bool bIsUniqueBuildEnv = Target.BuildEnvironment == TargetBuildEnvironment.Unique;
+		bool bMergeModules = Target.bMergeModules;
 
-		// Don't link against the SDK if this is a monolithic build and a project binary is being provided.
-		bool bEnableLink = !(bIsMonolithic && HasProjectBinary);
+		// Don't link against the SDK if this is a monolithic or merged build and a project binary is being provided.
+		bool bEnableLink = !((bIsMonolithic || bMergeModules) && HasProjectBinary);
 
 		// Don't stage SDK binaries if we're not linking against the SDK, or if this is a unique build environment and a project binary is being provided
 		bool bEnableStage = bEnableLink && !(bIsUniqueBuildEnv && HasProjectBinary);
-
-		if (bEnableLink && Target.Platform == UnrealTargetPlatform.LinuxArm64)
-        {
-			// Not supported yet for non-project binaries.
-			PublicDefinitions.Add("WITH_EOS_SDK=0");
-			return;
-        }
 
 		PublicDefinitions.Add("WITH_EOS_SDK=1");
 		PublicSystemIncludePaths.Add(SDKIncludesDir);
@@ -307,10 +301,7 @@ public class EOSSDK : ModuleRules
             {
 				PublicAdditionalLibraries.Add(Path.Combine(SDKBinariesDir, LibraryLinkName));
 
-				if(bEnableStage)
-				{
-					RuntimeDependencies.Add(Path.Combine(EngineBinariesDir, RuntimeLibraryFileName), Path.Combine(SDKBinariesDir, RuntimeLibraryFileName));
-				}
+				RuntimeDependencies.Add(Path.Combine(EngineBinariesDir, RuntimeLibraryFileName), Path.Combine(SDKBinariesDir, RuntimeLibraryFileName));
 
 				// needed for linux to find the .so
 				PublicRuntimeLibraryPaths.Add(EngineBinariesDir);

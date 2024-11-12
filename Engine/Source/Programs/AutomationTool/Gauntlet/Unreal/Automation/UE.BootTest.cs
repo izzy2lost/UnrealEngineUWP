@@ -19,7 +19,7 @@ namespace UE
 		/// <summary>
 		/// Used to track progress via logging
 		/// </summary>
-		int LogLinesLastTick = 0;
+		UnrealLogStreamParser LogReader = null;
 
 		/// <summary>
 		/// Time we last saw a change in logging
@@ -30,6 +30,11 @@ namespace UE
 		/// Set to true once we detect the game has launched correctly
 		/// </summary>
 		bool DidDetectLaunch = false;
+
+		/// <summary>
+		/// Log idle timeout in seconds
+		/// </summary>
+		private float kTimeOutDuration = 10 * 60;
 
 		/// <summary>
 		/// Default constructor
@@ -49,6 +54,16 @@ namespace UE
 			UnrealTestConfiguration Config = base.GetConfiguration();
 
 			UnrealTestRole Client = Config.RequireRole(UnrealTargetRole.Client);
+			if (string.IsNullOrEmpty(GetCompletionString()))
+			{
+				Client.CommandLineParams.Add("ExecCmds", "Automation SoftQuit");
+			}
+
+			float logIdleTimeout = Globals.Params.ParseValue("LogIdleTimeout", kTimeOutDuration);
+			if (logIdleTimeout > 0)
+			{
+				kTimeOutDuration = logIdleTimeout;
+			}
 
 			return Config;
 		}
@@ -69,8 +84,8 @@ namespace UE
 
 			// track our starting condition
 			LastLogTime = DateTime.Now;
-			LogLinesLastTick = 0;
-			DidDetectLaunch = true;
+			LogReader = null;
+			DidDetectLaunch = false;
 
 			return true;
 		}
@@ -81,7 +96,8 @@ namespace UE
 		/// <returns></returns>
 		protected virtual string GetCompletionString()
 		{
-			return "Engine is initialized. Leaving FEngineLoop::Init()";
+			// Intentionally setup with no completion string as UnrealTestNode verified initialization string already
+			return null;
 		}
 
 		/// <summary>
@@ -89,18 +105,19 @@ namespace UE
 		/// </summary>
 		public override void TickTest()
 		{
-			const int kTimeOutDuration = 10;
-
 			// run the base class tick;
 			base.TickTest();
 
 			// Get the log of the first client app
 			IAppInstance RunningInstance = this.TestInstance.RunningRoles.First().AppInstance;
 
-			UnrealLogStreamParser LogParser = new UnrealLogStreamParser();
-			LogLinesLastTick += LogParser.ReadStream(RunningInstance.StdOut, LogLinesLastTick);
+			if (LogReader == null)
+			{
+				LogReader = new UnrealLogStreamParser(RunningInstance.GetLogBufferReader());
+			}
+			LogReader.ReadStream();
 
-			IEnumerable<string> BusyLogLines = LogParser.GetLogFromEditorBusyChannels();
+			IEnumerable<string> BusyLogLines = LogReader.GetLogFromEditorBusyChannels();
 			if (BusyLogLines.Any())
 			{
 				LastLogTime = DateTime.Now;
@@ -110,18 +127,17 @@ namespace UE
 
 			// Gauntlet will timeout tests based on the -timeout argument, but we have greater insight here so can bail earlier to save
 			// tests from idling on the farm needlessly.
-			if ((DateTime.Now - LastLogTime).TotalMinutes > kTimeOutDuration)
+			if ((DateTime.Now - LastLogTime).TotalSeconds > kTimeOutDuration)
 			{
-				Log.Error("No logfile activity observed in last {0} minutes. Ending test", kTimeOutDuration);
+				Log.Error("No logfile activity observed in last {Time:0.00} minutes. Ending test", kTimeOutDuration / 60);
 				MarkTestComplete();
 				SetUnrealTestResult(TestResult.TimedOut);
 			}
 
 			string CompletionString = GetCompletionString();
-
 			if (!string.IsNullOrEmpty(CompletionString))
 			{
-				if (LogParser.GetLogLinesContaining(CompletionString).Any())
+				if (LogReader.GetLogLinesContaining(CompletionString).Any())
 				{
 					Log.Info("Found '{0}'. Ending Test", GetCompletionString());
 					MarkTestComplete();
@@ -135,15 +151,16 @@ namespace UE
 		/// Called after a test finishes to create an overall summary based on looking at the artifacts
 		/// </summary>
 		/// <param name="Result"></param>
+		/// <param name="Context"></param>
 		/// <returns>ITestReport</returns>
 		/// <param name="Build"></param>
-		/// <param name="Artifacts"></param>
+		/// <param name="InResults"></param>
 		/// <param name="InArtifactPath"></param>
 		public override ITestReport CreateReport(TestResult Result, UnrealTestContext Context, UnrealBuildSource Build, IEnumerable<UnrealRoleResult> InResults, string InArtifactPath)
 		{
 			if (Result == TestResult.Passed)
 			{
-				if (!DidDetectLaunch)
+				if (!string.IsNullOrEmpty(GetCompletionString()) && !DidDetectLaunch)
 				{
 					ReportError("Failed to detect completion of launch");
 				}

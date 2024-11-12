@@ -13,9 +13,14 @@ namespace UE::FieldNotification { struct FFieldId; }
 template <typename InterfaceType> class TScriptInterface;
 
 class UMVVMViewClass;
+class UMVVMViewClassExtension;
+class UMVVMViewExtension;
 struct FMVVMViewClass_Binding;
 struct FMVVMViewClass_Event;
 struct FMVVMViewClass_Source;
+struct FMVVMViewClass_SourceBinding;
+struct FMVVMViewClass_SourceKey;
+struct FMVVMViewClass_SourceCondition;
 
 /**
  * Instance FMVVMViewClass_Source for the UUserWdiget
@@ -159,8 +164,30 @@ public:
 	 * The viewmodel needs to be settable and it should have a valid name.
 	 * If the view is initialized, all bindings that uses that viewmodel will be re-executed with the new viewmodel instance.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Viewmodel")
+	UFUNCTION(BlueprintCallable, Category = "View")
 	bool SetViewModelByClass(TScriptInterface<INotifyFieldValueChanged> NewValue);
+
+	/**
+	 * Execute all the bindings that use the viewmodel.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "View")
+	bool ExecuteViewModelBindings(FName ViewModelName);
+
+private:
+	/**
+	 * Set the viewmodel of the specified name.
+	 * The viewmodel needs to be settable and the type should match (child of the defined viewmodel).
+	 * If the view is initialized, all bindings that uses that viewmodel will be re-executed with the new viewmodel instance.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "View", meta=(BlueprintInternalUseOnly="true"))
+	bool AreSourcesValidForEvent(int32 EventKey) const;
+
+	/**
+	 * Checks if all source bindings (Src / Dst objects) are valid for a binding
+	 * Currently used to verify if after effects of async conversion functions are safe to trigger.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "View", meta = (BlueprintInternalUseOnly = "true"))
+	bool AreSourcesValidForBinding(int32 BindingKey) const;
 
 private:
 	//~ Source
@@ -173,11 +200,16 @@ private:
 	void InitializeSourceBindings(FMVVMView_SourceKey SourceKey, bool bRunAllBindings);
 	void InitializeSourceBindingsCommon();
 	void UninitializeSourceBindings(FMVVMViewClass_SourceKey SourceKey, const FMVVMViewClass_Source& ClassSource, FMVVMView_Source& ViewSource);
-	void HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId);
+	void HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNotification::FFieldId InFieldId, FMVVMView_SourceKey SourceKey);
+	void ExecuteBindingInternal(const FMVVMViewClass_SourceBinding& SourceBinding) const;
 	void ExecuteBindingImmediately(const FMVVMViewClass_Binding& ClassBinding, FMVVMViewClass_BindingKey KeyForLog) const;
+	void ExecuteViewModelBindingsInternal(FMVVMViewClass_SourceKey SourceKey);
+
+	void ExecuteConditionInternal(const FMVVMViewClass_SourceCondition& SourceCondition) const;
 
 	//~ evaluate source
 	bool EvaluateSource(FMVVMViewClass_SourceKey SourceIndex);
+	void HandleViewModelCollectionChanged();
 
 	//~ events
 	void BindEvent(const FMVVMViewClass_Event& ClassItem, FMVVMViewClass_EventKey KeyForLog);
@@ -200,7 +232,10 @@ private:
 	/** The event that are registered by the view to the sources. */
 	TArray<FBoundEvent> BoundEvents;
 
-	/** The view has at least one binding that need to be ticked every frame. */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "View")
+	TArray<TObjectPtr<UMVVMViewExtension>> Extensions;
+
+	/** Bitfield that represents the valid sources. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "View")
 	uint64 ValidSources = 0;
 

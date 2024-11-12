@@ -47,9 +47,6 @@ public:
 	
 	UPROPERTY()
 	TObjectPtr<const UAssetDefinition> CommonAssetDefinition;
-	
-	UE_DEPRECATED(5.1, "Use SelectedAssets now, this field will not contain any objects.  You should call LoadSelectedObjects() based on what you need.")
-	TArray<TWeakObjectPtr<UObject>> SelectedObjects;
 
 	/**
 	 * The currently selected assets in the content browser.
@@ -64,12 +61,15 @@ public:
 	bool bCanBeModified;
 
 	UPROPERTY()
+	bool bCanView;
+
+	UPROPERTY()
 	bool bHasCookedPackages;
 
 	UPROPERTY(BlueprintReadOnly, Category = ContentBrowser)
 	bool bContainsUnsupportedAssets = true;
 
-	//UE_DEPRECATED(5.2, "GetSelectedObjects has been deprecated.  We no longer automatically load assets on right click.  Please use SelectedAssets and determine whatever you need for your context menu options without actually loading the assets.  When you finally need all or a subset of the selected assets use LoadSelectedAssets or LoadSelectedAssetsIf")
+	UE_DEPRECATED(5.5, "GetSelectedObjects has been deprecated.  We no longer automatically load assets on right click.  Please use SelectedAssets and determine whatever you need for your context menu options without actually loading the assets.  When you finally need all or a subset of the selected assets use LoadSelectedAssets or LoadSelectedAssetsIf")
 	UFUNCTION(BlueprintCallable, Category="Tool Menus", meta=(DeprecatedFunction, DeprecationMessage = "GetSelectedObjects has been deprecated.  We no longer automatically load assets on right click.  If you can work without loading the assets, please use SelectedAssets.  Otherwise call LoadSelectedObjects"))
 	TArray<UObject*> GetSelectedObjects() const
 	{

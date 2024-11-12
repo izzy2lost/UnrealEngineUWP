@@ -3,59 +3,46 @@
 #include "RigVMCore/RigVMRegistry.h"
 #include "AssetRegistry/AssetData.h"
 #include "RigVMCore/RigVMStruct.h"
-#include <RigVMCore/RigVMDecorator.h>
+#include <RigVMCore/RigVMTrait.h>
 #include "RigVMTypeUtils.h"
 #include "RigVMModule.h"
 #include "Animation/AttributeTypes.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/UObjectIterator.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "RigVMFunctions/RigVMDispatch_Core.h"
 #include "Interfaces/IPluginManager.h"
 
-const FName FRigVMRegistry::TemplateNameMetaName = TEXT("TemplateName");
-
-FCriticalSection FRigVMRegistry::FindOrAddTypeMutex;
-
-FCriticalSection FRigVMRegistry::FunctionRegistryMutex;
-FCriticalSection FRigVMRegistry::FactoryRegistryMutex;
-FCriticalSection FRigVMRegistry::TemplateRegistryMutex;
-
-FCriticalSection FRigVMRegistry::DispatchFunctionMutex;
-FCriticalSection FRigVMRegistry::DispatchPredicatesMutex;
-
-
 // When the object system has been completely loaded, load in all the engine types that we haven't registered already in InitializeIfNeeded 
 static FDelayedAutoRegisterHelper GRigVMRegistrySingletonHelper(EDelayedRegisterRunPhase::EndOfEngineInit, []() -> void
 {
-	FRigVMRegistry::Get().RefreshEngineTypes();
+	FRigVMRegistry_RWLock::Get().RefreshEngineTypes();
 });
 
 
-FRigVMRegistry::FRigVMRegistry() :
+FRigVMRegistry_NoLock::FRigVMRegistry_NoLock() :
 	bIsRefreshingEngineTypes(false),
 	bEverRefreshedEngineTypes(false)
 {
-	Initialize();
 }
 
-FRigVMRegistry::~FRigVMRegistry()
+FRigVMRegistry_NoLock& FRigVMRegistry_NoLock::Get(ELockType InLockType)
 {
-	Reset();
+#if WITH_EDITOR
+	FRigVMRegistry_RWLock::EnsureLocked(InLockType);
+#endif
+	return FRigVMRegistry_RWLock::Get();
 }
 
-FRigVMRegistry& FRigVMRegistry::Get()
+FRigVMRegistry_NoLock::~FRigVMRegistry_NoLock()
 {
-	// static in a function scope ensures that the GC system is initiated before 
-	// the registry constructor is called
-	static FRigVMRegistry s_RigVMRegistry;
-	return s_RigVMRegistry;
+	FRigVMRegistry_NoLock::Reset_NoLock();
 }
 
-void FRigVMRegistry::AddReferencedObjects(FReferenceCollector& Collector)
+void FRigVMRegistry_NoLock::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	// registry should hold strong references to these type objects
 	// otherwise GC may remove them without the registry known it
@@ -64,19 +51,56 @@ void FRigVMRegistry::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		// the Object needs to be checked for validity since it may be a user defined type (struct or enum)
 		// which is about to get removed. 
-		if (IsValid(Type.Type.CPPTypeObject))
+		if (Type.Type.CPPTypeObject)
 		{
-			Collector.AddReferencedObject(Type.Type.CPPTypeObject);
+#if !UE_BUILD_SHIPPING
+			// in non shipping builds, immediately run IsValidLowLevelFast such that
+			// we can catch invalid types earlier via a direct crash more often
+			if (Type.Type.CPPTypeObject->IsValidLowLevelFast())
+			{
+				// By design, hold strong references only to non-native types
+				if (!Type.Type.CPPTypeObject->IsNative())
+				{
+					Collector.AddReferencedObject(Type.Type.CPPTypeObject);	
+				}
+			}
+#else
+			// in shipping builds, try to be as safe as possible
+			if(IsValid(Type.Type.CPPTypeObject))
+			{
+				if(Type.Type.CPPTypeObject->GetClass())
+				{
+					if(Type.Type.CPPTypeObject->IsValidLowLevelFast() &&
+						!Type.Type.CPPTypeObject->IsNative() &&
+						!Type.Type.CPPTypeObject->IsUnreachable())
+					{
+						// make sure the object is part of the GUObjectArray and can be retrieved
+						// so that GC doesn't crash after receiving the referenced object
+						const int32 ObjectIndex = GUObjectArray.ObjectToIndex(Type.Type.CPPTypeObject);
+						if(ObjectIndex != INDEX_NONE)
+						{
+							if(const FUObjectItem* Item = GUObjectArray.IndexToObject(ObjectIndex))
+							{
+								if(Item->Object == Type.Type.CPPTypeObject)
+								{
+									Collector.AddReferencedObject(Type.Type.CPPTypeObject);
+								}
+							}
+						}
+					}
+				}
+			}
+#endif
 		}
 	}
 }
 
-FString FRigVMRegistry::GetReferencerName() const
+FString FRigVMRegistry_NoLock::GetReferencerName() const
 {
 	return TEXT("FRigVMRegistry");
 }
 
-const TArray<UScriptStruct*>& FRigVMRegistry::GetMathTypes()
+const TArray<UScriptStruct*>& FRigVMRegistry_NoLock::GetMathTypes()
 {
 	// The list of base math types to automatically register 
 	static const TArray<UScriptStruct*> MathTypes = { 
@@ -95,14 +119,14 @@ const TArray<UScriptStruct*>& FRigVMRegistry::GetMathTypes()
 	return MathTypes;
 }
 
-uint32 FRigVMRegistry::GetHashForType(TRigVMTypeIndex InTypeIndex) const
+uint32 FRigVMRegistry_NoLock::GetHashForType_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if(!Types.IsValidIndex(InTypeIndex))
 	{
 		return UINT32_MAX;
 	}
 
-	FRigVMRegistry* MutableThis = (FRigVMRegistry*)this; 
+	FRigVMRegistry_NoLock* MutableThis = (FRigVMRegistry_NoLock*)this; 
 	FTypeInfo& TypeInfo = MutableThis->Types[InTypeIndex];
 	
 	if(TypeInfo.Hash != UINT32_MAX)
@@ -110,18 +134,18 @@ uint32 FRigVMRegistry::GetHashForType(TRigVMTypeIndex InTypeIndex) const
 		return TypeInfo.Hash;
 	}
 
-	uint32 Hash = INDEX_NONE;
+	uint32 Hash;
 	if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(TypeInfo.Type.CPPTypeObject))
 	{
-		Hash = GetHashForScriptStruct(ScriptStruct, false);
+		Hash = GetHashForScriptStruct_NoLock(ScriptStruct, false);
 	}
 	else if(const UStruct* Struct = Cast<UStruct>(TypeInfo.Type.CPPTypeObject))
 	{
-		Hash = GetHashForStruct(Struct);
+		Hash = GetHashForStruct_NoLock(Struct);
 	}
 	else if(const UEnum* Enum = Cast<UEnum>(TypeInfo.Type.CPPTypeObject))
     {
-    	Hash = GetHashForEnum(Enum, false);
+    	Hash = GetHashForEnum_NoLock(Enum, false);
     }
     else
     {
@@ -138,43 +162,43 @@ uint32 FRigVMRegistry::GetHashForType(TRigVMTypeIndex InTypeIndex) const
 	return Hash;
 }
 
-uint32 FRigVMRegistry::GetHashForScriptStruct(const UScriptStruct* InScriptStruct, bool bCheckTypeIndex) const
+uint32 FRigVMRegistry_NoLock::GetHashForScriptStruct_NoLock(const UScriptStruct* InScriptStruct, bool bCheckTypeIndex) const
 {
 	if(bCheckTypeIndex)
 	{
-		const TRigVMTypeIndex TypeIndex = GetTypeIndex(*InScriptStruct->GetStructCPPName(), (UObject*)InScriptStruct);
+		const TRigVMTypeIndex TypeIndex = GetTypeIndex_NoLock(*InScriptStruct->GetStructCPPName(), (UObject*)InScriptStruct);
 		if(TypeIndex != INDEX_NONE)
 		{
-			return GetHashForType(TypeIndex);
+			return GetHashForType_NoLock(TypeIndex);
 		}
 	}
 	
 	const uint32 NameHash = GetTypeHash(InScriptStruct->GetStructCPPName());
-	return HashCombine(NameHash, GetHashForStruct(InScriptStruct));
+	return HashCombine(NameHash, GetHashForStruct_NoLock(InScriptStruct));
 }
 
-uint32 FRigVMRegistry::GetHashForStruct(const UStruct* InStruct) const
+uint32 FRigVMRegistry_NoLock::GetHashForStruct_NoLock(const UStruct* InStruct) const
 {
 	uint32 Hash = GetTypeHash(InStruct->GetPathName());
 	for (TFieldIterator<FProperty> It(InStruct); It; ++It)
 	{
 		const FProperty* Property = *It;
-		if(IsAllowedType(Property))
+		if(IsAllowedType_NoLock(Property))
 		{
-			Hash = HashCombine(Hash, GetHashForProperty(Property));
+			Hash = HashCombine(Hash, GetHashForProperty_NoLock(Property));
 		}
 	}
 	return Hash;
 }
 
-uint32 FRigVMRegistry::GetHashForEnum(const UEnum* InEnum, bool bCheckTypeIndex) const
+uint32 FRigVMRegistry_NoLock::GetHashForEnum_NoLock(const UEnum* InEnum, bool bCheckTypeIndex) const
 {
 	if(bCheckTypeIndex)
 	{
-		const TRigVMTypeIndex TypeIndex = GetTypeIndex(*InEnum->CppType, (UObject*)InEnum);
+		const TRigVMTypeIndex TypeIndex = GetTypeIndex_NoLock(*InEnum->CppType, (UObject*)InEnum);
 		if(TypeIndex != INDEX_NONE)
 		{
-			return GetHashForType(TypeIndex);
+			return GetHashForType_NoLock(TypeIndex);
 		}
 	}
 	
@@ -187,7 +211,7 @@ uint32 FRigVMRegistry::GetHashForEnum(const UEnum* InEnum, bool bCheckTypeIndex)
 	return Hash;
 }
 
-uint32 FRigVMRegistry::GetHashForProperty(const FProperty* InProperty) const
+uint32 FRigVMRegistry_NoLock::GetHashForProperty_NoLock(const FProperty* InProperty) const
 {
 	uint32 Hash = GetTypeHash(InProperty->GetName());
 
@@ -202,31 +226,47 @@ uint32 FRigVMRegistry::GetHashForProperty(const FProperty* InProperty) const
 	
 	if(const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 	{
-		Hash = HashCombine(Hash, GetHashForStruct(StructProperty->Struct));
+		Hash = HashCombine(Hash, GetHashForStruct_NoLock(StructProperty->Struct));
 	}
 	else if(const FByteProperty* ByteProperty = CastField<FByteProperty>(InProperty))
 	{
 		if(ByteProperty->Enum)
 		{
-			Hash = HashCombine(Hash, GetHashForEnum(ByteProperty->Enum));
+			Hash = HashCombine(Hash, GetHashForEnum_NoLock(ByteProperty->Enum));
 		}
 	}
 	else if(const FEnumProperty* EnumProperty = CastField<FEnumProperty>(InProperty))
 	{
-		Hash = HashCombine(Hash, GetHashForEnum(EnumProperty->GetEnum()));
+		Hash = HashCombine(Hash, GetHashForEnum_NoLock(EnumProperty->GetEnum()));
 	}
 	
 	return Hash;
 }
 
-
-void FRigVMRegistry::Initialize()
+void FRigVMRegistry_NoLock::RebuildRegistry_NoLock()
 {
-	// this should not be necessary since the initialize is used only
-	// on a constructor on a static variable (thread safe)
-	// but in case code paths change in the future we'll also lock here.
-	const FScopeLock FindOrAddTypeLock(&FindOrAddTypeMutex);
+	Reset_NoLock();
 	
+	Types.Reset();
+	TypeToIndex.Reset();
+	Functions.Empty();
+	Templates.Empty();
+	DeprecatedTemplates.Empty();
+	Factories.Reset();
+	FunctionNameToIndex.Reset();
+	StructNameToPredicates.Reset();
+	TemplateNotationToIndex.Reset();
+	DeprecatedTemplateNotationToIndex.Reset();
+	TypesPerCategory.Reset();
+	TemplatesPerCategory.Reset();
+	UserDefinedTypeToIndex.Reset();
+	AllowedClasses.Reset();
+
+	Initialize(false);
+}
+
+void FRigVMRegistry_NoLock::Initialize_NoLock()
+{
 	Types.Reserve(512);
 	TypeToIndex.Reserve(512);
 	TypesPerCategory.Reserve(19);
@@ -302,7 +342,7 @@ void FRigVMRegistry::Initialize()
 	// hook the registry to prepare for engine shutdown
 	FCoreDelegates::OnExit.AddLambda([&]()
 	{
-		Reset();
+		Reset_NoLock();
 
 		if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>(TEXT("AssetRegistry")))
 		{
@@ -317,25 +357,10 @@ void FRigVMRegistry::Initialize()
 
 		UE::Anim::AttributeTypes::GetOnAttributeTypesChanged().RemoveAll(this);
 	});
-	
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &FRigVMRegistry::OnAssetRemoved);
-	AssetRegistryModule.Get().OnAssetRenamed().AddRaw(this, &FRigVMRegistry::OnAssetRenamed);
-
-	IPluginManager::Get().OnPluginUnmounted().AddRaw(this, &FRigVMRegistry::OnPluginUnloaded);
-	
-	UE::Anim::AttributeTypes::GetOnAttributeTypesChanged().AddRaw(this, &FRigVMRegistry::OnAnimationAttributeTypesChanged);
 }
 
-void FRigVMRegistry::RefreshEngineTypes()
+void FRigVMRegistry_NoLock::RefreshEngineTypesIfRequired_NoLock()
 {
-	FScopeLock FindOrAddTypeLock(&FindOrAddTypeMutex);
-	RefreshEngineTypes_NoLock();
-}
-
-void FRigVMRegistry::RefreshEngineTypesIfRequired()
-{
-	FScopeLock FindOrAddTypeLock(&FindOrAddTypeMutex);
 	if(bEverRefreshedEngineTypes)
 	{
 		return;
@@ -343,7 +368,7 @@ void FRigVMRegistry::RefreshEngineTypesIfRequired()
 	RefreshEngineTypes_NoLock();
 }
 
-void FRigVMRegistry::RefreshEngineTypes_NoLock()
+void FRigVMRegistry_NoLock::RefreshEngineTypes_NoLock()
 {
 	TGuardValue<bool> EnableGuardRefresh(bIsRefreshingEngineTypes, true);
 
@@ -361,19 +386,27 @@ void FRigVMRegistry::RefreshEngineTypes_NoLock()
 		// if this is a C++ type - skip it
 		if(ScriptStruct->IsA<UUserDefinedStruct>() || ScriptStruct->IsChildOf(FRigVMExecuteContext::StaticStruct()))
 		{
-			FindOrAddType_NoLock(FRigVMTemplateArgumentType(ScriptStruct), false);
+			// this check for example makes sure we don't add structs defined in verse
+			if(IsAllowedType_NoLock(ScriptStruct))
+			{
+				FindOrAddType_NoLock(FRigVMTemplateArgumentType(ScriptStruct), false);
+			}
 		}
 		else if (ScriptStruct != FRigVMDispatchFactory::StaticStruct() &&
 				 ScriptStruct->IsChildOf(FRigVMDispatchFactory::StaticStruct()))
 		{
 			DispatchFactoriesToRegister.Add(ScriptStruct);
 		}
+		else if(AllowedStructs.Contains(ScriptStruct))
+		{
+			FindOrAddType_NoLock(FRigVMTemplateArgumentType(ScriptStruct));
+		}
 	}
 
 	for (TObjectIterator<UEnum> EnumIt; EnumIt; ++EnumIt)
 	{
 		UEnum* Enum = *EnumIt;
-		if(IsAllowedType(Enum))
+		if(IsAllowedType_NoLock(Enum))
 		{
 			const FString CPPType = Enum->CppType.IsEmpty() ? Enum->GetName() : Enum->CppType;
 			FindOrAddType_NoLock(FRigVMTemplateArgumentType(*CPPType, Enum), false);
@@ -383,7 +416,7 @@ void FRigVMRegistry::RefreshEngineTypes_NoLock()
 	for (TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
 	{
 		UClass* Class = *ClassIt;
-		if (IsAllowedType(Class))
+		if (IsAllowedType_NoLock(Class))
 		{
 			// Register both the class and the object type for use
 			FindOrAddType_NoLock(FRigVMTemplateArgumentType(Class, RigVMTypeUtils::EClassArgType::AsClass), false);
@@ -394,7 +427,7 @@ void FRigVMRegistry::RefreshEngineTypes_NoLock()
 	// Register all dispatch factories only after all other types have been registered.
 	for (UScriptStruct* DispatchFactoryStruct: DispatchFactoriesToRegister)
 	{
-		RegisterFactory(DispatchFactoryStruct);
+		RegisterFactory_NoLock(DispatchFactoryStruct);
 	}
 
 	const int32 NumTypesNow = Types.Num();
@@ -420,7 +453,7 @@ void FRigVMRegistry::RefreshEngineTypes_NoLock()
 	bEverRefreshedEngineTypes = true;
 }
 
-void FRigVMRegistry::OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath)
+void FRigVMRegistry_NoLock::OnAssetRenamed_NoLock(const FAssetData& InAssetData, const FString& InOldObjectPath)
 {
 	const FSoftObjectPath OldPath(InOldObjectPath);
 	
@@ -432,15 +465,12 @@ void FRigVMRegistry::OnAssetRenamed(const FAssetData& InAssetData, const FString
 	}
 }
 
-void FRigVMRegistry::OnAssetRemoved(const FAssetData& InAssetData)
+bool FRigVMRegistry_NoLock::OnAssetRemoved_NoLock(const FAssetData& InAssetData)
 {
-	if (RemoveType(InAssetData.ToSoftObjectPath(), InAssetData.GetClass()))
-	{
-		OnRigVMRegistryChangedDelegate.Broadcast();
-	}
+	return RemoveType_NoLock(InAssetData.ToSoftObjectPath(), InAssetData.GetClass());
 }
 
-void FRigVMRegistry::OnPluginUnloaded(IPlugin& InPlugin)
+bool FRigVMRegistry_NoLock::OnPluginUnloaded_NoLock(IPlugin& InPlugin)
 {
 	const FString PluginContentPath = InPlugin.GetMountedAssetPath();
 
@@ -465,19 +495,16 @@ void FRigVMRegistry::OnPluginUnloaded(IPlugin& InPlugin)
 			ObjectClass = TypeObject->GetClass();
 		}
 		
-		if (RemoveType(ObjectPath, ObjectClass))
+		if (RemoveType_NoLock(ObjectPath, ObjectClass))
 		{
 			bRegistryChanged = true;
 		}
 	}
 
-	if (bRegistryChanged)
-	{
-		OnRigVMRegistryChangedDelegate.Broadcast();
-	}
+	return bRegistryChanged;
 }
 
-void FRigVMRegistry::OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded)
+void FRigVMRegistry_NoLock::OnAnimationAttributeTypesChanged_NoLock(const UScriptStruct* InStruct, bool bIsAdded)
 {
 	if (!ensure(InStruct))
 	{
@@ -486,13 +513,12 @@ void FRigVMRegistry::OnAnimationAttributeTypesChanged(const UScriptStruct* InStr
 
 	if (bIsAdded)
 	{
-		FindOrAddType(FRigVMTemplateArgumentType(const_cast<UScriptStruct*>(InStruct)));
-		OnRigVMRegistryChangedDelegate.Broadcast();		
+		FindOrAddType_NoLock(FRigVMTemplateArgumentType(const_cast<UScriptStruct*>(InStruct)));
 	}
 }
 
 
-void FRigVMRegistry::Reset()
+void FRigVMRegistry_NoLock::Reset_NoLock()
 {
 	for(FRigVMDispatchFactory* Factory : Factories)
 	{
@@ -505,18 +531,12 @@ void FRigVMRegistry::Reset()
 	Factories.Reset();
 }
 
-TRigVMTypeIndex FRigVMRegistry::FindOrAddType(const FRigVMTemplateArgumentType& InType, bool bForce)
-{
-	const FScopeLock FindOrAddTypesLock(&FindOrAddTypeMutex);
-	return FindOrAddType_NoLock(InType, bForce);
-}
-
-TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumentType& InType, bool bForce)
+TRigVMTypeIndex FRigVMRegistry_NoLock::FindOrAddType_NoLock(const FRigVMTemplateArgumentType& InType, bool bForce)
 {
 	// we don't use a mutex here since by the time the engine relies on worker
 	// thread for execution or async loading all types will have been registered.
 	
-	TRigVMTypeIndex Index = GetTypeIndex(InType);
+	TRigVMTypeIndex Index = GetTypeIndex_NoLock(InType);
 	if(Index == INDEX_NONE)
 	{
 		FRigVMTemplateArgumentType ElementType = InType;
@@ -530,21 +550,21 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 		{
 			if(const UClass* Class = Cast<UClass>(CPPTypeObject))
 			{
-				if(!IsAllowedType(Class))
+				if(!IsAllowedType_NoLock(Class))
 				{
 					return Index;
 				}	
 			}
 			else if(const UEnum* Enum = Cast<UEnum>(CPPTypeObject))
 			{
-				if(!IsAllowedType(Enum))
+				if(!IsAllowedType_NoLock(Enum))
 				{
 					return Index;
 				}
 			}
 			else if(const UStruct* Struct = Cast<UStruct>(CPPTypeObject))
 			{
-				if(!IsAllowedType(Struct))
+				if(!IsAllowedType_NoLock(Struct))
 				{					
 					return Index;
 				}
@@ -597,9 +617,9 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 
 		// update the categories first then propagate to TemplatesPerCategory once all categories up to date
 		TArray<TPair<FRigVMTemplateArgument::ETypeCategory, int32>> ToPropagate;
-		auto RegisterNewType = [&](FRigVMTemplateArgument::ETypeCategory InCategory, int32 NewIndex)
+		auto RegisterNewType = [&](FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex NewIndex)
 		{
-			RegisterTypeInCategory(InCategory, NewIndex);
+			RegisterTypeInCategory_NoLock(InCategory, NewIndex);
 			ToPropagate.Emplace(InCategory, NewIndex);
 		}; 
 
@@ -638,7 +658,7 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 					}
 				}
 			}
-			else if(const UClass* Class = Cast<UClass>(CPPTypeObject))
+			else if(CPPTypeObject->IsA<UClass>())
 			{
 				switch(ArrayDimension)
 				{
@@ -663,7 +683,7 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 					}
 				}
 			}
-			else if(const UEnum* Enum = Cast<UEnum>(CPPTypeObject))
+			else if(CPPTypeObject->IsA<UEnum>())
 			{
 				switch(ArrayDimension)
 				{
@@ -751,7 +771,7 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 		// propagate new type to templates once they have all been added to the categories
 		for (const auto& [Category, NewIndex]: ToPropagate)
 		{
-			PropagateTypeAddedToCategory(Category, NewIndex);	
+			PropagateTypeAddedToCategory_NoLock(Category, NewIndex);	
 		}
 
 		// if the type is a structure
@@ -761,11 +781,11 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 			for (TFieldIterator<FProperty> It(Struct); It; ++It)
 			{
 				FProperty* Property = *It;
-				if(IsAllowedType(Property))
+				if(IsAllowedType_NoLock(Property))
 				{
 					// by creating a template argument for the child property
 					// the type will be added by calling ::FindOrAddType_Internal recursively.
-					FRigVMTemplateArgument DummyArgument(Property, *this);
+					(void)FRigVMTemplateArgument::Make_NoLock(Property, *this);
 				}
 #if WITH_EDITOR
 				else
@@ -778,12 +798,12 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 			}			
 		}
 		
-		Index = GetTypeIndex(InType);
+		Index = GetTypeIndex_NoLock(InType);
 		if (IsValid(CPPTypeObject))
 		{
 			if (CPPTypeObject->IsA<UUserDefinedStruct>() || CPPTypeObject->IsA<UUserDefinedEnum>())
 			{
-				TRigVMTypeIndex ElementTypeIndex = GetTypeIndex(ElementType);
+				TRigVMTypeIndex ElementTypeIndex = GetTypeIndex_NoLock(ElementType);
 				// used to track name changes to user defined types, stores the element type index, see RemoveType()
 				UserDefinedTypeToIndex.FindOrAdd(CPPTypeObject) = ElementTypeIndex;
 			}
@@ -795,14 +815,14 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_NoLock(const FRigVMTemplateArgumen
 	return Index;
 }
 
-void FRigVMRegistry::RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex InTypeIndex)
+void FRigVMRegistry_NoLock::RegisterTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex InTypeIndex)
 {
 	check(InCategory != FRigVMTemplateArgument::ETypeCategory_Invalid);
 
 	TypesPerCategory.FindChecked(InCategory).Add(InTypeIndex);
 }
 
-void FRigVMRegistry::PropagateTypeAddedToCategory(const FRigVMTemplateArgument::ETypeCategory InCategory, const TRigVMTypeIndex InTypeIndex)
+void FRigVMRegistry_NoLock::PropagateTypeAddedToCategory_NoLock(const FRigVMTemplateArgument::ETypeCategory InCategory, const TRigVMTypeIndex InTypeIndex)
 {
 	if(bIsRefreshingEngineTypes)
 	{
@@ -822,7 +842,7 @@ void FRigVMRegistry::PropagateTypeAddedToCategory(const FRigVMTemplateArgument::
 	}
 }
 
-bool FRigVMRegistry::RemoveType(const FSoftObjectPath& InObjectPath, const UClass* InObjectClass)
+bool FRigVMRegistry_NoLock::RemoveType_NoLock(const FSoftObjectPath& InObjectPath, const UClass* InObjectClass)
 {
 	if (const TRigVMTypeIndex* TypeIndexPtr = UserDefinedTypeToIndex.Find(InObjectPath))
 	{
@@ -835,17 +855,17 @@ bool FRigVMRegistry::RemoveType(const FSoftObjectPath& InObjectPath, const UClas
 			return false;
 		}
 
-		check(!IsArrayType(TypeIndex));
+		check(!IsArrayType_NoLock(TypeIndex));
 
 		TArray<TRigVMTypeIndex> Indices;
 		Indices.Init(INDEX_NONE, 3);
 		Indices[0] = TypeIndex;
-		Indices[1] = GetArrayTypeFromBaseTypeIndex(Indices[0]);
+		Indices[1] = GetArrayTypeFromBaseTypeIndex_NoLock(Indices[0]);
 
 		// any type that can be removed should have 3 entries in the registry
 		if (ensure(Indices[1] != INDEX_NONE))
 		{
-			Indices[2] = GetArrayTypeFromBaseTypeIndex(Indices[1]);
+			Indices[2] = GetArrayTypeFromBaseTypeIndex_NoLock(Indices[1]);
 		}
 		
 		for (int32 ArrayDimension=0; ArrayDimension<3; ++ArrayDimension)
@@ -864,20 +884,20 @@ bool FRigVMRegistry::RemoveType(const FSoftObjectPath& InObjectPath, const UClas
 				default:
 				case 0:
 					{
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue, Index);
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
 						break;
 					}
 				case 1:
 					{
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayEnumValue, Index);
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayEnumValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
 						break;
 					}
 				case 2:
 					{
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayEnumValue, Index);
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayArrayEnumValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
 						break;
 					}
 				}
@@ -889,27 +909,27 @@ bool FRigVMRegistry::RemoveType(const FSoftObjectPath& InObjectPath, const UClas
 				default:
 				case 0:
 					{
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue, Index);
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleScriptStructValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue, Index);
 						break;
 					}
 				case 1:
 					{
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayScriptStructValue, Index);
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayScriptStructValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue, Index);
 						break;
 					}
 				case 2:
 					{
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayScriptStructValue, Index);
-						RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayArrayScriptStructValue, Index);
+						RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_ArrayArrayAnyValue, Index);
 						break;
 					}
 				}
 			}
 
 			// remove the type from the registry entirely
-			TypeToIndex.Remove(GetType(Index));
+			TypeToIndex.Remove(GetType_NoLock(Index));
 			Types[Index] = FTypeInfo();
 		}
 
@@ -919,7 +939,7 @@ bool FRigVMRegistry::RemoveType(const FSoftObjectPath& InObjectPath, const UClas
 	return false;
 }
 
-void FRigVMRegistry::RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex InTypeIndex)
+void FRigVMRegistry_NoLock::RemoveTypeInCategory_NoLock(FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex InTypeIndex)
 {
 	check(InCategory != FRigVMTemplateArgument::ETypeCategory_Invalid);
 
@@ -933,7 +953,58 @@ void FRigVMRegistry::RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory 
 	}
 }
 
-TRigVMTypeIndex FRigVMRegistry::GetTypeIndex(const FRigVMTemplateArgumentType& InType) const
+// This function needs to be in cpp file instead of header file
+// to avoid confusing certain compilers into creating multiple copies of the registry
+FRigVMRegistry_RWLock& FRigVMRegistry_RWLock::Get()
+{
+	// static in a function scope ensures that the GC system is initiated before 
+	// the registry constructor is called
+	static FRigVMRegistry_RWLock s_RigVMRegistry;
+	return s_RigVMRegistry;
+}
+
+void FRigVMRegistry_RWLock::OnAssetRemoved(const FAssetData& InAssetData)
+{
+	bool bAssetRemoved = false;
+	{
+		FConditionalWriteScopeLock _(*this);
+		bAssetRemoved = Super::OnAssetRemoved_NoLock(InAssetData);
+	}
+
+	if (bAssetRemoved)
+	{
+		OnRigVMRegistryChangedDelegate.Broadcast();
+	}
+}
+
+void FRigVMRegistry_RWLock::OnPluginUnloaded(IPlugin& InPlugin)
+{
+	bool bRegistryChanged = false;
+	{
+		FConditionalWriteScopeLock _(*this);
+		bRegistryChanged = Super::OnPluginUnloaded_NoLock(InPlugin);
+	}
+		
+	if (bRegistryChanged)
+	{
+		OnRigVMRegistryChangedDelegate.Broadcast();
+	}
+}
+
+void FRigVMRegistry_RWLock::OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded)
+{
+	{
+		FConditionalWriteScopeLock _(*this);
+		Super::OnAnimationAttributeTypesChanged_NoLock(InStruct, bIsAdded);
+	}
+
+	if (bIsAdded)
+	{
+		OnRigVMRegistryChangedDelegate.Broadcast();		
+	}
+}
+
+TRigVMTypeIndex FRigVMRegistry_NoLock::GetTypeIndex_NoLock(const FRigVMTemplateArgumentType& InType) const
 {
 	if(const TRigVMTypeIndex* Index = TypeToIndex.Find(InType))
 	{
@@ -942,7 +1013,7 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndex(const FRigVMTemplateArgumentType& I
 	return INDEX_NONE;
 }
 
-const FRigVMTemplateArgumentType& FRigVMRegistry::GetType(TRigVMTypeIndex InTypeIndex) const
+const FRigVMTemplateArgumentType& FRigVMRegistry_NoLock::GetType_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if((Types.IsValidIndex(InTypeIndex)))
 	{
@@ -952,9 +1023,9 @@ const FRigVMTemplateArgumentType& FRigVMRegistry::GetType(TRigVMTypeIndex InType
 	return EmptyType;
 }
 
-const FRigVMTemplateArgumentType& FRigVMRegistry::FindTypeFromCPPType(const FString& InCPPType) const
+const FRigVMTemplateArgumentType& FRigVMRegistry_NoLock::FindTypeFromCPPType_NoLock(const FString& InCPPType) const
 {
-	const int32 TypeIndex = GetTypeIndexFromCPPType(InCPPType);
+	const int32 TypeIndex = GetTypeIndexFromCPPType_NoLock(InCPPType);
 	if(ensure(Types.IsValidIndex(TypeIndex)))
 	{
 		return Types[TypeIndex].Type;
@@ -964,7 +1035,7 @@ const FRigVMTemplateArgumentType& FRigVMRegistry::FindTypeFromCPPType(const FStr
 	return EmptyType;
 }
 
-TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType) const
+TRigVMTypeIndex FRigVMRegistry_NoLock::GetTypeIndexFromCPPType_NoLock(const FString& InCPPType) const
 {
 	TRigVMTypeIndex Result = INDEX_NONE;
 	if(!InCPPType.IsEmpty())
@@ -984,8 +1055,9 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType
 		// things up to date here. 
 		if(Result == INDEX_NONE)
 		{
-			// we may need ot 
-			FRigVMRegistry::Get().RefreshEngineTypes();
+			// we may need to update the types again to registry potentially
+			// missing predicate types 
+			FRigVMRegistry_NoLock::GetForWrite().RefreshEngineTypes_NoLock();
 			Result = Types.IndexOfByPredicate(Predicate);
 		}
 #endif
@@ -1003,7 +1075,7 @@ TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType
 	return Result;
 }
 
-bool FRigVMRegistry::IsArrayType(TRigVMTypeIndex InTypeIndex) const
+bool FRigVMRegistry_NoLock::IsArrayType_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if((Types.IsValidIndex(InTypeIndex)))
 	{
@@ -1012,7 +1084,7 @@ bool FRigVMRegistry::IsArrayType(TRigVMTypeIndex InTypeIndex) const
 	return false;
 }
 
-bool FRigVMRegistry::IsExecuteType(TRigVMTypeIndex InTypeIndex) const
+bool FRigVMRegistry_NoLock::IsExecuteType_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if(InTypeIndex == INDEX_NONE)
 	{
@@ -1026,7 +1098,7 @@ bool FRigVMRegistry::IsExecuteType(TRigVMTypeIndex InTypeIndex) const
 	return false;
 }
 
-bool FRigVMRegistry::ConvertExecuteContextToBaseType(TRigVMTypeIndex& InOutTypeIndex) const
+bool FRigVMRegistry_NoLock::ConvertExecuteContextToBaseType_NoLock(TRigVMTypeIndex& InOutTypeIndex) const
 {
 	if(InOutTypeIndex == INDEX_NONE)
 	{
@@ -1038,7 +1110,7 @@ bool FRigVMRegistry::ConvertExecuteContextToBaseType(TRigVMTypeIndex& InOutTypeI
 		return true;
 	}
 
-	if(!IsExecuteType(InOutTypeIndex))
+	if(!IsExecuteType_NoLock(InOutTypeIndex))
 	{
 		return false;
 	}
@@ -1047,9 +1119,9 @@ bool FRigVMRegistry::ConvertExecuteContextToBaseType(TRigVMTypeIndex& InOutTypeI
 	// convert them to the base execute type to make matching types easier later.
 	// this means that the execute argument in every permutations shares 
 	// the same type index of RigVMTypeUtils::TypeIndex::Execute
-	if(IsArrayType(InOutTypeIndex))
+	if(IsArrayType_NoLock(InOutTypeIndex))
 	{
-		InOutTypeIndex = GetArrayTypeFromBaseTypeIndex(RigVMTypeUtils::TypeIndex::Execute);
+		InOutTypeIndex = GetArrayTypeFromBaseTypeIndex_NoLock(RigVMTypeUtils::TypeIndex::Execute);
 	}
 	else
 	{
@@ -1059,26 +1131,26 @@ bool FRigVMRegistry::ConvertExecuteContextToBaseType(TRigVMTypeIndex& InOutTypeI
 	return true;
 }
 
-int32 FRigVMRegistry::GetArrayDimensionsForType(TRigVMTypeIndex InTypeIndex) const
+int32 FRigVMRegistry_NoLock::GetArrayDimensionsForType_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if(ensure(Types.IsValidIndex(InTypeIndex)))
 	{
 		const FTypeInfo& Info = Types[InTypeIndex];
 		if(Info.bIsArray)
 		{
-			return 1 + GetArrayDimensionsForType(Info.BaseTypeIndex);
+			return 1 + GetArrayDimensionsForType_NoLock(Info.BaseTypeIndex);
 		}
 	}
 	return 0;
 }
 
-bool FRigVMRegistry::IsWildCardType(TRigVMTypeIndex InTypeIndex) const
+bool FRigVMRegistry_NoLock::IsWildCardType_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	return RigVMTypeUtils::TypeIndex::WildCard == InTypeIndex ||
 		RigVMTypeUtils::TypeIndex::WildCardArray == InTypeIndex;
 }
 
-bool FRigVMRegistry::CanMatchTypes(TRigVMTypeIndex InTypeIndexA, TRigVMTypeIndex InTypeIndexB, bool bAllowFloatingPointCasts) const
+bool FRigVMRegistry_NoLock::CanMatchTypes_NoLock(TRigVMTypeIndex InTypeIndexA, TRigVMTypeIndex InTypeIndexB, bool bAllowFloatingPointCasts) const
 {
 	if(!Types.IsValidIndex(InTypeIndexA) || !Types.IsValidIndex(InTypeIndexB))
 	{
@@ -1091,9 +1163,9 @@ bool FRigVMRegistry::CanMatchTypes(TRigVMTypeIndex InTypeIndexA, TRigVMTypeIndex
 	}
 
 	// execute types can always be connected
-	if(IsExecuteType(InTypeIndexA) && IsExecuteType(InTypeIndexB))
+	if(IsExecuteType_NoLock(InTypeIndexA) && IsExecuteType_NoLock(InTypeIndexB))
 	{
-		return GetArrayDimensionsForType(InTypeIndexA) == GetArrayDimensionsForType(InTypeIndexB);
+		return GetArrayDimensionsForType_NoLock(InTypeIndexA) == GetArrayDimensionsForType_NoLock(InTypeIndexB);
 	}
 
 	if(bAllowFloatingPointCasts)
@@ -1115,7 +1187,7 @@ bool FRigVMRegistry::CanMatchTypes(TRigVMTypeIndex InTypeIndexA, TRigVMTypeIndex
 	return false;
 }
 
-const TArray<TRigVMTypeIndex>& FRigVMRegistry::GetCompatibleTypes(TRigVMTypeIndex InTypeIndex) const
+const TArray<TRigVMTypeIndex>& FRigVMRegistry_NoLock::GetCompatibleTypes_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if(InTypeIndex == RigVMTypeUtils::TypeIndex::Float)
 	{
@@ -1142,31 +1214,49 @@ const TArray<TRigVMTypeIndex>& FRigVMRegistry::GetCompatibleTypes(TRigVMTypeInde
 	return EmptyTypes;
 }
 
-const TArray<TRigVMTypeIndex>& FRigVMRegistry::GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory InCategory) const
+const TArray<TRigVMTypeIndex>& FRigVMRegistry_NoLock::GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory InCategory) const
 {
 	check(InCategory != FRigVMTemplateArgument::ETypeCategory_Invalid);
 	return TypesPerCategory.FindChecked(InCategory);
 }
 
-TRigVMTypeIndex FRigVMRegistry::GetArrayTypeFromBaseTypeIndex(TRigVMTypeIndex InTypeIndex) const
+TRigVMTypeIndex FRigVMRegistry_NoLock::GetArrayTypeFromBaseTypeIndex_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if(ensure(Types.IsValidIndex(InTypeIndex)))
 	{
+#if UE_RIGVM_DEBUG_TYPEINDEX
+		TRigVMTypeIndex Result = Types[InTypeIndex].ArrayTypeIndex;
+		if(!InTypeIndex.Name.IsNone())
+		{
+			Result.Name = *RigVMTypeUtils::ArrayTypeFromBaseType(InTypeIndex.Name.ToString());
+		}
+		return Result;
+#else
 		return Types[InTypeIndex].ArrayTypeIndex;
+#endif
 	}
 	return INDEX_NONE;
 }
 
-TRigVMTypeIndex FRigVMRegistry::GetBaseTypeFromArrayTypeIndex(TRigVMTypeIndex InTypeIndex) const
+TRigVMTypeIndex FRigVMRegistry_NoLock::GetBaseTypeFromArrayTypeIndex_NoLock(TRigVMTypeIndex InTypeIndex) const
 {
 	if(ensure(Types.IsValidIndex(InTypeIndex)))
 	{
+#if UE_RIGVM_DEBUG_TYPEINDEX
+		TRigVMTypeIndex Result = Types[InTypeIndex].BaseTypeIndex;
+		if(!InTypeIndex.Name.IsNone())
+		{
+			Result.Name = *RigVMTypeUtils::BaseTypeFromArrayType(InTypeIndex.Name.ToString());
+		}
+		return Result;
+#else
 		return Types[InTypeIndex].BaseTypeIndex;
+#endif
 	}
 	return INDEX_NONE;
 }
 
-bool FRigVMRegistry::IsAllowedType(const FProperty* InProperty) const
+bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const FProperty* InProperty) const
 {
 	if(InProperty->IsA<FBoolProperty>() ||
 		InProperty->IsA<FUInt32Property>() ||
@@ -1185,44 +1275,68 @@ bool FRigVMRegistry::IsAllowedType(const FProperty* InProperty) const
 
 	if(const FArrayProperty* ArrayProperty  = CastField<FArrayProperty>(InProperty))
 	{
-		return IsAllowedType(ArrayProperty->Inner);
+		if (ArrayProperty->Inner)
+		{
+			return IsAllowedType_NoLock(ArrayProperty->Inner);
+		}
 	}
 	if(const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 	{
-		return IsAllowedType(StructProperty->Struct);
+		return IsAllowedType_NoLock(StructProperty->Struct);
 	}
 	if(const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(InProperty))
 	{
-		return IsAllowedType(ObjectProperty->PropertyClass);
+		return IsAllowedType_NoLock(ObjectProperty->PropertyClass);
+	}
+	if(const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(InProperty))
+	{
+		return IsAllowedType_NoLock(SoftObjectProperty->PropertyClass);
 	}
 	if(const FEnumProperty* EnumProperty = CastField<FEnumProperty>(InProperty))
 	{
-		return IsAllowedType(EnumProperty->GetEnum());
+		return IsAllowedType_NoLock(EnumProperty->GetEnum());
 	}
 	if(const FByteProperty* ByteProperty = CastField<FByteProperty>(InProperty))
 	{
 		if(const UEnum* Enum = ByteProperty->Enum)
 		{
-			return IsAllowedType(Enum);
+			return IsAllowedType_NoLock(Enum);
 		}
 		return true;
 	}
 	return false;
 }
 
-bool FRigVMRegistry::IsAllowedType(const UEnum* InEnum) const
+bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UEnum* InEnum) const
 {
+	if(!InEnum)
+	{
+		return false;
+	}
+	
+	// disallow verse based enums for now
+	if (FPackageName::IsVersePackage(InEnum->GetPackage()->GetName()))
+	{
+		return false;
+	}
+
+	static const FName VerseEnumName(TEXT("VerseEnum"));
+	if(IsTypeOfByName(InEnum, VerseEnumName))
+	{
+		return false;
+	}
+
 	return !InEnum->HasAnyFlags(DisallowedFlags()) && InEnum->HasAllFlags(NeededFlags());
 }
 
-bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct) const
+bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UStruct* InStruct) const
 {
-	if(InStruct->HasAnyFlags(DisallowedFlags()) || !InStruct->HasAllFlags(NeededFlags()))
+	if(!InStruct || InStruct->HasAnyFlags(DisallowedFlags()) || !InStruct->HasAllFlags(NeededFlags()))
 	{
 		return false;
 	}
 	if(InStruct->IsChildOf(FRigVMStruct::StaticStruct()) &&
-		!InStruct->IsChildOf(FRigVMDecorator::StaticStruct()))
+		!InStruct->IsChildOf(FRigVMTrait::StaticStruct()))
 	{
 		return false;
 	}
@@ -1230,16 +1344,38 @@ bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct) const
 	{
 		return false;
 	}
+	
+	// disallow verse data structures for now
+	if (FPackageName::IsVersePackage(InStruct->GetPackage()->GetName()))
+	{
+		return false;
+	}
+	
+	static const FName VerseStructName(TEXT("VerseStruct"));
+	if(IsTypeOfByName(InStruct, VerseStructName))
+	{
+		return false;
+	}
 
 	// allow all user defined structs since they can always be changed to be compliant with RigVM restrictions
-	if (const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InStruct))
+	if (InStruct->IsA<UUserDefinedStruct>())
 	{
 		return true;
 	}
 
+	// Allow structs we have explicitly opted into
+	// This is on the understanding that if they have invalid sub-members that any pins representing them will need to be hidden
+	if (const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(InStruct))
+	{
+		if(AllowedStructs.Contains(ScriptStruct))
+		{
+			return true;
+		}
+	}
+
 	for (TFieldIterator<FProperty> It(InStruct); It; ++It)
 	{
-		if(!IsAllowedType(*It))
+		if(!IsAllowedType_NoLock(*It))
 		{
 			return false;
 		}
@@ -1247,7 +1383,7 @@ bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct) const
 	return true;
 }
 
-bool FRigVMRegistry::IsAllowedType(const UClass* InClass) const
+bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UClass* InClass) const
 {
 	if(!InClass || InClass->HasAnyClassFlags(CLASS_Hidden))
 	{
@@ -1260,13 +1396,43 @@ bool FRigVMRegistry::IsAllowedType(const UClass* InClass) const
 		return false;
 	}
 
+	// disallow verse based classes for now
+	if (FPackageName::IsVersePackage(InClass->GetPackage()->GetName()))
+	{
+		return false;
+	}
+
+	static const FName VerseClassName(TEXT("VerseClass"));
+	if(IsTypeOfByName(InClass, VerseClassName))
+	{
+		return false;
+	}
+
 	return AllowedClasses.Contains(InClass);
 }
 
-void FRigVMRegistry::Register(const TCHAR* InName, FRigVMFunctionPtr InFunctionPtr, UScriptStruct* InStruct, const TArray<FRigVMFunctionArgument>& InArguments)
+bool FRigVMRegistry_NoLock::IsTypeOfByName(const UObject* InObject, const FName& InName)
 {
-	FScopeLock FunctionRegistryScopeLock(&FunctionRegistryMutex);
+	if(!InObject || InName.IsNone())
+	{
+		return false;
+	}
 	
+	const UClass* Class = InObject->GetClass();
+	while(Class)
+	{
+		if(Class->GetFName().IsEqual(InName, ENameCase::CaseSensitive))
+		{
+			return true;
+		}
+		Class = Class->GetSuperClass();
+	}
+	
+	return false;
+}
+
+void FRigVMRegistry_NoLock::Register_NoLock(const TCHAR* InName, FRigVMFunctionPtr InFunctionPtr, UScriptStruct* InStruct, const TArray<FRigVMFunctionArgument>& InArguments)
+{
 	if (FindFunction_NoLock(InName) != nullptr)
 	{
 		return;
@@ -1289,7 +1455,7 @@ void FRigVMRegistry::Register(const TCHAR* InName, FRigVMFunctionPtr InFunctionP
 	for (TFieldIterator<FProperty> It(InStruct); It; ++It)
 	{
 		// creating the argument causes the registration
-		FRigVMTemplateArgument Argument(*It);
+		(void)FRigVMTemplateArgument::Make_NoLock(*It, *this);
 	}
 
 #if WITH_EDITOR
@@ -1345,17 +1511,14 @@ void FRigVMRegistry::Register(const TCHAR* InName, FRigVMFunctionPtr InFunctionP
 #endif
 }
 
-const FRigVMDispatchFactory* FRigVMRegistry::RegisterFactory(UScriptStruct* InFactoryStruct)
+const FRigVMDispatchFactory* FRigVMRegistry_NoLock::RegisterFactory_NoLock(UScriptStruct* InFactoryStruct)
 {
-
 	check(InFactoryStruct);
 	check(InFactoryStruct != FRigVMDispatchFactory::StaticStruct());
 	check(InFactoryStruct->IsChildOf(FRigVMDispatchFactory::StaticStruct()));
 
 	// ensure to register factories only once
 	const FRigVMDispatchFactory* ExistingFactory = nullptr;
-
-	FScopeLock FactoryRegistryScopeLock(&FactoryRegistryMutex);
 
 	const bool bFactoryAlreadyRegistered = Factories.ContainsByPredicate([InFactoryStruct, &ExistingFactory](const FRigVMDispatchFactory* Factory)
 	{
@@ -1382,11 +1545,11 @@ const FRigVMDispatchFactory* FRigVMRegistry::RegisterFactory(UScriptStruct* InFa
 	InFactoryStruct->InitializeStruct(Factory, 1);
 	Factory->FactoryScriptStruct = InFactoryStruct;
 	Factories.Add(Factory);
-	Factory->RegisterDependencyTypes();
+	Factory->RegisterDependencyTypes_NoLock(*this);
 	return Factory;
 }
 
-void FRigVMRegistry::RegisterPredicate(UScriptStruct* InStruct, const TCHAR* InName, const TArray<FRigVMFunctionArgument>& InArguments)
+void FRigVMRegistry_NoLock::RegisterPredicate_NoLock(UScriptStruct* InStruct, const TCHAR* InName, const TArray<FRigVMFunctionArgument>& InArguments)
 {
 	// Make sure the predicate does not already exist
 	TArray<FRigVMFunction>& Predicates = StructNameToPredicates.FindOrAdd(InStruct->GetFName());
@@ -1403,7 +1566,7 @@ void FRigVMRegistry::RegisterPredicate(UScriptStruct* InStruct, const TCHAR* InN
 	Predicates.Add(Function);
 }
 
-void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegisterObjectOperation>> InClasses)
+void FRigVMRegistry_NoLock::RegisterObjectTypes_NoLock(TConstArrayView<TPair<UClass*, ERegisterObjectOperation>> InClasses)
 {
 	for (TPair<UClass*, ERegisterObjectOperation> ClassOpPair : InClasses)
 	{
@@ -1445,13 +1608,18 @@ void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegiste
 	}
 }
 
-const FRigVMFunction* FRigVMRegistry::FindFunction(const TCHAR* InName, const FRigVMUserDefinedTypeResolver& InTypeResolver) const
+void FRigVMRegistry_NoLock::RegisterStructTypes_NoLock(TConstArrayView<UScriptStruct*> InStructs)
 {
-	FScopeLock FunctionRegistryScopeLock(&FunctionRegistryMutex);
-	return FindFunction_NoLock(InName, InTypeResolver);
+	for (UScriptStruct* Struct : InStructs)
+	{
+		if(!Struct->IsA<UUserDefinedStruct>())
+		{
+			AllowedStructs.Add(Struct);
+		}
+	}
 }
 
-const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, const FRigVMUserDefinedTypeResolver& InTypeResolver) const
+const FRigVMFunction* FRigVMRegistry_NoLock::FindFunction_NoLock(const TCHAR* InName, const FRigVMUserDefinedTypeResolver& InTypeResolver) const
 {
 	// Check first if the function is provided by internally registered rig units. 
 	if(const int32* FunctionIndexPtr = FunctionNameToIndex.Find(InName))
@@ -1465,14 +1633,14 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, c
 	if(NameString.Split(TEXT("::"), &StructOrFactoryName, &SuffixString))
 	{
 		// if the factory has never been registered - FindDispatchFactory will try to look it up and register
-		if(const FRigVMDispatchFactory* Factory = FindDispatchFactory(*StructOrFactoryName))
+		if(const FRigVMDispatchFactory* Factory = FindDispatchFactory_NoLock(*StructOrFactoryName))
 		{
-			if(const FRigVMTemplate* Template = Factory->GetTemplate())
+			if(const FRigVMTemplate* Template = Factory->GetTemplate_NoLock())
 			{
-				const FRigVMTemplateTypeMap ArgumentTypes = Template->GetArgumentTypesFromString(SuffixString, &InTypeResolver);
+				const FRigVMTemplateTypeMap ArgumentTypes = Template->GetArgumentTypesFromString_Impl(SuffixString, &InTypeResolver, false);
 				if(ArgumentTypes.Num() == Template->NumArguments())
 				{
-					const int32 PermutationIndex = Template->FindPermutation(ArgumentTypes);
+					const int32 PermutationIndex = Template->FindPermutation(ArgumentTypes, false);
 					if(PermutationIndex != INDEX_NONE)
 					{
 						return ((FRigVMTemplate*)Template)->GetOrCreatePermutation_NoLock(PermutationIndex);
@@ -1490,7 +1658,7 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, c
 		const bool bIsDispatchFactory = StructOrFactoryName.StartsWith(FRigVMDispatchFactory::DispatchPrefix, ESearchCase::CaseSensitive);
 		if(bIsDispatchFactory)
 		{
-			StructOrFactoryName = StructOrFactoryName.Mid(FRigVMDispatchFactory::DispatchPrefix.Len());
+			StructOrFactoryName = StructOrFactoryName.Mid(FCString::Strlen(FRigVMDispatchFactory::DispatchPrefix));
 		}
 		else if(StructOrFactoryName.StartsWith(StructPrefix, ESearchCase::CaseSensitive))
 		{
@@ -1515,7 +1683,7 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, c
 				const FRigVMFunction* RedirectedFunction = FindFunction_NoLock(*(NewStructOrFactoryName + TEXT("::") + SuffixString), InTypeResolver);
 				if(RedirectedFunction)
 				{
-					FRigVMRegistry& MutableRegistry = FRigVMRegistry::Get();
+					FRigVMRegistry_NoLock& MutableRegistry = Get(LockType_Write);
 					MutableRegistry.FunctionNameToIndex.Add(InName, RedirectedFunction->Index);
 					return RedirectedFunction;
 				}
@@ -1526,32 +1694,21 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, c
 	return nullptr;
 }
 
-const FRigVMFunction* FRigVMRegistry::FindFunction(UScriptStruct* InStruct, const TCHAR* InName, const FRigVMUserDefinedTypeResolver& InResolvalInfo) const
+const FRigVMFunction* FRigVMRegistry_NoLock::FindFunction_NoLock(UScriptStruct* InStruct, const TCHAR* InName, const FRigVMUserDefinedTypeResolver& InResolvalInfo) const
 {
 	check(InStruct);
 	check(InName);
 	
 	const FString FunctionName = FString::Printf(TEXT("%s::%s"), *InStruct->GetStructCPPName(), InName);
-	return FindFunction(*FunctionName, InResolvalInfo);
+	return FindFunction_NoLock(*FunctionName, InResolvalInfo);
 }
 
-const TChunkedArray<FRigVMFunction>& FRigVMRegistry::GetFunctions() const
+const TChunkedArray<FRigVMFunction>& FRigVMRegistry_NoLock::GetFunctions_NoLock() const
 {
 	return Functions;
 }
 
-const FRigVMTemplate* FRigVMRegistry::FindTemplate(const FName& InNotation, bool bIncludeDeprecated) const
-{
-	if (InNotation.IsNone())
-	{
-		return nullptr;
-	}
-
-	FScopeLock TemplateRegistryScopeLock(&TemplateRegistryMutex);
-	return FindTemplate_NoLock(InNotation, bIncludeDeprecated);
-}
-
-const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotation, bool bIncludeDeprecated) const
+const FRigVMTemplate* FRigVMRegistry_NoLock::FindTemplate_NoLock(const FName& InNotation, bool bIncludeDeprecated) const
 {
 	if (InNotation.IsNone())
 	{
@@ -1567,18 +1724,18 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotatio
 	FString FactoryName, ArgumentsString;
 	if(NotationString.Split(TEXT("("), &FactoryName, &ArgumentsString))
 	{
-		FRigVMRegistry* MutableThis = (FRigVMRegistry*)this;
+		FRigVMRegistry_NoLock* MutableThis = const_cast<FRigVMRegistry_NoLock*>(this);
 		
 		// deal with a couple of custom cases
 		static const TMap<FString, FString> CoreDispatchMap =
 		{
 			{
 				TEXT("Equals::Execute"),
-				MutableThis->FindOrAddDispatchFactory<FRigVMDispatch_CoreEquals>()->GetFactoryName().ToString()
+				MutableThis->FindOrAddDispatchFactory_NoLock<FRigVMDispatch_CoreEquals>()->GetFactoryName().ToString()
 			},
 			{
 				TEXT("NotEquals::Execute"),
-				MutableThis->FindOrAddDispatchFactory<FRigVMDispatch_CoreNotEquals>()->GetFactoryName().ToString()
+				MutableThis->FindOrAddDispatchFactory_NoLock<FRigVMDispatch_CoreNotEquals>()->GetFactoryName().ToString()
 			},
 		};
 
@@ -1587,9 +1744,9 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotatio
 			FactoryName = *RemappedDispatch;
 		}
 		
-		if(const FRigVMDispatchFactory* Factory = FindDispatchFactory(*FactoryName))
+		if(const FRigVMDispatchFactory* Factory = FindDispatchFactory_NoLock(*FactoryName))
 		{
-			return Factory->GetTemplate();
+			return Factory->GetTemplate_NoLock();
 		}
 	}
 
@@ -1609,7 +1766,7 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotatio
 	{
 		const FString OriginalDispatchFactoryName = OriginalNotation
 			.Left(OriginalNotation.Find(TEXT("(")))
-			.RightChop(FRigVMDispatchFactory::DispatchPrefix.Len());
+			.RightChop(FCString::Strlen(FRigVMDispatchFactory::DispatchPrefix));
 
 		const FCoreRedirectObjectName OldObjectName(OriginalDispatchFactoryName);
 		TArray<const FCoreRedirect*> Redirects;
@@ -1618,9 +1775,9 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotatio
 			for(const FCoreRedirect* Redirect : Redirects)
 			{
 				const FString NewDispatchFactoryName = FRigVMDispatchFactory::DispatchPrefix + Redirect->NewName.ObjectName.ToString();
-				if(const FRigVMDispatchFactory* NewDispatchFactory = FindDispatchFactory(*NewDispatchFactoryName))
+				if(const FRigVMDispatchFactory* NewDispatchFactory = FindDispatchFactory_NoLock(*NewDispatchFactoryName))
 				{
-					return NewDispatchFactory->GetTemplate();
+					return NewDispatchFactory->GetTemplate_NoLock();
 				}
 			}
 		}
@@ -1663,19 +1820,17 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotatio
 	return nullptr;
 }
 
-const TChunkedArray<FRigVMTemplate>& FRigVMRegistry::GetTemplates() const
+const TChunkedArray<FRigVMTemplate>& FRigVMRegistry_NoLock::GetTemplates_NoLock() const
 {
 	return Templates;
 }
 
-const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
+const FRigVMTemplate* FRigVMRegistry_NoLock::GetOrAddTemplateFromArguments_NoLock(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
-	FScopeLock TemplateRegistryScopeLock(&TemplateRegistryMutex);
-	
 	// avoid reentry in FindTemplate. try to find an existing
 	// template only if we are not yet in ::FindTemplate.
 	const FName Notation = FRigVMTemplateArgumentInfo::ComputeTemplateNotation(InName, InInfos);
-	if(const FRigVMTemplate* ExistingTemplate = FindTemplate(Notation))
+	if(const FRigVMTemplate* ExistingTemplate = FindTemplate_NoLock(Notation))
 	{
 		return ExistingTemplate;
 	}
@@ -1683,21 +1838,15 @@ const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName&
 	return AddTemplateFromArguments_NoLock(InName, InInfos, InDelegates);
 }
 
-const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
-{
-	FScopeLock TemplateRegistryScopeLock(&TemplateRegistryMutex);
-	return AddTemplateFromArguments_NoLock(InName, InInfos, InDelegates);
-}
-
-const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
+const FRigVMTemplate* FRigVMRegistry_NoLock::AddTemplateFromArguments_NoLock(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
 	// we only support to ask for templates here which provide singleton types
 	int32 NumPermutations = 0;
 	FRigVMTemplate Template(InName, InInfos);
 	for(const FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
-		const int32 NumIndices = Argument.GetNumTypes();
-		if(!Argument.IsSingleton() && NumPermutations > 1)
+		const int32 NumIndices = Argument.GetNumTypes_NoLock();
+		if(!Argument.IsSingleton_NoLock() && NumPermutations > 1)
 		{
 			if(NumIndices != NumPermutations)
 			{
@@ -1711,21 +1860,26 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 	// if any of the arguments are wildcards we'll need to update the types
 	for(FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
-		if(Argument.GetNumTypes() == 1 && IsWildCardType(Argument.GetTypeIndex(0)))
+		const int32 NumTypes = Argument.GetNumTypes_NoLock();
+		if(NumTypes == 1)
 		{
-			Argument.InvalidatePermutations(Argument.GetTypeIndex(0));
-			if(IsArrayType(Argument.GetTypeIndex(0)))
+			const TRigVMTypeIndex FirstTypeIndex = Argument.GetTypeIndex_NoLock(0);
+			if(IsWildCardType_NoLock(FirstTypeIndex))
 			{
-				Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue);
+				Argument.InvalidatePermutations(FirstTypeIndex);
+				if(IsArrayType_NoLock(FirstTypeIndex))
+				{
+					Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_ArrayAnyValue);
+				}
+				else
+				{
+					Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue);
+				}
+				Argument.bUseCategories = true;
+				Argument.TypeIndices.Reset();
+		
+				NumPermutations = FMath::Max(NumPermutations, Argument.GetNumTypes_NoLock());
 			}
-			else
-			{
-				Argument.TypeCategories.Add(FRigVMTemplateArgument::ETypeCategory_SingleAnyValue);
-			}
-			Argument.bUseCategories = true;
-			Argument.TypeIndices.Reset();
-	
-			NumPermutations = FMath::Max(NumPermutations, Argument.GetNumTypes()); 
 		}
 	}
 
@@ -1737,9 +1891,10 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 		if (NumArguments == 1)
 		{
 			TSet< TRigVMTypeIndex > PermutationTypes; PermutationTypes.Reserve(NumPermutations);
+			const FRigVMTypeCacheScope_NoLock TypeCache(Template.Arguments[0]);
 			for(int32 Index = 0; Index < NumPermutations; Index++)
 			{
-				const TRigVMTypeIndex ArgType = Template.Arguments[0].GetTypeIndex(Index);
+				const TRigVMTypeIndex ArgType = TypeCache.GetTypeIndex_NoLock(Index);
 				if (PermutationTypes.Contains(ArgType))
 				{
 					ToRemove.Add(Index);
@@ -1754,12 +1909,15 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 		{
 			TSet< TArray<TRigVMTypeIndex> > PermutationTypes;
 			PermutationTypes.Reserve(NumPermutations);
-			TArray<TRigVMTypeIndex> ArgTypes; ArgTypes.SetNum(NumArguments);			
+			TArray<TRigVMTypeIndex> ArgTypes; ArgTypes.SetNum(NumArguments);
+			TArray<FRigVMTypeCacheScope_NoLock> TypeCaches;
+			TypeCaches.SetNum(NumArguments);
 			for(int32 Index = 0; Index < NumPermutations; Index++)
 			{
 				for(int32 ArgIndex = 0; ArgIndex < NumArguments; ArgIndex++)
 				{
-					ArgTypes[ArgIndex] = Template.Arguments[ArgIndex].GetTypeIndex(Index);
+					(void)TypeCaches[ArgIndex].UpdateIfRequired(Template.Arguments[ArgIndex]);
+					ArgTypes[ArgIndex] = TypeCaches[ArgIndex].GetTypeIndex_NoLock(Index);
 				}
 				
 				if (PermutationTypes.Contains(ArgTypes))
@@ -1785,7 +1943,7 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 		}
 		NumPermutations -= ToRemove.Num();
 	}
-	
+
 	for(FRigVMTemplateArgument& Argument : Template.Arguments)
 	{
 		Argument.UpdateTypeToPermutations();
@@ -1810,13 +1968,7 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 	return &Templates[Index];
 }
 
-FRigVMDispatchFactory* FRigVMRegistry::FindDispatchFactory(const FName& InFactoryName) const
-{
-	FScopeLock FactoryRegistryScopeLock(&FactoryRegistryMutex);
-	return FindDispatchFactory_NoLock(InFactoryName);
-}
-
-FRigVMDispatchFactory* FRigVMRegistry::FindDispatchFactory_NoLock(const FName& InFactoryName) const
+FRigVMDispatchFactory* FRigVMRegistry_NoLock::FindDispatchFactory_NoLock(const FName& InFactoryName) const
 {
 	FRigVMDispatchFactory* const* FactoryPtr = Factories.FindByPredicate([InFactoryName](const FRigVMDispatchFactory* Factory) -> bool
 	{
@@ -1832,35 +1984,35 @@ FRigVMDispatchFactory* FRigVMRegistry::FindDispatchFactory_NoLock(const FName& I
 	// if the factory has never been registered - we should try to look it up	
 	if(FactoryName.StartsWith(FRigVMDispatchFactory::DispatchPrefix))
 	{
-		const FString ScriptStructName = FactoryName.Mid(FRigVMDispatchFactory::DispatchPrefix.Len());
+		const FString ScriptStructName = FactoryName.Mid(FCString::Strlen(FRigVMDispatchFactory::DispatchPrefix));
 		if(UScriptStruct* FactoryStruct = FindFirstObject<UScriptStruct>(*ScriptStructName, EFindFirstObjectOptions::NativeFirst | EFindFirstObjectOptions::EnsureIfAmbiguous))
 		{
-			FRigVMRegistry* MutableThis = (FRigVMRegistry*)this;
-			return (FRigVMDispatchFactory*)MutableThis->RegisterFactory(FactoryStruct);
+			FRigVMRegistry_NoLock* MutableThis = const_cast<FRigVMRegistry_NoLock*>(this);
+			return const_cast<FRigVMDispatchFactory*>(MutableThis->RegisterFactory_NoLock(FactoryStruct));
 		}
 	}	
 	
 	return nullptr;
 }
 
-FRigVMDispatchFactory* FRigVMRegistry::FindOrAddDispatchFactory(UScriptStruct* InFactoryStruct)
+FRigVMDispatchFactory* FRigVMRegistry_NoLock::FindOrAddDispatchFactory_NoLock(UScriptStruct* InFactoryStruct)
 {
-	return (FRigVMDispatchFactory*)RegisterFactory(InFactoryStruct);
+	return const_cast<FRigVMDispatchFactory*>(RegisterFactory_NoLock(InFactoryStruct));
 }
 
-FString FRigVMRegistry::FindOrAddSingletonDispatchFunction(UScriptStruct* InFactoryStruct)
+FString FRigVMRegistry_NoLock::FindOrAddSingletonDispatchFunction_NoLock(UScriptStruct* InFactoryStruct)
 {
-	if(const FRigVMDispatchFactory* Factory = FindOrAddDispatchFactory(InFactoryStruct))
+	if(const FRigVMDispatchFactory* Factory = FindOrAddDispatchFactory_NoLock(InFactoryStruct))
 	{
 		if(Factory->IsSingleton())
 		{
-			if(const FRigVMTemplate* Template = Factory->GetTemplate())
+			if(const FRigVMTemplate* Template = Factory->GetTemplate_NoLock())
 			{
 				// use the types for the first permutation - since we don't care
 				// for a singleton dispatch
-				const FRigVMTemplateTypeMap TypesForPrimaryPermutation = Template->GetTypesForPermutation(0);
-				const FString Name = Factory->GetPermutationName(TypesForPrimaryPermutation);
-				if(const FRigVMFunction* Function = FindFunction(*Name))
+				const FRigVMTemplateTypeMap TypesForPrimaryPermutation = Template->GetTypesForPermutation_NoLock(0);
+				const FString Name = Factory->GetPermutationName(TypesForPrimaryPermutation, false);
+				if(const FRigVMFunction* Function = FindFunction_NoLock(*Name))
 				{
 					return Function->Name;
 				}
@@ -1870,11 +2022,66 @@ FString FRigVMRegistry::FindOrAddSingletonDispatchFunction(UScriptStruct* InFact
 	return FString();
 }
 
-const TArray<FRigVMDispatchFactory*>& FRigVMRegistry::GetFactories() const
+const TArray<FRigVMDispatchFactory*>& FRigVMRegistry_NoLock::GetFactories_NoLock() const
 {	return Factories;
 }
 
-const TArray<FRigVMFunction>* FRigVMRegistry::GetPredicatesForStruct(const FName& InStructName) const
+const TArray<FRigVMFunction>* FRigVMRegistry_NoLock::GetPredicatesForStruct_NoLock(const FName& InStructName) const
 {
 	return StructNameToPredicates.Find(InStructName);
+}
+
+FRigVMRegistry_RWLock::FRigVMRegistry_RWLock()
+	: FRigVMRegistry_NoLock()
+{
+	Initialize(true);
+}
+
+void FRigVMRegistry_RWLock::Initialize(bool bLockRegistry)
+{
+	LockType = LockType_Invalid;
+	LockCount = 0;
+	
+	const FConditionalWriteScopeLock _(*this, bLockRegistry);
+	
+	Initialize_NoLock();
+	
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &FRigVMRegistry_RWLock::OnAssetRemoved);
+	AssetRegistryModule.Get().OnAssetRenamed().AddRaw(this, &FRigVMRegistry_RWLock::OnAssetRenamed);
+
+	IPluginManager::Get().OnPluginUnmounted().AddRaw(this, &FRigVMRegistry_RWLock::OnPluginUnloaded);
+	
+	UE::Anim::AttributeTypes::GetOnAttributeTypesChanged().AddRaw(this, &FRigVMRegistry_RWLock::OnAnimationAttributeTypesChanged);
+}
+
+void FRigVMRegistry_RWLock::EnsureLocked(ELockType InLockType)
+{
+	check(InLockType != LockType_Invalid);
+
+	const FRigVMRegistry_RWLock& Registry = Get();
+	const ELockType CurrentLockType = Registry.LockType.load();
+
+	switch(InLockType)
+	{
+		case LockType_Read:
+		{
+			ensureMsgf(
+				(CurrentLockType == LockType_Read) ||
+				(CurrentLockType == LockType_Write),
+				TEXT("The Registry is not locked for reading yet - access to the NoLock registry is only possible after locking the RWLock registry (by using its public API calls)."));
+			break;
+		}
+		case LockType_Write:
+		{
+			ensureMsgf(
+				(CurrentLockType == LockType_Write),
+				TEXT("The Registry is not locked for writing yet - access to the NoLock registry is only possible after locking the RWLock registry (by using its public API calls)."));
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
 }

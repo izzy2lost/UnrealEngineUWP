@@ -10,6 +10,11 @@
 
 #include "GeometryCollectionFieldNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 /**
  *
@@ -93,7 +98,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FRadialFalloffFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRadialFalloffFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -110,7 +115,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -178,7 +183,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FBoxFalloffFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FBoxFalloffFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -195,7 +200,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -272,7 +277,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FPlaneFalloffFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FPlaneFalloffFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -291,7 +296,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -364,7 +369,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FRadialIntMaskFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRadialIntMaskFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -378,7 +383,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -419,7 +424,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FUniformScalarFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FUniformScalarFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -430,7 +435,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -475,7 +480,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FUniformVectorFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FUniformVectorFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -487,7 +492,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -532,7 +537,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FRadialVectorFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRadialVectorFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -544,7 +549,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -585,7 +590,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FRandomVectorFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FRandomVectorFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -596,7 +601,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -645,7 +650,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FNoiseFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FNoiseFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -658,7 +663,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -699,7 +704,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FUniformIntegerFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FUniformIntegerFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -710,7 +715,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -792,7 +797,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	int32 NumSamplePositions = 0;
 
-	FWaveScalarFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FWaveScalarFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&SamplePositions);
@@ -807,7 +812,7 @@ public:
 		RegisterOutputConnection(&NumSamplePositions);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -878,7 +883,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TArray<int32> FieldRemap;
 
-	FSumScalarFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSumScalarFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FieldFloatLeft);
@@ -889,7 +894,7 @@ public:
 		RegisterOutputConnection(&FieldRemap);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -964,7 +969,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TArray<int32> FieldRemap;
 
-	FSumVectorFieldDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FSumVectorFieldDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FieldFloat);
@@ -978,7 +983,7 @@ public:
 		RegisterOutputConnection(&FieldRemap);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -1017,7 +1022,7 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	TArray<float> FieldFloatResult;
 
-	FFieldMakeDenseFloatArrayDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FFieldMakeDenseFloatArrayDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&FieldFloatInput);
@@ -1026,11 +1031,11 @@ public:
 		RegisterOutputConnection(&FieldFloatResult);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void GeometryCollectionFieldNodes();
 }

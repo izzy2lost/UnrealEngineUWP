@@ -282,8 +282,19 @@ struct FAnimExtractContext
 	 */
 	TArray<bool> BonesRequired;
 
+	/** 
+	 * The optional interpolation mode override.
+	 * If not set, it will simply use the interpolation mode provided by the asset.
+	 * One example where this could be used is if you want to force sampling the animation with Step interpolation
+	 * even when the animation sequence asset is set to Linear interpolation.
+	 */
+	TOptional<EAnimInterpolationType> InterpolationOverride;
+
 #if WITH_EDITOR
 	bool bIgnoreRootLock;
+
+	// Experimental
+	bool bExtractWithRootMotionProvider;
 #endif 
 	
 	UE_DEPRECATED(5.1, "FAnimExtractContext construct with float-based time value is deprecated, use other signature")
@@ -294,8 +305,10 @@ struct FAnimExtractContext
 		, bLooping(InbLooping)
 		, PoseCurves()
 		, BonesRequired()
+		, InterpolationOverride()
 #if WITH_EDITOR
 		, bIgnoreRootLock(false)
+		, bExtractWithRootMotionProvider(true)
 #endif 
 	{
 	}
@@ -307,8 +320,10 @@ struct FAnimExtractContext
 		, bLooping(InbLooping)
 		, PoseCurves()
 		, BonesRequired()
+		, InterpolationOverride()
 #if WITH_EDITOR
 		, bIgnoreRootLock(false)
+		, bExtractWithRootMotionProvider(true)
 #endif 
 	{
 	}
@@ -392,6 +407,9 @@ struct FAnimTickRecord
 	bool bLooping = false;
 	bool bIsEvaluator = false;
 	bool bRequestedInertialization = false;
+	bool bOverridePositionWhenJoiningSyncGroupAsLeader = false;
+	bool bIsExclusiveLeader = false;
+	bool bActiveContext = true;
 
 	const UMirrorDataTable* MirrorDataTable = nullptr;
 
@@ -573,6 +591,9 @@ namespace EAnimGroupRole
 
 		/** This node will be excluded from the sync group while blending in. Once blended in it will be a follower until blended out*/
 		TransitionFollower,
+
+		/** This node will always be a leader. If it fails to be ticked as a leader it will be run as ungrouped asset player (EAnimSyncMethod::DoNotSync) .*/
+		ExclusiveAlwaysLeader,
 	};
 }
 
@@ -979,7 +1000,7 @@ struct FAnimationGroupReference
 	}
 };
 
-UCLASS(abstract, MinimalAPI)
+UCLASS(abstract, BlueprintType, MinimalAPI)
 class UAnimationAsset : public UObject, public IInterface_AssetUserData, public IInterface_PreviewMeshProvider
 {
 	GENERATED_BODY()

@@ -110,15 +110,18 @@ void URuntimeVirtualTextureThumbnailRenderer::Draw(UObject* Object, int32 X, int
 		Desc.UVToWorld = Transform;
 		Desc.WorldBounds = Bounds;
 		Desc.MaterialType = MaterialType;
-		Desc.MaxLevel = MaxLevel;
+		Desc.MaxLevel = IntCastChecked<uint8>(MaxLevel);
 		Desc.bClearTextures = true;
 		Desc.bIsThumbnails = true;
 		Desc.FixedColor = FLinearColor::Transparent;
 		Desc.NumPageDescs = 1;
 		Desc.Targets[0].Texture = RenderTarget->GetRenderTargetTexture();
+		// The target is in RTV state and should be left in RTV state (RenderPage needs the input/output state) : 
+		Desc.Targets[0].TextureAccessBefore = ERHIAccess::RTV;
+		Desc.Targets[0].TextureAccessAfter = ERHIAccess::RTV;
 		Desc.PageDescs[0].DestBox[0] = DestBox;
 		Desc.PageDescs[0].UVRange = FBox2D(FVector2D(0, 0), FVector2D(1, 1));
-		Desc.PageDescs[0].vLevel = MaxLevel;
+		Desc.PageDescs[0].vLevel = IntCastChecked<uint8>(MaxLevel);
 
 		RuntimeVirtualTexture::RenderPagesStandAlone(GraphBuilder, Desc);
 

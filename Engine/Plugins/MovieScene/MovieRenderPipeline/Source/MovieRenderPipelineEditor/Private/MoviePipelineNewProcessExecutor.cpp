@@ -95,6 +95,13 @@ void UMoviePipelineNewProcessExecutor::Execute_Implementation(UMoviePipelineQueu
 	// we go through all jobs and all settings and hope the user doesn't have conflicting settings.
 	for (UMoviePipelineExecutorJob* Job : DuplicatedQueue->GetJobs())
 	{
+		// Only jobs that are enabled should be able to contribute to the command line being built,
+		// as non-enabled jobs won't render.
+		if (!Job || !Job->IsEnabled())
+		{
+			continue;
+		}
+
 		if (Job->IsUsingGraphConfiguration())
 		{
 			UMovieGraphConfig* GraphConfig = Job->GetGraphPreset();

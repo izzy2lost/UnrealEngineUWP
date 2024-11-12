@@ -185,7 +185,6 @@ void SRigCurveContainer::Construct(const FArguments& InArgs, TSharedRef<FControl
 			.ListItemsSource( &RigCurveList )
 			.OnGenerateRow( this, &SRigCurveContainer::GenerateRigCurveRow )
 			.OnContextMenuOpening( this, &SRigCurveContainer::OnGetContextMenuContent )
-			.ItemHeight( 22.0f )
 			.SelectionMode(ESelectionMode::Multi)
 			.OnSelectionChanged( this, &SRigCurveContainer::OnSelectionChanged )
 			.HeaderRow
@@ -687,7 +686,8 @@ void SRigCurveContainer::ImportCurve(const FAssetData& InAssetData)
 		TGuardValue<bool> SuspendBlueprintNotifs(ControlRigBlueprint->bSuspendAllNotifications, true);
 
 		USkeleton* Skeleton = nullptr;
-		if (USkeletalMesh* Mesh = Cast<USkeletalMesh>(InAssetData.GetAsset()))
+		USkeletalMesh* Mesh = Cast<USkeletalMesh>(InAssetData.GetAsset());
+		if (Mesh)
 		{
 			Skeleton = Mesh->GetSkeleton();
 			ControlRigBlueprint->SourceCurveImport = Skeleton;
@@ -708,7 +708,14 @@ void SRigCurveContainer::ImportCurve(const FAssetData& InAssetData)
 			if(URigHierarchyController* Controller = Hierarchy->GetController())
 			{
 				Controller->ClearSelection();
-				Controller->ImportCurves(Skeleton, NAME_None, false, true, true);
+				if(Mesh)
+				{
+					Controller->ImportCurvesFromSkeletalMesh(Mesh, NAME_None, false, true, true);
+				}
+				else
+				{
+					Controller->ImportCurves(Skeleton, NAME_None, false, true, true);
+				}
 			}
 
 			FSlateApplication::Get().DismissAllMenus();

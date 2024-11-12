@@ -29,6 +29,8 @@
 #include "Traits/IsCharType.h"
 #include "UObject/NameTypes.h"
 
+class FCbFieldView;
+class FCbWriter;
 template <typename T> struct TIsContiguousContainer;
 
 #if defined(WITH_RTTI) || defined(_CPPRTTI) || defined(__GXX_RTTI) || WITH_EDITOR
@@ -615,9 +617,9 @@ public:
 		return Data.Get();
 	}
 
-	FORCEINLINE SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const
+	FORCEINLINE SIZE_T GetAllocatedSize(int32 CurrentMax, SIZE_T NumBytesPerElement) const
 	{
-		return NumAllocatedElements * NumBytesPerElement;
+		return CurrentMax * NumBytesPerElement;
 	}
 	FORCEINLINE bool HasAllocation()
 	{
@@ -654,37 +656,37 @@ public:
 		{
 			return 0;
 		}
-		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, int32 NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NewMax, int32 NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, int32 NumBytesPerElement, uint32 AlignmentOfElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NewMax, int32 NumBytesPerElement, uint32 AlignmentOfElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true, AlignmentOfElement);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, true, AlignmentOfElement);
 		}
-		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NewMax, int32 CurrentMax, int32 NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement, uint32 AlignmentOfElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NewMax, int32 CurrentMax, int32 NumBytesPerElement, uint32 AlignmentOfElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true, AlignmentOfElement);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, true, AlignmentOfElement);
 		}
-		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NewMax, int32 CurrentMax, int32 NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement, uint32 AlignmentOfElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NewMax, int32 CurrentMax, int32 NumBytesPerElement, uint32 AlignmentOfElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true, AlignmentOfElement);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, true, AlignmentOfElement);
 		}
-		FORCEINLINE void ResizeAllocation(int32 PreviousNumElements, int32 NumElements, SIZE_T NumBytesPerElement)
+		FORCEINLINE void ResizeAllocation(int32 CurrentNum, int32 NewMax, SIZE_T NumBytesPerElement)
 		{
-			FMemoryImageAllocatorBase::ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement, Alignment);
+			FMemoryImageAllocatorBase::ResizeAllocation(CurrentNum, NewMax, NumBytesPerElement, Alignment);
 		}
-		FORCEINLINE void ResizeAllocation(int32 PreviousNumElements, int32 NumElements, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement)
+		FORCEINLINE void ResizeAllocation(int32 CurrentNum, int32 NewMax, SIZE_T NumBytesPerElement, uint32 AlignmentOfElement)
 		{
-			FMemoryImageAllocatorBase::ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement, AlignmentOfElement);
+			FMemoryImageAllocatorBase::ResizeAllocation(CurrentNum, NewMax, NumBytesPerElement, AlignmentOfElement);
 		}
 
 		FORCEINLINE void WriteMemoryImage(FMemoryImageWriter& Writer, const FTypeLayoutDesc& TypeDesc, int32 NumAllocatedElements) const
@@ -895,6 +897,18 @@ public:
 private:
 	LAYOUT_FIELD(uint64, Hash);
 	LAYOUT_FIELD_EDITORONLY(FHashedNameDebugString, DebugString);
+
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	CORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FHashedName& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FHashedName& OutValue);
+#endif
 };
 
 namespace Freeze

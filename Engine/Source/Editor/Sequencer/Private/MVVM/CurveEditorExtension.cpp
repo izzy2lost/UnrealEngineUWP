@@ -9,6 +9,8 @@
 #include "IPropertyRowGenerator.h"
 #include "IStructureDetailsView.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "CurveEditorAxis.h"
+#include "SCurveEditorView.h"
 #include "SCurveEditorPanel.h"
 #include "SCurveEditorToolProperties.h"
 #include "SCurveKeyDetailPanel.h"
@@ -33,14 +35,94 @@ namespace UE
 namespace Sequencer
 {
 
+/** Custom curve editor axis that displays the 'current time' in display rate */
+class FSequencerTimeCurveEditorAxis : public FLinearCurveEditorAxis
+{
+public:
+
+	TWeakPtr<FSequencer> WeakSequencer;
+	FSequencerTimeCurveEditorAxis(TWeakPtr<FSequencer> InWeakSequencer)
+		: WeakSequencer(InWeakSequencer)
+	{
+	}
+
+	void GetGridLines(const FCurveEditor& CurveEditor, const SCurveEditorView& View, FCurveEditorViewAxisID AxisID, TArray<double>& OutMajorGridLines, TArray<double>& OutMinorGridLines, ECurveEditorAxisOrientation Axis) const override
+	{
+		TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+
+		if (!Sequencer.IsValid())
+		{
+			return;
+		}
+
+		double ToSeconds = Sequencer->GetFocusedTickResolution().AsInterval();
+
+		double MajorGridStep = 0.0;
+		int32  MinorDivisions = 0;
+
+
+		float Size = 1.0;
+		float Min  = 0.0;
+		float Max  = 1.0;
+
+		if (Axis == ECurveEditorAxisOrientation::Horizontal)
+		{
+			FCurveEditorScreenSpaceH AxisSpace = View.GetHorizontalAxisSpace(AxisID);
+			Size = AxisSpace.GetPhysicalWidth();
+			Min  = AxisSpace.GetInputMin();
+			Max  = AxisSpace.GetInputMax();
+		}
+		else
+		{
+			FCurveEditorScreenSpaceV AxisSpace = View.GetVerticalAxisSpace(AxisID);
+			Size = AxisSpace.GetPhysicalHeight();
+			Min = AxisSpace.GetOutputMin();
+			Max = AxisSpace.GetOutputMax();
+		}
+
+		if (Sequencer.IsValid() && Sequencer->GetGridMetrics(Size, Min, Max, MajorGridStep, MinorDivisions))
+		{
+			double FirstMajorLine = FMath::FloorToDouble(Min / MajorGridStep) * MajorGridStep;
+			double LastMajorLine = FMath::CeilToDouble(Max / MajorGridStep) * MajorGridStep;
+
+			for (double CurrentMajorLine = FirstMajorLine; CurrentMajorLine < LastMajorLine; CurrentMajorLine += MajorGridStep)
+			{
+				OutMajorGridLines.Add(CurrentMajorLine);
+
+				for (int32 Step = 1; Step < MinorDivisions; ++Step)
+				{
+					double MinorLine = CurrentMajorLine + Step * MajorGridStep / MinorDivisions;
+					OutMinorGridLines.Add(MinorLine);
+				}
+			}
+		}
+	}
+};
+
 class FSequencerCurveEditor : public FCurveEditor
 {
 public:
 	TWeakPtr<FSequencer> WeakSequencer;
+	TSharedPtr<FLinearCurveEditorAxis> FocusedTimeAxis;
 
-	FSequencerCurveEditor(TWeakPtr<FSequencer> InSequencer)
+	FSequencerCurveEditor(TWeakPtr<FSequencer> InSequencer, TSharedPtr<INumericTypeInterface<double>> InNumericTypeInterface)
 		: WeakSequencer(InSequencer)
-	{}
+	{
+		FocusedTimeAxis = MakeShared<FSequencerTimeCurveEditorAxis>(InSequencer);
+		FocusedTimeAxis->NumericTypeInterface = InNumericTypeInterface;
+
+		InSequencer.Pin()->OnActivateSequence().AddRaw(this, &FSequencerCurveEditor::HandleSequenceActivated);
+
+		AddAxis("FocusedSequenceTime", FocusedTimeAxis);
+	}
+
+	~FSequencerCurveEditor()
+	{
+		if (TSharedPtr< FSequencer> Sequencer = WeakSequencer.Pin())
+		{
+			Sequencer->OnActivateSequence().RemoveAll(this);
+		}
+	}
 
 	virtual void GetGridLinesX(TArray<float>& MajorGridLines, TArray<float>& MinorGridLines, TArray<FText>* MajorGridLabels) const override
 	{
@@ -75,6 +157,11 @@ public:
 			(int32)ECurveEditorTangentTypes::InterpolationCubicBreak	|
 			(int32)ECurveEditorTangentTypes::InterpolationCubicWeighted |
 			(int32)ECurveEditorTangentTypes::InterpolationCubicSmartAuto);
+	}
+
+	void HandleSequenceActivated(FMovieSceneSequenceIDRef NewSequenceID)
+	{
+		FocusedTimeAxis->NumericTypeInterface = WeakSequencer.Pin()->GetNumericTypeInterface();
 	}
 };
 
@@ -182,7 +269,7 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 
 		USequencerSettings* SequencerSettings = Sequencer->GetSequencerSettings();
 
-		CurveEditorModel = MakeShared<FSequencerCurveEditor>(Sequencer);
+		CurveEditorModel = MakeShared<FSequencerCurveEditor>(Sequencer, TimeSliderArgs.NumericTypeInterface);
 		CurveEditorModel->SetBounds(MakeUnique<FSequencerCurveEditorBounds>(Sequencer.ToSharedRef()));
 		CurveEditorModel->InitCurveEditor(CurveEditorInitParams);
 
@@ -222,7 +309,12 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SAssignNew(CurveEditorSearchBox, SCurveEditorTreeTextFilter, CurveEditorModel)
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Clipping(EWidgetClipping::ClipToBounds)
+				[
+					SAssignNew(CurveEditorSearchBox, SCurveEditorTreeTextFilter, CurveEditorModel)
+				]
 			]
 
 			+ SVerticalBox::Slot()
@@ -254,60 +346,66 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Left)
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Clipping(EWidgetClipping::ClipToBounds)
 				[
-					SNew(SButton)
-					.VAlign(EVerticalAlignment::VAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-					.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
-					.ContentPadding(FMargin(1, 0))
-					.OnHovered_Lambda([this] { CurveEditorTreeFilterStatusBar->ShowStatusBar(); })
-					.OnUnhovered_Lambda([this] { CurveEditorTreeFilterStatusBar->FadeOutStatusBar(); })
-					.OnClicked_Lambda([this] { CurveEditorTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
-					]
-				]
 
-				+ SHorizontalBox::Slot()
-				[
-					SNew(SBorder)
-					.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-					.HAlign(HAlign_Center)
-					[
-						Sequencer->MakeTransportControls(true)
-					]
-				]
+					SNew(SHorizontalBox)
 
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Right)
-				[
-					SNew(SButton)
-					.VAlign(EVerticalAlignment::VAlign_Center)
-					.ButtonStyle(FAppStyle::Get(), "NoBorder")
-					.ContentPadding(FMargin(1, 0))
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Left)
 					[
-						SNew(SHorizontalBox)
-
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.HAlign(HAlign_Right)
-						.Padding(FMargin(3.f, 0.f, 0.f, 0.f))
+						SNew(SButton)
+						.VAlign(EVerticalAlignment::VAlign_Center)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
+						.ContentPadding(FMargin(1, 0))
+						.OnHovered_Lambda([this] { CurveEditorTreeFilterStatusBar->ShowStatusBar(); })
+						.OnUnhovered_Lambda([this] { CurveEditorTreeFilterStatusBar->FadeOutStatusBar(); })
+						.OnClicked_Lambda([this] { CurveEditorTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
 						[
-							SNew(SBorder)
-							.BorderImage(nullptr)
+							SNew(SImage)
+							.ColorAndOpacity(FSlateColor::UseForeground())
+							.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
+						]
+					]
+
+					+ SHorizontalBox::Slot()
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+						.HAlign(HAlign_Center)
+						[
+							Sequencer->MakeTransportControls(true)
+						]
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Right)
+					[
+						SNew(SButton)
+						.VAlign(EVerticalAlignment::VAlign_Center)
+						.ButtonStyle(FAppStyle::Get(), "NoBorder")
+						.ContentPadding(FMargin(1, 0))
+						[
+							SNew(SHorizontalBox)
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Right)
+							.Padding(FMargin(3.f, 0.f, 0.f, 0.f))
 							[
-								PlayTimeDisplay.ToSharedRef()
+								SNew(SBorder)
+								.BorderImage(nullptr)
+								[
+									PlayTimeDisplay.ToSharedRef()
+								]
 							]
 						]
 					]
@@ -420,8 +518,20 @@ bool FCurveEditorExtension::IsCurveEditorOpen() const
 		return false;
 	}
 
+	TSharedPtr<IToolkitHost> ToolkitHost = Sequencer->GetToolkitHost();
+	if (!ToolkitHost)
+	{
+		return false;
+	}
+
+	TSharedPtr<FTabManager> TabManager = ToolkitHost->GetTabManager();
+	if (!TabManager)
+	{
+		return false;
+	}
+
 	FTabId TabId = FTabId(FCurveEditorExtension::CurveEditorTabName);
-	return Sequencer->GetToolkitHost()->GetTabManager()->FindExistingLiveTab(TabId).IsValid();
+	return TabManager->FindExistingLiveTab(TabId).IsValid();
 }
 
 void FCurveEditorExtension::CloseCurveEditor()
@@ -491,6 +601,11 @@ void FCurveEditorExtension::RequestSyncSelection()
 	
 		TSharedPtr<FSequencerEditorViewModel> RootViewModel = WeakRootViewModel.Pin();
 		if (!RootViewModel.IsValid())
+		{
+			return;
+		}
+		TSharedPtr<ISequencer> Sequencer = RootViewModel->GetSequencer();
+		if (!Sequencer)
 		{
 			return;
 		}

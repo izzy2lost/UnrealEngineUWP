@@ -5,9 +5,10 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
+#include "VerseVM/Inline/VVMMutableArrayInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMOpResult.h"
 
 namespace Verse
@@ -16,39 +17,66 @@ DEFINE_DERIVED_VCPPCLASSINFO(VMutableArray);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VMutableArray);
 TGlobalTrivialEmergentTypePtr<&VMutableArray::StaticCppClassInfo> VMutableArray::GlobalTrivialEmergentType;
 
-void VMutableArray::SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+void VMutableArray::Reset(FAllocationContext Context)
 {
-	if (Visitor.IsLoading())
+	SetBufferWithStoreBarrier(Context, VBuffer());
+}
+
+void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
+{
+	if (!Buffer && Array.Num())
 	{
-		uint64 ScratchNumValues = 0;
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		This = &VMutableArray::New(Context, (uint32)ScratchNumValues);
-		for (uint32 Index = (uint32)ScratchNumValues; Index != 0; --Index)
-		{
-			VValue ScratchValue;
-			Visitor.Visit(ScratchValue, TEXT(""));
-			This->AddValue(Context, ScratchValue);
-		}
-		Visitor.EndArray();
+		uint32 Num = 0;
+		uint32 Capacity = Array.Num();
+		VBuffer NewBuffer = VBuffer(Context, Num, Capacity, Array.GetArrayType());
+		// We barrier because the GC needs to see the store to ArrayType/Num if
+		// it sees the new buffer.
+		SetBufferWithStoreBarrier(Context, NewBuffer);
 	}
-	else
+	else if (GetArrayType() != EArrayType::VValue && GetArrayType() != Array.GetArrayType())
 	{
-		uint64 ScratchNumValues = This->Num();
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		Visitor.Visit(This->GetData(), This->GetData() + This->Num());
-		Visitor.EndArray();
+		ConvertDataToVValues(Context, Num() + Array.Num());
+	}
+
+	switch (GetArrayType())
+	{
+		case EArrayType::None:
+			V_DIE_UNLESS(Array.GetArrayType() == EArrayType::None);
+			// Empty-Untyped VMutableArray appending Empty-Untyped VMutableArray
+			break;
+		case EArrayType::VValue:
+			Append<TWriteBarrier<VValue>>(Context, Array);
+			break;
+		case EArrayType::Int32:
+			Append<int32>(Context, Array);
+			break;
+		case EArrayType::Char8:
+			Append<UTF8CHAR>(Context, Array);
+			break;
+		case EArrayType::Char32:
+			Append<UTF32CHAR>(Context, Array);
+			break;
+		default:
+			V_DIE("Unhandled EArrayType encountered!");
 	}
 }
 
-FOpResult VMutableArray::FreezeImpl(FRunningContext Context)
+VValue VMutableArray::FreezeImpl(FAllocationContext Context)
 {
-	VArray& FrozenArray = VArray::New(Context, Num());
-	for (uint32 I = 0; I < Num(); ++I)
+	EArrayType ArrayType = GetArrayType();
+	VArray& FrozenArray = VArray::New(Context, Num(), ArrayType);
+	if (ArrayType != EArrayType::VValue)
 	{
-		FOpResult ValueResult = VValue::Freeze(Context, GetValue(I));
-		FrozenArray.SetValue(Context, I, ValueResult.Value);
+		FMemory::Memcpy(FrozenArray.GetData(), GetData(), ByteLength());
 	}
-	return {FOpResult::Normal, VValue(FrozenArray)};
+	else
+	{
+		for (uint32 I = 0; I < Num(); ++I)
+		{
+			FrozenArray.SetValue(Context, I, VValue::Freeze(Context, GetValue(I)));
+		}
+	}
+	return FrozenArray;
 }
 
 } // namespace Verse

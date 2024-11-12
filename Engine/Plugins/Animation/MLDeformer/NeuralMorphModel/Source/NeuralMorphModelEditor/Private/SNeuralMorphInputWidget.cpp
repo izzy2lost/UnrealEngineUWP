@@ -23,7 +23,9 @@
 #include "SMLDeformerInputBonesWidget.h"
 #include "SMLDeformerBonePickerDialog.h"
 #include "SMLDeformerCurvePickerDialog.h"
+#include "SMLDeformerMaskConfigDialog.h"
 #include "Engine/SkeletalMesh.h"
+#include "MeshDescription.h"
 #include "IDetailsView.h"
 
 #define LOCTEXT_NAMESPACE "NeuralMorphInputWidget"
@@ -52,6 +54,9 @@ namespace UE::NeuralMorphModel
 		UI_COMMAND(ResetAllBoneGroupMasks, "Reset All Bone Group Masks", "Reset all masks for every bone group.", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(ResetSelectedBoneGroupMasks, "Reset Selected Bone Group Masks", "Reset the masks for all selected bone groups.", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(ExpandSelectedBoneGroupMasks, "Edit Group Mask", "Specify which bones to include inside the mask for this group.", EUserInterfaceActionType::Button, FInputChord());
+
+		UI_COMMAND(ConfigureBoneMask, "Configure Mask", "Configure settings specific to the bone masking.", EUserInterfaceActionType::Button, FInputChord());
+		UI_COMMAND(ConfigureBoneGroupMask, "Configure Mask", "Configure settings specific to the bone group masking.", EUserInterfaceActionType::Button, FInputChord());
 	}
 
 	void SNeuralMorphInputWidget::BindCommands()
@@ -63,6 +68,7 @@ namespace UE::NeuralMorphModel
 			BonesCommandList->MapAction(Commands.ResetAllBoneMasks, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ResetAllBoneMasks));
 			BonesCommandList->MapAction(Commands.ResetSelectedBoneMasks, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ResetSelectedBoneMasks));
 			BonesCommandList->MapAction(Commands.ExpandSelectedBoneMasks, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ExpandBoneMasks));
+			BonesCommandList->MapAction(Commands.ConfigureBoneMask, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ConfigureBoneMask));
 		}
 
 		if (BoneGroupsWidget.IsValid())
@@ -70,6 +76,7 @@ namespace UE::NeuralMorphModel
 			BoneGroupsCommandList->MapAction(Commands.ResetAllBoneGroupMasks, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ResetAllBoneGroupMasks));
 			BoneGroupsCommandList->MapAction(Commands.ResetSelectedBoneGroupMasks, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ResetSelectedBoneGroupMasks));
 			BoneGroupsCommandList->MapAction(Commands.ExpandSelectedBoneGroupMasks, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ExpandBoneGroupMasks));
+			BoneGroupsCommandList->MapAction(Commands.ConfigureBoneGroupMask, FExecuteAction::CreateSP(this, &SNeuralMorphInputWidget::ConfigureBoneGroupMask));
 		}
 	}
 
@@ -184,7 +191,7 @@ namespace UE::NeuralMorphModel
 		{
 			check(SelectedItems[0].IsValid());
 			const FName BoneName = SelectedItems[0]->Name;
-			const FNeuralMorphMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneMaskInfos.Find(BoneName);
+			const FMLDeformerMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneMaskInfoMap.Find(BoneName);
 			if (MaskInfo)
 			{
 				HighlightedBones = MaskInfo->BoneNames;
@@ -215,10 +222,10 @@ namespace UE::NeuralMorphModel
 				// Add the picked bone name to the mask info of the selected bone.
 				const int32 BoneIndex = EditorInputInfo->GetBoneNames().Find(SelectedInputBoneName);
 				check(BoneIndex != INDEX_NONE);
-				FNeuralMorphMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneMaskInfos.Find(SelectedInputBoneName);
+				FMLDeformerMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneMaskInfoMap.Find(SelectedInputBoneName);
 				if (MaskInfo == nullptr)
 				{
-					MaskInfo = &NeuralEditorModel->GetNeuralMorphModel()->BoneMaskInfos.Add(SelectedInputBoneName, FNeuralMorphMaskInfo());
+					MaskInfo = &NeuralEditorModel->GetNeuralMorphModel()->BoneMaskInfoMap.Add(SelectedInputBoneName, FMLDeformerMaskInfo());
 				}
 
 				check(MaskInfo);
@@ -323,7 +330,7 @@ namespace UE::NeuralMorphModel
 			check(LastSelectedGroup->IsGroup());
 			const int32 GroupIndex = LastSelectedGroup->GroupIndex;
 			check(GroupIndex!= INDEX_NONE);
-			const FNeuralMorphMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfos.Find(LastSelectedGroup->Name);
+			const FMLDeformerMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfoMap.Find(LastSelectedGroup->Name);
 			if (MaskInfo)
 			{
 				HighlightedBones = MaskInfo->BoneNames;
@@ -356,10 +363,10 @@ namespace UE::NeuralMorphModel
 				}
 
 				// Add the picked bone name to the mask info of the selected group.
-				FNeuralMorphMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfos.Find(Item->Name);
+				FMLDeformerMaskInfo* MaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfoMap.Find(Item->Name);
 				if (MaskInfo == nullptr)
 				{
-					MaskInfo = &NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfos.Add(Item->Name, FNeuralMorphMaskInfo());
+					MaskInfo = &NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfoMap.Add(Item->Name, FMLDeformerMaskInfo());
 				}
 				check(MaskInfo);
 				MaskInfo->BoneNames.Reset();
@@ -387,17 +394,45 @@ namespace UE::NeuralMorphModel
 		MenuBuilder.BeginSection("BoneMaskActions", LOCTEXT("BoneMaskActionsHeading", "Bone Masks"));
 		{
 			const FNeuralMorphInputWidgetCommands& Commands = FNeuralMorphInputWidgetCommands::Get();
+
+			// Check if we have only generated masks or not.
+			bool bHasNonGeneratedMask = false;
 			const int32 NumSelectedItems = InputBonesWidget->GetTreeWidget()->GetNumItemsSelected();
+			const TArray<TSharedPtr<FMLDeformerInputBoneTreeElement>> SelectedItems = InputBonesWidget->GetTreeWidget()->GetSelectedItems();
+			for (const TSharedPtr<FMLDeformerInputBoneTreeElement>& Item : SelectedItems)
+			{
+				if (!Item.IsValid())
+				{
+					continue;
+				}
+
+				FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneMaskInfoMap.Find(Item->Name);
+				if (MaskInfo && MaskInfo->MaskMode != EMLDeformerMaskingMode::Generated)
+				{
+					bHasNonGeneratedMask = true;
+				}
+			}
+
 			if (NumSelectedItems > 0)
 			{
-				if (NumSelectedItems == 1)
+				if (!bHasNonGeneratedMask)
 				{
 					MenuBuilder.AddMenuEntry(Commands.ExpandSelectedBoneMasks);
+					MenuBuilder.AddMenuEntry(Commands.ResetSelectedBoneMasks);
 				}
-				MenuBuilder.AddMenuEntry(Commands.ResetSelectedBoneMasks);
+
+				if (NumSelectedItems == 1)
+				{
+					if (!bHasNonGeneratedMask)
+					{
+						MenuBuilder.AddMenuSeparator();
+					}
+					MenuBuilder.AddMenuEntry(Commands.ConfigureBoneMask);
+				}
 			}
+			MenuBuilder.EndSection();
 		}
-		MenuBuilder.EndSection();
+
 	}
 
 	void SNeuralMorphInputWidget::AddInputBonesPlusIconMenuItems(FMenuBuilder& MenuBuilder)
@@ -424,8 +459,8 @@ namespace UE::NeuralMorphModel
 	{
 		FNeuralMorphEditorModel* NeuralEditorModel = static_cast<FNeuralMorphEditorModel*>(EditorModel);
 		UNeuralMorphModel* NeuralMorphModel = NeuralEditorModel->GetNeuralMorphModel();
-		NeuralMorphModel->BoneMaskInfos.Empty();
-		NeuralMorphModel->BoneGroupMaskInfos.Empty();
+		NeuralMorphModel->BoneMaskInfoMap.Empty();
+		NeuralMorphModel->BoneGroupMaskInfoMap.Empty();
 		NeuralEditorModel->RebuildEditorMaskInfo();
 	}
 
@@ -436,10 +471,10 @@ namespace UE::NeuralMorphModel
 
 		for (const FName Name : Names)
 		{
-			NeuralMorphModel->BoneMaskInfos.Remove(Name);
+			NeuralMorphModel->BoneMaskInfoMap.Remove(Name);
 
 			// Remove the bone from any bone group masks.
-			for (auto& MaskInfo : NeuralMorphModel->BoneGroupMaskInfos)
+			for (auto& MaskInfo : NeuralMorphModel->BoneGroupMaskInfoMap)
 			{
 				MaskInfo.Value.BoneNames.Remove(Name);
 			}
@@ -468,11 +503,34 @@ namespace UE::NeuralMorphModel
 			const FNeuralMorphInputWidgetCommands& Commands = FNeuralMorphInputWidgetCommands::Get();
 			if (BoneGroupsWidget->GetNumSelectedGroups() > 0)
 			{
+				TSharedPtr<FNeuralMorphBoneGroupsTreeElement> LastSelectedGroup;
+				for (const TSharedPtr<FNeuralMorphBoneGroupsTreeElement>& Item : BoneGroupsWidget->GetSelectedItems())
+				{
+					if (Item->IsGroup())
+					{
+						LastSelectedGroup = Item;
+					}
+				}
+				check(LastSelectedGroup.IsValid());
+
+				bool bIsNonGeneratedMask = false;
+				FMLDeformerMaskInfo* MaskInfo = NeuralMorphModel->BoneGroupMaskInfoMap.Find(LastSelectedGroup->Name);
+				if (MaskInfo && MaskInfo->MaskMode != EMLDeformerMaskingMode::Generated)
+				{
+					bIsNonGeneratedMask = true;
+				}
+
 				if (BoneGroupsWidget->GetNumSelectedGroups() == 1)
 				{
-					MenuBuilder.AddMenuEntry(Commands.ExpandSelectedBoneGroupMasks);
+					if (!bIsNonGeneratedMask)
+					{
+						MenuBuilder.AddMenuEntry(Commands.ExpandSelectedBoneGroupMasks);
+						MenuBuilder.AddMenuEntry(Commands.ResetSelectedBoneGroupMasks);
+						MenuBuilder.AddMenuSeparator();
+					}
+
+					MenuBuilder.AddMenuEntry(Commands.ConfigureBoneGroupMask);
 				}
-				MenuBuilder.AddMenuEntry(Commands.ResetSelectedBoneGroupMasks);
 			}
 		}
 		MenuBuilder.EndSection();
@@ -774,6 +832,144 @@ namespace UE::NeuralMorphModel
 		FNeuralMorphEditorModel* NeuralEditorModel = static_cast<FNeuralMorphEditorModel*>(EditorModel);
 		NeuralEditorModel->RebuildEditorMaskInfo();
 	}
+
+	void SNeuralMorphInputWidget::ConfigureBoneMask()
+	{
+		using namespace UE::MLDeformer;
+
+		// Get the selected input bones.
+		check(InputBonesWidget.IsValid());
+		check(InputBonesWidget->GetTreeWidget().IsValid());
+		TArray<TSharedPtr<FMLDeformerInputBoneTreeElement>> SelectedItems = InputBonesWidget->GetTreeWidget()->GetSelectedItems();
+		check(SelectedItems.Num() == 1);	// This only works for single selection.
+
+		const FName BoneName = SelectedItems[0]->Name;
+		UNeuralMorphModel* NeuralModel = Cast<UNeuralMorphModel>(EditorModel->GetModel());
+		FMLDeformerMaskInfo NeuralMaskInfo;
+		if (NeuralModel->BoneMaskInfoMap.Contains(BoneName))
+		{
+			NeuralMaskInfo = *NeuralModel->BoneMaskInfoMap.Find(BoneName);
+		}
+
+		// Show the mask configuration dialog.
+		TSharedPtr<SMLDeformerMaskConfigDialog> Dialog = SNew(SMLDeformerMaskConfigDialog, EditorModel)
+			.InitialMaskInfo(NeuralMaskInfo)
+			.OnSetNewVertexAttributeValues_Lambda([this, BoneName, NeuralModel](TVertexAttributesRef<float> AttributeRef)
+			{
+				// When a new vertex attribute is created in the mask config dialog, we want to initialize it with a generated mask.
+				FNeuralMorphEditorModel* NeuralEditorModel = static_cast<FNeuralMorphEditorModel*>(EditorModel);
+				UNeuralMorphInputInfo* InputInfo = Cast<UNeuralMorphInputInfo>(NeuralEditorModel->GetEditorInputInfo());
+				USkeletalMesh* SkeletalMesh = NeuralModel->GetSkeletalMesh();
+				if (InputInfo && SkeletalMesh)
+				{
+					FMLDeformerMaskInfo* MaskInfo = NeuralModel->BoneMaskInfoMap.Find(BoneName);
+					check(MaskInfo);
+					NeuralEditorModel->ApplyGeneratedMaskToVertexAttributes(SkeletalMesh, *MaskInfo, AttributeRef);
+				}
+			});
+				
+		const int32 ReturnCode = Dialog->ShowModal();
+		if (ReturnCode == 0) // OK was pressed.
+		{
+			// Create the mask info if needed.
+			if (!NeuralModel->BoneMaskInfoMap.Contains(BoneName))
+			{
+				NeuralModel->BoneMaskInfoMap.Add(BoneName, Dialog->GetMaskInfo());
+			}
+			else
+			{
+				*NeuralModel->BoneMaskInfoMap.Find(BoneName) = Dialog->GetMaskInfo();
+			}
+
+			FNeuralMorphEditorModel* NeuralEditorModel = static_cast<FNeuralMorphEditorModel*>(EditorModel);
+			NeuralEditorModel->RebuildEditorMaskInfo();
+		}
+	}
+
+	void SNeuralMorphInputWidget::ConfigureBoneGroupMask()
+	{
+		using namespace UE::MLDeformer;
+
+		USkeletalMesh* SkelMesh = EditorModel->GetModel()->GetSkeletalMesh();
+		if (!SkelMesh)
+		{
+			return;
+		}
+
+		// Get the selected bone groups.
+		check(BoneGroupsWidget.IsValid());
+		TArray<TSharedPtr<FNeuralMorphBoneGroupsTreeElement>> SelectedItems = BoneGroupsWidget->GetSelectedItems();
+
+		// Calculate the number of selected groups.
+		int32 NumSelectedGroups = 0;
+		TSharedPtr<FNeuralMorphBoneGroupsTreeElement> LastSelectedGroup;
+		for (const TSharedPtr<FNeuralMorphBoneGroupsTreeElement>& Item : SelectedItems)
+		{
+			if (Item->IsGroup())
+			{
+				LastSelectedGroup = Item;
+				NumSelectedGroups++;
+			}
+		}
+
+		// If we only selected one item, we can highlight the bones already in the mask info.
+		FNeuralMorphEditorModel* NeuralEditorModel = static_cast<FNeuralMorphEditorModel*>(EditorModel);
+		UNeuralMorphInputInfo* EditorInputInfo = Cast<UNeuralMorphInputInfo>(NeuralEditorModel->GetEditorInputInfo());
+		check(EditorInputInfo);
+
+		FMLDeformerMaskInfo* GroupMaskInfo = nullptr;
+		if (LastSelectedGroup.IsValid() && NumSelectedGroups == 1)
+		{
+			check(LastSelectedGroup->IsGroup());
+			const int32 GroupIndex = LastSelectedGroup->GroupIndex;
+			check(GroupIndex!= INDEX_NONE);
+			GroupMaskInfo = NeuralEditorModel->GetNeuralMorphModel()->BoneGroupMaskInfoMap.Find(LastSelectedGroup->Name);
+			if (!GroupMaskInfo)
+			{
+				return;
+			}
+		}
+		else
+		{
+			return;
+		}
+
+		check(GroupMaskInfo);
+		const FName GroupName = LastSelectedGroup->Name;
+
+		// Show the mask configuration dialog.
+		TSharedPtr<SMLDeformerMaskConfigDialog> Dialog = SNew(SMLDeformerMaskConfigDialog, EditorModel)
+			.InitialMaskInfo(*GroupMaskInfo)
+			.OnSetNewVertexAttributeValues_Lambda([this, GroupMaskInfo](TVertexAttributesRef<float> AttributeRef)
+			{
+				// When a new vertex attribute is created in the mask config dialog, we want to initialize it with a generated mask.
+				FNeuralMorphEditorModel* NeuralEditorModel = static_cast<FNeuralMorphEditorModel*>(EditorModel);
+				UNeuralMorphInputInfo* InputInfo = Cast<UNeuralMorphInputInfo>(NeuralEditorModel->GetEditorInputInfo());
+				USkeletalMesh* SkeletalMesh = EditorModel->GetModel()->GetSkeletalMesh();
+				if (InputInfo && SkeletalMesh)
+				{
+					NeuralEditorModel->ApplyGeneratedMaskToVertexAttributes(SkeletalMesh, *GroupMaskInfo, AttributeRef);
+				}
+			});
+				
+		const int32 ReturnCode = Dialog->ShowModal();
+		if (ReturnCode == 0) // OK was pressed.
+		{
+			// Create the mask info if needed.
+			UNeuralMorphModel* NeuralModel = Cast<UNeuralMorphModel>(EditorModel->GetModel());
+			if (!NeuralModel->BoneGroupMaskInfoMap.Contains(GroupName))
+			{
+				NeuralModel->BoneGroupMaskInfoMap.Add(GroupName, Dialog->GetMaskInfo());
+			}
+			else
+			{
+				*NeuralModel->BoneGroupMaskInfoMap.Find(GroupName) = Dialog->GetMaskInfo();
+			}
+
+			NeuralEditorModel->RebuildEditorMaskInfo();
+		}
+	}
+
 }	// namespace UE::NeuralMorphModel
 
 #undef LOCTEXT_NAMESPACE

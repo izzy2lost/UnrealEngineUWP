@@ -53,6 +53,11 @@ public:
 	virtual bool ReceivedFocus(FEditorViewportClient* ViewportClient, FViewport* Viewport);
 	virtual bool LostFocus(FEditorViewportClient* ViewportClient, FViewport* Viewport);
 
+	// Start IGizmoEdModeInterface overrides
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
+	// End IGizmoEdModeInterface overrides
+	
 private:
 	/** Simulation mouse forces */
 	bool SimMousePress(FEditorViewportClient* InViewportClient, FKey Key);
@@ -80,6 +85,16 @@ private:
 
 	/** Returns the identifier for the constraint frame (child or parent) in which the manipulator widget should be drawn. */
 	EConstraintFrame::Type GetConstraintFrameForWidget() const;
+
+	// Manage the start and end of a transform action in the viewport.
+	bool HandleBeginTransform();
+	bool HandleEndTransform(FEditorViewportClient* InViewportClient) const;
+
+	// Update the Center of Mass position after body transforms have been manipulated in the view port.
+	void UpdateCoM();
+
+	// Calculate a Center of Mass nudge (offset) for a given body that will locate that body's CoM at the supplied position in world space.
+	FVector CalculateCoMNudgeForWorldSpacePosition(const int32 BodyIndex, const FVector& CoMPositionWorldSpace) const;
 
 private:
 	/** Shared data */

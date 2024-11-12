@@ -3,11 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Styling/SlateBrush.h"
 
-// Insights
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetEventNode.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetEventGroupingAndSorting.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -53,3 +57,5 @@ struct NetEventNodeGroupingHelper
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

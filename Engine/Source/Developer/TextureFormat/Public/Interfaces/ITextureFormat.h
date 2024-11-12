@@ -68,6 +68,9 @@ static bool GetStreamingDisabledForNonVirtualTextureProperties(bool bInCubeMap, 
 // all zeroes.
 struct FEncodedTextureExtendedData
 {
+	// Copied from RHIDefinitions.h - we expose here to avoid the include.
+	static constexpr int32 MAX_TEXTURE_MIP_COUNT=15;
+
 	int32 NumMipsInTail = 0;
 	uint32 ExtData = 0;
 	
@@ -79,7 +82,7 @@ struct FEncodedTextureExtendedData
 
 	// With packing/tiling, mip sizes are not trivially computable. Not that these sizes must NOT be
 	// used for mips prior to tiling. For those, FEncodedTextureDescription::GetMipSizeInBytes().
-	TArray<uint64, TInlineAllocator<15 /*MAX_TEXTURE_MIP_COUNT*/>> MipSizesInBytes;
+	TArray<uint64, TInlineAllocator<MAX_TEXTURE_MIP_COUNT>> MipSizesInBytes;
 };
 
 
@@ -141,6 +144,8 @@ struct FEncodedTextureDescription
 	bool bTextureArray;
 	bool bVolumeTexture;
 	
+	typedef TArray<FSharedBuffer, TInlineAllocator<FEncodedTextureExtendedData::MAX_TEXTURE_MIP_COUNT>> FSharedBufferMipChain;
+	typedef TArray<FUniqueBuffer, TInlineAllocator<FEncodedTextureExtendedData::MAX_TEXTURE_MIP_COUNT>> FUniqueBufferMipChain;
 
 	bool operator==(const FEncodedTextureDescription& OtherTextureDescription) const
 	{
@@ -153,6 +158,15 @@ struct FEncodedTextureDescription
 			bCubeMap == OtherTextureDescription.bCubeMap &&
 			bTextureArray == OtherTextureDescription.bTextureArray &&
 			bVolumeTexture == OtherTextureDescription.bVolumeTexture;
+	}
+
+	// This returns the SizeZ value that is expected by RHI streamable texture structures. It
+	// is only used by non-cube texture arrays and volumes, however the cubemap array and cubemap
+	// values need to be consistent as they are persisted and would cause a DDC determinism issue.
+	// (note that cubemap arrays are handled in the bTextureArray path).
+	int32 GetRHIStyleSizeZ(int32 InMipIndex) const
+	{
+		return (bVolumeTexture || bTextureArray) ? GetNumSlices_WithDepth(InMipIndex) : 1;
 	}
 
 	// Returns the slice count for usage cases/platform that expect slice count to include
@@ -237,6 +251,20 @@ struct FEncodedTextureDescription
 		FIntVector3 MipDims = GetMipDimensions(InMipIndex);
 		uint64 SliceByteCount = GPixelFormats[PixelFormat].Get2DImageSizeInBytes(MipDims.X, MipDims.Y);
 		return SliceByteCount * GetNumSlices_WithDepth(InMipIndex);
+	}
+
+	// As GetMipSizeInBytes, except for a single slice of the mip.
+	uint64 GetMipSliceSizeInBytes(int32 InMipIndex) const
+	{
+		FIntVector3 MipDims = GetMipDimensions(InMipIndex);
+		return GPixelFormats[PixelFormat].Get2DImageSizeInBytes(MipDims.X, MipDims.Y);
+	}
+
+	// Returns the bytes necessary to get to the next row of the current mip
+	uint64 GetMipSliceRowPitchBytes(int32 InMipIndex) const
+	{
+		const uint64 WidthInBlocks = GPixelFormats[PixelFormat].GetBlockCountForWidth(GetMipWidth(InMipIndex));
+		return WidthInBlocks * GPixelFormats[PixelFormat].BlockBytes;
 	}
 
 	int32 GetNumStreamingMips(const FEncodedTextureExtendedData* InExtendedData, const FTextureEngineParameters& InEngineParameters) const
@@ -343,6 +371,7 @@ public:
 	virtual FEncodedTextureExtendedData GetExtendedDataForTexture(const FEncodedTextureDescription& InTextureDescription, int8 InLODBias) const = 0;
 
 	virtual const FUtf8StringView GetBuildFunctionName() const = 0;
+	virtual const FUtf8StringView GetDetileBuildFunctionName() const = 0;
 
 	/**
 		InLinearSurfaces must have the necessary input mips for the mip level - i.e. for a packed mip tail,
@@ -350,6 +379,15 @@ public:
 		for the entire tail.
 	*/
 	virtual FSharedBuffer ProcessMipLevel(const FEncodedTextureDescription& InTextureDescription, const FEncodedTextureExtendedData& InExtendedData, TArrayView<FMemoryView> InLinearSurfaces, int32 InMipIndex) const = 0;
+	
+	/**
+	*	Given a tiled mip chain, detile in to OutLinearMips. For mip tails, OutLinearMips.Num may end up larger than InTiledMips.Num.
+	*	Mips have all slices concatenated together.
+	*/
+	virtual bool DetileMipChain(FEncodedTextureDescription::FUniqueBufferMipChain& OutLinearMips, FEncodedTextureDescription::FSharedBufferMipChain InTiledMips, const FEncodedTextureDescription& InTextureDescription, const FEncodedTextureExtendedData& InExtendedData, const FString& InTexturePathName) const
+	{
+		return false;
+	}
 };
 
 /**
@@ -395,6 +433,12 @@ public:
 	virtual bool CanAcceptNonF32Source(FName Format) const
 	{
 		return false;
+	}
+
+	// If the format can decode to RGBA8/RGBA16F, this is the IBuild function name for it.
+	virtual const FUtf8StringView GetDecodeBuildFunctionName() const
+	{
+		return UTF8TEXTVIEW("DecodeUnsupported");
 	}
 
 	/**
@@ -477,6 +521,17 @@ public:
 	virtual FEncodedTextureExtendedData GetExtendedDataForTexture(const FEncodedTextureDescription& InTextureDescription, int8 InLODBias) const
 	{
 		return FEncodedTextureExtendedData();
+	}
+
+	// Return true if this format can decode the given pixel format to one of the ERawImageFormats.
+	virtual bool CanDecodeFormat(EPixelFormat InPixelFormat) const { return false; }
+
+	/**
+	* Decodes an image encoded as a EPixelFormat into something encoded as a ERawImageFormat. This will only be called if CanDecodeFormat returns true.
+	*/
+	virtual bool DecodeImage(int32 InSizeX, int32 InSizeY, int32 InNumSlices, EPixelFormat InPixelFormat, bool bInSRGB, const FName& InTextureFormatName, FSharedBuffer InEncodedData, FImage& OutImage, FStringView InTextureName) const
+	{
+		return false;
 	}
 
 	/**

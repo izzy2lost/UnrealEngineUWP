@@ -453,7 +453,9 @@ const TCHAR* ToString(const EJoinPartyCompletionResult Value)
 	{
 		return TEXT("LoggedOut");
 	}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	case EJoinPartyCompletionResult::UnableToRejoin:
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		return TEXT("UnableToRejoin");
 	}
@@ -905,3 +907,13 @@ FString IOnlinePartyJoinInfo::ToDebugString() const
 		IsAcceptingMembers() ? 1 : 0,
 		GetNotAcceptingReason());
 };
+
+bool IOnlinePartySystem::RejoinParty(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const FOnlinePartyTypeId& PartyTypeId, const TArray<FUniqueNetIdRef>& FormerMembers, const FOnJoinPartyComplete& Delegate)
+{
+	return false;
+}
+
+bool IOnlinePartySystem::LeaveParty(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const FOnLeavePartyComplete& Delegate)
+{
+	return LeaveParty(LocalUserId, PartyId, true, Delegate);
+}

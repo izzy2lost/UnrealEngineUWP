@@ -5,7 +5,7 @@
 #endif
 
 #if INTEL_ISPC && !UE_BUILD_SHIPPING
-bool bChaos_Bending_ISPC_Enabled = true;
+bool bChaos_Bending_ISPC_Enabled = CHAOS_BENDING_ISPC_ENABLED_DEFAULT;
 FAutoConsoleVariableRef CVarChaosBendingISPCEnabled(TEXT("p.Chaos.Bending.ISPC"), bChaos_Bending_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in Bending constraints"));
 
 static_assert(sizeof(ispc::FVector4f) == sizeof(Chaos::Softs::FPAndInvM), "sizeof(ispc::FVector4f) != sizeof(Chaos::Softs::FPAndInvM");
@@ -156,14 +156,29 @@ namespace Chaos::Softs
 #if INTEL_ISPC
 		if (bRealTypeCompatibleWithISPC && bChaos_Bending_ISPC_Enabled)
 		{
-			ispc::InitBendingConstraintsIsBuckled(
-				(const ispc::FVector3f*)InParticles.XArray().GetData(),
-				(const ispc::FIntVector4*)Constraints.GetData(),
-				RestAngles.GetData(),
-				IsBuckled.GetData(),
-				BucklingRatio,
-				Constraints.Num()
-			);
+			if (BucklingRatioWeighted.HasWeightMap())
+			{
+				ispc::InitBendingConstraintsIsBuckledWithMaps(
+					(const ispc::FVector3f*)InParticles.XArray().GetData(),
+					(const ispc::FIntVector4*)Constraints.GetData(),
+					RestAngles.GetData(),
+					IsBuckled.GetData(),
+					BucklingRatioWeighted.GetIndices().GetData(),
+					BucklingRatioWeighted.GetTable().GetData(),
+					Constraints.Num()
+				);
+			}
+			else
+			{
+				ispc::InitBendingConstraintsIsBuckled(
+					(const ispc::FVector3f*)InParticles.XArray().GetData(),
+					(const ispc::FIntVector4*)Constraints.GetData(),
+					RestAngles.GetData(),
+					IsBuckled.GetData(),
+					(FSolverReal)BucklingRatioWeighted,
+					Constraints.Num()
+				);
+			}
 		}
 		else
 #endif
@@ -180,7 +195,7 @@ namespace Chaos::Softs
 				const FSolverVec3& P3 = InParticles.X(Index3);
 				const FSolverVec3& P4 = InParticles.X(Index4);
 				const FSolverReal Angle = CalcAngle(P1, P2, P3, P4);
-				IsBuckled[ConstraintIndex] = AngleIsBuckled(Angle, RestAngles[ConstraintIndex]);
+				IsBuckled[ConstraintIndex] = AngleIsBuckled(Angle, ConstraintIndex);
 			}
 		}
 	}

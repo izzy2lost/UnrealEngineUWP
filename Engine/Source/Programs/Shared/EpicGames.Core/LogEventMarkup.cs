@@ -60,7 +60,7 @@ namespace EpicGames.Core
 		/// </summary>
 		public static void AnnotateSourceFile(this LogEventBuilder builder, Group group, string? baseDir)
 		{
-			Dictionary<Utf8String, object>? properties = null;
+			Dictionary<Utf8String, object?>? properties = null;
 			if (!String.IsNullOrEmpty(baseDir))
 			{
 				string file = group.Value;
@@ -69,7 +69,7 @@ namespace EpicGames.Core
 					try
 					{
 						string combinedPath = RemoveRelativeDirs(Path.Combine(baseDir, file));
-						properties = new Dictionary<Utf8String, object>();
+						properties = new Dictionary<Utf8String, object?>();
 						properties[LogEventPropertyName.File] = combinedPath;
 					}
 					catch
@@ -105,7 +105,7 @@ namespace EpicGames.Core
 			identifier = Regex.Replace(identifier, "^.* ", "");
 
 			// Add it to the list
-			Dictionary<Utf8String, object> properties = new Dictionary<Utf8String, object>();
+			Dictionary<Utf8String, object?> properties = new Dictionary<Utf8String, object?>();
 			properties[LogEventPropertyName.Identifier] = identifier;
 			builder.Annotate(group, new LogValue(LogValueType.Symbol, "", properties));
 		}

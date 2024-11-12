@@ -4,6 +4,7 @@
 
 #include "BoneControllers/BoneControllerTypes.h"
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
+#include "EngineDefines.h"
 #include "AnimNode_OrientationWarping.generated.h"
 
 struct FAnimationInitializeContext;
@@ -22,6 +23,10 @@ enum class EOrientationWarpingSpace : uint8
 	CustomTransform
 };
 
+/**
+ * Maintains a look at direction for the upper body (orientation), while rotating the lower body to match capsule velocity direction
+ * Does nothing if the root motion velocity direction matches the desired / current capsule velocity direction
+ */
 USTRUCT(BlueprintInternalUseOnly)
 struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNode_SkeletalControlBase
 {
@@ -31,17 +36,25 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, Category=Evaluation)
 	EWarpingEvaluationMode Mode = EWarpingEvaluationMode::Manual;
 
+	// Experimental. Orientation warping should do nothing if root motion velocity directions match capsule,
+	// however root motion can have multiple velocity directions. So we also check root motion
+	// direction 'TargetTime' in the future for matching direction to avoid temp orientation warps.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
+	float TargetTime = 0.8f;
+
 	// The desired orientation angle (in degrees) to warp by relative to the specified RotationAxis
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	float OrientationAngle = 0.f;
 
 	// The character locomotion angle (in degrees) relative to the specified RotationAxis
 	// This will be used in the following equation for computing the orientation angle: [Orientation = RotationBetween(RootMotionDirection, LocomotionDirection)]
+	// In most cases, this is the difference between the Velocity of the Movement Component and the actor rotation (obtained via CalculateDirection)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	float LocomotionAngle = 0.f;
 
 	// The character movement direction vector in world space
-	// This will be used to compute LocomotionAngle automatically
+	// When set, this vector is used to compute LocomotionAngle automatically. When not set, the LocomotionAngle input should be used instead.
+	// In most cases, this vector is the same as the Velocity vector of the Movement Component
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	FVector LocomotionDirection = { 0.f, 0.f, 0.f };
 	
@@ -75,6 +88,15 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(DisplayName="IK Foot Bones"))
 	TArray<FBoneReference> IKFootBones;
 
+	// Experimental. Animation Asset for incorporating root motion data. If 'TargetTime' is set, and the animation has root motion rotation within the TargetTime, 
+	// then those rotations will be scaled to reach the TargetOrientation
+	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
+	TObjectPtr<UAnimationAsset> CurrentAnimAsset;
+
+	// Experimental. Current playback time in seconds of the CurrentAnimAsset
+	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category = Experimental, meta = (PinShownByDefault))
+	float CurrentAnimAssetTime = 0.f;
+
 	// Rotation axis used when rotating the character body
 	UPROPERTY(EditAnywhere, Category=Settings)
 	TEnumAsByte<EAxis::Type> RotationAxis = EAxis::Z;
@@ -87,6 +109,11 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	// A value of 0 will cause instantaneous rotation, while a greater value will introduce smoothing
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0"))
 	float RotationInterpSpeed = 10.f;
+
+	// Same as RotationInterpSpeed, but for CounterCompensate smoothing. A value of 0 sample raw root motion.
+	// Used to avoid stuttering from resampling root deltas. Root motion is already smooth, so a large value is our default (~75% of 60 fps).
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0.0"))
+	float CounterCompensateInterpSpeed = 45.f;
 
 	// Max correction we're allowed to do per-second when using interpolation.
 	// This minimizes pops when we have a large difference between current and target orientation.
@@ -193,6 +220,18 @@ private:
 	
 	// Internal current frame root motion delta direction
 	FVector RootMotionDeltaDirection = FVector::ZeroVector;
+
+	// Internal current frame root motion delta angle
+	FQuat RootMotionDeltaRotation = FQuat::Identity;
+
+	// Target for counter compenstate, we keep the target so we can smoothly interp.
+	float CounterCompensateTargetAngleRad = 0.0f;
+
+#if ENABLE_ANIM_DEBUG || ENABLE_VISUAL_LOG
+	// Store these in debug only so that they can persist in debug / across pauses
+	FVector FutureRootMotionDeltaDirection = FVector::ZeroVector;
+	bool bUsedFutureRootMotion = false;
+#endif
 
 	// Internal orientation warping angle
 	float ActualOrientationAngleRad = 0.f;

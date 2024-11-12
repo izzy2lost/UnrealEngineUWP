@@ -386,7 +386,7 @@ namespace DatasmithRuntime
 			// We should always have valid normals, tangents and binormals
 			bool bHasInvalidNormals;
 			bool bHasInvalidTangents;
-			FStaticMeshOperations::AreNormalsAndTangentsValid(MeshDescription, bHasInvalidNormals, bHasInvalidTangents);
+			FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(MeshDescription, bHasInvalidNormals, bHasInvalidTangents);
 
 			// If normals are invalid, compute normals and tangents at polygon level then vertex level
 			if (bHasInvalidNormals)

@@ -10,6 +10,7 @@
 
 #include "ControlRigEditor.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
+#include "Widgets/SRigVMVariantWidget.h"
 
 #define LOCTEXT_NAMESPACE "RigModuleAssetBrowser"
 
@@ -37,7 +38,7 @@ void SRigModuleAssetBrowser::RefreshView()
 	
 	// setup filtering
 	AssetPickerConfig.Filter.ClassPaths.Add(UControlRigBlueprint::StaticClass()->GetClassPathName());
-	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
+	AssetPickerConfig.InitialAssetViewType = EAssetViewType::Tile;
 	AssetPickerConfig.bAddFilterUI = true;
 	AssetPickerConfig.bShowPathInColumnView = true;
 	AssetPickerConfig.bShowTypeInColumnView = true;
@@ -130,7 +131,29 @@ bool SRigModuleAssetBrowser::OnShouldFilterAsset(const struct FAssetData& AssetD
 	}
 
 	const EControlRigType ControlRigType = (EControlRigType)(ControlTypeEnum->GetValueByName(*ControlRigTypeStr));
-	return ControlRigType != EControlRigType::RigModule;
+	if(ControlRigType != EControlRigType::RigModule)
+	{
+		return true;
+	}
+
+	static const FName AssetVariantPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant);
+	const FProperty* AssetVariantProperty = CastField<FProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(AssetVariantPropertyName));
+	const FString VariantStr = AssetData.GetTagValueRef<FString>(AssetVariantPropertyName);
+	if(!VariantStr.IsEmpty())
+	{
+		FRigVMVariant AssetVariant;
+		AssetVariantProperty->ImportText_Direct(*VariantStr, &AssetVariant, nullptr, EPropertyPortFlags::PPF_None);
+
+		for(const FRigVMTag& VariantTag : AssetVariant.Tags)
+		{
+			if(VariantTag.bMarksSubjectAsInvalid)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 void SRigModuleAssetBrowser::OnAssetDoubleClicked(const FAssetData& AssetData)
@@ -167,6 +190,50 @@ TSharedRef<SToolTip> SRigModuleAssetBrowser::CreateCustomAssetToolTip(FAssetData
 
 	// Add asset registry tags to a text list; except skeleton as that is implied in Persona
 	TSharedRef<SVerticalBox> DescriptionBox = SNew(SVerticalBox);
+
+	static const FName AssetVariantPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant);
+	const FProperty* AssetVariantProperty = CastField<FProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(AssetVariantPropertyName));
+	const FString VariantStr = AssetData.GetTagValueRef<FString>(AssetVariantPropertyName);
+	if(!VariantStr.IsEmpty())
+	{
+		FRigVMVariant AssetVariant;
+		AssetVariantProperty->ImportText_Direct(*VariantStr, &AssetVariant, nullptr, EPropertyPortFlags::PPF_None);
+
+		if(!AssetVariant.Tags.IsEmpty())
+		{
+			DescriptionBox->AddSlot()
+			.AutoHeight()
+			.Padding(0,0,5,0)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("AssetBrowser_RigVMTagsLabel", "Tags :"))
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.Padding(4, 0, 0, 0)
+				[
+					SNew(SRigVMVariantTagWidget)
+					.Visibility(EVisibility::Visible)
+					.CanAddTags(false)
+					.EnableContextMenu(false)
+					.EnableTick(false)
+					.Orientation(EOrientation::Orient_Horizontal)
+					.OnGetTags_Lambda([AssetVariant]() { return AssetVariant.Tags; })
+				]
+			];
+		}
+	}
+	
 	for(TPair<FName, FAssetTagValueRef> TagPair : AssetData.TagsAndValues)
 	{
 		if(TagsToShow.Contains(TagPair.Key))

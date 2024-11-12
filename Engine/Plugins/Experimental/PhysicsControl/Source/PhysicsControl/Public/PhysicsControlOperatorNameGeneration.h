@@ -27,32 +27,31 @@ constexpr int32 MaxNumControlsOrModifiersPerName = 16;
 
 // Parse the skeleton tree to figure out which bones are associated with which limbs. 
 PHYSICSCONTROL_API TMap<FName, FPhysicsControlLimbBones> GetLimbBones(
-	const TArray<FPhysicsControlLimbSetupData>& LimbSetupData, 
+	const TArray<FPhysicsControlLimbSetupData>& LimbSetupDatas, 
 	const FReferenceSkeleton&                   RefSkeleton, 
-	UPhysicsAsset*                              PhysicsAsset);
+	const UPhysicsAsset*                        PhysicsAsset);
 
 // Populates the supplied body modifier names, control names and name records structures with the
-// names and sets that could be created for the supplied node, limb bones, skeleton and physics asset.
+// names and sets that would be created for the supplied limb bones, skeleton and physics asset.
 PHYSICSCONTROL_API void CollectOperatorNames(
-	const FAnimNode_RigidBodyWithControl*            Node, 
-	const FPhysicsControlCharacterSetupData&         CharacterSetupData,
+	const FPhysicsControlCharacterSetupData&           CharacterSetupData,
 	const FPhysicsControlAndBodyModifierCreationDatas& AdditionalControlsAndBodyModifiers,
-	TMap<FName, FPhysicsControlLimbBones>            AllLimbBones,
-	const FReferenceSkeleton&                        RefSkeleton, 
-	UPhysicsAsset*                                   PhysicsAsset, 
-	TSet<FName>&                                     BodyModifierNames, 
-	TSet<FName>&                                     ControlNames, 
-	FPhysicsControlNameRecords&                      NameRecords);
+	const TMap<FName, FPhysicsControlLimbBones>        AllLimbBones,
+	const FReferenceSkeleton&                          RefSkeleton, 
+	const UPhysicsAsset*                               PhysicsAsset, 
+	TSet<FName>&                                       BodyModifierNames, 
+	TSet<FName>&                                       ControlNames, 
+	FPhysicsControlNameRecords&                        NameRecords);
 
 // Creates the body modifiers, controls and sets for the supplied node, limb bones, skeleton and physics asset.
 PHYSICSCONTROL_API void CreateOperatorsForNode(
-	FAnimNode_RigidBodyWithControl*                  Node, 
-	const FPhysicsControlCharacterSetupData&         CharacterSetupData,
+	FAnimNode_RigidBodyWithControl*                    Node, 
+	const FPhysicsControlCharacterSetupData&           CharacterSetupData,
 	const FPhysicsControlAndBodyModifierCreationDatas& AdditionalControlsAndBodyModifiers,
-	TMap<FName, FPhysicsControlLimbBones>            AllLimbBones,
-	const FReferenceSkeleton&                        RefSkeleton, 
-	UPhysicsAsset*                                   PhysicsAsset, 
-	FPhysicsControlNameRecords&                      NameRecords);
+	const TMap<FName, FPhysicsControlLimbBones>        AllLimbBones,
+	const FReferenceSkeleton&                          RefSkeleton, 
+	const UPhysicsAsset*                               PhysicsAsset, 
+	FPhysicsControlNameRecords&                        NameRecords);
 
 // Adds the specified additional sets to the supplied Name Records structure.
 PHYSICSCONTROL_API void CreateAdditionalSets(
@@ -70,10 +69,32 @@ PHYSICSCONTROL_API void CreateAdditionalSets(
 
 // Adds the specified additional sets to the supplied Name Records structure.
 PHYSICSCONTROL_API void CreateAdditionalSets(
-	const FPhysicsControlSetUpdates&             AdditionalSets, 
-	const TMap<FName, FPhysicsBodyModifierRecord>&     BodyModifierRecords,
-	const TMap<FName, FPhysicsControlRecord>&    Controls,
-	FPhysicsControlNameRecords&                  NameRecords);
+	const FPhysicsControlSetUpdates&               AdditionalSets, 
+	const TMap<FName, FPhysicsBodyModifierRecord>& BodyModifierRecords,
+	const TMap<FName, FPhysicsControlRecord>&      Controls,
+	FPhysicsControlNameRecords&                    NameRecords);
+
+//======================================================================================================================
+// Helper for GetUniqueName
+inline bool DoesNameExist(const FName Name, const TArray<FName>& ExistingNames)
+{
+	return ExistingNames.Find(Name) != INDEX_NONE;
+}
+
+//======================================================================================================================
+// Helper for GetUniqueName
+template<typename T>
+bool DoesNameExist(const FName Name, const TMap<FName, T>& ExistingNames)
+{
+	return ExistingNames.Find(Name) != nullptr;
+}
+
+//======================================================================================================================
+// Helper for GetUniqueName
+inline bool DoesNameExist(const FName Name, const TSet<FName>& ExistingNames)
+{
+	return ExistingNames.Find(Name) != nullptr;
+}
 
 //======================================================================================================================
 template<typename CollectionType>
@@ -87,7 +108,7 @@ FName GetUniqueName(const FString& NameBase, const CollectionType& ExistingNames
 	for (int32 Index = 0; Index < MaxNameIndex; ++Index)
 	{
 		const FName Name(NameStr);
-		if (!ExistingNames.Find(Name))
+		if (!DoesNameExist(Name, ExistingNames))
 		{
 			return Name;
 		}

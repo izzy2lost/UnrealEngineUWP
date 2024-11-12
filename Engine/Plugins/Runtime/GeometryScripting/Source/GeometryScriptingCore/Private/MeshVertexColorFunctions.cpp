@@ -162,7 +162,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshVertexColorFunctions::SetMeshSelectionV
 				Colors->SetTriangle(TriangleID, TriVerts);
 			}
 		}
-		else if (Selection.GetSelectionType() == EGeometryScriptMeshSelectionType::Vertices)
+		else if (Selection.GetSelectionType() == EGeometryScriptMeshSelectionType::Vertices || Selection.GetSelectionType() == EGeometryScriptMeshSelectionType::Edges)
 		{
 			Selection.ProcessByVertexID(EditMesh, [&](int32 VertexID)
 			{
@@ -286,7 +286,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshVertexColorFunctions::GetMeshPerVertexC
 	{
 		TargetMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
 		{
-			Colors.Init(FLinearColor::Black, ReadMesh.MaxVertexID());
+			Colors.Init(FLinearColor::Transparent, ReadMesh.MaxVertexID());
 			bHasVertexIDGaps = ! ReadMesh.IsCompactV();
 
 			if (ReadMesh.HasAttributes() && ReadMesh.Attributes()->HasPrimaryColors() )

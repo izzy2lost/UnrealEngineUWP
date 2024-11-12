@@ -12,7 +12,11 @@ public class DynamicMaterial : ModuleRules
 			new string[]
 			{
 				"Core",
-				"CoreUObject"
+				"CoreUObject",
+				"DynamicMaterialTextureSet",
+				"Slate",
+				"SlateCore",
+				"UMG"
 			}
 		);
 
@@ -20,6 +24,8 @@ public class DynamicMaterial : ModuleRules
 			new string[]
 			{
 				"Engine",
+				"Json",
+				"JsonUtilities",
 				"RenderCore"
 			}
 		);
@@ -28,7 +34,6 @@ public class DynamicMaterial : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
-				"PropertyEditor",
 				"UnrealEd"
 			});
 		}

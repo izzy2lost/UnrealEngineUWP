@@ -2,8 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "VulkanCommon.h"
+#include "Containers/Array.h"
+#include "RHIPipeline.h"
+#include "VulkanMemory.h"
+#include "VulkanResources.h"
+#include "VulkanThirdParty.h"
 
 class FVulkanCmdBuffer;
 
@@ -201,9 +204,29 @@ public:
 		}
 	}
 
+	static bool IsPartialResource(const FVulkanTexture& VulkanTexture, const VkImageSubresourceRange& InSubresourceRange)
+	{
+		return (VulkanTexture.GetFullAspectMask() != InSubresourceRange.aspectMask) ||
+			(InSubresourceRange.baseArrayLayer != 0) ||
+			(InSubresourceRange.baseMipLevel != 0) ||
+			((InSubresourceRange.levelCount != VK_REMAINING_MIP_LEVELS) && (InSubresourceRange.levelCount != VulkanTexture.GetNumMips())) ||
+			((InSubresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS) && (InSubresourceRange.layerCount != VulkanTexture.GetNumberOfArrayLevels()));
+	}
+
 	VULKANRHI_API void SetLayout(const FVulkanTexture& VulkanTexture, const VkImageSubresourceRange& InSubresourceRange, VkImageLayout InLayout)
 	{
 		FVulkanImageLayout* Layout = Layouts.Find(VulkanTexture.Image);
+
+		// If we're not going to overwrite the entire resource, start from its last known state on the queue
+		if (!Layout && IsPartialResource(VulkanTexture, InSubresourceRange) && Fallback)
+		{
+			const FVulkanImageLayout* FallbackLayout = Fallback->GetFullLayout(VulkanTexture, false);
+			if (FallbackLayout)
+			{
+				Layout = &Layouts.Add(VulkanTexture.Image, *FallbackLayout);
+			}
+		}
+
 		if (Layout)
 		{
 			Layout->Set(InLayout, InSubresourceRange);

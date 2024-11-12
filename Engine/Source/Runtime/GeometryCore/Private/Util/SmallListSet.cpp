@@ -42,7 +42,62 @@ void FSmallListSet::AllocateAt(int32 ListIndex)
 	}
 }
 
+void FSmallListSet::Compact(int32 MaxListIndex)
+{
+	checkSlow(MaxListIndex >= 0);
+	int32 CurSize = (int32)ListHeads.GetLength();
+	if (MaxListIndex < CurSize)
+	{
+		// We just resize w/out book-keeping what we cleared, since we rebuild the blocks/etc below
+		ListHeads.Resize(MaxListIndex);
+	}
 
+	AllocatedCount = 0;
+	TDynamicVector<int32> NewBlocks{};
+	TDynamicVector<int32> NewLinkedListElements{};
+	for (int32 Idx = 0, Num = (int32)ListHeads.GetLength(), CurBlockIdx = 0; Idx < Num; ++Idx, CurBlockIdx += BLOCK_LIST_OFFSET + 1)
+	{
+		int32 OrigHead = ListHeads[Idx];
+		if (OrigHead == NullValue)
+		{
+			continue;
+		}
+		AllocatedCount++;
+		ListHeads[Idx] = CurBlockIdx;
+		NewBlocks.InsertAt(NullValue, CurBlockIdx + BLOCK_LIST_OFFSET);
+		for (int32 SubIdx = 0; SubIdx < BLOCK_LIST_OFFSET; ++SubIdx)
+		{
+			NewBlocks[CurBlockIdx + SubIdx] = ListBlocks[OrigHead + SubIdx];
+		}
+		
+		int32 OrigLinkStart = ListBlocks[OrigHead + BLOCK_LIST_OFFSET];
+		if (OrigLinkStart == NullValue)
+		{
+			NewBlocks[CurBlockIdx + BLOCK_LIST_OFFSET] = NullValue;
+		}
+		else
+		{
+			int32 CurPtr = OrigLinkStart;
+			NewBlocks[CurBlockIdx + BLOCK_LIST_OFFSET] = NewLinkedListElements.GetLength();
+			while (true)
+			{
+				NewLinkedListElements.Add(LinkedListElements[CurPtr]);
+				CurPtr = LinkedListElements[CurPtr + 1];
+				if (CurPtr == NullValue)
+				{
+					break;
+				}
+				NewLinkedListElements.Add(NewLinkedListElements.GetLength() + 1);
+			}
+			NewLinkedListElements.Add(NullValue);
+		}
+	}
+
+	ListBlocks = MoveTemp(NewBlocks);
+	LinkedListElements = MoveTemp(NewLinkedListElements);
+	FreeHeadIndex = NullValue;
+	FreeBlocks.Clear();
+}
 
 
 void FSmallListSet::Insert(int32 ListIndex, int32 Value)
@@ -235,139 +290,18 @@ bool FSmallListSet::Contains(int32 ListIndex, int32 Value) const
 
 
 
-int32 FSmallListSet::Find(int32 ListIndex, const TFunction<bool(int32)>& PredicateFunc, int32 InvalidValue) const
-{
-	int32 block_ptr = ListHeads[ListIndex];
-	if (block_ptr != NullValue)
-	{
-		int32 N = ListBlocks[block_ptr];
-		if (N < BLOCKSIZE)
-		{
-			int32 iEnd = block_ptr + N;
-			for (int32 i = block_ptr + 1; i <= iEnd; ++i)
-			{
-				int32 Value = ListBlocks[i];
-				if (PredicateFunc(Value))
-				{
-					return Value;
-				}
-			}
-		}
-		else
-		{
-			// we spilled to linked list, have to iterate through it as well
-			int32 iEnd = block_ptr + BLOCKSIZE;
-			for (int32 i = block_ptr + 1; i <= iEnd; ++i)
-			{
-				int32 Value = ListBlocks[i];
-				if (PredicateFunc(Value))
-				{
-					return Value;
-				}
-			}
-			int32 cur_ptr = ListBlocks[block_ptr + BLOCK_LIST_OFFSET];
-			while (cur_ptr != NullValue)
-			{
-				int32 Value = LinkedListElements[cur_ptr];
-				if (PredicateFunc(Value))
-				{
-					return Value;
-				}
-				cur_ptr = LinkedListElements[cur_ptr + 1];
-			}
-		}
-	}
-	return InvalidValue;
-}
 
 
 
 
 
 
-bool FSmallListSet::Replace(int32 ListIndex, const TFunction<bool(int32)>& PredicateFunc, int32 NewValue)
-{
-	int32 block_ptr = ListHeads[ListIndex];
-	if (block_ptr != NullValue)
-	{
-		int32 N = ListBlocks[block_ptr];
-		if (N < BLOCKSIZE)
-		{
-			int32 iEnd = block_ptr + N;
-			for (int32 i = block_ptr + 1; i <= iEnd; ++i)
-			{
-				int32 Value = ListBlocks[i];
-				if (PredicateFunc(Value))
-				{
-					ListBlocks[i] = NewValue;
-					return true;
-				}
-			}
-		}
-		else
-		{
-			// we spilled to linked list, have to iterate through it as well
-			int32 iEnd = block_ptr + BLOCKSIZE;
-			for (int32 i = block_ptr + 1; i <= iEnd; ++i)
-			{
-				int32 Value = ListBlocks[i];
-				if (PredicateFunc(Value))
-				{
-					ListBlocks[i] = NewValue;
-					return true;
-				}
-			}
-			int32 cur_ptr = ListBlocks[block_ptr + BLOCK_LIST_OFFSET];
-			while (cur_ptr != NullValue)
-			{
-				int32 Value = LinkedListElements[cur_ptr];
-				if (PredicateFunc(Value))
-				{
-					LinkedListElements[cur_ptr] = NewValue;
-					return true;
-				}
-				cur_ptr = LinkedListElements[cur_ptr + 1];
-			}
-		}
-	}
-	return false;
-}
 
 
 
 
 
-void FSmallListSet::Enumerate(int32 ListIndex, TFunctionRef<void(int32)> ApplyFunc) const
-{
-	int32 block_ptr = ListHeads[ListIndex];
-	if (block_ptr != NullValue)
-	{
-		int32 N = ListBlocks[block_ptr];
-		if (N < BLOCKSIZE)
-		{
-			int32 iEnd = block_ptr + N;
-			for (int32 i = block_ptr + 1; i <= iEnd; ++i)
-			{
-				ApplyFunc(ListBlocks[i]);
-			}
-		}
-		else
-		{
-			// we spilled to linked list, have to iterate through it as well
-			int32 iEnd = block_ptr + BLOCKSIZE;
-			for (int32 i = block_ptr + 1; i <= iEnd; ++i)
-			{
-				ApplyFunc(ListBlocks[i]);
-			}
-			int32 cur_ptr = ListBlocks[block_ptr + BLOCK_LIST_OFFSET];
-			while (cur_ptr != NullValue)
-			{
-				ApplyFunc(LinkedListElements[cur_ptr]);
-				cur_ptr = LinkedListElements[cur_ptr + 1];
-			}
-		}
-	}
-}
+
 
 bool FSmallListSet::EnumerateEarlyOut(int32 ListIndex, TFunctionRef<bool(int32)> ApplyFunc) const
 {

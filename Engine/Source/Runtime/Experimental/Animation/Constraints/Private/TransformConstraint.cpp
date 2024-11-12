@@ -211,6 +211,13 @@ static FAutoConsoleVariableRef CVarPreTickChild(
 	TEXT("Force child ticking before constraint computation.")
 	);
 
+static bool	bForceChildDependency = false;
+static FAutoConsoleVariableRef CVarForceChildDependency(
+	TEXT("Constraints.ForceChildDependency"),
+	bForceChildDependency,
+	TEXT("Force child dependency on the current constraint.")
+	);
+	
 void PreEvaluateHandle(const TObjectPtr<UTransformableHandle>& InHandle) 
 {
 	if ((bPreEvaluateChild || bPreTickChild) && ::IsValid(InHandle))
@@ -253,6 +260,44 @@ FString GetHandleLabel(const UTransformableHandle* InHandle)
 #else
 	return InHandle->GetName();
 #endif		
+}
+
+void LogDependency( const FString& InDescription, const UTransformableHandle* InParentHandle, const UTransformableHandle* InChildHandle,
+					const UTickableConstraint* InParentConstraint, const UTickableConstraint* InChildConstraint)
+{
+	if (!bDebugDependencies)
+	{
+		return;
+	}
+	
+	if (!InParentHandle || !InChildHandle || !InParentConstraint || !InChildConstraint)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("%s: '%s' is parent of '%s' so '%s' must tick before '%s'"),
+		*InDescription,
+		*GetHandleLabel(InParentHandle), *GetHandleLabel(InChildHandle),
+		*GetConstraintLabel(InParentConstraint), *GetConstraintLabel(InChildConstraint));
+}
+
+void LogAttachmentDependency( const FString& InDescription, const UTransformableHandle* InAttachHandle, const UTransformableHandle* InChildHandle,
+								const UTickableConstraint* InAttachConstraint, const UTickableConstraint* InChildConstraint)
+{
+	if (!bDebugDependencies)
+	{
+		return;
+	}
+	
+	if (!InAttachHandle || !InChildHandle || !InAttachConstraint || !InChildConstraint)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("%s: '%s' is an attach parent of '%s' so '%s' must tick before '%s'"),
+		*InDescription,
+		*GetHandleLabel(InAttachHandle), *GetHandleLabel(InChildHandle),
+		*GetConstraintLabel(InAttachConstraint), *GetConstraintLabel(InChildConstraint));
 }
 	
 }
@@ -436,7 +481,7 @@ void UTickableTransformConstraint::Setup()
 
 }
 
-void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
+void UTickableTransformConstraint::SetupDependencies(const UWorld* InWorld)
 {
 	//we may not be the outer for old files so move it over
 	if (ParentTRSHandle)
@@ -444,7 +489,7 @@ void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 		UTickableTransformConstraint* PTRS = ParentTRSHandle->GetTypedOuter<UTickableTransformConstraint>();
 		if(PTRS != this)
 		{
-			ParentTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			ParentTRSHandle->Rename(nullptr, this, REN_DontCreateRedirectors);
 		}
 	}
 	if (ChildTRSHandle)
@@ -452,8 +497,13 @@ void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 		UTickableTransformConstraint* CTRS = ChildTRSHandle->GetTypedOuter<UTickableTransformConstraint>();
 		if (CTRS != this)
 		{
-			ChildTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+			ChildTRSHandle->Rename(nullptr, this, REN_DontCreateRedirectors);
 		}
+	}
+
+	if (!ensure(InWorld))
+	{
+		return;
 	}
 	
 	FTickFunction* ParentTickFunction = GetParentHandleTickFunction();
@@ -472,7 +522,7 @@ void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 	if (ChildTickFunction)
 	{
 		USkeletalMeshComponent* ChildOwner = Cast<USkeletalMeshComponent>(ChildTRSHandle->GetTarget().Get());
-		if (ChildOwner == nullptr)
+		if (ChildOwner == nullptr || ConstraintLocals::bForceChildDependency)
 		{
 			// force InChild to tick after ConstraintTickFunction does.
 			// Note that this might not register anything if the child can't tick (static meshes for instance)
@@ -483,8 +533,13 @@ void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 	}
 }
 
-void UTickableTransformConstraint::EnsurePrimaryDependency(UWorld* InWorld)
+void UTickableTransformConstraint::EnsurePrimaryDependency(const UWorld* InWorld) const
 {
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+	
 	const FTickFunction* ParentTickFunction = GetParentHandleTickFunction();
 	const FTickFunction* ChildTickFunction = GetChildHandleTickFunction();
 	if (ParentTickFunction && (ChildTickFunction != ParentTickFunction))
@@ -558,39 +613,29 @@ bool UTickableTransformConstraint::HasBoundObjects() const
 	return false;
 }
 
-void UTickableTransformConstraint::ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject)
+void UTickableTransformConstraint::ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject)
 {
 	// update dependencies if the constraint becomes valid once resolved 
 	FConstraintDependencyScope Scope(this);
 	
 	if (ChildTRSHandle && ChildTRSHandle->HasBoundObjects())
 	{
-		ChildTRSHandle->ResolveBoundObjects(LocalSequenceID, Player, SubObject);
+		ChildTRSHandle->ResolveBoundObjects(LocalSequenceID, SharedPlaybackState, SubObject);
 	}
 	if (ParentTRSHandle && ParentTRSHandle->HasBoundObjects())
 	{
-		ParentTRSHandle->ResolveBoundObjects(LocalSequenceID, Player, SubObject);
+		ParentTRSHandle->ResolveBoundObjects(LocalSequenceID, SharedPlaybackState, SubObject);
 	}
 }
 
 void UTickableTransformConstraint::Evaluate(bool bTickHandlesAlso) const
 {
-	if (bTickHandlesAlso)
+	if (IsFullyActive())
 	{
-		if (ParentTRSHandle)
+		if (bTickHandlesAlso)
 		{
 			ParentTRSHandle->TickTarget();
 		}
-
-		Super::Evaluate();
-		//todo test this more may be able to remove it
-		if (ChildTRSHandle)
-		{
-			ChildTRSHandle->TickTarget();
-		}
-	}
-	else
-	{
 		Super::Evaluate();
 	}
 }
@@ -780,6 +825,11 @@ FTickFunction* UTickableTransformConstraint::GetHandleTickFunction(const TObject
 
 void UTickableTransformConstraint::InitConstraint(UWorld *InWorld)
 {
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+	
 	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
 
 	if (ConstraintTick.ConstraintFunctions.IsEmpty())
@@ -795,6 +845,11 @@ void UTickableTransformConstraint::InitConstraint(UWorld *InWorld)
 
 void UTickableTransformConstraint::TeardownConstraint(UWorld* InWorld)
 {
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+	
 	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
 	ConstraintTick.SetTickFunctionEnable(false);
 	ConstraintTick.UnRegisterTickFunction();
@@ -1894,6 +1949,7 @@ bool FTransformConstraintUtils::AddConstraint(
 bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTransformConstraint* InConstraint)
 {
 	using namespace ConstraintLocals;
+	using ConstraintWeakPtr = TWeakObjectPtr<UTickableConstraint>;
 	
 	if (!ensure(InWorld))
 	{
@@ -1915,7 +1971,7 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 	
  	// get previous child constraints
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
-	TArray<TWeakObjectPtr<UTickableConstraint>> ChildParentConstraints = Controller.GetParentConstraints(ChildHandle->GetHash(), true);
+	TArray<ConstraintWeakPtr> ChildParentConstraints = Controller.GetParentConstraints(ChildHandle->GetHash(), true);
 	ChildParentConstraints.Remove(InConstraint);
 
 	// add dependencies with the last child constraint
@@ -1924,7 +1980,7 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 		const FGuid LastChildConstraintID = ChildParentConstraints.Last()->ConstraintID;
 		if (bDebugDependencies)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("DEPENDENCY 0: tick after last constraint."));
+			UE_LOG(LogTemp, Warning, TEXT("Order Dependency: tick after last constraint."));
 		}
 		Controller.SetConstraintsDependencies(LastChildConstraintID, InConstraint->ConstraintID);
 	}
@@ -1936,10 +1992,11 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 	// internal dependencies?
 	if (bSelf && bIncludeTarget)
 	{
+		static const TCHAR* SelfDependencyDesc = TEXT("Self Dependency");
+		
 		const UObject* SelfTarget = ChildTarget;
 		
-		using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
-		auto Predicate = [InConstraint, SelfTarget](const ConstraintPtr& Constraint)
+		auto SelfTargetPredicate = [InConstraint, SelfTarget](const ConstraintWeakPtr& Constraint)
 		{
 			const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(Constraint.Get());
 			if (!TransformConstraint || TransformConstraint == InConstraint)
@@ -1951,8 +2008,8 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 			return ParentTarget == SelfTarget && ChildTarget == SelfTarget;
 		};
 
-		const TArray< TWeakObjectPtr<UTickableConstraint> > SelfConstraints = Controller.GetConstraintsByPredicate(Predicate);
-		for (const ConstraintPtr& SelfConstraint: SelfConstraints)
+		const TArray< ConstraintWeakPtr > SelfConstraints = Controller.GetConstraintsByPredicate(SelfTargetPredicate);
+		for (const ConstraintWeakPtr& SelfConstraint: SelfConstraints)
 		{
 			const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(SelfConstraint);
 
@@ -1960,48 +2017,24 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 			if (ParentHandle->HasDirectDependencyWith(*TransformConstraint->ChildTRSHandle))
 			{
 				Controller.SetConstraintsDependencies(TransformConstraint->ConstraintID, InConstraint->ConstraintID);
-
-				if (bDebugDependencies)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("DEPENDENCY 1: %s is parent of %s so %s must tick before %s"),
-					   *GetHandleLabel(TransformConstraint->ChildTRSHandle), *GetHandleLabel(ParentHandle),
-					   *GetConstraintLabel(TransformConstraint), *GetConstraintLabel(InConstraint));
-				}
+				LogDependency(SelfDependencyDesc, TransformConstraint->ChildTRSHandle, ParentHandle, TransformConstraint, InConstraint);
 			}
 			else if (ChildHandle->HasDirectDependencyWith(*TransformConstraint->ChildTRSHandle))
 			{
 				Controller.SetConstraintsDependencies(TransformConstraint->ConstraintID, InConstraint->ConstraintID);
-
-				if (bDebugDependencies)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("DEPENDENCY 1: %s is parent of %s so %s must tick before %s"),
-					   *GetHandleLabel(TransformConstraint->ChildTRSHandle), *GetHandleLabel(ChildHandle),
-					   *GetConstraintLabel(TransformConstraint), *GetConstraintLabel(InConstraint));
-				}
+				LogDependency(SelfDependencyDesc, TransformConstraint->ChildTRSHandle, ChildHandle, TransformConstraint, InConstraint);
 			}
 
 			// if the TransformConstraint handles depend on the new constraint child then, TransformConstraint should tick after
 			if (TransformConstraint->ParentTRSHandle->HasDirectDependencyWith(*ChildHandle))
 			{
 			 	Controller.SetConstraintsDependencies(InConstraint->ConstraintID, TransformConstraint->ConstraintID);
-
-				if (bDebugDependencies)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("DEPENDENCY 1: %s is parent of %s so %s must tick before %s"),
-					   *GetHandleLabel(ChildHandle), *GetHandleLabel(TransformConstraint->ParentTRSHandle),
-					   *GetConstraintLabel(InConstraint), *GetConstraintLabel(TransformConstraint));
-				}
+				LogDependency(SelfDependencyDesc, ChildHandle, TransformConstraint->ParentTRSHandle, InConstraint, TransformConstraint);
 			}
 			else if (TransformConstraint->ChildTRSHandle->HasDirectDependencyWith(*ChildHandle))
 			{
 				Controller.SetConstraintsDependencies(InConstraint->ConstraintID, TransformConstraint->ConstraintID);
-
-				if (bDebugDependencies)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("DEPENDENCY 1: %s is parent of %s so %s must tick before %s"),
-					   *GetHandleLabel(ChildHandle), *GetHandleLabel(TransformConstraint->ChildTRSHandle),
-					   *GetConstraintLabel(InConstraint), *GetConstraintLabel(TransformConstraint) );
-				}
+				LogDependency(SelfDependencyDesc, ChildHandle, TransformConstraint->ChildTRSHandle, InConstraint, TransformConstraint);
 			}
 		}
 	}
@@ -2010,18 +2043,112 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 	InConstraint->EnsurePrimaryDependency(InWorld);
 
 	// if child handle is the parent of some other constraints, ensure they will tick after that new one
-	TArray<TWeakObjectPtr<UTickableConstraint>> ChildChildConstraints;
+	static const TCHAR* ChildDependencyDesc = TEXT("Child Dependency");
+
+	TArray<ConstraintWeakPtr> ChildChildConstraints;
 	GetChildrenConstraints(InWorld, InConstraint, ChildChildConstraints, bIncludeTarget && !bSelf);
-	for (const TWeakObjectPtr<UTickableConstraint>& ChildConstraint: ChildChildConstraints)
+	for (const ConstraintWeakPtr& ChildConstraint: ChildChildConstraints)
 	{
 		Controller.SetConstraintsDependencies(InConstraint->ConstraintID, ChildConstraint->ConstraintID);
-
-		if (bDebugDependencies)
+		if (const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ChildConstraint))
 		{
-			const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ChildConstraint);
-			UE_LOG(LogTemp, Warning, TEXT("DEPENDENCY 2: %s is parent of %s so %s must tick before %s"),
-				*GetHandleLabel(ChildHandle), *GetHandleLabel(TransformConstraint->ChildTRSHandle),
-				*GetConstraintLabel(InConstraint), *GetConstraintLabel(TransformConstraint));
+			LogDependency(ChildDependencyDesc, ChildHandle, TransformConstraint->ChildTRSHandle, InConstraint, TransformConstraint);
+		}
+	}
+
+	// build dependencies regarding attachments
+	BuildAttachmentsDependencies(InWorld, InConstraint);
+
+	if (bIncludeTarget && !bSelf)
+	{
+		// get all constraints acting on the same target 
+		auto SameChildTargetPredicate = [ChildTarget](const ConstraintWeakPtr& Constraint)
+		{
+			const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(Constraint.Get());
+			if (!TransformConstraint)
+			{
+				return false;
+			}
+			const UObject* OtherChildTarget = GetHandleTarget(TransformConstraint->ChildTRSHandle);
+			return OtherChildTarget && OtherChildTarget == ChildTarget;
+		};
+		TArray< ConstraintWeakPtr > ChildTargetParentConstraints = Controller.GetConstraintsByPredicate(SameChildTargetPredicate);
+
+		// store constraint index in this array
+		const int32 ConstrainIndex = ChildTargetParentConstraints.IndexOfByKey(InConstraint);
+		if (ensure(ChildTargetParentConstraints.IsValidIndex(ConstrainIndex)))
+		{
+			ChildTargetParentConstraints.RemoveAt(ConstrainIndex);
+		}
+		
+		if (!ChildTargetParentConstraints.IsEmpty())
+		{
+			static const TCHAR* ExternalDependencyDesc = TEXT("External Dependency");
+			
+			TBitArray<> ManagedDependencies(false, ChildTargetParentConstraints.Num());
+			
+			const FConstraintTickFunction& TickFunction = InConstraint->GetTickFunction(InWorld);
+			const TArray<FTickPrerequisite> PrerexCopy = TickFunction.GetPrerequisites();
+
+			for (int32 Index = 0; Index < ChildTargetParentConstraints.Num(); ++Index)
+			{
+				const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ChildTargetParentConstraints[Index]);
+				
+				// if the new handles depend on that constraint child then, TransformConstraint should tick before
+				if (ParentHandle->HasDirectDependencyWith(*TransformConstraint->ChildTRSHandle))
+				{
+					Controller.SetConstraintsDependencies(TransformConstraint->ConstraintID, InConstraint->ConstraintID);
+					ManagedDependencies[Index] = true;
+					LogDependency(ExternalDependencyDesc, TransformConstraint->ChildTRSHandle, ParentHandle, TransformConstraint, InConstraint);
+				}
+				else if (ChildHandle->HasDirectDependencyWith(*TransformConstraint->ChildTRSHandle))
+				{
+					Controller.SetConstraintsDependencies(TransformConstraint->ConstraintID, InConstraint->ConstraintID);
+					ManagedDependencies[Index] = true;
+					LogDependency(ExternalDependencyDesc, TransformConstraint->ChildTRSHandle, ChildHandle, TransformConstraint, InConstraint);
+				}
+
+				// if the TransformConstraint handles depend on the new constraint child then, TransformConstraint should tick after
+				if (TransformConstraint->ParentTRSHandle->HasDirectDependencyWith(*ChildHandle))
+				{
+					Controller.SetConstraintsDependencies(InConstraint->ConstraintID, TransformConstraint->ConstraintID);
+					ManagedDependencies[Index] = true;
+					LogDependency(ExternalDependencyDesc, ChildHandle, TransformConstraint->ParentTRSHandle, InConstraint, TransformConstraint);
+				}
+				else if (TransformConstraint->ChildTRSHandle->HasDirectDependencyWith(*ChildHandle))
+				{
+					Controller.SetConstraintsDependencies(InConstraint->ConstraintID, TransformConstraint->ConstraintID);
+					ManagedDependencies[Index] = true;
+					LogDependency(ExternalDependencyDesc, ChildHandle, TransformConstraint->ChildTRSHandle, InConstraint, TransformConstraint);
+				}
+			}
+
+			// if we didn't add any new prerequisite then check whether the constraint should tick after the last constraint
+			// acting on the same target to respect order of creation.
+			const bool bPrerexChanged = TickFunction.GetPrerequisites() != PrerexCopy;
+			if (!bPrerexChanged && ManagedDependencies.IsValidIndex(ConstrainIndex-1))
+			{
+				for (int32 Index = ConstrainIndex-1; Index >= 0; Index--)
+				{
+					if (!ManagedDependencies[Index])
+					{
+						const UTickableTransformConstraint* LastConstraintSharingSameTarget = Cast<UTickableTransformConstraint>(ChildTargetParentConstraints[Index]);
+						TSet<const FTickFunction*> VisitedFunctions;
+						const FTickFunction& ParentTickFunctionToCheck = LastConstraintSharingSameTarget->GetTickFunction(InWorld);
+						if (!FConstraintCycleChecker::HasPrerequisiteDependencyWith(&TickFunction, &ParentTickFunctionToCheck, VisitedFunctions) &&
+							!FConstraintCycleChecker::HasPrerequisiteDependencyWith(&ParentTickFunctionToCheck, &TickFunction, VisitedFunctions))
+						{
+							Controller.SetConstraintsDependencies(LastConstraintSharingSameTarget->ConstraintID, InConstraint->ConstraintID);
+							if (bDebugDependencies)
+							{
+								UE_LOG(LogTemp, Warning, TEXT("Creation Order Dependency: '%s' must tick before '%s' to respect creation order."),
+								   *GetConstraintLabel(LastConstraintSharingSameTarget), *GetConstraintLabel(InConstraint));
+							}
+							break;
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -2035,6 +2162,63 @@ bool FTransformConstraintUtils::BuildDependencies(UWorld* InWorld, UTickableTran
 	Controller.InvalidateEvaluationGraph();
 	
 	return true;
+}
+
+void FTransformConstraintUtils::BuildAttachmentsDependencies(UWorld* InWorld, const UTickableTransformConstraint* InConstraint)
+{
+	using namespace ConstraintLocals;
+	using ConstraintWeakPtr = TWeakObjectPtr<UTickableConstraint>;
+	
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+
+	if (!InConstraint || !InConstraint->IsValid())
+	{
+		return;
+	}
+
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
+	
+	static const TCHAR* AttachmentDependencyDesc = TEXT("Attachment Dependency");
+	
+	const UTransformableHandle* ChildHandle = InConstraint->ChildTRSHandle.Get();
+	if (const USceneComponent* ChildComponent = Cast<USceneComponent>(ChildHandle->GetTarget().Get()))
+	{
+		static constexpr bool bIncludeAllDescendants = true;
+		
+		TArray<USceneComponent*> ChildComponentChildren;
+		ChildComponent->GetChildrenComponents(bIncludeAllDescendants, ChildComponentChildren);
+		
+		for (USceneComponent* ChildChildComponent: ChildComponentChildren)
+		{
+			const uint32 ChildHash = GetConstrainableHash(ChildChildComponent);
+			if (ChildHash != 0)
+			{
+				auto IsHashChildOfConstraint = [ChildHash](const ConstraintWeakPtr& Constraint)
+				{
+					const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(Constraint.Get());
+					const UTransformableHandle* ChildHandle = TransformConstraint ? TransformConstraint->ChildTRSHandle.Get() : nullptr;
+					if (!ChildHandle || !ChildHandle->IsValid())
+					{
+						return false;
+					}
+					return ChildHandle->GetHash() == ChildHash;
+				};
+				
+				const TArray< ConstraintWeakPtr > AttachChildConstraints = Controller.GetConstraintsByPredicate(IsHashChildOfConstraint);
+				for (const ConstraintWeakPtr& AttachChildConstraint: AttachChildConstraints)
+				{
+					Controller.SetConstraintsDependencies(InConstraint->ConstraintID, AttachChildConstraint->ConstraintID);
+					if (const UTickableTransformConstraint* AttachTransformConstraint = Cast<UTickableTransformConstraint>(AttachChildConstraint))
+					{
+						LogAttachmentDependency(AttachmentDependencyDesc, ChildHandle, AttachTransformConstraint->ChildTRSHandle,  InConstraint, AttachTransformConstraint);
+					}
+				}
+			}
+		}
+	}
 }
 
 void FTransformConstraintUtils::UpdateTransformBasedOnConstraint(FTransform& CurrentTransform, USceneComponent* SceneComponent)

@@ -48,7 +48,7 @@ struct FMovieSceneBoolChannel : public FMovieSceneChannel
 	 */
 	virtual FORCEINLINE TMovieSceneChannelData<bool> GetData()
 	{
-		return TMovieSceneChannelData<bool>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<bool>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**

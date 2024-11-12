@@ -3,8 +3,13 @@
 #pragma once
 
 #if WITH_EDITOR
+#include "GameFramework/Actor.h"
 #include "TickableEditorObject.h"
 #include "UObject/Package.h"
+#include "UObject/WeakObjectPtr.h"
+#include "Editor.h"
+
+class ULevel;
 
 /**
  * TExternalDirtyActorsTracker is a tracker for dirty external actors, with custom storage through the StoreType interface.
@@ -22,12 +27,14 @@ public:
 	{
 		UPackage::PackageDirtyStateChangedEvent.AddRaw(this, &TExternalDirtyActorsTracker::OnPackageDirtyStateChanged);
 		FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &TExternalDirtyActorsTracker::OnObjectsReplaced);
+		FEditorDelegates::OnEditorActorReplaced.AddRaw(this, &TExternalDirtyActorsTracker::OnEditorActorReplaced);
 	}
 
 	~TExternalDirtyActorsTracker()
 	{
 		UPackage::PackageDirtyStateChangedEvent.RemoveAll(this);
 		FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+		FEditorDelegates::OnEditorActorReplaced.RemoveAll(this);
 	}
 
 	const MapType& GetDirtyActors() const { return DirtyActors; }
@@ -81,14 +88,19 @@ protected:
 			{
 				if (AActor* NewActor = Cast<AActor>(NewObject))
 				{
-					for (auto& [WeakActor, Value] : DirtyActors)
-					{
-						if (WeakActor.IsValid() && WeakActor.Get() == OldActor)
-						{
-							WeakActor = NewActor;
-						}
-					}
+					OnEditorActorReplaced(OldActor, NewActor);
 				}
+			}
+		}
+	}
+
+	void OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor)
+	{
+		for (auto& [WeakActor, Value] : DirtyActors)
+		{
+			if (WeakActor.IsValid() && WeakActor.Get() == InOldActor)
+			{
+				WeakActor = InNewActor;
 			}
 		}
 	}

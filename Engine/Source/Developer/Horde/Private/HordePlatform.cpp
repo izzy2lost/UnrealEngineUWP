@@ -41,12 +41,20 @@
 
 void FHordePlatform::NotImplemented()
 {
+#if PLATFORM_EXCEPTIONS_DISABLED
+	abort();
+#else
 	throw std::string("Not Implemented");
+#endif
 }
 
 void FHordePlatform::NotSupported(const char* Message)
 {
+#if PLATFORM_EXCEPTIONS_DISABLED
+	abort();
+#else
 	throw std::string(Message);
+#endif
 }
 
 bool FHordePlatform::GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen)
@@ -76,7 +84,7 @@ void FHordePlatform::CreateUniqueIdentifier(char* NameBuffer, size_t NameBufferL
 #else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	snprintf(NameBuffer, NameBufferLen, "%u%zu%zu_%d", getpid(), (size_t)ts.tv_sec, (size_t)ts.tv_nsec, FPlatformAtomics::InterlockedIncrement(&Counter));
+	snprintf(NameBuffer, NameBufferLen, "%u%zu%zu_%d", getpid(), (size_t)(ts.tv_sec%100000), (size_t)ts.tv_nsec, FPlatformAtomics::InterlockedIncrement(&Counter));
 #endif
 }
 

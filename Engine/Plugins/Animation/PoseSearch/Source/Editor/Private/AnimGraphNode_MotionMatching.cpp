@@ -1,8 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimGraphNode_MotionMatching.h"
+
+#include "DetailCategoryBuilder.h"
+#include "DetailLayoutBuilder.h"
 #include "Animation/AnimRootMotionProvider.h"
 #include "FindInBlueprintManager.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
 
 #define LOCTEXT_NAMESPACE "AnimGraphNode_MotionMatching"
 
@@ -19,18 +25,14 @@ FText UAnimGraphNode_MotionMatching::GetTooltipText() const
 
 FText UAnimGraphNode_MotionMatching::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("NodeTitle", "Motion Matching");
+	FText Title = LOCTEXT("NodeTitle", "Motion Matching");
+	AddSyncGroupToNodeTitle(TitleType, Title);
+	return Title;
 }
 
 FText UAnimGraphNode_MotionMatching::GetMenuCategory() const
 {
 	return LOCTEXT("NodeCategory", "Pose Search");
-}
-
-void UAnimGraphNode_MotionMatching::BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog)
-{
-	UAnimBlueprint* AnimBlueprint = GetAnimBlueprint();
-	AnimBlueprint->FindOrAddGroup(Node.GetGroupName());
 }
 
 UScriptStruct* UAnimGraphNode_MotionMatching::GetTimePropertyStruct() const
@@ -63,6 +65,40 @@ void UAnimGraphNode_MotionMatching::PostEditChangeProperty(FPropertyChangedEvent
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UAnimGraphNode_MotionMatching::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	Super::CustomizeDetails(DetailBuilder);
+	DetailBuilder.EditCategory("Sync").SetToolTip(LOCTEXT("CategoryToolTip", "Motion Matching is intended to only act as a leader in a sync group. Internally, only the most recent blend stack sample will have sync information for other asset players to follow and the rest of blend stack samples will tick without syncing."));
+	
+	auto HeaderContentWidget = SNew(SHorizontalBox)
+	+ SHorizontalBox::Slot()
+	.AutoWidth()
+	.HAlign(HAlign_Center)
+	.Padding(4.0f, 4.0f)
+	.VAlign(VAlign_Center)
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("SyncTextLabel", "Sync"))
+		.Font(IDetailLayoutBuilder::GetDetailFontBold())
+		.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
+	]
+	
+	+ SHorizontalBox::Slot()
+	.AutoWidth()
+	.HAlign(HAlign_Left)
+	.VAlign(VAlign_Center)
+	[
+		SNew(SImage)
+		.DesiredSizeOverride(FVector2D(13.f, 13.f))
+		.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+		.Image(FAppStyle::Get().GetBrush("Icons.Info"))
+		.ToolTipText(LOCTEXT("SyncCategoryToolTip", "Motion Matching is intended to only act as a leader in a sync group. Internally, only the most recent blend stack sample will have sync information for other asset players to follow and the rest of blend stack samples will tick without syncing."))
+	];
+	
+	DetailBuilder.EditCategory("Sync").HeaderContent(HeaderContentWidget, true);
+	DetailBuilder.EditCategory("Sync").SetSortOrder(0);
 }
 
 void UAnimGraphNode_MotionMatching::AddSearchMetaDataInfo(TArray<struct FSearchTagDataPair>& OutTaggedMetaData) const

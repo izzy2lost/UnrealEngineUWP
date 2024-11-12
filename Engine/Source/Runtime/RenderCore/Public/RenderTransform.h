@@ -87,6 +87,18 @@ public:
 	FORCEINLINE FMatrix44f ToMatrix44f() const
 	{
 		FMatrix44f Matrix;
+	#if PLATFORM_ENABLE_VECTORINTRINSICS
+		VectorRegister4Float Row0 = VectorSet_W0(VectorLoad(&TransformRows[0].X)); // Intentionally loads W from the next row (then set to 0)
+		VectorRegister4Float Row1 = VectorSet_W0(VectorLoad(&TransformRows[1].X)); // Intentionally loads W from the next row (then set to 0)
+		VectorRegister4Float Row2 = VectorSet_W0(VectorLoad(&TransformRows[2].X)); // Intentionally loads W from the next row (then set to 0)
+		VectorRegister4Float Row3 = MakeVectorRegisterFloat(Origin.X, Origin.Y, Origin.Z, 1.0f); // Do not read past Origin
+
+		float* RESTRICT Dest = &Matrix.M[0][0];
+		VectorStore(Row0, &Dest[0]);
+		VectorStore(Row1, &Dest[4]);
+		VectorStore(Row2, &Dest[8]);
+		VectorStore(Row3, &Dest[12]);
+	#else
 		Matrix.M[0][0] = TransformRows[0].X;
 		Matrix.M[0][1] = TransformRows[0].Y;
 		Matrix.M[0][2] = TransformRows[0].Z;
@@ -103,6 +115,7 @@ public:
 		Matrix.M[3][1] = Origin.Y;
 		Matrix.M[3][2] = Origin.Z;
 		Matrix.M[3][3] = 1.0f;
+	#endif
 		return Matrix;
 	}
 
@@ -115,6 +128,25 @@ public:
 	{
 		float* RESTRICT Dest = Result;
 
+	#if PLATFORM_ENABLE_VECTORINTRINSICS
+		VectorRegister4Float InRow0 = VectorLoad(&TransformRows[0].X); // Intentionally loads W from the next row (discarded)
+		VectorRegister4Float InRow1 = VectorLoad(&TransformRows[1].X); // Intentionally loads W from the next row (discarded)
+		VectorRegister4Float InRow2 = VectorLoad(&TransformRows[2].X); // Intentionally loads W from the next row (discarded)
+		VectorRegister4Float InRow3 = MakeVectorRegisterFloat(Origin.X, Origin.Y, Origin.Z, 0.0f); // Do not read past Origin
+
+		VectorRegister4Float Temp0 = VectorCombineLow( InRow0, InRow1);
+		VectorRegister4Float Temp1 = VectorCombineLow( InRow2, InRow3);
+		VectorRegister4Float Temp2 = VectorCombineHigh(InRow0, InRow1);
+		VectorRegister4Float Temp3 = VectorCombineHigh(InRow2, InRow3);
+
+		VectorRegister4Float Row0, Row1, Row2, Row3;
+		VectorDeinterleave(Row0, Row1, Temp0, Temp1);
+		VectorDeinterleave(Row2, Row3, Temp2, Temp3);
+
+		VectorStore(Row0, &Dest[0]);
+		VectorStore(Row1, &Dest[4]);
+		VectorStore(Row2, &Dest[8]);
+	#else
 		Dest[ 0] = TransformRows[0].X;	// [0][0]
 		Dest[ 1] = TransformRows[1].X;	// [1][0]
 		Dest[ 2] = TransformRows[2].X;	// [2][0]
@@ -129,6 +161,7 @@ public:
 		Dest[ 9] = TransformRows[1].Z;	// [1][2]
 		Dest[10] = TransformRows[2].Z;	// [2][2]
 		Dest[11] = Origin.Z;			// [3][2]
+	#endif
 	}
 
 	FORCEINLINE FRenderTransform operator* (const FRenderTransform& Other) const

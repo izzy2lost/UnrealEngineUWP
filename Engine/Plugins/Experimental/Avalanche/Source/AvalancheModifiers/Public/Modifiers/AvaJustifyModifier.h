@@ -44,55 +44,55 @@ class UAvaJustifyModifier : public UAvaArrangeBaseModifier
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Justify")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Justify")
 	AVALANCHEMODIFIERS_API void SetHorizontalAlignment(EAvaJustifyHorizontal InHorizontalAlignment);
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Justify")
 	EAvaJustifyHorizontal GetHorizontalAlignment() const
 	{
 		return HorizontalAlignment;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Justify")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Justify")
 	AVALANCHEMODIFIERS_API void SetVerticalAlignment(EAvaJustifyVertical InVerticalAlignment);
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Justify")
 	EAvaJustifyVertical GetVerticalAlignment() const
 	{
 		return VerticalAlignment;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Justify")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Justify")
 	AVALANCHEMODIFIERS_API void SetDepthAlignment(EAvaJustifyDepth InDepthAlignment);
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Justify")
 	EAvaJustifyDepth GetDepthAlignment() const
 	{
 		return DepthAlignment;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Justify")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Justify")
 	AVALANCHEMODIFIERS_API void SetHorizontalAnchor(float InHorizontalAnchor);
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Justify")
 	float GetHorizontalAnchor() const
 	{
 		return HorizontalAnchor;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Justify")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Justify")
 	AVALANCHEMODIFIERS_API void SetVerticalAnchor(float InVerticalAnchor);
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Justify")
 	float GetVerticalAnchor() const
 	{
 		return VerticalAnchor;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Justify")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Justify")
 	AVALANCHEMODIFIERS_API void SetDepthAnchor(float InDepthAnchor);
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Justify")
 	float GetDepthAnchor() const
 	{
 		return DepthAnchor;
@@ -138,22 +138,22 @@ protected:
 	FVector GetAnchorOffset() const;
 	FVector GetAlignmentOffset(const FVector& InExtent) const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetHorizontalAlignment", Getter="GetHorizontalAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetHorizontalAlignment", Getter="GetHorizontalAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
 	EAvaJustifyHorizontal HorizontalAlignment;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVerticalAlignment", Getter="GetVerticalAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetVerticalAlignment", Getter="GetVerticalAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
 	EAvaJustifyVertical VerticalAlignment;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetDepthAlignment", Getter="GetDepthAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetDepthAlignment", Getter="GetDepthAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
 	EAvaJustifyDepth DepthAlignment;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetHorizontalAnchor", Getter="GetHorizontalAnchor", Interp, Category="Justify", meta=(EditCondition="HorizontalAlignment != EAvaJustifyHorizontal::None", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetHorizontalAnchor", Getter="GetHorizontalAnchor", Interp, Category="Justify", meta=(EditCondition="HorizontalAlignment != EAvaJustifyHorizontal::None", EditConditionHides, AllowPrivateAccess="true"))
 	float HorizontalAnchor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVerticalAnchor", Getter="GetVerticalAnchor", Interp, Category="Justify", meta=(EditCondition="VerticalAlignment != EAvaJustifyVertical::None", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetVerticalAnchor", Getter="GetVerticalAnchor", Interp, Category="Justify", meta=(EditCondition="VerticalAlignment != EAvaJustifyVertical::None", EditConditionHides, AllowPrivateAccess="true"))
 	float VerticalAnchor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetDepthAnchor", Getter="GetDepthAnchor", Interp, Category="Justify", meta=(EditCondition = "DepthAlignment != EAvaJustifyDepth::None", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetDepthAnchor", Getter="GetDepthAnchor", Interp, Category="Justify", meta=(EditCondition = "DepthAlignment != EAvaJustifyDepth::None", EditConditionHides, AllowPrivateAccess="true"))
 	float DepthAnchor;
 
 private:

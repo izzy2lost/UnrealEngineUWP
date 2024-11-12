@@ -1,26 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
-using EpicGames.Horde.Storage;
-using Jupiter.Implementation.Blob;
-using Jupiter.Common;
-using Microsoft.Extensions.Options;
-using KeyNotFoundException = System.Collections.Generic.KeyNotFoundException;
-using System.Threading;
-using System.Runtime.CompilerServices;
-using System.Collections.Concurrent;
 using Amazon.S3.Transfer;
-using Jupiter.Common.Implementation;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using OpenTelemetry.Trace;
 using Amazon.S3.Util;
+using EpicGames.Horde.Storage;
+using Jupiter.Common;
+using Jupiter.Common.Implementation;
+using Jupiter.Common.Utils;
+using Jupiter.Implementation.Blob;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
+using KeyNotFoundException = System.Collections.Generic.KeyNotFoundException;
 
 namespace Jupiter.Implementation
 {
@@ -126,7 +128,7 @@ namespace Jupiter.Implementation
 						return new BlobContents(redirectUri);
 					}
 				}
-			
+
 				BlobContents? contents = await GetBackend(ns).TryReadAsync(blob.AsS3Key(), flags);
 				if (contents == null)
 				{
@@ -194,6 +196,19 @@ namespace Jupiter.Implementation
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await backend.DeleteAsync(blobIdentifier.AsS3Key());
+		}
+
+		public async Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId blob)
+		{
+			List<NamespaceId> namespaceIds = namespaces.ToList();
+			List<string> storagePools = namespaceIds.Select(ns => _namespacePolicyResolver.GetPoliciesForNs(ns).StoragePool).Distinct().ToList();
+
+			Dictionary<string, NamespaceId> storagePoolsToClean = storagePools.ToDictionary(storagePool => storagePool, storagePool => namespaceIds.FirstOrDefault(id => _namespacePolicyResolver.GetPoliciesForNs(id).StoragePool == storagePool));
+
+			foreach ((string _, NamespaceId ns) in storagePoolsToClean)
+			{
+				await GetBackend(ns).DeleteAsync(blob.AsS3Key(), CancellationToken.None);
+			}
 		}
 	}
 
@@ -405,28 +420,72 @@ namespace Jupiter.Implementation
 
 		public async IAsyncEnumerable<(string, DateTime)> ListAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			ListObjectsV2Request request = new ListObjectsV2Request
+			if (_settings.CurrentValue.PerPrefixListing)
 			{
-				BucketName = _bucketName
-			};
-
-			if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
-			{
-				yield break;
-			}
-
-			ListObjectsV2Response response;
-			do
-			{
-				response = await _amazonS3.ListObjectsV2Async(request, cancellationToken);
-				foreach (S3Object obj in response.S3Objects)
+				List<string> hashPrefixes = new List<string>(65536);
+				int i = 0;
+				for (int a = 0; a <= byte.MaxValue; a++)
 				{
-					yield return (obj.Key, obj.LastModified);
+					for (int b = 0; b <= byte.MaxValue; b++)
+					{
+						hashPrefixes.Add(StringUtils.FormatAsHexString(new byte[] { (byte)a, (byte)b }));
+						i++;
+					}
 				}
 
-				request.ContinuationToken = response.NextContinuationToken;
-			} while (response.IsTruncated);
+				hashPrefixes.Shuffle();
 
+				if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
+				{
+					yield break;
+				}
+
+				foreach (string hashPrefix in hashPrefixes)
+				{
+					ListObjectsV2Request request = new ListObjectsV2Request
+					{
+						BucketName = _bucketName,
+						Prefix = hashPrefix,
+						MaxKeys = _settings.CurrentValue.PerPrefixMaxKeys
+					};
+
+					ListObjectsV2Response response;
+					do
+					{
+						response = await _amazonS3.ListObjectsV2Async(request, cancellationToken);
+						foreach (S3Object obj in response.S3Objects)
+						{
+							yield return (obj.Key, obj.LastModified);
+						}
+
+						request.ContinuationToken = response.NextContinuationToken;
+					} while (response.IsTruncated);
+				}
+			}
+			else
+			{
+				if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
+				{
+					yield break;
+				}
+
+				ListObjectsV2Request request = new ListObjectsV2Request
+				{
+					BucketName = _bucketName
+				};
+
+				ListObjectsV2Response response;
+				do
+				{
+					response = await _amazonS3.ListObjectsV2Async(request, cancellationToken);
+					foreach (S3Object obj in response.S3Objects)
+					{
+						yield return (obj.Key, obj.LastModified);
+					}
+
+					request.ContinuationToken = response.NextContinuationToken;
+				} while (response.IsTruncated);
+			}
 		}
 
 		public async Task DeleteAsync(string path, CancellationToken cancellationToken)
@@ -450,7 +509,7 @@ namespace Jupiter.Implementation
 		Uri? GetPresignedUrl(string path, HttpVerb verb)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan("s3.BuildPresignedUrl")
-				.SetAttribute("Path", path) 
+				.SetAttribute("Path", path)
 			;
 
 			try

@@ -213,7 +213,7 @@ void FNiagaraGPUSystemTick::Init(FNiagaraSystemInstance* InSystemInstance)
 			for (const FNiagaraSimStageExecutionLoopData& LoopData : GPUContext->SimStageExecData->ExecutionLoops)
 			{
 				int32 NumLoops = LoopData.NumLoopsBinding.IsNone() ? LoopData.NumLoops : ParameterStore.GetParameterValueOrDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), LoopData.NumLoopsBinding), LoopData.NumLoops);
-				NumLoops = FMath::Clamp(NumLoops, 0, TNumericLimits<uint16>::Max());
+				NumLoops = static_cast<int32>(FMath::Clamp(NumLoops, 0, TNumericLimits<uint16>::Max()));
 				for (int32 LoopIndex=0; LoopIndex < NumLoops; ++LoopIndex)
 				{
 					for (int32 SimStageIndex=LoopData.StartStageIndex; SimStageIndex <= LoopData.EndStageIndex; ++SimStageIndex)
@@ -241,7 +241,7 @@ void FNiagaraGPUSystemTick::Init(FNiagaraSystemInstance* InSystemInstance)
 
 						// Get number of iterations
 						int32 NumIterations = SimStageMetaData.NumIterationsBinding.IsNone() ? SimStageMetaData.NumIterations : ParameterStore.GetParameterValueOrDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), SimStageMetaData.NumIterationsBinding), SimStageMetaData.NumIterations);
-						NumIterations = FMath::Clamp(NumIterations, 0, TNumericLimits<uint16>::Max());
+						NumIterations = static_cast<int32>(FMath::Clamp(NumIterations, 0, TNumericLimits<uint16>::Max()));
 						if ( NumIterations <= 0 )
 						{
 							continue;
@@ -277,10 +277,10 @@ void FNiagaraGPUSystemTick::Init(FNiagaraSystemInstance* InSystemInstance)
 
 						// Stage is live we can add it
 						FNiagaraComputeInstanceData::FPerStageInfo& NewStageInfo = InstanceData->PerStageInfo.AddDefaulted_GetRef();
-						NewStageInfo.SimStageIndex		= SimStageIndex;
-						NewStageInfo.NumIterations		= NumIterations;
-						NewStageInfo.LoopIndex			= LoopIndex;
-						NewStageInfo.NumLoops			= NumLoops;
+						NewStageInfo.SimStageIndex		= IntCastChecked<int16>(SimStageIndex);
+						NewStageInfo.NumIterations		= IntCastChecked<int16>(NumIterations);
+						NewStageInfo.LoopIndex			= IntCastChecked<int16>(LoopIndex);
+						NewStageInfo.NumLoops			= IntCastChecked<int16>(NumLoops);
 						NewStageInfo.ElementCountXYZ	= ElementCountXYZ;
 
 						InstanceData->bHasMultipleStages = true;

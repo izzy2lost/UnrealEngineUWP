@@ -672,7 +672,7 @@ void FLensFileExchange::PopulateFocalLengthTable(ULensFile& OutLensFile, const F
 		{
 			float Focus = 0.0f;
 			float Zoom = 0.0f;
-			FVector2D FxFy;
+			FVector2D FxFy = FVector2D::ZeroVector;
 
 			for (int32 HeaderIndex = 0; HeaderIndex < NumHeaders; ++HeaderIndex)
 			{
@@ -722,7 +722,7 @@ void FLensFileExchange::PopulateImageCenterTable(ULensFile& OutLensFile, const F
 		{
 			float Focus = 0.0f;
 			float Zoom = 0.0f;
-			FVector2D FxFy;
+			FVector2D FxFy = FVector2D::ZeroVector;
 
 			for (int32 HeaderIndex = 0; HeaderIndex < NumHeaders; ++HeaderIndex)
 			{

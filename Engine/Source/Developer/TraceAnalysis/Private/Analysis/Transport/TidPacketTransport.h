@@ -63,6 +63,9 @@ private:
 
 protected:
 	uint32					Synced = 0x7fff'ffff;
+#if UE_TRACE_PACKET_VERIFICATION
+	uint64					LastPacketSerial = 0;
+#endif
 
 #if UE_TRACE_ANALYSIS_DEBUG
 private:

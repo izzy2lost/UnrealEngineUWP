@@ -197,6 +197,28 @@ FText UCommonActionWidget::GetDisplayText() const
 	return FText();
 }
 
+UMaterialInstanceDynamic* UCommonActionWidget::GetIconDynamicMaterial()
+{
+	if (UMaterialInterface* Material = Cast<UMaterialInterface>(Icon.GetResourceObject()))
+	{
+		UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(Material);
+
+		if (!DynamicMaterial)
+		{
+			DynamicMaterial = UMaterialInstanceDynamic::Create(Material, this);
+			Icon.SetResourceObject(DynamicMaterial);
+
+			if (MyIcon.IsValid())
+			{
+				MyIcon->InvalidateImage();
+			}
+		}
+		return DynamicMaterial;
+	}
+
+	return nullptr;
+}
+
 bool UCommonActionWidget::IsHeldAction() const
 {
 	if (EnhancedInputAction && CommonUI::IsEnhancedInputSupportEnabled())
@@ -306,11 +328,15 @@ void UCommonActionWidget::UpdateActionWidget()
 
 				if (Icon.DrawAs == ESlateBrushDrawType::NoDrawType)
 				{
-					SetVisibility(ESlateVisibility::Collapsed);
+					if (!IsDesignTime())
+					{
+						SetVisibility(ESlateVisibility::Collapsed);
+					}
 				}
 				else if (MyIcon.IsValid())
 				{
 					MyIcon->SetImage(&Icon);
+					OnInputIconUpdated.Broadcast();
 
 					if (GetVisibility() != ESlateVisibility::Collapsed)
 					{
@@ -329,14 +355,21 @@ void UCommonActionWidget::UpdateActionWidget()
 					}
 
 					MyKeyBox->Invalidate(EInvalidateWidget::LayoutAndVolatility);
-					SetVisibility(IsDesignTime() ? ESlateVisibility::Visible : ESlateVisibility::SelfHitTestInvisible);
+
+					if (!IsDesignTime())
+					{
+						SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+					}
 
 					return;
 				}
 			}
 		}
 
-		SetVisibility(ESlateVisibility::Collapsed);
+		if (!IsDesignTime())
+		{
+			SetVisibility(ESlateVisibility::Collapsed);
+		}
 	}
 }
 
@@ -351,7 +384,7 @@ bool UCommonActionWidget::ShouldUpdateActionWidgetIcon() const
 	const bool bIsEnhancedInputAction = EnhancedInputAction && CommonUI::IsEnhancedInputSupportEnabled();
 
 #if WITH_EDITORONLY_DATA
-	const bool bIsDesignPreview = IsDesignTime() && DesignTimeKey.IsValid();
+	const bool bIsDesignPreview = IsDesignTime();
 #else
 	const bool bIsDesignPreview = false;
 #endif

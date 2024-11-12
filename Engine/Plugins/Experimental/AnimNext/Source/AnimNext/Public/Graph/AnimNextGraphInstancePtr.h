@@ -3,7 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DecoratorBase/DecoratorPtr.h"
+#include "TraitCore/TraitEvent.h"
+#include "TraitCore/TraitPtr.h"
 
 #include "AnimNextGraphInstancePtr.generated.h"
 
@@ -11,12 +12,17 @@ class FReferenceCollector;
 
 struct FAnimNextGraphInstance;
 struct FRigUnit_AnimNextGraphEvaluator;
-class UAnimNextGraph;
+struct FRigUnit_AnimNextRunAnimationGraph;
+class UAnimNextAnimationGraph;
+class FRigVMTraitScope;
+struct FRigVMExtendedExecuteContext;
+struct FAnimNextExecuteContext;
 
 namespace UE::AnimNext
 {
 	struct FExecutionContext;
 	struct FGraphInstanceComponent;
+	class IDataInterfaceHost;
 }
 
 using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>>;
@@ -24,19 +30,13 @@ using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGrap
 // Represents an instance of an AnimNext graph
 // This struct uses UE reflection because we wish for the GC to keep the graph
 // alive while we own a reference to it. It is not intended to be serialized on disk with a live instance.
-USTRUCT()
+USTRUCT(BlueprintType, DisplayName="Animation Graph Instance")
 struct ANIMNEXT_API FAnimNextGraphInstancePtr
 {
 	GENERATED_BODY()
 
 	// Creates an empty graph instance that doesn't reference anything
 	FAnimNextGraphInstancePtr();
-
-	// No copying, only moving
-	FAnimNextGraphInstancePtr(const FAnimNextGraphInstancePtr&) = delete;
-	FAnimNextGraphInstancePtr& operator=(const FAnimNextGraphInstancePtr&) = delete;
-	FAnimNextGraphInstancePtr(FAnimNextGraphInstancePtr&&);
-	FAnimNextGraphInstancePtr& operator=(FAnimNextGraphInstancePtr&&);
 
 	// If the graph instance is allocated, we release it during destruction
 	~FAnimNextGraphInstancePtr();
@@ -47,20 +47,23 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 	// Returns true if we have a live graph instance, false otherwise
 	bool IsValid() const;
 
-	// Returns the graph used by this instance or nullptr if the instance is invalid
-	const UAnimNextGraph* GetGraph() const;
+	// Returns the animation graph that will be used by this instance
+	const UAnimNextAnimationGraph* GetAnimationGraph() const;
 
-	// Returns a weak handle to the root decorator instance
-	UE::AnimNext::FWeakDecoratorPtr GetGraphRootPtr() const;
+	// Returns a weak handle to the root trait instance
+	UE::AnimNext::FWeakTraitPtr GetGraphRootPtr() const;
 
 	// Returns the graph instance implementation
 	FAnimNextGraphInstance* GetImpl() const;
 
-	// Check to see if this instance data matches the provided graph
-	bool UsesGraph(const UAnimNextGraph* InGraph) const;
+	// Check to see if this instance data matches the provided animation graph
+	bool UsesAnimationGraph(const UAnimNextAnimationGraph* InAnimationGraph) const;
 
 	// Returns whether or not this graph instance is the root graph instance or false otherwise
 	bool IsRoot() const;
+
+	// Returns whether or not this graph instance has updated at least once
+	bool HasUpdated() const;
 
 	// Adds strong/hard object references during GC
 	void AddStructReferencedObjects(class FReferenceCollector& Collector);
@@ -80,6 +83,18 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 	// Returns const iterators to the graph instance component container
 	GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
 
+	// Called each time the graph updates
+	void Update() const;
+
+	// Get the extended execute context that we own
+	FRigVMExtendedExecuteContext& GetExtendedExecuteContext() const;
+	
+	// Whether public variables require a binding
+	bool RequiresPublicVariableBinding() const;
+
+	// Bind the variables in the supplied traits in scope to their respective public variables
+	void BindPublicVariables(TConstArrayView<UE::AnimNext::IDataInterfaceHost*> InHosts) const;
+
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
 	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
@@ -88,10 +103,11 @@ private:
 	UE::AnimNext::FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component);
 
 	// Indirection to hide implementation details and to fix the graph instance into a single memory location
-	TUniquePtr<FAnimNextGraphInstance> Impl;
+	TSharedPtr<FAnimNextGraphInstance> Impl;
 
-	friend UAnimNextGraph;					// The graph is the one that allocates instances
-	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
+	friend UAnimNextAnimationGraph;			// The graph is the one that allocates instances
+	friend FRigUnit_AnimNextGraphEvaluator;		// We evaluate the instance
+	friend FRigUnit_AnimNextRunAnimationGraph;	// We evaluate the instance
 	friend UE::AnimNext::FExecutionContext;
 };
 
@@ -101,7 +117,6 @@ struct TStructOpsTypeTraits<FAnimNextGraphInstancePtr> : public TStructOpsTypeTr
 	enum
 	{
 		WithAddStructReferencedObjects = true,
-		WithCopy = false,
 	};
 };
 

@@ -7,8 +7,8 @@
 
 class FGameplaySharedData;
 namespace TraceServices { class IAnalysisSession; }
-namespace Insights { class ITimingViewSession; }
-namespace Insights { enum class ETimeChangedFlags : int32; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags : int32; }
 class FSkeletalMeshPoseTrack;
 class FSkeletalMeshCurvesTrack;
 class FAnimationTickRecordsTrack;
@@ -27,9 +27,9 @@ class FAnimationSharedData
 public:
 	FAnimationSharedData(FGameplaySharedData& InGameplaySharedData);
 
-	void OnBeginSession(Insights::ITimingViewSession& InTimingViewSession);
-	void OnEndSession(Insights::ITimingViewSession& InTimingViewSession);
-	void Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
+	void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
 	void ExtendFilterMenu(FMenuBuilder& InMenuBuilder);
 
 #if WITH_ENGINE
@@ -86,7 +86,7 @@ public:
 private:
 	// UI handlers
 	void ToggleAnimationTracks();
-	void OnTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker);
+	void OnTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker);
 	void ToggleSkeletalMeshPoseTracks();
 	void ToggleSkeletalMeshCurveTracks();
 	void ToggleTickRecordTracks();
@@ -102,7 +102,7 @@ private:
 	const TraceServices::IAnalysisSession* AnalysisSession;
 
 	// Cached timing view session, set in OnBeginSession/OnEndSession
-	Insights::ITimingViewSession* TimingViewSession;
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
 
 	// All the tracks we manage
 	TArray<TSharedRef<FSkeletalMeshPoseTrack>> SkeletalMeshPoseTracks;

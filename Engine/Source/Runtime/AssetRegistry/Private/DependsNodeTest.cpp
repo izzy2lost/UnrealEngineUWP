@@ -9,7 +9,7 @@
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDependsNodeTest, "System.AssetRegistry.DependsNode", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDependsNodeTest, "System.AssetRegistry.DependsNode", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 namespace
 {

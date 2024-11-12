@@ -14,6 +14,8 @@
 #include "BuoyancyEventFlags.h"
 #include "ChaosUserDataPT.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
+#include "BuoyancyParticleData.h"
+#include "BuoyancyMacros.h"
 #include "BuoyancySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogBuoyancySubsystem, Log, All);
@@ -103,6 +105,10 @@ public:
 
 	bool SetEnabledWithUpdatedNetModeCallback(const bool bEnabled);
 
+#if WITH_BUOYANCY_MEMORY_TRACKING
+	SIZE_T GetAllocatedSize() const;
+#endif
+
 protected:
 
 	// UTickableWorldSubsystem begin interface
@@ -153,51 +159,16 @@ private:
 	class FBuoyancySubsystemSimCallback* SimCallback;
 
 	ENetMode NetMode;
+
+#if WITH_BUOYANCY_MEMORY_TRACKING
+	uint32 SimCallback_AllocatedSize;
+#endif
 };
 
 
 //
 // Buoyancy Sim Callback
 //
-
-// Each particle will have a list of potential midphases to process,
-// which must be sorted in descending Z order. This struct is used
-// to store them
-struct FBuoyancyInteraction
-{
-	Chaos::FPBDRigidParticleHandle* RigidParticle;
-	Chaos::FGeometryParticleHandle* WaterParticle;
-	const FBuoyancyWaterSplineData& WaterSpline;
-	float ClosestSplineKey;
-	FVector ClosestPoint;
-};
-
-// Metadata for submersions, used for event callbacks
-struct FBuoyancySubmersionMetaData
-{
-	struct FWaterContact
-	{
-		Chaos::FGeometryParticleHandle* Water;
-		float Vol;
-		FVector CoM;
-		FVector Vel;
-	};
-
-	// How many metadata's allowed per submerged particle
-	static constexpr int32 MaxNumWaterContacts = 3;
-	TArray<FWaterContact, TInlineAllocator<MaxNumWaterContacts>> WaterContacts;
-};
-
-
-// A minimal struct of data tracking all the submersions in a frame.
-struct FBuoyancySubmersion
-{
-	Chaos::FPBDRigidParticleHandle* Particle;
-	float Vol;
-	FVector CoM;
-	FVector Vel;
-	FVector Norm;
-};
 
 struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput
 {
@@ -231,6 +202,11 @@ struct FBuoyancySubsystemSimCallbackOutput : public Chaos::FSimCallbackOutput
 
 	TArray<FSurfaceTouch> SurfaceTouches;
 
+#if WITH_BUOYANCY_MEMORY_TRACKING
+	// Optional update to allocated num bytes
+	TOptional<uint32> AllocatedSize;
+#endif
+
 	void Reset();
 };
 
@@ -241,17 +217,27 @@ class FBuoyancySubsystemSimCallback : public Chaos::TSimCallbackObject<
 	FBuoyancySubsystemSimCallbackOutput,
 	Chaos::ESimCallbackOptions::Presimulate | Chaos::ESimCallbackOptions::MidPhaseModification>
 {
+public:
+
+	SIZE_T GetAllocatedSize() const;
+
 private:
 
 	virtual void OnPreSimulate_Internal() override;
 	virtual void OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& Modifier) override;
 
-	void TrackInteractions(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor);
+	void TrackInteractions(Chaos::FPBDRigidsSolver& PBDSolver, Chaos::FPBDRigidsEvolution& Evolution, Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor);
 	void TrackInteraction(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FGeometryParticleHandle* WaterParticle, Chaos::FPBDRigidParticleHandle* RigidParticle, const FBuoyancyWaterSplineData& WaterSpline, Chaos::FMidPhaseModifier& MidPhase);
 	void ProcessInteractions(Chaos::FPBDRigidsEvolution& Evolution);
+	void ProcessInteractionShallowWater(Chaos::FPBDRigidsEvolution& Evolution, FBuoyancyInteraction& Interaction);
 	void ProcessInteraction(Chaos::FPBDRigidsEvolution& Evolution, FBuoyancyInteraction& Interaction);
 	void ApplyBuoyantForces(Chaos::FPBDRigidsEvolution& Evolution);
 	void GenerateCallbackData();
+	
+#if WITH_BUOYANCY_MEMORY_TRACKING
+	void GenerateAllocationData();
+	SIZE_T AllocatedSize = 0;
+#endif
 
 	// Reference to UserDataPT sim callback which manages synchronization of
 	// water spline data
@@ -262,38 +248,7 @@ private:
 	// memory that was allocated by GT to minimize copies.
 	TUniquePtr<FBuoyancySettings> BuoyancySettings;
 
-	// Sparse array of arrays of buoyancy interactions - the outer array has one
-	// entry per particle, the inner array has an entry per water body that it interacts
-	// with. Each will be a very small array, sorted by Z.
-	//
-	// We use inline allocator to avoid more heap allocations, and to express the
-	// assumption that a single particle is unlikely to exceed interactions with a
-	// certain number of waterbodies at a time.
-	static constexpr int32 MaxNumBuoyancyInteractions = 2;
-	TSparseArray<TArray<FBuoyancyInteraction, TInlineAllocator<MaxNumBuoyancyInteractions>>> Interactions;
-
-	// This sparse array of submersion events is indexed on particle unique indices.
-	// All buoyant forces due to submersions are applied at once. It's stored as
-	// a member variable and reset every frame, to avoid reallocation of similarly
-	// sized data.
-	TSparseArray<FBuoyancySubmersion> Submersions;
-	TSparseArray<FBuoyancySubmersion> PrevSubmersions;
-
-	// Another sparse array to be kept in sync with Submersions, which will contain
-	// metadata useful for event callbacks
-	TSparseArray<FBuoyancySubmersionMetaData> SubmersionMetaData;
-	TSparseArray<FBuoyancySubmersionMetaData> PrevSubmersionMetaData;
-
-	// This is a sparse array of bit arrays representing which shapes in an object
-	// have already been accounted for when submerging an object. For example, if
-	// a massive BVH object has two leaf node shapes submerged in different pools
-	// of water and we've already detected that leaf A is submerged, we don't
-	// need to test A again. This helps to avoid double counting submerged shapes.
-	//
-	// Just like Submersions, we have this as a member variable only to keep the
-	// memory hot - the array is reset, repopulated and traversed, every frame,
-	// so we want to minimize allocations.
-	TSparseArray<TBitArray<>> SubmergedShapes;
+	FBuoyancyParticleData BuoyancyParticleData;
 
 	// Used to track the net mode of the world that owns the phys scene that this
 	// sim tick is taking place in.

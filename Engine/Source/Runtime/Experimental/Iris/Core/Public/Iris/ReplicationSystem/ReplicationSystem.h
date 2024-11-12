@@ -10,6 +10,7 @@
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 #include "Iris/ReplicationSystem/NetObjectGroupHandle.h"
 #include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/NetHandle/NetHandle.h"
 
 #include "ReplicationSystem.generated.h"
@@ -24,22 +25,31 @@ class UReplicationBridge;
 class UReplicationSystem;
 namespace UE::Net
 {
-	class FNetBitArray;
-	class FNetCullDistanceOverrides;
-	enum class ENetFilterStatus : uint32;
-	class FNetObjectAttachment;
-	enum class ENetObjectDeltaCompressionStatus : unsigned;
 	typedef uint32 FNetObjectFilterHandle;
 	typedef uint32 FNetObjectPrioritizerHandle;
+
+	class FNetBitArray;
+	class FNetCullDistanceOverrides;
+	class FNetObjectAttachment;	
 	class FNetObjectReference;
-	enum class EReplicationCondition : uint32;
-	struct FReplicationProtocol;
 	class FReplicationSystemFactory;
+	class FNetTokenStore;
+	class FStringTokenStore;
+	class FNameTokenStore;
+	class FWorldLocations;
+	class FNetTokenResolveContext;
+
 	struct FReplicationSystemUtil;
 	struct FReplicationView;
-	class FStringTokenStore;
-	class FWorldLocations;
 	struct FNetDebugName;
+	struct FNetMetrics;
+	struct FReplicationProtocol;
+
+	enum class ENetFilterStatus : uint32;
+	enum class ENetObjectDeltaCompressionStatus : unsigned;
+	enum class ENetRefHandleError : uint32;
+	enum class EReplicationCondition : uint32;
+
 	namespace Private
 	{
 		class FReplicationSystemImpl;
@@ -60,16 +70,66 @@ public:
 
 	struct FReplicationSystemParams
 	{
-		//$IRIS TODO: These need documentation
+		/** The replication bridge that allows communication between the replication system and the game engine  */
 		UReplicationBridge* ReplicationBridge = nullptr;
-		uint32 MaxReplicatedObjectCount = 65535U;
-		uint32 PreAllocatedReplicatedObjectCount = 65535U;
-		uint32 MaxReplicatedWriterObjectCount = 65535U;
+
+		/** 
+		 * The maximum amount of netobjects that can be registered to the replication system 
+		 * Note that this variable is automatically rounded up to a multiple of 32 so that all available bits in the NetBitArray storage type are used.
+		 */
+		uint32 MaxReplicatedObjectCount = 65536U;
+
+		/**
+		 * The default allocated size for lists referencing NetObjects by their internal index (NetBitArray or TArray).
+		 * Use 0 to preallocate for all possible replicated objects and never reallocate the lists.
+		 * Setting a value smaller than Max minimizes the memory footprint of the replication system when few replicated objects are registered.
+		 * The downside is you have to pay a CPU hit when the initial list size is met.
+		 */
+		uint32 InitialNetObjectListCount = 65536U;
+
+		/**
+		 * The amount by which we increase the size of every NetObjectList (NetBitArray and TArray) when we hit the initial amount.
+		 * Use a small value if you want to keep the memory footprint of the system to a minimum.
+		 * But be aware that increasing the NetObjectList's is costly and may increase memory fragmentation so you'll want to do pay the reallocation cost as little as possible.
+		 * Note that this variable is automatically rounded up to a multiple of 32 so that all available bits in the NetBitArray storage type are used.
+		 */
+		uint32 NetObjectListGrowCount = 16384U;
+
+		/**
+		 * The amount of netobjects to preallocate internal memory buffers for (NetChunkedArray types).
+		 * These arrays hold the biggest memory blocks in the replication system and can grow independently of the NetObjectLists.
+		 * Using a large amount of preallocated memory provides faster cache-friendly CPU operations but has the downside of holding into much more memory than might actually be needed. 
+		 * Reduce this value if you are operating on a memory constrained platform.
+		 */
+		uint32 PreAllocatedMemoryBuffersObjectCount = 65536U;
+
+		/**
+		 * The maximum amount of netobjects that can replicate properties to remote connection. 
+		 * Can be much lower on clients where very few netobjects have authority and support property replication (often just 1 player controller)
+		 * When set to 0 it will follow the MaxReplicatedObjectCount and InitialNetObjectListCount limits
+		 */
+		uint32 MaxReplicationWriterObjectCount = 0;
+
+		/** The maximum amount of netobjects that can be added to the delta compression manager */
 		uint32 MaxDeltaCompressedObjectCount = 2048U;
+
+		/** The maximum amount of filter groups that can be created. @see UReplicationSystem::CreateGroup */
 		uint32 MaxNetObjectGroupCount = 2048U;
+
+		/** Is this replication system owned by a server or a client. */
 		bool bIsServer = false;
+
+		/**
+		 * When true enable netobject subsystems like: property replication, filtering, prioritization, deltacompression, dirtytracking, etc.
+		 * Generally false on clients or on lightweight RPC-only systems.
+		 */
 		bool bAllowObjectReplication = false;
+
+		/** Delegate that receives every RPC executed locally. */
 		UE::Net::FForwardNetRPCCallDelegate ForwardNetRPCCallDelegate;
+
+		/** NetTokenStore */
+		UE::Net::FNetTokenStore* NetTokenStore = nullptr;
 	};
 
 	/** @return The unique ID of the ReplicationSystem. */
@@ -137,6 +197,13 @@ public:
 	 * @return Whether the connection is valid.
 	 */
 	IRISCORE_API bool IsValidConnection(uint32 ConnectionId) const;
+
+	/**
+	 * Sets a connection as gracefully closing, where it will flush all pending reliable data
+	 * before completely shutting down.
+	 * @param ConnectionId The ID of the connection that's closing.
+	 */
+	IRISCORE_API void SetConnectionGracefullyClosing(uint32 ConnectionId) const;
 
 	/**
 	 * Enable or disable the ReplicationDataStream to transmit data for a particular connection.
@@ -229,13 +296,26 @@ public:
 
 	/**
 	 * Multicast an RPC targeting a object/subobject. 
-	 * @param Object A valid Owner/Actor. If no SubObject is specified the function will be called in this instance on the remote side.
-	 * @param SubObject Optional SubObject that the function will be called in on the remote side.
+	 * @param RootObject A valid Owner/Actor. If no subobject is specified the function is called on the root object on the remote side.
+	 * @param SubObject Optional subobject on whom the function is called on the remote side.
 	 * @param Function The function to call.
 	 * @param Parameters The function parameters.
+	 * 
 	 * @return Whether the RPC was successfully queued for replication or not.
 	 */
-	IRISCORE_API bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
+	IRISCORE_API bool SendRPC(const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters);
+
+	/**
+	 * Unicast an RPC targeting a object/subobject.
+	 * @param ConnectionId A valid connection ID. Only this connection will receive the RPC.
+	 * @param RootObject A valid Owner/Actor. If no subobject is specified the function is called on the root object on the remote side.
+	 * @param SubObject Optional subobject on whom the function is called on the remote side.
+	 * @param Function The function to call.
+	 * @param Parameters The function parameters.
+	 * 
+	 * @return Whether the RPC was successfully queued for replication or not.
+	 */
+	IRISCORE_API bool SendRPC(uint32 ConnectionId, const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters);
 
 	/**
 	 * Set the policy flags for an RPC identified by its function
@@ -247,17 +327,6 @@ public:
 
 	/** Resets all set RPCSendPolicy flags */
 	IRISCORE_API void ResetRPCSendPolicyFlags();
-	
-	/**
-	 * Unicast an RPC targeting a object/subobject.
-	 * @param ConnectionId A valid connection ID. Only this connection will replicate the RPC.
-	 * @param Object A valid Owner/Actor. If no SubObject is specified the function will be called in this instance on the remote side.
-	 * @param SubObject Optional SubObject that the function will be called in on the remote side.
-	 * @param Function The function to call.
-	 * @param Parameters The function parameters.
-	 * @return Whether the RPC was successfully queued for replication or not.
-	 */
-	IRISCORE_API bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
 
 	/** @return The UReplicationBridge that was passed with the system creation parameters. */
 	IRISCORE_API UReplicationBridge* GetReplicationBridge() const;
@@ -267,16 +336,22 @@ public:
 	T* GetReplicationBridgeAs() const { return Cast<T>(GetReplicationBridge()); }
 
 	/**
-	 * @return A const version of the string token store.
-	 * @see UE::Net::FStringTokenStore
+	 * @return The Net token store.
+	 * @see UE::Net::FNetTokenStore
 	 */
-	IRISCORE_API const UE::Net::FStringTokenStore* GetStringTokenStore() const;
+	IRISCORE_API UE::Net::FNetTokenStore* GetNetTokenStore();
 
 	/**
-	 * @return The string token store.
-	 * @see UE::Net::FStringTokenStore
+	 * @return A const version of the NetTokenStore.
+	 * @see UE::Net::FNetTokenStore
 	 */
-	IRISCORE_API UE::Net::FStringTokenStore* GetStringTokenStore();
+	IRISCORE_API const UE::Net::FNetTokenStore* GetNetTokenStore() const;
+
+	/**
+	 * Get NetTokenResolveContext resolve NetTokens
+	 * @see UE::Net::FNetTokenStore
+	 */
+	IRISCORE_API UE::Net::FNetTokenResolveContext GetNetTokenResolveContext(uint32 ConnectionId) const;
 
 	/**
 	 * Check whether a FNetRefHandle is still associated with a replicated object.
@@ -305,16 +380,23 @@ public:
 	 * Create a group which can be used to logically group objects together. The group must be
 	 * destroyed when it's not needed anymore.
 	 * Groups can be used to setup filtering rules on it's members.
+	 * @param GroupName An unique name to identify the group. Passing NAME_None will assign it an autogenerated name
 	 * @return A handle to the group, or InvalidNetObjectGroupHandle if no more groups could be created.
 	 * @see DestroyGroup
 	 */
-	IRISCORE_API FNetObjectGroupHandle CreateGroup();
+	IRISCORE_API FNetObjectGroupHandle CreateGroup(FName GroupName);
 
 	/**
 	 * Destroy a group.
 	 * @see CreateGroup
 	 */
 	IRISCORE_API void DestroyGroup(FNetObjectGroupHandle GroupHandle);
+
+	/**
+	 * Return the handle to a group identified by the given name
+	 * @return A valid handle if the name is used by an existing group or InvalidNetObjectGroupHandle if no groups is found
+	 */
+	IRISCORE_API FNetObjectGroupHandle FindGroup(FName GroupName) const;
 
 	/**
 	 * Add an object to a group.
@@ -452,7 +534,10 @@ public:
 	/** Set status of GroupFilter for specific connection. */
 	IRISCORE_API void SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus);
 
-	/** Set status of GroupFilter for connection marked in the Connections BitArray. */
+	/**
+	 * Set status of GroupFilter for connection marked in the Connections BitArray to the passed ReplicationStatus,
+	 * Connections not marked in the BitArray will be set to the opposite status.
+	*/
 	IRISCORE_API void SetGroupFilterStatus(FNetObjectGroupHandle GroupHandle, const UE::Net::FNetBitArray& Connections, UE::Net::ENetFilterStatus ReplicationStatus);
 
 	/** Set status of GroupFilter for all connections. */
@@ -471,7 +556,7 @@ public:
 	IRISCORE_API FNetObjectGroupHandle GetSubObjectFilterGroupHandle(FName GroupName) const;
 
 	/** Set status of GroupFilter for specific connection. */
-	IRISCORE_API void SetSubObjectFilterStatus(FName GroupName, uint32 ConnectionId, UE::Net::ENetFilterStatus ReplicationStatus);
+	IRISCORE_API void SetSubObjectFilterStatus(FName GroupName, UE::Net::FConnectionHandle ConnectionHandle, UE::Net::ENetFilterStatus ReplicationStatus);
 
 	/** Remove group from filtering system, will cancel effects of the group. */
 	IRISCORE_API void RemoveSubObjectFilter(FName GroupName);
@@ -604,7 +689,10 @@ public:
 	IRISCORE_API void ReportProtocolMismatch(uint64 NetRefHandleId, uint32 ConnectionId);
 
 	/** Called when a connection reports a critical error with a netrefhandle object */
-	IRISCORE_API void ReportErrorWithNetRefHandle(uint32 ErrorType, uint64 NetRefHandleId, uint32 ConnectionId);
+	IRISCORE_API void ReportErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, uint64 NetRefHandleId, uint32 ConnectionId);
+
+	/** Collect relevant metrics that could be sent to analytics */
+	IRISCORE_API void CollectNetMetrics(UE::Net::FNetMetrics& OutNetMetrics) const;
 
 public:
 	// For internal use and not exported.
@@ -702,5 +790,5 @@ inline UReplicationSystem* GetReplicationSystem(uint32 Id)
 	return Id >= FReplicationSystemFactory::MaxReplicationSystemCount ? nullptr : FReplicationSystemFactory::ReplicationSystems[Id];
 }
 
-}
+} // end namespace UE::Net
 

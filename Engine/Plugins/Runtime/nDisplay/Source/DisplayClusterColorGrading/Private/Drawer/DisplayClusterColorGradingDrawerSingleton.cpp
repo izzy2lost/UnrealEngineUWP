@@ -31,8 +31,9 @@ const FName FDisplayClusterColorGradingDrawerSingleton::ColorGradingDrawerTab = 
 FDisplayClusterColorGradingDrawerSingleton::FDisplayClusterColorGradingDrawerSingleton()
 {
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(ColorGradingDrawerTab, FOnSpawnTab::CreateRaw(this, &FDisplayClusterColorGradingDrawerSingleton::SpawnColorGradingDrawerTab))
-		.SetDisplayName(LOCTEXT("ColorGradingDarwerTab_DisplayName", "In-Camera VFX"))
-		.SetTooltipText(LOCTEXT("ColorGradingDarwerTab_Tooltip", "Editing tools for in-camera VFX."))
+		.SetIcon(FSlateIcon(FDisplayClusterColorGradingStyle::Get().GetStyleSetName(), "ColorGradingDrawer.Icon"))
+		.SetDisplayName(LOCTEXT("ColorGradingDarwerTab_DisplayName", "Color Grading"))
+		.SetTooltipText(LOCTEXT("ColorGradingDarwerTab_Tooltip", "Color grading controls for in-camera VFX"))
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 
 	IDisplayClusterOperator::Get().OnRegisterLayoutExtensions().AddRaw(this, &FDisplayClusterColorGradingDrawerSingleton::ExtendOperatorTabLayout);
@@ -73,11 +74,11 @@ void FDisplayClusterColorGradingDrawerSingleton::DockColorGradingDrawer()
 	}
 }
 
-void FDisplayClusterColorGradingDrawerSingleton::RefreshColorGradingDrawers(bool bPreserveDrawerState)
+void FDisplayClusterColorGradingDrawerSingleton::RefreshColorGradingDrawers()
 {
 	if (ColorGradingDrawer.IsValid())
 	{
-		ColorGradingDrawer.Pin()->Refresh(bPreserveDrawerState);
+		ColorGradingDrawer.Pin()->Refresh();
 	}
 
 	if (TSharedPtr<FTabManager> OperatorPanelTabManager = IDisplayClusterOperator::Get().GetOperatorViewModel()->GetTabManager())
@@ -85,7 +86,7 @@ void FDisplayClusterColorGradingDrawerSingleton::RefreshColorGradingDrawers(bool
 		if (TSharedPtr<SDockTab> ExistingTab = OperatorPanelTabManager->FindExistingLiveTab(ColorGradingDrawerTab))
 		{
 			TSharedRef<SDisplayClusterColorGradingDrawer> DockedDrawer = StaticCastSharedRef<SDisplayClusterColorGradingDrawer>(ExistingTab->GetContent());
-			DockedDrawer->Refresh(bPreserveDrawerState);
+			DockedDrawer->Refresh();
 		}
 	}
 }
@@ -102,14 +103,14 @@ TSharedRef<SWidget> FDisplayClusterColorGradingDrawerSingleton::CreateDrawerCont
 			ColorGradingDrawer = Drawer;
 		}
 
-		if (PreviousDrawerState.IsSet())
+		if (PreviousColorGradingPanelState.IsSet())
 		{
-			ColorGradingDrawer.Pin()->SetDrawerState(PreviousDrawerState.GetValue());
-			PreviousDrawerState.Reset();
+			ColorGradingDrawer.Pin()->SetColorGradingPanelState(PreviousColorGradingPanelState.GetValue());
+			PreviousColorGradingPanelState.Reset();
 		}
 		else
 		{
-			ColorGradingDrawer.Pin()->SetDrawerStateToDefault();
+			ColorGradingDrawer.Pin()->SelectOperatorRootActor();
 		}
 
 		return Drawer.ToSharedRef();
@@ -120,7 +121,7 @@ TSharedRef<SWidget> FDisplayClusterColorGradingDrawerSingleton::CreateDrawerCont
 
 		if (bCopyStateFromActiveDrawer && ColorGradingDrawer.IsValid())
 		{
-			NewDrawer->SetDrawerState(ColorGradingDrawer.Pin()->GetDrawerState());
+			NewDrawer->SetColorGradingPanelState(ColorGradingDrawer.Pin()->GetColorGradingPanelState());
 		}
 
 		return NewDrawer;
@@ -149,7 +150,7 @@ void FDisplayClusterColorGradingDrawerSingleton::ExtendOperatorStatusBar(FDispla
 
 	ColorGradingDrawerConfig.GetDrawerContentDelegate.BindRaw(this, &FDisplayClusterColorGradingDrawerSingleton::CreateDrawerContent, true, false);
 	ColorGradingDrawerConfig.OnDrawerDismissedDelegate.BindRaw(this, &FDisplayClusterColorGradingDrawerSingleton::SaveDrawerState);
-	ColorGradingDrawerConfig.ButtonText = LOCTEXT("ColorGradingDrawer_ButtonText", "In-Camera VFX");
+	ColorGradingDrawerConfig.ButtonText = LOCTEXT("ColorGradingDrawer_ButtonText", "Color Grading");
 	ColorGradingDrawerConfig.Icon = FDisplayClusterColorGradingStyle::Get().GetBrush("ColorGradingDrawer.Icon");
 
 	StatusBarExtender.AddWidgetDrawer(ColorGradingDrawerConfig);
@@ -172,24 +173,24 @@ void FDisplayClusterColorGradingDrawerSingleton::SaveDrawerState(const TSharedPt
 {
 	if (ColorGradingDrawer.IsValid())
 	{
-		PreviousDrawerState = ColorGradingDrawer.Pin()->GetDrawerState();
+		PreviousColorGradingPanelState = ColorGradingDrawer.Pin()->GetColorGradingPanelState();
 	}
 	else
 	{
-		PreviousDrawerState.Reset();
+		PreviousColorGradingPanelState.Reset();
 	}
 }
 
 void FDisplayClusterColorGradingDrawerSingleton::OnActiveRootActorChanged(ADisplayClusterRootActor* NewRootActor)
 {
 	// Clear the previous drawer state when the active root actor is changed, since it is most likely invalid
-	PreviousDrawerState.Reset();
+	PreviousColorGradingPanelState.Reset();
 }
 
 void FDisplayClusterColorGradingDrawerSingleton::OnDetailObjectsChanged(const TArray<UObject*>& NewObjects)
 {
 	// Clear the previous drawer state when the selected detail objects have changed
-	PreviousDrawerState.Reset();
+	PreviousColorGradingPanelState.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

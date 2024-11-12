@@ -3,14 +3,16 @@
 #pragma once
 #include "StateTreeTraceTypes.h"
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Math/Range.h"
 #include "StateTree.h"
 #include "StateTreeTypes.h"
 #include "TraceServices/Model/Frames.h"
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER
+
+#include "StateTreeDebuggerTypes.generated.h"
 
 UENUM()
 enum class EStateTreeBreakpointType : uint8
@@ -21,7 +23,7 @@ enum class EStateTreeBreakpointType : uint8
 	OnTransition,
 };
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 class UStateTree;
 enum class EStateTreeTraceEventType : uint8;
@@ -131,6 +133,17 @@ struct STATETREEMODULE_API FInstanceEventCollection
 		int32 EventIndex = INDEX_NONE;
 	};
 
+	struct FContiguousTraceInfo
+	{
+		explicit FContiguousTraceInfo(int32 LastSpanIndex)
+			: LastSpanIndex(LastSpanIndex)
+		{
+		}
+
+		/** Indicates the index of the last spans of the trace and from which the frame index will be used to offset new events since their frames will restart at 0. */
+		int32 LastSpanIndex = INDEX_NONE;
+	};
+
 	/** Id of the instance associated to the stored events. */
 	FStateTreeInstanceDebugId InstanceId;
 
@@ -139,6 +152,9 @@ struct STATETREEMODULE_API FInstanceEventCollection
 
 	/** Spans for frames with events. Each span contains the frame information and the index of the first event for that frame. */
 	TArray<FFrameSpan> FrameSpans;
+
+	/** This list is only used to merge events when dealing with multiple traces related to the same tree instance. */
+	TArray<FContiguousTraceInfo> ContiguousTracesData;
 
 	/** Indices of span and event for frames with a change of activate states. */
 	TArray<FActiveStatesChangePair> ActiveStatesChanges;
@@ -306,4 +322,4 @@ private:
 	static EStateTreeTraceEventType GetMatchingEventType(EStateTreeBreakpointType BreakpointType);
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

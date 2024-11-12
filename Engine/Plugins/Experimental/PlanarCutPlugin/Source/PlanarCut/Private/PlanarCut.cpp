@@ -758,9 +758,9 @@ void FPlanarCells::DiscardCells(TFunctionRef<bool(int32)> KeepFunc, bool bKeepNe
 		Cells.Value = Cells.Value > -1 ? OldToNew[Cells.Value] : -1;
 		if (Cells.Key == Cells.Value && Cells.Key == -1)
 		{
-			PlaneCells.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
-			Planes.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
-			PlaneBoundaries.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
+			PlaneCells.RemoveAtSwap(PlaneIdx, EAllowShrinking::No);
+			Planes.RemoveAtSwap(PlaneIdx, EAllowShrinking::No);
+			PlaneBoundaries.RemoveAtSwap(PlaneIdx, EAllowShrinking::No);
 			PlaneIdx--; // consider the swapped-in value in the next iteration
 		}
 		else
@@ -810,11 +810,12 @@ int32 CutWithPlanarCells(
 	bool bIncludeOutsideCellInOutput,
 	bool bSetDefaultInternalMaterialsFromCollection,
 	FProgressCancel* Progress,
-	FVector CellsOrigin
+	FVector CellsOrigin,
+	bool bSplitIslands
 )
 {
 	TArray<int32> TransformIndices { TransformIdx };
-	return CutMultipleWithPlanarCells(Cells, Source, TransformIndices, Grout, CollisionSampleSpacing, RandomSeed, TransformCollection, bIncludeOutsideCellInOutput, bSetDefaultInternalMaterialsFromCollection, Progress, CellsOrigin);
+	return CutMultipleWithPlanarCells(Cells, Source, TransformIndices, Grout, CollisionSampleSpacing, RandomSeed, TransformCollection, bIncludeOutsideCellInOutput, bSetDefaultInternalMaterialsFromCollection, Progress, CellsOrigin, bSplitIslands);
 }
 
 
@@ -828,7 +829,8 @@ int32 CutMultipleWithMultiplePlanes(
 	int32 RandomSeed,
 	const TOptional<FTransform>& TransformCollection,
 	bool bSetDefaultInternalMaterialsFromCollection,
-	FProgressCancel* Progress
+	FProgressCancel* Progress,
+	bool bSplitIslands
 )
 {
 	FProgressCancel::FProgressScope PrepareScope = FProgressCancel::CreateScopeTo(Progress, .1, LOCTEXT("CutWithMultiplePlanesInit", "Preparing to cut with planes"));
@@ -869,7 +871,7 @@ int32 CutMultipleWithMultiplePlanes(
 	FProgressCancel::FProgressScope CutScope = FProgressCancel::CreateScopeTo(Progress, .99, LOCTEXT("CutWithMultiplePlanesBody", "Cutting with planes"));
 
 	int32 NewGeomStartIdx = -1;
-	NewGeomStartIdx = MeshCollection.CutWithMultiplePlanes(CenteredPlanes, Grout, CollisionSampleSpacing, RandomSeed, &Collection, InternalSurfaceMaterials, bSetDefaultInternalMaterialsFromCollection, Progress);
+	NewGeomStartIdx = MeshCollection.CutWithMultiplePlanes(CenteredPlanes, Grout, CollisionSampleSpacing, bSplitIslands, RandomSeed, &Collection, InternalSurfaceMaterials, bSetDefaultInternalMaterialsFromCollection, Progress);
 
 	CutScope.Done();
 	if (Progress && Progress->Cancelled())
@@ -942,7 +944,8 @@ int32 CutMultipleWithPlanarCells(
 	bool bIncludeOutsideCellInOutput,
 	bool bSetDefaultInternalMaterialsFromCollection,
 	FProgressCancel* Progress,
-	FVector CellsOrigin
+	FVector CellsOrigin,
+	bool bSplitIslands
 )
 {
 	FProgressCancel::FProgressScope CreateMeshCollectionScope = FProgressCancel::CreateScopeTo(Progress, .1);
@@ -976,7 +979,7 @@ int32 CutMultipleWithPlanarCells(
 
 	FProgressCancel::FProgressScope CutScope = FProgressCancel::CreateScopeTo(Progress, .99);
 	int32 NewGeomStartIdx = -1;
-	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(Cells.InternalSurfaceMaterials, Cells.PlaneCells, CellMeshes, &Source, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
+	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(Cells.InternalSurfaceMaterials, Cells.PlaneCells, CellMeshes, bSplitIslands, &Source, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
 	CutScope.Done();
 
 	if (Progress && Progress->Cancelled())
@@ -1032,7 +1035,7 @@ FDynamicMesh3 ConvertMeshDescriptionToCuttingDynamicMesh(const FMeshDescription*
 	FDynamicMesh3 FullMesh; // full-featured conversion of the source mesh
 	Converter.Convert(CuttingMesh, FullMesh, true);
 	bool bHasInvalidNormals, bHasInvalidTangents;
-	FStaticMeshOperations::AreNormalsAndTangentsValid(*CuttingMesh, bHasInvalidNormals, bHasInvalidTangents);
+	FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(*CuttingMesh, bHasInvalidNormals, bHasInvalidTangents);
 	if (bHasInvalidNormals || bHasInvalidTangents)
 	{
 		FDynamicMeshAttributeSet& Attribs = *FullMesh.Attributes();
@@ -1139,7 +1142,8 @@ int32 CutWithMesh(
 	double CollisionSampleSpacing,
 	const TOptional<FTransform>& TransformCollection,
 	bool bSetDefaultInternalMaterialsFromCollection,
-	FProgressCancel* Progress
+	FProgressCancel* Progress,
+	bool bSplitIslands
 )
 {
 	FProgressCancel::FProgressScope PrepareScope = FProgressCancel::CreateScopeTo(Progress, .1);
@@ -1179,7 +1183,7 @@ int32 CutWithMesh(
 	}
 	FProgressCancel::FProgressScope CutScope = FProgressCancel::CreateScopeTo(Progress, .99);
 
-	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(InternalSurfaceMaterials, CellConnectivity, CellMeshes, &Collection, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
+	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(InternalSurfaceMaterials, CellConnectivity, CellMeshes, bSplitIslands, &Collection, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
 
 	CutScope.Done();
 	if (Progress && Progress->Cancelled())
@@ -1696,6 +1700,12 @@ void MergeClusters(
 	bool bOnlySameParent
 )
 {
+	if (Collection.NumElements(FGeometryCollection::TransformGroup) == 0)
+	{
+		// nothing to do, early exit
+		return;
+	}
+
 	FGeometryCollectionProximityUtility ProximityUtility(&Collection);
 	ProximityUtility.RequireProximity();
 	const TManagedArray<TSet<int32>>& Proximity = Collection.GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);

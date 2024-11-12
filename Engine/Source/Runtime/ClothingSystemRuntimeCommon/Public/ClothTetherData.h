@@ -34,6 +34,16 @@ struct FClothTetherData
 		const TConstArrayView<uint32>& Indices,  // Triangle mesh
 		const TConstArrayView<float>& MaxDistances,  // Mask for sorting the kinematic from the dynamic points
 		bool bUseGeodesicDistance);  // Whether to use geodesic (walking along the sruface) or euclidean (beeline) distances to find the tethers.
+	
+	/**
+	 * Generate the tethers by following the triangle mesh network from the closest kinematic to each dynamic point.
+	 * Inside array items can be processed concurrently, but the outside array must be iterated on sequentially.
+	 */
+	CLOTHINGSYSTEMRUNTIMECOMMON_API void GenerateTethers(
+		const TConstArrayView<FVector3f>& Points,  // Reference pose
+		const TConstArrayView<uint32>& Indices,  // Triangle mesh
+		const TSet<int32>& KinematicNodes,  // kinematic indices
+		bool bUseGeodesicDistance);  // Whether to use geodesic (walking along the sruface) or euclidean (beeline) distances to find the tethers.
 
 	/**
 	 * Generate the tether batches from existing tether data.

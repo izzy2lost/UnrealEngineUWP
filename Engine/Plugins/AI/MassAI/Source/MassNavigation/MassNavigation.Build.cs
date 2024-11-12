@@ -21,7 +21,6 @@ namespace UnrealBuildTool.Rules
 					"MassSimulation",
 					"MassSpawner",
 					"MassMovement",
-					"StructUtils",
 					"DeveloperSettings"
 				}
 			);

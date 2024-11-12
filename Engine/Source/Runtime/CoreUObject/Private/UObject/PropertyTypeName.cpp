@@ -11,6 +11,7 @@
 #include "Misc/StringBuilder.h"
 #include "String/Find.h"
 #include "UObject/Class.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 namespace UE
 {
@@ -161,6 +162,8 @@ FPropertyTypeNameTable::FPropertyTypeNameTable()
 	AllocateBlock(0);
 }
 
+// Open because property type name table is a global cached object.
+UE_AUTORTFM_ALWAYS_OPEN
 int32 FPropertyTypeNameTable::FindOrAddByName(const FPropertyTypeNameNode* First)
 {
 	const FPropertyTypeNameNodeProxy Proxy{First};
@@ -181,6 +184,8 @@ int32 FPropertyTypeNameTable::FindOrAddByName(const FPropertyTypeNameNode* First
 	return Index;
 }
 
+// Open because property type name table is a global cached object.
+UE_AUTORTFM_ALWAYS_OPEN
 const FPropertyTypeNameNode* FPropertyTypeNameTable::ResolveByIndex(int32 Index) const
 {
 	const int32 BlockIndex = Index >> GPropertyTypeNameBlockOffsetBits;
@@ -188,6 +193,8 @@ const FPropertyTypeNameNode* FPropertyTypeNameTable::ResolveByIndex(int32 Index)
 	return Blocks[BlockIndex].load(std::memory_order_relaxed) + BlockOffset;
 }
 
+// Open because property type name table is a global cached object.
+UE_AUTORTFM_ALWAYS_OPEN
 int32 FPropertyTypeNameTable::StoreByIndex(const FPropertyTypeNameNode* Nodes, int32 Count)
 {
 	if (Count == 1 && Nodes->Name.IsNone())
@@ -227,6 +234,8 @@ int32 FPropertyTypeNameTable::StoreByIndex(const FPropertyTypeNameNode* Nodes, i
 	return Index;
 }
 
+// Open because property type name table is a global cached object.
+UE_AUTORTFM_ALWAYS_OPEN
 FPropertyTypeNameNode* FPropertyTypeNameTable::AllocateBlock(int32 BlockIndex)
 {
 	TUniqueLock Lock(BlockAllocationMutex);
@@ -282,7 +291,7 @@ bool FPropertyTypeName::IsEnum(FName EnumName) const
 	return First->InnerCount > 0 && (First->Name == NAME_EnumProperty || First->Name == NAME_ByteProperty) && First[1].Name == EnumName;
 }
 
-uint32 GetTypeHash(const FPropertyTypeName& TypeName)
+[[nodiscard]] uint32 GetTypeHash(const FPropertyTypeName& TypeName)
 {
 	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(TypeName.Index);
 	return GetTypeHash(FPropertyTypeNameNodeProxy{First});

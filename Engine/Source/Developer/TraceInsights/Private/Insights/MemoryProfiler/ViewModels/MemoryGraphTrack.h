@@ -2,19 +2,23 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Math/Color.h"
 
-// Insights
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemoryTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemoryTracker.h"
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
 
-class FMemorySharedState;
 class FSlateFontMeasure;
-
 struct FSlateBrush;
+
+namespace UE::Insights::MemoryProfiler
+{
+
+class FMemorySharedState;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -44,18 +48,25 @@ public:
 		MaxTotalMem,
 		MinLiveAllocs,
 		MaxLiveAllocs,
+		MinSwapMem,
+		MaxSwapMem,
+		MinCompressedSwapMem,
+		MaxCompressedSwapMem,
 		AllocEvents,
-		FreeEvents
+		FreeEvents,
+		PageInEvents,
+		PageOutEvents,
+		SwapFreeEvents
 	};
 
 public:
 	virtual FString FormatValue(double Value) const override;
 
-	Insights::FMemoryTrackerId GetTrackerId() const { return TrackerId; }
-	void SetTrackerId(Insights::FMemoryTrackerId InTrackerId) { TrackerId = InTrackerId; }
+	FMemoryTrackerId GetTrackerId() const { return TrackerId; }
+	void SetTrackerId(FMemoryTrackerId InTrackerId) { TrackerId = InTrackerId; }
 
-	Insights::FMemoryTagId GetTagId() const { return TagId; }
-	void SetTagId(Insights::FMemoryTagId InTagId) { TagId = InTagId; }
+	FMemoryTagId GetTagId() const { return TagId; }
+	void SetTagId(FMemoryTagId InTagId) { TagId = InTagId; }
 
 	ETimelineType GetTimelineType() const { return TimelineType; }
 	void SetTimelineType(ETimelineType InTimelineType) { TimelineType = InTimelineType; }
@@ -65,8 +76,8 @@ public:
 	void SetValueRange(double Min, double Max) { MinValue = Min; MaxValue = Max; }
 
 private:
-	Insights::FMemoryTrackerId TrackerId = Insights::FMemoryTracker::InvalidTrackerId; // LLM tracker id
-	Insights::FMemoryTagId TagId = Insights::FMemoryTag::InvalidTagId; // LLM tag id
+	FMemoryTrackerId TrackerId = FMemoryTracker::InvalidTrackerId; // LLM tracker id
+	FMemoryTagId TagId = FMemoryTag::InvalidTagId; // LLM tag id
 	double MinValue = 0.0;
 	double MaxValue = 0.0;
 	ETimelineType TimelineType = ETimelineType::MemTag;
@@ -111,9 +122,9 @@ public:
 	virtual void Update(const ITimingTrackUpdateContext& Context) override;
 	virtual void InitTooltip(FTooltipDrawState& InOutTooltip, const ITimingEvent& InTooltipEvent) const override;
 
-	TSharedPtr<FMemoryGraphSeries> GetMemTagSeries(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId);
-	TSharedPtr<FMemoryGraphSeries> AddMemTagSeries(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId);
-	int32 RemoveMemTagSeries(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId);
+	TSharedPtr<FMemoryGraphSeries> GetMemTagSeries(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId);
+	TSharedPtr<FMemoryGraphSeries> AddMemTagSeries(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId);
+	int32 RemoveMemTagSeries(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId);
 	int32 RemoveAllMemTagSeries();
 
 	TSharedPtr<FMemoryGraphSeries> GetTimelineSeries(FMemoryGraphSeries::ETimelineType InTimelineType);
@@ -162,7 +173,7 @@ protected:
 
 	/**
 	 * Number of decimal digits for labels.
-	 * Specifies the number of decimal digits to use when formating labels of the vertical axis grid.
+	 * Specifies the number of decimal digits to use when formatting labels of the vertical axis grid.
 	 * If negative, the formatting will use maximum the number of decimal digits specified (trims trailing 0s),
 	 * otherwise, it will use exactly the number of decimal digits specified.
 	 */
@@ -182,3 +193,5 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

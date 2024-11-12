@@ -20,6 +20,11 @@ FMVVMLinkedPinValue::FMVVMLinkedPinValue(const UBlueprint* InBlueprint, FMVVMBlu
 	}
 }
 
+FMVVMLinkedPinValue::FMVVMLinkedPinValue(UE::MVVM::FConversionFunctionValue Function)
+	: ConversionFunction(Function.GetFunction())
+	, ConversionNode(Function.GetNode())
+{}
+
 FMVVMLinkedPinValue::FMVVMLinkedPinValue(const UFunction* Function)
 	: ConversionFunction(Function)
 {}

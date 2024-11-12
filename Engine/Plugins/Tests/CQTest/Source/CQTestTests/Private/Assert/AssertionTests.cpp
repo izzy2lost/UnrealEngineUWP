@@ -12,7 +12,7 @@ namespace CQTests
 
 	TEST_CLASS(NoDiscardAssert_Errors, "TestFramework.CQTest.Core")
 	{
-
+		FNoDiscardAsserter Asserter{ *TestRunner };
 		TEST_METHOD(AssertFail_WithMessage_AddsError)
 		{
 			Assert.ExpectError(AnyError);
@@ -30,55 +30,55 @@ namespace CQTests
 
 		TEST_METHOD(Assertions_Accept_RawStrings)
 		{
-			Assert.ExpectError("Hello World");
-			Assert.Fail("Hello World");
+			Asserter.ExpectError("Hello World");
+			Asserter.Fail("Hello World");
 		}
 
 		TEST_METHOD(Assertions_Accept_TCharArrays)
 		{
-			Assert.ExpectError(TEXT("Hello World"));
-			Assert.Fail(TEXT("Hello World"));
+			Asserter.ExpectError(TEXT("Hello World"));
+			Asserter.Fail(TEXT("Hello World"));
 		}
 
 		TEST_METHOD(Assertions_Accept_FStrings)
 		{
 			FString message = TEXT("Hello World");
-			Assert.ExpectError(message);
-			Assert.Fail(TEXT("Hello WorldA"));
+			Asserter.ExpectError(message);
+			Asserter.Fail(message);
 		}
 
 		TEST_METHOD(AssertExpectError_WithMultipleErrors_Succeeds)
 		{
-			Assert.ExpectError("", 3);
-			Assert.Fail("One");
-			Assert.Fail("Two");
-			Assert.Fail("Three");
+			Asserter.ExpectError(AnyError, 3);
+			Asserter.Fail("One");
+			Asserter.Fail("Two");
+			Asserter.Fail("Three");
 		}
 
 		TEST_METHOD(AsserterExpectError_WithZeroExpected_AcceptsAnyNumber)
 		{
-			Assert.ExpectError("", 0);
-			Assert.Fail("One");
-			Assert.Fail("Two");
-			Assert.Fail("Three");
+			Asserter.ExpectError(AnyError, 0);
+			Asserter.Fail("One");
+			Asserter.Fail("Two");
+			Asserter.Fail("Three");
 		}
 
 		TEST_METHOD(AssertExpectError_WithMatchingError_Succeeds)
 		{
-			Assert.ExpectError("Hello World");
-			Assert.Fail("Hello World");
+			Asserter.ExpectError("Hello World");
+			Asserter.Fail("Hello World");
 		}
 
 		TEST_METHOD(AssertExpectError_WithRegexSymbols_EscapesRegex)
 		{
-			Assert.ExpectError("[^abc]");
-			Assert.Fail("[^abc]");
+			Asserter.ExpectError("[^abc]");
+			Asserter.Fail("[^abc]");
 		}
 
 		TEST_METHOD(AssertExpectErrorRegex_WithRegex_Succeeds)
 		{
-			Assert.ExpectErrorRegex("\\w+");
-			Assert.Fail("abc");
+			Asserter.ExpectErrorRegex("\\w+");
+			Asserter.Fail("abc");
 		}
 	};
 
@@ -143,27 +143,93 @@ namespace CQTests
 			Assert.ExpectError(ExpectedError);
 			ASSERT_THAT(AreEqual(42, 0, ExpectedError));
 		}
-		TEST_METHOD(AssertNear_WithSameNumbers_Succeeds)
+
+		/* These cases intentionally do not compile to avoid accidental floating point error
+		TEST_METHOD(AssertEqual_WithDoubles_CompileError)
+		{
+			ASSERT_THAT(AreEqual(42.0, 42.0));
+		}
+		TEST_METHOD(AssertEqual_WithFloats_CompileError)
+		{
+			ASSERT_THAT(AreEqual(42.f, 42.f));
+		}
+		TEST_METHOD(AssertEqual_WithMixedFloat_CompileError)
+		{
+			ASSERT_THAT(AreEqual(42, 42.f));
+		}
+
+		TEST_METHOD(AssertNotEqual_WithDoubles_CompileError)
+		{
+			ASSERT_THAT(AreNotEqual(42.0, 42.0));
+		}
+		TEST_METHOD(AssertNotEqual_WithFloats_CompileError)
+		{
+			ASSERT_THAT(AreNotEqual(42.f, 42.f));
+		}
+		TEST_METHOD(AssertNotEqual_WithMixedFloat_CompileError)
+		{
+			ASSERT_THAT(AreNotEqual(42, 42.f));
+		}
+		*/
+
+		TEST_METHOD(AssertNotEqual_WithDifferentInts_Succeeds)
+		{
+			ASSERT_THAT(AreNotEqual(42, 0));
+		}
+		TEST_METHOD(AssertNotEqual_WithDifferentAndErrorMessage_DoesNotAddErrorMessage)
+		{
+			ASSERT_THAT(AreNotEqual(42, 0, "Unexpected"));
+		}
+		TEST_METHOD(AssertNotEqual_WithSameInts_AddsError)
+		{
+			Assert.ExpectError(AnyError);
+			ASSERT_THAT(AreNotEqual(42, 42));
+		}
+		TEST_METHOD(AssertNotEqual_WithSameIntsAndErrorMessage_AddsSpecificError)
+		{
+			Assert.ExpectError(ExpectedError);
+			ASSERT_THAT(AreNotEqual(42, 42, ExpectedError));
+		}
+
+		TEST_METHOD(AssertNear_WithSameDoubles_Succeeds)
 		{
 			ASSERT_THAT(IsNear(3.14, 3.14, 0.001));
 		}
-		TEST_METHOD(AssertNear_WithSameNumbersAndErrorMessage_DoesNotAddErrorMessage)
+		TEST_METHOD(AssertNear_WithSameDoublesAndErrorMessage_DoesNotAddErrorMessage)
 		{
 			ASSERT_THAT(IsNear(3.14, 3.14, 0.001, "Unexpected"));
 		}
-		TEST_METHOD(AssertNear_WithSimilarNumbers_Succeeds)
+		TEST_METHOD(AssertNear_WithSimilarDoubles_Succeeds)
 		{
 			ASSERT_THAT(IsNear(3.0, 3.1, 1.0));
 		}
-		TEST_METHOD(AssertNear_WithDifferentNumbers_AddsError)
+		TEST_METHOD(AssertNear_WithDifferentDoubles_AddsError)
 		{
 			Assert.ExpectError(AnyError);
 			ASSERT_THAT(IsNear(1.0, 2.0, 0.001));
 		}
-		TEST_METHOD(AssertNear_WithDifferentNumbersAndError_AddsSpecificError)
+		TEST_METHOD(AssertNear_WithDifferentDoublesAndError_AddsSpecificError)
 		{
 			Assert.ExpectError(ExpectedError);
 			ASSERT_THAT(IsNear(1.0, 2.0, 0.001, ExpectedError));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleWithinTolerance_Succeeds)
+		{
+			ASSERT_THAT(IsNear(3.0, 3.001, 0.01));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleWithinNegativeTolerance_Succeeds)
+		{
+			ASSERT_THAT(IsNear(3.0, 2.999, 0.01));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleOutsideTolerance_AddsError)
+		{
+			Assert.ExpectError(AnyError);
+			ASSERT_THAT(IsNear(3.0, 3.1, 0.01));
+		}
+		TEST_METHOD(AssertNear_WithSimilarDoubleOutsideNegativeTolerance_AddsError)
+		{
+			Assert.ExpectError(AnyError);
+			ASSERT_THAT(IsNear(3.0, 2.9, 0.01));
 		}
 	};
 

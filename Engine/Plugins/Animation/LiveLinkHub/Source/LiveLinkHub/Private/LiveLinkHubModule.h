@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ILiveLinkHubModule.h"
+#include "LiveLinkHubTicker.h"
 #include "Templates/SharedPointer.h"
 
 class FLiveLinkHub;
@@ -14,15 +15,13 @@ class FLiveLinkHubSubjectController;
 class FUICommandList;
 class ILiveLinkHubSessionManager;
 
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
-
 class FLiveLinkHubModule : public ILiveLinkHubModule
 {
 public:
 	//~ Begin ILiveLinkHubModule interface
-	virtual void StartLiveLinkHub() override;
+	virtual void PreinitializeLiveLinkHub() override;
+	virtual void StartLiveLinkHub(bool bLauncherDistribution = false) override;
+	virtual void ShutdownLiveLinkHub() override;
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 	//~ End ILiveLinkHubModule interface
@@ -42,11 +41,16 @@ public:
 	/** Get the subject controller. */
     TSharedPtr<ILiveLinkHubSessionManager> GetSessionManager() const;
 
-#if !WITH_LIVELINK_HUB
-	/** Launch livelink hub. */
-	void OpenLiveLinkHub() const;
-#endif
 private:
 	/** LiveLinkHub object responsible for initializing the different controllers. */
 	TSharedPtr<FLiveLinkHub> LiveLinkHub;
+
+	/** Utility object used to tick LiveLink outside of the game thread. */
+	FLiveLinkHubTicker Ticker;
+
+	/** Config-driven. True in LiveLink Hub standalone application, false in UE. */
+	bool bUseSubjectSettingsDetailsCustomization = false;
+	
+	/** Overrides standard livelink settings customization. Config-driven. True in LiveLink Hub standalone application, false in UE. */
+	bool bUseSettingsDetailCustomization = false;
 };

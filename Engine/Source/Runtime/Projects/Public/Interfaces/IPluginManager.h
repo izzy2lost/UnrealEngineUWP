@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Delegates/Delegate.h"
 #include "PluginDescriptor.h"
 #include "Containers/VersePathFwd.h"
 #include "Templates/SharedPointer.h"
@@ -44,6 +45,42 @@ enum class EPluginType
 	Mod,
 };
 
+/**
+ * Enum describing a source of EPluginType::External plugins
+ */
+enum class EPluginExternalSource
+{
+	/** .uproject `AdditionalPluginDirectories` field */
+	ProjectDescriptor,
+
+	/** Passed via `-plugin=` command line switch. */
+	CommandLine,
+
+	/** Inherited from `UE_ADDITIONAL_PLUGIN_PATHS` environment variable. */
+	Environment,
+
+	/** None of the above (e.g. added explicitly by external code). */
+	Other,
+};
+
+/**
+ * Combination of a directory searched for external plugins, and its configuration source.
+ */
+struct FExternalPluginPath
+{
+	FString Path;
+	EPluginExternalSource Source;
+
+	inline bool operator==(const FExternalPluginPath& Other) const
+	{
+		return (Other.Path == Path) && (Other.Source == Source);
+	}
+
+	friend uint32 GetTypeHash(const FExternalPluginPath& ExternalPluginPath)
+	{
+		return HashCombine(GetTypeHash(ExternalPluginPath.Path), GetTypeHash(ExternalPluginPath.Source));
+	}
+};
 
 /**
  * Simple data structure that is filled when querying information about plug-ins.
@@ -179,6 +216,17 @@ public:
 	virtual void SetVersePath(FString&& InVersePath) = 0;
 
 	/**
+	 * Return the Verse language version to compile the plugin with (if unspecified, the latest stable version is used)
+	 */
+	virtual TOptional<uint32> GetVerseVersion() const = 0;
+
+	/**
+	 * Sets the Verse language version to compile the plugin with (if unspecified, the latest stable version is used)
+	 * @param InVerseVersion Verse version to set on the plugin
+	 */
+	virtual void SetVerseVersion(TOptional<uint32> InVerseVersion) = 0;
+
+	/**
 	 * Returns the plugin's location
 	 *
 	 * @return Where the plugin was loaded from
@@ -281,23 +329,31 @@ public:
 	 */
 	virtual void SetUnRegisterMountPointDelegate( const FRegisterMountPointDelegate& Delegate ) = 0;
 
-	/** Delegate type for updating the package localization cache.  Used internally by FPackageLocalizationManager code. */
-	DECLARE_DELEGATE( FUpdatePackageLocalizationCacheDelegate );
-
-	/**
-	 * Sets the delegate to call to update the package localization cache.  This is used internally by the plug-in manager system
-	 * and should not be called by you.  This is registered at application startup by FPackageLocalizationManager code in CoreUObject.
-	 *
-	 * @param	Delegate	The delegate to that will be called when plug-in manager needs to update the package localization cache
-	 */
-	virtual void SetUpdatePackageLocalizationCacheDelegate( const FUpdatePackageLocalizationCacheDelegate& Delegate ) = 0;
-
 	/**
 	 * Checks if all the required plug-ins are available. If not, will present an error dialog the first time a plug-in is loaded or this function is called.
 	 *
 	 * @returns true if all the required plug-ins are available.
 	 */
 	virtual bool AreRequiredPluginsAvailable() = 0;
+
+	/** Delegate type for allowing higher levels systems to provide additional context for why a package was skipped during loading */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FGetExplanationForUnavailablePackageWithPluginInfoDelegate, const FString& /*Unavailable package*/, class IPlugin* /*Plugin or null if not found*/, FStringBuilderBase& /*InOutStringBuilder*/);
+
+	/**
+	 * Accessor for adding/removing FGetExplanationForUnavailablePackageWithPluginInfoDelegate delegates.
+	 * 
+	 * @returns the FGetExplanationForUnavailablePackageWithPluginInfoDelegate to which callbacks can be bound
+	 */
+	virtual FGetExplanationForUnavailablePackageWithPluginInfoDelegate& GetExplanationForUnavailablePackageWithPluginInfoDelegate() = 0;
+
+	/**
+	 * Attempts to fill out InOutExplanation with information from various sources (registered via GetExplanationForUnavailablePackageWithPluginInfoDelegate)
+	 * about why UnavailablePackageName is not available
+	 * 
+	 * @param UnavailablePackageName the name of the package about which to get information
+	 * @param InOutExplanation a stringbuilder to which to append explanatory information
+	 */
+	virtual	void GetExplanationForUnavailablePackage(const FName& UnavailablePackageName, FStringBuilderBase& InOutExplanation) = 0;
 
 #if !IS_MONOLITHIC
 	/** 
@@ -331,6 +387,12 @@ public:
 
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromPath(const FString& PluginPath) = 0;
 	virtual TSharedPtr<IPlugin> FindEnabledPluginFromDescriptor(const FPluginReferenceDescriptor& PluginDesc) = 0;
+
+	/**
+	 * Returns true when the given plugin can be enabled for the current running exe.
+	 */
+	virtual bool CanEnablePluginInCurrentTarget(const FStringView Name) = 0;
+	virtual bool CanEnablePluginInCurrentTarget(const ANSICHAR* Name) = 0;
 
 	/** 
 	 * Finds all plugin descriptors underneath a given directory (recursively)
@@ -396,9 +458,26 @@ public:
 	virtual bool AddPluginSearchPath(const FString& ExtraDiscoveryPath, bool bRefresh = true) = 0;
 
 	/**
+	 * Removes the specified path from consideration for available plugins.
+	 * Optionally refreshes the manager after the path has been removed.
+	 *
+	 * @param  PathToRemove			The path no longer searched for additional plugins.
+	 * @param  bRefresh				Signals the function to refresh the plugin database after the path has been removed
+	 * @return Whether the plugin search path was modified
+	 */
+	virtual bool RemovePluginSearchPath(const FString& PathToRemove, bool bRefresh = true) = 0;
+
+	/**
 	 * Returns the list of extra directories that are recursively searched for plugins (aside from the engine and project plugin directories).
+	 * NOTE: You may also want to check IProjectManager::GetAdditionalPluginDirectories, which are not included here!
 	 */
 	virtual const TSet<FString>& GetAdditionalPluginSearchPaths() const = 0;
+
+	/**
+	 * Similar to GetAdditionalPluginSearchPaths, but also returns configuration sources for each path.
+	 * Unlike GetAdditionalPluginSearchPaths, this DOES include AdditionalPluginDirectories from the uproject descriptor.
+	 */
+	virtual void GetExternalPluginSources(TSet<FExternalPluginPath>& OutPluginSources) const = 0;
 
 	/**
 	 * Gets an array of plugins that loaded their own content pak file
@@ -452,13 +531,15 @@ public:
 
 	/**
 	 * Start loading localization data for an explicitly loaded plugin that has previously been mounted via one of the MountExplicitlyLoadedPlugin functions.
+	 * @note Localization data is ref-counted, so this should be paired with a call to UnmountExplicitlyLoadedPluginLocalizationData.
 	 * @return True if localization data started to load, or false if the plugin was missing or had no localization data to load.
 	 */
 	virtual bool MountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
 
 	/**
 	 * Start unloading localization data for an explicitly loaded plugin that had its localization data mounted via MountExplicitlyLoadedPluginLocalizationData.
-	 * @note Localization data is also automatically unloaded when calling UnmountExplicitlyLoadedPlugin.
+	 * @note Localization data is ref-counted, so this should be paired with a call to MountExplicitlyLoadedPluginLocalizationData.
+	 * @note Localization data is also automatically (and regardless of ref-count) unloaded when calling UnmountExplicitlyLoadedPlugin.
 	 * @return True if localization data started to unload, or false if the plugin was missing or had no localization data to unload.
 	 */
 	virtual bool UnmountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
@@ -520,6 +601,12 @@ public:
 	*/ 
 	virtual void SetPreloadBinaries() = 0;
 	virtual bool GetPreloadBinaries() = 0;
+
+	/**
+	 * Internal API for handling plugin garbage collection in a batch-friendly way.
+	 */
+	UE_INTERNAL virtual void SuppressPluginUnloadGC() = 0;
+	UE_INTERNAL virtual void ResumePluginUnloadGC() = 0;
 
 public:
 

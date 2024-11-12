@@ -18,10 +18,17 @@ private:
 	virtual void RegisterSequencerCustomization(FSequencerCustomizationBuilder& Builder) override;
 	virtual void UnregisterSequencerCustomization() override;
 
-	void ExtendSequencerToolbar(FToolBarBuilder& ToolbarBuilder);
+	void ExtendViewMenu(FMenuBuilder& MenuBuilder);
+	void ExtendToolbar(FToolBarBuilder& ToolbarBuilder);
 
 	TSharedRef<SWidget> GetBoundCameraClassMenuContent();
 	bool IsBoundToActorClass(UClass* InClass);
+
+	void ToggleCameraInitiallyAdditiveToViewport();
+	bool IsCameraInitiallyAdditiveToViewport();
+
+	void SetCameraAdditiveToViewportOffset();
+	bool CanSetCameraAdditiveToViewportOffset();
 
 	TArray<UClass*> CameraActorClasses;
 };

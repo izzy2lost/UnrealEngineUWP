@@ -12,6 +12,7 @@
 #include "UObject/Object.h"
 #include "Serialization/MemoryReader.h"
 #include "UObject/Package.h"
+#include "Misc/PackageName.h"
 #include "Misc/SecureHash.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/LargeMemoryReader.h"
@@ -111,6 +112,8 @@ FPackageStorePackage* FPackageStoreOptimizer::CreatePackageFromCookedHeader(cons
 	{
 		Package->NameMapBuilder.AddName(CookedHeaderData.SummaryNames[I]);
 	}
+
+	Package->SoftPackageReferences = MoveTemp(CookedHeaderData.SoftPackageReferences);
 
 	TArray<FPackageStorePackage::FUnresolvedImport> Imports;
 	ProcessImports(CookedHeaderData, Package, Imports);
@@ -222,7 +225,18 @@ FPackageStoreOptimizer::FCookedHeaderData FPackageStoreOptimizer::LoadCookedHead
 			ProxyAr << ObjectExport;
 		}
 	}
-	
+
+	if (Summary.SoftPackageReferencesCount > 0)
+	{
+		ProxyAr.Seek(Summary.SoftPackageReferencesOffset);
+		CookedHeaderData.SoftPackageReferences.Reserve(Summary.SoftPackageReferencesCount);
+		for (int32 I = 0; I < Summary.SoftPackageReferencesCount; ++I)
+		{
+			FName& SoftReference = CookedHeaderData.SoftPackageReferences.Emplace_GetRef();
+			ProxyAr << SoftReference;
+		}
+	}
+
 	if (Summary.DataResourceOffset > 0)
 	{
 		ProxyAr.Seek(Summary.DataResourceOffset);
@@ -625,6 +639,7 @@ void FPackageStoreOptimizer::ProcessDataResources(const FCookedHeaderData& Cooke
 		Entry.DuplicateSerialOffset = DataResource.DuplicateSerialOffset;
 		Entry.SerialSize = DataResource.SerialSize;
 		Entry.Flags = DataResource.LegacyBulkDataFlags;
+		Entry.CookedIndex = DataResource.CookedIndex;
 	}
 }
 
@@ -1083,5 +1098,26 @@ FPackageStoreEntryResource FPackageStoreOptimizer::CreatePackageStoreEntry(const
 			Result.OptionalSegmentImportedPackageIds.Add(ImportedPackage.Id);
 		}
 	}
+
+	Result.SoftPackageReferences.Reserve(Package->SoftPackageReferences.Num());
+	for (const FName& SoftRefName : Package->SoftPackageReferences)
+	{
+		TCHAR NameStr[FName::StringBufferSize];
+		const uint32 NameLen = SoftRefName.ToString(NameStr);
+		const FStringView SoftRef(NameStr, NameLen);
+
+		if (!FPackageName::IsScriptPackage(SoftRef))
+		{
+			if (!FPackageName::IsValidLongPackageName(SoftRef))
+			{
+				UE_LOG(LogPackageStoreOptimizer, Warning, TEXT("Invalid soft package reference name '%s'"), *SoftRefName.ToString());
+				continue;
+			}
+
+			Result.SoftPackageReferences.Add(FPackageId::FromName(SoftRefName));
+		}
+	}
+	Result.SoftPackageReferences.Sort();
+
 	return Result;
 }

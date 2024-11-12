@@ -7,6 +7,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Logging/LogVerbosity.h"
+#include "Misc/Paths.h"
 
 /**
  * Single header drop in file to help diagnose audio issues
@@ -25,7 +26,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogMediaIOAudioDebug, Log, All)
 
 #define MEDIA_IO_DUMP_AUDIO_MONO(Array)\
-	UE::MediaIOAudioDebug::GetSingleton().ProcessAudio(L#Array, Array);
+	UE::MediaIOAudioDebug::GetSingleton().ProcessAudio(TEXT(#Array), Array);
 
 #define MEDIA_IO_DUMP_AUDIO(Name, Buffer, BufferSize, SampleSize, NumChannels)\
 	UE::MediaIOAudioDebug::GetSingleton().ProcessAudio(Name, Buffer, BufferSize, SampleSize, NumChannels);

@@ -48,7 +48,7 @@ class SWebBrowserView;
 @property(copy) NSString* NextContent;
 @property CGRect DesiredFrame;
 
--(void)create:(TSharedPtr<SIOSWebBrowserWidget>)InWebBrowserWidget useTransparency : (bool)InUseTransparency
+-(void)create:(TSharedPtr<SIOSWebBrowserWidget>)InWebBrowserWidget userAgentApplication: (NSString*)UserAgentApplication useTransparency : (bool)InUseTransparency
 supportsMetal : (bool)InSupportsMetal supportsMetalMRT : (bool)InSupportsMetalMRT;
 -(void)close;
 -(void)dealloc;
@@ -97,7 +97,7 @@ private:
 	* @param InContentsToLoad Optional string to load as a web page.
 	* @param InShowErrorMessage Whether to show an error message in case of loading errors.
 	*/
-	FWebBrowserWindow(FString InUrl, TOptional<FString> InContentsToLoad, bool ShowErrorMessage, bool bThumbMouseButtonNavigation, bool bUseTransparency, bool bInJSBindingToLoweringEnabled);
+	FWebBrowserWindow(FString InUrl, TOptional<FString> InContentsToLoad, bool ShowErrorMessage, bool bThumbMouseButtonNavigation, bool bUseTransparency, bool bInJSBindingToLoweringEnabled, FString InUserAgentApplication);
 
 	/**
 	 * Create the SWidget for this WebBrowserWindow
@@ -317,6 +317,9 @@ private:
 
 	/** Current Url of this window. */
 	FString CurrentUrl;
+
+	/** User-Agent Application to report. */
+	FString UserAgentApplication;
 
 	/** Optional text to load as a web page. */
 	TOptional<FString> ContentsToLoad;

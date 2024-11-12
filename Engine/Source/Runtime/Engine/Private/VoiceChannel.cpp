@@ -126,7 +126,7 @@ void UVoiceChannel::Tick()
 	{
 		if (!VoicePackets[i]->IsReliable())
 		{
-			VoicePackets.RemoveAt(i,1,EAllowShrinking::No);
+			VoicePackets.RemoveAt(i,EAllowShrinking::No);
 			PacketLoss++;
 		}
 	}

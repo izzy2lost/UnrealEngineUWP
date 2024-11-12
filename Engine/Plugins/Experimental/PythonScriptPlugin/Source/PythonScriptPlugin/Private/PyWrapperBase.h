@@ -78,8 +78,13 @@ struct FPyWrapperBaseMetaData
 		return nullptr;
 	}
 
+	/** Add object references from this type meta-data to the given collector */
+	virtual void AddTypeReferencedObjects(FReferenceCollector& Collector)
+	{
+	}
+
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 	{
 	}
 };

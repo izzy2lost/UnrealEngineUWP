@@ -9,12 +9,15 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class SymbolIssueHandler : IssueHandler
 	{
 		const string EventIdName = "EventId";
 
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <summary>
 		/// Determines if the given event id matches

@@ -233,14 +233,6 @@ void EyeAdaptationCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	RWEyeAdaptationBuffer[0] = OutData0;
 	RWEyeAdaptationBuffer[1] = float4(AverageLocalExposure, 0.0f, 0.0f, 0.0f);
 }
-
-RWTexture2D<float4> RWEyeAdaptationTexture;
-
-[numthreads(1, 1, 1)]
-void CopyEyeAdaptationToTextureCS(uint2 DispatchThreadId : SV_DispatchThreadID)
-{
-	RWEyeAdaptationTexture[DispatchThreadId] = EyeAdaptationBuffer[0];
-}
 #endif
 
 void BasicEyeAdaptationSetupPS(
@@ -366,7 +358,7 @@ void BasicEyeAdaptationCS(uint GIndex : SV_GroupIndex, uint2 GTId : SV_GroupThre
 
 RWTexture2D<float> RWIlluminanceTexture;
 SCREEN_PASS_TEXTURE_VIEWPORT(Illuminance)
-uint IllumiananceDownscaleFactor;
+FScreenTransform IlluminanceRectToColorRect;
 
 // same weights as CalculateEyeAdaptationLuminance
 // but skip the min since we apply EyeAdaptation_IgnoreMaterialsMinBaseColorLuminance here
@@ -379,7 +371,7 @@ float CalculateEyeAdaptationLuminanceWithoutMin(float3 Color)
 void SetupExposureIlluminance(uint2 ThreadId : SV_DispatchThreadID)
 {
 	const uint2 OutputTexelPos = ThreadId + Illuminance_ViewportMin;
-	const uint2 TexelPos = ThreadId * IllumiananceDownscaleFactor + View.ViewRectMinAndSize.xy;
+	const uint2 TexelPos = ApplyScreenTransform(float2(OutputTexelPos + 0.5f), IlluminanceRectToColorRect);
 
 	const float3 Emissive = ColorTexture.Load(int3(TexelPos, 0)).rgb;
 
@@ -507,7 +499,7 @@ FExposureMaterial GetExposureMaterial(uint2 InPixelPos)
 void CalculateExposureIlluminance(uint2 ThreadId : SV_DispatchThreadID)
 {
 	const uint2 OutputTexelPos = ThreadId + Illuminance_ViewportMin;
-	const uint2 TexelPos = ThreadId * IllumiananceDownscaleFactor + View.ViewRectMinAndSize.xy;
+	const uint2 TexelPos = ApplyScreenTransform(float2(OutputTexelPos + 0.5f), IlluminanceRectToColorRect);
 
 	const float3 SceneColor = ColorTexture.Load(int3(TexelPos, 0)).rgb * View.OneOverPreExposure;
 

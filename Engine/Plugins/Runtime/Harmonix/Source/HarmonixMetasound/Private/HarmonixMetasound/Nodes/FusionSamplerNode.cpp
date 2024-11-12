@@ -37,6 +37,7 @@ namespace HarmonixMetasound
 		METASOUND_PARAM(FineTuneCents, "Fine Tune Cents", "Adds to the patch's fine tune cents setting if connected AND if the vaue is > -1200 and < 1200.")
 		METASOUND_PARAM(EnableMTFusion, "Multithreaded Rendering", "Turn on to allow Fusion rendering to be done across multiple tasks. NOTE: YOU MUST then connect this node's "
 		                                 "Audio Output AND Render Sync Output to a Fusion Synchronizer Node, and reference THAT NODE'S audio outputs elsewhere in the graph!")
+		METASOUND_PARAM(VoicePoolName, "Voice Pool Name", "The name of a specific voice pool for this node to use. Uses the default pool if the named pool does not exist, or if the name is \"None\"")
 		METASOUND_PARAM(RenderSync, "Render Sync", "YOU MUST connect this AND this node's audio output to a Fusion Synchronizer Node if you have enabled Multithreaded Rendering for this node!")
 	}
 
@@ -72,6 +73,7 @@ namespace HarmonixMetasound
 			FFusionPatchAssetReadRef InPatch;
 			FBoolReadRef             InClockSpeedToPitch;
 			bool		             InMTRenderingEnable;
+			FString					 InVoicePoolName;
 			EAudioBufferChannelLayout InOutputChannelLayout;
 
 			FConstructionArgs(const FBuildOperatorParams& InParams, EAudioBufferChannelLayout OutputChannelLayout)
@@ -89,6 +91,7 @@ namespace HarmonixMetasound
 				, InPatch(InParams.InputData.GetOrConstructDataReadReference<FFusionPatchAsset>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::SynthPatch)))
 				, InClockSpeedToPitch(InParams.InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::ClockSpeedToPitch), InParams.OperatorSettings))
 				, InMTRenderingEnable(InParams.InputData.GetOrCreateDefaultValue<bool>(METASOUND_GET_PARAM_NAME(FusionSamplerNodePinNames::EnableMTFusion), InParams.OperatorSettings))
+				, InVoicePoolName(InParams.InputData.GetOrCreateDefaultValue<FString>(METASOUND_GET_PARAM_NAME(FusionSamplerNodePinNames::VoicePoolName), InParams.OperatorSettings))
 				, InOutputChannelLayout(OutputChannelLayout)
 			{
 			}
@@ -110,7 +113,8 @@ namespace HarmonixMetasound
 				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(FusionSamplerNodePinNames::Lfo1DepthOverride), -1.0f),
 				TInputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(FusionSamplerNodePinNames::FineTuneCents), -1200.0f),
 				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::ClockSpeedToPitch), true),
-				TInputConstructorVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA_ADVANCED(FusionSamplerNodePinNames::EnableMTFusion), false)
+				TInputConstructorVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA_ADVANCED(FusionSamplerNodePinNames::EnableMTFusion), false),
+				TInputConstructorVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA_ADVANCED(FusionSamplerNodePinNames::VoicePoolName), FString(TEXT("")))
 			);
 
 			return InputInterface;
@@ -130,6 +134,7 @@ namespace HarmonixMetasound
 			, PatchInPin(Args.InPatch)
 			, ClockSpeedAffectsPitchInPin(Args.InClockSpeedToPitch)
 			, EnableMTRenderingInPin(Args.InMTRenderingEnable)
+			, VoicePoolName(Args.InVoicePoolName)
 			, OutputChannelLayout(Args.InOutputChannelLayout)
 		{
 			Reset(Args.Params);
@@ -163,6 +168,7 @@ namespace HarmonixMetasound
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::SynthPatch), PatchInPin);
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::ClockSpeedToPitch), ClockSpeedAffectsPitchInPin);
 			InVertexData.SetValue(METASOUND_GET_PARAM_NAME(FusionSamplerNodePinNames::EnableMTFusion), EnableMTRenderingInPin);
+			InVertexData.SetValue(METASOUND_GET_PARAM_NAME(FusionSamplerNodePinNames::VoicePoolName), VoicePoolName);
 
 			Init();
 		}
@@ -178,7 +184,7 @@ namespace HarmonixMetasound
 			ResetInstrumentState();
 			SetSampleRate(Params.OperatorSettings.GetSampleRate());
 			
-			SetVoicePool(FFusionVoicePool::GetDefault(Params.OperatorSettings.GetSampleRate()), false);
+			SetVoicePool(FFusionVoicePool::GetNamedPool(FName(VoicePoolName), Params.OperatorSettings.GetSampleRate()), false);
 		}
 
 		void Execute();
@@ -212,6 +218,7 @@ namespace HarmonixMetasound
 		FFusionPatchAssetReadRef PatchInPin;
 		FBoolReadRef ClockSpeedAffectsPitchInPin;
 		bool EnableMTRenderingInPin;
+		FString VoicePoolName;
 
 		//** DATA
 		int32 FramesPerBlock = 0;
@@ -656,8 +663,15 @@ namespace HarmonixMetasound
 				SetSpeed(ClockSpeed, !(*ClockSpeedAffectsPitchInPin));
 				const float ClockTempo = MidiClock->GetTempoAtBlockSampleFrame(CurrentBlockFrameIndex);
 				SetTempo(ClockTempo);
-				const float Beat = MidiClock->GetQuarterNoteIncludingCountIn();
-				SetBeat(Beat);
+				// This next thing is *close* to being accurate, but not really. 
+				// It gets the last processed beat in this metasound render block, which may or may not
+				// be correct for this specific sample in the block we are processing at the moment. 
+				// It should be close enough. If not, we will need to ask the clock specifically what
+				// its tick was at this point in the metasound rendering block. 
+				const int32 Tick = MidiClock->GetNextMidiTickToProcess();
+				const ISongMapEvaluator& ClocksMap = MidiClock->GetSongMapEvaluator();
+				const float MidiQuarterNote = (float)Tick / (float)ClocksMap.GetTicksPerQuarterNote();
+				SetQuarterNote(MidiQuarterNote);
 			}
 
 			if (FramesRequired > AudioRendering::kFramesPerRenderBuffer)

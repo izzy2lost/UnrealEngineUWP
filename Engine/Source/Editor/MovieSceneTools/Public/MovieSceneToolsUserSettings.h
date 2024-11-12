@@ -53,6 +53,8 @@ public:
 
 	virtual void PostEditChangeProperty( struct FPropertyChangedEvent& PropertyChangedEvent) override;
 
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& InCollector);
+
 private:
 	FOnForceRedraw OnForceRedrawEvent;
 };

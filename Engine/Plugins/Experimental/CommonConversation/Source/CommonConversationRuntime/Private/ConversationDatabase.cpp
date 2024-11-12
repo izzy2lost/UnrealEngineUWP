@@ -12,6 +12,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetRegistryState.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#if WITH_EDITORONLY_DATA
+#include "ConversationNode.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ConversationDatabase)
 
@@ -129,8 +132,66 @@ EDataValidationResult UConversationDatabase::IsDataValid(FDataValidationContext&
 		}
 	}
 
-	return CombineDataValidationResults(SuperResult, Result);
+	EDataValidationResult OutBoundResult = ValidateOutBoundConnections(Context);
+
+	return CombineDataValidationResults(SuperResult, CombineDataValidationResults(Result, OutBoundResult));
+}
+
+EDataValidationResult UConversationDatabase::ValidateOutBoundConnections(class FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = EDataValidationResult::Valid;
+	for (const TPair<FGuid, TObjectPtr<UConversationNode>>& Node : FullNodeMap)
+	{
+		if (const UConversationNodeWithLinks* ConversationNode = Cast<UConversationNodeWithLinks>(Node.Value))
+		{
+			for (const FGuid& OtherNodeGuid : ConversationNode->OutputConnections)
+			{
+				if (const UConversationNodeWithLinks* OtherConversationNode = Cast<UConversationNodeWithLinks>(FullNodeMap[OtherNodeGuid]))
+				{
+					FText ErrorMessage;
+					if (!ConversationNode->IsOutBoundConnectionAllowed(OtherConversationNode, ErrorMessage))
+					{
+						Context.AddError(FText::Format(LOCTEXT("OutBoundConnectionError", "({0}) -> ({1}) : {2}"),
+							ConversationNode->GetDisplayNameText(), OtherConversationNode->GetDisplayNameText(), ErrorMessage));
+
+						Result = EDataValidationResult::Invalid;
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
 }
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+FGuid UConversationDatabase::GetGuidFromNode(const UConversationNode* NodeToFind) const
+{
+	for (const TPair<FGuid, TObjectPtr<UConversationNode>>& Node : FullNodeMap)
+	{
+		if (Node.Value == NodeToFind)
+		{
+			return Node.Key;
+		}
+	}
+	return FGuid();
+}
+
+TObjectPtr<UEdGraphNode> UConversationDatabase::GetSourceGraphNodeFromGuid(FGuid NodeToFind) const
+{
+	for (const TObjectPtr<UEdGraph>& Graph : SourceGraphs)
+	{
+		for (TObjectPtr<UEdGraphNode>& Node : Graph->Nodes)
+		{
+			if (Node->NodeGuid == NodeToFind)
+			{
+				return Node;
+			}
+		}
+	}
+	return TObjectPtr<UEdGraphNode>();
+}
+#endif // WITH_EDITORONLY_DATA
 
 #undef LOCTEXT_NAMESPACE

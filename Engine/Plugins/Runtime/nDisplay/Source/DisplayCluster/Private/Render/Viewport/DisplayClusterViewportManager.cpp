@@ -34,6 +34,8 @@
 
 #include "SceneViewExtension.h"
 
+#include "LegacyScreenPercentageDriver.h"
+
 #include "DisplayClusterRootActor.h"
 
 #include "Misc/DisplayClusterLog.h"
@@ -143,6 +145,66 @@ TSharedRef<IDisplayClusterViewportManager, ESPMode::ThreadSafe> IDisplayClusterV
 	ViewportManager->Initialize();
 
 	return ViewportManager;
+}
+
+void IDisplayClusterViewportManager::SetupEngineShowFlags(const EDisplayClusterViewportCaptureMode InMode, FEngineShowFlags& InOutEngineShowFlags)
+{
+	// Control NaniteMeshes for ChromaKey and Lightcards:
+	switch (InMode)
+	{
+	case EDisplayClusterViewportCaptureMode::Chromakey:
+		if (!GDisplayClusterChromaKeyAllowNanite)
+		{
+			InOutEngineShowFlags.SetNaniteMeshes(0);
+		}
+
+		break;
+	case EDisplayClusterViewportCaptureMode::Lightcard:
+		if (!GDisplayClusterLightcardsAllowNanite)
+		{
+			InOutEngineShowFlags.SetNaniteMeshes(0);
+		}
+		break;
+	default:
+		break;
+	}
+
+	switch (InMode)
+	{
+	case EDisplayClusterViewportCaptureMode::Chromakey:
+	case EDisplayClusterViewportCaptureMode::Lightcard:
+		// Disable postprocess for LC\CK
+		InOutEngineShowFlags.SetPostProcessing(0);
+
+		InOutEngineShowFlags.SetAtmosphere(0);
+		InOutEngineShowFlags.SetFog(0);
+		InOutEngineShowFlags.SetVolumetricFog(0);
+		InOutEngineShowFlags.SetMotionBlur(0); // motion blur doesn't work correctly with scene captures.
+		InOutEngineShowFlags.SetSeparateTranslucency(0);
+		InOutEngineShowFlags.SetHMDDistortion(0);
+		InOutEngineShowFlags.SetOnScreenDebug(0);
+		InOutEngineShowFlags.SetHair(0);
+
+		InOutEngineShowFlags.SetLumenReflections(0);
+		InOutEngineShowFlags.SetLumenGlobalIllumination(0);
+		InOutEngineShowFlags.SetGlobalIllumination(0);
+
+		InOutEngineShowFlags.SetScreenSpaceAO(0);
+		InOutEngineShowFlags.SetAmbientOcclusion(0);
+		InOutEngineShowFlags.SetDeferredLighting(0);
+		InOutEngineShowFlags.SetVirtualTexturePrimitives(0);
+		InOutEngineShowFlags.SetRectLights(0);
+
+		// Finish making it essentially Unlit
+		InOutEngineShowFlags.SetLightFunctions(0);
+		InOutEngineShowFlags.SetDynamicShadows(0);
+		InOutEngineShowFlags.SetLighting(0);
+
+		break;
+
+	default:
+		break;
+	}
 }
 
 FDisplayClusterViewportManager::FDisplayClusterViewportManager()
@@ -657,83 +719,47 @@ FSceneViewFamily::ConstructionValues FDisplayClusterViewportManager::CreateViewF
 
 	bool bResolveScene = true;
 
-	// Control NaniteMeshes for ChromaKey and Lightcards:
-	switch (InFrameTarget.CaptureMode)
-	{
-	case EDisplayClusterViewportCaptureMode::Chromakey:
-		if (!GDisplayClusterChromaKeyAllowNanite)
-		{
-			InEngineShowFlags.SetNaniteMeshes(0);
-		}
-
-		break;
-	case EDisplayClusterViewportCaptureMode::Lightcard:
-		if (!GDisplayClusterLightcardsAllowNanite)
-		{
-			InEngineShowFlags.SetNaniteMeshes(0);
-		}
-		break;
-	default:
-		break;
-	}
+	// Sets the engine flags corresponding to the capture mode.
+	IDisplayClusterViewportManager::SetupEngineShowFlags(InFrameTarget.CaptureMode, InEngineShowFlags);
 
 	const FDisplayClusterRenderFrameSettings& RenderFrameSettings = Configuration->GetRenderFrameSettings();
-	if(RenderFrameSettings.IsPostProcessDisabled())
-		{
-			// Disable postprocess for preview
-			InEngineShowFlags.PostProcessing = 0;
-		}
 
+	// A special case for DCRA previewing in a scene to avoid double use of PP.
+	if(RenderFrameSettings.IsPostProcessDisabled())
+	{
+		// Disable postprocess for preview
+		InEngineShowFlags.PostProcessing = 0;
+	}
+
+	// A special use case is setting up alpha channel capture:
+	// (When using the DC viewport rendering pipeline).
 	switch (InFrameTarget.CaptureMode)
 	{
 	case EDisplayClusterViewportCaptureMode::Chromakey:
 	case EDisplayClusterViewportCaptureMode::Lightcard:
 		switch (RenderFrameSettings.AlphaChannelCaptureMode)
 		{
-			case EDisplayClusterRenderFrameAlphaChannelCaptureMode::Copy:
-				// Disable AA
-				InEngineShowFlags.SetAntiAliasing(0);
-				InEngineShowFlags.SetTemporalAA(0);
-				break;
+		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::Copy:
+			// Disable AA
+			InEngineShowFlags.SetAntiAliasing(0);
+			InEngineShowFlags.SetTemporalAA(0);
+			break;
 
-			case EDisplayClusterRenderFrameAlphaChannelCaptureMode::CopyAA:
-				// Use AA
-				InEngineShowFlags.SetAntiAliasing(1);
-				InEngineShowFlags.SetTemporalAA(0);
-				break;
+		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::CopyAA:
+			// Use AA
+			InEngineShowFlags.SetAntiAliasing(1);
+			InEngineShowFlags.SetTemporalAA(0);
+			break;
 
-			case EDisplayClusterRenderFrameAlphaChannelCaptureMode::FXAA:
-				// Alpha captured without AA, own FXAA used
-				InEngineShowFlags.SetAntiAliasing(0);
-				InEngineShowFlags.SetTemporalAA(0);
-				break;
+		case EDisplayClusterRenderFrameAlphaChannelCaptureMode::FXAA:
+			// Alpha captured without AA, own FXAA used
+			InEngineShowFlags.SetAntiAliasing(0);
+			InEngineShowFlags.SetTemporalAA(0);
+			break;
 
-			default:
-				break;
+		default:
+			break;
 		}
-
-		// Disable postprocess for LC\CK
-		InEngineShowFlags.SetPostProcessing(0);
-
-		InEngineShowFlags.SetAtmosphere(0);
-		InEngineShowFlags.SetFog(0);
-		InEngineShowFlags.SetVolumetricFog(0);
-		InEngineShowFlags.SetMotionBlur(0); // motion blur doesn't work correctly with scene captures.
-		InEngineShowFlags.SetSeparateTranslucency(0);
-		InEngineShowFlags.SetHMDDistortion(0);
-		InEngineShowFlags.SetOnScreenDebug(0);
-
-		InEngineShowFlags.SetLumenReflections(0);
-		InEngineShowFlags.SetLumenGlobalIllumination(0);
-		InEngineShowFlags.SetGlobalIllumination(0);
-
-		InEngineShowFlags.SetScreenSpaceAO(0);
-		InEngineShowFlags.SetAmbientOcclusion(0);
-		InEngineShowFlags.SetDeferredLighting(0);
-		InEngineShowFlags.SetVirtualTexturePrimitives(0);
-		InEngineShowFlags.SetRectLights(0);
-		break;
-
 	default:
 		break;
 	}
@@ -751,7 +777,10 @@ bool FDisplayClusterViewportManager::ShouldRenderFinalColor() const
 	return !Configuration->GetRenderFrameSettings().IsPostProcessDisabled();
 }
 
-void FDisplayClusterViewportManager::ConfigureViewFamily(const FDisplayClusterRenderFrameTarget& InFrameTarget, const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily, FSceneViewFamilyContext& ViewFamily)
+void FDisplayClusterViewportManager::ConfigureViewFamily(
+	const FDisplayClusterRenderFrameTarget& InFrameTarget,
+	const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+	FSceneViewFamilyContext& ViewFamily)
 {
 	// Note: EngineShowFlags should have already been configured in CreateViewFamilyConstructionValues.
 	ViewFamily.SceneCaptureCompositeMode = ESceneCaptureCompositeMode::SCCM_Overwrite;
@@ -768,6 +797,117 @@ void FDisplayClusterViewportManager::ConfigureViewFamily(const FDisplayClusterRe
 	for (FSceneViewExtensionRef& ViewExt : ViewFamily.ViewExtensions)
 	{
 		ViewExt->SetupViewFamily(ViewFamily);
+	}
+}
+
+void FDisplayClusterViewportManager::PostConfigureViewFamily(
+	const FDisplayClusterRenderFrameTarget& InFrameTarget,
+	const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+	FSceneViewFamilyContext& ViewFamily,
+	const TArray<FSceneView*>& Views,
+	const EDisplayClusterViewportRenderingFlags InRenderingFlags,
+	const float InDPIScale
+)
+{
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		// Force enable view family show flag for HighDPI derived's screen percentage.
+		ViewFamily.EngineShowFlags.ScreenPercentage = true;
+	}
+#endif
+
+	// Force screen percentage show flag to be turned off if not supported.
+	if (!ViewFamily.SupportsScreenPercentage())
+	{
+		ViewFamily.EngineShowFlags.ScreenPercentage = false;
+	}
+
+	const float DisplayClusterScreenPercentage = FMath::Max(0.01f, InFrameViewFamily.CustomBufferRatio);
+
+	// Get DPIDerivedResolutionFraction value:
+	float DPIDerivedResolutionFraction = 1.0f;
+	{
+#if WITH_EDITOR
+		// Automatically compute secondary resolution fraction from DPI.
+		// When in high res screenshot do not modify screen percentage based on dpi scale
+		if (GIsEditor && !GIsHighResScreenshot)
+		{
+			static auto CVarEditorViewportHighDPIPtr = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.HighDPI"));
+
+			if (CVarEditorViewportHighDPIPtr && CVarEditorViewportHighDPIPtr->GetInt() == 0)
+			{
+				DPIDerivedResolutionFraction = FMath::Min(1.0f / InDPIScale, 1.0f);
+			}
+		}
+#endif
+	}
+
+	// Setup the screen percentage and upscaling method for the view family.
+	if (ViewFamily.EngineShowFlags.ScreenPercentage)
+	{
+		// Set up secondary resolution fraction for the view family.
+		{
+			static IConsoleVariable* CVarCustomSecondaryScreenPercentage =
+				IConsoleManager::Get().FindConsoleVariable(TEXT("r.SecondaryScreenPercentage.GameViewport"), false);
+			const float CustomSecondaryScreenPercentage = CVarCustomSecondaryScreenPercentage ?
+				CVarCustomSecondaryScreenPercentage->GetFloat() : -1.f;
+
+			if (CustomSecondaryScreenPercentage > 0.0)
+			{
+				// Override secondary resolution fraction with CVar.
+				ViewFamily.SecondaryViewFraction = FMath::Min(CustomSecondaryScreenPercentage / 100.0f, 1.0f);
+			}
+			else
+			{
+				ViewFamily.SecondaryViewFraction = DPIDerivedResolutionFraction;
+			}
+
+			check(ViewFamily.SecondaryViewFraction > 0.0f);
+		}
+
+		// nDisplay cannot use the dynamic resolution feature because it uses multiple viewports (view families) in a single frame.
+		const bool bUsesDynamicResolution = false;
+
+		// If a screen percentage interface was not set by dynamic resolution, then create one matching legacy behavior.
+		if (ViewFamily.GetScreenPercentageInterface() == nullptr)
+		{
+			float GlobalResolutionFraction = 1.0f;
+			float SecondaryScreenPercentage = ViewFamily.SecondaryViewFraction;
+
+			if (ViewFamily.EngineShowFlags.ScreenPercentage)
+			{
+				// Get global view fraction set by r.ScreenPercentage.
+				GlobalResolutionFraction = DisplayClusterScreenPercentage;
+
+				// We need to split the screen percentage if below 0.5 because TAA upscaling only works well up to 2x.
+				if (GlobalResolutionFraction < 0.5f)
+				{
+					SecondaryScreenPercentage = 2.0f * GlobalResolutionFraction;
+					GlobalResolutionFraction = 0.5f;
+				}
+			}
+
+			ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(
+				ViewFamily, GlobalResolutionFraction));
+
+			ViewFamily.SecondaryViewFraction = SecondaryScreenPercentage;
+		}
+
+		check(ViewFamily.GetScreenPercentageInterface() != nullptr);
+
+		// Change screen percentage method to raw output when doing dynamic resolution with VR if not using TAA upsample.
+		if (EnumHasAnyFlags(InRenderingFlags, EDisplayClusterViewportRenderingFlags::StereoRendering)
+			&& bUsesDynamicResolution)
+		{
+			for (FSceneView* View : Views)
+			{
+				if (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale)
+				{
+					View->PrimaryScreenPercentageMethod = EPrimaryScreenPercentageMethod::RawOutput;
+				}
+			}
+		}
 	}
 }
 

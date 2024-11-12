@@ -4,6 +4,7 @@
 
 #include "Constraint.h"
 #include "ConstraintsManager.h"
+#include "Evaluation/IMovieScenePlaybackCapability.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 #include "Delegates/DelegateCombinations.h"
@@ -44,7 +45,7 @@ public:
 	CONSTRAINTS_API virtual bool HasBoundObjects() const override;
 	
 	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
-	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr) override;
+	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UObject* SubObject = nullptr) override;
 
 	/** Whether or not it's valid for example it may not be fully loaded*/
 	virtual bool IsValid(const bool bDeepCheck = true) const override;
@@ -117,7 +118,7 @@ public:
 	/**
 	* Sets up dependencies with the first primary prerequisite available if the parent does not tick.   
 	*/
-	CONSTRAINTS_API void EnsurePrimaryDependency(UWorld* InWorld);
+	CONSTRAINTS_API void EnsurePrimaryDependency(const UWorld* InWorld) const;
 	
 protected:
 
@@ -136,7 +137,7 @@ protected:
 	 * Sets up dependencies between the parent, the constraint and the child using their respective tick functions.
 	 * It creates a dependency graph between them so that they tick in the right order when evaluated.   
 	*/
-	CONSTRAINTS_API void SetupDependencies(UWorld* InWorld);
+	CONSTRAINTS_API void SetupDependencies(const UWorld* InWorld);
 
 	/** Set the current child's global transform. */
 	CONSTRAINTS_API void SetChildGlobalTransform(const FTransform& InGlobal) const;
@@ -439,6 +440,7 @@ public:
 
 struct FTransformConstraintUtils
 {
+public: 
 	/** Fills a sorted constraint array that InChild actor is the child of. */
 	static CONSTRAINTS_API void GetParentConstraints(
 		UWorld* World,
@@ -505,6 +507,10 @@ struct FTransformConstraintUtils
 
 	/** Ensure default dependencies between constraints. */
 	static CONSTRAINTS_API bool BuildDependencies(UWorld* InWorld, UTickableTransformConstraint* Constraint);
+	
+private:
+	/** Ensures that attachment dependencies are reflected at the constraints level. */
+	static void BuildAttachmentsDependencies(UWorld* InWorld, const UTickableTransformConstraint* Constraint);
 };
 
 /**

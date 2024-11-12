@@ -18,29 +18,36 @@
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
-#include "TraceServices/Model/Log.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/Log.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/MarkersTimingTrack.h" // for FTimeMarkerTrackBuilder::GetColorBy*
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/MarkersTimingTrack.h" // for FTimeMarkerTrackBuilder::GetColorBy*
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SLogView"
+#define LOCTEXT_NAMESPACE "UE::Insights::SLogView"
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// FTableTreeViewCommands
+// FLogViewCommands
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FLogViewCommands : public TCommands<FLogViewCommands>
@@ -258,17 +265,10 @@ public:
 				FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
 				const double Time = CacheEntry.GetTime();
 
-				TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-				if (Window)
+				TSharedPtr<TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
+				if (TimingView && TimingView->IsTimeSelectedInclusive(Time))
 				{
-					TSharedPtr<STimingView> TimingView = Window->GetTimingView();
-					if (TimingView)
-					{
-						if (TimingView->IsTimeSelectedInclusive(Time))
-						{
-							return FSlateColor(FLinearColor(0.25f, 0.5f, 1.0f, 0.25f));
-						}
-					}
+					return FSlateColor(FLinearColor(0.25f, 0.5f, 1.0f, 0.25f));
 				}
 			}
 		}
@@ -293,25 +293,26 @@ public:
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
 			const double Time = CacheEntry.GetTime();
 
-			TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-			if (Window)
+			// Verify if time is monotonically increasing.
+			if (LogMessagePin->GetIndex() > 0)
 			{
-				TSharedPtr<STimingView> TimingView = Window->GetTimingView();
-				if (TimingView)
+				FLogMessageRecord& PrevCacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex() - 1);
+				if (Time < PrevCacheEntry.GetTime())
 				{
-					if (TimingView->IsTimeSelectedInclusive(Time))
-					{
-						if (IsSelected)
-						{
-							//return FSlateColor(FLinearColor(0.0f, 0.1f, 0.5f, 1.0f));
-							return FSlateColor(FLinearColor(0.0f, 0.05f, 0.2f, 1.0f));
-						}
-						else
-						{
-							//return FSlateColor(FLinearColor(0.2f, 0.4f, 0.8f, 1.0f));
-							return FSlateColor(FLinearColor(0.4f, 0.8f, 1.6f, 1.0f));
-						}
-					}
+					return FSlateColor(FLinearColor(1.0f, 0.3f, 0.3f, 1.0f));
+				}
+			}
+
+			TSharedPtr<TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
+			if (TimingView && TimingView->IsTimeSelectedInclusive(Time))
+			{
+				if (IsSelected)
+				{
+					return FSlateColor(FLinearColor(0.0f, 0.05f, 0.2f, 1.0f));
+				}
+				else
+				{
+					return FSlateColor(FLinearColor(0.4f, 0.8f, 1.6f, 1.0f));
 				}
 			}
 		}
@@ -381,7 +382,7 @@ public:
 		if (ParentWidgetPin.IsValid() && LogMessagePin.IsValid())
 		{
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
-			return FSlateColor(FTimeMarkerTrackBuilder::GetColorByVerbosity(CacheEntry.GetVerbosity()));
+			return FSlateColor(TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(CacheEntry.GetVerbosity()));
 		}
 		else
 		{
@@ -414,7 +415,7 @@ public:
 		if (ParentWidgetPin.IsValid() && LogMessagePin.IsValid())
 		{
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
-			return FSlateColor(FTimeMarkerTrackBuilder::GetColorByCategory(CacheEntry.GetCategory()));
+			return FSlateColor(TimingProfiler::FTimeMarkerTrackBuilder::GetColorByCategory(CacheEntry.GetCategory()));
 		}
 		else
 		{
@@ -511,6 +512,7 @@ SLogView::SLogView()
 	, bIsFilteringAsyncTaskCancelRequested(false)
 	, TotalNumCategories(0)
 	, TotalNumMessages(0)
+	, TotalNumInserts(0)
 	, bIsDirty(false)
 {
 }
@@ -519,12 +521,6 @@ SLogView::SLogView()
 
 SLogView::~SLogView()
 {
-	// Remove ourselves from the profiler manager.
-	//if (FTimingProfilerManager::Get().IsValid())
-	//{
-	//	//TODO: FTimimgProfilerManager::Get()->OnRequestLogViewUpdate().RemoveAll(this);
-	//}
-
 	Reset();
 }
 
@@ -559,6 +555,7 @@ void SLogView::Reset()
 
 	TotalNumCategories = 0;
 	TotalNumMessages = 0;
+	TotalNumInserts = 0;
 
 	bIsDirty = false;
 	DirtyStopwatch.Stop();
@@ -567,7 +564,7 @@ void SLogView::Reset()
 
 	Cache.Reset();
 
-	Messages.Reset();
+	FilteredMessages.Reset();
 
 	ListView->RebuildList();
 }
@@ -656,11 +653,10 @@ void SLogView::Construct(const FArguments& InArgs)
 				[
 					SAssignNew(ListView, SListView<TSharedPtr<FLogMessage>>)
 					.ExternalScrollbar(ExternalScrollbar)
-					.ItemHeight(20.0f)
 					.SelectionMode(ESelectionMode::Single)
 					.OnMouseButtonClick(this, &SLogView::OnMouseButtonClick)
 					.OnSelectionChanged(this, &SLogView::OnSelectionChanged)
-					.ListItemsSource(&Messages)
+					.ListItemsSource(&FilteredMessages)
 					.OnGenerateRow(this, &SLogView::OnGenerateRow)
 					.ConsumeMouseWheel(EConsumeMouseWheel::Always)
 					.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SLogView::ListView_GetContextMenu))
@@ -744,36 +740,43 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 {
 	LLM_SCOPE_BYTAG(Insights);
 
-	int32 NewMessageCount = 0;
-
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
 
 	Cache.SetSession(Session);
+
+	int32 LogProviderNumCategories = 0;
+	int32 LogProviderNumMessages = 0;
+	int32 LogProviderNumInserts = 0;
 
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-		NewMessageCount = static_cast<int32>(LogProvider.GetMessageCount());
+		LogProviderNumCategories = static_cast<int32>(LogProvider.GetCategoryCount());
+		LogProviderNumMessages = static_cast<int32>(LogProvider.GetMessageCount());
+		LogProviderNumInserts = static_cast<int32>(LogProvider.GetInsertCount());
+	}
 
-		//TODO: show only categories that are used in current trace
-		//TODO: cause of duplicates: a) runtime, b) case insensitive, c) stripped "Log" prefix
+	if (LogProviderNumCategories != TotalNumCategories)
+	{
+		TSet<FName> Categories;
+		TMap<FName, int32> DuplicatedCategories;
 
-		const int32 NumCategories = static_cast<int32>(LogProvider.GetCategoryCount());
-		if (NumCategories != TotalNumCategories)
+		if (Session.IsValid())
 		{
-			TotalNumCategories = NumCategories;
-			UE_LOG(TraceInsights, Log, TEXT("[LogView] Total Log Categories: %d"), TotalNumCategories);
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+			const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-			TSet<FName> Categories;
-			TMap<FName, int32> DuplicatedCategories;
+			// Re-read the number of categories (as it might have changed between the read locks).
+			LogProviderNumCategories = static_cast<int32>(LogProvider.GetCategoryCount());
+
 			LogProvider.EnumerateCategories([&Categories, &DuplicatedCategories](const TraceServices::FLogCategoryInfo& Category)
 			{
-				FString CategoryStr(Category.Name);
+				FStringView CategoryStr(Category.Name);
 				if (CategoryStr.StartsWith(TEXT("Log")))
 				{
-					CategoryStr.RightChopInline(3, EAllowShrinking::No);
+					CategoryStr.RightChopInline(3);
 				}
 				FName CategoryName(CategoryStr);
 				if (Categories.Contains(CategoryName))
@@ -793,33 +796,41 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 					Categories.Add(CategoryName);
 				}
 			});
-			Filter.SyncAvailableCategories(Categories);
-			const int32 NumAvailableLogCategories = Filter.GetAvailableLogCategories().Num();
-			if (DuplicatedCategories.Num() > 0)
-			{
-				UE_LOG(TraceInsights, Warning, TEXT("[LogView] Duplicated Log Categories: %d (+%dx)"), DuplicatedCategories.Num(), TotalNumCategories - NumAvailableLogCategories);
-				for (const auto& KV : DuplicatedCategories)
-				{
-					UE_LOG(TraceInsights, Log, TEXT("[LogView]    \"%s\" (+%dx)"), *KV.Key.GetPlainNameString(), KV.Value);
-				}
-			}
-			UE_LOG(TraceInsights, Log, TEXT("[LogView] Unique Log Categories: %d"), NumAvailableLogCategories);
-
-			//Cache.Reset();
-			Messages.Reset();
-			TotalNumMessages = 0;
-			//ListView->RebuildList();
-			bIsDirty = true;
-			DirtyStopwatch.Start();
 		}
+
+		TotalNumCategories = LogProviderNumCategories;
+		UE_LOG(TraceInsights, Log, TEXT("[LogView] Total Log Categories: %d"), TotalNumCategories);
+
+		Filter.SyncAvailableCategories(Categories);
+		const int32 NumAvailableLogCategories = Filter.GetAvailableLogCategories().Num();
+		if (DuplicatedCategories.Num() > 0)
+		{
+			UE_LOG(TraceInsights, Warning, TEXT("[LogView] Duplicated Log Categories: %d (+%dx)"), DuplicatedCategories.Num(), TotalNumCategories - NumAvailableLogCategories);
+			for (const auto& KV : DuplicatedCategories)
+			{
+				UE_LOG(TraceInsights, Log, TEXT("[LogView]    \"%s\" (+%dx)"), *KV.Key.GetPlainNameString(), KV.Value);
+			}
+		}
+		UE_LOG(TraceInsights, Log, TEXT("[LogView] Unique Log Categories: %d"), NumAvailableLogCategories);
+
+		FilteredMessages.Reset();
+		TotalNumMessages = 0;
+		bIsDirty = true;
+		DirtyStopwatch.Start();
 	}
 
-	if (NewMessageCount != TotalNumMessages)
+	if (LogProviderNumInserts != TotalNumInserts)
+	{
+		TotalNumInserts = LogProviderNumInserts;
+		Cache.Reset();
+	}
+
+	if (LogProviderNumMessages != TotalNumMessages)
 	{
 		bIsDirty = true;
 		DirtyStopwatch.Start();
 
-		if (NewMessageCount > TotalNumMessages)
+		if (LogProviderNumMessages > TotalNumMessages)
 		{
 			if (Filter.IsFilterSet())
 			{
@@ -830,7 +841,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 
 					bIsFilteringAsyncTaskCancelRequested = false;
 					FilteringStartIndex = TotalNumMessages;
-					FilteringEndIndex = NewMessageCount;
+					FilteringEndIndex = LogProviderNumMessages;
 					FilteringChangeNumber = Filter.GetChangeNumber();
 					FilteringAsyncTask = MakeUnique<FAsyncTask<FLogFilteringAsyncTask>>(FilteringStartIndex, FilteringEndIndex, Filter, SharedThis(this));
 #if !WITH_EDITOR
@@ -847,7 +858,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 				{
 					// A task is already in progress.
 					if (FilteringStartIndex == TotalNumMessages &&
-						FilteringEndIndex <= NewMessageCount &&
+						FilteringEndIndex <= LogProviderNumMessages &&
 						FilteringChangeNumber == Filter.GetChangeNumber())
 					{
 						// The filter is still valid. Just wait.
@@ -863,19 +874,19 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 			{
 				FilteringStopwatch.Restart();
 
-				for (int32 Index = TotalNumMessages; Index < NewMessageCount; Index++)
+				for (int32 Index = TotalNumMessages; Index < LogProviderNumMessages; Index++)
 				{
-					Messages.Add(MakeShared<FLogMessage>(Index));
+					FilteredMessages.Add(MakeShared<FLogMessage>(Index));
 				}
 
-				const int32 NumAddedMessages = NewMessageCount - TotalNumMessages;
-				TotalNumMessages = NewMessageCount;
+				const int32 NumAddedMessages = LogProviderNumMessages - TotalNumMessages;
+				TotalNumMessages = LogProviderNumMessages;
 				TSharedPtr<FLogMessage> SelectedLogMessage = GetSelectedLogMessage();
 				ListView->RebuildList();
 				if (SelectedLogMessage.IsValid())
 				{
 					// Restore selection.
-					SelectedLogMessageByLogIndex(SelectedLogMessage->GetIndex());
+					SelectLogMessageByLogIndex(SelectedLogMessage->GetIndex());
 				}
 				bIsDirty = false;
 				DirtyStopwatch.Reset();
@@ -887,22 +898,22 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 				if (DurationMs > 10) // avoids spams
 				{
 					UE_LOG(TraceInsights, Log, TEXT("[LogView] Updated (no filter; %d added / %d total messages) in %llu ms."),
-						NumAddedMessages, NewMessageCount, DurationMs);
+						NumAddedMessages, LogProviderNumMessages, DurationMs);
 				}
 #endif // !WITH_EDITOR
 			}
 		}
-		else // if (NewMessageCount < TotalNumMessages)
+		else // if (LogProviderNumMessages < TotalNumMessages)
 		{
 			// Just reset. On next Tick() the list will grow if needed.
 #if !WITH_EDITOR
 			UE_LOG(TraceInsights, Log, TEXT("[LogView] RESET"));
 #endif // !WITH_EDITOR
 			Cache.Reset();
-			Messages.Reset();
+			FilteredMessages.Reset();
 			TotalNumMessages = 0;
 			ListView->RebuildList();
-			bIsDirty = (NewMessageCount != 0);
+			bIsDirty = (LogProviderNumMessages != 0);
 			if (bIsDirty)
 			{
 				DirtyStopwatch.Start();
@@ -927,17 +938,17 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 		// A filtering async task has completed. Check if filter used is still valid.
 		if (!bIsFilteringAsyncTaskCancelRequested &&
 			FilteringStartIndex == TotalNumMessages &&
-			FilteringEndIndex <= NewMessageCount &&
+			FilteringEndIndex <= LogProviderNumMessages &&
 			FilteringChangeNumber == Filter.GetChangeNumber())
 		{
 			FLogFilteringAsyncTask& Task = FilteringAsyncTask->GetTask();
-			const TArray<uint32>& FilteredMessages = Task.GetFilteredMessages();
+			const TArray<uint32>& FilteredMessageIndices = Task.GetFilteredMessages();
 
-			// Add filtered messages to current Messages array.
-			const int32 NumFilteredMessages = FilteredMessages.Num();
+			// Add filtered messages to current FilteredMessages array.
+			const int32 NumFilteredMessages = FilteredMessageIndices.Num();
 			for (int32 Index = 0; Index < NumFilteredMessages; Index++)
 			{
-				Messages.Add(MakeShared<FLogMessage>(FilteredMessages[Index]));
+				FilteredMessages.Add(MakeShared<FLogMessage>(FilteredMessageIndices[Index]));
 			}
 
 			TotalNumMessages = Task.GetEndIndex();
@@ -946,7 +957,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 			if (SelectedLogMessage.IsValid())
 			{
 				// Restore selection.
-				SelectedLogMessageByLogIndex(SelectedLogMessage->GetIndex());
+				SelectLogMessageByLogIndex(SelectedLogMessage->GetIndex());
 			}
 			bIsDirty = false;
 			DirtyStopwatch.Reset();
@@ -981,39 +992,88 @@ TSharedPtr<FLogMessage> SLogView::GetSelectedLogMessage() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SLogView::SelectedLogMessageByLogIndex(int32 LogIndex)
+void SLogView::SelectLogMessage(TSharedPtr<FLogMessage> LogMessage)
 {
-	// We are assuming the Messages list is sorted by log index...
-	int32 MessageIndex = Algo::BinarySearchBy(Messages, LogIndex, &FLogMessage::GetIndex);
-	if (MessageIndex != INDEX_NONE)
+	ListView->SetSelection(LogMessage, ESelectInfo::Direct);
+	if (LogMessage.IsValid())
 	{
-		ListView->SetItemSelection(Messages[MessageIndex], true);
-		ListView->RequestScrollIntoView(Messages[MessageIndex]);
+		ListView->RequestScrollIntoView(LogMessage);
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SLogView::SelectLogMessage(TSharedPtr<FLogMessage> LogMessage)
+void SLogView::SelectLogMessageByLogIndex(int32 LogIndex)
+{
+	if (FilteredMessages.Num() == 0)
+	{
+		return;
+	}
+
+	// We are assuming the FilteredMessages list is sorted by log index.
+	// Find the exact match of the log index in the filtered messages list.
+	int32 MessageIndex = Algo::BinarySearchBy(FilteredMessages, LogIndex, &FLogMessage::GetIndex);
+	if (MessageIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	SelectLogMessage(FilteredMessages[MessageIndex]);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SLogView::SelectLogMessageByClosestTime(double Time)
+{
+	if (FilteredMessages.Num() == 0)
+	{
+		return;
+	}
+
+	// Find the message with the closest time, in the unfiltered list of messages.
+	int32 LogIndex = 0;
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	if (Session.IsValid())
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
+		LogIndex = (int32)LogProvider.BinarySearchClosestByTime(Time);
+	}
+	else
+	{
+		return;
+	}
+
+	// We are assuming the FilteredMessages list is sorted by log index.
+	// Find first filtered message with log index >= index.
+	int32 MessageIndex = Algo::LowerBoundBy(FilteredMessages, LogIndex, &FLogMessage::GetIndex);
+	if (MessageIndex >= FilteredMessages.Num())
+	{
+		MessageIndex = FilteredMessages.Num() - 1;
+	}
+
+	SelectLogMessage(FilteredMessages[MessageIndex]);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SLogView::OnSelectedLogMessageChanged(TSharedPtr<FLogMessage> LogMessage)
 {
 	if (LogMessage.IsValid())
 	{
-		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (Window)
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+		if (TimingView)
 		{
-			TSharedPtr<STimingView> TimingView = Window->GetTimingView();
-			if (TimingView)
-			{
-				const double Time = Cache.Get(LogMessage->GetIndex()).GetTime();
+			const double Time = Cache.Get(LogMessage->GetIndex()).GetTime();
 
-				if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
-				{
-					TimingView->SelectToTimeMarker(Time);
-				}
-				else
-				{
-					TimingView->SetAndCenterOnTimeMarker(Time);
-				}
+			if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
+			{
+				TimingView->SelectToTimeMarker(Time);
+			}
+			else
+			{
+				TimingView->SetAutoScroll(false);
+				TimingView->SetAndCenterOnTimeMarker(Time);
 			}
 		}
 	}
@@ -1023,7 +1083,7 @@ void SLogView::SelectLogMessage(TSharedPtr<FLogMessage> LogMessage)
 
 void SLogView::OnMouseButtonClick(TSharedPtr<FLogMessage> LogMessage)
 {
-	SelectLogMessage(LogMessage);
+	OnSelectedLogMessageChanged(LogMessage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1033,7 +1093,7 @@ void SLogView::OnSelectionChanged(TSharedPtr<FLogMessage> LogMessage, ESelectInf
 	if (SelectInfo != ESelectInfo::Direct &&
 		SelectInfo != ESelectInfo::OnMouseClick)
 	{
-		SelectLogMessage(LogMessage);
+		OnSelectedLogMessageChanged(LogMessage);
 	}
 }
 
@@ -1065,7 +1125,7 @@ void SLogView::OnFilterChanged()
 	UE_LOG(TraceInsights, Log, TEXT("[LogView] OnFilterChanged: \"%s\""), *FilterText);
 #endif // !WITH_EDITOR
 	Cache.Reset();
-	Messages.Reset();
+	FilteredMessages.Reset();
 	TotalNumMessages = 0;
 	bIsDirty = true;
 	DirtyStopwatch.Start();
@@ -1076,13 +1136,13 @@ void SLogView::OnFilterChanged()
 
 void SLogView::UpdateStatsText()
 {
-	if (Messages.Num() == TotalNumMessages)
+	if (FilteredMessages.Num() == TotalNumMessages)
 	{
 		StatsText = FText::Format(LOCTEXT("StatsText1", "{0} logs"), FText::AsNumber(TotalNumMessages));
 	}
 	else
 	{
-		StatsText = FText::Format(LOCTEXT("StatsText2", "{0} / {1} logs"), FText::AsNumber(Messages.Num()), FText::AsNumber(TotalNumMessages));
+		StatsText = FText::Format(LOCTEXT("StatsText2", "{0} / {1} logs"), FText::AsNumber(FilteredMessages.Num()), FText::AsNumber(TotalNumMessages));
 	}
 }
 
@@ -1133,7 +1193,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FLogMessageRecord& Record = Cache.Get(SelectedLogMessage->GetIndex());
 			FName CategoryName(Record.GetCategory());
 
-			MenuBuilder.AddMenuEntry(
+			MenuBuilder.AddMenuEntry
+			(
 				FLogViewCommands::Get().Command_HideSelectedCategory,
 				NAME_None,
 				FText::Format(LOCTEXT("HideCategory", "Hide \"{0}\" Category"), Record.GetCategoryAsText()),
@@ -1141,7 +1202,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Hidden")
 			);
 
-			MenuBuilder.AddMenuEntry(
+			MenuBuilder.AddMenuEntry
+			(
 				FLogViewCommands::Get().Command_ShowOnlySelectedCategory,
 				NAME_None,
 				FText::Format(LOCTEXT("ShowOnlyCategory", "Show Only \"{0}\" Category"), Record.GetCategoryAsText()),
@@ -1150,7 +1212,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			);
 		}
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_ShowAllCategories,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1160,7 +1223,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 
 		MenuBuilder.AddSeparator();
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopySelected,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1168,7 +1232,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopyMessage,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1176,7 +1241,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopyRange,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1184,7 +1250,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopyAll,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1194,7 +1261,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 
 		MenuBuilder.AddSeparator();
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_SaveRange,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1202,7 +1270,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Save")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_SaveAll,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1244,12 +1313,14 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 						SourceCodeAccessor.GetNameText());
 				}
 
-				MenuBuilder.AddMenuEntry(
+				MenuBuilder.AddMenuEntry
+				(
 					FLogViewCommands::Get().Command_OpenSource,
 					NAME_None,
 					ItemLabel,
 					ItemToolTip,
-					FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName()));
+					FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName())
+				);
 			}
 			else
 			{
@@ -1267,13 +1338,15 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 					ItemToolTip = LOCTEXT("ContextMenu_OpenSource_NoAccessor_Desc2", "Source Code Accessor is not available.");
 				}
 
-				MenuBuilder.AddMenuEntry(
+				MenuBuilder.AddMenuEntry
+				(
 					ItemLabel,
 					ItemToolTip,
 					FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName()),
 					FUIAction(FExecuteAction(), FCanExecuteAction::CreateLambda([]() { return false; })),
 					NAME_None,
-					EUserInterfaceActionType::None);
+					EUserInterfaceActionType::None
+				);
 			}
 		}
 	}
@@ -1328,7 +1401,7 @@ void SLogView::CreateVerbosityThresholdMenuSection(FMenuBuilder& MenuBuilder)
 			[
 				SNew(STextBlock)
 				.Text(Threshold.Label)
-				.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
+				.ColorAndOpacity(FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
 				.ShadowColorAndOpacity(FLinearColor(0.02f, 0.02f, 0.02f, 1.0f))
 				.ShadowOffset(FVector2D(1.0f, 1.0f))
 			]
@@ -1344,7 +1417,7 @@ void SLogView::CreateVerbosityThresholdMenuSection(FMenuBuilder& MenuBuilder)
 				[
 					SNew(STextBlock)
 					.Text(Threshold.Label)
-					.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
+					.ColorAndOpacity(FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
 					.ShadowColorAndOpacity(FLinearColor(0.02f, 0.02f, 0.02f, 1.0f))
 					.ShadowOffset(FVector2D(1.0f, 1.0f))
 				]
@@ -1367,8 +1440,10 @@ void SLogView::CreateVerbosityThresholdMenuSection(FMenuBuilder& MenuBuilder)
 				]
 			];
 
-		MenuBuilder.AddMenuEntry(
-			FUIAction(FExecuteAction::CreateSP(this, &SLogView::VerbosityThreshold_Execute, Threshold.Verbosity),
+		MenuBuilder.AddMenuEntry
+		(
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SLogView::VerbosityThreshold_Execute, Threshold.Verbosity),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP(this, &SLogView::VerbosityThreshold_IsChecked, Threshold.Verbosity)),
 			TextBlock,
@@ -1387,11 +1462,13 @@ TSharedRef<SWidget> SLogView::MakeCategoryFilterMenu()
 
 	MenuBuilder.BeginSection("QuickFilter", LOCTEXT("CategoryFilterMenu_Section_QuickFilter", "Quick Filter"));
 	{
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			LOCTEXT("ShowAllCategories", "Show/Hide All"),
 			LOCTEXT("ShowAllCategories_Tooltip", "Change filtering to show/hide all categories"),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &SLogView::ShowHideAllCategories_Execute),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SLogView::ShowHideAllCategories_Execute),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP(this, &SLogView::ShowHideAllCategories_IsChecked)),
 			NAME_None,
@@ -1421,12 +1498,14 @@ void SLogView::CreateCategoriesFilterMenuSection(FMenuBuilder& MenuBuilder)
 			.Text(FText::AsCultureInvariant(CategoryString))
 			.ShadowColorAndOpacity(FLinearColor(0.05f, 0.05f, 0.05f, 1.0f))
 			.ShadowOffset(FVector2D(1.0f, 1.0f))
-			.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByCategory(*CategoryString)));
+			.ColorAndOpacity(FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByCategory(*CategoryString)));
 
-		MenuBuilder.AddMenuEntry(
-			FUIAction(FExecuteAction::CreateSP(this, &SLogView::ToggleCategory, CategoryName),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &SLogView::IsLogCategoryEnabled, CategoryName)),
+		MenuBuilder.AddMenuEntry
+		(
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SLogView::ToggleCategory, CategoryName),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP(this, &SLogView::IsLogCategoryEnabled, CategoryName)),
 			TextBlock,
 			NAME_None,
 			FText::Format(LOCTEXT("Category_Tooltip", "Filter the Log View to show/hide category: {0}"), CategoryText),
@@ -1574,9 +1653,10 @@ FReply SLogView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEv
 
 void SLogView::AppendFormatMessageDetailed(const FLogMessageRecord& Log, TStringBuilderBase<TCHAR>& InOutStringBuilder) const
 {
+	using namespace UE::Insights;
 	InOutStringBuilder.Appendf(TEXT("Index=%d"), Log.GetIndex());
 	InOutStringBuilder.Append(TEXT("\nTime="));
-	InOutStringBuilder.Append(TimeUtils::FormatTimeHMS(Log.GetTime(), TimeUtils::Microsecond));
+	InOutStringBuilder.Append(FormatTimeHMS(Log.GetTime(), FTimeValue::Microsecond));
 	InOutStringBuilder.Append(TEXT("\nVerbosity="));
 	InOutStringBuilder.Append(::ToString(Log.GetVerbosity()));
 	InOutStringBuilder.Append(TEXT("\nCategory="));
@@ -1613,7 +1693,7 @@ void SLogView::AppendFormatMessageDelimited(const FLogMessageRecord& Log, TStrin
 {
 	InOutStringBuilder.Appendf(TEXT("%d"), Log.GetIndex());
 	InOutStringBuilder.AppendChar(Separator);
-	InOutStringBuilder.Append(TimeUtils::FormatTimeHMS(Log.GetTime(), TimeUtils::Microsecond));
+	InOutStringBuilder.Append(UE::Insights::FormatTimeHMS(Log.GetTime(), UE::Insights::FTimeValue::Microsecond));
 	InOutStringBuilder.AppendChar(Separator);
 	InOutStringBuilder.Append(::ToString(Log.GetVerbosity()));
 	InOutStringBuilder.AppendChar(Separator);
@@ -1686,13 +1766,12 @@ void SLogView::CopyMessage() const
 
 bool SLogView::CanCopyRange() const
 {
-	if (Messages.Num() == 0)
+	if (FilteredMessages.Num() == 0)
 	{
 		return false;
 	}
 
-	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	TSharedPtr<STimingView> TimingView = Window ? Window->GetTimingView() : nullptr;
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView)
 	{
 		return false;
@@ -1707,13 +1786,12 @@ bool SLogView::CanCopyRange() const
 
 void SLogView::CopyRange() const
 {
-	if (Messages.Num() == 0)
+	if (FilteredMessages.Num() == 0)
 	{
 		return;
 	}
 
-	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	TSharedPtr<STimingView> TimingView = Window ? Window->GetTimingView() : nullptr;
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView)
 	{
 		return;
@@ -1738,7 +1816,7 @@ void SLogView::CopyRange() const
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-		for (const TSharedPtr<FLogMessage>& Message : Messages)
+		for (const TSharedPtr<FLogMessage>& Message : FilteredMessages)
 		{
 			LogProvider.ReadMessage(Message->GetIndex(), [this, SelectionStartTime, SelectionEndTime, &StringBuilder, &NumMessagesInSelectedRange](const TraceServices::FLogMessageInfo& MessageInfo)
 			{
@@ -1764,14 +1842,14 @@ void SLogView::CopyRange() const
 
 bool SLogView::CanCopyAll() const
 {
-	return Messages.Num() > 0;
+	return FilteredMessages.Num() > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SLogView::CopyAll() const
 {
-	if (Messages.Num() == 0)
+	if (FilteredMessages.Num() == 0)
 	{
 		return;
 	}
@@ -1786,7 +1864,7 @@ void SLogView::CopyAll() const
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-		for (const TSharedPtr<FLogMessage>& Message : Messages)
+		for (const TSharedPtr<FLogMessage>& Message : FilteredMessages)
 		{
 			LogProvider.ReadMessage(Message->GetIndex(), [this, &StringBuilder](const TraceServices::FLogMessageInfo& MessageInfo)
 			{
@@ -1798,7 +1876,7 @@ void SLogView::CopyAll() const
 	}
 
 	FPlatformApplicationMisc::ClipboardCopy(StringBuilder.ToString());
-	UE_LOG(TraceInsights, Log, TEXT("Copied %d logs to clipboard."), Messages.Num());
+	UE_LOG(TraceInsights, Log, TEXT("Copied %d logs to clipboard."), FilteredMessages.Num());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1820,7 +1898,7 @@ void SLogView::SaveRange() const
 
 bool SLogView::CanSaveAll() const
 {
-	return Messages.Num() > 0;
+	return FilteredMessages.Num() > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1835,7 +1913,7 @@ void SLogView::SaveAll() const
 
 void SLogView::SaveLogsToFile(bool bSaveLogsInSelectedRangeOnly) const
 {
-	if (Messages.Num() == 0)
+	if (FilteredMessages.Num() == 0)
 	{
 		return;
 	}
@@ -1844,8 +1922,7 @@ void SLogView::SaveLogsToFile(bool bSaveLogsInSelectedRangeOnly) const
 	double SelectionEndTime = 0.0;
 	if (bSaveLogsInSelectedRangeOnly)
 	{
-		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-		TSharedPtr<STimingView> TimingView = Window ? Window->GetTimingView() : nullptr;
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 		if (!TimingView)
 		{
 			return;
@@ -1897,7 +1974,7 @@ void SLogView::SaveLogsToFile(bool bSaveLogsInSelectedRangeOnly) const
 		return;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	UTF16CHAR BOM = UNICODE_BOM;
@@ -1920,7 +1997,7 @@ void SLogView::SaveLogsToFile(bool bSaveLogsInSelectedRangeOnly) const
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-		for (const TSharedPtr<FLogMessage>& Message : Messages)
+		for (const TSharedPtr<FLogMessage>& Message : FilteredMessages)
 		{
 			LogProvider.ReadMessage(Message->GetIndex(), [this, bSaveLogsInSelectedRangeOnly, SelectionStartTime, SelectionEndTime, Separator, ExportFileHandle, &NumMessagesInSelectedRange](const TraceServices::FLogMessageInfo& MessageInfo)
 			{
@@ -1979,5 +2056,16 @@ void SLogView::OpenSource() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<UE::Insights::TimingProfiler::STimingView> SLogView::GetTimingView() const
+{
+	using namespace UE::Insights::TimingProfiler;
+	TSharedPtr<STimingProfilerWindow> ProfilerWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+	return ProfilerWindow.IsValid() ? ProfilerWindow->GetTimingView() : nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

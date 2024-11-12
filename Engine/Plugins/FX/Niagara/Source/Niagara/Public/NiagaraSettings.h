@@ -162,17 +162,7 @@ class UNiagaraSettings : public UDeveloperSettings
 	 the cvars fx.NiagaraScript.StripByteCodeOnLoad and fx.ForceExecVMPath.
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable building data for Optimized VM"))
-	bool bExperimentalVMEnabled = false;
-
-	/**
-	Enables Lightweight Emitters experimental feature.
-	Statless emitters are lightweight fixed function emitters, they are not fully programmable like regular emitters and do not run scripts on the CPU.
-	Particle data is extrapolated per frame for the current particle age.  This means we never store particle data, we only generate it on demand.
-	Systems that contain only lightweight emitters and no system script modules can take advantage of a much faster path to execute.
-	** There is no guarantee on backwards compatability for this feature currently.  Do not ship lightweight content. **
-	*/
-	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable Lightweight Emitters (Experimental)", ConfigRestartRequired = true))
-	bool bStatelessEmittersEnabled = false;
+	bool bExperimentalVMEnabled = true;
 
 	/** If set to true, quaternion attributes will be interpolated via slerp instead of lerp in interpolated spawn scripts. */
 	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = Niagara)
@@ -194,10 +184,6 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (AllowedClasses = "/Script/Niagara.NiagaraEffectType"))
 	FSoftObjectPath DefaultEffectType;
 
-	/** Specifies a required effect type which must be used for effects in the project. */
-	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (AllowedClasses = "/Script/Niagara.NiagaraEffectType"))
-	FSoftObjectPath RequiredEffectType;
-
 	/** Should we allow placing a Niagara System in the editor into a level which has no effect type assigned? */
 	UPROPERTY(config, EditAnywhere, Category = Niagara)
 	bool bAllowCreateActorFromSystemWithNoEffectType = true;
@@ -210,7 +196,7 @@ class UNiagaraSettings : public UDeveloperSettings
 	 Controls how byte code will be stripped when loading assets that have multiple sets of bytecode (i.e. optimized).
 	 */
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to strip bytecode"))
-	ENiagaraStripScriptByteCodeOption ByteCodeStripOption = ENiagaraStripScriptByteCodeOption::Default;
+	ENiagaraStripScriptByteCodeOption ByteCodeStripOption = ENiagaraStripScriptByteCodeOption::Strip_Original;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to compile Niagara scripts"))
@@ -313,8 +299,6 @@ class UNiagaraSettings : public UDeveloperSettings
 	// END UDeveloperSettings Interface
 
 	NIAGARA_API UNiagaraEffectType* GetDefaultEffectType() const;
-
-	NIAGARA_API UNiagaraEffectType* GetRequiredEffectType() const;
 
 	NIAGARA_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 

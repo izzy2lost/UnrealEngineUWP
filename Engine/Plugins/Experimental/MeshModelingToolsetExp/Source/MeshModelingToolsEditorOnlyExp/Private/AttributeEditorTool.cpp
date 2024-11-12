@@ -20,6 +20,7 @@
 #include "Components/PrimitiveComponent.h"
 
 #include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
 #include "ToolTargetManager.h"
@@ -44,6 +45,17 @@ bool UAttributeEditorToolBuilder::CanBuildTool(const FToolBuilderState& SceneSta
 	return UMultiSelectionMeshEditingToolBuilder::CanBuildTool(SceneState) &&
 		SceneState.TargetManager->CountSelectedAndTargetableWithPredicate(SceneState, GetTargetRequirements(),
 			[](UActorComponent& Component) { return !ToolBuilderUtil::IsVolume(Component); }) >= 1;
+}
+
+const FToolTargetTypeRequirements& UAttributeEditorToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
 }
 
 

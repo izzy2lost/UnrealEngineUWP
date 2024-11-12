@@ -118,6 +118,15 @@ public:
 	}
 
 	/**
+	 * @param DistanceParameter distance on the segment from the segment Origin in range [-Extent, Extent]
+	 * @return unit value in range [0,1]
+	 */
+	inline T ConvertToUnitRange(T DistanceParameter) const
+	{
+		return T(0.5) * (T(1) + DistanceParameter / Extent); 
+	}
+
+	/**
 	 * @return minimum squared distance from Point to segment
 	 */
 	inline T DistanceSquared(const TVector2<T>& Point) const
@@ -188,14 +197,30 @@ public:
 		return TMathUtil<T>::Clamp(Alpha, (T)0, (T)1);
 	}
 
-
-
 	/**
-	 * Determine which side of the segment the query point lies on
+	 * Determine which side of the segment the query point lies on.
 	 * @param QueryPoint test point
 	 * @param Tolerance tolerance band in which we return 0
-	 * @return +1 if point is to right of line, -1 if left, and 0 if on line or within tolerance band
+	 * @return -1 if point is to right of line, +1 if left, and 0 if on line or within tolerance band
 	 */
+	int GetSide(const TVector2<T>& QueryPoint, T Tolerance = 0)
+	{
+		TVector2<T> StartPt = Center - Extent * Direction;
+		TVector2<T> AQ = QueryPoint - StartPt;
+
+		// Note that we don't have to adjust tolerance because direction is already normalized
+		double Dist = DotPerp(AQ, Direction);
+		return (Dist > Tolerance ? -1 : (Dist < -Tolerance ? 1 : 0));
+	}
+
+	/**
+	 * Determine which side of the segment the query point lies on. This version is deprecated because it
+	 *  and the static function give opposite results. It also does not correctly handle tolerance.
+	 * @param QueryPoint test point
+	 * @param Tolerance tolerance band in which we return 0
+	 * @return -1 if point is to right of line, +1 if left, and 0 if on line or within tolerance band
+	 */
+	UE_DEPRECATED(5.5, "Use GetSide instead.")
 	int WhichSide(const TVector2<T>& QueryPoint, T Tolerance = 0)
 	{
 		// [TODO] subtract Center from test?
@@ -312,24 +337,86 @@ public:
 		return dx * dx + dy * dy;
 	}
 
+	/**
+	 * Determine which side of the segment the query point lies on. 
+	 * @param StartPt first point of Segment
+	 * @param EndPt second point of Segment
+	 * @param QueryPoint test point
+	 * @param Tolerance tolerance band in which we return 0. Note that using tolerance == 0 is faster because
+	 *   we do not need to get distance of point from segment line.
+	 * @return -1 if point is to right of line, +1 if left, and 0 if on line or within tolerance band, or segment was degenerate
+	 */
+	static int GetSide(const TVector2<T>& StartPt, const TVector2<T>& EndPt, const TVector2<T>& QueryPt, T Tolerance = (T)0)
+	{
+		TVector2<T> AB = EndPt - StartPt;
+		T DotPerpResult = DotPerp(QueryPt - StartPt, AB);
+		if (Tolerance == 0)
+		{
+			return (DotPerpResult > 0 ? -1 : (DotPerpResult < 0 ? 1 : 0));
+		}
+
+		// If tolerance is nonzero, we have to use segment length to adjust it, since we use unnormalized
+		//  direction in DotPerp.
+		T LengthSquared = AB.SizeSquared();
+		if (LengthSquared == 0)
+		{
+			// It's possible to get here without DotPerp underflowing, so we early out to avoid incorrectly 
+			//  zeroing out the tolerance below while comparing against a nonzero DotPerpResult. 
+			// We could scale AB to deal with this case to try to better match behavior with the tolerance
+			//  0 case (which blindly uses DotPerp result), but it's fair to expect tolerance to affect the 
+			//  treatment of near-degenerate segments, so we don't bother.
+			return 0;
+		}
+		T ToleranceToUse = Tolerance * FMath::Sqrt(LengthSquared);
+
+		return (DotPerpResult > ToleranceToUse ? -1 : (DotPerpResult < -ToleranceToUse ? 1 : 0));
+	}
 
 	/**
-	 * Determine which side of the segment the query point lies on
+	 * Determine which side of the segment the query point lies on. This version is deprecated because it
+	 *  and the member function give opposite results. It also does not correctly handle tolerance.
 	 * @param StartPt first point of Segment
 	 * @param EndPt second point of Segment
 	 * @param QueryPoint test point
 	 * @param Tolerance tolerance band in which we return 0
 	 * @return +1 if point is to right of line, -1 if left, and 0 if on line or within tolerance band
 	 */
+	UE_DEPRECATED(5.5, "Use GetSide instead.")
 	static int WhichSide(const TVector2<T>& StartPt, const TVector2<T>& EndPt, const TVector2<T>& QueryPt, T Tolerance = (T)0)
 	{
 		T det = -Orient(StartPt, EndPt, QueryPt);
 		return (det > Tolerance ? +1 : (det < -Tolerance ? -1 : 0));
 	}
 
+	/**
+	 * Return true if QueryPt is on the segment between A and B.
+	 */
+	static bool IsOnSegment(const TVector2<T>& A, const TVector2<T>& B, const TVector2<T>& QueryPt, T Tolerance = (T)0)
+	{
+		const TVector2<T> AB = B - A;
 
+		T SquaredLength = AB.SquaredLength();
+		if (SquaredLength == 0)
+		{
+			// It's possible to underflow here (i.e. A and B are not coincident), but the distance between
+			//  A and B is negligible in that case, and we'll still correctly identify B as on the segment
+			//  (since we'll underflow the same way). The fact that we're slighly more tolerant near A at
+			//  these scales seems ok.
+			return TVector2<T>::DistSquared(A, QueryPt) <= Tolerance * Tolerance;
+		}
+		// We can either normalize AB so that the values we get from dot products are distances,
+		//  or just multiply the other side by length.
+		T DotTolerance = FMath::Sqrt(SquaredLength) * Tolerance;
+		const TVector2<T> AQ = QueryPt - A;
+		if (FMath::Abs(DotPerp(AB, AQ)) > DotTolerance)
+		{
+			// Must not be on the line
+			return false;
+		}
 
-
+		// Make sure it's between the endpoints
+		return (AB.Dot(AQ) >= -DotTolerance && AB.Dot(QueryPt - B) <= DotTolerance);
+	}
 
 protected:
 
@@ -452,6 +539,15 @@ public:
 	inline TVector<T> PointBetween(T UnitParameter) const
 	{
 		return Center + ((T)2 * UnitParameter - (T)1) * Extent * Direction;
+	}
+
+	/**
+	 * @param DistanceParameter distance on the segment from the segment Origin in range [-Extent, Extent]
+	 * @return unit value in range [0,1]
+	 */
+	inline T ConvertToUnitRange(T DistanceParameter) const
+	{
+		return T(0.5) * (T(1) + DistanceParameter / Extent); 
 	}
 
 	/**

@@ -72,7 +72,7 @@ public:
 	/**
 	* For performance reasons we want to pre-allocate structured buffers to at least the number of concurrent frames.
 	*/
-	virtual void PreAllocateMemoryPool(int32 NumFrames, const FImgMediaFrameInfo& FrameInfo, const bool bCustomExr) override;
+	virtual void PreAllocateMemoryPool(int32 NumFrames, const FImgMediaFrameInfo& FrameInfo) override;
 
 protected:
 
@@ -88,7 +88,7 @@ protected:
 	 * @param Dim Dimensions of the image.
 	 * @param NumChannels Number of channels in the image.
 	 */
-	static SIZE_T GetBufferSize(const FIntPoint& Dim, int32 NumChannels, bool bHasTiles, const FIntPoint& TileNum, const bool bCustomExr);
+	static SIZE_T GetBufferSize(const FIntPoint& Dim, int32 NumChannels, bool bHasTiles, const FIntPoint& TileNum);
 
 	/**
 	* Creates Sample converter to be used by Media Texture Resource.
@@ -168,9 +168,6 @@ struct FSampleConverterParameters
 	/** Pixel stride in bytes. I.e. 2 bytes per pixel x 3 channels = 6. */
 	int32 PixelSize;
 
-	/** Identifies this exr as custom, therefore all data should be swizzled. */
-	bool bCustomExr;
-
 	/** Indicates if mips stored in individual files.*/
 	bool bMipsInSeparateFiles;
 
@@ -179,13 +176,13 @@ struct FSampleConverterParameters
 };
 
 
-FUNC_DECLARE_DELEGATE(FExrConvertBufferCallback, bool, FRHICommandListImmediate& /*RHICmdList*/, FTexture2DRHIRef /*RenderTargetTextureRHI*/, TMap<int32, FStructuredBufferPoolItemSharedPtr>& /*MipBuffers*/, const FSampleConverterParameters /*ConverterParams*/)
+FUNC_DECLARE_DELEGATE(FExrConvertBufferCallback, bool, FRHICommandListImmediate& /*RHICmdList*/, FTextureRHIRef /*RenderTargetTextureRHI*/, TMap<int32, FStructuredBufferPoolItemSharedPtr>& /*MipBuffers*/, const FSampleConverterParameters /*ConverterParams*/)
 
 class FExrMediaTextureSampleConverter: public IMediaTextureSampleConverter
 {
 
 public:
-	virtual bool Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints) override;
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override;
 	virtual ~FExrMediaTextureSampleConverter() {};
 	
 	void AddCallback(FExrConvertBufferCallback&& Callback) 

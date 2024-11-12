@@ -4,6 +4,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Styling/AppStyle.h"
 #include "MaterialEditorActions.h"
+#include "MaterialEditorViewportToolbarSections.h"
 #include "PreviewProfileController.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditorViewportToolBar"
@@ -53,29 +54,19 @@ void SMaterialEditorViewportPreviewShapeToolBar::Construct(const FArguments& InA
 
 void SMaterialEditorViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class SMaterialEditor3DPreviewViewport> InViewport)
 {
+	MaterialEditorViewportPtr = InViewport;
 	SCommonEditorViewportToolbarBase::Construct(SCommonEditorViewportToolbarBase::FArguments().PreviewProfileController(MakeShared<FPreviewProfileController>()), InViewport);
 }
 
 TSharedRef<SWidget> SMaterialEditorViewportToolBar::GenerateShowMenu() const
 {
-	GetInfoProvider().OnFloatingButtonClicked();
-
-	TSharedRef<SEditorViewport> ViewportRef = GetInfoProvider().GetViewportWidget();
-
-	const bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder ShowMenuBuilder(bInShouldCloseWindowAfterMenuSelection, ViewportRef->GetCommandList());
+	if (MaterialEditorViewportPtr)
 	{
-		auto Commands = FMaterialEditorCommands::Get();
-
-		ShowMenuBuilder.AddMenuEntry(Commands.ToggleMaterialStats);
-
-		ShowMenuBuilder.AddMenuSeparator();
-
-		ShowMenuBuilder.AddMenuEntry(Commands.TogglePreviewGrid);
-		ShowMenuBuilder.AddMenuEntry(Commands.TogglePreviewBackground);
+		constexpr bool bShowViewportStats = false;
+		return UE::MaterialEditor::CreateShowMenuWidget(MaterialEditorViewportPtr.ToSharedRef(), bShowViewportStats);
 	}
 
-	return ShowMenuBuilder.MakeWidget();
+	return SNullWidget::NullWidget;
 }
 
 bool SMaterialEditorViewportToolBar::IsViewModeSupported(EViewModeIndex ViewModeIndex) const 

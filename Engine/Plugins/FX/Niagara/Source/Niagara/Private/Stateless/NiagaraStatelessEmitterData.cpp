@@ -2,6 +2,7 @@
 
 #include "Stateless/NiagaraStatelessEmitterData.h"
 #include "Stateless/NiagaraStatelessEmitterTemplate.h"
+#include "Stateless/NiagaraStatelessParticleSimExecData.h"
 #include "Stateless/NiagaraStatelessSimulationShader.h"
 
 void FNiagaraStatelessEmitterData::FDeleter::operator()(FNiagaraStatelessEmitterData* EmitterData) const
@@ -26,6 +27,12 @@ FNiagaraStatelessEmitterData::~FNiagaraStatelessEmitterData()
 {
 	check(IsInRenderingThread());
 	StaticFloatBuffer.Release();
+
+	if (ParticleSimExecData)
+	{
+		delete ParticleSimExecData;
+		ParticleSimExecData = nullptr;
+	}
 }
 
 void FNiagaraStatelessEmitterData::InitRenderResources()
@@ -81,24 +88,20 @@ uint32 FNiagaraStatelessEmitterData::CalculateActiveParticles(int32 InRandomSeed
 		const bool bIsValidForAge = !Age.IsSet() || (Age.GetValue() >= SpawnInfo.SpawnTimeStart && Age.GetValue() < SpawnInfo.SpawnTimeEnd + LifetimeRange.Max);
 		if (bIsValidForAge && GpuSpawnIndex < NiagaraStateless::MaxGpuSpawnInfos)
 		{
-			uint32	NumActive = 0;
-			uint32	ParticleOffset = 0;
-			float	SpawnRate = 0.0f;
-			float	SpawnTimeStart = SpawnInfo.SpawnTimeStart;
+			uint32	NumActive		= SpawnInfo.Amount;
+			uint32	ParticleOffset	= 0;
+			float	SpawnRate		= 0.0f;
+			float	SpawnTimeStart	= SpawnInfo.SpawnTimeStart;
 			switch (SpawnInfo.Type)
 			{
 				case ENiagaraStatelessSpawnInfoType::Burst:
-					NumActive				= SpawnInfo.Amount;
 					break;
 
 				case ENiagaraStatelessSpawnInfoType::Rate:
-					if (!Age.IsSet())
+					// If the age is set we can make a narrowed number of active particles calculation
+					if (Age.IsSet())
 					{
-						NumActive = FMath::FloorToInt((SpawnInfo.SpawnTimeEnd - SpawnInfo.SpawnTimeStart) * SpawnInfo.Rate);
-					}
-					else
-					{
-						const uint32 MaxActive = FMath::FloorToInt((SpawnInfo.SpawnTimeEnd - SpawnInfo.SpawnTimeStart) * SpawnInfo.Rate);
+						const uint32 MaxActive = SpawnInfo.Amount;
 						ParticleOffset = FMath::FloorToInt(FMath::Max(Age.GetValue() - SpawnInfo.SpawnTimeStart - LifetimeRange.Max, 0.0f) * SpawnInfo.Rate);
 						ParticleOffset = FMath::Min(ParticleOffset, MaxActive);
 						NumActive = FMath::FloorToInt(FMath::Max(Age.GetValue() - SpawnInfo.SpawnTimeStart, 0.0f) * SpawnInfo.Rate);

@@ -25,6 +25,7 @@
 #include "Materials/MaterialExpressionExecBegin.h"
 #include "Materials/MaterialExpressionExecEnd.h"
 #include "Materials/MaterialFunction.h"
+#include "Materials/MaterialInsights.h"
 
 #include "MaterialCachedHLSLTree.h"
 #include "HLSLTree/HLSLTreeEmit.h"
@@ -149,16 +150,11 @@ UMaterialGraphNode_Base* FindGraphNodeForObject(const UObject* Object)
 }
 } // namespace Private
 
-void UMaterialGraph::UpdatePinTypes()
+static void UpdatePinTypes_Old(UMaterialGraph* Graph, UMaterial* Material)
 {
 	using namespace UE::HLSLTree;
 
-	if (!Material->IsUsingNewHLSLGenerator())
-	{
-		return;
-	}
-
-	for (UEdGraphNode* Node : Nodes)
+	for (UEdGraphNode* Node :Graph->Nodes)
 	{
 		for (UEdGraphPin* Pin : Node->Pins)
 		{
@@ -227,6 +223,58 @@ void UMaterialGraph::UpdatePinTypes()
 	}
 }
 
+void UMaterialGraph::UpdatePinTypes()
+{
+	if (Material->IsUsingNewTranslatorPrototype())
+	{
+		const FMaterialInsights* Insight = Material->MaterialInsight.Get();
+		if (!Insight)
+		{
+			return;
+		}
+
+		// Reset all pins to void category.
+		for (UEdGraphNode* Node :Nodes)
+		{
+			for (UEdGraphPin* Pin : Node->Pins)
+			{
+				if (Pin->PinType.PinCategory != UMaterialGraphSchema::PC_Exec)
+				{
+					Pin->PinType.PinCategory = UMaterialGraphSchema::PC_Void;
+				}
+			}
+		}
+		
+		for (const FMaterialInsights::FConnectionInsight& ConnectionInsight : Insight->ConnectionInsights)
+		{
+			if (UMaterialGraphNode_Base* InputNode = ::Private::FindGraphNodeForObject(ConnectionInsight.InputObject))
+			{
+				const int32 InputIndex = InputNode->GetSourceIndexForInputIndex(ConnectionInsight.InputIndex);
+				if (UEdGraphPin* InputPin = InputNode->GetInputPin(InputIndex))
+				{
+					const UE::Shader::FValueTypeDescription InputTypeDesc = UE::Shader::GetValueTypeDescription(ConnectionInsight.ValueType);
+					InputPin->PinType.PinCategory = UMaterialGraphSchema::PC_ValueType;
+					InputPin->PinType.PinSubCategory = InputTypeDesc.Name;
+				}
+			}
+
+			if (UMaterialGraphNode_Base* OutputNode = ::Private::FindGraphNodeForObject(ConnectionInsight.OutputExpression))
+			{
+				if (UEdGraphPin* OutputPin = OutputNode->GetOutputPin(ConnectionInsight.OutputIndex))
+				{
+					const UE::Shader::FValueTypeDescription InputTypeDesc = UE::Shader::GetValueTypeDescription(ConnectionInsight.ValueType);
+					OutputPin->PinType.PinCategory = UMaterialGraphSchema::PC_ValueType;
+					OutputPin->PinType.PinSubCategory = InputTypeDesc.Name;
+				}
+			}
+		}
+	}
+	else if (Material->IsUsingNewHLSLGenerator())
+	{
+		UpdatePinTypes_Old(this, Material);
+	}
+}
+
 void UMaterialGraph::RebuildGraphInternal(const TMap<UMaterialExpression*, TArray<UMaterialExpression*>>& SubgraphExpressionMap, const TMap<UMaterialExpression*, TArray<UMaterialExpressionComment*>>& SubgraphCommentMap)
 {
 	Modify();
@@ -264,7 +312,7 @@ void UMaterialGraph::RebuildGraphInternal(const TMap<UMaterialExpression*, TArra
 
 		MaterialInputs.Add(FMaterialInputInfo(FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(MP_PixelDepthOffset, Material), MP_PixelDepthOffset, LOCTEXT("PixelDepthOffsetToolTip", "Pixel Depth Offset")));
 		MaterialInputs.Add(FMaterialInputInfo(FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(MP_ShadingModel, Material), MP_ShadingModel, LOCTEXT("ShadingModelToolTip", "Selects which shading model should be used per pixel")));
-		MaterialInputs.Add(FMaterialInputInfo(FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(MP_SurfaceThickness, Material), MP_SurfaceThickness, LOCTEXT("SurfaceThicknessToolTip", "Defines the surface's thickness when IsThinSurface is enabled")));
+		MaterialInputs.Add(FMaterialInputInfo(FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(MP_SurfaceThickness, Material), MP_SurfaceThickness, LOCTEXT("SurfaceThicknessToolTip", "Defines the surface's thickness when IsThinSurface is enabled on this node. Only available when Substrate is enabled for the project.")));
 		MaterialInputs.Add(FMaterialInputInfo(FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(MP_Displacement, Material), MP_Displacement, LOCTEXT("DisplacementToolTip", "Specifies scalar vertex displacement."))); 
 
 		//^^^ New material properties go above here. ^^^^
@@ -516,8 +564,6 @@ void UMaterialGraph::LinkGraphNodesFromMaterial()
 			continue;
 		}
 
-		TArrayView<FExpressionInput*> ExpressionInputs = Expression->GetInputsView();
-
 		TArray<FExpressionExecOutputEntry> ExecOutputs;
 		Expression->GetExecOutputs(ExecOutputs);
 
@@ -526,19 +572,20 @@ void UMaterialGraph::LinkGraphNodesFromMaterial()
 			if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory != UMaterialGraphSchema::PC_Exec)
 			{
 				// Implicitly generated property inputs are not returned by GetInputs(), so check index is within valid range.
-				if (ExpressionInputs.IsValidIndex(Pin->SourceIndex) && ExpressionInputs[Pin->SourceIndex]->Expression)
+				FExpressionInput* SourceInput = Expression->GetInput(Pin->SourceIndex);
+				if (SourceInput && SourceInput->Expression)
 				{
 					// Unclear why this is null sometimes outside of composite reroute, but this is safer than crashing
-					if (UMaterialGraphNode* GraphNode = Cast<UMaterialGraphNode>(ExpressionInputs[Pin->SourceIndex]->Expression->GraphNode))
+					if (UMaterialGraphNode* GraphNode = Cast<UMaterialGraphNode>(SourceInput->Expression->GraphNode))
 					{
 						// if GraphNode is a material function call for a missing material function, it may not have any output pins
-						UEdGraphPin* OutputPin = GraphNode->GetOutputPin(GetValidOutputIndex(ExpressionInputs[Pin->SourceIndex]));
+						UEdGraphPin* OutputPin = GraphNode->GetOutputPin(GetValidOutputIndex(Expression->GetInput(Pin->SourceIndex)));
 						if (LIKELY(OutputPin))
 						{
 							Pin->MakeLinkTo(OutputPin);
 						}
 					}
-					else if (UMaterialExpressionReroute* CompositeReroute = Cast<UMaterialExpressionReroute>(ExpressionInputs[Pin->SourceIndex]->Expression))
+					else if (UMaterialExpressionReroute* CompositeReroute = Cast<UMaterialExpressionReroute>(Expression->GetInput(Pin->SourceIndex)->Expression))
 					{
 						// This is an unseen composite reroute expression, find the actual expression output to connect to.
 						UMaterialExpressionComposite* OwningComposite = Cast<UMaterialExpressionComposite>(CompositeReroute->SubgraphExpression);
@@ -657,13 +704,11 @@ void UMaterialGraph::LinkMaterialExpressionsFromGraph()
 
 					for (UEdGraphPin* Pin : GraphNode->Pins)
 					{
-						TArrayView<FExpressionInput*> ExpressionInputs = Expression->GetInputsView();
 						if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory != UMaterialGraphSchema::PC_Exec)
 						{
 							// Wire up non-execution input pins
 							// Implicitly generated property inputs are not returned by GetInputs(), so check index is within valid range.
-							FExpressionInput* ExpressionInput = ExpressionInputs.IsValidIndex(Pin->SourceIndex) ? ExpressionInputs[Pin->SourceIndex] : nullptr;
-							if (ExpressionInput)
+							if (FExpressionInput* ExpressionInput = Expression->GetInput(Pin->SourceIndex))
 							{
 								if (Pin->LinkedTo.Num() > 0)
 								{

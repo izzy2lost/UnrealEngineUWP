@@ -3,6 +3,7 @@
 #include "Engine/LatentActionManager.h"
 #include "LatentActions.h"
 #include "Stats/Stats.h"
+#include "HAL/ConsoleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LatentActionManager)
 
@@ -10,12 +11,18 @@
 #define LATENT_ACTION_PROFILING_ENABLED 0
 #endif
 
-#if LATENT_ACTION_PROFILING_ENABLED
-#include "HAL/IConsoleManager.h"
-#endif
 
 FOnLatentActionsChanged FLatentActionManager::LatentActionsChangedDelegate;
 
+
+namespace LatentActionCVars
+{
+	int32 GuaranteeEngineTickDelay = 0;
+	static FAutoConsoleVariableRef CVarLatentActionGuaranteeEngineTickDelay(
+		TEXT("LatentActions.GuaranteeNextTickDelay"),
+		GuaranteeEngineTickDelay,
+		TEXT("If true, latent actions delayed until next tick will guarantee the engine frame has advanced. If false, these would always run at the end of the same engine tick (default behavior prior to 5.5)."));
+}
 
 /////////////////////////////////////////////////////
 // FPendingLatentAction
@@ -47,7 +54,7 @@ void FLatentActionManager::RemoveActionsForObject(TWeakObjectPtr<UObject> InObje
 	FObjectActions* ObjectActions = GetActionsForObject(InObject);
 	if (ObjectActions)
 	{
-		FWeakObjectAndActions* FoundEntry = ActionsToRemoveMap.FindByPredicate([InObject](const FWeakObjectAndActions& Entry) { return Entry.Key == InObject; });
+		FWeakObjectAndActions* FoundEntry = ActionsToRemoveMap.FindByPredicate([InObject](const FWeakObjectAndActions& Entry) { return Entry.Key.HasSameIndexAndSerialNumber(InObject); });
 
 		TSharedPtr<TArray<FUuidAndAction>> ActionToRemoveListPtr;
 		if (FoundEntry)
@@ -84,9 +91,9 @@ DECLARE_CYCLE_STAT(TEXT("Remove Latent Actions"), STAT_RemoveLatentActions, STAT
 
 void FLatentActionManager::BeginFrame()
 {
-	for (FObjectToActionListMap::TIterator ObjIt(ObjectToActionListMap); ObjIt; ++ObjIt)
+	for (TPair<TWeakObjectPtr<UObject>, TSharedPtr<FObjectActions>>& ActionPair : ObjectToActionListMap)
 	{
-		FObjectActions* ObjectActions = ObjIt.Value().Get();
+		FObjectActions* ObjectActions = ActionPair.Value.Get();
 		check(ObjectActions);
 		ObjectActions->bProcessedThisFrame = false;
 	}
@@ -160,11 +167,6 @@ struct FScopedLatentActionTimer
 
 void FLatentActionManager::ProcessLatentActions(UObject* InObject, float DeltaTime)
 {
-	if (InObject && !InObject->GetClass()->HasAnyClassFlags(CLASS_CompiledFromBlueprint))
-	{
-		return;
-	}
-
 #if LATENT_ACTION_PROFILING_ENABLED
 	GLatentActionStats.Reset();
 	const double StartTime = FPlatformTime::Seconds();
@@ -218,8 +220,7 @@ void FLatentActionManager::ProcessLatentActions(UObject* InObject, float DeltaTi
 		SCOPE_CYCLE_COUNTER(STAT_TickLatentActions);
 		for (FObjectToActionListMap::TIterator ObjIt(ObjectToActionListMap); ObjIt; ++ObjIt)
 		{	
-			TWeakObjectPtr<UObject> WeakPtr = ObjIt.Key();
-			UObject* Object = WeakPtr.Get();
+			UObject* Object = ObjIt.Key().Get();
 			FObjectActions* ObjectActions = ObjIt.Value().Get();
 			check(ObjectActions);
 			FActionList& ObjectActionList = ObjectActions->ActionList;
@@ -390,7 +391,7 @@ void FLatentActionManager::GetActiveUUIDs(UObject* InObject, TSet<int32>& UUIDLi
 
 FLatentActionManager::~FLatentActionManager()
 {
-	for (auto& ObjectActionListIterator : ObjectToActionListMap)
+	for (TPair<TWeakObjectPtr<UObject>, TSharedPtr<FObjectActions>>& ObjectActionListIterator : ObjectToActionListMap)
 	{
 		TSharedPtr<FObjectActions>& ObjectActions = ObjectActionListIterator.Value;
 		if (ObjectActions.IsValid())

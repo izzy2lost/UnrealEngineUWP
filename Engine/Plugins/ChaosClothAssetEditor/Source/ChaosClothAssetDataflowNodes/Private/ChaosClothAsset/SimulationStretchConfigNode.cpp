@@ -5,19 +5,37 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationStretchConfigNode)
 
-FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
-	RegisterInputConnection(&StretchStiffness.WeightMap);
-	RegisterInputConnection(&StretchStiffnessWarp.WeightMap);
-	RegisterInputConnection(&StretchStiffnessWeft.WeightMap);
-	RegisterInputConnection(&StretchStiffnessBias.WeightMap);
-	RegisterInputConnection(&StretchDamping.WeightMap);
-	RegisterInputConnection(&StretchAnisoDamping.WeightMap);
-	RegisterInputConnection(&StretchWarpScale.WeightMap);
-	RegisterInputConnection(&StretchWeftScale.WeightMap);
-	RegisterInputConnection(&AreaStiffness.WeightMap);
+	RegisterInputConnection(&StretchStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchStiffnessWarp.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchStiffnessWeft.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchStiffnessBias.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchDamping.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchAnisoDamping.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchWarpScale.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&StretchWeftScale.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&AreaStiffness.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 }
 
 void FChaosClothAssetSimulationStretchConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const

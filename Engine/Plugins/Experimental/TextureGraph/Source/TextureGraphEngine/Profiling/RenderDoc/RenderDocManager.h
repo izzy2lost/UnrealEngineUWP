@@ -3,9 +3,6 @@
 
 #include "CoreMinimal.h"
 #include <memory>
-/**
- * 
- */
 
 DECLARE_LOG_CATEGORY_EXTERN(LogRenderDocTextureGraph, Log, All);
 
@@ -23,6 +20,8 @@ namespace TextureGraphEditor
 		void												CapturePreviousBatch();
 		void												BeginCapture();
 		void												EndCapture();
+		void												CaptureNextBatchHistogram();
+
 };
 	typedef std::unique_ptr<RenderDocManager>				RenderDocManagerPtr;
 }

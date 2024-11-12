@@ -3,6 +3,8 @@
 #include "Rundown/AvaRundownPlaybackClientWatcher.h"
 
 #include "Broadcast/AvaBroadcast.h"
+#include "IAvaMediaModule.h"
+#include "Playback/AvaPlaybackUtils.h"
 #include "Playback/IAvaPlaybackClient.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownPagePlayer.h"
@@ -22,6 +24,8 @@ FAvaRundownPlaybackClientWatcher::~FAvaRundownPlaybackClientWatcher()
 
 void FAvaRundownPlaybackClientWatcher::TryRestorePlaySubPage(int InPageId, const UE::AvaPlaybackClient::Delegates::FPlaybackStatusChangedArgs& InEventArgs) const
 {
+	using namespace UE::AvaPlayback::Utils;
+	
 	// Restore page player and local playback proxies.
 	// (Need to specify the InstanceId from the server for everything to match.)
 	const FName ChannelFName(InEventArgs.ChannelName);
@@ -30,8 +34,8 @@ void FAvaRundownPlaybackClientWatcher::TryRestorePlaySubPage(int InPageId, const
 	if (UAvaBroadcast::Get().GetChannelIndex(ChannelFName) == INDEX_NONE)
 	{
 		UE_LOG(LogAvaRundown, Error,
-			TEXT("Received a playback object on channel \"%s\" which doesn't exist locally. Playback Server should be reset."),
-			*InEventArgs.ChannelName);
+			TEXT("%s Received a playback object on channel \"%s\" which doesn't exist locally. Playback Server should be reset."),
+			*GetBriefFrameInfo(), *InEventArgs.ChannelName);
 		return;
 	}
 	
@@ -44,7 +48,8 @@ void FAvaRundownPlaybackClientWatcher::TryRestorePlaySubPage(int InPageId, const
 	if (SubPageIndex == INDEX_NONE)
 	{
 		UE_LOG(LogAvaRundown, Error,
-			TEXT("Asset mismatch (expected (any of): \"%s\", received: \"%s\") for restoring page %d. Playback Server should be reset."),
+			TEXT("%s Asset mismatch (expected (any of): \"%s\", received: \"%s\") for restoring page %d. Playback Server should be reset."),
+			*GetBriefFrameInfo(),
 			*FString::JoinBy(PageToRestore.GetAssetPaths(Rundown), TEXT(","), [](const FSoftObjectPath& Path){ return Path.ToString();}),
 			*InEventArgs.AssetPath.ToString(), InPageId);
 		return;
@@ -52,7 +57,7 @@ void FAvaRundownPlaybackClientWatcher::TryRestorePlaySubPage(int InPageId, const
 
 	if (!Rundown->RestorePlaySubPage(InPageId, SubPageIndex, InEventArgs.InstanceId, bIsPreview, ChannelFName))
 	{
-		UE_LOG(LogAvaRundown, Error, TEXT("Failed to restore page %d. Playback Server should be reset."), InPageId);
+		UE_LOG(LogAvaRundown, Error, TEXT("%s Failed to restore page %d. Playback Server should be reset."), *GetBriefFrameInfo(), InPageId);
 	}
 }
 
@@ -73,32 +78,47 @@ void FAvaRundownPlaybackClientWatcher::HandlePlaybackStatusChanged(IAvaPlaybackC
 	// Try to determine if a playback has started or stopped.
 	const bool bWasRunning = IsAnyOf(InEventArgs.PrevStatus, RunningStates);
 	const bool bIsRunning = IsAnyOf(InEventArgs.NewStatus, RunningStates);
+
+	// TODO: Reconcile forked channels. Need to keep track of status per server. (Seems to work well enough for now, but may need to revisit)
 	
 	// If a playback instance is stopping, stop corresponding page (if any).
 	if (bWasRunning && !bIsRunning)
 	{
+		UE_LOG(LogAvaRundown, Verbose, 
+			TEXT("%s Playback Client Watcher: Detected asset stopping Id:%s from Server \"%s\"."),
+			*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *InEventArgs.InstanceId.ToString(), *InEventArgs.ServerName);
+
 		for (UAvaRundownPagePlayer* PagePlayer : Rundown->PagePlayers)
 		{
 			// Search for a match with the event:				
 			if (PagePlayer && PagePlayer->ChannelName == InEventArgs.ChannelName)
 			{
-				PagePlayer->ForEachInstancePlayer([&InEventArgs](UAvaRundownPlaybackInstancePlayer* InInstancePlayer)
+				if (UAvaRundownPlaybackInstancePlayer* InstancePlayer = PagePlayer->FindInstancePlayerByInstanceId(InEventArgs.InstanceId))
 				{
-					if (InInstancePlayer
-						&& InInstancePlayer->SourceAssetPath == InEventArgs.AssetPath
-						&& InInstancePlayer->GetPlaybackInstanceId() != InEventArgs.InstanceId)
+					if (InstancePlayer->SourceAssetPath != InEventArgs.AssetPath)
 					{
-						InInstancePlayer->Stop();	
+						UE_LOG(LogAvaRundown, Error, TEXT("%s Playback Client Watcher: Instance Id:%s asset path mismatch in page player %d."),
+							*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *InEventArgs.InstanceId.ToString(), PagePlayer->PageId);
+						continue;
 					}
-				});
+
+					UE_LOG(LogAvaRundown, Verbose, TEXT("%s Playback Client Watcher: Stopping Instance Id:%s in page player %d."),
+						*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *InEventArgs.InstanceId.ToString(), PagePlayer->PageId);
+					
+					InstancePlayer->Stop();
+				}
 
 				// If we stopped all the instance players, stop the page (to broadcast events).
 				if (!PagePlayer->IsPlaying())
 				{
+					UE_LOG(LogAvaRundown, Verbose, TEXT("%s Playback Client Watcher: Stopping Page player %d, no more instances playing."),
+						*UE::AvaPlayback::Utils::GetBriefFrameInfo(), PagePlayer->PageId);
+
 					PagePlayer->Stop();	
 				}
 			}
 		}
+		
 		Rundown->RemoveStoppedPagePlayers();
 	}
 
@@ -106,17 +126,26 @@ void FAvaRundownPlaybackClientWatcher::HandlePlaybackStatusChanged(IAvaPlaybackC
 	if (bIsRunning)
 	{
 		// We need to figure out which page it is.
-		const FString* UserData = InPlaybackClient.GetRemotePlaybackUserData(InEventArgs.InstanceId, InEventArgs.AssetPath, InEventArgs.ChannelName);
+		const FString* RemoteUserData = InPlaybackClient.GetRemotePlaybackUserData(InEventArgs.InstanceId, InEventArgs.AssetPath, InEventArgs.ChannelName, InEventArgs.ServerName);
 
 		// We haven't received the user data for this playback. So we request it.
 		// This event will be received again with user data next time.
-		if (!UserData)
+		if (!RemoteUserData)
 		{
 			InPlaybackClient.RequestPlayback(InEventArgs.InstanceId, InEventArgs.AssetPath, InEventArgs.ChannelName, EAvaPlaybackAction::GetUserData);
 		}
 		else
 		{
-			const int32 PageId = UAvaRundownPagePlayer::GetPageIdFromInstanceUserData(*UserData);
+			const TSharedPtr<FAvaPlaybackInstance> LocalPlaybackInstance = IAvaMediaModule::Get().GetLocalPlaybackManager().FindPlaybackInstance(InEventArgs.InstanceId, InEventArgs.AssetPath, InEventArgs.ChannelName);
+			if (LocalPlaybackInstance && LocalPlaybackInstance->GetInstanceUserData() != *RemoteUserData)
+			{
+				UE_LOG(LogAvaRundown, Error, 
+					TEXT("%s Playback Client Watcher: Playback Instance Id:%s on server \"%s\": user data mismatch \"%s\", local user data: \"%s\"."),
+					*UE::AvaPlayback::Utils::GetBriefFrameInfo(),
+					*InEventArgs.InstanceId.ToString(), *InEventArgs.ServerName, *(*RemoteUserData), *LocalPlaybackInstance->GetInstanceUserData());
+			}
+			
+			const int32 PageId = UAvaRundownPagePlayer::GetPageIdFromInstanceUserData(*RemoteUserData);
 			if (PageId != FAvaRundownPage::InvalidPageId)
 			{
 				const UAvaRundownPagePlayer* PagePlayer = Rundown->FindPlayerForProgramPage(PageId);

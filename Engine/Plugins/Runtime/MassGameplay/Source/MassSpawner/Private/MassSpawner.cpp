@@ -285,6 +285,12 @@ void AMassSpawner::DoSpawning()
 		UE_VLOG_UELOG(this, LogMassSpawner, Warning, TEXT("No Spawn Data Generators configured."));
 		return;
 	}
+	
+	if (EntityTypes.Num() == 0)
+	{
+		UE_VLOG_UELOG(this, LogMassSpawner, Warning, TEXT("No EntityTypes configured."));
+		return;
+	}
 
 	AllGeneratedResults.Reset();
 	
@@ -337,7 +343,7 @@ void AMassSpawner::DoSpawning()
 			if (Generator.GeneratorInstance)
 			{
 				const float ProportionRatio = FMath::Min(Generator.Proportion / ProportionRemaining, 1.0f);
-				const int32 SpawnCount = FMath::CeilToInt(SpawnCountRemaining * ProportionRatio);
+				const int32 SpawnCount = FMath::CeilToInt(static_cast<float>(SpawnCountRemaining) * ProportionRatio);
 				
 				FFinishedGeneratingSpawnDataSignature Delegate = FFinishedGeneratingSpawnDataSignature::CreateUObject(this, &AMassSpawner::OnSpawnDataGenerationFinished, &Generator);
 				Generator.GeneratorInstance->Generate(*this, EntityTypes, SpawnCount, Delegate);
@@ -388,7 +394,7 @@ void AMassSpawner::OnSpawnDataGenerationFinished(TConstArrayView<FMassEntitySpaw
 int32 AMassSpawner::GetSpawnCount() const
 {
 	const float FinalSpawningCountScale = SpawningCountScale * UE::MassSpawner::ScalabilitySpawnDensityMultiplier;
-	return int32(FinalSpawningCountScale * Count);
+	return static_cast<int32>(FinalSpawningCountScale * static_cast<float>(Count));
 }
 
 UMassProcessor* AMassSpawner::GetPostSpawnProcessor(TSubclassOf<UMassProcessor> ProcessorClass)
@@ -427,6 +433,9 @@ void AMassSpawner::SpawnGeneratedEntities(TConstArrayView<FMassEntitySpawnDataGe
 	UWorld* World = GetWorld();
 	check(World);
 
+	int32 TotalNum = 0;
+	const int32 StartIndex = AllSpawnedEntities.Num();
+
 	for (const FMassEntitySpawnDataGeneratorResult& Result : Results)
 	{
 		if (Result.NumEntities <= 0)
@@ -447,36 +456,51 @@ void AMassSpawner::SpawnGeneratedEntities(TConstArrayView<FMassEntitySpawnDataGe
 				FSpawnedEntities& SpawnedEntities = AllSpawnedEntities.AddDefaulted_GetRef();
 				SpawnedEntities.TemplateID = EntityTemplate.GetTemplateID();
 				SpawnerSystem->SpawnEntities(EntityTemplate.GetTemplateID(), Result.NumEntities, Result.SpawnData, Result.SpawnDataProcessor, SpawnedEntities.Entities);
+				TotalNum += SpawnedEntities.Entities.Num();
 			}
 		}
 	}
 
-	// Run post spawn processors on all Mass entities that matches the queries.
-	// @todo: we might need a way to specify that these are ran only on the freshly spawned entities.
-	
-	TArray<UMassProcessor*> Processors;
-	TSet<TSubclassOf<UMassProcessor>> AddedProcessors;
-
-	for (const FMassEntitySpawnDataGeneratorResult& Result : Results)
+	// Run post spawn processors only on the freshly spawned entities.
+	if (TotalNum)
 	{
-		for (const TSubclassOf<UMassProcessor>& ProcessorClass : Result.PostSpawnProcessors)
+		TArray<UMassProcessor*> Processors;
+		TSet<TSubclassOf<UMassProcessor>> AddedProcessorClasses;
+
+		for (const FMassEntitySpawnDataGeneratorResult& Result : Results)
 		{
-			if (AddedProcessors.Contains(ProcessorClass) == false)
+			for (const TSubclassOf<UMassProcessor>& ProcessorClass : Result.PostSpawnProcessors)
 			{
-				if (UMassProcessor* Processor = GetPostSpawnProcessor(ProcessorClass))
+				if (AddedProcessorClasses.Contains(ProcessorClass) == false)
 				{
-					Processors.Add(Processor);
+					if (UMassProcessor* Processor = GetPostSpawnProcessor(ProcessorClass))
+					{
+						Processors.Add(Processor);
+					}
+					AddedProcessorClasses.Add(ProcessorClass);
 				}
-				AddedProcessors.Add(ProcessorClass);
 			}
 		}
-	}
 
-	if (Processors.Num() > 0 && World)
-	{
-		FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*World);
-		FMassProcessingContext ProcessingContext(EntityManager, /*TimeDelta=*/0.0f);
-		UE::Mass::Executor::RunProcessorsView(Processors, ProcessingContext);
+		if (Processors.Num() > 0)
+		{
+			FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*World);
+			FMassProcessingContext ProcessingContext(EntityManager, /*TimeDelta=*/0.0f);
+
+			// gather freshly spawned entities
+			TArray<FMassEntityHandle> AllEntities;
+			AllEntities.Reserve(TotalNum);
+			
+			for (int32 Index = StartIndex; Index < AllSpawnedEntities.Num(); ++Index)
+			{
+				AllEntities.Append(AllSpawnedEntities[Index].Entities);
+			}
+
+			// create entity collections and run Processors on them. 
+			TArray<FMassArchetypeEntityCollection> EntityCollections;
+			UE::Mass::Utils::CreateEntityCollections(EntityManager, AllEntities, FMassArchetypeEntityCollection::NoDuplicates, EntityCollections);
+			UE::Mass::Executor::RunProcessorsView(Processors, ProcessingContext, EntityCollections);
+		}
 	}
 
 	OnSpawningFinishedEvent.Broadcast();
@@ -550,7 +574,7 @@ bool AMassSpawner::DespawnEntity(const FMassEntityHandle Entity)
 		if (Index != INDEX_NONE)
 		{
 			SpawnerSystem->DestroyEntities(MakeArrayView(&Entity, 1));
-			SpawnedEntities.Entities.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			SpawnedEntities.Entities.RemoveAtSwap(Index, EAllowShrinking::No);
 			return true;
 		}
 	}

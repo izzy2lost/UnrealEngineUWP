@@ -6,6 +6,7 @@
 #include "EdGraph/EdGraphSchema.h"
 #include "GraphEditorDragDropAction.h"
 #include "RigVMModel/RigVMGraph.h"
+#include "RigVMCore/RigVMVariant.h"
 #include "EdGraphSchema_K2_Actions.h"
 #include "Kismet2/Kismet2NameValidators.h"
 
@@ -80,7 +81,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_LocalVar : public FEdGraphSc
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_LocalVar"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_LocalVar");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_LocalVar()
@@ -117,7 +122,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_PromoteToVariable : public F
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_PromoteToVariable"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_PromoteToVariable");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_PromoteToVariable()
@@ -149,7 +158,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_PromoteToExposedPin : public
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_PromoteToExposedPin"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_PromoteToExposedPin");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_PromoteToExposedPin()
@@ -179,7 +192,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_Event : public FEdGraphSchem
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_Event"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_Event");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_Event()
@@ -247,12 +264,12 @@ class RIGVMDEVELOPER_API URigVMEdGraphSchema : public UEdGraphSchema
 
 public:
 	/** Name constants */
-	static const FName GraphName_RigVM;
+	static inline const FLazyName GraphName_RigVM = FLazyName(TEXT("RigVM"));
 
 public:
 	URigVMEdGraphSchema();
 
-	virtual const FName& GetRootGraphName() const { return GraphName_RigVM; }
+	virtual const FLazyName& GetRootGraphName() const { return GraphName_RigVM; }
 
 	// UEdGraphSchema interface
 	virtual void GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const override;
@@ -296,6 +313,7 @@ public:
 	virtual bool TryRenameGraph(UEdGraph* GraphToRename, const FName& InNewName) const override;
 	virtual bool TryToGetChildEvents(const UEdGraph* Graph, const int32 SectionId, TArray<TSharedPtr<FEdGraphSchemaAction>>& Actions, const FText& ParentCategory) const override;
 	virtual bool CanDuplicateGraph(UEdGraph* InSourceGraph) const { return false; }
+	virtual bool AllowsFunctionVariants() const override { return CVarRigVMEnableVariants.GetValueOnAnyThread(); }
 	virtual UEdGraphPin* DropPinOnNode(UEdGraphNode* InTargetNode, const FName& InSourcePinName, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection) const override;
 	virtual bool SupportsDropPinOnNode(UEdGraphNode* InTargetNode, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection, FText& OutErrorMessage) const override;
 	virtual void SetPinBeingDroppedOnNode(UEdGraphPin* InSourcePin) const override { PinBeingDropped = InSourcePin; }

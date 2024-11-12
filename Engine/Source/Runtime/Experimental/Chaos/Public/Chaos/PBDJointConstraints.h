@@ -39,10 +39,14 @@ namespace Chaos
 		CHAOS_API bool IsConstraintBroken() const;
 		CHAOS_API bool IsConstraintBreaking() const;
 		CHAOS_API void ClearConstraintBreaking();
+		CHAOS_API bool IsConstraintViolating() const;
+		CHAOS_API void ClearConstraintViolating();
 		CHAOS_API bool IsDriveTargetChanged() const;
 		CHAOS_API void ClearDriveTargetChanged();
 		CHAOS_API FVec3 GetLinearImpulse() const;
 		CHAOS_API FVec3 GetAngularImpulse() const;
+		CHAOS_API float GetLinearViolation() const;
+		CHAOS_API float GetAngularViolation() const;
 
 		CHAOS_API const FPBDJointSettings& GetSettings() const;
 		const FPBDJointSettings& GetJointSettings() const { return GetSettings(); }	//needed for property macros
@@ -68,10 +72,12 @@ namespace Chaos
 		CHAOS_API void SetLinearDriveStiffness(const FVec3 Stiffness);
 		CHAOS_API void SetLinearDriveDamping(const FVec3 Damping);
 		CHAOS_API void SetLinearDriveMaxForce(const FVec3 MaxForce);
+		CHAOS_API void SetLinearDriveForceMode(EJointForceMode ForceMode);
 
 		CHAOS_API void SetAngularDriveStiffness(const FVec3 Stiffness);
 		CHAOS_API void SetAngularDriveDamping(const FVec3 Damping);
 		CHAOS_API void SetAngularDriveMaxTorque(const FVec3 MaxTorque);
+		CHAOS_API void SetAngularDriveForceMode(EJointForceMode ForceMode);
 
 		CHAOS_API void SetCollisionEnabled(const bool bCollisionEnabled);
 		CHAOS_API void SetParentInvMassScale(const FReal ParentInvMassScale);
@@ -135,9 +141,12 @@ namespace Chaos
 		bool bDisabled;
 		bool bBroken;
 		bool bBreaking;
+		bool bViolating;
 		bool bDriveTargetChanged;
 		FVec3 LinearImpulse;
 		FVec3 AngularImpulse;
+		float LinearViolation;
+		float AngularViolation;
 		EResimType ResimType = EResimType::FullResim;
 		ESyncState SyncState = ESyncState::InSync;
 		bool bEnabledDuringResim = true;
@@ -174,6 +183,11 @@ namespace Chaos
 		* A linear solver is used by default (see FPBDJointSolverSettings).
 		*/
 		void SetUseLinearJointSolver(const bool bInEnable) { Settings.bUseLinearSolver = bInEnable; }
+
+		/**
+		* Whether to use simd in single precision on the linear joint solver. 
+		*/
+		void SetUseSimd(const bool bInEnable) { Settings.bUseSimd = bInEnable; }
 
 		/**
 		 * Whether to sort the joints internally. Sort will be triggered on any tick when a joint was added. Only needed for RBAN.
@@ -228,6 +242,16 @@ namespace Chaos
 		 * Clear the transient constraint braking state (called by event system when it has used the flag)
 		 */
 		CHAOS_API void ClearConstraintBreaking(int32 ConstraintIndex);
+
+		/*
+		 * Whether the constraint was violated beyond a threshold this frame (transient flag for use by event system)
+		 */
+		CHAOS_API bool IsConstraintViolating(int32 ConstraintIndex) const;
+
+		/*
+		 * Clear the transient constraint violation state (called by event system when it has used the flag)
+		 */
+		CHAOS_API void ClearConstraintViolating(int32 ConstraintIndex);
 
 		/*
 		 * Whether the drive target has changed
@@ -332,6 +356,9 @@ namespace Chaos
 		*/
 		CHAOS_API FVec3 GetConstraintAngularImpulse(int32 ConstraintIndex) const;
 
+		CHAOS_API float GetConstraintLinearViolation(int32 ConstraintIndex) const;
+		CHAOS_API float GetConstraintAngularViolation(int32 ConstraintIndex) const;
+
 		CHAOS_API ESyncState GetConstraintSyncState(int32 ConstraintIndex) const;
 		CHAOS_API void SetConstraintSyncState(int32 ConstraintIndex, ESyncState SyncState);
 		
@@ -353,7 +380,7 @@ namespace Chaos
 		CHAOS_API virtual void UnprepareTick() override final;
 
 		// Called by the joint solver at the end of the constraint solver phase
-		CHAOS_API void SetSolverResults(const int32 ConstraintIndex, const FVec3& LinearImpulse, const FVec3& AngularImpulse, const bool bIsBroken, const FSolverBody* SolverBody0, const FSolverBody* SolverBody1);
+		CHAOS_API void SetSolverResults(const int32 ConstraintIndex, const FVec3& LinearImpulse, const FVec3& AngularImpulse, const float LinearViolation, const float AngularViolation, const bool bIsBroken, const bool bIsViolating, const FSolverBody* SolverBody0, const FSolverBody* SolverBody1);
 
 		// @todo(chaos): only needed for RBAN, and should be private or moved to the solver
 		CHAOS_API int32 GetConstraintIsland(int32 ConstraintIndex) const;

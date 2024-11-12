@@ -33,6 +33,11 @@ public class EOSShared : ModuleRules
 			}
 		);
 
+		if (Target.Platform == UnrealTargetPlatform.IOS)
+		{
+			PrivateDependencyModuleNames.Add("ApplicationCore");
+		}
+		
 		if (Target.bCompileAgainstEngine)
 		{
 			PrivateDependencyModuleNames.Add("Slate");

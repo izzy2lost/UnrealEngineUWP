@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetReinstanceUtilities.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Copy.h"
 #include "Algo/RemoveIf.h"
@@ -38,7 +39,7 @@
 #include "Engine/LevelScriptActor.h"
 #include "Components/TimelineComponent.h"
 #include "Engine/TimelineTemplate.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
 #include "EngineUtils.h"
@@ -107,6 +108,7 @@
 #include "ObjectEditorUtils.h"
 #include "Toolkits/ToolkitManager.h"
 #include "UnrealExporter.h"
+#include "BlueprintActionDatabase.h"
 #include "BlueprintEditorSettings.h"
 
 #include "Framework/Notifications/NotificationManager.h"
@@ -845,7 +847,7 @@ void FBlueprintEditorUtils::PatchNewCDOIntoLinker(UObject* CDO, FLinkerLoad* Lin
 			// Copy flags from the old CDO.
 			CDO->SetFlags(OldObjectFlags);
 
-			FUObjectSerializeContext* LoadContext = InLoadContext ? InLoadContext : Linker->GetSerializeContext();
+			FUObjectSerializeContext* LoadContext = InLoadContext ? InLoadContext : FUObjectThreadContext::Get().GetSerializeContext();
 
 			// Make sure the new CDO gets PostLoad called on it, so either add it to ObjLoaded list, or replace it if already present.
 			if (LoadContext && !LoadContext->PRIVATE_PatchNewObjectIntoExport(OldCDO, CDO))
@@ -1236,18 +1238,20 @@ void FBlueprintEditorUtils::RemoveStaleFunctions(UBlueprintGeneratedClass* Class
 		OrphanedClass->ClassFlags |= CLASS_CompiledFromBlueprint;
 		OrphanedClass->ClassGeneratedBy = Class->ClassGeneratedBy;
 
-		const ERenameFlags RenFlags = REN_DontCreateRedirectors | (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_NonTransactional | REN_DoNotDirty;
+		const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 
 		while (Fn)
 		{
 			UFunction* Function = *Fn;
 			Class->RemoveFunctionFromFunctionMap(Function);
-			Function->Rename(nullptr, OrphanedClass, RenFlags);
 
 			// invalidate this package's reference to this function, so 
 			// subsequent packages that import it will treat it as if it didn't 
 			// exist (because data-only blueprints shouldn't have functions)
+            // Note, Rename will remove the renamed object's linker when moving 
+            // to a new package so invalidate the export beforehand
 			FLinkerLoad::InvalidateExport(Function); 
+			Function->Rename(nullptr, OrphanedClass, RenFlags);
 			++Fn;
 		}
 	}
@@ -1417,6 +1421,8 @@ void FBlueprintEditorUtils::PatchCDOSubobjectsIntoExport(UObject* PreviousCDO, U
 			{
 				TArray<UObject*> OldSubObjects;
 				GetObjectsWithOuter(OldObj, OldSubObjects, /*bIncludeNestedSubObjects =*/false);
+				UPackage* Package= OldObj->GetPackage();
+				checkf(Package, TEXT("Expecting a package for this object"));
 
 				// Exit now if we don't have any subobjects to process.
 				if (OldSubObjects.Num() == 0)
@@ -1440,7 +1446,8 @@ void FBlueprintEditorUtils::PatchCDOSubobjectsIntoExport(UObject* PreviousCDO, U
 					// Resolve new instances through the new object and patch them into the linker's export table.
 					for (const FInstancedSubObjRef& OldInstancedSubObjRef : OldInstancedSubObjRefs)
 					{
-						if (UObject* OldSubObj = OldInstancedSubObjRef.SubObjInstance)
+						// For non null subobject, make sure they are in the same package, otherwise it will move them and this is not what we want.
+						if (UObject* OldSubObj = OldInstancedSubObjRef.SubObjInstance; OldSubObj && OldSubObj->IsInPackage(Package))
 						{
 							if (UObject* NewSubObj = OldInstancedSubObjRef.PropertyPath.Resolve(NewObj))
 							{
@@ -1494,6 +1501,12 @@ void FBlueprintEditorUtils::PatchCDOSubobjectsIntoExport(UObject* PreviousCDO, U
 							}
 
 							PatchSubObjects(OldSubObj, NewSubObj, AlreadyPatched);
+						}
+						// Matches check in FPackageHarvester::ProcessImport. Invalidate these objects
+						// to avoid generation of implicit dependencies
+						else if (OldSubObj->HasAnyFlags(RF_DefaultSubObject | RF_ArchetypeObject))
+						{
+							FLinkerLoad::InvalidateExport(OldSubObj);
 						}
 					}
 				}
@@ -1776,7 +1789,22 @@ void FBlueprintEditorUtils::PostDuplicateBlueprint(UBlueprint* Blueprint, bool b
 
 			UObject* NewCDO = Blueprint->GeneratedClass->GetDefaultObject();
 			check(NewCDO != nullptr);
-			UEditorEngine::CopyPropertiesForUnrelatedObjects(OldCDO, NewCDO);
+
+			TMap<UClass*, UClass*> InOutOldToNewClassMap;
+			TMap<UObject*, UObject*> CreatedInstanceMap;
+			TArray< TTuple<UObject*, UObject*>> OrderedListOfObjectToCopy;
+			FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(InOutOldToNewClassMap, OldCDO, NewCDO, CreatedInstanceMap, nullptr, &OrderedListOfObjectToCopy);
+
+			// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
+			TMap<UObject*, UObject*> OldToNewInstanceMap(CreatedInstanceMap);
+			UEngine::FCopyPropertiesForUnrelatedObjectsParams Params;
+			Params.OptionalReplacementMappings = &OldToNewInstanceMap;
+			Params.bOnlyHandleDirectSubObjects = true;
+			Params.bReplaceInternalReferenceUponRead = true;
+			for (const auto& Pair : OrderedListOfObjectToCopy)
+			{
+				UEditorEngine::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, Params);
+			}
 
 			// copy sparse data over to the new class sparse data, if any:
 			const TObjectPtr<UScriptStruct> SparseData = Blueprint->GeneratedClass->GetSparseClassDataStruct();
@@ -2147,7 +2175,7 @@ UEdGraph* FBlueprintEditorUtils::CreateNewGraph(UObject* ParentScope, const FNam
 				// Rename the old graph out of the way - this may confuse the user somewhat - and even
 				// break their logic. But name collisions are not avoidable e.g. someone can add
 				// a function to an interface that conflicts with something in a class hierarchy
-				ExistingObject->Rename(nullptr, ExistingObject->GetOuter(), REN_DoNotDirty | REN_ForceNoResetLoaders);
+				ExistingObject->Rename(nullptr, ExistingObject->GetOuter(), REN_DoNotDirty);
 			}
 			else if (ExistingObject->IsA<UObjectRedirector>())
 			{
@@ -2176,7 +2204,7 @@ UEdGraph* FBlueprintEditorUtils::CreateNewGraph(UObject* ParentScope, const FNam
 	// Now move to where we want it to. Workaround to ensure transaction buffer is correctly utilized
 	if (bRename)
 	{
-		NewGraph->Rename(*(GraphName.ToString()), ParentScope, REN_DoNotDirty | REN_ForceNoResetLoaders);
+		NewGraph->Rename(*(GraphName.ToString()), ParentScope, REN_DoNotDirty);
 	}
 	return NewGraph;
 }
@@ -2497,6 +2525,22 @@ void FBlueprintEditorUtils::RemoveGraph(UBlueprint* Blueprint, class UEdGraph* G
 
 				// Clear the cache since it's indexed by graph and one of the graphs is going away
 				FBlueprintEditorUtils::ClearMacroCosmeticInfoCache(Blueprint);
+
+				// Clear redirectors to the graph - we may have created these for macro graphs.
+				// See comment related to macro graphs in FBlueprintEditorUtils::RenameGraph
+				// involving conditional assignment of REN_DontCreateRedirectors
+				TArray<UObject*> Inners;
+				GetObjectsWithOuter(Blueprint, Inners, false);
+				for(UObject* Object : Inners)
+				{
+					if(UObjectRedirector* Redirector = Cast<UObjectRedirector>(Object))
+					{
+						if(Redirector->DestinationObject == GraphToRemove)
+						{
+							Redirector->DestinationObject = nullptr;
+						}
+					}
+				}
 			}
 
 			for (FBPInterfaceDescription& CurrInterface : Blueprint->ImplementedInterfaces)
@@ -2615,10 +2659,6 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 		};
 
 		ERenameFlags RenameFlagsToApply = REN_None;
-		if (Blueprint->bIsRegeneratingOnLoad)
-		{
-			RenameFlagsToApply |= REN_ForceNoResetLoaders;
-		}
 
 		// Macro library graphs are referenced indirectly and resolved at edit/compile time via GUID (see FGraphReference).
 		// However, they will be exported by name at save time, so renaming a macro library graph implies we should also
@@ -2644,7 +2684,7 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 			{
 				if (FunctionGraph->GetFName() == OldGraphName)
 				{
-					RenameGraphLambda(FunctionGraph, OldGraphName, NewGraphName, (InChildBP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+					RenameGraphLambda(FunctionGraph, OldGraphName, NewGraphName, REN_DontCreateRedirectors);
 				}
 			}
 
@@ -2658,21 +2698,21 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 		// Note: This will find ALL children (including nested children) so there's no need to do this recursively.
 		ValidateBlueprintChildVariables(Blueprint, Graph->GetFName(), PostValidateChildBlueprintLambda);
 
-		// Find all variable nodes in this graph.
-		TArray<UK2Node_Variable*> VariableNodes;
-		Graph->GetNodesOfClass<UK2Node_Variable>(VariableNodes);
-		GetAllChildGraphVariables(Graph, VariableNodes);
-
 		// if it's index is >= 0 we know it was found in the array of functiongraphs
-		bool bGraphIsFunction = (Blueprint->FunctionGraphs.IndexOfByKey(Graph) > -1);
+		const bool bGraphIsFunction = (Blueprint->FunctionGraphs.IndexOfByKey(Graph) > -1);
 		// For any nodes that reference a local variable, update the variable's scope to be the graph's new name (which will mirror the UFunction).
-		for (UK2Node_Variable* const VariableNode : VariableNodes)
+		if (bGraphIsFunction)
 		{
-			if (VariableNode->VariableReference.IsLocalScope())
+			// Find all variable nodes in this graph.
+			TArray<UK2Node_Variable*> VariableNodes;
+			Graph->GetNodesOfClass<UK2Node_Variable>(VariableNodes);
+			GetAllChildGraphVariables(Graph, VariableNodes);
+
+			for (UK2Node_Variable* const VariableNode : VariableNodes)
 			{
-				// if the rename is the function set the local variable scope to the new name otherwise we leave it with the same scope (Ex: subgraphs in a function)
-				if (bGraphIsFunction)
+				if (VariableNode->VariableReference.IsLocalScope())
 				{
+					// if the rename is the function set the local variable scope to the new name otherwise we leave it with the same scope (Ex: subgraphs in a function)
 					VariableNode->VariableReference.SetLocalMember(VariableNode->VariableReference.GetMemberName(), NewNameStr, VariableNode->VariableReference.GetMemberGuid());
 				}
 			}
@@ -2724,7 +2764,7 @@ void FBlueprintEditorUtils::RenameGraphWithSuggestion(class UEdGraph* Graph, TSh
 	FString NewName = DesiredName;
 	NameValidator->FindValidString(NewName);
 	UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraphChecked(Graph);
-	Graph->Rename(*NewName, Graph->GetOuter(), (BP->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors);
+	Graph->Rename(*NewName, Graph->GetOuter(), REN_DontCreateRedirectors);
 }
 
 /** 
@@ -3288,6 +3328,24 @@ bool FBlueprintEditorUtils::CanClassGenerateEvents(const UClass* InClass)
 	return false;
 }
 
+bool FBlueprintEditorUtils::CanCreateChildBlueprint(const UBlueprint* BP)
+{
+	if (!BP)
+	{
+		return false;
+	}
+	
+	// BP function libraries cannot have child BP's created of them. You will only ever get compilation
+	// errors if you made one.
+	if (BP->BlueprintType == EBlueprintType::BPTYPE_FunctionLibrary)
+	{
+		return false;
+	}
+
+	// Do not allow child classes to be created from deprecated BPs
+	return BP->GeneratedClass && !BP->GeneratedClass->HasAnyClassFlags(CLASS_Deprecated);
+}
+
 UEdGraph* FBlueprintEditorUtils::FindUserConstructionScript(const UBlueprint* Blueprint)
 {
 	for (UEdGraph* CurrentGraph : Blueprint->FunctionGraphs)
@@ -3508,7 +3566,8 @@ int32 FBlueprintEditorUtils::FindLocalVariableIndex(const UBlueprint* Blueprint,
 	return INDEX_NONE;
 }
 
-bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile)
+/** Helper function for moving variables around in the list relative to a target variable */
+static bool MoveVariableRelativeToVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile, bool bInsertBeforeTargetVariable)
 {
 	check(Blueprint && VariableScope);
 
@@ -3519,13 +3578,13 @@ bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, US
 	//Get the indices of the variables to be re-ordered
 	if (VariableScope->IsA(UFunction::StaticClass()))
 	{
-		VarIndexToMove = FindLocalVariableIndex(Blueprint, VariableScope, VarNameToMove);
-		TargetVarIndex = FindLocalVariableIndex(Blueprint, VariableScope, TargetVarName);
+		VarIndexToMove = FBlueprintEditorUtils::FindLocalVariableIndex(Blueprint, VariableScope, VarNameToMove);
+		TargetVarIndex = FBlueprintEditorUtils::FindLocalVariableIndex(Blueprint, VariableScope, TargetVarName);
 	}
 	else
 	{
-		VarIndexToMove = FindNewVariableIndex(Blueprint, VarNameToMove);
-		TargetVarIndex = FindNewVariableIndex(Blueprint, TargetVarName);
+		VarIndexToMove = FBlueprintEditorUtils::FindNewVariableIndex(Blueprint, VarNameToMove);
+		TargetVarIndex = FBlueprintEditorUtils::FindNewVariableIndex(Blueprint, TargetVarName);
 	}
 
 	if (VarIndexToMove != INDEX_NONE && TargetVarIndex != INDEX_NONE)
@@ -3540,7 +3599,7 @@ bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, US
 		if (VariableScope->IsA(UFunction::StaticClass()))
 		{
 			UK2Node_FunctionEntry* FunctionEntryNode = nullptr;
-			FindLocalVariable(Blueprint, VariableScope, VarNameToMove, &FunctionEntryNode);
+			FBlueprintEditorUtils::FindLocalVariable(Blueprint, VariableScope, VarNameToMove, &FunctionEntryNode);
 
 			if (FunctionEntryNode != nullptr)
 			{
@@ -3550,7 +3609,7 @@ bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, US
 				// Remove var we are moving
 				FunctionEntryNode->LocalVariables.RemoveAt(VarIndexToMove);
 				// Add in before target variable
-				FunctionEntryNode->LocalVariables.Insert(MoveVar, TargetVarIndex);				
+				FunctionEntryNode->LocalVariables.Insert(MoveVar, bInsertBeforeTargetVariable ? TargetVarIndex : TargetVarIndex + 1);
 			}
 		}
 		else
@@ -3561,7 +3620,7 @@ bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, US
 			// Remove var we are moving
 			Blueprint->NewVariables.RemoveAt(VarIndexToMove);
 			// Add in before target variable
-			Blueprint->NewVariables.Insert(MoveVar, TargetVarIndex);
+			Blueprint->NewVariables.Insert(MoveVar, bInsertBeforeTargetVariable ? TargetVarIndex : TargetVarIndex + 1);
 		}
 
 		if (!bDontRecompile)
@@ -3571,6 +3630,16 @@ bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, US
 		bMoved = true;
 	}
 	return bMoved;
+}
+
+bool FBlueprintEditorUtils::MoveVariableBeforeVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile)
+{
+	return MoveVariableRelativeToVariable(Blueprint, VariableScope, VarNameToMove, TargetVarName, bDontRecompile, true);
+}
+
+bool FBlueprintEditorUtils::MoveVariableAfterVariable(UBlueprint* Blueprint, UStruct* VariableScope, FName VarNameToMove, FName TargetVarName, bool bDontRecompile)
+{
+	return MoveVariableRelativeToVariable(Blueprint, VariableScope, VarNameToMove, TargetVarName, bDontRecompile, false);
 }
 
 int32 FBlueprintEditorUtils::FindTimelineIndex(const UBlueprint* Blueprint, const FName& InName) 
@@ -4119,6 +4188,8 @@ void FBlueprintEditorUtils::SetBlueprintFunctionOrMacroCategory(UEdGraph* Graph,
 			{
 				FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 			}
+
+			FBlueprintActionDatabase::Get().RefreshAssetActions(Blueprint);
 		}
 	}
 }
@@ -7328,7 +7399,7 @@ static void ConformInterfaceByName(UBlueprint* Blueprint, FBPInterfaceDescriptio
 					CurrentGraph->Rename(
 						nullptr,
 						CurrentGraph->GetOuter(),
-						(Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : 0) | REN_DoNotDirty | REN_DontCreateRedirectors);
+						REN_DoNotDirty | REN_DontCreateRedirectors);
 					// removing from root, standalone, and public is defensive to make sure it is not saved:
 					CurrentGraph->ClearFlags(RF_Standalone | RF_Public);
 					CurrentGraph->RemoveFromRoot();
@@ -7506,7 +7577,7 @@ void FBlueprintEditorUtils::UpdateOutOfDateCompositeWithOuter(UBlueprint* Bluepr
 				if (BoundGraph->GetOuter() != Node)
 				{
 					// change the outer of the BoundGraph to be the composite node instead of the OuterGraph
-					if (false == BoundGraph->Rename(*BoundGraph->GetName(), Node, ((BoundGraph->HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad) ? REN_ForceNoResetLoaders : 0) | REN_DontCreateRedirectors)))
+					if (false == BoundGraph->Rename(*BoundGraph->GetName(), Node, REN_DontCreateRedirectors))
 					{
 						UE_LOG(LogBlueprintDebug, Log, TEXT("CompositeNode: On Blueprint '%s' could not fix Outer() for BoundGraph of composite node '%s'"), *Blueprint->GetPathName(), *Node->GetName());
 					}
@@ -7991,7 +8062,7 @@ bool FBlueprintEditorUtils::RenameTimeline(UBlueprint* Blueprint, const FName Ol
 			{
 				ExistingObject->Rename(*MakeUniqueObjectName(ExistingObject->GetOuter(), ExistingObject->GetClass(), ExistingObject->GetFName()).ToString());
 			}
-			Template->Rename(*NewTemplateName, Template->GetOuter(), (Blueprint->bIsRegeneratingOnLoad ? REN_ForceNoResetLoaders : REN_None));
+			Template->Rename(*NewTemplateName, Template->GetOuter(), REN_None);
 			Blueprint->Timelines.Add(Template);
 
 			// Validate child blueprints and adjust variable names to avoid a potential name collision
@@ -9967,6 +10038,21 @@ FText FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(const FText& Me
 	Args.Add("MemberName", ensure(!MemberName.IsEmpty()) ? MemberName : UnknownName);
 	Args.Add("DetailedMessage", DetailedMessage.IsEmpty() ? DefaultMessage : DetailedMessage);
 	return FText::Format(LOCTEXT("DeprecatedMemberUsageNodeWarning", "@@: Usage of '{MemberName}' has been deprecated. {DetailedMessage}"), Args);
+}
+
+EEdGraphNodeDeprecationMessageType FBlueprintEditorUtils::GetDeprecatedMessageType(const FString& TypeString)
+{
+	if (TypeString.Equals(TEXT("None"), ESearchCase::IgnoreCase))
+	{
+		return EEdGraphNodeDeprecationMessageType::None;
+	}
+	else if (TypeString.Equals(TEXT("Note"), ESearchCase::IgnoreCase))
+	{
+		return EEdGraphNodeDeprecationMessageType::Note;
+	}
+	
+	// Default to warning
+	return EEdGraphNodeDeprecationMessageType::Warning;
 }
 
 UK2Node_FunctionResult* FBlueprintEditorUtils::FindOrCreateFunctionResultNode(UK2Node_EditablePinBase* InFunctionEntryNode)

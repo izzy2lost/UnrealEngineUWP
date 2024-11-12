@@ -169,7 +169,10 @@ bool FWorldPartitionConverter::Convert()
 
 	if (bCreatedWorldPartition)
 	{
-		WorldPartition->Initialize(World, FTransform::Identity);
+		if (World->IsInitialized())
+		{
+			WorldPartition->Initialize(World, FTransform::Identity);
+		}
 		UWorldPartition::WorldPartitionChangedEvent.Broadcast(World);
 	}
 
@@ -203,7 +206,7 @@ bool FWorldPartitionConverter::ShouldDeleteActor(AActor* InActor, bool bIsMainLe
 void FWorldPartitionConverter::ChangeObjectOuter(UObject* InObject, UObject* InNewOuter)
 {
 	FString OldPath = FSoftObjectPath(InObject).ToString();
-	InObject->Rename(nullptr, InNewOuter, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+	InObject->Rename(nullptr, InNewOuter, REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 	FString NewPath = FSoftObjectPath(InObject).ToString();
 	RemapSoftObjectPaths.Add(OldPath, NewPath);
 }

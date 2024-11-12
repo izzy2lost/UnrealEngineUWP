@@ -42,6 +42,9 @@ struct FAnimNode_AssetPlayerBase : public FAnimNode_AssetPlayerRelevancyBase
 	// Get the sync group method we are using
 	virtual EAnimSyncMethod GetGroupMethod() const { return EAnimSyncMethod::DoNotSync; }
 
+	// Get the flag that determines if this asset player will not sync to the previous leader's sync position when joining a sync group and before becoming the leader but instead force everyone else to match its position.
+	virtual bool GetOverridePositionWhenJoiningSyncGroupAsLeader() const { return false; }
+
 	// Set the sync group name we are using
 	virtual bool SetGroupName(FName InGroupName) { return false; }
 
@@ -51,6 +54,9 @@ struct FAnimNode_AssetPlayerBase : public FAnimNode_AssetPlayerRelevancyBase
 	// Set the sync group method we are using
 	virtual bool SetGroupMethod(EAnimSyncMethod InMethod) { return false; }
 
+	// Set the flag that determines if this asset player will not sync to the previous leader's sync position when joining a sync group and before becoming the leader but instead force everyone else to match its position. 
+	virtual bool SetOverridePositionWhenJoiningSyncGroupAsLeader(bool InOverridePositionWhenJoiningSyncGroupAsLeader) { return false; }
+	
 	// --- FAnimNode_RelevantAssetPlayerBase ---
 	ENGINE_API virtual float GetAccumulatedTime() const override;
 	ENGINE_API virtual void SetAccumulatedTime(float NewTime) override;

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "D3D12RHI.h" // For ENABLE_RESIDENCY_MANAGEMENT
+
 #if !defined(D3D12_PLATFORM_NEEDS_RESIDENCY_MANAGEMENT)
 	#define D3D12_PLATFORM_NEEDS_RESIDENCY_MANAGEMENT 1
 #endif
@@ -49,9 +51,9 @@ struct FD3D12ResidencyHandle : public D3DX12Residency::ManagedObject
 
 namespace D3DX12Residency
 {
+#if ENABLE_RESIDENCY_MANAGEMENT
 	inline void Initialize(FD3D12ResidencyHandle& Object, ID3D12Pageable* pResource, uint64 ObjectSize, class FD3D12GPUObject* GPUObject)
 	{
-#if ENABLE_RESIDENCY_MANAGEMENT
 		if (GEnableResidencyManagement)
 		{
 #if DO_CHECK
@@ -59,8 +61,8 @@ namespace D3DX12Residency
 #endif
 			Object.Initialize(pResource, ObjectSize);
 		}
-#endif
 	}
+#endif
 
 	inline bool IsInitialized(FD3D12ResidencyHandle& Object)
 	{
@@ -100,15 +102,15 @@ namespace D3DX12Residency
 #endif
 	}
 
+#if ENABLE_RESIDENCY_MANAGEMENT
 	inline void InitializeResidencyManager(ResidencyManager& ResidencyManager, ID3D12Device* Device, uint32 GPUIndex, IDXGIAdapter3* Adapter, uint32 MaxLatency)
 	{
-#if ENABLE_RESIDENCY_MANAGEMENT
 		if (GEnableResidencyManagement)
 		{
 			VERIFYD3D12RESULT(ResidencyManager.Initialize(Device, GPUIndex, Adapter, MaxLatency));
 		}
-#endif
 	}
+#endif
 
 	inline void DestroyResidencyManager(ResidencyManager& ResidencyManager)
 	{

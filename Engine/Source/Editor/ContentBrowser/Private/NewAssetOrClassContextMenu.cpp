@@ -5,6 +5,7 @@
 #include "ContentBrowserConfig.h"
 #include "ContentBrowserDataMenuContexts.h"
 #include "ContentBrowserDataSubsystem.h"
+#include "ContentBrowserStyle.h"
 #include "Framework/Commands/UIAction.h"
 #include "IContentBrowserDataModule.h"
 #include "Internationalization/Internationalization.h"
@@ -52,7 +53,7 @@ void FNewAssetOrClassContextMenu::MakeContextMenu(
 				"GetContent",
 				LOCTEXT( "GetContentText", "Add Feature or Content Pack..." ),
 				LOCTEXT( "GetContentTooltip", "Add features and content packs to the project." ),
-				FSlateIcon( FAppStyle::GetAppStyleSetName(), "ContentBrowser.AddContent" ),
+				FSlateIcon(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetStyleSetName(), "ContentBrowser.AddContent" ),
 				FUIAction( FExecuteAction::CreateStatic( &FNewAssetOrClassContextMenu::ExecuteGetContent, InOnGetContentRequested ) )
 				);
 		}
@@ -97,7 +98,7 @@ void FNewAssetOrClassContextMenu::MakeContextMenu(
 				"NewFolder",
 				LOCTEXT("NewFolderLabel", "New Folder"),
 				NewFolderToolTip,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.NewFolderIcon"),
+				FSlateIcon(UE::ContentBrowser::Private::FContentBrowserStyle::Get().GetStyleSetName(), "ContentBrowser.NewFolderIcon"),
 				FUIAction(
 					FExecuteAction::CreateStatic(&FNewAssetOrClassContextMenu::ExecuteNewFolder, FirstSelectedPath, InOnNewFolderRequested),
 					CanExecuteFolderActionsDelegate

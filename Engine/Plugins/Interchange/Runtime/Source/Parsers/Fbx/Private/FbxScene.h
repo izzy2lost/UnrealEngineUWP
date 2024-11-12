@@ -35,8 +35,13 @@ namespace UE
 				void AddMorphTargetAnimations(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts, const TArray<FMorphTargetAnimationBuildingData>& MorphTargetAnimationsBuildingData);
 				UInterchangeSceneNode* CreateTransformNode(UInterchangeBaseNodeContainer& NodeContainer, const FString& NodeName, const FString& NodeUniqueID);
 
+				struct FRootJointInfo
+				{
+					bool bValidBindPose = false;
+				};
+
 			protected:
-				void CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform);
+				void CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform, const FTransform& PivotNodeTransform);
 				void CreateCameraNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer);
 				void CreateLightNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer);
 				void AddHierarchyRecursively(UInterchangeSceneNode* UnrealParentNode
@@ -44,7 +49,8 @@ namespace UE
 					, FbxScene* SDKScene
 					, UInterchangeBaseNodeContainer& NodeContainer
 					, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts
-					, TArray<FbxNode*>& ForceJointNodes);
+					, TArray<FbxNode*>& ForceJointNodes
+					, bool& bBadBindPoseMessageDisplay);
 
 				void AddAnimationRecursively(FbxNode* Node
 					, FbxScene* SDKScene
@@ -61,7 +67,14 @@ namespace UE
 					, UInterchangeBaseNodeContainer& NodeContainer
 					, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts);
 
+				FbxNode* Internal_GetRootSkeleton(FbxScene* SDKScene, FbxNode* Link);
+				void FindCommonJointRootNode(FbxScene* SDKScene, const TArray<FbxNode*>& ForceJointNodes);
+
 				void FindForceJointNode(FbxScene* SDKScene, TArray<FbxNode*>& ForceJointNodes);
+
+				bool IsValidBindPose(FbxScene* SDKScene, FbxNode* RootJoint) const;
+
+				TMap<FbxNode*, FRootJointInfo> CommonJointRootNodes;
 
 				FFbxParser& Parser;
 			};

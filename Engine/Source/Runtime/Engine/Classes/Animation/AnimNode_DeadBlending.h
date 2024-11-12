@@ -27,7 +27,7 @@
  * `ExtrapolationHalfLifeMax` parameters, which specify the approximate average, min, and max decay periods.
  * More specifically they specify the "half-life" - or how it takes for the velocities to be decayed by half.
  */
-USTRUCT(Experimental, BlueprintInternalUseOnly)
+USTRUCT(BlueprintInternalUseOnly)
 struct FAnimNode_DeadBlending : public FAnimNode_Base, public IBoneReferenceSkeletonProvider
 {
 	GENERATED_BODY()
@@ -182,22 +182,25 @@ private:
 	 * 
 	 * @param InPose		The current pose for the animation being transitioned to.
 	 * @param InCurves		The current curves for the animation being transitioned to.
+	 * @param InAttributes	The current attributes for the animation being transitioned to.
 	 * @param SrcPosePrev	The pose recorded as output of the inertializer two frames ago.
 	 * @param SrcPoseCurr	The pose recorded as output of the inertializer on the previous frame.
 	 */
 	void InitFrom(
 		const FCompactPose& InPose, 
 		const FBlendedCurve& InCurves, 
+		const UE::Anim::FStackAttributeContainer& Attributes,
 		const FInertializationSparsePose& SrcPosePrev,
 		const FInertializationSparsePose& SrcPoseCurr);
 
 	/**
 	 * Computes the extrapolated pose and blends it with the input pose.
 	 * 
-	 * @param InOutPose		The current pose to blend with the extrapolated pose.
-	 * @param InOutCurves	The current curves to blend with the extrapolated curves.
+	 * @param InOutPose			The current pose to blend with the extrapolated pose.
+	 * @param InOutCurves		The current curves to blend with the extrapolated curves.
+	 * @param InOutAttributes	The current attributes to blend with the extrapolated attributes.
 	 */
-	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves);
+	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves, UE::Anim::FStackAttributeContainer& InOutAttributes);
 
 public: // IBoneReferenceSkeletonProvider
 	ENGINE_API class USkeleton* GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle) override;
@@ -242,6 +245,10 @@ private:
 	TArray<FVector3f> BoneTranslationDecayHalfLives;
 	TArray<FVector3f> BoneRotationDecayHalfLives;
 	TArray<FVector3f> BoneScaleDecayHalfLives;
+
+	FVector3f RootTranslationVelocity;
+	FVector3f RootRotationVelocity;
+	FVector3f RootScaleVelocity;
 
 	// Recorded curve state at the point of transition.
 

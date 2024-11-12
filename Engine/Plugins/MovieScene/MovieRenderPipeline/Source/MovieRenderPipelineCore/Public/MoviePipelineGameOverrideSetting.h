@@ -25,7 +25,10 @@ class MOVIERENDERPIPELINECORE_API UMoviePipelineGameOverrideSetting : public UMo
 	GENERATED_BODY()
 public:
 	UMoviePipelineGameOverrideSetting()
-		: GameModeOverride(AMoviePipelineGameMode::StaticClass())
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		: GameModeOverride(nullptr)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		, SoftGameModeOverride(AMoviePipelineGameMode::StaticClass())
 		, bCinematicQualitySettings(true)
 		, TextureStreaming(EMoviePipelineTextureStreamingMethod::Disabled)
 		, bUseLODZero(true)
@@ -55,13 +58,22 @@ public:
 	// Used to ensure we set the default values even if the user forgets to add it.
 	virtual bool IgnoreTransientFilters() const override { return true; }
 
+	//~ Begin UObject interface
+	virtual void PostLoad() override;
+	//~ End UObject interface
+
 protected:
 	void ApplyCVarSettings(const bool bOverrideValues);
 
 public:
 	/** Optional Game Mode to override the map's default game mode with. This can be useful if the game's normal mode displays UI elements or loading screens that you don't want captured. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game")
+	UE_DEPRECATED(5.5, "Please use the SoftGameModeOverride property instead.")
+	UPROPERTY(BlueprintReadWrite, Category = "Game", meta = (DeprecatedProperty, DeprecationMessage = "Please use the SoftGameModeOverride property instead."))
 	TSubclassOf<AGameModeBase> GameModeOverride;
+
+	/** Optional Game Mode to override the map's default game mode with. This can be useful if the game's normal mode displays UI elements or loading screens that you don't want captured. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName = "Game Mode Override", Category = "Game")
+	TSoftClassPtr<AGameModeBase> SoftGameModeOverride;
 
 	/** If true, automatically set the engine to the Cinematic Scalability quality settings during render. See the Scalability Reference documentation for information on how to edit cvars to add/change default quality values.*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game")
@@ -127,10 +139,10 @@ private:
 	int32 PreviousForceLOD;
 	int32 PreviousSkeletalMeshBias;
 	int32 PreviousParticleLODBias;
-	int32 PreviousShadowDistanceScale;
+	float PreviousShadowDistanceScale;
 	int32 PreviousShadowQuality;
 	float PreviousShadowRadiusThreshold;
-	int32 PreviousViewDistanceScale;
+	float PreviousViewDistanceScale;
 	int32 PreviousGPUTimeout;
 	int32 PreviousAnimationUROEnabled;
 	int32 PreviousFoliageDitheredLOD;
@@ -149,4 +161,5 @@ private:
 	int32 PreviousSkipRedundantTransformUpdate;
 	int32 PreviousChaosClothUseTimeStepSmoothing;
 	int32 PreviousSkipWaterInfoTextureRenderWhenWorldRenderingDisabled;
+	int32 PreviousNaniteVSMInvalidateOnLODDelta;
 };

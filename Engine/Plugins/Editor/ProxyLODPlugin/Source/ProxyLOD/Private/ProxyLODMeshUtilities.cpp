@@ -1132,7 +1132,6 @@ void ProxyLOD::ComputeFaceAveragedVertexNormals(FAOSMesh& InOutMesh)
 
 			if (AdjFaces.Num() != 0)
 			{
-				FVector3f Pos[3];
 				for (auto FaceId: AdjFaces)
 				{
 					checkSlow(FaceId > -1);
@@ -1605,7 +1604,6 @@ double ProxyLOD::GetWorldSpaceArea(const FVertexDataMesh& InMesh)
 
 	double Mesh3DArea = 0;
 
-	FVector3f Pos[3];
 	for (int32 IdxTri = 0; IdxTri < NumTriangles; ++IdxTri)
 	{
 		const uint32 Offset = 3 * IdxTri;

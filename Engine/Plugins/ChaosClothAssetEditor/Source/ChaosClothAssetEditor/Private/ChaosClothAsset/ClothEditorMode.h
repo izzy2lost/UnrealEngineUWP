@@ -4,6 +4,7 @@
 
 #include "BaseCharacterFXEditorMode.h"
 #include "GeometryBase.h"
+#include "Dataflow/DataflowObjectInterface.h"
 #include "Delegates/IDelegateInstance.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ClothEditorMode.generated.h"
@@ -26,9 +27,9 @@ class UChaosClothComponent;
 class FEditorViewportClient;
 class FViewport;
 class UDataflow;
-class UDataflowComponent;
 class SDataflowGraphEditor;
 struct FManagedArrayCollection;
+
 namespace UE::Chaos::ClothAsset
 {
 class FChaosClothPreviewScene;
@@ -94,6 +95,13 @@ public:
 		return bPatternColors;
 	}
 
+	void ToggleConstructionViewSurfaceNormals();
+	bool CanSetConstructionViewSurfaceNormalsActive() const;
+	bool IsConstructionViewSurfaceNormalsActive() const
+	{
+		return bConstructionViewNormalsVisible;
+	}
+
 	void ToggleMeshStats();
 	bool CanSetMeshStats() const;
 	bool IsMeshStatsActive() const
@@ -118,8 +126,6 @@ public:
 	bool IsLODModelSelected(int32 LODIndex) const;
 	int32 GetLODModel() const;
 	int32 GetNumLODs() const;
-
-	UDataflowComponent* GetDataflowComponent() const;
 
 	TObjectPtr<UEditorInteractiveToolsContext> GetActiveToolsContext()
 	{
@@ -177,12 +183,13 @@ private:
 	void FirstTimeFocusRestSpaceViewport();
 
 	// intended to be called by the toolkit when selected node in the Dataflow graph changes
-	void SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection = nullptr);
+	void SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection = nullptr, bool bDeferDynamicMeshInitForTool = false);
 
 	// gets the currently selected cloth collection, as specified by the toolkit
 	TSharedPtr<FManagedArrayCollection> GetClothCollection();
 	TSharedPtr<FManagedArrayCollection> GetInputClothCollection();
 
+	void SetDataflowContext(TWeakPtr<UE::Dataflow::FEngineContext> InDataflowContext);
 	void SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor);
 	
 	void StartToolForSelectedNode(const UObject* SelectedNode);
@@ -219,8 +226,12 @@ private:
 	*/
 	UEdGraphNode* CreateAndConnectNewNode(const FName& NewNodeTypeName,	UEdGraphNode& UpstreamNode,	const FName& ConnectionTypeName, const FName& NewNodeConnectionName);
 
+	void AddNode(FName NewNodeType);
+	bool CanAddNode(FName NewNodeType) const;
+
 
 	void InitializeContextObject();
+	void UpdateContextObject(const TSharedPtr<FManagedArrayCollection>& Collection);
 	void DeleteContextObject();
 
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
@@ -232,6 +243,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UPreviewGeometry> ClothSeamDraw = nullptr;
 
+	UPROPERTY()
+	TObjectPtr<UPreviewGeometry> SurfaceNormalDraw = nullptr;
 
 	// Preview Scene, here largely for convenience to avoid having to pass it around functions. Owned by the ClothEditorToolkit.
 	UE::Chaos::ClothAsset::FChaosClothPreviewScene* PreviewScene = nullptr;
@@ -249,6 +262,11 @@ private:
 	TObjectPtr<AActor> DynamicMeshComponentParentActor = nullptr;
 
 	TWeakPtr<UE::Chaos::ClothAsset::FChaosClothEditorRestSpaceViewportClient, ESPMode::ThreadSafe> RestSpaceViewportClient;
+
+	// The dynamic mesh component needs to be reinitialized on next tick.
+	bool bDynamicMeshComponentInitDeferred = false;
+	// Use the input collection to build the dynamic mesh component (used by tools).
+	bool bDynamicMeshUseInputCollection = false;
 
 	// The first time we get a valid mesh, refocus the camera on it
 	bool bFirstValid2DMesh = true;
@@ -278,6 +296,9 @@ private:
 	bool bConstructionViewSeamsCollapse = false;
 	void InitializeSeamDraw();
 
+	bool bConstructionViewNormalsVisible = false;
+	void InitializeSurfaceNormalDraw();
+
 	bool bPatternColors = false;
 	bool bMeshStats = false;
 
@@ -289,20 +310,24 @@ private:
 	bool bHardReset = false;
 	bool bShouldClearTeleportFlag = false;
 
-	UPROPERTY()
-	TObjectPtr<UDataflowComponent> DataflowComponent = nullptr;
-
 	TWeakObjectPtr<UDataflow> DataflowGraph = nullptr;
 
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
 
 	UPROPERTY()
 	TObjectPtr<UEditorInteractiveToolsContext> ActiveToolsContext = nullptr;
-
+	TWeakPtr<UE::Dataflow::FEngineContext> DataflowContext;
 	TSharedPtr<FManagedArrayCollection> SelectedClothCollection = nullptr;
 	TSharedPtr<FManagedArrayCollection> SelectedInputClothCollection = nullptr;
 
+	// Correspondence between node types and commands to add the node to the graph
+	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToAddNodeCommandMap;
+
 	// Correspondence between node types and commands to launch tools
 	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToToolCommandMap;
+
+	// Timestamps for telemetry
+	FDateTime LastModeStartTimestamp;
+	FDateTime LastToolStartTimestamp;
 };
 

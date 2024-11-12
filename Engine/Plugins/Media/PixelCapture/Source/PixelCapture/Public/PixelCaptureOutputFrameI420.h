@@ -21,6 +21,7 @@ public:
 	virtual int32 GetHeight() const override { return I420Buffer->GetHeight(); }
 
 	TSharedPtr<FPixelCaptureBufferI420> GetI420Buffer() const { return I420Buffer; }
+	void SetI420Buffer(TSharedPtr<FPixelCaptureBufferI420> InI420Buffer) { I420Buffer = InI420Buffer; }
 
 private:
 	TSharedPtr<FPixelCaptureBufferI420> I420Buffer;

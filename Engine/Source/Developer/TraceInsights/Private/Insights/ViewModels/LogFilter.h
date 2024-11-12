@@ -2,18 +2,23 @@
 
 #pragma once
 
-#include "Async/AsyncWork.h"
 #include "CoreMinimal.h"
+
+#include "Async/AsyncWork.h"
 #include "Logging/LogVerbosity.h"
 #include "Misc/TextFilterExpressionEvaluator.h"
 #include "Stats/Stats.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/LogMessage.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template<typename TTask> class FAsyncTask;
+
+namespace UE::Insights
+{
+
 class SLogView;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -187,7 +192,7 @@ private:
 	/** A copy of the filter settings. */
 	FLogFilter Filter;
 
-	/** Shared pointer to parent LogView widget. Used for accesing the cache and to check if cancel is requested. */
+	/** Shared pointer to parent LogView widget. Used for accessing the cache and to check if cancel is requested. */
 	TSharedPtr<SLogView> LogView;
 
 	/** The output filtered messages. */
@@ -195,3 +200,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

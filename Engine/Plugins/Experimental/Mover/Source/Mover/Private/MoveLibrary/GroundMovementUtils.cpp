@@ -27,7 +27,7 @@ FProposedMove UGroundMovementUtils::ComputeControlledGroundMove(const FGroundMov
 	FComputeVelocityParams ComputeVelocityParams;
 	ComputeVelocityParams.DeltaSeconds = InParams.DeltaSeconds;
 	ComputeVelocityParams.InitialVelocity = InParams.PriorVelocity;
-	ComputeVelocityParams.MoveDirectionIntent = InParams.MoveInput;
+	ComputeVelocityParams.MoveDirectionIntent = MoveDirIntentInMovementPlane;
 	ComputeVelocityParams.MaxSpeed = InParams.MaxSpeed;
 	ComputeVelocityParams.TurningBoost = InParams.TurningBoost;
 	ComputeVelocityParams.Deceleration = InParams.Deceleration;
@@ -35,8 +35,8 @@ FProposedMove UGroundMovementUtils::ComputeControlledGroundMove(const FGroundMov
 	ComputeVelocityParams.Friction = InParams.Friction;
 	
 	// Figure out linear velocity
-	OutMove.MovePlaneVelocity = UMovementUtils::ComputeVelocity(ComputeVelocityParams);
-	OutMove.LinearVelocity = UMovementUtils::ConstrainToPlane(OutMove.MovePlaneVelocity, GroundSurfacePlane, true);
+	const FVector Velocity = UMovementUtils::ComputeVelocity(ComputeVelocityParams);
+	OutMove.LinearVelocity = UMovementUtils::ConstrainToPlane(Velocity, GroundSurfacePlane, true);
 
 	// Linearly rotate in place
 	OutMove.AngularVelocity = UMovementUtils::ComputeAngularVelocity(InParams.PriorOrientation, InParams.OrientationIntent, InParams.DeltaSeconds, InParams.TurningRate);
@@ -49,9 +49,9 @@ static const FName StepFwdSubstepName = "StepFwd";
 static const FName StepDownSubstepName = "StepDown";
 static const FName SlideSubstepName = "SlideFromStep";
 
-bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, UMoverComponent* MoverComponent, const FVector& GravDir, float MaxStepHeight, float MaxWalkSlopeCosine, float FloorSweepDistance, const FVector& MoveDelta, const FHitResult& MoveHitResult, const FFloorCheckResult& CurrentFloor, bool bIsFalling, FOptionalFloorCheckResult* OutFloorTestResult, FMovementRecord& MoveRecord)
+bool UGroundMovementUtils::TryMoveToStepUp(const FMovingComponentSet& MovingComps, const FVector& GravDir, float MaxStepHeight, float MaxWalkSlopeCosine, float FloorSweepDistance, const FVector& MoveDelta, const FHitResult& MoveHitResult, const FFloorCheckResult& CurrentFloor, bool bIsFalling, FOptionalFloorCheckResult* OutFloorTestResult, FMovementRecord& MoveRecord)
 {
-	UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(UpdatedPrimitive);
+	UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(MovingComps.UpdatedPrimitive.Get());
 
 	if (CapsuleComponent == nullptr || !CanStepUpOnHitSurface(MoveHitResult) || MaxStepHeight <= 0.f)
 	{
@@ -61,7 +61,7 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 	TArray<FMovementSubstep> QueuedSubsteps;	// keeping track of substeps before committing, because some moves can be backed out
 
 
-	const FVector OldLocation = UpdatedPrimitive->GetComponentLocation();
+	const FVector OldLocation = CapsuleComponent->GetComponentLocation();
 	FVector LastComponentLocation = OldLocation;
 
 	float PawnRadius, PawnHalfHeight;
@@ -121,17 +121,17 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 	}
 
 	// Scope our movement updates, and do not apply them until all intermediate moves are completed.
-	FScopedMovementUpdate ScopedStepUpMovement(UpdatedComponent, EScopedUpdate::DeferredUpdates);
+	FScopedMovementUpdate ScopedStepUpMovement(CapsuleComponent, EScopedUpdate::DeferredUpdates);
 
 	// step up - treat as vertical wall
 	FHitResult SweepUpHit(1.f);
-	const FQuat PawnRotation = UpdatedComponent->GetComponentQuat();
+	const FQuat PawnRotation = CapsuleComponent->GetComponentQuat();
 
 	const FVector UpAdjustment = -GravDir * StepTravelUpHeight;
-	const bool bDidStepUp = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, UpAdjustment, PawnRotation, true, MOVECOMP_NoFlags, &SweepUpHit, ETeleportType::None);
+	const bool bDidStepUp = UMovementUtils::TryMoveUpdatedComponent_Internal(MovingComps, UpAdjustment, PawnRotation, true, MOVECOMP_NoFlags, &SweepUpHit, ETeleportType::None);
 
 	UE_LOG(LogMover, VeryVerbose, TEXT("TryMoveToStepUp Up: %s (role %i) UpAdjustment=%s DidMove=%i"),
-		*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *UpAdjustment.ToCompactString(), bDidStepUp);
+		*GetNameSafe(CapsuleComponent->GetOwner()), CapsuleComponent->GetOwnerRole(), *UpAdjustment.ToCompactString(), bDidStepUp);
 
 	if (SweepUpHit.bStartPenetrating)
 	{
@@ -142,15 +142,15 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 	}
 
 	// Cache upwards substep
-	QueuedSubsteps.Add(FMovementSubstep(StepUpSubstepName, UpdatedPrimitive->GetComponentLocation()-LastComponentLocation, false));
-	LastComponentLocation = UpdatedPrimitive->GetComponentLocation();
+	QueuedSubsteps.Add(FMovementSubstep(StepUpSubstepName, CapsuleComponent->GetComponentLocation()-LastComponentLocation, false));
+	LastComponentLocation = CapsuleComponent->GetComponentLocation();
 
 	// step fwd
 	FHitResult StepFwdHit(1.f);
-	const bool bDidStepFwd = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, MoveDelta, PawnRotation, true, MOVECOMP_NoFlags, &StepFwdHit, ETeleportType::None);
+	const bool bDidStepFwd = UMovementUtils::TryMoveUpdatedComponent_Internal(MovingComps, MoveDelta, PawnRotation, true, MOVECOMP_NoFlags, &StepFwdHit, ETeleportType::None);
 
 	UE_LOG(LogMover, VeryVerbose, TEXT("TryMoveToStepUp Fwd: %s (role %i) MoveDelta=%s DidMove=%i"),
-		*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *MoveDelta.ToCompactString(), bDidStepFwd);
+		*GetNameSafe(CapsuleComponent->GetOwner()), CapsuleComponent->GetOwnerRole(), *MoveDelta.ToCompactString(), bDidStepFwd);
 
 	// Check result of forward movement
 	if (StepFwdHit.bBlockingHit)
@@ -163,25 +163,26 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 			return false;
 		}
 
+		UMoverComponent* MoverComp = MovingComps.MoverComponent.Get();
 		// If we hit something above us and also something ahead of us, we should notify about the upward hit as well.
 		// The forward hit will be handled later (in the bSteppedOver case below).
 		// In the case of hitting something above but not forward, we are not blocked from moving so we don't need the notification.
-		if (MoverComponent && SweepUpHit.bBlockingHit && StepFwdHit.bBlockingHit)
+		if (MoverComp && SweepUpHit.bBlockingHit && StepFwdHit.bBlockingHit)
 		{
 			FMoverOnImpactParams ImpactParams(NAME_None, SweepUpHit, MoveDelta);
-			MoverComponent->HandleImpact(ImpactParams);
+			MoverComp->HandleImpact(ImpactParams);
 		}
 
 		// pawn ran into a wall
-		if (MoverComponent)
+		if (MoverComp)
 		{
 			FMoverOnImpactParams ImpactParams(NAME_None, StepFwdHit, MoveDelta);
-			MoverComponent->HandleImpact(ImpactParams);
+			MoverComp->HandleImpact(ImpactParams);
 		}
 		
 		if (bIsFalling)
 		{
-			QueuedSubsteps.Add( FMovementSubstep(StepFwdSubstepName, UpdatedComponent->GetComponentLocation()-LastComponentLocation, true) );
+			QueuedSubsteps.Add( FMovementSubstep(StepFwdSubstepName, CapsuleComponent->GetComponentLocation()-LastComponentLocation, true) );
 
 			// Commit queued substeps to movement record
 			for (FMovementSubstep Substep : QueuedSubsteps)
@@ -193,17 +194,17 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 		}
 
 		// Cache forwards substep before the slide attempt
-		QueuedSubsteps.Add(FMovementSubstep(StepFwdSubstepName, UpdatedPrimitive->GetComponentLocation() - LastComponentLocation, true));
-		LastComponentLocation = UpdatedPrimitive->GetComponentLocation();
+		QueuedSubsteps.Add(FMovementSubstep(StepFwdSubstepName, CapsuleComponent->GetComponentLocation() - LastComponentLocation, true));
+		LastComponentLocation = CapsuleComponent->GetComponentLocation();
 
 		// adjust and try again
 		const float ForwardHitTime = StepFwdHit.Time;
 
 		// locking relevancy so velocity isn't added until it is needed to (adding it to the QueuedSubsteps so it can get added later)
 		MoveRecord.LockRelevancy(false);
-		const float ForwardSlideAmount = TryWalkToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, MoveDelta, 1.f - StepFwdHit.Time, PawnRotation, StepFwdHit.Normal, StepFwdHit, true, MoveRecord, MaxWalkSlopeCosine, MaxStepHeight);
-		QueuedSubsteps.Add( FMovementSubstep(SlideSubstepName, UpdatedComponent->GetComponentLocation()-LastComponentLocation, true) );
-		LastComponentLocation = UpdatedPrimitive->GetComponentLocation();
+		const float ForwardSlideAmount = TryWalkToSlideAlongSurface(MovingComps, MoveDelta, 1.f - StepFwdHit.Time, PawnRotation, StepFwdHit.Normal, StepFwdHit, true, MoveRecord, MaxWalkSlopeCosine, MaxStepHeight);
+		QueuedSubsteps.Add( FMovementSubstep(SlideSubstepName, CapsuleComponent->GetComponentLocation()-LastComponentLocation, true) );
+		LastComponentLocation = CapsuleComponent->GetComponentLocation();
 		MoveRecord.UnlockRelevancy();
 
 		if (bIsFalling)
@@ -224,17 +225,17 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 	else
 	{
 		// Our forward move attempt was unobstructed - cache it
-		QueuedSubsteps.Add(FMovementSubstep(StepFwdSubstepName, UpdatedPrimitive->GetComponentLocation() - LastComponentLocation, true));
-		LastComponentLocation = UpdatedPrimitive->GetComponentLocation();
+		QueuedSubsteps.Add(FMovementSubstep(StepFwdSubstepName, CapsuleComponent->GetComponentLocation() - LastComponentLocation, true));
+		LastComponentLocation = CapsuleComponent->GetComponentLocation();
 	}
 
 
 	// Step down
 	const FVector StepDownAdjustment = GravDir * StepTravelDownHeight;
-	const bool bDidStepDown = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, StepDownAdjustment, UpdatedComponent->GetComponentQuat(), true, MOVECOMP_NoFlags, &StepFwdHit, ETeleportType::None);
+	const bool bDidStepDown = UMovementUtils::TryMoveUpdatedComponent_Internal(MovingComps, StepDownAdjustment, CapsuleComponent->GetComponentQuat(), true, MOVECOMP_NoFlags, &StepFwdHit, ETeleportType::None);
 
 	UE_LOG(LogMover, VeryVerbose, TEXT("TryMoveToStepUp Down: %s (role %i) StepDownAdjustment=%s DidMove=%i"),
-		*GetNameSafe(UpdatedComponent->GetOwner()), UpdatedComponent->GetOwnerRole(), *StepDownAdjustment.ToCompactString(), bDidStepDown);
+		*GetNameSafe(CapsuleComponent->GetOwner()), CapsuleComponent->GetOwnerRole(), *StepDownAdjustment.ToCompactString(), bDidStepDown);
 
 
 	// If step down was initially penetrating abort the step up
@@ -299,9 +300,9 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 		if (OutFloorTestResult != NULL)
 		{
 
-			UFloorQueryUtils::FindFloor(UpdatedComponent, UpdatedPrimitive,
+			UFloorQueryUtils::FindFloor(CapsuleComponent, CapsuleComponent,
 				FloorSweepDistance, MaxWalkSlopeCosine,
-				UpdatedComponent->GetComponentLocation(), StepDownResult.FloorTestResult);
+				CapsuleComponent->GetComponentLocation(), StepDownResult.FloorTestResult);
 
 			// Reject unwalkable normals if we end up higher than our initial height.
 			// It's fine to walk down onto an unwalkable surface, don't reject those moves.
@@ -323,8 +324,8 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 	}
 
 	// Cache downwards substep
-	QueuedSubsteps.Add(FMovementSubstep(StepDownSubstepName, UpdatedPrimitive->GetComponentLocation() - LastComponentLocation, false));
-	LastComponentLocation = UpdatedPrimitive->GetComponentLocation();
+	QueuedSubsteps.Add(FMovementSubstep(StepDownSubstepName, CapsuleComponent->GetComponentLocation() - LastComponentLocation, false));
+	LastComponentLocation = CapsuleComponent->GetComponentLocation();
 
 	// Copy step down result.
 	if (OutFloorTestResult != NULL)
@@ -345,7 +346,7 @@ bool UGroundMovementUtils::TryMoveToStepUp(USceneComponent* UpdatedComponent, UP
 
 }
 
-bool UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, FFloorCheckResult& CurrentFloor, float MaxWalkSlopeCosine, FMovementRecord& MoveRecord)
+bool UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(const FMovingComponentSet& MovingComps, FFloorCheckResult& CurrentFloor, float MaxWalkSlopeCosine, FMovementRecord& MoveRecord)
 {
 	// If we have a floor check that hasn't hit anything, don't adjust height.
 	if (!CurrentFloor.IsWalkableFloor())
@@ -365,6 +366,8 @@ bool UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(USceneComponent* Upda
 		OldFloorDist = CurrentFloor.LineDist;
 	}
 
+	USceneComponent* UpdatedComponent = MovingComps.UpdatedComponent.Get();
+
 	// Move up or down to maintain floor height.
 	if (OldFloorDist < UE::FloorQueryUtility::MIN_FLOOR_DIST || OldFloorDist > UE::FloorQueryUtility::MAX_FLOOR_DIST)
 	{
@@ -375,7 +378,7 @@ bool UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(USceneComponent* Upda
 
 		MoveRecord.LockRelevancy(false);
 
-		UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive,
+		UMovementUtils::TrySafeMoveUpdatedComponent(MovingComps,
 			FVector(0.f, 0.f, MoveDist), UpdatedComponent->GetComponentQuat(), 
 			true, AdjustHit, ETeleportType::None, MoveRecord);
 
@@ -407,7 +410,7 @@ bool UGroundMovementUtils::TryMoveToAdjustHeightAboveFloor(USceneComponent* Upda
 	return false;
 }
 
-float UGroundMovementUtils::TryWalkToSlideAlongSurface(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, UMoverComponent* MovementComponent, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, FMovementRecord& MoveRecord, float MaxWalkSlopeCosine, float MaxStepHeight)
+float UGroundMovementUtils::TryWalkToSlideAlongSurface(const FMovingComponentSet& MovingComps, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, FMovementRecord& MoveRecord, float MaxWalkSlopeCosine, float MaxStepHeight)
 {
 	if (!Hit.bBlockingHit)
 	{
@@ -415,6 +418,7 @@ float UGroundMovementUtils::TryWalkToSlideAlongSurface(USceneComponent* UpdatedC
 	}
 	
 	FVector SafeWalkNormal(Normal);
+	UMoverComponent* MoverComponent = MovingComps.MoverComponent.Get();
 
 	// We don't want to be pushed up an unwalkable surface.
 	if (SafeWalkNormal.Z > 0.f && !UFloorQueryUtils::IsHitSurfaceWalkable(Hit, MaxWalkSlopeCosine))
@@ -425,25 +429,25 @@ float UGroundMovementUtils::TryWalkToSlideAlongSurface(USceneComponent* UpdatedC
 	float PctOfTimeUsed = 0.f;
 	const FVector OldSafeHitNormal = SafeWalkNormal;
 
-	FVector SlideDelta = UMovementUtils::ComputeSlideDelta(Delta, PctOfDeltaToMove, SafeWalkNormal, Hit);
+	FVector SlideDelta = UMovementUtils::ComputeSlideDelta(MovingComps, Delta, PctOfDeltaToMove, SafeWalkNormal, Hit);
 
 	if (SlideDelta.Dot(Delta) > 0.f)
 	{
-		UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
+		UMovementUtils::TrySafeMoveUpdatedComponent(MovingComps, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
 
 		PctOfTimeUsed = Hit.Time;
 
 		if (Hit.IsValidBlockingHit())
 		{
 			// Notify first impact
-			if (MovementComponent && bHandleImpact)
+			if (MoverComponent && bHandleImpact)
 			{
 				FMoverOnImpactParams ImpactParams(NAME_None, Hit, SlideDelta);
-				MovementComponent->HandleImpact(ImpactParams);
+				MoverComponent->HandleImpact(ImpactParams);
 			}
 
 			// Compute new slide normal when hitting multiple surfaces.
-			SlideDelta = UMovementUtils::ComputeTwoWallAdjustedDelta(SlideDelta, Hit, OldSafeHitNormal);
+			SlideDelta = UMovementUtils::ComputeTwoWallAdjustedDelta(MovingComps, SlideDelta, Hit, OldSafeHitNormal);
 			if (SlideDelta.Z > 0.f && UFloorQueryUtils::IsHitSurfaceWalkable(Hit, MaxWalkSlopeCosine) && Hit.Normal.Z > UE_KINDA_SMALL_NUMBER)
 			{
 				// Maintain horizontal velocity
@@ -467,14 +471,14 @@ float UGroundMovementUtils::TryWalkToSlideAlongSurface(USceneComponent* UpdatedC
 			if (!SlideDelta.IsNearlyZero(UE::MoverUtils::SMALL_MOVE_DISTANCE) && (SlideDelta | Delta) > 0.f)
 			{
 				// Perform second move
-				UMovementUtils::TrySafeMoveUpdatedComponent(UpdatedComponent, UpdatedPrimitive, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
+				UMovementUtils::TrySafeMoveUpdatedComponent(MovingComps, SlideDelta, Rotation, true, Hit, ETeleportType::None, MoveRecord);
 				PctOfTimeUsed += (Hit.Time * (1.f - PctOfTimeUsed));
 
 				// Notify second impact
-				if (MovementComponent && bHandleImpact && Hit.bBlockingHit)
+				if (MoverComponent && bHandleImpact && Hit.bBlockingHit)
 				{
 					FMoverOnImpactParams ImpactParams(NAME_None, Hit, SlideDelta);
-					MovementComponent->HandleImpact(ImpactParams);
+					MoverComponent->HandleImpact(ImpactParams);
 				}
 			}
 		}

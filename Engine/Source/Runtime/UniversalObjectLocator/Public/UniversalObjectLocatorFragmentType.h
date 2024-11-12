@@ -14,6 +14,7 @@
 
 #include "UniversalObjectLocatorFwd.h"
 #include "UniversalObjectLocatorResolveParams.h"
+#include "UniversalObjectLocatorFragmentDebugging.h"
 
 namespace UE::UniversalObjectLocator
 {
@@ -39,6 +40,7 @@ enum class EFragmentTypeFlags : uint8
 };
 
 ENUM_CLASS_FLAGS(EFragmentTypeFlags)
+
 
 /**
  * A Universal Object Locator fragment type defines a specific mechanism for resolving an object that is referenced
@@ -80,6 +82,10 @@ struct FFragmentType
 
 	using FPriorityCallback   = uint32 (*)(const UObject* /* Object */, const UObject* /* Context */);
 
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+	using FFragmentDebugInitializer = void (*)(void*);
+#endif
+
 	/** Bindings structure for function pointers that directly invoke behavior on fragment type payloads */
 	struct
 	{
@@ -98,13 +104,14 @@ struct FFragmentType
 	{
 		/** static function binding for computing the priority of this fragment type */
 		FPriorityCallback   Priority;
+#if UE_UNIVERSALOBJECTLOCATOR_DEBUG
+		/** Function callback for initializing a vftable for the fragment for debugging purposes */
+		FFragmentDebugInitializer FragmentDebugInitializer;
+#endif
 	} StaticBindings;
 
 	/** Struct pointer to the payload type */
 	TObjectPtr<const UScriptStruct> PayloadType;
-
-	/** Debugging assistant structure used for natvis visualizations */
-	TSharedPtr<IFragmentTypeDebuggingAssistant> DebuggingAssistant;
 
 	/** Descriptive display text for this type of fragment type */
 	FText DisplayText;
@@ -127,48 +134,6 @@ struct FFragmentType
 template<typename T>
 struct TFragmentType : FFragmentType
 {
-};
-
-struct IPayloadDebugging
-{
-	virtual ~IPayloadDebugging()
-	{
-	}
-};
-
-template<typename T>
-struct TLocatorFragment : IPayloadDebugging
-{
-	explicit TLocatorFragment(const T* InPayload)
-		: Payload(InPayload)
-	{
-	}
-
-	const T* Payload;
-};
-
-struct IFragmentTypeDebuggingAssistant : TSharedFromThis<IFragmentTypeDebuggingAssistant>
-{
-	virtual ~IFragmentTypeDebuggingAssistant()
-	{
-	}
-	virtual IPayloadDebugging* MakePayloadVisualizer(const void*) = 0;
-	virtual void Purge() = 0;
-};
-
-template<typename T>
-struct TFragmentTypeDebuggingAssistant : IFragmentTypeDebuggingAssistant
-{
-	IPayloadDebugging* MakePayloadVisualizer(const void* InPayload) override
-	{
-		return &Visualizers.Emplace_GetRef(static_cast<const T*>(InPayload));
-	}
-	void Purge() override
-	{
-		Visualizers.Empty();
-	}
-
-	TPagedArray<TLocatorFragment<T>> Visualizers;
 };
 
 } // namespace UE::UniversalObjectLocator

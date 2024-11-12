@@ -3,7 +3,7 @@
 #include "Dataflow/DataflowEngineUtil.h"
 #include "ReferenceSkeleton.h"
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	namespace Animation

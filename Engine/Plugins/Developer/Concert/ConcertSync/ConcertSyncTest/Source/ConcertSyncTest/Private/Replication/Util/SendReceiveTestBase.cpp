@@ -51,7 +51,7 @@ namespace UE::ConcertSyncTests::Replication
 		// Server
 		InitServer();
 		ServerSession = GetServerSessionMock();
-		ServerReplicationManager = ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSession.ToSharedRef());
+		ServerReplicationManager = ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSession.ToSharedRef(), WorkspaceMock);
 		// Client Receiver
 		Client_Receiver = &ConnectClient();
 		if (EnumHasAnyFlags(Flags, ESendReceiveTestFlags::UseRealReplicationBridge))
@@ -63,7 +63,7 @@ namespace UE::ConcertSyncTests::Replication
 			BridgeMock_Receiver =  MakeShared<FConcertClientReplicationBridgeMock>();
 			BridgeUsed_Receiver = BridgeMock_Receiver;
 		}
-		ClientReplicationManager_Receiver = ConcertSyncClient::TestInterface::CreateClientReplicationManager(Client_Receiver->ClientSessionMock, BridgeUsed_Receiver.Get());
+		ClientReplicationManager_Receiver = ConcertSyncClient::TestInterface::CreateClientReplicationManager(Client_Receiver->ClientSessionMock, *BridgeUsed_Receiver.Get());
 		
 		// Client Sender
 		Client_Sender = &ConnectClient();
@@ -76,7 +76,7 @@ namespace UE::ConcertSyncTests::Replication
 			BridgeMock_Sender =  MakeShared<FConcertClientReplicationBridgeMock>();
 			BridgeUsed_Sender = BridgeMock_Sender;
 		}
-		ClientReplicationManager_Sender = ConcertSyncClient::TestInterface::CreateClientReplicationManager(Client_Sender->ClientSessionMock, BridgeUsed_Sender.Get());
+		ClientReplicationManager_Sender = ConcertSyncClient::TestInterface::CreateClientReplicationManager(Client_Sender->ClientSessionMock, *BridgeUsed_Sender.Get());
 		
 		// 1.1 Sender offers to send all UTestReflectionObject properties
 		{

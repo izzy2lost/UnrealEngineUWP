@@ -6,5 +6,9 @@ class FAdvancedRenamerLevelEditorIntegration
 {
 public:
 	static void Initialize();
-	static void Shutdown();	
+	static void Shutdown();
+
+private:
+	static void InitializeMenu();
+	static void ShutdownMenu();
 };

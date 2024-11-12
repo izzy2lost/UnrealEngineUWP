@@ -73,13 +73,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangePhysicsAssetFactory::Imp
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangePhysicsAssetFactory::ImportAsset_Async);
 	FImportAssetResult ImportAssetResult;
-#if !WITH_EDITORONLY_DATA
-
-	UE_LOG(LogInterchangeImport, Error, TEXT("Cannot import PhysicsAsset asset at runtime. This is an editor-only feature."));
-	return ImportAssetResult;
-
-#else
-
+#if WITH_EDITORONLY_DATA
 	if (!Arguments.AssetNode || !Arguments.AssetNode->GetObjectClass()->IsChildOf(GetFactoryClass()))
 	{
 		return ImportAssetResult;
@@ -117,7 +111,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangePhysicsAssetFactory::Imp
 	Arguments.SourceData->GetFileContentHash();
 
 	ImportAssetResult.ImportedObject = PhysicsAssetObject;
-	return ImportAssetResult;
 #endif
+	return ImportAssetResult;
 }
 

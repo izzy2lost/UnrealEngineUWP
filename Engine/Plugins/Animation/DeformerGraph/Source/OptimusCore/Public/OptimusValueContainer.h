@@ -6,6 +6,9 @@
 #include "OptimusDataType.h"
 #include "OptimusValueContainer.generated.h"
 
+struct FOptimusValueContainerStruct;
+
+// Deprecated
 UCLASS()
 class OPTIMUSCORE_API UOptimusValueContainerGeneratorClass : public UClass
 {
@@ -20,7 +23,9 @@ public:
 	// this flag has to be kept such that we can load the old asset in the first place and
 	// re-parent it back to the package in post load
 	DECLARE_WITHIN(UObject)
-
+private:
+	friend class UOptimusValueContainer;
+	
 	static FName ValuePropertyName;
 	
 	// UClass overrides
@@ -40,16 +45,21 @@ public:
 	FOptimusDataTypeRef DataType;
 };
 
+// Deprecated
 UCLASS()
 class OPTIMUSCORE_API UOptimusValueContainer : public UObject
 {
 public:
 	GENERATED_BODY()
-
+	
+	// Convert to the newer container type
+	FOptimusValueContainerStruct MakeValueContainerStruct();
+	
+private:
 	void PostLoad() override;
 	
 	static UOptimusValueContainer* MakeValueContainer(UObject* InOwner, FOptimusDataTypeRef InDataTypeRef);
 
 	FOptimusDataTypeRef GetValueType() const;
-	FShaderValueType::FValue GetShaderValue() const;
+	FShaderValueContainer GetShaderValue() const;
 };

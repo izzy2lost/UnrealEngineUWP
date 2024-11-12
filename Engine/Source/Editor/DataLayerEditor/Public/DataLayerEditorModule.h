@@ -14,8 +14,10 @@ class AActor;
 class FExtender;
 class FUICommandList;
 class SWidget;
+class UToolMenu;
 class UDataLayerInstance;
 class UExternalDataLayerAsset;
+class UExternalDataLayerInstance;
 
 /**
  * The module holding all of the UI related pieces for DataLayers
@@ -54,6 +56,11 @@ public:
 	virtual void SetActorEditorContextCurrentExternalDataLayer(const UExternalDataLayerAsset* InExternalDataLayerAsset) override;
 
 private:
+	void RegisterMenus();
+	void MoveToExternalDataLayerMenu(UToolMenu* Menu);
+	bool MoveActorsToExternalDataLayer(const TArray<AActor*>& InSelectedActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutReason = nullptr);
+	TArray<AActor*> GetSelectedActors() const;
+
 	TWeakPtr<SWidget> DataLayerBrowser;
 
 	/** All extender delegates for the DataLayers menus */

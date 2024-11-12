@@ -52,7 +52,7 @@ void SToolBarSeparatorBlock::Construct( const FArguments& InArgs )
 void SToolBarSeparatorBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FName& StyleName)
 {
 	const FToolBarStyle& ToolBarStyle = StyleSet->GetWidgetStyle<FToolBarStyle>(StyleName);
-	
+
 	ChildSlot
 	[
 		SNew( SHorizontalBox )
@@ -62,11 +62,13 @@ void SToolBarSeparatorBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, 
 		[
 			SNew(SSeparator)
 				.Orientation(Orient_Vertical)
-				.Thickness(2.0f)
+				.Thickness(ToolBarStyle.SeparatorThickness)
 				.SeparatorImage(&ToolBarStyle.SeparatorBrush)
 		]
 	];
 
 	// Add this widget to the search list of the multibox and hide it
 	OwnerMultiBoxWidget.Pin()->AddElement(this->AsWidget(), FText::GetEmpty(), MultiBlock->GetSearchable());
+
+	SetVisibility(MultiBlock->GetVisibilityOverride());
 }

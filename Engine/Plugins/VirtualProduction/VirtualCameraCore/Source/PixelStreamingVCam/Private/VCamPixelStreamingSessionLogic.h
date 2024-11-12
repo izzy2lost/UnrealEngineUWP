@@ -9,17 +9,23 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+class AActor;
 class UVCamPixelStreamingSession;
 class UPixelStreamingMediaIOCapture;
 class UPixelStreamingMediaOutput;
 class IPixelStreamingStreamer;
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::DecoupledOutputProvider { struct FOutputProviderLogicCreationArgs; }
+
+namespace UE::PixelStreamingVCam
 {
 	/** Implements logic for UVCamPixelStreamingSession so it can be loaded on all platforms. */
 	class FVCamPixelStreamingSessionLogic : public DecoupledOutputProvider::IOutputProviderLogic
 	{
 	public:
+		
+		FVCamPixelStreamingSessionLogic(const DecoupledOutputProvider::FOutputProviderLogicCreationArgs& Args);
+		virtual ~FVCamPixelStreamingSessionLogic();
 
 		//~ Begin IOutputProviderLogic Interface
 		virtual void OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
@@ -28,6 +34,7 @@ namespace UE::PixelStreamingVCam::Private
 		virtual VCamCore::EViewportChangeReply PreReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector) override;
+		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request) override;
 #if WITH_EDITOR
 		virtual void OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -38,6 +45,9 @@ namespace UE::PixelStreamingVCam::Private
 		/** Used to generate unique streamer IDs */
 		static int NextDefaultStreamerId;
 
+		/** The output provider being managed by this logic object. */
+		TWeakObjectPtr<UVCamPixelStreamingSession> ManagedOutputProvider;
+
 		/** Last time viewport was touched. Updated every tick. */
 		FHitResult 	LastViewportTouchResult;
 		/** Whether we overwrote the widget class with the empty widget class; remember: PS needs a widget. */
@@ -47,9 +57,25 @@ namespace UE::PixelStreamingVCam::Private
 
 		TObjectPtr<UPixelStreamingMediaOutput> MediaOutput = nullptr;
 		TObjectPtr<UPixelStreamingMediaIOCapture> MediaCapture = nullptr;
+		
+		/** Handle for ARKit stats timer */
+		FTimerHandle ARKitResponseTimer; 
+		size_t NumARKitEvents = 0;
 
-		void SetupSignallingServer();
-		void StopSignallingServer();
+		/** The next ID to use for a string request */
+		int32 NextStringRequestId = 0;
+
+		/** A map from string request IDs to promises to fulfill when the corresponding request is completed */
+		TMap<int32, TPromise<FVCamStringPromptResponse>> StringPromptPromises;
+
+#if WITH_EDITOR
+		void OnEditStreamId(UVCamPixelStreamingSession& This) const;
+		void OnActorLabelChanged(AActor* Actor) const;
+#endif
+		void RefreshStreamerName(UVCamPixelStreamingSession& Session) const;
+		
+		void SetupSignallingServer(UVCamPixelStreamingSession& Session);
+		void StopSignallingServer(UVCamPixelStreamingSession& Session);
 
 		void SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
@@ -59,23 +85,25 @@ namespace UE::PixelStreamingVCam::Private
 		void StopStreaming();
 		void OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void OnStreamingStopped(IPixelStreamingStreamer* StoppedStreamer);
-		void StopEverything();
+		void StopEverything(UVCamPixelStreamingSession& Session);
 
 		void SetupCustomInputHandling(UVCamPixelStreamingSession* This);
 
 		void OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 
-		/** Sets the owning VCam's live link subject to this the subject created by this session, if this behaviour is enabled. */
-		void ConditionallySetLiveLinkSubjectToThis(UVCamPixelStreamingSession* This) const;
 
 		void SetupARKitResponseTimer(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopARKitResponseTimer();
 
-private:
-		/** Handle for ARKit stats timer */
-		FTimerHandle ARKitResponseTimer; 
-		size_t NumARKitEvents = 0;
+		/** Called when all pixel streaming connections to a streamer are closed */
+		void OnAllConnectionsClosed(FString StreamerId);
+
+		/** Unregister any handlers for pixel streaming delegates */
+		void UnregisterPixelStreamingDelegates();
+
+		/** Sets MediaOutput to nullptr and unsubscribes from relevant delegates. */
+		void CleanupMediaOutput();
 	};
 }
 

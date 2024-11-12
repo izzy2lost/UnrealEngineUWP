@@ -10,99 +10,101 @@ namespace EpicGames.Tracing.UnrealInsights
 {
 	public class UnrealInsightsWriter
 	{
-		readonly Dictionary<EventType, ushort> EventTypeToUids = new Dictionary<EventType, ushort>();
-		readonly Dictionary<ushort, EventType> UidToEventTypes = new Dictionary<ushort, EventType>();
-		readonly Dictionary<ushort, List<ITraceEvent>> ThreadToEvents = new Dictionary<ushort, List<ITraceEvent>>();
+		readonly Dictionary<EventType, ushort> _eventTypeToUids = new Dictionary<EventType, ushort>();
+		readonly Dictionary<ushort, EventType> _uidToEventTypes = new Dictionary<ushort, EventType>();
+		readonly Dictionary<ushort, List<ITraceEvent>> _threadToEvents = new Dictionary<ushort, List<ITraceEvent>>();
 		
-		private ushort UidCounter = PredefinedEventUid._WellKnownNum; // IDs below 16 are reserved for well-known events
-		private object Lock = new object();
+		private ushort _uidCounter = PredefinedEventUid.WellKnownNum; // IDs below 16 are reserved for well-known events
+		private readonly object _lock = new object();
 
 		public UnrealInsightsWriter()
 		{
-			ThreadToEvents[TransportPacket.ThreadIdEvents] = new List<ITraceEvent>();
+			_threadToEvents[TransportPacket.ThreadIdEvents] = new List<ITraceEvent>();
 
-			EnterScopeEvent EnterScopeEvent = new EnterScopeEvent();
-			RegisterEventType(PredefinedEventUid.EnterScope, EnterScopeEvent.Type);
+			EnterScopeEvent enterScopeEvent = new EnterScopeEvent();
+			RegisterEventType(PredefinedEventUid.EnterScope, enterScopeEvent.Type);
 			
-			LeaveScopeEvent LeaveScopeEvent = new LeaveScopeEvent();
-			RegisterEventType(PredefinedEventUid.LeaveScope, LeaveScopeEvent.Type);
+			LeaveScopeEvent leaveScopeEvent = new LeaveScopeEvent();
+			RegisterEventType(PredefinedEventUid.LeaveScope, leaveScopeEvent.Type);
 			
-			EnterScopeEvent EnterScopeTimestampEvent = new EnterScopeEvent();
-			RegisterEventType(PredefinedEventUid.EnterScope_T, EnterScopeTimestampEvent.Type);
+			EnterScopeEvent enterScopeTimestampEvent = new EnterScopeEvent();
+			RegisterEventType(PredefinedEventUid.EnterScope_T, enterScopeTimestampEvent.Type);
 			
-			LeaveScopeEventTimestamp LeaveScopeTimestampEvent = new LeaveScopeEventTimestamp(0);
-			RegisterEventType(PredefinedEventUid.LeaveScope_T, LeaveScopeTimestampEvent.Type);
+			LeaveScopeEventTimestamp leaveScopeTimestampEvent = new LeaveScopeEventTimestamp(0);
+			RegisterEventType(PredefinedEventUid.LeaveScope_T, leaveScopeTimestampEvent.Type);
 		}
 
-		public void AddEvent(ushort ThreadId, ITraceEvent Event)
+		public void AddEvent(ushort threadId, ITraceEvent @event)
 		{
-			if (ThreadId == TransportPacket.ThreadIdEvents)
+			if (threadId == TransportPacket.ThreadIdEvents)
 			{
 				throw new ArgumentException("Cannot add events directly to new-event thread");
 			}
 			
-			lock (Lock)
+			lock (_lock)
 			{
-				if (!ThreadToEvents.TryGetValue(ThreadId, out List<ITraceEvent>? Events))
+				if (!_threadToEvents.TryGetValue(threadId, out List<ITraceEvent>? events))
 				{
-					Events = new List<ITraceEvent>();
-					ThreadToEvents[ThreadId] = Events;
+					events = new List<ITraceEvent>();
+					_threadToEvents[threadId] = events;
 				}
 
-				if (!EventTypeToUids.ContainsKey(Event.Type))
+				if (!_eventTypeToUids.ContainsKey(@event.Type))
 				{
-					ushort NewUid = UidCounter++;
-					RegisterEventType(NewUid, Event.Type);
-					ThreadToEvents[TransportPacket.ThreadIdEvents].Add(Event);
+					ushort newUid = _uidCounter++;
+					RegisterEventType(newUid, @event.Type);
+					_threadToEvents[TransportPacket.ThreadIdEvents].Add(@event);
 				}
 				
-				Events.Add(Event);
+				events.Add(@event);
 			}
 		}
 
-		private void RegisterEventType(ushort Uid, EventType EventType)
+		private void RegisterEventType(ushort uid, EventType eventType)
 		{
-			UidToEventTypes[Uid] = EventType;
-			EventTypeToUids[EventType] = Uid;
+			_uidToEventTypes[uid] = eventType;
+			_eventTypeToUids[eventType] = uid;
 		}
 
-		public void Write(BinaryWriter Writer)
+		public void Write(BinaryWriter writer)
 		{
-			lock (Lock)
+			lock (_lock)
 			{
-				WriteHeader(Writer);
-				WriteThread(TransportPacket.ThreadIdImportants, Writer);
+				WriteHeader(writer);
+				WriteThread(TransportPacket.ThreadIdImportants, writer);
 
-				foreach (ushort ThreadId in ThreadToEvents.Keys)
+				foreach (ushort threadId in _threadToEvents.Keys)
 				{
-					if (ThreadId == TransportPacket.ThreadIdEvents || ThreadId == TransportPacket.ThreadIdImportants)
+					if (threadId == TransportPacket.ThreadIdEvents || threadId == TransportPacket.ThreadIdImportants)
+					{
 						continue;
-					
-					WriteThread(ThreadId, Writer);
+					}
+
+					WriteThread(threadId, writer);
 				}
 			}
 		}
 
-		private void WriteHeader(BinaryWriter Writer)
+		private void WriteHeader(BinaryWriter writer)
 		{
-			StreamHeader.Default().Serialize(Writer);
-			TransportPacket TransportPacket = TransportPacket.Create(0, 0);
-			IEnumerable<(ushort Uid, ITraceEvent Event)> NewEvents = ThreadToEvents[TransportPacket.ThreadIdEvents].Select(e =>
+			StreamHeader.Default().Serialize(writer);
+			TransportPacket transportPacket = TransportPacket.Create(0, 0);
+			IEnumerable<(ushort Uid, ITraceEvent Event)> newEvents = _threadToEvents[TransportPacket.ThreadIdEvents].Select(e =>
 			{
-				ushort NewEventUid = EventTypeToUids[e.Type];
-				ITraceEvent MyEventType = e.Type;
-				return (NewEventUid, MyEventType);
+				ushort newEventUid = _eventTypeToUids[e.Type];
+				ITraceEvent myEventType = e.Type;
+				return (newEventUid, myEventType);
 			});
-			TransportPacket.Serialize(Writer, NewEvents);
+			transportPacket.Serialize(writer, newEvents);
 		}
 
-		private void WriteThread(ushort ThreadId, BinaryWriter Writer)
+		private void WriteThread(ushort threadId, BinaryWriter writer)
 		{
-			foreach (ITraceEvent Event in ThreadToEvents[ThreadId])
+			foreach (ITraceEvent @event in _threadToEvents[threadId])
 			{
-				ushort Uid = EventTypeToUids[Event.Type];
-				TransportPacket TransportPacket = TransportPacket.Create(0, ThreadId);
-				TransportPacket.Serialize(Writer, new [] { (Uid, Event) });
+				ushort uid = _eventTypeToUids[@event.Type];
+				TransportPacket transportPacket = TransportPacket.Create(0, threadId);
+				transportPacket.Serialize(writer, new [] { (uid, @event) });
 			}
 		}
 	}

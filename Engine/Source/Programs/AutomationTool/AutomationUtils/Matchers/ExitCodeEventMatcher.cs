@@ -14,7 +14,10 @@ namespace AutomationUtils.Matchers
 	class ExitCodeEventMatcher : ILogEventMatcher
 	{
 		static readonly Regex s_pattern = new Regex(
-			@"Editor terminated with exit code -?[1-9]|(Error executing.+)(tool returned code)(.+)");
+			@"Editor terminated with exit code -?[1-9]" +
+			@"|(?:Error executing.+)(?:tool returned code)(.+)" +
+			@"|\s*RunU[AB]T ERROR:" +
+			@"|\s*ERROR:.*did not complete successfully: exit code: [0-9]+");
 
 		public LogEventMatch? Match(ILogCursor cursor)
 		{

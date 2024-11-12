@@ -50,15 +50,15 @@
 	#endif
 
 	#ifndef CVD_TRACE_PARTICLES_SOA
-		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA) \
-		FChaosVisualDebuggerTrace::TraceParticlesSoA(ParticleSoA);
+		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA, ...) \
+		FChaosVisualDebuggerTrace::TraceParticlesSoA(ParticleSoA, ##__VA_ARGS__);
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_START_FRAME
 		#define CVD_TRACE_SOLVER_START_FRAME(SolverType, SolverRef) \
 			FChaosVDContext StartContextData; \
 			FChaosVisualDebuggerTrace::GetCVDContext<SolverType>(SolverRef, StartContextData); \
-			FChaosVisualDebuggerTrace::TraceSolverFrameStart(StartContextData, FChaosVisualDebuggerTrace::GetDebugName<SolverType>(SolverRef));
+			FChaosVisualDebuggerTrace::TraceSolverFrameStart(StartContextData, FChaosVisualDebuggerTrace::GetDebugName<SolverType>(SolverRef), SolverRef.GetCVDFrameNumber());
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_END_FRAME
@@ -90,8 +90,8 @@
 	#endif
 
 	#ifndef CVD_TRACE_BINARY_DATA
-		#define CVD_TRACE_BINARY_DATA(InData, TypeName) \
-		FChaosVisualDebuggerTrace::TraceBinaryData(InData, TypeName);
+		#define CVD_TRACE_BINARY_DATA(InData, TypeName, ...) \
+		FChaosVisualDebuggerTrace::TraceBinaryData(InData, TypeName, ##__VA_ARGS__);
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_SIMULATION_SPACE
@@ -153,9 +153,65 @@
 			}
 	#endif
 
+	#ifndef CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS
+		#define CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(DataChannel, InConstraints) \
+			{ \
+				CVD_SCOPED_DATA_CHANNEL_OVERRIDE(DataChannel) \
+				FChaosVisualDebuggerTrace::TraceCharacterGroundConstraints(InConstraints); \
+			}
+	#endif
+
 	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER
 		#define CVD_TRACE_CONSTRAINTS_CONTAINER(ContainerView) \
 			FChaosVisualDebuggerTrace::TraceConstraintsContainer(ContainerView);
+	#endif
+
+	#ifndef CVD_TRACE_ACCELERATION_STRUCTURES
+		#define CVD_TRACE_ACCELERATION_STRUCTURES(AccelerationStructuresCollections, SolverType, SolverRef, DataChannel) \
+			{ \
+				FChaosVDContext StartAccelerationStrutureCVDContextData; \
+				FChaosVisualDebuggerTrace::GetCVDContext<SolverType>(SolverRef, StartAccelerationStrutureCVDContextData); \
+				CVD_SCOPE_CONTEXT(StartAccelerationStrutureCVDContextData); \
+				CVD_SCOPED_DATA_CHANNEL_OVERRIDE(DataChannel) \
+				FChaosVisualDebuggerTrace::TraceSceneAccelerationStructures(AccelerationStructuresCollections); \
+			}
+	#endif
+
+	#ifndef CVD_TRACE_NETWORK_TICK_OFFSET
+		#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID) \
+		{ \
+			FChaosVisualDebuggerTrace::TraceNetworkTickOffset(TickOffset, SolverID); \
+		}
+	#endif
+
+	#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
+		#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World) \
+				FChaosVisualDebuggerTrace::GetSolverIDFromWorld(World)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_BOX
+      		#define CVD_TRACE_DEBUG_DRAW_BOX(Box, ...) \
+      		FChaosVisualDebuggerTrace::TraceDebugDrawBox(Box, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_LINE
+		#define CVD_TRACE_DEBUG_DRAW_LINE(StartLocation, EndLocation, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawLine(StartLocation, EndLocation, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_VECTOR
+		#define CVD_TRACE_DEBUG_DRAW_VECTOR(StartLocation, Vector, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawVector(StartLocation, Vector, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_SPHERE
+		#define CVD_TRACE_DEBUG_DRAW_SPHERE(Center, Radius, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawSphere(Center, Radius, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT
+		#define CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT(ImplicitObject, ParentTransform, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawImplicitObject(ImplicitObject, ParentTransform,  ##__VA_ARGS__)
 	#endif
 
 #else // WITH_CHAOS_VISUAL_DEBUGGER
@@ -193,7 +249,7 @@
 	#endif
 
 	#ifndef CVD_TRACE_BINARY_DATA
-		#define CVD_TRACE_BINARY_DATA(InData, TypeName)
+		#define CVD_TRACE_BINARY_DATA(InData, TypeName, ...)
 	#endif
 
 	#ifndef CVD_TRACE_SOLVER_SIMULATION_SPACE
@@ -201,7 +257,7 @@
 	#endif
 
 	#ifndef CVD_TRACE_PARTICLES_SOA
-		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA)
+		#define CVD_TRACE_PARTICLES_SOA(ParticleSoA, ...)
 	#endif
 
 	#ifndef CVD_TRACE_PARTICLE_DESTROYED
@@ -246,8 +302,44 @@
 		#define CVD_TRACE_JOINT_CONSTRAINTS(DataChannel, InJointConstraints)
 	#endif
 
+	#ifndef CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS
+		#define CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(DataChannel, InConstraints)
+	#endif
+
 	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER
 		#define CVD_TRACE_CONSTRAINTS_CONTAINER(ContainerView)
+	#endif
+
+	#ifndef CVD_TRACE_ACCELERATION_STRUCTURES
+			#define CVD_TRACE_ACCELERATION_STRUCTURES(AccelerationStructuresCollections, SolverType, SolverRef, DataChannel)
+	#endif
+
+	#ifndef CVD_TRACE_NETWORK_TICK_OFFSET
+		#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID)
+	#endif
+
+	#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
+		#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_BOX
+			  #define CVD_TRACE_DEBUG_DRAW_BOX(Box, ...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_LINE
+		#define CVD_TRACE_DEBUG_DRAW_LINE(StartLocation, EndLocation, ...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_VECTOR
+		#define CVD_TRACE_DEBUG_DRAW_VECTOR(StartLocation, Vector, ...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_SPHERE
+		#define CVD_TRACE_DEBUG_DRAW_SPHERE(...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT
+		#define CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT(ImplicitObject, ParentTransform, ...)
 	#endif
 
 #endif // WITH_CHAOS_VISUAL_DEBUGGER

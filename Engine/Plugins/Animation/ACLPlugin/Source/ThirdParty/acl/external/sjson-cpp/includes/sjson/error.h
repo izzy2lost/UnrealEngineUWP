@@ -54,10 +54,21 @@
 //    #define SJSON_CPP_ON_ASSERT_CUSTOM
 //    #define SJSON_CPP_ASSERT(expression, format, ...) checkf(expression, ANSI_TO_TCHAR(format), #__VA_ARGS__)
 //
+//    [Custom String Format Specifier]
+//    Note that if you use a custom function, you may need to override the SJSON_ASSERT_STRING_FORMAT_SPECIFIER
+//    to properly handle ANSI/Unicode support. The C++11 standard does not support a way to say that '%s'
+//    always means an ANSI string (with 'const char*' as type). MSVC does support '%hs' but other compilers
+//    do not.
+//
 // No checks:
 //    By default if no macro mentioned above is defined, all asserts will be stripped
 //    at compile time.
 //////////////////////////////////////////////////////////////////////////
+
+// See [Custom String Format Specifier] for details
+#if !defined(SJSON_ASSERT_STRING_FORMAT_SPECIFIER)
+	#define SJSON_ASSERT_STRING_FORMAT_SPECIFIER "%s"
+#endif
 
 #if defined(SJSON_CPP_ON_ASSERT_ABORT)
 
@@ -73,7 +84,7 @@
 
 		namespace error_impl
 		{
-			inline void on_assert_abort(const char* expression, int line, const char* file, const char* format, ...)
+			[[noreturn]] inline void on_assert_abort(const char* expression, int line, const char* file, const char* format, ...)
 			{
 				(void)expression;
 				(void)line;
@@ -112,18 +123,20 @@
 
 		class runtime_assert final : public std::runtime_error
 		{
+			runtime_assert() = delete;					// Default constructor not needed
+
 			using std::runtime_error::runtime_error;	// Inherit constructors
 		};
 
 		namespace error_impl
 		{
-			inline void on_assert_throw(const char* expression, int line, const char* file, const char* format, ...)
+			[[noreturn]] inline void on_assert_throw(const char* expression, int line, const char* file, const char* format, ...)
 			{
 				(void)expression;
 				(void)line;
 				(void)file;
 
-				constexpr int buffer_size = 64 * 1024;
+				constexpr int buffer_size = 1 * 1024;
 				char buffer[buffer_size];
 
 				va_list args;
@@ -134,7 +147,7 @@
 				va_end(args);
 
 				if (count >= 0 && count < buffer_size)
-					throw runtime_assert(std::string(&buffer[0], count));
+					throw runtime_assert(std::string(&buffer[0], static_cast<std::string::size_type>(count)));
 				else
 					throw runtime_assert("Failed to format assert message!\n");
 			}

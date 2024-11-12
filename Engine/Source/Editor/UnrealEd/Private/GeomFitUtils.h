@@ -108,10 +108,10 @@ const FVector KDopDir26[26] =
 };
 
 // Utilities
-UNREALED_API int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVector> &dirs);
-UNREALED_API int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh);
-UNREALED_API int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh);
-UNREALED_API int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh);
+UNREALED_API int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVector>& dirs, bool bUpdate = true);
+UNREALED_API int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate = true);
+UNREALED_API int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate = true);
+UNREALED_API int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate = true);
 UNREALED_API void ComputeBoundingBox(UStaticMesh* StaticMesh, FVector& Center, FVector& Extents);
 
 /**

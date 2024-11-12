@@ -236,7 +236,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	/// <param name="BaseIdx">Base index for this locator</param>
 	/// <param name="Fragment">The utf8 fragment appended to the base index</param>
-	public record struct PacketImport(int BaseIdx, Utf8String Fragment)
+	public readonly record struct PacketImport(int BaseIdx, Utf8String Fragment)
 	{
 		/// <summary>
 		/// Bias for indexes into the import table
@@ -274,7 +274,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// Data for an exported node in a packet
 	/// </summary>
 	[DebuggerTypeProxy(typeof(PacketExport.DebugProxy))]
-	public struct PacketExport
+	public readonly struct PacketExport
 	{
 		class DebugProxy
 		{
@@ -325,7 +325,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// <summary>
 	/// Data for an exported node in a bundle
 	/// </summary>
-	public struct PacketExportHeader
+	public readonly struct PacketExportHeader
 	{
 		/// <summary>
 		/// Index of the type for this export

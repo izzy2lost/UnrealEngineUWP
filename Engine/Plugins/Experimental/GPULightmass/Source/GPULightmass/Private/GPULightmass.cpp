@@ -42,18 +42,18 @@ void FGPULightmass::ShowLightBuildNotification()
 			Info.ButtonDetails.Add(FNotificationButtonInfo(
 			LOCTEXT("Save", "Save and Stop"),
 			FText::GetEmpty(),
-			FSimpleDelegate::CreateLambda([World = World, this]() { 
+			FSimpleDelegate::CreateLambda([WorldPtr = World, this]() { 
 				this->Scene.ApplyFinishedLightmapsToWorld(); 
-				World->GetSubsystem<UGPULightmassSubsystem>()->Stop(); 
+				WorldPtr->GetSubsystem<UGPULightmassSubsystem>()->Stop();
 			})));
 		}
 	
 		Info.ButtonDetails.Add(FNotificationButtonInfo(
 			LOCTEXT("LightBuildCancel", "Cancel"),
 			LOCTEXT("LightBuildCancelToolTip", "Cancels the lighting build in progress."),
-			FSimpleDelegate::CreateLambda([World = World]() { 
-				World->GetSubsystem<UGPULightmassSubsystem>()->Stop(); 
-				World->GetSubsystem<UGPULightmassSubsystem>()->OnLightBuildEnded().Broadcast();
+			FSimpleDelegate::CreateLambda([WorldPtr = World]() {
+				WorldPtr->GetSubsystem<UGPULightmassSubsystem>()->Stop();
+				WorldPtr->GetSubsystem<UGPULightmassSubsystem>()->OnLightBuildEnded().Broadcast();
 				})));
 
 		LightBuildNotification = FSlateNotificationManager::Get().AddNotification(Info);

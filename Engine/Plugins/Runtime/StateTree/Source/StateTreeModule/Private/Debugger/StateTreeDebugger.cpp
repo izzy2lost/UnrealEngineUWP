@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Debugger/StateTreeDebugger.h"
 #include "Debugger/IStateTreeTraceProvider.h"
@@ -78,10 +78,10 @@ FStateTreeDebugger::FStateTreeDebugger()
 	: StateTreeModule(FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule"))
 	, ScrubState(EventCollections)
 {
-	TracingStateChangedHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([this](const bool bTracesEnabled)
+	TracingStateChangedHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([this](const EStateTreeTraceStatus TraceStatus)
 		{
 			// StateTree traces got enabled in the current process so let's analyse it if not already analysing something.
-			if (bTracesEnabled && !IsAnalysisSessionActive())
+			if (TraceStatus == EStateTreeTraceStatus::TracesStarted && !IsAnalysisSessionActive())
 			{
 				RequestAnalysisOfLatestTrace();
 			}
@@ -309,7 +309,6 @@ bool FStateTreeDebugger::StartSessionAnalysis(const FTraceDescriptor& TraceDescr
 		return false;
 	}
 
-	RecordingDuration = 0;
 	AnalysisDuration = 0;
 	LastTraceReadTime = 0;
 
@@ -854,19 +853,54 @@ bool FStateTreeDebugger::ProcessEvent(const FStateTreeInstanceDebugId InstanceId
 	check(ExistingCollection);
 	TArray<FStateTreeTraceEventVariantType>& Events = ExistingCollection->Events;
 
-	// Add new frame span if none added yet or new frame
-	if (ExistingCollection->FrameSpans.IsEmpty() || ExistingCollection->FrameSpans.Last().Frame.Index < Frame.Index)
-	{
-		double RecordingWorldTime = 0;
-		Visit([&RecordingWorldTime](auto& TypedEvent)
-			{
-				RecordingWorldTime = TypedEvent.RecordingWorldTime;
-			}, Event);
+	TraceServices::FFrame FrameToAddInSpans = Frame;
+	bool bShouldAddFrameToSpans = false;
 
+	double RecordingWorldTime = 0;
+	Visit([&RecordingWorldTime](auto& TypedEvent)
+		{
+			RecordingWorldTime = TypedEvent.RecordingWorldTime;
+		}, Event);
+
+	// Add new frame span if none added yet
+	if (ExistingCollection->FrameSpans.IsEmpty())
+	{
+		bShouldAddFrameToSpans = true;
+	}
+	else
+	{
+		const UE::StateTreeDebugger::FFrameSpan& LastSpan = ExistingCollection->FrameSpans.Last();
+		const TraceServices::FFrame& LastFrame = LastSpan.Frame;
+		const uint64 FrameIndexOffset = ExistingCollection->ContiguousTracesData.IsEmpty()
+			? 0
+			: (ExistingCollection->FrameSpans[ExistingCollection->ContiguousTracesData.Last().LastSpanIndex].Frame.Index + 1);
+
+		// Add new frame span for new larger frame index
+		if (Frame.Index + FrameIndexOffset > LastFrame.Index)
+		{
+			bShouldAddFrameToSpans = true;
+
+			// Apply current offset to the frame index
+			FrameToAddInSpans.Index += FrameIndexOffset;
+		}
+		else if (Frame.Index < LastFrame.Index && Frame.StartTime > LastFrame.StartTime)
+		{
+			// Frame index will restart at 0 if a new session is started,
+			// in that case we offset the frame we store to append to existing data
+			bShouldAddFrameToSpans = true;
+
+			const UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo& TraceInfo =
+				ExistingCollection->ContiguousTracesData.Emplace_GetRef(
+					UE::StateTreeDebugger::FInstanceEventCollection::FContiguousTraceInfo(ExistingCollection->FrameSpans.Num()-1));
+			FrameToAddInSpans.Index += ExistingCollection->FrameSpans[TraceInfo.LastSpanIndex].Frame.Index + 1;
+		}
+	}
+
+	if (bShouldAddFrameToSpans)
+	{
 		// Update global recording duration
 		RecordingDuration = RecordingWorldTime;
-
-		ExistingCollection->FrameSpans.Add(UE::StateTreeDebugger::FFrameSpan(Frame, RecordingWorldTime, Events.Num()));
+		ExistingCollection->FrameSpans.Add(UE::StateTreeDebugger::FFrameSpan(FrameToAddInSpans, RecordingWorldTime, Events.Num()));
 	}
 
 	// Add activate states change info
@@ -912,6 +946,7 @@ void FStateTreeDebugger::ResetEventCollections()
 {
 	EventCollections.Reset();
 	SetScrubStateCollectionIndex(INDEX_NONE);
+	RecordingDuration = 0;
 }
 
 void FStateTreeDebugger::AddEvents(const double StartTime, const double EndTime, const TraceServices::IFrameProvider& FrameProvider, const IStateTreeTraceProvider& StateTreeTraceProvider)
@@ -964,4 +999,4 @@ void FStateTreeDebugger::AddEvents(const double StartTime, const double EndTime,
 
 #undef LOCTEXT_NAMESPACE
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

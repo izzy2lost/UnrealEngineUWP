@@ -73,6 +73,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/NamePermissionList.h"
 #include "AnalyticsEventAttribute.h"
+#include "AssetDefinitionRegistry.h"
 #include "HierarchicalLOD.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldPartition/ActorDescContainer.h"
@@ -241,7 +242,15 @@ namespace FileDialogHelpers
 */
 static bool UseAlternateCheckoutWorkflow()
 {
-	return ISourceControlModule::Get().GetProvider().GetName() == TEXT("Unreal Revision Control");
+	if (ISourceControlModule::Get().GetProvider().GetName() == TEXT("Unreal Revision Control"))
+	{
+		if (const UEditorLoadingSavingSettings* Settings = GetDefault<UEditorLoadingSavingSettings>())
+		{
+			return Settings->GetAutomaticallyCheckoutOnAssetModification();
+		}
+	}
+	
+	return false;
 }
 
 /**
@@ -894,7 +903,7 @@ static bool SaveWorld(UWorld* World,
 					// Explict Reset Loaders of Package here because we want to avoid resetting of all loaders which is the current behavior of UObject::Rename when passing in a UPackage
 					ResetLoaders(Package);
 					// Duplicate failed or not needed. Just do a rename.
-					Package->Rename(*NewPackageName, NULL, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+					Package->Rename(*NewPackageName, NULL, REN_NonTransactional | REN_DontCreateRedirectors);
 					
 					if (bWorldNeedsRename)
 					{
@@ -911,7 +920,7 @@ static bool SaveWorld(UWorld* World,
 							}
 						}
 
-						World->Rename(*NewWorldAssetName, NULL, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+						World->Rename(*NewWorldAssetName, NULL, REN_NonTransactional | REN_DontCreateRedirectors);
 					}
 
 					// We're changing the world path, add a path redirector so that soft object paths get fixed on save
@@ -958,13 +967,15 @@ static bool SaveWorld(UWorld* World,
 			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 			IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 			
-			// Make sure when we exit SaveWorld AssetRegistry is up to date with saved map
-			AssetRegistry.ScanModifiedAssetFiles({ FinalFilename });
+			// Make sure when we exit SaveWorld AssetRegistry is up to date with saved map. Ignore warnings if the map is
+			// stored in /Temp.
+			AssetRegistry.ScanModifiedAssetFiles({ FinalFilename }, UE::AssetRegistry::EScanFlags::IgnoreInvalidPathWarning);
 			
 			if (bPackageNeedsRename || bNewlyCreated || !bNewPackageExists)
 			{
 				// Force rescan to make sure assets are found on map open or world partition initialize`
-				AssetRegistry.ScanPathsSynchronous( ULevel::GetExternalObjectsPaths(NewPackageName) , true);
+				AssetRegistry.ScanSynchronous(ULevel::GetExternalObjectsPaths(NewPackageName), {} /* FilePaths */,
+					UE::AssetRegistry::EScanFlags::IgnoreInvalidPathWarning | UE::AssetRegistry::EScanFlags::ForceRescan);
 			}
 
 			if (RenamedWorldPartition && RenamedWorldPartition->IsStreamingEnabled())
@@ -3316,6 +3327,12 @@ static void PrepareWorldsForExplicitSave(const TArray<UPackage*>& PackagesToPrep
 
 static void PrepareSavePackages(const TArray<UPackage*>& PackagesToSave)
 {
+	// Load existing thumbnails to be able to resave them properly
+	for (UPackage* PackageToSave : PackagesToSave)
+	{
+		EnsureLoadingComplete(PackageToSave);
+	}
+
 	// Don't call ResetLoaders on newly created world packages as this will prevent future loading of external actor packages to work propertly
 	// Linker will fail to resolve SourceLinker of external actor's world package import (see GetPackageLinker test for PKG_InMemoryOnly on TargetPackage's Package Flag)
 	TArray<UPackage*> PackagesToResetLoaders;
@@ -4306,10 +4323,27 @@ FEditorFileUtils::EPromptReturnCode FEditorFileUtils::PromptForCheckoutAndSave(c
 	TArray<UPackage*> PackagesToSave(InPackages);
 
 	// When saving a package which owns other packages, add those to the prompt as well,
-	// if we do not check dirty, we aren't already checked out and we prompt
-	if (!InOutParams.bAlreadyCheckedOut && !InOutParams.bCheckDirty && InOutParams.bPromptToSave)
+	for (UPackage* Package : InPackages)
 	{
-		for (UPackage* Package : InPackages)
+		const bool bShouldAddExternalPackages = [Package, InOutParams]() -> bool
+		{
+			if (const UObject* MainAsset = Package->FindAssetInPackage())
+			{
+				if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(MainAsset->GetClass()))
+				{
+					if(AssetDefinition->ShouldSaveExternalPackages())
+					{
+						// if forced according to the top-level asset definition
+						return true;
+					}
+				}
+			}
+
+			// or if we do not check dirty, we aren't already checked out and we prompt
+			return !InOutParams.bAlreadyCheckedOut && !InOutParams.bCheckDirty && InOutParams.bPromptToSave;
+		}();
+		
+		if (bShouldAddExternalPackages)
 		{
 			for (UPackage* ExternalPackage : Package->GetExternalPackages())
 			{
@@ -4786,60 +4820,13 @@ bool FEditorFileUtils::AutomaticCheckoutOrPromptToRevertPackages(const TArray<UP
 		if (PackagesCheckOutImpossible.Num() > 0 || PackagesCheckOutFailure.Num() > 0)
 		{
 			// No.
-			// Show dialog with assets that weren't checked out.
-
-			const FText DialogTitle = NSLOCTEXT("PackagesDialogModule", "CheckoutPackagesFailedDialogTitle", "Check-out failed");
-			const FText DialogHeading = NSLOCTEXT("PackagesDialogModule", "CheckoutPackagesFailedDialogMessage",
-				"While saving, check-out failed for the following assets. Revert your changes to these assets and sync to the latest snapshot to avoid conflicts with your teammates.\r\n\r\n"
-				"If necessary, you may also proceed by saving locally only, but you will likely run into conflicts later when trying to check in these changes.\r\n\r\n"
-				"Tip: Turn on automatic checkout and automatic undo in your Unreal Revision Control settings to avoid future conflicts with your teammates and conflict warnings."
-			);
-
-			FPackagesDialogModule& CheckoutPackagesDialogModule = FModuleManager::LoadModuleChecked<FPackagesDialogModule>(TEXT("PackagesDialog"));
-			CheckoutPackagesDialogModule.CreatePackagesDialog(
-				DialogTitle,
-				DialogHeading,
-				/*InReadOnly=*/true,
-				/*InAllowSourceControlConnection*/true
-			);
+			// Make the packages writable and proceed to save.
 
 			TArray<UPackage*> PackagesNotCheckedOut;
 			PackagesNotCheckedOut.Append(PackagesCheckOutFailure);
 			PackagesNotCheckedOut.Append(PackagesCheckOutImpossible);
 
-			for (UPackage* Package : PackagesNotCheckedOut)
-			{
-				FSourceControlStatePtr State = SourceControlProvider.GetState(Package, EStateCacheUsage::Use);
-				if (!State->IsCurrent())
-				{
-					CheckoutPackagesDialogModule.AddPackageItem(Package, ECheckBoxState::Unchecked, true, TEXT("SavePackages.SCC_DlgNotCurrent"), State->GetDisplayTooltip().ToString());
-				}
-				else if (State->IsCheckedOutOther())
-				{
-					CheckoutPackagesDialogModule.AddPackageItem(Package, ECheckBoxState::Unchecked, true, TEXT("SavePackages.SCC_DlgCheckedOutOther"), State->GetDisplayTooltip().ToString());
-				}
-				else
-				{
-					CheckoutPackagesDialogModule.AddPackageItem(Package, ECheckBoxState::Unchecked, true, TEXT("SavePackages.SCC_DlgNoIcon"), State->GetDisplayTooltip().ToString());
-				}
-			}
-
-			// The Revert button will allow the user to undo changes to those assets.
-			CheckoutPackagesDialogModule.AddButton(DRT_Revert, DBS_Primary, NSLOCTEXT("PackagesDialogModule", "Dlg_RevertButton", "Revert My Changes"), NSLOCTEXT("PackagesDialogModule", "Dlg_RevertButtonTooltip", "Revert changes to files that could not be checked out (recommended)."));
-
-			// The Save button will allow the user to proceed with saving those assets anyway, thereby risking conflicts.
-			CheckoutPackagesDialogModule.AddButton(DRT_Save, DBS_Normal, NSLOCTEXT("PackagesDialogModule", "Dlg_SaveButton", "Save Locally Only"), NSLOCTEXT("PackagesDialogModule", "Dlg_SaveButtonTooltip", "Save changes to files that could not be checked out anyway. You will likely be unable to check-in these changes."));
-
-			EDialogReturnType UserResponse = CheckoutPackagesDialogModule.ShowPackagesDialog();
-			if (UserResponse == DRT_Revert)
-			{
-				PackagesToRevert = PackagesNotCheckedOut;
-			}
-			if (UserResponse == DRT_Save)
-			{
-				// Make the packages writable and proceed to save.
-				MakePackagesWritable(PackagesNotCheckedOut, &PackagesWritableSuccess, &PackagesWritableFailure);
-			}
+			MakePackagesWritable(PackagesNotCheckedOut, &PackagesWritableSuccess, &PackagesWritableFailure);
 		}
 		else
 		{
@@ -4975,11 +4962,17 @@ void FEditorFileUtils::LoadDefaultMapAtStartup()
 
 void FEditorFileUtils::FindAllPackageFiles(TArray<FString>& OutPackages)
 {
-	FString SourceControlProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
-	if (ISourceControlModule::Get().UsesCustomProjectDir())
+	// Check for custom projects
 	{
-		FPackageName::FindPackagesInDirectory(OutPackages, SourceControlProjectDir);
-		return;
+		TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+		if (!CustomProjects.IsEmpty())
+		{
+			for (const FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+			{
+				FPackageName::FindPackagesInDirectory(OutPackages, ProjectInfo.ProjectDirectory);
+			}
+			return;
+		}
 	}
 	
 #if UE_BUILD_SHIPPING
@@ -5005,6 +4998,7 @@ void FEditorFileUtils::FindAllPackageFiles(TArray<FString>& OutPackages)
 void FEditorFileUtils::FindAllSubmittablePackageFiles(TMap<FString, FSourceControlStatePtr>& OutPackages, const bool bIncludeMaps)
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+	const bool bCustomProjects = !ISourceControlModule::Get().GetCustomProjects().IsEmpty();
 
 	TArray<FString> Packages;
 	FEditorFileUtils::FindAllPackageFiles(Packages);
@@ -5027,7 +5021,7 @@ void FEditorFileUtils::FindAllSubmittablePackageFiles(TMap<FString, FSourceContr
 		FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(FPaths::ConvertRelativePathToFull(Filename), EStateCacheUsage::Use);
 
 		// Only include non-map packages that are currently checked out or packages not under source control
-		if (ISourceControlModule::Get().UsesCustomProjectDir())
+		if (bCustomProjects)
 		{
 			if (SourceControlState.IsValid() &&
 				(SourceControlState->CanCheckIn() || (!SourceControlState->IsSourceControlled() && SourceControlState->CanAdd())) &&
@@ -5054,17 +5048,30 @@ void FEditorFileUtils::FindAllSubmittableProjectFiles(TMap<FString, FSourceContr
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 
-	if (ISourceControlModule::Get().UsesCustomProjectDir())
+	TArray<FSourceControlProjectInfo> CustomProjects = ISourceControlModule::Get().GetCustomProjects();
+	if (CustomProjects.IsEmpty())
 	{
-		const FString SCCProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
+		// Handle just the project file
+		FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()), EStateCacheUsage::Use);
 
-		// Handle non-package files in the project directory
-		TArray<FSourceControlStateRef> SourceControlStates = SourceControlProvider.GetCachedStateByPredicate(
-			[SCCProjectDir](const FSourceControlStateRef& SourceControlState)
-			{
-				return FPaths::IsUnderDirectory(SourceControlState->GetFilename(), SCCProjectDir);
-			}
-		);
+		if (SourceControlState.IsValid() && SourceControlState->IsCurrent() &&
+			(SourceControlState->CanCheckIn() || (!SourceControlState->IsSourceControlled() && SourceControlState->CanAdd())))
+		{
+			OutProjectFiles.Add(FPaths::GetProjectFilePath(), MoveTemp(SourceControlState));
+		}
+	}
+	else
+	{
+		TArray<FSourceControlStateRef> SourceControlStates;
+		for (const FSourceControlProjectInfo& ProjectInfo : CustomProjects)
+		{
+			// Handle non-package files in the project directory
+			SourceControlStates.Append(SourceControlProvider.GetCachedStateByPredicate(
+				[&ProjectInfo](const FSourceControlStateRef& SourceControlState)
+				{
+					return FPaths::IsUnderDirectory(SourceControlState->GetFilename(), ProjectInfo.ProjectDirectory);
+				}));
+		}
 
 		OutProjectFiles.Reserve(SourceControlStates.Num());
 		for (FSourceControlStateRef& SourceControlState : SourceControlStates)
@@ -5079,17 +5086,6 @@ void FEditorFileUtils::FindAllSubmittableProjectFiles(TMap<FString, FSourceContr
 					OutProjectFiles.Add(Filename, MoveTemp(SourceControlState));
 				}
 			}
-		}
-	}
-	else
-	{
-		// Handle just the project file
-		FSourceControlStatePtr SourceControlState = SourceControlProvider.GetState(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()), EStateCacheUsage::Use);
-
-		if (SourceControlState.IsValid() && SourceControlState->IsCurrent() &&
-			(SourceControlState->CanCheckIn() || (!SourceControlState->IsSourceControlled() && SourceControlState->CanAdd())))
-		{
-			OutProjectFiles.Add(FPaths::GetProjectFilePath(), MoveTemp(SourceControlState));
 		}
 	}
 }

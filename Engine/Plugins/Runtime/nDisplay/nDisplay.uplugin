@@ -145,6 +145,15 @@
 			]
 		},
 		{
+			"Name": "DisplayClusterDetails",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Linux"
+			]
+		},
+		{
 			"Name": "DisplayClusterStageMonitoring",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
@@ -248,6 +257,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ColorGrading",
+			"Enabled": true
+		},
+		{
 			"Name": "Composure",
 			"Enabled": true
 		},
@@ -277,10 +290,6 @@
 		},
 		{
 			"Name": "RemoteControlInterception",
-			"Enabled": true
-		},
-		{
-			"Name": "VirtualProductionUtilities",
 			"Enabled": true
 		},
 		{

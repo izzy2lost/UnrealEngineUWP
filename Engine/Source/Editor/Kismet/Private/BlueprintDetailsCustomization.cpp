@@ -35,7 +35,7 @@
 #include "Engine/MemberReference.h"
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "EngineLogs.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Application/MenuStack.h"
@@ -75,6 +75,7 @@
 #include "K2Node_MathExpression.h"
 #include "K2Node_Tunnel.h"
 #include "K2Node_Variable.h"
+#include "K2Node_VariableGet.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/ChildActorComponentEditorUtils.h"
 #include "Kismet2/ComponentEditorUtils.h"
@@ -111,6 +112,7 @@
 #include "Serialization/Archive.h"
 #include "SlateOptMacros.h"
 #include "SlotBase.h"
+#include "SSearchableComboBox.h"
 #include "SSocketChooser.h"
 #include "Styling/AppStyle.h"
 #include "Styling/ISlateStyle.h"
@@ -179,6 +181,8 @@ namespace BlueprintDocumentationDetailDefs
 	static const float DetailsTitleMaxWidth = 300.f;
 	/** magic number retrieved from SGraphNodeComment::GetWrapAt() */
 	static const float DetailsTitleWrapPadding = 32.0f;
+	/** label of the option to reset the drop-down value function name */
+	static const FString EmptyDropDownOptionName = TEXT("None");
 };
 
 void FBlueprintDetails::AddEventsCategory(IDetailLayoutBuilder& DetailBuilder, FName PropertyName, UClass* PropertyClass)
@@ -650,8 +654,9 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 		FFormatNamedArguments ConfigTooltipArgs;
 		if (UClass* OwnerClass = VariableProperty->GetOwnerClass())
 		{
-			ConfigTooltipArgs.Add(TEXT("ConfigName"), FText::FromName(OwnerClass->ClassConfigName));
-			ConfigTooltipArgs.Add(TEXT("ConfigSection"), FText::FromString(OwnerClass->GetPathName()));
+			const UClass* RealClass = OwnerClass->GetAuthoritativeClass();
+			ConfigTooltipArgs.Add(TEXT("ConfigName"), FText::FromName(RealClass->ClassConfigName));
+			ConfigTooltipArgs.Add(TEXT("ConfigSection"), FText::FromString(RealClass->GetPathName()));
 		}
 		LocalizedTooltip = FText::Format(LOCTEXT("VariableExposeToConfig_Tooltip", "Should this variable read its default value from a config file if it is present?\r\n\r\nThis is used for customizing variable default values and behavior between different projects and configurations.\r\n\r\nConfig file [{ConfigName}]\r\nConfig section [{ConfigSection}]"), ConfigTooltipArgs);
 	}
@@ -1274,6 +1279,53 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 				.ToolTipText(this, &FBlueprintVarActionDetails::GetDeprecationMessageText)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
+
+		CollectDropDownOptions();
+
+		TSharedPtr<SToolTip> GetOptionsTooltip = IDocumentation::Get()->CreateToolTip(
+			LOCTEXT(
+				"VariableGetOptions_Tooltip",
+				"The name of the function which will populate a list of options the user can select from for the value of this variable."
+			),
+			nullptr, DocLink, TEXT("GetOptions")
+		);
+
+		TSharedPtr<SToolTip> GetOptionsInputTooltip = IDocumentation::Get()->CreateToolTip(
+			LOCTEXT(
+				"VariableGetOptions_InputTooltip",
+				"List of functions that return an array of names or strings.\n"
+				"You can also enter the name of a global static function, in the form of 'ClassName.FunctionName'."
+			),
+			nullptr, DocLink, TEXT("GetOptions")
+		);
+
+		Category.AddCustomRow(LOCTEXT("VariableGetOptions", "Drop-down Options"), true)
+		.Visibility(TAttribute<EVisibility>(this, &FBlueprintVarActionDetails::GetDropDownOptionsVisibility))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.ToolTip(GetOptionsTooltip)
+			.Text(LOCTEXT("VariableGetOptions", "Drop-down Options"))
+			.Font(DetailFontInfo)
+		]
+		.ValueContent()
+		[
+			SNew(SSearchableComboBox)
+			.ToolTip(GetOptionsInputTooltip)
+			.OptionsSource(&DropDownFunctionOptions)
+			.OnGenerateWidget(this, &FBlueprintVarActionDetails::GenerateDropDownOptionWidget)
+			.OnSelectionChanged(this, &FBlueprintVarActionDetails::OnDropDownOptionSelectionChanged)
+			.Content()
+			[
+				SNew(SEditableTextBox)
+				.ToolTip(GetOptionsInputTooltip)
+				.SelectAllTextWhenFocused(true)
+				.RevertTextOnEscape(true)
+				.Font(DetailFontInfo)
+				.Text(this, &FBlueprintVarActionDetails::GetDropDownOptionDisplayText)
+				.OnTextCommitted(this, &FBlueprintVarActionDetails::OnDropDownOptionTextChanged)
+			]
+		];
 
 		TSharedPtr<SToolTip> PropertyFlagsTooltip = IDocumentation::Get()->CreateToolTip(LOCTEXT("DefinedPropertyFlags_Tooltip", "List of defined flags for this property"), NULL, DocLink, TEXT("PropertyFlags"));
 
@@ -2986,6 +3038,169 @@ void FBlueprintVarActionDetails::OnDeprecatedChanged(ECheckBoxState InNewState)
 	}
 }
 
+EVisibility FBlueprintVarActionDetails::GetDropDownOptionsVisibility() const
+{
+	if (FProperty* VariableProperty = CachedVariableProperty.Get())
+	{
+		const bool bMatchingType = VariableProperty->IsA(FNameProperty::StaticClass())
+			|| VariableProperty->IsA(FStrProperty::StaticClass());
+
+		if (bMatchingType && IsABlueprintVariable(VariableProperty) && IsAUserVariable(VariableProperty))
+		{
+			return EVisibility::Visible;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
+void FBlueprintVarActionDetails::OnDropDownOptionSelectionChanged(TSharedPtr<FString> InString,
+	ESelectInfo::Type)
+{
+	SetDropDownOptionsFunctionName(*InString);
+}
+
+void FBlueprintVarActionDetails::OnDropDownOptionTextChanged(const FText& Text, ETextCommit::Type)
+{
+	SetDropDownOptionsFunctionName(Text.ToString());
+}
+
+TSharedRef<SWidget> FBlueprintVarActionDetails::GenerateDropDownOptionWidget(TSharedPtr<FString> InItem) const
+{
+	return SNew(STextBlock)
+		.Text(FText::FromString(*InItem.Get()))
+		.Font(IDetailLayoutBuilder::GetDetailFont());
+}
+
+void FBlueprintVarActionDetails::CollectDropDownOptions()
+{
+	DropDownFunctionOptions.Empty();
+
+	const FProperty* VariableProperty = CachedVariableProperty.Get();
+	if (!VariableProperty)
+	{
+		return;
+	}
+
+	for (TFieldIterator<UFunction> It(VariableProperty->GetOwner<UClass>(), EFieldIteratorFlags::IncludeSuper); It; ++It)
+	{
+		const UFunction* Func = *It;
+
+		// Is the method valid and not latent?
+		if (Func && !Func->HasMetaData(FBlueprintMetadata::MD_Latent))
+		{
+			bool bSignatureValid = false;
+			for (TFieldIterator<FProperty> PropertyId(Func); PropertyId; ++PropertyId)
+			{
+				FProperty* Property = *PropertyId;
+				if (!(Property->PropertyFlags & CPF_Parm))
+				{
+					continue;
+				}
+
+				// If we've already had a valid signature, and found one more param, then it's not valid anymore
+				if (bSignatureValid)
+				{
+					bSignatureValid = false;
+					break;
+				}
+
+				// If there is an input parameter, then it's not matching
+				if (!(Property->PropertyFlags & (CPF_ReturnParm | CPF_OutParm)))
+				{
+					break;
+				}
+
+				// Only accept array outputs
+				const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
+				if (!ArrayProperty)
+				{
+					break;
+				}
+
+				// Only accept matching signatures
+				if (!ArrayProperty->Inner->SameType(VariableProperty))
+				{
+					break;
+				}
+
+				// It is the first valid function parameter!
+				bSignatureValid = true;
+			}
+
+			if (bSignatureValid)
+			{
+				DropDownFunctionOptions.Add(MakeShared<FString>(Func->GetName()));
+			}
+		}
+	}
+
+	// Sort functions by name
+	DropDownFunctionOptions.Sort([](const TSharedPtr<FString>& A, const TSharedPtr<FString>& B)
+	{
+		return A->Compare(*B) < 0;
+	});
+
+	DropDownFunctionOptions.Insert(MakeShared<FString>(BlueprintDocumentationDetailDefs::EmptyDropDownOptionName), 0);
+}
+
+FText FBlueprintVarActionDetails::GetDropDownOptionDisplayText() const
+{
+	return FText::FromString(GetDropDownOptionsFunctionName());
+}
+
+FString FBlueprintVarActionDetails::GetDropDownOptionsFunctionName() const
+{
+	const UBlueprint* PropertyBlueprint = GetPropertyOwnerBlueprint();
+	if (!PropertyBlueprint)
+	{
+		return { };
+	}
+
+	FString Value;
+	FBlueprintEditorUtils::GetBlueprintVariableMetaData(
+		PropertyBlueprint,
+		CachedVariableName,
+		GetLocalVariableScope(CachedVariableProperty.Get()),
+		FBlueprintMetadata::MD_GetOptions,
+		Value
+	);
+
+	return Value;
+}
+
+void FBlueprintVarActionDetails::SetDropDownOptionsFunctionName(const FString& InFunctionName)
+{
+	UBlueprint* PropertyBlueprint = GetPropertyOwnerBlueprint();
+	if (!PropertyBlueprint)
+	{
+		return;
+	}
+
+	if (!GetDropDownOptionsFunctionName().Equals(InFunctionName))
+	{
+		if (InFunctionName.IsEmpty() || InFunctionName == BlueprintDocumentationDetailDefs::EmptyDropDownOptionName)
+		{
+			FBlueprintEditorUtils::RemoveBlueprintVariableMetaData(
+				PropertyBlueprint,
+				CachedVariableName,
+				GetLocalVariableScope(CachedVariableProperty.Get()),
+				FBlueprintMetadata::MD_GetOptions
+			);
+		}
+		else
+		{
+			FBlueprintEditorUtils::SetBlueprintVariableMetaData(
+				PropertyBlueprint,
+				CachedVariableName,
+				GetLocalVariableScope(CachedVariableProperty.Get()),
+				FBlueprintMetadata::MD_GetOptions,
+				*InFunctionName
+			);
+		}
+	}
+}
+
 FText FBlueprintVarActionDetails::GetDeprecationMessageText() const
 {
 	FName VarName = CachedVariableName;
@@ -3585,6 +3800,22 @@ void FBlueprintGraphArgumentLayout::GenerateChildContent( IDetailChildrenBuilder
 					.OnCheckStateChanged(this, &FBlueprintGraphArgumentLayout::OnRefCheckStateChanged)
 					.IsEnabled(!ShouldPassByRefBeReadOnly())
 				];
+
+			ChildrenBuilder.AddCustomRow(LOCTEXT("FunctionArgDetailsConst", "Const"))
+				.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("FunctionArgDetailsConst", "Const"))
+					.ToolTipText(LOCTEXT("FunctionArgDetailsConstTooltip", "When passing by reference a parameter can be specified as const (not writable)"))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+			.ValueContent()
+				[
+					SNew(SCheckBox)
+					.IsChecked(this, &FBlueprintGraphArgumentLayout::IsConstChecked)
+					.OnCheckStateChanged(this, &FBlueprintGraphArgumentLayout::OnConstCheckStateChanged)
+					.IsEnabled(this, &FBlueprintGraphArgumentLayout::CanChangeConst)
+				];
 		}
 	}
 		
@@ -3735,14 +3966,49 @@ ECheckBoxState FBlueprintGraphArgumentLayout::IsRefChecked() const
 	return (PinType.bIsReference || PinType.IsArray())  ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
+ECheckBoxState FBlueprintGraphArgumentLayout::IsConstChecked() const
+{
+	return OnGetPinInfo().bIsConst ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
 void FBlueprintGraphArgumentLayout::OnRefCheckStateChanged(ECheckBoxState InState)
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangeByRef", "Change Pass By Reference"));
 
+	const bool bIsReference = (InState == ECheckBoxState::Checked);
 	FEdGraphPinType PinType = OnGetPinInfo();
-	PinType.bIsReference = (InState == ECheckBoxState::Checked) ? true : false;
-	
+	PinType.bIsReference = bIsReference;
+	if(!bIsReference)
+	{
+		// constness is not meaningful for non reference types,
+		// reset constness when refness is toggled off:
+		PinType.bIsConst = ShouldBeForceConst();
+	}
+
 	PinInfoChanged(PinType);
+}
+
+void FBlueprintGraphArgumentLayout::OnConstCheckStateChanged(ECheckBoxState InState)
+{
+	FEdGraphPinType PinType = OnGetPinInfo();
+
+	PinType.bIsConst = ShouldBeForceConst() || (InState == ECheckBoxState::Checked);
+
+	PinInfoChanged(PinType);
+}
+
+bool FBlueprintGraphArgumentLayout::ShouldBeForceConst() const
+{
+	// Const-ness is not meaningful unless we're passing by reference, including all arrays 
+	// which are implicitly passed by reference. If we have a reference pin type (implicit or
+	// otherwise) we want to honor ShouldUseConstRefParams:
+	FEdGraphPinType PinType = OnGetPinInfo();
+	return (PinType.bIsReference || PinType.IsArray()) && TargetNode && TargetNode->ShouldUseConstRefParams();
+}
+
+bool FBlueprintGraphArgumentLayout::CanChangeConst() const
+{
+	return !ShouldBeForceConst() && IsRefChecked() == ECheckBoxState::Checked;
 }
 
 void FBlueprintGraphArgumentLayout::PinInfoChanged(const FEdGraphPinType& PinType)
@@ -5378,7 +5644,7 @@ bool FBaseBlueprintGraphActionDetails::OnPinRenamed(UK2Node_EditablePinBase* Tar
 {
 	// Before changing the name, verify the name
 	FText ErrorMessage;
-	if(!OnVerifyPinRename(TargetNode, OldName, NewName, ErrorMessage))
+	if (!OnVerifyPinRename(TargetNode, OldName, NewName, ErrorMessage))
 	{
 		return false;
 	}
@@ -5397,7 +5663,8 @@ bool FBaseBlueprintGraphActionDetails::OnPinRenamed(UK2Node_EditablePinBase* Tar
 			TerminalNodes.Add(EntryNode);
 		}
 
-		bool bRequiresFunctionSignatureUpdate = false;
+		bool bHasFunctionEntryNode = false;
+		bool bHasFunctionResultNode = false;
 		for (UK2Node_EditablePinBase* TerminalNode : TerminalNodes)
 		{
 			TerminalNode->Modify();
@@ -5405,7 +5672,8 @@ bool FBaseBlueprintGraphActionDetails::OnPinRenamed(UK2Node_EditablePinBase* Tar
 
 			// Since function terminator node pins map to generated function properties, we need to
 			// regenerate the referenced function so that dependent pins can be reconstructed properly.
-			bRequiresFunctionSignatureUpdate |= TerminalNode->IsA<UK2Node_FunctionTerminator>();
+			bHasFunctionEntryNode |= TerminalNode->IsA<UK2Node_FunctionEntry>();
+			bHasFunctionResultNode |= TerminalNode->IsA<UK2Node_FunctionResult>();
 		}
 
 		UBlueprint* TargetBlueprint = GetBlueprintObj();
@@ -5446,8 +5714,27 @@ bool FBaseBlueprintGraphActionDetails::OnPinRenamed(UK2Node_EditablePinBase* Tar
 			}
 		}
 
-		// If necessary, regenerate the skeleton class to update function properties.
-		if (bRequiresFunctionSignatureUpdate)
+		// A function signature change requires recompilation to update the underlying property chain.
+		// However, if we changed the function inputs at all, then we need to update any getter nodes that referenced the old name.
+		if (bHasFunctionEntryNode)
+		{
+			check(Graph);
+
+			TArray<UK2Node_VariableGet*> GetterNodes;
+			Graph->GetNodesOfClass<UK2Node_VariableGet>(GetterNodes);
+
+			for (UK2Node_VariableGet* GetterNode : GetterNodes)
+			{
+				check(GetterNode);
+				if (GetterNode->ReferencesVariable(OldName, nullptr))
+				{
+					GetterNode->HandleVariableRenamed(TargetBlueprint, TargetBlueprint->GeneratedClass, Graph, OldName, NewFName);
+				}
+			}
+
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(TargetBlueprint);
+		}
+		else if (bHasFunctionResultNode)
 		{
 			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(TargetBlueprint);
 		}
@@ -6651,9 +6938,9 @@ float FBlueprintGlobalOptionsDetails::NamespacePropertyValueCustomization_MinDes
 
 UBlueprint* FBlueprintGlobalOptionsDetails::GetBlueprintObj() const
 {
-	if(BlueprintObjOverride)
+	if(UBlueprint* BP = BlueprintObjOverride.Get())
 	{
-		return BlueprintObjOverride;
+		return BP;
 	}
 	
 	if(BlueprintEditorPtr.IsValid())

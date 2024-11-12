@@ -208,6 +208,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AccessibleWidgetData = nullptr;
 
 	bShouldBroadcastState = true;
+	bWidgetStateInitialized = false;
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -708,7 +709,7 @@ void UWidget::SetUserFocus(APlayerController* PlayerController)
 	if ( PlayerController == nullptr || !PlayerController->IsLocalPlayerController() || PlayerController->Player == nullptr )
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FMessageLog("PIE").Error(LOCTEXT("NoPlayerControllerToFocus", "The PlayerController is not a valid local player so it can't focus the widget."));
+		FMessageLog("PIE").Error()->AddToken(FTextToken::Create(LOCTEXT("NoPlayerControllerToFocus", "The PlayerController is not a valid local player so it can't focus on ")))->AddToken(FUObjectToken::Create(this));
 #endif
 		return;
 	}
@@ -763,6 +764,7 @@ void UWidget::ForceLayoutPrepass()
 	TSharedPtr<SWidget> SafeWidget = GetCachedWidget();
 	if (SafeWidget.IsValid())
 	{
+		SafeWidget->MarkPrepassAsDirty();
 		SafeWidget->SlatePrepass(SafeWidget->GetTickSpaceGeometry().Scale);
 	}
 }
@@ -953,20 +955,27 @@ TSharedRef<SWidget> UWidget::TakeWidget()
 {
 	LLM_SCOPE_BYTAG(UI_UMG);
 
-	return TakeWidget_Private( []( UUserWidget* Widget, TSharedRef<SWidget> Content ) -> TSharedPtr<SObjectWidget> {
-		       return SNew( SObjectWidget, Widget )[ Content ];
-		   } );
+#if WIDGET_INCLUDE_RELFECTION_METADATA
+	UObject* SourceAsset = GetSourceAssetOrClass();
+	UClass* WidgetClass = GetClass();
+	if(SourceAsset && WidgetClass)
+	{
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(SourceAsset->GetPackage(), ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(WidgetClass, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET(SourceAsset, WidgetClass);
+
+		return TakeWidget_Private([](UUserWidget* Widget, TSharedRef<SWidget> Content) -> TSharedPtr<SObjectWidget> {
+			return SNew(SObjectWidget, Widget)[Content];
+			});
+	}
+#endif
+	return TakeWidget_Private([](UUserWidget* Widget, TSharedRef<SWidget> Content) -> TSharedPtr<SObjectWidget> {
+		return SNew(SObjectWidget, Widget)[Content];
+		});
 }
 
 TSharedRef<SWidget> UWidget::TakeWidget_Private(ConstructMethodType ConstructMethod)
 {
-#if WIDGET_INCLUDE_RELFECTION_METADATA
-	UObject* SourceAsset = GetSourceAssetOrClass();
-	UClass* WidgetClass = GetClass();
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(SourceAsset->GetPackage(), ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(WidgetClass, ELLMTagSet::AssetClasses);
-	UE_TRACE_METADATA_SCOPE_ASSET(SourceAsset, WidgetClass);
-#endif
 	bool bNewlyCreated = false;
 	TSharedPtr<SWidget> PublicWidget;
 
@@ -1034,6 +1043,8 @@ TSharedRef<SWidget> UWidget::TakeWidget_Private(ConstructMethodType ConstructMet
 #endif
 
 #if WIDGET_INCLUDE_RELFECTION_METADATA
+		UObject* SourceAsset = GetSourceAssetOrClass();
+		UClass* WidgetClass = GetClass();
 		// We only need to do this once, when the slate widget is created.
 		PublicWidget->AddMetadata<FReflectionMetaData>(MakeShared<FReflectionMetaData>(GetFName(), WidgetClass, this, SourceAsset));
 #endif
@@ -1339,13 +1350,6 @@ void UWidget::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	// This is a failsafe to make sure all the accessibility data is copied over in case
 	// some rare instance isn't handled by SynchronizeProperties. It might not be necessary.
 	SynchronizeAccessibleData();
-}
-
-void UWidget::ReleaseSlateResources(bool bReleaseChildren)
-{
-	UVisual::ReleaseSlateResources(bReleaseChildren);
-
-	MyWidgetStateBitfield.Reset();
 }
 
 #if WITH_EDITOR
@@ -1803,14 +1807,15 @@ bool UWidget::AddBinding(FDelegateProperty* DelegateProperty, UObject* SourceObj
 
 FDelegateHandle UWidget::RegisterPostStateListener(const FOnWidgetStateBroadcast::FDelegate& ListenerDelegate, bool bBroadcastCurrentState)
 {
-	if (!MyWidgetStateBitfield.IsValid())
+	if (!bWidgetStateInitialized)
 	{
-		MyWidgetStateBitfield = MakeShared<FWidgetStateBitfield>(UWidgetStateSettings::Get()->GetInitialRegistrationBitfield(this));
+		MyWidgetStateBitfield = UWidgetStateSettings::Get()->GetInitialRegistrationBitfield(this);
+		bWidgetStateInitialized = true;
 	}
 
 	if (bBroadcastCurrentState)
 	{
-		ListenerDelegate.ExecuteIfBound(this, *MyWidgetStateBitfield);
+		ListenerDelegate.ExecuteIfBound(this, MyWidgetStateBitfield);
 	}
 
 	return PostWidgetStateChanged.Add(ListenerDelegate);
@@ -1819,11 +1824,6 @@ FDelegateHandle UWidget::RegisterPostStateListener(const FOnWidgetStateBroadcast
 void UWidget::UnregisterPostStateListener(const FDelegateHandle& ListenerDelegate)
 {
 	PostWidgetStateChanged.Remove(ListenerDelegate);
-
-	if (!PostWidgetStateChanged.IsBound())
-	{
-		MyWidgetStateBitfield.Reset();
-	}
 }
 
 void UWidget::OnBindingChanged(const FName& Property)
@@ -1833,20 +1833,15 @@ void UWidget::OnBindingChanged(const FName& Property)
 
 void UWidget::BroadcastBinaryPostStateChange(const FWidgetStateBitfield& StateChange, bool bInValue)
 {
-	if (bShouldBroadcastState && MyWidgetStateBitfield.IsValid())
+	if (bShouldBroadcastState && bWidgetStateInitialized)
 	{
-		MyWidgetStateBitfield->SetBinaryState(StateChange, bInValue);
-		PostWidgetStateChanged.Broadcast(this, *MyWidgetStateBitfield);
+		MyWidgetStateBitfield.SetBinaryState(StateChange, bInValue);
+		PostWidgetStateChanged.Broadcast(this, MyWidgetStateBitfield);
 	}
 }
 
 void UWidget::BroadcastEnumPostStateChange(const FWidgetStateBitfield& StateChange)
 {
-	if (bShouldBroadcastState && MyWidgetStateBitfield.IsValid())
-	{
-		MyWidgetStateBitfield->SetEnumState(StateChange);
-		PostWidgetStateChanged.Broadcast(this, *MyWidgetStateBitfield);
-	}
 }
 
 namespace UE::UMG::Private

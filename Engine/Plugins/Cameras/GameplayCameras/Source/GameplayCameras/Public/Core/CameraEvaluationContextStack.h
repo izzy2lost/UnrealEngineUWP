@@ -3,25 +3,18 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "GameplayCameras.h"
 #include "UObject/WeakObjectPtr.h"
 
 class UCameraAsset;
 class UCameraDirector;
-class UCameraEvaluationContext;
-class UCameraSystemEvaluator;
 
-/** Information about a running camera evaluation context. */
-struct FCameraEvaluationContextInfo
+namespace UE::Cameras
 {
-	/** The evaluation context. */
-	UCameraEvaluationContext* EvaluationContext = nullptr;
 
-	/** The instantiated camera director running in this context. */
-	UCameraDirector* CameraDirector = nullptr;
-
-	/** Returns whether this structure has a valid context and director. */
-	bool IsValid() const { return EvaluationContext && CameraDirector; }
-};
+class FCameraDirectorEvaluator;
+class FCameraEvaluationContext;
+class FCameraSystemEvaluator;
 
 /**
  * A simple stack of evaluation contexts. The top one is the active one.
@@ -30,39 +23,66 @@ struct FCameraEvaluationContextStack
 {
 public:
 
+	~FCameraEvaluationContextStack();
+
+public:
+
 	/** Gets the active (top) context. */
-	FCameraEvaluationContextInfo GetActiveContext() const;
+	TSharedPtr<FCameraEvaluationContext> GetActiveContext() const;
 
 	/** Returns whether the given context exists in the stack. */
-	bool HasContext(UCameraEvaluationContext* Context) const;
+	bool HasContext(TSharedRef<FCameraEvaluationContext> Context) const;
 
 	/** Push a new context on the stack and instantiate its director. */
-	void PushContext(UCameraEvaluationContext* Context);
+	void PushContext(TSharedRef<FCameraEvaluationContext> Context);
+
+	/**
+	 * Tries to add a context inside the active context. This will query the active context's
+	 * director in order to find an "available spot" for the child context.
+	 * 
+	 * @return Whether the child context was acccepted.
+	 */
+	bool AddChildContext(TSharedRef<FCameraEvaluationContext> Context);
 
 	/** Remove an existing context from the stack. */
-	bool RemoveContext(UCameraEvaluationContext* Context);
+	bool RemoveContext(TSharedRef<FCameraEvaluationContext> Context);
 
 	/** Pop the active (top) context. */
 	void PopContext();
 
+	/** The number of contexts on the stack. */
+	int32 NumContexts() const { return Entries.Num(); }
+
+	/** Gets all the contexts in the stack, from bottom to top. */
+	void GetAllContexts(TArray<TSharedPtr<FCameraEvaluationContext>>& OutContexts) const;
+
+	/** Empties the stack of all contexts. */
+	void Reset();
+
 public:
 
 	// Internal API
-	void Initialize(UCameraSystemEvaluator* InEvaluator);
+	void Initialize(FCameraSystemEvaluator& InEvaluator);
 	void AddReferencedObjects(FReferenceCollector& Collector);
+	void OnEndCameraSystemUpdate();
 
 private:
 
 	struct FContextEntry
 	{
-		TWeakObjectPtr<UCameraEvaluationContext> WeakContext;
-		TObjectPtr<UCameraDirector> CameraDirector;
+		TWeakPtr<FCameraEvaluationContext> WeakContext;
 	};
 
 	/** The entries in the stack. */
 	TArray<FContextEntry> Entries;
 
 	/** The owner evaluator. */
-	TObjectPtr<UCameraSystemEvaluator> Evaluator;
+	FCameraSystemEvaluator* Evaluator = nullptr;
+
+#if UE_GAMEPLAY_CAMERAS_DEBUG
+	friend class FCameraDirectorTreeDebugBlock;
+#endif  // UE_GAMEPLAY_CAMERAS_DEBUG
 };
+
+}  // namespace UE::Cameras
 

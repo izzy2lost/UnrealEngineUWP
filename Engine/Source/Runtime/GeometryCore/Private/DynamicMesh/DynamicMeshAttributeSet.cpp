@@ -8,6 +8,7 @@
 #include "Tasks/Task.h"
 #include "Serialization/NameAsStringProxyArchive.h"
 
+#include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
 
 using namespace UE::Geometry;
 
@@ -1054,6 +1055,38 @@ void FDynamicMeshAttributeSet::OnMergeEdges(const FDynamicMesh3::FMergeEdgesInfo
 	}
 }
 
+void FDynamicMeshAttributeSet::OnMergeVertices(const DynamicMeshInfo::FMergeVerticesInfo& MergeInfo)
+{
+	FDynamicMeshAttributeSetBase::OnMergeVertices(MergeInfo);
+
+	for (FDynamicMeshUVOverlay& UVLayer : UVLayers)
+	{
+		UVLayer.OnMergeVertices(MergeInfo);
+	}
+	for (FDynamicMeshNormalOverlay& NormalLayer : NormalLayers)
+	{
+		NormalLayer.OnMergeVertices(MergeInfo);
+	}
+	if (ColorLayer)
+	{
+		ColorLayer->OnMergeVertices(MergeInfo);
+	}
+	if (MaterialIDAttrib)
+	{
+		MaterialIDAttrib->OnMergeVertices(MergeInfo);
+	}
+
+	for (FDynamicMeshPolygroupAttribute& PolygroupLayer : PolygroupLayers)
+	{
+		PolygroupLayer.OnMergeVertices(MergeInfo);
+	}
+
+	for (FDynamicMeshWeightAttribute& WeightLayer : WeightLayers)
+	{
+		WeightLayer.OnMergeVertices(MergeInfo);
+	}
+}
+
 void FDynamicMeshAttributeSet::OnSplitVertex(const DynamicMeshInfo::FVertexSplitInfo& SplitInfo, const TArrayView<const int>& TrianglesToUpdate)
 {
 	FDynamicMeshAttributeSetBase::OnSplitVertex(SplitInfo, TrianglesToUpdate);
@@ -1273,6 +1306,7 @@ void FDynamicMeshAttributeSet::Serialize(FArchive& Ar, const FCompactMaps* Compa
 	using namespace FDynamicMeshAttributeSet_Local;
 	
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteReleaseBranchCustomObjectVersion::GUID);
 
 	const bool bUseLegacySerialization = Ar.IsLoading() && Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::DynamicMeshCompactedSerialization;
 
@@ -1387,8 +1421,23 @@ void FDynamicMeshAttributeSet::Serialize(FArchive& Ar, const FCompactMaps* Compa
 		}
 	}
 
-
-	// TODO: Serialize bone attributes
+	const bool bSerializeBones = !Ar.IsLoading() || Ar.CustomVer(FFortniteReleaseBranchCustomObjectVersion::GUID) >= FFortniteReleaseBranchCustomObjectVersion::DynamicMeshAttributesSerializeBones;
+	if (bSerializeBones)
+	{
+		bool bHasBones = BoneNameAttrib && BoneParentIndexAttrib && BonePoseAttrib && BoneColorAttrib;
+		Ar << bHasBones;
+		if (bHasBones)
+		{
+			if (Ar.IsLoading())
+			{
+				EnableBones(0);
+			}
+			FNameAsStringProxyArchive ProxyArchive(Ar); BoneNameAttrib->Serialize(ProxyArchive);
+			BoneParentIndexAttrib->Serialize(Ar);
+			BonePoseAttrib->Serialize(Ar);
+			BoneColorAttrib->Serialize(Ar);
+		}
+	}
 
 	//Ar << GenericAttributes; // TODO
 }
@@ -1479,6 +1528,32 @@ namespace BoneAttributeHelpers
 			Attribute.Reset();
 		}
 	}
+
+	template <typename ParentType, typename AttribValueType>
+ 	void SparseCopyBoneAttribute(
+ 		FDynamicMesh3* Mesh,
+		TUniquePtr<TDynamicBoneAttributeBase<ParentType, AttribValueType>>& Attribute,
+		const TDynamicBoneAttributeBase<ParentType, AttribValueType>* Copy,
+		TConstArrayView<int32> InIndicesToCopy
+		)
+	{
+		if (Copy && !InIndicesToCopy.IsEmpty())
+		{
+			TDynamicBoneAttributeBase<ParentType, AttribValueType>* Ptr = new TDynamicBoneAttributeBase<ParentType, AttribValueType>(Mesh);
+			Attribute = TUniquePtr<TDynamicBoneAttributeBase<ParentType, AttribValueType>>(Ptr);
+
+			Attribute->Resize(InIndicesToCopy.Num());
+			int32 TargetIndex = 0;
+			for (int32 SourceIndex: InIndicesToCopy)
+			{
+				Attribute->SetValue(TargetIndex++, Copy->GetValue(SourceIndex));
+			}
+		}
+		else
+		{
+			Attribute.Reset();
+		}
+	}
 }
 
 int32 FDynamicMeshAttributeSet::GetNumBones() const
@@ -1492,6 +1567,54 @@ void FDynamicMeshAttributeSet::CopyBoneAttributes(const FDynamicMeshAttributeSet
 	BoneAttributeHelpers::CopyBoneAttribute(ParentMesh, BoneParentIndexAttrib, Copy.GetBoneParentIndices());
 	BoneAttributeHelpers::CopyBoneAttribute(ParentMesh, BonePoseAttrib, Copy.GetBonePoses());
 	BoneAttributeHelpers::CopyBoneAttribute(ParentMesh, BoneColorAttrib, Copy.GetBoneColors());
+}
+
+void FDynamicMeshAttributeSet::CopyBoneAttributesWithRemapping(const FDynamicMeshAttributeSet& Copy, const TMap<FName, FName>& BoneHierarchy)
+{
+	// Create an index array to mark which attribute values to copy. If there's no bone name attribute, we copy nothing.
+	TArray<int32> IndicesToCopy;
+	TMap<FName, int32> NameToIndexMap;
+	
+	if (Copy.GetBoneNames())
+	{
+		const TArray<FName>& SourceBoneNames = Copy.GetBoneNames()->GetAttribValues();
+		IndicesToCopy.Reserve(BoneHierarchy.Num());
+		int32 SourceIndex = 0;
+		for (FName BoneName: SourceBoneNames)
+		{
+			if (!BoneName.IsNone() && BoneHierarchy.Contains(BoneName))
+			{
+				NameToIndexMap.Add(BoneName, IndicesToCopy.Num());
+				IndicesToCopy.Add(SourceIndex);
+			}
+			SourceIndex++;
+		}
+	}
+
+	BoneAttributeHelpers::SparseCopyBoneAttribute(ParentMesh, BoneNameAttrib, Copy.GetBoneNames(), IndicesToCopy);
+	BoneAttributeHelpers::SparseCopyBoneAttribute(ParentMesh, BoneParentIndexAttrib, Copy.GetBoneParentIndices(), IndicesToCopy);
+	BoneAttributeHelpers::SparseCopyBoneAttribute(ParentMesh, BonePoseAttrib, Copy.GetBonePoses(), IndicesToCopy);
+	BoneAttributeHelpers::SparseCopyBoneAttribute(ParentMesh, BoneColorAttrib, Copy.GetBoneColors(), IndicesToCopy);
+
+	// If we copied parent indices, and we have bone names on the source, remap the parent bone index list to match.
+	// If the parent name is NAME_None or does not exist in our bone list, then we map that index to INDEX_NONE.
+	if (Copy.GetBoneNames() && BoneParentIndexAttrib)
+	{
+		const TArray<FName>& SourceBoneNames = Copy.GetBoneNames()->GetAttribValues();
+		for (int32& ParentIndex: BoneParentIndexAttrib->AttribValues)
+		{
+			const FName ParentName = SourceBoneNames.IsValidIndex(ParentIndex) ? SourceBoneNames[ParentIndex] : NAME_None;
+
+			if (const int32* BoneIndex = NameToIndexMap.Find(ParentName))
+			{
+				ParentIndex = *BoneIndex;
+			}
+			else
+			{
+				ParentIndex = INDEX_NONE;
+			}
+		}
+	}
 }
 
 void FDynamicMeshAttributeSet::EnableMatchingBoneAttributes(const FDynamicMeshAttributeSet& ToMatch, bool bClearExisting, bool bDiscardExtraAttributes)

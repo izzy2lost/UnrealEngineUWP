@@ -9,10 +9,15 @@ namespace PCGMetadataElementCommon
 {
 	void DuplicateTaggedData(const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata)
 	{
+		DuplicateTaggedData(nullptr, InTaggedData, OutTaggedData, OutMetadata);
+	}
+
+	void DuplicateTaggedData(FPCGContext* InContext, const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata)
+	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataElementCommon::DuplicateTaggedData);
 		if (InTaggedData.Data)
 		{
-			UPCGData* NewData = InTaggedData.Data->DuplicateData();
+			UPCGData* NewData = InTaggedData.Data->DuplicateData(InContext);
 			check(NewData);
 			OutTaggedData.Data = NewData;
 			OutMetadata = NewData->MutableMetadata();

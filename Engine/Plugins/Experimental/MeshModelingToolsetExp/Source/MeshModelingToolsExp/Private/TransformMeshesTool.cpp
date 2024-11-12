@@ -277,6 +277,7 @@ void UTransformMeshesTool::SetActiveGizmos_Single(bool bLocalRotations)
 
 	FTransformMeshesTarget Transformable;
 	Transformable.TransformProxy = NewObject<UTransformProxy>(this);
+	Transformable.TransformProxy->bSetPivotMode = TransformProps ? TransformProps->bSetPivotMode : false;
 	Transformable.TransformProxy->bRotatePerObject = bLocalRotations;
 
 	TArray<const UPrimitiveComponent*> ComponentsToIgnoreInAlignment;
@@ -333,6 +334,7 @@ void UTransformMeshesTool::SetActiveGizmos_PerObject()
 
 				FTransformMeshesTarget Transformable;
 				Transformable.TransformProxy = NewObject<UTransformProxy>(this);
+				Transformable.TransformProxy->bSetPivotMode = TransformProps ? TransformProps->bSetPivotMode : false;
 				UE::Local::AddInstancedComponentInstance(InstancedComponent, k, Transformable.TransformProxy, true);
 
 				ETransformGizmoSubElements GizmoElements = ETransformGizmoSubElements::FullTranslateRotateScale;
@@ -351,6 +353,7 @@ void UTransformMeshesTool::SetActiveGizmos_PerObject()
 
 			FTransformMeshesTarget Transformable;
 			Transformable.TransformProxy = NewObject<UTransformProxy>(this);
+			Transformable.TransformProxy->bSetPivotMode = TransformProps ? TransformProps->bSetPivotMode : false;
 			Transformable.TransformProxy->AddComponent(Component);
 
 			ETransformGizmoSubElements GizmoElements = ETransformGizmoSubElements::FullTranslateRotateScale;

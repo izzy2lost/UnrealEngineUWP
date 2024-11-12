@@ -54,23 +54,19 @@ TSharedRef<FAvaOutlinerItemDragDropOp> FAvaOutlinerItemDragDropOp::New(const TAr
 	return DragDropOp;
 }
 
-void FAvaOutlinerItemDragDropOp::GetDragDropOpActors(TSharedPtr<FDragDropOperation> InDragDropOp, TArray<TWeakObjectPtr<AActor>>& OutActors)
+void FAvaOutlinerItemDragDropOp::GetDragDropOpActors(TArray<TWeakObjectPtr<AActor>>& OutActors) const
 {
-	if (InDragDropOp.IsValid() && InDragDropOp->IsOfType<FAvaOutlinerItemDragDropOp>())
+	for (const FAvaOutlinerItemPtr& Item : Items)
 	{
-		const TSharedPtr<FAvaOutlinerItemDragDropOp> OutlinerItemDragDropOp = StaticCastSharedPtr<FAvaOutlinerItemDragDropOp>(InDragDropOp);
-		for (const FAvaOutlinerItemPtr& Item : OutlinerItemDragDropOp->Items)
+		if (!Item.IsValid())
 		{
-			if (!Item.IsValid())
+			continue;
+		}
+		if (FAvaOutlinerActor* const ActorItem = Item->CastTo<FAvaOutlinerActor>())
+		{
+			if (AActor* const UnderlyingActor = ActorItem->GetActor())
 			{
-				continue;
-			}
-			if (FAvaOutlinerActor* const ActorItem = Item->CastTo<FAvaOutlinerActor>())
-			{
-				if (AActor* const UnderlyingActor = ActorItem->GetActor())
-				{
-					OutActors.Add(UnderlyingActor);
-				}
+				OutActors.Add(UnderlyingActor);
 			}
 		}
 	}

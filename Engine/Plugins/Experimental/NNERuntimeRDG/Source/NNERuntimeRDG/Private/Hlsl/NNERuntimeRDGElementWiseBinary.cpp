@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGElementWiseBinary.h"
-#include "NNERuntimeRDGHelperElementWiseBinary.h"
+
 #include "NNEHlslShadersElementWiseBinaryCS.h"
+#include "NNEHlslShadersLog.h"
+#include "NNERuntimeRDGHelperElementWiseBinary.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -47,7 +49,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				int32 RHSValue = RHSIndex >= 0 ? RHSInput.GetData()[RHSIndex] : 1;
 				if (LHSValue != RHSValue && LHSValue != 1 && RHSValue != 1)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Error while computing shape for element wise binary op, input shapes are not compatible"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ElementWiseBinary: Could not compute the shape, input shapes are not compatible"));
 					return -1;
 				}
 				int32 OutputValue = FMath::Max(LHSValue, RHSValue);
@@ -62,7 +64,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (OutputTensors[0]->GetDataType() != ENNETensorDataType::Float && !OutputTensors[0]->HasPreparedData())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Error: binary element wise op output tensor could not be made constant nor it was of float type. Only floats are supported at the moment on the HLSL compute path."));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("ElementWiseBinary: Output tensor could not be made constant nor it was of float type. Only floats are supported at the moment."));
 				return -1;
 			}
 			
@@ -114,7 +116,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TShaderMapRef<TElementWiseBinaryCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 		
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.ElementWise.Binary");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorElementWiseBinary, "NNE.Operator.Hlsl.ElementWise.Binary");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorElementWiseBinary);
 
 			FComputeShaderUtils::AddPass(

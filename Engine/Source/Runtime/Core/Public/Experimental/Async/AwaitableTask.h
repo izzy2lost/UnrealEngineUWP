@@ -3,6 +3,7 @@
 #pragma once
 #include "Async/Fundamental/Task.h"
 #include "Async/Fundamental/Scheduler.h"
+#include "Async/ManualResetEvent.h"
 #include "Misc/Launder.h"
 
 template<typename>
@@ -211,15 +212,15 @@ namespace AwaitableTask_Detail
 
 	private:
 		CallableType Callable;
-		LowLevelTasks::FTask Task;	
+		LowLevelTasks::FTask Task;
 		ReturnType ReturnValue;
 		std::atomic_int ReferenceCounter{ 2 }; //starts at 2 because at construction the AwaitableTask will hold a Reference and the LowLevelTasks::FTask does as well.
-		std::atomic_bool Completed { false };
+		UE::FManualResetEvent Completed;
 
 		inline void Execute()
 		{
 			ReturnValue = Invoke(Callable);
-			Completed.store(true, std::memory_order_release);
+			Completed.Notify();
 		}
 
 		TPromise(const TPromise&) = delete;
@@ -252,7 +253,7 @@ namespace AwaitableTask_Detail
 
 		inline bool IsCompleted() const
 		{
-			return Completed.load(std::memory_order_acquire);
+			return Completed.IsNotified();
 		}
 
 		inline void Finish()
@@ -273,7 +274,7 @@ namespace AwaitableTask_Detail
 			}
 			else
 			{
-				LowLevelTasks::BusyWaitUntil([this](){ return IsCompleted(); });
+				Completed.Wait();
 				return ReturnValue;
 			}
 		}
@@ -292,12 +293,12 @@ namespace AwaitableTask_Detail
 		CallableType Callable;
 		LowLevelTasks::FTask Task;
 		std::atomic_int ReferenceCounter{ 2 }; //starts at 2 because at construction the AwaitableTask will hold a Reference and the LowLevelTasks::FTask does as well.
-		std::atomic_bool Completed { false };
+		UE::FManualResetEvent Completed;
 
 		inline void Execute()
 		{
 			Invoke(Callable);
-			Completed.store(true, std::memory_order_release);
+			Completed.Notify();
 		}
 
 		TPromise(const TPromise&) = delete;
@@ -330,7 +331,7 @@ namespace AwaitableTask_Detail
 
 		inline bool IsCompleted() const
 		{
-			return Completed.load(std::memory_order_acquire);
+			return Completed.IsNotified();
 		}
 
 		inline void Finish()
@@ -355,7 +356,7 @@ namespace AwaitableTask_Detail
 			}
 			else
 			{
-				LowLevelTasks::BusyWaitUntil([this](){ return IsCompleted(); });
+				Completed.Wait();
 			}
 		}
 	};
@@ -495,13 +496,6 @@ public:
 	bool IsCompleted() const
 	{
 		return GetVtable()->IsCompleted();
-	}
-
-	//Busy wait until the Task is launched from another Thread, this can be useful if we want to build chained tasks.
-	//So that we can wait until the first task launched it, otherwise if we would Await the task directly it might be executed immediately and before the first task completes.
-	void BusyWaitUntilLaunched() const
-	{
-		LowLevelTasks::BusyWaitUntil([this]() { return IsLaunched(); });
 	}
 
 	//Await the Task Completion and get the result, this will assert if this is a Dummy Handle.

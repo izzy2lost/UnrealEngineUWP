@@ -1458,7 +1458,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetTriCoordSkinnedData(FVectorVMExternal
 	const FSkeletalMeshLODRenderData* LODData = Accessor.LODData;
 	const int32 TriMax = (Accessor.IndexBuffer->Num() / 3) - 1;
 
-	FVector3f Pos0;		FVector3f Pos1;		FVector3f Pos2;
+	FVector3f Pos0 = FVector3f::ZeroVector;		FVector3f Pos1 = FVector3f::ZeroVector;		FVector3f Pos2 = FVector3f::ZeroVector;
 	FVector3f Prev0;	FVector3f Prev1;	FVector3f Prev2;
 	int32 Idx0; int32 Idx1; int32 Idx2;
 	FVector3f Pos;

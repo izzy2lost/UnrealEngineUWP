@@ -262,7 +262,6 @@ void TMeshTangents<RealType>::ComputeTriangleTangents(const FDynamicMeshUVOverla
 		Mesh->GetTriVertices(TriangleID, TriVertices[0], TriVertices[1], TriVertices[2]);
 		FVector2f TriUVs[3];
 		UVOverlay->GetTriElements(TriangleID, TriUVs[0], TriUVs[1], TriUVs[2]);
-		FVector3f TriNormals[3];
 		FVector3d TriNormal = Mesh->GetTriNormal(TriangleID);
 
 		FVector3d Tangent, Bitangent;
@@ -674,8 +673,16 @@ namespace UE
 namespace Geometry
 {
 
-template class GEOMETRYCORE_API TMeshTangents<float>;
-template class GEOMETRYCORE_API TMeshTangents<double>;
+#if PLATFORM_COMPILER_CLANG
+#define UE_EXTERN_TEMPLATE_API GEOMETRYCORE_API
+#else
+#define UE_EXTERN_TEMPLATE_API
+#endif
+
+template class UE_EXTERN_TEMPLATE_API TMeshTangents<float>;
+template class UE_EXTERN_TEMPLATE_API TMeshTangents<double>;
+
+#undef UE_EXTERN_TEMPLATE_API
 
 } // end namespace UE::Geometry
 } // end namespace UE

@@ -33,10 +33,10 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName("AttributeCast"); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeCastElement", "NodeTitle", "Attribute Cast"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
-	virtual bool HasDynamicPins() const override { return true; }
 	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
 	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
 #endif
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual FName AdditionalTaskName() const override;
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo) override;
@@ -51,4 +51,5 @@ class FPCGAttributeCastElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

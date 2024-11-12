@@ -9,9 +9,15 @@ enum TagType {
    None,
    SourceFile,
    MSDNCode,
+   Link,
+   JobId,
+   LogId,
+   ArtifactId,
    AgentId,
+   PoolId,
    LeaseId,
-   Link
+   ProjectId,
+   StreamId,
 }
 
 export type LogItem = {
@@ -152,12 +158,51 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
             tagType = TagType.AgentId;
          }
 
+         if (type === "PoolId") {
+            tagType = TagType.PoolId;
+         }
+
+         if (type === "StreamId") {
+            tagType = TagType.StreamId;
+         }
+
+         if (type === "ProjectId") {
+            tagType = TagType.ProjectId;
+         }
+
+         if (type === "JobId") {
+            tagType = TagType.JobId;
+         }
+
+         if (type === "LogId") {
+            tagType = TagType.LogId;
+         }
+
+         if (type === "ArtifactId") {
+            tagType = TagType.ArtifactId;
+         }
+
       }
 
       if (tagType === TagType.None || !record) {
 
          return <Highlight key={key} search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight>;
 
+      } else if (tagType === TagType.JobId) {
+         const url = `/job/${text}`
+         return <a key={key} href={url} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+      } else if (tagType === TagType.LogId) {
+         const url = `/log/${text}`
+         return <a key={key} href={url} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+      } else if (tagType === TagType.ProjectId) {
+         const url = `/project/${text}`
+         return <a key={key} href={url} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+      } else if (tagType === TagType.StreamId) {
+         const url = `/stream/${text}`
+         return <a key={key} href={url} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+      } else if (tagType === TagType.PoolId) {
+         const url = `/pools?poolid=${text}`
+         return <a key={key} href={url} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
       } else if (tagType === TagType.LeaseId) {
 
          const navigateToLeaseLog = async (toplevel: boolean) => {
@@ -219,8 +264,21 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
 
          return <a key={key} href={`ugs://timelapse?depotPath=${(depotPath)}`} onClick={(ev) => ev.stopPropagation()}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
       } else if (tagType === TagType.Link) {
-         
+
          return <a key={key} rel="noreferrer" href={record.target} onClick={(ev) => ev.stopPropagation()}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
+      } else if (tagType === TagType.ArtifactId) {
+         const artifactType = properties.ArtifactType ?? "_none";
+
+         const search = new URLSearchParams(window.location.search);
+         search.set("artifactContext", encodeURIComponent(artifactType as string));
+         if (properties.ArtifactId) {
+            if (properties.ArtifactId["$text"]) {
+               search.set("artifactId", encodeURIComponent(properties.ArtifactId["$text"] as string));
+            }
+         }
+
+         const url = `${window.location.pathname}?` + search.toString();
+         return <a key={key} href="/" onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); navigate(url, { replace: true }) }}><Highlight search={search ? search : ""} className={logStyle.logLine}>{text}</Highlight></a>;
       }
 
       return <span key={key} />;
@@ -246,7 +304,7 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
          return t;
       }
 
-      const rtags = [];
+      const rtags: any = [];
 
       const key = `log_line_${lineNumber}_${idx}_${index}_fragment`;
 

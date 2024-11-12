@@ -2,10 +2,14 @@
 #pragma once
 
 #include "OpenCVHelper.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 #include "CameraCalibrationUtilsPrivate.generated.h"
 
 class UCalibrationPointComponent;
+
+struct FObjectPoints;
+struct FImagePoints;
 
 /** Structure representing an aruco marker, including ID, Name, and corner coordinates in 2D image space and 3D world space */
 USTRUCT()
@@ -45,11 +49,14 @@ namespace UE::CameraCalibration::Private
 	void FindActorsWithCalibrationComponents(TArray<AActor*>& ActorsWithCalibrationComponents);
 
 	/** Find an aruco marker calibration point in one of the input calibration components that matches the input dictionary and marker ID */
-	bool FindArucoCalibrationPoint(const TArray<UCalibrationPointComponent*>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint);
+	bool FindArucoCalibrationPoint(const TArray<TWeakObjectPtr<UCalibrationPointComponent>>& CalibrationComponents, EArucoDictionary ArucoDictionary, const FArucoMarker& ArucoMarker, FArucoCalibrationPoint& OutArucoCalibrationPoint);
 
 	/** Set every pixel in the input texture to the clear color */
 	void ClearTexture(UTexture2D* Texture, FColor ClearColor = FColor::Transparent);
 
 	/** Set the texture data to the input array of pixels */
 	void SetTextureData(UTexture2D* Texture, const TArray<FColor>& PixelData);
+
+	/** Group the input points together if they share the same camera pose, and output the unique camera poses */
+	void GroupPointsByCameraPose(TArray<FObjectPoints>& InOutObjectPoints, TArray<FImagePoints>& InOutImagePoints, TArray<FTransform>& InOutCameraPoses);
 }

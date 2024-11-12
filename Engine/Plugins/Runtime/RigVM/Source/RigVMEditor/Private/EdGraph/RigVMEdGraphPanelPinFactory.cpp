@@ -11,6 +11,7 @@
 #include "Widgets/SRigVMGraphPinUserDataNameSpace.h"
 #include "Widgets/SRigVMGraphPinUserDataPath.h"
 #include "Widgets/SRigVMGraphPinQuat.h"
+#include "Widgets/SRigVMGraphPinCategory.h"
 #include "KismetPins/SGraphPinExec.h"
 #include "SGraphPinComboBox.h"
 #include "RigVMHost.h"
@@ -36,11 +37,14 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin(UEdGraphPin* InPin
 	// we need to check if this is the right factory for the implementation
 	if(const UEdGraphNode* EdGraphNode = InPin->GetOuter())
 	{
-		if(const URigVMBlueprint* Blueprint = EdGraphNode->GetTypedOuter<URigVMBlueprint>())
+		if(const URigVMEdGraph* EdGraph = EdGraphNode->GetTypedOuter<URigVMEdGraph>())
 		{
-			if(Blueprint->GetPanelPinFactoryName() != GetFactoryName())
+			if(const URigVMBlueprint* Blueprint = EdGraph->GetBlueprintDefaultObject())
 			{
-				return nullptr;
+				if(Blueprint->GetPanelPinFactoryName() != GetFactoryName())
+				{
+					return nullptr;
+				}
 			}
 		}
 	}
@@ -119,6 +123,13 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin_Internal(UEdGraphP
 				{
 					return SNew(SRigVMGraphPinEnumPicker, InPin)
 						.ModelPin(ModelPin);
+				}
+			}
+			else if(const URigVMNode* ModelNode = RigNode->GetModelNode())
+			{
+				if(ModelNode->GetPinCategories().Contains(InPin->GetName()))
+				{
+					return SNew(SRigVMGraphPinCategory, InPin);
 				}
 			}
 

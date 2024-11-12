@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DerivedDataSharedStringFwd.h"
+#include "Containers/StringFwd.h"
 #include "Features/IModularFeature.h"
 #include "UObject/NameTypes.h"
 

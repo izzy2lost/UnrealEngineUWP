@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "D3D12DirectCommandListManager.h"
 #include "D3D12RHIPrivate.h"
 #include "Windows.h"
 
@@ -137,11 +138,14 @@ FD3D12ManualFence::FD3D12ManualFence(FD3D12Adapter* InParent)
 {
 	for (FD3D12Device* Device : Parent->GetDevices())
 	{
-		FFencePair& Pair = FencePairs.Emplace_GetRef();
-		Pair.Context = &Device->GetDefaultCommandContext();
+		for (FD3D12Queue& Queue : Device->GetQueues())
+		{
+			TRefCountPtr<ID3D12Fence> Fence;
+			VERIFYD3D12RESULT(Parent->GetD3DDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(Fence.GetInitReference())));
+			Fence->SetName(TEXT("Manual Fence"));
 
-		VERIFYD3D12RESULT(Parent->GetD3DDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(Pair.Fence.GetInitReference())));
-		Pair.Fence->SetName(TEXT("Manual Fence"));
+			Fences.Add(&Queue, MoveTemp(Fence));
+		}
 	}
 }
 
@@ -151,10 +155,10 @@ uint64 FD3D12ManualFence::GetCompletedFenceValue(bool bUpdateCachedFenceValue)
 	{
 		uint64 MinFenceValue = TNumericLimits<uint64>::Max();
 
-		for (FFencePair& Pair : FencePairs)
+		for (auto& [Queue, Fence] : Fences)
 		{
 			MinFenceValue = FMath::Min(
-				Pair.Fence->GetCompletedValue(),
+				Fence->GetCompletedValue(),
 				MinFenceValue
 			);
 		}
@@ -165,16 +169,26 @@ uint64 FD3D12ManualFence::GetCompletedFenceValue(bool bUpdateCachedFenceValue)
 	return CompletedFenceValue;
 }
 
-void FD3D12ManualFence::AdvanceFrame()
+void FD3D12ManualFence::AdvanceTOP()
 {
 	check(IsInRenderingThread());
+	NextFenceValueTOP.Increment();
+}
 
-	const uint64 NextValue = NextFenceValue.Increment();
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([this, NextValue](FRHICommandListImmediate&)
+void FD3D12ManualFence::AdvanceBOP()
+{
+	const uint64 NextValue = ++NextFenceValueBOP;
+
+	TArray<FD3D12Payload*> Payloads;
+	Payloads.Reserve(Fences.Num());
+
+	for (auto& [Queue, Fence] : Fences)
 	{
-		for (FFencePair& Pair : FencePairs)
-		{
-			Pair.Context->SignalManualFence(Pair.Fence, NextValue);
-		}
-	});
+		FD3D12Payload* Payload = new FD3D12Payload(*Queue);
+		Payload->ManualFencesToSignal.Emplace(Fence.GetReference(), NextValue);
+
+		Payloads.Add(Payload);
+	}
+
+	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(MoveTemp(Payloads));
 }

@@ -8,54 +8,34 @@
 #include "SlateRHIRenderer.h"
 #include "Rendering/ElementBatcher.h"
 #include "Types/SlateVector2.h"
+#include "RenderGraphUtils.h"
+#include "SlatePostProcessor.h"
 
 DECLARE_GPU_STAT_NAMED(Slate3D, TEXT("Slate 3D"));
 
-FSlate3DRenderer::FSlate3DRenderer( TSharedRef<FSlateFontServices> InSlateFontServices, TSharedRef<FSlateRHIResourceManager> InResourceManager, bool bUseGammaCorrection )
+FSlate3DRenderer::FSlate3DRenderer( TSharedRef<FSlateFontServices> InSlateFontServices, TSharedRef<FSlateRHIResourceManager> InResourceManager, bool bInUseGammaCorrection )
 	: SlateFontServices( InSlateFontServices )
 	, ResourceManager( InResourceManager )
-	, bRenderTargetWasCleared(false)
+	, bGammaCorrection(bInUseGammaCorrection)
 {
-	const int32 InitialBufferSize = 200;
-	RenderTargetPolicy = MakeShareable( new FSlateRHIRenderingPolicy( SlateFontServices, ResourceManager, InitialBufferSize ) );
-	RenderTargetPolicy->SetUseGammaCorrection( bUseGammaCorrection );
+	RenderTargetPolicy = MakeShareable( new FSlateRHIRenderingPolicy( SlateFontServices, ResourceManager ) );
 
 	ElementBatcher = MakeUnique<FSlateElementBatcher>(RenderTargetPolicy.ToSharedRef());
 }
 
 void FSlate3DRenderer::Cleanup()
 {
-	if ( RenderTargetPolicy.IsValid() )
-	{
-		RenderTargetPolicy->ReleaseResources();
-	}
-
-	if (IsInGameThread())
-	{
-		// Enqueue a command to unlock the draw buffer after all windows have been drawn
-		ENQUEUE_RENDER_COMMAND(FSlate3DRenderer_Cleanup)(
-			[this](FRHICommandListImmediate& RHICmdList)
-			{
-				DepthStencil.SafeRelease();
-			}
-		);
-	}
-	else
-	{
-		DepthStencil.SafeRelease();
-	}
-
 	BeginCleanup(this);
 }
 
-void FSlate3DRenderer::SetUseGammaCorrection(bool bUseGammaCorrection)
+void FSlate3DRenderer::SetUseGammaCorrection(bool bInUseGammaCorrection)
 {
-	RenderTargetPolicy->SetUseGammaCorrection(bUseGammaCorrection);
+	bGammaCorrection = bInUseGammaCorrection;
 }
 
-void FSlate3DRenderer::SetApplyColorDeficiencyCorrection(bool bApplyColorCorrection)
+void FSlate3DRenderer::SetApplyColorDeficiencyCorrection(bool bInAllowColorDeficiencyCorrection)
 {
-	RenderTargetPolicy->SetApplyColorDeficiencyCorrection(bApplyColorCorrection);
+	bAllowColorDeficiencyCorrection = bInAllowColorDeficiencyCorrection;
 }
 
 FSlateDrawBuffer& FSlate3DRenderer::AcquireDrawBuffer()
@@ -93,13 +73,11 @@ void FSlate3DRenderer::ReleaseDrawBuffer(FSlateDrawBuffer& InWindowDrawBuffer)
 	ensureMsgf(bFound, TEXT("It release a DrawBuffer that is not a member of the Slate3DRenderer"));
 #endif
 
-	FSlateDrawBuffer* DrawBuffer = &InWindowDrawBuffer;
 	ENQUEUE_RENDER_COMMAND(SlateReleaseDrawBufferCommand)(
-		[DrawBuffer](FRHICommandListImmediate& RHICmdList)
-		{
-			FSlateReleaseDrawBufferCommand::ReleaseDrawBuffer(RHICmdList, DrawBuffer);
-		}
-	);
+		[DrawBuffer = &InWindowDrawBuffer](FRHICommandListImmediate& RHICmdList)
+	{
+		DrawBuffer->Unlock(FRDGBuilder::GetAsyncExecuteTask());
+	});
 }
 
 void FSlate3DRenderer::DrawWindow_GameThread(FSlateDrawBuffer& DrawBuffer)
@@ -134,118 +112,80 @@ void FSlate3DRenderer::DrawWindow_GameThread(FSlateDrawBuffer& DrawBuffer)
 	}
 }
 
-void FSlate3DRenderer::DrawWindowToTarget_RenderThread(FRHICommandListImmediate& InRHICmdList, const FRenderThreadUpdateContext& Context)
+void FSlate3DRenderer::DrawWindowToTarget_RenderThread(FRDGBuilder& GraphBuilder, const FRenderThreadUpdateContext& Context)
 {
-	check(IsInRenderingThread());
 	QUICK_SCOPE_CYCLE_COUNTER(Stat_Slate_WidgetRendererRenderThread);
-	SCOPED_DRAW_EVENT( InRHICmdList, SlateRenderToTarget );
-	SCOPED_GPU_STAT(InRHICmdList, Slate3D);
-
-	checkSlow(Context.RenderTarget);
-
-	//Update cached uniforms to avoid an ensure being thrown due to a null shader map (UE-110263)
-	//Same fix on UE5 stream - CL16165057 
-	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Slate3D, "SlateRenderToTarget");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, Slate3D);
+	check(Context.RenderTarget);
 
 	const TArray<TSharedRef<FSlateWindowElementList>>& WindowsToDraw = Context.WindowDrawBuffer->GetWindowElementLists();
 
-	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
+	FRDGTexture* SlateElementsTexture = RegisterExternalTexture(GraphBuilder, Context.RenderTarget->GetRenderTargetTexture(), TEXT("SlateElementsTexture"));
+	const FIntPoint SlateElementsExtent = SlateElementsTexture->Desc.Extent;
 
-	// Enqueue a command to unlock the draw buffer after all windows have been drawn
-	RenderTargetPolicy->BeginDrawingWindows();
+	FRDGTexture* SlateStencilTexture = nullptr;
+	bool bStencilClippingRequired = false;
 
-	// Set render target and clear.
-	FRHITexture* RTTextureRHI = Context.RenderTarget->GetRenderTargetTexture();
-	InRHICmdList.Transition(FRHITransitionInfo(RTTextureRHI, ERHIAccess::Unknown, ERHIAccess::RTV));
+	TArray<FSlateElementsBuffers, FRDGArrayAllocator> SlateElementsBuffers;
+	SlateElementsBuffers.Reserve(WindowsToDraw.Num());
+
+	for (const TSharedRef<FSlateWindowElementList>& WindowElementList : WindowsToDraw)
+	{
+		FSlateBatchData& BatchData = WindowElementList->GetBatchData();
+
+		SlateElementsBuffers.Emplace(BuildSlateElementsBuffers(GraphBuilder, BatchData));
+
+		bStencilClippingRequired |= BatchData.IsStencilClippingRequired();
+	}
+
+	if (bStencilClippingRequired)
+	{
+		SlateStencilTexture = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(SlateElementsExtent, PF_DepthStencil, FClearValueBinding::DepthZero, GetSlateTransientDepthStencilFlags()),
+			TEXT("SlateStencilTexture"));
+	}
+
+	ERenderTargetLoadAction ElementsLoadAction = Context.bClearTarget ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad;
 	
-	FRHIRenderPassInfo RPInfo(RTTextureRHI, ERenderTargetActions::Load_Store);
-	if (Context.bClearTarget)
+	const auto ConsumeLoadAction = [] (ERenderTargetLoadAction& InOutLoadAction)
 	{
-		RPInfo.ColorRenderTargets[0].Action = ERenderTargetActions::Clear_Store;
+		ERenderTargetLoadAction LoadAction = InOutLoadAction;
+		InOutLoadAction = ERenderTargetLoadAction::ELoad;
+		return LoadAction;
+	};
+
+	for (int32 WindowElementIndex = 0; WindowElementIndex < WindowsToDraw.Num(); ++WindowElementIndex)
+	{
+		const TSharedRef<FSlateWindowElementList>& WindowElementList = WindowsToDraw[WindowElementIndex];
+
+		FSlateBatchData& BatchData = WindowElementList->GetBatchData();
+
+		if (BatchData.GetRenderBatches().IsEmpty())
+		{
+			continue;
+		}
+
+		const FVector ElementsOffset(Context.WindowDrawBuffer->ViewOffset, 0.0f);
+		const FMatrix ElementsMatrix(FTranslationMatrix::Make(ElementsOffset) * CreateSlateProjectionMatrix(SlateElementsExtent.X, SlateElementsExtent.Y));
+
+		FSlateDrawElementsPassInputs DrawElementsInputs =
+		{
+			  .StencilTexture        = SlateStencilTexture
+			, .ElementsTexture       = SlateElementsTexture
+			, .ElementsLoadAction    = ConsumeLoadAction(ElementsLoadAction)
+			, .ElementsBuffers       = SlateElementsBuffers[WindowElementIndex]
+			, .ElementsMatrix        = FMatrix44f(ElementsMatrix)
+			, .ElementsOffset        = FVector2f(ElementsOffset.X, ElementsOffset.Y)
+			, .Time                  = FGameTime::CreateDilated(Context.RealTimeSeconds, Context.DeltaRealTimeSeconds, Context.WorldTimeSeconds, Context.DeltaTimeSeconds)
+			, .bAllowGammaCorrection = bGammaCorrection
+		};
+
+		AddSlateDrawElementsPass(GraphBuilder, *RenderTargetPolicy, DrawElementsInputs, BatchData.GetRenderBatches(), BatchData.GetFirstRenderBatchIndex());
 	}
 
-	for (int32 WindowIndex = 0; WindowIndex < WindowsToDraw.Num(); WindowIndex++)
+	if (ConsumeLoadAction(ElementsLoadAction) == ERenderTargetLoadAction::EClear)
 	{
-		FSlateWindowElementList& WindowElementList = *WindowsToDraw[WindowIndex];
-
-		FSlateBatchData& BatchData = WindowElementList.GetBatchData();
-
-		if (BatchData.GetRenderBatches().Num() > 0)
-		{
-			RenderTargetPolicy->BuildRenderingBuffers(InRHICmdList, BatchData);
-		
-			FVector2D DrawOffset = Context.WindowDrawBuffer->ViewOffset;
-
-			FMatrix ProjectionMatrix = FSlateRHIRenderer::CreateProjectionMatrix(RTTextureRHI->GetSizeX(), RTTextureRHI->GetSizeY());
-			FMatrix ViewOffset = FTranslationMatrix::Make(FVector(DrawOffset, 0.0));
-			ProjectionMatrix = ViewOffset * ProjectionMatrix;
-
-			FSlateBackBuffer BackBufferTarget(Context.RenderTarget->GetRenderTargetTexture(), FIntPoint(RTTextureRHI->GetSizeX(), RTTextureRHI->GetSizeY()));
-
-			FSlateRenderingParams DrawOptions(ProjectionMatrix, FGameTime::CreateDilated(Context.RealTimeSeconds, Context.DeltaRealTimeSeconds, Context.WorldTimeSeconds, Context.DeltaTimeSeconds));
-			// The scene renderer will handle it in this case
-			DrawOptions.ViewOffset = UE::Slate::CastToVector2f(DrawOffset);
-
-			FTexture2DRHIRef ColorTarget = Context.RenderTarget->GetRenderTargetTexture();
-
-			if (BatchData.IsStencilClippingRequired())
-			{
-				if (!DepthStencil.IsValid() || ColorTarget->GetSizeXY() != DepthStencil->GetSizeXY())
-				{
-					DepthStencil.SafeRelease();
-
-					const FRHITextureCreateDesc Desc =
-						FRHITextureCreateDesc::Create2D(TEXT("SlateWindowDepthStencil"))
-						.SetExtent(ColorTarget->GetSizeXY())
-						.SetFormat(PF_DepthStencil)
-						.SetClearValue(FClearValueBinding::DepthZero)
-						.SetFlags(ETextureCreateFlags::DepthStencilTargetable | ETextureCreateFlags::ShaderResource);
-
-					DepthStencil = RHICreateTexture(Desc);
-
-					check(IsValidRef(DepthStencil));
-				}
-			}
-
-			// Ideally we'd have a single render pass for all the windows, but this code reuses a single vertex buffer for each draw, which it updates above in BuildRenderingBuffers(),
-			// and we can't upload data during a render pass. We need to rewrite this to upload all the data to the buffer first and use offsets for each draw.
-			InRHICmdList.BeginRenderPass(RPInfo, TEXT("Slate3D"));
-
-			RenderTargetPolicy->DrawElements(
-				InRHICmdList,
-				BackBufferTarget,
-				ColorTarget,
-				ColorTarget,
-				DepthStencil,
-				BatchData.GetFirstRenderBatchIndex(),
-				BatchData.GetRenderBatches(),
-				DrawOptions
-			);
-
-			// FSlateRHIRenderingPolicy::DrawElements can close the render pass on its own sometimes, so don't do it again.
-			if (InRHICmdList.IsInsideRenderPass())
-			{
-				InRHICmdList.EndRenderPass();
-			}
-
-			// each time we do draw content, we reset the flag
-			bRenderTargetWasCleared = false;
-		}
-		// If we have no render command and it's the first clear, we call Begin End to force the clear of the render target. Otherwise, we end up not updating the buffer when all Widget are invisible.
-		else if(!bRenderTargetWasCleared)
-		{
-			InRHICmdList.BeginRenderPass(RPInfo, TEXT("Slate3D")); 
-			if (InRHICmdList.IsInsideRenderPass())
-			{
-				InRHICmdList.EndRenderPass();
-			}
-			bRenderTargetWasCleared = true;
-		}
+		AddClearRenderTargetPass(GraphBuilder, SlateElementsTexture);
 	}
-
-	FSlateEndDrawingWindowsCommand::EndDrawingWindows(InRHICmdList, Context.WindowDrawBuffer, *RenderTargetPolicy);
-	InRHICmdList.Transition(FRHITransitionInfo(RTTextureRHI, ERHIAccess::RTV, ERHIAccess::SRVMask));
-
-	// Enqueue a command to keep "this" alive.
-	InRHICmdList.EnqueueLambda([Self = SharedThis(this)](FRHICommandListImmediate&){});
 }

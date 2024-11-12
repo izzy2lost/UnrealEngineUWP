@@ -62,7 +62,7 @@ private:
 
 	/** Cached ControlRigs per class */
 	UPROPERTY(transient)
-	TMap<UClass*, TObjectPtr<UControlRig>> ControlRigPerClass;
+	TMap<TObjectPtr<UClass>, TObjectPtr<UControlRig>> ControlRigPerClass;
 
 	// alpha value handler
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
@@ -134,7 +134,7 @@ private:
 
 protected:
 	virtual UClass* GetTargetClass() const override;
-	virtual void UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput) override;
+	virtual void UpdateInput(UControlRig* InControlRig, FPoseContext& InOutput) override;
 	virtual void UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput) override;
 
 	void SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass);

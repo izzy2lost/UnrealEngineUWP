@@ -5,7 +5,10 @@
 =============================================================================*/
 
 #pragma once
+
 #include "RHICommandList.h"
+#include "OpenGLThirdParty.h"
+#include "OpenGLShaderResources.h"
 
 /** Set to 1 to enable the VERIFY_GL macros which call glGetError */
 #define ENABLE_VERIFY_GL (0 & DO_CHECK)
@@ -23,16 +26,13 @@ int32 GetOGLDebugOutputLevel();
 #endif
 
 // Additional check that our GL calls are occurring on the expected thread
-#define ENABLE_VERIFY_GL_THREAD (UE_BUILD_DEBUG)
+#define ENABLE_VERIFY_GL_THREAD (!(UE_BUILD_TEST || UE_BUILD_SHIPPING))
 
 /** Set to 1 to verify that the the engine side uniform buffer layout matches the driver side of the GLSL shader*/
-#define ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION ( 0 & UE_BUILD_DEBUG & (OPENGL_GL3 | OPENGL_GL4))
+#define ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION ( 0 & UE_BUILD_DEBUG & (!PLATFORM_ANDROID))
 
 /** Set to 1 to additinally dump uniform buffer layout at shader link time, this assumes ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION == 1 */
 #define ENABLE_UNIFORM_BUFFER_LAYOUT_DUMP 0
-
-/** Set to 1 to enable shader debugging which e.g. keeps the GLSL source as members of TOpenGLShader*/
-#define DEBUG_GL_SHADERS (UE_BUILD_DEBUG || UE_EDITOR)
 
 /** Set to 1 to enable calls to place event markers into the OpenGL stream
     this is purposefully not considered for OPENGL_PERFORMANCE_DATA_INVALID, 
@@ -52,20 +52,10 @@ GLenum GetOpenGLCubeFace(ECubeFace Face);
 extern bool PlatformOpenGLContextValid();
 
 #if ENABLE_VERIFY_GL_THREAD
-	#if UE_BUILD_TEST
-		#define GLCONTEXT_CLAUSE 
-	#else
-		#define GLCONTEXT_CLAUSE PlatformOpenGLContextValid() &&
-	#endif
-	// check that the current thread has a valid context and matches our RT / RHIT expectations.
-	// Note that the game thread can access the shared context.
-	// use commandline switch -norhithread if this causes issues.
 	#define CHECK_EXPECTED_GL_THREAD() \
-		if(!( \
-			 GLCONTEXT_CLAUSE\
-			(IsInGameThread() || ( (IsInRenderingThread() && !IsRunningRHIInSeparateThread()) || (IsInRHIThread() && IsRunningRHIInSeparateThread()) ))))\
+		if (!PlatformOpenGLContextValid()) \
 		{ \
-			UE_LOG(LogRHI, Fatal, TEXT("Potential use of GL context from incorrect thread. [ValidContext = %d] && [IsInGameThread() = %d, IsInRenderingThread() && !IsRunningRHIInSeparateThread() = %d, IsInRHIThread() && IsRunningRHIInSeparateThread() = %d]"), PlatformOpenGLContextValid(), IsInGameThread(), IsInRenderingThread() && !IsRunningRHIInSeparateThread(), IsInRHIThread() && IsRunningRHIInSeparateThread());\
+			UE_LOG(LogRHI, Fatal, TEXT("Potential use of GL context from incorrect thread. [ValidContext = %d] && [IsInGameThread() = %d, IsInRenderingThread() = %d, IsInRHIThread() = %d, IsRunningRHIInSeparateThread() = %d]"), PlatformOpenGLContextValid(), IsInGameThread(), IsInRenderingThread(), IsInRHIThread(), IsRunningRHIInSeparateThread()); \
 		}
 #else
 	#define CHECK_EXPECTED_GL_THREAD() 
@@ -145,59 +135,3 @@ struct FRHICommandGLCommandString
 
 #define GL_CAPTURE_CALLSTACK 0 // Capture the callstack at the point of enqueuing the command. 
 
-struct FRHICommandGLCommand final : public FRHICommand<FRHICommandGLCommand, FRHICommandGLCommandString>
-{
-#if GL_CAPTURE_CALLSTACK
-	uint64 CallStack[16];
-#endif
-	TUniqueFunction<void()> GLFunction;
-
-	FORCEINLINE_DEBUGGABLE FRHICommandGLCommand(TUniqueFunction<void()> InGLFunction)
-		: GLFunction(MoveTemp(InGLFunction))
-	{
-#if GL_CAPTURE_CALLSTACK
-		FPlatformStackWalk::CaptureStackBackTrace(CallStack, UE_ARRAY_COUNT(CallStack), nullptr);
-#endif
-	}
-
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		GLFunction();
-	}
-};
-
-void RunOnGLRenderContextThread(TUniqueFunction<void(void)> GLFunc, bool bWaitForCompletion = false);
-
-
-#if 0
-// TODO: investigate simplifying GL's explicit RHIT tests to this.
-inline bool ShouldRunGLRenderContextOpOnThisThread(FRHICommandListBase* RHICmdList)
-{
-	return !RHICmdList || RHICmdList->IsBottomOfPipe();
-}
-
-inline bool ShouldRunGLRenderContextOpOnThisThread(FRHICommandListBase& RHICmdList)
-{
-	return ShouldRunGLRenderContextOpOnThisThread(&RHICmdList);
-}
-#else
-
-inline bool ShouldRunGLRenderContextOpOnThisThread(FRHICommandListBase* RHICmdList)
-{
-	if (RHICmdList)
-	{
-		return (RHICmdList->Bypass() || RHICmdList->IsBottomOfPipe() || !IsRunningRHIInSeparateThread() || IsInRHIThread());
-	}
-	else
-	{
-		check(!IsRunningRHIInSeparateThread() || IsInRHIThread());
-		return true;
-	}
-}
-
-inline bool ShouldRunGLRenderContextOpOnThisThread(FRHICommandListBase& RHICmdList)
-{
-	return ShouldRunGLRenderContextOpOnThisThread(&RHICmdList);
-}
-
-#endif

@@ -31,6 +31,7 @@
 #include "Serialization/LargeMemoryWriter.h" 
 #include "SocketSubsystem.h"
 #include "UObject/SavePackage.h"
+#include "ZenCookArtifactReader.h"
 #include "ZenFileSystemManifest.h"
 #include "ZenStoreHttpClient.h"
 
@@ -162,9 +163,11 @@ void FZenStoreWriter::StaticInit()
 FZenStoreWriter::FZenStoreWriter(
 	const FString& InOutputPath, 
 	const FString& InMetadataDirectoryPath, 
-	const ITargetPlatform* InTargetPlatform
+	const ITargetPlatform* InTargetPlatform,
+	TSharedRef<FZenCookArtifactReader> InCookArtifactReader
 )
-	: TargetPlatform(*InTargetPlatform)
+	: CookArtifactReader(InCookArtifactReader)
+	, TargetPlatform(*InTargetPlatform)
 	, TargetPlatformFName(*InTargetPlatform->PlatformName())
 	, OutputPath(InOutputPath)
 	, MetadataDirectoryPath(InMetadataDirectoryPath)
@@ -175,7 +178,15 @@ FZenStoreWriter::FZenStoreWriter(
 {
 	StaticInit();
 
-	ProjectId = FApp::GetZenStoreProjectId();
+	FString DLCName;
+	FParse::Value(FCommandLine::Get(), TEXT("DLCNAME="), DLCName);
+	DLCName.ToLowerInline();
+	ProjectId = FApp::GetZenStoreProjectId(DLCName);
+	FString ParentProjectId;
+	if (!DLCName.IsEmpty())
+	{
+		ParentProjectId = FApp::GetZenStoreProjectId();
+	}
 	
 	if (FParse::Value(FCommandLine::Get(), TEXT("-ZenStorePlatform="), OplogId) == false)
 	{
@@ -202,7 +213,7 @@ FZenStoreWriter::FZenStoreWriter(
 	FString AbsProjectDir = PlatformFile.ConvertToAbsolutePathForExternalAppForRead(*ProjectDir);
 	FString ProjectFilePath = PlatformFile.ConvertToAbsolutePathForExternalAppForRead(*ProjectPath);
 
-	HttpClient->TryCreateProject(ProjectId, OplogId, AbsServerRoot, AbsEngineDir, AbsProjectDir, IsLocalConnection ? ProjectFilePath : FStringView());
+	HttpClient->TryCreateProject(ProjectId, ParentProjectId, OplogId, AbsServerRoot, AbsEngineDir, AbsProjectDir, IsLocalConnection ? ProjectFilePath : FStringView());
 
 	PackageStoreOptimizer->Initialize();
 
@@ -403,6 +414,15 @@ void FZenStoreWriter::WritePackageTrailer(const FPackageTrailerInfo& Info, const
 	checkNoEntry();
 }
 
+void FZenStoreWriter::RegisterDeterminismHelper(UObject* SourceObject,
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (RegisterDeterminismHelperCallback)
+	{
+		RegisterDeterminismHelperCallback(SourceObject, DeterminismHelper);
+	}
+}
+
 void FZenStoreWriter::Initialize(const FCookInfo& Info)
 {
 	CookMode = Info.CookMode;
@@ -536,10 +556,13 @@ void FZenStoreWriter::Initialize(const FCookInfo& Info)
 					FString ServerPath = FString(FileObj["serverpath"].AsString());
 					FString ClientPath = FString(FileObj["clientpath"].AsString());
 
-					FIoChunkId FileChunkId;
-					FileChunkId.Set(FileId.GetView());
+					if (!ServerPath.IsEmpty())
+					{
+						FIoChunkId FileChunkId;
+						FileChunkId.Set(FileId.GetView());
 
-					ZenFileSystemManifest->AddManifestEntry(FileChunkId, MoveTemp(ServerPath), MoveTemp(ClientPath));
+						ZenFileSystemManifest->AddManifestEntry(FileChunkId, MoveTemp(ServerPath), MoveTemp(ClientPath));
+					}
 				}
 
 				UE_LOG(LogZenStoreWriter, Display, TEXT("Fetched '%d' file(s) from oplog '%s/%s'"), ZenFileSystemManifest->NumEntries(), *ProjectId, *OplogId);
@@ -640,69 +663,6 @@ void FZenStoreWriter::EndCook(const FCookInfo& Info)
 
 		TIoStatusOr<uint64> Status = HttpClient->EndBuildPass(Pkg);
 		UE_CLOG(!Status.IsOk(), LogZenStoreWriter, Fatal, TEXT("Failed to append OpLog and end the build pass"));
-
-		FCbWriter ManifestWriter;
-		ManifestWriter.BeginObject();
-		ManifestWriter.BeginObject("zenserver");
-#if UE_WITH_ZEN
-		ManifestWriter.BeginObject("settings");
-		const UE::Zen::FZenServiceInstance& ZenServiceInstance = HttpClient->GetZenServiceInstance();
-		ZenServiceInstance.GetServiceSettings().WriteToCompactBinary(ManifestWriter);
-		ManifestWriter.EndObject();
-#endif
-		ManifestWriter << "projectid" << ProjectId;
-		ManifestWriter << "oplogid" << OplogId;
-		ManifestWriter.EndObject();
-		ManifestWriter.EndObject();
-
-		FString PackageStoreManifestFilePath = FPaths::Combine(MetadataDirectoryPath, TEXT("packagestore.manifest"));
-		TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileWriter(*PackageStoreManifestFilePath));
-		if (Ar)
-		{
-			SaveCompactBinary(*Ar, ManifestWriter.Save());
-		}
-		else
-		{
-			UE_LOG(LogSavePackage, Error, TEXT("Failed saving package store manifest file '%s'"), *PackageStoreManifestFilePath);
-		}
-
-		{
-			// Temporary solution until we can reliably read the oplog from UAT
-			TArray<FString> CookedFiles;
-			TIoStatusOr<FCbObject> OplogStatus = HttpClient->GetOplog().Get();
-			if (OplogStatus.IsOk())
-			{
-				FCbObject Oplog = OplogStatus.ConsumeValueOrDie();
-				for (FCbField& OplogEntry : Oplog["entries"].AsArray())
-				{
-					FCbObject OplogObj = OplogEntry.AsObject();
-					for (FCbField& ChunkEntry : OplogEntry["packagedata"].AsArray())
-					{
-						FCbObject ChunkObj = ChunkEntry.AsObject();
-						if (ChunkObj["filename"])
-						{
-							CookedFiles.Add(FString(ChunkObj["filename"].AsString()));
-						}
-					}
-					for (FCbField& ChunkEntry : OplogEntry["bulkdata"].AsArray())
-					{
-						FCbObject ChunkObj = ChunkEntry.AsObject();
-						if (ChunkObj["filename"])
-						{
-							CookedFiles.Add(FString(ChunkObj["filename"].AsString()));
-						}
-					}
-				}
-				if (!FFileHelper::SaveStringArrayToFile(CookedFiles, *FPaths::Combine(MetadataDirectoryPath, TEXT("cookedfiles.manifest"))))
-				{
-					UE_LOG(LogSavePackage, Error, TEXT("Failed writing UAT file manifest"));
-				}
-			}
-			else
-			{
-				UE_LOG(LogSavePackage, Error, TEXT("Failed reading oplog"));
-			}
-		}
 	}
 
 	UE_LOG(LogZenStoreWriter, Display, TEXT("Output:\t%d Public runtime script objects"), PackageStoreOptimizer->GetTotalScriptObjectCount());
@@ -868,7 +828,8 @@ void FZenStoreWriter::CommitPackageInternal(FZenCommitInfo&& ZenCommitInfo)
 
 		const int32 NumAttachments = CommitInfo.Attachments.Num();
 		TArray<FCbAttachment, TInlineAllocator<2>> CbAttachments;
-		
+		CookInfo.Attachments.Empty(NumAttachments);
+
 		if (NumAttachments)
 		{
 			TArray<const FCommitAttachmentInfo*, TInlineAllocator<2>> SortedAttachments;
@@ -1086,23 +1047,32 @@ TUniquePtr<FAssetRegistryState> FZenStoreWriter::LoadPreviousAssetRegistry()
 	// the returned asset registry to the intersection of the oplog and the previous asset registry;
 	// to report a package as already cooked we have to have the information from both sources.
 	FString PreviousAssetRegistryFile = FPaths::Combine(MetadataDirectoryPath, GetDevelopmentAssetRegistryFilename());
-	FArrayReader SerializedAssetData;
-	if (!IFileManager::Get().FileExists(*PreviousAssetRegistryFile) ||
-		!FFileHelper::LoadFileToArray(SerializedAssetData, *PreviousAssetRegistryFile))
+	TUniquePtr<FArchive> Reader(CookArtifactReader->CreateFileReader(*PreviousAssetRegistryFile));
+
+	if (!Reader)
 	{
 		RemoveCookedPackages();
 		return TUniquePtr<FAssetRegistryState>();
 	}
 
 	TUniquePtr<FAssetRegistryState> PreviousState = MakeUnique<FAssetRegistryState>();
-	PreviousState->Load(SerializedAssetData);
+	PreviousState->Load(*Reader);
 
 	TSet<FName> RemoveSet;
 	const TMap<FName, const FAssetPackageData*>& PreviousStatePackages = PreviousState->GetAssetPackageDataMap(); 
 	for (const TPair<FName, const FAssetPackageData*>& Pair : PreviousStatePackages)
 	{
 		FName PackageName = Pair.Key;
-		if (!PackageNameToIndex.Find(PackageName))
+		if (Pair.Value->DiskSize < 0)
+		{
+			// Keep the FailedSave previous cook packages; some of them (NeverCookPlaceholders) are not expected to exist
+			// in the package store
+			continue;
+		}
+		if (PackageNameToIndex.Find(PackageName))
+		{
+			continue;
+		}
 		{
 			RemoveSet.Add(PackageName);
 		}
@@ -1225,6 +1195,11 @@ void FZenStoreWriter::UpdatePackageModificationStatus(FName PackageName, bool bI
 	bool& bInOutShouldIterativelySkip)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FZenStoreWriter::UpdatePackageModificationStatus);
+
+	if (!bIterativelyUnmodified)
+	{
+		return;
+	}
 
 	IPackageStoreWriter::FMarkUpToDateEventArgs MarkUpToDateEventArgs;
 
@@ -1429,20 +1404,26 @@ void FZenStoreWriter::CreateProjectMetaData(FCbPackage& Pkg, FCbWriter& PackageO
 				else
 				{
 					const FString AbsPath = ZenFileSystemManifest->ServerRootPath() / NewEntry.ServerPath;
-					TArray<uint8> FileBuffer;
-					FFileHelper::LoadFileToArray(FileBuffer, *AbsPath);
-					if (FileBuffer.Num())
+					TUniquePtr<FArchive> Reader(IFileManager::Get().CreateFileReader(*AbsPath, 0));
+					if (Reader)
 					{
-						FCbAttachment FileAttachment = CreateAttachment(FIoBuffer(FIoBuffer::Clone, FileBuffer.GetData(), FileBuffer.Num()));
+						int64 TotalSize = Reader->TotalSize();
+						if (TotalSize > 0)
+						{
+							FIoBuffer FileBuffer(TotalSize);
+							Reader->Serialize(FileBuffer.GetData(), TotalSize);
+							bool Success = Reader->Close();
+							FCbAttachment FileAttachment = CreateAttachment(MoveTemp(FileBuffer));
 
-						PackageObj.BeginObject();
-						PackageObj << "id" << FileOid;
-						PackageObj << "data" << FileAttachment;
-						PackageObj << "serverpath" << NewEntry.ServerPath;
-						PackageObj << "clientpath" << NewEntry.ClientPath;
-						PackageObj.EndObject();
+							PackageObj.BeginObject();
+							PackageObj << "id" << FileOid;
+							PackageObj << "data" << FileAttachment;
+							PackageObj << "serverpath" << NewEntry.ServerPath;
+							PackageObj << "clientpath" << NewEntry.ClientPath;
+							PackageObj.EndObject();
 
-						Pkg.AddAttachment(FileAttachment);
+							Pkg.AddAttachment(FileAttachment);
+						}
 					}
 				}
 			}

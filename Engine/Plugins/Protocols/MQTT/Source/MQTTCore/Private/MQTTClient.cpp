@@ -354,7 +354,7 @@ void FMQTTClient::OnMessagePacket(const FMQTTPublishPacket& InPacket)
 	Message.Payload = InPacket.Payload;
 	Message.QoS = InPacket.QoS;
 	Message.bRetain = InPacket.bRetain;
-	Message.PayloadString = FString(Message.Payload.Num(), (const char*)Message.Payload.GetData());
+	Message.PayloadString = FString::ConstructFromPtrSize((const char*)Message.Payload.GetData(), Message.Payload.Num());
 
 	// No subscriptions, can happen if that overload isn't used
 	if(Subscriptions.Num() == 0)

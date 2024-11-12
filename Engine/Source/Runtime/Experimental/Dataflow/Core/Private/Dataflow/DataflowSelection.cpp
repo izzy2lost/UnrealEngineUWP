@@ -15,6 +15,11 @@ void FDataflowSelection::Initialize(const FDataflowSelection& Other)
 	SelectionArray = Other.SelectionArray;
 }
 
+void FDataflowSelection::Clear()
+{
+	SelectionArray.Init(false, SelectionArray.Num());
+}
+
 void FDataflowSelection::AsArray(TArray<int32>& SelectionArr) const
 {
 	SelectionArr.Reset(SelectionArray.Num());

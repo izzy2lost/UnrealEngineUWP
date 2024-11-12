@@ -61,12 +61,12 @@ public:
 
 
 	CHAOS_API FManagedArrayCollection();
-	virtual ~FManagedArrayCollection() {}
+	CHAOS_API virtual ~FManagedArrayCollection();
 
-	FManagedArrayCollection(const FManagedArrayCollection& In) { In.CopyTo(this); }
-	FManagedArrayCollection& operator=(const FManagedArrayCollection& In) { Reset(); In.CopyTo(this); return *this; }
-	FManagedArrayCollection(FManagedArrayCollection&&) = default;
-	FManagedArrayCollection& operator=(FManagedArrayCollection&&)= default;
+	CHAOS_API FManagedArrayCollection(const FManagedArrayCollection& In);
+	CHAOS_API FManagedArrayCollection& operator=(const FManagedArrayCollection& In);
+	CHAOS_API FManagedArrayCollection(FManagedArrayCollection&&);
+	CHAOS_API FManagedArrayCollection& operator=(FManagedArrayCollection&&);
 
 	static CHAOS_API int8 Invalid;
 	typedef EManagedArrayType EArrayType;
@@ -75,7 +75,7 @@ public:
 	*/
 	struct FConstructionParameters {
 
-		FConstructionParameters(FName GroupIndexDependencyIn = ""
+		FConstructionParameters(FName GroupIndexDependencyIn = NAME_None
 			, bool SavedIn = true, bool bInAllowCircularDependency = false)
 			: GroupIndexDependency(GroupIndexDependencyIn)
 			, Saved(SavedIn)
@@ -168,6 +168,10 @@ public:
 	T* NewCopy() const
 	{
 		T* Collection = new T();
+		for (const FName& GroupName : Collection->GroupNames())
+		{
+			Collection->EmptyGroup(GroupName); //Geometry collection has 1 element in ConvexProperties group when initialized
+		}
 		CopyTo(Collection);
 		return Collection;
 	}
@@ -223,19 +227,19 @@ public:
 			AddGroup(Group);
 		}
 
-		FValueType Value(ManagedArrayType<T>(), ValueIn);
-		Value.Value->Resize(NumElements(Group));
-		Value.Saved = Parameters.Saved;
+		const int32 InitialSize = NumElements(Group);
+		FName GroupIndexDependency;
 		if (ensure(Parameters.bAllowCircularDependency || !IsConnected(Parameters.GroupIndexDependency, Group)))
 		{
-			Value.GroupIndexDependency = Parameters.GroupIndexDependency;
+			GroupIndexDependency = Parameters.GroupIndexDependency;
 		}
 		else
 		{
-			Value.GroupIndexDependency = "";
+			GroupIndexDependency = NAME_None;
 		}
-		Value.bExternalValue = true;
-		Map.Add(FManagedArrayCollection::MakeMapKey(Name, Group), MoveTemp(Value));
+
+		FValueType NewAttribute = FValueType::MakeExternal<T>(&ValueIn, NumElements(Group), GroupIndexDependency, Parameters.Saved);
+		Map.Add({ Name, Group }, MoveTemp(NewAttribute));
 	}
 
 	/**
@@ -272,7 +276,6 @@ public:
 	*/
 	CHAOS_API int32 InsertElements(int32 NumberElements, int32 Position, FName Group);
 
-
 	/**
 	* Append Collection and reindex dependencies on this collection. 
 	* @param InCollection : Collection to add. 
@@ -291,8 +294,7 @@ public:
 		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
 		if (FValueType* FoundValue = Map.Find(Key))
 		{
-			checkSlow(Map[Key].ArrayType == ManagedArrayType<T>());
-			return static_cast<TManagedArray<T>*>(FoundValue->Value);
+			return FoundValue->ModifyTypedPtr<T>();
 		}
 		return nullptr;
 	};
@@ -300,10 +302,9 @@ public:
 	template<typename T>
 	const TManagedArray<T>* FindAttribute(FName Name, FName Group) const
 	{
-		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-		if (const FValueType* FoundValue = Map.Find(Key))
+		if (const FValueType* FoundValue = Map.Find({ Name, Group }))
 		{
-			return static_cast<const TManagedArray<T>*>(FoundValue->Value);
+			return FoundValue->GetTypedPtr<T>();
 		}
 		return nullptr;
 	};
@@ -317,12 +318,11 @@ public:
 	template<typename T>
 	TManagedArray<T>* FindAttributeTyped(FName Name, FName Group)
 	{
-		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-		if (FValueType* FoundValue = Map.Find(Key))
+		if (FValueType* FoundValue = Map.Find({ Name, Group }))
 		{
-			if(FoundValue->ArrayType == ManagedArrayType<T>())
+			if(FoundValue->IsSameType<T>())
 			{
-				return static_cast<TManagedArray<T>*>(FoundValue->Value);
+				return FoundValue->ModifyTypedPtr<T>();
 			}
 		}
 		return nullptr;
@@ -331,12 +331,11 @@ public:
 	template<typename T>
 	const TManagedArray<T>* FindAttributeTyped(FName Name, FName Group) const
 	{
-		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-		if (const FValueType* FoundValue = Map.Find(Key))
+		if (const FValueType* FoundValue = Map.Find({ Name, Group }))
 		{
-			if(FoundValue->ArrayType == ManagedArrayType<T>())
+			if(FoundValue->IsSameType<T>())
 			{
-				return static_cast<const TManagedArray<T>*>(FoundValue->Value);
+				return FoundValue->GetTypedPtr<T>();
 			}
 		}
 		return nullptr;
@@ -353,10 +352,7 @@ public:
 	TManagedArray<T>& ModifyAttribute(FName Name, FName Group)
 	{
 		check(HasAttribute(Name, Group))
-		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-		FManagedArrayBase* ManagedArray = Map[Key].Value;
-		ManagedArray->MarkDirty();
-		return *(static_cast<TManagedArray<T>*>(ManagedArray));
+		return Map[{Name, Group}].ModifyTyped<T>();
 	}
 
 	/**
@@ -369,13 +365,11 @@ public:
 	template<typename T>
 	TManagedArray<T>* ModifyAttributeTyped(FName Name, FName Group)
 	{
-		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-		if (FValueType* FoundValue = Map.Find(Key))
+		if (FValueType* FoundValue = Map.Find({ Name, Group }))
 		{
-			if (FoundValue->ArrayType == ManagedArrayType<T>())
+			if (FoundValue->IsSameType<T>())
 			{
-				FoundValue->Value->MarkDirty();
-				return static_cast<TManagedArray<T>*>(FoundValue->Value);
+				return FoundValue->ModifyTypedPtr<T>();
 			}
 		}
 		return nullptr;
@@ -387,23 +381,11 @@ public:
 	* @param Group - The group that manages the attribute
 	* @return ManagedArray<T> &
 	*/
-	
-	// template<typename T>
-	// UE_DEPRECATED(5.0, "non const GetAttribute() version is now deprecated, use ModifyAttribute instead")
-	// TManagedArray<T>& GetAttribute(FName Name, FName Group)
-	// {
-	// 	check(HasAttribute(Name, Group))
-	// 	const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-	// 	return *(static_cast<TManagedArray<T>*>(Map[Key].Value));
-	// };
-
 	template<typename T>
 	const TManagedArray<T>& GetAttribute(FName Name, FName Group) const
 	{
-		check(HasAttribute(Name, Group))
-		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-		checkSlow(Map[Key].ArrayType == ManagedArrayType<T>());
-		return *(static_cast<TManagedArray<T>*>(Map[Key].Value));
+		check(HasAttribute(Name, Group));
+		return Map[{Name, Group}].GetTyped<T>();
 	};
 
 	/**
@@ -416,6 +398,12 @@ public:
 	* Remove the element at index and reindex the dependent arrays 
 	*/
 	CHAOS_API virtual void RemoveElements(const FName & Group, const TArray<int32> & SortedDeletionList, FProcessingParameters Params = FProcessingParameters());
+
+	/**
+	* Merge the element indexed SortedMergeList[Idx] to the element indexed MergeRemapIndex[Idx]
+	* first redirect references of SortedMergeList[Idx] then delete
+	*/
+	CHAOS_API virtual void MergeElements(const FName& Group, const TArray<int32>& SortedMergeList, const TArray<int32>& MergeRemapIndex, FProcessingParameters Params = FProcessingParameters());
 
 	/**
 	* Remove the elements at Position and reindex the dependent arrays 
@@ -621,19 +609,32 @@ private:
 			AddGroup(Group);
 		}
 
-		FValueType Value(ManagedArrayType<T>(), *(new TManagedArray<T>()));
-		Value.Value->Resize(NumElements(Group));
-		Value.Saved = Parameters.Saved;
+		static const FName EmptyName = NAME_None;
+		
+		const int32 InitialSize = NumElements(Group);
+		FName GroupIndexDependency;
 		if (ensure(Parameters.bAllowCircularDependency || !IsConnected(Parameters.GroupIndexDependency, Group)))
 		{
-			Value.GroupIndexDependency = Parameters.GroupIndexDependency;
+			GroupIndexDependency = Parameters.GroupIndexDependency;
 		}
 		else
 		{
-			Value.GroupIndexDependency = "";
+			GroupIndexDependency = EmptyName;
 		}
-		Map.Add(FManagedArrayCollection::MakeMapKey(Name, Group), MoveTemp(Value));
+
+		TUniquePtr<TManagedArray<T>> ArrayPtr(new TManagedArray<T>());
+		FValueType NewAttribute = FValueType::MakeManaged(MoveTemp(ArrayPtr), InitialSize, GroupIndexDependency, Parameters.Saved);
+		Map.Add({ Name, Group }, MoveTemp(NewAttribute));
 	}
+
+	/**
+	* Insert elements to a group without reordering elements
+	* @param NumberElements - The number of array entries to add
+	* @param Position - The position in the managed array where to insert entries.
+	* @param Group - The group to append entries to.
+	* @return new order after insertion.
+	*/
+	TArray<int32> InsertElementsNoReorder(int32 NumberElements, int32 Position, FName Group);
 
 	/****
 	*  Mapping Key/Value
@@ -662,65 +663,141 @@ private:
 	friend struct FManagedArrayCollectionValueTypeWrapper;
 	struct FValueType
 	{
+	private:
 		EArrayType ArrayType;
 		FName GroupIndexDependency;
-		bool Saved;
+		bool bPersistent;
 		bool bExternalValue;	//External arrays have external memory management.
 
-		FManagedArrayBase* Value;
+		// TODO : save the thread on which the object has been created to call out when unsafe access is done ? 
 
-		FValueType()
-			: ArrayType(EArrayType::FNoneType)
-			, GroupIndexDependency("")
-			, Saved(true)
-			, bExternalValue(false)
-			, Value(nullptr) {};
+		TSharedPtr<FManagedArrayBase, ESPMode::NotThreadSafe> SharedManagedArray; // external arrays have this set this to null
+		FManagedArrayBase* ManagedArray = nullptr;;
 
-		FValueType(EArrayType ArrayTypeIn, FManagedArrayBase& In)
-			: ArrayType(ArrayTypeIn)
-			, GroupIndexDependency("")
-			, Saved(false)
+	private:
+		/**
+		* Create a typed attribute
+		* the array is managed ( as opposed to being external ) and will be deleted by the destructor
+		*/
+		template<typename T>
+		FValueType(TUniquePtr<TManagedArray<T>>&& ArrayPtr, int32 InitialSize, FName InGroupIndexDependency, bool bInPersistent)
+			: ArrayType(ManagedArrayType<T>())
+			, GroupIndexDependency(InGroupIndexDependency)
+			, bPersistent(bInPersistent)
 			, bExternalValue(false)
-			, Value(&In) {};
-
-		FValueType(const FValueType& Other)
-			: ArrayType(Other.ArrayType)
-			, GroupIndexDependency(Other.GroupIndexDependency)
-			, Saved(Other.Saved)
-			, bExternalValue(false)
-			, Value(nullptr)
+			, SharedManagedArray(ArrayPtr.Release())
+			, ManagedArray(SharedManagedArray.Get())
 		{
-			if (Other.Value)
-			{
-				this->Value = NewManagedTypedArray(this->ArrayType);
-				this->Value->Resize(Other.Value->Num());
-				this->Value->Init(*Other.Value);
-			}
+			MakeUniqueForWrite();
+			ManagedArray->Reserve(InitialSize); // make sure we have the exact size to avoid over-allocation
+			ManagedArray->Resize(InitialSize);
 		};
 
-		FValueType(FValueType&& Other)
-			: ArrayType(Other.ArrayType)
-			, GroupIndexDependency(Other.GroupIndexDependency)
-			, Saved(Other.Saved)
-			, bExternalValue(Other.bExternalValue)
-			, Value(Other.Value)
+		/**
+		* Create a external typed attribute
+		* the array is external and it is the responsability of the original owner to destroy it
+		*/
+		template<typename T>
+		FValueType(TManagedArray<T>* ExternalArrayPtr, int32 InitialSize, FName InGroupIndexDependency, bool bInPersistent)
+			: ArrayType(ManagedArrayType<T>())
+			, GroupIndexDependency(InGroupIndexDependency)
+			, bPersistent(bInPersistent)
+			, bExternalValue(true)
+			, SharedManagedArray(nullptr)
+			, ManagedArray(ExternalArrayPtr)
 		{
-			if (&Other != this)
-			{
-				Other.Value = nullptr;
-			}
+			ManagedArray->Reserve(InitialSize); // make sure we have the exact size to avoid over-allocation
+			ManagedArray->Resize(InitialSize);
+		};
+
+		CHAOS_API void MakeUniqueForWrite();
+
+	public:
+		/**
+		* Create a typed attribute
+		* the array is managed ( as opposed to being external ) and will be deleted by the destructor
+		*/
+		template <typename T>
+		static FValueType MakeManaged(TUniquePtr<TManagedArray<T>>&& ArrayPtr, int32 InitialSize, FName InGroupIndexDependency, bool bInPersistent)
+		{
+			return FValueType(MoveTemp(ArrayPtr), InitialSize, InGroupIndexDependency, bInPersistent);
 		}
 
-		~FValueType()
+		template <typename T>
+		static FValueType MakeExternal(TManagedArray<T>* ExternalArrayPtr, int32 InitialSize, FName InGroupIndexDependency, bool bInPersistent)
 		{
-			if (Value && !bExternalValue)
-			{
-				delete Value;
-			}
+			return FValueType(ExternalArrayPtr, InitialSize, InGroupIndexDependency, bInPersistent);
 		}
+
+		CHAOS_API FValueType();
+		CHAOS_API FValueType(const FValueType& Other);
+		CHAOS_API FValueType(FValueType&& Other);
+
+		CHAOS_API ~FValueType();
+
+		EArrayType GetArrayType() const { return ArrayType; }
+		FName GetGroupIndexDependency() const { return GroupIndexDependency; };
+		bool IsPersistent() const { return bPersistent; }
+		bool IsExternal() const { return bExternalValue; }
+		bool IsDirty() const { return ManagedArray->IsDirty(); }
+
+		void SetGroupIndexDependency(FName NewGroupDependency) { GroupIndexDependency = NewGroupDependency; }
+
+		template <typename T>
+		bool IsSameType() const { return (ArrayType == ManagedArrayType<T>()); }
+		
+		template <typename T>
+		const TManagedArray<T>* GetTypedPtr() const
+		{ 
+			check(IsSameType<T>());
+			
+			const TManagedArray<T>* TypedManagedArray = static_cast<const TManagedArray<T>*>(ManagedArray);
+			check(TypedManagedArray != nullptr);
+			return TypedManagedArray;
+		}
+
+		template <typename T>
+		const TManagedArray<T>& GetTyped() const
+		{
+			return *GetTypedPtr<T>();
+		}
+
+		const FManagedArrayBase& Get() const { return *ManagedArray; }
+
+		template <typename T>
+		TManagedArray<T>* ModifyTypedPtr()
+		{ 
+			check(IsSameType<T>());
+			MakeUniqueForWrite();
+
+			TManagedArray<T>* TypedManagedArray = static_cast<TManagedArray<T>*>(ManagedArray);
+			check(TypedManagedArray != nullptr);
+
+			TypedManagedArray->MarkDirty();
+			return TypedManagedArray;
+		}
+
+		template <typename T>
+		TManagedArray<T>& ModifyTyped()
+		{
+			return *ModifyTypedPtr<T>();
+		}
+
+		FManagedArrayBase& Modify();
+
+		void Reserve(int32 ReservedSize);
+		void Resize(int32 NewSize);
+		void InitFrom(const FValueType& Other);
+		void Exchange(FValueType& Other);
+		void Convert(FValueType& Other);
+		void CopyFrom(const FValueType& Other);
+		void Empty();
+		void RemoveGroupIndexDependency(FName Group);
 
 		FValueType& operator=(const FValueType& Other) = delete;
 		FValueType& operator=(FValueType&& Other) = delete;
+
+		void Serialize(FArchive& Ar);
 	};
 
 

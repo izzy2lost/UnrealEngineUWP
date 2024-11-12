@@ -15,6 +15,13 @@
 #include "ShowFlags.h"
 #include "Templates/Casts.h"
 
+int32 GVisualizeCullingBarnDoors = 0;
+static FAutoConsoleVariableRef CVarVisualizeCullingBarnDoors(
+	TEXT("r.RectLight.VisualizeCullingBarnDoors"),
+	GVisualizeCullingBarnDoors,
+	TEXT("Whether to render a visualization of the barn doors used to cull the rect light."),
+	ECVF_RenderThreadSafe
+);
 
 void FRectLightComponentVisualizer::DrawVisualization( const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI )
 {
@@ -35,16 +42,17 @@ void FRectLightComponentVisualizer::DrawVisualization( const UActorComponent* Co
 			);
 
 			const FColor ElementColor(231, 239, 0, 255);
-			auto DrawBarnRect = [&](const FVector& P0, const FVector& P1, const FVector& P2, const FVector& P3)
+
+			auto DrawBarnRect = [&](const FVector& P0, const FVector& P1, const FVector& P2, const FVector& P3, const FColor& Color)
 			{
 				FVector TP0 = LightTM.TransformPosition(P0);
 				FVector TP1 = LightTM.TransformPosition(P1);
 				FVector TP2 = LightTM.TransformPosition(P2);
 				FVector TP3 = LightTM.TransformPosition(P3);
-				PDI->DrawLine(TP0, TP1, ElementColor, SDPG_World);
-				PDI->DrawLine(TP1, TP2, ElementColor, SDPG_World);
-				PDI->DrawLine(TP2, TP3, ElementColor, SDPG_World);
-				PDI->DrawLine(TP3, TP0, ElementColor, SDPG_World);
+				PDI->DrawLine(TP0, TP1, Color, SDPG_World);
+				PDI->DrawLine(TP1, TP2, Color, SDPG_World);
+				PDI->DrawLine(TP2, TP3, Color, SDPG_World);
+				PDI->DrawLine(TP3, TP0, Color, SDPG_World);
 			};
 
 			const float BarnMaxAngle = GetRectLightBarnDoorMaxAngle();
@@ -63,7 +71,7 @@ void FRectLightComponentVisualizer::DrawVisualization( const UActorComponent* Co
 				Corners[0] =  P3;
 				Corners[1] =  P2;
 
-				DrawBarnRect(P0, P1, P2, P3);
+				DrawBarnRect(P0, P1, P2, P3, ElementColor);
 			}
 			// +SourceHeight
 			{
@@ -74,7 +82,7 @@ void FRectLightComponentVisualizer::DrawVisualization( const UActorComponent* Co
 				Corners[2] =  P2;
 				Corners[3] =  P3;
 
-				DrawBarnRect(P0, P1, P2, P3);
+				DrawBarnRect(P0, P1, P2, P3, ElementColor);
 			}
 			// -SourceWidth
 			{
@@ -85,7 +93,7 @@ void FRectLightComponentVisualizer::DrawVisualization( const UActorComponent* Co
 				Corners[4] =  P2;
 				Corners[5] =  P3;
 
-				DrawBarnRect(P0, P1, P2, P3);
+				DrawBarnRect(P0, P1, P2, P3, ElementColor);
 			}
 			// -SourceHeight
 			{
@@ -96,12 +104,41 @@ void FRectLightComponentVisualizer::DrawVisualization( const UActorComponent* Co
 				Corners[6] =  P3;
 				Corners[7] =  P2;
 
-				DrawBarnRect(P0, P1, P2, P3);
+				DrawBarnRect(P0, P1, P2, P3, ElementColor);
 			
 			}
 
 			DrawWireBox(PDI, LightTM.ToMatrixNoScale(), Box, ElementColor, SDPG_World);
 
+			if(GVisualizeCullingBarnDoors != 0)
+			{
+				const FColor CullingRectColor(255, 0, 0, 255);
+
+				{
+					float HorizontalBarnExtent;
+					float HorizontalBarnDepth;
+					CalculateRectLightCullingBarnExtentAndDepth(RectLightComp->SourceWidth, RectLightComp->BarnDoorLength, AngleRad, RectLightComp->AttenuationRadius, HorizontalBarnExtent, HorizontalBarnDepth);
+
+					TStaticArray<FVector, 8> HorizontalCorners;
+					CalculateRectLightBarnCorners(RectLightComp->SourceWidth, RectLightComp->SourceHeight, HorizontalBarnExtent, HorizontalBarnDepth, HorizontalCorners);
+
+					DrawBarnRect(HorizontalCorners[0], HorizontalCorners[2], HorizontalCorners[3], HorizontalCorners[1], CullingRectColor);
+					DrawBarnRect(HorizontalCorners[4], HorizontalCorners[6], HorizontalCorners[7], HorizontalCorners[5], CullingRectColor);
+				}
+
+				{
+					float VerticalBarnExtent;
+					float VerticalBarnDepth;
+					CalculateRectLightCullingBarnExtentAndDepth(RectLightComp->SourceHeight, RectLightComp->BarnDoorLength, AngleRad, RectLightComp->AttenuationRadius, VerticalBarnExtent, VerticalBarnDepth);
+
+					TStaticArray<FVector, 8> VerticalCorners;
+					CalculateRectLightBarnCorners(RectLightComp->SourceWidth, RectLightComp->SourceHeight, VerticalBarnExtent, VerticalBarnDepth, VerticalCorners);
+
+					DrawBarnRect(VerticalCorners[0], VerticalCorners[4], VerticalCorners[6], VerticalCorners[2], CullingRectColor);
+					DrawBarnRect(VerticalCorners[5], VerticalCorners[7], VerticalCorners[3], VerticalCorners[1], CullingRectColor);
+				}
+
+			}
 		}
 	}
 }

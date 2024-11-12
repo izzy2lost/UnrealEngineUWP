@@ -62,7 +62,7 @@ namespace UnrealGameSync
 			{
 				if (item != null)
 				{
-					_filesToClobber[(string)item.Tag] = item.Checked;
+					_filesToClobber[(string)item.Tag!] = item.Checked;
 				}
 			}
 		}

@@ -2,9 +2,11 @@
 
 #include "NetworkAutomationTest.h"
 #include "NetworkAutomationTestMacros.h"
+#include "Iris/IrisConstants.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilterDefinitions.h"
+#include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
 #include "Tests/ReplicationSystem/Filtering/MockNetObjectFilter.h"
 #include "Tests/ReplicationSystem/Filtering/TestFilteringObject.h"
 #include "Tests/ReplicationSystem/ReplicationSystemServerClientTestFixture.h"
@@ -18,6 +20,7 @@ protected:
 	virtual void SetUp() override
 	{
 		InitNetObjectFilterDefinitions();
+		InitObjectScopeHysteresisProfiles();
 		FReplicationSystemServerClientTestFixture::SetUp();
 		InitMockNetObjectFilter();
 	}
@@ -25,6 +28,7 @@ protected:
 	virtual void TearDown() override
 	{
 		FReplicationSystemServerClientTestFixture::TearDown();
+		RestoreObjectScopeHysteresisProfiles();
 		RestoreFilterDefinitions();
 	}
 
@@ -41,15 +45,86 @@ protected:
 		MockNetObjectFilter->ResetFunctionCallStatus();
 	}
 
-	void SetDynamicFragmentFilterStatus(ENetFilterStatus FilterStatus)
+	uint32 GetHysteresisFrameCount(const char* ProfileName) const
 	{
-		UMockNetObjectFilterUsingFragmentData::FFunctionCallSetup CallSetup;
-		CallSetup.AddObject.bReturnValue = true;
-		CallSetup.Filter.bFilterOutByDefault = FilterStatus == ENetFilterStatus::Disallow;
+		const UReplicationFilteringConfig* Config = GetDefault<UReplicationFilteringConfig>();
+		if (const FObjectScopeHysteresisProfile* Profile = Config->GetHysteresisProfiles().FindByKey(ProfileName))
+		{
+			return Profile->HysteresisFrameCount;
+		}
 
-		MockNetObjectFilterWithFragments->SetFunctionCallSetup(CallSetup);
-		MockNetObjectFilterWithFragments->ResetFunctionCallStatus();
+		return Config->GetDefaultHysteresisFrameCount();
 	}
+
+	class FScopedDefaultHysteresisFrameCount
+	{
+	public:
+		FScopedDefaultHysteresisFrameCount(uint8 DefaultHysteresisFrameCount)
+		{
+			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
+			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("DefaultHysteresisFrameCount"))
+			{
+				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
+				Property->CopyCompleteValue(&PrevValue, (void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()));
+				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &DefaultHysteresisFrameCount);
+				bPrevValueIsValid = true;
+			}
+		}
+
+		~FScopedDefaultHysteresisFrameCount()
+		{
+			if (!bPrevValueIsValid)
+			{
+				return;
+			}
+
+			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
+			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("DefaultHysteresisFrameCount"))
+			{
+				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
+				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &PrevValue);
+				bPrevValueIsValid = true;
+			}
+		}
+
+		uint8 PrevValue = 0;
+		bool bPrevValueIsValid = false;
+	};
+
+	class FScopedHysteresisUpdateConnectionThrottling
+	{
+	public:
+		FScopedHysteresisUpdateConnectionThrottling(uint8 HysteresisUpdateConnectionThrottling)
+		{
+			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
+			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("HysteresisUpdateConnectionThrottling"))
+			{
+				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
+				Property->CopyCompleteValue(&PrevValue, (void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()));
+				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &HysteresisUpdateConnectionThrottling);
+				bPrevValueIsValid = true;
+			}
+		}
+
+		~FScopedHysteresisUpdateConnectionThrottling()
+		{
+			if (!bPrevValueIsValid)
+			{
+				return;
+			}
+
+			const UClass* NetObjectFilteringConfiglass = UReplicationFilteringConfig::StaticClass();
+			if (const FProperty* Property = NetObjectFilteringConfiglass->FindPropertyByName("HysteresisUpdateConnectionThrottling"))
+			{
+				UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
+				Property->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + Property->GetOffset_ForInternal()), &PrevValue);
+				bPrevValueIsValid = true;
+			}
+		}
+
+		uint8 PrevValue = 0;
+		bool bPrevValueIsValid = false;
+	};
 
 private:
 	void InitNetObjectFilterDefinitions()
@@ -71,13 +146,6 @@ private:
 			MockDefinition.ConfigClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterConfig";
 		}
 
-		{
-			FNetObjectFilterDefinition& MockDefinition = NewFilterDefinitions.Emplace_GetRef();
-			MockDefinition.FilterName = "MockFilterWithFragments";
-			MockDefinition.ClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterUsingFragmentData";
-			MockDefinition.ConfigClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterConfig";
-		}
-
 		DefinitionsProperty->CopyCompleteValue((void*)(UPTRINT(FilterDefinitions) + DefinitionsProperty->GetOffset_ForInternal()), &NewFilterDefinitions);
 	}
 
@@ -92,31 +160,77 @@ private:
 
 		MockFilterHandle = InvalidNetObjectFilterHandle;
 		MockNetObjectFilter = nullptr;
+	}
 
-		MockFilterWithFragmentsHandle = InvalidNetObjectFilterHandle;
-		MockNetObjectFilterWithFragments = nullptr;
+	void InitObjectScopeHysteresisProfiles()
+	{
+		const UClass* ReplicationFilteringConfigClass = UReplicationFilteringConfig::StaticClass();
+		const FProperty* ProfilesProperty = ReplicationFilteringConfigClass->FindPropertyByName("HysteresisProfiles");
+		check(ProfilesProperty != nullptr);
+		const FProperty* EnableObjectScopeHysteresisProperty = ReplicationFilteringConfigClass->FindPropertyByName("bEnableObjectScopeHysteresis");
+		check(EnableObjectScopeHysteresisProperty != nullptr);
+
+		// Save CDO state.
+		UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
+		ProfilesProperty->CopyCompleteValue(&OriginalObjectScopeHysteresisProfiles, (void*)(UPTRINT(FilteringConfig) + ProfilesProperty->GetOffset_ForInternal()));
+
+		// Modify profiles to what we need
+		TArray<FObjectScopeHysteresisProfile> NewProfiles;
+		{
+			{
+				FObjectScopeHysteresisProfile& Profile = NewProfiles.Emplace_GetRef();
+				Profile.FilterProfileName = "FiveFrames";
+				Profile.HysteresisFrameCount = 5;
+			}
+
+			{
+				FObjectScopeHysteresisProfile& Profile = NewProfiles.Emplace_GetRef();
+				Profile.FilterProfileName = "OneFrame";
+				Profile.HysteresisFrameCount = 1;
+			}
+
+			{
+				FObjectScopeHysteresisProfile& Profile = NewProfiles.Emplace_GetRef();
+				Profile.FilterProfileName = "ZeroFrames";
+				Profile.HysteresisFrameCount = 0;
+			}
+		}
+
+		ProfilesProperty->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + ProfilesProperty->GetOffset_ForInternal()), &NewProfiles);
+
+		bOriginalIsObjectScopeHysteresisEnabled = FilteringConfig->IsObjectScopeHysteresisEnabled();
+		const bool bEnableObjectScopeHysteresis = true;
+		EnableObjectScopeHysteresisProperty->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + EnableObjectScopeHysteresisProperty->GetOffset_ForInternal()), &bEnableObjectScopeHysteresis);
+	}
+
+	void RestoreObjectScopeHysteresisProfiles()
+	{
+		// Restore CDO state from the saved state.
+		const UClass* ReplicationFilteringConfigClass = UReplicationFilteringConfig::StaticClass();
+		const FProperty* ProfilesProperty = ReplicationFilteringConfigClass->FindPropertyByName("HysteresisProfiles");
+		const FProperty* EnableObjectScopeHysteresisProperty = ReplicationFilteringConfigClass->FindPropertyByName("bEnableObjectScopeHysteresis");
+
+		UReplicationFilteringConfig* FilteringConfig = GetMutableDefault<UReplicationFilteringConfig>();
+		ProfilesProperty->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + ProfilesProperty->GetOffset_ForInternal()), &OriginalObjectScopeHysteresisProfiles);
+		OriginalObjectScopeHysteresisProfiles.Empty();
+		EnableObjectScopeHysteresisProperty->CopyCompleteValue((void*)(UPTRINT(FilteringConfig) + EnableObjectScopeHysteresisProperty->GetOffset_ForInternal()), &bOriginalIsObjectScopeHysteresisEnabled);
 	}
 
 	void InitMockNetObjectFilter()
 	{
 		MockNetObjectFilter = CastChecked<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter(GetMockFilterName()));
 		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle(GetMockFilterName());
-
-		MockNetObjectFilterWithFragments = ExactCast<UMockNetObjectFilterUsingFragmentData>(Server->GetReplicationSystem()->GetFilter("MockFilterWithFragments"));
-		MockFilterWithFragmentsHandle = Server->GetReplicationSystem()->GetFilterHandle("MockFilterWithFragments");
 	}
-
 protected:
 	UMockNetObjectFilter* MockNetObjectFilter;
 	FNetObjectFilterHandle MockFilterHandle;
-
-	UMockNetObjectFilterUsingFragmentData* MockNetObjectFilterWithFragments;
-	FNetObjectFilterHandle MockFilterWithFragmentsHandle;
+	FName ObjectHysteresisProfileName;
 
 private:
 	TArray<FNetObjectFilterDefinition> OriginalFilterDefinitions;
+	TArray<FObjectScopeHysteresisProfile> OriginalObjectScopeHysteresisProfiles;
+	bool bOriginalIsObjectScopeHysteresisEnabled = false;
 };
-
 
 class FTestFilteringWithConditionFixture : public FTestFilteringFixture
 {
@@ -437,7 +551,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, ConnectionFilterAllowsObjectToReplica
 	UReplicatedTestObject* ServerObject0 = Server->CreateObject(0, 0);
 	
 	// Setup group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject0->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
@@ -701,7 +815,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, GroupFilterPreventsObjectFromReplicat
 	// Spawn object on server
 	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
 
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
@@ -725,7 +839,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, GroupFilterAllowsObjectToReplicate)
 	// Spawn object on server
 	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
 
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 
@@ -786,7 +900,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, GroupFilterRestoresConnectionConnecti
 	}
 
 	// Create and set group filter for last client only
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ConnectionIdForLastClient, ENetFilterStatus::Disallow);
@@ -1061,7 +1175,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, NestedDependentObjectIsFilteredAsPare
 	Server->SendAndDeliverTo(Client, DeliverPacket);
 	Server->PostSendUpdate();
 
-	// We expect the object to exist and the future dependent and future dependent objects not to exist
+	// We expect the object to exist and the future dependent and future nested dependent objects not to exist
 	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerFutureDependentObject->NetRefHandle), nullptr);
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerFutureNestedDependentObject->NetRefHandle), nullptr);
@@ -1108,101 +1222,6 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, NestedDependentObjectIsFilteredAsPare
 	// Verify that dependent object no longer is filtered out even though its parent is
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerFormerDependentObject->NetRefHandle), nullptr);
 	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerNestedDependentObject->NetRefHandle), nullptr);
-}
-
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, ObjectGetsFilterOutSettingFromStart)
-{
-	// Setup dynamic filter for the test. For this test we want the value of the object's filter property to rule.
-	SetDynamicFragmentFilterStatus(ENetFilterStatus::Allow);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Create object and set filter
-	UTestFilteringObject* ServerObject = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterWithFragmentsHandle);
-
-	// We want the object to be filtered out
-	constexpr bool bFilterOut = true;
-	ServerObject->SetFilterOut(bFilterOut);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object does not exist on the client.
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, ObjectGetsUpdatedFilterOutSetting)
-{
-	// Setup dynamic filter for the test. For this test we want the value of the object's filter property to rule.
-	SetDynamicFragmentFilterStatus(ENetFilterStatus::Allow);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Create object and set filter
-	UTestFilteringObject* ServerObject = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterWithFragmentsHandle);
-
-	// We don't want the object to be filtered out
-	ServerObject->SetFilterOut(false);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object exists on the client.
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-	// Mark the object to be filtered out.
-	ServerObject->SetFilterOut(true);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object does not exist on the client.
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, MixPreAndPostFilters)
-{
-	// Setup dynamic filters for the test.
-	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-	SetDynamicFragmentFilterStatus(ENetFilterStatus::Disallow);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Create the objects and set filter
-	UTestFilteringObject* ServerObjectPreFilter = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObjectPreFilter->NetRefHandle, MockFilterHandle);
-
-	UTestFilteringObject* ServerObjectPostFilter = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObjectPostFilter->NetRefHandle, MockFilterWithFragmentsHandle);
-
-	// Create a non-filtered object
-	UTestFilteringObject* ServerObjectNoFilter = Server->CreateObject<UTestFilteringObject>();
-
-	// We want the objects to be filtered out
-	constexpr bool bFilterOut = true;
-	ServerObjectPreFilter->SetFilterOut(bFilterOut);
-	ServerObjectPostFilter->SetFilterOut(bFilterOut);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object does not exist on the client.
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectPreFilter->NetRefHandle), nullptr);
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectPostFilter->NetRefHandle), nullptr);
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectNoFilter->NetRefHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFilteringFixture, DynamicFilteredOutSubObjectsAreResetWhenIndexIsReused)
@@ -1362,7 +1381,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotFilterOutObject)
 	UReplicatedTestObject* ServerObject = Server->CreateObject(UTestReplicatedIrisObject::FComponents{});
 	
 	// Setup inclusion group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -1401,7 +1420,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotOverrideOwnerFil
 	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, ClientArray[OwningClientIndex]->ConnectionIdOnServer);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -1447,7 +1466,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotOverrideConnecti
 	Server->ReplicationSystem->SetConnectionFilter(ServerObject->NetRefHandle, AllowedConnections, ENetFilterStatus::Allow);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
@@ -1487,13 +1506,13 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupDoesNotOverrideExclusio
 	UReplicatedTestObject* ServerObject = Server->CreateObject(UTestReplicatedIrisObject::FComponents{});
 
 	// Setup exclusion group filter
-	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ExclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddExclusionFilterGroup(ExclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ExclusionGroupHandle, ClientArray[AllowedClientIndex]->ConnectionIdOnServer, ENetFilterStatus::Allow);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Allow);
@@ -1541,7 +1560,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, DisabledInclusionGroupDoesNotOverride
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Disallow);
@@ -1578,7 +1597,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, EnabledInclusionGroupDoesOverrideDyna
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	// Disallow by default
@@ -1617,7 +1636,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddingToEnabledInclusionGroupDoes
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	// Disallow by default
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Disallow);
@@ -1667,7 +1686,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateEnablingInclusionGroupDoesOverrid
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	// Disallow by default
@@ -1709,7 +1728,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, RemovingFromInclusionGroupRemovesDyna
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, ENetFilterStatus::Allow);
@@ -1746,7 +1765,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectAddedToAllowedInclusionGroup
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
@@ -1775,7 +1794,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectLateAddedToAllowedInclusionG
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
 
@@ -1808,7 +1827,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedSubObjectFollowsOwnerInAllow
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter and add object
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
@@ -1844,7 +1863,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedSubObjectFollowsOwnerInDisal
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter and add object
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -1881,7 +1900,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectAddedToDisallowedInclusionGr
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -1910,7 +1929,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectRemovedFromAllowedInclusionG
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
@@ -1945,7 +1964,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectRemovedFromDisallowedInclusi
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup inclusion group filter
-	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(InclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -1980,12 +1999,12 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectAddedToInclusionGroupFollows
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup separate inclusion group filters for object and subobject
-	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
 	
-	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(SubObjectInclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(SubObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -2035,12 +2054,12 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectLateAddedToInclusionGroupFol
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup separate inclusion group filters for object and subobject
-	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
 	
-	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(SubObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Allow);
 
@@ -2074,12 +2093,12 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, SubObjectRemovedFromInclusionGroupFol
 	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
 
 	// Setup separate inclusion group filters for object and subobject
-	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(ObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
 	
-	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 	Server->ReplicationSystem->AddToGroup(SubObjectInclusionGroupHandle, ServerSubObject->NetRefHandle);
 	Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 	Server->ReplicationSystem->SetGroupFilterStatus(SubObjectInclusionGroupHandle, Client->ConnectionIdOnServer, ENetFilterStatus::Disallow);
@@ -2162,7 +2181,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupsWorksWithMultipleObjec
 	for (FNetObjectGroupHandle& InclusionGroupHandle : InclusionGroupHandles)
 	{
 		const SIZE_T Index = &InclusionGroupHandle - &InclusionGroupHandles[0];
-		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 		// Disallow by default
@@ -2210,7 +2229,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, InclusionGroupsAreCumulative)
 	for (FNetObjectGroupHandle& InclusionGroupHandle : InclusionGroupHandles)
 	{
 		const SIZE_T Index = &InclusionGroupHandle - &InclusionGroupHandles[0];
-		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 		// Disallow by default
@@ -2254,7 +2273,7 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedConnectionWorksWithSimpleGro
 	for (FNetObjectGroupHandle& InclusionGroupHandle : InclusionGroupHandles)
 	{
 		const SIZE_T Index = &InclusionGroupHandle - &InclusionGroupHandles[0];
-		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		InclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(InclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(InclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 
@@ -2327,11 +2346,11 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedConnectionWorksWithComplexGr
 	{
 		const SIZE_T Index = &ObjectInclusionGroupHandle - &ObjectInclusionGroupHandles[0];
 
-		ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		ObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(ObjectInclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(ObjectInclusionGroupHandle, ServerObjects[Index]->NetRefHandle);
 
-		FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+		FNetObjectGroupHandle SubObjectInclusionGroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
 		Server->ReplicationSystem->AddInclusionFilterGroup(SubObjectInclusionGroupHandle);
 		Server->ReplicationSystem->AddToGroup(SubObjectInclusionGroupHandle, ServerSubObjects[Index]->NetRefHandle);
 
@@ -2393,6 +2412,747 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, LateAddedConnectionWorksWithComplexGr
 	UE_NET_ASSERT_NE(LateAddedClient->GetReplicationBridge()->GetReplicatedObject(ServerObjects[3]->NetRefHandle), nullptr);
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObjects[3]->NetRefHandle), nullptr);
 	UE_NET_ASSERT_NE(LateAddedClient->GetReplicationBridge()->GetReplicatedObject(ServerSubObjects[3]->NetRefHandle), nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisIsEnabled)
+{
+	UE_NET_ASSERT_TRUE_MSG(GetDefault<UReplicationFilteringConfig>()->IsObjectScopeHysteresisEnabled(), "Error: Hysteresis is disabled. All hysteresis tests will fail.");
+}
+
+// Dynamic filtering should cause hysteresis to kick in for a filtered out object with a filter profile.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForDynamicallyFilteredOutObjectWithFilterProfile)
+{
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	// Spawn object on server and set filter and filter profile for hysteresis
+	UReplicatedTestObject* ServerObject = Server->CreateObject({.IrisComponentCount = 0});
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
+
+	Server->UpdateAndSend({ Client });
+
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	const uint32 HysteresisFrameCount = GetHysteresisFrameCount("FiveFrames");
+	UE_NET_ASSERT_EQ(HysteresisFrameCount, 5U);
+	for (uint32 It = 0, EndIt = HysteresisFrameCount; It < EndIt; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+	}
+
+	// At this point the object should still exist on the client due to hysteresis
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	Server->UpdateAndSend({ Client });
+
+	// Hysteresis frame count has passed. The object shuld now be destroyed.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Dynamic filtering should cause hysteresis to kick in for a filtered out object without a filter profile, thus using default hysteresis frame count.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForDynamicallyFilteredOutObjectWithoutFilterProfile)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 3;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	// Spawn object on server and set filter and filter profile for hysteresis
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	for (uint32 It = 0, EndIt = DefaultHysteresisFrameCount; It < EndIt; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+	}
+
+	// At this point the object should still exist on the client due to hysteresis
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	Server->UpdateAndSend({ Client });
+
+	// Hysteresis frame count has passed. The object shuld now be destroyed.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Owner filtering changes should not cause hysteresis to kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForOwnerFilteredObject)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 3;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object on server
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, ToOwnerFilterHandle);
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Object should have been created on the client
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Switch owner and make sure objects gets immediately destroyed on the client
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, InvalidConnectionId);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Owner filtering should not cause hysteresis to kick in so the owner change should cause the client object to be destroyed immediately.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Exclusion group filtering changes should not cause hysteresis to kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForExclusionGroupFilteredObject)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 3;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object on server
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+
+	// Add to exclusion group that allows replication to all connections.
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
+	Server->ReplicationSystem->AddExclusionFilterGroup(GroupHandle);
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Object should have been created on the client
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Disallow the group to be replicated.
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Disallow);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Exclusion group filtering changes should not cause hysteresis to kick in so the client object to be destroyed immediately when the group disallows replication.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// If an object is filtered out from the start we should not start replicating it at all
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForNewlyCreatedObject)
+{
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	// Spawn object on server and set filter and filter profile for hysteresis
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
+
+	Server->UpdateAndSend({ Client });
+
+	// The object was filtered out from the start so hysteresis should not cause it to start replicating.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Destroyed objects are expected to be destroyed as quickly as possible.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForDestroyedObject)
+{
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	// Spawn object on server and set filter and filter profile for hysteresis
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
+
+	Server->UpdateAndSend({ Client });
+
+	// Destroy object and make sure it immediately gets destroyed on the client as well.
+	const FNetRefHandle ServerNetRefHandle = ServerObject->NetRefHandle;
+	Server->DestroyObject(ServerObject);
+	ServerObject = nullptr;
+
+	Server->UpdateAndSend({ Client });
+
+	// The object was destroyed on the server and should be destroyed as soon as possible on the client as well.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerNetRefHandle), nullptr);
+}
+
+// Test case where dependent objects are filtered out yet should be replicated due to their parent being in scope.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForDependentObjectWithReplicatedParent)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Only the dependent object will have a filter set in this test. Filter out by default.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	UReplicatedTestObject* ServerDependentObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerDependentObject->NetRefHandle, MockFilterHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Add the dependency
+	Server->ReplicationBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the dependent object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Perform send update for a few frames and make sure the dependent object stays relevant.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+}
+
+// Test case where dependent objects are filtered out yet should be replicated due to their parent being in scope.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForDependentObjectWhenParentIsFilteredOut)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 3;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Both objects have a filter set in this test
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "ZeroFrames");
+
+	UReplicatedTestObject* ServerDependentObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerDependentObject->NetRefHandle, MockFilterHandle);
+
+	Server->ReplicationBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure tall objects have been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Filter out both objects.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	// Perform send update for a few frames and make sure the dependent object stays relevant.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+
+	// Eventually the dependent object should be filtered out
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Make sure it stays filtered out
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount + 1; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+}
+
+// Verify dependent object is replicated after parent is filtered out and ends up in hysteresis
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, DependentObjectIsReplicatedWhenParentIsInHysteresis)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 3;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Both objects have a filter set in this test
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	UReplicatedTestObject* ServerDependentObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerDependentObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "ZeroFrames");
+
+	Server->ReplicationBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure tall objects have been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Filter out both objects.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	// Perform send update for a few frames and make sure both objects stays relevant.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+
+	// Eventually the both objects should be filtered out
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Make sure they stay filtered out
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount + 1; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+}
+
+// Verify dependent object with hysteresis is replicated as long as the parent object with hysteresis is.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, DependentObjectWithHysteresisIsReplicatedWhenParentIsInHysteresis)
+{
+	constexpr uint32 TwoFrameHysteresis = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(TwoFrameHysteresis);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Both objects have a filter set in this test
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	UReplicatedTestObject* ServerDependentObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerDependentObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
+
+	Server->ReplicationBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure tall objects have been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Filter out both objects.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	// Perform send update for a few frames and make sure both objects stays relevant.
+	for (uint32 It = 0; It != TwoFrameHysteresis; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+
+	// Eventually the parent object should be filtered out
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// At this point the dependent object should still exist as 5 > 2
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Make sure dependent object sticks around for a bit
+	for (uint32 It = 0; It != 5 - TwoFrameHysteresis - 1; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+
+	// We don't know exactly when hysteresis kicks in, if it starts when parent hysteresis starts or when parent is finally filtered out.
+	// BUT at the very least it should be filtered out after an additional five frames have passed.
+	for (uint32 It = 0; It != 5; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+	}
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+}
+
+// Test case where dependent objects are filtered out yet should be replicated due to their parent being in scope. Dependency is then removed and hysteresis should kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForFilteredOutFormerlyDependentObject)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Only the dependent object will have a filter set in this test. Filter out by default.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	UReplicatedTestObject* ServerDependentObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerDependentObject->NetRefHandle, MockFilterHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Add the dependency
+	Server->ReplicationBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the dependent object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+
+	// Remove dependency
+	Server->ReplicationBridge->RemoveDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	// Perform send update for a few frames and make sure the dependent object stays relevant.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+	}
+
+	// The formerly dependent object should now be filtered out
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle), nullptr);
+}
+
+// Test case where an object is replicated, then filtered out and filtered in prior to hysteresis frame timeout.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, FilteringChangesDoesNotCauseHysteresisToFilterOutObject)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 3;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Filter out object and perform update. Due to hysteresis the object should remain replicated.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	Server->UpdateAndSend({ Client });
+
+	// Hysteresis should cause the object to remain replicated.
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Filter in the object again and make sure it stays replicated.
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	// Perform send update for a few frames and make sure the dependent object stays relevant.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
+}
+
+// Test case where inclusion group added objects are filtered out yet should be replicated due to the inclusion group allowing replication. Inclusion group then disallows replication causing hysteresis to kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForFormerlyInclusionGroupAllowedObjectWhenFilterDisallowsReplication)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Add object to filter which disallows replication but inclusion group that allows it.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
+	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Disallow replication of inclusion group
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Disallow);
+
+	// Perform send update for the hysteresis duration and make sure the object stays replicated.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
+
+	// Now the object should be filtered out
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Variant of above test. Test case where inclusion group added objects are filtered out yet should be replicated due to the inclusion group allowing replication. Object is then removed from inclusion group causing hysteresis to kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisKicksInForFormerInclusionGroupMemberWhenFilterDisallowsReplication)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Add object to filter which disallows replication but inclusion group that allows it.
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
+	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Remove object from inclusion group
+	Server->ReplicationSystem->RemoveFromGroup(GroupHandle, ServerObject->NetRefHandle);
+
+	// Perform send update for the hysteresis duration and make sure the object stays replicated.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
+
+	// Now the object should be filtered out
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Test case where inclusion group added objects are allowed to be replicated by dyanmic filter too. Inclusion group then disallows replication which should not cause hysteresis to kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForFormerlyInclusionGroupAllowedObjectWhenFilterAllowsReplication)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Add object to filter which allows replication.
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
+	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Disallow replication of inclusion group
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Disallow);
+
+	// Perform send update for the hysteresis duration and make sure the object stays replicated.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
+
+	// The object should stay replicated
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Variant of above test. Test case where inclusion group added objects are allowed to be replicated by dynamic filter too. Object is then removed from inclusion group which should not cause hysteresis to kick in.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisDoesNotKickInForFormerInclusionGroupMemberWhenFilterAllowsReplication)
+{
+	constexpr uint32 DefaultHysteresisFrameCount = 2;
+	FScopedDefaultHysteresisFrameCount ScopedDefaultHysteresisFrameCount(DefaultHysteresisFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Add object to filter which allows replication.
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle);
+
+	FNetObjectGroupHandle GroupHandle = Server->ReplicationSystem->CreateGroup(NAME_None);
+	Server->ReplicationSystem->AddToGroup(GroupHandle, ServerObject->NetRefHandle);
+	Server->ReplicationSystem->AddInclusionFilterGroup(GroupHandle);
+	Server->ReplicationSystem->SetGroupFilterStatus(GroupHandle, ENetFilterStatus::Allow);
+
+	Server->UpdateAndSend({ Client });
+
+	// Make sure the object has been created 
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Remove object from inclusion group
+	Server->ReplicationSystem->RemoveFromGroup(GroupHandle, ServerObject->NetRefHandle);
+
+	// Perform send update for the hysteresis duration and make sure the object stays replicated.
+	for (uint32 It = 0; It != DefaultHysteresisFrameCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
+
+	// The object should stay replicated
+	Server->UpdateAndSend({ Client });
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
+// Make sure that connection throttling does not cause objects to be filtered out too soon. Also verify throttling occurs.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, HysteresisConnectionThrottlingWorksAsExpected)
+{
+	constexpr uint8 ConnectionThrottlingFrameCount = 5;
+	FScopedHysteresisUpdateConnectionThrottling ConnectionThrottling(ConnectionThrottlingFrameCount);
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Figure out hysteresis update frame.
+	{
+		SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+		// Spawn object on server and set filter and filter profile for hysteresis
+		UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+		Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "OneFrame");
+
+		Server->UpdateAndSend({ Client });
+
+		SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+		// As we have an hysteresis of one frame we will detect immediately when the trottling is updated
+		for (uint32 It = 0, EndIt = ConnectionThrottlingFrameCount; It < EndIt; ++It)
+		{
+			Server->UpdateAndSend({ Client });
+			if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr)
+			{
+				break;
+			}
+		}
+
+		// Object must have been destroyed on the client by now.
+		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
+
+	// Make sure object is kept alive for at least the expected frame count
+	{
+		SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+		UReplicatedTestObject* ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+		Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "FiveFrames");
+
+		// Advance up to one frame before we expect hysteresis update
+		for (uint32 It = 0, EndIt = ConnectionThrottlingFrameCount - 1; It < EndIt; ++It)
+		{
+			Server->UpdateAndSend({ Client });
+		}
+
+		// Filter out object. Hysteresis update should be performed but the object should not be filtered out immediately as not enough frames have passed.
+		SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+		uint32 WaitFrameCount = 0;
+		for (uint32 It = 0, EndIt = 2U * ConnectionThrottlingFrameCount; It < EndIt; ++It)
+		{
+			++WaitFrameCount;
+			Server->UpdateAndSend({ Client });
+
+			if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr)
+			{
+				break;
+			}
+		}
+
+		// Object must have been destroyed on the client by now.
+		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+		// FiveFames profile means at least five frames of waiting
+		UE_NET_ASSERT_GT(WaitFrameCount, 5U);
+
+		// This assert assumes ConnectionThrottlingFrameCount is five as well. If it's four we'd expect 4+4+1 frames.
+		UE_NET_ASSERT_EQ(WaitFrameCount, ConnectionThrottlingFrameCount + 1U);
+	}
+}
+
+// Test that a lot of objects can be filtered out on the same frame.
+UE_NET_TEST_FIXTURE(FTestFilteringFixture, LotsOfObjectsCanBeFilteredOutViaHysteresisInOneFrame)
+{
+	constexpr uint32 HighObjectCount = 65;
+
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	SetDynamicFilterStatus(ENetFilterStatus::Allow);
+
+	// Spawn lots of objects on server
+	UReplicatedTestObject* ServerObjects[HighObjectCount];
+	for (UReplicatedTestObject*& ServerObject : ServerObjects)
+	{
+		ServerObject = Server->CreateObject({ .IrisComponentCount = 0 });
+		Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterHandle, /* .FilterProfile = */ "OneFrame");
+	}
+
+	// Send and deliver packets until we believe all objects have been created on the client
+	bool bAllObjectsCreated = false;
+	for (uint32 It = 0; It < HighObjectCount; ++It)
+	{
+		Server->UpdateAndSend({ Client });
+		if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObjects[HighObjectCount - 1]->NetRefHandle) != nullptr)
+		{
+			bAllObjectsCreated = true;
+
+			for (const UReplicatedTestObject* ServerObject : ServerObjects)
+			{
+				if (Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr)
+				{
+					bAllObjectsCreated = false;
+					break;
+				}
+			}
+			
+			if (bAllObjectsCreated)
+			{
+				break;
+			}
+		}
+	}
+
+	UE_NET_ASSERT_TRUE(bAllObjectsCreated);
+
+	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
+
+	// Send and deliver packet. Need to update twice to have the objects filtered out.
+	Server->UpdateAndSend({ Client });
+	Server->UpdateAndSend({ Client });
+
+	// All client objects should be destroyed
+	for (const UReplicatedTestObject* ServerObject : ServerObjects)
+	{
+		UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+	}
 }
 
 } // end namespace UE::Net::Private

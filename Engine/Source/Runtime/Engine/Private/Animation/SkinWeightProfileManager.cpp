@@ -102,14 +102,20 @@ void FSkinWeightProfileManager::OnShutdown()
 	WorldManagers.Empty();
 }
 
-void FSkinWeightProfileManager::RequestSkinWeightProfile(FName InProfileName, USkinnedAsset* SkinnedAsset, UObject* Requester, FRequestFinished& Callback, int32 LODIndex /*= INDEX_NONE*/)
+void FSkinWeightProfileManager::RequestSkinWeightProfileStack(
+	FSkinWeightProfileStack InProfileStack, 
+	USkinnedAsset* SkinnedAsset, 
+	UObject* Requester,
+	FRequestFinished& Callback,
+	int32 LODIndex /*= INDEX_NONE*/
+	)
 {
 	// Make sure we have an actual skeletal mesh
 	if (USkeletalMesh* const Mesh = Cast<USkeletalMesh>(SkinnedAsset))
 	{
 		// Setup a request structure
 		FSetProfileRequest ProfileRequest;
-		ProfileRequest.ProfileName = InProfileName;
+		ProfileRequest.ProfileStack = InProfileStack.Normalized();
 		ProfileRequest.Callback = Callback;
 		ProfileRequest.WeakSkeletalMesh = Mesh;
 		ProfileRequest.IdentifyingObject = Requester;
@@ -184,7 +190,7 @@ void FSkinWeightProfileManager::DoTick(float DeltaTime, ENamedThreads::Type Curr
 			bool bRemove = Request.IdentifyingObject.IsStale() || Request.WeakSkeletalMesh.IsStale() ||
 				CanceledRequest.ContainsByPredicate([Request](FSetProfileRequest& B)
 			{
-				return Request.IdentifyingObject == B.IdentifyingObject && Request.WeakSkeletalMesh == B.WeakSkeletalMesh && Request.ProfileName == B.ProfileName;
+				return Request.IdentifyingObject == B.IdentifyingObject && Request.WeakSkeletalMesh == B.WeakSkeletalMesh && Request.ProfileStack == B.ProfileStack;
 			});
 
 			const USkeletalMesh* SkeletalMesh = Request.WeakSkeletalMesh.Get();
@@ -197,7 +203,7 @@ void FSkinWeightProfileManager::DoTick(float DeltaTime, ENamedThreads::Type Curr
 				bool bAllBuffersReady = true;
 				for (const int32 LODIndex : Request.LODIndices)
 				{
-					if (!RenderData->LODRenderData[LODIndex].SkinWeightProfilesData.ContainsOverrideBuffer(Request.ProfileName))
+					if (!RenderData->LODRenderData[LODIndex].SkinWeightProfilesData.ContainsOverrideBuffer(Request.ProfileStack))
 					{
 						bAllBuffersReady = false;
 						break;
@@ -209,7 +215,7 @@ void FSkinWeightProfileManager::DoTick(float DeltaTime, ENamedThreads::Type Curr
 					if (Request.IdentifyingObject.IsValid())
 					{
 						UE_LOG(LogSkinWeightProfileManager, Display, TEXT("Callback [%s | %s]"), *SkeletalMesh->GetName(), *Request.IdentifyingObject->GetName());
-						Request.Callback(Request.WeakSkeletalMesh, Request.ProfileName);
+						Request.Callback(Request.WeakSkeletalMesh, Request.ProfileStack);
 						bRemove = true;
 					}
 				}
@@ -335,7 +341,7 @@ void FSkinWeightProfileManagerAsyncTask::DoTask(ENamedThreads::Type CurrentThrea
 					
 					if (!!GAllowCPU && LODRenderData.SkinWeightVertexBuffer.GetNeedsCPUAccess())
 					{
-						SkinweightData.InitialiseProfileBuffer(Request.ProfileName);
+						SkinweightData.InitialiseProfileBuffer(Request.ProfileStack);
 					}
 					else
 					{
@@ -351,7 +357,7 @@ void FSkinWeightProfileManagerAsyncTask::DoTask(ENamedThreads::Type CurrentThrea
 							}
 							else if (SkinweightData.IsDataReadbackFinished())
 							{						
-								SkinweightData.InitialiseProfileBuffer(Request.ProfileName);
+								SkinweightData.InitialiseProfileBuffer(Request.ProfileStack);
 							}
 						}
 					}

@@ -6,14 +6,20 @@
 
 #pragma once
 
+#include "../BlueNoise.ush"
+
+#define PROBE_SOURCE_MODE_NONE				0
+#define PROBE_SOURCE_MODE_RADIANCE_CACHE	1
+#define PROBE_SOURCE_MODE_FROXEL			2
+
 uint TranslucencyVolumeTracingOctahedronResolution;
 uint3 TranslucencyGIGridSize;
 float3 TranslucencyGIGridZParams;
 uint TranslucencyGIGridPixelSizeShift;
 
-uint UseJitter;
-float3 FrameJitterOffset; 
-float4x4 UnjitteredClipToTranslatedWorld;    
+int FroxelDirectionJitterFrameIndex;
+float3 FrameJitterOffset;
+float4x4 UnjitteredClipToTranslatedWorld;
 float GridCenterOffsetFromDepthBuffer;
 float GridCenterOffsetThresholdToAcceptDepthBufferOffset;
 
@@ -71,9 +77,9 @@ void GetProbeTracingUV(
 	ConeHalfAngle = acosFast(1.0f - 1.0f / (float)(TranslucencyVolumeTracingOctahedronResolution * TranslucencyVolumeTracingOctahedronResolution));
 }
 
-float2 GetProbeTexelCenter(uint3 GridCoordinate)
+float2 GetProbeTexelCenter(uint2 GridCoordinate)
 {
-	return Rand4DPCG32(int4(GridCoordinate.xyz, UseJitter ? View.StateFrameIndex : 0)).xy / (float)0xffffffff;
+	return BlueNoiseVec2(GridCoordinate, FroxelDirectionJitterFrameIndex < 0 ? 0 : FroxelDirectionJitterFrameIndex);
 }
 
 Texture2D FurthestHZBTexture;

@@ -22,6 +22,7 @@
 // Forward Declarations
 struct FMetasoundFrontendClass;
 struct FMetasoundFrontendClassInterface;
+struct FMetaSoundFrontendDocumentBuilder;
 
 enum class EMetasoundFrontendClassType : uint8;
 
@@ -35,6 +36,13 @@ namespace Metasound
 
 	namespace Frontend
 	{
+		constexpr FGuid DefaultPageID(0, 0, 0, 0);
+		constexpr TCHAR DefaultPageName[] = TEXT("Default");
+
+#if WITH_EDITORONLY_DATA
+		extern const FText METASOUNDFRONTEND_API DefaultPageDisplayName;
+#endif // WITH_EDITORONLY_DATA
+
 		namespace DisplayStyle
 		{
 			namespace EdgeAnimation
@@ -134,10 +142,10 @@ enum class EMetasoundFrontendClassType : uint8
 	// The MetaSound class is an output from a graph in the containing document.
 	Output,
 
-	// The MetaSound class is an literal requiring an literal value to construct.
+	// The MetaSound class is an literal requiring a literal value to construct.
 	Literal,
 
-	// The MetaSound class is an variable requiring an literal value to construct.
+	// The MetaSound class is an variable requiring a literal value to construct.
 	Variable,
 
 	// The MetaSound class accesses variables.
@@ -156,6 +164,47 @@ enum class EMetasoundFrontendClassType : uint8
 	Invalid UMETA(Hidden)
 };
 
+UENUM()
+enum class EMetaSoundFrontendGraphCommentMoveMode : uint8
+{
+	/** This comment box will move any fully contained nodes when it moves. */
+	GroupMovement UMETA(DisplayName = "Group Movement"),
+
+	/** This comment box has no effect on nodes contained inside it. */
+	NoGroupMovement UMETA(DisplayName = "Comment")
+};
+
+USTRUCT()
+struct METASOUNDFRONTEND_API FMetaSoundFrontendGraphComment
+{
+	GENERATED_BODY()
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FLinearColor Color = FLinearColor::Black;
+
+	UPROPERTY()
+	FString Comment;
+
+	UPROPERTY()
+	int32 Depth = 0;
+
+	UPROPERTY()
+	int32 FontSize = 0;
+
+	UPROPERTY()
+	FVector2D Position = FVector2D::Zero();
+
+	UPROPERTY()
+	FVector2D Size = FVector2D::Zero();
+
+	UPROPERTY()
+	EMetaSoundFrontendGraphCommentMoveMode MoveMode = EMetaSoundFrontendGraphCommentMoveMode::GroupMovement;
+
+	UPROPERTY()
+	uint8 bColorBubble : 1;
+#endif // WITH_EDITORONLY_DATA
+};
 
 // General purpose version number for Metasound Frontend objects.
 USTRUCT(BlueprintType)
@@ -493,6 +542,14 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendNodeStyleDisplay
 	// more than one place on the graph (Only functionally relevant for nodes that cannot contain inputs.)
 	UPROPERTY()
 	TMap<FGuid, FVector2D> Locations;
+
+	// Comment to display about the given instance's usage
+	UPROPERTY()
+	FString Comment;
+
+	// Whether or not the comment is visible or not
+	UPROPERTY()
+	bool bCommentVisible = false;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -513,6 +570,11 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendNodeStyle
 
 	UPROPERTY()
 	bool bIsPrivate = false;
+	
+	//Whether or not Unconnected pins are hidden
+	UPROPERTY()
+	bool bUnconnectedPinsHidden = false;
+
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -659,6 +721,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphStyle
 {
 	GENERATED_BODY()
 
+#if WITH_EDITORONLY_DATA
 	// Whether or not the graph is editable by a user
 	UPROPERTY()
 	bool bIsGraphEditable = true;
@@ -666,6 +729,11 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphStyle
 	// Styles for graph edges.
 	UPROPERTY()
 	TArray<FMetasoundFrontendEdgeStyle> EdgeStyles;
+
+	// Map of comment id to comment data
+	UPROPERTY()
+	TMap<FGuid, FMetaSoundFrontendGraphComment> Comments;
+#endif // WITH_EDITORONLY_DATA
 };
 
 USTRUCT()
@@ -690,6 +758,9 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraph
 	UPROPERTY()
 	FMetasoundFrontendGraphStyle Style;
 #endif // WITH_EDITORONLY_DATA
+
+	UPROPERTY()
+	FGuid PageID;
 };
 
 // Metadata associated with a vertex.
@@ -772,6 +843,11 @@ public:
 		GetDisplayName() = InText;
 	}
 
+	void SetIsAdvancedDisplay(const bool InIsAdvancedDisplay)
+	{		
+		bIsAdvancedDisplay = InIsAdvancedDisplay;
+	}
+
 	void SetSerializeText(bool bInSerializeText)
 	{
 		if (bSerializeText)
@@ -814,6 +890,8 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassVertex : public FMetasoundFr
 	// Metadata associated with vertex.
 	UPROPERTY(EditAnywhere, Category = CustomView)
 	FMetasoundFrontendVertexMetadata Metadata;
+
+	const bool GetIsAdvancedDisplay() const { return Metadata.bIsAdvancedDisplay; };
 #endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY()
@@ -823,6 +901,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassVertex : public FMetasoundFr
 	void SplitName(FName& OutNamespace, FName& OutParameterName) const;
 
 	static bool IsFunctionalEquivalent(const FMetasoundFrontendClassVertex& InLHS, const FMetasoundFrontendClassVertex& InRHS);
+
 	// Whether vertex access types are compatible when connecting from an output to an input 
 	static bool CanConnectVertexAccessTypes(EMetasoundFrontendVertexAccessType InFromType, EMetasoundFrontendVertexAccessType InToType);
 };
@@ -864,6 +943,25 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassStyleDisplay
 };
 
 
+USTRUCT()
+struct METASOUNDFRONTEND_API FMetasoundFrontendClassInputDefault
+{
+	GENERATED_BODY()
+
+	FMetasoundFrontendClassInputDefault() = default;
+	FMetasoundFrontendClassInputDefault(FMetasoundFrontendLiteral InLiteral);
+	FMetasoundFrontendClassInputDefault(const FGuid& InPageID, FMetasoundFrontendLiteral InLiteral = { });
+	FMetasoundFrontendClassInputDefault(const FAudioParameter& InParameter);
+
+	static bool IsFunctionalEquivalent(const FMetasoundFrontendClassInputDefault& InLHS, const FMetasoundFrontendClassInputDefault& InRHS);
+
+	UPROPERTY()
+	FMetasoundFrontendLiteral Literal;
+
+	UPROPERTY()
+	FGuid PageID = Metasound::Frontend::DefaultPageID;
+};
+
 // Contains info for input vertex of a Metasound class.
 USTRUCT() 
 struct METASOUNDFRONTEND_API FMetasoundFrontendClassInput : public FMetasoundFrontendClassVertex
@@ -871,13 +969,35 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassInput : public FMetasoundFro
 	GENERATED_BODY()
 
 	FMetasoundFrontendClassInput() = default;
-
 	FMetasoundFrontendClassInput(const FMetasoundFrontendClassVertex& InOther);
 	FMetasoundFrontendClassInput(const Audio::FParameterInterface::FInput& InInput);
 
-	// Default value for this input.
-	UPROPERTY(EditAnywhere, Category = Parameters)
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta = (DeprecationMessage = "5.5 - Direct access will be revoked and page manipulation limited to public API in future builds. Field has been rolled into DefaultLiterals Array."))
 	FMetasoundFrontendLiteral DefaultLiteral;
+#endif // WITH_EDITORONLY_DATA
+
+	static bool IsFunctionalEquivalent(const FMetasoundFrontendClassInput& InLHS, const FMetasoundFrontendClassInput& InRHS);
+
+private:
+	UPROPERTY(EditAnywhere, Category = Parameters)
+	TArray<FMetasoundFrontendClassInputDefault> Defaults;
+
+public:
+	FMetasoundFrontendLiteral& AddDefault(const FGuid& InPageID);
+	bool ContainsDefault(const FGuid& InPageID) const;
+	const FMetasoundFrontendLiteral* FindConstDefault(const FGuid& InPageID) const;
+	const FMetasoundFrontendLiteral& FindConstDefaultChecked(const FGuid& InPageID) const;
+	FMetasoundFrontendLiteral* FindDefault(const FGuid& InPageID);
+	FMetasoundFrontendLiteral& FindDefaultChecked(const FGuid& InPageID);
+	const TArray<FMetasoundFrontendClassInputDefault>& GetDefaults() const;
+	FMetasoundFrontendLiteral& InitDefault();
+	void InitDefault(FMetasoundFrontendLiteral InitLiteral);
+	void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral&)> IterFunc);
+	void IterateDefaults(TFunctionRef<void(const FGuid&, const FMetasoundFrontendLiteral&)> IterFunc) const;
+	bool RemoveDefault(const FGuid& InPageID);
+	void ResetDefaults();
+	void SetDefaults(TArray<FMetasoundFrontendClassInputDefault> InputDefaults);
 };
 
 // Contains info for variable vertex of a Metasound class.
@@ -887,7 +1007,6 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassVariable : public FMetasound
 	GENERATED_BODY()
 
 	FMetasoundFrontendClassVariable() = default;
-
 	FMetasoundFrontendClassVariable(const FMetasoundFrontendClassVertex& InOther);
 
 	// Default value for this variable.
@@ -1212,7 +1331,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendInterface : public FMetasoundFron
 
 
 // Name of a Metasound class
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (DisplayName = "MetaSound Class Name"))
 struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 {
 	GENERATED_BODY()
@@ -1251,6 +1370,9 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 
 	// Return string version of full name.
 	FString ToString() const;
+
+	// Return a string into an existing FNameBuilder
+	void ToString(FNameBuilder& NameBuilder) const;
 
 	// Parses string into class name.  For deserialization and debug use only.
 	static bool Parse(const FString& InClassName, FMetasoundFrontendClassName& OutClassName);
@@ -1510,7 +1632,7 @@ struct FMetasoundFrontendClassStyle
 	static FMetasoundFrontendClassStyle GenerateClassStyle(const Metasound::FNodeDisplayStyle& InNodeDisplayStyle);
 
 	// Editor only ID that allows for pumping view to reflect changes to class.
-	void UpdateChangeID()
+	void UpdateChangeID() const
 	{
 		ChangeID = FGuid::NewGuid();
 	}
@@ -1521,8 +1643,9 @@ struct FMetasoundFrontendClassStyle
 	}
 
 private:
+	// TODO: Deprecate this change behavior in favor of using the builder API transaction counters
 	UPROPERTY(Transient)
-	FGuid ChangeID;
+	mutable FGuid ChangeID;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -1586,17 +1709,91 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphClass : public FMetasoundFro
 {
 	GENERATED_BODY()
 
+public:
 	FMetasoundFrontendGraphClass();
-
 	virtual ~FMetasoundFrontendGraphClass() = default;
 
-	UPROPERTY()
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta = (DeprecationMessage = "5.5 - GraphClasses now support multiple paged graphs. Use the provided page graph accessors"))
 	FMetasoundFrontendGraph Graph;
+#endif // WITH_EDITORONLY_DATA
 
+private:
+	UPROPERTY()
+	TArray<FMetasoundFrontendGraph> PagedGraphs;
+
+public:
 	UPROPERTY()
 	FMetasoundFrontendGraphClassPresetOptions PresetOptions;
+
+public:
+#if WITH_EDITORONLY_DATA
+	const FMetasoundFrontendGraph& AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph = true, bool bSetAsBuildGraph = true);
+
+	// Removes the page associated with the given PageID.  Returns true if removed, false if not.
+	// If provided an "AdjacentPageID," sets the value at the given pointer to a page ID adjacent to
+	// the removed page. If last page was removed, returns the default graph ID (which may or may not
+	// exist).
+	bool RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID = nullptr);
+
+	// Removes all graph pages except the default.  If bClearDefaultPage is true, clears the default graph page implementation.
+	void ResetGraphPages(bool bClearDefaultGraph);
+#endif // WITH_EDITORONLY_DATA
+
+	bool ContainsGraphPage(const FGuid& InPageID) const;
+
+	FMetasoundFrontendGraph& InitDefaultGraphPage();
+
+	void IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc);
+	void IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const;
+
+	FMetasoundFrontendGraph* FindGraph(const FGuid& InPageID);
+	FMetasoundFrontendGraph& FindGraphChecked(const FGuid& InPageID);
+	const FMetasoundFrontendGraph* FindConstGraph(const FGuid& InPageID) const;
+	const FMetasoundFrontendGraph& FindConstGraphChecked(const FGuid& InPageID) const;
+	const TArray<FMetasoundFrontendGraph>& GetConstGraphPages() const { return PagedGraphs; };
+	FMetasoundFrontendGraph& GetDefaultGraph();
+	const FMetasoundFrontendGraph& GetConstDefaultGraph() const;
+	void ResetGraphs();
+
+#if WITH_EDITORONLY_DATA
+	struct IPropertyVersionTransform
+	{
+	public:
+		virtual ~IPropertyVersionTransform() = default;
+
+	protected:
+		virtual bool Transform(FMetasoundFrontendGraphClass& OutClass) const = 0;
+
+		// Allows for unsafe access to a document for property migration.
+		static TArray<FMetasoundFrontendGraph>& GetPagesUnsafe(FMetasoundFrontendGraphClass& GraphClass);
+	};
+#endif // WITH_EDITORONLY_DATA
 };
 
+UCLASS()
+class METASOUNDFRONTEND_API UMetaSoundFrontendMemberMetadata : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UE_DEPRECATED(5.5, "Implementation moved to child editor class instead of compiled out (not required by Frontend representation")
+	virtual void ForceRefresh() { }
+
+	UE_DEPRECATED(5.5, "Default is no longer required to be stored or represented in metadata and may differ in paged or non-paged implementation")
+	FMetasoundFrontendLiteral GetDefault() const { return FMetasoundFrontendLiteral(); }
+
+	UE_DEPRECATED(5.5, "Implementation moved to child editor class instead of compiled out (not required by Frontend representation")
+	virtual EMetasoundFrontendLiteralType GetLiteralType() const { return EMetasoundFrontendLiteralType::None; }
+
+	UE_DEPRECATED(5.5, "Default is no longer required to be stored or represented in metadata and may differ in paged or non-paged implementation")
+	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral, const FGuid& InPageID = Metasound::Frontend::DefaultPageID) { }
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FGuid MemberID;
+#endif // WITH_EDITORONLY_DATA
+};
 
 USTRUCT()
 struct METASOUNDFRONTEND_API FMetasoundFrontendDocumentMetadata
@@ -1607,7 +1804,14 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendDocumentMetadata
 	FMetasoundFrontendVersion Version;
 
 #if WITH_EDITORONLY_DATA
-	FMetasoundFrontendDocumentModifyContext ModifyContext;
+	// Actively being deprecated in favor of Document Builder Transaction Listener API.
+	mutable FMetasoundFrontendDocumentModifyContext ModifyContext;
+
+	// Map of MemberID to metadata used to constrain how literals can be manipulated
+	// with the editor context. This can be used to implement things like numeric ranges,
+	// hardware control parameters, etc.
+	UPROPERTY()
+	TMap<FGuid, TObjectPtr<UMetaSoundFrontendMemberMetadata>> MemberMetadata;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -1617,7 +1821,9 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendDocument
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITORONLY_DATA
 	static FMetasoundFrontendVersionNumber GetMaxVersion();
+#endif // WITH_EDITORONLY_DATA
 
 	Metasound::Frontend::FAccessPoint AccessPoint;
 
@@ -1644,36 +1850,44 @@ public:
 	}
 
 private:
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - ArchetypeVersion has been migrated to InterfaceVersions array."))
 	FMetasoundFrontendVersion ArchetypeVersion;
 
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - InterfaceVersions has been migrated to Interfaces set."))
 	TArray<FMetasoundFrontendVersion> InterfaceVersions;
+#endif // WITH_EDITORONLY_DATA
 
-	// Used for generating deterministic IDs per document
+	// Used for generating deterministic IDs per document. Serialized to avoid id collisions if deterministic IDs
+	// are ever serialized (not ideal, but can occur in less common commandlet use cases such as resaving serialized
+	// assets procedurally).
+	UPROPERTY()
 	mutable uint32 IdCounter = 1;
 
 public:
+#if WITH_EDITORONLY_DATA
+	bool RequiresInterfaceVersioning() const
+	{
+		return ArchetypeVersion.IsValid() || !InterfaceVersions.IsEmpty();
+	}
+
 	// Data migration for 5.0 Early Access data. ArchetypeVersion/InterfaceVersions properties can be removed post 5.0 release
 	// and this fix-up can be removed post 5.0 release.
-	bool VersionInterfaces()
+	void VersionInterfaces()
 	{
-		bool bDidEdit = false;
 		if (ArchetypeVersion.IsValid())
 		{
 			Interfaces.Add(ArchetypeVersion);
 			ArchetypeVersion = FMetasoundFrontendVersion::GetInvalid();
-			bDidEdit = true;
 		}
+
 		if (!InterfaceVersions.IsEmpty())
 		{
 			Interfaces.Append(InterfaceVersions);
 			InterfaceVersions.Reset();
-			bDidEdit = true;
 		}
-
-		return bDidEdit;
 	}
+#endif // WITH_EDITORONLY_DATA
 };
 
 METASOUNDFRONTEND_API const TCHAR* LexToString(EMetasoundFrontendClassType InClassType);
@@ -1681,21 +1895,27 @@ METASOUNDFRONTEND_API const TCHAR* LexToString(EMetasoundFrontendVertexAccessTyp
 
 namespace Metasound::Frontend
 {
-		METASOUNDFRONTEND_API bool StringToClassType(const FString& InString, EMetasoundFrontendClassType& OutClassType);
+	METASOUNDFRONTEND_API bool StringToClassType(const FString& InString, EMetasoundFrontendClassType& OutClassType);
 
-		/** Signature of function called for each found literal. */
-		using FForEachLiteralFunctionRef = TFunctionRef<void(const FName& InDataTypeName, const FMetasoundFrontendLiteral&)>; 
+	/** Signature of function called for each found literal. */
+	using FForEachLiteralFunctionRef = TFunctionRef<void(const FName& InDataTypeName, const FMetasoundFrontendLiteral&)>;
 
-		/** Execute the provided function for each literal on a FMetasoundFrontendDocument.*/
-		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral);
+	/** Execute the provided function for each literal on a FMetasoundFrontendDocument.*/
+	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral);
 
-		/** Execute the provided function for each literal on a FMetasoundFrontendGraphClass.*/
-		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral);
+	/** Execute the provided function for each literal on a FMetasoundFrontendDocument filtered by the given PageID.*/
+	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral, const FGuid& InPageID);
 
-		/** Execute the provided function for each literal on a FMetasoundFrontendClass.*/
-		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral);
+	/** Execute the provided function for each literal on a FMetasoundFrontendGraphClass.*/
+	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral);
 
-		/** Execute the provided function for each literal on a FMetasoundFrontendNode.*/
-		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral);
+	/** Execute the provided function for each literal on a FMetasoundFrontendGraphClass filtered by the given PageID.*/
+	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral, const FGuid& InPageID);
+
+	/** Execute the provided function for each literal on a FMetasoundFrontendClass.*/
+	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral);
+
+	/** Execute the provided function for each literal on a FMetasoundFrontendNode.*/
+	METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral);
 } // namespace Metasound::Frontend
 

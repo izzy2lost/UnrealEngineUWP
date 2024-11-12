@@ -2,6 +2,7 @@
 
 #include "PoseSearchAssetDefinitions.h"
 #include "PoseSearchDatabaseEditor.h"
+#include "PoseSearchInteractionAssetEditor.h"
 #include "ThumbnailRendering/SceneThumbnailInfo.h"
 
 namespace UE::PoseSearch
@@ -38,6 +39,24 @@ EAssetCommandResult UAssetDefinition_PoseSearchDatabase::OpenAssets(const FAsset
 		{
 			TSharedRef<FDatabaseEditor> NewEditor(new FDatabaseEditor());
 			NewEditor->InitAssetEditor(Mode, OpenArgs.ToolkitHost, Database);
+		}
+	}
+	
+	return EAssetCommandResult::Handled;
+}
+
+EAssetCommandResult UAssetDefinition_PoseSearchInteractionAsset::OpenAssets(const FAssetOpenArgs& OpenArgs) const
+{
+	using namespace UE::PoseSearch;
+
+	TArray<UPoseSearchInteractionAsset*> Objects = OpenArgs.LoadObjects<UPoseSearchInteractionAsset>();
+	const EToolkitMode::Type Mode = OpenArgs.ToolkitHost.IsValid() ? EToolkitMode::WorldCentric : EToolkitMode::Standalone;
+	for (UPoseSearchInteractionAsset* InteractionAsset : Objects)
+	{
+		if (InteractionAsset)
+		{
+			TSharedRef<FInteractionAssetEditor> NewEditor(new FInteractionAssetEditor());
+			NewEditor->InitAssetEditor(Mode, OpenArgs.ToolkitHost, InteractionAsset);
 		}
 	}
 	

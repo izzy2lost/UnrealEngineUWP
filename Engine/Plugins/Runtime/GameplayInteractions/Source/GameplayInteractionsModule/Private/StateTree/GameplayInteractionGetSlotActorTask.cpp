@@ -8,6 +8,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayInteractionGetSlotActorTask)
 
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
 FGameplayInteractionGetSlotActorTask::FGameplayInteractionGetSlotActorTask()
 {
 	// No tick needed.
@@ -52,3 +54,27 @@ EStateTreeRunStatus FGameplayInteractionGetSlotActorTask::EnterState(FStateTreeE
 
 	return EStateTreeRunStatus::Running;  
 }
+
+#if WITH_EDITOR
+FText FGameplayInteractionGetSlotActorTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, TargetSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("GetSlotActorRich", "<b>Get Actor</> <s>from slot</> {Slot}")
+		: LOCTEXT("GetSlotActor", "Get Actor from slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Slot"), SlotValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

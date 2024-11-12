@@ -110,20 +110,27 @@ namespace UE::Interchange::Private
 	}
 }
 
-void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+FString UInterchangeGenericTexturePipeline::GetPipelineCategory(UClass* AssetClass)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	return TEXT("Textures");
+}
+
+void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
+{
+	Super::AdjustSettingsForContext(ContextParams);
 #if WITH_EDITOR
 	TArray<FString> HideCategories;
-	bool bIsObjectATexture = !ReimportAsset ? false : ReimportAsset.IsA(UTexture::StaticClass());
-	if( (!bIsObjectATexture && ImportType == EInterchangePipelineContext::AssetReimport)
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+	bool bIsObjectATexture = !ContextParams.ReimportAsset ? false : ContextParams.ReimportAsset.IsA(UTexture::StaticClass());
+	if( (!bIsObjectATexture && ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bImportTextures = false;
-		HideCategories.Add(TEXT("Textures"));
+		HideCategories.Add(UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr));
 	}
 	if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
 	{
@@ -137,6 +144,15 @@ void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePi
 
 #if WITH_EDITOR
 
+bool UInterchangeGenericTexturePipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericTexturePipeline, bImportTextures))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
 void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
 	Super::FilterPropertiesFromTranslatedData(InBaseNodeContainer);
@@ -149,9 +165,14 @@ void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInt
 		//Filter out all Textures properties
 		if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
 		{
-			HidePropertiesOfCategory(OuterMostPipeline, this, TEXT("Textures"));
+			HidePropertiesOfCategory(OuterMostPipeline, this, UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr));
 		}
 	}
+}
+
+void UInterchangeGenericTexturePipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	PipelineSupportAssetClasses.Add(UTexture::StaticClass());
 }
 
 #endif //WITH_EDITOR
@@ -335,9 +356,20 @@ UInterchangeTextureFactoryNode* UInterchangeGenericTexturePipeline::CreateTextur
 		}
 	}
 
+	EInterchangeTextureColorSpace ColorSpace;
+	const bool bHasColorSpace = TextureNode->GetCustomColorSpace(ColorSpace);
+	if(bHasColorSpace)
+	{
+		TextureFactoryNode->SetCustomColorSpace(ETextureColorSpace(ColorSpace));
+	}
+
 	if (bool bSRGB; TextureNode->GetCustomSRGB(bSRGB))
 	{
 		TextureFactoryNode->SetCustomSRGB(bSRGB);
+		if(bSRGB && !bHasColorSpace)
+		{
+			TextureFactoryNode->SetCustomColorSpace(ETextureColorSpace::TCS_sRGB);
+		}
 	}
 	if (bool bFlipGreenChannel; TextureNode->GetCustombFlipGreenChannel(bFlipGreenChannel))
 	{
@@ -385,13 +417,24 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 	// (Note - as part of the standard interchange import this is called during the object
 	// import iteration, _before_ the iteration to call to PostEditChange which is what starts the texture build via UpdateResource,
 	// so altering properties here should be safe!)
-	check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture));
+
+	if (Texture->IsCompiling())
+	{
+		ensure(!bIsAReimport);
+		FTextureCompilingManager::Get().FinishCompilation(MakeArrayView(&Texture, 1));
+	}
+
+	if(bFlipNormalMapGreenChannel && Texture->IsNormalMap())
+	{
+		Texture->bFlipGreenChannel = true;
+	}
+
 	FTextureSource& Source = Texture->Source;
 
 	bool bRunNormapMapDetection = !bIsAReimport && bDetectNormalMapTexture && !Texture->IsNormalMap();
 
 	 // we probably got the info via Init() - if we didn't it's because it's compressed. Here we can decompress, so do it if needed.
-	bool bRunChannelScan = Source.GetLayerColorInfo().Num() == 0;
+	bool bRunChannelScan = !Source.HasLayerColorInfo();
 
 	bool bNeedLockedMip = bRunChannelScan || bRunNormapMapDetection;
 	if (!bNeedLockedMip)

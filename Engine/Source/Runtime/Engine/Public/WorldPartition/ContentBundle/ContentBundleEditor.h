@@ -33,8 +33,8 @@ public:
 
 	//~ Begin IContentBundle Interface
 	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-
 	ENGINE_API virtual bool IsValid() const override;
+	ENGINE_API virtual bool HasContent() const override;
 	//~ End IContentBundle Interface
 
 	const FGuid& GetTreeItemID() const { return TreeItemID; }

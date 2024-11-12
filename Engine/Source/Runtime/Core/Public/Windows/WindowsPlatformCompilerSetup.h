@@ -233,6 +233,7 @@ static_assert(_MSC_VER >= 1934, "Visual Studio 2022 v17.4 or greater is required
 #pragma warning(disable: 4946) // reinterpret_cast used between related classes: 'class1' and 'class2'								https://docs.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-1-c4946
 #pragma warning(default: 5038) // data member 'A::y' will be initialized after data member 'A::x'									https://docs.microsoft.com/en-us/cpp/error-messages/compiler-warnings/c5038
 #pragma warning(disable: 4984) // 'if constexpr' is a C++17 language extension
+#pragma warning(disable : 5105) // macro expansion producing 'defined' has undefined behavior
 
 // #pragma warning(default: 4996) // Deprecation: controlled via command line
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RetargetEditor/SIKRetargetHierarchy.h"
 
@@ -234,7 +234,6 @@ void SIKRetargetHierarchy::Construct(
 				.OnMouseButtonDoubleClick(this, &SIKRetargetHierarchy::OnItemDoubleClicked)
 				.OnSetExpansionRecursive(this, &SIKRetargetHierarchy::OnSetExpansionRecursive)
 				.HighlightParentNodesForSelection(false)
-				.ItemHeight(24)
 				.HeaderRow
 				(
 					SNew(SHeaderRow)

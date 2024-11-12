@@ -21,6 +21,37 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ScreenPass.h"
 
+namespace UE::DisplayClusterMeshProjectionRenderer
+{
+	/**
+	* Whether this primitive component should be rendered in this view.
+	* Each 'View' belongs to a 'ViewFamily' that belongs to the 'World'.
+	* UE can only render one world for one "View".
+	*/
+	static inline bool ShouldRenderPrimitiveComponentForView(const UPrimitiveComponent* InPrimitiveComponent, const FSceneView* InView)
+	{
+		const FSceneViewFamily* ViewFamily = InView ? InView->Family : nullptr;
+		if (const FSceneInterface* SceneInterface = ViewFamily ? ViewFamily->Scene : nullptr)
+		{
+			// Get primitive info from the scene by primitive ID.
+			if (FPrimitiveSceneInfo* PrimitiveSceneInfo = SceneInterface->GetPrimitiveSceneInfo(InPrimitiveComponent->GetPrimitiveSceneId()))
+			{
+				// The scene primitive identifier is simply a numeric value that can be the same in multiple worlds.
+				// To check if the primitive component is the same instance, let's compare references to FPrimitiveSceneProxy.
+				if (PrimitiveSceneInfo->Proxy == InPrimitiveComponent->GetSceneProxy())
+				{
+					return true;
+				}
+			}
+
+			// This is a component belonging to a different world; skip it for the current rendering pass.
+			return false;
+		}
+
+		return true;
+	}
+};
+
 //////////////////////////////////////////////////////////////////////////
 // Mesh Pass Processor
 
@@ -1033,7 +1064,7 @@ void FDisplayClusterMeshProjectionRenderer::RenderColorOutput(FRDGBuilder& Graph
 			RDG_EVENT_NAME("MeshProjectionRenderer::CopyColorTexture"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DrawScreenPass(
 				RHICmdList,
@@ -1090,7 +1121,7 @@ void FDisplayClusterMeshProjectionRenderer::RenderHitProxyOutput(FRDGBuilder& Gr
 			RDG_EVENT_NAME("MeshProjectionRenderer::CopyHitProxyTexture"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View, ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DrawScreenPass(
 				RHICmdList,
@@ -1424,7 +1455,7 @@ void FDisplayClusterMeshProjectionRenderer::AddNormalsFilterPass(FRDGBuilder& Gr
 			RDG_EVENT_NAME("MeshProjectionRenderer::OutputNormals"),
 			ScreenPassParameters,
 			ERDGPassFlags::Raster,
-			[View, ScreenPassVS, OutputNormalsPS, InputViewport, OutputViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+			[View, ScreenPassVS, OutputNormalsPS, InputViewport, OutputViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			DrawScreenPass(
 				RHICmdList,
@@ -1505,7 +1536,7 @@ void FDisplayClusterMeshProjectionRenderer::AddSelectionOutlineScreenPass(FRDGBu
 		RDG_EVENT_NAME("MeshProjectionRenderer::SelectionScreen"),
 		ScreenPassParameters,
 		ERDGPassFlags::Raster,
-		[View, ScreenPassVS, SelectionOutlinePS, OutputViewport, ScreenPassParameters, DefaultBlendState](FRHICommandList& RHICmdList)
+		[View, ScreenPassVS, SelectionOutlinePS, OutputViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
 	{
 		DrawScreenPass(
 			RHICmdList,
@@ -1561,7 +1592,16 @@ void FDisplayClusterMeshProjectionRenderer::RenderPrimitives_RenderThread(const 
 	DrawDynamicMeshPass(*View, RHICmdList, [View, &RenderSettings, bTranslucencyPass, this](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 	{
 		TArray<FSceneProxyElement> PrimitiveSceneProxies;
-		GetSceneProxies(PrimitiveSceneProxies, RenderSettings);
+		GetSceneProxies(PrimitiveSceneProxies, RenderSettings, [View](const UPrimitiveComponent* InPrimitiveComponent)
+			{
+				return UE::DisplayClusterMeshProjectionRenderer::ShouldRenderPrimitiveComponentForView(InPrimitiveComponent, View);
+			});
+
+		if (PrimitiveSceneProxies.IsEmpty())
+		{
+			// Skip if there is nothing to render.
+			return;
+		}
 
 		FMeshProjectionPassProcessor<ProjectionType> ProjectionMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings, bTranslucencyPass);
 		FMeshProjectionPassProcessor<EDisplayClusterMeshProjectionType::Linear> LinearMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings, bTranslucencyPass);
@@ -1601,7 +1641,16 @@ void FDisplayClusterMeshProjectionRenderer::RenderHitProxies_RenderThread(const 
 	DrawDynamicMeshPass(*View, RHICmdList, [View, &RenderSettings, this](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 	{
 		TArray<FSceneProxyElement> PrimitiveSceneProxies;
-		GetSceneProxies(PrimitiveSceneProxies, RenderSettings);
+		GetSceneProxies(PrimitiveSceneProxies, RenderSettings, [View](const UPrimitiveComponent* InPrimitiveComponent)
+			{
+				return UE::DisplayClusterMeshProjectionRenderer::ShouldRenderPrimitiveComponentForView(InPrimitiveComponent, View);
+			});
+
+		if (PrimitiveSceneProxies.IsEmpty())
+		{
+			// Skip if there is nothing to render.
+			return;
+		}
 
 		FMeshProjectionHitProxyPassProcessor<ProjectionType> ProjectionMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings);
 		FMeshProjectionHitProxyPassProcessor<EDisplayClusterMeshProjectionType::Linear> LinearMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings);
@@ -1636,7 +1685,16 @@ void FDisplayClusterMeshProjectionRenderer::RenderNormals_RenderThread(const FSc
 	DrawDynamicMeshPass(*View, RHICmdList, [View, &RenderSettings, this](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 	{
 		TArray<FSceneProxyElement> PrimitiveSceneProxies;
-		GetSceneProxies(PrimitiveSceneProxies, RenderSettings);
+		GetSceneProxies(PrimitiveSceneProxies, RenderSettings, [View](const UPrimitiveComponent* InPrimitiveComponent)
+			{
+				return UE::DisplayClusterMeshProjectionRenderer::ShouldRenderPrimitiveComponentForView(InPrimitiveComponent, View);
+			});
+
+		if (PrimitiveSceneProxies.IsEmpty())
+		{
+			// Skip if there is nothing to render.
+			return;
+		}
 
 		FMeshProjectionPassProcessor<ProjectionType, EDisplayClusterMeshProjectionOutput::Normals> ProjectionMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings);
 		ProjectionMeshProcessor.SetStencilValue(1);
@@ -1677,10 +1735,21 @@ void FDisplayClusterMeshProjectionRenderer::RenderSelection_RenderThread(const F
 	DrawDynamicMeshPass(*View, RHICmdList, [View, &RenderSettings, this](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 	{
 		TArray<FSceneProxyElement> PrimitiveSceneProxies;
-		GetSceneProxies(PrimitiveSceneProxies, RenderSettings, [](const UPrimitiveComponent* PrimitiveComponent)
+		GetSceneProxies(PrimitiveSceneProxies, RenderSettings, [View](const UPrimitiveComponent* InPrimitiveComponent)
 		{
-			return PrimitiveComponent->SceneProxy->IsSelected();
+			if (!UE::DisplayClusterMeshProjectionRenderer::ShouldRenderPrimitiveComponentForView(InPrimitiveComponent, View))
+			{
+				return false;
+			}
+
+			return InPrimitiveComponent->SceneProxy->IsSelected();
 		});
+
+		if (PrimitiveSceneProxies.IsEmpty())
+		{
+			// Skip if there is nothing to render.
+			return;
+		}
 
 		FMeshProjectionSelectionPassProcessor<ProjectionType> ProjectionMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings);
 		FMeshProjectionSelectionPassProcessor<EDisplayClusterMeshProjectionType::Linear> LinearMeshProcessor(nullptr, View, DynamicMeshPassContext, RenderSettings);
@@ -1735,6 +1804,178 @@ void FDisplayClusterMeshProjectionRenderer::GetSceneProxies(TArray<FSceneProxyEl
 				OutSceneProxyElements.Add(SceneProxyElement);
 			}
 		}
+	}
+}
+
+void FDisplayClusterMeshProjectionRenderer::RenderScenes(FCanvas* Canvas, const TArray<FSceneInterface*>& InScenes, const FDisplayClusterMeshProjectionRenderSettings& RenderSettings)
+{
+	Canvas->Flush_GameThread();
+
+	/**
+	* This code is based on the existing FDisplayClusterMeshProjectionRenderer::Render() function.
+	* The idea is to create code similar to the existing code.
+	*/
+	FRenderTarget* RenderTarget = Canvas->GetRenderTarget();
+	const bool bIsHitTesting = Canvas->IsHitTesting();
+	FHitProxyConsumer* HitProxyConsumer = Canvas->GetHitProxyConsumer();
+
+	UE::RenderCommandPipe::FSyncScope SyncScope;
+
+	ENQUEUE_RENDER_COMMAND(FDrawProjectedMeshes)(
+		[RenderTarget, Scenes = MoveTempIfPossible(InScenes), RenderSettings, bIsHitTesting, HitProxyConsumer, this](FRHICommandListImmediate& RHICmdList)
+		{
+			FRDGBuilder GraphBuilder(RHICmdList);
+
+			TArray<TSharedRef<FSceneViewFamilyContext>> ViewFamilies;
+			TArray<TSharedRef<FScenePrimitiveRenderingContextScopeHelper>> ScopeHelpers;
+			TArray<const FSceneView*> SceneViews;
+			for (FSceneInterface* Scene : Scenes)
+			{
+				ViewFamilies.Add(
+					MakeShared<FSceneViewFamilyContext>(FSceneViewFamily::ConstructionValues(
+						RenderTarget,
+						Scene,
+						RenderSettings.EngineShowFlags)
+						.SetTime(FGameTime::GetTimeSinceAppStart()))
+				);
+
+				FSceneViewFamilyContext& ViewFamily = ViewFamilies.Last().Get();
+
+				if (Scene)
+				{
+					Scene->IncrementFrameNumber();
+					ViewFamily.FrameNumber = Scene->GetFrameNumber();
+				}
+				else
+				{
+					ViewFamily.FrameNumber = GFrameNumber;
+				}
+
+				ViewFamily.EngineShowFlags.SetHitProxies(bIsHitTesting);
+
+				ScopeHelpers.Add(MakeShared<FScenePrimitiveRenderingContextScopeHelper>(GetRendererModule().BeginScenePrimitiveRendering(GraphBuilder, &ViewFamily)));
+
+				FSceneViewInitOptions NewInitOptions(RenderSettings.ViewInitOptions);
+				NewInitOptions.ViewFamily = &ViewFamily;
+
+				GetRendererModule().CreateAndInitSingleView(RHICmdList, &ViewFamily, &NewInitOptions);
+				SceneViews.Add(ViewFamily.Views[0]);
+			}
+
+			FRDGTextureRef OutputTexture = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(RenderTarget->GetRenderTargetTexture(), TEXT("ViewRenderTarget")));
+			FRenderTargetBinding OutputRenderTargetBinding(OutputTexture, ERenderTargetLoadAction::ELoad);
+			FMeshProjectionElementCollector ElementCollector(HitProxyConsumer);
+
+			switch (RenderSettings.RenderType)
+			{
+			case EDisplayClusterMeshProjectionOutput::Color:
+				if (ViewFamilies[0]->EngineShowFlags.HitProxies)
+				{
+					RenderHitProxyOutput(GraphBuilder, SceneViews[0], RenderSettings, OutputRenderTargetBinding, HitProxyConsumer);
+				}
+				else
+				{
+					RenderColorOutputs(GraphBuilder, SceneViews, RenderSettings, OutputRenderTargetBinding);
+				}
+
+				if (RenderSimpleElementsDelegate.IsBound())
+				{
+					RenderSimpleElementsDelegate.Execute(SceneViews[0], &ElementCollector);
+					AddSimpleElementPass(GraphBuilder, SceneViews[0], OutputRenderTargetBinding, ElementCollector);
+				}
+				break;
+
+			case EDisplayClusterMeshProjectionOutput::Normals:
+				RenderNormalsOutput(GraphBuilder, SceneViews[0], RenderSettings, OutputRenderTargetBinding);
+				break;
+			}
+
+			GraphBuilder.Execute();
+		});
+}
+
+void FDisplayClusterMeshProjectionRenderer::RenderColorOutputs(FRDGBuilder& GraphBuilder,
+	const TArray<const FSceneView*>& Views,
+	const FDisplayClusterMeshProjectionRenderSettings& RenderSettings,
+	FRenderTargetBinding& OutputRenderTargetBinding)
+{
+	FRDGTextureRef ColorTexture = GraphBuilder.CreateTexture(OutputRenderTargetBinding.GetTexture()->Desc, TEXT("DisplayClusterMeshProjection.ColorTexture"));
+
+	const FRDGTextureDesc DepthDesc = FRDGTextureDesc::Create2D(OutputRenderTargetBinding.GetTexture()->Desc.Extent, PF_DepthStencil, FClearValueBinding::DepthFar, TexCreate_DepthStencilTargetable | TexCreate_ShaderResource);
+	FRDGTextureRef DepthTexture = GraphBuilder.CreateTexture(DepthDesc, TEXT("DisplayClusterMeshProjection.DepthTexture"));
+
+	FRenderTargetBinding ColorRenderTargetBinding(ColorTexture, ERenderTargetLoadAction::EClear);
+	FDepthStencilBinding DepthStencilBinding(DepthTexture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
+
+	for (const FSceneView* ViewIt : Views)
+	{
+		AddBaseRenderPass(GraphBuilder, ViewIt, RenderSettings, ColorRenderTargetBinding, DepthStencilBinding);
+
+		ColorRenderTargetBinding.SetLoadAction(ERenderTargetLoadAction::ELoad);
+		DepthStencilBinding.SetDepthLoadAction(ERenderTargetLoadAction::ELoad);
+	}
+
+	for (const FSceneView* ViewIt : Views)
+	{
+		AddTranslucencyRenderPass(GraphBuilder, ViewIt, RenderSettings, ColorRenderTargetBinding, DepthStencilBinding);
+	}
+
+#if WITH_EDITOR
+	if (RenderSettings.EngineShowFlags.SelectionOutline)
+	{
+		const FRDGTextureDesc SelectionDepthDesc = FRDGTextureDesc::Create2D(OutputRenderTargetBinding.GetTexture()->Desc.Extent, PF_DepthStencil, FClearValueBinding::DepthFar, TexCreate_DepthStencilTargetable | TexCreate_ShaderResource);
+		FRDGTextureRef SelectionDepthTexture = GraphBuilder.CreateTexture(SelectionDepthDesc, TEXT("DisplayClusterMeshProjection.SelectionDepthTexture"));
+		FDepthStencilBinding SelectionDepthStencilBinding(SelectionDepthTexture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite_StencilWrite);
+
+		for (const FSceneView* ViewIt : Views)
+		{
+			AddSelectionDepthRenderPass(GraphBuilder, ViewIt, RenderSettings, SelectionDepthStencilBinding);
+		}
+
+		for (const FSceneView* ViewIt : Views)
+		{
+			AddSelectionOutlineScreenPass(GraphBuilder, ViewIt, OutputRenderTargetBinding, ColorTexture, DepthTexture, SelectionDepthTexture);
+		}
+	}
+	else
+#endif
+		// Copy the scene color to the output render target
+	{
+		FCopyRectPS::FParameters* ScreenPassParameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
+		ScreenPassParameters->InputTexture = ColorTexture;
+		ScreenPassParameters->InputSampler = TStaticSamplerState<>::GetRHI();
+		ScreenPassParameters->RenderTargets[0] = OutputRenderTargetBinding;
+
+		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(Views[0]->FeatureLevel);
+		TShaderMapRef<FScreenPassVS> ScreenPassVS(GlobalShaderMap);
+		TShaderMapRef<FCopyRectPS> CopyPixelShader(GlobalShaderMap);
+		if (!ScreenPassVS.IsValid() || !CopyPixelShader.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return;
+		}
+
+		FRHIBlendState* DefaultBlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
+		const FScreenPassTextureViewport RegionViewport(OutputRenderTargetBinding.GetTexture());
+
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("MeshProjectionRenderer::CopyColorTexture"),
+			ScreenPassParameters,
+			ERDGPassFlags::Raster,
+			[View = Views[0], ScreenPassVS, CopyPixelShader, RegionViewport, ScreenPassParameters, DefaultBlendState](FRDGAsyncTask, FRHICommandList& RHICmdList)
+			{
+				DrawScreenPass(
+					RHICmdList,
+					*View,
+					RegionViewport,
+					RegionViewport,
+					FScreenPassPipelineState(ScreenPassVS, CopyPixelShader, DefaultBlendState),
+					EScreenPassDrawFlags::None,
+					[&](FRHICommandList&)
+					{
+						SetShaderParameters(RHICmdList, CopyPixelShader, CopyPixelShader.GetPixelShader(), *ScreenPassParameters);
+					});
+			});
 	}
 }
 

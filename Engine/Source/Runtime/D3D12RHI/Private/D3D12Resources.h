@@ -7,12 +7,12 @@
 #pragma once
 
 #include "BoundShaderStateCache.h"
-#include "D3D12NvidiaExtensions.h"
-#include "D3D12ShaderResources.h"
-#include "D3D12Residency.h"
-#include "D3D12Util.h"
-#include "D3D12State.h"
 #include "D3D12DirectCommandListManager.h"
+#include "D3D12NvidiaExtensions.h"
+#include "D3D12Residency.h"
+#include "D3D12ShaderResources.h"
+#include "D3D12State.h"
+#include "D3D12Util.h"
 #include "RHIPoolAllocator.h"
 #include "Templates/UniquePtr.h"
 
@@ -24,19 +24,26 @@ constexpr D3D12_RESOURCE_STATES BackBufferBarrierWriteTransitionTargets = D3D12_
 	uint32(D3D12_RESOURCE_STATE_RESOLVE_DEST));
 
 // Forward Decls
+class FD3D12CommandList;
 class FD3D12Resource;
 class FD3D12StateCache;
 class FD3D12CommandListManager;
 class FD3D12CommandContext;
 class FD3D12SegListAllocator;
 class FD3D12PoolAllocator;
+struct FD3D12ComputePipelineState;
+struct FD3D12WorkGraphPipelineState;
 struct FD3D12GraphicsPipelineState;
 struct FD3D12ResourceDesc;
+
+class FD3D12SyncPoint;
+using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
 #if D3D12_RHI_RAYTRACING
 class FD3D12RayTracingGeometry;
 class FD3D12RayTracingScene;
 class FD3D12RayTracingPipelineState;
+class FD3D12RayTracingShaderBindingTable;
 class FD3D12RayTracingShader;
 #endif // D3D12_RHI_RAYTRACING
 
@@ -117,17 +124,35 @@ private:
 	bool bRequiresResidencyTracking = bool(ENABLE_RESIDENCY_MANAGEMENT);
 };
 
-struct FD3D12ResourceDesc : public D3D12_RESOURCE_DESC
+
+// This can be used to guarantee that a struct's padding is zero, which is necessary for hashing in some cases
+// NOTE: classes with virtual methods are not supported. The struct must be the first declared base class
+// to ensure the correct ordering of the ctor calls
+template <typename T>
+struct TZeroedStruct
 {
-	FD3D12ResourceDesc() = default;
+	TZeroedStruct<T>()
+	{
+		FMemory::Memzero(this, sizeof(T));
+	}
+};
+
+struct FD3D12ResourceDesc : public TZeroedStruct<FD3D12ResourceDesc>, D3D12_RESOURCE_DESC
+{
+	FD3D12ResourceDesc() :
+		TZeroedStruct<FD3D12ResourceDesc>()
+		{
+		}
 	FD3D12ResourceDesc(const CD3DX12_RESOURCE_DESC& Other)
-		: D3D12_RESOURCE_DESC(Other)
+		: TZeroedStruct<FD3D12ResourceDesc>()
+		, D3D12_RESOURCE_DESC(Other)
 	{
 	}
 	
 	// TODO: use this type everywhere and disallow implicit conversion
 	/*explicit*/ FD3D12ResourceDesc(const D3D12_RESOURCE_DESC& Other)
-		: D3D12_RESOURCE_DESC(Other)
+		: TZeroedStruct<FD3D12ResourceDesc>()
+		, D3D12_RESOURCE_DESC(Other)
 	{
 	}
 
@@ -175,7 +200,7 @@ private:
 	void* ResourceBaseAddress{};
 
 #if NV_AFTERMATH
-	GFSDK_Aftermath_ResourceHandle AftermathHandle{};
+	UE::RHICore::Nvidia::Aftermath::D3D12::FResource AftermathHandle{};
 #endif
 
 	const FD3D12ResourceDesc Desc;
@@ -335,11 +360,21 @@ public:
 	inline FD3D12Heap* GetHeap() const { return Heap; };
 	inline bool IsDepthStencilResource() const { return bDepthStencil; }
 
+	inline bool NeedsDeferredResidencyUpdate() const { return IsReservedResource(); }
+
 	void StartTrackingForResidency();
 
 	bool IsResident() const
 	{
 #if ENABLE_RESIDENCY_MANAGEMENT
+
+		if (NeedsDeferredResidencyUpdate())
+		{
+			// We don't know the state because the set of residency handles is only known on the 
+			// RHI Submission Thread and may change throughout the frame.
+			return true;
+		}
+
 		TConstArrayView<FD3D12ResidencyHandle*> ResidencyHandles = GetResidencyHandles();
 		if (ResidencyHandles.IsEmpty())
 		{
@@ -406,8 +441,7 @@ public:
 			// state then when a transition is required (will transition via scoped push/pop to requested state)
 			if (!bSRVOnly && InResourceState != ERHIAccess::Unknown && InResourceState != ERHIAccess::Discard)
 			{
-				bool bAsyncCompute = false;
-				return GetD3D12ResourceState(InResourceState, bAsyncCompute);
+				return GetD3D12ResourceState(InResourceState, ED3D12QueueType::Direct);
 			}
 			else
 			{
@@ -631,6 +665,12 @@ public:
 	};
 
 	FD3D12ResourceLocation(FD3D12Device* Parent);
+	FD3D12ResourceLocation(FD3D12ResourceLocation&& Other)
+		: FD3D12ResourceLocation(Other.GetParentDevice())
+	{
+		TransferOwnership(*this, Other);
+	}
+
 	~FD3D12ResourceLocation();
 
 	void Clear();
@@ -671,7 +711,7 @@ public:
 	FD3D12PoolAllocatorPrivateData&    GetPoolAllocatorPrivateData   ()       { return AllocatorData.PoolAllocatorPrivateData;               }
 
 	// Pool allocation specific functions
-	bool OnAllocationMoved(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InNewData);
+	bool OnAllocationMoved(FD3D12ContextArray const& Contexts, FRHIPoolAllocationData* InNewData);
 	void UnlockPoolData();
 
 	bool IsValid() const { return Type != ResourceLocationType::eUndefined; }
@@ -826,7 +866,7 @@ struct FD3D12LockedResource : public FD3D12DeviceChild
 /** Resource which might needs to be notified about changes on dependent resources (Views, RTGeometryObject, Cached binding tables) */
 struct FD3D12ShaderResourceRenameListener
 {
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
 };
 
 
@@ -861,12 +901,12 @@ public:
 		return RenameListeners.Num() != 0;
 	}
 
-	void ResourceRenamed(FRHICommandListBase& RHICmdList)
+	void ResourceRenamed(FD3D12ContextArray const& Contexts)
 	{
 		FScopeLock Lock(&RenameListenersCS);
 		for (FD3D12ShaderResourceRenameListener* RenameListener : RenameListeners)
 		{
-			RenameListener->ResourceRenamed(RHICmdList, this, &ResourceLocation);
+			RenameListener->ResourceRenamed(Contexts, this, &ResourceLocation);
 		}
 	}
 
@@ -928,8 +968,11 @@ public:
 
 	virtual uint32 GetParentGPUIndex() const override;
 
-	void UploadResourceData(FRHICommandListBase& InRHICmdList, FResourceArrayInterface* InResourceArray, D3D12_RESOURCE_STATES InDestinationState, const TCHAR* AssetName = nullptr, const FName& ClassName = NAME_None, const FName& PackageName = NAME_None);
-	FD3D12SyncPointRef UploadResourceDataViaCopyQueue(FResourceArrayInterface* InResourceArray);
+	static void UploadResourceData(FD3D12CommandContext& CommandContext, D3D12_RESOURCE_STATES InDestinationState, FD3D12ResourceLocation& DestinationResourceLocation, const FD3D12ResourceLocation& SourceResourceLocation, uint32 Size);
+	void UploadResourceData(FRHICommandListBase& InRHICmdList, FRHIGPUMask GPUMask, D3D12_RESOURCE_STATES InDestinationState, const void* SourceData, int32 SourceDataSize);
+	void UploadResourceData(FRHICommandListBase& InRHICmdList, FResourceArrayUploadInterface* InResourceArray, D3D12_RESOURCE_STATES InDestinationState, const TCHAR* AssetName = nullptr, const FName& ClassName = NAME_None, const FName& PackageName = NAME_None);
+
+	FD3D12SyncPointRef UploadResourceDataViaCopyQueue(FResourceArrayUploadInterface* InResourceArray);
 
 	// FRHIResource overrides
 #if RHI_ENABLE_RESOURCE_INFO
@@ -946,8 +989,8 @@ public:
 	}
 #endif
 
-	void Rename(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation);
-	void RenameLDAChain(FRHICommandListBase& RHICmdList, FD3D12ResourceLocation& NewLocation);
+	void Rename(FD3D12ContextArray const& Contexts, FD3D12ResourceLocation& NewLocation);
+	void RenameLDAChain(FD3D12ContextArray const& Contexts, FD3D12ResourceLocation& NewLocation);
 
 	void TakeOwnership(FD3D12Buffer& Other);
 	void ReleaseOwnership();
@@ -1038,14 +1081,15 @@ private:
 	uint32 ShadowBufferSize;
 };
 
-class FD3D12ShaderBundle : public FRHIShaderBundle
+class FD3D12ShaderBundle : public FRHIShaderBundle, public FD3D12DeviceChild
 {
 	friend class FD3D12CommandContext;
 	friend class FD3D12DynamicRHI;
 
 public:
-	FD3D12ShaderBundle(FD3D12Device* InDevice, uint32 InNumRecords)
-		: FRHIShaderBundle(InNumRecords)
+	FD3D12ShaderBundle(FD3D12Device* InDevice, const FShaderBundleCreateInfo& CreateInfo)
+	: FRHIShaderBundle(CreateInfo)
+	, FD3D12DeviceChild(InDevice)
 	{
 	}
 };
@@ -1105,6 +1149,11 @@ struct TD3D12ResourceTraits<FRHIComputePipelineState>
 	typedef FD3D12ComputePipelineState TConcreteType;
 };
 template<>
+struct TD3D12ResourceTraits<FRHIWorkGraphPipelineState>
+{
+	typedef FD3D12WorkGraphPipelineState TConcreteType;
+};
+template<>
 struct TD3D12ResourceTraits<FRHIGPUFence>
 {
 	typedef FD3D12GPUFence TConcreteType;
@@ -1135,6 +1184,11 @@ template<>
 struct TD3D12ResourceTraits<FRHIRayTracingPipelineState>
 {
 	typedef FD3D12RayTracingPipelineState TConcreteType;
+};
+template<>
+struct TD3D12ResourceTraits<FRHIShaderBindingTable>
+{
+	typedef FD3D12RayTracingShaderBindingTable TConcreteType;
 };
 template<>
 struct TD3D12ResourceTraits<FRHIRayTracingShader>

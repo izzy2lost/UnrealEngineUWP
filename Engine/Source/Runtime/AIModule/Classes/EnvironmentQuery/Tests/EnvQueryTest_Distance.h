@@ -21,7 +21,7 @@ namespace EEnvTestDistance
 	};
 }
 
-UCLASS()
+UCLASS(MinimalAPI)
 class UEnvQueryTest_Distance : public UEnvQueryTest
 {
 	GENERATED_UCLASS_BODY()

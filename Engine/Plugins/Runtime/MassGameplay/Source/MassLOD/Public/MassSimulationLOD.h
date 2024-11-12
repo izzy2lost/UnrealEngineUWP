@@ -79,7 +79,7 @@ struct MASSLOD_API FMassSimulationVariableTickChunkFragment : public FMassVariab
 };
 
 USTRUCT()
-struct MASSLOD_API FMassSimulationLODParameters : public FMassSharedFragment
+struct MASSLOD_API FMassSimulationLODParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 
@@ -103,7 +103,7 @@ struct MASSLOD_API FMassSimulationLODParameters : public FMassSharedFragment
 };
 
 USTRUCT()
-struct MASSLOD_API FMassSimulationVariableTickParameters : public FMassSharedFragment
+struct MASSLOD_API FMassSimulationVariableTickParameters : public FMassConstSharedFragment
 {
 	GENERATED_BODY()
 

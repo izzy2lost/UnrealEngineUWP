@@ -8,6 +8,17 @@
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SAudioSpectrumPlot.generated.h"
+
+UENUM(BlueprintType)
+enum class EAudioSpectrumPlotTilt : uint8
+{
+	NoTilt UMETA(ToolTip = "0 dB/octave slope (white noise is flat)."),
+	Plus1_5dBPerOctave UMETA(DisplayName = "1.5 dB/octave", ToolTip = "1.5 dB/octave slope."),
+	Plus3dBPerOctave UMETA(DisplayName = "3 dB/octave", ToolTip = "3 dB/octave slope (pink noise is flat)."),
+	Plus4_5dBPerOctave UMETA(DisplayName = "4.5 dB/octave", ToolTip = "4.5 dB/octave slope."),
+	Plus6dBPerOctave UMETA(DisplayName = "6 dB/octave", ToolTip = "6 dB/octave slope (Brownian noise is flat)."),
+};
 
 UENUM(BlueprintType)
 enum class EAudioSpectrumPlotFrequencyAxisScale : uint8
@@ -96,6 +107,11 @@ private:
 	const float PixelsPerDecibel;
 };
 
+DECLARE_DELEGATE_OneParam(FOnTiltSpectrumMenuEntryClicked, EAudioSpectrumPlotTilt);
+DECLARE_DELEGATE_OneParam(FOnFrequencyAxisPixelBucketModeMenuEntryClicked, EAudioSpectrumPlotFrequencyAxisPixelBucketMode);
+DECLARE_DELEGATE_OneParam(FOnFrequencyAxisScaleMenuEntryClicked, EAudioSpectrumPlotFrequencyAxisScale);
+DECLARE_DELEGATE(FOnDisplayAxisLabelsButtonToggled);
+
 /**
  * The audio spectrum data to plot.
  */
@@ -119,13 +135,19 @@ public:
 		, _ViewMaxFrequency(20000.0f)
 		, _ViewMinSoundLevel(-60.0f)
 		, _ViewMaxSoundLevel(12.0f)
+		, _TiltExponent(0.0f)
+		, _TiltPivotFrequency(24000.0f)
+		, _DisplayCrosshair(false)
 		, _DisplayFrequencyAxisLabels(true)
 		, _DisplaySoundLevelAxisLabels(true)
+		, _DisplayFrequencyGridLines(true)
+		, _DisplaySoundLevelGridLines(true)
 		, _FrequencyAxisScale(EAudioSpectrumPlotFrequencyAxisScale::Logarithmic)
 		, _FrequencyAxisPixelBucketMode(EAudioSpectrumPlotFrequencyAxisPixelBucketMode::Average)
 		, _BackgroundColor(FSlateColor::UseStyle())
 		, _GridColor(FSlateColor::UseStyle())
 		, _AxisLabelColor(FSlateColor::UseStyle())
+		, _CrosshairColor(FSlateColor::UseStyle())
 		, _SpectrumColor(FSlateColor::UseStyle())
 		, _AllowContextMenu(true)
 	{}
@@ -134,16 +156,28 @@ public:
 		SLATE_ATTRIBUTE(float, ViewMaxFrequency)
 		SLATE_ATTRIBUTE(float, ViewMinSoundLevel)
 		SLATE_ATTRIBUTE(float, ViewMaxSoundLevel)
+		SLATE_ATTRIBUTE(float, TiltExponent)
+		SLATE_ATTRIBUTE(float, TiltPivotFrequency)
+		SLATE_ATTRIBUTE(TOptional<float>, SelectedFrequency)
+		SLATE_ATTRIBUTE(bool, DisplayCrosshair)
 		SLATE_ATTRIBUTE(bool, DisplayFrequencyAxisLabels)
 		SLATE_ATTRIBUTE(bool, DisplaySoundLevelAxisLabels)
+		SLATE_ATTRIBUTE(bool, DisplayFrequencyGridLines)
+		SLATE_ATTRIBUTE(bool, DisplaySoundLevelGridLines)
 		SLATE_ATTRIBUTE(EAudioSpectrumPlotFrequencyAxisScale, FrequencyAxisScale)
 		SLATE_ATTRIBUTE(EAudioSpectrumPlotFrequencyAxisPixelBucketMode, FrequencyAxisPixelBucketMode)
 		SLATE_ATTRIBUTE(FSlateColor, BackgroundColor)
 		SLATE_ATTRIBUTE(FSlateColor, GridColor)
 		SLATE_ATTRIBUTE(FSlateColor, AxisLabelColor)
+		SLATE_ATTRIBUTE(FSlateColor, CrosshairColor)
 		SLATE_ATTRIBUTE(FSlateColor, SpectrumColor)
 		SLATE_ATTRIBUTE(bool, AllowContextMenu)
 		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
+		SLATE_EVENT(FOnTiltSpectrumMenuEntryClicked, OnTiltSpectrumMenuEntryClicked)
+		SLATE_EVENT(FOnFrequencyAxisPixelBucketModeMenuEntryClicked, OnFrequencyAxisPixelBucketModeMenuEntryClicked)
+		SLATE_EVENT(FOnFrequencyAxisScaleMenuEntryClicked, OnFrequencyAxisScaleMenuEntryClicked)
+		SLATE_EVENT(FOnDisplayAxisLabelsButtonToggled, OnDisplayFrequencyAxisLabelsButtonToggled)
+		SLATE_EVENT(FOnDisplayAxisLabelsButtonToggled, OnDisplaySoundLevelAxisLabelsButtonToggled)
 		SLATE_EVENT(FGetAudioSpectrumData, OnGetAudioSpectrumData)
 	SLATE_END_ARGS()
 
@@ -154,8 +188,14 @@ public:
 	void SetViewMaxFrequency(float InViewMaxFrequency) { ViewMaxFrequency = InViewMaxFrequency; }
 	void SetViewMinSoundLevel(float InViewMinSoundLevel) { ViewMinSoundLevel = InViewMinSoundLevel; }
 	void SetViewMaxSoundLevel(float InViewMaxSoundLevel) { ViewMaxSoundLevel = InViewMaxSoundLevel; }
+	void SetTiltExponent(float InTiltExponent) { TiltExponent = InTiltExponent; }
+	void SetTiltPivotFrequency(float InTiltPivotFrequency) { TiltPivotFrequency = InTiltPivotFrequency; }
+	void SetSelectedFrequency(TOptional<float> InSelectedFrequency) { SelectedFrequency = InSelectedFrequency; }
+	void SetDisplayCrosshair(bool bInDisplayCrosshair) { bDisplayCrosshair = bInDisplayCrosshair; }
 	void SetDisplayFrequencyAxisLabels(bool bInDisplayFrequencyAxisLabels) { bDisplayFrequencyAxisLabels = bInDisplayFrequencyAxisLabels; }
 	void SetDisplaySoundLevelAxisLabels(bool bInDisplaySoundLevelAxisLabels) { bDisplaySoundLevelAxisLabels = bInDisplaySoundLevelAxisLabels; }
+	void SetDisplayFrequencyGridLines(bool bInDisplayFrequencyGridLines) { bDisplayFrequencyGridLines = bInDisplayFrequencyGridLines; }
+	void SetDisplaySoundLevelGridLines(bool bInDisplaySoundLevelGridLines) { bDisplaySoundLevelGridLines = bInDisplaySoundLevelGridLines; }
 	void SetFrequencyAxisScale(EAudioSpectrumPlotFrequencyAxisScale InFrequencyAxisScale) { FrequencyAxisScale = InFrequencyAxisScale; }
 	void SetFrequencyAxisPixelBucketMode(EAudioSpectrumPlotFrequencyAxisPixelBucketMode InFrequencyAxisPixelBucketMode) { FrequencyAxisPixelBucketMode = InFrequencyAxisPixelBucketMode; }
 	void SetAllowContextMenu(bool bInAllowContextMenu) { bAllowContextMenu = bInAllowContextMenu; }
@@ -166,9 +206,15 @@ public:
 	// Begin SWidget overrides.
 	virtual FReply OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 	virtual FReply OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 	// End SWidget overrides.
 
 	void UnbindOnGetAudioSpectrumData() { OnGetAudioSpectrumData.Unbind(); }
+
+	FAudioSpectrumPlotScaleInfo GetScaleInfo() const;
+
+	static float GetTiltExponentValue(const EAudioSpectrumPlotTilt InTilt);
 
 private:
 	// Begin SWidget overrides.
@@ -177,12 +223,14 @@ private:
 
 	int32 DrawSolidBackgroundRectangle(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle) const;
 
-	int32 DrawGridAndLabels(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo) const;
+	int32 DrawGrid(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo) const;
 	void GetGridLineSoundLevels(TArray<float>& GridLineSoundLevels) const;
 	void GetGridLineFrequencies(TArray<float>& AllGridLineFrequencies, TArray<float>& MajorGridLineFrequencies) const;
 
 	int32 DrawPowerSpectrum(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo) const;
 	FAudioPowerSpectrumData GetPowerSpectrum() const;
+
+	int32 DrawCrosshairAndAxisLabels(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo, TConstArrayView<FVector2f> LinePoints) const;
 
 	// This is a function to reduce the given array of data points to a possibly shorter array of points that will form the line to be plotted.
 	// Where multiple data points map to the same frequency axis pixel bucket, the given 'cost function' will be used to select the best data point (the data point with the lowest 'cost').
@@ -191,11 +239,15 @@ private:
 	FLinearColor GetBackgroundColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetGridColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetAxisLabelColor(const FWidgetStyle& InWidgetStyle) const;
+	FLinearColor GetCrosshairColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetSpectrumColor(const FWidgetStyle& InWidgetStyle) const;	
 
 	TSharedRef<SWidget> BuildDefaultContextMenu();
+	void BuildTiltSpectrumSubMenu(FMenuBuilder& SubMenu);
 	void BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu);
 	void BuildFrequencyAxisPixelBucketModeSubMenu(FMenuBuilder& SubMenu);
+
+	static const float ClampMinSoundLevel;
 
 	static FName ContextMenuExtensionHook;
 	TSharedPtr<FExtender> ContextMenuExtender;
@@ -205,15 +257,27 @@ private:
 	TAttribute<float> ViewMaxFrequency;
 	TAttribute<float> ViewMinSoundLevel;
 	TAttribute<float> ViewMaxSoundLevel;
+	TAttribute<float> TiltExponent;
+	TAttribute<float> TiltPivotFrequency;
+	TAttribute<TOptional<float>> SelectedFrequency;
+	TAttribute<bool> bDisplayCrosshair;
 	TAttribute<bool> bDisplayFrequencyAxisLabels;
 	TAttribute<bool> bDisplaySoundLevelAxisLabels;
+	TAttribute<bool> bDisplayFrequencyGridLines;
+	TAttribute<bool> bDisplaySoundLevelGridLines;
 	TAttribute<EAudioSpectrumPlotFrequencyAxisScale> FrequencyAxisScale;
 	TAttribute<EAudioSpectrumPlotFrequencyAxisPixelBucketMode> FrequencyAxisPixelBucketMode;
 	TAttribute<FSlateColor> BackgroundColor;
 	TAttribute<FSlateColor> GridColor;
 	TAttribute<FSlateColor> AxisLabelColor;
+	TAttribute<FSlateColor> CrosshairColor;
 	TAttribute<FSlateColor> SpectrumColor;
 	TAttribute<bool> bAllowContextMenu;
 	FOnContextMenuOpening OnContextMenuOpening;
+	FOnTiltSpectrumMenuEntryClicked OnTiltSpectrumMenuEntryClicked;
+	FOnFrequencyAxisPixelBucketModeMenuEntryClicked OnFrequencyAxisPixelBucketModeMenuEntryClicked;
+	FOnFrequencyAxisScaleMenuEntryClicked OnFrequencyAxisScaleMenuEntryClicked;
+	FOnDisplayAxisLabelsButtonToggled OnDisplayFrequencyAxisLabelsButtonToggled;
+	FOnDisplayAxisLabelsButtonToggled OnDisplaySoundLevelAxisLabelsButtonToggled;
 	FGetAudioSpectrumData OnGetAudioSpectrumData;
 };

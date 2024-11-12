@@ -88,7 +88,7 @@ void ScreenProbeComputeBRDFProbabilityDensityFunctionCS(
 			float2 ScreenUV = GetScreenUVFromScreenProbePosition(ScreenProbeScreenPosition);
 
 			{
-				float2 ThreadOffset = GroupThreadId.xy / (float)PROBE_THREADGROUP_SIZE_2D * ScreenProbeDownsampleFactor * 2.0f - 1.0f;
+				float2 ThreadOffset = ((GroupThreadId.xy + 0.5f) / (float)PROBE_THREADGROUP_SIZE_2D * 2.0f - 1.0f) * ScreenProbeDownsampleFactor;
 
 				bool bCenterSample = all(GroupThreadId.xy == PROBE_THREADGROUP_SIZE_2D / 2);
 				if (bCenterSample)
@@ -210,7 +210,7 @@ void ScreenProbeComputeBRDFProbabilityDensityFunctionCS(
 			float2 ScreenUV = GetScreenUVFromScreenProbePosition(ScreenProbeScreenPosition);
 
 			{
-				float2 ThreadOffset = GroupThreadId.xy / (float)PROBE_THREADGROUP_SIZE_2D * ScreenProbeDownsampleFactor * 2.0f - 1.0f;
+				float2 ThreadOffset = ((GroupThreadId.xy + 0.5f) / (float)PROBE_THREADGROUP_SIZE_2D * 2.0f - 1.0f) * ScreenProbeDownsampleFactor;
 
 				if (all(GroupThreadId.xy == PROBE_THREADGROUP_SIZE_2D / 2))
 				{

@@ -14,6 +14,7 @@
 #include "UObject/UnrealNames.h"
 #include "Templates/Atomic.h"
 #include "Serialization/MemoryLayout.h"
+#include "Misc/IntrusiveUnsetOptionalState.h"
 #include "Misc/StringBuilder.h"
 #include "Trace/Trace.h"
 
@@ -50,9 +51,13 @@ class FName;
 /** Opaque id to a deduplicated name */
 struct FNameEntryId
 {
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = FNameEntryId;
+	
 	// Default initialize to be equal to NAME_None
 	FNameEntryId() : Value(0) {}
 	FNameEntryId(ENoInit) {}
+	explicit FNameEntryId(FIntrusiveUnsetOptionalState) : Value(~0u) {}
 
 	bool IsNone() const
 	{
@@ -78,6 +83,12 @@ struct FNameEntryId
 	bool operator>(FNameEntryId Rhs) const { return Rhs.Value < Value; }
 	bool operator==(FNameEntryId Rhs) const { return Value == Rhs.Value; }
 	bool operator!=(FNameEntryId Rhs) const { return Value != Rhs.Value; }
+	
+	/** Comparison against special type for checking TOptional<FName>:IsSet */
+	bool operator==(FIntrusiveUnsetOptionalState) const
+	{
+		return Value == ~0u;
+	}
 
 	// Returns true if this FNameEntryId is not equivalent to NAME_None
 	explicit operator bool() const { return Value != 0; }
@@ -147,7 +158,8 @@ typedef FNameEntryId NAME_INDEX;
 #define SUBOBJECT_DELIMITER				TEXT(SUBOBJECT_DELIMITER_ANSI)
 
 /** this is the character used to separate a subobject root from its subobjects in a path name, as a char */
-#define SUBOBJECT_DELIMITER_CHAR		TEXT(':')
+#define SUBOBJECT_DELIMITER_CHAR_ANSI	':'
+#define SUBOBJECT_DELIMITER_CHAR		TEXT(SUBOBJECT_DELIMITER_CHAR_ANSI)
 
 /** These are the characters that cannot be used in general FNames */
 #define INVALID_NAME_CHARACTERS			TEXT("\"' ,\n\r\t")
@@ -572,6 +584,9 @@ private:
 class FName
 {
 public:
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = FName;
+
 #if UE_FNAME_OUTLINE_NUMBER
 	CORE_API FNameEntryId GetComparisonIndex() const;
 	CORE_API FNameEntryId GetDisplayIndex() const;
@@ -704,6 +719,12 @@ public:
 	FORCEINLINE bool operator!=(FName Other) const
 	{
 		return !(*this == Other);
+	}
+
+	/** Special comparison operator for TOptional<FName>::IsSet */
+	inline bool operator==(FIntrusiveUnsetOptionalState I) const
+	{
+		return ComparisonIndex == I;
 	}
 
 	/** Fast non-alphabetical order that is only stable during this process' lifetime. */
@@ -921,6 +942,18 @@ public:
 #endif
 	{}
 
+	/** Special constructor used by TOptional<FName> */
+	explicit FName(FIntrusiveUnsetOptionalState I)
+		: ComparisonIndex(I)
+#if !UE_FNAME_OUTLINE_NUMBER
+		, Number(NAME_NO_NUMBER_INTERNAL)
+#endif
+#if WITH_CASE_PRESERVING_NAME
+		, DisplayIndex(I)
+#endif
+	{
+	}
+
 	FORCEINLINE explicit FName(FMinimalName InName);
 	FORCEINLINE explicit FName(FScriptName InName);
 	FORCEINLINE FName(FMemoryImageName InName);
@@ -1018,6 +1051,11 @@ public:
 	 * @return Size of all name entries.
 	 */
 	CORE_API static int32 GetNameEntryMemorySize();
+
+	/**
+	 * @return Estimated remaining size the name entry table is willing to allocate.
+	 */
+	CORE_API static int32 GetNameEntryMemoryEstimatedAvailable();
 
 	/**
 	* @return Size of Name Table object as a whole
@@ -1610,6 +1648,11 @@ public:
 
 	CORE_API FName Resolve() const;
 
+	CORE_API FString ToString() const
+	{
+		return Resolve().ToString();
+	}
+
 private:
 	struct FLiteralOrName
 	{
@@ -1744,7 +1787,7 @@ private:
 #endif
 	friend bool operator==(FNameEntryId A, FDisplayNameEntryId B) { return A == B.GetDisplayId(); }
 	friend bool operator==(FDisplayNameEntryId A, FNameEntryId B) { return A.GetDisplayId() == B; }
-	friend uint32 GetTypeHash(FDisplayNameEntryId InId) { return GetTypeHash(InId.GetDisplayId()); }
+	[[nodiscard]] friend uint32 GetTypeHash(FDisplayNameEntryId InId) { return GetTypeHash(InId.GetDisplayId()); }
 
 public: // Internal functions for batch serialization code - intentionally lacking CORE_API
 	static FDisplayNameEntryId FromComparisonId(FNameEntryId ComparisonId);

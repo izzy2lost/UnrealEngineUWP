@@ -160,7 +160,7 @@ errno_t Detoured__waccess_s(const wchar_t* path, int mode)
 	if (!CanDetour(path))
 	{
 		auto res = True__waccess_s(path, mode);
-		DEBUG_LOG_TRUE(L"_waccess_s", L"%ls %i -> %ls", path, mode, WaccessResultToString(res));
+		DEBUG_LOG_TRUE(L"_waccess_s", L"(NODETOUR) %ls %i -> %ls", path, mode, WaccessResultToString(res));
 		return res;
 	}
 
@@ -170,7 +170,7 @@ errno_t Detoured__waccess_s(const wchar_t* path, int mode)
 	if (!attr.useCache)
 	{
 		auto res = True__waccess_s(realName, mode);
-		DEBUG_LOG_TRUE(L"_waccess_s", L"%ls %i -> %ls", path, mode, WaccessResultToString(res));
+		DEBUG_LOG_TRUE(L"_waccess_s", L"(NOCACHE) %ls %i -> %ls", path, mode, WaccessResultToString(res));
 		return res;
 	}
 
@@ -235,6 +235,9 @@ int Detoured__write(int fd, const void* buffer, unsigned int count)
 	DETOURED_CALL(_write);
 	if (fd == StdOutFd && g_isDetachedProcess)
 	{
+		if (g_suppressLogging)
+			return count;
+
 		const char* str = (const char*)buffer;
 		const char* end = str + count;
 		const char* line = str;
@@ -276,7 +279,7 @@ int Detoured_fputs(const char* str, FILE* stream)
 int Detoured__wspawnl(int mode, const wchar_t* cmdname, const wchar_t* arg0, const wchar_t* arg1, ...)
 {
 	DETOURED_CALL(_wspawnl);
-	StringBuffer<> cmdLine;
+	StringBuffer<32*1024> cmdLine; // Need long commandline for cmake/ninja
 
 	if (cmdname == nullptr)
 		cmdname = arg0;
@@ -290,7 +293,8 @@ int Detoured__wspawnl(int mode, const wchar_t* cmdname, const wchar_t* arg0, con
 		cmdname = cmdNameTemp.data;
 	}
 
-	cmdLine.Append(L"dummy "); // Just because CreateProcess expects first arg to be name of application
+	// TODO: Not sure what the rule is here.. very confusing with CreateProcess having application in two places
+	cmdLine.Append('\"').Append(cmdname).Append('\"');
 
 	//wcscpy_s(cmdLine, 1024, arg0);
 	//wcscat_s(cmdLine, 1024, L" ");
@@ -341,7 +345,7 @@ errno_t Detoured__wsplitpath_s(const wchar_t* path, wchar_t* drive, size_t drive
 
 	g_rules->RepairMalformedLibPath(path);
 	auto res = True__wsplitpath_s(path, drive, driveNumberOfElements, dir, dirNumberOfElements, fname, nameNumberOfElements, ext, extNumberOfElements);
-	DEBUG_LOG_TRUE(L"_wsplitpath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
+	//DEBUG_LOG_TRUE(L"_wsplitpath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
 	return res;
 }
 
@@ -403,8 +407,17 @@ errno_t Detoured_getenv_s(size_t* pReturnValue, char* buffer, size_t numberOfEle
 
 errno_t Detoured__wmakepath_s(wchar_t* path, size_t sizeInWords, const wchar_t* drive, const wchar_t* dir, const wchar_t* fname, const wchar_t* ext)
 {
+	DETOURED_CALL(_wmakepath_s);
 	auto res = True__wmakepath_s(path, sizeInWords, drive, dir, fname, ext);
 	DEBUG_LOG_TRUE(L"_wmakepath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
 	return res;
 }
+char* Detoured__getcwd(char* buffer, int maxlen)
+{
+	DETOURED_CALL(_getcwd);
+	auto res = True__getcwd(buffer, maxlen); // We know this calls GetCommandLine for both wine and windows
+	DEBUG_LOG_TRUE(L"_getcwd", L"%hs", res);
+	return res;
+}
+
 #endif // defined(DETOURED_INCLUDE_DEBUG)

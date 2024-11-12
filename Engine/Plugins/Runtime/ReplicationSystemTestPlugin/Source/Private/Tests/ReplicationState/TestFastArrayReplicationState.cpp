@@ -827,6 +827,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPostReplicate
 
 	// Verify that we hit the callback
 	UE_NET_ASSERT_TRUE(ClientFastArray.bHitPostReplicatedReceive);
+	UE_NET_ASSERT_TRUE(ClientFastArray.bHitDerivedPostReplicatedReceive);
 	UE_NET_ASSERT_TRUE(ClientFastArray.bPostReplicatedReceiveWasHitWithUnresolvedReferences);
 
 	// Reset

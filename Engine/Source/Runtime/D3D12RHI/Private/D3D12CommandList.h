@@ -12,10 +12,6 @@ D3D12CommandList.h: Implementation of D3D12 Command List functions
 #include "D3D12Submission.h"
 #include "D3D12Util.h"
 
-#if !defined(D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES)
-	#define D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES 1
-#endif
-
 class FD3D12ContextCommon;
 class FD3D12Device;
 class FD3D12DynamicRHI;
@@ -97,13 +93,53 @@ public:
 
 	FD3D12Device*       const Device;
 	ED3D12QueueType     const QueueType;
+
+private:
 	FD3D12ResidencySet* const ResidencySet;
 
+public:
 	// Get the state of a resource on this command lists.
 	// This is only used for resources that require state tracking.
 	CResourceState& GetResourceState_OnCommandList(FD3D12Resource* pResource);
 
-	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles);
+	// Indicate that a resource must be made resident before execution on GPU.
+	// Either immediately adds residency handle for this resource to the residency set
+	// or defers it until submission time (residency handles may not be known until then).
+	void UpdateResidency(const FD3D12Resource* Resource);
+
+#if ENABLE_RESIDENCY_MANAGEMENT
+	// Immediately add residency handles to the residency set for this command list.
+	void AddToResidencySet(TConstArrayView<FD3D12ResidencyHandle*> Handles);
+
+	// Closes and returns the residency set. Used only during submission.
+	FD3D12ResidencySet* CloseResidencySet();
+#endif // ENABLE_RESIDENCY_MANAGEMENT
+
+#if RHI_NEW_GPU_PROFILER
+	template <typename TEventType, typename... TArgs>
+	TEventType& EmplaceProfilerEvent(TArgs&&... Args)
+	{
+		TEventType& Data = State.EventStream.Emplace<TEventType>(Forward<TArgs>(Args)...);
+
+		if constexpr (std::is_same_v<UE::RHI::GPUProfiler::FEvent::FBeginWork, TEventType>)
+		{
+			// Store BeginEvents in a separate array as the CPUTimestamp field needs updating at submit time.
+			State.BeginEvents.Add(&Data);
+		}
+
+		return Data;
+	}
+
+	void FlushProfilerEvents(UE::RHI::GPUProfiler::FEventStream& Destination, uint64 CPUTimestamp)
+	{
+		for (UE::RHI::GPUProfiler::FEvent::FBeginWork* BeginEvent : State.BeginEvents)
+		{
+			BeginEvent->CPUTimestamp = CPUTimestamp;
+		}
+
+		Destination.Append(MoveTemp(State.EventStream));
+	}
+#endif
 
 private:
 	struct FInterfaces
@@ -139,11 +175,15 @@ private:
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 		TRefCountPtr<ID3D12GraphicsCommandList9> GraphicsCommandList9;
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if D3D12_MAX_COMMANDLIST_INTERFACE >= 10
+		TRefCountPtr<ID3D12GraphicsCommandList10> GraphicsCommandList10;
+#endif
+
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 		TRefCountPtr<ID3D12DebugCommandList>     DebugCommandList;
 #endif
 #if NV_AFTERMATH
-		GFSDK_Aftermath_ContextHandle AftermathHandle = nullptr;
+		UE::RHICore::Nvidia::Aftermath::D3D12::FCommandList AftermathHandle = nullptr;
 #endif
 	} Interfaces;
 
@@ -223,24 +263,26 @@ public:
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 	auto GraphicsCommandList9 () { return BuildRValuePtr(&FInterfaces::GraphicsCommandList9); }
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if D3D12_MAX_COMMANDLIST_INTERFACE >= 10
+	auto GraphicsCommandList10() { return BuildRValuePtr(&FInterfaces::GraphicsCommandList10); }
+#endif
+
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 	auto DebugCommandList     () { return BuildRValuePtr(&FInterfaces::DebugCommandList    ); }
 #endif
 #if D3D12_RHI_RAYTRACING
 	auto RayTracingCommandList() { return BuildRValuePtr(&FInterfaces::GraphicsCommandList4); }
 #endif
 #if NV_AFTERMATH
-	auto AftermathHandle      () { return Interfaces.AftermathHandle; } // @todo - should this increment NumCommands?
+	auto AftermathHandle      () { return Interfaces.AftermathHandle; }
 #endif
 
 private:
-	void WriteTimestamp(FD3D12QueryLocation const& Location);
+	void WriteTimestamp(FD3D12QueryLocation const& Location, ED3D12QueryPosition Position);
 
 	// Contents of the state struct are reset when the command list is recycled
 	struct FState
 	{
-		static int64 NextCommandListID;
-
 		FState(FD3D12CommandAllocator* CommandAllocator, FD3D12QueryAllocator* TimestampAllocator, FD3D12QueryAllocator* PipelineStatsAllocator);
 
 		// The allocator currently assigned to this command list.
@@ -251,11 +293,6 @@ private:
 
 		// A map of all D3D resources, and their states, that were state transitioned with tracking.
 		TMap<FD3D12Resource*, CResourceState> TrackedResourceState;
-
-		// Unique ID of this command list used to avoid costly redundant operations, such as resource residency updates.
-		// This value is updated every time the command list is reset, so it is safe to use even when command list object is recycled.
-		// Value should be only used for identity, not for synchronization. Valid values are guaranteed to be > 0.
-		uint64 CommandListID;
 
 #if DEBUG_RESOURCE_STATES
 		// Tracks all the resources barriers being issued on this command list in order
@@ -271,11 +308,23 @@ private:
 		TArray<FD3D12QueryLocation> OcclusionQueries;
 		TArray<FD3D12QueryLocation> PipelineStatsQueries;
 
+		// Resources whose residency must be updated on the submission thread, as their residency handles are not known during translation.
+		// This includes reserved resources that may refer to different heaps at different points on the submission timeline.
+		TSet<const FD3D12Resource*> DeferredResidencyUpdateSet;
+
 		uint32 NumCommands = 0;
 
 		bool IsClosed = false;
+
+	#if DO_CHECK
 		bool bLocalQueriesBegun = false;
 		bool bLocalQueriesEnded = false;
+	#endif
 
+	#if RHI_NEW_GPU_PROFILER
+		UE::RHI::GPUProfiler::FEventStream EventStream;
+		TArray<UE::RHI::GPUProfiler::FEvent::FBeginWork*, TInlineAllocator<8>> BeginEvents;
+	#endif
+		
 	} State;
 };

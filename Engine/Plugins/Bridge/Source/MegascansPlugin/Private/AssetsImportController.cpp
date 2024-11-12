@@ -26,6 +26,8 @@ TSharedPtr<FAssetsImportController> FAssetsImportController::Get()
 
 void FAssetsImportController::DataReceived(const FString DataFromBridge)
 {
+	using namespace UE::MetaHuman;
+
 	static const FString NormalExportMode = TEXT("normal");
 	static const FString NormalDragExportMode = TEXT("normal_drag");
 	static const FString ProgressiveExportMode = TEXT("progressive");

@@ -34,25 +34,34 @@ class UFunction;
 class UObject;
 template <typename KeyType, typename ValueType> struct TKeyValuePair;
 
+UENUM()
+enum class ENodePurityOverride : int8
+{
+	Unset = 0,
+	Pure,
+	Impure
+};
+
 UCLASS()
 class BLUEPRINTGRAPH_API UK2Node_CallFunction : public UK2Node
 {
 	GENERATED_UCLASS_BODY()
 
-	/** Indicates that this is a call to a pure function */
+	/** Indicates that the bound function defaults to a pure state */
 	UPROPERTY()
+	uint32 bDefaultsToPureFunc:1;
+	
+	UE_DEPRECATED(5.5, "bIsPureFunc is deprecated. Use bDefaultsToPureFunc or IsNodePure instead.")
 	uint32 bIsPureFunc:1;
-
-	/** Indicates that this is a call to a const function */
-	UPROPERTY()
-	uint32 bIsConstFunc:1;
 
 	/** Indicates that during compile we want to create multiple exec pins from an enum param */
 	UPROPERTY()
 	uint32 bWantsEnumToExecExpansion:1;
 
-	/** Indicates that this is a call to an interface function */
-	UPROPERTY()
+	UE_DEPRECATED(5.5, "bIsConstFunc is deprecated. Check for FUNC_Const on FunctionReference.ResolveMember<UFunction>() instead.")
+	uint32 bIsConstFunc:1;
+
+	UE_DEPRECATED(5.5, "bIsInterfaceCall is deprecated. Check for CLASS_Interface on FunctionReference.GetMemberParentClass() instead.")
 	uint32 bIsInterfaceCall:1;
 
 	UE_DEPRECATED(5.4, "bIsFinalFunction is deprecated.")
@@ -120,7 +129,7 @@ public:
 
 	// UK2Node interface
 	virtual void ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins) override;
-	virtual bool IsNodePure() const override { return bIsPureFunc; }
+	virtual bool IsNodePure() const override;
 	virtual void PostReconstructNode() override;
 	virtual bool ShouldDrawCompact() const override;
 	UE_DEPRECATED(5.4, "ShouldDrawAsBead is deprecated")
@@ -145,8 +154,6 @@ public:
 	/** Returns the UFunction that this class is pointing to */
 	UFunction* GetTargetFunction() const;
 
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
 	/** Get the return value pin */
 	UEdGraphPin* GetReturnValuePin() const;
 
@@ -182,13 +189,15 @@ public:
 
 	virtual void PostParameterPinCreated(UEdGraphPin *Pin) {}
 
-	/** Gets the user-facing name for the function */
-	static FText GetUserFacingFunctionName(const UFunction* Function);
+	UE_DEPRECATED(5.5, "Moved to ObjectTools::GetUserFacingFunctionName.")
+	static FText GetUserFacingFunctionName(const UFunction* Function, ENodeTitleType::Type NodeTitleType = ENodeTitleType::EditableTitle);
 
 	/** Set up a pins tooltip from a function's tooltip */
 	static void GeneratePinTooltipFromFunction(UEdGraphPin& Pin, const UFunction* Function);
-	/** Gets the non-specific tooltip for the function */
+
+	UE_DEPRECATED(5.5, "Moved to ObjectTools::GetDefaultTooltipForFunction.")
 	static FString GetDefaultTooltipForFunction(const UFunction* Function);
+
 	/** Get default category for this function in action menu */
 	static FText GetDefaultCategoryForFunction(const UFunction* Function, const FText& BaseCategory);
 	/** Get keywords for this function in the action menu */
@@ -251,6 +260,13 @@ private:
 	/** Conforms container pins */
 	void ConformContainerPins();
 
+	UPROPERTY()
+	ENodePurityOverride NodePurityOverride;
+
+	bool AreExecPinsVisible() const;
+	bool FunctionHasOutputs() const;
+	void ToggleNodePurityOverride();
+
 protected:
 
 	/** Invalidates current pin tool tips, so that they will be refreshed before being displayed: */
@@ -258,6 +274,9 @@ protected:
 
 	/** Helper function to ensure function is called in our context */
 	virtual void FixupSelfMemberContext();
+
+	/** By default, pure nodes can be toggled. Return false if you don't want your node to support toggling. */
+	virtual bool CanToggleNodePurity() const;
 
 	/** Adds this function to the suppressed deprecation warnings list for this project */
 	void SuppressDeprecationWarning() const;

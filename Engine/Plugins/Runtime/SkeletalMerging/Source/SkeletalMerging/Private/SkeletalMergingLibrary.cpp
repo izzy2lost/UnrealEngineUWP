@@ -273,7 +273,7 @@ USkeleton* USkeletalMergingLibrary::MergeSkeletons(const FSkeletonMergeParams& P
 	{
 		TArray<const FVirtualBone*> VirtualBones;
 		HashToVirtualBones.GenerateValueArray(VirtualBones);
-		AddVirtualBones(GeneratedSkeleton,VirtualBones);
+		AddVirtualBones(GeneratedSkeleton, VirtualBones);
 	}
 
 	// Merge Curve / track mappings	
@@ -317,12 +317,11 @@ void USkeletalMergingLibrary::AddSockets(USkeleton* InSkeleton, const TArray<TOb
 	}
 }
 
-void USkeletalMergingLibrary::AddVirtualBones(USkeleton* InSkeleton, const TArray<const FVirtualBone*> InVirtualBones)
+void USkeletalMergingLibrary::AddVirtualBones(USkeleton* InSkeleton, const TArray<const FVirtualBone*>& InVirtualBones)
 {
-	for(const FVirtualBone* VirtualBone : InVirtualBones)
+	for (const FVirtualBone* VirtualBone : InVirtualBones)
 	{
-		FName VirtualBoneName = NAME_None;				
-		InSkeleton->AddNewVirtualBone(VirtualBone->SourceBoneName, VirtualBone->TargetBoneName, VirtualBoneName);
+		InSkeleton->AddNewNamedVirtualBone(VirtualBone->SourceBoneName, VirtualBone->TargetBoneName, VirtualBone->VirtualBoneName);
 	}	
 }
 
@@ -332,7 +331,7 @@ void USkeletalMergingLibrary::AddCurveNames(USkeleton* InSkeleton, const TMap<FN
 	{
 		if (CurveMetaDataPair.Value)
 		{
-			InSkeleton->AddCurveMetaData(CurveMetaDataPair.Key);
+			InSkeleton->AddCurveMetaData(CurveMetaDataPair.Key, false);
 
 			FCurveMetaData& SkeletonCurveMetaData = *InSkeleton->GetCurveMetaData(CurveMetaDataPair.Key);
 			SkeletonCurveMetaData = *CurveMetaDataPair.Value;

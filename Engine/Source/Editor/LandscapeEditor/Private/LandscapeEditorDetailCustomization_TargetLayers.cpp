@@ -17,7 +17,10 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
 #include "LandscapeEditorModule.h"
@@ -30,19 +33,19 @@
 #include "DetailCategoryBuilder.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Materials/MaterialExpressionLandscapeVisibilityMask.h"
 
 #include "SLandscapeEditor.h"
 #include "Dialogs/DlgPickAssetPath.h"
 #include "ObjectTools.h"
 #include "ScopedTransaction.h"
 #include "DesktopPlatformModule.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 
 #include "LandscapeRender.h"
-#include "Materials/MaterialExpressionLandscapeVisibilityMask.h"
 #include "LandscapeEdit.h"
-#include "IDetailGroup.h"
-#include "Widgets/SBoxPanel.h"
+#include "Landscape.h"
+#include "LandscapeEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "LandscapeEditor.TargetLayers"
 
@@ -59,7 +62,7 @@ void FLandscapeEditorDetailCustomization_TargetLayers::CustomizeDetails(IDetailL
 	PropertyHandle_TargetDisplayOrder->MarkHiddenByCustomization();
 
 	TSharedRef<IPropertyHandle> PropertyHandle_TargetShowUnusedLayers = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ULandscapeEditorObject, ShowUnusedLayers));
-	PropertyHandle_TargetShowUnusedLayers->MarkHiddenByCustomization();	
+	PropertyHandle_TargetShowUnusedLayers->MarkHiddenByCustomization();
 
 	if (!ShouldShowTargetLayers())
 	{
@@ -73,22 +76,44 @@ void FLandscapeEditorDetailCustomization_TargetLayers::CustomizeDetails(IDetailL
 	check(LandscapeEdMode);
 
 	TargetsCategory.AddProperty(PropertyHandle_PaintingRestriction)
-	.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_PaintingRestriction)))
-	.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode](){ return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })));
-		
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetPaintingRestrictionVisibility)))
+		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })));
+
 	TargetsCategory.AddCustomRow(FText())
-	.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_VisibilityTip)))
-	[
-		SNew(SMultiLineEditableTextBox)
-		.IsReadOnly(true)
-		.Font(DetailBuilder.GetDetailFontBold())
-		.BackgroundColor(TAttribute<FSlateColor>::Create(TAttribute<FSlateColor>::FGetter::CreateLambda([]() { return FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"); })))
-		.Text(LOCTEXT("Visibility_Tip", "Note: There are some areas where visibility painting is disabled because Component/Proxy don't have a \"Landscape Visibility Mask\" node in their material."))
-		.AutoWrapText(true)
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })))
-	];
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetVisibilityMaskTipVisibility)))
+		[
+			SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"))
+				.Text(LOCTEXT("Visibility_Tip", "Note: There are some areas where visibility painting is disabled because Component/Proxy don't have a \"Landscape Visibility Mask\" node in their material."))
+				.AutoWrapText(true)
+				.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })))
+		];
 
 	TargetsCategory.AddCustomBuilder(MakeShareable(new FLandscapeEditorCustomNodeBuilder_TargetLayers(DetailBuilder.GetThumbnailPool().ToSharedRef(), PropertyHandle_TargetDisplayOrder, PropertyHandle_TargetShowUnusedLayers)));
+
+	TargetsCategory.AddCustomRow(FText())
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetPopulateTargetLayersInfoTipVisibility)))
+		[
+			SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(FAppStyle::GetColor("InfoReporting.BackgroundColor"))
+				.Text(LOCTEXT("PopulateTargetLayers_Tip", "There are currently no target layers assigned to this landscape. Use the buttons above to add new ones or populate them from the material(s) currently assigned to the landscape"))
+				.AutoWrapText(true)
+		];
+
+	TargetsCategory.AddCustomRow(FText())
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetFilteredTargetLayersListInfoTipVisibility)))
+		[
+			SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(FAppStyle::GetColor("InfoReporting.BackgroundColor"))
+				.Text(LOCTEXT("FilteredTargetLayers_Tip", "All target layers assigned to this landscape are currently filtered. Use the buttons and/or the filter above to un-hide them."))
+				.AutoWrapText(true)
+		];
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -105,7 +130,9 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowTargetLayers()
 
 		//// Visible if there are possible choices
 		//if (bSupportsWeightmap || bSupportsHeightmap || bSupportsVisibility)
-		if (LandscapeEdMode->CurrentToolMode->SupportedTargetTypes != 0 && CurrentToolName != TEXT("BlueprintBrush"))
+		if (LandscapeEdMode->CurrentToolMode->SupportedTargetTypes != 0 
+			&& CurrentToolName != TEXT("BlueprintBrush")
+			&& CurrentToolName != TEXT("Mask"))
 		{
 			return true;
 		}
@@ -114,7 +141,7 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowTargetLayers()
 	return false;
 }
 
-bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowPaintingRestriction()
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetPaintingRestrictionVisibility()
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 
@@ -127,19 +154,14 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowPaintingRestric
 			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid)
 			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Visibility))
 		{
-			return true;
+			return EVisibility::Visible;
 		}
 	}
 
-	return false;
+	return EVisibility::Collapsed;
 }
 
-EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_PaintingRestriction()
-{
-	return ShouldShowPaintingRestriction() ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowVisibilityTip()
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetVisibilityMaskTipVisibility()
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode && LandscapeEdMode->CurrentToolTarget.LandscapeInfo.IsValid())
@@ -153,17 +175,48 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowVisibilityTip()
 				bHasValidHoleMaterial &= LandscapeComponent->IsLandscapeHoleMaterialValid();
 			});
 
-			return !bHasValidHoleMaterial;
+			return bHasValidHoleMaterial ? EVisibility::Collapsed : EVisibility::Visible;
 		}
 	}
 
-	return false;
+	return EVisibility::Collapsed;
 }
 
-EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_VisibilityTip()
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetPopulateTargetLayersInfoTipVisibility()
 {
-	return ShouldShowVisibilityTip() ? EVisibility::Visible : EVisibility::Collapsed;
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode && LandscapeEdMode->CurrentToolTarget.LandscapeInfo.IsValid())
+	{
+		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap)
+			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid)) // ELandscapeToolTargetType::Invalid means "weightmap with no valid paint layer" 
+		{
+			ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get();
+			return LandscapeInfo->Layers.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+	}
+
+	return EVisibility::Collapsed;
 }
+
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetFilteredTargetLayersListInfoTipVisibility()
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode && LandscapeEdMode->CurrentToolTarget.LandscapeInfo.IsValid())
+	{
+		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap)
+			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid)) // ELandscapeToolTargetType::Invalid means "weightmap with no valid paint layer" 
+		{
+			const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
+			// The first target layers are for heightmap and visibility so only consider target layers above the starting index : 
+			const bool bHasTargetLayers = TargetList.Num() > LandscapeEdMode->GetTargetLayerStartingIndex();
+			const TArray<TSharedRef<FLandscapeTargetListInfo>> TargetDisplayList = FLandscapeEditorCustomNodeBuilder_TargetLayers::PrepareTargetLayerList(/*bInSort =*/ false, /*bInFilter = */true);
+			return (bHasTargetLayers && TargetDisplayList.IsEmpty()) ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -197,7 +250,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	
-	if (LandscapeEdMode == NULL)
+	if (LandscapeEdMode == nullptr)
 	{
 		return;	
 	}
@@ -221,10 +274,9 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 			.Padding(0.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(SComboButton)
-				.ComboButtonStyle(FAppStyle::Get(), "ToolbarComboButton")
+				.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButtonWithIcon")
 				.ForegroundColor(FSlateColor::UseForeground())
 				.HasDownArrow(true)
-				.ContentPadding(FMargin(1, 0))
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Center)
 				.ToolTipText(LOCTEXT("TargetLayerSortButtonTooltip", "Define how we want to sort the displayed layers"))
@@ -257,10 +309,9 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(SComboButton)
-				.ComboButtonStyle(FAppStyle::Get(), "ToolbarComboButton")
+				.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButtonWithIcon")
 				.ForegroundColor(FSlateColor::UseForeground())
 				.HasDownArrow(true)
-				.ContentPadding(FMargin(1, 0))
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Center)
 				.ToolTipText(LOCTEXT("TargetLayerUnusedLayerButtonTooltip", "Define if we want to display unused layers"))
@@ -277,14 +328,101 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 						.HeightOverride(16.0f)
 						[
 							SNew(SImage)
-							.Image(FAppStyle::GetBrush("GenericViewButton"))
+								.Image(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::GetShowUnusedBrush)
 						]
 					]
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateRaw(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayer), NSLOCTEXT("Landscape", "CreateLayer", "Create Layer"))
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SButton)
+				.ButtonStyle( FAppStyle::Get(), "SimpleButton" )
+				.ToolTipText(NSLOCTEXT("Landscape", "CreateLayersFromMaterials", "Create Layers From Assigned Materials"))
+				.OnClicked(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMaterials)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("LandscapeEditor.Layer.Sync"))
 				]
 			]
 		];
 	}
 	NodeRow.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })));
+}
+
+
+
+FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMaterials()
+{
+	FScopedTransaction Transaction(LOCTEXT("LandscapeTargetLayer_CreateFromMaterials", "Create Target Layers from Assigned materials"));
+	
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode(); 
+	if (LandscapeEdMode == nullptr)
+	{
+		return FReply::Handled(); 
+	}
+	
+	ALandscape* LandscapeActor = LandscapeEdMode->CurrentToolTarget.LandscapeInfo->LandscapeActor.Get();
+	
+	TSet<FName> LayerNames;
+	LandscapeActor->GetLandscapeInfo()->ForEachLandscapeProxy([&LayerNames](ALandscapeProxy* Proxy)
+	{
+		LayerNames.Append(Proxy->RetrieveTargetLayerNamesFromMaterials());
+		return true;
+	});
+
+	UE::Landscape::FLayerInfoFinder LayerInfoFinder;
+	for (const FName& LayerName : LayerNames)
+	{
+		if (!LandscapeActor->GetTargetLayers().Find(LayerName))
+		{
+			ULandscapeLayerInfoObject* LandscapeLayerInfo = LayerInfoFinder.Find(LayerName);
+			LandscapeActor->AddTargetLayer(LayerName, FLandscapeTargetLayerSettings(LandscapeLayerInfo));
+		}
+	}
+	
+	if (LandscapeEdMode)
+	{
+		LandscapeEdMode->GetLandscape()->GetLandscapeInfo()->UpdateLayerInfoMap();
+		LandscapeEdMode->UpdateTargetList();
+	}
+
+	return FReply::Handled();
+}
+
+void FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayer()
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode == nullptr)
+	{
+		return; 
+	}
+	
+	TWeakObjectPtr<ALandscape> Landscape = LandscapeEdMode->CurrentToolTarget.LandscapeInfo->LandscapeActor;
+
+	if (!Landscape.Get())
+	{
+		return; 
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("LandscapeTargetLayer_Create", "Create a Target Layer"));
+	
+	Landscape->AddTargetLayer();
+	
+	LandscapeEdMode->CurrentToolTarget.LandscapeInfo->UpdateLayerInfoMap();
+	LandscapeEdMode->UpdateTargetList();
+	LandscapeEdMode->RefreshDetailPanel();
 }
 
 TSharedRef<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerDisplayOrderButtonMenuContent()
@@ -375,6 +513,16 @@ TSharedRef<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLay
 	return MenuBuilder.MakeWidget();
 }
 
+const FSlateBrush* FLandscapeEditorCustomNodeBuilder_TargetLayers::GetShowUnusedBrush() const
+{
+	const FSlateBrush* Brush = FAppStyle::GetBrush("Level.VisibleIcon16x");
+	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode(); (LandscapeEdMode != nullptr) && !LandscapeEdMode->UISettings->ShowUnusedLayers)
+	{
+		Brush = FAppStyle::GetBrush("Level.NotVisibleIcon16x");
+	}
+	return Brush;
+}
+
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::ShowUnusedLayers(bool Result)
 {
 	TargetShowUnusedLayersPropertyHandle->SetValue(Result);
@@ -382,8 +530,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::ShowUnusedLayers(bool Resul
 
 bool FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldShowUnusedLayers(bool Result) const
 {
-	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode != nullptr)
+	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
 	{
 		return LandscapeEdMode->UISettings->ShowUnusedLayers == Result;
 	}
@@ -416,6 +563,8 @@ const FSlateBrush* FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLaye
 		{
 			case ELandscapeLayerDisplayMode::Alphabetical: return FAppStyle::Get().GetBrush("LandscapeEditor.Target_DisplayOrder.Alphabetical");
 			case ELandscapeLayerDisplayMode::UserSpecific: return FAppStyle::Get().GetBrush("LandscapeEditor.Target_DisplayOrder.Custom");
+			default:
+				return nullptr;
 		}
 	}
 
@@ -424,7 +573,8 @@ const FSlateBrush* FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLaye
 
 EVisibility FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const
 {
-	if (Target->TargetType == ELandscapeToolTargetType::Weightmap)
+	if ((Target->TargetType == ELandscapeToolTargetType::Weightmap)
+		|| (Target->TargetType == ELandscapeToolTargetType::Invalid)) // Invalid means weightmap with no selected target layer
 	{
 		FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 
@@ -437,21 +587,96 @@ EVisibility FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldShowLayer(TSha
 	return EVisibility::Visible;
 }
 
+void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnFilterTextChanged(const FText& InFilterText)
+{
+	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
+	{
+		LandscapeEdMode->UISettings->TargetLayersFilterString = InFilterText.ToString();
+	}
+}
+
+void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
+{
+	if (InCommitType == ETextCommit::OnCleared)
+	{
+		LayersFilterSearchBox->SetText(FText::GetEmpty());
+		OnFilterTextChanged(FText::GetEmpty());
+		FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::Cleared);
+	}
+}
+
+EVisibility FLandscapeEditorCustomNodeBuilder_TargetLayers::GetLayersFilterVisibility() const
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+
+	if (LandscapeEdMode && LandscapeEdMode->CurrentToolMode)
+	{
+		// ELandscapeToolTargetType::Invalid means "weightmap with no valid paint layer" so we still want to display that property if it has been marked to be displayed in Weightmap target type, to be consistent 
+		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap)
+			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid))
+		{
+			const bool bContainsWeightmapLayers = LandscapeEdMode->GetTargetList().ContainsByPredicate([](TSharedRef<FLandscapeTargetListInfo> InInfo)
+				{
+					FName LayerName = InInfo->GetLayerName();
+					return (LayerName != NAME_None) && (LayerName != UMaterialExpressionLandscapeVisibilityMask::ParameterName);
+				});
+
+			return bContainsWeightmapLayers ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
+FText FLandscapeEditorCustomNodeBuilder_TargetLayers::GetLayersFilterText() const
+{
+	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
+	{
+		return FText::FromString(LandscapeEdMode->UISettings->TargetLayersFilterString);
+	}
+
+	return FText();
+}
+
+TArray<TSharedRef<FLandscapeTargetListInfo>> FLandscapeEditorCustomNodeBuilder_TargetLayers::PrepareTargetLayerList(bool bInSort, bool bInFilter)
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode == nullptr)
+	{
+		return {};
+	}
+	const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
+	const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
+	if (TargetDisplayOrderList == nullptr)
+	{
+		return {};
+	}
+
+	TArray<TSharedRef<FLandscapeTargetListInfo>> FinalList(TargetList);
+	if (bInFilter)
+	{
+		FinalList.RemoveAllSwap([LandscapeEdMode](TSharedRef<FLandscapeTargetListInfo> InTargetInfo)
+			{
+				return !LandscapeEdMode->ShouldShowLayer(InTargetInfo);
+			});
+	}
+
+	if (bInSort)
+	{
+		Algo::SortBy(FinalList, [TargetDisplayOrderList](TSharedRef<FLandscapeTargetListInfo> InTargetInfo)
+			{
+				return TargetDisplayOrderList->Find(InTargetInfo->GetLayerName());
+			});
+	}
+	return FinalList;
+}
+
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode != NULL)
+	if (LandscapeEdMode != nullptr)
 	{
-		const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
-		const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
-		const TArray<FName>& TargetShownLayerList = LandscapeEdMode->GetTargetShownList();
-
-		if (TargetDisplayOrderList == nullptr)
-		{
-			return;
-		}
-
 		TSharedPtr<SDragAndDropVerticalBox> TargetLayerList = SNew(SDragAndDropVerticalBox)
 			.OnCanAcceptDrop(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCanAcceptDrop)
 			.OnAcceptDrop(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleAcceptDrop)
@@ -464,28 +689,44 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateChildContent(IDetai
 		ChildrenBuilder.AddCustomRow(LOCTEXT("LayersLabel", "Layers"))
 			.Visibility(EVisibility::Visible)
 			[
-				TargetLayerList.ToSharedRef()
+				SNew(SVerticalBox)
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.VAlign(VAlign_Top)
+					.HAlign(HAlign_Fill)
+					.Padding(FMargin(2))
+					[
+						SAssignNew(LayersFilterSearchBox, SSearchBox)
+							.InitialText(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::GetLayersFilterText)
+							.SelectAllTextWhenFocused(true)
+							.HintText(LOCTEXT("LayersSearch", "Filter Target Layers"))
+							.OnTextChanged(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::OnFilterTextChanged)
+							.OnTextCommitted(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::OnFilterTextCommitted)
+							.Visibility(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::GetLayersFilterVisibility)
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.VAlign(VAlign_Top)
+					.HAlign(HAlign_Fill)
+					.Padding(0.0f, 0.0f)
+					[
+						TargetLayerList.ToSharedRef()
+					]
 			];
 
-		for (int32 i = 0; i < TargetDisplayOrderList->Num(); ++i)
+		// Generate a row for all target layers, including those that will be filtered and let the row's visibility lambda to compute their visibility dynamically. This allows 
+		//  filtering to work without refreshing the details panel (which causes the search box to lose focus) :
+		for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : PrepareTargetLayerList(/*bInSort = */true, /*bInFilter = */false))
 		{
-			for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : TargetList)
+			TSharedPtr<SWidget> GeneratedRowWidget = GenerateRow(TargetInfo);
+			if (GeneratedRowWidget.IsValid())
 			{
-				if (TargetInfo->LayerName == (*TargetDisplayOrderList)[i] && (TargetInfo->TargetType != ELandscapeToolTargetType::Weightmap || TargetShownLayerList.Find(TargetInfo->LayerName) != INDEX_NONE))
-				{
-					TSharedPtr<SWidget> GeneratedRowWidget = GenerateRow(TargetInfo);
-
-					if (GeneratedRowWidget.IsValid())
-					{
-						TargetLayerList->AddSlot()
-						.AutoHeight()						
-						[
-							GeneratedRowWidget.ToSharedRef()
-						];
-					}
-
-					break;
-				}
+				TargetLayerList->AddSlot()
+					.AutoHeight()
+					[
+						GeneratedRowWidget.ToSharedRef()
+					];
 			}
 		}
 	}
@@ -537,7 +778,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							[
 								SNew(STextBlock)
 									.Font(IDetailLayoutBuilder::GetDetailFont())
-									.Text(Target->TargetName)
+									.Text(Target->TargetLayerDisplayName)
 									.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
 							]
 					]
@@ -620,15 +861,65 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 							+ SVerticalBox::Slot()
 							.AutoHeight()
 							.VAlign(VAlign_Center)
-							.Padding(0, 2, 0, 0)
+							.Padding(4, 3, 0, 3)
 							[
 								SNew(SHorizontalBox)
 									+ SHorizontalBox::Slot()
 									[
-										SNew(STextBlock)
-											.Font(IDetailLayoutBuilder::GetDetailFont())
-											.Text(Target->TargetName)
+										SNew(SInlineEditableTextBlock)
+											.Font(IDetailLayoutBuilder::GetDetailFontBold())
+											.Text(Target->TargetLayerDisplayName)
 											.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
+											.OnVerifyTextChanged_Lambda([Target](const FText& InNewText, FText& OutErrorMessage)
+											{
+												const FName NewName(InNewText.ToString());
+
+												if (Target->LayerName == NewName)
+												{
+													return true;
+												}
+
+												if (NewName == UMaterialExpressionLandscapeVisibilityMask::ParameterName)
+												{
+													OutErrorMessage = LOCTEXT("LandscapeTargetLayer_RenameFailed_ReservedName", "This target layer name is reserved for internal usage");
+													return false;
+												}
+
+												ALandscape* Landscape = Cast<ALandscape>(Target->Owner);
+												if (Landscape->HasTargetLayer(NewName))
+												{
+													OutErrorMessage = LOCTEXT("LandscapeTargetLayer_RenameFailed_AlreadyExists", "This target layer name already exists");
+													return false;
+												}
+
+												return true;
+											})
+											.OnTextCommitted_Lambda([Target](const FText& Text, ETextCommit::Type Type)
+											{
+												const FName NewName(Text.ToString());
+												if (Target->LayerName == NewName)
+												{
+													return;
+												}
+
+												FScopedTransaction Transaction(LOCTEXT("LandscapeTargetLayer_Rename", "Rename Target Layer"));
+												ALandscape* Landscape = Cast<ALandscape>(Target->Owner);
+												
+												const TMap<FName, FLandscapeTargetLayerSettings>& TargetLayers = Landscape->GetTargetLayers();
+												const FLandscapeTargetLayerSettings* LayerSettings = nullptr;
+												
+												Landscape->RemoveTargetLayer(FName(Target->TargetLayerDisplayName.ToString()));
+											
+												Target->TargetLayerDisplayName = Text;
+												Target->LayerName = FName(Text.ToString());
+												Landscape->AddTargetLayer(Target->LayerName, LayerSettings ? *LayerSettings : FLandscapeTargetLayerSettings());	
+												
+												Target->LandscapeInfo->UpdateLayerInfoMap();
+												if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
+												{
+													LandscapeEdMode->UpdateTargetList();
+												}
+											})
 									]
 									+ SHorizontalBox::Slot()
 									.HAlign(HAlign_Right)
@@ -652,7 +943,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 									[
 										SNew(SObjectPropertyEntryBox)
 											.IsEnabled((bool)Target->bValid)
-											.ObjectPath(Target->LayerInfoObj != NULL ? Target->LayerInfoObj->GetPathName() : FString())
+											.ObjectPath(Target->LayerInfoObj != nullptr ? Target->LayerInfoObj->GetPathName() : FString())
 											.AllowedClass(ULandscapeLayerInfoObject::StaticClass())
 											.OnObjectChanged_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject, Target)
 											.OnShouldFilterAsset_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldFilterLayerInfo, Target->LayerName)
@@ -705,7 +996,6 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 											.ForegroundColor(FSlateColor::UseForeground())
 											.IsFocusable(false)
 											.ToolTipText(LOCTEXT("Tooltip_Delete", "Delete Layer"))
-											.Visibility_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerDeleteVisibility, Target)
 											.OnClicked_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerDeleteClicked, Target)
 											[
 												SNew(SImage)
@@ -800,33 +1090,16 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleDragDetected(const 
 
 	if (LandscapeEdMode != nullptr)
 	{
-		const TArray<FName>& TargetShownList = LandscapeEdMode->GetTargetShownList();
-
-		if (TargetShownList.IsValidIndex(SlotIndex))
+		// The slot index corresponds to what is actually shown, so we need to both sort and filter the target layer list here :
+		TArray<TSharedRef<FLandscapeTargetListInfo>> TargetDisplayList = PrepareTargetLayerList(/*bInSort =*/ true, /*bInFilter = */true);
+		if (TargetDisplayList.IsValidIndex(SlotIndex))
 		{
-			const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
-
-			if (TargetDisplayOrderList != nullptr)
+			if (const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList())
 			{
-				FName ShownTargetName = LandscapeEdMode->UISettings->ShowUnusedLayers && TargetShownList.IsValidIndex(SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()) ? TargetShownList[SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()] : TargetShownList[SlotIndex];
-				int32 DisplayOrderLayerIndex = TargetDisplayOrderList->Find(ShownTargetName);
-
-				if (TargetDisplayOrderList->IsValidIndex(DisplayOrderLayerIndex))
+				TSharedPtr<SWidget> Row = GenerateRow(TargetDisplayList[SlotIndex]);
+				if (Row.IsValid())
 				{
-					const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
-
-					for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : TargetList)
-					{
-						if (TargetInfo->LayerName == (*TargetDisplayOrderList)[DisplayOrderLayerIndex])
-						{
-							TSharedPtr<SWidget> Row = GenerateRow(TargetInfo);
-
-							if (Row.IsValid())
-							{
-								return FReply::Handled().BeginDragDrop(FTargetLayerDragDropOp::New(SlotIndex, Slot, Row));
-							}
-						}
-					}
+					return FReply::Handled().BeginDragDrop(FTargetLayerDragDropOp::New(SlotIndex, Slot, Row));
 				}
 			}
 		}
@@ -857,21 +1130,20 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleAcceptDrop(FDragDro
 
 		if (LandscapeEdMode != nullptr)
 		{
-			const TArray<FName>& TargetShownList = LandscapeEdMode->GetTargetShownList();
+			// The slot index corresponds to what is actually shown, so we need to both sort and filter the target layer list here :
+			TArray<TSharedRef<FLandscapeTargetListInfo>> TargetDisplayList = PrepareTargetLayerList(/*bInSort =*/ true, /*bInFilter = */true);
 
-			if (TargetShownList.IsValidIndex(DragDropOperation->SlotIndexBeingDragged) && TargetShownList.IsValidIndex(SlotIndex))
+			if (TargetDisplayList.IsValidIndex(DragDropOperation->SlotIndexBeingDragged) && TargetDisplayList.IsValidIndex(SlotIndex))
 			{
-				const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
-
-				if (TargetDisplayOrderList != nullptr && TargetShownList.IsValidIndex(DragDropOperation->SlotIndexBeingDragged + LandscapeEdMode->GetTargetLayerStartingIndex()) && TargetShownList.IsValidIndex(SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()))
+				const FName TargetLayerNameBeingDragged = TargetDisplayList[DragDropOperation->SlotIndexBeingDragged]->GetLayerName();
+				const FName DestinationTargetLayerName = TargetDisplayList[SlotIndex]->GetLayerName();
+				if (const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList())
 				{
-					int32 StartingLayerIndex = TargetDisplayOrderList->Find(LandscapeEdMode->UISettings->ShowUnusedLayers ? TargetShownList[DragDropOperation->SlotIndexBeingDragged + LandscapeEdMode->GetTargetLayerStartingIndex()] : TargetShownList[DragDropOperation->SlotIndexBeingDragged]);
-					int32 DestinationLayerIndex = TargetDisplayOrderList->Find(LandscapeEdMode->UISettings->ShowUnusedLayers ? TargetShownList[SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()] : TargetShownList[SlotIndex]);
-
+					int32 StartingLayerIndex = TargetDisplayOrderList->Find(TargetLayerNameBeingDragged);
+					int32 DestinationLayerIndex = TargetDisplayOrderList->Find(DestinationTargetLayerName);
 					if (StartingLayerIndex != INDEX_NONE && DestinationLayerIndex != INDEX_NONE)
 					{
 						LandscapeEdMode->MoveTargetLayerDisplayOrder(StartingLayerIndex, DestinationLayerIndex);
-
 						return FReply::Handled();
 					}
 				}
@@ -904,7 +1176,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetSelectionChanged(co
 		LandscapeEdMode->CurrentToolTarget.TargetType = Target->TargetType;
 		if (Target->TargetType == ELandscapeToolTargetType::Heightmap)
 		{
-			checkSlow(Target->LayerInfoObj == NULL);
+			checkSlow(Target->LayerInfoObj == nullptr);
 			LandscapeEdMode->SetCurrentTargetLayer(NAME_None, nullptr);
 		}
 		else
@@ -916,9 +1188,9 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetSelectionChanged(co
 
 TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerContextMenuOpening(const TSharedRef<FLandscapeTargetListInfo> Target)
 {
-	if (Target->TargetType == ELandscapeToolTargetType::Heightmap || Target->LayerInfoObj != NULL)
+	if (Target->TargetType == ELandscapeToolTargetType::Heightmap || Target->LayerInfoObj != nullptr)
 	{
-		FMenuBuilder MenuBuilder(true, NULL);
+		FMenuBuilder MenuBuilder(true, nullptr);
 		
 		MenuBuilder.BeginSection("LandscapeEditorLayerActions", LOCTEXT("LayerContextMenu.Heading", "Layer Actions"));
 		{
@@ -960,7 +1232,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLaye
 		return MenuBuilder.MakeWidget();
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnExportLayer(const TSharedRef<FLandscapeTargetListInfo> Target)
@@ -972,7 +1244,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnExportLayer(const TShared
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 
 		ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
-		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // NULL for heightmaps
+		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // nullptr for heightmaps
 
 		// Prompt for filename
 		FString SaveDialogTitle;
@@ -1035,7 +1307,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnImportLayer(const TShared
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 
 		ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
-		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // NULL for heightmaps
+		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // nullptr for heightmaps
 
 		// Prompt for filename
 		FString OpenDialogTitle;
@@ -1152,7 +1424,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnClearLayer(const TSharedR
 			FScopedSetLandscapeEditingLayer Scope(LandscapeEdMode->GetLandscape(), LandscapeEdMode->GetCurrentLayerGuid(), [&] { LandscapeEdMode->RequestLayersContentUpdateForceAll(); });
 			FLandscapeEditDataInterface LandscapeEdit(Target->LandscapeInfo.Get());
 			LandscapeEdit.DeleteLayer(Target->LayerInfoObj.Get());
-			LandscapeEdMode->RequestUpdateShownLayerList();
+			LandscapeEdMode->RequestUpdateLayerUsageInformation();
 		}
 	}
 }
@@ -1182,7 +1454,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 {
 	// Can't assign null to a layer
 	UObject* Object = AssetData.GetAsset();
-	if (Object == NULL)
+	if (Object == nullptr)
 	{
 		return;
 	}
@@ -1196,17 +1468,23 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 		if (ensure(SelectedLayerInfo->LayerName == Target->GetLayerName()))
 		{
 			ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
-			LandscapeInfo->Modify();
+			ALandscape* LandscapeActor = LandscapeInfo->LandscapeActor.Get();
+			
+			if (!LandscapeActor->HasTargetLayer(Target->GetLayerName()))
+			{
+				LandscapeActor->AddTargetLayer(Target->GetLayerName(), FLandscapeTargetLayerSettings(SelectedLayerInfo));
+			}
+			
 			if (Target->LayerInfoObj.IsValid())
 			{
 				int32 Index = LandscapeInfo->GetLayerInfoIndex(Target->LayerInfoObj.Get(), Target->Owner.Get());
 				if (ensure(Index != INDEX_NONE))
 				{
 					FLandscapeInfoLayerSettings& LayerSettings = LandscapeInfo->Layers[Index];
-
 					LandscapeInfo->ReplaceLayer(LayerSettings.LayerInfoObj, SelectedLayerInfo);
-
-					LayerSettings.LayerInfoObj = SelectedLayerInfo;
+					// Important : don't use LayerSettings after the call to ReplaceLayer as it will have been reallocated. 
+					//  Validate that the replacement happened as expected : 
+					check(LandscapeInfo->GetLayerInfoIndex(SelectedLayerInfo, Target->Owner.Get()) != INDEX_NONE);
 				}
 			}
 			else
@@ -1217,7 +1495,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 					FLandscapeInfoLayerSettings& LayerSettings = LandscapeInfo->Layers[Index];
 					LayerSettings.LayerInfoObj = SelectedLayerInfo;
 
-					Target->LandscapeInfo->CreateLayerEditorSettingsFor(SelectedLayerInfo);
+					Target->LandscapeInfo->CreateTargetLayerSettingsFor(SelectedLayerInfo);
 				}
 			}
 						
@@ -1280,7 +1558,7 @@ EVisibility FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerDelete
 
 TSharedRef<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnGetTargetLayerCreateMenu(const TSharedRef<FLandscapeTargetListInfo> Target)
 {
-	FMenuBuilder MenuBuilder(true, NULL);
+	FMenuBuilder MenuBuilder(true, nullptr);
 
 	MenuBuilder.AddMenuEntry(LOCTEXT("Menu_Create_Blended", "Weight-Blended Layer (normal)"), FText(), FSlateIcon(),
 		FUIAction(FExecuteAction::CreateStatic(&FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked, Target, false)));
@@ -1344,7 +1622,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked(
 			}
 
 			Target->LayerInfoObj = LayerInfo;
-			Target->LandscapeInfo->CreateLayerEditorSettingsFor(LayerInfo);
+			Target->LandscapeInfo->CreateTargetLayerSettingsFor(LayerInfo);
 
 			// Notify the asset registry
 			FAssetRegistryModule::AssetCreated(LayerInfo);
@@ -1356,10 +1634,16 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked(
 			TArray<UObject*> Objects;
 			Objects.Add(LayerInfo);
 			GEditor->SyncBrowserToObjects(Objects);
-			
-			LandscapeEdMode->TargetsListUpdated.Broadcast();
+
+			ALandscape* LandscapeActor = Target->LandscapeInfo->LandscapeActor.Get();
+			LandscapeActor->UpdateTargetLayer(FName(LayerName), FLandscapeTargetLayerSettings(LayerInfo));
 
 			FillEmptyLayers(LandscapeInfo, LayerInfo);
+
+			if (FEdModeLandscape* Mode = (FEdModeLandscape*)GLevelEditorModeTools().GetActiveMode(FBuiltinEditorModes::EM_Landscape))
+			{
+				Mode->UpdateTargetList();
+			}
 		}
 	}
 }
@@ -1374,10 +1658,10 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerMakePublicCl
 	bool bSucceed = ObjectTools::RenameObjects(Objects, false, TEXT(""), Path);
 	if (bSucceed)
 	{
-		FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-		if (LandscapeEdMode)
+		FEdModeLandscape* Mode = (FEdModeLandscape*)GLevelEditorModeTools().GetActiveMode(FBuiltinEditorModes::EM_Landscape);
+		if (Mode)
 		{
-			LandscapeEdMode->UpdateTargetList();
+			Mode->UpdateTargetList();
 		}
 	}
 	else
@@ -1496,7 +1780,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnDebugModeColorChannelChan
 	if (NewCheckedState == ECheckBoxState::Checked)
 	{
 		// Enable on us and disable colour channel on other targets
-		if (ensure(Target->LayerInfoObj != NULL))
+		if (ensure(Target->LayerInfoObj != nullptr))
 		{
 			ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
 			int32 Index = LandscapeInfo->GetLayerInfoIndex(Target->LayerInfoObj.Get(), Target->Owner.Get());
@@ -1516,8 +1800,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnDebugModeColorChannelChan
 				}
 				LandscapeInfo->UpdateDebugColorMaterial();
 
-				FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-				if (LandscapeEdMode)
+				if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
 				{
 					LandscapeEdMode->UpdateTargetList();
 				}

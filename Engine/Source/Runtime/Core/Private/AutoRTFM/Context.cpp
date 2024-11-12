@@ -13,6 +13,11 @@
 
 #include "Templates/UniquePtr.h"
 #include "Containers/StringConv.h"
+#include "HAL/PlatformTLS.h"
+
+#if PLATFORM_WINDOWS
+extern "C" __declspec(dllimport) void __stdcall GetCurrentThreadStackLimits(void**, void**);
+#endif
 
 namespace
 {
@@ -33,61 +38,34 @@ FAutoRTFMMetrics GetAutoRTFMMetrics()
 	return GAutoRTFMMetrics;
 }
 
-thread_local TUniquePtr<FContext> ContextTls;
-
 void FContext::InitializeGlobalData()
 {
 }
 
-FContext* FContext::TryGet()
-{
-    return ContextTls.Get();
-}
-
-void FContext::Set()
-{
-    ContextTls.Reset(this);
-}
-
-FContext* FContext::Get()
-{
-    FContext* Result = TryGet();
-
-    if (!Result)
-    {
-        Result = new FContext();
-        Result->Set();
-    }
-
-    return Result;
-}
+FContext FContext::ContextSingleton;
 
 bool FContext::IsTransactional()
 {
-    FContext* Context = TryGet();
-    if (!Context)
-    {
-        return false;
-    }
+    return Get()->GetStatus() == EContextStatus::OnTrack;
+}
 
-    if ((Context->GetStatus() != EContextStatus::Idle) && (Context->GetStatus() != EContextStatus::Committing))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+bool FContext::IsCommittingOrAborting()
+{
+	switch (Get()->GetStatus())
+	{
+	default:
+		return true;
+	case EContextStatus::Idle:
+	case EContextStatus::OnTrack:
+		return false;
+	}
 }
 
 bool FContext::StartTransaction()
 {
+	ensureMsgf(CurrentTransaction, TEXT("FContext::StartTransaction() can only be called within a scoped transaction"));
 	FTransaction* NewTransaction = new FTransaction(this);
-
-	void* TransactStackAddress = &NewTransaction; // get the stack-local position pointer.
-	ASSERT(TransactStackAddress > StackBegin);
-	ASSERT(TransactStackAddress < StackEnd);
-	ASSERT(TransactStackAddress < CurrentTransactStackAddress);
+	NewTransaction->SetStackRange(CurrentTransaction->GetStackRange());
 
 	// This form of transaction is always ultimately within a scoped Transact 
 	ASSERT(Status == EContextStatus::OnTrack);
@@ -182,8 +160,7 @@ bool FContext::IsAborting() const
 
 EContextStatus FContext::CallClosedNest(void (*ClosedFunction)(void* Arg), void* Arg)
 {
-	TScopedGuard<void*> CurrentNestStackAddressGuard(CurrentTransactStackAddress, &CurrentNestStackAddressGuard);
-
+	TScopedGuard<void*> ClosedStackAddressGuard(ClosedStackAddress, &ClosedStackAddressGuard);
 	PushCallNest(new FCallNest(this));
 
 	CurrentNest->Try([&]() { ClosedFunction(Arg); });
@@ -242,12 +219,9 @@ void FContext::ClearTransactionStatus()
 	case EContextStatus::OnTrack:
 		break;
 	case EContextStatus::AbortedByLanguage:
-		Status = EContextStatus::OnTrack;
-		break;
 	case EContextStatus::AbortedByRequest:
-		Status = EContextStatus::OnTrack;
-		break;
 	case EContextStatus::AbortedByCascade:
+	case EContextStatus::AbortedByFailedLockAcquisition:
 		Status = EContextStatus::OnTrack;
 		break;
 	default:
@@ -283,9 +257,15 @@ ETransactionResult FContext::ResolveNestedTransaction(FTransaction* NewTransacti
 	}
 }
 
-ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
+ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void* Arg)
 {
     constexpr bool bVerbose = false;
+
+	if constexpr (0 != UE_AUTOSTM)
+	{
+		UE_LOG(LogAutoRTFM, Warning, TEXT("AutoSTM is not implemented in the runtime yet!"));
+		return ETransactionResult::AbortedByLanguage;
+	}
 
     if (UNLIKELY(EContextStatus::Committing == Status))
     {
@@ -299,24 +279,19 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
     
     ASSERT(Status == EContextStatus::Idle || Status == EContextStatus::OnTrack);
 
-    void (*ClonedFunction)(void* Arg) = FunctionMapTryLookup(Function);
-    if (!ClonedFunction)
+    if (!InstrumentedFunction)
     {
-		UE_LOG(LogAutoRTFM, Warning, TEXT("Could not find function %p (%s) in AutoRTFM::FContext::Transact."), Function, *GetFunctionDescription(Function));
+		UE_LOG(LogAutoRTFM, Warning, TEXT("Could not find function in AutoRTFM::FContext::Transact."));
         return ETransactionResult::AbortedByLanguage;
     }
     
-	//TUniquePtr<FTransaction> NewTransactionUniquePtr(new FTransaction(this));
 	FTransaction* NewTransaction = new FTransaction(this);
 	FCallNest* NewNest = new FCallNest(this);
 
 	// Transact requires a return from the lambda to commit the results
 	NewTransaction->SetIsScopedTransaction();
 
-	void* TransactStackAddress = &NewTransaction;
-	ASSERT(TransactStackAddress > StackBegin);
-	ASSERT(TransactStackAddress < StackEnd);
-	TScopedGuard<void*> CurrentNestStackAddressGuard(CurrentTransactStackAddress, TransactStackAddress);
+	void* TransactStackStart = &NewTransaction;
 
 	ETransactionResult Result = ETransactionResult::Committed; // Initialize to something to make the compiler happy.
 
@@ -324,15 +299,39 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
     {
         ASSERT(Status == EContextStatus::Idle);
 
+		ASSERT(FPlatformTLS::InvalidTlsSlot == CurrentThreadId);
+		CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
+
+		ASSERT(Stack == FStackRange{});
+
+#if PLATFORM_WINDOWS
+		GetCurrentThreadStackLimits(&Stack.Low, &Stack.High);
+#elif defined(__APPLE__)         
+		Stack.High = pthread_get_stackaddr_np(pthread_self());
+		size_t StackSize = pthread_get_stacksize_np(pthread_self());
+		StackLow = static_cast<char*>(Stack.High) - StackSize;
+#else
+		pthread_attr_t Attr;
+		pthread_getattr_np(pthread_self(), &Attr);
+		size_t StackSize = 0;
+		pthread_attr_getstack(&Attr, &Stack.Low, &StackSize);
+		Stack.High = static_cast<char*>(Stack.Low) + StackSize;
+#endif
+		ASSERT(Stack.High > Stack.Low);
+
+		ASSERT(Stack.Contains(TransactStackStart));
+		NewTransaction->SetStackRange({Stack.Low, &TransactStackStart});
+
 		PushTransaction(NewTransaction);
 		PushCallNest(NewNest);
-        OuterTransactStackAddress = TransactStackAddress;
+
+		bool bTriedToRunOnce = false;
 
         for (;;)
         {
             Status = EContextStatus::OnTrack;
             ASSERT(CurrentTransaction->IsFresh());
-			CurrentNest->Try([&] () { ClonedFunction(Arg); });
+			CurrentNest->Try([&] () { InstrumentedFunction(Arg); });
 			ASSERT(CurrentTransaction == NewTransaction); // The transaction lambda should have unwound any nested transactions.
             ASSERT(Status != EContextStatus::Idle);
 
@@ -342,11 +341,23 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 				DumpState();
 				UE_LOG(LogAutoRTFM, Verbose, TEXT("Committing..."));
 
-                if (AttemptToCommitTransaction(CurrentTransaction))
-                {
-                    Result = ETransactionResult::Committed;
-                    break;
-                }
+				if (UNLIKELY(!bTriedToRunOnce && AutoRTFM::ForTheRuntime::ShouldRetryNonNestedTransactions()))
+				{
+					// We skip trying to commit this time, and instead re-run the transaction.
+					Status = EContextStatus::AbortedByFailedLockAcquisition;
+					CurrentTransaction->AbortWithoutThrowing();
+					ClearTransactionStatus();
+
+					// We've tried to run at least once if we get here!
+					bTriedToRunOnce = true;
+					continue;
+				}
+
+				if (AttemptToCommitTransaction(CurrentTransaction))
+				{
+					Result = ETransactionResult::Committed;
+					break;
+				}
 
 				UE_LOG(LogAutoRTFM, Verbose, TEXT("Commit failed!"));
 
@@ -390,24 +401,56 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
     {
 		// This transaction is within another transaction
 		ASSERT(Status == EContextStatus::OnTrack);
+
+		ASSERT(CurrentThreadId == FPlatformTLS::GetCurrentThreadId());
+
+		ASSERT(Stack.Contains(TransactStackStart));
+		NewTransaction->SetStackRange({Stack.Low, &TransactStackStart});
+
 		PushTransaction(NewTransaction);
 		PushCallNest(NewNest);
 
-		CurrentNest->Try([&]() { ClonedFunction(Arg); });
-		ASSERT(CurrentTransaction == NewTransaction);
+		bool bTriedToRunOnce = false;
 
-		Result = ResolveNestedTransaction(NewTransaction);
-		
+		for (;;)
+		{
+			CurrentNest->Try([&]() { InstrumentedFunction(Arg); });
+			ASSERT(CurrentTransaction == NewTransaction);
+
+			if (Status == EContextStatus::OnTrack)
+			{
+				if (UNLIKELY(!bTriedToRunOnce && AutoRTFM::ForTheRuntime::ShouldRetryNestedTransactionsToo()))
+				{
+					// We skip trying to commit this time, and instead re-run the transaction.
+					Status = EContextStatus::AbortedByFailedLockAcquisition;
+					NewTransaction->AbortWithoutThrowing();
+					ClearTransactionStatus();
+
+					// We've tried to run at least once if we get here!
+					bTriedToRunOnce = true;
+
+					continue;
+				}
+			}
+
+			Result = ResolveNestedTransaction(NewTransaction);
+			break;
+		}
+
 		PopCallNest();
 		PopTransaction();
 
 		ASSERT(CurrentNest != nullptr);
 		ASSERT(CurrentTransaction != nullptr);
 
-		// A cascading abort should cause all transactions to abort!
-		if (ETransactionResult::AbortedByCascade == Result)
+		// Cascading aborts should cause all transactions to abort!
+		switch (Result)
 		{
+		default:
+			break;
+		case ETransactionResult::AbortedByCascade:
 			CurrentTransaction->AbortAndThrow();
+			break;
 		}
 
 		ClearTransactionStatus();
@@ -434,39 +477,18 @@ void FContext::AbortByRequestWithoutThrowing()
 
 void FContext::AbortByLanguageAndThrow()
 {
-	UE_DEBUG_BREAK();
     ASSERT(Status == EContextStatus::OnTrack);
 	GAutoRTFMMetrics.NumTransactionsAbortedByLanguage++;
     Status = EContextStatus::AbortedByLanguage;
     CurrentTransaction->AbortAndThrow();
 }
 
-#if PLATFORM_WINDOWS
-extern "C" __declspec(dllimport) void __stdcall GetCurrentThreadStackLimits(void**, void**);
-#endif
-
-FContext::FContext()
-{
-#if PLATFORM_WINDOWS
-    GetCurrentThreadStackLimits(&StackBegin, &StackEnd);
-#elif defined(__APPLE__)         
-   StackEnd = pthread_get_stackaddr_np(pthread_self());   
-   size_t StackSize = pthread_get_stacksize_np(pthread_self());    
-   StackBegin = static_cast<char*>(StackEnd) - StackSize;
-#else
-    pthread_attr_t Attr;
-    pthread_getattr_np(pthread_self(), &Attr);
-    size_t StackSize;
-    pthread_attr_getstack(&Attr, &StackBegin, &StackSize);
-    StackEnd = static_cast<char*>(StackBegin) + StackSize;
-#endif
-    ASSERT(StackEnd > StackBegin);
-}
-
 void FContext::Reset()
 {
-    OuterTransactStackAddress = nullptr;
-	CurrentTransactStackAddress = nullptr;
+	ASSERT(CurrentThreadId == FPlatformTLS::GetCurrentThreadId() || CurrentThreadId == FPlatformTLS::InvalidTlsSlot);
+
+	CurrentThreadId = FPlatformTLS::InvalidTlsSlot;
+	Stack = {};
     CurrentTransaction = nullptr;
 	CurrentNest = nullptr;
     Status = EContextStatus::Idle;
@@ -479,7 +501,7 @@ void FContext::Throw()
 
 void FContext::DumpState() const
 {
-	UE_LOG(LogAutoRTFM, Verbose, TEXT("Context at %p, transaction stack: %p..%p."), this, StackBegin, OuterTransactStackAddress);
+	UE_LOG(LogAutoRTFM, Verbose, TEXT("Context at %p"), this);
 }
 
 } // namespace AutoRTFM

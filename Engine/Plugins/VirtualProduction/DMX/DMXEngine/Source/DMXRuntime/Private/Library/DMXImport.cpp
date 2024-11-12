@@ -5,6 +5,7 @@
 
 namespace DMXImport
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FDMXColorCIE ParseColorCIE(const FString& InColor)
 	{
 		TArray<FString> ColorCIEArray;
@@ -33,7 +34,9 @@ namespace DMXImport
 
 		return MoveTemp(ColorCIE);
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FMatrix ParseMatrix(FString&& InMatrixStr)
 	{
 		FMatrix Matrix = FMatrix::Identity;
@@ -72,5 +75,5 @@ namespace DMXImport
 
 		return MoveTemp(Matrix);
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
-

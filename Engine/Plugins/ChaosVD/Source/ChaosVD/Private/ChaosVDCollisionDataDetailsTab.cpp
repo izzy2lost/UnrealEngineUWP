@@ -21,10 +21,17 @@ TSharedRef<SDockTab> FChaosVDCollisionDataDetailsTab::HandleTabSpawnRequest(cons
 		.Label(LOCTEXT("CollisionInspectorTab", "Collision Data Inspector"))
 		.ToolTipText(LOCTEXT("CollisionInspectorTabTip", "See the details of the any collision data for the selected object"));
 
-	DetailsPanelTab->SetContent
-	(
-		SAssignNew(CollisionDataInspector, SChaosVDCollisionDataInspector, GetChaosVDScene())
-	);
+	if (const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
+	{
+		DetailsPanelTab->SetContent
+		(
+			SAssignNew(CollisionDataInspector, SChaosVDCollisionDataInspector, GetChaosVDScene(), MainTabPtr.ToSharedRef())
+		);
+	}
+	else
+	{
+		DetailsPanelTab->SetContent(GenerateErrorWidget());
+	}
 
 	DetailsPanelTab->SetTabIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "CollisionAnalyzer.TabIcon").GetIcon());
 

@@ -5,12 +5,13 @@
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
 #include "Online/AuthCommon.h"
+#include "Online/OnlineIdCommon.h"
 
 namespace UE::Online {
 
 class FOnlineServicesNull;
 
-class FOnlineAccountIdString
+class UE_DEPRECATED(5.5, "FOnlineAccountIdRegistryNull now uses TOnlineBasicAccountIdRegistry, and FOnlineAccountIdString was never exposed external to FOnlineAccountIdRegistryNull") FOnlineAccountIdString
 {
 public:
 	FString Data;
@@ -18,7 +19,8 @@ public:
 	FAccountId AccountId;
 };
 
-class FOnlineAccountIdRegistryNull : public IOnlineAccountIdRegistry
+class FOnlineAccountIdRegistryNull
+	: public IOnlineAccountIdRegistry
 {
 public:
 	ONLINESERVICESNULL_API static FOnlineAccountIdRegistryNull& Get();
@@ -36,20 +38,14 @@ public:
 	virtual ~FOnlineAccountIdRegistryNull() = default;
 
 private:
-	// Retrieve an entry with no lock. For internal use only.
-	const FOnlineAccountIdString* FindNoLock(const FAccountId& AccountId) const;
-	const FOnlineAccountIdString* FindNoLock(const FString& AccountId) const;
-
-	mutable FRWLock Lock;
-	TArray<FOnlineAccountIdString> Ids;
-	TMap<FString, uint32> StringToIdIndex;
-
+	FOnlineAccountIdRegistryNull();
+	TOnlineBasicAccountIdRegistry<FString> Registry;
 };
+
 
 struct FAccountInfoNull final : public FAccountInfo
 {
 };
-
 
 // Auth NULL is implemented in a way similar to console platforms where there is not an explicit
 // login / logout from online services. On those platforms the user account is picked either before

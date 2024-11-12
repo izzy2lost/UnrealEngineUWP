@@ -156,7 +156,7 @@ namespace UnrealBuildTool
 			foreach (KeyValuePair<FileReference, ModuleManifest> Pair in TargetInfo.FileToManifest)
 			{
 				FileReference ManifestFile = Pair.Key;
-				if (!UnrealBuildTool.IsFileInstalled(ManifestFile))
+				if (!Unreal.IsFileInstalled(ManifestFile))
 				{
 					ModuleManifest Manifest = Pair.Value;
 					Manifest.BuildId = BuildId ?? String.Empty;
@@ -197,7 +197,7 @@ namespace UnrealBuildTool
 			foreach (KeyValuePair<FileReference, LoadOrderManifest> Pair in TargetInfo.FileToLoadOrderManifest)
 			{
 				FileReference ManifestFile = Pair.Key;
-				if (!UnrealBuildTool.IsFileInstalled(ManifestFile))
+				if (!Unreal.IsFileInstalled(ManifestFile))
 				{
 					LoadOrderManifest Manifest = Pair.Value;
 

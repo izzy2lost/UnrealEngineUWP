@@ -8,6 +8,7 @@
 #include "RenderTargetPool.h"
 #include "PixelShaderUtils.h"
 #include "RenderingThread.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SubsurfaceProfile)
 
@@ -280,7 +281,7 @@ IPooledRenderTarget* FSubsurfaceProfileTexture::GetSSProfilesPreIntegratedTextur
 			FSSProfilePreIntegratedPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSProfilePreIntegratedPS::FParameters>();
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(ProfileTexture, ERenderTargetLoadAction::EClear, 0, i);
 
-			PassParameters->SourceSSProfilesTexture = GetSubsurfaceProfileTextureWithFallback();
+			PassParameters->SourceSSProfilesTexture = SubsurfaceProfile::GetSubsurfaceProfileTextureWithFallback();
 			PassParameters->SourceSSProfilesSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 			FIntVector SourceSSProfilesTextureSize = PassParameters->SourceSSProfilesTexture->GetSizeXYZ();
@@ -712,8 +713,56 @@ void FSubsurfaceProfileTexture::Dump()
 
 FName GetSubsurfaceProfileParameterName()
 {
+	return SubsurfaceProfile::GetSubsurfaceProfileParameterName();
+}
+
+FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile)
+{
+	return SubsurfaceProfile::CreateSubsurfaceProfileParameterName(InProfile);
+}
+
+float GetSubsurfaceProfileId(const USubsurfaceProfile* In)
+{
+	return SubsurfaceProfile::GetSubsurfaceProfileId(In);
+}
+
+FRHITexture* GetSubsurfaceProfileTexture()
+{
+	return SubsurfaceProfile::GetSubsurfaceProfileTexture();
+}
+
+FRHITexture* GetSubsurfaceProfileTextureWithFallback()
+{
+	return SubsurfaceProfile::GetSubsurfaceProfileTextureWithFallback();
+}
+
+FRHITexture* GetSSProfilesPreIntegratedTextureWithFallback()
+{
+	return SubsurfaceProfile::GetSSProfilesPreIntegratedTextureWithFallback();
+}
+
+void UpdateSubsurfaceProfileTexture(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform)
+{
+	SubsurfaceProfile::UpdateSubsurfaceProfileTexture(GraphBuilder, ShaderPlatform);
+}
+
+namespace SubsurfaceProfile
+{
+
+FName GetSubsurfaceProfileParameterName()
+{
 	static FName NameSubsurfaceProfile(TEXT("__SubsurfaceProfile"));
 	return NameSubsurfaceProfile;
+}
+
+static FName CreateSubsurfaceProfileParameterName(const FGuid& InGuid)
+{
+	return FName(TEXT("__SubsurfaceProfile") + InGuid.ToString());
+}
+
+FName CreateSubsurfaceProfileParameterName(const USubsurfaceProfile* InProfile)
+{
+	return InProfile ? CreateSubsurfaceProfileParameterName(InProfile->Guid) : FName();
 }
 
 float GetSubsurfaceProfileId(const USubsurfaceProfile* In)
@@ -753,6 +802,8 @@ void UpdateSubsurfaceProfileTexture(FRDGBuilder& GraphBuilder, EShaderPlatform S
 	GSubsurfaceProfileTextureObject.GetSSProfilesPreIntegratedTexture(GraphBuilder, ShaderPlatform);
 }
 
+}// namespace SubsurfaceProfile
+
 // ------------------------------------------------------
 
 USubsurfaceProfile::USubsurfaceProfile(const FObjectInitializer& ObjectInitializer)
@@ -785,10 +836,32 @@ void USubsurfaceProfile::PostEditChangeProperty(struct FPropertyChangedEvent& Pr
 		});
 }
 
+void USubsurfaceProfile::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Super::PostDuplicate(DuplicateMode);
+
+	// When a Subsurface Profile asset is duplicated/copied pasted (e.g. from the asset browser), we want the guid to be regenerated.
+	Guid = FGuid::NewGuid();
+}
+
 void USubsurfaceProfile::PostLoad()
 {
 	Super::PostLoad();
 
 	UpgradeSubsurfaceProfileParameters(this->Settings);
+}
+
+void USubsurfaceProfile::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::SubsurfaceProfileGuid && Ar.IsLoading())
+	{
+		// Generate a unique GUID from the unique project asset path the first time we load an older asset.
+		const FString PathName = this->GetPathName();
+		Guid = FGuid::NewDeterministicGuid(PathName, 123u);
+	}
 }
 

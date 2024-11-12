@@ -101,6 +101,7 @@ namespace UE::PixelStreamingInput
 		virtual void HandleOnXRControllerTransform(FMemoryReader Ar);
 		virtual void HandleOnXRButtonPressed(FMemoryReader Ar);
 		virtual void HandleOnXRButtonTouched(FMemoryReader Ar);
+		virtual void HandleOnXRButtonTouchReleased(FMemoryReader Ar);
 		virtual void HandleOnXRButtonReleased(FMemoryReader Ar);
 		virtual void HandleOnXRAnalog(FMemoryReader Ar);
 		virtual void HandleOnXRSystem(FMemoryReader Ar);
@@ -146,11 +147,24 @@ namespace UE::PixelStreamingInput
 			int32 ControllerIndex;
 		};
 
+		struct FAnalogValue
+		{
+			/* The actual analog value from the controller axis, typical 0.0..1.0 */
+			double Value;
+			/* If value is non-zero then keep applying this analog values across frames.
+			 * This is useful for trigger axis inputs where if a value is not transmitted
+			 * UE will assume a gap in input means a full trigger press (which is not accurate if we were still pressing).
+			 */
+			bool bKeepUnlessZero = false;
+			/* Has this key event already been fired once? */
+			bool bIsRepeat = false;
+		};
+
 		// Keep a cache of the last touch events as we need to fire Touch Moved every frame while touch is down
 		TMap<int32, FCachedTouchEvent> CachedTouchEvents;
-		
+
 		using FKeyId = uint8;
-		using FAnalogValue = double;
+
 		/**
 		 * If more values are received in a single tick (e.g. could be temp network issue),
 		 * then we only forward the latest value.
@@ -162,12 +176,10 @@ namespace UE::PixelStreamingInput
 		 * The values arrive in the order of recording: that means once the player releases the analog,
 		 * the last analog value would be 0.
 		 */
-		TMap<FInputDeviceId, TMap<FKeyId, FAnalogValue>> AnalogEventsReceivedThisTick;
+		TMap<FInputDeviceId, TMap<FKey*, FAnalogValue>> AnalogEventsReceivedThisTick;
 
 		/** Forwards the latest analog input received for each key this tick. */
 		void ProcessLatestAnalogInputFromThisTick();
-		/** Forward a single analog input the engine. */
-		void ProcessAnalog(const FInputDeviceId& ControllerId, FKeyId Key, FAnalogValue AnalogValue);
 
 		// Track which touch events we processed this frame so we can avoid re-processing them
 		TSet<int32> TouchIndicesProcessedThisFrame;

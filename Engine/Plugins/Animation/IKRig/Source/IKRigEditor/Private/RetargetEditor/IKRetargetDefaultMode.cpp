@@ -40,10 +40,6 @@ void FIKRetargetDefaultMode::Initialize()
 		return; 
 	}
 
-	// update offsets on preview meshes
-	Controller->AddOffsetToMeshComponent(FVector::ZeroVector, Controller->SourceSkelMeshComponent);
-	Controller->AddOffsetToMeshComponent(FVector::ZeroVector, Controller->TargetSkelMeshComponent);
-
 	bIsInitialized = true;
 }
 
@@ -82,7 +78,7 @@ void FIKRetargetDefaultMode::RenderDebugProxies(FPrimitiveDrawInterface* PDI, co
 
 	UDebugSkelMeshComponent* TargetSkelMesh = Controller->GetSkeletalMeshComponent(ERetargetSourceOrTarget::Target);
 	const FTransform ComponentTransform = TargetSkelMesh->GetComponentTransform();
-	const FVector ComponentOffset = ComponentTransform.GetTranslation();
+	const float ComponentScale = ComponentTransform.GetScale3D().GetMax();
 
 	const TArray<FName>& SelectedChains = Controller->GetSelectedChains();
 
@@ -92,183 +88,160 @@ void FIKRetargetDefaultMode::RenderDebugProxies(FPrimitiveDrawInterface* PDI, co
 	const FLinearColor MainColor = FLinearColor::Green;
 	const FLinearColor NonSelected = FLinearColor::Gray * 0.3f;
 
-	// get the root modification
-	const FRootRetargeter& RootRetargeter = RetargetProcessor->GetRootRetargeter();
-	const FVector RootModification = RootRetargeter.Target.RootTranslationDelta * RootRetargeter.Settings.GetAffectIKWeightVector();
-
 	// draw IK goals on each IK chain
-	const TArray<FRetargetChainPairIK>& IKChainPairs = RetargetProcessor->GetIKChainPairs();
-	for (const FRetargetChainPairIK& IKChainPair : IKChainPairs)
+	if (Asset->bDrawFinalGoals || Asset->bDrawSourceLocations)
 	{
-		const FChainDebugData& ChainDebugData = IKChainPair.IKChainRetargeter.DebugData;
-		FTransform FinalTransform = ChainDebugData.OutputTransformEnd;
-		FinalTransform.AddToTranslation(ComponentOffset);
-
-		const bool bIsSelected = SelectedChains.Contains(IKChainPair.TargetBoneChainName);
-
-		PDI->SetHitProxy(new HIKRetargetEditorChainProxy(IKChainPair.TargetBoneChainName));
-
-		if (Asset->bDrawFinalGoals)
-		{
-			IKRigDebugRendering::DrawWireCube(
-			PDI,
-			FinalTransform,
-			bIsSelected ? GoalColor : GoalColor * NonSelected,
-			Asset->ChainDrawSize,
-			Asset->ChainDrawThickness);
-		}
+		// get the root modification
+		const FRootRetargeter& RootRetargeter = RetargetProcessor->GetRootRetargeter();
+		const FVector RootModification = RootRetargeter.Target.RootTranslationDelta * RootRetargeter.Settings.GetAffectIKWeightVector();
 		
-		if (Asset->bDrawSourceLocations)
+		// spin through all IK chains
+		const TArray<FRetargetChainPairIK>& IKChainPairs = RetargetProcessor->GetIKChainPairs();
+		for (const FRetargetChainPairIK& IKChainPair : IKChainPairs)
 		{
-			const FSourceChainIK& SourceChain = IKChainPair.IKChainRetargeter.Source;
-			FTransform SourceGoalTransform;
-			SourceGoalTransform.SetTranslation(SourceChain.CurrentEndPosition + ComponentOffset + RootModification);
-			SourceGoalTransform.SetRotation(SourceChain.CurrentEndRotation);
+			const FChainDebugData& ChainDebugData = IKChainPair.IKChainRetargeter.DebugData;
+			FTransform FinalTransform = ChainDebugData.OutputTransformEnd * ComponentTransform;
 
-			FLinearColor Color = bIsSelected ? SourceColor : SourceColor * NonSelected;
+			const bool bIsSelected = SelectedChains.Contains(IKChainPair.TargetBoneChainName);
 
-			DrawWireSphere(
-				PDI,
-				SourceGoalTransform,
-				Color,
-				Asset->ChainDrawSize * 0.5f,
-				12,
-				SDPG_World,
-				0.0f,
-				0.001f,
-				false);
+			PDI->SetHitProxy(new HIKRetargetEditorChainProxy(IKChainPair.TargetBoneChainName));
 
 			if (Asset->bDrawFinalGoals)
 			{
-				DrawDashedLine(
-					PDI,
-					SourceGoalTransform.GetLocation(),
-					FinalTransform.GetLocation(),
-					Color,
-					1.0f,
-					SDPG_Foreground);
+				IKRigDebugRendering::DrawWireCube(
+				PDI,
+				FinalTransform,
+				bIsSelected ? GoalColor : GoalColor * NonSelected,
+				Asset->ChainDrawSize,
+				Asset->ChainDrawThickness * ComponentScale);
 			}
-		}
+		
+			if (Asset->bDrawSourceLocations)
+			{
+				const FSourceChainIK& SourceChain = IKChainPair.IKChainRetargeter.Source;
+				FTransform SourceGoalTransform;
+				SourceGoalTransform.SetTranslation(SourceChain.CurrentEndPosition + RootModification);
+				SourceGoalTransform.SetRotation(SourceChain.CurrentEndRotation);
+				SourceGoalTransform *= ComponentTransform;
 
-		// done drawing chain proxies
-		PDI->SetHitProxy(nullptr);
+				FLinearColor Color = bIsSelected ? SourceColor : SourceColor * NonSelected;
+
+				DrawWireSphere(
+					PDI,
+					SourceGoalTransform,
+					Color,
+					Asset->ChainDrawSize * 0.5f,
+					12,
+					SDPG_World,
+					0.0f,
+					0.001f,
+					false);
+
+				if (Asset->bDrawFinalGoals)
+				{
+					DrawDashedLine(
+						PDI,
+						SourceGoalTransform.GetLocation(),
+						FinalTransform.GetLocation(),
+						Color,
+						1.0f,
+						SDPG_Foreground);
+				}
+			}
+
+			// done drawing chain proxies
+			PDI->SetHitProxy(nullptr);
+		}
 	}
+	
 
 	// draw lines on each FK chain
-	const TArray<FRetargetChainPairFK>& FKChainPairs = RetargetProcessor->GetFKChainPairs();
-	for (const FRetargetChainPairFK& FKChainPair : FKChainPairs)
+	if (Asset->bDrawChainLines || Asset->bDrawSingleBoneChains)
 	{
-		const TArray<int32>& TargetChainBoneIndices = FKChainPair.FKDecoder.BoneIndices;
-		if (TargetChainBoneIndices.IsEmpty())
+		const TArray<FRetargetChainPairFK>& FKChainPairs = RetargetProcessor->GetFKChainPairs();
+		for (const FRetargetChainPairFK& FKChainPair : FKChainPairs)
 		{
-			continue;
-		}
+			const TArray<int32>& TargetChainBoneIndices = FKChainPair.FKDecoder.BoneIndices;
+			if (TargetChainBoneIndices.IsEmpty())
+			{
+				continue;
+			}
 		
-		const bool bIsSelected = SelectedChains.Contains(FKChainPair.TargetBoneChainName);
+			const bool bIsSelected = SelectedChains.Contains(FKChainPair.TargetBoneChainName);
+			FLinearColor Color = bIsSelected ? MainColor : MainColor * NonSelected;
 		
-		// draw a line from start to end of chain, or in the case of a chain with only 1 bone in it, draw a sphere
-		PDI->SetHitProxy(new HIKRetargetEditorChainProxy(FKChainPair.TargetBoneChainName));
-		if (TargetChainBoneIndices.Num() > 1)
-		{
-			FTransform StartTransform = TargetSkelMesh->GetBoneTransform(TargetChainBoneIndices[0], ComponentTransform);
-			FTransform EndTransform = TargetSkelMesh->GetBoneTransform(TargetChainBoneIndices.Last(), ComponentTransform);
-			PDI->DrawLine(
-			StartTransform.GetLocation(),
-			EndTransform.GetLocation(),
-			bIsSelected ? MainColor : MainColor * NonSelected,
-			SDPG_Foreground,
-			Asset->ChainDrawThickness);
-		}
-		else
-		{
-			FTransform StartTransform = TargetSkelMesh->GetBoneTransform(TargetChainBoneIndices[0], ComponentTransform);
-			
-			DrawWireSphere(
-				PDI,
+			// draw a line from start to end of chain, or in the case of a chain with only 1 bone in it, draw a sphere
+			PDI->SetHitProxy(new HIKRetargetEditorChainProxy(FKChainPair.TargetBoneChainName));
+			if (Asset->bDrawChainLines && TargetChainBoneIndices.Num() > 1)
+			{
+				FTransform StartTransform = TargetSkelMesh->GetBoneTransform(TargetChainBoneIndices[0], ComponentTransform);
+				FTransform EndTransform = TargetSkelMesh->GetBoneTransform(TargetChainBoneIndices.Last(), ComponentTransform);
+				PDI->DrawLine(
 				StartTransform.GetLocation(),
-				bIsSelected ? MainColor : MainColor * NonSelected,
-				Asset->ChainDrawSize,
-				12,
-				SDPG_World,
-				Asset->ChainDrawThickness,
-				0.001f,
-				false);
-		}
+				EndTransform.GetLocation(),
+				Color,
+				SDPG_Foreground,
+				Asset->ChainDrawThickness * ComponentScale);
+			}
+			else if (Asset->bDrawSingleBoneChains)
+			{
+				// single bone chain, just draw a sphere on the bone
+				FTransform BoneTransform = TargetSkelMesh->GetBoneTransform(TargetChainBoneIndices[0], ComponentTransform);
+				DrawWireSphere(
+					PDI,
+					BoneTransform,
+					Color,
+					Asset->ChainDrawSize,
+					12,
+					SDPG_World,
+					Asset->ChainDrawThickness * ComponentScale,
+					0.001f,
+					false);
+			}
 		
-		PDI->SetHitProxy(nullptr);
+			PDI->SetHitProxy(nullptr);
+		}
 	}
 
 	// draw stride warping frame
-	FTransform WarpingFrame = RetargetProcessor->DebugData.StrideWarpingFrame;
-	DrawCoordinateSystem(PDI, WarpingFrame.GetLocation(), WarpingFrame.GetRotation().Rotator(), Asset->ChainDrawSize, SDPG_World, Asset->ChainDrawThickness);
+	if (Asset->bDrawWarpingFrame)
+	{
+		FTransform WarpingFrame = RetargetProcessor->DebugData.StrideWarpingFrame * ComponentTransform;
+		DrawCoordinateSystem(
+			PDI,
+			WarpingFrame.GetLocation(),
+			WarpingFrame.GetRotation().Rotator(),
+			Asset->ChainDrawSize * ComponentScale,
+			SDPG_World,
+			Asset->ChainDrawThickness * ComponentScale);	
+	}
 
 	// root bone name
-	const FName RootBoneName = Controller->AssetController->GetRetargetRootBone(ERetargetSourceOrTarget::Target);
-	const int32 RootBoneIndex = TargetSkelMesh->GetReferenceSkeleton().FindBoneIndex(RootBoneName);
-	if (RootBoneIndex == INDEX_NONE)
+	if (Asset->bDrawRootCircle)
 	{
-		return;
-	}
-	const FTransform RootTransform = TargetSkelMesh->GetBoneTransform(RootBoneIndex, ComponentTransform);
-	const FVector RootCircleLocation = RootTransform.GetLocation() * FVector(1,1,0);
-	const bool bIsSelected = EditorController.Pin()->GetRootSelected();
-	const FLinearColor RootColor = bIsSelected ? MainColor : MainColor * NonSelected;
+		const FName RootBoneName = Controller->AssetController->GetRetargetRootBone(ERetargetSourceOrTarget::Target);
+		const int32 RootBoneIndex = TargetSkelMesh->GetReferenceSkeleton().FindBoneIndex(RootBoneName);
+		if (RootBoneIndex != INDEX_NONE)
+		{
+			const FTransform RootTransform = TargetSkelMesh->GetBoneTransform(RootBoneIndex, ComponentTransform);
+			const FVector RootCircleLocation = RootTransform.GetLocation() * FVector(1,1,0);
+			const bool bIsSelected = EditorController.Pin()->GetRootSelected();
+			const FLinearColor RootColor = bIsSelected ? MainColor : MainColor * NonSelected;
 	
-	PDI->SetHitProxy(new HIKRetargetEditorRootProxy());
-	DrawCircle(
-		PDI,
-		RootCircleLocation,
-		FVector(1, 0, 0),
-		FVector(0, 1, 0),
-		RootColor,
-		Asset->ChainDrawSize * 10.f,
-		12,
-		SDPG_World,
-		Asset->ChainDrawThickness * 2.0f);
-	PDI->SetHitProxy(nullptr);
-}
-
-bool FIKRetargetDefaultMode::AllowWidgetMove()
-{
-	return false;
-}
-
-bool FIKRetargetDefaultMode::ShouldDrawWidget() const
-{
-	return UsesTransformWidget(CurrentWidgetMode);
-}
-
-bool FIKRetargetDefaultMode::UsesTransformWidget() const
-{
-	return UsesTransformWidget(CurrentWidgetMode);
-}
-
-bool FIKRetargetDefaultMode::UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; 
+			PDI->SetHitProxy(new HIKRetargetEditorRootProxy());
+			DrawCircle(
+				PDI,
+				RootCircleLocation,
+				FVector(1, 0, 0),
+				FVector(0, 1, 0),
+				RootColor,
+				Asset->ChainDrawSize * 10.f * ComponentTransform.GetScale3D().GetMax(),
+				30,
+				SDPG_World,
+				Asset->ChainDrawThickness * 2.0f * ComponentScale);
+			PDI->SetHitProxy(nullptr);
+		}	
 	}
-	
-	const bool bTranslating = CheckMode == UE::Widget::EWidgetMode::WM_Translate;
-	return bTranslating && IsValid(Controller->GetSelectedMesh());
-}
-
-FVector FIKRetargetDefaultMode::GetWidgetLocation() const
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return FVector::ZeroVector; 
-	}
-	
-	if (!Controller->GetSelectedMesh())
-	{
-		return FVector::ZeroVector; // shouldn't get here
-	}
-
-	return Controller->GetSelectedMesh()->GetComponentTransform().GetLocation();
 }
 
 bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click)
@@ -283,15 +256,6 @@ bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient
 	const bool bCtrlOrShiftHeld = Click.IsControlDown() || Click.IsShiftDown();
 	const ESelectionEdit EditMode = bCtrlOrShiftHeld ? ESelectionEdit::Add : ESelectionEdit::Replace;
 	
-	// did we click on an actor in the viewport?
-	const bool bHitActor = HitProxy && HitProxy->IsA(HActor::StaticGetType());
-	if (bLeftButtonClicked && bHitActor)
-	{
-		const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
-		Controller->SetSelectedMesh(ConstCast(ActorProxy->PrimComponent));
-		return true;
-	}
-
 	// did we click on a bone in the viewport?
 	const bool bHitBone = HitProxy && HitProxy->IsA(HIKRetargetEditorBoneProxy::StaticGetType());
 	if (bLeftButtonClicked && bHitBone)
@@ -327,117 +291,6 @@ bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient
 	return true;
 }
 
-bool FIKRetargetDefaultMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
-{
-	return HandleBeginTransform(InViewportClient);
-}
-
-bool FIKRetargetDefaultMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
-{
-	return HandleEndTransform();
-}
-
-bool FIKRetargetDefaultMode::BeginTransform(const FGizmoState& InState)
-{
-	return HandleBeginTransform(Owner->GetFocusedViewportClient());
-}
-
-bool FIKRetargetDefaultMode::EndTransform(const FGizmoState& InState)
-{
-	return HandleEndTransform();
-}
-
-bool FIKRetargetDefaultMode::HandleBeginTransform(const FEditorViewportClient* InViewportClient)
-{
-	if (!InViewportClient)
-	{
-		return false;
-	}
-	
-	bIsTranslating = false;
-
-	// not manipulating any widget axes, so stop tracking
-	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
-	if (CurrentAxis == EAxisList::None)
-	{
-		return false; 
-	}
-
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; // invalid editor state
-	}
-
-	const bool bTranslating = InViewportClient->GetWidgetMode() == UE::Widget::EWidgetMode::WM_Translate;
-	if (bTranslating && IsValid(Controller->GetSelectedMesh()))
-	{
-		bIsTranslating = true;
-		GEditor->BeginTransaction(LOCTEXT("MovePreviewMesh", "Move Preview Mesh"));
-		Controller->AssetController->GetAsset()->Modify();
-		return true;
-	}
-
-	return false;
-}
-
-bool FIKRetargetDefaultMode::HandleEndTransform()
-{
-	GEditor->EndTransaction();
-	bIsTranslating = false;
-	return true;
-}
-
-bool FIKRetargetDefaultMode::InputDelta(
-	FEditorViewportClient* InViewportClient,
-	FViewport* InViewport,
-	FVector& InDrag,
-	FRotator& InRot,
-	FVector& InScale)
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; 
-	}
-	
-	if (!(bIsTranslating && IsValid(Controller->GetSelectedMesh())))
-	{
-		return false; // not handled
-	}
-
-	if(InViewportClient->GetWidgetMode() != UE::Widget::WM_Translate)
-	{
-		return false;
-	}
-
-	Controller->AddOffsetToMeshComponent(InDrag, Controller->GetSelectedMesh());
-	
-	return true;
-}
-
-bool FIKRetargetDefaultMode::GetCustomDrawingCoordinateSystem(FMatrix& InMatrix, void* InData)
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; 
-	}
-
-	if (!Controller->GetSelectedMesh())
-	{
-		return false;
-	}
-
-	InMatrix = Controller->GetSelectedMesh()->GetComponentTransform().ToMatrixNoScale().RemoveTranslation();
-	return true;
-}
-
-bool FIKRetargetDefaultMode::GetCustomInputCoordinateSystem(FMatrix& InMatrix, void* InData)
-{
-	return GetCustomDrawingCoordinateSystem(InMatrix, InData);
-}
-
 void FIKRetargetDefaultMode::Enter()
 {
 	IPersonaEditMode::Enter();
@@ -461,25 +314,6 @@ void FIKRetargetDefaultMode::Exit()
 	}
 	
 	IPersonaEditMode::Exit();
-}
-
-UDebugSkelMeshComponent* FIKRetargetDefaultMode::GetCurrentlyEditedMesh() const
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return nullptr; 
-	}
-	
-	return SkeletonMode == ERetargetSourceOrTarget::Source ? Controller->SourceSkelMeshComponent : Controller->TargetSkelMeshComponent;
-}
-
-void FIKRetargetDefaultMode::ApplyOffsetToMeshTransform(const FVector& Offset, USceneComponent* Component)
-{
-	constexpr bool bSweep = false;
-	constexpr FHitResult* OutSweepHitResult = nullptr;
-	constexpr ETeleportType Teleport = ETeleportType::ResetPhysics;
-	Component->SetWorldLocation(Offset, bSweep, OutSweepHitResult, Teleport);
 }
 
 void FIKRetargetDefaultMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)

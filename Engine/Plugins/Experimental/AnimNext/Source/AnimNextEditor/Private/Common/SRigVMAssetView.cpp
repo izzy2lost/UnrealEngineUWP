@@ -2,15 +2,18 @@
 
 #include "SRigVMAssetView.h"
 
-#include "AnimNextRigVMAssetEntry.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
+#include "AnimNextRigVMAsset.h"
+#include "AnimNextRigVMAssetEditorData.h"
+#include "Entries/AnimNextRigVMAssetEntry.h"
+#include "Common/SCategoryTableRow.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "DetailLayoutBuilder.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "EditorUtils.h"
+#include "IAnimNextRigVMExportInterface.h"
+#include "Variables/IAnimNextRigVMVariableInterface.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
 #include "RigVMAssetViewMenuContext.h"
@@ -22,121 +25,33 @@
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "ToolMenus.h"
 #include "ScopedTransaction.h"
-#include "Param/AnimNextParameterBlockParameter.h"
-#include "Param/AnimNextParameterBlockGraph.h"
 #include "Framework/Application/SlateApplication.h"
 #include "PropertyEditorModule.h"
 #include "ISinglePropertyView.h"
 #include "ObjectEditorUtils.h"
 #include "Misc/NotifyHook.h"
+#include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "SRigVMAssetView"
 
 namespace UE::AnimNext::Editor
 {
 
-namespace ParameterBlockView
+namespace RigVMAssetView
 {
 
 static FName ContextMenuName(TEXT("AnimNext.RigVMAssetView.ContextMenu"));
 static FName Column_RevisionControl(TEXT("RevisionControl"));
-static FName Column_ModifiedStatus(TEXT("ModifiedStatus"));
 static FName Column_Name(TEXT("Name"));
 static FName Column_Type(TEXT("Type"));
 static FName Column_Value(TEXT("Value"));
+static FName Column_AccessSpecifier(TEXT("AccessSpecifier"));
 
 static const FName NAME_Category("Category");
 
 }
 
 TMap<FName, SRigVMAssetView::FCategoryWidgetFactoryFunction> SRigVMAssetView::CategoryFactories;
-
-// An entry category displayed in the parameters table
-template<typename ItemType>
-class SCategoryHeaderTableRow : public STableRow<ItemType>
-{
-public:
-	SLATE_BEGIN_ARGS(SCategoryHeaderTableRow)
-		{}
-		SLATE_DEFAULT_SLOT(typename SCategoryHeaderTableRow::FArguments, Content)
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
-	{
-		STableRow<ItemType>::ChildSlot
-			.Padding(0.0f, 2.0f, .0f, 0.0f)
-			[
-				SAssignNew(ContentBorder, SBorder)
-					.BorderImage(this, &SCategoryHeaderTableRow::GetBackgroundImage)
-					.Padding(FMargin(3.0f, 5.0f))
-					[
-						SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.VAlign(VAlign_Center)
-							.Padding(5.0f)
-							.AutoWidth()
-							[
-								SNew(SExpanderArrow, STableRow< ItemType >::SharedThis(this))
-							]
-							+ SHorizontalBox::Slot()
-							.VAlign(VAlign_Center)
-							.AutoWidth()
-							[
-								InArgs._Content.Widget
-							]
-					]
-			];
-
-		STableRow < ItemType >::ConstructInternal(
-			typename STableRow< ItemType >::FArguments()
-			.Style(FAppStyle::Get(), "DetailsView.TreeView.TableRow")
-			.ShowSelection(false),
-			InOwnerTableView
-		);
-	}
-
-	const FSlateBrush* GetBackgroundImage() const
-	{
-		if (STableRow<ItemType>::IsHovered())
-		{
-			return FAppStyle::Get().GetBrush("Brushes.Secondary");
-		}
-		else
-		{
-			return FAppStyle::Get().GetBrush("Brushes.Header");
-		}
-	}
-
-	virtual void SetContent(TSharedRef< SWidget > InContent) override
-	{
-		ContentBorder->SetContent(InContent);
-	}
-
-	virtual void SetRowContent(TSharedRef< SWidget > InContent) override
-	{
-		ContentBorder->SetContent(InContent);
-	}
-
-	virtual const FSlateBrush* GetBorder() const
-	{
-		return nullptr;
-	}
-
-	FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-	{
-		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
-		{
-			STableRow<ItemType>::ToggleExpansion();
-			return FReply::Handled();
-		}
-		else
-		{
-			return FReply::Unhandled();
-		}
-	}
-private:
-	TSharedPtr<SBorder> ContentBorder;
-};
 
 // An entry displayed in the parameters view
 struct FRigVMAssetViewEntry
@@ -203,9 +118,19 @@ void SRigVMAssetView::UnregisterCategoryFactory(FName InCategory)
 	CategoryFactories.Remove(InCategory);
 }
 
+void SRigVMAssetView::ClearSelection()
+{
+	EntriesList->ClearSelection();
+}
+
+void SRigVMAssetView::SetOnSelectionChanged(SRigVMAssetView::FOnSelectionChanged InDelegate)
+{
+	OnSelectionChangedDelegate = InDelegate;
+}
+
 void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEditorData* InEditorData)
 {
-	using namespace ParameterBlockView;
+	using namespace RigVMAssetView;
 	
 	check(InEditorData);
 
@@ -225,7 +150,7 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 	{
 		Categories.Add(MakeShared<FRigVMAssetViewEntry>(CategoryPair.Key, CategoryPair.Value));
 	}
-
+	
 	// Cache asset data for comparisons/filtering
 	AssetData = FAssetData(UncookedOnly::FUtils::GetAsset(EditorData));
 
@@ -233,7 +158,7 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 	OnOpenGraphDelegate = InArgs._OnOpenGraph;
 	OnDeleteEntriesDelegate = InArgs._OnDeleteEntries;
 
-	EditorData->ModifiedDelegate.AddSP(this, &SRigVMAssetView::HandleBlockModified);
+	EditorData->ModifiedDelegate.AddSP(this, &SRigVMAssetView::HandleAssetModified);
 
 	ChildSlot
 	[
@@ -263,9 +188,42 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 			.OnGetChildren(this, &SRigVMAssetView::HandleGetChildren)
 			.OnItemScrolledIntoView(this, &SRigVMAssetView::HandleItemScrolledIntoView)
 			.OnSelectionChanged(this, &SRigVMAssetView::HandleSelectionChanged)
-			.ItemHeight(20.0f)
 			.HeaderRow(
 				SNew(SHeaderRow)
+
+				+SHeaderRow::Column(Column_AccessSpecifier)
+				.DefaultLabel(FText::GetEmpty())
+				.FixedWidth(24.0f)
+				.HeaderContent()
+				[
+					SNew(SBox)
+					.WidthOverride(16.0f)
+					.HeightOverride(16.0f)
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image(FAppStyle::GetBrush("Level.VisibleIcon16x"))
+						.ToolTipText(LOCTEXT("AccessSpecifierAccessLevelTooltip", "Access level of this entry"))
+					]
+				]
+
+				+SHeaderRow::Column(Column_Name)
+				.DefaultLabel(LOCTEXT("NameColumnHeader", "Name"))
+				.ToolTipText(LOCTEXT("NameColumnHeaderTooltip", "The name of the entry"))
+				.FillWidth(20.0f)
+
+				+SHeaderRow::Column(Column_Type)
+				.DefaultLabel(LOCTEXT("TypeColumnHeader", "Type"))
+				.ToolTipText(LOCTEXT("TypeColumnHeaderTooltip", "The type of the entry"))
+				.ManualWidth(145.0f)
+
+				+SHeaderRow::Column(Column_Value)
+				.DefaultLabel(LOCTEXT("ValueColumnHeader", "Value"))
+				.ToolTipText(LOCTEXT("ValueColumnHeaderTooltip", "The value or binding to the entry"))
+				.FillWidth(10.0f)
+				
 				+SHeaderRow::Column(Column_RevisionControl)
 				.DefaultLabel(FText::GetEmpty())
 				.FixedWidth(24.0f)
@@ -280,42 +238,9 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 						SNew(SImage)
 						.ColorAndOpacity(FSlateColor::UseForeground())
 						.Image(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.Icon"))
-						.ToolTipText(LOCTEXT("RevisionControlStatusTooltip", "Revision control status of this parameter"))
+						.ToolTipText(LOCTEXT("RevisionControlStatusTooltip", "Revision control status of this entry"))
 					]
 				]
-
-				+SHeaderRow::Column(Column_ModifiedStatus)
-				.DefaultLabel(FText::GetEmpty())
-				.FixedWidth(24.0f)
-				.HeaderContent()
-				[
-					SNew(SBox)
-					.WidthOverride(16.0f)
-					.HeightOverride(16.0f)
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Center)
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::GetBrush("ContentBrowser.ContentDirty"))
-						.ToolTipText(LOCTEXT("ModifiedStatusTooltip", "Modified status of this parameter"))
-					]
-				]
-
-				+SHeaderRow::Column(Column_Name)
-				.DefaultLabel(LOCTEXT("NameColumnHeader", "Name"))
-				.ToolTipText(LOCTEXT("NameColumnHeaderTooltip", "The name of the parameter"))
-				.FillWidth(20.0f)
-
-				+SHeaderRow::Column(Column_Type)
-				.DefaultLabel(LOCTEXT("TypeColumnHeader", "Type"))
-				.ToolTipText(LOCTEXT("TypeColumnHeaderTooltip", "The type of the parameter"))
-				.ManualWidth(145.0f)
-
-				+SHeaderRow::Column(Column_Value)
-				.DefaultLabel(LOCTEXT("ValueColumnHeader", "Value"))
-				.ToolTipText(LOCTEXT("ValueColumnHeaderTooltip", "The value or binding to the parameter"))
-				.FillWidth(10.0f)
 			)
 		]
 	];
@@ -399,11 +324,39 @@ static bool CompareGraphActionNode(TSharedRef<FRigVMAssetViewEntry> A, TSharedRe
 	return true;
 }
 
+void RestoreSelectionState(TSharedPtr<STreeView<TSharedRef<FRigVMAssetViewEntry>>> InTree, const TArray<TSharedRef<FRigVMAssetViewEntry>>& ItemSource, const TArray<TSharedRef<FRigVMAssetViewEntry>>& OldSelectionState)
+{
+	// Iterate over new tree items
+	TArray<TSharedRef<FRigVMAssetViewEntry>> NewSelection;
+	for (int32 ItemIdx = 0; ItemIdx < ItemSource.Num(); ItemIdx++)
+	{
+		const TSharedRef<FRigVMAssetViewEntry>& NewItem = ItemSource[ItemIdx];
+
+		// Look through old selection state
+		for (const TSharedRef<FRigVMAssetViewEntry>& OldSelection : OldSelectionState)
+		{
+			if( OldSelection->WeakEntry.IsValid() && NewItem->WeakEntry.IsValid() &&
+				OldSelection->WeakEntry->GetEntryName() == NewItem->WeakEntry->GetEntryName())
+			{
+				NewSelection.Add(NewItem);
+			}
+		}
+	}
+
+	if(NewSelection.Num() > 0)
+	{
+		InTree->SetItemSelection(NewSelection, true);
+	}
+}
+
 void SRigVMAssetView::RefreshEntries()
 {
 	// First, save off current expansion state
 	TSet< TSharedRef<FRigVMAssetViewEntry> > OldExpansionState;
 	EntriesList->GetExpandedItems(OldExpansionState);
+
+	TArray< TSharedRef<FRigVMAssetViewEntry> > OldSelectionState;
+	EntriesList->GetSelectedItems(OldSelectionState);
 
 	Entries.Reset();
 
@@ -430,19 +383,21 @@ void SRigVMAssetView::RefreshEntries()
 	}
 	RestoreExpansionState< TSharedRef<FRigVMAssetViewEntry> >(EntriesList, AllEntries, OldExpansionState, CompareGraphActionNode);
 
-	PendingSelection.Empty();
-
 	RefreshFilter();
 
 	if(EntriesToSelect.Num() > 0)
 	{
 		EntriesList->SetItemSelection(EntriesToSelect, true);
 	}
+	else
+	{
+		RestoreSelectionState(EntriesList, AllEntries, OldSelectionState);
+	}
 }
 
 void SRigVMAssetView::RefreshFilter()
 {
-	using namespace ParameterBlockView;
+	using namespace RigVMAssetView;
 
 	FilteredEntries = Categories;
 
@@ -457,8 +412,8 @@ void SRigVMAssetView::RefreshFilter()
 	{
 		if (Entry->PassesFilter(FilterTextAsString))
 		{
-			const UObject* BlockEntry = Entry->WeakEntry.Get();
-			const UClass* EntryClass = BlockEntry->GetClass();
+			const UObject* AssetEntry = Entry->WeakEntry.Get();
+			const UClass* EntryClass = AssetEntry->GetClass();
 			const FString& CategoryMetaData = EntryClass->GetMetaData(NAME_Category);
 			TSharedRef<FRigVMAssetViewEntry> CategoryEntry = GetCategoryEntry(*CategoryMetaData);
 			CategoryEntry->Children.Add(Entry);
@@ -481,16 +436,23 @@ void SRigVMAssetView::BindCommands()
 		FCanExecuteAction::CreateSP(this, &SRigVMAssetView::HasValidSingleSelection));
 }
 
-void SRigVMAssetView::HandleBlockModified(UAnimNextRigVMAssetEditorData* InEditorData)
+void SRigVMAssetView::HandleAssetModified(UAnimNextRigVMAssetEditorData* InEditorData, EAnimNextEditorDataNotifType InType, UObject* InSubject)
 {
 	check(InEditorData == EditorData);
 
-	RequestRefresh();
+	switch (InType)
+	{
+	case EAnimNextEditorDataNotifType::UndoRedo:
+	case EAnimNextEditorDataNotifType::EntryAdded:
+	case EAnimNextEditorDataNotifType::EntryRemoved:
+		RequestRefresh();
+		break;
+	}
 }
 
 TSharedRef<SWidget> SRigVMAssetView::HandleGetContextContent()
 {
-	using namespace ParameterBlockView;
+	using namespace RigVMAssetView;
 	
 	UToolMenus* ToolMenus = UToolMenus::Get();
 
@@ -630,7 +592,10 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 				{
 					// Needed to show the changed sign a the table when we modify the PropertyBag
 					// TODO: remove this by moving defaults into entries
-					AssetEntry->MarkPackageDirty(); 
+					AssetEntry->MarkPackageDirty();
+
+					// Ensure that default values get picked up and forwarded to compiler
+					EditorData->BroadcastModified(EAnimNextEditorDataNotifType::VariableDefaultValueChanged, AssetEntry);
 				}
 			}
 		}
@@ -639,31 +604,85 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
-		using namespace ParameterBlockView;
-		
-		if(InColumnName == Column_RevisionControl)
+		using namespace RigVMAssetView;
+
+		if(InColumnName == Column_AccessSpecifier)
 		{
 			return
 				SNew(SBox)
+				.WidthOverride(16.0f)
+				.HeightOverride(16.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Center)
+				[
+					SNew(SButton)
+					.Visibility_Lambda([this]()
+					{
+						if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+						{
+							return Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public || IsHovered() ? EVisibility::Visible : EVisibility::Collapsed;
+						}
+						return EVisibility::Collapsed;
+					})
+					.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+					.OnClicked_Lambda([this]()
+					{
+						if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+						{
+							Export->SetExportAccessSpecifier(Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ? EAnimNextExportAccessSpecifier::Private : EAnimNextExportAccessSpecifier::Public);  
+						}
+						return FReply::Unhandled();	// Fall through so we dont deselect our item
+					})
+					.Content()
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image_Lambda([this]() -> const FSlateBrush*
+						{
+							if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+							{
+								return Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ? FAppStyle::GetBrush("Level.VisibleIcon16x") : FAppStyle::GetBrush("Level.NotVisibleHighlightIcon16x");
+							}
+							return nullptr;
+						})
+						.ToolTipText_Lambda([this]()
+						{
+							if(IAnimNextRigVMExportInterface* Export = Cast<IAnimNextRigVMExportInterface>(Entry->WeakEntry.Get()))
+							{
+								FText AccessSpecifier = Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ? LOCTEXT("PublicSpecifier", "public") : LOCTEXT("PrivateSpecifier", "private");
+								FText AccessSpecifierDesc = Export->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public ?
+									LOCTEXT("PublicSpecifierDesc", "This means that the entry is usable from gameplay and from other AnimNext assets") :
+									LOCTEXT("PrivateSpecifierDesc", "This means that the entry is only usable inside this asset");
+								return FText::Format(LOCTEXT("AccessSpecifierEntryTooltip", "This entry is {0}.\n{1}"), AccessSpecifier, AccessSpecifierDesc);
+							}
+							return FText::GetEmpty();
+						})
+					]
+				];
+		}
+		else if(InColumnName == Column_RevisionControl)
+		{
+			return
+				SNew(SBox)
+				.ToolTipText_Lambda([this]()
+				{
+					if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
+					{
+						ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+						UPackage* Package = AssetEntry->GetExternalPackage();
+						if(FSourceControlStatePtr State = SourceControlProvider.GetState(Package, EStateCacheUsage::Use))
+						{
+							return FText::Format(LOCTEXT("RevisionControlStatusFormat", "File: {0}\nStatus: {1}"), FText::FromName(Package->GetFName()),  State->GetDisplayTooltip());
+						}
+					}
+
+					return LOCTEXT("RevisionControlStatus", "Revision control status of this parameter");
+				})
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.HeightOverride(20.0f)
 				[
 					SNew(SImage)
-					.ToolTipText_Lambda([this]()
-					{
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
-						{
-							ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-							UPackage* Package = AssetEntry->GetExternalPackage();
-							if(FSourceControlStatePtr State = SourceControlProvider.GetState(Package, EStateCacheUsage::Use))
-							{
-								return FText::Format(LOCTEXT("RevisionControlStatusFormat", "File: {0}\nStatus: {1}"), FText::FromName(Package->GetFName()),  State->GetDisplayTooltip());
-							}
-						}
-
-						return LOCTEXT("RevisionControlStatus", "Revision control status of this parameter");
-					})
 					.Image_Lambda([this]() -> const FSlateBrush*
 					{
 						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
@@ -678,19 +697,146 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 					})
 				];
 		}
-		else if(InColumnName == Column_ModifiedStatus)
+		else if(InColumnName == Column_Type)
+		{
+			if(Entry->WeakEntry.Get()->Implements<UAnimNextRigVMVariableInterface>())
+			{
+				return
+					SNew(SBox)
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
+							.TargetPinType_Lambda([this]()
+							{
+								if(const IAnimNextRigVMVariableInterface* Binding = Cast<IAnimNextRigVMVariableInterface>(Entry->WeakEntry.Get()))
+								{
+									return UncookedOnly::FUtils::GetPinTypeFromParamType(Binding->GetType());
+								}
+
+								return FEdGraphPinType();
+							})
+							.OnPinTypeChanged_Lambda([this](const FEdGraphPinType& PinType)
+							{
+								if(IAnimNextRigVMVariableInterface* Binding = Cast<IAnimNextRigVMVariableInterface>(Entry->WeakEntry.Get()))
+								{
+									const FAnimNextParamType ParamType = UncookedOnly::FUtils::GetParamTypeFromPinType(PinType);
+									if(ParamType.IsValid())
+									{
+										Binding->SetType(ParamType);
+									}
+								}
+							})
+							.Schema(GetDefault<UPropertyBagSchema>())
+							.bAllowArrays(true)
+							.TypeTreeFilter(ETypeTreeFilter::None)
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+					];
+			}
+			else
+			{
+				return
+					SNew(SBox)
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(Entry->WeakEntry.Get()->GetClass()->GetDisplayNameText())
+					];
+			}
+		}
+		else if(InColumnName == Column_Name)
 		{
 			return
-				SNew(SBox)
-				.HAlign(HAlign_Center)
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.HeightOverride(20.0f)
+				.AutoWidth()
+				[
+					SNew(SExpanderArrow, SharedThis(this))
+					.Visibility_Lambda([this]() { return DoesItemHaveChildren() ? EVisibility::Visible : EVisibility::Collapsed; })
+				]
+				+SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SAssignNew(Entry->NameWidget, SInlineEditableTextBlock)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.IsSelected(this, &SRigVMAssetViewRow::IsSelectedExclusively)
+						.IsReadOnly_Lambda([this]()
+						{
+							if (Cast<IAnimNextRigVMVariableInterface>(Entry->WeakEntry.Get()) 
+								|| Cast<IAnimNextRigVMGraphInterface>(Entry->WeakEntry.Get()))
+							{
+								return false;
+							}
+							return true;
+						})
+						.OnTextCommitted_Lambda([this](const FText& InNewText, ETextCommit::Type InCommitType)
+						{
+							if(InCommitType == ETextCommit::OnEnter)
+							{
+								if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
+								{
+									FScopedTransaction Transaction(LOCTEXT("SetParameterName", "Set Entry name"));
+									AssetEntry->SetEntryName(*InNewText.ToString());
+								}
+							}
+						})
+						.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
+						{
+							const FString NewString = InNewText.ToString();
+							if (!FUtils::IsValidParameterNameString(NewString, OutErrorText))
+							{
+								return false;
+							}
+
+							FName Name(*NewString);
+							if (TSharedPtr<SRigVMAssetView> View = WeakView.Pin())
+							{
+								if(UAnimNextRigVMAssetEntry* ExistingEntry = View->EditorData->FindEntry(Name))
+								{
+									OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in this asset");
+									return false;
+								}
+							}
+							return true;
+						})
+						.Text_Lambda([this]()
+						{
+							if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
+							{
+								return FText::FromName(AssetEntry->GetEntryName());
+							}
+							return FText::GetEmpty();
+						})
+						.ToolTipText_Lambda([this]()
+						{
+							if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
+							{
+								return AssetEntry->GetDisplayNameTooltip();
+							}
+							return FText::GetEmpty();
+						})
+					]
+				]
+				+SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.Padding(2.0f, 0.0f, 2.0f, 3.0f)
+				.AutoWidth()
 				[
 					SNew(SImage)
 					.ToolTipText_Lambda([this]()
 					{
 						FTextBuilder TextBuilder;
-						TextBuilder.AppendLine(LOCTEXT("ModifiedTooltip", "Modified Status"));
+						TextBuilder.AppendLine(LOCTEXT("ModifiedTooltip", "Modified"));
 
 						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
 						{
@@ -716,131 +862,9 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 								bIsDirty = true;
 							}
 
-
-							return bIsDirty ? FAppStyle::GetBrush("ContentBrowser.ContentDirty") : nullptr;
+							return bIsDirty ? FAppStyle::GetBrush("Icons.DirtyBadge") : nullptr;
 						}
 						return nullptr;
-					})
-				];
-		}
-		else if(InColumnName == Column_Type)
-		{
-			if(Entry->WeakEntry.Get()->Implements<UAnimNextRigVMParameterInterface>())
-			{
-				return
-					SNew(SBox)
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Center)
-					[
-						SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
-							.TargetPinType_Lambda([this]()
-							{
-								if(const IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()))
-								{
-									return UncookedOnly::FUtils::GetPinTypeFromParamType(Binding->GetParamType());
-								}
-
-								return FEdGraphPinType();
-							})
-							.OnPinTypeChanged_Lambda([this](const FEdGraphPinType& PinType)
-							{
-								if(IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()))
-								{
-									const FAnimNextParamType ParamType = UncookedOnly::FUtils::GetParamTypeFromPinType(PinType);
-									if(ParamType.IsValid())
-									{
-										Binding->SetParamType(ParamType);
-									}
-								}
-							})
-							.Schema(GetDefault<UPropertyBagSchema>())
-							.bAllowArrays(true)
-							.TypeTreeFilter(ETypeTreeFilter::None)
-							.Font(IDetailLayoutBuilder::GetDetailFont())
-					];
-			}
-		}
-		else if(InColumnName == Column_Name)
-		{
-			return
-				SNew(SHorizontalBox)
-				+SHorizontalBox::Slot()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					SNew(SExpanderArrow, SharedThis(this))
-					.Visibility_Lambda([this]() { return DoesItemHaveChildren() ? EVisibility::Visible : EVisibility::Collapsed; })
-				]
-				+SHorizontalBox::Slot()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					SAssignNew(Entry->NameWidget, SInlineEditableTextBlock)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.IsSelected(this, &SRigVMAssetViewRow::IsSelectedExclusively)
-					.IsReadOnly_Lambda([this]()
-					{
-						if (Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()) 
-							|| Cast<IAnimNextRigVMGraphInterface>(Entry->WeakEntry.Get()))
-						{
-							return false;
-						}
-						return true;
-					})
-					.OnTextCommitted_Lambda([this](const FText& InNewText, ETextCommit::Type InCommitType)
-					{
-						if(InCommitType == ETextCommit::OnEnter)
-						{
-							if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
-							{
-								FScopedTransaction Transaction(LOCTEXT("SetParameterName", "Set Entry name"));
-								AssetEntry->SetEntryName(*InNewText.ToString());
-							}
-						}
-					})
-					.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
-					{
-						const FString NewString = InNewText.ToString();
-						if (!FUtils::IsValidEntryNameString(NewString, OutErrorText))
-						{
-							return false;
-						}
-
-						FName Name(*NewString);
-						if (TSharedPtr<SRigVMAssetView> View = WeakView.Pin())
-						{
-							if(UAnimNextRigVMAssetEntry* ExistingEntry = View->EditorData->FindEntry(Name))
-							{
-								OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in this asset");
-								return false;
-							}
-						}
-						return true;
-					})
-					.Text_Lambda([this]()
-					{
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
-						{
-							if(IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(AssetEntry))
-							{
-								return UncookedOnly::FUtils::GetParameterDisplayNameText(AssetEntry->GetEntryName());
-							}
-							else
-							{
-								return FText::FromName(AssetEntry->GetEntryName());
-							}
-						}
-						return FText::GetEmpty();
-					})
-					.ToolTipText_Lambda([this]()
-					{
-						if(UAnimNextRigVMAssetEntry* AssetEntry = Entry->WeakEntry.Get())
-						{
-							return AssetEntry->GetDisplayNameTooltip();
-						}
-						return FText::GetEmpty();
 					})
 				];
 		}
@@ -852,22 +876,24 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 			{
 				if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
 				{
-					if (const IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(AssetEntry))
+					if (IAnimNextRigVMVariableInterface* ParameterInterface = Cast<IAnimNextRigVMVariableInterface>(AssetEntry))
 					{
-						FInstancedPropertyBag& PropertyBag = ParameterInterface->GetPropertyBag();
-						const FName ParameterName = AssetEntry->GetEntryName();
-
-						if (PropertyBag.FindPropertyDescByName(ParameterName))
+						FInstancedPropertyBag& PropertyBag = ParameterInterface->GetMutablePropertyBag();
+						const FName EntryName = AssetEntry->GetEntryName();
+						if (const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag.FindPropertyDescByName(EntryName))
 						{
-							FSinglePropertyParams SinglePropertyArgs;
-							SinglePropertyArgs.NamePlacement = EPropertyNamePlacement::Hidden;
-							SinglePropertyArgs.NotifyHook = this;
-
-							FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-							const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), ParameterName, SinglePropertyArgs);
-							if (SingleStructPropertyView.IsValid())
+							if (PropertyDesc->ContainerTypes.IsEmpty()) // avoid trying to inline containers
 							{
-								ColumnWidget = SingleStructPropertyView.ToSharedRef();
+								FSinglePropertyParams SinglePropertyArgs;
+								SinglePropertyArgs.NamePlacement = EPropertyNamePlacement::Hidden;
+								SinglePropertyArgs.NotifyHook = this;
+
+								FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+								const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), EntryName, SinglePropertyArgs);
+								if (SingleStructPropertyView.IsValid())
+								{
+									ColumnWidget = SingleStructPropertyView.ToSharedRef();
+								}
 							}
 						}
 					}

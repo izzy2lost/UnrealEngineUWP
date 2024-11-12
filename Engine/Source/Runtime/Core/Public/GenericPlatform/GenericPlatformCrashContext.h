@@ -16,6 +16,7 @@
 #include "HAL/PlatformStackWalk.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/Optional.h"
+#include "Misc/SecureHash.h"
 #include "Misc/Timespan.h"
 #include "Templates/Function.h"
 #include "Templates/UnrealTemplate.h"
@@ -152,6 +153,8 @@ CORE_API const TCHAR* AttendedStatusToString(const EUnattendedStatus Status);
 #define CR_MAX_COMMANDLINE_CHARS 1024
 #define CR_MAX_RICHTEXT_FIELD_CHARS 512
 #define CR_MAX_DYNAMIC_BUFFER_CHARS 1024*32
+#define CR_MAX_GPU_BREADCRUMBS_QUEUES 2
+#define CR_MAX_GPU_BREADCRUMBS_STRING_CHARS 1024*8
 
 /**
  * Fixed size structure that holds session specific state.
@@ -221,6 +224,23 @@ struct FUserSettingsContext
 	TCHAR					LogFilePath[CR_MAX_DIRECTORY_CHARS];
 };
 
+/** Fixed size structure holding GPU breadcrumbs information, to be communicated to the crash reporting client. */
+struct FGPUBreadcrumbsSharedContext
+{
+	struct FQueueData {
+		TCHAR QueueName[CR_MAX_GENERIC_FIELD_CHARS];
+		TCHAR FullHash[CR_MAX_GENERIC_FIELD_CHARS];
+		TCHAR ActiveHash[CR_MAX_GENERIC_FIELD_CHARS];
+		TCHAR Breadcrumbs[CR_MAX_GPU_BREADCRUMBS_STRING_CHARS];
+	};
+
+	TCHAR SourceName[CR_MAX_GENERIC_FIELD_CHARS];
+	TCHAR Version[CR_MAX_GENERIC_FIELD_CHARS];
+
+	uint32 NumQueues = 0;
+	FQueueData Queues[CR_MAX_GPU_BREADCRUMBS_QUEUES];
+};
+
 /**
  * Fixed size struct holds crash information and session specific state. It is designed
  * to shared between processes (e.g. Game and CrashReporterClient).
@@ -261,6 +281,9 @@ struct FSharedCrashContext
 
 	// Instruction address where the exception was raised that initiated crash reporting
 	void*					ExceptionProgramCounter;
+
+	// GPU breadcrumbs.
+	FGPUBreadcrumbsSharedContext  GPUBreadcrumbs;
 };
 
 #if WITH_ADDITIONAL_CRASH_CONTEXTS
@@ -297,26 +320,64 @@ struct FThreadCallStack
 };
 
 /** GPU breadcrumbs. */
-enum class EBreadcrumbState : uint8
+struct FGPUBreadcrumbCrashData
 {
-	NotStarted = 0,
-	Active = 1,
-	Finished = 2,
-	Overflow = 3,
-	Invalid = 4,
-};
-const TCHAR* const EBreadcrumbStateStrings[] = { TEXT("Not started"), TEXT("Active"), TEXT("Finished"), TEXT("Overflow"), TEXT("Invalid") };
+	/**
+	 * This must be changed whenever the format of the breadcrumb string
+	 * changes, in order to help parsers in dealing with strings from multiple
+	 * versions.
+	 */
+	static constexpr TCHAR const CurrentVersion[] = TEXT("526BDA74-7A81-44C3-B0FD-9DBF80973C25");
 
-struct FBreadcrumbNode
-{
-	EBreadcrumbState State = EBreadcrumbState::Invalid;
-	FString Name;
-	TArray<FBreadcrumbNode> Children;
-
-	const TCHAR* const GetStateString() const
+	enum class EState : uint8
 	{
-		return EBreadcrumbStateStrings[static_cast<uint32>(FMath::Min(State, EBreadcrumbState::Invalid))];
-	}
+		NotStarted = 0,
+		Active     = 1,
+		Finished   = 2
+	};
+
+	// These are serialized. Do not change this array without bumping the CurrentVersion.
+	TCHAR const static constexpr StateChars[] =
+	{
+		TEXT('N'),
+		TEXT('A'),
+		TEXT('F'),
+	};
+
+	struct FQueueData
+	{
+		FString BreadcrumbString;
+		FSHAHash FullHash;
+		FSHAHash ActiveHash;
+
+		operator bool() const { return !BreadcrumbString.IsEmpty(); }
+	};
+	TMap<FString, FQueueData> Queues;
+	FString SourceName;
+	FString Version;
+
+	class FSerializer
+	{
+		FString String;
+		FSHA1 FullHash, ActiveHash;
+		TArray<bool> ChildStack;
+
+		// Sanitize the event name string to remove characters that are used as delimiters for parsing.
+		static FString Sanitize(FString const& Name);
+
+		// Event names include parameters, mostly numeric (e.g. "Frame 1234"), that should be ignored when computing the hash.
+		static FString SanitizeForHash(FString const& Name);
+
+	public:
+		CORE_API void BeginNode(FString const& Name, EState State);
+		CORE_API void EndNode();
+
+		CORE_API FQueueData GetResult();
+	};
+
+	FGPUBreadcrumbCrashData(TCHAR const* InSourceName, TCHAR const* InVersion = CurrentVersion)
+		: SourceName(InSourceName), Version(InVersion)
+	{}
 };
 
 /**
@@ -339,6 +400,7 @@ public:
 
 	CORE_API static const TCHAR* const CrashContextExtension;
 	CORE_API static const TCHAR* const RuntimePropertiesTag;
+	CORE_API static const TCHAR* const DeploymentNameTag;
 	CORE_API static const TCHAR* const PlatformPropertiesTag;
 	CORE_API static const TCHAR* const EngineDataTag;
 	CORE_API static const TCHAR* const GameDataTag;
@@ -392,7 +454,7 @@ public:
 	CORE_API static void Initialize();
 
 	/** Initialized crash context, using a crash context (e.g. shared from another process). */
-	CORE_API static void InitializeFromContext(const FSessionContext& Context, const TCHAR* EnabledPlugins, const TCHAR* EngineData, const TCHAR* GameData);
+	CORE_API static void InitializeFromContext(const FSessionContext& Context, const TCHAR* EnabledPlugins, const TCHAR* EngineData, const TCHAR* GameData, const FGPUBreadcrumbsSharedContext* GPUBreadcrumbs);
 
 	/** Get the current cached session context */
 	CORE_API static const FSessionContext& GetCachedSessionContext();
@@ -540,17 +602,8 @@ public:
 	/** Updates (or adds if not already present) arbitrary engine data to the crash context (will remove the key if passed an empty string) */
 	CORE_API static void SetEngineData(const FString& Key, const FString& Value);
 
-	/** Updates (or adds if not already present) GPU breadcrumb data for a given GPU queue. */
-	CORE_API static void SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs);
-
-	/** Sets a named source for the GPU breadcrumbs, mainly used to identify which system produced them. */
-	CORE_API static void SetGPUBreadcrumbsSource(const FString& GPUBreadcrumbsSource);
-
-	/** Gets the named source for the GPU breadcrumbs. */
-	CORE_API static const FString& GetGPUBreadcrumbsSource();
-
-	/** Clears all the GPU breadcrumb data. */
-	CORE_API static void ResetGPUBreadcrumbsData();
+	/** Updates (or adds if not already present) GPU breadcrumb data. */
+	CORE_API static void SetGPUBreadcrumbs(FGPUBreadcrumbCrashData&& Data);
 
 	/** Accessor for engine data change callback delegate */
 	static FEngineDataSetDelegate& OnEngineDataSetDelegate() { return OnEngineDataSet; }
@@ -699,6 +752,11 @@ public:
 	CORE_API static void SetDeploymentName(const FString& EpicApp);
 
 	/**
+	 * Get the current deployment name (ie. EpicApp)
+	 */
+	CORE_API static const TCHAR* GetDeploymentName();
+
+	/**
 	 * Sets the type of crash triggered. Used to distinguish crashes caused for debugging purposes.
 	 */
 	CORE_API static void SetCrashTrigger(ECrashTrigger Type);
@@ -747,7 +805,7 @@ private:
 	}
 
 	/** Serializes platform specific properties to the buffer. */
-	virtual void AddPlatformSpecificProperties() const;
+	CORE_API virtual void AddPlatformSpecificProperties() const;
 
 	/** Add callstack information to the crash report xml */
 	void AddPortableCallStack() const;
@@ -803,11 +861,11 @@ private:
 	int32 CrashContextIndex;
 
 	/** Engine and game data set / reset delegates */
-	static FEngineDataResetDelegate OnEngineDataReset;
-	static FEngineDataSetDelegate OnEngineDataSet;
+	CORE_API static FEngineDataResetDelegate OnEngineDataReset;
+	CORE_API static FEngineDataSetDelegate OnEngineDataSet;
 
-	static FGameDataResetDelegate OnGameDataReset;
-	static FGameDataSetDelegate OnGameDataSet;
+	CORE_API static FGameDataResetDelegate OnGameDataReset;
+	CORE_API static FGameDataSetDelegate OnGameDataSet;
 
 	// FNoncopyable
 	FGenericCrashContext( const FGenericCrashContext& ) = delete;

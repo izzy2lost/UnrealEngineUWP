@@ -3,6 +3,7 @@
 #include "SoundControlBusFactory.h"
 
 #include "AudioAnalytics.h"
+#include "AudioModulationSettings.h"
 #include "SoundControlBus.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SoundControlBusFactory)
@@ -20,5 +21,13 @@ USoundControlBusFactory::USoundControlBusFactory(const FObjectInitializer& Objec
 UObject* USoundControlBusFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	Audio::Analytics::RecordEvent_Usage(TEXT("AudioModulation.ControlBusCreated"));
-	return NewObject<USoundControlBus>(InParent, Name, Flags);
+	USoundControlBus* NewControlBus = NewObject<USoundControlBus>(InParent, Name, Flags);
+	if (NewControlBus)
+	{
+		if (const UAudioModulationSettings* ModulationSettings = GetDefault<UAudioModulationSettings>())
+		{
+			NewControlBus->Parameter = ModulationSettings->GetModulationParameter("Volume");
+		}
+	}
+	return NewControlBus;
 }

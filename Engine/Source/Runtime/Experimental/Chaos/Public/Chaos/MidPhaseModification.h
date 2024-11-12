@@ -61,8 +61,9 @@ namespace Chaos
 
 		CHAOS_API void GetParticles(FGeometryParticleHandle** Particle0, FGeometryParticleHandle** Particle1) const;
 
-		CHAOS_API const FGeometryParticleHandle* GetOtherParticle(const FGeometryParticleHandle* InParticle) const;
+		CHAOS_API FGeometryParticleHandle* GetOtherParticle(const FGeometryParticleHandle* InParticle);
 
+		CHAOS_API const FGeometryParticleHandle* GetOtherParticle(const FGeometryParticleHandle* InParticle) const;
 
 	private:
 

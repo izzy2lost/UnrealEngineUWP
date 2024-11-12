@@ -26,6 +26,7 @@ public:
 	virtual bool ShouldShowVisibilityState() const override;
 	virtual bool ShouldRemoveOnceLastChildRemoved() const override;
 	virtual FFolder GetFolder() const override;
+	virtual FString GetPackageName() const override;
 	/* End FFolderTreeItem Implementation */
 		
 	/* Begin FFolderTreeItem Implementation */

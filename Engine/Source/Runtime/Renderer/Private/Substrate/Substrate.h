@@ -72,8 +72,15 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstrateGlobalUniformParameters, RENDERER
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ClosureTileCountBuffer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
-BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstratePublicGlobalUniformParameters, RENDERER_API)
+BEGIN_SHADER_PARAMETER_STRUCT(FSubstratePublicParameters, RENDERER_API)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FSubstrateCommonParameters, Common)
+	SHADER_PARAMETER(int32, FirstSliceStoringSubstrateSSSData)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<SUBSTRATE_TOP_LAYER_TYPE>, TopLayerTexture)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, MaterialTextureArray)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstratePublicGlobalUniformParameters, RENDERER_API)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FSubstratePublicParameters, Public)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 // This must map to the SUBSTRATE_TILE_TYPE defines.
@@ -188,6 +195,7 @@ constexpr uint32 StencilBit_ComplexSpecial	= 0x80; // In sync with SceneRenderTa
 FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& InResolution);
 uint32 GetSubstrateMaxClosureCount(const FViewInfo& View);
 bool GetSubstrateUsesComplexSpecialPath(const FViewInfo& View);
+bool UsesSubstrateMaterialBuffer(EShaderPlatform In);
 
 void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer);
 
@@ -199,6 +207,7 @@ TRDGUniformBufferRef<FSubstrateGlobalUniformParameters> BindSubstrateGlobalUnifo
 void AppendSubstrateMRTs(const FSceneRenderer& SceneRenderer, uint32& BasePassTextureCount, TArrayView<FTextureRenderTargetBinding> BasePassTextures);
 void SetBasePassRenderTargetOutputFormat(const EShaderPlatform Platform, const FMaterialShaderParameters& MaterialParameters, FShaderCompilerEnvironment& OutEnvironment, EGBufferLayout GBufferLayout);
 
+void BindSubstratePublicGlobalUniformParameters(FRDGBuilder& GraphBuilder, const FSubstrateSceneData* SubstrateSceneData, FSubstratePublicParameters& OutSubstrateUniformParameters);
 TRDGUniformBufferRef<FSubstratePublicGlobalUniformParameters> CreatePublicGlobalUniformBuffer(FRDGBuilder& GraphBuilder, FSubstrateSceneData* SubstrateScene);
 
 void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMinimalSceneTextures& SceneTextures, const FDBufferTextures& DBufferTextures, const TArray<FViewInfo>& Views);

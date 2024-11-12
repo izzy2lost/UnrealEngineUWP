@@ -71,6 +71,11 @@ namespace UE::Learning::Random
 		const float Mean = 0.0f,
 		const float Std = 1.0f);
 
+	LEARNING_API FVector VectorGaussian(
+		const uint32 State,
+		const FVector Mean = FVector::ZeroVector,
+		const FVector Std = FVector::OneVector);
+
 	LEARNING_API float ClippedGaussian(
 		const uint32 State,
 		const float Mean = 0.0f,
@@ -195,6 +200,11 @@ namespace UE::Learning::Random
 		uint32& State,
 		const float Mean = 0.0f,
 		const float Std = 1.0f);
+
+	LEARNING_API FVector SampleVectorGaussian(
+		uint32& State,
+		const FVector Mean = FVector::ZeroVector,
+		const FVector Std = FVector::OneVector);
 
 	LEARNING_API float SampleClippedGaussian(
 		uint32& State,

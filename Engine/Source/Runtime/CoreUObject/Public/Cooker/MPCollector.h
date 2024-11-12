@@ -6,6 +6,7 @@
 #include "Async/Future.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
+#include "Containers/UnrealString.h"
 #include "HAL/Platform.h"
 #include "Misc/Guid.h"
 #include "Serialization/CompactBinary.h"
@@ -39,6 +40,7 @@ public:
 	constexpr static FWorkerId Local() { return FWorkerId(LocalId); }
 	static FWorkerId FromRemoteIndex(uint8 Index) { check(Index < InvalidId - 1U);  return FWorkerId(Index + 1U); }
 	static FWorkerId FromLocalOrRemoteIndex(uint8 Index) { check(Index < InvalidId);  return FWorkerId(Index); }
+	static int32 GetMaxCookWorkerCount() { return static_cast<int32>(InvalidId - 1); }
 
 	bool IsValid() const { return Id != InvalidId; }
 	bool IsInvalid() const { return Id == InvalidId; }
@@ -50,6 +52,8 @@ public:
 	bool operator!=(const FWorkerId& Other) const { return Id != Other.Id; }
 	bool operator<(const FWorkerId& Other) const { return Id < Other.Id; }
 	inline friend int32 GetTypeHash(const FWorkerId& WorkerId) { return WorkerId.Id; }
+
+	FString ToString();
 
 private:
 	constexpr explicit FWorkerId(uint8 InId) : Id(InId) {}
@@ -78,6 +82,35 @@ private:
 	bool bFlush = false;
 
 	friend class FCookWorkerClient;
+};
+
+class FMPCollectorServerTickContext
+{
+public:
+	enum class EServerEventType : uint8
+	{
+		WorkerStartup,
+		Count
+	};
+
+	FMPCollectorServerTickContext(EServerEventType InEventType) : EventType(InEventType) { check(InEventType < EServerEventType::Count); }
+
+	TConstArrayView<const ITargetPlatform*> GetPlatforms() const { return Platforms; }
+	
+	COREUOBJECT_API void AddMessage(FCbObject Object);
+
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+	
+	EServerEventType GetEventType() const { return EventType; }
+
+private:
+	TConstArrayView<const ITargetPlatform*> Platforms;
+	TArray<FCbObject> Messages;
+	EServerEventType EventType;
+	bool bFlush = false;
+
+	friend class FCookDirector;
 };
 
 class FMPCollectorClientTickPackageContext
@@ -110,16 +143,43 @@ private:
 	friend class FCookWorkerClient;
 };
 
+class FMPCollectorServerTickPackageContext
+{
+public:
+	struct FPlatformData
+	{
+		const ITargetPlatform* TargetPlatform = nullptr;
+		ECookResult CookResults = ECookResult::NotAttempted;
+	};
+	FName GetPackageName() const { return PackageName; }
+
+	COREUOBJECT_API void AddMessage(FCbObject Object);
+
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+
+private:
+	TArray<FCbObject> Messages;
+	TConstArrayView<const ITargetPlatform*> Platforms;
+	TConstArrayView<FPlatformData> PlatformDatas;
+	FName PackageName;
+
+	friend class FCookDirector;
+};
+
 class FMPCollectorClientMessageContext
 {
 public:
 	TConstArrayView<const ITargetPlatform*> GetPlatforms() { return Platforms; }
+	// Name of the relevant package or NAME_None if not available
+	FName GetPackageName() const { return PackageName; }
 
 	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
 	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
 
 private:
 	TConstArrayView<const ITargetPlatform*> Platforms;
+	FName PackageName;
 
 	friend class FCookWorkerClient;
 };
@@ -163,7 +223,9 @@ public:
 	virtual FGuid GetMessageType() const = 0;
 	virtual const TCHAR* GetDebugName() const = 0;
 
+	virtual void ServerTick(FMPCollectorServerTickContext& Context) {}
 	virtual void ClientTick(FMPCollectorClientTickContext& Context) {}
+	virtual void ServerTickPackage(FMPCollectorServerTickPackageContext& Context) {}
 	virtual void ClientTickPackage(FMPCollectorClientTickPackageContext& Context) {}
 	virtual void ClientReceiveMessage(FMPCollectorClientMessageContext& Context, FCbObjectView Message) {}
 	virtual void ServerReceiveMessage(FMPCollectorServerMessageContext& Context, FCbObjectView Message) {}
@@ -271,6 +333,12 @@ public:
 private:
 	TUniqueFunction<void(FMPCollectorServerMessageContext& Context, bool bReadSuccessful, MessageType&& Message)> Callback;
 };
+
+inline FString FWorkerId::ToString()
+{
+	return IsInvalid() ? TEXT("<Invalid>") : (IsLocal() ? TEXT("Local") :
+		FString::Printf(TEXT("CookWorker %u"), static_cast<uint32>(GetRemoteIndex())));
+}
 
 } // namespace UE::Cook
 

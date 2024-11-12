@@ -9,6 +9,7 @@
 #include "Misc/CString.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Guid.h"
+#include "Serialization/BulkDataCookedIndex.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/StructuredArchiveAdapters.h"
 #include "Serialization/StructuredArchiveSlots.h"
@@ -150,7 +151,7 @@ public:
 		Slot << Value.Index;
 	}
 
-	FORCEINLINE friend uint32 GetTypeHash(const FPackageIndex& In)
+	[[nodiscard]] FORCEINLINE friend uint32 GetTypeHash(const FPackageIndex& In)
 	{
 		return uint32(In.Index);
 	}
@@ -553,12 +554,15 @@ struct FObjectDataResource
 	{
 		Invalid,
 		Initial,
+		AddedCookedIndex,
 		LatestPlusOne,
 		Latest = LatestPlusOne - 1
 	};
 
 	/** Data resource flags. */
 	EObjectDataResourceFlags Flags = EObjectDataResourceFlags::None;
+	/** The cooked index to which the bulkdata payload belongs */
+	FBulkDataCookedIndex CookedIndex;
 	/** Location of the data in the underlying storage type. */
 	int64 SerialOffset = -1;
 	/** Location of the data in the underlying storage type if this data is duplicated. */

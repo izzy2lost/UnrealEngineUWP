@@ -11,6 +11,7 @@ class UConcertClientConfig;
 enum class EConcertClientStatus : uint8;
 enum class EConcertConnectionStatus : uint8;
 struct FConcertServerInfo;
+struct FConcertSessionClientInfo;
 struct FConcertSessionInfo;
 struct FConcertClientInfo;
 struct FConcertConnectionError;
@@ -43,6 +44,12 @@ struct FMultiUserClientInfo
 	/** Holds an array of tags that can be used for grouping and categorizing. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = "Client Info")
 	TArray<FName> Tags;
+
+	FMultiUserClientInfo() = default;
+#if WITH_CONCERT
+	explicit FMultiUserClientInfo(const FConcertSessionClientInfo& ClientInfo);
+	explicit FMultiUserClientInfo(const FGuid& ClientId, const FConcertClientInfo& ClientInfo);
+#endif
 };
 
 /**
@@ -178,6 +185,7 @@ enum class EMultiUserClientStatus : uint8
 namespace UE::MultiUserClientLibrary
 {
 #if WITH_CONCERT
+	UE_DEPRECATED(5.5, "Use FMultiUserClientInfo contructor instead.")
 	MULTIUSERCLIENTLIBRARY_API FMultiUserClientInfo ConvertClientInfo(const FGuid& ClientEndpointId, const FConcertClientInfo& ClientInfo);
 	MULTIUSERCLIENTLIBRARY_API FMultiUserConnectionError ConvertConnectionError(FConcertConnectionError Error);
 	MULTIUSERCLIENTLIBRARY_API UConcertClientConfig* ModifyClientConfig(const FMultiUserClientConfig& InClientConfig);

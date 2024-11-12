@@ -173,6 +173,7 @@ namespace UnrealAndroidFileTool
 			{
 				ArgIndex++;
 				List<string> Receivers = AndroidFileClient.GetInstalledReceivers(client.GetDevice());
+				AndroidFileClient.GetInstalledActivities(client.GetDevice()).ForEach(item => { if (!Receivers.Contains(item)) Receivers.Add(item); });
 				if (Receivers.Count > 0)
 				{
 					foreach (string Line in Receivers)
@@ -1315,6 +1316,7 @@ namespace UnrealAndroidFileTool
 			{
 				ArgIndex++;
 				List<string> Receivers = AndroidFileClient.GetInstalledReceivers(Device.Substring(1));
+				AndroidFileClient.GetInstalledActivities(Device.Substring(1)).ForEach(item => { if (!Receivers.Contains(item)) Receivers.Add(item); });
 				if (Receivers.Count > 0)
 				{
 					foreach (string Line in Receivers)

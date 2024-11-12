@@ -5,8 +5,11 @@
 =============================================================================*/
 
 
-#include "MetalRHIPrivate.h"
 #include "MetalShaderParameterCache.h"
+#include "MetalCommandEncoder.h"
+#include "MetalResources.h"
+#include "MetalRHIPrivate.h"
+#include "MetalStateCache.h"
 
 
 //------------------------------------------------------------------------------
@@ -112,8 +115,6 @@ void FMetalShaderParameterCache::CommitPackedGlobals(FMetalStateCache* Cache, FM
 				FMetalBufferPtr Buffer;
 				PackedGlobalUniforms[Index]->Len = Size;
 				Cache->IRBindPackedUniforms((EMetalShaderStages)Frequency, UniformBufferIndex, Bytes, TotalSize, Buffer);
-				
-				SafeReleaseMetalBuffer(Buffer);
 			}
 			else
 #endif

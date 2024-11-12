@@ -46,11 +46,11 @@ public:
 	bool bUseAbsolutePosition = true;
 
 	/* Custom parameter to drive current position*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Interp, Category = "Rail Controls", meta=(EditCondition="bUseAbsolutePosition"))
+	UPROPERTY(EditAnywhere, Interp, BlueprintSetter="SetAbsolutePositionOnRail", Category = "Rail Controls", meta = (EditCondition = "bUseAbsolutePosition"))
 	float AbsolutePositionOnRail = 1.0f;
 
 	/* Use PointRotation metadata for attachment orientation. If false, attachment orientation is based on the spline curvature*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rail Controls", meta = (EditCondition = "bLockOrientationToRail"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rail Controls")
 	bool bUsePointRotation = true;
 
 	/* Material assigned to spline component mesh*/
@@ -156,6 +156,10 @@ public:
 	/* Returns true if the rig rail is driven by Sequencer */
 	UFUNCTION()
 	bool IsSequencerDriven();
+
+	/* Set AbsolutePositionOnRail value*/
+	UFUNCTION(BlueprintSetter)
+	void SetAbsolutePositionOnRail(float Value);
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

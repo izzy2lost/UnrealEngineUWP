@@ -36,9 +36,37 @@ enum class EControlRigType : uint8
 {
 	IndependentRig = 0,
 	RigModule = 1,
-	ModularRig =2,
+	ModularRig = 2,
+	MAX // Invalid
 };
 
+USTRUCT(BlueprintType)
+struct CONTROLRIGDEVELOPER_API FModuleReferenceData
+{
+	GENERATED_BODY()
+
+public:
+	
+	FModuleReferenceData(){}
+
+	FModuleReferenceData(const FRigModuleReference* InModule)
+	{
+		if (InModule)
+		{
+			ModulePath = InModule->GetPath();
+			if (InModule->Class.IsValid())
+			{
+				ReferencedModule = InModule->Class.Get();
+			}
+		}
+	}
+
+	UPROPERTY()
+	FString ModulePath;
+
+	UPROPERTY()
+	FSoftClassPath ReferencedModule;
+};
 
 UCLASS(BlueprintType, meta=(IgnoreClassThumbnail))
 class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, public IInterface_PreviewMeshProvider, public IRigHierarchyProvider
@@ -48,19 +76,21 @@ class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, pub
 public:
 	UControlRigBlueprint();
 
-	// URigVMBlueprint interface
-	virtual UClass* GetRigVMBlueprintGeneratedClassPrototype() const override { return UControlRigBlueprintGeneratedClass::StaticClass(); }
+	//  --- IRigVMClientHost interface ---
 	virtual UClass* GetRigVMSchemaClass() const override { return UControlRigSchema::StaticClass(); }
 	virtual UScriptStruct* GetRigVMExecuteContextStruct() const override { return FControlRigExecuteContext::StaticStruct(); }
 	virtual UClass* GetRigVMEdGraphClass() const override;
 	virtual UClass* GetRigVMEdGraphNodeClass() const override;
 	virtual UClass* GetRigVMEdGraphSchemaClass() const override;
-	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 	virtual UClass* GetRigVMEditorSettingsClass() const override;
+
+	// URigVMBlueprint interface
+	virtual UClass* GetRigVMBlueprintGeneratedClassPrototype() const override { return UControlRigBlueprintGeneratedClass::StaticClass(); }
+	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 #if WITH_EDITOR
-	virtual const FName& GetPanelPinFactoryName() const override;
-	static const FName ControlRigPanelNodeFactoryName;
+	virtual const FLazyName& GetPanelPinFactoryName() const override;
+	static inline const FLazyName ControlRigPanelNodeFactoryName = FLazyName(TEXT("FControlRigGraphPanelPinFactory"));
 	virtual IRigVMEditorModule* GetEditorModule() const override;
 #endif
 
@@ -162,10 +192,28 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
 	FRigModuleSettings RigModuleSettings;
 
+	// This relates to FAssetThumbnailPool::CustomThumbnailTagName and allows
+	// the thumbnail pool to show the thumbnail of the icon rather than the
+	// rig itself to avoid deploying the 3D renderer.
+	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
+	FString CustomThumbnail;
+
+	/** Asset searchable information module references in this rig */
+	UPROPERTY(AssetRegistrySearchable)
+	TArray<FModuleReferenceData> ModuleReferenceData;
+
 	UPROPERTY()
 	TMap<FRigElementKey, FRigElementKey> ConnectionMap;
 
+	UFUNCTION(BlueprintPure, Category = "Control Rig Blueprint")
+	TArray<FModuleReferenceData> FindReferencesToModule() const;
+
+	static EControlRigType GetRigType(const FAssetData& InAsset);
+	static TArray<FSoftObjectPath> GetReferencesToRigModule(const FAssetData& InModuleAsset);
+
 protected:
+
+	TArray<FModuleReferenceData> GetModuleReferenceData() const;
 
 	FOnRigTypeChanged OnRigTypeChangedDelegate;
 	
@@ -280,13 +328,18 @@ private:
 	/** If set to true, this control rig has animatable controls */
 	UPROPERTY(AssetRegistrySearchable)
 	bool bExposesAnimatableControls;
+public:
+
+	/** If set to true, multiple control rig tracks can be created for the same rig in sequencer*/
+	UPROPERTY(EditAnywhere, Category="Sequencer", AssetRegistrySearchable)
+	bool bAllowMultipleInstances = false;
 
 private:
 
 	static TArray<UControlRigBlueprint*> sCurrentlyOpenedRigBlueprints;
 
 	virtual void PathDomainSpecificContentOnLoad() override;
-	virtual void PatchFunctionsOnLoad() override;
+	virtual void GetBackwardsCompatibilityPublicFunctions(TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders) override;
 	void PatchRigElementKeyCacheOnLoad();
 	void PatchPropagateToChildren();
 
@@ -310,7 +363,7 @@ public:
 	void RefreshModuleVariables();
 	void RefreshModuleVariables(const FRigModuleReference* InModule);
 	void RefreshModuleConnectors();
-	void RefreshModuleConnectors(const FRigModuleReference* InModule);
+	void RefreshModuleConnectors(const FRigModuleReference* InModule, bool bPropagateHierarchy = true);
 
 	/**
 	* Returns the modified event, which can be used to 
@@ -343,6 +396,8 @@ private:
 	virtual void HandlePackageDone() override;
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 #endif
+
+	void UpdateConnectionMapAfterRename(const FString& InOldNameSpace);
 
 	// Class used to temporarily cache all 
 	// current control values and reapply them

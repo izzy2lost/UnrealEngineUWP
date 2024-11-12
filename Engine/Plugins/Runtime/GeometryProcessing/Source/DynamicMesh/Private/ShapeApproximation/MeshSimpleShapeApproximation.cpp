@@ -14,6 +14,7 @@
 #include "Operations/MeshConvexHull.h"
 #include "Operations/MeshProjectionHull.h"
 #include "Util/ProgressCancel.h"
+#include "MeshSimplification.h"
 
 #define LOCTEXT_NAMESPACE "MeshSimpleShapeApproximation"
 
@@ -387,27 +388,84 @@ void FMeshSimpleShapeApproximation::Generate_ConvexHullDecompositions(FSimpleSha
 		}
 
 		const FDynamicMesh3& SourceMesh = *SourceMeshes[idx];
-		// TODO: if (bSimplifyHulls), also consider simplifying the input?
-		FConvexDecomposition3 Decomposition(SourceMesh);
-		int32 NumAdditionalSplits = FMath::FloorToInt32(float(ConvexDecompositionMaxPieces) * ConvexDecompositionSearchFactor);
+		FConvexDecomposition3::FPreprocessMeshOptions PreprocessOptions;
+		PreprocessOptions.bMergeEdges = true;
+		PreprocessOptions.CustomPreprocess = [this](FDynamicMesh3& ProcessMesh, const FAxisAlignedBox3d& Bounds) -> void
+		{
+			// for solid inputs, flip orientation if the initial volume is negative
+			if (ProcessMesh.IsClosed())
+			{
+				double InitialVolume = TMeshQueries<FDynamicMesh3>::GetVolumeArea(ProcessMesh).X;
+				if (InitialVolume < 0)
+				{
+					ProcessMesh.ReverseOrientation();
+				}
+			}
+			
+			if (bDecompositionPreSimplifyWithEdgeLength)
+			{
+				// Run pre-simplification to the target edge length
+				UE::Geometry::FVolPresMeshSimplification Simplifier(&ProcessMesh);
+				Simplifier.CollapseMode = UE::Geometry::FVolPresMeshSimplification::ESimplificationCollapseModes::MinimalExistingVertexError;
+				Simplifier.SimplifyToEdgeLength(DecompositionPreSimplifyEdgeLength);
+			}
+		};
+		FConvexDecomposition3 Decomposition(SourceMesh, PreprocessOptions);
+		const bool bIsSolid = Decomposition.IsInputSolid();
+		Decomposition.bTreatAsSolid = bIsSolid;
+
 		if (bConvexDecompositionProtectNegativeSpace)
 		{
+			// Use settings tuned for navigation-driven decomposition
+			
 			FNegativeSpaceSampleSettings Settings;
+			Settings.MarchingCubesGridScale = 1.0;
+			Settings.MaxVoxelsPerDim = 1024;
+			Settings.MinSpacing = 0.0;
+			Settings.TargetNumSamples = 0;
+			Settings.VoxelExpandBoundsFactor = UE_DOUBLE_KINDA_SMALL_NUMBER;
 			Settings.bOnlyConnectedToHull = bIgnoreInternalNegativeSpace;
 			Settings.MinRadius = NegativeSpaceMinRadius;
 			Settings.ReduceRadiusMargin = NegativeSpaceTolerance;
 			Settings.MinRadius = FMath::Max(1, (NegativeSpaceMinRadius + NegativeSpaceTolerance) * .5);
-			Settings.SampleMethod = FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch;
+			Settings.SampleMethod = FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch;
 			Settings.bRequireSearchSampleCoverage = true;
-			Settings.TargetNumSamples = 1; // let the sample coverage determine the number of spheres to place
+			Settings.TargetNumSamples = 0; // let the sample coverage determine the number of spheres to place
+			Settings.bAllowSamplesInsideMesh = !bIsSolid;
 
+			Decomposition.MaxConvexEdgePlanes = 4;
+			Decomposition.bSplitDisconnectedComponents = false;
+			Decomposition.ConvexEdgeAngleMoreSamplesThreshold = 180;
+			Decomposition.ThickenAfterHullFailure = FMath::Max(FMathd::ZeroTolerance, NegativeSpaceTolerance * .01);
+			
 			Decomposition.InitializeNegativeSpace(Settings);
 
-			// Let negative space decide when to stop merging; target only 1 piece if negative space allows
-			NumAdditionalSplits += ConvexDecompositionMaxPieces;
-			ConvexDecompositionMaxPieces = 1;
+			constexpr int32 MaxAllowedSplits = 1000000; // more parts than any expected / reasonable decomposition
+			int32 TargetNumSplits = bUseConvexDecompositionMaxPieces ? ConvexDecompositionMaxPieces - 1 : MaxAllowedSplits + 1;
+			for (int32 Split = 0; Split < TargetNumSplits; Split++)
+			{
+				int32 NumSplit = Decomposition.SplitWorst(false, -1, true, Settings.ReduceRadiusMargin * .5);
+
+				if (NumSplit == 0)
+				{
+					break;
+				}
+
+				if (!ensureMsgf(Split < MaxAllowedSplits, TEXT("Convex decomposition split the input %d times; likely stuck in a loop"), Split))
+				{
+					break;
+				}
+			}
+
+			Decomposition.FixHullOverlapsInNegativeSpace();
+			int32 TargetNumPieces = bUseConvexDecompositionMaxPieces ? ConvexDecompositionMaxPieces : -1;
+			Decomposition.MergeBest(TargetNumPieces, 0, ConvexDecompositionMinPartThickness, true);
 		}
-		Decomposition.Compute(ConvexDecompositionMaxPieces, NumAdditionalSplits, ConvexDecompositionErrorTolerance, ConvexDecompositionMinPartThickness);
+		else
+		{
+			int32 NumAdditionalSplits = FMath::FloorToInt32(float(ConvexDecompositionMaxPieces) * ConvexDecompositionSearchFactor);
+			Decomposition.Compute(ConvexDecompositionMaxPieces, NumAdditionalSplits, ConvexDecompositionErrorTolerance, ConvexDecompositionMinPartThickness);
+		}
 
 		for (int32 HullIdx = 0; HullIdx < Decomposition.NumHulls(); HullIdx++)
 		{

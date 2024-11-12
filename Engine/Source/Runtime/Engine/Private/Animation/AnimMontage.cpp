@@ -1477,10 +1477,16 @@ void FAnimMontageInstance::Play(float InPlayRate, const FMontageBlendSettings& B
 	FAlphaBlendArgs BlendInArgs = BlendInSettings.Blend;
 	if (AnimInstance.IsValid() && BlendInSettings.BlendMode == EMontageBlendMode::Inertialization)
 	{
-		const float InertialBlendDuration = BlendInArgs.BlendTime;
+		FInertializationRequest Request;
+		Request.Duration = BlendInArgs.BlendTime;
+		Request.BlendMode = BlendInArgs.BlendOption;
+		Request.CustomBlendCurve = BlendInArgs.CustomCurve;
+		Request.BlendProfile = BlendInSettings.BlendProfile;
+		Request.bUseBlendMode = (BlendInArgs.BlendOption != EAlphaBlendOption::Linear) || (BlendInArgs.CustomCurve != nullptr);
+
 		// Request new inertialization for new montage's group name
 		// If there is an existing inertialization request, we overwrite that here.
-		AnimInstance->RequestMontageInertialization(Montage, InertialBlendDuration, BlendInSettings.BlendProfile);
+		AnimInstance->RequestMontageInertialization(Montage, Request);
 
 		// When using inertialization, we need to instantly blend in.
 		BlendInArgs.BlendTime = 0.0f;
@@ -1547,8 +1553,15 @@ void FAnimMontageInstance::Stop(const FMontageBlendSettings& InBlendOutSettings,
 
 				if (bShouldInertialize)
 				{
+					FInertializationRequest Request;
+					Request.Duration = InBlendOutSettings.Blend.BlendTime;
+					Request.BlendMode = InBlendOutSettings.Blend.BlendOption;
+					Request.CustomBlendCurve = InBlendOutSettings.Blend.CustomCurve;
+					Request.BlendProfile = InBlendOutSettings.BlendProfile;
+					Request.bUseBlendMode = (InBlendOutSettings.Blend.BlendOption != EAlphaBlendOption::Linear) || (InBlendOutSettings.Blend.CustomCurve != nullptr);
+
 					// Send the inertial blend request to the anim instance
-					Inst->RequestMontageInertialization(Montage, InBlendOutSettings.Blend.BlendTime, InBlendOutSettings.BlendProfile);
+					Inst->RequestMontageInertialization(Montage, Request);
 				}
 			}
 		}
@@ -1811,8 +1824,11 @@ FName FAnimMontageInstance::GetNextSection() const
 		const int32 CurrentSectionIndex = Montage->GetAnimCompositeSectionIndexFromPos(Position, CurrentPosition);
 		if (Montage->IsValidSectionIndex(CurrentSectionIndex))
 		{
-			FCompositeSection& CurrentSection = Montage->GetAnimCompositeSection(CurrentSectionIndex);
-			return CurrentSection.NextSectionName;
+			const int32 NextSectionIndex = GetNextSectionID(CurrentSectionIndex);
+			if (Montage->IsValidSectionIndex(NextSectionIndex))
+			{
+				return GetSectionNameFromID(NextSectionIndex);
+			}
 		}
 	}
 
@@ -2075,7 +2091,16 @@ EMontageSubStepResult FMontageSubStepper::Advance(float& InOut_P_Original, const
 		const float NewPosition = MontageInstance->ForcedNextToPosition.GetValue();
 		if (MontageInstance->ForcedNextFromPosition.IsSet())
 		{
+			// We are modifying the current position so we also need to update the section and pos in section
 			InOut_P_Original = MontageInstance->ForcedNextFromPosition.GetValue();
+			CurrentSectionIndex = Montage->GetAnimCompositeSectionIndexFromPos(InOut_P_Original, PositionInSection);
+			
+			if (!Montage->IsValidSectionIndex(CurrentSectionIndex))
+			{
+				return EMontageSubStepResult::InvalidSection;
+			}
+			CurrentSectionStartTime = Montage->GetAnimCompositeSection(CurrentSectionIndex).GetTime();
+			CurrentSectionLength = Montage->GetSectionLength(CurrentSectionIndex);
 		}
 		DeltaMove = NewPosition - InOut_P_Original;
 		PlayRate = DeltaMove / TimeRemaining;
@@ -2655,6 +2680,9 @@ void FAnimMontageInstance::HandleEvents(float PreviousTrackPos, float CurrentTra
 	{
 		FAnimTickRecord TickRecord;
 
+		// Used to ensure all gathered notifies know the current montage time at the point they were queued.
+		TickRecord.TimeAccumulator = &CurrentTrackPos;
+		
 		// Add instance ID to context to differentiate notifies between different instances of the same montage
 		TickRecord.MakeContextData<UE::Anim::FAnimNotifyMontageInstanceContext>(InstanceID);
 
@@ -3014,6 +3042,9 @@ UAnimMontage* UAnimMontage::CreateSlotAnimationAsDynamicMontage_WithBlendSetting
 	NewMontage->BlendProfileOut = BlendOutSettings.BlendProfile;
 
 	NewMontage->BlendOutTriggerTime = InBlendOutTriggerTime;
+
+	NewMontage->CommonTargetFrameRate = Asset->GetSamplingFrameRate();
+	
 	return NewMontage;
 }
 

@@ -159,6 +159,8 @@ public:
 	/** Sends Read message to the server. */
 	STREAMINGFILE_API bool SendReadMessage(uint64 HandleId, uint8* Destination, int64 BytesToRead);
 
+	STREAMINGFILE_API bool SendReadMessage(uint64 HandleId, uint8* Destination, int64 BytesToRead, int64 Offset);
+
 	/** Sends Write message to the server. */
 	STREAMINGFILE_API bool SendWriteMessage(uint64 HandleId, const uint8* Source, int64 BytesToWrite);	
 

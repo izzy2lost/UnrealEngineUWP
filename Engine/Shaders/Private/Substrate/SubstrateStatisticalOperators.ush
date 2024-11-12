@@ -34,7 +34,7 @@ float SubstrateLobeRoughnessToVariance(float Roughness)
 float SubstrateLobeVarianceToRoughness(float Variance)
 {
 	// Inverse of Eq. 6
-	return pow(Variance / (1.0f + Variance), 1.0f / 1.1f);
+	return pow(max(0.f, Variance / (1.0f + Variance)), 1.0f / 1.1f);
 }
 
 

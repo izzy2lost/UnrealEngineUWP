@@ -142,3 +142,26 @@ void UConsoleVariablesAsset::CopyFrom(const UConsoleVariablesAsset* InAssetToCop
 	VariableCollectionDescription = InAssetToCopy->GetVariableCollectionDescription();
 	SavedCommands = InAssetToCopy->GetSavedCommands();
 }
+
+void UConsoleVariablesAsset::AddFrom(const UConsoleVariablesAsset* InAssetToCopy)
+{
+	for (const FConsoleVariablesEditorAssetSaveData& NewCommand : InAssetToCopy->GetSavedCommands())
+	{
+		FConsoleVariablesEditorAssetSaveData* ExistingCommand = SavedCommands.FindByPredicate(
+			[NewCommand](const FConsoleVariablesEditorAssetSaveData& ExistingCommand)
+			{
+				return ExistingCommand.CommandName.Compare(NewCommand.CommandName) == 0;
+			}
+		);
+
+		if (ExistingCommand)
+		{
+			ExistingCommand->CommandValueAsString = NewCommand.CommandValueAsString;
+			ExistingCommand->CheckedState = ECheckBoxState::Checked;
+		}
+		else
+		{
+			SavedCommands.Add(NewCommand);
+		}
+	}
+}

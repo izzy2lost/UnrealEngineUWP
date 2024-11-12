@@ -28,13 +28,28 @@ namespace uba
 			++read;
 
 		tchar fullName[1024];
-		if (const tchar* tilde = TStrchr(fileName, '~'))
+		while (true)
 		{
+			tchar temp[1024];
+			if (read == fullName)
+			{
+				TStrcpy_s(temp, sizeof_array(temp), read);
+				read = temp;
+			}
+
+			const tchar* tilde = TStrchr(read, '~');
+			if (!tilde)
+				break;
+
+			u64 fileNameLen = TStrlen(read);
+			if (fileNameLen >= 1024)
+				return false;
+
 			// Since this might be a in memory file we can't use the actual full name, so let's find first slash after '~'
 			const tchar* backslash = TStrchr(tilde, '\\');
-			TStrcpy_s(fullName, sizeof_array(fullName), fileName);
+			TStrcpy_s(fullName, sizeof_array(fullName), read);
 			if (backslash)
-				fullName[backslash - fileName] = 0;
+				fullName[backslash - read] = 0;
 			u32 len = Local_GetLongPathNameW(fullName, fullName, sizeof_array(fullName));
 			if (!len)
 			{
@@ -60,7 +75,7 @@ namespace uba
 				hasDotDot = true;
 			if (c == '\\')
 			{
-				if (lastChar == '?' && lastLastChar == '?') // We want to get rid of \\??\  .
+				if (lastChar == '?' && (lastLastChar == '?' || lastLastChar == '\\')) // We want to get rid of \\??\ and \\?\ .
 				{
 					write = buffer;
 					continue;
@@ -202,7 +217,7 @@ namespace uba
 			++charLen;
 		}
 
-		UBA_ASSERT(charLen <= bufferCharCapacity);
+		UBA_ASSERTF(charLen <= bufferCharCapacity, TC("Buffer overflow (Capacity %llu) fixing path %s"), fileName);
 
 		if (outBufferCharLen)
 			*outBufferCharLen = u32(charLen - 1); // Remove terminator
@@ -300,6 +315,10 @@ namespace uba
 
 	inline void FixPath(const tchar* fileName, const tchar* workingDir, u64 workingDirCharLen, StringBufferBase& buffer)
 	{
-		FixPath2(fileName, workingDir, workingDirCharLen, buffer.data, buffer.capacity, &buffer.count);
+		u32 count = buffer.count;
+		FixPath2(fileName, workingDir, workingDirCharLen, buffer.data + count, buffer.capacity - count, &buffer.count);
+		buffer.count += count;
 	}
+
+	inline bool IsAbsolutePath(const tchar* path) { return path ? (IsWindows ? (path[0] && path[1] == ':') : path[0] == '/') : false; }
 }

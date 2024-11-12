@@ -9,6 +9,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SChaosVDGameFramesPlaybackControls;
 enum class EChaosVDPlaybackButtonsID : uint8;
 class FChaosVDEditorModeTools;
 enum class EChaosVDActorTrackingMode;
@@ -44,6 +45,21 @@ public:
 
 	virtual EVisibility GetTransformToolbarVisibility() const override;
 
+	void GoToLocation(const FVector& InLocation) const;
+
+	void ToggleUseFrameRateOverride();
+	bool IsUsingFrameRateOverride() const;
+
+	int32 GetCurrentTargetFrameRateOverride() const;
+
+	void SetCurrentTargetFrameRateOverride(int32 NewTarget);
+
+	TWeakPtr<FChaosVDScene> GetCVDScene() { return CVDSceneWeakPtr; }
+	
+	static void ExecuteExternalViewportInvalidateRequest();
+
+	virtual void OnFocusViewportToSelection() override;
+
 protected:
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
@@ -52,19 +68,18 @@ protected:
 
 	virtual void RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController )override;
 	virtual void HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController) override;
-	virtual void HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid) override;
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet) override;
 
 	void OnPlaybackSceneUpdated();
 	void OnSolverVisibilityUpdated(int32 SolverID, bool bNewVisibility);
+	void BindToSceneUpdateEvents();
+	void UnbindFromSceneUpdateEvents();
 
-	void OnFrameSelectionUpdated(int32 NewFrameIndex) const;
+	void HandleExternalViewportInvalidateRequest();
 
-	void HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID);
+	TSharedPtr<FChaosVDTrackInfo> CurrentGameTrackInfo;
 
-	bool CanPlayback() const;
-
-	TSharedPtr<SChaosVDTimelineWidget> GameFramesTimelineWidget;
+	TSharedPtr<SChaosVDGameFramesPlaybackControls> GameFramesPlaybackControls;
 
 	TSharedPtr<FChaosVDPlaybackViewportClient> PlaybackViewportClient;
 	
@@ -73,4 +88,11 @@ protected:
 	TSharedPtr<FExtender> Extender;
 
 	TSharedPtr<FEditorModeTools> EditorModeTools;
+	
+	DECLARE_MULTICAST_DELEGATE(FChaosVDViewportInvalidationRequestHandler)
+	static inline FChaosVDViewportInvalidationRequestHandler ExternalViewportInvalidationRequestHandler = FChaosVDViewportInvalidationRequestHandler();
+	
+	FDelegateHandle ExternalInvalidateHandlerHandle;
+
+	bool bIsPlaying = false;
 };

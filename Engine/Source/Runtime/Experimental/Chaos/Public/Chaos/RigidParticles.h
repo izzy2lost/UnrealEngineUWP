@@ -13,6 +13,7 @@
 #include "Chaos/Rotation.h"
 #include "Chaos/RigidParticleControlFlags.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Chaos/Evolution/IterationSettings.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 
 namespace Chaos
@@ -65,7 +66,7 @@ struct FRigidParticleCoreData
 {
 	int32 CollisionGroup;							// 4 bytes
 	uint32 CollisionConstraintFlags;				// 4 bytes
-	FRigidParticleControlFlags ControlFlags;		// 1 byte
+	FRigidParticleControlFlags ControlFlags;		// 2 bytes
 	FRigidParticleTransientFlags TransientFlags;	// 1 byte
 	EObjectStateType ObjectState;					// 1 byte
 	EObjectStateType PreObjectState;				// 1 byte
@@ -113,6 +114,7 @@ public:
 		, MSleepType(MoveTemp(Other.MSleepType))
 		, MSleepCounter(MoveTemp(Other.MSleepCounter))
 		, MDisableCounter(MoveTemp(Other.MDisableCounter))
+		, MParticleIterationCounts(MoveTemp(Other.MParticleIterationCounts))
 	{
 		RegisterArrays();
 	}
@@ -144,6 +146,7 @@ public:
 		TArrayCollection::AddArray(&MSleepType);
 		TArrayCollection::AddArray(&MSleepCounter);
 		TArrayCollection::AddArray(&MDisableCounter);
+		TArrayCollection::AddArray(&MParticleIterationCounts);
 
 	}
 
@@ -246,6 +249,9 @@ public:
 
 	FORCEINLINE int8 DisableCounter(const int32 Index) const { return MDisableCounter[Index]; }
 	FORCEINLINE int8& DisableCounter(const int32 Index) { return MDisableCounter[Index]; }
+
+	FORCEINLINE Private::FIterationSettings ParticleIterationCounts(const int32 Index) const { return MParticleIterationCounts[Index]; }
+	FORCEINLINE Private::FIterationSettings& ParticleIterationCounts(const int32 Index) { return MParticleIterationCounts[Index]; }
 
 	// @todo(chaos): This data should be marshalled via the proxies like everything else. There is probably a particle recycling bug here.
 	FORCEINLINE TArray<TSleepData<T, d>>& GetSleepData() { return MSleepData; }
@@ -423,6 +429,7 @@ private:
 	TArrayCollectionArray<ESleepType> MSleepType;
 	TArrayCollectionArray<int8> MSleepCounter;
 	TArrayCollectionArray<int8> MDisableCounter;
+	TArrayCollectionArray<Private::FIterationSettings> MParticleIterationCounts;
 
 	TArray<TSleepData<T, d>> MSleepData;
 	FRWLock SleepDataLock;

@@ -63,7 +63,8 @@ public class UVEditor : ModuleRules
 				"UVEditorTools",
 				"UVEditorToolsEditorOnly",
 				"WorkspaceMenuStructure",
-				"TextureUtilitiesCommon"
+				"TextureUtilitiesCommon",
+				"GeometryAlgorithms"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

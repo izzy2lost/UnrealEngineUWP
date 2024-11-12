@@ -50,10 +50,10 @@ public:
 	void GetPluginName(FString& PluginName) const;
 
 	/** Returns whether the game feature plugin is registered or not. */
-	bool IsGameFeaturePluginRegistered() const;
+	bool IsGameFeaturePluginRegistered(bool bCheckForRegistering = false) const;
 
 	/** Returns whether the game feature plugin is active or not. */
-	bool IsGameFeaturePluginActive() const;
+	bool IsGameFeaturePluginActive(bool bCheckForActivating = false) const;
 
 	/**
 	 * Returns the install bundle name if one exists for this plugin.
@@ -61,6 +61,13 @@ public:
 	 * @param - bEvenIfDoesntExist - when true will return the name of bundle we are looking for without checking if it exists or not.
 	 */
 	static FString GetInstallBundleName(FStringView PluginName, bool bEvenIfDoesntExist = false);
+
+	/**
+	 * Returns the optional install bundle name if one exists for this plugin.
+	 * @param - PluginName - the name of the GameFeaturePlugin we want to get a bundle for. Should be the same name as the .uplugin file
+	 * @param - bEvenIfDoesntExist - when true will return the name of bundle we are looking for without checking if it exists or not.
+	 */
+	static FString GetOptionalInstallBundleName(FStringView PluginName, bool bEvenIfDoesntExist = false);
 
 public:
 	//~UPrimaryDataAsset interface

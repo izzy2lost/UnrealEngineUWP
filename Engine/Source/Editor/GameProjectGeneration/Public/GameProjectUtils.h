@@ -47,7 +47,6 @@ struct FProjectInformation
 	// In this case, the template author has chosen not to give the user a choice,
 	// so we must assume that the template already controls these settings explicitly.
 	TOptional<bool> bEnableXR;
-	TOptional<bool> bEnableRaytracing;
 
 	TOptional<EHardwareClass> TargetedHardware;
 	TOptional<EGraphicsPreset> DefaultGraphicsPerformance;

@@ -227,9 +227,9 @@ namespace Metasound
 		using namespace Frontend;
 
 		uint64 InstanceID = -1;
-		if (ensure(InEnvironment.Contains<uint64>(SourceInterface::Environment::TransmitterID)))
+		if (ensure(InEnvironment.Contains<uint64>(CoreInterface::Environment::InstanceID)))
 		{
-			InstanceID = InEnvironment.GetValue<uint64>(SourceInterface::Environment::TransmitterID);
+			InstanceID = InEnvironment.GetValue<uint64>(CoreInterface::Environment::InstanceID);
 		}
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -311,7 +311,7 @@ namespace Metasound
 			const FName ParamName = Param.ParamName;
 			if (!SetParameterWithLiteral(ParamName, Frontend::ConvertParameterToLiteral(Param)))
 			{
-				InParameters.RemoveAtSwap(ParamIndex, 1, EAllowShrinking::No);
+				InParameters.RemoveAtSwap(ParamIndex, EAllowShrinking::No);
 				bSuccess = false;
 			}
 		}

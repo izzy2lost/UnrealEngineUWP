@@ -35,6 +35,7 @@
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
+#include "FindInBlueprints.generated.h"
 
 class FBlueprintEditor;
 class FImaginaryFiBData;

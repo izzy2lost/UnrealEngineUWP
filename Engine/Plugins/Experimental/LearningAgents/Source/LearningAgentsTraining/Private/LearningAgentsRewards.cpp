@@ -73,6 +73,64 @@ float ULearningAgentsRewards::MakeRewardOnCondition(
 	return Reward;
 }
 
+float ULearningAgentsRewards::MakeRewardFromLocationDifference(
+	const FVector LocationA,
+	const FVector LocationB,
+	const float LocationScale,
+	const float RewardScale,
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
+{
+	const float Distance = FVector::Dist(LocationA, LocationB);
+	const float Difference = Distance / FMath::Max(LocationScale, UE_SMALL_NUMBER);
+	const float Reward = Difference * RewardScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			LocationB,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationB,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nLocationScale: [% 6.2f]\nDifference: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			LocationA.X, LocationA.Y, LocationA.Z,
+			LocationB.X, LocationB.Y, LocationB.Z,
+			Distance,
+			LocationScale,
+			Difference,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
+}
+
 float ULearningAgentsRewards::MakeRewardOnLocationDifferenceBelowThreshold(
 	const FVector LocationA, 
 	const FVector LocationB, 

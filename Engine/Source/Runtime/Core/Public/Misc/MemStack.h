@@ -121,6 +121,13 @@ public:
 		return (uint8*)Alloc(AllocSize, FMath::Max(AllocSize >= 16 ? (size_t)16 : (size_t)8, Alignment));
 	}
 
+	FORCEINLINE bool CanFitInPage(size_t AllocSize, size_t Alignment) const
+	{
+		const uint8* Result = Align(Top, Alignment);
+		const uint8* NewTop = Result + AllocSize;
+		return NewTop <= End;
+	}
+
 	FORCEINLINE void* Alloc(size_t AllocSize, size_t Alignment)
 	{
 		// Debug checks.
@@ -147,6 +154,11 @@ public:
 			Top = NewTop;
 		}
 		return Result;
+	}
+
+	FORCEINLINE uint8* GetTop() const
+	{
+		return Top;
 	}
 
 	/** return true if this stack is empty. */
@@ -411,49 +423,49 @@ public:
 		}
 
 		//@TODO: FLOATPRECISION: Takes SIZE_T input but doesn't actually support it
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(SizeType CurrentNum, SizeType NewMax,SIZE_T NumBytesPerElement)
 		{
 			void* OldData = Data;
-			if( NumElements )
+			if( NewMax )
 			{
 				static_assert(sizeof(int32) <= sizeof(SIZE_T), "SIZE_T is expected to be larger than int32");
 
 				// Check for under/overflow
-				if (UNLIKELY(NumElements < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
+				if (UNLIKELY(NewMax < 0 || NumBytesPerElement < 1 || NumBytesPerElement > (SIZE_T)MAX_int32))
 				{
-					UE::Core::Private::OnInvalidMemStackAllocatorNum(NumElements, NumBytesPerElement);
+					UE::Core::Private::OnInvalidMemStackAllocatorNum(NewMax, NumBytesPerElement);
 				}
 
 				// Allocate memory from the stack.
 				Data = (ElementType*)FMemStack::Get().PushBytes(
-					(int32)(NumElements * NumBytesPerElement),
+					(int32)(NewMax * NumBytesPerElement),
 					FMath::Max(Alignment,(uint32)alignof(ElementType))
 					);
 
-				// If the container previously held elements, copy them into the new allocation.
-				if(OldData && PreviousNumElements)
+				// If the container currently holds elements, copy them into the new allocation.
+				if(OldData && CurrentNum)
 				{
-					const SizeType NumCopiedElements = FMath::Min(NumElements,PreviousNumElements);
+					const SizeType NumCopiedElements = FMath::Min(NewMax,CurrentNum);
 					FMemory::Memcpy(Data,OldData,NumCopiedElements * NumBytesPerElement);
 				}
 			}
 		}
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackReserve(SizeType NewMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, false, Alignment);
+			return DefaultCalculateSlackReserve(NewMax, NumBytesPerElement, false, Alignment);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackShrink(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, false, Alignment);
+			return DefaultCalculateSlackShrink(NewMax, CurrentMax, NumBytesPerElement, false, Alignment);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SizeType CalculateSlackGrow(SizeType NewMax, SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, false, Alignment);
+			return DefaultCalculateSlackGrow(NewMax, CurrentMax, NumBytesPerElement, false, Alignment);
 		}
 
-		FORCEINLINE SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE SIZE_T GetAllocatedSize(SizeType CurrentMax, SIZE_T NumBytesPerElement) const
 		{
-			return NumAllocatedElements * NumBytesPerElement;
+			return CurrentMax * NumBytesPerElement;
 		}
 
 		bool HasAllocation() const

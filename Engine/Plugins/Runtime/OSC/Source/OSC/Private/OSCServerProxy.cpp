@@ -8,222 +8,197 @@
 #include "OSCStream.h"
 
 
-FOSCServerProxy::FOSCServerProxy(UOSCServer& InServer)
-	: Server(&InServer)
-	, Socket(nullptr)
-	, SocketReceiver(nullptr)
-	, Port(0)
-	, bMulticastLoopback(false)
-	, bFilterClientsByAllowList(false)
-#if WITH_EDITOR
-	, bTickInEditor(false)
-#endif // WITH_EDITOR
+namespace UE::OSC
 {
-}
-
-FOSCServerProxy::~FOSCServerProxy()
-{
-	Stop();
-}
-
-void FOSCServerProxy::OnPacketReceived(const FArrayReaderPtr& InData, const FIPv4Endpoint& InEndpoint)
-{
-	TSharedPtr<IOSCPacket> Packet = IOSCPacket::CreatePacket(InData->GetData(), InEndpoint.Address.ToString(), InEndpoint.Port);
-	if (!Packet.IsValid())
+	FServerProxy::FServerProxy()
 	{
-		UE_LOG(LogOSC, Verbose, TEXT("Message received from endpoint '%s' invalid OSC packet."), *InEndpoint.ToString());
-		return;
+		ClientAllowList.Add(FIPv4Endpoint::Any);
 	}
 
-	FOSCStream Stream = FOSCStream(InData->GetData(), InData->Num());
-	Packet->ReadData(Stream);
-	Server->EnqueuePacket(Packet);
-}
-
-FString FOSCServerProxy::GetIpAddress() const
-{
-	return ReceiveIPAddress.ToString();
-}
-
-int32 FOSCServerProxy::GetPort() const
-{
-	return Port;
-}
-
-bool FOSCServerProxy::GetMulticastLoopback() const
-{
-	return bMulticastLoopback;
-}
-
-bool FOSCServerProxy::IsActive() const
-{
-	return SocketReceiver != nullptr;
-}
-
-void FOSCServerProxy::Listen(const FString& InServerName)
-{
-	if (IsActive())
+	FServerProxy::~FServerProxy()
 	{
-		UE_LOG(LogOSC, Error, TEXT("OSCServer currently listening: %s:%d. Failed to start new service prior to calling stop."),
-			*InServerName, *ReceiveIPAddress.ToString(), Port);
-		return;
+		Stop();
 	}
 
-	FUdpSocketBuilder Builder(*InServerName);
-	Builder.BoundToPort(Port);
-	if (ReceiveIPAddress.IsMulticastAddress())
+	bool FServerProxy::CanProcessPacket(TSharedRef<UE::OSC::IPacket> Packet) const
 	{
-		Builder.JoinedToGroup(ReceiveIPAddress);
-		if (bMulticastLoopback)
+		// 1. Check if filtering anything
+		if (ClientAllowList.Contains(FIPv4Endpoint::Any))
 		{
-			Builder.WithMulticastLoopback();
+			return true;
+		}
+
+		// 2. Check for explicit endpoint
+		FIPv4Endpoint EndpointToTest = Packet->GetIPEndpoint();
+		if (ClientAllowList.Contains(EndpointToTest))
+		{
+			return true;
+		}
+
+		// 2. Check for explicit address & wildcard 'any' port endpoint
+		EndpointToTest.Port = FIPv4Endpoint::Any.Port;
+		return ClientAllowList.Contains(EndpointToTest);
+	}
+
+	void FServerProxy::OnPacketReceived(FConstPacketDataRef InData, const FIPv4Endpoint& InEndpoint)
+	{
+		TSharedPtr<UE::OSC::IPacket> Packet = UE::OSC::IPacket::CreatePacket(InData->GetData(), InEndpoint);
+		if (!Packet.IsValid())
+		{
+			UE_LOG(LogOSC, Verbose, TEXT("Message received from endpoint '%s' invalid OSC packet."), *InEndpoint.ToString());
+			return;
+		}
+
+		FStream Stream = FStream(InData->GetData(), InData->Num());
+		Packet->ReadData(Stream);
+
+		FScopeLock Lock(&MutateDispatchFunctionCritSec);
+		if (OnDispatchFunction.IsValid())
+		{
+			(*OnDispatchFunction)(Packet.ToSharedRef());
 		}
 	}
-	else
+
+	FString FServerProxy::GetIpAddress() const
 	{
-		if (bMulticastLoopback)
+		return Endpoint.Address.ToString();
+	}
+
+	int32 FServerProxy::GetPort() const
+	{
+		return Endpoint.Port;
+	}
+
+	const FIPv4Endpoint& FServerProxy::GetIPEndpoint() const
+	{
+		return Endpoint;
+	}
+
+	FString FServerProxy::GetDescription() const
+	{
+		if (ServerReceiver.IsValid())
 		{
-			UE_LOG(LogOSC, Warning, TEXT("OSCServer '%s' ReceiveIPAddress provided is not a multicast address.  Not respecting MulticastLoopback boolean."),
-				*InServerName);
+			return ServerReceiver->GetDescription();
 		}
-		Builder.BoundToAddress(ReceiveIPAddress);
+
+		return { };
 	}
 
-	Socket = Builder.Build();
-	if (Socket)
+	bool FServerProxy::GetMulticastLoopback() const
 	{
-		SocketReceiver = new FUdpSocketReceiver(Socket, FTimespan::FromMilliseconds(100), *(InServerName + TEXT("_ListenerThread")));
-		SocketReceiver->OnDataReceived().BindRaw(this, &FOSCServerProxy::OnPacketReceived);
-		SocketReceiver->Start();
-
-		UE_LOG(LogOSC, Display, TEXT("OSCServer '%s' Listening: %s:%d."), *InServerName, *ReceiveIPAddress.ToString(), Port);
+		return bMulticastLoopback;
 	}
-	else
+
+	bool FServerProxy::IsActive() const
 	{
-		// This is expected when the server isn't available, so it's not a Warning
-		UE_LOG(LogOSC, Display, TEXT("OSCServer '%s' failed to bind to socket on %s:%d. Check that the server is available on the specified address."), *InServerName, *ReceiveIPAddress.ToString(), Port);
+		return ServerReceiver.IsValid();
 	}
-}
 
-bool FOSCServerProxy::SetAddress(const FString& InReceiveIPAddress, int32 InPort)
-{
-	if (IsActive())
+	void FServerProxy::Listen(const FString& InServerName)
 	{
-		UE_LOG(LogOSC, Error, TEXT("Cannot set address while OSCServer is active."));
-		return false;
+		if (IsActive())
+		{
+			UE_LOG(LogOSC, Error, TEXT("OSCServer currently '%s' currently listening to endpoint '%s'. Failed to start new service prior to calling stop."),
+				*InServerName, *Endpoint.Address.ToString());
+			return;
+		}
+
+		FServerReceiver::FOptions Options;
+		Options.bMulticastLoopback = bMulticastLoopback;
+		Options.ReceivedDataDelegate.BindSP(this, &FServerProxy::OnPacketReceived);
+
+		ServerReceiver = FServerReceiver::Launch(InServerName, Endpoint, MoveTemp(Options));
 	}
 
-	if (!FIPv4Address::Parse(InReceiveIPAddress, ReceiveIPAddress))
+	bool FServerProxy::SetIPEndpoint(const FIPv4Endpoint& InEndpoint)
 	{
-		UE_LOG(LogOSC, Error, TEXT("Invalid ReceiveIPAddress '%s'. OSCServer ReceiveIP Address not updated."), *InReceiveIPAddress);
-		return false;
+		if (IsActive())
+		{
+			UE_LOG(LogOSC, Error, TEXT("Cannot set '%s' endpoint to '%s' while OSC server is currently active."), *GetDescription(), *InEndpoint.ToString());
+			return false;
+		}
+
+		Endpoint = InEndpoint;
+		return true;
 	}
 
-	Port = InPort;
-	return true;
-}
-
-void FOSCServerProxy::SetMulticastLoopback(bool bInMulticastLoopback)
-{
-	if (bInMulticastLoopback != bMulticastLoopback && IsActive())
+	bool FServerProxy::SetMulticastLoopback(bool bInMulticastLoopback)
 	{
-		UE_LOG(LogOSC, Error, TEXT("Cannot update MulticastLoopback while OSCServer is active."));
-		return;
+		if (bInMulticastLoopback != bMulticastLoopback && IsActive())
+		{
+			UE_LOG(LogOSC, Error, TEXT("Cannot update MulticastLoopback while OSCServer is active."));
+			return false;
+		}
+
+		bMulticastLoopback = bInMulticastLoopback;
+		return true;
 	}
 
-	bMulticastLoopback = bInMulticastLoopback;
-}
-
-#if WITH_EDITOR
-bool FOSCServerProxy::IsTickableInEditor() const
-{
-	return bTickInEditor;
-}
-
-void FOSCServerProxy::SetTickableInEditor(bool bInTickInEditor)
-{
-	bTickInEditor = bInTickInEditor;
-}
-#endif // WITH_EDITOR
-
-void FOSCServerProxy::Stop()
-{
-	if (SocketReceiver)
+	void FServerProxy::SetOnDispatchPacket(TSharedPtr<FOnDispatchPacket> OnDispatch)
 	{
-		delete SocketReceiver;
-		SocketReceiver = nullptr;
+		FScopeLock Lock(&MutateDispatchFunctionCritSec);
+		OnDispatchFunction = OnDispatch;
 	}
 
-	if (Socket)
+	void FServerProxy::Stop()
 	{
-		Socket->Close();
-		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
-		Socket = nullptr;
+		ServerReceiver.Reset();
 	}
 
-
-}
-
-void FOSCServerProxy::AddClientToAllowList(const FString& InIPAddress)
-{
-	FIPv4Address OutAddress;
-	if (!FIPv4Address::Parse(InIPAddress, OutAddress))
+	void FServerProxy::AddClientToAllowList(const FString& InIPAddress)
 	{
-		UE_LOG(LogOSC, Warning, TEXT("OSCServer failed to add IP Address '%s' to allow list. Address is invalid."), *InIPAddress);
-		return;
+		FIPv4Endpoint EndpointToAdd;
+		if (!FIPv4Address::Parse(InIPAddress, EndpointToAdd.Address))
+		{
+			UE_LOG(LogOSC, Warning, TEXT("OSCServer failed to add IP Address '%s' to allow list. Address is invalid."), *InIPAddress);
+			return;
+		}
+
+		ClientAllowList.Add(EndpointToAdd);
 	}
 
-	ClientAllowList.Add(OutAddress.Value);
-}
-
-void FOSCServerProxy::RemoveClientFromAllowList(const FString& InIPAddress)
-{
-	FIPv4Address OutAddress;
-	if (!FIPv4Address::Parse(InIPAddress, OutAddress))
+	void FServerProxy::RemoveClientFromAllowList(const FString& InIPAddress)
 	{
-		UE_LOG(LogOSC, Warning, TEXT("OSCServer failed to remove IP Address '%s' from allow list. Address is invalid."), *InIPAddress);
-		return;
+		FIPv4Endpoint EndpointToRemove;
+		if (!FIPv4Address::Parse(InIPAddress, EndpointToRemove.Address))
+		{
+			UE_LOG(LogOSC, Warning, TEXT("OSCServer failed to remove IP Address '%s' from allow list. Address is invalid."), *InIPAddress);
+			return;
+		}
+
+		ClientAllowList.Remove(EndpointToRemove);
 	}
 
-	ClientAllowList.Remove(OutAddress.Value);
-}
-
-void FOSCServerProxy::ClearClientAllowList()
-{
-	ClientAllowList.Reset();
-}
-
-TSet<FString> FOSCServerProxy::GetClientAllowList() const
-{
-	TSet<FString> Result;
-	for (uint32 Client : ClientAllowList)
+	const TSet<FIPv4Endpoint>& FServerProxy::GetClientEndpointAllowList() const
 	{
-		Result.Add(FIPv4Address(Client).ToString());
+		return ClientAllowList;
 	}
 
-	return Result;
-}
+	void FServerProxy::AddClientEndpointToAllowList(const FIPv4Endpoint& InIPEndpoint)
+	{
+		ClientAllowList.Add(InIPEndpoint);
+	}
 
-void FOSCServerProxy::SetFilterClientsByAllowList(bool bInEnabled)
-{
-	bFilterClientsByAllowList = bInEnabled;
-}
+	void FServerProxy::RemoveClientEndpointFromAllowList(const FIPv4Endpoint& InIPEndpoint)
+	{
+		ClientAllowList.Add(InIPEndpoint);
+	}
 
-void FOSCServerProxy::Tick(float InDeltaTime)
-{
-	check(IsInGameThread());
-	check(Server);
+	void FServerProxy::ClearClientEndpointAllowList()
+	{
+		ClientAllowList.Empty();
+	}
 
-	Server->PumpPacketQueue(bFilterClientsByAllowList ? &ClientAllowList : nullptr);
-}
-
-TStatId FOSCServerProxy::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(FOSCServerProxy, STATGROUP_Tickables);
-}
-
-UWorld* FOSCServerProxy::GetTickableGameObjectWorld() const
-{
-	check(Server);
-	return Server->GetWorld();
-}
+	void FServerProxy::SetFilterClientsByAllowList(bool bInEnabled)
+	{
+		if (bInEnabled)
+		{
+			ClientAllowList.Remove(FIPv4Endpoint::Any);
+		}
+		else
+		{
+			ClientAllowList.Empty(1);
+			ClientAllowList.Add(FIPv4Endpoint::Any);
+		}
+	}
+} // namespace UE::OSC

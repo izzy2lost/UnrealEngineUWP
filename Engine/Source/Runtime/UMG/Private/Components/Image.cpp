@@ -194,8 +194,8 @@ void UImage::SetBrushFromTexture(UTexture2D* Texture, bool bMatchSize)
 #if WITH_EDITOR
 				FTextureCompilingManager::Get().FinishCompilation({ Texture });
 #endif
-				Brush.ImageSize.X = Texture->GetSizeX();
-				Brush.ImageSize.Y = Texture->GetSizeY();
+				Brush.ImageSize.X = static_cast<float>(Texture->GetSizeX());
+				Brush.ImageSize.Y = static_cast<float>(Texture->GetSizeY());
 			}
 			else
 			{
@@ -248,8 +248,8 @@ void UImage::SetBrushFromTextureDynamic(UTexture2DDynamic* Texture, bool bMatchS
 
 		if (bMatchSize && Texture)
 		{
-			Brush.ImageSize.X = Texture->SizeX;
-			Brush.ImageSize.Y = Texture->SizeY;
+			Brush.ImageSize.X = static_cast<float>(Texture->SizeX);
+			Brush.ImageSize.Y = static_cast<float>(Texture->SizeY);
 		}
 
 		if (MyImage.IsValid())

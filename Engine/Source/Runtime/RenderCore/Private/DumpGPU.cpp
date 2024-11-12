@@ -95,6 +95,11 @@ static TAutoConsoleVariable<float> GDumpGPUDelay(
 	TEXT("Delay in seconds before dumping the frame."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> GDumpGPUFrameDelay(
+	TEXT("r.DumpGPU.FrameDelay"), 0,
+	TEXT("Delay in frames before dumping the frame."),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> GDumpGPUFrameCount(
 	TEXT("r.DumpGPU.FrameCount"), 1,
 	TEXT("Number of consecutive frames to dump (default=1)."),
@@ -253,10 +258,6 @@ public:
 
 	bool bOverrideFixedDeltaTime = false;
 	double PreviousFixedDeltaTime = 0.0f;
-
-	// Pass being dumping individual draws
-	const FRDGPass* DrawDumpingPass = nullptr;
-	int32 DrawDumpCount = 0;
 
 	TAtomic<int32> MetadataFilesOpened = 0;
 	TAtomic<int64> MetadataFilesWriteBytes = 0;
@@ -484,7 +485,7 @@ public:
 		{
 			return TEXT("00000000000000000000");
 		}
-		return FString::Printf(TEXT("%04u%016x"), uint32(GraphBuilderIndex), static_cast<uint64>(reinterpret_cast<size_t>(Ptr)));
+		return FString::Printf(TEXT("%04u%016" UINT64_x_FMT), uint32(GraphBuilderIndex), static_cast<uint64>(reinterpret_cast<size_t>(Ptr)));
 	}
 
 	FString GetUniqueResourceName(const FRDGResource* Resource)
@@ -1286,67 +1287,6 @@ public:
 		}
 	}
 
-	void DumpDrawTextureSubResource(
-		FRHICommandList& RHICmdList,
-		FRDGTextureSRVDesc SubresourceDesc,
-		ERHIAccess RHIAccessState)
-	{
-		check(IsInRenderingThread());
-
-		FRHICommandListImmediate& RHICmdListImmediate = FRHICommandListExecutor::GetImmediateCommandList();
-		check(&RHICmdListImmediate == &RHICmdList);
-
-		const FString UniqueResourceSubResourceName = GetUniqueSubResourceName(SubresourceDesc);
-		const FTextureSubresourceDumpDesc SubresourceDumpDesc = TranslateSubresourceDumpDesc(SubresourceDesc);
-
-		if (!SubresourceDumpDesc.IsDumpSupported())
-		{
-			return;
-		}
-
-		FRHITexture* RHITexture = SubresourceDesc.Texture->GetRHI();
-
-		FShaderResourceViewRHIRef SubResourceSRV;
-		if (SubresourceDumpDesc.bPreprocessForStaging)
-		{
-			SubResourceSRV = CreateSRVNoLifetimeExtension(RHICmdList, RHITexture, FRHITextureSRVCreateInfo(SubresourceDesc));
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::Unknown, ERHIAccess::SRVCompute));
-		}
-		else
-		{
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, RHIAccessState, ERHIAccess::CopySrc));
-		}
-
-		FString DumpFilePath = kResourcesDir / FString::Printf(
-			TEXT("%s.v%s.d%d.bin"),
-			*UniqueResourceSubResourceName,
-			*PtrToString(DrawDumpingPass),
-			DrawDumpCount);
-
-		DumpTextureSubResource(
-			RHICmdListImmediate,
-			SubresourceDesc.Texture->Name,
-			RHITexture,
-			SubResourceSRV,
-			SubresourceDumpDesc,
-			DumpFilePath);
-
-		if (SubresourceDumpDesc.bPreprocessForStaging)
-		{
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::SRVCompute, RHIAccessState));
-		}
-		else
-		{
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::CopySrc, RHIAccessState));
-		}
-
-		SubResourceSRV = nullptr;
-		if (!bStream)
-		{
-			ReleaseRHIResources(RHICmdListImmediate);
-		}
-	}
-
 	void AddDumpTextureSubResourcePass(
 		FRDGBuilder& GraphBuilder,
 		TArray<TSharedPtr<FJsonValue>>& InputResourceNames,
@@ -1358,12 +1298,15 @@ public:
 		bool bAllowDumpBinary)
 	{
 		int32 DumpTextureMode = GDumpTextureCVar.GetValueOnRenderThread();
-
-		if (DumpTextureMode == 0)
+		
+		// We can't dump memoryless textures
+		bool IsMemoryless = EnumHasAnyFlags(SubresourceDesc.Texture->Desc.Flags, TexCreate_Memoryless);
+		
+		if (DumpTextureMode == 0 || IsMemoryless)
 		{
 			return;
 		}
-
+ 
 		const FRDGTextureDesc& Desc = SubresourceDesc.Texture->Desc;
 		const FString UniqueResourceSubResourceName = GetUniqueSubResourceName(SubresourceDesc);
 		const FTextureSubresourceDumpDesc SubresourceDumpDesc = TranslateSubresourceDumpDesc(SubresourceDesc);
@@ -1977,18 +1920,15 @@ public:
 			bDumpPass = WildcardFilter.IsMatch(Pass->GetEventName().GetTCHAR());
 		}
 
-		#if RDG_GPU_DEBUG_SCOPES
-		if (!bDumpPass)
+#if RDG_EVENTS
+		for (FRDGScope const* ParentScope = Pass->GetScope(); !bDumpPass && ParentScope; ParentScope = ParentScope->Parent)
 		{
-			const FRDGEventScope* ParentScope = Pass->GetGPUScopes().Event;
-
-			while (ParentScope)
+			if (FRDGScope_RHI const* RHIScope = ParentScope->Get<FRDGScope_RHI>())
 			{
-				bDumpPass = bDumpPass || WildcardFilter.IsMatch(ParentScope->Name.GetTCHAR());
-				ParentScope = ParentScope->ParentScope;
+				bDumpPass = WildcardFilter.IsMatch(RHIScope->Name.GetTCHAR());
 			}
 		}
-		#endif
+#endif // RDG_EVENTS
 
 		return bDumpPass;
 	}
@@ -2011,6 +1951,7 @@ static FRDGResourceDumpContext* GRDGResourceDumpContext_GameThread = nullptr;
 static FRDGResourceDumpContext* GRDGResourceDumpContext_RenderThread = nullptr;
 
 static float GNextDumpingRemainingTime = -1.0f;
+static int32 GNextDumpingRemaingFrames = -1;
 static FRDGResourceDumpContext* GNextRDGResourceDumpContext = nullptr;
 
 
@@ -2102,6 +2043,12 @@ FString FRDGBuilder::BeginResourceDump(const TCHAR* Cmd)
 		}
 	}
 
+	// Override frame count CVar, and just capture one frame.  Used for scene capture dumps, where they aren't going to run more than one frame.
+	if (Switches.Contains(TEXT("oneframe")))
+	{
+		NewResourceDumpContext->FrameCount = 1;
+	}
+
 	if (NewResourceDumpContext->bUpload)
 	{
 		if (GDumpGPUUploadCompressResources.GetValueOnGameThread() == 1)
@@ -2122,6 +2069,11 @@ FString FRDGBuilder::BeginResourceDump(const TCHAR* Cmd)
 	{
 		GNextDumpingRemainingTime = GDumpGPUDelay.GetValueOnGameThread();
 		UE_LOG(LogDumpGPU, Display, TEXT("DumpGPU to %s armed for %d frames starting in %f seconds."), *NewResourceDumpContext->DumpingDirectoryPath, NewResourceDumpContext->FrameCount, GNextDumpingRemainingTime);
+	}
+	else if (GDumpGPUFrameDelay.GetValueOnGameThread() > 0)
+	{
+		GNextDumpingRemaingFrames = GDumpGPUFrameDelay.GetValueOnGameThread();
+		UE_LOG(LogDumpGPU, Display, TEXT("DumpGPU to %s armed for %d frames starting in %d frames."), *NewResourceDumpContext->DumpingDirectoryPath, NewResourceDumpContext->FrameCount, GNextDumpingRemaingFrames);
 	}
 	else
 	{
@@ -2462,6 +2414,7 @@ void FRDGBuilder::DumpResourcePassOutputs(const FRDGPass* Pass)
 		}
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
+		case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 		{
 			if (FRDGTextureSRVRef SRV = Parameter.GetAsTextureSRV())
 			{
@@ -2625,18 +2578,23 @@ void FRDGBuilder::DumpResourcePassOutputs(const FRDGPass* Pass)
 	// Dump the pass informations
 	{
 		TArray<TSharedPtr<FJsonValue>> ParentEventScopeNames;
-		#if RDG_GPU_DEBUG_SCOPES
 		{
-			const FRDGEventScope* ParentScope = Pass->GetGPUScopes().Event;
-
-			while (ParentScope)
+#if RDG_EVENTS
+			FRDGScope const* ParentScope = Pass->GetScope();
+			if (ParentScope)
 			{
-				ParentEventScopeNames.Add(MakeShareable(new FJsonValueString(ParentScope->Name.GetTCHAR())));
-				ParentScope = ParentScope->ParentScope;
+				// FRDGScopeState sets ERDGScopeMode::AllEventsAndPassNames when DumpGPU is active.
+				ParentScope = ParentScope->Parent;
 			}
-		}
-		#endif
-		{
+			for (; ParentScope; ParentScope = ParentScope->Parent)
+			{
+				if (FRDGScope_RHI const* RHIScope = ParentScope->Get<FRDGScope_RHI>())
+				{
+					ParentEventScopeNames.Add(MakeShareable(new FJsonValueString(RHIScope->Name.GetTCHAR())));
+				}
+			}
+#endif // RDG_EVENTS
+
 			ParentEventScopeNames.Add(MakeShareable(new FJsonValueString(FString::Printf(TEXT("Frame %llu (Delta=%fs)"), GFrameCounterRenderThread, ResourceDumpContext->DeltaTime))));
 		}
 
@@ -2687,201 +2645,10 @@ void FRDGBuilder::DumpResourcePassOutputs(const FRDGPass* Pass)
 	ResourceDumpContext->PassesCount++;
 }
 
-#if RDG_DUMP_RESOURCES_AT_EACH_DRAW
-
-void FRDGBuilder::BeginPassDump(const FRDGPass* Pass)
-{
-	if (!GRDGResourceDumpContext_RenderThread)
-	{
-		return;
-	}
-
-	FRDGResourceDumpContext* ResourceDumpContext = GRDGResourceDumpContext_RenderThread;
-
-	if (!GDumpGPUDraws.GetValueOnRenderThread())
-	{
-		return;
-	}
-
-	if (!EnumHasAnyFlags(Pass->GetFlags(), ERDGPassFlags::Raster))
-	{
-		return;
-	}
-
-	if (!IsInRenderingThread())
-	{
-		UE_LOG(LogDumpGPU, Warning, TEXT("Couldn't start dumping draw's resources for pass %s because not in the rendering thread"), Pass->GetEventName().GetTCHAR());
-		return;
-	}
-
-	check(ResourceDumpContext->DrawDumpingPass == nullptr);
-
-	if (ResourceDumpContext->IsDumpingPass(Pass))
-	{
-		ResourceDumpContext->DrawDumpingPass = Pass;
-		ResourceDumpContext->DrawDumpCount = 0;
-	}
-}
-
-// static
-void FRDGBuilder::DumpDraw(const FRDGEventName& DrawEventName)
-{
-	if (!GRDGResourceDumpContext_RenderThread)
-	{
-		return;
-	}
-
-	if (!IsInRenderingThread())
-	{
-		UE_LOG(LogDumpGPU, Warning, TEXT("Couldn't dump draw because not in the rendering thread"));
-		return;
-	}
-
-	FRDGResourceDumpContext* ResourceDumpContext = GRDGResourceDumpContext_RenderThread;
-
-	if (!ResourceDumpContext->DrawDumpingPass)
-	{
-		return;
-	}
-
-	const FRDGPass* Pass = ResourceDumpContext->DrawDumpingPass;
-
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-	if (EnumHasAnyFlags(Pass->GetFlags(), ERDGPassFlags::Raster))
-	{
-		RHICmdList.EndRenderPass();
-	}
-
-	Pass->GetParameters().Enumerate([&](FRDGParameter Parameter)
-	{
-		switch (Parameter.GetType())
-		{
-		case UBMT_RENDER_TARGET_BINDING_SLOTS:
-		{
-			const FRenderTargetBindingSlots& RenderTargets = Parameter.GetAsRenderTargetBindingSlots();
-
-			RenderTargets.Enumerate([&](FRenderTargetBinding RenderTarget)
-			{
-				FRDGTextureRef Texture = RenderTarget.GetTexture();
-				FRDGTextureSRVDesc TextureSubResource = FRDGTextureSRVDesc::CreateForMipLevel(Texture, RenderTarget.GetMipIndex());
-				ResourceDumpContext->DumpDrawTextureSubResource(
-					RHICmdList,
-					TextureSubResource,
-					ERHIAccess::RTV);
-			});
-
-			const FDepthStencilBinding& DepthStencil = RenderTargets.DepthStencil;
-
-			if (FRDGTextureRef Texture = DepthStencil.GetTexture())
-			{
-				FExclusiveDepthStencil DepthStencilAccess = DepthStencil.GetDepthStencilAccess();
-
-				if (DepthStencilAccess.IsDepthWrite())
-				{
-					FRDGTextureSRVDesc TextureSubResource = FRDGTextureSRVDesc::CreateForMipLevel(Texture, 0);
-					ResourceDumpContext->DumpDrawTextureSubResource(
-						RHICmdList,
-						TextureSubResource,
-						ERHIAccess::RTV);
-				}
-
-				if (DepthStencilAccess.IsStencilWrite())
-				{
-					FRDGTextureSRVDesc TextureSubResource = FRDGTextureSRVDesc::CreateWithPixelFormat(Texture, PF_X24_G8);
-					ResourceDumpContext->DumpDrawTextureSubResource(
-						RHICmdList,
-						TextureSubResource,
-						ERHIAccess::RTV);
-				}
-			}
-		}
-		break;
-		}
-	});
-
-	if (EnumHasAnyFlags(Pass->GetFlags(), ERDGPassFlags::Raster))
-	{
-		RHICmdList.BeginRenderPass(Pass->GetParameters().GetRenderPassInfo(), Pass->GetName());
-	}
-
-	// Dump the draw even name
-	{
-		TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
-		JsonObject->SetStringField(TEXT("DrawName"), DrawEventName.GetTCHAR());
-
-		FString DumpFilePath = FRDGResourceDumpContext::kPassesDir / FString::Printf(TEXT("Pass.%s.Draws.json"), *ResourceDumpContext->PtrToString(Pass));
-		ResourceDumpContext->DumpJsonToFile(JsonObject, DumpFilePath, FILEWRITE_Append);
-	}
-
-	ResourceDumpContext->DrawDumpCount++;
-
-	if (ResourceDumpContext->DrawDumpCount % 10 == 0)
-	{
-		UE_LOG(LogDumpGPU, Display, TEXT("Dumped %d draws' resources"), ResourceDumpContext->DrawDumpCount);
-		return;
-	}
-}
-
-void FRDGBuilder::EndPassDump(const FRDGPass* Pass)
-{
-	if (!GRDGResourceDumpContext_RenderThread)
-	{
-		return;
-	}
-
-	if (!IsInRenderingThread())
-	{
-		return;
-	}
-
-	FRDGResourceDumpContext* ResourceDumpContext = GRDGResourceDumpContext_RenderThread;
-
-	if (!ResourceDumpContext->DrawDumpingPass)
-	{
-		return;
-	}
-
-	check(Pass == ResourceDumpContext->DrawDumpingPass);
-
-	// Output how many draw has been dump for this pass.
-	if (ResourceDumpContext->DrawDumpCount > 0)
-	{
-		FString EventNameStorage;
-
-		TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
-		JsonObject->SetStringField(TEXT("EventName"), GetPassEventNameWithGPUMask(Pass, EventNameStorage));
-		JsonObject->SetStringField(TEXT("Pointer"), ResourceDumpContext->PtrToString(Pass));
-		JsonObject->SetNumberField(TEXT("DrawCount"), ResourceDumpContext->DrawDumpCount);
-
-		ResourceDumpContext->DumpJsonToFile(JsonObject, FString(FRDGResourceDumpContext::kBaseDir) / TEXT("PassDrawCounts.json"), FILEWRITE_Append);
-
-		UE_LOG(LogDumpGPU, Display, TEXT("Completed dump of %d draws for pass: %s"), ResourceDumpContext->DrawDumpCount, Pass->GetEventName().GetTCHAR());
-	}
-
-	ResourceDumpContext->DrawDumpingPass = nullptr;
-	ResourceDumpContext->DrawDumpCount = 0;
-}
-
-// static
 bool FRDGBuilder::IsDumpingFrame()
 {
 	return GRDGResourceDumpContext_RenderThread != nullptr;
 }
-
-bool FRDGBuilder::IsDumpingDraws()
-{
-	if (!FRDGBuilder::IsDumpingFrame())
-	{
-		return false;
-	}
-
-	return GDumpGPUDraws.GetValueOnRenderThread() != 0;
-}
-
-#endif // RDG_DUMP_RESOURCES_AT_EACH_DRAW
-
-
 
 namespace UE::RenderCore::DumpGPU
 {
@@ -2934,6 +2701,16 @@ void TickEndFrame()
 			if (GNextDumpingRemainingTime <= 0.0)
 			{
 				GNextDumpingRemainingTime = -1.0f;
+				GNextRDGResourceDumpContext->Start();
+			}
+		}
+		else if (GNextDumpingRemaingFrames > 0)
+		{
+			check(GNextRDGResourceDumpContext);
+			GNextDumpingRemaingFrames -= 1;
+			if (GNextDumpingRemaingFrames <= 0)
+			{
+				GNextDumpingRemaingFrames = -1;
 				GNextRDGResourceDumpContext->Start();
 			}
 		}

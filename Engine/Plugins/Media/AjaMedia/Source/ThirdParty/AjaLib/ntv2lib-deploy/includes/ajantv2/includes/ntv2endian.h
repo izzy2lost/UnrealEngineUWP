@@ -2,7 +2,7 @@
 /**
 	@file		ntv2endian.h
 	@brief		Defines a number of handy byte-swapping macros.
-	@copyright	(C) 2008-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2008-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef NTV2ENDIAN_H
@@ -34,7 +34,9 @@
 
 
 #if AJATargetBigEndian	//	BigEndian (BE) target host
-	
+
+	#define	NTV2HostIsBigEndian							(true)
+
 	// BigEndian-to-host (NetworkByteOrder-to-host)		(native)
 	#define NTV2EndianSwap16BtoH(__val__)				(__val__)
 	#define NTV2EndianSwap16HtoB(__val__)				(__val__)
@@ -52,7 +54,9 @@
 	#define NTV2EndianSwap64HtoL(__val__)				NTV2EndianSwap64(__val__)
 
 #else	// LittleEndian (LE) target host
-	
+
+	#define	NTV2HostIsBigEndian							(false)
+
 	// BigEndian-to-host (NetworkByteOrder-to-host)		(translate)
 	#define NTV2EndianSwap16BtoH(__val__)				NTV2EndianSwap16(__val__)
 	#define NTV2EndianSwap16HtoB(__val__)				NTV2EndianSwap16(__val__)

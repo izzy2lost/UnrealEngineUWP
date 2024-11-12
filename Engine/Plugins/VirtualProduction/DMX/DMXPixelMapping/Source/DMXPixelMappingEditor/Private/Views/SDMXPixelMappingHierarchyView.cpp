@@ -191,7 +191,6 @@ void SDMXPixelMappingHierarchyView::BuildChildSlotAndRefresh()
 			.Padding(4.f)
 			[
 				SAssignNew(HierarchyTreeView, STreeView<TSharedPtr<FDMXPixelMappingHierarchyItem>>)
-				.ItemHeight(20.0f)
 				.SelectionMode(ESelectionMode::Multi)
 				.HeaderRow(GenerateHeaderRow())
 				.OnGetChildren(FilterHandler.ToSharedRef(), &TreeFilterHandler<TSharedPtr<FDMXPixelMappingHierarchyItem>>::OnGetFilteredChildren)
@@ -222,7 +221,7 @@ TSharedRef<SHeaderRow> SDMXPixelMappingHierarchyView::GenerateHeaderRow()
 		HeaderRow->AddColumn(
 			SHeaderRow::FColumn::FArguments()
 			.ColumnId(FColumnIds::EditorColor)
-			.DefaultLabel(LOCTEXT("EditorColorColumnLabel", ""))
+			.DefaultLabel(FText())
 			.FixedWidth(16.f)
 			.VAlignHeader(VAlign_Center)
 		);

@@ -87,6 +87,7 @@ void FAnimGroupInstance::TestTickRecordForLeadership(EAnimGroupRole::Type Member
 			Candidate.LeaderScore = Candidate.EffectiveBlendWeight;
 			break;
 		case EAnimGroupRole::AlwaysLeader:
+		case EAnimGroupRole::ExclusiveAlwaysLeader:
 			// Always set the leader index
 			Candidate.LeaderScore = LEADERSCORE_ALWAYSLEADER;
 			break;
@@ -180,7 +181,7 @@ void FAnimGroupInstance::Prepare(const FAnimGroupInstance* PreviousGroup)
 						
 						if (!PlayerMarkerNames->Contains(MarkerName))
 						{
-							ValidMarkers.RemoveAtSwap(ValidMarkerIndex, 1, EAllowShrinking::No);
+							ValidMarkers.RemoveAtSwap(ValidMarkerIndex, EAllowShrinking::No);
 						}
 					}
 				}
@@ -284,6 +285,7 @@ FAnimTickRecord::FAnimTickRecord(UPoseAsset* InPoseAsset, float InFinalBlendWeig
 
 void FAnimTickRecord::GatherContextData(const FAnimationUpdateContext& InContext)
 {
+	bActiveContext = InContext.IsActive();
 	if(InContext.GetSharedContext())
 	{
 		TArray<TUniquePtr<const UE::Anim::IAnimNotifyEventContextDataInterface>> NewContextData;
@@ -471,72 +473,60 @@ bool UAnimationAsset::ReplaceSkeleton(USkeleton* NewSkeleton, bool bConvertSpace
 		// get all sequences that need to change
 		TArray<UAnimationAsset*> AnimAssetsToReplace;
 
-		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(this))
+		// Always add 'this' asset
+		AnimAssetsToReplace.Add(this);
+
+		// We dont use the return value from this function because we always add 'this' above
+		GetAllAnimationSequencesReferred(AnimAssetsToReplace);
+
+		TArray<UAnimSequence*> Sequences;
+
+		//Firstly need to remap
+		for (UAnimationAsset* AnimAsset : AnimAssetsToReplace)
 		{
-			AnimAssetsToReplace.AddUnique(AnimSequence);
-		}
-		if (GetAllAnimationSequencesReferred(AnimAssetsToReplace))
-		{
-			TArray<UAnimSequence*> Sequences;
-			
-			//Firstly need to remap
-			for (UAnimationAsset* AnimAsset : AnimAssetsToReplace)
+			//Make sure animation has finished loading before we start messing with it
+			if (FLinkerLoad* AnimLinker = AnimAsset->GetLinker())
 			{
-				//Make sure animation has finished loading before we start messing with it
-				if (FLinkerLoad* AnimLinker = AnimAsset->GetLinker())
-				{
-					AnimLinker->Preload(AnimAsset);
-				}
-				AnimAsset->ConditionalPostLoad();
+				AnimLinker->Preload(AnimAsset);
+			}
+			AnimAsset->ConditionalPostLoad();
 
-				if (AnimAsset->GetSkeleton() != GetSkeleton())
-				{
-					UE_LOG(LogAnimation, Warning, TEXT("AnimationAsset referencing asset using different skeleton. This will generate undeterministic builds. Please Fix the Asset : AnimationAsset: [%s] - ReferencedAsset : [%s]"), *GetName(), *AnimAsset->GetName());
-				}
-
-				// This ensure that in subsequent behaviour the RawData GUID is never 'new-ed' but always calculated from the 
-				// raw animation data itself.
-				if (UAnimSequence* Sequence = Cast<UAnimSequence>(AnimAsset))
-				{
-					Sequences.Add(Sequence);				
-				}
-				else
-				{
-					// these two are different functions for now
-					// technically if you have implementation for Remap, it will also set skeleton 
-					AnimAsset->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
-				}
+			if (AnimAsset->GetSkeleton() != GetSkeleton())
+			{
+				UE_LOG(LogAnimation, Warning, TEXT("AnimationAsset referencing asset using different skeleton. This will generate undeterministic builds and may cause additional warnings from undeterministic ordering of skeleton conforming. Please Fix the Asset : AnimationAsset: [%s] (Skeleton: [%s]) - ReferencedAsset : [%s] (Skeleton: [%s]) (Conforming Skeleton from [%s] to [%s]"),
+					*GetName(),
+					*GetSkeleton()->GetName(),
+					*AnimAsset->GetName(),
+					*AnimAsset->GetSkeleton()->GetName(),
+					*AnimAsset->GetSkeleton()->GetName(),
+					*NewSkeleton->GetName());
 			}
 
-			UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation(Sequences);
-			for (UAnimSequence* Sequence : Sequences)
-			{
-				Sequence->GetController().OpenBracket(LOCTEXT("ReplaceSkeleton_Bracket", "Replacing USkeleton"));
-				Sequence->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
-			}
-
-			//Second need to process anim sequences themselves. This is done in two stages as additives can rely on other animations.
-			for (UAnimSequence* Sequence : Sequences)
-			{
-				Sequence->GetController().CloseBracket();
-			}
-		}
-
-		UAnimSequence* Seq = Cast<UAnimSequence>(this);
-		{			
 			// This ensure that in subsequent behaviour the RawData GUID is never 'new-ed' but always calculated from the 
 			// raw animation data itself.
-			if (Seq)
+			if (UAnimSequence* Sequence = Cast<UAnimSequence>(AnimAsset))
 			{
-				Seq->GetController().OpenBracket(LOCTEXT("ReplaceSkeleton_Bracket", "Replacing USkeleton"));
+				Sequences.Add(Sequence);
 			}
-  
-			RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
+			else
+			{
+				// these two are different functions for now
+				// technically if you have implementation for Remap, it will also set skeleton 
+				AnimAsset->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
+			}
+		}
 
-			if (Seq)
-			{
-				Seq->GetController().CloseBracket();
-			}
+		UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation(Sequences);
+		for (UAnimSequence* Sequence : Sequences)
+		{
+			Sequence->GetController().OpenBracket(LOCTEXT("ReplaceSkeleton_Bracket", "Replacing USkeleton"));
+			Sequence->RemapTracksToNewSkeleton(NewSkeleton, bConvertSpaces);
+		}
+
+		//Second need to process anim sequences themselves. This is done in two stages as additives can rely on other animations.
+		for (UAnimSequence* Sequence : Sequences)
+		{
+			Sequence->GetController().CloseBracket();
 		}
 
 		return true;

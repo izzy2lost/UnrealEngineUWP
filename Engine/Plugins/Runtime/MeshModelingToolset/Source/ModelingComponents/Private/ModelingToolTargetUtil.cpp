@@ -26,12 +26,24 @@
 #include "MeshDescriptionToDynamicMesh.h"
 #include "DynamicMeshToMeshDescription.h"
 #include "StaticMeshAttributes.h"
+#if WITH_EDITOR
+#include "StaticMeshCompiler.h"
+#include "SkinnedAssetCompiler.h"
+#endif
 
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 
 #define LOCTEXT_NAMESPACE "ModelingToolTargetUtil"
 
 using namespace UE::Geometry;
+
+namespace UE::ToolTarget::Internal
+{
+	static TAutoConsoleVariable<bool> CVarCapturePostEditChangeInTransactions(
+	TEXT("modeling.CapturePostEditChangeInTransactions"),
+	true,
+	TEXT("When true, PostEditChange will be included in tool-target based tool transactions."));
+}
 
 AActor* UE::ToolTarget::GetTargetActor(UToolTarget* Target)
 {
@@ -212,8 +224,35 @@ FMeshDescription UE::ToolTarget::GetMeshDescriptionCopy(UToolTarget* Target, con
 	return FMeshDescription();
 }
 
-
 FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents)
+{
+	FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = bWantMeshTangents;
+	return GetDynamicMeshCopy(Target, GetMeshParams);
+}
+
+int32 UE::ToolTarget::GetTriangleCount(UToolTarget* Target)
+{
+	IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);
+	if (DynamicMeshSource)
+	{
+		UDynamicMesh* DynamicMesh = DynamicMeshSource->GetDynamicMeshContainer();
+		return DynamicMesh->GetTriangleCount();
+	}
+
+	IMeshDescriptionProvider* MeshDescriptionProvider = Cast<IMeshDescriptionProvider>(Target);
+	if (MeshDescriptionProvider)
+	{
+		if (const FMeshDescription* MeshDescription = MeshDescriptionProvider->GetMeshDescription())
+		{
+			return MeshDescription->Triangles().Num();
+		}
+	}
+
+	return 0;
+}
+
+FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, const FGetMeshParameters& InGetMeshParams)
 {
 	IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);
 	if (DynamicMeshSource)
@@ -227,7 +266,7 @@ FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWant
 	IDynamicMeshProvider* DynamicMeshProvider = Cast<IDynamicMeshProvider>(Target);
 	if (DynamicMeshProvider)
 	{
-		return DynamicMeshProvider->GetDynamicMesh(bWantMeshTangents);
+		return DynamicMeshProvider->GetDynamicMesh(InGetMeshParams);
 	}
 
 	IMeshDescriptionProvider* MeshDescriptionProvider = Cast<IMeshDescriptionProvider>(Target);
@@ -236,17 +275,16 @@ FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWant
 	if (MeshDescriptionProvider)
 	{
 		FMeshDescriptionToDynamicMesh Converter;
-		Converter.bVIDsFromNonManifoldMeshDescriptionAttr= true;
-		if (bWantMeshTangents)
+		Converter.bVIDsFromNonManifoldMeshDescriptionAttr = true;
+		Converter.SetPolygonGroupToMaterialIndexMap(MeshDescriptionProvider->GetPolygonGroupToMaterialIndexMap());
+		if (InGetMeshParams.bWantMeshTangents)
 		{
-			FGetMeshParameters GetMeshParams;
-			GetMeshParams.bWantMeshTangents = true;
-			FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider->GetMeshDescriptionCopy(GetMeshParams);
-			Converter.Convert(&MeshDescriptionCopy, Mesh, bWantMeshTangents);
+			const FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider->GetMeshDescriptionCopy(InGetMeshParams);
+			Converter.Convert(&MeshDescriptionCopy, Mesh, InGetMeshParams.bWantMeshTangents);
 		}
 		else
 		{
-			Converter.Convert(MeshDescriptionProvider->GetMeshDescription(), Mesh, bWantMeshTangents);
+			Converter.Convert(MeshDescriptionProvider->GetMeshDescription(InGetMeshParams), Mesh);
 		}
 
 		return Mesh;
@@ -304,6 +342,7 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitMeshDescriptionUp
 	}
 
 	FDynamicMeshToMeshDescription Converter;
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 	FMeshDescription ConvertedMesh;
 	if (bHaveModifiedTopology)
 	{
@@ -395,6 +434,7 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitDynamicMeshUpdate
 	{
 		FMeshDescription ConvertedMesh;
 		FDynamicMeshToMeshDescription Converter(ConversionOptions);
+		Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 		if (!bHaveModifiedTopology)
 		{
 			Converter.UpdateUsingConversionOptions(&UpdatedMesh, ConvertedMesh);
@@ -446,15 +486,15 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitDynamicMeshUVUpda
 	FMeshDescription NewMeshDescription = UE::ToolTarget::GetMeshDescriptionCopy(Target);
 	bool bVerticesOnly = false;
 	bool bAttributesOnly = true;
+	FDynamicMeshToMeshDescription Converter;
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 	if (FDynamicMeshToMeshDescription::HaveMatchingElementCounts(UpdatedMesh, &NewMeshDescription, bVerticesOnly, bAttributesOnly))
 	{
-		FDynamicMeshToMeshDescription Converter;
 		Converter.UpdateAttributes(UpdatedMesh, NewMeshDescription, false, false, true/*update uvs*/);
 	}
 	else
 	{
 		// must have been duplicate tris in the mesh description; we can't count on 1-to-1 mapping of TriangleIDs.  Just convert 
-		FDynamicMeshToMeshDescription Converter;
 		Converter.Convert(UpdatedMesh, NewMeshDescription);
 	}
 
@@ -497,15 +537,15 @@ UE::ToolTarget::EDynamicMeshUpdateResult UE::ToolTarget::CommitDynamicMeshNormal
 	FMeshDescription NewMeshDescription = UE::ToolTarget::GetMeshDescriptionCopy(Target);
 	bool bVerticesOnly = false;
 	bool bAttributesOnly = true;
+	FDynamicMeshToMeshDescription Converter;
+	Converter.SetMaterialIDMapFromInverseMap(MeshDescriptionCommitter->GetPolygonGroupToMaterialIndexMap());
 	if (FDynamicMeshToMeshDescription::HaveMatchingElementCounts(UpdatedMesh, &NewMeshDescription, bVerticesOnly, bAttributesOnly))
 	{
-		FDynamicMeshToMeshDescription Converter;
 		Converter.UpdateAttributes(UpdatedMesh, NewMeshDescription, true, bUpdateTangents, false);
 	}
 	else
 	{
 		// must have been duplicate tris in the mesh description; we can't count on 1-to-1 mapping of TriangleIDs.  Just convert 
-		FDynamicMeshToMeshDescription Converter;
 		Converter.Convert(UpdatedMesh, NewMeshDescription);
 	}
 
@@ -606,6 +646,33 @@ USkeletalMesh* UE::ToolTarget::GetSkeletalMeshFromTargetIfAvailable(UToolTarget*
 	return TargetSkeletalMesh;
 }
 
+#if WITH_EDITOR
+void UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(UObject* Object)
+{
+	if (CVarCapturePostEditChangeInTransactions->GetBool())
+	{
+		Object->PostEditChange();
+	}
+	else
+	{
+		TGuardValue<ITransaction*> SuppressTransaction(GUndo, nullptr);
+		Object->PostEditChange();
+
+		// For StaticMesh & SkeletalMesh, we additionally block on the StaticMesh/SkeletalMesh build
+		// to ensure it completes while transactions are disabled. This is necessary because
+		// closing out the transaction scope will force the compile to complete outside of this scope
+		// where transactions are still captured.
+		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Object))
+		{
+			FStaticMeshCompilingManager::Get().FinishCompilation({StaticMesh});
+		}
+		else if (USkinnedAsset* SkinnedAsset = Cast<USkinnedAsset>(Object))
+		{
+			FSkinnedAssetCompilingManager::Get().FinishCompilation({SkinnedAsset});
+		}
+	}
+}
+#endif
 
 
 #undef LOCTEXT_NAMESPACE

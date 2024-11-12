@@ -56,6 +56,18 @@ RHI_API bool IsRHIDeviceNVIDIA();
 // to trigger GPU specific optimizations and fallbacks
 RHI_API bool IsRHIDeviceApple();
 
+namespace UE::RHI
+{
+	// Returns true when GPU crash debugging is enabled.
+	RHI_API bool UseGPUCrashDebugging();
+
+	// True when using engine-managed GPU breadcrumb tracking
+	RHI_API bool UseGPUCrashBreadcrumbs();
+
+	// Used to determine whether specific GPU crash debugging features are enabled given the combination of command line switches and console variable settings
+	RHI_API bool ShouldEnableGPUCrashFeature(IConsoleVariable& CVar, TCHAR const* CommandLineSwitch);
+}
+
 // helper to return the shader language version for Metal shader.
 RHI_API uint32 RHIGetMetalShaderLanguageVersion(const FStaticShaderPlatform Platform);
 
@@ -70,6 +82,9 @@ RHI_API int32 RHIGetPreferredClearUAVRectPSResourceType(const FStaticShaderPlatf
 
 // helper to force dump all RHI resource to CSV file
 RHI_API void RHIDumpResourceMemoryToCSV();
+
+// helper to check whether rendering to volume textures is supported. This takes both GSupportsVolumeTextureRendering and DDPI entries into account as this is dependent on the preview platform.
+RHI_API bool RHISupportsVolumeTextureRendering(const FStaticShaderPlatform Platform);
 
 struct FRHIResourceStats
 {
@@ -210,45 +225,6 @@ struct FVertexElement
 };
 
 typedef TArray<FVertexElement,TFixedAllocator<MaxVertexElementCount> > FVertexDeclarationElementList;
-
-/** RHI representation of a single stream out element. */
-//#todo-RemoveStreamOut
-struct UE_DEPRECATED(5.3, "StreamOut is not supported") FStreamOutElement
-{
-	/** Index of the output stream from the geometry shader. */
-	uint32 Stream;
-
-	/** Semantic name of the output element as defined in the geometry shader.  This should not contain the semantic number. */
-	const ANSICHAR* SemanticName;
-
-	/** Semantic index of the output element as defined in the geometry shader.  For example "TEXCOORD5" in the shader would give a SemanticIndex of 5. */
-	uint32 SemanticIndex;
-
-	/** Start component index of the shader output element to stream out. */
-	uint8 StartComponent;
-
-	/** Number of components of the shader output element to stream out. */
-	uint8 ComponentCount;
-
-	/** Stream output target slot, corresponding to the streams set by RHISetStreamOutTargets. */
-	uint8 OutputSlot;
-
-	FStreamOutElement() {}
-	FStreamOutElement(uint32 InStream, const ANSICHAR* InSemanticName, uint32 InSemanticIndex, uint8 InComponentCount, uint8 InOutputSlot) :
-		Stream(InStream),
-		SemanticName(InSemanticName),
-		SemanticIndex(InSemanticIndex),
-		StartComponent(0),
-		ComponentCount(InComponentCount),
-		OutputSlot(InOutputSlot)
-	{}
-};
-
-//#todo-RemoveStreamOut
-UE_DEPRECATED(5.3, "StreamOut is not supported")
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-typedef TArray<FStreamOutElement,TFixedAllocator<MaxVertexElementCount> > FStreamOutElementList;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 struct FSamplerStateInitializerRHI
 {
@@ -660,25 +636,3 @@ inline uint32 GetExpectedFeatureLevelMaxTextureSamplers(const FStaticFeatureLeve
 RHI_API ERHIBindlessConfiguration RHIParseBindlessConfiguration(EShaderPlatform Platform, const FString& ConfigSetting, const FString& CvarSetting);
 RHI_API ERHIBindlessConfiguration RHIGetRuntimeBindlessResourcesConfiguration(EShaderPlatform Platform);
 RHI_API ERHIBindlessConfiguration RHIGetRuntimeBindlessSamplersConfiguration(EShaderPlatform Platform);
-
-UE_DEPRECATED(5.3, "RHIGetRuntimeBindlessResourcesConfiguration should be used instead")
-inline ERHIBindlessConfiguration RHIGetBindlessResourcesConfiguration(EShaderPlatform Platform)
-{
-	return RHIGetRuntimeBindlessResourcesConfiguration(Platform);
-}
-UE_DEPRECATED(5.3, "RHIGetRuntimeBindlessSamplersConfiguration should be used instead")
-inline ERHIBindlessConfiguration RHIGetBindlessSamplersConfiguration(EShaderPlatform Platform)
-{
-	return RHIGetRuntimeBindlessSamplersConfiguration(Platform);
-}
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIStrings.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "CoreMinimal.h"
-#include "ProfilingDebugging/CsvProfilerConfig.h"
-#include "RHIUtilities.h"
-#include "Stats/Stats.h"
-#endif

@@ -2,6 +2,10 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+
+#if PLATFORM_WINDOWS
+
 #include "Templates/RefCounting.h"
 
 #include "AVContext.h"
@@ -107,3 +111,5 @@ DECLARE_TYPEID(FVideoContextD3D11, AVCODECSCORE_API);
 DECLARE_TYPEID(FVideoContextD3D12, AVCODECSCORE_API);
 DECLARE_TYPEID(FVideoResourceD3D11, AVCODECSCORE_API);
 DECLARE_TYPEID(FVideoResourceD3D12, AVCODECSCORE_API);
+
+#endif

@@ -28,6 +28,8 @@ class FSubobjectEditorTreeNode;
 class FDisplayClusterConfiguratorBlueprintEditor
 	: public IDisplayClusterConfiguratorBlueprintEditor
 {
+	using Super = IDisplayClusterConfiguratorBlueprintEditor;
+
 public:
 	/** Registers any panel extension factories needed for the blueprint editor */
 	static void RegisterPanelExtensionFactory();
@@ -145,6 +147,8 @@ protected:
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
 	virtual void OnClose() override;
 	virtual void Compile() override;
+	virtual void CreateDefaultTabContents(const TArray<UBlueprint*>& InBlueprints) override;
+	virtual void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End FBlueprintEditor Interface
 
 	// SSCS Implementation

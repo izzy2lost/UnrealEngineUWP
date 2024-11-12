@@ -111,6 +111,14 @@ void SMediaPlayerEditorMediaDetails::Construct(const FArguments& InArgs,
 								[
 									SAssignNew(NumTilesText, STextBlock)
 								]
+							// Start Timecode.
+							+ SVerticalBox::Slot()
+								.AutoHeight()
+								.VAlign(VAlign_Center)
+								.Padding(4.0f)
+								[
+									SAssignNew(StartTimecodeText, STextBlock)
+								]
 						]
 				]
 
@@ -139,6 +147,7 @@ void SMediaPlayerEditorMediaDetails::UpdateDetails()
 	int64 ResourceSize = 0;
 	int32 SurfaceWidth = 0;
 	int32 SurfaceHeight = 0;
+	FString StartTimecode;
 
 	// Get player info.
 	if (MediaPlayer != nullptr)
@@ -148,6 +157,7 @@ void SMediaPlayerEditorMediaDetails::UpdateDetails()
 		FIntPoint NumTiles(EForceInit::ForceInitToZero);
 		MediaPlayer->GetMediaInfo<FIntPoint>(NumTiles, UMediaPlayer::MediaInfoNameSourceNumTiles.Resolve());
 		NumTotalTiles = NumTiles.X * NumTiles.Y;
+		MediaPlayer->GetMediaInfo<FString>(StartTimecode, UMediaPlayer::MediaInfoNameStartTimecodeValue.Resolve());
 	}
 
 	// Get texture info,
@@ -172,14 +182,20 @@ void SMediaPlayerEditorMediaDetails::UpdateDetails()
 	LODBiasText->SetText(FText::Format(LOCTEXT("LODBias", "Combined LOD Bias: {0}"),
 		FText::AsNumber(LODBias)));
 	MethodText->SetText(FText::Format(LOCTEXT("Method", "Method: {0}"), Method));
-	NumMipsText->SetText(FText::Format(LOCTEXT("NumberOfMips", "Number Of Mips: {0}"),
+	NumMipsText->SetText(FText::Format(LOCTEXT("NumberOfMips", "Mips Qty: {0}"),
 		FText::AsNumber(NumMips)));
-	NumTilesText->SetText(FText::Format(LOCTEXT("NumberOfTiles", "Number Of Tiles: {0}"),
+	NumTilesText->SetText(FText::Format(LOCTEXT("NumberOfTiles", "Tiles Qty: {0}"),
 		FText::AsNumber(NumTotalTiles)));
 	ResolutionText->SetText(FText::Format(LOCTEXT("Resolution", "Resolution: {0}x{1}"),
 		FText::AsNumber(SurfaceWidth), FText::AsNumber(SurfaceHeight)));
 	ResourceSizeText->SetText(FText::Format(LOCTEXT("ResourceSize", "Resource Size: {0} KB"),
 		FText::AsNumber(ResourceSize)));
+	
+	if (!StartTimecode.IsEmpty())
+	{
+		StartTimecodeText->SetText(FText::Format(LOCTEXT("StartTimecode", "Start Timecode: {0}"), FText::FromString(StartTimecode)));
+	}
+	StartTimecodeText->SetVisibility(!StartTimecode.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed);
 }
 
 #undef LOCTEXT_NAMESPACE

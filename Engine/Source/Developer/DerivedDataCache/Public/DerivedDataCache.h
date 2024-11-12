@@ -3,14 +3,13 @@
 #pragma once
 
 #include "Containers/ContainersFwd.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringFwd.h"
 #include "CoreTypes.h"
 #include "DerivedDataCacheKey.h"
 #include "DerivedDataCachePolicy.h"
 #include "DerivedDataCacheRecord.h"
 #include "DerivedDataRequestTypes.h"
-#include "DerivedDataSharedString.h"
-#include "DerivedDataSharedStringFwd.h"
 #include "DerivedDataValue.h"
 #include "DerivedDataValueId.h"
 #include "IO/IoHash.h"

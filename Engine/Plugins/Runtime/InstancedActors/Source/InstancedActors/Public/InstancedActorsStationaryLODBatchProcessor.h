@@ -4,7 +4,7 @@
 
 #include "MassProcessor.h"
 #include "InstancedActorsTypes.h"
-#include "SharedStruct.h"
+#include "StructUtils/SharedStruct.h"
 #include "InstancedActorsStationaryLODBatchProcessor.generated.h"
 
 
@@ -26,18 +26,4 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category="Mass", config)
 	double DelayPerBulkLOD[(int)EInstancedActorsBulkLOD::MAX];
-
-	struct FNextTickSharedFragment
-	{
-		FSharedStruct SharedStruct;
-		double NextTickTime = 0;
-
-		bool operator<(const FNextTickSharedFragment& Other) const
-		{
-			return NextTickTime < Other.NextTickTime;
-		}
-	};
-
-	/** The container storing a sorted queue of FSharedStruct instances, ordered by the NextTickTime */
-	TArray<FNextTickSharedFragment> SortedSharedFragments;
 };

@@ -64,6 +64,38 @@ FGraphVertexHandle UGraph::CreateVertex(FGraphUniqueIndex InUniqueIndex)
 	return Vertex->Handle();
 }
 
+void UGraph::ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle)
+{
+	UGraphVertex* Vertex = GetSafeVertexFromHandle(OldVertexHandle);
+	if (!ensure(Vertex))
+	{
+		return;
+	}
+
+	// Update vertex
+	Vertex->SetUniqueIndex(NewVertexHandle.GetUniqueIndex());
+
+	Vertices.Remove(OldVertexHandle);
+	Vertices.Add(NewVertexHandle, Vertex);
+
+	// Update edges. We use that it is bidirectional to only modify the edges of the adjacent vertices. 
+	Vertex->ForEachAdjacentVertex(
+		[this, &OldVertexHandle, &NewVertexHandle](const FGraphVertexHandle& EdgeVertexHandle)
+		{
+			UGraphVertex* EdgeNode = GetSafeVertexFromHandle(EdgeVertexHandle);
+			if (ensure(EdgeNode))
+			{
+				EdgeNode->ChangeEdgeVertexHandle(OldVertexHandle, NewVertexHandle);
+			}
+		});
+
+	// Update island
+	if (UGraphIsland* Island = Vertex->GetParentIsland().GetIsland())
+	{
+		Island->ChangeVertexHandle(OldVertexHandle, NewVertexHandle);
+	}
+}
+
 void UGraph::RegisterVertex(TObjectPtr<UGraphVertex> Vertex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RegisterVertex);
@@ -133,6 +165,7 @@ bool UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, bool
 	// Also need to make sure the nodes are aware of the new edge.
 	Node1Ptr->AddEdgeTo(Node2);
 	Node2Ptr->AddEdgeTo(Node1);
+	OnEdgeCreated.Broadcast(FEdgeSpecifier{Node1, Node2});
 
 	// If we want to keep track of islands, this is where we need to create/merge islands.
 	if (Properties.bGenerateIslands)
@@ -536,6 +569,8 @@ void UGraph::RemoveEdgeInternal(const FGraphVertexHandle& VertexHandleA, const F
 			IslandHandle = NodeB->GetParentIsland();
 		}
 	}
+
+	OnEdgeRemoved.Broadcast(FEdgeSpecifier{VertexHandleA, VertexHandleB});
 	
 	// Removing an edge should cause the island to check if it needs to split.
 	if (Properties.bGenerateIslands && bHandleIslands)
@@ -600,9 +635,15 @@ void UGraph::RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island)
 		// This let's all the listeners of the islands make a decision on what to do with
 		// the island that had a destructive change to its connected components as well as
 		// the newly created islands.
-		for (TObjectPtr<UGraphIsland>& AffectedIsland : AffectedIslands)
+		for (UGraphIsland* AffectedIsland : AffectedIslands)
 		{
-			AffectedIsland->HandleOnConnectivityChanged();
+			if (!AffectedIsland)
+			{
+				continue;
+			}
+
+			const EGraphIslandConnectivityChange ChangeType = (AffectedIsland == Island) ? EGraphIslandConnectivityChange::SplitFrom : EGraphIslandConnectivityChange::SplitTo;
+			AffectedIsland->HandleOnConnectivityChanged(ChangeType);
 		}
 	}
 }
@@ -678,7 +719,7 @@ void UGraph::FinalizeVertex(const FGraphVertexHandle& InHandle)
 
 	if (TObjectPtr<UGraphIsland> Island = IslandHandle.GetIsland())
 	{
-		Island->HandleOnConnectivityChanged();
+		Island->HandleOnConnectivityChanged(EGraphIslandConnectivityChange::VertexAdd);
 	}
 }
 

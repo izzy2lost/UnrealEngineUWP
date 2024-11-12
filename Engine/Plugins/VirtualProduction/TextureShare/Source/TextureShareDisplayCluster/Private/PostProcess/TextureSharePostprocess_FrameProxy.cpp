@@ -51,7 +51,7 @@ void FTextureSharePostprocess::ShareViewport_RenderThread(FRHICommandListImmedia
 					const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& PrjPolicy = ViewportProxyIt->GetProjectionPolicy_RenderThread();
 					if (PrjPolicy->ShouldUseAdditionalTargetableResource())
 					{
-						TArray<FRHITexture2D*> Resources;
+						TArray<FRHITexture*> Resources;
 						if (ViewportProxyIt->GetResources_RenderThread(EDisplayClusterViewportResourceType::AdditionalTargetableResource, Resources) && Resources.Num())
 						{
 							ResourceType = EDisplayClusterViewportResourceType::AdditionalTargetableResource;
@@ -61,7 +61,7 @@ void FTextureSharePostprocess::ShareViewport_RenderThread(FRHICommandListImmedia
 
 				const bool bMonoscopic = ViewportProxyIt->GetContexts_RenderThread().Num() == 1;
 
-				TArray<FRHITexture2D*> ViewportResources;
+				TArray<FRHITexture*> ViewportResources;
 				TArray<FIntRect> ViewportResourceRects;
 				if (ViewportProxyIt->GetResourcesWithRects_RenderThread(ResourceType, ViewportResources, ViewportResourceRects))
 				{
@@ -91,12 +91,12 @@ void FTextureSharePostprocess::ShareFrame_RenderThread(FRHICommandListImmediate&
 {
 	if (InViewportManagerProxy)
 	{
-		TArray<FRHITexture2D*> FrameResources;
-		TArray<FRHITexture2D*> AdditionalFrameResources;
+		TArray<FRHITexture*> FrameResources;
+		TArray<FRHITexture*> AdditionalFrameResources;
 		TArray<FIntPoint> TargetOffsets;
 		if (InViewportManagerProxy->GetFrameTargets_RenderThread(FrameResources, TargetOffsets, &AdditionalFrameResources))
 		{
-			TArray<FRHITexture2D*>& SharedResources = (InResourceType == EDisplayClusterViewportResourceType::AdditionalFrameTargetableResource)
+			TArray<FRHITexture*>& SharedResources = (InResourceType == EDisplayClusterViewportResourceType::AdditionalFrameTargetableResource)
 				? AdditionalFrameResources : FrameResources;
 
 			const bool bMonoscopic = SharedResources.Num() == 1;

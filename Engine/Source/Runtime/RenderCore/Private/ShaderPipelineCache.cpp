@@ -538,7 +538,7 @@ namespace UE
 							delete ShutdownReadCompileTasks[i].ReadRequests;
 							ShutdownReadCompileTasks[i].ReadRequests = nullptr;
 
-							ShutdownReadCompileTasks.RemoveAtSwap(i, 1, EAllowShrinking::No);
+							ShutdownReadCompileTasks.RemoveAtSwap(i, EAllowShrinking::No);
 							++RemovedTaskCount;
 						}
 						else
@@ -1088,6 +1088,7 @@ bool FShaderPipelineCacheTask::Precompile(FRHICommandListImmediate& RHICmdList, 
 				// This indicates we do not want a fatal error if this compilation fails
 				// (ie, if this entry in the file cache is bad)
 				GraphicsInitializer.bFromPSOFileCache = true;
+				GraphicsInitializer.SetPSOPrecacheCompileType(FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NormalPri);
 
 #if !UE_BUILD_SHIPPING
 				// dump to log to describe
@@ -1116,7 +1117,7 @@ bool FShaderPipelineCacheTask::Precompile(FRHICommandListImmediate& RHICmdList, 
 				FComputeShaderRHIRef ComputeInitializer = FShaderCodeLibrary::CreateComputeShader(Platform, PSO.ComputeDesc.ComputeShader);
 				if (ComputeInitializer.IsValid())
 				{
-					FComputePipelineState* ComputeResult = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeInitializer, true, EPSOPrecacheResult::Untracked);
+					FComputePipelineState* ComputeResult = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeInitializer, true);
 					bOk = ComputeResult != nullptr;
 				}
 			}
@@ -1137,8 +1138,7 @@ bool FShaderPipelineCacheTask::Precompile(FRHICommandListImmediate& RHICmdList, 
 				if (RayTracingShader.IsValid())
 				{
 					FRayTracingPipelineStateInitializer Initializer;
-						Initializer.bPartial = true; // Indicates that this RTPSO is used only as input for later RTPSO linking step (not for rendering)
-						Initializer.bAllowHitGroupIndexing = PSO.RayTracingDesc.bAllowHitGroupIndexing;
+						Initializer.bPartial = true; // Indicates that this RTPSO is used only as input for later RTPSO linking step (not for rendering)						
 						Initializer.MaxPayloadSizeInBytes = RayTracingShader->RayTracingPayloadSize;
 
 						FRHIRayTracingShader* ShaderTable[] =

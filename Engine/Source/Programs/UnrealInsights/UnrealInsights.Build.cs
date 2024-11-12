@@ -23,6 +23,19 @@ public class UnrealInsights : ModuleRules
 				"StandaloneRenderer",
 				"TargetPlatform",
 				"TraceInsights",
+				"TraceInsightsCore",
+				"TraceInsightsFrontend",
+			}
+		);
+
+		// For Session Frontend and Message Bus
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"OutputLog",
+				"SessionFrontend",
+				"TargetDeviceServices",
+				"TcpMessaging",
+				"UdpMessaging",
 			}
 		);
 

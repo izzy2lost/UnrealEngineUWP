@@ -93,13 +93,21 @@ public:
 		UI_COMMAND( MoveFoliageToSelected, "Move Selected Foliage to Level", "Moves the selected foliage instances to this level. Keeps cross-level references to original bases", EUserInterfaceActionType::Button, FInputChord() );
 		UI_COMMAND( SelectStreamingVolumes, "Select Streaming Volumes", "Selects the streaming volumes associated with the selected levels", EUserInterfaceActionType::Button, FInputChord() );
 
-		//visibility
-		UI_COMMAND( World_ShowSelectedLevels, "Show Selected", "Toggles selected levels to a visible state in the viewports", EUserInterfaceActionType::Button, FInputChord() );
-		UI_COMMAND( World_HideSelectedLevels, "Hide Selected", "Toggles selected levels to an invisible state in the viewports", EUserInterfaceActionType::Button, FInputChord() );
-		UI_COMMAND( World_ShowOnlySelectedLevels, "Show Only Selected", "Toggles the selected levels to a visible state; toggles all other levels to an invisible state", EUserInterfaceActionType::Button, FInputChord() );
-		UI_COMMAND( World_ShowAllButSelectedLevels, "Show All But Selected", "Toggles the selected levels to an invisible state; toggles all other levels to a visible state", EUserInterfaceActionType::Button, FInputChord());
-		UI_COMMAND( World_ShowAllLevels, "Show All", "Toggles all levels to a visible state in the viewports", EUserInterfaceActionType::Button, FInputChord());
-		UI_COMMAND( World_HideAllLevels, "Hide All", "Hides all levels to an invisible state in the viewports", EUserInterfaceActionType::Button, FInputChord() );
+		//editor visibility
+		UI_COMMAND( World_ShowInEditorSelectedLevels, "Show Selected", "Toggles selected levels to a visible state in the viewports for editor worlds", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND( World_HideInEditorSelectedLevels, "Hide Selected", "Toggles selected levels to an invisible state in the viewports for editor worlds", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND( World_ShowInEditorOnlySelectedLevels, "Show Only Selected", "Toggles the selected levels to a visible state for editor worlds; toggles all other levels to an invisible state", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND( World_ShowInEditorAllButSelectedLevels, "Show All But Selected", "Toggles the selected levels to an invisible state for editor worlds; toggles all other levels to a visible state", EUserInterfaceActionType::Button, FInputChord());
+		UI_COMMAND( World_ShowInEditorAllLevels, "Show All", "Toggles all levels to a visible state in the viewports for editor worlds", EUserInterfaceActionType::Button, FInputChord());
+		UI_COMMAND( World_HideInEditorAllLevels, "Hide All", "Hides all levels to an invisible state in the viewports for editor worlds", EUserInterfaceActionType::Button, FInputChord() );
+
+		//game visibility
+		UI_COMMAND( World_ShowInGameSelectedLevels, "Show Selected", "Toggles selected levels to a visible state in the viewports for game worlds", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND( World_HideInGameSelectedLevels, "Hide Selected", "Toggles selected levels to an invisible state in the viewports for game worlds", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND( World_ShowInGameOnlySelectedLevels, "Show Only Selected", "Toggles the selected levels to a visible state for game worlds; toggles all other levels to an invisible state", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND( World_ShowInGameAllButSelectedLevels, "Show All But Selected", "Toggles the selected levels to an invisible state for game worlds; toggles all other levels to a visible state", EUserInterfaceActionType::Button, FInputChord());
+		UI_COMMAND( World_ShowInGameAllLevels, "Show All", "Toggles all levels to a visible state in the viewports for game worlds", EUserInterfaceActionType::Button, FInputChord());
+		UI_COMMAND( World_HideInGameAllLevels, "Hide All", "Hides all levels to an invisible state in the viewports for game worlds", EUserInterfaceActionType::Button, FInputChord() );
 
 		//lock
 		UI_COMMAND( World_LockSelectedLevels, "Lock Selected", "Locks selected levels", EUserInterfaceActionType::Button, FInputChord() );
@@ -266,22 +274,41 @@ public:
 	TSharedPtr< FUICommandInfo > SelectStreamingVolumes;
 	
 	/** Makes selected Levels visible */
-	TSharedPtr< FUICommandInfo > World_ShowSelectedLevels;
+	TSharedPtr< FUICommandInfo > World_ShowInEditorSelectedLevels;
 
 	/** Makes selected Levels invisible */
-	TSharedPtr< FUICommandInfo > World_HideSelectedLevels;
+	TSharedPtr< FUICommandInfo > World_HideInEditorSelectedLevels;
 
 	/** Makes selected Levels visible; makes all others invisible */
-	TSharedPtr< FUICommandInfo > World_ShowOnlySelectedLevels;
+	TSharedPtr< FUICommandInfo > World_ShowInEditorOnlySelectedLevels;
 
 	/** Makes selected Levels invisible; makes all others visible */
-	TSharedPtr< FUICommandInfo > World_ShowAllButSelectedLevels;
+	TSharedPtr< FUICommandInfo > World_ShowInEditorAllButSelectedLevels;
 
 	/** Makes all Levels visible */
-	TSharedPtr< FUICommandInfo > World_ShowAllLevels;
+	TSharedPtr< FUICommandInfo > World_ShowInEditorAllLevels;
 
 	/** Makes all Levels invisible */
-	TSharedPtr< FUICommandInfo > World_HideAllLevels;
+	TSharedPtr< FUICommandInfo > World_HideInEditorAllLevels;
+
+	
+	/** Makes selected Levels visible in the editor */
+	TSharedPtr< FUICommandInfo > World_ShowInGameSelectedLevels;
+	
+	/** Makes selected Levels invisible in the editor */
+	TSharedPtr< FUICommandInfo > World_HideInGameSelectedLevels;
+	
+	/** Makes selected Levels visible; makes all others invisible in the editor */
+	TSharedPtr< FUICommandInfo > World_ShowInGameOnlySelectedLevels;
+	
+	/** Makes selected Levels invisible; makes all others visible in the editor */
+	TSharedPtr< FUICommandInfo > World_ShowInGameAllButSelectedLevels;
+	
+	/** Makes all Levels visible in the editor */
+	TSharedPtr< FUICommandInfo > World_ShowInGameAllLevels;
+	
+	/** Makes all Levels invisible in the editor */
+	TSharedPtr< FUICommandInfo > World_HideInGameAllLevels;
 	
 	
 	/** Locks selected levels */

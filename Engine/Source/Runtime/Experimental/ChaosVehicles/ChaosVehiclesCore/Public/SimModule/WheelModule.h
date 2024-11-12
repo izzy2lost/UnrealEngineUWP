@@ -9,43 +9,39 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 	class FClusterUnionPhysicsProxy;
+	struct FModuleNetData;
 
-	enum CHAOSVEHICLESCORE_API EWheelAxis
-	{
-		X,	// X forward
-		Y	// Y forward
-	};
-
-	struct CHAOSVEHICLESCORE_API FWheelSimModuleDatas : public FTorqueSimModuleDatas
+	struct CHAOSVEHICLESCORE_API FWheelSimModuleData
+		: public FTorqueSimModuleData
+		, public Chaos::TSimulationModuleTypeable<class FWheelSimModule,FWheelSimModuleData>
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FWheelSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleDatas(NodeArrayIndex, InDebugString) {}
+		FWheelSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleData(NodeArrayIndex, InDebugString) {}
 #else
-		FWheelSimModuleDatas(int NodeArrayIndex) : FTorqueSimModuleDatas(NodeArrayIndex) {}
+		FWheelSimModuleData(int NodeArrayIndex) : FTorqueSimModuleData(NodeArrayIndex) {}
 #endif
-
-		virtual eSimType GetType() override { return eSimType::Wheel; }
 
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Wheel);
-			FTorqueSimModuleDatas::FillSimState(SimModule);
+			check(SimModule->IsSimType<class FWheelSimModule>());
+			FTorqueSimModuleData::FillSimState(SimModule);
 		}
 
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Wheel);
-			FTorqueSimModuleDatas::FillNetState(SimModule);
+			check(SimModule->IsSimType<class FWheelSimModule>());
+			FTorqueSimModuleData::FillNetState(SimModule);
 		}
 
 	};
 
-	struct CHAOSVEHICLESCORE_API FWheelOutputData : public FSimOutputData
+	struct CHAOSVEHICLESCORE_API FWheelOutputData
+		: public FSimOutputData
+		, public Chaos::TSimulationModuleTypeable<class FWheelSimModule,FWheelOutputData>
 	{
 		virtual FSimOutputData* MakeNewData() override { return FWheelOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FWheelOutputData(); }
-
-		virtual eSimType GetType() override { return eSimType::Wheel; }
+		
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 
@@ -57,6 +53,8 @@ namespace Chaos
 		float ForceIntoSurface;
 		float SlipAngle;
 		float RPM;
+		float AngularPositionDegrees;
+		float SteeringAngleDegrees;
 
 		//HitLocation
 		//PhysMaterial
@@ -87,8 +85,8 @@ namespace Chaos
 			, MaxRotationVel(100.0f)
 			, Axis(EWheelAxis::X)
 			, ReverseDirection(false)
+			, ForceOffset(FVector::ZeroVector)
 		{
-
 		}
 
 		float Radius;
@@ -116,19 +114,20 @@ namespace Chaos
 		float MaxRotationVel;
 		EWheelAxis Axis;
 		bool ReverseDirection;
+		FVector ForceOffset;
+
 	};
 
-	class CHAOSVEHICLESCORE_API FWheelSimModule : public FTorqueSimModule, public TSimModuleSettings<FWheelSettings>
+	class CHAOSVEHICLESCORE_API FWheelSimModule : public FWheelBaseInterface, public TSimModuleSettings<FWheelSettings>, public TSimulationModuleTypeable<FWheelSimModule>
 	{
 		friend FWheelOutputData;
-
 	public:
-
+		DEFINE_CHAOSSIMTYPENAME(FWheelSimModule);
 		FWheelSimModule(const FWheelSettings& Settings);
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const override
 		{
-			return MakeShared<FWheelSimModuleDatas>(
+			return MakeShared<FWheelSimModuleData>(
 				SimArrayIndex
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				, GetDebugName()
@@ -141,8 +140,6 @@ namespace Chaos
 			return FWheelOutputData::MakeNew();
 		}
 
-		virtual eSimType GetSimType() const { return eSimType::Wheel; }
-
 		virtual const FString GetDebugName() const { return TEXT("Wheel"); }
 
 		virtual bool GetDebugString(FString& StringOut) const override;
@@ -153,16 +150,13 @@ namespace Chaos
 
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & TorqueBased) || (InType & Velocity); }
 
-		void SetSuspensionSimTreeIndex(int IndexIn) { SuspensionSimTreeIndex = IndexIn; }
-		int GetSuspensionSimTreeIndex() const { return SuspensionSimTreeIndex; }
+		virtual float GetWheelRadius() const override { return Setup().Radius; }
 
 		float GetSteerAngleDegrees() const { return SteerAngleDegrees; }
 
-		void SetForceIntoSurface(float ForceIntoSurfaceIn) { ForceIntoSurface = ForceIntoSurfaceIn; }
-		float GetForceIntoSurface() const { return ForceIntoSurface; }
 		FVector GetForceFromFriction() const { return ForceFromFriction; }
-		void SetSurfaceFriction(float FrictionIn) { SurfaceFriction = FrictionIn; }
 		
+
 		/** set wheel rotational speed to match the specified linear forwards speed */
 		void SetLinearSpeed(float LinearMetersPerSecondIn)
 		{
@@ -184,9 +178,6 @@ namespace Chaos
 	private:
 
 		float BrakeTorque;				// [N.m]
-		float ForceIntoSurface;			// [N]
-		float SurfaceFriction;
-		int SuspensionSimTreeIndex;
 
 		FVector ForceFromFriction;
 		float MassPerWheel;
@@ -197,5 +188,15 @@ namespace Chaos
 		float SlipAngle;
 	};
 
+	
+	class CHAOSVEHICLESCORE_API FWheelSimFactory
+			: public FSimFactoryModule<FWheelSimModuleData>
+			, public TSimulationModuleTypeable<FWheelSimModule,FWheelSimFactory>
+			, public TSimFactoryAutoRegister<FWheelSimFactory>
+	
+	{
+	public:
+		FWheelSimFactory() : FSimFactoryModule(TEXT("WheelSimFactory")) {}
+	};
 
 } // namespace Chaos

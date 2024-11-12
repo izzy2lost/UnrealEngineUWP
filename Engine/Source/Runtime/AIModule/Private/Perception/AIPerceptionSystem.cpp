@@ -418,7 +418,7 @@ void UAIPerceptionSystem::UnregisterSource(AActor& SourceActor, const TSubclassO
 			// A single sense can be targeted, or Sense == null for all senses
 			if (!Sense || SourcesToRegister[RemoveIndex].SenseID == UAISense::GetSenseID(Sense))
 			{
-				SourcesToRegister.RemoveAt(RemoveIndex, 1, EAllowShrinking::No);
+				SourcesToRegister.RemoveAt(RemoveIndex, EAllowShrinking::No);
 			}
 		}
 	}

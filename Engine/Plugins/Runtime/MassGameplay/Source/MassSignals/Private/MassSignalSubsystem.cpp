@@ -34,7 +34,7 @@ void UMassSignalSubsystem::Tick(float DeltaTime)
 		if (DelayedSignal.TargetTimestamp <= CurrentTime)
 		{
 			SignalEntities(DelayedSignal.SignalName, MakeArrayView(DelayedSignal.Entities));
-			DelayedSignals.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			DelayedSignals.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 		else
 		{
@@ -60,7 +60,7 @@ void UMassSignalSubsystem::SignalEntities(FName SignalName, TConstArrayView<FMas
 	const UE::MassSignal::FSignalDelegate& SignalDelegate = GetSignalDelegateByName(SignalName);
 	SignalDelegate.Broadcast(SignalName, Entities);
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FCsvProfiler::RecordCustomStat(*SignalName.ToString(), CSV_CATEGORY_INDEX(MassSignalsCounters), Entities.Num(), ECsvCustomStatOp::Accumulate);
 #endif
 

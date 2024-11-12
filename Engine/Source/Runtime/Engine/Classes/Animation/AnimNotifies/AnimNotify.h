@@ -13,6 +13,12 @@
 class UAnimSequenceBase;
 class USkeletalMeshComponent;
 struct FAnimNotifyEvent;
+#if WITH_EDITORONLY_DATA
+class FPrimitiveDrawInterface;
+class FCanvas;
+class FSceneView;
+#endif
+
 USTRUCT()
 struct FBranchingPointNotifyPayload
 {
@@ -69,6 +75,8 @@ class UAnimNotify : public UObject
 	virtual void OnAnimNotifyCreatedInEditor(FAnimNotifyEvent& ContainingAnimNotifyEvent) {};
 	virtual bool CanBePlaced(UAnimSequenceBase* Animation) const { return true; }
 	virtual void ValidateAssociatedAssets() {}
+	virtual void DrawInEditor(FPrimitiveDrawInterface* PDI, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* Animation, const FAnimNotifyEvent& NotifyEvent) const {}
+	virtual void DrawCanvasInEditor(FCanvas& Canvas, FSceneView& View, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* Animation, const FAnimNotifyEvent& NotifyEvent) const {}
 
 	/** Override this to prevent firing this notify type in animation editors */
 	virtual bool ShouldFireInEditor() { return bShouldFireInEditor; }

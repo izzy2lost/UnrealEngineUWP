@@ -7,6 +7,7 @@ namespace UnrealBuildTool.Rules
 		public ExrReaderGpu(ReadOnlyTargetRules Target) : base(Target)
 		{
 			bEnableExceptions = true;
+			bDisableAutoRTFMInstrumentation = true; // AutoRTFM cannot be used with exceptions
 			bUseRTTI = true;
 
 			PublicDependencyModuleNames.AddRange(

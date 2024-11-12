@@ -279,7 +279,6 @@ void SPackagesDialog::Construct(const FArguments& InArgs)
 					.ListItemsSource(&Items)
 					.OnGenerateRow(this, &SPackagesDialog::MakePackageListItemWidget)
 					.OnContextMenuOpening(this, &SPackagesDialog::MakePackageListContextMenu)
-					.ItemHeight(20)
 					.HeaderRow( HeaderRowWidget )
 					.SelectionMode( ESelectionMode::Single )
 			]

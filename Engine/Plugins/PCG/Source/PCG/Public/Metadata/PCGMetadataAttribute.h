@@ -61,6 +61,9 @@ public:
 	/** Bulk getter, to lock in read only once per parent. */
 	void GetValueKeys(const TArrayView<const PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const;
 
+	/** Optimized version that take ownership on the Entries passed.*/
+	void GetValueKeys(TArrayView<PCGMetadataEntryKey> EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const;
+
 	/** Bulk setter to lock in write only once. */
 	void SetValuesFromValueKeys(const TArrayView<const TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>>& EntryValuePairs, bool bResetValueOnDefaultValueKey = true);
 
@@ -89,7 +92,11 @@ private:
 	// Unsafe version, needs to be write lock protected.
 	void SetValueFromValueKey_Unsafe(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey, bool bResetValueOnDefaultValueKey, bool bAllowInvalidEntries = false);
 
-	void GetValueKeys_Internal(const TArrayView<const PCGMetadataEntryKey>& EntryKeys, TArrayView<PCGMetadataValueKey> OutValueKeys, TBitArray<>& UnsetValues) const;
+	// Gather the value keys for the list of entry keys.
+	// Because we need to update the entry keys if we look for the value keys in the parent, but because the EntryKeys are coming from the outside, we can't modify them.
+	// (as entry keys need to be put into the parent referential when looking for value keys). 
+	// So we will copy internally the EntryKeys to modify them (and only once) if we are not owner of the memory.
+	void GetValueKeys_Internal(const TArrayView<const PCGMetadataEntryKey> EntryKeys, TArrayView<PCGMetadataValueKey> OutValueKeys, TBitArray<>& UnsetValues, bool bOwnerOfEntryKeysView = false) const;
 
 protected:
 	TMap<PCGMetadataEntryKey, PCGMetadataValueKey> EntryToValueKeyMap;
@@ -104,8 +111,3 @@ public:
 	FName Name = NAME_None;
 	PCGMetadataAttributeKey AttributeId = -1;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Misc/ScopeRWLock.h"
-#endif

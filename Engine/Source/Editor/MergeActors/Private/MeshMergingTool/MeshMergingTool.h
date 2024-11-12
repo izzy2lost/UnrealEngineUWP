@@ -5,7 +5,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "Widgets/SWidget.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshMergingSettings.h"
 #include "MergeActorsTool.h"
 
 #include "MeshMergingTool.generated.h"

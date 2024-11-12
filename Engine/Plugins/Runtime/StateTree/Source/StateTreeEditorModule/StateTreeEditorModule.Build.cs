@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public StateTreeEditorModule(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 			new string[] {
 			}
@@ -29,10 +31,9 @@ namespace UnrealBuildTool.Rules
 				"Projects",
 				"BlueprintGraph",
 				"PropertyAccessEditor",
-				"StructUtils",
-				"StructUtilsEngine",
 				"StructUtilsEditor",
 				"GameplayTags",
+				"EditorSubsystem"
 			}
 			);
 
@@ -43,13 +44,18 @@ namespace UnrealBuildTool.Rules
 				"GraphEditor",
 				"KismetWidgets",
 				"PropertyPath",
+				"SourceCodeAccess",
 				"ToolMenus",
 				"ToolWidgets",
 				"ApplicationCore",
 				"DeveloperSettings",
 				"RewindDebuggerInterface",
 				"DetailCustomizations",
-				"AppFramework"
+				"AppFramework",
+				"Kismet",
+				"KismetCompiler",
+				"EditorInteractiveToolsFramework",
+				"InteractiveToolsFramework",
 			}
 			);
 
@@ -57,14 +63,8 @@ namespace UnrealBuildTool.Rules
 				"MessageLog",
 			});
 
-			if (Target.Platform == UnrealTargetPlatform.Win64)
-			{
-				PublicDefinitions.Add("WITH_STATETREE_DEBUGGER=1");
-			}
-			else
-			{
-				PublicDefinitions.Add("WITH_STATETREE_DEBUGGER=0");
-			}
+			PublicDefinitions.Add("WITH_STATETREE_TRACE=1");
+			PublicDefinitions.Add("WITH_STATETREE_TRACE_DEBUGGER=1");
 		}
 	}
 }

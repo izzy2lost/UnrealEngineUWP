@@ -22,7 +22,7 @@ class ONLINESERVICESEOSGS_API FOnlineServicesEOSGS : public FOnlineServicesCommo
 public:
 	using Super = FOnlineServicesCommon;
 
-	FOnlineServicesEOSGS(FName InInstanceName);
+	FOnlineServicesEOSGS(FName InstanceName, FName InstanceConfigName);
 	virtual ~FOnlineServicesEOSGS() = default;
 
 	virtual void Init() override;
@@ -33,7 +33,9 @@ public:
 
 	IEOSPlatformHandlePtr GetEOSPlatformHandle() const { return EOSPlatformHandle; }
 
-	static const TCHAR* GetConfigNameStatic() { return TEXT("EOS"); }
+	UE_DEPRECATED(5.5, "Please call GetServiceConfigNameStatic instead")
+	static const TCHAR* GetConfigNameStatic() { return GetServiceConfigNameStatic(); }
+	static const TCHAR* GetServiceConfigNameStatic() { return TEXT("EOS"); }
 protected:
 	IEOSPlatformHandlePtr EOSPlatformHandle;
 

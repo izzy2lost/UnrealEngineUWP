@@ -49,17 +49,6 @@ static TAutoConsoleVariable<int32> CVarOutputRemapShaderType(
 	,ECVF_RenderThreadSafe
 );
 
-// Enable/Disable ClearTexture for OutputRemap RTT
-static TAutoConsoleVariable<int32> CVarClearOutputRemapClearRTT(
-	TEXT("nDisplay.render.output_remap.clear_rtt"),
-	1,
-	TEXT("Enables OutputRemap RTT clearing before postprocessing.\n")
-	TEXT("0 : disabled\n")
-	TEXT("1 : enabled\n")
-	,
-	ECVF_RenderThreadSafe
-);
-
 BEGIN_SHADER_PARAMETER_STRUCT(FOutputRemapVertexShaderParameters, )
 END_SHADER_PARAMETER_STRUCT()
 
@@ -100,7 +89,7 @@ IMPLEMENT_SHADER_TYPE(, FOutputRemapVS, OutputRemapShaderFileName, TEXT("OutputR
 
 DECLARE_GPU_STAT_NAMED(nDisplay_PostProcess_OutputRemap, TEXT("nDisplay PostProcess::OutputRemap"));
 
-bool FDisplayClusterShadersPostprocess_OutputRemap::RenderPostprocess_OutputRemap(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InSourceTexture, FRHITexture2D* InRenderTargetableDestTexture, const IDisplayClusterRender_MeshComponentProxy& InMeshProxy)
+bool FDisplayClusterShadersPostprocess_OutputRemap::RenderPostprocess_OutputRemap(FRHICommandListImmediate& RHICmdList, FRHITexture* InSourceTexture, FRHITexture* InRenderTargetableDestTexture, const IDisplayClusterRender_MeshComponentProxy& InMeshProxy)
 {
 	check(IsInRenderingThread());
 
@@ -148,10 +137,8 @@ bool FDisplayClusterShadersPostprocess_OutputRemap::RenderPostprocess_OutputRema
 
 	bool bResult = false;
 
-	const bool bClearTextureEnabled = CVarClearOutputRemapClearRTT.GetValueOnRenderThread() != 0;
-
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, nDisplay_PostProcess_OutputRemap, "nDisplay_PostProcess_OutputRemap");
 	SCOPED_GPU_STAT(RHICmdList, nDisplay_PostProcess_OutputRemap);
-	SCOPED_DRAW_EVENT(RHICmdList, nDisplay_PostProcess_OutputRemap);
 
 	FRHIRenderPassInfo RPInfo(InRenderTargetableDestTexture, ERenderTargetActions::Load_Store);
 	RHICmdList.Transition(FRHITransitionInfo(InRenderTargetableDestTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -160,12 +147,6 @@ bool FDisplayClusterShadersPostprocess_OutputRemap::RenderPostprocess_OutputRema
 	{
 		const FIntPoint TargetSizeXY = InRenderTargetableDestTexture->GetSizeXY();
 		RHICmdList.SetViewport(0, 0, 0.0f, TargetSizeXY.X, TargetSizeXY.Y, 1.0f);
-
-		if (bClearTextureEnabled)
-		{
-			// Clean the texture of the output frame before remapping the whole frame
-			DrawClearQuad(RHICmdList, FLinearColor::Black);
-		}
 
 		const ERHIFeatureLevel::Type RenderFeatureLevel = GMaxRHIFeatureLevel;
 		const auto GlobalShaderMap = GetGlobalShaderMap(RenderFeatureLevel);

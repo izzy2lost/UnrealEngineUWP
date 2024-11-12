@@ -4,12 +4,11 @@
 	OpenGL3.cpp: OpenGL 3.2 implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
-#include "HAL/IConsoleManager.h"
-#include "OpenGLDrv.h"
-#include "OpenGLDrvPrivate.h"
+#include "OpenGL3.h"
 
-#if OPENGL_GL3
+#if UGL_PLATFORM_SUPPORTS_GL3
+
+#include "OpenGLDrvPrivate.h"
 
 bool FOpenGL3::bAndroidGLESCompatibilityMode = false;
 
@@ -80,4 +79,4 @@ void FOpenGL3::ProcessExtensions( const FString& ExtensionsString )
 	bAndroidGLESCompatibilityMode = GetFeatureLevel() == ERHIFeatureLevel::ES3_1 && ExtensionsString.Contains(TEXT("GL_ARB_ES3_1_compatibility")) && FParse::Param(FCommandLine::Get(), TEXT("GLESCompat"));
 }
 
-#endif
+#endif // UGL_PLATFORM_SUPPORTS_GL3

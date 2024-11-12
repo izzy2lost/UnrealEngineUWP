@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TSRCommon.ush"
+#include "TSRColorSpace.ush"
+#include "TSRReprojectionField.ush"
+#if TSR_SUPPORT_LENS_DISTORTION
+	#include "../LensDistortion.ush"
+#endif
 
 
 //------------------------------------------------------- CONFIG
@@ -16,6 +20,7 @@ static tsr_half3 kRed    = tsr_half3(1.00, 0.10, 0.10);
 static tsr_half3 kOrange = tsr_half3(1.00, 0.75, 0.10);
 static tsr_half3 kGreen  = tsr_half3(0.10, 1.00, 0.10);
 static tsr_half3 kBlue   = tsr_half3(0.10, 0.10, 1.00);
+static tsr_half3 kCyan   = tsr_half3(0.10, 1.00, 1.00);
 static tsr_half3 kPink   = tsr_half3(1.00, 0.10, 0.50);
 
 
@@ -34,18 +39,24 @@ uint2 OutputViewRectMax;
 uint VisualizeId;
 uint bCanResurrectHistory;
 uint bCanSpatialAntiAlias;
+uint bReprojectionField;
 float MaxHistorySampleCount;
 float OutputToHistoryResolutionFractionSquare;
 float FlickeringFramePeriod;
-float PerceptionAdd;
 
+Texture2D<float2>    PrevDistortingDisplacementTexture;
+Texture2D<float2>    ResurrectedDistortingDisplacementTexture;
+Texture2D<float2>    UndistortingDisplacementTexture;
 Texture2D<tsr_half3> InputTexture;
 Texture2D<tsr_half>  InputMoireLumaTexture;
 Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 Texture2D<tsr_half3> SceneColorTexture;
 Texture2D<float2>    ClosestDepthTexture;
-Texture2D<float2>    DilatedVelocityTexture;
+Texture2D<uint>      ReprojectionBoundaryTexture;
+Texture2D<uint>      ReprojectionJacobianTexture;
+Texture2D<uint>      ReprojectionVectorTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
+Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
 Texture2D<tsr_half4> MoireHistoryTexture;
 Texture2D<tsr_ushort> AntiAliasMaskTexture;
@@ -55,7 +66,19 @@ Texture2D<tsr_half3> ResurrectedHistoryColorTexture;
 RWTexture2D<tsr_half4> Output;
 
 
-//------------------------------------------------------- ENTRY POINT
+//------------------------------------------------------- DEBUG
+
+static float4 Debug;
+	
+
+//------------------------------------------------------- FUNCTION
+
+#if !TSR_SUPPORT_LENS_DISTORTION
+float2 ApplyLensDistortionOnScreenPos(Texture2D<float2> DisplacementTexture, float2 DestScreenPos)
+{
+	return DestScreenPos;
+}
+#endif
 
 tsr_half3 GrayScaleColor(tsr_half3 SceneColor)
 {
@@ -81,6 +104,78 @@ tsr_half3 SampleTSROutputGray(FContext Ctx)
 {
 	return GrayScaleColor(SceneColorTexture[Ctx.OutputPixelPos]);
 }
+
+struct FReprojectionFieldSample
+{
+	bool bIsOffScreen;
+	bool bIsFullDilate;
+	bool bAntiAliasReprojectionField;
+	tsr_short2 Offset;
+	tsr_half2 Boundary;
+	float2 Vector;
+	float2 PrevScreenPos;
+	tsr_half2x2 Jacobian;
+};
+
+FReprojectionFieldSample SampleReprojectionField(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection;
+
+	uint EncodedReprojectionBoundary = ReprojectionBoundaryTexture[Ctx.InputPixelPos];
+	Reprojection.Offset = DecodeReprojectionOffset(EncodedReprojectionBoundary);
+	Reprojection.Boundary = DecodeReprojectionBoundary(EncodedReprojectionBoundary);
+	Reprojection.bIsFullDilate = all(Reprojection.Boundary == kFullDilateBoundary);
+	Reprojection.bAntiAliasReprojectionField = any(Reprojection.Offset != tsr_short(0)) && !Reprojection.bIsFullDilate;
+
+	uint EncodedReprojectionVector   = ReprojectionVectorTexture[Ctx.InputPixelPos + Reprojection.Offset];
+	uint EncodedReprojectionJacobian = ReprojectionJacobianTexture[Ctx.InputPixelPos + Reprojection.Offset];
+
+	Reprojection.Vector   = DecodeReprojectionVector(EncodedReprojectionVector);
+	Reprojection.Jacobian = DecodeReprojectionJacobian(EncodedReprojectionJacobian);
+	
+	Reprojection.PrevScreenPos = Ctx.ScreenPos - Reprojection.Vector;
+
+	// Detect whether the history reprojection is successful
+	bool2 bIsOffScreenLocal;
+	bool2 bIsDisoccluded;
+	IsOffScreenOrDisoccluded(
+		bCameraCut,
+		dpv_interleave_mono_registers(Reprojection.PrevScreenPos),
+		/* bIsParallaxRejected = */ false,
+		/* out */ bIsOffScreenLocal,
+		/* out */ bIsDisoccluded);
+
+	Reprojection.bIsOffScreen = bIsOffScreenLocal[0];
+
+	return Reprojection;
+}
+
+struct FDecimateMaskSample
+{
+	bool bIsOffScreen;
+	bool bIsParallaxDisocclusion;
+	bool bIsDisoccluded;
+	bool bHasPixelAnimation;
+	bool bReprojectionHollFill;
+};
+
+FDecimateMaskSample SampleDecimateMask(FContext Ctx)
+{
+	FDecimateMaskSample Decimate;
+
+	tsr_half2 DecimateMask = DecimateMaskTexture[Ctx.InputPixelPos];
+	
+	tsr_ushort BitMask = tsr_ushort(DecimateMask.r * tsr_half(255.0));
+	Decimate.bIsOffScreen            = (BitMask & tsr_ushort(0x1)) != tsr_ushort(0);
+	Decimate.bIsParallaxDisocclusion = (BitMask & tsr_ushort(0x2)) != tsr_ushort(0);
+	Decimate.bIsDisoccluded          = (BitMask & tsr_ushort(0x3)) != tsr_ushort(0);
+	Decimate.bHasPixelAnimation      = (BitMask & tsr_ushort(0x4)) != tsr_ushort(0);
+	Decimate.bReprojectionHollFill   = (BitMask & tsr_ushort(0x8)) != tsr_ushort(0);
+	return Decimate;
+}
+
+
+//------------------------------------------------------- ENTRY POINT
 
 tsr_half3 DisplayHistorySampleCount(FContext Ctx)
 {
@@ -131,11 +226,12 @@ tsr_half3 DisplayHistoryClamp(FContext Ctx)
 
 tsr_half3 DisplayParallaxDisocclusionMask(FContext Ctx)
 {
-	bool ParallaxDisocclusionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x1)) != tsr_ushort(0x0);
+	FDecimateMaskSample Decimate = SampleDecimateMask(Ctx);
 	
-	tsr_half3 Color = kWhite;
-	Color = select(bCameraCut == 0, Color, kPink);
-	Color = select(ParallaxDisocclusionMask, Color, kRed);
+	tsr_half3 Color;
+	Color = select(Decimate.bReprojectionHollFill && Decimate.bIsParallaxDisocclusion, kOrange, kWhite);
+	Color = select(!Decimate.bReprojectionHollFill && Decimate.bIsParallaxDisocclusion, kRed, Color);
+	Color = select(Decimate.bIsOffScreen, kPink, Color);
 	return SampleTSROutputGray(Ctx) * Color;
 }
 
@@ -150,16 +246,15 @@ tsr_half3 DisplayResurrectionMask(FContext Ctx)
 	float ClosestDeviceZ = ClosestDepthTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).g;
 	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
 
-	float4 ThisClip = float4(Ctx.ScreenPos, ClosestDeviceZ, 1);
+	float4 ThisClip = float4(ApplyLensDistortionOnScreenPos(UndistortingDisplacementTexture, Ctx.ScreenPos), ClosestDeviceZ, 1);
 	float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
-	float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
+	float2 ResurrectionScreen = ApplyLensDistortionOnScreenPos(ResurrectedDistortingDisplacementTexture, ResurrectionClip.xy / ResurrectionClip.w);
 
-	if (any(ResurrectionScreen != clamp(ResurrectionScreen, -1.0, 1.0)))
-	{
-		return SampleTSROutputGray(Ctx) * kPink;
-	}
+	tsr_half3 Color = kWhite;
+	Color = select(any(ResurrectionScreen != clamp(ResurrectionScreen, -1.0, 1.0)), kPink, Color);
+	Color = select(ResurrectionMask, lerp(kRed, kGreen, LowFrequencyRejection), Color);
 
-	return SampleTSROutputGray(Ctx) * select(ResurrectionMask, lerp(kRed, kGreen, LowFrequencyRejection), kWhite);
+	return SampleTSROutputGray(Ctx) * Color;
 }
 
 tsr_half3 DisplayResurrectedColor(FContext Ctx)
@@ -173,10 +268,10 @@ tsr_half3 DisplayResurrectedColor(FContext Ctx)
 	float ClosestDeviceZ = ClosestDepthTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).g;
 	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
 
-	float4 ThisClip = float4(Ctx.ScreenPos, ClosestDeviceZ, 1);
+	float4 ThisClip = float4(ApplyLensDistortionOnScreenPos(UndistortingDisplacementTexture, Ctx.ScreenPos), ClosestDeviceZ, 1);
 	float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
-	float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
-	
+	float2 ResurrectionScreen = ApplyLensDistortionOnScreenPos(ResurrectedDistortingDisplacementTexture, ResurrectionClip.xy / ResurrectionClip.w);
+
 	float2 KernelHistoryBufferUV = ApplyScreenTransform(ResurrectionScreen, ScreenPosToPrevHistoryBufferUV);
 	KernelHistoryBufferUV = fastClamp(KernelHistoryBufferUV, PrevHistoryInfo_UVViewportBilinearMin, PrevHistoryInfo_UVViewportBilinearMax);
 
@@ -214,7 +309,7 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 	const tsr_half TotalVariationCountThreshold = tsr_half(1.0 / (1.0 - pow(1.0 - BlendFinal, tsr_half(FlickeringFramePeriod))));
 
 	// Texture coordinate
-	float2 MoireHistoryUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToMoireHistoryUV);
+	float2 MoireHistoryUV = ApplyScreenTransform(ApplyLensDistortionOnScreenPos(UndistortingDisplacementTexture, Ctx.ScreenPos), ScreenPosToMoireHistoryUV);
 	MoireHistoryUV = fastClamp(MoireHistoryUV, MoireHistoryUVBilinearMin, MoireHistoryUVBilinearMax);
 
 	// Texture fetches
@@ -236,11 +331,11 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 		
 		tsr_half3 OriginalInput = OriginalOpaqueInput * OriginalTranslucencyInput.a + OriginalTranslucencyInput.rgb;
 		
-		OriginalInput = OriginalInput * rcp(OriginalInput + tsr_half(PerceptionAdd));
-		OriginalOpaqueInput = OriginalOpaqueInput * rcp(OriginalOpaqueInput + tsr_half(PerceptionAdd));
+		OriginalInput = LinearToSMCS(OriginalInput);
+		OriginalOpaqueInput = LinearToSMCS(OriginalOpaqueInput);
 
-		tsr_half SceneColorLuma = dot(OriginalOpaqueInput.rgb, kMoireLumaWeights);
-		tsr_half TranslucencyChange = dot(abs(OriginalOpaqueInput.rgb - OriginalInput.rgb), kMoireLumaWeights);
+		tsr_half SceneColorLuma = dot(OriginalOpaqueInput.rgb, kMoireSMCSWeights);
+		tsr_half TranslucencyChange = dot(abs(OriginalOpaqueInput.rgb - OriginalInput.rgb), kMoireSMCSWeights);
 		
 		InputLumaModification = tsr_half(0.0);
 		InputLumaModification = max(InputLumaModification, abs(MoireInput - SceneColorLuma) - InputLumaEncodingError);
@@ -269,6 +364,112 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 }
 
 
+//------------------------------------------------------- REPROJECTION FIELD
+
+tsr_half3 DisplayReprojectionFieldSummary(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half JacobianVisibilityMultiplier = tsr_half(64.0);
+	//tsr_half JacobianVisibilityMultiplier = tsr_half(select(Reprojection.bAntiAliasReprojectionField, 2, 1)) * tsr_half(64.0);
+
+	tsr_half MaxJacobianX = max(abs(Reprojection.Jacobian[0][0]), abs(Reprojection.Jacobian[0][1]));
+	tsr_half MaxJacobianY = max(abs(Reprojection.Jacobian[1][0]), abs(Reprojection.Jacobian[1][1]));
+
+	tsr_half3 Color;
+	Color = kWhite;
+	Color.g = lerp(Color.g, tsr_half(1.0), saturate(MaxJacobianX * JacobianVisibilityMultiplier));
+	Color.b = lerp(Color.b, tsr_half(1.0), saturate(MaxJacobianY * JacobianVisibilityMultiplier));
+	Color = select(Reprojection.bIsOffScreen, kPink, Color);
+	//Color = select(Reprojection.bAntiAliasReprojectionField, kGreen, Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionFieldOffset(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half3 Color = kWhite;
+	Color.gb = tsr_half2((float2(Reprojection.Offset) * 0.5 + 0.5) * 0.67 + 0.33);
+	Color = select(all(Reprojection.Offset == tsr_short(0)), select(Reprojection.bIsOffScreen, kPink, kWhite), Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionOffsetCoverage(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half ReprojectionBoundaryCoverage = ComputeReprojectionBoundaryCoverage(Reprojection.Boundary);
+
+	tsr_half3 Color;
+	Color = lerp(kRed, kGreen, ReprojectionBoundaryCoverage);
+	Color = select(Reprojection.bIsFullDilate, kCyan, Color);
+	Color = select(all(Reprojection.Offset == tsr_short(0)), select(Reprojection.bIsOffScreen, kPink, kWhite), Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionNullJacobian(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half MaxJacobianX = max(abs(Reprojection.Jacobian[0][0]), abs(Reprojection.Jacobian[0][1]));
+	tsr_half MaxJacobianY = max(abs(Reprojection.Jacobian[1][0]), abs(Reprojection.Jacobian[1][1]));
+	tsr_half MaxJacobian = max(MaxJacobianX, MaxJacobianY);
+	
+	bool bIsNullVector = all(abs(Reprojection.Vector) < (0.5 / 65535.0));
+	bool bIsNullJacobian = MaxJacobian < pow(tsr_half(1u << kVelocityJacobianBits), tsr_half(-2.0));
+
+	tsr_half3 Color = select(bIsNullJacobian && !bIsNullVector, kOrange, kWhite);
+	Color = select(Reprojection.bIsOffScreen || !bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionClampedJacobian(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half MaxJacobianX = max(abs(Reprojection.Jacobian[0][0]), abs(Reprojection.Jacobian[0][1]));
+	tsr_half MaxJacobianY = max(abs(Reprojection.Jacobian[1][0]), abs(Reprojection.Jacobian[1][1]));
+	tsr_half MaxJacobian = max(MaxJacobianX, MaxJacobianY);
+
+	tsr_half3 Color;
+	Color = select(Reprojection.bIsOffScreen, kPink, kWhite);
+	Color = select(MaxJacobian > kVelocityJacobianRange - rcp(tsr_half(1u << kVelocityJacobianBits)), kRed, Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionFieldDilatedJacobian(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half ReprojectionUpscaleFactor = ComputeReprojectionUpscaleFactorFromJacobian(Reprojection.Jacobian);
+
+	tsr_half3 Color;
+	Color = kWhite;
+	Color = lerp(Color,   kRed, saturate( log2(ReprojectionUpscaleFactor)));
+	Color = lerp(Color, kGreen, saturate(-log2(ReprojectionUpscaleFactor)));
+	Color = select(Reprojection.bIsOffScreen || !bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionFieldAA(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half ReprojectionUpscaleFactor = ComputeReprojectionUpscaleFactorFromJacobian(Reprojection.Jacobian);
+
+	tsr_half3 Color;
+	Color = select(Reprojection.bIsOffScreen, kPink, kWhite);
+	Color = select(Reprojection.bAntiAliasReprojectionField, kGreen, Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+
 //------------------------------------------------------- ENTRY POINT
 
 [numthreads(TILE_SIZE * TILE_SIZE, 1, 1)]
@@ -278,7 +479,7 @@ void MainCS(
 {
 	uint GroupWaveIndex = GetGroupWaveIndex(GroupThreadIndex, /* GroupSize = */ TILE_SIZE * TILE_SIZE);
 
-	float4 Debug = 0.0;
+	Debug = 0.0;
 	
 	FContext Ctx;
 	Ctx.OutputPixelPos = (
@@ -286,9 +487,9 @@ void MainCS(
 		tsr_short2(GroupId) * tsr_short2(TILE_SIZE, TILE_SIZE) +
 		Map8x8Tile2x2Lane(GroupThreadIndex));
 	Ctx.ScreenPos = ApplyScreenTransform(float2(Ctx.OutputPixelPos), OutputPixelPosToScreenPos);
-	Ctx.InputUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputUV);
+	Ctx.InputUV = ApplyScreenTransform(ApplyLensDistortionOnScreenPos(UndistortingDisplacementTexture, Ctx.ScreenPos), ScreenPosToInputUV);
 	Ctx.InputUV = fastClamp(Ctx.InputUV, InputInfo_UVViewportBilinearMin, InputInfo_UVViewportBilinearMax);
-	Ctx.InputPixelPos = tsr_short2(ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputPixelPos));
+	Ctx.InputPixelPos = tsr_short2(ApplyScreenTransform(ApplyLensDistortionOnScreenPos(UndistortingDisplacementTexture, Ctx.ScreenPos), ScreenPosToInputPixelPos));
 	Ctx.InputPixelPos = fastClamp(Ctx.InputPixelPos, tsr_short2(InputInfo_ViewportMin), tsr_short2(InputInfo_ViewportMax - 1));
 
 	tsr_half3 OutputColor = tsr_half(0.0);
@@ -325,6 +526,34 @@ void MainCS(
 	else if (VisualizeId == 7)
 	{
 		OutputColor = DisplayAntiFlickering(Ctx);
+	}
+	else if (VisualizeId == 8)
+	{
+		OutputColor = DisplayReprojectionFieldSummary(Ctx);
+	}
+	else if (VisualizeId == 9)
+	{
+		OutputColor = DisplayReprojectionFieldOffset(Ctx);
+	}
+	else if (VisualizeId == 10)
+	{
+		OutputColor = DisplayReprojectionOffsetCoverage(Ctx);
+	}
+	else if (VisualizeId == 11)
+	{
+		OutputColor = DisplayReprojectionFieldAA(Ctx);
+	}
+	else if (VisualizeId == 12)
+	{
+		OutputColor = DisplayReprojectionNullJacobian(Ctx);
+	}
+	else if (VisualizeId == 13)
+	{
+		OutputColor = DisplayReprojectionClampedJacobian(Ctx);
+	}
+	else if (VisualizeId == 14)
+	{
+		OutputColor = DisplayReprojectionFieldDilatedJacobian(Ctx);
 	}
 
 	{

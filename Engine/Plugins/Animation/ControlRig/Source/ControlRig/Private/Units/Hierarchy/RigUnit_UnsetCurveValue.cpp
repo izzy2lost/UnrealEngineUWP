@@ -25,7 +25,7 @@ FRigUnit_UnsetCurveValue_Execute()
 IMPLEMENT_RIGUNIT_AUTOMATION_TEST(FRigUnit_UnsetCurveValue)
 {
 	const FRigElementKey Curve = Controller->AddCurve(TEXT("Curve"), 0.f);
-	Unit.ExecuteContext.Hierarchy = Hierarchy;
+	Unit.ExecuteContext.Hierarchy = Hierarchy.Get();
 	
 	Hierarchy->ResetCurveValues();
 	Unit.Curve = TEXT("Curve");

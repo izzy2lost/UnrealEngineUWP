@@ -6,13 +6,13 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimNode_Inertialization.h"
+#include "Animation/AnimPoseSearchProvider.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
 #include "BlendStack/AnimNode_BlendStackInput.h"
 #include "BlendStackAnimEventsFilterScope.h"
 #include "Animation/AnimInertializationSyncScope.h"
 #include "BlendStack/BlendStackDefines.h"
-#include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendStack)
 
@@ -28,7 +28,7 @@ static constexpr FBoneIndexType RootBoneIndexType = 0;
 // FBlendStackAnimPlayer
 void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
 	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption,
-	const FVector& BlendParameters, float PlayRate, float ActivationDelay, int32 InPoseLinkIdx, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
+	const FVector& BlendParameters, float PlayRate, float ActivationDelay, int32 InPoseLinkIdx, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod, bool bOverridePositionWhenJoiningSyncGroupAsLeader)
 {
 	if (bMirrored && !MirrorDataTable)
 	{
@@ -50,9 +50,8 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 		// handling BlendTime > 0 and RootBoneBlendTime >= 0
 		if (BlendProfile != nullptr)
 		{
-			TotalBlendInTimePerBone.Init(BlendTime, NumSkeletonBones);
+			TotalBlendInTimePerBone.SetNumUninitialized(NumSkeletonBones);
 			BlendProfile->FillSkeletonBoneDurationsArray(TotalBlendInTimePerBone, BlendTime, Skeleton);
-			BlendTime = *Algo::MaxElement(TotalBlendInTimePerBone);
 		}
 	}
 
@@ -72,6 +71,8 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	}
 	else if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset))
 	{
+		BlendSpacePlayerNode.SetBlendSpace(nullptr);
+
 		SequencePlayerNode.SetAccumulatedTime(AccumulatedTime);
 		SequencePlayerNode.SetSequence(SequenceBase);
 		SequencePlayerNode.SetLoopAnimation(bLoop);
@@ -79,11 +80,14 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 		SequencePlayerNode.SetGroupMethod(GroupMethod);
 		SequencePlayerNode.SetGroupName(GroupName);
 		SequencePlayerNode.SetGroupRole(GroupRole);
+		SequencePlayerNode.SetOverridePositionWhenJoiningSyncGroupAsLeader(bOverridePositionWhenJoiningSyncGroupAsLeader);
 	}
 	else if (UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset))
 	{
+		SequencePlayerNode.SetSequence(nullptr);
+
 		// making sure AccumulatedTime is in normalized space
-		check(AccumulatedTime >= 0.f && AccumulatedTime <= 1.f);
+		AccumulatedTime = FMath::Clamp(AccumulatedTime, 0.f, 1.f);
 
 		BlendSpacePlayerNode.SetResetPlayTimeWhenBlendSpaceChanges(false /*!bReset*/);
 		BlendSpacePlayerNode.SetAccumulatedTime(AccumulatedTime);
@@ -94,6 +98,7 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 		BlendSpacePlayerNode.SetGroupMethod(GroupMethod);
 		BlendSpacePlayerNode.SetGroupName(GroupName);
 		BlendSpacePlayerNode.SetGroupRole(GroupRole);
+		BlendSpacePlayerNode.SetOverridePositionWhenJoiningSyncGroupAsLeader(bOverridePositionWhenJoiningSyncGroupAsLeader);
 	}
 	else if (AnimationAsset)
 	{
@@ -102,6 +107,9 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 
 	if (bUnsupportedAnimAsset)
 	{
+		BlendSpacePlayerNode.SetBlendSpace(nullptr);
+		SequencePlayerNode.SetSequence(nullptr);
+
 		UE_LOG(LogBlendStack, Error, TEXT("FBlendStackAnimPlayer unsupported AnimationAsset %s"), *GetNameSafe(AnimationAsset));
 	}
 
@@ -168,7 +176,7 @@ void FBlendStackAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 		{
 			if (StoredBones.IsEmpty())
 			{
-				PoseContext.Pose.ResetToRefPose();
+				PoseContext.ResetToRefPose();
 			}
 			else
 			{
@@ -198,7 +206,7 @@ void FBlendStackAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 	}
 	else
 	{
-		PoseContext.Pose.ResetToRefPose();
+		PoseContext.ResetToRefPose();
 	}
 	
 	PoseContext.Curve.CopyFrom(StoredCurve);
@@ -280,6 +288,36 @@ float FBlendStackAnimPlayer::GetAccumulatedTime() const
 	return 0.f;
 }
 
+float FBlendStackAnimPlayer::GetCurrentAssetTime() const
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return SequencePlayerNode.GetCurrentAssetTime();
+	}
+
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return BlendSpacePlayerNode.GetCurrentAssetTime();
+	}
+
+	return 0.f;
+}
+
+float FBlendStackAnimPlayer::GetCurrentAssetLength() const
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return SequencePlayerNode.GetCurrentAssetLength();
+	}
+
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return BlendSpacePlayerNode.GetCurrentAssetLength();
+	}
+
+	return 0.f;
+}
+
 float FBlendStackAnimPlayer::GetPlayRate() const
 {
 	if (SequencePlayerNode.GetSequence())
@@ -298,6 +336,21 @@ float FBlendStackAnimPlayer::GetPlayRate() const
 bool FBlendStackAnimPlayer::IsActive() const
 {
 	return TimeToActivation <= 0.f;
+}
+
+FAnimNode_AssetPlayerBase* FBlendStackAnimPlayer::GetAssetPlayerNode()
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return &SequencePlayerNode;
+	}
+	else if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return &BlendSpacePlayerNode;
+	}
+
+	// Anim player was initialized with an unsupported asset type.
+	return nullptr;
 }
 
 void FBlendStackAnimPlayer::UpdateWithDeltaTime(float DeltaTime, int32 PlayerDepth, float PlayerDepthBlendInTimeMultiplier)
@@ -382,12 +435,17 @@ UAnimationAsset* FBlendStackAnimPlayer::GetAnimationAsset() const
 
 float FBlendStackAnimPlayer::GetBlendInPercentage() const
 {
-	if (FMath::IsNearlyZero(TotalBlendInTime))
+	if (TotalBlendInTime < UE_SMALL_NUMBER)
 	{
+		if (TimeToActivation > 0.f)
+		{
+			return 0.f;
+		}
 		return 1.f;
 	}
 
-	return FMath::Clamp(GetCurrentBlendInTime() / TotalBlendInTime, 0.f, 1.f);
+	check(CurrentBlendInTime >= 0.f);
+	return FMath::Min(CurrentBlendInTime / TotalBlendInTime, 1.f);
 }
 
 int32 FBlendStackAnimPlayer::GetBlendInWeightsNum() const
@@ -395,27 +453,59 @@ int32 FBlendStackAnimPlayer::GetBlendInWeightsNum() const
 	return TotalBlendInTimePerBone.Num();
 }
 
+float FBlendStackAnimPlayer::GetBlendInWeight() const
+{
+	const float BlendInPercentage = GetBlendInPercentage();
+	const float BlendInWeight = FAlphaBlend::AlphaToBlendOption(BlendInPercentage, GetBlendOption());
+	return BlendInWeight;
+}
+
 void FBlendStackAnimPlayer::GetBlendInWeights(TArrayView<float> Weights) const
 {
 	check(Weights.Num() == GetBlendInWeightsNum());
 	
+	const float WeightForZeroBlendInTime = TimeToActivation > 0.f ? 0.f : 1.f;
 	for (int32 BoneIdx = 0; BoneIdx < Weights.Num(); ++BoneIdx)
 	{
 		const float TotalBlendInTimeBoneIdx = TotalBlendInTimePerBone[BoneIdx];
-		if (FMath::IsNearlyZero(TotalBlendInTimeBoneIdx))
+		if (TotalBlendInTimeBoneIdx < UE_SMALL_NUMBER)
 		{
-			Weights[BoneIdx] = 1.f;
+			Weights[BoneIdx] = WeightForZeroBlendInTime;
 		}
 		else
 		{
-			const float UnclampedLinearWeight = GetCurrentBlendInTime() / TotalBlendInTimeBoneIdx;
-			Weights[BoneIdx] = FAlphaBlend::AlphaToBlendOption(UnclampedLinearWeight, BlendOption);
+			check(CurrentBlendInTime >= 0.f);
+			const float LinearWeight = FMath::Min(CurrentBlendInTime / TotalBlendInTimeBoneIdx, 1.f);
+			Weights[BoneIdx] = FAlphaBlend::AlphaToBlendOption(LinearWeight, BlendOption);
 		}
 	}
 }
 
 /////////////////////////////////////////////////////
 // FAnimNode_BlendStack_Standalone
+
+
+void FAnimNode_BlendStack_Standalone::UpdateBlendspaceParameters(const EBlendStack_BlendspaceUpdateMode UpdateMode, const FVector& BlendParameters)
+{
+	// Update blend space parameters
+	if (UpdateMode == EBlendStack_BlendspaceUpdateMode::UpdateAll)
+	{
+		// apply blend space parameters to all blendspaces that are playing, including ones that are blending out
+		for (FBlendStackAnimPlayer& Player : AnimPlayers)
+		{
+			Player.SetBlendParameters(BlendParameters);
+		}
+	}
+	else if (UpdateMode == EBlendStack_BlendspaceUpdateMode::UpdateActiveOnly)
+	{
+		// apply blend space parameters only to the blendspace that is playing/blending in
+		if (!AnimPlayers.IsEmpty())
+		{
+			AnimPlayers[0].SetBlendParameters(BlendParameters);
+		}
+	}
+}
+
 void FAnimNode_BlendStack_Standalone::PopLastAnimPlayer()
 {
 	const int32 LastAnimPlayerIndex = AnimPlayers.Num() - 1;
@@ -448,22 +538,32 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 #if ENABLE_ANIM_DEBUG
 	bDisableBlendStack = !CVarAnimBlendStackEnable.GetValueOnAnyThread();
 
-	const FVector& ActorLocation = Output.AnimInstanceProxy->GetActorTransform().GetTranslation();
-	
-	TStringBuilder<1024> MessageBuilder;
-
-	for (int32 i = 0; i < AnimPlayers.Num(); ++i)
+	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(AnimationChannel))
 	{
-		const FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[i];
-		MessageBuilder.Appendf(TEXT("%d) t:%.2f/%.2f a:%.2f m:%d %s\n"), 
-			i, AnimPlayer.GetCurrentBlendInTime(), AnimPlayer.GetTotalBlendInTime(), AnimPlayer.GetTimeToActivation(),
-			AnimPlayer.GetMirror() ? 1 : 0, *AnimPlayer.GetAnimationName());
-	}
+		// output current asset as "Asset" because that column is shown by default
+		TRACE_ANIM_NODE_VALUE(Output, TEXT("Asset"), GetAnimAsset());
 
-	FString VLogMessage(MessageBuilder.ToString());
-	FString VLogCategoryName;
-	VLogCategoryName.Appendf(TEXT("LogBlendStack_%d"), GetNodeIndex());
-	UE_VLOG_LOCATION(Output.GetAnimInstanceObject(), *VLogCategoryName, Verbose, ActorLocation + FVector(0, 0, 100.0f), 0.f, FColor::Yellow, TEXT("%s"), *VLogMessage);
+		for (int32 i = 0; i < AnimPlayers.Num(); ++i)
+		{
+			if (AnimPlayers[i].IsActive())
+			{
+				FString IndexString = FString("[" + FString::FromInt(i) + FString("]"));
+				FString Asset = FString("Asset") + IndexString;
+				FString ElapsedTime = FString("ElapsedTime") + IndexString;
+				FString CurrentBlendInTime = FString("CurrentBlendInTime") + IndexString;
+				FString TotalBlendInTime = FString("TotalBlendInTime") + IndexString;
+				FString TimeToActivation = FString("TimeToActivation") + IndexString;
+				FString Mirror = FString("Mirror") + IndexString;
+
+				const FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[i];
+				TRACE_ANIM_NODE_VALUE(Output, *Asset, AnimPlayer.GetAnimationAsset());
+				TRACE_ANIM_NODE_VALUE(Output, *ElapsedTime, AnimPlayer.GetAccumulatedTime());
+				TRACE_ANIM_NODE_VALUE(Output, *CurrentBlendInTime, AnimPlayer.GetCurrentBlendInTime());
+				TRACE_ANIM_NODE_VALUE(Output, *TotalBlendInTime, AnimPlayer.GetTotalBlendInTime());
+				TRACE_ANIM_NODE_VALUE(Output, *TimeToActivation, AnimPlayer.GetTimeToActivation());
+			}
+		}
+	}
 #endif // ENABLE_ANIM_DEBUG
 
 
@@ -474,12 +574,19 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 	}
 	else if (BlendStackSize == 1 || bDisableBlendStack)
 	{
-		EvaluateSample(Output, 0);
+		if (!EvaluateSample(Output, 0))
+		{
+			Output.ResetToRefPose();
+		}
 	}
 	else
 	{
 		// evaluating the last AnimPlayer into Output...
-		EvaluateSample(Output, BlendStackSize - 1);
+		if (!EvaluateSample(Output, BlendStackSize - 1))
+		{
+			UE_LOG(LogBlendStack, Error, TEXT("FAnimNode_BlendStack_Standalone::Evaluate_AnyThread couldn't evaluate its last sample. Defaulting to RefPose"));
+			Output.ResetToRefPose();
+		}
 
 		FPoseContext EvaluationPoseContext(Output);
 
@@ -495,19 +602,20 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 			FAnimationPoseData EvaluationAnimationPoseData(EvaluationPoseContext);
 
 			// Evaluate into EvaluationPoseContext and then blend it with the Output (initialized with the last AnimPlayer evaluation)
-			EvaluateSample(EvaluationPoseContext, PlayerIndex);
-
-			const int32 BlendInWeightsNum = AnimPlayers[PlayerIndex].GetBlendInWeightsNum();
-			if (BlendInWeightsNum > 0)
+			if (EvaluateSample(EvaluationPoseContext, PlayerIndex))
 			{
-				TArrayView<float> Weights((float*)FMemory_Alloca(BlendInWeightsNum * sizeof(float)), BlendInWeightsNum);
-				AnimPlayers[PlayerIndex].GetBlendInWeights(Weights);
-				BlendWithPosePerBone(OutputAnimationPoseData, EvaluationAnimationPoseData, Weights);
-			}
-			else
-			{
-				const float Weight = 1.f - FAlphaBlend::AlphaToBlendOption(AnimPlayers[PlayerIndex].GetBlendInPercentage(), AnimPlayers[PlayerIndex].GetBlendOption());
-				BlendWithPose(OutputAnimationPoseData, EvaluationAnimationPoseData, Weight);
+				const int32 BlendInWeightsNum = AnimPlayers[PlayerIndex].GetBlendInWeightsNum();
+				if (BlendInWeightsNum > 0)
+				{
+					TArrayView<float> EvaluationAnimationPoseDataWeights((float*)FMemory_Alloca(BlendInWeightsNum * sizeof(float)), BlendInWeightsNum);
+					AnimPlayers[PlayerIndex].GetBlendInWeights(EvaluationAnimationPoseDataWeights);
+					BlendWithPosePerBone(OutputAnimationPoseData, EvaluationAnimationPoseData, EvaluationAnimationPoseDataWeights);
+				}
+				else
+				{
+					const float OutputAnimationPoseDataWeight = 1.f - AnimPlayers[PlayerIndex].GetBlendInWeight();
+					BlendWithPose(OutputAnimationPoseData, EvaluationAnimationPoseData, OutputAnimationPoseDataWeight);
+				}
 			}
 		};
 
@@ -626,7 +734,7 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 	{
 		FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[AnimPlayerIndex];
 		const bool bIsLastAnimPlayers = AnimPlayerIndex == BlendStackSize - 1;
-		const float BlendInPercentage = bIsLastAnimPlayers ? 1.f : AnimPlayer.GetBlendInPercentage();
+		const float BlendInPercentage = bIsLastAnimPlayers ? 1.f : AnimPlayer.GetBlendInWeight();
 		const float AnimPlayerBlendWeight = CurrentWeightMultiplier * BlendInPercentage;
 
 		FAnimationUpdateContext AnimPlayerContext = Context.FractionalWeightAndRootMotion(AnimPlayerBlendWeight, AnimPlayerBlendWeight);
@@ -659,21 +767,29 @@ bool FAnimNode_BlendStack_Standalone::IsSampleGraphAvailableForPlayer(const int3
 	return !PerSampleGraphPoseLinks.IsEmpty() && !AnimPlayers[PlayerIndex].HasValidPoseContext();
 }
 
-void FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const int32 PlayerIndex)
+bool FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const int32 PlayerIndex)
 {
 	FBlendStackAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+	
+	if (!SamplePlayer.IsActive())
+	{
+		return false;
+	}
+
 	// MaxActiveBlends == 0, means we're using inertialization. Run the the graph.
 	const bool bIsSampleGraphAvailable = IsSampleGraphAvailableForPlayer(PlayerIndex);
 	if (!bIsSampleGraphAvailable)
 	{
 		// If we have no sample graph, evaluate the player directly.
 		SamplePlayer.Evaluate_AnyThread(Output);
-		return;
+		return true;
 	}
 
 	const int32 SampleIndex = SamplePlayer.GetPoseLinkIndex();
 	UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& PoseLink = SampleGraphExecutionHelpers[SampleIndex];
 	PoseLink.EvaluatePlayer(Output, SamplePlayer, PerSampleGraphPoseLinks[SampleIndex]);
+		
+	return true;
 }
 
 void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer, FPoseLink& SamplePoseLink)
@@ -689,7 +805,7 @@ void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::EvaluatePlayer(FPos
 void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::ConditionalCacheBones(const FAnimationBaseContext& Context, FPoseLink& SamplePoseLink)
 {
 	// Only call CacheBones when needed.
-	if (!CacheBoneCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
+	if (!CacheBoneCounter.IsSynchronized_All(Context.AnimInstanceProxy->GetCachedBonesCounter()))
 	{
 		// Keep track of samples that have had CacheBones called on.
 		CacheBoneCounter.SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
@@ -703,6 +819,9 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 {
 	FBlendStackAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
 
+	// Advance the blend-in time regardless of whether or not the player was updated.
+	SamplePlayer.UpdateWithDeltaTime(Context.GetDeltaTime(), PlayerIndex, PlayerDepthBlendInTimeMultiplier);
+
 	if (SamplePlayer.IsActive())
 	{
 		const bool bHasSampleGraph = IsSampleGraphAvailableForPlayer(PlayerIndex);
@@ -711,7 +830,7 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 			const int32 SampleIndex = SamplePlayer.GetPoseLinkIndex();
 			UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& ExecutionHelper = SampleGraphExecutionHelpers[SampleIndex];
 			ExecutionHelper.SetInputPosePlayer(SamplePlayer);
-			// The anim player may or may not have its Update_AnyThread called through the graph update. 
+			// The anim player may or may not have its Update_AnyThread called through the graph update.
 			PerSampleGraphPoseLinks[SampleIndex].Update(Context);
 		}
 		else
@@ -720,9 +839,6 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 			SamplePlayer.Update_AnyThread(Context);
 		}
 	}
-
-	// Advance the blend-in time regardless of whether or not the player was updated.
-	SamplePlayer.UpdateWithDeltaTime(Context.GetDeltaTime(), PlayerIndex, PlayerDepthBlendInTimeMultiplier);
 }
 
 void FAnimNode_BlendStack_Standalone::CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex)
@@ -748,6 +864,16 @@ void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializ
 		PoseLink.Initialize(Context);
 		ExecutionHelper.ConditionalCacheBones(Context, PoseLink);
 	}
+}
+
+float FAnimNode_BlendStack_Standalone::GetCurrentAssetLength() const
+{
+	return AnimPlayers.IsEmpty() ? 0.0f : AnimPlayers[0].GetCurrentAssetLength();
+}
+
+float FAnimNode_BlendStack_Standalone::GetCurrentAssetTime() const
+{
+	return AnimPlayers.IsEmpty() ? 0.0f : AnimPlayers[0].GetCurrentAssetTime();
 }
 
 UAnimationAsset* FAnimNode_BlendStack_Standalone::GetAnimAsset() const
@@ -795,7 +921,78 @@ static void RequestInertialBlend(const FAnimationUpdateContext& Context, float B
 
 void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
 	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend,
-	const FVector& BlendParameters, float PlayRate, float ActivationDelay, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
+	const FVector& BlendParameters, float PlayRate, float ActivationDelay, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod, bool bOverridePositionWhenJoiningSyncGroupAsLeader)
+{
+	using namespace UE::Anim;
+
+	bool bNeedToBlendTo = true;
+	if (StitchDatabase)
+	{
+		if (MaxActiveBlends > 0)
+		{
+			if (IPoseSearchProvider* PoseSearchProvider = IPoseSearchProvider::Get())
+			{
+				// looking for an animation stitch from the StitchDatabase that will connect, in BlendTime seconds, 
+				// the currently playing animation pose to the pose from AnimationAsset at AccumulatedTime + BlendTime
+				const UObject* AssetToSearch = StitchDatabase.Get();
+
+				IPoseSearchProvider::FSearchPlayingAsset PlayingAsset;
+				PlayingAsset.Asset = GetAnimAsset();
+				PlayingAsset.AccumulatedTime = GetAccumulatedTime();
+
+				IPoseSearchProvider::FSearchFutureAsset FutureAsset;
+				FutureAsset.Asset = AnimationAsset;
+				FutureAsset.AccumulatedTime = AccumulatedTime + BlendTime;
+				FutureAsset.IntervalTime = BlendTime;
+
+				const IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, MakeArrayView(&AssetToSearch, 1), PlayingAsset, FutureAsset);
+				if (UAnimationAsset* StitchAnimationAsset = Cast<UAnimationAsset>(SearchResult.SelectedAsset))
+				{
+					if (SearchResult.Dissimilarity <= StitchBlendMaxCost)
+					{
+						// blend to the selected animation stitch
+						InternalBlendTo(Context, StitchAnimationAsset, SearchResult.TimeOffsetSeconds, false, SearchResult.bMirrored, MirrorDataTable,
+							StitchBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, SearchResult.WantedPlayRate, ActivationDelay, GroupName, GroupRole, GroupMethod, bOverridePositionWhenJoiningSyncGroupAsLeader);
+
+						// blend with an ActivationDelay of BlendTime - StitchBlendTime + ActivationDelay seconds
+						// to the AnimationAsset at AccumulatedTime + BlendTime - StitchBlendTime seconds in the future,
+						// so at BlendTime seconds ahead the AnimationAsset is playing the fully blended in pose at AccumulatedTime + BlendTime
+						InternalBlendTo(Context, AnimationAsset, AccumulatedTime + BlendTime - StitchBlendTime, bLoop, bMirrored, MirrorDataTable,
+							StitchBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, PlayRate, BlendTime - StitchBlendTime + ActivationDelay, GroupName, GroupRole, GroupMethod, bOverridePositionWhenJoiningSyncGroupAsLeader);
+
+						bNeedToBlendTo = false;
+					}
+					else
+					{
+						UE_LOG(LogBlendStack, Display, TEXT("FAnimNode_BlendStack_Standalone::BlendTo StitchDatabase '%s' search cost is %f, above StitchBlendMaxCost %f. Defaulting to regular blend"), *GetNameSafe(StitchDatabase), SearchResult.Dissimilarity, StitchBlendMaxCost);
+					}
+				}
+				else
+				{
+					UE_LOG(LogBlendStack, Error, TEXT("FAnimNode_BlendStack_Standalone::BlendTo cannot use StitchDatabase '%s', because of missing IPoseSearchProvider::Search couldn't select a StitchAnimationAsset. Defaulting to regular blend"), *GetNameSafe(StitchDatabase));
+				}
+			}
+			else
+			{
+				UE_LOG(LogBlendStack, Error, TEXT("FAnimNode_BlendStack_Standalone::BlendTo cannot use StitchDatabase '%s', because of missing IPoseSearchProvider (is PoseSearch plugin enabled?). Defaulting to regular blend"), *GetNameSafe(StitchDatabase));
+			}
+		}
+		else
+		{
+			UE_LOG(LogBlendStack, Error, TEXT("FAnimNode_BlendStack_Standalone::BlendTo cannot use StitchDatabase '%s', since MaxActiveBlends should be at least 1. Defaulting to regular blend"), *GetNameSafe(StitchDatabase));
+		}
+	}
+
+	if (bNeedToBlendTo)
+	{
+		InternalBlendTo(Context, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable,
+			BlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, PlayRate, ActivationDelay, GroupName, GroupRole, GroupMethod, bOverridePositionWhenJoiningSyncGroupAsLeader);
+	}
+}
+
+void FAnimNode_BlendStack_Standalone::InternalBlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
+	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend,
+	const FVector& BlendParameters, float PlayRate, float ActivationDelay, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod, bool bOverridePositionWhenJoiningSyncGroupAsLeader)
 {
 	const bool bBlendStackIsEmpty = AnimPlayers.IsEmpty();
 
@@ -811,11 +1008,15 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 		BlendTime = 0.0f;
 	}
 
-	// If we don't add a new player, re-use the same graph...
 	int32 NewSamplePoseLinkIndex = CurrentSamplePoseLink;
-	if (!bBlendStackIsEmpty &&  AnimPlayers[0].GetBlendInPercentage() < 1.0f &&
-		AnimPlayers[0].GetCurrentBlendInTime() < MaxBlendInTimeToOverrideAnimation &&
-		FMath::IsNearlyEqual(AnimPlayers[0].GetTimeToActivation(), ActivationDelay))
+	if (!bBlendStackIsEmpty && !AnimPlayers[0].IsActive())
+	{
+		// we allow only one player with TimeToActivation > 0:
+		// replacing AnimPlayers[0] with this new BlendTo request
+	}
+	// If we don't add a new player, re-use the same graph...
+	else if (!bBlendStackIsEmpty && AnimPlayers[0].GetBlendInPercentage() < 1.f &&
+		AnimPlayers[0].GetCurrentBlendInTime() < MaxBlendInTimeToOverrideAnimation)
 	{
 		// replacing AnimPlayers[0] with this new BlendTo request
 		UE_LOG(LogBlendStack, Verbose, TEXT("FAnimNode_BlendStack_Standalone '%s' replaced by '%s' because blend time in is less than MaxBlendInTimeToOverrideAnimation (%.2f / %.2f)"), *AnimPlayers[0].GetAnimationName(), *GetNameSafe(AnimationAsset), AnimPlayers[0].GetCurrentBlendInTime(), MaxBlendInTimeToOverrideAnimation);
@@ -835,7 +1036,7 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[0];
 
 	FAnimationInitializeContext InitContext(Context.AnimInstanceProxy, Context.SharedContext);
-	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, ActivationDelay, NewSamplePoseLinkIndex, GroupName, GroupRole, GroupMethod);
+	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, ActivationDelay, NewSamplePoseLinkIndex, GroupName, GroupRole, GroupMethod, bOverridePositionWhenJoiningSyncGroupAsLeader);
 	InitializeSample(InitContext, AnimPlayer);
 }
 
@@ -977,23 +1178,17 @@ void FAnimNode_BlendStack_Standalone::BlendWithPose(FAnimationPoseData& InOutPos
 /////////////////////////////////////////////////////
 // FAnimNode_BlendStack
 
-void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
+bool FAnimNode_BlendStack::NeedsReset(const FAnimationUpdateContext& Context) const
 {
 	const bool bNeedsReset =
 		bResetOnBecomingRelevant &&
 		UpdateCounter.HasEverBeenUpdated() &&
 		!UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter());
+	return bNeedsReset;
+}
 
-	if (bNeedsReset)
-	{
-		Reset();
-		bForceBlendNextUpdate = false;
-	}
-
-	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
-
-	GetEvaluateGraphExposedInputs().Execute(Context);
-
+bool FAnimNode_BlendStack::ConditionalBlendTo(const FAnimationUpdateContext& Context)
+{
 	bool bExecuteBlendTo = false;
 	if (AnimationAsset == nullptr && !bForceBlendNextUpdate)
 	{
@@ -1021,7 +1216,7 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 		{
 			bExecuteBlendTo = true;
 		}
-		else if (BlendParameters != MainAnimPlayer.GetBlendParameters())
+		else if ((BlendParameters - MainAnimPlayer.GetBlendParameters()).SizeSquared() > FMath::Square(BlendParametersDeltaThreshold))
 		{
 			bExecuteBlendTo = true;
 		}
@@ -1034,13 +1229,37 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	if (bExecuteBlendTo)
 	{
 		BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(),
-			BlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
+			BlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate, ActivationDelayTime,
+			GetGroupName(), GetGroupRole(), GetGroupMethod());
 	}
 
+	return bExecuteBlendTo;
+}
+
+void FAnimNode_BlendStack::Reset()
+{
+	Super::Reset();
+	bForceBlendNextUpdate = false;
+}
+
+void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
+{
+	if (NeedsReset(Context))
+	{
+		Reset();
+	}
+
+	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
+	const bool bExecuteBlendTo = ConditionalBlendTo(Context);
 	const bool bDidBlendToRequestAnInertialBlend = bExecuteBlendTo && bUseInertialBlend;
 	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(bDidBlendToRequestAnInertialBlend, Context);
 	
 	UpdatePlayRate(WantedPlayRate);
+	UpdateBlendspaceParameters(BlendspaceUpdateMode, BlendParameters);
+
 	Super::UpdateAssetPlayer(Context);
 }
 
@@ -1054,6 +1273,96 @@ void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::SetInputPosePlayer(
 	// Because our anim players may get reallocated, or change indices due to push/pops,
 	// we must call this before every operation that might end up needing the anim player through the graph's input nodes.
 	Player = &InPlayer;
+}
+
+FName FAnimNode_BlendStack::GetGroupName() const
+{
+	return GET_ANIM_NODE_DATA(FName, GroupName);
+}
+
+EAnimGroupRole::Type FAnimNode_BlendStack::GetGroupRole() const
+{
+	return GET_ANIM_NODE_DATA(TEnumAsByte<EAnimGroupRole::Type>, GroupRole);
+}
+
+EAnimSyncMethod FAnimNode_BlendStack::GetGroupMethod() const
+{
+	return GET_ANIM_NODE_DATA(EAnimSyncMethod, Method);
+}
+
+bool FAnimNode_BlendStack::GetIgnoreForRelevancyTest() const
+{
+	return GET_ANIM_NODE_DATA(bool, bIgnoreForRelevancyTest);
+}
+
+bool FAnimNode_BlendStack::SetGroupName(FName InGroupName)
+{
+#if WITH_EDITORONLY_DATA
+	GroupName = InGroupName;
+#endif
+
+	if(FName* GroupNamePtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(FName, GroupName))
+	{
+		*GroupNamePtr = InGroupName;
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnimNode_BlendStack::SetGroupRole(EAnimGroupRole::Type InRole)
+{
+#if WITH_EDITORONLY_DATA
+	GroupRole = InRole;
+#endif
+	
+	if(TEnumAsByte<EAnimGroupRole::Type>* GroupRolePtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(TEnumAsByte<EAnimGroupRole::Type>, GroupRole))
+	{
+		*GroupRolePtr = InRole;
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnimNode_BlendStack::SetGroupMethod(EAnimSyncMethod InMethod)
+{
+#if WITH_EDITORONLY_DATA
+	Method = InMethod;
+#endif
+
+	if(EAnimSyncMethod* MethodPtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(EAnimSyncMethod, Method))
+	{
+		*MethodPtr = InMethod;
+		return true;
+	}
+
+	return false;
+}
+
+bool FAnimNode_BlendStack::IsLooping() const
+{
+	if (!AnimPlayers.IsEmpty())
+	{
+		return AnimPlayers[0].IsLooping();
+	}
+	return false;
+}
+
+
+bool FAnimNode_BlendStack::SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest)
+{
+#if WITH_EDITORONLY_DATA
+	bIgnoreForRelevancyTest = bInIgnoreForRelevancyTest;
+#endif
+
+	if (bool* bIgnoreForRelevancyTestPtr = GET_INSTANCE_ANIM_NODE_DATA_PTR(bool, bIgnoreForRelevancyTest))
+	{
+		*bIgnoreForRelevancyTestPtr = bInIgnoreForRelevancyTest;
+		return true;
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -195,6 +195,7 @@ namespace CrossCompiler
 	{
 		switch (Version)
 		{
+		case 30100: return "30100";
         case 30000: return "30000";
 		case 20400: return "20400";
 		case 20300: return "20300";
@@ -404,6 +405,15 @@ namespace CrossCompiler
 			break;
 		}
 
+		// Ignore unknwon attributes as UE uses custom attributes for intermediate source transformation
+		DxcArguments.Add("-Wno-unknown-attributes");
+
+		// We only treat warnings as errors for input source code, not intermediate source since DXC rewriter might produce new warnings the shader authors don't have control over.
+		if (InOptions.bWarningsAsErrors)
+		{
+			DxcArguments.Add("-WX");
+		}
+
 		// Add additional DXC arguments that are not exposed by ShaderConductor API directly
 		if (!InOptions.bDisableScalarBlockLayout)
 		{
@@ -456,7 +466,7 @@ namespace CrossCompiler
 		}
 	}
 
-static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false, bool bGenerateSpirv = true)
+	static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false, bool bGenerateSpirv = true)
 	{
 		// Validate input shader model with respect to certain language features.
 		checkf(
@@ -472,7 +482,6 @@ static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermedia
 		OutOptions.disableOptimizations = InOptions.bDisableOptimizations;
 		OutOptions.enableFMAPass = InOptions.bEnableFMAPass;
 		OutOptions.enableSeparateSamplers = InOptions.bEnableSeparateSamplersInGlsl;
-		OutOptions.remapAttributeLocations = InOptions.bRemapAttributeLocations;
 		OutOptions.shaderModel = ShaderConductor::Compiler::ShaderModel
 		{
 			static_cast<uint8>(InOptions.ShaderModel.Major),
@@ -484,7 +493,7 @@ static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermedia
 		DxcArgRefs.Empty();
 
 		AppendDxcArguments(InOptions, DxcArgRefs, bGenerateSpirv);
-		
+
 		if (!InOptions.SpirvCustomOptimizationPasses.IsEmpty())
 		{
 			Intermediates.InternalDxcArgs = FAnsiString::Printf("-Oconfig=%ls", SelectSpirvCustomOptimizationPasses(InOptions.SpirvCustomOptimizationPasses));
@@ -670,41 +679,7 @@ static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermedia
 
 	bool FShaderConductorContext::RewriteHlsl(const FShaderConductorOptions& Options, FString* OutSource)
 	{
-		// Convert descriptors for ShaderConductor interface
-		ShaderConductor::Compiler::SourceDesc ScSourceDesc;
-		ConvertScSourceDesc(*Intermediates, ScSourceDesc);
-
-		ShaderConductor::Compiler::Options ScOptions;
-		constexpr bool bIgnoreExtraDxcArgs = true;
-		ConvertScOptions(*Intermediates, Options, ScOptions, bIgnoreExtraDxcArgs);
-
-		// Rewrite HLSL with wrapper function to catch exceptions from ShaderConductor
-		bool bSucceeded = false;
-		ShaderConductor::Compiler::ResultDesc ResultDesc;
-		ScRewriteWrapper(ScSourceDesc, ScOptions, ResultDesc);
-
-		if (!ResultDesc.hasError && ResultDesc.target.Size() > 1)
-		{
-			// Note: We don't want to include the '\0' included in the result string (thanks to DxcCreateBlob), hence the -1
-			check(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data())[ResultDesc.target.Size() - 1] == '\0');
-			FAnsiStringView ResultView(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data()), ResultDesc.target.Size() - 1);
-
-			// Copy rewritten HLSL code into intermediate source code.
-			Intermediates->ShaderSource.CopyAnsi(ResultView);
-
-			// If output source is specified, also convert to TCHAR string
-			if (OutSource != nullptr)
-			{
-				OutSource->Empty();
-				OutSource->Append(ResultView);
-			}
-			bSucceeded = true;
-		}
-
-		// Append compile error and warning to output reports
-		ConvertScCompileErrors(ResultDesc.errorWarningMsg, Errors);
-
-		return bSucceeded;
+		return false; // DXC rewriter is no longer supported and this function has been deprecated since UE5.5
 	}
 
     bool FShaderConductorContext::CompileHlslToDxil(const FShaderConductorOptions& Options, TArray<uint32>& OutDxil)
@@ -822,7 +797,7 @@ static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermedia
 			[&OutSource](const void* Data, uint32 Size)
 			{
 				// Convert source buffer to FString
-				FString Converted(reinterpret_cast<const ANSICHAR*>(Data), Size);
+				FString Converted = FString::ConstructFromPtrSize(reinterpret_cast<const ANSICHAR*>(Data), Size);
 				OutSource = MoveTemp(Converted);
 			}
 		);

@@ -11,6 +11,7 @@ enum class EMapChangeType : uint8;
 class FUICommandList;
 class IDisplayClusterOperatorViewModel;
 class ADisplayClusterRootActor;
+class FTransactionObjectEvent;
 
 template<class T>
 class SComboBox;
@@ -61,8 +62,11 @@ private:
 	/** When the map changes */
 	void HandleMapChanged(UWorld* InWorld, EMapChangeType InMapChangeType);
 
-	/** Raised when an editor object is going to be cleased, usually used when a sublevel is about to be removed */
+	/** Raised when an editor object is going to be cleansed, usually used when a sublevel is about to be removed */
 	void OnPrepareToCleanseEditorObject(UObject* Object);
+	
+	/** Raised when any object is transacted */
+	void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent);
 
 private:
 	/** A reference the the operator panel's view model, which stores the operator panel state */
@@ -85,4 +89,7 @@ private:
 
 	/** The handle to OnMapChanged */
 	FDelegateHandle MapChangedHandle;
+
+	/** Delegate handle for when an object is transacted */
+	FDelegateHandle OnObjectTransactedHandle;
 };

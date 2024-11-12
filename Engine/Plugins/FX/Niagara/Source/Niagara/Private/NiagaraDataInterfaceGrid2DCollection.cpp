@@ -46,6 +46,14 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNDIGrid2DShaderParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float>,	OutputGrid)
 END_SHADER_PARAMETER_STRUCT()
 
+static int32 GNiagaraGrid2DCubicInterpMethod = 0;
+static FAutoConsoleVariableRef CVarNiagaraGrid2DCubicInterpMethod(
+	TEXT("fx.Niagara.Grid2D.CubicInterpMethod"),
+	GNiagaraGrid2DCubicInterpMethod,
+	TEXT("0=Bridson, 1=monotonic/Fedkiw.\n"),
+	ECVF_Default
+);
+
 static constexpr EPixelFormatCapabilities GNDIGrid2DFomatCaps = EPixelFormatCapabilities::TypedUAVLoad | EPixelFormatCapabilities::TypedUAVStore | EPixelFormatCapabilities::Texture2D;
 
 const FString UNiagaraDataInterfaceGrid2DCollection::GridName(TEXT("_Grid"));
@@ -1249,7 +1257,18 @@ void UNiagaraDataInterfaceGrid2DCollection::WriteSampleHLSL(const FNiagaraDataIn
 	FString SampleFunction = "{Grid}.SampleLevel";
 	if (IsCubic)
 	{
+		switch (GNiagaraGrid2DCubicInterpMethod)
+		{
+			case 0:
 		SampleFunction = "SampleBiCubic_{ParameterName}";
+				break;
+			case 1:
+				SampleFunction = "Monotonic2DCubic_{ParameterName}";
+				break;
+			default:
+				SampleFunction = "SampleBiCubic_{ParameterName}";
+				break;
+	}
 	}
 
 
@@ -1586,14 +1605,34 @@ bool UNiagaraDataInterfaceGrid2DCollection::GetFunctionHLSL(const FNiagaraDataIn
 	}
 	else if (FunctionInfo.DefinitionName == CubicSamplePreviousGridAtIndexFunctionName)
 	{
-		static const TCHAR* FormatBounds = TEXT(R"(
+		FString SampleFunctionPlaceholder = "{SampleFunction}";
+		FString SampleFunction = "SampleBiCubic_";
+
+		switch (GNiagaraGrid2DCubicInterpMethod)
+		{
+		case 0:
+			SampleFunction = "SampleBiCubic_";
+			break;
+		case 1:
+			SampleFunction = "Monotonic2DCubic_";
+			break;
+		default:
+			SampleFunction = "SampleBiCubic_";
+			break;
+		}
+		
+
+		FString FormatBounds = TEXT(R"(
 				void {FunctionName}(float In_UnitX, float In_UnitY, int In_AttributeIndex, out float Out_Val)
 				{
 					float3 UVW = float3(In_UnitX, In_UnitY, In_AttributeIndex);
-					Out_Val = SampleBiCubic_{ParameterName}({SamplerName}, UVW, 0);
+					Out_Val = {SampleFunction}{ParameterName}({SamplerName}, UVW, 0);
 				}
 			)");
-		OutHLSL += FString::Format(FormatBounds, ArgsBounds);
+
+		FormatBounds.ReplaceInline(*SampleFunctionPlaceholder, *SampleFunction);
+
+		OutHLSL += FString::Format(*FormatBounds, ArgsBounds);
 		return true;
 	}
 	return false;

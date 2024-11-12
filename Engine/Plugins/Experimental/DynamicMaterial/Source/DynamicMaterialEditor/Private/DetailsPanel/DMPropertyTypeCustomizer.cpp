@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMPropertyTypeCustomizer.h"
+#include "DetailsPanel/DMPropertyTypeCustomizer.h"
+
+#include "DetailsPanel/Widgets/SDMDetailsPanelTabSpawner.h"
 #include "DetailWidgetRow.h"
-#include "DetailsPanel/Slate/SDMDetailsPanelTabSpawner.h"
-#include "IDetailChildrenBuilder.h"
 #include "IPropertyTypeCustomization.h"
 #include "PropertyHandle.h"
 

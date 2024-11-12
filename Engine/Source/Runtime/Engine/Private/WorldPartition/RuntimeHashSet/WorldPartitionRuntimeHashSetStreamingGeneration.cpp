@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeCellDataHashSet.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
@@ -16,70 +17,33 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
+	if (RuntimePartitions.IsEmpty())
+	{
+		return false;
+	}
+
 	//
 	// Split actor sets into their corresponding runtime partition implementation
 	//
-	TMap<FName, const FRuntimePartitionDesc*> NameToRuntimePartitionDescMap;
-
-	// Actors with RuntimeGrid set to None will be assigned to the default partition
-	NameToRuntimePartitionDescMap.Add(NAME_None, &RuntimePartitions[0]);
-
-	// Non-spatially loaded actors will be assigned to the persistent partition
-	if (PersistentPartitionDesc.Class)
-	{
-		NameToRuntimePartitionDescMap.Add(NAME_PersistentLevel, &PersistentPartitionDesc);
-	}
-
-	for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
-	{
-		NameToRuntimePartitionDescMap.Add(RuntimePartitionDesc.Name, &RuntimePartitionDesc);
-	}
-
+	TMap<FName, URuntimePartition*> NameToRuntimePartitionMap;
+		
 	TMap<URuntimePartition*, TArray<const IStreamingGenerationContext::FActorSetInstance*>> RuntimePartitionsToActorSetMap;
-	StreamingGenerationContext->ForEachActorSetInstance([this, &NameToRuntimePartitionDescMap, &RuntimePartitionsToActorSetMap](const IStreamingGenerationContext::FActorSetInstance& ActorSetInstance)
+	StreamingGenerationContext->ForEachActorSetInstance([this, &NameToRuntimePartitionMap, &RuntimePartitionsToActorSetMap](const IStreamingGenerationContext::FActorSetInstance& ActorSetInstance)
 	{
-		TArray<FName> MainPartitionTokens;
-		TArray<FName> HLODPartitionTokens;
+		URuntimePartition* RuntimePartition = nullptr;
+		URuntimePartition** RuntimePartitionPtr = NameToRuntimePartitionMap.Find(ActorSetInstance.RuntimeGrid);
 
-		if (!ActorSetInstance.bIsSpatiallyLoaded)
+		if (RuntimePartitionPtr)
 		{
-			MainPartitionTokens.Add(NAME_PersistentLevel);
+			RuntimePartition = *RuntimePartitionPtr;
 		}
 		else
 		{
-			verify(ParseGridName(ActorSetInstance.RuntimeGrid, MainPartitionTokens, HLODPartitionTokens));
+			RuntimePartition = const_cast<URuntimePartition*>(ResolveRuntimePartition(ActorSetInstance.RuntimeGrid));// @todo-ow: GenerateStreaming() requires a non-const URuntimePartition object
+			NameToRuntimePartitionMap.Emplace(ActorSetInstance.RuntimeGrid, RuntimePartition);
 		}
 
-		check(!MainPartitionTokens.IsEmpty());
-		if (const FRuntimePartitionDesc** RuntimePartitionDesc = NameToRuntimePartitionDescMap.Find(MainPartitionTokens[0]))
-		{
-			if (!HLODPartitionTokens.IsEmpty())
-			{
-				bool bFoundHLODPartitionLayer = false;
-
-				for (const FRuntimePartitionHLODSetup& HLODSetup : (*RuntimePartitionDesc)->HLODSetups)
-				{
-					for (const UHLODLayer* HLODPartitionLayer : HLODSetup.HLODLayers)
-					{
-						if (HLODPartitionLayer->GetName() == HLODPartitionTokens[0])
-						{
-							RuntimePartitionsToActorSetMap.FindOrAdd(HLODSetup.PartitionLayer).Add(&ActorSetInstance);
-							bFoundHLODPartitionLayer = true;
-							break;
-						}
-					}
-
-					if (bFoundHLODPartitionLayer)
-					{
-						break;
-					}
-				}
-			}
-			else
-			{
-				RuntimePartitionsToActorSetMap.FindOrAdd((*RuntimePartitionDesc)->MainLayer).Add(&ActorSetInstance);
-			}
-		}
+		RuntimePartitionsToActorSetMap.FindOrAdd(RuntimePartition).Add(&ActorSetInstance);
 	});
 
 	//
@@ -102,9 +66,6 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 		RuntimePartitionsStreamingDescs.Add(RuntimePartition, GenerateStreamingResult.RuntimeCellDescs);
 	}
 
-	//
-	// Generate runtime partitions streaming data
-	//
 	TSet<FName> CellDescsNames;
 	for (auto& [RuntimePartition, RuntimeCellDescs] : RuntimePartitionsStreamingDescs)
 	{
@@ -150,20 +111,18 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
-	check(!PersistentPartitionDesc.Class);
-	PersistentPartitionDesc.Class = URuntimePartitionPersistent::StaticClass();
-	PersistentPartitionDesc.Name = NAME_PersistentLevel;
-	PersistentPartitionDesc.MainLayer = NewObject<URuntimePartition>(this, URuntimePartitionPersistent::StaticClass(), NAME_None);
-	PersistentPartitionDesc.MainLayer->Name = NAME_PersistentLevel;
-	PersistentPartitionDesc.MainLayer->LoadingRange = 0;
-
-	ON_SCOPE_EXIT
+	// Get container name
+	const FString ContainerPackageName = StreamingGenerationContext->GetActorSetContainerForContextBaseContainerInstance()->ContainerInstanceCollection->GetBaseContainerInstancePackageName().ToString();
+	FString ContainerShortName = FPackageName::GetShortName(ContainerPackageName);
+	if (!ContainerPackageName.StartsWith(TEXT("/Game/")))
 	{
-		check(PersistentPartitionDesc.Class);
-		PersistentPartitionDesc.Class = nullptr;
-		PersistentPartitionDesc.Name = NAME_None;
-		PersistentPartitionDesc.MainLayer = nullptr;
-	};
+		TArray<FString> SplitContainerPath;
+		if (ContainerPackageName.ParseIntoArray(SplitContainerPath, TEXT("/")))
+		{
+			ContainerShortName += TEXT(".");
+			ContainerShortName += SplitContainerPath[0];
+		}
+	}
 
 	//
 	// Generate runtime partitions streaming cell desccriptors
@@ -176,26 +135,29 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	//
 
 	// Generate runtime cells
-	auto CreateRuntimeCellFromCellDesc = [this](const URuntimePartition::FCellDescInstance& CellDescInstance, TSubclassOf<UWorldPartitionRuntimeCell> CellClass, TSubclassOf<UWorldPartitionRuntimeCellData> CellDataClass)
+	auto CreateRuntimeCellFromCellDesc = [this](const URuntimePartition::FCellDescInstance& CellDescInstance, TSubclassOf<UWorldPartitionRuntimeCell> CellClass, TSubclassOf<UWorldPartitionRuntimeCellDataHashSet> CellDataClass)
 	{
 		const FCellUniqueId CellUniqueId = GetCellUniqueId(CellDescInstance);
 
-		UWorldPartitionRuntimeCell* RuntimeCell = Super::CreateRuntimeCell(CellClass, CellDataClass, CellUniqueId.Name, TEXT(""));
+		UWorldPartitionRuntimeCell* RuntimeCell = CreateRuntimeCell(CellClass, CellDataClass, CellUniqueId.Name, CellUniqueId.InstanceSuffix);
 
 		RuntimeCell->SetDataLayers(CellDescInstance.DataLayerInstances);
 		RuntimeCell->SetContentBundleUID(CellDescInstance.ContentBundleID);
 		RuntimeCell->SetClientOnlyVisible(CellDescInstance.bClientOnlyVisible);
-		RuntimeCell->SetBlockOnSlowLoading(CellDescInstance.bBlockOnSlowStreaming);
-		RuntimeCell->SetIsHLOD(CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE);
+		const bool bIsHLOD = CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE;
+		const bool bBlockOnSlowStreaming = ResolveBlockOnSlowStreamingForCell(CellDescInstance.bBlockOnSlowStreaming, bIsHLOD, CellDescInstance.DataLayerInstances);
+		RuntimeCell->SetBlockOnSlowLoading(bBlockOnSlowStreaming);
+		RuntimeCell->SetIsHLOD(bIsHLOD);
 		RuntimeCell->SetGuid(CellUniqueId.Guid);
 		RuntimeCell->SetCellDebugColor(CellDescInstance.SourcePartition->DebugColor);
 
-		UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
+		UWorldPartitionRuntimeCellDataHashSet* RuntimeCellData = CastChecked<UWorldPartitionRuntimeCellDataHashSet>(RuntimeCell->RuntimeCellData);
 		RuntimeCellData->DebugName = CellUniqueId.Name;
 		RuntimeCellData->CellBounds = CellDescInstance.CellBounds;
-		RuntimeCellData->HierarchicalLevel = CellDescInstance.Level;
+		RuntimeCellData->HierarchicalLevel = CellDescInstance.bIsSpatiallyLoaded ? CellDescInstance.Level : MAX_int32;
 		RuntimeCellData->Priority = CellDescInstance.Priority;
 		RuntimeCellData->GridName = CellDescInstance.SourcePartition->Name;
+		RuntimeCellData->bIs2D = CellDescInstance.bIs2D;
 
 		return RuntimeCell;
 	};
@@ -211,14 +173,31 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 			TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
 			if (PopulateCellActorInstances(CellDescInstance.ActorSetInstances, bIsMainWorldPartition, bIsCellAlwaysLoaded, CellActorInstances))
 			{
-				UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellData::StaticClass()));
+				UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellDataHashSet::StaticClass()));
 				RuntimeCell->SetIsAlwaysLoaded(bIsCellAlwaysLoaded);
 				PopulateRuntimeCell(RuntimeCell, CellActorInstances, OutPackagesToGenerate);
 
-				// Override the cell bounds if the runtime partition provided one
-				if (CellDescInstance.Bounds.IsValid)
+				UWorldPartitionRuntimeCellDataHashSet* RuntimeCellData = CastChecked<UWorldPartitionRuntimeCellDataHashSet>(RuntimeCell->RuntimeCellData);
+				const FVector SpaceMask(1, 1, RuntimeCellData->bIs2D ? 0 : 1);
+
+				RuntimeCell->RuntimeCellData->ContentBounds.Min *= SpaceMask;
+				RuntimeCell->RuntimeCellData->ContentBounds.Max *= SpaceMask;
+
+				if (CellDescInstance.CellBounds.IsSet())
 				{
-					RuntimeCell->RuntimeCellData->ContentBounds = CellDescInstance.Bounds;
+					switch (CellDescInstance.SourcePartition->BoundsMethod)
+					{
+					case ERuntimePartitionCellBoundsMethod::UseCellBounds:
+						RuntimeCell->RuntimeCellData->ContentBounds = CellDescInstance.CellBounds.GetValue();
+						break;
+					case ERuntimePartitionCellBoundsMethod::UseMinContentCellBounds:
+						if (RuntimeCell->RuntimeCellData->ContentBounds.IsValid)
+						{
+							RuntimeCell->RuntimeCellData->ContentBounds = RuntimeCell->RuntimeCellData->ContentBounds.Overlap(CellDescInstance.CellBounds.GetValue());
+							check(CellDescInstance.CellBounds.GetValue().IsValid);
+						}
+						break;
+					}
 				}
 
 				// Create partition streaming data
@@ -227,13 +206,26 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 				StreamingData.Name = CellDescInstance.SourcePartition->Name;
 				StreamingData.LoadingRange = CellDescInstance.SourcePartition->LoadingRange;
 
+				StreamingData.DebugName = ContainerShortName + TEXT(".") + CellDescInstance.SourcePartition->Name.ToString();
+
+				if (CellDescInstance.DataLayerInstances.Num())
+				{
+					const FDataLayersID DataLayerdID(CellDescInstance.DataLayerInstances);
+					StreamingData.DebugName += FString::Printf(TEXT("_d%x"), DataLayerdID.GetHash());
+				}
+
+				if (CellDescInstance.ContentBundleID.IsValid())
+				{
+					StreamingData.DebugName += FString::Printf(TEXT("_c%x"), *UContentBundleDescriptor::GetContentBundleCompactString(CellDescInstance.ContentBundleID));
+				}
+
 				if (CellDescInstance.bIsSpatiallyLoaded)
 				{
-					StreamingData.StreamingCells.Add(RuntimeCell);
+					StreamingData.SpatiallyLoadedCells.Add(RuntimeCell);
 				}
 				else
 				{
-					StreamingData.NonStreamingCells.Add(RuntimeCell);
+					StreamingData.NonSpatiallyLoadedCells.Add(RuntimeCell);
 				}
 			}
 		}
@@ -249,6 +241,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeStreamingData.Emplace(MoveTemp(StreamingData));
 	}
 
+	UpdateRuntimeDataGridMap();
 	return true;
 }
 

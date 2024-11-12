@@ -35,9 +35,9 @@ void SDefaultPropertyValue::Construct(const FArguments& InArgs)
 
 FText SDefaultPropertyValue::GetText() const
 {
-	if (const FProperty* LastProperty = Path.GetLastProperty())
+	if (const void* ContainerPtr = Path.GetContainerPtr())
 	{
-		if (const void* ContainerPtr = Path.GetContainerPtr())
+		if (const FProperty* LastProperty = Path.GetLastProperty())
 		{
 			FString TextVersion;
 			LastProperty->ExportTextItem_InContainer(TextVersion, ContainerPtr, nullptr, nullptr, PPF_SimpleObjectText);

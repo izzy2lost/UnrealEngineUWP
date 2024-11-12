@@ -6,11 +6,12 @@
 #include "Voxel.ush"
 
 static const uint TileShift = 3;	// 8x8
+static const uint TileListBufferSize = 1u << 25;
 
 struct FTileListElement
 {
-	//float	Depth;
-	uint	Bounds;
+	float	Depth;
+	//uint	Bounds;
 	uint	BrickIndex;
 	uint	NextIndex;
 };
@@ -117,10 +118,10 @@ void BinBricksInTiles( uint	BrickIndex : SV_DispatchThreadID )
 				//uint ListIndex = RWTileListBuffer.IncrementCounter();
 				uint ListIndex = 0;
 				WaveInterlockedAddScalar_( RWDispatchIndirectArgs[4], 1, ListIndex );
-				//if( NodeIndex < TileListBufferSize )
+				if( ListIndex < TileListBufferSize )
 				{
-					//FTileListElement Element = { Depth, BrickIndex,  0 };
-					FTileListElement Element = { BrickBounds, BrickIndex,  0 };
+					FTileListElement Element = { Depth, BrickIndex,  0 };
+					//FTileListElement Element = { BrickBounds, BrickIndex,  0 };
 
 					InterlockedExchange( RWTileHead[ TileIndex ], ListIndex + 1, Element.NextIndex );	// Zero is reserved
 					InterlockedAdd( RWTileCount[ TileIndex ], 1 );
@@ -133,62 +134,20 @@ void BinBricksInTiles( uint	BrickIndex : SV_DispatchThreadID )
 }
 
 
-#define SUM_IN_GROUP_SHARED	1
-
-#if SUM_IN_GROUP_SHARED
-groupshared uint GroupArrayNum;
-groupshared uint GroupArrayOffset;
-#endif
-
 [numthreads(8, 8, 1)]
 void BuildTileArrays(
 	uint2	TileIndex	: SV_DispatchThreadID,
 	uint	GroupIndex	: SV_GroupIndex )
 {
-#if SUM_IN_GROUP_SHARED
-	if( GroupIndex == 0 )
-	{
-		GroupArrayNum = 0;
-	}
-	
-	GroupMemoryBarrierWithGroupSync();
-#endif
-
 	uint ArrayNum = TileCount[ TileIndex ];
 	uint ArrayOffset = 0;
 	
 	if( ArrayNum )
 	{
 		// Alloc space
-#if SUM_IN_GROUP_SHARED
-		// Reduce global atomics by accumulating to LDS first
-		// TODO use ballot and remove syncs
-		InterlockedAdd( GroupArrayNum, ArrayNum, ArrayOffset );
-#else
-		InterlockedAdd( RWDispatchIndirectArgs[3], ArrayNum, ArrayOffset );
-
-		RWTileOffset[ TileIndex ] = ArrayOffset;
-#endif
-	}
-
-#if SUM_IN_GROUP_SHARED
-	GroupMemoryBarrierWithGroupSync();
-
-	if( GroupIndex == 0 )
-	{
-		// Should be GDS
-		InterlockedAdd( RWDispatchIndirectArgs[3], GroupArrayNum, GroupArrayOffset );
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-
-	if( ArrayNum )
-	{
-		ArrayOffset += GroupArrayOffset;
-
+		WaveInterlockedAdd_( RWDispatchIndirectArgs[3], ArrayNum, ArrayOffset );
 		RWTileOffset[ TileIndex ] = ArrayOffset;
 	}
-#endif
 
 	// Convert linked list to array
 	uint ArrayIndex = ArrayOffset;
@@ -204,36 +163,15 @@ void BuildTileArrays(
 		{
 			FTileArrayElement Prev = RWTileArrayBuffer[ i - 1 ];
 
-			//if( This.Depth >= Prev.Depth )
+			if( This.Depth >= Prev.Depth )
 				break;
 
 			RWTileArrayBuffer[i] = Prev;
 			i--;
 		}
-		RWTileArrayBuffer[i].Depth		= 0;//This.Depth;
+		RWTileArrayBuffer[i].Depth		= This.Depth;
 		RWTileArrayBuffer[i].BrickIndex	= This.BrickIndex;
 	}
-
-	/*
-	// Prefix sum
-	s = LaneSwizzle( scan, 30, 0, 0 );
-	if( threadID.x & 1 )		scan += s;
-
-	s = LaneSwizzle( scan, 28, 1, 0 );
-	if( (threadID.x >> 1) & 1 )	scan += s;
-
-	s = LaneSwizzle( scan, 24, 3, 0 );
-	if( (threadID.x >> 2) & 1 )	scan += s;
-
-	s = LaneSwizzle( scan, 16, 7, 0 );
-	if( (threadID.x >> 3) & 1 )	scan += s;
-
-	s = LaneSwizzle( scan, 0, 15, 0 );
-	if( (threadID.x >> 4) & 1 )	scan += s;
-
-	s = ReadLane( scan, 31 );
-	if( (threadID.x >> 5) & 1 )	scan += s;
-	*/
 }
 
 
@@ -274,6 +212,9 @@ void RayCastTiles( uint2 PixelPos : SV_DispatchThreadID )
 	uint Num = TileCount[ TileIndex ];
 	for( uint i = Offset; i < Offset + Num; i++ )
 	{
+		if( Ray.Time[1] < TileArrayBuffer[i].Depth )
+			break;
+
 		FBrick Brick;
 		FRay LocalRay;
 
@@ -305,6 +246,7 @@ void RayCastTiles( uint2 PixelPos : SV_DispatchThreadID )
 					Bounds[0] = Min * 0.25;
 					Bounds[1] = Max * 0.25;
 				}
+			#if 0
 				else
 				{
 					uint3 Min, Max;
@@ -319,6 +261,7 @@ void RayCastTiles( uint2 PixelPos : SV_DispatchThreadID )
 					Bounds[0] = Min * 0.25;
 					Bounds[1] = Max * 0.25;
 				}
+			#endif
 		
 				LocalRay.Time = Intersect( LocalRay, Bounds );
 

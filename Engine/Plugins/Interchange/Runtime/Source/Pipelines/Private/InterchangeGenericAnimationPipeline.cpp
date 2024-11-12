@@ -2,7 +2,11 @@
 #include "InterchangeGenericAnimationPipeline.h"
 
 #include "Animation/AnimationSettings.h"
+#include "Animation/AnimSequence.h"
 #include "CoreMinimal.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
+#include "InterchangeGenericMeshPipeline.h"
 #include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeAnimSequenceFactoryNode.h"
@@ -14,12 +18,63 @@
 #include "InterchangeSkeletonFactoryNode.h"
 #include "InterchangeSkeletonHelper.h"
 #include "InterchangeSourceData.h"
+#include "LevelSequence.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeSourceNode.h"
 #include "Nodes/InterchangeUserDefinedAttribute.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericAnimationPipeline)
+
+namespace UE::Interchange::Private
+{
+	bool IsTranslatedDataContainOnlyJointAnimation(const UInterchangeBaseNodeContainer* InBaseNodeContainer, bool bConvertStaticsWithMorphTargetsToSkeletals)
+	{
+		//Its valid to call GetMeshesInformationFromTranslatedData with a null container
+		if (!InBaseNodeContainer)
+		{
+			return false;
+		}
+		bool bContainOnlyJointAnimation = false;
+		bool bContainJointAnimation = false;
+		InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeSkeletalAnimationTrackNode>([&bContainJointAnimation](const FString& NodeUid, UInterchangeSkeletalAnimationTrackNode* AnimationNode)
+			{
+				bContainJointAnimation = true;
+				return bContainJointAnimation;
+			});
+		if (bContainJointAnimation)
+		{
+			//if we have bone animation and no skinned mesh, we want to import animation only.
+			bool bContainSkinnedMeshNode = false;
+			InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeMeshNode>([&bContainSkinnedMeshNode, &bConvertStaticsWithMorphTargetsToSkeletals](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+				{
+					if (!MeshNode->IsMorphTarget())
+					{
+						if (MeshNode->IsSkinnedMesh())
+						{
+							bContainSkinnedMeshNode = true;
+						}
+					}
+					else
+					{
+						if (bConvertStaticsWithMorphTargetsToSkeletals)
+						{
+							bContainSkinnedMeshNode = true;
+						}
+					}
+					return bContainSkinnedMeshNode;
+				});
+			bContainOnlyJointAnimation = !bContainSkinnedMeshNode;
+		}
+
+		return bContainOnlyJointAnimation;
+	}
+}
+
+FString UInterchangeGenericAnimationPipeline::GetPipelineCategory(UClass* AssetClass)
+{
+	return TEXT("Animations");
+}
 
 #if WITH_EDITOR
 bool UInterchangeGenericAnimationPipeline::CanEditChange(const FProperty* InProperty) const
@@ -36,39 +91,66 @@ bool UInterchangeGenericAnimationPipeline::CanEditChange(const FProperty* InProp
 }
 #endif
 
-void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ContextParams);
 
 #if WITH_EDITOR
 	check(CommonSkeletalMeshesAndAnimationsProperties.IsValid());
 	
-	bSceneImport = ImportType == EInterchangePipelineContext::SceneImport
-				|| ImportType == EInterchangePipelineContext::SceneReimport;
+	bSceneImport = ContextParams.ContextType == EInterchangePipelineContext::SceneImport
+				|| ContextParams.ContextType == EInterchangePipelineContext::SceneReimport;
 
-	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomLODReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bImportAnimations = false;
 		CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
 		CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
 	}
 	
+	const FString CommonMeshesCategory =  UInterchangeGenericCommonMeshesProperties::GetPipelineCategory(nullptr);
+	const FString StaticMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(UStaticMesh::StaticClass());
+	const FString SkeletalMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(USkeletalMesh::StaticClass());
+	const FString AnimationCategory = UInterchangeGenericAnimationPipeline::GetPipelineCategory(nullptr);
+
 	TArray<FString> HideCategories;
-	if (ImportType == EInterchangePipelineContext::AssetReimport)
+	if(ContextParams.ContextType == EInterchangePipelineContext::AssetImport)
 	{
-		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ReimportAsset))
+		if(UE::Interchange::Private::IsTranslatedDataContainOnlyJointAnimation(ContextParams.BaseNodeContainer, CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals))
+		{
+			bImportAnimations = true;
+			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = true;
+
+			HideCategories.Add(StaticMeshesCategory);
+			HideCategories.Add(SkeletalMeshesCategory);
+			HideCategories.Add(CommonMeshesCategory);
+		}
+	}
+
+	
+	if (ContextParams.ContextType == EInterchangePipelineContext::AssetReimport)
+	{
+		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ContextParams.ReimportAsset))
 		{
 			//Set the skeleton to the current asset skeleton and re-import only the animation
 			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = AnimSequence->GetSkeleton();
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = true;
+			bImportAnimations = true;
 		}
 		else
 		{
-			HideCategories.Add(TEXT("Animations"));
+			HideCategories.Add(AnimationCategory);
 		}
+	}
+
+	if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+	{
+		bImportAnimations = true;
 	}
 
 	if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
@@ -81,6 +163,26 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 #endif //WITH_EDITOR
 }
 
+#if WITH_EDITOR
+
+bool UInterchangeGenericAnimationPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericAnimationPipeline, bImportAnimations))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+
+void UInterchangeGenericAnimationPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	PipelineSupportAssetClasses.Add(UAnimSequence::StaticClass());
+	PipelineSupportAssetClasses.Add(ULevelSequence::StaticClass());
+}
+
+#endif //WITH_EDITOR
+
 void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
 	if (!InBaseNodeContainer)
@@ -90,6 +192,11 @@ void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeC
 	}
 
 	BaseNodeContainer = InBaseNodeContainer;
+
+	if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+	{
+		bImportAnimations = true;
+	}
 
 	if (!bImportAnimations)
 	{
@@ -232,7 +339,8 @@ void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeC
 			SkeletalAnimationNode->SetCustomAnimationSampleRate(CustomFrameRate);
 			SkeletalAnimationNode->SetCustomAnimationStartTime(0);
 			//stop time will be calculated once we get the curves from the Translators.
-			SkeletalAnimationNode->SetCustomAnimationStopTime(0);
+			//However to avoid error reports we set stoptime for 1 subframe.
+			SkeletalAnimationNode->SetCustomAnimationStopTime(1./CustomFrameRate);
 
 			for (const FString& AnimationTrackUid : AnimationTrackUids)
 			{
@@ -353,10 +461,10 @@ void UInterchangeGenericAnimationPipeline::CreateLevelSequenceFactoryNode(UInter
 		// Update factory's dependencies
 		if (const UInterchangeAnimationTrackBaseNode* TrackNode = Cast<UInterchangeAnimationTrackBaseNode>(BaseNodeContainer->GetNode(AnimationTrackUid)))
 		{
-			if (const UInterchangeTransformAnimationTrackNode* TransformTrackNode = Cast<UInterchangeTransformAnimationTrackNode>(TrackNode))
+			if (const UInterchangeAnimationTrackNode* AnimationTrackNode = Cast<UInterchangeAnimationTrackNode>(TrackNode))
 			{
 				FString ActorNodeUid;
-				if (TransformTrackNode->GetCustomActorDependencyUid(ActorNodeUid))
+				if (AnimationTrackNode->GetCustomActorDependencyUid(ActorNodeUid))
 				{
 					const FString ActorFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(ActorNodeUid);
 					FactoryNode->AddFactoryDependencyUid(ActorFactoryNodeUid);
@@ -409,30 +517,30 @@ void UInterchangeGenericAnimationPipeline::CreateAnimSequenceFactoryNode(UInterc
 	//base on the specified skeleton
 	if(bImportOnlyAnimation && !SkeletonFactoryNode && CommonSkeletalMeshesAndAnimationsProperties->Skeleton.IsValid())
 	{
-		const FReferenceSkeleton& ReferenceSkeleton = CommonSkeletalMeshesAndAnimationsProperties->Skeleton->GetReferenceSkeleton();
-		TArray<FString> SkeletonRootNodeUids;
-		BaseNodeContainer->IterateNodesOfType<UInterchangeSceneNode>([&SkeletonRootNodeUids, BaseNodeContainerClosure = BaseNodeContainer, &ReferenceSkeleton](const FString& NodeUid, UInterchangeSceneNode* Node)
+		TWeakObjectPtr<USkeleton> Skeleton = CommonSkeletalMeshesAndAnimationsProperties->Skeleton;
+		TPair<int32, FString> SkeletonRootNodeUidAndBoneIndex = TPair<int32, FString>(INDEX_NONE, FString());
+		BaseNodeContainer->IterateNodesOfType<UInterchangeSceneNode>([&SkeletonRootNodeUidAndBoneIndex, BaseNodeContainerClosure = BaseNodeContainer, Skeleton](const FString& NodeUid, UInterchangeSceneNode* Node)
 		{
-			if (Node->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
+			if (Skeleton.IsValid() && Node->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
 			{
-				if(ReferenceSkeleton.FindBoneIndex(FName(*Node->GetDisplayLabel())) != INDEX_NONE)
+				const FReferenceSkeleton& ReferenceSkeleton = Skeleton->GetReferenceSkeleton();
+				int32 RefBoneIndex = ReferenceSkeleton.FindBoneIndex(FName(*Node->GetDisplayLabel()));
+				if(RefBoneIndex != INDEX_NONE)
 				{
-					const FString ParentUid = Node->GetParentUid();
-					if (const UInterchangeSceneNode* ParentNode = Cast<UInterchangeSceneNode>(BaseNodeContainerClosure->GetNode(ParentUid)))
+					if (SkeletonRootNodeUidAndBoneIndex.Key == INDEX_NONE || RefBoneIndex < SkeletonRootNodeUidAndBoneIndex.Key)
 					{
-						if (!ParentNode->IsSpecializedTypeContains(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString()))
-						{
-							SkeletonRootNodeUids.Add(NodeUid);
-						}
+						SkeletonRootNodeUidAndBoneIndex = TPair<int32, FString>(RefBoneIndex, NodeUid);
 					}
 				}
 			}
 		});
 		FString SkeletonRootUid;
-		if (SkeletonRootNodeUids.Num() > 0)
+		//Use the lower uid we found
+		if (SkeletonRootNodeUidAndBoneIndex.Key != INDEX_NONE && !SkeletonRootNodeUidAndBoneIndex.Value.IsEmpty())
 		{
-			SkeletonRootUid = SkeletonRootNodeUids[0];
+			SkeletonRootUid = SkeletonRootNodeUidAndBoneIndex.Value;
 		}
+
 		if(!SkeletonRootUid.IsEmpty())
 		{
 			//Create a skeleton node from all the joint in the translated nodes
@@ -460,12 +568,13 @@ void UInterchangeGenericAnimationPipeline::CreateAnimSequenceFactoryNode(UInterc
 
 	if (bImportBoneTracks)
 	{
-		if (const UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::GetUniqueInstance(BaseNodeContainer))
+		int32 Numerator, Denominator;
+		const UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::GetUniqueInstance(BaseNodeContainer);
+		if (SourceNode && SourceNode->GetCustomSourceFrameRateNumerator(Numerator) && SourceNode->GetCustomSourceFrameRateDenominator(Denominator))
 		{
-			int32 Numerator, Denominator;
-			if (!bUse30HzToBakeBoneAnimation && CustomBoneAnimationSampleRate == 0 && SourceNode->GetCustomSourceFrameRateNumerator(Numerator))
+			if (!bUse30HzToBakeBoneAnimation && CustomBoneAnimationSampleRate == 0)
 			{
-				if (SourceNode->GetCustomSourceFrameRateDenominator(Denominator) && Denominator > 0 && Numerator > 0)
+				if (Denominator > 0 && Numerator > 0)
 				{
 					SampleRate = static_cast<double>(Numerator) / static_cast<double>(Denominator);
 				}
@@ -620,6 +729,7 @@ void UInterchangeGenericAnimationPipeline::CreateAnimSequenceFactoryNode(UInterc
 		// NOTE: Could this be added as an array of FString attributes on the UInterchangeSkeletalAnimationTrackNode
 #if WITH_EDITOR
 		//Iterate all joints to set the meta data value in the anim sequence factory node
+		BaseNodeContainer->ComputeChildrenCache();
 		UE::Interchange::Private::FSkeletonHelper::RecursiveAddSkeletonMetaDataValues(BaseNodeContainer, AnimSequenceFactoryNode, RootJointUid);
 #endif //WITH_EDITOR
 

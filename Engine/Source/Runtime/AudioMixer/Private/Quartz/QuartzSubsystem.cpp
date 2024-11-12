@@ -660,7 +660,7 @@ void UQuartzSubsystem::PruneStaleProxiesInternal(TArray<Audio::FQuartzClockProxy
 	 {
 		 if(ContainerToPrune[i].IsValid() == false)
 		 {
-		 	ContainerToPrune.RemoveAtSwap(i--, 1, EAllowShrinking::No);
+		 	ContainerToPrune.RemoveAtSwap(i--, EAllowShrinking::No);
 		 }
 	 }
 }

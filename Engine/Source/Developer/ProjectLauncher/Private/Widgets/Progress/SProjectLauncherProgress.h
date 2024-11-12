@@ -163,7 +163,6 @@ public:
 						)
 						.ListItemsSource(&TaskList)
 						.OnGenerateRow(this, &SProjectLauncherProgress::HandleTaskListViewGenerateRow)
-						.ItemHeight(24.0)
 						.SelectionMode(ESelectionMode::Single)
 					]
 				]
@@ -222,7 +221,6 @@ public:
 									)
 									.ListItemsSource(&MessageList)
 									.OnGenerateRow(this, &SProjectLauncherProgress::HandleMessageListViewGenerateRow)
-									.ItemHeight(24.0)
 									.SelectionMode(ESelectionMode::Multi)
 									.ExternalScrollbar(VerticalScrollBar)
 									.AllowOverscroll(EAllowOverscroll::No)

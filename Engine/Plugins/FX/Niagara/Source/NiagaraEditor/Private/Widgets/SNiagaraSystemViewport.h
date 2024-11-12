@@ -16,6 +16,7 @@
 #include "NiagaraPerfBaseline.h"
 
 class FNiagaraSystemViewModel;
+class FPreviewProfileController;
 class UNiagaraComponent;
 class FNiagaraSystemEditorViewportClient;
 class FNiagaraSystemInstance;
@@ -109,6 +110,7 @@ protected:
 	/** SEditorViewport interface */
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 	virtual EVisibility OnGetViewportContentVisibility() const override;
 	virtual void BindCommands() override;
 	virtual void OnFocusViewportToSelection() override;
@@ -140,6 +142,9 @@ private:
 	
 	/** Level viewport client */
 	TSharedPtr<class FNiagaraSystemViewportClient> SystemViewportClient;
+
+	/** Access to Preview Profiles */
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	uint32 DrawFlags = 0;
 

@@ -6,14 +6,13 @@
 #include "RigVMModel/RigVMGraph.h"
 #include "RigVMModel/Nodes/RigVMLibraryNode.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
+#include "RigVMModel/RigVMTraitDefaultValueStruct.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMUserWorkflowRegistry.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMNode)
-
-const FString URigVMNode::NodeColorName = TEXT("NodeColor");
 
 #if WITH_EDITOR
 TArray<int32> URigVMNode::EmptyInstructionArray;
@@ -35,6 +34,25 @@ URigVMNode::URigVMNode()
 
 URigVMNode::~URigVMNode()
 {
+}
+
+void URigVMNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	for (const FString& TraitRootPinName : TraitRootPinNames)
+	{
+		if (!TraitDefaultValues.Contains(TraitRootPinName))
+		{
+			if (URigVMPin* TraitPin = FindPin(TraitRootPinName))
+			{
+				UScriptStruct* TraitScriptStruct = TraitPin->GetScriptStruct();
+				FRigVMTraitDefaultValueStruct& TraitDefaultValueStruct = TraitDefaultValues.Add(TraitRootPinName);
+				TraitDefaultValueStruct.Init(TraitScriptStruct);
+				TraitDefaultValueStruct.SetValue(TraitPin->DefaultValue);
+			}
+		}
+	}
 }
 
 FString URigVMNode::GetNodePath(bool bRecursive) const
@@ -116,6 +134,360 @@ TArray<URigVMPin*> URigVMNode::GetAllPinsRecursively() const
 	return Result;
 }
 
+TArray<FString> URigVMNode::GetPinCategories() const
+{
+	return PinCategories;
+}
+
+TArray<FString> URigVMNode::GetSubPinCategories(const FString InCategory, bool bOnlyExisting, bool bRecursive) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return {};
+	}
+	
+	const TArray<FString> ExistingCategories = GetPinCategories();
+	const FString Prefix = InCategory + TEXT("|");
+
+	const TArray<FString> IncompleteSubCategories = ExistingCategories.FilterByPredicate([Prefix](const FString& ExistingCategory)
+	{
+		return ExistingCategory.StartsWith(Prefix, ESearchCase::CaseSensitive);
+	});
+
+	TArray<FString> SubCategories;
+	for(const FString& SubCategory : IncompleteSubCategories)
+	{
+		TArray<FString> Parts;
+		verify(RigVMStringUtils::SplitNodePath(SubCategory, Parts));
+
+		TArray<FString> ParentsOfSubCategory;
+		while(!Parts.IsEmpty())
+		{
+			const FString ParentCategory = RigVMStringUtils::JoinNodePath(Parts);
+			if(!ParentCategory.StartsWith(Prefix))
+			{
+				break;
+			}
+			ParentsOfSubCategory.Add(ParentCategory);
+			Parts.Pop();
+		}
+
+		for(int32 Index = ParentsOfSubCategory.Num() - 1; Index >= 0; Index--)
+		{
+			SubCategories.AddUnique(ParentsOfSubCategory[Index]);
+		}
+	}
+
+	if(!bRecursive)
+	{
+		// remove any category that is not a direct child of the input category
+		SubCategories.RemoveAll([Prefix](const FString& InCategory) -> bool
+		{
+			return InCategory.Mid(Prefix.Len()).Contains(TEXT("|"));
+		});
+	}
+
+	if(bOnlyExisting)
+	{
+		SubCategories.RemoveAll([&ExistingCategories](const FString& InCategory) -> bool
+		{
+			return !ExistingCategories.Contains(InCategory);
+		});
+	}
+
+	return SubCategories;
+}
+
+FString URigVMNode::GetPinCategoryName(const FString InCategory) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return FString();
+	}
+	FString ParentCategory, CategoryName;
+	if(RigVMStringUtils::SplitNodePathAtEnd(InCategory, ParentCategory, CategoryName))
+	{
+		return CategoryName;
+	}
+	return FString();
+}
+
+FString URigVMNode::GetParentPinCategory(const FString InCategory, bool bOnlyExisting) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return FString();
+	}
+	FString ParentCategory, CategoryName;
+	if(RigVMStringUtils::SplitNodePathAtEnd(InCategory, ParentCategory, CategoryName))
+	{
+		return ParentCategory;
+	}
+	return FString();
+}
+
+TArray<FString> URigVMNode::GetParentPinCategories(const FString InCategory, bool bOnlyExisting, bool bIncludeSelf) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return {};
+	}
+	
+	const TArray<FString> ExistingCategories = GetPinCategories();
+
+	TArray<FString> Parts;
+	verify(RigVMStringUtils::SplitNodePath(InCategory, Parts));
+
+	TArray<FString> ParentCategories;
+	while(!Parts.IsEmpty())
+	{
+		ParentCategories.Add(RigVMStringUtils::JoinNodePath(Parts));
+		Parts.Pop();
+	}
+
+	if(!bIncludeSelf)
+	{
+		ParentCategories.Remove(InCategory);
+	}
+
+	if(bOnlyExisting)
+	{
+		ParentCategories.RemoveAll([&ExistingCategories](const FString& InCategory) -> bool
+		{
+			return !ExistingCategories.Contains(InCategory);
+		});
+	}
+
+	return ParentCategories;
+}
+
+int32 URigVMNode::GetPinCategoryDepth(const FString& InCategory)
+{
+	TArray<FString> Parts;
+	if(RigVMStringUtils::SplitNodePath(InCategory, Parts))
+	{
+		return Parts.Num() - 1;
+	}
+	return 0;
+}
+
+TArray<URigVMPin*> URigVMNode::GetPinsForCategory(FString InCategory) const
+{
+	InCategory.TrimStartAndEndInline();
+	if(InCategory.IsEmpty())
+	{
+		return {};
+	}
+	
+	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
+
+	TArray<URigVMPin*> PinsInCategory;
+	for(URigVMPin* Pin : AllPins)
+	{
+		if(Pin->GetCategory().Equals(InCategory))
+		{
+			PinsInCategory.Add(Pin);
+		}
+	}
+
+	Algo::SortBy(PinsInCategory, [](const URigVMPin* Pin) -> int32
+	{
+		return Pin->GetIndexInCategory();
+	});
+	
+	return PinsInCategory;
+}
+
+bool URigVMNode::IsPinCategoryExpanded(FString InCategory) const
+{
+	if(InCategory.Equals(FRigVMPinCategory::GetDefaultCategoryName(), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	if(const bool* ExpansionState = PinCategoryExpansion.Find(InCategory))
+	{
+		return *ExpansionState;
+	}
+	return false;
+}
+
+FRigVMNodeLayout URigVMNode::GetNodeLayout(bool bIncludeEmptyCategories) const
+{
+	FRigVMNodeLayout Layout;
+	
+	// fill in the pin categories based on the data stored on the pins themselves
+	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
+	TMap<FString, FRigVMPinCategory> CategoryMap;
+	for(const URigVMPin* Pin : AllPins)
+	{
+		if(!Pin->UserDefinedCategory.IsEmpty())
+		{
+			FRigVMPinCategory& Category = CategoryMap.FindOrAdd(Pin->UserDefinedCategory);
+			Category.Path = Pin->UserDefinedCategory;
+			Category.Elements.Add(Pin->GetSegmentPath(true));
+		}
+	}
+
+	// add the categories in the order they have been added
+	for(const FString& PinCategory : PinCategories)
+	{
+		if(const FRigVMPinCategory* Category = CategoryMap.Find(PinCategory))
+		{
+			FRigVMPinCategory CategoryCopy = *Category;
+
+			// sort the elements based on pin index
+			// we start by assuming indices above the user defined range,
+			// so say for 4 pins we'll use (4,5,6,7) and then inline the
+			// user provided pin indices within the range of 0 to 3.
+			TMap<FString,int32> PinPathToIndex;
+			for(const FString& PinPath : CategoryCopy.Elements)
+			{
+				const int32 Index = CategoryCopy.Elements.Num() + PinPathToIndex.Num();
+				PinPathToIndex.Add(PinPath, Index);
+			}
+			for(const FString& PinPath : CategoryCopy.Elements)
+			{
+				if(const URigVMPin* Pin = FindPin(PinPath))
+				{
+					const int32 Index = Pin->GetIndexInCategory();
+					if(CategoryCopy.Elements.IsValidIndex(Index))
+					{
+						PinPathToIndex.FindChecked(PinPath) = Index;
+					}
+				}
+			}
+
+			Algo::SortBy(CategoryCopy.Elements, [PinPathToIndex](const FString& PinPath) -> int32
+			{
+ 				return PinPathToIndex.FindChecked(PinPath);
+			});
+			
+			Layout.Categories.Add(CategoryCopy);
+		}
+		else if(bIncludeEmptyCategories)
+		{
+			FRigVMPinCategory EmptyCategory;
+			EmptyCategory.Path = PinCategory;
+			Layout.Categories.Add(EmptyCategory);
+		}
+	}
+
+	for(FRigVMPinCategory& Category : Layout.Categories)
+	{
+		Category.bExpandedByDefault = IsPinCategoryExpanded(Category.Path);
+	}
+
+	// fill in all user provided display names and pin category indices
+	for(const URigVMPin* Pin : AllPins)
+	{
+		const FString SegmentPath = Pin->GetSegmentPath(true);
+		
+		if(!Pin->GetCategory().IsEmpty() && Pin->GetIndexInCategory() != INDEX_NONE)
+		{
+			Layout.PinIndexInCategory.Add(SegmentPath, Pin->GetIndexInCategory());
+		}
+
+		if(!Pin->DisplayName.IsNone())
+		{
+			if(!Pin->DisplayName.IsEqual(GetDisplayNameForPin(SegmentPath), ENameCase::CaseSensitive))
+			{
+				Layout.DisplayNames.Add(SegmentPath, Pin->DisplayName.ToString());
+			}
+		}
+	}
+
+	return Layout;
+}
+
+FString URigVMNode::GetOriginalPinDefaultValue(const URigVMPin* InPin) const
+{
+	const FString CompleteSegmentPath = InPin->GetSegmentPath(true);
+	if(const FString* CachedOriginalPinDefaultValue = CachedOriginalPinDefaultValues.Find(CompleteSegmentPath))
+	{
+		return *CachedOriginalPinDefaultValue;
+	}
+	
+	const URigVMPin* RootPin = InPin->GetRootPin();
+	const FString OriginalDefaultValue = GetOriginalDefaultValueForRootPin(RootPin);
+	if((RootPin != InPin) && !OriginalDefaultValue.IsEmpty())
+	{
+		struct Local
+		{
+			static FString TraverseArrayElement(TMap<FString, FString>& Cache, const URigVMPin* InPin, const FString& InSegmentPath, const FString& InRemainingSegmentPath, const FString& InDefaultValue)
+			{
+				FString Left = InRemainingSegmentPath, Right;
+				(void)URigVMPin::SplitPinPathAtStart(InRemainingSegmentPath, Left, Right);
+
+				if(const URigVMPin* SubPin = InPin->FindSubPin(Left))
+				{
+					const TArray<FString> DefaultValues = URigVMPin::SplitDefaultValue(InDefaultValue);
+					if(DefaultValues.IsValidIndex(SubPin->GetPinIndex()))
+					{
+						const FString SubPinDefaultValue = DefaultValues[SubPin->GetPinIndex()];
+						return Traverse(Cache, SubPin, URigVMPin::JoinPinPath(InSegmentPath, Left), Right, SubPinDefaultValue);
+					}
+				}
+				return FString();
+			}
+
+			static FString TraverseStructMember(TMap<FString, FString>& Cache, const URigVMPin* InPin, const FString& InSegmentPath, const FString& InRemainingSegmentPath, const FString& InDefaultValue)
+			{
+				FString Left = InRemainingSegmentPath, Right;
+				(void)URigVMPin::SplitPinPathAtStart(InRemainingSegmentPath, Left, Right);
+
+				const TArray<FString> DefaultValues = URigVMPin::SplitDefaultValue(InDefaultValue);
+				for(const FString& DefaultValue : DefaultValues)
+				{
+					FString Name, Value;
+					if (DefaultValue.Split(TEXT("="), &Name, &Value))
+					{
+						if(Left.Equals(Name, ESearchCase::CaseSensitive))
+						{
+							if(const URigVMPin* SubPin = InPin->FindSubPin(Left))
+							{
+								return Traverse(Cache, SubPin, URigVMPin::JoinPinPath(InSegmentPath, Left), Right, Value);
+							}
+						}
+					}
+				}
+
+				return FString();
+			}
+
+			static FString Traverse(TMap<FString, FString>& Cache, const URigVMPin* InPin, const FString& InSegmentPath, const FString& InRemainingSegmentPath, const FString& InDefaultValue)
+			{
+				FString DefaultValue = InDefaultValue;
+				if(!InRemainingSegmentPath.IsEmpty())
+				{
+					if(InPin->IsArray())
+					{
+						DefaultValue = TraverseArrayElement(Cache, InPin, InSegmentPath, InRemainingSegmentPath, InDefaultValue);
+					}
+					else if(InPin->IsStruct())
+					{
+						DefaultValue = TraverseStructMember(Cache, InPin, InSegmentPath, InRemainingSegmentPath, InDefaultValue);
+					}
+				}
+
+				if(!InDefaultValue.IsEmpty())
+				{
+					Cache.FindOrAdd(InSegmentPath, InDefaultValue);
+				}
+				return DefaultValue;
+			}
+		};
+
+		const FString SegmentPath = InPin->GetSegmentPath(false);
+		return Local::Traverse(CachedOriginalPinDefaultValues, RootPin, RootPin->GetName(), SegmentPath, OriginalDefaultValue);
+	}
+
+	if(!OriginalDefaultValue.IsEmpty())
+	{
+		CachedOriginalPinDefaultValues.FindOrAdd(CompleteSegmentPath, OriginalDefaultValue);
+	}
+	return OriginalDefaultValue;
+}
+
 URigVMPin* URigVMNode::FindPin(const FString& InPinPath) const
 {
 	FString Left, Right;
@@ -151,6 +523,25 @@ URigVMPin* URigVMNode::FindPin(const FString& InPinPath) const
 		}
 	}
 	
+	return nullptr;
+}
+
+URigVMPin* URigVMNode::FindRootPinByName(const FName& InPinName) const
+{
+	for(TObjectPtr<URigVMPin> Pin : Pins)
+	{
+		if(Pin->GetFName().IsEqual(InPinName, ENameCase::CaseSensitive))
+		{
+			return Pin;
+		}
+	}
+	for(TObjectPtr<URigVMPin> OrphanedPin : OrphanedPins)
+	{
+		if(OrphanedPin->GetFName().IsEqual(InPinName, ENameCase::CaseSensitive))
+		{
+			return OrphanedPin;
+		}
+	}
 	return nullptr;
 }
 
@@ -225,17 +616,27 @@ FText URigVMNode::GetToolTipTextForPin(const URigVMPin* InPin) const
 	return FText::FromName(InPin->GetFName());
 }
 
-void URigVMNode::UpdateDecoratorRootPinNames()
+FString URigVMNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
 {
-	TArray<FString> NewDecoratorRootPinNames;
+	ensure(InRootPin->IsRootPin());
+	return FString();
+}
+
+void URigVMNode::UpdateTraitRootPinNames()
+{
+	TArray<FString> NewTraitRootPinNames;
 	for(URigVMPin* Pin : GetPins())
 	{
-		if(Pin->IsDecoratorPin())
+		if(Pin->IsTraitPin())
 		{
-			NewDecoratorRootPinNames.Add(Pin->GetName());
+			if(URigVMPin* NamePin = Pin->FindSubPin(TEXT("Name")))
+			{
+				NamePin->DefaultValue = Pin->GetName();
+			}
+			NewTraitRootPinNames.Add(Pin->GetName());
 		}
 	}
-	DecoratorRootPinNames = NewDecoratorRootPinNames;
+	TraitRootPinNames = NewTraitRootPinNames;
 }
 
 bool URigVMNode::IsSelected() const
@@ -413,95 +814,98 @@ uint32 URigVMNode::GetStructureHash() const
 	return Hash;
 }
 
-TArray<URigVMPin*> URigVMNode::GetDecoratorPins() const
+TArray<URigVMPin*> URigVMNode::GetTraitPins() const
 {
-	TArray<URigVMPin*> DecoratorPins;
-	DecoratorPins.Reserve(DecoratorRootPinNames.Num());
+	TArray<URigVMPin*> TraitPins;
+	TraitPins.Reserve(TraitRootPinNames.Num());
 	
-	for(const FString& DecoratorRootPinName : DecoratorRootPinNames)
+	for(const FString& TraitRootPinName : TraitRootPinNames)
 	{
-		URigVMPin* DecoratorPin = FindPin(DecoratorRootPinName);
-		check(DecoratorPin);
+		URigVMPin* TraitPin = FindPin(TraitRootPinName);
+		check(TraitPin);
 
-		DecoratorPins.Add(DecoratorPin);
+		TraitPins.Add(TraitPin);
 	}
 
-	return DecoratorPins;
+	return TraitPins;
 }
 
-bool URigVMNode::IsDecoratorPin(FName InName) const
+bool URigVMNode::IsTraitPin(FName InName) const
 {
 	if(const URigVMPin* Pin = FindPin(InName.ToString()))
 	{
-		return IsDecoratorPin(Pin);
+		return IsTraitPin(Pin);
 	}
 	return false;
 }
 
-bool URigVMNode::IsDecoratorPin(const URigVMPin* InDecoratorPin) const
+bool URigVMNode::IsTraitPin(const URigVMPin* InTraitPin) const
 {
-	return FindDecorator(InDecoratorPin) != nullptr;
+	return FindTrait(InTraitPin) != nullptr;
 }
 
-URigVMPin* URigVMNode::FindDecorator(const FName& InName) const
+URigVMPin* URigVMNode::FindTrait(const FName& InName, const FString& InSubPinPath) const
 {
 	const FString NameString = InName.ToString();
-	for(const FString& DecoratorRootPinName : DecoratorRootPinNames)
+	for(const FString& TraitRootPinName : TraitRootPinNames)
 	{
-		if(DecoratorRootPinName.Equals(NameString, ESearchCase::CaseSensitive))
+		if(TraitRootPinName.Equals(NameString, ESearchCase::CaseSensitive))
 		{
-			return FindPin(DecoratorRootPinName);
+			if(InSubPinPath.IsEmpty())
+			{
+				return FindPin(TraitRootPinName);
+			}
+			return FindPin(URigVMPin::JoinPinPath(TraitRootPinName, InSubPinPath));
 		}
 	}
 	return nullptr;
 }
 
-URigVMPin* URigVMNode::FindDecorator(const URigVMPin* InDecoratorPin) const
+URigVMPin* URigVMNode::FindTrait(const URigVMPin* InTraitPin) const
 {
-	if(InDecoratorPin)
+	if(InTraitPin)
 	{
-		const URigVMPin* RootPin = InDecoratorPin->GetRootPin();
+		const URigVMPin* RootPin = InTraitPin->GetRootPin();
 		if(RootPin->GetNode() == this)
 		{
-			return FindDecorator(RootPin->GetFName());
+			return FindTrait(RootPin->GetFName());
 		}
 	}
 	return nullptr;
 }
 
-TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const FName& InName, bool bUseDefaultValueFromPin) const
+TSharedPtr<FStructOnScope> URigVMNode::GetTraitInstance(const FName& InName, bool bUseDefaultValueFromPin) const
 {
-	return GetDecoratorInstance(FindPin(InName.ToString()), bUseDefaultValueFromPin);
+	return GetTraitInstance(FindPin(InName.ToString()), bUseDefaultValueFromPin);
 }
 
-TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InDecoratorPin, bool bUseDefaultValueFromPin) const
+TSharedPtr<FStructOnScope> URigVMNode::GetTraitInstance(const URigVMPin* InTraitPin, bool bUseDefaultValueFromPin) const
 {
-	if(const URigVMPin* RootPin = FindDecorator(InDecoratorPin))
+	if(const URigVMPin* RootPin = FindTrait(InTraitPin))
 	{
 		check(RootPin->IsStruct());
 
 		UScriptStruct* ScriptStruct = RootPin->GetScriptStruct();
-		check(ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct()));
+		check(ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()));
 
 		TSharedPtr<FStructOnScope> Scope(new FStructOnScope(ScriptStruct));
-		FRigVMDecorator* Decorator = (FRigVMDecorator*)Scope->GetStructMemory();
+		FRigVMTrait* Trait = (FRigVMTrait*)Scope->GetStructMemory();
 
 		if(bUseDefaultValueFromPin)
 		{
 			const FString DefaultValue = RootPin->GetDefaultValue();
 			if(!DefaultValue.IsEmpty())
 			{
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 				{
 					// force logging to the error pipe for error detection
-					LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
-					ScriptStruct->ImportText(*DefaultValue, Decorator, nullptr, PPF_None, &ErrorPipe, ScriptStruct->GetName()); 
+					LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity());
+					ScriptStruct->ImportText(*DefaultValue, Trait, nullptr, PPF_SerializedAsImportText, &ErrorPipe, ScriptStruct->GetName());
 				}
 			}
 		}
 
-		Decorator->Name = RootPin->GetFName();
-		Decorator->DecoratorStruct = ScriptStruct;
+		Trait->Name = RootPin->GetName();
 		
 		return Scope;
 	}
@@ -510,23 +914,89 @@ TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InD
 	return EmptyScope;
 }
 
-UScriptStruct* URigVMNode::GetDecoratorScriptStruct(const FName& InName) const
+UScriptStruct* URigVMNode::GetTraitScriptStruct(const FName& InName) const
 {
-	return GetDecoratorScriptStruct(FindPin(InName.ToString()));
+	return GetTraitScriptStruct(FindPin(InName.ToString()));
 }
 
-UScriptStruct* URigVMNode::GetDecoratorScriptStruct(const URigVMPin* InDecoratorPin) const
+UScriptStruct* URigVMNode::GetTraitScriptStruct(const URigVMPin* InTraitPin) const
 {
-	if(const URigVMPin* RootPin = FindDecorator(InDecoratorPin))
+	if(const URigVMPin* RootPin = FindTrait(InTraitPin))
 	{
 		check(RootPin->IsStruct());
 
 		UScriptStruct* ScriptStruct = RootPin->GetScriptStruct();
-		check(ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct()));
+		check(ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()));
 		return ScriptStruct;
 	}
 
 	return nullptr;
+}
+
+FName URigVMNode::GetDisplayNameForPin(const FString& InPinPath) const
+{
+	if(const URigVMPin* Pin = FindPin(InPinPath))
+	{
+		if(Pin->IsArrayElement())
+		{
+			return *FString::FromInt(Pin->GetPinIndex());
+		}
+	}
+	return NAME_None;
+}
+
+FName URigVMNode::GetDisplayNameForStructMember(const UStruct* InStruct, const FString& InPath)
+{
+	check(InStruct);
+	if(!InPath.IsEmpty())
+	{
+		FString Left, Right;
+		if(!RigVMStringUtils::SplitPinPathAtStart(InPath, Left, Right))
+		{
+			Left = InPath;
+		}
+
+		if(const FProperty* Property = InStruct->FindPropertyByName(*Left))
+		{
+			return GetDisplayNameForProperty(Property, Right);
+		}
+	}
+	return NAME_None;
+}
+
+FName URigVMNode::GetDisplayNameForProperty(const FProperty* InProperty, const FString& InRemainingPath)
+{
+	check(InProperty);
+
+	FText DisplayNameText = InProperty->GetDisplayNameText();
+
+	if(!InRemainingPath.IsEmpty())
+	{
+		const FRigVMPropertyPath PropertyPath(InProperty, InRemainingPath);
+		if(PropertyPath.IsValid())
+		{
+			if(const FProperty* TailProperty = PropertyPath.GetTailProperty())
+			{
+				DisplayNameText = TailProperty->GetDisplayNameText();
+			}
+		}
+	}
+
+	if(DisplayNameText.IsEmpty())
+	{
+		return NAME_None;
+	}
+	return *DisplayNameText.ToString();
+}
+
+FString URigVMNode::GetCategoryForPin(const FString& InPinPath) const
+{
+	return FString();
+}
+
+int32 URigVMNode::GetIndexInCategoryForPin(const FString& InPinPath) const
+{
+	return INDEX_NONE;
 }
 
 URigVMLibraryNode* URigVMNode::FindFunctionForNode() const  
@@ -625,6 +1095,11 @@ void URigVMNode::GetLinkedNodesRecursive(URigVMPin* InPin, bool bLookForSources,
 	{
 		GetLinkedNodesRecursive(SubPin, bLookForSources, OutNodes);
 	}
+}
+
+void URigVMNode::InvalidateCache()
+{
+	CachedOriginalPinDefaultValues.Reset();
 }
 
 const TArray<int32>& URigVMNode::GetInstructionsForVM(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy) const

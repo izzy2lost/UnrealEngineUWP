@@ -17,7 +17,8 @@ template<class T>
 struct TWeakInterfacePtr
 {
 	using ElementType = T;
-	
+	using UObjectType = typename TCopyQualifiersFromTo<T, UObject>::Type;
+
 	FORCEINLINE TWeakInterfacePtr() = default;
 	FORCEINLINE TWeakInterfacePtr(const TWeakInterfacePtr& Other) = default;
 	FORCEINLINE TWeakInterfacePtr(TWeakInterfacePtr&& Other) = default;
@@ -30,8 +31,8 @@ struct TWeakInterfacePtr
 	 * @param Object The object to create a weak pointer to. This object must implement interface T.
 	 */
 	template<
-		typename U,
-		decltype(ImplicitConv<typename TCopyQualifiersFromTo<U, UObject>::Type*>(std::declval<U>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, typename TCopyQualifiersFromTo<U, UObject>::Type*>)
 	>
 	TWeakInterfacePtr(U&& Object)
 	{
@@ -99,7 +100,7 @@ struct TWeakInterfacePtr
 	/**
 	 * Dereference the weak pointer into a UObject pointer.
 	 */
-	FORCEINLINE UObject* GetObject() const
+	FORCEINLINE UObjectType* GetObject() const
 	{
 		return ObjectInstance.Get();
 	}
@@ -153,7 +154,7 @@ struct TWeakInterfacePtr
 
 	FORCEINLINE TScriptInterface<T> ToScriptInterface() const
 	{
-		UObject* Object = ObjectInstance.Get();
+		UObjectType* Object = ObjectInstance.Get();
 		if (Object)
 		{
 			return TScriptInterface<T>(Object);
@@ -162,12 +163,12 @@ struct TWeakInterfacePtr
 		return TScriptInterface<T>();
 	}
 
-	FORCEINLINE TWeakObjectPtr<UObject> GetWeakObjectPtr() const
+	FORCEINLINE TWeakObjectPtr<UObjectType> GetWeakObjectPtr() const
 	{
 		return ObjectInstance;
 	}
 
 private:
-	TWeakObjectPtr<UObject> ObjectInstance;
+	TWeakObjectPtr<UObjectType> ObjectInstance;
 	T* InterfaceInstance = nullptr;
 };

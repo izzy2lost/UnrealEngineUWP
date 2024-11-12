@@ -284,10 +284,13 @@ float VirtualTexturePool::GetPoolSizeScale()
 bool VirtualTexturePool::GetPoolAutoGrow()
 {
 #if WITH_EDITOR
-	UVirtualTexturePoolConfig const* PoolConfig = GetDefault<UVirtualTexturePoolConfig>();
-	if (PoolConfig->bPoolAutoGrowInEditor)
+	if (GIsEditor)
 	{
-		return true;
+		UVirtualTexturePoolConfig const* PoolConfig = GetDefault<UVirtualTexturePoolConfig>();
+		if (PoolConfig->bPoolAutoGrowInEditor)
+		{
+			return true;
+		}
 	}
 #endif
 	return CVarVTPoolAutoGrow.GetValueOnAnyThread();

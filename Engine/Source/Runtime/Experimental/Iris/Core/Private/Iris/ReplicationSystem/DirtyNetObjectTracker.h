@@ -6,6 +6,7 @@
 #include "Net/Core/DirtyNetObjectTracker/GlobalDirtyNetObjectTracker.h"
 
 #include "Iris/IrisConfig.h"
+#include "Iris/Core/IrisCsv.h"
 
 namespace UE::Net::Private
 {
@@ -25,9 +26,7 @@ struct FDirtyNetObjectTrackerInitParams
 {
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	uint32 ReplicationSystemId = 0;
-	uint32 MaxObjectCount = 0;
-	uint32 NetObjectIndexRangeStart = 0;
-	uint32 NetObjectIndexRangeEnd = 0;
+	uint32 MaxInternalNetRefIndex = 0;
 };
 
 class FDirtyNetObjectTracker
@@ -37,6 +36,7 @@ public:
 	~FDirtyNetObjectTracker();
 
 	void Init(const FDirtyNetObjectTrackerInitParams& Params);
+	void Deinit();
 
 	/** Returns true if this dirty tracker can be used by the replication system */
 	bool IsInit() const { return NetRefHandleManager != nullptr; }
@@ -59,6 +59,10 @@ public:
 	/** Reset the global list and look at the final polled list and clear any flags for objects that got polled */
 	void ReconcilePolledList(const FNetBitArrayView& ObjectsPolled);
 
+#if UE_NET_IRIS_CSV_STATS
+	void ReportCSVStats();
+#endif
+
 	/** Returns the list of objects that are dirty this frame or were dirty in previous frames but not cleaned up at that time. */
 	const FNetBitArrayView GetAccumulatedDirtyNetObjects() const { return MakeNetBitArrayView(AccumulatedDirtyNetObjects); }
 
@@ -75,7 +79,9 @@ private:
 	using StorageType = FNetBitArrayView::StorageWordType;
 	static constexpr uint32 StorageTypeBitCount = FNetBitArrayView::WordBitCount;
 
-	void Deinit();
+	void SetNetObjectListsSize(FInternalNetRefIndex NewMaxInternalIndex);
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
+
 	void MarkNetObjectDirty(FInternalNetRefIndex NetObjectIndex);
 	void ForceNetUpdate(FInternalNetRefIndex NetObjectIndex);
 	void GrabAndApplyGlobalDirtyObjectList();
@@ -92,7 +98,7 @@ private:
 	FNetBitArray ForceNetUpdateObjects;
 
 	// List of objects set to be dirty this frame. Is always reset at the end of the net tick flush
-	StorageType* DirtyNetObjectContainer = nullptr;
+	FNetBitArray DirtyNetObjects;
 
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	
@@ -100,15 +106,17 @@ private:
 
 	uint32 ReplicationSystemId;
 
-	uint32 DirtyNetObjectWordCount = 0;
-	uint32 NetObjectIdRangeStart = 0;
-	uint32 NetObjectIdRangeEnd = 0;
 	uint32 NetObjectIdCount = 0;
 	
 	bool bShouldResetPolledGlobalDirtyTracker = false;
 
 #if UE_NET_THREAD_SAFETY_CHECK
 	std::atomic_bool bIsExternalAccessAllowed = false;
+#endif
+
+#if UE_NET_IRIS_CSV_STATS
+	int32 PushModelDirtyObjectsCount = 0;
+	int32 ForceNetUpdateObjectsCount = 0;
 #endif
 };
 

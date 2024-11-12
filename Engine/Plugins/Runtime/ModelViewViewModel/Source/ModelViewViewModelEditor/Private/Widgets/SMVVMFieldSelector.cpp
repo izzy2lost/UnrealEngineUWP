@@ -35,6 +35,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 	OnDragEnterEvent = InArgs._OnDragEnter;
 	OnDropEvent = InArgs._OnDrop;
 	bIsBindingToEvent = InArgs._IsBindingToEvent;
+	bCanCreateEvent = InArgs._CanCreateEvent;
 
 	ChildSlot
 	[
@@ -50,6 +51,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 				SAssignNew(FieldDisplay, SFieldDisplay, InWidgetBlueprint)
 				.TextStyle(InArgs._TextStyle)
 				.OnGetLinkedValue(InArgs._OnGetLinkedValue)
+				.ShowFieldNotify(InArgs._ShowFieldNotify)
 			]
 		]
 	];
@@ -77,10 +79,11 @@ TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 
 	TSharedRef<SFieldSelectorMenu> Menu = SNew(SFieldSelectorMenu, WidgetBlueprintPtr)
 		.CurrentSelected(CurrentSelected)
-		.OnSelectionChanged(this, &SFieldSelector::HandleFieldSelectionChanged)
+		.OnSelected(this, &SFieldSelector::HandleFieldSelectionChanged)
 		.OnMenuCloseRequested(this, &SFieldSelector::HandleMenuClosed)
 		.SelectionContext(SelectionContext)
 		.IsBindingToEvent(bIsBindingToEvent)
+		.CanCreateEvent(bCanCreateEvent)
 		;
 
 	ComboButton->SetMenuContentWidgetToFocus(Menu->GetWidgetToFocus());
@@ -88,7 +91,7 @@ TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 	return Menu;
 }
 
-void SFieldSelector::HandleFieldSelectionChanged(FMVVMLinkedPinValue LinkedValue)
+void SFieldSelector::HandleFieldSelectionChanged(FMVVMLinkedPinValue LinkedValue, SFieldSelectorMenu::ESelectionType SelectionType)
 {
 	if (ComboButton.IsValid())
 	{
@@ -97,7 +100,7 @@ void SFieldSelector::HandleFieldSelectionChanged(FMVVMLinkedPinValue LinkedValue
 
 	if (OnSelectionChanged.IsBound())
 	{
-		OnSelectionChanged.Execute(LinkedValue);
+		OnSelectionChanged.Execute(LinkedValue, SelectionType);
 	}
 }
 

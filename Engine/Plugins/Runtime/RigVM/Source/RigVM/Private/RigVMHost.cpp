@@ -32,6 +32,7 @@ URigVMHost::URigVMHost(const FObjectInitializer& ObjectInitializer)
 	, FramesPerSecond(0.0f)
 	, bAccumulateTime(true)
 #if WITH_EDITOR
+	, bIsBeingDebugged(false)
 	, RigVMLog(nullptr)
 	, bEnableLogging(true)
 #endif
@@ -148,7 +149,7 @@ void URigVMHost::PostLoad()
 {
 	Super::PostLoad();
 	
-	FRigVMRegistry::Get().RefreshEngineTypesIfRequired();
+	FRigVMRegistry_RWLock::Get().RefreshEngineTypesIfRequired();
 	
 	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
 
@@ -526,6 +527,9 @@ bool URigVMHost::Execute(const FName& InEventName)
 	PublicContext.SetDeltaTime(DeltaTime);
 	PublicContext.SetAbsoluteTime(AbsoluteTime);
 	PublicContext.SetFramesPerSecond(GetCurrentFramesPerSecond());
+#if WITH_EDITOR
+	PublicContext.SetHostBeingDebugged(bIsBeingDebugged);
+#endif
 	PublicContext.SetOwningComponent(GetOwningSceneComponent());
 #if UE_RIGVM_DEBUG_EXECUTION
 	PublicContext.bDebugExecution = bDebugExecutionEnabled;
@@ -957,7 +961,7 @@ void URigVMHost::SwapVMToNativizedIfRequired(UClass* InNativizedClass)
 		if((InNativizedClass == nullptr) || bNativizedVMDisabled)
 		{
 			const EObjectFlags PreviousFlags = VM->GetFlags();
-			VM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			VM->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			VM->MarkAsGarbage();
 			VM = NewObject<URigVM>(this, TEXT("RigVM_NVMA"), PreviousFlags);
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
@@ -971,7 +975,7 @@ void URigVMHost::SwapVMToNativizedIfRequired(UClass* InNativizedClass)
 		if(InNativizedClass && !bNativizedVMDisabled)
 		{
 			const EObjectFlags PreviousFlags = VM->GetFlags();
-			VM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			VM->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			VM->MarkAsGarbage();
 			VM = NewObject<URigVM>(this, InNativizedClass, TEXT("RigVM_NVMB"), PreviousFlags);
 			GetRigVMExtendedExecuteContext().ExecutionReachedExit().AddUObject(this, &URigVMHost::HandleExecutionReachedExit);
@@ -1185,7 +1189,7 @@ TArray<const UObject*> URigVMHost::GetUserDefinedDependencies(const TArray<const
 	const TArray<const FRigVMFunction*>& Functions = VM->GetFunctions();
 	for (const FRigVMFunction* Function : Functions)
 	{
-		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+		const FRigVMRegistry_RWLock& Registry = FRigVMRegistry_RWLock::Get();
 		const TArray<TRigVMTypeIndex>& TypeIndices = Function->GetArgumentTypeIndices();
 		for (const TRigVMTypeIndex& TypeIndex : TypeIndices)
 		{

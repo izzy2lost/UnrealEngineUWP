@@ -80,7 +80,7 @@ void FMsg::LogV(const ANSICHAR* File, int32 Line, const FLogCategoryName& Catego
 			(OutputDevice ? OutputDevice : GLog)->Serialize(Message, Verbosity, Category);
 		});
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		// Only update the CSV stat if we're not crashing, otherwise things can get messy
 		if (LIKELY(!FPlatformMallocCrash::Get().IsActive()))
 		{

@@ -136,7 +136,7 @@ void DetermineMaxCallstackDepth()
 
 #endif
 
-void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, void* Context )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -157,7 +157,7 @@ void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString,
 	}
 }
 
-void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, void* ProgramCounter, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, void* ProgramCounter, void* Context )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -165,7 +165,7 @@ void FWindowsPlatformStackWalk::StackWalkAndDump( ANSICHAR* HumanReadableString,
 	FGenericPlatformStackWalk::StackWalkAndDump(HumanReadableString, HumanReadableStringSize, ProgramCounter, Context);
 }
 
-FORCENOINLINE TArray<FProgramCounterSymbolInfo> FWindowsPlatformStackWalk::GetStack(int32 IgnoreCount, int32 MaxDepth, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN TArray<FProgramCounterSymbolInfo> FWindowsPlatformStackWalk::GetStack(int32 IgnoreCount, int32 MaxDepth, void* Context)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -179,7 +179,7 @@ FORCENOINLINE TArray<FProgramCounterSymbolInfo> FWindowsPlatformStackWalk::GetSt
 	return FGenericPlatformStackWalk::GetStack(IgnoreCount, MaxDepth, Context);
 }
 
-void FWindowsPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 ThreadId)
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableString, SIZE_T HumanReadableStringSize, int32 IgnoreCount, uint32 ThreadId)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -313,7 +313,7 @@ void FWindowsPlatformStackWalk::CaptureStackTraceByProcess(uint64* OutBacktrace,
 	CaptureStackTraceExternalProcess(OutBacktrace, MaxDepth, reinterpret_cast<PCONTEXT>(InContext), reinterpret_cast<HANDLE>(InThreadHandle), OutDepth);	
 }
 
-uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth, void* Context)
+UE_AUTORTFM_ALWAYS_OPEN uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth, void* Context)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -383,7 +383,7 @@ uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, u
  * @param	MaxDepth			Entries in BackTrace array
  * @param	Context				Optional thread context information (FWindowsThreadContextWrapper instance)
  */
-uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint32 MaxDepth, void* Context )
+UE_AUTORTFM_ALWAYS_OPEN uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint32 MaxDepth, void* Context )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -456,7 +456,7 @@ uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint
 	return Depth;
 }
 
-void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -528,7 +528,7 @@ void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounte
 	}
 }
 
-void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfoEx(uint64 ProgramCounter, FProgramCounterSymbolInfoEx& out_SymbolInfo)
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfoEx(uint64 ProgramCounter, FProgramCounterSymbolInfoEx& out_SymbolInfo)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -731,7 +731,7 @@ bool FWindowsPlatformStackWalk::UploadLocalSymbols()
 	return true;
 }
 
-void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
+UE_AUTORTFM_ALWAYS_OPEN void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
 {
 	HANDLE ProcessHandle = GProcessHandle;
 
@@ -782,7 +782,9 @@ void LoadSymbolsForModule(HMODULE ModuleHandle, const FString& RemoteStorage)
 		// If the module is already loaded, the return value is zero and GetLastError returns ERROR_SUCCESS.
 		if (ErrorCode != ERROR_SUCCESS)
 		{
-			UE_LOG(LogWindows, Warning, TEXT("SymLoadModuleExW. Error: %d"), ErrorCode);
+			TCHAR ErrorMsgBuffer[2048];
+			const TCHAR* ErrorMsg = FWindowsPlatformMisc::GetSystemErrorMessage(ErrorMsgBuffer, UE_ARRAY_COUNT(ErrorMsgBuffer), ErrorCode);
+			UE_LOG(LogWindows, Verbose, TEXT("Failed to load module '%s' with SymLoadModuleExW. Error %d: %s"), ModuleName, ErrorCode, ErrorMsg);
 		}
 	}
 }
@@ -814,7 +816,7 @@ void LoadSymbolsForProcessModules(const FString &RemoteStorage)
 	FMemory::Free(ModuleHandlePointer);
 }
 
-void LoadSymbolsForModuleByAddress(uint64 Address, const FString& RemoteStorage, bool bShouldReloadModuleMissingDebugSymbols)
+UE_AUTORTFM_ALWAYS_OPEN void LoadSymbolsForModuleByAddress(uint64 Address, const FString& RemoteStorage, bool bShouldReloadModuleMissingDebugSymbols)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -862,7 +864,7 @@ int32 FWindowsPlatformStackWalk::GetProcessModuleCount()
 	return ModuleCount;
 }
 
-int32 FWindowsPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo *ModuleSignatures, const int32 ModuleSignaturesSize)
+UE_AUTORTFM_ALWAYS_OPEN int32 FWindowsPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo *ModuleSignatures, const int32 ModuleSignaturesSize)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -1056,7 +1058,7 @@ FString GetSymbolSearchPath()
 /**
  * Initializes the symbol engine if needed.
  */
-bool FWindowsPlatformStackWalk::InitStackWalkingInternal(void* Process, bool bForceReinitOnProcessMismatch)
+UE_AUTORTFM_ALWAYS_OPEN bool FWindowsPlatformStackWalk::InitStackWalkingInternal(void* Process, bool bForceReinitOnProcessMismatch)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
@@ -1216,7 +1218,7 @@ void FWindowsPlatformStackWalk::RegisterOnModulesChanged()
 	FModuleManager::Get().OnModulesChanged().AddStatic( &OnModulesChanged );
 }
 
-bool FWindowsPlatformStackWalk::GetFunctionDefinitionLocation(const FString& FunctionSymbolName, const FString& FunctionModuleName, FString& OutPathname, uint32& OutLineNumber, uint32& OutColumnNumber)
+UE_AUTORTFM_ALWAYS_OPEN bool FWindowsPlatformStackWalk::GetFunctionDefinitionLocation(const FString& FunctionSymbolName, const FString& FunctionModuleName, FString& OutPathname, uint32& OutLineNumber, uint32& OutColumnNumber)
 {
 	UE::TUniqueLock GlobalLock(GStackWalkingLock);
 

@@ -4,13 +4,15 @@
 	MetalCommandEncoder.cpp: Metal command encoder wrapper.
 =============================================================================*/
 
+#include "MetalCommandEncoder.h"
+#include "MetalCommandBuffer.h"
+#include "MetalCommandList.h"
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalCommandEncoder.h"
-#include "MetalCommandBuffer.h"
 #include "MetalProfiler.h"
 #include "MetalShaderResources.h"
+#include "MetalStateCache.h"
 
 const uint32 EncoderRingBufferSize = 1024 * 1024;
 
@@ -63,10 +65,11 @@ FString FMetalCommandData::ToString() const
 
 #pragma mark - Public C++ Boilerplate -
 
-FMetalCommandEncoder::FMetalCommandEncoder(FMetalCommandList& CmdList, EMetalCommandEncoderType InType)
-: CommandList(CmdList)
-, bSupportsMetalFeaturesSetBytes(CmdList.GetCommandQueue().SupportsFeature(EMetalFeaturesSetBytes))
-, RingBuffer(EncoderRingBufferSize, BufferOffsetAlignment, FMetalCommandQueue::GetCompatibleResourceOptions((MTL::ResourceOptions)(MTL::ResourceHazardTrackingModeUntracked | BUFFER_RESOURCE_STORAGE_MANAGED)))
+FMetalCommandEncoder::FMetalCommandEncoder(FMetalDevice& MetalDevice, FMetalCommandList& CmdList)
+: Device(MetalDevice)
+, CommandList(CmdList)
+, bSupportsMetalFeaturesSetBytes(Device.SupportsFeature(EMetalFeaturesSetBytes))
+, RingBuffer(Device, EncoderRingBufferSize, BufferOffsetAlignment, FMetalCommandQueue::GetCompatibleResourceOptions((MTL::ResourceOptions)(MTL::ResourceHazardTrackingModeUntracked | BUFFER_RESOURCE_STORAGE_MANAGED)))
 , RenderPassDesc(nullptr)
 , EncoderFence(nullptr)
 #if ENABLE_METAL_GPUPROFILE
@@ -74,7 +77,6 @@ FMetalCommandEncoder::FMetalCommandEncoder(FMetalCommandList& CmdList, EMetalCom
 #endif
 , EncoderNum(0)
 , CmdBufIndex(0)
-, Type(InType)
 {
 	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
@@ -98,14 +100,8 @@ FMetalCommandEncoder::FMetalCommandEncoder(FMetalCommandList& CmdList, EMetalCom
 	StencilStoreAction = MTL::StoreActionUnknown;
 }
 
-FMetalCommandEncoder::~FMetalCommandEncoder(void)
+void FMetalCommandEncoder::Release(void)
 {
-	if(CommandBuffer)
-	{
-		EndEncoding();
-		CommitCommandBuffer(false);
-	}
-	
 	check(!IsRenderCommandEncoderActive());
 	check(!IsComputeCommandEncoderActive());
 	check(!IsBlitCommandEncoderActive());
@@ -113,7 +109,6 @@ FMetalCommandEncoder::~FMetalCommandEncoder(void)
 	check(!IsAccelerationStructureCommandEncoderActive());
 #endif // METAL_RHI_RAYTRACING
 	
-	SafeReleaseMetalRenderPassDescriptor(RenderPassDesc);
 	RenderPassDesc = nullptr;
 
     for(NS::String* Str : DebugGroups)
@@ -150,11 +145,7 @@ void FMetalCommandEncoder::Reset(void)
 #endif // METAL_RHI_RAYTRACING
 		  );
 	
-	if(RenderPassDesc)
-	{
-		SafeReleaseMetalRenderPassDescriptor(RenderPassDesc);
-		RenderPassDesc = nullptr;
-	}
+	RenderPassDesc = nullptr;
 	
 	{
 		for (uint32 i = 0; i < MaxSimultaneousRenderTargets; i++)
@@ -268,94 +259,68 @@ void FMetalCommandEncoder::StartCommandBuffer(void)
 	}
 }
 	
-void FMetalCommandEncoder::CommitCommandBuffer(uint32 const Flags)
+void FMetalCommandEncoder::EndCommandBuffer()
 {
 	check(CommandBuffer);
 	check(IsRenderCommandEncoderActive() == false
-          && IsComputeCommandEncoderActive() == false
-          && IsBlitCommandEncoderActive() == false
+		  && IsComputeCommandEncoderActive() == false
+		  && IsBlitCommandEncoderActive() == false
 #if METAL_RHI_RAYTRACING
 		  && IsAccelerationStructureCommandEncoderActive() == false
 #endif // METAL_RHI_RAYTRACING
 		  );
 
-	bool const bWait = (Flags & EMetalSubmitFlagsWaitOnCommandBuffer);
-	bool const bIsLastCommandBuffer = (Flags & EMetalSubmitFlagsLastCommandBuffer);
-	
-	if (EncoderNum == 0 && !bWait && !(Flags & EMetalSubmitFlagsForce))
-	{
-		return;
-	}
-	
 	if(CommandBuffer->GetMTLCmdBuffer()->label() == nullptr && DebugGroups.Num() > 0)
 	{
 		CommandBuffer->GetMTLCmdBuffer()->setLabel(DebugGroups.Last());
 	}
 	
-	if (!(Flags & EMetalSubmitFlagsBreakCommandBuffer))
-	{
-		RingBuffer.Commit(CommandBuffer);
-	}
-	else
-	{
-		RingBuffer.Submit();
-	}
-    
+	RingBuffer.Commit(CommandBuffer);
+	
 #if METAL_DEBUG_OPTIONS
-    if(CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
-    {
-        for (FMetalBufferPtr Buffer : ActiveBuffers)
-        {
-            GetMetalDeviceContext().AddActiveBuffer(Buffer->GetMTLBuffer().get(), Buffer->GetRange());
-        }
-        
-        TSet<FMetalBufferPtr> NewActiveBuffers = MoveTemp(ActiveBuffers);
-        
-        FMetalCommandBufferCompletionHandler CompletionHander;
-        CompletionHander.BindLambda([NewActiveBuffers](MTL::CommandBuffer*)
-        {
-            for (FMetalBufferPtr Buffer : NewActiveBuffers)
-            {
-                GetMetalDeviceContext().RemoveActiveBuffer(Buffer->GetMTLBuffer().get(), Buffer->GetRange());
-            }
-        });
-        
-        AddCompletionHandler(CompletionHander);
-    }
+	if(Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
+	{
+		for (FMetalBufferPtr Buffer : ActiveBuffers)
+		{
+			Device.AddActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
+		}
+		
+		TSet<FMetalBufferPtr> NewActiveBuffers = MoveTemp(ActiveBuffers);
+		
+		FMetalCommandBufferCompletionHandler CompletionHander;
+		CompletionHander.BindLambda([&InDevice = Device, NewActiveBuffers](MTL::CommandBuffer*)
+		{
+			for (FMetalBufferPtr Buffer : NewActiveBuffers)
+			{
+				InDevice.RemoveActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
+			}
+		});
+		
+		AddCompletionHandler(CompletionHander);
+	}
 #endif
 #if ENABLE_METAL_GPUPROFILE
 	CommandBufferStats->End(CommandBuffer->GetMTLCmdBuffer());
 	CommandBufferStats = nullptr;
 #endif
-
-	CommandList.Commit(CommandBuffer, MoveTemp(CompletionHandlers), bWait, bIsLastCommandBuffer);
-    
-	CommandBuffer = nullptr;
-	if (Flags & EMetalSubmitFlagsCreateCommandBuffer)
-	{
-		StartCommandBuffer();
-		check(CommandBuffer);
-	}
 	
+	CommandList.FinalizeCommandBuffer(CommandBuffer, MoveTemp(CompletionHandlers));
+	CommandBuffers.Add(CommandBuffer);
+	
+	CommandBuffer = nullptr;
 	EncoderNum = 0;
 }
 
-#pragma mark - Public Command Encoder Accessors -
+TArray<FMetalCommandBuffer*> FMetalCommandEncoder::Finalize()
+{
+	EndCommandBuffer();
 	
-bool FMetalCommandEncoder::IsRenderCommandEncoderActive(void) const
-{
-	return RenderCommandEncoder.get() != nullptr;
+	TArray<FMetalCommandBuffer*> Output = MoveTemp(CommandBuffers);
+	
+	return Output;
 }
 
-bool FMetalCommandEncoder::IsComputeCommandEncoderActive(void) const
-{
-	return ComputeCommandEncoder.get() != nullptr;
-}
-
-bool FMetalCommandEncoder::IsBlitCommandEncoderActive(void) const
-{
-	return BlitCommandEncoder.get() != nullptr;
-}
+#pragma mark - Public Command Encoder Accessors -
 
 #if METAL_RHI_RAYTRACING
 bool FMetalCommandEncoder::IsAccelerationStructureCommandEncoderActive(void) const
@@ -417,8 +382,8 @@ void FMetalCommandEncoder::BeginRenderCommandEncoding(void)
 #endif // METAL_RHI_RAYTRACING
 	);
 	
-	static bool bSupportsFences = CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
-	if (bSupportsFences METAL_DEBUG_OPTION(|| CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
+	static bool bSupportsFences = Device.SupportsFeature(EMetalFeaturesFences);
+	if (bSupportsFences METAL_DEBUG_OPTION(|| Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
 	{
 		CommandEncoderFence.FenceResources = MoveTemp(TransitionedResources);
 
@@ -441,8 +406,6 @@ void FMetalCommandEncoder::BeginRenderCommandEncoding(void)
 			FenceResource(RenderPassDesc->stencilAttachment()->texture(), MTL::FunctionTypeFragment, true);
 		}
 	}
-	
-	//RenderCommandEncoder = MTLPP_VALIDATE(mtlpp::CommandBuffer, CommandBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, RenderCommandEncoder(RenderPassDesc));
 
     // Clear Residency Cache (TODO: Move this to a separate function)
     ResourceUsage.Empty();
@@ -455,7 +418,7 @@ void FMetalCommandEncoder::BeginRenderCommandEncoding(void)
 	
 	if(GetEmitDrawEvents())
 	{
-        Label = FStringToNSString(FString::Printf(TEXT("RenderEncoder: %s"), DebugGroups.Num() > 0 ? *NSStringToFString(DebugGroups.Last()) : TEXT("InitialPass")));
+		Label = FStringToNSString(FString::Printf(TEXT("RenderEncoder: %s"), DebugGroups.Num() > 0 ? *NSStringToFString(DebugGroups.Last()) : TEXT("InitialPass")));
 		RenderCommandEncoder->setLabel(Label);
 		
         for (NS::String* Group : DebugGroups)
@@ -470,14 +433,9 @@ void FMetalCommandEncoder::BeginRenderCommandEncoding(void)
 void FMetalCommandEncoder::BeginComputeCommandEncoding(MTL::DispatchType DispatchType)
 {
 	check(CommandBuffer);
-	check(IsRenderCommandEncoderActive() == false && IsComputeCommandEncoderActive() == false && IsBlitCommandEncoderActive() == false
-#if METAL_RHI_RAYTRACING
-	 && IsAccelerationStructureCommandEncoderActive() == false
-#endif // METAL_RHI_RAYTRACING
-	);
-	
-	static bool bSupportsFences = CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
-	if (bSupportsFences METAL_DEBUG_OPTION(|| CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
+
+	static bool bSupportsFences = Device.SupportsFeature(EMetalFeaturesFences);
+	if (bSupportsFences METAL_DEBUG_OPTION(|| Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
 	{
 		CommandEncoderFence.FenceResources = MoveTemp(TransitionedResources);
 	}
@@ -487,12 +445,10 @@ void FMetalCommandEncoder::BeginComputeCommandEncoding(MTL::DispatchType Dispatc
 
 	if (DispatchType == MTL::DispatchTypeSerial)
 	{
-		//ComputeCommandEncoder = MTLPP_VALIDATE(mtlpp::CommandBuffer, CommandBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ComputeCommandEncoder());
         ComputeCommandEncoder = NS::RetainPtr(CommandBuffer->GetMTLCmdBuffer()->computeCommandEncoder());
 	}
 	else
 	{
-		//ComputeCommandEncoder = MTLPP_VALIDATE(mtlpp::CommandBuffer, CommandBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ComputeCommandEncoder(DispatchType));
         ComputeCommandEncoder = NS::RetainPtr(CommandBuffer->GetMTLCmdBuffer()->computeCommandEncoder(DispatchType));
 	}
     
@@ -524,14 +480,12 @@ void FMetalCommandEncoder::BeginBlitCommandEncoding(void)
 #endif // METAL_RHI_RAYTRACING
 	);
 	
-	static bool bSupportsFences = CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
-	if (bSupportsFences METAL_DEBUG_OPTION(|| CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
+	static bool bSupportsFences = Device.SupportsFeature(EMetalFeaturesFences);
+	if (bSupportsFences METAL_DEBUG_OPTION(|| Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
 	{
 		CommandEncoderFence.FenceResources = MoveTemp(TransitionedResources);
 	}
 	
-	//BlitCommandEncoder = MTLPP_VALIDATE(mtlpp::CommandBuffer, CommandBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, BlitCommandEncoder());
-    
     BlitCommandEncoder = NS::RetainPtr(CommandBuffer->GetMTLCmdBuffer()->blitCommandEncoder());
 	
 	EncoderNum++;
@@ -560,7 +514,7 @@ void FMetalCommandEncoder::BeginAccelerationStructureCommandEncoding(void)
 	check(IsRenderCommandEncoderActive() == false && IsComputeCommandEncoderActive() == false && IsBlitCommandEncoderActive() == false && IsAccelerationStructureCommandEncoderActive() == false);
 
 	static bool bSupportsFences = CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
-	if (bSupportsFences METAL_DEBUG_OPTION(|| CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
+	if (bSupportsFences METAL_DEBUG_OPTION(|| Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation))
 	{
 		CommandEncoderFence.FenceResources = MoveTemp(TransitionedResources);
 	}
@@ -586,9 +540,19 @@ void FMetalCommandEncoder::BeginAccelerationStructureCommandEncoding(void)
 }
 #endif // METAL_RHI_RAYTRACING
 
+void FMetalCommandEncoder::SplitCommandBuffers()
+{
+	if(IsAnyCommandEncoderActive())
+	{
+		EndEncoding();
+	}
+	EndCommandBuffer();
+	StartCommandBuffer();	
+}
+
 TRefCountPtr<FMetalFence> FMetalCommandEncoder::EndEncoding(void)
 {
-	static bool bSupportsFences = CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
+	static bool bSupportsFences = Device.SupportsFeature(EMetalFeaturesFences);
 	TRefCountPtr<FMetalFence> Fence = nullptr;
     MTL_SCOPED_AUTORELEASE_POOL;
 
@@ -740,6 +704,7 @@ TRefCountPtr<FMetalFence> FMetalCommandEncoder::EndEncoding(void)
 		FMemory::Memzero(ShaderBuffers[Frequency].Usage);
 		ShaderBuffers[Frequency].Bound = 0;
 	}
+	
     return Fence;
 }
 
@@ -767,8 +732,8 @@ void FMetalCommandEncoder::UpdateFence(FMetalFence* Fence)
 		|| IsAccelerationStructureCommandEncoderActive()
 #endif // METAL_RHI_RAYTRACING
 	);
-	static bool bSupportsFences =    CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
-	if ((bSupportsFences METAL_DEBUG_OPTION(|| CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)) && Fence)
+	static bool bSupportsFences = Device.SupportsFeature(EMetalFeaturesFences);
+	if ((bSupportsFences METAL_DEBUG_OPTION(|| Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)) && Fence)
 	{
 		MTL::Fence* MTLFence = Fence->Get();
 		if (RenderCommandEncoder)
@@ -796,12 +761,31 @@ void FMetalCommandEncoder::WaitForFence(FMetalFence* Fence)
 		|| IsAccelerationStructureCommandEncoderActive()
 #endif
 	);
-	static bool bSupportsFences = CommandList.GetCommandQueue().SupportsFeature(EMetalFeaturesFences);
-	if ((bSupportsFences METAL_DEBUG_OPTION(|| CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)) && Fence)
+	static bool bSupportsFences = Device.SupportsFeature(EMetalFeaturesFences);
+	if ((bSupportsFences METAL_DEBUG_OPTION(|| Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)) && Fence)
 	{
 		// Will be waited at encoder end recording
 		CommandEncoderFence.Fence = Fence;
 	}
+}
+
+void FMetalCommandEncoder::SignalEvent(MTLEventPtr Event, uint32_t SignalCount)
+{
+	check(CommandBuffer);
+	
+	if(IsAnyCommandEncoderActive())
+	{
+		EndEncoding();
+	}
+	CommandBuffer->GetMTLCmdBuffer()->encodeSignalEvent(Event.get(), SignalCount);
+}
+
+void FMetalCommandEncoder::WaitForEvent(MTLEventPtr Event, uint32_t SignalCount)
+{
+	check(!IsAnyCommandEncoderActive());
+	check(CommandBuffer);
+	
+	CommandBuffer->GetMTLCmdBuffer()->encodeWait(Event.get(), SignalCount);
 }
 
 #pragma mark - Public Debug Support -
@@ -896,16 +880,10 @@ FMetalCommandBufferStats* FMetalCommandEncoder::GetCommandBufferStats(void)
 
 void FMetalCommandEncoder::SetRenderPassDescriptor(MTL::RenderPassDescriptor* RenderPass)
 {
-	check(IsRenderCommandEncoderActive() == false && IsComputeCommandEncoderActive() == false && IsBlitCommandEncoderActive() == false
-#if METAL_RHI_RAYTRACING
-    && IsAccelerationStructureCommandEncoderActive() == false
-#endif
-	);
 	check(RenderPass);
 	
 	if(RenderPass != RenderPassDesc)
 	{
-		SafeReleaseMetalRenderPassDescriptor(RenderPassDesc);
 		RenderPassDesc = RenderPass;
 		{
 			for (uint32 i = 0; i < MaxSimultaneousRenderTargets; i++)
@@ -970,7 +948,7 @@ void FMetalCommandEncoder::SetViewport(MTL::Viewport const Viewport[], uint32 Nu
 #if PLATFORM_MAC
 	else
 	{
-		check(FMetalCommandQueue::SupportsFeature(EMetalFeaturesMultipleViewports));
+		check(Device.SupportsFeature(EMetalFeaturesMultipleViewports));
 		RenderCommandEncoder->setViewports(Viewport, NumActive);
 	}
 #endif
@@ -1011,7 +989,7 @@ void FMetalCommandEncoder::SetScissorRect(MTL::ScissorRect const Rect[], uint32 
 #if PLATFORM_MAC
 	else
 	{
-		check(FMetalCommandQueue::SupportsFeature(EMetalFeaturesMultipleViewports));
+		check(Device.SupportsFeature(EMetalFeaturesMultipleViewports));
 		RenderCommandEncoder->setScissorRects(Rect, NumActive);
 	}
 #endif
@@ -1091,15 +1069,21 @@ void FMetalCommandEncoder::SetShaderAccelerationStructure(MTL::FunctionType cons
 
 void FMetalCommandEncoder::SetShaderBuffer(MTL::FunctionType const FunctionType, FMetalBufferPtr Buffer, NS::UInteger const Offset, NS::UInteger const Length, NS::UInteger index, MTL::ResourceUsage const Usage, EPixelFormat const Format, NS::UInteger const ElementRowPitch, TArray<TTuple<MTL::Resource*, MTL::ResourceUsage>> ReferencedResources)
 {
-	FenceResource(Buffer->GetMTLBuffer().get(), FunctionType);
+	FenceResource(Buffer->GetMTLBuffer(), FunctionType);
 	check(index < ML_MaxBuffers);
     
-    if(GetMetalDeviceContext().SupportsFeature(EMetalFeaturesSetBufferOffset) && Buffer && (ShaderBuffers[uint32(FunctionType)].Bound & (1 << index)) && ShaderBuffers[uint32(FunctionType)].Buffers[index] == Buffer)
+    if(Device.SupportsFeature(EMetalFeaturesSetBufferOffset) &&
+	   Buffer && (ShaderBuffers[uint32(FunctionType)].Bound & (1 << index)) &&
+	   ShaderBuffers[uint32(FunctionType)].Buffers[index] == Buffer)
     {
-		SetShaderBufferOffset(FunctionType, Offset, Length, index);
-		ShaderBuffers[uint32(FunctionType)].Usage[index] = Usage;
-		ShaderBuffers[uint32(FunctionType)].ReferencedResources[index] = ReferencedResources;
-		ShaderBuffers[uint32(FunctionType)].SetBufferMetaData(index, Length, GMetalBufferFormats[Format].DataFormat, ElementRowPitch);
+		if(ShaderBuffers[uint32(FunctionType)].Offsets[index] != Offset ||
+		   ShaderBuffers[uint32(FunctionType)].Usage[index] != Usage)
+		{
+			SetShaderBufferOffset(FunctionType, Offset, Length, index);
+			ShaderBuffers[uint32(FunctionType)].Usage[index] = Usage;
+			ShaderBuffers[uint32(FunctionType)].ReferencedResources[index] = ReferencedResources;
+			ShaderBuffers[uint32(FunctionType)].SetBufferMetaData(index, Length, GMetalBufferFormats[Format].DataFormat, ElementRowPitch);
+		}
 	}
     else
     {
@@ -1228,9 +1212,10 @@ void FMetalCommandEncoder::SetShaderBufferOffset(MTL::FunctionType FunctionType,
 {
 	check(index < ML_MaxBuffers);
     checkf(ShaderBuffers[uint32(FunctionType)].Buffers[index] && (ShaderBuffers[uint32(FunctionType)].Bound & (1 << index)), TEXT("Buffer must already be bound"));
-	check(GetMetalDeviceContext().SupportsFeature(EMetalFeaturesSetBufferOffset));
+	check(Device.SupportsFeature(EMetalFeaturesSetBufferOffset));
 	ShaderBuffers[uint32(FunctionType)].Offsets[index] = Offset;
 	ShaderBuffers[uint32(FunctionType)].SetBufferMetaData(index, Length, GMetalBufferFormats[PF_Unknown].DataFormat, 0);
+	
 	switch (FunctionType)
 	{
 		case MTL::FunctionTypeVertex:
@@ -1269,17 +1254,14 @@ void FMetalCommandEncoder::SetShaderTexture(MTL::FunctionType FunctionType, MTL:
 	{
 		case MTL::FunctionTypeVertex:
 			check (RenderCommandEncoder);
-			// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Texture, MTL::ResourceUsage::Read));
 			RenderCommandEncoder->setVertexTexture(Texture, index);
 			break;
 		case MTL::FunctionTypeFragment:
 			check(RenderCommandEncoder);
-			// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Texture, MTL::ResourceUsage::Read));
 			RenderCommandEncoder->setFragmentTexture(Texture, index);
 			break;
 		case MTL::FunctionTypeKernel:
 			check (ComputeCommandEncoder);
-			// MTLPP_VALIDATE(mtlpp::ComputeCommandEncoder, ComputeCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Texture, MTL::ResourceUsage::Read));
 			ComputeCommandEncoder->setTexture(Texture, index);
 			break;
 		default:
@@ -1343,7 +1325,7 @@ void FMetalCommandEncoder::UseIndirectArgumentResource(MTL::Texture* Texture, MT
 
 void FMetalCommandEncoder::UseIndirectArgumentResource(FMetalBufferPtr Buffer, MTL::ResourceUsage const Usage)
 {
-    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+    MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
 	FenceResource(MTLBuffer, MTL::FunctionTypeVertex);
 	UseResource(MTLBuffer, Usage);
 }
@@ -1504,6 +1486,19 @@ void FMetalCommandEncoder::UseResource(MTL::Resource* Resource, MTL::ResourceUsa
     }
 }
 
+void FMetalCommandEncoder::UseResources(TArray<MTL::Resource*> const& Resources, MTL::ResourceUsage const Usage, MTL::RenderStages RenderStages)
+{
+	if (RenderCommandEncoder)
+	{
+		checkSlow(RenderStages != 0);
+		RenderCommandEncoder->useResources(Resources.GetData(), Resources.Num(), Usage, RenderStages);
+	}
+	else if (ComputeCommandEncoder)
+	{
+		ComputeCommandEncoder->useResources(Resources.GetData(), Resources.Num(), Usage);
+	}
+}
+
 void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, uint32 Index)
 {
 	FMetalBufferBindings& Binding = ShaderBuffers[uint32(Function)];
@@ -1604,33 +1599,30 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 	if (Buffer)
 	{
 #if METAL_DEBUG_OPTIONS
-		if(CommandList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
+		if(Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
 		{
 			ActiveBuffers.Add(Buffer);
 		}
 #endif
-        MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
+        MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
         FenceResource(MTLBuffer, Function);
 		switch (Function)
 		{
 			case MTL::FunctionTypeVertex:
 				Binding.Bound |= (1 << Index);
 				check(RenderCommandEncoder);
-				// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
 				RenderCommandEncoder->setVertexBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
 				break;
 
 			case MTL::FunctionTypeFragment:
 				Binding.Bound |= (1 << Index);
 				check(RenderCommandEncoder);
-				// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
 				RenderCommandEncoder->setFragmentBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
 				break;
 
 			case MTL::FunctionTypeKernel:
 				Binding.Bound |= (1 << Index);
 				check(ComputeCommandEncoder);
-				// MTLPP_VALIDATE(mtlpp::ComputeCommandEncoder, ComputeCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
 				ComputeCommandEncoder->setBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
 				break;
 
@@ -1638,14 +1630,12 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
             case MTL::FunctionTypeObject:
 				Binding.Bound |= (1 << Index);
 				check(RenderCommandEncoder);
-				// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
 				RenderCommandEncoder->setObjectBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
 				break;
 
             case MTL::FunctionTypeMesh:
 				Binding.Bound |= (1 << Index);
 				check(RenderCommandEncoder);
-				// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
 				RenderCommandEncoder->setMeshBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
 				break;
 #endif // PLATFORM_SUPPORTS_MESH_SHADERS
@@ -1653,14 +1643,6 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 			default:
 				check(false);
 				break;
-		}
-		
-		if (Buffer->IsSingleUse())
-		{
-			Binding.Usage[Index] = MTL::ResourceUsage(0);
-			Binding.Offsets[Index] = 0;
-			Binding.Buffers[Index] = nullptr;
-			Binding.Bound &= ~(1 << Index);
 		}
 	}
 	else if (bBufferHasBytes && bSupportsMetalFeaturesSetBytes)

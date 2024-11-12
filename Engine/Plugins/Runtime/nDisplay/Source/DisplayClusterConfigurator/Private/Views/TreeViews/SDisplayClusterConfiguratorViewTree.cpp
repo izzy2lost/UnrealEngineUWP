@@ -258,7 +258,6 @@ void SDisplayClusterConfiguratorViewTree::CreateTreeColumns()
 			.OnItemScrolledIntoView(this, &SDisplayClusterConfiguratorViewTree::OnItemScrolledIntoView)
 			.OnMouseButtonDoubleClick(this, &SDisplayClusterConfiguratorViewTree::OnTreeDoubleClick)
 			.OnSetExpansionRecursive(this, &SDisplayClusterConfiguratorViewTree::SetTreeItemExpansionRecursive)
-			.ItemHeight(24)
 			.HighlightParentNodesForSelection(true)
 			.HeaderRow
 			(

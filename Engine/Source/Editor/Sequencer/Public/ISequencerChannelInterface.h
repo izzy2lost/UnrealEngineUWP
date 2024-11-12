@@ -31,9 +31,27 @@ class FTrackInstancePropertyBindings;
 namespace UE::Sequencer
 {
 	class FChannelModel;
+	class FSectionModel;
 	class STrackAreaLaneView;
 	struct FCreateTrackLaneViewParams;
-}
+
+	struct FCreateCurveEditorModelParams
+	{
+		UMovieSceneSection* OwningSection;
+		UObject* OwningObject;
+		TSharedRef<ISequencer> Sequencer;
+	};
+
+	struct FCreateKeyEditorParams
+	{
+		UMovieSceneSection* OwningSection;
+		UObject* OwningObject;
+		TSharedRef<ISequencer> Sequencer;
+		FGuid ObjectBindingID;
+		TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings;
+	};
+
+} // namespace UE::Sequencer
 
 /** Utility struct representing a number of selected keys on a single channel */
 struct FExtendKeyMenuParams
@@ -41,11 +59,19 @@ struct FExtendKeyMenuParams
 	/** The section on which the channel resides */
 	TWeakObjectPtr<UMovieSceneSection> Section;
 
+	/** The owning object. Probably the same as Section, but can be different. */
+	TWeakObjectPtr<UObject> WeakOwner;
+
 	/** The channel on which the keys reside */
 	FMovieSceneChannelHandle Channel;
 
 	/** An array of key handles to operante on */
 	TArray<FKeyHandle> Handles;
+};
+
+class ISidebarChannelExtension
+{
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu) = 0;
 };
 
 /**
@@ -115,13 +141,10 @@ struct ISequencerChannelInterface
 	 * Create an editor on the sequencer node tree
 	 *
 	 * @param Channel               The channel handle to create a key editor for
-	 * @param Section               The section that owns this channel
-	 * @param InObjectBindingID     The ID of the object this key area's track is bound to
-	 * @param PropertyBindings      (Optional) Property bindings where this channel exists on a property track
-	 * @param Sequencer             The currently active sequencer
+	 * @param Params                Creation parameters containing all the necessary structures for creating the key editor
 	 * @return The editor widget to display on the node tree
 	 */
-	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> Sequencer) const = 0;
+	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params) const = 0;
 
 	/**
 	 * Extend the key context menu
@@ -136,11 +159,31 @@ struct ISequencerChannelInterface
 	 * Extend the section context menu
 	 *
 	 * @param MenuBuilder           The menu builder used to create this context menu
+	 * @param MenuExtender          The menu extender to use
 	 * @param Channels              Array of type specific channels that exist in the selected sections
 	 * @param Sections              Array of sections being shown on the context menu
-	 * @param InSequencer           The currently active sequencer
+	 * @param InWeakSequencer       The currently active sequencer
 	 */
-	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const = 0;
+	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder
+		, TSharedPtr<FExtender> MenuExtender
+		, TArrayView<const FMovieSceneChannelHandle> InChannels
+		, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections
+		, TWeakPtr<ISequencer> InWeakSequencer) const = 0;
+
+	/**
+	 * Extend the section sidebar menu
+	 *
+	 * @param MenuBuilder           The menu builder used to create this context menu
+	 * @param InMenuExtender        The menu extender to use
+	 * @param InChannels            Array of type specific channels that exist in the selected sections
+	 * @param InWeakSections        Array of sections being shown on the context menu
+	 * @param InWeakSequencer       The currently active sequencer
+	 */
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder
+		, TSharedPtr<FExtender> InMenuExtender
+		, TArrayView<const FMovieSceneChannelHandle> InChannels
+		, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections
+		, TWeakPtr<ISequencer> InWeakSequencer) const = 0;
 
 	/**
 	 * Gather information on how to draw the specified keys
@@ -171,16 +214,17 @@ struct ISequencerChannelInterface
 	 *
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer) const = 0;
+	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateCurveEditorModelParams& Params) const = 0;
 
 	/**
 	 * Create a new channel model for this type of channel
 	 *
 	 * @param InChannelHandle    The channel handle to create a model for
+	 * @param InSectionModel     The section that owns this channel model
 	 * @param InChannelName      The identifying name of this channel
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, FName InChannelName) const = 0;
+	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName) const = 0;
 
 	/**
 	 * Create a new channel view for this type of channel

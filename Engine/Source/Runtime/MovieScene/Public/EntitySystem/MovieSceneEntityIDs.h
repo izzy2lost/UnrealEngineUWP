@@ -258,7 +258,7 @@ struct TComponentTypeID : public FComponentTypeID
 	static TComponentTypeID FromBitIndex(int32 BitIndex)
 	{
 		check( (BitIndex & 0xFFFF0000) == 0 );
-		return TComponentTypeID(BitIndex);
+		return TComponentTypeID(static_cast<uint16>(BitIndex));
 	}
 private:
 

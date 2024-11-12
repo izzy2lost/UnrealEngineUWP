@@ -55,7 +55,12 @@ public class MeshModelingToolsEditorOnlyExp : ModuleRules
 				"RenderCore",
 				"InputCore",
 				"UnrealEd",
-				"Persona"
+				"Persona",
+				"AdvancedPreviewScene",
+				"SceneOutliner",
+				"Slate",
+				"Json",
+				"ApplicationCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);

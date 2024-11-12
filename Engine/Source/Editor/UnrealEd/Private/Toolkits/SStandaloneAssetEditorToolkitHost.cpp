@@ -188,9 +188,12 @@ void SStandaloneAssetEditorToolkitHost::RestoreFromLayout( const TSharedRef<FTab
 	TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().FindWidgetWindow( HostTab );
 	TSharedPtr<SWidget> RestoredUI = MyTabManager->RestoreFrom( NewLayout, ParentWindow );
 
-	StatusBarWidget = GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->MakeStatusBarWidget(StatusBarName, HostTab);
+	checkf(RestoredUI.IsValid(), TEXT("The layout must have a primary dock area"));
 
-	checkf(RestoredUI.IsValid(), TEXT("The layout must have a primary dock area") );
+	if (UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr)
+	{
+		StatusBarWidget = StatusBarSubsystem->MakeStatusBarWidget(StatusBarName, HostTab);
+	}
 
 	this->ChildSlot
 	[
@@ -209,7 +212,7 @@ void SStandaloneAssetEditorToolkitHost::RestoreFromLayout( const TSharedRef<FTab
 		.Padding(0.0f, 2.0f, 0.0f, 0.0f)
 		.AutoHeight()
 		[
-			StatusBarWidget.ToSharedRef()
+			StatusBarWidget.IsValid() ? StatusBarWidget.ToSharedRef() : SNullWidget::NullWidget
 		]
 	];
 }
@@ -393,11 +396,11 @@ UTypedElementCommonActions* SStandaloneAssetEditorToolkitHost::GetCommonActions(
 	return CommonActions.Get();
 }
 
-void SStandaloneAssetEditorToolkitHost::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport)
+void SStandaloneAssetEditorToolkitHost::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder, TSharedPtr<IAssetViewport> InViewport)
 {
 	if (HostedAssetEditorToolkit.IsValid())
 	{
-		HostedAssetEditorToolkit->AddViewportOverlayWidget(InOverlaidWidget);
+		HostedAssetEditorToolkit->AddViewportOverlayWidget(InOverlaidWidget, ZOrder);
 	}
 }
 

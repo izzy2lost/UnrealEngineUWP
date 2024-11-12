@@ -7,7 +7,7 @@
 #include "Animation/AnimNodeBase.h"
 #include "Animation/AnimCurveTypes.h"
 #include "Animation/AnimNodeMessages.h"
-#include "AlphaBlend.h" // Required for EAlphaBlendOption
+#include "Animation/AnimInertializationRequest.h"
 #include "Interfaces/Interface_BoneReferenceSkeletonProvider.h"
 
 #include "AnimNode_Inertialization.generated.h"
@@ -110,84 +110,6 @@ struct FInertializationCurve
 };
 
 USTRUCT()
-struct FInertializationRequest
-{
-	GENERATED_BODY()
-
-	ENGINE_API FInertializationRequest();
-	ENGINE_API FInertializationRequest(float InDuration, const UBlendProfile* InBlendProfile);
-
-	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	~FInertializationRequest() = default;
-	FInertializationRequest(const FInertializationRequest&) = default;
-	FInertializationRequest(FInertializationRequest&&) = default;
-	FInertializationRequest& operator=(const FInertializationRequest&) = default;
-	FInertializationRequest& operator=(FInertializationRequest&&) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	ENGINE_API void Clear();
-
-	// Comparison operator used to test for equality in the array of animation requests to that
-	// only unique requests are added. This does not take into account the properties that are 
-	// used only for debugging and only used when ANIM_TRACE_ENABLED
-	friend bool operator==(const FInertializationRequest& A, const FInertializationRequest& B)
-	{
-		return
-			(A.Duration == B.Duration) &&
-			(A.BlendProfile == B.BlendProfile) &&
-			(A.bUseBlendMode == B.bUseBlendMode) &&
-			(A.BlendMode == B.BlendMode) &&
-			(A.CustomBlendCurve == B.CustomBlendCurve);
-	}
-
-	friend bool operator!=(const FInertializationRequest& A, const FInertializationRequest& B)
-	{
-		return !(A == B);
-	}
-
-	// Blend duration of the inertialization request.
-	UPROPERTY(Transient)
-	float Duration = -1.0f;
-
-	// Blend profile to control per-joint blend times.
-	UPROPERTY(Transient)
-	TObjectPtr<const UBlendProfile> BlendProfile = nullptr;
-
-	// If to use the provided blend mode.
-	UPROPERTY(Transient)
-	bool bUseBlendMode = false;
-
-	// Blend mode to use.
-	UPROPERTY(Transient)
-	EAlphaBlendOption BlendMode = EAlphaBlendOption::Linear;
-
-	// Custom blend curve to use when use of the blend mode is active.
-	UPROPERTY(Transient)
-	TObjectPtr<UCurveFloat> CustomBlendCurve = nullptr;
-
-// if ANIM_TRACE_ENABLED - these properties are only used for debugging when ANIM_TRACE_ENABLED == 1
-	
-	UE_DEPRECATED(5.4, "Use DescriptionString instead.")
-	UPROPERTY(Transient, meta = (DeprecatedProperty, DeprecationMessage = "Use DescriptionString instead."))
-	FText Description_DEPRECATED;
-
-	// Description of the request
-	UPROPERTY(Transient)
-	FString DescriptionString;
-
-	// Node id from which this request was made.
-	UPROPERTY(Transient)
-	int32 NodeId = INDEX_NONE;
-
-	// Anim instance from which this request was made.
-	UPROPERTY(Transient)
-	TObjectPtr<UObject> AnimInstance = nullptr;
-
-// endif ANIM_TRACE_ENABLED
-};
-
-USTRUCT()
 struct UE_DEPRECATED(5.4, "Internal private pose storage is now used by inertialization.") FInertializationPose
 {
 	GENERATED_BODY()
@@ -236,6 +158,12 @@ private:
 	// Transform of the component at the point of the snapshot
 	FTransform ComponentTransform;
 	
+	// Has Root Motion
+	bool bHasRootMotion = false;
+
+	// Root Motion Delta at the point of the snapshot
+	FTransform RootMotionDelta;
+
 	// For each SkeletonPoseBoneIndex this array stores the index into the BoneTranslations, BoneRotations, and 
 	// BoneScales arrays which contains that bone's data. Or INDEX_NONE if this bone's data is not in the snapshot.
 	TArray<int32> BoneIndices;
@@ -258,7 +186,14 @@ private:
 	// Delta Time since last snapshot
 	float DeltaTime = 0.0f;
 
-	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& InCurves, const FTransform& InComponentTransform, const FName InAttachParentName, const float InDeltaTime);
+	void InitFrom(
+		const FCompactPose& Pose, 
+		const FBlendedCurve& InCurves, 
+		const UE::Anim::FStackAttributeContainer& Attributes, 
+		const FTransform& InComponentTransform, 
+		const FName InAttachParentName, 
+		const float InDeltaTime);
+
 	bool IsEmpty() const;
 	void Empty();
 };
@@ -464,6 +399,7 @@ private:
 	 *
 	 * @param InPose				The current pose for the animation being transitioned to.
 	 * @param InCurves				The current curves for the animation being transitioned to.
+	 * @param InAttributes			The current attributes for the animation being transitioned to.
 	 * @param ComponentTransform	The component transform of the current pose
 	 * @param AttachParentName		The name of the attached parent object
 	 * @param PreviousPose1			The pose recorded as output of the inertializer on the previous frame.
@@ -472,6 +408,7 @@ private:
 	void InitFrom(
 		const FCompactPose& InPose, 
 		const FBlendedCurve& InCurves, 
+		const UE::Anim::FStackAttributeContainer& InAttributes,
 		const FTransform& ComponentTransform, 
 		const FName AttachParentName, 
 		const FInertializationSparsePose& PreviousPose1, 
@@ -480,10 +417,11 @@ private:
 	/**
 	 * Applies the inertialization difference to the given pose (decaying to zero as ElapsedTime approaches Duration)
 	 *
-	 * @param InOutPose		The current pose to blend with the extrapolated pose.
-	 * @param InOutCurves	The current curves to blend with the extrapolated curves.
+	 * @param InOutPose		    The current pose to blend with the extrapolated pose.
+	 * @param InOutCurves	    The current curves to blend with the extrapolated curves.
+	 * @param InOutAttributes	The current attributes to blend with the extrapolated attributes.
 	 */
-	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves);
+	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves, UE::Anim::FStackAttributeContainer& InOutAttributes);
 
 	// Snapshots of the actor pose generated as output.
 	FInertializationSparsePose PrevPoseSnapshot;
@@ -528,6 +466,12 @@ private:
 	TArray<FVector3f> BoneScaleDiffAxis;
 	TArray<float> BoneScaleDiffMagnitude;
 	TArray<float> BoneScaleDiffSpeed;
+	FVector3f RootTranslationVelocityDiffDirection;
+	float RootTranslationVelocityDiffMagnitude;
+	FVector3f RootRotationVelocityDiffDirection;
+	float RootRotationVelocityDiffMagnitude;
+	FVector3f RootScaleVelocityDiffDirection;
+	float RootScaleVelocityDiffMagnitude;
 
 	// Curve differences
 	TBaseBlendedCurve<FDefaultAllocator, FInertializationCurveDiffElement> CurveDiffs;

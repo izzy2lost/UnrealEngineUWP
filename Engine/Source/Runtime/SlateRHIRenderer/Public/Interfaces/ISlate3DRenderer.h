@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 class FRHICommandListImmediate;
+class FRDGBuilder;
 class FSlateDrawBuffer;
 class FTextureRenderTarget2DResource;
 
@@ -72,11 +73,14 @@ public:
 	/** 
 	 * Renders the batched draw elements of the draw buffer to the given render target.
 	 * Call after preparing the draw buffer and render target on the game thread.
-	 * 
+	 *
 	 * @param RenderTarget The render target to render the contents of the draw buffer to
 	 * @param InDrawBuffer The draw buffer containing the batched elements to render
 	 */
-	virtual void DrawWindowToTarget_RenderThread(FRHICommandListImmediate& RHICmdList, const struct FRenderThreadUpdateContext& Context) = 0;
+	virtual void DrawWindowToTarget_RenderThread(FRDGBuilder& GraphBuilder, const struct FRenderThreadUpdateContext& Context) = 0;
+
+	UE_DEPRECATED(5.5, "Use the RDG version instead.")
+	virtual void DrawWindowToTarget_RenderThread(FRHICommandListImmediate& RHICmdList, const struct FRenderThreadUpdateContext& Context) {}
 };
 
 typedef TSharedPtr<ISlate3DRenderer, ESPMode::ThreadSafe> ISlate3DRendererPtr;

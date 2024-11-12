@@ -3,6 +3,7 @@
 #include "Graph/MovieGraphPipeline.h"
 
 #include "MoviePipelineQueue.h"
+#include "MoviePipelineTelemetry.h"
 #include "MoviePipelineUtils.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "MovieScene.h"
@@ -23,9 +24,9 @@
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
+#include "Graph/Nodes/MovieGraphRenderPassNode.h"
 
 #include "HAL/PlatformFileManager.h"
-#include "ImageWriteQueue.h"
 #include "RenderingThread.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
@@ -38,11 +39,10 @@ UMovieGraphPipeline::UMovieGraphPipeline()
 	, bIsTransitioningState(false)
 	, bIsTearingDownShot(false)
 	, PipelineState(EMovieRenderPipelineState::Uninitialized)
+	, bDidStartInsightsCapture(false)
 {
 	OutputMerger = MakeShared<UE::MovieGraph::FMovieGraphOutputMerger>(this);
 	CustomEngineTimeStep = CreateDefaultSubobject<UMovieGraphEngineTimeStep>("MovieGraphEngineTimeStep");
-
-	Debug_ImageWriteQueue = &FModuleManager::Get().LoadModuleChecked<IImageWriteQueueModule>("ImageWriteQueue").GetWriteQueue();
 }
 
 void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMovieGraphInitConfig& InitConfig)
@@ -167,16 +167,15 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 
 void UMovieGraphPipeline::DuplicateJobAndConfiguration()
 {
-	// Contains all duplicated graphs. Maps the original graph (key) to the duplicated graph (value).
-	TMap<UMovieGraphConfig*, UMovieGraphConfig*> DuplicatedGraphs;
-	
 	// Scripting is likely to want to modify both the job (to set variable assignments) and 
 	// the configuration itself (to add nodes, or override an output directory, etc. If scripts
 	// directly modified the job/configuration it would lead to a lot of unintentional mutation
 	// of assets and queues, so we instead choose to duplicate the job and configurations for
 	// the duration of a render, and all of the Graph Pipeline code should look at the duplicates.
-	FObjectDuplicationParameters JobDuplicationParms = FObjectDuplicationParameters(CurrentJob, GetTransientPackage());
+	FObjectDuplicationParameters JobDuplicationParms = FObjectDuplicationParameters(CurrentJob, this);
 	JobDuplicationParms.DestName = FName(FString::Format(TEXT("{0}_Duplicate"), {CurrentJob->GetFName().ToString()}));
+	JobDuplicationParms.FlagMask = RF_AllFlags & ~RF_Transactional;
+	JobDuplicationParms.ApplyFlags = RF_Transient;
 	CurrentJobDuplicate = Cast<UMoviePipelineExecutorJob>(StaticDuplicateObjectEx(JobDuplicationParms));
 
 	// The duplicate job is a mix of duplicated objects and non-duplicated objects. Objects that 
@@ -239,7 +238,7 @@ void UMovieGraphPipeline::DuplicateJobAndConfiguration()
 
 }
 
-UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& OutDuplicatedGraphs)
+UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& OutDuplicatedGraphs)
 {
 	UMovieGraphConfig* DuplicateConfig;
 
@@ -253,6 +252,8 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 		// The transient package is used because graphs don't belong to the executor job usually (they belong to an asset package)
 		FObjectDuplicationParameters GraphDuplicationParams(InGraphToDuplicate, GetTransientPackage());
 		GraphDuplicationParams.DestName = FName(FString::Format(TEXT("{0}_Duplicate"), {InGraphToDuplicate->GetFName().ToString()}));
+		GraphDuplicationParams.FlagMask = RF_AllFlags & ~(RF_Standalone | RF_Transactional);
+		GraphDuplicationParams.ApplyFlags = RF_Transient;
 		DuplicateConfig = Cast<UMovieGraphConfig>(StaticDuplicateObjectEx(GraphDuplicationParams));
 		
 		OutDuplicatedGraphs.Add(InGraphToDuplicate, DuplicateConfig);
@@ -274,7 +275,7 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 			// to prevent recursion. Checking the key ensures that we only duplicate if this graph has never been encountered. Checking the value
 			// ensures that we don't re-duplicate a graph that has already been duplicated (the subgraph node was already updated).
 			bool bHasBeenDuplicated = false;
-			for (const TPair<UMovieGraphConfig*, UMovieGraphConfig*>& DuplicateMapping : OutDuplicatedGraphs)
+			for (const TPair<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& DuplicateMapping : OutDuplicatedGraphs)
 			{
 				if ((DuplicateMapping.Key == SubgraphConfig) || (DuplicateMapping.Value == SubgraphConfig))
 				{
@@ -290,7 +291,7 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 
 			// Update the subgraph node to use the duplicated graph. This should always be done, even if the graph was already duplicated (since
 			// a graph can be included as a subgraph in multiple locations).
-			if (UMovieGraphConfig** DuplicatedGraph = OutDuplicatedGraphs.Find(SubgraphConfig))
+			if (const TObjectPtr<UMovieGraphConfig>* DuplicatedGraph = OutDuplicatedGraphs.Find(SubgraphConfig))
 			{
 				SubgraphNode->SetSubGraphAsset(*DuplicatedGraph);
 			}
@@ -301,18 +302,18 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 }
 
 template <typename JobType>
-void UMovieGraphPipeline::UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& InOriginalToDuplicateGraphMap)
+void UMovieGraphPipeline::UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& InOriginalToDuplicateGraphMap)
 {
 	// Remaps the provided variable assignments to point to the the duplicated graphs.
 	auto UpdateVariableAssignments = [&InOriginalToDuplicateGraphMap](TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& InVariableAssignments)
 	{
 		for (const TObjectPtr<UMovieJobVariableAssignmentContainer>& VariableAssignment : InVariableAssignments)
 		{
-			for (const TPair<UMovieGraphConfig*, UMovieGraphConfig*>& GraphMapping : InOriginalToDuplicateGraphMap)
+			for (const TPair<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& GraphMapping : InOriginalToDuplicateGraphMap)
 			{
-				if (VariableAssignment->GetGraphConfig() == GraphMapping.Key)
+				if (VariableAssignment->GetGraphConfig().LoadSynchronous() == GraphMapping.Key.Get())
 				{
-					VariableAssignment->SetGraphConfig(GraphMapping.Value);
+					VariableAssignment->SetGraphConfig(MakeSoftObjectPtr(GraphMapping.Value.Get()));
 					break;
 				}
 			}
@@ -452,7 +453,13 @@ void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovie
 						if (CollectionNode->Collection->GetCollectionName() == ModifiedCollectionName)
 						{
 							bFoundModifiedCollection = true;
-							ModifierCollections.Add(CollectionNode->Collection);
+
+							// Collections can be disabled within a modifier; only include it if the collection is enabled
+							if (ModifierNode->IsCollectionEnabled(ModifiedCollectionName))
+							{
+								ModifierCollections.Add(CollectionNode->Collection);
+							}
+							
 							break;
 						}
 					}
@@ -546,7 +553,7 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 
 		UMovieGraphWarmUpSettingNode* WarmUpNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
 
-		Shot->ShotInfo.NumTemporalSamples = SamplingMethodNode->TemporalSampleCount;
+		Shot->ShotInfo.NumTemporalSamples = FMath::Max(SamplingMethodNode->TemporalSampleCount, 1);
 		Shot->ShotInfo.NumSpatialSamples = 1;
 		Shot->ShotInfo.NumTiles = FIntPoint(1,1);
 		Shot->ShotInfo.CachedFrameRate = FinalFrameRate;
@@ -556,13 +563,31 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 			Shot->ShotInfo.CachedShotTickResolution = Shot->ShotInfo.SubSectionHierarchy->MovieScene->GetTickResolution();
 		}
 		
+		// Query the max frame count.
+		int32 MaxCoolingDownFrameCount = 0;
+		for (const FName& BranchName : EvaluatedConfig->GetBranchNames())
+		{
+			const bool bIncludeCDOs = false;
+			const bool bExactMatch = false;
+			TArray<UMovieGraphRenderPassNode*> Renderers = EvaluatedConfig->GetSettingsForBranch<UMovieGraphRenderPassNode>(BranchName, bIncludeCDOs, bExactMatch);
+			for (const UMovieGraphRenderPassNode* Render : Renderers)
+			{
+				MaxCoolingDownFrameCount = FMath::Max(Render->GetCoolingDownFrameCount(), MaxCoolingDownFrameCount);
+			}
+		}
+
+		// When using cooldown, we need at least that many warm-up frames even if they have otherwise chosen not to do warm-ups.
+		Shot->ShotInfo.NumEngineCoolDownFramesRemaining = MaxCoolingDownFrameCount;
+		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = FMath::Max(WarmUpNode->NumWarmUpFrames, MaxCoolingDownFrameCount);
+		Shot->ShotInfo.bEmulateFirstFrameMotionBlur = WarmUpNode->bEmulateMotionBlur;
+
 		const bool bPrePass = true;
 		const bool bExpandForTemporalSubSample = GraphTimeStepInstances.Last()->IsExpansionForTSRequired(EvaluatedConfig);
-		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
+		
+		// We need to wait until the NumEngineWarmUpFramesRemaining has been set by either actual warm up frames, or by cool-down frames before we expand.
+		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, Shot->ShotInfo.NumEngineWarmUpFramesRemaining);
 
 		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
-		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = WarmUpNode->NumWarmUpFrames;
-		Shot->ShotInfo.bEmulateFirstFrameMotionBlur = WarmUpNode->bEmulateMotionBlur;
 		Shot->ShotInfo.CalculateWorkMetrics();
 		Shot->ShotInfo.VersionNumber = ResolveVersionForShot(Shot, EvaluatedConfig);
 	}
@@ -706,13 +731,11 @@ void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish
 		return;
 	}
 
-	//TArray<UMovieGraphOutputBase*> Settings = GetPipelinePrimaryConfig()->GetOutputContainers();
-	//Algo::SortBy(Settings, [](const UMovieGraphOutputBase* Setting) { return Setting->GetPriority(); });
-	//for (UMovieGraphOutputBase* Container : Settings)
-	//{
-	//	// All containers have finished processing, final shutdown.
-	//	Container->Finalize();
-	//}
+	// Notify all output nodes that they should finalize
+	for (const TObjectPtr<UMovieGraphFileOutputNode>& Node : GetOutputNodesUsed())
+	{
+		Node->OnAllFramesFinalized(this, PostRenderEvaluatedGraph);
+	}
 
 	TransitionToState(EMovieRenderPipelineState::Export);
 }
@@ -845,6 +868,7 @@ void UMovieGraphPipeline::StartUnrealInsightsCapture(UMovieGraphEvaluatedConfig*
 	const bool bTraceStarted = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *FinalFilePath);
 	if (bTraceStarted)
 	{
+		bDidStartInsightsCapture = true;
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Started capturing UnrealInsights trace file to %s"), *FinalFilePath);
 	}
 	else
@@ -885,7 +909,7 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	//}
 
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
-	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
+	UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
 	// Apply any global game overrides, which includes cvars. This needs to be done before the CVarManager sets cvars
 	// so any user-specified cvars can override cvars set via the global game overrides. Note that the CDO is intentionally
@@ -898,12 +922,17 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
 	}
 
-	// Apply cvars for the shot
+	// Apply cvars and console commands for the shot
+	CVarManager->SetWorld(GetWorld());
 	CVarManager->AddEvaluatedGraph(EvaluatedConfig);
+	CVarManager->AddShot(InShot);
 	CVarManager->ApplyAllCVars();
+	CVarManager->RunStartConsoleCommands();
 
 	// Setup required rendering architecture for all passes in this shot.
 	GraphRendererInstance->SetupRenderingPipelineForShot(InShot);
+
+	FMoviePipelineTelemetry::SendBeginShotRenderTelemetry(InShot, EvaluatedConfig);
 }
 
 void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
@@ -932,7 +961,7 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 	// some other stuff
 
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
-	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
+	TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
 	ProcessOutstandingFinishedFrames();
 
@@ -943,7 +972,7 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 		EvaluatedConfig->GetSettingsForBranch<UMovieGraphFileOutputNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
 	for (UMovieGraphFileOutputNode* FileOutputNode : FileOutputNodes)
 	{
-		FileOutputNode->OnAllShotFramesSubmitted(this, InShot);
+		FileOutputNode->OnAllShotFramesSubmitted(this, InShot, EvaluatedConfig);
 	}
 
 	// Ensure all of our Futures have been converted to the GeneratedOutputData
@@ -979,6 +1008,10 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 
 	// Revert the cvar values that were initially applied for the shot
 	CVarManager->RevertAllCVars();
+	CVarManager->RunEndConsoleCommands();
+
+	UE::MoviePipeline::RestoreSkeletalMeshClothSubSteps(ClothSimCache);
+	ClothSimCache.Reset();
 
 	// Revert cvars set by the global game overrides. Needs to be done after the CVarManager reverts (since the global
 	// game overrides are applied first in SetupShot).
@@ -989,6 +1022,9 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 		constexpr bool bOverrideValues = false;
 		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
 	}
+
+	constexpr bool bIsGraph = true;
+	FMoviePipelineTelemetry::SendEndShotRenderTelemetry(bIsGraph, !bShutdownSetErrorFlag, bShutdownRequested);
 
 	if (IsPostShotCallbackNeeded())
 	{
@@ -1297,6 +1333,10 @@ void UMovieGraphPipeline::ShutdownImpl(bool bIsError)
 		constexpr bool bForceFinish = true;
 		TickPostFinalizeExport(bForceFinish);
 	}
+
+	// Duplicated graphs are part of the transient package, so by default they'll stick around after the pipeline is destroyed. To prevent
+	// the graphs from hanging onto references after the render is finished, remove them during pipeline shutdown (so they are GC'd).
+	DuplicatedGraphs.Empty();
 }
 
 void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNewState)
@@ -1374,17 +1414,17 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			// This is called once notifying our export step that they can begin the export.
 			PipelineState = EMovieRenderPipelineState::Export;
 
-			// Restore the sequence so that the export processes can operate on the original sequence. 
-			// This is also done in the finished state because it's not guaranteed that the Export state 
-			// will be set when the render is canceled early
-			// LevelSequenceActor->GetSequencePlayer()->Stop();
-			// RestoreTargetSequenceToOriginalState();
+			// Stop playing the data source once export begins. Audio issues may happen if this is not done.
+			GetDataSourceInstance()->StopDataSource();
 
 			// Ensure all of our Futures have been converted to the GeneratedOutputData. This has to happen
 			// after finalize finishes, because the futures won't be available until actually written to disk.
 			ProcessOutstandingFutures();
 
 			BeginExport();
+
+			// Clear out MRQ tick information for external consumers as we are done
+			FMovieRenderPipelineCoreModule::SetTickInfo(FMoviePipelineLightweightTickInfo());
 		}
 		break;
 	case EMovieRenderPipelineState::Export:
@@ -1420,11 +1460,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			}
 
 			// Stop Insights trace
-			constexpr bool bIncludeCDOs = false;
-			constexpr bool bExactMatch = true;
-			const UMovieGraphDebugSettingNode* DebugSetting =
-				PostRenderEvaluatedGraph->GetSettingForBranch<UMovieGraphDebugSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
-			if (DebugSetting && DebugSetting->bCaptureUnrealInsightsTrace)
+			if (bDidStartInsightsCapture)
 			{
 				StopUnrealInsightsCapture();
 			}
@@ -1523,7 +1559,7 @@ void UMovieGraphPipeline::ProcessOutstandingFinishedFrames()
 		UE::MovieGraph::FMovieGraphOutputMergerFrame OutputFrame;
 		OutputMerger->GetFinishedFrames().Dequeue(OutputFrame);
 
-		UE::MovieGraph::FRenderTimeStatistics* TimeStats = GetRendererInstance()->GetRenderTimeStatistics(OutputFrame.TraversalContext.Time.RenderedFrameNumber);
+		UE::MovieGraph::FRenderTimeStatistics* TimeStats = GetRendererInstance()->GetRenderTimeStatistics(OutputFrame.TraversalContext.Time.OutputFrameNumber);
 		if (ensure(TimeStats))
 		{
 			TimeStats->EndTime = FDateTime::UtcNow();
@@ -1732,6 +1768,15 @@ bool UMovieGraphPipeline::IsPostShotCallbackNeeded() const
 	}
 
 	return bAnyScriptNeedsCallbacks;
+}
+
+void UMovieGraphPipeline::BeginDestroy()
+{
+	// Ask the output merger to clean up. It can hold strong obj pointers, and those should not stick around after the pipeline shuts down. Generally
+	// this shouldn't be needed, but could be necessary if pending frames were not flushed for some reason.
+	GetOutputMerger()->AbandonOutstandingWork();
+	
+	Super::BeginDestroy();
 }
 
 void UMovieGraphPipeline::ExecutePreJobScripts()

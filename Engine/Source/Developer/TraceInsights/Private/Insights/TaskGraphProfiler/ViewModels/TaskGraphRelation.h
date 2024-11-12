@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
 #include "Insights/ViewModels/ITimingEvent.h"
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 enum class ETaskEventType : uint32;
@@ -51,4 +51,4 @@ private:
 	TWeakPtr<const FBaseTimingTrack> TargetTrack;
 };
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

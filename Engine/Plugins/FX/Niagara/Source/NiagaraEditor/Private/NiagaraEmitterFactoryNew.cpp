@@ -60,7 +60,17 @@ bool UNiagaraEmitterFactoryNew::ConfigureProperties()
 	}
 
 	TArray<FAssetData> SelectedAssetData = CreateAssetBrowserWindow->GetSelectedAssets();
-	
+
+	// Give the default empty emitter a chance to be selected if the user chose 'Empty Emitter'
+	if(SelectedAssetData.Num() == 0)
+	{
+		FSoftObjectPath DefaultEmptyEmitter = GetDefault<UNiagaraEditorSettings>()->DefaultEmptyEmitter;
+		if(DefaultEmptyEmitter.IsValid() && DefaultEmptyEmitter.IsAsset())
+		{
+			SelectedAssetData.Add(FAssetData(DefaultEmptyEmitter.TryLoad()));
+		}
+	}
+
 	if(SelectedAssetData.Num() == 1)
 	{
 		FAssetData SelectedAsset = SelectedAssetData[0];
@@ -73,6 +83,7 @@ bool UNiagaraEmitterFactoryNew::ConfigureProperties()
 	}
 	else
 	{
+		// If we haven't selected an emitter asset, nor had a valid default empty emitter, we add a truly empty emitter
 		EmitterToCopy = nullptr;
 		bUseInheritance = true;
 		bAddDefaultModulesAndRenderersToEmptyEmitter = false;

@@ -117,12 +117,7 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Uniform bind time"),STAT_OpenGLUniformBindTime,S
 DECLARE_CYCLE_STAT_EXTERN(TEXT("VBO setup time"),STAT_OpenGLVBOSetupTime,STATGROUP_OpenGLRHI, );
 #endif
 
-namespace OpenGLConsoleVariables
-{
-	extern int32 bBindlessTexture;
-};
-
-enum EOpenGLCurrentContext
+enum EOpenGLCurrentContext : int8
 {
 	CONTEXT_Other = -2,
 	CONTEXT_Invalid = -1,
@@ -168,26 +163,6 @@ int32 PlatformGlGetError();
 EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device);
 
 /**
- * Retrieve the address of the OpenGL context currently in use.
- */
-void* PlatformOpenGLCurrentContextHandle(FPlatformOpenGLDevice* Device);
-
-/**
- * Get new occlusion query from current context. This is provided from a cache inside the context
- * if some entries are in there, and created otherwise. All other released queries present in the
- * cache are deleted at the same time (as this is the earliest possible occasion when the context
- * they're in is present).
- */
-void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext );
-
-/**
- * Release occlusion query. If the current context is the one it was created in, it's deleted from
- * OpenGL immediately, otherwise it's stored on the list, and will be deleted when its context is
- * a current one.
- */
-void PlatformReleaseRenderQuery( GLuint Query, uint64 QueryContext );
-
-/**
  * Check if the query's OpenGL context is a current one. If it's not, there's no sense in issuing
  * OpenGL command for this query and it must be released and recreated.
  */
@@ -209,11 +184,6 @@ FPlatformOpenGLDevice* PlatformCreateOpenGLDevice();
 bool PlatformCanEnableGPUCapture();
 
 /**
- * Label Objects. Needs a separate function because label GLSL api procedure would be loaded later down the line, and we need to label objects after that.
- */
-void PlatformLabelObjects();
-
-/**
  * Destroy the OpenGL device for single OpenGL RHI. This should happen when destroying the RHI.
  */
 void PlatformDestroyOpenGLDevice(FPlatformOpenGLDevice* Device);
@@ -223,11 +193,6 @@ void PlatformDestroyOpenGLDevice(FPlatformOpenGLDevice* Device);
  * transfer the rendering results to screen by rendering thread, inside RHIEndDrawingViewport().
  */
 FPlatformOpenGLContext* PlatformCreateOpenGLContext(FPlatformOpenGLDevice* Device, void* InWindowHandle);
-
-/**
- * Get rendering OpenGL context on current thread.
- */
-FPlatformOpenGLContext* PlatformGetOpenGLRenderingContext(FPlatformOpenGLDevice* Device);
 
 /**
  * Destroy a viewport OpenGL context.
@@ -242,7 +207,6 @@ void PlatformRenderingContextSetup(FPlatformOpenGLDevice* Device);
 
 // Some platforms require flushing and rebinding renderbuffers after context/thread changes
 void PlatformFlushIfNeeded();
-void PlatformRebindResources(FPlatformOpenGLDevice* Device);
 
 /**
  * Set up shared context on current thread. This thread should be always set on main game thread (expect at times
@@ -263,7 +227,7 @@ class FOpenGLTexture* PlatformCreateBuiltinBackBuffer(FOpenGLDynamicRHI* OpenGLR
  * On Windows it temporarily switches OpenGL context, on Mac only context's output view.
  * Should return true if frame was presented and it is necessary to finish frame rendering.
  */
-bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent,bool bLockToVsync);
+bool PlatformBlitToViewport(IRHICommandContext& RHICmdContext, FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent,bool bLockToVsync);
 
 /**
  * Resize the GL context for platform.
@@ -285,11 +249,6 @@ bool PlatformGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool b
  * Restore the original display mode
  */
 void PlatformRestoreDesktopDisplayMode();
-
-/**
- * Get current backbuffer dimensions.
- */
-void PlatformGetBackbufferDimensions( uint32& OutWidth, uint32& OutHeight );
 
 // Returns native window handle.
 void* PlatformGetWindow(FPlatformOpenGLContext* Context, void** AddParam);

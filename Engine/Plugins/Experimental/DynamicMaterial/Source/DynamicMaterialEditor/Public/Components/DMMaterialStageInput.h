@@ -12,34 +12,31 @@ struct FDMMaterialStageConnectorChannel;
 /**
  * A node which produces an output (e.g. Texture coordinate.)
  */
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Input"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageInput : public UDMMaterialStageSource
+UCLASS(MinimalAPI, Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Input"))
+class UDMMaterialStageInput : public UDMMaterialStageSource
 {
 	GENERATED_BODY()
 
 public:
-	static const FString StageInputPrefixStr;
+	DYNAMICMATERIALEDITOR_API static const FString StageInputPrefixStr;
 
 	virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel)
 		PURE_VIRTUAL(UDMMaterialStageInput::GetChannelDescription, return FText::GetEmpty();)
 		
-	virtual void Update(EDMUpdateType InUpdateType) override;
-
 	//~ Begin UDMMaterialComponent
-	virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 protected:
-	UDMMaterialStageInput()
-	{
-	}
+	/** Updates the output connectors based on the type of input. */
+	virtual void UpdateOutputConnectors() {}
 
 	//~ Begin UDMMaterialStageSource
-	virtual void UpdateOutputConnectors() { }
-	virtual void UpdatePreviewMaterial(UMaterial* InPreviewMaterial = nullptr) override;
+	DYNAMICMATERIALEDITOR_API virtual void GeneratePreviewMaterial(UMaterial* InPreviewMaterial) override;
 	//~ End UDMMaterialStageSource
 
 	//~ Begin UDMMaterialComponent
-	virtual void GetComponentPathInternal(TArray<FString>& OutChildComponentPathComponents) const override;
+	DYNAMICMATERIALEDITOR_API virtual void GetComponentPathInternal(TArray<FString>& OutChildComponentPathComponents) const override;
 	//~ End UDMMaterialComponent
 };

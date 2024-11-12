@@ -33,7 +33,6 @@
 #include "Materials/MaterialParameterCollection.h"
 #include "LandscapeProxy.h"
 #include "LandscapeComponent.h"
-#include "Engine/MeshMerging.h"
 #include "Engine/StaticMesh.h"
 #include "MeshUtilities.h"
 #include "MeshRendering.h"
@@ -289,7 +288,7 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 		// Current returning vertex normal since pixel normal will contain incorrect data (normal calculated from uv data used as vertex positions to render out the material)
 		return Compiler->VertexNormal();
 	}
-
+	
 	virtual int32 ParticleRandom() override
 	{
 		return Compiler->Constant(0.0f);
@@ -690,6 +689,10 @@ public:
 	virtual bool IsDeferredDecal() const override
 	{
 		return Material && Material->MaterialDomain == MD_DeferredDecal;
+	}
+	virtual bool IsUIMaterial() const override
+	{
+		return Material && Material->MaterialDomain == MD_UI;
 	}
 	virtual bool IsSpecialEngineMaterial() const override
 	{

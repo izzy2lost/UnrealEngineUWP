@@ -17,7 +17,7 @@
 
 //#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionUtilityNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionUtilityNodes()
@@ -34,10 +34,14 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMergeConvexHullsDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FUpdateVolumeAttributesDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGetConvexHullVolumeDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FFixTinyGeoDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRecomputeNormalsInGeometryCollectionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FResampleGeometryCollectionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FValidateGeometryCollectionDataflowNode);
 	}
 }
 
-FMakeDataflowConvexDecompositionSettingsNode::FMakeDataflowConvexDecompositionSettingsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FMakeDataflowConvexDecompositionSettingsNode::FMakeDataflowConvexDecompositionSettingsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&MinSizeToDecompose);
@@ -49,7 +53,7 @@ FMakeDataflowConvexDecompositionSettingsNode::FMakeDataflowConvexDecompositionSe
 	RegisterOutputConnection(&DecompositionSettings);
 }
 
-void FMakeDataflowConvexDecompositionSettingsNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMakeDataflowConvexDecompositionSettingsNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&DecompositionSettings))
 	{
@@ -64,7 +68,7 @@ void FMakeDataflowConvexDecompositionSettingsNode::Evaluate(Dataflow::FContext& 
 	}
 }
 
-FCreateLeafConvexHullsDataflowNode::FCreateLeafConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FCreateLeafConvexHullsDataflowNode::FCreateLeafConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -74,7 +78,7 @@ FCreateLeafConvexHullsDataflowNode::FCreateLeafConvexHullsDataflowNode(const Dat
 	RegisterOutputConnection(&Collection);
 }
 
-void FCreateLeafConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCreateLeafConvexHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -94,6 +98,8 @@ void FCreateLeafConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, c
 				const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 				bRestrictToSelection = true;
 				SelectedBones = InOptionalSelectionFilter.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+				SelectionFacade.Sanitize(SelectedBones, /* bFavorParent */false);
 			}
 
 			float InSimplificationDistanceThreshold = GetValue(Context, &SimplificationDistanceThreshold);
@@ -115,7 +121,7 @@ void FCreateLeafConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, c
 	}
 }
 
-FSimplifyConvexHullsDataflowNode::FSimplifyConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FSimplifyConvexHullsDataflowNode::FSimplifyConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -126,7 +132,7 @@ FSimplifyConvexHullsDataflowNode::FSimplifyConvexHullsDataflowNode(const Dataflo
 	RegisterOutputConnection(&Collection);
 }
 
-void FSimplifyConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSimplifyConvexHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection) && IsConnected(&Collection))
 	{
@@ -159,7 +165,7 @@ void FSimplifyConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, con
 	}
 }
 
-FCreateNonOverlappingConvexHullsDataflowNode::FCreateNonOverlappingConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FCreateNonOverlappingConvexHullsDataflowNode::FCreateNonOverlappingConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -170,7 +176,7 @@ FCreateNonOverlappingConvexHullsDataflowNode::FCreateNonOverlappingConvexHullsDa
 	RegisterOutputConnection(&Collection);
 }
 
-void FCreateNonOverlappingConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCreateNonOverlappingConvexHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection) && IsConnected(&Collection))
 	{
@@ -208,7 +214,7 @@ static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegative
 	return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
 }
 
-FGenerateClusterConvexHullsFromLeafHullsDataflowNode::FGenerateClusterConvexHullsFromLeafHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGenerateClusterConvexHullsFromLeafHullsDataflowNode::FGenerateClusterConvexHullsFromLeafHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -225,7 +231,7 @@ FGenerateClusterConvexHullsFromLeafHullsDataflowNode::FGenerateClusterConvexHull
 	RegisterOutputConnection(&SphereCovering);
 }
 
-void FGenerateClusterConvexHullsFromLeafHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGenerateClusterConvexHullsFromLeafHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection) || Out->IsA(&SphereCovering))
 	{
@@ -240,6 +246,8 @@ void FGenerateClusterConvexHullsFromLeafHullsDataflowNode::Evaluate(Dataflow::FC
 			{
 				const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 				SelectionArray = InOptionalSelectionFilter.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+				SelectionFacade.Sanitize(SelectionArray, /* bFavorParent */false);
 			}
 
 			bool bHasNegativeSpace = false;
@@ -294,7 +302,7 @@ void FGenerateClusterConvexHullsFromLeafHullsDataflowNode::Evaluate(Dataflow::FC
 	}
 }
 
-FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::FGenerateClusterConvexHullsFromChildrenHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::FGenerateClusterConvexHullsFromChildrenHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -311,7 +319,7 @@ FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::FGenerateClusterConvex
 	RegisterOutputConnection(&SphereCovering);
 }
 
-void FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection) || Out->IsA(&SphereCovering))
 	{
@@ -326,6 +334,8 @@ void FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::Evaluate(Dataflow
 			{
 				const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 				SelectionArray = InOptionalSelectionFilter.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+				SelectionFacade.Sanitize(SelectionArray, /* bFavorParent */false);
 			}
 
 			bool bHasNegativeSpace = false;
@@ -380,7 +390,7 @@ void FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::Evaluate(Dataflow
 	}
 }
 
-FMergeConvexHullsDataflowNode::FMergeConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FMergeConvexHullsDataflowNode::FMergeConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -397,33 +407,39 @@ FMergeConvexHullsDataflowNode::FMergeConvexHullsDataflowNode(const Dataflow::FNo
 	RegisterOutputConnection(&SphereCovering);
 }
 
-void FClearConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClearConvexHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
 		FManagedArrayCollection InCollection = GetValue(Context, &Collection);
 
-		if (!IsConnected(&Collection) || !IsConnected(&TransformSelection) || !FGeometryCollectionConvexUtility::HasConvexHullData(&InCollection))
+		if (!IsConnected(&Collection) || !FGeometryCollectionConvexUtility::HasConvexHullData(&InCollection))
 		{
 			SetValue(Context, MoveTemp(InCollection), &Collection);
 			return;
 		}
 
-		const FDataflowTransformSelection& InSelection = GetValue(Context, &TransformSelection);
-
-		const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
-		TArray<int32> Selection = InTransformSelection.AsArray();
-
-		TArray<int32> ToClear = InTransformSelection.AsArray();
 		GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
-		SelectionFacade.Sanitize(ToClear);
+
+		TArray<int32> ToClear;
+		if (IsConnected(&TransformSelection))
+		{ 
+			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+			ToClear = InTransformSelection.AsArray();
+
+			SelectionFacade.Sanitize(ToClear, /* bFavorParent */false);
+		}
+		else
+		{
+			ToClear = SelectionFacade.SelectAll();
+		}
 
 		FGeometryCollectionConvexUtility::RemoveConvexHulls(&InCollection, ToClear);
 		SetValue(Context, MoveTemp(InCollection), &Collection);
 	}
 }
 
-void FMergeConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMergeConvexHullsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection) || Out->IsA(&SphereCovering))
 	{
@@ -436,6 +452,8 @@ void FMergeConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 		{
 			const FDataflowTransformSelection& InOptionalSelectionFilter = GetValue<FDataflowTransformSelection>(Context, &OptionalSelectionFilter);
 			SelectionArray = InOptionalSelectionFilter.AsArray();
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(InCollection);
+			SelectionFacade.Sanitize(SelectionArray, /* bFavorParent */false);
 		}
 
 		bool bHasPrecomputedNegativeSpace = false;
@@ -477,14 +495,14 @@ void FMergeConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-FUpdateVolumeAttributesDataflowNode::FUpdateVolumeAttributesDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FUpdateVolumeAttributesDataflowNode::FUpdateVolumeAttributesDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection);
 }
 
-void FUpdateVolumeAttributesDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUpdateVolumeAttributesDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Collection))
 	{
@@ -498,7 +516,7 @@ void FUpdateVolumeAttributesDataflowNode::Evaluate(Dataflow::FContext& Context, 
 }
 
 
-FGetConvexHullVolumeDataflowNode::FGetConvexHullVolumeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FGetConvexHullVolumeDataflowNode::FGetConvexHullVolumeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -506,7 +524,7 @@ FGetConvexHullVolumeDataflowNode::FGetConvexHullVolumeDataflowNode(const Dataflo
 	RegisterOutputConnection(&Volume);
 }
 
-void FGetConvexHullVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetConvexHullVolumeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Volume))
 	{
@@ -587,5 +605,149 @@ void FGetConvexHullVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, con
 		}
 		
 		SetValue(Context, VolumeSum, &Volume);
+	}
+}
+
+void FFixTinyGeoDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+			FFractureEngineUtility::FixTinyGeo(InCollection,
+				InTransformSelection,
+				MergeType,
+				bOnFractureLevel,
+				SelectionMethod,
+				MinVolumeCubeRoot,
+				RelativeVolume,
+				UseBoneSelection,
+				bOnlyClusters,
+				NeighborSelection,
+				bOnlyToConnected,
+				bOnlySameParent);
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FRecomputeNormalsInGeometryCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+			FFractureEngineUtility::RecomputeNormalsInGeometryCollection(InCollection,
+				InTransformSelection,
+				bOnlyTangents,
+				bRecomputeSharpEdges,
+				SharpEdgeAngleThreshold,
+				bOnlyInternalSurfaces);
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FResampleGeometryCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FDataflowTransformSelection InTransformSelection = GetValue(Context, &TransformSelection);
+		//
+		// If not connected select everything by default
+		//
+		if (!IsConnected(&TransformSelection))
+		{
+			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
+
+			GeometryCollection::Facades::FCollectionTransformSelectionFacade TransformSelectionFacade(InCollection);
+			const TArray<int32>& SelectionArr = TransformSelectionFacade.SelectAll();
+
+			FDataflowTransformSelection NewTransformSelection;
+			NewTransformSelection.Initialize(InCollection.NumElements(FGeometryCollection::TransformGroup), false);
+			NewTransformSelection.SetFromArray(SelectionArr);
+
+			InTransformSelection = NewTransformSelection;
+		}
+
+		if (InTransformSelection.AnySelected())
+		{
+			FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+			FFractureEngineUtility::ResampleGeometryCollection(InCollection,
+				InTransformSelection,
+				GetValue(Context, &CollisionSampleSpacing));
+
+			SetValue(Context, MoveTemp(InCollection), &Collection);
+
+			return;
+		}
+
+		SafeForwardInput(Context, &Collection, &Collection);
+	}
+}
+
+void FValidateGeometryCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+
+		FFractureEngineUtility::ValidateGeometryCollection(InCollection,
+			bRemoveUnreferencedGeometry,
+			bRemoveClustersOfOne,
+			bRemoveDanglingClusters);
+
+		SetValue(Context, MoveTemp(InCollection), &Collection);
 	}
 }

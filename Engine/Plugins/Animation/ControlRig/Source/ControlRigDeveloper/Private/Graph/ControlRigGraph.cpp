@@ -82,7 +82,7 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 		ElementNameLists.FindOrAdd(ERigElementType::Null);
 		ElementNameLists.FindOrAdd(ERigElementType::Control);
 		ElementNameLists.FindOrAdd(ERigElementType::Curve);
-		ElementNameLists.FindOrAdd(ERigElementType::RigidBody);
+		ElementNameLists.FindOrAdd(ERigElementType::Physics);
 		ElementNameLists.FindOrAdd(ERigElementType::Reference);
 		ElementNameLists.FindOrAdd(ERigElementType::Connector);
 		ElementNameLists.FindOrAdd(ERigElementType::Socket);
@@ -92,7 +92,7 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 		TArray<TSharedPtr<FRigVMStringWithTag>>& NullNameList = ElementNameLists.FindChecked(ERigElementType::Null);
 		TArray<TSharedPtr<FRigVMStringWithTag>>& ControlNameList = ElementNameLists.FindChecked(ERigElementType::Control);
 		TArray<TSharedPtr<FRigVMStringWithTag>>& CurveNameList = ElementNameLists.FindChecked(ERigElementType::Curve);
-		TArray<TSharedPtr<FRigVMStringWithTag>>& RigidBodyNameList = ElementNameLists.FindChecked(ERigElementType::RigidBody);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& PhysicsNameList = ElementNameLists.FindChecked(ERigElementType::Physics);
 		TArray<TSharedPtr<FRigVMStringWithTag>>& ReferenceNameList = ElementNameLists.FindChecked(ERigElementType::Reference);
 		TArray<TSharedPtr<FRigVMStringWithTag>>& ConnectorNameList = ElementNameLists.FindChecked(ERigElementType::Connector);
 		TArray<TSharedPtr<FRigVMStringWithTag>>& SocketNameList = ElementNameLists.FindChecked(ERigElementType::Socket);
@@ -103,7 +103,7 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 		CacheNameListForHierarchy<FRigControlElement>(ControlRig, InHierarchy, ControlNameList, false);
 		CacheNameListForHierarchy<FRigControlElement>(ControlRig, InHierarchy, ControlNameListWithoutAnimationChannels, true);
 		CacheNameListForHierarchy<FRigCurveElement>(ControlRig, InHierarchy, CurveNameList, false);
-		CacheNameListForHierarchy<FRigRigidBodyElement>(ControlRig, InHierarchy, RigidBodyNameList, false);
+		CacheNameListForHierarchy<FRigPhysicsElement>(ControlRig, InHierarchy, PhysicsNameList, false);
 		CacheNameListForHierarchy<FRigReferenceElement>(ControlRig, InHierarchy, ReferenceNameList, false);
 		CacheNameListForHierarchy<FRigConnectorElement>(ControlRig, InHierarchy, ConnectorNameList, false);
 		CacheNameListForHierarchy<FRigSocketElement>(ControlRig, InHierarchy, SocketNameList, false);
@@ -167,7 +167,7 @@ const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetElementNameL
 	
 	if(!ElementNameLists.Contains(InElementType))
 	{
-		const UControlRigBlueprint* Blueprint = CastChecked<UControlRigBlueprint>(GetBlueprint());
+		const UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetBlueprint());
 		if(Blueprint == nullptr)
 		{
 			return &EmptyElementNameList;

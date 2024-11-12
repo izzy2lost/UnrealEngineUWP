@@ -25,6 +25,7 @@ protected:
 
 	void TestIsEqual();
 	void TestSerialize(float MaxAbsDiff, int32 MaxUlpDiff);
+	void TestSerializeBadValues();
 	void TestSerializeDelta();
 	void TestValidate();
 
@@ -39,6 +40,7 @@ protected:
 	};
 
 	static const FFloatTriplet BadValues[];
+	static const FFloatTriplet ExpectedBadValues[];
 	static const SIZE_T BadValueCount;
 	static const FVector Values[];
 	static const SIZE_T ValueCount;
@@ -55,6 +57,7 @@ const FTestPackedVectorNetSerializerBase::FFloatTriplet FTestPackedVectorNetSeri
 	{0.0f, std::numeric_limits<ScalarType>::signaling_NaN(), 0.0f},
 };
 const SIZE_T FTestPackedVectorNetSerializerBase::BadValueCount = sizeof(FTestPackedVectorNetSerializerBase::BadValues)/sizeof(FTestPackedVectorNetSerializerBase::BadValues[0]);
+const FTestPackedVectorNetSerializerBase::FFloatTriplet FTestPackedVectorNetSerializerBase::ExpectedBadValues[FTestPackedVectorNetSerializerBase::BadValueCount] = {};
 
 const FVector FTestPackedVectorNetSerializerBase::Values[] =
 {
@@ -165,6 +168,12 @@ UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerialize)
 	TestSerialize(1.0f, 1);
 }
 
+// Disabled until we figured out how to silence errors when it is intentional.
+//UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerializeBadValues)
+//{
+//	TestSerializeBadValues();
+//}
+
 UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerializeDelta)
 {
 	TestSerializeDelta();
@@ -262,6 +271,14 @@ void FTestPackedVectorNetSerializerBase::TestSerialize(float MaxAbsDiff, int32 M
 			CompareFunc = EqualityFunc;
 		}
 		Super::TestSerialize(Values, Values, ValueCount, NetSerializerConfig, bQuantizedCompare, CompareFunc);
+	}
+}
+
+void FTestPackedVectorNetSerializerBase::TestSerializeBadValues()
+{
+	for (const bool bQuantizedCompare : {false, true})
+	{
+		Super::TestSerialize(reinterpret_cast<const FVector*>(BadValues), reinterpret_cast<const FVector*>(ExpectedBadValues), BadValueCount, NetSerializerConfig, bQuantizedCompare);
 	}
 }
 

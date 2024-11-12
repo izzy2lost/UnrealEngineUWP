@@ -19,6 +19,9 @@ namespace UE::Net
 	class FNetSerializationContext;
 	class FNetTokenStoreState;
 	class FReplicationStateStorage;
+	class FNetBitStreamReader;
+	class FNetBitStreamWriter;
+
 	namespace Private
 	{
 		class FReplicationSystemInternal;
@@ -52,8 +55,6 @@ public:
 
 	// Read incoming replication data
 	void Read(FNetSerializationContext& Context);
-
-	void SetRemoteNetTokenStoreState(FNetTokenStoreState* RemoteTokenStoreState);
 	
 	// Mark objects pending destroy as unresolvable.
 	void UpdateUnresolvableReferenceTracking();
@@ -82,6 +83,11 @@ private:
 		FObjectReferenceTracker UnresolvedObjectReferences;
 		FObjectReferenceTracker ResolvedDynamicObjectReferences;
 
+		// These maps provide a O(1) lookup for the number of handles referenced in 
+		// UnresolvedObjectReferences and ResolvedDynamicObjectReferences.
+		TMap<FNetRefHandle, int16> UnresolvedHandleCount;
+		TMap<FNetRefHandle, int16> ResolvedDynamicHandleCount;
+
 		// Baselines
 		uint8* StoredBaselines[2];
 
@@ -103,22 +109,13 @@ private:
 				uint32 Padding : 7;
 			};
 		};
+
+		bool RemoveUnresolvedHandleCount(FNetRefHandle RefHandle);
+		bool RemoveResolvedDynamicHandleCount(FNetRefHandle RefHandle);
 	};
 
 	// Temporary Data to dispatch
-	struct FDispatchObjectInfo
-	{
-		uint32 InternalIndex;
-		FChangeMaskStorageOrPointer ChangeMaskOrPointer;
-		uint32 bIsInitialState : 1;
-		uint32 bHasState : 1;
-		uint32 bHasAttachments : 1;
-		uint32 bDestroy : 1;
-		uint32 bTearOff : 1;
-		uint32 bDeferredEndReplication : 1;
-		uint32 bShouldCallSubObjectCreatedFromReplication : 1;
-	};
-
+	struct FDispatchObjectInfo;
 
 	enum : uint32
 	{
@@ -132,8 +129,13 @@ private:
 	// Read index part of handle
 	FNetRefHandle ReadNetRefHandleId(FNetSerializationContext& Context, FNetBitStreamReader& Reader) const;
 
+	enum EReadObjectFlag : unsigned
+	{
+		ReadObjectFlag_IsReadingHugeObjectBatch = 1U,
+	};
+
 	// Read a new or updated object
-	uint32 ReadObjectBatch(FNetSerializationContext& Context);
+	uint32 ReadObjectBatch(FNetSerializationContext& Context, uint32 ReadObjectFlags);
 
 	// Read object or subobject
 	void ReadObjectInBatch(FNetSerializationContext& Context, FNetRefHandle BatchHandle, bool bIsSubObject);
@@ -144,7 +146,7 @@ private:
 	uint32 ReadObjectsPendingDestroy(FNetSerializationContext& Context);
 
 	// Read state data for all incoming objects
-	void ReadObjects(FNetSerializationContext& Context, uint32 ObjectCountToRead);
+	void ReadObjects(FNetSerializationContext& Context, uint32 ObjectCountToRead, uint32 ReadObjectFlags);
 
 	// Process a single huge object attachment
 	void ProcessHugeObjectAttachment(FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& Attachment);
@@ -181,6 +183,9 @@ private:
 
 	// Update reference tracking maps for the current object
 	void UpdateObjectReferenceTracking(FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView ChangeMask, bool bIncludeInitState, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles, const FObjectReferenceTracker& NewUnresolvedReferences, const FObjectReferenceTracker& NewMappedDynamicReferences);
+	
+	// An optimized version of UpdateObjectReferenceTracking().
+	void UpdateObjectReferenceTracking_Fast(FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView ChangeMask, bool bIncludeInitState, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles, const FObjectReferenceTracker& NewUnresolvedReferences, const FObjectReferenceTracker& NewMappedDynamicReferences);
 
 	// Remove all references for object
 	void CleanupReferenceTracking(FReplicatedObjectInfo* ObjectInfo);
@@ -259,6 +264,11 @@ private:
 
 	// Used during receive and processing of pending batches
 	TArray<FNetRefHandle> TempMustBeMappedReferences;
+
+	// Preallocate the arrays used by BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking() to 
+	// avoid memory allocations during the frame.
+	FObjectReferenceTracker UnresolvedReferencesCache;
+	FObjectReferenceTracker MappedDynamicReferencesCache;
 
 	FNetBlobHandlerManager* NetBlobHandlerManager;
 	FNetBlobType NetObjectBlobType;

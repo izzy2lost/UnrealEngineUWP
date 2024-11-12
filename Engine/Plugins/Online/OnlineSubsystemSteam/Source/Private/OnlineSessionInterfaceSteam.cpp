@@ -219,6 +219,14 @@ public:
 
 bool FOnlineSessionSteam::CreateSession(int32 HostingPlayerNum, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)
 {
+	// In Steam, bUsesPresence and bUseLobbiesIfAvailable have equivalent meaning and should have the same value
+	if (NewSessionSettings.bUsesPresence != NewSessionSettings.bUseLobbiesIfAvailable)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("[%hs] The values of FOnlineSessionSettings::bUsesPresence and FOnlineSessionSettings::bUseLobbiesIfAvailable are treated as equal and have to match"), __FUNCTION__);
+		TriggerOnCreateSessionCompleteDelegates(SessionName, false);
+		return false;
+	}
+
 	uint32 Result = ONLINE_FAIL;
 
 	// Check for an existing session
@@ -575,7 +583,7 @@ bool FOnlineSessionSteam::DestroySession(FName SessionName, const FOnDestroySess
 					EndInternetSession(Session);
 				}
 
-				if (Session->SessionSettings.bUsesPresence)
+				if (Session->SessionSettings.bUseLobbiesIfAvailable)
 				{
 					Result = DestroyLobbySession(Session, CompletionDelegate);
 				}
@@ -759,7 +767,12 @@ bool FOnlineSessionSteam::FindSessionById(const FUniqueNetId& SearchingUserId, c
 uint32 FOnlineSessionSteam::FindInternetSession(const TSharedRef<FOnlineSessionSearch>& SearchSettings)
 {
 	bool PresenceSearch = false;
-	if (SearchSettings->QuerySettings.Get(SEARCH_PRESENCE, PresenceSearch) && PresenceSearch)
+	bool LobbySearch = false;
+	if (
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		(SearchSettings->QuerySettings.Get(SEARCH_PRESENCE, PresenceSearch) && PresenceSearch)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		|| (SearchSettings->QuerySettings.Get(SEARCH_LOBBIES, LobbySearch) && LobbySearch))
 	{
 		FOnlineAsyncTaskSteamFindLobbies* NewTask = new FOnlineAsyncTaskSteamFindLobbies(SteamSubsystem, SearchSettings);
 		SteamSubsystem->QueueAsyncTask(NewTask);
@@ -777,38 +790,29 @@ uint32 FOnlineSessionSteam::FindLANSession(const TSharedRef<FOnlineSessionSearch
 {
 	uint32 Return = ONLINE_IO_PENDING;
 
-	bool PresenceSearch = false;
-	if (SearchSettings->QuerySettings.Get(SEARCH_PRESENCE, PresenceSearch) && PresenceSearch)
+	if (!LANSession)
 	{
-		if (!LANSession)
-		{
-			LANSession = new FLANSession();
-		}
-
-		// Recreate the unique identifier for this client
-		GenerateNonce((uint8*)&LANSession->LanNonce, 8);
-
-		FOnValidResponsePacketDelegate ResponseDelegate = FOnValidResponsePacketDelegate::CreateRaw(this, &FOnlineSessionSteam::OnValidResponsePacketReceived);
-		FOnSearchingTimeoutDelegate TimeoutDelegate = FOnSearchingTimeoutDelegate::CreateRaw(this, &FOnlineSessionSteam::OnLANSearchTimeout);
-
-		FNboSerializeToBufferSteam Packet(LAN_BEACON_MAX_PACKET_SIZE);
-		LANSession->CreateClientQueryPacket(Packet, LANSession->LanNonce);
-		if (Packet.HasOverflow() || LANSession->Search(Packet, ResponseDelegate, TimeoutDelegate) == false)
-		{
-			Return = ONLINE_FAIL;
-			delete LANSession;
-			LANSession = nullptr;
-
-			CurrentSessionSearch->SearchState = EOnlineAsyncTaskState::Failed;
-
-			// Just trigger the delegate as having failed
-			TriggerOnFindSessionsCompleteDelegates(false);
-		}
+		LANSession = new FLANSession();
 	}
-	else
+
+	// Recreate the unique identifier for this client
+	GenerateNonce((uint8*)&LANSession->LanNonce, 8);
+
+	FOnValidResponsePacketDelegate ResponseDelegate = FOnValidResponsePacketDelegate::CreateRaw(this, &FOnlineSessionSteam::OnValidResponsePacketReceived);
+	FOnSearchingTimeoutDelegate TimeoutDelegate = FOnSearchingTimeoutDelegate::CreateRaw(this, &FOnlineSessionSteam::OnLANSearchTimeout);
+
+	FNboSerializeToBufferSteam Packet(LAN_BEACON_MAX_PACKET_SIZE);
+	LANSession->CreateClientQueryPacket(Packet, LANSession->LanNonce);
+	if (Packet.HasOverflow() || LANSession->Search(Packet, ResponseDelegate, TimeoutDelegate) == false)
 	{
-		FOnlineAsyncTaskSteamFindServers* NewTask = new FOnlineAsyncTaskSteamFindServers(SteamSubsystem, SearchSettings, OnFindSessionsCompleteDelegates);
-		SteamSubsystem->QueueAsyncTask(NewTask);
+		Return = ONLINE_FAIL;
+		delete LANSession;
+		LANSession = nullptr;
+
+		CurrentSessionSearch->SearchState = EOnlineAsyncTaskState::Failed;
+
+		// Just trigger the delegate as having failed
+		TriggerOnFindSessionsCompleteDelegates(false);
 	}
 
 	return Return;
@@ -851,6 +855,14 @@ bool FOnlineSessionSteam::CancelFindSessions()
 
 bool FOnlineSessionSteam::JoinSession(int32 PlayerNum, FName SessionName, const FOnlineSessionSearchResult& DesiredSession)
 {
+	// In Steam, bUsesPresence and bUseLobbiesIfAvailable have equivalent meaning and should have the same value
+	if(DesiredSession.Session.SessionSettings.bUsesPresence != DesiredSession.Session.SessionSettings.bUseLobbiesIfAvailable)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("[%hs] The values of FOnlineSessionSettings::bUsesPresence and FOnlineSessionSettings::bUseLobbiesIfAvailable are treated as equal and have to match"), __FUNCTION__);
+		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		return false;
+	}
+
 	uint32 Return = ONLINE_FAIL;
 	FNamedOnlineSession* Session = GetNamedSession(SessionName);
 	// Don't join a session if already in one or hosting one
@@ -867,7 +879,7 @@ bool FOnlineSessionSteam::JoinSession(int32 PlayerNum, FName SessionName, const 
 			{
 				const FOnlineSessionInfoSteam* SearchSessionInfo = (const FOnlineSessionInfoSteam*)DesiredSession.Session.SessionInfo.Get();
 
-				if (DesiredSession.Session.SessionSettings.bUsesPresence)
+				if (DesiredSession.Session.SessionSettings.bUseLobbiesIfAvailable)
 				{
 					FOnlineSessionInfoSteam* NewSessionInfo = new FOnlineSessionInfoSteam(ESteamSession::LobbySession, *SearchSessionInfo->SessionId);
 					Session->SessionInfo = MakeShareable(NewSessionInfo);
@@ -884,7 +896,7 @@ bool FOnlineSessionSteam::JoinSession(int32 PlayerNum, FName SessionName, const 
 			}
 			else
 			{
-				UE_LOG_ONLINE_SESSION(Warning, TEXT("Invalid session info on search result"), *SessionName.ToString());
+				UE_LOG_ONLINE_SESSION(Warning, TEXT("Invalid session info on search result"));
 			}
 		}
 		else
@@ -1612,6 +1624,7 @@ void FOnlineSessionSteam::AppendSessionSettingsToPacket(FNboSerializeToBufferSte
 		<< (uint8)SessionSettings->bAllowJoinInProgress
 		<< (uint8)SessionSettings->bAllowInvites
 		<< (uint8)SessionSettings->bUsesPresence
+		<< (uint8)SessionSettings->bUseLobbiesIfAvailable
 		<< (uint8)SessionSettings->bAllowJoinViaPresence
 		<< (uint8)SessionSettings->bAllowJoinViaPresenceFriendsOnly
 		<< (uint8)SessionSettings->bAntiCheatProtected
@@ -1728,6 +1741,8 @@ void FOnlineSessionSteam::ReadSettingsFromPacket(FNboSerializeFromBufferSteam& P
 	SessionSettings.bAllowInvites = !!Read;
 	Packet >> Read;
 	SessionSettings.bUsesPresence = !!Read;
+	Packet >> Read;
+	SessionSettings.bUseLobbiesIfAvailable = !!Read;
 	Packet >> Read;
 	SessionSettings.bAllowJoinViaPresence = !!Read;
 	Packet >> Read;

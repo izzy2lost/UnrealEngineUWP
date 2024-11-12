@@ -8,7 +8,7 @@
 #include "SimModule/MotorModule.h"
 #include "SimModule/AxleModule.h"
 #include "SimModule/EngineModule.h"
-#include "SimModule/SuspensionModule.h"
+#include "SimModule/SuspensionBaseInterface.h"
 #include "SimModule/WheelModule.h"
 #include "SimModule/TransmissionModule.h"
 #include "SimModule/ClutchModule.h"

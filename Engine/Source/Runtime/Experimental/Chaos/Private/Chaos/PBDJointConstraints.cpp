@@ -87,6 +87,16 @@ namespace Chaos
 		return ConcreteContainer()->ClearConstraintBreaking(ConstraintIndex);
 	}
 
+	bool FPBDJointConstraintHandle::IsConstraintViolating() const
+	{
+		return ConcreteContainer()->IsConstraintViolating(ConstraintIndex);
+	}
+
+	void FPBDJointConstraintHandle::ClearConstraintViolating()
+	{
+		return ConcreteContainer()->ClearConstraintViolating(ConstraintIndex);
+	}
+
 	bool FPBDJointConstraintHandle::IsDriveTargetChanged() const
 	{
 		return ConcreteContainer()->IsDriveTargetChanged(ConstraintIndex);
@@ -110,6 +120,16 @@ namespace Chaos
 	FVec3 FPBDJointConstraintHandle::GetAngularImpulse() const
 	{
 		return ConcreteContainer()->GetConstraintAngularImpulse(ConstraintIndex);
+	}
+
+	float FPBDJointConstraintHandle::GetLinearViolation() const
+	{
+		return ConcreteContainer()->GetConstraintLinearViolation(ConstraintIndex);
+	}
+
+	float FPBDJointConstraintHandle::GetAngularViolation() const
+	{
+		return ConcreteContainer()->GetConstraintAngularViolation(ConstraintIndex);
 	}
 
 	ESyncState FPBDJointConstraintHandle::SyncState() const
@@ -200,6 +220,11 @@ namespace Chaos
 		GetConstraintSettingsInternal().LinearDriveMaxForce = MaxForce;
 	}
 
+	void FPBDJointConstraintHandle::SetLinearDriveForceMode(EJointForceMode ForceMode)
+	{
+		GetConstraintSettingsInternal().LinearDriveForceMode = ForceMode;
+	}
+
 	void FPBDJointConstraintHandle::SetAngularDriveStiffness(const FVec3 Stiffness)
 	{
 		GetConstraintSettingsInternal().AngularDriveStiffness = Stiffness;
@@ -213,6 +238,11 @@ namespace Chaos
 	void FPBDJointConstraintHandle::SetAngularDriveMaxTorque(const FVec3 MaxTorque)
 	{
 		GetConstraintSettingsInternal().AngularDriveMaxTorque = MaxTorque;
+	}
+
+	void FPBDJointConstraintHandle::SetAngularDriveForceMode(EJointForceMode ForceMode)
+	{
+		GetConstraintSettingsInternal().AngularDriveForceMode = ForceMode;
 	}
 
 	void FPBDJointConstraintHandle::SetCollisionEnabled(const bool bCollisionEnabled)
@@ -353,10 +383,12 @@ namespace Chaos
 		, AngularDriveDamping(FVec3(0))
 		, AngularDriveMaxTorque(FVec3(UE_MAX_FLT))
 		, LinearBreakForce(UE_MAX_FLT)
+		, LinearViolationCallbackThreshold(UE_MAX_FLT)
 		, LinearPlasticityLimit(UE_MAX_FLT)
 		, LinearPlasticityType(EPlasticityType::Free)
 		, LinearPlasticityInitialDistanceSquared(UE_MAX_FLT)
 		, AngularBreakTorque(UE_MAX_FLT)
+		, AngularViolationCallbackThreshold(UE_MAX_FLT)
 		, AngularPlasticityLimit(UE_MAX_FLT)
 		, ContactTransferScale(0.f)
 		, UserData(nullptr)
@@ -479,6 +511,7 @@ namespace Chaos
 		, NumIterationsAtMaxSolverStiffness(1)
 		, NumShockPropagationIterations(0)
 		, bUseLinearSolver(true)
+		, bUseSimd(false)
 		, bSortEnabled(false)
 		, bSolvePositionLast(true)
 		, bUsePositionBasedDrives(true)
@@ -738,6 +771,16 @@ namespace Chaos
 		ConstraintStates[ConstraintIndex].bBreaking = false;
 	}
 
+	bool FPBDJointConstraints::IsConstraintViolating(int32 ConstraintIndex) const
+	{
+		return ConstraintStates[ConstraintIndex].bViolating;
+	}
+
+	void FPBDJointConstraints::ClearConstraintViolating(int32 ConstraintIndex)
+	{
+		ConstraintStates[ConstraintIndex].bViolating = false;
+	}
+
 	bool FPBDJointConstraints::IsDriveTargetChanged(int32 ConstraintIndex) const
 	{
 		return ConstraintStates[ConstraintIndex].bDriveTargetChanged;
@@ -886,6 +929,16 @@ namespace Chaos
 		return ConstraintStates[ConstraintIndex].AngularImpulse;
 	}
 
+	float FPBDJointConstraints::GetConstraintLinearViolation(int32 ConstraintIndex) const
+	{
+		return ConstraintStates[ConstraintIndex].LinearViolation;
+	}
+
+	float FPBDJointConstraints::GetConstraintAngularViolation(int32 ConstraintIndex) const
+	{
+		return ConstraintStates[ConstraintIndex].AngularViolation;
+	}
+
 	ESyncState FPBDJointConstraints::GetConstraintSyncState(int32 ConstraintIndex) const
 	{
 		return ConstraintStates[ConstraintIndex].SyncState;
@@ -972,7 +1025,7 @@ namespace Chaos
 		}
 	}
 
-	void FPBDJointConstraints::SetSolverResults(const int32 ConstraintIndex, const FVec3& LinearImpulse, const FVec3& AngularImpulse, bool bIsBroken, const FSolverBody* SolverBody0, const FSolverBody* SolverBody1)
+	void FPBDJointConstraints::SetSolverResults(const int32 ConstraintIndex, const FVec3& LinearImpulse, const FVec3& AngularImpulse, const float LinearViolation, const float AngularViolation, const bool bIsBroken, const bool bIsViolating, const FSolverBody* SolverBody0, const FSolverBody* SolverBody1)
 	{
 		ConstraintStates[ConstraintIndex].LinearImpulse = LinearImpulse;
 		ConstraintStates[ConstraintIndex].AngularImpulse = AngularImpulse;
@@ -981,6 +1034,10 @@ namespace Chaos
 		{
 			BreakConstraint(ConstraintIndex);
 		}
+
+		ConstraintStates[ConstraintIndex].bViolating = bIsViolating;
+		ConstraintStates[ConstraintIndex].LinearViolation = LinearViolation;
+		ConstraintStates[ConstraintIndex].AngularViolation = AngularViolation;
 
 		if ((SolverBody0 != nullptr) && (SolverBody1 != nullptr))
 		{

@@ -41,8 +41,8 @@ public:
 	void GetRequestedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutRequestedStreams) override;
 	void GetEndedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutAlreadyEndedStreams) override;
 
-	//! Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
 	FTimeValue GetFirstPTS() const override;
+	FTimeRange GetTimeRange() const override;
 
 	int32 GetQualityIndex() const override;
 	int32 GetBitrate() const override;
@@ -138,10 +138,10 @@ private:
 		void Abort()
 		{
 			bAbort = true;
-			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer>	Buffer = ReceiveBuffer;
+			TSharedPtrTS<FWaitableBuffer> Buffer = ReceiveBuffer;
 			if (Buffer.IsValid())
 			{
-				Buffer->Buffer.Abort();
+				Buffer->Abort();
 			}
 		}
 		void SetHasErrored()
@@ -149,7 +149,7 @@ private:
 			bHasErrored = true;
 		}
 		int32 ReadTo(void* ToBuffer, int64 NumBytes);
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer>	ReceiveBuffer;
+		TSharedPtrTS<FWaitableBuffer>						ReceiveBuffer;
 		int64												CurrentPos;
 		int64												ParsePos;
 		bool												bAbort;

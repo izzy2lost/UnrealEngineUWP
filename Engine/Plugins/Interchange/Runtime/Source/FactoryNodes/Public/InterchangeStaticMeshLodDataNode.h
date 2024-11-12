@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InterchangeMeshDefinitions.h"
 #include "UObject/ObjectMacros.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 
@@ -128,6 +129,12 @@ public:
 	bool SetOneConvexHullPerUCX(bool AttributeValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
+	bool GetImportCollisionType(EInterchangeMeshCollision& AttributeValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
+	bool SetImportCollisionType(EInterchangeMeshCollision AttributeValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
 	bool GetImportCollision(bool& AttributeValue) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
@@ -143,7 +150,8 @@ private:
 	UE::Interchange::TArrayAttributeHelper<FString> CapsuleCollisionMeshUids;
 	UE::Interchange::TArrayAttributeHelper<FString> SphereCollisionMeshUids;
 	UE::Interchange::TArrayAttributeHelper<FString> ConvexCollisionMeshUids;
-
-	const UE::Interchange::FAttributeKey Macro_CustomOneConvexHullPerUCXKey = UE::Interchange::FAttributeKey(TEXT("__OneConvexHullPerUCX__Key"));
-	const UE::Interchange::FAttributeKey Macro_CustomImportCollisionKey = UE::Interchange::FAttributeKey(TEXT("__ImportCollision__Key"));
+		
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(OneConvexHullPerUCX)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ImportCollision)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ImportCollisionType)
 };

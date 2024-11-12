@@ -3,7 +3,7 @@
 #include "Expressions/Filter/TG_Expression_Levels.h"
 #include "FxMat/MaterialManager.h"
 #include "Job/JobBatch.h"
-#include "Transform/Expressions/T_Color.h"
+#include "Transform/Expressions/T_Levels.h"
 
 void FTG_LevelsSettings_VarPropertySerialize(FTG_Var::VarPropertySerialInfo& Info)
 {
@@ -89,32 +89,228 @@ bool FTG_LevelsSettings::SetMidFromMidExponent(float InExponent)
 	return false;
 }
 
+
+void UTG_Expression_Levels::PostLoad()
+{
+	Super::PostLoad();
+
+	// Restore LevelsSettings inner struct from saved values
+	Levels.Low = (LowValue);
+	Levels.High = (HighValue);
+	Levels.Mid = (MidValue);
+}
+
+#if WITH_EDITOR
+
+void UTG_Expression_Levels::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	// Catch if any of low / mid / high changes do the proper range check and feedback final values
+	// Low
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, LowValue))
+	{
+		SetLowValue(LowValue);
+	}
+	// High
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, HighValue))
+	{
+		SetHighValue(HighValue);
+	}
+	// Mid
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue))
+	{
+		SetMidValue(MidValue);
+	}
+	// Out Low
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, OutLowValue))
+	{
+		SetOutLowValue(OutLowValue);
+	}
+	// Out High
+	else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, OutHighValue))
+	{
+		SetOutHighValue(OutHighValue);
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+bool UTG_Expression_Levels::CanEditChange(const FProperty* InProperty) const
+{
+	bool bEditCondition = Super::CanEditChange(InProperty);
+	// if already set to false Or InProperty not directly owned by us, early out
+	if (!bEditCondition || this->GetClass() != InProperty->GetOwnerClass())
+	{
+		return bEditCondition;
+	}
+
+	const FName PropertyName = InProperty->GetFName();
+
+	// Specific logic associated with Property
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, LowValue))
+	{
+		bEditCondition = (!IsAutoLevel());
+	}
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue))
+	{
+		bEditCondition = (!IsAutoLevel());
+	}
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, HighValue))
+	{
+		bEditCondition = (!IsAutoLevel());
+	}
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidAutoLevels))
+	{
+		bEditCondition = (IsAutoLevel());
+	}
+
+	return bEditCondition;
+}
+
+#endif
+
+void UTG_Expression_Levels::SetLowValue(float InValue)
+{
+	if (Levels.SetLow(InValue))
+	{
+		LowValue = Levels.Low;
+		MidValue = Levels.Mid;
+		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue), MidValue);
+	}
+	else
+	{
+		LowValue = Levels.Low;
+	}
+}
+
+void UTG_Expression_Levels::SetMidValue(float InValue)
+{
+	Levels.SetMid(InValue);
+	MidValue = Levels.Mid;
+}
+
+void UTG_Expression_Levels::SetHighValue(float InValue)
+{
+	if (Levels.SetHigh(InValue))
+	{
+		MidValue = Levels.Mid;
+		HighValue = Levels.High;
+		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue), MidValue);
+	}
+	else
+	{
+		HighValue = Levels.High;
+	}
+}
+
+
+void UTG_Expression_Levels::SetOutLowValue(float InValue)
+{
+	OutLowValue = FMath::Clamp(InValue, 0, OutHighValue);
+}
+
+void UTG_Expression_Levels::SetOutHighValue(float InValue)
+{
+	OutHighValue = FMath::Clamp(OutHighValue, OutLowValue, 1.0f);
+}
+
 void UTG_Expression_Levels::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Levels>(TEXT("T_Levels"));
-
-	check(RenderMaterial);
-
-	if (!Input)
+	if (!Input) // No Input, black Output
 	{
 		Output = FTG_Texture::GetBlack();
 		return;
 	}
-	
-	JobUPtr RenderJob = std::make_unique<Job>(InContext->Cycle->GetMix(), InContext->TargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));
 
-	RenderJob
-		->AddArg(ARG_BLOB(Input, "Input"))
-		->AddArg(ARG_FLOAT(Levels.Low, "MinValue"))
-		->AddArg(ARG_FLOAT(Levels.High, "MaxValue"))
-		->AddArg(ARG_FLOAT(Levels.EvalMidExponent(), "Gamma"))
-		;
+	LevelsControl = MakeShared<FLevels>();
 
-	const FString Name = TEXT("Levels"); 
+	switch (LevelsExpressionType)
+	{
+	case ELevelsExpressionType::LowMidHigh:
+		LevelsControl->InitFromLowMidHigh(LowValue, MidValue, HighValue, OutLowValue, OutHighValue);
+		break;
+	case ELevelsExpressionType::AutoLowHigh:
+		LevelsControl->InitFromAutoLevels(MidAutoLevels);
+		break;
+	}
+
 	BufferDescriptor Desc = Output.GetBufferDescriptor();
-
-	Output = RenderJob->InitResult(Name, &Desc);
-	InContext->Cycle->AddJob(InContext->TargetId, std::move(RenderJob));
+	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
 }
+
+/////////////////////////////////////////////////////////////////
+/// Histogram scan
+/////////////////////////////////////////////////////////////////
+void UTG_Expression_HistogramScan::Evaluate(FTG_EvaluationContext* InContext)
+{
+	Super::Evaluate(InContext);
+
+	if (!Input) // No Input, black Output
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+
+	if (Position < 0.00001f)
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+	else if (Position >= 0.99999f)
+	{
+		Output = FTG_Texture::GetWhite();
+		return;
+	}
+
+	LevelsControl = MakeShared<FLevels>();
+	LevelsControl->InitFromPositionContrast(Position, Contrast);
+
+
+	BufferDescriptor Desc = Output.GetBufferDescriptor();
+	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
+}
+
+/////////////////////////////////////////////////////////////////
+/// Histogram range
+/////////////////////////////////////////////////////////////////
+void UTG_Expression_HistogramRange::Evaluate(FTG_EvaluationContext* InContext)
+{
+	Super::Evaluate(InContext);
+
+	if (!Input) // No Input, black Output
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+
+	LevelsControl = MakeShared<FLevels>();
+	LevelsControl->InitFromRange(Range, Position);
+
+	BufferDescriptor Desc = Output.GetBufferDescriptor();
+	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
+}
+
+/////////////////////////////////////////////////////////////////
+/// Histogram select
+/////////////////////////////////////////////////////////////////
+#if 0 /// TODO
+void UTG_Expression_HistogramSelect::Evaluate(FTG_EvaluationContext* InContext)
+{
+	Super::Evaluate(InContext);
+
+	if (!Input) // No Input, black Output
+	{
+		Output = FTG_Texture::GetBlack();
+		return;
+	}
+
+	LevelsControl = MakeShared<FLevels>();
+	LevelsControl->InitFromPositionContrast(Position, Contrast);
+	LevelsControl->InitFromRange(Range, Position);
+
+	BufferDescriptor Desc = Output.GetBufferDescriptor();
+	Output = T_Levels::Create(InContext->Cycle, Desc, Input.RasterBlob, LevelsControl, InContext->TargetId);
+}
+
+#endif 

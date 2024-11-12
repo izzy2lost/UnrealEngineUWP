@@ -44,11 +44,6 @@ static TAutoConsoleVariable<int32> CVarParallelPrePass(
 	TEXT("Toggles parallel zprepass rendering. Parallel rendering must be enabled for this to have an effect."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksPrePass(
-	TEXT("r.RHICmdFlushRenderThreadTasksPrePass"),
-	0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of the pre pass.  A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksPrePass is > 0 we will flush."));
-
 static int32 GEarlyZSortMasked = 1;
 static FAutoConsoleVariableRef CVarSortPrepassMasked(
 	TEXT("r.EarlyZSortMasked"),
@@ -164,13 +159,6 @@ IMPLEMENT_SHADERPIPELINE_TYPE_VS(DepthNoPixelPipeline, TDepthOnlyVS<false>, true
 IMPLEMENT_SHADERPIPELINE_TYPE_VS(DepthPosOnlyNoPixelPipeline, TDepthOnlyVS<true>, true);
 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(DepthPipeline, TDepthOnlyVS<false>, FDepthOnlyPS, true);
 
-static bool IsDepthPassWaitForTasksEnabled()
-{
-	return CVarRHICmdFlushRenderThreadTasksPrePass.GetValueOnRenderThread() > 0 || CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() > 0;
-}
-
-
-
 template <bool bPositionOnly>
 bool GetDepthPassShaders(
 	const FMaterial& Material,
@@ -264,8 +252,6 @@ void SetDepthPassDitheredLODTransitionState(const FSceneView* SceneView, const F
 		}
 	}
 }
-
-DECLARE_CYCLE_STAT(TEXT("Prepass"), STAT_CLP_Prepass, STATGROUP_ParallelCommandListMarkers);
 
 /** A pixel shader used to fill the stencil buffer with the current dithered transition mask. */
 class FDitheredTransitionStencilPS : public FGlobalShader
@@ -494,9 +480,9 @@ extern const TCHAR* GetDepthPassReason(bool bDitheredLODTransitionsUseStencil, E
 
 void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef SceneDepthTexture, FInstanceCullingManager& InstanceCullingManager, FRDGTextureRef* FirstStageDepthBuffer)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "PrePass %s %s", GetDepthDrawingModeString(DepthPass.EarlyZPassMode), GetDepthPassReason(DepthPass.bDitheredLODTransitionsUseStencil, ShaderPlatform));
-	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderPrePass);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, Prepass, "PrePass %s %s", GetDepthDrawingModeString(DepthPass.EarlyZPassMode), GetDepthPassReason(DepthPass.bDitheredLODTransitionsUseStencil, ShaderPlatform));
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Prepass);
+	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderPrePass);
 
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderPrePass, FColor::Emerald);
 	SCOPE_CYCLE_COUNTER(STAT_DepthDrawTime);
@@ -517,8 +503,6 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 
 		if (bParallelDepthPass)
 		{
-			RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, IsDepthPassWaitForTasksEnabled());
-
 			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
 				FViewInfo& View = InViews[ViewIndex];
@@ -536,15 +520,13 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 					FDepthPassParameters* PassParameters = GetDepthPassParameters(GraphBuilder, View, SceneDepthTexture);
 					View.ParallelMeshDrawCommandPasses[DepthMeshPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
-					GraphBuilder.AddPass(
+					GraphBuilder.AddDispatchPass(
 						bSecondStageDepthPass ? RDG_EVENT_NAME("SecondStageDepthPassParallel") : RDG_EVENT_NAME("DepthPassParallel"),
 						PassParameters,
-						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-						[this, &View, PassParameters, DepthMeshPass](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+						ERDGPassFlags::Raster,
+						[&View, PassParameters, DepthMeshPass](FRDGDispatchPassBuilder& DispatchPassBuilder)
 					{
-						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_Prepass), View, FParallelCommandListBindings(PassParameters));
-						ParallelCommandListSet.SetHighPriority();
-						View.ParallelMeshDrawCommandPasses[DepthMeshPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+						View.ParallelMeshDrawCommandPasses[DepthMeshPass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 					});
 
 					RenderPrePassEditorPrimitives(GraphBuilder, View, PassParameters, DrawRenderState, DepthPass.EarlyZPassMode, InstanceCullingManager);
@@ -574,10 +556,10 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 						bSecondStageDepthPass ? RDG_EVENT_NAME("SecondStageDepthPass") : RDG_EVENT_NAME("DepthPass"),
 						PassParameters,
 						ERDGPassFlags::Raster,
-						[this, &View, PassParameters, DepthMeshPass](FRHICommandList& RHICmdList)
+						[&View, PassParameters, DepthMeshPass](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						SetStereoViewport(RHICmdList, View, 1.0f);
-						View.ParallelMeshDrawCommandPasses[DepthMeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+						View.ParallelMeshDrawCommandPasses[DepthMeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 					});
 
 					RenderPrePassEditorPrimitives(GraphBuilder, View, PassParameters, DrawRenderState, DepthPass.EarlyZPassMode, InstanceCullingManager);
@@ -633,7 +615,7 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 			RDG_EVENT_NAME("DitherStencilClear"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, InViews](FRHICommandList& RHICmdList)
+			[this, InViews](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			if (InViews.Num() > 1)
 			{
@@ -660,7 +642,7 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 bool FMobileSceneRenderer::ShouldRenderPrePass() const
 {
 	// Draw a depth pass to avoid overdraw in the other passes.
-	return Scene->EarlyZPassMode == DDM_MaskedOnly || Scene->EarlyZPassMode == DDM_AllOpaque;
+	return Scene->EarlyZPassMode == DDM_MaskedOnly || Scene->EarlyZPassMode == DDM_AllOpaque || Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity;
 }
 
 void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
@@ -668,14 +650,14 @@ void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FVie
 	checkSlow(RHICmdList.IsInsideRenderPass());
 
 	SCOPED_NAMED_EVENT(FMobileSceneRenderer_RenderPrePass, FColor::Emerald);
-	SCOPED_DRAW_EVENT(RHICmdList, MobileRenderPrePass);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, Prepass, "MobileRenderPrePass");
+	SCOPED_GPU_STAT(RHICmdList, Prepass);
 
 	SCOPE_CYCLE_COUNTER(STAT_DepthDrawTime);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RenderPrePass);
-	SCOPED_GPU_STAT(RHICmdList, Prepass);
 
 	SetStereoViewport(RHICmdList, View);
-	View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].DispatchDraw(nullptr, RHICmdList, InstanceCullingDrawParams);
+	View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].Draw(RHICmdList, InstanceCullingDrawParams);
 }
 
 void FDeferredShadingSceneRenderer::RenderPrePassHMD(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef DepthTexture)
@@ -707,7 +689,7 @@ void FDeferredShadingSceneRenderer::RenderPrePassHMD(FRDGBuilder& GraphBuilder, 
 				RDG_EVENT_NAME("HiddenAreaMask"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, HMDDevice](FRHICommandList& RHICmdList)
+				[this, &View, HMDDevice](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				extern TGlobalResource<FFilterVertexDeclaration, FRenderResource::EInitPhase::Pre> GFilterVertexDeclaration;
 
@@ -748,39 +730,6 @@ FMeshDrawCommandSortKey CalculateDepthPassMeshStaticSortKey(bool bIsMasked, cons
 	}
 	
 	return SortKey;
-}
-
-void SetMobileDepthPassRenderState(const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, FMeshPassProcessorRenderState& DrawRenderState, const FMeshBatch& RESTRICT MeshBatch, bool bUsesDeferredShading)
-{
-	DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<
-		true, CF_DepthNearOrEqual,
-		true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
-		false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
-		// don't use masking as it has significant performance hit on Mali GPUs (T860MP2)
-		0x00, 0xff >::GetRHI());
-
-	uint8 StencilValue = 0;
-	
-	uint8 ReceiveDecals = (PrimitiveSceneProxy && !PrimitiveSceneProxy->ReceivesDecals() ? 0x01 : 0x00);
-	StencilValue |= GET_STENCIL_BIT_MASK(RECEIVE_DECAL, ReceiveDecals);
-
-	if (bUsesDeferredShading)
-	{
-		extern uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel);
-
-		// store into [1-3] bits
-		const FMaterial& MaterialResource = MeshBatch.MaterialRenderProxy->GetIncompleteMaterialWithFallback(ERHIFeatureLevel::ES3_1);
-		uint8 ShadingModel = GetMobileShadingModelStencilValue(MaterialResource.GetShadingModels());
-		StencilValue |= GET_STENCIL_MOBILE_SM_MASK(ShadingModel);
-		StencilValue |= STENCIL_LIGHTING_CHANNELS_MASK(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetLightingChannelStencilValue() : 0x00);
-	}
-	else
-	{
-		uint8 CastContactShadows = (PrimitiveSceneProxy && PrimitiveSceneProxy->CastsContactShadow() ? 0x01 : 0x00);
-		StencilValue |= GET_STENCIL_BIT_MASK(MOBILE_CAST_CONTACT_SHADOW, CastContactShadows);
-	}
-
-	DrawRenderState.SetStencilRef(StencilValue);
 }
 
 template<bool bPositionOnly>
@@ -824,7 +773,12 @@ bool FDepthPassMeshProcessor::Process(
 	// Use StencilMask for DecalOutput on mobile
 	if (FeatureLevel == ERHIFeatureLevel::ES3_1 && !bShadowProjection)
 	{
-		SetMobileDepthPassRenderState(PrimitiveSceneProxy, DrawRenderState, MeshBatch, IsMobileDeferredShadingEnabled(GetFeatureLevelShaderPlatform(FeatureLevel)));
+		extern void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial& Material, FMaterialShadingModelField ShadingModels, bool bUsesDeferredShading);
+		
+		// *Don't* get shading models from MaterialResource since it's for a default material
+		FMaterialShadingModelField ShadingModels = MeshBatch.MaterialRenderProxy->GetIncompleteMaterialWithFallback(ERHIFeatureLevel::ES3_1).GetShadingModels();
+		bool bUsesDeferredShading = IsMobileDeferredShadingEnabled(GetFeatureLevelShaderPlatform(FeatureLevel));
+		SetMobileBasePassDepthState(DrawRenderState, PrimitiveSceneProxy, MaterialResource, ShadingModels, bUsesDeferredShading);
 	}
 
 	FMeshMaterialShaderElementData ShaderElementData;
@@ -942,6 +896,12 @@ bool FDepthPassMeshProcessor::ShouldRender(const FMaterial& Material, bool bMate
 	bUseDefaultMaterial = false;
 	bPositionOnly = false;
 
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1 && EarlyZPassMode == DDM_None)
+	{
+		// Do not cache MDC and do not pre-cache PSOs for a depth pass if it's never going to be used on mobile platforms
+		return false;
+	}
+
 	if (IsOpaqueBlendMode(Material)
 		&& EarlyZPassMode != DDM_MaskedOnly
 		&& bSupportPositionOnlyStream
@@ -984,11 +944,10 @@ bool FDepthPassMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT MeshBat
 	{
 		const bool bSupportPositionOnlyStream = MeshBatch.VertexFactory->SupportsPositionOnlyStream();
 		const bool bVFTypeSupportsNullPixelShader = MeshBatch.VertexFactory->SupportsNullPixelShader();
-		const bool bEvaluateWPO = Material.MaterialModifiesMeshPosition_RenderThread()
-			&& (!ShouldOptimizedWPOAffectNonNaniteShaderSelection() || !PrimitiveSceneProxy || PrimitiveSceneProxy->EvaluateWorldPositionOffset());
+		const bool bModifiesMeshPosition = DoMaterialAndPrimitiveModifyMeshPosition(Material, PrimitiveSceneProxy);
 		bool bPositionOnly = false;
 		bool bUseDefaultMaterial = false;
-		if (ShouldRender(Material, bEvaluateWPO, bSupportPositionOnlyStream, bVFTypeSupportsNullPixelShader, bUseDefaultMaterial, bPositionOnly))
+		if (ShouldRender(Material, bModifiesMeshPosition, bSupportPositionOnlyStream, bVFTypeSupportsNullPixelShader, bUseDefaultMaterial, bPositionOnly))
 		{
 			const FMaterialRenderProxy* EffectiveMaterialRenderProxy = &MaterialRenderProxy;
 			const FMaterial* EffectiveMaterial = &Material;

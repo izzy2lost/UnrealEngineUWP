@@ -14,21 +14,15 @@ namespace DatasmithSketchUpUtils
 			return FVector(float(V.x), float(-V.y), float(V.z));
 		}
 
-		static FORCEINLINE FVector3f ConvertPosition(double X, double Y, double Z)
+		static FORCEINLINE FVector ConvertPosition(double X, double Y, double Z)
 		{
 			const float UnitScaleSketchupToUnreal = 2.54; // centimeters per inch
-			return FVector3f(float(X * UnitScaleSketchupToUnreal), float(-Y * UnitScaleSketchupToUnreal), float(Z * UnitScaleSketchupToUnreal));
+			return FVector(float(X * UnitScaleSketchupToUnreal), float(-Y * UnitScaleSketchupToUnreal), float(Z * UnitScaleSketchupToUnreal));
 		}
 
-		static FORCEINLINE FVector3f ConvertPosition(const SUPoint3D& V)
+		static FORCEINLINE FVector ConvertPosition(const SUPoint3D& V)
 		{
 			return ConvertPosition(V.x, V.y, V.z);
-		}
-
-		static FORCEINLINE float ConvertDistance(const float& D)
-		{
-			const float UnitScaleSketchupToUnreal = 2.54; // centimeters per inch
-			return D * UnitScaleSketchupToUnreal;
 		}
 	}
 
@@ -96,11 +90,45 @@ namespace DatasmithSketchUpUtils
 		SUComponentInstanceRef InSComponentInstanceRef // valid SketckUp component instance
 	);
 
+	bool CompareSUTransformations(const SUTransformation& A, const SUTransformation& B);
+
 	// Set the world transform of a Datasmith actor.
 	void SetActorTransform(
-		TSharedPtr<IDatasmithActorElement> IODActorPtr,      // Datasmith actor to transform
-		SUTransformation const& InSWorldTransform // SketchUp world transform to apply
+		const TSharedPtr<IDatasmithActorElement>& IODActorPtr,      // Datasmith actor to transform
+		SUTransformation const& InWorldTransform // SketchUp world transform to apply
+	);
+
+	bool DecomposeTransform(
+		SUTransformation const& InWorldTransform, // SketchUp world transform to convert
+		FVector& OutTranslation,
+		FQuat& OutRotation,
+		FVector& OutScale,
+		FVector& OutShear
+	);
+
+	// Split a source SketchUp transformation to a set of transformations supported by Unreal
+	// Transform which comes from SketchUp can be any affine transform, represented like: T*R*H*S
+	// TRS - are supported by Unreal TranslationRotationScaling
+	// and H is the 'Shear'/'Skew' unsupported by unreal
+	// In order to correctly display geometry with Shear the H*S part of the transform needs to be 'baked' into the
+	// exported geometry, meaning that the vertices need to be pre-transformed by the S*H matrix
+	//
+	// @param OutWorldTransform Is a transform without SCALE and SHEAR to set on the Actor
+	// @param OutMeshActorWorldTransform Is a transform without SHEAR(but scaling is kept) to set on the MeshActor
+	// @param OutBakeTransform Is just SHEAR to apply to mesh vertices before export, to 'bake' it into the exported mesh
+	bool SplitTransform(
+		SUTransformation const& InWorldTransform, // SketchUp world transform to convert
+		SUTransformation& OutWorldTransform,
+		SUTransformation& OutMeshActorWorldTransform,
+		SUTransformation& OutBakeTransform
 	);
 
 	SUTransformation GetComponentInstanceTransform(SUComponentInstanceRef InSComponentInstanceRef, SUTransformation const& InSWorldTransform);
+
+	// Call into Ruby code
+	namespace ToRuby
+	{
+		// Add Warning that will be show in SketchUp UI(plugins Messages dialog)
+		void LogWarn(const FString& Message);
+	};
 }

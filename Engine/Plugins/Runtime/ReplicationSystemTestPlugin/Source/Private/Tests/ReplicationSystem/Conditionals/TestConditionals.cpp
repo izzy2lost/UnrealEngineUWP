@@ -817,6 +817,70 @@ UE_NET_TEST_FIXTURE(FTestConditionalsFixture, WithSkipOwnerSubObjectReplicatedTo
 	}
 }
 
+// Test case where we ended up trying to send subobjects waiting for creation confirmation causing server check/crash
+UE_NET_TEST_FIXTURE(FTestConditionalsFixture, WithSkipOwnerSubObjectOwnerCanBeChangedWithDataInFlight)
+{
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object + subobject on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0, 0);
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, 0, 0);
+
+	Server->ReplicationBridge->SetSubObjectNetCondition(ServerSubObject->NetRefHandle, ELifetimeCondition::COND_SkipOwner);
+
+	// Set owner
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+
+	// Set some values
+	ServerSubObject->IntA = 13; 
+
+	// Send and deliver packet
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket);
+	Server->PostSendUpdate();
+	
+	// Object should have been created on the client
+	const UTestReplicatedIrisObject* ClientObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientObject, nullptr);
+
+	// SubObject should not have been created on client
+	{
+		const UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+		UE_NET_ASSERT_EQ(ClientSubObject, nullptr);
+	}
+
+	// Change owner
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, 0);
+
+	// Send and delay packet
+	Server->PreSendUpdate();
+	Server->SendTo(Client);
+	Server->PostSendUpdate();
+
+	// Change owner again, just to dirty things and cause a conditional change with subobject pending create in-flight
+	// before a fix in ReplicationWriter this would cause an invalid state assert/check
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, Client->ConnectionIdOnServer);
+	Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, 0);
+
+	// Send and delay packet
+	Server->PreSendUpdate();
+	Server->SendTo(Client);
+	Server->PostSendUpdate();
+
+	Server->DeliverTo(Client, true);
+	Server->DeliverTo(Client, true);
+
+	// SubObject should now have been created on client
+	{
+		const UTestReplicatedIrisObject* ClientSubObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle));
+		UE_NET_ASSERT_NE(ClientSubObject, nullptr);
+
+		UE_NET_ASSERT_EQ(ServerSubObject->IntA, ClientSubObject->IntA);
+	}
+}
+
+
 UE_NET_TEST_FIXTURE(FTestConditionalsFixture, HierarchicalSubObjectIsNotReplicatedToOwnerUnlessParentIs)
 {
 	// Add client

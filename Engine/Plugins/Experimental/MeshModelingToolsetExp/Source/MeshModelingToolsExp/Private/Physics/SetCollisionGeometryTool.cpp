@@ -132,14 +132,10 @@ public:
 			UseShapeGenerator->Generate_Capsules(NewCollision->Geometry);
 			break;
 		case ECollisionGeometryType::ConvexHulls:
-			if (UseShapeGenerator->ConvexDecompositionMaxPieces > 1)
-			{
-				UseShapeGenerator->Generate_ConvexHullDecompositions(NewCollision->Geometry);
-			}
-			else
-			{
-				UseShapeGenerator->Generate_ConvexHulls(NewCollision->Geometry);
-			}
+			UseShapeGenerator->Generate_ConvexHulls(NewCollision->Geometry);
+			break;
+		case ECollisionGeometryType::ConvexDecompositions:
+			UseShapeGenerator->Generate_ConvexHullDecompositions(NewCollision->Geometry);
 			break;
 		case ECollisionGeometryType::SweptHulls:
 			UseShapeGenerator->Generate_ProjectedHulls(NewCollision->Geometry,
@@ -322,11 +318,14 @@ void USetCollisionGeometryTool::Setup()
 	Settings->WatchProperty(Settings->bDetectCapsules, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->bSimplifyHulls, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->HullTargetFaceCount, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->MaxHullsPerMesh, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->MaxHullsPerShape, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bPreSimplifyToEdgeLength, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->DecompositionTargetEdgeLength, [this](double) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->ConvexDecompositionSearchFactor, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->AddHullsErrorTolerance, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MinPartThickness, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bUseNegativeSpaceInDecomposition, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->DecompositionMethod, [this](EConvexDecompositionMethod) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bLimitHullsPerShape, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->NegativeSpaceMinRadius, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->NegativeSpaceTolerance, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->bIgnoreInternalNegativeSpace, [this](bool) { InvalidateCompute(); });
@@ -342,14 +341,30 @@ void USetCollisionGeometryTool::Setup()
 	});
 	UE::ToolTarget::SetSourceObjectVisible(Targets.Last(), Settings->bShowTargetMesh);
 
+	PolygroupLayerProperties = NewObject<UPolygroupLayersProperties>(this);
+	PolygroupLayerProperties->RestoreProperties(this, TEXT("SetCollisionGeometryTool"));
 	if (InitialSourceMeshes.Num() == 1)
 	{
-		PolygroupLayerProperties = NewObject<UPolygroupLayersProperties>(this);
-		PolygroupLayerProperties->RestoreProperties(this, TEXT("SetCollisionGeometryTool"));
 		PolygroupLayerProperties->InitializeGroupLayers(&InitialSourceMeshes[0]);
-		PolygroupLayerProperties->WatchProperty(PolygroupLayerProperties->ActiveGroupLayer, [&](FName) { OnSelectedGroupLayerChanged(); });
-		AddToolPropertySource(PolygroupLayerProperties);
 	}
+	else
+	{
+		TSet<FName> LayerNames;
+		for (int32 MeshIdx = 0; MeshIdx < InitialSourceMeshes.Num(); ++MeshIdx)
+		{
+			if (InitialSourceMeshes[MeshIdx].Attributes())
+			{
+				for (int32 k = 0; k < InitialSourceMeshes[MeshIdx].Attributes()->NumPolygroupLayers(); k++)
+				{
+					FName Name = InitialSourceMeshes[MeshIdx].Attributes()->GetPolygroupLayer(k)->GetName();
+					LayerNames.Add(Name);
+				}
+			}
+		}
+		PolygroupLayerProperties->InitializeGroupLayers(LayerNames);
+	}
+	PolygroupLayerProperties->WatchProperty(PolygroupLayerProperties->ActiveGroupLayer, [&](FName) { OnSelectedGroupLayerChanged(); });
+	AddToolPropertySource(PolygroupLayerProperties);
 
 	VizSettings = NewObject<UCollisionGeometryVisualizationProperties>(this);
 	VizSettings->RestoreProperties(this);
@@ -445,11 +460,14 @@ TUniquePtr<UE::Geometry::TGenericDataOperator<FPhysicsDataCollection>> USetColli
 	// SimplifyHulls on the shape generator controls simplification on both swept and convex hull paths, but for Swept Hulls UI we leave simplification always enabled
 	Op->UseShapeGenerator->bSimplifyHulls = Settings->GeometryType == ECollisionGeometryType::SweptHulls || Settings->bSimplifyHulls;
 	Op->UseShapeGenerator->HullTargetFaceCount = Settings->HullTargetFaceCount;
-	Op->UseShapeGenerator->ConvexDecompositionMaxPieces = Settings->MaxHullsPerMesh;
+	Op->UseShapeGenerator->bDecompositionPreSimplifyWithEdgeLength = Settings->bPreSimplifyToEdgeLength;
+	Op->UseShapeGenerator->DecompositionPreSimplifyEdgeLength = Settings->DecompositionTargetEdgeLength;
+	Op->UseShapeGenerator->bUseConvexDecompositionMaxPieces = Settings->bLimitHullsPerShape || Settings->DecompositionMethod != EConvexDecompositionMethod::NavigationDriven;
+	Op->UseShapeGenerator->ConvexDecompositionMaxPieces = Settings->MaxHullsPerShape;
 	Op->UseShapeGenerator->ConvexDecompositionSearchFactor = Settings->ConvexDecompositionSearchFactor;
 	Op->UseShapeGenerator->ConvexDecompositionErrorTolerance = Settings->AddHullsErrorTolerance;
 	Op->UseShapeGenerator->ConvexDecompositionMinPartThickness = Settings->MinPartThickness;
-	Op->UseShapeGenerator->bConvexDecompositionProtectNegativeSpace = Settings->bUseNegativeSpaceInDecomposition;
+	Op->UseShapeGenerator->bConvexDecompositionProtectNegativeSpace = Settings->DecompositionMethod == EConvexDecompositionMethod::NavigationDriven;
 	Op->UseShapeGenerator->NegativeSpaceMinRadius = Settings->NegativeSpaceMinRadius;
 	Op->UseShapeGenerator->NegativeSpaceTolerance = Settings->NegativeSpaceTolerance;
 	Op->UseShapeGenerator->bIgnoreInternalNegativeSpace = Settings->bIgnoreInternalNegativeSpace;
@@ -693,18 +711,17 @@ void USetCollisionGeometryTool::OnSelectedGroupLayerChanged()
 }
 
 
-void USetCollisionGeometryTool::UpdateActiveGroupLayer(FDynamicMesh3* GroupLayersMesh)
+FPolygroupSet USetCollisionGeometryTool::GetActiveGroupLayer(const FDynamicMesh3* GroupLayersMesh)
 {
 	if (PolygroupLayerProperties->HasSelectedPolygroup() == false)
 	{
-		ActiveGroupSet = MakeUnique<UE::Geometry::FPolygroupSet>(GroupLayersMesh);
+		return FPolygroupSet(GroupLayersMesh);
 	}
 	else
 	{
 		FName SelectedName = PolygroupLayerProperties->ActiveGroupLayer;
-		FDynamicMeshPolygroupAttribute* FoundAttrib = UE::Geometry::FindPolygroupLayerByName(*GroupLayersMesh, SelectedName);
-		ensureMsgf(FoundAttrib, TEXT("Selected Attribute Not Found! Falling back to Default group layer."));
-		ActiveGroupSet = MakeUnique<UE::Geometry::FPolygroupSet>(GroupLayersMesh, FoundAttrib);
+		const FDynamicMeshPolygroupAttribute* FoundAttrib = UE::Geometry::FindPolygroupLayerByName(*GroupLayersMesh, SelectedName);
+		return FPolygroupSet(GroupLayersMesh, FoundAttrib);
 	}
 }
 
@@ -805,7 +822,8 @@ void USetCollisionGeometryTool::PrecomputeInputMeshes()
 	}
 	else
 	{
-		ParallelFor(SourceObjectIndices.Num(), [&](int32 k)
+		bool bCanDiscardAttributes = (PolygroupLayerProperties->HasSelectedPolygroup() == false);
+		ParallelFor(SourceObjectIndices.Num(), [this, &TargetTransform, bCanDiscardAttributes](int32 k)
 		{
 			FDynamicMesh3 SourceMesh = InitialSourceMeshes[k];
 			if (Settings->bUseWorldSpace)
@@ -814,7 +832,10 @@ void USetCollisionGeometryTool::PrecomputeInputMeshes()
 				MeshTransforms::ApplyTransform(SourceMesh, ToWorld, true);
 				MeshTransforms::ApplyTransformInverse(SourceMesh, TargetTransform, true);
 			}
-			SourceMesh.DiscardAttributes();
+			if (bCanDiscardAttributes)
+			{
+				SourceMesh.DiscardAttributes();
+			}
 
 			InputMeshes[k] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(MoveTemp(SourceMesh));
 		});
@@ -857,22 +878,30 @@ void USetCollisionGeometryTool::PrecomputeInputMeshes()
 		{
 			UseGroupLayerMesh = InputMeshes[0].Get();
 		}
-		UpdateActiveGroupLayer(UseGroupLayerMesh);
 
 		// Use the active polygroup layer when there is only one input
+		FPolygroupSet ActiveGroupSet = GetActiveGroupLayer(UseGroupLayerMesh);
 		InitializeDerivedMeshSet(InputMeshes, PerGroupInputMeshes,
-			[this](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
+			[this, &ActiveGroupSet](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
 			{
-				return ActiveGroupSet->GetTriangleGroup(Tri0) == ActiveGroupSet->GetTriangleGroup(Tri1);
+				return ActiveGroupSet.GetTriangleGroup(Tri0) == ActiveGroupSet.GetTriangleGroup(Tri1);
 			});
 	}
 	else
 	{
+		TMap<const FDynamicMesh3*, FPolygroupSet> ActiveGroupSets;
+		for (int32 Idx = 0; Idx < InputMeshes.Num(); ++Idx)
+		{
+			ActiveGroupSets.Add(InputMeshes[Idx].Get(), GetActiveGroupLayer(InputMeshes[Idx].Get()));
+		}
+
 		// Use the default polygroup layer when there is more than one input
 		InitializeDerivedMeshSet(InputMeshes, PerGroupInputMeshes,
-			[](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
+			[&ActiveGroupSets](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
 			{
-				return Mesh->GetTriangleGroup(Tri0) == Mesh->GetTriangleGroup(Tri1);
+				FPolygroupSet* ActiveGroupSet = ActiveGroupSets.Find(Mesh);
+				checkSlow(ActiveGroupSet);
+				return ActiveGroupSet->GetTriangleGroup(Tri0) == ActiveGroupSet->GetTriangleGroup(Tri1);
 			});
 	}
 	PerGroupMeshesApproximator = MakeShared<FMeshSimpleShapeApproximation, ESPMode::ThreadSafe>();

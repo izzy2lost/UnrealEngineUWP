@@ -3,6 +3,7 @@
 #include "AvaTagHandleContainer.h"
 #include "AvaTagCollection.h"
 #include "AvaTagHandle.h"
+#include "AvaTagList.h"
 
 FAvaTagHandleContainer::FAvaTagHandleContainer(const FAvaTagHandle& InTagHandle)
 	: Source(InTagHandle.Source)
@@ -22,18 +23,30 @@ bool FAvaTagHandleContainer::ContainsTag(const FAvaTagHandle& InTagHandle) const
 		return true;
 	}
 
-	const FAvaTag* OtherTag = InTagHandle.GetTag();
-	if (!OtherTag)
+	// Populate the Tag Set with resolved Tags
+	TSet<FAvaTag> OtherTagSet;
 	{
-		return false;
+		FAvaTagList OtherTagList = InTagHandle.GetTags();
+		if (OtherTagList.Tags.IsEmpty())
+		{
+			return false;
+		}
+
+		OtherTagSet.Reserve(OtherTagList.Tags.Num());
+		for (const FAvaTag* OtherTag : OtherTagList)
+		{
+			OtherTagSet.Add(*OtherTag);
+		}
 	}
 
 	for (const FAvaTagId& TagId : TagIds)
 	{
-		const FAvaTag* Tag = Source->GetTag(TagId);
-		if (Tag && *Tag == *OtherTag)
+		for (const FAvaTag* Tag : Source->GetTags(TagId))
 		{
-			return true;
+			if (OtherTagSet.Contains(*Tag))
+			{
+				return true;
+			}
 		}
 	}
 
@@ -55,7 +68,7 @@ FString FAvaTagHandleContainer::ToString() const
 	FString OutString;
 	for (const FAvaTagId& TagId : TagIds)
 	{
-		if (const FAvaTag* Tag = Source->GetTag(TagId))
+		for (const FAvaTag* Tag : Source->GetTags(TagId))
 		{
 			if (!OutString.IsEmpty())
 			{
@@ -135,7 +148,7 @@ TArray<FAvaTag> FAvaTagHandleContainer::ResolveTags() const
 
 	for (const FAvaTagId& TagId : TagIds)
 	{
-		if (const FAvaTag* Tag = Source->GetTag(TagId))
+		for (const FAvaTag* Tag : Source->GetTags(TagId))
 		{
 			Tags.Add(*Tag);
 		}

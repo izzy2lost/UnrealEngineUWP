@@ -11,9 +11,12 @@
 #include "MaterialDomain.h"
 #include "MeshMaterialShader.h"
 #include "MeshPassProcessor.inl"
+#include "RayTracingMeshDrawCommands.h"
 #include "RayTracingInstanceMask.h"
 #include "RayTracingPayloadType.h"
+#include "RayTracing/RayTracing.h"
 #include "ShaderParameterStruct.h"
+#include <type_traits>
 
 enum class ERayTracingMeshCommandsMode : uint8;
 
@@ -132,6 +135,11 @@ class FHiddenMaterialHitGroup : public FGlobalShader
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	using FParameters = FEmptyShaderParameters;
 };
 
@@ -150,6 +158,11 @@ class FOpaqueShadowHitGroup : public FGlobalShader
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	using FParameters = FEmptyShaderParameters;
 };
 
@@ -166,6 +179,11 @@ class FDefaultCallableShader : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::Decals;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	using FParameters = FEmptyShaderParameters;
@@ -211,12 +229,12 @@ public:
 		return *AllocateInternal();
 	}
 
-	void Commit(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline, bool bCopyDataToInlineStorage) const
+	void Commit(FRHICommandList& RHICmdList, FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline, bool bCopyDataToInlineStorage) const
 	{
 		const FChunk* Chunk = FirstChunk;
 		while (Chunk)
 		{
-			RHICmdList.SetRayTracingHitGroups(Scene, Pipeline, Chunk->Num, Chunk->Bindings, bCopyDataToInlineStorage);
+			RHICmdList.SetRayTracingHitGroups(SBT, Pipeline, Chunk->Num, Chunk->Bindings, bCopyDataToInlineStorage);
 			Chunk = Chunk->Next;
 		}
 	}
@@ -226,7 +244,7 @@ public:
 		static constexpr uint32 MaxNum = 1024;
 
 		// Note: constructors for elements of this array are called explicitly in AllocateInternal(). Destructors are not called.
-		static_assert(TIsTriviallyDestructible<FRayTracingLocalShaderBindings>::Value, "FRayTracingLocalShaderBindings must be trivially destructible, as no destructor will be called.");
+		static_assert(std::is_trivially_destructible_v<FRayTracingLocalShaderBindings>, "FRayTracingLocalShaderBindings must be trivially destructible, as no destructor will be called.");
 		FRayTracingLocalShaderBindings Bindings[MaxNum];
 		FChunk* Next;
 		uint32 Num;
@@ -245,7 +263,6 @@ private:
 	FMemStackBase ParameterMemory;
 
 	friend class FRHICommandList;
-	friend struct FRHICommandSetRayTracingBindings;
 
 	FRayTracingLocalShaderBindings* AllocateInternal()
 	{
@@ -253,7 +270,7 @@ private:
 		{
 			FChunk* OldChunk = CurrentChunk;
 
-			static_assert(TIsTriviallyDestructible<FChunk>::Value, "Chunk must be trivially destructible, as no destructor will be called.");
+			static_assert(std::is_trivially_destructible_v<FChunk>, "Chunk must be trivially destructible, as no destructor will be called.");
 			CurrentChunk = (FChunk*)ParameterMemory.Alloc(sizeof(FChunk), alignof(FChunk));
 			CurrentChunk->Next = nullptr;
 			CurrentChunk->Num = 0;
@@ -273,5 +290,13 @@ private:
 		return new(ResultMemory) FRayTracingLocalShaderBindings;
 	}
 };
+
+void MergeAndSetRayTracingBindings(
+	FRHICommandList& RHICmdList,
+	FSceneRenderingBulkObjectAllocator& Allocator,
+	FRHIShaderBindingTable* SBT,
+	FRayTracingPipelineState* Pipeline,
+	TConstArrayView<FRayTracingLocalShaderBindingWriter*> Bindings,
+	ERayTracingBindingType BindingType);
 
 #endif // RHI_RAYTRACING

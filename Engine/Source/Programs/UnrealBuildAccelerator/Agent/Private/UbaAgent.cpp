@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaAWS.h"
+#include "UbaConfig.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaNetworkBackendMemory.h"
 #include "UbaNetworkBackendQuic.h"
@@ -79,7 +80,9 @@ namespace uba
 		logger.Info(TC("  -maxcpu=<number>        Max number of processes that can be started. Defaults to \"%u\" on this machine"), DefaultProcessorCount);
 		logger.Info(TC("  -mulcpu=<number>        This value multiplies with number of cpu to figure out max cpu. Defaults to 1.0"));
 		logger.Info(TC("  -maxcon=<number>        Max number of connections that can be started by agent. Defaults to \"%u\" (amount up to max will depend on ping)"), DefaultMaxConnectionCount);
+		logger.Info(TC("  -maxworkers=<number>    Max number of workers is started by agent. Defaults to \"%u\""), DefaultProcessorCount);
 		logger.Info(TC("  -capacity=<gigaby>      Capacity of local store. Defaults to %u gigabytes"), DefaultCapacityGb);
+		logger.Info(TC("  -config=<file>          Config file that contains options for various systems"));
 		logger.Info(TC("  -quic                   Use Quic instead of tcp backend."));
 		logger.Info(TC("  -name=<name>            The identifier of this agent. Defaults to \"%s\" on this machine"), DefaultAgentName);
 		logger.Info(TC("  -stats[=<threshold>]    Print stats for each process if higher than threshold"));
@@ -100,33 +103,45 @@ namespace uba
 		logger.Info(TC("  -eventfile=<file>       File containing external events to agent. Things like machine is about to be terminated etc"));
 		logger.Info(TC("  -sentry                 Enable sentry"));
 		logger.Info(TC("  -zone                   Set the zone this machine exists in. This info is used to figure out if proxies should be created."));
+		logger.Info(TC("  -noproxy                Does not allow this agent to be a storage proxy for other agents"));
 		logger.Info(TC("  -killrandom             Kills random process and exit session"));
 		logger.Info(TC("  -memwait=<percent>      The amount of memory needed to spawn a process. Set this to 100 to disable. Defaults to 80%%"));
 		logger.Info(TC("  -memkill=<percent>      The amount of memory needed before processes starts to be killed. Set this to 100 to disable. Defaults to 90%%"));
-		logger.Info(TC("  -crypto=<key>           16 bytes crypto key used for secure network transfer"));
+		logger.Info(TC("  -crypto=<key>           32 character (16 bytes) crypto key used for secure network transfer"));
 		logger.Info(TC("  -populateCas=<dir>      Prepopulate cas database with files in dir. If files needed exists on machine this can be an optimization"));
 		#if PLATFORM_MAC
 		logger.Info(TC("  -populateCasFromXcodeVersion=<version>   Prepopulate cas database with files from local xcode installation that matches the version."));
 		logger.Info(TC("  -populateCasFromAllXcodes   Prepopulate cas database with files from local xcode installation that matches the version."));
 		#endif
 		logger.Info(TC(""));
-		return -1;
+		return false;
 	}
 
-	StorageClient* g_storageClient;
-	NetworkClient* g_client;
+	ReaderWriterLock* g_exitLock = new ReaderWriterLock();
+	LoggerWithWriter* g_logger;
+	SessionClient* g_sessionClient;
+	Atomic<bool> g_shouldExit;
+	Atomic<bool> g_ctrlPressed;
+
+	bool ShouldExit()
+	{
+		return g_shouldExit || IsEscapePressed();
+	}
 
 	void CtrlBreakPressed()
 	{
-		if (g_storageClient)
-		{
-			g_storageClient->SaveCasTable(true);
-			LoggerWithWriter(g_consoleLogWriter).Info(TC("CAS table saved..."));
-		}
+		if (g_ctrlPressed)
+			FatalError(13, TC("Force terminate"));
 
-		abort();
-		//if (g_client)
-		//	g_client->Disconnect();
+		g_shouldExit = true;
+		g_ctrlPressed = true;
+
+		g_exitLock->EnterWrite();
+		if (g_logger)
+			g_logger->Info(TC("  Exiting..."));
+		if (g_sessionClient)
+			g_sessionClient->Stop();
+		g_exitLock->LeaveWrite();
 	}
 
 	#if PLATFORM_WINDOWS
@@ -140,9 +155,8 @@ namespace uba
 	}
 	BOOL ConsoleHandler(DWORD signal)
 	{
-		if (signal == CTRL_C_EVENT)
-			CtrlBreakPressed();
-		return FALSE;
+		CtrlBreakPressed();
+		return TRUE;
 	}
 	#else
 	void ConsoleHandler(int sig)
@@ -181,20 +195,20 @@ namespace uba
 #if UBA_AUTO_UPDATE
 	const tchar* g_ubaAgentBinaries[] = { UBA_AGENT_EXECUTABLE, UBA_DETOURS_LIBRARY };
 
-	bool DownloadBinaries(CasKey* keys)
+	bool DownloadBinaries(StorageClient& storageClient, CasKey* keys)
 	{
 		StringBuffer<256> binDir(g_rootDir);
 		binDir.Append(TC("\\binaries\\"));
-		g_storageClient->CreateDirectory(binDir.data);
+		storageClient.CreateDirectory(binDir.data);
 		u32 index = 0;
 		for (auto file : g_ubaAgentBinaries)
 		{
 			Storage::RetrieveResult result;
-			if (!g_storageClient->RetrieveCasFile(result, keys[index++], file))
+			if (!storageClient.RetrieveCasFile(result, keys[index++], file))
 				return false;
 			StringBuffer<256> fullFile(binDir);
 			fullFile.Append(file);
-			if (!g_storageClient->CopyOrLink(result.casKey, fullFile.data, DefaultAttributes()))
+			if (!storageClient.CopyOrLink(result.casKey, fullFile.data, DefaultAttributes()))
 				return false;
 		}
 		return true;
@@ -241,11 +255,11 @@ namespace uba
 		return success;
 	}
 
-	int LaunchReal(Logger& logger, StringBufferBase& relaunchPath, int argc, tchar* argv[])
+	bool LaunchReal(Logger& logger, StringBufferBase& relaunchPath, int argc, tchar* argv[])
 	{
 		StringBuffer<256> currentDir;
 		if (!GetDirectoryOfCurrentModule(logger, currentDir))
-			return -1;
+			return false;
 		logger.Info(TC("Copying new binaries..."));
 		for (auto file : g_ubaAgentBinaries)
 		{
@@ -256,10 +270,7 @@ namespace uba
 			to.Append('\\').Append(file);
 
 			if (!uba::CopyFileW(from.data, to.data, false))
-			{
-				logger.Error(TC("Failed to copy file for relaunch"));
-				return -1;
-			}
+				return logger.Error(TC("Failed to copy file for relaunch"));
 		}
 
 		StringBuffer<> args;
@@ -271,13 +282,11 @@ namespace uba
 				args.Append(' ').Append(argv[i]);
 		logger.Info(TC("Relaunching new %s..."), UBA_AGENT_EXECUTABLE);
 		logger.Info(TC(""));
-		if (!LaunchProcess(args.data))
-			return -1;
-		return 0;
+		return LaunchProcess(args.data);
 	}
 #endif // UBA_AUTO_UPDATE
 
-	int ExpandEnvironmentVariables(StringBufferBase& str)
+	bool ExpandEnvironmentVariables(StringBufferBase& str)
 	{
 		StringBuffer<> expandedDir;
 		u64 offset = 0;
@@ -309,7 +318,7 @@ namespace uba
 			expandedDir.Append(str.data + offset, beginOffset - offset).Append(value);
 			offset = endOffset + 1;
 		}
-		return 0;
+		return true;
 	}
 
 	bool IsTerminating(Logger& logger, const tchar* eventFile, StringBufferBase& outReason, u64& outTerminationTimeMs)
@@ -387,13 +396,14 @@ namespace uba
 		return true;
 	}
 
-	int WrappedMain(int argc, tchar*argv[])
+	bool WrappedMain(int argc, tchar*argv[])
 	{
 		#if UBA_USE_EXCEPTION_HANDLER
 		SetUnhandledExceptionFilter(UbaUnhandledExceptionFilter);
 		#endif
 
 		u32 maxProcessCount = DefaultProcessorCount;
+		u32 maxWorkerCount = DefaultProcessorCount;
 		float mulProcessValue = 1.0f;
 		u32 maxConnectionCount = DefaultMaxConnectionCount;
 		u32 outputStatsThresholdMs = 0;
@@ -402,6 +412,7 @@ namespace uba
 		StringBuffer<256> named;
 		StringBuffer<512> relaunchPath;
 		StringBuffer<256> eventFile;
+		StringBuffer<256> configFile;
 		TString command;
 		u16 port = DefaultPort;
 		u16 proxyPort = DefaultStorageProxyPort;
@@ -414,6 +425,7 @@ namespace uba
 		bool useBinariesAsVersion = false;
 		bool useQuic = false;
 		bool poll = true;
+		bool allowProxy = true;
 		bool useStorage = true;
 		bool resetStore = false;
 		bool quiet = false;
@@ -434,7 +446,7 @@ namespace uba
 
 		#if PLATFORM_MAC
 		StringBuffer<32> populateCasFromXcodeVersion;
-		bool populateCasFromAllXcodes;
+		bool populateCasFromAllXcodes = false;
 		#endif
 
 		for (int i=1; i!=argc; ++i)
@@ -466,23 +478,48 @@ namespace uba
 			}
 			else if (name.Equals(TC("-maxcpu")))
 			{
+				if (!ExpandEnvironmentVariables(value))
+					return false;
+				u32 defaultValue = maxProcessCount;
 				if (!value.Parse(maxProcessCount))
-					return PrintHelp(TC("Invalid value for -maxcpu"));
+				{
+					LoggerWithWriter(g_consoleLogWriter, TC("")).Warning(TC("Invalid value for -maxcpu, ignoring!"));
+					maxProcessCount = defaultValue;
+				}
 			}
 			else if (name.Equals(TC("-mulcpu")))
 			{
+				if (!ExpandEnvironmentVariables(value))
+					return false;
+				float defaultValue = mulProcessValue;
 				if (!value.Parse(mulProcessValue))
-					return PrintHelp(TC("Invalid value for -mulcpu"));
+				{
+					LoggerWithWriter(g_consoleLogWriter, TC("")).Warning(TC("Invalid value for -mulcpu, ignoring!"));
+					mulProcessValue = defaultValue;
+				}
 			}
 			else if (name.Equals(TC("-maxcon")) || name.Equals(TC("-maxtcp")))
 			{
 				if (!value.Parse(maxConnectionCount) || maxConnectionCount == 0)
 					return PrintHelp(TC("Invalid value for -maxcon"));
 			}
+			else if (name.Equals(TC("-maxworkers")))
+			{
+				if (!value.Parse(maxWorkerCount))
+					return PrintHelp(TC("Invalid value for -maxworkers"));
+			}
 			else if (name.Equals(TC("-capacity")))
 			{
 				if (!value.Parse(storageCapacityGb))
 					return PrintHelp(TC("Invalid value for -capacity"));
+			}
+			else if (name.Equals(TC("-config")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-dir needs a value"));
+				if (!ExpandEnvironmentVariables(value))
+					return false;
+				configFile.Append(value);
 			}
 			else if (name.Equals(TC("-stats")))
 			{
@@ -553,8 +590,8 @@ namespace uba
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-dir needs a value"));
-				if (int res = ExpandEnvironmentVariables(value))
-					return res;
+				if (!ExpandEnvironmentVariables(value))
+					return false;
 				if ((g_rootDir.count = GetFullPathNameW(value.Replace('\\', PathSeparator).data, g_rootDir.capacity, g_rootDir.data, nullptr)) == 0)
 					return PrintHelp(StringBuffer<>().Appendf(TC("-dir has invalid path %s"), value.data).data);
 			}
@@ -605,8 +642,8 @@ namespace uba
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-eventfile needs a value"));
-				if (int res = ExpandEnvironmentVariables(value))
-					return res;
+				if (!ExpandEnvironmentVariables(value))
+					return false;
 				if ((eventFile.count = GetFullPathNameW(value.Replace('\\', PathSeparator).data, eventFile.capacity, eventFile.data, nullptr)) == 0)
 					return PrintHelp(StringBuffer<>().Appendf(TC("-eventfile has invalid path %s"), value.data).data);
 			}
@@ -660,6 +697,10 @@ namespace uba
 					return PrintHelp(TC("-zone needs a value"));
 				zone.Append(value);
 			}
+			else if (name.Equals(TC("-noproxy")))
+			{
+				allowProxy = false;
+			}
 			else if (name.Equals(TC("-command")))
 			{
 				if (value.IsEmpty())
@@ -695,10 +736,15 @@ namespace uba
 		FilteredLogWriter logWriter(g_consoleLogWriter, verbose ? LogEntryType_Debug : LogEntryType_Detail);
 		LoggerWithWriter logger(logWriter, TC(""));
 
+		g_exitLock->EnterWrite();
+		g_logger = &logger;
+		g_exitLock->LeaveWrite();
+		auto glg = MakeGuard([]() { g_exitLock->EnterWrite(); g_logger = nullptr; g_exitLock->LeaveWrite(); });
+
 #if UBA_AUTO_UPDATE
 		if (waitProcessId != ~0u)
 			if (!WaitForProcess(waitProcessId))
-				return -1;
+				return false;
 		if (relaunchPath.count)
 			return LaunchReal(logger, relaunchPath, argc, argv);
 #endif // UBA_AUTO_UPDATE
@@ -742,7 +788,7 @@ namespace uba
 		#endif
 
 		if (!zone.count)
-			zone.count = GetEnvironmentVariableW(TC("UBA_ZONE"), zone.data, zone.capacity);
+			GetZone(zone);
 
 		if (zone.count)
 			extraInfo.Append(TC(", ")).Append(zone);
@@ -761,6 +807,11 @@ namespace uba
 		dbgStr = TC(" (DEBUG)");
 		#endif
 		logger.Info(TC("UbaAgent v%s%s (Cpu: %u, MaxCon: %u, Dir: \"%s\", StoreCapacity: %uGb%s)"), Version, dbgStr, maxProcessCount, maxConnectionCount, g_rootDir.data, storageCapacityGb, extraInfo.data);
+		
+		Config config;
+		if (!configFile.IsEmpty())
+			config.LoadFromFile(logger, configFile.data);
+				
 		if (!eventFile.IsEmpty())
 			logger.Info(TC("  Will poll for external events in file %s"), eventFile.data);
 		logger.Info(TC(""));
@@ -780,6 +831,7 @@ namespace uba
 		{
 			// Create a uba storage quickly just to fix non-graceful shutdowns
 			StorageCreateInfo info(g_rootDir.data, logWriter);
+			info.Apply(config);
 			info.rootDir = g_rootDir.data;
 			info.casCapacityBytes = storageCapacity;
 			info.storeCompressed = storeCompressed;
@@ -787,11 +839,13 @@ namespace uba
 			if (resetStore)
 			{
 				if (!storage.Reset())
-					return -1;
+					return false;
 			}
 			else if (!storage.LoadCasTable(false))
-				return -1;
+				return false;
 		}
+
+		StringBuffer<512> terminationReason;
 
 #if PLATFORM_MAC
 		
@@ -858,26 +912,18 @@ namespace uba
 			StringBuffer<512> xcodeSelectOutput;
 			FILE* xcodeSelect = popen("/usr/bin/xcode-select -p", "r");
 			if (xcodeSelect == nullptr || fgets(xcodeSelectOutput.data, xcodeSelectOutput.capacity, xcodeSelect) == nullptr || pclose(xcodeSelect) != 0)
+				terminationReason.Append("Failed to get an Xcode from xcode-select");
+			else
 			{
-				logger.Error("Failed to get an Xcode from xcode-select");
-				return -1;
+				xcodeSelectOutput.count = strlen(xcodeSelectOutput.data);
+				while (isspace(xcodeSelectOutput.data[xcodeSelectOutput.count-1]))
+					xcodeSelectOutput.data[--xcodeSelectOutput.count] = 0;
+				xcodeDirectories.push_back(xcodeSelectOutput.data);
 			}
-
-			xcodeSelectOutput.count = strlen(xcodeSelectOutput.data);
-			while (isspace(xcodeSelectOutput.data[xcodeSelectOutput.count-1]))
-			{
-				xcodeSelectOutput.data[xcodeSelectOutput.count-1] = 0;
-				xcodeSelectOutput.count--;
-			}
-			
-			xcodeDirectories.push_back(xcodeSelectOutput.data);
 		}
 
 		if (xcodeDirectories.size() == 0)
-		{
-			logger.Error("Unable to populate from any Xcodes. Agent is unusable.");
-			return -1;
-		}
+			terminationReason.Append("Unable to populate from any Xcodes. Agent is unusable.");
 
 		for (TString& xcodeDir : xcodeDirectories)
 		{
@@ -920,12 +966,12 @@ namespace uba
 			}
 			else
 			{
-				const TString& desc = process.GetStartInfo().description;
+				const TString& desc = process.GetStartInfo().GetDescription();
 				StringBuffer<> name;
 				if (!desc.empty())
 					name.Append(desc);
 				else
-					GetNameFromArguments(name, process.GetStartInfo().arguments, false);
+					GenerateNameForProcess(name, process.GetStartInfo().arguments, 0);
 				LogEntryType entryType = LogEntryType_Info;
 				if (errorCode)
 				{
@@ -943,17 +989,17 @@ namespace uba
 		SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 		#else
 		signal(SIGINT, ConsoleHandler);
+		signal(SIGTERM, ConsoleHandler);
 		#endif
 
 		bool relaunch = false;
-		StringBuffer<512> terminationReason;
 		u64 terminationTimeMs = 0;
 
 		#if UBA_USE_AWS
 		if (aws.IsTerminating(logger, terminationReason, terminationTimeMs))
 		{
 			LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("%s. Exiting UbaAgent before starting session"), terminationReason.data);
-			return 0;
+			return true;
 		}
 		#endif
 
@@ -975,18 +1021,17 @@ namespace uba
 			auto backendGuard = MakeGuard([networkBackend]() { delete networkBackend; });
 
 			NetworkClientCreateInfo ncci(logWriter);
+			//ncci.Apply(config);
 			ncci.sendSize = sendSize;
 			ncci.receiveTimeoutSeconds = receiveTimeoutSeconds;
+			ncci.workerCount = maxWorkerCount;
 			if (hasCrypto)
 				ncci.cryptoKey128 = crypto;
 			bool ctorSuccess = true;
 			NetworkClient* client = new NetworkClient(ctorSuccess, ncci);
-			g_client = client;
-			auto csg = MakeGuard([&]() { g_client = nullptr; client->Disconnect(); delete client; });
+			auto csg = MakeGuard([&]() { client->Disconnect(); delete client; });
 			if (!ctorSuccess)
-				return -1;
-
-			bool exit = false;
+				return false;
 
 			if (useListen)
 			{
@@ -994,18 +1039,12 @@ namespace uba
 				u64 startTime = GetTime();
 				while (!client->IsOrWasConnected(200))
 				{
-					if (IsEscapePressed())
-					{
-						exit = true;
-						break;
-					}
+					if (ShouldExit())
+						return true;
 
 					u64 waitTime = GetTime() - startTime;
 					if (!poll && TimeToMs(waitTime) > listenTimeoutSec*1000)
-					{
-						logger.Error(TC("Failed to get connection while listening for %s"), TimeToText(waitTime).str);
-						return -1;
-					}
+						return logger.Error(TC("Failed to get connection while listening for %s"), TimeToText(waitTime).str);
 				}
 			}
 			else
@@ -1016,24 +1055,16 @@ namespace uba
 				bool timedOut = false;
 				while (!client->Connect(*networkBackend, host.data, port, &timedOut))
 				{
-					if (IsEscapePressed())
-					{
-						exit = true;
-						break;
-					}
+					if (ShouldExit())
+						return true;
+
 					if (!timedOut)
-						return -1;
+						return false;
 
 					if (!poll && !--retryCount)
-					{
-						logger.Error(TC("Failed to connect to %s:%u (after %s)"), host.data, port, TimeToText(GetTime() - startTime).str);
-						return -1;
-					}
+						return logger.Error(TC("Failed to connect to %s:%u (after %s)"), host.data, port, TimeToText(GetTime() - startTime).str);
 				}
 			}
-
-			if (exit)
-				return 0;
 
 			if (!command.empty())
 			{
@@ -1042,10 +1073,7 @@ namespace uba
 				writer.WriteString(command);
 				StackBinaryReader<8*1024> reader;
 				if (!msg.Send(reader))
-				{
-					logger.Error(TC("Failed to send command to host"));
-					return -1;
-				}
+					return logger.Error(TC("Failed to send command to host"));
 				LoggerWithWriter commandLogger(g_consoleLogWriter, TC(""));
 				commandLogger.Info(TC("----------------------------------"));
 				while (true)
@@ -1057,7 +1085,7 @@ namespace uba
 					commandLogger.Log(logType, result.c_str(), u32(result.size()));
 				}
 				commandLogger.Info(TC("----------------------------------"));
-				return 0;
+				return true;
 			}
 
 
@@ -1113,7 +1141,8 @@ namespace uba
 					return true;
 				};
 
-			client->RegisterOnDisconnected([&]() { networkBackend->StopListen(); if (auto proxyServer = proxy.server.load()) proxyServer->DisconnectClients(); });
+			Atomic<bool> isDisconnected;
+			client->RegisterOnDisconnected([&]() { isDisconnected = true; networkBackend->StopListen(); if (auto proxyServer = proxy.server.load()) proxyServer->DisconnectClients(); });
 
 			struct NetworkBackends
 			{
@@ -1128,25 +1157,25 @@ namespace uba
 				};
 
 			StorageClientCreateInfo storageInfo(*client, g_rootDir.data);
+			storageInfo.Apply(config);
+			storageInfo.rootDir = g_rootDir.data;
 			storageInfo.casCapacityBytes = storageCapacity;
 			storageInfo.storeCompressed = storeCompressed;
 			storageInfo.sendCompressed = sendCompressed;
 			storageInfo.workManager = client;
 			storageInfo.getProxyBackendCallback = getProxyBackend;
 			storageInfo.getProxyBackendUserData = &backends;
+			storageInfo.allowProxy = allowProxy;
 			storageInfo.startProxyCallback = startProxy;
 			storageInfo.startProxyUserData = &proxy;
 			storageInfo.zone = zone.data;
 			storageInfo.proxyPort = proxyPort;
 
 			auto storageClient = new StorageClient(storageInfo);
-			auto bscsg = MakeGuard([&]() { g_storageClient = nullptr; delete storageClient; });
+			auto bscsg = MakeGuard([&]() { delete storageClient; });
 
 			if (!storageClient->LoadCasTable(true))
-				return -1;
-
-			if (!storageClient->PopulateCasFromDirs(populateCasDirs, maxProcessCount))
-				return -1;
+				return false;
 
 			proxy.storageClient = storageClient;
 
@@ -1160,6 +1189,7 @@ namespace uba
 				});
 
 			SessionClientCreateInfo info(*storageClient, *client, logWriter);
+			info.Apply(config);
 			info.maxProcessCount = maxProcessCount;
 			info.dedicated = poll;
 			info.maxIdleSeconds = maxIdleSeconds;
@@ -1205,8 +1235,14 @@ namespace uba
 					return 0;
 				});
 
+			g_sessionClient = sessionClient;
+
 			auto disconnectAndStopLoggingThread = MakeGuard([&]()
 			{
+				g_exitLock->EnterWrite();
+				g_sessionClient = nullptr;
+				g_exitLock->LeaveWrite();
+
 				networkBackend->StopListen();
 				storageClient->StopProxy();
 				auto proxyServer = proxy.server.load();
@@ -1215,6 +1251,7 @@ namespace uba
 				sessionClient->Stop();
 				sessionClient->SendSummary([&](Logger& logger) { if (proxyServer) proxyServer->PrintSummary(logger); });
 				client->Disconnect();
+
 				loopLogging = false;
 				logLinesAvailable.Set();
 				loggingThread.Wait();
@@ -1225,12 +1262,12 @@ namespace uba
 			{
 #if UBA_AUTO_UPDATE
 				logger.Info(TC("Downloading new binaries..."));
-				if (!DownloadBinaries(keys))
-					return -1;
+				if (!DownloadBinaries(*storageClient, keys))
+					return false;
 				relaunch = true;
 				break;
 #else
-				return -1;
+				return false;
 #endif
 			}
 
@@ -1249,10 +1286,29 @@ namespace uba
 			//SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
 			//#endif
 
+			bool needPrepopulate = !populateCasDirs.empty();
+			if (needPrepopulate)
+				sessionClient->SetAllowSpawn(false);
+
 			storageClient->Start();
 			sessionClient->Start();
 
-			while (true)
+			// We do population here to make sure session thread is running which will send pings to host (to prevent timeouts
+			if (needPrepopulate)
+			{
+				if (storageClient->PopulateCasFromDirs(populateCasDirs, maxProcessCount, [&]() { return isDisconnected.load(); }))
+					sessionClient->SetAllowSpawn(true);
+				else
+					terminationReason.Append(TC("Failed to prepopulate cas from local directory"));
+			}
+
+			if (terminationReason.count)
+			{
+				isTerminating = true;
+				sessionClient->SetIsTerminating(terminationReason.data, 0);
+			}
+
+			while (!ShouldExit())
 			{
 				if (useListen)
 				{
@@ -1331,7 +1387,7 @@ namespace uba
 					sessionClient->PrintSummary(logger);
 					storageClient->PrintSummary(logger);
 					client->PrintSummary(logger);
-					SystemStats::GetGlobal().Print(logger, true);
+					KernelStats::GetGlobal().Print(logger, true);
 				}
 
 				logger.Info(TC("----------- Session %s done! -----------"), sessionClient->GetId());
@@ -1349,15 +1405,15 @@ namespace uba
 			PrintContentionSummary(contLogger);
 			#endif
 		}
-		while (poll && !isTerminating);
+		while (poll && !isTerminating && !ShouldExit());
 
 #if UBA_AUTO_UPDATE
 		if (relaunch)
 			if (!LaunchTemp(logger, argc, argv))
-				return -1;
+				return false;
 #endif
 
-		return 0;
+		return true;
 	}
 }
 
@@ -1367,7 +1423,7 @@ int wmain(int argc, wchar_t* argv[])
 	using namespace uba;
 	__try
 	{
-		return WrappedMain(argc, argv);
+		return WrappedMain(argc, argv) ? 0 : -1;
 	}
 	__except(ReportSEH(GetExceptionInformation()))
 	{
@@ -1377,6 +1433,6 @@ int wmain(int argc, wchar_t* argv[])
 #else
 int main(int argc, char* argv[])
 {
-	return uba::WrappedMain(argc, argv);
+	return uba::WrappedMain(argc, argv) ? 0 : -1;
 }
 #endif

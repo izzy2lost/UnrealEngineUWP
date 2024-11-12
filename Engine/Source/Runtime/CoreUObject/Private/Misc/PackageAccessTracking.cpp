@@ -15,6 +15,8 @@ bool IsBuildOpName(FName OpName)
 	//If we want to capture script package dependencies, we may also need to record accesses under the "PackageAccessTrackingOps::NAME_CreateDefaultObject" operation
 	//which occurs from "UObjectLoadAllCompiledInDefaultProperties" and possibly elsewhere.
 	return (OpName == PackageAccessTrackingOps::NAME_Load)
+		|| (OpName == PackageAccessTrackingOps::NAME_PreLoad)
+		|| (OpName == PackageAccessTrackingOps::NAME_PostLoad)
 		|| (OpName == PackageAccessTrackingOps::NAME_Save)
 		|| (OpName == PackageAccessTrackingOps::NAME_CookerBuildObject)
 		// || (OpName == PackageAccessTrackingOps::NAME_CreateDefaultObject)

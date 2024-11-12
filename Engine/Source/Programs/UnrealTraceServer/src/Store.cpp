@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Store.h"
 #include "StoreSettings.h"
+#include <functional>
 
 #if TS_USING(TS_PLATFORM_LINUX)
 #   include <sys/inotify.h>
@@ -143,12 +144,12 @@ public:
 	void ProcessChanges(size_t EventCount, void* EventPaths, const FSEventStreamEventFlags EventFlags[])
 	{
 		bool bWatchedEvent = false;
-		const char** EventPathsArray = (const char**) EventPaths;
 		for (size_t EventIdx = 0; EventIdx < EventCount; ++EventIdx)
 		{
-			const char* Path = EventPathsArray[EventIdx];
 			const FSEventStreamEventFlags& Flags = EventFlags[EventIdx];
 #if TS_USING(TS_DEBUG_FS_EVENTS)
+			const char** EventPathsArray = (const char**) EventPaths;
+			const char* Path = EventPathsArray[EventIdx];
 			printf("Recieved file event (%d) ", EventIdx);
 			if (Path != nullptr)
 				printf("on '%s': ", Path);
@@ -353,10 +354,12 @@ FStore::FMount* FStore::FMount::Create(FStore* InParent, asio::io_context& InIoC
 
 ////////////////////////////////////////////////////////////////////////////////
 FStore::FMount::FMount(FStore* InParent, asio::io_context& InIoContext, const fs::path& InDir)
-: Id(QuickStoreHash(InDir.c_str()))
-, Dir(InDir)
+: Dir(InDir)
+, Id(QuickStoreHash(InDir.c_str()))
 , Parent(InParent)
+#if TS_USING(TS_PLATFORM_WINDOWS) || TS_USING(TS_PLATFORM_LINUX)
 , IoContext(InIoContext)
+#endif
 {
 
 #if TS_USING(TS_PLATFORM_WINDOWS)
@@ -676,7 +679,7 @@ FStore::FNewTrace FStore::CreateTrace()
 	for (uint32 Index = 0; std::filesystem::is_regular_file(TracePath); ++Index)
 	{
 		char FilenameIndexed[64];
-		std::sprintf(FilenameIndexed, "%s_%02d.utrace", Prefix, Index);
+		std::snprintf(FilenameIndexed, 64, "%s_%02d.utrace", Prefix, Index);
 		TracePath.replace_filename(FPath(FilenameIndexed));
 	}
 

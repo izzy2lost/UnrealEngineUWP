@@ -13,6 +13,7 @@
 class FShaderCommonCompileJob;
 class FShaderCompileJob;
 class FShaderPipelineCompileJob;
+struct FShaderCacheSerializeContext;
 
 namespace UE::DerivedData { class FRequestOwner; }
 
@@ -79,7 +80,7 @@ public:
 	FShaderCommonCompileJob* NextLink = nullptr;
 	FShaderCommonCompileJob** PrevLink = nullptr;
 
-	using FInputHash = FBlake3Hash;
+	using FInputHash UE_DEPRECATED(5.5, "Use FShaderCompilerInputHash instead of FShaderCommonCompileJob::FInputHash") = FShaderCompilerInputHash;
 
 	FPendingShaderMapCompileResultsPtr PendingShaderMap;
 
@@ -113,7 +114,7 @@ public:
 	/** Whether or not we are a global shader. */
 	uint8 bIsGlobalShader : 1;
 	/** Hash of all the job inputs */
-	FInputHash InputHash;
+	FShaderCompilerInputHash InputHash;
 
 	/** In-engine timestamp of being added to a pending queue. Not set for jobs that are satisfied from the jobs cache */
 	double TimeAddedToPendingQueue = 0.0;
@@ -147,10 +148,13 @@ public:
 	}
 
 	/** Returns hash of all inputs for this job (needed for caching). */
-	virtual FInputHash GetInputHash() { return FInputHash(); }
+	virtual FShaderCompilerInputHash GetInputHash() { return FShaderCompilerInputHash(); }
+
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderCacheSerializeContext struct")
+	virtual void SerializeOutput(FArchive& Ar) {}
 
 	/** Serializes (and deserializes) the output for caching purposes. */
-	virtual void SerializeOutput(FArchive& Ar) {}
+	virtual void SerializeOutput(FShaderCacheSerializeContext& Ctx) {}
 
 	FShaderCompileJob* GetSingleShaderJob();
 	const FShaderCompileJob* GetSingleShaderJob() const;
@@ -166,6 +170,7 @@ public:
 
 	/** Calls the specified predicate for each single compile job, i.e. FShaderCompileJob and each stage of FShaderPipelineCompileJob. */
 	void ForEachSingleShaderJob(const TFunction<void(const FShaderCompileJob& SingleJob)>& Predicate) const;
+	void ForEachSingleShaderJob(const TFunction<void(FShaderCompileJob& SingleJob)>& Predicate);
 
 	/** This returns a unique id for a shader compiler job */
 	RENDERCORE_API static uint32 GetNextJobId();
@@ -251,8 +256,18 @@ public:
 	// List of pipelines that are sharing this job.
 	TMap<const FVertexFactoryType*, TArray<const FShaderPipelineType*>> SharingPipelines;
 
-	virtual RENDERCORE_API FInputHash GetInputHash() override;
-	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
+	virtual RENDERCORE_API FShaderCompilerInputHash GetInputHash() override;
+
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderCacheSerializeContext")
+	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override
+	{
+	}
+
+	RENDERCORE_API void SerializeOutput(FShaderCacheSerializeContext& Ctx, int32 CodeIndex);
+	virtual void SerializeOutput(FShaderCacheSerializeContext& Ctx)
+	{
+		SerializeOutput(Ctx, 0);
+	}
 
 	virtual RENDERCORE_API void OnComplete() override;
 	
@@ -311,11 +326,16 @@ public:
 
 	FShaderPipelineCompileJobKey Key;
 	TArray<TRefCountPtr<FShaderCompileJob>> StageJobs;
-	UE_DEPRECATED(5.3, "bFailedRemovingUnused field is no longer used")
-	bool bFailedRemovingUnused;
 
-	virtual RENDERCORE_API FInputHash GetInputHash() override;
-	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
+	virtual RENDERCORE_API FShaderCompilerInputHash GetInputHash() override;
+
+	UE_DEPRECATED(5.5, "Use overload accepting an FShaderCommonCompileJob::FSerializationContext")
+	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override
+	{
+	}
+
+	virtual RENDERCORE_API void SerializeOutput(FShaderCacheSerializeContext& Ctx) override;
+
 	virtual RENDERCORE_API void OnComplete() override;
 	virtual RENDERCORE_API void AppendDebugName(FStringBuilderBase& OutName) const override;
 
@@ -352,11 +372,11 @@ inline void FShaderCommonCompileJob::Destroy() const
 	}
 }
 
-inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void(const FShaderCompileJob&)>& Predicate) const
+inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void(const FShaderCompileJob&)>& Function) const
 {
 	if (const FShaderCompileJob* SingleJob = GetSingleShaderJob())
 	{
-		Predicate(*SingleJob);
+		Function(*SingleJob);
 	}
 	else if (const FShaderPipelineCompileJob* PipelineJob = GetShaderPipelineJob())
 	{
@@ -364,7 +384,25 @@ inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void
 		{
 			if (const FShaderCompileJob* SingleStageJob = StageJob->GetSingleShaderJob())
 			{
-				Predicate(*SingleStageJob);
+				Function(*SingleStageJob);
+			}
+		}
+	}
+}
+
+inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void(FShaderCompileJob&)>& Function)
+{
+	if (FShaderCompileJob* SingleJob = GetSingleShaderJob())
+	{
+		Function(*SingleJob);
+	}
+	else if (FShaderPipelineCompileJob* PipelineJob = GetShaderPipelineJob())
+	{
+		for (TRefCountPtr<FShaderCompileJob>& StageJob : PipelineJob->StageJobs)
+		{
+			if (FShaderCompileJob* SingleStageJob = StageJob->GetSingleShaderJob())
+			{
+				Function(*SingleStageJob);
 			}
 		}
 	}

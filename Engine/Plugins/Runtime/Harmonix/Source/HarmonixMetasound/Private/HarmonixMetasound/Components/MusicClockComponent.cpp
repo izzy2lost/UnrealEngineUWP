@@ -152,14 +152,14 @@ bool UMusicClockComponent::ConnectToMetasound()
 	{
 		return false;
 	}
-	if (ClockDriver)
-	{
-		ClockDriver->Disconnect();
-		ClockDriver = nullptr;
-	}
+	DisconnectFromClockDriver();
 	TSharedPtr<FMetasoundMusicClockDriver> MetasoundClockDriver = MakeShared<FMetasoundMusicClockDriver>(this);
 	bool Connected = MetasoundClockDriver->ConnectToAudioComponentsMetasound(MetasoundsAudioComponent, MetasoundOutputName);
 	ClockDriver = MoveTemp(MetasoundClockDriver);
+	if (State == EMusicClockState::Running)
+	{
+		ClockDriver->OnStart();
+	}
 	return Connected;
 }
 
@@ -167,12 +167,25 @@ void UMusicClockComponent::ConnectToWallClock()
 {
 	// we don't 'check' that the driver mode is wall clock here because if the driver mode is metasound and we can't 
 	// connect for some reason we will fall back to this clock driver!
+	DisconnectFromClockDriver();
+	ClockDriver = MakeShared<FWallClockMusicClockDriver>(this, TempoMap);
+}
+
+void UMusicClockComponent::DisconnectFromClockDriver()
+{
 	if (ClockDriver)
 	{
 		ClockDriver->Disconnect();
+		ClockDriver = nullptr;
 	}
-	ClockDriver = MakeShared<FWallClockMusicClockDriver>(this, TempoMap);
+	AudioRenderSeekDetected = false;
+	AudioRenderLoopDetected = false;
+	PlayerExperiencedSeekDetected = false;
+	PlayerExperiencedLoopDetected = false;
+	VideoRenderSeekDetected = false;
+	VideoRenderLoopDetected = false;
 }
+
 
 FMidiSongPos UMusicClockComponent::CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase) const
 {
@@ -191,6 +204,9 @@ FMidiSongPos UMusicClockComponent::CalculateSongPosWithOffset(float MsOffset, EC
 	const FSongMaps* Maps = &DefaultMaps;
 	switch (Timebase)
 	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+		Result.SetByTime((CurrentRawAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
+		break;
 	case ECalibratedMusicTimebase::AudioRenderTime:
 		Result.SetByTime((CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset, *Maps);
 		break;
@@ -220,11 +236,7 @@ void UMusicClockComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 	UMidiClockUpdateSubsystem::StopTrackingMusicClockComponent(this);
-	if (ClockDriver)
-	{
-		ClockDriver->Disconnect();
-		ClockDriver = nullptr;
-	}
+	DisconnectFromClockDriver();
 }
 
 void UMusicClockComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -232,6 +244,7 @@ void UMusicClockComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	EnsureClockIsValidForGameFrame();
 	BroadcastSongPosChanges();
+	BroadcastSeekLoopDetections();
 }
 
 void UMusicClockComponent::Start()
@@ -247,7 +260,7 @@ void UMusicClockComponent::Start()
 	CurrentSmoothedAudioRenderSongPos.Reset();
 	CurrentVideoRenderSongPos.Reset();
 	CurrentPlayerExperiencedSongPos.Reset();
-	RawUnsmoothedAudioRenderPos.Reset();
+	CurrentRawAudioRenderSongPos.Reset();
 	State = EMusicClockState::Running;
 	PlayStateEvent.Broadcast(State);
 }
@@ -294,7 +307,7 @@ void UMusicClockComponent::Stop()
 	CurrentSmoothedAudioRenderSongPos.Reset();
 	CurrentVideoRenderSongPos.Reset();
 	CurrentPlayerExperiencedSongPos.Reset();
-	RawUnsmoothedAudioRenderPos.Reset();
+	CurrentRawAudioRenderSongPos.Reset();
 	PlayStateEvent.Broadcast(State);
 }
 
@@ -303,10 +316,11 @@ float UMusicClockComponent::GetSecondsIncludingCountIn(ECalibratedMusicTimebase 
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime:	return CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return CurrentRawAudioRenderSongPos.SecondsIncludingCountIn;
+	case ECalibratedMusicTimebase::AudioRenderTime:	   return CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return CurrentVideoRenderSongPos.SecondsIncludingCountIn;
+	default:                                           return CurrentVideoRenderSongPos.SecondsIncludingCountIn;
 	}
 }
 
@@ -315,10 +329,11 @@ float UMusicClockComponent::GetSecondsFromBarOne(ECalibratedMusicTimebase Timeba
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime:	return CurrentSmoothedAudioRenderSongPos.SecondsFromBarOne;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return CurrentPlayerExperiencedSongPos.SecondsFromBarOne;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return CurrentRawAudioRenderSongPos.SecondsFromBarOne;
+	case ECalibratedMusicTimebase::AudioRenderTime:	   return CurrentSmoothedAudioRenderSongPos.SecondsFromBarOne;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return CurrentPlayerExperiencedSongPos.SecondsFromBarOne;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return CurrentVideoRenderSongPos.SecondsFromBarOne;
+	default:                                           return CurrentVideoRenderSongPos.SecondsFromBarOne;
 	}
 }
 
@@ -327,10 +342,11 @@ float UMusicClockComponent::GetBarsIncludingCountIn(ECalibratedMusicTimebase Tim
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime:	return CurrentSmoothedAudioRenderSongPos.BarsIncludingCountIn;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return CurrentPlayerExperiencedSongPos.BarsIncludingCountIn;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return CurrentRawAudioRenderSongPos.BarsIncludingCountIn;
+	case ECalibratedMusicTimebase::AudioRenderTime:	   return CurrentSmoothedAudioRenderSongPos.BarsIncludingCountIn;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return CurrentPlayerExperiencedSongPos.BarsIncludingCountIn;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return CurrentVideoRenderSongPos.BarsIncludingCountIn;
+	default:                                           return CurrentVideoRenderSongPos.BarsIncludingCountIn;
 	}
 }
 
@@ -339,22 +355,39 @@ float UMusicClockComponent::GetBeatsIncludingCountIn(ECalibratedMusicTimebase Ti
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime: return CurrentSmoothedAudioRenderSongPos.BeatsIncludingCountIn;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return CurrentPlayerExperiencedSongPos.BeatsIncludingCountIn;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return CurrentRawAudioRenderSongPos.BarsIncludingCountIn;
+	case ECalibratedMusicTimebase::AudioRenderTime:    return CurrentSmoothedAudioRenderSongPos.BeatsIncludingCountIn;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return CurrentPlayerExperiencedSongPos.BeatsIncludingCountIn;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return CurrentVideoRenderSongPos.BeatsIncludingCountIn;
+	default:                                           return CurrentVideoRenderSongPos.BeatsIncludingCountIn;
 	}
 }
+
+float UMusicClockComponent::GetTicksFromBarOne(ECalibratedMusicTimebase Timebase) const
+{
+	EnsureClockIsValidForGameFrame();
+	float Seconds = GetSecondsFromBarOne(Timebase);
+	return GetSongMaps().MsToTick(Seconds * 1000.0f);
+}
+
+float UMusicClockComponent::GetTicksIncludingCountIn(ECalibratedMusicTimebase Timebase) const
+{
+	EnsureClockIsValidForGameFrame();
+	float Seconds = GetSecondsIncludingCountIn(Timebase);
+	return GetSongMaps().MsToTick(Seconds * 1000.0f);
+}
+
 
 FMusicTimestamp UMusicClockComponent::GetCurrentTimestamp(ECalibratedMusicTimebase Timebase) const
 {
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime:	return CurrentSmoothedAudioRenderSongPos.Timestamp;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return CurrentPlayerExperiencedSongPos.Timestamp;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return CurrentRawAudioRenderSongPos.Timestamp;
+	case ECalibratedMusicTimebase::AudioRenderTime:	   return CurrentSmoothedAudioRenderSongPos.Timestamp;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return CurrentPlayerExperiencedSongPos.Timestamp;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return CurrentVideoRenderSongPos.Timestamp;
+	default:                                           return CurrentVideoRenderSongPos.Timestamp;
 	}
 }
 
@@ -367,7 +400,7 @@ FString UMusicClockComponent::GetCurrentSectionName(ECalibratedMusicTimebase Tim
 int32 UMusicClockComponent::GetCurrentSectionIndex(ECalibratedMusicTimebase Timebase) const
 {
 	const FMidiSongPos& SongPos = GetSongPos(Timebase);
-	return GetSongMaps().GetSectionMap().TickToSectionIndex(SongPos.CurrentSongSection.StartTick);
+	return GetSongMaps().GetSectionIndexAtTick(SongPos.CurrentSongSection.StartTick);
 }
 
 float UMusicClockComponent::GetCurrentSectionStartMs(ECalibratedMusicTimebase Timebase) const
@@ -417,10 +450,11 @@ float UMusicClockComponent::GetDeltaBar(ECalibratedMusicTimebase Timebase) const
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime: return AudioRenderDeltaBarF;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return PlayerExperienceDeltaBarF;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return RawAudioRenderDeltaBarF;
+	case ECalibratedMusicTimebase::AudioRenderTime:    return AudioRenderDeltaBarF;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return PlayerExperienceDeltaBarF;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return VideoRenderDeltaBarF;
+	default:                                           return VideoRenderDeltaBarF;
 	}
 }
 
@@ -429,16 +463,17 @@ float UMusicClockComponent::GetDeltaBeat(ECalibratedMusicTimebase Timebase) cons
 	EnsureClockIsValidForGameFrame();
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime: return AudioRenderDeltaBeatF;
-	case ECalibratedMusicTimebase::ExperiencedTime:	return PlayerExperienceDeltaBeatF;
+	case ECalibratedMusicTimebase::RawAudioRenderTime: return RawAudioRenderDeltaBeatF;
+	case ECalibratedMusicTimebase::AudioRenderTime:    return AudioRenderDeltaBeatF;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return PlayerExperienceDeltaBeatF;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:                                        return VideoRenderDeltaBeatF;
+	default:                                           return VideoRenderDeltaBeatF;
 	}
 }
 
 const TArray<FSongSection>& UMusicClockComponent::GetSongSections() const
 {
-	return GetSongMaps().GetSectionMap().GetSections();
+	return GetSongMaps().GetSections();
 }
 
 float UMusicClockComponent::GetCountInSeconds() const
@@ -508,7 +543,7 @@ float UMusicClockComponent::GetSectionEndMsAtMs(float Ms) const
 
 int32 UMusicClockComponent::GetNumSections() const
 {
-	return GetSongMaps().GetSectionMap().GetNumSections();
+	return GetSongMaps().GetNumSections();
 }
 
 float UMusicClockComponent::GetSongLengthMs() const
@@ -532,9 +567,36 @@ float UMusicClockComponent::GetSongRemainingMs(ECalibratedMusicTimebase Timebase
 	return SongLengthMs <= 0.f ? 0.f : SongLengthMs - (GetSongPos(Timebase).SecondsIncludingCountIn * 1000.0f);
 }
 
-const FSongMaps& UMusicClockComponent::GetSongMaps() const
+bool UMusicClockComponent::SeekedThisFrame(ECalibratedMusicTimebase Timebase) const
 {
-	const FSongMaps* SongMaps = ClockDriver ? ClockDriver->GetCurrentSongMaps() : nullptr;
+	EnsureClockIsValidForGameFrame();
+	switch (Timebase)
+	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+	case ECalibratedMusicTimebase::AudioRenderTime:    return AudioRenderSeekDetected;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return PlayerExperiencedSeekDetected;
+	case ECalibratedMusicTimebase::VideoRenderTime:
+	default:                                           return VideoRenderSeekDetected;
+	}
+}
+
+bool UMusicClockComponent::LoopedThisFrame(ECalibratedMusicTimebase Timebase) const
+{
+	EnsureClockIsValidForGameFrame();
+	switch (Timebase)
+	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+	case ECalibratedMusicTimebase::AudioRenderTime:    return AudioRenderLoopDetected;
+	case ECalibratedMusicTimebase::ExperiencedTime:	   return PlayerExperiencedLoopDetected;
+	case ECalibratedMusicTimebase::VideoRenderTime:
+	default:                                           return VideoRenderLoopDetected;
+	}
+}
+
+
+const ISongMapEvaluator& UMusicClockComponent::GetSongMaps() const
+{
+	const ISongMapEvaluator* SongMaps = ClockDriver ? ClockDriver->GetCurrentSongMapEvaluator() : nullptr;
 	return SongMaps ? *SongMaps : DefaultMaps;
 }
 
@@ -544,6 +606,8 @@ const FMidiSongPos& UMusicClockComponent::GetSongPos(ECalibratedMusicTimebase Ti
 
 	switch (Timebase)
 	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+		return CurrentRawAudioRenderSongPos;
 	case ECalibratedMusicTimebase::AudioRenderTime:
 		return CurrentSmoothedAudioRenderSongPos;
 	case ECalibratedMusicTimebase::ExperiencedTime:
@@ -554,9 +618,32 @@ const FMidiSongPos& UMusicClockComponent::GetSongPos(ECalibratedMusicTimebase Ti
 	}
 }
 
+const FMidiSongPos& UMusicClockComponent::GetPreviousSongPos(ECalibratedMusicTimebase Timebase) const
+{
+	EnsureClockIsValidForGameFrame();
+
+	switch (Timebase)
+	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+		return PrevRawAudioRenderSongPos;
+	case ECalibratedMusicTimebase::AudioRenderTime:
+		return PrevAudioRenderSongPos;
+	case ECalibratedMusicTimebase::ExperiencedTime:
+		return PrevPlayerExperiencedSongPos;
+	case ECalibratedMusicTimebase::VideoRenderTime:
+	default:
+		return PrevVideoRenderSongPos;
+	}
+}
+
 FMidiSongPos UMusicClockComponent::GetCurrentSmoothedAudioRenderSongPos() const
 {
 	return GetSongPos(ECalibratedMusicTimebase::AudioRenderTime);
+}
+
+FMidiSongPos UMusicClockComponent::GetPreviousSmoothedAudioRenderSongPos() const
+{
+	return GetPreviousSongPos(ECalibratedMusicTimebase::AudioRenderTime);
 }
 
 FMidiSongPos UMusicClockComponent::GetCurrentVideoRenderSongPos() const
@@ -564,22 +651,51 @@ FMidiSongPos UMusicClockComponent::GetCurrentVideoRenderSongPos() const
 	return GetSongPos(ECalibratedMusicTimebase::VideoRenderTime);
 }
 
+FMidiSongPos UMusicClockComponent::GetPreviousVideoRenderSongPos() const
+{
+	return GetPreviousSongPos(ECalibratedMusicTimebase::VideoRenderTime);
+}
+
 FMidiSongPos UMusicClockComponent::GetCurrentPlayerExperiencedSongPos() const
 {
 	return GetSongPos(ECalibratedMusicTimebase::ExperiencedTime);
+}
+
+FMidiSongPos UMusicClockComponent::GetPreviousPlayerExperiencedSongPos() const
+{
+	return GetPreviousSongPos(ECalibratedMusicTimebase::ExperiencedTime);
+}
+
+FMidiSongPos UMusicClockComponent::GetCurrentRawAudioRenderSongPos() const
+{
+	return GetSongPos(ECalibratedMusicTimebase::RawAudioRenderTime);
 }
 
 float UMusicClockComponent::MeasureSpanProgress(const FMusicalTimeSpan& Span, ECalibratedMusicTimebase Timebase) const
 {
 	EnsureClockIsValidForGameFrame();
 
-	const FSongMaps* Maps = ClockDriver ? ClockDriver->GetCurrentSongMaps() : &DefaultMaps;
+	const ISongMapEvaluator* Maps = ClockDriver ? ClockDriver->GetCurrentSongMapEvaluator() : &DefaultMaps;
 	if (!Maps)
 	{
 		return 0.0f;
 	}
 
-	return Span.CalcPositionInSpan(CurrentSmoothedAudioRenderSongPos, *Maps);
+	const FMidiSongPos* Basis = &CurrentVideoRenderSongPos;
+	switch (Timebase)
+	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+		Basis = &CurrentRawAudioRenderSongPos;
+		break;
+	case ECalibratedMusicTimebase::AudioRenderTime:
+		Basis = &CurrentSmoothedAudioRenderSongPos;
+		break;
+	case ECalibratedMusicTimebase::ExperiencedTime:
+		Basis = &CurrentPlayerExperiencedSongPos;
+		break;
+	}
+
+	return Span.CalcPositionInSpan(*Basis, *Maps);
 }
 
 void UMusicClockComponent::BroadcastSongPosChanges()
@@ -587,6 +703,9 @@ void UMusicClockComponent::BroadcastSongPosChanges()
 	const FMidiSongPos* Basis = &CurrentVideoRenderSongPos;
 	switch (TimebaseForBarAndBeatEvents)
 	{
+	case ECalibratedMusicTimebase::RawAudioRenderTime:
+		Basis = &CurrentRawAudioRenderSongPos;
+		break;
 	case ECalibratedMusicTimebase::AudioRenderTime:
 		Basis = &CurrentSmoothedAudioRenderSongPos;
 		break;
@@ -614,6 +733,34 @@ void UMusicClockComponent::BroadcastSongPosChanges()
 	}
 }
 
+void UMusicClockComponent::BroadcastSeekLoopDetections()
+{
+	if(AudioRenderSeekDetected)
+	{
+		AudioRenderMusicTimeDiscontinuityEvent.Broadcast(EMusicTimeDiscontinuityType::Seek, PrevAudioRenderSongPos, CurrentSmoothedAudioRenderSongPos);
+	}
+	if(AudioRenderLoopDetected)
+	{
+		AudioRenderMusicTimeDiscontinuityEvent.Broadcast(EMusicTimeDiscontinuityType::Loop, PrevAudioRenderSongPos, CurrentSmoothedAudioRenderSongPos);
+	}
+	if(PlayerExperiencedSeekDetected)
+	{
+		PlayerExperienceMusicTimeDiscontinuityEvent.Broadcast(EMusicTimeDiscontinuityType::Seek, PrevPlayerExperiencedSongPos, CurrentPlayerExperiencedSongPos);
+	}
+	if(PlayerExperiencedLoopDetected)
+	{
+		PlayerExperienceMusicTimeDiscontinuityEvent.Broadcast(EMusicTimeDiscontinuityType::Loop, PrevPlayerExperiencedSongPos, CurrentPlayerExperiencedSongPos);
+	}
+	if(VideoRenderSeekDetected)
+	{
+		VideoRenderMusicTimeDiscontinuityEvent.Broadcast(EMusicTimeDiscontinuityType::Seek, PrevVideoRenderSongPos, CurrentVideoRenderSongPos);
+	}
+	if(VideoRenderLoopDetected)
+	{
+		VideoRenderMusicTimeDiscontinuityEvent.Broadcast(EMusicTimeDiscontinuityType::Loop, PrevVideoRenderSongPos, CurrentVideoRenderSongPos);
+	}
+}
+
 void UMusicClockComponent::MakeDefaultSongMap()
 {
 	DefaultMaps.EmptyAllMaps();
@@ -628,18 +775,28 @@ void FMusicClockDriverBase::EnsureClockIsValidForGameFrame()
 	// to make sure its current state is appropriate to the current musical time. See 
 	// UMusicClockComponent::EnsureClockIsValidForGameFrame for more details as to why 
 	// this is so.
-	Clock->PrevAudioRenderSongPos = Clock->CurrentSmoothedAudioRenderSongPos;
-	Clock->PrevPlayerExperiencedSongPos = Clock->CurrentPlayerExperiencedSongPos;
-	Clock->PrevVideoRenderSongPos = Clock->CurrentVideoRenderSongPos;
+	ClockComponent->PrevRawAudioRenderSongPos = ClockComponent->CurrentRawAudioRenderSongPos;
+	ClockComponent->PrevAudioRenderSongPos = ClockComponent->CurrentSmoothedAudioRenderSongPos;
+	ClockComponent->PrevPlayerExperiencedSongPos = ClockComponent->CurrentPlayerExperiencedSongPos;
+	ClockComponent->PrevVideoRenderSongPos = ClockComponent->CurrentVideoRenderSongPos;
+
+	ClockComponent->AudioRenderSeekDetected = false;
+	ClockComponent->AudioRenderLoopDetected = false;
+	ClockComponent->PlayerExperiencedSeekDetected = false;
+	ClockComponent->PlayerExperiencedLoopDetected = false;
+	ClockComponent->VideoRenderSeekDetected = false;
+	ClockComponent->VideoRenderLoopDetected = false;
 
 	if (RefreshCurrentSongPos())
 	{
-		Clock->AudioRenderDeltaBarF = Clock->CurrentSmoothedAudioRenderSongPos.BarsIncludingCountIn - Clock->PrevAudioRenderSongPos.BarsIncludingCountIn;
-		Clock->AudioRenderDeltaBeatF = Clock->CurrentSmoothedAudioRenderSongPos.BeatsIncludingCountIn - Clock->PrevAudioRenderSongPos.BeatsIncludingCountIn;
-		Clock->PlayerExperienceDeltaBarF = Clock->CurrentPlayerExperiencedSongPos.BarsIncludingCountIn - Clock->PrevPlayerExperiencedSongPos.BarsIncludingCountIn;
-		Clock->PlayerExperienceDeltaBeatF = Clock->CurrentPlayerExperiencedSongPos.BeatsIncludingCountIn - Clock->PrevPlayerExperiencedSongPos.BeatsIncludingCountIn;
-		Clock->VideoRenderDeltaBarF = Clock->CurrentVideoRenderSongPos.BarsIncludingCountIn - Clock->PrevVideoRenderSongPos.BarsIncludingCountIn;
-		Clock->VideoRenderDeltaBeatF = Clock->CurrentVideoRenderSongPos.BeatsIncludingCountIn - Clock->PrevVideoRenderSongPos.BeatsIncludingCountIn;
-		Clock->LastUpdateFrame = GFrameCounter;
+		ClockComponent->RawAudioRenderDeltaBarF = ClockComponent->CurrentRawAudioRenderSongPos.BarsIncludingCountIn - ClockComponent->PrevRawAudioRenderSongPos.BarsIncludingCountIn;
+		ClockComponent->RawAudioRenderDeltaBeatF = ClockComponent->CurrentRawAudioRenderSongPos.BeatsIncludingCountIn - ClockComponent->PrevRawAudioRenderSongPos.BeatsIncludingCountIn;
+		ClockComponent->AudioRenderDeltaBarF = ClockComponent->CurrentSmoothedAudioRenderSongPos.BarsIncludingCountIn - ClockComponent->PrevAudioRenderSongPos.BarsIncludingCountIn;
+		ClockComponent->AudioRenderDeltaBeatF = ClockComponent->CurrentSmoothedAudioRenderSongPos.BeatsIncludingCountIn - ClockComponent->PrevAudioRenderSongPos.BeatsIncludingCountIn;
+		ClockComponent->PlayerExperienceDeltaBarF = ClockComponent->CurrentPlayerExperiencedSongPos.BarsIncludingCountIn - ClockComponent->PrevPlayerExperiencedSongPos.BarsIncludingCountIn;
+		ClockComponent->PlayerExperienceDeltaBeatF = ClockComponent->CurrentPlayerExperiencedSongPos.BeatsIncludingCountIn - ClockComponent->PrevPlayerExperiencedSongPos.BeatsIncludingCountIn;
+		ClockComponent->VideoRenderDeltaBarF = ClockComponent->CurrentVideoRenderSongPos.BarsIncludingCountIn - ClockComponent->PrevVideoRenderSongPos.BarsIncludingCountIn;
+		ClockComponent->VideoRenderDeltaBeatF = ClockComponent->CurrentVideoRenderSongPos.BeatsIncludingCountIn - ClockComponent->PrevVideoRenderSongPos.BeatsIncludingCountIn;
+		ClockComponent->LastUpdateFrame = GFrameCounter;
 	}
 }

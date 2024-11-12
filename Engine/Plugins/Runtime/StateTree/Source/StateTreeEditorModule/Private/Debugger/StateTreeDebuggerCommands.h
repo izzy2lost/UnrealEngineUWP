@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "Framework/Commands/Commands.h"
 
@@ -17,8 +17,6 @@ public:
 	// TCommands<> overrides
 	virtual void RegisterCommands() override;
 
-	TSharedPtr<FUICommandInfo> EnableOnEnterStateBreakpoint;
-	TSharedPtr<FUICommandInfo> EnableOnExitStateBreakpoint;
 	TSharedPtr<FUICommandInfo> StartRecording;
 	TSharedPtr<FUICommandInfo> StopRecording;
 	TSharedPtr<FUICommandInfo> PreviousFrameWithStateChange;
@@ -29,4 +27,4 @@ public:
 	TSharedPtr<FUICommandInfo> ResetTracks;
 };
 
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

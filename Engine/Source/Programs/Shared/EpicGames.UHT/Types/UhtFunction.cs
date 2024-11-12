@@ -375,9 +375,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new instance of a function
 		/// </summary>
+		/// <param name="headerFile">Header being parsed</param>
 		/// <param name="outer">The parent object</param>
 		/// <param name="lineNumber">The line number where the function is defined</param>
-		public UhtFunction(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		public UhtFunction(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 		}
 
@@ -563,7 +564,7 @@ namespace EpicGames.UHT.Types
 						if (!hasMenuCategory && !internalOnly && !Deprecated && !blueprintAccessor)
 						{
 							// To allow for quick iteration, don't enforce the requirement that game functions have to be categorized
-							if (HeaderFile.Package.IsPartOfEngine)
+							if (Module.IsPartOfEngine)
 							{
 								this.LogError("An explicit Category specifier is required for Blueprint accessible functions in an Engine module.");
 							}
@@ -859,14 +860,18 @@ namespace EpicGames.UHT.Types
 			builder.Append(Outer!.SourceName).Append("::").Append(functionName).Append('(');
 
 			bool first = true;
-			foreach (UhtProperty arg in ParameterProperties.Span)
+			foreach (UhtType property in ParameterProperties.Span)
 			{
-				if (!first)
+				UhtProperty? arg = property as UhtProperty;
+				if (arg != null)
 				{
-					builder.Append(", ");
+					if (!first)
+					{
+						builder.Append(", ");
+					}
+					first = false;
+					builder.AppendFullDecl(arg, UhtPropertyTextType.EventFunctionArgOrRetVal, true);
 				}
-				first = false;
-				builder.AppendFullDecl(arg, UhtPropertyTextType.EventFunctionArgOrRetVal, true);
 			}
 
 			builder.Append(')');

@@ -59,7 +59,3 @@ namespace PCGMetadataHelpers
 	/** Copy all the attributes coming from Source Data into Target Data. */
 	PCG_API bool CopyAllAttributes(const UPCGData* SourceData, UPCGData* TargetData, FPCGContext* OptionalContext = nullptr);
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

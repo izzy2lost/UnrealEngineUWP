@@ -11,6 +11,8 @@
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraSimCache.h"
 #include "NiagaraSystemInstanceController.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
+#include "Stateless/NiagaraStatelessEmitterData.h"
 
 struct FNiagaraSimCacheHelper
 {
@@ -178,34 +180,35 @@ struct FNiagaraSimCacheHelper
 
 			CacheVariable.Variable = CompiledData.Variables[iDataSetVariable];
 			CacheVariable.FloatOffset = DataSetVariableLayout.GetNumFloatComponents() > 0 ? CacheLayout.FloatCount : INDEX_NONE;
-			CacheVariable.FloatCount = uint16(DataSetVariableLayout.GetNumFloatComponents());
+			CacheVariable.FloatCount = IntCastChecked<uint16>(DataSetVariableLayout.GetNumFloatComponents());
 			CacheVariable.HalfOffset = DataSetVariableLayout.GetNumHalfComponents() > 0 ? CacheLayout.HalfCount : INDEX_NONE;
-			CacheVariable.HalfCount = uint16(DataSetVariableLayout.GetNumHalfComponents());
+			CacheVariable.HalfCount = IntCastChecked<uint16>(DataSetVariableLayout.GetNumHalfComponents());
 			CacheVariable.Int32Offset = DataSetVariableLayout.GetNumInt32Components() > 0 ? CacheLayout.Int32Count : INDEX_NONE;
-			CacheVariable.Int32Count = uint16(DataSetVariableLayout.GetNumInt32Components());
+			CacheVariable.Int32Count = IntCastChecked<uint16>(DataSetVariableLayout.GetNumInt32Components());
 
-			CacheLayout.FloatCount += uint16(DataSetVariableLayout.GetNumFloatComponents());
-			CacheLayout.HalfCount += uint16(DataSetVariableLayout.GetNumHalfComponents());
-			CacheLayout.Int32Count += uint16(DataSetVariableLayout.GetNumInt32Components());
+			CacheLayout.FloatCount += IntCastChecked<uint16>(DataSetVariableLayout.GetNumFloatComponents());
+			CacheLayout.HalfCount += IntCastChecked<uint16>(DataSetVariableLayout.GetNumHalfComponents());
+			CacheLayout.Int32Count += IntCastChecked<uint16>(DataSetVariableLayout.GetNumInt32Components());
 		}
 
 		if (CreateParameters.bAllowVelocityExtrapolation)
 		{
 			if (const FNiagaraSimCacheVariable* VelocityCacheVariable = CacheLayout.FindCacheVariable(VelocityVariable) )
 			{
-				CacheLayout.ComponentVelocity = uint16(VelocityCacheVariable->FloatOffset);
+				CacheLayout.ComponentVelocity = IntCastChecked<uint16>(VelocityCacheVariable->FloatOffset);
 			}
 		}
 
 		if (CreateParameters.bAllowInterpolation)
 		{
 			const FNiagaraVariableBase UniqueIDVariable(FNiagaraTypeDefinition::GetIntDef(), "UniqueID");
-			CacheLayout.CacheBufferWriteInfo.ComponentUniqueID = CompiledData.Variables.IndexOfByKey(UniqueIDVariable);
-			if (CacheLayout.CacheBufferWriteInfo.ComponentUniqueID != uint16(INDEX_NONE))
+			const int32 IDVarIndex = CompiledData.Variables.IndexOfByKey(UniqueIDVariable);
+			CacheLayout.CacheBufferWriteInfo.ComponentUniqueID = IDVarIndex == INDEX_NONE ? static_cast<uint16>(INDEX_NONE) : IntCastChecked<uint16>(IDVarIndex);
+			if (CacheLayout.CacheBufferWriteInfo.ComponentUniqueID != static_cast<uint16>(INDEX_NONE))
 			{
 				const FNiagaraVariableLayoutInfo& DataSetVariableLayout = CompiledData.VariableLayouts[CacheLayout.CacheBufferWriteInfo.ComponentUniqueID];
 				check(DataSetVariableLayout.GetNumInt32Components() == 1);
-				CacheLayout.CacheBufferWriteInfo.ComponentUniqueID = DataSetVariableLayout.GetInt32ComponentStart();
+				CacheLayout.CacheBufferWriteInfo.ComponentUniqueID = IntCastChecked<uint16>(DataSetVariableLayout.GetInt32ComponentStart());
 				CacheLayout.bAllowInterpolation = true;
 			}
 		}
@@ -226,19 +229,19 @@ struct FNiagaraSimCacheHelper
 
 			for (int32 iComponent=0; iComponent < CacheVariable.FloatCount; ++iComponent)
 			{
-				CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[FloatOffset] = uint16(DataSetVariableLayout.GetFloatComponentStart() + iComponent);
+				CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[FloatOffset] = IntCastChecked<uint16>(DataSetVariableLayout.GetFloatComponentStart() + iComponent);
 				++FloatOffset;
 			}
 
 			for (int32 iComponent=0; iComponent < CacheVariable.HalfCount; ++iComponent)
 			{
-				CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[HalfOffset] = uint16(DataSetVariableLayout.GetHalfComponentStart() + iComponent);
+				CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[HalfOffset] = IntCastChecked<uint16>(DataSetVariableLayout.GetHalfComponentStart() + iComponent);
 				++HalfOffset;
 			}
 
 			for (int32 iComponent=0; iComponent < CacheVariable.Int32Count; ++iComponent)
 			{
-				CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[Int32Offset] = uint16(DataSetVariableLayout.GetInt32ComponentStart() + iComponent);
+				CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[Int32Offset] = IntCastChecked<uint16>(DataSetVariableLayout.GetInt32ComponentStart() + iComponent);
 				++Int32Offset;
 			}
 		}
@@ -318,15 +321,35 @@ struct FNiagaraSimCacheHelper
 	void BuildCacheLayoutForEmitter(const FNiagaraSimCacheCreateParameters& CreateParameters, FNiagaraSimCacheDataBuffersLayout& CacheLayout, int EmitterIndex)
 	{
 		const FNiagaraEmitterHandle& EmitterHandle = NiagaraSystem->GetEmitterHandle(EmitterIndex);
-		const FNiagaraEmitterCompiledData& EmitterCompiledData = NiagaraSystem->GetEmitterCompiledData()[EmitterIndex].Get();
-		const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetInstance().GetEmitterData();
-		if (EmitterHandle.GetIsEnabled() == false || EmitterData == nullptr)
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			return;
+		}
+
+		const FNiagaraDataSetCompiledData* ParticleDataSet = nullptr;
+		const FVersionedNiagaraEmitterData* StatefulEmitterData = nullptr;
+
+		if (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Standard)
+		{
+			const FNiagaraEmitterCompiledData& EmitterCompiledData = NiagaraSystem->GetEmitterCompiledData()[EmitterIndex].Get();
+			StatefulEmitterData = EmitterHandle.GetInstance().GetEmitterData();
+			ParticleDataSet = StatefulEmitterData ? &EmitterCompiledData.DataSetCompiledData : nullptr;
+		}
+		// Include stateless emitters for debugging only.  For none debugging there is no value in storing this data as they are stateless.
+		else if ( CreateParameters.bIncludeDebugData )
+		{
+			const UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetStatelessEmitter();
+			const FNiagaraStatelessEmitterDataPtr StatelessEmitterData = StatelessEmitter ? StatelessEmitter->GetEmitterData() : nullptr;
+			ParticleDataSet = StatelessEmitterData ? StatelessEmitterData->ParticleDataSetCompiledData.Get() : nullptr;
+		}
+
+		if (ParticleDataSet == nullptr)
 		{
 			return;
 		}
 
 		// Find potential candidates for re-basing
-		CacheLayout.bLocalSpace = EmitterData->bLocalSpace;
+		CacheLayout.bLocalSpace = StatefulEmitterData ? StatefulEmitterData->bLocalSpace : true;
 
 		TArray<FName> RebaseVariableNames;
 		if ( CreateParameters.bAllowRebasing && CacheLayout.bLocalSpace == false )
@@ -357,31 +380,34 @@ struct FNiagaraSimCacheHelper
 			}
 
 		#if WITH_EDITORONLY_DATA
-			// Look for renderer attributes bound to Quat / Matrix types are we will want to rebase those
-			// We will add all Position types after this so no need to add them here
-			EmitterData->ForEachEnabledRenderer(
-				[&](UNiagaraRendererProperties* RenderProperties)
-				{
-					for (FNiagaraVariable BoundAttribute : RenderProperties->GetBoundAttributes())
+			if (StatefulEmitterData)
+			{
+				// Look for renderer attributes bound to Quat / Matrix types are we will want to rebase those
+				// We will add all Position types after this so no need to add them here
+				StatefulEmitterData->ForEachEnabledRenderer(
+					[&](UNiagaraRendererProperties* RenderProperties)
 					{
-						if ( (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetQuatDef()) ||
-							 (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetMatrix4Def()) )
+						for (FNiagaraVariable BoundAttribute : RenderProperties->GetBoundAttributes())
 						{
-							if (BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString))
+							if ( (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetQuatDef()) ||
+								 (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetMatrix4Def()) )
 							{
-								if (EmitterCompiledData.DataSetCompiledData.Variables.Contains(BoundAttribute) && ForceExcludeNames.Contains(BoundAttribute.GetName()) == false )
+								if (BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString))
 								{
-									RebaseVariableNames.AddUnique(BoundAttribute.GetName());
+									if (ParticleDataSet->Variables.Contains(BoundAttribute) && ForceExcludeNames.Contains(BoundAttribute.GetName()) == false )
+									{
+										RebaseVariableNames.AddUnique(BoundAttribute.GetName());
+									}
 								}
 							}
 						}
 					}
-				}
-			);
+				);
+			}
 		#endif
 
 			// Look for regular attributes that we are forcing to rebase or can rebase like positions
-			for (const FNiagaraVariableBase& Variable : EmitterCompiledData.DataSetCompiledData.Variables)
+			for (const FNiagaraVariableBase& Variable : ParticleDataSet->Variables)
 			{
 				if ( Variable.GetType() == FNiagaraTypeDefinition::GetPositionDef() )
 				{
@@ -400,7 +426,7 @@ struct FNiagaraSimCacheHelper
 		TArray<FName> InterpVariableNames;
 		if (CreateParameters.bAllowInterpolation)
 		{
-			for (const FNiagaraVariableBase& Variable : EmitterCompiledData.DataSetCompiledData.Variables)
+			for (const FNiagaraVariableBase& Variable : ParticleDataSet->Variables)
 			{
 				if (!CanInterpolateVariable(Variable) || CreateParameters.RebaseExcludeAttributes.Contains(Variable.GetName()))
 				{
@@ -431,7 +457,7 @@ struct FNiagaraSimCacheHelper
 			}
 		}
 
-		BuildCacheLayout(CreateParameters, CacheLayout, EmitterCompiledData.DataSetCompiledData, EmitterHandle.GetName(), MoveTemp(RebaseVariableNames), MoveTemp(InterpVariableNames), ExplicitCaptureAttributes);
+		BuildCacheLayout(CreateParameters, CacheLayout, *ParticleDataSet, EmitterHandle.GetName(), MoveTemp(RebaseVariableNames), MoveTemp(InterpVariableNames), ExplicitCaptureAttributes);
 	}
 
 	static bool BuildCacheReadMappings(FNiagaraSimCacheDataBuffersLayout& CacheLayout, const FNiagaraDataSetCompiledData& CompiledData)
@@ -526,23 +552,23 @@ struct FNiagaraSimCacheHelper
 
 								CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(
 									SourceVariable.FloatOffset, PrevSourceVariable->FloatOffset,
-									uint16(DestVariableLayout->GetFloatComponentStart()), uint16(CompiledData.VariableLayouts[PreviousDataSetVariableIndex].GetFloatComponentStart()),
+									IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), IntCastChecked<uint16>(CompiledData.VariableLayouts[PreviousDataSetVariableIndex].GetFloatComponentStart()),
 									bRebaseVariable ? &FNiagaraSimCacheHelper::InterpPositions<true, true> : &FNiagaraSimCacheHelper::InterpPositions<false, true>
 									
 								);
 							}
 							else
 							{
-								CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, uint16(DestVariableLayout->GetFloatComponentStart()), bRebaseVariable ? &FNiagaraSimCacheHelper::InterpPositions<true, false> : &FNiagaraSimCacheHelper::InterpPositions<false, false>);
+								CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), bRebaseVariable ? &FNiagaraSimCacheHelper::InterpPositions<true, false> : &FNiagaraSimCacheHelper::InterpPositions<false, false>);
 							}
 						}
 						else if ( CacheLayout.bAllowVelocityExtrapolation )
 						{
-							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, uint16(DestVariableLayout->GetFloatComponentStart()), bRebaseVariable ? &FNiagaraSimCacheHelper::ExtrapolatePositions<true> : &FNiagaraSimCacheHelper::ExtrapolatePositions<false>);
+							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), bRebaseVariable ? &FNiagaraSimCacheHelper::ExtrapolatePositions<true> : &FNiagaraSimCacheHelper::ExtrapolatePositions<false>);
 						}
 						else
 						{
-							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, uint16(DestVariableLayout->GetFloatComponentStart()), &FNiagaraSimCacheHelper::RebasePositions);
+							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), &FNiagaraSimCacheHelper::RebasePositions);
 						}
 						DestVariableLayout = nullptr;
 					}
@@ -562,19 +588,19 @@ struct FNiagaraSimCacheHelper
 
 								CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(
 									SourceVariable.FloatOffset, PrevSourceVariable->FloatOffset,
-									uint16(DestVariableLayout->GetFloatComponentStart()), uint16(CompiledData.VariableLayouts[PreviousDataSetVariableIndex].GetFloatComponentStart()),
+									IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), IntCastChecked<uint16>(CompiledData.VariableLayouts[PreviousDataSetVariableIndex].GetFloatComponentStart()),
 									bRebaseVariable ? &FNiagaraSimCacheHelper::InterpQuaternions<true, true> : &FNiagaraSimCacheHelper::InterpQuaternions<false, true>
 									
 								);
 							}
 							else
 							{
-								CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, uint16(DestVariableLayout->GetFloatComponentStart()), bInterpVariable  ? &FNiagaraSimCacheHelper::InterpQuaternions<true, false> : &FNiagaraSimCacheHelper::InterpQuaternions<false, false>);
+								CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), bInterpVariable  ? &FNiagaraSimCacheHelper::InterpQuaternions<true, false> : &FNiagaraSimCacheHelper::InterpQuaternions<false, false>);
 							}
 						}
 						else
 						{
-							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, uint16(DestVariableLayout->GetFloatComponentStart()), &FNiagaraSimCacheHelper::RebaseQuaternions);
+							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), &FNiagaraSimCacheHelper::RebaseQuaternions);
 						}
 						DestVariableLayout = nullptr;
 					}
@@ -583,7 +609,7 @@ struct FNiagaraSimCacheHelper
 						if (bRebaseVariable)
 						{
 							check(SourceVariable.FloatCount == 16);
-							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, uint16(DestVariableLayout->GetFloatComponentStart()), &FNiagaraSimCacheHelper::RebaseMatrices);
+							CacheBufferReadInfo.VariableCopyMappingsToDataBuffer.Emplace(SourceVariable.FloatOffset, IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart()), &FNiagaraSimCacheHelper::RebaseMatrices);
 							DestVariableLayout = nullptr;
 						}
 					}
@@ -592,17 +618,17 @@ struct FNiagaraSimCacheHelper
 
 			for (int32 i = 0; i < SourceVariable.FloatCount; ++i)
 			{
-				CacheBufferReadInfo.ComponentMappingsToDataBuffer[FloatOffset++] = uint16(DestVariableLayout ? DestVariableLayout->GetFloatComponentStart() + i : INDEX_NONE);
+				CacheBufferReadInfo.ComponentMappingsToDataBuffer[FloatOffset++] = DestVariableLayout ? IntCastChecked<uint16>(DestVariableLayout->GetFloatComponentStart() + i) : uint16(INDEX_NONE);
 			}
 
 			for (int32 i = 0; i < SourceVariable.HalfCount; ++i)
 			{
-				CacheBufferReadInfo.ComponentMappingsToDataBuffer[HalfOffset++] = uint16(DestVariableLayout ? DestVariableLayout->GetHalfComponentStart() + i : INDEX_NONE);
+				CacheBufferReadInfo.ComponentMappingsToDataBuffer[HalfOffset++] = DestVariableLayout ? IntCastChecked<uint16>(DestVariableLayout->GetHalfComponentStart() + i) : uint16(INDEX_NONE);
 			}
 
 			for (int32 i = 0; i < SourceVariable.Int32Count; ++i)
 			{
-				CacheBufferReadInfo.ComponentMappingsToDataBuffer[Int32Offset++] = uint16(DestVariableLayout ? DestVariableLayout->GetInt32ComponentStart() + i : INDEX_NONE);
+				CacheBufferReadInfo.ComponentMappingsToDataBuffer[Int32Offset++] = DestVariableLayout ? IntCastChecked<uint16>(DestVariableLayout->GetInt32ComponentStart() + i) : uint16(INDEX_NONE);
 			}
 		}
 
@@ -750,7 +776,7 @@ struct FNiagaraSimCacheHelper
 		VariableCopyDataContext.DestStride			= DestStride;
 		VariableCopyDataContext.SourceAStride		= CacheBufferA.NumInstances * sizeof(float);
 		VariableCopyDataContext.SourceBStride		= CacheBufferB.NumInstances * sizeof(float);
-		if (ComponentVelocity != uint16(INDEX_NONE))
+		if (ComponentVelocity != static_cast<uint16>(INDEX_NONE))
 		{
 			VariableCopyDataContext.Velocity = CacheBufferA.FloatData.GetData() + (ComponentVelocity * VariableCopyDataContext.SourceAStride);
 		}
@@ -761,8 +787,8 @@ struct FNiagaraSimCacheHelper
 
 		for (const FNiagaraSimCacheDataBuffersLayout::FVariableCopyMapping& VariableCopyMapping : VariableCopyMappingsToDataBuffer)
 		{
-			VariableCopyDataContext.DestCurr	= DestBuffer + (uint32(VariableCopyMapping.CurrComponentTo) * DestStride);
-			VariableCopyDataContext.DestPrev	= DestBuffer + (uint32(VariableCopyMapping.PrevComponentTo) * DestStride);
+			VariableCopyDataContext.DestCurr	= DestBuffer + (IntCastChecked<uint32>(VariableCopyMapping.CurrComponentTo) * DestStride);
+			VariableCopyDataContext.DestPrev	= DestBuffer + (IntCastChecked<uint32>(VariableCopyMapping.PrevComponentTo) * DestStride);
 			VariableCopyDataContext.SourceACurr	= CacheBufferA.FloatData.GetData() + (VariableCopyMapping.CurrComponentFrom * VariableCopyDataContext.SourceAStride);
 			VariableCopyDataContext.SourceAPrev = CacheBufferA.FloatData.GetData() + (VariableCopyMapping.PrevComponentFrom * VariableCopyDataContext.SourceAStride);
 			VariableCopyDataContext.SourceBCurr	= CacheBufferB.FloatData.GetData() + (VariableCopyMapping.CurrComponentFrom * VariableCopyDataContext.SourceBStride);
@@ -1051,14 +1077,14 @@ struct FNiagaraSimCacheHelper
 			FMatrix44d CacheMatrix;
 			for (int32 j = 0; j < 16; ++j)
 			{
-				CacheMatrix.M[j >> 2][j & 0x3] = double(SrcFloats[i + (SrcStride * j)]);
+				CacheMatrix.M[j >> 2][j & 0x3] = static_cast<double>(SrcFloats[i + (SrcStride * j)]);
 			}
 
 			CacheMatrix = CacheMatrix * RebaseMatrix;
 
 			for (int32 j = 0; j < 16; ++j)
 			{
-				DstFloats[i + (DstStride * j)] = float(CacheMatrix.M[j >> 2][j & 0x3]);
+				DstFloats[i + (DstStride * j)] = static_cast<float>(CacheMatrix.M[j >> 2][j & 0x3]);
 			}
 		}
 	}

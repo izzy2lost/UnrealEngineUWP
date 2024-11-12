@@ -15,7 +15,7 @@ uint											RaysOffset;
 RWStructuredBuffer<FNiagaraAsyncGpuTraceResult>	CollisionOutput;
 uint											CollisionOutputOffset;
 
-#if NIAGARA_RAYTRACE_FAKE_INDIRECT
+#if NIAGARA_RAYTRACE_FAKE_INDIRECT || COMPUTESHADER
 Buffer<uint>                                  RayTraceCounts;
 #endif
 
@@ -25,23 +25,29 @@ uint MaxRetraces;
 #if NIAGARA_SUPPORTS_COLLISION_GROUPS
 bool FindCollisionGroup(int GPUSceneIndexId, out int CollisionGroup)
 {
-	uint Index = 0;
+	uint Index = MurmurMix(GPUSceneIndexId);
 	if (HashTableFind(GPUSceneIndexId, Index))
 	{
 		CollisionGroup = HashToCollisionGroups[Index];
 		return true;
 	}
-
+	CollisionGroup = 0;
 	return false;
 }
 #endif
 
-
+#if COMPUTESHADER
+[numthreads(RAY_TRACING_THREAD_GROUP_SIZE_X, 1, 1)]
+void NiagaraCollisionRayTraceCS(uint3 DispatchThreadIndex : SV_DispatchThreadID, uint3 DispatchGroupId : SV_GroupID, uint DispatchGroupIndex : SV_GroupIndex)
+{
+	const uint RayIndex = DispatchThreadIndex.x;
+#else
 RAY_TRACING_ENTRY_RAYGEN(NiagaraCollisionRayTraceRG)
 {
 	const uint RayIndex = DispatchRaysIndex().x;
+#endif
 
-#if NIAGARA_RAYTRACE_FAKE_INDIRECT
+#if NIAGARA_RAYTRACE_FAKE_INDIRECT || COMPUTESHADER
 	if (RayIndex >= RayTraceCounts[0]) 
 	{
 		return;
@@ -69,20 +75,29 @@ RAY_TRACING_ENTRY_RAYGEN(NiagaraCollisionRayTraceRG)
 		while (NumCasts++ <= MaxRetraces)
 		{
 			Payload = (FVFXTracePayload)0;
-			VfxTraceRay(
-				TLAS,   // AccelerationStructure
-				RayFlags,
-				RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask
-				RAY_TRACING_SHADER_SLOT_MATERIAL, // RayContributionToHitGroupIndex
-				RAY_TRACING_NUM_SHADER_SLOTS,     // MultiplierForGeometryContributionToShaderIndex
-				0,      // MissShaderIndex
-				Ray.GetNativeDesc(),    // RayDesc
-				Payload // Payload
-			); 
+			#if COMPUTESHADER
+				VfxTraceRayInline(
+					TLAS,   // AccelerationStructure
+					RayFlags,
+					RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask
+					Ray.GetNativeDesc(),    // FRayDesc
+					Payload // Payload
+				);
+			#else
+				VfxTraceRay(
+					TLAS,   // AccelerationStructure
+					RayFlags,
+					RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask
+					RAY_TRACING_SHADER_SLOT_MATERIAL, // RayContributionToHitGroupIndex
+					RAY_TRACING_NUM_SHADER_SLOTS,     // MultiplierForGeometryContributionToShaderIndex
+					0,      // MissShaderIndex
+					Ray.GetNativeDesc(),    // RayDesc
+					Payload // Payload
+				); 
+			#endif
 
-			uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Payload.PrimitiveIndex, Payload.InstanceIndex);
 			uint PrimCollisionGroup; 
-			if (FindCollisionGroup(GPUSceneInstanceIndex, PrimCollisionGroup))
+			if (FindCollisionGroup(Payload.GPUSceneInstanceId, PrimCollisionGroup))
 			{
 				//If we collide with something of a different group to the Ray then break and allow the collision. Otherwise loop and attempt to recast just infront of the hit we're discarding.
 				if (PrimCollisionGroup == RayCollisionGroup)
@@ -101,16 +116,26 @@ RAY_TRACING_ENTRY_RAYGEN(NiagaraCollisionRayTraceRG)
 	else
 #endif
 	{
-		VfxTraceRay(
-			TLAS,   // AccelerationStructure
-			RayFlags,
-			RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask
-			RAY_TRACING_SHADER_SLOT_MATERIAL, // RayContributionToHitGroupIndex
-			RAY_TRACING_NUM_SHADER_SLOTS,     // MultiplierForGeometryContributionToShaderIndex
-			0,      // MissShaderIndex
-			Ray.GetNativeDesc(),    // FRayDesc
-			Payload // Payload
-		);
+		#if COMPUTESHADER
+			VfxTraceRayInline(
+				TLAS,   // AccelerationStructure
+				RayFlags,
+				RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask
+				Ray.GetNativeDesc(),    // FRayDesc
+				Payload // Payload
+			);
+		#else
+			VfxTraceRay(
+				TLAS,   // AccelerationStructure
+				RayFlags,
+				RAY_TRACING_MASK_OPAQUE,          // InstanceInclusionMask
+				RAY_TRACING_SHADER_SLOT_MATERIAL, // RayContributionToHitGroupIndex
+				RAY_TRACING_NUM_SHADER_SLOTS,     // MultiplierForGeometryContributionToShaderIndex
+				0,      // MissShaderIndex
+				Ray.GetNativeDesc(),    // FRayDesc
+				Payload // Payload
+			);
+		#endif
 	}
 
 	uint OutputIndex = RayIndex + CollisionOutputOffset;

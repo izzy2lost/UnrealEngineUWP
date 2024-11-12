@@ -253,6 +253,90 @@ namespace UVEditorMeshSelectionMechanicLocals
 		}
 	};
 
+	struct FCircleRegion
+	{
+		FVector2d Center;
+		double RadiusSquared = 0;
+	};
+	template<>
+	struct TTreeBoxIntersectHelper<FCircleRegion>
+	{
+		typedef FVector2d PointType;
+		typedef FAxisAlignedBox2d BoxType;
+
+		static BoxType BuildBoxFromTree(const FDynamicMeshAABBTree3& Tree)
+		{
+			BoxType Box;
+			Box.Contain(XY(Tree.GetBoundingBox().Min));
+			Box.Contain(XY(Tree.GetBoundingBox().Max));
+			return Box;
+		}
+
+		static BoxType BuildBoxFromBox3d(const FAxisAlignedBox3d& Box3d)
+		{
+			return BoxType(XY(Box3d.Min), XY(Box3d.Max));
+		}
+
+		static bool RegionBoxTest(const FCircleRegion& Region, const FAxisAlignedBox2d& Box, bool& bFullyContained)
+		{
+			// Check for full containment first.
+			bool bIntersect = false;
+			bFullyContained = true;
+			for (int CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
+			{
+				if (FVector2d::DistSquared(Box.GetCorner(CornerIndex), Region.Center) <= Region.RadiusSquared)
+				{
+					bIntersect = true;
+				}
+				else
+				{
+					bFullyContained = false;
+					// No need to test others because our intersection test below covers it.
+					break;
+				}
+			}
+
+			if (bIntersect)
+			{
+				return true;
+			}
+
+			// Now check for intersection. This is done the same way as FMath::SphereAABBIntersection, which
+			//  just checks our squared distance out from each box side, resulting in a sum if its past a corner.
+			double DistSquared = 0;
+			if (Region.Center.X < Box.Min.X)
+			{
+				DistSquared += FMath::Square(Region.Center.X - Box.Min.X);
+			}
+			else if (Region.Center.X > Box.Max.X)
+			{
+				DistSquared += FMath::Square(Region.Center.X - Box.Max.X);
+			}
+			if (Region.Center.Y < Box.Min.Y)
+			{
+				DistSquared += FMath::Square(Region.Center.Y - Box.Min.Y);
+			}
+			else if (Region.Center.Y > Box.Max.Y)
+			{
+				DistSquared += FMath::Square(Region.Center.Y - Box.Max.Y);
+			}
+
+			return DistSquared <= Region.RadiusSquared;
+		}
+	};
+
+	void AppendTriangleIDIfIntersectedCircle(const FDynamicMesh3& Mesh, const FCircleRegion& Circle, int TriangleID, TArray<int>& TriangleIDs)
+	{
+		FVector3d V1, V2, V3;
+		Mesh.GetTriVertices(TriangleID, V1, V2, V3);
+
+		if (UE::Geometry::DoesTriangleIntersectCircle2D(FVector2d(V1), FVector2d(V2), FVector2d(V3), Circle.Center, Circle.RadiusSquared))
+		{
+			TriangleIDs.Add(TriangleID);
+		}
+	}
+
+
 	// Returns indices, collected by the given functions, from triangles which are intersected by the given region,
 	// which can be either a rectangle (in which case the underlying mesh should have its vertices in the XY plane
 	// with a zero Z coordinate) or a frustum. 
@@ -733,6 +817,37 @@ void UUVEditorMeshSelectionMechanic::SetIsEnabled(bool bIsEnabledIn)
 	}
 }
 
+TArray<UE::Geometry::FUVToolSelection> UUVEditorMeshSelectionMechanic::GetAllCanonicalTrianglesInUnwrapRadius(
+	const FVector2d& UnwrapWorldHitPoint, double Radius) const
+{
+	using namespace UVEditorMeshSelectionMechanicLocals;
+
+	TArray<UE::Geometry::FUVToolSelection> Output;
+
+	FCircleRegion CircleRegion;
+	CircleRegion.Center = UnwrapWorldHitPoint;
+	CircleRegion.RadiusSquared = FMath::Square(FMath::Max(0, Radius));
+
+	for (int32 AssetID = 0; AssetID < Targets.Num(); ++AssetID)
+	{
+		const FDynamicMeshAABBTree3* Tree = GetMeshSpatial(AssetID, true).Get();
+		if (!ensure(Tree))
+		{
+			continue;
+		}
+
+		TArray<int32> TidsInRadius = FindAllIntersections(*Tree, CircleRegion, AppendTriangleID, AppendTriangleIDIfIntersectedCircle);
+		if (TidsInRadius.Num() > 0)
+		{
+			FUVToolSelection& Selection = Output.Emplace_GetRef();
+			Selection.Target = Targets[AssetID];
+			Selection.Type = FUVToolSelection::EType::Triangle;
+			Selection.SelectedIDs.Append(TidsInRadius);
+		}
+	}
+	return Output;
+}
+
 void UUVEditorMeshSelectionMechanic::SetShowHoveredElements(bool bShow)
 {
 	bShowHoveredElements = bShow;
@@ -825,7 +940,7 @@ void UUVEditorMeshSelectionMechanic::SetTargets(const TArray<TObjectPtr<UUVEdito
 
 }
 
-TSharedPtr<FDynamicMeshAABBTree3> UUVEditorMeshSelectionMechanic::GetMeshSpatial(int32 TargetId, bool bUseUnwrap)
+TSharedPtr<FDynamicMeshAABBTree3> UUVEditorMeshSelectionMechanic::GetMeshSpatial(int32 TargetId, bool bUseUnwrap) const
 {
 	if (bUseUnwrap)
 	{
@@ -1098,12 +1213,35 @@ void UUVEditorMeshSelectionMechanic::OnClicked(const FInputDeviceRay& ClickPos, 
 	SelectionAPI->EndChangeAndEmitIfModified(true); // broadcast and emit
 }
 
-bool UUVEditorMeshSelectionMechanic::GetHitTid(const FInputDeviceRay& ClickPos, 
+// Usages of this should probably be replaced by RaycastCanonicals, but it doesn't seem worth the refactor.
+bool UUVEditorMeshSelectionMechanic::GetHitTid(const FInputDeviceRay& ClickPos,
 	int32& TidOut, int32& AssetIDOut, bool bUseUnwrap, int32* ExistingSelectionObjectIndexOut)
 {
-	auto RayCastSpatial = [this, &ClickPos, &TidOut, &AssetIDOut, &bUseUnwrap](int32 AssetID) {
+	FRaycastResult HitResult;
+	bool bSuccess = RaycastCanonicals(ClickPos.WorldRay, bUseUnwrap, true, HitResult);
+	AssetIDOut = HitResult.AssetID;
+	TidOut = HitResult.Tid;
+	if (ExistingSelectionObjectIndexOut)
+	{
+		*ExistingSelectionObjectIndexOut = IndexConstants::InvalidID;
+		if (bSuccess)
+		{
+			const TArray<FUVToolSelection>& Selections = SelectionAPI->GetSelections();
+			*ExistingSelectionObjectIndexOut = Selections.IndexOfByPredicate([this, AssetIDOut](const FUVToolSelection& Selection)
+			{
+				return Selection.Target == Targets[AssetIDOut];
+			});
+		}
+	}
+	return TidOut != IndexConstants::InvalidID;
+}
+
+bool UUVEditorMeshSelectionMechanic::RaycastCanonicals(const FRay& WorldRay, bool bRaycastIsForUnwrap,
+	bool bPreferSelected, FRaycastResult& HitOut) const
+{
+	auto RayCastSpatial = [this, &WorldRay, &HitOut, bRaycastIsForUnwrap](int32 AssetID) {
 		FTransform3d TargetTransform;
-		if (bUseUnwrap)
+		if (bRaycastIsForUnwrap)
 		{
 			TargetTransform = Targets[AssetID]->UnwrapPreview->PreviewMesh->GetTransform();
 		}
@@ -1113,13 +1251,14 @@ bool UUVEditorMeshSelectionMechanic::GetHitTid(const FInputDeviceRay& ClickPos,
 		}
 
 		FRay3d LocalRay(
-			(FVector3d)TargetTransform.InverseTransformPosition(ClickPos.WorldRay.Origin),
-			(FVector3d)TargetTransform.InverseTransformVector(ClickPos.WorldRay.Direction));
+			(FVector3d)TargetTransform.InverseTransformPosition(WorldRay.Origin),
+			(FVector3d)TargetTransform.InverseTransformVector(WorldRay.Direction));
 
 		double RayT = 0;
-		if (GetMeshSpatial(AssetID, bUseUnwrap)->FindNearestHitTriangle(LocalRay, RayT, TidOut))
+		if (GetMeshSpatial(AssetID, bRaycastIsForUnwrap)->FindNearestHitTriangle(LocalRay, RayT, HitOut.Tid))
 		{
-			AssetIDOut = AssetID;
+			HitOut.AssetID = AssetID;
+			HitOut.HitPosition = TargetTransform.TransformPosition(LocalRay.PointAt(RayT));
 			return true;
 		}
 		return false;
@@ -1129,26 +1268,21 @@ bool UUVEditorMeshSelectionMechanic::GetHitTid(const FInputDeviceRay& ClickPos,
 	TArray<bool> SpatialTriedFlags;
 	SpatialTriedFlags.SetNum(Targets.Num());
 	const TArray<FUVToolSelection>& Selections = SelectionAPI->GetSelections();
-	for (int32 SelectionIndex = 0; SelectionIndex < Selections.Num(); ++SelectionIndex)
-	{
-		const FUVToolSelection& Selection = Selections[SelectionIndex];
-		if (ensure(Selection.Target.IsValid() && Selection.Target->AssetID < Targets.Num()))
-		{
-			if (RayCastSpatial(Selection.Target->AssetID))
-			{
-				if (ExistingSelectionObjectIndexOut)
-				{
-					*ExistingSelectionObjectIndexOut = SelectionIndex;
-				}
-				return true;
-			}
-			SpatialTriedFlags[Selection.Target->AssetID] = true;
-		}
-	}
 
-	if (ExistingSelectionObjectIndexOut)
+	if (bPreferSelected)
 	{
-		*ExistingSelectionObjectIndexOut = IndexConstants::InvalidID;
+		for (int32 SelectionIndex = 0; SelectionIndex < Selections.Num(); ++SelectionIndex)
+		{
+			const FUVToolSelection& Selection = Selections[SelectionIndex];
+			if (ensure(Selection.Target.IsValid() && Selection.Target->AssetID < Targets.Num()))
+			{
+				if (RayCastSpatial(Selection.Target->AssetID))
+				{
+					return true;
+				}
+				SpatialTriedFlags[Selection.Target->AssetID] = true;
+			}
+		}
 	}
 
 	// Try raycasting the other meshes

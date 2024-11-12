@@ -13,11 +13,6 @@ UAvaTextActorTool::UAvaTextActorTool()
 	ActorClass = AAvaTextActor::StaticClass();
 }
 
-bool UAvaTextActorTool::UseIdentityRotation() const
-{
-	return ConditionalIdentityRotation();
-}
-
 FName UAvaTextActorTool::GetCategoryName()
 {
 	return IAvalancheInteractiveToolsModule::CategoryNameActor;

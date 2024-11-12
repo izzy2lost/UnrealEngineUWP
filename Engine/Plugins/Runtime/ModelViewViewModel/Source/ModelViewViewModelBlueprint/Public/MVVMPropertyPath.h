@@ -33,6 +33,12 @@ public:
 
 	MODELVIEWVIEWMODELBLUEPRINT_API FMVVMBlueprintFieldPath(const UBlueprint* InContext, UE::MVVM::FMVVMConstFieldVariant InField);
 
+	/**
+	 * Get the binding name. It won't resolve the field.
+	 * That should only be used while compiling the skeletal class.
+	 */
+	MODELVIEWVIEWMODELBLUEPRINT_API FName GetRawFieldName() const;
+
 	/** Get the binding name, resolves reference deprecation / redirectors / etc before returning */
 	MODELVIEWVIEWMODELBLUEPRINT_API FName GetFieldName(const UClass* SelfContext) const;
 
@@ -42,6 +48,11 @@ public:
 	bool IsFieldLocalScope() const
 	{
 		return BindingReference.IsLocalScope();
+	}
+	
+	bool IsFieldSelfContext() const
+	{
+		return BindingReference.IsSelfContext();
 	}
 
 	MODELVIEWVIEWMODELBLUEPRINT_API UClass* GetParentClass(const UClass* SelfContext) const;
@@ -126,7 +137,7 @@ public:
 		return Paths.Num() > 0;
 	}
 
-	TArrayView<FMVVMBlueprintFieldPath const> GetFieldPaths() const
+	const TArrayView<const FMVVMBlueprintFieldPath> GetFieldPaths() const
 	{
 		return Paths;
 	}

@@ -14,10 +14,11 @@
 #include "CommonRenderResources.h"
 #include "PostProcess/DrawRectangle.h"
 #include "ScenePrivate.h"
+#include "RHIResourceUtils.h"
 
 void FTesselatedScreenRectangleIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> IndexBuffer;
+	TArray<uint16> IndexBuffer;
 
 	uint32 NumIndices = NumPrimitives() * 3;
 	IndexBuffer.AddUninitialized(NumIndices);
@@ -45,8 +46,7 @@ void FTesselatedScreenRectangleIndexBuffer::InitRHI(FRHICommandListBase& RHICmdL
 	}
 
 	// Create index buffer. Fill buffer with initial data upon creation
-	FRHIResourceCreateInfo CreateInfo(TEXT("FTesselatedScreenRectangleIndexBuffer"), &IndexBuffer);
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), IndexBuffer.GetResourceDataSize(), BUF_Static, CreateInfo);
+	IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FTesselatedScreenRectangleIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(IndexBuffer));
 }
 
 uint32 FTesselatedScreenRectangleIndexBuffer::NumVertices() const
@@ -282,7 +282,8 @@ void DrawHmdMesh(
 	FIntPoint TargetSize,
 	FIntPoint TextureSize,
 	int32 StereoView,
-	const TShaderRef<FShader>& VertexShader
+	const TShaderRef<FShader>& VertexShader,
+	int32 InstanceCount
 	)
 {
 	{
@@ -297,7 +298,7 @@ void DrawHmdMesh(
 
 	if (GEngine->XRSystem->GetHMDDevice())
 	{
-		GEngine->XRSystem->GetHMDDevice()->DrawVisibleAreaMesh(RHICmdList, StereoView);
+		GEngine->XRSystem->GetHMDDevice()->DrawVisibleAreaMesh(RHICmdList, StereoView, InstanceCount);
 	}
 }
 
@@ -316,15 +317,16 @@ void DrawPostProcessPass(
 	const TShaderRef<FShader>& VertexShader,
 	int32 StereoViewIndex,
 	bool bHasCustomMesh,
-	EDrawRectangleFlags Flags)
+	EDrawRectangleFlags Flags,
+	int32 InstanceCount)
 {
 	if (bHasCustomMesh && StereoViewIndex != INDEX_NONE)
 	{
-		DrawHmdMesh(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, StereoViewIndex, VertexShader);
+		DrawHmdMesh(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, StereoViewIndex, VertexShader, InstanceCount);
 	}
 	else
 	{
-		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags);
+		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags, InstanceCount);
 	}
 }
 
@@ -370,7 +372,8 @@ namespace UE::Renderer::PostProcess
 				View.ViewRect.Width(), View.ViewRect.Height(),
 				View.UnconstrainedViewRect.Size(),
 				View.UnconstrainedViewRect.Size(),
-				Flags);
+				Flags,
+				InstanceCount);
 		}
 	}
 

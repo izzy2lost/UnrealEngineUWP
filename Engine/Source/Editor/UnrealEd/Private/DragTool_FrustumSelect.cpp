@@ -278,22 +278,29 @@ bool FDragTool_ActorFrustumSelect::IntersectsFrustum( const UModel& InModel, int
 	return bIntersects && (!bUseStrictSelection || (bUseStrictSelection && bFullyContained));
 }
 
-void FDragTool_ActorFrustumSelect::CalculateFrustum( FSceneView* View, FConvexVolume& OutFrustum, bool bUseBoxFrustum )
+void FDragTool_ActorFrustumSelect::CalculateFrustum( const FSceneView* InView, FConvexVolume& OutFrustum, bool bUseBoxFrustum ) const
 {
 	if( bUseBoxFrustum )
 	{
 		FVector CamPoint = EditorViewportClient->GetViewLocation();
 		FVector BoxPoint1, BoxPoint2, BoxPoint3, BoxPoint4;
 		FVector WorldDir1, WorldDir2, WorldDir3, WorldDir4;
-		// Deproject the four corners of the selection box
-		FVector2D Point1(FMath::Min(Start.X, End.X), FMath::Min(Start.Y, End.Y)); // Upper Left Corner
-		FVector2D Point2(FMath::Max(Start.X, End.X), FMath::Min(Start.Y, End.Y)); // Upper Right Corner
-		FVector2D Point3(FMath::Max(Start.X, End.X), FMath::Max(Start.Y, End.Y)); // Lower Right Corner
-		FVector2D Point4(FMath::Min(Start.X, End.X), FMath::Max(Start.Y, End.Y)); // Lower Left Corner
-		View->DeprojectFVector2D(Point1, BoxPoint1, WorldDir1);
-		View->DeprojectFVector2D(Point2, BoxPoint2, WorldDir2);
-		View->DeprojectFVector2D(Point3, BoxPoint3, WorldDir3);
-		View->DeprojectFVector2D(Point4, BoxPoint4, WorldDir4);
+		// extend the 2D box of 1 pixel if needed to avoid degenerated volume 
+		const double DX = Start.X == End.X ? 0.5 : 0.0;
+		const double Left = FMath::Min(Start.X, End.X) - DX;
+		const double Right = FMath::Max(Start.X, End.X) + DX;
+		const double DY = Start.Y == End.Y ? 0.5 : 0.0;
+		const double Bottom = FMath::Min(Start.Y, End.Y) - DY;
+		const double Top = FMath::Max(Start.Y, End.Y) + DY;
+		// Deproject the four corners of the selection box		
+		FVector2D Point1(Left, Bottom); // Upper Left Corner
+		FVector2D Point2(Right, Bottom); // Upper Right Corner
+		FVector2D Point3(Right, Top); // Lower Right Corner
+		FVector2D Point4(Left, Top); // Lower Left Corner
+		InView->DeprojectFVector2D(Point1, BoxPoint1, WorldDir1);
+		InView->DeprojectFVector2D(Point2, BoxPoint2, WorldDir2);
+		InView->DeprojectFVector2D(Point3, BoxPoint3, WorldDir3);
+		InView->DeprojectFVector2D(Point4, BoxPoint4, WorldDir4);
 		// Use the camera position and the selection box to create the bounding planes
 		FPlane TopPlane(BoxPoint1, BoxPoint2, CamPoint); // Top Plane
 		FPlane RightPlane(BoxPoint2, BoxPoint3, CamPoint); // Right Plane
@@ -309,11 +316,11 @@ void FDragTool_ActorFrustumSelect::CalculateFrustum( FSceneView* View, FConvexVo
 		OutFrustum.Planes.Add(RightPlane);
 		OutFrustum.Planes.Add(BottomPlane);
 		OutFrustum.Planes.Add(LeftPlane);
-		if ( View->ViewMatrices.GetViewProjectionMatrix().GetFrustumNearPlane(NearPlane) )
+		if ( InView->ViewMatrices.GetViewProjectionMatrix().GetFrustumNearPlane(NearPlane) )
 		{
 			OutFrustum.Planes.Add(NearPlane);
 		}
-		if ( View->ViewMatrices.GetViewProjectionMatrix().GetFrustumFarPlane(FarPlane) )
+		if ( InView->ViewMatrices.GetViewProjectionMatrix().GetFrustumFarPlane(FarPlane) )
 		{
 			OutFrustum.Planes.Add(FarPlane);
 		}
@@ -321,7 +328,7 @@ void FDragTool_ActorFrustumSelect::CalculateFrustum( FSceneView* View, FConvexVo
 	}
 	else
 	{
-		OutFrustum = View->ViewFrustum;
+		OutFrustum = InView->ViewFrustum;
 		OutFrustum.Init();
 	}
 }

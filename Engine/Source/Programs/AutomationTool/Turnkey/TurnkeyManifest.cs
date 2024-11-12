@@ -170,10 +170,17 @@ namespace Turnkey
 				// also manually create local "FileSource" objects specified via code
 				foreach (UnrealTargetPlatform Platform in UnrealTargetPlatform.GetValidPlatforms())
 				{
-					// this is usually going to be empty
+					// these are usually going to be empty
 					foreach (string SpecifiedVersion in AutomationTool.Platform.GetPlatform(Platform).GetCodeSpecifiedSdkVersions())
 					{
 						FileSource CodeSource = FileSource.CreateCodeSpecifiedSource($"{Platform} SDK {SpecifiedVersion}", SpecifiedVersion, Platform);
+						DiscoveredFileSources.Add(CodeSource);
+					}
+
+					foreach(string SpecifiedVersion in AutomationTool.Platform.GetPlatform(Platform).GetCodeSpecifiedDeviceSoftwareUpdateVersions())
+					{
+						FileSource CodeSource = FileSource.CreateCodeSpecifiedSource($"{Platform} Device Software/Flash {SpecifiedVersion}", SpecifiedVersion, Platform);
+						CodeSource.Type = FileSource.SourceType.Flash;
 						DiscoveredFileSources.Add(CodeSource);
 					}
 				}

@@ -89,7 +89,7 @@ namespace Metasound
 				bool bSuccess = true;
 				FMetasoundFrontendGraphClass SubgraphCopy(InGraphToCopy);
 
-				for (FMetasoundFrontendNode& Node : SubgraphCopy.Graph.Nodes)
+				for (FMetasoundFrontendNode& Node : SubgraphCopy.GetDefaultGraph().Nodes)
 				{
 					const FGuid OriginalClassID = Node.ClassID;
 
@@ -383,7 +383,7 @@ namespace Metasound
 								UE_LOG(LogMetaSound, Error,
 									TEXT("Cannot add external dependency. No Metasound class found with matching registry key [Key:%s, Name:%s, Version:%s]. Suggested solution \"%s\" by %s."),
 									*Key.ToString(),
-									*InMetadata.GetClassName().GetFullName().ToString(),
+									*InMetadata.GetClassName().ToString(),
 									*InMetadata.GetVersion().ToString(),
 									*InMetadata.GetPromptIfMissing().ToString(),
 									*InMetadata.GetAuthor());
@@ -391,7 +391,7 @@ namespace Metasound
 								UE_LOG(LogMetaSound, Error,
 									TEXT("Cannot add external dependency. No Metasound class found with matching registry key [Key:%s, Name:%s, Version:%s]."),
 									*Key.ToString(),
-									*InMetadata.GetClassName().GetFullName().ToString(),
+									*InMetadata.GetClassName().ToString(),
 									*InMetadata.GetVersion().ToString());
 #endif // !WITH_EDITOR
 							}
@@ -403,7 +403,7 @@ namespace Metasound
 							FMetasoundFrontendGraphClass NewClass;
 							NewClass.ID = FGuid::NewGuid();
 							NewClass.Metadata = InMetadata;
-
+							NewClass.InitDefaultGraphPage();
 							Document->Subgraphs.Add(NewClass);
 						}
 						break;
@@ -412,7 +412,7 @@ namespace Metasound
 						{
 							UE_LOG(LogMetaSound, Error, TEXT(
 								"Unsupported metasound class type for node: \"%s\" (%s)."),
-								*InMetadata.GetClassName().GetFullName().ToString(),
+								*InMetadata.GetClassName().ToString(),
 								*InMetadata.GetVersion().ToString());
 							checkNoEntry();
 						}
@@ -436,23 +436,25 @@ namespace Metasound
 				do
 				{
 					TSet<FGuid> ReferencedDependencyIDs;
-					auto AddNodeClassIDToSet = [&](const FMetasoundFrontendNode& Node)
+					auto AddGraphNodeClassIDsToSet = [&ReferencedDependencyIDs](const FMetasoundFrontendGraphClass& GraphClass)
 					{
-						ReferencedDependencyIDs.Add(Node.ClassID);
+						GraphClass.IterateGraphPages([&ReferencedDependencyIDs](const FMetasoundFrontendGraph& Graph)
+						{
+							auto AddNodeClassIDToSet = [&ReferencedDependencyIDs](const FMetasoundFrontendNode& Node)
+							{
+								ReferencedDependencyIDs.Add(Node.ClassID);
+							};
+							Algo::ForEach(Graph.Nodes, AddNodeClassIDToSet);
+						});
 					};
 
-					auto AddGraphNodeClassIDsToSet = [&](const FMetasoundFrontendGraphClass& GraphClass)
-					{
-						Algo::ForEach(GraphClass.Graph.Nodes, AddNodeClassIDToSet);
-					};
+					// Referenced dependencies in RootGraph
+					AddGraphNodeClassIDsToSet(Document->RootGraph);
 
-					// Referenced dependencies in root class
-					Algo::ForEach(Document->RootGraph.Graph.Nodes, AddNodeClassIDToSet);
-
-					// Referenced dependencies in subgraphs
+					// Referenced dependencies in Subgraphs
 					Algo::ForEach(Document->Subgraphs, AddGraphNodeClassIDsToSet);
 
-					auto IsDependencyUnreferenced = [&](const FMetasoundFrontendClass& ClassDependency)
+					auto IsDependencyUnreferenced = [&ReferencedDependencyIDs](const FMetasoundFrontendClass& ClassDependency)
 					{
 						return !ReferencedDependencyIDs.Contains(ClassDependency.ID);
 					};

@@ -40,7 +40,7 @@ namespace Metasound::Test::Generator::Dynamic
 			BuilderSettings.bEnableOperatorRebind = true;
 
 			FMetasoundEnvironment Environment;
-			Environment.SetValue<uint64>(Frontend::SourceInterface::Environment::TransmitterID, 123);
+			Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, 123);
 			
 			FMetasoundDynamicGraphGeneratorInitParams InitParams
 			{
@@ -54,7 +54,7 @@ namespace Metasound::Test::Generator::Dynamic
 					{},
 					true
 				},
-				Transactor.CreateTransformQueue(OperatorSettings, Environment) // Create transaction queue
+				Transactor.CreateTransformQueue(OperatorSettings, Environment, nullptr) // Create transaction queue
 			};
 			
 			Generator.Init(MoveTemp(InitParams));
@@ -158,9 +158,16 @@ namespace Metasound::Test::Generator::Dynamic
 
 		// Register for vertex interface updates
 		FVertexInterfaceData LatestInterfaceData;
+		TArray<FVertexInterfaceChange> LatestInterfaceChanges;
+
 		GeneratorBuilder.Generator.OnVertexInterfaceDataUpdated.AddLambda([&LatestInterfaceData](FVertexInterfaceData VertexInterfaceData)
 		{
 			LatestInterfaceData = MoveTemp(VertexInterfaceData);
+		});
+
+		GeneratorBuilder.Generator.OnVertexInterfaceDataUpdatedWithChanges.AddLambda([&LatestInterfaceChanges](const TArray<FVertexInterfaceChange>& VertexInterfaceChanges)
+		{
+			LatestInterfaceChanges = VertexInterfaceChanges;
 		});
 
 		// Add an input
@@ -180,6 +187,16 @@ namespace Metasound::Test::Generator::Dynamic
 			const float* Value = InputRef->GetValue<float>();
 			UTEST_NOT_NULL("Value exists", Value);
 			UTEST_EQUAL("Value is default", *Value, DefaultValue);
+
+			// Check that the change was tracked
+			const TArray<FVertexInterfaceChange> InputChanges = LatestInterfaceChanges.FilterByPredicate([InputName](const FVertexInterfaceChange& Other)
+				{
+					return Other.VertexName.IsEqual(InputName);
+				});
+			UTEST_EQUAL("There is only one expected change with our Input", InputChanges.Num(), 1);
+			UTEST_EQUAL("Input addition is for the right Vertex", InputChanges[0].VertexName, InputName);
+			UTEST_EQUAL("Input addition is for the right Vertex type", InputChanges[0].VertexType, EMetasoundFrontendClassType::Input);
+			UTEST_EQUAL("Input addition is the Added type", InputChanges[0].ChangeType, Metasound::EVertexInterfaceChangeType::Added);
 		}
 
 		// Remove the input
@@ -191,6 +208,13 @@ namespace Metasound::Test::Generator::Dynamic
 			// Check that the input actually got removed
 			const FAnyDataReference* InputRef = LatestInterfaceData.GetInputs().FindDataReference(InputName);
 			UTEST_NULL("Vertex data does not contain input", InputRef);
+
+			// Check that the change was tracked
+			UTEST_EQUAL("Input removal is present in changes", LatestInterfaceChanges.Num(), 1);
+			const FVertexInterfaceChange LastChange = LatestInterfaceChanges.Last();
+			UTEST_EQUAL("Input removal is for the right Vertex", LastChange.VertexName, InputName);
+			UTEST_EQUAL("Input removal is for the right Vertex type", LastChange.VertexType, EMetasoundFrontendClassType::Input);
+			UTEST_EQUAL("Input removal is the Removed type", LastChange.ChangeType, Metasound::EVertexInterfaceChangeType::Removed);
 		}
 
 		// Add an output
@@ -205,6 +229,13 @@ namespace Metasound::Test::Generator::Dynamic
 			// check that the output actually got added
 			const FAnyDataReference* OutputRef = LatestInterfaceData.GetOutputs().FindDataReference(OutputName);
 			UTEST_NOT_NULL("Vertex data contains output", OutputRef);
+
+			// Check that the change was tracked
+			UTEST_EQUAL("Output addition is present in changes", LatestInterfaceChanges.Num(), 1);
+			const FVertexInterfaceChange LastChange = LatestInterfaceChanges.Last();
+			UTEST_EQUAL("Output addition is for the right Vertex", LastChange.VertexName, OutputName);
+			UTEST_EQUAL("Output addition is for the right Vertex type", LastChange.VertexType, EMetasoundFrontendClassType::Output);
+			UTEST_EQUAL("Output addition is the Removed type", LastChange.ChangeType, Metasound::EVertexInterfaceChangeType::Added);
 		}
 
 		// Remove the output
@@ -216,6 +247,13 @@ namespace Metasound::Test::Generator::Dynamic
 			// Check that the output actually got removed
 			const FAnyDataReference* OutputRef = LatestInterfaceData.GetOutputs().FindDataReference(OutputName);
 			UTEST_NULL("Vertex data does not contain output", OutputRef);
+
+			// Check that the change was tracked
+			UTEST_EQUAL("Output removal is present in changes", LatestInterfaceChanges.Num(), 1);
+			const FVertexInterfaceChange LastChange = LatestInterfaceChanges.Last();
+			UTEST_EQUAL("Output removal is for the right Vertex", LastChange.VertexName, OutputName);
+			UTEST_EQUAL("Output removal is for the right Vertex type", LastChange.VertexType, EMetasoundFrontendClassType::Output);
+			UTEST_EQUAL("Output removal is the Removed type", LastChange.ChangeType, Metasound::EVertexInterfaceChangeType::Removed);
 		}
 		
 		return true;

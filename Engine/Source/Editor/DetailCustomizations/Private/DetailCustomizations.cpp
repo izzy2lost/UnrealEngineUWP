@@ -5,6 +5,7 @@
 #include "AIDataProviderValueDetails.h"
 #include "ActorComponentDetails.h"
 #include "ActorDetails.h"
+#include "AdvancedWidgetsModule.h"
 #include "AmbientSoundDetails.h"
 #include "AnimMontageSegmentDetails.h"
 #include "AnimSequenceDetails.h"
@@ -49,6 +50,7 @@
 #include "DataTableCustomization.h"
 #include "DateTimeStructCustomization.h"
 #include "DebugCameraControllerSettingsCustomization.h"
+#include "DecalComponentDetails.h"
 #include "Delegates/Delegate.h"
 #include "DeviceProfileDetails.h"
 #include "DialogueStructsCustomizations.h"
@@ -130,6 +132,7 @@
 #include "SceneCaptureDetails.h"
 #include "SceneComponentDetails.h"
 #include "SkeletalControlNodeDetails.h"
+#include "SkeletalMeshDetails.h"
 #include "SkeletalMeshComponentDetails.h"
 #include "SkeletalMeshLODSettingsDetails.h"
 #include "SkeletalMeshReductionSettingsDetails.h"
@@ -140,7 +143,6 @@
 #include "SlateSoundCustomization.h"
 #include "SoftClassPathCustomization.h"
 #include "SoftObjectPathCustomization.h"
-#include "SoundBaseDetails.h"
 #include "Sound/SoundNodeDistanceCrossFade.h"
 #include "SoundSourceBusDetails.h"
 #include "SoundWaveDetails.h"
@@ -171,6 +173,9 @@ IMPLEMENT_MODULE( FDetailCustomizationsModule, DetailCustomizations );
 
 void FDetailCustomizationsModule::StartupModule()
 {
+	// Load widgets (e.g. ColorGradingWheel) that some customizations depend on
+	FModuleManager::Get().LoadModuleChecked<FAdvancedWidgetsModule>("AdvancedWidgets");
+
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	
 	RegisterPropertyTypeCustomizations();
@@ -210,6 +215,30 @@ void FDetailCustomizationsModule::ShutdownModule()
 	
 		PropertyModule.NotifyCustomizationModuleChanged();
 	}
+}
+
+void FDetailCustomizationsModule::RegisterDevelopmentStatusWarningSupression(FName ClassName)
+{
+	SuppressedDevelopmentStatusWarnings.Add(ClassName);
+}
+
+void FDetailCustomizationsModule::UnregisterDevelopmentStatusWarningSupression(FName ClassName)
+{
+	SuppressedDevelopmentStatusWarnings.Remove(ClassName);
+}
+
+bool FDetailCustomizationsModule::IsDevelopmentStatusWarningSupressed(const UClass* Class) const
+{
+	const UClass* ClassCursor = Class;
+	while(ClassCursor)
+	{
+		if (SuppressedDevelopmentStatusWarnings.Contains(ClassCursor->GetFName()))
+		{
+			return true;
+		}
+		ClassCursor = ClassCursor->GetSuperClass();
+	}
+	return false;
 }
 
 /** Helper that will flag this struct name as supporting the UIMin and UIMax meta data types */
@@ -332,7 +361,6 @@ void FDetailCustomizationsModule::RegisterPropertyTypeCustomizations()
 	RegisterCustomPropertyTypeLayout("CameraFocusSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FCameraFocusSettingsCustomization::MakeInstance));
 	RegisterCustomPropertyTypeLayout("MovieSceneSequenceLoopCount", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneSequenceLoopCountCustomization::MakeInstance));
 	RegisterCustomPropertyTypeLayout("MovieSceneBindingOverrideData", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneBindingOverrideDataCustomization::MakeInstance));
-	RegisterCustomPropertyTypeLayout("MovieSceneTrackEvalOptions", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneTrackEvalOptionsCustomization::MakeInstance));
 	RegisterCustomPropertyTypeLayout("MovieSceneSectionEvalOptions", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneSectionEvalOptionsCustomization::MakeInstance));
 	RegisterCustomPropertyTypeLayout("MovieSceneEventParameters", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneEventParametersCustomization::MakeInstance));
 	RegisterCustomPropertyTypeLayout("FrameRate", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FFrameRateCustomization::MakeInstance));
@@ -408,7 +436,6 @@ void FDetailCustomizationsModule::RegisterObjectCustomizations()
 	RegisterCustomClassLayout("PoseAsset", FOnGetDetailCustomizationInstance::CreateStatic(&FPoseAssetDetails::MakeInstance));
 	RegisterCustomClassLayout("AnimationAsset", FOnGetDetailCustomizationInstance::CreateStatic(&FAnimationAssetDetails::MakeInstance));
 
-	RegisterCustomClassLayout("SoundBase", FOnGetDetailCustomizationInstance::CreateStatic(&FSoundBaseDetails::MakeInstance));
 	RegisterCustomClassLayout("SoundSourceBus", FOnGetDetailCustomizationInstance::CreateStatic(&FSoundSourceBusDetails::MakeInstance));
 	RegisterCustomClassLayout("DialogueWave", FOnGetDetailCustomizationInstance::CreateStatic(&FDialogueWaveDetails::MakeInstance));
 	RegisterCustomClassLayout("SoundWave", FOnGetDetailCustomizationInstance::CreateStatic(&FSoundWaveDetails::MakeInstance));
@@ -463,7 +490,7 @@ void FDetailCustomizationsModule::RegisterObjectCustomizations()
 	RegisterCustomClassLayout("MaterialExpressionTextureBase", FOnGetDetailCustomizationInstance::CreateStatic(&FMaterialExpressionTextureBaseDetails::MakeInstance));
 	RegisterCustomClassLayout("MaterialInstanceDynamic", FOnGetDetailCustomizationInstance::CreateStatic(&FMaterialInstanceDynamicDetails::MakeInstance));
 	RegisterCustomClassLayout("SkeletalMeshLODSettings", FOnGetDetailCustomizationInstance::CreateStatic(&FSkeletalMeshLODSettingsDetails::MakeInstance));
-
+	RegisterCustomClassLayout("SkeletalMesh", FOnGetDetailCustomizationInstance::CreateStatic(&FSkeletalMeshDetails::MakeInstance));
 	RegisterCustomClassLayout("Skeleton", FOnGetDetailCustomizationInstance::CreateStatic(&FSkeletonDetails::MakeInstance));
 
 	RegisterCustomClassLayout("MotionControllerComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FMotionControllerDetails::MakeInstance));
@@ -475,6 +502,8 @@ void FDetailCustomizationsModule::RegisterObjectCustomizations()
 	RegisterCustomClassLayout("BoundsCopyComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FBoundsCopyComponentDetailsCustomization::MakeInstance));
 
 	RegisterCustomClassLayout("SoundNodeDistanceCrossFade", FOnGetDetailCustomizationInstance::CreateStatic(&FCrossFadeCustomization::MakeInstance));
+	
+	RegisterCustomClassLayout("DecalComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FDecalComponentDetails::MakeInstance));
 }
 
 #define LOCTEXT_NAMESPACE "DetailsSections"
@@ -604,6 +633,11 @@ void FDetailCustomizationsModule::RegisterSectionMappings()
 		{
 			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("StaticMeshComponent", "Misc", LOCTEXT("Misc", "Misc"));
 			Section->AddCategory("Navigation");
+		}
+
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("MeshComponent", "Rendering", LOCTEXT("Rendering", "Rendering"));
+			Section->AddCategory("Mesh Painting");
 		}
 	}
 

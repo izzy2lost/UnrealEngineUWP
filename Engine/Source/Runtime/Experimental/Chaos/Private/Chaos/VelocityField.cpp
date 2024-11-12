@@ -12,7 +12,7 @@ static_assert(sizeof(ispc::FIntVector) == sizeof(Chaos::TVec3<int32>), "sizeof(i
 #endif
 
 #if INTEL_ISPC && !UE_BUILD_SHIPPING
-bool bChaos_VelocityField_ISPC_Enabled = true;
+bool bChaos_VelocityField_ISPC_Enabled = CHAOS_VELOCITY_FIELD_ISPC_ENABLED_DEFAULT;
 FAutoConsoleVariableRef CVarChaosVelocityFieldISPCEnabled(TEXT("p.Chaos.VelocityField.ISPC"), bChaos_VelocityField_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in velocity field calculations"));
 #endif
 
@@ -44,10 +44,40 @@ void FVelocityAndPressureField::SetProperties(
 				TConstArrayView<TVec3<int32>>(Elements),
 				Offset,
 				NumParticles);
+
+			if (OuterDragIndex == INDEX_NONE)
+			{
+				// OuterDrag is not specified, so it should match Drag.
+				OuterDrag = Drag;
+			}
 		}
 		else
 		{
 			Drag.SetWeightedValue(WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient));
+			if (OuterDragIndex == INDEX_NONE)
+			{
+				// OuterDrag is not specified, so it should match Drag.
+				OuterDrag.SetWeightedValue(WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient));
+			}
+		}
+	}
+
+	if (IsOuterDragMutable(PropertyCollection))
+	{
+		const FSolverVec2 WeightedValue(GetWeightedFloatOuterDrag(PropertyCollection));
+		if (IsOuterDragStringDirty(PropertyCollection))
+		{
+			const FString& WeightMapName = GetOuterDragString(PropertyCollection);
+			OuterDrag = FPBDFlatWeightMap(
+				WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient),
+				Weightmaps.FindRef(WeightMapName),
+				TConstArrayView<TVec3<int32>>(Elements),
+				Offset,
+				NumParticles);
+		}
+		else
+		{
+			OuterDrag.SetWeightedValue(WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient));
 		}
 	}
 
@@ -64,10 +94,41 @@ void FVelocityAndPressureField::SetProperties(
 				TConstArrayView<TVec3<int32>>(Elements),
 				Offset,
 				NumParticles);
+
+			if (OuterLiftIndex == INDEX_NONE)
+			{
+				// OuterLift is not specified, so it should match Lift.
+				OuterLift = Lift;
+			}
 		}
 		else
 		{
 			Lift.SetWeightedValue(WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient));
+			if (OuterLiftIndex == INDEX_NONE)
+			{
+				// OuterLift is not specified, so it should match Lift.
+				OuterLift.SetWeightedValue(WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient));
+			}
+		}
+	}
+
+	if (IsOuterLiftMutable(PropertyCollection))
+	{
+		const FSolverVec2 WeightedValue(GetWeightedFloatOuterLift(PropertyCollection));
+
+		if (IsOuterLiftStringDirty(PropertyCollection))
+		{
+			const FString& WeightMapName = GetOuterLiftString(PropertyCollection);
+			OuterLift = FPBDFlatWeightMap(
+				WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient),
+				Weightmaps.FindRef(WeightMapName),
+				TConstArrayView<TVec3<int32>>(Elements),
+				Offset,
+				NumParticles);
+		}
+		else
+		{
+			OuterLift.SetWeightedValue(WeightedValue.ClampAxes(MinCoefficient, MaxCoefficient));
 		}
 	}
 
@@ -105,22 +166,42 @@ void FVelocityAndPressureField::SetPropertiesAndWind(
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	FSolverReal WorldScale,
 	bool bEnableAerodynamics,
-	const FSolverVec3& SolverWind)
+	const FSolverVec3& SolverWind,
+	const FRotation3& LocalSpaceRotation,
+	const FRotation3& ReferenceSpaceRotation)
 {
 	SetProperties(PropertyCollection, WeightMaps, WorldScale, bEnableAerodynamics);
-	const FSolverVec3 WindVelocity = WindVelocityIndex != INDEX_NONE ? WorldScale * FSolverVec3(GetWindVelocity(PropertyCollection)) : FSolverVec3(0.f);
+
+	FSolverVec3 WindVelocity = WindVelocityIndex != INDEX_NONE ? WorldScale * FSolverVec3(GetWindVelocity(PropertyCollection)) : FSolverVec3(0.f);
+	const EChaosSoftsSimulationSpace WindVelocitySpace = WindVelocitySpaceIndex != INDEX_NONE ? (EChaosSoftsSimulationSpace)GetWindVelocitySpace(PropertyCollection) : DefaultWindVelocitySpace;
+	switch (WindVelocitySpace)
+	{
+	case EChaosSoftsSimulationSpace::WorldSpace:
+	default:
+		break;
+	case EChaosSoftsSimulationSpace::ComponentSpace:
+		WindVelocity = ((Softs::FSolverRotation3)LocalSpaceRotation).RotateVector(WindVelocity);
+		break;
+	case EChaosSoftsSimulationSpace::ReferenceBoneSpace:
+		WindVelocity = ((Softs::FSolverRotation3)ReferenceSpaceRotation).RotateVector(WindVelocity);
+		break;
+	}
 	SetVelocity(WindVelocity + SolverWind);
 }
 
 void FVelocityAndPressureField::SetProperties(
 	const FSolverVec2& InDrag,
+	const FSolverVec2& InOuterDrag,
 	const FSolverVec2& InLift,
+	const FSolverVec2& InOuterLift,
 	const FSolverReal FluidDensity,
 	const FSolverVec2& InPressure,
 	FSolverReal WorldScale)
 {
 	Drag.SetWeightedValue(InDrag.ClampAxes(MinCoefficient, MaxCoefficient));
+	OuterDrag.SetWeightedValue(InOuterDrag.ClampAxes(MinCoefficient, MaxCoefficient));
 	Lift.SetWeightedValue(InLift.ClampAxes(MinCoefficient, MaxCoefficient));
+	OuterLift.SetWeightedValue(InOuterLift.ClampAxes(MinCoefficient, MaxCoefficient));
 	Pressure.SetWeightedValue(InPressure / WorldScale);
 	Rho = FMath::Max(FluidDensity / FMath::Cube(WorldScale), (FSolverReal)0.);
 
@@ -136,17 +217,27 @@ void FVelocityAndPressureField::SetGeometry(
 {
 	// Reinit indices
 	DragIndex = FDragIndex(PropertyCollection);
+	OuterDragIndex = FOuterDragIndex(PropertyCollection);
 	LiftIndex = FLiftIndex(PropertyCollection);
+	OuterLiftIndex = FOuterLiftIndex(PropertyCollection);
 	FluidDensityIndex = FFluidDensityIndex(PropertyCollection);
 	PressureIndex = FPressureIndex(PropertyCollection);
 
 	// Reset geometry, properties, and weight maps
 	SetGeometry(TriangleMesh);
+	// If these properties don't exist, set their values to 0, not to DefaultCoefficients!
+	const FSolverVec2 DragValue = FSolverVec2(GetWeightedFloatDrag(PropertyCollection, 0.f));
+	const FSolverVec2 LiftValue = FSolverVec2(GetWeightedFloatLift(PropertyCollection, 0.f));
+	// OuterDrag and OuterLift default to Drag and Lift respectively.
+	const FSolverVec2 OuterDragValue = FSolverVec2(GetWeightedFloatOuterDrag(PropertyCollection, DragValue));
+	const FSolverVec2 OuterLiftValue = FSolverVec2(GetWeightedFloatOuterLift(PropertyCollection, LiftValue));
 	SetProperties(
-		FSolverVec2(GetWeightedFloatDrag(PropertyCollection, 0.f)),  // If these properties don't exist, set their values to 0, not to DefaultCoefficients!
-		FSolverVec2(GetWeightedFloatLift(PropertyCollection, 0.f)),
+		DragValue,
+		OuterDragValue,
+		LiftValue,
+		OuterLiftValue,
 		(FSolverReal)GetFluidDensity(PropertyCollection, 0.f),
-		FSolverVec2(GetWeightedFloatPressure(PropertyCollection, 0.f)),  // These getters also initialize the property indices, so keep before SetMultipliers
+		FSolverVec2(GetWeightedFloatPressure(PropertyCollection, 0.f)),
 		WorldScale);
 	SetMultipliers(PropertyCollection, Weightmaps);
 	ResetColor();
@@ -155,11 +246,13 @@ void FVelocityAndPressureField::SetGeometry(
 void FVelocityAndPressureField::SetGeometry(
 	const FTriangleMesh* TriangleMesh,
 	const TConstArrayView<FRealSingle>& DragMultipliers,
+	const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 	const TConstArrayView<FRealSingle>& LiftMultipliers,
+	const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 	const TConstArrayView<FRealSingle>& PressureMultipliers)
 {
 	SetGeometry(TriangleMesh);
-	SetMultipliers(DragMultipliers, LiftMultipliers, PressureMultipliers);
+	SetMultipliers(DragMultipliers, OuterDragMultipliers, LiftMultipliers, OuterLiftMultipliers, PressureMultipliers);
 	ResetColor();
 }
 
@@ -280,27 +373,48 @@ void FVelocityAndPressureField::SetMultipliers(
 {
 	const TConstArrayView<FRealSingle> DragMultipliers = (DragIndex != INDEX_NONE) ?
 		Weightmaps.FindRef(GetDragString(PropertyCollection)) : TConstArrayView<FRealSingle>();
-
+	const TConstArrayView<FRealSingle> OuterDragMultipliers = (OuterDragIndex != INDEX_NONE) ?
+		Weightmaps.FindRef(GetOuterDragString(PropertyCollection)) : DragMultipliers; // OuterDrag defaults to Drag
 	const TConstArrayView<FRealSingle> LiftMultipliers = (LiftIndex != INDEX_NONE) ?
 		Weightmaps.FindRef(GetLiftString(PropertyCollection)) : TConstArrayView<FRealSingle>();
-
+	const TConstArrayView<FRealSingle> OuterLiftMultipliers = (OuterLiftIndex != INDEX_NONE) ?
+		Weightmaps.FindRef(GetOuterLiftString(PropertyCollection)) : LiftMultipliers; // OuterLift defaults to Lift
 	const TConstArrayView<FRealSingle> PressureMultipliers = (PressureIndex != INDEX_NONE) ?
 		Weightmaps.FindRef(GetPressureString(PropertyCollection)) : TConstArrayView<FRealSingle>();
 
-	SetMultipliers(DragMultipliers, LiftMultipliers, PressureMultipliers);
+	SetMultipliers(DragMultipliers, OuterDragMultipliers, LiftMultipliers, OuterLiftMultipliers, PressureMultipliers);
 }
 
 void FVelocityAndPressureField::SetMultipliers(
 	const TConstArrayView<FRealSingle>& DragMultipliers,
+	const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 	const TConstArrayView<FRealSingle>& LiftMultipliers,
+	const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 	const TConstArrayView<FRealSingle>& PressureMultipliers)
 {	
 	const FSolverVec2 DragValues(Drag.GetLow(), Drag.GetHigh());
+	const FSolverVec2 OuterDragValues(OuterDrag.GetLow(), OuterDrag.GetHigh());
 	const FSolverVec2 LiftValues(Lift.GetLow(), Lift.GetHigh());
+	const FSolverVec2 OuterLiftValues(OuterLift.GetLow(), OuterLift.GetHigh());
 	const FSolverVec2 PressureValues(Pressure.GetLow(), Pressure.GetHigh());
 	Drag = FPBDFlatWeightMap(DragValues, DragMultipliers, TConstArrayView<TVec3<int32>>(Elements), Offset, NumParticles);
+	OuterDrag = FPBDFlatWeightMap(OuterDragValues, OuterDragMultipliers, TConstArrayView<TVec3<int32>>(Elements), Offset, NumParticles);
 	Lift = FPBDFlatWeightMap(LiftValues, LiftMultipliers, TConstArrayView<TVec3<int32>>(Elements), Offset, NumParticles);
+	OuterLift = FPBDFlatWeightMap(OuterLiftValues, OuterLiftMultipliers, TConstArrayView<TVec3<int32>>(Elements), Offset, NumParticles);
+
 	Pressure = FPBDFlatWeightMap(PressureValues, PressureMultipliers, TConstArrayView<TVec3<int32>>(Elements), Offset, NumParticles);
+}
+
+FSolverVec3 FVelocityAndPressureField::CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex) const
+{
+	if (Private::VelocityFieldMaxVelocity <= 0.f)
+	{
+		return CalculateForce(Xs, Vs, ElementIndex, Velocity, Drag.GetValue(ElementIndex), OuterDrag.GetValue(ElementIndex), Lift.GetValue(ElementIndex), OuterLift.GetValue(ElementIndex), Pressure.GetValue(ElementIndex));
+	}
+	else
+	{
+		return CalculateForce(Xs, Vs, ElementIndex, Velocity, Drag.GetValue(ElementIndex), OuterDrag.GetValue(ElementIndex), Lift.GetValue(ElementIndex), OuterLift.GetValue(ElementIndex), Pressure.GetValue(ElementIndex), FMath::Square((FSolverReal)Private::VelocityFieldMaxVelocity));
+	}
 }
 
 void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles, const FSolverReal /*Dt*/)
@@ -309,9 +423,11 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 	const FSolverReal MaxVelocitySquared = (Private::VelocityFieldMaxVelocity > 0.f) ? FMath::Square((FSolverReal)Private::VelocityFieldMaxVelocity) : TNumericLimits<FSolverReal>::Max();
 
 	const bool bDragHasMap = Drag.HasWeightMap();
+	const bool bOuterDragHasMap = OuterDrag.HasWeightMap();
 	const bool bLiftHasMap = Lift.HasWeightMap();
+	const bool bOuterLiftHasMap = OuterLift.HasWeightMap();
 	const bool bPressureHasMap = Pressure.HasWeightMap();
-	if (!bDragHasMap && !bLiftHasMap && !bPressureHasMap)
+	if (!bDragHasMap && !bOuterDragHasMap && !bLiftHasMap && !bOuterLiftHasMap && !bPressureHasMap)
 	{
 #if INTEL_ISPC
 		if (bRealTypeCompatibleWithISPC && bChaos_VelocityField_ISPC_Enabled)
@@ -326,7 +442,9 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 					(const ispc::FVector3f&)Velocity,
 					QuarterRho,
 					(FSolverReal)Drag,
+					(FSolverReal)OuterDrag,
 					(FSolverReal)Lift,
+					(FSolverReal)OuterLift,
 					(FSolverReal)Pressure,
 					Elements.Num());
 			}
@@ -340,7 +458,9 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 					(const ispc::FVector3f&)Velocity,
 					QuarterRho,
 					(FSolverReal)Drag,
+					(FSolverReal)OuterDrag,
 					(FSolverReal)Lift,
+					(FSolverReal)OuterLift,
 					(FSolverReal)Pressure,
 					Elements.Num(),
 					MaxVelocitySquared);
@@ -355,7 +475,9 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 				{
 					UpdateField(InParticles, ElementIndex, Velocity,
 						(FSolverReal)Drag,
+						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
+						(FSolverReal)OuterLift,
 						(FSolverReal)Pressure);
 				}
 			}
@@ -365,7 +487,9 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 				{
 					UpdateField(InParticles, ElementIndex, Velocity,
 						(FSolverReal)Drag,
+						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
+						(FSolverReal)OuterLift,
 						(FSolverReal)Pressure, MaxVelocitySquared);
 				}
 			}
@@ -388,9 +512,15 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 					bDragHasMap,
 					reinterpret_cast<const ispc::FVector2f&>(Drag.GetOffsetRange()),
 					bDragHasMap ? Drag.GetMapValues().GetData() : nullptr,
+					bOuterDragHasMap,
+					reinterpret_cast<const ispc::FVector2f&>(OuterDrag.GetOffsetRange()),
+					bOuterDragHasMap ? OuterDrag.GetMapValues().GetData() : nullptr,
 					bLiftHasMap,
 					reinterpret_cast<const ispc::FVector2f&>(Lift.GetOffsetRange()),
 					bLiftHasMap ? Lift.GetMapValues().GetData() : nullptr,
+					bOuterLiftHasMap,
+					reinterpret_cast<const ispc::FVector2f&>(OuterLift.GetOffsetRange()),
+					bOuterLiftHasMap ? OuterLift.GetMapValues().GetData() : nullptr,
 					bPressureHasMap,
 					reinterpret_cast<const ispc::FVector2f&>(Pressure.GetOffsetRange()),
 					bPressureHasMap ? Pressure.GetMapValues().GetData() : nullptr,
@@ -408,9 +538,15 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 					bDragHasMap,
 					reinterpret_cast<const ispc::FVector2f&>(Drag.GetOffsetRange()),
 					bDragHasMap ? Drag.GetMapValues().GetData() : nullptr,
+					bOuterDragHasMap,
+					reinterpret_cast<const ispc::FVector2f&>(OuterDrag.GetOffsetRange()),
+					bOuterDragHasMap ? OuterDrag.GetMapValues().GetData() : nullptr,
 					bLiftHasMap,
 					reinterpret_cast<const ispc::FVector2f&>(Lift.GetOffsetRange()),
 					bLiftHasMap ? Lift.GetMapValues().GetData() : nullptr,
+					bOuterLiftHasMap,
+					reinterpret_cast<const ispc::FVector2f&>(OuterLift.GetOffsetRange()),
+					bOuterLiftHasMap ? OuterLift.GetMapValues().GetData() : nullptr,
 					bPressureHasMap,
 					reinterpret_cast<const ispc::FVector2f&>(Pressure.GetOffsetRange()),
 					bPressureHasMap ? Pressure.GetMapValues().GetData() : nullptr,
@@ -425,22 +561,26 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverReal Cd = Drag.GetValue(ElementIndex);
-					const FSolverReal Cl = Lift.GetValue(ElementIndex);
+					const FSolverReal CdI = Drag.GetValue(ElementIndex);
+					const FSolverReal CdO = OuterDrag.GetValue(ElementIndex);
+					const FSolverReal ClI = Lift.GetValue(ElementIndex);
+					const FSolverReal ClO = OuterLift.GetValue(ElementIndex);
 					const FSolverReal Cp = Pressure.GetValue(ElementIndex);
 
-					UpdateField(InParticles, ElementIndex, Velocity, Cd, Cl, Cp);
+					UpdateField(InParticles, ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp);
 				}
 			}
 			else
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverReal Cd = Drag.GetValue(ElementIndex);
-					const FSolverReal Cl = Lift.GetValue(ElementIndex);
+					const FSolverReal CdI = Drag.GetValue(ElementIndex);
+					const FSolverReal CdO = OuterDrag.GetValue(ElementIndex);
+					const FSolverReal ClI = Lift.GetValue(ElementIndex);
+					const FSolverReal ClO = OuterLift.GetValue(ElementIndex);
 					const FSolverReal Cp = Pressure.GetValue(ElementIndex);
 
-					UpdateField(InParticles, ElementIndex, Velocity, Cd, Cl, Cp, MaxVelocitySquared);
+					UpdateField(InParticles, ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
 				}
 			}
 		}
@@ -453,9 +593,11 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 	const FSolverReal MaxVelocitySquared = (Private::VelocityFieldMaxVelocity > 0.f) ? FMath::Square((FSolverReal)Private::VelocityFieldMaxVelocity) : TNumericLimits<FSolverReal>::Max();
 
 	const bool bDragHasMap = Drag.HasWeightMap();
+	const bool bOuterDragHasMap = OuterDrag.HasWeightMap();
 	const bool bLiftHasMap = Lift.HasWeightMap();
+	const bool bOuterLiftHasMap = OuterLift.HasWeightMap();
 	const bool bPressureHasMap = Pressure.HasWeightMap();
-	if (!bDragHasMap && !bLiftHasMap && !bPressureHasMap)
+	if (!bDragHasMap && !bOuterDragHasMap && !bLiftHasMap && !bOuterLiftHasMap && !bPressureHasMap)
 	{
 #if INTEL_ISPC
 		if (bRealTypeCompatibleWithISPC && bChaos_VelocityField_ISPC_Enabled && ConstraintsPerColorStartIndex.Num() > 1)
@@ -476,7 +618,9 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 						(const ispc::FVector3f&)Velocity,
 						QuarterRho,
 						(FSolverReal)Drag,
+						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
+						(FSolverReal)OuterLift,
 						(FSolverReal)Pressure,
 						ColorSize);
 				}
@@ -496,7 +640,9 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 						(const ispc::FVector3f&)Velocity,
 						QuarterRho,
 						(FSolverReal)Drag,
+						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
+						(FSolverReal)OuterLift,
 						(FSolverReal)Pressure,
 						ColorSize,
 						MaxVelocitySquared);
@@ -510,9 +656,11 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity,
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity,
 						(FSolverReal)Drag,
+						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
+						(FSolverReal)OuterLift,
 						(FSolverReal)Pressure);
 					InParticles.Acceleration(Elements[ElementIndex][0]) += InParticles.InvM(Elements[ElementIndex][0]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][1]) += InParticles.InvM(Elements[ElementIndex][1]) * Force;
@@ -523,9 +671,11 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity,
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity,
 						(FSolverReal)Drag,
+						(FSolverReal)OuterDrag,
 						(FSolverReal)Lift,
+						(FSolverReal)OuterLift,
 						(FSolverReal)Pressure, MaxVelocitySquared);
 					InParticles.Acceleration(Elements[ElementIndex][0]) += InParticles.InvM(Elements[ElementIndex][0]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][1]) += InParticles.InvM(Elements[ElementIndex][1]) * Force;
@@ -557,9 +707,15 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 						bDragHasMap,
 						reinterpret_cast<const ispc::FVector2f&>(Drag.GetOffsetRange()),
 						bDragHasMap ? Drag.GetMapValues().GetData() : nullptr,
+						bOuterDragHasMap,
+						reinterpret_cast<const ispc::FVector2f&>(OuterDrag.GetOffsetRange()),
+						bOuterDragHasMap ? OuterDrag.GetMapValues().GetData() : nullptr,
 						bLiftHasMap,
 						reinterpret_cast<const ispc::FVector2f&>(Lift.GetOffsetRange()),
 						bLiftHasMap ? Lift.GetMapValues().GetData() : nullptr,
+						bOuterLiftHasMap,
+						reinterpret_cast<const ispc::FVector2f&>(OuterLift.GetOffsetRange()),
+						bOuterLiftHasMap ? OuterLift.GetMapValues().GetData() : nullptr,
 						bPressureHasMap,
 						reinterpret_cast<const ispc::FVector2f&>(Pressure.GetOffsetRange()),
 						bPressureHasMap ? Pressure.GetMapValues().GetData() : nullptr,
@@ -583,9 +739,15 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 						bDragHasMap,
 						reinterpret_cast<const ispc::FVector2f&>(Drag.GetOffsetRange()),
 						bDragHasMap ? Drag.GetMapValues().GetData() : nullptr,
+						bOuterDragHasMap,
+						reinterpret_cast<const ispc::FVector2f&>(OuterDrag.GetOffsetRange()),
+						bOuterDragHasMap ? OuterDrag.GetMapValues().GetData() : nullptr,
 						bLiftHasMap,
 						reinterpret_cast<const ispc::FVector2f&>(Lift.GetOffsetRange()),
 						bLiftHasMap ? Lift.GetMapValues().GetData() : nullptr,
+						bOuterLiftHasMap,
+						reinterpret_cast<const ispc::FVector2f&>(OuterLift.GetOffsetRange()),
+						bOuterLiftHasMap ? OuterLift.GetMapValues().GetData() : nullptr,
 						bPressureHasMap,
 						reinterpret_cast<const ispc::FVector2f&>(Pressure.GetOffsetRange()),
 						bPressureHasMap ? Pressure.GetMapValues().GetData() : nullptr,
@@ -601,11 +763,13 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverReal Cd = Drag.GetValue(ElementIndex);
-					const FSolverReal Cl = Lift.GetValue(ElementIndex);
+					const FSolverReal CdI = Drag.GetValue(ElementIndex);
+					const FSolverReal CdO = OuterDrag.GetValue(ElementIndex);
+					const FSolverReal ClI = Lift.GetValue(ElementIndex);
+					const FSolverReal ClO = OuterLift.GetValue(ElementIndex);
 					const FSolverReal Cp = Pressure.GetValue(ElementIndex);
 
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity, Cd, Cl, Cp);
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp);
 					InParticles.Acceleration(Elements[ElementIndex][0]) += InParticles.InvM(Elements[ElementIndex][0]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][1]) += InParticles.InvM(Elements[ElementIndex][1]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][2]) += InParticles.InvM(Elements[ElementIndex][2]) * Force;
@@ -615,11 +779,13 @@ void FVelocityAndPressureField::Apply(FSolverParticlesRange& InParticles, const 
 			{
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 				{
-					const FSolverReal Cd = Drag.GetValue(ElementIndex);
-					const FSolverReal Cl = Lift.GetValue(ElementIndex);
+					const FSolverReal CdI = Drag.GetValue(ElementIndex);
+					const FSolverReal CdO = OuterDrag.GetValue(ElementIndex);
+					const FSolverReal ClI = Lift.GetValue(ElementIndex);
+					const FSolverReal ClO = OuterLift.GetValue(ElementIndex);
 					const FSolverReal Cp = Pressure.GetValue(ElementIndex);
 
-					const FSolverVec3 Force = CalculateForce(InParticles, ElementIndex, Velocity, Cd, Cl, Cp, MaxVelocitySquared);
+					const FSolverVec3 Force = CalculateForce(InParticles.XArray(), InParticles.GetV(), ElementIndex, Velocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
 					InParticles.Acceleration(Elements[ElementIndex][0]) += InParticles.InvM(Elements[ElementIndex][0]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][1]) += InParticles.InvM(Elements[ElementIndex][1]) * Force;
 					InParticles.Acceleration(Elements[ElementIndex][2]) += InParticles.InvM(Elements[ElementIndex][2]) * Force;

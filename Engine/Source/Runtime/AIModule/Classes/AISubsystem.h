@@ -24,6 +24,7 @@ public:
 	AIMODULE_API UAISubsystem(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	AIMODULE_API virtual UWorld* GetWorld() const override;
+	AIMODULE_API virtual void BeginDestroy() override;
 
 	// FTickableGameObject begin
 	virtual UWorld* GetTickableGameObjectWorld() const override { return GetWorldFast(); }

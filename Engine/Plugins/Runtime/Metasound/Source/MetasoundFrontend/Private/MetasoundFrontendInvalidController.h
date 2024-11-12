@@ -364,7 +364,6 @@ namespace Metasound
 			virtual FConstClassOutputAccessPtr FindClassOutputWithName(const FVertexName& InName) const override { return FConstClassOutputAccessPtr(); }
 
 			virtual FNodeHandle AddInputVertex(const FMetasoundFrontendClassInput& InDescription) override { return INodeController::GetInvalidHandle(); }
-			virtual TSharedRef<INodeController> AddInputVertex(const FVertexName& InName, const FName InTypeName, const FMetasoundFrontendLiteral* InDefaultValue) override { return INodeController::GetInvalidHandle(); }
 			virtual bool RemoveInputVertex(const FVertexName& InputName) override { return false; }
 
 			virtual FNodeHandle AddOutputVertex(const FMetasoundFrontendClassOutput& InDescription) override { return INodeController::GetInvalidHandle(); }
@@ -413,6 +412,7 @@ namespace Metasound
 			virtual FNodeHandle AddNode(const FMetasoundFrontendClassMetadata& InNodeClass, FGuid InNodeGuid) override { return INodeController::GetInvalidHandle(); }
 			virtual FNodeHandle AddDuplicateNode(const INodeController& InNode) override { return INodeController::GetInvalidHandle(); }
 			virtual FNodeHandle AddTemplateNode(const FNodeRegistryKey& InNodeClass, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid) override { return INodeController::GetInvalidHandle(); }
+			virtual FNodeHandle AddTemplateNode(const INodeTemplate& InNodeTemplate, FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeGuid = FGuid::NewGuid()) override { return INodeController::GetInvalidHandle(); }
 
 			// Remove the node corresponding to this node handle.
 			// On success, invalidates the received node handle.
@@ -430,12 +430,15 @@ namespace Metasound
 
 			virtual FNodeHandle CreateEmptySubgraph(const FMetasoundFrontendClassMetadata& InInfo) override { return INodeController::GetInvalidHandle(); }
 
-			virtual TUniquePtr<IOperator> BuildOperator(const FOperatorSettings& InSettings, const FMetasoundEnvironment& InEnvironment, FBuildResults& OutBuildErrors) const override { return { }; }
-
 			virtual FDocumentHandle GetOwningDocument() override;
 			virtual FConstDocumentHandle GetOwningDocument() const override;
 
 			virtual void UpdateInterfaceChangeID() override { }
+
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName) const override { return nullptr; }
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID) const override { return nullptr; }
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName) const override { return nullptr; }
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID) const override { return nullptr; }
 
 		protected:
 			virtual FDocumentAccess ShareAccess() override { return FDocumentAccess(); }

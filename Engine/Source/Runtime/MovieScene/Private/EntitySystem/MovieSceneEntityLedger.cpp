@@ -7,6 +7,7 @@
 #include "EntitySystem/MovieSceneEntityMutations.h"
 
 #include "Evaluation/MovieSceneEvaluationField.h"
+#include "Conditions/MovieSceneCondition.h"
 
 #include "MovieSceneSection.h"
 
@@ -15,8 +16,14 @@ namespace UE
 namespace MovieScene
 {
 
-
 void FEntityLedger::UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities)
+{
+	FMovieSceneEvaluationFieldEntitySet OutConditionalEntities;
+	TMap<uint32, bool> ConditionResultCache;
+	UpdateEntities(Linker, ImportParams, EntityField, NewEntities, OutConditionalEntities, ConditionResultCache);
+}
+
+void FEntityLedger::UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities, FMovieSceneEvaluationFieldEntitySet& OutConditionalEntities, TMap<uint32, bool>& ConditionResultCache)
 {
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 	if (NewEntities.Num() != 0)
@@ -44,7 +51,7 @@ void FEntityLedger::UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const 
 		{
 			for (const FMovieSceneEvaluationFieldEntityQuery& Query : NewEntities)
 			{
-				ImportEntity(Linker, ImportParams, EntityField, Query);
+				ImportEntity(Linker, ImportParams, EntityField, Query, OutConditionalEntities, ConditionResultCache);
 			}
 		}
 		else for (const FMovieSceneEvaluationFieldEntityQuery& Query : NewEntities)
@@ -52,7 +59,7 @@ void FEntityLedger::UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const 
 			FImportedEntityData Existing = ImportedEntities.FindRef(Query.Entity.Key);
 			if (!Existing.EntityID || Existing.MetaDataIndex != Query.MetaDataIndex)
 			{
-				ImportEntity(Linker, ImportParams, EntityField, Query);
+				ImportEntity(Linker, ImportParams, EntityField, Query, OutConditionalEntities, ConditionResultCache);
 			}
 		}
 	}
@@ -67,6 +74,12 @@ void FEntityLedger::UpdateEntities(UMovieSceneEntitySystemLinker* Linker, const 
 
 void FEntityLedger::UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities)
 {
+	TMap<uint32, bool> ConditionResultCache;
+	UpdateOneShotEntities(Linker, ImportParams, EntityField, NewEntities, ConditionResultCache);
+}
+
+void FEntityLedger::UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& NewEntities, TMap<uint32, bool>& ConditionResultCache)
+{
 	checkf(OneShotEntities.Num() == 0, TEXT("One shot entities should not be updated multiple times per-evaluation. They must not have gotten cleaned up correctly."));
 	if (NewEntities.Num() == 0)
 	{
@@ -76,6 +89,7 @@ void FEntityLedger::UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker,
 	FEntityImportParams Params;
 	Params.Sequence = ImportParams;
 
+	FMovieSceneEvaluationFieldEntitySet DummyEntitySet;
 	for (const FMovieSceneEvaluationFieldEntityQuery& Query : NewEntities)
 	{
 		UObject* EntityOwner = Query.Entity.Key.EntityOwner.Get();
@@ -98,6 +112,12 @@ void FEntityLedger::UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker,
 			return;
 		}
 
+		// Check conditions
+		if (!CanImportEntity(Linker, ImportParams, EntityField, Query, DummyEntitySet, ConditionResultCache))
+		{
+			return;
+		}
+
 		FImportedEntity ImportedEntity;
 		Provider->ImportEntity(Linker, Params, &ImportedEntity);
 
@@ -110,6 +130,65 @@ void FEntityLedger::UpdateOneShotEntities(UMovieSceneEntitySystemLinker* Linker,
 
 			FMovieSceneEntityID NewEntityID = ImportedEntity.Manufacture(Params, &Linker->EntityManager);
 			OneShotEntities.Add(NewEntityID);
+		}
+	}
+}
+
+void FEntityLedger::UpdateConditionalEntities(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntitySet& ConditionalEntities)
+{
+	if (ConditionalEntities.Num() == 0)
+	{
+		return;
+	}
+
+	FEntityImportParams Params;
+	Params.Sequence = ImportParams;
+	FMovieSceneEvaluationFieldEntitySet DummyEntitySet;
+	TMap<uint32, bool> ConditionResultCache;
+	ConditionResultCache.Reserve(ConditionalEntities.Num());
+	for (const FMovieSceneEvaluationFieldEntityQuery& Query : ConditionalEntities)
+	{
+		Params.EntityID = Query.Entity.Key.EntityID;
+		Params.EntityMetaData = EntityField->FindMetaData(Query);
+		Params.SharedMetaData = EntityField->FindSharedMetaData(Query);
+
+		// We cache all results here in the temp cache we've made so at least we won't re-run the same condition multiple times each tick
+		bool bConditionPassed = CanImportEntity(Linker, ImportParams, EntityField, Query, DummyEntitySet, ConditionResultCache, true);
+
+		FImportedEntityData& EntityData = ImportedEntities.FindOrAdd(Query.Entity.Key);
+		if (bConditionPassed && (!EntityData.EntityID || EntityData.MetaDataIndex != Query.MetaDataIndex))
+		{
+			// A previously failing condition has now passed. Attempt to properly import the entity.
+			EntityData.MetaDataIndex = Query.MetaDataIndex;
+			UObject* EntityOwner = Query.Entity.Key.EntityOwner.Get();
+			IMovieSceneEntityProvider* Provider = Cast<IMovieSceneEntityProvider>(EntityOwner);
+			if (!Provider)
+			{
+				return;
+			}
+
+			FImportedEntity ImportedEntity;
+			Provider->ImportEntity(Linker, Params, &ImportedEntity);
+
+			if (!ImportedEntity.IsEmpty())
+			{
+				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(EntityOwner))
+				{
+					Section->BuildDefaultComponents(Linker, Params, &ImportedEntity);
+				}
+
+				FMovieSceneEntityID NewEntityID = ImportedEntity.Manufacture(Params, &Linker->EntityManager);
+
+				Linker->EntityManager.ReplaceEntityID(EntityData.EntityID, NewEntityID);
+			}
+		}
+		else if (!bConditionPassed && EntityData.EntityID)
+		{
+			// A previously succeeding condition has now failed. Remove the entity.
+			FComponentMask FinishedMask = FBuiltInComponentTypes::Get()->FinishedMask;
+			Linker->EntityManager.AddComponents(EntityData.EntityID, FinishedMask, EEntityRecursion::Full);
+			EntityData.EntityID = FMovieSceneEntityID();
+			EntityData.MetaDataIndex = INDEX_NONE;
 		}
 	}
 }
@@ -145,7 +224,67 @@ void FEntityLedger::FindImportedEntities(TWeakObjectPtr<UObject> EntityOwner, TA
 	}
 }
 
+bool FEntityLedger::CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache, bool bUpdatingPerTickEntities)
+{
+	// If we don't have a condition, just return true
+	const FMovieSceneEvaluationFieldEntityMetaData* EntityMetadata = EntityField->FindMetaData(Query);
+	if (!EntityMetadata || !EntityMetadata->Condition)
+	{
+		return true;
+	}
+
+
+	const FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(ImportParams.InstanceHandle);
+
+	bool bCanCacheResult = EntityMetadata->Condition->CanCacheResult(SequenceInstance.GetSharedPlaybackState());
+	if (!bCanCacheResult)
+	{
+		// If we can't cache the result, it will need to be checked again next tick
+		OutPerTickConditionalEntities.Add(Query);
+	}
+
+	FGuid BindingID;
+
+	if (const FMovieSceneEvaluationFieldSharedEntityMetaData* SharedMetadata = EntityField->FindSharedMetaData(Query))
+	{
+		BindingID = SharedMetadata->ObjectBindingID;
+	}
+
+	// If we have a valid binding ID, and the condition depends on object binding, then we must ensure the object binding is resolved
+	// before evaluating the condition. To ensure this, we always defer checking the condition for non-global conditions on bound objects to the bound object resolver.
+	// We don't do this for updating per-tick entities as the bound object resolver is only run once.
+	if (!bUpdatingPerTickEntities && BindingID.IsValid() && EntityMetadata->Condition->GetConditionScope() != EMovieSceneConditionScope::Global)
+	{
+		return true;
+	}
+
+	uint32 CacheKey = EntityMetadata->Condition->ComputeCacheKey(BindingID, ImportParams.SequenceID, SequenceInstance.GetSharedPlaybackState(), Query.Entity.Key.EntityOwner.Get());
+	
+	if (bool* CachedResult = ConditionResultCache.Find(CacheKey))
+	{
+		return *CachedResult;
+	}
+	else
+	{
+		bool bResult = EntityMetadata->Condition->EvaluateCondition(BindingID, ImportParams.SequenceID, SequenceInstance.GetSharedPlaybackState());
+		// We always cache the results for per tick entities as they get thrown away after the tick, and we might as well prevent the same condition from getting re-evaluated multiple times per tick.
+		if (bCanCacheResult || bUpdatingPerTickEntities)
+		{
+			ConditionResultCache.Add(CacheKey, bResult);
+		}
+		return bResult;
+	}
+}
+
 void FEntityLedger::ImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query)
+{
+	FMovieSceneEvaluationFieldEntitySet OutConditionalEntities;
+	TMap<uint32, bool> ConditionResultCache;
+	ImportEntity(Linker, ImportParams, EntityField, Query, OutConditionalEntities, ConditionResultCache);
+}
+
+void FEntityLedger::ImportEntity(UMovieSceneEntitySystemLinker* Linker, const FEntityImportSequenceParams& ImportParams, const FMovieSceneEntityComponentField* EntityField, const FMovieSceneEvaluationFieldEntityQuery& Query, FMovieSceneEvaluationFieldEntitySet& OutPerTickConditionalEntities, TMap<uint32, bool>& ConditionResultCache)
 {
 	// We always add an entry even if no entity was imported by the provider to ensure that we do not repeatedly try and import the same entity every frame
 	FImportedEntityData& EntityData = ImportedEntities.FindOrAdd(Query.Entity.Key);
@@ -170,6 +309,19 @@ void FEntityLedger::ImportEntity(UMovieSceneEntitySystemLinker* Linker, const FE
 	}
 	if (ImportParams.bPostRoll && (Params.EntityMetaData == nullptr || Params.EntityMetaData->bEvaluateInSequencePostRoll == false))
 	{
+		return;
+	}
+
+	// Check conditions
+	if (!CanImportEntity(Linker, ImportParams, EntityField, Query, OutPerTickConditionalEntities, ConditionResultCache))
+	{
+		// In case of cache invalidation, we may already have an entity here that we need to mark as finished
+		if (EntityData.EntityID)
+		{
+			FComponentMask FinishedMask = FBuiltInComponentTypes::Get()->FinishedMask;
+			Linker->EntityManager.AddComponents(EntityData.EntityID, FinishedMask, EEntityRecursion::Full);
+			EntityData.EntityID = FMovieSceneEntityID();
+		}
 		return;
 	}
 
@@ -225,7 +377,7 @@ void FEntityLedger::CleanupLinkerEntities(const TSet<FMovieSceneEntityID>& Linke
 	{
 		if (LinkerEntities.Contains(OneShotEntities[Index]))
 		{
-			OneShotEntities.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			OneShotEntities.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 	for (auto It = ImportedEntities.CreateIterator(); It; ++It)

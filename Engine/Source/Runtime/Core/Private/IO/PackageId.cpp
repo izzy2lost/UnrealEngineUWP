@@ -5,6 +5,7 @@
 #include "Hash/CityHash.h"
 #include "Misc/Char.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/StructuredArchiveAdapters.h"
 #include "Serialization/StructuredArchiveSlots.h"
 #include "Misc/ScopeRWLock.h"
@@ -60,3 +61,32 @@ void operator<<(FStructuredArchiveSlot Slot, FPackageId& Value)
 {
 	Slot << Value.Id;
 }
+
+void SerializeForLog(FCbWriter& Writer, const FPackageId& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("PackageId"));
+
+	TUtf8StringBuilder<FName::StringBufferSize> TextBuilder;
+	TextBuilder.Appendf("0x%llX", Value.Id);
+
+#if WITH_PACKAGEID_NAME_MAP
+	const FName Name = Value.GetName();
+	TextBuilder << " (" << Name << ")";
+#endif // WITH_PACKAGEID_NAME_MAP
+
+	Writer.AddString(ANSITEXTVIEW("$text"), TextBuilder);
+	Writer.AddInteger(ANSITEXTVIEW("Id"), Value.Id);
+
+#if WITH_PACKAGEID_NAME_MAP
+	Writer.AddString(ANSITEXTVIEW("Name"), WriteToUtf8String<FName::StringBufferSize>(Name));
+#endif // WITH_PACKAGEID_NAME_MAP
+
+	Writer.EndObject();
+}
+
+FString LexToString(const FPackageId& PackageId)
+{
+	return FString::Printf(TEXT("%llX"), PackageId.Value());
+}
+

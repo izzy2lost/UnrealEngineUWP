@@ -117,7 +117,7 @@ namespace UnrealBuildTool
 			{
 				if (Descriptor.bEnabledByDefault.Value)
 				{
-					return (LoadedFrom == PluginLoadedFrom.Project ? true : bAllowEnginePluginsEnabledByDefault);
+					return (LoadedFrom == PluginLoadedFrom.Project || bAllowEnginePluginsEnabledByDefault);
 				}
 				else
 				{
@@ -183,9 +183,9 @@ namespace UnrealBuildTool
 		/// <param name="bPromoteToChoiceVersion">Whether or not to make this the new prioritized "choice" plugin in the set.</param>
 		public void Add(PluginInfo Plugin, bool bPromoteToChoiceVersion = true)
 		{
-			if (bPromoteToChoiceVersion || KnownVersions.Count() == 0)
+			if (bPromoteToChoiceVersion || KnownVersions.Count == 0)
 			{
-				IndexOfChoiceVersion = KnownVersions.Count();
+				IndexOfChoiceVersion = KnownVersions.Count;
 			}
 			KnownVersions.Add(Plugin);
 		}
@@ -197,7 +197,7 @@ namespace UnrealBuildTool
 		{
 			get
 			{
-				if (IndexOfChoiceVersion >= 0 && IndexOfChoiceVersion < KnownVersions.Count())
+				if (IndexOfChoiceVersion >= 0 && IndexOfChoiceVersion < KnownVersions.Count)
 				{
 					return KnownVersions[IndexOfChoiceVersion];
 				}
@@ -625,20 +625,20 @@ namespace UnrealBuildTool
 		/// <param name="Configuration">The target configuration</param>
 		/// <param name="TargetType">The type of target being built</param>
 		/// <returns>True if the plugin should be enabled for this project</returns>
-		public static bool IsPluginEnabledForTarget(PluginInfo Plugin, ProjectDescriptor Project, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetType)
+		public static bool IsPluginEnabledForTarget(PluginInfo Plugin, ProjectDescriptor? Project, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetType)
 		{
 			if (!Plugin.Descriptor.SupportsTargetPlatform(Platform))
 			{
 				return false;
 			}
 
-			bool bAllowEnginePluginsEnabledByDefault = (Project == null ? true : !Project.DisableEnginePluginsByDefault);
+			bool bAllowEnginePluginsEnabledByDefault = (Project == null || !Project.DisableEnginePluginsByDefault);
 			bool bEnabled = Plugin.IsEnabledByDefault(bAllowEnginePluginsEnabledByDefault);
 			if (Project != null && Project.Plugins != null)
 			{
 				foreach (PluginReferenceDescriptor PluginReference in Project.Plugins)
 				{
-					if (String.Compare(PluginReference.Name, Plugin.Name, true) == 0 && !PluginReference.bOptional)
+					if (String.Equals(PluginReference.Name, Plugin.Name, StringComparison.CurrentCultureIgnoreCase) && !PluginReference.bOptional)
 					{
 						bEnabled = PluginReference.IsEnabledForPlatform(Platform) && PluginReference.IsEnabledForTargetConfiguration(Configuration) && PluginReference.IsEnabledForTarget(TargetType);
 					}

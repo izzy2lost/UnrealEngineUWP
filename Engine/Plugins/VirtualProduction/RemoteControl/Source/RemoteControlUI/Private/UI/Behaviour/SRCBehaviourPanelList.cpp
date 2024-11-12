@@ -69,9 +69,12 @@ void SRCBehaviourPanelList::Construct(const FArguments& InArgs, TSharedRef<SRCBe
 	RemoteControlPanel->OnBehaviourAdded.AddSP(this, &SRCBehaviourPanelList::OnBehaviourAdded);
 	RemoteControlPanel->OnEmptyBehaviours.AddSP(this, &SRCBehaviourPanelList::OnEmptyBehaviours);
 
-	if (URCController* Controller = Cast<URCController>(InControllerItem->GetVirtualProperty()))
+	if (InControllerItem.IsValid())
 	{
-		Controller->OnBehaviourListModified.AddSP(this, &SRCBehaviourPanelList::OnBehaviourListModified);
+		if (URCController* Controller = Cast<URCController>(InControllerItem->GetVirtualProperty()))
+		{
+			Controller->OnBehaviourListModified.AddSP(this, &SRCBehaviourPanelList::OnBehaviourListModified);
+		}
 	}
 
 	Reset();
@@ -111,6 +114,100 @@ void SRCBehaviourPanelList::AddSpecialContextMenuOptions(FMenuBuilder& MenuBuild
 
 	MenuBuilder.AddMenuEntry(EnableLabel, EnableTooltip, FSlateIcon(), EnableAction);
 	MenuBuilder.AddMenuEntry(DisableLabel, DisableTooltip, FSlateIcon(), DisableAction);
+}
+
+void SRCBehaviourPanelList::SelectFirstItem()
+{
+	if (!BehaviourItems.IsEmpty())
+	{
+		ListView->SetSelection(BehaviourItems[0]);
+	}
+}
+
+void SRCBehaviourPanelList::SetSelection(TArray<TSharedPtr<FRCBehaviourModel>> InBehaviorToSelect)
+{
+	for (const TSharedPtr<FRCBehaviourModel>& BehaviorModel : InBehaviorToSelect)
+	{
+		if (BehaviorModel.IsValid())
+		{
+			const URCBehaviour* Behavior = BehaviorModel->GetBehaviour();
+
+			const TSharedPtr<FRCBehaviourModel>* SelectedBehavior = BehaviourItems.FindByPredicate([&Behavior]
+				(const TSharedPtr<FRCBehaviourModel>& InBehaviorModel)
+				{
+					if (!InBehaviorModel.IsValid())
+					{
+						return false;
+					}
+
+					const URCBehaviour* CurrentBehavior = InBehaviorModel->GetBehaviour();
+
+					if (!Behavior || !CurrentBehavior)
+					{
+						return false;
+					}
+
+					// Use the Behavior Internal Id to check for uniqueness
+					return Behavior->Id == CurrentBehavior->Id;
+				});
+
+			if (SelectedBehavior)
+			{
+				ListView->SetItemSelection(*SelectedBehavior, true);
+			}
+		}
+	}
+}
+
+void SRCBehaviourPanelList::NotifyControllerValueChanged(TSharedPtr<FRCControllerModel> InControllerModel)
+{
+	// Get the current behavior displaying its action panel
+	if (const TSharedPtr<FRCBehaviourModel>& SelectedBehavior = GetSelectedBehaviourItem())
+	{
+		SelectedBehavior->NotifyControllerValueChanged(InControllerModel);
+	}
+}
+
+TSharedPtr<FRCControllerModel> SRCBehaviourPanelList::GetControllerItem() const
+{
+	if (ControllerItemWeakPtr.IsValid())
+	{
+		return ControllerItemWeakPtr.Pin();
+	}
+	return nullptr;
+}
+
+void SRCBehaviourPanelList::SetControllerItem(const TSharedPtr<FRCControllerModel>& InNewControllerItem)
+{
+	// Remove old Controller callback
+	const TSharedPtr<FRCControllerModel> CurrentController = GetControllerItem();
+
+	if (CurrentController == InNewControllerItem)
+	{
+		return;
+	}
+
+	if (CurrentController.IsValid())
+	{
+		if (URCController* Controller = Cast<URCController>(CurrentController->GetVirtualProperty()))
+		{
+			Controller->OnBehaviourListModified.RemoveAll(this);
+		}
+	}
+
+	ControllerItemWeakPtr = InNewControllerItem;
+
+	// Add new Controller callback
+	const TSharedPtr<FRCControllerModel> NewController = GetControllerItem();
+	if (NewController.IsValid())
+	{
+		if (URCController* Controller = Cast<URCController>(NewController->GetVirtualProperty()))
+		{
+			Controller->OnBehaviourListModified.AddSP(this, &SRCBehaviourPanelList::OnBehaviourListModified);
+		}
+	}
+
+	Reset();
 }
 
 void SRCBehaviourPanelList::SetIsBehaviourEnabled(const bool bIsEnabled)
@@ -172,7 +269,7 @@ void SRCBehaviourPanelList::AddBehaviourToList(URCBehaviour* InBehaviour)
 	}
 	else if (URCSetAssetByPathBehaviour* SetAssetByPathBehaviour = Cast<URCSetAssetByPathBehaviour>(InBehaviour))
 	{
-		BehaviourItems.Add(MakeShared<FRCSetAssetByPathBehaviourModel>(SetAssetByPathBehaviour));
+		BehaviourItems.Add(MakeShared<FRCSetAssetByPathBehaviourModel>(SetAssetByPathBehaviour, RemoteControlPanel));
 	}
 	else if (URCBehaviourBind* BindBehaviour = Cast<URCBehaviourBind>(InBehaviour))
 	{
@@ -192,6 +289,8 @@ void SRCBehaviourPanelList::AddBehaviourToList(URCBehaviour* InBehaviour)
 
 void SRCBehaviourPanelList::Reset()
 {
+	const TArray<TSharedPtr<FRCBehaviourModel>> SelectedBehaviors = ListView->GetSelectedItems();
+
 	BehaviourItems.Empty();
 
 	if (TSharedPtr<FRCControllerModel> ControllerItem = ControllerItemWeakPtr.Pin())
@@ -206,6 +305,7 @@ void SRCBehaviourPanelList::Reset()
 	}
 
 	ListView->RebuildList();
+	SetSelection(SelectedBehaviors);
 }
 
 TSharedRef<ITableRow> SRCBehaviourPanelList::OnGenerateWidgetForList(TSharedPtr<FRCBehaviourModel> InItem,
@@ -353,6 +453,11 @@ TArray<TSharedPtr<FRCLogicModeBase>> SRCBehaviourPanelList::GetSelectedLogicItem
 		}
 	}
 	return SelectedValidLogicItems;
+}
+
+TArray<TSharedPtr<FRCBehaviourModel>> SRCBehaviourPanelList::GetSelectedBehaviourItems() const
+{
+	return ListView->GetSelectedItems();
 }
 
 void SRCBehaviourPanelList::RequestRefresh()

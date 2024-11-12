@@ -20,7 +20,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		}
 		public static void WriteLine(this StringBuilder SB, int Indent, string Line = "")
 		{
-			SB.Append(new String('\t', Indent));
+			SB.Append(new string('\t', Indent));
 			SB.Append(Line);
 			SB.Append(ProjectFileGenerator.NewLine);
 		}

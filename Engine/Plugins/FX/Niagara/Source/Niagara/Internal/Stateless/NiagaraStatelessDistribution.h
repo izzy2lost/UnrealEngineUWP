@@ -47,11 +47,22 @@ struct FNiagaraDistributionBase
 	TArray<FRichCurve> ChannelCurves;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
-	int32 MaxLutSampleCount = 64;
+	int32 MaxLutSampleCount = 128;
+
+	bool operator==(const FNiagaraDistributionBase& Other) const
+	{
+		return
+			Mode == Other.Mode &&
+			ParameterBinding == Other.ParameterBinding &&
+			ChannelConstantsAndRanges == Other.ChannelConstantsAndRanges &&
+			ChannelCurves == Other.ChannelCurves &&
+			MaxLutSampleCount == Other.MaxLutSampleCount;
+	}
 
 	virtual bool AllowBinding() const { return true; }
 	virtual bool AllowCurves() const { return true; }
 	virtual bool DisplayAsColor() const { return false; }
+	virtual int32 GetBaseNumberOfChannels() const { return 0; }
 	virtual void UpdateValuesFromDistribution() { }
 
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition(); }
@@ -113,9 +124,11 @@ struct FNiagaraDistributionRangeFloat : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 1; }
 	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
+	bool SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
 };
 
 USTRUCT()
@@ -137,6 +150,7 @@ struct FNiagaraDistributionRangeVector2 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 2; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
@@ -161,9 +175,11 @@ struct FNiagaraDistributionRangeVector3 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 3; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec3Def(); }
 #endif
+	bool SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
 };
 
 USTRUCT()
@@ -186,6 +202,7 @@ struct FNiagaraDistributionRangeColor : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	virtual bool DisplayAsColor() const { return true; }
+	virtual int32 GetBaseNumberOfChannels() const override { return 4; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
@@ -198,15 +215,28 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 
 	FNiagaraDistributionFloat() = default;
 	explicit FNiagaraDistributionFloat(float ConstantValue) { InitConstant(ConstantValue); }
+	explicit FNiagaraDistributionFloat(std::initializer_list<float> CurvePoints) { InitCurve(CurvePoints); }
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<float> Values;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
+
 	NIAGARA_API void InitConstant(float Value);
+	NIAGARA_API void InitCurve(std::initializer_list<float> CurvePoints);
+#if WITH_EDITORONLY_DATA
+	NIAGARA_API void InitCurve(const TArray<FRichCurveKey>& CurveKeys);
+#endif
 	NIAGARA_API FNiagaraStatelessRangeFloat CalculateRange(const float Default = 0.0f) const;
 
 #if WITH_EDITORONLY_DATA
-	virtual void UpdateValuesFromDistribution() override;
+	bool operator==(const FNiagaraDistributionFloat& Other) const
+	{
+		return (FNiagaraDistributionBase)*this == (FNiagaraDistributionBase)Other && Values == Other.Values;
+	}
+	virtual int32 GetBaseNumberOfChannels() const override { return 1; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
 };
@@ -223,12 +253,16 @@ struct FNiagaraDistributionVector2 : public FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector2f> Values;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
+
 	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector2f& Value);
 	NIAGARA_API FNiagaraStatelessRangeVector2 CalculateRange(const FVector2f& Default = FVector2f::ZeroVector) const;
 
 #if WITH_EDITORONLY_DATA
-	virtual void UpdateValuesFromDistribution() override;
+	virtual int32 GetBaseNumberOfChannels() const override { return 2; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
 };
@@ -241,17 +275,39 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 	FNiagaraDistributionVector3() = default;
 	explicit FNiagaraDistributionVector3(const float ConstantValue) { InitConstant(ConstantValue); }
 	explicit FNiagaraDistributionVector3(const FVector3f& ConstantValue) { InitConstant(ConstantValue); }
+	explicit FNiagaraDistributionVector3(std::initializer_list<float> CurvePoints) { InitCurve(CurvePoints); }
+	explicit FNiagaraDistributionVector3(std::initializer_list<FVector3f> CurvePoints) { InitCurve(CurvePoints); }
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector3f> Values;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
+
 	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector3f& Value);
+	NIAGARA_API void InitCurve(std::initializer_list<float> CurvePoints);
+	NIAGARA_API void InitCurve(std::initializer_list<FVector3f> CurvePoints);
 	NIAGARA_API FNiagaraStatelessRangeVector3 CalculateRange(const FVector3f& Default = FVector3f::ZeroVector) const;
 
 #if WITH_EDITORONLY_DATA
-	virtual void UpdateValuesFromDistribution() override;
+	virtual int32 GetBaseNumberOfChannels() const override { return 3; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec3Def(); }
+#endif
+};
+
+USTRUCT()
+struct FNiagaraDistributionPosition : public FNiagaraDistributionVector3
+{
+	GENERATED_BODY()
+
+	FNiagaraDistributionPosition() = default;
+	explicit FNiagaraDistributionPosition(const float ConstantValue) { InitConstant(ConstantValue); }
+	explicit FNiagaraDistributionPosition(const FVector3f& ConstantValue) { InitConstant(ConstantValue); }
+
+#if WITH_EDITORONLY_DATA
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetPositionDef(); }
 #endif
 };
 
@@ -266,12 +322,35 @@ struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FLinearColor> Values;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FVector2f ValuesTimeRange = FVector2f(0.0f, 1.0f);
+
 	NIAGARA_API void InitConstant(const FLinearColor& Value);
 	NIAGARA_API FNiagaraStatelessRangeColor CalculateRange(const FLinearColor& Default = FLinearColor::White) const;
 
 #if WITH_EDITORONLY_DATA
 	virtual bool DisplayAsColor() const override { return true; }
-	virtual void UpdateValuesFromDistribution() override;
+	virtual int32 GetBaseNumberOfChannels() const override { return 4; }
+	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
 };
+
+template<>
+struct TStructOpsTypeTraits<FNiagaraDistributionRangeFloat> : public TStructOpsTypeTraitsBase2<FNiagaraDistributionRangeFloat>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template<>
+struct TStructOpsTypeTraits<FNiagaraDistributionRangeVector3> : public TStructOpsTypeTraitsBase2<FNiagaraDistributionRangeVector3>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+

@@ -2,16 +2,14 @@
 
 #include "StaticMeshExporterUSD.h"
 
-#include "EngineAnalytics.h"
 #include "MaterialExporterUSD.h"
-#include "Misc/EngineVersion.h"
 #include "StaticMeshExporterUSDOptions.h"
-#include "StaticMeshResources.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
@@ -24,6 +22,9 @@
 
 #include "AssetExportTask.h"
 #include "Engine/StaticMesh.h"
+#include "EngineAnalytics.h"
+#include "Misc/EngineVersion.h"
+#include "StaticMeshResources.h"
 
 namespace UE::StaticMeshExporterUSD::Private
 {
@@ -82,7 +83,7 @@ namespace UE::StaticMeshExporterUSD::Private
 			// just write out the slots with UsdGeomSubsets named "Section0", "Section1", ..., "SectionN" anyway
 		}
 	}
-}
+}	 // namespace UE::StaticMeshExporterUSD::Private
 
 bool UStaticMeshExporterUsd::IsUsdAvailable()
 {
@@ -315,7 +316,8 @@ bool UStaticMeshExporterUsd::ExportBinary(UObject* Object, const TCHAR* Type, FA
 		UsdUtils::GetDefaultTimeCode(),
 		&AssetStage,
 		Options->MeshAssetOptions.LowestMeshLOD,
-		Options->MeshAssetOptions.HighestMeshLOD
+		Options->MeshAssetOptions.HighestMeshLOD,
+		Options->MeshAssetOptions.bExportStaticMeshSourceData
 	);
 
 	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())
@@ -336,7 +338,7 @@ bool UStaticMeshExporterUsd::ExportBinary(UObject* Object, const TCHAR* Type, FA
 
 		if (Options->MetadataOptions.bExportAssetMetadata)
 		{
-			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(StaticMesh))
+			if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(StaticMesh))
 			{
 				UnrealToUsd::ConvertMetadata(
 					UserData,

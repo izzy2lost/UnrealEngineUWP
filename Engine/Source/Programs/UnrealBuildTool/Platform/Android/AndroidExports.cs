@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -22,7 +21,7 @@ namespace UnrealBuildTool
 		/// Returns the Current NDK Version
 		/// </summary>
 		/// <returns>The NDK Version</returns>
-		UInt64 GetNdkVersionInt();
+		ulong GetNdkVersionInt();
 	}
 
 	/// <summary>

@@ -56,6 +56,7 @@ namespace UE::MLDeformer
 		Set("MLDeformer.Morphs.ExcludedVertexColor", FLinearColor(0.1f, 0.1f, 0.1f));
 
 		Set("MLDeformer.Morphs.MaskIncludedVertexColor", FLinearColor(0.0f, 1.0f, 1.0f));
+		Set("MLDeformer.Morphs.MaskIncludedVertexColorPainted", FLinearColor(0.0f, 0.5f, 1.0f));
 		Set("MLDeformer.Morphs.MaskExcludedVertexColor", FLinearColor(0.1f, 0.1f, 0.1f));
 
 		Set("MLDeformer.Statistics.Performance", FLinearColor(0.0f, 1.0f, 0.0f));

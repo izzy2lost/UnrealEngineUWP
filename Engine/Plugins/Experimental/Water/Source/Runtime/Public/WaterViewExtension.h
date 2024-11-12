@@ -4,9 +4,11 @@
 
 #include "SceneViewExtension.h"
 #include "WaterInfoRendering.h"
+#include "Misc/ScopeLock.h"
 
 
 class AWaterZone;
+class FWaterMeshSceneProxy;
 
 class FWaterViewExtension : public FWorldSceneViewExtension
 {
@@ -34,19 +36,31 @@ public:
 	void AddWaterZone(AWaterZone* InWaterZone);
 	void RemoveWaterZone(AWaterZone* InWaterZone);
 
-private:
-	/** Queued Water Info rendering contexts to submit for rendering on the next SetupView call */
-	TMap<AWaterZone*, UE::WaterInfo::FRenderingContext> WaterInfoContextsToRender;
+	FVector GetZoneLocation(const AWaterZone* InWaterZone, int32 PlayerIndex) const;
+
+	void CreateSceneProxyQuadtrees(FWaterMeshSceneProxy* SceneProxy);
 
 	struct FWaterZoneInfo
 	{
-		/** 
-		 * For each water zone, store the bounds of the tile from which the water zone was last rendered.
-		 * When the view location crosses the bounds, submit a new WaterInfo update to reflect the new active area
+		UE::WaterInfo::FRenderingContext RenderContext;
+
+		/**
+		 * For each water zone, per view: store the bounds of the tile from which the water zone was last rendered.
+		 * When the view location crosses the bounds, submit a new update to reflect the new active area
 		 */
-		TOptional<FBox2D> UpdateBounds = FBox2D(ForceInit);
+		struct FWaterZoneViewInfo
+		{
+			TOptional<FBox2D> UpdateBounds = FBox2D(ForceInit);
+			FVector Center = FVector(ForceInit);
+			FWaterMeshSceneProxy* OldSceneProxy = nullptr;
+			bool bIsDirty = true;
+		};
+		TArray<FWaterZoneViewInfo, TInlineAllocator<4>> ViewInfos;
 	};
-	TMap<AWaterZone*, FWaterZoneInfo> WaterZoneInfos;
+	TWeakObjectPtrKeyMap<AWaterZone, FWaterZoneInfo> WaterZoneInfos;
+
+private:
+	int32 CurrentNumViews = 0;
 
 	struct FWaterGPUResources
 	{
@@ -59,9 +73,41 @@ private:
 
 	TSharedRef<FWaterGPUResources, ESPMode::ThreadSafe> WaterGPUData;
 
+	TArray<int32, TInlineAllocator<4>> ViewPlayerIndices;
+
+	struct FQuadtreeUpdateInfo
+	{
+		AWaterZone* WaterZone;
+		FVector2D Location;
+		int32 Key;
+	};
+
+	TArray<FQuadtreeUpdateInfo, TInlineAllocator<4>> QuadtreeUpdates;
+
+	FCriticalSection QuadtreeUpdateLock;
+
+	TMap<FSceneViewStateInterface*, int32> NonDataViewsQuadtreeKeys;
+
+	bool bWaterInfoTextureRebuildPending = true;
+
 	bool bRebuildGPUData = true;
 
+	// store the locations of every active water mesh scene proxy quad tree based on the key
+	TMap<int32, FVector2D> QuadTreeKeyLocationMap;
+
 	void UpdateGPUBuffers();
+
+	void UpdateViewInfo(AWaterZone* WaterZone, FSceneView& InView);
+	
+	void RenderWaterInfoTexture(FSceneViewFamily& InViewFamily, FSceneView& InView, const FWaterZoneInfo* WaterZoneInfo, FSceneInterface* Scene, const FVector& ZoneCenter);
+
+	// Returns the index in the views array corresponding to InView's PlayerIndex. If the index is not found it adds a new entry.
+	int32 GetOrAddViewindex(const FSceneView& InView);
+	// Returns the index in the views array corresponding to InView's PlayerIndex. INDEX_NONE if it doesn't find it
+	int32 GetViewIndex(int32 PlayerIndex) const;
+	int32 GetViewIndex(const FSceneView& InView) const;
+
+	void DrawDebugInfo(FSceneView& InView, AWaterZone* WaterZone);
 };
 
 struct FWaterMeshGPUWork

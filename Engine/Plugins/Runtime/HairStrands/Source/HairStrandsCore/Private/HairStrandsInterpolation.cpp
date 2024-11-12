@@ -95,12 +95,12 @@ inline uint32 ComputeGroupSize()
 void GetHairStrandsAttributeParameter(const FHairStrandsBulkData& In, FHairStrandsInstanceAttributeParameters& Out)
 {
 	check(FMath::IsPowerOfTwo(In.Header.Strides.CurveAttributeChunkElementCount));
-	Out.CurveAttributeIndexToChunkDivAsShift	= FMath::FloorToInt(FMath::Log2(float(In.Header.Strides.CurveAttributeChunkElementCount)));
+	Out.CurveAttributeIndexToChunkDivAsShift	= FPlatformMath::FloorLog2(In.Header.Strides.CurveAttributeChunkElementCount);
 	Out.CurveAttributeChunkElementCount			= In.Header.Strides.CurveAttributeChunkElementCount;
 	Out.CurveAttributeChunkStrideInBytes		= In.Header.Strides.CurveAttributeChunkStride;
 
 	check(FMath::IsPowerOfTwo(In.Header.Strides.PointAttributeChunkElementCount));
-	Out.PointAttributeIndexToChunkDivAsShift	= FMath::FloorToInt(FMath::Log2(float(In.Header.Strides.PointAttributeChunkElementCount)));
+	Out.PointAttributeIndexToChunkDivAsShift	= FPlatformMath::FloorLog2(In.Header.Strides.PointAttributeChunkElementCount);
 	Out.PointAttributeChunkElementCount     	= In.Header.Strides.PointAttributeChunkElementCount;
 	Out.PointAttributeChunkStrideInBytes    	= In.Header.Strides.PointAttributeChunkStride;
 
@@ -153,7 +153,7 @@ FGroomCacheResources CreateGroomCacheBuffer(FRDGBuilder& GraphBuilder, FGroomCac
 				InVertexData.PointsRadius.GetData(),
 				RadiusDataSizeInBytes,
 				ERDGInitialDataFlags::None);
-			GraphBuilder.QueueBufferExtraction(RadiusBuffer, &InVertexData.PositionBuffer);
+			GraphBuilder.QueueBufferExtraction(RadiusBuffer, &InVertexData.RadiusBuffer);
 		}
 		else
 		{
@@ -234,14 +234,18 @@ class FGroomCacheUpdatePassCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
-		SHADER_PARAMETER(uint32, ElementCount)
+		SHADER_PARAMETER(uint32, CachePointCount)
 		SHADER_PARAMETER(uint32, bHasRadiusData)
+		SHADER_PARAMETER(uint32, bHasAddedControlPoint)
 		SHADER_PARAMETER(float, InterpolationFactor)
+		SHADER_PARAMETER(float, MaxHairRadius)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InPosition0Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InPosition1Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius0Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius1Buffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRestPoseBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InRestPositionBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InRestCurveBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InRestPointToCurveBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, InDeformedOffsetBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutDeformedBuffer)
 	END_SHADER_PARAMETER_STRUCT()
@@ -264,10 +268,14 @@ void AddGroomCacheUpdatePass(
 	FGlobalShaderMap* ShaderMap,
 	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
+	uint32 CurveCount,
 	float InterpolationFactor,
+	float InMaxHairRadius,
 	FGroomCacheResources CacheResources0,
 	FGroomCacheResources CacheResources1,
-	FRDGBufferSRVRef InBuffer,
+	FRDGBufferSRVRef InRestPositionBuffer,
+	FRDGBufferSRVRef InRestCurveBuffer,
+	FRDGBufferSRVRef InRestPointToCurveBuffer,
 	FRDGBufferSRVRef InDeformedOffsetBuffer,
 	FRDGBufferUAVRef OutBuffer)
 {
@@ -277,16 +285,20 @@ void AddGroomCacheUpdatePass(
 
 	FGroomCacheUpdatePassCS::FParameters* Parameters = GraphBuilder.AllocParameters<FGroomCacheUpdatePassCS::FParameters>();
 	Parameters->InstanceRegisteredIndex = InstanceRegisteredIndex;
-	Parameters->ElementCount = PointCount;
+	Parameters->CachePointCount = PointCount;
 	Parameters->InPosition0Buffer = CacheResources0.PositionBuffer;
 	Parameters->InPosition1Buffer = CacheResources1.PositionBuffer;
 	Parameters->InRadius0Buffer = CacheResources0.RadiusBuffer;
 	Parameters->InRadius1Buffer = CacheResources1.RadiusBuffer;
-	Parameters->InRestPoseBuffer = InBuffer;
+	Parameters->InRestPositionBuffer = InRestPositionBuffer;
+	Parameters->InRestCurveBuffer = InRestCurveBuffer;
+	Parameters->InRestPointToCurveBuffer = InRestPointToCurveBuffer;
 	Parameters->InDeformedOffsetBuffer = InDeformedOffsetBuffer;
 	Parameters->OutDeformedBuffer = OutBuffer;
 	Parameters->InterpolationFactor = InterpolationFactor;
+	Parameters->MaxHairRadius = InMaxHairRadius;
 	Parameters->bHasRadiusData = CacheResources0.bHasRadiusData ? 1u : 0u;
+	Parameters->bHasAddedControlPoint = GetHairStrandsUsesTriangleStrips() ? 1u : 0u;
 
 	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(PointCount, FGroomCacheUpdatePassCS::GetGroupSize()), 1, 1);
 	TShaderMapRef<FGroomCacheUpdatePassCS> ComputeShader(ShaderMap);
@@ -697,7 +709,7 @@ void AddHairStrandsInterpolationPass(
 	Parameters->DispatchCountX = DispatchInfo.DispatchCount.X;
 
 	const bool bSingleGuidePermutation = bUseSingleGuide || GetHairStrandsForceSingleGuideInterpolation();
-	const bool bWaveOps = GRHISupportsWaveOperations && GRHIMaximumWaveSize >= 32 && FHairInterpolationCS::DoesSupportsWaveOps(InPlatform, DispatchInfo.PointPerCurve) != ERHIFeatureSupport::Unsupported;
+	const bool bWaveOps = GRHISupportsWaveOperations && GRHIMinimumWaveSize <= 32 && GRHIMaximumWaveSize >= 32 && FHairInterpolationCS::DoesSupportsWaveOps(InPlatform, DispatchInfo.PointPerCurve) != ERHIFeatureSupport::Unsupported;
 
 	FHairInterpolationCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FHairInterpolationCS::FDynamicGeometry>(DynamicGeometryType);
@@ -1054,7 +1066,7 @@ void AddHairCardsDeformationPass(
 		RDG_EVENT_NAME("HairStrands::CardsDeformation(%s)", bSupportDynamicMesh ? TEXT("Dynamic") : TEXT("Static")),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, ComputeShader, DispatchCount, CardsRestPositionBuffer, CardsRestTangentBuffer, bManualFetch](FRHIComputeCommandList& RHICmdList)
+		[Parameters, ComputeShader, DispatchCount, CardsRestPositionBuffer, CardsRestTangentBuffer, bManualFetch](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			// On platforms not supporting manual vertex fetching, ensure the resources are in 'VerteOrIndexBuffer' state after position/normals update
 			if (!bManualFetch)
@@ -1330,7 +1342,7 @@ static void UpdateHairAccelerationStructure(FRHICommandList& RHICmdList, FRayTra
 
 	FRayTracingGeometryBuildParams Params;
 	Params.BuildMode = InMode;
-	Params.Geometry = RayTracingGeometry->RayTracingGeometryRHI;
+	Params.Geometry = RayTracingGeometry->GetRHI();
 	Params.Segments = RayTracingGeometry->Initializer.Segments;
 
 	RHICmdList.BuildAccelerationStructures(MakeArrayView(&Params, 1));

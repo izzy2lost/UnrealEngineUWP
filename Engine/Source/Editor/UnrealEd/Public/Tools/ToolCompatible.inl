@@ -117,7 +117,7 @@ void TToolCompatibleMixin<ToolCompatibleWidget>::OnMouseEnter(const FGeometry& M
 	ToolCompatibleWidget::OnMouseEnter(MyGeometry, MouseEvent);
 	if (FWidgetModeManager* WidgetModeManager = GetWidgetModeManger())
 	{
-		WidgetModeManager->MouseEnter(nullptr, nullptr, MouseEvent.GetScreenSpacePosition().X, MouseEvent.GetScreenSpacePosition().Y);
+		WidgetModeManager->MouseEnter(nullptr, nullptr, FMath::TruncToInt32(MouseEvent.GetScreenSpacePosition().X), FMath::TruncToInt32(MouseEvent.GetScreenSpacePosition().Y));
 	}
 }
 

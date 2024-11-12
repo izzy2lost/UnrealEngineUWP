@@ -71,7 +71,7 @@ void FPropertyPermissionList::RegisterOnBlueprintCompiled()
 	}
 }
 
-void FPropertyPermissionList::ClearCacheAndBroadcast(TSoftObjectPtr<UStruct> ObjectStruct, FName OwnerName)
+void FPropertyPermissionList::ClearCacheAndBroadcast(TSoftObjectPtr<const UStruct> ObjectStruct, FName OwnerName)
 {
 	// The cache isn't too expensive to recompute, so it is cleared
 	// and lazily repopulated any time the raw PermissionList changes.
@@ -83,10 +83,15 @@ void FPropertyPermissionList::ClearCacheAndBroadcast(TSoftObjectPtr<UStruct> Obj
 	}
 }
 
-void FPropertyPermissionList::AddPermissionList(TSoftObjectPtr<UStruct> Struct, const FNamePermissionList& PermissionList, EPropertyPermissionListRules Rules)
+void FPropertyPermissionList::AddPermissionList(TSoftObjectPtr<const UStruct> Struct, const FNamePermissionList& PermissionList, const EPropertyPermissionListRules Rules, const TConstArrayView<FName> InAdditionalOwnerNames)
 {
 	FPropertyPermissionListEntry& Entry = RawPropertyPermissionList.FindOrAdd(Struct);
 	Entry.PermissionList = PermissionList;
+
+	// Track additional owners to prevent entry from being removed by FPropertyPermissionList::UnregisterOwner()
+	// PermissionList without AllowList/DenyList/DenyAll entries will have no owners and be deleted from RawPropertyPermissionList unless it provides AdditionalOwnerNames here
+	Entry.AdditionalOwnerNames = InAdditionalOwnerNames;
+
 	// Always use the most permissive rule previously set
 	if (Entry.Rules > Rules)
 	{
@@ -96,7 +101,12 @@ void FPropertyPermissionList::AddPermissionList(TSoftObjectPtr<UStruct> Struct, 
 	ClearCacheAndBroadcast(Struct);
 }
 
-void FPropertyPermissionList::RemovePermissionList(TSoftObjectPtr<UStruct> Struct)
+void FPropertyPermissionList::AddPermissionList(TSoftObjectPtr<const UStruct> Struct, const FNamePermissionList& PermissionList, const EPropertyPermissionListRules Rules)
+{
+	AddPermissionList(Struct, PermissionList, Rules, {});
+}
+
+void FPropertyPermissionList::RemovePermissionList(TSoftObjectPtr<const UStruct> Struct)
 {
 	if (RawPropertyPermissionList.Remove(Struct) > 0)
 	{
@@ -113,12 +123,13 @@ void FPropertyPermissionList::ClearPermissionList()
 
 void FPropertyPermissionList::UnregisterOwner(const FName Owner)
 {
-	TArray<TSoftObjectPtr<UStruct>> StructsToRemove;
+	TArray<TSoftObjectPtr<const UStruct>> StructsToRemove;
 
-	for (TPair<TSoftObjectPtr<UStruct>, FPropertyPermissionListEntry>& Pair : RawPropertyPermissionList)
+	for (TPair<TSoftObjectPtr<const UStruct>, FPropertyPermissionListEntry>& Pair : RawPropertyPermissionList)
 	{
 		Pair.Value.PermissionList.UnregisterOwner(Owner);
-		if (Pair.Value.PermissionList.GetOwnerNames().Num() == 0)
+		Pair.Value.AdditionalOwnerNames.Remove(Owner);
+		if (Pair.Value.AdditionalOwnerNames.Num() == 0 && Pair.Value.PermissionList.GetOwnerNames().Num() == 0)
 		{
 			StructsToRemove.Add(Pair.Key);
 		}
@@ -126,7 +137,7 @@ void FPropertyPermissionList::UnregisterOwner(const FName Owner)
 
 	{
 		TGuardValue<bool> SuppressGuard(bSuppressUpdateDelegate, true);
-		for (TSoftObjectPtr<UStruct>& StructToRemove : StructsToRemove)
+		for (TSoftObjectPtr<const UStruct>& StructToRemove : StructsToRemove)
 		{
 			RemovePermissionList(StructToRemove);
 		}
@@ -135,7 +146,7 @@ void FPropertyPermissionList::UnregisterOwner(const FName Owner)
 	ClearCacheAndBroadcast(nullptr, Owner);
 }
 
-void FPropertyPermissionList::AddToAllowList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner)
+void FPropertyPermissionList::AddToAllowList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner)
 {
 	FPropertyPermissionListEntry& Entry = RawPropertyPermissionList.FindOrAdd(Struct);
 	if (Entry.PermissionList.AddAllowListItem(Owner, PropertyName))
@@ -144,7 +155,7 @@ void FPropertyPermissionList::AddToAllowList(TSoftObjectPtr<UStruct> Struct, con
 	}
 }
 
-void FPropertyPermissionList::AddToAllowList(TSoftObjectPtr<UStruct> Struct, const TArray<FName>& PropertyNames, const FName Owner)
+void FPropertyPermissionList::AddToAllowList(TSoftObjectPtr<const UStruct> Struct, const TArray<FName>& PropertyNames, const FName Owner)
 {
 	FPropertyPermissionListEntry& Entry = RawPropertyPermissionList.FindOrAdd(Struct);
 	bool bAddedItem = false;
@@ -162,7 +173,7 @@ void FPropertyPermissionList::AddToAllowList(TSoftObjectPtr<UStruct> Struct, con
 	}
 }
 
-void FPropertyPermissionList::RemoveFromAllowList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner)
+void FPropertyPermissionList::RemoveFromAllowList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner)
 {
 	FPropertyPermissionListEntry& Entry = RawPropertyPermissionList.FindOrAdd(Struct);
 	if (Entry.PermissionList.RemoveAllowListItem(Owner, PropertyName))
@@ -171,7 +182,7 @@ void FPropertyPermissionList::RemoveFromAllowList(TSoftObjectPtr<UStruct> Struct
 	}
 }
 
-void FPropertyPermissionList::AddToDenyList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner)
+void FPropertyPermissionList::AddToDenyList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner)
 {
 	FPropertyPermissionListEntry& Entry = RawPropertyPermissionList.FindOrAdd(Struct);
 	if (Entry.PermissionList.AddDenyListItem(Owner, PropertyName))
@@ -180,7 +191,7 @@ void FPropertyPermissionList::AddToDenyList(TSoftObjectPtr<UStruct> Struct, cons
 	}
 }
 
-void FPropertyPermissionList::RemoveFromDenyList(TSoftObjectPtr<UStruct> Struct, const FName PropertyName, const FName Owner)
+void FPropertyPermissionList::RemoveFromDenyList(TSoftObjectPtr<const UStruct> Struct, const FName PropertyName, const FName Owner)
 {
 	FPropertyPermissionListEntry& Entry = RawPropertyPermissionList.FindOrAdd(Struct);
 	if (Entry.PermissionList.RemoveDenyListItem(Owner, PropertyName))
@@ -313,6 +324,8 @@ const FNamePermissionList& FPropertyPermissionList::GetCachedPermissionListForSt
 		}
 
 		PermissionListEntry = &CachedPropertyPermissionList.Add(Struct, { MoveTemp(NewPermissionList),
+			// Note: The AdditionalOwnerNames are only used to prevent removal from RawPropertyPermissionList by calls to RemoveOwner()
+			TArray<FName>(),
 			// propagate the allow list all properties setting, this is to make AllowListAllSubclassProperties work properly 
 			// when a sub class was already previously cached from a base class that has AllowListAllSubclassProperties set on it and another class is then building its list off of the cached subclass list
 			bInOutShouldAllowListAllProperties ? EPropertyPermissionListRules::AllowListAllProperties : EPropertyPermissionListRules::UseExistingPermissionList });

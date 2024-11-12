@@ -5,7 +5,7 @@
 #include "PBDRigidsSolver.h"
 #include "GameFramework/HUD.h" // for ShowDebugInfo
 #include "Physics/Experimental/PhysScene_Chaos.h"
-
+#include "SimModule/ModuleFactoryRegister.h"
 
 TMap<FPhysScene*, FChaosSimModuleManager*> FChaosSimModuleManager::SceneToModuleManagerMap;
 
@@ -114,6 +114,11 @@ void FChaosSimModuleManager::RegisterCallbacks(UWorld* InWorld)
 	// Set up our async object manager to handle async ticking and marshaling
 	check(AsyncCallback == nullptr);
 	AsyncCallback = Scene.GetSolver()->CreateAndRegisterSimCallbackObject_External<FChaosSimModuleManagerAsyncCallback>();
+
+	if (FNetworkPhysicsCallback* SolverCallback = static_cast<FNetworkPhysicsCallback*>(Scene.GetSolver()->GetRewindCallback()))
+	{
+		SolverCallback->InjectInputsExternal.AddRaw(this, &FChaosSimModuleManager::InjectInputs_External);
+	}
 }
 
 void FChaosSimModuleManager::UnregisterCallbacks()
@@ -190,6 +195,24 @@ void FChaosSimModuleManager::PostUpdate(FChaosScene* PhysScene)
 {
 }
 
+void FChaosSimModuleManager::InjectInputs_External(int32 PhysicsStep, int32 NumSteps)
+{
+	UWorld* World = Scene.GetOwningWorld();
+	if (IsValid(World) == false)
+	{
+		return;
+	}
+	FChaosSimModuleManagerAsyncInput* AsyncInput = AsyncCallback->GetProducerInputData_External();
+	check(AsyncInput);
+	ensure(AsyncInput->World == World);
+
+	for (TWeakObjectPtr<UModularVehicleBaseComponent> Vehicle : CUVehicles)
+	{
+		Vehicle->ProduceInput(PhysicsStep, NumSteps);
+	}
+
+}
+
 
 void FChaosSimModuleManager::ParallelUpdateVehicles(float DeltaSeconds)
 {
@@ -215,7 +238,7 @@ void FChaosSimModuleManager::ParallelUpdateVehicles(float DeltaSeconds)
 	}
 
 	// Since we are in pre-physics, delta seconds is not accounted for in external time yet
-	const float ResultsTime = AsyncCallback->GetSolver()->GetPhysicsResultsTime_External() + DeltaSeconds;
+	const float ResultsTime = AsyncCallback->GetSolver()->GetPhysicsResultsTime_External();
 
 	// Find index of first non-consumable output (first one after current time)
 	int32 LastOutputIdx = 0;

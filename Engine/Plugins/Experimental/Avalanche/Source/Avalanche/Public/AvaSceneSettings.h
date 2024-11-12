@@ -4,7 +4,9 @@
 
 #include "AvaAttribute.h"
 #include "Containers/Array.h"
+#include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
+#include "UObject/SoftObjectPath.h"
 #include "AvaSceneSettings.generated.h"
 
 /** Object containing information about its Scene */
@@ -14,31 +16,35 @@ class UAvaSceneSettings : public UObject
 	GENERATED_BODY()
 
 public:
-	static FName GetSceneAttributesName()
+	static FName GetSceneAttributesPropertyName()
 	{
 		return GET_MEMBER_NAME_CHECKED(UAvaSceneSettings, SceneAttributes);
 	}
 
-	/**
-	 * Iterate each valid Scene Attribute of the given Type
-	 * The callable should return true to continue iteration, and false to stop it
-	 */
-	template<typename InAttributeType>
-	void ForEachSceneAttributeOfType(TFunctionRef<bool(const InAttributeType&)> InCallable) const
+	static FName GetSceneRigPropertyName()
 	{
-		for (const UAvaAttribute* SceneAttribute : SceneAttributes)
-		{
-			if (const InAttributeType* CastedAttribute = Cast<InAttributeType>(SceneAttribute))
-			{
-				if (!InCallable(*CastedAttribute))
-				{
-					break;
-				}
-			}
-		}
+		return GET_MEMBER_NAME_CHECKED(UAvaSceneSettings, SceneRig);
+	}
+
+	TConstArrayView<TObjectPtr<UAvaAttribute>> GetSceneAttributes() const
+	{
+		return SceneAttributes;
+	}
+
+	FSoftObjectPath GetSceneRig() const
+	{
+		return SceneRig;
+	}
+
+	void SetSceneRig(const FSoftObjectPath& InSceneRig)
+	{
+		SceneRig = InSceneRig;
 	}
 
 private:
 	UPROPERTY(EditAnywhere, Instanced, Category="Scene Attributes")
 	TArray<TObjectPtr<UAvaAttribute>> SceneAttributes;
+
+	UPROPERTY()
+	FSoftObjectPath SceneRig;
 };

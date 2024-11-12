@@ -78,8 +78,8 @@ void SEnvironmentLightingViewer::Construct(const FArguments& InArgs)
 					.Text(LOCTEXT("CreateSkyLight", "Create Sky Light"));
 	ButtonCreateAtmosphericLight0 = SNew(SButton)
 					.HAlign(HAlign_Center)
-					.OnClicked(this, &SEnvironmentLightingViewer::OnButtonCreateAtmosphericLight, Zero)
-					.Text(LOCTEXT("CreateAtmosphericLight0", "Create Atmospheric Light"));
+					.OnClicked(this, &SEnvironmentLightingViewer::OnButtonCreateDirectionalLight, Zero)
+					.Text(LOCTEXT("CreateAtmosphericLight0", "Create Directional Light"));
 	ButtonCreateSkyAtmosphere = SNew(SButton)
 					.HAlign(HAlign_Center)
 					.OnClicked(this, &SEnvironmentLightingViewer::OnButtonCreateSkyAtmosphere)
@@ -183,8 +183,8 @@ void SEnvironmentLightingViewer::Construct(const FArguments& InArgs)
 			+ SScrollBox::Slot()
 			[
 				SNew(SWrapBox)
-				.UseAllottedWidth(true)
-				.PreferredWidth(384)
+				.UseAllottedSize(true)
+				.PreferredSize(384.0f)
 				+SWrapBox::Slot()
 				.FillLineWhenSizeLessThan(384)
 				.Padding(5.0f, 20.0f, 5.0f, 20.0f)
@@ -376,7 +376,7 @@ FReply SEnvironmentLightingViewer::OnButtonCreateSkyLight()
 	return FReply::Handled();
 }
 
-FReply SEnvironmentLightingViewer::OnButtonCreateAtmosphericLight(uint32 Index)
+FReply SEnvironmentLightingViewer::OnButtonCreateDirectionalLight(uint32 Index)
 {
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	if (!World)
@@ -590,6 +590,7 @@ bool SEnvironmentLightingViewer::GetIsPropertyVisible(const FPropertyAndParent& 
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("IndirectLightingSaturation"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("ShadowAmount"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("SpecularScale"))
+				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("DiffuseScale"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("IndirectLightingIntensity"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("VolumetricScatteringIntensity"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("AtmosphereSunDiskColorScale"))

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Misc/AssertionMacros.h"
 #include "UObject/NameTypes.h"
@@ -38,10 +39,10 @@ public:
 
 	inline uint64 Value() const
 	{
-		check(Id != InvalidId);
 		return Id;
 	}
 
+	UE_DEPRECATED(5.5, "Use LexToString()")
 	inline uint64 ValueForDebugging() const
 	{
 		return Id;
@@ -71,7 +72,21 @@ public:
 
 	CORE_API friend void operator<<(FStructuredArchiveSlot Slot, FPackageId& Value);
 
+	CORE_API friend void SerializeForLog(FCbWriter& Writer, const FPackageId& Value);
+
 #if WITH_PACKAGEID_NAME_MAP
 	CORE_API FName GetName() const;
 #endif
 };
+
+CORE_API FString LexToString(const FPackageId& PackageId);
+
+template <typename CharType>
+TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const FPackageId& PackageId)
+{
+	Builder.Appendf(CHARTEXT(CharType, "0x%llX"), PackageId.Value());
+#if WITH_PACKAGEID_NAME_MAP
+	Builder << " (" << PackageId.GetName() << ")";
+#endif // WITH_PACKAGEID_NAME_MAP
+	return Builder;
+}

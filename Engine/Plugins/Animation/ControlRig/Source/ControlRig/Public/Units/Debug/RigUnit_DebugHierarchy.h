@@ -43,6 +43,11 @@ struct CONTROLRIG_API FRigUnit_DebugHierarchy : public FRigVMFunction_DebugBase
 	UPROPERTY(DisplayName = "Execute", Transient, meta = (Input, Output))
 	FControlRigExecuteContext ExecuteContext;
 
+	// the items to draw the pose for.
+	// if this is empty we'll draw the whole hierarchy
+	UPROPERTY(meta = (Input))
+	TArray<FRigElementKey> Items;
+
 	UPROPERTY(meta = (Input))
 	float Scale;
 
@@ -58,7 +63,7 @@ struct CONTROLRIG_API FRigUnit_DebugHierarchy : public FRigVMFunction_DebugBase
 	UPROPERTY(meta = (Input))
 	bool bEnabled;
 
-	static void DrawHierarchy(const FRigVMExecuteContext& InContext, const FTransform& WorldOffset, URigHierarchy* Hierarchy, EControlRigDrawHierarchyMode::Type Mode, float Scale, const FLinearColor& Color, float Thickness, const FRigPose* InPose);
+	static void DrawHierarchy(const FRigVMExecuteContext& InContext, const FTransform& WorldOffset, URigHierarchy* Hierarchy, EControlRigDrawHierarchyMode::Type Mode, float Scale, const FLinearColor& Color, float Thickness, const FRigPose* InPose, const TArrayView<const FRigElementKey>* InItems);
 };
 
 /**
@@ -86,6 +91,11 @@ struct CONTROLRIG_API FRigUnit_DebugPose : public FRigVMFunction_DebugBase
 
 	UPROPERTY(meta = (Input))
 	FRigPose Pose;
+
+	// the items to draw the pose cache for.
+	// if this is empty we'll draw the whole pose cache
+	UPROPERTY(meta = (Input))
+	TArray<FRigElementKey> Items;
 
 	UPROPERTY(meta = (Input))
 	float Scale;

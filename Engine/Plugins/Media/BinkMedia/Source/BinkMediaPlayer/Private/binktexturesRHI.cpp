@@ -13,7 +13,7 @@
 #include "RenderingThread.h"
 
 
-extern FRHITexture2D *BinkRHIRenderTarget;
+extern FRHITexture *BinkRHIRenderTarget;
 extern ERenderTargetLoadAction BinkRenderTargetLoadAction;
 
 FRDGTextureRef BinkRegisterExternalTexture(FRDGBuilder& GraphBuilder, FRHITexture* Texture, const TCHAR* NameIfUnregistered)
@@ -143,7 +143,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 	}
 #endif
 
-	FRHICommandListImmediate& RHICmdList = GetImmediateCommandList_ForRenderCommand();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	EPixelFormat format = PF_R8;
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
 	ETextureCreateFlags TexCreateFlags = TexCreate_Dynamic | TexCreate_CPUReadback | TexCreate_CPUWritable | TexCreate_OfflineProcessed | TexCreate_NoTiling;
@@ -167,7 +167,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 		{
 			textures->Ytexture[i] = RHICreateTexture(YADesc);
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
-			bp_src->YPlane.Buffer = GDynamicRHI->LockTexture2D_RenderThread(RHICmdList, textures->Ytexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->YPlane.BufferPitch, false, false);
+			bp_src->YPlane.Buffer = RHICmdList.LockTexture2D(textures->Ytexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->YPlane.BufferPitch, false, false);
 			bp_src->YPlane.BufferPitch = bp_src->YPlane.BufferPitch ? bp_src->YPlane.BufferPitch : ((bb->YABufferWidth+255)&-256);
 #endif
 		}
@@ -176,7 +176,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 		{
 			textures->cRtexture[i] = RHICreateTexture(cRcBDesc);
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
-			bp_src->cRPlane.Buffer = GDynamicRHI->LockTexture2D_RenderThread(RHICmdList, textures->cRtexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->cRPlane.BufferPitch, false, false);
+			bp_src->cRPlane.Buffer = RHICmdList.LockTexture2D(textures->cRtexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->cRPlane.BufferPitch, false, false);
 			bp_src->cRPlane.BufferPitch = bp_src->cRPlane.BufferPitch ? bp_src->cRPlane.BufferPitch : ((bb->cRcBBufferWidth+255)&-256);
 #endif
 		}
@@ -185,7 +185,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 		{
 			textures->cBtexture[i] = RHICreateTexture(cRcBDesc);
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
-			bp_src->cBPlane.Buffer = GDynamicRHI->LockTexture2D_RenderThread(RHICmdList, textures->cBtexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->cBPlane.BufferPitch, false, false);
+			bp_src->cBPlane.Buffer = RHICmdList.LockTexture2D(textures->cBtexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->cBPlane.BufferPitch, false, false);
 			bp_src->cBPlane.BufferPitch = bp_src->cBPlane.BufferPitch ? bp_src->cBPlane.BufferPitch : ((bb->cRcBBufferWidth+255)&-256);
 #endif
 		}
@@ -194,7 +194,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 		{
 			textures->Atexture[i] = RHICreateTexture(YADesc);
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
-			bp_src->APlane.Buffer = GDynamicRHI->LockTexture2D_RenderThread(RHICmdList, textures->Atexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->APlane.BufferPitch, false, false);
+			bp_src->APlane.Buffer = RHICmdList.LockTexture2D(textures->Atexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->APlane.BufferPitch, false, false);
 			bp_src->APlane.BufferPitch = bp_src->APlane.BufferPitch ? bp_src->APlane.BufferPitch : ((bb->YABufferWidth+255)&-256);
 #endif
 		}
@@ -203,7 +203,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 		{
 			textures->Htexture[i] = RHICreateTexture(YADesc);
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
-			bp_src->HPlane.Buffer = GDynamicRHI->LockTexture2D_RenderThread(RHICmdList, textures->Htexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->HPlane.BufferPitch, false, false);
+			bp_src->HPlane.Buffer = RHICmdList.LockTexture2D(textures->Htexture[i], 0, PLATFORM_DIRECT_TEXTURE_MEMORY_ACCESS_LOCK_MODE, bp_src->HPlane.BufferPitch, false, false);
 			bp_src->HPlane.BufferPitch = bp_src->HPlane.BufferPitch ? bp_src->HPlane.BufferPitch : ((bb->YABufferWidth+255)&-256);
 #endif
 		}
@@ -234,7 +234,7 @@ static BINKTEXTURES * Create_textures(BINKSHADERS * pshaders, HBINK bink, void *
 
 static void Free_textures(BINKTEXTURES* ptextures)
 {
-	FRHICommandListImmediate& RHICmdList = GetImmediateCommandList_ForRenderCommand();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	BINKTEXTURESRHI* textures = (BINKTEXTURESRHI*)ptextures;
 	BINKFRAMEBUFFERS *bb = &textures->bink_buffers;
 
@@ -249,11 +249,11 @@ static void Free_textures(BINKTEXTURES* ptextures)
 	{
 		BINKFRAMEPLANESET *bp_src = &bb->Frames[i];
 #if PLATFORM_HAS_DIRECT_TEXTURE_MEMORY_ACCESS 
-		if (bp_src->YPlane.Buffer)  GDynamicRHI->UnlockTexture2D_RenderThread(RHICmdList, textures->Ytexture[i], 0, false);
-		if (bp_src->cRPlane.Buffer) GDynamicRHI->UnlockTexture2D_RenderThread(RHICmdList, textures->cRtexture[i], 0, false);
-		if (bp_src->cBPlane.Buffer) GDynamicRHI->UnlockTexture2D_RenderThread(RHICmdList, textures->cBtexture[i], 0, false);
-		if (bp_src->APlane.Buffer)  GDynamicRHI->UnlockTexture2D_RenderThread(RHICmdList, textures->Atexture[i], 0, false);
-		if (bp_src->HPlane.Buffer)  GDynamicRHI->UnlockTexture2D_RenderThread(RHICmdList, textures->Htexture[i], 0, false);
+		if (bp_src->YPlane.Buffer)  RHICmdList.UnlockTexture2D(textures->Ytexture[i], 0, false);
+		if (bp_src->cRPlane.Buffer) RHICmdList.UnlockTexture2D(textures->cRtexture[i], 0, false);
+		if (bp_src->cBPlane.Buffer) RHICmdList.UnlockTexture2D(textures->cBtexture[i], 0, false);
+		if (bp_src->APlane.Buffer)  RHICmdList.UnlockTexture2D(textures->Atexture[i], 0, false);
+		if (bp_src->HPlane.Buffer)  RHICmdList.UnlockTexture2D(textures->Htexture[i], 0, false);
 #endif
 		if (textures->Ytexture[i].IsValid())  textures->Ytexture[i].SafeRelease();
 		if (textures->cRtexture[i].IsValid()) textures->cRtexture[i].SafeRelease();
@@ -272,7 +272,6 @@ static void Start_texture_update( BINKTEXTURES * ptextures )
 
 static void Finish_texture_update( BINKTEXTURES * ptextures )
 {
-	FRHICommandListImmediate& RHICmdList = GetImmediateCommandList_ForRenderCommand();
 	BINKTEXTURESRHI * textures = (BINKTEXTURESRHI*)ptextures;
 	BINKFRAMEBUFFERS *bb = &textures->bink_buffers;
 	int frame_num = bb->FrameNum;
@@ -291,7 +290,7 @@ static void Finish_texture_update( BINKTEXTURES * ptextures )
 
 //-----------------------------------------------------------------------------
 
-static void update_plane_texture_rect(FRHICommandListImmediate& RHI, FRHITexture2D* RHITexture, BINKPLANE const* plane, unsigned w, unsigned h)
+static void update_plane_texture_rect(FRHICommandListImmediate& RHI, FRHITexture* RHITexture, BINKPLANE const* plane, unsigned w, unsigned h)
 {
 	uint32 Stride = 0;
 	unsigned char* TextureMemory = (unsigned char*)GDynamicRHI->LockTexture2D_RenderThread(RHI, RHITexture, 0, RLM_WriteOnly, Stride, false);
@@ -332,8 +331,7 @@ static void Draw_textures(BINKTEXTURES* ptextures, BINKSHADERS* pshaders, void* 
 	int hasAPlane = bp_src->APlane.Allocate;
 	int hasHPlane = bp_src->HPlane.Allocate;
 
-	FRHICommandListImmediate& RHICmdList = GetImmediateCommandList_ForRenderCommand();
-	FRDGBuilder BinkGraphBuilder(RHICmdList);
+	FRDGBuilder BinkGraphBuilder(FRHICommandListImmediate::Get());
 
 	FBinkParameters *consts = BinkGraphBuilder.AllocParameters<FBinkParameters>();
 
@@ -482,11 +480,11 @@ static void Draw_textures(BINKTEXTURES* ptextures, BINKSHADERS* pshaders, void* 
 				FUpdateTextureRegion2D region_YAH(0, 0, 0, 0, bb->YABufferWidth, bb->YABufferHeight);
 				FUpdateTextureRegion2D region_cRcB(0, 0, 0, 0, bb->cRcBBufferWidth, bb->cRcBBufferHeight);
 
-				GDynamicRHI->RHIUpdateTexture2D(RHICmdList, textures->Ytexture[frame_num], 0, region_YAH, bp_src->YPlane.BufferPitch, (uint8*)bp_src->YPlane.Buffer);
-				GDynamicRHI->RHIUpdateTexture2D(RHICmdList, textures->cRtexture[frame_num], 0, region_cRcB, bp_src->cRPlane.BufferPitch, (uint8*)bp_src->cRPlane.Buffer);
-				GDynamicRHI->RHIUpdateTexture2D(RHICmdList, textures->cBtexture[frame_num], 0, region_cRcB, bp_src->cBPlane.BufferPitch, (uint8*)bp_src->cBPlane.Buffer);
-				if (hasAPlane) GDynamicRHI->RHIUpdateTexture2D(RHICmdList, textures->Atexture[frame_num], 0, region_YAH, bp_src->APlane.BufferPitch, (uint8*)bp_src->APlane.Buffer);
-				if (hasHPlane) GDynamicRHI->RHIUpdateTexture2D(RHICmdList, textures->Htexture[frame_num], 0, region_YAH, bp_src->HPlane.BufferPitch, (uint8*)bp_src->HPlane.Buffer);
+				RHICmdList.UpdateTexture2D(textures->Ytexture[frame_num], 0, region_YAH, bp_src->YPlane.BufferPitch, (uint8*)bp_src->YPlane.Buffer);
+				RHICmdList.UpdateTexture2D(textures->cRtexture[frame_num], 0, region_cRcB, bp_src->cRPlane.BufferPitch, (uint8*)bp_src->cRPlane.Buffer);
+				RHICmdList.UpdateTexture2D(textures->cBtexture[frame_num], 0, region_cRcB, bp_src->cBPlane.BufferPitch, (uint8*)bp_src->cBPlane.Buffer);
+				if (hasAPlane) RHICmdList.UpdateTexture2D(textures->Atexture[frame_num], 0, region_YAH, bp_src->APlane.BufferPitch, (uint8*)bp_src->APlane.Buffer);
+				if (hasHPlane) RHICmdList.UpdateTexture2D(textures->Htexture[frame_num], 0, region_YAH, bp_src->HPlane.BufferPitch, (uint8*)bp_src->HPlane.Buffer);
 			}
 
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;

@@ -476,7 +476,6 @@ void FIOSTargetSettingsCustomization::BuildPListSection(IDetailLayoutBuilder& De
 					.AutoHeight()
 					[
 						SAssignNew(ProvisionListView, SListView<ProvisionPtr>)
-						.ItemHeight(20.0f)
 						.ListItemsSource(&FilteredProvisionList)
 						.OnGenerateRow(this, &FIOSTargetSettingsCustomization::HandleProvisionListGenerateRow)
 						.SelectionMode(ESelectionMode::None)
@@ -638,7 +637,6 @@ void FIOSTargetSettingsCustomization::BuildPListSection(IDetailLayoutBuilder& De
 							.FillWidth(1.0f)
 							[
 								SAssignNew(CertificateListView, SListView<CertificatePtr>)
-								.ItemHeight(20.0f)
 								.ListItemsSource(&FilteredCertificateList)
 								.OnGenerateRow(this, &FIOSTargetSettingsCustomization::HandleCertificateListGenerateRow)
 								.SelectionMode(ESelectionMode::None)

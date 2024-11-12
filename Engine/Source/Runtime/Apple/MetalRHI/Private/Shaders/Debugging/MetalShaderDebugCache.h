@@ -6,7 +6,11 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+
 #if !UE_BUILD_SHIPPING
+
+#include "MetalRHIPrivate.h"
 
 struct FMetalShaderDebugCache
 {

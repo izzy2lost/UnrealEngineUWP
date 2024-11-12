@@ -28,6 +28,7 @@ namespace UE::MLDeformer
 
 		// FMLDeformerEditorModel overrides.
 		virtual void Init(const InitSettings& Settings) override;
+		virtual void CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel) override;
 		virtual FMLDeformerEditorActor* CreateEditorActor(const FMLDeformerEditorActor::FConstructSettings& Settings) const override;
 		virtual TSharedPtr<FMLDeformerSampler> CreateSamplerObject() const override;
 		virtual void CreateTrainingGroundTruthActor(UWorld* World) override;

@@ -81,6 +81,8 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 {
 	if(ArgumentTypeIndices.IsEmpty() && !Arguments.IsEmpty())
 	{
+		const FRigVMRegistryWriteLock _;
+
 		if(Struct)
 		{
 			for(const FRigVMFunctionArgument& Argument : Arguments)
@@ -92,11 +94,11 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 					RigVMPropertyUtils::GetTypeFromProperty(Property, CPPType, CPPTypeObject);
 
 					const FRigVMTemplateArgumentType Type(CPPType, CPPTypeObject);
-					ArgumentTypeIndices.Add(FRigVMRegistry::Get().FindOrAddType(Type));
+					ArgumentTypeIndices.Add(FRigVMRegistry_NoLock::GetForWrite().FindOrAddType_NoLock(Type));
 				}
 			}
 		}
-		else if(const FRigVMTemplate* Template = GetTemplate())
+		else if(const FRigVMTemplate* Template = GetTemplate_NoLock())
 		{
 			const int32 PermutationIndex = Template->FindPermutation(this);
 			check(PermutationIndex != INDEX_NONE);
@@ -105,7 +107,7 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 			{
 				const FRigVMTemplateArgument* TemplateArgument = Template->FindArgument(FunctionArgument.Name);
 				check(TemplateArgument);
-				ArgumentTypeIndices.Add(TemplateArgument->GetTypeIndex(PermutationIndex));
+				ArgumentTypeIndices.Add(TemplateArgument->GetTypeIndex_NoLock(PermutationIndex));
 			}
 		}
 		else
@@ -118,12 +120,18 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 
 const FRigVMTemplate* FRigVMFunction::GetTemplate() const
 {
+	const FRigVMRegistryReadLock _;
+	return GetTemplate_NoLock();
+}
+
+const FRigVMTemplate* FRigVMFunction::GetTemplate_NoLock() const
+{
 	if(TemplateIndex == INDEX_NONE)
 	{
 		return nullptr;
 	}
 
-	const FRigVMTemplate* Template = &FRigVMRegistry::Get().GetTemplates()[TemplateIndex];
+	const FRigVMTemplate* Template = &FRigVMRegistry_NoLock::GetForRead().GetTemplates_NoLock()[TemplateIndex];
 	if(Template->NumPermutations() <= 1)
 	{
 		return nullptr;
@@ -132,7 +140,7 @@ const FRigVMTemplate* FRigVMFunction::GetTemplate() const
 	return Template;
 }
 
-const UScriptStruct* FRigVMFunction::GetExecuteContextStruct() const
+const UScriptStruct* FRigVMFunction::GetExecuteContextStruct(bool bLockRegistry) const
 {
 	if(Factory)
 	{
@@ -144,7 +152,7 @@ const UScriptStruct* FRigVMFunction::GetExecuteContextStruct() const
 		FString ExecuteContextName;
 		if(Struct->GetStringMetaDataHierarchical(FRigVMStruct::ExecuteContextName, &ExecuteContextName))
 		{
-			const FRigVMTemplateArgumentType& Type = FRigVMRegistry::Get().FindTypeFromCPPType(ExecuteContextName);
+			const FRigVMTemplateArgumentType& Type = FRigVMRegistry_RWLock::Get().FindTypeFromCPPType(ExecuteContextName, bLockRegistry);
 			if(const UScriptStruct* ExecuteContextStruct = Cast<UScriptStruct>(Type.CPPTypeObject))
 			{
 				return ExecuteContextStruct;

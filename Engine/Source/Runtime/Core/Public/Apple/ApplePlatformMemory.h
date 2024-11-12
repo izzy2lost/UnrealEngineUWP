@@ -14,6 +14,17 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// if USE_MALLOC_BINNED3 isn't configured disable it by default
+#ifndef USE_MALLOC_BINNED3
+	#define USE_MALLOC_BINNED3 0
+#endif // USE_MALLOC_BINNED3
+
+
+// if USE_MALLOC_BINNED2 isn't configured enable it if USE_MALLOC_BINNED3 isn't true
+#ifndef USE_MALLOC_BINNED2
+#define USE_MALLOC_BINNED2 !USE_MALLOC_BINNED3
+#endif // USE_MALLOC_BINNED2
+
 /**
  * NSObject subclass that can be used to override the allocation functions to go through UE4's memory allocator.
  * This ensures that memory allocated by custom Objective-C types can be tracked by UE4's tools and 
@@ -55,7 +66,27 @@ OBJC_EXPORT @interface FApplePlatformObject : NSObject
  *	Max implementation of the FGenericPlatformMemoryStats.
  */
 struct FPlatformMemoryStats : public FGenericPlatformMemoryStats
-{};
+{
+	FPlatformMemoryStats()
+		: FGenericPlatformMemoryStats()
+		, MemoryPressureStatus(EMemoryPressureStatus::Unknown)
+	{}
+	
+	EMemoryPressureStatus GetMemoryPressureStatus() const
+	{
+		if (MemoryPressureStatus == EMemoryPressureStatus::Unknown)
+		{
+			// if platform doesn't make use of MemoryPressureStatus, use default implementation
+			return FGenericPlatformMemoryStats::GetMemoryPressureStatus();
+		}
+		else
+		{
+			return MemoryPressureStatus;
+		}
+	}
+	
+	EMemoryPressureStatus MemoryPressureStatus;
+};
 
 /**
  * Common Apple platform memory functions.
@@ -131,6 +162,8 @@ struct CORE_API FApplePlatformMemory : public FGenericPlatformMemory
 	
 	/** Setup the current default CFAllocator to use our malloc functions. */
 	static void ConfigureDefaultCFAllocator(void);
+
+	static bool CanOverallocateVirtualMemory();
 	
 	static vm_address_t NanoRegionStart;
 	static vm_address_t NanoRegionEnd;

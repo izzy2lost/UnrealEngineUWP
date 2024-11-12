@@ -118,9 +118,9 @@ struct FCharacterAsyncOutput
 	int32 JumpCurrentCountPreJump;
 	int32 JumpCurrentCount;
 	float JumpForceTimeRemaining;
+	float JumpKeyHoldTime;
 	bool bWasJumping;
 	bool bPressedJump;
-	float JumpKeyHoldTime;
 	bool bClearJumpInput; // If true when applying output we will clear bPressedJump on game thread.
 };
 
@@ -446,6 +446,7 @@ struct FCharacterMovementComponentAsyncInput : public Chaos::FSimCallbackInput
 	float AirControl;
 	float AirControlBoostMultiplier;
 	float AirControlBoostVelocityThreshold;
+	bool bDontFallBelowJumpZVelocityDuringJump;
 	bool bApplyGravityWhileJumping;
 	float PhysicsVolumeTerminalVelocity;
 	int32 MaxJumpApexAttemptsPerSimulation;

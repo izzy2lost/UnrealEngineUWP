@@ -227,7 +227,7 @@ public:
 	virtual TStatId GetStatId() const final;
 
 	/** Add a widget to the StaticMeshViewport's ViewportOverlay */
-	void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget) override;
+	void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE) override;
 
 	/** Remove a widget from the StaticMeshViewport's ViewportOverlay */
 	void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
@@ -363,11 +363,22 @@ private:
 	/** A general callback for the combo boxes in the Static Mesh Editor to force a viewport refresh when a selection changes. */
 	void ComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 
+	struct FReimportParameters
+	{
+		FReimportParameters(bool bInWithNewFile, bool bInWithDialog)
+			: bWithNewFile(bInWithNewFile)
+			, bWithDialog(bInWithDialog)
+		{}
+
+		bool bWithNewFile = false;
+		bool bWithDialog = false;
+	};
+
 	/* Callback to reimport the base mesh*/
-	void HandleReimportMesh();
+	void HandleReimportMesh(const FReimportParameters ReimportParameters);
 	
 	/* Callback to reimport the base mesh and also all custom LODs*/
-	void HandleReimportAllMesh();
+	void HandleReimportAllMesh(const FReimportParameters ReimportParameters);
 
 	/**
 	 *	Sets the editor's current mesh and refreshes various settings to correspond with the new data.

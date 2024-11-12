@@ -6,10 +6,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
-using EpicGames.Core;
 using EpicGames.Compression;
+using EpicGames.Core;
 using Force.Crc32;
 using Jupiter.Common.Implementation;
 using K4os.Compression.LZ4;
@@ -79,7 +80,7 @@ namespace Jupiter.Implementation
 			_tracer = tracer;
 			_payloadFactory = payloadFactory;
 		}
-		
+
 		private static (CompressedBufferHeader, uint[]) ExtractHeader(BinaryReader br)
 		{
 			byte[] headerData = br.ReadBytes((int)CompressedBufferHeader.HeaderLength);
@@ -133,7 +134,7 @@ namespace Jupiter.Implementation
 				Array.Copy(blocksData, 0, crcData, headerData.Length, blocksData.Length);
 
 				blocks = new uint[header.BlockCount];
-				
+
 				for (int i = 0; i < header.BlockCount; i++)
 				{
 					ReadOnlySpan<byte> memory = new ReadOnlySpan<byte>(blocksData, i * sizeof(uint), sizeof(uint));
@@ -149,7 +150,6 @@ namespace Jupiter.Implementation
 				throw new InvalidHashException(header.Crc32, calculatedCrc);
 			}
 
-			
 			return (header, blocks);
 		}
 
@@ -184,7 +184,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<IBufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize)
+		public async Task<IBufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize, CancellationToken cancellationToken = default)
 		{
 			using BinaryReader br = new BinaryReader(sourceStream);
 			(CompressedBufferHeader header, uint[] compressedBlockSizes) = ExtractHeader(br);
@@ -227,36 +227,45 @@ namespace Jupiter.Implementation
 				}
 				else
 				{
-					await sourceStream.CopyToAsync(targetStream);
+					await sourceStream.CopyToAsync(targetStream, cancellationToken);
 				}
 			}
 
 			// not using the buffered payload as we transfer the ownership to the caller of this method
-			FilesystemBufferedPayload finalizedBufferedPayload = bufferedPayloadWriter.Done();
-
-			if (header.TotalRawSize != (ulong)finalizedBufferedPayload.Length)
+			FilesystemBufferedPayload? finalizedBufferedPayload = null;
+			try
 			{
-				throw new Exception("Did not decompress the full payload");
-			}
+				finalizedBufferedPayload = bufferedPayloadWriter.Done();
 
-			{
-				using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-
-				// only read the first 20 bytes of the hash field as IoHashes are 20 bytes and not 32 bytes
-				byte[] slicedHash = new byte[20];
-				Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
-
-				BlobId headerIdentifier = new BlobId(slicedHash);
-				await using Stream hashStream = finalizedBufferedPayload.GetStream();
-				BlobId contentHash = await BlobId.FromStreamAsync(hashStream);
-
-				if (!headerIdentifier.Equals(contentHash))
+				if (header.TotalRawSize != (ulong)finalizedBufferedPayload.Length)
 				{
-					throw new Exception($"Payload was expected to be {headerIdentifier} but was {contentHash}");
+					throw new Exception("Did not decompress the full payload");
 				}
-			}
 
-			return finalizedBufferedPayload;
+				{
+					using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
+
+					// only read the first 20 bytes of the hash field as IoHashes are 20 bytes and not 32 bytes
+					byte[] slicedHash = new byte[20];
+					Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
+
+					BlobId headerIdentifier = new BlobId(slicedHash);
+					await using Stream hashStream = finalizedBufferedPayload.GetStream();
+					BlobId contentHash = await BlobId.FromStreamAsync(hashStream, cancellationToken);
+
+					if (!headerIdentifier.Equals(contentHash))
+					{
+						throw new Exception($"Payload was expected to be {headerIdentifier} but was {contentHash}");
+					}
+				}
+
+				return finalizedBufferedPayload;
+			}
+			catch
+			{
+				finalizedBufferedPayload?.Dispose();
+				throw;
+			}
 		}
 
 		private static int DecompressPayload(ReadOnlySpan<byte> compressedPayload, CompressedBufferHeader header, ulong rawBlockSize, Stream target)
@@ -304,7 +313,7 @@ namespace Jupiter.Implementation
 
 				blocks.Add(bufferToCompress.ToArray());
 			}
-			
+
 			return CompressContent(s, method, compressionLevel, blocks, blockSize);
 		}
 

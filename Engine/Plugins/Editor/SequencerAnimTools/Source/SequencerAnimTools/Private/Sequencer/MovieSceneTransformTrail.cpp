@@ -739,15 +739,16 @@ bool FMovieSceneControlRigTransformTrail::ApplyDelta(const FVector& Pos, const F
 		IMovieScenePlayer* Player = GetSequencer().Get();
 
 		FMovieSceneSequenceTransform RootToLocalTransform = GetSequencer()->GetFocusedMovieSceneSequenceTransform();
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
-		auto EvalControlRig = [&Context,&RootToLocalTransform, Pos, TickResolution, ControlRig,Player, this](FTrailKeyInfo* KeyInfo)
+		auto EvalControlRig = [&Context,&LocalToRootTransform, Pos, TickResolution, ControlRig,Player, this](FTrailKeyInfo* KeyInfo)
 		{
 			if (KeyInfo)
 			{
 				Context.LocalTime = TickResolution.AsSeconds(FFrameTime(KeyInfo->FrameNumber));
 				Context.KeyMask = (uint32)EControlRigContextChannelToKey::Translation;
 				FFrameTime GlobalTime(KeyInfo->FrameNumber);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+				GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime); //player evals in root time so need to go back to it.
 
 				FMovieSceneContext MovieSceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 
@@ -805,8 +806,8 @@ bool FMovieSceneControlRigTransformTrail::EndTracking()
 		IMovieScenePlayer* Player = GetSequencer().Get();
 		FFrameTime StartTime = GetSequencer()->GetLocalTime().Time;
 		FFrameRate TickResolution = GetSequencer()->GetFocusedTickResolution();
-		FMovieSceneSequenceTransform RootToLocalTransform = GetSequencer()->GetFocusedMovieSceneSequenceTransform();
-		StartTime = StartTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = GetSequencer()->GetFocusedMovieSceneSequenceTransform().Inverse();
+		StartTime = LocalToRootTransform.TryTransformTime(StartTime).Get(StartTime); //player evals in root time so need to go back to it.
 
 		FMovieSceneContext MovieSceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(StartTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 		
@@ -844,8 +845,9 @@ bool FMovieSceneControlRigTransformTrail::HandleAltClick(FEditorViewportClient* 
 	FFrameTime DisplayTime = FFrameRate::TransformTime(GlobalTime, DisplayResolution, TickResolution);
 	DisplayTime = DisplayTime.RoundToFrame();
 	GlobalTime = FFrameRate::TransformTime(DisplayTime, TickResolution, DisplayResolution);
-	FMovieSceneSequenceTransform RootToLocalTransform = GetSequencer()->GetFocusedMovieSceneSequenceTransform();
-	GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = GetSequencer()->GetFocusedMovieSceneSequenceTransform().Inverse();
+	GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime); //player evals in root time so need to go back to it.
 
 	Context.LocalTime = TickResolution.AsSeconds(GlobalTime);
 	Context.KeyMask = (uint32)EControlRigContextChannelToKey::Translation;
@@ -856,8 +858,7 @@ bool FMovieSceneControlRigTransformTrail::HandleAltClick(FEditorViewportClient* 
 	ControlRig->SetControlGlobalTransform(ControlName, NewTransform, true, Context, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
 
 	//eval back at current time
-	FFrameTime StartTime = GetSequencer()->GetLocalTime().Time;
-	StartTime = StartTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+	FFrameTime StartTime = GetSequencer()->GetGlobalTime().Time;
 
 	MovieSceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(StartTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 	Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(MovieSceneContext);

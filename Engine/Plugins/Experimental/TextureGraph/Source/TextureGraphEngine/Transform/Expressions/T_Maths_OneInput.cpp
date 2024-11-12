@@ -79,7 +79,7 @@ TiledBlobPtr T_Maths_OneInput::CreateTrigonometry(MixUpdateCyclePtr Cycle, Buffe
 #define IMPL_SINGLE_ARG_SHADER(Name) TiledBlobPtr T_Maths_OneInput::Create##Name(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, int32 TargetId, TiledBlobPtr Input) \
 { \
 	FString TransformName = FString(TEXT("T_")) + FString(#Name); \
-	return CreateGenericOneInput<FSH_Sin>(Cycle, DesiredOutputDesc, TargetId, Input, TransformName); \
+	return CreateGenericOneInput<FSH_##Name>(Cycle, DesiredOutputDesc, TargetId, Input, TransformName); \
 }
 
 IMPL_SINGLE_ARG_SHADER(Abs);

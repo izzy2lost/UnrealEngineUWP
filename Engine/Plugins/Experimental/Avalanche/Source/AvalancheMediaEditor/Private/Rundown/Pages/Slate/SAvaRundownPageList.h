@@ -10,19 +10,17 @@
 
 class FAvaRundownEditor;
 class FAvaRundownPageContextMenu;
+class FAvaRundownPageTextFilter;
 class FUICommandList;
 class IAvaRundownPageViewColumn;
 class ITableRow;
 class SAssetSearchBox;
 class SHeaderRow;
 class SHorizontalBox;
-class SSearchBox;
 class STableViewBase;
-enum class EAvaRundownSearchListType : uint8;
 enum class EItemDropZone;
 struct FAssetSearchBoxSuggestion;
 struct FAvaRundownPage;
-struct FAvaRundownPageListChangeParams;
 template<typename ItemType> class SListView;
 
 class SAvaRundownPageList : public SCompoundWidget
@@ -34,7 +32,7 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor, const FAvaRundownPageListReference& InPageListReference, EAvaRundownSearchListType InPageListType);
+	void Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor, const FAvaRundownPageListReference& InPageListReference);
 	virtual ~SAvaRundownPageList() override;
 
 	const FAvaRundownPageListReference& GetPageListReference() const { return PageListReference; }
@@ -81,8 +79,6 @@ public:
 
 	TSharedRef<SWidget> GetPageListContextMenu();
 
-	EAvaRundownSearchListType GetPageListType() const { return PageListType; }
-
 	bool CanCopySelectedPages() const;
 	void CopySelectedPages();
 
@@ -105,8 +101,8 @@ public:
 	bool CanRenameSelectedPage() const;
 	void RenameSelectedPage();
 
-	bool CanRenumberSelectedPage() const;
-	void RenumberSelectedPage();
+	bool CanRenumberSelectedPages() const;
+	void RenumberSelectedPages();
 
 	bool CanReimportSelectedPage() const;
 	void ReimportSelectedPage() const;
@@ -180,6 +176,19 @@ protected:
 	TArray<int32> GetPagesToPreviewContinue() const;
 	TArray<int32> GetPagesToTakeToProgram() const;
 	int32 GetPageIdToPreviewNext() const;
+
+	bool IsPageVisible(const FAvaRundownPage& InPage) const
+	{
+		return VisiblePageIds.Contains(InPage.GetPageId());
+	}
+
+	bool IsPageVisible(int32 InPageId) const
+	{
+		return VisiblePageIds.Contains(InPageId);
+	}
+
+	/** Applies PageTextFilter to current page list and caches the result. */
+	void RefreshPagesVisibility();
 	
 private:
 	FText OnAssetSearchBoxSuggestionChosen(const FText& InSearchText, const FString& InSuggestion);
@@ -190,7 +199,7 @@ private:
 
 	void OnSearchBoxSuggestionFilter(const FText& InSearchText, TArray<FAssetSearchBoxSuggestion>& OutPossibleSuggestions, FText& OutSuggestionHighlightText);
 
-	TArray<FAvaRundownPage> GetPagesByType(EAvaRundownSearchListType InRundownSearchListType) const;
+	void OnPageTextFilterChanged();
 
 protected:
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
@@ -213,6 +222,11 @@ protected:
 
 	TSharedPtr<FUICommandList> CommandList;
 
+	TSharedPtr<FAvaRundownPageTextFilter> PageTextFilter;
+
+	/** Cached result of PageTextFilter applied to current page list. */
+	TSet<int32> VisiblePageIds;
+	
 	/**
 	 * For template and instance lists, it will return the list of page ids created.
 	 * For a sub list it will return the list of page ids that were added to the page view.
@@ -221,6 +235,4 @@ protected:
 
 private:
 	TSharedPtr<SAssetSearchBox> AssetSearchBoxPtr;
-
-	EAvaRundownSearchListType PageListType;
 };

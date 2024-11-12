@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MaterialDesigner/AvaMaterialDesignerExtension.h"
+
 #include "AvaShapeActor.h"
+#include "DetailView/AvaDetailsExtension.h"
 #include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
-#include "DetailView/AvaDetailsExtension.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Engine/World.h"
 #include "IDynamicMaterialEditorModule.h"
@@ -40,7 +41,7 @@ void FAvaMaterialDesignerExtension::ExtendToolbarMenu(UToolMenu& InMenu)
 	Entry.StyleNameOverride = "CalloutToolbar";
 }
 
-bool FAvaMaterialDesignerExtension::IsDynamicMaterialModelValid(UDynamicMaterialModel* InMaterialModel)
+bool FAvaMaterialDesignerExtension::IsDynamicMaterialModelValid(UDynamicMaterialModelBase* InMaterialModel)
 {
 	if (!IsValid(InMaterialModel))
 	{
@@ -64,7 +65,7 @@ bool FAvaMaterialDesignerExtension::IsDynamicMaterialModelValid(UDynamicMaterial
 	{
 		if (UDynamicMaterialInstance* const MeshInstance = Cast<UDynamicMaterialInstance>(DynamicMesh->GetMaterial(MeshIndex)))
 		{
-			if (MeshInstance->GetMaterialModel() == InMaterialModel)
+			if (MeshInstance->GetMaterialModelBase() == InMaterialModel)
 			{
 				return true;
 			}
@@ -81,15 +82,19 @@ bool FAvaMaterialDesignerExtension::SetDynamicMaterialValue(const FDMObjectMater
 		return false;
 	}
 
-	if (const UActorComponent* const ActorComponent = Cast<UActorComponent>(InObjectMaterialProperty.OuterWeak.Get()))
+	if (const UActorComponent* const ActorComponent = Cast<UActorComponent>(InObjectMaterialProperty.GetOuter()))
 	{
 		if (const AAvaShapeActor* const ShapeActor = Cast<AAvaShapeActor>(ActorComponent->GetOwner()))
 		{
 			UAvaShapeDynamicMeshBase* const DynamicMesh = ShapeActor->GetDynamicMesh();
-			if (DynamicMesh && DynamicMesh->GetMeshesIndexes().Contains(InObjectMaterialProperty.Index))
+			if (DynamicMesh && DynamicMesh->GetMeshesIndexes().Contains(InObjectMaterialProperty.GetIndex()))
 			{
-				InMaterial->Rename(nullptr, DynamicMesh);
-				DynamicMesh->SetMaterial(InObjectMaterialProperty.Index, InMaterial);
+				if (!InMaterial->IsAsset())
+				{
+					InMaterial->Rename(nullptr, DynamicMesh);
+				}
+
+				DynamicMesh->SetMaterial(InObjectMaterialProperty.GetIndex(), InMaterial);
 				return true;
 			}
 		}

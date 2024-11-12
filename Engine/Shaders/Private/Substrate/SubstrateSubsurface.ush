@@ -246,20 +246,20 @@ float SubstrateShadowColoredMFPToGreyScaleMFP(float3 MFP)
 }
 
 // Legacy conversion function, which translated Substrate sub-surface data into 'opacity' for shadow transmission purpose. 
-FSubsurfaceOpacityMFP SubstrateGetSubsurfaceOpacityMFP(FSubstrateSubsurfaceHeader SSSHeader)
+FSubsurfaceOpacityMFP SubstrateGetSubsurfaceOpacityMFP(FSubstrateSubsurfaceHeader SSSHeader, bool bAllowDiffuse = true, bool bAllowDiffuseProfile = true)
 {
 	FSubsurfaceOpacityMFP SubsurfaceOpacityMFP = GetInitialisedSubsurfaceOpacityMFP();
 
 	const uint SSSType = SubstrateSubSurfaceHeaderGetSSSType(SSSHeader);
 
-	if (SSSType == SSS_TYPE_DIFFUSION)
+	if (bAllowDiffuse && SSSType == SSS_TYPE_DIFFUSION)
 	{
 		SubsurfaceOpacityMFP.bDataIsOpacity = false;
 		const float3 ColoredMFP = SubstrateSubSurfaceHeaderGetMFP(SSSHeader);
 		SubsurfaceOpacityMFP.Data = SubstrateShadowColoredMFPToGreyScaleMFP(ColoredMFP);
 		SubsurfaceOpacityMFP.Density = 0.0f;
 	}
-	else if (SSSType == SSS_TYPE_DIFFUSION_PROFILE)
+	else if (bAllowDiffuseProfile && SSSType == SSS_TYPE_DIFFUSION_PROFILE)
 	{
 		SubsurfaceOpacityMFP.bDataIsOpacity = true;
 

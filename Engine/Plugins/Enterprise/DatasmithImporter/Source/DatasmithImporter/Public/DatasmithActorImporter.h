@@ -11,7 +11,7 @@ class AStaticMeshActor;
 class FDatasmithActorUniqueLabelProvider;
 class IDatasmithActorElement;
 class IDatasmithCameraActorElement;
-class IDatasmithClothActorElement;
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") IDatasmithClothActorElement;
 class IDatasmithCustomActorElement;
 class IDatasmithDecalActorElement;
 class IDatasmithEnvironmentElement;
@@ -72,7 +72,10 @@ public:
 	static AStaticMeshActor* ImportStaticMeshActor( FDatasmithImportContext& ImportContext, const TSharedRef< IDatasmithMeshActorElement >& MeshActorElement );
 	static UStaticMeshComponent* ImportStaticMeshComponent( FDatasmithImportContext& ImportContext, const TSharedRef< IDatasmithMeshActorElement >& MeshActorElement, UObject* Outer, FDatasmithActorUniqueLabelProvider& UniqueNameProvider );
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	static AActor* ImportClothActor( FDatasmithImportContext& ImportContext, const TSharedRef< IDatasmithClothActorElement >& ClothActorElement );
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Spawns a cine camera actor

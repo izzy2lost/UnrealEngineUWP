@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "ChaosVDDataSerializationMacros.h"
 #include "HAL/Platform.h"
 
 #include "ChaosVDCollisionDataWrappers.generated.h"
@@ -52,7 +53,7 @@ enum class EChaosVDContactPointType : int8
 };
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDContactPoint
+struct FChaosVDContactPoint
 {
 	GENERATED_BODY()
 
@@ -76,23 +77,10 @@ struct CHAOSVDRUNTIME_API FChaosVDContactPoint
 	UPROPERTY(VisibleAnywhere, Category=Contact)
 	EChaosVDContactPointType ContactType = EChaosVDContactPointType::Unknown;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDContactPoint> : public TStructOpsTypeTraitsBase2<FChaosVDContactPoint>
-{
-	enum
-	{
-		WithSerializer = true,
-	};
-};
-
-inline FArchive& operator<<(FArchive& Ar, FChaosVDContactPoint& Data)
-{
-	Data.Serialize(Ar);
-	return Ar;
-}
+CVD_IMPLEMENT_SERIALIZER(FChaosVDContactPoint)
 
 UENUM()
 enum class EChaosVDManifoldPointFlags : uint8
@@ -108,7 +96,7 @@ enum class EChaosVDManifoldPointFlags : uint8
 ENUM_CLASS_FLAGS(EChaosVDManifoldPointFlags)
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
+struct FChaosVDManifoldPoint
 {
 	GENERATED_BODY()
 
@@ -147,23 +135,10 @@ struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
 
 	bool bIsSelectedInEditor = false;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDManifoldPoint> : public TStructOpsTypeTraitsBase2<FChaosVDManifoldPoint>
-{
-	enum
-	{
-		WithSerializer = true,
-	};
-};
-
-inline FArchive& operator<<(FArchive& Ar, FChaosVDManifoldPoint& Data)
-{
-	Data.Serialize(Ar);
-	return Ar;
-}
+CVD_IMPLEMENT_SERIALIZER(FChaosVDManifoldPoint)
 
 USTRUCT()
 struct FChaosVDCollisionMaterial
@@ -209,20 +184,7 @@ struct FChaosVDCollisionMaterial
 	bool Serialize(FArchive& Ar);
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDCollisionMaterial> : public TStructOpsTypeTraitsBase2<FChaosVDCollisionMaterial>
-{
-	enum
-	{
-		WithSerializer = true,
-	};
-};
-
-inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionMaterial& Data)
-{
-	Data.Serialize(Ar);
-	return Ar;
-}
+CVD_IMPLEMENT_SERIALIZER(FChaosVDCollisionMaterial)
 
 UENUM()
 enum class EChaosVDConstraintFlags : uint16
@@ -244,7 +206,7 @@ enum class EChaosVDConstraintFlags : uint16
 };
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDConstraint
+struct FChaosVDConstraint
 {
 	GENERATED_BODY()
 
@@ -342,23 +304,10 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	UPROPERTY()
 	int32 SolverID = INDEX_NONE;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDConstraint> : public TStructOpsTypeTraitsBase2<FChaosVDConstraint>
-{
-	enum
-	{
-		WithSerializer = true,
-	};
-};
-
-inline FArchive& operator<<(FArchive& Ar, FChaosVDConstraint& Data)
-{
-	Data.Serialize(Ar);
-	return Ar;
-}
+CVD_IMPLEMENT_SERIALIZER(FChaosVDConstraint)
 
 UENUM()
 enum class EChaosVDMidPhaseFlags : uint8
@@ -371,8 +320,26 @@ enum class EChaosVDMidPhaseFlags : uint8
 	IsModified = 1 << 4,
 };
 
+UENUM()
+enum class EChaosVDMidPhaseType : int8
+{
+	// A general purpose midphase that handle BVHs, Meshes, 
+	// Unions of Unions, etc in the geometry hierarchy.
+	Generic,
+
+	// A midphase optimized for particle pairs with a small
+	// number of shapes. Pre-expands the set of potentially
+	// colliding shape pairs.
+	ShapePair,
+
+	// A midphase used to collide particles as sphere approximations
+	SphereApproximation,
+
+	Unknown
+};
+
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
+struct FChaosVDParticlePairMidPhase
 {
 	GENERATED_BODY()
 
@@ -380,6 +347,9 @@ struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 
 	UPROPERTY()
 	int32 SolverID = INDEX_NONE;
+
+	UPROPERTY(VisibleAnywhere, Category=General)
+	EChaosVDMidPhaseType MidPhaseType = EChaosVDMidPhaseType::Unknown;
 
 	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsActive:1 = false;
@@ -400,27 +370,13 @@ struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 	UPROPERTY(VisibleAnywhere, Category=Particle)
 	int32 Particle1Idx = 0;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category=Constraints)
 	TArray<FChaosVDConstraint> Constraints;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDParticlePairMidPhase> : public TStructOpsTypeTraitsBase2<FChaosVDParticlePairMidPhase>
-{
-	enum
-	{
-		WithSerializer = true,
-	};
-};
-
-
-inline FArchive& operator<<(FArchive& Ar, FChaosVDParticlePairMidPhase& Data)
-{
-	Data.Serialize(Ar);
-	return Ar;
-}
+CVD_IMPLEMENT_SERIALIZER(FChaosVDParticlePairMidPhase)
 
 UENUM()
 enum class EChaosVDCollisionTraceFlag
@@ -438,7 +394,7 @@ enum class EChaosVDCollisionTraceFlag
 };
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDCollisionFilterData
+struct FChaosVDCollisionFilterData
 {
 	GENERATED_BODY()
 
@@ -451,23 +407,19 @@ struct CHAOSVDRUNTIME_API FChaosVDCollisionFilterData
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
 	uint32 Word3 = 0;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
+
+	bool operator==(const FChaosVDCollisionFilterData& Other) const = default;
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDCollisionFilterData> : public TStructOpsTypeTraitsBase2<FChaosVDCollisionFilterData>
+template <>
+struct TTypeTraits<FChaosVDCollisionFilterData> : public TTypeTraitsBase <FChaosVDCollisionFilterData>
 {
-	enum
-	{
-		WithSerializer = true,
-	};
+	enum { IsBytewiseComparable = true };
 };
 
-inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionFilterData& Data)
-{
-	Data.Serialize(Ar);
-	return Ar;
-}
+CVD_IMPLEMENT_SERIALIZER(FChaosVDCollisionFilterData)
+
 UENUM()
 enum class EChaosVDCollisionShapeDataFlags : uint8
 {
@@ -478,18 +430,18 @@ enum class EChaosVDCollisionShapeDataFlags : uint8
 };
 
 USTRUCT()
-struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
+struct FChaosVDShapeCollisionData
 {
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
 	EChaosVDCollisionTraceFlag CollisionTraceType = EChaosVDCollisionTraceFlag::UseDefault;
 
-	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	UPROPERTY()
 	uint8 bSimCollision : 1 = false;
-	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	UPROPERTY()
 	uint8 bQueryCollision : 1 = false;
-	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	UPROPERTY()
 	uint8 bIsProbe : 1 = false;
 
 	UPROPERTY(VisibleAnywhere, Category=FilterData)
@@ -498,26 +450,59 @@ struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
 	UPROPERTY(VisibleAnywhere, Category=SimData)
 	FChaosVDCollisionFilterData SimData;
 
+	UPROPERTY(VisibleAnywhere, Category="CVD Data")
 	bool bIsComplex = false;
 
+	UPROPERTY(VisibleAnywhere, Category="CVD Data")
 	bool bIsValid = false;
 
-	bool Serialize(FArchive& Ar);
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 
-	bool operator==(const FChaosVDShapeCollisionData& Other) const;
+	CHAOSVDRUNTIME_API bool operator==(const FChaosVDShapeCollisionData& Other) const;
 };
 
-template<>
-struct TStructOpsTypeTraits<FChaosVDShapeCollisionData> : public TStructOpsTypeTraitsBase2<FChaosVDShapeCollisionData>
+template <>
+struct TTypeTraits<FChaosVDShapeCollisionData> : public TTypeTraitsBase <FChaosVDShapeCollisionData>
 {
-	enum
-	{
-		WithSerializer = true,
-	};
+	enum { IsBytewiseComparable = true };
 };
 
-inline FArchive& operator<<(FArchive& Ar, FChaosVDShapeCollisionData& Data)
+CVD_IMPLEMENT_SERIALIZER(FChaosVDShapeCollisionData)
+
+/** Minimum amount of data needed to reconstruct Collision names in CVD
+ * based on already serialized flags
+ */
+USTRUCT()
+struct FChaosVDCollisionChannelInfo
 {
-	Data.Serialize(Ar);
-	return Ar;
-}
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString DisplayName;
+
+	UPROPERTY()
+	int32 CollisionChannel = INDEX_NONE;
+
+	UPROPERTY()
+	bool bIsTraceType = false;
+	
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
+};
+
+CVD_IMPLEMENT_SERIALIZER(FChaosVDCollisionChannelInfo)
+
+/** Container for recorded custom collision profile data */
+USTRUCT()
+struct FChaosVDCollisionChannelsInfoContainer
+{
+	GENERATED_BODY()
+
+	inline static FStringView WrapperTypeName = TEXT("FChaosVDCollisionChannelsInfoContainer");
+
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	FChaosVDCollisionChannelInfo CustomChannelsNames[32] = {};
+
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
+};
+
+CVD_IMPLEMENT_SERIALIZER(FChaosVDCollisionChannelsInfoContainer)

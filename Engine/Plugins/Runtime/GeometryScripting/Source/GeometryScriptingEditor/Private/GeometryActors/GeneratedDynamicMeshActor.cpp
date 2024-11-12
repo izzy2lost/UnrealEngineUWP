@@ -47,6 +47,12 @@ void AGeneratedDynamicMeshActor::PostActorCreated()
 {
 	Super::PostActorCreated();
 	RegisterWithGenerationManager();
+	
+	// Default newly-created generated dynamic meshes to not be element-selectable
+	if (UDynamicMeshComponent* Component = GetDynamicMeshComponent())
+	{
+		Component->SetAllowsGeometrySelection(false);
+	}
 }
 
 void AGeneratedDynamicMeshActor::Destroyed()

@@ -19,6 +19,11 @@ FSharedMemoryMediaPlayerFactory::FSharedMemoryMediaPlayerFactory()
 
 bool FSharedMemoryMediaPlayerFactory::CanPlayUrl(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const
 {
+	return GetPlayabilityConfidenceScore(Url, Options, OutWarnings, OutErrors) > 0 ? true : false;
+}
+
+int32 FSharedMemoryMediaPlayerFactory::GetPlayabilityConfidenceScore(const FString& Url, const IMediaOptions* Options, TArray<FText>* OutWarnings, TArray<FText>* OutErrors) const
+{
 	FString Scheme;
 	FString Location;
 
@@ -30,7 +35,7 @@ bool FSharedMemoryMediaPlayerFactory::CanPlayUrl(const FString& Url, const IMedi
 			OutErrors->Add(LOCTEXT("NoSchemeFound", "No URI scheme found"));
 		}
 
-		return false;
+		return 0;
 	}
 
 	// see if the scheme is supported
@@ -41,10 +46,10 @@ bool FSharedMemoryMediaPlayerFactory::CanPlayUrl(const FString& Url, const IMedi
 			OutErrors->Add(FText::Format(LOCTEXT("SchemeNotSupported", "The URI scheme '{0}' is not supported"), FText::FromString(Scheme)));
 		}
 
-		return false;
+		return 0;
 	}
 
-	return true;
+	return 100;
 }
 
 TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> FSharedMemoryMediaPlayerFactory::CreatePlayer(IMediaEventSink& EventSink)

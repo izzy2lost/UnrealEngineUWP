@@ -7,9 +7,100 @@
 
 #include "HAL/Platform.h"
 #include "Dom/JsonObject.h"
+#include "Misc/Paths.h"
+
+namespace UE::Learning
+{
+	FSubprocess::~FSubprocess()
+	{
+		Terminate();
+	}
+
+	bool FSubprocess::Launch(const FString& Path, const FString& Params, const ESubprocessFlags Flags)
+	{
+		ensureMsgf(!bIsLaunched, TEXT("Subprocess already launched."));
+
+		Terminate();
+
+		const bool bCreatePipes = !(Flags & ESubprocessFlags::NoRedirectOutput);
+		const bool bHideWindow = !(Flags & ESubprocessFlags::ShowWindow);
+
+		if (bCreatePipes && !FPlatformProcess::CreatePipe(ReadPipe, WritePipe))
+		{
+			return false;
+		}
+
+		ProcessHandle = FPlatformProcess::CreateProc(*Path, *Params, false, bHideWindow, bHideWindow, nullptr, 0, *FPaths::RootDir(), WritePipe, ReadPipe);
+		bIsLaunched = true;
+		return true;
+	}
+
+	bool FSubprocess::IsRunning() const
+	{
+		return bIsLaunched && FPlatformProcess::IsProcRunning(const_cast<FProcHandle&>(ProcessHandle));
+	}
+
+	void FSubprocess::Terminate()
+	{
+		if (IsRunning())
+		{
+			UE_LOG(LogLearning, Display, TEXT("Terminating Subprocess..."));
+
+			FPlatformProcess::TerminateProc(ProcessHandle, true);
+		}
+
+		Update();
+	}
+
+	bool FSubprocess::Update()
+	{
+		// Do nothing if the process is not launched
+		if (!bIsLaunched)
+		{
+			return false;
+		}
+
+		// Append the process stdout to the buffer
+		OutputBuffer += FPlatformProcess::ReadPipe(ReadPipe);
+
+		// Output all the complete lines
+		int32 LineStartIdx = 0;
+		for (int32 Idx = 0; Idx < OutputBuffer.Len(); Idx++)
+		{
+			if (OutputBuffer[Idx] == '\r' || OutputBuffer[Idx] == '\n')
+			{
+				UE_LOG(LogLearning, Display, TEXT("Subprocess: %s"), *OutputBuffer.Mid(LineStartIdx, Idx - LineStartIdx));
+
+				if (OutputBuffer[Idx] == '\r' && Idx + 1 < OutputBuffer.Len() && OutputBuffer[Idx + 1] == '\n')
+				{
+					Idx++;
+				}
+
+				LineStartIdx = Idx + 1;
+			}
+		}
+
+		// Remove all the complete lines from the buffer
+		OutputBuffer.MidInline(LineStartIdx, MAX_int32, EAllowShrinking::Yes);
+
+		// If the process is no longer running then close the pipes
+		if (!IsRunning())
+		{
+			FPlatformProcess::ClosePipe(ReadPipe, WritePipe);
+			ReadPipe = nullptr;
+			WritePipe = nullptr;
+			bIsLaunched = false;
+			return false;
+		}
+		
+		return true;
+	}
+
+}
 
 namespace UE::Learning::Trainer
 {
+
 	TSharedPtr<FJsonObject> ConvertObservationSchemaToJSON(
 		const Observation::FSchema& ObservationSchema,
 		const Observation::FSchemaElement& ObservationSchemaElement)
@@ -309,6 +400,11 @@ namespace UE::Learning::Trainer
 	FString GetPythonContentPath(const FString& EngineDir)
 	{
 		return EngineDir / TEXT("Plugins/Experimental/LearningAgents/Content/Python/");
+	}
+
+	FString GetProjectPythonContentPath()
+	{
+		return FPaths::ProjectContentDir() / TEXT("Python/");
 	}
 
 	FString GetIntermediatePath(const FString& IntermediateDir)

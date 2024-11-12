@@ -51,7 +51,12 @@
 		},
 		{
 			"Name": "Interchange",
-			"Enabled": true
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Mac"
+			]
 		}
 	],
 	"IsExperimentalVersion": false

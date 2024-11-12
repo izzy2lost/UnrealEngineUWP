@@ -76,4 +76,8 @@ public:
 	/** Groom index which should be baked into the textures. When the array is empty, all groups will be included (Default). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ShowOnlyInnerProperties), Category = Options)
 	TArray<int32> GroupIndex;
+
+	/** Number pixels expanded by the post-process dilation (0..64). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ShowOnlyInnerProperties, ClampMin = 0, ClampMax = 32, UIMin = 0, UIMax = 32), Category = Options)
+	int32 Dilation = 8;
 };

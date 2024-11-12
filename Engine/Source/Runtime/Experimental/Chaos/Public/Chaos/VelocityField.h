@@ -4,6 +4,7 @@
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
 #include "Chaos/SoftsSolverParticlesRange.h"
+#include "Chaos/SoftsSimulationSpace.h"
 #include "Chaos/TriangleMesh.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Chaos/PBDFlatWeightMap.h"
@@ -20,6 +21,7 @@ public:
 	static constexpr FSolverReal DefaultFluidDensity = (FSolverReal)1.225;
 	static constexpr FSolverReal MinCoefficient = (FSolverReal)0.;   // Applies to both drag and lift
 	static constexpr FSolverReal MaxCoefficient = (FSolverReal)10.;  //
+	static constexpr EChaosSoftsSimulationSpace DefaultWindVelocitySpace = EChaosSoftsSimulationSpace::WorldSpace;
 
 	static bool IsEnabled(const FCollectionPropertyConstFacade& PropertyCollection)
 	{
@@ -33,15 +35,20 @@ public:
 		: Offset(INDEX_NONE)
 		, NumParticles(0)
 		, Lift(GetWeightedFloatLift(PropertyCollection, (FSolverReal)0.).ClampAxes(MinCoefficient, MaxCoefficient))
+		, OuterLift(GetWeightedFloatOuterLift(PropertyCollection, FSolverVec2(Lift.GetLow(), Lift.GetHigh())).ClampAxes(MinCoefficient, MaxCoefficient))
 		, Drag(GetWeightedFloatDrag(PropertyCollection, (FSolverReal)0.).ClampAxes(MinCoefficient, MaxCoefficient))
+		, OuterDrag(GetWeightedFloatOuterDrag(PropertyCollection, FSolverVec2(Drag.GetLow(), Drag.GetHigh())).ClampAxes(MinCoefficient, MaxCoefficient))
 		, Pressure(GetWeightedFloatPressure(PropertyCollection, (FSolverReal)0.))
 		, Rho(FMath::Max(GetFluidDensity(PropertyCollection, (FSolverReal)0.), (FSolverReal)0.))
 		, QuarterRho(Rho * (FSolverReal)0.25f)
 		, DragIndex(PropertyCollection)
+		, OuterDragIndex(PropertyCollection)
 		, LiftIndex(PropertyCollection)
+		, OuterLiftIndex(PropertyCollection)
 		, FluidDensityIndex(PropertyCollection)
 		, PressureIndex(PropertyCollection)
 		, WindVelocityIndex(PropertyCollection)
+		, WindVelocitySpaceIndex(PropertyCollection)
 	{
 	}
 
@@ -52,21 +59,22 @@ public:
 		const TMap<FString, TConstArrayView<FRealSingle>>& Weightmaps,
 		FSolverReal WorldScale)
 		: Lift(GetWeightedFloatLift(PropertyCollection, (FSolverReal)0.).ClampAxes(MinCoefficient, MaxCoefficient))
+		, OuterLift(GetWeightedFloatOuterLift(PropertyCollection, FSolverVec2(Lift.GetLow(), Lift.GetHigh())).ClampAxes(MinCoefficient, MaxCoefficient))
 		, Drag(GetWeightedFloatDrag(PropertyCollection, (FSolverReal)0.).ClampAxes(MinCoefficient, MaxCoefficient))
+		, OuterDrag(GetWeightedFloatOuterDrag(PropertyCollection, FSolverVec2(Drag.GetLow(), Drag.GetHigh())).ClampAxes(MinCoefficient, MaxCoefficient))
 		, Pressure(GetWeightedFloatPressure(PropertyCollection, (FSolverReal)0.)/WorldScale)
+		, Rho(FMath::Max(GetFluidDensity(PropertyCollection, (FSolverReal)0.)/FMath::Cube(WorldScale), (FSolverReal)0.))
+		, QuarterRho(Rho* (FSolverReal)0.25f)
 		, DragIndex(PropertyCollection)
+		, OuterDragIndex(PropertyCollection)
 		, LiftIndex(PropertyCollection)
+		, OuterLiftIndex(PropertyCollection)
 		, FluidDensityIndex(PropertyCollection)
 		, PressureIndex(PropertyCollection)
 		, WindVelocityIndex(PropertyCollection)
+		, WindVelocitySpaceIndex(PropertyCollection)
 	{
 		SetGeometry(Particles, TriangleMesh);
-		SetProperties(
-			FSolverVec2(GetWeightedFloatDrag(PropertyCollection, 0.f)),  // If these properties don't exist, set their values to 0, not to DefaultCoefficients!
-			FSolverVec2(GetWeightedFloatLift(PropertyCollection, 0.f)),
-			(FSolverReal)GetFluidDensity(PropertyCollection, 0.f),
-			FSolverVec2(GetWeightedFloatPressure(PropertyCollection, 0.f)),  // These getters also initialize the property indices, so keep before SetMultipliers
-			WorldScale);
 		SetMultipliers(PropertyCollection, Weightmaps);
 		InitColor(Particles);
 	}
@@ -76,15 +84,21 @@ public:
 		: Offset(INDEX_NONE)
 		, NumParticles(0)
 		, Lift(FSolverVec2(0.))
+		, OuterLift(FSolverVec2(0.))
 		, Drag(FSolverVec2(0.))
+		, OuterDrag(FSolverVec2(0.))
 		, Pressure(FSolverVec2(0.))
+		, Rho((FSolverReal)0.)
+		, QuarterRho(Rho* (FSolverReal)0.25f)
 		, DragIndex(ForceInit)
+		, OuterDragIndex(ForceInit)
 		, LiftIndex(ForceInit)
+		, OuterLiftIndex(ForceInit)
 		, FluidDensityIndex(ForceInit)
 		, PressureIndex(ForceInit)
 		, WindVelocityIndex(ForceInit)
+		, WindVelocitySpaceIndex(ForceInit)
 	{
-		SetProperties(FSolverVec2(0.), FSolverVec2(0.), (FSolverReal)0., FSolverVec2(0.));
 	}
 
 	~FVelocityAndPressureField() {}
@@ -112,33 +126,44 @@ public:
 		bool bEnableAerodynamics);
 
 	// This version will load WindVelocity from the config
+	// Provide LocalSpaceRotation and/or ReferenceSpaceRotation to convert WindVelocity to solver space based on WindVelocitySpace
 	CHAOS_API void SetPropertiesAndWind(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& Weightmaps,
 		FSolverReal WorldScale,
 		bool bEnableAerodynamics,
-		const FSolverVec3& SolverWind);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal, bool) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection, FSolverReal WorldScale)
-	{
-		constexpr bool bEnableAerodynamics = true;
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>(), WorldScale, bEnableAerodynamics);
-	}
+		const FSolverVec3& SolverWind,
+		const FRotation3& LocalSpaceRotation = FRotation3::Identity,
+		const FRotation3& ReferenceSpaceRotation = FRotation3::Identity);
 
 	CHAOS_API void SetProperties(
 		const FSolverVec2& Drag,
+		const FSolverVec2& OuterDrag,
 		const FSolverVec2& Lift,
+		const FSolverVec2& OuterLift,
 		const FSolverReal FluidDensity,
 		const FSolverVec2& Pressure = FSolverVec2::ZeroVector,
 		FSolverReal WorldScale = 1.f);
+
+	UE_DEPRECATED(5.5, "Use the SetProperties that includes OuterDrag and OuterLift")
+	void SetProperties(
+		const FSolverVec2& InDrag,
+		const FSolverVec2& InLift,
+		const FSolverReal InFluidDensity,
+		const FSolverVec2& InPressure = FSolverVec2::ZeroVector,
+		FSolverReal WorldScale = 1.f)
+	{
+		SetProperties(InDrag, InDrag, InLift, InLift, InFluidDensity, InPressure, WorldScale);
+	}
 
 	bool IsActive() const 
 	{ 
 		return Pressure.GetLow() != (FSolverReal)0. || Pressure.GetHigh() != (FSolverReal)0. ||
 			(AreAerodynamicsEnabled() && (
 				Drag.GetLow() > (FSolverReal)0. || Drag.GetOffsetRange()[1] != (FSolverReal)0. ||  // Note: range can be a negative value (although not when Lift or Drag base is zero)
-				Lift.GetLow() > (FSolverReal)0. || Lift.GetOffsetRange()[1] != (FSolverReal)0.));
+				OuterDrag.GetLow() > (FSolverReal)0. || OuterDrag.GetOffsetRange()[1] != (FSolverReal)0. ||
+				Lift.GetLow() > (FSolverReal)0. || Lift.GetOffsetRange()[1] != (FSolverReal)0. ||
+				OuterLift.GetLow() > (FSolverReal)0. || OuterLift.GetOffsetRange()[1] != (FSolverReal)0.));
 	}
 
 	CHAOS_API void SetGeometry(
@@ -150,13 +175,28 @@ public:
 	CHAOS_API void SetGeometry(
 		const FTriangleMesh* TriangleMesh,
 		const TConstArrayView<FRealSingle>& DragMultipliers,
+		const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 		const TConstArrayView<FRealSingle>& LiftMultipliers,
-		const TConstArrayView<FRealSingle>& PressureMultipliers = TConstArrayView<FRealSingle>());
+		const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
+		const TConstArrayView<FRealSingle>& PressureMultipliers);
+
+	UE_DEPRECATED(5.5, "Use SetGeometry with OuterDrag and OuterLift multipliers")
+	void SetGeometry(
+		const FTriangleMesh* TriangleMesh,
+		const TConstArrayView<FRealSingle>& DragMultipliers,
+		const TConstArrayView<FRealSingle>& LiftMultipliers,
+		const TConstArrayView<FRealSingle>& PressureMultipliers = TConstArrayView<FRealSingle>())
+	{
+		SetGeometry(TriangleMesh, DragMultipliers, DragMultipliers, LiftMultipliers, LiftMultipliers, PressureMultipliers);
+	}
 
 	void SetVelocity(const FSolverVec3& InVelocity) { Velocity = InVelocity; }
 
 	TConstArrayView<TVector<int32, 3>> GetElements() const { return TConstArrayView<TVector<int32, 3>>(Elements); }
 	TConstArrayView<FSolverVec3> GetForces() const { return TConstArrayView<FSolverVec3>(Forces); }
+
+	// This method is currently used for debug drawing.
+	CHAOS_API FSolverVec3 CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex) const;
 
 private:
 	bool AreAerodynamicsEnabled() const { return QuarterRho > (FSolverReal)0.; }
@@ -171,26 +211,27 @@ private:
 
 	CHAOS_API void SetMultipliers(
 		const TConstArrayView<FRealSingle>& DragMultipliers,
+		const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 		const TConstArrayView<FRealSingle>& LiftMultipliers,
+		const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 		const TConstArrayView<FRealSingle>& PressureMultipliers);
 
 
-	template<typename SolverParticlesOrRange>
-	FSolverVec3 CalculateForce(const SolverParticlesOrRange& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp) const 
+	FSolverVec3 CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp) const
 	{
 		const TVec3<int32>& Element = Elements[ElementIndex];
 
 		// Calculate the normal and the area of the surface exposed to the flow
 		FSolverVec3 N = FSolverVec3::CrossProduct(
-			InParticles.GetX(Element[1]) - InParticles.GetX(Element[0]),
-			InParticles.GetX(Element[2]) - InParticles.GetX(Element[0]));
+			Xs[Element[2]] - Xs[Element[0]],
+			Xs[Element[1]] - Xs[Element[0]]);
 		const FSolverReal DoubleArea = N.SafeNormalize();
 
 		// Calculate the direction and the relative velocity of the triangle to the flow
 		const FSolverVec3& SurfaceVelocity = (FSolverReal)(1. / 3.) * (
-			InParticles.V(Element[0]) +
-			InParticles.V(Element[1]) +
-			InParticles.V(Element[2]));
+			Vs[Element[0]] +
+			Vs[Element[1]] +
+			Vs[Element[2]]);
 		const FSolverVec3 V = InVelocity - SurfaceVelocity;
 
 		// Set the aerodynamic forces
@@ -198,17 +239,16 @@ private:
 		const FSolverReal VSquare = FSolverVec3::DotProduct(V, V);
 
 		return QuarterRho * DoubleArea * (VDotN >= (FSolverReal)0. ?  // The flow can hit either side of the triangle, so the normal might need to be reversed
-			(Cd - Cl) * VDotN * V + Cl * VSquare * N :
-			(Cl - Cd) * VDotN * V - Cl * VSquare * N) - DoubleArea * (FSolverReal)0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+			(CdI - ClI) * VDotN * V + ClI * VSquare * N :
+			(ClO - CdO) * VDotN * V - ClO * VSquare * N) + DoubleArea * (FSolverReal)0.5 * Cp * N;
 	}
 
-	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp)
+	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp)
 	{
-		Forces[ElementIndex] = CalculateForce(InParticles, ElementIndex, InVelocity, Cd, Cl, Cp);
+		Forces[ElementIndex] = CalculateForce(TConstArrayView<FSolverVec3>(InParticles.XArray()), TConstArrayView<FSolverVec3>(InParticles.GetV()), ElementIndex, InVelocity, CdI, CdO, ClI, ClO, Cp);
 	}
 
-	template<typename SolverParticlesOrRange>
-	FSolverVec3 CalculateForce(const SolverParticlesOrRange& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp, const FSolverReal MaxVelocitySquared) const
+	FSolverVec3 CalculateForce(const TConstArrayView<FSolverVec3>& Xs, const TConstArrayView<FSolverVec3>& Vs, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp, const FSolverReal MaxVelocitySquared) const
 	{
 		checkSlow(MaxVelocitySquared > (FSolverReal)0);
 
@@ -216,15 +256,15 @@ private:
 
 		// Calculate the normal and the area of the surface exposed to the flow
 		FSolverVec3 N = FSolverVec3::CrossProduct(
-			InParticles.GetX(Element[1]) - InParticles.GetX(Element[0]),
-			InParticles.GetX(Element[2]) - InParticles.GetX(Element[0]));
+			Xs[Element[2]] - Xs[Element[0]],
+			Xs[Element[1]] - Xs[Element[0]]);
 		const FSolverReal DoubleArea = N.SafeNormalize();
 
 		// Calculate the direction and the relative velocity of the triangle to the flow
 		const FSolverVec3& SurfaceVelocity = (FSolverReal)(1. / 3.) * (
-			InParticles.V(Element[0]) +
-			InParticles.V(Element[1]) +
-			InParticles.V(Element[2]));
+			Vs[Element[0]] +
+			Vs[Element[1]] +
+			Vs[Element[2]]);
 		FSolverVec3 V = InVelocity - SurfaceVelocity;
 
 		// Clamp the velocity
@@ -239,13 +279,13 @@ private:
 		const FSolverReal VSquare = FSolverVec3::DotProduct(V, V);
 
 		return QuarterRho * DoubleArea * (VDotN >= (FSolverReal)0. ?  // The flow can hit either side of the triangle, so the normal might need to be reversed
-			(Cd - Cl) * VDotN * V + Cl * VSquare * N :
-			(Cl - Cd) * VDotN * V - Cl * VSquare * N) - DoubleArea * (FSolverReal)0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+			(CdI - ClI) * VDotN * V + ClI * VSquare * N :
+			(ClO - CdO) * VDotN * V - ClO * VSquare * N) + DoubleArea * (FSolverReal)0.5 * Cp * N;
 	}
 
-	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp, const FSolverReal MaxVelocitySquared)
+	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal CdI, const FSolverReal CdO, const FSolverReal ClI, const FSolverReal ClO, const FSolverReal Cp, const FSolverReal MaxVelocitySquared)
 	{
-		Forces[ElementIndex] = CalculateForce(InParticles, ElementIndex, InVelocity, Cd, Cl, Cp, MaxVelocitySquared);
+		Forces[ElementIndex] = CalculateForce(TConstArrayView<FSolverVec3>(InParticles.XArray()), TConstArrayView<FSolverVec3>(InParticles.GetV()), ElementIndex, InVelocity, CdI, CdO, ClI, ClO, Cp, MaxVelocitySquared);
 	}
 
 private:
@@ -257,7 +297,9 @@ private:
 	TArray<TVec3<int32>> ElementsLocal; // Local copy of the triangle mesh's elements. Kinematic faces have been removed, and may be reordered by coloring.
 	TArray<int32> ConstraintsPerColorStartIndex; // Constraints are ordered so each batch is contiguous. This is ColorNum + 1 length so it can be used as start and end.
 	FPBDFlatWeightMap Lift;
+	FPBDFlatWeightMap OuterLift;
 	FPBDFlatWeightMap Drag;
+	FPBDFlatWeightMap OuterDrag;
 	FPBDFlatWeightMap Pressure;
 
 	TArray<FSolverVec3> Forces;
@@ -266,13 +308,14 @@ private:
 	FSolverReal QuarterRho;
 
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(Drag, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(OuterDrag, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(Lift, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(OuterLift, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(FluidDensity, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(Pressure, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(WindVelocity, FVector3f);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(WindVelocitySpace, int32);
 };
-
-using FVelocityField UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.") = FVelocityAndPressureField;
 
 }  // End namespace Chaos::Softs
 

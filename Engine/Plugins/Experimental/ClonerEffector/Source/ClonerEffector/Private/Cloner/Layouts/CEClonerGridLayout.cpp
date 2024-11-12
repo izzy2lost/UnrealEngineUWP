@@ -3,7 +3,6 @@
 #include "Cloner/Layouts/CEClonerGridLayout.h"
 
 #include "Cloner/CEClonerComponent.h"
-#include "NiagaraDataInterfaceTexture.h"
 #include "NiagaraSystem.h"
 
 void UCEClonerGridLayout::SetCountX(int32 InCountX)
@@ -14,7 +13,7 @@ void UCEClonerGridLayout::SetCountX(int32 InCountX)
 	}
 
 	CountX = InCountX;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetCountY(int32 InCountY)
@@ -25,7 +24,7 @@ void UCEClonerGridLayout::SetCountY(int32 InCountY)
 	}
 
 	CountY = InCountY;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetCountZ(int32 InCountZ)
@@ -36,7 +35,7 @@ void UCEClonerGridLayout::SetCountZ(int32 InCountZ)
 	}
 
 	CountZ = InCountZ;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSpacingX(float InSpacingX)
@@ -47,7 +46,7 @@ void UCEClonerGridLayout::SetSpacingX(float InSpacingX)
 	}
 
 	SpacingX = InSpacingX;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSpacingY(float InSpacingY)
@@ -58,7 +57,7 @@ void UCEClonerGridLayout::SetSpacingY(float InSpacingY)
 	}
 
 	SpacingY = InSpacingY;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerGridLayout::SetSpacingZ(float InSpacingZ)
@@ -69,47 +68,29 @@ void UCEClonerGridLayout::SetSpacingZ(float InSpacingZ)
 	}
 
 	SpacingZ = InSpacingZ;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
-void UCEClonerGridLayout::SetConstraint(ECEClonerGridConstraint InConstraint)
+void UCEClonerGridLayout::SetTwistFactor(float InFactor)
 {
-	if (Constraint == InConstraint)
+	if (TwistFactor == InFactor)
 	{
 		return;
 	}
 
-	Constraint = InConstraint;
-	UpdateLayoutParameters();
+	TwistFactor = InFactor;
+	MarkLayoutDirty();
 }
 
-void UCEClonerGridLayout::SetInvertConstraint(bool bInInvertConstraint)
+void UCEClonerGridLayout::SetTwistAxis(ECEClonerAxis InAxis)
 {
-	if (bInvertConstraint == bInInvertConstraint)
+	if (TwistAxis == InAxis || InAxis == ECEClonerAxis::Custom)
 	{
 		return;
 	}
 
-	bInvertConstraint = bInInvertConstraint;
-	UpdateLayoutParameters();
-}
-
-void UCEClonerGridLayout::SetSphereConstraint(const FCEClonerGridConstraintSphere& InConstraint)
-{
-	SphereConstraint = InConstraint;
-	UpdateLayoutParameters();
-}
-
-void UCEClonerGridLayout::SetCylinderConstraint(const FCEClonerGridConstraintCylinder& InConstraint)
-{
-	CylinderConstraint = InConstraint;
-	UpdateLayoutParameters();
-}
-
-void UCEClonerGridLayout::SetTextureConstraint(const FCEClonerGridConstraintTexture& InConstraint)
-{
-	TextureConstraint = InConstraint;
-	UpdateLayoutParameters();
+	TwistAxis = InAxis;
+	MarkLayoutDirty();
 }
 
 #if WITH_EDITOR
@@ -121,11 +102,8 @@ const TCEPropertyChangeDispatcher<UCEClonerGridLayout> UCEClonerGridLayout::Prop
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingX), &UCEClonerGridLayout::OnLayoutPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingY), &UCEClonerGridLayout::OnLayoutPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SpacingZ), &UCEClonerGridLayout::OnLayoutPropertyChanged },
-	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, Constraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
-	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, bInvertConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
-	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, SphereConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
-	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, CylinderConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
-	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, TextureConstraint), &UCEClonerGridLayout::OnLayoutPropertyChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, TwistFactor), &UCEClonerGridLayout::OnLayoutPropertyChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerGridLayout, TwistAxis), &UCEClonerGridLayout::OnLayoutPropertyChanged },
 };
 
 void UCEClonerGridLayout::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
@@ -148,34 +126,9 @@ void UCEClonerGridLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 
 	InComponent->SetVectorParameter(TEXT("GridSpacing"), FVector(SpacingX, SpacingY, SpacingZ));
 
-	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
-	static const FNiagaraVariable ConstraintVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerGridConstraint>()), TEXT("Constraint"));
-	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(Constraint), ConstraintVar);
+	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor / 100.f);
 
-	InComponent->SetBoolParameter(TEXT("ConstraintInvert"), Constraint != ECEClonerGridConstraint::None ? bInvertConstraint : false);
-
-	InComponent->SetVectorParameter(TEXT("ConstraintCylinderCenter"), CylinderConstraint.Center);
-
-	InComponent->SetFloatParameter(TEXT("ConstraintCylinderHeight"), CylinderConstraint.Height);
-
-	InComponent->SetFloatParameter(TEXT("ConstraintCylinderRadius"), CylinderConstraint.Radius);
-
-	InComponent->SetVectorParameter(TEXT("ConstraintSphereCenter"), SphereConstraint.Center);
-
-	InComponent->SetFloatParameter(TEXT("ConstraintSphereRadius"), SphereConstraint.Radius);
-
-	static const FNiagaraVariable ConstraintTextureChannelVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerTextureSampleChannel>()), TEXT("ConstraintTextureChannel"));
-	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TextureConstraint.Channel), ConstraintTextureChannelVar);
-
-	static const FNiagaraVariable ConstraintTextureCompareModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerCompareMode>()), TEXT("ConstraintTextureCompareMode"));
-	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TextureConstraint.CompareMode), ConstraintTextureCompareModeVar);
-
-	static const FNiagaraVariable ConstraintTexturePlaneVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerPlane>()), TEXT("ConstraintTexturePlane"));
-	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TextureConstraint.Plane), ConstraintTexturePlaneVar);
-
-	InComponent->SetFloatParameter(TEXT("ConstraintTextureThreshold"), TextureConstraint.Threshold);
-
-	static const FNiagaraVariable ConstraintTextureSamplerVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceTexture::StaticClass()), TEXT("ConstraintTextureSampler"));
-	UNiagaraDataInterfaceTexture* TextureSamplerDI = Cast<UNiagaraDataInterfaceTexture>(ExposedParameters.GetDataInterface(ConstraintTextureSamplerVar));
-	TextureSamplerDI->SetTexture(TextureConstraint.Texture.Get());
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
+	static const FNiagaraVariable TwistAxisVar(FNiagaraTypeDefinition(StaticEnum<ENiagaraOrientationAxis>()), TEXT("TwistAxis"));
+	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TwistAxis), TwistAxisVar);
 }

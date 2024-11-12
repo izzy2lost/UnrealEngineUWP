@@ -16,6 +16,8 @@ Texture2D EmissiveAtlas;
 Texture2D DepthAtlas;
 
 #if ENABLE_VISUALIZE_MODE == 1
+#include "../LumenCardTileShadowDownsampleFactor.ush"
+
 	#define VISUALIZE_MODE_DISABLE 0
 	#define VISUALIZE_MODE_OVERVIEW 1
 	#define VISUALIZE_MODE_PERFORMANCE_OVERVIEW 2
@@ -37,6 +39,7 @@ Texture2D DepthAtlas;
 	#define VISUALIZE_MODE_INDIRECT_LIGHTING_UPDATES 18
 	#define VISUALIZE_MODE_LAST_USED_PAGE 19
 	#define VISUALIZE_MODE_LAST_USED_PAGE_HIGH_RES 20
+	#define VISUALIZE_MODE_TILE_SHADOW_DOWNSAMPLE_FACTOR 21
 
 	uint VisualizeMode;
 #endif
@@ -346,6 +349,20 @@ void SampleLumenCard(
 									RandomColor *= lerp(0.25f, 1.0f, saturate(UVGrid.x * UVGrid.y));
 
 									FinalLighting = RandomColor * View.OneOverPreExposure;
+								}
+								else if (VisualizeMode == VISUALIZE_MODE_TILE_SHADOW_DOWNSAMPLE_FACTOR)
+								{
+									uint2 TileCoordInAtlas = uint2(CardSample.PhysicalAtlasUV * LumenCardScene.PhysicalAtlasSize / 8);
+									uint AtlasWidthInTiles = LumenCardScene.PhysicalAtlasSize.x / 8;
+
+									float3 TileColor = GetLumenCardTileShadowDownsampleFactorVisualizationColor(TileCoordInAtlas, AtlasWidthInTiles);
+
+									// UV Grid overlay
+									float2 UVGrid = frac(CardSample.PhysicalAtlasUV * LumenCardScene.PhysicalAtlasSize / 8.0f);
+									UVGrid = abs(UVGrid * 2 - 1);
+									UVGrid = select(UVGrid > 0.98, float2(0, 0), float2(1, 1));
+
+									FinalLighting = View.OneOverPreExposure * UVGrid.x * UVGrid.y * TileColor;
 								}
 								else if (VisualizeMode == VISUALIZE_MODE_DIRECT_LIGHTING_UPDATES || VisualizeMode == VISUALIZE_MODE_INDIRECT_LIGHTING_UPDATES || VisualizeMode == VISUALIZE_MODE_LAST_USED_PAGE || VisualizeMode == VISUALIZE_MODE_LAST_USED_PAGE_HIGH_RES)
 								{

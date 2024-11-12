@@ -5,7 +5,7 @@
 #include "AvaComponentVisualizersEdMode.h"
 #include "AvaComponentVisualizersSettings.h"
 #include "AvaViewportUtils.h"
-#include "Components/DynamicMeshComponent.h"
+#include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "Interaction/AvaSnapOperation.h"
 #include "Math/Box.h"
@@ -15,6 +15,8 @@
 #include "Templates/SharedPointer.h"
 #include "UnrealClient.h"
 #include "ViewportClient/IAvaViewportClient.h"
+
+#define LOCTEXT_NAMESPACE "AvaVisualizerBase"
 
 IMPLEMENT_HIT_PROXY(HAvaHitProxy, HComponentVisProxy);
 IMPLEMENT_HIT_PROXY(HAvaDirectHitProxy, HAvaHitProxy);
@@ -41,7 +43,7 @@ bool FAvaVisualizerBase::GetCustomInputCoordinateSystem(const FEditorViewportCli
 	return true;
 }
 
-bool FAvaVisualizerBase::HandleInputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, 
+bool FAvaVisualizerBase::HandleInputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport,
 	FVector& InDeltaTranslate, FRotator& InDeltaRotate, FVector& InDeltaScale)
 {
 	if (!GetEditedComponent() || !GetEditedComponent()->GetOwner())
@@ -110,20 +112,20 @@ bool FAvaVisualizerBase::HandleModifiedClick(FEditorViewportClient* InViewportCl
 
 void FAvaVisualizerBase::StartTransaction()
 {
-	if (!GetEditedComponent())
+	UActorComponent* EditedComponent = GetEditedComponent();
+
+	if (!EditedComponent)
 	{
 		return;
 	}
 
-	GetEditedComponent()->SetFlags(RF_Transactional);
+	EditedComponent->SetFlags(RF_Transactional);
 
-	TransactionIdx = GEngine->BeginTransaction(
-			TEXT("Motion Design Component Visualizer"),
-			NSLOCTEXT("AvaComponentVisualizerBase", "VisualizerChange", "Visualizer Change"),
-			GetEditedComponent()
-		);
+	const FString OwnerLabel = EditedComponent->GetOwner() ? EditedComponent->GetOwner()->GetActorNameOrLabel() : TEXT("");
+	TransactionIdx = GEditor->BeginTransaction(FText::Format(LOCTEXT("VisualizerChange", "Edit {0} Visualizer Change"), FText::FromString(OwnerLabel)));
 
-	GetEditedComponent()->Modify();
+	EditedComponent->Modify();
+
 	bHasBeenModified = false;
 }
 
@@ -133,11 +135,11 @@ void FAvaVisualizerBase::EndTransaction()
 	{
 		if (bHasBeenModified)
 		{
-			GEngine->EndTransaction();
+			GEditor->EndTransaction();
 		}
 		else
 		{
-			GEngine->CancelTransaction(TransactionIdx);
+			GEditor->CancelTransaction(TransactionIdx);
 		}
 		TransactionIdx = INDEX_NONE;
 	}
@@ -156,6 +158,14 @@ void FAvaVisualizerBase::StoreInitialValues()
 void FAvaVisualizerBase::StartEditing(FEditorViewportClient* InViewportClient, UActorComponent* InEditedComponent)
 {
 	LastUsedViewportClient = InViewportClient;
+
+	// Disable AutoSelectComponent to keep active actor selected
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.ComponentVisualizer.AutoSelectComponent")))
+	{
+		bCVarAutoSelectComponent = CVar->GetBool();
+		CVar->Set(false);
+	}
+
 	UAvaComponentVisualizersEdMode::OnVisualizerActivated(SharedThis(this));
 }
 
@@ -165,7 +175,14 @@ void FAvaVisualizerBase::EndEditing()
 
 	EndTransaction();
 	UAvaComponentVisualizersEdMode::OnVisualizerDeactivated(SharedThis(this));
+
 	LastUsedViewportClient = nullptr;
+
+	// Restore AutoSelectComponent state
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.ComponentVisualizer.AutoSelectComponent")))
+	{
+		CVar->Set(bCVarAutoSelectComponent);
+	}
 }
 
 void FAvaVisualizerBase::TrackingStarted(FEditorViewportClient* InViewportClient)
@@ -328,12 +345,12 @@ float FAvaVisualizerBase::GetIconSizeScale(const FSceneView* InView, const FVect
 
 	static constexpr float DefaultSize = 12.f;
 	float Size = DefaultSize;
-	
-	if (UAvaComponentVisualizersSettings* Settings = UAvaComponentVisualizersSettings::Get())
+
+	if (const UAvaComponentVisualizersSettings* Settings = UAvaComponentVisualizersSettings::Get())
 	{
 		if (Settings->SpriteSize > 0)
 		{
-			Size = UAvaComponentVisualizersSettings::Get()->SpriteSize;
+			Size = Settings->SpriteSize;
 		}
 	}
 
@@ -388,7 +405,7 @@ EAxisList::Type FAvaVisualizerBase::GetViewportWidgetAxisList(FEditorViewportCli
 
 FVector FAvaVisualizerBase::GetLocalVector(FEditorViewportClient* InViewport, const FVector& InVector) const
 {
-	FVector OutVector;
+	FVector OutVector = FVector::ZeroVector;
 	FMatrix RotMatrix;
 
 	if (GetCustomInputCoordinateSystem(InViewport, RotMatrix))
@@ -407,7 +424,7 @@ FVector FAvaVisualizerBase::GetLocalVector(FEditorViewportClient* InViewport, co
 	if (WidgetMode == UE::Widget::WM_None)
 	{
 		return OutVector;
-	}	
+	}
 
 	EAxisList::Type AxisList = InViewport->GetCurrentWidgetAxis(); // Fallback value
 
@@ -453,26 +470,30 @@ bool FAvaVisualizerBase::IsMouseOverComponent(const UActorComponent* Component, 
 		return false;
 	}
 
-	FOrientedBox ActorOrientedBox = FAvaActorUtils::MakeOrientedBox(ActorSizeBox, GetComponentTransform(Component));
+	const FOrientedBox ActorOrientedBox = FAvaActorUtils::MakeOrientedBox(ActorSizeBox, GetComponentTransform(Component));
 
 	// Calculate the rotation of the oriented box and revert it to axis aligned, moving the camera position and look direction along with it
 	// so that we can use the line/box intersection method.
-	const FMatrix RotMatrix(ActorOrientedBox.AxisX, ActorOrientedBox.AxisY, ActorOrientedBox.AxisZ, FVector::ZeroVector);
+	const FMatrix InvRotMatrix = FMatrix(
+		ActorOrientedBox.AxisX, 
+		ActorOrientedBox.AxisY, 
+		ActorOrientedBox.AxisZ, 
+		FVector::ZeroVector
+	).Inverse();
 
-	FVector2D MouseLocation = {
+	const FVector2D MouseLocation = {
 		static_cast<double>(InView->CursorPos.X),
 		static_cast<double>(InView->CursorPos.Y)
 	};
 	FVector WorldOrigin;
 	FVector WorldDirection;
-	
+
 	InView->DeprojectFVector2D(MouseLocation, WorldOrigin, WorldDirection);
 
-	FVector CameraRotationVector = (WorldOrigin - InView->ViewLocation).GetUnsafeNormal();
-	FVector MouseWorldPosition   = RotMatrix.InverseTransformVector(WorldOrigin - ActorOrientedBox.Center);
-	CameraRotationVector         = RotMatrix.InverseTransformVector(CameraRotationVector);
-	const FVector Extent         = {ActorOrientedBox.ExtentX, ActorOrientedBox.ExtentY, ActorOrientedBox.ExtentZ};
-	const FBox OriginBounds      = FBox(-Extent, Extent);
+	const FVector MouseWorldPosition   = InvRotMatrix.TransformVector(WorldOrigin - ActorOrientedBox.Center);
+	const FVector CameraRotationVector = InvRotMatrix.TransformVector((WorldOrigin - InView->ViewLocation).GetUnsafeNormal());
+	const FVector Extent               = {ActorOrientedBox.ExtentX, ActorOrientedBox.ExtentY, ActorOrientedBox.ExtentZ};
+	const FBox    OriginBounds         = FBox(-Extent, Extent);
 
 	const FVector RayEnd = MouseWorldPosition + CameraRotationVector * 10000.f;
 
@@ -521,7 +542,36 @@ void FAvaVisualizerBase::TrackingStoppedInternal(FEditorViewportClient* InViewpo
 	SnapOperation.Reset();
 }
 
-void FAvaVisualizerBase::NotifyPropertyModified(UObject* InObject, FProperty* InProperty, 
+void FAvaVisualizerBase::ModifyProperty(UObject* InObject, FProperty* InProperty, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction)
+{
+	if (!InObject)
+	{
+		return;
+	}
+
+	InObject->SetFlags(RF_Transactional);
+
+	bHasBeenModified = InObject->Modify();
+
+	InFunction();
+
+	if (InPropertyChangeType != EPropertyChangeType::Interactive)
+	{
+		NotifyPropertyModified(InObject, InProperty, InPropertyChangeType);
+	}
+}
+
+void FAvaVisualizerBase::ModifyProperty(UObject* InObject, FName InPropertyName, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction)
+{
+	if (!InObject)
+	{
+		return;
+	}
+
+	ModifyProperty(InObject, FindFProperty<FProperty>(InObject->GetClass(), InPropertyName), InPropertyChangeType, InFunction);
+}
+
+void FAvaVisualizerBase::NotifyPropertyModified(UObject* InObject, FProperty* InProperty,
 	EPropertyChangeType::Type InPropertyChangeType, FProperty* InMemberProperty)
 {
 	TArray<FProperty*> Properties;
@@ -570,7 +620,7 @@ void FAvaVisualizerBase::NotifyPropertyChainModified(UObject* InObject, FPropert
 	{
 		return;
 	}
-	
+
 	FPropertyChangedEvent PropertyChangedEvent(InProperty);
 	FEditPropertyChain PropertyChain;
 	FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
@@ -579,10 +629,10 @@ void FAvaVisualizerBase::NotifyPropertyChainModified(UObject* InObject, FPropert
 	{
 		PropertyChangedChainEvent.PropertyChain.AddHead(ChainProperty);
 	}
-	
+
 	PropertyChangedChainEvent.SetActiveMemberProperty(InMemberChainProperties.Last());
 	PropertyChangedChainEvent.ObjectIteratorIndex = 0;
-	
+
 	TArray<TMap<FString, int32>> ArrayIndices;
 	ArrayIndices.SetNum(1);
 	ArrayIndices[0].Add(InMemberChainProperties.Last()->GetFName().ToString(), InContainerIdx);
@@ -603,3 +653,5 @@ void FAvaVisualizerBase::NotifyPropertyChainModified(UObject* InObject, FPropert
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

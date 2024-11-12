@@ -4,8 +4,10 @@
 
 #include "Algo/NoneOf.h"
 #include "Internationalization/Text.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentAccessPtr.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendNodeController.h"
@@ -25,6 +27,35 @@ namespace Metasound
 {
 	namespace Frontend
 	{
+		const FMetasoundFrontendGraph& FindConstBuildGraphChecked(const FMetasoundFrontendGraphClass& InGraphClass)
+		{
+			// Registry can be null in test builds for legacy controller implementation, so doesn't use GetChecked
+			if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+			{
+				if (const FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
+				{
+					return Builder->FindConstBuildGraphChecked();
+				}
+			}
+
+			return InGraphClass.GetConstDefaultGraph();
+		}
+
+		FMetasoundFrontendGraph& FindBuildGraphChecked(FMetasoundFrontendGraphClass& InGraphClass)
+		{
+			// Registry can be null in test builds for legacy controller implementation, so doesn't use GetChecked
+			if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+			{
+				if (FMetaSoundFrontendDocumentBuilder* Builder = BuilderRegistry->FindBuilder(InGraphClass.Metadata.GetClassName(), { }))
+				{
+					// const cast to dissuade mutable accessor for external API as the controller API is actively deprecated across engine releases.
+					return const_cast<FMetasoundFrontendGraph&>(Builder->FindConstBuildGraphChecked());
+				}
+			}
+
+			return InGraphClass.GetDefaultGraph();
+		}
+
 		// 
 		// FGraphController
 		//
@@ -184,7 +215,7 @@ namespace Metasound
 		{
 			if (const FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				return GraphClass->Graph.Style;
+				return FindConstBuildGraphChecked(*GraphClass).Style;
 			}
 
 			return Invalid::GetInvalidGraphStyle();
@@ -214,7 +245,7 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				GraphClass->Graph.Style = InStyle;
+				FindBuildGraphChecked(*GraphClass).Style = InStyle;
 			}
 		}
 
@@ -302,7 +333,7 @@ namespace Metasound
 						if (InitNode->IsValid())
 						{
 							Variable.VariableNodeID = InitNode->GetID();
-							GraphClass->Graph.Variables.Add(MoveTemp(Variable));
+							FindBuildGraphChecked(*GraphClass).Variables.Add(MoveTemp(Variable));
 						}
 					}
 
@@ -384,7 +415,7 @@ namespace Metasound
 					{
 						return InVariable.ID == InVariableID;
 					};
-					GraphClass->Graph.Variables.RemoveAllSwap(IsVariableWithID);
+					FindBuildGraphChecked(*GraphClass).Variables.RemoveAllSwap(IsVariableWithID);
 					return true;
 				}
 			}
@@ -398,7 +429,8 @@ namespace Metasound
 
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (const FMetasoundFrontendVariable& Variable : GraphClass->Graph.Variables)
+				const TArray<FMetasoundFrontendVariable>& Variables = FindConstBuildGraphChecked(*GraphClass).Variables;
+				for (const FMetasoundFrontendVariable& Variable : Variables)
 				{
 					VariableHandles.Add(FindVariable(Variable.ID));
 				}
@@ -413,7 +445,8 @@ namespace Metasound
 
 			if (const FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (const FMetasoundFrontendVariable& Variable : GraphClass->Graph.Variables)
+				const TArray<FMetasoundFrontendVariable>& Variables = FindConstBuildGraphChecked(*GraphClass).Variables;
+				for (const FMetasoundFrontendVariable& Variable : Variables)
 				{
 					VariableHandles.Add(FindVariable(Variable.ID));
 				}
@@ -593,7 +626,7 @@ namespace Metasound
 				{
 					return InVariable.ID == InVariableID;
 				};
-				return GraphClass->Graph.Variables.FindByPredicate(IsVariableWithID);
+				return FindBuildGraphChecked(*GraphClass).Variables.FindByPredicate(IsVariableWithID);
 			}
 			return nullptr;
 		}
@@ -606,7 +639,8 @@ namespace Metasound
 				{
 					return InVariable.ID == InVariableID;
 				};
-				return GraphClass->Graph.Variables.FindByPredicate(IsVariableWithID);
+				const TArray<FMetasoundFrontendVariable>& Variables = FindConstBuildGraphChecked(*GraphClass).Variables;
+				return Variables.FindByPredicate(IsVariableWithID);
 			}
 			return nullptr;
 		}
@@ -622,7 +656,8 @@ namespace Metasound
 						return (InNodeID == InVariable.VariableNodeID) || (InNodeID == InVariable.MutatorNodeID) || InVariable.AccessorNodeIDs.Contains(InNodeID) || InVariable.DeferredAccessorNodeIDs.Contains(InNodeID);
 
 					};
-					if (const FMetasoundFrontendVariable* Variable = GraphClass->Graph.Variables.FindByPredicate(ContainsNodeWithID))
+					const TArray<FMetasoundFrontendVariable>& Variables = FindConstBuildGraphChecked(*GraphClass).Variables;
+					if (const FMetasoundFrontendVariable* Variable = Variables.FindByPredicate(ContainsNodeWithID))
 					{
 						return Variable->ID;
 					}
@@ -686,7 +721,7 @@ namespace Metasound
 			{
 				const FGuid NodeID = InNode.GetID();
 				
-				for (FMetasoundFrontendVariable& Variable : GraphClass->Graph.Variables)
+				for (FMetasoundFrontendVariable& Variable : FindBuildGraphChecked(*GraphClass).Variables)
 				{
 					if (NodeID == Variable.VariableNodeID)
 					{
@@ -743,13 +778,23 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				GraphClass->Graph.Nodes.Reset();
-				GraphClass->Graph.Edges.Reset();
+				FMetasoundFrontendGraph& Graph = FindBuildGraphChecked(*GraphClass);
+				Graph.Nodes.Reset();
+				Graph.Edges.Reset();
 				GraphClass->Interface.Inputs.Reset();
 				GraphClass->Interface.Outputs.Reset();
 				GraphClass->PresetOptions.InputsInheritingDefault.Reset();
 				OwningDocument->ClearInterfaceVersions();
 				OwningDocument->RemoveUnreferencedDependencies();
+
+#if WITH_EDITORONLY_DATA
+				FDocumentAccessPtr DocumentPtr = OwningDocument->GetDocumentPtr();
+				FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+				check(Document);
+				Document->Metadata.MemberMetadata.Reset();
+
+				Graph.Style.EdgeStyles.Reset();
+#endif // WITH_EDITORONLY_DATA
 			}
 		}
 
@@ -757,7 +802,8 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (const FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				const TArray<FMetasoundFrontendNode>& Nodes = FindConstBuildGraphChecked(*GraphClass).Nodes;
+				for (const FMetasoundFrontendNode& Node : Nodes)
 				{
 					FConstClassAccessPtr NodeClassPtr = OwningDocument->FindClassWithID(Node.ClassID);
 					if (const FMetasoundFrontendClass* NodeClass = NodeClassPtr.Get())
@@ -781,7 +827,8 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (const FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				const TArray<FMetasoundFrontendNode>& Nodes = FindConstBuildGraphChecked(*GraphClass).Nodes;
+				for (const FMetasoundFrontendNode& Node : Nodes)
 				{
 					FConstClassAccessPtr NodeClassPtr = OwningDocument->FindClassWithID(Node.ClassID);
 					if (const FMetasoundFrontendClass* NodeClass = NodeClassPtr.Get())
@@ -973,7 +1020,7 @@ namespace Metasound
 							const FVertexName NewName = InClassInput.Name;
 
 							// Setup input node
-							FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*InputClass);
+							FMetasoundFrontendNode& Node = FindBuildGraphChecked(*GraphClass).Nodes.Emplace_GetRef(*InputClass);
 							Node.Name = NewName;
 
 							FGuid NodeID = InClassInput.NodeID;
@@ -1045,29 +1092,6 @@ namespace Metasound
 			return INodeController::GetInvalidHandle();
 		}
 
-		FNodeHandle FGraphController::AddInputVertex(const FVertexName& InName, const FName InTypeName, const FMetasoundFrontendLiteral* InDefaultValue)
-		{
-			const FGuid VertexID = FGuid::NewGuid();
-
-			FMetasoundFrontendClassInput Description;
-
-			Description.Name = InName;
-			Description.TypeName = InTypeName;
-			Description.VertexID = VertexID;
-
-			if (InDefaultValue)
-			{
-				Description.DefaultLiteral = *InDefaultValue;
-			}
-			else
-			{
-				Metasound::FLiteral Literal = IDataTypeRegistry::Get().CreateDefaultLiteral(InTypeName);
-				Description.DefaultLiteral.SetFromLiteral(Literal);
-			}
-
-			return AddInputVertex(Description);
-		}
-
 		bool FGraphController::RemoveInputVertex(const FVertexName& InName)
 		{
 			auto IsInputNodeWithSameName = [&](const FMetasoundFrontendClass& InClass, const FMetasoundFrontendNode& InNode)
@@ -1117,7 +1141,7 @@ namespace Metasound
 						{
 							const FVertexName NewName = InClassOutput.Name;
 
-							FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Add_GetRef(*OutputClass);
+							FMetasoundFrontendNode& Node = FindBuildGraphChecked(*GraphClass).Nodes.Add_GetRef(*OutputClass);
 							Node.Name = NewName;
 
 							FGuid NodeID = InClassOutput.NodeID;
@@ -1238,7 +1262,8 @@ namespace Metasound
 		{
 			if (const FMetasoundFrontendClassInput* Desc = FindInputDescriptionWithVertexID(InVertexID))
 			{
-				return Desc->DefaultLiteral;
+				const FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindConstDefaultChecked(Frontend::DefaultPageID);
+				return DefaultLiteral;
 			}
 			return FMetasoundFrontendLiteral{};
 		}
@@ -1249,7 +1274,8 @@ namespace Metasound
 			{
 				if (ensure(IDataTypeRegistry::Get().IsLiteralTypeSupported(Desc->TypeName, InLiteral.GetType())))
 				{
-					Desc->DefaultLiteral = InLiteral;
+					FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindDefaultChecked(Frontend::DefaultPageID);
+					DefaultLiteral = InLiteral;
 					return true;
 				}
 				else
@@ -1266,8 +1292,9 @@ namespace Metasound
 			if (FMetasoundFrontendClassInput* Desc = FindInputDescriptionWithVertexID(InVertexID))
 			{
 				Metasound::FLiteral Literal = IDataTypeRegistry::Get().CreateDefaultLiteral(Desc->TypeName);
-				Desc->DefaultLiteral.SetFromLiteral(Literal);
-				return Desc->DefaultLiteral.IsValid();
+				FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindDefaultChecked(Frontend::DefaultPageID);
+				DefaultLiteral.SetFromLiteral(Literal);
+				return DefaultLiteral.IsValid();
 			}
 
 			return false;
@@ -1394,7 +1421,8 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendClassInput* Desc = FindInputDescriptionWithName(InInputName))
 			{
-				Desc->DefaultLiteral.Clear();
+				FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindDefaultChecked(Frontend::DefaultPageID);
+				DefaultLiteral.Clear();
 			}
 
 			return false;
@@ -1424,35 +1452,29 @@ namespace Metasound
 			return AddNode(FNodeRegistryKey(InClassMetadata), InNodeGuid);
 		}
 
-		FNodeHandle FGraphController::AddTemplateNode(const FNodeRegistryKey& InKey, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid)
+		FNodeHandle FGraphController::AddTemplateNode(const INodeTemplate& InTemplate, FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeGuid)
 		{
-			if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(InKey))
-			{
-				const bool bIsValidInterface = Template->IsValidNodeInterface(InNodeInterface);
-				if (ensureAlwaysMsgf(bIsValidInterface, TEXT("Cannot implement interface when attempting to add node using template with key '%s'"), *InKey.ToString()))
-				{
-					// Construct a FNodeClassInfo from this lookup key.
-					FConstClassAccessPtr Class = OwningDocument->FindOrAddClass(InKey);
-					const bool bIsValidClass = (nullptr != Class.Get());
+			// Construct a FNodeClassInfo from this lookup key.
+			const FNodeRegistryKey Key(InTemplate.GetFrontendClass().Metadata);
+			FConstClassAccessPtr Class = OwningDocument->FindOrAddClass(Key);
+			const bool bIsValidClass = (nullptr != Class.Get());
 
-					if (bIsValidClass)
+			if (bIsValidClass)
+			{
+				if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
+				{
+					if (const FMetasoundFrontendClass* NodeClass = Class.Get())
 					{
-						if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
-						{
-							if (const FMetasoundFrontendClass* NodeClass = Class.Get())
-							{
-								FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*NodeClass);
-								Node.UpdateID(InNodeGuid);
-								Node.Interface = InNodeInterface;
-								FNodeAccessPtr NodePtr = GraphClassPtr.GetNodeWithNodeID(Node.GetID());
-								return GetNodeHandle(FGraphController::FNodeAndClass{ NodePtr, Class });
-							}
-						}
+						FMetasoundFrontendNode& Node = FindBuildGraphChecked(*GraphClass).Nodes.Emplace_GetRef(*NodeClass);
+						Node.UpdateID(InNodeGuid);
+						Node.Interface = InTemplate.GenerateNodeInterface(MoveTemp(Params));
+						FNodeAccessPtr NodePtr = GraphClassPtr.GetNodeWithNodeID(Node.GetID());
+						return GetNodeHandle(FGraphController::FNodeAndClass{ NodePtr, Class });
 					}
 				}
 			}
 
-			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node template class info with registry key [Key:%s]"), *InKey.ToString());
+			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node template class info with registry key [Key:%s]"), *Key.ToString());
 			return INodeController::GetInvalidHandle();
 		}
 
@@ -1511,7 +1533,8 @@ namespace Metasound
 			{
 				FGuid NodeID = InNode.GetID();
 				auto IsNodeWithSameID = [&](const FMetasoundFrontendNode& InFrontendNode) { return InFrontendNode.GetID() == NodeID; };
-				if (const FMetasoundFrontendNode* FrontendNode = GraphClass->Graph.Nodes.FindByPredicate(IsNodeWithSameID))
+				const TArray<FMetasoundFrontendNode>& Nodes = FindConstBuildGraphChecked(*GraphClass).Nodes;
+				if (const FMetasoundFrontendNode* FrontendNode = Nodes.FindByPredicate(IsNodeWithSameID))
 				{
 					switch(NodeClassType)
 					{
@@ -1591,7 +1614,7 @@ namespace Metasound
 			{
 				if (const FMetasoundFrontendClass* ExistingDependency = OwningDocument->FindClass(InMetadata).Get())
 				{
-					UE_LOG(LogMetaSound, Error, TEXT("Cannot add new subgraph. Metasound class already exists with matching metadata Name: \"%s\", Version %d.%d"), *(ExistingDependency->Metadata.GetClassName().GetFullName().ToString()), ExistingDependency->Metadata.GetVersion().Major, ExistingDependency->Metadata.GetVersion().Minor);
+					UE_LOG(LogMetaSound, Error, TEXT("Cannot add new subgraph. Metasound class already exists with matching metadata Name: \"%s\", Version %d.%d"), *(ExistingDependency->Metadata.GetClassName().ToString()), ExistingDependency->Metadata.GetVersion().Major, ExistingDependency->Metadata.GetVersion().Minor);
 				}
 				else 
 				{
@@ -1615,8 +1638,10 @@ namespace Metasound
 
 				FString UnknownAsset = TEXT("UnknownAsset");
 				FProxyDataCache ProxyCache;
-				ProxyCache.CreateAndCacheProxies(*(OwningDocument->GetDocumentPtr().Get()));
-				TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(*GraphClass, Subgraphs, Dependencies, ProxyCache, UnknownAsset);
+				const FMetasoundFrontendDocument& Doc = *(OwningDocument->GetDocumentPtr().Get());
+				ProxyCache.CreateAndCacheProxies(Doc);
+
+				TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(*GraphClass, Subgraphs, Dependencies, ProxyCache, UnknownAsset, Frontend::CreateLocallyUniqueId());
 
 				if (!Graph.IsValid())
 				{
@@ -1649,18 +1674,21 @@ namespace Metasound
 			{
 				if (const FMetasoundFrontendClass* NodeClass = InExistingDependency.Get())
 				{
-					FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*NodeClass);
+					FMetasoundFrontendNode& Node = FindBuildGraphChecked(*GraphClass).Nodes.Emplace_GetRef(*NodeClass);
 
 					// Cache the asset name on the node if it node is reference to asset-defined graph.
-					if (NodeClass->Metadata.GetType() == EMetasoundFrontendClassType::External)
+					// AssetManager may not exist if this is called from a build that does not load the
+					// engine module (ex. unit test builds which only load frontend and core), or any build
+					// where the AssetManager more generally has not been implemented.
+					if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 					{
-						if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+						if (NodeClass->Metadata.GetType() == EMetasoundFrontendClassType::External)
 						{
 							const FNodeRegistryKey RegistryKey = FNodeRegistryKey(NodeClass->Metadata);
-							if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(RegistryKey))
+							const FTopLevelAssetPath Path = AssetManager->FindAssetPath(RegistryKey);
+							if (Path.IsValid())
 							{
-								const FString& AssetName = Path->GetAssetName();
-								Node.Name = *AssetName;
+								Node.Name = Path.GetAssetName();
 							}
 						}
 					}
@@ -1684,15 +1712,22 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				auto IsEdgeForThisNode = [&](const FMetasoundFrontendEdge& ConDesc) { return (ConDesc.FromNodeID == InDesc.GetID()) || (ConDesc.ToNodeID == InDesc.GetID()); };
-
 				// Remove any reference connections
-				int32 NumRemoved = GraphClass->Graph.Edges.RemoveAll(IsEdgeForThisNode);
+				FMetasoundFrontendGraph& Graph = FindBuildGraphChecked(*GraphClass);
+
+#if WITH_EDITORONLY_DATA
+				{
+					auto IsStyleForThisNode = [&](const FMetasoundFrontendEdgeStyle& EdgeStyle) { return (EdgeStyle.NodeID == InDesc.GetID()); };
+					Graph.Style.EdgeStyles.RemoveAllSwap(IsStyleForThisNode);
+				}
+#endif // WITH_EDITORONLY_DATA
+
+				auto IsEdgeForThisNode = [&](const FMetasoundFrontendEdge& ConDesc) { return (ConDesc.FromNodeID == InDesc.GetID()) || (ConDesc.ToNodeID == InDesc.GetID()); };
+				int32 NumRemoved = Graph.Edges.RemoveAll(IsEdgeForThisNode);
 
 				auto IsNodeWithID = [&](const FMetasoundFrontendNode& Desc) { return InDesc.GetID() == Desc.GetID(); };
 
-				NumRemoved += GraphClass->Graph.Nodes.RemoveAll(IsNodeWithID);
-
+				NumRemoved += Graph.Nodes.RemoveAll(IsNodeWithID);
 				OwningDocument->RemoveUnreferencedDependencies();
 
 #if WITH_EDITOR
@@ -1776,7 +1811,7 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				for (FMetasoundFrontendNode& Node : FindBuildGraphChecked(*GraphClass).Nodes)
 				{
 					const FMetasoundFrontendClass* NodeClass = OwningDocument->FindClassWithID(Node.ClassID).Get();
 					if (nullptr != NodeClass)
@@ -1802,7 +1837,7 @@ namespace Metasound
 
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				for (FMetasoundFrontendNode& Node : FindBuildGraphChecked(*GraphClass).Nodes)
 				{
 					FNodeAccessPtr NodePtr = GraphClassPtr.GetNodeWithNodeID(Node.GetID());
 					FConstClassAccessPtr NodeClassPtr = OwningDocument->FindClassWithID(Node.ClassID);
@@ -1830,7 +1865,8 @@ namespace Metasound
 
 			if (const FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (const FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				const TArray<FMetasoundFrontendNode>& Nodes = FindConstBuildGraphChecked(*GraphClass).Nodes;
+				for (const FMetasoundFrontendNode& Node : Nodes)
 				{
 					FConstNodeAccessPtr NodePtr = GraphClassPtr.GetNodeWithNodeID(Node.GetID());
 					FConstClassAccessPtr NodeClassPtr = OwningDocument->FindClassWithID(Node.ClassID);
@@ -1858,7 +1894,7 @@ namespace Metasound
 
 			if (FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				for (FMetasoundFrontendNode& Node : FindBuildGraphChecked(*GraphClass).Nodes)
 				{
 					FConstClassAccessPtr NodeClassPtr = OwningDocument->FindClassWithID(Node.ClassID);
 					if (const FMetasoundFrontendClass* NodeClass = NodeClassPtr.Get())
@@ -1885,7 +1921,8 @@ namespace Metasound
 
 			if (const FMetasoundFrontendGraphClass* GraphClass = GraphClassPtr.Get())
 			{
-				for (const FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+				const TArray<FMetasoundFrontendNode>& Nodes = FindConstBuildGraphChecked(*GraphClass).Nodes;
+				for (const FMetasoundFrontendNode& Node : Nodes)
 				{
 					FConstClassAccessPtr NodeClassPtr = OwningDocument->FindClassWithID(Node.ClassID);
 					if (const FMetasoundFrontendClass* NodeClass = NodeClassPtr.Get())

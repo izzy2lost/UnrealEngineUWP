@@ -324,6 +324,7 @@ enum ETextureSourceCompressionFormat : int
 	TSCF_PNG	UMETA(DisplayName = "PNG"),
 	TSCF_JPEG	UMETA(DisplayName = "JPEG"),
 	TSCF_UEJPEG	UMETA(DisplayName = "UE JPEG"),
+	TSCF_UEDELTA UMETA(DisplayName = "UE Delta"),
 
 	TSCF_MAX
 };
@@ -339,7 +340,7 @@ enum ETextureSourceFormat : int
 	TSF_RGBA16,
 	TSF_RGBA16F,
 
-	// these are mapped to TSF_BGRA8/TSF_BGRE8 on load, so the runtime will never see them after loading :
+	// these are changed to TSF_BGRA8/TSF_BGRE8 on load, so the runtime will never see them after loading :
 	// keep them here to preserve enum values
 	TSF_RGBA8_DEPRECATED,
 	TSF_RGBE8_DEPRECATED,
@@ -349,12 +350,7 @@ enum ETextureSourceFormat : int
 	TSF_R16F,
 	TSF_R32F,
 
-	TSF_MAX,
-
-	// provide aliases to the old names with deprecation warnings
-	//  remove these someday
-	TSF_RGBA8 UE_DEPRECATED(5.1,"Legacy ETextureSourceFormat not supported, use BGRA8") = TSF_RGBA8_DEPRECATED,
-	TSF_RGBE8 UE_DEPRECATED(5.1,"Legacy ETextureSourceFormat not supported, use BGRE8") = TSF_RGBE8_DEPRECATED
+	TSF_MAX
 };
 
 /**
@@ -378,18 +374,18 @@ extern ENGINE_API FTextureSourceFormatInfo GTextureSourceFormats[TSF_MAX];		// M
 UENUM()
 enum TextureCompressionSettings : int
 {
-	TC_Default					UMETA(DisplayName = "Default (DXT1/5, BC1/3 on DX11)"),
-	TC_Normalmap				UMETA(DisplayName = "Normalmap (DXT5, BC5 on DX11)"),
+	TC_Default					UMETA(DisplayName = "Default (BC1 or BC3 with A)"),
+	TC_Normalmap				UMETA(DisplayName = "Normalmap (BC5)"),
 	TC_Masks					UMETA(DisplayName = "Masks (no sRGB)"),
 	TC_Grayscale				UMETA(DisplayName = "Grayscale (G8/16, RGB8 sRGB)"),
 	TC_Displacementmap			UMETA(DisplayName = "Displacementmap (G8/16)"),
 	TC_VectorDisplacementmap	UMETA(DisplayName = "VectorDisplacementmap (RGBA8)"),
 	TC_HDR						UMETA(DisplayName = "HDR (RGBA16F, no sRGB)"),
-	TC_EditorIcon				UMETA(DisplayName = "UserInterface2D (RGBA)"),
-	TC_Alpha					UMETA(DisplayName = "Alpha (no sRGB, BC4 on DX11)"),
+	TC_EditorIcon				UMETA(DisplayName = "UserInterface2D (RGBA8)"),
+	TC_Alpha					UMETA(DisplayName = "Alpha (no sRGB, BC4)"),
 	TC_DistanceFieldFont		UMETA(DisplayName = "DistanceFieldFont (G8)"),
-	TC_HDR_Compressed			UMETA(DisplayName = "HDR Compressed (RGB, BC6H, DX11)"),
-	TC_BC7						UMETA(DisplayName = "BC7 (DX11, optional A)"),
+	TC_HDR_Compressed			UMETA(DisplayName = "HDR Compressed (RGB, BC6H)"),
+	TC_BC7						UMETA(DisplayName = "BC7 (RGBA)"),
 	TC_HalfFloat				UMETA(DisplayName = "Half Float (R16F)"),
 	TC_LQ				        UMETA(Hidden, DisplayName = "Low Quality (BGR565/BGR555A1)", ToolTip = "BGR565/BGR555A1, fallback to DXT1/DXT5 on Mac platform"),
 	TC_EncodedReflectionCapture	UMETA(Hidden), 

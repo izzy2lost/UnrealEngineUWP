@@ -423,7 +423,7 @@ bool SPCGEditorGraphNodePin::ShouldDisplayAsRequiredForExecution() const
 		// as required, because it effectively is. So return false if there are other pins which are not advanced.
 		return !Algo::AnyOf(PCGNode->GetInputPins(), [PCGPin](UPCGPin* InOtherPin)
 		{
-			return InOtherPin && InOtherPin != PCGPin && InOtherPin->Properties.PinStatus != EPCGPinStatus::Advanced;
+			return InOtherPin && InOtherPin != PCGPin && !InOtherPin->Properties.IsAdvancedPin();
 		});
 	}
 
@@ -627,7 +627,6 @@ TArray<FOverlayWidgetInfo> SPCGEditorGraphNode::GetOverlayWidgets(bool bSelected
 		const EPCGHiGenGrid InspectedGrid = PCGEditorGraphNode->GetInspectedGenerationGrid();
 		UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
 
-		//const bool bHigenEnabled = PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->getpcn
 		const bool bInspectingHigen = InspectedGrid != EPCGHiGenGrid::Uninitialized;
 		if (bInspectingHigen && PCGEditorGraphNode->IsNodeEnabled())
 		{
@@ -689,6 +688,43 @@ TArray<FOverlayWidgetInfo> SPCGEditorGraphNode::GetOverlayWidgets(bool bSelected
 			GridSizeLabelInfo.OverlayOffset = FVector2D(GetDesiredSize().X - 30.0f, -9.0f);
 
 			OverlayWidgets.Add(GridSizeLabelInfo);
+		}
+
+		if (PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->GetPCGNode()->GetSettings() && PCGEditorGraphNode->GetPCGNode()->GetSettings()->ShouldExecuteOnGPU())
+		{
+			const float BorderRadius = 7.0f;
+			const float BorderStroke = 1.0f;
+			FText GPUText = FText::FromString(TEXT("GPU"));
+			const FLinearColor BorderColor(0.5f, 0.5f, 0.5f, 0.5f);
+			FLinearColor TextColor(0.5f, 0.5f, 0.5f, 0.8f);
+			
+			const FSlateBrush* BorderBrush = new FSlateRoundedBoxBrush(
+				FLinearColor::Transparent,
+				BorderRadius,
+				BorderColor,
+				BorderStroke);
+
+			TSharedPtr<SWidget> GPUUsageLabel =
+				SNew(SHorizontalBox)
+				.Visibility(EVisibility::Visible)
+				+SHorizontalBox::Slot()
+				[
+					SNew(SBorder)
+					.BorderImage(BorderBrush)
+					.Padding(FMargin(4, 3))
+					[
+						SNew(STextBlock)
+						.TextStyle(FPCGEditorStyle::Get(), "PCG.Node.AdditionalOverlayWidgetText")
+						.Text(GPUText)
+						.Justification(ETextJustify::Center)
+						.ColorAndOpacity(TextColor)
+					]
+				];
+
+			FOverlayWidgetInfo GPUUsageLabelInfo(GPUUsageLabel);
+			GPUUsageLabelInfo.OverlayOffset = FVector2D(GetDesiredSize().X - 34.0f, GetDesiredSize().Y + 5.0f);
+
+			OverlayWidgets.Add(GPUUsageLabelInfo);
 		}
 	}
 
@@ -974,6 +1010,17 @@ FLinearColor SPCGEditorGraphNode::GetGridLabelColor(EPCGHiGenGrid NodeGrid)
 	{
 	case EPCGHiGenGrid::Unbounded:
 		return FColor(255, 255, 255, 255);
+	case EPCGHiGenGrid::Grid4194304: // fall-through
+	case EPCGHiGenGrid::Grid2097152: // fall-through
+	case EPCGHiGenGrid::Grid1048576: // fall-through
+	case EPCGHiGenGrid::Grid524288: // fall-through
+	case EPCGHiGenGrid::Grid262144: // fall-through
+	case EPCGHiGenGrid::Grid131072: // fall-through
+	case EPCGHiGenGrid::Grid65536: // fall-through
+	case EPCGHiGenGrid::Grid32768: // fall-through
+	case EPCGHiGenGrid::Grid16384: // fall-through
+	case EPCGHiGenGrid::Grid8192: // fall-through
+	case EPCGHiGenGrid::Grid4096: // fall-through
 	case EPCGHiGenGrid::Grid2048:
 		return FColor(53, 60, 171, 255);
 	case EPCGHiGenGrid::Grid1024:

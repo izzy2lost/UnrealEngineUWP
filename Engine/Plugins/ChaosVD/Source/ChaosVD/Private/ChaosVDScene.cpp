@@ -2,33 +2,38 @@
 
 #include "ChaosVDScene.h"
 
-#include "Actors/ChaosVDSceneQueryDataContainer.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
+#include "ChaosVDSelectionCustomization.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDSkySphereInterface.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
+#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
-#include "EditorActorFolders.h"
-#include "EditorLevelUtils.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/World.h"
+#include "Elements/Actor/ActorElementData.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
-#include "Misc/ScopedSlowTask.h"
 #include "Materials/Material.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Selection.h"
+#include "Actors/ChaosVDGameFrameInfoActor.h"
+#include "Settings/ChaosVDCoreSettings.h"
 #include "UObject/Package.h"
-#include "WorldPersistentFolders.h"
-#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
-#include "Engine/Level.h"
+#include "Actors/ChaosVDGeometryContainer.h"
+#include "Components/LightComponent.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/TextureCube.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -43,6 +48,15 @@ namespace ChaosVDSceneUIOptions
 	constexpr bool bAllowInPIE = false;
 }
 
+namespace Chaos::VisualDebugger::Cvars
+{
+	static bool bReInitializeGeometryBuilderOnCleanup = true;
+	static FAutoConsoleVariableRef CVarChaosVDReInitializeGeometryBuilderOnCleanup(
+		TEXT("p.Chaos.VD.Tool.ReInitializeGeometryBuilderOnCleanup"),
+		bReInitializeGeometryBuilderOnCleanup,
+		TEXT("If true, any static mesh component and static mesh component created will be destroyed when a new CVD recording is loaded"));
+}
+
 void FChaosVDScene::Initialize()
 {
 	if (!ensure(!bIsInitialized))
@@ -52,15 +66,9 @@ void FChaosVDScene::Initialize()
 
 	InitializeSelectionSets();
 	
-	PhysicsVDWorld = CreatePhysicsVDWorld();
-
-	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
-
-	GeometryGenerator->Initialize(AsWeak());
-	
 	StreamableManager = MakeShared<FStreamableManager>();
 
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	if (UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
 	{
 		// TODO: Do an async load instead, and prepare a loading screen or notification popup
 		// Jira for tracking UE-191639
@@ -68,13 +76,29 @@ void FChaosVDScene::Initialize()
 		StreamableManager->RequestSyncLoad(Settings->SimOnlyMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesQueryOnlyMaterial.ToSoftObjectPath());
-		
-		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDScene::HandleVisibilitySettingsChanged);
-		Settings->OnColorSettingsChanged().AddRaw(this, &FChaosVDScene::HandleColorSettingsChanged);
+		StreamableManager->RequestSyncLoad(Settings->AmbientCubeMapTexture.ToSoftObjectPath());
 	}
+	
+	PhysicsVDWorld = CreatePhysicsVDWorld();
+
+	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
+
+	GeometryGenerator->Initialize(AsWeak());
 
 	bIsInitialized = true;
 }
+
+
+void FChaosVDScene::PerformGarbageCollection()
+{
+	FScopedSlowTask CollectingGarbageSlowTask(1, LOCTEXT("CollectingGarbageDataMessage", "Collecting Garbage ..."));
+	CollectingGarbageSlowTask.MakeDialog();
+
+	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+	CollectingGarbageSlowTask.EnterProgressFrame();
+}
+
 
 void FChaosVDScene::DeInitialize()
 {
@@ -87,12 +111,6 @@ void FChaosVDScene::DeInitialize()
 		return;
 	}
 
-	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
-	{
-		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
-		Settings->OnColorSettingsChanged().RemoveAll(this);
-	}
-
 	CleanUpScene();
 
 	DeInitializeSelectionSets();
@@ -101,7 +119,7 @@ void FChaosVDScene::DeInitialize()
 
 	if (PhysicsVDWorld)
 	{
-		PhysicsVDWorld->RemoveOnActorDestroyededHandler(ActorDestroyedHandle);
+		PhysicsVDWorld->RemoveOnActorDestroyedHandler(ActorDestroyedHandle);
 
 		PhysicsVDWorld->DestroyWorld(true);
 		GEngine->DestroyWorldContext(PhysicsVDWorld);
@@ -110,14 +128,7 @@ void FChaosVDScene::DeInitialize()
 		PhysicsVDWorld = nullptr;
 	}
 
-	{
-		FScopedSlowTask CollectingGarbageSlowTask(1, LOCTEXT("CollectingGarbageDataMessage", "Collecting Garbage ..."));
-		CollectingGarbageSlowTask.MakeDialog();
-
-		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
-
-		CollectingGarbageSlowTask.EnterProgressFrame();
-	}
+	PerformGarbageCollection();
 
 	bIsInitialized = false;
 }
@@ -129,6 +140,7 @@ void FChaosVDScene::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(ObjectSelection);
 	Collector.AddReferencedObject(ActorSelection);
 	Collector.AddReferencedObject(ComponentSelection);
+	Collector.AddStableReferenceArray(&AvailableDataContainerActors);
 }
 
 void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
@@ -157,7 +169,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 		constexpr float AmountOfWork = 1.0f;
 		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedParticlesData.Num();
 
-		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromString(SolverSceneData->GetSolverName()), FText::AsNumber(SolverID));
+		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromName(SolverSceneData->GetSolverName()), FText::AsNumber(SolverID));
 		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, ProgressBarTitle);
 		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
 	
@@ -205,21 +217,21 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 
 	UpdateJointConstraintsData(InRecordedStepData, SolverID);
 	
-	const TMap<int32, AChaosVDParticleActor*>& AllSolverParticlesByID = SolverSceneData->GetAllParticleActorsByIDMap();
+	const TMap<int32, TObjectPtr<AChaosVDParticleActor>>& AllSolverParticlesByID = SolverSceneData->GetAllParticleActorsByIDMap();
 
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleActorWithID : AllSolverParticlesByID)
+	for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleActorWithID : AllSolverParticlesByID)
 	{
 		// If we are playing back a keyframe, the scene should only contain what it is in the recorded data
-		const bool bShouldDestroyParticleAnyway = InFrameData.bIsKeyFrame && !ParticlesIDsInRecordedStepData.Contains(ParticleActorWithID.Key);
+		const bool bShouldDestroyParticleAnyway = InFrameData.bIsKeyFrame && EnumHasAnyFlags(InRecordedStepData.StageFlags, EChaosVDSolverStageFlags::ExplicitStage) && !ParticlesIDsInRecordedStepData.Contains(ParticleActorWithID.Key);
 		
 		if (bShouldDestroyParticleAnyway || InFrameData.ParticlesDestroyedIDs.Contains(ParticleActorWithID.Key))
 		{
 			// In large maps moving at high speed (like when moving on a vehicle), level streaming adds/removes hundreds of actors (and therefore particles) constantly.
-			// Destroying particle actors is expensive, specially if we need to spawn them again sooner as we will nee to rebuild-them.
+			// Destroying particle actors is expensive, specially if we need to spawn them again sooner as we will need to rebuild-them.
 			// So, we deactivate them instead.
 
 			// TODO: We need an actor pool system, so we can keep memory under control as well.
-			if (AChaosVDParticleActor* ActorToDeactivate = ParticleActorWithID.Value)
+			if (AChaosVDParticleActor* ActorToDeactivate = ToRawPtr(ParticleActorWithID.Value))
 			{
 				if (IsObjectSelected(ActorToDeactivate))
 				{
@@ -257,38 +269,72 @@ void FChaosVDScene::UpdateJointConstraintsData(const FChaosVDStepData& InRecorde
 	}
 }
 
-void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID) const
+void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID)
 {
-	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
-}
-
-void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
-{
-	if (!SolverDataContainerBySolverID.Contains(SolverID))
+	if (TArray<IChaosVDGeometryOwnerInterface*>* ObjectsWaitingPtr = ObjectsWaitingForGeometry.Find(GeometryID))
 	{
-		AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
-		check(SolverDataInfo);
+		TArray<IChaosVDGeometryOwnerInterface*>& ObjectsWaitingRef = *ObjectsWaitingPtr;
+		for (IChaosVDGeometryOwnerInterface* ObjectWaiting : ObjectsWaitingRef)
+		{
+			if (ObjectWaiting)
+			{
+				ObjectWaiting->HandleNewGeometryLoaded(GeometryID, GeometryData);
+			}
+		}
 
-		FString SolverName = LoadedRecording->GetSolverName_AssumedLocked(SolverID);
-		const bool bIsServer = SolverName.Contains(TEXT("Server"));
-
-		const FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
-		const FName FolderPath = *FString::Format(TEXT("Solver {0} | ID {1}"), Args);
-
-		SolverDataInfo->SetFolderPath(FolderPath);
-
-		SolverDataInfo->SetSolverID(SolverID);
-		SolverDataInfo->SetSolverName(SolverName);
-		SolverDataInfo->SetScene(AsWeak());
-		SolverDataInfo->SetIsServer(bIsServer);
-
-		SolverDataContainerBySolverID.Add(SolverID, SolverDataInfo);
-
-		SolverInfoActorCreatedDelegate.Broadcast(SolverDataInfo);
+		// Keep the array allocated in case another particle needs to go to the waiting list
+		ObjectsWaitingRef.Reset();
 	}
 }
 
-void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData)
+AChaosVDSolverInfoActor* FChaosVDScene::GetOrCreateSolverInfoActor(int32 SolverID)
+{
+	if (AChaosVDSolverInfoActor** SolverInfoActorPtrPtr = SolverDataContainerBySolverID.Find(SolverID))
+	{
+		return *SolverInfoActorPtrPtr;
+	}
+	
+	AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
+	check(SolverDataInfo);
+
+	FName SolverName = LoadedRecording->GetSolverFName_AssumedLocked(SolverID);
+	FString NameAsString = SolverName.ToString();
+	const bool bIsServer = NameAsString.Contains(TEXT("Server"));
+
+	const FStringFormatOrderedArguments Args {NameAsString, FString::FromInt(SolverID)};
+	const FName FolderPath = *FString::Format(TEXT("Solver {0} | ID {1}"), Args);
+
+	SolverDataInfo->SetFolderPath(FolderPath);
+
+	SolverDataInfo->SetSolverID(SolverID);
+	SolverDataInfo->SetSolverName(SolverName);
+	SolverDataInfo->SetScene(AsWeak());
+	SolverDataInfo->SetIsServer(bIsServer);
+
+	SolverDataContainerBySolverID.Add(SolverID, SolverDataInfo);
+	AvailableDataContainerActors.Add(SolverDataInfo);
+
+	SolverInfoActorCreatedDelegate.Broadcast(SolverDataInfo);
+
+	return SolverDataInfo;
+}
+
+AChaosVDGameFrameInfoActor* FChaosVDScene::GetOrCreateGameFrameInfoActor()
+{
+	if (!GameFrameDataInfoActor)
+	{
+		const FName FolderPath("ChaosVisualDebugger/GameFrameData");
+
+		GameFrameDataInfoActor = PhysicsVDWorld->SpawnActor<AChaosVDGameFrameInfoActor>();
+		GameFrameDataInfoActor->SetFolderPath(FolderPath);
+		GameFrameDataInfoActor->SetScene(AsWeak());
+		AvailableDataContainerActors.Add(GameFrameDataInfoActor);
+	}
+
+	return GameFrameDataInfoActor;
+}
+
+void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32, TInlineAllocator<16>>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData, TArray<int32, TInlineAllocator<16>>& OutRemovedSolversIds)
 {
 	// Currently the particle actors from all the solvers are in the same level, and we manage them by keeping track
 	// of to which solvers they belong using maps.
@@ -303,7 +349,10 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 	{
 		AvailableSolversSet.Add(SolverID);
 
-		CreateSolverInfoActor(SolverID);
+		if (AChaosVDSolverInfoActor* SolverInfoActor = GetOrCreateSolverInfoActor(SolverID))
+		{
+			SolverInfoActor->UpdateFromNewGameFrameData(InNewGameFrameData);
+		}
 	}
 
 	int32 AmountRemoved = 0;
@@ -316,8 +365,11 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 
 			if (AChaosVDSolverInfoActor* SolverInfoActor = RemoveIterator.Value())
 			{
+				AvailableDataContainerActors.Remove(SolverInfoActor);
 				PhysicsVDWorld->DestroyActor(SolverInfoActor);
 			}
+
+			OutRemovedSolversIds.Add(RemoveIterator.Key());
 
 			RemoveIterator.RemoveCurrent();
 			AmountRemoved++;
@@ -329,35 +381,78 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	}
 
-	if (SceneQueriesContainer)
+	if (AChaosVDGameFrameInfoActor* GameFrameDataContainer = GetOrCreateGameFrameInfoActor())
 	{
-		if (UChaosVDSceneQueryDataComponent* QueryDataComponent = SceneQueriesContainer->GetSceneQueryDataComponent())
+		GameFrameDataContainer->UpdateFromNewGameFrameData(InNewGameFrameData);
+	}
+}
+
+void FChaosVDScene::HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDSolverFrameData& InFrameData)
+{
+	if (AChaosVDSolverInfoActor** SolverDataInfoContainerPtrPtr = SolverDataContainerBySolverID.Find(InFrameData.SolverID))
+	{
+		UChaosVDSolverCharacterGroundConstraintDataComponent* DataContainer = SolverDataInfoContainerPtrPtr ? (*SolverDataInfoContainerPtrPtr)->GetCharacterGroundConstraintDataComponent() : nullptr;
+
+		// TODO: Some times when playback is stopped, we might not have all the solver info actors ready when we go to the first frame
+		// This should not happen. For now I am making a change to avoid the crash and ensure. I created UE-217610 to find the issue and prepare a proper fix
+		if (ensure(DataContainer))
 		{
-			QueryDataComponent->UpdateQueriesFromFrameData(InNewGameFrameData);
+			DataContainer->UpdateConstraintData(InFrameData.RecordedCharacterGroundConstraints);
 		}
 	}
 }
 
-void FChaosVDScene::CleanUpScene()
+void FChaosVDScene::CleanUpScene(EChaosVDSceneCleanUpOptions Options)
 {
-	constexpr float AmountOfWork = 1.0f;
-	const float PercentagePerElement = 1.0f / SolverDataContainerBySolverID.Num();
+	// AvailableDataContainerActors should always be at least the number of solver actors created
+	ensure(AvailableDataContainerActors.Num() >= SolverDataContainerBySolverID.Num());
 
-	FScopedSlowTask CleaningSceneSlowTask(AmountOfWork, LOCTEXT("CleaningupSceneSolverMessage", "Clearing Solver Data ..."));
-	CleaningSceneSlowTask.MakeDialog();
-
-	ClearSelectionAndNotify();
-
-	if (PhysicsVDWorld)
+	if (AvailableDataContainerActors.Num() > 0)
 	{
-		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
+		constexpr float AmountOfWork = 1.0f;
+		const float PercentagePerElement = 1.0f / AvailableDataContainerActors.Num();
+
+		FScopedSlowTask CleaningSceneSlowTask(AmountOfWork, LOCTEXT("CleaningupSceneSolverMessage", "Clearing Solver Data ..."));
+		CleaningSceneSlowTask.MakeDialog();
+
+		ClearSelectionAndNotify();
+
+		if (PhysicsVDWorld)
 		{
-			PhysicsVDWorld->DestroyActor(SolverDataInfoWithID.Value);
-			CleaningSceneSlowTask.EnterProgressFrame(PercentagePerElement);
+			for (TObjectPtr<AChaosVDDataContainerBaseActor>& DataContainerActor : AvailableDataContainerActors)
+			{
+				if (DataContainerActor)
+				{
+					PhysicsVDWorld->DestroyActor(DataContainerActor.Get());
+				}
+
+				CleaningSceneSlowTask.EnterProgressFrame(PercentagePerElement);
+			}
 		}
+
+		AvailableDataContainerActors.Reset();
+		SolverDataContainerBySolverID.Reset();
+		GameFrameDataInfoActor = nullptr;
 	}
 
-	SolverDataContainerBySolverID.Reset();
+	if (Chaos::VisualDebugger::Cvars:: bReInitializeGeometryBuilderOnCleanup && EnumHasAnyFlags(Options, EChaosVDSceneCleanUpOptions::ReInitializeGeometryBuilder))
+	{
+		if (AChaosVDGeometryContainer* AsGeometryContainer = Cast<AChaosVDGeometryContainer>(MeshComponentContainerActor))
+		{
+			AsGeometryContainer->CleanUp();
+		}
+
+		GeometryGenerator->DeInitialize();
+		GeometryGenerator.Reset();
+	
+		GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
+		GeometryGenerator->Initialize(AsWeak());
+	}
+
+	if (EnumHasAnyFlags(Options, EChaosVDSceneCleanUpOptions::CollectGarbage))
+	{
+		PerformGarbageCollection();
+	}
 }
 
 Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
@@ -375,6 +470,16 @@ Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryI
 	}
 
 	return nullptr;
+}
+
+void FChaosVDScene::AddObjectWaitingForGeometry(uint32 GeometryID, IChaosVDGeometryOwnerInterface* ObjectWaitingForGeometry)
+{
+	if (!ObjectWaitingForGeometry)
+	{
+		return;
+	}
+
+	ObjectsWaitingForGeometry.FindOrAdd(GeometryID).Add(ObjectWaitingForGeometry);
 }
 
 AChaosVDParticleActor* FChaosVDScene::GetParticleActor(int32 SolverID, int32 ParticleID)
@@ -408,11 +513,6 @@ bool FChaosVDScene::IsSolverForServer(int32 SolverID) const
 	return false;
 }
 
-UChaosVDSceneQueryDataComponent* FChaosVDScene::GetSceneQueryDataContainerComponent() const
-{
-	return SceneQueriesContainer ? SceneQueriesContainer->GetSceneQueryDataComponent() : nullptr;
-}
-
 AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData, const FChaosVDSolverFrameData& InFrameData)
 {
 	using namespace Chaos;
@@ -429,8 +529,9 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TShare
 		NewActor->SetIsServerParticle(IsSolverForServer(InParticleData->SolverID));
 		NewActor->UpdateFromRecordedParticleData(InParticleData, InFrameData.SimulationTransform);
 
-		const bool bHasDebugName = !InParticleData->DebugName.IsEmpty();
-		NewActor->SetActorLabel(bHasDebugName ? InParticleData->DebugName : TEXT("Unnamed Particle - ID : ") + FString::FromInt(InParticleData->ParticleIndex));
+		// CVD's Outliner mode will update the label based on the particle data without needing to go trough all the code that Set Actor lable goes trough
+		// which can take +0.1 sec per actor
+		ParticleLabelUpdateDelegate.Broadcast(NewActor);
 
 		return NewActor;
 	}
@@ -454,13 +555,15 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 
 	const FVector SpawnPosition(0.0, 0.0, 2000.0);
 	
-	if (const UChaosVDEditorSettings* Settings = GetDefault<UChaosVDEditorSettings>())
+	if (const UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
 	{
 		if (ADirectionalLight* DirectionalLightActor = TargetWorld->SpawnActor<ADirectionalLight>())
 		{
 			DirectionalLightActor->SetCastShadows(false);
 			DirectionalLightActor->SetMobility(EComponentMobility::Movable);
 			DirectionalLightActor->SetActorLocation(SpawnPosition);
+			
+			DirectionalLightActor->SetBrightness(4.0f);
 
 			DirectionalLightActor->SetFolderPath(LightingFolderPath);
 
@@ -470,29 +573,60 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 			{
 				SkySphere->SetActorLocation(SpawnPosition);
 				SkySphere->SetFolderPath(LightingFolderPath);
+				
 				if (SkySphere->Implements<UChaosVDSkySphereInterface>())
 				{
+					FEditorScriptExecutionGuard AllowEditorScriptGuard;
 					IChaosVDSkySphereInterface::Execute_SetDirectionalLightSource(SkySphere, DirectionalLightActor);
+				}
+
+				// Keep it dark to reduce visual noise.
+				// TODO: We should hide these components altogether when we switch to a unlit wireframe mode 
+				const TSet<UActorComponent*>& Components = SkySphere->GetComponents();
+				for (UActorComponent* Component : Components)
+				{
+					if (UStaticMeshComponent* AsStaticMeshComponent = Cast<UStaticMeshComponent>(Component))
+					{
+						AsStaticMeshComponent->bOverrideWireframeColor = true;
+						AsStaticMeshComponent->WireframeColorOverride = FColor::Black;
+					}
 				}
 			}
 		}
 	}
 }
 
-void FChaosVDScene::CreateSceneQueriesContainer(UWorld* TargetWorld)
+void FChaosVDScene::CreatePostProcessingVolumes(UWorld* TargetWorld)
 {
-	const FName FolderPath("ChaosVisualDebugger/SceneQueries");
+	const FName LightingFolderPath("ChaosVisualDebugger/Lighting");
 
-	SceneQueriesContainer = TargetWorld->SpawnActor<AChaosVDSceneQueryDataContainer>();
-	SceneQueriesContainer->SetFolderPath(FolderPath);
-	SceneQueriesContainer->SetScene(AsWeak());
+	if (const UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
+	{
+		APostProcessVolume* PostProcessingVolume = TargetWorld->SpawnActor<APostProcessVolume>();
+		if (ensure(PostProcessingVolume))
+		{
+			PostProcessingVolume->SetFolderPath(LightingFolderPath);
+			PostProcessingVolume->Settings.bOverride_AmbientCubemapIntensity = true;
+			PostProcessingVolume->Settings.AmbientCubemapIntensity = 0.3f;
+			PostProcessingVolume->bUnbound = true;
+			PostProcessingVolume->bEnabled = true;
+
+			UTextureCube* AmbientCubemap = Settings->AmbientCubeMapTexture.Get();
+			if (ensure(AmbientCubemap))
+			{
+				PostProcessingVolume->Settings.AmbientCubemap = AmbientCubemap;
+			}
+			
+			PostProcessingVolume->MarkComponentsRenderStateDirty();
+		}
+	}
 }
 
 AActor* FChaosVDScene::CreateMeshComponentsContainer(UWorld* TargetWorld)
 {
 	const FName GeometryFolderPath("ChaosVisualDebugger/GeneratedMeshComponents");
 
-	MeshComponentContainerActor = TargetWorld->SpawnActor<AActor>();
+	MeshComponentContainerActor = TargetWorld->SpawnActor<AChaosVDGeometryContainer>();
 	MeshComponentContainerActor->SetFolderPath(GeometryFolderPath);
 
 	return MeshComponentContainerActor;
@@ -524,8 +658,8 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 	}
 
 	CreateBaseLights(NewWorld);
-	CreateSceneQueriesContainer(NewWorld);
 	CreateMeshComponentsContainer(NewWorld);
+	CreatePostProcessingVolumes(NewWorld);
 
 	ActorDestroyedHandle = NewWorld->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateRaw(this, &FChaosVDScene::HandleActorDestroyed));
 	
@@ -551,7 +685,7 @@ FTypedElementHandle FChaosVDScene::GetSelectionHandleForObject(const UObject* Ob
 	return Handle;
 }
 
-void FChaosVDScene::UpdateSelectionProxiesForActors(const TArray<AActor*>& SelectedActors)
+void FChaosVDScene::UpdateSelectionProxiesForActors(TArrayView<AActor*> SelectedActors)
 {
 	for (AActor* SelectedActor : SelectedActors)
 	{
@@ -562,19 +696,30 @@ void FChaosVDScene::UpdateSelectionProxiesForActors(const TArray<AActor*>& Selec
 	}
 }
 
-void FChaosVDScene::HandlePreSelectionChange(const UTypedElementSelectionSet* PreChangeSelectionSet)
+void FChaosVDScene::HandleDeSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions)
 {
-	PendingActorsToUpdateSelectionProxy.Append(PreChangeSelectionSet->GetSelectedObjects<AActor>());
+	if (AActor* DeselectedActor = ActorElementDataUtil::GetActorFromHandle(InElementSelectionHandle))
+	{
+		if (IChaosVDSelectableObject* SelectionAwareActor = Cast<IChaosVDSelectableObject>(DeselectedActor))
+		{
+			SelectionAwareActor->HandleDeSelected();
+		}
+	}
+
+	// TODO: Add support for Component and Object Selection Events - This will be needed when we move away from using actors to represent particles
 }
 
-void FChaosVDScene::HandlePostSelectionChange(const UTypedElementSelectionSet* PreChangeSelectionSet)
+void FChaosVDScene::HandleSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions)
 {
-	TArray<AActor*> SelectedActors = PreChangeSelectionSet->GetSelectedObjects<AActor>();
+	if (AActor* SelectedActor = ActorElementDataUtil::GetActorFromHandle(InElementSelectionHandle))
+	{
+		if (IChaosVDSelectableObject* SelectionAwareActor = Cast<IChaosVDSelectableObject>(SelectedActor))
+		{
+			SelectionAwareActor->HandleSelected();
+		}
+	}
 
-	SelectedActors.Append(PendingActorsToUpdateSelectionProxy);
-	UpdateSelectionProxiesForActors(SelectedActors);
-
-	PendingActorsToUpdateSelectionProxy.Reset();
+	// TODO: Add support for Component and Object Selection Events - This will be needed when we move away from using actors to represent particles
 }
 
 void FChaosVDScene::ClearSelectionAndNotify()
@@ -588,32 +733,14 @@ void FChaosVDScene::ClearSelectionAndNotify()
 	SelectionSet->NotifyPendingChanges();
 }
 
-void FChaosVDScene::HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject)
-{
-	for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
-	{
-		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
-		{
-			SolverDataInfo->HandleVisibilitySettingsUpdated();
-		}
-	}
-}
-
-void FChaosVDScene::HandleColorSettingsChanged(UChaosVDEditorSettings* SettingsObject)
-{
-	for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
-	{
-		if (AChaosVDSolverInfoActor* SolverDataInfo = SolverDataInfoWithID.Value)
-		{
-			SolverDataInfo->HandleColorsSettingsUpdated();
-		}
-	}
-}
-
 void FChaosVDScene::InitializeSelectionSets()
 {
 	SelectionSet = NewObject<UTypedElementSelectionSet>(GetTransientPackage(), NAME_None, RF_Transactional);
 	SelectionSet->AddToRoot();
+
+	SelectionSet->RegisterInterfaceCustomizationByTypeName(NAME_Actor, MakeUnique<FChaosVDSelectionCustomization>(AsShared()));
+	SelectionSet->RegisterInterfaceCustomizationByTypeName(NAME_Components, MakeUnique<FChaosVDSelectionCustomization>(AsShared()));
+	SelectionSet->RegisterInterfaceCustomizationByTypeName(NAME_Object, MakeUnique<FChaosVDSelectionCustomization>(AsShared()));
 
 	FString ActorSelectionObjectName = FString::Printf(TEXT("CVDSelectedActors-%s"), *FGuid::NewGuid().ToString());
 	ActorSelection = USelection::CreateActorSelection(GetTransientPackage(), *ActorSelectionObjectName, RF_Transactional);
@@ -627,8 +754,7 @@ void FChaosVDScene::InitializeSelectionSets()
 	ObjectSelection = USelection::CreateObjectSelection(GetTransientPackage(), *ObjectSelectionObjectName, RF_Transactional);
 	ObjectSelection->SetElementSelectionSet(SelectionSet);
 
-	SelectionSet->OnPreChange().AddRaw(this, &FChaosVDScene::HandlePreSelectionChange);
-	SelectionSet->OnChanged().AddRaw(this, &FChaosVDScene::HandlePostSelectionChange);
+	SolverDataSelectionObject = MakeShared<FChaosVDSolverDataSelection>();
 }
 
 void FChaosVDScene::DeInitializeSelectionSets()

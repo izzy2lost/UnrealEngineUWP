@@ -88,11 +88,19 @@
 	],
 	"Plugins": [
 		{
+			"Name": "USDCore",
+			"Enabled": true
+		},
+		{
 			"Name": "VariantManagerContent",
 			"Enabled": true
 		},
 		{
 			"Name": "VariantManager",
+			"Enabled": true
+		},
+		{
+			"Name": "InterchangeAssets",
 			"Enabled": true
 		}
 	],

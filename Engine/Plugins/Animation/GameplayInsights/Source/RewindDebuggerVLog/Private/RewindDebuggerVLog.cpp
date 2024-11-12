@@ -10,11 +10,12 @@
 #include "RewindDebuggerVLogSettings.h"
 #include "ToolMenus.h"
 #include "VisualLogEntryRenderer.h"
+#include "Debug/DebugDrawService.h"
 #include "Editor/EditorEngine.h"
+#include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "TraceServices/Model/Frames.h"
-#include "VisualLogger/VisualLogger.h"
 #include "VisualLogger/VisualLoggerTraceDevice.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebuggerVLog"
@@ -24,6 +25,55 @@ TAutoConsoleVariable<int32> CVarRewindDebuggerVLogUseActor(TEXT("a.RewindDebugge
 FRewindDebuggerVLog::FRewindDebuggerVLog()
 {
 
+}
+
+void FRewindDebuggerVLog::OnShowDebugInfo(UCanvas* Canvas, APlayerController* Player)
+{
+	ScreenTextY = 60;
+	if (IRewindDebugger* RewindDebugger = IRewindDebugger::Instance())
+	{
+		if (RewindDebugger->IsPIESimulating())
+		{
+			// make sure this is the primary view, when we are playing in PIE, so we don't clear ImmediateRenderQueue when this has been called on some other editor view.
+			if (Canvas->SceneView->ViewActor)
+			{
+				for (FVisualLogEntry& Entry : ImmediateRenderQueue)
+				{
+					RenderLogEntry(Entry, Canvas);
+				}
+
+				ImmediateRenderQueue.SetNum(0);
+			}
+		}
+		else
+		{
+			ObjectsVisited.Empty();
+			if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
+			{
+				TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+				double CurrentTraceTime = RewindDebugger->CurrentTraceTime();
+
+				const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
+				TraceServices::FFrame CurrentFrame;
+
+				if(FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, CurrentFrame))
+				{
+					if (const IVisualLoggerProvider* VisualLoggerProvider = Session->ReadProvider<IVisualLoggerProvider>("VisualLoggerProvider"))
+					{
+						AddLogEntries(RewindDebugger->GetDebugComponents(), CurrentFrame.StartTime, CurrentFrame.EndTime, VisualLoggerProvider, Canvas);
+					}
+				}
+			}
+		}
+	}
+
+
+	
+}
+
+FRewindDebuggerVLog::~FRewindDebuggerVLog()
+{
+	UDebugDrawService::Unregister(DelegateHandle);
 }
 
 void FRewindDebuggerVLog::Initialize()
@@ -50,6 +100,11 @@ void FRewindDebuggerVLog::Initialize()
 		
 	FVisualLoggerTraceDevice& TraceDevice = FVisualLoggerTraceDevice::Get();
 	TraceDevice.ImmediateRenderDelegate.BindRaw(this, &FRewindDebuggerVLog::ImmediateRender);
+
+	DelegateHandle = UDebugDrawService::Register(TEXT("VirtualTextureResidency")/*TEXT("VisLog")*/, FDebugDrawDelegate::CreateRaw(this, &FRewindDebuggerVLog::OnShowDebugInfo));
+
+	FTopLevelAssetPath MonospaceFontPath = FTopLevelAssetPath("/Engine/EngineFonts/DroidSansMono.DroidSansMono");
+	MonospaceFont = LoadObject<UFont>(nullptr, *MonospaceFontPath.ToString(), nullptr, LOAD_None, nullptr);
 }
 
 bool ContainsObject(TArray<TSharedPtr<FDebugObjectInfo>>& Components, uint64 ObjectId)
@@ -77,7 +132,7 @@ bool MatchCategoryFilters(const FName& CategoryName, ELogVerbosity::Type Verbosi
 	return Settings.DisplayCategories.Contains(CategoryName) && Verbosity <= Settings.DisplayVerbosity;
 }
 
-void FRewindDebuggerVLog::RenderLogEntry(const FVisualLogEntry& Entry)
+void FRewindDebuggerVLog::RenderLogEntry(const FVisualLogEntry& Entry, UCanvas* Canvas)
 {
 	if (CVarRewindDebuggerVLogUseActor.GetValueOnAnyThread())
 	{
@@ -90,9 +145,8 @@ void FRewindDebuggerVLog::RenderLogEntry(const FVisualLogEntry& Entry)
 	else
 	{
 		UWorld* World = IRewindDebugger::Instance()->GetWorldToVisualize();
-		const FVisualLogShapeElement* ElementToDraw = Entry.ElementsToDraw.GetData();
-		const int32 ElementsCount = Entry.ElementsToDraw.Num();
-		FVisualLogEntryRenderer::RenderLogEntry(World,Entry, &MatchCategoryFilters);
+		FVisualLogEntryRenderer::RenderLogEntry(World,Entry, &MatchCategoryFilters, Canvas, GEngine->GetMediumFont(), MonospaceFont, ScreenTextY);
+
 	}
 }
 
@@ -104,7 +158,7 @@ void FRewindDebuggerVLog::ImmediateRender(const UObject* Object, const FVisualLo
 		uint64 ObjectId = FObjectTrace::GetObjectId(Object);
 		if (ContainsObject(RewindDebugger->GetDebugComponents(), ObjectId))
 		{
-			RenderLogEntry(Entry);
+			ImmediateRenderQueue.Add(Entry);
 		}
 	}
 #endif
@@ -183,20 +237,27 @@ void FRewindDebuggerVLog::MakeCategoriesMenu(UToolMenu* Menu)
 	}
 }
 
-void FRewindDebuggerVLog::AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo>>& Components, float StartTime, float EndTime, const IVisualLoggerProvider* VisualLoggerProvider)
+void FRewindDebuggerVLog::AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo>>& Components, float StartTime, float EndTime, const IVisualLoggerProvider* VisualLoggerProvider, UCanvas* Canvas)
 {
 	for(const TSharedPtr<FDebugObjectInfo>& ComponentInfo : Components)
 	{
-		VisualLoggerProvider->ReadVisualLogEntryTimeline(ComponentInfo->ObjectId, [this,StartTime, EndTime](const IVisualLoggerProvider::VisualLogEntryTimeline &TimelineData)
+		if (!ObjectsVisited.Contains(ComponentInfo->ObjectId))
 		{
-			TimelineData.EnumerateEvents(StartTime, EndTime, [this](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& LogEntry)
+			ObjectsVisited.Add(ComponentInfo->ObjectId);
+			VisualLoggerProvider->ReadVisualLogEntryTimeline(ComponentInfo->ObjectId, [this,StartTime, EndTime, Canvas](const IVisualLoggerProvider::VisualLogEntryTimeline &TimelineData)
 			{
-				RenderLogEntry(LogEntry);
-				return TraceServices::EEventEnumerate::Continue;
+				TimelineData.EnumerateEvents(StartTime, EndTime, [this, StartTime, EndTime, Canvas](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& LogEntry)
+				{
+					if (InStartTime >= StartTime && InStartTime <= EndTime)
+					{
+						RenderLogEntry(LogEntry, Canvas);
+					}
+					return TraceServices::EEventEnumerate::Continue;
+				});
 			});
-		});
+		}
 
-		AddLogEntries(ComponentInfo->Children, StartTime, EndTime, VisualLoggerProvider);
+		AddLogEntries(ComponentInfo->Children, StartTime, EndTime, VisualLoggerProvider, Canvas);
 	}
 }
 
@@ -217,37 +278,6 @@ AVLogRenderingActor* FRewindDebuggerVLog::GetRenderingActor()
 
 void FRewindDebuggerVLog::Update(float DeltaTime, IRewindDebugger* RewindDebugger)
 {
-	if (!RewindDebugger->IsPIESimulating())
-	{
-		if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
-		{
-			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
-			double CurrentTraceTime = RewindDebugger->CurrentTraceTime();
-
-			const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
-			TraceServices::FFrame CurrentFrame;
-
-			if(FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, CurrentFrame))
-			{
-				if (const IVisualLoggerProvider* VisualLoggerProvider = Session->ReadProvider<IVisualLoggerProvider>("VisualLoggerProvider"))
-				{
-					AddLogEntries(RewindDebugger->GetDebugComponents(), CurrentFrame.StartTime, CurrentFrame.EndTime, VisualLoggerProvider);
-				}
-			}
-		}
-	}
-}
-
-void FRewindDebuggerVLog::RecordingStarted(IRewindDebugger*)
-{
-	// start recording visual logger data
-	FVisualLogger::Get().SetIsRecordingToTrace(true);
-}
-
-void FRewindDebuggerVLog::RecordingStopped(IRewindDebugger*)
-{
-	// stop recording visual logger data
-	FVisualLogger::Get().SetIsRecordingToTrace(false);
 }
 
 #undef LOCTEXT_NAMESPACE

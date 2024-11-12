@@ -5,6 +5,8 @@
 #include "IMediaTextureSampleConverter.h"
 #include "MediaObjectPool.h"
 #include "Misc/Timespan.h"
+#include "Misc/Timecode.h"
+#include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/RefCounting.h"
 
@@ -33,6 +35,15 @@ public:
 	virtual FMediaTimeStamp GetTime() const override;
 	virtual FTimespan GetDuration() const override;
 
+	virtual TOptional<FTimecode> GetTimecode() const override
+	{
+		return Timecode;
+	}
+	virtual TOptional<FFrameRate> GetFramerate() const override
+	{
+		return Framerate;
+	}
+
 	virtual double GetAspectRatio() const override
 	{
 		return VideoDecoderOutput->GetAspectRatio();
@@ -48,14 +59,15 @@ public:
 	virtual bool GetFullRange() const override;
 
 	virtual FMatrix44f GetSampleToRGBMatrix() const override;
-	virtual FMatrix44d GetGamutToXYZMatrix() const override;
-	virtual FVector2d GetWhitePoint() const override;
-	virtual FVector2d GetDisplayPrimaryRed() const override;
-	virtual FVector2d GetDisplayPrimaryGreen() const override;
-	virtual FVector2d GetDisplayPrimaryBlue() const override;
+	virtual const UE::Color::FColorSpace& GetSourceColorSpace() const override;
 	virtual UE::Color::EEncoding GetEncodingType() const override;
+	virtual float GetHDRNitsNormalizationFactor() const override;
 	virtual bool GetDisplayMasteringLuminance(float& OutMin, float& OutMax) const override;
+	virtual TOptional<UE::Color::FColorSpace> GetDisplayMasteringColorSpace() const override;
 	virtual bool GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const override;
+	virtual MediaShaders::EToneMapMethod GetToneMapMethod() const override;
+
+	virtual void SetTime(const FMediaTimeStamp& InTime);
 
 protected:
 	virtual float GetSampleDataScale(bool b10Bit) const { return 1.0f; }
@@ -66,6 +78,10 @@ protected:
 	/** Quick access for some HDR related info */
 	TWeakPtr<const IVideoDecoderHDRInformation, ESPMode::ThreadSafe> HDRInfo;
 	TWeakPtr<const IVideoDecoderColorimetry, ESPMode::ThreadSafe> Colorimetry;
+	/** Optional timecode */
+	TWeakPtr<const IVideoDecoderTimecode> DecoderTimecode;
+	TOptional<FTimecode> Timecode;
+	TOptional<FFrameRate> Framerate;
 
 	/** YUV matrix, adjusted to compensate for decoder output specific scale */
 	FMatrix44f SampleToRgbMtx;
@@ -75,9 +91,8 @@ protected:
 
 	/** Precomputed colorimetric data */
 	UE::Color::EEncoding ColorEncoding;
-	UE::Color::FColorSpace SampleColorSpace;
-	UE::Color::FColorSpace DisplayColorSpace;
-	bool bDisplayColorSpaceValid;
+	UE::Color::FColorSpace SourceColorSpace;
+	TOptional<UE::Color::FColorSpace> DisplayMasteringColorSpace;
 	float DisplayMasteringLuminanceMin;
 	float DisplayMasteringLuminanceMax;
 	uint16 MaxCLL;

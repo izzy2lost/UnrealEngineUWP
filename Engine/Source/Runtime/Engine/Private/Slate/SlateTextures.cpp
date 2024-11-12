@@ -7,7 +7,7 @@
 #include "RenderingThread.h"
 #include "RHIUtilities.h"
 
-FSlateTexture2DRHIRef::FSlateTexture2DRHIRef( FTexture2DRHIRef InRef, uint32 InWidth, uint32 InHeight )
+FSlateTexture2DRHIRef::FSlateTexture2DRHIRef( FTextureRHIRef InRef, uint32 InWidth, uint32 InHeight )
 	: TSlateTexture( InRef )
 	, Width( InWidth )
 	, Height( InHeight )
@@ -118,7 +118,7 @@ void FSlateTexture2DRHIRef::Resize( uint32 InWidth, uint32 InHeight )
 	UpdateRHI(FRHICommandListImmediate::Get());
 }
 
-void FSlateTexture2DRHIRef::SetRHIRef( FTexture2DRHIRef InRHIRef, uint32 InWidth, uint32 InHeight )
+void FSlateTexture2DRHIRef::SetRHIRef( FTextureRHIRef InRHIRef, uint32 InWidth, uint32 InHeight )
 {
 	check( IsInRenderingThread() );
 	ShaderResource = InRHIRef;
@@ -262,7 +262,7 @@ void FSlateTexture2DRHIRef::UpdateTextureThreadSafeWithTextureData(FSlateTexture
 		});
 }
 
-void FSlateRenderTargetRHI::SetRHIRef( FTexture2DRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight )
+void FSlateRenderTargetRHI::SetRHIRef( FTextureRHIRef InRenderTargetTexture, uint32 InWidth, uint32 InHeight )
 {
 	check( IsInRenderingThread() );
 	ShaderResource = InRenderTargetTexture;

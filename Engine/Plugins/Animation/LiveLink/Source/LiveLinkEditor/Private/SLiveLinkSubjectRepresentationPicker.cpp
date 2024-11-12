@@ -104,6 +104,8 @@ void SLiveLinkSubjectRepresentationPicker::Construct(const FArguments& InArgs)
 	HasMultipleValuesAttribute = InArgs._HasMultipleValues;
 	bShowSource = InArgs._ShowSource;
 	bShowRole = InArgs._ShowRole;
+	GetSubjectsDelegate = InArgs._OnGetSubjects;
+
 
 	SubjectRepData.Reset();
 	SelectedLiveLinkPreset.Reset();
@@ -259,7 +261,7 @@ TSharedRef<SWidget> SLiveLinkSubjectRepresentationPicker::BuildMenu()
 	TSharedRef<SHeaderRow> HeaderRow = SNew(SHeaderRow)
 		+ SHeaderRow::Column(SubjectUI::EnabledColumnName)
 		.ManualWidth(20.f)
-		.DefaultLabel(LOCTEXT("EnabledColumnHeaderName", ""));
+		.DefaultLabel(FText());
 
 	if (bShowSource)
 	{
@@ -508,7 +510,16 @@ void SLiveLinkSubjectRepresentationPicker::BuildSubjectRepDataList()
 	else if (IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
 	{
 		ILiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-		TArray<FLiveLinkSubjectKey> SubjectKeys = LiveLinkClient.GetSubjects(true, true);
+		TArray<FLiveLinkSubjectKey> SubjectKeys;
+
+		if (GetSubjectsDelegate.IsBound())
+		{
+			GetSubjectsDelegate.Execute(SubjectKeys);
+		}
+		else
+		{
+			SubjectKeys = LiveLinkClient.GetSubjects(true, true);
+		}
 
 		if (bShowSource)
 		{

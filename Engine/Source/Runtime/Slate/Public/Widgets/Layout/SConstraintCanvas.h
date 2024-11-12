@@ -29,7 +29,6 @@ public:
 	/**
 	 * ConstraintCanvas slots allow child widgets to be positioned and sized
 	 */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	class SLATE_API FSlot : public TSlotBase<FSlot>
 	{
 	public:
@@ -100,33 +99,19 @@ public:
 			return ZOrder;
 		}
 
-	public:
+	private:
 		/** Offset */
-		UE_DEPRECATED(5.0, "Direct access to OffsetAttr is now deprecated. Use the getter or setter.")
 		TAttribute<FMargin> OffsetAttr;
-
 		/** Anchors */
-		UE_DEPRECATED(5.0, "Direct access to AnchorsAttr is now deprecated. Use the getter or setter.")
 		TAttribute<FAnchors> AnchorsAttr;
-
 		/** Size */
-		UE_DEPRECATED(5.0, "Direct access to AlignmentAttr is now deprecated. Use the getter or setter.")
 		TAttribute<FVector2D> AlignmentAttr;
-
 		/** Auto-Size */
-		UE_DEPRECATED(5.0, "Direct access to AutoSizeAttr is now deprecated. Use the getter or setter.")
 		TAttribute<bool> AutoSizeAttr;
-
-#if WITH_EDITORONLY_DATA
-		/** Z-Order */
-		UE_DEPRECATED(5.0, "Direct access to ZOrderAttr is now deprecated. Use the getter or setter.")
-		TAttribute<float> ZOrderAttr;
-#endif
 	private:
 		/** Z-Order */
 		float ZOrder;
 	};
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	SLATE_BEGIN_ARGS( SConstraintCanvas )
 		{
@@ -138,6 +123,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SConstraintCanvas();
+	SLATE_API ~SConstraintCanvas();
 
 	/**
 	 * Construct this widget

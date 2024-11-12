@@ -18,6 +18,7 @@
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "StereoRenderUtils.h"
+#include "WaterSubsystem.h"
 
 DECLARE_STATS_GROUP(TEXT("Water Mesh"), STATGROUP_WaterMesh, STATCAT_Advanced);
 
@@ -164,74 +165,53 @@ public:
 FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	: FPrimitiveSceneProxy(Component)
 	, MaterialRelevance(Component->GetWaterMaterialRelevance(GetScene().GetFeatureLevel()))
+	, WaterQuadTreeBuilder(Component->GetWaterQuadTreeBuilder())
+	, bIsLocalOnlyTessellationEnabled(Component->IsLocalOnlyTessellationEnabled())
 {
-	// Cache the tiles and settings
-	WaterQuadTree = Component->GetWaterQuadTree();
+	// Need to enable single pass GetDynamicMeshElements, as the function uses all Views together to compute visible water tiles
+	bSinglePassGDME = true;
+
 	// Leaf size * 0.5 equals the tightest possible LOD Scale that doesn't break the morphing. Can be scaled larger
-	LODScale = WaterQuadTree.GetLeafSize() * FMath::Max(Component->GetLODScale(), 0.5f);
+	const float LeafSize = WaterQuadTreeBuilder.GetLeafSize();
+	WaterQuadTreeConstants.LODScale = LeafSize * FMath::Max(Component->GetLODScale(), 0.5f);
+
+	int32 NumQuads = (int32)FMath::Pow(2.0f, (float)Component->GetTessellationFactor());
+	WaterQuadTreeConstants.NumQuadsLOD0 = NumQuads;
+	WaterQuadTreeConstants.NumQuadsPerIndirectDrawTile = FMath::Min((int32)FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarWaterMeshGPUQuadTreeNumQuads.GetValueOnGameThread(), 2, 128)), WaterQuadTreeConstants.NumQuadsLOD0);
 
 	// Assign the force collapse level if there is one, otherwise leave it at the default
 	if (Component->ForceCollapseDensityLevel > -1)
 	{
-		ForceCollapseDensityLevel = Component->ForceCollapseDensityLevel;
+		WaterQuadTreeConstants.ForceCollapseDensityLevel = Component->ForceCollapseDensityLevel;
 	}
 
-	int32 NumQuads = (int32)FMath::Pow(2.0f, (float)Component->GetTessellationFactor());
-	NumQuadsLOD0 = NumQuads;
-	NumQuadsPerIndirectDrawTile = FMath::Min((int32)FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarWaterMeshGPUQuadTreeNumQuads.GetValueOnGameThread(), 2, 128)), NumQuadsLOD0);
+	const int32 TreeDepth = WaterQuadTreeBuilder.GetTreeDepth();
+	WaterQuadTreeConstants.DensityCount = FMath::Min(TreeDepth, (int32)FMath::FloorLog2(WaterQuadTreeConstants.NumQuadsLOD0));
 
-	const bool bIsGPUQuadTree = WaterQuadTree.IsGPUQuadTree();
 
-	// Initialize Z bounds needed for GPU driven rendering
-	if (bIsGPUQuadTree)
-	{
-		WaterQuadTreeMinHeight = DBL_MAX;
-		WaterQuadTreeMaxHeight = -DBL_MAX;
-
-		const TArrayView<const FWaterBodyRenderData> WaterBodyRenderData = WaterQuadTree.GetWaterBodyRenderData();
-		for (const FWaterBodyRenderData& RenderData : WaterBodyRenderData)
-		{
-			WaterQuadTreeMinHeight = FMath::Min(WaterQuadTreeMinHeight, RenderData.BoundsMinZ - RenderData.MaxWaveHeight);
-			WaterQuadTreeMaxHeight = FMath::Max(WaterQuadTreeMaxHeight, RenderData.BoundsMaxZ + RenderData.MaxWaveHeight);
-		}
-
-		if (WaterQuadTreeMinHeight == DBL_MAX)
-		{
-			WaterQuadTreeMinHeight = 0.0;
-			WaterQuadTreeMaxHeight = 0.0;
-		}
-		WaterQuadTreeMinHeight -= 1.0;
-		WaterQuadTreeMaxHeight += 1.0;
-	}
-
-	DensityCount = FMath::Min(WaterQuadTree.GetTreeDepth(), (int32)FMath::FloorLog2(NumQuadsLOD0));
-
-	const FVector QuadTreeCorner = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
-	const float WaterQuadTreeDepthRange = WaterQuadTreeMaxHeight - WaterQuadTreeMinHeight;
-	const float LeafSize = WaterQuadTree.GetLeafSize();
-	
 	// bIsGPUQuadTree is constant over the lifetime of this scene proxy, so we know up front if we need the indirect draw vertex factory
+	const bool bIsGPUQuadTree = WaterQuadTreeBuilder.IsGPUQuadTree();
 	if (bIsGPUQuadTree)
 	{
 		// Only create one indirect draw vertex factory, depending on whether ISR is enabled
 		const UE::StereoRenderUtils::FStereoShaderAspects Aspects(GetScene().GetShaderPlatform());
 		if (Aspects.IsInstancedStereoEnabled())
 		{
-			WaterVertexFactoryIndirectDrawISR = new FWaterVertexFactoryIndirectDrawISRType(GetScene().GetFeatureLevel(), QuadTreeCorner, NumQuadsPerIndirectDrawTile, NumQuadsLOD0, DensityCount, LeafSize, LODScale, WaterQuadTreeDepthRange);
+			WaterVertexFactoryIndirectDrawISR = new FWaterVertexFactoryIndirectDrawISRType(GetScene().GetFeatureLevel(), WaterQuadTreeConstants.NumQuadsPerIndirectDrawTile, WaterQuadTreeConstants.NumQuadsLOD0, WaterQuadTreeConstants.DensityCount, LeafSize, WaterQuadTreeConstants.LODScale);
 			BeginInitResource(WaterVertexFactoryIndirectDrawISR);
 		}
 		else
 		{
-			WaterVertexFactoryIndirectDraw = new FWaterVertexFactoryIndirectDrawType(GetScene().GetFeatureLevel(), QuadTreeCorner, NumQuadsPerIndirectDrawTile, NumQuadsLOD0, DensityCount, LeafSize, LODScale, WaterQuadTreeDepthRange);
+			WaterVertexFactoryIndirectDraw = new FWaterVertexFactoryIndirectDrawType(GetScene().GetFeatureLevel(), WaterQuadTreeConstants.NumQuadsPerIndirectDrawTile, WaterQuadTreeConstants.NumQuadsLOD0, WaterQuadTreeConstants.DensityCount, LeafSize, WaterQuadTreeConstants.LODScale);
 			BeginInitResource(WaterVertexFactoryIndirectDraw);
 		}
 	}
 
 	// We always need the basic CPU-driven rendering vertex factory because the far mesh uses it
-	WaterVertexFactories.Reserve(WaterQuadTree.GetTreeDepth());
-	for (uint8 i = 0; i < WaterQuadTree.GetTreeDepth(); i++)
+	WaterVertexFactories.Reserve(TreeDepth);
+	for (int32 i = 0; i < TreeDepth; i++)
 	{
-		WaterVertexFactories.Add(new FWaterVertexFactoryType(GetScene().GetFeatureLevel(), QuadTreeCorner, NumQuads, NumQuadsLOD0, DensityCount, LeafSize, LODScale, WaterQuadTreeDepthRange));
+		WaterVertexFactories.Add(new FWaterVertexFactoryType(GetScene().GetFeatureLevel(), NumQuads, WaterQuadTreeConstants.NumQuadsLOD0, WaterQuadTreeConstants.DensityCount, LeafSize, WaterQuadTreeConstants.LODScale));
 		BeginInitResource(WaterVertexFactories.Last());
 
 		NumQuads /= 2;
@@ -244,34 +224,44 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	}
 
 	WaterVertexFactories.Shrink();
-	check(DensityCount == WaterVertexFactories.Num());
-
-	const int32 TotalLeafNodes = WaterQuadTree.GetMaxLeafCount();
-	WaterInstanceDataBuffers = new FWaterInstanceDataBuffersType(TotalLeafNodes);
-
-	WaterMeshUserDataBuffers = new FWaterMeshUserDataBuffersType(WaterInstanceDataBuffers);
-
-	WaterQuadTree.BuildMaterialIndices();
-
-	if (const AWaterZone* WaterZone = Component->GetOwner<AWaterZone>(); ensureMsgf(WaterZone != nullptr, TEXT("WaterMeshComponent is owned by an actor that is not a WaterZone. This is not supported!")))
-	{
-		const FBox WaterInfoBounds3D = WaterZone->GetDynamicWaterInfoBounds();
-		WaterInfoBounds = FBox2D(FVector2D(WaterInfoBounds3D.Min), FVector2D(WaterInfoBounds3D.Max));
-	}
+	check(WaterQuadTreeConstants.DensityCount == WaterVertexFactories.Num());
 
 #if RHI_RAYTRACING
-	RayTracingWaterData.SetNum(DensityCount);
+	RayTracingWaterData.SetNum(WaterQuadTreeConstants.DensityCount);
 #endif
 
-	// Always do CPU occlusion queries, even if this is a GPU quadtree. The GPU quadtree still potentially uses the far mesh which is CPU driven.
-	const int32 MaxQueries = CVarWaterMeshOcclusionCullingMaxQueries.GetValueOnGameThread();
-	const bool bIncludeFarMeshOcclusionQueries = CVarWaterMeshOcclusionCullingIncludeFarMesh.GetValueOnGameThread() != 0;
-	OcclusionCullingBounds = WaterQuadTree.ComputeNodeBounds(MaxQueries, CVarWaterMeshOcclusionCullExpandBoundsAmountXY.GetValueOnGameThread(), bIncludeFarMeshOcclusionQueries, &OcclusionResultsFarMeshOffset);
-	EmptyOcclusionCullingBounds.Add(WaterQuadTree.GetBoundsIncludingFarMesh());
-	// If this is a GPU quadtree, the CPU root node will have an invalid bounding box, so derive conservative bounds now
-	if (bIsGPUQuadTree && !OcclusionCullingBounds.IsEmpty())
+	// In case we don't need to support multiple local quadtrees, create a global quadtree right away and initialize occlusion culling bounds.
+	// Local quadtrees are incompatible with CPU-based occlusion culling as the number of quadtrees can change during the lifetime of the scene proxy.
+	if (!bIsLocalOnlyTessellationEnabled)
 	{
-		OcclusionCullingBounds[0] = FBox(FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight), FVector(WaterQuadTree.GetTileRegion().Max, WaterQuadTreeMaxHeight));
+		FViewWaterQuadTree& ViewWaterQuadTree = ViewQuadTrees.Add(INDEX_NONE);
+
+		ViewWaterQuadTree.Update(WaterQuadTreeBuilder, Component->GetGlobalWaterMeshCenter());
+
+		const FWaterQuadTree& WaterQuadTree = ViewWaterQuadTree.GetWaterQuadTree();
+
+		// Always do CPU occlusion queries, even if this is a GPU quadtree. The GPU quadtree still potentially uses the far mesh which is CPU driven.
+		const int32 MaxQueries = CVarWaterMeshOcclusionCullingMaxQueries.GetValueOnGameThread();
+		const bool bIncludeFarMeshOcclusionQueries = CVarWaterMeshOcclusionCullingIncludeFarMesh.GetValueOnGameThread() != 0;
+		OcclusionCullingBounds = WaterQuadTree.ComputeNodeBounds(MaxQueries, CVarWaterMeshOcclusionCullExpandBoundsAmountXY.GetValueOnGameThread(), bIncludeFarMeshOcclusionQueries, &OcclusionResultsFarMeshOffset);
+		EmptyOcclusionCullingBounds.Add(WaterQuadTree.GetBoundsIncludingFarMesh());
+		// If this is a GPU quadtree, the CPU root node will have an invalid bounding box, so derive conservative bounds now
+		if (bIsGPUQuadTree && !OcclusionCullingBounds.IsEmpty())
+		{
+			OcclusionCullingBounds[0] = FBox(FVector(WaterQuadTree.GetTileRegion().Min, ViewWaterQuadTree.GetMinHeight()), FVector(WaterQuadTree.GetTileRegion().Max, ViewWaterQuadTree.GetMaxHeight()));
+		}
+	}
+	else
+	{
+		EmptyOcclusionCullingBounds.Add(Component->Bounds);
+
+		// Normally the quadtrees are created and updated by the WaterViewExtension. 
+		// It can happen that a SceneProxy tries to render before the WaterView updates it, which caused some water flickering.
+		// By forcing the creation here, using the quadtree update information stored by the water view extension, we make sure the water data is always valid.
+		if (FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(Component->GetWorld()))
+		{
+			WaterViewExtension->CreateSceneProxyQuadtrees(this);
+		}
 	}
 
 	// When using a GPU quadtree, this scene proxy allocates pooled buffers in GetDynamicMeshElements. AllocatePooledBuffer must be called on the renderthread.
@@ -298,10 +288,6 @@ FWaterMeshSceneProxy::~FWaterMeshSceneProxy()
 		delete WaterVertexFactoryIndirectDrawISR;
 	}
 
-	delete WaterInstanceDataBuffers;
-
-	delete WaterMeshUserDataBuffers;
-
 #if RHI_RAYTRACING
 	for (auto& WaterDataArray : RayTracingWaterData)
 	{
@@ -318,23 +304,16 @@ void FWaterMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHIC
 {
 	SceneProxyCreatedFrameNumberRenderThread = GFrameNumberRenderThread;
 
-	if (WaterQuadTree.IsGPUQuadTree())
+	// Register a callback with the FWaterViewExtension to be executed every frame before rendering the scene.
+	if (WaterQuadTreeBuilder.IsGPUQuadTree())
 	{
 		FWaterMeshGPUWork::FCallback Callback;
 		Callback.Proxy = this;
 		Callback.Function = [this](FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated)
 		{
-			if (bNeedToTraverseGPUQuadTree)
+			for (auto& Pair : ViewQuadTrees)
 			{
-				if (!QuadTreeGPU.IsInitialized())
-				{
-					BuildGPUQuadTree(GraphBuilder);
-				}
-				FWaterQuadTreeGPU::FTraverseParams TraverseParams = MoveTemp(WaterQuadTreeGPUTraverseParams);
-				TraverseParams.bDepthBufferIsPopulated = bDepthBufferIsPopulated;
-				QuadTreeGPU.Traverse(GraphBuilder, TraverseParams);
-				bNeedToTraverseGPUQuadTree = false;
-				WaterQuadTreeGPUTraverseParams = {};
+				Pair.Value.TraverseGPUQuadTree(GraphBuilder, bDepthBufferIsPopulated);
 			}
 		};
 		GWaterMeshGPUWork.Callbacks.Add(MoveTemp(Callback));
@@ -343,200 +322,287 @@ void FWaterMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHIC
 
 void FWaterMeshSceneProxy::DestroyRenderThreadResources()
 {
-	if (WaterQuadTree.IsGPUQuadTree())
+	if (WaterQuadTreeBuilder.IsGPUQuadTree())
 	{
 		GWaterMeshGPUWork.Callbacks.RemoveAllSwap([this](const FWaterMeshGPUWork::FCallback& Callback) { return Callback.Proxy == this; });
 	}
-}
-
-FWaterMeshSceneProxy::FWaterLODParams FWaterMeshSceneProxy::GetWaterLODParams(const FVector& Position) const
-{
-	float WaterHeightForLOD = 0.0f;
-	WaterQuadTree.QueryInterpolatedTileBaseHeightAtLocation(FVector2D(Position), WaterHeightForLOD);
-
-	// Need to let the lowest LOD morph globally towards the next LOD. When the LOD is done morphing, simply clamp the LOD in the LOD selection to effectively promote the lowest LOD to the same LOD level as the one above
-	float DistToWater = FMath::Abs(Position.Z - WaterHeightForLOD) / LODScale;
-	DistToWater = FMath::Max(DistToWater - 2.0f, 0.0f);
-	DistToWater *= 2.0f;
-
-	// Clamp to WaterTileQuadTree.GetLODCount() - 1.0f prevents the last LOD to morph
-	const float FloatLOD = FMath::Clamp(FMath::Log2(DistToWater), 0.0f, WaterQuadTree.GetTreeDepth() - 1.0f);
-
-	FWaterLODParams WaterLODParams;
-	WaterLODParams.HeightLODFactor = FMath::Frac(FloatLOD);
-	WaterLODParams.LowestLOD = FMath::Clamp(FMath::FloorToInt(FloatLOD), 0, WaterQuadTree.GetTreeDepth() - 1);
-	WaterLODParams.WaterHeightForLOD = WaterHeightForLOD;
-
-	return WaterLODParams;
 }
 
 void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Water);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FWaterMeshSceneProxy::GetDynamicMeshElements);
-	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
-
-	// The water render groups we have to render for this batch : 
-	TArray<EWaterMeshRenderGroupType, TInlineAllocator<FWaterVertexFactoryType::NumRenderGroups>> BatchRenderGroups;
-	// By default, render all water tiles : 
-	BatchRenderGroups.Add(EWaterMeshRenderGroupType::RG_RenderWaterTiles);
-
-#if WITH_WATER_SELECTION_SUPPORT
-	bool bHasSelectedInstances = IsSelected();
-	const bool bSelectionRenderEnabled = GIsEditor && ViewFamily.EngineShowFlags.Selection;
-
-	if (bSelectionRenderEnabled && bHasSelectedInstances)
-	{
-		// Don't render all in one group: instead, render 2 groups : first, the selected only then, the non-selected only :
-		BatchRenderGroups[0] = EWaterMeshRenderGroupType::RG_RenderSelectedWaterTilesOnly;
-		BatchRenderGroups.Add(EWaterMeshRenderGroupType::RG_RenderUnselectedWaterTilesOnly);
-	}
-#endif // WITH_WATER_SELECTION_SUPPORT
-
+	
 	if (!HasWaterData() || !FWaterUtils::IsWaterMeshRenderingEnabled(/*bIsRenderThread = */true))
 	{
 		return;
 	}
+	
+	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
-	// Set up wireframe material (if needed)
-	const bool bWireframe = AllowDebugViewmodes() && (ViewFamily.EngineShowFlags.Wireframe || CVarWaterMeshShowWireframe.GetValueOnRenderThread() == 1);
-
+	// Handle wireframe views
 	FColoredMaterialRenderProxy* WireframeMaterialInstance = nullptr;
-	if (bWireframe && CVarWaterMeshShowWireframeAtBaseHeight.GetValueOnRenderThread() == 1)
+	const uint32 WireframeVisibilityMap = GetWireframeVisibilityMapAndMaterial(Views, VisibilityMap, Collector, WireframeMaterialInstance);
+
+	// Get a mapping from view index to quadtree key
+	TArray<int32, TInlineAllocator<8>> ViewToQuadTreeKey = GetViewToQuadTreeMapping(Views, VisibilityMap);
+	
+	// Iterate over all quadtrees and generate draw calls for all views that map to that quadtree.
+	for (const auto& Pair : ViewQuadTrees)
 	{
-		WireframeMaterialInstance = new FColoredMaterialRenderProxy(
-			GEngine->WireframeMaterial ? GEngine->WireframeMaterial->GetRenderProxy() : NULL,
-			FColor::Cyan);
+		const FViewWaterQuadTree& ViewWaterQuadTree = Pair.Value;
+		const FWaterQuadTree& WaterQuadTree = ViewWaterQuadTree.GetWaterQuadTree();
 
-		Collector.RegisterOneFrameMaterialProxy(WireframeMaterialInstance);
-	}
-
-	const int32 NumWaterMaterials = WaterQuadTree.GetWaterMaterials().Num();
-	const int32 NumBuckets = NumWaterMaterials * DensityCount;
-	const int32 NumBucketsIndirect = NumWaterMaterials; // Indirect draws use a single density mesh tile
-
-	// If this is a GPU quadtree, we are using GPU driven rendering to first create a quadtree on the GPU (once) and then traverse it every frame to build a list of indirect draws
-	const bool bIsGPUQuadTree = WaterQuadTree.IsGPUQuadTree();
-	if (bIsGPUQuadTree && NumBucketsIndirect > 0)
-	{
+		// Compute a subset mask of VisibilityMap of all views that use this quadtree
+		uint32 LocalViewMask = 0;
 		bool bEncounteredISRView = false;
 		int32 InstanceFactor = 1;
-		TArray<const FSceneView*> VisibleViews;
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			if (VisibilityMap & (1 << ViewIndex) && ViewToQuadTreeKey[ViewIndex] == Pair.Key)
+			{
+				LocalViewMask |= 1 << ViewIndex;
+				const FSceneView* View = Views[ViewIndex];
+				if (!bEncounteredISRView && View->IsInstancedStereoPass())
+				{
+					bEncounteredISRView = true;
+					InstanceFactor = View->GetStereoPassInstanceFactor();
+				}
+			}
+		}
 
-		// Gather per view data for all renderable views
+		// The water render groups we have to render for this batch : 
+		const TArray<EWaterMeshRenderGroupType, TInlineAllocator<FWaterVertexFactoryType::NumRenderGroups>> BatchRenderGroups = GetBatchRenderGroups(Views, LocalViewMask);
+
+		const int32 NumWaterMaterials = WaterQuadTree.GetWaterMaterials().Num();
+		const int32 NumBuckets = NumWaterMaterials * WaterQuadTreeConstants.DensityCount;
+		const int32 NumBucketsIndirect = NumWaterMaterials; // Indirect draws use a single density mesh tile
+
+		if (WaterQuadTree.IsGPUQuadTree() && NumBucketsIndirect > 0)
+		{
+			const FViewWaterQuadTree::FUserDataAndIndirectArgs WaterMeshUserDataAndIndirectArgs = ViewWaterQuadTree.PrepareGPUQuadTreeForRendering(Views, LocalViewMask, Collector, WaterQuadTreeConstants, BatchRenderGroups, RHICmdList);
+
+			// Go through all buckets and issue one batched draw call per LOD level per material per view
+			int32 CompactViewIndex = 0;
+			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+			{
+				// when rendering ISR, don't process the instanced view
+				if ((LocalViewMask & (1 << ViewIndex)) && (!bEncounteredISRView || Views[ViewIndex]->IsPrimarySceneView()))
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(BucketsPerView);
+
+					const bool bInstancedStereo = Views[ViewIndex]->bIsInstancedStereoEnabled;
+					const bool bViewIsWireframe = WireframeVisibilityMap & (1 << ViewIndex);
+
+					for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(MaterialBucket);
+						bool bMaterialDrawn = false;
+
+						// We only render all tiles with one or multiple instances of a single density quad mesh, so no need to create one bucket per density.
+						{
+							const int32 BucketIndex = MaterialIndex;
+
+							TRACE_CPUPROFILER_EVENT_SCOPE(DensityBucket);
+
+							const FMaterialRenderProxy* MaterialRenderProxy = bViewIsWireframe && WireframeMaterialInstance ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
+							check(MaterialRenderProxy != nullptr);
+
+							bool bUseForDepthPass = false;
+
+							// If there's a valid material, use that to figure out the depth pass status
+							if (const FMaterial* BucketMaterial = MaterialRenderProxy->GetMaterialNoFallback(GetScene().GetFeatureLevel()))
+							{
+								// Preemptively turn off depth rendering for this mesh batch if the material doesn't need it
+								bUseForDepthPass = !BucketMaterial->GetShadingModels().HasShadingModel(MSM_SingleLayerWater) && !IsTranslucentOnlyBlendMode(*BucketMaterial);
+							}
+
+							bMaterialDrawn = true;
+							for (EWaterMeshRenderGroupType RenderGroup : BatchRenderGroups)
+							{
+								// Set up mesh batch
+								FMeshBatch& Mesh = Collector.AllocateMesh();
+								Mesh.bWireframe = bViewIsWireframe;
+								Mesh.VertexFactory = bInstancedStereo ? (FVertexFactory*)WaterVertexFactoryIndirectDrawISR : (FVertexFactory*)WaterVertexFactoryIndirectDraw;
+								Mesh.MaterialRenderProxy = MaterialRenderProxy;
+								Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
+								Mesh.Type = PT_TriangleList;
+								Mesh.DepthPriorityGroup = SDPG_World;
+								Mesh.bCanApplyViewModeOverrides = false;
+								Mesh.bUseForMaterial = true;
+								Mesh.CastShadow = false;
+								// Preemptively turn off depth rendering for this mesh batch if the material doesn't need it
+								Mesh.bUseForDepthPass = bUseForDepthPass;
+								Mesh.bUseAsOccluder = false;
+
+#if WITH_WATER_SELECTION_SUPPORT
+								Mesh.bUseSelectionOutline = (RenderGroup == EWaterMeshRenderGroupType::RG_RenderSelectedWaterTilesOnly);
+								Mesh.bUseWireframeSelectionColoring = (RenderGroup == EWaterMeshRenderGroupType::RG_RenderSelectedWaterTilesOnly);
+#endif // WITH_WATER_SELECTION_SUPPORT
+
+								Mesh.Elements.SetNumZeroed(1);
+								{
+									TRACE_CPUPROFILER_EVENT_SCOPE_STR("Setup batch element");
+
+									// Set up one mesh batch element
+									FMeshBatchElement& BatchElement = Mesh.Elements[0];
+
+									// Set up for indirect draw
+									BatchElement.FirstIndex = 0;
+									BatchElement.NumPrimitives = 0; // Must be 0 to enable usage of IndirectArgsBuffer
+									BatchElement.IndirectArgsBuffer = WaterMeshUserDataAndIndirectArgs.IndirectArgs->GetRHI();
+									BatchElement.IndirectArgsOffset = (CompactViewIndex * NumBucketsIndirect + BucketIndex) * sizeof(FRHIDrawIndexedIndirectParameters);
+									BatchElement.UserData = (void*)WaterMeshUserDataAndIndirectArgs.UserData[(int32)RenderGroup];
+									BatchElement.UserIndex = CompactViewIndex * NumBucketsIndirect + BucketIndex;
+
+									BatchElement.IndexBuffer = bInstancedStereo ? WaterVertexFactoryIndirectDrawISR->IndexBuffer : WaterVertexFactoryIndirectDraw->IndexBuffer;
+									BatchElement.PrimitiveIdMode = PrimID_ForceZero;
+
+									// We need the uniform buffer of this primitive because it stores the proper value for the bOutputVelocity flag.
+									// The identity primitive uniform buffer simply stores false for this flag which leads to missing motion vectors.
+									BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
+								}
+
+								{
+									INC_DWORD_STAT(STAT_WaterDrawCalls);
+									TRACE_CPUPROFILER_EVENT_SCOPE(Collector.AddMesh);
+
+									Collector.AddMesh(ViewIndex, Mesh);
+								}
+							}
+						}
+
+						INC_DWORD_STAT_BY(STAT_WaterDrawnMats, (int32)bMaterialDrawn);
+					}
+
+					++CompactViewIndex;
+				}
+			}
+		}
+	
+		// Even if we have a GPU quadtree, we still go through the setup for the non-GPU path because the water quadtree might have an ocean far mesh which we render traditionally.
+		// If this is a GPU quadtree, traversing it on the CPU will only return the far mesh tiles (if present).
+
+		TArray<FWaterQuadTree::FTraversalOutput, TInlineAllocator<4>> WaterInstanceDataPerView;
+
+		// Gather visible tiles, their lod and materials for all renderable views (skip right view when stereo pair is rendered instanced)
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			const FSceneView* View = Views[ViewIndex];
-			if (!bEncounteredISRView && View->IsInstancedStereoPass())
-			{
-				bEncounteredISRView = true;
-				InstanceFactor = View->GetStereoPassInstanceFactor();
-			}
 
 			// skip gathering visible tiles from instanced right eye views
-			if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || View->IsPrimarySceneView()))
+			if ((LocalViewMask & (1 << ViewIndex)) && (!bEncounteredISRView || View->IsPrimarySceneView()))
 			{
-				VisibleViews.Add(View);
+				const FVector ObserverPosition = View->ViewMatrices.GetViewOrigin();
+
+				const FViewWaterQuadTree::FWaterLODParams WaterLODParams = ViewWaterQuadTree.GetWaterLODParams(ObserverPosition, WaterQuadTreeConstants.LODScale);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (CVarWaterMeshShowLODLevels.GetValueOnRenderThread())
+				{
+					for (int32 i = WaterLODParams.LowestLOD; i < WaterQuadTree.GetTreeDepth(); i++)
+					{
+						float LODDist = FWaterQuadTree::GetLODDistance(i, WaterQuadTreeConstants.LODScale);
+						FVector Orig = FVector(FVector2D(ObserverPosition), WaterLODParams.WaterHeightForLOD);
+
+						DrawCircle(Collector.GetPDI(ViewIndex), Orig, FVector::ForwardVector, FVector::RightVector, GColorList.GetFColorByIndex(i + 1), LODDist, 64, 0);
+					}
+				}
+#endif
+				TRACE_CPUPROFILER_EVENT_SCOPE(QuadTreeTraversalPerView);
+
+				FWaterQuadTree::FTraversalOutput& WaterInstanceData = WaterInstanceDataPerView.Emplace_GetRef();
+				WaterInstanceData.BucketInstanceCounts.Empty(NumBuckets);
+				WaterInstanceData.BucketInstanceCounts.AddZeroed(NumBuckets);
+				if (!!CVarWaterMeshPreAllocStagingInstanceMemory.GetValueOnRenderThread())
+				{
+					WaterInstanceData.StagingInstanceData.Empty(HistoricalMaxViewInstanceCount);
+				}
+
+				FWaterQuadTree::FTraversalDesc TraversalDesc;
+				TraversalDesc.LowestLOD = WaterLODParams.LowestLOD;
+				TraversalDesc.HeightMorph = WaterLODParams.HeightLODFactor;
+				TraversalDesc.LODCount = WaterQuadTree.GetTreeDepth();
+				TraversalDesc.DensityCount = WaterQuadTreeConstants.DensityCount;
+				TraversalDesc.ForceCollapseDensityLevel = WaterQuadTreeConstants.ForceCollapseDensityLevel;
+				TraversalDesc.Frustum = View->ViewFrustum;
+				TraversalDesc.ObserverPosition = ObserverPosition;
+				TraversalDesc.PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
+				TraversalDesc.LODScale = WaterQuadTreeConstants.LODScale;
+				TraversalDesc.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
+				TraversalDesc.WaterInfoBounds = WaterQuadTree.GetTileRegion();
+				TraversalDesc.OcclusionCullingResults = nullptr;
+				TraversalDesc.OcclusionCullingFarMeshOffset = OcclusionResultsFarMeshOffset;
+				if (CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
+				{
+					const FOcclusionCullingResults* CullingResults = OcclusionResults.Find(View->GetViewKey());
+					if (CullingResults && !CullingResults->Results.IsEmpty())
+					{
+						TraversalDesc.OcclusionCullingResults = &CullingResults->Results;
+					}
+				}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				//Debug
+				TraversalDesc.DebugPDI = Collector.GetPDI(ViewIndex);
+				TraversalDesc.DebugShowTile = CVarWaterMeshShowTileBounds.GetValueOnRenderThread();
+				TraversalDesc.bDebugDrawIntoForeground = CVarWaterMeshShowTileBoundsForeground.GetValueOnRenderThread() != 0;
+#endif
+				WaterQuadTree.BuildWaterTileInstanceData(TraversalDesc, WaterInstanceData);
+
+				HistoricalMaxViewInstanceCount = FMath::Max(HistoricalMaxViewInstanceCount, WaterInstanceData.InstanceCount);
 			}
 		}
 
-		const int32 NumVisibleViews = VisibleViews.Num();
-		const int32 NumIndirectDrawCalls = NumBucketsIndirect * NumVisibleViews;
-		const int32 LeafCountUpperBound = WaterQuadTree.GetMaxLeafCount() * NumVisibleViews;
-		const int32 NumInstanceDataSlots = FMath::Max(1, static_cast<int32>(LeafCountUpperBound * FMath::Clamp(CVarWaterMeshGPUQuadInstanceDataAllocMult.GetValueOnRenderThread(), 0.0f, 8.0f)));
-
-		// Allocate buffers for the indirect draws
-		struct FIndirectDrawResources
+		// Get number of total instances for all views
+		int32 TotalInstanceCount = 0;
+		for (const FWaterQuadTree::FTraversalOutput& WaterInstanceData : WaterInstanceDataPerView)
 		{
-			TRefCountPtr<FRDGPooledBuffer> IndirectArgs;
-			TRefCountPtr<FRDGPooledBuffer> InstanceDataOffsets;
-			TRefCountPtr<FRDGPooledBuffer> InstanceData0;
-			TRefCountPtr<FRDGPooledBuffer> InstanceData1;
-			TRefCountPtr<FRDGPooledBuffer> InstanceData2;
-			TRefCountPtr<FRDGPooledBuffer> InstanceData3;
-		};
-		FIndirectDrawResources& IndirectDrawResources = Collector.AllocateOneFrameResource<FIndirectDrawResources>();
-		IndirectDrawResources.IndirectArgs = AllocatePooledBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndexedIndirectParameters>(FMath::Max(1, NumIndirectDrawCalls)), TEXT("WaterQuadTree.IndirectArgsBuffer"));
-		IndirectDrawResources.InstanceDataOffsets = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumIndirectDrawCalls)), TEXT("WaterQuadTree.InstanceDataOffsetsBuffer"));
-		IndirectDrawResources.InstanceData0 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer0"));
-		IndirectDrawResources.InstanceData1 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer1"));
-		IndirectDrawResources.InstanceData2 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer2"));
-		if (WITH_WATER_SELECTION_SUPPORT != 0)
-		{
-			IndirectDrawResources.InstanceData3 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer3"));
-		}
-		
-
-		// Traverse quadtree. We actually only set up the parameters here; the actual traversal is done later in the frame in a callback invoked from FWaterViewExtension::PreRenderBasePass_RenderThread.
-		// That callback accesses these params, so we need to ensure that they are still valid at that point.
-		{
-			WaterQuadTreeGPUTraverseParams = {};
-			WaterQuadTreeGPUTraverseParams.OutIndirectArgsBuffer = IndirectDrawResources.IndirectArgs;
-			WaterQuadTreeGPUTraverseParams.OutInstanceDataOffsetsBuffer = IndirectDrawResources.InstanceDataOffsets;
-			WaterQuadTreeGPUTraverseParams.OutInstanceData0Buffer = IndirectDrawResources.InstanceData0;
-			WaterQuadTreeGPUTraverseParams.OutInstanceData1Buffer = IndirectDrawResources.InstanceData1;
-			WaterQuadTreeGPUTraverseParams.OutInstanceData2Buffer = IndirectDrawResources.InstanceData2;
-			WaterQuadTreeGPUTraverseParams.OutInstanceData3Buffer = IndirectDrawResources.InstanceData3;
-			WaterQuadTreeGPUTraverseParams.Views = MoveTemp(VisibleViews);
-			WaterQuadTreeGPUTraverseParams.QuadTreePosition = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
-			WaterQuadTreeGPUTraverseParams.CullingBounds = WaterInfoBounds.ShiftBy(-WaterQuadTree.GetTileRegion().Min);
-			WaterQuadTreeGPUTraverseParams.NumDensities = DensityCount;
-			WaterQuadTreeGPUTraverseParams.NumMaterials = NumWaterMaterials;
-			WaterQuadTreeGPUTraverseParams.NumQuadsLOD0 = NumQuadsLOD0;
-			WaterQuadTreeGPUTraverseParams.NumQuadsPerTileSide = NumQuadsPerIndirectDrawTile;
-			WaterQuadTreeGPUTraverseParams.ForceCollapseDensityLevel = ForceCollapseDensityLevel;
-			WaterQuadTreeGPUTraverseParams.LeafSize = WaterQuadTree.GetLeafSize();
-			WaterQuadTreeGPUTraverseParams.LODScale = LODScale;
-			WaterQuadTreeGPUTraverseParams.DebugShowTile = CVarWaterMeshShowTileBounds.GetValueOnRenderThread();
-			WaterQuadTreeGPUTraverseParams.bWithWaterSelectionSupport = WITH_WATER_SELECTION_SUPPORT != 0;
-			WaterQuadTreeGPUTraverseParams.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
-
-			bNeedToTraverseGPUQuadTree = true;
+			TotalInstanceCount += WaterInstanceData.InstanceCount;
 		}
 
-
-		using FWaterVertexFactoryUserDataWrapperType = TWaterVertexFactoryUserDataWrapper<WITH_WATER_SELECTION_SUPPORT>;
-		FWaterVertexFactoryUserDataWrapperType* UserDataWrappers[3] = {};
-		for (EWaterMeshRenderGroupType RenderGroup : BatchRenderGroups)
+		if (TotalInstanceCount == 0)
 		{
-			FWaterVertexFactoryUserDataWrapperType& UserDataWrapper = Collector.AllocateOneFrameResource<FWaterVertexFactoryUserDataWrapperType>();
-			UserDataWrapper.UserData.RenderGroupType = RenderGroup;
-			UserDataWrapper.UserData.IndirectInstanceData0 = IndirectDrawResources.InstanceData0->GetRHI();
-			UserDataWrapper.UserData.IndirectInstanceData1 = IndirectDrawResources.InstanceData1->GetRHI();
-			UserDataWrapper.UserData.IndirectInstanceData2 = IndirectDrawResources.InstanceData2->GetRHI();
-			UserDataWrapper.UserData.IndirectInstanceData3 = (WITH_WATER_SELECTION_SUPPORT != 0) ? IndirectDrawResources.InstanceData3->GetRHI() : nullptr;
-			UserDataWrapper.UserData.IndirectInstanceDataOffsetsSRV = IndirectDrawResources.InstanceDataOffsets->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData0SRV = IndirectDrawResources.InstanceData0->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData1SRV = IndirectDrawResources.InstanceData1->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData2SRV = IndirectDrawResources.InstanceData2->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData3SRV = (WITH_WATER_SELECTION_SUPPORT != 0) ? IndirectDrawResources.InstanceData3->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT)) : nullptr;
-			
-			UserDataWrappers[(int32)RenderGroup] = &UserDataWrapper;
+			// no instance visible, early exit
+			continue;
 		}
+
+		ViewWaterQuadTree.GetWaterInstanceDataBuffers()->Lock(RHICmdList, TotalInstanceCount* InstanceFactor);
+
+		int32 InstanceDataOffset = 0;
 
 		// Go through all buckets and issue one batched draw call per LOD level per material per view
-		int32 CompactViewIndex = 0;
+		int32 TraversalIndex = 0;
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			// when rendering ISR, don't process the instanced view
-			if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || Views[ViewIndex]->IsPrimarySceneView()))
+			if ((LocalViewMask & (1 << ViewIndex)) && (!bEncounteredISRView || Views[ViewIndex]->IsPrimarySceneView()))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(BucketsPerView);
 
-				const bool bInstancedStereo = Views[ViewIndex]->bIsInstancedStereoEnabled;
+				const bool bViewIsWireframe = WireframeVisibilityMap & (1 << ViewIndex);
+
+				FWaterQuadTree::FTraversalOutput& WaterInstanceData = WaterInstanceDataPerView[TraversalIndex];
+				TraversalIndex++;
 
 				for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(MaterialBucket);
 					bool bMaterialDrawn = false;
 
-					// We only render all tiles with one or multiple instances of a single density quad mesh, so no need to create one bucket per density.
+					for (int32 DensityIndex = 0; DensityIndex < WaterQuadTreeConstants.DensityCount; ++DensityIndex)
 					{
-						const int32 BucketIndex = MaterialIndex;
+						const int32 BucketIndex = MaterialIndex * WaterQuadTreeConstants.DensityCount + DensityIndex;
+						const int32 InstanceCount = WaterInstanceData.BucketInstanceCounts[BucketIndex];
+
+						if (!InstanceCount)
+						{
+							continue;
+						}
 
 						TRACE_CPUPROFILER_EVENT_SCOPE(DensityBucket);
 
-						const FMaterialRenderProxy* MaterialRenderProxy = (WireframeMaterialInstance != nullptr) ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
+						const FMaterialRenderProxy* MaterialRenderProxy = bViewIsWireframe && WireframeMaterialInstance ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
 						check(MaterialRenderProxy != nullptr);
 
 						bool bUseForDepthPass = false;
@@ -553,8 +619,8 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 						{
 							// Set up mesh batch
 							FMeshBatch& Mesh = Collector.AllocateMesh();
-							Mesh.bWireframe = bWireframe;
-							Mesh.VertexFactory = bInstancedStereo ? (FVertexFactory*)WaterVertexFactoryIndirectDrawISR : (FVertexFactory*)WaterVertexFactoryIndirectDraw;
+							Mesh.bWireframe = bViewIsWireframe;
+							Mesh.VertexFactory = WaterVertexFactories[DensityIndex];
 							Mesh.MaterialRenderProxy = MaterialRenderProxy;
 							Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
 							Mesh.Type = PT_TriangleList;
@@ -572,21 +638,25 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 #endif // WITH_WATER_SELECTION_SUPPORT
 
 							Mesh.Elements.SetNumZeroed(1);
+
 							{
 								TRACE_CPUPROFILER_EVENT_SCOPE_STR("Setup batch element");
 
 								// Set up one mesh batch element
 								FMeshBatchElement& BatchElement = Mesh.Elements[0];
 
-								// Set up for indirect draw
-								BatchElement.FirstIndex = 0;
-								BatchElement.NumPrimitives = 0; // Must be 0 to enable usage of IndirectArgsBuffer
-								BatchElement.IndirectArgsBuffer = IndirectDrawResources.IndirectArgs->GetRHI();
-								BatchElement.IndirectArgsOffset = (CompactViewIndex * NumBucketsIndirect + BucketIndex) * sizeof(FRHIDrawIndexedIndirectParameters);
-								BatchElement.UserData = (void*)&UserDataWrappers[(int32)RenderGroup]->UserData;
-								BatchElement.UserIndex = CompactViewIndex * NumBucketsIndirect + BucketIndex;
+								// Set up for instancing
+								//BatchElement.bIsInstancedMesh = true;
+								BatchElement.NumInstances = InstanceCount;
+								BatchElement.UserData = (void*)ViewWaterQuadTree.GetWaterMeshUserDataBuffers()->GetUserData(RenderGroup);
+								BatchElement.UserIndex = InstanceDataOffset * InstanceFactor;
 
-								BatchElement.IndexBuffer = bInstancedStereo ? WaterVertexFactoryIndirectDrawISR->IndexBuffer : WaterVertexFactoryIndirectDraw->IndexBuffer;
+								BatchElement.FirstIndex = 0;
+								BatchElement.NumPrimitives = WaterVertexFactories[DensityIndex]->IndexBuffer->GetIndexCount() / 3;
+								BatchElement.MinVertexIndex = 0;
+								BatchElement.MaxVertexIndex = WaterVertexFactories[DensityIndex]->VertexBuffer->GetVertexCount() - 1;
+
+								BatchElement.IndexBuffer = WaterVertexFactories[DensityIndex]->IndexBuffer;
 								BatchElement.PrimitiveIdMode = PrimID_ForceZero;
 
 								// We need the uniform buffer of this primitive because it stores the proper value for the bOutputVelocity flag.
@@ -595,256 +665,51 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 							}
 
 							{
+								INC_DWORD_STAT_BY(STAT_WaterVerticesDrawn, WaterVertexFactories[DensityIndex]->VertexBuffer->GetVertexCount() * InstanceCount);
 								INC_DWORD_STAT(STAT_WaterDrawCalls);
+								INC_DWORD_STAT_BY(STAT_WaterTilesDrawn, InstanceCount);
+
 								TRACE_CPUPROFILER_EVENT_SCOPE(Collector.AddMesh);
 
 								Collector.AddMesh(ViewIndex, Mesh);
 							}
 						}
+
+						// Note : we're repurposing the BucketInstanceCounts array here for storing the actual offset in the buffer. This means that effectively from this point on, BucketInstanceCounts doesn't actually 
+						// contain the number of instances anymore : 
+						WaterInstanceData.BucketInstanceCounts[BucketIndex] = InstanceDataOffset;
+						InstanceDataOffset += InstanceCount;
 					}
 
 					INC_DWORD_STAT_BY(STAT_WaterDrawnMats, (int32)bMaterialDrawn);
 				}
 
-				++CompactViewIndex;
-			}
-		}
-	}
-	
-	// Even if we have a GPU quadtree, we still go through the setup for the non-GPU path because the water quadtree might have an ocean far mesh which we render traditionally.
-	// If this is a GPU quadtree, traversing it on the CPU will only return the far mesh tiles (if present).
-
-	TArray<FWaterQuadTree::FTraversalOutput, TInlineAllocator<4>> WaterInstanceDataPerView;
-
-	bool bEncounteredISRView = false;
-	int32 InstanceFactor = 1;
-
-	// Gather visible tiles, their lod and materials for all renderable views (skip right view when stereo pair is rendered instanced)
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-	{
-		const FSceneView* View = Views[ViewIndex];
-		if (!bEncounteredISRView && View->IsInstancedStereoPass())
-		{
-			bEncounteredISRView = true;
-			InstanceFactor = View->GetStereoPassInstanceFactor();
-		}
-
-		// skip gathering visible tiles from instanced right eye views
-		if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || View->IsPrimarySceneView()))
-		{
-			const FVector ObserverPosition = View->ViewMatrices.GetViewOrigin();
-
-			FWaterLODParams WaterLODParams = GetWaterLODParams(ObserverPosition);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVarWaterMeshShowLODLevels.GetValueOnRenderThread())
-			{
-				for (int32 i = WaterLODParams.LowestLOD; i < WaterQuadTree.GetTreeDepth(); i++)
+				const int32 NumStagingInstances = WaterInstanceData.StagingInstanceData.Num();
+				for (int32 Idx = 0; Idx < NumStagingInstances; ++Idx)
 				{
-					float LODDist = FWaterQuadTree::GetLODDistance(i, LODScale);
-					FVector Orig = FVector(FVector2D(ObserverPosition), WaterLODParams.WaterHeightForLOD);
+					const FWaterQuadTree::FStagingInstanceData& Data = WaterInstanceData.StagingInstanceData[Idx];
+					const int32 WriteIndex = WaterInstanceData.BucketInstanceCounts[Data.BucketIndex]++;
 
-					DrawCircle(Collector.GetPDI(ViewIndex), Orig, FVector::ForwardVector, FVector::RightVector, GColorList.GetFColorByIndex(i + 1), LODDist, 64, 0);
-				}
-			}
-#endif
-			TRACE_CPUPROFILER_EVENT_SCOPE(QuadTreeTraversalPerView);
-
-			FWaterQuadTree::FTraversalOutput& WaterInstanceData = WaterInstanceDataPerView.Emplace_GetRef();
-			WaterInstanceData.BucketInstanceCounts.Empty(NumBuckets);
-			WaterInstanceData.BucketInstanceCounts.AddZeroed(NumBuckets);
-			if (!!CVarWaterMeshPreAllocStagingInstanceMemory.GetValueOnRenderThread())
-			{
-				WaterInstanceData.StagingInstanceData.Empty(HistoricalMaxViewInstanceCount);
-			}
-
-			FWaterQuadTree::FTraversalDesc TraversalDesc;
-			TraversalDesc.LowestLOD = WaterLODParams.LowestLOD;
-			TraversalDesc.HeightMorph = WaterLODParams.HeightLODFactor;
-			TraversalDesc.LODCount = WaterQuadTree.GetTreeDepth();
-			TraversalDesc.DensityCount = DensityCount;
-			TraversalDesc.ForceCollapseDensityLevel = ForceCollapseDensityLevel;
-			TraversalDesc.Frustum = View->ViewFrustum;
-			TraversalDesc.ObserverPosition = ObserverPosition;
-			TraversalDesc.PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
-			TraversalDesc.LODScale = LODScale;
-			TraversalDesc.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
-			TraversalDesc.WaterInfoBounds = WaterInfoBounds;
-			TraversalDesc.OcclusionCullingResults = nullptr;
-			TraversalDesc.OcclusionCullingFarMeshOffset = OcclusionResultsFarMeshOffset;
-			if (CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
-			{
-				const FOcclusionCullingResults* CullingResults = OcclusionResults.Find(View->GetViewKey());
-				if (CullingResults && !CullingResults->Results.IsEmpty())
-				{
-					TraversalDesc.OcclusionCullingResults = &CullingResults->Results;
-				}
-			}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			//Debug
-			TraversalDesc.DebugPDI = Collector.GetPDI(ViewIndex);
-			TraversalDesc.DebugShowTile = CVarWaterMeshShowTileBounds.GetValueOnRenderThread();
-			TraversalDesc.bDebugDrawIntoForeground = CVarWaterMeshShowTileBoundsForeground.GetValueOnRenderThread() != 0;
-#endif
-			WaterQuadTree.BuildWaterTileInstanceData(TraversalDesc, WaterInstanceData);
-
-			HistoricalMaxViewInstanceCount = FMath::Max(HistoricalMaxViewInstanceCount, WaterInstanceData.InstanceCount);
-		}
-	}
-
-	// Get number of total instances for all views
-	int32 TotalInstanceCount = 0;
-	for (const FWaterQuadTree::FTraversalOutput& WaterInstanceData : WaterInstanceDataPerView)
-	{
-		TotalInstanceCount += WaterInstanceData.InstanceCount;
-	}
-
-	if (TotalInstanceCount == 0)
-	{
-		// no instance visible, early exit
-		return;
-	}
-
-	WaterInstanceDataBuffers->Lock(RHICmdList, TotalInstanceCount * InstanceFactor);
-
-	int32 InstanceDataOffset = 0;
-
-	// Go through all buckets and issue one batched draw call per LOD level per material per view
-	int32 TraversalIndex = 0;
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-	{
-		// when rendering ISR, don't process the instanced view
-		if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || Views[ViewIndex]->IsPrimarySceneView()))
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(BucketsPerView);
-
-			FWaterQuadTree::FTraversalOutput& WaterInstanceData = WaterInstanceDataPerView[TraversalIndex];
-			TraversalIndex++;
-
-			for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(MaterialBucket);
-				bool bMaterialDrawn = false;
-
-				for (int32 DensityIndex = 0; DensityIndex < DensityCount; ++DensityIndex)
-				{
-					const int32 BucketIndex = MaterialIndex * DensityCount + DensityIndex;
-					const int32 InstanceCount = WaterInstanceData.BucketInstanceCounts[BucketIndex];
-
-					if (!InstanceCount)
+					for (int32 StreamIdx = 0; StreamIdx < FWaterInstanceDataBuffersType::NumBuffers; ++StreamIdx)
 					{
-						continue;
-					}
-
-					TRACE_CPUPROFILER_EVENT_SCOPE(DensityBucket);
-
-					const FMaterialRenderProxy* MaterialRenderProxy = (WireframeMaterialInstance != nullptr) ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
-					check(MaterialRenderProxy != nullptr);
-
-					bool bUseForDepthPass = false;
-
-					// If there's a valid material, use that to figure out the depth pass status
-					if (const FMaterial* BucketMaterial = MaterialRenderProxy->GetMaterialNoFallback(GetScene().GetFeatureLevel()))
-					{
-						// Preemptively turn off depth rendering for this mesh batch if the material doesn't need it
-						bUseForDepthPass = !BucketMaterial->GetShadingModels().HasShadingModel(MSM_SingleLayerWater) && !IsTranslucentOnlyBlendMode(*BucketMaterial);
-					}
-
-					bMaterialDrawn = true;
-					for (EWaterMeshRenderGroupType RenderGroup : BatchRenderGroups)
-					{
-						// Set up mesh batch
-						FMeshBatch& Mesh = Collector.AllocateMesh();
-						Mesh.bWireframe = bWireframe;
-						Mesh.VertexFactory = WaterVertexFactories[DensityIndex];
-						Mesh.MaterialRenderProxy = MaterialRenderProxy;
-						Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
-						Mesh.Type = PT_TriangleList;
-						Mesh.DepthPriorityGroup = SDPG_World;
-						Mesh.bCanApplyViewModeOverrides = false;
-						Mesh.bUseForMaterial = true;
-						Mesh.CastShadow = false;
-						// Preemptively turn off depth rendering for this mesh batch if the material doesn't need it
-						Mesh.bUseForDepthPass = bUseForDepthPass;
-						Mesh.bUseAsOccluder = false;
-
-#if WITH_WATER_SELECTION_SUPPORT
-						Mesh.bUseSelectionOutline = (RenderGroup == EWaterMeshRenderGroupType::RG_RenderSelectedWaterTilesOnly);
-						Mesh.bUseWireframeSelectionColoring = (RenderGroup == EWaterMeshRenderGroupType::RG_RenderSelectedWaterTilesOnly);
-#endif // WITH_WATER_SELECTION_SUPPORT
-
-						Mesh.Elements.SetNumZeroed(1);
-
+						TArrayView<FVector4f> BufferMemory = ViewWaterQuadTree.GetWaterInstanceDataBuffers()->GetBufferMemory(StreamIdx);
+						for (int32 IdxMultipliedInstance = 0; IdxMultipliedInstance < InstanceFactor; ++IdxMultipliedInstance)
 						{
-							TRACE_CPUPROFILER_EVENT_SCOPE_STR("Setup batch element");
-
-							// Set up one mesh batch element
-							FMeshBatchElement& BatchElement = Mesh.Elements[0];
-
-							// Set up for instancing
-							//BatchElement.bIsInstancedMesh = true;
-							BatchElement.NumInstances = InstanceCount;
-							BatchElement.UserData = (void*)WaterMeshUserDataBuffers->GetUserData(RenderGroup);
-							BatchElement.UserIndex = InstanceDataOffset * InstanceFactor;
-
-							BatchElement.FirstIndex = 0;
-							BatchElement.NumPrimitives = WaterVertexFactories[DensityIndex]->IndexBuffer->GetIndexCount() / 3;
-							BatchElement.MinVertexIndex = 0;
-							BatchElement.MaxVertexIndex = WaterVertexFactories[DensityIndex]->VertexBuffer->GetVertexCount() - 1;
-
-							BatchElement.IndexBuffer = WaterVertexFactories[DensityIndex]->IndexBuffer;
-							BatchElement.PrimitiveIdMode = PrimID_ForceZero;
-
-							// We need the uniform buffer of this primitive because it stores the proper value for the bOutputVelocity flag.
-							// The identity primitive uniform buffer simply stores false for this flag which leads to missing motion vectors.
-							BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
-						}
-
-						{
-							INC_DWORD_STAT_BY(STAT_WaterVerticesDrawn, WaterVertexFactories[DensityIndex]->VertexBuffer->GetVertexCount() * InstanceCount);
-							INC_DWORD_STAT(STAT_WaterDrawCalls);
-							INC_DWORD_STAT_BY(STAT_WaterTilesDrawn, InstanceCount);
-
-							TRACE_CPUPROFILER_EVENT_SCOPE(Collector.AddMesh);
-
-							Collector.AddMesh(ViewIndex, Mesh);
+							BufferMemory[WriteIndex * InstanceFactor + IdxMultipliedInstance] = Data.Data[StreamIdx];
 						}
 					}
-
-					// Note : we're repurposing the BucketInstanceCounts array here for storing the actual offset in the buffer. This means that effectively from this point on, BucketInstanceCounts doesn't actually 
-					//  contain the number of instances anymore : 
-					WaterInstanceData.BucketInstanceCounts[BucketIndex] = InstanceDataOffset;
-					InstanceDataOffset += InstanceCount;
-				}
-
-				INC_DWORD_STAT_BY(STAT_WaterDrawnMats, (int32)bMaterialDrawn);
-			}
-
-			const int32 NumStagingInstances = WaterInstanceData.StagingInstanceData.Num();
-			for (int32 Idx = 0; Idx < NumStagingInstances; ++Idx)
-			{
-				const FWaterQuadTree::FStagingInstanceData& Data = WaterInstanceData.StagingInstanceData[Idx];
-				const int32 WriteIndex = WaterInstanceData.BucketInstanceCounts[Data.BucketIndex]++;
-
-				for (int32 StreamIdx = 0; StreamIdx < FWaterInstanceDataBuffersType::NumBuffers; ++StreamIdx)
-				{
-					TArrayView<FVector4f> BufferMemory = WaterInstanceDataBuffers->GetBufferMemory(StreamIdx);
-					for (int32 IdxMultipliedInstance = 0; IdxMultipliedInstance < InstanceFactor; ++IdxMultipliedInstance)
-					{
-						BufferMemory[WriteIndex * InstanceFactor + IdxMultipliedInstance] = Data.Data[StreamIdx];
-					}
 				}
 			}
 		}
-	}
 
-	WaterInstanceDataBuffers->Unlock(RHICmdList);
+		ViewWaterQuadTree.GetWaterInstanceDataBuffers()->Unlock(RHICmdList);
+	}
 }
 
 const TArray<FBoxSphereBounds>* FWaterMeshSceneProxy::GetOcclusionQueries(const FSceneView* View) const
 {
-	if (CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
+	// Local tessellation/multiple dynamic quadtrees are incompatible with CPU occlusion culling
+	if (!bIsLocalOnlyTessellationEnabled && CVarWaterMeshOcclusionCulling.GetValueOnRenderThread() != 0)
 	{
 		return &OcclusionCullingBounds;
 	}
@@ -897,6 +762,133 @@ void FWaterMeshSceneProxy::AcceptOcclusionResults(const FSceneView* View, TArray
 	}
 }
 
+bool FWaterMeshSceneProxy::HasWaterData() const
+{
+	for (const auto& Pair : ViewQuadTrees)
+	{
+		if (Pair.Value.GetWaterQuadTree().GetNodeCount() != 0 && WaterQuadTreeConstants.DensityCount != 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+TArray<EWaterMeshRenderGroupType, TInlineAllocator<FWaterMeshSceneProxy::FWaterVertexFactoryType::NumRenderGroups>> FWaterMeshSceneProxy::GetBatchRenderGroups(const TArray<const FSceneView*>& Views, uint32 VisibilityMap) const
+{
+	TArray<EWaterMeshRenderGroupType, TInlineAllocator<FWaterVertexFactoryType::NumRenderGroups>> BatchRenderGroups;
+	{
+		// By default, render all water tiles : 
+		BatchRenderGroups.Add(EWaterMeshRenderGroupType::RG_RenderWaterTiles);
+
+#if WITH_WATER_SELECTION_SUPPORT
+		bool bHasSelectedInstances = IsSelected();
+
+		// We're using bSinglePassGDME, so we need to check the ViewFamily of all views and can't use the ViewFamily passed into GDME.
+		bool bSelectionRenderEnabled = false;
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			if (VisibilityMap & (1 << ViewIndex))
+			{
+				bSelectionRenderEnabled |= GIsEditor && Views[ViewIndex]->Family->EngineShowFlags.Selection;
+			}
+		}
+
+		if (bSelectionRenderEnabled && bHasSelectedInstances)
+		{
+			// Don't render all in one group: instead, render 2 groups : first, the selected only then, the non-selected only :
+			BatchRenderGroups[0] = EWaterMeshRenderGroupType::RG_RenderSelectedWaterTilesOnly;
+			BatchRenderGroups.Add(EWaterMeshRenderGroupType::RG_RenderUnselectedWaterTilesOnly);
+		}
+#endif // WITH_WATER_SELECTION_SUPPORT
+	}
+
+	return BatchRenderGroups;
+}
+
+uint32 FWaterMeshSceneProxy::GetWireframeVisibilityMapAndMaterial(const TArray<const FSceneView*>& Views, uint32 VisibilityMap, FMeshElementCollector& Collector, FColoredMaterialRenderProxy*& OutMaterialInstance) const
+{
+	// Figure out which views have wireframe enabled
+	uint32 WireframeVisibilityMap = 0;
+	if (AllowDebugViewmodes())
+	{
+		if (CVarWaterMeshShowWireframe.GetValueOnRenderThread() == 1)
+		{
+			// Force all views to wireframe
+			WireframeVisibilityMap = VisibilityMap;
+		}
+		else
+		{
+			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+			{
+				if ((VisibilityMap & (1 << ViewIndex)) && Views[ViewIndex]->Family->EngineShowFlags.Wireframe)
+				{
+					WireframeVisibilityMap |= (1 << ViewIndex);
+				}
+			}
+		}
+	}
+
+	// Set up wireframe material (if needed)
+	OutMaterialInstance = nullptr;
+	if (WireframeVisibilityMap && CVarWaterMeshShowWireframeAtBaseHeight.GetValueOnRenderThread() == 1)
+	{
+		OutMaterialInstance = new FColoredMaterialRenderProxy(
+			GEngine->WireframeMaterial ? GEngine->WireframeMaterial->GetRenderProxy() : NULL,
+			FColor::Cyan);
+
+		Collector.RegisterOneFrameMaterialProxy(OutMaterialInstance);
+	}
+
+	return WireframeVisibilityMap;
+}
+
+int32 FWaterMeshSceneProxy::FindBestQuadTreeForView(const FSceneView* View) const
+{
+	// Do we have a quadtree matching this views PlayerIndex?
+	if (ViewQuadTrees.Contains(View->PlayerIndex))
+	{
+		return View->PlayerIndex;
+	}
+	// Otherwise just use the closest quadtree.
+	else
+	{
+		return FindBestQuadTreeForViewLocation(View);
+	}
+}
+
+int32 FWaterMeshSceneProxy::FindBestQuadTreeForViewLocation(const FSceneView* View) const
+{
+	const FVector2D ViewPosition2D = FVector2D(View->ViewLocation);
+	double ClosestDistSquared = DBL_MAX;
+	int32 ClosestQuadTreeKey = INDEX_NONE;
+	for (const auto& Pair : ViewQuadTrees)
+	{
+		const double DistSquared = FVector2D::DistSquared(Pair.Value.GetWaterQuadTree().GetTileRegion().GetCenter(), ViewPosition2D);
+		if (DistSquared < ClosestDistSquared)
+		{
+			ClosestDistSquared = DistSquared;
+			ClosestQuadTreeKey = Pair.Key;
+		}
+	}
+	return ClosestQuadTreeKey;
+}
+
+TArray<int32, TInlineAllocator<8>> FWaterMeshSceneProxy::GetViewToQuadTreeMapping(const TArray<const FSceneView*>& Views, uint32 VisibilityMap) const
+{
+	// Find a quadtree for every view
+	TArray<int32, TInlineAllocator<8>> ViewToQuadTreeKey;
+	ViewToQuadTreeKey.SetNum(Views.Num());
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		if (VisibilityMap & (1 << ViewIndex))
+		{
+			ViewToQuadTreeKey[ViewIndex] = FindBestQuadTreeForView(Views[ViewIndex]);
+		}
+	}
+	return ViewToQuadTreeKey;
+}
+
 #if RHI_RAYTRACING
 void FWaterMeshSceneProxy::SetupRayTracingInstances(FRHICommandListBase& RHICmdList, int32 NumInstances, uint32 DensityIndex)
 {
@@ -938,19 +930,24 @@ void FWaterMeshSceneProxy::SetupRayTracingInstances(FRHICommandListBase& RHICmdL
 	}
 }
 
-void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 	if (!HasWaterData() || !FWaterUtils::IsWaterMeshRenderingEnabled(/*bIsRenderThread = */true) || !CVarRayTracingGeometryWater.GetValueOnRenderThread())
 	{
 		return;
 	}
 
-	const FSceneView& SceneView = *Context.ReferenceView;
+	const FSceneView& SceneView = *Collector.GetReferenceView();
 	const FVector ObserverPosition = SceneView.ViewMatrices.GetViewOrigin();
 
-	FWaterLODParams WaterLODParams = GetWaterLODParams(ObserverPosition);
+	const int32 QuadTreeKey = FindBestQuadTreeForView(&SceneView);
+	const FViewWaterQuadTree* ViewWaterQuadTree = ViewQuadTrees.Find(QuadTreeKey);
+	check(ViewWaterQuadTree);
+	const FWaterQuadTree& WaterQuadTree = ViewWaterQuadTree->GetWaterQuadTree();
 
-	const int32 NumBuckets = WaterQuadTree.GetWaterMaterials().Num() * DensityCount;
+	FViewWaterQuadTree::FWaterLODParams WaterLODParams = ViewWaterQuadTree->GetWaterLODParams(ObserverPosition, WaterQuadTreeConstants.LODScale);
+
+	const int32 NumBuckets = WaterQuadTree.GetWaterMaterials().Num() * WaterQuadTreeConstants.DensityCount;
 
 	FWaterQuadTree::FTraversalOutput WaterInstanceData;
 	WaterInstanceData.BucketInstanceCounts.Empty(NumBuckets);
@@ -960,14 +957,14 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 	TraversalDesc.LowestLOD = WaterLODParams.LowestLOD;
 	TraversalDesc.HeightMorph = WaterLODParams.HeightLODFactor;
 	TraversalDesc.LODCount = WaterQuadTree.GetTreeDepth();
-	TraversalDesc.DensityCount = DensityCount;
-	TraversalDesc.ForceCollapseDensityLevel = ForceCollapseDensityLevel;
+	TraversalDesc.DensityCount = WaterQuadTreeConstants.DensityCount;
+	TraversalDesc.ForceCollapseDensityLevel = WaterQuadTreeConstants.ForceCollapseDensityLevel;
 	TraversalDesc.PreViewTranslation = SceneView.ViewMatrices.GetPreViewTranslation();
 	TraversalDesc.ObserverPosition = ObserverPosition;
 	TraversalDesc.Frustum = FConvexVolume(); // Default volume to disable frustum culling
-	TraversalDesc.LODScale = LODScale;
+	TraversalDesc.LODScale = WaterQuadTreeConstants.LODScale;
 	TraversalDesc.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
-	TraversalDesc.WaterInfoBounds = WaterInfoBounds;
+	TraversalDesc.WaterInfoBounds = WaterQuadTree.GetTileRegion();
 
 	WaterQuadTree.BuildWaterTileInstanceData(TraversalDesc, WaterInstanceData);
 
@@ -979,17 +976,17 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 
 	const int32 NumWaterMaterials = WaterQuadTree.GetWaterMaterials().Num();	
 
-	for (int32 DensityIndex = 0; DensityIndex < DensityCount; ++DensityIndex)
+	for (int32 DensityIndex = 0; DensityIndex < WaterQuadTreeConstants.DensityCount; ++DensityIndex)
 	{
 		int32 DensityInstanceCount = 0;
 		for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
 		{
-			const int32 BucketIndex = MaterialIndex * DensityCount + DensityIndex;
+			const int32 BucketIndex = MaterialIndex * WaterQuadTreeConstants.DensityCount + DensityIndex;
 			const int32 InstanceCount = WaterInstanceData.BucketInstanceCounts[BucketIndex];
 			DensityInstanceCount += InstanceCount;
 		}
 
-		SetupRayTracingInstances(Context.GraphBuilder.RHICmdList, DensityInstanceCount, DensityIndex);
+		SetupRayTracingInstances(Collector.GetRHICommandList(), DensityInstanceCount, DensityIndex);
 	}
 
 	// Create per-bucket prefix sum and sort instance data so we can easily access per-instance data for each density
@@ -1015,7 +1012,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 	BaseMesh.SegmentIndex = 0;
 	BaseMesh.Elements.AddZeroed();
 
-	for (int32 DensityIndex = 0; DensityIndex < DensityCount; ++DensityIndex)
+	for (int32 DensityIndex = 0; DensityIndex < WaterQuadTreeConstants.DensityCount; ++DensityIndex)
 	{
 		int32 DensityInstanceIndex = 0;
 		
@@ -1037,7 +1034,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 
 		for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
 		{
-			const int32 BucketIndex = MaterialIndex * DensityCount + DensityIndex;
+			const int32 BucketIndex = MaterialIndex * WaterQuadTreeConstants.DensityCount + DensityIndex;
 			const int32 InstanceCount = WaterInstanceData.BucketInstanceCounts[BucketIndex];
 
 			if (!InstanceCount)
@@ -1053,7 +1050,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
 			{
 				using FWaterVertexFactoryUserDataWrapperType = TWaterVertexFactoryUserDataWrapper<WITH_WATER_SELECTION_SUPPORT>;
-				FWaterVertexFactoryUserDataWrapperType& UserDataWrapper = Context.RayTracingMeshResourceCollector.AllocateOneFrameResource<FWaterVertexFactoryUserDataWrapperType>();
+				FWaterVertexFactoryUserDataWrapperType& UserDataWrapper = Collector.AllocateOneFrameResource<FWaterVertexFactoryUserDataWrapperType>();
 
 				const int32 InstanceDataIndex = BucketOffsets[BucketIndex] + InstanceIndex;
 				const FWaterQuadTree::FStagingInstanceData& InstanceData = WaterInstanceData.StagingInstanceData[InstanceDataIndex];
@@ -1063,7 +1060,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 				UniformBufferParams.InstanceData0 = InstanceData.Data[0];
 				UniformBufferParams.InstanceData1 = InstanceData.Data[1];
 
-				UserDataWrapper.UserData.InstanceDataBuffers = WaterMeshUserDataBuffers->GetUserData(EWaterMeshRenderGroupType::RG_RenderWaterTiles)->InstanceDataBuffers;
+				UserDataWrapper.UserData.InstanceDataBuffers = ViewWaterQuadTree->GetWaterMeshUserDataBuffers()->GetUserData(EWaterMeshRenderGroupType::RG_RenderWaterTiles)->InstanceDataBuffers;
 				UserDataWrapper.UserData.RenderGroupType = EWaterMeshRenderGroupType::RG_RenderWaterTiles;
 				UserDataWrapper.UserData.WaterVertexFactoryRaytracingVFUniformBuffer = FWaterVertexFactoryRaytracingParametersRef::CreateUniformBufferImmediate(UniformBufferParams, UniformBuffer_SingleFrame);
 							
@@ -1075,9 +1072,8 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 				RayTracingInstance.Geometry = &WaterInstanceRayTracingData.Geometry;
 				RayTracingInstance.InstanceTransforms.Add(GetLocalToWorld());
 				RayTracingInstance.Materials.Add(BaseMesh);
-				OutRayTracingInstances.Add(RayTracingInstance);
 
-				Context.DynamicRayTracingGeometriesToUpdate.Add(
+				Collector.AddRayTracingGeometryUpdate(
 					FRayTracingDynamicGeometryUpdateParams
 					{
 						RayTracingInstance.Materials,
@@ -1089,12 +1085,49 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 						nullptr,
 						true
 					}
-				);				
+				);
+
+				Collector.AddRayTracingInstance(MoveTemp(RayTracingInstance));
 			}
 		}
 	}
 }
 #endif // RHI_RAYTRACING
+
+bool FWaterMeshSceneProxy::CreateViewWaterQuadTree(int32 Key, const FVector2D& CenterPosition)
+{
+	if (bIsLocalOnlyTessellationEnabled)
+	{
+		if (!ViewQuadTrees.Contains(Key))
+		{
+			FViewWaterQuadTree& ViewWaterQuadTree = ViewQuadTrees.Add(Key);
+			ViewWaterQuadTree.Update(WaterQuadTreeBuilder, CenterPosition);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FWaterMeshSceneProxy::UpdateViewWaterQuadTree(int32 Key, const FVector2D& CenterPosition)
+{
+	if (bIsLocalOnlyTessellationEnabled)
+	{
+		if (FViewWaterQuadTree* ViewWaterQuadTree = ViewQuadTrees.Find(Key))
+		{
+			ViewWaterQuadTree->Update(WaterQuadTreeBuilder, CenterPosition);
+			return true;
+		}
+	}
+	return false;
+}
+
+void FWaterMeshSceneProxy::DestroyViewWaterQuadTree(int32 Key)
+{
+	if (bIsLocalOnlyTessellationEnabled)
+	{
+		ViewQuadTrees.Remove(Key);
+	}
+}
 
 FPrimitiveViewRelevance FWaterMeshSceneProxy::GetViewRelevance(const FSceneView* View) const
 {
@@ -1120,14 +1153,190 @@ bool FWaterMeshSceneProxy::HasSubprimitiveOcclusionQueries() const
 #if WITH_WATER_SELECTION_SUPPORT
 HHitProxy* FWaterMeshSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)
 {
-	WaterQuadTree.GatherHitProxies(OutHitProxies);
+	WaterQuadTreeBuilder.GatherHitProxies(OutHitProxies);
 
 	// No default hit proxy.
 	return nullptr;
 }
 #endif // WITH_WATER_SELECTION_SUPPORT
 
-void FWaterMeshSceneProxy::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
+void FViewWaterQuadTree::Update(const FWaterQuadTreeBuilder& Builder, const FVector2D& CenterPosition)
+{
+	Builder.BuildWaterQuadTree(WaterQuadTree, CenterPosition);
+	QuadTreeGPU = {};
+
+	// Initialize Z bounds needed for GPU driven rendering
+	if (Builder.IsGPUQuadTree())
+	{
+		WaterQuadTreeMinHeight = DBL_MAX;
+		WaterQuadTreeMaxHeight = -DBL_MAX;
+
+		const TArrayView<const FWaterBodyRenderData> WaterBodyRenderData = WaterQuadTree.GetWaterBodyRenderData();
+		for (const FWaterBodyRenderData& RenderData : WaterBodyRenderData)
+		{
+			WaterQuadTreeMinHeight = FMath::Min(WaterQuadTreeMinHeight, RenderData.BoundsMinZ - RenderData.MaxWaveHeight);
+			WaterQuadTreeMaxHeight = FMath::Max(WaterQuadTreeMaxHeight, RenderData.BoundsMaxZ + RenderData.MaxWaveHeight);
+		}
+
+		if (WaterQuadTreeMinHeight == DBL_MAX)
+		{
+			WaterQuadTreeMinHeight = 0.0;
+			WaterQuadTreeMaxHeight = 0.0;
+		}
+		WaterQuadTreeMinHeight -= 1.0;
+		WaterQuadTreeMaxHeight += 1.0;
+	}
+
+	if (!WaterInstanceDataBuffers || !WaterMeshUserDataBuffers)
+	{
+		const int32 TotalLeafNodes = Builder.GetMaxLeafCount();
+		WaterInstanceDataBuffers = MakeUnique<FWaterInstanceDataBuffersType>(TotalLeafNodes);
+		WaterMeshUserDataBuffers = MakeUnique<FWaterMeshUserDataBuffersType>(WaterInstanceDataBuffers.Get());
+	}
+}
+
+void FViewWaterQuadTree::TraverseGPUQuadTree(FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated)
+{
+	if (bNeedToTraverseGPUQuadTree)
+	{
+		if (!QuadTreeGPU.IsInitialized())
+		{
+			BuildGPUQuadTree(GraphBuilder);
+		}
+		FWaterQuadTreeGPU::FTraverseParams TraverseParams = MoveTemp(WaterQuadTreeGPUTraverseParams);
+		TraverseParams.bDepthBufferIsPopulated = bDepthBufferIsPopulated;
+		QuadTreeGPU.Traverse(GraphBuilder, TraverseParams);
+		bNeedToTraverseGPUQuadTree = false;
+		WaterQuadTreeGPUTraverseParams = {};
+	}
+}
+
+FViewWaterQuadTree::FUserDataAndIndirectArgs FViewWaterQuadTree::PrepareGPUQuadTreeForRendering(const TArray<const FSceneView*>& Views, uint32 VisibilityMap, FMeshElementCollector& Collector, const FWaterQuadTreeConstants& QuadTreeConstants, const TArrayView<const EWaterMeshRenderGroupType>& BatchRenderGroups, FRHICommandListBase& RHICmdList) const
+{
+	bool bEncounteredISRView = false;
+	TArray<const FSceneView*> VisibleViews;
+
+	// Gather per view data for all renderable views
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		const FSceneView* View = Views[ViewIndex];
+		if (!bEncounteredISRView && View->IsInstancedStereoPass())
+		{
+			bEncounteredISRView = true;
+		}
+
+		// skip gathering visible tiles from instanced right eye views
+		if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || View->IsPrimarySceneView()))
+		{
+			VisibleViews.Add(View);
+		}
+	}
+
+	const int32 NumWaterMaterials = WaterQuadTree.GetWaterMaterials().Num();
+	const int32 NumBucketsIndirect = NumWaterMaterials; // Indirect draws use a single density mesh tile
+	const int32 NumVisibleViews = VisibleViews.Num();
+	const int32 NumIndirectDrawCalls = NumBucketsIndirect * NumVisibleViews;
+	const int32 LeafCountUpperBound = WaterQuadTree.GetMaxLeafCount() * NumVisibleViews;
+	const int32 NumInstanceDataSlots = FMath::Max(1, static_cast<int32>(LeafCountUpperBound * FMath::Clamp(CVarWaterMeshGPUQuadInstanceDataAllocMult.GetValueOnRenderThread(), 0.0f, 8.0f)));
+
+	// Allocate buffers for the indirect draws
+	struct FIndirectDrawResources
+	{
+		TRefCountPtr<FRDGPooledBuffer> IndirectArgs;
+		TRefCountPtr<FRDGPooledBuffer> InstanceDataOffsets;
+		TRefCountPtr<FRDGPooledBuffer> InstanceData0;
+		TRefCountPtr<FRDGPooledBuffer> InstanceData1;
+		TRefCountPtr<FRDGPooledBuffer> InstanceData2;
+		TRefCountPtr<FRDGPooledBuffer> InstanceData3;
+	};
+	FIndirectDrawResources& IndirectDrawResources = Collector.AllocateOneFrameResource<FIndirectDrawResources>();
+	IndirectDrawResources.IndirectArgs = AllocatePooledBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndexedIndirectParameters>(FMath::Max(1, NumIndirectDrawCalls)), TEXT("WaterQuadTree.IndirectArgsBuffer"));
+	IndirectDrawResources.InstanceDataOffsets = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumIndirectDrawCalls)), TEXT("WaterQuadTree.InstanceDataOffsetsBuffer"));
+	IndirectDrawResources.InstanceData0 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer0"));
+	IndirectDrawResources.InstanceData1 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer1"));
+	IndirectDrawResources.InstanceData2 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer2"));
+	if (WITH_WATER_SELECTION_SUPPORT != 0)
+	{
+		IndirectDrawResources.InstanceData3 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer3"));
+	}
+
+
+	// Traverse quadtree. We actually only set up the parameters here; the actual traversal is done later in the frame in a callback invoked from FWaterViewExtension::PreRenderBasePass_RenderThread.
+	// That callback accesses these params, so we need to ensure that they are still valid at that point.
+	{
+		WaterQuadTreeGPUTraverseParams = {};
+		WaterQuadTreeGPUTraverseParams.OutIndirectArgsBuffer = IndirectDrawResources.IndirectArgs;
+		WaterQuadTreeGPUTraverseParams.OutInstanceDataOffsetsBuffer = IndirectDrawResources.InstanceDataOffsets;
+		WaterQuadTreeGPUTraverseParams.OutInstanceData0Buffer = IndirectDrawResources.InstanceData0;
+		WaterQuadTreeGPUTraverseParams.OutInstanceData1Buffer = IndirectDrawResources.InstanceData1;
+		WaterQuadTreeGPUTraverseParams.OutInstanceData2Buffer = IndirectDrawResources.InstanceData2;
+		WaterQuadTreeGPUTraverseParams.OutInstanceData3Buffer = IndirectDrawResources.InstanceData3;
+		WaterQuadTreeGPUTraverseParams.Views = MoveTemp(VisibleViews);
+		WaterQuadTreeGPUTraverseParams.QuadTreePosition = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
+		WaterQuadTreeGPUTraverseParams.CullingBounds = WaterQuadTree.GetTileRegion().ShiftBy(-WaterQuadTree.GetTileRegion().Min);
+		WaterQuadTreeGPUTraverseParams.NumDensities = QuadTreeConstants.DensityCount;
+		WaterQuadTreeGPUTraverseParams.NumMaterials = WaterQuadTree.GetWaterMaterials().Num();
+		WaterQuadTreeGPUTraverseParams.NumQuadsLOD0 = QuadTreeConstants.NumQuadsLOD0;
+		WaterQuadTreeGPUTraverseParams.NumQuadsPerTileSide = QuadTreeConstants.NumQuadsPerIndirectDrawTile;
+		WaterQuadTreeGPUTraverseParams.ForceCollapseDensityLevel = QuadTreeConstants.ForceCollapseDensityLevel;
+		WaterQuadTreeGPUTraverseParams.LeafSize = WaterQuadTree.GetLeafSize();
+		WaterQuadTreeGPUTraverseParams.LODScale = QuadTreeConstants.LODScale;
+		WaterQuadTreeGPUTraverseParams.DebugShowTile = CVarWaterMeshShowTileBounds.GetValueOnRenderThread();
+		WaterQuadTreeGPUTraverseParams.bWithWaterSelectionSupport = WITH_WATER_SELECTION_SUPPORT != 0;
+		WaterQuadTreeGPUTraverseParams.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
+
+		bNeedToTraverseGPUQuadTree = true;
+	}
+
+	FUserDataAndIndirectArgs Result;
+	Result.IndirectArgs = IndirectDrawResources.IndirectArgs;
+
+	using FWaterVertexFactoryUserDataWrapperType = TWaterVertexFactoryUserDataWrapper<WITH_WATER_SELECTION_SUPPORT>;
+	FWaterVertexFactoryUserDataWrapperType* UserDataWrappers[3] = {};
+	for (EWaterMeshRenderGroupType RenderGroup : BatchRenderGroups)
+	{
+		FWaterVertexFactoryUserDataWrapperType& UserDataWrapper = Collector.AllocateOneFrameResource<FWaterVertexFactoryUserDataWrapperType>();
+		UserDataWrapper.UserData.RenderGroupType = RenderGroup;
+		UserDataWrapper.UserData.QuadTreePosition = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
+		UserDataWrapper.UserData.CaptureDepthRange = WaterQuadTreeMaxHeight - WaterQuadTreeMinHeight;
+		UserDataWrapper.UserData.IndirectInstanceData0 = IndirectDrawResources.InstanceData0->GetRHI();
+		UserDataWrapper.UserData.IndirectInstanceData1 = IndirectDrawResources.InstanceData1->GetRHI();
+		UserDataWrapper.UserData.IndirectInstanceData2 = IndirectDrawResources.InstanceData2->GetRHI();
+		UserDataWrapper.UserData.IndirectInstanceData3 = (WITH_WATER_SELECTION_SUPPORT != 0) ? IndirectDrawResources.InstanceData3->GetRHI() : nullptr;
+		UserDataWrapper.UserData.IndirectInstanceDataOffsetsSRV = IndirectDrawResources.InstanceDataOffsets->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
+		UserDataWrapper.UserData.IndirectInstanceData0SRV = IndirectDrawResources.InstanceData0->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
+		UserDataWrapper.UserData.IndirectInstanceData1SRV = IndirectDrawResources.InstanceData1->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
+		UserDataWrapper.UserData.IndirectInstanceData2SRV = IndirectDrawResources.InstanceData2->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
+		UserDataWrapper.UserData.IndirectInstanceData3SRV = (WITH_WATER_SELECTION_SUPPORT != 0) ? IndirectDrawResources.InstanceData3->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT)) : nullptr;
+
+		Result.UserData[(int32)RenderGroup] = &UserDataWrapper.UserData;
+	}
+
+	return Result;
+}
+
+FViewWaterQuadTree::FWaterLODParams FViewWaterQuadTree::GetWaterLODParams(const FVector& Position, float LODScale) const
+{
+	float WaterHeightForLOD = 0.0f;
+	WaterQuadTree.QueryInterpolatedTileBaseHeightAtLocation(FVector2D(Position), WaterHeightForLOD);
+
+	// Need to let the lowest LOD morph globally towards the next LOD. When the LOD is done morphing, simply clamp the LOD in the LOD selection to effectively promote the lowest LOD to the same LOD level as the one above
+	float DistToWater = FMath::Abs(Position.Z - WaterHeightForLOD) / LODScale;
+	DistToWater = FMath::Max(DistToWater - 2.0f, 0.0f);
+	DistToWater *= 2.0f;
+
+	// Clamp to WaterTileQuadTree.GetLODCount() - 1.0f prevents the last LOD to morph
+	const float FloatLOD = FMath::Clamp(FMath::Log2(DistToWater), 0.0f, WaterQuadTree.GetTreeDepth() - 1.0f);
+
+	FWaterLODParams WaterLODParams;
+	WaterLODParams.HeightLODFactor = FMath::Frac(FloatLOD);
+	WaterLODParams.LowestLOD = FMath::Clamp(FMath::FloorToInt(FloatLOD), 0, WaterQuadTree.GetTreeDepth() - 1);
+	WaterLODParams.WaterHeightForLOD = WaterHeightForLOD;
+
+	return WaterLODParams;
+}
+
+void FViewWaterQuadTree::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
 {
 	auto BuildOrthoMatrix = [](float InOrthoWidth, float InOrthoHeight, float DepthRange)
 	{

@@ -8,6 +8,7 @@
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDOptionsWindow.h"
 #include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
@@ -84,7 +85,7 @@ namespace UE::SkeletalMeshExporterUSD::Private
 			// just write out the slots with UsdGeomSubsets named "Section0", "Section1", ..., "SectionN" anyway
 		}
 	}
-}
+}	 // namespace UE::SkeletalMeshExporterUSD::Private
 
 USkeletalMeshExporterUsd::USkeletalMeshExporterUsd()
 {
@@ -272,7 +273,8 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 
 	FString RootPrimPath = (TEXT("/") + UsdUtils::SanitizeUsdIdentifier(*SkeletalMesh->GetName()));
 
-	UE::FUsdPrim RootPrim = UsdStage.DefinePrim(UE::FSdfPath(*RootPrimPath), TEXT("SkelRoot"));
+	const bool bExportAsSkeletal = !Options->MeshAssetOptions.bConvertSkeletalToNonSkeletal;
+	UE::FUsdPrim RootPrim = UsdStage.DefinePrim(UE::FSdfPath(*RootPrimPath), bExportAsSkeletal ? TEXT("SkelRoot") : TEXT("Mesh"));
 	if (!RootPrim)
 	{
 		return false;
@@ -306,14 +308,26 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 		AssetStage = UsdStage;
 	}
 
-	UnrealToUsd::ConvertSkeletalMesh(
-		SkeletalMesh,
-		RootPrim,
-		UsdUtils::GetDefaultTimeCode(),
-		&AssetStage,
-		Options->MeshAssetOptions.LowestMeshLOD,
-		Options->MeshAssetOptions.HighestMeshLOD
-	);
+	if (bExportAsSkeletal)
+	{
+		UnrealToUsd::ConvertSkeletalMesh(
+			SkeletalMesh,
+			RootPrim,
+			UsdUtils::GetDefaultTimeCode(),
+			&AssetStage,
+			Options->MeshAssetOptions.LowestMeshLOD,
+			Options->MeshAssetOptions.HighestMeshLOD
+		);
+	}
+	else
+	{
+		UnrealToUsd::ConvertSkeletalMeshToStaticMesh(
+			SkeletalMesh,
+			RootPrim,
+			UsdUtils::GetDefaultTimeCode(),
+			&AssetStage
+		);
+	}
 
 	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())
 	{
@@ -333,7 +347,7 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 
 		if (Options->MetadataOptions.bExportAssetMetadata)
 		{
-			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(SkeletalMesh))
+			if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(SkeletalMesh))
 			{
 				UnrealToUsd::ConvertMetadata(
 					UserData,
@@ -345,7 +359,7 @@ bool USkeletalMeshExporterUsd::ExportBinary(
 
 			if (USkeleton* Skeleton = SkeletalMesh->GetSkeleton())
 			{
-				if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(Skeleton))
+				if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetAssetUserData(Skeleton))
 				{
 					if (UserData->StageIdentifierToMetadata.Num() > 0)
 					{

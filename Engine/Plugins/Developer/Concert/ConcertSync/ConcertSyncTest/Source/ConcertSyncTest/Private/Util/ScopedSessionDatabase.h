@@ -15,21 +15,12 @@ namespace UE::ConcertSyncTests
 	{
 		FAutomationTestBase& Test;
 		const FString TestSessionPath_Server = FPaths::ProjectIntermediateDir() / TEXT("ConcertDatabaseTest_Server");
-		const FGuid EndpointID;
 	public:
 
 		FScopedSessionDatabase(FAutomationTestBase& Test)
 			: Test(Test)
-			, EndpointID(FGuid::NewGuid())
 		{
 			Open(TestSessionPath_Server);
-
-			FConcertSyncEndpointData EndpointData;
-			EndpointData.ClientInfo.Initialize();
-			if (!SetEndpoint(EndpointID, EndpointData))
-			{
-				Test.AddError(FString::Printf(TEXT("Test may be faulty because endpoint could not be set: %s"), *GetLastError()));
-			}
 		}
 
 		~FScopedSessionDatabase()
@@ -40,7 +31,5 @@ namespace UE::ConcertSyncTests
 			}
 			IFileManager::Get().DeleteDirectory(*TestSessionPath_Server, false, true);
 		}
-
-		const FGuid& GetEndpoint() const { return EndpointID; }
 	};
 }

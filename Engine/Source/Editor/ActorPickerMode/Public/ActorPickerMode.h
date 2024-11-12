@@ -6,6 +6,7 @@
 #include "Modules/ModuleInterface.h"
 
 class AActor;
+class FEditorModeTools;
 
 DECLARE_DELEGATE_OneParam( FOnGetAllowedClasses, TArray<const UClass*>& );
 DECLARE_DELEGATE_OneParam( FOnActorSelected, AActor* );
@@ -40,6 +41,8 @@ private:
 
 	/** Handler for when the application is deactivated. */
 	void OnApplicationDeactivated(const bool IsActive) const;
+
+	static FEditorModeTools* GetLevelEditorModeManager();
 
 private:
 	FDelegateHandle OnApplicationDeactivatedHandle;

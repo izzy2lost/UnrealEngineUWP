@@ -16,7 +16,7 @@ MipMapService::~MipMapService()
 
 AsyncJobResultPtr MipMapService::Tick()
 {
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Svc_MipMap::Tick"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Svc_MipMap::Tick"));
 
 	static constexpr size_t MaxBlobs = 8;
 	BlobPtr BlobObjs[MaxBlobs] = { 0 };

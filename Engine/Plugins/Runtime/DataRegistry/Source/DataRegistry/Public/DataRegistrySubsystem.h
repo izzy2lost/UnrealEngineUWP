@@ -11,7 +11,7 @@ struct FRealCurve;
 struct FTableRowBase;
 
 
-/** Enum used to indicate success or failure of EvaluateCurveTableRow. */
+/** Enum used to indicate success or failure of finding a data registry item */
 UENUM()
 enum class EDataRegistrySubsystemGetItemResult : uint8
 {
@@ -31,50 +31,67 @@ public:
 	// Blueprint Interface, it is static for ease of use in custom nodes
 
 	/**
-	 * Attempts to get cached structure data stored in a DataRegistry, modifying OutItem if the item is available
-	 * (EXPERIMENTAL) this version has an input param and simple bool return
+	 * Attempts to get cached structure data stored in a DataRegistry, modifying OutItem if the item is available.
+	 * This version has an input param and simple bool return.
 	 *
 	 * @param ItemID		Item identifier to lookup in cache
 	 * @param OutItem		This must be the same type as the registry, if the item is found this will be filled in with the found data
 	 * @returns				Returns true if the item was found and OutItem was modified
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DisplayName = "Get Data Registry Item (experimental)", CustomStructureParam = "OutItem"))
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DisplayName = "Get Data Registry Item", CustomStructureParam = "OutItem"))
 	static bool GetCachedItemBP(FDataRegistryId ItemId, UPARAM(ref) FTableRowBase& OutItem) { return false; }
 	DECLARE_FUNCTION(execGetCachedItemBP);
 
 	/**
-	 * Attempts to get cached structure data stored in a DataRegistry, modifying OutItem if the item is available
-	 * (EXPERIMENTAL) this version has an output param and enum result
+	 * Attempts to get cached structure data stored in a DataRegistry, returning OutItem if the item is available.
+	 * This version has two output pins for convenience, and OutItem should not be accessed from the Not Found pin.
 	 *
 	 * @param ItemID		Item identifier to lookup in cache
 	 * @param OutItem		This must be the same type as the registry, if the item is found this will be filled in with the found data
-	 * @returns				Returns true if the item was found and OutItem was modified
+	 * @param OutResult		Pick execution pin based on if the item was found and OutItem is valid
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DisplayName = "Find Data Registry Item (experimental)", CustomStructureParam = "OutItem", ExpandEnumAsExecs = "OutResult"))
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DisplayName = "Find Data Registry Item", CustomStructureParam = "OutItem", ExpandEnumAsExecs = "OutResult"))
 	static void FindCachedItemBP(FDataRegistryId ItemId, EDataRegistrySubsystemGetItemResult& OutResult, FTableRowBase& OutItem) {}
 	DECLARE_FUNCTION(execFindCachedItemBP);
 
 	/**
-	 * Attempts to get structure data stored in a DataRegistry cache after an async acquire, modifying OutItem if the item is available
+	 * Attempts to get structure data stored in a DataRegistry cache after an async acquire, returning OutItem if the item is available.
+	 * OutItem should not be accessed from the Not Found pin was not found.
 	 *
 	 * @param ItemID			Item identifier to lookup in cache
 	 * @param ResolvedLookup	Resolved identifier returned by acquire function
 	 * @param OutItem			This must be the same type as the registry, if the item is found this will be filled in with the found data
-	 * @returns					Returns true if the item was found and OutItem was modified
+	 * @param OutResult			Pick execution pin based on if the item was found and OutItem is valid
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DisplayName = "Get Data Registry Item From Lookup (experimental)", CustomStructureParam = "OutItem"))
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DisplayName = "Find Data Registry Item From Lookup", CustomStructureParam = "OutItem", ExpandEnumAsExecs = "OutResult"))
+	static void FindCachedItemFromLookupBP(FDataRegistryId ItemId, const FDataRegistryLookup& ResolvedLookup, EDataRegistrySubsystemGetItemResult& OutResult, FTableRowBase& OutItem) {}
+	DECLARE_FUNCTION(execFindCachedItemFromLookupBP);
+
+	/** Deprecated in favor of FindCachedItemFromLookupBP, but does still work properly */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = DataRegistry, meta = (DeprecatedFunction = "Note", DeprecationMessage = "Use Find Data Registry Item From Lookup instead", DisplayName = "Get Data Registry Item From Lookup", CustomStructureParam = "OutItem"))
 	static bool GetCachedItemFromLookupBP(FDataRegistryId ItemId, const FDataRegistryLookup& ResolvedLookup, FTableRowBase& OutItem) { return false; }
 	DECLARE_FUNCTION(execGetCachedItemFromLookupBP);
 
 	/**
-	 * Starts an asynchronous acquire of a data registry item that may not yet be cached.
+	 * Starts an asynchronous acquire of a data registry item that may not yet be cached, and then accessed with Get Data Registry Item From Lookup
+	 * This function will only work properly if the data registry is set up for asynchronous querying.
 	 *
 	 * @param ItemID			Item identifier to lookup in cache
 	 * @param AcquireCallback	Delegate that will be called after acquire succeeds or failed
 	 * @returns					Returns true if request was started, false on unrecoverable error
 	 */
-	UFUNCTION(BlueprintCallable, Category = DataRegistry, meta = (DisplayName = "Acquire Data Registry Item (experimental)") )
+	UFUNCTION(BlueprintCallable, Category = DataRegistry, meta = (DisplayName = "Acquire Data Registry Item") )
 	static bool AcquireItemBP(FDataRegistryId ItemId, FDataRegistryItemAcquiredBPCallback AcquireCallback);
+
+	/** 
+	 * Returns the list of known identifiers for an active data registry so they can be iterated with Find or Acquire.
+	 * Depending on how the registry is setup, this could be a large number of identifiers and they may not all be available.
+	 * 
+	 * @param RegistryType	The type of data registry to query
+	 * @param OutIdList		The list of known identifiers for the type, which will be empty if the type is not registered
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = DataRegistry, meta = (DisplayName = "Get Possible Data Registry Id List"))
+	static void GetPossibleDataRegistryIdList(FDataRegistryType RegistryType, TArray<FDataRegistryId>& OutIdList);
 
 	/**
 	 * Attempts to evaluate a curve stored in a DataRegistry cache using a specific input value
@@ -123,7 +140,7 @@ public:
 
 	// Native interface, works using subsystem instance
 
-	/** Returns the global subsystem instance */
+	/** Returns the global subsystem instance, this can return null during early engine startup and shutdown */
 	static UDataRegistrySubsystem* Get();
 
 	/** Finds the right registry for a type name */
@@ -256,6 +273,9 @@ protected:
 
 	/** Callback for when the subsystem has finished scanning for and initializing all known data registries */
 	FDataRegistrySubsystemInitializedCallback OnSubsystemInitializedCallback;
+
+	/** Singleton object for the DataRegistrySubsystem::Get function to use, populated in Initialize and cleared out in Deinitialize */
+	static TObjectPtr<UDataRegistrySubsystem> SingletonSubSystem;
 
 #if WITH_EDITOR
 	virtual void PreBeginPIE(bool bStartSimulate);

@@ -204,9 +204,16 @@ FCursorReply SDesignSurface::OnCursorQuery(const FGeometry& MyGeometry, const FP
 
 int32 SDesignSurface::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	OnPaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
+	// Store the current Scene Index, as child classes may want to use a different scene to preview widgets (Ex: SDesignerView)
+	int32 SceneIndex = FSlateApplication::Get().GetRenderer()->GetCurrentSceneIndex();
 
-	return SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	OnPaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
+	int32 Result = SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+
+	// Restore previous Scene Index to avoid permanently changing the scene
+	FSlateApplication::Get().GetRenderer()->SetCurrentSceneIndex(SceneIndex);
+
+	return Result;
 }
 
 void SDesignSurface::OnPaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const

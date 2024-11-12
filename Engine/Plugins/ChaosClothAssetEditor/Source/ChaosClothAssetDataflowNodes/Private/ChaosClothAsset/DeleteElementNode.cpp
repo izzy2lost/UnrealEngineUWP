@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetDeleteElementNode"
 
-FChaosClothAssetDeleteElementNode::FChaosClothAssetDeleteElementNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetDeleteElementNode::FChaosClothAssetDeleteElementNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
@@ -21,7 +21,7 @@ FChaosClothAssetDeleteElementNode::FChaosClothAssetDeleteElementNode(const Dataf
 	RegisterInputConnection(&SelectionName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 }
 
-void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetDeleteElementNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
@@ -290,7 +290,6 @@ void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, co
 			// Selection set
 			FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
 			const FName InSelectionName(*GetValue<FString>(Context, &SelectionName.StringValue));
-			SelectionName.StringValue_Override = GetValue<FString>(Context, &SelectionName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 
 			FName SelectionGroup;
 			TSet<int32> SelectedElements;
@@ -371,21 +370,6 @@ void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, co
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 	}
-}
-
-void FChaosClothAssetDeleteElementNode::OnSelected(Dataflow::FContext& Context)
-{
-	// Re-evaluate the input collection
-	const FManagedArrayCollection& SelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-
-	// Update the list of used group for the UI customization
-	CachedCollectionGroupNames = SelectionCollection.GroupNames();
-}
-
-void FChaosClothAssetDeleteElementNode::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
 }
 
 void FChaosClothAssetDeleteElementNode::Serialize(FArchive& Ar)

@@ -32,6 +32,14 @@ uint32 FWeightmapLayerAllocationInfo::GetHash() const
 	return Hash;
 }
 
+ELightMapInteractionType ULandscapeComponent::GetStaticLightingType() const 
+{ 
+	if (GetLightmapType() == ELightmapType::ForceVolumetric)
+		return LMIT_GlobalVolume;
+
+	return LMIT_Texture;	
+}
+
 #if WITH_EDITOR
 
 void FLandscapeEditToolRenderData::UpdateDebugColorMaterial(const ULandscapeComponent* const Component)

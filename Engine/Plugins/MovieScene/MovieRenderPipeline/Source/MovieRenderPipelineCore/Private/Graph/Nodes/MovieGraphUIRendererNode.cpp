@@ -38,7 +38,7 @@ void UMovieGraphUIRendererNode::FMovieGraphUIPass::Setup(TWeakObjectPtr<UMovieGr
 	RenderDataIdentifier.SubResourceName = TEXT("ui");
 }
 
-TSharedPtr<SWidget> UMovieGraphUIRendererNode::FMovieGraphUIPass::GetWidget()
+TSharedPtr<SWidget> UMovieGraphUIRendererNode::FMovieGraphUIPass::GetWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame)
 {
 	const UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
 	const ULocalPlayer* LocalPlayer = Pipeline->GetWorld()->GetFirstLocalPlayerFromController();

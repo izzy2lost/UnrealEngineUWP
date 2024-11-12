@@ -135,6 +135,9 @@ void SGraphPanel::Construct( const SGraphPanel::FArguments& InArgs )
 	PreviousFrameSavedMousePosForSplineOverlap = FVector2D::ZeroVector;
 
 	TimeLeftToInvalidatePerTick = 0.0f;
+	
+	bHasCustomPrepass = true;
+	bCheckNodeGraphObjValidity = false;
 }
 
 SGraphPanel::~SGraphPanel()
@@ -751,6 +754,16 @@ void SGraphPanel::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrange
 	ArrangedChildren.Append(MyArrangedChildren);
 }
 
+bool SGraphPanel::CustomPrepass(float LayoutScaleMultiplier)
+{
+	if(bCheckNodeGraphObjValidity)
+	{
+		bCheckNodeGraphObjValidity = false;
+		RemoveAllNodesWithInvalidPointers();
+	}
+	return true; // still run prepass on everything
+}
+
 void SGraphPanel::UpdateSelectedNodesPositions(FVector2D PositionIncrement)
 {
 	FScopedTransaction Transaction(NSLOCTEXT("GraphEditor", "NudgeNodeAction", "Nudge Node"));
@@ -1365,7 +1378,7 @@ bool SGraphPanel::PassesAssetReferenceFilter(const TArray<FAssetData>& Reference
 		UObject* GraphOuter = GraphObj ? GraphObj->GetOuter() : nullptr;
 		if (GraphOuter)
 		{
-			AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(GraphOuter));
+			AssetReferenceFilterContext.AddReferencingAsset(FAssetData(GraphOuter));
 		}
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 		if (AssetReferenceFilter.IsValid())
@@ -1506,7 +1519,7 @@ void SGraphPanel::MoveNodesToAnchorPinAtGraphPosition(TArrayView<UEdGraphNode* c
 				if (bNodeNeedsPrepass || bNoDesiredSize)
 				{
 					const int32 ChildIndex = Panel->Children.Find(OwningNodeWidget.ToSharedRef());
-					const float SelfLayoutScaleMultiplier = Panel->PrepassLayoutScaleMultiplier.Get(1.f);
+					const float SelfLayoutScaleMultiplier = Panel->GetPrepassLayoutScaleMultiplier();
 					const float ChildLayoutScaleMultiplier = Panel->bHasRelativeLayoutScale
 								? SelfLayoutScaleMultiplier * Panel->GetRelativeLayoutScale(ChildIndex, SelfLayoutScaleMultiplier)
 								: SelfLayoutScaleMultiplier;
@@ -2148,7 +2161,7 @@ void SGraphPanel::AddNode(UEdGraphNode* Node, AddNodeBehavior Behavior)
 	// We also need to take a bit of care to pass through the same layout scale multiplier as Prepass_ChildLoop() would have so that the zoom level
 	// scale is used, otherwise you'd still get a single frame of jitter while the graph is zoomed out.
 	const int32 ChildIndex = Children.Num() - 1;
-	const float SelfLayoutScaleMultiplier = PrepassLayoutScaleMultiplier.Get(1.f);
+	const float SelfLayoutScaleMultiplier = GetPrepassLayoutScaleMultiplier();
 	const float ChildLayoutScaleMultiplier = bHasRelativeLayoutScale
 		? SelfLayoutScaleMultiplier * GetRelativeLayoutScale(ChildIndex, SelfLayoutScaleMultiplier)
 		: SelfLayoutScaleMultiplier;
@@ -2176,6 +2189,38 @@ void SGraphPanel::RemoveNode(const UEdGraphNode* Node)
 		{
 			VisibleChildren.RemoveAt(Iter);
 			break;
+		}
+	}
+
+	NodeToWidgetLookup.Remove(Node);
+}
+
+void SGraphPanel::RemoveAllNodesWithInvalidPointers()
+{
+	if (GraphObj == nullptr)
+	{
+		return;
+	}
+	
+	TArray<TSharedRef<SGraphNode>> NodesWithInvalidPointers;
+
+	for (int32 Iter = 0; Iter != Children.Num(); ++Iter)
+	{
+		TSharedRef<SGraphNode> Child = GetChild(Iter);
+		if (const UEdGraphNode* NodeObj = Child->GetNodeObj())
+		{
+			if (!GraphObj->Nodes.Contains(NodeObj))
+			{
+				NodesWithInvalidPointers.Add(Child);
+			}
+		}
+	}
+
+	for (const TSharedRef<SGraphNode>& NodeWithInvalidPoint : NodesWithInvalidPointers)
+	{
+		if (const UEdGraphNode* NodeObj = NodeWithInvalidPoint->GetNodeObj())
+		{
+			RemoveNode(NodeObj);
 		}
 	}
 }
@@ -2455,6 +2500,7 @@ void SGraphPanel::OnGraphChanged(const FEdGraphEditAction& EditAction)
 			}
 
 			RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda(RemoveNodesDelegateWrapper, StaticCastWeakPtr<SGraphPanel>(AsWeak()), NodePtrSet));
+			bCheckNodeGraphObjValidity = true;
 		}
 		if (bWasAddAction)
 		{

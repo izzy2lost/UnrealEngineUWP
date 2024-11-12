@@ -38,7 +38,7 @@ static bool ShouldAlwaysWriteDescriptors()
 }
 
 FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVulkanDevice* InDevice, FVulkanComputePipeline* InComputePipeline)
-	: FVulkanCommonPipelineDescriptorState(InDevice)
+	: FVulkanCommonPipelineDescriptorState(InDevice, ShaderStage::NumComputeStages)
 	, PackedUniformBuffersMask(0)
 	, PackedUniformBuffersDirty(0)
 	, ComputePipeline(InComputePipeline)
@@ -49,9 +49,8 @@ FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVu
 	PackedUniformBuffers.Init(CodeHeader, PackedUniformBuffersMask);
 
 	DescriptorSetsLayout = &InComputePipeline->GetLayout().GetDescriptorSetsLayout();
-	PipelineDescriptorInfo = &InComputePipeline->GetComputeLayout().GetComputePipelineDescriptorInfo();
 
-	UsedSetsMask = PipelineDescriptorInfo->HasDescriptorsInSetMask;
+	UsedSetsMask = (CodeHeader.Bindings.Num() > 0) ? 1 : 0;
 
 	CreateDescriptorWriteInfos();
 	InComputePipeline->AddRef();
@@ -62,35 +61,34 @@ FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVu
 void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 {
 	check(DSWriteContainer.DescriptorWrites.Num() == 0);
+	check(UsedSetsMask <= (uint32)(((uint32)1 << MaxNumSets) - 1));
 
-	const int32 NumSets = DescriptorSetsLayout->RemappingInfo.SetInfos.Num();
-	check(UsedSetsMask <= (uint32)(((uint32)1 << NumSets) - 1));
-
-	for (int32 Set = 0; Set < NumSets; ++Set)
+	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
-		const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = DescriptorSetsLayout->RemappingInfo.SetInfos[Set];
+		const FVulkanDescriptorSetsLayoutInfo::FStageInfo& StageInfo = DescriptorSetsLayout->StageInfos[Set];
+		if (!StageInfo.Types.Num())
+		{
+			continue;
+		}
 		
 		if (UseVulkanDescriptorCache())
 		{
-			DSWriteContainer.HashableDescriptorInfo.AddZeroed(SetInfo.Types.Num() + 1); // Add 1 for the Layout
+			DSWriteContainer.HashableDescriptorInfo.AddZeroed(StageInfo.Types.Num() + 1); // Add 1 for the Layout
 		}
-		DSWriteContainer.DescriptorWrites.AddZeroed(SetInfo.Types.Num());
-		DSWriteContainer.DescriptorImageInfo.AddZeroed(SetInfo.NumImageInfos);
-		DSWriteContainer.DescriptorBufferInfo.AddZeroed(SetInfo.NumBufferInfos);
+		DSWriteContainer.DescriptorWrites.AddZeroed(StageInfo.Types.Num());
+		DSWriteContainer.DescriptorImageInfo.AddZeroed(StageInfo.NumImageInfos);
+		DSWriteContainer.DescriptorBufferInfo.AddZeroed(StageInfo.NumBufferInfos);
+		DSWriteContainer.AccelerationStructureWrites.AddZeroed(StageInfo.NumAccelerationStructures);
+		DSWriteContainer.AccelerationStructures.AddZeroed(StageInfo.NumAccelerationStructures);
 
-#if VULKAN_RHI_RAYTRACING
-		DSWriteContainer.AccelerationStructureWrites.AddZeroed(SetInfo.NumAccelerationStructures);
-		DSWriteContainer.AccelerationStructures.AddZeroed(SetInfo.NumAccelerationStructures);
-#endif // VULKAN_RHI_RAYTRACING
-
-		checkf(SetInfo.Types.Num() < 255, TEXT("Need more bits for BindingToDynamicOffsetMap (currently 8)! Requires %d descriptor bindings in a set!"), SetInfo.Types.Num());
-		DSWriteContainer.BindingToDynamicOffsetMap.AddUninitialized(SetInfo.Types.Num());
+		checkf(StageInfo.Types.Num() < 255, TEXT("Need more bits for BindingToDynamicOffsetMap (currently 8)! Requires %d descriptor bindings in a set!"), StageInfo.Types.Num());
+		DSWriteContainer.BindingToDynamicOffsetMap.AddUninitialized(StageInfo.Types.Num());
 	}
 
 	FMemory::Memset(DSWriteContainer.BindingToDynamicOffsetMap.GetData(), 255, DSWriteContainer.BindingToDynamicOffsetMap.Num());
 
 	check(DSWriter.Num() == 0);
-	DSWriter.AddDefaulted(NumSets);
+	DSWriter.AddDefaulted(MaxNumSets);
 
 	const FVulkanSamplerState& DefaultSampler = Device->GetDefaultSampler();
 	const FVulkanView::FTextureView& DefaultImageView = Device->GetDefaultImageView();
@@ -103,63 +101,76 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 	VkWriteDescriptorSet* CurrentDescriptorWrite = DSWriteContainer.DescriptorWrites.GetData();
 	VkDescriptorImageInfo* CurrentImageInfo = DSWriteContainer.DescriptorImageInfo.GetData();
 	VkDescriptorBufferInfo* CurrentBufferInfo = DSWriteContainer.DescriptorBufferInfo.GetData();
-
-#if VULKAN_RHI_RAYTRACING
 	VkWriteDescriptorSetAccelerationStructureKHR* CurrentAccelerationStructuresWriteDescriptors = DSWriteContainer.AccelerationStructureWrites.GetData();
 	VkAccelerationStructureKHR* CurrentAccelerationStructures = DSWriteContainer.AccelerationStructures.GetData();
-#endif // VULKAN_RHI_RAYTRACING
 
 	uint8* CurrentBindingToDynamicOffsetMap = DSWriteContainer.BindingToDynamicOffsetMap.GetData();
 	TArray<uint32> DynamicOffsetsStart;
-	DynamicOffsetsStart.AddZeroed(NumSets);
+	DynamicOffsetsStart.AddZeroed(MaxNumSets);
 	uint32 TotalNumDynamicOffsets = 0;
 
-	for (int32 Set = 0; Set < NumSets; ++Set)
+	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
-		const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = DescriptorSetsLayout->RemappingInfo.SetInfos[Set];
+		const FVulkanDescriptorSetsLayoutInfo::FStageInfo& StageInfo = DescriptorSetsLayout->StageInfos[Set];
+		if (!StageInfo.Types.Num())
+		{
+			continue;
+		}
 
 		DynamicOffsetsStart[Set] = TotalNumDynamicOffsets;
 
-		uint32 NumDynamicOffsets = DSWriter[Set].SetupDescriptorWrites(
-			SetInfo.Types, CurrentHashableDescriptorInfo,
+		const uint32 NumDynamicOffsets = DSWriter[Set].SetupDescriptorWrites(
+			StageInfo.Types, CurrentHashableDescriptorInfo,
 			CurrentDescriptorWrite, CurrentImageInfo, CurrentBufferInfo, CurrentBindingToDynamicOffsetMap,
-#if VULKAN_RHI_RAYTRACING
 			CurrentAccelerationStructuresWriteDescriptors,
 			CurrentAccelerationStructures,
-#endif // VULKAN_RHI_RAYTRACING
 			DefaultSampler, DefaultImageView);
 
 		TotalNumDynamicOffsets += NumDynamicOffsets;
 
 		if (CurrentHashableDescriptorInfo) // UseVulkanDescriptorCache()
 		{
-			CurrentHashableDescriptorInfo += SetInfo.Types.Num();
+			CurrentHashableDescriptorInfo += StageInfo.Types.Num();
 			CurrentHashableDescriptorInfo->Layout.Max0 = UINT32_MAX;
 			CurrentHashableDescriptorInfo->Layout.Max1 = UINT32_MAX;
 			CurrentHashableDescriptorInfo->Layout.LayoutId = DescriptorSetsLayout->GetHandleIds()[Set];
 			++CurrentHashableDescriptorInfo;
 		}
 
-		CurrentDescriptorWrite += SetInfo.Types.Num();
-		CurrentImageInfo += SetInfo.NumImageInfos;
-		CurrentBufferInfo += SetInfo.NumBufferInfos;
+		CurrentDescriptorWrite += StageInfo.Types.Num();
+		CurrentImageInfo += StageInfo.NumImageInfos;
+		CurrentBufferInfo += StageInfo.NumBufferInfos;
+		CurrentAccelerationStructuresWriteDescriptors += StageInfo.NumAccelerationStructures;
+		CurrentAccelerationStructures += StageInfo.NumAccelerationStructures;
 
-#if VULKAN_RHI_RAYTRACING
-		CurrentAccelerationStructuresWriteDescriptors += SetInfo.NumAccelerationStructures;
-		CurrentAccelerationStructures += SetInfo.NumAccelerationStructures;
-#endif // VULKAN_RHI_RAYTRACING
-
-		CurrentBindingToDynamicOffsetMap += SetInfo.Types.Num();
+		CurrentBindingToDynamicOffsetMap += StageInfo.Types.Num();
 	}
 
 	DynamicOffsets.AddZeroed(TotalNumDynamicOffsets);
-	for (int32 Set = 0; Set < NumSets; ++Set)
+	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
 		DSWriter[Set].DynamicOffsets = DynamicOffsetsStart[Set] + DynamicOffsets.GetData();
 	}
 
-	DescriptorSetHandles.AddZeroed(NumSets);
+	DescriptorSetHandles.AddZeroed(MaxNumSets);
 }
+
+
+static inline VulkanRHI::FVulkanAllocation UpdatePackedUniformBuffers(const FPackedUniformBuffers& PackedUniformBuffers, FVulkanCommandListContext* InContext, FVulkanCmdBuffer* InCmdBuffer)
+{
+	const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer();
+
+	const uint32 UBSize = (uint32)StagedUniformBuffer.Num();
+	const uint32 UBAlign = (uint32)InCmdBuffer->GetDevice()->GetLimits().minUniformBufferOffsetAlignment;
+
+	VulkanRHI::FVulkanAllocation TempAllocation;
+	uint8* MappedPointer = InContext->GetTempBlockAllocator().Alloc(UBSize, UBAlign, InCmdBuffer, TempAllocation);
+
+	FMemory::Memcpy(MappedPointer, StagedUniformBuffer.GetData(), UBSize);
+
+	return TempAllocation;
+}
+
 
 template<bool bUseDynamicGlobalUBs>
 bool FVulkanComputePipelineDescriptorState::InternalUpdateDescriptorSets(FVulkanCommandListContext* CmdListContext, FVulkanCmdBuffer* CmdBuffer)
@@ -174,16 +185,12 @@ bool FVulkanComputePipelineDescriptorState::InternalUpdateDescriptorSets(FVulkan
 		return false;
 	}
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
-	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
 	if (PackedUniformBuffersDirty != 0)
 	{
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 		SCOPE_CYCLE_COUNTER(STAT_VulkanApplyPackedUniformBuffers);
 #endif
-		UpdatePackedUniformBuffers<bUseDynamicGlobalUBs>(UBOffsetAlignment, PipelineDescriptorInfo->RemappingInfo->StageInfos[0].PackedUBBindingIndices.GetData(), PackedUniformBuffers, DSWriter[0], UniformBufferUploader, CPURingBufferBase, PackedUniformBuffersDirty, CmdBuffer);
+		SubmitPackedUniformBuffers<bUseDynamicGlobalUBs>(DSWriter[ShaderStage::Compute], UpdatePackedUniformBuffers(PackedUniformBuffers, CmdListContext, CmdBuffer));
 		PackedUniformBuffersDirty = 0;
 	}
 
@@ -224,64 +231,38 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 	check(DSWriteContainer.DescriptorBufferInfo.Num() == DSWriteContainer.DescriptorWrites.Num());
 	check(DSWriteContainer.DescriptorImageInfo.Num() == 0);
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
-	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
 	FVulkanBindlessDescriptorManager::FUniformBufferDescriptorArrays StageUBs;
 
-	const int32 Stage = (int32)ShaderStage::EStage::Compute;
-	const FDescriptorSetRemappingInfo* RESTRICT RemappingInfo = PipelineDescriptorInfo->RemappingInfo;
-	const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo->StageInfos[Stage];
+	const FVulkanShaderHeader& Header = ComputePipeline->GetShaderCodeHeader();
 
-	TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
-	DescriptorAddressInfos.SetNumZeroed(StageInfo.PackedUBBindingIndices.Num() + StageInfo.UniformBuffers.Num());
+	TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[ShaderStage::EStage::Compute];
+	DescriptorAddressInfos.SetNumZeroed(Header.NumBoundUniformBuffers);
+	uint32 UBIndex = 0;
 
-	// PackedUniformBuffersDirty ?
-	check((PackedUniformBuffersMask == 0) || (PackedUniformBuffersMask == 1));
+	// UBs are currently set from a fresh batch of descriptors for every call, so ignore PackedUniformBuffersDirty
+	check(PackedUniformBuffersMask <= 1);
 	if (PackedUniformBuffersMask != 0)
 	{
-		check((StageInfo.PackedUBDescriptorSet != UINT16_MAX) && (StageInfo.PackedUBDescriptorSet <= (uint16)Stage));
-		uint64 RemainingPackedUniformsMask = PackedUniformBuffersMask;
-		int32 PackedUBIndex = 0;
-		while (RemainingPackedUniformsMask)
-		{
-			if (RemainingPackedUniformsMask & 1)
-			{
-				const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer(PackedUBIndex);
-				const int32 UBSize = StagedUniformBuffer.Num();
-				const int32 BindingIndex = StageInfo.PackedUBBindingIndices[PackedUBIndex];
+		const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers.GetBuffer();
+		const int32 UBSize = StagedUniformBuffer.Num();
+		const int32 BindingIndex = 0;
+		const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
 
-				const uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, CmdBuffer);
-
-				// Make sure it wasn't written to already
-				VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[BindingIndex];
-				check(DescriptorAddressInfo.sType == 0);
-				DescriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-				DescriptorAddressInfo.address = UniformBufferUploader->GetCPUBufferAddress() + RingBufferOffset;
-				DescriptorAddressInfo.range = UBSize;
-
-				// get location in the ring buffer to use
-				FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
-			}
-			RemainingPackedUniformsMask = RemainingPackedUniformsMask >> 1;
-			++PackedUBIndex;
-		}
+		VulkanRHI::FVulkanAllocation TempAllocation;
+		uint8* MappedPointer = CmdListContext->GetTempBlockAllocator().Alloc(UBSize, UBOffsetAlignment, CmdBuffer, TempAllocation, &DescriptorAddressInfos[BindingIndex]);
+		FMemory::Memcpy(MappedPointer, StagedUniformBuffer.GetData(), UBSize);
 
 		PackedUniformBuffersDirty = 0;
+		++UBIndex;
 	}
 
-	for (int32 UBIndex = 0; UBIndex < StageInfo.UniformBuffers.Num(); ++UBIndex)
+	for (;UBIndex < Header.NumBoundUniformBuffers; ++UBIndex)
 	{
-		const FDescriptorSetRemappingInfo::FUBRemappingInfo& UBRemappingInfo = StageInfo.UniformBuffers[UBIndex];
-		check((StageInfo.PackedUBDescriptorSet == UINT16_MAX) || UBRemappingInfo.Remapping.NewDescriptorSet == StageInfo.PackedUBDescriptorSet);
-		check(UBRemappingInfo.bHasConstantData);
-
-		VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBRemappingInfo.Remapping.NewBindingIndex];
+		VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBIndex];
 		check(DescriptorAddressInfo.sType == 0);
 
-		VkWriteDescriptorSet& WriteDescriptorSet = DSWriter[UBRemappingInfo.Remapping.NewDescriptorSet].WriteDescriptors[UBRemappingInfo.Remapping.NewBindingIndex];
-		check(WriteDescriptorSet.dstBinding == UBRemappingInfo.Remapping.NewBindingIndex);
+		VkWriteDescriptorSet& WriteDescriptorSet = DSWriter[ShaderStage::EStage::Compute].WriteDescriptors[UBIndex];
+		check(WriteDescriptorSet.dstBinding == UBIndex);
 		check(WriteDescriptorSet.dstArrayElement == 0);
 		check(WriteDescriptorSet.descriptorCount == 1);
 		check(WriteDescriptorSet.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -298,58 +279,84 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 	}
 
 	// Send to descriptor manager
-	Device->GetBindlessDescriptorManager()->RegisterUniformBuffers(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_COMPUTE, StageUBs);
+	Device->GetBindlessDescriptorManager()->RegisterUniformBuffers(CmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, StageUBs);
 }
 
 FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(FVulkanDevice* InDevice, FVulkanRHIGraphicsPipelineState* InGfxPipeline)
-	: FVulkanCommonPipelineDescriptorState(InDevice)
+	: FVulkanCommonPipelineDescriptorState(InDevice, ShaderStage::NumGraphicsStages)
 	, GfxPipeline(InGfxPipeline)
 {
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanShaders);
 	FMemory::Memzero(PackedUniformBuffersMask);
 	FMemory::Memzero(PackedUniformBuffersDirty);
 
-	check(InGfxPipeline);
+	check(InGfxPipeline && InGfxPipeline->Layout && InGfxPipeline->Layout->IsGfxLayout());
+	DescriptorSetsLayout = &InGfxPipeline->Layout->GetDescriptorSetsLayout();
+
+	UsedSetsMask = 0;
+
+	const FVulkanShaderFactory& ShaderFactory = Device->GetShaderFactory();
+
+
+	uint64 VertexShaderKey = InGfxPipeline->GetShaderKey(SF_Vertex);
+	if (VertexShaderKey)
 	{
-		
-		check(InGfxPipeline->Layout);
-		DescriptorSetsLayout = &InGfxPipeline->Layout->GetDescriptorSetsLayout();
-		FVulkanGfxLayout& GfxLayout  = *(FVulkanGfxLayout*)InGfxPipeline->Layout;
-		PipelineDescriptorInfo = &GfxLayout.GetGfxPipelineDescriptorInfo();
-
-		UsedSetsMask = PipelineDescriptorInfo->HasDescriptorsInSetMask;
-		const FVulkanShaderFactory& ShaderFactory = Device->GetShaderFactory();
-
 		const FVulkanVertexShader* VertexShader = ShaderFactory.LookupShader<FVulkanVertexShader>(InGfxPipeline->GetShaderKey(SF_Vertex));
 		check(VertexShader);
+
 		PackedUniformBuffers[ShaderStage::Vertex].Init(VertexShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Vertex]);
+		UsedSetsMask |= VertexShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Vertex) : 0u;
+	}
 
-		uint64 PixelShaderKey = InGfxPipeline->GetShaderKey(SF_Pixel);
-		if (PixelShaderKey)
-		{
-			const FVulkanPixelShader* PixelShader = ShaderFactory.LookupShader<FVulkanPixelShader>(PixelShaderKey);
-			check(PixelShader);
+	uint64 PixelShaderKey = InGfxPipeline->GetShaderKey(SF_Pixel);
+	if (PixelShaderKey)
+	{
+		const FVulkanPixelShader* PixelShader = ShaderFactory.LookupShader<FVulkanPixelShader>(PixelShaderKey);
+		check(PixelShader);
 
-			PackedUniformBuffers[ShaderStage::Pixel].Init(PixelShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Pixel]);
-		}
+		PackedUniformBuffers[ShaderStage::Pixel].Init(PixelShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Pixel]);
+		UsedSetsMask |= PixelShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Pixel) : 0u;
+	}
 
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
-		uint64 GeometryShaderKey = InGfxPipeline->GetShaderKey(SF_Geometry);
-		if (GeometryShaderKey)
-		{
-			const FVulkanGeometryShader* GeometryShader = ShaderFactory.LookupShader<FVulkanGeometryShader>(GeometryShaderKey);
-			check(GeometryShader);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	uint64 MeshShaderKey = InGfxPipeline->GetShaderKey(SF_Mesh);
+	if (MeshShaderKey)
+	{
+		const FVulkanMeshShader* MeshShader = ShaderFactory.LookupShader<FVulkanMeshShader>(MeshShaderKey);
+		check(MeshShader);
 
-			PackedUniformBuffers[ShaderStage::Geometry].Init(GeometryShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Geometry]);
-		}
+		PackedUniformBuffers[ShaderStage::Mesh].Init(MeshShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Mesh]);
+		UsedSetsMask |= MeshShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Mesh) : 0u;
+	}
+
+	uint64 TaskShaderKey = InGfxPipeline->GetShaderKey(SF_Amplification);
+	if (TaskShaderKey)
+	{
+		const FVulkanTaskShader* TaskShader = ShaderFactory.LookupShader<FVulkanTaskShader>(TaskShaderKey);
+		check(TaskShader);
+
+		PackedUniformBuffers[ShaderStage::Task].Init(TaskShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Task]);
+		UsedSetsMask |= TaskShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Task) : 0u;
+	}
 #endif
 
-		CreateDescriptorWriteInfos();
+#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
+	uint64 GeometryShaderKey = InGfxPipeline->GetShaderKey(SF_Geometry);
+	if (GeometryShaderKey)
+	{
+		const FVulkanGeometryShader* GeometryShader = ShaderFactory.LookupShader<FVulkanGeometryShader>(GeometryShaderKey);
+		check(GeometryShader);
 
-		//UE_LOG(LogVulkanRHI, Warning, TEXT("GfxPSOState %p For PSO %p Writes:%d"), this, InGfxPipeline, DSWriteContainer.DescriptorWrites.Num());
-
-		InGfxPipeline->AddRef();
+		PackedUniformBuffers[ShaderStage::Geometry].Init(GeometryShader->GetCodeHeader(), PackedUniformBuffersMask[ShaderStage::Geometry]);
+		UsedSetsMask |= GeometryShader->GetCodeHeader().Bindings.Num() ? (1u << ShaderStage::Geometry) : 0u;
 	}
+#endif
+
+	CreateDescriptorWriteInfos();
+
+	//UE_LOG(LogVulkanRHI, Warning, TEXT("GfxPSOState %p For PSO %p Writes:%d"), this, InGfxPipeline, DSWriteContainer.DescriptorWrites.Num());
+
+	InGfxPipeline->AddRef();
 }
 
 template<bool bUseDynamicGlobalUBs>
@@ -365,23 +372,16 @@ bool FVulkanGraphicsPipelineDescriptorState::InternalUpdateDescriptorSets(FVulka
 		return false;
 	}
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
-	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
-	const FDescriptorSetRemappingInfo* RESTRICT RemappingInfo = PipelineDescriptorInfo->RemappingInfo;
-
 	// Process updates
 	{
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 		SCOPE_CYCLE_COUNTER(STAT_VulkanApplyPackedUniformBuffers);
 #endif
-		for (int32 Stage = 0; Stage < ShaderStage::NumStages; ++Stage)
+		for (int32 Stage = 0; Stage < ShaderStage::NumGraphicsStages; ++Stage)
 		{
 			if (PackedUniformBuffersDirty[Stage] != 0)
 			{
-				const uint32 DescriptorSet = RemappingInfo->StageInfos[Stage].PackedUBDescriptorSet;
-				MarkDirty(UpdatePackedUniformBuffers<bUseDynamicGlobalUBs>(UBOffsetAlignment, RemappingInfo->StageInfos[Stage].PackedUBBindingIndices.GetData(), PackedUniformBuffers[Stage], DSWriter[DescriptorSet], UniformBufferUploader, CPURingBufferBase, PackedUniformBuffersDirty[Stage], CmdBuffer));
+				MarkDirty(SubmitPackedUniformBuffers<bUseDynamicGlobalUBs>(DSWriter[Stage], UpdatePackedUniformBuffers(PackedUniformBuffers[Stage], CmdListContext, CmdBuffer)));
 				PackedUniformBuffersDirty[Stage] = 0;
 			}
 		}
@@ -443,11 +443,7 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 	check(DSWriteContainer.DescriptorBufferInfo.Num() == DSWriteContainer.DescriptorWrites.Num());
 	check(DSWriteContainer.DescriptorImageInfo.Num() == 0);
 
-	FVulkanUniformBufferUploader* UniformBufferUploader = CmdListContext->GetUniformBufferUploader();
-	uint8* CPURingBufferBase = (uint8*)UniformBufferUploader->GetCPUMappedPointer();
 	const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-
-	const FDescriptorSetRemappingInfo* RESTRICT RemappingInfo = PipelineDescriptorInfo->RemappingInfo;
 
 	FVulkanBindlessDescriptorManager::FUniformBufferDescriptorArrays StageUBs;
 
@@ -456,58 +452,43 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 		SCOPE_CYCLE_COUNTER(STAT_VulkanApplyPackedUniformBuffers);
 #endif
-		for (int32 Stage = 0; Stage < ShaderStage::NumStages; ++Stage)
+		for (int32 Stage = 0; Stage < ShaderStage::NumGraphicsStages; ++Stage)
 		{
-			const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo->StageInfos[Stage];
-
-			TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
-			DescriptorAddressInfos.SetNumZeroed(StageInfo.PackedUBBindingIndices.Num() + StageInfo.UniformBuffers.Num());
-
-			// PackedUniformBuffersDirty ?
-			check((PackedUniformBuffersMask[Stage] == 0) || (PackedUniformBuffersMask[Stage] == 1));
-			if (PackedUniformBuffersMask[Stage] != 0)
+			const FVulkanShader* VulkanShader = GfxPipeline->GetVulkanShader(GetFrequencyForGfxStage((ShaderStage::EStage)Stage));
+			if (!VulkanShader)
 			{
-				check((StageInfo.PackedUBDescriptorSet != UINT16_MAX) && (StageInfo.PackedUBDescriptorSet <= (uint16)Stage));
-				uint64 RemainingPackedUniformsMask = PackedUniformBuffersMask[Stage];
-				int32 PackedUBIndex = 0;
-				while (RemainingPackedUniformsMask)
-				{
-					if (RemainingPackedUniformsMask & 1)
-					{
-						const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers[Stage].GetBuffer(PackedUBIndex);
-						const int32 UBSize = StagedUniformBuffer.Num();
-						const int32 BindingIndex = StageInfo.PackedUBBindingIndices[PackedUBIndex];
-
-						const uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(UBSize, UBOffsetAlignment, CmdBuffer);
-
-						// Make sure it wasn't written to already
-						VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[BindingIndex];
-						check(DescriptorAddressInfo.sType == 0);
-						DescriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-						DescriptorAddressInfo.address = UniformBufferUploader->GetCPUBufferAddress() + RingBufferOffset;
-						DescriptorAddressInfo.range = UBSize;
-
-						// get location in the ring buffer to use
-						FMemory::Memcpy(CPURingBufferBase + RingBufferOffset, StagedUniformBuffer.GetData(), UBSize);
-					}
-					RemainingPackedUniformsMask = RemainingPackedUniformsMask >> 1;
-					++PackedUBIndex;
-				}
-
-				PackedUniformBuffersDirty[Stage] = 0;
+				continue;
 			}
 
-			for (int32 UBIndex = 0; UBIndex < StageInfo.UniformBuffers.Num(); ++UBIndex)
-			{
-				const FDescriptorSetRemappingInfo::FUBRemappingInfo& UBRemappingInfo = StageInfo.UniformBuffers[UBIndex];
-				check((StageInfo.PackedUBDescriptorSet == UINT16_MAX) || UBRemappingInfo.Remapping.NewDescriptorSet == StageInfo.PackedUBDescriptorSet);
-				check(UBRemappingInfo.bHasConstantData);
+			const FVulkanShaderHeader& Header = VulkanShader->GetCodeHeader();
 
-				VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBRemappingInfo.Remapping.NewBindingIndex];
+			TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[Stage];
+			DescriptorAddressInfos.SetNumZeroed(Header.NumBoundUniformBuffers);
+			uint32 UBIndex = 0;
+
+			// UBs are currently set from a fresh batch of descriptors for every call, so ignore PackedUniformBuffersDirty
+			check(PackedUniformBuffersMask[Stage] <= 1);
+			if (PackedUniformBuffersMask[Stage] != 0)
+			{
+				const FPackedUniformBuffers::FPackedBuffer& StagedUniformBuffer = PackedUniformBuffers[Stage].GetBuffer();
+				const int32 UBSize = StagedUniformBuffer.Num();
+				const int32 BindingIndex = 0;
+
+				VulkanRHI::FVulkanAllocation TempAllocation;
+				uint8* MappedPointer = CmdListContext->GetTempBlockAllocator().Alloc(UBSize, UBOffsetAlignment, CmdBuffer, TempAllocation, &DescriptorAddressInfos[BindingIndex]);
+				FMemory::Memcpy(MappedPointer, StagedUniformBuffer.GetData(), UBSize);
+
+				PackedUniformBuffersDirty[Stage] = 0;
+				++UBIndex;
+			}
+
+			for (; UBIndex < Header.NumBoundUniformBuffers; ++UBIndex)
+			{
+				VkDescriptorAddressInfoEXT& DescriptorAddressInfo = DescriptorAddressInfos[UBIndex];
 				check(DescriptorAddressInfo.sType == 0);
 
-				VkWriteDescriptorSet& WriteDescriptorSet = DSWriter[UBRemappingInfo.Remapping.NewDescriptorSet].WriteDescriptors[UBRemappingInfo.Remapping.NewBindingIndex];
-				check(WriteDescriptorSet.dstBinding == UBRemappingInfo.Remapping.NewBindingIndex);
+				VkWriteDescriptorSet& WriteDescriptorSet = DSWriter[Stage].WriteDescriptors[UBIndex];
+				check(WriteDescriptorSet.dstBinding == UBIndex);
 				check(WriteDescriptorSet.dstArrayElement == 0);
 				check(WriteDescriptorSet.descriptorCount == 1);
 				check(WriteDescriptorSet.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -526,7 +507,7 @@ void FVulkanGraphicsPipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCo
 	}
 
 	// Send to descriptor manager
-	Device->GetBindlessDescriptorManager()->RegisterUniformBuffers(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, StageUBs);
+	Device->GetBindlessDescriptorManager()->RegisterUniformBuffers(CmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, StageUBs);
 }
 
 
@@ -535,8 +516,8 @@ void FVulkanCommandListContext::ApplyStaticUniformBuffers(TRHIShader* Shader)
 {
 	if (Shader)
 	{
-		const auto& StaticSlots = Shader->StaticSlots;
-		const auto& UBInfos = Shader->GetCodeHeader().UniformBuffers;
+		const auto& StaticSlots = Shader->GetStaticSlots();
+		const auto& UBInfos = Shader->GetCodeHeader().UniformBufferInfos;
 
 		for (int32 BufferIndex = 0; BufferIndex < StaticSlots.Num(); ++BufferIndex)
 		{
@@ -581,6 +562,10 @@ void FVulkanCommandListContext::RHISetGraphicsPipelineState(FRHIGraphicsPipeline
 	if (bApplyAdditionalState)
 	{
 		ApplyStaticUniformBuffers(static_cast<FVulkanVertexShader*>(Pipeline->VulkanShaders[ShaderStage::Vertex]));
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		ApplyStaticUniformBuffers(static_cast<FVulkanMeshShader*>(Pipeline->VulkanShaders[ShaderStage::Mesh]));
+		ApplyStaticUniformBuffers(static_cast<FVulkanTaskShader*>(Pipeline->VulkanShaders[ShaderStage::Task]));
+#endif
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		ApplyStaticUniformBuffers(static_cast<FVulkanGeometryShader*>(Pipeline->VulkanShaders[ShaderStage::Geometry]));
 #endif
@@ -610,7 +595,7 @@ void FVulkanCommandListContext::RHISetComputePipelineState(FRHIComputePipelineSt
 	FVulkanComputePipeline* ComputePipeline = ResourceCast(ComputePipelineState);
 	PendingComputeState->SetComputePipeline(ComputePipeline);
 
-	ApplyStaticUniformBuffers(const_cast<FVulkanComputeShader*>(ComputePipeline->GetShader()));
+	ApplyStaticUniformBuffers(ResourceCast(ComputePipeline->GetComputeShader()));
 }
 
 
@@ -758,11 +743,9 @@ void FVulkanCommonPipelineDescriptorState::SetSRV(FVulkanCmdBuffer* CmdBuffer, b
 		MarkDirty(DSWriter[DescriptorSet].WriteStorageBuffer(BindingIndex, SRV->GetStructuredBufferView()));
 		break;
 
-#if VULKAN_RHI_RAYTRACING
 	case FVulkanView::EType::AccelerationStructure:
 		MarkDirty(DSWriter[DescriptorSet].WriteAccelerationStructure(BindingIndex, SRV->GetAccelerationStructureView().Handle));
 		break;
-#endif
 	}
 }
 
@@ -798,10 +781,8 @@ void FVulkanCommonPipelineDescriptorState::SetUAV(FVulkanCmdBuffer* CmdBuffer, b
 		MarkDirty(DSWriter[DescriptorSet].WriteStorageBuffer(BindingIndex, UAV->GetStructuredBufferView()));
 		break;
 
-#if VULKAN_RHI_RAYTRACING
 	case FVulkanView::EType::AccelerationStructure:
 		MarkDirty(DSWriter[DescriptorSet].WriteAccelerationStructure(BindingIndex, UAV->GetAccelerationStructureView().Handle));
 		break;
-#endif
 	}
 }

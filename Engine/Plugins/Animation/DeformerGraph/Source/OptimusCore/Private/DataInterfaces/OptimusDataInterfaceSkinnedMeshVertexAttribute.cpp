@@ -2,6 +2,9 @@
 
 #include "OptimusDataInterfaceSkinnedMeshVertexAttribute.h"
 
+#include "OptimusDataTypeRegistry.h"
+#include "OptimusDeformerInstance.h"
+#include "OptimusValueContainerStruct.h"
 #include "ComponentSources/OptimusSkinnedMeshComponentSource.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "Rendering/SkeletalMeshAttributeVertexBuffer.h"
@@ -10,6 +13,10 @@
 #include "ShaderParameterMetadataBuilder.h"
 #include "SkeletalRenderPublic.h"
 
+FName UOptimusSkinnedMeshVertexAttributeDataInterface::GetAttributeNamePropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UOptimusSkinnedMeshVertexAttributeDataInterface, AttributeName);
+}
 
 FString UOptimusSkinnedMeshVertexAttributeDataInterface::GetDisplayName() const
 {
@@ -20,8 +27,17 @@ FString UOptimusSkinnedMeshVertexAttributeDataInterface::GetDisplayName() const
 TArray<FOptimusCDIPinDefinition> UOptimusSkinnedMeshVertexAttributeDataInterface::GetPinDefinitions() const
 {
 	TArray<FOptimusCDIPinDefinition> Defs;
-	Defs.Add({"NumVertices", "ReadNumVertices"});
-	Defs.Add({"Value", "ReadValue", UOptimusSkinnedMeshComponentSource::Domains::Vertex, "ReadNumVertices"});
+	Defs.Add({"NumVertices", "ReadNumVertices", false});
+	Defs.Add({"Value", "ReadValue", UOptimusSkinnedMeshComponentSource::Domains::Vertex, "ReadNumVertices", false});
+	return Defs;
+}
+
+TArray<FOptimusCDIPropertyPinDefinition> UOptimusSkinnedMeshVertexAttributeDataInterface::GetPropertyPinDefinitions() const
+{
+	TArray<FOptimusCDIPropertyPinDefinition> Defs;
+	const FOptimusDataTypeHandle NameType = FOptimusDataTypeRegistry::Get().FindType(*FNameProperty::StaticClass());
+	Defs.Add({GetAttributeNamePropertyName(), NameType});
+
 	return Defs;
 }
 
@@ -90,6 +106,7 @@ UComputeDataProvider* UOptimusSkinnedMeshVertexAttributeDataInterface::CreateDat
 	UOptimusSkinnedMeshVertexAttributeDataProvider* Provider = NewObject<UOptimusSkinnedMeshVertexAttributeDataProvider>();
 	Provider->SkinnedMeshComponent = Cast<USkinnedMeshComponent>(InBinding);
 	Provider->AttributeName = AttributeName;
+	Provider->WeakDataInterface = this;
 
 	return Provider;
 }
@@ -112,7 +129,27 @@ bool UOptimusSkinnedMeshVertexAttributeDataProvider::IsValid() const
 
 FComputeDataProviderRenderProxy* UOptimusSkinnedMeshVertexAttributeDataProvider::GetRenderProxy()
 {
+	if (const UOptimusSkinnedMeshVertexAttributeDataInterface* DataInterface = WeakDataInterface.Get())
+	{
+		FOptimusValueContainerStruct ValueContainer =
+			DeformerInstance->GetDataInterfacePropertyOverride(
+				DataInterface,
+				UOptimusSkinnedMeshVertexAttributeDataInterface::GetAttributeNamePropertyName()
+				);
+
+		TValueOrError<FName, EPropertyBagResult> Value = ValueContainer.Value.GetValueName(FOptimusValueContainerStruct::ValuePropertyName);
+		if (Value.HasValue())
+		{
+			AttributeName = Value.GetValue();
+		}
+	}
+	
 	return new FOptimusSkinnedMeshVertexAttributeDataProviderProxy(SkinnedMeshComponent, AttributeName);
+}
+
+void UOptimusSkinnedMeshVertexAttributeDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
+{
+	DeformerInstance = InInstance;
 }
 
 

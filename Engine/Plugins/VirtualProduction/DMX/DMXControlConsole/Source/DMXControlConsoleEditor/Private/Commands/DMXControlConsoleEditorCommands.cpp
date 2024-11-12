@@ -38,7 +38,8 @@ void FDMXControlConsoleEditorCommands::RegisterCommands()
 	UI_COMMAND(ClearAll, "Clear All", "Clears the entire console", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ResetToDefault, "Reset to Default", "Resets all the elements in the Control Console to their default values", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ResetToZero, "Reset to Zero", "Resets all the elements in the Control Console to zero", EUserInterfaceActionType::Button, FInputChord());
-	
+	UI_COMMAND(Reload, "Reload", "Reload this asset from disk", EUserInterfaceActionType::Button, FInputChord());
+
 	UI_COMMAND(Enable, "Enable", "Enables the selected Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(EnableAll, "Enable All", "Enables all the Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(Disable, "Disable", "Disables the selected Fader Groups.", EUserInterfaceActionType::Button, FInputChord());

@@ -24,9 +24,6 @@ enum class EHairStrandsRasterPassType : uint8
 // Deep shadow raster pass
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FHairDeepShadowRasterUniformParameters, RENDERER_API)
-	SHADER_PARAMETER(FMatrix44f, CPU_TranslatedWorldToClipMatrix)
-	SHADER_PARAMETER(FVector4f, SliceValue)
-	SHADER_PARAMETER(FIntRect, AtlasRect)
 	SHADER_PARAMETER(uint32, AtlasSlotIndex)
 	SHADER_PARAMETER(FVector4f, LayerDepths)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, FrontDepthTexture)
@@ -46,7 +43,7 @@ void AddHairDeepShadowRasterPass(
 	const FViewInfo* ViewInfo,
 	const FHairStrandsMacroGroupData::TPrimitiveInfos& PrimitiveSceneInfos,
 	const EHairStrandsRasterPassType ShadowPassType,
-	const FIntRect& ViewportRect,
+	const FIntPoint& ViewportRect,
 	const FVector4f& HairRenderInfo,
 	const uint32 HairRenderInfoBits,
 	const FVector3f& LightDirection,

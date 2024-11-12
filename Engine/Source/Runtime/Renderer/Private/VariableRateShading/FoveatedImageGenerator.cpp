@@ -238,7 +238,7 @@ void FFoveatedImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSc
 		RDG_EVENT_NAME("GenerateFoveatedVRSImage"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+		[PassParameters, ComputeShader, GroupCount](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, GroupCount);
 		});

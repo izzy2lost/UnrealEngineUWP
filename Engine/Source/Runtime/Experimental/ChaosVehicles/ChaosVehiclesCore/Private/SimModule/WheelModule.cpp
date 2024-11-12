@@ -5,23 +5,18 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
 namespace Chaos
 {
-
 	FWheelSimModule::FWheelSimModule(const FWheelSettings& Settings)
 		: TSimModuleSettings<FWheelSettings>(Settings)
 		, BrakeTorque(0.0f)
-		, ForceIntoSurface(0.0f)
-		, SurfaceFriction(1.0f)
-		, SuspensionSimTreeIndex(INVALID_IDX)
 		, ForceFromFriction(FVector::ZeroVector)
 		, MassPerWheel(500.0f)
 		, SteerAngleDegrees(0.0f)
 	{
-
 	}
 
 	void FWheelSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
@@ -31,9 +26,9 @@ namespace Chaos
 		float TorqueScaling = 1.0f;
 		float TractionControlAndABSScaling = 0.98f;	// how close to perfection is the system working
 
-		float HandbrakeTorque = Setup().HandbrakeEnabled ? Inputs.ControlInputs.Handbrake * Setup().HandbrakeTorque : 0.0f;
-		SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.ControlInputs.Steering * Setup().MaxSteeringAngle : 0.0f;
-		BrakeTorque = Inputs.ControlInputs.Brake * Setup().MaxBrakeTorque + HandbrakeTorque;
+		float HandbrakeTorque = Setup().HandbrakeEnabled ? Inputs.GetControls().GetMagnitude(HandbrakeControlName) * Setup().HandbrakeTorque : 0.0f;
+		SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.GetControls().GetMagnitude(SteeringControlName) * Setup().MaxSteeringAngle : 0.0f;
+		BrakeTorque = Inputs.GetControls().GetMagnitude(BrakeControlName) * Setup().MaxBrakeTorque + HandbrakeTorque;
 		LoadTorque = 0.0f;
 		ForceFromFriction = FVector::ZeroVector;
 		float TorqueFromGroundInteraction = 0.0f;
@@ -41,7 +36,7 @@ namespace Chaos
 
 		// TODO: think about doing this properly, stops vehicles rolling around on their own too much
 		// i.e. an auto handbrake feature
-		if (Setup().AutoHandbrakeEnabled && LocalLinearVelocity.X < Setup().AutoHandbrakeVelocityThreshold && (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER))
+		if (Setup().AutoHandbrakeEnabled && LocalLinearVelocity.X < Setup().AutoHandbrakeVelocityThreshold && (Inputs.GetControls().GetMagnitude(BrakeControlName) < SMALL_NUMBER && Inputs.GetControls().GetMagnitude(ThrottleControlName) < SMALL_NUMBER))
 		{
 			BrakeTorque = Setup().HandbrakeTorque;
 		}
@@ -185,8 +180,7 @@ namespace Chaos
 			{
 				ForceFromFriction = -ForceFromFriction;
 			}
-
-			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
+			AddLocalForceAtPosition(SteeringRotator.RotateVector(ForceFromFriction), Setup().ForceOffset);
 		}
 
 		TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
@@ -239,7 +233,7 @@ namespace Chaos
 
 	inline void FWheelOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Wheel);
+		check(SimModule->IsSimType<class FWheelSimModule>());
 
 		FSimOutputData::FillOutputState(SimModule);
 
@@ -249,11 +243,19 @@ namespace Chaos
 			ForceIntoSurface = Sim->ForceIntoSurface;
 			SlipAngle = Sim->SlipAngle;
 			RPM = Sim->GetRPM();
+			AngularPositionDegrees = -Sim->AngularPosition * 180.0f / PI;
+			SteeringAngleDegrees = Sim->SteerAngleDegrees;
+
+			AnimFlags = EAnimationFlags::AnimateRotation;
+			AnimationRotOffset.Pitch = AngularPositionDegrees;
+			AnimationRotOffset.Yaw = SteeringAngleDegrees;
 		}
 	}
 
 	void FWheelOutputData::Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha)
 	{
+		FSimOutputData::Lerp(InCurrent, InNext, Alpha);
+
 		const FWheelOutputData& Current = static_cast<const FWheelOutputData&>(InCurrent);
 		const FWheelOutputData& Next = static_cast<const FWheelOutputData&>(InNext);
 
@@ -275,5 +277,5 @@ namespace Chaos
 
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif

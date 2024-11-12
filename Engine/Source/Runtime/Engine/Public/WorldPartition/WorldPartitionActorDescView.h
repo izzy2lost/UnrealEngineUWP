@@ -116,7 +116,7 @@ protected:
 	TOptional<TArray<FName>> ResolvedDataLayerInstanceNames;
 	TOptional<TArray<FName>> RuntimeDataLayerInstanceNames;
 	TOptional<TArray<FGuid>> RuntimeReferences;
-	TOptional<FSoftObjectPath> RuntimedHLODLayer;
+	TOptional<FSoftObjectPath> RuntimeHLODLayer;
 	TArray<FGuid> EditorReferences;
 };
 #endif

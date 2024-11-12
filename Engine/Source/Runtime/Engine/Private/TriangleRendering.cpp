@@ -36,6 +36,11 @@ void FCanvasTriangleRendererItem::FTriangleVertexFactory::InitResource(FRHIComma
 	FLocalVertexFactory::InitResource(RHICmdList);
 }
 
+FCanvasTriangleRendererItem::FRenderData::~FRenderData()
+{
+	ReleaseTriangleMesh();
+}
+
 FMeshBatch* FCanvasTriangleRendererItem::FRenderData::AllocTriangleMeshBatch(FCanvasRenderContext& InRenderContext, FHitProxyId InHitProxyId)
 {
 	FMeshBatch* MeshBatch = InRenderContext.Alloc<FMeshBatch>();
@@ -141,8 +146,9 @@ void FCanvasTriangleRendererItem::FRenderData::RenderTriangles(
 		return;
 	}
 
+	RDG_EVENT_SCOPE_STAT(RenderContext.GraphBuilder, CanvasDrawTriangles, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
 	RDG_GPU_STAT_SCOPE(RenderContext.GraphBuilder, CanvasDrawTriangles);
-	RDG_EVENT_SCOPE(RenderContext.GraphBuilder, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(CanvasDrawTriangles);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CanvasDrawTriangles)
 
@@ -176,11 +182,6 @@ void FCanvasTriangleRendererItem::FRenderData::RenderTriangles(
 	// Flush the final batch: 
 	check(CurrentMeshBatch != nullptr);
 	GetRendererModule().DrawTileMesh(RenderContext, DrawRenderState, View, *CurrentMeshBatch, bIsHitTesting, CurrentMeshBatch->BatchHitProxyId);
-
-	AddPass(RenderContext.GraphBuilder, RDG_EVENT_NAME("ReleaseTriangleMesh"), [this](FRHICommandListImmediate&)
-	{
-		ReleaseTriangleMesh();
-	});
 }
 
 bool FCanvasTriangleRendererItem::Render_RenderThread(FCanvasRenderContext& RenderContext, FMeshPassProcessorRenderState& DrawRenderState, const FCanvas* Canvas)

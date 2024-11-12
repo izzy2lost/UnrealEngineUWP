@@ -77,6 +77,16 @@ public:
 	virtual bool GetShowTransientObjects() const;
 
 	/**
+	 * Determines if hybrid rows should be used when enabled in user settings. True by default.
+	 */
+	virtual bool ShouldAllowHybridRows() const;
+
+	/**
+	 * Determines if the user should be able to change which columns are displayed. True by default.
+	 */
+	virtual bool ShouldAllowColumnCustomizationByUser() const;
+
+	/**
 	 * Specify a list of property names corresponding to columns you want to show by default.
 	 * For example, you can specify "Intensity" and "LightColor" to show only those property columns by default in the UI.
 	 * Columns not specified will not be shown by default but can be enabled by the user in the UI.

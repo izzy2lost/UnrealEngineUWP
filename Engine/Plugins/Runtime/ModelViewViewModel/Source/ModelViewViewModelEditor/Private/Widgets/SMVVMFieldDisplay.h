@@ -24,6 +24,7 @@ public:
 		}
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
 		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) = true;
+		SLATE_ARGUMENT_DEFAULT(bool, ShowFieldNotify) = true;
 		SLATE_EVENT(FOnGetLinkedPinValue, OnGetLinkedValue)
 	SLATE_END_ARGS()
 

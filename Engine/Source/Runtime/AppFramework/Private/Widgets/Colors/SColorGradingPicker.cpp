@@ -41,7 +41,9 @@ void SColorGradingPicker::Construct( const FArguments& InArgs )
 	OnQueryCurrentColor = InArgs._OnQueryCurrentColor;
 	
 	float ColorGradingWheelExponent = 2.4f;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (ColorGradingModes == EColorGradingModes::Offset)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		ColorGradingWheelExponent = 3.0f;
 	}
@@ -65,7 +67,9 @@ void SColorGradingPicker::Construct( const FArguments& InArgs )
 				.MinDesiredWidth(125.0f)
 				.MaxDesiredWidth(125.0f)
 				[
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					SNew(SColorGradingWheel)
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					.SelectedColor(TAttribute<FLinearColor>::Create(TAttribute<FLinearColor>::FGetter::CreateSP(this, &SColorGradingPicker::GetCurrentLinearColor)))
 					.DesiredWheelSize(125)
 					.ExponentDisplacement(ColorGradingWheelExponent)
@@ -250,7 +254,7 @@ void SColorGradingPicker::TransformColorGradingRangeToLinearColorRange(float &Fl
 
 FLinearColor SColorGradingPicker::GetCurrentLinearColor()
 {
-	FLinearColor CurrentColor;
+	FLinearColor CurrentColor = FLinearColor::Black;
 	FVector4 CurrentValue;
 
 	if (OnQueryCurrentColor.IsBound())

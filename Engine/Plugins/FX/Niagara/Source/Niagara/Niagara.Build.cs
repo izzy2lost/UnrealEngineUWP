@@ -14,6 +14,7 @@ public class Niagara : ModuleRules
                 "ApplicationCore",
                 "AudioPlatformConfiguration",
                 "Core",
+                "ImageCore",
                 "DeveloperSettings",
                 "Engine",
                 "Json",

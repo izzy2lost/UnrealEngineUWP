@@ -69,22 +69,22 @@ void IPackageResourceManager::Shutdown()
 
 bool IPackageResourceManager::DoesPackageExist(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
 {
-	return DoesPackageExist(PackagePath, EPackageSegment::Header, OutUpdatedPath);
+	return DoesPackageExist(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, OutUpdatedPath);
 }
 
 int64 IPackageResourceManager::FileSize(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
 {
-	return FileSize(PackagePath, EPackageSegment::Header, OutUpdatedPath);
+	return FileSize(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, OutUpdatedPath);
 }
 
 FOpenPackageResult IPackageResourceManager::OpenReadPackage(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
 {
-	return OpenReadPackage(PackagePath, EPackageSegment::Header, OutUpdatedPath);
+	return OpenReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header, OutUpdatedPath);
 }
 
 FOpenAsyncPackageResult IPackageResourceManager::OpenAsyncReadPackage(const FPackagePath& PackagePath)
 {
-	return OpenAsyncReadPackage(PackagePath, EPackageSegment::Header);
+	return OpenAsyncReadPackage(PackagePath, FBulkDataCookedIndex::Default, EPackageSegment::Header);
 }
 
 IMappedFileHandle* IPackageResourceManager::OpenMappedHandleToPackage(const FPackagePath& PackagePath, FPackagePath* OutUpdatedPath)
@@ -243,7 +243,21 @@ bool IPackageResourceManager::TryTakePreloadableArchive(const FPackagePath& Pack
 	// it is not preloading bytes, but instead is only providing a pre-opened (and possibly primed) sync handle
 	if (!OutResult.Archive)
 	{
-		// Otherwise the archive is in PreloadBytes mode, and we need to return a proxy to it
+		if (!PreloadableArchive->HasValidData())
+		{
+			// It should be impossible for the PreloadableArchive to not have valid data, because the code that
+			// registers the Archives should not register it in those cases. But we have seen this case come up
+			// once. So check for invalid data and log a warning, and avoid a followup serialization error by returning 
+			// false.
+			UE_LOG(LogPackageResourceManager, Warning,
+				TEXT("Registered PreloadableArchive for package %s does not have valid data; this should be impossible. We will ignore the registered archive and load without preloading.")
+				TEXT("\n\tIsInitialized = %s, Size = %" INT64_FMT "."),
+				*PackageName.ToString(), *LexToString(PreloadableArchive->IsInitialized()), PreloadableArchive->TotalSize());
+			OutResult = FOpenPackageResult();
+			return false;
+		}
+
+		// Otherwise the archive is in PreloadBytes mode, and we need to return a proxy to it.
 		OutResult.Archive = TUniquePtr<FArchive>(new FPreloadableArchiveProxy(PreloadableArchive));
 	}
 	return true;

@@ -26,7 +26,7 @@ public:
 	FLandscapeStaticLightingTextureMapping(ULandscapeComponent* InPrimitive,FStaticLightingMesh* InMesh,int32 InLightMapWidth,int32 InLightMapHeight,bool bPerformFullQualityRebuild);
 
 	// FStaticLightingTextureMapping interface
-	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario);
+	LANDSCAPE_API virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext);
 
 #if WITH_EDITOR
 	/** 
@@ -34,7 +34,11 @@ public:
 	* @param Exporter - export interface to process static lighting data
 	*/
 	UNREALED_API virtual void ExportMapping(FLightmassExporter* Exporter);
+	LANDSCAPE_API virtual void Serialize(FArchive& Ar);
+
 #endif	//WITH_EDITOR
+
+	LANDSCAPE_API FLandscapeStaticLightingTextureMapping(const FArchive& Ar);
 
 	virtual FString GetDescription() const
 	{
@@ -43,9 +47,41 @@ public:
 private:
 
 	/** The primitive this mapping represents. */
-	ULandscapeComponent* const LandscapeComponent;
+	ULandscapeComponent* LandscapeComponent;
 };
 
+class FLandscapeStaticLightingGlobalVolumeMapping  : public FLandscapeStaticLightingTextureMapping 
+{
+public:
+	LANDSCAPE_API FLandscapeStaticLightingGlobalVolumeMapping(ULandscapeComponent* InPrimitive,FStaticLightingMesh* InMesh,int32 InLightMapWidth,int32 InLightMapHeight,bool bPerformFullQualityRebuild);
+
+	virtual void Apply(struct FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,class FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override
+	{
+		// Should never be processed
+		check(false);
+	}
+
+#if WITH_EDITOR
+	virtual bool DebugThisMapping() const override
+	{
+		return false;
+	}
+
+	/** 
+	 * Export static lighting mapping instance data to an exporter 
+	 * @param Exporter - export interface to process static lighting data
+	 */
+	UNREALED_API virtual void ExportMapping(class FLightmassExporter* Exporter) override;
+#endif	//WITH_EDITOR
+
+	/** Whether or not this mapping should be processed or imported */
+	virtual bool IsValidMapping() const override {return true;} 
+
+	virtual FString GetDescription() const override
+	{
+		return FString(TEXT("LandscapeVolumeMapping"));
+	}
+};
 
 
 /** Represents the triangles of a Landscape component to the static lighting system. */
@@ -60,6 +96,8 @@ public:
 	virtual void GetTriangle(int32 TriangleIndex,FStaticLightingVertex& OutV0,FStaticLightingVertex& OutV1,FStaticLightingVertex& OutV2) const;
 	virtual void GetTriangleIndices(int32 TriangleIndex,int32& OutI0,int32& OutI1,int32& OutI2) const;
 	virtual FLightRayIntersection IntersectLightRay(const FVector& Start,const FVector& End,bool bFindNearestIntersection) const;
+
+	virtual bool IsInstancedMesh() const override { return false; }
 
 #if WITH_EDITOR
 	/** 

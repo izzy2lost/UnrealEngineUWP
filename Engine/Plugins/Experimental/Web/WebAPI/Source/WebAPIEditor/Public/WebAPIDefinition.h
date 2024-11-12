@@ -36,7 +36,7 @@ public:
 	template <typename DataCacheType>
 	DataCacheType* AddOrGetImportedDataCache(FName InKey)
 	{
-		static_assert(TIsDerivedFrom<DataCacheType, UObject>::IsDerived, TEXT("DataCacheType should derive from UObject"));
+		static_assert(TIsDerivedFrom<DataCacheType, UObject>::IsDerived, "DataCacheType should derive from UObject");
 		return Cast<DataCacheType>(AddOrGetImportedDataCache(InKey, DataCacheType::StaticClass()));		
 	}
 

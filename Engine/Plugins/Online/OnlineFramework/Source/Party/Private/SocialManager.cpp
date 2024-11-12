@@ -34,6 +34,7 @@ static TAutoConsoleVariable<bool> CVarForceDisconnectedToPartyService(
 // FRejoinableParty
 //////////////////////////////////////////////////////////////////////////
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USocialManager::FRejoinableParty::FRejoinableParty(const USocialParty& SourceParty)
 	: PartyId(SourceParty.GetPartyId().AsShared()),
 	OriginalJoinMethod(SourceParty.GetOwningLocalMember().GetRepData().GetJoinMethod())
@@ -51,6 +52,7 @@ USocialManager::FRejoinableParty::FRejoinableParty(const USocialParty& SourcePar
 		}		
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 //////////////////////////////////////////////////////////////////////////
 // FJoinPartyAttempt
@@ -63,14 +65,17 @@ USocialManager::FJoinPartyAttempt::FJoinPartyAttempt(const USocialUser* InTarget
 	, OnJoinComplete(InOnJoinComplete)
 {}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USocialManager::FJoinPartyAttempt::FJoinPartyAttempt(TSharedRef<const FRejoinableParty> InRejoinInfo)
 	: PartyTypeId(IOnlinePartySystem::GetPrimaryPartyTypeId())
 	, JoinMethod(InRejoinInfo->OriginalJoinMethod)
 	, RejoinInfo(InRejoinInfo)
 {}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FString USocialManager::FJoinPartyAttempt::ToDebugString() const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return FString::Printf(TEXT("IsRejoin (%s), TargetUser (%s), PartyId (%s), TypeId (%d), TargetUserPlatformId (%s), JoinMethod (%s)"),
 		RejoinInfo.IsValid() ? TEXT("true") : TEXT("false"),
 		TargetUser.IsValid() ? *TargetUser->ToDebugString() : TEXT("invalid"),
@@ -78,6 +83,7 @@ FString USocialManager::FJoinPartyAttempt::ToDebugString() const
 		PartyTypeId.GetValue(),
 		*TargetUserPlatformId.ToDebugString(),
 		*JoinMethod.ToString());
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 const FName USocialManager::FJoinPartyAttempt::Step_FindPlatformSession = TEXT("FindPlatformSession");
@@ -249,7 +255,9 @@ void USocialManager::ShutdownSocialManager()
 	ShutdownPartiesFunc(JoinedPartiesByTypeId);
 	ShutdownPartiesFunc(LeavingPartiesByTypeId);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RejoinableParty.Reset();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (SocialDebugTools)
 	{
@@ -266,7 +274,7 @@ USocialToolkit& USocialManager::GetSocialToolkit(const ULocalPlayer& LocalPlayer
 	USocialToolkit* FoundToolkit = nullptr;
 	for (USocialToolkit* Toolkit : SocialToolkits)
 	{
-		if (&LocalPlayer == &Toolkit->GetOwningLocalPlayer())
+		if (&LocalPlayer == Toolkit->GetOwningLocalPlayerPtr())
 		{
 			FoundToolkit = Toolkit;
 			break;
@@ -293,7 +301,8 @@ USocialToolkit* USocialManager::GetSocialToolkit(FUniqueNetIdRepl LocalUserId) c
 {
 	for (USocialToolkit* Toolkit : SocialToolkits)
 	{
-		if (Toolkit->GetOwningLocalPlayer().GetPreferredUniqueNetId() == LocalUserId)
+		const ULocalPlayer* LocalPlayer = Toolkit->GetOwningLocalPlayerPtr();
+		if (LocalPlayer && LocalPlayer->GetPreferredUniqueNetId() == LocalUserId)
 		{
 			return Toolkit;
 		}
@@ -696,12 +705,13 @@ ECrossplayPreference USocialManager::GetCrossplayPreference() const
 	return ECrossplayPreference::NoSelection;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool USocialManager::ShouldTryRejoiningPersistentParty(const FRejoinableParty& InRejoinableParty) const
 {
-	// If we're alone in our persistent party or we don't have one at the moment, go for it (games will likely have more opinions on the matter)
-	USocialParty* PersistentParty = GetPersistentParty();
- 	return (!PersistentParty || PersistentParty->GetNumPartyMembers() == 1) && !JoinAttemptsByTypeId.Contains(IOnlinePartySystem::GetPrimaryPartyTypeId());
+	// Deprecated
+ 	return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void USocialManager::RefreshCanCreatePartyObjects()
 {
@@ -740,7 +750,7 @@ USocialToolkit& USocialManager::CreateSocialToolkit(ULocalPlayer& OwningLocalPla
 {
 	for (USocialToolkit* ExistingToolkit : SocialToolkits)
 	{
-		check(&OwningLocalPlayer != &ExistingToolkit->GetOwningLocalPlayer());
+		check(&OwningLocalPlayer != ExistingToolkit->GetOwningLocalPlayerPtr());
 	}
 	check(ToolkitClass);
 
@@ -821,6 +831,7 @@ void USocialManager::JoinPartyInternal(FJoinPartyAttempt& JoinAttempt)
 	{
 		JoinAttempt.ActionTimeTracker.BeginStep(FJoinPartyAttempt::Step_JoinParty);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (JoinAttempt.RejoinInfo.IsValid())
 		{
 			UE_LOG(LogParty, Verbose, TEXT("Attempting to rejoin party [%s] now."), *JoinAttempt.RejoinInfo->PartyId->ToDebugString());
@@ -829,6 +840,7 @@ void USocialManager::JoinPartyInternal(FJoinPartyAttempt& JoinAttempt)
 			PartyInterface->RejoinParty(*LocalUserId, *JoinAttempt.RejoinInfo->PartyId, IOnlinePartySystem::GetPrimaryPartyTypeId(), JoinAttempt.RejoinInfo->MemberIds, FOnJoinPartyComplete::CreateUObject(this, &USocialManager::HandleJoinPartyComplete, IOnlinePartySystem::GetPrimaryPartyTypeId()));
 		}
 		else
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			PartyInterface->JoinParty(*LocalUserId, *JoinAttempt.JoinInfo, FOnJoinPartyComplete::CreateUObject(this, &USocialManager::HandleJoinPartyComplete, JoinAttempt.JoinInfo->GetPartyTypeId()));
 		}
@@ -1032,6 +1044,7 @@ void USocialManager::HandleLocalPlayerRemoved(int32 LocalUserNum)
 		if (USocialToolkit* Toolkit = SocialToolkits[LocalUserNum])
 		{
 			SocialToolkits.Remove(Toolkit);
+			OnSocialToolkitDestroyed().Broadcast(*Toolkit);
 			Toolkit->MarkAsGarbage();
 		}
 	}
@@ -1201,7 +1214,7 @@ void USocialManager::HandleJoinPartyComplete(const FUniqueNetId& LocalUserId, co
 		{
 			UE_LOG(LogParty, Error, TEXT("Auto-bailing on party of type [%d] - cannot finish establishing it without a valid FJoinPartyAttempt."), PartyTypeId.GetValue(), ToString(Result));
 			IOnlinePartyPtr PartyInterface = Online::GetPartyInterfaceChecked(GetWorld());
-			PartyInterface->LeaveParty(LocalUserId, PartyId, FOnLeavePartyComplete::CreateUObject(this, &USocialManager::HandleLeavePartyForMissingJoinAttempt, PartyTypeId));
+			PartyInterface->LeaveParty(LocalUserId, PartyId, true, FOnLeavePartyComplete::CreateUObject(this, &USocialManager::HandleLeavePartyForMissingJoinAttempt, PartyTypeId));
 		}
 		else
 		{
@@ -1228,18 +1241,21 @@ void USocialManager::HandlePersistentPartyStateChanged(EPartyState NewState, EPa
 				PersistentParty->LeaveParty();
 			}
 		}
-
+	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// If we have other members in our party, then we will try to rejoin this when we come back online
 		if (!RejoinableParty.IsValid() && PersistentParty->ShouldCacheForRejoinOnDisconnect())
 		{
 			UE_LOG(LogParty, Log, TEXT("Caching persistent party [%s] for rejoin"), *PersistentParty->GetPartyId().ToDebugString());
 			RejoinableParty = MakeShared<FRejoinableParty>(*PersistentParty);
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	else if (NewState == EPartyState::Active)
 	{
 		bIsConnectedToPartyService = true;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (RejoinableParty.IsValid())
 		{
 			if (ShouldTryRejoiningPersistentParty(*RejoinableParty))
@@ -1256,6 +1272,7 @@ void USocialManager::HandlePersistentPartyStateChanged(EPartyState NewState, EPa
 			// This is the only time we would try to rejoin, and it's saved on the join attempt if initiated
 			RejoinableParty.Reset();
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -1321,7 +1338,9 @@ void USocialManager::HandlePartyLeft(EMemberExitedReason Reason, USocialParty* L
 			JoinAttempt->ActionTimeTracker.CompleteStep(FJoinPartyAttempt::Step_LeaveCurrentParty);
 
 			// We're in the process of joining another party of the same type - do we know where we're heading yet?
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (JoinAttempt->JoinInfo.IsValid() || JoinAttempt->RejoinInfo.IsValid())
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				// Join the new party immediately and early out
 				JoinPartyInternal(*JoinAttempt);

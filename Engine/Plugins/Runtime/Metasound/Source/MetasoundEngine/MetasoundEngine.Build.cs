@@ -21,7 +21,7 @@ namespace UnrealBuildTool.Rules
 			(
 				new string[]
 				{
-					"Core",
+					"AssetRegistry",
 					"AudioExtensions",
 					"AudioMixer",
 					"MetasoundGraphCore",
@@ -34,6 +34,7 @@ namespace UnrealBuildTool.Rules
 			(
 				new string[]
 				{
+					"Core",
 					"CoreUObject",
 					"DeveloperSettings",
 					"Engine",
@@ -44,6 +45,8 @@ namespace UnrealBuildTool.Rules
 					"WaveTable"
 				}
 			);
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }

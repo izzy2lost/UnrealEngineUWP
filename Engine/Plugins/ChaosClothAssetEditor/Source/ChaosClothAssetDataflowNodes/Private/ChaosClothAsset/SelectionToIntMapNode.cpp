@@ -11,17 +11,17 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SelectionToIntMapNode)
 #define LOCTEXT_NAMESPACE "FChaosClothAssetSelectionToIntMapNode"
 
-FChaosClothAssetSelectionToIntMapNode::FChaosClothAssetSelectionToIntMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSelectionToIntMapNode::FChaosClothAssetSelectionToIntMapNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection, &Collection);
 	RegisterInputConnection(&SelectionName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&IntMapName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
-	RegisterOutputConnection(&IntMapName.StringValue, &IntMapName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
+	RegisterOutputConnection(&IntMapName.StringValue, &IntMapName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIOStringValue, StringValue));
 }
 
-void FChaosClothAssetSelectionToIntMapNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetSelectionToIntMapNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -33,9 +33,7 @@ void FChaosClothAssetSelectionToIntMapNode::Evaluate(Dataflow::FContext& Context
 
 		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
 		const FName InSelectionName(*GetValue<FString>(Context, &SelectionName.StringValue));
-		SelectionName.StringValue_Override = GetValue<FString>(Context, &SelectionName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 		const FString& InIntMapNameString = GetValue<FString>(Context, &IntMapName.StringValue);
-		IntMapName.StringValue_Override = GetValue<FString>(Context, &IntMapName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 		const FName InIntMapName = InIntMapNameString.IsEmpty() ? InSelectionName : FName(*InIntMapNameString);
 		if (SelectionFacade.IsValid() && ClothFacade.IsValid() && InSelectionName != NAME_None && InIntMapName != NAME_None)
 		{

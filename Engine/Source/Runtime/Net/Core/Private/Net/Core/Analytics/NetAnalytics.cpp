@@ -15,6 +15,13 @@ TAtomic<uint8> GNetAnalyticsCounter(0);
  * FNetAnalytics
  */
 
+FNetAnalyticsData::FNetAnalyticsData()
+	: Aggregator(nullptr)
+{
+}
+
+FNetAnalyticsData::~FNetAnalyticsData() = default;
+
 void FNetAnalyticsData::InternalSendAnalytics()
 {
 	SendAnalytics();

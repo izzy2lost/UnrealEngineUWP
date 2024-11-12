@@ -100,7 +100,7 @@ struct rcLayerSweepSpan
 	unsigned short nei;	// neighbour id
 };
 
-static bool CollectLayerRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf, const int borderSize,
+static bool CollectLayerRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf, const rcBorderSize borderSize,	//@UE
 	unsigned short* srcReg, rcLayerRegionMonotone*& regs, int& nregs)
 {
 	const int w = chf.width;
@@ -120,14 +120,14 @@ static bool CollectLayerRegionsMonotone(rcContext* ctx, rcCompactHeightfield& ch
 	rcIntArray prev(256);
 	unsigned short regId = 0;
 
-	for (int y = borderSize; y < h - borderSize; ++y)
+	for (int y = borderSize.low; y < h - borderSize.high; ++y)		//@UE
 	{
 		prev.resize(regId + 1);
 		memset(&prev[0], 0, sizeof(int)*regId);
 		unsigned short sweepId = 0;
 		unsigned int MaxSpanCount = 0;
 
-		for (int x = borderSize; x < w - borderSize; ++x)
+		for (int x = borderSize.low; x < w - borderSize.high; ++x)		//@UE
 		{
 			const rcCompactCell& c = chf.cells[x + y*w];
 			MaxSpanCount = rcMax(MaxSpanCount, c.count);
@@ -214,7 +214,7 @@ static bool CollectLayerRegionsMonotone(rcContext* ctx, rcCompactHeightfield& ch
 		}
 
 		// Remap local sweep ids to region ids.
-		for (int x = borderSize; x < w - borderSize; ++x)
+		for (int x = borderSize.low; x < w - borderSize.high; ++x)	//@UE
 		{
 			const rcCompactCell& c = chf.cells[x + y*w];
 			for (int i = (int)c.index, ni = (int)(c.index + c.count); i < ni; ++i)
@@ -313,7 +313,7 @@ static bool CollectLayerRegionsMonotone(rcContext* ctx, rcCompactHeightfield& ch
 }
 
 static bool CollectLayerRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
-									  const int borderSize, const int chunkSize,
+									  const rcBorderSize borderSize, const int chunkSize,		//@UE
 									  unsigned short* srcReg, rcLayerRegionMonotone*& regs, int& nregs)
 {
 	const int w = chf.width;
@@ -330,12 +330,12 @@ static bool CollectLayerRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
 	rcIntArray prev(256);
 	unsigned short regId = 0;
 
-	for (int chunkx = borderSize; chunkx < w-borderSize; chunkx += chunkSize)
+	for (int chunkx = borderSize.low; chunkx < w-borderSize.high; chunkx += chunkSize)		//@UE
 	{
-		for (int chunky = borderSize; chunky < h-borderSize; chunky += chunkSize)
+		for (int chunky = borderSize.low; chunky < h-borderSize.high; chunky += chunkSize)		//@UE
 		{
-			const int maxx = rcMin(chunkx + chunkSize, w-borderSize);
-			const int maxy = rcMin(chunky + chunkSize, h-borderSize);
+			const int maxx = rcMin(chunkx + chunkSize, w-borderSize.high);		//@UE
+			const int maxy = rcMin(chunky + chunkSize, h-borderSize.high);		//@UE
 
 			for (int y = chunky; y < maxy; ++y)
 			{
@@ -529,7 +529,7 @@ static bool CollectLayerRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
 }
 
 static bool SplitAndStoreLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
-									  const int borderSize, const int walkableHeight,
+									  const rcBorderSize borderSize, const int walkableHeight,		//@UE
 									  unsigned short* srcReg, rcLayerRegionMonotone* regs, const int nregs,
 									  rcHeightfieldLayerSet& lset)
 {
@@ -720,17 +720,17 @@ static bool SplitAndStoreLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 
 	const int w = chf.width;
 	const int h = chf.height;
-	const int lw = w - borderSize*2;
-	const int lh = h - borderSize*2;
+	const int lw = w - (borderSize.low + borderSize.high);		//@UE
+	const int lh = h - (borderSize.low + borderSize.high);		//@UE
 
 	// Build contracted bbox for layers.
 	rcReal bmin[3], bmax[3];
 	rcVcopy(bmin, chf.bmin);
 	rcVcopy(bmax, chf.bmax);
-	bmin[0] += borderSize*chf.cs;
-	bmin[2] += borderSize*chf.cs;
-	bmax[0] -= borderSize*chf.cs;
-	bmax[2] -= borderSize*chf.cs;
+	bmin[0] += borderSize.low*chf.cs;		//@UE
+	bmin[2] += borderSize.low*chf.cs;		//@UE
+	bmax[0] -= borderSize.high*chf.cs;		//@UE
+	bmax[2] -= borderSize.high*chf.cs;		//@UE
 
 	lset.nlayers = (int)layerId;
 
@@ -812,8 +812,8 @@ static bool SplitAndStoreLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 		{
 			for (int x = 0; x < lw; ++x)
 			{
-				const int cx = borderSize+x;
-				const int cy = borderSize+y;
+				const int cx = borderSize.low+x;	//@UE
+				const int cy = borderSize.low+y;	//@UE
 				const rcCompactCell& c = chf.cells[cx+cy*w];
 				for (int j = (int)c.index, nj = (int)(c.index+c.count); j < nj; ++j)
 				{
@@ -860,8 +860,8 @@ static bool SplitAndStoreLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 							// Valid connection mask
 							if (chf.areas[ai] != RC_NULL_AREA && lid == alid)
 							{
-								const int nx = ax - borderSize;
-								const int ny = ay - borderSize;
+								const int nx = ax - borderSize.low;		//@UE
+								const int ny = ay - borderSize.low;		//@UE
 								if (nx >= 0 && ny >= 0 && nx < lw && ny < lh)
 								{
 									con |= (unsigned char)(1 << dir);
@@ -893,7 +893,7 @@ static bool SplitAndStoreLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 /// 
 /// @see rcAllocHeightfieldLayerSet, rcCompactHeightfield, rcHeightfieldLayerSet, rcConfig
 bool rcBuildHeightfieldLayersMonotone(rcContext* ctx, rcCompactHeightfield& chf,
-							  const int borderSize, const int walkableHeight,
+							  const rcBorderSize borderSize, const int walkableHeight,		//@UE
 							  rcHeightfieldLayerSet& lset)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_Navigation_BuildHeightfieldLayersMonotone);
@@ -935,7 +935,7 @@ bool rcBuildHeightfieldLayersMonotone(rcContext* ctx, rcCompactHeightfield& chf,
 }
 
 bool rcBuildHeightfieldLayersChunky(rcContext* ctx, rcCompactHeightfield& chf,
-									const int borderSize, const int walkableHeight,
+									const rcBorderSize borderSize, const int walkableHeight,	//@UE
 									const int chunkSize,
 									rcHeightfieldLayerSet& lset)
 {
@@ -978,7 +978,7 @@ bool rcBuildHeightfieldLayersChunky(rcContext* ctx, rcCompactHeightfield& chf,
 }
 
 /// helper function from RecastRegion.cpp, requires distance data in compact height field
-bool rcGatherRegionsNoFilter(rcContext* ctx, rcCompactHeightfield& chf, const int borderSize, unsigned short* spanBuf4);
+bool rcGatherRegionsNoFilter(rcContext* ctx, rcCompactHeightfield& chf, const rcBorderSize borderSize, unsigned short* spanBuf4);	//@UE
 
 struct rcLayerRegion
 {
@@ -1107,7 +1107,7 @@ static void walkContour(int x, int y, int i, int dir, rcCompactHeightfield& chf,
 /// 
 /// @see rcAllocHeightfieldLayerSet, rcCompactHeightfield, rcHeightfieldLayerSet, rcConfig
 bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
-	const int borderSize, const int walkableHeight,
+	const rcBorderSize borderSize, const int walkableHeight,		//@UE
 	rcHeightfieldLayerSet& lset)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_Navigation_BuildHeightfieldLayers);
@@ -1374,17 +1374,17 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 	// Create layers.
 	rcAssert(lset.layers == 0);
 
-	const int lw = w - borderSize*2;
-	const int lh = h - borderSize*2;
+	const int lw = w - (borderSize.low+borderSize.high);	//@UE
+	const int lh = h - (borderSize.low+borderSize.high);	//@UE
 
 	// Build contracted bbox for layers.
 	rcReal bmin[3], bmax[3];
 	rcVcopy(bmin, chf.bmin);
 	rcVcopy(bmax, chf.bmax);
-	bmin[0] += borderSize*chf.cs;
-	bmin[2] += borderSize*chf.cs;
-	bmax[0] -= borderSize*chf.cs;
-	bmax[2] -= borderSize*chf.cs;
+	bmin[0] += borderSize.low*chf.cs;		//@UE
+	bmin[2] += borderSize.low*chf.cs;		//@UE
+	bmax[0] -= borderSize.high*chf.cs;		//@UE
+	bmax[2] -= borderSize.high*chf.cs;		//@UE
 
 	lset.nlayers = (int)maxLayerId;
 
@@ -1466,8 +1466,8 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 		{
 			for (int x = 0; x < lw; ++x)
 			{
-				const int cx = borderSize+x;
-				const int cy = borderSize+y;
+				const int cx = borderSize.low+x;		//@UE
+				const int cy = borderSize.low+y;		//@UE
 				const rcCompactCell& c = chf.cells[cx+cy*w];
 				for (int j = (int)c.index, nj = (int)(c.index+c.count); j < nj; ++j)
 				{
@@ -1514,8 +1514,8 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 							// Valid connection mask
 							if (chf.areas[ai] != RC_NULL_AREA && lid == alid)
 							{
-								const int nx = ax - borderSize;
-								const int ny = ay - borderSize;
+								const int nx = ax - borderSize.low;		//@UE
+								const int ny = ay - borderSize.low;		//@UE
 								if (nx >= 0 && ny >= 0 && nx < lw && ny < lh)
 								{
 									con |= (unsigned char)(1 << dir);

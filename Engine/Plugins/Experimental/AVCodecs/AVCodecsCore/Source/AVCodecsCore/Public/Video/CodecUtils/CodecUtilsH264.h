@@ -6,13 +6,17 @@
 #include "Utils/BitstreamReader.h"
 
 #include "AVResult.h"
-#include "Video/VideoPacket.h"
+
+#include "CodecUtilsH264.generated.h"
 
 struct FH264ProfileDefinition;
+struct FVideoPacket;
 
 // Easy to understand user facing profiles from the T-Rec-H.264-201304 spec
 // there is another enum in CodecUtilsH264 that aligns the profiles with PIC and constraints
 // however users are not expected to understand those ones.
+
+UENUM()
 enum class EH264Profile : uint8
 {
 	Auto,
@@ -53,6 +57,16 @@ enum class EH264EntropyCodingMode : uint8
 	Auto,
 	CABAC,
 	CAVLC
+};
+
+// Packetization modes are defined in RFC 6184 section 6
+// Due to the structure containing this being initialized with zeroes
+// in some places, and mode 1 being default, mode 1 needs to have the value
+// zero.
+enum class EH264PacketizationMode : uint8
+{
+	NonInterleaved = 0, // Mode 1 - STAP-A, FU-A is allowed
+	SingleNalUnit		// Mode 0 - only single NALU allowed
 };
 
 extern AVCODECSCORE_API FH264ProfileDefinition GH264ProfileDefinitions[static_cast<uint8>(EH264Profile::MAX)];
@@ -117,9 +131,9 @@ namespace UE::AVCodecCore::H264
 		High422 = 122,
 		// High422Intra = 122,					with constraint flag 3 set
 		StereoHigh = 128,
-        MultiresolutionFrameCompatibleHigh = 134,
+		MultiresolutionFrameCompatibleHigh = 134,
 		MultiviewDepthHigh = 138,
-        EnhancedMultiviewDepthHigh = 139,
+		EnhancedMultiviewDepthHigh = 139,
 		High444 = 244,
 		// High444Intra = 244,					with constraint flag 3 set
 	};
@@ -222,8 +236,8 @@ namespace UE::AVCodecCore::H264
 
 struct FH264ProfileDefinition
 {
-	EH264Profile Profile;
-	UE::AVCodecCore::H264::EH264ProfileIDC PIDC;
+	EH264Profile							   Profile;
+	UE::AVCodecCore::H264::EH264ProfileIDC	   PIDC;
 	UE::AVCodecCore::H264::EH264ConstraintFlag ConstraintFlags;
 	const TCHAR* Name;
 };
@@ -255,10 +269,10 @@ namespace UE::AVCodecCore::H264
 
 	struct FNaluH264
 	{
-		uint64 Start, Size;
-		uint8 StartCodeSize;
-		uint8 RefIdc;
-		ENaluType Type;
+		uint64		 Start, Size;
+		uint8		 StartCodeSize;
+		uint8		 RefIdc;
+		ENaluType	 Type;
 		const uint8* Data;
 	};
 
@@ -355,79 +369,79 @@ namespace UE::AVCodecCore::H264
 	struct SPS_t : public FNalu
 	{
 	public:
-		U<8, EH264ProfileIDC> profile_idc = EH264ProfileIDC::Auto;
+		U<8, EH264ProfileIDC>	  profile_idc = EH264ProfileIDC::Auto;
 		U<8, EH264ConstraintFlag> constraint_flags = EH264ConstraintFlag::None;
-		U<8> level_idc;							   // + profile_idc + constraint_flags = EH264Level
-		UE seq_parameter_set_id;				   // 0...31 inclusive
-		UE chroma_format_idc = 1;				   // 0...3 inclusive
-		U<1> separate_colour_plane_flag;		   // bool
-		UE bit_depth_luma_minus8;				   // 0...6 inclusive
-		UE bit_depth_chroma_minus8;				   // 0...6 inclusive
-		U<1> qpprime_y_zero_transform_bypass_flag; // 0...1 inclusive
-		U<1> seq_scaling_matrix_present_flag;	   // bool
-		U<1> seq_scaling_list_present_flag[12];	   // bool array
-		uint8 ScalingList4x4[6][16];			   // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
-		uint8 ScalingList8x8[6][64];			   // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
-		UE log2_max_frame_num_minus4;			   // 0...12 inclusive
-		UE pic_order_cnt_type;					   // 0...3 inclusive
-		UE log2_max_pic_order_cnt_lsb_minus4;	   // 0...12 inclusive
-		U<1> delta_pic_order_always_zero_flag;	   // bool
-		SE offset_for_non_ref_pic;				   // −2^(31)+1...2^(31)−1 inclusive
-		SE offset_for_top_to_bottom_field;		   // −2^(31)+1...2^(31)−1 inclusive
-		UE num_ref_frames_in_pic_order_cnt_cycle;  // 0...255 inclusive
-		SE offset_for_ref_frame[255];			   // −2^(31)+1...2^(31)−1 inclusive
-		UE max_num_ref_frames;					   // 0...MaxDpbFrames inclusive MaxDpbFrames = Min( MaxDecPicBufSizeMacro / ( PicWidthMacro * FrameHeightMacro ), 16) (A.3.1 or A.3.2)
-		U<1> gaps_in_frame_num_value_allowed_flag; // bool
-		UE pic_width_in_mbs_minus1;				   // + 1 = Width in macroblocks
-		UE pic_height_in_map_units_minus1;		   // + 1 = Height
-		U<1> frame_mbs_only_flag;				   // bool
-		U<1> mb_adaptive_frame_field_flag;		   // bool
-		U<1> direct_8x8_inference_flag;			   // bool
-		U<1> frame_cropping_flag;				   // bool
-		UE frame_crop_left_offset;
-		UE frame_crop_right_offset;
-		UE frame_crop_top_offset;
-		UE frame_crop_bottom_offset;
-		U<1> vui_parameters_present_flag; // bool
+		U<8>					  level_idc;							 // + profile_idc + constraint_flags = EH264Level
+		UE						  seq_parameter_set_id;					 // 0...31 inclusive
+		UE						  chroma_format_idc = 1;				 // 0...3 inclusive
+		U<1>					  separate_colour_plane_flag;			 // bool
+		UE						  bit_depth_luma_minus8;				 // 0...6 inclusive
+		UE						  bit_depth_chroma_minus8;				 // 0...6 inclusive
+		U<1>					  qpprime_y_zero_transform_bypass_flag;	 // 0...1 inclusive
+		U<1>					  seq_scaling_matrix_present_flag;		 // bool
+		U<1>					  seq_scaling_list_present_flag[12];	 // bool array
+		uint8					  ScalingList4x4[6][16];				 // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
+		uint8					  ScalingList8x8[6][64];				 // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
+		UE						  log2_max_frame_num_minus4;			 // 0...12 inclusive
+		UE						  pic_order_cnt_type;					 // 0...3 inclusive
+		UE						  log2_max_pic_order_cnt_lsb_minus4;	 // 0...12 inclusive
+		U<1>					  delta_pic_order_always_zero_flag;		 // bool
+		SE						  offset_for_non_ref_pic;				 // −2^(31)+1...2^(31)−1 inclusive
+		SE						  offset_for_top_to_bottom_field;		 // −2^(31)+1...2^(31)−1 inclusive
+		UE						  num_ref_frames_in_pic_order_cnt_cycle; // 0...255 inclusive
+		SE						  offset_for_ref_frame[255];			 // −2^(31)+1...2^(31)−1 inclusive
+		UE						  max_num_ref_frames;					 // 0...MaxDpbFrames inclusive MaxDpbFrames = Min( MaxDecPicBufSizeMacro / ( PicWidthMacro * FrameHeightMacro ), 16) (A.3.1 or A.3.2)
+		U<1>					  gaps_in_frame_num_value_allowed_flag;	 // bool
+		UE						  pic_width_in_mbs_minus1;				 // + 1 = Width in macroblocks
+		UE						  pic_height_in_map_units_minus1;		 // + 1 = Height
+		U<1>					  frame_mbs_only_flag;					 // bool
+		U<1>					  mb_adaptive_frame_field_flag;			 // bool
+		U<1>					  direct_8x8_inference_flag;			 // bool
+		U<1>					  frame_cropping_flag;					 // bool
+		UE						  frame_crop_left_offset;
+		UE						  frame_crop_right_offset;
+		UE						  frame_crop_top_offset;
+		UE						  frame_crop_bottom_offset;
+		U<1>					  vui_parameters_present_flag; // bool
 		// VUI Parameters
-		U<1> aspect_ratio_info_present_flag; // bool
+		U<1>					  aspect_ratio_info_present_flag; // bool
 		U<8, EH264AspectRatioIDC> aspect_ratio_idc = EH264AspectRatioIDC::Unspecified;
-		U<16> sar_width;					 // Width in arbitrary unit
-		U<16> sar_height;					 // Height in same arbitrary unit as Width
-		U<1> overscan_info_present_flag;	 // bool
-		U<1> overscan_appropriate_flag;		 // bool
-		U<1> video_signal_type_present_flag; // bool
-		U<3, EH264VideoFormat> video_format = EH264VideoFormat::Unspecified;
-		U<1> video_full_range_flag;					  // bool
-		U<1> colour_description_present_flag;		  // bool
-		U<8> colour_primaries = 2;					  // 0...255 inclusive but see Table E-3 as many values are Reserved
-		U<8> transfer_characteristics = 2;			  // 0...255 inclusive but see Table E-4 as many values are Reserved
-		U<8> matrix_coefficients = 2;				  // 0...255 inclusive but see Table E-5 as many values are Reserved
-		U<1> chroma_loc_info_present_flag;			  // bool
-		UE chroma_sample_loc_type_top_field;		  // 0...5 inclusive
-		UE chroma_sample_loc_type_bottom_field;		  // 0...5 inclusive
-		U<1> timing_info_present_flag;				  // bool
-		U<32> num_units_in_tick = 1;				  // > 0
-		U<32> time_scale = 1000;					  // defaulted to ms
-		U<1> fixed_frame_rate_flag;					  // bool
-		U<1> nal_hrd_parameters_present_flag;		  // bool
-		U<1> vcl_hrd_parameters_present_flag;		  // bool
-		U<1> low_delay_hrd_flag;					  // bool
-		U<1> pic_struct_present_flag;				  // bool
-		U<1> bitstream_restriction_flag;			  // bool
-		U<1> motion_vectors_over_pic_boundaries_flag; // bool
-		UE max_bytes_per_pic_denom;
-		UE max_bits_per_mb_denom;
-		UE log2_max_mv_length_horizontal;
-		UE log2_max_mv_length_vertical;
-		UE max_num_reorder_frames;
-		UE max_dec_frame_buffering;
+		U<16>					  sar_width;					  // Width in arbitrary unit
+		U<16>					  sar_height;					  // Height in same arbitrary unit as Width
+		U<1>					  overscan_info_present_flag;	  // bool
+		U<1>					  overscan_appropriate_flag;	  // bool
+		U<1>					  video_signal_type_present_flag; // bool
+		U<3, EH264VideoFormat>	  video_format = EH264VideoFormat::Unspecified;
+		U<1>					  video_full_range_flag;				   // bool
+		U<1>					  colour_description_present_flag;		   // bool
+		U<8>					  colour_primaries = 2;					   // 0...255 inclusive but see Table E-3 as many values are Reserved
+		U<8>					  transfer_characteristics = 2;			   // 0...255 inclusive but see Table E-4 as many values are Reserved
+		U<8>					  matrix_coefficients = 2;				   // 0...255 inclusive but see Table E-5 as many values are Reserved
+		U<1>					  chroma_loc_info_present_flag;			   // bool
+		UE						  chroma_sample_loc_type_top_field;		   // 0...5 inclusive
+		UE						  chroma_sample_loc_type_bottom_field;	   // 0...5 inclusive
+		U<1>					  timing_info_present_flag;				   // bool
+		U<32>					  num_units_in_tick = 1;				   // > 0
+		U<32>					  time_scale = 1000;					   // defaulted to ms
+		U<1>					  fixed_frame_rate_flag;				   // bool
+		U<1>					  nal_hrd_parameters_present_flag;		   // bool
+		U<1>					  vcl_hrd_parameters_present_flag;		   // bool
+		U<1>					  low_delay_hrd_flag;					   // bool
+		U<1>					  pic_struct_present_flag;				   // bool
+		U<1>					  bitstream_restriction_flag;			   // bool
+		U<1>					  motion_vectors_over_pic_boundaries_flag; // bool
+		UE						  max_bytes_per_pic_denom;
+		UE						  max_bits_per_mb_denom;
+		UE						  log2_max_mv_length_horizontal;
+		UE						  log2_max_mv_length_vertical;
+		UE						  max_num_reorder_frames;
+		UE						  max_dec_frame_buffering;
 		// HRD Parameters
-		UE cpb_cnt_minus1; // 0...31 inclusive
+		UE	 cpb_cnt_minus1; // 0...31 inclusive
 		U<4> bit_rate_scale;
 		U<4> cpb_size_scale;
-		UE bit_rate_value_minus1[31];					   // 0...2^(32)−2 inclusive TODO (aidan) might need an infer stage to fill out based on profile
-		UE cpb_size_value_minus1[31];					   // 0...2^(32)−2 inclusive TODO (aidan) might need an infer stage to fill out based on profile
+		UE	 bit_rate_value_minus1[31];					   // 0...2^(32)−2 inclusive TODO (aidan) might need an infer stage to fill out based on profile
+		UE	 cpb_size_value_minus1[31];					   // 0...2^(32)−2 inclusive TODO (aidan) might need an infer stage to fill out based on profile
 		U<1> cbr_flag[31];								   // bool
 		U<5> initial_cpb_removal_delay_length_minus1 = 23; //
 		U<5> cpb_removal_delay_length_minus1 = 23;
@@ -452,71 +466,71 @@ namespace UE::AVCodecCore::H264
 
 	struct PPS_t : public FNalu
 	{
-		UE pic_parameter_set_id;
-		UE seq_parameter_set_id;
-		U<1> entropy_coding_mode_flag;
-		U<1> bottom_field_pic_order_in_frame_present_flag;
-		UE num_slice_groups_minus1;
-		UE slice_group_map_type;
-		TArray<UE> run_length_minus1; // hard to justify preallocating this as it could be PicWidthInMbs * PicHeightInMapUnits - 1
-		TArray<UE> top_left;		  // hard to justify preallocating this as it could be PicWidthInMbs * PicHeightInMapUnits - 1
-		TArray<UE> bottom_right;	  // hard to justify preallocating this as it could be PicWidthInMbs * PicHeightInMapUnits - 1
-		U<1> slice_group_change_direction_flag;
-		UE slice_group_change_rate_minus1;
-		UE pic_size_in_map_units_minus1;
+		UE			pic_parameter_set_id;
+		UE			seq_parameter_set_id;
+		U<1>		entropy_coding_mode_flag;
+		U<1>		bottom_field_pic_order_in_frame_present_flag;
+		UE			num_slice_groups_minus1;
+		UE			slice_group_map_type;
+		TArray<UE>	run_length_minus1; // hard to justify preallocating this as it could be PicWidthInMbs * PicHeightInMapUnits - 1
+		TArray<UE>	top_left;		   // hard to justify preallocating this as it could be PicWidthInMbs * PicHeightInMapUnits - 1
+		TArray<UE>	bottom_right;	   // hard to justify preallocating this as it could be PicWidthInMbs * PicHeightInMapUnits - 1
+		U<1>		slice_group_change_direction_flag;
+		UE			slice_group_change_rate_minus1;
+		UE			pic_size_in_map_units_minus1;
 		TArray<U<>> slice_group_id; // hard to justify preallocating this as it could be pic_size_in_map_units_minus1 + 1
-		UE num_ref_idx_l0_default_active_minus1;
-		UE num_ref_idx_l1_default_active_minus1;
-		U<1> weighted_pred_flag;
-		U<2> weighted_bipred_idc;
-		SE pic_init_qp_minus26;
-		SE pic_init_qs_minus26;
-		SE chroma_qp_index_offset;
-		U<1> deblocking_filter_control_present_flag;
-		U<1> constrained_intra_pred_flag;
-		U<1> redundant_pic_cnt_present_flag;
-		U<1> transform_8x8_mode_flag;
-		U<1> pic_scaling_matrix_present_flag;
-		U<1> pic_scaling_list_present_flag[12];
-		uint8 ScalingList4x4[6][16]; // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
-		uint8 ScalingList8x8[6][64]; // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
-		SE second_chroma_qp_index_offset;
+		UE			num_ref_idx_l0_default_active_minus1;
+		UE			num_ref_idx_l1_default_active_minus1;
+		U<1>		weighted_pred_flag;
+		U<2>		weighted_bipred_idc;
+		SE			pic_init_qp_minus26;
+		SE			pic_init_qs_minus26;
+		SE			chroma_qp_index_offset;
+		U<1>		deblocking_filter_control_present_flag;
+		U<1>		constrained_intra_pred_flag;
+		U<1>		redundant_pic_cnt_present_flag;
+		U<1>		transform_8x8_mode_flag;
+		U<1>		pic_scaling_matrix_present_flag;
+		U<1>		pic_scaling_list_present_flag[12];
+		uint8		ScalingList4x4[6][16]; // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
+		uint8		ScalingList8x8[6][64]; // -2^(1+BitDepth)...2^(1+BitDepth)-1 inclusive
+		SE			second_chroma_qp_index_offset;
 	};
 
 	FAVResult ParsePPS(FBitstreamReader& Bitstream, FNaluH264 const& InNaluInfo, TMap<uint32, SPS_t> const& InMapSPS, TMap<uint32, PPS_t>& OutMapPPS);
 
 	struct Slice_t : public FNalu
 	{
-		UE first_mb_in_slice;
-		UE slice_type;
-		UE pic_parameter_set_id;
+		UE	 first_mb_in_slice;
+		UE	 slice_type;
+		UE	 pic_parameter_set_id;
 		U<2> colour_plane_id;
-		U<> frame_num;
+		U<>	 frame_num;
 		U<1> field_pic_flag;
 		U<1> bottom_field_flag;
-		UE idr_pic_id;
-		U<> pic_order_cnt_lsb;
-		SE delta_pic_order_cnt_bottom;
-		SE delta_pic_order_cnt[2];
-		UE redundant_pic_cnt;
+		UE	 idr_pic_id;
+		U<>	 pic_order_cnt_lsb;
+		SE	 delta_pic_order_cnt_bottom;
+		SE	 delta_pic_order_cnt[2];
+		UE	 redundant_pic_cnt;
 		U<1> direct_spatial_mv_pred_flag;
 		U<1> num_ref_idx_active_override_flag;
-		UE num_ref_idx_l0_active_minus1;
-		UE num_ref_idx_l1_active_minus1;
-		UE cabac_init_idc;
-		SE slice_qp_delta;
+		UE	 num_ref_idx_l0_active_minus1;
+		UE	 num_ref_idx_l1_active_minus1;
+		UE	 cabac_init_idc;
+		SE	 slice_qp_delta;
 		U<1> sp_for_switch_flag;
-		SE slice_qs_delta;
-		UE disable_deblocking_filter_idc;
-		SE slice_alpha_c0_offset_div2;
-		SE slice_beta_offset_div2;
-		U<> slice_group_change_cycle;
+		SE	 slice_qs_delta;
+		UE	 disable_deblocking_filter_idc;
+		SE	 slice_alpha_c0_offset_div2;
+		SE	 slice_beta_offset_div2;
+		U<>	 slice_group_change_cycle;
 
 		// ref_pic_list_modification
 		struct RefPic_t
 		{
 			U<1> bIsLongTerm;
-			UE pic_num;
+			UE	 pic_num;
 		};
 
 		U<1> ref_pic_list_modification_flag_l0;
@@ -532,10 +546,10 @@ namespace UE::AVCodecCore::H264
 
 		U<1> adaptive_ref_pic_marking_mode_flag;
 
-        UE difference_of_pic_nums_minus1;
-        UE long_term_pic_num;
-        UE long_term_frame_idx;
-        UE max_long_term_frame_idx_plus1;
+		UE difference_of_pic_nums_minus1;
+		UE long_term_pic_num;
+		UE long_term_frame_idx;
+		UE max_long_term_frame_idx_plus1;
 	};
 
 	FAVResult ParseSliceHeader(FBitstreamReader& Bitstream, FNaluH264 const& InNaluInfo, TMap<uint32, SPS_t> const& InMapSPS, TMap<uint32, PPS_t> const& InMapPPS, Slice_t& OutSlice);

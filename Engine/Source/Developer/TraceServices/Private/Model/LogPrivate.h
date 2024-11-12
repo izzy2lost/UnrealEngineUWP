@@ -41,15 +41,21 @@ public:
 	//////////////////////////////////////////////////
 	// Read operations
 
-	virtual uint64 GetMessageCount() const override;
+	virtual uint64 GetMessageCount() const override { Session.ReadAccessCheck(); return Messages.Num(); }
 	virtual bool ReadMessage(uint64 Index, TFunctionRef<void(const FLogMessageInfo&)> Callback) const override;
-	virtual void EnumerateMessages(double IntervalStart, double IntervalEnd, TFunctionRef<void(const FLogMessageInfo&)> Callback) const override;
-	virtual void EnumerateMessagesByIndex(uint64 Start, uint64 End, TFunctionRef<void(const FLogMessageInfo&)> Callback) const override;
+	virtual void EnumerateMessagesByIndex(uint64 StartIndex, uint64 EndIndex, TFunctionRef<void(const FLogMessageInfo&)> Callback) const override;
+	virtual void EnumerateMessages(double StartTime, double EndTime, TFunctionRef<void(const FLogMessageInfo&)> Callback) const override;
 
-	virtual uint64 GetCategoryCount() const override { return Categories.Num(); }
+	virtual uint64 LowerBoundByTime(double Time) const override;
+	virtual uint64 UpperBoundByTime(double Time) const override;
+	virtual uint64 BinarySearchClosestByTime(double Time) const override;
+
+	virtual uint64 GetCategoryCount() const override { Session.ReadAccessCheck(); return Categories.Num(); }
 	virtual void EnumerateCategories(TFunctionRef<void(const FLogCategoryInfo&)> Callback) const override;
 
 	virtual const IUntypedTable& GetMessagesTable() const override { return MessagesTable; }
+
+	virtual uint64 GetInsertCount() const { Session.ReadAccessCheck(); return NumInserts; }
 
 	//////////////////////////////////////////////////
 	// Edit operations
@@ -65,12 +71,13 @@ public:
 	virtual void UpdateMessageSpec(uint64 LogPoint, uint64 InCategoryPointer, const TCHAR* InFormatString, const TCHAR* InFile, int32 InLine, ELogVerbosity::Type InVerbosity) override;
 	virtual void AppendMessage(uint64 LogPoint, double Time, const uint8* FormatArgs) override;
 	virtual void AppendMessage(uint64 LogPoint, double Time, const TCHAR* Text) override;
-	void AppendMessage(uint64 LogPoint, double Time, const FString& Message);
+	void AppendMessage(uint64 LogPoint, double Time, const FStringView Message);
 
 	//////////////////////////////////////////////////
 
 private:
-	void ConstructMessage(uint64 Id, TFunctionRef<void(const FLogMessageInfo&)> Callback) const;
+	FLogMessageInternal& AppendMessageInternal(double Time);
+	void ConstructMessage(const FLogMessageInternal& InternalMessage, uint64 Index, TFunctionRef<void(const FLogMessageInfo&)> Callback) const;
 
 	enum
 	{
@@ -86,6 +93,7 @@ private:
 	TCHAR FormatBuffer[FormatBufferSize];
 	TCHAR TempBuffer[FormatBufferSize];
 	TTableView<FLogMessageInternal> MessagesTable;
+	uint64 NumInserts = 0;
 };
 
 } // namespace TraceServices

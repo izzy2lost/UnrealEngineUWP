@@ -123,6 +123,9 @@ struct FWindowsPlatformProcess
 
 public:
 
+	static CORE_API bool SetProcessAffinity(uint32 NumCoresForAffinity, bool bPhysicalCoresOnly);
+	static CORE_API bool IsProcessAffinitySet();
+
 	// FGenericPlatformProcess interface
 
 	static CORE_API void* GetDllHandle( const TCHAR* Filename );

@@ -39,6 +39,7 @@ UExponentialHeightFogComponent::UExponentialHeightFogComponent(const FObjectInit
 
 	FogMaxOpacity = 1.0f;
 	StartDistance = 0.0f;
+	EndDistance = 0.0f;
 
 	// disabled by default
 	FogCutoffDistance = 0;
@@ -92,6 +93,19 @@ bool UExponentialHeightFogComponent::CanEditChange(const FProperty* InProperty) 
 	{
 		FString PropertyName = InProperty->GetName();
 
+		static const auto CVarFog = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportExpFogMatchesVolumetricFog"));
+		if (CVarFog && CVarFog->GetValueOnAnyThread() > 0)
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, DirectionalInscatteringExponent) ||
+				PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, DirectionalInscatteringStartDistance) ||
+				PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, FogInscatteringLuminance) ||
+				PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, DirectionalInscatteringLuminance))
+			{
+				// In this case, all the data will come from the volumetric fog.
+				return false;
+			}
+		}
+
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, DirectionalInscatteringExponent) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, DirectionalInscatteringStartDistance) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UExponentialHeightFogComponent, DirectionalInscatteringLuminance) ||
@@ -125,6 +139,7 @@ void UExponentialHeightFogComponent::PostEditChangeProperty(FPropertyChangedEven
 	FogHeightFalloff = FMath::Clamp(FogHeightFalloff, 0.0f, 2.0f);
 	FogMaxOpacity = FMath::Clamp(FogMaxOpacity, 0.0f, 1.0f);
 	StartDistance = FMath::Clamp(StartDistance, 0.0f, (float)WORLD_MAX);
+	EndDistance = FMath::Clamp(EndDistance, 0.0f, (float)(10 * WORLD_MAX));
 	FogCutoffDistance = FMath::Clamp(FogCutoffDistance, 0.0f, (float)(10 * WORLD_MAX));
 	FullyDirectionalInscatteringColorDistance = FMath::Clamp(FullyDirectionalInscatteringColorDistance, 0.0f, (float)WORLD_MAX);
 	NonDirectionalInscatteringColorDistance = FMath::Clamp(NonDirectionalInscatteringColorDistance, 0.0f, FullyDirectionalInscatteringColorDistance);
@@ -278,6 +293,15 @@ void UExponentialHeightFogComponent::SetStartDistance(float Value)
 	}
 }
 
+void UExponentialHeightFogComponent::SetEndDistance(float Value)
+{
+	if(EndDistance != Value)
+	{
+		EndDistance = Value;
+		MarkRenderStateDirty();
+	}
+}
+
 void UExponentialHeightFogComponent::SetFogCutoffDistance(float Value)
 {
 	if(FogCutoffDistance != Value)
@@ -337,6 +361,24 @@ void UExponentialHeightFogComponent::SetVolumetricFogDistance(float NewValue)
 	if(VolumetricFogDistance != NewValue)
 	{
 		VolumetricFogDistance = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
+void UExponentialHeightFogComponent::SetVolumetricFogStartDistance(float NewValue)
+{
+	if (VolumetricFogStartDistance != NewValue)
+	{
+		VolumetricFogStartDistance = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
+void UExponentialHeightFogComponent::SetVolumetricFogNearFadeInDistance(float NewValue)
+{
+	if (VolumetricFogNearFadeInDistance != NewValue)
+	{
+		VolumetricFogNearFadeInDistance = NewValue;
 		MarkRenderStateDirty();
 	}
 }

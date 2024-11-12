@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterRootActor.h"
+#include "DisplayClusterRootActorContainers.h"
 
 #include "Async/ParallelFor.h"
 #include "Components/SceneComponent.h"
@@ -55,10 +56,17 @@
 
 namespace UE::DisplayCluster::RootActor
 {
+	/** Collect components by type
+	* 
+	* @param OutPrimitives - (out) Output variable for collected components.
+	* @param pComp         - (in) The component from which the collection will be made.
+	* @param bForceHide    - (opt) if true, collects components with any value of the bHiddenInGame property.
+	* @param bCollectChildrenVisualizationComponent - If true collects child components.
+	*/
 	template <typename TComp>
-	void CollectPrimitiveComponentsImpl(TSet<FPrimitiveComponentId>& OutPrimitives, TComp* pComp, bool bForceHide = false, const bool bCollectChildrenVisualizationComponent = true)
+	void CollectPrimitiveComponentsImpl(TSet<FPrimitiveComponentId>& OutPrimitives, const TComp* pComp, bool bForceHide = false, const bool bCollectChildrenVisualizationComponent = true)
 	{
-		if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(pComp))
+		if (const UPrimitiveComponent* PrimComp = Cast<const UPrimitiveComponent>(pComp))
 		{
 			if (PrimComp->bHiddenInGame
 			|| bForceHide
@@ -67,21 +75,111 @@ namespace UE::DisplayCluster::RootActor
 #endif
 				)
 			{
-				OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+				const FPrimitiveComponentId CompId = PrimComp->GetPrimitiveSceneId();
+				OutPrimitives.Add(CompId);
 			}
 		}
 
 		if (bCollectChildrenVisualizationComponent)
 		{
-			if (USceneComponent* SceneComp = Cast<USceneComponent>(pComp))
+			if (const USceneComponent* SceneComp = Cast<const USceneComponent>(pComp))
 			{
 				TArray<USceneComponent*> ChildrenComponents;
 				SceneComp->GetChildrenComponents(false, ChildrenComponents);
 
-				for (USceneComponent* CompIt : ChildrenComponents)
+				for (const USceneComponent* CompIt : ChildrenComponents)
 				{
 					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
 				}
+			}
+		}
+	}
+
+	/**
+	 * Syncs default media settings to instance.
+	 *
+	 * @param InstanceDCRA Instance of the nDisplay root actor.
+	 */
+	static void PropagateMediaSettingsFromDefault(ADisplayClusterRootActor* InstanceDCRA)
+	{
+		if (!InstanceDCRA || InstanceDCRA->IsTemplate())
+		{
+			return;
+		}
+
+		// Note: ICVFX Camera Component Media property propagation is done in the ICVFXCamera itself.
+
+		// Propagate Backbuffer and Viewports MediaSettings property
+		//
+		const UDisplayClusterConfigurationData* const ArchetypeConfig = InstanceDCRA->GetDefaultConfigDataFromAsset();
+		const UDisplayClusterConfigurationData* const InstanceConfig = InstanceDCRA->GetConfigData();
+
+		if (!IsValid(ArchetypeConfig)
+			|| !IsValid(InstanceConfig)
+			|| !IsValid(ArchetypeConfig->Cluster)
+			|| !IsValid(InstanceConfig->Cluster))
+		{
+			return;
+		}
+
+		// Iterate over instance nodes, find the archetype, and copy the Media setting.
+		for (auto ItNode = InstanceConfig->Cluster->Nodes.CreateIterator(); ItNode; ++ItNode)
+		{
+			const FString& NodeName = ItNode.Key();
+			TObjectPtr<UDisplayClusterConfigurationClusterNode> InstanceNode = ItNode.Value();
+
+			if (!InstanceNode)
+			{
+				continue;
+			}
+
+			TObjectPtr<UDisplayClusterConfigurationClusterNode>* ArchetypeNodePtr = ArchetypeConfig->Cluster->Nodes.Find(NodeName);
+
+			if (!ArchetypeNodePtr)
+			{
+				continue;
+			}
+
+			TObjectPtr<UDisplayClusterConfigurationClusterNode> ArchetypeNode = *ArchetypeNodePtr;
+
+			if (!ArchetypeNode)
+			{
+				continue;
+			}
+
+			// Copy node media settings.
+			InstanceNode->MediaSettings = ArchetypeNode->MediaSettings;
+
+			// Viewports Media property
+			//
+
+			// Iterate over instance viewports, find the archetype, and deep-copy the Media setting.
+			for (auto ItViewport = InstanceNode->Viewports.CreateIterator(); ItViewport; ++ItViewport)
+			{
+				const FString& ViewportName = ItViewport.Key();
+				TObjectPtr<UDisplayClusterConfigurationViewport> InstanceViewport = ItViewport.Value();
+
+				if (!InstanceViewport)
+				{
+					continue;
+				}
+
+				TObjectPtr<UDisplayClusterConfigurationViewport>* ArchetypeViewportPtr = ArchetypeNode->Viewports.Find(ViewportName);
+
+				if (!ArchetypeViewportPtr)
+				{
+					continue;
+				}
+
+				TObjectPtr<UDisplayClusterConfigurationViewport> ArchetypeViewport = *ArchetypeViewportPtr;
+
+				if (!ArchetypeViewport)
+				{
+					continue;
+				}
+
+				// Copy viewport media settings.
+				InstanceViewport->RenderSettings.Media = ArchetypeViewport->RenderSettings.Media;
 			}
 		}
 	}
@@ -522,7 +620,7 @@ int ADisplayClusterRootActor::GetInnerFrustumPriority(const FString& InnerFrustu
 }
 
 template <typename TComp>
-void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames, bool bCollectChildrenVisualizationComponent) const
+void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames, bool bForceHide, bool bCollectChildrenVisualizationComponent) const
 {
 	using namespace UE::DisplayCluster::RootActor;
 
@@ -538,22 +636,22 @@ void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& O
 				if (InCompNames->Find(CompIt->GetName()) != INDEX_NONE)
 				{
 					// add only comp from names list
-					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
+					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
 				}
 			}
 			else
 			{
-				CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
+				CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
 			}
 		}
 	}
 }
 
-bool ADisplayClusterRootActor::FindPrimitivesByName(const TArray<FString>& InNames, TSet<FPrimitiveComponentId>& OutPrimitives)
+bool ADisplayClusterRootActor::FindPrimitivesByName(const TArray<FString>& InNames, TSet<FPrimitiveComponentId>& OutPrimitives, bool bForceHide)
 {
-	GetTypedPrimitives<UActorComponent>(OutPrimitives, &InNames, false);
+	GetTypedPrimitives<UActorComponent>(OutPrimitives, &InNames, bForceHide, false);
 
-	return true;
+	return !OutPrimitives.IsEmpty();
 }
 
 // Gather components not rendered in game
@@ -672,7 +770,7 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 		PrimitiveComponentsArray.AddDefaulted(NumIterThreads);
 
 		// Start the iteration parallel threads
-		ParallelFor(NumIterThreads, [NumIterThreads, CurrentWorld, &Actors, &PrimitiveComponentsArray](int32 Index)
+		ParallelFor(NumIterThreads, [NumIterThreads, CurrentWorld, &Actors, CurrentRootActor = this, &PrimitiveComponentsArray](int32 Index)
 			{
 				// Using inline allocator for efficiency
 				constexpr int32 MaxExpectedComponentsPerActor = 64;
@@ -685,7 +783,9 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 				{
 					const AActor* Actor = Actors[ActorIdx];
 
-					if (IsValid(Actor))
+					// RootActor visibility is already handled by this GetHiddenInGamePrimitives() function. (See the code above.)
+					// The code below is generic for all actor types and hides all primitives without following the DCRA rules used above.
+					if (IsValid(Actor) && Actor != CurrentRootActor)
 					{
 						Actor->GetComponents(PrimitiveComponents);
 						for (UPrimitiveComponent* PrimComp : PrimitiveComponents)
@@ -743,6 +843,12 @@ void ADisplayClusterRootActor::InitializeRootActor()
 	{
 		BuildHierarchy();
 	}
+
+	// Propagate Media settings that should always override the instance settings.
+	// This is currently required due to limitation of instanced property propagation,
+	// where the instanced media settings may be incorrectly considered dirty and therefore
+	// not propagated from the template to the instance.
+	UE::DisplayCluster::RootActor::PropagateMediaSettingsFromDefault(this);
 }
 
 void ADisplayClusterRootActor::UpdateProceduralMeshComponentData(const UProceduralMeshComponent* InProceduralMeshComponent)
@@ -1057,6 +1163,18 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		}
 	}
 
+	TickPreviewRenderer();
+
+	SetLightCardOwnership();
+
+	Super::Tick(DeltaSeconds);
+}
+
+void ADisplayClusterRootActor::TickPreviewRenderer()
+{
+	const bool bIsPrimaryRootActor = IsPrimaryRootActor();
+	const bool bIsRunningDisplayCluster = IsRunningDisplayCluster();
+
 	// Get preview settings from the this actor current source
 	// as they may already be configured externally, so just get the preview settings from the current source
 	FDisplayClusterViewport_PreviewSettings NewPreviewSettings = GetPreviewSettings();
@@ -1126,11 +1244,11 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 	}
 
 #if WITH_EDITOR
-	if (!PreviewEnableOverriders.IsEmpty())
+	// The StageIsosphereComponent can only be seen if DCRA preview is enabled.
+	const bool bShowStageIsosphere = NewPreviewSettings.bPreviewEnable && bPreviewStageGeometryMesh;
+	if (StageIsosphereComponent && StageIsosphereComponent->GetVisibleFlag() != bShowStageIsosphere)
 	{
-		// Preview rendering is overridden, so force it on
-		bEnablePreviewInScene = true;
-		NewPreviewSettings.bPreviewEnable = true;
+		StageIsosphereComponent->SetVisibility(bShowStageIsosphere);
 	}
 #endif
 
@@ -1146,10 +1264,6 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 
 	// Update RootActor visibility for game
 	SetActorHiddenInGame(!bEnablePreviewInScene);
-
-	SetLightCardOwnership();
-
-	Super::Tick(DeltaSeconds);
 }
 
 FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSettings(bool bIgnorePreviewSetttingsSource) const
@@ -1462,3 +1576,31 @@ void ADisplayClusterRootActor::AddReferencedObjects(UObject* InThis, FReferenceC
 
 	Super::AddReferencedObjects(InThis, Collector);
 }
+
+#define OVERRIDE_PROPERTY(PROPERTY_NAME)\
+	if (InPropertyOverrides.PROPERTY_NAME.IsSet())\
+	{\
+		PROPERTY_NAME = InPropertyOverrides.PROPERTY_NAME.GetValue();\
+	}
+
+void ADisplayClusterRootActor::OverrideRootActorProperties(const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides)
+{
+	OVERRIDE_PROPERTY(bPreviewInGameEnable);
+	OVERRIDE_PROPERTY(bPreviewInGameRenderFrustum);
+	OVERRIDE_PROPERTY(bPreviewEnable);
+	OVERRIDE_PROPERTY(PreviewRenderTargetRatioMult);
+	OVERRIDE_PROPERTY(bPreviewEnablePostProcess);
+	OVERRIDE_PROPERTY(bPreviewEnableOverlayMaterial);
+	OVERRIDE_PROPERTY(bEnablePreviewTechvis);
+	OVERRIDE_PROPERTY(bEnablePreviewMesh);
+	OVERRIDE_PROPERTY(bEnablePreviewEditableMesh);
+	OVERRIDE_PROPERTY(PreviewSetttingsSource);
+	OVERRIDE_PROPERTY(bFreezePreviewRender);
+	OVERRIDE_PROPERTY(bPreviewICVFXFrustums);
+	OVERRIDE_PROPERTY(PreviewICVFXFrustumsFarDistance);
+	OVERRIDE_PROPERTY(TickPerFrame);
+	OVERRIDE_PROPERTY(ViewportsPerFrame);
+	OVERRIDE_PROPERTY(PreviewMaxTextureDimension);
+}
+
+#undef OVERRIDE_PROPERTY

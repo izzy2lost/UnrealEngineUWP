@@ -10,7 +10,12 @@ namespace uba
 	struct StorageServerCreateInfo : StorageCreateInfo
 	{
 		StorageServerCreateInfo(NetworkServer& s, const tchar* rootDir_, LogWriter& writer) : StorageCreateInfo(rootDir_, writer), server(s) { workManager = &server; }
+
+		void Apply(Config& config);
+
 		NetworkServer& server;
+		bool allowFallback = true; // Will fallback to file system to recalculate cas if cas content does not exist anymore
+		bool writeRecievedCasFilesToDisk = false;
 		const tchar* zone = TC("");
 	};
 
@@ -22,6 +27,15 @@ namespace uba
 
 		bool RegisterDisallowedPath(const tchar* path);
 
+		// Get the network server used by this session
+		NetworkServer& GetServer() { return m_server; }
+
+		using StorageImpl::StoreCasFile;
+
+		void WaitForActiveWork();
+
+	protected:
+
 		virtual bool GetZone(StringBufferBase& out) override;
 		virtual bool RetrieveCasFile(RetrieveResult& out, const CasKey& casKey, const tchar* hint, FileMappingBuffer* mappingBuffer = nullptr, u64 memoryMapAlignment = 1, bool allowProxy = true) override;
 		virtual bool StoreCasFile(CasKey& out, StringKey fileNameKey, const tchar* fileName, FileMappingHandle mappingHandle, u64 mappingOffset, u64 fileSize, const tchar* hint, bool deferCreation = false, bool keepMappingInMemory = false) override;
@@ -29,9 +43,10 @@ namespace uba
 		virtual bool IsDisallowedPath(const tchar* fileName) override;
 		virtual void SetTrace(Trace* trace, bool detailed) override;
 		virtual bool HasProxy(u32 clientId) override;
+
 		void OnDisconnected(u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
-		bool WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const tchar* hint);
+		bool WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const ConnectionInfo& connectionInfo, const tchar* hint);
 
 		u16 PopId();
 		void PushId(u16 id);
@@ -49,8 +64,8 @@ namespace uba
 
 		struct WaitEntry
 		{
-			WaitEntry() : Done(false) {}
-			Event Done;
+			WaitEntry() : done(false) {}
+			Event done;
 			bool Success = false;
 			u32 refCount = 0;
 		};
@@ -61,12 +76,12 @@ namespace uba
 		{
 			u32 clientId = ~0u;
 			MappedView mappedView;
+			FileAccessor* fileAccessor = nullptr;
 			CasEntry* casEntry = nullptr;
 			Atomic<u64> totalWritten;
 			Atomic<u64> recvCasTime;
 			u64 fileSize = 0;
 			u64 actualSize = 0;
-			bool error = false;
 		};
 		ReaderWriterLock m_activeStoresLock;
 		UnorderedMap<u16, ActiveStore> m_activeStores;
@@ -89,6 +104,7 @@ namespace uba
 		};
 		ReaderWriterLock m_activeFetchesLock;
 		UnorderedMap<u16, ActiveFetch> m_activeFetches;
+		Atomic<u32> m_activeUnmap;
 
 
 		ReaderWriterLock m_availableIdsLock;
@@ -133,5 +149,8 @@ namespace uba
 		Trace* m_trace = nullptr;
 
 		Vector<TString> m_disallowedPaths;
+
+		bool m_allowFallback;
+		bool m_writeRecievedCasFilesToDisk;
 	};
 }

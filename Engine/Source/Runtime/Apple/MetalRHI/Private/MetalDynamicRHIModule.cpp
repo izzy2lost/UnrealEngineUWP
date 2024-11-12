@@ -4,10 +4,11 @@
 	MetalDynamicRHIModule.cpp: Metal Dynamic RHI Module Class Implementation.
 ==============================================================================*/
 
-
+#include "MetalDynamicRHIModule.h"
+#include "MetalDynamicRHI.h"
 #include "MetalLLM.h"
 #include "DynamicRHI.h"
-#include "MetalDynamicRHIModule.h"
+#include "RHIValidation.h"
 #include "Modules/ModuleManager.h"
 
 
@@ -32,5 +33,14 @@ bool FMetalDynamicRHIModule::IsSupported()
 FDynamicRHI* FMetalDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 {
 	LLM(MetalLLM::Initialise());
-	return new FMetalDynamicRHI(RequestedFeatureLevel);
+	FDynamicRHI* FinalRHI =  new FMetalDynamicRHI(RequestedFeatureLevel);
+	
+#if ENABLE_RHI_VALIDATION
+	if (FParse::Param(FCommandLine::Get(), TEXT("RHIValidation")))
+	{
+		FinalRHI = new FValidationRHI(FinalRHI);
+	}
+#endif
+	
+	return FinalRHI;
 }

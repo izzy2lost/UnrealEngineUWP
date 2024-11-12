@@ -15,6 +15,7 @@
 #include "IAnimBlueprintCompilationContext.h"
 #include "Settings/EditorStyleSettings.h"
 #include "AnimBlueprintExtension_CallFunction.h"
+#include "ObjectTools.h"
 
 #define LOCTEXT_NAMESPACE "AnimGraphNode_CallFunction"
 
@@ -36,7 +37,7 @@ FText UAnimGraphNode_CallFunction::GetNodeTitle(ENodeTitleType::Type TitleType) 
 	UFunction* Function = CallFunctionPrototype ? CallFunctionPrototype->GetTargetFunction() : nullptr;
 	if (Function)
 	{
-		FunctionName = UK2Node_CallFunction::GetUserFacingFunctionName(Function);
+		FunctionName = ObjectTools::GetUserFacingFunctionName(Function);
 	}
 	else if(CallFunctionPrototype)
 	{
@@ -166,6 +167,11 @@ void UAnimGraphNode_CallFunction::ExpandNode(FKismetCompilerContext& CompilerCon
 
 void UAnimGraphNode_CallFunction::SetupFromFunction(UFunction* InFunction)
 {
+	if(InFunction == nullptr)
+	{
+		return;
+	}
+
 	// Create graph and inner node
 	InnerGraph = FBlueprintEditorUtils::CreateNewGraph(this, NAME_None, UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
 
@@ -273,18 +279,24 @@ void UAnimGraphNode_CallFunction::GetMenuActions(FBlueprintActionDatabaseRegistr
 		{
 			if (UEdGraphSchema_K2::CanUserKismetCallFunction(InFunction) && ValidateFunction(InFunction))
 			{
-				auto CustomizeNode = [InFunction](UEdGraphNode* InNode, bool bIsTemplate)
+				auto CustomizeNode = [Function = TWeakObjectPtr<UFunction>(InFunction)](UEdGraphNode* InNode, bool bIsTemplate)
 				{
+					UFunction* ResolvedFunction = Function.Get();
+					if(ResolvedFunction == nullptr)
+					{
+						return;
+					}
+
 					UAnimGraphNode_CallFunction* CallFunctionNode = CastChecked<UAnimGraphNode_CallFunction>(InNode);
-					CallFunctionNode->SetupFromFunction(InFunction);
+					CallFunctionNode->SetupFromFunction(ResolvedFunction);
 				};
 
 				UBlueprintNodeSpawner* Spawner = UBlueprintNodeSpawner::Create(UAnimGraphNode_CallFunction::StaticClass(), nullptr, UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateLambda(CustomizeNode));
 				FBlueprintActionUiSpec& MenuSignature = Spawner->DefaultMenuSignature;
 
-				MenuSignature.MenuName = FText::Format(LOCTEXT("MenuNameFormat", "{0} (From Anim Graph)"), UK2Node_CallFunction::GetUserFacingFunctionName(InFunction));
+				MenuSignature.MenuName = FText::Format(LOCTEXT("MenuNameFormat", "{0} (From Anim Graph)"), ObjectTools::GetUserFacingFunctionName(InFunction));
 				MenuSignature.Category = UK2Node_CallFunction::GetDefaultCategoryForFunction(InFunction, LOCTEXT("BaseCategory", "Call Function From Anim Graph"));
-				MenuSignature.Tooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(InFunction));
+				MenuSignature.Tooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(InFunction));
 				MenuSignature.Keywords = UK2Node_CallFunction::GetKeywordsForFunction(InFunction);
 
 				// add at least one character, so that PrimeDefaultUiSpec() doesn't attempt to query the template node
@@ -297,7 +309,7 @@ void UAnimGraphNode_CallFunction::GetMenuActions(FBlueprintActionDatabaseRegistr
 			}
 		};
 
-		for (TFieldIterator<UFunction> It(InClass); It; ++It)
+		for (TFieldIterator<UFunction> It(InClass, EFieldIterationFlags::IncludeInterfaces); It; ++It)
 		{
 			MakeFunctionAction(*It);
 		}
@@ -316,6 +328,11 @@ void UAnimGraphNode_CallFunction::GetMenuActions(FBlueprintActionDatabaseRegistr
 			MakeFunctionActionsForClass(It->GetClass());
 		}
 	}
+}
+
+bool UAnimGraphNode_CallFunction::IsActionFilteredOut(FBlueprintActionFilter const& Filter)
+{
+	return CallFunctionPrototype == nullptr || InnerGraph == nullptr || CallFunctionPrototype->IsActionFilteredOut(Filter);
 }
 
 void UAnimGraphNode_CallFunction::GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const

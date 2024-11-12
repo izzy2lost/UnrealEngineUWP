@@ -122,8 +122,6 @@ static TAutoConsoleVariable<float> CVarLumenSurfaceCacheHeightfieldCaptureMargin
 	ECVF_RenderThreadSafe
 );
 
-extern int32 GLumenSceneUploadEveryFrame;
-
 namespace LumenMeshCards
 {
 	FVector3f GetAxisAlignedDirection(uint32 AxisAlignedDirectionIndex);
@@ -297,8 +295,7 @@ void UpdateLumenMeshCards(FRDGBuilder& GraphBuilder, const FScene& Scene, const 
 	LLM_SCOPE_BYTAG(Lumen);
 	QUICK_SCOPE_CYCLE_COUNTER(UpdateLumenMeshCards);
 
-	extern int32 GLumenSceneUploadEveryFrame;
-	if (GLumenSceneUploadEveryFrame)
+	if (LumenSceneData.bReuploadSceneRequest)
 	{
 		LumenSceneData.HeightfieldIndicesToUpdateInBuffer.Reset();
 		for (int32 i = 0; i < LumenSceneData.Heightfields.Num(); ++i)
@@ -423,7 +420,7 @@ void UpdateLumenMeshCards(FRDGBuilder& GraphBuilder, const FScene& Scene, const 
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(UpdateSceneInstanceIndexToMeshCardsIndexBuffer);
 
-		if (GLumenSceneUploadEveryFrame)
+		if (LumenSceneData.bReuploadSceneRequest)
 		{
 			LumenSceneData.PrimitivesToUpdateMeshCards.Reset();
 
@@ -503,7 +500,7 @@ void Lumen::UpdateCardSceneBuffer(FRDGBuilder& GraphBuilder, FLumenSceneFrameTem
 			FrameTemporaries.CardBufferSRV = GraphBuilder.CreateSRV(CardBuffer);
 		}
 
-		if (GLumenSceneUploadEveryFrame)
+		if (LumenSceneData.bReuploadSceneRequest)
 		{
 			LumenSceneData.CardIndicesToUpdateInBuffer.Reset();
 
@@ -544,9 +541,12 @@ void Lumen::UpdateCardSceneBuffer(FRDGBuilder& GraphBuilder, FLumenSceneFrameTem
 
 			LumenSceneData.CardUploadBuffer.ResourceUploadTo(GraphBuilder, CardBuffer);
 		}
+
+		LumenSceneData.CardIndicesToUpdateInBuffer.Reset();
 	}
 
 	UpdateLumenMeshCards(GraphBuilder, *Scene, Scene->DistanceFieldSceneData, FrameTemporaries, LumenSceneData);
+	LumenSceneData.bReuploadSceneRequest = false;
 }
 
 int32 FLumenSceneData::GetMeshCardsIndex(const FPrimitiveSceneInfo* PrimitiveSceneInfo, int32 InstanceIndex) const
@@ -652,6 +652,9 @@ void BuildMeshCardsDataForMergedInstances(const FLumenPrimitiveGroup& PrimitiveG
 
 		if (const FInstanceSceneDataBuffers *InstanceSceneData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 		{
+			// Instance data must be available on CPU.
+			check(!InstanceSceneData->IsInstanceDataGPUOnly());
+
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData->GetNumInstances(); ++InstanceIndex)
 			{
 				InstanceArea = BoxSurfaceArea((FVector)InstanceSceneData->GetInstanceLocalBounds(InstanceIndex).GetExtent());
@@ -683,6 +686,9 @@ void BuildMeshCardsDataForMergedInstances(const FLumenPrimitiveGroup& PrimitiveG
 
 			if (const FInstanceSceneDataBuffers *InstanceSceneData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 			{
+				// Instance data must be available on CPU.
+				check(!InstanceSceneData->IsInstanceDataGPUOnly());
+
 				for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData->GetNumInstances(); ++InstanceIndex)
 				{
 					FMatrix InstanceToWorld = InstanceSceneData->GetInstanceToWorld(InstanceIndex);
@@ -780,6 +786,9 @@ void FLumenSceneData::AddMeshCards(int32 PrimitiveGroupIndex)
 			FMatrix LocalToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
 			if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 			{
+				// Instance data must be available on CPU.
+				check(!InstanceData->IsInstanceDataGPUOnly());
+
 				const int32 PrimitiveInstanceIndex = FMath::Clamp(PrimitiveGroup.PrimitiveInstanceIndex, 0, InstanceData->GetNumInstances() - 1);
 				LocalToWorld = InstanceData->GetInstanceToWorld(PrimitiveInstanceIndex);
 			}

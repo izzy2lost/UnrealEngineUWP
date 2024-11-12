@@ -78,11 +78,12 @@ void SConsoleVariablesEditorListRow::Construct(
 
 	SMultiColumnTableRow<FConsoleVariablesEditorListRowPtr>::Construct(
 		FSuperRowType::FArguments()
-		.Padding(1.0f)
+		.Padding(FMargin(0.0f, 1.0f))
 		.OnCanAcceptDrop(this, &SConsoleVariablesEditorListRow::HandleCanAcceptDrop)
 		.OnAcceptDrop(this, &SConsoleVariablesEditorListRow::HandleAcceptDrop)
 		.OnDragDetected(this, &SConsoleVariablesEditorListRow::HandleDragDetected)
-		.OnDragLeave(this, &SConsoleVariablesEditorListRow::HandleDragLeave),
+		.OnDragLeave(this, &SConsoleVariablesEditorListRow::HandleDragLeave)
+		.Style(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.AlternatingRow")),
 		InOwnerTable
 	);
 
@@ -127,31 +128,6 @@ TSharedRef<SWidget> SConsoleVariablesEditorListRow::GenerateWidgetForColumn(cons
 					CellWidget.ToSharedRef()
 				]
 			];
-}
-
-void SConsoleVariablesEditorListRow::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-{
-	bIsHovered = true;
-
-	if (HoverableWidgetsPtr.IsValid())
-	{
-		HoverableWidgetsPtr->DetermineButtonImageAndTooltip();
-		HoverableWidgetsPtr->SetVisibility(EVisibility::SelfHitTestInvisible);
-	}
-
-	SMultiColumnTableRow<FConsoleVariablesEditorListRowPtr>::OnMouseEnter(MyGeometry, MouseEvent);
-}
-
-void SConsoleVariablesEditorListRow::OnMouseLeave(const FPointerEvent& MouseEvent)
-{
-	bIsHovered = false;
-
-	if (HoverableWidgetsPtr.IsValid())
-	{
-		HoverableWidgetsPtr->SetVisibility(EVisibility::Collapsed);
-	}
-
-	SMultiColumnTableRow<FConsoleVariablesEditorListRowPtr>::OnMouseLeave(MouseEvent);
 }
 
 SConsoleVariablesEditorListRow::~SConsoleVariablesEditorListRow()
@@ -301,6 +277,19 @@ void SConsoleVariablesEditorListRow::FlashRow()
 	FlashAnimation.Play(this->AsShared());
 }
 
+EVisibility SConsoleVariablesEditorListRow::GetHoverableWidgetsVisibility() const
+{
+	const FConsoleVariablesEditorListRowPtr RowPtr = Item.Pin();
+
+	if (IsHovered() || IsSelected() ||
+		(RowPtr.IsValid() && RowPtr->IsGlobalSearch() && RowPtr->IsInPreset()))
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
 EVisibility SConsoleVariablesEditorListRow::GetFlashImageVisibility() const
 {
 	return FlashAnimation.IsPlaying() ? EVisibility::SelfHitTestInvisible : EVisibility::Hidden;
@@ -407,8 +396,8 @@ TSharedRef<SWidget> SConsoleVariablesEditorListRow::GenerateCells(const FName& I
 	}
 	if (InColumnName.IsEqual(SConsoleVariablesEditorList::ActionButtonColumnName))
 	{
-		return SAssignNew(HoverableWidgetsPtr, SConsoleVariablesEditorListRowHoverWidgets, Item)
-				.Visibility(EVisibility::Collapsed);
+		return SNew(SConsoleVariablesEditorListRowHoverWidgets, Item)
+				.Visibility(this, &SConsoleVariablesEditorListRow::GetHoverableWidgetsVisibility);
 	}
 
 	return SNullWidget::NullWidget;
@@ -433,27 +422,46 @@ ECheckBoxState SConsoleVariablesEditorListRow::GetCheckboxState() const
 
 void SConsoleVariablesEditorListRow::OnCheckboxStateChange(const ECheckBoxState InNewState) const
 {
-	if (const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin())
-	{
-		PinnedItem->SetWidgetCheckedState(InNewState, true);
+	const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
 
-		if (PinnedItem->GetRowType() == FConsoleVariablesEditorListRow::SingleCommand)
+	if (!PinnedItem.IsValid())
+	{
+		return;
+	}
+
+	for (const FConsoleVariablesEditorListRowPtr& RowPtr : PinnedItem->GetRowsAffectedByActions())
+	{
+		if (!RowPtr.IsValid())
 		{
-			if (PinnedItem->IsRowChecked())
+			continue;
+		}
+
+		if (RowPtr->GetCommandInfo().Pin()->ObjectType !=
+			FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+		{
+			// Only variables can be checked/unchecked
+			continue;
+		}
+
+		RowPtr->SetWidgetCheckedState(InNewState, true);
+
+		if (RowPtr->GetRowType() == FConsoleVariablesEditorListRow::SingleCommand)
+		{
+			if (RowPtr->IsRowChecked())
 			{
-				PinnedItem->GetCommandInfo().Pin()->ExecuteCommand(PinnedItem->GetCachedValue());
+				RowPtr->GetCommandInfo().Pin()->ExecuteCommand(RowPtr->GetCachedValue());
 			}
 			else
 			{
-				PinnedItem->ResetToStartupValueAndSource();
+				RowPtr->ResetToStartupValueAndSource();
 			}
 		}
+	}
 
-		if (const TWeakPtr<SConsoleVariablesEditorList> ListView = PinnedItem->GetListViewPtr(); ListView.IsValid())
-		{
-			const TSharedPtr<SConsoleVariablesEditorList> PinnedListView = ListView.Pin();
-			PinnedListView->OnListItemCheckBoxStateChange(InNewState);
-		}
+	if (const TWeakPtr<SConsoleVariablesEditorList> ListView = PinnedItem->GetListViewPtr(); ListView.IsValid())
+	{
+		const TSharedPtr<SConsoleVariablesEditorList> PinnedListView = ListView.Pin();
+		PinnedListView->OnListItemCheckBoxStateChange(InNewState);
 	}
 }
 
@@ -502,15 +510,15 @@ TSharedRef<SWidget> SConsoleVariablesEditorListRow::GenerateValueCellWidget(
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
 			.ContentPadding(0)
 			.Visibility_Lambda([this, PinnedItem]()
-             {
-	             if (PinnedItem.IsValid() && PinnedItem->GetRowType() ==
-		             FConsoleVariablesEditorListRow::SingleCommand)
-	             {
-		             const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo =
-			             PinnedItem->GetCommandInfo().Pin();
+            {
+	            if (PinnedItem.IsValid() && PinnedItem->GetRowType() ==
+		            FConsoleVariablesEditorListRow::SingleCommand)
+	            {
+		            const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo =
+			            PinnedItem->GetCommandInfo().Pin();
 		            
-		            if (CommandInfo.IsValid() &&
-			            CommandInfo->ObjectType == FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+					if (CommandInfo.IsValid() &&
+						CommandInfo->ObjectType == FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
 		            {
 			            PinnedItem->SetDoesCurrentValueDifferFromPresetValue(
 							 CommandInfo->IsCurrentValueDifferentFromInputValue(
@@ -521,16 +529,28 @@ TSharedRef<SWidget> SConsoleVariablesEditorListRow::GenerateValueCellWidget(
 									? EVisibility::Visible
 									: EVisibility::Collapsed;
 		            }
-	             }
+	            }
 
-	             return EVisibility::Collapsed;
-             })
+	            return EVisibility::Collapsed;
+            })
 			.OnClicked_Lambda([this, PinnedItem]()
-             {
-	             PinnedItem->ResetToPresetValue();
+            {
+				for (const FConsoleVariablesEditorListRowPtr& RowPtr : PinnedItem->GetRowsAffectedByActions())
+				{
+					const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo =
+						PinnedItem->GetCommandInfo().Pin();
 
-	             return FReply::Handled();
-             })
+					if (!CommandInfo.IsValid() ||
+						CommandInfo->ObjectType != FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+					{
+						continue;
+					}
+
+					RowPtr->ResetToPresetValue();
+				}
+
+	            return FReply::Handled();
+            })
 			[
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("PropertyWindow.DiffersFromDefault"))
@@ -557,87 +577,67 @@ void SConsoleVariablesEditorListRowHoverWidgets::Construct(const FArguments& InA
 	ChildSlot
 	[
 		// Action Button
-		SAssignNew(ActionButtonPtr, SButton)
+		SNew(SButton)
 		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
 		.Visibility(EVisibility::Visible)
-		.ToolTipText(ButtonTooltip)
+		.ToolTipText(this, &SConsoleVariablesEditorListRowHoverWidgets::GetButtonTooltip)
 		.ButtonColorAndOpacity(FStyleColors::Transparent)
 		.ContentPadding(0.f)
 		.OnClicked_Lambda([this]()
 		{
-			SetVisibility(EVisibility::Collapsed);
-			FReply Reply = Item.Pin()->OnActionButtonClicked();
-			DetermineButtonImageAndTooltip();
-			SetVisibility(EVisibility::SelfHitTestInvisible);
-			return Reply;
+			return Item.Pin()->OnActionButtonClicked();
 		})
 		[
 			SNew(SScaleBox)
 			[
-				SAssignNew(ActionButtonImage, SImage)
+				SNew(SImage)
 				.Visibility(EVisibility::SelfHitTestInvisible)
-				.Image(ButtonImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(this, &SConsoleVariablesEditorListRowHoverWidgets::GetButtonImage)
+				.ColorAndOpacity(this, &SConsoleVariablesEditorListRowHoverWidgets::GetActionButtonColorAndOpacity)
 			]
 		]
 	];
 }
 
-void SConsoleVariablesEditorListRowHoverWidgets::DetermineButtonImageAndTooltip()
-{
-	const bool bIsListValid =
-		Item.Pin()->GetListViewPtr().IsValid() && Item.Pin()->GetListViewPtr().Pin()->GetListModelPtr().IsValid();
-
-	const FConsoleVariablesEditorList::EConsoleVariablesEditorListMode ListMode =
-		bIsListValid
-			? Item.Pin()->GetListViewPtr().Pin()->GetListModelPtr().Pin()->GetListMode()
-			: FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::Preset;
-
-	const bool bIsGlobalSearch =
-		ListMode == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::GlobalSearch;
-
-	if (bIsGlobalSearch)
-	{
-		FText ButtonTooltip = LOCTEXT("AddCvarToPresetTooltip", "Add this cvar to your current preset.");
-		const FSlateBrush* ButtonImage = FConsoleVariablesEditorStyle::Get().GetBrush("ConsoleVariables.Favorite.Outline.Small");
-		
-		const FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
-		
-		const FString& CommandName = Item.Pin()->GetCommandInfo().Pin()->Command;
-		FConsoleVariablesEditorAssetSaveData MatchingData;
-
-		// If the item exists in the current preset already
-		if (ConsoleVariablesEditorModule.GetPresetAsset()->FindSavedDataByCommandString(CommandName, MatchingData))
-		{
-			ButtonTooltip = LOCTEXT("RemoveCvarFromPresetTooltip", "Remove this cvar from your current preset.");
-			ButtonImage = FAppStyle::Get().GetBrush("Icons.Star");
-		}
-
-		ActionButtonPtr->SetToolTipText(ButtonTooltip);
-		ActionButtonImage->SetImage(ButtonImage);
-	}
-}
-
-void SConsoleVariablesEditorListRowHoverWidgets::OnMouseEnter(const FGeometry& MyGeometry,
-                                                              const FPointerEvent& MouseEvent)
-{
-	SCompoundWidget::OnMouseEnter(MyGeometry, MouseEvent);
-
-	ActionButtonPtr->SetBorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.4f));
-}
-
-void SConsoleVariablesEditorListRowHoverWidgets::OnMouseLeave(const FPointerEvent& MouseEvent)
-{
-	SCompoundWidget::OnMouseLeave(MouseEvent);
-
-	ActionButtonPtr->SetBorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.f));
-}
-
 SConsoleVariablesEditorListRowHoverWidgets::~SConsoleVariablesEditorListRowHoverWidgets()
 {
 	Item.Reset();
-	
-	ActionButtonPtr.Reset();
+}
+
+FSlateColor SConsoleVariablesEditorListRowHoverWidgets::GetActionButtonColorAndOpacity() const
+{
+	if (IsHovered())
+	{
+		return FSlateColor::UseForeground();
+	}
+
+	return FSlateColor::UseSubduedForeground();
+}
+
+const FSlateBrush* SConsoleVariablesEditorListRowHoverWidgets::GetButtonImage() const
+{
+	const FConsoleVariablesEditorListRowPtr RowPtr = Item.Pin();
+	if (RowPtr.IsValid() && RowPtr->IsGlobalSearch())
+	{
+		return RowPtr->IsInPreset()
+			? FAppStyle::Get().GetBrush("Icons.Star")
+			: FConsoleVariablesEditorStyle::Get().GetBrush("ConsoleVariables.Favorite.Outline.Small");
+	}
+
+	return FAppStyle::Get().GetBrush("Icons.Delete");
+}
+
+FText SConsoleVariablesEditorListRowHoverWidgets::GetButtonTooltip() const
+{
+	const FConsoleVariablesEditorListRowPtr RowPtr = Item.Pin();
+	if (RowPtr.IsValid() && RowPtr->IsGlobalSearch())
+	{
+		return RowPtr->IsInPreset()
+			? LOCTEXT("RemoveCvarFromPresetTooltip", "Remove this cvar from your current preset.")
+			: LOCTEXT("AddCvarToPresetTooltip", "Add this cvar to your current preset.");
+	}
+
+	return LOCTEXT("RemoveCvarTooltip", "Remove cvar from this list and reset its value to the startup value.");
 }
 
 #undef LOCTEXT_NAMESPACE

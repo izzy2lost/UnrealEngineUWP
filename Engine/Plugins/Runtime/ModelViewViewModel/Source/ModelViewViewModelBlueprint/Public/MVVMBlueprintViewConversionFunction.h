@@ -17,7 +17,9 @@ class UEdGraph;
 struct FEdGraphEditAction;
 
 /**
- *
+ * A conversion function converts between the source and destiation of a binding.
+ * 
+ * Internally that function may be using native C++, K2Nodes, UFunctions, Events, etc.
  */
 UCLASS()
 class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewConversionFunction : public UObject
@@ -70,6 +72,15 @@ public:
 	/** The wrapper Graph is generated on load/compile and is not saved. */
 	bool IsWrapperGraphTransient() const;
 
+	/** True if the graph is going to be used for an ubergraph page. */
+	bool IsUbergraphPage() const;
+
+	const FMVVMBlueprintPropertyPath& GetDestinationPath() const
+	{
+		return DestinationPath;
+	}
+	void SetDestinationPath(FMVVMBlueprintPropertyPath DestinationPath);
+
 	/** Return the wrapper graph, if it exists. */
 	UEdGraph* GetWrapperGraph() const
 	{
@@ -79,6 +90,18 @@ public:
 	FName GetWrapperGraphName() const
 	{
 		return GraphName;
+	}
+
+	/** Return the wrapper node, if it exists. */
+	UK2Node* GetWrapperNode() const
+	{
+		return CachedWrapperNode;
+	}
+
+	/** Return latent UUID Node. */
+	UEdGraphNode* GetLatentNodeUUID() const
+	{
+		return LatentEventNodeUUID;
 	}
 
 	/**
@@ -125,14 +148,22 @@ private:
 	void HandleGraphChanged(const FEdGraphEditAction& Action, TWeakObjectPtr<UBlueprint> Context);
 	void HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName, TWeakObjectPtr<UBlueprint> WeakBlueprint);
 	void SetCachedWrapperGraph(UBlueprint* Blueprint, UEdGraph* CachedGraph, UK2Node* CachedNode);
-	UEdGraph* GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context);
-	UEdGraph* GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint);
+	UEdGraph* CreateWrapperGraphInternal(FKismetCompilerContext& Context);
+	UEdGraph* CreateWrapperGraphInternal(UBlueprint* Blueprint);
 	bool NeedsWrapperGraphInternal(const UClass* SkeletalSelfContext) const;
 	void LoadPinValuesInternal(UBlueprint* Blueprint);
 	void CreateWrapperGraphName();
 	void Reset();
 
 private:
+
+	/**
+	 * Destination of the binding, currently only saved when the conversion function uses 
+	 * async nodes. Async graphs will handle value setting internally rather than using the MVVM subsystem.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	FMVVMBlueprintPropertyPath DestinationPath;
+
 	/**
 	 * Conversion reference. It can be simple, complex or a K2Node.
 	 * @note The conversion is complex
@@ -152,13 +183,22 @@ private:
 	TArray<FMVVMBlueprintPin> SavedPins;
 
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	bool bWrapperGraphTransient = false;
+	bool bWrapperGraphTransient = true;
+
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	bool bIsUbergraphPage = false;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UEdGraph> CachedWrapperGraph;
 	
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UK2Node> CachedWrapperNode;
+
+	/** 
+	 * Events require a node UUID for the latent manager to handle lantents with 
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UEdGraphNode> LatentEventNodeUUID;
 
 	FDelegateHandle OnGraphChangedHandle;
 	FDelegateHandle OnUserDefinedPinRenamedHandle;

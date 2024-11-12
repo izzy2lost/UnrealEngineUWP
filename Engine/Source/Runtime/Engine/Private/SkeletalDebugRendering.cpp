@@ -7,6 +7,10 @@
 #include "Engine/PoseWatchRenderData.h"
 #include "ReferenceSkeleton.h"
 
+static TAutoConsoleVariable<bool> CVarDisablePoseWatchRendering(
+	TEXT("a.DisablePoseWatchRendering"),
+	false,
+	TEXT("Disable all active pose watches from being drawn."));
 
 namespace SkeletalDebugRendering
 {
@@ -180,6 +184,11 @@ void DrawBonesFromPoseWatch(
 	const bool bUseWorldTransform
 )
 {
+	if (CVarDisablePoseWatchRendering.GetValueOnAnyThread())
+	{
+		return;
+	}
+
 	const TArray<FTransform>& InBoneTransforms = PoseWatch.GetBoneTransforms();
 	const TArray<FBoneIndexType>& InRequiredBones = PoseWatch.GetRequiredBones();
 	if (InRequiredBones.Num() == 0 || InBoneTransforms.Num() < InRequiredBones.Num())
@@ -194,14 +203,14 @@ void DrawBonesFromPoseWatch(
 	const TArray<int32>& ParentIndices = PoseWatch.GetParentIndices();
 
 	TArray<FTransform> UseWorldTransforms;
-	UseWorldTransforms.AddDefaulted(ParentIndices.Num());
+	UseWorldTransforms.AddDefaulted(InBoneTransforms.Num());
 	
 	TArray<FBoneIndexType> UseRequiredBones;
 	UseRequiredBones.Reserve(InRequiredBones.Num());
 
 	for (const FBoneIndexType& BoneIndex : InRequiredBones)
 	{
-		if (ParentIndices.IsValidIndex(BoneIndex))
+		if (ParentIndices.IsValidIndex(BoneIndex) && InBoneTransforms.IsValidIndex(BoneIndex))
 		{
 			const int32 ParentIndex = ParentIndices[BoneIndex];
 
@@ -235,6 +244,7 @@ void DrawBonesFromPoseWatch(
 	DrawConfig.AffectedBoneColor = BoneColor;
 	DrawConfig.SelectedBoneColor = BoneColor;
 	DrawConfig.ParentOfSelectedBoneColor = BoneColor;
+	DrawConfig.bUseMultiColorAsDefaultColor = false;
 
 	SkeletalDebugRendering::DrawBonesInternal(
 		PDI,
@@ -245,7 +255,8 @@ void DrawBonesFromPoseWatch(
 		/*SelectedBones*/TArray<int32>(),
 		/*BoneColors*/TArray<FLinearColor>(),
 		/*HitProxies*/TArray<TRefCountPtr<HHitProxy>>(),
-		DrawConfig);
+		DrawConfig,
+		TBitArray<>{});
 }
 #endif
 
@@ -259,6 +270,32 @@ void DrawBones(
 	const TArray<FLinearColor>& BoneColors,
 	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
 	const FSkelDebugDrawConfig& DrawConfig)
+{
+	DrawBones(
+		PDI,
+		ComponentOrigin,
+		RequiredBones,
+		RefSkeleton,
+		WorldTransforms,
+		InSelectedBones,
+		BoneColors,
+		HitProxies,
+		DrawConfig,
+		TBitArray<>{});
+}
+
+void DrawBones(
+	FPrimitiveDrawInterface* PDI,
+	const FVector& ComponentOrigin,
+	const TArray<FBoneIndexType>& RequiredBones,
+	const FReferenceSkeleton& RefSkeleton,
+	const TArray<FTransform>& WorldTransforms,
+	const TArray<int32>& InSelectedBones,
+	const TArray<FLinearColor>& BoneColors,
+	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
+	const FSkelDebugDrawConfig& DrawConfig,
+	// Overrides the bones that're drawn
+	const TBitArray<>& BonesToDrawOverride)
 {
 	// get parent indices of bones
 	TArray<int32> ParentIndices;
@@ -277,8 +314,10 @@ void DrawBones(
 		InSelectedBones,
 		BoneColors,
 		HitProxies,
-		DrawConfig);
+		DrawConfig,
+		BonesToDrawOverride);
 }
+
 
 void DrawBonesInternal(
 	FPrimitiveDrawInterface* PDI,
@@ -289,7 +328,8 @@ void DrawBonesInternal(
 	const TArray<int32>& InSelectedBones,
 	const TArray<FLinearColor>& BoneColors,
 	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
-	const FSkelDebugDrawConfig& DrawConfig)
+	const FSkelDebugDrawConfig& DrawConfig,
+	const TBitArray<>& BonesToDrawOverride)
 {
 	const auto GetParentIndex = [ParentIndices](const int32 InBoneIndex) -> int32
 	{
@@ -302,57 +342,16 @@ void DrawBonesInternal(
 
 	// first determine which bones to draw, and which to filter out
 	const int32 NumBones = ParentIndices.Num();
-	TBitArray<> BonesToDraw(false, NumBones);
 	const bool bDrawAll = DrawConfig.BoneDrawMode == EBoneDrawMode::All;
 	const bool bDrawSelected = DrawConfig.BoneDrawMode == EBoneDrawMode::Selected;
 	const bool bDrawSelectedAndParents = DrawConfig.BoneDrawMode == EBoneDrawMode::SelectedAndParents;
 	const bool bDrawSelectedAndChildren = DrawConfig.BoneDrawMode == EBoneDrawMode::SelectedAndChildren;
 	const bool bDrawSelectedAndParentsAndChildren = DrawConfig.BoneDrawMode == EBoneDrawMode::SelectedAndParentsAndChildren;
 
-	// draw all bones
-	if (bDrawAll)
+	TBitArray<> BonesToDraw = BonesToDrawOverride;
+	if (BonesToDraw.IsEmpty())
 	{
-		BonesToDraw.Init(true, NumBones);
-	}
-
-	// add selected bones
-	if (bDrawSelected || bDrawSelectedAndParents || bDrawSelectedAndChildren || bDrawSelectedAndParentsAndChildren)
-	{
-		for (int32 BoneIndex : InSelectedBones)
-		{
-			if (BoneIndex != INDEX_NONE && BonesToDraw.IsValidIndex(BoneIndex))
-			{
-				BonesToDraw[BoneIndex] = true;
-			}
-		}
-	}
-
-	// add children of selected
-	if (bDrawSelectedAndChildren || bDrawSelectedAndParentsAndChildren)
-	{
-		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-		{
-			const int32 ParentIndex = GetParentIndex(BoneIndex);
-			if (ParentIndex != INDEX_NONE && BonesToDraw[ParentIndex])
-			{
-				BonesToDraw[BoneIndex] = true;
-			}
-		}
-	}
-
-	// add parents of selected
-	if (bDrawSelectedAndParents || bDrawSelectedAndParentsAndChildren)
-	{
-		for (const int32 BoneIndex : InSelectedBones)
-		{
-			if (BoneIndex != INDEX_NONE)
-			{
-				for (int32 ParentIndex = GetParentIndex(BoneIndex); ParentIndex != INDEX_NONE; ParentIndex = GetParentIndex(ParentIndex))
-				{
-					BonesToDraw[ParentIndex] = true;
-				}
-			}
-		}
+		CalculateBonesToDraw(ParentIndices, InSelectedBones, DrawConfig.BoneDrawMode, BonesToDraw);
 	}
 
 	// determine which bones are "affected" (these are ALL children of selected bones)
@@ -392,7 +391,15 @@ void DrawBonesInternal(
 		// determine color of bone based on selection / affected state
 		const bool bIsSelected = InSelectedBones.Contains(BoneIndex);
 		const bool bIsAffected = AffectedBones[BoneIndex];
-		FLinearColor DefaultBoneColor = BoneColors.IsEmpty() ? DrawConfig.DefaultBoneColor : BoneColors[BoneIndex];
+		FLinearColor DefaultBoneColor;
+		if (BoneColors.IsEmpty())
+		{
+			DefaultBoneColor = DrawConfig.bUseMultiColorAsDefaultColor ? GetSemiRandomColorForBone(BoneIndex) : DrawConfig.DefaultBoneColor;
+		}
+		else
+		{
+			DefaultBoneColor = BoneColors[BoneIndex];
+		}
 		FLinearColor BoneColor = bIsAffected ? DrawConfig.AffectedBoneColor : DefaultBoneColor;
 		BoneColor = bIsSelected ? DrawConfig.SelectedBoneColor : BoneColor;
 
@@ -463,6 +470,94 @@ void DrawBonesInternal(
 		}
 		
 		PDI->SetHitProxy(nullptr);
+	}
+}
+
+FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex, float Value, float Saturation)
+{
+	// uses deterministic, semi-random desaturated color unique to the bone index
+	constexpr float Rotation = 90.f;
+	return FLinearColor::IntToDistinctColor(BoneIndex, Saturation, Value, Rotation);
+}
+
+void FillWithMultiColors(TArray<FLinearColor>& BoneColors, const int32 NumBones)
+{
+	BoneColors.SetNumUninitialized(NumBones);
+	for (int32 BoneIndex=0; BoneIndex<NumBones; ++BoneIndex)
+	{
+		BoneColors[BoneIndex] = GetSemiRandomColorForBone(BoneIndex);
+	}
+}
+
+
+void CalculateBonesToDraw(
+	const TArray<int32>& ParentIndices,
+	const TArray<int32>& InSelectedBones,
+	const EBoneDrawMode::Type BoneDrawMode,
+	TBitArray<>& OutBonesToDraw)
+{
+	const auto GetParentIndex = [ParentIndices](const int32 InBoneIndex) -> int32
+	{
+		if (ParentIndices.IsValidIndex(InBoneIndex))
+		{
+			return ParentIndices[InBoneIndex];
+		}
+		return INDEX_NONE;
+	};
+
+	const int32 NumBones = ParentIndices.Num();
+	OutBonesToDraw.Init(false, NumBones);
+
+	const bool bDrawAll = BoneDrawMode == EBoneDrawMode::All;
+	const bool bDrawSelected = BoneDrawMode == EBoneDrawMode::Selected;
+	const bool bDrawSelectedAndParents = BoneDrawMode == EBoneDrawMode::SelectedAndParents;
+	const bool bDrawSelectedAndChildren = BoneDrawMode == EBoneDrawMode::SelectedAndChildren;
+	const bool bDrawSelectedAndParentsAndChildren = BoneDrawMode == EBoneDrawMode::SelectedAndParentsAndChildren;
+
+	// draw all bones
+	if (bDrawAll)
+	{
+		OutBonesToDraw.Init(true, NumBones);
+	}
+
+	// add selected bones
+	if (bDrawSelected || bDrawSelectedAndParents || bDrawSelectedAndChildren || bDrawSelectedAndParentsAndChildren)
+	{
+		for (int32 BoneIndex : InSelectedBones)
+		{
+			if (BoneIndex != INDEX_NONE && OutBonesToDraw.IsValidIndex(BoneIndex))
+			{
+				OutBonesToDraw[BoneIndex] = true;
+			}
+		}
+	}
+
+	// add children of selected
+	if (bDrawSelectedAndChildren || bDrawSelectedAndParentsAndChildren)
+	{
+		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+		{
+			const int32 ParentIndex = GetParentIndex(BoneIndex);
+			if (ParentIndex != INDEX_NONE && OutBonesToDraw[ParentIndex])
+			{
+				OutBonesToDraw[BoneIndex] = true;
+			}
+		}
+	}
+
+	// add parents of selected
+	if (bDrawSelectedAndParents || bDrawSelectedAndParentsAndChildren)
+	{
+		for (const int32 BoneIndex : InSelectedBones)
+		{
+			if (BoneIndex != INDEX_NONE)
+			{
+				for (int32 ParentIndex = GetParentIndex(BoneIndex); ParentIndex != INDEX_NONE; ParentIndex = GetParentIndex(ParentIndex))
+				{
+					OutBonesToDraw[ParentIndex] = true;
+				}
+			}
+		}
 	}
 }
 

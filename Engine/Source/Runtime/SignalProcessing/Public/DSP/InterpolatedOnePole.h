@@ -58,6 +58,9 @@ namespace Audio
 		// This function is useful when there is a break between ProcessAudio calls.
 		SIGNALPROCESSING_API void ClearMemory();
 
+		// Apply the filter transfer function to each z-domain value in the given array (complex numbers given as interleaved floats). Passing in z-domain values on the complex unit circle will give the frequency response.
+		SIGNALPROCESSING_API void ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const;
+
 	private:
 		float CutoffFrequency{ -1.0f };
 		float B1Curr{ 0.0f }; // coefficient
@@ -122,6 +125,9 @@ namespace Audio
 		// Clears memory without reevaluating coefficients.
 		// This function is useful when there is a break between ProcessAudio calls.
 		SIGNALPROCESSING_API void ClearMemory();
+
+		// Apply the filter transfer function to each z-domain value in the given array (complex numbers given as interleaved floats). Passing in z-domain values on the complex unit circle will give the frequency response.
+		SIGNALPROCESSING_API void ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const;
 		
 	private:
 		float CutoffFrequency{ -1.0f };

@@ -17,6 +17,7 @@ class FScene;
 class FSceneView;
 class FSceneViewFamily;
 class FLightSceneProxy;
+enum EShaderPlatform : uint16;
 struct FEngineShowFlags;
 
 // be sure to also update the definition in the `RayTracingPrimaryRays.usf`
@@ -73,7 +74,9 @@ namespace RayTracing
 #if RHI_RAYTRACING
 
 // Whether a particular effect should be used, taking into account debug override
-extern bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView* View);
+extern bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView& View);
+extern bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneViewFamily& ViewFamily);
+extern bool ShouldRenderRayTracingSkyLightEffect();
 
 extern bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View);
 extern bool AnyInlineRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View);
@@ -82,9 +85,9 @@ extern FRayTracingPrimaryRaysOptions GetRayTracingTranslucencyOptions(const FVie
 extern bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLightSceneProxy, EShaderPlatform ShaderPlatform);
 extern bool ShouldRenderRayTracingAmbientOcclusion(const FViewInfo& View);
 extern bool ShouldRenderRayTracingTranslucency(const FViewInfo& View);
-extern bool ShouldRenderRayTracingShadows();
-extern bool ShouldRenderRayTracingShadowsForLight(const FLightSceneProxy& LightProxy);
-extern bool ShouldRenderRayTracingShadowsForLight(const FLightSceneInfoCompact& LightInfo);
+extern bool ShouldRenderRayTracingShadows(const FSceneViewFamily& ViewFamily);
+extern bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneProxy& LightProxy);
+extern bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneInfoCompact& LightInfo);
 extern bool ShouldRenderPluginRayTracingGlobalIllumination(const FViewInfo& View);
 extern bool HasRayTracedOverlay(const FSceneViewFamily& ViewFamily);
 
@@ -103,12 +106,22 @@ extern bool CanUseRayTracingAMDHitToken();
 
 #else // RHI_RAYTRACING
 
-FORCEINLINE bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView* View)
+FORCEINLINE bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneView& View)
+{
+	return false;
+}
+
+FORCEINLINE bool ShouldRenderRayTracingEffect(bool bEffectEnabled, ERayTracingPipelineCompatibilityFlags CompatibilityFlags, const FSceneViewFamily& ViewFamily)
 {
 	return false;
 }
 
 FORCEINLINE bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
+{
+	return false;
+}
+
+FORCEINLINE bool ShouldRenderRayTracingSkyLightEffect()
 {
 	return false;
 }
@@ -128,17 +141,17 @@ FORCEINLINE bool ShouldRenderRayTracingTranslucency(const FViewInfo& View)
 	return false;
 }
 
-FORCEINLINE bool ShouldRenderRayTracingShadows()
+FORCEINLINE bool ShouldRenderRayTracingShadows(const FSceneViewFamily& ViewFamily)
 {
 	return false;
 }
 
-FORCEINLINE bool ShouldRenderRayTracingShadowsForLight(const FLightSceneProxy& LightProxy)
+FORCEINLINE bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneProxy& LightProxy)
 {
 	return false;
 }
 
-FORCEINLINE bool ShouldRenderRayTracingShadowsForLight(const FLightSceneInfoCompact& LightInfo)
+FORCEINLINE bool ShouldRenderRayTracingShadowsForLight(const FSceneViewFamily& ViewFamily, const FLightSceneInfoCompact& LightInfo)
 {
 	return false;
 }
@@ -182,8 +195,3 @@ FORCEINLINE bool IsRayTracingInstanceOverlapEnabled(const FViewInfo& View)
 }
 
 #endif // RHI_RAYTRACING
-
-FORCEINLINE bool ShouldRenderRayTracingEffect(ERayTracingPipelineCompatibilityFlags CompatibilityFlags)
-{
-	return ShouldRenderRayTracingEffect(true, CompatibilityFlags, nullptr);
-}

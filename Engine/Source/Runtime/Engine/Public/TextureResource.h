@@ -52,7 +52,7 @@ struct FTexture2DMipMap
 	uint16 SizeX = 0;
 	/** Height of the mip-map. */
 	uint16 SizeY = 0;
-	/** Depth of the mip-map. */
+	/** Depth of the mip-map. This also holds array size. It's thunked through to FStreamableTextureResource::SizeZ and is not used for cubemap arrays or cubemaps */
 	uint16 SizeZ = 0;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -60,7 +60,10 @@ struct FTexture2DMipMap
 	FTexture2DMipMap(uint32 InSizeX, uint32 InSizeY, uint32 InSizeZ = 0)
 		: SizeX((uint16)InSizeX), SizeY((uint16)InSizeY), SizeZ((uint16)InSizeZ)
 	{
-		check(InSizeX <= 0xFFFF && InSizeY <= 0xFFFF && InSizeZ <= 0xFFFF);
+		if (InSizeX > 0xFFFF || InSizeY > 0xFFFF || InSizeZ > 0xFFFF)
+		{
+			LowLevelFatalError(TEXT("texture mip size doesn't fit in 16 bits! %ux&ux%u"), InSizeX, InSizeY, InSizeZ);
+		}
 	}
 	FTexture2DMipMap(FTexture2DMipMap&&) = default;
 	FTexture2DMipMap(const FTexture2DMipMap&) = default;
@@ -149,6 +152,11 @@ public:
 	void SetTextureReference(FRHITextureReference* TextureReference)
 	{
 		TextureReferenceRHI = TextureReference;
+	}
+
+	FRHITextureReference* GetTextureReference() const
+	{
+		return TextureReferenceRHI;
 	}
 
 #if STATS
@@ -253,7 +261,7 @@ public:
 	ENGINE_API virtual void ReleaseRHI() override;
 
 	/** Returns the Texture2DRHI, which can be used for locking/unlocking the mips. */
-	ENGINE_API FTexture2DRHIRef GetTexture2DRHI();
+	ENGINE_API FTextureRHIRef GetTexture2DRHI();
 
 #if !UE_SERVER
 	ENGINE_API void WriteRawToTexture_RenderThread(TArrayView64<const uint8> RawData);
@@ -263,7 +271,7 @@ private:
 	/** The owner of this resource. */
 	class UTexture2DDynamic* Owner;
 	/** Texture2D reference, used for locking/unlocking the mips. */
-	FTexture2DRHIRef Texture2DRHI;
+	FTextureRHIRef Texture2DRHI;
 };
 
 /**
@@ -514,20 +522,36 @@ protected:
 	 */
 	friend class UTextureRenderTarget2D;
 	virtual void UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget=true) override;
-	void Resize(int32 NewSizeX, int32 NewSizeY);
+	void Resize(int32 NewSizeX, int32 NewSizeY, int32 NewNumMips);
+
+	/** Utility function used for resizing of scene texture sized scene capture render targets in the render thread */
+	friend class FScene;
+	friend class FSceneCapturePass;
+	FORCEINLINE void Resize(FRHICommandListBase& RHICmdList, int32 NewSizeX, int32 NewSizeY, bool bAutoGenerateMips)
+	{
+		int32 NewNumMips = bAutoGenerateMips ? FMath::FloorLog2(FMath::Max(NewSizeX, NewSizeY)) + 1 : 1;
+		if (TargetSizeX != NewSizeX || TargetSizeY != NewSizeY || TargetNumMips != NewNumMips)
+		{
+			TargetSizeX = NewSizeX;
+			TargetSizeY = NewSizeY;
+			TargetNumMips = NewNumMips;
+			UpdateRHI(RHICmdList);
+		}
+	}
 
 private:
 	/** The UTextureRenderTarget2D which this resource represents. */
 	const class UTextureRenderTarget2D* Owner;
 	/** Texture resource used for rendering with and resolving to */
 	UE_DEPRECATED(5.1, "Texture2DRHI is deprecated. Use TextureRHI instead.")
-	FTexture2DRHIRef Texture2DRHI;
+	FTextureRHIRef Texture2DRHI;
 	/** Optional Unordered Access View for the resource, automatically created if bCanCreateUAV is true */
 	FUnorderedAccessViewRHIRef UnorderedAccessViewRHI;
 	/** the color the texture is cleared to */
 	FLinearColor ClearColor;
 	EPixelFormat Format;
 	int32 TargetSizeX,TargetSizeY;
+	int32 TargetNumMips;
 	TRefCountPtr<IPooledRenderTarget> MipGenerationCache;
 };
 

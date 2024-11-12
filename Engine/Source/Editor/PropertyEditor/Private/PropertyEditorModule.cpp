@@ -18,7 +18,7 @@
 #include "SStructureDetailsView.h"
 
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Modules/ModuleManager.h"
@@ -33,6 +33,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "DetailsViewStyle.h"
 #include "ToolMenus.h"
+#include "IStructureDataProvider.h"
 
 IMPLEMENT_MODULE( FPropertyEditorModule, PropertyEditor );
 
@@ -324,7 +325,8 @@ TSharedPtr<class ISinglePropertyView> FPropertyEditorModule::CreateSinglePropert
 		.NameOverride(InitParams.NameOverride)
 		.NotifyHook(InitParams.NotifyHook)
 		.PropertyFont(InitParams.Font)
-		.bShouldHideAssetThumbnail(InitParams.bHideAssetThumbnail);
+		.bShouldHideAssetThumbnail(InitParams.bHideAssetThumbnail)
+		.bShouldHideResetToDefault(InitParams.bHideResetToDefault);
 
 	if (Property->HasValidProperty())
 	{
@@ -402,9 +404,11 @@ TSharedRef< IPropertyTableCellPresenter > FPropertyEditorModule::CreateTextPrope
 	return MakeShareable( new FTextPropertyTableCellPresenter( PropertyEditor, InPropertyUtilities, InFont, InCell) );
 }
 
-FStructProperty* FPropertyEditorModule::RegisterStructOnScopeProperty(TSharedRef<FStructOnScope> StructOnScope)
+FStructProperty* FPropertyEditorModule::RegisterStructProperty(const UStruct* StructClass)
 {
-	const FName StructName = StructOnScope->GetStruct()->GetFName();
+	check(StructClass);
+
+	const FName StructName = StructClass->GetFName();
 	FStructProperty* StructProperty = RegisteredStructToProxyMap.FindRef(StructName);
 
 	if(!StructProperty)
@@ -417,10 +421,10 @@ FStructProperty* FPropertyEditorModule::RegisterStructOnScopeProperty(TSharedRef
 			StructOnScopePropertyOwner = NewObject<UStruct>(GetTransientPackage(), TEXT("StructOnScope"), RF_Transient);
 			StructOnScopePropertyOwner->AddToRoot();
 		}
-		UScriptStruct* InnerStruct = Cast<UScriptStruct>(const_cast<UStruct*>(StructOnScope->GetStruct()));
+		UScriptStruct* InnerStruct = CastChecked<UScriptStruct>(const_cast<UStruct*>(StructClass));
 		StructProperty = new FStructProperty(StructOnScopePropertyOwner, *MakeUniqueObjectName(StructOnScopePropertyOwner, UField::StaticClass(), InnerStruct->GetFName()).ToString(), RF_Transient);
 		StructProperty->Struct = InnerStruct;
-		StructProperty->ElementSize = StructOnScope->GetStruct()->GetStructureSize();
+		StructProperty->SetElementSize(StructClass->GetStructureSize());
 		StructOnScopePropertyOwner->AddCppProperty(StructProperty);
 
 		RegisteredStructToProxyMap.Add(StructName, StructProperty);
@@ -512,6 +516,24 @@ void FPropertyEditorModule::UnregisterCustomPropertyTypeLayout( FName PropertyTy
 	if (LayoutCallbacks)
 	{
 		LayoutCallbacks->Remove(Identifier);
+	}
+}
+
+FDelegateHandle FPropertyEditorModule::RegisterPropertyHandleLayoutOverride(const FName PropertyTypeName,
+	const FPropertyHandleLayoutOverride& Delegate)
+{
+	PropertyHandleLayoutOverrides.Add(PropertyTypeName, Delegate);
+	return Delegate.GetHandle();
+}
+
+void FPropertyEditorModule::UnregisterPropertyHandleLayoutOverride(const FDelegateHandle DelegateHandle)
+{
+	for (auto It = PropertyHandleLayoutOverrides.CreateIterator(); It; ++It)
+	{
+		if (It->Value.GetHandle() == DelegateHandle)
+		{
+			It.RemoveCurrent();
+		}
 	}
 }
 
@@ -986,7 +1008,26 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::GetPropertyTypeCustomization(
 		}
 		else if ( bObjectProperty )
 		{
-			UClass* PropertyClass = ObjectProperty->PropertyClass;
+			// Try to find the PropertyClass as common base class of the current instances if possible.
+			// That way we show the selected class' customization, not the based class customization.
+			// If no instances are present, use the base class from the property. 
+			UClass* InstanceBaseClass = nullptr;
+			PropertyHandle.EnumerateConstRawData([&InstanceBaseClass, ObjectProperty](const void* RawData, const int32 /*DataIndex*/, const int32 /*NumDatas*/)
+			{
+				if (!RawData)
+				{
+					return true;
+				}
+
+				if (const UObject* Object = ObjectProperty->GetObjectPropertyValue(RawData))
+				{
+					UClass* Class = Object->GetClass();
+					InstanceBaseClass = InstanceBaseClass ? UClass::FindCommonBase(InstanceBaseClass, Class) : Class;
+				}
+				return true;
+			});
+			const UClass* PropertyClass = InstanceBaseClass ? InstanceBaseClass : ObjectProperty->PropertyClass.Get();
+			
 			while (PropertyClass)
 			{
 				const FPropertyTypeLayoutCallback& Callback = FindPropertyTypeLayoutCallback(PropertyClass->GetFName(), PropertyHandle, InstancedPropertyTypeLayoutMap);
@@ -1013,6 +1054,16 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 {
 	if (PropertyTypeName != NAME_None)
 	{
+		for (auto It = PropertyHandleLayoutOverrides.CreateConstKeyIterator(PropertyTypeName); It; ++It)
+		{
+			const FName TypeOverrideName = It->Value.Execute(PropertyHandle);
+			if (TypeOverrideName != NAME_None)
+			{
+				PropertyTypeName = TypeOverrideName;
+				break;
+			}
+		}
+
 		const FPropertyTypeLayoutCallbackList* LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find( PropertyTypeName );
 	
 		if( !LayoutCallbacks )
@@ -1027,13 +1078,18 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 				static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
 				if (const FString* DisplayType = AsStructProperty->Struct->FindMetaData(NAME_PresentAsTypeMetadata))
 				{
-					// try finding DisplayType instead
-					LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find(FName(*DisplayType));
-	
-					if( !LayoutCallbacks )
+					if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*DisplayType))
 					{
-						LayoutCallbacks = GlobalPropertyTypeToLayoutMap.Find(FName(*DisplayType));
+						const FName DisplayStruct = Type.Build().GetName();
+						// try finding DisplayType instead
+						LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find(DisplayStruct);
+		
+						if( !LayoutCallbacks )
+						{
+							LayoutCallbacks = GlobalPropertyTypeToLayoutMap.Find(DisplayStruct);
+						}
 					}
+					
 				}
 			}
 		}
@@ -1048,7 +1104,7 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 	return FPropertyTypeLayoutCallback();
 }
 
-TSharedRef<class IStructureDetailsView> FPropertyEditorModule::CreateStructureDetailView(const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, TSharedPtr<FStructOnScope> StructData, const FText& CustomName)
+TSharedRef<class IStructureDetailsView> FPropertyEditorModule::CreateStructureDetailView(const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, const FText& CustomName)
 {
 	TSharedRef<SStructureDetailsView> DetailView =
 		SNew(SStructureDetailsView)
@@ -1129,8 +1185,25 @@ TSharedRef<class IStructureDetailsView> FPropertyEditorModule::CreateStructureDe
 	{
 		DetailView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateStatic(&FStructureDetailsViewFilter::PassesFilter, StructureDetailsViewArgs));
 	}
-	DetailView->SetStructureData(StructData);
 
+	return DetailView;
+}
+
+TSharedRef<IStructureDetailsView> FPropertyEditorModule::CreateStructureDetailView(
+	const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs,
+	TSharedPtr<FStructOnScope> StructData, const FText& CustomName)
+{
+	TSharedRef<IStructureDetailsView> DetailView = CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, CustomName);
+	DetailView->SetStructureData(StructData);
+	return DetailView;
+}
+
+TSharedRef<IStructureDetailsView> FPropertyEditorModule::CreateStructureProviderDetailView(
+	const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs,
+	TSharedPtr<IStructureDataProvider> StructProvider, const FText& CustomName)
+{
+	TSharedRef<IStructureDetailsView> DetailView = CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, CustomName);
+	DetailView->SetStructureProvider(StructProvider);
 	return DetailView;
 }
 

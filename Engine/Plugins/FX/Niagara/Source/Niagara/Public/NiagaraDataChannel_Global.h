@@ -9,7 +9,7 @@
 /**
 Simple DataChannel handler that makes all data visible globally.
 */
-UCLASS(Experimental, MinimalAPI)
+UCLASS(MinimalAPI)
 class UNiagaraDataChannel_Global : public UNiagaraDataChannel
 {
 	GENERATED_BODY()
@@ -20,18 +20,15 @@ class UNiagaraDataChannel_Global : public UNiagaraDataChannel
 /**
 Basic DataChannel handler that makes all data visible globally.
 */
-UCLASS(Experimental, BlueprintType, MinimalAPI)
+UCLASS(BlueprintType, MinimalAPI)
 class UNiagaraDataChannelHandler_Global : public UNiagaraDataChannelHandler
 {
 	GENERATED_UCLASS_BODY()
 
 	FNiagaraDataChannelDataPtr Data;
 
-	//UObject Interface
-	NIAGARA_API virtual void BeginDestroy()override;
-	//UObject Interface End
-
 	NIAGARA_API virtual void Init(const UNiagaraDataChannel* InChannel) override;
+	NIAGARA_API virtual void Cleanup() override;
 	NIAGARA_API virtual void BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)override;
 	NIAGARA_API virtual void EndFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)override;
 	NIAGARA_API virtual void Tick(float DeltaTime, ETickingGroup TickGroup, FNiagaraWorldManager* OwningWorld) override;

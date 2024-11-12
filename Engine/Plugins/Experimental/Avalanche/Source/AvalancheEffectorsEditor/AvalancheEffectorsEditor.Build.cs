@@ -22,6 +22,7 @@ public class AvalancheEffectorsEditor : ModuleRules
 				"AvalancheCore",
 				"AvalancheEffectors",
 				"AvalancheInteractiveTools",
+				"AvalancheOutliner",
 				"AvalancheShapes",
 				"ClonerEffector",
 				"ClonerEffectorEditor",

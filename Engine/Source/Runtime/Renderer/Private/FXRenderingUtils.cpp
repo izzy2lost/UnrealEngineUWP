@@ -11,6 +11,10 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 
+#if RHI_RAYTRACING
+#include "RayTracingDefinitions.h"
+#endif
+
 TConstStridedView<FSceneView> UE::FXRenderingUtils::ConvertViewArray(TConstArrayView<FViewInfo> Views)
 {
 	return MakeStridedViewOfBase<const FSceneView>(Views);
@@ -251,7 +255,7 @@ FRHIRayTracingScene* UE::FXRenderingUtils::RayTracing::GetRayTracingScene(const 
 {
 	if (const FScene* Scene = InScene->GetRenderScene())
 	{
-		return Scene->RayTracingScene.GetRHIRayTracingSceneChecked();
+		return Scene->RayTracingScene.GetRHIRayTracingSceneChecked(ERayTracingSceneLayer::Base);
 	}
 
 	return nullptr;
@@ -272,9 +276,20 @@ FRHIShaderResourceView* UE::FXRenderingUtils::RayTracing::GetRayTracingSceneView
 	return nullptr;
 }
 
-TConstArrayView<FVisibleRayTracingMeshCommand> UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(const FSceneView& View)
+FShaderBindingTableRHIRef UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FSceneInterface* InScene, uint32 LocalBindingDataSize)
 {
-	return static_cast<const FViewInfo&>(View).VisibleRayTracingMeshCommands;
+	if (const FScene* Scene = InScene->GetRenderScene())
+	{
+		const FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
+		return Scene->RayTracingSBT.AllocateRHI(RHICmdList, ERayTracingShaderBindingMode::RTPSO, ERayTracingHitGroupIndexingMode::Allow, RayTracingScene.NumMissShaderSlots, RayTracingScene.NumCallableShaderSlots, LocalBindingDataSize);
+	}
+
+	return nullptr;
+}
+
+TConstArrayView<FRayTracingShaderBindingData> UE::FXRenderingUtils::RayTracing::GetDirtyRayTracingShaderBindings(const FSceneView& View)
+{
+	return static_cast<const FViewInfo&>(View).DirtyRayTracingShaderBindings;
 }
 
 #endif // RHI_RAYTRACING

@@ -91,34 +91,135 @@ TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile(const FOptimusPi
 			}
 		}
 	}
+
+	if (DataInterfaceData)
+	{
+		const TOptional<FText> ErrorIfDetected = DataInterfaceData->ValidateForCompile();
+		if (ErrorIfDetected.IsSet())
+		{
+			return ErrorIfDetected;
+		}
+	}
 	
 	return {};
 }
 
-void UOptimusNode_DataInterface::SaveState(FArchive& Ar) const
+void UOptimusNode_DataInterface::PostLoadNodeSpecificData()
 {
-	Super::SaveState(Ar);
-	// This fella does the heavy lifting of serializing object references. 
-	// FMemoryWriter and fam do not handle UObject* serialization on their own.
-	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
-			Ar, /* bInLoadIfFindFails=*/ false);
-	DataInterfaceData->SerializeScriptProperties(NodeProxyArchive);	
+	Super::PostLoadNodeSpecificData();
+	
+	// Previously DataInterfaceData wasn't always created.
+	if (DataInterfaceClass && !DataInterfaceData)
+	{
+		DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+		DataInterfaceData->SetFlags(RF_Transactional);
+	}
+
+	// Add in the component pin.
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::ComponentProviderSupport)
+	{
+		CreateComponentPin();
+	}
+
+	// Add in the property pins if there are any.
+	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::PropertyPinSupport)
+	{
+		CreatePropertyPinsFromDataInterface(DataInterfaceData, false);
+	}
 }
 
-void UOptimusNode_DataInterface::RestoreState(FArchive& Ar)
+void UOptimusNode_DataInterface::OnDataTypeChanged(FName InTypeName)
 {
-	Super::RestoreState(Ar);
+	Super::OnDataTypeChanged(InTypeName);
+
+	DataInterfaceData->OnDataTypeChanged(InTypeName);
+}
+
+void UOptimusNode_DataInterface::ExportState(FArchive& Ar) const
+{
+	Super::ExportState(Ar);
+
+	DataInterfaceData->ExportState(Ar);
+	
+}
+
+void UOptimusNode_DataInterface::ImportState(FArchive& Ar)
+{
+	Super::ImportState(Ar);
 
 	DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+	DataInterfaceData->SetFlags(RF_Transactional);
 	
-	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
-			Ar, /* bInLoadIfFindFails=*/true);
-	DataInterfaceData->SerializeScriptProperties(NodeProxyArchive);
+	DataInterfaceData->ImportState(Ar);
 }
 
 bool UOptimusNode_DataInterface::IsComponentSourceCompatible(const UOptimusComponentSource* InComponentSource) const
 {
 	return InComponentSource && InComponentSource->GetComponentClass()->IsChildOf(DataInterfaceData->GetRequiredComponentClass());
+}
+
+void UOptimusNode_DataInterface::RecreatePinsFromPinDefinitions()
+{
+	// Recreate all the pins
+	// Save the links and readd them later when new pins are created
+	TMap<FName, TArray<UOptimusNodePin*>> ConnectedPinsMap;
+
+	TArray<UOptimusNodePin*> PinsToRemove;
+	
+	for (UOptimusNodePin* Pin : GetPins())
+	{
+		if (Pin != GetComponentPin())
+		{
+			ConnectedPinsMap.Add(Pin->GetFName()) = Pin->GetConnectedPins();
+			PinsToRemove.Add(Pin);
+		}
+	}	
+
+	for (UOptimusNodePin* Pin : PinsToRemove)
+	{
+		RemovePin(Pin);
+	}
+
+	CreatePropertyPinsFromDataInterface(DataInterfaceData, true);
+	CreateShaderPinsFromDataInterface(DataInterfaceData, true);
+
+	for (UOptimusNodePin* Pin : GetPins())
+	{
+		if (TArray<UOptimusNodePin*>* ConnectedPins = ConnectedPinsMap.Find(Pin->GetFName()))
+		{
+			for (UOptimusNodePin* ConnectedPin : *ConnectedPins)
+			{
+				GetOwningGraph()->AddLink(Pin, ConnectedPin);
+			}
+		}	
+	}	
+}
+
+void UOptimusNode_DataInterface::RenamePinFromPinDefinition(FName InOld, FName InNew)
+{
+	UOptimusNodePin* Pin = FindPin(InOld.ToString());
+	SetPinName(Pin, InNew);
+}
+
+void UOptimusNode_DataInterface::UpdateDisplayNameFromDataInterface()
+{
+	if (ensure(DataInterfaceData))
+	{
+		SetDisplayName(FText::FromString(DataInterfaceData->GetDisplayName()));
+	}
+}
+
+void UOptimusNode_DataInterface::InitializeTransientData()
+{
+	if (ensure(DataInterfaceData))
+	{
+		if (DataInterfaceData->CanPinDefinitionChange())
+		{
+			EnableDynamicPins();
+		}
+		
+		DataInterfaceData->RegisterPropertyChangeDelegatesForOwningNode(this);
+	}
 }
 
 void UOptimusNode_DataInterface::Serialize(FArchive& Ar)
@@ -198,6 +299,9 @@ void UOptimusNode_DataInterface::SetDataInterfaceClass(
 {
 	DataInterfaceClass = InDataInterfaceClass;
 	DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+	// Undo support
+	DataInterfaceData->SetFlags(RF_Transactional);
+	DataInterfaceData->Initialize();
 }
 
 UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(const FOptimusPinTraversalContext& InContext) const
@@ -253,22 +357,21 @@ EOptimusPinMutability UOptimusNode_DataInterface::GetOutputPinMutability(const U
 	return PinDefinitions[PinDefinitionIndex].bMutable ? EOptimusPinMutability::Mutable : EOptimusPinMutability::Immutable;
 }
 
-
-void UOptimusNode_DataInterface::PostLoad() 
+TArray<UOptimusNodePin*> UOptimusNode_DataInterface::GetPropertyPins() const
 {
-	Super::PostLoad();
+	const TArray<FOptimusCDIPropertyPinDefinition> PropertyPinDefinitions = DataInterfaceData->GetPropertyPinDefinitions();
 
-	// Previously DataInterfaceData wasn't always created.
-	if (DataInterfaceClass && !DataInterfaceData)
+	TArray<UOptimusNodePin*> Result;
+	for (const FOptimusCDIPropertyPinDefinition& Definition : PropertyPinDefinitions)
 	{
-		DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+		UOptimusNodePin* Pin = FindPinFromPath({Definition.PinName});
+		if (ensure(Pin) && ensure(Pin->GetDirection() == EOptimusNodePinDirection::Input))
+		{
+			Result.Add(Pin);
+		}
 	}
 
-	// Add in the component pin.
-	if (GetLinkerCustomVersion(FOptimusObjectVersion::GUID) < FOptimusObjectVersion::ComponentProviderSupport)
-	{
-		CreateComponentPin();
-	}
+	return Result;
 }
 
 
@@ -280,30 +383,38 @@ void UOptimusNode_DataInterface::ConstructNode()
 		if (!DataInterfaceData)
 		{
 			DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+			DataInterfaceData->SetFlags(RF_Transactional);
 		}
 		SetDisplayName(FText::FromString(DataInterfaceData->GetDisplayName()));
 		CreateComponentPin();
-		CreatePinsFromDataInterface(DataInterfaceData);
+		CreatePropertyPinsFromDataInterface(DataInterfaceData, false);
+		CreateShaderPinsFromDataInterface(DataInterfaceData, false);
 	}
+}
+
+FText UOptimusNode_DataInterface::GetDisplayName() const
+{
+	FText SerializedDisplayName = Super::GetDisplayName();
+
+	if (DataInterfaceData && !DataInterfaceData->IsVisible())
+	{
+		FText OutdatedSuffix = LOCTEXT("OutdatedSuffix", "(Outdated)");
+
+		return FText::Join(FText::GetEmpty(), SerializedDisplayName, OutdatedSuffix);
+	}
+
+	return SerializedDisplayName;
 }
 
 
 void UOptimusNode_DataInterface::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
-	// Currently duplication doesn't set the correct outer so fix here.
-	// We can remove this when duplication handles the outer correctly.
-	if (ensure(DataInterfaceData) && DataInterfaceData->GetOuter() != this)
-	{
-		FObjectDuplicationParameters DupParams = InitStaticDuplicateObjectParams(DataInterfaceData, this);
-		
-		DataInterfaceData = Cast<UOptimusComputeDataInterface>(StaticDuplicateObjectEx(DupParams));	
-	}
+	check(DataInterfaceData);
+	check(DataInterfaceData->GetOuter() == this);
 }
 
 
-void UOptimusNode_DataInterface::CreatePinsFromDataInterface(
-	const UOptimusComputeDataInterface* InDataInterface
-	)
+void UOptimusNode_DataInterface::CreateShaderPinsFromDataInterface(const UOptimusComputeDataInterface* InDataInterface, bool bSupportUndo)
 {
 	// A data interface provides read and write functions. A data interface node exposes
 	// the read functions as output pins to be fed into kernel nodes (or into other interface
@@ -333,16 +444,12 @@ void UOptimusNode_DataInterface::CreatePinsFromDataInterface(
 	{
 		if (ensure(!Def.PinName.IsNone()))
 		{
-			CreatePinFromDefinition(Def, ReadFunctionMap, WriteFunctionMap);
+			CreatePinFromDefinition(Def, ReadFunctionMap, WriteFunctionMap, bSupportUndo);
 		}
 	}
 }
 
-void UOptimusNode_DataInterface::CreatePinFromDefinition(
-	const FOptimusCDIPinDefinition& InDefinition,
-	const TMap<FString, const FShaderFunctionDefinition*>& InReadFunctionMap,
-	const TMap<FString, const FShaderFunctionDefinition*>& InWriteFunctionMap
-	)	
+void UOptimusNode_DataInterface::CreatePinFromDefinition(const FOptimusCDIPinDefinition& InDefinition, const TMap<FString, const FShaderFunctionDefinition*>& InReadFunctionMap, const TMap<FString, const FShaderFunctionDefinition*>& InWriteFunctionMap, bool bSupportUndo)
 {
 	const FOptimusDataTypeRegistry& TypeRegistry = FOptimusDataTypeRegistry::Get();
 
@@ -376,7 +483,14 @@ void UOptimusNode_DataInterface::CreatePinFromDefinition(
 			return;
 		}
 
-		AddPinDirect(InDefinition.PinName, EOptimusNodePinDirection::Output, {}, PinDataType);
+		if (bSupportUndo)
+		{
+			AddPin(InDefinition.PinName, EOptimusNodePinDirection::Output, {}, PinDataType);
+		}
+		else
+		{
+			AddPinDirect(InDefinition.PinName, EOptimusNodePinDirection::Output, {}, PinDataType);
+		}
 	}
 	else if (!InDefinition.DataFunctionName.IsEmpty())
 	{
@@ -450,7 +564,14 @@ void UOptimusNode_DataInterface::CreatePinFromDefinition(
 		}
 
 		const FOptimusDataDomain DataDomain{ContextNames, InDefinition.DomainMultiplier};
-		AddPinDirect(InDefinition.PinName, PinDirection, DataDomain, PinDataType);
+		if (bSupportUndo)
+		{
+			AddPin(InDefinition.PinName, PinDirection, DataDomain, PinDataType);	
+		}
+		else
+		{
+			AddPinDirect(InDefinition.PinName, PinDirection, DataDomain, PinDataType);
+		}
 	}
 	else
 	{
@@ -458,6 +579,36 @@ void UOptimusNode_DataInterface::CreatePinFromDefinition(
 			*InDefinition.PinName.ToString(), *DataInterfaceClass->GetName());
 	}
 }
+
+void UOptimusNode_DataInterface::CreatePropertyPinsFromDataInterface(const UOptimusComputeDataInterface* InDataInterface, bool bSupportUndo)
+{
+	if (!InDataInterface)
+	{
+		return;
+	}
+
+	const TArray<FOptimusCDIPropertyPinDefinition> PropertyPinDefinitions = InDataInterface->GetPropertyPinDefinitions();
+
+	// Property pins should go before any shader pins
+	UOptimusNodePin* BeforePin =nullptr;
+	if (GetPins().Num() > 1)
+	{
+		BeforePin = GetPins()[1];
+	}
+	
+	for (const FOptimusCDIPropertyPinDefinition& Definition : PropertyPinDefinitions)
+	{
+		if (bSupportUndo)
+		{
+			AddPin(Definition.PinName, EOptimusNodePinDirection::Input, FOptimusDataDomain(), Definition.DataType, BeforePin);
+		}
+		else
+		{
+			AddPinDirect(Definition.PinName, EOptimusNodePinDirection::Input, FOptimusDataDomain(), Definition.DataType, BeforePin);
+		}
+	}
+}
+
 
 void UOptimusNode_DataInterface::CreateComponentPin()
 {

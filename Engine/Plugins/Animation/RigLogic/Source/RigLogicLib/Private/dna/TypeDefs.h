@@ -3,7 +3,6 @@
 #pragma once
 
 #include "dna/types/Aliases.h"
-
 #include <pma/PolyAllocator.h>
 #include <pma/TypeDefs.h>
 #include <pma/resources/AlignedMemoryResource.h>

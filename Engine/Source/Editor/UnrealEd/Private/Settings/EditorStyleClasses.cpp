@@ -45,9 +45,9 @@ UEditorStyleSettings::UEditorStyleSettings( const FObjectInitializer& ObjectInit
 	
 	bUseGrid = true;
 
-	RegularColor = FLinearColor(0.035f, 0.035f, 0.035f);
-	RuleColor = FLinearColor(0.008f, 0.008f, 0.008f);
-	CenterColor = FLinearColor::Black;
+	RegularColor = FLinearColor(0.024f, 0.024, 0.024f);
+	RuleColor = FLinearColor(0.010f, 0.010f, 0.010f);
+	CenterColor = FLinearColor(0.005f, 0.005f, 0.005f) ;
 
 	GridSnapSize = 16;
 

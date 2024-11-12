@@ -271,7 +271,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 
 			// Get the threshold for the rolling hash
-			uint rollingHashThreshold = (uint)((1L << 32) / options.TargetSize);
+			uint rollingHashThreshold = (uint)((1L << 32) / (options.TargetSize - options.MinSize));
 
 			// Step through the part of the data where the tail of the window is in currentData, and the head of the window is in appendData.
 			if (appendLength < appendData.Length && windowSize > appendLength)
@@ -282,7 +282,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				ReadOnlySpan<byte> tailSpan = currentData.Slice(currentData.Length - overlap, overlapLength);
 				ReadOnlySpan<byte> headSpan = appendData.Slice(appendLength, overlapLength);
 
-				int count = BuzHash.Update(tailSpan, headSpan, rollingHashThreshold, ref rollingHash);
+				int count = BuzHash.Update(tailSpan, headSpan, windowSize, rollingHashThreshold, ref rollingHash);
 				if (count != -1)
 				{
 					appendLength += count;
@@ -300,7 +300,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				ReadOnlySpan<byte> tailSpan = appendData.Slice(appendLength - windowSize, appendData.Length - windowSize);
 				ReadOnlySpan<byte> headSpan = appendData.Slice(appendLength);
 
-				int count = BuzHash.Update(tailSpan, headSpan, rollingHashThreshold, ref rollingHash);
+				int count = BuzHash.Update(tailSpan, headSpan, windowSize, rollingHashThreshold, ref rollingHash);
 				if (count != -1)
 				{
 					appendLength += count;
@@ -338,8 +338,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		async ValueTask FlushLeafNodeAsync(CancellationToken cancellationToken)
 		{
 			int leafLength = _writer.WrittenMemory.Length;
-			IBlobRef<LeafChunkedDataNode> leafHandle = await _writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
-			_leafHandles.Add(new ChunkedDataNodeRef(leafLength, leafHandle));
+			IHashedBlobRef<LeafChunkedDataNode> leafHandle = await _writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
+			_leafHandles.Add(new ChunkedDataNodeRef(leafLength, _leafHash, leafHandle));
 			ResetLeafState();
 		}
 	}

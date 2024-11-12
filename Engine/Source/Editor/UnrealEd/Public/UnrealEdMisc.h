@@ -280,7 +280,7 @@ public:
 	UNREALED_API bool EnableWorldComposition(UWorld* InWorld, bool bEnable);
 
 	/** Get the path to the executable that runs the editor */
-	UNREALED_API FString GetProjectEditorBinaryPath();
+	UNREALED_API static FString GetProjectEditorBinaryPath();
 
 	/** Finds a map using only the map name, no extension, no path, also caches it for faster lookup next time. */
 	UNREALED_API FString FindMapFileFromPartialName(const FString& PartialMapName);

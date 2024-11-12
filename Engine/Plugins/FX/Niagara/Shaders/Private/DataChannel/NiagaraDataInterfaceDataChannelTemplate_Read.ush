@@ -5,26 +5,22 @@
  * Contained in it's own shader file to allow reuse between different invocations with different params.
  */
 
-void {FunctionSymbol}(int ElementIndex, out bool bOutSuccess, {FunctionParameters})
+{PerParameterFunctionDefinitions}
+
+void {FunctionSymbol}(int ElementIndex, out bool bOutSuccess, {FunctionOutputParameters})
 {
-	if(ElementIndex >= 0 && ElementIndex < {ParameterName}_Num)
+	//Default outputs in case of failure.
+	{DefaultOutputsShaderCode}
+
+	bOutSuccess = false;
+
+	FNDCAccessContext_{ParameterName} Context;
+	if(Context.InitDirect(ElementIndex))
 	{
 		bOutSuccess = true;
 
-#if NIAGARA_DATACHANNEL_MULTIBUFFERS
-		//TODO: Allow reads from N fixed number of buffers.
-#elif NIAGARA_DATACHANNEL_BINDLESSBUFFERS
-		//TODO: Allow reading from any number of buffers when bindless buffers are supported.
-#else
-		//Reads from only a single buffer supported.
-		
 		//This is generated in the DI Cpp depending on the function parameters.
 {PerFunctionParameterShaderCode}
-#endif
 	}
-	//else
-	//{
-	//	//TODO: generate defaults hlsl.
-			//	bOutSuccess = true;
-	//}
 }
+

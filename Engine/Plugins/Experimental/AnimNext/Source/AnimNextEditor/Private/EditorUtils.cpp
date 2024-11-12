@@ -1,18 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EditorUtils.h"
-#include "Graph/AnimNextGraph_EditorData.h"
+
+#include "IAnimNextUncookedOnlyModule.h"
+#include "Entries/AnimNextRigVMAssetEntry.h"
+#include "Module/AnimNextModule_EditorData.h"
 #include "Param/ParamType.h"
 #include "Kismet2/Kismet2NameValidators.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/AnimNextParameterBlock.h"
+#include "Module/AnimNextModule.h"
 #include "PropertyBagDetails.h"
-#include "Graph/AnimNextGraphEntry.h"
-#include "IAnimNextRigVMGraphInterface.h"
-#include "IAnimNextRigVMParameterInterface.h"
-#include "Workspace/AnimNextWorkspace.h"
 #include "UncookedOnlyUtils.h"
+#include "Modules/ModuleManager.h"
 #include "Param/RigVMDispatch_GetParameter.h"
+#include "String/ParseTokens.h"
+#include "Variables/IVariableBindingType.h"
+#include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorUtils"
 
@@ -21,7 +23,7 @@ namespace UE::AnimNext::Editor
 
 void FUtils::GetAllEntryNames(const UAnimNextRigVMAssetEditorData* InEditorData, TSet<FName>& OutNames)
 {
-	for(const  UAnimNextRigVMAssetEntry* Entry : InEditorData->GetAllEntries())
+	for(const UAnimNextRigVMAssetEntry* Entry : InEditorData->GetAllEntries())
 	{
 		OutNames.Add(Entry->GetEntryName());
 	}
@@ -93,7 +95,7 @@ FName FUtils::ValidateName(const UObject* InObject, const FString& InName)
 	FString Name = InName;
 	if (Name.StartsWith(TEXT("RigUnit_")))
 	{
-		Name.RightChopInline(8, false);
+		Name.RightChopInline(8, EAllowShrinking::No);
 	}
 
 	FNameValidator NameValidator(InObject);
@@ -237,111 +239,6 @@ FAnimNextParamType FUtils::GetParameterTypeFromMetaData(const FStringView& InStr
 	return FAnimNextParamType(); 
 }
 
-FName FUtils::ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName)
-{
-	struct FNameValidator : public INameValidatorInterface
-	{
-		FNameValidator(const UAnimNextParameterBlock_EditorData* InEditorData)
-			: EditorData(InEditorData)
-		{
-			GetAllEntryNames(EditorData, Names);
-		}
-		
-		virtual EValidatorResult IsValid (const FName& Name, bool bOriginal = false) override
-		{
-			EValidatorResult ValidatorResult = EValidatorResult::AlreadyInUse;
-
-			if(Name == NAME_None)
-			{
-				ValidatorResult = EValidatorResult::EmptyName;
-			}
-			else if(Name.ToString().Len() > MaxNameLength)
-			{
-				ValidatorResult = EValidatorResult::TooLong;
-			}
-			else
-			{
-				// If it is in the names list then it is already in use.
-				if(!Names.Contains(Name))
-				{
-					ValidatorResult = EValidatorResult::Ok;
-
-					// Check for collision with an existing object.
-					if (UObject* ExistingObject = StaticFindObject(/*Class=*/ nullptr, const_cast<UAnimNextParameterBlock_EditorData*>(EditorData), *Name.ToString(), true))
-					{
-						ValidatorResult = EValidatorResult::AlreadyInUse;
-					}
-				}
-			}
-			
-			return ValidatorResult;
-		}
-		
-		virtual EValidatorResult IsValid (const FString& Name, bool bOriginal = false) override
-		{
-			// Converting a string that is too large for an FName will cause an assert, so verify the length
-			if(Name.Len() >= NAME_SIZE)
-			{
-				return EValidatorResult::TooLong;
-			}
-			else if (!FName::IsValidXName(Name, UE_BLUEPRINT_INVALID_NAME_CHARACTERS))
-			{
-				return EValidatorResult::ContainsInvalidCharacters;
-			}
-
-			// If not defined in name table, not current graph name
-			return IsValid( FName(*Name) );
-		}
-
-		/** Name set to validate */
-		TSet<FName> Names;
-		/** The editor data to check for validity within */
-		const UAnimNextParameterBlock_EditorData* EditorData;
-	};
-	
-	FString Name = InName;
-	if (Name.StartsWith(TEXT("RigUnit_")))
-	{
-		Name.RightChopInline(8, false);
-	}
-
-	FNameValidator NameValidator(InEditorData);
-
-	// Clean up BaseName to not contain any invalid characters, which will mean we can never find a legal name no matter how many numbers we add
-	if (NameValidator.IsValid(Name) == EValidatorResult::ContainsInvalidCharacters)
-	{
-		for (TCHAR& TestChar : Name)
-		{
-			for (TCHAR BadChar : UE_BLUEPRINT_INVALID_NAME_CHARACTERS)
-			{
-				if (TestChar == BadChar)
-				{
-					TestChar = TEXT('_');
-					break;
-				}
-			}
-		}
-	}
-	
-	int32 Count = 0;
-	FString BaseName = Name;
-	while (NameValidator.IsValid(Name) != EValidatorResult::Ok)
-	{
-		// Calculate the number of digits in the number, adding 2 (1 extra to correctly count digits, another to account for the '_' that will be added to the name
-		int32 CountLength = Count > 0 ? (int32)log((double)Count) + 2 : 2;
-
-		// If the length of the final string will be too long, cut off the end so we can fit the number
-		if (CountLength + BaseName.Len() > MaxNameLength)
-		{
-			BaseName.LeftInline(MaxNameLength - CountLength);
-		}
-		Name = FString::Printf(TEXT("%s_%d"), *BaseName, Count);
-		Count++;
-	}
-
-	return *Name;
-}
-
 namespace Private
 {
 
@@ -417,55 +314,7 @@ void FUtils::GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FP
 	}
 };
 
-
-FName FUtils::GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames)
-{
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	UE::AnimNext::UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports);
-
-	auto NameExists = [&Exports, &InAdditionalExistingNames](const TCHAR* InName)
-	{
-		for(const FAnimNextParameterAssetRegistryExportEntry& Parameter : Exports.Parameters)
-		{
-			if(Parameter.Name.ToString() == InName)
-			{
-				return true;
-			}
-		}
-
-		for(FName AdditionalName : InAdditionalExistingNames)
-		{
-			if(AdditionalName.ToString() == InName)
-			{
-				return true;
-			}
-		}
-
-		return false;
-	};
-
-	if(!NameExists(InBaseName))
-	{
-		// Early out - name is valid
-		return FName(InBaseName);
-	}
-	
-	int32 PostFixIndex = 0;
-	while(true)
-	{
-		TStringBuilder<128> StringBuilder;
-		StringBuilder.Appendf(TEXT("%s_%d"), InBaseName, PostFixIndex++);
-
-		if(!NameExists(StringBuilder.ToString()))
-		{
-			return FName(StringBuilder.ToString());
-		}
-	}
-
-	return NAME_None;
-}
-
-bool FUtils::IsValidEntryNameString(FStringView InStringView, FText& OutErrorText)
+bool FUtils::IsValidParameterNameString(FStringView InStringView, FText& OutErrorText)
 {
 	// See if this can be represented as an FName
 	if(!FName::IsValidXName(InStringView, INVALID_NAME_CHARACTERS, &OutErrorText))
@@ -473,10 +322,10 @@ bool FUtils::IsValidEntryNameString(FStringView InStringView, FText& OutErrorTex
 		return false;
 	}
 
-	return IsValidEntryName(FName(InStringView), OutErrorText);
+	return IsValidParameterName(FName(InStringView), OutErrorText);
 }
 
-bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
+bool FUtils::IsValidParameterName(const FName InName, FText& OutErrorText)
 {
 	const FString NewString = InName.ToString();
 
@@ -487,11 +336,9 @@ bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
 	}
 
 	// Check start
-	if (NewString[0] == TEXT('.') ||
-		FChar::IsUnderscore(NewString[0]) ||
-		FChar::IsDigit(NewString[0]))
+	if (FChar::IsDigit(NewString[0]))
 	{
-		OutErrorText = LOCTEXT("Error_Start", "Name cannot start with an underscore, period or digit");
+		OutErrorText = LOCTEXT("Error_Start", "Name cannot start with a digit");
 		return false;
 	}
 
@@ -499,38 +346,17 @@ bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
 	for (int32 CharIndex = 0; bAllowed && CharIndex < NewString.Len(); ++CharIndex)
 	{
 		bAllowed &= FChar::IsAlnum(NewString[CharIndex]) ||
-					FChar::IsUnderscore(NewString[CharIndex]) ||
-					NewString[CharIndex] == TEXT('.');
+					FChar::IsUnderscore(NewString[CharIndex]);
 	}
 
 	// Make sure the new name only contains valid characters
 	if (!bAllowed)
 	{
-		OutErrorText = LOCTEXT("Error_CharacterNotAllowed", "Only alpha-numerical, underscore or period characters are allowed");
+		OutErrorText = LOCTEXT("Error_CharacterNotAllowed", "Only alpha-numerical or underscore characters are allowed");
 		return false;
 	}
 
 	return true;
-}
-
-bool FUtils::DoesParameterNameExist(const FName InName)
-{
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports);
-	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
-}
-
-bool FUtils::DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset)
-{
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedParametersForAsset(InAsset, Exports);
-	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
-}
-
-bool FUtils::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports)
-{
-	const FString TagValue = InWorkspaceAsset.GetTagValueRef<FString>(UAnimNextWorkspace::ExportsAssetRegistryTag);
-	return FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
 }
 
 }

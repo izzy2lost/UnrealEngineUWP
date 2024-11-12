@@ -16,6 +16,25 @@ class FSourceControlInitSettings;
 
 typedef TSharedPtr<class ISourceControlChangelist, ESPMode::ThreadSafe> FSourceControlChangelistPtr;
 
+/**
+ * Describes a custom project that is under source control
+ */
+struct FSourceControlProjectInfo
+{
+	FSourceControlProjectInfo()
+	{}
+
+	FSourceControlProjectInfo(FString InProjectDirectory)
+		: ProjectDirectory(MoveTemp(InProjectDirectory))
+	{}
+
+	/** Directory that contains project files */
+	FString ProjectDirectory;
+
+	/** Content directories that contain asset files */
+	TArray<FString> ContentDirectories;
+};
+
 SOURCECONTROL_API DECLARE_LOG_CATEGORY_EXTERN(LogSourceControl, Log, All);
 
 /** Delegate called when the source control login window is closed. Parameter determines if source control is enabled or not */
@@ -29,6 +48,9 @@ DECLARE_MULTICAST_DELEGATE_TwoParams( FSourceControlProviderChanged, ISourceCont
 
 /** Delegate called on pre-submit for data validation */
 DECLARE_DELEGATE_FourParams(FSourceControlPreSubmitDataValidationDelegate, FSourceControlChangelistPtr /*Changelist*/, EDataValidationResult& /*Result*/, TArray<FText>& /*ValidationErrors*/, TArray<FText>& /*ValidationWarnings*/);
+
+/** Delegate that returns directory information on custom projects under source control (first entry is the main project) */
+DECLARE_DELEGATE_RetVal(TArray<FSourceControlProjectInfo>, FSourceControlCustomProjectsDelegate);
 
 /** Delegate used to specify the project base directory to be used by the source control */
 DECLARE_DELEGATE_RetVal(FString, FSourceControlProjectDirDelegate);
@@ -244,23 +266,33 @@ public:
 	virtual const FSourceControlFilesDeletedDelegate& GetOnFilesDeleted() const = 0;
 
 	/**
-	 * Register a delegate used to specify the project base directory to be used by the source control
+	 * Register a delegate that returns information on custom projects under source control
 	 */
-	virtual void RegisterSourceControlProjectDirDelegate(const FSourceControlProjectDirDelegate& SourceControlProjectDirDelegate) = 0;
+	virtual void RegisterCustomProjectsDelegate(FSourceControlCustomProjectsDelegate InCustomProjectsDelegate) = 0;
 
 	/**
-	 * Unregister the FSourceControlProjectDirDelegate delegate
+	 * Unregister the FSourceControlCustomProjectsDelegate delegate
 	 */
-	virtual void UnregisterSourceControlProjectDirDelegate() = 0;
+	virtual void UnregisterCustomProjectsDelegate() = 0;
 
 	/**
-	 * Returns the project base directory to be used by the source control
+	 * Return information on custom projects under source control
+	 * @note The first entry is considered to be the main project
+	 */
+	virtual TArray<FSourceControlProjectInfo> GetCustomProjects() const = 0;
+
+	/**
+	 * Return the main custom project under source control or the uproject dir (FPaths::ProjectDir) if there's no custom project
 	 */
 	virtual FString GetSourceControlProjectDir() const = 0;
 
-	/**
-	 * Returns whether a delegate has been registered to specify the project base directory to be used by the source control
-	 */
+	UE_DEPRECATED(5.5, "Use RegisterCustomProjectsDelegate instead.")
+	virtual void RegisterSourceControlProjectDirDelegate(const FSourceControlProjectDirDelegate& SourceControlProjectDirDelegate) = 0;
+
+	UE_DEPRECATED(5.5, "Use UnregisterCustomProjectsDelegate instead.")
+	virtual void UnregisterSourceControlProjectDirDelegate() = 0;
+
+	UE_DEPRECATED(5.5, "Use !GetCustomProjects().IsEmpty() instead.")
 	virtual bool UsesCustomProjectDir() const = 0;
 
 	/**

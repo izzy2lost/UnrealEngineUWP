@@ -44,7 +44,6 @@
 #include "SGraphPanel.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "PropertyEditorModule.h"
-#include "STG_SelectionPreview.h"
 #include "STG_TextureDetails.h"
 #include "ScopedTransaction.h"
 #include "ToolMenus.h"
@@ -69,6 +68,7 @@
 #include "Model/Mix/ViewportSettings.h"
 #include "UObject/MetaData.h"
 #include "UObject/ObjectSaveContext.h"
+#include "STG_NodePreview.h"
 
 #include "Expressions/Input/TG_Expression_InputParam.h"
 #include "STG_OutputSelectionDlg.h"
@@ -118,8 +118,8 @@ void FTG_Editor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabM
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
-	InTabManager->RegisterTabSpawner(FTG_EditorTabs::SelectionPreviewTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_SelectionPreview))
-		.SetDisplayName(LOCTEXT("SelectionPreviewTab", "Node Preview"))
+	InTabManager->RegisterTabSpawner(FTG_EditorTabs::NodePreviewTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_NodePreview))
+		.SetDisplayName(LOCTEXT("NodePreviewTab", "Node Preview"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 
@@ -154,7 +154,7 @@ void FTG_Editor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTa
 	//InTabManager->UnregisterTabSpawner(FTG_EditorTabs::FindTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::PreviewSceneSettingsTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::ParameterDefaultsTabId);
-	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::SelectionPreviewTabId);
+	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::NodePreviewTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::OutputTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::PreviewSettingsTabId);
 	InTabManager->UnregisterTabSpawner(FTG_EditorTabs::ErrorsTabId);
@@ -168,20 +168,24 @@ void FTG_Editor::OnTextureGraphPreSave(UObject* Object, FObjectPreSaveContext Sa
 	if (EditedTextureGraph == Object)
 		EditedTextureGraph->TriggerUpdate(false);
 }
+
 void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UTextureGraph* InTextureGraph)
 {
 	TG_Parameters = NewObject<UTG_Parameters>();
 	OriginalTextureGraph = InTextureGraph;
-
 	// We create a duplicate TextureGraph. All the modifications will be done in it.
 	// All the modifications are applied to original TextureGraph when asset is saved.
 	// Propagate all object flags except for RF_Standalone, otherwise the preview material won't GC once
 	// the TS editor releases the reference.
 	// overwrite the original TextureGraph in place by constructing a new one with the same name
-	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(OriginalTextureGraph, OriginalTextureGraph->GetOuter(), NAME_None,
+	FName RuntimeGraphName = FName(OriginalTextureGraph->GetFName().ToString() + TEXT("_Runtime"));
+	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(OriginalTextureGraph, OriginalTextureGraph->GetOuter(), RuntimeGraphName,
 	~RF_Standalone, UTextureGraph::StaticClass(), EDuplicateMode::Normal, EInternalObjectFlags::None);
 	
 	EditedTextureGraph = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
+#ifdef UE_BUILD_DEBUG
+	EditedTextureGraph->Graph()->IsRuntime = 1;
+#endif
 	FCoreUObjectDelegates::OnObjectPreSave.AddSP(this, &FTG_Editor::OnTextureGraphPreSave);
 
 	//Editor gets notified when rendering is done
@@ -189,8 +193,9 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 
 	FViewportSettings& ViewportSettings = EditedTextureGraph->GetSettings()->GetViewportSettings();
 
-	ViewportSettings.OnViewportMaterialChangeEvent.AddSP(this, &FTG_Editor::OnViewportSettingsChanged);
+	ViewportSettings.OnViewportMaterialChangedEvent.AddSP(this, &FTG_Editor::OnViewportMaterialChanged);
 	ViewportSettings.OnMaterialMappingChangedEvent.AddSP(this, &FTG_Editor::OnMaterialMappingChanged);
+	EditedTextureGraph->GetSettings()->OnPreviewMeshChangedEvent.AddSP(this, &FTG_Editor::OnPreviewMeshChangedEvent);
 
 	TextureGraphEngine::RegisterErrorReporter(EditedTextureGraph, std::make_shared<FTG_EditorErrorReporter>(this));
 
@@ -207,7 +212,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	EditedTextureGraph->Graph()->OnTGNodeRenamedDelegate.AddSP(this, &FTG_Editor::OnNodeRenamed);
 
 	GraphEditorWidget = CreateGraphEditorWidget();
-	SelectionPreview = CreateSelectionViewWidget();
+	NodePreview = CreateNodePreviewWidget();
 	TextureDetails = CreateTextureDetailsWidget();
 	Palette = SNew(STG_Palette, SharedThis(this));
 
@@ -308,9 +313,9 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 					(
 						FTabManager::NewStack()
 						->SetHideTabWell(true)
-						->AddTab(FTG_EditorTabs::SelectionPreviewTabId, ETabState::OpenedTab)
+						->AddTab(FTG_EditorTabs::NodePreviewTabId, ETabState::OpenedTab)
 						->AddTab(FTG_EditorTabs::TextureDetailsTabId, ETabState::OpenedTab)
-						->SetForegroundTab(FTG_EditorTabs::SelectionPreviewTabId)
+						->SetForegroundTab(FTG_EditorTabs::NodePreviewTabId)
 					)
 					->Split
 					(
@@ -323,31 +328,26 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 				)
 			)
 		);
-
-
 	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, TG_EditorAppIdentifier, StandaloneDefaultLayout, /*bCreateDefaultToolbar*/ true, /*bCreateDefaultStandaloneMenu*/ true, InTextureGraph);
 
 	RegenerateMenusAndToolbars();
 
-	bool bViewportIsOff = !ViewportTabContent.IsValid();
-	TSharedPtr<SDockTab> ViewportTab; 
+	auto CurrentViewportTab = GetTabManager()->FindExistingLiveTab(FTG_EditorTabs::ViewportTabId);
+	bool bViewportIsOff = CurrentViewportTab == nullptr;
+	
 	// check here if 3d viewport is turned off, we need to turn it on temporarily to initialize our systems correctly
 	if (bViewportIsOff)
 	{
-		ViewportTab = GetTabManager()->TryInvokeTab(FTG_EditorTabs::ViewportTabId);	
+		CurrentViewportTab = GetTabManager()->TryInvokeTab(FTG_EditorTabs::ViewportTabId);	
 	}
 	
 	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
-	if (!SetPreviewAssetByName(*EditedTextureGraph->PreviewMesh.ToString()))
-	{
-		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
-		GetEditorViewport()->InitPreviewMesh();
-	}
+	SetViewportPreviewMesh();
 
 	if (bViewportIsOff)
 	{
 		// turn the viewporttab back off
-		ViewportTab->RequestCloseTab();
+		CurrentViewportTab->RequestCloseTab();
 	}
 
 	EditedTextureGraph->GetPackage()->ClearDirtyFlag();
@@ -637,11 +637,17 @@ void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidatio
 {
 	if (TextureGraph != nullptr)
 	{
-		RefreshSelectionPreview(GraphEditorWidget->GetSelectedNodes(), Details);
+		RefreshNodePreview(GraphEditorWidget->GetSelectedNodes(), Details, true);
+		RefreshViewport();
 	}
 }
 
-void FTG_Editor::OnViewportSettingsChanged()
+void FTG_Editor::OnPreviewMeshChangedEvent()
+{
+	SetViewportPreviewMesh();
+}
+
+void FTG_Editor::OnViewportMaterialChanged()
 {
 	const UTG_Node* FirstTargetNode = nullptr;
 	EditedTextureGraph->Graph()->ForEachNodes([&](const UTG_Node* node, uint32 index)
@@ -746,7 +752,7 @@ void FTG_Editor::OnCreateComment()
 		FTG_EdGraphSchemaAction_NewComment CommentAction;
 
 		TSharedPtr<SGraphEditor> GraphEditorPtr = SGraphEditor::FindGraphEditorForGraph(TG_EdGraph);
-		FVector2D Location;
+		FVector2D Location = FVector2D::ZeroVector;
 		if (GraphEditorPtr)
 		{
 			Location = GraphEditorPtr->GetPasteLocation();
@@ -837,6 +843,7 @@ bool FTG_Editor::OnVerifyNodeTextCommit(const FText& NewText, UEdGraphNode* Node
 	}
 	return bValid;
 }
+
 TSharedRef<class SGraphEditor> FTG_Editor::CreateGraphEditorWidget()
 {
 	if (!GraphEditorCommands)
@@ -903,10 +910,10 @@ FActionMenuContent FTG_Editor::OnCreateGraphActionMenu(UEdGraph* InGraph, const 
 	return FActionMenuContent(ActionMenu, ActionMenu->GetFilterTextBox());
 }
 
-TSharedRef<class STG_SelectionPreview> FTG_Editor::CreateSelectionViewWidget()
+TSharedRef<STG_NodePreviewWidget> FTG_Editor::CreateNodePreviewWidget()
 {
-	return SNew(STG_SelectionPreview)
-		.OnBlobSelectionChanged(this, &FTG_Editor::OnSelectedBlobChanged);
+	return SNew(STG_NodePreviewWidget)
+		.OnNodeBlobChanged(this, &FTG_Editor::OnSelectedBlobChanged);
 }
 
 TSharedRef<class STG_TextureDetails> FTG_Editor::CreateTextureDetailsWidget()
@@ -923,9 +930,25 @@ FGraphAppearanceInfo FTG_Editor::GetGraphAppearance() const
 	return AppearanceInfo;
 }
 
+void FTG_Editor::BuildSubTools()
+{
+	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
+
+	TArray<FAdvancedPreviewSceneModule::FDetailDelegates> Delegates;
+	Delegates.Add({ OnPreviewSceneChangedDelegate });
+	AdvancedPreviewSettingsWidget = AdvancedPreviewSceneModule.CreateAdvancedPreviewSceneSettingsWidget(GetEditorViewport()->GetPreviewScene(), nullptr, TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo>(),  TArray<FAdvancedPreviewSceneModule::FPropertyTypeCustomizationInfo>(), Delegates);
+
+	if (PreviewSceneSettingsDockTab.IsValid())
+	{
+		PreviewSceneSettingsDockTab.Pin()->SetContent(AdvancedPreviewSettingsWidget.ToSharedRef());
+	}
+}
+
 void FTG_Editor::OnEditorLayoutChanged()
 {
+	BuildSubTools();
 
+	OnPreviewSceneChangedDelegate.Broadcast(GetEditorViewport()->GetPreviewScene());
 }
 
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_GraphEditor(const FSpawnTabArgs& Args)
@@ -939,34 +962,36 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_GraphEditor(const FSpawnTabArgs& Args)
 		];
 }
 
+void FTG_Editor::SetViewportPreviewMesh()
+{
+	TObjectPtr<UStaticMesh> PreviewMesh = EditedTextureGraph->GetSettings()->GetPreviewMesh();
+	// Set the preview mesh for the material.  
+	if (!PreviewMesh || !SetPreviewAsset(PreviewMesh))
+	{
+		// The material preview mesh couldn't be found or isn't loaded. Fallback to the one of the primitive types.
+		GetEditorViewport()->InitPreviewMesh();
+	}
+}
+
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_Viewport(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == FTG_EditorTabs::ViewportTabId);
 
 	TSharedRef< SDockTab > DockableTab =
 		SNew(SDockTab);
-
-	TWeakPtr<ITG_Editor> WeakSharedThis(SharedThis(this));
-	MakeViewportFunc = [WeakSharedThis](const FAssetEditorViewportConstructionArgs& InArgs)
-		{
-			return SNew(STG_EditorViewport)
-				.TG_Editor(WeakSharedThis);
-		};
-
+	MakeViewportFunc = [this](const FAssetEditorViewportConstructionArgs& InArgs)
+	{
+		return SNew(STG_EditorViewport)
+			.InTextureGraph(EditedTextureGraph);
+	};
 	// Create a new tab
 	ViewportTabContent = MakeShareable(new FEditorViewportTabContent());
 	ViewportTabContent->OnViewportTabContentLayoutChanged().AddRaw(this, &FTG_Editor::OnEditorLayoutChanged);
-
 	const FString LayoutId = FString("TG_EditorViewport");
 	ViewportTabContent->Initialize(MakeViewportFunc, DockableTab, LayoutId);
+	// This call must occur after the toolbar is initialized.
+	SetViewportPreviewMesh();
 	
-	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
-	if (!SetPreviewAssetByName(*EditedTextureGraph->PreviewMesh.ToString()))
-	{
-		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
-		GetEditorViewport()->InitPreviewMesh();
-	
-	}
 	return DockableTab;
 }
 
@@ -1007,23 +1032,12 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_PreviewSettings(const FSpawnTabArgs& A
 {
 	check(Args.GetTabId() == FTG_EditorTabs::PreviewSceneSettingsTabId);
 
-	TSharedRef<SWidget> InWidget = SNullWidget::NullWidget;
-
-	if (GetEditorViewport().IsValid())
-	{
-		FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
-		InWidget = AdvancedPreviewSceneModule.CreateAdvancedPreviewSceneSettingsWidget(GetEditorViewport()->GetPreviewScene());
-	}
-
-	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+	check( Args.GetTabId() == FTG_EditorTabs::PreviewSceneSettingsTabId );
+	return SAssignNew(PreviewSceneSettingsDockTab, SDockTab)
+		.Label( LOCTEXT("TG_EditorPreviewSceneSettings_TabTitle", "Preview Scene Settings") )
 		[
-			SNew(SBox)
-				[
-					InWidget
-				]
+			AdvancedPreviewSettingsWidget.IsValid() ? AdvancedPreviewSettingsWidget.ToSharedRef() : SNullWidget::NullWidget
 		];
-	
-	return SpawnedTab;
 }
 
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_ParameterDefaults(const FSpawnTabArgs& Args)
@@ -1039,19 +1053,16 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_ParameterDefaults(const FSpawnTabArgs&
 		];
 }
 
-TSharedRef<SDockTab> FTG_Editor::SpawnTab_SelectionPreview(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FTG_Editor::SpawnTab_NodePreview(const FSpawnTabArgs& Args)
 {
-	check(Args.GetTabId() == FTG_EditorTabs::SelectionPreviewTabId);
+	check(Args.GetTabId() == FTG_EditorTabs::NodePreviewTabId);
 
-	TSharedPtr<SDockTab> Tab = SNew(SDockTab)
+	return SNew(SDockTab)
+		// .Label(LOCTEXT("NodeViewer", "Node Viewer"))
 		.TabColorScale(GetTabColorScale())
 		[
-			SelectionPreview.ToSharedRef()
+			NodePreview.ToSharedRef()
 		];
-	NodeHistogramTab = Tab;
-
-	return Tab.ToSharedRef();
-
 }
 
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_Output(const FSpawnTabArgs& Args)
@@ -1194,14 +1205,25 @@ void FTG_Editor::OnSelectedNodesChanged(const TSet<class UObject*>& NewSelection
 		if (UTG_EdGraphNode* GraphNode = Cast<UTG_EdGraphNode>(*SetIt))
 		{
 			SelectedObjects.Add(GraphNode->GetDetailsObject());
-		}
-	}
 
+			// Temp fix - Commenting this code for now.
+			// Calling UpdateInputPinsVisibility on selection is causing disconnection of the pins.
+			// Disabling this code will cause UE-215729 bug.
+			// But that only effects details panel so for now this is fine.
+			// Problem: Visibility and interaction of the pin are being updated from this code which are dependent on each other
+			// Ideally they shouldnt be dependent on each other.
+			
+			// calling this here to internally set EditCondition metadata properly for Details panel
+			// this is driven from the CanEditChange() method of the expression which can be customized as required
+			// GraphNode->UpdateInputPinsVisibility();
+		}  
+	}
+	
 	GetDetailView()->SetObjects(SelectedObjects, true);
 	FocusDetailsPanel();
 
 	RefreshPreviewViewport();
-	RefreshSelectionPreview(NewSelection, nullptr);
+	RefreshNodePreview(NewSelection, nullptr, false);
 }
 
 void FTG_Editor::OnNodeDoubleClicked(UEdGraphNode* Node)
@@ -1264,10 +1286,7 @@ bool FTG_Editor::DeleteNodes(TArray<UEdGraphNode*> NodesToDelete, bool ForceDele
 					UTG_Node* TGNode = TGEdGraphNode->GetNode();
 					check(TGNode);
 
-					if (SelectionPreview->GetSelectedNode() && SelectionPreview->GetSelectedNode()->GetName() == TGEdGraphNode->GetName())
-					{
-						SelectionPreview->OnSelectedNodeDeleted();
-					}
+					NodePreview->NodeDeleted(TGNode);
 					TextureGraph->RemoveNode(TGNode);
 				}
 				EdGraphNode->DestroyNode();
@@ -1377,7 +1396,8 @@ void FTG_Editor::PasteNodesHere(const FVector2D& Location, const class UEdGraph*
 	// Import the nodes
 	TSet<UEdGraphNode*> PastedNodes;
 	FEdGraphUtilities::ImportNodesFromText(ExpressionGraph, TextToImport, /*out*/ PastedNodes);
-
+	ExpressionGraph->FixDuplicatedNodesPinConnections(PastedNodes);
+	
 	//Average position of nodes so we can move them while still maintaining relative distances to each other
 	FVector2D AvgNodePosition(0.0f, 0.0f);
 
@@ -1574,12 +1594,32 @@ void FTG_Editor::OnClose()
 				
 	}
 	ITG_Editor::OnClose();
+
+	if (EditedTextureGraph)
+	{
+		/// We need to flush any invalidations coming for this graph. This is because if the user decided to save
+		/// graph on exit then this queues a mix update that never gets finished as the engine is being shutdown
+		/// and results in a cleanup assertion in Device.cpp
+		EditedTextureGraph->FlushInvalidations();
+	}
 }
 
 bool FTG_Editor::UpdateOriginalTextureGraph()
 {
-	// TODO : We should cancel saving when TextureGraph has errors.
-
+	// We should cancel saving when TextureGraph has certain errors.
+	FTextureGraphErrorReporter* ErrorReporter = TextureGraphEngine::GetErrorReporter(EditedTextureGraph);
+	if (ErrorReporter)
+	{
+		// see if there are recursive call errors, we warn user and not let them save in that state
+		const auto CompileErrors = TextureGraphEngine::GetErrorReporter(EditedTextureGraph)->GetCompilationErrors();
+		const TArray<FTextureGraphErrorReport>* RecursiveErrors = CompileErrors.Find((int)ETextureGraphErrorType::RECURSIVE_CALL);
+		if (RecursiveErrors != nullptr && RecursiveErrors->Num() > 0)
+		{
+			const FText Message =  FText::FromString(TEXT("Cannot save as Recursive Errors found.\r\n") + (*RecursiveErrors)[0].ErrorMsg);
+			FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, Message);
+			return false;
+		}
+	}
 	if (EditedTextureGraph->GetPackage()->IsDirty())
 	{
 		// Cache any metadata
@@ -1591,7 +1631,9 @@ bool FTG_Editor::UpdateOriginalTextureGraph()
 
 		// UObject* NewAsset = StaticDuplicateObjectEx(Params);
 		OriginalTextureGraph = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
-
+#ifdef UE_BUILD_DEBUG
+		OriginalTextureGraph->Graph()->IsRuntime = 0;
+#endif
 		// Restore the metadata
 		if (MetaData)
 		{
@@ -1776,7 +1818,6 @@ void FTG_Editor::OnGraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweak
 		UpdateMixSettings();
 	}
 	RefreshViewport();
-	// OutputView->ForceRefresh();
 }
 
 void FTG_Editor::UpdateMixSettings()
@@ -1811,8 +1852,34 @@ void FTG_Editor::OnNodeRemoved(UTG_Node* InNode, FName Title)
 			}
 		}
 
+		FViewportSettings& ViewportSettings = EditedTextureGraph->GetSettings()->GetViewportSettings();
+		
 		// Update Viewport material mapping for deleted output node
-		EditedTextureGraph->GetSettings()->GetViewportSettings().RemoveMaterialMappingForTarget(Title);
+		ViewportSettings.RemoveMaterialMappingForTarget(Title);
+
+		if(ViewportSettings.MaterialMappingInfos.Num() > 0)
+		{
+			// We should have atleast one target assigned.
+			const int AssignedTargets = ViewportSettings.NumAssignedTargets();
+
+			// if We dont have a valid target then we will try to assign 
+			if(AssignedTargets <= 0)
+			{
+				// Check if we have output node available
+				const FName FirstOutputName;
+				EditedTextureGraph->Graph()->ForEachParams([&](const UTG_Pin* Pin, uint32 index)
+					{
+						if(Pin->IsOutput())
+						{
+							if (FirstOutputName.IsNone())
+							{
+								ViewportSettings.SetDefaultTarget(Pin->GetAliasName());
+								GetEditorViewport()->UpdateRenderMode();
+							}
+						}
+					});
+			}
+		}
 	}
 }
 
@@ -1877,7 +1944,7 @@ void FTG_Editor::RefreshPreviewViewport()
 	//TODO: refresh the viewport here
 }
 
-void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details)
+void FTG_Editor::RefreshNodePreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details, bool bUpdateOnly)
 {
 	TArray<UTG_EdGraphNode*> NodesForSelectionPreview;
 	for (TSet<class UObject*>::TConstIterator SetIt(NewSelection); SetIt; ++SetIt)
@@ -1890,7 +1957,15 @@ void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelectio
 
 	//TODO: Handle multiple selection case
 	UTG_EdGraphNode* SelectedNode = NodesForSelectionPreview.Num() > 0 ? NodesForSelectionPreview[0] : nullptr;
-	SelectionPreview->OnSelectionChanged(SelectedNode);
+
+	if (bUpdateOnly)
+	{
+		NodePreview->Update();
+	}
+	else
+	{
+		NodePreview->SelectionChanged(SelectedNode ? SelectedNode->GetNode() : nullptr);
+	}
 }
 
 void FTG_Editor::SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld)
@@ -1906,15 +1981,6 @@ bool FTG_Editor::SetPreviewAsset(UObject* InAsset)
 	if (GetEditorViewport().IsValid())
 	{
 		return GetEditorViewport()->SetPreviewAsset(InAsset);
-	}
-	return false;
-}
-
-bool FTG_Editor::SetPreviewAssetByName(const TCHAR* InAssetName)
-{
-	if (GetEditorViewport().IsValid())
-	{
-		return GetEditorViewport()->SetPreviewAssetByName(InAssetName);
 	}
 	return false;
 }

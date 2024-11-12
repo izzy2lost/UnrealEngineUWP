@@ -147,8 +147,11 @@ struct FPyWrapperObjectMetaData : public FPyWrapperBaseMetaData
 	/** Check to see if the class is deprecated, and optionally return its deprecation message */
 	static bool IsClassDeprecated(FPyWrapperObject* Instance, FString* OutDeprecationMessage = nullptr);
 
+	/** Add object references from this type meta-data to the given collector */
+	virtual void AddTypeReferencedObjects(FReferenceCollector& Collector) override;
+
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
 
 	/** Get the reflection meta data type object associated with this wrapper type if there is one or nullptr if not. */
 	virtual const UField* GetMetaType() const override
@@ -180,8 +183,8 @@ typedef TPyPtr<FPyWrapperObject> FPyWrapperObjectPtr;
 #endif	// WITH_PYTHON
 
 /** An Unreal class that was generated from a Python type */
-UCLASS(BlueprintType, Transient)
-class UPythonGeneratedClass : public UClass, public IPythonResourceOwner
+UCLASS(Transient)
+class UPythonGeneratedClass final : public UClass, public IPythonResourceOwner
 {
 	GENERATED_BODY()
 
@@ -191,12 +194,19 @@ public:
 	//~ UObject interface
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void BeginDestroy() override;
+	virtual bool IsAsset() const override
+	{
+		return false;
+	}
 
 	//~ UClass interface
 	virtual void PostInitInstance(UObject* InObj, FObjectInstancingGraph* InstanceGraph) override;
 
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
+
+	/** Unregister this type from FPyWrapperTypeRegistry */
+	void UnregisterGeneratedType();
 
 	virtual bool IsFunctionImplementedInScript(FName InFunctionName) const override;
 

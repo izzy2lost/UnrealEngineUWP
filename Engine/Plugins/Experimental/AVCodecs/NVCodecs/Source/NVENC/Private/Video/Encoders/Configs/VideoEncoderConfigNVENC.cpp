@@ -12,14 +12,14 @@ TAVResult<NV_ENC_PARAMS_RC_MODE> FVideoEncoderConfigNVENC::ConvertRateControlMod
 {
 	switch (Mode)
 	{
-		case ERateControlMode::ConstQP:
-			return NV_ENC_PARAMS_RC_CONSTQP;
-		case ERateControlMode::VBR:
-			return NV_ENC_PARAMS_RC_VBR;
-		case ERateControlMode::CBR:
-			return NV_ENC_PARAMS_RC_CBR;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Rate control mode %d is not supported"), Mode), TEXT("NVENC"));
+	case ERateControlMode::ConstQP:
+		return NV_ENC_PARAMS_RC_CONSTQP;
+	case ERateControlMode::VBR:
+		return NV_ENC_PARAMS_RC_VBR;
+	case ERateControlMode::CBR:
+		return NV_ENC_PARAMS_RC_CBR;
+	default:
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Rate control mode %d is not supported"), Mode), TEXT("NVENC"));
 	}
 }
 
@@ -27,14 +27,14 @@ TAVResult<ERateControlMode> FVideoEncoderConfigNVENC::ConvertRateControlMode(NV_
 {
 	switch (Mode)
 	{
-		case NV_ENC_PARAMS_RC_CONSTQP:
-			return ERateControlMode::ConstQP;
-		case NV_ENC_PARAMS_RC_VBR:
-			return ERateControlMode::VBR;
-		case NV_ENC_PARAMS_RC_CBR:
-			return ERateControlMode::CBR;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Rate control mode %d is not supported"), Mode), TEXT("NVENC"));
+	case NV_ENC_PARAMS_RC_CONSTQP:
+		return ERateControlMode::ConstQP;
+	case NV_ENC_PARAMS_RC_VBR:
+		return ERateControlMode::VBR;
+	case NV_ENC_PARAMS_RC_CBR:
+		return ERateControlMode::CBR;
+	default:
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Rate control mode %d is not supported"), Mode), TEXT("NVENC"));
 	}
 }
 
@@ -42,14 +42,14 @@ TAVResult<NV_ENC_MULTI_PASS> FVideoEncoderConfigNVENC::ConvertMultipassMode(EMul
 {
 	switch (Mode)
 	{
-		case EMultipassMode::Disabled:
-			return NV_ENC_MULTI_PASS_DISABLED;
-		case EMultipassMode::Quarter:
-			return NV_ENC_TWO_PASS_QUARTER_RESOLUTION;
-		case EMultipassMode::Full:
-			return NV_ENC_TWO_PASS_FULL_RESOLUTION;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Multipass mode %d is not supported"), Mode), TEXT("NVENC"));
+	case EMultipassMode::Disabled:
+		return NV_ENC_MULTI_PASS_DISABLED;
+	case EMultipassMode::Quarter:
+		return NV_ENC_TWO_PASS_QUARTER_RESOLUTION;
+	case EMultipassMode::Full:
+		return NV_ENC_TWO_PASS_FULL_RESOLUTION;
+	default:
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Multipass mode %d is not supported"), Mode), TEXT("NVENC"));
 	}
 }
 
@@ -57,14 +57,14 @@ TAVResult<EMultipassMode> FVideoEncoderConfigNVENC::ConvertMultipassMode(NV_ENC_
 {
 	switch (Mode)
 	{
-		case NV_ENC_MULTI_PASS_DISABLED:
-			return EMultipassMode::Disabled;
-		case NV_ENC_TWO_PASS_QUARTER_RESOLUTION:
-			return EMultipassMode::Quarter;
-		case NV_ENC_TWO_PASS_FULL_RESOLUTION:
-			return EMultipassMode::Full;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Multipass mode %d is not supported"), Mode), TEXT("NVENC"));
+	case NV_ENC_MULTI_PASS_DISABLED:
+		return EMultipassMode::Disabled;
+	case NV_ENC_TWO_PASS_QUARTER_RESOLUTION:
+		return EMultipassMode::Quarter;
+	case NV_ENC_TWO_PASS_FULL_RESOLUTION:
+		return EMultipassMode::Full;
+	default:
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Multipass mode %d is not supported"), Mode), TEXT("NVENC"));
 	}
 }
 
@@ -72,16 +72,16 @@ TAVResult<NV_ENC_BUFFER_FORMAT> FVideoEncoderConfigNVENC::ConvertFormat(EVideoFo
 {
 	switch (Format)
 	{
-		case EVideoFormat::BGRA:
-			return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_ARGB;
-		case EVideoFormat::ABGR10:
-			return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_ARGB10;
-		case EVideoFormat::NV12:
-			return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_NV12;
-		case EVideoFormat::P010:
-			return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_YUV420_10BIT;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Pixel format %d is not supported"), Format), TEXT("NVENC"));
+	case EVideoFormat::BGRA:
+		return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_ARGB;
+	case EVideoFormat::ABGR10:
+		return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_ARGB10;
+	case EVideoFormat::NV12:
+		return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_NV12;
+	case EVideoFormat::P010:
+		return NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_YUV420_10BIT;
+	default:
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Pixel format %d is not supported"), Format), TEXT("NVENC"));
 	}
 
 	// NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_YUV420_10BIT : NV_ENC_BUFFER_FORMAT::NV_ENC_BUFFER_FORMAT_IYUV;
@@ -104,23 +104,24 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 
 	switch (InConfig.Preset)
 	{
-		case EAVPreset::Lossless:
-			OutConfig.tuningInfo = NV_ENC_TUNING_INFO_LOSSLESS;
-			break;
-		case EAVPreset::HighQuality:
-			OutConfig.tuningInfo = NV_ENC_TUNING_INFO_HIGH_QUALITY;
-			break;
-		case EAVPreset::LowQuality:
-			OutConfig.tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
-			break;
-		default:
-		case EAVPreset::UltraLowQuality:
-			OutConfig.tuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
-			break;
+	case EAVPreset::Lossless:
+		OutConfig.tuningInfo = NV_ENC_TUNING_INFO_LOSSLESS;
+		break;
+	case EAVPreset::HighQuality:
+		OutConfig.tuningInfo = NV_ENC_TUNING_INFO_HIGH_QUALITY;
+		break;
+	case EAVPreset::LowQuality:
+		OutConfig.tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
+		break;
+	default:
+	case EAVPreset::UltraLowQuality:
+		OutConfig.tuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
+		break;
 	}
 
-	uint32_t const MinQP = static_cast<uint32>(InConfig.MinQP);
-	uint32_t const MaxQP = static_cast<uint32>(InConfig.MaxQP);
+	float QPRange = !memcmp(&OutConfig.encodeGUID, &NV_ENC_CODEC_AV1_GUID, sizeof(GUID)) ? 255.0f : 51.0f;
+	uint32_t const MinQP = (1.0f - (InConfig.MaxQuality / 100.0f)) * QPRange;
+	uint32_t const MaxQP = (1.0f - (InConfig.MinQuality / 100.0f)) * QPRange;
 
 	ERateControlMode ActualRateControlMode = InConfig.Preset == EAVPreset::Lossless ? ERateControlMode::ConstQP : InConfig.RateControlMode;
 	TAVResult<NV_ENC_PARAMS_RC_MODE> const ConvertedRateControlMode = FVideoEncoderConfigNVENC::ConvertRateControlMode(ActualRateControlMode);
@@ -143,8 +144,8 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 	RateControlParams.minQP = { MinQP, MinQP, MinQP };
 	RateControlParams.maxQP = { MaxQP, MaxQP, MaxQP };
 	RateControlParams.constQP = RateControlParams.maxQP;
-	RateControlParams.enableMinQP = InConfig.MinQP > -1;
-	RateControlParams.enableMaxQP = InConfig.MaxQP > -1;
+	RateControlParams.enableMinQP = InConfig.MaxQuality < 100;
+	RateControlParams.enableMaxQP = InConfig.MinQuality > 0;
 
 	// IDR period - how often to send IDR (instantaneous decode refresh) frames, a.k.a keyframes. This can stabilise a stream that dropped/lost some frames (but at the cost of more bandwidth)
 	if (!FMemory::Memcmp(&OutConfig.encodeGUID, &NV_ENC_CODEC_H264_GUID, sizeof(GUID)))
@@ -183,8 +184,9 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig& OutConfig
 	OutConfig.Height = InConfig.encodeHeight;
 
 	NV_ENC_RC_PARAMS& RateControlParams = InConfig.encodeConfig->rcParams;
-	OutConfig.MinQP = static_cast<int32>(RateControlParams.minQP.qpIntra);
-	OutConfig.MaxQP = static_cast<int32>(RateControlParams.maxQP.qpIntra);
+	float QPRange = !memcmp(&InConfig.encodeGUID, &NV_ENC_CODEC_AV1_GUID, sizeof(GUID)) ? 255.0f : 51.0f;
+	OutConfig.MinQuality = static_cast<int32>((1.0f - (RateControlParams.maxQP.qpIntra / QPRange)) * 100.0f);
+	OutConfig.MaxQuality = static_cast<int32>((1.0f - (RateControlParams.minQP.qpIntra / QPRange)) * 100.0f);
 	OutConfig.TargetBitrate = RateControlParams.averageBitRate == DEFAULT_BITRATE_TARGET ? -1 : RateControlParams.averageBitRate;
 	OutConfig.MaxBitrate = RateControlParams.maxBitRate == DEFAULT_BITRATE_MAX ? -1 : RateControlParams.maxBitRate;
 
@@ -228,28 +230,28 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 	static auto const ConvertProfile = [](EH264Profile Profile) -> TAVResult<GUID> {
 		switch (Profile)
 		{
-			case EH264Profile::Auto:
-				return NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
-			case EH264Profile::Baseline:
-				return NV_ENC_H264_PROFILE_BASELINE_GUID;
-			case EH264Profile::Main:
-				return NV_ENC_H264_PROFILE_MAIN_GUID;
-			case EH264Profile::High:
-				return NV_ENC_H264_PROFILE_HIGH_GUID;
-			case EH264Profile::ProgressiveHigh:
-				return NV_ENC_H264_PROFILE_PROGRESSIVE_HIGH_GUID;
-			case EH264Profile::ConstrainedHigh:
-				return NV_ENC_H264_PROFILE_CONSTRAINED_HIGH_GUID;
-			case EH264Profile::High10:
-				return NV_ENC_HEVC_PROFILE_MAIN10_GUID;
-			case EH264Profile::StereoHigh:
-				return NV_ENC_H264_PROFILE_STEREO_GUID;
-			case EH264Profile::High444:
-				return NV_ENC_H264_PROFILE_HIGH_444_GUID;
-			default:
-				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 profile %d is not supported"), Profile), TEXT("NVENC"));
+		case EH264Profile::Auto:
+			return NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+		case EH264Profile::Baseline:
+			return NV_ENC_H264_PROFILE_BASELINE_GUID;
+		case EH264Profile::Main:
+			return NV_ENC_H264_PROFILE_MAIN_GUID;
+		case EH264Profile::High:
+			return NV_ENC_H264_PROFILE_HIGH_GUID;
+		case EH264Profile::ProgressiveHigh:
+			return NV_ENC_H264_PROFILE_PROGRESSIVE_HIGH_GUID;
+		case EH264Profile::ConstrainedHigh:
+			return NV_ENC_H264_PROFILE_CONSTRAINED_HIGH_GUID;
+		case EH264Profile::High10:
+			return NV_ENC_HEVC_PROFILE_MAIN10_GUID;
+		case EH264Profile::StereoHigh:
+			return NV_ENC_H264_PROFILE_STEREO_GUID;
+		case EH264Profile::High444:
+			return NV_ENC_H264_PROFILE_HIGH_444_GUID;
+		default:
+			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 profile %d is not supported"), Profile), TEXT("NVENC"));
 		}
-	};
+		};
 
 	OutConfig.encodeGUID = NV_ENC_CODEC_H264_GUID;
 
@@ -269,16 +271,16 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 	static auto const ConvertAdaptiveTransformMode = [](EH264AdaptiveTransformMode TransformMode) -> TAVResult<NV_ENC_H264_ADAPTIVE_TRANSFORM_MODE> {
 		switch (TransformMode)
 		{
-			case EH264AdaptiveTransformMode::Auto:
-				return NV_ENC_H264_ADAPTIVE_TRANSFORM_AUTOSELECT;
-			case EH264AdaptiveTransformMode::Disable:
-				return NV_ENC_H264_ADAPTIVE_TRANSFORM_DISABLE;
-			case EH264AdaptiveTransformMode::Enable:
-				return NV_ENC_H264_ADAPTIVE_TRANSFORM_ENABLE;
-			default:
-				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 transform mode %d is not supported"), TransformMode), TEXT("NVENC"));
+		case EH264AdaptiveTransformMode::Auto:
+			return NV_ENC_H264_ADAPTIVE_TRANSFORM_AUTOSELECT;
+		case EH264AdaptiveTransformMode::Disable:
+			return NV_ENC_H264_ADAPTIVE_TRANSFORM_DISABLE;
+		case EH264AdaptiveTransformMode::Enable:
+			return NV_ENC_H264_ADAPTIVE_TRANSFORM_ENABLE;
+		default:
+			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 transform mode %d is not supported"), TransformMode), TEXT("NVENC"));
 		}
-	};
+		};
 
 	TAVResult<NV_ENC_H264_ADAPTIVE_TRANSFORM_MODE> const ConvertedAdaptiveTransformMode = ConvertAdaptiveTransformMode(InConfig.AdaptiveTransformMode);
 	if (ConvertedAdaptiveTransformMode.IsNotSuccess())
@@ -291,16 +293,16 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 	static auto const ConvertEntropyCodingMode = [](EH264EntropyCodingMode EntropyCodingMode) -> TAVResult<NV_ENC_H264_ENTROPY_CODING_MODE> {
 		switch (EntropyCodingMode)
 		{
-			case EH264EntropyCodingMode::Auto:
-				return NV_ENC_H264_ENTROPY_CODING_MODE_AUTOSELECT;
-			case EH264EntropyCodingMode::CABAC:
-				return NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
-			case EH264EntropyCodingMode::CAVLC:
-				return NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC;
-			default:
-				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 entropy coding mode %d is not supported"), EntropyCodingMode), TEXT("NVENC"));
+		case EH264EntropyCodingMode::Auto:
+			return NV_ENC_H264_ENTROPY_CODING_MODE_AUTOSELECT;
+		case EH264EntropyCodingMode::CABAC:
+			return NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+		case EH264EntropyCodingMode::CAVLC:
+			return NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC;
+		default:
+			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 entropy coding mode %d is not supported"), EntropyCodingMode), TEXT("NVENC"));
 		}
-	};
+		};
 
 	TAVResult<NV_ENC_H264_ENTROPY_CODING_MODE> const ConvertedEntropyCodingMode = ConvertEntropyCodingMode(InConfig.EntropyCodingMode);
 	if (ConvertedEntropyCodingMode.IsNotSuccess())
@@ -352,17 +354,17 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 	static auto const ConvertProfile = [](EH265Profile Profile) -> TAVResult<GUID> {
 		switch (Profile)
 		{
-			case EH265Profile::Auto:
-			case EH265Profile::Main:
-				return NV_ENC_HEVC_PROFILE_MAIN_GUID;
-			case EH265Profile::Main10:
-				return NV_ENC_HEVC_PROFILE_MAIN10_GUID;
-			case EH265Profile::Main12:
-				return NV_ENC_HEVC_PROFILE_FREXT_GUID;
-			default:
-				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H265 profile %d is not supported"), Profile), TEXT("NVENC"));
+		case EH265Profile::Auto:
+		case EH265Profile::Main:
+			return NV_ENC_HEVC_PROFILE_MAIN_GUID;
+		case EH265Profile::Main10:
+			return NV_ENC_HEVC_PROFILE_MAIN10_GUID;
+		case EH265Profile::Main12:
+			return NV_ENC_HEVC_PROFILE_FREXT_GUID;
+		default:
+			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H265 profile %d is not supported"), Profile), TEXT("NVENC"));
 		}
-	};
+		};
 
 	OutConfig.encodeGUID = NV_ENC_CODEC_HEVC_GUID;
 
@@ -395,16 +397,16 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 
 	switch (InConfig.Profile)
 	{
-		case EH265Profile::Main:
-		default:
-			OutH265Config.pixelBitDepthMinus8 = 0;
-			break;
-		case EH265Profile::Main10:
-			OutH265Config.pixelBitDepthMinus8 = 2;
-			break;
-		case EH265Profile::Main12:
-			OutH265Config.pixelBitDepthMinus8 = 4;
-			break;
+	case EH265Profile::Main:
+	default:
+		OutH265Config.pixelBitDepthMinus8 = 0;
+		break;
+	case EH265Profile::Main10:
+		OutH265Config.pixelBitDepthMinus8 = 2;
+		break;
+	case EH265Profile::Main12:
+		OutH265Config.pixelBitDepthMinus8 = 4;
+		break;
 	}
 
 	// Intra refresh - used to stabilise stream on the decoded side when frames are dropped/lost.
@@ -424,13 +426,13 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 	static auto const ConvertProfile = [](EAV1Profile Profile) -> TAVResult<GUID> {
 		switch (Profile)
 		{
-			case EAV1Profile::Auto:
-			case EAV1Profile::Main:
-				return NV_ENC_AV1_PROFILE_MAIN_GUID;
-			default:
-				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("AV1 profile %d is not supported"), Profile), TEXT("NVENC"));
+		case EAV1Profile::Auto:
+		case EAV1Profile::Main:
+			return NV_ENC_AV1_PROFILE_MAIN_GUID;
+		default:
+			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("AV1 profile %d is not supported"), Profile), TEXT("NVENC"));
 		}
-	};
+		};
 
 	OutConfig.encodeGUID = NV_ENC_CODEC_AV1_GUID;
 
@@ -453,7 +455,7 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 
 	// Repeat sequence header - sends sequence header with every IDR frame - maximum stabilisation of the stream when IDR is sent.
 	OutAV1Config.repeatSeqHdr = InConfig.RepeatSeqHdr;
-	
+
 	OutAV1Config.level = NV_ENC_LEVEL_AV1_AUTOSELECT;
 	OutAV1Config.colorPrimaries = NV_ENC_VUI_COLOR_PRIMARIES_UNSPECIFIED;
 	OutAV1Config.transferCharacteristics = NV_ENC_VUI_TRANSFER_CHARACTERISTIC_UNSPECIFIED;
@@ -461,11 +463,11 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigNVENC& OutC
 
 	switch (InConfig.Profile)
 	{
-		case EAV1Profile::Auto:
-		case EAV1Profile::Main:
-		default:
-			OutAV1Config.pixelBitDepthMinus8 = 0;
-			break;
+	case EAV1Profile::Auto:
+	case EAV1Profile::Main:
+	default:
+		OutAV1Config.pixelBitDepthMinus8 = 0;
+		break;
 	}
 
 	// Intra refresh - used to stabilise stream on the decoded side when frames are dropped/lost.

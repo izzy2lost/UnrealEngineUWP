@@ -139,16 +139,6 @@ UOpenColorIOColorTransform::UOpenColorIOColorTransform(const FObjectInitializer&
 {
 }
 
-bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& /*InContextKeyValues*/)
-{
-	return Initialize(InSourceColorSpace, InDestinationColorSpace);
-}
-
-bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& /*InContextKeyValues*/)
-{
-	return Initialize(InSourceColorSpace, InDisplay, InView, InDirection);
-}
-
 bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& /*InContextKeyValues*/)
 {
 	return Initialize(InSourceColorSpace, InDestinationColorSpace);
@@ -489,11 +479,6 @@ void UOpenColorIOColorTransform::CacheShadersForResources(EShaderPlatform InShad
 			UE_LOG(LogOpenColorIO, Warning, TEXT("	%s"), *CompileErrors[ErrorIndex]);
 		}
 	}
-}
-
-FOpenColorIOTransformResource* UOpenColorIOColorTransform::AllocateResource()
-{
-	return new FOpenColorIOTransformResource();
 }
 
 bool UOpenColorIOColorTransform::GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, TWeakObjectPtr<UTexture>>& OutTextureResources) const

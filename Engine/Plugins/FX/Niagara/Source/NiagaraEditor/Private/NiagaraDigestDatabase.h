@@ -120,6 +120,8 @@ public:
 	virtual FString GetReferencerName() const override;
 
 protected:
+	void ReleaseGraphCache();
+
 	uint32 GraphCacheHits = 0;
 	uint32 GraphCacheMisses = 0;
 	uint32 CollectionCacheHits = 0;

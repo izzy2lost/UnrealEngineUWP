@@ -12,6 +12,7 @@
 #include "IEOSSDKManager.h"
 
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
 #include "eos_lobby.h"
 
 #define UE_ONLINE_LOBBY_EOS_KEY_NAME_LOBBY_DATA TEXT("LobbyData")

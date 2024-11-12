@@ -2,20 +2,24 @@
 
 #include "PropertyAnimatorCoreEditorStackCustomization.h"
 
+#include "Animators/PropertyAnimatorCoreBase.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "Contexts/OperatorStackEditorMenuContext.h"
-#include "Animators/PropertyAnimatorCoreBase.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Items/OperatorStackEditorGroupItem.h"
 #include "Items/OperatorStackEditorObjectItem.h"
 #include "Menus/PropertyAnimatorCoreEditorMenu.h"
+#include "Presets/PropertyAnimatorCoreAnimatorPreset.h"
+#include "Styles/PropertyAnimatorCoreEditorStyle.h"
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 #include "ToolMenus.h"
 #include "ToolMenu.h"
-#include "Widgets/PropertyAnimatorCoreEditorEditPanelOptions.h"
 
 #define LOCTEXT_NAMESPACE "PropertyAnimatorEditorStackCustomization"
+
+DEFINE_LOG_CATEGORY_STATIC(LogPropertyAnimatorCoreEditorStackCustomization, Log, All);
 
 UPropertyAnimatorCoreEditorStackCustomization::UPropertyAnimatorCoreEditorStackCustomization()
 	: UOperatorStackEditorStackCustomization(
@@ -28,37 +32,92 @@ UPropertyAnimatorCoreEditorStackCustomization::UPropertyAnimatorCoreEditorStackC
 	RegisterCustomizationFor(UPropertyAnimatorCoreComponent::StaticClass());
 }
 
-bool UPropertyAnimatorCoreEditorStackCustomization::TransformContextItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutTransformedItems) const
+bool UPropertyAnimatorCoreEditorStackCustomization::GetRootItem(const FOperatorStackEditorContext& InContext, FOperatorStackEditorItemPtr& OutRootItem) const
 {
-	// If we have an actor then display controllers
-	if (InItem->IsA<AActor>())
-	{
-		const AActor* Actor = InItem->Get<AActor>();
+	TArray<FOperatorStackEditorItemPtr> RootItems;
 
-		if (UActorComponent* ControllerComponent = Actor->FindComponentByClass(UPropertyAnimatorCoreComponent::StaticClass()))
+	// Pick all property animator component as root for the stack view
+	for (const FOperatorStackEditorItemPtr& Item : InContext.GetItems())
+	{
+		if (!Item.IsValid())
 		{
-			OutTransformedItems.Add(MakeShared<FOperatorStackEditorObjectItem>(ControllerComponent));
+			continue;
 		}
 
-		return true;
-	}
-	// If we have a property controller component then display stack
-	else if (InItem->IsA<UPropertyAnimatorCoreComponent>())
-	{
-		const UPropertyAnimatorCoreComponent* ControllerComponent = InItem->Get<UPropertyAnimatorCoreComponent>();
-
-		for (UPropertyAnimatorCoreBase* Controller : ControllerComponent->GetAnimators())
+		if (Item->IsA<AActor>())
 		{
-			if (Controller && Controller->IsA<UPropertyAnimatorCoreBase>())
+			for (const AActor* Actor : Item->GetAsArray<AActor>())
 			{
-				OutTransformedItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Controller));
+				if (UActorComponent* AnimatorComponent = Actor->FindComponentByClass(UPropertyAnimatorCoreComponent::StaticClass()))
+				{
+					RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(AnimatorComponent));
+				}
 			}
 		}
-
-		return true;
+		else if (Item->IsA<UPropertyAnimatorCoreComponent>())
+		{
+			for (UPropertyAnimatorCoreComponent* Component : Item->GetAsArray<UPropertyAnimatorCoreComponent>())
+			{
+				RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Component));
+			}
+		}
+		else if (Item->IsA<UPropertyAnimatorCoreBase>())
+		{
+			for (const UPropertyAnimatorCoreBase* Animator : Item->GetAsArray<UPropertyAnimatorCoreBase>())
+			{
+				RootItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Animator->GetAnimatorComponent()));
+			}
+		}
 	}
 
-	return Super::TransformContextItem(InItem, OutTransformedItems);
+	OutRootItem = MakeShared<FOperatorStackEditorGroupItem>(RootItems, FOperatorStackEditorItemType(UPropertyAnimatorCoreComponent::StaticClass(), EOperatorStackEditorItemType::Object));
+
+	return Super::GetRootItem(InContext, OutRootItem);
+}
+
+bool UPropertyAnimatorCoreEditorStackCustomization::GetChildrenItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutChildrenItems) const
+{
+	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
+	{
+		if (InItem->GetValueCount() > 1)
+		{
+			TMap<UClass*, int32> ClassToIndex;
+			TArray<TArray<FOperatorStackEditorItemPtr>> Animators;
+
+			for (const UPropertyAnimatorCoreComponent* AnimatorComponent : InItem->GetAsArray<UPropertyAnimatorCoreComponent>())
+			{
+				for (UPropertyAnimatorCoreBase* Animator : AnimatorComponent->GetAnimators())
+				{
+					if (const int32* Index = ClassToIndex.Find(Animator->GetClass()))
+					{
+						Animators[*Index].Add(MakeShared<FOperatorStackEditorObjectItem>(Animator));
+					}
+					else
+					{
+						TArray<FOperatorStackEditorItemPtr> ModifierGroup;
+						ModifierGroup.Add(MakeShared<FOperatorStackEditorObjectItem>(Animator));
+						int32 GroupIndex = Animators.Add(ModifierGroup);
+						ClassToIndex.Add(Animator->GetClass(), GroupIndex);
+					}
+				}
+			}
+
+			for (int32 Index = 0; Index < Animators.Num(); Index++)
+			{
+				const UClass* const* AnimatorClass = ClassToIndex.FindKey(Index);
+				OutChildrenItems.Add(MakeShared<FOperatorStackEditorGroupItem>(Animators[Index], FOperatorStackEditorItemType(*AnimatorClass, EOperatorStackEditorItemType::Object)));
+			}
+		}
+		else
+		{
+			for (UPropertyAnimatorCoreBase* Animator : InItem->Get<UPropertyAnimatorCoreComponent>(0)->GetAnimators())
+			{
+				OutChildrenItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Animator));
+			}
+		}
+	}
+
+	return Super::GetChildrenItem(InItem, OutChildrenItems);
 }
 
 void UPropertyAnimatorCoreEditorStackCustomization::CustomizeStackHeader(const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder)
@@ -68,27 +127,31 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeStackHeader(const F
 		static const FName AddAnimatorMenuName = TEXT("AddAnimatorMenu");
 		if (!UToolMenus::Get()->IsMenuRegistered(AddAnimatorMenuName))
 		{
-			UToolMenu* const AddControllerMenu = UToolMenus::Get()->RegisterMenu(AddAnimatorMenuName, NAME_None, EMultiBoxType::Menu);
-			AddControllerMenu->AddDynamicSection(TEXT("FillAddAnimatorMenuSection"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillAddAnimatorMenuSection));
+			UToolMenu* const AddAnimatorMenu = UToolMenus::Get()->RegisterMenu(AddAnimatorMenuName, NAME_None, EMultiBoxType::Menu);
+			AddAnimatorMenu->AddDynamicSection(TEXT("FillAddAnimatorMenuSection"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillAddAnimatorMenuSection));
 		}
 
 		// Pinned search keywords
-		TSet<FString> PinnedControllerNames;
+		TSet<FString> PinnedAnimatorNames;
 		for (const FOperatorStackEditorItemPtr& SupportedItem : InItemTree.GetAllItems())
 		{
-			if (const UPropertyAnimatorCoreBase* Controller = SupportedItem->Get<UPropertyAnimatorCoreBase>())
+			if (SupportedItem.IsValid() && SupportedItem->IsA<UPropertyAnimatorCoreBase>())
 			{
-				PinnedControllerNames.Add(Controller->GetAnimatorOriginalName().ToString());
+				if (const UPropertyAnimatorCoreBase* Animator = SupportedItem->Get<UPropertyAnimatorCoreBase>(0))
+				{
+					PinnedAnimatorNames.Add(Animator->GetAnimatorOriginalName().ToString());
+				}
 			}
 		}
 
 		InHeaderBuilder
 			.SetToolMenu(
 				AddAnimatorMenuName
-				, LOCTEXT("AddControllersMenu", "Add Animators")
-				, FAppStyle::GetBrush(TEXT("Icons.PlusCircle")))
+				, LOCTEXT("AddAnimatorsMenu", "Add Animators")
+				, FAppStyle::GetBrush("Icons.Plus")
+			)
 			.SetSearchAllowed(true)
-			.SetSearchPinnedKeywords(PinnedControllerNames);
+			.SetSearchPinnedKeywords(PinnedAnimatorNames);
 	}
 
 	Super::CustomizeStackHeader(InItemTree, InHeaderBuilder);
@@ -96,99 +159,110 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeStackHeader(const F
 
 void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder)
 {
+	// Action menu available in header in slim toolbar
+	static const FName HeaderAnimatorMenuName = TEXT("HeaderAnimatorMenu");
+	if (!UToolMenus::Get()->IsMenuRegistered(HeaderAnimatorMenuName))
+	{
+		UToolMenu* const HeaderModifierMenu = UToolMenus::Get()->RegisterMenu(HeaderAnimatorMenuName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+		HeaderModifierMenu->AddDynamicSection(TEXT("FillHeaderAnimatorMenu"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorHeaderActionMenu));
+	}
+
+	// Context menu available when right clicking on item
+	static const FName ContextAnimatorMenuName = TEXT("ContextAnimatorMenu");
+	if (!UToolMenus::Get()->IsMenuRegistered(ContextAnimatorMenuName))
+	{
+		UToolMenu* const ContextModifierMenu = UToolMenus::Get()->RegisterMenu(ContextAnimatorMenuName, NAME_None, EMultiBoxType::Menu);
+		ContextModifierMenu->AddDynamicSection(TEXT("FillContextAnimatorMenu"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorContextActionMenu));
+	}
+
 	// Customize component header
 	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
 	{
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, bAnimatorsEnabled));
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreComponent::StaticClass(), UPropertyAnimatorCoreComponent::GetAnimatorsEnabledPropertyName());
 
 		const FSlateIcon ClassIcon = FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreComponent::StaticClass());
 
-		// Action menu available in header in slim toolbar
-		static const FName HeaderComponentMenuName = TEXT("HeaderComponentMenu");
-		if (!UToolMenus::Get()->IsMenuRegistered(HeaderComponentMenuName))
-		{
-			UToolMenu* const HeaderAnimatorMenu = UToolMenus::Get()->RegisterMenu(HeaderComponentMenuName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
-			HeaderAnimatorMenu->AddDynamicSection(TEXT("FillHeaderComponentMenu"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillComponentHeaderActionMenu));
-		}
+		// Commands for item on key events
+		const TSharedPtr<FUICommandList> ComponentCommands = CreateAnimatorCommands(InItem);
 
 		FString HeaderLabel = TEXT("Animators");
+		TAttribute<EOperatorStackEditorMessageType> MessageType = EOperatorStackEditorMessageType::None;
+		TAttribute<FText> MessageText = FText::GetEmpty();
 
-		// Add actor name next to label when we customize multiple items
-		if (InItemTree.GetRootItems().Num() > 1)
+		if (InItem->GetValueCount() > 1)
 		{
-			if (const UPropertyAnimatorCoreComponent* ControllerComponent = InItem->Get<UPropertyAnimatorCoreComponent>())
-			{
-				HeaderLabel += + TEXT(" (") + ControllerComponent->GetOwner()->GetActorNameOrLabel() + TEXT(")");
-			}
+			HeaderLabel += TEXT(" (") + FString::FromInt(InItem->GetValueCount()) + TEXT(")");
+			MessageType = EOperatorStackEditorMessageType::Info;
+			MessageText = LOCTEXT("MultiAnimatorView", "You are viewing multiple items");
 		}
 
 		InHeaderBuilder
 			.SetProperty(EnableProperty)
-			.SetToolbarMenu(HeaderComponentMenuName)
 			.SetIcon(ClassIcon.GetIcon())
-			.SetLabel(FText::FromString(HeaderLabel));
+			.SetLabel(FText::FromString(HeaderLabel))
+			.SetToolbarMenu(HeaderAnimatorMenuName)
+			.SetContextMenu(ContextAnimatorMenuName)
+			.SetCommandList(ComponentCommands)
+			.SetMessageBox(MessageType, MessageText);
 	}
-	// Customize controller header
+	// Customize animator header
 	else if (InItem->IsA<UPropertyAnimatorCoreBase>())
 	{
-		UPropertyAnimatorCoreBase* Animator = InItem->Get<UPropertyAnimatorCoreBase>();
+		UPropertyAnimatorCoreBase* Animator = InItem->Get<UPropertyAnimatorCoreBase>(0);
 
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetAnimatorEnabledPropertyName());
 
 		const FSlateIcon ClassIcon = FSlateIconFinder::FindIconForClass(Animator->GetClass());
 
 		// Commands for item on key events
-		const TSharedPtr<FUICommandList> Commands = CreateAnimatorCommands(Animator);
+		const TSharedPtr<FUICommandList> AnimatorCommands = CreateAnimatorCommands(InItem);
 
-		// Action menu available in header in slim toolbar
-		static const FName HeaderModifierMenuName = TEXT("HeaderControllerMenu");
-		if (!UToolMenus::Get()->IsMenuRegistered(HeaderModifierMenuName))
-		{
-			UToolMenu* const HeaderModifierMenu = UToolMenus::Get()->RegisterMenu(HeaderModifierMenuName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
-			HeaderModifierMenu->AddDynamicSection(TEXT("FillHeaderControllerMenu"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorHeaderActionMenu));
-		}
-
-		// Context menu available when right clicking on item
-		static const FName ContextModifierMenuName = TEXT("ContextControllerMenu");
-		if (!UToolMenus::Get()->IsMenuRegistered(ContextModifierMenuName))
-		{
-			UToolMenu* const ContextModifierMenu = UToolMenus::Get()->RegisterMenu(ContextModifierMenuName, NAME_None, EMultiBoxType::Menu);
-			ContextModifierMenu->AddDynamicSection(TEXT("FillContextControllerMenu"), FNewToolMenuDelegate::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorContextActionMenu));
-		}
+		const FString AnimatorDisplayName = Animator->GetAnimatorDisplayName().ToString();
 
 		const TSet<FString> SearchKeywords
 		{
 			Animator->GetAnimatorOriginalName().ToString(),
-			Animator->GetAnimatorDisplayName()
+			AnimatorDisplayName
 		};
 
 		/** Show last execution error messages if failed execution */
 		TAttribute<EOperatorStackEditorMessageType> MessageType = EOperatorStackEditorMessageType::None;
 		TAttribute<FText> MessageText = FText::GetEmpty();
+		FString HeaderLabel = TEXT("Animator");
 
-		TWeakObjectPtr<UPropertyAnimatorCoreBase> AnimatorWeak(Animator);
-
-		MessageType = TAttribute<EOperatorStackEditorMessageType>::CreateLambda([AnimatorWeak]()
+		if (InItem->GetValueCount() == 1)
 		{
-			if (const UPropertyAnimatorCoreBase* Animator = AnimatorWeak.Get())
+			HeaderLabel = AnimatorDisplayName;
+
+			TWeakObjectPtr<UPropertyAnimatorCoreBase> AnimatorWeak(Animator);
+
+			MessageType = TAttribute<EOperatorStackEditorMessageType>::CreateLambda([AnimatorWeak]()
 			{
-				return Animator->GetLinkedPropertiesCount() > 0
-					? EOperatorStackEditorMessageType::None
-					: EOperatorStackEditorMessageType::Info;
-			}
+				if (const UPropertyAnimatorCoreBase* Animator = AnimatorWeak.Get())
+				{
+					return Animator->GetLinkedPropertiesCount() > 0
+						? EOperatorStackEditorMessageType::None
+						: EOperatorStackEditorMessageType::Info;
+				}
 
-			return EOperatorStackEditorMessageType::None;
-		});
+				return EOperatorStackEditorMessageType::None;
+			});
 
-		MessageText = TAttribute<FText>::CreateLambda([AnimatorWeak]()
+			MessageText = TAttribute<FText>::CreateLambda([AnimatorWeak]()
+			{
+				if (AnimatorWeak.IsValid())
+				{
+					return LOCTEXT("NoPropertiesLinked", "No properties are currently linked to this animator");
+				}
+
+				return FText::GetEmpty();
+			});
+		}
+		else
 		{
-			if (AnimatorWeak.IsValid())
-			{
-				return LOCTEXT("NoPropertiesLinked", "No properties are currently linked to this animator");
-			}
-
-			return FText::GetEmpty();
-		});
+			HeaderLabel = Animator->GetAnimatorOriginalName().ToString();
+			HeaderLabel += TEXT(" (") + FString::FromInt(InItem->GetValueCount()) + TEXT(")");
+		}
 
 		static const FLinearColor AnimatorColor = FLinearColor(FColor::Orange).Desaturate(0.25);
 
@@ -198,11 +272,11 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 			.SetSearchKeywords(SearchKeywords)
 			.SetExpandable(true)
 			.SetIcon(ClassIcon.GetIcon())
-			.SetLabel(FText::FromString(Animator->GetAnimatorDisplayName()))
+			.SetLabel(FText::FromString(HeaderLabel))
 			.SetProperty(EnableProperty)
-			.SetCommandList(Commands)
-			.SetToolbarMenu(HeaderModifierMenuName)
-			.SetContextMenu(ContextModifierMenuName)
+			.SetCommandList(AnimatorCommands)
+			.SetToolbarMenu(HeaderAnimatorMenuName)
+			.SetContextMenu(ContextAnimatorMenuName)
 			.SetMessageBox(MessageType, MessageText);
 	}
 
@@ -211,37 +285,33 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 
 void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemBody(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorBodyBuilder& InBodyBuilder)
 {
-	// Customize controller body
-	if (InItem->IsA<UPropertyAnimatorCoreBase>())
+	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
 	{
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
+		FProperty* AnimatorsEnabledProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), UPropertyAnimatorCoreComponent::GetAnimatorsEnabledPropertyName());
+		FProperty* PropertyAnimatorsProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), UPropertyAnimatorCoreComponent::GetPropertyAnimatorsPropertyName());
+
+		InBodyBuilder
+			.DisallowProperty(AnimatorsEnabledProperty)
+			.DisallowProperty(PropertyAnimatorsProperty)
+			.SetShowDetailsView(true);
+	}
+	// Customize animator body
+	else if (InItem->IsA<UPropertyAnimatorCoreBase>())
+	{
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetAnimatorEnabledPropertyName());
+		FProperty* LinkedPropertiesProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName());
 
 		InBodyBuilder
 			.SetShowDetailsView(true)
-			.DisallowProperty(EnableProperty);
+			.DisallowProperty(EnableProperty)
+			.ExpandProperty(LinkedPropertiesProperty);
 	}
 
 	Super::CustomizeItemBody(InItem, InItemTree, InBodyBuilder);
 }
 
-void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemFooter(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorFooterBuilder& InFooterBuilder)
+bool UPropertyAnimatorCoreEditorStackCustomization::OnIsItemSelectable(const FOperatorStackEditorItemPtr& InItem)
 {
-	// Customize component footer
-	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
-	{
-		FProperty* MagnitudeProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, AnimatorsMagnitude));
-
-		InFooterBuilder
-			.AllowProperty(MagnitudeProperty)
-			.SetShowDetailsView(true);
-	}
-
-	Super::CustomizeItemFooter(InItem, InItemTree, InFooterBuilder);
-}
-
-bool UPropertyAnimatorCoreEditorStackCustomization::OnIsItemDraggable(const FOperatorStackEditorItemPtr& InItem)
-{
-	// Allow selection of item in listview for commands to work
 	if (InItem->IsA<UPropertyAnimatorCoreBase>())
 	{
 		return true;
@@ -255,9 +325,9 @@ const FSlateBrush* UPropertyAnimatorCoreEditorStackCustomization::GetIcon() cons
 	return FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreBase::StaticClass()).GetIcon();
 }
 
-void UPropertyAnimatorCoreEditorStackCustomization::RemoveControllerAction(UPropertyAnimatorCoreBase* InAnimator) const
+void UPropertyAnimatorCoreEditorStackCustomization::RemoveAnimatorAction(FOperatorStackEditorItemPtr InItem) const
 {
-	if (!InAnimator)
+	if (!InItem.IsValid() || !InItem->HasValue())
 	{
 		return;
 	}
@@ -269,24 +339,42 @@ void UPropertyAnimatorCoreEditorStackCustomization::RemoveControllerAction(UProp
 		return;
 	}
 
-	Subsystem->RemoveAnimator(InAnimator, true);
+	if (InItem->IsA<UPropertyAnimatorCoreBase>())
+	{
+		const TSet<UPropertyAnimatorCoreBase*> Animators(InItem->GetAsArray<UPropertyAnimatorCoreBase>());
+
+		if (!Subsystem->RemoveAnimators(Animators, /** Transact */true))
+		{
+			UE_LOG(LogPropertyAnimatorCoreEditorStackCustomization, Warning, TEXT("Could not remove %i animator(s)"), Animators.Num())
+		}
+	}
+	else if (InItem->IsA<UPropertyAnimatorCoreComponent>())
+	{
+		const TSet<UPropertyAnimatorCoreComponent*> Components(InItem->GetAsArray<UPropertyAnimatorCoreComponent>());
+
+		if (!Subsystem->RemoveAnimatorComponents(Components, /** Transact */true))
+		{
+			UE_LOG(LogPropertyAnimatorCoreEditorStackCustomization, Warning, TEXT("Could not remove %i animator component(s)"), Components.Num())
+		}
+	}
 }
 
-void UPropertyAnimatorCoreEditorStackCustomization::RemoveControllersAction(UPropertyAnimatorCoreComponent* InComponent) const
+bool UPropertyAnimatorCoreEditorStackCustomization::CanExportAnimator(FOperatorStackEditorItemPtr InItem) const
 {
-	const UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
-	if (!InComponent || !Subsystem)
+	return InItem.IsValid() && InItem->GetValueCount() == 1 && InItem->HasValue(0);
+}
+
+void UPropertyAnimatorCoreEditorStackCustomization::ExportAnimatorAction(FOperatorStackEditorItemPtr InItem)
+{
+	if (!CanExportAnimator(InItem))
 	{
 		return;
 	}
 
-	TSet<UPropertyAnimatorCoreBase*> Animators;
-	for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : InComponent->GetAnimators())
+	if (UPropertyAnimatorCoreEditorSubsystem* AnimatorEditorSubsystem = UPropertyAnimatorCoreEditorSubsystem::Get())
 	{
-		Animators.Add(Animator);
+		AnimatorEditorSubsystem->CreatePresetAsset(UPropertyAnimatorCoreAnimatorPreset::StaticClass(), {InItem->Get<UPropertyAnimatorCoreBase>(0)});
 	}
-
-	Subsystem->RemoveAnimators(Animators, true);
 }
 
 void UPropertyAnimatorCoreEditorStackCustomization::FillAddAnimatorMenuSection(UToolMenu* InToolMenu) const
@@ -319,50 +407,16 @@ void UPropertyAnimatorCoreEditorStackCustomization::FillAddAnimatorMenuSection(U
 	{
 		if (ContextItem->IsA<UObject>())
 		{
-			ContextObjects.Add(ContextItem->Get<UObject>());
+			for (UObject* ContextObject : ContextItem->GetAsArray<UObject>())
+			{
+				ContextObjects.Add(ContextObject);
+			}
 		}
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext(ContextObjects, {});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::New});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::NewSimple});
 	AnimatorEditorSubsystem->FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
-}
-
-void UPropertyAnimatorCoreEditorStackCustomization::FillComponentHeaderActionMenu(UToolMenu* InToolMenu)
-{
-	if (!InToolMenu)
-	{
-		return;
-	}
-
-	const UOperatorStackEditorMenuContext* const MenuContext = InToolMenu->FindContext<UOperatorStackEditorMenuContext>();
-	if (!MenuContext)
-	{
-		return;
-	}
-
-	const FOperatorStackEditorItemPtr ItemContext = MenuContext->GetItem();
-	if (!ItemContext)
-	{
-		return;
-	}
-
-	UPropertyAnimatorCoreComponent* ControllerComponent = ItemContext->Get<UPropertyAnimatorCoreComponent>();
-	if (!IsValid(ControllerComponent))
-	{
-		return;
-	}
-
-	// Add remove controllers entry
-	const FToolMenuEntry RemoveControllersAction = FToolMenuEntry::InitToolBarButton(
-		TEXT("RemoveControllersMenuEntry")
-		, FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::RemoveControllersAction, ControllerComponent)
-		, FText::GetEmpty()
-		, FText::GetEmpty()
-		, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete")
-	);
-
-	InToolMenu->AddMenuEntry(RemoveControllersAction.Name, RemoveControllersAction);
 }
 
 void UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorHeaderActionMenu(UToolMenu* InToolMenu)
@@ -384,22 +438,37 @@ void UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorHeaderActionMenu
 		return;
 	}
 
-	UPropertyAnimatorCoreBase* Controller = ItemContext->Get<UPropertyAnimatorCoreBase>();
-	if (!IsValid(Controller))
+	if (!ItemContext->IsA<UPropertyAnimatorCoreBase>() && !ItemContext->IsA<UPropertyAnimatorCoreComponent>())
 	{
 		return;
 	}
 
-	// Add remove controller entry
-	const FToolMenuEntry RemoveControllerAction = FToolMenuEntry::InitToolBarButton(
-		TEXT("RemoveControllerMenuEntry")
-		, FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::RemoveControllerAction, Controller)
+	if (ItemContext->IsA<UPropertyAnimatorCoreBase>())
+	{
+		const FToolMenuEntry ExportAnimatorAction = FToolMenuEntry::InitToolBarButton(
+			TEXT("ExportAnimatorMenuEntry")
+			, FUIAction(
+				FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::ExportAnimatorAction, ItemContext)
+				, FCanExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::CanExportAnimator, ItemContext)
+				, FIsActionChecked()
+				, FIsActionButtonVisible::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::CanExportAnimator, ItemContext))
+			, FText::GetEmpty()
+			, FText::GetEmpty()
+			, FSlateIcon(FPropertyAnimatorCoreEditorStyle::Get().GetStyleSetName(), "PropertyControlIcon.Export")
+		);
+
+		InToolMenu->AddMenuEntry(ExportAnimatorAction.Name, ExportAnimatorAction);
+	}
+
+	const FToolMenuEntry RemoveAnimatorAction = FToolMenuEntry::InitToolBarButton(
+		TEXT("RemoveAnimatorMenuEntry")
+		, FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::RemoveAnimatorAction, ItemContext)
 		, FText::GetEmpty()
 		, FText::GetEmpty()
 		, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete")
 	);
 
-	InToolMenu->AddMenuEntry(RemoveControllerAction.Name, RemoveControllerAction);
+	InToolMenu->AddMenuEntry(RemoveAnimatorAction.Name, RemoveAnimatorAction);
 }
 
 void UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorContextActionMenu(UToolMenu* InToolMenu) const
@@ -421,8 +490,7 @@ void UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorContextActionMen
 		return;
 	}
 
-	const UPropertyAnimatorCoreBase* Controller = ItemContext->Get<UPropertyAnimatorCoreBase>();
-	if (!IsValid(Controller))
+	if (!ItemContext->IsA<UPropertyAnimatorCoreBase>() && !ItemContext->IsA<UPropertyAnimatorCoreComponent>())
 	{
 		return;
 	}
@@ -431,18 +499,18 @@ void UPropertyAnimatorCoreEditorStackCustomization::FillAnimatorContextActionMen
 	TSharedPtr<const FUICommandList> Commands;
 	const TSharedPtr<FUICommandInfo> DeleteCommand = FGenericCommands::Get().Delete;
 	InToolMenu->Context.GetActionForCommand(DeleteCommand, Commands);
-	const FToolMenuEntry RemoveControllerMenuEntry = FToolMenuEntry::InitMenuEntryWithCommandList(DeleteCommand, Commands);
+	const FToolMenuEntry RemoveAnimatorMenuEntry = FToolMenuEntry::InitMenuEntryWithCommandList(DeleteCommand, Commands);
 
-	InToolMenu->AddMenuEntry(RemoveControllerMenuEntry.Name, RemoveControllerMenuEntry);
+	InToolMenu->AddMenuEntry(RemoveAnimatorMenuEntry.Name, RemoveAnimatorMenuEntry);
 }
 
-TSharedRef<FUICommandList> UPropertyAnimatorCoreEditorStackCustomization::CreateAnimatorCommands(UPropertyAnimatorCoreBase* InAnimator)
+TSharedRef<FUICommandList> UPropertyAnimatorCoreEditorStackCustomization::CreateAnimatorCommands(FOperatorStackEditorItemPtr InItem)
 {
 	TSharedRef<FUICommandList> Commands = MakeShared<FUICommandList>();
 
 	Commands->MapAction(FGenericCommands::Get().Delete,
 		FUIAction(
-			FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::RemoveControllerAction, InAnimator),
+			FExecuteAction::CreateUObject(this, &UPropertyAnimatorCoreEditorStackCustomization::RemoveAnimatorAction, InItem),
 			FCanExecuteAction()
 		)
 	);

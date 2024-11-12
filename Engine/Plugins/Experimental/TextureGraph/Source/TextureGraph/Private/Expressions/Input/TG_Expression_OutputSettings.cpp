@@ -4,6 +4,7 @@
 
 #include "TG_Graph.h"
 #include "Model/StaticImageResource.h"
+#include "TG_HelperFunctions.h"
 
 void UTG_Expression_OutputSettings::Evaluate(FTG_EvaluationContext* InContext)
 {
@@ -62,9 +63,18 @@ void UTG_Expression_OutputSettings::Evaluate(FTG_EvaluationContext* InContext)
 
 bool UTG_Expression_OutputSettings::Validate(MixUpdateCyclePtr Cycle)
 {
-	UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
-	
-	return true;
+	FString Errors;
+
+	const UTG_Pin* OutputSettingsPin = GetParentNode()->GetPin("Settings");
+
+	if(!OutputSettingsPin->IsConnected() && !Settings.Validate(Errors))
+	{
+		UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
+		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Errors, GetParentNode());
+	}
+
+	return Super::Validate(Cycle);
 }
 void UTG_Expression_OutputSettings::SetTitleName(FName NewName)
 {

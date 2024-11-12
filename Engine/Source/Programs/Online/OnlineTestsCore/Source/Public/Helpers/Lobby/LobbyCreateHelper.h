@@ -17,6 +17,13 @@ struct FLobbyCreateHelper : public FTestPipeline::FStep
 		, bShouldPass(bShouldPass)
 	{}
 
+	FLobbyCreateHelper(UE::Online::FCreateLobby::Params* Params, TFunction<void(UE::Online::FLobby)>&& LobbyGetter, const bool& bShouldPass = true)
+		: CreateParams(Params)
+		, LobbyGetter(MoveTemp(LobbyGetter))
+		, bShouldPass(bShouldPass)
+		
+	{}
+
 	virtual ~FLobbyCreateHelper() = default;
 
 	enum class EState { Init, CreateLobbyCalled, CreateLobbyInProgress, CreateLobbyComplete, Done } State = EState::Init;
@@ -44,6 +51,8 @@ struct FLobbyCreateHelper : public FTestPipeline::FStep
 				if (bShouldPass)
 				{
 					CHECK_OP(Result);
+					CHECK((*Result.GetOkValue().Lobby).LocalName == (*CreateParams).LocalName);
+					LobbyGetter(*Result.GetOkValue().Lobby);
 				}
 				else
 				{
@@ -72,7 +81,9 @@ struct FLobbyCreateHelper : public FTestPipeline::FStep
 
 protected:
 	UE::Online::FCreateLobby::Params* CreateParams;
+	TFunction<void(UE::Online::FLobby)> LobbyGetter;
 	bool bShouldPass;
 
 	UE::Online::ILobbiesPtr OnlineLobbiesPtr = nullptr;
+
 };

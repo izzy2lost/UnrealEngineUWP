@@ -43,6 +43,11 @@ public:
 	UPROPERTY()
 	FGetSlateColor ColorAndOpacityDelegate;
 	
+	UE_DEPRECATED(5.1, "Direct access to MinDesiredWidth is deprecated. Please use the getter or setter.")
+	/** The minimum desired size for the text */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter="SetMinDesiredWidth", Category="Appearance")
+	float MinDesiredWidth;
+		
 	UE_DEPRECATED(5.1, "Direct access to Font is deprecated. Please use the getter or setter.")
 	/** The font to render the text with */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter="SetFont", Category="Appearance")
@@ -66,11 +71,6 @@ public:
 	/** A bindable delegate for the ShadowColorAndOpacity. */
 	UPROPERTY()
 	FGetLinearColor ShadowColorAndOpacityDelegate;
-
-	UE_DEPRECATED(5.1, "Direct access to MinDesiredWidth is deprecated. Please use the getter or setter.")
-	/** The minimum desired size for the text */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter="SetMinDesiredWidth", Category="Appearance")
-	float MinDesiredWidth;
 
 	/** If true, it will automatically wrap this text widget with an invalidation panel */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Performance", AdvancedDisplay)

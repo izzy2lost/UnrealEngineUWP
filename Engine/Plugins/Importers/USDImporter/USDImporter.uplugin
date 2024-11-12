@@ -16,22 +16,6 @@
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "UnrealUSDWrapper",
-			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64", "Mac", "Linux"
-			]
-		},
-		{
-			"Name": "USDUtilities",
-			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64", "Mac", "Linux"
-			]
-		},
-		{
 			"Name": "USDSchemas",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
@@ -79,11 +63,6 @@
 				"Win64", "Mac", "Linux"
 			]
 		},
-		{
-			"Name": "USDClasses",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
         {
 			"Name": "USDClassesEditor",
 			"Type": "Editor",
@@ -110,6 +89,10 @@
 		}
 	],
 	"Plugins": [
+		{
+			"Name": "USDCore",
+			"Enabled": true
+		},
 		{
 			"Name": "AnalyticsBlueprintLibrary",
 			"Enabled": true

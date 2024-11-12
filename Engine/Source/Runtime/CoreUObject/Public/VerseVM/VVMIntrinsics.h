@@ -11,6 +11,8 @@
 namespace Verse
 {
 
+struct VTask;
+
 // A special heap value to store all intrinsic VNativeFunction objects
 struct VIntrinsics : VHeapValue
 {
@@ -35,10 +37,10 @@ private:
 
 	VIntrinsics(FAllocationContext Context)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
-		, Abs(Context, VNativeFunction::New(Context, 1, &AbsImpl))
-		, Ceil(Context, VNativeFunction::New(Context, 1, &CeilImpl))
-		, Floor(Context, VNativeFunction::New(Context, 1, &FloorImpl))
-		, ConcatenateMaps(Context, VNativeFunction::New(Context, 2, &ConcatenateMapsImpl))
+		, Abs(Context, VNativeFunction::New(Context, 1, &AbsImpl, GlobalFalse()))
+		, Ceil(Context, VNativeFunction::New(Context, 1, &CeilImpl, GlobalFalse()))
+		, Floor(Context, VNativeFunction::New(Context, 1, &FloorImpl, GlobalFalse()))
+		, ConcatenateMaps(Context, VNativeFunction::New(Context, 2, &ConcatenateMapsImpl, GlobalFalse()))
 	{
 	}
 };

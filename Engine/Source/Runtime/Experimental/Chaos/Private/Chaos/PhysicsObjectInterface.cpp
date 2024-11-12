@@ -31,6 +31,11 @@ namespace PhysicsObjectInterfaceCVars
 
 namespace
 {
+	Chaos::FPhysicsSolverBase* GetSolverForObjects(TArrayView<const Chaos::FPhysicsObjectHandle> InView)
+	{
+		return InView.IsEmpty() ? nullptr : Chaos::FPhysicsObjectInterface::GetSolver(InView[0]);
+	}
+
 	template<Chaos::EThreadContext Id>
 	void SetParticleStateHelper(const Chaos::FPhysicsObjectHandle PhysicsObject, Chaos::EObjectStateType State)
 	{
@@ -131,7 +136,6 @@ namespace
 						const float PrevFalloffAlpha = FalloffAlpha;
 						// remap the value within MinValue/MaxValue within the radius
 						FalloffAlpha = FMath::Lerp(MinValue, MaxValue, FalloffAlpha);
-						UE_LOG(LogChaos, Warning, TEXT("FalloffAlpha = %f = Lerp(%f, %f, %f)"), FalloffAlpha, MinValue, MaxValue, PrevFalloffAlpha);
 					}
 					else
 					{
@@ -446,24 +450,26 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
-	TArray<TThreadRigidParticle<Id>*> FReadPhysicsObjectInterface<Id>::GetAllRigidParticles(TArrayView<const FConstPhysicsObjectHandle> InObjects)
+	TArray<TThreadRigidParticle<Id>*> FReadPhysicsObjectInterface<Id>::GetAllRigidParticles(TArrayView<const FConstPhysicsObjectHandle> InObjects, bool bIncludeNulls)
 	{
 		TArray<TThreadRigidParticle<Id>*> Particles;
 		Particles.Reserve(InObjects.Num());
 
 		for (const FConstPhysicsObjectHandle& Handle : InObjects)
 		{
-			if (!Handle)
+			TThreadRigidParticle<Id>* RigidParticle = nullptr;
+
+			if (Handle)
 			{
-				continue;
+				if (TThreadParticle<Id>* Particle = Handle->GetParticle<Id>())
+				{
+					RigidParticle = Particle->CastToRigidParticle();
+				}
 			}
 
-			if (TThreadParticle<Id>* Particle = Handle->GetParticle<Id>())
+			if (RigidParticle || bIncludeNulls)
 			{
-				if (TThreadRigidParticle<Id>* RigidParticle = Particle->CastToRigidParticle())
-				{
-					Particles.Add(RigidParticle);
-				}
+				Particles.Add(RigidParticle);
 			}
 		}
 
@@ -985,10 +991,29 @@ namespace Chaos
 				}
 			}
 		}
+
+		if constexpr (Id == EThreadContext::External)
+		{
+			if (Chaos::FPhysicsSolverBase* Solver = GetSolverForObjects(InObjects))
+			{
+				Solver->EnqueueCommandImmediate(
+					[AllObjects = TArray<FPhysicsObjectHandle>{ InObjects }, Force, bInvalidate]() {
+						Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+						Interface.AddForce(AllObjects, Force, bInvalidate);
+					}
+				);
+			}
+		}
 	}
 
 	template<EThreadContext Id>
 	void FWritePhysicsObjectInterface<Id>::AddTorque(TArrayView<const FPhysicsObjectHandle> InObjects, const FVector& Torque, bool bInvalidate)
+	{
+		AddTorque(InObjects, Torque, bInvalidate, false);
+	}
+
+	template<EThreadContext Id>
+	void FWritePhysicsObjectInterface<Id>::AddTorque(TArrayView<const FPhysicsObjectHandle> InObjects, const FVector& Torque, bool bInvalidate, bool bAccelChange)
 	{
 		for (const FPhysicsObjectHandle Object : InObjects)
 		{
@@ -1008,9 +1033,35 @@ namespace Chaos
 							SetParticleStateHelper<Id>(Object, EObjectStateType::Dynamic);
 						}
 
-						Rigid->AddTorque(Torque, bInvalidate);
+						if (bAccelChange)
+						{
+							FRotation3 QCom = Rigid->GetR() * Rigid->RotationOfMass();
+							if constexpr (Id == EThreadContext::Internal)
+							{
+								QCom = Rigid->GetQ() * Rigid->RotationOfMass();
+							}
+							const FMatrix33 WorldInertia = Utilities::ComputeWorldSpaceInertia(QCom, Rigid->I());
+							Rigid->AddTorque(WorldInertia * Torque, bInvalidate);
+						}
+						else 
+						{
+							Rigid->AddTorque(Torque, bInvalidate);
+						}
 					}
 				}
+			}
+		}
+
+		if constexpr (Id == EThreadContext::External)
+		{
+			if (Chaos::FPhysicsSolverBase* Solver = GetSolverForObjects(InObjects))
+			{
+				Solver->EnqueueCommandImmediate(
+					[AllObjects = TArray<FPhysicsObjectHandle>{ InObjects }, Torque, bInvalidate, bAccelChange]() {
+						Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+						Interface.AddTorque(AllObjects, Torque, bInvalidate, bAccelChange);
+					}
+				);
 			}
 		}
 	}
@@ -1048,7 +1099,7 @@ namespace Chaos
 
 		if constexpr (Id == EThreadContext::External)
 		{
-			if (Chaos::FPhysicsSolverBase* Solver = FPhysicsObjectInterface::GetSolver(InObjects[0]))
+			if (Chaos::FPhysicsSolverBase* Solver = GetSolverForObjects(InObjects))
 			{
 				Solver->EnqueueCommandImmediate(
 					[AllObjects = TArray<FPhysicsObjectHandle>{InObjects}, Impulse, bVelChange]() {

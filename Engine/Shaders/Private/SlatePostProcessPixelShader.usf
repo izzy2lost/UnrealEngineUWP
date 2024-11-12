@@ -4,24 +4,13 @@
 #include "SlateShaderCommon.ush"
 #include "GammaCorrectionCommon.ush"
 
-#define BILINEAR_FILTER_METHOD 1
 #define MAX_SAMPLES 127
-
-#if BILINEAR_FILTER_METHOD
 
 // Weigts and offsets are packed into 4 floats (Weight, Offset, Weight, Offset)
 float4 WeightAndOffsets[MAX_SAMPLES/2];
-#else
-
-#define MAX_SAMPLES 127
-// Weigts and offsets are packed into 4 floats (Weight, Offset, Weight, Offset)
-float4 WeightAndOffsets[MAX_SAMPLES];
-
-#endif
 
 /** Blur sample count */
 int SampleCount;
-
 
 Texture2D ElementTexture;
 SamplerState ElementTextureSampler;
@@ -44,19 +33,15 @@ float4 GetSample(float Weight, float Offset, float2 UV)
 		+ Texture2DSample(ElementTexture, ElementTextureSampler, clamp(UV - UVOffset, MinUV, MaxUV)) * Weight;
 }
 
-float4 GaussianBlurMain( FScreenVertexOutput Input ) : SV_Target0
+float4 GaussianBlurMain(in noperspective float4 InUVAndScreenPos : TEXCOORD0) : SV_Target0
 {
-#if 0
-	float4 OutColor = Texture2DSample(ElementTexture, ElementTextureSampler, Input.UV);
-#else
-
-	float4 OutColor = Texture2DSample(ElementTexture, ElementTextureSampler, clamp(Input.UV, UVBounds.xy, UVBounds.zw)) * WeightAndOffsets[0].x;
+	float4 OutColor = Texture2DSample(ElementTexture, ElementTextureSampler, clamp(InUVAndScreenPos.xy, UVBounds.xy, UVBounds.zw)) * WeightAndOffsets[0].x;
 	// First offset is in zw
 	{
 		float Weight = WeightAndOffsets[0].z;
 		float Offset = WeightAndOffsets[0].w;
 
-		OutColor += GetSample(Weight, Offset, Input.UV);
+		OutColor += GetSample(Weight, Offset, InUVAndScreenPos.xy);
 	}
 
 	for (int i = 2; i<SampleCount; i+=2)
@@ -66,38 +51,33 @@ float4 GaussianBlurMain( FScreenVertexOutput Input ) : SV_Target0
 			float Weight = WeightAndOffsets[Index].x;
 			float Offset = WeightAndOffsets[Index].y;
 
-			OutColor += GetSample(Weight, Offset, Input.UV);
+			OutColor += GetSample(Weight, Offset, InUVAndScreenPos.xy);
 		}
 
 		{
 			float Weight = WeightAndOffsets[Index].z;
 			float Offset = WeightAndOffsets[Index].w;
 
-			OutColor += GetSample(Weight, Offset, Input.UV);
+			OutColor += GetSample(Weight, Offset, InUVAndScreenPos.xy);
 		}
 
 	}
-#endif
 
 	return float4(OutColor.rgb, 1);
 }
 
-float4 DownsampleMain(FScreenVertexOutput Input) : SV_Target0
+float4 DownsampleMain(in noperspective float4 InUVAndScreenPos : TEXCOORD0) : SV_Target0
 {
-#if 0
-	return Texture2DSample(ElementTexture, ElementTextureSampler, Input.UV);
-#else
-
 	float2 UV[4];
 
 	float2 MinUV = UVBounds.xy;
 	float2 MaxUV = UVBounds.zw;
 
 	// Shader params X/Y stores the UV offset in each direction
-	UV[0] = clamp(Input.UV + ShaderParams.xy * float2(-1, -1), MinUV, MaxUV);
-	UV[1] = clamp(Input.UV + ShaderParams.xy * float2(1, -1), MinUV, MaxUV);
-	UV[2] = clamp(Input.UV + ShaderParams.xy * float2(-1, 1), MinUV, MaxUV);
-	UV[3] = clamp(Input.UV + ShaderParams.xy * float2(1, 1), MinUV, MaxUV);
+	UV[0] = clamp(InUVAndScreenPos.xy + ShaderParams.xy * float2(-1, -1), MinUV, MaxUV);
+	UV[1] = clamp(InUVAndScreenPos.xy + ShaderParams.xy * float2(1, -1), MinUV, MaxUV);
+	UV[2] = clamp(InUVAndScreenPos.xy + ShaderParams.xy * float2(-1, 1), MinUV, MaxUV);
+	UV[3] = clamp(InUVAndScreenPos.xy + ShaderParams.xy * float2(1, 1), MinUV, MaxUV);
 
 	float4 Sample[4];
 
@@ -107,30 +87,32 @@ float4 DownsampleMain(FScreenVertexOutput Input) : SV_Target0
 	}
 
 	return float4(Sample[0] + Sample[1] + Sample[2] + Sample[3]) * 0.25f;
-#endif
 }
 
 float2 Map(float2 value, float2 min1, float2 max1, float2 min2, float2 max2)
 {
   return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
 }
- 
-void UpsampleMain(FScreenVertexOutput Input
+
+#define UPSAMPLE_OUTPUT_FORMAT_SDR 0
+#define UPSAMPLE_OUTPUT_FORMAT_HDR_SCRGB 1
+#define UPSAMPLE_OUTPUT_FORMAT_HDR_PQ10 2
+
+void UpsampleMain(in noperspective float4 InUVAndScreenPos : TEXCOORD0
 	, out float4 Color0 : SV_Target0
-#if OUTPUT_TO_UI_TARGET
+#if UPSAMPLE_OUTPUT_FORMAT != UPSAMPLE_OUTPUT_FORMAT_SDR
 	, out float4 Color1 : SV_Target1
 #endif
 )
 {
 	const float2 LocalSize = ShaderParams.xy;
-	const float2 UV = Input.UV;
+	const float2 UV = InUVAndScreenPos.xy;
 	const float Thickness = 0;
 	const float4 CornerRadii = ShaderParams2;
-	const float4 FillColor = Texture2DSample(ElementTexture, ElementTextureSampler, Input.UV);
+	const float4 FillColor = Texture2DSample(ElementTexture, ElementTextureSampler, UV);
 	Color0 = GetRoundedBoxElementColorInternal(LocalSize, Map(UV, float2(0,0), ShaderParams.zw, float2(0,0),float2(1,1)), Thickness, CornerRadii, FillColor, FillColor);
 
-#if OUTPUT_TO_UI_TARGET
-
+#if UPSAMPLE_OUTPUT_FORMAT != UPSAMPLE_OUTPUT_FORMAT_SDR
 	static const float3x3 XYZ_2_sRGB_MAT =
 	{
 		 3.2409699419, -1.5373831776, -0.4986107603,
@@ -149,7 +131,7 @@ void UpsampleMain(FScreenVertexOutput Input
 	static const float ScRGBScaleFactor = 80.0f; // used to convert between ScRGB and nits
 	Color0.xyz *= ScRGBScaleFactor;
 
-#if SCRGB_ENCODING
+#if UPSAMPLE_OUTPUT_FORMAT == UPSAMPLE_OUTPUT_FORMAT_HDR_SCRGB
 	const float3x3 Rec2020_2_sRGB = mul(XYZ_2_sRGB_MAT, Rec2020_2_XYZ_MAT);
 	Color0.xyz = mul(Rec2020_2_sRGB, Color0.xyz) / ScRGBScaleFactor;
 #else
@@ -158,6 +140,5 @@ void UpsampleMain(FScreenVertexOutput Input
 
 	// Erase the data that was previously in the UI now that the background blur is done
 	Color1 = float4(0, 0, 0, 0);
-
 #endif
 }

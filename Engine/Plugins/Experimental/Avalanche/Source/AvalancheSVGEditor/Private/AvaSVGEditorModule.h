@@ -5,7 +5,9 @@
 #include "Containers/ContainersFwd.h"
 #include "Modules/ModuleManager.h"
 
+class AActor;
 class ASVGShapesParentActor;
+class FBindingContext;
 class IAvalancheInteractiveToolsModule;
 class UEdMode;
 struct FAvaInteractiveToolsToolParameters;
@@ -20,4 +22,5 @@ private:
 	void RegisterTools(IAvalancheInteractiveToolsModule* InModule);
 
 	void OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesParent);
+	void OnSVGShapesUpdated(AActor* InActor) const;
 };

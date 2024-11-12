@@ -39,7 +39,7 @@ IMPLEMENT_NETWORKED_AUTOMATION_TEST(FMultiplayer4PlayerTest, "System.Networking.
 bool FMultiplayer4PlayerTest::RunTest(const FString& Parameters)
 {
 	// Accessing the game world is only valid for game-only 
-	check((GetTestFlags() & EAutomationTestFlags::ApplicationContextMask) == EAutomationTestFlags::ClientContext);
+	check((GetTestFlags() & EAutomationTestFlags_ApplicationContextMask) == EAutomationTestFlags::ClientContext);
 	check(GEngine->GetWorldContexts().Num() == 1);
 	check(GEngine->GetWorldContexts()[0].WorldType == EWorldType::Game);
 

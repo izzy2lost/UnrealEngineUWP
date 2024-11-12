@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IDetailCustomization.h"
+#include "Layout/Visibility.h"
 
 class IPropertyHandle;
 class IPropertyUtilities;
@@ -23,11 +23,14 @@ protected:
 	//~ End IDetailCustomization interface
 
 private:
-	/** Called when the DMXImport property changed */
-	void OnDMXImportChanged();
+	/** Called when the GDTFSource property changed */
+	void OnGDTFSourceChanged();
 
-	/** Handle to the DMXImport property */
-	TSharedPtr<IPropertyHandle> GDTFHandle;
+	/** Returns the visibility of the bExportGeneratedGDTF property */
+	EVisibility GetExportGeneratedGDTFPropertyVisibility() const;
+
+	/** Handle to the GDTFSource property */
+	TSharedPtr<IPropertyHandle> GDTFSourceHandle;
 
 	/** Property utilities for this customization */
 	TSharedPtr<IPropertyUtilities> PropertyUtilities;

@@ -323,6 +323,11 @@ public:
 		DetectorSettings.MaxVelocityBoundsExpansionMACD = MaxVelocityBoundsExpansion;
 	}
 
+	void SetAllowManifolds(const bool bAllowManifolds)
+	{
+		DetectorSettings.bAllowManifolds = bAllowManifolds;
+	}
+
 protected:
 	CHAOS_API FPBDCollisionConstraint& GetConstraint(int32 Index);
 

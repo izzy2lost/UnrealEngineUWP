@@ -3,8 +3,8 @@
 #pragma once
 
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+
 #include "Misc/Attribute.h"
-#include "UObject/WeakObjectPtrTemplates.h"
 
 struct FConcertStreamObjectAutoBindingRules;
 struct FConcertObjectReplicationMap;
@@ -13,7 +13,7 @@ namespace UE::ConcertSharedSlate
 {
 	class IStreamExtender;
 
-	/** Implements logic for editing a FConcertObjectReplicationMap contained in an UObject. */
+	/** Implements logic for editing a FConcertObjectReplicationMap. */
 	class FGenericReplicationStreamModel
 		: public IEditableReplicationStreamModel
 	{
@@ -30,6 +30,7 @@ namespace UE::ConcertSharedSlate
 		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override;
 		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override;
 		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Parent)> Delegate) const override;
+		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override;
 		//~ End IReplicationStreamModel Interface
 		
 		//~ Begin IEditableReplicationStreamModel Interface
@@ -44,7 +45,7 @@ namespace UE::ConcertSharedSlate
 	private:
 
 		/** Returns the replication map that is supposed to be edited. */
-		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute;
+		const TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute;
 
 		/** Adds properties and objects when an object is added. Can be null. */
 		TSharedPtr<IStreamExtender> Extender;
@@ -56,4 +57,3 @@ namespace UE::ConcertSharedSlate
 		void ExtendObjects(FConcertObjectReplicationMap& ReplicationMap, UObject& AddedObject, TArray<UObject*>& ObjectsAddedSoFar);
 	};
 }
-

@@ -54,6 +54,7 @@
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/ConstraintUtils.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Engine/Selection.h"
 #include "PersonaModule.h"
 #include "PersonaToolMenuContext.h"
@@ -268,7 +269,7 @@ TSharedPtr<FPhysicsAssetEditorSharedData> FPhysicsAssetEditor::GetSharedData() c
 	return SharedData;
 }
 
-void FPhysicsAssetEditor::HandleViewportSelectionChanged(const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedBodies, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedConstraints)
+void FPhysicsAssetEditor::HandleViewportSelectionChanged(const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedBodies, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedConstraints, const TArray<FPhysicsAssetEditorSharedData::FSelection>& InSelectedCoMs)
 {
 	if (!bSelecting)
 	{
@@ -279,7 +280,7 @@ void FPhysicsAssetEditor::HandleViewportSelectionChanged(const TArray<FPhysicsAs
 			SkeletonTree->DeselectAll();
 		}
 
-		if(InSelectedBodies.Num() == 0 && InSelectedConstraints.Num() == 0)
+		if(InSelectedBodies.IsEmpty() && InSelectedConstraints.IsEmpty() && InSelectedCoMs.IsEmpty())
 		{
 			if (PhysAssetProperties.IsValid())
 			{
@@ -307,6 +308,10 @@ void FPhysicsAssetEditor::HandleViewportSelectionChanged(const TArray<FPhysicsAs
 			Algo::Transform(InSelectedConstraints, Objects, [this](const FPhysicsAssetEditorSharedData::FSelection& InItem) 
 			{ 
 				return SharedData->PhysicsAsset->ConstraintSetup[InItem.Index];
+			});
+			Algo::Transform(InSelectedCoMs, Objects, [this](const FPhysicsAssetEditorSharedData::FSelection& InItem)
+			{
+					return SharedData->PhysicsAsset->SkeletalBodySetups[InItem.Index]; // Add the owning physics body here so we display its details panel in the UI.
 			});
 			Algo::Transform(InSelectedBodies, Bodies, [this](const FPhysicsAssetEditorSharedData::FSelection& InItem) 
 			{ 
@@ -774,7 +779,33 @@ void FPhysicsAssetEditor::ExtendViewportMenus()
 		if (PhysicsAssetEditor)
 		{
 			FToolMenuSection& Section = CharacterMenu->AddSection("PhysicsAssetShowCommands", LOCTEXT("PhysicsShowCommands", "Physics Rendering"), FToolMenuInsert("AnimViewportSceneElements", EToolMenuInsertType::Before));
-			Section.AddMenuEntry(FPhysicsAssetEditorCommands::Get().ToggleMassProperties);
+
+			Section.AddSubMenu(TEXT("MassPropertiesSubMenu"), LOCTEXT("MassPropertiesSubMenu", "Mass Properties"), FText::GetEmpty(),
+				FNewToolMenuDelegate::CreateLambda([WeakPhysicsAssetEditor = PhysicsAssetEditor.ToWeakPtr()](UToolMenu* InSubMenu)
+					{
+						const FPhysicsAssetEditorCommands& Commands = FPhysicsAssetEditorCommands::Get();
+
+						{
+							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderSettings", LOCTEXT("CenterOfMassRenderSettingsHeader", "Center of Mass Drawing"));
+							Section.AddMenuEntry(Commands.DrawBodyMass);
+							Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("CoMMarkerScale"), WeakPhysicsAssetEditor.Pin()->MakeCoMMarkerScaleWidget(), LOCTEXT("CoMMarkerScaleLabel", "Marker Scale")));
+						}
+
+						{
+							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderingMode", LOCTEXT("CenterOfMassRenderingModeHeader", "Center of Mass Drawing (Edit)"));
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_All);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Selected);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_None);
+						}
+
+						{
+							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderingModeSim", LOCTEXT("CenterOfMassRenderingModeSimHeader", "Center of Mass Drawing (Simulation)"));
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_All);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_Selected);
+							Section.AddMenuEntry(Commands.CenterOfMassRenderingMode_Simulation_None);
+						}
+					}));
+
 			Section.AddSubMenu(TEXT("MeshRenderModeSubMenu"), LOCTEXT("MeshRenderModeSubMenu", "Mesh"), FText::GetEmpty(),
 				FNewToolMenuDelegate::CreateLambda([](UToolMenu* InSubMenu)
 			{
@@ -919,6 +950,11 @@ void FPhysicsAssetEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnPasteShapes),
 		FCanExecuteAction::CreateSP(this, &FPhysicsAssetEditor::CanPasteShapes));
 
+	ToolkitCommands->MapAction(
+		Commands.CopyBodyName,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCopyBodyName),
+		FCanExecuteAction::CreateSP(this, &FPhysicsAssetEditor::CanCopyBodyName));
+		
 	ToolkitCommands->MapAction(
 		Commands.RepeatLastSimulation,
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnRepeatLastSimulation),
@@ -1312,6 +1348,28 @@ void FPhysicsAssetEditor::BindCommands()
 
 	ViewportCommandList->EndGroup();
 
+	ViewportCommandList->BeginGroup(TEXT("CenterOfMassRenderingMode"));
+
+	ViewportCommandList->MapAction(
+		Commands.CenterOfMassRenderingMode_All,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::All, false),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::All, false));
+
+	ViewportCommandList->MapAction(
+		Commands.CenterOfMassRenderingMode_Selected,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::Selected, false),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::Selected, false));
+
+	ViewportCommandList->MapAction(
+		Commands.CenterOfMassRenderingMode_None,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::None, false),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::None, false));
+
+	ViewportCommandList->EndGroup();
+
 	ViewportCommandList->BeginGroup(TEXT("CollisionRenderingMode"));
 
 	ViewportCommandList->MapAction(
@@ -1384,6 +1442,28 @@ void FPhysicsAssetEditor::BindCommands()
 
 	ViewportCommandList->EndGroup();
 
+	ViewportCommandList->BeginGroup(TEXT("CenterOfMassRenderingMode_Simulation"));
+
+	ViewportCommandList->MapAction(
+		Commands.CenterOfMassRenderingMode_Simulation_All,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::All, true),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::All, true));
+
+	ViewportCommandList->MapAction(
+		Commands.CenterOfMassRenderingMode_Simulation_Selected,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::Selected, true),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::Selected, true));
+
+	ViewportCommandList->MapAction(
+		Commands.CenterOfMassRenderingMode_Simulation_None,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::None, true),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsCenterOfMassRenderingMode, EPhysicsAssetEditorCenterOfMassViewMode::None, true));
+
+	ViewportCommandList->EndGroup();
+
 	ViewportCommandList->BeginGroup(TEXT("CollisionRenderingMode_Simulation"));
 
 	ViewportCommandList->MapAction(
@@ -1451,6 +1531,12 @@ void FPhysicsAssetEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::ToggleHideKinematicBodies),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsHidingKinematicBodies));
+	
+	ViewportCommandList->MapAction(
+		Commands.DrawBodyMass,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::ToggleHideBodyMass),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsDrawingBodyMass));
 
 	ViewportCommandList->MapAction(
 		Commands.DrawConstraintsAsPoints,
@@ -1469,12 +1555,6 @@ void FPhysicsAssetEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::ToggleRenderOnlySelectedConstraints),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsRenderingOnlySelectedConstraints));
-
-	ViewportCommandList->MapAction(
-		Commands.ToggleMassProperties,
-		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnToggleMassProperties),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsToggleMassProperties));
 
 	SkeletonTreeCommandList = MakeShared<FUICommandList_Pinnable>();
 
@@ -1654,6 +1734,7 @@ void FPhysicsAssetEditor::BuildMenuWidgetBody(FMenuBuilder& InMenuBuilder)
 		InMenuBuilder.AddMenuEntry(Commands.PasteShapes);
 		InMenuBuilder.AddMenuEntry(Commands.CopyProperties);
 		InMenuBuilder.AddMenuEntry(Commands.PasteProperties);
+		InMenuBuilder.AddMenuEntry(Commands.CopyBodyName);
 		InMenuBuilder.AddMenuEntry( Commands.DeleteBody );
 		InMenuBuilder.AddMenuEntry( Commands.DeleteAllBodiesBelow );
 		InMenuBuilder.AddMenuEntry( Commands.Mirror );
@@ -2261,6 +2342,21 @@ bool FPhysicsAssetEditor::HasSelectedConstraintAndIsNotSimulation() const
 	return IsNotSimulation() && (SharedData->GetSelectedConstraint());
 }
 
+void FPhysicsAssetEditor::OnCopyBodyName()
+{
+	if(SharedData->SelectedBodies.Num() == 1)
+	{
+		SharedData->CopyBodyName();
+	}
+	
+	RefreshPreviewViewport();
+}
+
+bool FPhysicsAssetEditor::CanCopyBodyName() const
+{
+	return IsSelectedEditMode() && SharedData->SelectedBodies.Num() == 1 && SharedData->SelectedConstraints.Num() == 0;
+}
+
 bool FPhysicsAssetEditor::IsSelectedEditMode() const
 {
 	return HasSelectedBodyAndIsNotSimulation() || HasSelectedConstraintAndIsNotSimulation();
@@ -2705,6 +2801,28 @@ bool FPhysicsAssetEditor::IsMeshRenderingMode(EPhysicsAssetEditorMeshViewMode Mo
 	return Mode == SharedData->GetCurrentMeshViewMode(bSimulation);
 }
 
+void FPhysicsAssetEditor::OnCenterOfMassRenderingMode(EPhysicsAssetEditorCenterOfMassViewMode Mode, bool bSimulation)
+{
+	if (bSimulation)
+	{
+		SharedData->EditorOptions->SimulationCenterOfMassViewMode = Mode;
+	}
+	else
+	{
+		SharedData->EditorOptions->CenterOfMassViewMode = Mode;
+	}
+
+	SharedData->EditorOptions->SaveConfig();
+
+	RefreshPreviewViewport();
+
+}
+
+bool FPhysicsAssetEditor::IsCenterOfMassRenderingMode(EPhysicsAssetEditorCenterOfMassViewMode Mode, bool bSimulation) const
+{
+	return Mode == SharedData->GetCurrentCenterOfMassViewMode(bSimulation);
+}
+
 void FPhysicsAssetEditor::OnCollisionRenderingMode(EPhysicsAssetEditorCollisionViewMode Mode, bool bSimulation)
 {
 	if (bSimulation)
@@ -2793,6 +2911,12 @@ void FPhysicsAssetEditor::ToggleHideKinematicBodies()
 	SharedData->EditorOptions->SaveConfig();
 }
 
+void FPhysicsAssetEditor::ToggleHideBodyMass()
+{
+	SharedData->EditorOptions->bHideBodyMass = !SharedData->EditorOptions->bHideBodyMass;
+	SharedData->EditorOptions->SaveConfig();
+}
+
 bool FPhysicsAssetEditor::IsRenderingOnlySelectedSolid() const
 {
 	return SharedData->EditorOptions->bSolidRenderingForSelectedOnly;
@@ -2806,6 +2930,16 @@ bool FPhysicsAssetEditor::IsHidingSimulatedBodies() const
 bool FPhysicsAssetEditor::IsHidingKinematicBodies() const
 {
 	return SharedData->EditorOptions->bHideKinematicBodies;
+}
+
+bool FPhysicsAssetEditor::IsHidingBodyMass() const
+{
+	return SharedData->EditorOptions->bHideBodyMass;
+}
+
+bool FPhysicsAssetEditor::IsDrawingBodyMass() const
+{
+	return !IsHidingBodyMass();
 }
 
 bool FPhysicsAssetEditor::IsConstraintRenderingMode(EPhysicsAssetEditorConstraintViewMode Mode, bool bSimulation) const
@@ -3899,7 +4033,7 @@ void FPhysicsAssetEditor::RefreshFilter()
 {
 	SkeletonTree->RefreshFilter();
 	// make sure we resynchronize the list 
-	HandleViewportSelectionChanged(SharedData->SelectedBodies, SharedData->SelectedConstraints);
+	HandleViewportSelectionChanged(SharedData->SelectedBodies, SharedData->SelectedConstraints, SharedData->SelectedCoMs);
 }
 
 void FPhysicsAssetEditor::HandleCreateNewConstraint(int32 BodyIndex0, int32 BodyIndex1)
@@ -3921,31 +4055,41 @@ void FPhysicsAssetEditor::RecreatePhysicsState()
 	SharedData->EnableSimulation(false);
 }
 
-TSharedRef<SWidget> FPhysicsAssetEditor::MakeConstraintScaleWidget()
+template<typename TValueAccessor> TSharedRef<SWidget> FPhysicsAssetEditor::MakeScaleWidget(const float MinValue, const float MaxValue, TValueAccessor ValueAccessorFunction, const FName WidgetInteractionText)
 {
-	return 
+	return
 		SNew(SBox)
 		.HAlign(HAlign_Right)
 		[
 			SNew(SBox)
-			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-			.WidthOverride(100.0f)
-			[
-				SNew(SNumericEntryBox<float>)
-				.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-				.AllowSpin(true)
-				.MinSliderValue(0.0f)
-				.MaxSliderValue(4.0f)
-				.Value_Lambda([this]() { return SharedData->EditorOptions->ConstraintDrawSize; })
-				.OnValueChanged_Lambda([this](float InValue) { SharedData->EditorOptions->ConstraintDrawSize = InValue; })
-				.OnValueCommitted_Lambda([this](float InValue, ETextCommit::Type InCommitType) 
-				{
-					SharedData->EditorOptions->ConstraintDrawSize = InValue; 
-					SharedData->EditorOptions->SaveConfig(); 
-					ViewportCommandList->WidgetInteraction(TEXT("ConstraintScaleWidget"));
-				})
-			]
+				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				.WidthOverride(100.0f)
+				[
+					SNew(SNumericEntryBox<float>)
+						.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+						.AllowSpin(true)
+						.MinSliderValue(MinValue)
+						.MaxSliderValue(MaxValue)
+						.Value_Lambda([ValueAccessorFunction]() { return ValueAccessorFunction(); })
+						.OnValueChanged_Lambda([ValueAccessorFunction](float InValue) { ValueAccessorFunction() = InValue; })
+						.OnValueCommitted_Lambda([this, ValueAccessorFunction, WidgetInteractionText](float InValue, ETextCommit::Type InCommitType)
+							{
+								ValueAccessorFunction() = InValue;
+								SharedData->EditorOptions->SaveConfig();
+								ViewportCommandList->WidgetInteraction(WidgetInteractionText);
+							})
+				]
 		];
+}
+
+TSharedRef<SWidget> FPhysicsAssetEditor::MakeConstraintScaleWidget()
+{
+	return MakeScaleWidget(0.0f, 4.0f, [this]() -> float& { return SharedData->EditorOptions->ConstraintDrawSize; }, TEXT("ConstraintScaleWidget"));
+}
+
+TSharedRef<SWidget> FPhysicsAssetEditor::MakeCoMMarkerScaleWidget()
+{
+	return MakeScaleWidget(0.0f, 4.0f, [this]() -> float& { return SharedData->EditorOptions->COMRenderSize; }, TEXT("CoMMarkerScaleWidget"));
 }
 
 TSharedRef<SWidget> FPhysicsAssetEditor::MakeCollisionOpacityWidget()

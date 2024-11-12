@@ -2,32 +2,24 @@
 
 #include "ParametricRetessellateAction.h"
 
-#include "Components/StaticMeshComponent.h"
 #include "ParametricRetessellateAction_Impl.h"
 
 #include "DatasmithAdditionalData.h"
+#include "DatasmithParametricSurfaceData.h"
 #include "DatasmithStaticMeshImporter.h" // Call to BuildStaticMesh
-#include "DatasmithUtils.h"
 #include "DatasmithTranslator.h"
-#include "Physics/Experimental/PhysScene_Chaos.h"
-#include "Physics/PhysScene.h"
 #include "UI/DatasmithDisplayHelper.h"
-#include "MeshDescriptionHelper.h"
 
 #include "Algo/AnyOf.h"
-#include "Algo/Transform.h"
-#include "AssetRegistry/AssetData.h"
 #include "Async/ParallelFor.h"
-#include "Chaos/ChaosScene.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
-#include "HAL/PlatformFileManager.h"
+#include "Engine/World.h"
 #include "IStaticMeshEditor.h"
-#include "Misc/FileHelper.h"
 #include "Misc/ScopedSlowTask.h"
-#include "StaticMeshAttributes.h"
+#include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Toolkits/IToolkit.h"
 #include "Toolkits/ToolkitManager.h"
-#include "UObject/StrongObjectPtr.h"
 
 
 #define LOCTEXT_NAMESPACE "ParametricRetessellateAction"
@@ -57,7 +49,7 @@ void UParametricRetessellateAction::ApplyOnAssets(const TArray<FAssetData>& Sele
 
 bool FParametricRetessellateAction_Impl::CanApplyOnAssets(const TArray<FAssetData>& SelectedAssets)
 {
-	return Algo::AnyOf(SelectedAssets, [](const FAssetData& Asset) { return Datasmith::GetAdditionalData<UParametricSurfaceData>(Asset) != nullptr; });
+	return Algo::AnyOf(SelectedAssets, [](const FAssetData& Asset) { return Datasmith::GetAdditionalData<UDatasmithParametricSurfaceData>(Asset) != nullptr; });
 }
 
 void FParametricRetessellateAction_Impl::ApplyOnAssets(const TArray<FAssetData>& SelectedAssets)
@@ -89,7 +81,7 @@ void FParametricRetessellateAction_Impl::ApplyOnAssets(const TArray<FAssetData>&
 	for (const FAssetData& Asset : SelectedAssets)
 	{
 		AssetIndex++;
-		if (UParametricSurfaceData* ParametricSurfaceData = Datasmith::GetAdditionalData<UParametricSurfaceData>(Asset))
+		if (UDatasmithParametricSurfaceData* ParametricSurfaceData = Datasmith::GetAdditionalData<UDatasmithParametricSurfaceData>(Asset))
 		{
 			if (ParametricSurfaceData->IsValid())
 			{
@@ -212,7 +204,7 @@ TSet<UStaticMesh*> GetReferencedStaticMeshes(const TArray<AActor*>& SelectedActo
 bool UParametricRetessellateAction::CanApplyOnActors(const TArray<AActor*>& SelectedActors)
 {
 	const TSet<UStaticMesh*> ReferencedStaticMeshes = GetReferencedStaticMeshes(SelectedActors);
-	return Algo::AnyOf(ReferencedStaticMeshes, [](const UStaticMesh* Mesh) { return Datasmith::GetAdditionalData<UParametricSurfaceData>(FAssetData(Mesh)); });
+	return Algo::AnyOf(ReferencedStaticMeshes, [](const UStaticMesh* Mesh) { return Datasmith::GetAdditionalData<UDatasmithParametricSurfaceData>(FAssetData(Mesh)); });
 }
 
 void UParametricRetessellateAction::ApplyOnActors(const TArray<AActor*>& SelectedActors)

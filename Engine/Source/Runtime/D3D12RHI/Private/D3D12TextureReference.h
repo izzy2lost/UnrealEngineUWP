@@ -12,15 +12,19 @@ class FD3D12RHITextureReference : public FD3D12DeviceChild, public FRHITextureRe
 {
 public:
 	FD3D12RHITextureReference() = delete;
-	FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture);
+	FD3D12RHITextureReference(FD3D12Device* InDevice, FD3D12Texture* InReferencedTexture, FD3D12RHITextureReference* FirstLinkedObject);
 	~FD3D12RHITextureReference();
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	// FD3D12ShaderResourceRenameListener
-	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) final override;
+	virtual void ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) final override;
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
-	void SwitchToNewTexture(FRHICommandListBase& RHICmdList, FD3D12Texture* InNewTexture);
+	void SwitchToNewTexture(FD3D12ContextArray const& Contexts, FD3D12Texture* InNewTexture);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	uint32 ReferencedDescriptorVersion{};
+#endif
 };
 
 template<>

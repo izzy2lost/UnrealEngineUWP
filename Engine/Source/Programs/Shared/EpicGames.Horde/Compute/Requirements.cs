@@ -3,37 +3,39 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Common;
-using EpicGames.Serialization;
+
+#pragma warning disable CA2227
 
 namespace EpicGames.Horde.Compute
 {
 	/// <summary>
-	/// Stores information about a directory in an action's workspace
+	/// Requirements for a compute task to be assigned an agent
 	/// </summary>
 	public class Requirements
 	{
 		/// <summary>
 		/// Pool of machines to draw from
 		/// </summary>
-		[CbField("p")]
 		public string? Pool { get; set; }
 
 		/// <summary>
 		/// Condition string to be evaluated against the machine spec, eg. cpu-cores >= 10 &amp;&amp; ram.mb >= 200 &amp;&amp; pool == 'worker'
 		/// </summary>
-		[CbField("c")]
 		public Condition? Condition { get; set; }
+
+		/// <summary>
+		/// Properties required from the remote machine
+		/// </summary>
+		public HashSet<string> Properties { get; set; } = new HashSet<string>();
 
 		/// <summary>
 		/// Resources used by the process
 		/// </summary>
-		[CbField("r")]
 		public Dictionary<string, ResourceRequirements> Resources { get; } = new Dictionary<string, ResourceRequirements>();
 
 		/// <summary>
 		/// Whether we require exclusive access to the device
 		/// </summary>
-		[CbField("e")]
 		public bool Exclusive { get; set; }
 
 		/// <summary>
@@ -50,16 +52,6 @@ namespace EpicGames.Horde.Compute
 		public Requirements(Condition? condition)
 		{
 			Condition = condition;
-		}
-
-		/// <summary>
-		/// Serialize this object to bytes
-		/// </summary>
-		public byte[] Serialize()
-		{
-			CbWriter writer = new CbWriter();
-			CbSerializer.Serialize(writer, this);
-			return writer.ToByteArray();
 		}
 
 		/// <inheritdoc/>
@@ -94,13 +86,11 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Minimum allocation of the requested resource
 		/// </summary>
-		[CbField("min")]
 		public int Min { get; set; } = 1;
 
 		/// <summary>
 		/// Maximum allocation of the requested resource. Allocates as much as possible unless capped.
 		/// </summary>
-		[CbField("max")]
 		public int? Max { get; set; }
 	}
 }

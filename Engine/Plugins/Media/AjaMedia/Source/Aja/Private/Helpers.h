@@ -20,7 +20,7 @@ __pragma(warning(disable: 4264))  /* No override available for virtual member fu
 #pragma warning(disable : 4005)
 #endif //PLATFORM_WINDOWS
 
-#include "ajabase/common/testpatterngen.h"
+#include "ntv2testpatterngen.h"
 #include "ajabase/common/timecodeburn.h"
 #include "ajabase/system/process.h"
 #include "ajabase/system/atomic.h"

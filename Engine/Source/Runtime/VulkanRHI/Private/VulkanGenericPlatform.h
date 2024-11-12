@@ -1,18 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "CoreMinimal.h"
-#include "PixelFormat.h"
-#include "Containers/ArrayView.h"
-#include "RHI.h"	// for GShaderPlatformForFeatureLevel and its friends
 
-#include "VulkanLoader.h"
+#include "Containers/Array.h"
+#include "Containers/ArrayView.h"
+#include "PixelFormat.h"
+#include "Templates/UniquePtr.h"
+#include "VulkanThirdParty.h"
 
 struct FOptionalVulkanDeviceExtensions;
 class FVulkanDevice;
 class FVulkanRenderTargetLayout;
 struct FGfxPipelineDesc;
 class FVulkanPhysicalDeviceFeatures;
+class FVulkanCmdBuffer;
+
+enum EShaderPlatform : uint16;
+enum class EGpuVendorId : uint32;
+namespace ERHIFeatureLevel { enum Type : int; }
 
 using FVulkanDeviceExtensionArray = TArray<TUniquePtr<class FVulkanDeviceExtension>>;
 using FVulkanInstanceExtensionArray = TArray<TUniquePtr<class FVulkanInstanceExtension>>;
@@ -75,7 +80,9 @@ public:
 
 	static bool RegisterGPUWork() { return true; }
 
-	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding) {}
+	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding) {}
+
+	static void WriteCrashMarkerWithoutExtensions(FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
 
 	// Allow the platform code to restrict the device features
 	static void RestrictEnabledPhysicalDeviceFeatures(FVulkanPhysicalDeviceFeatures* InOutFeaturesToEnable);
@@ -123,7 +130,7 @@ public:
 	static TArray<FString> GetPSOCacheFilenames();
 
 	// Gives platform a chance to handle precompile of PSOs, returns nullptr if unsupported
-	static VkPipelineCache PrecompilePSO(FVulkanDevice* Device, const uint8* OptionalPSOCacheData,VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize) { return VK_NULL_HANDLE; }
+	static VkPipelineCache PrecompilePSO(FVulkanDevice* Device, const uint8* OptionalPSOCacheData,VkGraphicsPipelineCreateInfo* PipelineInfo, const FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArrayView<uint32_t> VS, TArrayView<uint32_t> PS, size_t& AfterSize, FString* FailureMessageOUT = nullptr) { return VK_NULL_HANDLE; }
 
 	// Return VK_FALSE if platform wants to suppress the given debug report from the validation layers, VK_TRUE to print it.
 	static VkBool32 DebugReportFunction(VkDebugReportFlagsEXT MsgFlags, VkDebugReportObjectTypeEXT ObjType, uint64_t SrcObject, size_t Location, int32 MsgCode, const ANSICHAR* LayerPrefix, const ANSICHAR* Msg, void* UserData) { return VK_TRUE; }

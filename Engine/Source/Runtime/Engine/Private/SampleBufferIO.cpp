@@ -82,7 +82,7 @@ namespace Audio
 
 					TSampleBuffer<> SampleBuffer(RawPCMData, NumSamples, SoundWave->NumChannels, SoundWave->GetSampleRateForCurrentPlatform());
 					LoadingSoundWaveInfo.OnLoaded(SoundWave, SampleBuffer);
-					LoadingSoundWaves.RemoveAtSwap(i, 1, EAllowShrinking::No);
+					LoadingSoundWaves.RemoveAtSwap(i, EAllowShrinking::No);
 				}
 			}
 		}
@@ -486,6 +486,8 @@ namespace Audio
 		SerializeSoundWaveToAsset();
 	}
 
+	// todo: this function needs to be revisited to have behavior similar to SerializeSoundWaveToAsset() in non-editor environments
+	// todo: for now this only updates simple members and cleans up data and clears RawPCMData to avoid taking a deprecated decode path
 	void FSoundWavePCMWriter::ApplyBufferToSoundWave()
 	{
 		// Since we just want to replace the PCM data to save it to disk. We don't need to compute anything platformdata related.
@@ -500,6 +502,7 @@ namespace Audio
 		if (CurrentSoundWave->RawPCMData != nullptr)
 		{
 			FMemory::Free(CurrentSoundWave->RawPCMData);
+			CurrentSoundWave->RawPCMData = nullptr;
 		}
 
 		CurrentSoundWave->RawPCMData = (uint8*)FMemory::Malloc(CurrentSoundWave->RawPCMDataSize);
@@ -641,6 +644,8 @@ namespace Audio
 
 	void FAsyncSoundWavePCMWriteWorker::DoWork()
 	{
+	    check (Writer);
+		
 		switch (TaskType)
 		{
 			case Audio::ESoundWavePCMWriteTaskType::GenerateSoundWave:
@@ -706,6 +711,21 @@ namespace Audio
 				break;
 			}
 
+		if (Writer->CurrentSoundWave)
+		{
+			// force update the compression type
+			if (IsInAudioThread())
+			{
+				Writer->CurrentSoundWave->SetSoundAssetCompressionType(ESoundAssetCompressionType::PCM);
+			}
+			
+			// clear out RawPCMData
+			if (Writer->CurrentSoundWave->RawPCMData)
+			{
+				FMemory::Free(Writer->CurrentSoundWave->RawPCMData);
+				Writer->CurrentSoundWave->RawPCMData = nullptr;
+			}
+		}
 
 		// Capture our callback and perform it on the game thread:
 		const USoundWave* SoundWave = Writer->CurrentSoundWave;

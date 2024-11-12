@@ -58,6 +58,9 @@ struct FFootDefinition
 
 	UPROPERTY(EditAnywhere, Category = "Sync Markers", meta=(EditCondition="bShouldGenerateSyncMarkers"))
 	EDetectionTechnique SyncMarkerDetectionTechnique = EDetectionTechnique::PassThroughReferenceBone;
+
+	UPROPERTY(EditAnywhere, Category = "Sync Markers", meta=(EditCondition = "SyncMarkerDetectionTechnique == EDetectionTechnique::FootBoneSpeed", EditConditionHides))
+	bool bShouldSkipSyncMarkerIfFootBoneSpeedStartsBelowThreshold = true;
 	
 	UPROPERTY(EditAnywhere, Category = "Notifies")
 	bool bShouldGenerateNotifies = false;
@@ -69,7 +72,10 @@ struct FFootDefinition
 	TSubclassOf<UAnimNotify> FootstepNotify = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Notifies", meta=(EditCondition="bShouldGenerateNotifies"))
-	EDetectionTechnique FootstepNotifyDetectionTechnique = EDetectionTechnique::FootBoneReachesGround;
+	EDetectionTechnique FootstepNotifyDetectionTechnique = EDetectionTechnique::FootBoneSpeed;
+
+	UPROPERTY(EditAnywhere, Category = "Notifies", meta=(EditCondition = "FootstepNotifyDetectionTechnique == EDetectionTechnique::FootBoneSpeed", EditConditionHides))
+	bool bShouldSkipNotifyIfFootBoneSpeedStartsBelowThreshold = true;
 };
 
 /** Generates animation notifies and/or sync markers for any specified bone(s) */
@@ -128,8 +134,12 @@ private:
 		float FootBoneSpeed = 0.0f;
 		float PrevFootBoneSpeed = 0.0f;
 		float MaxFootSpeed = -MAX_FLT;
+		float MinFootSpeed = MAX_FLT;
 		float MinFootSpeedBelowThreshold = MAX_FLT;
 		float TimeAtMinFootSpeedBelowThreshold = MAX_FLT;
+		bool bIsLast = false;
+		bool bSkipNextSyncMarker = false;
+		bool bSkipNextNotify = false;
 	};
 	
 	/** Keep track of to be generated tracks during modifier application */

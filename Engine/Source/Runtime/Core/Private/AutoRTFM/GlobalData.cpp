@@ -3,6 +3,13 @@
 #if (defined(__AUTORTFM) && __AUTORTFM)
 #include "GlobalData.h"
 #include "Context.h"
+#include <inttypes.h>
+
+#ifdef _MSC_VER
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace AutoRTFM
 {
@@ -15,9 +22,8 @@ void InitializeGlobalDataIfNecessary()
 /*
    Disable warning about deprecated STD C functions.
 */
-#pragma warning(disable : 4996)
-
 #pragma warning(push)
+#pragma warning(disable : 4996)
 #endif
 
     UE_CALL_ONCE([]
@@ -33,7 +39,8 @@ void InitializeGlobalDataIfNecessary()
         // - All AutoRTFM instances coordinate together on things like the function table,
         //   lock table, and TLS key.
 
-        constexpr const char* EnvName = "AutoRTFMGlobalData";
+		char EnvName[64];
+		sprintf(EnvName, "AutoRTFMGlobalData_%" PRIu64, (uint64_t)getpid());
 
         if (char* EnvString = getenv(EnvName))
         {

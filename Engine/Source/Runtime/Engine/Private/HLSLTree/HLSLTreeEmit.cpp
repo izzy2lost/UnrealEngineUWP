@@ -830,10 +830,18 @@ int32 InternalFormatString(FStringBuilderBase* OutString, FEmitShaderDependencie
 	if (Format.Len() > 0)
 	{
 		check(OutString);
-		for (TCHAR Char : Format)
+		for (int32 Index=0; Index<Format.Len(); Index++)
 		{
+			const TCHAR Char = Format[Index];
 			if (Char == TEXT('%'))
 			{
+				if (Index + 1 < Format.Len() && Format[Index + 1] == TEXT('%'))
+				{
+					OutString->Append(TEXT("%%"));
+					Index++;
+					continue;
+				}
+
 				const FFormatArgVariant& Arg = ArgList[ArgIndex++];
 				switch (Arg.Type)
 				{

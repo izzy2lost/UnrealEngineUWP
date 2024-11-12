@@ -17,12 +17,16 @@
 #include "Misc/EnumClassFlags.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
+#include "UObject/CoreRedirects/PM-k.h"
 
+class FBlake3;
 class IPakFile;
 class UClass;
+struct FSoftObjectPath;
 struct FTopLevelAssetPath;
-
-#define WITH_COREREDIRECTS_MULTITHREAD_WARNING !UE_BUILD_SHIPPING && !IS_PROGRAM && !WITH_EDITOR
+namespace UE::CoreRedirects::Private { struct FCoreRedirectObjectUtf8Name; }
+namespace UE::CoreRedirects::Private { class FRWWithExclusiveRecursionScopeLockForRead; }
+namespace UE::CoreRedirects::Private { class FRWWithExclusiveRecursionScopeLockForWrite; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCoreRedirects, Log, All);
 
@@ -34,24 +38,29 @@ enum class ECoreRedirectFlags : uint32
 	None = 0,
 
 	// Core type of the Thing being redirected, multiple can be set.  A Query will only find Redirects that have at least one of the same Type bits set.
-	Type_Object =			0x00000001, // UObject
-	Type_Class =			0x00000002, // UClass
-	Type_Struct =			0x00000004, // UStruct
-	Type_Enum =				0x00000008, // UEnum
-	Type_Function =			0x00000010, // UFunction
-	Type_Property =			0x00000020, // FProperty
-	Type_Package =			0x00000040, // UPackage
-	Type_AllMask =			0x0000FFFF, // Bit mask of all possible Types
+	Type_Object =				0x00000001, // UObject
+	Type_Class =				0x00000002, // UClass
+	Type_Struct =				0x00000004, // UStruct
+	Type_Enum =					0x00000008, // UEnum
+	Type_Function =				0x00000010, // UFunction
+	Type_Property =				0x00000020, // FProperty
+	Type_Package =				0x00000040, // UPackage
+	Type_Asset =				0x00000080, // Redirects derived from UObjectRedirectors. Implicitly included with other search types
+	Type_AllMask =				0x0000FFFF, // Bit mask of all possible Types
 
 	// Category flags.  A Query will only match Redirects that have the same value for every category bit.
-	Category_InstanceOnly = 0x00010000, // Only redirect instances of this type, not the type itself
-	Category_Removed =		0x00020000, // This type was explicitly removed, new name isn't valid
-	Category_AllMask =		0x00FF0000, // Bit mask of all possible Categories
+	Category_InstanceOnly =		0x00010000, // Only redirect instances of this type, not the type itself
+	Category_Removed =			0x00020000, // This type was explicitly removed, new name isn't valid
+	Category_AllMask =			0x00FF0000, // Bit mask of all possible Categories
 
 	// Option flags.  Does not behave as a bit-match between Queries and Redirects.  Each one specifies a custom rule for how FCoreRedirects handles the Redirect.
-	Option_MatchSubstring = 0x01000000, // Does a slow substring match
-	Option_MissingLoad =	0x02000000, // An automatically-created redirect that was created in response to a missing Thing during load. Redirect will be removed if and when the Thing is loaded.
-	Option_AllMask =		0xFF000000, // Bit mask of all possible Options
+	Option_MatchPrefix =		0x01000000, // Does a prefix string match
+	Option_MatchSuffix =		0x02000000, // Does a suffix string match
+	Option_MatchSubstring =		Option_MatchPrefix | Option_MatchSuffix, // Does a slow substring match
+	Option_MatchWildcardMask =	Option_MatchSubstring, // Bit mask of all possible wildcards
+
+	Option_MissingLoad =		0x04000000, // An automatically-created redirect that was created in response to a missing Thing during load. Redirect will be removed if and when the Thing is loaded.
+	Option_AllMask =			0xFF000000, // Bit mask of all possible Options
 };
 ENUM_CLASS_FLAGS(ECoreRedirectFlags);
 
@@ -61,6 +70,10 @@ enum class ECoreRedirectMatchFlags
 	/** The passed-in CoreRedirectObjectName has null fields in Package, Outer, or Name, and should still be allowed to match
 	 against redirectors that were created with a full Package.[Outer:]Name. */
 	AllowPartialMatch = (1 << 0),
+	/** Used for Type_Asset redirects to ensure package redirects only match package queries and 
+	 *  full path redirects only match full path queries
+	 */
+	DisallowPartialLHSMatch = (1<<1)
 };
 ENUM_CLASS_FLAGS(ECoreRedirectMatchFlags);
 
@@ -90,7 +103,8 @@ struct FCoreRedirectObjectName
 
 	COREUOBJECT_API FCoreRedirectObjectName(const FTopLevelAssetPath& TopLevelAssetPath);
 
-	/** Construct from a path string, this handles full paths with packages, or partial paths without */
+	COREUOBJECT_API FCoreRedirectObjectName(const FSoftObjectPath& SoftObjectPath);
+
 	COREUOBJECT_API FCoreRedirectObjectName(const FString& InString);
 
 	/** Construct from object in memory */
@@ -113,6 +127,9 @@ struct FCoreRedirectObjectName
 		return !(*this == Other);
 	}
 
+	/** Compares the two names lexically, returning -,0,+ */
+	COREUOBJECT_API int Compare(const FCoreRedirectObjectName& Other) const;
+
 	/** Flags for the Matches function. These flags overlap but are lower-level than ECoreRedirectMatchFlags. */
 	enum class EMatchFlags
 	{
@@ -123,16 +140,28 @@ struct FCoreRedirectObjectName
 		AllowPartialRHSMatch = (1 << 1),
 		/**
 		 * LHS fields (aka *this) are searchstrings; RHS (aka Other) fields are searched for that substring.
-		 * Default is to require a complete string match LHS == RHS.
+		 * Without this flag a Match returns true if and only if the complete string matches: LHS == RHS.
+		 * With this flag a Match returns true if and only if RHS.Contains(LHS).
 		 * This flag makes the match more expensive and should be avoided when possible.
 		 */
 		CheckSubString = (1 << 2),
+		/**
+		 * LHS fields (aka *this) are searchstrings; RHS (aka Other) fields are searched for that prefix.
+		 * Without this flag a Match returns true if and only if the complete string matches: LHS == RHS.
+		 * With this flag a Match returns true if and only if RHS.StartsWith(LHS).
+		 * This flag makes the match more expensive and should be avoided when possible.
+		 */
+		CheckPrefix = (1 << 3),
+		/**
+		 * LHS fields (aka *this) are searchstrings; RHS (aka Other) fields are searched for that suffix.
+		 * Without this flag a Match returns true if and only if the complete string matches: LHS == RHS.
+		 * With this flag a Match returns true if and only if RHS.EndsWith(LHS).
+		 * This flag makes the match more expensive and should be avoided when possible.
+		 */
+		CheckSuffix = (1 << 4),
 	};
 	/** Returns true if the passed in name matches requirements. */
 	COREUOBJECT_API bool Matches(const FCoreRedirectObjectName& Other, EMatchFlags MatchFlags = EMatchFlags::None) const;
-
-	UE_DEPRECATED(5.1, "Use EMatchFlags::CheckSubString to pass in bCheckSubstring=true.")
-	COREUOBJECT_API bool Matches(const FCoreRedirectObjectName& Other, bool bCheckSubstring) const;
 
 	/** Returns integer of degree of match. 0 if doesn't match at all, higher integer for better matches */
 	COREUOBJECT_API int32 MatchScore(const FCoreRedirectObjectName& Other) const;
@@ -141,23 +170,7 @@ struct FCoreRedirectObjectName
 	COREUOBJECT_API void UnionFieldsInline(const FCoreRedirectObjectName& Other);
 
 	/** Returns the name used as the key into the acceleration map */
-	FName GetSearchKey(ECoreRedirectFlags Type) const
-	{
-		if ((Type & ECoreRedirectFlags::Option_MatchSubstring) == ECoreRedirectFlags::Option_MatchSubstring)
-		{
-			static FName SubstringName = FName(TEXT("*SUBSTRING*"));
-
-			// All substring matches pass initial test as they need to be manually checked
-			return SubstringName;
-		}
-
-		if ((Type & ECoreRedirectFlags::Type_Package) == ECoreRedirectFlags::Type_Package)
-		{
-			return PackageName;
-		}
-
-		return ObjectName;
-	}
+	FName GetSearchKey(ECoreRedirectFlags Type) const;
 
 	/** Returns true if this refers to an actual object */
 	bool IsValid() const
@@ -168,8 +181,11 @@ struct FCoreRedirectObjectName
 	/** Returns true if all names have valid characters */
 	COREUOBJECT_API bool HasValidCharacters(ECoreRedirectFlags Type) const;
 
+	/** Update Hasher with all fields from this */
+	COREUOBJECT_API void AppendHash(FBlake3& Hasher) const;
+
 	/** Expand OldName/NewName as needed */
-	static COREUOBJECT_API bool ExpandNames(const FString& FullString, FName& OutName, FName& OutOuter, FName &OutPackage);
+	static COREUOBJECT_API bool ExpandNames(const FStringView FullString, FName& OutName, FName& OutOuter, FName& OutPackage);
 
 	/** Turn it back into an FString */
 	static COREUOBJECT_API FString CombineNames(FName NewName, FName NewOuter, FName NewPackage);
@@ -240,6 +256,36 @@ struct FCoreRedirect
 	{
 		return OldName.GetSearchKey(RedirectFlags);
 	}
+
+	/** Update Hasher with all fields from this */
+	COREUOBJECT_API void AppendHash(FBlake3& Hasher) const;
+	/** Returns -,0,+ based on a full lexical-fnames compare of all fields on the two CoreRedirects. */
+	COREUOBJECT_API int Compare(const FCoreRedirect& Other) const;
+
+private:
+	friend struct FCoreRedirects;
+
+	/* Returns the updated name after redirection. If bIsKnownToMatch is true, OldObjectName must have 
+	been validated previously to be acceptable for redirection */
+	FCoreRedirectObjectName RedirectName(const FCoreRedirectObjectName& OldObjectName, bool bIsKnownToMatch) const;
+
+	/** Returns true if this is a Wildcard match (substring, prefix or suffix) */
+	bool IsWildcardMatch() const
+	{
+		return EnumHasAnyFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchWildcardMask);
+	}
+
+	/** Returns true if this is a prefix match */
+	bool IsPrefixMatch() const
+	{
+		return EnumHasAllFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchPrefix);
+	}
+
+	/** Returns true if this is a prefix match */
+	bool IsSuffixMatch() const
+	{
+		return EnumHasAllFlags(RedirectFlags, ECoreRedirectFlags::Option_MatchSuffix);
+	}
 };
 
 /**
@@ -247,7 +293,10 @@ struct FCoreRedirect
  */
 struct FCoreRedirects
 {
-	/** Run initialization steps that are needed before any data can be stored in FCoreRedirects. Reads can occur before this, but no redirects will exist and redirect queries will all return empty. */
+	/**
+	 * Run initialization steps that are needed before any data can be stored in FCoreRedirects.
+	 * Reads can occur before this, but no redirects will exist and redirect queries will all return empty.
+	 */
 	static COREUOBJECT_API void Initialize();
 
 	/** Returns a redirected version of the object name. If there are no valid redirects, it will return the original name */
@@ -303,19 +352,22 @@ struct FCoreRedirects
 	static COREUOBJECT_API bool RemoveRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString);
 
 	/** Returns true if this has ever been initialized */
-	static bool IsInitialized() { return bInitialized; }
+	static COREUOBJECT_API bool IsInitialized();
 
 	/** Returns true if this is in debug mode that slows loading and adds additional warnings */
-	static bool IsInDebugMode() { return bInDebugMode; }
+	static COREUOBJECT_API bool IsInDebugMode();
 
 	/** Validate a named list of redirects */
 	static COREUOBJECT_API void ValidateRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString);
 
-	/** Validates all known redirects and warn if they seem to point to missing things */
+	/** Validates all known redirects and warn if they seem to point to missing things or violate other constraints */
 	static COREUOBJECT_API void ValidateAllRedirects();
 
-	/** Gets map from config key -> Flags */
-	static const TMap<FName, ECoreRedirectFlags>& GetConfigKeyMap() { return ConfigKeyMap; }
+	/** Validates asset redirects and warns if chains are detected. Chains should be resolved before adding asset redirects. */
+	static COREUOBJECT_API bool ValidateAssetRedirects();
+
+	/** Gets map from config key -> Flags. It may only be accessed once it becomes constant data after the system is initialized */
+	static COREUOBJECT_API const TMap<FName, ECoreRedirectFlags>& GetConfigKeyMap();
 
 	/** Goes from the containing package and name of the type to the type flag */
 	static COREUOBJECT_API ECoreRedirectFlags GetFlagsForTypeName(FName PackageName, FName TypeName);
@@ -323,49 +375,109 @@ struct FCoreRedirects
 	/** Goes from UClass Type to the type flag */
 	static COREUOBJECT_API ECoreRedirectFlags GetFlagsForTypeClass(UClass *TypeClass);
 
+#if WITH_EDITOR
+	/**
+	 * Iterate the list of PackageNames and append the hash of all redirects that affect the package, either
+	 * redirecting from or to the package. Used in iterative cooking to invalidate the cooked version of packages when
+	 * CoreRedirects change. 
+	 */
+	static COREUOBJECT_API void AppendHashOfRedirectsAffectingPackages(FBlake3& Hasher,
+		TConstArrayView<FName> PackageNames);
+	/**
+	 * Append the hash of all redirects that can affect multiple packages, or for which the affected packages are unknown.
+	 * Used in iterative cooking to invalidate the cooked version of packages when CoreRedirects change.
+	 */
+	static COREUOBJECT_API void AppendHashOfGlobalRedirects(FBlake3& Hasher);
+
+	/** Add the given Source->Path redirector to the summary used for AppendHashOfRedirectsAffectingPackages. */
+	static COREUOBJECT_API void RecordAddedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest);
+	/** Remove the given Source->Path redirector to the summary used for AppendHashOfRedirectsAffectingPackages. */
+	static COREUOBJECT_API void RecordRemovedObjectRedirector(const FSoftObjectPath& Source, const FSoftObjectPath& Dest);
+#endif
+
 	/** Runs set of redirector tests, returns false on failure */
 	static COREUOBJECT_API bool RunTests();
 
+	/** Adds a collection of redirects as Type_Asset. These allow FCoreRedirects to support the functions
+	 *  of UObjectRedirector. Any duplicate sources are logged and discarded (only the first redirect from a path is used)
+	 *  Package redirects corresponding to the soft object paths are implicitly created.
+	 */
+	static COREUOBJECT_API void AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPath>& InRedirects);
+
+	/** Clears all redirects added via AddAssetRedirects */
+	static COREUOBJECT_API void RemoveAllAssetRedirects();
+	 
 private:
+	typedef UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForRead FCoreRedirectorScopeLockForRead;
+	typedef UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForWrite FCoreRedirectorScopeLockForWrite;
+
 	/** Static only class, never constructed */
 	COREUOBJECT_API FCoreRedirects();
 
-	/** Add a single redirect to a type map */
-	static COREUOBJECT_API bool AddSingleRedirect(const FCoreRedirect& NewRedirect, const FString& SourceString);
+	/** Internal implementation for AddRedirectList that requires a write lock to already have been acquired */
+	static COREUOBJECT_API bool AddRedirectListUnderWriteLock(TArrayView<const FCoreRedirect> Redirects, 
+		const FString& SourceString, const FCoreRedirectorScopeLockForWrite& HeldLock);
 
-	/** Remove a single redirect from a type map */
-	static COREUOBJECT_API bool RemoveSingleRedirect(const FCoreRedirect& OldRedirect, const FString& SourceString);
+	/** Internal implementation for AddSingleRedirect that requires a write lock to already have been acquired */
+	static COREUOBJECT_API bool AddSingleRedirectUnderWriteLock(const FCoreRedirect& NewRedirect, 
+		const FString& SourceString, const FCoreRedirectorScopeLockForWrite& HeldLock);
+
+	/** Internal implementation for RemoveSingleRedirect that requires a write lock to already have been acquired */
+	static COREUOBJECT_API bool RemoveSingleRedirectUnderWriteLock(const FCoreRedirect& OldRedirect, 
+		const FString& SourceString, const FCoreRedirectorScopeLockForWrite& HeldLock);
 
 	/** Add native redirects, called before ini is parsed for the first time */
-	static COREUOBJECT_API void RegisterNativeRedirects();
+	static COREUOBJECT_API void RegisterNativeRedirectsUnderWriteLock(const FCoreRedirectorScopeLockForWrite& HeldLock);
 
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	/** Mark that CoreRedirects is about to start being used from multiple threads, and writes to new types of redirects are no longer allowed.
-	  * ReadRedirectsFromIni and all other AddRedirectList calls must be called before this
-	  */
-	static COREUOBJECT_API void EnterMultithreadedPhase();
-#endif
+	/** Internal implementation for GetMatchingRedirects that requires a read lock to already have been acquired */
+	static COREUOBJECT_API bool GetMatchingRedirectsUnderReadLock(ECoreRedirectFlags Type, 
+		const FCoreRedirectObjectName& OldObjectName, TArray<const FCoreRedirect*>& FoundRedirects, ECoreRedirectMatchFlags MatchFlags, 
+		const FCoreRedirectorScopeLockForRead& HeldLock);
+
+	/** Internal implementation for RedirectNameAndValues that requires a read lock to already have been acquired */
+	static COREUOBJECT_API bool RedirectNameAndValuesUnderReadLock(ECoreRedirectFlags Type, const FCoreRedirectObjectName& OldObjectName,
+		FCoreRedirectObjectName& NewObjectName, const FCoreRedirect** FoundValueRedirect,
+		ECoreRedirectMatchFlags MatchFlags, const FCoreRedirectorScopeLockForRead& HeldLock);
+
+	/** Internal implementation for ValidateAssetRedirects that requires a read lock to already have been acquired */
+	static COREUOBJECT_API bool ValidateAssetRedirectsUnderReadLock(const FCoreRedirectorScopeLockForRead& HeldLock);
+
+	/** Container for managing Wildcard redirects (substrings, prefixes, suffixes) */
+	struct FWildcardData
+	{
+		void Add(const FCoreRedirect& Redirect);
+
+		void Rebuild();
+		bool Matches(ECoreRedirectFlags InFlags, const FCoreRedirectObjectName& InName, ECoreRedirectMatchFlags InMatchFlags, TArray<const FCoreRedirect*>& OutFoundRedirects) const;
+
+		TArray<FCoreRedirect> Substrings;
+		TArray<FCoreRedirect> Prefixes;
+		TArray<FCoreRedirect> Suffixes;
+	private:
+		/** This function may return false positives, but will not return false negatives */
+		bool MatchSubstringApproximate(const UE::CoreRedirects::Private::FCoreRedirectObjectUtf8Name& RedirectName) const;
+		void AddPredictionWords(const FCoreRedirect& Redirect);
+
+		FPredictMatch8 PredictMatch;
+	};
 
 	/** There is one of these for each registered set of redirect flags */
 	struct FRedirectNameMap
 	{
 		/** Map from name of thing being mapped to full list. List must be filtered further */
-		TMap<FName, TArray<FCoreRedirect> > RedirectMap;
+		TMap<FName, TArray<FCoreRedirect>> RedirectMap;
+		/** Used to manage wildcard data and accelerate wildcard queries */
+		TUniquePtr<FWildcardData> Wildcards;
 	};
 
 	/** Whether this has been initialized at least once */
-	static COREUOBJECT_API bool bInitialized;
+	static COREUOBJECT_API std::atomic<bool> bInitialized;
 
 	/** True if we are in debug mode that does extra validation */
-	static COREUOBJECT_API bool bInDebugMode;
+	static COREUOBJECT_API std::atomic<bool> bInDebugMode;
 
 	/** True if we have done our initial validation. After initial validation, each change to redirects will validate independently */
 	static COREUOBJECT_API bool bValidatedOnce;
-
-#if WITH_COREREDIRECTS_MULTITHREAD_WARNING
-	/** Whether CoreRedirects is now being used multithreaded and therefore does not support writes to RedirectTypeMap keyvalue pairs */
-	static COREUOBJECT_API bool bIsInMultithreadedPhase;
-#endif
 
 	/** Map from config name to flag */
 	static COREUOBJECT_API TMap<FName, ECoreRedirectFlags> ConfigKeyMap;
@@ -386,9 +498,33 @@ private:
 	};
 	static COREUOBJECT_API FRedirectTypeMap RedirectTypeMap;
 
-	/**
-	 * Lock to protect multithreaded access to *KnownMissing functions, which can be called from the async loading threads. 
-	 * TODO: The KnownMissing functions use RedirectTypeMap, which is unguarded; there is race condition vulnerability if asyncloading thread is active before all categories are added to RedirectTypeMap.
+	/** This lock allows exclusive locking (WriteLock) and shared locking (ReadLock)
+	 *  Additionally, it permits limited types of recursion. It is possible to ReadLock() 
+	 *  or WriteLock() while locked for write. It is NOT possible to Read or WriteLock() while
+	 *  locked for read. I.e., if the lock is held exclusively, it re-acquiring it is always permitted.
+	 *  If the lock is held shared, re-acquiring it is never permitted.
 	 */
-	static COREUOBJECT_API FRWLock KnownMissingLock;
+	struct FRWLockWithExclusiveRecursion
+	{
+		void ReadLock();
+
+		void WriteLock();
+
+		void WriteUnlock();
+
+		void ReadUnlock();
+
+	private:
+		FRWLock InternalLock;
+		std::atomic<uint32> WriteLockOwnerThreadId = 0;
+		int32 RecursionCount = 0;
+	};
+	friend class UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForRead;
+	friend class UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForWrite;
+
+	/**
+	 * Lock to protect multithreaded access to the CoreRedirect system
+	 */
+	static COREUOBJECT_API FRWLockWithExclusiveRecursion RWLock;
 };
+

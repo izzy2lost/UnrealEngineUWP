@@ -30,6 +30,9 @@
 #include "../LightmapData.ush"
 #include "InstanceCullingCommon.ush"
 #include "InstanceCompactionCommon.ush"
+
+// Turn on the logic for culling based on min screen radius (used in NaniteCullingCommon.ush)
+#define NANITE_CULLING_ENABLE_MIN_RADIUS_CULL 1
 #include "../Nanite/NaniteCullingCommon.ush"
 #include "../WaveOpUtil.ush"
 #include "../ComputeShaderUtils.ush"
@@ -41,6 +44,7 @@
 
 
 #include "InstanceCullingLoadBalancer.ush"
+#include "InstanceCullingSetup.ush"
 
 uint InstanceSceneDataSOAStride;
 uint GPUSceneNumInstances;
@@ -105,7 +109,7 @@ void WriteInstanceForCompaction(uint Offset, bool bVisible, uint InstanceId, FIn
 	CompactInstanceIdsBufferOut[Offset] = PackedId;	
 }
 
-bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, uint InstanceId, uint ViewIdIndex, FDrawCommandDesc DrawCommandDesc, inout uint CullingFlags)
+bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, uint InstanceId, uint ViewIdIndex, bool bAllowOcclusionCulling, FDrawCommandDesc DrawCommandDesc, inout uint CullingFlags)
 {
 	CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
 
@@ -147,7 +151,7 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 			NaniteView,
 			InstanceData.LocalBoundsCenter,
 			InstanceData.LocalBoundsExtent,
-			InstanceData.NonUniformScale.xyz,
+			InstanceData.NonUniformScale,
 			DynamicData.LocalToTranslatedWorld,
 			DynamicData.PrevLocalToTranslatedWorld );
 
@@ -163,8 +167,8 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 		Cull.bSkipWPODisableDistance	= true;
 #endif
 
-		bool bEnableWPO = Cull.Distance( PrimitiveData );
-		if (!bEnableWPO)
+		Cull.Distance( PrimitiveData );
+		if (!Cull.bEnableWPO)
 		{
 			CullingFlags &= ~INSTANCE_CULLING_FLAG_EVALUATE_WPO;
 		}
@@ -182,10 +186,10 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 
 #if OCCLUSION_CULL_INSTANCES
 		BRANCH
-		if (Cull.bIsVisible)
+		if (Cull.bIsVisible && bAllowOcclusionCulling)
 		{
 			const bool bPrevIsOrtho = IsOrthoProjection(NaniteView.PrevViewToClip);
-			FFrustumCullData PrevCull = BoxCullFrustum(InstanceData.LocalBoundsCenter, InstanceData.LocalBoundsExtent, DynamicData.PrevLocalToTranslatedWorld, NaniteView.PrevTranslatedWorldToClip, NaniteView.ViewToClip, bPrevIsOrtho, Cull.bNearClip, true);
+			FFrustumCullData PrevCull = BoxCullFrustum(InstanceData.LocalBoundsCenter, InstanceData.LocalBoundsExtent, DynamicData.PrevLocalToTranslatedWorld, NaniteView.PrevTranslatedWorldToClip, NaniteView.PrevViewToClip, bPrevIsOrtho, Cull.bNearClip, true);
 			BRANCH
 			if (PrevCull.bIsVisible && !PrevCull.bCrossesNearPlane)
 			{
@@ -229,33 +233,30 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 
 #if ENABLE_BATCH_MODE
 	// Load Instance culling context batch info, indirection per group
-	FContextBatchInfo BatchInfo = BatchInfos[BatchInds[DispatchGroupId]];
+	FContextBatchInfo BatchInfo = LoadBatchInfo(DispatchGroupId);
 #else // !ENABLE_BATCH_MODE
 	// Single Instance culling context batch in the call, set up batch from the kernel parameters
 	FContextBatchInfo BatchInfo = (FContextBatchInfo)0;
 	BatchInfo.NumViewIds = NumViewIds;
 	BatchInfo.DynamicInstanceIdOffset = DynamicInstanceIdOffset;
 	BatchInfo.DynamicInstanceIdMax = DynamicInstanceIdMax;
+	// Note: for the unbatched case, the permutation will control HZB test, so we set to true
+	BatchInfo.bAllowOcclusionCulling = true;
 #endif // ENABLE_BATCH_MODE
 
-	FInstanceWorkSetup WorkSetup = InstanceCullingLoadBalancer_Setup(GroupId, GroupThreadIndex, GetItemDataOffset(BatchInfo, CurrentBatchProcessingMode));
+	FInstanceCullingSetup InstanceCullingSetup = LoadInstanceCullingSetup(GroupId, GroupThreadIndex, BatchInfo.DynamicInstanceIdOffset, BatchInfo.DynamicInstanceIdMax, GetItemDataOffset(BatchInfo, CurrentBatchProcessingMode));
+
+	FInstanceWorkSetup WorkSetup = InstanceCullingSetup.InstanceWorkSetup;
 
 	if (!WorkSetup.bValid)
 	{
 		return;
 	}
 
+	uint InstanceId = InstanceCullingSetup.InstanceId;
+
 	// Extract the draw command payload
 	const FInstanceCullingPayload Payload = LoadInstanceCullingPayload(WorkSetup.Item.Payload, BatchInfo);
-
-	uint InstanceId = WorkSetup.Item.InstanceDataOffset + uint(WorkSetup.LocalItemIndex);
-
-	// Check dynamic flag to offset the instance ID
-	if (Payload.bDynamicInstanceDataOffset)
-	{
-		InstanceId += BatchInfo.DynamicInstanceIdOffset;
-		checkSlow(InstanceId < BatchInfo.DynamicInstanceIdMax);
-	}
 
 	// Load auxiliary per-instanced-draw command info
 	const FDrawCommandDesc DrawCommandDesc = UnpackDrawCommandDesc(DrawCommandDescs[Payload.IndirectArgIndex]);
@@ -288,8 +289,8 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 #if STEREO_CULLING_MODE
 	uint CullingFlags0 = 0;
 	uint CullingFlags1 = 0;
-	const bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + 0U, DrawCommandDesc, CullingFlags0) ||
-					      IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + 1U, DrawCommandDesc, CullingFlags1);
+	const bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + 0U, BatchInfo.bAllowOcclusionCulling, DrawCommandDesc, CullingFlags0) ||
+					      IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + 1U, BatchInfo.bAllowOcclusionCulling, DrawCommandDesc, CullingFlags1);
 	const uint CullingFlags = CullingFlags0 | CullingFlags1;
 	NumVisibleInstances += bVisible ? 2 : 0;
 	
@@ -313,7 +314,7 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 	{
 		// Culling is disabled for multi-view
 		uint CullingFlags = 0;
-		bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + ViewIdIndex, DrawCommandDesc, CullingFlags);
+		bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + ViewIdIndex, BatchInfo.bAllowOcclusionCulling, DrawCommandDesc, CullingFlags);
 
 		NumVisibleInstances += bVisible ? 1 : 0;
 		

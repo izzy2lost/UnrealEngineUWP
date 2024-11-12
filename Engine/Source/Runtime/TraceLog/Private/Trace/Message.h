@@ -5,7 +5,7 @@
 #include "Trace/Config.h"
 #include "Trace/Trace.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 namespace UE {
 namespace Trace {
@@ -66,4 +66,4 @@ void Message_Send(EMessageType Type, const char* TypeStr, const char* Descriptio
 
 } } } // namespace UE::Trace::Private
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

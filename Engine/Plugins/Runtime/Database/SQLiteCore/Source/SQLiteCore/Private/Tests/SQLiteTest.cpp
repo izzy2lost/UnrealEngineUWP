@@ -25,6 +25,13 @@ bool FSQLiteCoreTest::RunTest(const FString& Parameters)
 	IFileManager::Get().Delete(*Path);
 	bool bSuccess = true;
 
+	// Try to open a file that doesn't exist, ensure that close cannot be called or doesn't execute unexpectedly
+	{
+		FSQLiteDatabase TestDb;
+		bSuccess &= !TestDb.Open(*Path, ESQLiteDatabaseOpenMode::ReadWrite);	// Expected to return false since the file does not exist on disk at this time
+		bSuccess &= !TestDb.Close();	// Expected to return false if nothing was opened
+	}
+
 	// Utility function to read back the records and check if the one expected.
 	auto ReadBackRecordsAndValidateValues = [](FSQLiteDatabase& Db)
 	{

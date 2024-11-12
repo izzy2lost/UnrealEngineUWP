@@ -2,18 +2,21 @@
 
 #include "SBaseReplicationStreamEditor.h"
 
-#include "FakeObjectToPropertiesEditorModel.h"
 #include "Model/Item/SourceModelBuilders.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
+#include "Replication/Editor/Utils/DisplayUtils.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/DisplayUtils.h"
-#include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
+#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
+#include "Replication/Editor/Model/Property/IPropertySourceProcessor.h"
 #include "Replication/Editor/Model/ObjectSource/IObjectSelectionSourceModel.h"
+#include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
 
 #include "Algo/AnyOf.h"
-#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
+#include "Misc/ObjectUtils.h"
+#include "Styling/AppStyle.h"
 #include "UObject/Class.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "SBaseReplicationStreamEditor"
@@ -22,28 +25,28 @@ namespace UE::ConcertSharedSlate
 {
 	void SBaseReplicationStreamEditor::Construct(
 		const FArguments& InArgs,
-		TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
-		TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
-		TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource)
+		const TSharedRef<IEditableReplicationStreamModel>& InPropertiesModel,
+		const TSharedRef<IObjectSelectionSourceModel>& InObjectSelectionSource,
+		const TSharedRef<IPropertySourceProcessor>& InPropertySelectionSource)
 	{
-		ObjectSelectionSource = MoveTemp(InObjectSelectionSource);
-		PropertySelectionSource = MoveTemp(InPropertySelectionSource);
+		ObjectSelectionSource = InObjectSelectionSource;
+		PropertySelectionSource = InPropertySelectionSource;
 		ObjectHierarchy = InArgs._ObjectHierarchy;
 		
-		EditablePropertiesModel = MoveTemp(InPropertiesModel);
+		EditablePropertiesModel = InPropertiesModel;
 		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SBaseReplicationStreamEditor::OnObjectsChanged);
 		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SBaseReplicationStreamEditor::OnPropertiesChanged);
-		
-		PropertiesModelAdapter = MakeShared<FFakeObjectToPropertiesEditorModel>(EditablePropertiesModel.ToSharedRef(), PropertySelectionSource.ToSharedRef());
 
 		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
 		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
 		OnExtendObjectsContextMenuDelegate = InArgs._OnExtendObjectsContextMenu;
+		OnPreAddSelectedObjectsDelegate = InArgs._OnPreAddSelectedObjectsDelegate;
+		OnPostAddSelectedObjectsDelegate = InArgs._OnPostAddSelectedObjectsDelegate;
 		
 		ChildSlot
 		[
-			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
-				.PropertyTreeView(InArgs._PropertyTreeView)
+			SAssignNew(ReplicationViewer, SReplicationStreamViewer, EditablePropertiesModel.ToSharedRef())
+				.PropertyAssignmentView(InArgs._PropertyAssignmentView)
 				.ObjectColumns(InArgs._ObjectColumns)
 				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
 				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
@@ -51,6 +54,7 @@ namespace UE::ConcertSharedSlate
 				.NameModel(InArgs._NameModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
+				.ShouldDisplayObject(InArgs._ShouldDisplayObject)
 				.LeftOfObjectSearchBar()
 				[
 					SNew(SHorizontalBox)
@@ -65,6 +69,14 @@ namespace UE::ConcertSharedSlate
 						InArgs._LeftOfObjectSearchBar.Widget
 					]
 				]
+				.RightOfObjectSearchBar() [ InArgs._RightOfObjectSearchBar.Widget ]
+				.GetHoveredRowContent_Lambda(
+					[MakeOverlay = InArgs._MakeObjectRowOverlayWidget, Alignment = InArgs._ObjectOverlayAlignment]
+					(const TSharedPtr<FReplicatedObjectData>& Data)
+					{
+						const TSharedRef<SWidget> OverlayWidget = MakeOverlay.IsBound() ? MakeOverlay.Execute(*Data) : SNullWidget::NullWidget;
+						return FHoverRowContent{ OverlayWidget, Alignment };
+					})
 				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];
 	}
@@ -90,9 +102,9 @@ namespace UE::ConcertSharedSlate
 		ReplicationViewer->RequestPropertyColumnResort(ColumnId);
 	}
 
-	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
+	TArray<TSoftObjectPtr<>> SBaseReplicationStreamEditor::GetSelectedObjects() const
 	{
-		return ReplicationViewer->GetObjectsBeingPropertyEdited();
+		return ReplicationViewer->GetSelectedObjects();
 	}
 
 	bool SBaseReplicationStreamEditor::IsEditingDisabled() const
@@ -115,20 +127,20 @@ namespace UE::ConcertSharedSlate
 		// Newly added objects should be automatically selected
 		if (!AddedObjects.IsEmpty())
 		{
-			TArray<FSoftObjectPath> TopLevelObjects;
+			TArray<TSoftObjectPtr<>> TopLevelObjects;
 			
 			// Goal: select an object so the property view immediately shows properties for some object.
 			// Problem: if objects have different classes, property view will be empty (incompatible class)
 			// Solution: Select the highest object in the hierarchy, which is usually an actor. Users usually select an actor to add in the "Add" combo button so this also makes intuitive sense.
 			// Caveat: There may be multiple hierarchies (e.g. if multiple actors were added). This is a very seldom case though: too bad.
 			Algo::TransformIf(AddedObjects, TopLevelObjects,
-				[this, &AddedObjects](const UObject* Object)
+				[this, &AddedObjects](UObject* Object)
 				{
-					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(Object);
-					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return FSoftObjectPath(AddedObject) == ParentInfo->Parent; });
+					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy ? ObjectHierarchy->GetParentInfo(Object) : TOptional<IObjectHierarchyModel::FParentInfo>{};
+					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return AddedObject == ParentInfo->Parent; });
 					return bIsTopOfHierarchy;
 				},
-				[](const UObject* Object){ return Object; });
+				[](UObject* Object){ return Object; });
 			ReplicationViewer->SelectObjects(TopLevelObjects);
 
 			// Expand the hierarchy for all added objects for easier editing
@@ -170,7 +182,9 @@ namespace UE::ConcertSharedSlate
 			);
 
 		TGuardValue<bool> GuardObjectSelection(bIsAddingFromSelection, true);
+		OnPreAddSelectedObjectsDelegate.ExecuteIfBound(ObjectsToAdd);
 		EditablePropertiesModel->AddObjects(Objects);
+		OnPostAddSelectedObjectsDelegate.ExecuteIfBound(ObjectsToAdd);
 	}
 
 	void SBaseReplicationStreamEditor::OnDeleteObjects(const TArray<TSharedPtr<FReplicatedObjectData>>& ObjectsToDelete) const
@@ -204,7 +218,7 @@ namespace UE::ConcertSharedSlate
 
 	TSharedPtr<SWidget> SBaseReplicationStreamEditor::OnObjectsContextMenuOpening()
 	{
-		FMenuBuilder MenuBuilder(true, nullptr);
+		FMenuBuilder MenuBuilder(false, nullptr);
 		
 		AddObjectSourceContextMenuOptions(MenuBuilder);
 		MenuBuilder.AddMenuEntry(
@@ -212,15 +226,15 @@ namespace UE::ConcertSharedSlate
 			TAttribute<FText>::CreateLambda([this](){ return GetEditingDisabledText(); }),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects()),
+				FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedObjectItems()),
 				FCanExecuteAction::CreateLambda([this]() { return !IsEditingDisabled(); })
 				),
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
 
-		TArray<FSoftObjectPath> SelectedObjects;
-		Algo::Transform(ReplicationViewer->GetSelectedOutlinerObjects(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPath(); });
+		TArray<TSoftObjectPtr<>> SelectedObjects;
+		Algo::Transform(ReplicationViewer->GetSelectedObjectItems(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPtr(); });
 		OnExtendObjectsContextMenuDelegate.ExecuteIfBound(MenuBuilder, SelectedObjects);
 		
 		return MenuBuilder.MakeWidget();
@@ -231,7 +245,7 @@ namespace UE::ConcertSharedSlate
 		using namespace ConcertSharedSlate;
 		
 		// Context menu generation is only supported for single items
-		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = ReplicationViewer->GetSelectedOutlinerObjects();
+		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = ReplicationViewer->GetSelectedObjectItems();
 		if (SelectedObjects.Num() != 1)
 		{
 			return;
@@ -281,7 +295,8 @@ namespace UE::ConcertSharedSlate
 			}),
 			FBuilderDelegates::FIsItemSelected::CreateLambda([this](const FSelectableObjectInfo& Item)
 			{
-				return EditablePropertiesModel->ContainsObjects({ Item.Object.Get() } );
+				const UObject* Object = Item.Object.Get();
+				return !Object || ReplicationViewer->IsDisplayedInTopView(Object);
 			}),
 			TAttribute<bool>::CreateLambda([this]() { return !IsEditingDisabled(); }),
 			TAttribute<FText>::CreateLambda([this]() { return GetEditingDisabledText(); }),

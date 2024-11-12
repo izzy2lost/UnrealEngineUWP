@@ -10,6 +10,7 @@
 #include "IBlutilityModule.h"
 #include "Misc/MessageDialog.h"
 #include "SBlueprintDiff.h"
+#include "ToolMenus.h"
 #include "WidgetBlueprintEditor.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions"

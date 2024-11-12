@@ -9,6 +9,18 @@
 #include "NiagaraDataInterfaceSkeletalMesh.h"
 #include "NiagaraSystem.h"
 
+#if WITH_EDITOR
+FName UCEClonerMeshLayout::GetSampleActorWeakName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerMeshLayout, SampleActorWeak);
+}
+
+FName UCEClonerMeshLayout::GetAssetName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerMeshLayout, Asset);
+}
+#endif
+
 void UCEClonerMeshLayout::SetCount(int32 InCount)
 {
 	if (Count == InCount)
@@ -17,7 +29,7 @@ void UCEClonerMeshLayout::SetCount(int32 InCount)
 	}
 
 	Count = InCount;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetAsset(ECEClonerMeshAsset InAsset)
@@ -28,7 +40,7 @@ void UCEClonerMeshLayout::SetAsset(ECEClonerMeshAsset InAsset)
 	}
 
 	Asset = InAsset;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetSampleData(ECEClonerMeshSampleData InSampleData)
@@ -39,7 +51,7 @@ void UCEClonerMeshLayout::SetSampleData(ECEClonerMeshSampleData InSampleData)
 	}
 
 	SampleData = InSampleData;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetSampleActorWeak(const TWeakObjectPtr<AActor>& InSampleActor)
@@ -50,7 +62,7 @@ void UCEClonerMeshLayout::SetSampleActorWeak(const TWeakObjectPtr<AActor>& InSam
 	}
 
 	SampleActorWeak = InSampleActor;
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
 }
 
 void UCEClonerMeshLayout::SetSampleActor(AActor* InActor)
@@ -92,7 +104,7 @@ void UCEClonerMeshLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 
 	InComponent->SetIntParameter(TEXT("SampleMeshCount"), Count);
 
-	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 
 	static const FNiagaraVariable SampleMeshAssetVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerMeshAsset>()), TEXT("SampleMeshAsset"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(Asset), SampleMeshAssetVar);
@@ -107,6 +119,11 @@ void UCEClonerMeshLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 	if (USceneComponent* SceneComponent = SceneComponentWeak.Get())
 	{
 		SceneComponent->TransformUpdated.RemoveAll(this);
+
+		if (AActor* Actor = SceneComponent->GetOwner())
+		{
+			Actor->OnDestroyed.RemoveAll(this);
+		}
 	}
 	SceneComponentWeak = nullptr;
 
@@ -115,6 +132,8 @@ void UCEClonerMeshLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 	if (SampleActor && SampleActor->GetRootComponent())
 	{
 		ActorMeshDI->SourceActor = SampleActor;
+		SampleActor->OnDestroyed.AddUniqueDynamic(this, &UCEClonerMeshLayout::OnSampleActorDestroyed);
+
 		SceneComponentWeak = SampleActor->GetRootComponent();
 		SceneComponentWeak->TransformUpdated.AddUObject(this, &UCEClonerMeshLayout::OnSampleMeshTransformed);
 	}
@@ -124,34 +143,64 @@ void UCEClonerMeshLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 		SceneComponentWeak.Reset();
 	}
 
-	if (Asset == ECEClonerMeshAsset::StaticMesh)
+	static const FNiagaraVariable SampleMeshStaticVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceStaticMesh::StaticClass()), TEXT("SampleMeshStatic"));
+	UNiagaraDataInterfaceStaticMesh* StaticMeshDI = Cast<UNiagaraDataInterfaceStaticMesh>(ExposedParameters.GetDataInterface(SampleMeshStaticVar));
+	UStaticMeshComponent* StaticMeshComponent = SampleActor ? SampleActor->FindComponentByClass<UStaticMeshComponent>() : nullptr;
+
+	if (Asset == ECEClonerMeshAsset::StaticMesh && StaticMeshComponent)
 	{
-		static const FNiagaraVariable SampleMeshStaticVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceStaticMesh::StaticClass()), TEXT("SampleMeshStatic"));
-		UNiagaraDataInterfaceStaticMesh* StaticMeshDI = Cast<UNiagaraDataInterfaceStaticMesh>(ExposedParameters.GetDataInterface(SampleMeshStaticVar));
-		if (SampleActorWeak.IsValid())
-		{
-			if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SampleActorWeak->GetComponentByClass(UStaticMeshComponent::StaticClass())))
-			{
-				StaticMeshDI->SetSourceComponentFromBlueprints(StaticMeshComponent);
-			}
-		}
+		StaticMeshDI->SetSourceComponentFromBlueprints(StaticMeshComponent);
+	}
+	else
+	{
+		StaticMeshDI->SetSourceComponentFromBlueprints(nullptr);
 	}
 
-	if (Asset == ECEClonerMeshAsset::SkeletalMesh)
+	static const FNiagaraVariable SampleMeshSkeletalVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceSkeletalMesh::StaticClass()), TEXT("SampleMeshSkeletal"));
+	UNiagaraDataInterfaceSkeletalMesh* SkeletalMeshDI = Cast<UNiagaraDataInterfaceSkeletalMesh>(ExposedParameters.GetDataInterface(SampleMeshSkeletalVar));
+	USkeletalMeshComponent* SkeletalMeshComponent = SampleActor ? SampleActor->FindComponentByClass<USkeletalMeshComponent>() : nullptr;
+
+	if (Asset == ECEClonerMeshAsset::SkeletalMesh && SkeletalMeshComponent)
 	{
-		static const FNiagaraVariable SampleMeshSkeletalVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceSkeletalMesh::StaticClass()), TEXT("SampleMeshSkeletal"));
-		UNiagaraDataInterfaceSkeletalMesh* SkeletalMeshDI = Cast<UNiagaraDataInterfaceSkeletalMesh>(ExposedParameters.GetDataInterface(SampleMeshSkeletalVar));
-		if (SampleActorWeak.IsValid())
-		{
-			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(SampleActorWeak->GetComponentByClass(USkeletalMeshComponent::StaticClass())))
-			{
-				SkeletalMeshDI->SetSourceComponentFromBlueprints(SkeletalMeshComponent);
-			}
-		}
+		SkeletalMeshDI->SetSourceComponentFromBlueprints(SkeletalMeshComponent);
+	}
+	else
+	{
+		SkeletalMeshDI->SetSourceComponentFromBlueprints(nullptr);
 	}
 }
 
 void UCEClonerMeshLayout::OnSampleMeshTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType)
 {
-	UpdateLayoutParameters();
+	MarkLayoutDirty();
+}
+
+void UCEClonerMeshLayout::OnSampleActorDestroyed(AActor* InDestroyedActor)
+{
+	UCEClonerComponent* ClonerComponent = GetClonerComponent();
+
+	if (!ClonerComponent)
+	{
+		return;
+	}
+
+	const FNiagaraUserRedirectionParameterStore& ExposedParameters = ClonerComponent->GetOverrideParameters();
+
+	static const FNiagaraVariable SampleMeshStaticVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceStaticMesh::StaticClass()), TEXT("SampleMeshStatic"));
+	if (UNiagaraDataInterfaceStaticMesh* StaticMeshDI = Cast<UNiagaraDataInterfaceStaticMesh>(ExposedParameters.GetDataInterface(SampleMeshStaticVar)))
+	{
+		StaticMeshDI->Modify();
+
+		StaticMeshDI->SetSourceComponentFromBlueprints(nullptr);
+	}
+
+	static const FNiagaraVariable SampleMeshSkeletalVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceSkeletalMesh::StaticClass()), TEXT("SampleMeshSkeletal"));
+	if (UNiagaraDataInterfaceSkeletalMesh* SkeletalMeshDI = Cast<UNiagaraDataInterfaceSkeletalMesh>(ExposedParameters.GetDataInterface(SampleMeshSkeletalVar)))
+	{
+		SkeletalMeshDI->Modify();
+
+		SkeletalMeshDI->SetSourceComponentFromBlueprints(nullptr);
+	}
+
+	MarkLayoutDirty();
 }

@@ -1,11 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "AvaLevelViewportModule.h"
 #include "SAvaLevelViewport.h"
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"
+#include "Engine/Texture.h"
+#include "ScopedTransaction.h"
+#include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
 #include "Visualizers/IAvaViewportBoundingBoxVisualizer.h"
 #include "Visualizers/IAvaViewportPostProcessVisualizer.h"
+
+#define LOCTEXT_NAMESPACE "SAvaLevelViewport"
 
 void SAvaLevelViewport::ExecuteToggleChildActorLock()
 {
@@ -19,432 +25,72 @@ void SAvaLevelViewport::ExecuteToggleChildActorLock()
 	ViewportClient->SetChildActorsLocked(!ViewportClient->AreChildActorsLocked());
 }
 
-bool SAvaLevelViewport::IsPostProcessNoneEnabled() const
+bool SAvaLevelViewport::IsPostProcessTypeEnabled(EAvaViewportPostProcessType InPostProcessType) const
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		// Make sure none is toggled on if there's an error.
-		return true;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return true;
-	}
-
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::None;
-}
-
-bool SAvaLevelViewport::CanTogglePostProcessNone() const
-{
-	return GetAvaLevelViewportClient().IsValid();
-}
-
-void SAvaLevelViewport::ExecuteTogglePostProcessNone()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::None);
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-bool SAvaLevelViewport::IsPostProcessBackgroundEnabled() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return false;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return false;
-	}
-
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::Background;
-}
-
-bool SAvaLevelViewport::CanTogglePostProcessBackground() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return false;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return false;
-	}
-
-	if (IsPostProcessBackgroundEnabled())
-	{
-		return true;
-	}
-
-	if (TSharedPtr<IAvaViewportPostProcessVisualizer> BackgroundVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Background))
-	{
-		return BackgroundVisualizer->CanActivate(/* bInSilent */ true);
-	}
-
-	return false;
-}
-
-void SAvaLevelViewport::ExecuteTogglePostProcessBackground()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::Background);
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-bool SAvaLevelViewport::IsPostProcessChannelRedEnabled() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		// Make sure none is toggled on if there's an error.
-		return true;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return true;
-	}
-
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::RedChannel;
-}
-
-bool SAvaLevelViewport::CanTogglePostProcessChannelRed() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return false;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return false;
-	}
-
-	if (IsPostProcessChannelRedEnabled())
-	{
-		return true;
-	}
-
-	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelRedVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::RedChannel))
-	{
-		return ChannelRedVisualizer->CanActivate(/* bInSilent */ true);
-	}
-
-	return false;
-}
-
-void SAvaLevelViewport::ExecuteTogglePostProcessChannelRed()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::RedChannel);
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-bool SAvaLevelViewport::IsPostProcessChannelGreenEnabled() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		// Make sure none is toggled on if there's an error.
-		return true;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return true;
-	}
-
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::GreenChannel;
-}
-
-bool SAvaLevelViewport::CanTogglePostProcessChannelGreen() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return false;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return false;
-	}
-
-	if (IsPostProcessChannelGreenEnabled())
-	{
-		return true;
-	}
-
-	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelGreenVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::GreenChannel))
-	{
-		return ChannelGreenVisualizer->CanActivate(/* bInSilent */ true);
-	}
-
-	return false;
-}
-
-void SAvaLevelViewport::ExecuteTogglePostProcessChannelGreen()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::GreenChannel);
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-bool SAvaLevelViewport::IsPostProcessChannelBlueEnabled() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		// Make sure none is toggled on if there's an error.
-		return true;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return true;
-	}
-
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::BlueChannel;
-}
-
-bool SAvaLevelViewport::CanTogglePostProcessChannelBlue() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return false;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return false;
-	}
-
-	if (IsPostProcessChannelBlueEnabled())
-	{
-		return true;
-	}
-
-	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelBlueVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::BlueChannel))
-	{
-		return ChannelBlueVisualizer->CanActivate(/* bInSilent */ true);
-	}
-
-	return false;
-}
-
-void SAvaLevelViewport::ExecuteTogglePostProcessChannelBlue()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::BlueChannel);
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-bool SAvaLevelViewport::IsPostProcessChannelAlphaEnabled() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		// Make sure none is toggled on if there's an error.
-		return true;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return true;
-	}
-
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::AlphaChannel;
-}
-
-bool SAvaLevelViewport::CanTogglePostProcessChannelAlpha() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return false;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return false;
-	}
-
-	if (IsPostProcessChannelAlphaEnabled())
-	{
-		return true;
-	}
-
-	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelAlphaVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::AlphaChannel))
-	{
-		return ChannelAlphaVisualizer->CanActivate(/* bInSilent */ true);
-	}
-
-	return false;
-}
-
-void SAvaLevelViewport::ExecuteTogglePostProcessChannelAlpha()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::AlphaChannel);
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-bool SAvaLevelViewport::IsPostProcessCheckerboardEnabled() const
-{
-	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
 	if (!ViewportClient.IsValid() || !ViewportClient->GetPostProcessManager().IsValid())
 	{
 		// Make sure none is toggled on if there's an error.
-		return true;
+		return (InPostProcessType == EAvaViewportPostProcessType::None);
 	}
 
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::Checkerboard;
+	return ViewportClient->GetPostProcessManager()->GetType() == InPostProcessType;
 }
 
-bool SAvaLevelViewport::CanTogglePostProcessCheckerboard() const
+bool SAvaLevelViewport::CanTogglePostProcessType(EAvaViewportPostProcessType InPostProcessType) const
 {
-	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
-	if (!ViewportClient.IsValid() || !ViewportClient->GetPostProcessManager().IsValid())
+	if (!ViewportClient.IsValid())
 	{
 		return false;
 	}
 
-	if (IsPostProcessCheckerboardEnabled())
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return false;
+	}
+
+	if (InPostProcessType == EAvaViewportPostProcessType::None)
 	{
 		return true;
 	}
 
-	if (const TSharedPtr<IAvaViewportPostProcessVisualizer> CheckerboardVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Checkerboard))
+	if (IsPostProcessTypeEnabled(InPostProcessType))
 	{
-		return CheckerboardVisualizer->CanActivate(/* bInSilent */ true);
+		return true;
+	}
+
+	if (TSharedPtr<IAvaViewportPostProcessVisualizer> Visualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(InPostProcessType))
+	{
+		return Visualizer->CanActivate(/* bInSilent */ true);
 	}
 
 	return false;
 }
 
-void SAvaLevelViewport::ExecuteTogglePostProcessCheckerboard()
+void SAvaLevelViewport::ExecuteTogglePostProcessType(EAvaViewportPostProcessType InPostProcessType)
 {
-	const TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
-	if (!ViewportClient.IsValid() || !ViewportClient->GetPostProcessManager().IsValid())
+	if (!ViewportClient.IsValid())
 	{
+		UE_LOG(AvaLevelViewportLog, Warning, TEXT("SAvaLevelViewport::ExecuteTogglePostProcessType: Invalid viewport client."));
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		UE_LOG(AvaLevelViewportLog, Warning, TEXT("SAvaLevelViewport::ExecuteTogglePostProcessType: Missing post process manager."));
 		return;
 	}
 
 	BeginPostProcessInfoTransaction();
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::Checkerboard);
+
+	ViewportClient->GetPostProcessManager()->SetType(InPostProcessType);
 	ViewportClient->Invalidate();
+
 	EndPostProcessInfoTransaction();
 }
 
@@ -765,3 +411,254 @@ void SAvaLevelViewport::ExecuteAddVerticalGuide()
 {
 	AddGuide(EOrientation::Orient_Vertical, 0.5f);
 }
+
+FString SAvaLevelViewport::GetBackgroundTextureObjectPath() const
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return "";
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return "";
+	}
+
+	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
+
+	if (!PostProcessInfo)
+	{
+		return "";
+	}
+
+	return PostProcessInfo->Texture.ToString();
+}
+
+void SAvaLevelViewport::OnBackgroundTextureChanged(const FAssetData& InAssetData)
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return;
+	}
+
+	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
+
+	if (!PostProcessInfo)
+	{
+		return;
+	}
+
+	BeginPostProcessInfoTransaction();
+
+	PostProcessInfo->Texture = Cast<UTexture>(InAssetData.GetAsset());
+	ViewportClient->GetPostProcessManager()->LoadPostProcessInfo();
+	ViewportClient->Invalidate();
+
+	EndPostProcessInfoTransaction();
+}
+
+float SAvaLevelViewport::GetBackgroundOpacity() const
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return 1.f;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return 1.f;
+	}
+
+	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
+
+	return ViewportClient->GetPostProcessManager()->GetOpacity();
+}
+
+void SAvaLevelViewport::BeginPostProcessInfoTransaction()
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	IAvaViewportDataProvider* DataProvider = ViewportClient->GetViewportDataProvider();
+
+	if (!DataProvider)
+	{
+		return;
+	}
+
+	UObject* DataObject = DataProvider->ToUObject();
+
+	if (!DataObject)
+	{
+		return;
+	}
+
+	if (!PostProcessInfoTransaction.IsValid())
+	{
+		PostProcessInfoTransaction = MakeShared<FScopedTransaction>(LOCTEXT("PostProcessSettingsChange", "Post Process Settings Change"));
+	}
+
+	DataObject->Modify();
+}
+
+void SAvaLevelViewport::EndPostProcessInfoTransaction()
+{
+	PostProcessInfoTransaction.Reset();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacitySliderBegin()
+{
+	BeginPostProcessInfoTransaction();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacitySliderEnd(float InValue)
+{
+	EndPostProcessInfoTransaction();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacityChanged(float InValue)
+{
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return;
+	}
+
+	ViewportClient->GetPostProcessManager()->SetOpacity(InValue);
+	ViewportClient->Invalidate();
+}
+
+void SAvaLevelViewport::OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
+{
+	if (InCommitType == ETextCommit::OnCleared)
+	{
+		return;
+	}
+
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
+
+	if (!ViewportClient.IsValid())
+	{
+		return;
+	}
+
+	if (!ViewportClient->GetPostProcessManager().IsValid())
+	{
+		return;
+	}
+
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		BeginPostProcessInfoTransaction();
+	}
+
+	ViewportClient->GetPostProcessManager()->SetOpacity(InValue);
+	ViewportClient->Invalidate();
+
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		EndPostProcessInfoTransaction();
+	}
+}
+
+FString SAvaLevelViewport::GetTextureOverlayTextureObjectPath() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->TextureOverlayTexture.ToString();
+	}
+
+	return "";
+}
+
+void SAvaLevelViewport::OnTextureOverlayTextureChanged(const FAssetData& InAssetData)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayTexture = Cast<UTexture>(InAssetData.GetAsset());
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayTexture));
+		AvaViewportSettings->SaveConfig();
+	}
+}
+
+float SAvaLevelViewport::GetTextureOverlayOpacity() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->TextureOverlayOpacity;
+	}
+
+	return 0.f;
+}
+
+void SAvaLevelViewport::OnTextureOverlayOpacitySliderEnd(float InValue)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayOpacity = InValue;
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayOpacity));
+		AvaViewportSettings->SaveConfig();
+	}
+}
+
+void SAvaLevelViewport::OnTextureOverlayOpacityChanged(float InValue)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayOpacity = InValue;
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayOpacity));
+	}
+}
+
+void SAvaLevelViewport::OnTextureOverlayOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->TextureOverlayOpacity = InValue;
+		AvaViewportSettings->BroadcastSettingChanged(GET_MEMBER_NAME_CHECKED(UAvaViewportSettings, TextureOverlayOpacity));
+		AvaViewportSettings->SaveConfig();
+	}
+}
+
+bool SAvaLevelViewport::CanToggleTextureOverlay() const
+{
+	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
+	{
+		return AvaViewportSettings->bEnableViewportOverlay;
+	}
+
+	return false;
+}
+
+void SAvaLevelViewport::ExecuteToggleTextureOverlay()
+{
+	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
+	{
+		AvaViewportSettings->bEnableTextureOverlay = !AvaViewportSettings->bEnableTextureOverlay;
+		AvaViewportSettings->SaveConfig();
+		ApplySettings(AvaViewportSettings);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

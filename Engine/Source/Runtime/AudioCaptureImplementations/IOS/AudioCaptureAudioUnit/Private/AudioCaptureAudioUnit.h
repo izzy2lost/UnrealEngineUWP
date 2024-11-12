@@ -40,5 +40,6 @@ namespace Audio
 		int BufferSize = 0;
 		bool bIsStreamOpen;
 		bool bHasCaptureStarted;
+		bool bIsHardwareVoiceProcessingSupported;
 	};
 }

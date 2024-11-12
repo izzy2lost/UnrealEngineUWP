@@ -30,6 +30,7 @@
 #include "Lumen/LumenTracingUtils.h"
 #include "Lumen/LumenSceneLighting.h"
 #include "Lumen/LumenReflections.h"
+#include "MegaLights/MegaLights.h"
 
 // This is the project default dynamic global illumination, NOT the scalability setting (see r.Lumen.DiffuseIndirect.Allow for scalability)
 // Must match EDynamicGlobalIlluminationMethod
@@ -391,6 +392,12 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_GLINTS_IS"), 0);
 		OutEnvironment.CompilerFlags.Add(CFLAG_StandardOptimization);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+
+		// FXC is too slow at compiling Substrate lighting shaders
+		if (Substrate::IsSubstrateEnabled() && FDataDrivenShaderPlatformInfo::GetSupportsDxc(Parameters.Platform))
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		}
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -470,59 +477,65 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		EReflectionsMethod ReflectionsMethod = EReflectionsMethod::Disabled;
 		EReflectionsMethod ReflectionsMethodWater = EReflectionsMethod::Disabled;
 		IScreenSpaceDenoiser::EMode DiffuseIndirectDenoiser = IScreenSpaceDenoiser::EMode::Disabled;
+		bool bHasPlanarReflections = false;
 
-		if (ShouldRenderLumenDiffuseGI(Scene, View))
+		if (ViewFamily.EngineShowFlags.Lighting)
 		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::Lumen;
-		}
-		else if (ScreenSpaceRayTracing::IsScreenSpaceDiffuseIndirectSupported(View))
-		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::SSGI;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
-		else if (ShouldRenderPluginGlobalIllumination(View))
-		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::Plugin;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
+			if (ShouldRenderLumenDiffuseGI(Scene, View))
+			{
+				DiffuseIndirectMethod = EDiffuseIndirectMethod::Lumen;
+			}
+			else if (ScreenSpaceRayTracing::IsScreenSpaceDiffuseIndirectSupported(View))
+			{
+				DiffuseIndirectMethod = EDiffuseIndirectMethod::SSGI;
+				DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
+			}
+			else if (ShouldRenderPluginGlobalIllumination(View))
+			{
+				DiffuseIndirectMethod = EDiffuseIndirectMethod::Plugin;
+				DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
+			}
 		
-		const bool bLumenWantsSSAO = DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && ShouldRenderAOWithLumenGI();
+			const bool bLumenWantsSSAO = DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && ShouldRenderAOWithLumenGI();
 
-		if (DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
-		{
-			AmbientOcclusionMethod = EAmbientOcclusionMethod::SSGI;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
-		else if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen || bLumenWantsSSAO)
-		{
-			extern bool ShouldRenderScreenSpaceAmbientOcclusion(const FViewInfo& View, bool bLumenWantsSSAO);
-
-			if (ShouldRenderRayTracingAmbientOcclusion(View) && (Views.Num() == 1) && !bLumenWantsSSAO)
+			if (DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
 			{
-				AmbientOcclusionMethod = EAmbientOcclusionMethod::RTAO;
+				AmbientOcclusionMethod = EAmbientOcclusionMethod::SSGI;
+				DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
 			}
-			else if (ShouldRenderScreenSpaceAmbientOcclusion(View, bLumenWantsSSAO))
+			else if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen || bLumenWantsSSAO)
 			{
-				AmbientOcclusionMethod = EAmbientOcclusionMethod::SSAO;
+				extern bool ShouldRenderScreenSpaceAmbientOcclusion(const FViewInfo& View, bool bLumenWantsSSAO);
+
+				if (ShouldRenderRayTracingAmbientOcclusion(View) && (Views.Num() == 1) && !bLumenWantsSSAO)
+				{
+					AmbientOcclusionMethod = EAmbientOcclusionMethod::RTAO;
+				}
+				else if (ShouldRenderScreenSpaceAmbientOcclusion(View, bLumenWantsSSAO))
+				{
+					AmbientOcclusionMethod = EAmbientOcclusionMethod::SSAO;
+				}
 			}
-		}
+		
+			if (ShouldRenderLumenReflections(View))
+			{
+				ReflectionsMethod = EReflectionsMethod::Lumen;
+			}
+			else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View))
+			{
+				ReflectionsMethod = EReflectionsMethod::SSR;
+			}
 
-		if (ShouldRenderLumenReflections(View))
-		{
-			ReflectionsMethod = EReflectionsMethod::Lumen;
-		}
-		else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View))
-		{
-			ReflectionsMethod = EReflectionsMethod::SSR;
-		}
+			if (ShouldRenderLumenReflectionsWater(View))
+			{
+				ReflectionsMethodWater = EReflectionsMethod::Lumen;
+			}
+			else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflectionsWater(View))
+			{
+				ReflectionsMethodWater = EReflectionsMethod::SSR;
+			}
 
-		if (ShouldRenderLumenReflectionsWater(View))
-		{
-			ReflectionsMethodWater = EReflectionsMethod::Lumen;
-		}
-		else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflectionsWater(View))
-		{
-			ReflectionsMethodWater = EReflectionsMethod::SSR;
+			bHasPlanarReflections = HasDeferredPlanarReflections(View);
 		}
 
 		ViewPipelineState.Set(&FPerViewPipelineState::DiffuseIndirectMethod, DiffuseIndirectMethod);
@@ -531,7 +544,7 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		ViewPipelineState.Set(&FPerViewPipelineState::ReflectionsMethod, ReflectionsMethod);
 		ViewPipelineState.Set(&FPerViewPipelineState::ReflectionsMethodWater, ReflectionsMethodWater);
 
-		ViewPipelineState.Set(&FPerViewPipelineState::bComposePlanarReflections, HasDeferredPlanarReflections(View));
+		ViewPipelineState.Set(&FPerViewPipelineState::bComposePlanarReflections, bHasPlanarReflections);
 	}
 }
 
@@ -646,7 +659,7 @@ bool ShouldRenderPluginRayTracingGlobalIllumination(const FViewInfo& View)
 	FGlobalIlluminationPluginDelegates::FAnyRayTracingPassEnabled& Delegate = FGlobalIlluminationPluginDelegates::AnyRayTracingPassEnabled();
 	Delegate.Broadcast(bAnyRayTracingPassEnabled);
 
-	return ShouldRenderRayTracingEffect(bAnyRayTracingPassEnabled, ERayTracingPipelineCompatibilityFlags::FullPipeline, &View);
+	return ShouldRenderRayTracingEffect(bAnyRayTracingPassEnabled, ERayTracingPipelineCompatibilityFlags::FullPipeline, View);
 }
 
 void FDeferredShadingSceneRenderer::PrepareRayTracingGlobalIlluminationPlugin(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
@@ -862,7 +875,8 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 	FCompositionLighting& CompositionLighting,
 	FSceneTextures& SceneTextures,
 	FInstanceCullingManager& InstanceCullingManager,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FDynamicShadowsTaskData* DynamicShadowsTaskData,
 	FRDGTextureRef LightingChannelsTexture,
 	bool bHasLumenLights,
 	FAsyncLumenIndirectLightingOutputs& Outputs)
@@ -882,8 +896,23 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 	}
 
 	// Decals may modify GBuffers so they need to be done first. Can decals read velocities and/or custom depth? If so, they need to be rendered earlier too.
-	CompositionLighting.ProcessAfterBasePass(GraphBuilder, InstanceCullingManager, FCompositionLighting::EProcessAfterBasePassMode::OnlyBeforeLightingDecals);
+	CompositionLighting.ProcessAfterBasePass(GraphBuilder, InstanceCullingManager, FCompositionLighting::EProcessAfterBasePassMode::OnlyBeforeLightingDecals, Scene->SubstrateSceneData);
 	Outputs.bHasDrawnBeforeLightingDecals = true;
+
+	if (DynamicShadowsTaskData)
+	{
+		for (const FViewInfo& View : Views)
+		{
+			const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
+
+			// Write shadow GPU instance data prior to launching async compute tasks to avoid the early join back to graphics.
+			if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
+			{
+				FinishDynamicShadowMeshPassSetup(GraphBuilder, DynamicShadowsTaskData);
+				break;
+			}
+		}
+	}
 
 	LLM_SCOPE_BYTAG(Lumen);
 	RDG_EVENT_SCOPE(GraphBuilder, "DiffuseIndirectAndAO");
@@ -930,8 +959,6 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 					nullptr,
 					nullptr,
 					ERDGPassFlags::AsyncCompute);
-
-				StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
 			}
 
 		}
@@ -941,7 +968,7 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 	FRDGBuilder& GraphBuilder,
 	FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	FRDGTextureRef LightingChannelsTexture,
 	bool bHasLumenLights,
 	bool bCompositeRegularLumenOnly,
@@ -1094,11 +1121,6 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 				OutTextures.Textures[3] = SystemTextures.Black;
 			}
 
-			if (EnumHasAnyFlags(StepsLeft, ELumenIndirectLightingSteps::StoreDepthHistory))
-			{
-				StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
-			}
-
 			if (!bDoComposite)
 			{
 				continue;
@@ -1127,12 +1149,27 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			Delegate.Broadcast(*Scene, View, GraphBuilder, GIPluginResources);
 		}
 
-		// Free Lumen view state resources when no longer enabled, ie scalability change
-		if (ViewPipelineState.DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen 
-			&& ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen
-			&& View.ViewState)
+		// Free view state resources when no longer enabled, ie scalability change
+		if (View.ViewState)
 		{
-			View.ViewState->Lumen.SafeRelease();
+			const bool bLumen = View.ViewState
+				&& (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen);
+			const bool bMegaLights = View.ViewState && MegaLights::IsEnabled(ViewFamily);
+
+			if (!bLumen)
+			{
+				View.ViewState->Lumen.SafeRelease();
+			}
+
+			if (!bMegaLights)
+			{
+				View.ViewState->MegaLights.SafeRelease();
+			}
+
+			if (!bLumen && !bMegaLights)
+			{
+				View.ViewState->StochasticLighting.SafeRelease();
+			}
 		}
 
 		FRDGTextureRef AmbientOcclusionMask = DenoiserInputs.AmbientOcclusionMask;
@@ -1460,7 +1497,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 						View.ViewRect.Width(), View.ViewRect.Height()), 
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, PassParameters,PixelShader, BlendState, bUseDepthBounds](FRHICommandList& RHICmdList)
+					[&View, PassParameters,PixelShader, BlendState, bUseDepthBounds](FRDGAsyncTask, FRHICommandList& RHICmdList)
 					{
 						check(PixelShader.IsValid());
 						RHICmdList.SetViewport((float)View.ViewRect.Min.X, (float)View.ViewRect.Min.Y, 0.0f, (float)View.ViewRect.Max.X, (float)View.ViewRect.Max.Y, 1.0f);
@@ -1522,7 +1559,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 						View.ViewRect.Width(), View.ViewRect.Height()),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, TileVertexShader, PixelShader, PassParameters, TileType, BlendState, PrimitiveType](FRHICommandList& RHICmdList)
+					[&View, TileVertexShader, PixelShader, PassParameters, TileType, BlendState, PrimitiveType](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -1611,7 +1648,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 					RDG_EVENT_NAME("AmbientCubemapComposite(%dx%d%s%s)", View.ViewRect.Width(), View.ViewRect.Height(), bSubstrateEnabled ? TEXT(",") : TEXT(""), bSubstrateEnabled ? ToString(TileType) : TEXT("")),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, &View, FullScreenVertexShader, TileVertexShader, PixelShader, PrimitiveType, TileType, bSubstrateEnabled](FRHICommandList& RHICmdList)
+					[PassParameters, &View, FullScreenVertexShader, TileVertexShader, PixelShader, PrimitiveType, TileType, bSubstrateEnabled](FRDGAsyncTask, FRHICommandList& RHICmdList)
 				{				
 					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 0.0);
 
@@ -1658,7 +1695,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 								EDRF_UseTriangleOptimization);
 						}
 					}
-				});				
+				});
 			};
 
 			if (Substrate::IsSubstrateEnabled())
@@ -1837,7 +1874,7 @@ static void AddSkyReflectionPass(
 		PassParameters,
 		ERDGPassFlags::Raster,
 		[PassParameters, &View, PixelShader, bCheckerboardSubsurfaceRendering, SubstrateTileMaterialType,
-		SubstrateTilePassVertexShader, bSubstrateEnabled, SubstrateTilePrimitiveType](FRHICommandList& InRHICmdList)
+		SubstrateTilePassVertexShader, bSubstrateEnabled, SubstrateTilePrimitiveType](FRDGAsyncTask, FRHICommandList& InRHICmdList)
 	{
 		InRHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -1905,7 +1942,7 @@ static void AddSkyReflectionPass(
 void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 	TArray<FRDGTextureRef>& DynamicBentNormalAOTextures)
 {
 	extern int32 GLumenVisualizeIndirectDiffuse;
@@ -1940,7 +1977,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 	bool bApplySkyShadowing = false;
 	if (bDynamicSkyLight)
 	{
-		RDG_EVENT_SCOPE(GraphBuilder, "SkyLightDiffuse");
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, SkyLightDiffuse, "SkyLightDiffuse");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, SkyLightDiffuse);
 
 		extern int32 GDistanceFieldAOApplyToStaticIndirect;
@@ -2002,8 +2039,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 				nullptr,
 				nullptr,
 				ERDGPassFlags::Compute);
-
-			StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
 		}
 		else if (ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR)
 		{
@@ -2086,6 +2121,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 
 		if (bRequiresApply)
 		{
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, ReflectionEnvironment, "ReflectionEnvironment");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, ReflectionEnvironment);
 
 			FRDGTextureRef DynamicBentNormalAOTexture = DynamicBentNormalAOTextures.IsEmpty() ? nullptr : DynamicBentNormalAOTextures[CurrentViewIndex];

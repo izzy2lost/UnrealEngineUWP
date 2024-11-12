@@ -33,7 +33,7 @@ namespace Private
 		//    can help reduce strobing
 
 		// NOTE: Tiling is not compatible with the reference motion blur mode because it changes the order of the loops over the image.
-		const bool bHasTiles = InCameraInfo.TilingParams.TileCount.X > 1 || InCameraInfo.TilingParams.TileCount.Y;
+		const bool bHasTiles = InCameraInfo.TilingParams.TileCount.X * InCameraInfo.TilingParams.TileCount.Y > 1;
 		const bool bAccumulateSpatialSamplesOnly = InOutFamily->EngineShowFlags.MotionBlur || bHasTiles;
 
 		OutSampleCount = bAccumulateSpatialSamplesOnly ? InCameraInfo.SamplingParams.SpatialSampleCount : InCameraInfo.SamplingParams.TemporalSampleCount * InCameraInfo.SamplingParams.SpatialSampleCount;
@@ -42,7 +42,10 @@ namespace Private
 }
 
 bool FMovieGraphPathTracerPass::ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
-{ 
+{
+	// We intentionally skip calling the super because it discards any samples not done during Rendering state,
+	// but we need to not skip the results due to Temporal Denoising cooldown frames.
+
 	int32 SampleCount, SampleIndex;
 	Private::GetSampleData(InFamily, InCameraInfo, SampleCount, SampleIndex);
 
@@ -64,9 +67,46 @@ void FMovieGraphPathTracerPass::ApplyMovieGraphOverridesToSceneView(TSharedRef<F
 	FSceneView* View = const_cast<FSceneView*>(InOutFamily->Views[0]);
 	View->FinalPostProcessSettings.bOverride_PathTracingSamplesPerPixel = true;
 	View->FinalPostProcessSettings.PathTracingSamplesPerPixel = SampleCount;
+
+	// If we are using reference motion blur, also force the use of reference DOF (as the post-processed DOF cannot behave well with motion blurred input)
+	// TODO: Is there a way to directly access bEnableReferenceMotionBlur from here?
+	const bool bHasTiles = InCameraInfo.TilingParams.TileCount.X * InCameraInfo.TilingParams.TileCount.Y > 1;
+	const bool bAccumulateSpatialSamplesOnly = InOutFamily->EngineShowFlags.MotionBlur || bHasTiles;
+	if (!bAccumulateSpatialSamplesOnly)
+	{
+		View->FinalPostProcessSettings.bOverride_PathTracingEnableReferenceDOF = true;
+		View->FinalPostProcessSettings.PathTracingEnableReferenceDOF = true;
+	}
+
+	// Update the post processing settings if the node has overridden any of them
+	if (const UMovieGraphPathTracerRenderPassNode* PathTracerNode = Cast<UMovieGraphPathTracerRenderPassNode>(GetParentNode(InInitData.TimeData.EvaluatedConfig)))
+	{
+#define OVERRIDE_COMPONENT(ComponentName) \
+		if (PathTracerNode->bOverride_bLightingComponents_Include##ComponentName) \
+		{ \
+			View->FinalPostProcessSettings.bOverride_PathTracingInclude##ComponentName = true; \
+			View->FinalPostProcessSettings.PathTracingInclude##ComponentName = PathTracerNode->bLightingComponents_Include##ComponentName; \
+		} \
 		
+		OVERRIDE_COMPONENT(Emissive);
+		OVERRIDE_COMPONENT(Diffuse);
+		OVERRIDE_COMPONENT(IndirectDiffuse);
+		OVERRIDE_COMPONENT(Specular);
+		OVERRIDE_COMPONENT(IndirectSpecular);
+		OVERRIDE_COMPONENT(Volume);
+		OVERRIDE_COMPONENT(IndirectVolume);
+		
+#undef OVERRIDE_COMPONENT
+	}
+	
 	// reset path tracer's accumulation at the start of each sample
 	View->bForcePathTracerReset = SampleIndex == 0;
+}
+
+void FMovieGraphPathTracerPass::ApplyMovieGraphOverridesToSampleState(FMovieGraphSampleState& SampleState) const
+{
+	// Cancel out the subpixel shift because the path tracer does its own anti-aliasing
+	SampleState.OverlappedSubpixelShift = FVector2D(0.5, 0.5);
 }
 
 } // UE::MovieGraph::Rendering

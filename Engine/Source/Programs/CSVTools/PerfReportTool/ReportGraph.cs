@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using CSVStats;
 using System;
+using System.Collections.Generic;
 using System.Xml.Linq;
 
 namespace PerfReportTool
@@ -111,6 +113,46 @@ namespace PerfReportTool
 				settings = new GraphSettings(element, vars);
 			}
 		}
+
+		public bool ShouldShow(CsvStats stats)
+		{
+			bool bFoundStat = false;
+			foreach (string statString in settings.statString.value.Split(','))
+			{
+				List<StatSamples> matchingStats = stats.GetStatsMatchingString(statString);
+				if (matchingStats.Count > 0)
+				{
+					bFoundStat = true;
+					break;
+				}
+			}
+			if ( !bFoundStat ) 
+			{
+				return false;
+			}
+
+			if (settings.requiredEvents.isSet)
+			{
+				string[] requiredEvents = settings.requiredEvents.value.Split(',');
+				foreach (string requiredEvent in requiredEvents)
+				{
+					bool bFoundEvent = false;
+					foreach (CsvEvent ev in stats.Events)
+					{
+						if (CsvStats.DoesSearchStringMatch(requiredEvent, ev.Name))
+						{
+							bFoundEvent = true;
+							break;
+						}
+					}
+					if (!bFoundEvent)
+					{
+						return false;
+					}
+				}
+			}
+			return true;
+		}
 		public string title;
 		public Optional<double> budget;
 		public bool inSummary;
@@ -155,6 +197,13 @@ namespace PerfReportTool
 			legendAverageThreshold = new Optional<double>(element, "legendAverageThreshold", vars);
 			snapToPeaks = new Optional<bool>(element, "snapToPeaks", vars);
 			lineDecimalPlaces = new Optional<int>(element, "lineDecimalPlaces", vars);
+
+			startEvent = new OptionalString(element, "startEvent", false, vars);
+			startEventOffset = new Optional<int>(element, "startEventOffset", vars);
+			endEvent = new OptionalString(element, "endEvent", false, vars);
+			endEventOffset = new Optional<int>(element, "endEventOffset", vars);
+
+			requiredEvents = new OptionalString(element, "requiredEvents", false, vars);
 		}
 		public void InheritFrom(GraphSettings baseSettings)
 		{
@@ -187,7 +236,11 @@ namespace PerfReportTool
 			legendAverageThreshold.InheritFrom(baseSettings.legendAverageThreshold);
 			snapToPeaks.InheritFrom(baseSettings.snapToPeaks);
 			lineDecimalPlaces.InheritFrom(baseSettings.lineDecimalPlaces);
-
+			startEvent.InheritFrom(baseSettings.startEvent);
+			startEventOffset.InheritFrom(baseSettings.startEventOffset);
+			endEvent.InheritFrom(baseSettings.endEvent);
+			endEventOffset.InheritFrom(baseSettings.endEventOffset);
+			requiredEvents.InheritFrom(baseSettings.requiredEvents);
 		}
 		public Optional<bool> smooth;
 		public OptionalString statString;
@@ -219,6 +272,13 @@ namespace PerfReportTool
 		public Optional<bool> requiresDetailedStats;
 		public Optional<bool> snapToPeaks;
 		public Optional<int> lineDecimalPlaces;
+
+		public OptionalString startEvent;
+		public Optional<int> startEventOffset;
+		public OptionalString endEvent;
+		public Optional<int> endEventOffset;
+
+		public OptionalString requiredEvents;
 
 	};
 

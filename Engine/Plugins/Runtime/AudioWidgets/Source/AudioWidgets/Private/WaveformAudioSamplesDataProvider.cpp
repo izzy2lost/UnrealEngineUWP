@@ -76,12 +76,14 @@ namespace AudioWidgets
 		}
 
 		// Init audio buffers
-		TimeWindowMaxTimeSamples = FMath::RoundToInt(InMaxTimeWindowMs / 1000.0f * NumChannelsToProvide * SampleRate);
+		MaxTimeWindowMs = InMaxTimeWindowMs;
 
-		AudioSamplesForView.Init(0.0f, TimeWindowMaxTimeSamples);
+		const float MaxTimeWindowSamples = FMath::RoundToInt(MaxTimeWindowMs / 1000.0f * NumChannelsToProvide * SampleRate);
+
+		AudioSamplesForView.Init(0.0f, MaxTimeWindowSamples);
 		DataView = FFixedSampledSequenceView{ MakeArrayView(AudioSamplesForView.GetData(), AudioSamplesForView.Num()), NumChannelsToProvide, SampleRate };
 
-		AudioSamplesCircularBuffer.SetCapacity(TimeWindowMaxTimeSamples * 2); // Twice of the amount needed for display 
+		AudioSamplesCircularBuffer.SetCapacity(MaxTimeWindowSamples * 2); // Twice of the amount needed for display 
 
 		SetTimeWindow(InTimeWindowMs);
 		SetAnalysisPeriod(InAnalysisPeriodMs);
@@ -101,10 +103,12 @@ namespace AudioWidgets
 
 	void FWaveformAudioSamplesDataProvider::ResetAudioBuffers()
 	{
-		AudioSamplesCircularBuffer.Reset(TimeWindowMaxTimeSamples * 2);
-		AudioSamplesForView.Init(0.0f, AudioSamplesForView.Num());
+		const float MaxTimeWindowSamples = FMath::RoundToInt(MaxTimeWindowMs / 1000.0f * NumChannelsToProvide * SampleRate);
 
-		AudioSamplesCircularBuffer.SetNum(TimeWindowSamples);
+		AudioSamplesCircularBuffer.Reset(MaxTimeWindowSamples * 2);
+		AudioSamplesForView.Init(0.0f, MaxTimeWindowSamples);
+
+		AudioSamplesCircularBuffer.SetNum(FMath::Clamp(TimeWindowSamples, 0.0f, MaxTimeWindowSamples));
 	}
 
 	void FWaveformAudioSamplesDataProvider::StartProcessing()
@@ -145,10 +149,21 @@ namespace AudioWidgets
 		}
 	}
 
+	void FWaveformAudioSamplesDataProvider::SetMaxTimeWindowMs(const float InMaxTimeWindowMs)
+	{
+		MaxTimeWindowMs = InMaxTimeWindowMs;
+		ResetAudioBuffers();
+	}
+
 	void FWaveformAudioSamplesDataProvider::SetChannelToAnalyze(const int32 InChannel)
 	{
-		ChannelIndexToAnalyze = InChannel - 1;
-		ResetAudioBuffers();
+		const int32 ChannelIndex = InChannel - 1;
+
+		if (ChannelIndex != ChannelIndexToAnalyze)
+		{
+			ChannelIndexToAnalyze = ChannelIndex;
+			ResetAudioBuffers();
+		}
 	}
 
 	void FWaveformAudioSamplesDataProvider::SetTriggerMode(const EAudioOscilloscopeTriggerMode InTriggerMode)

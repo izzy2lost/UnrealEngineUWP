@@ -50,7 +50,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Disconnect the device.
 		/// </summary>
-		/// <param name="Force">If supported force the device into a disconnected state (e.g. kick other users) </param>
+		/// <param name="bForce">If supported force the device into a disconnected state (e.g. kick other users) </param>
 		/// <returns></returns>
 		bool Disconnect(bool bForce=false);
 
@@ -104,6 +104,11 @@ namespace Gauntlet
 		void CleanArtifacts();
 
 		/// <summary>
+		/// Local cache path
+		/// </summary>
+		string LocalCachePath { get; }
+
+		/// <summary>
 		/// Installs a build to the device
 		/// </summary>
 		/// <param name="AppConfiguration">The configuration containing the build to install</param>
@@ -122,24 +127,7 @@ namespace Gauntlet
 		/// <param name="FilesToCopy">The collection of files to copy</param>
 		void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy);
 
-		/// End new flow ///
-
-		/// <summary>
-		/// Path to the crash dumps on a device
-		/// </summary>
-		string CrashDumpPath
-		{
-			get
-			{
-				return Path.Combine(Globals.TempDir, "CrashDumps", Platform.ToString() + "_" + Name);
-			}
-		}
-
-		/// <summary>
-		/// Ensures the crash dump copy has occurred already - and does the copy if it hasn't happened yet
-		/// Returns true if there were any crash dumps for the run, and false otherwise
-		/// </summary>
-		bool CopyCrashDumps() { return false; }
+		// End new flow //
 	};
 
 	/// <summary>

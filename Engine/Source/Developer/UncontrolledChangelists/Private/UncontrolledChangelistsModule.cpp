@@ -51,7 +51,7 @@ void FUncontrolledChangelistsModule::FStartupTask::DoWork()
 		Owner->OnAssetAddedInternal(AssetData, AddedAssetsCache, true);
 	}
 	
-	UE_LOG(LogSourceControl, Log, TEXT("Uncontrolled asset enumeration finished in %s seconds (Found %d uncontrolled assets)"), *FString::SanitizeFloat(FPlatformTime::Seconds() - StartTime), AddedAssetsCache.Num());
+	UE_LOG(LogSourceControl, Log, TEXT("Uncontrolled asset enumeration finished in %s seconds (Found %d uncontrolled assets)"), *FString::SanitizeFloat(FPlatformTime::Seconds() - StartTime), AddedAssetsCache.Num());;
 }
 
 void FUncontrolledChangelistsModule::StartupModule()
@@ -90,6 +90,27 @@ void FUncontrolledChangelistsModule::StartupModule()
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 		OnAssetAddedDelegateHandle = AssetRegistry.OnAssetAdded().AddLambda([](const struct FAssetData& AssetData) { Get().OnAssetAdded(AssetData); });
+	
+		OnEnginePreExitDelegateHandle = FCoreDelegates::OnEnginePreExit.AddLambda([this]()
+			{
+				if (StartupTask.IsValid())
+				{
+					if (StartupTask->Cancel())
+					{
+						UE_LOG(LogSourceControl, Log, TEXT("UncontrolledChangelistsModule start up task was cancelled due to engine exit"));
+					}
+					else  if (!StartupTask->IsDone())
+					{
+						const double StartTime = FPlatformTime::Seconds();
+
+						UE_LOG(LogSourceControl, Log, TEXT("Waiting on UncontrolledChangelistsModule start up task to complete..."));
+						StartupTask->EnsureCompletion();
+						UE_LOG(LogSourceControl, Log, TEXT("UncontrolledChangelistsModule start up task finished, exit was stalled for %.1f(s)"), FPlatformTime::Seconds() - StartTime);
+					}
+
+					StartupTask.Reset();
+				}
+			});
 	}));
 
 }
@@ -99,11 +120,7 @@ void FUncontrolledChangelistsModule::ShutdownModule()
 	// This will make sure callback for initial scan early outs if module was shutdown
 	InitialScanEvent = nullptr;
 
-	if (StartupTask)
-	{
-		StartupTask->EnsureCompletion();
-		StartupTask = nullptr;
-	}
+	checkf(StartupTask == nullptr, TEXT("The startup task should be cleaned up when OnEnginePreExit is called at the latest"));
 
 	if (bIsStateDirty)
 	{
@@ -118,9 +135,16 @@ void FUncontrolledChangelistsModule::ShutdownModule()
 	{
 		AssetRegistryModulePtr->Get().OnAssetAdded().Remove(OnAssetAddedDelegateHandle);
 	}
+	OnAssetAddedDelegateHandle.Reset();
 
 	FCoreUObjectDelegates::OnObjectPreSave.Remove(OnObjectPreSavedDelegateHandle);
+	OnObjectPreSavedDelegateHandle.Reset();
+
 	FCoreDelegates::OnEndFrame.Remove(OnEndFrameDelegateHandle);
+	OnEndFrameDelegateHandle.Reset();
+
+	FCoreDelegates::OnEnginePreExit.Remove(OnEnginePreExitDelegateHandle);
+	OnEnginePreExitDelegateHandle.Reset();
 }
 
 bool FUncontrolledChangelistsModule::IsEnabled() const
@@ -728,8 +752,10 @@ FUncontrolledChangelistStateRef FUncontrolledChangelistsModule::GetDefaultUncont
 	return UncontrolledChangelistsStateCache.Emplace(MoveTemp(DefaultUncontrolledChangelist), MakeShared<FUncontrolledChangelistState>(DefaultUncontrolledChangelist, FUncontrolledChangelistState::DEFAULT_UNCONTROLLED_CHANGELIST_DESCRIPTION));
 }
 
-void FUncontrolledChangelistsModule::SaveState() const
+void FUncontrolledChangelistsModule::SaveState()
 {
+	SanitizeState();
+
 	TSharedPtr<FJsonObject> RootObject = MakeShareable(new FJsonObject);
 	TArray<TSharedPtr<FJsonValue>> UncontrolledChangelistsArray;
 
@@ -813,7 +839,53 @@ void FUncontrolledChangelistsModule::LoadState()
 		UncontrolledChangelistState->Deserialize(JsonObject);
 	}
 
+	SanitizeState();
+
 	UE_LOG(LogSourceControl, Display, TEXT("Uncontrolled Changelist persistency file loaded %s"), *GetPersistentFilePath());
+}
+
+void FUncontrolledChangelistsModule::SanitizeState()
+{
+	TSet<FString> AllFiles;
+
+	for (const TPair<FUncontrolledChangelist, FUncontrolledChangelistStateRef>& Pair : UncontrolledChangelistsStateCache)
+	{
+		FUncontrolledChangelistStateRef UncontrolledChangelistState = Pair.Value;
+
+		// UncontrolledChangelistState->Files
+		{
+			for (TSet<FSourceControlStateRef>::TIterator FileStateIt = UncontrolledChangelistState->Files.CreateIterator(); FileStateIt; ++FileStateIt)
+			{
+				if (AllFiles.Contains((*FileStateIt)->GetFilename()))
+				{
+					FileStateIt.RemoveCurrent();
+				}
+				else
+				{
+					AllFiles.Add((*FileStateIt)->GetFilename());
+				}
+			}
+
+		}
+
+		auto RemoveDuplicateFiles = [&AllFiles](TSet<FString>& Files)
+		{
+			for (TSet<FString>::TIterator FileIt = Files.CreateIterator(); FileIt; ++FileIt)
+			{
+				if (AllFiles.Contains(*FileIt))
+				{
+					FileIt.RemoveCurrent();
+				}
+				else
+				{
+					AllFiles.Add(*FileIt);
+				}
+			}
+		};
+
+		RemoveDuplicateFiles(UncontrolledChangelistState->OfflineFiles);
+		RemoveDuplicateFiles(UncontrolledChangelistState->DeletedOfflineFiles);
+	}
 }
 
 FString FUncontrolledChangelistsModule::GetPersistentFilePath() const

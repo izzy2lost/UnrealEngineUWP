@@ -21,6 +21,8 @@
 #include "GroomEditorViewportToolBar.h"
 #include "GroomVisualizationMenuCommands.h"
 #include "EditorViewportCommands.h"
+#include "AssetViewerSettings.h"
+#include "Editor/EditorPerProjectUserSettings.h"
 
 #define LOCTEXT_NAMESPACE "SGroomEditorViewport"
 
@@ -31,7 +33,10 @@ class FGroomEditorViewportClient : public FEditorViewportClient
 {
 public:
 	FGroomEditorViewportClient(FAdvancedPreviewScene& InPreviewScene, const TSharedRef<SGroomEditorViewport>& InGroomEditorViewport);
-	
+	virtual ~FGroomEditorViewportClient() override;
+
+	void OnAssetViewerSettingsChanged(const FName& InPropertyName);
+
 	// FEditorViewportClient interface
 	virtual FLinearColor GetBackgroundColor() const override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -44,6 +49,7 @@ public:
 	virtual bool CanCycleWidgetMode() const override { return false; }
 
 	void SetShowGrid(bool bShowGrid);
+	void SetAdvancedShowFlagsForScene(const bool bAdvancedShowFlags);
 
 	virtual void SetIsSimulateInEditorViewport(bool bInIsSimulateInEditorViewport)override;
 	
@@ -77,6 +83,50 @@ FGroomEditorViewportClient::FGroomEditorViewportClient(FAdvancedPreviewScene& In
 
 	//This seems to be needed to get the correct world time in the preview.
 	SetIsSimulateInEditorViewport(true);	
+
+	// Register delegate to update the show flags when the post-processing is turned on or off
+	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().AddRaw(this, &FGroomEditorViewportClient::OnAssetViewerSettingsChanged);
+
+	UEditorPerProjectUserSettings* PerProjectSettings = GetMutableDefault<UEditorPerProjectUserSettings>();
+	UAssetViewerSettings* DefaultSettings = UAssetViewerSettings::Get();
+	PerProjectSettings->AssetViewerProfileIndex = DefaultSettings->Profiles.IsValidIndex(PerProjectSettings->AssetViewerProfileIndex) ? PerProjectSettings->AssetViewerProfileIndex : 0;
+
+	FAdvancedPreviewScene* PreviewSceneCasted = static_cast<FAdvancedPreviewScene*>(PreviewScene);
+	PreviewSceneCasted->SetProfileIndex(PerProjectSettings->AssetViewerProfileIndex);
+
+	// Set correct flags according to current profile settings
+	SetAdvancedShowFlagsForScene(UAssetViewerSettings::Get()->Profiles[PerProjectSettings->AssetViewerProfileIndex].bPostProcessingEnabled);
+}
+
+FGroomEditorViewportClient::~FGroomEditorViewportClient()
+{
+	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().RemoveAll(this);
+}
+
+void FGroomEditorViewportClient::OnAssetViewerSettingsChanged(const FName& InPropertyName)
+{
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(FPreviewSceneProfile, bPostProcessingEnabled) || InPropertyName == NAME_None)
+	{
+		FAdvancedPreviewScene* PreviewSceneCasted = static_cast<FAdvancedPreviewScene*>(PreviewScene);
+		UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
+		const int32 ProfileIndex = PreviewSceneCasted->GetCurrentProfileIndex();
+		if (Settings->Profiles.IsValidIndex(ProfileIndex))
+		{
+			SetAdvancedShowFlagsForScene(Settings->Profiles[ProfileIndex].bPostProcessingEnabled);
+		}		
+	}
+}
+
+void FGroomEditorViewportClient::SetAdvancedShowFlagsForScene(const bool bAdvancedShowFlags)
+{	
+	if (bAdvancedShowFlags)
+	{
+		EngineShowFlags.EnableAdvancedFeatures();
+	}
+	else
+	{
+		EngineShowFlags.DisableAdvancedFeatures();
+	}
 }
 
 void FGroomEditorViewportClient::Tick(float DeltaSeconds)

@@ -6,8 +6,8 @@
 #include "Misc/AssertionMacros.h"
 #include "Containers/Array.h"
 #include "Templates/IsPODType.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/MemoryOps.h"
+#include <type_traits>
 
 /**
  * Simple ResizableCircularQueue.
@@ -106,7 +106,7 @@ private:
 	enum : uint32
 	{
 		bConstructElements = (TIsPODType<T>::Value ? 0U : 1U),
-		bDestructElements = (TIsTriviallyDestructible<T>::Value ? 0U : 1U),
+		bDestructElements = (std::is_trivially_destructible_v<T> ? 0U : 1U),
 	};
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -349,3 +349,7 @@ void TResizableCircularQueue<T, AllocatorT>::Empty()
 	Storage.SetNumUnsafeInternal(0);
 	Storage.Empty();
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

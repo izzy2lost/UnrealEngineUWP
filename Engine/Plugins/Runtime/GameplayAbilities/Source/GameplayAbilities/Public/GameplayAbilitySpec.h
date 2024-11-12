@@ -231,12 +231,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TSharedPtr<FGameplayEventData> GameplayEventData = nullptr;
 
 	/** Activation state of this ability. This is not replicated since it needs to be overwritten locally on clients during prediction. */
+	UE_DEPRECATED(5.5, "ActivationInfo on the Spec only applies to NonInstanced abilities (which are now deprecated; instanced abilities have their own per-instance CurrentActivationInfo)")
 	UPROPERTY(NotReplicated)
 	FGameplayAbilityActivationInfo	ActivationInfo;
 
 	/** Optional ability tags that are replicated.  These tags are also captured as source tags by applied gameplay effects. */
+	UE_DEPRECATED(5.5, "Use GetDynamicSpecSourceTags() which better represents what this variable does")
 	UPROPERTY()
 	FGameplayTagContainer DynamicAbilityTags;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	/** Optional tags that are replicated with this AbilitySpec.  The specified tags are captured as a GESpec's Source tags by GE's created with this ability spec (@see UGameplayAbility::MakeOutgoingGameplayEffectSpec). */
+	FGameplayTagContainer& GetDynamicSpecSourceTags() { return DynamicAbilityTags; }
+	const FGameplayTagContainer& GetDynamicSpecSourceTags() const { return DynamicAbilityTags; }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Non replicating instances of this ability. */
 	UPROPERTY(NotReplicated)
@@ -256,13 +264,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Passed on SetByCaller magnitudes if this ability was granted by a GE */
 	TMap<FGameplayTag, float> SetByCallerTagMagnitudes;
 
-	/** Returns the primary instance, used for instance once abilities */
+	/** Returns the primary instance, only valid on InstancedPerActor abilities (returns nullptr otherwise) */
 	UGameplayAbility* GetPrimaryInstance() const;
 
 	/** interface function to see if the ability should replicated the ability spec or not */
 	bool ShouldReplicateAbilitySpec() const;
 
-	/** Returns all instances, which can include instance per execution abilities */
+	/** Returns all instances, which can include InstancedPerExecution abilities */
 	TArray<UGameplayAbility*> GetAbilityInstances() const
 	{
 		TArray<UGameplayAbility*> Abilities;
@@ -275,6 +283,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool IsActive() const;
 
 	void PreReplicatedRemove(const struct FGameplayAbilitySpecContainer& InArraySerializer);
+	void PostReplicatedChange(const struct FGameplayAbilitySpecContainer& InArraySerializer);
 	void PostReplicatedAdd(const struct FGameplayAbilitySpecContainer& InArraySerializer);
 
 	FString GetDebugString();

@@ -18,12 +18,16 @@ class SBorder;
 /** Delegate used by multi-box to call a user function to populate a new menu.  Used for spawning sub-menus and pull-down menus. */
 DECLARE_DELEGATE_OneParam( FNewMenuDelegate, class FMenuBuilder& );
 
+/**  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget*/
+DECLARE_DELEGATE_RetVal_OneParam( TSharedRef<SWidget>, FGetDecoratedButtonDelegate, TSharedRef<SWidget> );
+
 struct FButtonArgs : public TSharedFromThis<FButtonArgs>
 {
 	TSharedPtr< const FUICommandInfo > Command;
 	TSharedPtr< const FUICommandList > CommandList;
 	FName ExtensionHook;
 	TAttribute<FText> LabelOverride;
+	TAttribute<FText> ToolbarLabelOverride;
 	TAttribute<FText> ToolTipOverride;
 	TAttribute<FSlateIcon> IconOverride;
 	FName TutorialHighlightName;
@@ -33,6 +37,7 @@ struct FButtonArgs : public TSharedFromThis<FButtonArgs>
 	
 	FNewMenuDelegate CustomMenuDelegate;
 	FOnGetContent OnGetMenuContent;
+	FGetDecoratedButtonDelegate GetDecoratedButtonDelegate;
 
 	explicit FButtonArgs() {}
 };
@@ -49,28 +54,47 @@ public:
 
 	
 	SLATE_API FToolBarButtonBlock( FButtonArgs ButtonArgs );
-	
+
 	/**
 	 * Constructor
 	 *
-	 * @param	InCommand			The command associated with this tool bar button
-	 * @param	InCommandList		The list of commands that are mapped to delegates so that we know what to execute for this button
-	 * @param	InLabelOverride		Optional label override.  If omitted, then the action's label will be used instead.
-	 * @param	InToolTipOverride	Optional tool tip override.	 If omitted, then the action's label will be used instead.
-	 * @param	InIconOverride		Optional icon to use for the tool bar image.  If omitted, then the action's icon will be used instead.
+	 * @param	InCommand				The command associated with this tool bar button
+	 * @param	InCommandList			The list of commands that are mapped to delegates so that we know what to execute for this button
+	 * @param	InLabelOverride			Optional label override.  If omitted, then the action's label will be used instead.
+	 * @param	InToolTipOverride		Optional tool tip override.	 If omitted, then the action's label will be used instead.
+	 * @param	InIconOverride			Optional icon to use for the tool bar image.  If omitted, then the action's icon will be used instead.
+	 * @param	InToolbarLabelOverride	Optional label to use when the block appears in a toolbar. If omitted, then the label override or command name will be used instead.
 	 */
-	SLATE_API FToolBarButtonBlock( const TSharedPtr< const FUICommandInfo > InCommand, TSharedPtr< const FUICommandList > InCommandList, const TAttribute<FText>& InLabelOverride = TAttribute<FText>(), const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>() );
-	
+	SLATE_API FToolBarButtonBlock(
+		const TSharedPtr<const FUICommandInfo> InCommand,
+		TSharedPtr<const FUICommandList> InCommandList,
+		const TAttribute<FText>& InLabelOverride = TAttribute<FText>(),
+		const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(),
+		const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(),
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>()
+	);
+
 	/**
 	 * Constructor
 	 *
-	 * @param	InLabel				The label to display in the menu
-	 * @param	InToolTip			The tool tip to display when the menu entry is hovered over
-	 * @param	InIcon				The icon to display to the left of the label
-	 * @param	InUIAction			UI action to take when this menu item is clicked as well as to determine if the menu entry can be executed or appears "checked"
+	 * @param	InLabel						The label to display in the menu
+	 * @param	InToolTip					The tool tip to display when the menu entry is hovered over
+	 * @param	InIcon						The icon to display to the left of the label
+	 * @param	InUIAction					UI action to take when this menu item is clicked as well as to determine if
+	 * the menu entry can be executed or appears "checked"
 	 * @param	InUserInterfaceActionType	Type of interface action
+	 * @param	InToolbarLabelOverride	Optional label to use when the block appears in a toolbar. If omitted, then the
+	 * label override or command name will be used instead.
+	 *
 	 */
-	SLATE_API FToolBarButtonBlock( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon, const FUIAction& InUIAction, const EUserInterfaceActionType InUserInterfaceActionType );
+	SLATE_API FToolBarButtonBlock(
+		const TAttribute<FText>& InLabel,
+		const TAttribute<FText>& InToolTip,
+		const TAttribute<FSlateIcon>& InIcon,
+		const FUIAction& InUIAction,
+		const EUserInterfaceActionType InUserInterfaceActionType,
+		TAttribute<FText> InToolbarLabelOverride = TAttribute<FText>()
+	);
 
 	void SetLabelVisibility( EVisibility InLabelVisibility ) { LabelVisibility = InLabelVisibility ; }
 
@@ -91,6 +115,13 @@ public:
 
 	SLATE_API void SetOnGetMenuContent(const FOnGetContent& OnGetMenuContent);
 
+	/**
+	 *  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget
+	 *
+	 * @param InGetDecoratedButtonDelegate the delegate that handles decorating the button
+	 */
+	void SetGetDecoratedButtonDelegate( const FGetDecoratedButtonDelegate& InGetDecoratedButtonDelegate );
+
 protected:
 	
 	SLATE_API bool GetIsFocusable() const;
@@ -107,6 +138,9 @@ private:
 
 	/** Optional overridden text label for this tool bar button.  If not set, then the action's label will be used instead. */
 	TAttribute<FText> LabelOverride;
+
+	/** Optional overridden text label for when this tool bar button appears in a toolbar. If not set, then the label override or the action's label will be used instead. */
+	TAttribute<FText> ToolbarLabelOverride;
 
 	/** Optional overridden tool tip for this tool bar button.  If not set, then the action's tool tip will be used instead. */
 	TAttribute<FText> ToolTipOverride;
@@ -134,6 +168,9 @@ private:
 
 	/** Delegate to execute to get the menu content of this button */
 	FOnGetContent OnGetMenuContent;
+
+	/**  Delegate that takes the default toolbar button created by this as a parameter, adds any decorator needed and returns the new widget*/
+	FGetDecoratedButtonDelegate GetDecoratedButtonDelegate;
 };
 
 

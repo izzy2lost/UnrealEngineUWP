@@ -30,6 +30,8 @@ public:
 	/** Initialization constructor. */
 	FStaticMeshStaticLightingMesh(const UStaticMeshComponent* InPrimitive,int32 InLODIndex,const TArray<ULightComponent*>& InRelevantLights);
 
+	FStaticMeshStaticLightingMesh();
+
 	// FStaticLightingMesh interface.
 
 	virtual void GetTriangle(int32 TriangleIndex,FStaticLightingVertex& OutV0,FStaticLightingVertex& OutV1,FStaticLightingVertex& OutV2) const;
@@ -47,6 +49,8 @@ public:
 	virtual bool IsUniformShadowCaster() const;
 
 	virtual FLightRayIntersection IntersectLightRay(const FVector& Start,const FVector& End,bool bFindNearestIntersection) const;
+
+	virtual bool IsInstancedMesh() const override { return false; }
 
 #if WITH_EDITOR
 	/** 
@@ -80,7 +84,7 @@ private:
 	const UStaticMeshComponent* const Primitive;
 
 	/** The resources for this LOD. */
-	FStaticMeshLODResources& LODRenderData;
+	FStaticMeshLODResources* LODRenderData;
 
 	/** A view in to the index buffer for this LOD. */
 	FIndexArrayView LODIndexBuffer;
@@ -108,15 +112,21 @@ public:
 	/** Initialization constructor. */
 	FStaticMeshStaticLightingTextureMapping(UStaticMeshComponent* InPrimitive,int32 InLODIndex,FStaticLightingMesh* InMesh,int32 InSizeX,int32 InSizeY,int32 InTextureCoordinateIndex,bool bPerformFullQualityRebuild);
 
-	// FStaticLightingTextureMapping interface
-	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario) override;
+#if WITH_EDITOR		
 
-#if WITH_EDITOR
+	// For serialization
+	FStaticMeshStaticLightingTextureMapping(const FArchive& Ar ) : FStaticLightingTextureMapping(Ar) { }
+
+	// FStaticLightingTextureMapping interface
+	ENGINE_API virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override;
+
 	/** 
 	 * Export static lighting mapping instance data to an exporter 
 	 * @param Exporter - export interface to process static lighting data
 	 */
 	UNREALED_API virtual void ExportMapping(class FLightmassExporter* Exporter) override;
+
+	ENGINE_API virtual void Serialize(FArchive& Ar);
 #endif	//WITH_EDITOR
 
 	virtual FString GetDescription() const override
@@ -127,12 +137,14 @@ public:
 	/** Whether or not this mapping should be processed or imported */
 	virtual bool IsValidMapping() const override {return Primitive.IsValid();}
 
+	int32 GetLODIndex() { return LODIndex; }
+
 protected:
 
 	/** The primitive this mapping represents. */
 	TWeakObjectPtr<UStaticMeshComponent> Primitive;
 
 	/** The LOD this mapping represents. */
-	const int32 LODIndex;
+	int32 LODIndex;
 };
 

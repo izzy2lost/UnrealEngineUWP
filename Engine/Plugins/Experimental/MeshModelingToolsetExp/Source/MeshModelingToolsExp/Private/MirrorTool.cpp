@@ -202,8 +202,7 @@ void UMirrorTool::Setup()
 	{
 		// Convert into dynamic mesh
 		TSharedPtr<FDynamicMesh3, ESPMode::ThreadSafe> DynamicMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[i]), *DynamicMesh);
+		*DynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[i]);
 		// Bake the scale part of the transform
 		FTransform Transform = (FTransform)UE::ToolTarget::GetLocalToWorldTransform(Targets[i]);
 		MeshTransforms::ApplyTransform(*DynamicMesh, MirrorTool_Local::OnlyScale(Transform), true);
@@ -472,7 +471,7 @@ void UMirrorTool::GenerateAsset(const TArray<FDynamicMeshOpResult>& Results)
 		{
 			NewSelection.Actors.Add(UE::ToolTarget::GetTargetActor(Targets[OrigMeshIdx]));
 
-			UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Targets[OrigMeshIdx], *Mesh, true);
+			UE::ToolTarget::CommitDynamicMeshUpdate(Targets[OrigMeshIdx], *Mesh, true);
 		}
 		else
 		{

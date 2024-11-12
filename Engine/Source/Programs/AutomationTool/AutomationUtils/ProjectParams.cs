@@ -127,6 +127,8 @@ namespace AutomationTool
 		/// <param name="ParamName">Command line parameter name to parse.</param>
 		/// <param name="Default">Default value</param>
 		/// <param name="bTrimQuotes">If set, the leading and trailing quotes will be removed, e.g. instead of "/home/User Name" it will return /home/User Name</param>
+		/// <param name="ObsoleteParamName"></param>
+		/// <param name="ObsoleteSpecifiedValue"></param>
 		/// <returns>Parameter value.</returns>
 		string ParseParamValueIfNotSpecified(BuildCommand Command, string SpecifiedValue, string ParamName, string Default = "", bool bTrimQuotes = false, string ObsoleteParamName = null, string ObsoleteSpecifiedValue = null)
 		{
@@ -293,6 +295,7 @@ namespace AutomationTool
 			//
 
 			this.RawProjectPath = InParams.RawProjectPath;
+			this.RawProgramProjectOverride = InParams.RawProgramProjectOverride;
 			this.MapsToCook = InParams.MapsToCook;
 			this.MapIniSectionsToCook = InParams.MapIniSectionsToCook;
 			this.DirectoriesToCook = InParams.DirectoriesToCook;
@@ -446,6 +449,7 @@ namespace AutomationTool
 			this.SessionLabel = InParams.SessionLabel;
 			this.ProjectDescriptor = InParams.ProjectDescriptor;
 			this.Upload = InParams.Upload;
+			this.XcodeBuildOptions = InParams.XcodeBuildOptions;
 		}
 
 		/// <summary>
@@ -455,7 +459,7 @@ namespace AutomationTool
 		/// </summary>
 		public ProjectParams(			
 			FileReference RawProjectPath,
-
+			FileReference RawProgramProjectOverride = null,
 			BuildCommand Command = null,
 			string Device = null,			
 			string MapToRun = null,	
@@ -519,6 +523,8 @@ namespace AutomationTool
 			string CreateReleaseVersionBasePath = null,
 			string BasedOnReleaseVersionBasePath = null,
 			string ReferenceContainerGlobalFileName = null,
+			string ReferenceContainerAdditionalPath = null,
+			string ReferenceContainerChangesCSVFileName = null,
 			string ReferenceContainerCryptoKeys = null,
 			bool? GeneratePatch = null,
 			bool? AddPatchLevel = null,
@@ -617,7 +623,8 @@ namespace AutomationTool
 			ParamList<string> InMapsToRebuildLightMaps = null,
 			ParamList<string> InMapsToRebuildHLOD = null,
 			ParamList<string> TitleID = null,
-			string Upload = null
+			string Upload = null,
+			string XcodeBuildOptions = null
 			)
 		{
 			//
@@ -630,6 +637,11 @@ namespace AutomationTool
 				this.ProjectDescriptor = ProjectDescriptor.FromFile(RawProjectPath);
 			}
 			catch { this.ProjectDescriptor = new ProjectDescriptor(); }
+
+			if(RawProgramProjectOverride != null)
+			{
+				this.RawProgramProjectOverride = RawProgramProjectOverride;
+			}
 
 			if (DirectoriesToCook != null)
 			{
@@ -702,6 +714,8 @@ namespace AutomationTool
 			this.CreateReleaseVersionBasePath = ParseParamValueIfNotSpecified(Command, CreateReleaseVersionBasePath, "createreleaseversionroot", String.Empty);
 			this.BasedOnReleaseVersionBasePath = ParseParamValueIfNotSpecified(Command, BasedOnReleaseVersionBasePath, "basedonreleaseversionroot", String.Empty);
 			this.ReferenceContainerGlobalFileName = ParseParamValueIfNotSpecified(Command, ReferenceContainerGlobalFileName, "ReferenceContainerGlobalFileName", String.Empty);
+			this.ReferenceContainerAdditionalPath = ParseParamValueIfNotSpecified(Command, ReferenceContainerAdditionalPath, "ReferenceContainerAdditionalPath", String.Empty);
+			this.ReferenceContainerChangesCSVFileName = ParseParamValueIfNotSpecified(Command, ReferenceContainerChangesCSVFileName, "ReferenceContainerChangesCSVFileName", String.Empty);
 			this.ReferenceContainerCryptoKeys = ParseParamValueIfNotSpecified(Command, ReferenceContainerCryptoKeys, "ReferenceContainerCryptoKeys", String.Empty); 
 			this.OriginalReleaseVersion = ParseParamValueIfNotSpecified(Command, OriginalReleaseVersion, "originalreleaseversion", String.Empty);
 			this.CreateReleaseVersion = ParseParamValueIfNotSpecified(Command, CreateReleaseVersion, "createreleaseversion", String.Empty);
@@ -1047,6 +1061,18 @@ namespace AutomationTool
 			}
 
 			this.Upload = Command.ParseParamValue("upload");
+
+			this.ApplyIoStoreOnDemand = Command.ParseParam("ApplyIoStoreOnDemand");
+			if (this.ApplyIoStoreOnDemand)
+			{
+				// Compile the IoStoreOnDemand module when uploading content for streaming
+				this.AdditionalBuildOptions += " -CompileIoStoreOnDemand";
+
+				// Required to force the project to use chunk manifests
+				this.Manifests = true;
+			}
+
+			this.XcodeBuildOptions = ParseParamValueIfNotSpecified(Command, XcodeBuildOptions, "xcodebuildoptions", null);
 
 			if (ClientConfigsToBuild == null)
 			{
@@ -1601,17 +1627,7 @@ namespace AutomationTool
 			{
 				if (SpecifiedUnrealExe == null)
 				{
-					SpecifiedUnrealExe = "UnrealEditor-Cmd.exe";
-					if (CodeBasedUprojectPath != null)
-					{
-						FileReference ReceiptLocation = TargetReceipt.GetDefaultPath(CodeBasedUprojectPath.Directory, EditorTargets[0], HostPlatform.Platform, UnrealTargetConfiguration.Development, null);
-						TargetReceipt Receipt;
-						if (!TargetReceipt.TryRead(ReceiptLocation, out Receipt))
-						{
-							throw new AutomationException($"Missing {ReceiptLocation} receipt. Editor needs to be built first.");
-						}
-						SpecifiedUnrealExe = Receipt.LaunchCmd.FullName;
-					}
+					SpecifiedUnrealExe = ProjectUtils.GetEditorForProject(RawProjectPath).FullName;
 				}
 
 				return SpecifiedUnrealExe;
@@ -1843,6 +1859,17 @@ namespace AutomationTool
 		/// chunks when writing new containers. See -ReferenceContainerGlobalFileName in IoStoreUtilities.cpp.
 		/// </summary>
 		public string ReferenceContainerGlobalFileName;
+
+		/// <summary>
+		/// Stage: A directory to look for additional IoStore containers to use during staging (e.g. optional segment containers)
+		/// </summary>
+		public string ReferenceContainerAdditionalPath;
+
+		/// <summary>
+		/// Stage: If ReferenceContainerChangesCSVFileName is specified, this provides a file name to write the list of changed
+		/// packages/chunks to.
+		/// </summary>
+		public string ReferenceContainerChangesCSVFileName;
 
 		/// <summary>
 		/// Stage: Path to the crypto.json file to use for decrypting ReferenceContainerFlobalFileName, if needed.
@@ -2384,6 +2411,12 @@ namespace AutomationTool
 		[Help("upload", "Arguments for uploading on demand content")]
 		public string Upload { get; set; }
 
+		[Help("applyiostoreondemand", "Forces IoStoreOnDemand to be enabled for the project even if it is not set up for it")]
+		public bool ApplyIoStoreOnDemand { get; }
+
+		[Help("XcodeBuildOptions", "Extra options to pass to xcodebuild")]
+		public string XcodeBuildOptions { get; set; }
+
 		private List<SingleTargetProperties> DetectedTargets;
 		private Dictionary<UnrealTargetPlatform, ConfigHierarchy> LoadedEngineConfigs;
 		private Dictionary<UnrealTargetPlatform, ConfigHierarchy> LoadedGameConfigs;
@@ -2814,7 +2847,7 @@ namespace AutomationTool
 
 		/// <summary>
 		/// Get the relative path to the DLC plugin's cooked output from the deployment
-		/// root of the DLC. e.g. <ProjectName>\Plugins\<PluginName> for plugins under the Project's plugin
+		/// root of the DLC. e.g. $(ProjectName)\Plugins\$(PluginName) for plugins under the Project's plugin
 		/// directories.
 		/// </summary>
 		public string FindPluginRelativePathFromPlatformCookDir(FileReference PluginFile,
@@ -2864,12 +2897,21 @@ namespace AutomationTool
 
 		public FileReference CodeBasedUprojectPath
 		{
-            get { return IsCodeBasedProject ? RawProjectPath : null; }
+            get 
+			{ 
+				if(RawProgramProjectOverride != null) { return RawProgramProjectOverride; }
+				return IsCodeBasedProject ? RawProjectPath : null; 
+			}
 		}
 		/// <summary>
 		/// True if this project is a program.
 		/// </summary>
 		public bool IsProgramTarget { get; private set; }
+
+		/// <summary>
+		/// Returns override for Program Project files located in non-engine projects.
+		/// </summary>
+		public FileReference RawProgramProjectOverride { get; set; }
 
 		/// <summary>
 		/// Path where the project's game (or program) binaries are built for the given target platform.
@@ -3091,6 +3133,15 @@ namespace AutomationTool
                 throw new AutomationException("RawProjectPath {0} file must exist", RawProjectPath);
             }
 
+			if (RawProgramProjectOverride != null && !RawProgramProjectOverride.HasExtension(".uproject"))
+			{
+				throw new AutomationException("RawProgramProjectPath {0} must end with .uproject", RawProgramProjectOverride);
+			}
+			if (RawProgramProjectOverride != null && !CommandUtils.FileExists(RawProgramProjectOverride.FullName))
+			{
+				throw new AutomationException("RawProgramProjectOverride {0} file must exist", RawProgramProjectOverride);
+			}
+
 			if (FileServer && !Cook && !CookInEditor)
 			{
 				throw new AutomationException("Only cooked builds can use a fileserver, use -cook or -CookInEditor");
@@ -3199,6 +3250,50 @@ namespace AutomationTool
 			{
 				throw new AutomationException("-createchunkinstall must specify the chunk install data version string with -chunkinstallversion=");
 			}
+		}
+
+		public FileReference FindZenProjectStoreMarker(DeploymentContext SC)
+		{
+			DirectoryReference ProjectStoreDir = null;
+			if (Stage)
+			{
+				if (SC.PlatformCookDir == null)
+				{
+					throw new AutomationException("FindZenProjectStoreMarker called before PlatformCookDir was populated");
+				}
+				ProjectStoreDir = SC.PlatformCookDir;
+			}
+			else if (Deploy)
+			{
+				ProjectStoreDir = SC.StageDirectory;
+			}
+			if (ProjectStoreDir == null)
+			{
+				return null;
+			}
+			// Check for stage with zenstore without PAK?
+			FileReference PackageStoreManifestFile = FileReference.Combine(ProjectStoreDir, "ue.projectstore");
+			System.IO.FileInfo PackageStoreManifestFileInfo = PackageStoreManifestFile.ToFileInfo();
+			if (PackageStoreManifestFileInfo.Exists)
+			{
+				return PackageStoreManifestFile;
+			}
+			return null;
+		}
+
+		public bool ShouldTreatAsFileServer(DeploymentContext SC)
+		{
+			if (FileServer)
+			{
+				return true;
+			}
+			if (ZenStore)
+			{
+				return true;
+			}
+			FileReference ZenStoreMarkerFile = FindZenProjectStoreMarker(SC);
+			bool UseZenServerHost = (ZenStoreMarkerFile != null) && !UsePak(SC.StageTargetPlatform);
+			return UseZenServerHost;
 		}
 
 		protected bool bLogged = false;
@@ -3310,6 +3405,7 @@ namespace AutomationTool
 				Logger.LogDebug("AppLocalDirectory={AppLocalDirectory}", AppLocalDirectory);
 				Logger.LogDebug("NoBootstrapExe={NoBootstrapExe}", NoBootstrapExe);
 				Logger.LogDebug("RawProjectPath={RawProjectPath}", RawProjectPath);
+				Logger.LogDebug("RawProgramProjectOverride={RawProgramProjectOverride}", RawProgramProjectOverride);
 				Logger.LogDebug("Run={Run}", Run);
 				Logger.LogDebug("ServerConfigsToBuild={Arg0}", string.Join(",", ServerConfigsToBuild));
 				Logger.LogDebug("ServerCookedTargets={Arg0}", ServerCookedTargets.ToString());

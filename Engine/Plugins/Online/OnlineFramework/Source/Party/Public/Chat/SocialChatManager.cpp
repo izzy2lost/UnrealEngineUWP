@@ -254,7 +254,9 @@ void USocialChatManager::InitializeChatManager()
 		ChatInterface->AddOnChatRoomMemberJoinDelegate_Handle(FOnChatRoomMemberJoinDelegate::CreateUObject(this, &USocialChatManager::HandleChatRoomMemberJoin));
 		ChatInterface->AddOnChatRoomMemberExitDelegate_Handle(FOnChatRoomMemberExitDelegate::CreateUObject(this, &USocialChatManager::HandleChatRoomMemberExit));
 		ChatInterface->AddOnChatRoomMemberUpdateDelegate_Handle(FOnChatRoomMemberUpdateDelegate::CreateUObject(this, &USocialChatManager::HandleChatRoomMemberUpdate));
+		ChatInterface->AddOnChatRoomMessageSentDelegate_Handle(FOnChatRoomMessageSentDelegate::CreateUObject(this, &USocialChatManager::HandleChatRoomMessageSent));
 		ChatInterface->AddOnChatRoomMessageReceivedDelegate_Handle(FOnChatRoomMessageReceivedDelegate::CreateUObject(this, &USocialChatManager::HandleChatRoomMessageReceived));
+		ChatInterface->AddOnChatPrivateMessageSentDelegate_Handle(FOnChatPrivateMessageSentDelegate::CreateUObject(this, &USocialChatManager::HandleChatPrivateMessageSent));
 		ChatInterface->AddOnChatPrivateMessageReceivedDelegate_Handle(FOnChatPrivateMessageReceivedDelegate::CreateUObject(this, &USocialChatManager::HandleChatPrivateMessageReceived));
 	}
 	else
@@ -461,6 +463,10 @@ void USocialChatManager::HandleChatRoomMemberUpdate(const FUniqueNetId& LocalUse
 	}
 }
 
+void USocialChatManager::HandleChatRoomMessageSent(const FUniqueNetId& LocalUserId, const FChatRoomId& RoomId, bool bWasSuccessful, const FString& Error)
+{
+}
+
 void USocialChatManager::HandleChatRoomMessageReceived(const FUniqueNetId& LocalUserId, const FChatRoomId& RoomId, const TSharedRef<FChatMessage>& ChatMessage)
 {
 	if (IsUniqueIdOfOwner(LocalUserId))
@@ -471,6 +477,10 @@ void USocialChatManager::HandleChatRoomMessageReceived(const FUniqueNetId& Local
 			Channel->NotifyMessageReceived(ChatMessage);
 		}
 	}
+}
+
+void USocialChatManager::HandleChatPrivateMessageSent(const FUniqueNetId& LocalUserId, const FUniqueNetId& RecipientId, bool bWasSuccessful, const FString& Error)
+{
 }
 
 void USocialChatManager::HandleChatPrivateMessageReceived(const FUniqueNetId& LocalUserId, const TSharedRef<FChatMessage>& ChatMessage)

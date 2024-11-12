@@ -9,6 +9,7 @@
 #include "Fonts/SlateFontInfo.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SWidget.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STableRow.h"
 
@@ -18,22 +19,6 @@ class FLevelCollectionModel;
 class FLevelModel;
 class SButton;
 class SWorldHierarchyImpl;
-
-namespace HierarchyColumns
-{
-	/** IDs for list columns */
-	static const FName ColumnID_LevelLabel( "Level" );
-	static const FName ColumnID_Visibility( "Visibility" );
-	static const FName ColumnID_LightingScenario( "LightingScenario" );
-	static const FName ColumnID_Lock( "Lock" );
-	static const FName ColumnID_SCCStatus( "SCC_Status" );
-	static const FName ColumnID_Save( "Save" );
-	static const FName ColumnID_Color("Color");
-	static const FName ColumnID_Kismet( "Blueprint" );
-	static const FName ColumnID_ActorCount( "ActorCount" );
-	static const FName ColumnID_LightmassSize( "LightmassSize" );
-	static const FName ColumnID_FileSize( "FileSize" );
-}
 
 /** A single item in the levels hierarchy tree. Represents a level model */
 class SWorldHierarchyItem 
@@ -85,7 +70,8 @@ private:
 	bool IsSaveEnabled() const;
 	bool IsLightingScenarioEnabled() const;
 	bool IsLockEnabled() const;
-	bool IsVisibilityEnabled() const;
+	bool IsEditorVisibilityEnabled() const;
+	bool IsGameVisibilityEnabled() const;
 	bool IsKismetEnabled() const;
 
 	/** Get DrawColor for the level */
@@ -96,7 +82,8 @@ private:
 	 *
 	 *	@return	A reply that indicated whether this event was handled.
 	 */
-	FReply OnToggleVisibility();
+	FReply OnToggleEditorVisibility();
+	FReply OnToggleGameVisibility();
 
 	FReply OnToggleLightingScenario();
 
@@ -140,8 +127,11 @@ private:
 	/** Whether color button should be visible, depends on whether sub-level is loaded */
 	EVisibility GetColorButtonVisibility() const;
 	
-	/** Gets the tooltip for the visibility toggle */
-	FText GetVisibilityToolTip() const;
+	/** Gets the tooltip for the editor visibility toggle */
+	FText GetEditorVisibilityToolTip() const;
+	
+	/** Gets the tooltip for the game visibility toggle */
+	FText GetGameVisibilityToolTip() const;
 
 	/** Gets the tooltip for the save button */
 	FText GetSaveToolTip() const;
@@ -177,6 +167,7 @@ private:
 	 *	@return	The SlateBrush representing the Level's visibility state
 	 */
 	const FSlateBrush* GetLevelVisibilityBrush() const;
+	const FSlateBrush* GetGameVisibilityBrush() const;
 
 	const FSlateBrush* GetLightingScenarioBrush() const;
 
@@ -244,8 +235,11 @@ private:
 	/** True when this item has children and is expanded */
 	TAttribute<bool>				IsItemExpanded;
 
-	/**	The visibility button for the Level */
-	TSharedPtr<SButton>				VisibilityButton;
+	/**	The editor visibility button for the Level */
+	TSharedPtr<SButton>				EditorVisibilityButton;
+	
+	/**	The game visibility button for the Level */
+	TSharedPtr<SButton>				GameVisibilityButton;
 
 	/**	The lighting scenario button for the Level */
 	TSharedPtr<SButton>				LightingScenarioButton;

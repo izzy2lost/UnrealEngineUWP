@@ -43,9 +43,9 @@ namespace Jupiter
 
 			_timer = new Timer(x => OnUpdate(x, _logger), new ThreadState
 			{
-				ServiceName = _serviceName, 
-				PollFrequency = _pollFrequency, 
-				ServiceState = _state, 
+				ServiceName = _serviceName,
+				PollFrequency = _pollFrequency,
+				ServiceState = _state,
 				StopPollingToken = _stopPolling.Token,
 				Instance = this,
 			}, -1, -1);

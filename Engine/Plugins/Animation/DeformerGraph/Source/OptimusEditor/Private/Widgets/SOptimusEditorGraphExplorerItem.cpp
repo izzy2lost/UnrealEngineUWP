@@ -84,7 +84,7 @@ public:
 		ChildSlot
 		    [SNew(SOptimusDataTypeSelector)
 		            .CurrentDataType(this, &SVariableDataTypeSelectorHelper::OnGetDataType)
-		            .UsageMask(EOptimusDataTypeUsageFlags::Variable)
+		            .UsageMask(EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::Property)
 		            .ViewType(SOptimusDataTypeSelector::EViewType::IconOnly)
 		            .bViewOnly(bInIsReadOnly.Get()) // FIXME: May be dynamic.
 		            .OnDataTypeChanged(this, &SVariableDataTypeSelectorHelper::OnDataTypeChanged)];

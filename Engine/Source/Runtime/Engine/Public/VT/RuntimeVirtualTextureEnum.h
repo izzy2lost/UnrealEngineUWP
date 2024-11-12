@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Misc/EnumRange.h"
 #include "RuntimeVirtualTextureEnum.generated.h"
 
 /** Maximum number of texture layers we will have in a runtime virtual texture. Increase if we add a ERuntimeVirtualTextureMaterialType with more layers. */
@@ -19,6 +19,7 @@ enum class ERuntimeVirtualTextureAttributeType : uint8
 	Roughness,
 	Specular,
 	Mask,
+	Mask4,
 	WorldHeight,
 	Displacement,
 
@@ -36,7 +37,7 @@ UENUM()
 enum class ERuntimeVirtualTextureMaterialType : uint8
 {
 	BaseColor UMETA(DisplayName = "Base Color"),
-	BaseColor_Normal_DEPRECATED UMETA(Hidden),
+	Mask4 UMETA(DisplayName = "Mask4", ToolTip = "4 channel mask texture."),
 	BaseColor_Normal_Roughness UMETA(DisplayName = "Base Color, Normal, Roughness", ToolTip = "Local space Normal. Requires less memory than 'Base Color, Normal, Roughness, Specular'. Supports LQ compression."),
 	BaseColor_Normal_Specular UMETA(DisplayName = "Base Color, Normal, Roughness, Specular"),
 	BaseColor_Normal_Specular_YCoCg UMETA(DisplayName = "YCoCg Base Color, Normal, Roughness, Specular", ToolTip = "Base Color is stored in YCoCg space. This requires more memory but may provide better quality."),
@@ -48,6 +49,8 @@ enum class ERuntimeVirtualTextureMaterialType : uint8
 
 namespace RuntimeVirtualTexture { enum { MaterialType_NumBits = 3 }; }
 static_assert((uint32)ERuntimeVirtualTextureMaterialType::Count <= (1 << (uint32)RuntimeVirtualTexture::MaterialType_NumBits), "NumBits is too small");
+
+ENUM_RANGE_BY_COUNT(ERuntimeVirtualTextureMaterialType, ERuntimeVirtualTextureMaterialType::Count);
 
 /** Enumeration of main pass behaviors when rendering to a runtime virtual texture. */
 UENUM()

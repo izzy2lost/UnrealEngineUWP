@@ -8,6 +8,9 @@
 #include "IOptimusCoreModule.h"
 #include "ShaderCore.h"
 
+#if USE_USD_SDK && DO_USD_CACHING
+#include "USDMemory.h"
+#endif
 
 class FChaosFleshEnginePlugin : public IChaosFleshEnginePlugin
 {
@@ -46,5 +49,8 @@ void FChaosFleshEnginePlugin::ShutdownModule()
 }
 
 
+#if USE_USD_SDK && DO_USD_CACHING
+IMPLEMENT_MODULE_USD(FChaosFleshEnginePlugin, ChaosFleshEngine)
+#else
 IMPLEMENT_MODULE(FChaosFleshEnginePlugin, ChaosFleshEngine)
-
+#endif

@@ -20,6 +20,7 @@
 #include "ContentBrowserItem.generated.h"
 
 class FAssetThumbnail;
+class FContentBrowserMinimalItemData;
 class UContentBrowserDataSource;
 class UObject;
 struct FAssetData;
@@ -112,6 +113,12 @@ public:
 	 * @return True if the removal was possible, false otherwise.
 	 */
 	bool TryRemove(const FContentBrowserItemData& InOther, FText* OutError = nullptr);
+
+	/**
+	 * Attempt to remove an item matching the given minimal representation from this one, providing error information if the removal wasn't possible.
+	 * @return A valid item data (IsValid) if anything was removed, an invalid one otherwise. 
+	 */
+	FContentBrowserItemData TryRemove(const FContentBrowserMinimalItemData& InKey, FText* OutError = nullptr);
 
 	/**
 	 * Get the array of internal items that comprise this composite item.
@@ -399,6 +406,26 @@ public:
 	 * @return True if references were appended, false otherwise.
 	 */
 	bool AppendItemReference(FString& InOutStr) const;
+
+	/**
+	 * Attempt to append any object path for this item to the given string.
+	 * @note Used when copying item object path to the clipboard.
+	 *
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if references were appended, false otherwise.
+	 */
+	bool AppendItemObjectPath(FString& InOutStr) const;
+
+	/**
+	 * Attempt to append any package name for this item to the given string.
+	 * @note Used when copying item package name to the clipboard.
+	 *
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if references were appended, false otherwise.
+	 */
+	bool AppendItemPackageName(FString& InOutStr) const;
 
 	/**
 	 * Attempt to update the thumbnail associated with this item.

@@ -42,7 +42,7 @@ static FString MakeAbsoluteNormalizedDir(const FString& InPath)
 	FString Out = FPaths::ConvertRelativePathToFull(InPath);
 	if (Out.EndsWith(TEXT("/")))
 	{
-		Out.RemoveAt(Out.Len() - 1, 1, EAllowShrinking::No);
+		Out.RemoveAt(Out.Len() - 1, EAllowShrinking::No);
 	}
 	return Out;
 }
@@ -839,6 +839,7 @@ static void AddDirectoriesToIgnore(const FString& RootDir, TArray<FString>& OutD
 	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Programs")));
 	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Platforms")));
 	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Build")));
+	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Restricted")));
 	OutDirectoriesToNotRecurse.Add(FString(RootDir / TEXT("DerivedDataCache")));
 }
 

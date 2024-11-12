@@ -55,14 +55,14 @@ void SFunctionSelector::Construct(const FArguments& InArgs, TSharedRef<FWidgetBl
 		[
 			SNew(SComboButton)
 			.OnGetMenuContent(this, &SFunctionSelector::OnGenerateDelegateMenu)
-			.ContentPadding(1)
+			.ContentPadding(1.0f)
 			.ButtonContent()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
-				.Padding(4, 1, 0, 0)
+				.Padding(4.0f, 1.0f, 0.0f, 0.0f)
 				[
 					SNew(STextBlock)
 					.Text(this, &SFunctionSelector::GetCurrentBindingText)

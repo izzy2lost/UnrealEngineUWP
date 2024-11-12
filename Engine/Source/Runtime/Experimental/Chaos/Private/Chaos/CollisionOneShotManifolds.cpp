@@ -110,6 +110,16 @@ namespace Chaos
 	bool bChaos_Collision_EnableMACDFallback = false;
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableMACDFallback(TEXT("p.Chaos.Collision.EnableMACDFallback"), bChaos_Collision_EnableMACDFallback, TEXT(""));
 
+	// We have 2 MACD algorithms to test, selected by bChaos_Collision_EnableMACDPreManifoldFix
+	// false: Use the original algorithm which generates a manifold for every triangle and then uses the mesh information to correct the normal of each manifold point.
+	// true: Use the new algorithm which generates the closest feature and fixes its normal based on the mesh information, and then generates a manifold based on that.
+	// The second method does a much better job at handling deep collisions where a single convex-triangle contact might generate a contact that pushes the convex out
+	// of the triangle edge, even though the triangle is part of a mesh and pushing out of the edge is not a valid option. However this option is also more likely to 
+	// generate ghost collisions with nearby faces when moving very fast.
+	// @todo(chaos): the second method has problems with complicated meshes and need to be disabled.
+	bool bChaos_Collision_EnableMACDPreManifoldFix = false;
+	FAutoConsoleVariableRef CVarChaos_Collision_EnableMACDPreManifoldFix(TEXT("p.Chaos.Collision.EnableMACDPreManifoldFix"), bChaos_Collision_EnableMACDPreManifoldFix, TEXT(""));
+
 	// Whether to use the new index-less GJK. 
 	// @todo(chaos): This should be removed once soaked for a bit (enabled 7 June 2022)
 	bool bChaos_Collision_UseGJK2 = false;
@@ -128,9 +138,30 @@ namespace Chaos
 
 	bool bChaos_Collision_UseCapsuleTriMesh2 = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_UseCapsuleTriMesh2(TEXT("p.Chaos.Collision.UseCapsuleTriMesh2"), bChaos_Collision_UseCapsuleTriMesh2, TEXT(""));
+	
+	// @todo(chaos): (2) is the intended solution. The others are for rollback if blocking bugs are found. Remove this once (2) is tested
+	// 0: Use GJK + EPA to generate closest feature, generate multi-point manifold from its normal, and then fix manifold based on mesh topology
+	// 1: Use SAT to generate closest feature, generate multi-point manifold from its normal, and then fix manifold based on mesh topology
+	// 2: Use GJK + SAT to generate closest feature, then fix its normal based on mesh topology, then generate the multi-point manifold
+	int32 Chaos_Collision_ConvexTriMeshMode = 1;
+	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriMesh2(TEXT("p.Chaos.Collision.ConvexTriMeshMode"), Chaos_Collision_ConvexTriMeshMode, TEXT(""));
 
-	bool bChaos_Collision_UseConvexTriMesh2 = true;
-	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriMesh2(TEXT("p.Chaos.Collision.UseConvexTriMesh2"), bChaos_Collision_UseConvexTriMesh2, TEXT(""));
+	// Enable backface culling in ConstructConvexTriangleOneShotManifold3
+	bool bChaos_Collision_ConvexTriMeshBackFaceCull = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_ConvexTriMeshBackFaceCull(TEXT("p.Chaos.Collision.ConvexTriMeshBackFaceCull"), bChaos_Collision_ConvexTriMeshBackFaceCull, TEXT(""));
+
+	// Enable convex-inside-triangle culling in ConstructConvexTriangleOneShotManifold3
+	bool bChaos_Collision_ConvexTriMeshInsideCull = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_ConvexTriMeshInsideCull(TEXT("p.Chaos.Collision.ConvexTriMeshInsideCull"), bChaos_Collision_ConvexTriMeshInsideCull, TEXT(""));
+
+	// true: use GJK and then SAT if the shapes overlap
+	// false: use GJK and then EPA if the shapes overlap
+	bool bChaos_Collision_UseConvexTriangleGJKSAT = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriangleSAT(TEXT("p.Chaos.Collision.UseConvexTriangleGJKSAT"), bChaos_Collision_UseConvexTriangleGJKSAT, TEXT(""));
+
+	// Whether to sort sphere/capsule vs mesh contacts by depth. Doing so leads to more consistent behaviour but is more expensive
+	bool bChaos_Collision_ConvexTriMeshSortByPhi = false;
+	FAutoConsoleVariableRef CVarChaos_Collision_ConvexTriMeshSortByPhi(TEXT("p.Chaos.Collision.ConvexTriMeshSortByPhi"), bChaos_Collision_ConvexTriMeshSortByPhi, TEXT(""));
 
 	namespace Collisions
 	{
@@ -1151,7 +1182,7 @@ namespace Chaos
 							const FReal ConvexContactPointDistance = FVec3::DotProduct((ConvexPlanePosition - CapsuleContactPoint), ConvexPlaneNormal) * ConvexDistanceMultiplier;
 							const FVec3 ConvexContactPoint = CapsuleContactPoint + ConvexContactPointDistance * CapsulePlaneNormal;
 
-							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 							ContactPoint.ShapeContactPoints[0] = CapsuleToConvexTransform.InverseTransformPositionNoScale(CapsuleContactPoint);
 							ContactPoint.ShapeContactPoints[1] = ConvexContactPoint;
 							ContactPoint.ShapeContactNormal = CapsulePlaneNormal;
@@ -1205,7 +1236,7 @@ namespace Chaos
 						{
 							const FVec3 ConvexContactPoint = CapsuleContactPoint - FVec3::DotProduct(CapsuleContactPoint - ConvexPlanePosition, ConvexPlaneNormal) * ConvexPlaneNormal;
 
-							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 							ContactPoint.ShapeContactPoints[0] = CapsuleToConvexTransform.InverseTransformPositionNoScale(CapsuleContactPoint);
 							ContactPoint.ShapeContactPoints[1] = ConvexContactPoint;
 							ContactPoint.ShapeContactNormal = ConvexPlaneNormal;
@@ -1444,7 +1475,7 @@ namespace Chaos
 				// Triangle face contact (clipped vertices are convex vertices)
 				for (int32 ContactPointIndex = 0; ContactPointIndex < ContactPointCount; ++ContactPointIndex)
 				{
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					const FVec3& ConvexContactPoint = ClippedVertices[ContactPointIndex];
 					const FVec3 TriangleContactPoint = ConvexContactPoint - FVec3::DotProduct(ConvexContactPoint - TrianglePlanePosition, TrianglePlaneNormal) * TrianglePlaneNormal;
 
@@ -1460,7 +1491,7 @@ namespace Chaos
 				// Convex face contact (clipped vertices are triangle vertices)
 				for (int32 ContactPointIndex = 0; ContactPointIndex < ContactPointCount; ++ContactPointIndex)
 				{
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					const FVec3& TriangleContactPoint = ClippedVertices[ContactPointIndex];
 					const FVec3 ConvexContactPoint = TriangleContactPoint - FVec3::DotProduct(TriangleContactPoint - ConvexPlanePosition, ConvexPlaneNormal) * ConvexPlaneNormal;
 

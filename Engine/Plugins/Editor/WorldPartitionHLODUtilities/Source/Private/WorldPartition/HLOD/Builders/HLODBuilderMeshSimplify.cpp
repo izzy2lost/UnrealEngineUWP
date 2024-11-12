@@ -64,7 +64,7 @@ uint32 UHLODBuilderMeshSimplifySettings::GetCRC() const
 	{
 		uint32 MaterialCRC = UHLODProxy::GetCRC(HLODMaterial);
 		UE_LOG(LogHLODBuilder, VeryVerbose, TEXT(" - Material = %d"), MaterialCRC);
-		Hash = HashCombine(Hash, MaterialCRC);
+		Hash = HashCombineFast(Hash, MaterialCRC);
 	}
 
 	return Hash;

@@ -54,17 +54,17 @@ public:
 		return PathString;
 	}
 
-	CORE_API static bool TryMake(FVersePath& OutPath, const FString& Path);
-	CORE_API static bool TryMake(FVersePath& OutPath, FString&& Path);
+	CORE_API static bool TryMake(FVersePath& OutPath, const FString& Path, FText* OutErrorMessage = nullptr);
+	CORE_API static bool TryMake(FVersePath& OutPath, FString&& Path, FText* OutErrorMessage = nullptr);
 
-	CORE_API static bool IsValidFullPath(const TCHAR* String);
-	CORE_API static bool IsValidFullPath(const TCHAR* String, int32 Len);
-	CORE_API static bool IsValidDomain(const TCHAR* String);
-	CORE_API static bool IsValidDomain(const TCHAR* String, int32 Len);
-	CORE_API static bool IsValidSubpath(const TCHAR* String);
-	CORE_API static bool IsValidSubpath(const TCHAR* String, int32 Len);
-	CORE_API static bool IsValidIdent(const TCHAR* String);
-	CORE_API static bool IsValidIdent(const TCHAR* String, int32 Len);
+	CORE_API static bool IsValidFullPath(const TCHAR* String, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidFullPath(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidDomain(const TCHAR* String, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidDomain(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidSubpath(const TCHAR* String, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidSubpath(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr);
+	CORE_API static bool IsValidIdent(const TCHAR* String, FText* OutErrorMessage = nullptr, const FText* IdentTermReplacement = nullptr);
+	CORE_API static bool IsValidIdent(const TCHAR* String, int32 Len, FText* OutErrorMessage = nullptr, const FText* IdentTermReplacement = nullptr);
 
 private:
 	FString PathString;
@@ -85,7 +85,7 @@ FORCEINLINE FArchive& UE::Core::operator<<(FArchive& Ar, FVersePath& VersePath)
 	return Ar << VersePath.PathString;
 }
 
-FORCEINLINE uint32 GetTypeHash(const UE::Core::FVersePath& VersePath) // Must be outside namespace to not break Tuples. Note that it needs to match VersePathFwd.h so can't be hidden friend
+FORCEINLINE uint32 UE::Core::GetTypeHash(const FVersePath& VersePath)
 {
 	return FCrc::StrCrc32<TCHAR>(*VersePath);
 }

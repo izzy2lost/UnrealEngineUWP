@@ -5,7 +5,6 @@
 #include "NaniteShared.h"
 #include "NaniteCullRaster.h"
 
-struct FNaniteMaterialPassCommand;
 struct FScreenMessageWriter;
 
 namespace Nanite
@@ -38,6 +37,7 @@ enum class EDebugViewMode : uint8
 	ShaderComplexity = 2,
 	LightmapDensity = 3,
 	PrimitiveColor = 4,
+	LWCComplexity = 5
 };
 
 void RenderDebugViewMode(
@@ -49,6 +49,7 @@ void RenderDebugViewMode(
 	const FRasterResults& RasterResults,
 	FRDGTextureRef OutputColorTexture,
 	FRDGTextureRef InputDepthTexture,
+	FRDGTextureRef OutputDepthTexture,
 	FRDGTextureRef QuadOverdrawTexture
 );
 

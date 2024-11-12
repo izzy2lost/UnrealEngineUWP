@@ -82,6 +82,7 @@
 !*.tps
 !*.xml
 !*.xaml
+!*.axaml
 !*.uproject
 !*.uplugin
 !*.html
@@ -294,3 +295,7 @@ Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/**
 
 # Ignore vulkan registry
 /Engine/Source/ThirdParty/Vulkan/share/vulkan/registry/**
+
+# Ignore large FB data files
+/Engine/Source/ThirdParty/Facebook/IOS/**/*.yml
+/Engine/Source/ThirdParty/Facebook/IOS/**/*.json

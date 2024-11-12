@@ -123,8 +123,6 @@ void SBarVisualizer::Construct( const FArguments& InArgs )
 			[
 				// List of thread graphs
 				SAssignNew( BarGraphsList, SListView< TSharedPtr< FVisualizerEvent > > )
-				// List view items are this tall
-				.ItemHeight( 24 )
 				// Tell the list view where to get its source data
 				.ListItemsSource( &ProfileDataView )
 				// When the list view needs to generate a widget for some data item, use this method

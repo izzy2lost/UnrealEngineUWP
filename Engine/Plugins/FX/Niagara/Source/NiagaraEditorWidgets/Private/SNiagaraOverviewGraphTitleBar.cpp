@@ -159,7 +159,12 @@ FText SNiagaraOverviewGraphTitleBar::GetSystemSubheaderText() const
 			{
 				if (FVersionedNiagaraEmitterData* ParentData = EmitterData->GetParent().GetEmitterData())
 				{
-					if (ParentData->bDeprecated)
+					bool bIsDeprecatedAsset = EmitterData->GetParent().Emitter->AssetTags.ContainsByPredicate([](const FNiagaraAssetTagDefinitionReference& AssetTagDefinitionReferenceCandidate)
+					{
+						return AssetTagDefinitionReferenceCandidate.GetTagDefinitionReferenceGuid() == INiagaraModule::Get().DeprecatedTagDefinition.TagGuid;
+					});
+					
+					if (bIsDeprecatedAsset || ParentData->bDeprecated)
 					{
 						DeprecatedEmitterNames.Add(FText::FromName(EmitterModel->GetName()));
 					}
@@ -254,12 +259,12 @@ bool SNiagaraOverviewGraphTitleBar::IsUsingDeprecatedEmitter() const
 		{
 			if (FVersionedNiagaraEmitterData* EmitterData = EmitterModel->GetEmitterHandle()->GetEmitterData())
 			{
-				if (FVersionedNiagaraEmitterData* ParentData = EmitterData->GetParent().GetEmitterData())
+				if(FVersionedNiagaraEmitterData* ParentData = EmitterData->GetParent().GetEmitterData())
 				{
-					if (ParentData->bDeprecated)
+					return ParentData->bDeprecated || EmitterData->GetParent().Emitter->AssetTags.ContainsByPredicate([](const FNiagaraAssetTagDefinitionReference& AssetTagDefinitionReferenceCandidate)
 					{
-						return true;
-					}
+						return AssetTagDefinitionReferenceCandidate.GetTagDefinitionReferenceGuid() == INiagaraModule::Get().DeprecatedTagDefinition.TagGuid;
+					});
 				}
 			}
 		}

@@ -33,6 +33,7 @@ cti::continuable<int32> Job_LoadStaticImageResource::PreExecAsync(ENamedThreads:
 
 		bIsCulled = true;
 		bIsDone = true;
+		MarkJobDone();
 
 		return cti::make_ready_continuable(0);
 	}

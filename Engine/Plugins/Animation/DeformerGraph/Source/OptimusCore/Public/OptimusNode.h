@@ -182,7 +182,13 @@ public:
 
 	//== UObject overrides
 	void Serialize(FArchive& Ar) override;
-	void PostLoad() override;
+	
+	// Using "final" here to make sure all derive nodes have InitializeTransientData() automatically called on them during PostLoad(),
+	// so please use PostLoadNodeSpecificData instead for any PostLoad fix-ups
+	void PostLoad() override final;
+
+	// Derived nodes should override this function for any PostLoad fix-ups
+	virtual void PostLoadNodeSpecificData();
 #if WITH_EDITOR
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -202,6 +208,7 @@ protected:
 	friend struct FOptimusNodeGraphAction_PackageKernelFunction;
 	friend struct FOptimusNodeGraphAction_UnpackageKernelFunction;
 	friend struct FOptimusNodeGraphAction_RemoveNode;
+	friend struct FOptimusNodeGraphAction_DuplicateNode;
 
 	/**
 	 * Returns a unique name for pin. If given the same pins to compare to, the output
@@ -246,8 +253,8 @@ protected:
 		const UOptimusNodeGraph* InTargetGraph, 
 		FOptimusCompoundAction *InCompoundAction) {}
 
-	virtual void SaveState(FArchive& Ar) const;
-	virtual void RestoreState(FArchive& Ar);
+	virtual void ExportState(FArchive& Ar) const;
+	virtual void ImportState(FArchive& Ar);
 
 	void EnableDynamicPins();
 

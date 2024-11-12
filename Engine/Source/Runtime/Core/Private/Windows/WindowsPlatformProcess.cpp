@@ -5,6 +5,7 @@
 #include "Containers/Set.h"
 #include "Containers/StringConv.h"
 #include "Containers/UnrealString.h"
+#include "Async/Fundamental/Scheduler.h"
 #include "CoreGlobals.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformAffinity.h"
@@ -92,6 +93,77 @@ namespace WindowsPlatformProcess
 
 		return(bIsFirstInstance);
 	}
+}
+
+static bool bCustomProcessAffinity = false;
+bool FWindowsPlatformProcess::SetProcessAffinity(uint32 NumCoresForAffinity, bool bPhysicalCoresOnly)
+{
+	if (NumCoresForAffinity == 0)
+	{
+		return false;
+	}
+
+	DWORD_PTR AffinityMask = 0;
+	if (!bPhysicalCoresOnly)
+	{
+		if (NumCoresForAffinity > 64)
+		{
+			UE_LOG(LogWindows, Warning, TEXT("Requested process affinity to %d logical cores but the maximum affinity is 64 cores. Will use 64."), NumCoresForAffinity);
+			NumCoresForAffinity = 64;
+		}
+
+		if (NumCoresForAffinity == 64)
+		{
+			AffinityMask = 0xFFFFFFFFFFFFFFFF;
+		}
+		else
+		{
+			AffinityMask = (((DWORD_PTR)1) << NumCoresForAffinity) - 1;
+		}
+	}
+	else
+	{
+		if (NumCoresForAffinity > 32)
+		{
+			UE_LOG(LogWindows, Warning, TEXT("Requested process affinity to %d physical cores but the maximum affinity is 32 cores. Will use 32."), NumCoresForAffinity);
+			NumCoresForAffinity = 32;
+		}
+
+		// Windows numbers physical and logical (hyperthreaded) cores by interleaving them.
+		// So 0 is physical, 1 is logical, 2 is physical, 3 is logical, etc.
+		constexpr DWORD_PTR PhysicalMask = 0x5555555555555555;
+
+		if (NumCoresForAffinity == 32)
+		{
+			AffinityMask = PhysicalMask;
+		}
+		else
+		{
+			AffinityMask = (((DWORD_PTR)1) << (NumCoresForAffinity * 2)) - 1;
+			AffinityMask &= PhysicalMask;
+		}
+	}
+
+
+	if (!SetProcessAffinityMask(GetCurrentProcess(), AffinityMask))
+	{
+		DWORD LastError = GetLastError();
+		TCHAR ErrorMsg[1024];
+		FPlatformMisc::GetSystemErrorMessage(ErrorMsg, 1024, LastError);
+		UE_LOG(LogWindows, Error, TEXT("Failed to set process affinity, process may run on all available logical cores. Error: %d [%s]"), LastError, ErrorMsg);
+	}
+	else
+	{
+		UE_LOG(LogWindows, Log, TEXT("Successfully set process affinity, process will only use %d cores"), NumCoresForAffinity);
+		bCustomProcessAffinity = true;
+	}
+
+	return bCustomProcessAffinity;
+}
+
+bool FWindowsPlatformProcess::IsProcessAffinitySet()
+{
+	return bCustomProcessAffinity;
 }
 
 void FWindowsPlatformProcess::AddDllDirectory(const TCHAR* Directory)
@@ -591,6 +663,16 @@ uint32 FWindowsPlatformProcess::GetCurrentCoreNumber()
 
 void FWindowsPlatformProcess::SetThreadAffinityMask( uint64 AffinityMask )
 {
+	// While it's technically possible to use both process and thread affinities,
+	// it requires restricting the set of cores eligible for affinity to respect 
+	// the process affinity mask.
+	// For simplicity, as long as the process-wide affinity is a debugging option,
+	// disallow thread affinities when using process affinity.
+	if (FWindowsPlatformProcess::IsProcessAffinitySet())
+	{
+		return;
+	}
+
 	if( AffinityMask != FPlatformAffinity::GetNoAffinityMask() )
 	{
 		::SetThreadAffinityMask( ::GetCurrentThread(), (DWORD_PTR)AffinityMask );
@@ -684,10 +766,16 @@ bool FWindowsPlatformProcess::GetPerFrameProcessorUsage(uint32 ProcessId, float&
 			LastProcessTime = (double)DeltaProcessCycleTime / DeltaCyclesPerFrame;
 
 			// Idle cycles are stored per core and flipped to allow per-frame calculation
-			const uint32 BufferLength = 1024;
-			check(BufferLength >= NumCores * 8);
+			const uint32 BufferLength = NumCores * 8;
+			static uint64* IdleCycleTimeBuffers[2] = { nullptr };
 
-			static uint64 IdleCycleTimeBuffers[2][BufferLength] = {{0}};
+			if(IdleCycleTimeBuffers[0] == nullptr)
+			{
+				//Alloc buffers on first frame 
+				IdleCycleTimeBuffers[0] = new uint64[BufferLength];
+				IdleCycleTimeBuffers[1] = new uint64[BufferLength];
+			}
+
 			uint64* IdleCycleTime = IdleCycleTimeBuffers[CurrFrameIndex];
 			uint64* PrevIdleCycleTime = IdleCycleTimeBuffers[PrevFrameIndex];
 
@@ -1633,6 +1721,7 @@ bool FEventWin::Wait(uint32 WaitTime, const bool bIgnoreThreadIdleStats /*= fals
 	CSV_SCOPED_WAIT(WaitTime);
 	check(Event);
 
+	LowLevelTasks::FOversubscriptionScope _(WaitTime != 0); // Let the scheduler know one of its thread might be waiting.
 	FThreadIdleStats::FScopeIdle Scope( bIgnoreThreadIdleStats );
 	return (WaitForSingleObject( Event, WaitTime ) == WAIT_OBJECT_0);
 }

@@ -42,7 +42,7 @@ bool UPoseSearchDatabaseFactory::ConfigureProperties()
 	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
 
 	PickerWindow = SNew(SWindow)
-	.Title(LOCTEXT("CreatePoseSearchDatabaseOptions", "Pick Config"))
+	.Title(LOCTEXT("CreatePoseSearchDatabaseOptions", "Pick Schema"))
 	.ClientSize(FVector2D(500, 600))
 	.SupportsMinimize(false)
 	.SupportsMaximize(false)

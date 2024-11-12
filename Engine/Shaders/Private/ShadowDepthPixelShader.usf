@@ -54,7 +54,7 @@ void Main(
 	nointerpolation uint PackedPageInfo : TEXCOORD8,
 #endif
 	in float4 SvPosition : SV_Position		// after all interpolators
-#if PERSPECTIVE_CORRECT_DEPTH || COMPILER_METAL
+#if PERSPECTIVE_CORRECT_DEPTH
 	,out float OutDepth : SV_DEPTH
 #endif
 	)
@@ -100,10 +100,6 @@ void Main(
 	Inputs.ShadowDepth += Inputs.DepthBias;
 
 	OutDepth = saturate(Inputs.ShadowDepth);
-#elif COMPILER_METAL
-	// Metal fragment shader must not be empty,
-	// so output depth value explicitly if this shader permuation was not discarded
-	OutDepth = SvPosition.z;
 #endif
 
 #if ENABLE_NON_NANITE_VSM && VIRTUAL_TEXTURE_TARGET
@@ -115,7 +111,7 @@ void Main(
 
 	FShadowPhysicalPage Page = ShadowDecodePageTable( PassStruct.VirtualSmPageTable[ CalcPageOffset( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, vAddress >> VSM_LOG2_PAGE_SIZE ) ] );
 
-	if( Page.bThisLODValid )
+	if( Page.bThisLODValidForRendering)
 	{
 		uint2 pAddress = Page.PhysicalAddress * VSM_PAGE_SIZE + (vAddress & VSM_PAGE_SIZE_MASK);
 		// If requested, render to the static page

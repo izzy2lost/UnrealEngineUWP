@@ -3,7 +3,7 @@
 #include "Message.h"
 #include "Trace/Config.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Platform.h"
 #include "Trace/Detail/Atomic.h"
@@ -69,14 +69,12 @@ struct FTraceGuid
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-UE_TRACE_EVENT_BEGIN($Trace, NewTrace, Important|NoSync)
-	UE_TRACE_EVENT_FIELD(uint64, StartCycle)
-	UE_TRACE_EVENT_FIELD(uint64, CycleFrequency)
-	UE_TRACE_EVENT_FIELD(uint16, Endian)
-	UE_TRACE_EVENT_FIELD(uint8, PointerSize)
-UE_TRACE_EVENT_END()
-
-
+UE_TRACE_MINIMAL_EVENT_BEGIN($Trace, NewTrace, Important | NoSync)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint64, StartCycle)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint64, CycleFrequency)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint16, Endian)
+	UE_TRACE_MINIMAL_EVENT_FIELD(uint8, PointerSize)
+UE_TRACE_MINIMAL_EVENT_END()
 
 ////////////////////////////////////////////////////////////////////////////////
 static volatile bool			GInitialized;		// = false;
@@ -85,6 +83,9 @@ TRACELOG_API uint64				GStartCycle;		// = 0;
 TRACELOG_API uint32 volatile	GLogSerial;			// = 0;
 // Counter of calls to Writer_WorkerUpdate to enable regular flushing of output buffers
 static uint32					GUpdateCounter;		// = 0;
+#if UE_TRACE_PACKET_VERIFICATION
+uint64							GPacketSerial = 1;
+#endif
 
 
 
@@ -248,6 +249,11 @@ void* Writer_MemoryAllocate(SIZE_T Size, uint32 Alignment)
 	}
 #endif // TRACE_PRIVATE_STOMP
 
+	if (Ret == nullptr)
+	{
+		UE_TRACE_MESSAGE_F(OOMFatal, "OOM allocating %llu bytes", uint64(Size));
+	}
+
 #if TRACE_PRIVATE_STATISTICS
 	AtomicAddRelaxed(&GTraceStatistics.MemoryUsed, uint64(Size));
 #endif
@@ -392,9 +398,17 @@ void Writer_SendData(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 		Size += sizeof(FTidPacket);
 		auto* Packet = (FTidPacket*)Data;
 		Packet->ThreadId = uint16(ThreadId & FTidPacketBase::ThreadIdMask);
+#if UE_TRACE_PACKET_VERIFICATION
+		Packet->ThreadId |= FTidPacketBase::Verification;
+#endif
 		Packet->PacketSize = uint16(Size);
 
 		Writer_SendDataImpl(Data, Size);
+
+#if UE_TRACE_PACKET_VERIFICATION
+		const uint64 Serial = GPacketSerial++;
+		Writer_SendDataImpl(&Serial, sizeof(uint64));
+#endif
 		return;
 	}
 
@@ -405,11 +419,18 @@ void Writer_SendData(uint32 ThreadId, uint8* __restrict Data, uint32 Size)
 
 	Packet.ThreadId = FTidPacketBase::EncodedMarker;
 	Packet.ThreadId |= uint16(ThreadId & FTidPacketBase::ThreadIdMask);
+#if UE_TRACE_PACKET_VERIFICATION
+	Packet.ThreadId |= FTidPacketBase::Verification;
+#endif
 	Packet.DecodedSize = uint16(Size);
 	Packet.PacketSize = uint16(Encode(Data, Packet.DecodedSize, Packet.Data, sizeof(Packet.Data)));
 	Packet.PacketSize += sizeof(FTidPacketEncoded);
 
 	Writer_SendDataImpl(&Packet, Packet.PacketSize);
+#if UE_TRACE_PACKET_VERIFICATION
+	const uint64 Serial = GPacketSerial++;
+	Writer_SendDataImpl(&Serial, sizeof(uint64));
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -553,7 +574,6 @@ static bool Writer_UpdateConnection()
 
 	// Reset statistics.
 	GTraceStatistics.BytesSent = 0;
-	GTraceStatistics.BytesTraced = 0;
 
 	// The first events we will send are ones that describe the trace's events
 	FEventNode::OnConnect();
@@ -757,7 +777,7 @@ static void Writer_InternalInitializeImpl()
 
 	AtomicStoreRelaxed(&GInitialized, true);
 
-	UE_TRACE_LOG($Trace, NewTrace, TraceLogChannel)
+	UE_TRACE_MINIMAL_LOG($Trace, NewTrace, TraceLogChannel)
 		<< NewTrace.StartCycle(GStartCycle)
 		<< NewTrace.CycleFrequency(TimeGetFrequency())
 		<< NewTrace.Endian(uint16(0x524d))
@@ -901,6 +921,7 @@ static UPTRINT Writer_PackSendFlags(UPTRINT DataHandle, uint32 Flags)
 ////////////////////////////////////////////////////////////////////////////////
 bool Writer_SendTo(const ANSICHAR* Host, uint32 Flags, uint32 Port)
 {
+#if TRACE_PRIVATE_ALLOW_TCP
 	if (AtomicLoadRelaxed(&GPendingDataHandle))
 	{
 		return false;
@@ -925,11 +946,15 @@ bool Writer_SendTo(const ANSICHAR* Host, uint32 Flags, uint32 Port)
 
 	AtomicStoreRelaxed(&GPendingDataHandle, DataHandle);
 	return true;
+#else
+	return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool Writer_WriteTo(const ANSICHAR* Path, uint32 Flags)
 {
+#if TRACE_PRIVATE_ALLOW_FILE
 	if (AtomicLoadRelaxed(&GPendingDataHandle))
 	{
 		return false;
@@ -952,6 +977,9 @@ bool Writer_WriteTo(const ANSICHAR* Path, uint32 Flags)
 
 	AtomicStoreRelaxed(&GPendingDataHandle, DataHandle);
 	return true;
+#else
+	return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1073,7 +1101,13 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 	//  have a limited tolerance to gaps/out-of-order event packets.
 	Writer_WorkerUpdateInternal();
 
+	// Force flush the send buffer so that platforms that use internal send buffers
+	// don't loose data.
+	Writer_FlushSendBuffer();
+
 	{
+		const bool bExistingDataHandle = GDataHandle != 0;
+		
 		TStashGlobal DataHandle(GDataHandle);
 		TStashGlobal PendingDataHandle(GPendingDataHandle);
 		TStashGlobal SyncPacketCountdown(GSyncPacketCountdown, GNumSyncPackets);
@@ -1081,11 +1115,14 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 
 		if (Target.Type == FSnapshotTarget::EType::FileTarget)
 		{
+#if TRACE_PRIVATE_ALLOW_FILE
 			// Open the snapshot file 
 			GDataHandle = FileOpen(Target.File.Path);
+#endif
 		}
 		else
 		{
+#if TRACE_PRIVATE_ALLOW_TCP
 			// Open the snapshot connection and write 
 			const uint32 Port = Target.Host.Port ? Target.Host.Port : 1981;
 			GDataHandle = TcpSocketConnect(Target.Host.Host, uint16(Port));
@@ -1094,12 +1131,18 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 				return false;
 			}
 			GDataHandle = Writer_PackSendFlags(GDataHandle, 0);
+#endif
 		}
 
 		// Write the file header
 		if (!GDataHandle || !Writer_SessionPrologue())
 		{
 			UE_TRACE_ERRORMESSAGE(FileOpenError, GetLastErrorCode());
+			if (bExistingDataHandle)
+			{
+				UE_TRACE_MESSAGE(Display, "Creating a snapshot during ongoing trace "
+					"is known to fail on some combinations of platforms and hardware.");
+			}
 			return false;
 		}
 
@@ -1182,4 +1225,4 @@ bool Writer_Stop()
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

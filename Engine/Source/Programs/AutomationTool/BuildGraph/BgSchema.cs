@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Xml;
 using System.Xml.Schema;
+using EpicGames.BuildGraph;
+using EpicGames.Core;
 
 #nullable enable
 
@@ -68,12 +68,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BgScriptTaskParameter(string inName, Type inValueType, TaskParameterValidationType inValidationType, bool bInOptional)
+		public BgScriptTaskParameter(string name, Type valueType, TaskParameterValidationType validationType, bool optional)
 		{
-			Name = inName;
-			ValueType = inValueType;
-			ValidationType = inValidationType;
-			Optional = bInOptional;
+			Name = name;
+			ValueType = valueType;
+			ValidationType = validationType;
+			Optional = optional;
 
 			if (ValueType.IsGenericType && ValueType.GetGenericTypeDefinition() == typeof(Nullable<>))
 			{
@@ -195,7 +195,7 @@ namespace AutomationTool
 		/// <summary>
 		/// The inner xml schema
 		/// </summary>
-		public readonly XmlSchema CompiledSchema;
+		public XmlSchema CompiledSchema { get; }
 
 		/// <summary>
 		/// Characters which are not permitted in names.
@@ -295,7 +295,7 @@ namespace AutomationTool
 			}
 
 			// Create all the task types
-			Dictionary<string, XmlSchemaComplexType>? taskNameToType = new Dictionary<string, XmlSchemaComplexType>();
+			Dictionary<string, XmlSchemaComplexType> taskNameToType = new Dictionary<string, XmlSchemaComplexType>();
 			foreach (BgScriptTask task in tasks)
 			{
 				XmlSchemaComplexType taskType = new XmlSchemaComplexType();
@@ -354,12 +354,10 @@ namespace AutomationTool
 			newSchema.Items.Add(CreateSimpleTypeFromRegex(GetTypeName(ScriptSchemaStandardType.BalancedString), BalancedStringPattern));
 			newSchema.Items.Add(CreateSimpleTypeFromRegex(GetTypeName(ScriptSchemaStandardType.Boolean), "(true|True|false|False|" + StringWithPropertiesPattern + ")"));
 			newSchema.Items.Add(CreateSimpleTypeFromRegex(GetTypeName(ScriptSchemaStandardType.Integer), "(" + "(-?[1-9][0-9]*|0)" + "|" + StringWithPropertiesPattern + ")"));
-			if (taskNameToType != null)
+
+			foreach (XmlSchemaComplexType type in taskNameToType.Values)
 			{
-				foreach (XmlSchemaComplexType type in taskNameToType.Values)
-				{
-					newSchema.Items.Add(type);
-				}
+				newSchema.Items.Add(type);
 			}
 			foreach (XmlSchemaSimpleType type in userTypes)
 			{
@@ -572,6 +570,7 @@ namespace AutomationTool
 			extension.Attributes.Add(CreateSchemaAttribute("RunEarly", ScriptSchemaStandardType.Boolean, XmlSchemaUse.Optional));
 			extension.Attributes.Add(CreateSchemaAttribute("NotifyOnWarnings", ScriptSchemaStandardType.Boolean, XmlSchemaUse.Optional));
 			extension.Attributes.Add(CreateSchemaAttribute("Annotations", ScriptSchemaStandardType.BalancedString, XmlSchemaUse.Optional));
+			extension.Attributes.Add(CreateSchemaAttribute("IgnoreModified", ScriptSchemaStandardType.BalancedString, XmlSchemaUse.Optional));
 
 			XmlSchemaComplexContent contentModel = new XmlSchemaComplexContent();
 			contentModel.Content = extension;
@@ -647,7 +646,7 @@ namespace AutomationTool
 			XmlSchemaComplexType artifactType = new XmlSchemaComplexType();
 			artifactType.Name = GetTypeName(ScriptSchemaStandardType.Artifact);
 			artifactType.Attributes.Add(CreateSchemaAttribute("Name", ScriptSchemaStandardType.Name, XmlSchemaUse.Required));
-			artifactType.Attributes.Add(CreateSchemaAttribute("Type", ScriptSchemaStandardType.Name, XmlSchemaUse.Optional));
+			artifactType.Attributes.Add(CreateSchemaAttribute("Type", ScriptSchemaStandardType.Name, XmlSchemaUse.Required));
 			artifactType.Attributes.Add(CreateSchemaAttribute("Description", ScriptSchemaStandardType.BalancedString, XmlSchemaUse.Optional));
 			artifactType.Attributes.Add(CreateSchemaAttribute("BasePath", ScriptSchemaStandardType.BalancedString, XmlSchemaUse.Optional));
 			artifactType.Attributes.Add(CreateSchemaAttribute("Tag", ScriptSchemaStandardType.Tag, XmlSchemaUse.Optional));
@@ -797,6 +796,7 @@ namespace AutomationTool
 			extension.Attributes.Add(CreateSchemaAttribute("Name", ScriptSchemaStandardType.Name, XmlSchemaUse.Required));
 			extension.Attributes.Add(CreateSchemaAttribute("Value", s_stringTypeName, XmlSchemaUse.Optional));
 			extension.Attributes.Add(CreateSchemaAttribute("Separator", s_stringTypeName, XmlSchemaUse.Optional));
+			extension.Attributes.Add(CreateSchemaAttribute("Multiline", s_stringTypeName, XmlSchemaUse.Optional));
 			extension.Attributes.Add(CreateSchemaAttribute("If", ScriptSchemaStandardType.BalancedString, XmlSchemaUse.Optional));
 			extension.Attributes.Add(CreateSchemaAttribute("CreateInParentScope", ScriptSchemaStandardType.Boolean, XmlSchemaUse.Optional));
 
@@ -898,6 +898,7 @@ namespace AutomationTool
 			macroChoice.Items.Add(CreateSchemaElement("Macro", ScriptSchemaStandardType.Macro));
 			macroChoice.Items.Add(CreateSchemaElement("Agent", ScriptSchemaStandardType.Agent));
 			macroChoice.Items.Add(CreateSchemaElement("Aggregate", ScriptSchemaStandardType.Aggregate));
+			macroChoice.Items.Add(CreateSchemaElement("Artifact", ScriptSchemaStandardType.Artifact));
 			macroChoice.Items.Add(CreateSchemaElement("Report", ScriptSchemaStandardType.Report));
 			macroChoice.Items.Add(CreateSchemaElement("Badge", ScriptSchemaStandardType.Badge));
 			macroChoice.Items.Add(CreateSchemaElement("Notify", ScriptSchemaStandardType.Notify));

@@ -17,7 +17,6 @@ public:
 									 const FShaderCompilerInput& Input,
 									 FShaderCompilerOutput& Output,
 									 const FString& InPreprocessedShader,
-									 FSHAHash GUIDHash,
 									 uint32 VersionEnum,
 									 EMetalGPUSemantics Semantics,
 									 uint32 MaxUnrollLoops,

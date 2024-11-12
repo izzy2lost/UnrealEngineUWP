@@ -102,6 +102,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FSkinnedMeshDataInterfaceParameters, )
 	SHADER_PARAMETER_SRV(Buffer<SNORM float4>, TangentInputBuffer)
 	SHADER_PARAMETER_SRV(Buffer<float2>, UVInputBuffer)
 	SHADER_PARAMETER_SRV(Buffer<float4>, ColorInputBuffer)
+	SHADER_PARAMETER(uint32, ColorIndexMask)
 END_SHADER_PARAMETER_STRUCT()
 
 void UOptimusSkinnedMeshDataInterface::GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
@@ -200,5 +201,13 @@ void FOptimusSkinnedMeshDataProviderProxy::GatherDispatchData(FDispatchData cons
 		Parameters.TangentInputBuffer = MeshTangentBufferSRV != nullptr ? MeshTangentBufferSRV : NullSRVBinding;
 		Parameters.UVInputBuffer = MeshUVBufferSRV != nullptr ? MeshUVBufferSRV : NullSRVBinding;
 		Parameters.ColorInputBuffer = MeshColorBufferSRV != nullptr ? MeshColorBufferSRV : NullSRVBinding;
+		
+		// Basically when we are accessing GWhiteVertexBufferWithSRV(NullSRVBinding),
+		// we should not access beyond index 0 since the buffer is only a few bytes
+		
+		// See FGPUSkinPassthroughVertexFactory::UpdateUniformBuffer() and LocalVertexFactory.ush :: GetVertexFactoryIntermediates()
+		// Ideally we should be getting this value from the GPUBaseSkinVertexFactory but the need for
+		// section index make it tricky when we are doing unified dispatch
+		Parameters.ColorIndexMask = MeshColorBufferSRV != nullptr ? ~0u : 0;
 	}
 }

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RHIResources.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "Misc/Guid.h"
@@ -12,9 +13,6 @@
 #include "Components/MeshComponent.h"
 #include "Components/ActorStaticMeshComponentInterface.h"
 #include "PackedNormal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RawIndexBuffer.h"
-#endif
 #include "Templates/UniquePtr.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "UObject/RenderingObjectVersion.h"
@@ -27,6 +25,7 @@ class FLightingBuildOptions;
 class FMeshMapBuildData;
 class FPrimitiveSceneProxy;
 class FStaticMeshStaticLightingMesh;
+class FVertexFactoryType;
 class ULightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -106,10 +105,6 @@ class UStaticMeshComponent : public UMeshComponent
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=LOD)
 	int32 ForcedLodModel;
 
-	/** LOD that was desired for rendering this StaticMeshComponent last frame. */
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property is deprecated and no longer supported."))
-	int32 PreviousLODLevel_DEPRECATED;
-
 	/** 
 	 * Specifies the smallest LOD that will be used for this component.  
 	 * This is ignored if ForcedLodModel is enabled.
@@ -121,8 +116,12 @@ class UStaticMeshComponent : public UMeshComponent
 	UPROPERTY()
 	int32 SubDivisionStepSize;
 
-	/** The static mesh that this component uses to render */
+	/** Wireframe color to use if bOverrideWireframeColor is true */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering, meta=(editcondition = "bOverrideWireframeColor"))
+	FColor WireframeColorOverride;
+
 private:
+	/** The static mesh that this component uses to render */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=StaticMesh, ReplicatedUsing=OnRep_StaticMesh, meta=(AllowPrivateAccess="true"))
 	TObjectPtr<class UStaticMesh> StaticMesh;
 
@@ -141,9 +140,11 @@ public:
 	UFUNCTION()
 	ENGINE_API void OnRep_StaticMesh(class UStaticMesh *OldStaticMesh);
 
-	/** Wireframe color to use if bOverrideWireframeColor is true */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering, meta=(editcondition = "bOverrideWireframeColor"))
-	FColor WireframeColorOverride;
+	/**
+	* Distance at which to disable World Position Offset for an entire instance (0 = Never disable WPO).
+	**/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
+	int32 WorldPositionOffsetDisableDistance = 0;
 
 	/** Forces this component to always use Nanite for masked materials, even if FNaniteSettings::bAllowMaskedMaterials=false */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Rendering)
@@ -178,18 +179,15 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = RayTracing)
 	uint8 bEvaluateWorldPositionOffsetInRayTracing : 1;
 
-	/**
-	 * Distance at which to disable World Position Offset for an entire instance (0 = Never disable WPO).
-	 **/
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
-	int32 WorldPositionOffsetDisableDistance = 0;
-
 protected:
 	/** Initial value of bEvaluateWorldPositionOffset when BeginPlay() was called. Can be useful if we want to reset to initial state. */
 	uint8 bInitialEvaluateWorldPositionOffset : 1;
 
 	/** Whether mip callbacks have been registered and need to be removed on destroy */
 	uint8 bMipLevelCallbackRegistered : 1;
+
+	/** Whether mesh painting is supported. This is can be set by derived component types that don't support mesh painting. */
+	uint8 bSupportMeshPainting : 1;
 
 public:
 
@@ -237,9 +235,9 @@ public:
 	UPROPERTY(transient)
 	uint8 bForceNavigationObstacle : 1;
 
-	/** If true, mesh painting is disallowed on this instance. Set if vertex colors are overridden in a construction script. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Rendering)
-	uint8 bDisallowMeshPaintPerInstance : 1;
+	/** Deprecated. Use bEnableVertexColorMeshPainting instead. */
+	UPROPERTY()
+	uint8 bDisallowMeshPaintPerInstance_DEPRECATED : 1;
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	/** Draw mesh collision if used for complex collision */
@@ -294,7 +292,15 @@ public:
 	/** For Nanite enabled meshes, we'll only show the proxy mesh if this is true */
 	UPROPERTY()
 	uint8 bDisplayNaniteFallbackMesh:1;
-#endif
+
+	/**
+	 * Transient flag used during registration to handle edge case with mesh compilation completion callback.
+	 * We perform actions to register the mesh properly when it gets called async, but we end up doing those
+	 * twice when it gets called while the registration is not completed.
+	 */
+	UPROPERTY(transient)
+	uint8 bRegistering : 1;
+#endif // WITH_EDITORONLY_DATA
 
 	/** Enable dynamic sort mesh's triangles to remove ordering issue when rendered with a translucent material */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Lighting, meta = (UIMin = "0", UIMax = "1", DisplayName = "Sort Triangles"))
@@ -306,9 +312,50 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	uint8 bReverseCulling : 1;
 
+	/** 
+	 * If false, vertex color mesh painting is disabled on this component. 
+	 * This may be set to false by blueprint functions that override vertex colors in construction script.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
+	uint8 bEnableVertexColorMeshPainting : 1;
+
+	/** If false, texture color mesh painting is disabled on this component. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
+	uint8 bEnableTextureColorMeshPainting : 1;
+
+	/** Whether to override the MeshPaintTextureCoordinateIndex set on the static mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
+	uint8 bOverrideMeshPaintTextureCoordinateIndex : 1;
+
+	/** Whether to override the MeshPaintTextureCoordinateIndex set on the static mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
+	uint8 bOverrideMeshPaintTextureResolution : 1;
+
+	/** The overriden coordinate index to use when texture color painting on this component. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
+	int32 OverriddenMeshPaintTextureCoordinateIndex;
+
+	/** The overriden resolution of texture color mesh paint textures on this component. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Mesh Painting", meta = (UIMin = "0", UIMax = "4096", ClampMax = "4096", editcondition = "bOverrideMeshPaintTextureResolution"))
+	int32 OverriddenMeshPaintTextureResolution;
+
 	/** Light map resolution to use on this component, used if bOverrideLightMapRes is true and there is a valid StaticMesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, meta=(ClampMax = 4096, editcondition="bOverrideLightMapRes") )
 	int32 OverriddenLightMapRes;
+
+#if WITH_EDITORONLY_DATA
+	/** Texture containing texture color mesh painting for this mesh component. */
+	UPROPERTY(VisibleAnywhere, Category = "Mesh Painting")
+	TObjectPtr<UTexture> MeshPaintTexture;
+#endif
+
+	/** Cooked pointer to texture containing mesh painting for this mesh component. This will be taken from MeshPaintTexture but can be empty on some platforms if we choose to strip the data. */
+	UPROPERTY(SkipSerialization)
+	TObjectPtr<UTexture> MeshPaintTextureCooked;
+
+	/** Set this to override the locally stored mesh paint texture. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture> MeshPaintTextureOverride;
 
 	/** 
 	 * Controls how dark the dynamic indirect shadow can be.
@@ -328,6 +375,10 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=TextureStreaming, meta=(ClampMin = 0, ToolTip="Allows adjusting the desired resolution of streaming textures that uses UV 0.  1.0 is the default, whereas a higher value increases the streamed-in resolution."))
 	float StreamingDistanceMultiplier;
+
+	/** Used to forcefully disable pixel programmable rasterization of Nanite when the mesh is further than a given distance from the camera. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering)
+	float NanitePixelProgrammableDistance;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -532,6 +583,7 @@ public:
 	ENGINE_API virtual bool BuildTextureStreamingDataImpl(ETextureStreamingBuildType BuildType, EMaterialQualityLevel::Type QualityLevel, ERHIFeatureLevel::Type FeatureLevel, TSet<FGuid>& DependentResources, bool& bOutSupportsBuildTextureStreamingData) override;
 	/** Get the StreaminTexture data. */
 	ENGINE_API virtual void GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const override;
+	ENGINE_API virtual void GetUsedTextures(TArray<UTexture*>& OutTextures, EMaterialQualityLevel::Type QualityLevel) override;
 #if WITH_EDITOR
 	ENGINE_API virtual bool RemapActorTextureStreamingBuiltDataToLevel(const class UActorTextureStreamingBuildDataComponent* InActorTextureBuildData) override;
 	ENGINE_API virtual uint32 ComputeHashTextureStreamingBuiltData() const override;
@@ -550,7 +602,9 @@ public:
 	ENGINE_API virtual void GetLightAndShadowMapMemoryUsage( int32& LightMapMemoryUsage, int32& ShadowMapMemoryUsage ) const override;
 	ENGINE_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const final;
 	ENGINE_API virtual UMaterialInterface* GetMaterial(int32 MaterialIndex) const final;
+#if WITH_EDITOR
 	ENGINE_API virtual UMaterialInterface* GetEditorMaterial(int32 MaterialIndex) const override;
+#endif
 	ENGINE_API virtual int32 GetMaterialIndex(FName MaterialSlotName) const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterialFromCollisionFaceIndex(int32 FaceIndex, int32& SectionIndex) const override;
 	ENGINE_API virtual TArray<FName> GetMaterialSlotNames() const override;
@@ -561,6 +615,7 @@ public:
 	ENGINE_API virtual bool IsShown(const FEngineShowFlags& ShowFlags) const override;
 #if WITH_EDITOR
 	ENGINE_API void OnMeshRebuild(bool bRenderDataChanged);
+	ENGINE_API virtual void PreStaticMeshCompilation();
 	ENGINE_API virtual void PostStaticMeshCompilation();
 	ENGINE_API virtual bool ComponentIsTouchingSelectionBox(const FBox& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
 	ENGINE_API virtual bool ComponentIsTouchingSelectionFrustum(const FConvexVolume& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const override;
@@ -577,6 +632,10 @@ public:
 	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& Callback, int32 LODIdx, float TimeoutSecs, bool bOnStreamIn) override;
 	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& CallbackStreamingStart, FLODStreamingCallback&& CallbackStreamingDone, float TimeoutStartSecs, float TimeoutDoneSecs) override;
 	ENGINE_API virtual bool PrestreamMeshLODs(float Seconds) override;
+	ENGINE_API virtual UTexture* GetMeshPaintTexture() const override;
+	ENGINE_API virtual void SetMeshPaintTexture(UTexture* Texture) override;
+	ENGINE_API virtual void SetMeshPaintTextureOverride(UTexture* OverrideTexture) override;
+	ENGINE_API virtual int32 GetMeshPaintTextureCoordinateIndex() const override;
 	//~ End UMeshComponent Interface
 
 	//~ Begin INavRelevantInterface Interface.
@@ -705,6 +764,13 @@ public:
 
 	ENGINE_API UMaterialInterface* GetNaniteAuditMaterial(int32 MaterialIndex) const;
 
+	/* Returns true if mesh vertex color painting is supported on this component. */
+	ENGINE_API bool CanMeshPaintVertexColors() const;
+	/* Returns true if mesh texture color painting is supported on this component. */
+	ENGINE_API bool CanMeshPaintTextureColors() const;
+	/** Returns the size to use when creating a mesh paint texture on this component. */
+	ENGINE_API int32 GetMeshPaintTextureResolution() const;
+
 private:
 	/** Initializes the resources used by the static mesh component. */
 	ENGINE_API void InitResources();
@@ -784,6 +850,9 @@ public:
 	ENGINE_API virtual void PropagateLightingScenarioChange() override;
 
 	ENGINE_API const FMeshMapBuildData* GetMeshMapBuildData(const FStaticMeshComponentLODInfo& LODInfo, bool bCheckForResourceCluster = true) const;
+
+	void UpdateMapBuildDataId();
+	void UpdateStaticLightingData();
 
 	/** Called during scene proxy creation to get the Nanite resource data */
 	DECLARE_DELEGATE_RetVal(const Nanite::FResources*, FOnGetNaniteResources);

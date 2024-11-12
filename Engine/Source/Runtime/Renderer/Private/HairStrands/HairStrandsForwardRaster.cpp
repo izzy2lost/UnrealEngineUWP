@@ -147,6 +147,15 @@ public:
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_RASTERCOMPUTE_BINNING"), 1);
 	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebug>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FHairStrandsForwardRasterBinningCS, "/Engine/Private/HairStrands/HairStrandsForwardRaster.usf", "BinningCS", SF_Compute);
@@ -184,6 +193,15 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_RASTERCOMPUTE_COMPACTION"), 1);
+	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebug>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 };
 
@@ -223,6 +241,16 @@ class FHairStrandsForwardRasterRasterizeCS : public FGlobalShader
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsForwardRasterSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) 
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebug>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -266,6 +294,10 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_RASTERCOMPUTE_DEBUG"), 1);
+	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
 	}
 };
 

@@ -13,6 +13,7 @@
 #include "GameFramework/Pawn.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "VehicleAnimationInstance.h"
 #include "ChaosVehicleManager.h"
 #include "ChaosVehicleWheel.h"

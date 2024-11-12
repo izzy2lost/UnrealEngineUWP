@@ -41,19 +41,30 @@ namespace Jupiter.Implementation
 				);"
 				));
 
+				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS blob_replication_log (
+					namespace varchar,
+					replication_bucket bigint,
+					replication_id timeuuid,
+					type int,
+					blob_id blob,
+					bucket_hint varchar,
+					PRIMARY KEY ((namespace, replication_bucket), replication_id)
+				);"
+				));
+
 				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_snapshot (
 					namespace varchar,
 					id timeuuid,
 					blob_snapshot blob_identifier,
 					blob_namespace varchar,
 					PRIMARY KEY ((namespace), id)
-				) WITH CLUSTERING ORDER BY (id DESC);"  
+				) WITH CLUSTERING ORDER BY (id DESC);"
 				));
 
 				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_namespace (
 					namespace varchar,
 					PRIMARY KEY ((namespace))
-				);"  
+				);"
 				));
 
 				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_state (
@@ -62,7 +73,7 @@ namespace Jupiter.Implementation
 					last_bucket varchar,
 					last_event uuid,
 					PRIMARY KEY ((namespace), name)
-				);"  
+				);"
 				));
 			}
 		}
@@ -84,7 +95,7 @@ namespace Jupiter.Implementation
 			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
 			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
 			ScyllaReplicationLogEvent log = new ScyllaReplicationLogEvent(ns.ToString(), bucket.ToString(), key.ToString(), timeBucket, ScyllaReplicationLogEvent.OpType.Added, objectBlob);
-			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false,  ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false, ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
 
 			await addNamespaceTask;
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
@@ -92,12 +103,12 @@ namespace Jupiter.Implementation
 
 		public async Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
-			using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.insert_delete_event");
+			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_delete_event");
 
 			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
 			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
 			ScyllaReplicationLogEvent log = new ScyllaReplicationLogEvent(ns.ToString(), bucket.ToString(), key.ToString(), timeBucket, ScyllaReplicationLogEvent.OpType.Deleted, null);
-			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false,  ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false, ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
 
 			await addNamespaceTask;
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
@@ -176,7 +187,7 @@ namespace Jupiter.Implementation
 				{
 					throw new NamespaceNotFoundException(ns);
 				}
-				
+
 				throw new IncrementalLogNotAvailableException();
 			}
 		}
@@ -214,7 +225,7 @@ namespace Jupiter.Implementation
 
 			// we returned the start bucket earlier so now we start with the next one
 			DateTime bucketTime = startBucketTime.AddHours(1.0).ToHourlyBucket();
-			while(bucketTime < DateTime.UtcNow && bucketTime > oldCutoff)
+			while (bucketTime < DateTime.UtcNow && bucketTime > oldCutoff)
 			{
 				using TelemetrySpan determineBucketExistsScope = _tracer.BuildScyllaSpan("scylla.determine_replication_bucket_exists");
 				// fetch all the buckets that exists and sort them based on time
@@ -304,9 +315,61 @@ namespace Jupiter.Implementation
 
 			return replicationState?.ToReplicatorState();
 		}
+
+		public async Task<(string, Guid)> InsertAddBlobEventAsync(NamespaceId ns, BlobId objectBlob, DateTime? timestamp = null, BucketId? bucketHint = null)
+		{
+			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_blob_add_event");
+
+			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
+			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
+			ScyllaBlobReplicationLogEvent log = new ScyllaBlobReplicationLogEvent(ns.ToString(), objectBlob, timeBucket, ScyllaBlobReplicationLogEvent.OpType.Added, bucketHint);
+			await _mapper.InsertAsync<ScyllaBlobReplicationLogEvent>(log, insertNulls: false, ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+
+			await addNamespaceTask;
+			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
+		}
+
+		public async IAsyncEnumerable<BlobReplicationLogEvent> GetBlobEventsAsync(NamespaceId ns, string replicationBucket)
+		{
+			using TelemetrySpan span = _tracer.BuildScyllaSpan("scylla.get_blob_replication_log").SetAttribute("resource.name", replicationBucket);
+
+			DateTime timestamp = replicationBucket.FromReplicationBucketIdentifier();
+			DateTime oldestBucketTimestamp = DateTime.UtcNow.AddSeconds(-1 * _settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+			
+			// if the requested bucket is older then anything we would have kept around we flag it as to old 
+			if (timestamp < oldestBucketTimestamp)
+			{
+				throw new IncrementalLogNotAvailableException();
+			}
+
+			long bucketId = replicationBucket.FromReplicationBucketIdentifier().ToFileTimeUtc();
+			IEnumerable<ScyllaBlobReplicationLogEvent> events = await _mapper.FetchAsync<ScyllaBlobReplicationLogEvent>("WHERE namespace = ? AND replication_bucket = ?", ns.ToString(), bucketId);
+
+			bool eventFound = false;
+			foreach (ScyllaBlobReplicationLogEvent scyllaReplicationLog in events)
+			{
+				eventFound = true;
+				yield return new BlobReplicationLogEvent(
+					new NamespaceId(scyllaReplicationLog.Namespace),
+					new BlobId(scyllaReplicationLog.BlobId),
+					scyllaReplicationLog.ReplicationId,
+					scyllaReplicationLog.GetReplicationBucketIdentifier(),
+					scyllaReplicationLog.GetReplicationBucketTimestamp(),
+					(BlobReplicationLogEvent.OpType)scyllaReplicationLog.Type,
+					scyllaReplicationLog.BucketHint == null ? null : new BucketId(scyllaReplicationLog.BucketHint));
+			}
+
+			if (!eventFound)
+			{
+				ScyllaNamespace? namespaces = await _mapper.SingleOrDefaultAsync<ScyllaNamespace>("WHERE namespace = ?", ns.ToString());
+				if (namespaces == null)
+				{
+					throw new NamespaceNotFoundException(ns);
+				}
+			}
+		}
 	}
 
-	
 	[Cassandra.Mapping.Attributes.Table("replication_log")]
 	class ScyllaReplicationLogEvent
 	{
@@ -335,7 +398,7 @@ namespace Jupiter.Implementation
 		}
 
 		[Cassandra.Mapping.Attributes.PartitionKey]
-		public string Namespace { get;set; }
+		public string Namespace { get; set; }
 
 		// we store bucket as a long (datetime converted to filetime bucketed per hour) to make sure it sorts oldest first
 		[Cassandra.Mapping.Attributes.PartitionKey]
@@ -356,6 +419,63 @@ namespace Jupiter.Implementation
 
 		[Cassandra.Mapping.Attributes.Column("object_identifier")]
 		public ScyllaBlobIdentifier? ObjectIdentifier { get; set; }
+
+		public string GetReplicationBucketIdentifier()
+		{
+			// the replication bucket identifier is a a string to avoid people assuming its a timestamp, we do not store that in the db though as the string does not sort correctly then
+			return DateTime.FromFileTimeUtc(ReplicationBucket).ToReplicationBucketIdentifier();
+		}
+
+		public DateTime GetReplicationBucketTimestamp()
+		{
+			return DateTime.FromFileTimeUtc(ReplicationBucket);
+		}
+	}
+
+	[Cassandra.Mapping.Attributes.Table("blob_replication_log")]
+	class ScyllaBlobReplicationLogEvent
+	{
+		public enum OpType
+		{
+			Added,
+			Deleted
+		};
+
+		public ScyllaBlobReplicationLogEvent()
+		{
+			Namespace = null!;
+			BlobId = null!;
+		}
+
+		public ScyllaBlobReplicationLogEvent(string @namespace, BlobId blobId, DateTime lastTimestamp, OpType opType, BucketId? bucketHint)
+		{
+			Namespace = @namespace;
+			BlobId = blobId.HashData;
+			BucketHint = bucketHint.ToString();
+			ReplicationBucket = lastTimestamp.ToReplicationBucket().ToFileTimeUtc();
+			ReplicationId = TimeUuid.NewId(lastTimestamp);
+			Type = (int)opType;
+		}
+
+		[Cassandra.Mapping.Attributes.PartitionKey]
+		public string Namespace { get; set; }
+
+		// we store bucket as a long (datetime converted to filetime bucketed into 5 minute buckets) to make sure it sorts oldest first
+		[Cassandra.Mapping.Attributes.PartitionKey]
+		[Cassandra.Mapping.Attributes.Column("replication_bucket")]
+		public long ReplicationBucket { get; set; }
+
+		[Cassandra.Mapping.Attributes.Column("replication_id")]
+		public TimeUuid ReplicationId { get; set; }
+
+		[Cassandra.Mapping.Attributes.Column("blob_id")]
+		public byte[] BlobId { get; set; }
+
+		[Cassandra.Mapping.Attributes.Column("type")]
+		public int Type { get; set; }
+
+		[Cassandra.Mapping.Attributes.Column("bucket_hint")]
+		public string? BucketHint { get; set; }
 
 		public string GetReplicationBucketIdentifier()
 		{
@@ -415,7 +535,7 @@ namespace Jupiter.Implementation
 		}
 
 		[Cassandra.Mapping.Attributes.PartitionKey]
-		public string Namespace { get;set; }
+		public string Namespace { get; set; }
 	}
 
 	[Cassandra.Mapping.Attributes.Table("replication_state")]

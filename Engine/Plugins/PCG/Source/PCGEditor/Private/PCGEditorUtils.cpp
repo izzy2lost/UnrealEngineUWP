@@ -84,7 +84,7 @@ void PCGEditorUtils::ForEachPCGSettingsAssetData(TFunctionRef<bool(const FAssetD
 void PCGEditorUtils::ForEachPCGGraphAssetData(TFunctionRef<bool(const FAssetData&)> InFunc)
 {
 	FARFilter Filter;
-	Filter.ClassPaths.Add(UPCGGraph::StaticClass()->GetClassPathName());
+	Filter.ClassPaths.Add(UPCGGraphInterface::StaticClass()->GetClassPathName());
 	Filter.bRecursiveClasses = true;
 
 	ForEachAssetData(Filter, InFunc);

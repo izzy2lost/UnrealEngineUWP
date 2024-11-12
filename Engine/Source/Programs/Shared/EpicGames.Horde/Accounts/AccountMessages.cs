@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using EpicGames.Horde.Acls;
 
 #pragma warning disable CA1054 // URI-like parameters should not be strings
+#pragma warning disable CA1056 // Change string to URI
 
 namespace EpicGames.Horde.Accounts
 {

@@ -38,7 +38,6 @@ public:
 
 	//~ Begin UObject Interface
 	virtual void BeginDestroy() override;
-	virtual void PostLoad() override;
 	virtual UWorld* GetWorld() const override;
 	//~ End UObject Interface
 

@@ -6,7 +6,7 @@
 
 //#include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionArrayNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionArrayNodes()
@@ -24,11 +24,11 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FUnionIntArraysDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRemoveFloatArrayElementDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FFloatArrayComputeStatisticsDataflowNode);
-
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRandomizeFloatArrayDataflowNode);
 	}
 }
 
-void FGetFloatArrayElementDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetFloatArrayElementDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&FloatValue))
 	{
@@ -40,7 +40,7 @@ void FGetFloatArrayElementDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FFloatArrayToIntArrayDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatArrayToIntArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<int32>>(&IntArray))
 	{
@@ -106,7 +106,7 @@ void FFloatArrayToIntArrayDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FGetArrayElementDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetArrayElementDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FVector>(&Point))
 	{
@@ -121,7 +121,7 @@ void FGetArrayElementDataflowNode::Evaluate(Dataflow::FContext& Context, const F
 	}
 }
 
-void FGetNumArrayElementsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetNumArrayElementsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<int32>(&NumElements))
 	{
@@ -150,7 +150,7 @@ void FGetNumArrayElementsDataflowNode::Evaluate(Dataflow::FContext& Context, con
 	}
 }
 
-void FBoolArrayToFaceSelectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FBoolArrayToFaceSelectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowFaceSelection>(&FaceSelection))
 	{
@@ -165,7 +165,7 @@ void FBoolArrayToFaceSelectionDataflowNode::Evaluate(Dataflow::FContext& Context
 }
 
 
-void FFloatArrayToVertexSelectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatArrayToVertexSelectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
 	{
@@ -217,7 +217,7 @@ void FFloatArrayToVertexSelectionDataflowNode::Evaluate(Dataflow::FContext& Cont
 	}
 }
 
-void FFloatArrayNormalizeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatArrayNormalizeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<float>>(&OutFloatArray))
 	{
@@ -306,7 +306,7 @@ void FFloatArrayNormalizeDataflowNode::Evaluate(Dataflow::FContext& Context, con
 }
 
 
-void FVectorArrayNormalizeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FVectorArrayNormalizeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<FVector>>(&OutVectorArray))
 	{
@@ -358,7 +358,7 @@ void FVectorArrayNormalizeDataflowNode::Evaluate(Dataflow::FContext& Context, co
 	}
 }
 
-void FUnionIntArraysDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FUnionIntArraysDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<TArray<int32>>(&OutArray))
 	{
@@ -377,7 +377,7 @@ void FUnionIntArraysDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
-void FRemoveFloatArrayElementDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRemoveFloatArrayElementDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&FloatArray))
 	{
@@ -390,7 +390,7 @@ void FRemoveFloatArrayElementDataflowNode::Evaluate(Dataflow::FContext& Context,
 			}
 			else
 			{
-				Array.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Array.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 
 			SetValue(Context, Array, &FloatArray);
@@ -531,7 +531,7 @@ static float ComputeSum(const TArray<float>& FloatArray, TArray<int32>& IndexArr
 
 // -----------------------------------------------------------------------------------------------
 
-void FFloatArrayComputeStatisticsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloatArrayComputeStatisticsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&Value) || Out->IsA(&Indices))
 	{
@@ -584,5 +584,31 @@ void FFloatArrayComputeStatisticsDataflowNode::Evaluate(Dataflow::FContext& Cont
 
 		SetValue(Context, OutValue, &Value);
 		SetValue(Context, OutIndices, &Indices);
+	}
+}
+
+void FRandomizeFloatArrayDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&FloatArray))
+	{
+		const TArray<float> InFloatArray = GetValue(Context, &FloatArray);
+		const float InRandomRangeMin = GetValue(Context, &RandomRangeMin);
+		const float InRandomRangeMax = GetValue(Context, &RandomRangeMax);
+		const int32 InRandomSeed = GetValue(Context, &RandomSeed);
+		TArray<float> OutFloatArray;
+
+		FRandomStream RandStream(InRandomSeed);
+
+		const int32 NumPoints = InFloatArray.Num();
+		if (NumPoints > 0)
+		{
+			OutFloatArray.Reserve(NumPoints);
+			for (int32 Idx = 0; Idx < NumPoints; ++Idx)
+			{
+				OutFloatArray.Emplace(RandStream.FRandRange(InRandomRangeMin, InRandomRangeMax));
+			}
+		}
+
+		SetValue(Context, MoveTemp(OutFloatArray), &FloatArray);
 	}
 }

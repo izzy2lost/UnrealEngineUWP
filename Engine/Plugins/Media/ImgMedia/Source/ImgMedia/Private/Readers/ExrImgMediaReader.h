@@ -38,11 +38,6 @@ public:
 	/** Gets reader type (GPU vs CPU) depending on size of EXR and its compression. */
 	static TSharedPtr<IImgMediaReader, ESPMode::ThreadSafe> GetReader(const TSharedRef<FImgMediaLoader, ESPMode::ThreadSafe>& InLoader, FString FirstImageInSequencePath);
 
-	/** Query if our images are in our custom format. */
-	bool IsCustomFormat() const { return bIsCustomFormat; }
-	/** Gets the tile size of our custom format. */
-	FIntPoint GetCustomFormatTileSize() { return CustomFormatTileSize; }
-
 protected:
 	enum EReadResult
 	{
@@ -84,14 +79,6 @@ protected:
 		, TArray<UE::Math::TIntPoint<int64>>& OutBufferRegionsToCopy);
 
 	/**
-	 * Sets parameters of our custom format images.
-	 *
-	 * @param bInIsCustomFormat		True if we are using custom format images.
-	 * @param TileSize				Size of our tiles. If (0, 0) then we are not using tiles.
-	 */
-	void SetCustomFormatInfo(bool bInIsCustomFormat, const FIntPoint& InTileSize);
-
-	/**
 	 * Gets the total size needed for all mips.
 	 *
 	 * @param Dim Dimensions of the largest mip.
@@ -104,12 +91,6 @@ protected:
 	FCriticalSection CanceledFramesCriticalSection;
 	TMap<int32, FRgbaInputFile*> PendingFrames;
 	TWeakPtr<FImgMediaLoader, ESPMode::ThreadSafe> LoaderPtr;
-	/** True if we are using our custom format. */
-	bool bIsCustomFormat;
-	/** True if our custom format images are tiled. */
-	bool bIsCustomFormatTiled;
-	/** Tile size of our custom format images. */
-	FIntPoint CustomFormatTileSize;
 };
 
 

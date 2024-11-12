@@ -3,6 +3,7 @@
 #pragma once
 
 #include "DMXPixelMappingOutputComponent.h"
+#include "DMXPixelMappingRenderElement.h"
 #include "Library/DMXEntityReference.h"
 
 #include "DMXPixelMappingOutputDMXComponent.generated.h"
@@ -12,11 +13,7 @@ class UDMXModulator;
 class UDMXPixelMappingColorSpace;
 
 
-/**
- * Base class for components that contain a fixture patch to send DMX.
- * 
- * For legacy reasons also used by deprecated DMXPixelMappingScreenComponent
- */
+/** Base class for components that contain a fixture patch to send DMX. */
 UCLASS(Abstract)
 class DMXPIXELMAPPINGRUNTIME_API UDMXPixelMappingOutputDMXComponent
 	: public UDMXPixelMappingOutputComponent
@@ -32,7 +29,7 @@ public:
 
 	/** The quality level to use when averaging colors during downsampling. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quality")
-	EDMXPixelBlendingQuality CellBlendingQuality;
+	EDMXPixelBlendingQuality CellBlendingQuality = EDMXPixelBlendingQuality::High;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Fixture Patch", Meta = (ShowOnlyInnerProperties))
 	FDMXEntityFixturePatchRef FixturePatchRef;

@@ -7,7 +7,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "IAnimationProvider.h"
 #include "IGameplayProvider.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IRewindDebugger.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
@@ -58,7 +58,7 @@ int32 FDebuggerViewModel::GetNodesNum() const
 
 void FDebuggerViewModel::OnUpdate()
 {
-	MotionMatchingStates.Empty();
+	MotionMatchingStates.Reset();
 
 	// Get provider and validate
 	const TraceServices::IAnalysisSession* Session = RewindDebugger.Get()->GetAnalysisSession();
@@ -187,16 +187,16 @@ void FDebuggerViewModel::OnUpdate()
 	}
 }
 
-void FDebuggerViewModel::OnUpdateNodeSelection(int32 InNodeId)
+void FDebuggerViewModel::OnUpdateSearchSelection(int32 InSearchId)
 {
-	if (InNodeId != INDEX_NONE)
+	if (InSearchId != InvalidSearchId)
 	{
 		// Find node in all motion matching states this frame
 		ActiveMotionMatchingStateIdx = INDEX_NONE;
 		const int32 NodesNum = MotionMatchingStates.Num();
 		for (int32 i = 0; i < NodesNum; ++i)
 		{
-			if (MotionMatchingStates[i].NodeId == InNodeId)
+			if (MotionMatchingStates[i].GetSearchId() == InSearchId)
 			{
 				ActiveMotionMatchingStateIdx = i;
 				break;

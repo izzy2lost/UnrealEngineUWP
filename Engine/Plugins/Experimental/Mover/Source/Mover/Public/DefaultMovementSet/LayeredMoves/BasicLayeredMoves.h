@@ -68,15 +68,18 @@ struct TStructOpsTypeTraits< FLayeredMove_LinearVelocity > : public TStructOpsTy
 };
 
 
-/** Jump Impulse: introduces an instantaneous upwards change in velocity. This overrides the existing 'up' component of the actor's current velocity */
+/** Jump Impulse Over Duration: introduces an instantaneous upwards change in velocity over a duration(ms).
+  * This overrides the existing 'up' component of the actor's current velocity
+  * Note: For a one time Jump Impulse consider using a FJumpImpulseEffect Instant Effect
+  */
 USTRUCT(BlueprintType)
-struct MOVER_API FLayeredMove_JumpImpulse : public FLayeredMoveBase
+struct MOVER_API FLayeredMove_JumpImpulseOverDuration : public FLayeredMoveBase
 {
 	GENERATED_USTRUCT_BODY()
 
-	FLayeredMove_JumpImpulse();
+	FLayeredMove_JumpImpulseOverDuration();
 
-	virtual ~FLayeredMove_JumpImpulse() {}
+	virtual ~FLayeredMove_JumpImpulseOverDuration() {}
 
 	// Units per second, in whatever direction the target actor considers 'up'
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
@@ -97,7 +100,7 @@ struct MOVER_API FLayeredMove_JumpImpulse : public FLayeredMoveBase
 };
 
 template<>
-struct TStructOpsTypeTraits< FLayeredMove_JumpImpulse > : public TStructOpsTypeTraitsBase2< FLayeredMove_JumpImpulse >
+struct TStructOpsTypeTraits< FLayeredMove_JumpImpulseOverDuration > : public TStructOpsTypeTraitsBase2< FLayeredMove_JumpImpulseOverDuration >
 {
 	enum
 	{
@@ -173,44 +176,6 @@ struct TStructOpsTypeTraits< FLayeredMove_JumpTo > : public TStructOpsTypeTraits
 		WithCopy = true
 	};
 };
-
-/** Teleport: instantly moves an actor to a new location */
-USTRUCT(BlueprintType)
-struct MOVER_API FLayeredMove_Teleport : public FLayeredMoveBase
-{
-	GENERATED_USTRUCT_BODY()
-
-	FLayeredMove_Teleport();
-	virtual ~FLayeredMove_Teleport() {}
-
-	// Location to teleport to, in world space
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FVector TargetLocation;
-
-	// Generate a movement 
-	virtual bool GenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove) override;
-
-	virtual FLayeredMoveBase* Clone() const override;
-
-	virtual void NetSerialize(FArchive& Ar) override;
-
-	virtual UScriptStruct* GetScriptStruct() const override;
-
-	virtual FString ToSimpleString() const override;
-
-	virtual void AddReferencedObjects(class FReferenceCollector& Collector) override;
-};
-
-template<>
-struct TStructOpsTypeTraits< FLayeredMove_Teleport > : public TStructOpsTypeTraitsBase2< FLayeredMove_Teleport >
-{
-	enum
-	{
-		//WithNetSerializer = true,
-		WithCopy = true
-	};
-};
-
 
 /** MoveTo: Move Actor from the starting location to the target location over a duration of time.*/
 USTRUCT(BlueprintType)

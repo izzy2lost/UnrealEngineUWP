@@ -2,14 +2,25 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-#include "Insights/Common/SimpleRtti.h"
+#include "Templates/SharedPointer.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/SimpleRtti.h"
+
+// TraceInsights
+#include "Insights/Config.h"
+
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+#include "Insights/ITimingViewSession.h"
+#endif
 
 class ITimingViewDrawHelper;
 class FBaseTimingTrack;
-struct FDrawContext;
 class FTimingTrackViewport;
+
+namespace UE::Insights { class FDrawContext; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +78,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class ITimingEventRelation
+class TRACEINSIGHTS_API ITimingEventRelation
 {
 	INSIGHTS_DECLARE_RTTI_BASE(ITimingEventRelation)
 
@@ -80,7 +91,8 @@ public:
 
 	ITimingEventRelation() {}
 	virtual ~ITimingEventRelation() {}
-	virtual void Draw(const FDrawContext& DrawContext, const FTimingTrackViewport& Viewport, const ITimingViewDrawHelper& Helper, const EDrawFilter Filter) = 0;
+
+	virtual void Draw(const UE::Insights::FDrawContext& DrawContext, const FTimingTrackViewport& Viewport, const ITimingViewDrawHelper& Helper, const EDrawFilter Filter) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

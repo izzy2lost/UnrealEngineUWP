@@ -109,10 +109,6 @@ public:
 
 private:
 	// ~ UObject Interface
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Suppress compiler warning on override of deprecated function
-	UE_DEPRECATED(5.0, "Use version that takes FObjectPreSaveContext instead.")
-	UMG_API virtual void PreSave(const class ITargetPlatform* TargetPlatform) override;
-	UMG_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	// ~ UObject Interface
 

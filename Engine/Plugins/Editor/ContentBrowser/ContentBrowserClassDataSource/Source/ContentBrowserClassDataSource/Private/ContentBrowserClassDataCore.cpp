@@ -100,7 +100,8 @@ bool IsPluginClass(const FName InPath)
 	return AssetViewUtils::IsPluginFolder(PathStr);
 }
 
-FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsFromPlugin)
+FContentBrowserItemData CreateClassFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, FName InFolderPath, const bool bIsFromPlugin)
 {
 	static const FName GameRootPath = "/Classes_Game";
 	static const FName EngineRootPath = "/Classes_Engine";
@@ -126,20 +127,28 @@ FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwner
 		InVirtualPath,
 		*FolderItemName,
 		MoveTemp(FolderDisplayNameOverride),
-		MakeShared<FContentBrowserClassFolderItemDataPayload>(InFolderPath));
+		MakeShared<FContentBrowserClassFolderItemDataPayload>(InFolderPath),
+		{ InFolderPath });
 }
 
-FContentBrowserItemData CreateClassFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InClassPath, UClass* InClass, const bool bIsFromPlugin)
+FContentBrowserItemData CreateClassFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	FName InClassPath,
+	UClass* InClass,
+	const bool bIsFromPlugin)
 {
 	return FContentBrowserItemData(InOwnerDataSource,
 		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Class | (bIsFromPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
 		InVirtualPath,
 		InClass->GetFName(),
 		FText(),
-		MakeShared<FContentBrowserClassFileItemDataPayload>(InClassPath, InClass));
+		MakeShared<FContentBrowserClassFileItemDataPayload>(InClassPath, InClass),
+		{ InClassPath });
 }
 
-TSharedPtr<const FContentBrowserClassFolderItemDataPayload> GetClassFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
+TSharedPtr<const FContentBrowserClassFolderItemDataPayload> GetClassFolderItemPayload(
+	const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
 {
 	if (InItem.GetOwnerDataSource() == InOwnerDataSource && InItem.IsFolder())
 	{
@@ -289,6 +298,26 @@ bool AppendItemReference(const UContentBrowserDataSource* InOwnerDataSource, con
 	return false;
 }
 
+bool AppendItemObjectPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserClassFileItemDataPayload> ClassPayload = GetClassFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendObjectPathFileItemReference(*ClassPayload, InOutStr);
+	}
+
+	return false;
+}
+
+bool AppendItemPackageName(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserClassFileItemDataPayload> ClassPayload = GetClassFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendPackageNameItemReference(*ClassPayload, InOutStr);
+	}
+
+	return false;
+}
+
 bool AppendClassFileItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr)
 {
 	if (InOutStr.Len() > 0)
@@ -297,6 +326,30 @@ bool AppendClassFileItemReference(const FContentBrowserClassFileItemDataPayload&
 	}
 	InOutStr += InClassPayload.GetAssetData().GetExportTextName();
 	return true;
+}
+
+bool AppendObjectPathFileItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr)
+{
+	if (InOutStr.Len() > 0)
+	{
+		InOutStr += LINE_TERMINATOR;
+	}
+	InOutStr += InClassPayload.GetAssetData().GetObjectPathString();
+	return true;
+}
+
+bool AppendPackageNameItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr)
+{
+	if (const UPackage* Package = InClassPayload.GetAssetData().GetPackage())
+	{
+		if (InOutStr.Len() > 0)
+		{
+			InOutStr += LINE_TERMINATOR;
+		}
+		InOutStr += Package->GetPathName();
+		return true;
+	}
+	return false;
 }
 
 bool GetItemPhysicalPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& OutDiskPath)

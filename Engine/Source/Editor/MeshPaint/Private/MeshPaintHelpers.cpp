@@ -8,6 +8,7 @@
 #include "MeshPaintSettings.h"
 #include "IMeshPaintGeometryAdapter.h"
 #include "MeshPaintAdapterFactory.h"
+#include "MeshPaintVisualize.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -1047,7 +1048,7 @@ void MeshPaintHelpers::SetViewportColorMode(EMeshPaintColorViewMode ColorViewMod
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
-					GVertexColorViewMode = EVertexColorViewMode::Color;
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
 				}
 			}
 			else
@@ -1063,31 +1064,31 @@ void MeshPaintHelpers::SetViewportColorMode(EMeshPaintColorViewMode ColorViewMod
 				{
 					case EMeshPaintColorViewMode::RGB:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Color;
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Alpha:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Alpha;
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Alpha);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Red:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Red;
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Red);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Green:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Green;
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Green);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Blue:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Blue;
+						MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Blue);
 					}
 					break;
 				}
@@ -1330,13 +1331,11 @@ bool MeshPaintHelpers::DoesMeshComponentContainPerLODColors(const UMeshComponent
 		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
 		if (SkeletalMesh)
 		{
-			const TArray<FSkeletalMeshLODInfo>& LODInfo = SkeletalMesh->GetLODInfoArray();
 			// Only check LOD level 1 and above
-			const int32 NumLODs = SkeletalMesh->GetLODNum();
-			for (int32 LODIndex = 1; LODIndex < NumLODs; ++LODIndex)
+			for (int32 LODIndex = 1, NumLODs = SkeletalMesh->GetLODNum(); LODIndex < NumLODs; ++LODIndex)
 			{
-				const FSkeletalMeshLODInfo& Info = LODInfo[LODIndex];
-				if (Info.bHasPerLODVertexColors)
+				const FSkeletalMeshLODInfo* Info = SkeletalMesh->GetLODInfo(LODIndex);
+				if (Info->bHasPerLODVertexColors)
 				{
 					bPerLODColors = true;
 					break;

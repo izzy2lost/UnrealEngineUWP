@@ -50,9 +50,6 @@ public:
 	/** Called when a camera cut occurs. */
 	virtual void OnUpdateCameraCut(UObject* InCameraObject, bool bInJumpCut) {};
 
-	/** Called whether this Sequencer Provider can Export Sequences */
-	virtual bool CanExportSequences() const { return false; }
-
 	/** Implementation of converting the Sequences to Level Sequence assets */
 	virtual void ExportSequences(TConstArrayView<UAvaSequence*> InSequencesToExport) {}
 };

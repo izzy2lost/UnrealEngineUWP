@@ -18,6 +18,7 @@
 #include "StateTreeDelegates.h"
 #include "StateTreeEditorSettings.h"
 #include "StateTreeState.h"
+#include "ToolMenu.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/Registry/AvaTransitionViewModelRegistryCollection.h"
@@ -74,18 +75,12 @@ bool FAvaTransitionCompiler::Compile(EAvaTransitionEditorMode InCompileMode)
 		// Update Tree's Transition Layer
 		TransitionTree->SetTransitionLayer(EditorData->GetTransitionLayer());
 
-		// Only allow extensible compilation when it's not in Advanced Mode
-		if (InCompileMode != EAvaTransitionEditorMode::Advanced)
-		{
-			// Remove all invalid Sub Trees, if any
-			EditorData->SubTrees.RemoveAll(
-				[](const UStateTreeState* InState)
-				{
-					return !IsValid(InState);
-				});
-
-			IAvaTransitionEditorModule::Get().GetOnCompileTransitionTree().Broadcast(*EditorData);
-		}
+		// Remove all invalid Sub Trees, if any
+		EditorData->SubTrees.RemoveAll(
+			[](const UStateTreeState* InState)
+			{
+				return !IsValid(InState);
+			});
 	}
 
 	UpdateTree();

@@ -165,7 +165,7 @@ public:
 	* For Python implementations override
 	*	@unreal.ufunction(override=True)
 	*	def is_per_shot_callback_needed():
-	*		return False;
+	*		return False
 	*/
 	UFUNCTION(BlueprintNativeEvent, Category = "Movie Graph")
 	bool IsPerShotCallbackNeeded() const;
@@ -190,6 +190,7 @@ public:
 	UMovieGraphExecuteScriptNode() = default;
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override { return EMovieGraphBranchRestriction::Globals; }
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;

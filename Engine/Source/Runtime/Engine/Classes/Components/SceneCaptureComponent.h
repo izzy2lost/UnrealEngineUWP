@@ -26,6 +26,7 @@ struct FSceneCaptureViewInfo : public FSceneViewProjectionData
 	FRotator ViewRotation;
 	EStereoscopicPass StereoPass;
 	int32 StereoViewIndex;
+	float FOV;
 };
 
 #if WITH_EDITORONLY_DATA
@@ -86,6 +87,23 @@ class USceneCaptureComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SceneCapture)
 	uint8 bCaptureOnMovement : 1;
 
+	/** Capture a GPU frame for this scene capture, next time it renders (capture program must be connected). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient, DuplicateTransient, SkipSerialization, NonTransactional, AdvancedDisplay, Category = SceneCapture)
+	uint8 bCaptureGpuNextRender : 1;
+
+	/** Run DumpGPU for this scene capture, next time it renders. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient, DuplicateTransient, SkipSerialization, NonTransactional, AdvancedDisplay, Category = SceneCapture)
+	uint8 bDumpGpuNextRender : 1;
+
+	/**
+	 * Flag used to suppress bCaptureGpuNextRender or bDumpGpuNextRender on reregistration of the component.  Editing any property
+	 * of the component, including the capture/dump flags, forces it to be reregistered, which also triggers the capture to render.
+	 * The purpose of the flags is to allow a capture or dump to be queued and triggered when the next render occurs organically
+	 * (for example, on a blueprint event or movement of the actor), not based on the flag itself being set.  When a property change
+	 * event for one of the flags occurs, this is set to true, to skip the capture/dump on that automatic first render.
+	 */
+	uint8 bSuppressGpuCaptureOrDump : 1;
+
 	/** Whether to persist the rendering state even if bCaptureEveryFrame==false.  This allows velocities for Motion Blur and Temporal AA to be computed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SceneCapture, meta = (editcondition = "!bCaptureEveryFrame"))
 	bool bAlwaysPersistRenderingState;
@@ -123,12 +141,21 @@ class USceneCaptureComponent : public USceneComponent
 	bool bUseRayTracingIfEnabled;
 
 	/** ShowFlags for the SceneCapture's ViewFamily, to control rendering settings for this view. Hidden but accessible through details customization */
-	UPROPERTY(EditAnywhere, interp, Category=SceneCapture)
-	TArray<struct FEngineShowFlagsSetting> ShowFlagSettings;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to this property is deprecated, and it will become private in a future release. Please use SetShowFlagSettings and GetShowFlagSettings instead.")
+	UPROPERTY(EditAnywhere, interp, Blueprintgetter = GetShowFlagSettings, BlueprintSetter = SetShowFlagSettings, Category=SceneCapture)
+	TArray<FEngineShowFlagsSetting> ShowFlagSettings;
 
 	// TODO: Make this a UStruct to set directly?
 	/** Settings stored here read from the strings and int values in the ShowFlagSettings array */
 	FEngineShowFlags ShowFlags;
+
+	/** Get the show flag settings. */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API const TArray<FEngineShowFlagsSetting>& GetShowFlagSettings() const;
+
+	/** Set the show flag settings. */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetShowFlagSettings(const TArray<FEngineShowFlagsSetting>& InShowFlagSettings);
 
 public:
 	/** Name of the profiling event. */
@@ -207,8 +234,16 @@ public:
 
 	static ENGINE_API void UpdateDeferredCaptures(FSceneInterface* Scene);
 
+	/** Whether this component is a USceneCaptureComponent2D */
+	virtual bool Is2D() const { return false; }
+
 	/** Whether this component is a USceneCaptureComponentCube */
 	virtual bool IsCube() const { return false; }
+
+	/** Updates "FrameUpdated" field, returns "true" if this is one of multiple scene captures this frame.  Called from FScene::UpdateSceneCaptureContents. */
+	ENGINE_API bool SetFrameUpdated();
+
+	virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) {};
 
 protected:
 	/** Update the show flags from our show flags settings (ideally, you'd be able to set this more directly, but currently unable to make FEngineShowFlags a UStruct to use it as a FProperty...) */
@@ -220,14 +255,15 @@ protected:
 
 	ENGINE_API bool IsCulledByDetailMode() const;
 
-	virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) {};
-
 	/**
 	 * The view state holds persistent scene rendering state and enables occlusion culling in scene captures.
 	 * NOTE: This object is used by the rendering thread. When the game thread attempts to destroy it, FDeferredCleanupInterface will keep the object around until the RT is done accessing it.
 	 * NOTE: It is not safe to put a FSceneViewStateReference in a TArray, which moves its contents around without calling element constructors during realloc.
 	 */
 	TIndirectArray<FSceneViewStateReference> ViewStates;
+
+	/** Frame this scene capture was last updated */
+	uint64 FrameUpdated;
 
 #if WITH_EDITORONLY_DATA
 	/** The mesh used by ProxyMeshComponent */

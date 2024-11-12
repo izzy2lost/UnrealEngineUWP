@@ -7,7 +7,6 @@
 
 #include "AssetRegistry.generated.h"
 
-class FRWScopeLock;
 namespace UE::AssetRegistry::Premade { struct FAsyncConsumer; }
 
 /**
@@ -38,15 +37,25 @@ public:
 	virtual bool GetAssetsByTags(const TArray<FName>& AssetTags, TArray<FAssetData>& OutAssetData) const override;
 	virtual bool GetAssetsByTagValues(const TMultiMap<FName, FString>& AssetTagsAndValues, TArray<FAssetData>& OutAssetData) const override;
 	virtual bool GetAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets = true) const override;
-	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets=true) const override;
-	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets = true) const override;
+	virtual bool GetAssets(const FARCompiledFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets = true) const override;
+	virtual bool GetInMemoryAssets(const FARFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets=true) const override;
+	virtual bool GetInMemoryAssets(const FARCompiledFilter& Filter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets=true) const override;
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets) const override;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets) const override;
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const override;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const override;
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override;
 	UE_DEPRECATED(5.1, "Asset path FNames have been deprecated, use FSoftObjectPath instead.")
 	virtual FAssetData GetAssetByObjectPath( const FName ObjectPath, bool bIncludeOnlyOnDiskAssets = false ) const override;
 	virtual FAssetData GetAssetByObjectPath(const FSoftObjectPath& ObjectPath, bool bIncludeOnlyOnDiskAssets = false, bool bSkipARFilteredAssets = true) const override;
 	virtual UE::AssetRegistry::EExists TryGetAssetByObjectPath(const FSoftObjectPath& ObjectPath, FAssetData& OutAssetData) const override;
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(const FName PackageName, FAssetPackageData& OutAssetPackageData) const override;
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(const FName PackageName, FAssetPackageData& OutAssetPackageData, FName& OutCorrectCasePackageName) const override;
 	virtual bool GetAllAssets(TArray<FAssetData>& OutAssetData, bool bIncludeOnlyOnDiskAssets = false) const override;
-	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback, bool bIncludeOnlyOnDiskAssets = false) const override;
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback, bool bIncludeOnlyOnDiskAssets) const override;
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback) const override;
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override;
 	virtual void GetPackagesByName(FStringView PackageName, TArray<FName>& OutPackageNames) const override;
 	virtual FName GetFirstPackageByName(FStringView PackageName) const override;
 	virtual bool GetDependencies(const FAssetIdentifier& AssetIdentifier, TArray<FAssetIdentifier>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const override;
@@ -56,6 +65,7 @@ public:
 	virtual bool GetReferencers(const FAssetIdentifier& AssetIdentifier, TArray<FAssetDependency>& OutReferencers, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const override;
 	virtual bool GetReferencers(FName PackageName, TArray<FName>& OutReferencers, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::Package, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const override; //-V1101
 	virtual TOptional<FAssetPackageData> GetAssetPackageDataCopy(FName PackageName) const override;
+	virtual TArray<TOptional<FAssetPackageData>> GetAssetPackageDatasCopy(TArrayView<FName> PackageNames) const override;
 	virtual void EnumerateAllPackages(TFunctionRef<void(FName PackageName, const FAssetPackageData& PackageData)> Callback) const override;
 	virtual bool DoesPackageExistOnDisk(FName PackageName, FString* OutCorrectCasePackageName = nullptr, FString* OutExtension = nullptr) const override;
 	virtual FSoftObjectPath GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath) override;
@@ -99,6 +109,7 @@ public:
 	virtual void ScanFilesSynchronous(const TArray<FString>& InFilePaths, bool bForceRescan = false) override;
 	virtual void PrioritizeSearchPath(const FString& PathToPrioritize) override;
 	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths) override;
+	virtual void ScanModifiedAssetFiles(const TArray<FString>& InFilePaths, UE::AssetRegistry::EScanFlags ScanFlags) override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void AppendState(const FAssetRegistryState& InState) override;
 	virtual SIZE_T GetAllocatedSize(bool bLogDetailed = false) const override;
@@ -129,6 +140,12 @@ public:
 
 	DECLARE_DERIVED_EVENT( UAssetRegistryImpl, IAssetRegistry::FPathRemovedEvent, FPathRemovedEvent);
 	virtual FPathRemovedEvent& OnPathRemoved() override;
+
+	DECLARE_DERIVED_EVENT(UAssetRegistryImpl, IAssetRegistry::FScanStartedEvent, FScanStartedEvent);
+	virtual FScanStartedEvent& OnScanStarted() override;
+
+	DECLARE_DERIVED_EVENT(UAssetRegistryImpl, IAssetRegistry::FScanEndedEvent, FScanEndedEvent);
+	virtual FScanEndedEvent& OnScanEnded() override;
 
 	virtual void AssetCreated(UObject* NewAsset) override;
 	virtual void AssetDeleted(UObject* DeletedAsset) override;
@@ -196,23 +213,27 @@ public:
 
 	virtual void Tick (float DeltaTime) override;
 
+	UE_DEPRECATED(5.5, "ReadLockEnumerateTagToAssetDatas with TArray has been deprecated. Use ReadLockEnumerateAllTagToAssetDatas instead.")
 	virtual void ReadLockEnumerateTagToAssetDatas(TFunctionRef<void(FName TagName, const TArray<const FAssetData*>& Assets)> Callback) const override;
+	virtual void ReadLockEnumerateAllTagToAssetDatas(TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const override;
 
 	virtual bool IsPathBeautificationNeeded(const FString& InAssetPath) const override;
+
+	UE::AssetRegistry::Impl::EGatherStatus TickOnBackgroundThread();
 
 protected:
 	virtual void SetManageReferences(const TMultiMap<FAssetIdentifier, FAssetIdentifier>& ManagerMap, bool bClearExisting, UE::AssetRegistry::EDependencyCategory RecurseType, TSet<FDependsNode*>& ExistingManagedNodes, ShouldSetManagerPredicate ShouldSetManager = nullptr) override;
 	virtual bool SetPrimaryAssetIdForObjectPath(const FSoftObjectPath& ObjectPath, FPrimaryAssetId PrimaryAssetId) override;
 
 private:
-	void OnEnginePreExit();
+	void OnPreExit();
 #if WITH_EDITOR
 	void OnFEngineLoopInitCompleteSearchAllAssets();
 	/** Called when new gatherer is registered. Requires subsequent call to RebuildAssetDependencyGathererMapIfNeeded */
 	void OnAssetDependencyGathererRegistered();
 #endif
 	void InitializeEvents(UE::AssetRegistry::Impl::FInitializeContext& Context);
-	void Broadcast(UE::AssetRegistry::Impl::FEventContext& EventContext);
+	void Broadcast(UE::AssetRegistry::Impl::FEventContext& EventContext, bool bAllowFileLoadedEvent = false);
 
 	bool OnResolveRedirect(const FString& InPackageName, FString& OutPackageName);
 
@@ -243,10 +264,13 @@ private:
 	void OnContentPathDismounted(const FString& AssetPath, const FString& FileSystemPath);
 
 	/** Called to refresh the native classes list, called at end of engine initialization. */
-	void OnRefreshNativeClasses();
+	void OnPostEngineInit();
 
-	/** Called from the PluginManager's loading phase, used to scan classes that were loaded by plugins. */
-	void OnPluginLoadingPhaseComplete(ELoadingPhase::Type LoadingPhase, bool bPhaseSuccessful);
+	/**
+	 * Called from LaunchEngineLoop via SetEngineStartupModuleLoadingComplete after plugins are loaded, used to scan
+	 * classes that were loaded by plugins, and enable some global multithreaded access.
+	 */
+	void OnInitialPluginLoadingComplete();
 
 	/** Shared helper for Scan*Synchronous function */
 	void ScanPathsSynchronousInternal(const TArray<FString>& InDirs, const TArray<FString>& InFiles,
@@ -255,7 +279,7 @@ private:
 #if WITH_EDITOR
 	/** Create FAssetData from any loaded UObject assets and store the updated AssetData in the state */
 	void ProcessLoadedAssetsToUpdateCache(UE::AssetRegistry::Impl::FEventContext& EventContext,
-		const double TickStartTime, UE::AssetRegistry::Impl::EGatherStatus Status);
+		UE::AssetRegistry::Impl::EGatherStatus Status, UE::AssetRegistry::Impl::FInterruptionContext& InOutInterruptionContext);
 #endif
 	/**
 	 * Remain under the given lock and return an InheritanceContext based on the appropriate choice of the persistent
@@ -263,10 +287,10 @@ private:
 	 * before being used. If the buffer needs to be updated and its the persistent buffer (which is protected data),
 	 * convert the given lock to a write lock if not one already.
 	 */
-	void GetInheritanceContextWithRequiredLock(FRWScopeLock& InOutScopeLock,
+	void GetInheritanceContextWithRequiredLock(UE::AssetRegistry::FInterfaceRWScopeLock& InOutScopeLock,
 		UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer);
-	void GetInheritanceContextWithRequiredLock(FWriteScopeLock& InOutScopeLock,
+	void GetInheritanceContextWithRequiredLock(UE::AssetRegistry::FInterfaceWriteScopeLock& InOutScopeLock,
 		UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer);
 	void GetInheritanceContextAfterVerifyingLock(uint64 CurrentGeneratorClassesVersionNumber,
@@ -289,12 +313,33 @@ private:
 	bool IsDirAlreadyWatchedByRootWatchers(const FString& Directory) const;
 #endif
 
+	/** Request to pause or resume background processing of scan results.
+	 *  This can be used to allow a priority thread to perform along sequence of operations
+	 *  without having to contend with the background thread for data access
+	 */
+	virtual void RequestPauseBackgroundProcessing();
+	virtual void RequestResumeBackgroundProcessing();
+	bool IsBackgroundProcessingPaused() const 
+	{ 
+#if WITH_EDITOR 
+		return GuardedData.IsBackgroundProcessingPaused(); 
+#else
+		return true;
+#endif
+	}
+
 private:
 
 	UE::AssetRegistry::FAssetRegistryImpl GuardedData;
 
 	/** Lock guarding the GuardedData */
-	mutable FRWLock InterfaceLock;
+	mutable UE::AssetRegistry::Private::FRWLockWithPriority InterfaceLock;
+
+	/** This lock doesn't strictly protect any data (the InterfaceLock does that). Instead, 
+	 *	it is used to let the main thread know when the gatherer thread is doing processing work
+	 *  so that the main thread does not end up blocking on the InterfaceLock in Tick(). 
+	 */
+	FCriticalSection GatheredDataProcessingLock;
 
 #if WITH_EDITOR
 	/** Handles to all registered OnDirectoryChanged delegates */
@@ -362,7 +407,17 @@ private:
 	/** The delegate to execute while loading files to update progress */
 	FFileLoadProgressUpdatedEvent FileLoadProgressUpdatedEvent;
 
+	/** The delegate to execute scanning has begun */
+	FScanStartedEvent ScanStartedEvent;
+
+	/** The delegate to execute scanning has ended */
+	FScanEndedEvent ScanEndedEvent;
+
+	/** Storage for events that will be broadcast later on the game thread. Only safe
+	 *  to access under the DeferredEventsCriticalSection. 
+	 */
 	UE::AssetRegistry::Impl::FEventContext DeferredEvents;
+	FCriticalSection DeferredEventsCriticalSection;
 
 	friend class UE::AssetRegistry::FAssetRegistryImpl;
 	friend struct UE::AssetRegistry::Premade::FAsyncConsumer;

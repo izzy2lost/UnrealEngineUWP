@@ -81,6 +81,9 @@ public:
 	EWheelAxisType AxisType;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Attributes)
+	FVector ForceOffset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Attributes)
 	bool ReverseDirection;
 
 	virtual ESimModuleType GetModuleType() const override { return ESimModuleType::Wheel; }

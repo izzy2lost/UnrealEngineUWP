@@ -3,9 +3,8 @@
 #pragma once
 
 #include "AudioGameplayVolumeMutator.h"
+#include "Sound/AudioVolume.h"
 #include "SubmixOverrideVolumeComponent.generated.h"
-
-struct FAudioVolumeSubmixOverrideSettings;
 
 /**
  *  FProxyMutator_SubmixOverride - An audio thread representation of Submix Overrides

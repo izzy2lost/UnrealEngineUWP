@@ -11,18 +11,20 @@ class IPCGAttributeAccessor;
 UENUM()
 enum class EPCGPointProperties : uint8
 {
-	Density,
-	BoundsMin,
-	BoundsMax,
-	Extents,
-	Color,
-	Position,
-	Rotation,
-	Scale,
-	Transform,
-	Steepness,
-	LocalCenter,
-	Seed
+	Density UMETA(Tooltip = "When points are sampled, this density value represents the highest value of the density function within that point's volume. It is also used as a weighted value, for example, when testing points against a threshold in filtering operations."),
+	BoundsMin UMETA(Tooltip = "Minimum corner of the point's bounds in local space."),
+	BoundsMax UMETA(Tooltip = "Maximum corner of the point's bounds in local space."),
+	Extents UMETA(Tooltip = "Half the local space difference between the maximum and minimum bounds of the point's volume. Can be used with the point's position to represent the volume."),
+	Color UMETA(Tooltip = "An RGBA (four channel) color value."),
+	Position UMETA(Tooltip = "Location component of the point's transform."),
+	Rotation UMETA(Tooltip = "Rotation component of the point's transform."),
+	Scale UMETA(Tooltip = "Scale component of the point's transform."),
+	Transform UMETA(Tooltip = "The point's transform."),
+	Steepness UMETA(Tooltip = "A normalized value that establishes how 'hard' or 'soft' that volume will be represented. From 0, it will ramp up linearly increasing its influence over the density from the point's center to up to two times the bounds. At 1, it will represent a binary box function with the size of the point's bounds."),
+	LocalCenter UMETA(Tooltip = "The local center location of the point's volume, halfway between the minimum and maximum bounds."),
+	Seed UMETA(Tooltip = "Used to seed random processes during various operations."),
+	LocalSize UMETA(Tooltip = "The difference between the maximum and minimum bounds of the point."),
+	ScaledLocalSize UMETA(Tooltip = "The difference between the maximum and minimum bounds of the point, after only the scale has been applied.")
 };
 
 USTRUCT(BlueprintType)
@@ -80,6 +82,9 @@ public:
 		BoundsMax += Delta;
 	}
 
+	FVector GetLocalSize() const { return BoundsMax - BoundsMin; }
+	FVector GetScaledLocalSize() const { return GetLocalSize() * Transform.GetScale3D(); }
+
 	void ApplyScaleToBounds();
 
 	void ResetPointCenter(const FVector& BoundsRatio);
@@ -101,8 +106,3 @@ struct TStructOpsTypeTraits<FPCGPoint> : public TStructOpsTypeTraitsBase2<FPCGPo
 		WithStructuredSerializer = true,
 	};
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Metadata/PCGMetadataAttributeTraits.h"
-#endif

@@ -1,13 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 
 namespace AutomationTool.Tasks
 {
@@ -20,25 +17,25 @@ namespace AutomationTool.Tasks
 		/// Docker command line arguments
 		/// </summary>
 		[TaskParameter]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string WorkingDir;
+		public string WorkingDir { get; set; }
 	}
 
 	/// <summary>
@@ -50,34 +47,34 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		DockerTaskParameters Parameters;
+		readonly DockerTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Docker task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public DockerTask(DockerTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public DockerTask(DockerTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			await ExecuteAsync(GetDockerExecutablePath(), Parameters.Arguments, EnvVars: ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile), WorkingDir: Parameters.WorkingDir);
+			await ExecuteAsync(GetDockerExecutablePath(), _parameters.Arguments, envVars: ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile), workingDir: _parameters.WorkingDir);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

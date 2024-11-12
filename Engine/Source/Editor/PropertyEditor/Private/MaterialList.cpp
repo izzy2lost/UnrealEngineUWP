@@ -8,6 +8,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
 #include "PropertyHandle.h"
+#include "PropertyEditorEditConstPolicy.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Modules/ModuleManager.h"
 #include "Styling/SlateIconFinder.h"
@@ -342,7 +343,7 @@ TSharedRef<SWidget> FMaterialItemView::MakeBrowseNaniteOverrideMaterialButton() 
 				}))
 			[ 
 				SNew(SImage)
-				.Image(FAppStyle::Get().GetBrush("Icons.BrowseContent")) //todo: UE-168435 Get custom icon for this.
+				.Image(FAppStyle::Get().GetBrush("Icons.NaniteBrowseContent"))
 				.ColorAndOpacity(FSlateColor::UseForeground())
 			]
 		];
@@ -797,7 +798,7 @@ void FMaterialList::AddMaterialItem( FDetailWidgetRow& Row, int32 CurrentSlot, c
 		FProperty* MaterialProperty = nullptr;
 		if (SceneComponent->GetMaterialPropertyPath(Item.SlotIndex, OwnerObject, PropertyPath, MaterialProperty))
 		{
-			Row.IsEnabled(SceneComponent->CanEditChange(MaterialProperty));
+			Row.IsEnabled(!PropertyEditorPolicy::IsPropertyEditConst(MaterialProperty, SceneComponent) && SceneComponent->CanEditChange(MaterialProperty));
 		}		
 	}
 }

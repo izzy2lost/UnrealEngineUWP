@@ -9,7 +9,7 @@
 #include "Tests/Framework/AvaTestUtils.h"
 
 BEGIN_DEFINE_SPEC(AvalancheModifiersGridArrange, "Avalanche.Modifiers.GridArrange",
-                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+                  EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	AAvaTestDynamicMeshActor* ParentMeshActor;
 	AAvaTestDynamicMeshActor* ChildOneMeshActor;

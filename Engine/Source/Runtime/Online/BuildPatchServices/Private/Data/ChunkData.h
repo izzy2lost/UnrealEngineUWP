@@ -403,6 +403,12 @@ namespace BuildPatchServices
 		 */
 		virtual EChunkSaveResult SaveToArchive(FArchive& Archive, const IChunkDataAccess* ChunkDataAccess) const = 0;
 
+		// In performance sensitive situations, can request the serializer to save uncompressed if implemented
+		virtual EChunkSaveResult SaveToArchiveUncompressed(FArchive& Archive, const IChunkDataAccess* ChunkDataAccess) const
+		{
+			return SaveToArchive(Archive, ChunkDataAccess);
+		}
+
 		/**
 		 * Injects an SHA hash for the data into the structure of a serialized chunk.
 		 * @param Memory            The memory array containing the serialized chunk.

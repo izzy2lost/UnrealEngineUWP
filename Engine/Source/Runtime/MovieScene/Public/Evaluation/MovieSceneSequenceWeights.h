@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Containers/SortedMap.h"
+#include "EntitySystem/MovieSceneEntityIDs.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "MovieSceneSequenceID.h"
 #include "EntitySystem/MovieSceneSequenceInstanceHandle.h"

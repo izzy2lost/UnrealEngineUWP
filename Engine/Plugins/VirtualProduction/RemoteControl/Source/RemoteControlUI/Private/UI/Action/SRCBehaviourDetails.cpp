@@ -18,66 +18,82 @@
 #include "UI/RemoteControlPanelStyle.h"
 #include "UI/SRemoteControlPanel.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSpacer.h"
 
 #define LOCTEXT_NAMESPACE "SRCBehaviourDetails"
 
-void SRCBehaviourDetails::Construct(const FArguments& InArgs, TSharedRef<SRCActionPanel> InActionPanel, TSharedRef<FRCBehaviourModel> InBehaviourItem)
+void SRCBehaviourDetails::Construct(const FArguments& InArgs, TSharedRef<SRCActionPanel> InActionPanel, TSharedPtr<FRCBehaviourModel> InBehaviourItem)
 {
 	RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
 
 	ActionPanelWeakPtr = InActionPanel;
 	BehaviourItemWeakPtr = InBehaviourItem;
 
-	URCBehaviour* Behaviour = BehaviourItemWeakPtr.Pin()->GetBehaviour();
-	const FText BehaviourDisplayName = Behaviour->GetDisplayName();
-	const FText BehaviourDescription = Behaviour->GetBehaviorDescription();
+	bool bIsEnabled = false;
 
-	const FSlateFontInfo& FontBehaviorDesc = FRemoteControlPanelStyle::Get()->GetFontStyle("RemoteControlPanel.Behaviours.BehaviorDescription");
+	BehaviourDetailsBox = SNew(SBox);
 
-	FLinearColor TypeColor = FLinearColor::White;
-	FString TypeDisplayName = (LOCTEXT("NoneDisplayName", "None")).ToString();
-	if (URCController* Controller = Behaviour->ControllerWeakPtr.Get())
+	if (InBehaviourItem.IsValid())
 	{
-		if (FProperty* Property = Behaviour->ControllerWeakPtr->GetProperty())
-		{
-			TypeColor = UE::RCUIHelpers::GetFieldClassTypeColor(Property);
-			TypeDisplayName = FName::NameToDisplayString(UE::RCUIHelpers::GetFieldClassDisplayName(Property).ToString(), false);
-		}
+		BehaviourDetailsWidget = InBehaviourItem->GetBehaviourDetailsWidget();
+		bIsEnabled = InBehaviourItem->IsBehaviourEnabled();
 	}
-
-	BehaviourDetailsWidget = InBehaviourItem->GetBehaviourDetailsWidget();
-
-	const bool bIsChecked = InBehaviourItem->IsBehaviourEnabled();
+	else
+	{
+		BehaviourDetailsWidget = SNullWidget::NullWidget;
+	}
 	
+	BehaviourDetailsBox->SetContent(BehaviourDetailsWidget.ToSharedRef());
+
 	ChildSlot
 		.Padding(RCPanelStyle->PanelPadding)
 		[
-			SNew(SVerticalBox)
+			SNew(SWidgetSwitcher)
+			.WidgetIndex_Lambda([this] ()
+			{
+				if (const TSharedPtr<FRCBehaviourModel>& Behavior = BehaviourItemWeakPtr.Pin())
+				{
+					return Behavior->HasBehaviourDetailsWidget()? 0 : 1;
+				}
+				return 1;
+			})
 
-			// Behaviour Specific Details Panel
-			+ SVerticalBox::Slot()
-			.Padding(8.f, 4.f)
-			.AutoHeight()
+			// Index 0 is for valid behavior
+			+ SWidgetSwitcher::Slot()
 			[
-				BehaviourDetailsWidget.ToSharedRef()
+				SNew(SVerticalBox)
+
+				// Behaviour Specific Details Panel
+				+ SVerticalBox::Slot()
+				.Padding(8.f, 4.f)
+				.AutoHeight()
+				[
+					BehaviourDetailsBox.ToSharedRef()
+				]
+
+				// Spacer to fill the gap.
+				+ SVerticalBox::Slot()
+				.Padding(0)
+				.FillHeight(1.f)
+				[
+					SNew(SSpacer)
+				]
 			]
 
-			// Spacer to fill the gap.
-			+ SVerticalBox::Slot()
-			.Padding(0)
-			.FillHeight(1.f)
+			// Index 1 is for invalid behavior
+			+ SWidgetSwitcher::Slot()
 			[
-				SNew(SSpacer)
+				SNullWidget::NullWidget
 			]
 		];
 
-	RefreshIsBehaviourEnabled(bIsChecked);
+	RefreshIsBehaviourEnabled(bIsEnabled);
 }
 
-void SRCBehaviourDetails::SetIsBehaviourEnabled(const bool bIsEnabled)
+void SRCBehaviourDetails::SetIsBehaviourEnabled(const bool bIsEnabled) const
 {
-	if (TSharedPtr<FRCBehaviourModel> BehaviourItem = BehaviourItemWeakPtr.Pin())
+	if (const TSharedPtr<FRCBehaviourModel> BehaviourItem = BehaviourItemWeakPtr.Pin())
 	{
 		BehaviourItem->SetIsBehaviourEnabled(bIsEnabled);
 
@@ -85,7 +101,27 @@ void SRCBehaviourDetails::SetIsBehaviourEnabled(const bool bIsEnabled)
 	}
 }
 
-void SRCBehaviourDetails::RefreshIsBehaviourEnabled(const bool bIsEnabled)
+void SRCBehaviourDetails::SetNewBehavior(const TSharedPtr<FRCBehaviourModel>& InBehaviourItem)
+{
+	// TODO: do not update if the Behavior type is the same, this needs further change
+	const TSharedPtr<FRCBehaviourModel>& CurrentBehavior = GetCurrentBehavior();
+	if (CurrentBehavior != InBehaviourItem)
+	{
+		BehaviourItemWeakPtr = InBehaviourItem;
+		Refresh();
+	}
+}
+
+TSharedPtr<FRCBehaviourModel> SRCBehaviourDetails::GetCurrentBehavior() const
+{
+	if (BehaviourItemWeakPtr.IsValid())
+	{
+		return BehaviourItemWeakPtr.Pin();
+	}
+	return nullptr;
+}
+
+void SRCBehaviourDetails::RefreshIsBehaviourEnabled(const bool bIsEnabled) const
 {
 	if(BehaviourDetailsWidget && BehaviourTitleWidget)
 	{
@@ -93,9 +129,35 @@ void SRCBehaviourDetails::RefreshIsBehaviourEnabled(const bool bIsEnabled)
 		BehaviourTitleWidget->SetEnabled(bIsEnabled);
 	}
 
-	if (TSharedPtr<SRCActionPanel> ActionPanel = ActionPanelWeakPtr.Pin())
+	if (const TSharedPtr<SRCActionPanel> ActionPanel = ActionPanelWeakPtr.Pin())
 	{
 		ActionPanel->RefreshIsBehaviourEnabled(bIsEnabled);
+	}
+}
+
+void SRCBehaviourDetails::Refresh()
+{
+	const TSharedPtr<FRCBehaviourModel>& CurrentBehavior = GetCurrentBehavior();
+
+	if (CurrentBehavior.IsValid() && CurrentBehavior->HasBehaviourDetailsWidget())
+	{
+		BehaviourDetailsWidget = CurrentBehavior->GetBehaviourDetailsWidget();
+		const bool bIsEnabled = CurrentBehavior->IsBehaviourEnabled();
+
+		if (BehaviourDetailsWidget.IsValid() && BehaviourDetailsBox.IsValid())
+		{
+			BehaviourDetailsBox->SetContent(BehaviourDetailsWidget.ToSharedRef());
+		}
+
+		RefreshIsBehaviourEnabled(bIsEnabled);
+	}
+	else
+	{
+		BehaviourDetailsWidget = SNullWidget::NullWidget;
+		if (BehaviourDetailsBox.IsValid())
+		{
+			BehaviourDetailsBox->SetContent(BehaviourDetailsWidget.ToSharedRef());
+		}
 	}
 }
 

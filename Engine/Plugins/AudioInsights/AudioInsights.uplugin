@@ -14,10 +14,25 @@
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
+	"SupportedPrograms": [ "UnrealInsights" ],
 	"Modules":
 	[
 		{
 			"Name": "AudioInsights",
+			"Type": "EditorAndProgram",
+			"LoadingPhase": "Default",
+			"ProgramAllowList":
+			[
+				"UnrealInsights"
+			],
+			"PlatformAllowList":
+			[
+				"Win64",
+				"Mac"
+			]
+		},
+		{
+			"Name": "AudioInsightsEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList":
@@ -31,10 +46,6 @@
 	[
 		{
 			"Name": "AudioWidgets",
-			"Enabled": true
-		},
-		{
-			"Name": "GameplayInsights",
 			"Enabled": true
 		}
 	]

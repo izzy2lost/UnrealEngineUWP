@@ -2,6 +2,7 @@
 using UnrealBuildTool;
 public class TextureGraphEditor : ModuleRules
 {
+	// Flag that enables the new node preview.
 	public TextureGraphEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
@@ -28,6 +29,7 @@ public class TextureGraphEditor : ModuleRules
 				"Projects",
 				"ToolWidgets",
 				"KismetWidgets",
+				"WorkspaceMenuStructure"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -58,6 +60,8 @@ public class TextureGraphEditor : ModuleRules
 				"GraphEditor", 
 				"MessageLog",
 				"EditorWidgets",
+				"AssetDefinition",
+				"ImageWidgets"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

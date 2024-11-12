@@ -37,7 +37,7 @@ namespace Private
 			return TOptional<FFieldVariant>();
 		}
 
-		if (EnumHasAllFlags(FieldVisibilityFlags, EFieldVisibility::Notify) && !Binding.HasNotify())
+		if (EnumHasAllFlags(FieldVisibilityFlags, EFieldVisibility::Notify | EFieldVisibility::Readable) && !Binding.HasNotify())
 		{
 			return TOptional<FFieldVariant>();
 		}
@@ -48,12 +48,13 @@ namespace Private
 
 	TOptional<FFieldVariant> PassFilter(const UBlueprint* Blueprint, const FMVVMAvailableBinding& Binding, const UStruct* Struct, const FMVVMFieldVariant& FieldVariant, EFieldVisibility FieldVisibilityFlags, const FProperty* AssignableTo, bool bDoObjectProperty)
 	{
+		static FName NAME_Hidden("Hidden");
 		if (ensure(!FieldVariant.IsEmpty()))
 		{
 			if (FieldVariant.IsFunction())
 			{
 				const UFunction* Function = FieldVariant.GetFunction();
-				if (Function == nullptr)
+				if (Function == nullptr || Function->HasMetaData(NAME_Hidden))
 				{
 					return TOptional<FFieldVariant>();
 				}
@@ -104,7 +105,7 @@ namespace Private
 			else if (FieldVariant.IsProperty())
 			{
 				const FProperty* Property = FieldVariant.GetProperty();
-				if (Property == nullptr)
+				if (Property == nullptr || Property->HasMetaData(NAME_Hidden))
 				{
 					return TOptional<FFieldVariant>();
 				}
@@ -260,12 +261,15 @@ FFieldExpander_Bindable::FFieldExpander_Bindable()
 
 TOptional<const UClass*> FFieldExpander_Bindable::CanExpandObject(const FObjectPropertyBase* Property, const UObject* Instance) const
 {
-	TOptional<const UClass*> Result = UE::PropertyViewer::FFieldExpander_Default::CanExpandObject(Property, Instance);
-	if (Result.IsSet() && Result.GetValue())
+	if (CastField<FObjectProperty>(Property))
 	{
-		if (GetDefault<UBlueprintEditorSettings>()->IsClassAllowedOnPin(Result.GetValue()))
+		TOptional<const UClass*> Result = UE::PropertyViewer::FFieldExpander_Default::CanExpandObject(Property, Instance);
+		if (Result.IsSet() && Result.GetValue())
 		{
-			return Result;
+			if (GetDefault<UBlueprintEditorSettings>()->IsClassAllowedOnPin(Result.GetValue()))
+			{
+				return Result;
+			}
 		}
 	}
 	return TOptional<const UClass*>();

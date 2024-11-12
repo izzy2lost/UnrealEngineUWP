@@ -194,6 +194,20 @@ namespace VectorUtil
 		}
 	}
 
+	/** @return 0/1/2 index of largest value in Vector3 */
+	template <typename ValueVecType>
+	inline int Max3Index(const ValueVecType& Vector3)
+	{
+		if (Vector3[0] >= Vector3[1])
+		{
+			return Vector3[0] >= Vector3[2] ? 0 : 2;
+		}
+		else
+		{
+			return (Vector3[1] >= Vector3[2]) ? 1 : 2;
+		}
+	}
+
 
 	/**
 	 * Calculates two vectors perpendicular to input Normal, as efficiently as possible.
@@ -395,11 +409,61 @@ namespace VectorUtil
 		RealType fR0 = kV02.Dot(kPV2);
 		RealType fR1 = kV12.Dot(kPV2);
 		RealType fDet = fM00 * fM11 - fM01 * fM01;
-		RealType fInvDet = 1.0 / fDet;
+		RealType fInvDet = (RealType)1.0 / fDet;
 		RealType fBary1 = (fM11 * fR0 - fM01 * fR1) * fInvDet;
 		RealType fBary2 = (fM00 * fR1 - fM01 * fR0) * fInvDet;
-		RealType fBary3 = 1.0 - fBary1 - fBary2;
+		RealType fBary3 = (RealType)1.0 - fBary1 - fBary2;
 		return TVector<RealType>(fBary1, fBary2, fBary3);
+	}
+
+	/**
+	 * Sample uniform random barycentric coordinates on a triangle
+	 * The inputs should be two random floating point numbers in the [0,1] range
+	 * (See eq. 1 of 'Shape Distributions' by Osada, Funkhouser, Chazelle and Dobkin)
+	 * Note the sample positions will not match those of UniformSampleTrianglePoint for the same R1, R2 values
+	 */
+	template<typename RealType>
+	TVector<RealType> UniformSampleTriangleBarycentricCoords(RealType R1, RealType R2)
+	{
+		checkSlow(R1 >= 0);
+		RealType SqrtR1 = FMath::Sqrt(R1);
+		return TVector<RealType>(1 - SqrtR1, SqrtR1 * (1 - R2), SqrtR1 * R2);
+	}
+
+	/**
+	 * Sample a uniform random point on a triangle
+	 * The inputs should be two random floating point numbers in the [0,1] range, and the triangle coordinates
+	 * ref: http://mathworld.wolfram.com/TrianglePointPicking.html
+	 * Note the sample positions will not match those of UniformSampleTriangleBarycentricCoords for the same R1, R2 values
+	 */
+	template<typename RealType>
+	TVector<RealType> UniformSampleTrianglePoint(RealType R1, RealType R2, TVector<RealType>& A, TVector<RealType>& B, TVector<RealType>& C)
+	{
+		// reflect samples that would go outside the triangle
+		if (R1 + R2 > (RealType)1)
+		{
+			R1 = (RealType)1 - R1;
+			R2 = (RealType)1 - R2;
+		}
+		return A + R1 * (B - A) + R2 * (C - A);
+	}
+
+	/**
+	 * Sample a uniform random point on a 2D triangle
+	 * The inputs should be two random floating point numbers in the [0,1] range, and the triangle coordinates
+	 * ref: http://mathworld.wolfram.com/TrianglePointPicking.html
+	 * Note the sample positions will not match those of UniformSampleTriangleBarycentricCoords for the same R1, R2 values
+	 */
+	template<typename RealType>
+	TVector2<RealType> UniformSampleTrianglePoint(RealType R1, RealType R2, TVector2<RealType>& A, TVector2<RealType>& B, TVector2<RealType>& C)
+	{
+		// reflect samples that would go outside the triangle
+		if (R1 + R2 > (RealType)1)
+		{
+			R1 = (RealType)1 - R1;
+			R2 = (RealType)1 - R2;
+		}
+		return A + R1 * (B - A) + R2 * (C - A);
 	}
 
 	/**

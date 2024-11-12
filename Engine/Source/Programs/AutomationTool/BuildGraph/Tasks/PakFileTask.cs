@@ -1,20 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
-using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildBase;
+using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
 {
@@ -27,55 +22,55 @@ namespace AutomationTool.Tasks
 		/// List of files, wildcards, and tag sets to add to the pak file, separated by ';' characters.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// PAK file to output.
 		/// </summary>
 		[TaskParameter]
-		public FileReference Output;
+		public FileReference Output { get; set; }
 
 		/// <summary>
 		/// Path to a Response File that contains a list of files to add to the pak file -- instead of specifying them individually.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference ResponseFile;
+		public FileReference ResponseFile { get; set; }
 
 		/// <summary>
 		/// Directories to rebase the files relative to. If specified, the shortest path under a listed directory will be used for each file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public HashSet<DirectoryReference> RebaseDir;
+		public HashSet<DirectoryReference> RebaseDir { get; set; }
 
 		/// <summary>
 		/// Script that gives the order of files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Order;
+		public FileReference Order { get; set; }
 
 		/// <summary>
 		/// Encryption keys for this pak file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Sign;
+		public FileReference Sign { get; set; }
 
 		/// <summary>
 		/// Whether to compress files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Compress = true;
+		public bool Compress { get; set; } = true;
 
 		/// <summary>
 		/// Additional arguments to pass to UnrealPak.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments = "";
+		public string Arguments { get; set; } = "";
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
@@ -84,139 +79,136 @@ namespace AutomationTool.Tasks
 	[TaskElement("PakFile", typeof(PakFileTaskParameters))]
 	public class PakFileTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for the task
-		/// </summary>
-		PakFileTaskParameters Parameters;
+		readonly PakFileTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public PakFileTask(PakFileTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public PakFileTask(PakFileTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Find the directories we're going to rebase relative to
-			HashSet<DirectoryReference> RebaseDirs = new HashSet<DirectoryReference>{ Unreal.RootDirectory };
-			if(Parameters.RebaseDir != null)
+			HashSet<DirectoryReference> rebaseDirs = new HashSet<DirectoryReference> { Unreal.RootDirectory };
+			if (_parameters.RebaseDir != null)
 			{
-				RebaseDirs.UnionWith(Parameters.RebaseDir);
+				rebaseDirs.UnionWith(_parameters.RebaseDir);
 			}
 
 			// Get the output parameter
-			FileReference OutputFile = Parameters.Output;
+			FileReference outputFile = _parameters.Output;
 
 			// Check for a ResponseFile parameter
-			FileReference ResponseFile = Parameters.ResponseFile;
-			if (ResponseFile == null)
+			FileReference responseFile = _parameters.ResponseFile;
+			if (responseFile == null)
 			{
 				// Get a unique filename for the response file
-				ResponseFile = FileReference.Combine(new DirectoryReference(CommandUtils.CmdEnv.LogFolder), String.Format("PakList_{0}.txt", OutputFile.GetFileNameWithoutExtension()));
-				for (int Idx = 2; FileReference.Exists(ResponseFile); Idx++)
+				responseFile = FileReference.Combine(new DirectoryReference(CommandUtils.CmdEnv.LogFolder), String.Format("PakList_{0}.txt", outputFile.GetFileNameWithoutExtension()));
+				for (int idx = 2; FileReference.Exists(responseFile); idx++)
 				{
-					ResponseFile = FileReference.Combine(ResponseFile.Directory, String.Format("PakList_{0}_{1}.txt", OutputFile.GetFileNameWithoutExtension(), Idx));
+					responseFile = FileReference.Combine(responseFile.Directory, String.Format("PakList_{0}_{1}.txt", outputFile.GetFileNameWithoutExtension(), idx));
 				}
 
 				// Write out the response file
-				HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
-				using (StreamWriter Writer = new StreamWriter(ResponseFile.FullName, false, new System.Text.UTF8Encoding(true)))
+				HashSet<FileReference> files = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
+				using (StreamWriter writer = new StreamWriter(responseFile.FullName, false, new System.Text.UTF8Encoding(true)))
 				{
-					foreach (FileReference File in Files)
+					foreach (FileReference file in files)
 					{
-						string RelativePath = FindShortestRelativePath(File, RebaseDirs);
-						if (RelativePath == null)
+						string relativePath = FindShortestRelativePath(file, rebaseDirs);
+						if (relativePath == null)
 						{
-							throw new AutomationException("Couldn't find relative path for '{0}' - not under any rebase directories", File.FullName);
+							throw new AutomationException("Couldn't find relative path for '{0}' - not under any rebase directories", file.FullName);
 						}
-						Writer.WriteLine("\"{0}\" \"{1}\"{2}", File.FullName, RelativePath, Parameters.Compress ? " -compress" : "");
+
+						string compressArg = _parameters.Compress ? " -compress" : "";
+						await writer.WriteLineAsync($"\"{file.FullName}\" \"{relativePath}\"{compressArg}");
 					}
 				}
 			}
 
 			// Format the command line
-			StringBuilder CommandLine = new StringBuilder();
-			CommandLine.AppendFormat("{0} -create={1}", CommandUtils.MakePathSafeToUseWithCommandLine(OutputFile.FullName), CommandUtils.MakePathSafeToUseWithCommandLine(ResponseFile.FullName));
-			if(Parameters.Sign != null)
+			StringBuilder commandLine = new StringBuilder();
+			commandLine.AppendFormat("{0} -create={1}", CommandUtils.MakePathSafeToUseWithCommandLine(outputFile.FullName), CommandUtils.MakePathSafeToUseWithCommandLine(responseFile.FullName));
+			if (_parameters.Sign != null)
 			{
-				CommandLine.AppendFormat(" -sign={0}", CommandUtils.MakePathSafeToUseWithCommandLine(Parameters.Sign.FullName));
+				commandLine.AppendFormat(" -sign={0}", CommandUtils.MakePathSafeToUseWithCommandLine(_parameters.Sign.FullName));
 			}
-			if(Parameters.Order != null)
+			if (_parameters.Order != null)
 			{
-				CommandLine.AppendFormat(" -order={0}", CommandUtils.MakePathSafeToUseWithCommandLine(Parameters.Order.FullName));
+				commandLine.AppendFormat(" -order={0}", CommandUtils.MakePathSafeToUseWithCommandLine(_parameters.Order.FullName));
 			}
 			if (Unreal.IsEngineInstalled())
 			{
-				CommandLine.Append(" -installed");
+				commandLine.Append(" -installed");
 			}
 			if (GlobalCommandLine.UTF8Output)
 			{
-				CommandLine.AppendFormat(" -UTF8Output");
+				commandLine.AppendFormat(" -UTF8Output");
 			}
 
 			// Get the executable path
-			FileReference UnrealPakExe;
-			if(HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Win64)
+			FileReference unrealPakExe;
+			if (HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Win64)
 			{
-				UnrealPakExe = ResolveFile("Engine/Binaries/Win64/UnrealPak.exe");
+				unrealPakExe = ResolveFile("Engine/Binaries/Win64/UnrealPak.exe");
 			}
 			else
 			{
-				UnrealPakExe = ResolveFile(String.Format("Engine/Binaries/{0}/UnrealPak", HostPlatform.Current.HostEditorPlatform.ToString()));
+				unrealPakExe = ResolveFile(String.Format("Engine/Binaries/{0}/UnrealPak", HostPlatform.Current.HostEditorPlatform.ToString()));
 			}
 
 			// Run it
-			Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(UnrealPakExe.FullName), CommandLine.ToString());
-			CommandUtils.RunAndLog(CommandUtils.CmdEnv, UnrealPakExe.FullName, CommandLine.ToString(), Options: CommandUtils.ERunOptions.Default | CommandUtils.ERunOptions.UTF8Output);
-			BuildProducts.Add(OutputFile);
+			Logger.LogInformation("Running '{Arg0} {Arg1}'", CommandUtils.MakePathSafeToUseWithCommandLine(unrealPakExe.FullName), commandLine.ToString());
+			CommandUtils.RunAndLog(CommandUtils.CmdEnv, unrealPakExe.FullName, commandLine.ToString(), Options: CommandUtils.ERunOptions.Default | CommandUtils.ERunOptions.UTF8Output);
+			buildProducts.Add(outputFile);
 
 			// Apply the optional tag to the output file
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).Add(OutputFile);
+				FindOrAddTagSet(tagNameToFileSet, tagName).Add(outputFile);
 			}
-
-			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Find the shortest relative path of the given file from a set of base directories.
 		/// </summary>
-		/// <param name="File">Full path to a file</param>
-		/// <param name="RebaseDirs">Possible base directories</param>
+		/// <param name="file">Full path to a file</param>
+		/// <param name="rebaseDirs">Possible base directories</param>
 		/// <returns>The shortest relative path, or null if the file is not under any of them</returns>
-		public static string FindShortestRelativePath(FileReference File, IEnumerable<DirectoryReference> RebaseDirs)
+		public static string FindShortestRelativePath(FileReference file, IEnumerable<DirectoryReference> rebaseDirs)
 		{
-			string RelativePath = null;
-			foreach(DirectoryReference RebaseDir in RebaseDirs)
+			string relativePath = null;
+			foreach (DirectoryReference rebaseDir in rebaseDirs)
 			{
-				if(File.IsUnderDirectory(RebaseDir))
+				if (file.IsUnderDirectory(rebaseDir))
 				{
-					string NewRelativePath = File.MakeRelativeTo(RebaseDir);
-					if(RelativePath == null || NewRelativePath.Length < RelativePath.Length)
+					string newRelativePath = file.MakeRelativeTo(rebaseDir);
+					if (relativePath == null || newRelativePath.Length < relativePath.Length)
 					{
-						RelativePath = NewRelativePath;
+						relativePath = newRelativePath;
 					}
 				}
 			}
-			return RelativePath;
+			return relativePath;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -225,7 +217,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>
@@ -234,7 +226,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

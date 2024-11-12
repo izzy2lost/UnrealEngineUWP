@@ -93,6 +93,7 @@ namespace UE::AnimNext
 		TArrayView<FQuat> Rotations;
 		TArrayView<FVector> Scales3D;
 
+		bool IsEmpty() const { return Rotations.IsEmpty(); }
 		int32 Num() const { return Rotations.Num(); }
 
 		inline FTransformSoAAdapter operator[](int32 Index)
@@ -103,6 +104,35 @@ namespace UE::AnimNext
 		inline const FTransformSoAAdapterConst operator[](int32 Index) const
 		{
 			return FTransformSoAAdapterConst(Rotations[Index], Translations[Index], Scales3D[Index]);
+		}
+
+		bool IsValid() const
+		{
+			for (const FQuat& Rotation : Rotations)
+			{
+				if (Rotation.ContainsNaN() || !Rotation.IsNormalized())
+				{
+					return false;
+				}
+			}
+
+			for (const FVector& Translation : Translations)
+			{
+				if (Translation.ContainsNaN())
+				{
+					return false;
+				}
+			}
+
+			for (const FVector& Scale3D : Scales3D)
+			{
+				if (Scale3D.ContainsNaN())
+				{
+					return false;
+				}
+			}
+
+			return true;
 		}
 	};
 
@@ -119,11 +149,41 @@ namespace UE::AnimNext
 			, Scales3D(Other.Scales3D)
 		{}
 
+		bool IsEmpty() const { return Rotations.IsEmpty(); }
 		int32 Num() const { return Rotations.Num(); }
 
 		inline const FTransformSoAAdapterConst operator[](int32 Index) const
 		{
 			return FTransformSoAAdapterConst(Rotations[Index], Translations[Index], Scales3D[Index]);
+		}
+
+		bool IsValid() const
+		{
+			for (const FQuat& Rotation : Rotations)
+			{
+				if (Rotation.ContainsNaN() || !Rotation.IsNormalized())
+				{
+					return false;
+				}
+			}
+
+			for (const FVector& Translation : Translations)
+			{
+				if (Translation.ContainsNaN())
+				{
+					return false;
+				}
+			}
+
+			for (const FVector& Scale3D : Scales3D)
+			{
+				if (Scale3D.ContainsNaN())
+				{
+					return false;
+				}
+			}
+
+			return true;
 		}
 	};
 

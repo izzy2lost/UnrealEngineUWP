@@ -69,5 +69,6 @@ public class GeometryScriptingCore : ModuleRules
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}
 
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

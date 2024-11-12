@@ -53,6 +53,12 @@ class IFontFaceInterface
 	/** Returns the overridden value of the descend. This value will be used only if IsDescendOverridden returns true. */
 	virtual int32 GetDescendOverriddenValue() const = 0;
 
+	/** Returns the percentage of the font height that's used as the height the strike brush. */
+	virtual int32 GetStrikeBrushHeightPercentage() const {return 60;};
+
 	/** Get the data buffer containing the data for the current font face. */
 	virtual FFontFaceDataConstRef GetFontFaceData() const = 0;
+
+	/** Returns the font face's rasterization settings. */
+	virtual FFontRasterizationSettings GetRasterizationSettings() const = 0;
 };

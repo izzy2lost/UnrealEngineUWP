@@ -30,6 +30,7 @@
 #include "WorldPartition/DataLayer/DeprecatedDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/ContentBundle/ContentBundlePaths.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "ActorFolder.h"
 #include "WorldPersistentFolders.h"
@@ -41,6 +42,7 @@
 #include "Algo/Transform.h"
 #include "Algo/RemoveIf.h"
 #include "Misc/DataValidation.h"
+#include "DeletedObjectPlaceholder.h"
 
 #define LOCTEXT_NAMESPACE "ErrorChecking"
 
@@ -76,6 +78,17 @@ void AActor::PreEditChange(FProperty* PropertyThatWillChange)
 	}
 }
 
+bool AActor::CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const
+{
+	// Actors in LevelInstances can't be edited unless they are in any kind of editing level instance (edit or property override)
+	if (IsInLevelInstance() && !IsInAnyEditLevelInstance())
+	{
+		return false;
+	}
+
+	return true;
+}
+
 bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 {
 	if ((PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, Layers)) ||
@@ -88,9 +101,8 @@ bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 	const bool bIsRuntimeGridProperty = PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, RuntimeGrid);
 	const bool bIsDataLayersProperty = PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, DataLayerAssets);
 	const bool bIsHLODLayerProperty = PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, HLODLayer);
-	const bool bIsMainWorldOnlyProperty = PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, bIsMainWorldOnly);
 
-	if (bIsSpatiallyLoadedProperty || bIsRuntimeGridProperty || bIsDataLayersProperty || bIsHLODLayerProperty || bIsMainWorldOnlyProperty)
+	if (bIsSpatiallyLoadedProperty || bIsRuntimeGridProperty || bIsDataLayersProperty || bIsHLODLayerProperty)
 	{
 		if (!IsTemplate())
 		{
@@ -99,7 +111,7 @@ bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 			UWorldPartition* OwningWorldPartition = OwningWorld ? OwningWorld->GetWorldPartition() : nullptr;
 			UWorldPartition* OuterWorldPartition = OuterWorld ? OuterWorld->GetWorldPartition() : nullptr;			
 
-			if (!OwningWorldPartition || !OuterWorldPartition)
+			if (!bIsSpatiallyLoadedProperty && (!OwningWorldPartition || !OuterWorldPartition))
 			{
 				return false;
 			}
@@ -120,6 +132,12 @@ bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 	}
 
 	if (bIsDataLayersProperty && (!SupportsDataLayerType(UDataLayerInstanceWithAsset::StaticClass()) || !IsUserManaged() || GetAttachParentActor()))
+	{
+		return false;
+	}
+
+	// Actors in LevelInstances can't be edited unless they are in any kind of editing level instance (edit or property override)
+	if (IsInLevelInstance() && !IsInAnyEditLevelInstance())
 	{
 		return false;
 	}
@@ -610,7 +628,7 @@ void FActorTransactionAnnotation::ComputeAdditionalObjectChanges(const ITransact
 				}
 				else
 				{
-					OutAdditionalObjectChanges.Add(CurrentComponent, FTransactionObjectChange{ OldDiffableComponent.ObjectInfo, MoveTemp(ComponentDeltaChange) });
+					OutAdditionalObjectChanges.Add(CurrentComponent, FTransactionObjectChange{ OldDiffableComponent.ObjectInfo, OldDiffableComponent.ObjectFlags, MoveTemp(ComponentDeltaChange) });
 				}
 			}
 		};
@@ -1082,18 +1100,29 @@ void AActor::SetPackageExternal(bool bExternal, bool bShouldDirty, UPackage* Act
     // Mark the current actor & package as dirty
 	Modify(bShouldDirty);
 
-	UPackage* LevelPackage = GetLevel()->GetPackage(); 
 	if (bExternal)
 	{
-		UPackage* NewActorPackage = ActorExternalPackage ? ActorExternalPackage : ULevel::CreateActorPackage(LevelPackage, GetLevel()->GetActorPackagingScheme(), GetPathName(), this);
-		SetExternalPackage(NewActorPackage);
+		UPackage* LevelPackage = GetLevel()->GetPackage();
+		UPackage* ActorPackage = ActorExternalPackage ? ActorExternalPackage : ULevel::CreateActorPackage(LevelPackage, GetLevel()->GetActorPackagingScheme(), GetPathName(), this);
+		// Cleanup the package from its UDeletedObjectPlaceholder if any (CreateActorPackage can return an existing package)
+		UDeletedObjectPlaceholder::RemoveFromPackage(ActorPackage);
+		SetExternalPackage(ActorPackage);
 	}
 	else
 	{
+		const bool bWasMainActorInPackage = IsMainPackageActor();
 		UPackage* ActorPackage = GetExternalPackage();
 		// Detach the linker exports so it doesn't resolve to this actor anymore
 		ResetLinkerExports(ActorPackage);
 		SetExternalPackage(nullptr);
+
+		// If the old external package is empty, create a dummy object outered to the level part of the original external package
+		// so that ULevel::CleanupLevel will be able to visit & process this empty external package.
+		// This object will allow the save package dialog to display the label of the previously removed actor (see FAssetTypeActions_DeletedObjectPlaceholder::GetObjectDisplayName)
+		if (!ActorPackage->HasAnyPackageFlags(PKG_NewlyCreated) && bWasMainActorInPackage && !AActor::FindActorInPackage(ActorPackage))
+		{
+			UDeletedObjectPlaceholder::Create(GetLevel(), ActorPackage, this);
+		}
 	}
 
 	for (UActorComponent* ActorComponent : GetComponents())
@@ -1108,6 +1137,16 @@ void AActor::SetPackageExternal(bool bExternal, bool bShouldDirty, UPackage* Act
 	
 	// Mark the new actor package dirty
 	MarkPackageDirty();
+}
+
+bool AActor::IsLockLocation() const
+{
+	if (IsInLevelInstance() && !IsInAnyEditLevelInstance())
+	{
+		return true;
+	}
+
+	return bLockLocation;
 }
 
 void AActor::OnPlayFromHere()
@@ -1231,7 +1270,12 @@ void AActor::SetActorLabel(const FString& NewActorLabelDirty, bool bMarkDirty)
 
 bool AActor::IsActorLabelEditable() const
 {
-	return bActorLabelEditable && !FActorEditorUtils::IsABuilderBrush(this);
+	if (IsInLevelInstance() && !IsInEditLevelInstance())
+	{
+		return false;
+	}
+
+	return bActorLabelEditable;
 }
 
 void AActor::ClearActorLabel()
@@ -1481,7 +1525,13 @@ void AActor::SetFolderPath_Recursively(const FName& NewFolderPath)
 // Ideally, this should be revisited to implement something more generic.
 void AActor::EditorReplacedActor(AActor* OldActor)
 {
-	ContentBundleGuid = OldActor->ContentBundleGuid;
+	// Don't update Content Bundle if new actor is using External Data Layer
+	if (!ExternalDataLayerAsset)
+	{
+		// We can't rely on OldActor to transfer the ContentBundleGuid as it could have moved to a different Content Bundle
+		// Resolve ContentBundleGuid from ActorPackage
+		ContentBundleGuid = ContentBundlePaths::GetContentBundleGuidFromExternalActorPackagePath(GetPackage()->GetFName().ToString());
+	}
 
 	SetActorLabel(OldActor->GetActorLabel());
 	Tags = OldActor->Tags;
@@ -1500,11 +1550,15 @@ void AActor::EditorReplacedActor(AActor* OldActor)
 	TArray<const UDataLayerInstance*> ConstDataLayerInstances = OldActor->GetDataLayerInstancesInternal(bUseLevelContext, bIncludeParentDataLayers);
 	if (!ConstDataLayerInstances.IsEmpty())
 	{
+		// Transfer old data layers (except the external data layer as it is handled at actor spawning)
 		TArray<UDataLayerInstance*> DataLayerInstances;
-		Algo::Transform(ConstDataLayerInstances, DataLayerInstances, [](const UDataLayerInstance* ConstDataLayerInstance) { return const_cast<UDataLayerInstance*>(ConstDataLayerInstance); });
+		Algo::TransformIf(ConstDataLayerInstances, DataLayerInstances, [](const UDataLayerInstance* ConstDataLayerInstance) { return !ConstDataLayerInstance->IsA<UExternalDataLayerInstance>(); }, [](const UDataLayerInstance* ConstDataLayerInstance) { return const_cast<UDataLayerInstance*>(ConstDataLayerInstance); });
 		IDataLayerEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IDataLayerEditorModule>("DataLayerEditor");
 		EditorModule.AddActorToDataLayers(this, DataLayerInstances);
 	}
+
+	// Broadcast that actor was replaced
+	FEditorDelegates::OnEditorActorReplaced.Broadcast(OldActor, this);
 }
 
 void AActor::CheckForDeprecated()
@@ -1728,11 +1782,25 @@ void AActor::FixupDataLayers(bool bRevertChangesOnLockedDataLayer /*= false*/)
 	{ 
 		return;
 	}
+
+	// Remove any data layer with a Root external data layer different from the actor's external data layer
+	// This case can happen after duplicating an actor using the actor editor context with a different external data layer
+	TSet<TSoftObjectPtr<const UDataLayerAsset>> InvalidDataLayerAssets;
+	if (!DataLayerAssets.IsEmpty())
+	{
+		for (const UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
+		{
+			if (const UExternalDataLayerInstance* RootExternalDataLayerInstance = DataLayerInstance->GetRootExternalDataLayerInstance(); RootExternalDataLayerInstance && (RootExternalDataLayerInstance->GetAsset() != ExternalDataLayerAsset))
+			{
+				InvalidDataLayerAssets.Add(DataLayerInstance->GetAsset());
+			}
+		}
+	}
 	
 	// Cleanup Data Layer assets we can't reference (Private DLs)
-	DataLayerAssets.SetNum(Algo::RemoveIf(DataLayerAssets, [this](const TSoftObjectPtr<UDataLayerAsset>& AssetPath)
+	DataLayerAssets.SetNum(Algo::RemoveIf(DataLayerAssets, [this, &InvalidDataLayerAssets](const TSoftObjectPtr<UDataLayerAsset>& AssetPath)
 	{
-		return !UDataLayerAsset::CanBeReferencedByActor(AssetPath, this);
+		return InvalidDataLayerAssets.Contains(AssetPath) || !UDataLayerAsset::CanBeReferencedByActor(AssetPath, this);
 	}));
 
 	// Use Actor's DataLayerManager since the fixup is relative to this level
@@ -1809,12 +1877,15 @@ bool AActor::IsPropertyChangedAffectingDataLayers(FPropertyChangedEvent& Propert
 	if (PropertyChangedEvent.Property != nullptr)
 	{
 		static const FName NAME_DataLayerAssets = GET_MEMBER_NAME_CHECKED(AActor, DataLayerAssets);
+		static const FName NAME_ExternalDataLayerAsset = GET_MEMBER_NAME_CHECKED(AActor, ExternalDataLayerAsset);
 
 		const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-		if (PropertyName == NAME_DataLayerAssets &&
-			((PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet) ||
-				(PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear) ||
-				(PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)))
+		if (PropertyName == NAME_ExternalDataLayerAsset ||
+			(PropertyName == NAME_DataLayerAssets &&
+			 ((PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet) ||
+			 (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear) ||
+			 (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)))
+			)
 		{
 			return true;
 		}
@@ -1851,7 +1922,7 @@ bool AActor::CanAddDataLayer(const UDataLayerInstance* InDataLayerInstance, FTex
 	auto PassesAssetReferenceFiltering = [](const UObject * InReferencingObject, const UDataLayerAsset * InDataLayerAsset, FText* OutReason)
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(InReferencingObject));
+		AssetReferenceFilterContext.AddReferencingAsset(FAssetData(InReferencingObject));
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 		return AssetReferenceFilter.IsValid() ? AssetReferenceFilter->PassesFilter(FAssetData(InDataLayerAsset), OutReason) : true;
 	};
@@ -1965,7 +2036,7 @@ bool FAssignActorDataLayer::AddDataLayerAsset(AActor* InActor, const UDataLayerA
 	else if (!InActor->DataLayerAssets.Contains(InDataLayerAsset))
 	{
 		InActor->Modify();
-		InActor->DataLayerAssets.Add(InDataLayerAsset);
+		InActor->DataLayerAssets.Add(const_cast<UDataLayerAsset*>(InDataLayerAsset));
 		return true;
 	}
 
@@ -1985,7 +2056,7 @@ bool FAssignActorDataLayer::RemoveDataLayerAsset(AActor* InActor, const UDataLay
 	else if (InActor->DataLayerAssets.Contains(InDataLayerAsset))
 	{
 		InActor->Modify();
-		InActor->DataLayerAssets.Remove(InDataLayerAsset);
+		InActor->DataLayerAssets.Remove(const_cast<UDataLayerAsset*>(InDataLayerAsset));
 		return true;
 	}
 

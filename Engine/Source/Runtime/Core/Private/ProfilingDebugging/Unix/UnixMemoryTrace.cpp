@@ -36,7 +36,7 @@ FMalloc* MemoryTrace_Create(FMalloc* InMalloc)
 			free((void*)ArgV[--ArgC]);
 		}
 
-		return (OutMalloc != nullptr) ? OutMalloc : InMalloc;
+		return OutMalloc;
 	}
 	return InMalloc;
 }

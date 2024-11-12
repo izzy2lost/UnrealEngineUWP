@@ -292,6 +292,6 @@ void FBaseAsyncSaveGameSystem::WaitForAsyncTask(UE::Tasks::FTask AsyncSaveTask)
 	else
 	{
 		// not running on the game thread, so just block until the async operation comes back
-		AsyncSaveTask.BusyWait();
+		AsyncSaveTask.Wait();
 	}
 }

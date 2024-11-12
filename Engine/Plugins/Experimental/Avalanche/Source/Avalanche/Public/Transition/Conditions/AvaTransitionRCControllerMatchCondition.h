@@ -15,6 +15,12 @@ USTRUCT()
 struct FAvaTransitionRCControllerMatchConditionInstanceData
 {
 	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	FAvaRCControllerId ControllerId;
+
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	EAvaTransitionComparisonResult ValueComparisonType = EAvaTransitionComparisonResult::None;
 };
 
 USTRUCT(DisplayName="Compare RC Controller Values", Category="Remote Control")
@@ -24,12 +30,21 @@ struct AVALANCHE_API FAvaTransitionRCControllerMatchCondition : public FAvaTrans
 
 	using FInstanceDataType = FAvaTransitionRCControllerMatchConditionInstanceData;
 
-	//~ Begin FAvaTransitionCondition
-	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
-	//~ End FAvaTransitionCondition
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FAvaTransitionRCControllerMatchCondition() = default;
+	virtual ~FAvaTransitionRCControllerMatchCondition() override = default;
+	FAvaTransitionRCControllerMatchCondition(const FAvaTransitionRCControllerMatchCondition&) = default;
+	FAvaTransitionRCControllerMatchCondition(FAvaTransitionRCControllerMatchCondition&&) = default;
+	FAvaTransitionRCControllerMatchCondition& operator=(const FAvaTransitionRCControllerMatchCondition&) = default;
+	FAvaTransitionRCControllerMatchCondition& operator=(FAvaTransitionRCControllerMatchCondition&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+	virtual void PostLoad(FStateTreeDataView InInstanceDataView) override;
 	virtual bool Link(FStateTreeLinker& InLinker) override;
 	//~ End FStateTreeNodeBase
 
@@ -37,13 +52,13 @@ struct AVALANCHE_API FAvaTransitionRCControllerMatchCondition : public FAvaTrans
 	virtual bool TestCondition(FStateTreeExecutionContext& InContext) const override;
 	//~ End FStateTreeConditionBase
 
-	URCVirtualPropertyBase* GetController(const UAvaSceneSubsystem& InSceneSubsystem, const FAvaTransitionScene* InTransitionScene) const;
+	UE_DEPRECATED(5.5, "ControllerId has been moved to Instance Data")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the Instance Data ControllerId instead"))
+	FAvaRCControllerId ControllerId_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, Category="Parameter")
-	FAvaRCControllerId ControllerId;
-
-	UPROPERTY(EditAnywhere, Category="Parameter")
-	EAvaTransitionComparisonResult ValueComparisonType = EAvaTransitionComparisonResult::None;
+	UE_DEPRECATED(5.5, "ValueComparisonType has been moved to Instance Data")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the Instance Data ValueComparisonType instead"))
+	EAvaTransitionComparisonResult ValueComparisonType_DEPRECATED = EAvaTransitionComparisonResult::None;
 
 	TStateTreeExternalDataHandle<UAvaSceneSubsystem> SceneSubsystemHandle;
 };

@@ -69,16 +69,16 @@ private:
 	TWeakObjectPtr <USkeletalMesh> Mesh;
 
 	/** The anim blueprint we are editing */
-	UAnimBlueprint* AnimBlueprint;
+	TWeakObjectPtr<UAnimBlueprint> AnimBlueprint;
 
 	/** the animation asset we are editing */
-	UAnimationAsset* AnimationAsset;
+	TWeakObjectPtr<UAnimationAsset> AnimationAsset;
 
 	/** the physics asset we are editing */
-	UPhysicsAsset* PhysicsAsset;
+	TWeakObjectPtr<UPhysicsAsset> PhysicsAsset;
 
 	/** The generic asset we are editing */
-	UObject* Asset;
+	TWeakObjectPtr<UObject> Asset;
 
 	/** Allow custom data for this editor */
 	TMap<int32, int32> CustomEditorData;

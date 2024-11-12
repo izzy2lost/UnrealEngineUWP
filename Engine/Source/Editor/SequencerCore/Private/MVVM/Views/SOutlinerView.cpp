@@ -171,7 +171,7 @@ FReply SOutlinerView::OnDragRow(const FGeometry&, const FPointerEvent&, TSharedR
 			if (!Draggable || !Draggable->CanDrag())
 			{
 				// Order is not important so we can opt for performance with RemoveAtSwap
-				WeakSelectedItems.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				WeakSelectedItems.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 
@@ -378,9 +378,10 @@ void SOutlinerView::UpdateOutlinerColumns()
 
 	// ----------------------------------------------------------------------------------------------------------
 	// Populate columns
-	const int32 NumLeftGutter  = CreateOutlinerColumnsForGroup(0,                         EOutlinerColumnGroup::LeftGutter);
-	const int32 NumCenter      = CreateOutlinerColumnsForGroup(NumLeftGutter,             EOutlinerColumnGroup::Center);
-	const int32 NumRightGutter = CreateOutlinerColumnsForGroup(NumLeftGutter + NumCenter, EOutlinerColumnGroup::RightGutter);
+	const int32 NumFarLeftGutter	= CreateOutlinerColumnsForGroup(0,											  EOutlinerColumnGroup::FarLeftGutter);
+	const int32 NumLeftGutter		= CreateOutlinerColumnsForGroup(NumFarLeftGutter,							  EOutlinerColumnGroup::LeftGutter);
+	const int32 NumCenter			= CreateOutlinerColumnsForGroup(NumFarLeftGutter + NumLeftGutter,             EOutlinerColumnGroup::Center);
+	const int32 NumRightGutter		= CreateOutlinerColumnsForGroup(NumFarLeftGutter + NumLeftGutter + NumCenter, EOutlinerColumnGroup::RightGutter);
 
 	// ----------------------------------------------------------------------------------------------------------
 	// Add some padding to the leading and trailing edge of the first and last columns in each group respectively
@@ -389,13 +390,13 @@ void SOutlinerView::UpdateOutlinerColumns()
 	//    each group so we can't put padding on those
 	if (NumLeftGutter > 0)
 	{
-		ColumnMetaData->Columns[0              ].CellPadding.Left  += 4.f;
-		ColumnMetaData->Columns[NumLeftGutter-1].CellPadding.Right += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter].CellPadding.Left  += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter+NumLeftGutter-1].CellPadding.Right += 4.f;
 	}
 	if (NumCenter > 0)
 	{
-		ColumnMetaData->Columns[NumLeftGutter            ].CellPadding.Left  += 4.f;
-		ColumnMetaData->Columns[NumLeftGutter+NumCenter-1].CellPadding.Right += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter+NumLeftGutter            ].CellPadding.Left  += 4.f;
+		ColumnMetaData->Columns[NumFarLeftGutter+NumLeftGutter+NumCenter-1].CellPadding.Right += 4.f;
 	}
 
 	// No additional padding on the right gutter intentionally
@@ -405,10 +406,19 @@ void SOutlinerView::UpdateOutlinerColumns()
 	//      Only add separators if they actually separate columns.
 	int32 NumSeparators = 0;
 
-	int32 InsertIndex = NumLeftGutter;
+	int32 InsertIndex = NumFarLeftGutter;
 	if (InsertIndex < ColumnMetaData->Columns.Num())
 	{
 		InsertSeparatorColumn(InsertIndex++, ++NumSeparators);
+		if (NumLeftGutter > 0)
+		{
+			InsertIndex += NumLeftGutter;
+			if (InsertIndex < ColumnMetaData->Columns.Num())
+			{
+				InsertSeparatorColumn(InsertIndex++, ++NumSeparators);
+			}
+		}
+
 		if (NumCenter > 0)
 		{
 			InsertIndex += NumCenter;
@@ -828,15 +838,18 @@ void SOutlinerView::Refresh()
 		}
 
 		// Only add pinned nodes if this is showing pinned only
-		bool bIsPinned = false;
+		bool bIsPinned = Extension->ShouldAnchorToTop();
 
 		constexpr bool bIncludeThis = true;
-		for (const TViewModelPtr<IPinnableExtension>& Pinnable : Extension.AsModel()->GetAncestorsOfType<IPinnableExtension>(bIncludeThis))
+		if (!bIsPinned)
 		{
-			if (Pinnable->IsPinned())
+			for (const TViewModelPtr<IPinnableExtension>& Pinnable : Extension.AsModel()->GetAncestorsOfType<IPinnableExtension>(bIncludeThis))
 			{
-				bIsPinned = true;
-				break;
+				if (Pinnable->IsPinned())
+				{
+					bIsPinned = true;
+					break;
+				}
 			}
 		}
 
@@ -865,7 +878,6 @@ void SOutlinerView::Refresh()
 	}
 
 	RebuildList();
-	//RequestTreeRefresh();
 
 	for (TSharedPtr<SOutlinerView> PinnedTreeView : PinnedTreeViews)
 	{

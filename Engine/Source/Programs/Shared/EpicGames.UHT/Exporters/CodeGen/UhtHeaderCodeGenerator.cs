@@ -39,8 +39,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		public readonly UhtHeaderFile HeaderFile;
 		public string FileId => HeaderInfos[HeaderFile.HeaderFileTypeIndex].FileId;
 
-		public UhtHeaderCodeGenerator(UhtCodeGenerator codeGenerator, UhtPackage package, UhtHeaderFile headerFile)
-			: base(codeGenerator, package)
+		public UhtHeaderCodeGenerator(UhtCodeGenerator codeGenerator, UhtHeaderFile headerFile)
+			: base(codeGenerator, headerFile.Module)
 		{
 			HeaderFile = headerFile;
 		}
@@ -129,9 +129,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				outerName = classObj.EngineName;
 			}
-			else if (outer is UhtHeaderFile)
+			else if (outer is UhtPackage packageObj)
 			{
-				string packageName = outer.Package.EngineName;
+				string packageName = packageObj.EngineName;
 				outerName = packageName.Replace('/', '_');
 			}
 
@@ -164,7 +164,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					!(outerClass != null && outerClass.ClassFlags.HasAnyFlags(EClassFlags.RequiredAPI)) &&
 					exportFlags.HasAnyFlags(UhtFunctionExportFlags.RequiredAPI))
 				{
-					builder.Append(PackageApi);
+					builder.Append(Module.Api);
 				}
 
 				if (textType == UhtPropertyTextType.InterfaceFunctionArgOrRetVal)
@@ -277,9 +277,29 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		protected static StringBuilder AppendEventFunctionPrologue(StringBuilder builder, UhtFunction function, string functionName, int tabs, string endl, bool addEventParameterStruct)
+		// Find the UFUNCTION associated with this event so that we can check
+		// if there is a BP implementation of it
+		protected static StringBuilder AppendFindUFunction(StringBuilder builder, UhtClass classObj, UhtFunction function, int tabs, string endl)
 		{
-			builder.AppendTabs(tabs).Append('{').Append(endl);
+			builder
+				.AppendTabs(tabs)
+				.Append("UFunction* Func = FindFunctionChecked(")
+				.Append("NAME_")
+				.Append(classObj.SourceName)
+				.Append('_')
+				.Append(function.EngineName)
+				.Append(");\r\n");
+
+			return builder;
+		}
+
+		protected static StringBuilder AppendEventFunctionPrologue(StringBuilder builder, UhtFunction function, string functionName, int tabs, string endl, bool addEventParameterStruct, bool bAddFunctionScopeBracket = true)
+		{
+			if (bAddFunctionScopeBracket)
+			{
+				builder.AppendTabs(tabs).Append('{').Append(endl);
+			}
+			
 			if (function.Children.Count == 0)
 			{
 				return builder;
@@ -322,7 +342,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 
-		protected static StringBuilder AppendEventFunctionEpilogue(StringBuilder builder, UhtFunction function, int tabs, string endl)
+		protected static StringBuilder AppendEventFunctionEpilogue(StringBuilder builder, UhtFunction function, int tabs, string endl, bool bAddFunctionScopeBracket = true)
 		{
 			++tabs;
 
@@ -382,7 +402,12 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			}
 
 			--tabs;
-			builder.AppendTabs(tabs).Append('}').Append(endl);
+
+			if (bAddFunctionScopeBracket)
+			{
+				builder.AppendTabs(tabs).Append('}').Append(endl);
+			}
+			
 			return builder;
 		}
 
@@ -618,7 +643,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			}));
 
 			// We want properties followed by functions
-			notifyTypes.Instances = notifyTypes.Instances.OrderBy(x => (x is UhtProperty ? 0 : 1) * (int)UhtDefineScope.ScopeCount + x.DefineScope).ToList();
+			notifyTypes.Instances.SortBy(x => (x is UhtProperty ? 0 : 1) * (int)UhtDefineScope.ScopeCount + x.DefineScope);
 			return notifyTypes;
 		}
 		#endregion

@@ -12,7 +12,16 @@
 #include "Misc/PackageName.h"
 #include "Misc/PathViews.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 #include "HAL/IConsoleManager.h"
+
+static bool GUseOldLoaderAsFallback = false;
+static FAutoConsoleVariableRef CVarGUseOldLoaderAsFallback(
+	TEXT("s.UseOldLoaderAsFallback"),
+	GUseOldLoaderAsFallback,
+	TEXT("When active, the old loader will be used as the fallback instead of zenloader"),
+	ECVF_Default
+);
 
 #define DO_TRACK_ASYNC_LOAD_REQUESTS (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
 
@@ -25,6 +34,7 @@
 volatile int32 GIsLoaderCreated;
 TUniquePtr<IAsyncPackageLoader> GPackageLoader;
 bool GAsyncLoadingAllowed = true;
+bool GIoDispatcherInitializedByLoader = false;
 
 FThreadSafeCounter IAsyncPackageLoader::NextPackageRequestId;
 
@@ -185,21 +195,25 @@ void SetAsyncLoadingAllowed(bool bAllowAsyncLoading)
 void InitAsyncThread()
 {
 	LLM_SCOPE(ELLMTag::AsyncLoading);
+	
+	bool bCommandLineDisabled = FParse::Param(FCommandLine::Get(), TEXT("NoZenLoader"));
+
 	if (FIoDispatcher::IsInitialized())
 	{
 		bool bSettingsEnabled = false;
 		bool bCommandLineEnabled = false;
-		bool bCommandLineDisabled = false;
 		bool bHasUseIoStoreParamInEditor = false;
 #if WITH_EDITOR
+		// enable zenloader by default in editor case
+		bSettingsEnabled = true;
+
 		bCommandLineEnabled = FParse::Param(FCommandLine::Get(), TEXT("ZenLoader"));
-		bCommandLineDisabled = FParse::Param(FCommandLine::Get(), TEXT("NoZenLoader"));
 		check(GConfig);
 		GConfig->GetBool(TEXT("/Script/Engine.EditorStreamingSettings"), TEXT("s.ZenLoaderEnabled"), bSettingsEnabled, GEngineIni);
 		bHasUseIoStoreParamInEditor = UE_FORCE_USE_IOSTORE || FParse::Param(FCommandLine::Get(), TEXT("UseIoStore"));
 #endif
 		FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
-		bool bHasScriptObjectsChunk = IoDispatcher.DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
+		const bool bHasScriptObjectsChunk = FIoDispatcherInternal::HasPackageData();
 		if (!bCommandLineDisabled && (bSettingsEnabled || bCommandLineEnabled))
 		{
 			GPackageLoader.Reset(MakeAsyncPackageLoader2(IoDispatcher));
@@ -218,7 +232,20 @@ void InitAsyncThread()
 	}
 	if (!GPackageLoader.IsValid())
 	{
-		GPackageLoader = MakeUnique<FAsyncLoadingThread>(/** ThreadIndex = */ 0);
+		if (GUseOldLoaderAsFallback || bCommandLineDisabled)
+		{
+			GPackageLoader = MakeUnique<FAsyncLoadingThread>(/** ThreadIndex = */ 0);
+		}
+		else
+		{
+			if (!FIoDispatcher::IsInitialized())
+			{
+				FIoDispatcher::Initialize();
+				GIoDispatcherInitializedByLoader = true;
+			}
+
+			GPackageLoader.Reset(MakeAsyncPackageLoader2(FIoDispatcher::Get()));
+		}
 	}
 
 	FPlatformAtomics::InterlockedIncrement(&GIsLoaderCreated);
@@ -236,6 +263,11 @@ void ShutdownAsyncThread()
 	{
 		GPackageLoader->ShutdownLoading();
 		GPackageLoader.Reset(nullptr);
+	}
+
+	if (GIoDispatcherInitializedByLoader)
+	{
+		FIoDispatcher::Shutdown();
 	}
 }
 
@@ -666,7 +698,7 @@ void CancelAsyncLoading()
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 	}
 
-	const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+	const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading;
 	for (int32 ObjectIndex = 0; ObjectIndex < GUObjectArray.GetObjectArrayNum(); ++ObjectIndex)
 	{
 		FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];

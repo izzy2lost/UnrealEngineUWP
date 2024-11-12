@@ -119,11 +119,21 @@ void FPlacementModeModule::StartupModule()
 
 	RegisterPlacementCategory(
 		FPlacementCategoryInfo(
-			NSLOCTEXT("PlacementMode", "RecentlyPlaced", "Recently Placed"),
+			NSLOCTEXT("PlacementMode", "Favorites", "Favorites"),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Favorites.Small"),
+			FBuiltInPlacementCategories::Favorites(),
+			TEXT("Favorites"),
+			TNumericLimits<int32>::Lowest(),
+			false
+		));
+	
+	RegisterPlacementCategory(
+		FPlacementCategoryInfo(
+			NSLOCTEXT("PlacementMode", "RecentlyPlaced", "Recent"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.Recent"),
 			FBuiltInPlacementCategories::RecentlyPlaced(),
 			TEXT("PMRecentlyPlaced"),
-			TNumericLimits<int32>::Lowest(),
+			TNumericLimits<int32>::Lowest() + 1,
 			false
 		)
 	);
@@ -229,15 +239,16 @@ void FPlacementModeModule::StartupModule()
 	{
 		int32 SortOrder = 0;
 		FName CategoryName = FBuiltInPlacementCategories::Visual();
-		RegisterPlacementCategory(
-			FPlacementCategoryInfo(
+
+		FPlacementCategoryInfo VfxCategoryInfo = FPlacementCategoryInfo(
 				NSLOCTEXT("PlacementMode", "VisualEffects", "Visual Effects"),
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.VisualEffects"),
 				CategoryName,
 				TEXT("PMVisual"),
 				30
-			)
-		);
+			);
+		VfxCategoryInfo.ShortDisplayName = NSLOCTEXT("PlacementMode", "VisualEffectsShortCategoryName", "VFX");
+		RegisterPlacementCategory(MoveTemp(VfxCategoryInfo));
 
 		UActorFactory* PPFactory = GEditor->FindActorFactoryByClassForActorClass(UActorFactoryBoxVolume::StaticClass(), APostProcessVolume::StaticClass());
 
@@ -265,7 +276,7 @@ void FPlacementModeModule::StartupModule()
 
 	RegisterPlacementCategory(
 		FPlacementCategoryInfo(
-			NSLOCTEXT("PlacementMode", "AllClasses", "All Classes"),
+			NSLOCTEXT("PlacementMode", "AllClasses", "All"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.All"),
 			FBuiltInPlacementCategories::AllClasses(),
 			TEXT("PMAllClasses"),
@@ -560,14 +571,21 @@ TOptional<FPlacementModeID> FPlacementModeModule::RegisterPlaceableItem(FName Ca
 	using namespace PlacementModeModuleLocals;
 
 	FPlacementCategory* Category = Categories.Find(CategoryName);
-	if (Category && !Category->CustomGenerator)
+	if (Category )
 	{
-		FPlacementModeID ID = CreateID(CategoryName);
-		Category->Items.Add(ID.UniqueID, InItem);
+		if ( InItem->DragHandler.IsValid() )
+		{
+			Category->CustomDraggableItems.Add( InItem );
+		}
+		if (!Category->CustomGenerator)
+		{
+			FPlacementModeID ID = CreateID(CategoryName);
+			Category->Items.Add(ID.UniqueID, InItem);
 
-		ManuallyCreatedPlaceableItems.Add(MakePlacementInfo(*InItem), InItem);
+			ManuallyCreatedPlaceableItems.Add(MakePlacementInfo(*InItem), InItem);
 
-		return ID;
+			return ID;
+		}
 	}
 	return TOptional<FPlacementModeID>();
 }
@@ -583,6 +601,7 @@ void FPlacementModeModule::UnregisterPlaceableItem(FPlacementModeID ID)
 		Category->Items.RemoveAndCopyValue(ID.UniqueID, Item);
 		if (Item)
 		{
+			Category->CustomDraggableItems.Remove(Item.ToSharedRef());
 			ManuallyCreatedPlaceableItems.Remove(MakePlacementInfo(*Item));
 		}
 	}
@@ -641,6 +660,24 @@ void FPlacementModeModule::GetFilteredItemsForCategory(FName CategoryName, TArra
 	}
 }
 
+void FPlacementModeModule::GetItemsWithNamesForCategory( FName CategoryName, TArray<TSharedPtr<FPlaceableItem>>& OutItems, const TArray<FName>& ItemNames ) const
+{
+	const FPlacementCategory* Category = Categories.Find(CategoryName);
+	if (Category)
+	{
+		for (const TTuple<FGuid, TSharedPtr<FPlaceableItem>>& Pair : Category->Items)
+		{
+			TSharedPtr<FPlaceableItem> Item = Pair.Value;
+			FName Name = FName( Item->NativeName );
+
+			if ( ItemNames.Contains( Name ) )
+			{
+				OutItems.Add(Pair.Value);
+			}
+		}
+	}
+}
+
 void FPlacementModeModule::RegenerateItemsForCategory(FName Category)
 {
 	if (Category == FBuiltInPlacementCategories::RecentlyPlaced())
@@ -651,7 +688,7 @@ void FPlacementModeModule::RegenerateItemsForCategory(FName Category)
 	{
 		RefreshVolumes();
 	}
-	else if (Category == FBuiltInPlacementCategories::AllClasses())
+	else if (Category == FBuiltInPlacementCategories::AllClasses() || Category == FBuiltInPlacementCategories::Favorites())
 	{
 		RefreshAllPlaceableClasses();
 	}
@@ -768,6 +805,15 @@ void FPlacementModeModule::RefreshAllPlaceableClasses()
 	}
 
 	Category->Items.Reset();
+
+
+	for ( TTuple<FName, FPlacementCategory>& Pair : Categories )
+	{
+		for ( const TSharedRef<FPlaceableItem>& Draggable : Pair.Value.CustomDraggableItems  )
+		{
+			Category->Items.Add( CreateID(), Draggable.ToSharedPtr() );
+		}
+	}
 
 	// Manually add some special cases that aren't added below
 	Category->Items.Add(CreateID(), MakeShareable(new FPlaceableItem(*UActorFactoryEmptyActor::StaticClass())));

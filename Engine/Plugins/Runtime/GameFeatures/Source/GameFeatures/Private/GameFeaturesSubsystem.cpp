@@ -168,7 +168,7 @@ const FString LexToString(const EGameFeatureTargetState GameFeatureTargetState)
 			return TEXT("Unknown");
 	}
 
-	static_assert((uint8)EGameFeatureTargetState::Count == 4, TEXT("Update LexToString to include new EGameFeatureTargetState"));
+	static_assert((uint8)EGameFeatureTargetState::Count == 4, "Update LexToString to include new EGameFeatureTargetState");
 }
 
 void LexFromString(EGameFeatureTargetState& ValueOut, const TCHAR* StringIn)
@@ -460,11 +460,15 @@ void UGameFeaturesSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			}
 		}),
 		ECVF_Cheat);
+
+	GetExplanationForUnavailablePackageDelegateHandle = IPluginManager::Get().GetExplanationForUnavailablePackageWithPluginInfoDelegate().AddUObject(this, &UGameFeaturesSubsystem::GetExplanationForUnavailablePackage);
 }
 
 void UGameFeaturesSubsystem::Deinitialize()
 {
 	UE_LOG(LogGameFeatures, Log, TEXT("Shutting down game features subsystem"));
+	IPluginManager::Get().GetExplanationForUnavailablePackageWithPluginInfoDelegate().Remove(GetExplanationForUnavailablePackageDelegateHandle);
+	GetExplanationForUnavailablePackageDelegateHandle.Reset();
 
 	if ((GameSpecificPolicies != nullptr) && bInitializedPolicyManager)
 	{
@@ -489,8 +493,14 @@ void UGameFeaturesSubsystem::OnAssetManagerCreated()
 
 	// Create the game-specific policy
 	UE_LOG(LogGameFeatures, Verbose, TEXT("Initializing game features policy (type %s)"), *GameSpecificPolicies->GetClass()->GetName());
+	bInitializedPolicyManager = true; // Set before calling InitGameFeatureManager() because InitGameFeatureManager may load GFPs
 	GameSpecificPolicies->InitGameFeatureManager();
-	bInitializedPolicyManager = true;
+}
+
+bool UGameFeaturesSubsystem::IsPluginAllowed(const FString& PluginURL) const
+{
+	ensureMsgf(bInitializedPolicyManager, TEXT("Attemting to load plugin [%s] before GameFeaturesSubsystem is ready!"), *PluginURL);
+	return bInitializedPolicyManager && GameSpecificPolicies->IsPluginAllowed(PluginURL);
 }
 
 TSharedPtr<FStreamableHandle> UGameFeaturesSubsystem::LoadGameFeatureData(const FString& GameFeatureToLoad, bool bStartStalled /*= false*/)
@@ -627,11 +637,37 @@ void UGameFeaturesSubsystem::ForEachGameFeature(TFunctionRef<void(FGameFeatureIn
 
 void UGameFeaturesSubsystem::AddObserver(UObject* Observer)
 {
-	//@TODO: GameFeaturePluginEnginePush: May want to warn if one is added after any game feature plugins are already initialized, or go to a CallOrRegister sort of pattern
 	check(Observer);
-	if (ensureAlwaysMsgf(Cast<IGameFeatureStateChangeObserver>(Observer) != nullptr, TEXT("Observers must implement the IGameFeatureStateChangeObserver interface.")))
+	IGameFeatureStateChangeObserver* Interface = Cast<IGameFeatureStateChangeObserver>(Observer);
+	if (ensureAlwaysMsgf(Interface != nullptr, TEXT("Observers must implement the IGameFeatureStateChangeObserver interface.")))
 	{
 		Observers.AddUnique(Observer);
+
+		// Push the current state of all known game features to the new observer
+		for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
+		{
+			if (UGameFeaturePluginStateMachine* GFSM = StateMachineIt.Value())
+			{
+				if (const UGameFeatureData* GameFeatureData = GFSM->GetGameFeatureDataForRegisteredPlugin(false))
+				{
+					FString PluginName = GFSM->GetPluginName();
+					FString PluginURL = GFSM->GetPluginURL();
+
+					Interface->OnGameFeatureRegistering(GameFeatureData, *PluginName, PluginURL);
+
+					if (GFSM->GetCurrentState() >= EGameFeaturePluginState::Loaded)
+					{
+						Interface->OnGameFeatureLoading(GameFeatureData, PluginURL);
+					}
+
+					if (GFSM->GetCurrentState() >= EGameFeaturePluginState::Active)
+					{
+						Interface->OnGameFeatureActivating(GameFeatureData, PluginURL);
+						Interface->OnGameFeatureActivated(GameFeatureData, PluginURL);
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -661,6 +697,27 @@ FString UGameFeaturesSubsystem::GetPluginURL_FileProtocol(const FString& PluginD
 			});
 	}
 	return Path;
+}
+
+void UGameFeaturesSubsystem::GetExplanationForUnavailablePackage(const FString& UnavailablePackage, IPlugin* PluginIfFound, FStringBuilderBase& InOutExplanation)
+{
+#if WITH_EDITOR
+	if (PluginIfFound)
+	{
+		if (FString* Explanation = UnmountedPluginNameToExplanation.Find(PluginIfFound->GetName()))
+		{
+			InOutExplanation.Appendf(TEXT("\nUGameFeaturesSubsystem: Explanation for not mounting plugin %s: %s"), *PluginIfFound->GetFriendlyName(), **Explanation);
+		}
+	}
+	else
+	{
+		FString ContentDirName = FPackageName::SplitPackageNameRoot(UnavailablePackage, nullptr).GetData();
+		if (FString* Explanation = UnmountedPluginNameToExplanation.Find(ContentDirName))
+		{
+			InOutExplanation.Appendf(TEXT("\nUGameFeaturesSubsystem: Explanation for not mounting plugin %s: %s"), *ContentDirName, **Explanation);
+		}
+	}
+#endif
 }
 
 FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata, TArrayView<const TPair<FString, FString>> AdditionalOptions = {})
@@ -937,6 +994,23 @@ void UGameFeaturesSubsystem::OnGameFeatureDownloading(const FString& PluginName,
 	CallbackObservers(EObserverCallback::Downloading, PluginIdentifier, &PluginName);
 }
 
+void UGameFeaturesSubsystem::OnGameFeatureDownloaded(const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	if (UGameFeaturePluginStateMachine* GFPSM = FindGameFeaturePluginStateMachine(PluginIdentifier))
+	{
+		const FGameFeaturePluginStateMachineProperties& MachineProperties = GFPSM->GetProperties();
+		if (MachineProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
+		{
+			const FInstallBundlePluginProtocolMetaData& MetaData = MachineProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
+			for (const FName& Bundle : MetaData.InstallBundles)
+			{
+				TSet<FString>& PluginsUsingBundle = DownloadedBundleToPlugin.FindOrAdd(Bundle);
+				PluginsUsingBundle.Add(FString(PluginIdentifier.GetPluginName()));
+			}
+		}
+	}
+}
+
 void UGameFeaturesSubsystem::OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
 	CallbackObservers(EObserverCallback::Releasing, PluginIdentifier, &PluginName);
@@ -949,6 +1023,20 @@ void UGameFeaturesSubsystem::OnGameFeaturePreMounting(const FString& PluginName,
 
 void UGameFeaturesSubsystem::OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context)
 {
+	if (UGameFeaturePluginStateMachine* GFPSM = FindGameFeaturePluginStateMachine(PluginIdentifier))
+	{
+		const FGameFeaturePluginStateMachineProperties& MachineProperties = GFPSM->GetProperties();
+		if (MachineProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
+		{
+			const FInstallBundlePluginProtocolMetaData& MetaData = MachineProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>();
+			for (const FName& Bundle : MetaData.InstallBundles)
+			{
+				TSet<FString>& PluginsUsingBundle = MountedBundleToPlugin.FindOrAdd(Bundle);
+				PluginsUsingBundle.Add(PluginName);
+			}
+		}
+	}
+
 	CallbackObservers(EObserverCallback::PostMounting, PluginIdentifier, &PluginName, /*GameFeatureData=*/nullptr, &Context);
 }
 
@@ -1031,6 +1119,25 @@ void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* Gam
 			if (Action != nullptr)
 			{
 				Action->OnGameFeatureActivating(Context);
+			}
+		}
+	}
+}
+
+void UGameFeaturesSubsystem::OnGameFeatureActivated(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnActivated_CallbackObservers);
+		CallbackObservers(EObserverCallback::Activated, PluginIdentifier, &PluginName, GameFeatureData);
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnActivated_CallbackActions);
+		for (UGameFeatureAction* Action : GameFeatureData->GetActions())
+		{
+			if (Action != nullptr)
+			{
+				Action->OnGameFeatureActivated();
 			}
 		}
 	}
@@ -1162,7 +1269,7 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, con
 
 void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate)
 {
-	const bool bIsPluginAllowed = GameSpecificPolicies->IsPluginAllowed(PluginURL);
+	const bool bIsPluginAllowed = IsPluginAllowed(PluginURL);
 	if (!bIsPluginAllowed)
 	{
 		CompleteDelegate.ExecuteIfBound(UE::GameFeatures::FResult(MakeError(UE::GameFeatures::SubsystemErrorNamespace + UE::GameFeatures::CommonErrorCodes::PluginNotAllowed)));
@@ -1254,6 +1361,105 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(TConstArrayView<FString> Plug
 	}
 }
 
+void UGameFeaturesSubsystem::RegisterGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate)
+{
+	RegisterGameFeaturePlugin(PluginURL, FGameFeatureProtocolOptions(), CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::RegisterGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate)
+{
+	const bool bIsPluginAllowed = IsPluginAllowed(PluginURL);
+	if (!bIsPluginAllowed)
+	{
+		CompleteDelegate.ExecuteIfBound(UE::GameFeatures::FResult(MakeError(UE::GameFeatures::SubsystemErrorNamespace + UE::GameFeatures::CommonErrorCodes::PluginNotAllowed)));
+		return;
+	}
+
+	UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, ProtocolOptions);
+
+	if (!StateMachine->IsRunning() && StateMachine->GetCurrentState() == EGameFeaturePluginState::Active)
+	{
+		// TODO: Resolve the activated case here, this is needed because in a PIE environment the plugins
+		// are not sandboxed, and we need to do simulate a successful activate call in order run GFP systems 
+		// on whichever Role runs second between client and server.
+
+		// Refire the observer for Activated and do nothing else.
+		CallbackObservers(EObserverCallback::Activating, StateMachine->GetPluginIdentifier(), &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
+	}
+
+	if (ShouldUpdatePluginProtocolOptions(StateMachine, ProtocolOptions))
+	{
+		const UE::GameFeatures::FResult Result = UpdateGameFeatureProtocolOptions(StateMachine, ProtocolOptions);
+		if (Result.HasError())
+		{
+			CompleteDelegate.ExecuteIfBound(Result);
+			return;
+		}
+	}
+
+	ChangeGameFeatureDestination(StateMachine, ProtocolOptions, FGameFeaturePluginStateRange(EGameFeaturePluginState::Registered, EGameFeaturePluginState::Active), CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::RegisterGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate)
+{
+	struct FLoadContext
+	{
+		TMap<FString, UE::GameFeatures::FResult> Results;
+		FMultipleGameFeaturePluginsLoaded CompleteDelegate;
+
+		int32 NumPluginsLoaded = 0;
+		bool bPushedTagsBroadcast = false;
+
+		FLoadContext()
+		{
+			if (!IsEngineExitRequested())
+			{
+				UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+			else if (UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+			{
+				TagsManager->PushDeferOnGameplayTagTreeChangedBroadcast();
+				bPushedTagsBroadcast = true;
+			}
+		}
+
+		~FLoadContext()
+		{
+			if (bPushedTagsBroadcast)
+			{
+				if (UGameplayTagsManager* TagsManager = UGameplayTagsManager::GetIfAllocated())
+				{
+					TagsManager->PopDeferOnGameplayTagTreeChangedBroadcast();
+				}
+			}
+
+			CompleteDelegate.ExecuteIfBound(Results);
+		}
+	};
+	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
+	LoadContext->CompleteDelegate = CompleteDelegate;
+
+	LoadContext->Results.Reserve(PluginURLs.Num());
+	for (const FString& PluginURL : PluginURLs)
+	{
+		LoadContext->Results.Add(PluginURL, MakeError("Pending"));
+	}
+
+	const int32 NumPluginsToLoad = PluginURLs.Num();
+	UE_LOG(LogGameFeatures, Log, TEXT("Registering %i GFPs"), NumPluginsToLoad);
+
+	for (const FString& PluginURL : PluginURLs)
+	{
+		RegisterGameFeaturePlugin(PluginURL, ProtocolOptions, FGameFeaturePluginChangeStateComplete::CreateLambda([LoadContext, PluginURL](const UE::GameFeatures::FResult& Result)
+			{
+				LoadContext->Results.Add(PluginURL, Result);
+				++LoadContext->NumPluginsLoaded;
+				UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Finished Registering %i GFPs"), LoadContext->NumPluginsLoaded);
+			}));
+	}
+}
+
 void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate)
 {
 	ChangeGameFeatureTargetState(PluginURL, EGameFeatureTargetState::Active, CompleteDelegate);
@@ -1290,7 +1496,7 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginU
 	static_assert(std::underlying_type<EGameFeatureTargetState>::type(EGameFeatureTargetState::Count) == 4, "");
 	check(TargetPluginState != EGameFeaturePluginState::MAX);
 
-	const bool bIsPluginAllowed = GameSpecificPolicies->IsPluginAllowed(PluginURL);
+		const bool bIsPluginAllowed = IsPluginAllowed(PluginURL);
 
 	UGameFeaturePluginStateMachine* StateMachine = nullptr;
 	if (!bIsPluginAllowed)
@@ -1468,18 +1674,37 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginInstallPercent(const FString& P
 		if (StateMachine->IsStatusKnown() && StateMachine->IsAvailable())
 		{
 			const FGameFeaturePluginStateInfo& StateInfo = StateMachine->GetCurrentStateInfo();
+
+			float InstallProgress = 0.0f;
 			if (StateInfo.State == EGameFeaturePluginState::Downloading)
 			{
-				Install_Percent = StateInfo.Progress;
+				InstallProgress = StateInfo.Progress;
 			}
 			else if (StateInfo.State >= EGameFeaturePluginState::Installed)
 			{
-				Install_Percent = 1.0f;
+				InstallProgress = 1.0f;
 			}
-			else
+
+			if (!StateMachine->HasAssetStreamingDependencies())
 			{
-				Install_Percent = 0.0f;
+				Install_Percent = InstallProgress;
+				return true;
 			}
+
+			float AssetDependencyProgress = 0.0f;
+			if (StateInfo.State == EGameFeaturePluginState::AssetDependencyStreaming)
+			{
+				AssetDependencyProgress = StateInfo.Progress;
+			}
+			else if(StateInfo.State >= EGameFeaturePluginState::Registering)
+			{
+				AssetDependencyProgress = 1.0f;
+			}
+
+			// Assumuption that most of the progress will be from asset dependencies in this case
+			// For this to be more accurate we'd need to figure out the actual sizes during 
+			// EGameFeaturePluginState::CheckingStatus but this is most likely good enough
+			Install_Percent = 0.2f * InstallProgress + 0.8f * AssetDependencyProgress;
 			return true;
 		}
 	}
@@ -1508,6 +1733,32 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginInstallPercent(TConstArrayView<
 	}
 
 	return false;
+}
+
+bool UGameFeaturesSubsystem::DoesGameFeaturePluginNeedUpdate(const FString& PluginURL) const
+{
+	TArray<FName> InstallBundles;
+	const bool bParseSuccess = UGameFeaturesSubsystem::ParsePluginURLOptions(PluginURL, EGameFeatureURLOptions::Bundles,
+		[&InstallBundles](EGameFeatureURLOptions Option, FStringView OptionName, FStringView OptionValue)
+		{
+			check(Option == EGameFeatureURLOptions::Bundles);
+			InstallBundles.Emplace(OptionValue);
+		});
+
+	if (InstallBundles.IsEmpty())
+	{
+		return false;
+	}
+
+	TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+	TValueOrError<FInstallBundleCombinedInstallState, EInstallBundleResult> InstallStateResult = BundleManager->GetInstallStateSynchronous(InstallBundles, false);
+	if (InstallStateResult.HasError())
+	{
+		UE_LOG(LogGameFeatures, Error, TEXT("Failed to get install state for PluginURL %s : Error reason %s"), *PluginURL, LexToString(InstallStateResult.GetError()));
+		return false;
+	}
+
+	return InstallStateResult.GetValue().GetAnyBundleHasState(EInstallBundleInstallState::NeedsUpdate);
 }
 
 bool UGameFeaturesSubsystem::IsGameFeaturePluginActive(const FString& PluginURL, bool bCheckForActivating /*= false*/) const
@@ -1729,15 +1980,22 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 
 	FString PluginURL;
 	FGameFeaturePluginDetails PluginDetails;
-	if (GetBuiltInGameFeaturePluginDetails(Plugin, PluginURL, PluginDetails))
+	if (GetBuiltInGameFeaturePluginDetails(Plugin, PluginDetails) && GetBuiltInGameFeaturePluginURL(Plugin, PluginURL))
 	{
-		if (GameSpecificPolicies->IsPluginAllowed(PluginURL))
+		if (IsPluginAllowed(PluginURL))
 		{
 			FBuiltInGameFeaturePluginBehaviorOptions BehaviorOptions;
 			const bool bShouldProcess = AdditionalFilter(Plugin->GetDescriptorFileName(), PluginDetails, BehaviorOptions);
 			if (bShouldProcess)
 			{
 				FGameFeatureProtocolOptions ProtocolOptions;
+				if (UGameFeaturesSubsystem::GetPluginURLProtocol(PluginURL) == EGameFeaturePluginProtocol::InstallBundle)
+				{
+					FInstallBundlePluginProtocolOptions InstallBundleOptions;
+					InstallBundleOptions.bAllowIniLoading = true;
+					InstallBundleOptions.ReleaseInstallBundleFlags = EInstallBundleReleaseRequestFlags::ExplicitRemoveList;
+					ProtocolOptions = FGameFeatureProtocolOptions(InstallBundleOptions);
+				}
 				ProtocolOptions.bForceSyncLoading = BehaviorOptions.bForceSyncLoading;
 				ProtocolOptions.bLogWarningOnForcedDependencyCreation = BehaviorOptions.bLogWarningOnForcedDependencyCreation;
 				ProtocolOptions.bLogErrorOnForcedDependencyCreation = BehaviorOptions.bLogErrorOnForcedDependencyCreation;
@@ -1965,9 +2223,9 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 	}
 }
 
-bool UGameFeaturesSubsystem::GetPluginURLByName(const FString& PluginName, FString& OutPluginURL) const
+bool UGameFeaturesSubsystem::GetPluginURLByName(FStringView PluginName, FString& OutPluginURL) const
 {
-	if (const FString* PluginURL = GameFeaturePluginNameToPathMap.Find(PluginName))
+	if (const FString* PluginURL = GameFeaturePluginNameToPathMap.FindByHash(GetTypeHash(PluginName), PluginName))
 	{
 		OutPluginURL = *PluginURL;
 		return true;
@@ -2044,33 +2302,46 @@ EGameFeaturePluginState UGameFeaturesSubsystem::GetPluginState(FGameFeaturePlugi
 
 bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
 {
-	return GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginURL, OutPluginDetails);
+	return GetBuiltInGameFeaturePluginURL(Plugin, OutPluginURL) && GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginDetails);
 }
 
 bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
+{
+	return GetBuiltInGameFeaturePluginURL(Plugin, OutPluginURL) && GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginDetails);
+}
+
+bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, struct FGameFeaturePluginDetails& OutPluginDetails) const
 {
 	// @TODO: this problematic because it assumes file protocol.
 	// Ideally this would work with any protocol, but for current uses cases the exact protocol doesn't seem to matter.
 
 	const FString& PluginDescriptorFilename = Plugin->GetDescriptorFileName();
-
 	// Make sure you are in a game feature plugins folder. All GameFeaturePlugins are rooted in a GameFeatures folder.
 	if (!PluginDescriptorFilename.IsEmpty() && GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(PluginDescriptorFilename)) && FPaths::FileExists(PluginDescriptorFilename))
 	{
-		bool bIsFileProtocol = true;
-		if (GetPluginURLByName(Plugin->GetName(), OutPluginURL))
-		{
-			bIsFileProtocol = UGameFeaturesSubsystem::IsPluginURLProtocol(OutPluginURL, EGameFeaturePluginProtocol::File);
-		}
-		else
-		{
-			OutPluginURL = GetPluginURL_FileProtocol(PluginDescriptorFilename);
-		}
+		return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
+	}
 
-		if (bIsFileProtocol)
+	return false;
+}
+
+
+bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginURL(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL) const
+{
+	// @TODO: this problematic because it assumes file protocol.
+	// Ideally this would work with any protocol, but for current uses cases the exact protocol doesn't seem to matter.
+
+	const FString& PluginDescriptorFilename = Plugin->GetDescriptorFileName();
+	// Make sure you are in a game feature plugins folder. All GameFeaturePlugins are rooted in a GameFeatures folder.
+	if (!PluginDescriptorFilename.IsEmpty() && GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(PluginDescriptorFilename)) && FPaths::FileExists(PluginDescriptorFilename))
+	{
+		const FString PluginName = Plugin->GetName();
+		bool bFoundPluginURL = GetPluginURLByName(PluginName, OutPluginURL);
+		if (!bFoundPluginURL)
 		{
-			return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
+			bFoundPluginURL = GameSpecificPolicies->GetGameFeaturePluginURL(Plugin, OutPluginURL);
 		}
+		return bFoundPluginURL;
 	}
 
 	return false;
@@ -2097,6 +2368,8 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 	FDateTime FileTimeStamp;
 	if (UE::GameFeatures::GCachePluginDetails)
 	{
+		FScopeLock Lock(&CachedGameFeaturePluginDetailsLock);
+
 		// Note: On file systems that don't support timestamps (current time is returned instead), 
 		// the pak file layer will end up caching the mount time, so this stamp will still be valid as long as the uplugin
 		// is in a pak and the pak is mounted.
@@ -2131,15 +2404,15 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 			FString FileContents;
 			if (!FFileHelper::LoadFileToString(FileContents, *PluginDescriptorFilename))
 			{
-				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not determine if feature was hotfixable. Failed to read file. File:%s Error:%d"), *PluginDescriptorFilename, FPlatformMisc::GetLastError());
+				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not load plugin descriptor. Failed to read file. File:%s Error:%d"), *PluginDescriptorFilename, FPlatformMisc::GetLastError());
 				return false;
 			}
 
 			// Deserialize a JSON object from the string	
-			TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(FileContents);
+			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(FileContents);
 			if (!FJsonSerializer::Deserialize(Reader, ObjectPtr) || !ObjectPtr.IsValid())
 			{
-				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not determine if feature was hotfixable. Json invalid. File:%s. Error:%s"), *PluginDescriptorFilename, *Reader->GetErrorMessage());
+				UE_LOG(LogGameFeatures, Error, TEXT("UGameFeaturesSubsystem could not load plugin descriptor. Json invalid. File:%s. Error:%s"), *PluginDescriptorFilename, *Reader->GetErrorMessage());
 				return false;
 			}
 		}
@@ -2148,7 +2421,7 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 	// Read the properties
 	// Hotfixable. If it is not specified, then we assume it is
 	OutPluginDetails.bHotfixable = true;
-	ObjectPtr->TryGetBoolField(TEXT("Hotfixable"), OutPluginDetails.bHotfixable);
+	ObjectPtr->TryGetBoolField(TEXTVIEW("Hotfixable"), OutPluginDetails.bHotfixable);
 
 	// Determine the initial plugin state
 	OutPluginDetails.BuiltInAutoState = DetermineBuiltInInitialFeatureState(ObjectPtr, PluginDescriptorFilename);
@@ -2169,60 +2442,106 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 
 	// Parse plugin dependencies
 	const TArray<TSharedPtr<FJsonValue>>* PluginsArray = nullptr;
-	ObjectPtr->TryGetArrayField(TEXT("Plugins"), PluginsArray);
+	ObjectPtr->TryGetArrayField(TEXTVIEW("Plugins"), PluginsArray);
 	if (PluginsArray)
 	{
-		FString NameField = TEXT("Name");
-		FString EnabledField = TEXT("Enabled");
-		FString ActivateField = TEXT("Activate");
+		const FStringView NameField = TEXTVIEW("Name");
+		const FStringView EnabledField = TEXTVIEW("Enabled");
+		const FStringView ActivateField = TEXTVIEW("Activate");
 		for (const TSharedPtr<FJsonValue>& PluginElement : *PluginsArray)
 		{
-			if (PluginElement.IsValid())
+			if (!PluginElement)
 			{
-				const TSharedPtr<FJsonObject>* ElementObjectPtr = nullptr;
-				PluginElement->TryGetObject(ElementObjectPtr);
-				if (ElementObjectPtr && ElementObjectPtr->IsValid())
-				{
-					const TSharedPtr<FJsonObject>& ElementObject = *ElementObjectPtr;
-
-					FString DependencyName;
-					ElementObject->TryGetStringField(NameField, DependencyName);
-					if (!DependencyName.IsEmpty())
-					{
-						bool bElementEnabled = false;
-						ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
-						if (bElementEnabled)
-						{
-							//Have to get Activate from JSON as it's unique to GFP and not in the PluginManager
-							bool bElementActivate = false;
-							ElementObject->TryGetBoolField(ActivateField, bElementActivate);
-
-							OutPluginDetails.PluginDependencies.Emplace(FGameFeaturePluginReferenceDetails(MoveTemp(DependencyName), bElementActivate));
-						}
-						else
-						{
-							UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Skipping adding dependency %s in %s. Plugin is disabled."), *DependencyName, *PluginDescriptorFilename);
-						}
-					}
-					else
-					{
-						UE_LOG(LogGameFeatures, Error, TEXT("Error parsing dependency name in %s! Invalid JSON data!"), *PluginDescriptorFilename);
-					}
-				}
+				continue;
 			}
+
+			const TSharedPtr<FJsonObject>* ElementObjectPtr = nullptr;
+			PluginElement->TryGetObject(ElementObjectPtr);
+			if (!ElementObjectPtr || !ElementObjectPtr->IsValid())
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject>& ElementObject = *ElementObjectPtr;
+
+			FString DependencyName;
+			ElementObject->TryGetStringField(NameField, DependencyName);
+			if (DependencyName.IsEmpty())
+			{
+				UE_LOG(LogGameFeatures, Error, TEXT("Error parsing dependency name in %s! Invalid JSON data!"), *PluginDescriptorFilename);
+				continue;
+			}
+
+			bool bElementEnabled = false;
+			ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
+			if (!bElementEnabled)
+			{
+				UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Skipping adding dependency %s in %s. Plugin is disabled."), *DependencyName, *PluginDescriptorFilename);
+				continue;
+			}
+
+			//Have to get Activate from JSON as it's unique to GFP and not in the PluginManager
+			bool bElementActivate = false;
+			ElementObject->TryGetBoolField(ActivateField, bElementActivate);
+
+			FGameFeaturePluginReferenceDetails& RefDetails = OutPluginDetails.PluginDependencies.Emplace_GetRef();
+			RefDetails.PluginName = MoveTemp(DependencyName);
+			RefDetails.bShouldActivate = bElementActivate;
 		}
 	}
 
 	if (UE::GameFeatures::GCachePluginDetails)
 	{
+		FScopeLock Lock(&CachedGameFeaturePluginDetailsLock);
 		CachedPluginDetailsByFilename.Add(PluginDescriptorFilename, FCachedGameFeaturePluginDetails(OutPluginDetails, FileTimeStamp));
 	}
+
 	return true;
 }
 
 void UGameFeaturesSubsystem::PruneCachedGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename) const
 {
 	CachedPluginDetailsByFilename.Remove(PluginDescriptorFilename);
+}
+
+TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> UGameFeaturesSubsystem::ReleaseBundle(const FString& PluginName, TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags)
+{
+	TArray<FName> BundlesToRelease;
+	for (const FName& Bundle : BundleNames)
+	{
+		TSet<FString>& PluginsUsingBundle = DownloadedBundleToPlugin.FindOrAdd(Bundle);
+		PluginsUsingBundle.Remove(PluginName);
+		if (PluginsUsingBundle.Num() == 0)
+		{
+			UE_LOG(LogGameFeatures, Display, TEXT("Releasing bundle (%s) as final plugin released it (%s)"), *Bundle.ToString(), *PluginName);
+			BundlesToRelease.Add(Bundle);
+		}
+
+#if !UE_BUILD_SHIPPING
+		TSet<FString>& PluginsWithMountedBundle = MountedBundleToPlugin.FindOrAdd(Bundle);
+		ensureMsgf(!PluginsWithMountedBundle.Contains(PluginName), TEXT("Bundle (%s) is being released but still has GFPs with it mounted"), *Bundle.ToString());
+#endif
+	}
+	TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+	check(BundleManager.IsValid());
+	return BundleManager->RequestReleaseContent(BundlesToRelease, Flags);
+}
+
+TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> UGameFeaturesSubsystem::UnmountBundle(const FString& PluginName, TArrayView<const FName> BundleNames, EInstallBundleReleaseRequestFlags Flags)
+{
+	TArray<FName> BundlesToRelease;
+	for (const FName& Bundle : BundleNames)
+	{
+		TSet<FString>& PluginsUsingBundle = MountedBundleToPlugin.FindOrAdd(Bundle);
+		PluginsUsingBundle.Remove(PluginName);
+		if (PluginsUsingBundle.Num() == 0)
+		{
+			UE_LOG(LogGameFeatures, Display, TEXT("Unmounting bundle (%s) as final plugin released it (%s)"), *Bundle.ToString(), *PluginName);
+			BundlesToRelease.Add(Bundle);
+		}
+	}
+	TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+	check(BundleManager.IsValid());
+	return BundleManager->RequestReleaseContent(BundlesToRelease, Flags);
 }
 
 struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownloadHandle
@@ -2326,13 +2645,13 @@ struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownlo
 				continue;
 			}
 
-			TValueOrError<FInstallBundlePluginProtocolMetaData, void> MaybeInstallBundleOptions = FInstallBundlePluginProtocolMetaData::FromString(URL);
+			TValueOrError<FInstallBundlePluginProtocolMetaData, FString> MaybeInstallBundleOptions = FInstallBundlePluginProtocolMetaData::FromString(URL);
 			if (MaybeInstallBundleOptions.HasError())
 			{
 				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to parse URL {URL}", ("URL", URL));
 				UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
 					PredownloadErrorNamespace.Len(), PredownloadErrorNamespace.GetData(),
-					TEXT("BadUrl")));
+					*MaybeInstallBundleOptions.GetError()));
 				SetComplete(MoveTemp(ErrorResult));
 				return;
 			}
@@ -2545,22 +2864,6 @@ TSharedRef<FGameFeaturePluginPredownloadHandle> UGameFeaturesSubsystem::Predownl
 	return Context;
 }
 
-UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginStateMachineByPluginName(const FString& PluginName) const
-{
-	for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
-	{
-		if (UGameFeaturePluginStateMachine* GFSM = StateMachineIt.Value())
-		{
-			if (GFSM->GetGameFeatureName() == PluginName)
-			{
-				return GFSM;
-			}
-		}
-	}
-
-	return nullptr;
-}
-
 UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginStateMachine(const FString& PluginURL) const
 {
 	FGameFeaturePluginIdentifier FindPluginIdentifier(PluginURL);
@@ -2606,13 +2909,13 @@ UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeatureP
 		// In this case, still return the existing machine, even if the protocol doesn't match. This function should never return null.
 		// There can only be one active instance of any machine.
 		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
-		ensureAlwaysMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %.*s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData());
+		ensureMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %.*s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData());
 
 		UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Found GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
 		return *ExistingStateMachine;
 	}
 
-	UE_LOG(LogGameFeatures, Display, TEXT("Creating GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
+	UE_LOG(LogGameFeatures, Verbose, TEXT("Creating GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
 
 	UGameFeaturePluginStateMachine* NewStateMachine = NewObject<UGameFeaturePluginStateMachine>(this);
 	GameFeaturePluginStateMachines.Add(FString(PluginIdentifier.GetIdentifyingString()), NewStateMachine);
@@ -2626,13 +2929,6 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePluginComplete(const UE::Game
 	check(Machine);
 	if (Result.HasValue())
 	{
-		//@note It's possible for the machine to still be tranitioning at this point as long as it's withing the requested destination range
-		UE_LOG(LogGameFeatures, Display, TEXT("Game feature '%s' loaded successfully. Ending state: %s, [%s, %s]"), 
-			*Machine->GetGameFeatureName(), 
-			*UE::GameFeatures::ToString(Machine->GetCurrentState()),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MinState),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MaxState));
-
 		checkf(RequestedDestination.Contains(Machine->GetCurrentState()), TEXT("Game feature '%s': Ending state %s is not in expected range [%s, %s]"), 
 			*Machine->GetGameFeatureName(), 
 			*UE::GameFeatures::ToString(Machine->GetCurrentState()), 
@@ -2641,13 +2937,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePluginComplete(const UE::Game
 	}
 	else
 	{
-		const FString ErrorMessage = UE::GameFeatures::ToString(Result);
-		UE_LOG(LogGameFeatures, Error, TEXT("Game feature '%s' load failed. Ending state: %s, [%s, %s]. Result: %s"),
-			*Machine->GetGameFeatureName(),
-			*UE::GameFeatures::ToString(Machine->GetCurrentState()),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MinState),
-			*UE::GameFeatures::ToString(Machine->GetDestination().MaxState),
-			*ErrorMessage);
+		SetExplanationForNotMountingPlugin(Machine->GetPluginURL(), UE::GameFeatures::ToString(Result));
 	}
 }
 
@@ -2712,6 +3002,12 @@ void UGameFeaturesSubsystem::ChangeGameFeatureDestination(UGameFeaturePluginStat
 
 void UGameFeaturesSubsystem::ChangeGameFeatureTargetStateComplete(UGameFeaturePluginStateMachine* Machine, const UE::GameFeatures::FResult& Result, FGameFeaturePluginChangeStateComplete CompleteDelegate)
 {
+#if WITH_EDITOR
+	if (!Result.HasError() && Machine->GetCurrentState() > EGameFeaturePluginState::Mounting)
+	{
+		UnmountedPluginNameToExplanation.Remove(Machine->GetPluginName());
+	}
+#endif
 	CompleteDelegate.ExecuteIfBound(Result);
 }
 
@@ -2729,7 +3025,7 @@ void UGameFeaturesSubsystem::BeginTermination(UGameFeaturePluginStateMachine* Ma
 
 void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* Machine)
 {
-	UE_LOG(LogGameFeatures, Display, TEXT("FinishTermination of GameFeaturePlugin. Identifier:%.*s URL:%s"), Machine->GetPluginIdentifier().GetIdentifyingString().Len(), Machine->GetPluginIdentifier().GetIdentifyingString().GetData(), *(Machine->GetPluginURL()));
+	UE_LOG(LogGameFeatures, Verbose, TEXT("FinishTermination of GameFeaturePlugin. Identifier:%.*s URL:%s"), Machine->GetPluginIdentifier().GetIdentifyingString().Len(), Machine->GetPluginIdentifier().GetIdentifyingString().GetData(), *(Machine->GetPluginURL()));
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
 }
 
@@ -2737,7 +3033,7 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 {
 	const FString& PluginFilename = InStateProperties.PluginInstalledFilename;
 	const FGameFeatureProtocolOptions InDepProtocolOptions = InStateProperties.RecycleProtocolOptions();
-
+    const EGameFeaturePluginProtocol InProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(PluginURL);
 	const bool bWarnOnDepCreation = InStateProperties.ProtocolOptions.bLogWarningOnForcedDependencyCreation;
 	const bool bErrorOnDepCreation = InStateProperties.ProtocolOptions.bLogErrorOnForcedDependencyCreation;
 
@@ -2750,7 +3046,10 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 			TValueOrError<FString, FString> DependencyURLInfo = GameSpecificPolicies->ResolvePluginDependency(PluginURL, DependencyName);
 			if (DependencyURLInfo.HasError())
 			{
-				UE_LOG(LogGameFeatures, Error, TEXT("Game feature plugin '%s' has unknown dependency '%s' [%s]."), *PluginFilename, *DependencyName, *DependencyURLInfo.GetError());
+				FString ErrorMessage = FString::Printf(TEXT("Game feature plugin '%s' has unknown dependency '%s' [%s]."), *PluginFilename, *DependencyName, *DependencyURLInfo.GetError());
+				UE_LOG(LogGameFeatures, Error, TEXT("%s"), *ErrorMessage);
+
+				SetExplanationForNotMountingPlugin(PluginURL, ErrorMessage);
 
 				//Don't actually return false here as we want to still be able to progress in the case of 
 				//things like an editor plugin being included as a dependency in the client or a dynamic dependency that
@@ -2769,17 +3068,23 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 			// Inherit dep protocol options if possible
 			FGameFeatureProtocolOptions DepProtocolOptions;
 			EGameFeaturePluginProtocol DepProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(DependencyURL);
-			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && InDepProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
-			{
-				DepProtocolOptions = InDepProtocolOptions;
-			}
-			else
-			{
-				// Always propogate non-protocol specific flags
-				DepProtocolOptions.bForceSyncLoading = InDepProtocolOptions.bForceSyncLoading;
-				DepProtocolOptions.bLogWarningOnForcedDependencyCreation = InDepProtocolOptions.bLogWarningOnForcedDependencyCreation;
-				DepProtocolOptions.bLogErrorOnForcedDependencyCreation = InDepProtocolOptions.bLogErrorOnForcedDependencyCreation;
-			}
+			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle)
+            {
+                if (InDepProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
+                {
+                    DepProtocolOptions = InDepProtocolOptions;
+                }
+                else if (InProtocol == EGameFeaturePluginProtocol::File)
+                {
+                    FInstallBundlePluginProtocolOptions InstallBundleOptions;
+                    InstallBundleOptions.bAllowIniLoading = true;
+                    DepProtocolOptions = FGameFeatureProtocolOptions(InstallBundleOptions);
+                }
+            }
+            // Always propogate non-protocol specific flags
+            DepProtocolOptions.bForceSyncLoading = InDepProtocolOptions.bForceSyncLoading;
+            DepProtocolOptions.bLogWarningOnForcedDependencyCreation = InDepProtocolOptions.bLogWarningOnForcedDependencyCreation;
+            DepProtocolOptions.bLogErrorOnForcedDependencyCreation = InDepProtocolOptions.bLogErrorOnForcedDependencyCreation;
 
 			bool bFoundExisting = false;
 			UGameFeaturePluginStateMachine* ResolvedDependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions, &bFoundExisting);
@@ -2957,7 +3262,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	const UGameFeatureData* GameFeatureData /*= nullptr*/, 
 	FGameFeatureStateChangeContext* StateChangeContext /*= nullptr*/)
 {
-	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 14, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
+	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 15, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
 
 	// Protect against modifying the observer list during iteration
 	TArray<UObject*> LocalObservers(Observers);
@@ -3010,6 +3315,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	case EObserverCallback::PreMounting:
 	{
 		check(PluginName);
+		check(StateChangeContext);
 		FGameFeaturePreMountingContext* PreMountingContext = static_cast<FGameFeaturePreMountingContext*>(StateChangeContext);
 		for (UObject* Observer : LocalObservers)
 		{
@@ -3020,6 +3326,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	case EObserverCallback::PostMounting:
 	{
 		check(PluginName);
+		check(StateChangeContext);
 		FGameFeaturePostMountingContext* PostMountingContext = static_cast<FGameFeaturePostMountingContext*>(StateChangeContext);
 		for (UObject* Observer : LocalObservers)
 		{
@@ -3077,6 +3384,15 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		for (UObject* Observer : LocalObservers)
 		{
 			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureActivating(GameFeatureData, PluginIdentifier.GetFullPluginURL());
+		}
+		break;
+	}
+	case EObserverCallback::Activated:
+	{
+		check(GameFeatureData);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureActivated(GameFeatureData, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}
@@ -3282,4 +3598,16 @@ void UGameFeaturesSubsystem::GetPluginsToCook(TSet<FString>& OutPlugins)
 	}();
 	
 	OutPlugins.Append(PluginsList);
+}
+
+void UGameFeaturesSubsystem::SetExplanationForNotMountingPlugin(const FString& PluginURL, const FString& Explanation)
+{
+#if WITH_EDITOR
+	FGameFeaturePluginIdentifier Identifier(PluginURL);
+	FStringView PluginName = Identifier.GetPluginName();
+	if (!PluginName.IsEmpty())
+	{
+		UnmountedPluginNameToExplanation.FindOrAdd(FString(PluginName)) = Explanation;
+	}
+#endif
 }

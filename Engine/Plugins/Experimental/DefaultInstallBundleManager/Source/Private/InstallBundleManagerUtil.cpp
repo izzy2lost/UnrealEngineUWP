@@ -28,20 +28,21 @@ public:
 
 namespace InstallBundleManagerUtil
 {
-	TSharedPtr<IInstallBundleSource> MakeBundleSource(EInstallBundleSourceType Type)
+	TSharedPtr<IInstallBundleSource> MakeBundleSource(FInstallBundleSourceType Type)
 	{
-		switch (Type)
+		if (Type.GetName() == TEXTVIEW("Bulk"))
 		{
-		case EInstallBundleSourceType::Bulk:
 			return MakeShared<FInstallBundleSourceBulk>();
-			
-#if WITH_PLATFORM_INSTALL_BUNDLE_SOURCE
-		case EInstallBundleSourceType::Platform:
-			return MakePlatformBundleSource();
-#endif
 		}
 
-		LOG_INSTALL_BUNDLE_MAN(Fatal, TEXT("Can't make EInstallBundleSourceType %s"), LexToString(Type));
+#if WITH_PLATFORM_INSTALL_BUNDLE_SOURCE
+		if (Type.GetName() == TEXTVIEW("Platform"))
+		{
+			return MakePlatformBundleSource();
+		}
+#endif // WITH_PLATFORM_INSTALL_BUNDLE_SOURCE
+
+		LOG_INSTALL_BUNDLE_MAN(Fatal, TEXT("Can't make InstallBundleSourceType %.*s"), Type.GetName().Len(), Type.GetName().GetData());
 		return nullptr;
 	}
 
@@ -67,7 +68,7 @@ namespace InstallBundleManagerUtil
 		return PinnedJournalThreadPool;
 	}
 
-	bool LoadBundleSourceBundleInfoFromConfig(EInstallBundleSourceType SourceType, const FConfigFile& InstallBundleConfig, const FString& Section, FInstallBundleSourcePersistentBundleInfo& OutInfo)
+	bool LoadBundleSourceBundleInfoFromConfig(FInstallBundleSourceType SourceType, const FConfigFile& InstallBundleConfig, const FString& Section, FInstallBundleSourcePersistentBundleInfo& OutInfo)
 	{
 		if (!Section.StartsWith(InstallBundleUtil::GetInstallBundleSectionPrefix()))
 			return false;
@@ -78,7 +79,7 @@ namespace InstallBundleManagerUtil
 
 		TArray<FString> ExcludedBundleSources;
 		InstallBundleConfig.GetArray(*Section, TEXT("ExcludedBundleSources"), ExcludedBundleSources);
-		if (ExcludedBundleSources.Contains(LexToString(SourceType)))
+		if (ExcludedBundleSources.Contains(SourceType.GetName()))
 			return false;
 
 		if (!InstallBundleConfig.GetBool(*Section, TEXT("IsStartup"), OutInfo.bIsStartup))
@@ -117,7 +118,7 @@ namespace InstallBundleManagerUtil
 		TArray<FString> CachedBySources;
 		if (InstallBundleConfig.GetArray(*Section, TEXT("CachedBySource"), CachedBySources))
 		{
-			if (CachedBySources.Contains(LexToString(SourceType)))
+			if (CachedBySources.Contains(SourceType.GetName()))
 			{
 				OutInfo.bIsCached = true;
 			}
@@ -166,6 +167,28 @@ namespace InstallBundleManagerUtil
 		}		
 
 		return BundlesToLoad;
+	}
+
+	void GetAllUpToDateBundlesFromConfg(const FConfigFile& InstallBundleConfig, TArray<FName>& OutBundles)
+	{
+		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+		if (BundleManager.IsValid())
+		{
+			TArray<TPair<FString, TArray<FRegexPattern>>> BundleRegexList = InstallBundleUtil::LoadBundleRegexFromConfig(InstallBundleConfig);
+			for (const TPair<FString, TArray<FRegexPattern>>& Pair : BundleRegexList)
+			{
+				const FName BundleName(Pair.Key);
+				TValueOrError<FInstallBundleCombinedInstallState, EInstallBundleResult> MaybeInstallState = BundleManager->GetInstallStateSynchronous(BundleName, false);
+				if (MaybeInstallState.HasValue())
+				{
+					const FInstallBundleCombinedInstallState& Value = MaybeInstallState.GetValue();
+					if (Value.GetAllBundlesHaveState(EInstallBundleInstallState::UpToDate))
+					{
+						OutBundles.Add(BundleName);
+					}
+				}
+			}
+		}
 	}
 
 	void LogBundleRequestStats(const TCHAR* BundleName, const InstallBundleUtil::FContentRequestStats& RequestStats, ELogVerbosity::Type LogVerbosityOverride)
@@ -299,7 +322,7 @@ namespace InstallBundleManagerUtil
 		FoundData.ResetShouldSendBGAnalytics();
 	}
 
-	void FPersistentStatContainer::UpdateForBundleSource(const FInstallBundleSourceUpdateContentResultInfo& BundleSourceResult, EInstallBundleSourceType SourceType, const FString& BundleName)
+	void FPersistentStatContainer::UpdateForBundleSource(const FInstallBundleSourceUpdateContentResultInfo& BundleSourceResult, FInstallBundleSourceType SourceType, const FString& BundleName)
 	{
 		FBundleAnalyticsData& BundleAnalyticsData = BundleAnalyticsDataMap.FindOrAdd(BundleName);
 		
@@ -370,7 +393,7 @@ namespace InstallBundleManagerUtil
 		FPersistentStatsInformation NewStatsInfo;
 		NewStatsInfo.SessionName = SessionName;
 		
-		TSet<EInstallBundleSourceType> SourcesThatDidWork;
+		TSet<FInstallBundleSourceType> SourcesThatDidWork;
 		
 		InstallBundleUtil::PersistentStats::FSessionPersistentStats* SessionStats = SessionPersistentStatMap.Find(SessionName);
 		if (nullptr != SessionStats)
@@ -546,16 +569,16 @@ namespace InstallBundleManagerUtil
 		}
 		
 		//Create BundleSourcesThatDidWork string from SourcesThatDidWork map
-		for (EInstallBundleSourceType BundleSourceType : SourcesThatDidWork)
+		for (FInstallBundleSourceType BundleSourceType : SourcesThatDidWork)
 		{
 			if (NewStatsInfo.BundleSourcesThatDidWork.IsEmpty())
 			{
-				NewStatsInfo.BundleSourcesThatDidWork = LexToString(BundleSourceType);
+				NewStatsInfo.BundleSourcesThatDidWork = BundleSourceType.GetName();
 			}
 			else
 			{
 				NewStatsInfo.BundleSourcesThatDidWork.Append(TEXT(", "));
-				NewStatsInfo.BundleSourcesThatDidWork.Append(LexToString(BundleSourceType));
+				NewStatsInfo.BundleSourcesThatDidWork.Append(BundleSourceType.GetName());
 			}
 		}
 		
@@ -663,6 +686,17 @@ namespace InstallBundleManagerAnalytics
 			TEXT("InitResultString"), InitResultString));
 	}
 
+	void FireEvent_InitBundleSourcePlatformChunkInstallComplete(IAnalyticsProviderET* AnalyticsProvider, const FString InitResultString)
+	{
+		if (AnalyticsProvider == nullptr || InstallBundleUtil::FInstallBundleSuppressAnalytics::IsEnabled())
+		{
+			return;
+		}
+
+		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.InitBundleSourcePlatformChunkInstallComplete"), MakeAnalyticsEventAttributeArray(
+			TEXT("InitResultString"), InitResultString));
+	}
+
 	void FireEvent_BundleLatestClientCheckComplete(IAnalyticsProviderET* AnalyticsProvider, 
 		const FString& BundleName, 
 		bool bSkippedCheck, 
@@ -732,7 +766,10 @@ namespace InstallBundleManagerAnalytics
 		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.BundleRequestComplete"), MoveTemp(Attributes));
 	}
 
-	void FireEvent_BundleReleaseRequestStarted(IAnalyticsProviderET* AnalyticsProvider, const FString& BundleName, bool bRemoveFilesIfPossible)
+	void FireEvent_BundleReleaseRequestStarted(IAnalyticsProviderET* AnalyticsProvider, 
+		const FString& BundleName, 
+		bool bRemoveFilesIfPossible,
+		bool bUnmountOnly)
 	{
 		if (AnalyticsProvider == nullptr || InstallBundleUtil::FInstallBundleSuppressAnalytics::IsEnabled())
 		{
@@ -741,12 +778,14 @@ namespace InstallBundleManagerAnalytics
 
 		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.BundleReleaseRequestStarted"), MakeAnalyticsEventAttributeArray(
 			TEXT("BundleName"), BundleName,
-			TEXT("RemoveFilesIfPossible"), bRemoveFilesIfPossible));
+			TEXT("RemoveFilesIfPossible"), bRemoveFilesIfPossible,
+			TEXT("UnmountOnly"), bUnmountOnly));
 	}
 
 	void FireEvent_BundleReleaseRequestComplete(IAnalyticsProviderET* AnalyticsProvider, 
 		const FString& BundleName, 
 		bool bRemoveFilesIfPossible, 
+		bool bUnmountOnly,
 		const FString& Result)
 	{
 		if (AnalyticsProvider == nullptr || InstallBundleUtil::FInstallBundleSuppressAnalytics::IsEnabled())
@@ -757,6 +796,7 @@ namespace InstallBundleManagerAnalytics
 		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.BundleReleaseRequestComplete"), MakeAnalyticsEventAttributeArray(
 			TEXT("BundleName"), BundleName,
 			TEXT("RemoveFilesIfPossible"), bRemoveFilesIfPossible,
+			TEXT("UnmountOnly"), bUnmountOnly,
 			TEXT("Result"), Result));
 	}
 

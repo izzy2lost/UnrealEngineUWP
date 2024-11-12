@@ -128,10 +128,13 @@ static bool LocalGetControlRigControlTransforms(IMovieScenePlayer* Player, const
 	}
 	if (UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene())
 	{
-
+		UWorld* World = ControlRig->GetWorld();
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
 		FFrameRate TickResolution = MovieScene->GetTickResolution();
 		FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-		
+
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
+
 		OutTransforms.SetNum(Frames.Num());
 		for (int32 Index = 0; Index < Frames.Num(); ++Index)
 		{
@@ -139,13 +142,13 @@ static bool LocalGetControlRigControlTransforms(IMovieScenePlayer* Player, const
 			double DeltaTime = 0.0;
 			if (CurrentFrame.IsSet() == false || CurrentFrame.GetValue() != FrameNumber)
 			{
-				FFrameTime GlobalTime(FrameNumber);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+				FFrameTime GlobalTime = LocalToRootTransform.TryTransformTime(FrameNumber).Get(FrameNumber); //player evals in root time so need to go back to it.
 
 				FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
 
 				DeltaTime = 1.0/Context.GetFrameRate().AsDecimal();
 				Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
+				Controller.EvaluateAllConstraints();
 			}
 			if (ControlRig->IsAdditive())
 			{
@@ -265,7 +268,7 @@ struct FGuidAndActor
 			UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
 			FFrameRate TickResolution = MovieScene->GetTickResolution();
 			FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-			FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+			FMovieSceneInverseSequenceTransform LocalToRootTransform = Sequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
 
 			//adjust keys for constraint
 			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Actor->GetWorld());
@@ -275,8 +278,8 @@ struct FGuidAndActor
 				const FFrameNumber Frame = Frames[Index];
 				FTransform& CurrentTransform = LocalTransforms[Index];
 
-				FFrameTime GlobalTime(Frame);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+				FFrameTime GlobalTime = LocalToRootTransform.TryTransformTime(Frame).Get(Frame);
+
 				FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 				if (Index == 0) // similar with baking first time in we need to evaluate twice (think due to double buffering that happens with skel mesh components).
 				{
@@ -411,7 +414,7 @@ static void GetControlRigParents(const FControlRigForWorldTransforms& ControlRig
 	}
 }
 
-static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* Sequencer, const UControlRig* ControlRig)
+static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* Sequencer, const UControlRig* ControlRig, const FName& ControlName)
 {
 
 	if (ControlRig == nullptr || Sequencer == nullptr)
@@ -429,7 +432,7 @@ static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* S
 		UMovieSceneControlRigParameterTrack* ControlRigParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None));
 		if (ControlRigParameterTrack && ControlRigParameterTrack->GetControlRig() == ControlRig)
 		{
-			UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey());
+			UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey(ControlName));
 			if (ActiveSection)
 			{
 				return ActiveSection;
@@ -490,10 +493,10 @@ static void GetTransformFrames(TSharedPtr<ISequencer>&  Sequencer, const FContro
 	}
 	for (FControlRigForWorldTransforms& ControlRig : ParentControlRigs)
 	{
-		UMovieSceneControlRigParameterSection* Section = GetControlRigSection(Sequencer.Get(), ControlRig.ControlRig.Get());
-		if (Section)
+		for (FName& ControlName : ControlRig.ControlNames)
 		{
-			for (FName& ControlName : ControlRig.ControlNames)
+			UMovieSceneControlRigParameterSection* Section = GetControlRigSection(Sequencer.Get(), ControlRig.ControlRig.Get(), ControlName);
+			if (Section)
 			{
 				TArrayView<FMovieSceneFloatChannel*> Channels = FControlRigSequencerHelpers::GetFloatChannels(ControlRig.ControlRig.Get(),
 					ControlName, Section);
@@ -507,6 +510,7 @@ static void GetTransformFrames(TSharedPtr<ISequencer>&  Sequencer, const FContro
 		}
 	}
 }
+
 bool FControlRigSnapper::SnapIt(FFrameNumber StartFrame, FFrameNumber EndFrame,const FControlRigSnapperSelection& ActorToSnap,
 	const FControlRigSnapperSelection& ParentToSnap, const UControlRigSnapSettings* SnapSettings)
 {
@@ -614,6 +618,7 @@ bool FControlRigSnapper::SnapIt(FFrameNumber StartFrame, FFrameNumber EndFrame,c
 		FRigControlModifiedContext Context;
 		Context.SetKey = EControlRigSetKey::Always;
 
+		TSet<UMovieSceneControlRigParameterSection*> ControlRigSections;
 		for (const FControlRigForWorldTransforms& ControlRigAndSelection : ActorToSnap.ControlRigs)
 		{
 			//get actor transform...
@@ -717,19 +722,23 @@ bool FControlRigSnapper::SnapIt(FFrameNumber StartFrame, FFrameNumber EndFrame,c
 							Context.LocalTime = TickResolution.AsSeconds(FFrameTime(FrameNumber));
 							FTransform GlobalTransform = WorldTransformToSnap[Index].GetRelativeTransform(ControlRigParentWorldTransforms[Index]);
 							ControlRig->SetControlGlobalTransform(Name, GlobalTransform, true, Context, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
+							UMovieSceneControlRigParameterSection* ControlRigSection = GetControlRigSection(Sequencer.Get(), ControlRig,Name);
+							ControlRigSections.Add(ControlRigSection);
 						}
 					}
 
-					UMovieSceneControlRigParameterSection* ControlRigSection = GetControlRigSection(Sequencer.Get(), ControlRig);
-					if (ControlRigSection && SnapSettings && SnapSettings->BakingKeySettings != EBakingKeySettings::KeysOnly
+					if (SnapSettings && SnapSettings->BakingKeySettings != EBakingKeySettings::KeysOnly
 						&& SnapSettings->bReduceKeys == true && Frames.Num() > 2)
 					{
-						FKeyDataOptimizationParams Param;
-						Param.bAutoSetInterpolation = true;
-						Param.Tolerance = SnapSettings->Tolerance;
-						TRange<FFrameNumber> Range(Frames[0], Frames[Frames.Num() - 1]);
-						Param.Range = Range;
-						MovieSceneToolHelpers::OptimizeSection(Param, ControlRigSection);
+						for (UMovieSceneControlRigParameterSection* ControlRigSection : ControlRigSections)
+						{
+							FKeyDataOptimizationParams Param;
+							Param.bAutoSetInterpolation = true;
+							Param.Tolerance = SnapSettings->Tolerance;
+							TRange<FFrameNumber> Range(Frames[0], Frames[Frames.Num() - 1]);
+							Param.Range = Range;
+							MovieSceneToolHelpers::OptimizeSection(Param, ControlRigSection);
+						}
 					}
 				}
 			}

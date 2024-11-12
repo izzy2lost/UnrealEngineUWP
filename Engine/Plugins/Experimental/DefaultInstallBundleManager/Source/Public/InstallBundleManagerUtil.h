@@ -18,7 +18,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogDefaultInstallBundleManager, Display, All);
 
 namespace InstallBundleManagerUtil
 {
-	DEFAULTINSTALLBUNDLEMANAGER_API TSharedPtr<IInstallBundleSource> MakeBundleSource(EInstallBundleSourceType Type);
+	DEFAULTINSTALLBUNDLEMANAGER_API TSharedPtr<IInstallBundleSource> MakeBundleSource(FInstallBundleSourceType Type);
 
 #if WITH_PLATFORM_INSTALL_BUNDLE_SOURCE
 	DEFAULTINSTALLBUNDLEMANAGER_API TSharedPtr<IInstallBundleSource> MakePlatformBundleSource();
@@ -30,11 +30,14 @@ namespace InstallBundleManagerUtil
 
 	// Fills out a FInstallBundleSourceBundleInfo from the specified config section
 	// Returns false if the provided config section is not a bundle definition section.
-	DEFAULTINSTALLBUNDLEMANAGER_API bool LoadBundleSourceBundleInfoFromConfig(EInstallBundleSourceType SourceType, const FConfigFile& InstallBundleConfig, const FString& Section, FInstallBundleSourcePersistentBundleInfo& OutInfo);
+	DEFAULTINSTALLBUNDLEMANAGER_API bool LoadBundleSourceBundleInfoFromConfig(FInstallBundleSourceType SourceType, const FConfigFile& InstallBundleConfig, const FString& Section, FInstallBundleSourcePersistentBundleInfo& OutInfo);
 
 	// Traverses bundle config sections and loads all dependencies for InBundleName, including InBundleName
 	// Sets bSkippedUnknownBundles if a config section for InBundleName or a dependency can't be found.
 	DEFAULTINSTALLBUNDLEMANAGER_API TSet<FName> GetBundleDependenciesFromConfig(FName InBundleName, TSet<FName>* SkippedUnknownBundles /*= nullptr*/);
+
+	// adds all the known up to date bundles to the output array.
+	DEFAULTINSTALLBUNDLEMANAGER_API void GetAllUpToDateBundlesFromConfg(const FConfigFile& InstallBundleConfig, TArray<FName>& OutBundles);
 
 	// This class is a helper for parsing the buildinfo meta json file that should be either loadable from apk/ipa bundle or can be requested from CDN.
 	// It will eventually be completely replaced by, possible key-value lookup from apk/ipa bundle, or by a call to FN service backend to request similar info.
@@ -71,7 +74,7 @@ namespace InstallBundleManagerUtil
 		void AddRequiredBundlesForSession(const FString& SessionName, const TArray<FName>& BundleNames);
 
 		void UpdateForContentState(const FInstallBundleCombinedContentState& ContentState, const FString& SessionName);
-		void UpdateForBundleSource(const FInstallBundleSourceUpdateContentResultInfo& BundleSourceResult, EInstallBundleSourceType SourceType, const FString& BundleName);
+		void UpdateForBundleSource(const FInstallBundleSourceUpdateContentResultInfo& BundleSourceResult, FInstallBundleSourceType SourceType, const FString& BundleName);
 		
 	private:
 		void SendEnteringBackgroundAnalytic();
@@ -166,7 +169,7 @@ namespace InstallBundleManagerUtil
 		{
 		public:
 			//Store if each bundle source type did any work for this bundle. If its in this map it did work.
-			TSet<EInstallBundleSourceType> BundleSourcesThatDidWorkMap;
+			TSet<FInstallBundleSourceType> BundleSourcesThatDidWorkMap;
 			
 			FBundleAnalyticsData()
 			: BundleSourcesThatDidWorkMap()
@@ -264,6 +267,16 @@ namespace InstallBundleManagerAnalytics
 		const FString InitResultString);
 
 	/**
+	* @EventName InstallBundleManager.FireEvent_InitBundleSourcePlatformChunkInstallComplete
+	* @Trigger Bundle Manager finished async initialization
+	* @Type Client
+	* @EventParam InitResultString String Result code
+	* @Comments
+	*/
+	DEFAULTINSTALLBUNDLEMANAGER_API void FireEvent_InitBundleSourcePlatformChunkInstallComplete(IAnalyticsProviderET* AnalyticsProvider,
+		const FString InitResultString);
+
+	/**
 	 * @EventName InstallBundleManager.BundleLatestClientCheckComplete
 	 *
 	 * @Type Client
@@ -325,10 +338,12 @@ namespace InstallBundleManagerAnalytics
 	 *
 	 * @EventParam BundleName (string) String Name of bundle.
 	 * @EventParam RemoveFilesIfPossible (bool) True if this request will try to clean up files.
+	 * @EventParam UnmountOnly (bool) True if this request is only for unmount
 	 */
 	DEFAULTINSTALLBUNDLEMANAGER_API void FireEvent_BundleReleaseRequestStarted(IAnalyticsProviderET* AnalyticsProvider,
 		const FString& BundleName,
-		bool bRemoveFilesIfPossible);
+		bool bRemoveFilesIfPossible,
+		bool bUnmountOnly);
 
 	/**
 	 * @EventName InstallBundleManager.BundleReleaseRequestComplete
@@ -339,11 +354,13 @@ namespace InstallBundleManagerAnalytics
 	 *
 	 * @EventParam BundleName (string) String Name of bundle.
 	 * @EventParam RemoveFilesIfPossible (bool) True if this request will try to clean up files.
+	 * @EventParam UnmountOnly (bool) True if this request is only for unmount
 	 * @EventParam Result (string) Result of the request
 	 */
 	DEFAULTINSTALLBUNDLEMANAGER_API void FireEvent_BundleReleaseRequestComplete(IAnalyticsProviderET* AnalyticsProvider,
 		const FString& BundleName,
 		bool bRemoveFilesIfPossible,
+		bool bUnmountOnly,
 		const FString& Result);
 
 	/**

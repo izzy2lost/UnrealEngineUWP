@@ -33,7 +33,7 @@ public:
 
 	virtual bool RepairTopology() override;
 
-	virtual bool SaveModel(const TCHAR* InFolderPath, TSharedRef<IDatasmithMeshElement>& MeshElement) override;
+	virtual bool SaveModel(const TCHAR* InFolderPath, TSharedPtr<IDatasmithMeshElement> MeshElement) override;
 
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) override;
 
@@ -47,6 +47,8 @@ public:
 		return true;
 	}
 
+	virtual bool AddGeometry(const CADLibrary::FCADModelGeometry& Geometry) override { return false; }
+
 	virtual void AddSurfaceDataForMesh(const TCHAR* InFilePath, const CADLibrary::FMeshParameters& InMeshParameters, const FDatasmithTessellationOptions& InTessellationOptions, FDatasmithMeshElementPayload& OutMeshPayload) const override;
 
 protected:
@@ -54,3 +56,4 @@ protected:
 	TArray<A3DRiRepresentationItem*> RiRepresentationItems;
 	CADLibrary::FUniqueTechSoftModelFile ModelFile;
 };
+

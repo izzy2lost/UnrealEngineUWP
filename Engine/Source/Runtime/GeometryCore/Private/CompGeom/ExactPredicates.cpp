@@ -30,6 +30,12 @@ double Orient2D(const double* pa, const double* pb, const double* pc)
 	return ShewchukExactPredicates::orient2d(pa, pb, pc);
 }
 
+double Orient2DOrigin(double ax, double ay, double bx, double by)
+{
+	checkSlow(ShewchukExactPredicates::IsExactPredicateDataInitialized());
+	return ShewchukExactPredicates::orient2d_origin(ax, ay, bx, by);
+}
+
 double Orient3DInexact(const double* PA, const double* PB, const double* PC, const double* PD)
 {
 	return ShewchukExactPredicates::orient3dfast(PA, PB, PC, PD);
@@ -85,6 +91,12 @@ float Orient2D(const float* pa, const float* pb, const float* pc)
 {
 	checkSlow(ShewchukExactPredicatesFloat::IsExactPredicateDataInitialized());
 	return ShewchukExactPredicatesFloat::orient2d(pa, pb, pc);
+}
+
+float Orient2DOrigin(float ax, float ay, float bx, float by)
+{
+	checkSlow(ShewchukExactPredicatesFloat::IsExactPredicateDataInitialized());
+	return ShewchukExactPredicatesFloat::orient2d_origin(ax, ay, bx, by);
 }
 
 float Orient3DInexact(const float* PA, const float* PB, const float* PC, const float* PD)

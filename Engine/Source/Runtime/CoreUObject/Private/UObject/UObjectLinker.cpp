@@ -115,15 +115,26 @@ void UObject::SetLinker( FLinkerLoad* LinkerLoad, int32 LinkerIndex, bool bShoul
 	// Detach from existing linker.
 	if( Existing.Linker && bShouldDetachExisting )
 	{
-		UE_CLOG(HasAnyFlags(RF_NeedLoad|RF_NeedPostLoad), LogUObjectLinker, Error,
-			TEXT("Detaching from existing linker %s while object %s needs loading (%s). Setting linker to %s."),
-			*Existing.Linker->GetArchiveName(),
-			*GetFullName(),
-			*LexToString(GetFlags()),
-			LinkerLoad ? *LinkerLoad->GetDebugName() : TEXT("nullptr"));
-		check(Existing.Linker->ExportMap[Existing.LinkerIndex].Object!=nullptr);
-		check(Existing.Linker->ExportMap[Existing.LinkerIndex].Object==this);
-		Existing.Linker->ExportMap[Existing.LinkerIndex].ResetObject();
+		if (HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad))
+		{
+			UE_LOG(LogUObjectLinker, Error,
+				TEXT("Detaching from existing linker %s while object %s needs loading (%s). Setting linker to %s. See log for more information."),
+				*Existing.Linker->GetArchiveName(),
+				*GetFullName(),
+				*LexToString(GetFlags()),
+				LinkerLoad ? *LinkerLoad->GetDebugName() : TEXT("nullptr"));
+			FDebug::DumpStackTraceToLog(ELogVerbosity::Display);
+		}
+
+		FObjectExport& ExportObject = Existing.Linker->ExportMap[Existing.LinkerIndex];
+		checkf(ExportObject.Object != nullptr, TEXT("Expected ExportMap[%d].Object to not be null for this ('%s')"), Existing.LinkerIndex, *GetFName().ToString());
+		checkf(ExportObject.Object == this, TEXT("Expected ExportMap[%d].Object ('%s') to equal this ('%s')"), Existing.LinkerIndex, *ExportObject.Object->GetFName().ToString(), *GetFName().ToString());
+
+		// Detach the object but keep the object marked as invalid if it was previously. Now that it's detached
+		// if we reload the package we don't want to reload invalid objects.
+		bool bIsInvalid = ExportObject.bExportLoadFailed;
+		ExportObject.ResetObject();
+		ExportObject.bExportLoadFailed = bIsInvalid;
 	}
 
 	if (Existing.Linker == LinkerLoad)

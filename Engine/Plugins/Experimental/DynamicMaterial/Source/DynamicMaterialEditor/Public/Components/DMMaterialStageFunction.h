@@ -8,21 +8,24 @@
 class UDMMaterialLayerObject;
 class UMaterialFunctionInterface;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageFunction : public UDMMaterialStageThroughput
+/** Represents a material function which can be added directly to a stage. */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageFunction : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()
 
 public:
 	static constexpr int32 InputPreviousStage = 0;
 
-	static UDMMaterialStage* CreateStage(UDMMaterialLayerObject* InLayer = nullptr);
+	DYNAMICMATERIALEDITOR_API static TSoftObjectPtr<UMaterialFunctionInterface> NoOp;
+
+	DYNAMICMATERIALEDITOR_API static UDMMaterialStage* CreateStage(UDMMaterialLayerObject* InLayer = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageFunction* ChangeStageSource_Function(UDMMaterialStage* InStage,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageFunction* ChangeStageSource_Function(UDMMaterialStage* InStage,
 		UMaterialFunctionInterface* InMaterialFunction);
 
-	static UMaterialFunctionInterface* GetNoOpFunction();
+	DYNAMICMATERIALEDITOR_API static UMaterialFunctionInterface* GetNoOpFunction();
 
 	UDMMaterialStageFunction();
 
@@ -30,43 +33,41 @@ public:
 	UMaterialFunctionInterface* GetMaterialFunction() const { return MaterialFunction.Get(); }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetMaterialFunction(UMaterialFunctionInterface* InMaterialFunction);
+	DYNAMICMATERIALEDITOR_API void SetMaterialFunction(UMaterialFunctionInterface* InMaterialFunction);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValue* GetInputValue(int32 InIndex) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialValue* GetInputValue(int32 InIndex) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	TArray<UDMMaterialValue*> GetInputValues() const;
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialValue*> GetInputValues() const;
 
 	//~ Begin UDMMaterialStageThroughput
-	virtual void AddDefaultInput(int32 InInputIndex) const override;
-	virtual bool CanChangeInput(int32 InputIndex) const override;
-	virtual bool CanChangeInputType(int32 InputIndex) const override;
-	virtual bool IsInputVisible(int32 InputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual void AddDefaultInput(int32 InInputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInput(int32 InputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInputType(int32 InputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsInputVisible(int32 InputIndex) const override;
 	//~ End UDMMaterialStageThroughput
 
 	//~ Begin UDMMaterialStageSource
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	//~ End UDMMaterialStageSource
 
 	//~ Begin UDMMaterialComponent
-	virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
-	virtual void PreEditChange(FEditPropertyChain& PropertyAboutToChange) override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostLoad() override;
+	DYNAMICMATERIALEDITOR_API virtual void PreEditChange(FEditPropertyChain& PropertyAboutToChange) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
 	//~ End UObject
 
 protected:
-	static TSoftObjectPtr<UMaterialFunctionInterface> NoOp;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = GetMaterialFunction, Setter = SetMaterialFunction, BlueprintSetter = SetMaterialFunction, Category = "Material Designer",
-		meta = (DisplayThumbnail = true, AllowPrivateAccess = "true", HighPriority, NotKeyframeable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter = SetMaterialFunction, Category = "Material Designer",
+		meta = (DisplayThumbnail = true, AllowPrivateAccess = "true", HighPriority, NotKeyframeable, NoCreate))
 	TObjectPtr<UMaterialFunctionInterface> MaterialFunction;
 
-	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
+	UPROPERTY(Transient, TextExportTransient)
 	TObjectPtr<UMaterialFunctionInterface> MaterialFunction_PreEdit;
 
 	void OnMaterialFunctionChanged();
@@ -78,7 +79,7 @@ protected:
 	bool NeedsFunctionInit() const;
 
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
 };

@@ -27,7 +27,7 @@ public:
 	virtual bool CanReimport(UObject* Obj, TArray<FString>& OutFilenames) override;
 	virtual void SetReimportPaths(UObject* Obj, const TArray<FString>& NewReimportPaths) override;;
 	virtual EReimportResult::Type Reimport(UObject* Obj) override;
-	virtual void PostImportCleanUp() override;
+	virtual void CleanUp() override;
 
 	virtual UObject* FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn) override;
 	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
@@ -35,11 +35,20 @@ public:
 	const UFusionPatchCreateOptions* CreateOptions = nullptr;
 private:
 
-	bool GetReplaceExistingSamplesResponse(const FString& InName);
-	
-	bool ApplyOptionsToAllImport = false;
+	static bool GetReplaceExistingSamplesResponse(const FString& InName);
+	static bool GetApplyOptionsToAllImportResponse();
 
-	EAppReturnType::Type ReplaceExistingSamplesResponse = EAppReturnType::No;
+	enum class EApplyAllOption : uint8
+	{
+		Unset,
+		No,
+		Yes
+	};
+
+	int32 ImportCounter = 0;
+	EApplyAllOption ApplyOptionsToAllImport = EApplyAllOption::Unset;
+	bool ReplaceExistingSamples = false;
+	TArray<UObject*> ImportedObjects;
 
 	void UpdateFusionPatchImportNotificationItem(TSharedPtr<SNotificationItem> InItem, bool bImportSuccessful, FName InName);
 };

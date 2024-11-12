@@ -197,7 +197,7 @@ void UPCGNode::RebuildAfterPaste()
 		if (UPCGSettingsInterface* OuteredSettingsInterface = Cast<UPCGSettingsInterface>(Object); OuteredSettingsInterface && SettingsInterface != OuteredSettingsInterface)
 		{
 			OuteredSettingsInterface->OnSettingsChangedDelegate.RemoveAll(this);
-			OuteredSettingsInterface->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			OuteredSettingsInterface->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			OuteredSettingsInterface->MarkAsGarbage();
 		}
 	}
@@ -731,6 +731,19 @@ const UPCGPin* UPCGNode::GetFirstConnectedInputPin() const
 	return nullptr;
 }
 
+const UPCGPin* UPCGNode::GetFirstConnectedOutputPin() const
+{
+	for (const UPCGPin* OutputPin : OutputPins)
+	{
+		if (OutputPin && OutputPin->EdgeCount() > 0)
+		{
+			return OutputPin;
+		}
+	}
+
+	return nullptr;
+}
+
 void UPCGNode::SetSettingsInterface(UPCGSettingsInterface* InSettingsInterface, bool bUpdatePins)
 {
 	const bool bDifferentInterface = (SettingsInterface.Get() != InSettingsInterface);
@@ -745,7 +758,7 @@ void UPCGNode::SetSettingsInterface(UPCGSettingsInterface* InSettingsInterface, 
 		if (ensure(SettingsInterface->GetOuter() == this))
 		{
 #if WITH_EDITOR
-			SettingsInterface->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			SettingsInterface->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 #endif
 			SettingsInterface->MarkAsGarbage();
 		}

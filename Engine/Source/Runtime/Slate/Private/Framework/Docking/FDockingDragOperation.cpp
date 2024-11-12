@@ -44,6 +44,8 @@ void FDockingDragOperation::OnDrop( bool bDropWasHandled, const FPointerEvent& M
 		// The event was handled, so we HAVE to have some window that we dropped onto.
 		TSharedRef<SWindow> WindowDroppedInto = MouseEvent.GetWindow();
 
+		TabOwnerAreaOfOrigin->GetTabManager()->GetPrivateApi().SetCanDoDeferredLayoutSave(true);
+
 		TabOwnerAreaOfOrigin->GetTabManager()->GetPrivateApi().OnTabRelocated(TabBeingDragged.ToSharedRef(), WindowDroppedInto);
 	}
 
@@ -282,6 +284,8 @@ FDockingDragOperation::FDockingDragOperation( const TSharedRef<SDockTab>& InTabT
 		]
 	);
 
+	TabOwnerAreaOfOrigin->GetTabManager()->GetPrivateApi().SetCanDoDeferredLayoutSave(false);
+
 	if ( TabBeingDragged->IsActive() )
 	{
 		FGlobalTabmanager::Get()->SetActiveTab(NULL);
@@ -382,6 +386,8 @@ void FDockingDragOperation::DroppedOntoNothing()
 
 	// Do this after the window parenting so that the window title is set correctly
 	NewDockNode->OpenTab(TabBeingDragged.ToSharedRef());
+
+	TabOwnerAreaOfOrigin->GetTabManager()->GetPrivateApi().SetCanDoDeferredLayoutSave(true);
 
 	// Let every widget under this tab manager know that this tab has found a new home.
 	TabOwnerAreaOfOrigin->GetTabManager()->GetPrivateApi().OnTabRelocated(TabBeingDragged.ToSharedRef(), NewWindow);

@@ -10,6 +10,13 @@ FSourceControlInitSettings::FSourceControlInitSettings(EBehavior InBehavior)
 
 }
 
+FSourceControlInitSettings::FSourceControlInitSettings(EBehavior InBehavior, ECmdLineFlags InCmdLineFlags)
+	: OverrideBehavior(InBehavior)
+	, CmdLineFlags(InCmdLineFlags)
+{
+
+}
+
 void FSourceControlInitSettings::SetConfigBehavior(EConfigBehavior InBehavior)
 {
 	ConfigBehavior = InBehavior;
@@ -54,4 +61,14 @@ bool FSourceControlInitSettings::IsOverridden(FStringView SettingName) const
 {
 	const int32 Hash = GetTypeHash(SettingName);
 	return Settings.FindByHash(Hash, SettingName) != nullptr;
+}
+
+void FSourceControlInitSettings::SetCmdLineFlags(ECmdLineFlags Flags)
+{
+	CmdLineFlags = Flags;
+}
+
+bool FSourceControlInitSettings::ShouldReadFromCmdLine() const
+{
+	return CmdLineFlags == ECmdLineFlags::ReadAll;
 }

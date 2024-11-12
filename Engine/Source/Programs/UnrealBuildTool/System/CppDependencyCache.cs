@@ -22,7 +22,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Contents of a single dependency file
 		/// </summary>
-		class DependencyInfo
+		internal class DependencyInfo
 		{
 			public long LastWriteTimeUtc;
 			public string? ProducedModule;
@@ -406,7 +406,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static void SaveAll()
 		{
-			Parallel.ForEach(GlobalPartitions.Values, Cache => { if (Cache.bModified) { Cache.Write(); } });
+			Parallel.ForEach(GlobalPartitions.Values, Cache =>
+			{
+				if (Cache.bModified)
+				{
+					Cache.Write();
+				}
+			});
 		}
 
 		/// <summary>
@@ -414,7 +420,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="InputFile">The file to read from</param>
 		/// <returns>List of included dependencies</returns>
-		static DependencyInfo ReadDependencyInfo(FileItem InputFile)
+		internal static DependencyInfo ReadDependencyInfo(FileItem InputFile)
 		{
 			if (InputFile.HasExtension(".d"))
 			{
@@ -516,7 +522,7 @@ namespace UnrealBuildTool
 				{
 					if (Data.TryGetObjectArrayField("ImportedModules", out JsonObject[]? ImportedModulesJson))
 					{
-						if (ImportedModulesJson.Count() > 0)
+						if (ImportedModulesJson.Length > 0)
 						{
 							ImportedModules = new List<(string Name, string BMI)>();
 

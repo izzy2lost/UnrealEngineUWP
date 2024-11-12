@@ -2,7 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 
-BEGIN_DEFINE_SPEC(AutomationSpec, "TestFramework.Spec", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(AutomationSpec, "TestFramework.Spec", EAutomationTestFlags::EngineFilter | EAutomationTestFlags_ApplicationContextMask)
 	bool Foo;
 	FString RunOrder; 
 END_DEFINE_SPEC(AutomationSpec)
@@ -135,6 +135,117 @@ void AutomationSpec::Define()
 				{
 					RunOrder += TEXT("D");
 				});
+			});
+		});
+	});
+
+	Describe("A spec async", [this]()
+	{
+		Describe("will run BeforeEach and AfterEach blocks", [this]()
+		{
+			BeforeEach([this]()
+			{
+				RunOrder = TEXT("A");
+			});
+
+			It("", EAsyncExecution::ThreadPool, [this]()
+			{
+				RunOrder += TEXT("B");
+			});
+
+			AfterEach([this]()
+			{
+				RunOrder += TEXT("C");
+				TestEqual("RunOrder", RunOrder, TEXT("ABC"));
+			});
+		});
+	});
+
+	Describe("LatentIt", [this]()
+	{
+		Describe("is called only once", [this]()
+		{
+			BeforeEach([this]()
+			{
+				RunOrder = TEXT("");
+			});
+
+			LatentIt("", [this](const FDoneDelegate Done)
+			{
+				RunOrder += TEXT("X");
+				if (RunOrder == TEXT("X"))
+				{
+					Async(EAsyncExecution::ThreadPool, [this, Done]() {
+						FPlatformProcess::Sleep(0.3f);
+						Done.Execute();
+					});
+				}
+			});
+
+			AfterEach([this]()
+			{
+				TestEqual("RunOrder", RunOrder, TEXT("X"));
+			});
+		});
+
+		Describe("can early exit", [this]()
+		{
+			BeforeEach([this]()
+			{
+				RunOrder = TEXT("");
+			});
+
+			LatentIt("", [this](const FDoneDelegate Done)
+			{
+				RunOrder += TEXT("X");
+				if (RunOrder == TEXT("X"))
+				{
+					Done.Execute();
+				}
+			});
+
+			AfterEach([this]()
+			{
+				TestEqual("RunOrder", RunOrder, TEXT("X"));
+			});
+		});
+
+		Describe("can be run async", [this]()
+		{
+			BeforeEach([this]()
+			{
+				RunOrder = TEXT("");
+			});
+
+			LatentIt("", EAsyncExecution::ThreadPool, [this](const FDoneDelegate Done)
+			{
+				FPlatformProcess::Sleep(0.1f);
+				RunOrder += TEXT("X");
+				Done.Execute();
+			});
+
+			AfterEach([this]()
+			{
+				TestEqual("RunOrder", RunOrder, TEXT("X"));
+			});
+		});
+
+		Describe("can exit early async", [this]()
+		{
+			BeforeEach([this]()
+			{
+				RunOrder = TEXT("");
+			});
+
+			LatentIt("", EAsyncExecution::ThreadPool, [this](const FDoneDelegate Done)
+			{
+				RunOrder += TEXT("X");
+				Done.Execute();
+			});
+
+			AfterEach([this]()
+			{
+				TestEqual("RunOrder", RunOrder, TEXT("X"));
 			});
 		});
 	});

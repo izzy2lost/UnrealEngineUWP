@@ -1,22 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/MemoryProfiler/ViewModels/MemAllocFilterValueConverter.h"
-#include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/TimeFilterValueConverter.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
-#include "Insights/Widgets/STimingView.h"
+
 #include "Logging/LogMacros.h"
 #include "Misc/AutomationTest.h"
+
+// TraceServices
 #include "TraceServices/Model/TimingProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Filter/ViewModels/TimeFilterValueConverter.h"
+
+// TraceInsights
+#include "Insights/MemoryProfiler/ViewModels/MemAllocFilterValueConverter.h"
+#include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/TimeRulerTrack.h"
+#include "Insights/Widgets/STimingView.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(UITests, Log, All);
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHideAndShowAllTimingViewTabs, "System.Insights.Trace.Analysis.TimingInsights.HideAndShowAllTimingViewTabs", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHideAndShowAllTimingViewTabs, "System.Insights.Analysis.TimingInsights.HideAndShowAllTimingViewTabs", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FHideAndShowAllTimingViewTabs::RunTest(const FString& Parameters)
 {
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<FTimingProfilerManager> TimingProfilerManager = FTimingProfilerManager::Get();
 
 	TimingProfilerManager->ShowHideTimingView(false);
@@ -36,10 +44,11 @@ bool FHideAndShowAllTimingViewTabs::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemoryFilterValueConverterTest, "System.Insights.Trace.Analysis.MemoryFilterValueConverter", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemoryFilterValueConverterTest, "System.Insights.Analysis.MemoryFilterValueConverter", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FMemoryFilterValueConverterTest::RunTest(const FString& Parameters)
 {
-	Insights::FMemoryFilterValueConverter Converter;
+	using namespace UE::Insights::MemoryProfiler;
+	FMemoryFilterValueConverter Converter;
 
 	FText Error;
 	int64 Value;
@@ -72,10 +81,10 @@ bool FMemoryFilterValueConverterTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeFilterValueConverterTest, "System.Insights.Trace.Analysis.TimeFilterValueConverter", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTimeFilterValueConverterTest, "System.Insights.Analysis.TimeFilterValueConverter", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FTimeFilterValueConverterTest::RunTest(const FString& Parameters)
 {
-	Insights::FTimeFilterValueConverter Converter;
+	UE::Insights::FTimeFilterValueConverter Converter;
 
 	FText Error;
 	double Value;

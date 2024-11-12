@@ -4,12 +4,12 @@
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 
-#if WITH_EDITOR
 bool URuntimePartitionLevelStreaming::IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const
 {
 	return InPartitionTokens.Num() && (InPartitionTokens.Num() <= 2);
 }
 
+#if WITH_EDITOR
 bool URuntimePartitionLevelStreaming::GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult)
 {
 	UWorldPartition* WorldPartition = GetTypedOuter<UWorldPartition>();
@@ -37,18 +37,26 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const FGenerateStreaming
 		}
 		ActorSetGridNameList.Add(LevelName);
 
-		TStringBuilder<512> StringBuilder;
-		StringBuilder += Name.ToString();
-		StringBuilder += TEXT("_");
-		StringBuilder += LevelName.ToString();
-		FName CellName = *StringBuilder;
+		FName CellName;
+		if (ActorSetInstance->bIsSpatiallyLoaded)
+		{
+			TStringBuilder<512> StringBuilder;
+			StringBuilder += Name.ToString();
+			StringBuilder += TEXT("_");
+			StringBuilder += LevelName.ToString();
+			CellName = *StringBuilder;
+		}
+		else
+		{
+			CellName = NAME_PersistentLevel;
+		}
 
 		CellsActorSetInstances.FindOrAdd(CellName).Add(ActorSetInstance);
 	}
 
 	for (auto& [CellName, CellActorSetInstances] : CellsActorSetInstances)
 	{
-		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellName.ToString(), true, 0, CellActorSetInstances));
+		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellName.ToString(), CellName != NAME_PersistentLevel, 0, CellActorSetInstances));
 	}
 
 	return true;

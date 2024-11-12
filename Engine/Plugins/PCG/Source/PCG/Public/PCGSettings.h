@@ -15,12 +15,18 @@
 
 class UPCGComponent;
 class UPCGPin;
-struct FPCGPinProperties;
-struct FPropertyChangedEvent;
-
+class UPCGComputeGraph;
+class UPCGDataBinding;
 class UPCGGraph;
+class UComputeDataInterface;
 class UPCGNode;
 class UPCGSettings;
+struct FPCGDataCollectionDesc;
+struct FPCGGPUCompilationContext;
+struct FPCGKernelAttributeIDAndType;
+struct FPCGKernelAttributeKey;
+struct FPCGPinProperties;
+struct FPropertyChangedEvent;
 
 using FPCGSettingsAndCulling = TPair<TSoftObjectPtr<const UPCGSettings>, bool>;
 using FPCGSelectionKeyToSettingsMap = TMap<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>;
@@ -62,7 +68,9 @@ enum class EPCGSettingsType : uint8
 	ControlFlow,
 	PointOps,
 	GraphParameters,
-	Reroute
+	Reroute,
+	GPU,
+	DynamicMesh,
 };
 
 #if WITH_EDITOR
@@ -110,6 +118,9 @@ struct FPCGSettingsOverridableParam
 
 	TArray<FName> GenerateAllPossibleAliases() const;
 
+	/** Returns true if the last property is an ObjectProperty. */
+	PCG_API bool IsHardReferenceOverride() const;
+
 #if WITH_EDITOR
 	FString GetDisplayPropertyPath() const;
 	PCG_API FText GetDisplayPropertyPathText() const;
@@ -154,7 +165,6 @@ struct FPCGPreConfiguredSettingsInfo
 	FText Tooltip;
 #endif // WITH_EDITORONLY_DATA
 };
-
 
 UCLASS(Abstract)
 class PCG_API UPCGSettingsInterface : public UPCGData
@@ -207,8 +217,9 @@ class PCG_API UPCGSettings : public UPCGSettingsInterface
 {
 	GENERATED_BODY()
 
-	friend class FPCGSettingsObjectCrc32;
+	friend class FPCGSettingsObjectCrc;
 	friend class UPCGSettingsInterface;
+	friend struct FPCGContext;
 
 public:
 	// ~Begin UPCGData interface
@@ -231,6 +242,8 @@ public:
 #endif // WITH_EDITOR
 	//~End UObject interface
 
+	void OnOverrideSettingsDuplicated(bool bSkippedPostLoad);
+
 	// TODO: check if we need this to be virtual, we don't really need if we're always caching
 	/*virtual*/ FPCGElementPtr GetElement() const;
 	virtual UPCGNode* CreateNode() const;
@@ -251,13 +264,17 @@ public:
 	EPCGDataType GetTypeUnionOfIncidentEdges(const FName& PinLabel) const;
 
 	// Internal functions, should not be used by any user.
-	// Return a different subset for for input/output pin properties, in case of a default object.
+	// Return a different subset for input/output pin properties, in case of a default object.
 	virtual TArray<FPCGPinProperties> DefaultInputPinProperties() const;
 	virtual TArray<FPCGPinProperties> DefaultOutputPinProperties() const;
 
 	bool operator==(const UPCGSettings& Other) const;
-	
-	bool UseSeed() const { return bUseSeed; }
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	/** By default, settings do not use a seed. Override this in the settings subclass to enable usage of the seed. UFUNCTION to be used by EditCondition. */
+	UFUNCTION()
+	virtual bool UseSeed() const { return bUseSeed; }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Get the seed, combined with optional PCGComponent seed
 	int GetSeed(const UPCGComponent* InSourceComponent = nullptr) const;
@@ -369,7 +386,7 @@ public:
 	*/
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta=(EditCondition=bUseSeed, EditConditionHides, PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta=(EditCondition="UseSeed()", EditConditionHides, PCG_Overridable))
 	int Seed = 0xC35A9631; // Default seed is a random prime number, but will be overriden for new settings based on the class type name hash, making each settings class have a different default seed.
 
 #if WITH_EDITORONLY_DATA
@@ -394,13 +411,21 @@ public:
 	FText Description;
 #endif
 
+	// Returns Original UID when this is a duplicated settings so we can compare successive executions for reuse cases
+	uint64 GetStableUID() const { return OriginalSettings ? OriginalSettings->UID : UID; }
+
 	// Holds the original settings used to duplicate this object if it was overridden
 	const UPCGSettings* OriginalSettings = nullptr;
 
-protected:
 	// Returns an array of all the input pin properties. You should not add manually a "params" pin, it is handled automatically by FillOverridableParamsPins
 	virtual TArray<FPCGPinProperties> InputPinProperties() const;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const;
+
+protected:
+	// BP version since EPCGDataType is uint32 and BP only supports uint8 enums.
+	/** Bitwise union of the allowed types of each incident edge on pin. Returns None type if no common bits, or no edges. Use the BP function helpers to extract the types from the result. */
+	UFUNCTION(BlueprintCallable, Category = "Settings|DynamicPins", DisplayName = "Get Type Union Of Incident Edges")
+	int32 BP_GetTypeUnionOfIncidentEdges(const FName& PinLabel) const { return static_cast<int32>(GetTypeUnionOfIncidentEdges(PinLabel)); }
 
 	virtual FPCGElementPtr CreateElement() const PURE_VIRTUAL(UPCGSettings::CreateElement, return nullptr;);
 
@@ -409,6 +434,9 @@ protected:
 
 	/** Can be overriden by child class if they ever got renamed to avoid changing the default seed for this one. Otherwise default is hash of the class name. */
 	virtual uint32 GetTypeNameHash() const;
+
+	/** Can be overriden by child class if some fixup code needs to run after duplication in the context of FPCGContext::InitializeSettings */
+	virtual void OnOverrideSettingsDuplicatedInternal(bool bSkippedPostLoad) {};
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -432,8 +460,8 @@ protected:
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
-	// By default, settings won't use a seed. Set this bool to true in the child ctor to allow edition and use it.
-	UPROPERTY(VisibleAnywhere, Transient, Category = Settings, meta = (EditCondition = false, EditConditionHides))
+	UE_DEPRECATED(5.5, "Implement the PCGSettings virtual UseSeed() override.")
+	UPROPERTY(Transient, meta = (DeprecatedProperty, DeprecationMessage = "Implement the PCGSettings virtual UseSeed() override."))
 	bool bUseSeed = false;
 
 	/** Methods to remove boilerplate code across settings */
@@ -455,11 +483,14 @@ private:
 
 	// Overridable param section
 public:
-	/** List of all the overridable params available for this settings. */
+	/** List of all the overridable params available for these settings. */
 	virtual const TArray<FPCGSettingsOverridableParam>& OverridableParams() const { return CachedOverridableParams; }
 
 	/** Check if we have some override. Can be overriden to force params pin for example */
 	virtual bool HasOverridableParams() const { return !CachedOverridableParams.IsEmpty(); }
+
+	/** Checks if a label matches an overridable param */
+	virtual bool HasOverridableParam(FName InParamName) const;
 
 	/** Check if we need to hook the output of the pre-task to this. One use is to compute overrides in the subgraph element and pass the overrides as data, to all nodes that needs it. */
 	virtual bool RequiresDataFromPreTask() const { return false; }
@@ -489,12 +520,105 @@ protected:
 	UPROPERTY()
 	TArray<FPCGSettingsOverridableParam> CachedOverridableParams;
 
+	// We need to make sure that if we have hard references that are overridable, and they are overriden by paths
+	// on objects that are not yet loaded, that we are loading it on the main thread.
+	bool bHasAnyOverridableHardReferences = false;
+	
+public:
+	bool HasAnyOverridableHardReferences() const { return bHasAnyOverridableHardReferences; }
+
+	// GPU section
+public:
+
+	/** [EXPERIMENTAL] Whether this node should be executed on the GPU.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
+
+	/** [EXPERIMENTAL] Performs validation and returns true if this node is suitable for deployment to the GPU.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
+
+	/** [EXPERIMENTAL] Produces the node specific portion of kernel shader source text, including the main entry point.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const { return TEXT(""); }
+
+	/** [EXPERIMENTAL] Get a list of the attributes read or written by this node.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual void GetKernelAttributeKeys(TArray<FPCGKernelAttributeKey>& OutKeys) const {}
+
+	/** [EXPERIMENTAL] Add any strings emitted by this node that are known statically at compile time.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual void AddStaticCreatedStrings(TArray<FString>& InOutStringTable) const {};
+
+	/** [EXPERIMENTAL] Compute how many threads should be dispatched to execute this node on the GPU.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const { return 0; };
+
+	/** [EXPERIMENTAL] Compute a description of data that will be output from OutputPinLabel/OutputPin.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	bool ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
+
+	/** [EXPERIMENTAL] Compute a description of data that will be output from OutputPinLabel/OutputPin.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual bool ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
+
+#if WITH_EDITOR
+	/** [EXPERIMENTAL] Create additional input data interfaces to marshal any required input data.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual void CreateAdditionalInputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+
+	/** [EXPERIMENTAL] Create additional output data interfaces to marshal any required output data.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual void CreateAdditionalOutputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+	virtual void CreateAdditionalOutputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+
+	/** [EXPERIMENTAL] Whether to display GPU execution option in node settings UI. 
+	* Note: This API function is subject to change without deprecation.
+	*/
+	UFUNCTION()
+	virtual bool DisplayExecuteOnGPUSetting() const { return false; }
+#endif
+
+protected:
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", meta = (Tooltip = "Whether this node should be executed on the GPU.", EditCondition = "DisplayExecuteOnGPUSetting()", EditConditionHides, HideEditConditionToggle))
+	bool bExecuteOnGPU = false;
+
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Dump the cooked HLSL into the log after it is generated.", EditCondition = "bExecuteOnGPU", EditConditionHides))
+	bool bDumpCookedHLSL = false;
+
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Dump the data descriptions of input/output pins to the log.", EditCondition = "bExecuteOnGPU", EditConditionHides))
+	bool bDumpDataDescriptions = false;
+
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Enable use of 'WriteDebugValue(uint Index, float Value)' function in your kernel. Allows you to write float values to a buffer for logging on the CPU.", EditCondition = "bExecuteOnGPU", EditConditionHides))
+	bool bPrintShaderDebugValues = false;
+
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Size (in number of floats) of the shader debug print buffer.", EditCondition="bExecuteOnGPU && bPrintShaderDebugValues", EditConditionHides))
+	int DebugBufferSize = 16;
+
 private:
 	/** Calculate Crc for these settings and save it. */
 	void CacheCrc();
 
 	/** The cached Crc for these settings. */
 	FPCGCrc CachedCrc;
+
+	friend class FPCGGraphCompilerGPU;
+	friend class UPCGDataBinding;
 };
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))

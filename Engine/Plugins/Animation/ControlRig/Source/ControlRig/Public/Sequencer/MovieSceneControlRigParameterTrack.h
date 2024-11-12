@@ -11,6 +11,7 @@
 #include "INodeAndChannelMappings.h"
 #include "MovieSceneControlRigParameterSection.h"
 #include "EulerTransform.h"
+#include "Tracks/IMovieSceneSectionsToKey.h"
 #include "MovieSceneControlRigParameterTrack.generated.h"
 
 struct FEndLoadPackageContext;
@@ -41,6 +42,8 @@ class UMovieSceneControlRigParameterTrack
 	: public UMovieSceneNameableTrack
 	, public IMovieSceneTrackTemplateProducer
 	, public INodeAndChannelMappings
+	, public IMovieSceneSectionsToKey
+
 {
 	GENERATED_UCLASS_BODY()
 
@@ -144,6 +147,18 @@ public:
 	 */
 	virtual UMovieSceneSection* GetSectionToKey() const override;
 
+	/**
+	* Get multiple sections to key
+	* @return multiple sections to key
+	*/
+	virtual TArray<TWeakObjectPtr<UMovieSceneSection>> GetSectionsToKey() const override;
+
+	/**
+	*  Control rig supports per control sections to key needed for anim layer workflows
+	*/
+	CONTROLRIG_API UMovieSceneSection* GetSectionToKey(const FName& InControlName) const;
+	CONTROLRIG_API void SetSectionToKey(UMovieSceneSection* InSection, const FName& inControlName);
+
 	CONTROLRIG_API void SetTrackName(FName InName) { TrackName = InName; }
 
 	UMovieSceneControlRigParameterSection::FSpaceChannelAddedEvent& SpaceChannelAdded() { return OnSpaceChannelAdded; }
@@ -159,6 +174,11 @@ public:
 
 	CONTROLRIG_API int32 GetPriorityOrder() const;
 	CONTROLRIG_API void SetPriorityOrder(int32 InPriorityIndex);
+private:
+	UPROPERTY()
+	TMap<FName, TWeakObjectPtr<UMovieSceneSection>> SectionToKeyPerControl;
+public:
+	bool bSetSectionToKeyPerControl = true;// set up the map when calling the UMovieSceneTrack::SetSectionToKey()
 private:
 	//get the rotation orderm will not be set if it's default FRotator order. If bCurrent is true, it uses what's set
 	//if false it uses the default setting from the current control rig.
@@ -210,6 +230,8 @@ public:
 
 public:
 	UControlRig* GetGameWorldControlRig(UWorld* InWorld);
+	bool IsAGameInstance(const UControlRig* InControlRig, const bool bCheckValidWorld = false) const;
+    
 private:
 	/** copy of the controlled control rig that we use in the game world so editor control rig doesn't conflict*/
 	UPROPERTY(transient)

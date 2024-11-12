@@ -199,9 +199,9 @@ private:
 
 	virtual void DumpStats() const override;
 
-	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const override;
+	virtual FPayloadActivityInfo GetSystemStatistics() const override;
 
-	virtual void GetPayloadActivityInfo( GetPayloadActivityInfoFuncRef ) const override;
+	virtual TArray<FBackendStats> GetBackendStatistics() const override;
 
 	virtual void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const override;
 
@@ -209,6 +209,10 @@ private:
 	{
 		return NotificationEvent;
 	}
+
+public:
+	/** @see UE::Virtualization::Utils::FixFilterFlags */
+	EPayloadFilterReason FixFilterFlags(FStringView PackagePath, uint64 SizeOnDisk, EPayloadFilterReason CurrentFilterFlags);
 	
 private:
 
@@ -280,7 +284,7 @@ private:
 	 * 
 	 * @return True if the context should be virtualized and false if not.
 	 */
-	bool ShouldVirtualize(const FString& Context) const;
+	bool ShouldVirtualize(FStringView Context) const;
 
 	/** Determines if the default filtering behavior is to virtualize a payload or not */
 	bool ShouldVirtualizeAsDefault() const;
@@ -289,7 +293,7 @@ private:
 	bool ShouldRetryWhenUnattended() const;
 
 	void BroadcastEvent(TConstArrayView<FPullRequest> Ids, ENotification Event);
-	
+
 private:
 	// The following members are set from the config file
 
@@ -376,7 +380,7 @@ private:
 	FBackendArray PullEnabledBackends;
 
 	/** Do we have backends that have not yet tried connecting to their services */
-	bool bPendingBackendConnections;
+	std::atomic<bool> bPendingBackendConnections;
 
 	/** Our notification Event */
 	FOnNotification NotificationEvent;

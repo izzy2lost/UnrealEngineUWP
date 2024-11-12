@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetSimulationDefaultConfigNode"
 
-FChaosClothAssetSimulationDefaultConfigNode::FChaosClothAssetSimulationDefaultConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+FChaosClothAssetSimulationDefaultConfigNode::FChaosClothAssetSimulationDefaultConfigNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 	, SimulationConfig(NewObject<UChaosClothConfig>(InParam.OwningObject))
 	, SharedSimulationConfig(NewObject<UChaosClothSharedSimConfig>(InParam.OwningObject))
@@ -44,7 +44,7 @@ void FChaosClothAssetSimulationDefaultConfigNode::Serialize(FArchive& Ar)
 	}
 }
 
-void FChaosClothAssetSimulationDefaultConfigNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FChaosClothAssetSimulationDefaultConfigNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	using namespace ::Chaos;
 	using namespace ::Chaos::Softs;
@@ -70,8 +70,9 @@ void FChaosClothAssetSimulationDefaultConfigNode::Evaluate(Dataflow::FContext& C
 				const bool bUseGeodesicTethers = Properties.GetValue<bool>(TEXT("UseGeodesicTethers"), bUseGeodesicTethersDefault);
 				// Use the "MaxDistance" weight map to generate tethers. This follows legacy behavior.
 				static const FName MaxDistanceName(TEXT("MaxDistance"));
+				const FVector2f MaxDistanceValue = Properties.GetWeightedFloatValue(TEXT("MaxDistance"), FVector2f(0.f, 1.f));
 
-				UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(ClothCollection, MaxDistanceName, bUseGeodesicTethers);
+				UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(ClothCollection, MaxDistanceName, bUseGeodesicTethers, MaxDistanceValue);
 			}
 			else
 			{

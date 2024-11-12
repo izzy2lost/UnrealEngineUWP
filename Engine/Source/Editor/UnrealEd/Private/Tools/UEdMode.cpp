@@ -8,11 +8,13 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "Toolkits/ToolkitManager.h"
 #include "InteractiveToolManager.h"
+#include "InteractiveToolQueryInterfaces.h"
 #include "GameFramework/Actor.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Elements/Interfaces/TypedElementObjectInterface.h"
 #include "Settings/LevelEditorViewportSettings.h"
-
+#include "EditorViewportClient.h"
+#include "EditorViewportCommands.h"
 
 //////////////////////////////////
 // UEdMode
@@ -280,3 +282,70 @@ bool UEdMode::IsSnapRotationEnabled()
 {
 	return GetDefault<ULevelEditorViewportSettings>()->RotGridEnabled;
 }
+
+void UEdMode::BindCommands()
+{
+	if (Toolkit && GetModeManager())
+	{
+		const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
+		const FEditorViewportCommands& ViewportCommands = FEditorViewportCommands::Get();
+		CommandList->MapAction(
+			ViewportCommands.FocusViewportToSelection,
+			FExecuteAction::CreateLambda([this]()
+				{
+					if (ensure(GetModeManager() && GetModeManager()->GetFocusedViewportClient() && GetModeManager()->GetFocusedViewportClient()->IsLevelEditorClient()))
+					{
+						FEditorViewportClient* ViewportClient = GetModeManager()->GetFocusedViewportClient();
+						FBox FocusBox = ComputeCustomViewportFocus();
+						if (FocusBox.IsValid)
+						{
+							// This method has custom logic for smoothly moving linked ortho viewports, so we prefer it for level editor viewports
+							GEditor->MoveViewportCamerasToBox(FocusBox, true);
+							// Note that to support non-level-editor viewports we could do GetModeManager()->GetFocusedViewportClient()->FocusViewportOnBox(FocusBox)
+							// However we instead currently expect that these viewports support the focus api by overriding ComputeBoundingBoxForViewportFocus()
+						}
+					}
+				}),
+			FCanExecuteAction::CreateLambda([this]() 
+				{
+					// For level-editor viewports, implement the focus api here to decouple it from the standard level-editor focus logic (which depends on the level editor selection)
+					// Note we do not execute for non-level-editor viewports (e.g., asset editors), which must implement their own focus logic
+					return GetModeManager() && GetModeManager()->GetFocusedViewportClient() 
+						&& GetModeManager()->GetFocusedViewportClient()->IsLevelEditorClient() 
+						&& HasCustomViewportFocus();
+				}
+			)
+		);
+	}
+
+}
+
+FBox UEdMode::GetFocusBoxFromActiveToolFocusAPI() const
+{
+	UInteractiveToolManager* ToolManager = GetToolManager();
+	if (ToolManager && ToolManager->HasAnyActiveTool())
+	{
+		UInteractiveTool* Tool = ToolManager->GetActiveTool(EToolSide::Mouse);
+		IInteractiveToolCameraFocusAPI* FocusAPI = Cast<IInteractiveToolCameraFocusAPI>(Tool);
+		if (FocusAPI && FocusAPI->SupportsWorldSpaceFocusBox())
+		{
+			return FocusAPI->GetWorldSpaceFocusBox();
+		}
+	}
+	return FBox();
+}
+
+bool UEdMode::HasCustomViewportFocus() const
+{
+	// Support ITF Focus API
+	FBox FocusBox = GetFocusBoxFromActiveToolFocusAPI();
+	return (bool)FocusBox.IsValid;
+}
+
+FBox UEdMode::ComputeCustomViewportFocus() const
+{
+	// Support ITF Focus API
+	return GetFocusBoxFromActiveToolFocusAPI();
+}
+
+

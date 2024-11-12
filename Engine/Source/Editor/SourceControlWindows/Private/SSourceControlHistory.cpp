@@ -702,7 +702,6 @@ public:
 						[
 							SAssignNew( MainHistoryListView, SHistoryFileListType)
 							.TreeItemsSource( &HistoryCollection )
-							.ItemHeight(25.f)
 							.SelectionMode(ESelectionMode::Multi)
 							.OnSelectionChanged(this, &SSourceControlHistoryWidget::OnRevisionPropertyChanged)
 							.OnGenerateRow( this, &SSourceControlHistoryWidget::OnGenerateRowForHistoryFileList )
@@ -1823,6 +1822,7 @@ bool FSourceControlWindows::DiffAgainstShelvedFile(const FSourceControlStateRef&
 					FRevisionInfo ShelvedRevision;
 					ShelvedRevision.Changelist = Revision->GetCheckInIdentifier();
 					ShelvedRevision.Revision = TEXT("Shelved");
+					ShelvedRevision.Date = Revision->GetDate();
 
 					FRevisionInfo NewRevision;
 					NewRevision.Revision = TEXT("");

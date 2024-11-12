@@ -47,7 +47,7 @@ namespace EpicGames.UHT.Utils
 		/// Return the final hash value
 		/// </summary>
 		/// <returns>Final hash value</returns>
-		public uint End()
+		public readonly uint End()
 		{
 			return (uint)(_hash + (_hash >> 32));
 		}

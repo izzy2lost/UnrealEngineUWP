@@ -9,10 +9,12 @@
 #include "WorldConditions/SmartObjectWorldConditionObjectTagQuery.h"
 #include "SmartObjectUserComponent.h"
 #include "Engine/SCS_Node.h"
+#include "Misc/Crc.h"
 #include "Misc/DataValidation.h"
 #include "SmartObjectPropertyHelpers.h"
 #include "Interfaces/ITargetPlatform.h"
-#endif
+#include "UObject/AssetRegistryTagsContext.h"
+#endif // WITH_EDITOR
 
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "Serialization/MemoryWriter.h"
@@ -30,7 +32,10 @@ namespace UE::SmartObject
 	{
 #if WITH_EDITOR
 		FOnParametersChanged OnParametersChanged;
-#endif	
+		FOnSavingDefinition OnSavingDefinition;
+		FOnGetAssetRegistryTags OnGetAssetRegistryTags;
+		FOnSlotDefinitionCreated OnSlotDefinitionCreated;
+#endif // WITH_EDITOR
 	} // Delegates
 
 } // UE::SmartObject
@@ -199,21 +204,6 @@ void USmartObjectDefinition::GetSlotActivityTags(const FSmartObjectSlotDefinitio
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-TOptional<FTransform> USmartObjectDefinition::GetSlotTransform(const FTransform& OwnerTransform, const FSmartObjectSlotIndex SlotIndex) const
-{
-	TOptional<FTransform> Transform;
-
-	if (ensureMsgf(Slots.IsValidIndex(SlotIndex), TEXT("Requesting slot transform for an out of range index: %s"), *LexToString(SlotIndex)))
-	{
-		const FSmartObjectSlotDefinition& Slot = Slots[SlotIndex];
-		Transform = FTransform(FRotator(Slot.Rotation), FVector(Slot.Offset)) * OwnerTransform;
-	}
-
-	return Transform;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 FTransform USmartObjectDefinition::GetSlotWorldTransform(const int32 SlotIndex, const FTransform& OwnerTransform) const
 {
 	if (ensureMsgf(Slots.IsValidIndex(SlotIndex), TEXT("Requesting slot transform for an out of range index: %s"), *LexToString(SlotIndex)))
@@ -290,6 +280,13 @@ bool USmartObjectDefinition::FindSlotAndDefinitionDataIndexByID(const FGuid ID, 
 	return false;
 }
 
+void USmartObjectDefinition::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
+
+	(void)UE::SmartObject::Delegates::OnGetAssetRegistryTags.ExecuteIfBound(*this, Context);
+}
+
 void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
@@ -318,6 +315,12 @@ void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEv
 				for (FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 				{
 					DataProxy.ID = FGuid::NewGuid();
+				}
+
+				// Call delegate only when a new definition is created (not called when duplicating an existing one)
+				if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
+				{
+					(void)UE::SmartObject::Delegates::OnSlotDefinitionCreated.ExecuteIfBound(*this, Slots[SlotIndex]);
 				}
 			}
 		}
@@ -379,8 +382,20 @@ void USmartObjectDefinition::PreSave(FObjectPreSaveContext SaveContext)
 	Super::PreSave(SaveContext);
 
 #if WITH_EDITOR
-
 	UpdateBindingDataHandles();
+
+	// Invalidate variations since they are using a copy of the previous version of the asset.
+	// Also send notification so loaded references can be refreshed.
+	Variations.Reset();
+	UE::SmartObject::Delegates::OnSavingDefinition.Broadcast(*this);
+#endif // WITH_EDITOR
+}
+
+void USmartObjectDefinition::CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext)
+{
+	Super::CollectSaveOverrides(SaveContext);
+
+#if WITH_EDITOR
 
 	if (SaveContext.IsCooking()
 		&& SaveContext.GetTargetPlatform()->IsClientOnly()
@@ -572,9 +587,9 @@ void USmartObjectDefinition::PostLoad()
 #if WITH_EDITOR
 	UpdateSlotReferences();
 	UpdateBindingPaths();
+#endif // WITH_EDITOR
 
 	Validate();
-#endif	
 }
 
 USmartObjectDefinition* USmartObjectDefinition::GetAssetVariation(const FInstancedPropertyBag& VariationParameters)
@@ -732,13 +747,11 @@ void USmartObjectDefinition::EnsureValidGuids()
 {
 	if (!RootID.IsValid())
 	{
-		static FName RootName(TEXT("RootID"));
-		RootID = FGuid::NewDeterministicGuid(GetPathName(), GetTypeHash(RootName));
+		RootID = FGuid::NewDeterministicGuid(GetPathName(), FCrc::StrCrc32<TCHAR>(TEXT("RootID")));
 	}
 	if (!ParametersID.IsValid())
 	{
-		static FName DataProxyName(TEXT("ParametersID"));
-		ParametersID = FGuid::NewDeterministicGuid(GetPathName(), GetTypeHash(DataProxyName));
+		ParametersID = FGuid::NewDeterministicGuid(GetPathName(), FCrc::StrCrc32<TCHAR>(TEXT("ParametersID")));
 	}
 }
 

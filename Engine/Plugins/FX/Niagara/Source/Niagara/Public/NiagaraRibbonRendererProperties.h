@@ -189,7 +189,7 @@ namespace ENiagaraRibbonVFLayout
 	};
 };
 
-UCLASS(editinlinenew, meta = (DisplayName = "Ribbon Renderer"), MinimalAPI)
+UCLASS(editinlinenew, meta = (DisplayName = "Ribbon Renderer", SupportsStateless), MinimalAPI)
 class UNiagaraRibbonRendererProperties : public UNiagaraRendererProperties
 {
 public:

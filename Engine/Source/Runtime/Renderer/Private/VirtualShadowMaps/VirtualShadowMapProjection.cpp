@@ -30,115 +30,6 @@
 
 #define MAX_TEST_PERMUTATION 0
 
-static TAutoConsoleVariable<float> CVarScreenRayLength(
-	TEXT( "r.Shadow.Virtual.ScreenRayLength" ),
-	0.015f,
-	TEXT( "Length of the screen space shadow trace away from receiver surface (smart shadow bias) before the VSM / SMRT lookup." ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<float> CVarNormalBias(
-	TEXT( "r.Shadow.Virtual.NormalBias" ),
-	0.5f,
-	TEXT( "Receiver offset along surface normal for shadow lookup. Scaled by distance to camera." )
-	TEXT( "Higher values avoid artifacts on surfaces nearly parallel to the light, but also visibility offset shadows and increase the chance of hitting unmapped pages." ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarSMRTRayCountLocal(
-	TEXT( "r.Shadow.Virtual.SMRT.RayCountLocal" ),
-	7,
-	TEXT( "Ray count for shadow map tracing of local lights. 0 = disabled." ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarSMRTSamplesPerRayLocal(
-	TEXT( "r.Shadow.Virtual.SMRT.SamplesPerRayLocal" ),
-	8,
-	TEXT( "Shadow map samples per ray for local lights" ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<float> CVarSMRTMaxRayAngleFromLight(
-	TEXT( "r.Shadow.Virtual.SMRT.MaxRayAngleFromLight" ),
-	0.03f,
-	TEXT( "Max angle (in radians) a ray is allowed to span from the light's perspective for local lights." )
-	TEXT( "Smaller angles limit the screen space size of shadow penumbra. " )
-	TEXT( "Larger angles lead to more noise. " ),
-	ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarSMRTRayCountDirectional(
-	TEXT( "r.Shadow.Virtual.SMRT.RayCountDirectional" ),
-	7,
-	TEXT( "Ray count for shadow map tracing of directional lights. 0 = disabled." ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarSMRTSamplesPerRayDirectional(
-	TEXT( "r.Shadow.Virtual.SMRT.SamplesPerRayDirectional" ),
-	8,
-	TEXT( "Shadow map samples per ray for directional lights" ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<float> CVarSMRTRayLengthScaleDirectional(
-	TEXT( "r.Shadow.Virtual.SMRT.RayLengthScaleDirectional" ),
-	1.5f,
-	TEXT( "Length of ray to shoot for directional lights, scaled by distance to camera." )
-	TEXT( "Shorter rays limit the screen space size of shadow penumbra. " )
-	TEXT( "Longer rays require more samples to avoid shadows disconnecting from contact points. " ),
-	ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarSMRTAdaptiveRayCount(
-	TEXT( "r.Shadow.Virtual.SMRT.AdaptiveRayCount" ),
-	1,
-	TEXT( "Shoot fewer rays in fully shadowed and unshadowed regions. Currently only supported with OnePassProjection. " ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<float> CVarSMRTTexelDitherScaleLocal(
-	TEXT( "r.Shadow.Virtual.SMRT.TexelDitherScaleLocal" ),
-	2.0f,
-	TEXT( "Applies a dither to the shadow map ray casts for local lights to help hide aliasing due to insufficient shadow resolution.\n" )
-	TEXT( "Setting this too high can cause shadows light leaks near occluders." ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<float> CVarSMRTTexelDitherScaleDirectional(
-	TEXT( "r.Shadow.Virtual.SMRT.TexelDitherScaleDirectional" ),
-	2.0f,
-	TEXT( "Applies a dither to the shadow map ray casts for directional lights to help hide aliasing due to insufficient shadow resolution.\n" )
-	TEXT( "Setting this too high can cause shadows light leaks near occluders." ),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-TAutoConsoleVariable<float> CVarSMRTExtrapolateMaxSlopeLocal(
-	TEXT("r.Shadow.Virtual.SMRT.ExtrapolateMaxSlopeLocal"),
-	0.05f,
-	TEXT("Maximum depth slope when extrapolating behind occluders for local lights.\n")
-	TEXT("Higher values allow softer penumbra edges but can introduce light leaks behind second occluders.\n")
-	TEXT("Setting to 0 will disable slope extrapolation slightly improving projection performance, at the cost of reduced penumbra quality."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-TAutoConsoleVariable<float> CVarSMRTExtrapolateMaxSlopeDirectional(
-	TEXT("r.Shadow.Virtual.SMRT.ExtrapolateMaxSlopeDirectional"),
-	5.0f,
-	TEXT("Maximum depth slope when extrapolating behind occluders for directional lights.\n")
-	TEXT("Higher values allow softer penumbra edges but can introduce light leaks behind second occluders.\n")
-	TEXT("Setting to 0 will disable slope extrapolation slightly improving projection performance, at the cost of reduced penumbra quality."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
-TAutoConsoleVariable<float> CVarSMRTMaxSlopeBiasLocal(
-	TEXT("r.Shadow.Virtual.SMRT.MaxSlopeBiasLocal"),
-	50.0f,
-	TEXT("Maximum depth slope. Low values produce artifacts if shadow resolution is insufficient. High values can worsen light leaks near occluders and sparkly pixels in shadowed areas."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<int32> CVarForcePerLightShadowMaskClear(
 	TEXT( "r.Shadow.Virtual.ForcePerLightShadowMaskClear" ),
 	0,
@@ -163,6 +54,7 @@ static TAutoConsoleVariable<int32> CVarSubsurfaceShadowMinSourceAngle(
 	ECVF_RenderThreadSafe
 );
 
+
 #if MAX_TEST_PERMUTATION > 0
 static TAutoConsoleVariable<int32> CVarTestPermutation(
 	TEXT( "r.Shadow.Virtual.ProjectionTestPermutation" ),
@@ -172,7 +64,13 @@ static TAutoConsoleVariable<int32> CVarTestPermutation(
 );
 #endif
 
-extern int32 GNaniteVisualizeOverdrawScale;
+int32 GVisualizeCachedPagesOnly = 0;
+FAutoConsoleVariableRef CVarVisualizeCachedPagesOnly(
+	TEXT("r.Shadow.Virtual.Visualize.ShowCachedPagesOnly"),
+	GVisualizeCachedPagesOnly,
+	TEXT("When true, shows the cached pages for all lights and hides uncached pages."),
+	ECVF_RenderThreadSafe
+);
 
 // The tile size in pixels for VSM projection with tile list.
 // Is also used as the workgroup size for the CS without tile list.
@@ -181,34 +79,6 @@ static constexpr int32 VSMProjectionWorkTileSize = 8;
 bool IsVSMTranslucentHighQualityEnabled()
 {
 	return CVarVSMTranslucentQuality.GetValueOnRenderThread() > 0;
-}
-
-FVirtualShadowMapSMRTSettings GetVirtualShadowMapSMRTSettings(bool bDirectionalLight)
-{
-	FVirtualShadowMapSMRTSettings Out;
-	Out.ScreenRayLength = CVarScreenRayLength.GetValueOnRenderThread();
-	Out.SMRTAdaptiveRayCount = CVarSMRTAdaptiveRayCount.GetValueOnRenderThread();
-	if (bDirectionalLight)
-	{
-		Out.SMRTRayCount = CVarSMRTRayCountDirectional.GetValueOnRenderThread();
-		Out.SMRTSamplesPerRay = CVarSMRTSamplesPerRayDirectional.GetValueOnRenderThread();
-		Out.SMRTRayLengthScale = CVarSMRTRayLengthScaleDirectional.GetValueOnRenderThread();
-		Out.SMRTCotMaxRayAngleFromLight = 0.0f;	// unused in this path
-		Out.SMRTTexelDitherScale = CVarSMRTTexelDitherScaleDirectional.GetValueOnRenderThread();
-		Out.SMRTExtrapolateSlope = CVarSMRTExtrapolateMaxSlopeDirectional.GetValueOnRenderThread();
-		Out.SMRTMaxSlopeBias = 0.0f; // unused in this path
-	}
-	else
-	{
-		Out.SMRTRayCount = CVarSMRTRayCountLocal.GetValueOnRenderThread();
-		Out.SMRTSamplesPerRay = CVarSMRTSamplesPerRayLocal.GetValueOnRenderThread();
-		Out.SMRTRayLengthScale = 0.0f;		// unused in this path
-		Out.SMRTCotMaxRayAngleFromLight = 1.0f / FMath::Tan(CVarSMRTMaxRayAngleFromLight.GetValueOnRenderThread());
-		Out.SMRTTexelDitherScale = CVarSMRTTexelDitherScaleLocal.GetValueOnRenderThread();
-		Out.SMRTExtrapolateSlope = CVarSMRTExtrapolateMaxSlopeLocal.GetValueOnRenderThread();
-		Out.SMRTMaxSlopeBias = CVarSMRTMaxSlopeBiasLocal.GetValueOnRenderThread();
-	}
-	return Out;
 }
 
 const TCHAR* ToString(EVirtualShadowMapProjectionInputType In)
@@ -259,9 +129,7 @@ class FVirtualShadowMapProjectionCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSMRTSettings, SMRTSettings)
 		SHADER_PARAMETER(FIntVector4, ProjectionRect)
-		SHADER_PARAMETER(float, NormalBias)
 		SHADER_PARAMETER(float, SubsurfaceMinSourceRadius)
 		SHADER_PARAMETER(uint32, InputType)
 		SHADER_PARAMETER(uint32, bCullBackfacingPixels)
@@ -275,12 +143,13 @@ class FVirtualShadowMapProjectionCS : public FGlobalShader
 		// Visualization output
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FPhysicalPageMetaData >, PhysicalPageMetaData)
 		SHADER_PARAMETER(int32, VisualizeModeId)
+		SHADER_PARAMETER(int32, bVisualizeCachedPagesOnly)
 		SHADER_PARAMETER(int32, VisualizeVirtualShadowMapId)
-		SHADER_PARAMETER(float, VisualizeNaniteOverdrawScale)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutVisualize)
 		// Optional tile list
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, TileListData)
 		RDG_BUFFER_ACCESS(IndirectDispatchArgs, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutStatsBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment( const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment )
@@ -316,13 +185,19 @@ class FVirtualShadowMapProjectionCS : public FGlobalShader
 		
 		return DoesPlatformSupportVirtualShadowMaps(Parameters.Platform);
 	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FVisualizeOutputDim>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
 };
 IMPLEMENT_GLOBAL_SHADER(FVirtualShadowMapProjectionCS, "/Engine/Private/VirtualShadowMaps/VirtualShadowMapProjection.usf", "VirtualShadowMapProjection", SF_Compute);
-
-static float GetNormalBiasForShader()
-{
-	return CVarNormalBias.GetValueOnRenderThread() / 1000.0f;
-}
 
 static void RenderVirtualShadowMapProjectionCommon(
 	FRDGBuilder& GraphBuilder,
@@ -345,11 +220,10 @@ static void RenderVirtualShadowMapProjectionCommon(
 	const bool bHasHairStrandsData = HairStrands::HasViewHairStrandsData(View);
 
 	FVirtualShadowMapProjectionCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FVirtualShadowMapProjectionCS::FParameters >();
-	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 	PassParameters->View = View.ViewUniformBuffer;
 	PassParameters->ProjectionRect = FIntVector4(ProjectionRect.Min.X, ProjectionRect.Min.Y, ProjectionRect.Max.X, ProjectionRect.Max.Y);
-	PassParameters->NormalBias = GetNormalBiasForShader();
 	PassParameters->SubsurfaceMinSourceRadius = FMath::Sin(0.5f * FMath::DegreesToRadians(CVarSubsurfaceShadowMinSourceAngle.GetValueOnRenderThread()));
 	PassParameters->InputType = uint32(InputType);
 	PassParameters->bCullBackfacingPixels = VirtualShadowMapArray.ShouldCullBackfacingPixels() ? 1 : 0;
@@ -374,7 +248,7 @@ static void RenderVirtualShadowMapProjectionCommon(
 	{
 		// One pass projection
 		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-		PassParameters->OutShadowMaskBits = GraphBuilder.CreateUAV( OutputTexture );	
+		PassParameters->OutShadowMaskBits = GraphBuilder.CreateUAV( OutputTexture );
 	}
 	else
 	{
@@ -386,36 +260,38 @@ static void RenderVirtualShadowMapProjectionCommon(
 		PassParameters->LightUniformVirtualShadowMapId = VirtualShadowMapId;
 		PassParameters->OutShadowFactor = GraphBuilder.CreateUAV( OutputTexture );
 	}
- 
-	PassParameters->SMRTSettings = GetVirtualShadowMapSMRTSettings(bDirectionalLight);
-	
+ 	
 	bool bDebugOutput = false;
 #if !UE_BUILD_SHIPPING
-	if ( !VirtualShadowMapArray.DebugVisualizationOutput.IsEmpty() && InputType == EVirtualShadowMapProjectionInputType::GBuffer && VirtualShadowMapArray.VisualizeLight[ViewIndex].IsValid())
+	if ( !VirtualShadowMapArray.DebugVisualizationOutput.IsEmpty() && InputType == EVirtualShadowMapProjectionInputType::GBuffer)
 	{
 		const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
 
 		bDebugOutput = true;
 		PassParameters->VisualizeModeId = VisualizationData.GetActiveModeID();
+		PassParameters->bVisualizeCachedPagesOnly = GVisualizeCachedPagesOnly;
 		PassParameters->VisualizeVirtualShadowMapId = VirtualShadowMapArray.VisualizeLight[ViewIndex].GetVirtualShadowMapId();
-		PassParameters->VisualizeNaniteOverdrawScale = GNaniteVisualizeOverdrawScale;
 		PassParameters->PhysicalPageMetaData = GraphBuilder.CreateSRV( VirtualShadowMapArray.PhysicalPageMetaDataRDG );
 		PassParameters->OutVisualize = GraphBuilder.CreateUAV( VirtualShadowMapArray.DebugVisualizationOutput[ViewIndex] );
 	}
 #endif
 
+	PassParameters->OutStatsBuffer = VirtualShadowMapArray.StatsBufferUAV;
+
 	// If the requested samples per ray matches one of our static permutations, pick that one
 	// Otherwise use the dynamic samples per ray permutation (-1).
-	int StaticSamplesPerRay = PassParameters->SMRTSettings.SMRTSamplesPerRay == 0 ? PassParameters->SMRTSettings.SMRTSamplesPerRay : -1;
+	int SamplesPerRay = (bDirectionalLight ? VirtualShadowMapArray.UniformParameters.SMRTSamplesPerRayDirectional : VirtualShadowMapArray.UniformParameters.SMRTSamplesPerRayLocal);
+	int StaticSamplesPerRay = SamplesPerRay	== 0 ? SamplesPerRay : -1;
+	float ExtrapolateMaxSlope = (bDirectionalLight ? VirtualShadowMapArray.UniformParameters.SMRTExtrapolateMaxSlopeDirectional : VirtualShadowMapArray.UniformParameters.SMRTExtrapolateMaxSlopeLocal);
 
 	FVirtualShadowMapProjectionCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set< FVirtualShadowMapProjectionCS::FDirectionalLightDim >( bDirectionalLight );
 	PermutationVector.Set< FVirtualShadowMapProjectionCS::FOnePassProjectionDim >( bOnePassProjection );
 	PermutationVector.Set< FVirtualShadowMapProjectionCS::FHairStrandsDim >( bHasHairStrandsData );
 	PermutationVector.Set< FVirtualShadowMapProjectionCS::FVisualizeOutputDim >( bDebugOutput );
-	PermutationVector.Set< FVirtualShadowMapProjectionCS::FExtrapolateSlopeDim >( PassParameters->SMRTSettings.SMRTExtrapolateSlope > 0.0f );
+	PermutationVector.Set< FVirtualShadowMapProjectionCS::FExtrapolateSlopeDim >(ExtrapolateMaxSlope > 0.0f);
 	PermutationVector.Set< FVirtualShadowMapProjectionCS::FUseTileList >(bUseTileList);
-	PermutationVector.Set< FVirtualShadowMapProjectionCS::FSMRTStaticSampleCount >( StaticSamplesPerRay );
+	PermutationVector.Set< FVirtualShadowMapProjectionCS::FSMRTStaticSampleCount >(StaticSamplesPerRay);
 #if MAX_TEST_PERMUTATION > 0
 	{
 		int32 TestPermutation = FMath::Clamp(CVarTestPermutation.GetValueOnRenderThread(), 0, MAX_TEST_PERMUTATION);
@@ -430,15 +306,12 @@ static void RenderVirtualShadowMapProjectionCommon(
 	if (bUseTileList)
 	{
 		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("VirtualShadowMapProjection(RayCount:%u(%s),SamplesPerRay:%u,Input:%s%s,TileList)",
-				PassParameters->SMRTSettings.SMRTRayCount,
-				PassParameters->SMRTSettings.SMRTAdaptiveRayCount > 0 ? TEXT("Adaptive") : TEXT("Static"),
-				PassParameters->SMRTSettings.SMRTSamplesPerRay,
+			RDG_EVENT_NAME("VirtualShadowMapProjection(Input:%s%s,TileList)",
 				ToString(InputType),
 				bDebugOutput ? TEXT(",Debug") : TEXT("")),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, ComputeShader](FRHICommandList& RHICmdList)
+			[PassParameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, PassParameters->IndirectDispatchArgs->GetIndirectRHICallBuffer(), 0);
 			});
@@ -448,10 +321,7 @@ static void RenderVirtualShadowMapProjectionCommon(
 		const FIntPoint GroupCount = FIntPoint::DivideAndRoundUp(ProjectionRect.Size(), VSMProjectionWorkTileSize);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("VirtualShadowMapProjection(RayCount:%u(%s),SamplesPerRay:%u,Input:%s%s)",
-				PassParameters->SMRTSettings.SMRTRayCount,
-				PassParameters->SMRTSettings.SMRTAdaptiveRayCount > 0 ? TEXT("Adaptive") : TEXT("Static"),
-				PassParameters->SMRTSettings.SMRTSamplesPerRay,
+			RDG_EVENT_NAME("VirtualShadowMapProjection(Input:%s%s)",
 				ToString(InputType),
 				bDebugOutput ? TEXT(",Debug") : TEXT("")),
 			ComputeShader,
@@ -694,7 +564,7 @@ void CompositeVirtualShadowMapMask(
 			RDG_EVENT_NAME("CompositeVirtualShadowMapMask(TileList)"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[BlendState, VertexShader, PixelShader, ScissorRect, PassParameters](FRHICommandList& RHICmdList)
+			[BlendState, VertexShader, PixelShader, ScissorRect, PassParameters](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(ScissorRect.Min.X, ScissorRect.Min.Y, 0.0f, ScissorRect.Max.X, ScissorRect.Max.Y, 1.0f);
 				RHICmdList.SetScissorRect(true, ScissorRect.Min.X, ScissorRect.Min.Y, ScissorRect.Max.X, ScissorRect.Max.Y);
@@ -772,7 +642,7 @@ IMPLEMENT_GLOBAL_SHADER(FVirtualShadowMapProjectionCompositeFromMaskBitsPS, "/En
 void CompositeVirtualShadowMapFromMaskBits(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
-	const FViewInfo& View,
+	const FViewInfo& View, int32 ViewIndex,
 	const FIntRect ScissorRect,
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	EVirtualShadowMapProjectionInputType InputType,
@@ -783,7 +653,7 @@ void CompositeVirtualShadowMapFromMaskBits(
 	FIntRect ProjectionRect = View.ViewRect;
 
 	FVirtualShadowMapProjectionCompositeFromMaskBitsPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualShadowMapProjectionCompositeFromMaskBitsPS::FParameters>();
-	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+	PassParameters->SamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder, ViewIndex);
 	PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 	PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 	PassParameters->View = View.ViewUniformBuffer;

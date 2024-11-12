@@ -94,8 +94,8 @@ public:
 					.Padding(0)
 					[
 						SNew(SBox)
-						.WidthOverride(64)
-						.HeightOverride(64)
+						.WidthOverride(64.0f)
+						.HeightOverride(64.0f)
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						[
@@ -110,8 +110,8 @@ public:
 
 									+ SConstraintCanvas::Slot()
 									.Anchors(Anchors)
-									.Offset(FMargin(0, 0, Anchors.IsStretchedHorizontal() ? 0 : 15, Anchors.IsStretchedVertical() ? 0 : 15))
-									.Alignment(FVector2D(Anchors.IsStretchedHorizontal() ? 0 : Anchors.Minimum.X, Anchors.IsStretchedVertical() ? 0 : Anchors.Minimum.Y))
+									.Offset(FMargin(0.0f, 0.0f, Anchors.IsStretchedHorizontal() ? 0.0f : 15.0f, Anchors.IsStretchedVertical() ? 0.0f : 15.0f))
+									.Alignment(FVector2D(Anchors.IsStretchedHorizontal() ? 0.0f : Anchors.Minimum.X, Anchors.IsStretchedVertical() ? 0.0f : Anchors.Minimum.Y))
 									[
 										SNew(SImage)
 										.Image(FAppStyle::Get().GetBrush("UMGEditor.AnchoredWidget"))

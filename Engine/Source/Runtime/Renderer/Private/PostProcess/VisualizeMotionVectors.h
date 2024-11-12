@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ScreenPass.h"
+#include "PostProcess/LensDistortion.h"
 
 
 enum class EVisualizeMotionVectors : uint8
@@ -19,6 +20,9 @@ struct FVisualizeMotionVectorsInputs
 	FScreenPassTexture SceneColor;
 	FScreenPassTexture SceneDepth;
 	FScreenPassTexture SceneVelocity;
+
+	// [Optional] Lens distortion applied on the scene color.
+	FLensDistortionLUT LensDistortionLUT;
 };
 
 FScreenPassTexture AddVisualizeMotionVectorsPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FVisualizeMotionVectorsInputs& Inputs, EVisualizeMotionVectors Visualize);

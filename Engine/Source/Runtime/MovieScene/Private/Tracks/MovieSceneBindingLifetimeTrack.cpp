@@ -22,7 +22,9 @@ UMovieSceneBindingLifetimeTrack::UMovieSceneBindingLifetimeTrack(const FObjectIn
 {
 #if WITH_EDITORONLY_DATA
 	TrackTint = FColor(26, 117, 49, 150);
+	bSupportsConditions = false;
 #endif
+
 }
 
 
@@ -93,7 +95,8 @@ void UMovieSceneBindingLifetimeTrack::ImportEntityImpl(UMovieSceneEntitySystemLi
 
 		OutImportedEntity->AddBuilder(
 			FEntityBuilder()
-			.AddConditional(BuiltInComponentTypes->BindingLifetime, FMovieSceneBindingLifetimeComponentData{ Params.GetObjectBindingID(), EMovieSceneBindingLifetimeState::Inactive }, Params.GetObjectBindingID().IsValid())
+			.Add(BuiltInComponentTypes->GenericObjectBinding, Params.GetObjectBindingID())
+			.AddConditional(BuiltInComponentTypes->BindingLifetime, FMovieSceneBindingLifetimeComponentData{ EMovieSceneBindingLifetimeState::Inactive }, Params.GetObjectBindingID().IsValid())
 		);
 }
 
@@ -171,6 +174,10 @@ bool UMovieSceneBindingLifetimeTrack::PopulateEvaluationFieldImpl(const TRange<F
 			{
 				FMovieSceneEvaluationFieldEntityMetaData SectionMetaData = InMetaData;
 				SectionMetaData.Flags = Entry.Flags;
+				if (Entry.Section)
+				{
+					SectionMetaData.Condition = MovieSceneHelpers::GetSequenceCondition(this, Entry.Section, true);
+				}
 				BindingLifetimeSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
 			}
 		}

@@ -3,6 +3,7 @@
 #include "Components/MaterialStageExpressions/DMMSETextureSampleBase.h"
 
 #include "Components/DMMaterialLayer.h"
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
@@ -12,9 +13,11 @@
 #include "Components/MaterialStageInputs/DMMSIThroughput.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
-#include "Engine/TextureCube.h"
+#include "CoreGlobals.h"
 #include "Materials/MaterialExpressionTextureSample.h"
+#include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageExpressionTextureSample"
 
@@ -43,6 +46,42 @@ UDMMaterialStageExpressionTextureSampleBase::UDMMaterialStageExpressionTextureSa
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionTextureSampleBase, bClampTexture));
 }
 
+void UDMMaterialStageExpressionTextureSampleBase::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
+{
+	if (!IsComponentValid() || !IsComponentAdded())
+	{
+		return;
+	}
+
+	check(MaterialExpressionClass.Get());
+
+	if (InBuildState->HasStageSource(this))
+	{
+		return;
+	}
+
+	UMaterialExpression* NewExpression = InBuildState->GetBuildUtils().CreateExpression(MaterialExpressionClass.Get(), UE_DM_NodeComment_Default);
+	AddExpressionProperties({NewExpression});
+
+	InBuildState->AddStageSourceExpressions(this, {NewExpression});
+
+	UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(NewExpression);
+
+	if (!TextureSample)
+	{
+		return;
+	}
+
+	const UDMMaterialProperty* CurrentProperty = InBuildState->GetCurrentMaterialProperty();
+
+	if (!CurrentProperty)
+	{
+		return;
+	}
+
+	TextureSample->SamplerType = CurrentProperty->GetTextureSamplerType();
+}
+
 void UDMMaterialStageExpressionTextureSampleBase::OnComponentAdded()
 {
 	Super::OnComponentAdded();
@@ -64,7 +103,7 @@ bool UDMMaterialStageExpressionTextureSampleBase::IsPropertyVisible(FName Proper
 			ParentMostStage = SubStage->GetParentMostStage();
 		}
 
-		const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+		UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 		check(Layer);
 
 		if (UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base, /* Enabled Only */ true))
@@ -113,7 +152,7 @@ void UDMMaterialStageExpressionTextureSampleBase::AddExpressionProperties(const 
 		ParentMostStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+	UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 	check(Layer);
 
 	bool bClampTextureActual = IsClampTextureEnabled();
@@ -190,13 +229,34 @@ bool UDMMaterialStageExpressionTextureSampleBase::CanChangeInputType(int32 InInp
 	return Super::CanChangeInputType(InInputIndex);
 }
 
-void UDMMaterialStageExpressionTextureSampleBase::InputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType)
+void UDMMaterialStageExpressionTextureSampleBase::OnInputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType)
 {
 	// If the texture changes, update the mask!
 	if (InInputIndex == 0)
 	{
 		UpdateMask();
 	}
+}
+
+FText UDMMaterialStageExpressionTextureSampleBase::GetComponentDescription() const
+{
+	if (UDMMaterialStage* Stage = GetStage())
+	{
+		const TArray<UDMMaterialStageInput*>& Inputs = Stage->GetInputs();
+
+		for (UDMMaterialStageInput* StageInput : Inputs)
+		{
+			if (UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(StageInput))
+			{
+				if (UDMMaterialValue* Value = Cast<UDMMaterialValueTexture>(InputValue->GetValue()))
+				{
+					return Value->GetComponentDescription();
+				}
+			}
+		}
+	}
+
+	return Super::GetComponentDescription();
 }
 
 void UDMMaterialStageExpressionTextureSampleBase::SetClampTextureEnabled(bool bInValue)
@@ -208,7 +268,21 @@ void UDMMaterialStageExpressionTextureSampleBase::SetClampTextureEnabled(bool bI
 
 	bClampTexture = bInValue;
 
-	Update(EDMUpdateType::Value);
+	Update(this, EDMUpdateType::Value);
+}
+
+void UDMMaterialStageExpressionTextureSampleBase::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
+
+	static const FName ClampTextureName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionTextureSampleBase, bClampTexture);
+
+	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
+
+	if (PropertyName == ClampTextureName)
+	{
+		Update(this, EDMUpdateType::Structure);
+	}
 }
 
 void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
@@ -223,14 +297,14 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 		ParentMostStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+	UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 	check(Layer);
 
 	const UDMMaterialSlot* Slot = Layer->GetSlot();
 	check(Slot);
 
-	UDynamicMaterialModelEditorOnlyData* MaterialMode = Slot->GetMaterialModelEditorOnlyData();
-	check(MaterialMode);
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(EditorOnlyData);
 
 	UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base);
 	UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask, /* Enabled Only */ true);
@@ -317,19 +391,29 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 						{
 							if (LayerBlendTextureValue->GetClass() == BaseTextureValue->GetClass())
 							{
+								if (GUndo)
+								{
+									LayerBlendTextureValue->Modify();
+								}
+
 								LayerBlendTextureValue->SetValue(BaseTexture);
 							}
 							else
 							{
-								UDMMaterialValueTexture* NewLayerBlendTextureValue = UDMMaterialValueTexture::CreateMaterialValueTexture(MaterialMode, BaseTextureValue->GetValue());
+								UDMMaterialValueTexture* NewLayerBlendTextureValue = UDMMaterialValueTexture::CreateMaterialValueTexture(EditorOnlyData, BaseTextureValue->GetValue());
 								check(NewLayerBlendTextureValue);
 
 								LayerBlendTextureInputValue->SetValue(NewLayerBlendTextureValue);
+
+								if (GUndo)
+								{
+									MaskStage->Modify();
+								}
 							}
 
 							// Set output to alpha
 							MaskStage->UpdateInputMap(2, MaskStageInputConnections[2].Channels[0].SourceIndex,
-								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMMaterialPropertyType::None);
+								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 1, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL, EDMMaterialPropertyType::None);
 
 							return;
 						}
@@ -342,6 +426,11 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 	// Couldn't find a texture to update, so create a new one.
 
 	// 2nd input, 2nd output (Alpha)
+	if (GUndo)
+	{
+		MaskStage->Modify();
+	}
+
 	UDMMaterialStageInputExpression::ChangeStageInput_Expression(MaskStage, 
 		UDMMaterialStageExpressionTextureSample::StaticClass(), 2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
 		1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
@@ -362,9 +451,13 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 	UDMMaterialStage* MaskTextureSampleStage = MaskTextureSample->GetStage();
 	check(MaskTextureSampleStage);
 
-	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(MaskTextureSampleStage, 0,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, BaseTextureValue->GetType(),
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+		MaskTextureSampleStage, 
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		UDMMaterialValueTexture::StaticClass(),
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 
 	UDMMaterialStageInputValue* NewInputValue = Cast<UDMMaterialStageInputValue>(MaskTextureSampleStage->GetInputs().Last());
 	check(NewInputValue);

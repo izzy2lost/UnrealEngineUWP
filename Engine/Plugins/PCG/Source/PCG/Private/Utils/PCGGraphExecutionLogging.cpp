@@ -77,7 +77,10 @@ namespace PCGGraphExecutionLogging
 				}
 				bFirstInput = false;
 
-				InputString += FString::Printf(TEXT("%u->'%s'"), Input.TaskId, Input.OutPin ? *Input.OutPin->Properties.Label.ToString() : TEXT(""));
+				InputString += FString::Printf(
+					TEXT("%" UINT64_FMT "->'%s'"),
+					Input.TaskId,
+					Input.DownstreamPin.IsSet() ? *Input.DownstreamPin.GetValue().Label.ToString() : TEXT("NoPin"));
 			}
 
 			return InputString;
@@ -89,7 +92,7 @@ namespace PCGGraphExecutionLogging
 			bool bFirstSuccessor = true;
 			for (const FPCGTaskId& SuccessorId : *SuccessorIds)
 			{
-				SuccessorsString += bFirstSuccessor ? FString::Printf(TEXT("%u"), SuccessorId) : FString::Printf(TEXT(",%u"), SuccessorId);
+				SuccessorsString += bFirstSuccessor ? FString::Printf(TEXT("%" UINT64_FMT), SuccessorId) : FString::Printf(TEXT(",%" UINT64_FMT), SuccessorId);
 				bFirstSuccessor = false;
 			}
 		}
@@ -281,7 +284,7 @@ namespace PCGGraphExecutionLogging
 		{
 			const FPCGTaskId NodeId = PCGPinIdHelpers::GetNodeIdFromPinId(PinId);
 			const uint64 PinIndex = PCGPinIdHelpers::GetPinIndexFromPinId(PinId);
-			PinIdsToDeactivateString += bFirst ? FString::Printf(TEXT("%u_%u"), NodeId, PinIndex) : FString::Printf(TEXT(",%u_%u"), NodeId, PinIndex);
+			PinIdsToDeactivateString += bFirst ? FString::Printf(TEXT("%" UINT64_FMT "_%" UINT64_FMT), NodeId, PinIndex) : FString::Printf(TEXT(",%" UINT64_FMT "_%" UINT64_FMT), NodeId, PinIndex);
 			bFirst = false;
 		}
 
@@ -300,7 +303,7 @@ namespace PCGGraphExecutionLogging
 		UE_LOG(LogPCG, Log, TEXT("         [%s/%s] %s\t\tEXECUTE"),
 			*Task.SourceComponent->GetOwner()->GetName(),
 			Task.SourceComponent->GetGraph() ? *Task.SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
-			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
+			*FString::Printf(TEXT("%" UINT64_FMT "'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
@@ -315,7 +318,7 @@ namespace PCGGraphExecutionLogging
 		UE_LOG(LogPCG, Warning, TEXT("[%s/%s] %s\t\tCACHING DISABLED"),
 			*Task.SourceComponent->GetOwner()->GetName(),
 			Task.SourceComponent->GetGraph() ? *Task.SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
-			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
+			*FString::Printf(TEXT("%" UINT64_FMT "'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
@@ -368,7 +371,7 @@ namespace PCGGraphExecutionLogging
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
-	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath)
+	void LogGridLinkageTaskExecuteStore(const FPCGContext* InContext, EPCGHiGenGrid InGenerationGrid, int32 InFromGridSize, int32 InToGridSize, const FString& InResourcePath, int32 InDataItemCount)
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 		if (!LogEnabled())
@@ -377,12 +380,13 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] STORE. GenerationGridSize=%u, FromGridSize=%u, ToGridSize=%u, Path=%s, DataItems=%d"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
-			PCGHiGenGrid::GridToGridSize(InGenerationGrid),
+			PCGHiGenGrid::IsValidGrid(InGenerationGrid) ? PCGHiGenGrid::GridToGridSize(InGenerationGrid) : PCGHiGenGrid::UnboundedGridSize(),
 			InFromGridSize,
 			InToGridSize,
-			*InResourcePath);
+			*InResourcePath,
+			InDataItemCount);
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
 	}
 
@@ -395,9 +399,9 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%d, FromGridSize=%d, ToGridSize=%d, Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE. GenerationGridSize=%u, FromGridSize=%u, ToGridSize=%u, Path=%s"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
-			PCGHiGenGrid::GridToGridSize(InGenerationGrid),
+			PCGHiGenGrid::IsValidGrid(InGenerationGrid) ? PCGHiGenGrid::GridToGridSize(InGenerationGrid) : PCGHiGenGrid::UnboundedGridSize(),
 			InFromGridSize,
 			InToGridSize,
 			*InResourcePath);
@@ -413,7 +417,7 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SUCCESS. Path=%s DataItems=%d"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SUCCESS. Path=%s, DataItems=%d"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
 			*InResourcePath,
 			InDataItemCount);
@@ -429,7 +433,7 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SCHEDULE GRAPH. Component=%s Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: SCHEDULE GRAPH. Component=%s, Path=%s"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
 			*GetOwnerName(InScheduledComponent),
 			*InResourcePath);
@@ -445,7 +449,7 @@ namespace PCGGraphExecutionLogging
 		}
 		check(InContext);
 
-		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WAIT FOR SCHEDULED GRAPH. Component=%s Path=%s"),
+		UE_LOG(LogPCG, Log, TEXT("[GRIDLINKING] [%s] RETRIEVE: WAIT FOR SCHEDULED GRAPH. Component=%s, Path=%s"),
 			*GetOwnerName(InContext->SourceComponent.Get()),
 			*GetOwnerName(InWaitOnComponent),
 			*InResourcePath);

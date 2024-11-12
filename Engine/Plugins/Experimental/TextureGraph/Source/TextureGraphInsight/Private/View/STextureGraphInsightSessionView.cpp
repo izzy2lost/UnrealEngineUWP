@@ -446,7 +446,6 @@ void STextureGraphInsightBatchJobView::Construct(const FArguments& Args)
 	[
 		
 	SAssignNew(_treeView, SItemTreeView)
-		.ItemHeight(24)
 		.TreeItemsSource(&_rootItems)
 		.OnGenerateRow(this, &STextureGraphInsightBatchJobView::OnGenerateRowForTree)
 		.OnGetChildren(this, &STextureGraphInsightBatchJobView::OnGetChildrenForView)

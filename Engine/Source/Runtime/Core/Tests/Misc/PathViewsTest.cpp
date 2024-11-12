@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PathTests.h"
+
+#include "Algo/Compare.h"
 #include "Containers/StringView.h"
 #include "Misc/PathViews.h"
 #include "Tests/TestHarnessAdapter.h"
@@ -520,6 +522,150 @@ TEST_CASE_NAMED(FPathViewsSplitTest, "System::Core::Misc::PathViews::Split", "[A
 	RunSplitTest(TEXT("C:\\Folder\\First.Last\\File.tar.gz"), TEXT("C:\\Folder\\First.Last"), TEXT("File.tar"), TEXT("gz"));
 }
 
+TEST_CASE_NAMED(FPathViewsIterateTest, "System::Core::Misc::PathViews::IterateComponents", "[ApplicationContextMask][SmokeFilter]")
+{
+	auto RunIterateTest = [](const TCHAR* InPath, auto&&... InExpectedComponents) {
+		TArray<FStringView> Components;
+		TArray<FStringView> ExpectedComponents({ Forward<decltype(InExpectedComponents)>(InExpectedComponents)... });
+		FPathViews::IterateComponents(InPath, [&Components](FStringView Comp) { Components.Add(Comp); });
+		if (!Algo::Compare(Components, ExpectedComponents))
+		{
+			FAIL_CHECK(FString::Printf(TEXT("Incorrect components splitting %s - got %d, expected %d. Got components (%s), expected components (%s)"),
+				InPath,
+				Components.Num(),
+				ExpectedComponents.Num(),
+				*FString::Join(Components, TEXT(",")),
+				*FString::Join(ExpectedComponents, TEXT(","))));
+		}
+	};
+
+	RunIterateTest(TEXT(""), TEXT(""));
+	RunIterateTest(TEXT(".txt"), TEXT(".txt"));
+	RunIterateTest(TEXT(".tar.gz"), TEXT(".tar.gz"));
+	RunIterateTest(TEXT(".tar.gz/"), TEXT(".tar.gz"), TEXT(""));
+	RunIterateTest(TEXT(".tar.gz\\"), TEXT(".tar.gz"), TEXT(""));
+	RunIterateTest(TEXT("."), TEXT("."));
+	RunIterateTest(TEXT(".."), TEXT(".."));
+	RunIterateTest(TEXT("File"), TEXT("File"));
+	RunIterateTest(TEXT("File.txt"), TEXT("File.txt"));
+	RunIterateTest(TEXT("File.tar.gz"), TEXT("File.tar.gz"));
+	RunIterateTest(TEXT("File.tar.gz/"), TEXT("File.tar.gz"), TEXT(""));
+	RunIterateTest(TEXT("File.tar.gz\\"), TEXT("File.tar.gz"), TEXT(""));
+
+	RunIterateTest(TEXT("C:/Folder"), TEXT("C:"), TEXT("Folder"));
+	RunIterateTest(TEXT("C:/Folder/"), TEXT("C:"), TEXT("Folder"), TEXT(""));
+	RunIterateTest(TEXT("C:/Folder/File"), TEXT("C:"), TEXT("Folder"), TEXT("File"));
+	RunIterateTest(TEXT("C:/Folder/File.txt"), TEXT("C:"), TEXT("Folder"), TEXT("File.txt"));
+	RunIterateTest(TEXT("C:/Folder/File.tar.gz"), TEXT("C:"), TEXT("Folder"), TEXT("File.tar.gz"));
+	RunIterateTest(TEXT("C:/Folder/First.Last/File"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT("File"));
+	RunIterateTest(TEXT("C:/Folder/First.Last/File.txt"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT("File.txt"));
+	RunIterateTest(TEXT("C:/Folder/First.Last/File.tar.gz"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT("File.tar.gz"));
+
+	RunIterateTest(TEXT("C:\\Folder"), TEXT("C:"), TEXT("Folder"));
+	RunIterateTest(TEXT("C:\\Folder\\"), TEXT("C:"), TEXT("Folder"), TEXT(""));
+	RunIterateTest(TEXT("C:\\Folder\\File"), TEXT("C:"), TEXT("Folder"), TEXT("File"));
+	RunIterateTest(TEXT("C:\\Folder\\First.Last\\"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT(""));
+	RunIterateTest(TEXT("C:\\Folder\\First.Last\\File"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT("File"));
+	RunIterateTest(TEXT("C:\\Folder\\First.Last\\File.txt"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT("File.txt"));
+	RunIterateTest(TEXT("C:\\Folder\\First.Last\\File.tar.gz"), TEXT("C:"), TEXT("Folder"), TEXT("First.Last"), TEXT("File.tar.gz"));
+
+	RunIterateTest(TEXT("//ShareName/Path"), TEXT(""), TEXT(""), TEXT("ShareName"), TEXT("Path"));
+	RunIterateTest(TEXT("//ShareName/Path/"), TEXT(""), TEXT(""), TEXT("ShareName"), TEXT("Path"), TEXT(""));
+	RunIterateTest(TEXT("//ShareName/Path/Sub"), TEXT(""), TEXT(""), TEXT("ShareName"), TEXT("Path"), TEXT("Sub"));
+	RunIterateTest(TEXT("//ShareName/Path/Sub/File"), TEXT(""), TEXT(""), TEXT("ShareName"), TEXT("Path"), TEXT("Sub"), TEXT("File"));
+	RunIterateTest(TEXT("//ShareName/Path/Sub/File.txt"), TEXT(""), TEXT(""), TEXT("ShareName"), TEXT("Path"), TEXT("Sub"), TEXT("File.txt"));
+	RunIterateTest(TEXT("//ShareName/Path/Sub/File.tar.gz"), TEXT(""), TEXT(""), TEXT("ShareName"), TEXT("Path"), TEXT("Sub"), TEXT("File.tar.gz"));
+
+	RunIterateTest(TEXT("/MountPoint"), TEXT(""), TEXT("MountPoint"));
+	RunIterateTest(TEXT("/MountPoint/"), TEXT(""), TEXT("MountPoint"), TEXT(""));
+	RunIterateTest(TEXT("/MountPoint/Sub"), TEXT(""), TEXT("MountPoint"), TEXT("Sub"));
+	RunIterateTest(TEXT("/MountPoint/Sub/File"), TEXT(""), TEXT("MountPoint"), TEXT("Sub"), TEXT("File"));
+	RunIterateTest(TEXT("/MountPoint/Sub/File.txt"), TEXT(""), TEXT("MountPoint"), TEXT("Sub"), TEXT("File.txt"));
+	RunIterateTest(TEXT("/MountPoint/Sub/File.tar.gz"), TEXT(""), TEXT("MountPoint"), TEXT("Sub"), TEXT("File.tar.gz"));
+}
+
+TEST_CASE_NAMED(FPathViewsAncestorTest, "System::Core::Misc::PathViews::IterateAncestors", "[ApplicationContextMask][SmokeFilter]")
+{
+	auto RunAncestorTest = [](FStringView InPath, auto&&... Args) {
+		TArray<FStringView> Ancestors;
+		TArray<FStringView> ExpectedAncestors{ Args... };
+		FPathViews::IterateAncestors(InPath, [&Ancestors](FStringView Comp) { Ancestors.Add(Comp); return true; });
+		if (!Algo::Compare(Ancestors, ExpectedAncestors))
+		{
+			FStringBuilderBase Builder;
+			Builder << TEXT("Incorrect ancestors splitting ") << InPath << TEXT("- got ") << Ancestors.Num() << TEXT(", expected ") << ExpectedAncestors.Num();
+			Builder << LINE_TERMINATOR TEXT("Got ancestors      (");
+			Builder.Join(Ancestors, TEXT(","));
+			Builder << LINE_TERMINATOR TEXT("Expected ancestors (");
+			Builder.Join(ExpectedAncestors, TEXT(", ")) << TEXT(")");
+			FAIL_CHECK(Builder.ToString());
+		}
+	};
+
+	RunAncestorTest(TEXTVIEW(""), TEXTVIEW(""));
+	RunAncestorTest(TEXTVIEW("/"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("\\"), TEXTVIEW("\\"));
+	RunAncestorTest(TEXTVIEW(".txt"), TEXTVIEW(".txt"));
+	RunAncestorTest(TEXTVIEW(".tar.gz"), TEXTVIEW(".tar.gz"));
+	RunAncestorTest(TEXTVIEW(".tar.gz/"), TEXTVIEW(".tar.gz"));
+	RunAncestorTest(TEXTVIEW(".tar.gz\\"), TEXTVIEW(".tar.gz"));
+	RunAncestorTest(TEXTVIEW("."), TEXTVIEW("."));
+	RunAncestorTest(TEXTVIEW(".."), TEXTVIEW(".."));
+	RunAncestorTest(TEXTVIEW("File"), TEXTVIEW("File"));
+	RunAncestorTest(TEXTVIEW("File/"), TEXTVIEW("File"));
+	RunAncestorTest(TEXTVIEW("File.txt"), TEXTVIEW("File.txt"));
+	RunAncestorTest(TEXTVIEW("File.tar.gz"), TEXTVIEW("File.tar.gz"));
+	RunAncestorTest(TEXTVIEW("File.tar.gz/"), TEXTVIEW("File.tar.gz"));
+	RunAncestorTest(TEXTVIEW("File.tar.gz\\"), TEXTVIEW("File.tar.gz"));
+
+	RunAncestorTest(TEXTVIEW("C:/Folder"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/File"), TEXTVIEW("C:/Folder/File"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/File.txt"), TEXTVIEW("C:/Folder/File.txt"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/File.tar.gz"), TEXTVIEW("C:/Folder/File.tar.gz"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/First.Last/File"), TEXTVIEW("C:/Folder/First.Last/File"), TEXTVIEW("C:/Folder/First.Last"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/First.Last/File.txt"), TEXTVIEW("C:/Folder/First.Last/File.txt"), TEXTVIEW("C:/Folder/First.Last"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+	RunAncestorTest(TEXTVIEW("C:/Folder/First.Last/File.tar.gz"), TEXTVIEW("C:/Folder/First.Last/File.tar.gz"), TEXTVIEW("C:/Folder/First.Last"), TEXTVIEW("C:/Folder"), TEXTVIEW("C:/"));
+
+	// Windows path specifying drive letter but relative path rather than absolute
+	// Not well handled elsewhere in the engine but we parse it here
+	RunAncestorTest(TEXTVIEW("C:Folder/File"), TEXTVIEW("C:Folder/File"), TEXTVIEW("C:Folder"), TEXTVIEW("C:"));
+
+	RunAncestorTest(TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+	RunAncestorTest(TEXTVIEW("C:\\Folder\\"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+	RunAncestorTest(TEXTVIEW("C:\\Folder\\File"), TEXTVIEW("C:\\Folder\\File"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+	RunAncestorTest(TEXTVIEW("C:\\Folder\\First.Last\\"), TEXTVIEW("C:\\Folder\\First.Last"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+	RunAncestorTest(TEXTVIEW("C:\\Folder\\First.Last\\File"), TEXTVIEW("C:\\Folder\\First.Last\\File"), TEXTVIEW("C:\\Folder\\First.Last"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+	RunAncestorTest(TEXTVIEW("C:\\Folder\\First.Last\\File.txt"), TEXTVIEW("C:\\Folder\\First.Last\\File.txt"), TEXTVIEW("C:\\Folder\\First.Last"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+	RunAncestorTest(TEXTVIEW("C:\\Folder\\First.Last\\File.tar.gz"), TEXTVIEW("C:\\Folder\\First.Last\\File.tar.gz"), TEXTVIEW("C:\\Folder\\First.Last"), TEXTVIEW("C:\\Folder"), TEXTVIEW("C:\\"));
+
+	RunAncestorTest(TEXTVIEW("/MountPoint"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint/"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint/Sub"), TEXTVIEW("/MountPoint/Sub"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint/Sub/File"), TEXTVIEW("/MountPoint/Sub/File"), TEXTVIEW("/MountPoint/Sub"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint/Sub/File.txt"), TEXTVIEW("/MountPoint/Sub/File.txt"), TEXTVIEW("/MountPoint/Sub"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint/Sub/File.tar.gz"), TEXTVIEW("/MountPoint/Sub/File.tar.gz"), TEXTVIEW("/MountPoint/Sub"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+
+	RunAncestorTest(TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName"));
+	RunAncestorTest(TEXTVIEW("\\\\ShareName/Path/"), TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName"));
+	RunAncestorTest(TEXTVIEW("\\\\ShareName/Path/Sub"), TEXTVIEW("\\\\ShareName/Path/Sub"), TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName"));
+	RunAncestorTest(TEXTVIEW("\\\\ShareName/Path/Sub/File"), TEXTVIEW("\\\\ShareName/Path/Sub/File"), TEXTVIEW("\\\\ShareName/Path/Sub"), TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName"));
+	RunAncestorTest(TEXTVIEW("\\\\ShareName/Path/Sub/File.txt"), TEXTVIEW("\\\\ShareName/Path/Sub/File.txt"), TEXTVIEW("\\\\ShareName/Path/Sub"), TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName"));
+	RunAncestorTest(TEXTVIEW("\\\\ShareName/Path/Sub/File.tar.gz"), TEXTVIEW("\\\\ShareName/Path/Sub/File.tar.gz"), TEXTVIEW("\\\\ShareName/Path/Sub"), TEXTVIEW("\\\\ShareName/Path"), TEXTVIEW("\\\\ShareName"));
+
+	// Duplicated path separators
+	RunAncestorTest(TEXTVIEW("//MountPoint"), TEXTVIEW("//MountPoint"));     // Double leadings slashes treated like a windows share
+	RunAncestorTest(TEXTVIEW("//\\MountPoint"), TEXTVIEW("//\\MountPoint")); // SplitVolumeSpecifier treats this as a root
+	RunAncestorTest(TEXTVIEW("/\\MountPoint"), TEXTVIEW("/\\MountPoint"));   // Looks like a share name to SplitVolumeSpecifier
+	RunAncestorTest(TEXTVIEW("/MountPoint//"), TEXTVIEW("/MountPoint"), TEXT("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint//Sub"),
+		TEXTVIEW("/MountPoint//Sub"), // We don't remove the internal duplication because we're using the source string
+		TEXTVIEW("/MountPoint"),      // We strip the extras when moving to the next ancestor
+		TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("/MountPoint/Sub//File"), TEXTVIEW("/MountPoint/Sub//File"), TEXTVIEW("/MountPoint/Sub"), TEXTVIEW("/MountPoint"), TEXTVIEW("/"));
+	RunAncestorTest(TEXTVIEW("\\\\\\NotShareName/Path"), TEXTVIEW("\\\\\\NotShareName/Path"), TEXTVIEW("\\\\\\NotShareName")); // SplitVolumeSpecifier allows extra separators after the two-separator prefix
+}
+
 TEST_CASE_NAMED(FPathViewsAppendTest, "System::Core::Misc::PathViews::Append", "[ApplicationContextMask][SmokeFilter]")
 {
 	TStringBuilder<256> Path;
@@ -894,33 +1040,34 @@ TEST_CASE_NAMED(FPathViewsVolumeSpecifierTest, "System::Core::Misc::PathViews::V
 		FStringView Remainder;
 	};
 	FTestCase TestCases[] = {
-		{ TEXTVIEW(""),					false,	TEXTVIEW(""),			TEXTVIEW("") },
-		{ TEXTVIEW("D:"),				true,	TEXTVIEW("D:"),			TEXTVIEW("") },
-		{ TEXTVIEW("D:/"),				false,	TEXTVIEW("D:"),			TEXTVIEW("/") },
-		{ TEXTVIEW("D:\\"),				false,	TEXTVIEW("D:"),			TEXTVIEW("\\") },
-		{ TEXTVIEW("D:root/path"),		true,	TEXTVIEW("D:"),			TEXTVIEW("root/path") },
-		{ TEXTVIEW("D:/root/path"),		false,	TEXTVIEW("D:"),			TEXTVIEW("/root/path") },
-		{ TEXTVIEW("D:\\root\\path"),	false,	TEXTVIEW("D:"),			TEXTVIEW("\\root\\path") },
-		{ TEXTVIEW("//volume"),			false,	TEXTVIEW("//volume"),	TEXTVIEW("") },
-		{ TEXTVIEW("\\\\volume"),		false,	TEXTVIEW("\\\\volume"),	TEXTVIEW("") },
-		{ TEXTVIEW("/\\volume"),		false,	TEXTVIEW("/\\volume"),	TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("\\/volume"),		false,	TEXTVIEW("\\/volume"),	TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("//volume/"),		false,	TEXTVIEW("//volume"),	TEXTVIEW("/") },
-		{ TEXTVIEW("//volume/root"),	false,	TEXTVIEW("//volume"),	TEXTVIEW("/root") },
-		{ TEXTVIEW("/root/path"),		false,	TEXTVIEW(""),			TEXTVIEW("/root/path") },
-		{ TEXTVIEW("\\root\\path"),		false,	TEXTVIEW(""),			TEXTVIEW("\\root\\path") },
-		{ TEXTVIEW("root/path"),		false,	TEXTVIEW(""),			TEXTVIEW("root/path") },
-		{ TEXTVIEW("/"),				false,	TEXTVIEW(""),			TEXTVIEW("/") },
-		{ TEXTVIEW("\\"),				false,	TEXTVIEW(""),			TEXTVIEW("\\") },
-		{ TEXTVIEW("//"),				false,	TEXTVIEW("//"),			TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("\\\\"),				false,	TEXTVIEW("\\\\"),		TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("/\\"),				false,	TEXTVIEW("/\\"),		TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("\\/"),				false,	TEXTVIEW("\\/"),		TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("/:"),				false,	TEXTVIEW(""),			TEXTVIEW("/:") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW(":"),				true,	TEXTVIEW(":"),			TEXTVIEW("") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW(":/"),				false,	TEXTVIEW(":"),			TEXTVIEW("/") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW(":root"),			true,	TEXTVIEW(":"),			TEXTVIEW("root") }, // Poorly defined case, somewhat arbitrary
-		{ TEXTVIEW("////volume/path"),	false,	TEXTVIEW("////volume"),	TEXTVIEW("/path") }, // Poorly defined case, somewhat arbitrary, @see RemoveDuplicateSlashes
+		{TEXTVIEW(""),                 false, TEXTVIEW(""),           TEXTVIEW("")            },
+		{ TEXTVIEW("D:"),              true,  TEXTVIEW("D:"),         TEXTVIEW("")            },
+		{ TEXTVIEW("D:/"),             false, TEXTVIEW("D:"),         TEXTVIEW("/")           },
+		{ TEXTVIEW("D:\\"),            false, TEXTVIEW("D:"),         TEXTVIEW("\\")          },
+		{ TEXTVIEW("D:root/path"),     true,  TEXTVIEW("D:"),         TEXTVIEW("root/path")   },
+		{ TEXTVIEW("D:/root/path"),    false, TEXTVIEW("D:"),         TEXTVIEW("/root/path")  },
+		{ TEXTVIEW("D:\\root\\path"),  false, TEXTVIEW("D:"),         TEXTVIEW("\\root\\path")},
+		{ TEXTVIEW("//volume"),        false, TEXTVIEW("//volume"),   TEXTVIEW("")            },
+		{ TEXTVIEW("\\\\volume"),      false, TEXTVIEW("\\\\volume"), TEXTVIEW("")            },
+		{ TEXTVIEW("/\\volume"),       false, TEXTVIEW("/\\volume"),  TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("\\/volume"),       false, TEXTVIEW("\\/volume"),  TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("//\\volume"),      false, TEXTVIEW("//\\volume"), TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("//volume/"),       false, TEXTVIEW("//volume"),   TEXTVIEW("/")           },
+		{ TEXTVIEW("//volume/root"),   false, TEXTVIEW("//volume"),   TEXTVIEW("/root")       },
+		{ TEXTVIEW("/root/path"),      false, TEXTVIEW(""),           TEXTVIEW("/root/path")  },
+		{ TEXTVIEW("\\root\\path"),    false, TEXTVIEW(""),           TEXTVIEW("\\root\\path")},
+		{ TEXTVIEW("root/path"),       false, TEXTVIEW(""),           TEXTVIEW("root/path")   },
+		{ TEXTVIEW("/"),               false, TEXTVIEW(""),           TEXTVIEW("/")           },
+		{ TEXTVIEW("\\"),              false, TEXTVIEW(""),           TEXTVIEW("\\")          },
+		{ TEXTVIEW("//"),              false, TEXTVIEW("//"),         TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("\\\\"),            false, TEXTVIEW("\\\\"),       TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("/\\"),             false, TEXTVIEW("/\\"),        TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("\\/"),             false, TEXTVIEW("\\/"),        TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("/:"),              false, TEXTVIEW(""),           TEXTVIEW("/:")          }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW(":"),               true,  TEXTVIEW(":"),          TEXTVIEW("")            }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW(":/"),              false, TEXTVIEW(":"),          TEXTVIEW("/")           }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW(":root"),           true,  TEXTVIEW(":"),          TEXTVIEW("root")        }, // Poorly defined case, somewhat arbitrary
+		{ TEXTVIEW("////volume/path"), false, TEXTVIEW("////volume"), TEXTVIEW("/path")       }, // Poorly defined case, somewhat arbitrary, @see RemoveDuplicateSlashes
 	};
 
 	for (const FTestCase& TestCase : TestCases)

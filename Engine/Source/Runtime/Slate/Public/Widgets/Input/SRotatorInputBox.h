@@ -53,13 +53,7 @@ public:
 		SLATE_ATTRIBUTE( TOptional<NumericType>, Yaw )
 
 		/** Should the axis labels be colored */
-		SLATE_ARGUMENT( bool, bColorAxisLabels )		
-
-		UE_DEPRECATED(5.0, "AllowResponsiveLayout unused as it is no longer necessary.")
-		FArguments& AllowResponsiveLayout(bool bAllow)
-		{
-			return TSlateBaseNamedArgs<SNumericRotatorInputBox<NumericType>>::Me();
-		}
+		SLATE_ARGUMENT( bool, bColorAxisLabels )
 
 		/** Font to use for the text in this box */
 		SLATE_ATTRIBUTE( FSlateFontInfo, Font )

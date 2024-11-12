@@ -12,6 +12,10 @@
 #include "FxMat/MaterialManager.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
 
+#if WITH_EDITOR
+#include "TextureCompiler.h"
+#endif
+
 
 EDrawMaterialAttributeTarget UTG_Expression_MaterialBase::ConvertEMaterialPropertyToEDrawMaterialAttributeTarget(EMaterialProperty InMaterialProperty)
 {
@@ -107,9 +111,9 @@ void UTG_Expression_MaterialBase::GenerateMaterialAttributeOptions()
 	// Detect the set of available material properties for rendering
 	AvailableMaterialAttributeIds.Empty();
 	AvailableMaterialAttributeNames.Empty();
-	if (MaterialInstance)
+	if (GetMaterial())
 	{
-		UMaterial* RefMaterial = MaterialInstance->GetMaterial();
+		UMaterial* RefMaterial = GetMaterial()->GetMaterial();
 		for (int i = MP_EmissiveColor; i < MP_MAX; ++i)
 		{
 			if (RefMaterial->IsPropertyConnected(EMaterialProperty(i)))
@@ -130,6 +134,15 @@ void UTG_Expression_MaterialBase::GenerateMaterialAttributeOptions()
 	}
 }
 
+void UTG_Expression_MaterialBase::Initialize()
+{
+	if(GetMaterial() && !MaterialInstance)
+	{
+		MaterialInstance = UMaterialInstanceDynamic::Create(GetMaterial(), this);
+	}
+	GenerateMaterialAttributeOptions(); // also populate the attributes availables
+}
+
 void UTG_Expression_MaterialBase::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
@@ -139,24 +152,14 @@ void UTG_Expression_MaterialBase::Evaluate(FTG_EvaluationContext* InContext)
 	/// Set it to false always
 	TiledMode = true;
 
-	if (GetMaterial() && MaterialInstance)
+	if (GetMaterial())
 	{
 		FString AssetName = GetMaterial()->GetName();
-
-		const auto RenderMaterial = std::make_shared<RenderMaterial_BP>(AssetName, MaterialInstance->GetMaterial(), MaterialInstance);
+		const auto RenderMaterial = std::make_shared<RenderMaterial_BP>(AssetName, GetMaterial(), nullptr);
 		Result = CreateRenderMaterialJob(InContext, RenderMaterial, Output.GetBufferDescriptor(), GetRenderedAttributeId());
 	}
 
 	Output = Result;
-}
-
-void UTG_Expression_MaterialBase::Initialize()
-{
-	if(GetMaterial() && !MaterialInstance)
-	{
-		MaterialInstance = UMaterialInstanceDynamic::Create(GetMaterial(), this);
-	}
-	GenerateMaterialAttributeOptions(); // also populate the attributes availables
 }
 
 TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const FString& InName, const FString& InMaterialPath, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget)
@@ -174,6 +177,26 @@ TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_Evaluation
 	InRenderMaterial->Instance()->EnsureIsComplete();
 	InRenderMaterial->Instance()->SetForceMipLevelsToBeResident(true, true, -1);
 
+	TArray<UTexture*> ReferencedTextures;
+	
+	InRenderMaterial->Instance()->GetUsedTextures(ReferencedTextures, EMaterialQualityLevel::Num, false, ERHIFeatureLevel::Num, true);
+
+	for (int32 i = 0; i < ReferencedTextures.Num(); ++i)
+	{
+		UTexture* ReferencedTexture = Cast<UTexture>(ReferencedTextures[i]);
+
+		if(ReferencedTexture)
+		{
+			ReferencedTexture->SetForceMipLevelsToBeResident(30);
+			ReferencedTexture->WaitForStreaming();
+
+#if WITH_EDITOR
+			const bool IsCompiling = FTextureCompilingManager::Get().IsCompilingTexture(ReferencedTexture); 
+			checkSlow(!IsCompiling);
+#endif
+		}
+	}
+	
 	JobUPtr MaterialJob = std::make_unique<Job>(InContext->Cycle->GetMix(), InContext->TargetId, std::static_pointer_cast<BlobTransform>(InRenderMaterial), GetParentNode());
 
 	FLinearColor PSControl;
@@ -199,7 +222,7 @@ TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_Evaluation
 
 	Desc.DefaultValue = FLinearColor::Black;
 
-	LinkMaterialParameters(InContext, MaterialJob, InRenderMaterial->GetMaterial(), Desc);
+	LinkMaterialParameters(InContext, MaterialJob, GetMaterial(), Desc);
 
 	const TiledBlob_PromisePtr MaterialResult = std::static_pointer_cast<TiledBlob_Promise>(MaterialJob->InitResult(InRenderMaterial->GetName(), &Desc));
 	MaterialJob->AddArg(WithUnbounded(ARG_BOOL(TiledMode, "TiledMode")));
@@ -220,132 +243,140 @@ TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_Evaluation
 
 }
 
-void UTG_Expression_MaterialBase::LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterial* InMaterial, BufferDescriptor InDescriptor)
+void UTG_Expression_MaterialBase::LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterialInterface* InMaterial, BufferDescriptor InDescriptor)
 {
 	if (InMaterialJob)
 	{	
-		TArray<FMaterialParameterInfo> OutParameterInfo;
-		TArray<FGuid> OutParameterIds;
-
-		InMaterial->GetAllScalarParameterInfo(OutParameterInfo, OutParameterIds);
-
-		for (auto ParameterInfo : OutParameterInfo)
+		for (auto& ArgToMatParam : ArgToMatParams)
 		{
-			FTG_Var* Var = InContext->Inputs.GetVar(ParameterInfo.Name);
-			const FTG_Argument* VarArgument = InContext->Inputs.GetVarArgument(ParameterInfo.Name);
-			
+			FTG_Var* Var = InContext->Inputs.GetVar(ArgToMatParam.ArgName);
 			if (Var && !Var->IsEmpty())
 			{
-				FName CPPType = VarArgument->GetCPPTypeName();
-
-				float ParamValue;
-				
-				if (CPPType == TEXT("int32"))
+				switch (ArgToMatParam.MatType)
 				{
-					ParamValue = Var->GetAs<int32>();
-				}
-				else if (CPPType == TEXT("uint32"))
+				case EMaterialParameterType::Scalar:
 				{
-					ParamValue = Var->GetAs<uint32>();
+					const FTG_Argument* VarArgument = InContext->Inputs.GetVarArgument(ArgToMatParam.ArgName);
+					FName CPPType = VarArgument->GetCPPTypeName();
+					float ParamValue;
+					if (CPPType == TEXT("int32"))
+					{
+						ParamValue = Var->GetAs<int32>();
+					}
+					else if (CPPType == TEXT("uint32"))
+					{
+						ParamValue = Var->GetAs<uint32>();
+					}
+					else
+					{
+						ParamValue = Var->GetAs<float>();
+					}
+
+					InMaterialJob->AddArg(ARG_FLOAT(ParamValue, TCHAR_TO_UTF8(*ArgToMatParam.MatParamName.ToString())));
 				}
-				else
+				break;
+				case EMaterialParameterType::Vector:
 				{
-					ParamValue = Var->GetAs<float>();
+					auto ParamValue = Var->EditAs<FLinearColor>();
+					InMaterialJob->AddArg(ARG_VECTOR(ParamValue, TCHAR_TO_UTF8(*ArgToMatParam.MatParamName.ToString())));
 				}
-				
-				InMaterialJob->AddArg(ARG_FLOAT(ParamValue, TCHAR_TO_UTF8(*ParameterInfo.Name.ToString())));
-			}
-		}
-		
-		InMaterial->GetAllTextureParameterInfo(OutParameterInfo, OutParameterIds);
-
-		for (auto ParameterInfo : OutParameterInfo)
-		{
-			FTG_Var* Var = InContext->Inputs.GetVar(ParameterInfo.Name);
-
-			if (Var && !Var->IsEmpty())
-			{
-				FTG_Texture& ParamValue = Var->EditAs<FTG_Texture>();
-
-				// there could be a case where the var has an empty blob, we don't need to do anything
-				// we fallback to the default internal material parameter value for this input pin
-				if (ParamValue.RasterBlob)
+				break;
+				case EMaterialParameterType::DoubleVector:
 				{
-					auto CombinedBlob = T_CombineTiledBlob::Create(InContext->Cycle, ParamValue.GetBufferDescriptor(), 0, ParamValue.RasterBlob);
-
-					auto ArgBlob = ARG_BLOB(CombinedBlob, TCHAR_TO_UTF8(*ParameterInfo.Name.ToString()));
-	
-					ArgBlob->SetHandleTiles(TiledMode);
-				
-					InMaterialJob->AddArg(ArgBlob);
+					/*
+					auto ParamValue = Var->EditAs<FVector4d>();
+					Job->AddArg(ARG_VECTOR4(ParamValue, TCHAR_TO_UTF8(*ArgToMatParam.MatParamName.ToString())));
+					*/
 				}
-			}
-		}
+				break;
+				case EMaterialParameterType::Texture:
+				{
+					FTG_Texture& ParamValue = Var->EditAs<FTG_Texture>();
 
-		InMaterial->GetAllVectorParameterInfo(OutParameterInfo, OutParameterIds);
+					// there could be a case where the var has an empty blob, we don't need to do anything
+					// we fallback to the default internal material parameter value for this input pin
+					if (ParamValue.RasterBlob)
+					{
+						auto CombinedBlob = T_CombineTiledBlob::Create(InContext->Cycle, ParamValue.GetBufferDescriptor(), 0, ParamValue.RasterBlob);
 
-		for (auto ParameterInfo : OutParameterInfo)
-		{
-			FTG_Var* Var = InContext->Inputs.GetVar(ParameterInfo.Name);
-			
-			if (Var && !Var->IsEmpty())
-			{
-				auto ParamValue = Var->EditAs<FLinearColor>();
-				InMaterialJob->AddArg(ARG_VECTOR(ParamValue, TCHAR_TO_UTF8(*ParameterInfo.Name.ToString())));
-			}
-		}
+						auto ArgBlob = ARG_BLOB(CombinedBlob, TCHAR_TO_UTF8(*ArgToMatParam.MatParamName.ToString()));
+
+						ArgBlob->SetHandleTiles(TiledMode);
+
+						InMaterialJob->AddArg(ArgBlob);
+					}
+				}
+				break;
+				case EMaterialParameterType::StaticSwitch:
+				{
 #if WITH_EDITORONLY_DATA
-		InMaterial->GetAllStaticSwitchParameterInfo(OutParameterInfo, OutParameterIds);
-		for (auto ParameterInfo : OutParameterInfo)
-		{
-			FTG_Var* Var = InContext->Inputs.GetVar(ParameterInfo.Name);
-			
-			if (Var && !Var->IsEmpty())
-			{
-				auto ParamValue = Var->EditAs<bool>();
-				InMaterialJob->AddArg(ARG_INT(ParamValue, TCHAR_TO_UTF8(*ParameterInfo.Name.ToString())));
+					auto ParamValue = Var->EditAs<bool>();
+					InMaterialJob->AddArg(ARG_INT(ParamValue, TCHAR_TO_UTF8(*ArgToMatParam.MatParamName.ToString())));
+#endif
+				}
+				break;
+				default:
+					break;
+				}
 			}
 		}
-#endif
-		//TODO: We need to add double Vector
-		/*InMaterial->GetAllDoubleVectorParameterInfo(OutParameterInfo, OutParameterIds);
-
-		for (auto ParameterInfo : OutParameterInfo)
-		{
-			FTG_Var* Var = InContext->Inputs.GetVar(ParameterInfo.Name);
-
-			if (Var)
-			{
-				auto ParamValue = Var->EditAs<FVector4d>();
-				Job->AddArg(ARG_VECTOR4(ParamValue, TCHAR_TO_UTF8(*ParameterInfo.Name.ToString())));
-			}
-		}*/
 	}
 }
 
-void UTG_Expression_MaterialBase::AddSignatureParam(TArray<FMaterialParameterInfo> OutParameterInfo, FName CPPTypeName,  
-                                                         FTG_Signature::FInit& SignatureInit, bool IsScalar /*= false*/) const
+FName UTG_Expression_MaterialBase::CPPTypeNameFromMaterialParamType(EMaterialParameterType InMatType)
 {
-	for (FMaterialParameterInfo parameter : OutParameterInfo)
+	switch (InMatType)
 	{
+	case EMaterialParameterType::Scalar:
+		return TEXT("float");
+	case EMaterialParameterType::Vector:
+		return TEXT("FLinearColor");
+	case EMaterialParameterType::DoubleVector:
+		return TEXT("FVector4");
+	case EMaterialParameterType::Texture:
+		return TEXT("FTG_Texture");
+	case EMaterialParameterType::StaticSwitch:
+		return TEXT("bool");
+	default:
+		return FName();
+	}
+}
+
+void UTG_Expression_MaterialBase::AddSignatureParam(const TArray<FMaterialParameterInfo>& OutParameterInfo, const TArray<FGuid>& OutGuids,
+		EMaterialParameterType MatType, FTG_Signature::FInit& SignatureInit) const
+{
+	for (int i = 0; i < OutParameterInfo.Num(); ++i)
+	{
+		const FMaterialParameterInfo& MatParam = OutParameterInfo[i];
+		const FGuid& Guid = OutGuids[i];
+
 		TMap<FName, FString> MetaDataMap;
 #if WITH_EDITOR
-		if(IsScalar)
+		if(MatType == EMaterialParameterType::Scalar)
 		{
 			// In case of scalar parameter, material has input range. We use that range to handle the input in the node.
 			float MinValue, MaxValue;
-
-			if(GetMaterial()->GetScalarParameterSliderMinMax(parameter.Name, MinValue, MaxValue))
+			if(GetMaterial()->GetScalarParameterSliderMinMax(MatParam.Name, MinValue, MaxValue))
 			{
 				MetaDataMap.Add("MinValue", FString::SanitizeFloat(MinValue));
 				MetaDataMap.Add("MaxValue", FString::SanitizeFloat(MaxValue));
 			}
 		}
-#endif		
-		FTG_Argument Arg{ parameter.Name, CPPTypeName, { ETG_Access::In }, MetaDataMap };
+#endif	
+
+		// Check that no other arg have the  same name in the signature already
+		// If it's the case, postfix that arg name from the point of view of the signature
+		TArray<FName> ArgNames = TG_MakeArrayOfArgumentNames(SignatureInit.Arguments);
+		FName ArgName = TG_MakeNameUniqueInCollection(MatParam.Name, ArgNames);
+	
+		// New Arg of the signature
+		FTG_Argument Arg{ ArgName, CPPTypeNameFromMaterialParamType(MatType), {ETG_Access::In}, MetaDataMap};
 		
 		Arg.SetPersistentSelfVar(); // Set the material parameter persistent selfvar in order to save the state
 		SignatureInit.Arguments.Add(Arg);
+
+		// And new entry in ArgtoMatParams
+		ArgToMatParams.Add({ ArgName, MatParam.Name, Guid, MatType });
 	}
 }
 
@@ -353,31 +384,35 @@ FTG_SignaturePtr UTG_Expression_MaterialBase::BuildSignatureDynamically() const
 {
 	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
 
+	// the Arg to Material Param array is populated along with the signature
+	// start fresh here
+	ArgToMatParams.Empty();
+
+
 	// append
 	if (GetMaterial())
 	{
 		TArray<FMaterialParameterInfo> OutParameterInfo;
 		TArray<FGuid> OutParameterIds;
 
+		GetMaterial()->GetAllScalarParameterInfo(OutParameterInfo, OutParameterIds);
+		AddSignatureParam(OutParameterInfo, OutParameterIds, EMaterialParameterType::Scalar, SignatureInit);
+
+		GetMaterial()->GetAllVectorParameterInfo(OutParameterInfo, OutParameterIds);
+		AddSignatureParam(OutParameterInfo, OutParameterIds, EMaterialParameterType::Vector, SignatureInit);
+
+		// TODO: We need to add Double Vector4 support.
+		//GetMaterial()->GetAllDoubleVectorParameterInfo(OutParameterInfo, OutParameterIds);
+		//AddSignatureParam(OutParameterInfo, OutParameterIds, EMaterialParameterType::DoubleVector, SignatureInit);
+
 		// The texture param are declared as FTG_Texture so they can be connected from the standard nodes
 		GetMaterial()->GetAllTextureParameterInfo(OutParameterInfo, OutParameterIds);
-		AddSignatureParam(OutParameterInfo, TEXT("FTG_Texture"), SignatureInit);
+		AddSignatureParam(OutParameterInfo, OutParameterIds, EMaterialParameterType::Texture, SignatureInit);
 		
 #if WITH_EDITORONLY_DATA
 		GetMaterial()->GetAllStaticSwitchParameterInfo(OutParameterInfo, OutParameterIds);
-		AddSignatureParam(OutParameterInfo, TEXT("bool"), SignatureInit);
-#endif
-		GetMaterial()->GetAllScalarParameterInfo(OutParameterInfo, OutParameterIds);
-		AddSignatureParam(OutParameterInfo, TEXT("float"), SignatureInit, true);
-
-		GetMaterial()->GetAllVectorParameterInfo(OutParameterInfo, OutParameterIds);
-		AddSignatureParam(OutParameterInfo, TEXT("FLinearColor"), SignatureInit);
-
-		// TODO: We need to add Double Vector4 support.
-		/*Material->GetAllDoubleVectorParameterInfo(OutParameterInfo, OutParameterIds);
-		AddSignatureParam(OutParameterInfo, TEXT("FVector4"), SignatureInit);*/
-
-		
+		AddSignatureParam(OutParameterInfo, OutParameterIds, EMaterialParameterType::StaticSwitch, SignatureInit);
+#endif		
 	}
 	
 	return MakeShared<FTG_Signature>(SignatureInit);
@@ -386,24 +421,12 @@ FTG_SignaturePtr UTG_Expression_MaterialBase::BuildSignatureDynamically() const
 
 void UTG_Expression_MaterialBase::CopyVarGeneric(const FTG_Argument& Arg, FTG_Var* InVar, bool CopyVarToArg)
 {
-	if(MaterialInstance)
+	FArgToMaterialParamInfo* ArgToMatParam = ArgToMatParams.FindByKey(Arg.Name);
+	if (MaterialInstance && ArgToMatParam)
 	{
-		// Try to find the MatParam matching the arg
-		if (Arg.CPPTypeName.IsEqual(TEXT("bool")))
+		switch (ArgToMatParam->MatType)
 		{
-	#if WITH_EDITORONLY_DATA
-			if (CopyVarToArg)
-			{
-				MaterialInstance->SetStaticSwitchParameterValueEditorOnly(Arg.GetName(), InVar->GetAs<bool>());
-			} else
-			{
-				FMaterialParameterInfo ParameterInfo(Arg.GetName());
-				FGuid OutParameterId;
-				MaterialInstance->GetStaticSwitchParameterValue(ParameterInfo, InVar->EditAs<bool>(), OutParameterId);
-			}
-	#endif
-		}
-		else if (Arg.CPPTypeName.IsEqual(TEXT("float")))
+		case EMaterialParameterType::Scalar:
 		{
 			if (CopyVarToArg)
 			{
@@ -415,40 +438,68 @@ void UTG_Expression_MaterialBase::CopyVarGeneric(const FTG_Argument& Arg, FTG_Va
 				MaterialInstance->GetScalarParameterValue(ParameterInfo, InVar->EditAs<float>());
 			}
 		}
-		else if (Arg.CPPTypeName.IsEqual(TEXT("FLinearColor")))
+		break;
+		case EMaterialParameterType::Vector:
 		{
 			if (CopyVarToArg)
 			{
 				MaterialInstance->SetVectorParameterValue(Arg.GetName(), InVar->GetAs<FLinearColor>());
-			} else
+			}
+			else
 			{
 				FMaterialParameterInfo ParameterInfo(Arg.GetName());
 				MaterialInstance->GetVectorParameterValue(ParameterInfo, InVar->EditAs<FLinearColor>());
 			}
 		}
-		/*else if (Arg.CPPTypeName.IsEqual(TEXT("FVector4")))
+		break;
+		case EMaterialParameterType::DoubleVector:
 		{
-			if (CopyVarToArg)
+			// TODO: Support that case later ?
+			/*if (CopyVarToArg)
 			{
-				MaterialInstance->SetDoubleVectorParameterValue(Arg.GetName(), InVar->GetAs<FVector4>());
-			} else
+				MaterialInstance->SetDoubleVectorParameterValue(Arg.GetName(), InVar->GetAs<FVector4d>());
+			}
+			else
 			{
 				FMaterialParameterInfo ParameterInfo(Arg.GetName());
-				MaterialInstance->GetDoubleVectorParameterValue(ParameterInfo, InVar->EditAs<FVector4>());
-			}
-		}*/
-		else if (Arg.CPPTypeName.IsEqual(TEXT("FTG_Texture")))
+				MaterialInstance->GetDoubleVectorParameterValue(ParameterInfo, InVar->EditAs<FVector4d>());
+			}*/
+		}
+		break;
+		case EMaterialParameterType::Texture:
 		{
 			// TODO: Support that case later ?
 			/*	if (CopyVarToArg)
-				{
-					MaterialInstance->SetScalarParameterValue(Arg.GetName(), InVar->GetAs<float>());
-				} else
-				{
-					FMaterialParameterInfo ParameterInfo(Arg.GetName());
-					MaterialInstance->GetScalarParameterValue(ParameterInfo, InVar->EditAs<float>());
-				}*/
+			{
+				MaterialInstance->SetScalarParameterValue(Arg.GetName(), InVar->GetAs<float>());
+			}
+			else
+			{
+				FMaterialParameterInfo ParameterInfo(Arg.GetName());
+				MaterialInstance->GetScalarParameterValue(ParameterInfo, InVar->EditAs<float>());
+			}*/
+		}
+		break;
+		case EMaterialParameterType::StaticSwitch:
+		{
+#if WITH_EDITORONLY_DATA
+			if (CopyVarToArg)
+			{
+				// Disable assigning static bool values to MID for now see UE-209533 & UE-219306
+				// We need to use a different solution for Material with Static Switch, we can't use MID for this, evetnually MIC editor only...
+				//MaterialInstance->SetStaticSwitchParameterValueEditorOnly(Arg.GetName(), InVar->GetAs<bool>());
+			}
+			else
+			{
+				FMaterialParameterInfo ParameterInfo(Arg.GetName());
+				FGuid OutParameterId;
+				MaterialInstance->GetStaticSwitchParameterValue(ParameterInfo, InVar->EditAs<bool>(), OutParameterId);
+			}
+#endif
+		}
+		break;
+		default:
+			break;
 		}
 	}
-	
 }

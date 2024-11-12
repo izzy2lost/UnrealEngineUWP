@@ -218,13 +218,7 @@ void UTemplateSequencePropertyScalingInstantiatorSystem::OnRun(FSystemTaskPrereq
 
 		if (ParentEntity.IsValid())
 		{
-			TOptionalComponentReader<FGuid> Reader;
-			Reader = Linker->EntityManager.ReadComponent(ParentEntity, BuiltInComponents->SceneComponentBinding);
-			if (!Reader.IsValid())
-			{
-				Reader = Linker->EntityManager.ReadComponent(ParentEntity, BuiltInComponents->GenericObjectBinding);
-			}
-
+			TOptionalComponentReader<FGuid> Reader = Linker->EntityManager.ReadComponent(ParentEntity, BuiltInComponents->GenericObjectBinding);
 			if (ensure(Reader.IsValid()))
 			{
 				const FGuid ObjectBindingID = *Reader.ComponentAtIndex(0);

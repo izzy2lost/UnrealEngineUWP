@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IoStoreLooseFiles.h"
+#include "IoStoreWriter.h"
 
 #include "HAL/FileManager.h"
 #include "IO/IoStore.h"
@@ -63,9 +64,6 @@ public:
 	virtual void SetReferenceChunkDatabase(TSharedPtr<IIoStoreWriterReferenceChunkDatabase> ReferenceChunkDatabase) override
 	{ }
 
-	virtual void SetHashDatabase(TSharedPtr<IIoStoreWriterHashDatabase> HashDatabase, bool bVerifyHashDatabase) override
-	{ }
-
 	virtual void EnableDiskLayoutOrdering(const TArray<TUniquePtr<FIoStoreReader>>& PatchSourceReaders = TArray<TUniquePtr<FIoStoreReader>>())
 	{ }
 
@@ -83,9 +81,9 @@ public:
 
 			virtual ~FWriteRequest() = default;
 
-			void PrepareSourceBufferAsync(FGraphEventRef CompletionEvent) override
+			void PrepareSourceBufferAsync(UE::Tasks::FTaskEvent& CompletionEvent) override
 			{
-				CompletionEvent->DispatchSubsequents();
+				CompletionEvent.Trigger();
 			}
 
 			const FIoBuffer* GetSourceBuffer() override
@@ -105,6 +103,16 @@ public:
 			TArrayView<const FFileRegion> GetRegions()
 			{
 				return TArrayView<const FFileRegion>();
+			}
+
+			virtual const FIoHash* GetChunkHash() override
+			{
+				return nullptr;
+			}
+
+			virtual uint64 GetSourceBufferSizeEstimate() override
+			{
+				return SourceBuffer.DataSize();
 			}
 
 			FIoBuffer SourceBuffer;
@@ -129,11 +137,11 @@ public:
 					
 					// Setup the task pipe when holding the lock to make it easy to flush all pending task pipe(s)
 
-					FGraphEventRef Event = FGraphEvent::CreateGraphEvent();
+					UE::Tasks::FTaskEvent Event { UE_SOURCE_LOCATION };
 					PendingWrite->WriteRequest->PrepareSourceBufferAsync(Event);
 					UE::Tasks::FTask ReadChunkTask = PendingWrite->TaskPipe.Launch(TEXT("ReadChunk"), [PendingWrite, Event]() mutable
 					{
-						Event->Wait();
+						Event.Wait();
 					});
 
 					UE::Tasks::FTask WriteChunkTask = PendingWrite->TaskPipe.Launch(TEXT("WriteChunk"), [this, PendingWrite]() mutable

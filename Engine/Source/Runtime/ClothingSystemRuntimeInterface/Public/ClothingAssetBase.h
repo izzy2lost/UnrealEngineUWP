@@ -51,18 +51,6 @@ public:
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual void UpdateAllLODBiasMappings(USkeletalMesh* SkeletalMesh)
 	PURE_VIRTUAL(UClothingAssetBase::UpdateAllLODBiasMappings,);
 
-	/**
-	 * Called on the clothing asset when the base data (physical mesh etc.) has
-	 * changed, so any intermediate generated data can be regenerated.
-	 */
-	UE_DEPRECATED(5.0, "Use InvalidateAllCachedData() instead")
-	virtual void InvalidateCachedData()
-	{
-#if WITH_EDITORONLY_DATA
-		InvalidateAllCachedData();
-#endif
-	}
-
 	/** Add a new LOD class instance. */
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual int32 AddNewLod()
 	PURE_VIRTUAL(UClothingAssetBase::AddNewLod(), return INDEX_NONE;);
@@ -82,7 +70,7 @@ public:
 	 * has changed, so any intermediate generated data can be regenerated.
 	 */
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual void InvalidateAllCachedData()
-	PURE_VIRTUAL(UClothingAssetBase::InvalidateCachedData(),);
+	PURE_VIRTUAL(UClothingAssetBase::InvalidateAllCachedData(),);
 #endif // WITH_EDITORONLY_DATA
 
 	/** 
@@ -101,11 +89,6 @@ public:
 	/** Get the number of LODs defined in the clothing asset */
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual int32 GetNumLods() const
 	PURE_VIRTUAL(UClothingAssetBase::GetNumLods(), return 0;);
-
-	/** Builds self collision data */
-	UE_DEPRECATED(5.0, "Cached data are now all rebuilt by calling InvalidateCachedData()")
-	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual void BuildSelfCollisionData()
-	PURE_VIRTUAL(UClothingAssetBase::BuildSelfCollisionData(), );
 
 	/** Called after all cloth assets sharing the same simulation are added or loaded */
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual void PostUpdateAllAssets()

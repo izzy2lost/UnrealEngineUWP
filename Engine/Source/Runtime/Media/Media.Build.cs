@@ -13,12 +13,10 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"RenderCore",
-					"ColorManagement",
 				});
 
 			PublicIncludePathModuleNames.AddRange(
 				new string[] {
-					"ColorManagement",
 					"RenderCore",
 				});
 		}

@@ -29,7 +29,7 @@ struct FTriangleInfoCache
 	void InitializeForTriangleSet(const MeshType& SampleMesh)
 	{
 		TriNormals.SetNumUninitialized(SampleMesh.MaxTriangleID());
-		TriAreas.SetNumUninitialized(SampleMesh.MaxTriangleID());
+		TriAreas.SetNumZeroed(SampleMesh.MaxTriangleID()); // note: zero the memory so we can include skipped triangle IDs in the sum below
 		TriFrames.SetNumUninitialized(SampleMesh.MaxTriangleID());
 		UVTriangles.SetNumUninitialized(SampleMesh.MaxTriangleID());
 				
@@ -46,6 +46,7 @@ struct FTriangleInfoCache
 					TriFrames[tid].ToPlaneUV(A), TriFrames[tid].ToPlaneUV(B), TriFrames[tid].ToPlaneUV(C));
 			}
 		});
+		// Note: This sum includes areas of skipped triangle IDs, which are zero by initialization above
 		TotalArea = 0;
 		for (double TriArea : TriAreas)
 		{
@@ -153,12 +154,21 @@ struct FPerTriangleDensePointSampling
 
 			int NumGenerated = 0;
 			FRandomStream RandomStream(tid + RandomSeed);
+
+			// We specially handle zero-area triangles, because the rejection-based sampling method hangs forever on degenerate triangles (no samples are in tri)
+			// (In future versions we give the option to not use rejection-based sampling at all, but this feature did not make it into 5.5)
+			bool bIsDegenerateTri = TriInfo.TriAreas[tid] == 0;
 			while (NumGenerated < NumSamples)
 			{
 				double a1 = RandomStream.GetFraction();
 				double a2 = RandomStream.GetFraction();
+				if (bIsDegenerateTri && a1 + a2 > 1)
+				{
+					a1 = 1-a1;
+					a2 = 1-a2;
+				}
 				FVector2d PointUV = TriUV.V[0] + a1 * V1 + a2 * V2;
-				if (TriUV.IsInside(PointUV))
+				if (bIsDegenerateTri || TriUV.IsInside(PointUV))
 				{
 					FVector3d Position = ProjectFrame.FromPlaneUV(PointUV, 2);
 					PointSetOut.DensePoints[StartIndex+NumGenerated] = Position;
@@ -496,7 +506,7 @@ void NonUniformMeshPointSampling(
 
 				if (IsValidPoint[VertexID] == false)		// if point is expired, discard it
 				{
-					PointOrdering.RemoveAtSwap(k, 1, EAllowShrinking::No);
+					PointOrdering.RemoveAtSwap(k, EAllowShrinking::No);
 					NumRemaining--;
 					k--;		// reconsider point we just swapped to index k
 					continue;
@@ -569,7 +579,7 @@ void NonUniformMeshPointSampling(
 				// if this is a method w/ no random variation or decay, this (point,radius) pair will never fit and can be removed
 				if (bIsFixedRadiusMethod)
 				{
-					PointOrdering.RemoveAtSwap(k, 1, EAllowShrinking::No);
+					PointOrdering.RemoveAtSwap(k, EAllowShrinking::No);
 					NumRemaining--;
 					k--;		// reconsider point we just swapped to index k
 				}
@@ -581,7 +591,7 @@ void NonUniformMeshPointSampling(
 			}
 
 			// remove selected point from ordering
-			PointOrdering.RemoveAtSwap(PointOrderingIndex, 1, EAllowShrinking::No);
+			PointOrdering.RemoveAtSwap(PointOrderingIndex, EAllowShrinking::No);
 
 			// emit our valid (point, triangle, radius) sample
 			FVector3d SamplePoint = DensePointSet.DensePoints[UseVertexID];

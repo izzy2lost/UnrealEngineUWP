@@ -3,21 +3,31 @@ using UnrealBuildTool;
 
 public class ToolMenusTests : TestModuleRules
 {
-	protected Metadata ToolMenusTestsMetadata = new Metadata() {
-		TestName = "ToolMenus",
-		TestShortName = "ToolMenus",
-		ReportType = "xml",
-		SupportedPlatforms = {
-			UnrealTargetPlatform.Win64,
-			UnrealTargetPlatform.Linux,
-			UnrealTargetPlatform.Mac } };
+	static ToolMenusTests()
+	{
+		if (InTestMode)
+		{
+			TestMetadata = new Metadata();
+			TestMetadata.TestName = "ToolMenus";
+			TestMetadata.TestShortName = "ToolMenus";
+			TestMetadata.ReportType = "xml";
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Linux);
+			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Mac);
 
-	/// <summary>
-	/// Test metadata to be used with BuildGraph
-	/// </summary>
-	public Metadata TestMetadata
-	{ 
-		get { return ToolMenusTestsMetadata; }
+			string PlatformCompilationArgs;
+			foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
+			{
+				if (Platform == UnrealTargetPlatform.Android)
+				{
+					PlatformCompilationArgs = "-allmodules -architectures=arm64";
+				}
+				else
+				{
+					PlatformCompilationArgs = "-allmodules";
+				}
+				TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
+			}
+		}
 	}
 
 	public ToolMenusTests(ReadOnlyTargetRules Target) : base(Target, true)
@@ -38,20 +48,5 @@ public class ToolMenusTests : TestModuleRules
 					"DesktopPlatform"
 				});
 		}
-
-		string PlatformCompilationArgs;
-		foreach (var Platform in UnrealTargetPlatform.GetValidPlatforms())
-		{
-			if (Platform == UnrealTargetPlatform.Android)
-			{
-				PlatformCompilationArgs = "-allmodules -architectures=arm64";
-			}
-			else
-			{
-				PlatformCompilationArgs = "-allmodules";
-			}
-			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
-		}
-		UpdateBuildGraphPropertiesFile(TestMetadata);
 	}
 }

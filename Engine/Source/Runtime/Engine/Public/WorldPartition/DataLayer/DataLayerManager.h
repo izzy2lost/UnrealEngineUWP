@@ -57,29 +57,55 @@ public:
 	}
 
 	//~ Begin Blueprint interface
+
+	/** Returns all Data Layer instances. */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API TArray<UDataLayerInstance*> GetDataLayerInstances() const;
 
+	/** Returns the Data Layer instance referencing the provided Data Layer asset (if any). */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAsset(const UDataLayerAsset* InDataLayerAsset) const;
 
+	/** Returns the Data Layer instance matching the provided Data Layer instance name (if any). */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromName(const FName& InDataLayerInstanceName) const;
 
+	/** Changes the Data Layer instance runtime state.
+	  * If recursive is set to true, the runtime state will also be applied to all child Data Layer instances.
+	  * Note:
+	  *  - Changing the runtime state of a Client-Only Data Layer instance must be done on the client side or else it will have no effect.
+	  *  - Changing the runtime state of a Server-Only Data Layer instance can only be done on the server side or else it will have no effect.
+	  *  - Changing the runtime state of a runtime Data Layer instance (with no Load Filter set on the asset) must be done on the server side 
+	  *    or else it will have no effect. The runtime state will then be replicated on the client.
+	  * (see Data Layer asset Load Filter for more details)
+	  */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API bool SetDataLayerInstanceRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive = false);
 
+	/** Finds a matching Data Layer instance referencing the provided Data Layer asset and changes its runtime state (if any).
+	  * If recursive is set to true, the runtime state will also be applied to all child Data Layer instances.
+	  * Note:
+	  *  - Changing the runtime state of a Client-Only Data Layer instance must be done on the client side or else it will have no effect.
+	  *  - Changing the runtime state of a Server-Only Data Layer instance can only be done on the server side or else it will have no effect.
+	  *  - Changing the runtime state of a runtime Data Layer instance (with no Load Filter set on the asset) must be done on the server side
+	  *    or else it will have no effect. The runtime state will then be replicated on the client.
+	  * (see Data Layer asset Load Filter for more details)
+	  */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API bool SetDataLayerRuntimeState(const UDataLayerAsset* InDataLayerAsset, EDataLayerRuntimeState InState, bool bInIsRecursive = false);
 
+	/** Returns the Data Layer instance runtime state. */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API EDataLayerRuntimeState GetDataLayerInstanceRuntimeState(const UDataLayerInstance* InDataLayerInstance) const;
 
+	/** Finds a matching Data Layer instance referencing the provided Data Layer asset and returns the Data Layer Instance runtime state. */
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API EDataLayerRuntimeState GetDataLayerInstanceEffectiveRuntimeState(const UDataLayerInstance* InDataLayerInstance) const;
 
+	/** Called when a Data Layer instance runtime state has changed. */
 	UPROPERTY(BlueprintAssignable)
 	FOnDataLayerInstanceRuntimeStateChanged OnDataLayerInstanceRuntimeStateChanged;
+	
 	//~ End Blueprint interface
 
 	template<class T>
@@ -121,9 +147,10 @@ private:
 	//~ End Verse support
 
 	ENGINE_API AWorldDataLayers* GetWorldDataLayers() const;
-	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const;
-
+	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const;
 	ENGINE_API void BroadcastOnDataLayerInstanceRuntimeStateChanged(const UDataLayerInstance* InDataLayer, EDataLayerRuntimeState InState);
+	ENGINE_API static bool IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates);
+	ENGINE_API static bool IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates);
 
 	/** Referenced objects (used by verse) */
 	UPROPERTY(Transient)
@@ -152,6 +179,7 @@ private:
 	friend class UWorldPartitionSubsystem;
 	friend class FWorldPartitionDebugHelper;
 	friend class UVerseDataLayerManagerBase;
+	friend struct FWorldPartitionStreamingContext;
 
 #if WITH_EDITOR
 private:

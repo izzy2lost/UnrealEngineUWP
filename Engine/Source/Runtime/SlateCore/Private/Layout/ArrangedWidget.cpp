@@ -22,15 +22,6 @@ FWidgetAndPointer::FWidgetAndPointer()
 	: FArrangedWidget(FArrangedWidget::GetNullWidget())
 {}
 
-FWidgetAndPointer::FWidgetAndPointer( const FArrangedWidget& InWidget, const TSharedPtr<const FVirtualPointerPosition>& InPosition )
-	: FArrangedWidget(InWidget)
-{
-	if (InPosition)
-	{
-		OptionalPointerPosition = *InPosition.Get();
-	}
-}
-
 FWidgetAndPointer::FWidgetAndPointer(const FArrangedWidget& InWidget)
 	: FArrangedWidget(InWidget)
 	, OptionalPointerPosition()

@@ -115,6 +115,19 @@ struct FNetworkPredictionProxy
 		return static_cast<TSyncState*>(View.PendingSyncState);
 	}
 
+	// Returns Prev Presentation SyncState by default, if it is set. Otherwise returns pending Simulation value.
+	template<typename TSyncState>
+	const TSyncState* ReadPrevPresentationSyncState() const
+	{
+		
+		if (View.PrevPresentationSyncState)
+		{
+			return static_cast<TSyncState*>(View.PrevPresentationSyncState);
+		}
+		
+		return static_cast<TSyncState*>(View.PendingSyncState);
+	}
+
 	// Returns Presentation AuxState by default, if it is set. Otherwise returns pending Simulation value.
 	template<typename TAuxState>
 	const TAuxState* ReadAuxState(ENetworkPredictionStateRead ReadType = ENetworkPredictionStateRead::Presentation) const
@@ -123,7 +136,19 @@ struct FNetworkPredictionProxy
 		{
 			return static_cast<TAuxState*>(View.PresentationAuxState);
 		}
+		
+		return static_cast<TAuxState*>(View.PendingAuxState);
+	}
 
+	// Returns Prev Presentation AuxState by default, if it is set. Otherwise returns pending Simulation value.
+	template<typename TAuxState>
+	const TAuxState* ReadPrevPresentationAuxState() const
+	{
+		if (View.PrevPresentationAuxState)
+		{
+			return static_cast<TAuxState*>(View.PrevPresentationAuxState);
+		}
+		
 		return static_cast<TAuxState*>(View.PendingAuxState);
 	}
 
@@ -134,9 +159,22 @@ struct FNetworkPredictionProxy
 
 	template<typename TSyncState>
 	const TSyncState* WriteSyncState(TFunctionRef<void(TSyncState&)> WriteFunc, const FAnsiStringView& TraceMsg=FAnsiStringView());
+	
+	template<typename TSyncState>
+	const TSyncState* WritePresentationSyncState(TFunctionRef<void(TSyncState&)> WriteFunc, const FAnsiStringView& TraceMsg=FAnsiStringView());
+	
+	template<typename TSyncState>
+	const TSyncState* WritePrevPresentationSyncState(TFunctionRef<void(TSyncState&)> WriteFunc, const FAnsiStringView& TraceMsg=FAnsiStringView());
 
 	template<typename TAuxState>
 	const TAuxState* WriteAuxState(TFunctionRef<void(TAuxState&)> WriteFunc, const FAnsiStringView& TraceMsg=FAnsiStringView());
+
+	template<typename TAuxState>
+	const TAuxState* WritePresentationAuxState(TFunctionRef<void(TAuxState&)> WriteFunc, const FAnsiStringView& TraceMsg=FAnsiStringView());
+
+	template<typename TAuxState>
+	const TAuxState* WritePrevPresentationAuxState(TFunctionRef<void(TAuxState&)> WriteFunc, const FAnsiStringView& TraceMsg=FAnsiStringView());
+	
 
 	// ------------------------------------------------------------------------------------
 

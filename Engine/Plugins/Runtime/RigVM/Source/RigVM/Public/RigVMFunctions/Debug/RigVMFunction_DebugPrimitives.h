@@ -193,3 +193,40 @@ struct RIGVM_API FRigVMFunction_DebugArcNoSpace : public FRigVMFunction_DebugBas
 	UPROPERTY(meta = (Input))
 	bool bEnabled;
 };
+
+/**
+ * Draws a box in the viewport
+ */
+USTRUCT(meta=(DisplayName="Draw Box", Keywords="BoundingBox,Bbox"))
+struct RIGVM_API FRigVMFunction_DebugBoxNoSpace : public FRigVMFunction_DebugBaseMutable
+{
+	GENERATED_BODY()
+
+	FRigVMFunction_DebugBoxNoSpace()
+	{
+		Box = FBox(EForceInit::ForceInit);
+		WorldOffset = FTransform::Identity;
+		Color = FLinearColor::Red;
+		Thickness = 0.f;
+		WorldOffset = FTransform::Identity;
+		bEnabled = true;
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	UPROPERTY(meta = (Input))
+	FBox Box;
+
+	UPROPERTY(meta = (Input))
+	FLinearColor Color;
+
+	UPROPERTY(meta = (Input))
+	float Thickness;
+
+	UPROPERTY(meta = (Input))
+	FTransform WorldOffset;
+
+	UPROPERTY(meta = (Input))
+	bool bEnabled;
+};

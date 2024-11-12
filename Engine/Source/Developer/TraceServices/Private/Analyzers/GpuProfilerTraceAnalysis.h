@@ -16,6 +16,7 @@ class FGpuProfilerAnalyzer
 public:
 	FGpuProfilerAnalyzer(FAnalysisSession& Session, FTimingProfilerProvider& TimingProfilerProvider);
 	virtual void OnAnalysisBegin(const FOnAnalysisContext& Context) override;
+	virtual void OnAnalysisEnd() override;
 	virtual bool OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext& Context) override;
 
 private:
@@ -26,15 +27,13 @@ private:
 		RouteId_Frame2, // GPU Index 1
 	};
 
-	double GpuTimestampToSessionTime(uint64 GpuMicroseconds);
-
 	FAnalysisSession& Session;
 	FTimingProfilerProvider& TimingProfilerProvider;
-	FTimingProfilerProvider::TimelineInternal& Timeline;
-	FTimingProfilerProvider::TimelineInternal& Timeline2;
 	TMap<uint64, uint32> EventTypeMap;
-	double MinTime = 0.0f;
-	double MinTime2 = 0.0f;
+	double MinTime = DBL_MIN;
+	double MinTime2 = DBL_MIN;
+	uint32 NumFrames = 0;
+	uint32 NumFramesWithErrors = 0;
 };
 
 } // namespace TraceServices

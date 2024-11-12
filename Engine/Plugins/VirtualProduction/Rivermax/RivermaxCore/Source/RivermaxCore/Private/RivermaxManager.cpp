@@ -83,11 +83,13 @@ namespace UE::RivermaxCore::Private
 		}
 
 		//Postpone initialization after all modules have been loaded
-		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddRaw(this, &FRivermaxManager::InitializeLibrary);
+		InitHandle = FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddRaw(this, &FRivermaxManager::InitializeLibrary);
 	}
 
 	FRivermaxManager::~FRivermaxManager()
 	{
+		FCoreDelegates::OnAllModuleLoadingPhasesComplete.Remove(InitHandle);
+
 		if (bIsCleanupRequired)
 		{
 			rmx_status Status = GetApi()->rmx_cleanup();
@@ -491,7 +493,7 @@ namespace UE::RivermaxCore::Private
 				FSlateNotificationManager::Get().AddNotification(Info);
 			}
 #endif
-			UE_LOG(LogRivermax, Error, TEXT("%s"), *ErrorText.ToString());
+			UE_LOG(LogRivermax, Warning, TEXT("%s"), *ErrorText.ToString());
 		}
 		
 		return bIsLibraryInitialized;

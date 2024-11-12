@@ -15,10 +15,6 @@
 #include "TonemapCommon.ush"
 #include "ScreenPass.ush"
 
-#ifndef DIM_OUTPUT_DEVICE
-	#define DIM_OUTPUT_DEVICE (TONEMAPPER_OUTPUT_sRGB)
-#endif
-
 SCREEN_PASS_TEXTURE_VIEWPORT(Color)
 SCREEN_PASS_TEXTURE_VIEWPORT(Output)
 
@@ -26,8 +22,6 @@ Texture2D ColorTexture;
 SamplerState ColorSampler;
 
 float EditorNITLevel;
-
-uint bOutputInHDR;
 
 uint OutputDevice;
 uint OutputGamut;
@@ -44,7 +38,11 @@ float ACESGamutCompression;
 
 uint GetOutputDevice()
 {
+#if OUTPUT_DEVICE_SRGB
+	return TONEMAPPER_OUTPUT_sRGB;
+#else
 	return OutputDevice;
+#endif
 }
 
 float4 SampleSceneColor(float2 SceneUV)

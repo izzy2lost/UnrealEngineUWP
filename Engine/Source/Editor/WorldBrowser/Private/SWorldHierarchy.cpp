@@ -28,6 +28,7 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 
 #include "SWorldHierarchyImpl.h"
+#include "WorldBrowserConfig.h"
 
 #define LOCTEXT_NAMESPACE "WorldBrowser"
 
@@ -49,6 +50,27 @@ void SWorldHierarchy::Construct(const FArguments& InArgs)
 	OnBrowseWorld(InArgs._InWorld);
 }
 
+bool SWorldHierarchy::IsColumnVisible(FName Column) const
+{
+	const TSharedPtr<SWorldHierarchyImpl> WidgetPin = WeakWorldHierarchyImpl.Pin();
+	return WidgetPin
+		? WidgetPin->IsColumnVisible(Column)
+		: SWorldHierarchyImpl::IsVisibleInConfig(Column);
+}
+
+void SWorldHierarchy::SetColumnVisible(FName Column, bool bVisible)
+{
+	if (const TSharedPtr<SWorldHierarchyImpl> WidgetPin = WeakWorldHierarchyImpl.Pin())
+	{
+		WidgetPin->SetColumnVisible(Column, bVisible);
+	}
+	else
+	{
+		// By documentation, SetColumnVisible does not save into the config. Only direct user action should do that.
+		SWorldHierarchyImpl::SetWillBeVisibleInConfigTransient(Column, bVisible);
+	}
+}
+
 void SWorldHierarchy::OnBrowseWorld(UWorld* InWorld)
 {
 	// Remove all binding to an old world
@@ -56,7 +78,6 @@ void SWorldHierarchy::OnBrowseWorld(UWorld* InWorld)
 	[
 		SNullWidget::NullWidget
 	];
-
 	WorldModel = nullptr;
 		
 	// Bind to a new world
@@ -144,7 +165,7 @@ void SWorldHierarchy::OnBrowseWorld(UWorld* InWorld)
 					.FillHeight(1.f)
 					.Padding(0.f, 4.f, 0.f ,0.f)
 					[
-						SNew(SWorldHierarchyImpl)
+						SAssignNew(WeakWorldHierarchyImpl, SWorldHierarchyImpl)
 						.InWorldModel(WorldModel)
 					]
 				]

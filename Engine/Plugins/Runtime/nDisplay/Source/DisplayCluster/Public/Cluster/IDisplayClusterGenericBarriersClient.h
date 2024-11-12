@@ -6,17 +6,20 @@
 
 
 /**
- * Barreir synchonrization callback data
+ * Barrier synchonrization callback data
  */
 struct FGenericBarrierSynchronizationDelegateData
 {
 	/** Barrier ID */
-	const FString BarrierId;
+	const FString& BarrierId;
 
-	/** Binary data provided on sync request (node Id - to - data mapping) */
+	/** Associates thread markers with the owning cluster nodes (thread marker - to - cluster node) */
+	const TMap<FString, FString>& ThreadToNodeMap;
+
+	/** Binary data provided on sync request (thread marker - to - data mapping) */
 	const TMap<FString, TArray<uint8>>& RequestData;
 
-	/** Binary data to respond (node Id - to - data mapping) */
+	/** Binary data to respond (thread marker - to - data mapping) */
 	TMap<FString, TArray<uint8>>& ResponseData;
 };
 

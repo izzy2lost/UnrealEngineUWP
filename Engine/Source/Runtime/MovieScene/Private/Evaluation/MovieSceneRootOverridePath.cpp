@@ -15,6 +15,11 @@ namespace MovieScene
 FSubSequencePath::FSubSequencePath()
 {}
 
+FSubSequencePath::FSubSequencePath(FMovieSceneSequenceID LeafID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+{
+	Reset(LeafID, SharedPlaybackState->GetHierarchy());
+}
+
 FSubSequencePath::FSubSequencePath(FMovieSceneSequenceID LeafID, IMovieScenePlayer& Player)
 {
 	Reset(LeafID, Player.GetEvaluationTemplate().GetHierarchy());

@@ -2,12 +2,18 @@
 
 #include "Sequencer/ControlRigSequencerFilter.h"
 #include "ControlRig.h"
-#include "Editor/ControlRigSkeletalMeshComponent.h"
+#include "ControlRigBlueprint.h"
+#include "Filters/ISequencerTrackFilters.h"
+#include "Filters/SequencerTrackFilterBase.h"
+#include "Framework/Commands/Commands.h"
+#include "Framework/Commands/UICommandInfo.h"
+#include "MVVM/Extensions/IOutlinerExtension.h"
+#include "MVVM/ViewModels/ChannelModel.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
-#include "Framework/Commands/Commands.h"
-#include "ISequencer.h"
+
+using namespace UE::Sequencer;
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigSequencerFilter)
 
@@ -20,89 +26,78 @@ class FSequencerTrackFilter_ControlRigControlsCommands
 	: public TCommands<FSequencerTrackFilter_ControlRigControlsCommands>
 {
 public:
-
 	FSequencerTrackFilter_ControlRigControlsCommands()
-		: TCommands<FSequencerTrackFilter_ControlRigControlsCommands>
-		(
-			"FSequencerTrackFilter_ControlRigControls",
-			NSLOCTEXT("Contexts", "FSequencerTrackFilter_ControlRigControls", "FSequencerTrackFilter_ControlRigControls"),
+		: TCommands<FSequencerTrackFilter_ControlRigControlsCommands>(
+			TEXT("FSequencerTrackFilter_ControlRigControls"),
+			LOCTEXT("FSequencerTrackFilter_ControlRigControls", "Control Rig Filters"),
 			NAME_None,
-			FAppStyle::GetAppStyleSetName() // Icon Style Set
-			)
-	{ }
+			FAppStyle::GetAppStyleSetName())
+	{}
 
 	/** Toggle the control rig controls filter */
-	TSharedPtr< FUICommandInfo > ToggleControlRigControls;
+	TSharedPtr< FUICommandInfo > ToggleFilter_ControlRigControls;
 
 	/** Initialize commands */
 	virtual void RegisterCommands() override
 	{
-		UI_COMMAND(ToggleControlRigControls, "Control Rig Controls", "Toggle the filter for Control Rig Controls.", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::F9));
+		UI_COMMAND(ToggleFilter_ControlRigControls, "Control Rig Controls", "Toggle the filter for Control Rig Controls.", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::F9));
 	}
 };
+
+//////////////////////////////////////////////////////////////////////////
+//
 
 class FSequencerTrackFilter_ControlRigControls : public FSequencerTrackFilter
 {
 public:
-
-	FSequencerTrackFilter_ControlRigControls()
-		: BindingCount(0)
+	FSequencerTrackFilter_ControlRigControls(ISequencerTrackFilters& InOutFilterInterface, TSharedPtr<FFilterCategory> InCategory = nullptr)
+		: FSequencerTrackFilter(InOutFilterInterface, MoveTemp(InCategory))
+		, BindingCount(0)
 	{
 		FSequencerTrackFilter_ControlRigControlsCommands::Register();
 	}
 
-	~FSequencerTrackFilter_ControlRigControls()
+	virtual ~FSequencerTrackFilter_ControlRigControls() override
 	{
 		BindingCount--;
-
 		if (BindingCount < 1)
 		{
 			FSequencerTrackFilter_ControlRigControlsCommands::Unregister();
 		}
 	}
 
-	virtual FString GetName() const override { return TEXT("ControlRigControlsFilter"); }
-	virtual FText GetDisplayName() const override { return LOCTEXT("SequenceTrackFilter_ControlRigControls", "Control Rig Controls"); }
-	virtual FSlateIcon GetIcon() const { return FSlateIconFinder::FindIconForClass(UControlRig::StaticClass()); }
+	//~ Begin IFilter
 
-	virtual bool PassesFilterWithDisplayName(FTrackFilterType InItem, const FText& InText) const
+	virtual FString GetName() const override { return TEXT("ControlRigControl"); }
+
+	virtual bool PassesFilter(FSequencerTrackFilterType InItem) const override
 	{
-		const UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(InItem);
-		return (Track != nullptr);
+		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
+		const UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
+		const UMovieSceneControlRigParameterTrack* const Track = Cast<UMovieSceneControlRigParameterTrack>(TrackObject);
+		return IsValid(Track);
 	}
 
-	virtual bool PassesFilter(FTrackFilterType InItem) const override
+	//~ End IFilter
+
+	//~ Begin FFilterBase
+	virtual FText GetDisplayName() const override { return LOCTEXT("SequenceTrackFilter_ControlRigControl", "Control Rig Control"); }
+	virtual FSlateIcon GetIcon() const override { return FSlateIconFinder::FindIconForClass(UControlRigBlueprint::StaticClass()); }
+	//~ End FFilterBase
+
+	//~ Begin FSequencerTrackFilter
+
+	virtual FText GetDefaultToolTipText() const override
 	{
-		return true;
+		return LOCTEXT("SequencerTrackFilter_ControlRigControlsTip", "Show only Control Rig Control tracks");
 	}
 
-	virtual FText GetToolTipText() const override
+	virtual TSharedPtr<FUICommandInfo> GetToggleCommand() const override
 	{
-		const FSequencerTrackFilter_ControlRigControlsCommands& Commands = FSequencerTrackFilter_ControlRigControlsCommands::Get();
-
-		const TSharedRef<const FInputChord> FirstActiveChord = Commands.ToggleControlRigControls->GetFirstValidChord();
-
-		FText Tooltip = LOCTEXT("SequencerTrackFilter_ControlRigControlsTip", "Show Only Control Rig Controls.");
-
-		if (FirstActiveChord->IsValidChord())
-		{
-			return FText::Join(FText::FromString(TEXT(" ")), Tooltip, FirstActiveChord->GetInputText());
-		}
-		return Tooltip;
+		return FSequencerTrackFilter_ControlRigControlsCommands::Get().ToggleFilter_ControlRigControls;
 	}
 
-	virtual void BindCommands(TSharedRef<FUICommandList> SequencerBindings, TSharedRef<FUICommandList> CurveEditorBindings, TWeakPtr<ISequencer> Sequencer) override
-	{
-		const FSequencerTrackFilter_ControlRigControlsCommands& Commands = FSequencerTrackFilter_ControlRigControlsCommands::Get();
-
-		SequencerBindings->MapAction(
-			Commands.ToggleControlRigControls,
-			FExecuteAction::CreateLambda([this, Sequencer] { Sequencer.Pin()->SetTrackFilterEnabled(GetDisplayName(), !Sequencer.Pin()->IsTrackFilterEnabled(GetDisplayName())); }),
-			FCanExecuteAction::CreateLambda([this, Sequencer] { return true; }),
-			FIsActionChecked::CreateLambda([this, Sequencer] { return Sequencer.Pin()->IsTrackFilterEnabled(GetDisplayName()); }));
-
-		CurveEditorBindings->MapAction(Commands.ToggleControlRigControls, *SequencerBindings->GetActionForCommand(Commands.ToggleControlRigControls));
-	}
+	//~ End FSequencerTrackFilter
 
 private:
 	mutable uint32 BindingCount;
@@ -115,118 +110,138 @@ class FSequencerTrackFilter_ControlRigSelectedControlsCommands
 	: public TCommands<FSequencerTrackFilter_ControlRigSelectedControlsCommands>
 {
 public:
-
 	FSequencerTrackFilter_ControlRigSelectedControlsCommands()
-		: TCommands<FSequencerTrackFilter_ControlRigSelectedControlsCommands>
-		(
-			"FSequencerTrackFilter_ControlRigSelectedControls",
-			NSLOCTEXT("Contexts", "FSequencerTrackFilter_ControlRigSelectedControls", "FSequencerTrackFilter_ControlRigSelectedControls"),
+		: TCommands<FSequencerTrackFilter_ControlRigSelectedControlsCommands>(
+			TEXT("FSequencerTrackFilter_ControlRigSelectedControls"),
+			LOCTEXT("FSequencerTrackFilter_ControlRigSelectedControls", "Control Rig Selected Control Filters"),
 			NAME_None,
-			FAppStyle::GetAppStyleSetName() // Icon Style Set
-			)
-	{ }
+			FAppStyle::GetAppStyleSetName())
+	{}
 
 	/** Toggle the control rig selected controls filter */
-	TSharedPtr< FUICommandInfo > ToggleControlRigSelectedControls;
+	TSharedPtr<FUICommandInfo> ToggleFilter_ControlRigSelectedControls;
 
 	/** Initialize commands */
 	virtual void RegisterCommands() override
 	{
-		UI_COMMAND(ToggleControlRigSelectedControls, "Control Rig Selected Controls", "Toggle the filter for Control Rig Selected Controls.", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::F10));
+		UI_COMMAND(ToggleFilter_ControlRigSelectedControls, "Control Rig Selected Controls", "Toggle the filter for Control Rig Selected Controls.", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::F10));
 	}
 };
+
+//////////////////////////////////////////////////////////////////////////
+//
 
 class FSequencerTrackFilter_ControlRigSelectedControls : public FSequencerTrackFilter
 {
 public:
-
-	FSequencerTrackFilter_ControlRigSelectedControls()
-		: BindingCount(0)
+	FSequencerTrackFilter_ControlRigSelectedControls(ISequencerTrackFilters& InOutFilterInterface, TSharedPtr<FFilterCategory> InCategory = nullptr)
+		:  FSequencerTrackFilter(InOutFilterInterface, MoveTemp(InCategory))
+		, BindingCount(0)
 	{
 		FSequencerTrackFilter_ControlRigSelectedControlsCommands::Register();
 	}
 
-	~FSequencerTrackFilter_ControlRigSelectedControls()
+	virtual ~FSequencerTrackFilter_ControlRigSelectedControls() override
 	{
 		BindingCount--;
-
 		if (BindingCount < 1)
 		{
 			FSequencerTrackFilter_ControlRigSelectedControlsCommands::Unregister();
 		}
 	}
 
-	virtual FString GetName() const override { return TEXT("ControlRigControlsSelectedFilter"); }
-	virtual FText GetDisplayName() const override { return LOCTEXT("SequenceTrackFilter_ControlRigSelectedControls", "Selected Control Rig Controls"); }
-	virtual FSlateIcon GetIcon() const { return FSlateIconFinder::FindIconForClass(UControlRig::StaticClass()); }
+	//~ Begin IFilter
 
-	virtual bool PassesFilter(FTrackFilterType InItem) const override
-	{
-		return true;
-	}
+	virtual FString GetName() const override { return TEXT("SelectedControlRigControl"); }
 
-	virtual bool PassesFilterWithDisplayName(FTrackFilterType InItem, const FText& InText) const
+	virtual bool PassesFilter(FSequencerTrackFilterType InItem) const override
 	{
-		const UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(InItem);
-		if (Track)
+		FSequencerFilterData& FilterData = FilterInterface.GetFilterData();
+
+		UMovieSceneTrack* const TrackObject = FilterData.ResolveMovieSceneTrackObject(InItem);
+		URigHierarchy* const ControlRigHierarchy = GetControlRigHierarchyFromTrackObject(TrackObject);
+
+		if (!IsValid(ControlRigHierarchy))
 		{
-			UControlRig *ControlRig = Track->GetControlRig();
-			if (ControlRig && ControlRig->GetHierarchy())
+			return false;
+		}
+
+		const TViewModelPtr<IOutlinerExtension> OutlinerExtension = InItem.AsModel()->FindAncestorOfType<IOutlinerExtension>();
+		if (!OutlinerExtension.IsValid())
+		{
+			return false;
+		}
+
+		const FString ControlTrackLabel = OutlinerExtension->GetLabel().ToString();
+
+		const TArray<const FRigBaseElement*> BaseRigElements = ControlRigHierarchy->GetSelectedElements(ERigElementType::Control);
+		for (const FRigBaseElement* const BaseRigElement : BaseRigElements)
+		{
+			const FString ElementDisplayName = ControlRigHierarchy->GetDisplayNameForUI(BaseRigElement).ToString();
+			if (ElementDisplayName.Equals(ControlTrackLabel))
 			{
-				FName Name(*InText.ToString());
-				TArray<const FRigBaseElement*> SelectedControls = ControlRig->GetHierarchy()->GetSelectedElements(ERigElementType::Control);
-				for (const FRigBaseElement* SelectedControl : SelectedControls)
+				return true;
+			}
+
+			if (const FRigControlElement* const ControlElement = Cast<FRigControlElement>(BaseRigElement))
+			{
+				if (ControlElement->CanDriveControls())
 				{
-					if (Name == SelectedControl->GetFName())
+					const TArray<FRigElementKey>& DrivenControls = ControlElement->Settings.DrivenControls;
+					for (const FRigElementKey& DrivenKey : DrivenControls)
 					{
-						return true;
-					}
-					if (const FRigControlElement* ControlElement = Cast<FRigControlElement>(SelectedControl))
-					{
-						if (ControlElement->CanDriveControls())
+						if (const FRigBaseElement* const DrivenKeyElement = ControlRigHierarchy->Find(DrivenKey))
 						{
-							const TArray<FRigElementKey>& DrivenControls = ControlElement->Settings.DrivenControls;
-							for (const FRigElementKey& DrivenKey : DrivenControls)
+							const FString DrivenKeyElementDisplayName = ControlRigHierarchy->GetDisplayNameForUI(DrivenKeyElement).ToString();
+							if (DrivenKeyElementDisplayName.Equals(ControlTrackLabel))
 							{
-								if (Name == DrivenKey.Name)
-								{
-									return true;
-								}
+								return true;
 							}
 						}
 					}
 				}
 			}
 		}
+
 		return false;
 	}
 
-	virtual FText GetToolTipText() const override
+	//~ End IFilter
+
+	//~ Begin FFilterBase
+	virtual FText GetDisplayName() const override { return LOCTEXT("SequenceTrackFilter_ControlRigSelectedControl", "Selected Control Rig Control"); }
+	virtual FSlateIcon GetIcon() const override { return FSlateIconFinder::FindIconForClass(UControlRigBlueprint::StaticClass()); }
+	//~ End FFilterBase
+
+	//~ Begin FSequencerTrackFilter
+
+	virtual FText GetDefaultToolTipText() const override
 	{
-		const FSequencerTrackFilter_ControlRigSelectedControlsCommands& Commands = FSequencerTrackFilter_ControlRigSelectedControlsCommands::Get();
-
-		const TSharedRef<const FInputChord> FirstActiveChord = Commands.ToggleControlRigSelectedControls->GetFirstValidChord();
-
-		FText Tooltip = LOCTEXT("SequencerTrackFilter_ControlRigSelectedControlsTip", "Show Only Selected Control Rig Controls.");
-
-		if (FirstActiveChord->IsValidChord())
-		{
-			return FText::Join(FText::FromString(TEXT(" ")), Tooltip, FirstActiveChord->GetInputText());
-		}
-		return Tooltip;
+		return LOCTEXT("SequencerTrackFilter_ControlRigSelectedControlsTip", "Show Only Selected Control Rig Controls.");
 	}
 
-	virtual void BindCommands(TSharedRef<FUICommandList> SequencerBindings, TSharedRef<FUICommandList> CurveEditorBindings, TWeakPtr<ISequencer> Sequencer) override
+	virtual TSharedPtr<FUICommandInfo> GetToggleCommand() const override
 	{
-		const FSequencerTrackFilter_ControlRigSelectedControlsCommands& Commands = FSequencerTrackFilter_ControlRigSelectedControlsCommands::Get();
+		return FSequencerTrackFilter_ControlRigSelectedControlsCommands::Get().ToggleFilter_ControlRigSelectedControls;
+	}
 
-		SequencerBindings->MapAction(
-			Commands.ToggleControlRigSelectedControls,
-			FExecuteAction::CreateLambda([this, Sequencer] { Sequencer.Pin()->SetTrackFilterEnabled(GetDisplayName(), !Sequencer.Pin()->IsTrackFilterEnabled(GetDisplayName())); }),
-			FCanExecuteAction::CreateLambda([this, Sequencer] { return true; }),
-			FIsActionChecked::CreateLambda([this, Sequencer] { return Sequencer.Pin()->IsTrackFilterEnabled(GetDisplayName()); }));
+	//~ End FSequencerTrackFilter
 
-		CurveEditorBindings->MapAction(Commands.ToggleControlRigSelectedControls, *SequencerBindings->GetActionForCommand(Commands.ToggleControlRigSelectedControls));
+	static URigHierarchy* GetControlRigHierarchyFromTrackObject(UMovieSceneTrack* const InTrackObject)
+	{
+		const UMovieSceneControlRigParameterTrack* const Track = Cast<UMovieSceneControlRigParameterTrack>(InTrackObject);
+		if (!IsValid(Track))
+		{
+			return nullptr;
+		}
+
+		UControlRig* const ControlRig = Track->GetControlRig();
+		if (!IsValid(ControlRig))
+		{
+			return nullptr;
+		}
+
+		return ControlRig->GetHierarchy();
 	}
 
 private:
@@ -247,11 +262,12 @@ private:
 //////////////////////////////////////////////////////////////////////////
 //
 
-void UControlRigTrackFilter::AddTrackFilterExtensions(TArray< TSharedRef<class FSequencerTrackFilter> >& InOutFilterList) const
+void UControlRigTrackFilter::AddTrackFilterExtensions(ISequencerTrackFilters& InOutFilterInterface
+	, const TSharedRef<FFilterCategory>& InPreferredCategory
+	, TArray<TSharedRef<FSequencerTrackFilter>>& InOutFilterList) const
 {
-	InOutFilterList.Add(MakeShared<FSequencerTrackFilter_ControlRigControls>());
-	InOutFilterList.Add(MakeShared<FSequencerTrackFilter_ControlRigSelectedControls>());
+	InOutFilterList.Add(MakeShared<FSequencerTrackFilter_ControlRigControls>(InOutFilterInterface, InPreferredCategory));
+	InOutFilterList.Add(MakeShared<FSequencerTrackFilter_ControlRigSelectedControls>(InOutFilterInterface, InPreferredCategory));
 }
 
 #undef LOCTEXT_NAMESPACE
-

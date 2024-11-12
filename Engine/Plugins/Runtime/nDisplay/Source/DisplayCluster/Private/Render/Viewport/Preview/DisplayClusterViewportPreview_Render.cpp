@@ -16,9 +16,6 @@
 
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
-#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Postprocess.h"
-
-#include "DisplayClusterConfigurationTypes_Postprocess.h"
 
 #include "Misc/DisplayClusterLog.h"
 
@@ -106,38 +103,25 @@ FSceneView* FDisplayClusterViewportPreview::CalcSceneView(FSceneViewFamilyContex
 
 		InOutViewFamily.Views.Add(View);
 
+		// Configure postprocesses for the current viewport.
+		// The code below is based on the code from ULocalPlayer.
+		{
+			// ERenderPass::Start
 		View->StartFinalPostprocessSettings(ViewLocation);
+			InViewport->GetViewport_CustomPostProcessSettings().ApplyCustomPostProcess(InViewport, InContextNum, IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Start, View->FinalPostProcessSettings);
 
-		FPostProcessSettings* FinalPostProcessingSettings = &View->FinalPostProcessSettings;
-		// Support start PPS for preview
-		InViewport->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Start, FinalPostProcessingSettings);
-
-		// Support override PPS for preview
+			// ERenderPass::Override
 		FPostProcessSettings OverridePostProcessingSettings;
 		float OverridePostProcessBlendWeight = 1.0f;
-		InViewport->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override, &OverridePostProcessingSettings, &OverridePostProcessBlendWeight);
-
-		View->OverridePostProcessSettings(OverridePostProcessingSettings, OverridePostProcessBlendWeight);
-
-		// Support final PPS for preview
-		InViewport->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Final, FinalPostProcessingSettings);
-
-		FPostProcessSettings RequestedFinalPerViewportPPS;
-		// Get the final overall cluster + per-viewport PPS from nDisplay
-		if (InViewport->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::FinalPerViewport, &RequestedFinalPerViewportPPS))
+			if (InViewport->GetViewport_CustomPostProcessSettings().ApplyCustomPostProcess(InViewport, InContextNum, IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override, OverridePostProcessingSettings, &OverridePostProcessBlendWeight))
 		{
-			FDisplayClusterConfigurationViewport_ColorGradingRenderingSettings InPPSnDisplay;
-			FDisplayClusterViewportConfigurationHelpers_Postprocess::CopyPPSStructConditional(&InPPSnDisplay, &RequestedFinalPerViewportPPS);
-
-			// Get the passed-in cumulative PPS from the game/viewport (includes all PPVs affecting this viewport)
-			FDisplayClusterConfigurationViewport_ColorGradingRenderingSettings InPPSCumulative;
-			FDisplayClusterViewportConfigurationHelpers_Postprocess::CopyPPSStruct(&InPPSCumulative, FinalPostProcessingSettings);
-
-			// Blend both together with our custom math instead of the default PPS blending
-			FDisplayClusterViewportConfigurationHelpers_Postprocess::BlendPostProcessSettings(*FinalPostProcessingSettings, InPPSCumulative, InPPSnDisplay);
+			View->OverridePostProcessSettings(OverridePostProcessingSettings, OverridePostProcessBlendWeight);
 		}
 
+			// ERenderPass::Final
+			InViewport->GetViewport_CustomPostProcessSettings().ApplyCustomPostProcess(InViewport, InContextNum, IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Final, View->FinalPostProcessSettings);
 		View->EndFinalPostprocessSettings(ViewInitOptions);
+		}
 
 		// Setup view extension for this view
 		for (int32 ViewExt = 0; ViewExt < InOutViewFamily.ViewExtensions.Num(); ViewExt++)
@@ -175,7 +159,7 @@ bool FDisplayClusterViewportPreview::CalculateStereoViewOffset(FDisplayClusterVi
 
 	// Obtaining the internal viewpoint for a given viewport with stereo eye offset distance.
 	FMinimalViewInfo ViewInfo;
-	if (!InViewport.SetupViewPoint(ViewInfo))
+	if (!InViewport.SetupViewPoint(InContextNum, ViewInfo))
 	{
 		return false;
 	}

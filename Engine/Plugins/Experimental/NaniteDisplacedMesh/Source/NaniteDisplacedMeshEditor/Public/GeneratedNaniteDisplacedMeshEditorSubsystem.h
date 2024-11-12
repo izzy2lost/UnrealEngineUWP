@@ -95,6 +95,9 @@ private:
 		const TArray<TObjectKey<UNaniteDisplacedMesh>> GetMeshesThatUseAsset(UObject* Object, uint32 Hash);
 
 		void ReplaceObject(UObject* OldObject, UObject* NewObject);
+
+		SIZE_T GetAllocatedSize() const;
+
 	private:
 		TMap<UNaniteDisplacedMesh*, TSet<UObject*>> MeshToAssets;
 		TMap<UObject*, TSet<UNaniteDisplacedMesh*>> AssetToMeshes;
@@ -119,6 +122,7 @@ private:
 	// Begin FUObjectArray::FUObjectDeleteListener Api
 	virtual void NotifyUObjectDeleted(const UObjectBase *Object, int32 Index) override;
 	virtual void OnUObjectArrayShutdown() override;
+	virtual SIZE_T GetAllocatedSize() const override;
 	// End FUObjectArray::FUObjectDeleteListener Api
 
 	void UpdateIsEngineCollectingGarbage(bool bIsCollectingGarbage);

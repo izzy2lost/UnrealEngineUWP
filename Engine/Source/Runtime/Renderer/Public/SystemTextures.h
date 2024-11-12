@@ -240,6 +240,7 @@ public:
 protected:
 	/** Maximum feature level that the textures have been initialized up to */
 	ERHIFeatureLevel::Type FeatureLevelInitializedTo;
+	bool bEngineDependentTexturesInitialized = false;
 
 	/** Default textures allocated on-demand */
 	TArray<FDefaultTexture> DefaultTextures;
@@ -249,6 +250,7 @@ protected:
 
 	void InitializeCommonTextures(FRHICommandListImmediate& RHICmdList);
 	void InitializeFeatureLevelDependentTextures(FRHICommandListImmediate& RHICmdList, const ERHIFeatureLevel::Type InFeatureLevel);
+	void InitializeEngineDependentTextures(FRHICommandListImmediate& RHICmdList);
 };
 
 /** The global system textures used for scene rendering. */

@@ -5,6 +5,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncRemote.h"
 #include "UnsyncAuth.h"
+#include "UnsyncVersion.h"
 
 #include <http_parser.h>
 #include <string.h>
@@ -37,18 +38,30 @@ UpdateView(std::string_view& View, const char* Data, size_t Size)
 	}
 }
 
-using HttpMessageCallback = std::function<void(FHttpResponse&& Response)>;
+std::string_view FHttpResponse::FindHeader(const std::string_view Name) const
+{
+	for (const auto& It : Headers)
+	{
+		if (UncasedStringEquals(It.first, Name))
+		{
+			return It.second;
+		}
+	}
+	return {};
+}
 
 struct FHttpParser
 {
 	static FHttpParser* ToThis(http_parser* Parser) { return (FHttpParser*)(Parser->data); }
 
-	FHttpParser(HttpMessageCallback InResponseCallback,
+	FHttpParser(FHttpMessageCallback InResponseCallback,
+				FHttpChunkCallback   InChunkCallback,
 				uint8*				InScratchBuffer,
 				uint64				InScratchSize,
 				http_parser_type	Type,
 				EHttpMethod			InMethod)
 	: ResponseCallback(InResponseCallback)
+	, ChunkCallback(InChunkCallback)
 	, Method(InMethod)
 	, ScratchBuffer(InScratchBuffer)
 	, ScratchSize(InScratchSize)
@@ -94,9 +107,19 @@ struct FHttpParser
 		return 0;
 	}
 
-	int OnChunkHeader() { return 0; }
+	int OnChunkHeader()
+	{ 
+		return 0;
+	}
 
-	int OnChunkComplete() { return 0; }
+	int OnChunkComplete()
+	{
+		if (ChunkCallback)
+		{
+			ChunkCallback(Response);
+		}
+		return 0;
+	}
 
 	int OnHdrField(const char* Data, size_t Size)
 	{
@@ -148,6 +171,9 @@ struct FHttpParser
 				Response.ContentType = EHttpContentType::Text_Plain;
 			}
 		}
+
+		Response.Headers.push_back(std::make_pair(std::string(PendingHeader), std::string(PendingValue)));
+
 		return 0;
 	}
 
@@ -213,7 +239,8 @@ struct FHttpParser
 		return bShouldContinue;
 	}
 
-	HttpMessageCallback ResponseCallback;
+	FHttpMessageCallback ResponseCallback;
+	FHttpChunkCallback ChunkCallback;
 	FHttpResponse		Response;
 
 	EHttpMethod Method = EHttpMethod::GET;
@@ -238,13 +265,13 @@ struct FHttpParser
 };
 
 FHttpResponse
-HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request)
+HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request, FHttpChunkCallback ChunkCallback)
 {
 	FHttpResponse Result;
 
 	if (HttpRequestBegin(Connection, Request))
 	{
-		Result = HttpRequestEnd(Connection);
+		Result = HttpRequestEnd(Connection, ChunkCallback);
 	}
 
 	return Result;
@@ -259,7 +286,7 @@ HttpRequest(const FRemoteDesc& RemoteDesc,
 			std::string_view   BearerToken)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.bTlsEnable ? &TlsSettings : nullptr);
+	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
 
 	FHttpRequest Request;
 
@@ -281,6 +308,25 @@ HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view 
 	return HttpRequest(RemoteDesc, Method, RequestUrl, EHttpContentType::Unknown, /*Payload*/ {}, BearerToken);
 }
 
+static const char*
+ToString(EHttpMethod Method)
+{
+	switch (Method)
+	{
+		default:
+			UNSYNC_FATAL(L"Unexpected HTTP method %d", (int)Method);
+			return "INVALID";
+		case EHttpMethod::GET:
+			return "GET";
+		case EHttpMethod::HEAD:
+			return "HEAD";
+		case EHttpMethod::POST:
+			return "POST";
+		case EHttpMethod::PUT:
+			return "PUT";
+	}
+}
+
 bool
 HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 {
@@ -300,25 +346,8 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 
 	// TODO: use a string builder
 	std::string HttpHeader;
-	switch (Request.Method)
-	{
-		default:
-			UNSYNC_FATAL(L"Unexpected HTTP method %d", (int)Request.Method);
-			return false;
-		case EHttpMethod::GET:
-			HttpHeader = "GET ";
-			break;
-		case EHttpMethod::HEAD:
-			HttpHeader = "HEAD ";
-			break;
-		case EHttpMethod::POST:
-			HttpHeader = "POST ";
-			break;
-		case EHttpMethod::PUT:
-			HttpHeader = "PUT ";
-			break;
-	}
-
+	HttpHeader.append(ToString(Request.Method));
+	HttpHeader.append(" ");
 	HttpHeader.append(Request.Url);
 	HttpHeader.append(" HTTP/1.1\r\n");
 
@@ -419,6 +448,8 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 
 	Connection.NumActiveRequests += 1;
 
+	UNSYNC_VERBOSE2(L"HTTP %hs %.*hs", ToString(Request.Method), int32(Request.Url.length()), Request.Url.data());
+
 	// TODO: detect and handle errors
 	SentBytes += SocketSend(Connection.GetSocket(), HttpHeader.c_str(), HttpHeader.length());
 	if (Request.Payload.Size)
@@ -432,7 +463,7 @@ HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request)
 }
 
 FHttpResponse
-HttpRequestEnd(FHttpConnection& Connection)
+HttpRequestEnd(FHttpConnection& Connection, FHttpChunkCallback ChunkCallback)
 {
 	FHttpResponse Result;
 
@@ -462,7 +493,7 @@ HttpRequestEnd(FHttpConnection& Connection)
 	// TODO: user-provided scratch buffer
 	uint8 ScratchBuffer[256_KB];
 	ScratchBuffer[0] = 0;
-	FHttpParser Parser(MessageCallback, ScratchBuffer, sizeof(ScratchBuffer), HTTP_RESPONSE, Connection.Method);
+	FHttpParser Parser(MessageCallback, ChunkCallback, ScratchBuffer, sizeof(ScratchBuffer), HTTP_RESPONSE, Connection.Method);
 
 	while (!Parser.bComplete)
 	{
@@ -479,42 +510,44 @@ HttpRequestEnd(FHttpConnection& Connection)
 
 	Connection.NumActiveRequests -= 1;
 
+	Result.bConnectionEncrypted = Connection.IsEncrypted();
+
 	// TODO: report errors
 
 	return Result;
 }
 
-FHttpConnection::FHttpConnection(const std::string_view InHostAddress, uint16 InPort, const FTlsClientSettings* InTlsSettings)
+FHttpConnection::FHttpConnection(const std::string_view	   InHostAddress,
+								 uint16					   InPort,
+								 ETlsRequirement		   InTlsRequirement,
+								 const FTlsClientSettings& InTlsSettings)
 : HostAddress(InHostAddress)
 , HostPort(InPort)
-, bUseTls(InTlsSettings != nullptr)
+, TlsRequirement(InTlsRequirement)
 {
-	if (InTlsSettings)
+	if (InTlsSettings.Subject.empty())
 	{
-		if (InTlsSettings->Subject.empty())
-		{
-			TlsSubject = std::string(InHostAddress);
-		}
-		else
-		{
-			TlsSubject = std::string(InTlsSettings->Subject);
-		}
+		TlsSubject = std::string(InHostAddress);
+	}
+	else
+	{
+		TlsSubject = std::string(InTlsSettings.Subject);
+	}
 
-		bTlsVerifyCertificate = InTlsSettings->bVerifyCertificate;
-		bTlsVerifySubject	  = InTlsSettings->bVerifySubject;
-		if (InTlsSettings->CACert.Data)
-		{
-			TlsCacert = std::make_shared<FBuffer>();
-			TlsCacert->Append(InTlsSettings->CACert.Data, InTlsSettings->CACert.Size);
-		}
+	bTlsVerifyCertificate = InTlsSettings.bVerifyCertificate;
+	bTlsVerifySubject	  = InTlsSettings.bVerifySubject;
+	if (InTlsSettings.CACert.Data)
+	{
+		TlsCacert = std::make_shared<FBuffer>();
+		TlsCacert->Append(InTlsSettings.CACert.Data, InTlsSettings.CACert.Size);
 	}
 }
 
 FHttpConnection::FHttpConnection(const FHttpConnection& Other)
 : HostAddress(Other.HostAddress)
 , HostPort(Other.HostPort)
-, bUseTls(Other.bUseTls)
 , bKeepAlive(Other.bKeepAlive)
+, TlsRequirement(Other.TlsRequirement)
 , bTlsVerifySubject(Other.bTlsVerifySubject)
 , TlsSubject(Other.TlsSubject)
 , bTlsVerifyCertificate(Other.bTlsVerifyCertificate)
@@ -525,7 +558,7 @@ FHttpConnection::FHttpConnection(const FHttpConnection& Other)
 FHttpConnection
 FHttpConnection::CreateDefaultHttp(const std::string_view InHostAddress, uint16 Port)
 {
-	return FHttpConnection(InHostAddress, Port, nullptr);
+	return FHttpConnection(InHostAddress, Port);
 }
 
 FHttpConnection
@@ -533,14 +566,14 @@ FHttpConnection::CreateDefaultHttps(const std::string_view InHostAddress, uint16
 {
 	FTlsClientSettings TlsSettings;
 	TlsSettings.Subject = InHostAddress.data();
-	return FHttpConnection(InHostAddress, Port, &TlsSettings);
+	return FHttpConnection(InHostAddress, Port, ETlsRequirement::Required, TlsSettings);
 }
 
 FHttpConnection
 FHttpConnection::CreateDefaultHttps(const FRemoteDesc& RemoteDesc)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-	return FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, &TlsSettings);
+	return FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, ETlsRequirement::Required, TlsSettings);
 }
 
 bool
@@ -554,15 +587,10 @@ FHttpConnection::Open()
 		}
 	}
 
-	FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
-
-	if (RawSocketHandle == InvalidSocketHandle)
+	if (TlsRequirement != ETlsRequirement::None)
 	{
-		return false;
-	}
+		FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
 
-	if (bUseTls)
-	{
 		FTlsClientSettings ClientSettings;
 		ClientSettings.bVerifyCertificate = bTlsVerifyCertificate;
 		ClientSettings.bVerifySubject	  = bTlsVerifySubject;
@@ -574,6 +602,7 @@ FHttpConnection::Open()
 		}
 
 		FSocketTls* TlsSocket = new FSocketTls(RawSocketHandle, ClientSettings);
+
 		if (TlsSocket->IsTlsValid())
 		{
 			Socket = std::unique_ptr<FSocketTls>(TlsSocket);
@@ -581,10 +610,14 @@ FHttpConnection::Open()
 		else
 		{
 			delete TlsSocket;
+			TlsSocket = nullptr;
 		}
 	}
-	else
+
+	if (!Socket && TlsRequirement != ETlsRequirement::Required)
 	{
+		FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
+
 		Socket = std::unique_ptr<FSocketRaw>(new FSocketRaw(RawSocketHandle));
 	}
 

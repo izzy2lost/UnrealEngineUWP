@@ -43,12 +43,8 @@ struct FCompareFNewTextureInfoByTextureSize
 class FSlateShaderResourceManager
 {
 public:
-	FSlateShaderResourceManager() {};
-	virtual ~FSlateShaderResourceManager()
-	{
-		ClearTextureMap();
-	}
-
+	SLATECORE_API FSlateShaderResourceManager();
+	SLATECORE_API virtual ~FSlateShaderResourceManager();
 
 	/** 
 	 * Returns a texture associated with the passed in name.  Should return nullptr if not found 

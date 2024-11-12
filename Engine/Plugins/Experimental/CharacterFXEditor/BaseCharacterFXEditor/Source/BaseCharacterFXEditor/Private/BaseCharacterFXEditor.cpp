@@ -3,7 +3,7 @@
 #include "BaseCharacterFXEditor.h"
 #include "BaseCharacterFXEditorToolkit.h"
 
-void UBaseCharacterFXEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
+void UBaseCharacterFXEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects, const TSubclassOf<AActor>& InPreviewClass)
 {
 	OriginalObjectsToEdit = InObjects;
 

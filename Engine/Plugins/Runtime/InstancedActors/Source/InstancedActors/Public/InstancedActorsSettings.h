@@ -5,14 +5,42 @@
 #include "DataRegistryId.h"
 #include "Engine/DeveloperSettings.h"
 #include "UObject/SoftObjectPtr.h"
+#include "MassActorSpawnerSubsystem.h"
+#include "InstancedActorsSubsystem.h"
+#include "MassStationaryDistanceVisualizationTrait.h"
 #include "InstancedActorsSettings.generated.h"
 
 
-class UMassActorSpawnerSubsystem;
-class UInstancedActorsSubsystem;
-class UMassStationaryDistanceVisualizationTrait;
-
 #define GET_INSTANCEDACTORS_CONFIG_VALUE(a) (GetMutableDefault<UInstancedActorsProjectSettings>()->a)
+
+USTRUCT()
+struct FInstancedActorsConfig
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Config, EditAnywhere, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/MassActors.MassActorSpawnerSubsystem"))
+	TSubclassOf<UMassActorSpawnerSubsystem> ServerActorSpawnerSubsystemClass; 
+
+	UPROPERTY(Config, EditAnywhere, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/MassActors.MassActorSpawnerSubsystem"))
+	TSubclassOf<UMassActorSpawnerSubsystem> ClientActorSpawnerSubsystemClass;
+
+	UPROPERTY(Config, EditAnywhere, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/InstancedActors.InstancedActorsSubsystem"))
+	TSubclassOf<UInstancedActorsSubsystem> InstancedActorsSubsystemClass;
+
+	UPROPERTY(Config, EditAnywhere, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/MassRepresentation.MassStationaryDistanceVisualizationTrait"))
+	TSubclassOf<UMassStationaryDistanceVisualizationTrait> StationaryVisualizationTraitClass;
+};
+
+USTRUCT()
+struct FClassConfigOverrideEntry
+{
+	GENERATED_BODY()
+
+	FObjectKey Owner;
+	
+	UPROPERTY()
+	FInstancedActorsConfig ConfigOverride;
+};
 
 /** 
  * Configurable project settings for the Instanced Actors system.
@@ -25,6 +53,8 @@ class UInstancedActorsProjectSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	DECLARE_MULTICAST_DELEGATE(FOnSettingsChanged);
+
 	UInstancedActorsProjectSettings();
 
 	TSubclassOf<UMassActorSpawnerSubsystem> GetServerActorSpawnerSubsystemClass() const;
@@ -32,6 +62,15 @@ public:
 	TSubclassOf<UInstancedActorsSubsystem> GetInstancedActorsSubsystemClass() const;
 	TSubclassOf<UMassStationaryDistanceVisualizationTrait> GetStationaryVisualizationTraitClass() const;
 
+	void RegisterConfigOverride(UObject& Owner, const FInstancedActorsConfig& Config);
+	void UnregisterConfigOverride(UObject& Owner);
+
+	FOnSettingsChanged& GetOnSettingsUpdated() { return OnSettingsUpdated; }
+
+protected:
+	void CompileSettings();
+
+public:
 	/** 3D grid size (distance along side) for partitioned instanced actor managers */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, meta = (ClampMin="0", Units=cm), Category = Grid)
 	int32 GridSize = 24480;
@@ -55,18 +94,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = ActorClassSettings)
 	FName EnforcedSettingsName = NAME_None;
 
-	// TSubclassOf<UMassActorSpawnerSubsystem> ServerActorSpawnerSubsystemClass;
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/MassActors.MassActorSpawnerSubsystem"))
-	FSoftClassPath ServerActorSpawnerSubsystemClass;
+	UPROPERTY(Config, EditAnywhere, Category = ActorClassSettings)
+	FInstancedActorsConfig DefaultConfig;
 
-	// TSubclassOf<UMassActorSpawnerSubsystem> ClientActorSpawnerSubsystemClass;
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/MassActors.MassActorSpawnerSubsystem"))
-	FSoftClassPath ClientActorSpawnerSubsystemClass;
+protected:
+	FOnSettingsChanged OnSettingsUpdated;
 
-	// TSubclassOf<UInstancedActorsSubsystem> InstancedActorsSubsystemClass;
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/InstancedActors.InstancedActorsSubsystem"))
-	FSoftClassPath InstancedActorsSubsystemClass;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = Subsystems, NoClear, meta = (MetaClass = "/Script/MassRepresentation.MassStationaryDistanceVisualizationTrait"))
-	FSoftClassPath StationaryVisualizationTraitClass;
+	/** Represents the current config combining DefaultConfig and all registered ClassConfigOverrides */
+	UPROPERTY(Transient)
+	FInstancedActorsConfig CompiledActiveConfig;
+		
+	UPROPERTY(Transient)
+	TArray<FClassConfigOverrideEntry> ClassConfigOverrides;
 };

@@ -4,42 +4,64 @@
 #include "Math/UnrealMathUtility.h"
 #include <limits>
 
-template <int SIZE>
+template <typename T, int32 SIZE>
 class FLocalMinimumMagnitudeTracker
 {
 public:
-	FLocalMinimumMagnitudeTracker()	{ Reset(); }
+	FLocalMinimumMagnitudeTracker() { Reset(); }
 
-   void Reset()
-   {
-      ring[0] = std::numeric_limits<float>::max();
-      nextWrite = 1;
-      minPosition = 0;
-   }
+	void Reset()
+	{
+		Ring[0] = 0;
+		NextWrite = 0;
+		MinPosition = 0;
+		AccumulatedError = 0;
+		Wrapped = false;
+	}
 
-   void Push(float v)
-   {
-      ring[nextWrite] = v;
-      if (nextWrite == minPosition)
-      {
-         // search for new lowest...
-         minPosition = (nextWrite + 1) % SIZE;
-         for (int i = 1; i < SIZE; ++i)
-         {
-            int testIdx = (nextWrite + 1 + i) % SIZE;
-            if (FMath::Abs(ring[testIdx]) <= FMath::Abs(ring[minPosition]))
-               minPosition = testIdx;
-         }
-      }
-      else if (FMath::Abs(v) <= FMath::Abs(ring[minPosition]))
-         minPosition = nextWrite;
-      nextWrite = (nextWrite + 1) % SIZE;
-   }
+	void Push(T v)
+	{
+		if (Wrapped)
+		{
+			AccumulatedError -= Ring[NextWrite];
+		}
+		AccumulatedError += v;
+		Ring[NextWrite] = v;
+		if (NextWrite == MinPosition)
+		{
+			// search for new lowest...
+			MinPosition = (NextWrite + 1) % SIZE;
+			for (int32 i = 1; i < SIZE; ++i)
+			{
+				int32 testIdx = (NextWrite + 1 + i) % SIZE;
+				if (FMath::Abs(Ring[testIdx]) <= FMath::Abs(Ring[MinPosition]))
+					MinPosition = testIdx;
+			}
+		}
+		else if (FMath::Abs(v) <= FMath::Abs(Ring[MinPosition]))
+		{
+			MinPosition = NextWrite;
+		}
+		Wrapped = Wrapped || (NextWrite + 1) >= SIZE;
+		NextWrite = (NextWrite + 1) % SIZE;
+	}
 
-   float Min() const { return ring[minPosition]; }
+	T Min() const { return Ring[MinPosition]; }
+
+	T Average() const 
+	{
+		int32 Count = Wrapped ? (T)SIZE : (T)NextWrite;
+		if (Count == 0)
+		{
+			return 0;
+		}
+		return AccumulatedError / (T)Count;
+	}
 
 private:
-   float ring[SIZE];
-   int   nextWrite = 0;
-   int   minPosition = 0;
+	T Ring[SIZE];
+	int32 NextWrite = 0;
+	int32 MinPosition = 0;
+	T AccumulatedError = 0;
+	bool  Wrapped = false;
 };

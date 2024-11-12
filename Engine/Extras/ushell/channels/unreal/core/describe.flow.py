@@ -5,43 +5,57 @@ import flow.describe
 
 #-------------------------------------------------------------------------------
 fzf_linux = flow.describe.Tool()
-fzf_linux.version("0.44.1")
-fzf_linux.payload("https://github.com/junegunn/fzf/releases/download/$VERSION/fzf-$VERSION-linux_amd64.tar.gz")
-fzf_linux.sha1("e7780f1e5e2dd4c8aa5e94dcbcbedf4cebfaaceb")
+fzf_linux.version("0.54.3")
+fzf_linux.payload("https://github.com/junegunn/fzf/releases/download/v$VERSION/fzf-$VERSION-linux_amd64.tar.gz")
+fzf_linux.sha1("e46fcd29c453ee61be0d41ca22b7eefd944f91f6")
 fzf_linux.platform("linux")
 fzf_linux.bin("fzf")
 
-fzf_darwin = flow.describe.Tool()
-fzf_darwin.version("0.44.1")
-fzf_darwin.payload("https://github.com/junegunn/fzf/releases/download/$VERSION/fzf-$VERSION-darwin_amd64.zip")
-fzf_darwin.sha1("405156eb6fc3d5275774cc569e24feaed362eab5")
-fzf_darwin.platform("darwin")
-fzf_darwin.bin("fzf")
+fzf_darwin_x64 = flow.describe.Tool()
+fzf_darwin_x64.version("0.54.3")
+fzf_darwin_x64.payload("https://github.com/junegunn/fzf/releases/download/v$VERSION/fzf-$VERSION-darwin_amd64.tar.gz")
+fzf_darwin_x64.sha1("3723b3445037bdaa302d1d365d4940beb4c283c8")
+fzf_darwin_x64.platform("darwin-amd64")
+fzf_darwin_x64.bin("fzf")
+
+fzf_darwin_arm = flow.describe.Tool()
+fzf_darwin_arm.version("0.54.3")
+fzf_darwin_arm.payload("https://github.com/junegunn/fzf/releases/download/v$VERSION/fzf-$VERSION-darwin_arm64.tar.gz")
+fzf_darwin_arm.sha1("c52657e62c095909fb1ac69e6d714eac3a10dc4c")
+fzf_darwin_arm.platform("darwin-arm64")
+fzf_darwin_arm.bin("fzf")
 
 
 
 #-------------------------------------------------------------------------------
 ripgrep_win32 = flow.describe.Tool()
-ripgrep_win32.version("14.0.3")
+ripgrep_win32.version("14.1.0")
 ripgrep_win32.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-pc-windows-msvc.zip")
-ripgrep_win32.sha1("5508b3dd5c12206c5d1c7994490bacf317cee0aa")
+ripgrep_win32.sha1("ba7820c05aeb49050d9242a109e422585c3fc767")
 ripgrep_win32.platform("win32")
 ripgrep_win32.bin("rg.exe")
 ripgrep_win32.source("https://github.com/BurntSushi/ripgrep/releases/latest", r"ripgrep-(\d+\.\d+\.\d+)-x86_64")
 
 ripgrep_linux = flow.describe.Tool()
-ripgrep_linux.version("14.0.3")
+ripgrep_linux.version("14.1.0")
 ripgrep_linux.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-unknown-linux-musl.tar.gz")
-ripgrep_linux.sha1("25a759834819f91625ac739c890a4b0139df7b63")
+ripgrep_linux.sha1("8267841999fa96f5a5a375ed518a24bebef6ca4c")
 ripgrep_linux.platform("linux")
 ripgrep_linux.bin("rg")
 
-ripgrep_darwin = flow.describe.Tool()
-ripgrep_darwin.version("14.0.3")
-ripgrep_darwin.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-apple-darwin.tar.gz")
-ripgrep_darwin.sha1("d5af393ea9b5a443544edc686cf939f517be35ea")
-ripgrep_darwin.platform("darwin")
-ripgrep_darwin.bin("rg")
+ripgrep_darwin_x64 = flow.describe.Tool()
+ripgrep_darwin_x64.version("14.1.0")
+ripgrep_darwin_x64.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-apple-darwin.tar.gz")
+ripgrep_darwin_x64.sha1("0d98d699f08c4eed18f4379734d4e1d973f59cde")
+ripgrep_darwin_x64.platform("darwin-amd64")
+ripgrep_darwin_x64.bin("rg")
+
+ripgrep_darwin_arm = flow.describe.Tool()
+ripgrep_darwin_arm.version("14.1.0")
+ripgrep_darwin_arm.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-aarch64-apple-darwin.tar.gz")
+ripgrep_darwin_arm.sha1("59d0d543a7e25831b29ebe2943da366d4c005d26")
+ripgrep_darwin_arm.platform("darwin-amd64")
+ripgrep_darwin_arm.bin("rg")
 
 
 
@@ -180,6 +194,14 @@ sln_open = flow.describe.Command()
 sln_open.source("cmds/sln.py", "Open")
 sln_open.invoke("sln", "open")
 
+sln_10x = flow.describe.Command()
+sln_10x.source("cmds/sln.py", "Open10x")
+sln_10x.invoke("sln", "open", "10x")
+
+sln_tiny = flow.describe.Command()
+sln_tiny.source("cmds/sln.py", "Tiny")
+sln_tiny.invoke("sln", "open", "tiny")
+
 #-------------------------------------------------------------------------------
 uat = flow.describe.Command()
 uat.source("cmds/uat.py", "Uat")
@@ -219,6 +241,19 @@ notify.invoke("notify")
 project_change = flow.describe.Command()
 project_change.source("cmds/project.py", "Change")
 project_change.invoke("project")
+
+#-------------------------------------------------------------------------------
+odsc_client = flow.describe.Command()
+odsc_client.source("cmds/odsc.py", "Client")
+odsc_client.invoke("cook", "odsc", "client")
+
+odsc_game = flow.describe.Command()
+odsc_game.source("cmds/odsc.py", "Game")
+odsc_game.invoke("cook", "odsc", "game")
+
+odsc_all = flow.describe.Command()
+odsc_all.source("cmds/odsc.py", "All")
+odsc_all.invoke("cook", "odsc", "all")
 
 #-------------------------------------------------------------------------------
 prompt = flow.describe.Command()

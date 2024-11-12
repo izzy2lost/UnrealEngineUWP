@@ -39,5 +39,10 @@ namespace EpicGames.Perforce
 		/// View restricted changes (requires admin permission)
 		/// </summary>
 		IncludeRestricted = 16,
+
+		/// <summary>
+		/// Gets oldest changes first
+		/// </summary>
+		Reverse = 32,
 	}
 }

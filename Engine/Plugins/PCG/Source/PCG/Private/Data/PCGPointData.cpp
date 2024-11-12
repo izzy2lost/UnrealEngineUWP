@@ -2,7 +2,9 @@
 
 #include "Data/PCGPointData.h"
 
+#include "PCGContext.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGTagHelpers.h"
 #include "Metadata/PCGMetadataAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -241,6 +243,12 @@ FPCGPointRef::FPCGPointRef(const FPCGPoint& InPoint)
 	Bounds = InPoint.GetDensityBounds();
 }
 
+FPCGPointRef::FPCGPointRef(const FPCGPoint& InPoint, const FBox& InOverrideBounds)
+{
+	Point = &InPoint;
+	Bounds = FBoxSphereBounds(InOverrideBounds.TransformBy(InPoint.Transform));
+}
+
 void UPCGPointData::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 {
 	Super::GetResourceSizeEx(CumulativeResourceSize);
@@ -290,52 +298,18 @@ void UPCGPointData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 	// Crc point data.
 	{
 		// Create copy so we can zero-out the metadata keys which are non-deterministic.
-		TArray<FPCGPoint> PointsCopy = Points;
-		for (FPCGPoint& Point : PointsCopy)
+		for (const FPCGPoint& OriginalPoint : Points)
 		{
+			FPCGPoint Point = OriginalPoint;
 			Point.MetadataEntry = 0;
-		}
-
-		Ar.Serialize(PointsCopy.GetData(), PointsCopy.Num() * PointsCopy.GetTypeSize());
+			Ar << Point;
+		} 
 	}
 
 	// Crc metadata.
 	if (const UPCGMetadata* PCGMetadata = ConstMetadata())
 	{
-		FPCGAttributeAccessorKeysPoints AccessorKeys(Points);
-
-		TArray<FName> AttributeNames;
-		{
-			TArray<EPCGMetadataTypes> AttributeTypes;
-			PCGMetadata->GetAttributes(AttributeNames, AttributeTypes);
-		}
-
-		// Attribute names might come in different orders for e.g. if edge order changes.
-		Algo::Sort(AttributeNames, [this](const FName& A, const FName& B) { return A.LexicalLess(B); });
-
-		for (FName AttributeName : AttributeNames)
-		{
-			Ar << AttributeName;
-
-			if (const FPCGMetadataAttributeBase* Attribute = PCGMetadata->GetConstAttribute(AttributeName))
-			{
-				for (const FPCGPoint& Point : Points)
-				{
-					auto Callback = [Attribute, PCGMetadata, &Ar, &Point](auto ValueWithType)
-					{
-						using AttributeType = decltype(ValueWithType);
-
-						if (const FPCGMetadataAttribute<AttributeType>* TypedAttribute = static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute))
-						{
-							ValueWithType = TypedAttribute->GetValueFromItemKey(Point.MetadataEntry);
-							PCG::Private::Serialize(Ar, ValueWithType);
-						}
-					};
-
-					PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), Callback);
-				}
-			}
-		}
+		PCGMetadata->AddToCrc(Ar, bFullDataCrc);
 	}
 }
 
@@ -402,11 +376,6 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor, bool* bOutOptionalS
 {
 	check(InActor);
 
-	if (bOutOptionalSanitizedTagAttributeName)
-	{
-		*bOutOptionalSanitizedTagAttributeName = false;
-	}
-
 	FPCGPoint& Point = GetMutablePoints().Emplace_GetRef();
 	Point.Steepness = 1.0f;
 	Point.Transform = InActor->GetActorTransform();
@@ -426,67 +395,21 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor, bool* bOutOptionalS
 		ActorReferenceAttribute->SetValue(Point.MetadataEntry, FSoftObjectPath(InActor));
 	}
 
+	bool bSanitizedAttributeNames = false;
+
 	// Parse tags as well
 	for (FName Tag : InActor->Tags)
 	{
-		FString TagString = Tag.ToString();
-		int32 EqualPosition = INDEX_NONE;
-		
-		// Tags that contain a colon will be consider a field:value pair; we'll try to read a number first then default to a string
-		if(TagString.FindChar(':', EqualPosition))
+		PCG::Private::FParseTagResult TagData(Tag);
+		if (PCG::Private::SetAttributeFromTag(TagData, Metadata, Point.MetadataEntry, /*bCanCreateAttribute=*/true))
 		{
-			FString LeftSide = TagString.Left(EqualPosition);
-			FString RightSide = TagString.RightChop(EqualPosition+1);
-
-			if (LeftSide.IsEmpty() || RightSide.IsEmpty())
-			{
-				continue;
-			}
-
-			const bool bSanitized = FPCGMetadataAttributeBase::SanitizeName(LeftSide);
-			if (bOutOptionalSanitizedTagAttributeName)
-			{
-				*bOutOptionalSanitizedTagAttributeName |= bSanitized;
-			}
-
-			if (RightSide.IsNumeric())
-			{
-				if (FPCGMetadataAttribute<double>* Attribute = Metadata->FindOrCreateAttribute<double>(FName(LeftSide), 0.0, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
-				{
-					double RightSideValue = FCString::Atod(*RightSide);
-					Attribute->SetValue(Point.MetadataEntry, RightSideValue);
-				}
-			}
-			else
-			{
-				if (FPCGMetadataAttribute<FString>* Attribute = Metadata->FindOrCreateAttribute<FString>(FName(LeftSide), FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
-				{
-					Attribute->SetValue(Point.MetadataEntry, RightSide);
-				}
-			}
+			bSanitizedAttributeNames |= TagData.HasBeenSanitized();
 		}
-		else // Otherwise, consider that the tag is a boolean value
-		{
-			FName SanitizedAttributeName = NAME_None;
-			if (FPCGMetadataAttributeBase::SanitizeName(TagString))
-			{
-				SanitizedAttributeName = FName(TagString);
+	}
 
-				if (bOutOptionalSanitizedTagAttributeName)
-				{
-					*bOutOptionalSanitizedTagAttributeName = true;
-				}
-			}
-			else
-			{
-				SanitizedAttributeName = Tag;
-			}
-
-			if (FPCGMetadataAttribute<bool>* Attribute = Metadata->FindOrCreateAttribute<bool>(SanitizedAttributeName, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
-			{
-				Attribute->SetValue(Point.MetadataEntry, true);
-			}
-		}
+	if (bOutOptionalSanitizedTagAttributeName)
+	{
+		*bOutOptionalSanitizedTagAttributeName = bSanitizedAttributeNames;
 	}
 }
 
@@ -690,13 +613,13 @@ void UPCGPointData::RebuildOctree() const
 		NewOctree.AddElement(FPCGPointRef(Point));
 	}
 
-	Octree = NewOctree;
+	Octree = MoveTemp(NewOctree);
 	bOctreeIsDirty = false;
 }
 
-UPCGSpatialData* UPCGPointData::CopyInternal() const
+UPCGSpatialData* UPCGPointData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGPointData* NewPointData = NewObject<UPCGPointData>();
+	UPCGPointData* NewPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	NewPointData->GetMutablePoints() = GetPoints();
 
 	return NewPointData;

@@ -17,6 +17,22 @@
 
 void SUsdPrimInfo::Construct(const FArguments& InArgs)
 {
+	// auto as this has to fit the different types of list view
+	auto MakeListViewGetter = [](auto ListViewSharedPtrPtr) -> TAttribute<float>
+	{
+		return TAttribute<float>::Create(TAttribute<float>::FGetter::CreateLambda(
+			[ListViewSharedPtrPtr]()
+			{
+				if (ListViewSharedPtrPtr && (*ListViewSharedPtrPtr) && (*ListViewSharedPtrPtr)->GetItems().Num() > 0)
+				{
+					return 0.5f;
+				}
+
+				return 0.0f;
+			}
+		));
+	};
+
 	// clang-format off
 	ChildSlot
 	[
@@ -25,78 +41,58 @@ void SUsdPrimInfo::Construct(const FArguments& InArgs)
 		+SVerticalBox::Slot()
 		.FillHeight(1.f)
 		[
-			SNew(SBox)
-			.Content()
-			[
-				SAssignNew(PropertiesList, SUsdObjectFieldList)
-				.NameColumnText(LOCTEXT("NameColumnText", "Name"))
-				.OnSelectionChanged_Lambda([this](const TSharedPtr<FUsdObjectFieldViewModel>& NewSelection, ESelectInfo::Type SelectionType)
+			SAssignNew(PropertiesList, SUsdObjectFieldList)
+			.NameColumnText(LOCTEXT("NameColumnText", "Name"))
+			.OnSelectionChanged_Lambda([this](const TSharedPtr<FUsdObjectFieldViewModel>& NewSelection, ESelectInfo::Type SelectionType)
+			{
+				// Display property metadata if we have exactly one selected
+				TArray<FString> SelectedFields = PropertiesList->GetSelectedFieldNames();
+				if (PropertiesList && SelectedFields.Num() == 1 && NewSelection &&
+					(NewSelection->Type == EObjectFieldType::Attribute || NewSelection->Type == EObjectFieldType::Relationship)
+				)
 				{
-					// Display property metadata if we have exactly one selected
-					TArray<FString> SelectedFields = PropertiesList->GetSelectedFieldNames();
-					if (PropertiesList && SelectedFields.Num() == 1 && NewSelection &&
-						(NewSelection->Type == EObjectFieldType::Attribute || NewSelection->Type == EObjectFieldType::Relationship)
-					)
-					{
-						PropertyMetadataPanel->SetObjectPath(
-							PropertiesList->GetUsdStage(),
-							*(FString{PropertiesList->GetObjectPath()} + "." + SelectedFields[0])
-						);
-						PropertyMetadataPanel->SetVisibility(EVisibility::Visible);
-					}
-					else
-					{
-						PropertyMetadataPanel->SetObjectPath({}, TEXT(""));
-						PropertyMetadataPanel->SetVisibility(EVisibility::Collapsed);
-					}
-				})
-			]
-		]
-
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SNew(SBox)
-			.Content()
-			[
-				SAssignNew(PropertyMetadataPanel, SUsdObjectFieldList)
-				.NameColumnText_Lambda([this]() -> FText
+					PropertyMetadataPanel->SetObjectPath(
+						PropertiesList->GetUsdStage(),
+						*(FString{PropertiesList->GetObjectPath()} + "." + SelectedFields[0])
+					);
+					PropertyMetadataPanel->SetVisibility(EVisibility::Visible);
+				}
+				else
 				{
-					FString PropertyName = FPaths::GetExtension(PropertyMetadataPanel->GetObjectPath());
-					return FText::FromString(FString::Printf(TEXT("%s metadata"), *PropertyName));
-				})
-				.Visibility(EVisibility::Collapsed)
-			]
+					PropertyMetadataPanel->SetObjectPath({}, TEXT(""));
+					PropertyMetadataPanel->SetVisibility(EVisibility::Collapsed);
+				}
+			})
 		]
 
 		+SVerticalBox::Slot()
-		.AutoHeight()
+		.FillHeight(MakeListViewGetter(&PropertyMetadataPanel))
 		[
-			SNew(SBox)
-			.Content()
-			[
-				SAssignNew(IntegrationsPanel, SUsdIntegrationsPanel)
-			]
+			SAssignNew(PropertyMetadataPanel, SUsdObjectFieldList)
+			.NameColumnText_Lambda([this]() -> FText
+			{
+				FString PropertyName = FPaths::GetExtension(PropertyMetadataPanel->GetObjectPath());
+				return FText::FromString(FString::Printf(TEXT("%s metadata"), *PropertyName));
+			})
+			.Visibility(EVisibility::Collapsed)
 		]
 
 		+SVerticalBox::Slot()
-		.AutoHeight()
+		.FillHeight(MakeListViewGetter(&IntegrationsPanel))
 		[
-			SNew(SBox)
-			.Content()
-			[
-				SAssignNew(VariantsList, SVariantsList)
-			]
+			SAssignNew(IntegrationsPanel, SUsdIntegrationsPanel)
 		]
 
 		+SVerticalBox::Slot()
-		.AutoHeight()
+		.FillHeight(MakeListViewGetter(&VariantsList))
 		[
-			SNew(SBox)
-			.Content()
-			[
-				SAssignNew(ReferencesList, SUsdReferencesList)
-			]
+			SAssignNew(VariantsList, SVariantsList)
+		]
+
+		+SVerticalBox::Slot()
+		.FillHeight(MakeListViewGetter(&ReferencesList))
+		[
+			SAssignNew(ReferencesList, SUsdReferencesList)
 		]
 	];
 	// clang-format on

@@ -92,10 +92,6 @@ public:
 	// Return the collision radius required to calculate the self collision indices, or 0.f if self collision is disabled.
 	virtual float GetSelfCollisionRadius() const override { return NeedsSelfCollisionData() ? SelfCollisionRadius * SelfCollisionCullScale : 0.0f; }
 
-	// Return whether this Nv config has self collision.
-	UE_DEPRECATED(5.0, "Use NeedsSelfCollisionData instead.")
-	bool UseSelfCollisions() const { return NeedsSelfCollisionData(); }
-
 	// How wind should be processed, Accurate uses drag and lift to make the cloth react differently, legacy applies similar forces to all clothing without drag and lift (similar to APEX)
 	UPROPERTY(EditAnywhere, Category = ClothConfig)
 	EClothingWindMethodNv ClothingWindMethod;

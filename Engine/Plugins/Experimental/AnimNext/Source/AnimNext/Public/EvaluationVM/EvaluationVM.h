@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "ConstExprUID.h"
 #include "Animation/AnimCurveFilter.h"
 #include "EvaluationVM/EvaluationFlags.h"
 #include "EvaluationVM/KeyframeState.h"
@@ -22,29 +23,13 @@
 
 namespace UE::AnimNext
 {
-	constexpr uint32 ConstexprStringFnv32(const char* StringLiteral)
-	{
-		constexpr uint32 Offset = 0x811c9dc5;
-		constexpr uint32 Prime = 0x01000193;
-
-		const char* CharPtr = StringLiteral;
-
-		uint32 Fnv = Offset;
-		while (*CharPtr != 0)
-		{
-			Fnv ^= *CharPtr++;
-			Fnv *= Prime;
-		}
-
-		return Fnv;
-	}
-
 	// Helper function that returns a UID for the specified type
 	// @see ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE
 	template<typename Type>
 	constexpr uint32 GetTypeID()
 	{
-		checkf(false, TEXT("Not implemented! See ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE for details and register your type"));
+		static_assert(sizeof(Type) != sizeof(Type),
+			"Not implemented! See ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE for details and register your type");
 		return 0;
 	}
 
@@ -120,7 +105,7 @@ namespace UE::AnimNext
 	 * 
 	 * Represents a named and typed VM stack.
 	 */
-	struct FEvaluationVMStack final
+	struct ANIMNEXT_API FEvaluationVMStack final
 	{
 		// Name of the stack
 		FName Name;
@@ -312,6 +297,6 @@ namespace UE::AnimNext
 	// Various commonly used VM stacks
 
 	// A stack of FKeyframeState instances used when sampling sequences and blending their results
-	extern const FEvaluationVMStackName KEYFRAME_STACK_NAME;
+	extern ANIMNEXT_API const FEvaluationVMStackName KEYFRAME_STACK_NAME;
 	ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE(TUniquePtr<FKeyframeState>)
 }

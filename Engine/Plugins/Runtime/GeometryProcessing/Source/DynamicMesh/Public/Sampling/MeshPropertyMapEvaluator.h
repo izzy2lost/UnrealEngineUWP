@@ -58,11 +58,6 @@ public:
 protected:
 	// Cached data
 	const IMeshBakerDetailSampler* DetailSampler = nullptr;
-	
-	using FDetailNormalTexture UE_DEPRECATED(5.1, "Use FNormalTexture instead.") = IMeshBakerDetailSampler::FBakeDetailTexture;
-	using FDetailNormalTextureMap UE_DEPRECATED(5.1, "Use FNormalTextureMap instead.") = TMap<const void*, IMeshBakerDetailSampler::FBakeDetailTexture>;
-	UE_DEPRECATED(5.1, "Use DetailNormalMaps instead.")
-	TMap<const void*, IMeshBakerDetailSampler::FBakeDetailTexture> DetailNormalTextures;
 
 	using FNormalTexture = IMeshBakerDetailSampler::FBakeDetailNormalTexture;
 	using FNormalTextureMap = TMap<const void*, FNormalTexture>;

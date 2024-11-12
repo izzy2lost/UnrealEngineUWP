@@ -6,7 +6,7 @@
 #include "AvaPropertyChangeDispatcher.h"
 #include "GeometryMaskTypes.h"
 #include "Modifiers/AvaArrangeBaseModifier.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "UObject/ObjectPtr.h"
 
 #include "AvaMask2DBaseModifier.generated.h"

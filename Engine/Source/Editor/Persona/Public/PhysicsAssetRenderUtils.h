@@ -11,6 +11,7 @@
 #include "SceneManagement.h"
 #include "PhysicsAssetRenderUtils.generated.h"
 
+enum class EPhysicsAssetEditorCenterOfMassViewMode : uint8;
 enum class EPhysicsAssetEditorConstraintViewMode : uint8;
 enum class EPhysicsAssetEditorCollisionViewMode : uint8;
 
@@ -75,6 +76,9 @@ public:
 
 	// Physics Asset Editor Viewport Options
 	UPROPERTY()
+	EPhysicsAssetEditorCenterOfMassViewMode CenterOfMassViewMode;
+
+	UPROPERTY()
 	EPhysicsAssetEditorCollisionViewMode CollisionViewMode;
 
 	UPROPERTY()
@@ -99,12 +103,15 @@ public:
 
 	UPROPERTY()
 	bool bHideSimulatedBodies;
+	
+	UPROPERTY()
+	bool bHideBodyMass;
 
 	UPROPERTY()
 	bool bRenderOnlySelectedConstraints;
 
 	UPROPERTY()
-	bool bShowCOM;
+	bool bShowCOM_DEPRECATED;
 
 	UPROPERTY()
 	bool bShowConstraintsAsPoints;
@@ -124,6 +131,12 @@ public:
 
 	UPROPERTY()
 	float COMRenderSize;
+
+	UPROPERTY()
+	float COMRenderLineThickness;
+
+	UPROPERTY()
+	float COMRenderMassTextOffsetScreenspace;
 
 	UPROPERTY()
 	float InfluenceLineLength;
@@ -199,15 +212,21 @@ namespace PhysicsAssetRender
 	using GetPrimitiveTransformRef = TFunctionRef< FTransform (const UPhysicsAsset* PhysicsAsset, const FTransform& BoneTM, const int32 BodyIndex, const EAggCollisionShape::Type PrimType, const int32 PrimIndex, const float Scale) >;
 	using CreateBodyHitProxyFn = TFunctionRef< HHitProxy* (const int32 BodyIndex, const EAggCollisionShape::Type PrimitiveType, const int32 PrimitiveIndex) >;
 	using CreateConstraintHitProxyFn = TFunctionRef< HHitProxy* (const int32 InConstraintIndex) >;
+	using CreateCoMHitProxyFn = TFunctionRef< HHitProxy* (const int32 InBodyIndex) >;
+	using COMAccessorFunctionFn = TFunctionRef< TPair< bool, FVector >(const int32) >;
+	using IsSelectedFn = TFunction< bool(const uint32) >;
 
 	/** Debug draw Physics Asset bodies and constraints using the default callbacks */
 	PERSONA_API void DebugDraw(class USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI);
 	
 	/** Debug draw Physics Asset bodies using the supplied custom callbacks */
 	PERSONA_API void DebugDrawBodies(class USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, GetPrimitiveRef< FColor > GetPrimitiveColor, GetPrimitiveRef< class UMaterialInterface* > GetPrimitiveMaterial, GetPrimitiveTransformRef GetPrimitiveTransform, CreateBodyHitProxyFn CreateHitProxy);
-	
+
+	/** Debug draw the Center of Masses for all bodies in the supplied Skeletal Mesh */
+	PERSONA_API void DebugDrawCenterOfMass(USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunctionRef< FVector(const uint32) > GetCoMPosition, TFunctionRef< bool(const uint32) > IsSelected, CreateCoMHitProxyFn CreateHitProxy);
+
 	/** Debug draw Physics Asset constraints using the supplied custom callbacks */
-	PERSONA_API void DebugDrawConstraints(class USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunctionRef< bool(const uint32) > IsConstraintSelected, const bool bRunningSimulation, CreateConstraintHitProxyFn CreateHitProxy);
+	PERSONA_API void DebugDrawConstraints(class USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, IsSelectedFn IsSelected, const bool bRunningSimulation, CreateConstraintHitProxyFn CreateHitProxy);
 	
 	/** Default callbacks used by DebugDraw */
 	PERSONA_API FTransform GetPrimitiveTransform(const UPhysicsAsset* PhysicsAsset, const FTransform& BoneTM, const int32 BodyIndex, const EAggCollisionShape::Type PrimType, const int32 PrimIndex, const float Scale);

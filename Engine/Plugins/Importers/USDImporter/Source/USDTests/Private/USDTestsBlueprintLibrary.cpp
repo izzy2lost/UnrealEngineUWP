@@ -50,7 +50,7 @@ bool USDTestsBlueprintLibrary::RecompileBlueprintStageActor(AUsdStageActor* Blue
 		UE_LOG(LogUsd, Error, TEXT("Blueprint failed to compile (%s)"), *BP->GetName());
 		return false;
 	}
-	
+
 	UE_LOG(LogUsd, Error, TEXT("Blueprint is in an unexpected state after compiling (%s)"), *BP->GetName());
 #endif	  // WITH_EDITOR
 	return false;
@@ -92,9 +92,9 @@ int64 USDTestsBlueprintLibrary::GetSubtreeVertexCount(AUsdStageActor* StageActor
 {
 	if (StageActor)
 	{
-		if (TSharedPtr<FUsdInfoCache> Cache = StageActor->GetInfoCache())
+		if (UUsdInfoCache* Cache = StageActor->UsdInfoCache)
 		{
-			TOptional<uint64> Result = Cache->GetSubtreeVertexCount(UE::FSdfPath{*PrimPath});
+			TOptional<uint64> Result = Cache->GetInner().GetSubtreeVertexCount(UE::FSdfPath{*PrimPath});
 			if (Result.IsSet())
 			{
 				// Narrowing conversion here, but we're only using this for our test scenes, which have at most a few thousand vertices
@@ -114,9 +114,9 @@ int64 USDTestsBlueprintLibrary::GetSubtreeMaterialSlotCount(AUsdStageActor* Stag
 {
 	if (StageActor)
 	{
-		if (TSharedPtr<FUsdInfoCache> Cache = StageActor->GetInfoCache())
+		if (UUsdInfoCache* Cache = StageActor->UsdInfoCache)
 		{
-			TOptional<uint64> Result = Cache->GetSubtreeMaterialSlotCount(UE::FSdfPath{*PrimPath});
+			TOptional<uint64> Result = Cache->GetInner().GetSubtreeMaterialSlotCount(UE::FSdfPath{*PrimPath});
 			if (Result.IsSet())
 			{
 				return static_cast<int64>(Result.GetValue());

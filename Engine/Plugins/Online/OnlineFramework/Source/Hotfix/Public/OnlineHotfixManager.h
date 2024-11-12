@@ -196,6 +196,8 @@ protected:
 	uint32 ChangedOrRemovedPakCount;
 	/** Our passed-in World */
 	TWeakObjectPtr<UWorld> OwnerWorld;
+	/** Loaded hotfix contents that were not mapped to any known branch, but might be loaded later */
+	TMap<FName, FString> DynamicHotfixContents;
 
 	virtual void Init();
 	virtual void Cleanup();
@@ -227,6 +229,7 @@ protected:
 
 	/** @return the config file entry for the ini file name in question */
 	FConfigFile* GetConfigFile(const FString& IniName);
+	FConfigBranch* GetBranch(const FString& IniName);
 
 	/** @return the config cache key used to associate ini file entries within the config cache */
 	FString BuildConfigCacheKey(const FString& IniName);
@@ -245,6 +248,9 @@ protected:
 
 	/** Stop tracking hotfixed assets marked as garbage */
 	void StopTrackingInvalidHotfixedAssets();
+
+	/** Hotfix a dynamic config branch that was just loaded */
+	void HotfixDynamicBranch(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker);
 	
 protected:
 
@@ -277,15 +283,6 @@ protected:
 	 * @return whether the file was successfully processed
 	 */
 	virtual bool ApplyHotfixProcessing(const FCloudFileHeader& FileHeader);
-	/**
-	 * Called prior to reading the file data.
-	 *
-	 * @param FileData - byte data of the hotfix file
-	 *
-	 * @return whether the file was successfully preprocessed
-	 */
-	UE_DEPRECATED(5.3, "Replaced with PreProcessDownloadedFileData taking a FCloudFileHeader")
-	virtual bool PreProcessDownloadedFileData(TArray<uint8>& FileData) const { return true;	}
 	/**
 	 * Called prior to reading the file data.
 	 *

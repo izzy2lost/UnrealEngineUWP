@@ -20,20 +20,21 @@ namespace UE::ImageWrapper::Private
 		FTiffImageWrapper(FTiffImageWrapper&&) = default;
 		FTiffImageWrapper& operator=(FTiffImageWrapper&&) = default;
 
-
 		FTiffImageWrapper(const FTiffImageWrapper&) = delete;
 		FTiffImageWrapper& operator=(const FTiffImageWrapper&) = delete;
 
 		// FImageWrapperBase Interface
 		virtual void Compress(int32 Quality) override;
 		virtual void Uncompress(const ERGBFormat InFormat, int32 InBitDepth) override;
+		virtual void Uncompress(const ERGBFormat InFormat, int32 InBitDepth, FDecompressedImageOutput& OutDecompressedImage) override;
 		virtual bool SetCompressed(const void* InCompressedData, int64 InCompressedSize) override;
 		
 		virtual bool CanSetRawFormat(const ERGBFormat InFormat, const int32 InBitDepth) const override;
 		virtual ERawImageFormat::Type GetSupportedRawFormat(const ERawImageFormat::Type InFormat) const override;
 
 	private:
-
+		bool Uncompress_Internal(const ERGBFormat InFormat, int32 InBitDepth);
+		
 		void ReleaseTiffImage();
 
 		// Unpack the compressed data into the raw buffer. It will also add the alpha channel when needed.
@@ -63,6 +64,10 @@ namespace UE::ImageWrapper::Private
 		uint16 SamplesPerPixel = 0;
 		uint16 SampleFormat = 0;
 
+		int64 CurrSubImageWidth = 0;
+		int64 CurrSubImageHeight = 0;
+		TArray64<uint8> SubImageBuffer;
+
 		friend struct FTIFFReadMemoryFile;
 		
 		virtual void Reset() override
@@ -77,11 +82,9 @@ namespace UE::ImageWrapper::Private
 			BitsPerSample = 0;
 			SamplesPerPixel = 0;
 			SampleFormat = 0;
+
+			SubImageBuffer.Empty();
 		}
 	};
-
-
-
-
 }
 #endif // WITH_LIBTIFF

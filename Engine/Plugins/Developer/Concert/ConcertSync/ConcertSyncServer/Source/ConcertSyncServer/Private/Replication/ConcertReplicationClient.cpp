@@ -11,16 +11,16 @@ namespace UE::ConcertSyncServer::Replication
 	FConcertReplicationClient::FConcertReplicationClient(
 		TArray<FConcertReplicationStream> StreamDescriptions,
 		const FGuid& ClientEndpointId,
-		TSharedRef<IConcertSession> Session,
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache,
+		IConcertSession& Session,
+		ConcertSyncCore::FObjectReplicationCache& ReplicationCache,
 		ConcertSyncCore::FGetObjectFrequencySettings GetObjectFrequencySettingsDelegate
 	)
 		: StreamDescriptions(MoveTemp(StreamDescriptions))
 		, ClientEndpointId(ClientEndpointId)
-		, EventQueue(FServerReplicationDataQueuer::Make(ClientEndpointId, MoveTemp(ReplicationCache)))
+		, EventQueue(FServerReplicationDataQueuer::Make(ClientEndpointId, ReplicationCache))
 		, DataRelay(
 			MoveTemp(GetObjectFrequencySettingsDelegate),
-			ClientEndpointId, MoveTemp(Session), EventQueue
+			ClientEndpointId, Session, *EventQueue
 			)
 	{}
 

@@ -9,7 +9,6 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaMedia, Log, All);
 
 class FAvaPlaybackManager;
-class FAvaPlaybackServer;
 class FAvaRundownManagedInstanceCache;
 class FCommonViewportClient;
 class FName;
@@ -18,9 +17,11 @@ class IAvaBroadcastSettings;
 class IAvaMediaSyncProvider;
 class IAvaPlaybackClient;
 class IAvaPlaybackServer;
+class IAvaRundownServer;
 class IMediaIOCoreDeviceProvider;
 class UWorld;
 struct FAvaInstanceSettings;
+struct FAvaPlayableSettings;
 struct FMediaIOOutputConfiguration;
 
 /** Maps one to one with the editor's map changed type (for now). */
@@ -55,6 +56,7 @@ public:
 
 	/**
 	 * @brief Starts the playback client (if not already started).
+	 * @remark In editor mode, this will stop the playback server. 
 	 */
 	virtual void StartPlaybackClient() = 0;
 
@@ -80,7 +82,6 @@ public:
 	virtual void StopPlaybackServer() = 0;
 
 	virtual IAvaPlaybackClient& GetPlaybackClient() = 0;
-	virtual TSharedPtr<FAvaPlaybackServer> GetPlaybackServerInternal() const = 0;
 	virtual IAvaPlaybackServer* GetPlaybackServer() const = 0;
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const = 0;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const = 0;
@@ -116,12 +117,28 @@ public:
 	 * call GetAvaInstanceSettings() in the deferred call instead.
 	 */
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const = 0;
+
+	/**
+	 * Access global Playable Settings.
+	 * @remark These settings a replicated from connected the playback client (if connected).
+	 */
+	virtual const FAvaPlayableSettings& GetPlayableSettings() const = 0;
 	
+	/**
+	 *	Returns true if the local playback manager is (still) available.
+	 */
+	virtual bool IsLocalPlaybackManagerAvailable() const = 0;
+
 	/**
 	 *	This is the backend for playing Motion Design assets locally.
 	 */
 	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const = 0;
 
+	/**
+	 * Returns true if the managed instance cache is (still) available.
+	 */
+	virtual bool IsManagedInstanceCacheAvailable() const = 0;
+	
 	/**
 	 *	Access the "managed" Motion Design Asset Instance cache.
 	 */
@@ -173,6 +190,39 @@ public:
 	DECLARE_DELEGATE_OneParam(FGetEditorViewportClient, FCommonViewportClient** );
 	virtual FGetEditorViewportClient& GetEditorViewportClientDelegate() = 0;
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnRundownServerEvent, TSharedPtr<IAvaRundownServer>);
+	virtual FOnRundownServerEvent& GetOnRundownServerStarted() = 0;
+	virtual FOnRundownServerEvent& GetOnRundownServerStopping() = 0;
+
+	/**
+	 * @brief Returns true if the rundown server is started.
+	 */
+	virtual bool IsRundownServerStarted() const = 0;
+
+	/**
+	 * @brief Starts the rundown server (if not already started).
+	 * @param InServerName Optional server name. If empty, the host (computer) name will be used.
+	 */
+	virtual void StartRundownServer(const FString& InServerName) = 0;
+
+	/**
+	 * @brief Stops the rundown server.
+	 */
+	virtual void StopRundownServer() = 0;
+	
+	/**
+	 * @brief Returns currently running rundown server. 
+	 */
+	virtual TSharedPtr<IAvaRundownServer> GetRundownServer() const = 0;
+
+	/**
+	 * Creates a rundown server that is not managed by the module.
+	 * @param InServerName Optional server name. if empty, the host name will be used.d
+	 * @return Created server.
+	 * @remark For internal use only (testing). Detached servers will interfere with the managed one. 
+	 */
+	virtual TSharedPtr<IAvaRundownServer> MakeDetachedRundownServer(const FString& InServerName) = 0;
+	
 	/**
 	 * Access the device provider proxy manager.
 	 */

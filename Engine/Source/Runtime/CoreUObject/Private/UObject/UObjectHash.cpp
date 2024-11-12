@@ -8,13 +8,16 @@
 #include "UObject/Class.h"
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/Package.h"
+#include "UObject/UObjectIterator.h"
+#include "UObject/ObjectVisibility.h"
+#include "Templates/Casts.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/PackageName.h"
 #include "Async/ParallelFor.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemStats.h"
 #include "UObject/AnyPackagePrivate.h"
-#include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "ProfilingDebugging/MetadataTrace.h"
 #include "AutoRTFM/AutoRTFM.h"
 
 #include <atomic>
@@ -522,7 +525,8 @@ public:
 		if (!(IsGarbageCollectingAndLockingUObjectHashTables() && IsInGameThread()))
 		{
 			Tables = &InTables;
-			InTables.Lock();
+			UE_AUTORTFM_OPEN{ InTables.Lock(); };
+			AutoRTFM::PushOnAbortHandler(this, [this](){ if (this->Tables){ this->Tables->Unlock(); }});
 		}
 		else
 		{
@@ -537,7 +541,8 @@ public:
 #if THREADSAFE_UOBJECTS
 		if (Tables)
 		{
-			Tables->Unlock();
+			UE_AUTORTFM_OPEN{ Tables->Unlock(); };
+			AutoRTFM::PopOnAbortHandler(this);
 		}
 #endif
 	}
@@ -569,7 +574,7 @@ static int32 GetObjectOuterHash(FName ObjName, PTRINT Outer)
 
 UObject* StaticFindObjectFastExplicitThreadSafe(FUObjectHashTables& ThreadHash, const UClass* ObjectClass, FName ObjectName, const FString& ObjectPathName, bool bExactClass, EObjectFlags ExcludeFlags/*=0*/)
 {
-	const EInternalObjectFlags ExclusiveInternalFlags = UE::GC::GUnreachableObjectFlag;
+	const EInternalObjectFlags ExclusiveInternalFlags = EInternalObjectFlags::Unreachable;
 
 	// Find an object with the specified name and (optional) class, in any package; if bAnyPackage is false, only matches top-level packages
 	int32 Hash = GetObjectHash(ObjectName);
@@ -699,7 +704,7 @@ struct FObjectSearchPath
 
 UObject* StaticFindObjectInPackageInternal(FUObjectHashTables& ThreadHash, const UClass* ObjectClass, const UPackage* ObjectPackage, FName ObjectName, bool bExactClass, EObjectFlags ExcludeFlags, EInternalObjectFlags ExclusiveInternalFlags)
 {
-	ExclusiveInternalFlags |= UE::GC::GUnreachableObjectFlag;
+	ExclusiveInternalFlags |= EInternalObjectFlags::Unreachable;
 	UObject* Result = nullptr;
 	if (FHashBucket* Inners = ThreadHash.PackageToObjectListMap.Find(ObjectPackage))
 	{
@@ -733,7 +738,7 @@ UObject* StaticFindObjectInPackageInternal(FUObjectHashTables& ThreadHash, const
 
 UObject* StaticFindObjectFastInternalThreadSafe(FUObjectHashTables& ThreadHash, const UClass* ObjectClass, const UObject* ObjectPackage, FName ObjectName, bool bExactClass, bool bAnyPackage, EObjectFlags ExcludeFlags, EInternalObjectFlags ExclusiveInternalFlags)
 {
-	ExclusiveInternalFlags |= UE::GC::GUnreachableObjectFlag;
+	ExclusiveInternalFlags |= EInternalObjectFlags::Unreachable;
 
 	// If they specified an outer use that during the hashing
 	UObject* Result = nullptr;
@@ -847,16 +852,16 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 	UObject* Result = nullptr;
 
 	// Transactionally, a static find operation has to occur in the open as it touches shared state.
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		INC_DWORD_STAT(STAT_FindObjectFast);
 
 		check(ObjectPackage != ANY_PACKAGE_DEPRECATED); // this could never have returned anything but nullptr
 
 		// If they specified an outer use that during the hashing
-		FUObjectHashTables & ThreadHash = FUObjectHashTables::Get();
+		FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 		Result = StaticFindObjectFastInternalThreadSafe(ThreadHash, ObjectClass, ObjectPackage, ObjectName, bExactClass, bAnyPackage, ExcludeFlags, ExclusiveInternalFlags);
-	});
+	};
 
 	return Result;
 }
@@ -866,7 +871,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 	UObject* Result = nullptr;
 
 	// Transactionally, a static find operation has to occur in the open as it touches shared state.
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN
 	{
 		INC_DWORD_STAT(STAT_FindObjectFast);
 
@@ -875,7 +880,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 		// If they specified an outer use that during the hashing
 		FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 		Result = StaticFindObjectFastInternalThreadSafe(ThreadHash, ObjectClass, ObjectPackage, ObjectName, bExactClass, /*bAnyPackage =*/ false, ExcludeFlags, ExclusiveInternalFlags);
-	});
+	};
 
 	return Result;
 }
@@ -895,7 +900,7 @@ bool StaticFindAllObjectsFastInternal(TArray<UObject*>& OutFoundObjects, const U
 {
 	INC_DWORD_STAT(STAT_FindObjectFast);
 
-	ExclusiveInternalFlags |= UE::GC::GUnreachableObjectFlag;
+	ExclusiveInternalFlags |= EInternalObjectFlags::Unreachable;
 
 	FObjectSearchPath SearchPath(ObjectName);
 	const int32 Hash = GetObjectHash(SearchPath.Inner);
@@ -939,7 +944,7 @@ UObject* StaticFindFirstObjectFastInternal(const UClass* ObjectClass, FName Obje
 {
 	INC_DWORD_STAT(STAT_FindObjectFast);
 
-	ExclusiveInternalFlags |= UE::GC::GUnreachableObjectFlag;
+	ExclusiveInternalFlags |= EInternalObjectFlags::Unreachable;
 
 	UObject* Result = nullptr;
 	FObjectSearchPath SearchPath(ObjectName);
@@ -1138,9 +1143,9 @@ FORCEINLINE static UPackage* UnassignExternalPackageFromObject(FUObjectHashTable
 void ShrinkUObjectHashTables()
 {
 	LLM_SCOPE_BYTAG(UObjectHash);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::AssetClasses);
-	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, NAME_None);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_CLEAR_SCOPE();
 	TRACE_CPUPROFILER_EVENT_SCOPE(ShrinkUObjectHashTables);
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 	FHashTableLock HashLock(ThreadHash);
@@ -1184,11 +1189,7 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 #endif
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= UE::GC::GUnreachableObjectFlag;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	int32 StartNum = Results.Num();
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
@@ -1252,11 +1253,7 @@ void ForEachObjectWithOuterBreakable(const class UObjectBase* Outer, TFunctionRe
 #endif
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= UE::GC::GUnreachableObjectFlag;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 	FHashTableLock HashLock(ThreadHash);
@@ -1301,11 +1298,7 @@ UObjectBase* FindObjectWithOuter(const class UObjectBase* Outer, const class UCl
 	UObject* Result = nullptr;
 	check( Outer );
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	EInternalObjectFlags ExclusionInternalFlags = UE::GC::GUnreachableObjectFlag;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags = EInternalObjectFlags::AsyncLoading;
-	}
+	EInternalObjectFlags ExclusionInternalFlags = EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	if( NameToLookFor != NAME_None )
 	{
@@ -1355,11 +1348,7 @@ void ForEachObjectWithPackage(const class UPackage* Package, TFunctionRef<bool(U
 	check(Package != nullptr);
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= UE::GC::GUnreachableObjectFlag;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 	FHashTableLock HashLock(ThreadHash);
@@ -1466,11 +1455,7 @@ FORCEINLINE void ForEachObjectOfClasses_Implementation(FUObjectHashTables& Threa
 	TRACE_CPUPROFILER_EVENT_SCOPE(ForEachObjectOfClasses_Implementation);
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= UE::GC::GUnreachableObjectFlag;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	TBucketMapLock ClassToObjectListMapLock(ThreadHash.ClassToObjectListMap);
 
@@ -1570,7 +1555,13 @@ bool ClassHasInstancesAsyncLoading(const UClass* ClassToLookFor)
 			for (auto ObjectIt = List->CreateIterator(); ObjectIt; ++ObjectIt)
 			{
 				UObject *Object = static_cast<UObject*>(*ObjectIt);
-				if (Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+				// If the object is async loading we'll want to indicate as such to the caller,
+				// excepting two cases - garbage objects and the CDO:
+				if (Object->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading) 
+					// garbage objects won't require that the class be kept alive:
+					&& !Object->HasAnyInternalFlags(EInternalObjectFlags::Garbage) 
+					// CDO is required and owned by the class - also doesn't need to keep the class alive:
+					&& !Object->HasAnyFlags(RF_ClassDefaultObject)) 
 				{
 					return true;
 				}
@@ -1587,9 +1578,9 @@ void HashObject(UObjectBase* Object)
 	if (Name != NAME_None)
 	{
 		LLM_SCOPE_BYTAG(UObjectHash);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::Assets);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::AssetClasses);
-		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, NAME_None);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 #if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
 		SCOPE_CYCLE_COUNTER(STAT_Hash_HashObject);
 #endif
@@ -1637,9 +1628,9 @@ void UnhashObject(UObjectBase* Object)
 	if (Name != NAME_None)
 	{
 		LLM_SCOPE_BYTAG(UObjectHash);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::Assets);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::AssetClasses);
-		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, NAME_None);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 #if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
 		SCOPE_CYCLE_COUNTER(STAT_Hash_UnhashObject);
 #endif
@@ -1677,9 +1668,9 @@ void UnhashObject(UObjectBase* Object)
 void HashObjectExternalPackage(UObjectBase* Object, UPackage* Package)
 {
 	LLM_SCOPE_BYTAG(UObjectHash);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::AssetClasses);
-	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, NAME_None);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_CLEAR_SCOPE();
 	if (Package)
 	{
 		FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
@@ -1704,9 +1695,9 @@ void HashObjectExternalPackage(UObjectBase* Object, UPackage* Package)
 void UnhashObjectExternalPackage(class UObjectBase* Object)
 {
 	LLM_SCOPE_BYTAG(UObjectHash);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FName{NAME_Default}, ELLMTagSet::AssetClasses);
-	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, NAME_None);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+	LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_CLEAR_SCOPE();
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 	FHashTableLock LockHash(ThreadHash);
 	Object->AtomicallyClearFlags(RF_HasExternalPackage);
@@ -1919,14 +1910,15 @@ void LogHashOuterStatistics(FOutputDevice& Ar, const bool bShowHashBucketCollisi
 	Ar.Logf(TEXT(""));
 }
 
-void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const bool bShowIndividualStats)
+void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const EObjectMemoryOverheadOptions InOptions)
 {
 	Ar.Logf(TEXT("UObject Hash Tables and Maps memory overhead"));
 	Ar.Logf(TEXT("-------------------------------------------------"));
-
+	
 	FUObjectHashTables& HashTables = FUObjectHashTables::Get();
 	FHashTableLock HashLock(HashTables);
 
+	const bool bShowIndividualStats = !!(InOptions & EObjectMemoryOverheadOptions::ShowIndividualStats);
 	SIZE_T TotalSize = 0;
 	
 	{
@@ -2013,14 +2005,66 @@ void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const bool bShowIndividu
 	}
 
 	{
+		int32 NumListeners = 0;
+		const SIZE_T Size = GUObjectArray.GetDeleteListenersAllocatedSize(&NumListeners);
+		if (bShowIndividualStats)
+		{
+			Ar.Logf(TEXT("Memory used by UObject Delete Listeners (including annotations): %" SIZE_T_FMT " bytes. (%d listeners) "), Size, NumListeners);
+		}
+		TotalSize += Size;
+	}
+
+	{
 		const SIZE_T Size = GUObjectArray.GetAllocatedSize();
 		if (bShowIndividualStats)
 		{
-			Ar.Logf(TEXT("Memory used by UObjectArray: %" SIZE_T_FMT " bytes."), Size);
+			Ar.Logf(TEXT("Memory used by UObjectArray: %" SIZE_T_FMT " bytes. (%d UObjects, %d slots) "), Size, GUObjectArray.GetObjectArrayNumMinusAvailable(), GUObjectArray.GetObjectArrayCapacity());
 		}
 		TotalSize += Size;
 	}
 
 	Ar.Logf(TEXT("Total memory allocated by Object hash tables and maps: %" SIZE_T_FMT " bytes(% .2f MB)."), TotalSize, (double)TotalSize / 1024.0 / 1024.0);
+	
+	if (!!(InOptions & EObjectMemoryOverheadOptions::IncludeReflectionData))
+	{
+		SIZE_T PropertiesSize = 0;
+		int32 NumProperties = 0;
+		SIZE_T UFieldsSize = 0;
+		int32 NumUFields = 0;
+		TArray<FField*> InnerFields;
+		for (TObjectIterator<UField> It; It; ++It)
+		{
+			if (UStruct* Struct = Cast<UStruct>(*It))
+			{
+				for (FField* Property = Struct->ChildProperties; Property; Property = Property->Next)
+				{
+					NumProperties++;
+					PropertiesSize += Property->GetFieldSize();
+					InnerFields.Reset();
+					Property->GetInnerFields(InnerFields);
+					for (FField* InnerProperty : InnerFields)
+					{
+						NumProperties++;
+						PropertiesSize += InnerProperty->GetFieldSize();
+					}
+				}
+				UFieldsSize += Struct->Script.GetAllocatedSize();
+				UFieldsSize += Struct->ScriptAndPropertyObjectReferences.GetAllocatedSize();
+			}
+			NumUFields++;
+			UFieldsSize += It->GetClass()->GetPropertiesSize();
+		}
+		if (bShowIndividualStats)
+		{
+			Ar.Logf(TEXT("Memory used by FProperties: %" SIZE_T_FMT " bytes. (%d FProperties) "), PropertiesSize, NumProperties);
+			Ar.Logf(TEXT("Memory used by UFields: %" SIZE_T_FMT " bytes. (%d UFields) "), UFieldsSize, NumUFields);
+		}
+		SIZE_T ReflectionDataSize = PropertiesSize + UFieldsSize;
+		TotalSize += ReflectionDataSize;
+
+		Ar.Logf(TEXT("Total memory allocated by Object reflection data: %" SIZE_T_FMT " bytes(% .2f MB)."), ReflectionDataSize, (double)ReflectionDataSize / 1024.0 / 1024.0);
+		Ar.Logf(TEXT("Total memory overhead: %" SIZE_T_FMT " bytes(% .2f MB)."), TotalSize, (double)TotalSize / 1024.0 / 1024.0);
+	}
+
 	Ar.Logf(TEXT(""));
 }

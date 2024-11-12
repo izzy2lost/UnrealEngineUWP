@@ -209,7 +209,9 @@ void USharedMemoryMediaCapture::OnCustomCapture_RenderingThread(
 	FVector2D CropU, 
 	FVector2D CropV)
 {
-	RDG_GPU_STAT_SCOPE(GraphBuilder, SharedMemory_Capture)
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SharedMemory_Capture, "SharedMemory_Capture");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, SharedMemory_Capture);
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(USharedMemoryMediaCapture::OnCustomCapture_RenderingThread);
 
 	// We'll be needing the output options.

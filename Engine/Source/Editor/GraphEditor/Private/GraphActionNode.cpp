@@ -179,38 +179,101 @@ FGraphActionNode::FGraphActionNode(int32 InGrouping, int32 InSectionID)
 	, Grouping(InGrouping)
 	, bPendingRenameRequest(false)
 	, InsertOrder(0)
+	, TotalLeafs(0)
 {
 }
 
 //------------------------------------------------------------------------------
-FGraphActionNode::FGraphActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > const& ActionList, int32 InGrouping, int32 InSectionID)
+FGraphActionNode::FGraphActionNode(const TSharedPtr<FEdGraphSchemaAction>& InAction, int32 InGrouping, int32 InSectionID)
 	: SectionID(InSectionID)
 	, Grouping(InGrouping)
-	, Actions(ActionList)
+	, Action(InAction)
 	, bPendingRenameRequest(false)
 	, InsertOrder(0)
+	, TotalLeafs(0)
 {
 }
 
 //------------------------------------------------------------------------------
+TSharedPtr<FGraphActionNode> FGraphActionNode::AddChild(const TSharedPtr<FEdGraphSchemaAction>& InAction)
+{
+	const TArray<FString>& CategoryStack = InAction->GetCategoryChain();
+
+	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(InAction);
+	if (!ActionNode->IsCategoryNode() && !ActionNode->IsSectionHeadingNode())
+	{
+		++TotalLeafs;
+	}
+
+	AddChildRecursively(CategoryStack, 0, ActionNode);
+
+	return ActionNode;
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TSharedPtr<FGraphActionNode> FGraphActionNode::AddChild(FGraphActionListBuilderBase::ActionGroup const& ActionSet)
 {
 	const TArray<FString>& CategoryStack = ActionSet.GetCategoryChain();
 
-	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(ActionSet.Actions);
+	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(ActionSet.Actions[0]);
+	if (!ActionNode->IsCategoryNode() && !ActionNode->IsSectionHeadingNode())
+	{
+		++TotalLeafs;
+	}
+
 	AddChildRecursively(CategoryStack, 0, ActionNode);
 	
 	return ActionNode;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 //------------------------------------------------------------------------------
-void FGraphActionNode::AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet)
+TSharedPtr<FGraphActionNode> FGraphActionNode::AddChildAlphabetical(const TSharedPtr<FEdGraphSchemaAction>& InAction)
 {
-	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(ActionSet.Actions);
+	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(InAction);
 	check(ActionNode->SectionID == INVALID_SECTION_ID); // this method does not support sections, those should be built statically
 
+	if (!ActionNode->IsCategoryNode() && !ActionNode->IsSectionHeadingNode())
+	{
+		++TotalLeafs;
+	}
+
 	// if a divider hasn't been created for the grouping, create one:
-	AddChildGrouping(ActionNode, this->AsShared());
+	AddChildGrouping(ActionNode, this->AsShared(), true);
+
+	// find or add categories iteratively, inserting as needed:
+	FGraphActionNode* OwningCategory = this;
+	const TArray<FString>& CategoryStack = InAction->GetCategoryChain();
+	for (const FString& CategorySection : CategoryStack)
+	{
+		TSharedPtr<FGraphActionNode> CategoryNode = OwningCategory->FindMatchingParent(CategorySection, ActionNode);
+		if (!CategoryNode.IsValid())
+		{
+			CategoryNode = NewCategoryNode(CategorySection, ActionNode->Grouping, ActionNode->SectionID);
+			OwningCategory->InsertChildAlphabetical(CategoryNode);
+		}
+
+		OwningCategory = CategoryNode.Get();
+	}
+
+	// finally insert the leaf:
+	OwningCategory->InsertChildAlphabetical(ActionNode);
+	return ActionNode;
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+TSharedPtr<FGraphActionNode> FGraphActionNode::AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet)
+{
+	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(ActionSet.Actions[0]);
+	check(ActionNode->SectionID == INVALID_SECTION_ID); // this method does not support sections, those should be built statically
+
+	if (!ActionNode->IsCategoryNode() && !ActionNode->IsSectionHeadingNode())
+	{
+		++TotalLeafs;
+	}
+
+	// if a divider hasn't been created for the grouping, create one:
+	AddChildGrouping(ActionNode, this->AsShared(), true);
 
 	// find or add categories iteratively, inserting as needed:
 	FGraphActionNode* OwningCategory = this;
@@ -229,7 +292,9 @@ void FGraphActionNode::AddChildAlphabetical(FGraphActionListBuilderBase::ActionG
 
 	// finally insert the leaf:
 	OwningCategory->InsertChildAlphabetical(ActionNode);
+	return ActionNode;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 //------------------------------------------------------------------------------
 TSharedPtr<FGraphActionNode> FGraphActionNode::AddSection(int32 InGrouping, int32 InSectionID)
@@ -302,13 +367,18 @@ void FGraphActionNode::GetLeafNodes(TArray< TSharedPtr<FGraphActionNode> >& OutL
 		{
 			ChildNode->GetLeafNodes(OutLeafArray);
 		}
-		else
+		else if (!ChildNode->IsGroupDividerNode())
 		{
 			// @TODO: sometimes, certain action nodes can have children as well
 			//        (for sub-graphs in the "MyBlueprint" tab)
 			OutLeafArray.Add(ChildNode);
 		}
 	}
+}
+
+int32 FGraphActionNode::GetTotalLeafNodes() const 
+{ 
+	return TotalLeafs; 
 }
 
 //------------------------------------------------------------------------------
@@ -334,6 +404,7 @@ void FGraphActionNode::ExpandAllChildren(TSharedPtr< STreeView< TSharedPtr<FGrap
 //------------------------------------------------------------------------------
 void FGraphActionNode::ClearChildren()
 {
+	TotalLeafs = 0;
 	Children.Empty();
 	CategoryNodes.Empty();
 	ChildGroupings.Empty();
@@ -361,7 +432,7 @@ bool FGraphActionNode::IsCategoryNode() const
 //------------------------------------------------------------------------------
 bool FGraphActionNode::IsActionNode() const
 {
-	return Actions.Num() != 0;
+	return Action.IsValid();
 }
 
 //------------------------------------------------------------------------------
@@ -414,14 +485,7 @@ bool FGraphActionNode::HasValidAction() const
 //------------------------------------------------------------------------------
 TSharedPtr<FEdGraphSchemaAction> FGraphActionNode::GetPrimaryAction() const
 {
-	for (const TSharedPtr<FEdGraphSchemaAction>& NodeAction : Actions)
-	{
-		if (NodeAction.IsValid())
-		{
-			return NodeAction;
-		}
-	}
-	return TSharedPtr<FEdGraphSchemaAction>();
+	return Action;
 }
 
 //------------------------------------------------------------------------------
@@ -446,6 +510,13 @@ bool FGraphActionNode::IsRenameRequestPending() const
 }
 
 //------------------------------------------------------------------------------
+int32 FGraphActionNode::GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node) const
+{
+	int32 Counter = 0;
+	return GetLinearizedIndex(Node, Counter);
+}
+
+//------------------------------------------------------------------------------
 TSharedPtr<FGraphActionNode> FGraphActionNode::NewSectionHeadingNode(TWeakPtr<FGraphActionNode> Parent, int32 Grouping, int32 SectionID)
 {
 	checkSlow(SectionID != INVALID_SECTION_ID);
@@ -467,22 +538,12 @@ TSharedPtr<FGraphActionNode> FGraphActionNode::NewCategoryNode(FString const& Ca
 }
 
 //------------------------------------------------------------------------------
-TSharedPtr<FGraphActionNode> FGraphActionNode::NewActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > const& ActionList)
+TSharedPtr<FGraphActionNode> FGraphActionNode::NewActionNode(const TSharedPtr<FEdGraphSchemaAction>& Action)
 {
-	int32 Grouping  = FGraphActionNodeImpl::DEFAULT_GROUPING;
-	int32 SectionID = INVALID_SECTION_ID;
+	const int32 Grouping = FMath::Max(FGraphActionNodeImpl::DEFAULT_GROUPING, Action->GetGrouping());
+	const int32 SectionID = Action->GetSectionID();
 
-	for (TSharedPtr<FEdGraphSchemaAction> const& Action : ActionList)
-	{
-		Grouping = FMath::Max(Grouping, Action->GetGrouping());
-		if (SectionID == INVALID_SECTION_ID)
-		{
-			// take the first non-zero section ID
-			SectionID = Action->GetSectionID();
-		}
-	}
-
-	FGraphActionNode* ActionNode = new FGraphActionNode(ActionList, Grouping, SectionID);
+	FGraphActionNode* ActionNode = new FGraphActionNode(Action, Grouping, SectionID);
 	TSharedPtr<FEdGraphSchemaAction> PrimeAction = ActionNode->GetPrimaryAction();
 	checkSlow(PrimeAction.IsValid());
 	ActionNode->DisplayText = PrimeAction->GetMenuDescription();
@@ -636,7 +697,7 @@ void FGraphActionNode::InsertChild(TSharedPtr<FGraphActionNode> NodeToAdd)
 	// hardcode the order), but if this isn't in a section...
 	else
 	{
-		AddChildGrouping(NodeToAdd, NodeToAdd->ParentNode);
+		AddChildGrouping(NodeToAdd, NodeToAdd->ParentNode, false);
 	}
 
 	NodeToAdd->InsertOrder = Children.Num();
@@ -648,7 +709,7 @@ void FGraphActionNode::InsertChild(TSharedPtr<FGraphActionNode> NodeToAdd)
 }
 
 //------------------------------------------------------------------------------
-void FGraphActionNode::AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent)
+void FGraphActionNode::AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent, bool bInsertAlphabetically)
 {
 	if (ChildGroupings.Find(ActionNode->Grouping))
 	{
@@ -668,8 +729,15 @@ void FGraphActionNode::AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode,
 		// divider associated with it)
 		int32 DividerGrouping = FMath::Max(LowestGrouping, ActionNode->Grouping);
 
-		ChildGroupings.Add(ActionNode->Grouping); // to avoid recursion, add before we insert
-		InsertChild(NewGroupDividerNode(this->AsShared(), DividerGrouping));
+		ChildGroupings.Add(ActionNode->Grouping);  // to avoid recursion, add before we insert
+		if(bInsertAlphabetically)
+		{
+			InsertChildAlphabetical(NewGroupDividerNode(this->AsShared(), DividerGrouping));
+		}
+		else
+		{
+			InsertChild(NewGroupDividerNode(this->AsShared(), DividerGrouping));
+		}
 	}
 	else
 	{
@@ -703,3 +771,26 @@ void FGraphActionNode::InsertChildAlphabetical(TSharedPtr<FGraphActionNode> Node
 	}
 }
 
+int32 FGraphActionNode::GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node, int32& Counter) const
+{
+	if (Node.Get() == this)
+	{
+		return Counter;
+	}
+
+	// we didn't match, count ourself:
+	++Counter;
+
+	// and check/count each child:
+	for (const TSharedPtr<FGraphActionNode>& Child : Children)
+	{
+		int32 Result = Child->GetLinearizedIndex(Node, Counter);
+		if (Result != INDEX_NONE)
+		{
+			return Result;
+		}
+	}
+
+	// no matches, return INDEX_NONE to indicate we found no valid index, Counter will continue counting
+	return INDEX_NONE;
+}

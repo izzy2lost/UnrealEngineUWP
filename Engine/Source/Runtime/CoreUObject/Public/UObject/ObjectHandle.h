@@ -116,12 +116,12 @@ inline bool IsObjectHandleResolved(FObjectHandle Handle)
 }
 
 /* return true if a handle is type safe.
- * null and unresolved handles are considered safe
+ * null and resolved handles are considered type safe
  */ 
 inline bool IsObjectHandleTypeSafe(FObjectHandle Handle)
 {
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-	return IsObjectHandleNull(Handle) || !IsObjectHandleResolved(Handle) || !UE::CoreUObject::Private::HasAnyFlags(UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(Handle), static_cast<int32>(RF_HasPlaceholderType));
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE && UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	return !((Handle.PointerOrRef & 3) == 3);
 #else
 	return true;
 #endif
@@ -276,7 +276,12 @@ namespace UE::CoreUObject::Private
 			FPackedObjectRef PackedObjectRef = ReadObjectHandlePackedObjectRefNoCheck(LocalHandle);
 			FObjectRef ObjectRef = MakeObjectRef(PackedObjectRef);
 			UObject* ResolvedObject = ObjectRef.Resolve();
-			Handle = MakeObjectHandle(ResolvedObject);
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+			if (IsObjectHandleTypeSafe(LocalHandle))
+#endif
+			{
+				Handle = MakeObjectHandle(ResolvedObject);
+			}
 			return ResolvedObject;
 		}
 #else
@@ -292,8 +297,13 @@ namespace UE::CoreUObject::Private
 		FPackedObjectRef PackedObjectRef = ReadObjectHandlePackedObjectRefNoCheck(LocalHandle);
 		FObjectRef ObjectRef = MakeObjectRef(PackedObjectRef);
 		UObject* ResolvedObject = ObjectRef.Resolve();
-		LocalHandle = MakeObjectHandle(ResolvedObject);
-		Handle = LocalHandle;
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		if (IsObjectHandleTypeSafe(LocalHandle))
+#endif
+		{
+			LocalHandle = MakeObjectHandle(ResolvedObject);
+			Handle = LocalHandle;
+		}
 		return ResolvedObject;
 #else
 		return ReadObjectHandlePointerNoCheck(Handle);
@@ -350,9 +360,10 @@ namespace UE::CoreUObject::Private
 		};
 	};
 
-	inline constexpr uint32 ObjectIdShift = 1;
-	inline constexpr uint32 PackageIdShift = 33;
-	inline constexpr uint32 PackageIdMask = 0x7FFF'FFFF;
+	inline constexpr uint32 TypeIdShift = 1;
+	inline constexpr uint32 ObjectIdShift = 2;
+	inline constexpr uint32 PackageIdShift = 34;
+	inline constexpr uint32 PackageIdMask = 0x3FFF'FFFF;
 
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	//forward declarations

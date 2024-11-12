@@ -10,6 +10,7 @@
 #include "Engine/Engine.h"
 #include "UObject/UObjectIterator.h"
 #include "Engine/NetConnection.h"
+#include "Net/DataBunch.h"
 #include "Net/NetworkProfiler.h"
 #include "Engine/ActorChannel.h"
 #include "ProfilingDebugging/ScopedTimers.h"
@@ -20,6 +21,10 @@
 #include "Serialization/MemoryReader.h"
 #include "Net/NetworkGranularMemoryLogging.h"
 #include "Misc/CommandLine.h"
+
+#if UE_WITH_IRIS
+#include "Iris/ReplicationSystem/NetTokenStore.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PackageMapClient)
 
@@ -278,6 +283,23 @@ UPackageMapClient::UPackageMapClient(const FObjectInitializer& ObjectInitializer
 	, Connection(nullptr)
 	, DelinquentQueuedActors(GDelinquencyNumberOfTopOffendersToTrack > 0 ? GDelinquencyNumberOfTopOffendersToTrack : 0)
 {
+}
+
+void UPackageMapClient::Initialize(UNetConnection * InConnection, TSharedPtr<FNetGUIDCache> InNetGUIDCache)
+{
+	Connection = InConnection;
+	GuidCache = InNetGUIDCache;
+	ExportNetGUIDCount = 0;
+	OverrideAckState = &AckState;
+
+#if UE_WITH_IRIS
+	// Initialize NetTokenResolveContext
+	NetTokenResolveContext.NetTokenStore = InConnection->GetDriver()->GetNetTokenStore();
+	if (NetTokenResolveContext.NetTokenStore)
+	{
+		NetTokenResolveContext.RemoteNetTokenStoreState = NetTokenResolveContext.NetTokenStore->GetRemoteNetTokenStoreState(InConnection->GetConnectionHandle().GetParentConnectionId());
+	}
+#endif
 }
 
 /**
@@ -1353,7 +1375,7 @@ bool UPackageMapClient::ExportNetGUID( FNetworkGUID NetGUID, UObject* Object, FS
 			CurrentExportBunch->DebugString = TEXT("NetGUIDs");
 #endif
 
-			UE_NET_TRACE_SCOPE(NetGUIDExportBunchHeader, *CurrentExportBunch, GetTraceCollector(*CurrentExportBunch), ENetTraceVerbosity::Verbose);
+			UE_NET_TRACE_SCOPE(NetGUIDExportBuncheader, *CurrentExportBunch, GetTraceCollector(*CurrentExportBunch), ENetTraceVerbosity::Verbose);
 
 			CurrentExportBunch->WriteBit( 0 );		// To signify this is NOT a rep layout export
 
@@ -1502,7 +1524,7 @@ void UPackageMapClient::ReceiveNetGUIDBunch( FInBunch &InBunch )
 
 	UE_LOG(LogNetPackageMap, Log, TEXT("UPackageMapClient::ReceiveNetGUIDBunch %d NetGUIDs. PacketId %d. ChSequence %d. ChIndex %d"), NumGUIDsInBunch, InBunch.PacketId, InBunch.ChSequence, InBunch.ChIndex );
 
-	UE_NET_TRACE(NetGUIDExportBunchHeader, Connection->GetInTraceCollector(), StartingBitPos, InBunch.GetPosBits(), ENetTraceVerbosity::Verbose);
+	UE_NET_TRACE(NetGUIDExportBuncheader, Connection->GetInTraceCollector(), StartingBitPos, InBunch.GetPosBits(), ENetTraceVerbosity::Verbose);
 
 	int32 NumGUIDsRead = 0;
 	while( NumGUIDsRead < NumGUIDsInBunch )
@@ -1735,7 +1757,8 @@ void UPackageMapClient::AppendNetFieldExportsInternal(FArchive& Archive, const T
 		check(NetFieldExportHandle == NetFieldExportGroup->NetFieldExports[NetFieldExportHandle].Handle);
 
 		// Export the path if we need to
-		const bool bForceExportDirty = EnumHasAnyFlags(Flags, EAppendNetExportFlags::ForceExportDirtyGroups) && NetFieldExportGroup->bDirtyForReplay;
+		// TODO: CVar this change so we can && this (old behavior) or || this (new behavior)
+		const bool bForceExportDirty = EnumHasAnyFlags(Flags, EAppendNetExportFlags::ForceExportDirtyGroups) || NetFieldExportGroup->bDirtyForReplay;
 
 		uint32 NeedsExport = ((bForceExportDirty || !OverrideAckState->NetFieldExportGroupPathAcked.Contains(PathNameIndex)) && !ExportedPathInThisBunchAlready.Contains(PathNameIndex)) ? 1 : 0;
 
@@ -1929,6 +1952,11 @@ void UPackageMapClient::ReceiveNetFieldExports(FArchive& Archive)
 
 				GuidCache->NetFieldExportGroupMap.Add(PathName, NewNetFieldExportGroup);
 			}
+			else if (NumExportsInGroup > (uint32)NetFieldExportGroup->NetFieldExports.Num())
+			{
+				// Allow our exports to dynamically grow as more are encountered
+				NetFieldExportGroup->NetFieldExports.SetNum(NumExportsInGroup);
+			}
 
 			GuidCache->NetFieldExportGroupPathToIndex.Add(PathName, PathNameIndex);
 			GuidCache->NetFieldExportGroupIndexToGroup.Add(PathNameIndex, NetFieldExportGroup);
@@ -2066,6 +2094,203 @@ void UPackageMapClient::AppendExportBunches(TArray<FOutBunch *>& OutgoingBunches
 	}
 }
 
+/**
+ * Takes an outgoing custom exports bunch and splits it into multiple bunches if it will be too large to fit in a single Packet (specified by MaxBunchSizeInBits).
+ * Notes:
+ *  - The passed-in Bunch argument can be invalidated (if a split occurs).
+ *  - We are not setting bPartialInitial or bPartialFinal on the first/last bunches because this code is intended to be used before such flags get
+ * set on the final bundles of outgoing bunches.
+ * - returns true of the Orignal bunch was split, false if not.
+ */
+bool SplitAndAppendCustomExportsBunch(TArray<FOutBunch*>& AdditionalRequiredBunches, FOutBunch*& OriginalBunch, int32 MaxBunchSizeInBits)
+{
+	// Always land on a byte boundary (except for the final bunch)
+	MaxBunchSizeInBits = (MaxBunchSizeInBits & ~0x07);
+
+	TArray<FOutBunch*, TInlineAllocator<8>> OutBunches;
+
+	//-----------------------------------------------------
+	// Possibly split large bunch into list of smaller partial bunches
+	//-----------------------------------------------------
+	if(OriginalBunch->GetNumBits() > MaxBunchSizeInBits)
+	{
+		uint8* Data = OriginalBunch->GetData();
+		int64 BitsLeft = OriginalBunch->GetNumBits();
+
+		while(BitsLeft > 0)
+		{
+			FOutBunch* PartialBunch = OriginalBunch->PackageMap ? new FOutBunch(OriginalBunch->PackageMap, MaxBunchSizeInBits) : new FOutBunch(OriginalBunch->Channel, false);
+			int64 BitsThisBunch = FMath::Min<int64>(BitsLeft, MaxBunchSizeInBits);
+			PartialBunch->SerializeBits(Data, BitsThisBunch);
+			PartialBunch->bPartial = true;
+
+#if UE_NET_TRACE_ENABLED
+			// Attach tracecollector of split bunch to first partial bunch
+			SetTraceCollector(*PartialBunch, GetTraceCollector(*OriginalBunch));
+			SetTraceCollector(*OriginalBunch, nullptr);
+#endif
+
+			OutBunches.Add(PartialBunch);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			PartialBunch->DebugString = FString::Printf(TEXT("Partial[%d]: %s"), OutBunches.Num(), *OriginalBunch->GetDebugString());
+#endif
+		
+			BitsLeft -= BitsThisBunch;
+			Data += (BitsThisBunch >> 3);
+
+			UE_LOG(LogNetPackageMap, Verbose, TEXT("	Creating partial bunch %s. bitsThisBunch: %d bitsLeft: %d"), *OriginalBunch->GetDebugString(), BitsThisBunch, BitsLeft);
+			
+			ensure(BitsLeft == 0 || BitsThisBunch % 8 == 0); // Byte aligned or it was the last bunch
+		}
+
+		// The last bunch has the packagemap extension data
+		FOutBunch* LastPartialBunch = OutBunches.Last();
+		if (ensure(LastPartialBunch))
+		{
+			LastPartialBunch->bPartialCustomExportsFinal = OriginalBunch->bPartialCustomExportsFinal;
+			LastPartialBunch->NetTokensPendingExport = OriginalBunch->NetTokensPendingExport;
+		}
+
+		// The incoming Bunch is no longer valid
+		delete OriginalBunch;
+		OriginalBunch = nullptr;
+	}
+	else
+	{
+		OutBunches.Add(OriginalBunch);
+	}
+
+	AdditionalRequiredBunches.Append(OutBunches);
+	return OutBunches.Num() > 1;
+}
+
+TArray<FOutBunch*> UPackageMapClient::GetAdditionalRequiredBunches(const FOutBunch& OutgoingBunch, EChannelGetAdditionalRequiredBunchesFlags Flags)
+{
+	TArray<FOutBunch*> AdditionalBunches;
+
+	// Fastpath does not want to append NetGUID exports.
+	if (!EnumHasAnyFlags(Flags, EChannelGetAdditionalRequiredBunchesFlags::SkipNetGUIDExports))
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		AppendExportBunches(AdditionalBunches);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	if (FOutBunch* CustomExportsBunch = CreateCustomExportsBunch(OutgoingBunch))
+	{
+		ensureMsgf(CustomExportsBunch->bPartialCustomExportsFinal, TEXT("The Custom Exports Bunch must have bPartialCustomExportsFinal set."));
+
+		// This function will append the bunch to the AdditionalBunches, splitting into multiple bunches if necessary. 
+		// If the orignal bunch it split it will be destroyed
+		SplitAndAppendCustomExportsBunch(AdditionalBunches, CustomExportsBunch, Connection->GetMaxSingleBunchSizeBits());
+	}
+
+	return AdditionalBunches;
+}
+
+FOutBunch* UPackageMapClient::CreateCustomExportsBunch(const FOutBunch& OutgoingBunch)
+{
+	FOutBunch* ExportsBunch = nullptr;
+
+	// NetTokenExports is still an experimental feature that depends on Iris code.
+#if UE_WITH_IRIS
+	// NetTokens - begin
+	using namespace UE::Net;
+	TArray<UE::Net::FNetToken, TInlineAllocator<4>> NetTokensExportedInThisBunch;
+
+	if (OutgoingBunch.NetTokensPendingExport.Num() > 0)
+	{
+		// See if we have something to export
+		const bool bIsNetTokenAuthority = NetTokenResolveContext.NetTokenStore->IsAuthority();
+		for (const UE::Net::FNetToken& NetToken : OutgoingBunch.NetTokensPendingExport)
+		{
+			// We do not need to export tokens assigned by authority unless we are the authority or if they are not already exported in this bunch.
+			const bool bShouldExportToken = bIsNetTokenAuthority || (NetToken.IsAssignedByAuthority() == bIsNetTokenAuthority);
+			if (bShouldExportToken && !(AcknowledgedExportedNetTokens.Contains(NetToken) || NetTokensExportedInThisBunch.Contains(NetToken)))
+			{
+				NetTokensExportedInThisBunch.Add(NetToken);
+			}
+		}
+	}
+
+	if (NetTokensExportedInThisBunch.IsEmpty())
+	{
+		return ExportsBunch;
+	}
+
+	// Need to create an exports bunch that is resizeable (can grow indefinitely)
+	// At a higher level, this (potentially mega-)bunch will be split into partial bunches
+	bool bHasAnyExports = false;
+	ExportsBunch = new FOutBunch(this);
+	ExportsBunch->bPartialCustomExportsFinal = true;
+	ExportsBunch->SetAllowResize(true);
+	ExportsBunch->SetDebugString(FString::Printf(TEXT("%s ExportsBunch"), *OutgoingBunch.GetDebugString()));
+
+#if UE_NET_TRACE_ENABLED
+	// Only enable this if we are doing verbose tracing
+	// We leave it to the bunch to destroy the trace collector
+	SetTraceCollector(*ExportsBunch, UE_NET_TRACE_CREATE_COLLECTOR(ENetTraceVerbosity::Verbose));
+#endif
+	UE_NET_TRACE_SCOPE(CustomExportsBunch, *ExportsBunch, GetTraceCollector(*ExportsBunch), ENetTraceVerbosity::Verbose);
+
+	// NetToken exports
+	{
+		UE_NET_TRACE_SCOPE(NetTokenExports, *ExportsBunch, GetTraceCollector(*ExportsBunch), ENetTraceVerbosity::Verbose);
+		for (FNetToken NetToken : NetTokensExportedInThisBunch)
+		{
+			bool bWroteExport = true; 
+			ExportsBunch->SerializeBits(&bWroteExport, 1);
+
+			UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*NetToken.ToString(), *ExportsBunch, GetTraceCollector(*ExportsBunch), ENetTraceVerbosity::VeryVerbose);
+
+			// Write token 
+			NetTokenResolveContext.NetTokenStore->WriteNetToken(*ExportsBunch, NetToken);
+			NetTokenResolveContext.NetTokenStore->WriteTokenData(*ExportsBunch, NetToken);
+
+			// Track what exports we exported until we know what packet we actually did commit to.
+			ExportsBunch->NetTokensPendingExport.Add(NetToken);
+		}
+		bool bNetTokenExportStopBit = false; 
+		ExportsBunch->SerializeBits(&bNetTokenExportStopBit, 1);
+	}
+
+	check(!ExportsBunch->IsError());
+#endif // UE_WITH_IRIS
+
+	return ExportsBunch;
+}
+
+/** Receive Exports written by CreateCustomExportsBunch */
+void UPackageMapClient::ReceiveCustomExportsBunch(FInBunch &InBunch)
+{
+	check(InBunch.bPartialCustomExportsFinal);
+
+	// NetTokenExports is still an experimental feature that depends on Iris code.
+#if UE_WITH_IRIS
+	using namespace UE::Net;
+
+	// Read NetTokenExports
+	bool bHasExportsToRead = false; 
+	InBunch.SerializeBits(&bHasExportsToRead, 1);
+
+	UE::Net::FNetTokenStore* NetTokenStore = NetTokenResolveContext.NetTokenStore;
+	UE::Net::FNetTokenStoreState* RemoteNetTokenStoreState = NetTokenStore->GetRemoteNetTokenStoreState(Connection->GetConnectionHandle().GetParentConnectionId());
+
+	while (bHasExportsToRead && !InBunch.IsError())
+	{
+		FNetToken ImportedNetToken = NetTokenStore->ReadNetToken(InBunch);
+
+		NetTokenStore->ReadTokenData(InBunch, ImportedNetToken, *RemoteNetTokenStoreState);
+
+		UE_LOG(LogNetToken, VeryVerbose, TEXT("%hs: Imported token %s"), __func__, *ImportedNetToken.ToString());
+
+		// Continuation bit
+		InBunch.SerializeBits(&bHasExportsToRead, 1);
+	}
+#endif // UE_WITH_IRIS
+}
+
 int32 UPackageMapClient::GetNumExportBunches() const
 {
 	return ExportBunches.Num();
@@ -2107,41 +2332,51 @@ void UPackageMapClient::ResetAckState()
  *	Called when a bunch is committed to the connection's Out buffer.
  *	ExportNetGUIDs is the list of GUIDs stored on the bunch that we use to update the expected sequence for those exported GUIDs
  */
-void UPackageMapClient::NotifyBunchCommit( const int32 OutPacketId, const FOutBunch* OutBunch )
+void UPackageMapClient::NotifyBunchCommit(const int32 OutPacketId, const FOutBunch* OutBunch)
 {
 	// Mark all of the net field exports in this bunch as ack'd
 	// NOTE - This only currently works with reliable connections (i.e. InternalAck)
 	// For this to work with normal connections, we'll need to do real ack logic here
-	for ( int32 i = 0; i < OutBunch->NetFieldExports.Num(); i++ )
+	for (int32 i = 0; i < OutBunch->NetFieldExports.Num(); i++)
 	{
-		OverrideAckState->NetFieldExportGroupPathAcked.Add( OutBunch->NetFieldExports[i] >> 32 );
-		OverrideAckState->NetFieldExportAcked.Add( OutBunch->NetFieldExports[i] );
+		OverrideAckState->NetFieldExportGroupPathAcked.Add(OutBunch->NetFieldExports[i] >> 32);
+		OverrideAckState->NetFieldExportAcked.Add(OutBunch->NetFieldExports[i]);
 	}
 
-	const TArray< FNetworkGUID >& ExportNetGUIDs = OutBunch->ExportNetGUIDs;
+	// Register exported NetTokens in the PendingAckMap for this OutPackedId
+	if (OutBunch->bPartialCustomExportsFinal)
+	{
+		using namespace UE::Net;
+		for (const UE::Net::FNetToken& NetToken : OutBunch->NetTokensPendingExport)
+		{
+			NetTokenPendingAckMap.Add(OutPacketId, NetToken);
+		}
+	}
 
-	if ( ExportNetGUIDs.Num() == 0 )
+	const TArray<FNetworkGUID>& ExportNetGUIDs = OutBunch->ExportNetGUIDs;
+
+	if (ExportNetGUIDs.Num() == 0)
 	{
 		return;		// Nothing to do
 	}
 
-	check( OutPacketId > GUID_PACKET_ACKED );	// Assumptions break if this isn't true ( We assume ( OutPacketId > GUID_PACKET_ACKED ) == PENDING )
+	check(OutPacketId > GUID_PACKET_ACKED);	// Assumptions break if this isn't true ( We assume ( OutPacketId > GUID_PACKET_ACKED ) == PENDING )
 
-	for ( int32 i = 0; i < ExportNetGUIDs.Num(); i++ )
+	for (int32 i = 0; i < ExportNetGUIDs.Num(); i++)
 	{
-		if ( !OverrideAckState->NetGUIDAckStatus.Contains( ExportNetGUIDs[i] ) )
+		if (!OverrideAckState->NetGUIDAckStatus.Contains(ExportNetGUIDs[i]))
 		{
-			OverrideAckState->NetGUIDAckStatus.Add( ExportNetGUIDs[i], GUID_PACKET_NOT_ACKED );
+			OverrideAckState->NetGUIDAckStatus.Add(ExportNetGUIDs[i], GUID_PACKET_NOT_ACKED);
 		}
 
-		int32& ExpectedPacketIdRef = OverrideAckState->NetGUIDAckStatus.FindChecked( ExportNetGUIDs[i] );
+		int32& ExpectedPacketIdRef = OverrideAckState->NetGUIDAckStatus.FindChecked(ExportNetGUIDs[i]);
 
 		// Only update expected sequence if this guid was previously nak'd
 		// If we always update to the latest packet id, we risk prolonging the ack for no good reason
 		// (GUID information doesn't change, so updating to the latest expected sequence is unnecessary)
-		if ( ExpectedPacketIdRef == GUID_PACKET_NOT_ACKED )
+		if (ExpectedPacketIdRef == GUID_PACKET_NOT_ACKED)
 		{
-			if ( Connection->IsInternalAck() )
+			if (Connection->IsInternalAck())
 			{
 				// Auto ack now if the connection is 100% reliable
 				ExpectedPacketIdRef = GUID_PACKET_ACKED;
@@ -2149,8 +2384,8 @@ void UPackageMapClient::NotifyBunchCommit( const int32 OutPacketId, const FOutBu
 			}
 
 			ExpectedPacketIdRef = OutPacketId;
-			check( !PendingAckGUIDs.Contains( ExportNetGUIDs[i] ) );	// If we hit this assert, this means the lists are out of sync
-			PendingAckGUIDs.AddUnique( ExportNetGUIDs[i] );
+			check( !PendingAckGUIDs.Contains(ExportNetGUIDs[i]));	// If we hit this assert, this means the lists are out of sync
+			PendingAckGUIDs.AddUnique(ExportNetGUIDs[i]);
 		}
 	}
 }
@@ -2161,18 +2396,26 @@ void UPackageMapClient::NotifyBunchCommit( const int32 OutPacketId, const FOutBu
  */
 void UPackageMapClient::ReceivedAck( const int32 AckPacketId )
 {
-	for ( int32 i = PendingAckGUIDs.Num() - 1; i >= 0; i-- )
+	for ( int32 Index = PendingAckGUIDs.Num() - 1; Index >= 0; Index-- )
 	{
-		int32& ExpectedPacketIdRef = OverrideAckState->NetGUIDAckStatus.FindChecked( PendingAckGUIDs[i] );
+		int32& ExpectedPacketIdRef = OverrideAckState->NetGUIDAckStatus.FindChecked( PendingAckGUIDs[Index] );
 
 		check( ExpectedPacketIdRef > GUID_PACKET_ACKED );		// Make sure we really are pending, since we're on the list
 
 		if ( ExpectedPacketIdRef > GUID_PACKET_ACKED && ExpectedPacketIdRef <= AckPacketId )
 		{
 			ExpectedPacketIdRef = GUID_PACKET_ACKED;	// Fully acked
-			PendingAckGUIDs.RemoveAt( i );				// Remove from pending list, since we're now acked
+			PendingAckGUIDs.RemoveAt( Index );			// Remove from pending list, since we're now acked
 		}
 	}
+
+	// Acknowledge NetTokenExports
+	for (TMultiMap<int32, UE::Net::FNetToken>::TConstKeyIterator It = NetTokenPendingAckMap.CreateConstKeyIterator(AckPacketId); It; ++It)
+	{
+		UE_LOG(LogNetToken, VeryVerbose, TEXT("%hs: Acked token %s"), __func__, *(It.Value().ToString()));
+		AcknowledgedExportedNetTokens.Add(It.Value());
+	}
+	NetTokenPendingAckMap.Remove(AckPacketId);
 }
 
 /**
@@ -2195,6 +2438,9 @@ void UPackageMapClient::ReceivedNak( const int32 NakPacketId )
 			PendingAckGUIDs.RemoveAt( i );	
 		}
 	}
+
+	// Just remove our entry
+	NetTokenPendingAckMap.Remove(NakPacketId);
 }
 
 /**
@@ -2535,7 +2781,7 @@ void UPackageMapClient::SetHasQueuedBunches(const FNetworkGUID& NetGUID, bool bH
 
 		const bool bNormalQueueEnabled = GPackageMapTrackQueuedActorThreshold > 0.f;
 		
-#if CSV_PROFILER		
+#if CSV_PROFILER_STATS		
 		const bool bOwnerQueueEnabled = GPackageMapTrackQueuedActorThresholdOwner > 0.f;
 #else
 		constexpr bool bOwnerQueueEnabled = false;
@@ -2568,7 +2814,7 @@ void UPackageMapClient::SetHasQueuedBunches(const FNetworkGUID& NetGUID, bool bH
 								DelinquentQueuedActors.DelinquentQueuedActors.Emplace(ObjectClass, QueuedTime);
 							}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 							if (bAboveOwnerQueuedTime && GuidCache->IsTrackingOwnerOrPawn())
 							{
 								CSV_EVENT(PackageMap, TEXT("Owner Net Stall Queued Actor (QueueTime=%.2f)"), QueuedTime);
@@ -2867,9 +3113,18 @@ bool FNetGUIDCache::SupportsObject( const UObject* Object, const TWeakObjectPtr<
 		return true;
 	}
 
-	UE_LOG( LogNetPackageMap, Warning, TEXT( "FNetGUIDCache::SupportsObject: %s NOT Supported." ), *Object->GetFullName() );
-	//UE_LOG( LogNetPackageMap, Warning, TEXT( "   %s"), *DebugContextString );
-
+	// Do not display warning when recording replays 
+	// IMPORTANT : this is a workaround until until UE-169326 is properly fixed
+	bool bDisplayWarning = true;
+	if (UWorld* World = Object->GetWorld())
+	{
+		bDisplayWarning = !World->IsRecordingClientReplay();
+	}
+	if (bDisplayWarning)
+	{
+		UE_LOG(LogNetPackageMap, Warning, TEXT("FNetGUIDCache::SupportsObject: %s NOT Supported."), *Object->GetFullName());
+		//UE_LOG( LogNetPackageMap, Warning, TEXT( "   %s"), *DebugContextString );
+	}
 	return false;
 }
 
@@ -3285,7 +3540,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		UE_LOG(LogNetPackageMap, Log, TEXT("ValidateAsyncLoadingPackage: Already async loading package. Path: %s, NetGUID: %s"), *CacheObject.PathName.ToString(), *NetGUID.ToString());
 	}
 	
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	PendingLoadRequest.bWasRequestedByOwnerOrPawn |= IsTrackingOwnerOrPawn();
 #endif
 }
@@ -3301,7 +3556,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FPendingAsyncLoadRequest LoadRequest(NetGUID, Driver->GetElapsedTime());
 	
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	LoadRequest.bWasRequestedByOwnerOrPawn = IsTrackingOwnerOrPawn();
 #endif
 
@@ -3385,7 +3640,7 @@ void FNetGUIDCache::AsyncPackageCallback(const FName& PackageName, UPackage* Pac
 			DelinquentAsyncLoads.DelinquentAsyncLoads.Emplace(PackageName, LoadTime);
 		}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 		if (PendingLoadRequest->bWasRequestedByOwnerOrPawn &&
 			GGuidCacheTrackAsyncLoadingGUIDThresholdOwner > 0.f &&
 			LoadTime >= GGuidCacheTrackAsyncLoadingGUIDThresholdOwner &&
@@ -3606,7 +3861,7 @@ UObject* FNetGUIDCache::GetObjectFromNetGUID( const FNetworkGUID& NetGUID, const
 		if (!Package->IsFullyLoaded() 
 			&& !Package->HasAnyPackageFlags( TreatAsLoadedFlags )) //TODO: dependencies of CompiledIn could still be loaded asynchronously. Are they necessary at this point??
 		{
-			if (ShouldAsyncLoad() && Package->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+			if (ShouldAsyncLoad() && Package->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 			{
 				// Something else is already async loading this package, calling load again will add our callback to the existing load request
 				StartAsyncLoadingPackage(*CacheObjectPtr, NetGUID, true);
@@ -4278,7 +4533,7 @@ FAutoConsoleCommand	ListNetGUIDExportsCommand(
 
 // ----------------------------------------------------------------
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 bool FNetGUIDCache::IsTrackingOwnerOrPawn() const
 {
 	return TrackingOwnerOrPawnHelper && TrackingOwnerOrPawnHelper->IsOwnerOrPawn();

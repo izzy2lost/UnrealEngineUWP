@@ -52,7 +52,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task BasicChunkingTestsAsync()
 		{
-			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace storage = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 
 			RefName refName = new RefName("test");
 			await using IBlobWriter writer = storage.CreateBlobWriter(refName);
@@ -175,17 +175,17 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task BasicTestDirectoryAsync()
 		{
-			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageNamespace store = BundleStorageNamespace.CreateInMemory(NullLogger.Instance);
 
-			IBlobRef<DirectoryNode> rootRef;
+			IHashedBlobRef<DirectoryNode> rootRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				DirectoryNode world = new DirectoryNode();
-				IBlobRef<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
+				IHashedBlobRef<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
 
 				DirectoryNode hello = new DirectoryNode();
 				hello.AddDirectory(new DirectoryEntry("world", 0, worldRef));
-				IBlobRef<DirectoryNode> helloRef = await writer.WriteBlobAsync(hello);
+				IHashedBlobRef<DirectoryNode> helloRef = await writer.WriteBlobAsync(hello);
 
 				DirectoryNode root = new DirectoryNode();
 				root.AddDirectory(new DirectoryEntry("hello", 0, helloRef));
@@ -235,7 +235,7 @@ namespace EpicGames.Horde.Tests
 			BundleOptions bundleOptions = new BundleOptions();
 			bundleOptions.MaxBlobSize = 1;
 
-			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace storage = BundleStorageNamespace.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			await using (IBlobWriter writer = new DedupeBlobWriter(storage.CreateBlobWriter()))
 			{
@@ -243,12 +243,12 @@ namespace EpicGames.Horde.Tests
 				for (int idx = 1; idx <= 3; idx++)
 				{
 					DirectoryNode node = new DirectoryNode();
-					IBlobRef<DirectoryNode> nodeRef = await writer.WriteBlobAsync(node);
+					IHashedBlobRef<DirectoryNode> nodeRef = await writer.WriteBlobAsync(node);
 					root.AddDirectory(new DirectoryEntry($"node{idx}", 0, nodeRef));
 				}
 
 				RefName refName = new RefName("ref");
-				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
+				IHashedBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 				await storage.WriteRefAsync(refName, rootRef);
 			}
 
@@ -263,14 +263,14 @@ namespace EpicGames.Horde.Tests
 			BundleOptions bundleOptions = new BundleOptions();
 			bundleOptions.MaxBlobSize = 1;
 
-			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+			BundleStorageNamespace storage = BundleStorageNamespace.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			RefName refName = new RefName("ref");
 
 			{
 				await using (IBlobWriter writer = storage.CreateBlobWriter())
 				{
-					IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(new DirectoryNode());
+					IHashedBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(new DirectoryNode());
 					for (int idx = 4; idx >= 1; idx--)
 					{
 						DirectoryNode next = new DirectoryNode();

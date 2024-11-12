@@ -38,6 +38,10 @@ FImage::FImage(SUImageRef InEntityRef)
 	MeshElementName = FString::Printf(TEXT("M%s"), *IdStr);
 }
 
+FImage::~FImage() 
+{
+}
+
 void FImage::RemoveImage(FExportContext& Context)
 {
 	RemoveOccurrences(Context);
@@ -85,7 +89,12 @@ void FImage::InvalidateImage()
 }
 
 
-FString FImage::GetName()
+FString FImage::GetEntityName()
+{
+	return FDatasmithUtils::SanitizeObjectName(GetFileName());
+}
+
+FString FImage::GetEntityLabel()
 {
 	return FDatasmithUtils::SanitizeObjectName(GetFileName());
 }
@@ -133,8 +142,8 @@ void FImage::UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node)
 	SUTransformationSetFromPointAndAxes(&LocalTransform, &Point, &XAxis, &YAxis,  &ZAxis);
 
 	SUTransformation WorldTransform;
-	SUTransformationMultiply(&Node.ParentNode->WorldTransform, &LocalTransform, &WorldTransform);
-	Node.WorldTransform = WorldTransform; // Store world transform to be used by children to compute its
+	SUTransformationMultiply(&Node.ParentNode->WorldTransformSource, &LocalTransform, &WorldTransform);
+	Node.WorldTransform = WorldTransform;
 
 	// Set the Datasmith actor world transform.
 	DatasmithSketchUpUtils::SetActorTransform(Node.DatasmithActorElement, Node.WorldTransform);
@@ -212,8 +221,8 @@ void FImage::BuildNodeNames(FNodeOccurence& Node)
 	int64 SketchupPersistentID = Node.Entity.GetPersistentId();
 	Node.DatasmithActorName = FString::Printf(TEXT("%ls_%lld"), *Node.ParentNode->GetActorName(), SketchupPersistentID);
 
-	FString EntityName = Node.Entity.GetName();
-	Node.DatasmithActorLabel = FDatasmithUtils::SanitizeObjectName(EntityName.IsEmpty() ? GetName() : EntityName);
+	FString EntityName = Node.Entity.GetEntityName();
+	Node.DatasmithActorLabel = FDatasmithUtils::SanitizeObjectName(EntityName.IsEmpty() ? GetEntityName() : EntityName);
 }
 
 void FImage::SetupActor(FExportContext& Context, FNodeOccurence& Node)
@@ -237,12 +246,14 @@ void FImage::SetupActor(FExportContext& Context, FNodeOccurence& Node)
 	}
 }
 
-
-void FImage::UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence& Node)
+void FImage::UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence& Node)
 {
 	// Parent node, component instance and layer - all should be visible to have node visible
 	Node.SetVisibility(Node.ParentNode->bVisible && !bHidden && bLayerVisible);
+}
 
+void FImage::UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence& Node)
+{
 	EntityOccurrenceVisible(&Node, Node.bVisible);
 
 	if (Node.bVisible)

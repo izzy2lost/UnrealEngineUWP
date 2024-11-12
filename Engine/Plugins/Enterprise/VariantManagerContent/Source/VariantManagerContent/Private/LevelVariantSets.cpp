@@ -497,9 +497,14 @@ void ULevelVariantSets::UnsubscribeToDirectorCompiled()
 
 void ULevelVariantSets::HandleDirectorDestroyed(ULevelVariantSetsFunctionDirector* Director)
 {
+	if (!IsValid(Director))
+	{
+		return;
+	}
+
 	for (TMap<UWorld*, TWeakObjectPtr<UObject>>::TIterator Iter(WorldToDirectorInstance); Iter; ++Iter )
 	{
-		if ( Iter->Value == Director)
+		if (Iter->Value.IsValid() && Iter->Value == Director)
 		{
 			Iter.RemoveCurrent();
 		}

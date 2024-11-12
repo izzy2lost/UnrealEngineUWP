@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTraitBase.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MassAssortedFragmentsTrait.generated.h"
 
 /**

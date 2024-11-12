@@ -430,7 +430,7 @@ TSharedRef<SBox> SInterchangeGraphInspectorWindow::SpawnGraphInspector()
 						SNew(SCheckBox)
 						.HAlign(HAlign_Center)
 						.OnCheckStateChanged(GraphInspectorTreeview.Get(), &SInterchangeGraphInspectorTreeView::OnToggleSelectAll)
-						.Visibility(bPreview ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(bPreview ? EVisibility::Collapsed : EVisibility::Visible)
 					]
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
@@ -439,7 +439,7 @@ TSharedRef<SBox> SInterchangeGraphInspectorWindow::SpawnGraphInspector()
 					[
 						SNew(STextBlock)
 						.Text(LOCTEXT("GraphInspectorWindow_Scene_All", "All"))
-						.Visibility(bPreview ? EVisibility::Collapsed : EVisibility::All)
+						.Visibility(bPreview ? EVisibility::Collapsed : EVisibility::Visible)
 					]
 				]
 				+ SUniformGridPanel::Slot(1, 0)

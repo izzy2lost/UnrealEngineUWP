@@ -53,7 +53,6 @@ class SWrapBox : public SPanel
 public:
 
 	/** A slot that support alignment of content and padding */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	class FSlot : public TBasicLayoutWidgetSlot<FSlot>
 	{
 	public:
@@ -126,23 +125,17 @@ public:
 			return bSlotForceNewLine;
 		}
 
-	public:
-		UE_DEPRECATED(5.0, "Direct access to SlotFillLineWhenSizeLessThan is now deprecated. Use the getter or setter.")
+	private:
 		TOptional<float> SlotFillLineWhenSizeLessThan;
-		UE_DEPRECATED(5.0, "Direct access to bSlotFillEmptySpace is now deprecated. Use the getter or setter.")
 		bool bSlotFillEmptySpace;
-		UE_DEPRECATED(5.0, "Direct access to bSlotForceNewLine is now deprecated. Use the getter or setter.")
 		bool bSlotForceNewLine;
 	};
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SLATE_BEGIN_ARGS(SWrapBox)
 		: _PreferredSize(100.f)
 		, _HAlign(HAlign_Left)
 		, _InnerSlotPadding(FVector2D::ZeroVector)
-		, _UseAllottedWidth(false)
 		, _UseAllottedSize(false)
 		, _Orientation(EOrientation::Orient_Horizontal)
 		{
@@ -151,10 +144,6 @@ public:
 
 		/** The slot supported by this panel */
 		SLATE_SLOT_ARGUMENT( FSlot, Slots )
-
-		/** The preferred width, if not set will fill the space */
-		UE_DEPRECATED(5.0, "PreferredWidth is deprecated. Use PreferredSize instead.")
-		SLATE_ATTRIBUTE( float, PreferredWidth )
 
 		/** The preferred size, if not set will fill the space */
 		SLATE_ATTRIBUTE( float, PreferredSize )
@@ -165,19 +154,15 @@ public:
 		/** The inner slot padding goes between slots sharing borders */
 		SLATE_ARGUMENT( FVector2D, InnerSlotPadding )
 
-		/** if true, the PreferredWidth will always match the room available to the SWrapBox  */
-		UE_DEPRECATED(5.0, "UseAllottedWidth is deprecated. Use UseAllottedSize instead.")
-		SLATE_ARGUMENT( bool, UseAllottedWidth )
-
 		/** if true, the PreferredSize will always match the room available to the SWrapBox  */
 		SLATE_ARGUMENT( bool, UseAllottedSize )
 
 		/** Determines if the wrap box needs to arrange the slots left-to-right or top-to-bottom.*/
 		SLATE_ARGUMENT(EOrientation, Orientation);
 	SLATE_END_ARGS()
-	SLATE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	SWrapBox();
+	SLATE_API SWrapBox();
+	SLATE_API virtual ~SWrapBox();
 
 	static FSlot::FSlotArguments Slot()
 	{
@@ -209,16 +194,8 @@ public:
 	/** See InnerSlotPadding Attribute */
 	SLATE_API void SetInnerSlotPadding(FVector2D InInnerSlotPadding);
 
-	/** Set the width at which the wrap panel should wrap its content. */
-	UE_DEPRECATED(4.26, "Deprecated, please use SetWrapSize() instead")
-	SLATE_API void SetWrapWidth(TAttribute<float> InWrapWidth);
-
 	/** Set the size at which the wrap panel should wrap its content. */
 	SLATE_API void SetWrapSize(TAttribute<float> InWrapSize );
-
-	/** When true, use the WrapWidth property to determine where to wrap to the next line. */
-	UE_DEPRECATED(4.26, "Deprecated, please use SetUseAllottedSize() instead")
-	SLATE_API void SetUseAllottedWidth(bool bInUseAllottedWidth);
 
 	/** When true, use the WrapSize property to determine where to wrap to the next line. */
 	SLATE_API void SetUseAllottedSize(bool bInUseAllottedSize);

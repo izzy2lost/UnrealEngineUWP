@@ -14,6 +14,7 @@
 #include <memory>
 #include <vector>
 
+#include "absl/types/optional.h"
 #include "api/scoped_refptr.h"
 #include "api/video/encoded_frame.h"
 #include "api/video/video_frame_metadata.h"
@@ -46,6 +47,10 @@ class TransformableFrameInterface {
   // sender frames to allow received frames to be directly re-transmitted on
   // other PeerConnectionss.
   virtual Direction GetDirection() const { return Direction::kUnknown; }
+
+  virtual absl::optional<int64_t> GetAbsoluteCaptureTimeMs() const {
+    return absl::optional<int64_t>{};
+  }
 };
 
 class TransformableVideoFrameInterface : public TransformableFrameInterface {

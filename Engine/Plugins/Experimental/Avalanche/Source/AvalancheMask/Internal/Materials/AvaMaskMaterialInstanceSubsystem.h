@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "SharedStruct.h"
+#include "StructUtils/SharedStruct.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "UObject/SoftObjectPtr.h"

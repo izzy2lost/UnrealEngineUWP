@@ -325,7 +325,7 @@ namespace EpicGames.UHT.Parsers
 	/// <summary>
 	/// Helper class thread specified object cache
 	/// </summary>
-	public struct UhtThreadBorrower<T> : IDisposable where T : new()
+	public readonly struct UhtThreadBorrower<T> : IDisposable where T : new()
 	{
 		private static readonly ThreadLocal<List<T>> s_tls = new(() => new());
 		private readonly T _instance;
@@ -804,8 +804,7 @@ namespace EpicGames.UHT.Parsers
 					// Checking for this error is a bit tricky given legacy code.  
 					// 1) If already wrapped in WITH_EDITORONLY_DATA (see above), then we ignore the error via the else 
 					// 2) Ignore any module that is an editor module
-					UhtPackage package = topScope.ScopeType.HeaderFile.Package;
-					UHTManifest.Module module = package.Module;
+					UHTManifest.Module module = topScope.Module.Module;
 					bool isEditorModule =
 						module.ModuleType == UHTModuleType.EngineEditor ||
 						module.ModuleType == UHTModuleType.GameEditor ||
@@ -892,7 +891,7 @@ namespace EpicGames.UHT.Parsers
 
 			if (_options.HasAnyFlags(UhtPropertyParseOptions.AddModuleRelativePath))
 			{
-				UhtParsingScope.AddModuleRelativePathToMetaData(propertySettings.MetaData, topScope.ScopeType.HeaderFile);
+				UhtParsingScope.AddModuleRelativePathToMetaData(propertySettings.MetaData, topScope.HeaderFile);
 			}
 
 			// Fetch the name of the property, bitfield and array size
@@ -1115,16 +1114,12 @@ namespace EpicGames.UHT.Parsers
 			propertySettings.SourceName = propertySettings.PropertyCategory == UhtPropertyCategory.Return ? "ReturnValue" : nameToken.Value.ToString();
 
 			// Try to resolve the property using any immediate mode property types
-			UhtProperty? newProperty = ResolveProperty(UhtPropertyResolvePhase.Parsing, propertySettings, propertySettings.Outer.HeaderFile.Data.Memory, typeTokens);
-			if (newProperty == null)
-			{
-				newProperty = new UhtPreResolveProperty(propertySettings, typeTokens);
-			}
+			UhtProperty newProperty = ResolveProperty(UhtPropertyResolvePhase.Parsing, propertySettings, propertySettings.Outer.HeaderFile.Data.Memory, typeTokens) ?? new UhtPreResolveProperty(propertySettings, typeTokens);
 
 			// Force the category in non-engine projects
 			if (newProperty.PropertyCategory == UhtPropertyCategory.Member)
 			{
-				if (!newProperty.Package.IsPartOfEngine &&
+				if (!newProperty.Module.IsPartOfEngine &&
 					newProperty.PropertyFlags.HasAnyFlags(EPropertyFlags.Edit | EPropertyFlags.BlueprintVisible) &&
 					!newProperty.MetaData.ContainsKey(UhtNames.Category))
 				{
@@ -1181,6 +1176,17 @@ namespace EpicGames.UHT.Parsers
 				tokenReader.SkipWhitespaceAndComments(); //TODO - old UHT compatibility.  Commented out initializers can cause comment/tooltip to be used as meta data.
 				tokenReader.CommitPendingComments(); //TODO - old UHT compatibility.  Commented out initializers can cause comment/tooltip to be used as meta data.
 				topScope.AddFormattedCommentsAsTooltipMetaData(newProperty);
+			}
+
+			// Adjust the name for verse
+			(bool wasMangled, string result) = newProperty.GetMangledEngineName();
+			if (wasMangled)
+			{
+				if (!newProperty.MetaData.ContainsKey(UhtNames.DisplayName))
+				{
+					newProperty.MetaData.Add(UhtNames.DisplayName, newProperty.StrippedEngineName);
+				}
+				newProperty.EngineName = result;
 			}
 
 			propertyDelegate(topScope, newProperty, ref nameToken, layoutMacroType);

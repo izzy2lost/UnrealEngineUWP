@@ -44,6 +44,8 @@
 
 #undef DO_ANIMSTAT_PROCESSING
 
+LLM_DEFINE_TAG(Animation_Graph);
+
 #define LOCTEXT_NAMESPACE "AnimInstance"
 
 const FName NAME_AnimBlueprintLog(TEXT("AnimBlueprintLog"));
@@ -108,11 +110,12 @@ FAnimInstanceProxy::FAnimInstanceProxy(UAnimInstance* Instance)
 	, bUseMainInstanceMontageEvaluationData(false)
 {
 }
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FAnimInstanceProxy::FAnimInstanceProxy(const FAnimInstanceProxy&) = default;
 FAnimInstanceProxy& FAnimInstanceProxy::operator=(FAnimInstanceProxy&&) = default;
 FAnimInstanceProxy& FAnimInstanceProxy::operator=(const FAnimInstanceProxy&) = default;
 FAnimInstanceProxy::~FAnimInstanceProxy() = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FAnimInstanceProxy::UpdateAnimationNode(const FAnimationUpdateContext& InContext)
 {
@@ -121,6 +124,8 @@ void FAnimInstanceProxy::UpdateAnimationNode(const FAnimationUpdateContext& InCo
 
 void FAnimInstanceProxy::UpdateAnimationNode_WithRoot(const FAnimationUpdateContext& InContext, FAnimNode_Base* InRootNode, FName InLayerName)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	TRACE_SCOPED_ANIM_GRAPH(InContext)
 	TRACE_SCOPED_ANIM_NODE(InContext)
 	
@@ -374,6 +379,8 @@ void FAnimInstanceProxy::InitializeRootNode(bool bInDeferRootNodeInitialization)
 
 void FAnimInstanceProxy::InitializeRootNode_WithRoot(FAnimNode_Base* InRootNode)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	if (InRootNode != nullptr)
@@ -446,7 +453,7 @@ void FAnimInstanceProxy::Uninitialize(UAnimInstance* InAnimInstance)
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	MontageEvaluationData.Reset();
-	SlotGroupInertializationRequestMap.Reset();
+	SlotGroupInertializationRequestDataMap.Reset();
 	DefaultLinkedInstanceInputNode = nullptr;
 	ResetAnimationCurves();
 	MaterialParametersToClear.Reset();
@@ -562,7 +569,7 @@ void FAnimInstanceProxy::OnPreUpdateLODChanged(const int32 PreviousLODIndex, con
 				if (!AnimNodePtr->IsLODEnabled(this))
 				{
 					LODDisabledGameThreadPreUpdateNodes.Add(AnimNodePtr);
-					GameThreadPreUpdateNodes.RemoveAt(NodeIndex, 1, EAllowShrinking::No);
+					GameThreadPreUpdateNodes.RemoveAt(NodeIndex, EAllowShrinking::No);
 					NodeIndex--;
 				}
 			}
@@ -579,7 +586,7 @@ void FAnimInstanceProxy::OnPreUpdateLODChanged(const int32 PreviousLODIndex, con
 				if (AnimNodePtr->IsLODEnabled(this))
 				{
 					GameThreadPreUpdateNodes.Add(AnimNodePtr);
-					LODDisabledGameThreadPreUpdateNodes.RemoveAt(NodeIndex, 1, EAllowShrinking::No);
+					LODDisabledGameThreadPreUpdateNodes.RemoveAt(NodeIndex, EAllowShrinking::No);
 					NodeIndex--;
 				}
 			}
@@ -1015,8 +1022,13 @@ void FAnimInstanceProxy::UpdateSlotNodeWeight(const FName& SlotNodeName, float I
 
 bool FAnimInstanceProxy::GetSlotInertializationRequest(const FName& SlotName, UE::Anim::FSlotInertializationRequest& OutRequest)
 {
+	return false;
+}
+
+bool FAnimInstanceProxy::GetSlotInertializationRequestData(const FName& SlotName, FInertializationRequest& OutRequest)
+{
 	const FName GroupName = Skeleton ? Skeleton->GetSlotGroupName(SlotName) : NAME_None;
-	if (const UE::Anim::FSlotInertializationRequest* FoundRequest = GetSlotGroupInertializationRequestMap().Find(GroupName))
+	if (const FInertializationRequest* FoundRequest = GetSlotGroupInertializationRequestDataMap().Find(GroupName))
 	{
 		OutRequest = *FoundRequest;
 		return true;
@@ -1232,6 +1244,15 @@ void FAnimInstanceProxy::UpdateAnimation_WithRoot(const FAnimationUpdateContext&
 	ANIM_MT_SCOPE_CYCLE_COUNTER(ProxyUpdateAnimation, !IsInGameThread());
 	FScopeCycleCounterUObject AnimScope(bUpdatingRoot ? nullptr : GetAnimInstanceObject());
 
+
+#if DO_CHECK
+	ensureMsgf(CastChecked<UAnimInstance>(GetAnimInstanceObject())->IsUpdateAnimationEnabled(), TEXT("Updating AnimInstance with UpdateAnimation disabled: %s"), *CastChecked<UAnimInstance>(GetAnimInstanceObject())->GetName());
+#endif
+	if (!CastChecked<UAnimInstance>(GetAnimInstanceObject())->IsUpdateAnimationEnabled())
+	{
+		return;
+	}
+
 	if(InRootNode == RootNode)
 	{
 		if(bInitializeSubsystems && AnimClassInterface)
@@ -1402,6 +1423,8 @@ void FAnimInstanceProxy::EvaluateAnimation_WithRoot(FPoseContext& Output, FAnimN
 
 void FAnimInstanceProxy::CacheBones()
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	// If bone caches have been invalidated, have AnimNodes refresh those.
@@ -1429,6 +1452,8 @@ void FAnimInstanceProxy::CacheBones()
 
 void FAnimInstanceProxy::CacheBones_WithRoot(FAnimNode_Base* InRootNode)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	// If bone caches have been invalidated, have AnimNodes refresh those.
 	if (bBoneCachesInvalidated && InRootNode)
 	{
@@ -1459,6 +1484,8 @@ void FAnimInstanceProxy::EvaluateAnimationNode(FPoseContext& Output)
 
 void FAnimInstanceProxy::EvaluateAnimationNode_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	if (InRootNode != nullptr)
 	{
 		ANIM_MT_SCOPE_CYCLE_COUNTER(EvaluateAnimGraph, !IsInGameThread());
@@ -1499,7 +1526,6 @@ void FAnimInstanceProxy::SlotEvaluatePose(const FName& SlotNodeName, const FComp
 
 	SlotEvaluatePose(SlotNodeName, SourceAnimationPoseData, InSourceWeight, BlendedAnimationPoseData, InBlendWeight, InTotalNodeWeight);
 }
-
 
 void FAnimInstanceProxy::SlotEvaluatePoseWithBlendProfiles(const FName& SlotNodeName, const FAnimationPoseData& SourceAnimationPoseData, float InSourceWeight, FAnimationPoseData& OutBlendedAnimationPoseData, float InBlendWeight)
 {
@@ -1581,6 +1607,7 @@ void FAnimInstanceProxy::SlotEvaluatePoseWithBlendProfiles(const FName& SlotNode
 
 			// Extract pose from Track.
 			FAnimExtractContext ExtractionContext(static_cast<double>(EvalState.MontagePosition), Montage->HasRootMotion() && RootMotionMode != ERootMotionMode::NoRootMotionExtraction, EvalState.DeltaTimeRecord);
+			ExtractionContext.InterpolationOverride = InterpolationOverride;
 			FAnimationPoseData NewAnimationPoseData(NewPose);
 			AnimTrack->GetAnimationPose(NewAnimationPoseData, ExtractionContext);
 
@@ -1920,6 +1947,7 @@ void FAnimInstanceProxy::SlotEvaluatePose(const FName& SlotNodeName, const FAnim
 
 			// Extract pose from Track
 			FAnimExtractContext ExtractionContext(static_cast<double>(EvalState.MontagePosition), Montage->HasRootMotion() && RootMotionMode != ERootMotionMode::NoRootMotionExtraction, EvalState.DeltaTimeRecord);
+			ExtractionContext.InterpolationOverride = InterpolationOverride;
 
 			FAnimationPoseData NewAnimationPoseData(NewPose);
 			AnimTrack->GetAnimationPose(NewAnimationPoseData, ExtractionContext);
@@ -1968,16 +1996,24 @@ void FAnimInstanceProxy::SlotEvaluatePose(const FName& SlotNodeName, const FAnim
 	}
 
 	// Make sure we have at least one montage here.
-	check((AdditivePoses.Num() > 0) || (NonAdditivePoses.Num() > 0));
+	ensure((AdditivePoses.Num() > 0) || (NonAdditivePoses.Num() > 0));
 
 	// Second pass, blend non additive poses together
 	{
 		// If we're only playing additive animations, just copy source for base pose.
 		if (NonAdditivePoses.Num() == 0)
 		{
-			BlendedPose = SourcePose;
-			BlendedCurve = SourceCurve;
-			BlendedAttributes = SourceAttributes;
+			// If the source weight is 0, SourcePose will be uninitialized and cannot be used
+			if (InSourceWeight > ZERO_ANIMWEIGHT_THRESH)
+			{
+				BlendedPose = SourcePose;
+				BlendedCurve = SourceCurve;
+				BlendedAttributes = SourceAttributes;
+			}
+			else
+			{
+				BlendedPose.ResetToRefPose(); 
+			}
 		}		
 		else // Otherwise we need to blend non additive poses together
 		{
@@ -2110,6 +2146,9 @@ const FMontageEvaluationState* FAnimInstanceProxy::GetActiveMontageEvaluationSta
 	return nullptr;
 }
 
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 TMap<FName, UE::Anim::FSlotInertializationRequest>& FAnimInstanceProxy::GetSlotGroupInertializationRequestMap()
 {
 	if (bUseMainInstanceMontageEvaluationData && GetMainInstanceProxy())
@@ -2120,6 +2159,18 @@ TMap<FName, UE::Anim::FSlotInertializationRequest>& FAnimInstanceProxy::GetSlotG
 	return SlotGroupInertializationRequestMap;
 }
 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+TMap<FName, FInertializationRequest>& FAnimInstanceProxy::GetSlotGroupInertializationRequestDataMap()
+{
+	if (bUseMainInstanceMontageEvaluationData && GetMainInstanceProxy())
+	{
+		return GetMainInstanceProxy()->SlotGroupInertializationRequestDataMap;
+	}
+
+	return SlotGroupInertializationRequestDataMap;
+}
+
 void FAnimInstanceProxy::GatherDebugData(FNodeDebugData& DebugData)
 {
 	GatherDebugData_WithRoot(DebugData, RootNode, NAME_AnimGraph);
@@ -2127,6 +2178,8 @@ void FAnimInstanceProxy::GatherDebugData(FNodeDebugData& DebugData)
 
 void FAnimInstanceProxy::GatherDebugData_WithRoot(FNodeDebugData& DebugData, FAnimNode_Base* InRootNode, FName InLayerName)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	// Gather debug data for Root Node
 	if(InRootNode != nullptr)
 	{
@@ -3198,6 +3251,8 @@ void FAnimInstanceProxy::RecordStateWeight(const int32 InMachineClassIndex, cons
 
 void FAnimInstanceProxy::ResetDynamics(ETeleportType InTeleportType)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 	for(FAnimNode_Base* Node : DynamicResetNodes)
 	{
@@ -3207,6 +3262,8 @@ void FAnimInstanceProxy::ResetDynamics(ETeleportType InTeleportType)
 
 void FAnimInstanceProxy::ResetDynamics()
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	ResetDynamics(ETeleportType::ResetPhysics);
 }
 
@@ -3366,25 +3423,6 @@ void FAnimInstanceProxy::RegisterWatchedPose(const FCompactPose& Pose, const FBl
 						PoseWatch.Object = GetAnimInstanceObject();
 						PoseWatch.PoseWatch->SetIsNodeEnabled(true);
 
-						/*
-						for (FCompactPoseBoneIndex BoneIndex : Pose.ForEachBoneIndex())
-						{
-							FMeshPoseBoneIndex MeshBoneIndex = Pose.GetBoneContainer().MakeMeshPoseIndex(BoneIndex);
-
-							int32 ParentIndex = Pose.GetBoneContainer().GetParentBoneIndex(MeshBoneIndex.GetInt());
-
-							if (ParentIndex == INDEX_NONE)
-							{
-								WorldTransforms[MeshBoneIndex.GetInt()] = Pose[BoneIndex] * MeshComponent->GetComponentTransform();
-							}
-							else
-							{
-								WorldTransforms[MeshBoneIndex.GetInt()] = Pose[BoneIndex] * WorldTransforms[ParentIndex];
-							}
-							BoneColors[MeshBoneIndex.GetInt()] = BoneColor;
-						}
-						*/
-
 						TArray<FTransform> BoneTransforms;
 						BoneTransforms.AddUninitialized(Pose.GetBoneContainer().GetNumBones());
 
@@ -3419,35 +3457,10 @@ void FAnimInstanceProxy::RegisterWatchedPose(const FCSPose<FCompactPose>& Pose, 
 
 void FAnimInstanceProxy::RegisterWatchedPose(const FCSPose<FCompactPose>& Pose, const FBlendedCurve& InCurve, int32 LinkID)
 {
-	if (bIsBeingDebugged)
-	{
-		FAnimBlueprintDebugData* DebugData = GetAnimBlueprintDebugData();
-		if (DebugData)
-		{
-			if (USkeletalMeshComponent* SkelMeshComponent = GetSkelMeshComponent())
-			{
-				for (FAnimNodePoseWatch& PoseWatch : DebugData->AnimNodePoseWatch)
-				{
-					if (PoseWatch.PoseWatch && PoseWatch.NodeID == LinkID)
-					{
-						FCompactPose TempPose;
-						FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(Pose, TempPose);
-						PoseWatch.Object = GetAnimInstanceObject();
-						PoseWatch.PoseWatch->SetIsNodeEnabled(true);
+	FCompactPose LocalPose;
+	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(Pose, LocalPose);
 
-						const TArray<FTransform, FAnimStackAllocator>& BoneTransforms = TempPose.GetBones();
-						const TArray<FBoneIndexType>& TmpRequiredBones = TempPose.GetBoneContainer().GetBoneIndicesArray();
-						PoseWatch.SetPose(TmpRequiredBones, BoneTransforms);
-						PoseWatch.SetCurves(InCurve);
-						PoseWatch.SetWorldTransform(SkelMeshComponent->GetComponentTransform());
-
-						TRACE_ANIM_POSE_WATCH(*this, PoseWatch.PoseWatchPoseElement, PoseWatch.NodeID, PoseWatch.GetBoneTransforms(), PoseWatch.GetCurves(), PoseWatch.GetRequiredBones(), PoseWatch.GetWorldTransform(), PoseWatch.PoseWatchPoseElement->GetIsVisible());
-						break;
-					}
-				}
-			}
-		}
-	}
+	RegisterWatchedPose(LocalPose, InCurve, LinkID);
 }
 #endif
 
@@ -3694,5 +3707,16 @@ void FAnimInstanceProxy::ForEachStateMachine(const TFunctionRef<void(FAnimNode_S
 		}
 	}
 }
+
+void FAnimInstanceProxy::SetInterpolationOverride(TOptional<EAnimInterpolationType> InterpolationType)
+{
+	InterpolationOverride = InterpolationType;
+}
+
+TOptional<EAnimInterpolationType> FAnimInstanceProxy::GetInterpolationOverride() const
+{
+	return InterpolationOverride;
+}
+
 #undef LOCTEXT_NAMESPACE
 

@@ -36,6 +36,7 @@
 #include "HeadlessChaosTestSolverCommandList.h"
 #include "HeadlessChaosTestSolverProxies.h"
 #include "HeadlessChaosTestHandles.h"
+#include "HeadlessChaosCache.h"
 
 
 #include "GeometryCollection/GeometryCollectionTest.h"
@@ -403,6 +404,13 @@ TEST(GeometryCollection_FieldTest,Fields_SumScalarLeftSide) { GeometryCollection
 TEST(GeometryCollection_FieldTest,Fields_Culling) { GeometryCollectionTest::Fields_Culling(); SUCCEED(); }
 TEST(GeometryCollection_FieldTest,Fields_SerializeAPI) { GeometryCollectionTest::Fields_SerializeAPI(); SUCCEED(); }
 
+// Cache track compression
+TEST(ChaosCacheTests, TrackCompression) 
+{ 
+	ChaosTest::ChaosCache::TrackCompressionTest();
+	SUCCEED(); 
+}
+
 GTEST_TEST(ArrayTests, TestArrayMax)
 {
 	// The first 3 arrays without Reserve will over-allocate. We aren't testing anything
@@ -547,10 +555,10 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 
 	ensure(RUN_ALL_TESTS() == 0);
 
+	RequestEngineExit(TEXT("Exiting"));
 	FEngineLoop::AppPreExit();
 	FModuleManager::Get().UnloadModulesAtShutdown();
 	FEngineLoop::AppExit();
-	FPlatformMisc::RequestExit(false);
 
 	return 0;
 }

@@ -16,20 +16,20 @@ namespace Jupiter.Implementation
 	[JsonConverter(typeof(IoHashKeyJsonConverter))]
 	[CbConverter(typeof(IoHashKeyCbConverter))]
 
-	public readonly struct RefId: IEquatable<RefId>
+	public readonly struct RefId : IEquatable<RefId>
 	{
 		public RefId(string key)
 		{
-			 _text = key.ToLower();
- 
+			_text = key.ToLower();
+
 			if (_text.Length != 40)
 			{
 				throw new ArgumentException("IoHashKeys must be exactly 40 bytes.");
 			}
- 
-			for (int Idx = 0; Idx < _text.Length; Idx++)
+
+			for (int idx = 0; idx < _text.Length; idx++)
 			{
-				if (!IsValidCharacter(_text[Idx]))
+				if (!IsValidCharacter(_text[idx]))
 				{
 					throw new ArgumentException($"{_text} is not a valid namespace id");
 				}
@@ -52,7 +52,7 @@ namespace Jupiter.Implementation
 
 		public bool Equals(RefId other)
 		{
-			return string.Equals(_text , other._text, StringComparison.Ordinal);
+			return string.Equals(_text, other._text, StringComparison.Ordinal);
 		}
 
 		public override bool Equals(object? obj)
@@ -74,7 +74,7 @@ namespace Jupiter.Implementation
 		{
 			return left.Equals(right);
 		}
- 
+
 		public static bool operator !=(RefId left, RefId right)
 		{
 			return !left.Equals(right);
@@ -98,7 +98,7 @@ namespace Jupiter.Implementation
 
 			return base.CanConvertFrom(context, sourceType);
 		}
- 
+
 		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
 		{
 			if (value is string s)
@@ -106,7 +106,7 @@ namespace Jupiter.Implementation
 				return new RefId(s);
 			}
 
-			return base.ConvertFrom(context, culture, value);  
+			return base.ConvertFrom(context, culture, value);
 		}
 	}
 

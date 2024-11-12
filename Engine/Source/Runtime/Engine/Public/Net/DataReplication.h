@@ -151,14 +151,6 @@ public:
 
 	ENGINE_API void CountBytes(FArchive& Ar) const;
 
-	/** Writes dirty properties to bunch */
-	UE_DEPRECATED(5.1, "Now takes an additional out param")
-	void ReplicateCustomDeltaProperties(FNetBitWriter& Bunch, FReplicationFlags RepFlags)
-	{
-		bool bSkippedPropertyCondition = false;
-		ReplicateCustomDeltaProperties(Bunch, RepFlags, bSkippedPropertyCondition);
-	}
-
 	ENGINE_API void ReplicateCustomDeltaProperties(FNetBitWriter& Bunch, FReplicationFlags RepFlags, bool& bSkippedPropertyCondition);
 	ENGINE_API bool ReplicateProperties(FOutBunch& Bunch, FReplicationFlags RepFlags);
 	ENGINE_API bool ReplicateProperties(FOutBunch& Bunch, FReplicationFlags RepFlags, FNetBitWriter& Writer);

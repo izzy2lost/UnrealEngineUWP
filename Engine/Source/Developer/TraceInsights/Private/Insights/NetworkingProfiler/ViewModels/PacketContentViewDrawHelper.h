@@ -3,18 +3,21 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Fonts/SlateFontInfo.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "Styling/WidgetStyle.h"
 
-enum class ESlateDrawEffect : uint8;
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
 
-struct FDrawContext;
-struct FGeometry;
 struct FSlateBrush;
 
+namespace UE::Insights { class FDrawContext; }
+
+namespace UE::Insights::NetworkingProfiler
+{
+
 class FPacketContentViewport;
-class FSlateWindowElementList;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -230,3 +233,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

@@ -18,6 +18,9 @@ protected:
 	{
 		FString ToolUIName;
 		TSharedPtr<FUICommandInfo> ToolCommand;
+
+		// Optional (not used if empty). Only relevant if using short labels for tools
+		FText ShortName;
 	};
 	TArray<FStartToolCommand> RegisteredTools;		// Tool start-commands listed below are stored in this list
 
@@ -34,12 +37,19 @@ public:
 	 */
 	TSharedPtr<FUICommandInfo> FindToolByName(FString Name, bool& bFound) const;
 	
+	/**
+	 * Helper that gets the regular command label (result of GetLabel) or a shortened version
+	 *  if one was registered and bShortName is true.
+	 */
+	FText GetCommandLabel(TSharedPtr<const FUICommandInfo> Command, bool bShortName) const;
+
 	//
 	// These commands are set up to launch registered Tools via the ToolManager in ModelingToolsEditorMode.cpp
 	//
 
 	TSharedPtr<FUICommandInfo> BeginAddBoxPrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddCylinderPrimitiveTool;
+	TSharedPtr<FUICommandInfo> BeginAddCapsulePrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddConePrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddArrowPrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddRectanglePrimitiveTool;
@@ -91,6 +101,7 @@ public:
 	TSharedPtr<FUICommandInfo> BeginRemoveOccludedTrianglesTool;
 	TSharedPtr<FUICommandInfo> BeginUVProjectionTool;
 	TSharedPtr<FUICommandInfo> BeginUVLayoutTool;
+	TSharedPtr<FUICommandInfo> BeginUVTransferTool;
 	TSharedPtr<FUICommandInfo> BeginPlaneCutTool;
 	TSharedPtr<FUICommandInfo> BeginMirrorTool;
 	TSharedPtr<FUICommandInfo> BeginHoleFillTool;
@@ -233,6 +244,9 @@ public:
 		const FText& Tooltip,
 		const FSlateIcon& Icon);
 
+private:
+	// Gets index into RegisteredTools for a given command.
+	TMap<FUICommandInfo*, int32> CommandToRegisteredToolsIndex;
 };
 
 

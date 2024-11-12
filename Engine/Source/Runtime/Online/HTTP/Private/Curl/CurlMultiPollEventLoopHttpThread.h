@@ -23,7 +23,7 @@
 #include "Microsoft/HideMicrosoftPlatformTypes.h"
 #endif
 
-class IHttpThreadedRequest;
+class FHttpRequestCommon;
 class FCurlMultiPollIOManager;
 
 class FCurlMultiPollIOManagerIOAccess final : public FNoncopyable
@@ -77,8 +77,10 @@ public:
 
 protected:
 	//~ Begin FHttpThread Interface
-	virtual bool StartThreadedRequest(IHttpThreadedRequest* Request) override;
-	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request) override;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual bool StartThreadedRequest(FHttpRequestCommon* Request) override;
+	virtual void CompleteThreadedRequest(FHttpRequestCommon* Request) override;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	//~ End FHttpThread Interface
 protected:
 	virtual void CreateEventLoop() override;
@@ -91,8 +93,10 @@ protected:
 
 	TOptional<UE::EventLoop::TEventLoop<FCurlMultiPollIOManager>> EventLoop;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Mapping of libcurl easy handles to HTTP requests */
-	TMap<CURL*, IHttpThreadedRequest*> HandlesToRequests;
+	TMap<CURL*, FHttpRequestCommon*> HandlesToRequests;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 #endif // WITH_CURL_MULTIPOLL

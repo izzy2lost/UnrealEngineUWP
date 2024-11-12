@@ -3,141 +3,130 @@
 #include "LensDistortionTool.h"
 
 #include "AssetToolsModule.h"
-#include "Calibrators/CameraCalibrationSolver.h"
+#include "CalibrationPointComponent.h"
+#include "Camera/CameraActor.h"
+#include "CameraCalibrationCheckerboard.h"
 #include "CameraCalibrationEditorLog.h"
 #include "CameraCalibrationSettings.h"
 #include "CameraCalibrationStepsController.h"
-#include "CameraCalibrationTypes.h"
-#include "CameraLensDistortionAlgo.h"
+#include "CameraCalibrationUtilsPrivate.h"
 #include "DesktopPlatformModule.h"
 #include "Dom/JsonObject.h"
+#include "EngineAnalytics.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "IDesktopPlatform.h"
 #include "ImageUtils.h"
+#include "JsonObjectConverter.h"
 #include "LensFile.h"
 #include "LensInfoStep.h"
 #include "Misc/DateTime.h"
 #include "Misc/MessageDialog.h"
-#include "Models/SphericalLensModel.h"
+#include "Modules/ModuleManager.h"
+#include "OpenCVHelper.h"
 #include "ScopedTransaction.h"
-#include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
-#include "UObject/Class.h"
-#include "UObject/Package.h"
-#include "UObject/UObjectIterator.h"
+#include "Serialization/JsonWriter.h"
+#include "SLensDistortionToolPanel.h"
 
 #define LOCTEXT_NAMESPACE "LensDistortionTool"
 
 namespace UE::CameraCalibration::Private::LensDistortionTool
 {
 	static const FString SessionDateTimeField(TEXT("SessionDateTime"));
-	static const FString AlgoNameField(TEXT("AlgoName"));
+	static const FString Version(TEXT("Version"));
+}
+
+namespace UE::LensDistortionToolAnalytics
+{
+	void RecordEvent(FLensCaptureSettings CaptureSettings, FLensSolverSettings SolverSettings, int32 DatasetSize)
+	{
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> EventAttributes;
+
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Pattern"), *UEnum::GetDisplayValueAsText(CaptureSettings.CalibrationPattern).ToString()));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("IsCameraTracked"), FString::Printf(TEXT("%d"), CaptureSettings.bIsCameraTracked ? 1 : 0)));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("IsCalibratorTracked"), FString::Printf(TEXT("%d"), CaptureSettings.bIsCalibratorTracked ? 1 : 0)));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("SolveNodalOffset"), FString::Printf(TEXT("%d"), SolverSettings.bSolveNodalOffset ? 1 : 0)));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DatasetSize"), FString::Printf(TEXT("%d"), DatasetSize)));
+
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("CameraCalibration.DistortionCalibrationStarted"), EventAttributes);
+		}
+	}
 }
 
 void ULensDistortionTool::Initialize(TWeakPtr<FCameraCalibrationStepsController> InCameraCalibrationStepController)
 {
-	CameraCalibrationStepsController = InCameraCalibrationStepController;
+	WeakStepsController = InCameraCalibrationStepController;
 
-	// Find available solver classes
-
+	// Discover all available solver classes and select the first one as the solver to use
 	TArray<UClass*> DerivedSolverClasses;
 	GetDerivedClasses(ULensDistortionSolver::StaticClass(), DerivedSolverClasses);
 
-	check(!DerivedSolverClasses.IsEmpty());
-
-	SetSolverClass(DerivedSolverClasses[0]);
-
-	// Find available algos
-
-	TArray<TSubclassOf<UCameraLensDistortionAlgo>> Algos;
-
-	for (TObjectIterator<UClass> AlgoIt; AlgoIt; ++AlgoIt)
+	if (DerivedSolverClasses.Num() > 0)
 	{
-		if (AlgoIt->IsChildOf(UCameraLensDistortionAlgo::StaticClass()) && !AlgoIt->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated))
-		{
-			const UCameraLensDistortionAlgo* Algo = CastChecked<UCameraLensDistortionAlgo>(AlgoIt->GetDefaultObject());
-			AlgosMap.Add(Algo->FriendlyName(), TSubclassOf<UCameraLensDistortionAlgo>(*AlgoIt));
-
-			// If the algo uses an overlay material, create a new MID to use with that algo
-			if (UMaterialInterface* OverlayMaterial = Algo->GetOverlayMaterial())
-			{
-				AlgoOverlayMIDs.Add(Algo->FriendlyName(), UMaterialInstanceDynamic::Create(OverlayMaterial, GetTransientPackage()));
-			}
-		}
+		SolverSettings.SolverClass = DerivedSolverClasses[0];
 	}
 
-	if (TSharedPtr<FCameraCalibrationStepsController> SharedStepsController = CameraCalibrationStepsController.Pin())
-	{
-		if (ULensFile* const LensFile = SharedStepsController->GetLensFile())
-		{
-			LensFile->OnLensFileModelChanged().AddUObject(this, &ULensDistortionTool::OnLensModelChanged);
+	// Find all actors in the current level that have calibration point components and select the first one as the starting calibrator 
+	TArray<AActor*> CalibratorActors;
+	UE::CameraCalibration::Private::FindActorsWithCalibrationComponents(CalibratorActors);
 
-			UpdateAlgoMap(LensFile->LensInfo.LensModel);
-		}
+	if (CalibratorActors.Num() > 0)
+	{
+		SetCalibrator(CalibratorActors[0]);
 	}
 
-	BuildProgressWindowWidgets();
-}
-
-void ULensDistortionTool::OnLensModelChanged(const TSubclassOf<ULensModel>& LensModel)
-{
-	UpdateAlgoMap(LensModel);
-}
-
-void ULensDistortionTool::UpdateAlgoMap(const TSubclassOf<ULensModel>& LensModel)
-{
-	SupportedAlgosMap.Empty();
-	for (const TPair<FName, TSubclassOf<UCameraLensDistortionAlgo>>& AlgoPair : AlgosMap)
+	// Initialize the overlay material and texture
+	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
 	{
-		const UCameraLensDistortionAlgo* Algo = CastChecked<UCameraLensDistortionAlgo>(AlgoPair.Value->GetDefaultObject());
+		UMaterialInterface* OverlayParent = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/CameraCalibration/Materials/M_Coverage.M_Coverage"))).LoadSynchronous();
+		OverlayMID = UMaterialInstanceDynamic::Create(OverlayParent, GetTransientPackage());
 
-		if (Algo->SupportsModel(LensModel))
-		{
-			SupportedAlgosMap.Add(AlgoPair);
-		}
-	}
-	if (DistortionWidget)
-	{
-		DistortionWidget->UpdateAlgosOptions();
+		const FIntPoint CompResolution = StepsController->GetCompRenderResolution();
+
+		OverlayTexture = UTexture2D::CreateTransient(CompResolution.X, CompResolution.Y, EPixelFormat::PF_B8G8R8A8);
+		UE::CameraCalibration::Private::ClearTexture(OverlayTexture);
+
+		OverlayMID->SetTextureParameterValue(FName(TEXT("CoverageTexture")), OverlayTexture);
+
+		StepsController->SetOverlayMaterial(OverlayMID);
 	}
 }
 
 void ULensDistortionTool::Shutdown()
 {
-	if (CurrentAlgo)
+	if (CalibrationTask.IsValid())
 	{
-		if (CalibrationTask.IsValid())
-		{
-			CurrentAlgo->CancelCalibration();
-			CalibrationTask = {};
-			ProgressWindow->HideWindow();
-		}
-
-		CurrentAlgo->Shutdown();
-		CurrentAlgo = nullptr;
-
-		EndCalibrationSession();
+		CancelCalibration();
+		CalibrationTask = {};
+		DistortionWidget->Shutdown();
 	}
 
-	if (TSharedPtr<FCameraCalibrationStepsController> SharedStepsController = CameraCalibrationStepsController.Pin())
-	{
-		if (ULensFile* const LensFile = SharedStepsController->GetLensFile())
-		{
-			LensFile->OnLensFileModelChanged().RemoveAll(this);
-		}
-	}
+	EndCalibrationSession();
+}
+
+TSharedRef<SWidget> ULensDistortionTool::BuildUI()
+{
+	DistortionWidget = SNew(SLensDistortionToolPanel, this, WeakStepsController);
+	return DistortionWidget.ToSharedRef();
 }
 
 void ULensDistortionTool::Tick(float DeltaTime)
 {
-	if (CurrentAlgo)
+	// If the resolution of the simulcam comp has changed, update the coverage texture to be the correct size
+	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
 	{
-		CurrentAlgo->Tick(DeltaTime);
+		const FIntPoint Size = StepsController->GetCompRenderResolution();
+		if (OverlayTexture && ((OverlayTexture->GetSizeX() != Size.X) || (OverlayTexture->GetSizeY() != Size.Y)))
+		{
+			OverlayTexture = UTexture2D::CreateTransient(Size.X, Size.Y, EPixelFormat::PF_B8G8R8A8);
+			RefreshCoverage();
+		}
 	}
 
 	// A valid task handle implies that there is an asynchronous calibration happening on another thread.
-	// The tool will poll the task to determine when it has finished so that the results can be saved.
 	if (CalibrationTask.IsValid())
 	{
 		if (CalibrationTask.IsCompleted())
@@ -146,31 +135,32 @@ void ULensDistortionTool::Tick(float DeltaTime)
 			CalibrationResult = CalibrationTask.GetResult();
 			CalibrationTask = {};
 
-			if (!CalibrationResult.ErrorMessage.IsEmpty())
+			FText TaskCompletionText;
+			if (CalibrationResult.ErrorMessage.IsEmpty())
 			{
-				const FText Message = FText::Format(LOCTEXT("CalibrationErrorResult", "Calibration Error: {0}"), CalibrationResult.ErrorMessage);
-				ProgressTextWidget->SetText(Message);
+				FNumberFormattingOptions Options;
+				Options.MinimumFractionalDigits = 3;
+				Options.MaximumFractionalDigits = 3;
+
+				TaskCompletionText = FText::Format(LOCTEXT("CalibrationResultReprojectionError", "Reprojection Error: {0} pixels"), FText::AsNumber(CalibrationResult.ReprojectionError, &Options));
 			}
 			else
 			{
-				// Update progress window with final reprojection error
-				FFormatOrderedArguments Arguments;
-				Arguments.Add(FText::FromString(FString::Printf(TEXT("%.3f"), CalibrationResult.ReprojectionError)));
-
-				const FText Message = FText::Format(LOCTEXT("CalibrationTaskResult", "Reprojection Error: {0} pixels"), Arguments);
-				ProgressTextWidget->SetText(Message);
+				TaskCompletionText = FText::Format(LOCTEXT("CalibrationResultErrorMessage", "Calibration Error: {0}"), CalibrationResult.ErrorMessage);
 			}
 
-			OkayButton->SetEnabled(true);
+			DistortionWidget->UpdateProgressText(TaskCompletionText);
+			DistortionWidget->MarkProgressFinished();
 		}
 		else
 		{
+			// Update the calibration status in the progress window
 			FText StatusText = FText::GetEmpty();
-			const bool bIsStatusNew = CurrentAlgo->GetCalibrationStatus(StatusText);
+			const bool bIsStatusNew = GetCalibrationStatus(StatusText);
 
 			if (bIsStatusNew)
 			{
-				ProgressTextWidget->SetText(StatusText);
+				DistortionWidget->UpdateProgressText(StatusText);
 			}
 		}
 	}
@@ -178,303 +168,512 @@ void ULensDistortionTool::Tick(float DeltaTime)
 
 bool ULensDistortionTool::OnViewportClicked(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (!bIsActive)
+	// We only respond to left clicks
+	if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
 	{
 		return false;
 	}
 
-	if (!CurrentAlgo)
+	return CaptureCalibrationData(MyGeometry, MouseEvent);
+}
+
+bool ULensDistortionTool::OnViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition)
+{
+	// Marquee select currently only supports providing an ROI for checkerboard detection
+	if (CaptureSettings.CalibrationPattern != ECalibrationPattern::Checkerboard)
 	{
 		return false;
 	}
 
+	FIntRect MarqueeSelection;
+	MarqueeSelection.Min = FIntPoint(FMath::Floor(StartPosition.X), FMath::Floor(StartPosition.Y));
+	MarqueeSelection.Max = FIntPoint(FMath::Floor(EndPosition.X), FMath::Floor(EndPosition.Y));
+
+	// These are unused by the checkerboard detection
+	const FGeometry MyGeometryUnused;
+	const FPointerEvent MouseEventUnused;
+	return CaptureCalibrationData(MyGeometryUnused, MouseEventUnused, MarqueeSelection);
+}
+
+bool ULensDistortionTool::CaptureCalibrationData(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, FIntRect RegionOfInterest)
+{
 	// Block user interaction with the simulcam viewport while an async calibration task is executing
 	if (CalibrationTask.IsValid())
 	{
 		return false;
 	}
 
-	return CurrentAlgo->OnViewportClicked(MyGeometry, MouseEvent);
-}
-
-TSharedRef<SWidget> ULensDistortionTool::BuildUI()
-{
-	DistortionWidget = SNew(SLensDistortionToolPanel, this);
-	return DistortionWidget.ToSharedRef();
-}
-
-void ULensDistortionTool::BuildProgressWindowWidgets()
-{
-	ProgressWindow = SNew(SWindow)
-		.Title(LOCTEXT("ProgressWindowTitle", "Distortion Calibration Progress"))
-		.SizingRule(ESizingRule::Autosized)
-		.IsTopmostWindow(true)
-		.HasCloseButton(false)
-		.SupportsMaximize(false)
-		.SupportsMinimize(true);
-
-	ProgressTextWidget = SNew(STextBlock).Text(FText::GetEmpty());
-
-	OkayButton = SNew(SButton)
-		.IsEnabled(false)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.Text(LOCTEXT("OkText", "Ok"))
-		.OnClicked_UObject(this, &ULensDistortionTool::OnOkPressed);
-
-	TSharedRef<SWidget> WindowContent = SNew(SVerticalBox)
-
-		// Text widget to display the current progress of the calibration
-		+ SVerticalBox::Slot()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.VAlign(EVerticalAlignment::VAlign_Center)
-		[
-			ProgressTextWidget.ToSharedRef()
-		]
-
-		// Ok and Cancel buttons
-		+ SVerticalBox::Slot()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.VAlign(EVerticalAlignment::VAlign_Center)
-		[
-			SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				OkayButton.ToSharedRef()
-			]
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SButton)
-				.Text(LOCTEXT("CancelText", "Cancel"))
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.OnClicked_UObject(this, &ULensDistortionTool::OnCancelPressed)
-			]
-		];
-
-	ProgressWindow->SetContent(WindowContent);
-
-	// Create the window, but start with it hidden. When the user initiates a calibration, the progress window will be shown.
-	FSlateApplication::Get().AddWindow(ProgressWindow.ToSharedRef());
-	ProgressWindow->HideWindow();
-}
-
-bool ULensDistortionTool::DependsOnStep(UCameraCalibrationStep* Step) const
-{
-	return Cast<ULensInfoStep>(Step) != nullptr;
-}
-
-void ULensDistortionTool::Activate()
-{
-	// Nothing to do if it is already active.
-	if (bIsActive)
+	TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin();
+	if (!StepsController)
 	{
-		return;
+		return false;
 	}
 
-	bIsActive = true;
-}
+	// Create new row of calibration data
+	TSharedPtr<FCalibrationRow> NewRow = MakeShared<FCalibrationRow>();
 
-void ULensDistortionTool::Deactivate()
-{
-	bIsActive = false;
-}
-
-UClass* ULensDistortionTool::GetSolverClass()
-{
-	return SolverClass;
-}
-
-void ULensDistortionTool::SetSolverClass(UClass* InSolverClass)
-{
-	SolverClass = InSolverClass;
-}
-
-void ULensDistortionTool::ResetAlgo()
-{
-	// Remove old Algo
-	if (CurrentAlgo)
+	// If capturing a single point, add the clicked point to the new row
+	if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Points)
 	{
-		CurrentAlgo->Shutdown();
-		CurrentAlgo = nullptr;
-
-		EndCalibrationSession();
-	}
-
-	// Set the tool overlay pass' material to the MID associate with the current algo
-	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = CameraCalibrationStepsController.Pin())
-	{
-		StepsController->SetOverlayEnabled(false);
-		StepsController->SetOverlayMaterial(nullptr);
-	}
-}
-
-void ULensDistortionTool::SetAlgo(const FName& AlgoName)
-{
-	// Find the algo class
-
-	//@todo replace with Find to avoid double search
-
-	if (!AlgosMap.Contains(AlgoName))
-	{
-		return;
-	}
-
-	TSubclassOf<UCameraLensDistortionAlgo>& AlgoClass = AlgosMap[AlgoName];
-		
-	// If it is the same as the existing one, do nothing.
-	if (!CurrentAlgo && !AlgoClass)
-	{
-		return;
-	}
-	else if (CurrentAlgo && (CurrentAlgo->GetClass() == AlgoClass))
-	{
-		return;
-	}
-
-	// Remove old Algo
-	if (CurrentAlgo)
-	{
-		CurrentAlgo->Shutdown();
-		CurrentAlgo = nullptr;
-
-		EndCalibrationSession();
-	}
-
-	// If AlgoClass is none, we're done here.
-	if (!AlgoClass)
-	{
-		return;
-	}
-
-	// Create new algo
-	CurrentAlgo = NewObject<UCameraLensDistortionAlgo>(
-		GetTransientPackage(),
-		AlgoClass,
-		MakeUniqueObjectName(GetTransientPackage(), AlgoClass));
-
-	if (CurrentAlgo)
-	{
-		CurrentAlgo->Initialize(this);
-	}
-
-	// Set the tool overlay pass' material to the MID associate with the current algo
-	if (CameraCalibrationStepsController.IsValid())
-	{
-		TSharedPtr<FCameraCalibrationStepsController> StepsController = CameraCalibrationStepsController.Pin();
-		StepsController->SetOverlayEnabled(false);
-		StepsController->SetOverlayMaterial(GetOverlayMID());
-	}
-}
-
-UCameraLensDistortionAlgo* ULensDistortionTool::GetAlgo() const
-{
-	return CurrentAlgo;
-}
-
-void ULensDistortionTool::OnSaveCurrentCalibrationData()
-{
-	if (!CurrentAlgo)
-	{
-		return;
-	}
-
-	const FText TitleError = LOCTEXT("LensCalibrationError", "Lens Calibration Error");
-	const FText UnknownError = LOCTEXT("UnknownError", "An unknown error occurred initiating the distortion calibration. Check the output log for details.");
-
-	if (CurrentAlgo->SupportsAsyncCalibration())
-	{
-		FText ErrorMessage;
-		CalibrationTask = CurrentAlgo->BeginCalibration(ErrorMessage);
-
-		if (!CalibrationTask.IsValid())
+		const bool bDetectionResult = DetectPoint(MyGeometry, MouseEvent, NewRow);
+		if (!bDetectionResult)
 		{
-			if (!ErrorMessage.IsEmpty())
-			{
-				FMessageDialog::Open(EAppMsgType::Ok, ErrorMessage, TitleError);
-			}
-			else
-			{
-				FMessageDialog::Open(EAppMsgType::Ok, UnknownError, TitleError);
-			}
-			return;
+			return true; // Though unsuccessful, the user input was handled
 		}
-
-		// TODO: This text is temporary. Update to register a delegate with the algo to provide implementation-specific status text
-		ProgressTextWidget->SetText(LOCTEXT("CalibrationProgressText", "Calibrating Lens Distortion..."));
-
-		// Ensure that the Ok button is disabled and show the progress window
-		OkayButton->SetEnabled(false);
-		ProgressWindow->ShowWindow();
-
-		DistortionWidget->SetEnabled(false);
 	}
 	else
 	{
-		TSubclassOf<ULensModel> LensModel;
-		bool bResult = CurrentAlgo->GetLensDistortion(
-			CalibrationResult.EvaluatedFocus, 
-			CalibrationResult.EvaluatedZoom, 
-			CalibrationResult.Parameters, 
-			CalibrationResult.FocalLength, 
-			CalibrationResult.ImageCenter, 
-			LensModel, 
-			CalibrationResult.ReprojectionError, 
-			CalibrationResult.ErrorMessage);
+		// If capturing a calibration pattern, read the media texture into CPU memory to send to one of the pattern detection algorithms
+		FText OutErrorMessage;
 
-		if (!bResult)
+		TArray<FColor> Pixels;
+		FIntPoint ImageSize;
+		if (!StepsController->ReadMediaPixels(Pixels, ImageSize, OutErrorMessage, ESimulcamViewportPortion::CameraFeed))
 		{
-			if (CalibrationResult.ErrorMessage.IsEmpty())
-			{
-				CalibrationResult.ErrorMessage = UnknownError;
-			}
-
-			FMessageDialog::Open(EAppMsgType::Ok, CalibrationResult.ErrorMessage, TitleError);
-			return;
+			FMessageDialog::Open(EAppMsgType::Ok, OutErrorMessage, LOCTEXT("ErrorReadingMedia", "Media Error"));
+			return true; // Though unsuccessful, the user input was handled
 		}
 
-		// Update progress window with final reprojection error
-		ProgressWindow->ShowWindow();
+		// Detect the selected pattern in the media image
+		bool bDetectionResult = false;
+		if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Checkerboard)
+		{
+			// If no ROI was provided, use the full image size
+			if (RegionOfInterest.IsEmpty())
+			{
+				RegionOfInterest = FIntRect(FIntPoint(0), ImageSize);
+			}
+			bDetectionResult = DetectCheckerboardPattern(Pixels, ImageSize, RegionOfInterest, NewRow);
+		}
+		else if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Aruco)
+		{
+			bDetectionResult = DetectArucoPattern(Pixels, ImageSize, NewRow);
+		}
 
-		FFormatOrderedArguments Arguments;
-		Arguments.Add(FText::FromString(FString::Printf(TEXT("%.3f"), CalibrationResult.ReprojectionError)));
+		if (!bDetectionResult)
+		{
+			return true; // Though unsuccessful, the user input was handled
+		}
 
-		const FText Message = FText::Format(LOCTEXT("ReprojectionError", "Reprojection Error: {0} pixels"), Arguments);
-		ProgressTextWidget->SetText(Message);
-
-		OkayButton->SetEnabled(true);
+		// Save an image view of the captured frame
+		FImageView ImageView = FImageView(Pixels.GetData(), ImageSize.X, ImageSize.Y, ERawImageFormat::BGRA8);
+		ImageView.CopyTo(NewRow->MediaImage);
 	}
+
+	NewRow->Index = AdvanceSessionRowIndex();
+	NewRow->Pattern = CaptureSettings.CalibrationPattern;
+
+	NewRow->CameraPose = FTransform::Identity;
+	if (const ACameraActor* Camera = StepsController->GetCamera())
+	{
+		if (const UCameraComponent* CameraComponent = Camera->GetCameraComponent())
+		{
+			NewRow->CameraPose = CameraComponent->GetComponentToWorld();
+		}
+	}
+
+	Dataset.CalibrationRows.Add(NewRow);
+
+	// Notify the ListView of the new data
+	if (DistortionWidget)
+	{
+		DistortionWidget->RefreshListView();
+	}
+
+	// Export the data for this row to a .json file on disk
+	ExportCalibrationRow(NewRow);
+
+	ExportSessionData();
+
+	return true;
 }
 
-FReply ULensDistortionTool::OnCancelPressed()
+bool ULensDistortionTool::DetectCheckerboardPattern(TArray<FColor>& Pixels, FIntPoint Size, FIntRect RegionOfInterest, TSharedPtr<FCalibrationRow> OutRow)
 {
-	CurrentAlgo->CancelCalibration();
+	const FText ErrorTitle = LOCTEXT("CaptureError", "Capture Error");
 
-	CalibrationTask = {};
-	ProgressWindow->HideWindow();
-	DistortionWidget->SetEnabled(true);
+	// The selected calibrator must be a checkerboard actor
+	ACameraCalibrationCheckerboard* Checkerboard = Cast<ACameraCalibrationCheckerboard>(CaptureSettings.Calibrator.Get());
+	if (!Checkerboard)
+	{
+		const FText ErrorMessage = LOCTEXT("CheckerboardActorRequiredError", "The selected calibrator must be actor must be a Camera Calibration Checkerboard actor.");
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, ErrorMessage, ErrorTitle);
+		return false;
+	}
 
-	return FReply::Handled();
+	const FIntPoint CheckerboardDimensions = FIntPoint(Checkerboard->NumCornerCols, Checkerboard->NumCornerRows);
+	OutRow->CheckerboardDimensions = CheckerboardDimensions;
+
+	// Launch an async task to perform the opencv checkerboard detection to prevent the game thread from being blocked in the rare cases when detection takes a very long time
+	UE::Tasks::TTask<TArray<FVector2f>> DetectionTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Pixels, Size, RegionOfInterest, CheckerboardDimensions]() mutable
+	{
+		TArray<FVector2f> Corners;
+		FOpenCVHelper::IdentifyCheckerboard(Pixels, Size, RegionOfInterest, CheckerboardDimensions, Corners);
+		return Corners;
+	});
+
+	TArray<FVector2f> DetectedCorners;
+	bool bCornersFound = false;
+
+	const FDateTime StartTime = FDateTime::Now();
+
+	const float Timeout = GetDefault<UCameraCalibrationSettings>()->GetCheckerboardDetectionTimeout();
+
+	// If the detection has not completed before a set timeout, abandon this task. The user will be informed of the detection failure.
+	while ((FDateTime::Now() - StartTime).GetSeconds() < Timeout)
+	{
+		if (DetectionTask.IsValid() && DetectionTask.IsCompleted())
+		{
+			// Extract the return value from the task
+			DetectedCorners = DetectionTask.GetResult();
+			bCornersFound = DetectedCorners.Num() > 0;
+			break;
+		}
+	}
+
+	// Release the task resource handle
+	DetectionTask = {};
+
+	if (!bCornersFound || DetectedCorners.IsEmpty())
+	{
+		const FText ErrorMessage = FText::Format(LOCTEXT("NoCheckerboardError", "Failed to detect a {0}x{1} checkerboard in the image."), Checkerboard->NumCornerCols, Checkerboard->NumCornerRows);
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, ErrorMessage, ErrorTitle);
+		return false;
+	}
+
+	for (const FVector2f& Corner : DetectedCorners)
+	{
+		OutRow->ImagePoints.Points.Add(FVector2D(Corner));
+	}
+
+	// Fill out the checkerboard's 3D points
+	const FVector TopLeft = Checkerboard->TopLeft->GetComponentLocation();
+	const FVector TopRight = Checkerboard->TopRight->GetComponentLocation();
+	const FVector BottomLeft = Checkerboard->BottomLeft->GetComponentLocation();
+
+	const FVector RightVector = TopRight - TopLeft;
+	const FVector DownVector = BottomLeft - TopLeft;
+
+	const float HorizontalStep = (Checkerboard->NumCornerCols > 1) ? (1.0f / (Checkerboard->NumCornerCols - 1)) : 0.0f;
+	const float VerticalStep = (Checkerboard->NumCornerRows > 1) ? (1.0f / (Checkerboard->NumCornerRows - 1)) : 0.0f;
+
+	for (int32 RowIdx = 0; RowIdx < Checkerboard->NumCornerRows; ++RowIdx)
+	{
+		for (int32 ColIdx = 0; ColIdx < Checkerboard->NumCornerCols; ++ColIdx)
+		{
+			const FVector PointLocation = TopLeft + (RightVector * ColIdx * HorizontalStep) + (DownVector * RowIdx * VerticalStep);
+			OutRow->ObjectPoints.Points.Add(PointLocation);
+		}
+	}
+
+	// Update the coverage overlay with the latest checkerboard corners
+	TArray<FVector2D> CameraFeedAdjustedCorners = OutRow->ImagePoints.Points;
+	const FIntPoint OverlayTextureSize = FIntPoint(OverlayTexture->GetSizeX(), OverlayTexture->GetSizeY());
+	RescalePoints(CameraFeedAdjustedCorners, OverlayTextureSize, Size);
+
+	FOpenCVHelper::DrawCheckerboardCorners(CameraFeedAdjustedCorners, OutRow->CheckerboardDimensions, OverlayTexture);
+
+	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
+	{
+		StepsController->RefreshOverlay();
+	}
+
+	OutRow->TargetPose.SetLocation(TopLeft);
+
+	FRotator BoardRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+	OutRow->TargetPose.SetRotation(BoardRotation.Quaternion());
+
+	return true;
 }
 
-FReply ULensDistortionTool::OnOkPressed()
+bool ULensDistortionTool::DetectArucoPattern(TArray<FColor>& Pixels, FIntPoint Size, TSharedPtr<FCalibrationRow> OutRow)
 {
-	SaveCalibrationResult();
+	const FText ErrorTitle = LOCTEXT("CaptureError", "Capture Error");
 
-	ProgressWindow->HideWindow();
-	DistortionWidget->SetEnabled(true);
+	// Detect the aruco dictionary to use by looking at the names of the calibration points on the selected calibrator actor
+	AActor* CalibratorActor = CaptureSettings.Calibrator.Get();
+	if (!CalibratorActor)
+	{
+		const FText ErrorMessage = LOCTEXT("NoCalibratorError", "Please select a valid calibrator actor.");
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, ErrorMessage, ErrorTitle);
+		return false;
+	}
 
-	return FReply::Handled();
+	EArucoDictionary Dictionary = UE::CameraCalibration::Private::GetArucoDictionaryForCalibrator(CalibratorActor);
+	if (Dictionary == EArucoDictionary::None)
+	{
+		const FText ErrorMessage = LOCTEXT("NoArucoDictionaryError", "The calibration components of the selected calibrator do not specify a valid Aruco dictionary.");
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, ErrorMessage, ErrorTitle);
+		return false;
+	}
+
+	// Identify any aruco markers matching the current dictionary in the media image
+	TArray<FArucoMarker> IdentifiedMarkers;
+	bool bResult = FOpenCVHelper::IdentifyArucoMarkers(Pixels, Size, Dictionary, IdentifiedMarkers);
+
+	if (!bResult || IdentifiedMarkers.IsEmpty())
+	{
+		const FText ErrorMessage = LOCTEXT("NoArucoMarkersFoundError", "Failed to detect any aruco markers in the image belonging to the dictionary of the selected calibrator.");
+		FMessageDialog::Open(EAppMsgCategory::Error, EAppMsgType::Ok, ErrorMessage, ErrorTitle);
+		return false;
+	}
+
+	// For each identified marker, search the calibration components to find the subpoints matching that marker and the 3D location of each of its corners
+	TArray<FArucoCalibrationPoint> ArucoCalibrationPoints;
+	ArucoCalibrationPoints.Reserve(IdentifiedMarkers.Num());
+
+	UpdateCalibrationComponents();
+
+	for (const FArucoMarker& Marker : IdentifiedMarkers)
+	{
+		FArucoCalibrationPoint ArucoCalibrationPoint;
+		if (UE::CameraCalibration::Private::FindArucoCalibrationPoint(CalibrationComponents, Dictionary, Marker, ArucoCalibrationPoint))
+		{
+			ArucoCalibrationPoints.Add(ArucoCalibrationPoint);
+		}
+	}
+
+	if (ArucoCalibrationPoints.Num() > 0)
+	{
+		for (const FArucoCalibrationPoint& Marker : ArucoCalibrationPoints)
+		{
+			for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
+			{
+				OutRow->ObjectPoints.Points.Add(Marker.Corners3D[CornerIndex]);
+				OutRow->ImagePoints.Points.Add(FVector2D(Marker.Corners2D[CornerIndex]));
+			}
+		}
+
+		FArucoCalibrationPoint& FirstAruco = ArucoCalibrationPoints[0];
+
+		FVector TopLeft = FirstAruco.Corners3D[0];
+		FVector TopRight = FirstAruco.Corners3D[1];
+		FVector BottomLeft = FirstAruco.Corners3D[3];
+
+		OutRow->TargetPose.SetLocation(TopLeft);
+
+		FRotator FirstMarkerRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+		OutRow->TargetPose.SetRotation(FirstMarkerRotation.Quaternion());
+	}
+
+	FOpenCVHelper::DrawArucoMarkers(IdentifiedMarkers, OverlayTexture);
+
+	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
+	{
+		StepsController->RefreshOverlay();
+	}
+
+	return true;
+}
+
+bool ULensDistortionTool::DetectPoint(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, TSharedPtr<FCalibrationRow> OutRow)
+{
+	TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin();
+	if (!StepsController)
+	{
+		return false;
+	}
+
+	// When the user captures the first calibration point, the 3D locations for the remaining points are cached to ensure they all come from the same frame of data
+	// The media is also paused to ensure that the user is able to more easily capture the 2D location of each subsequent calibration point
+	UpdateCalibrationComponents();
+	
+	if (CalibrationComponentIndex == 0)
+	{
+		StepsController->Pause();
+
+		// Cache the camera pose and component locations of the remaining components
+		CachedComponentLocations.Reset();
+		for (TWeakObjectPtr<UCalibrationPointComponent> Component : CalibrationComponents)
+		{
+			CachedComponentLocations.Add(Component->GetComponentLocation());
+		}
+	}
+
+	// Calculate the location where the user clicked in the viewport
+	FVector2f NormalizedClickPosition;
+	if (!StepsController->CalculateNormalizedMouseClickPosition(MyGeometry, MouseEvent, NormalizedClickPosition, ESimulcamViewportPortion::CameraFeed))
+	{
+		return false;
+	}
+
+	const FIntPoint ImageSize = StepsController->GetCameraFeedSize();
+	const FVector2D ImagePoint = FVector2D(NormalizedClickPosition * ImageSize);
+
+	OutRow->ImagePoints.Points.Add(ImagePoint);
+
+	OutRow->ObjectPoints.Points.Add(CachedComponentLocations[CalibrationComponentIndex]);
+
+	// Advance the component index, and if it loops around, resume playing the media (which was paused after capturing the first point)
+	SetComponentIndex(CalibrationComponentIndex + 1);
+
+	if (CalibrationComponentIndex == 0)
+	{
+		StepsController->Play();
+	}
+
+	return true;
+}
+
+void ULensDistortionTool::CalibrateLens()
+{
+	TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin();
+	if (!StepsController)
+	{
+		return;
+	}
+
+	ULensFile* LensFile = StepsController->GetLensFile();
+	if (!LensFile)
+	{
+		return;
+	}
+
+	const FText TitleError = LOCTEXT("CalibrationErrorTitle", "Calibration Error");
+
+	if (Dataset.CalibrationRows.Num() < 1)
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("EmptyDatasetError", "The calibration dataset is empty. Please select a valid dataset or capture a new one before calibrating."), TitleError);
+		return;
+	}
+
+	const float PhysicalSensorWidth = StepsController->GetLensFileEvaluationInputs().Filmback.SensorWidth;
+	const float PixelAspect = LensFile->LensInfo.SqueezeFactor;
+
+	const float DesqueezedSensorWidth = PhysicalSensorWidth * PixelAspect;
+
+	if (FMath::IsNearlyZero(DesqueezedSensorWidth))
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("InvalidSensorWidthError", "The sensor width and squeeze factor in the camera settings must both be greater than zero. Please enter a valid value."), TitleError);
+		return;
+	}
+
+	if (!SolverSettings.FocalLengthGuess.IsSet() || FMath::IsNearlyZero(SolverSettings.FocalLengthGuess.GetValue()))
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("InvalidFocalLengthError", "Please enter a valid estimate for the focal length of the lens (in mm)."), TitleError);
+		return;
+	}
+
+	UE::LensDistortionToolAnalytics::RecordEvent(CaptureSettings, SolverSettings, Dataset.CalibrationRows.Num());
+
+	const FIntPoint ImageSize = LensFile->CameraFeedInfo.GetDimensions();
+
+	const double FocalLengthEstimateValue = SolverSettings.FocalLengthGuess.GetValue();
+	const double Fx = (FocalLengthEstimateValue / DesqueezedSensorWidth) * ImageSize.X;
+
+	// When operating on a desqueezed image, we expect our pixel aspect to be square, so horizontal and vertical field of view are assumed to be equal (i.e. Fx == Fy)
+	FVector2D FocalLength = FVector2D(Fx);
+	FVector2D ImageCenter = FVector2D((ImageSize.X - 1) * 0.5, (ImageSize.Y - 1) * 0.5);
+
+	TArray<FObjectPoints> Samples3d;
+	Samples3d.Reserve(Dataset.CalibrationRows.Num());
+
+	TArray<FImagePoints> Samples2d;
+	Samples2d.Reserve(Dataset.CalibrationRows.Num());
+
+	TArray<FTransform> CameraPoses;
+	CameraPoses.Reserve(Dataset.CalibrationRows.Num());
+
+	TArray<FTransform> TargetPoses;
+	TargetPoses.Reserve(Dataset.CalibrationRows.Num());
+
+	// Extract the 3D points, 2D points, and camera poses from each row to pass to the solver
+	for (const TSharedPtr<FCalibrationRow>& Row : Dataset.CalibrationRows)
+	{
+		Samples3d.Add(Row->ObjectPoints);
+		Samples2d.Add(Row->ImagePoints);
+		CameraPoses.Add(Row->CameraPose);
+		TargetPoses.Add(Row->TargetPose);
+	}
+
+	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
+	EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
+
+	if (CaptureSettings.bIsCameraTracked)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
+	}
+	else if (CaptureSettings.CalibrationPattern == ECalibrationPattern::Checkerboard)
+	{
+		GenerateDummyCheckerboardPoints(Samples3d, Dataset.CalibrationRows.Num(), Dataset.CalibrationRows[0]->CheckerboardDimensions);
+	}
+
+	if (CaptureSettings.bIsCalibratorTracked && CaptureSettings.CalibrationPattern != ECalibrationPattern::Points)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::SolveTargetOffset);
+	}
+
+	if (CaptureSettings.bIsCameraTracked && CaptureSettings.bIsCalibratorTracked)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::GroupCameraPoses);
+	}
+
+	if (SolverSettings.bFixFocalLength)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
+	}
+
+	if (SolverSettings.bFixImageCenter)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
+	}
+
+	if (SolverSettings.bFixDistortion)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixDistortion);
+	}
+
+	const FLensFileEvaluationInputs LensFileEvalInputs = StepsController->GetLensFileEvaluationInputs();
+
+	FDistortionInfo DistortionGuess;
+	LensFile->EvaluateDistortionParameters(LensFileEvalInputs.Focus, LensFileEvalInputs.Zoom, DistortionGuess);
+
+	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
+
+	Solver = NewObject<ULensDistortionSolver>(GetTransientPackage(), SolverSettings.SolverClass);
+
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [InSolver = this->Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, TargetPoses, PixelAspect, SolverFlags, LensFileEvalInputs]() mutable
+		{
+			FDistortionCalibrationResult Result = InSolver->Solve(
+				Samples3d,
+				Samples2d,
+				ImageSize,
+				FocalLength,
+				ImageCenter,
+				DistortionGuess.Parameters,
+				CameraPoses,
+				TargetPoses,
+				Model,
+				PixelAspect,
+				SolverFlags
+			);
+
+			// CalibrateCamera() returns focal length and image center in pixels, but the result is expected to be normalized by the image size
+			Result.FocalLength.FxFy = Result.FocalLength.FxFy / ImageSize;
+			Result.ImageCenter.PrincipalPoint = Result.ImageCenter.PrincipalPoint / ImageSize;
+
+			// FZ inputs to LUT
+			Result.EvaluatedFocus = LensFileEvalInputs.Focus;
+			Result.EvaluatedZoom = LensFileEvalInputs.Zoom;
+
+			return Result;
+		});
+
+	DistortionWidget->OpenProgressWindow();
+
+	// All of the UI options should be disabled while the calibration task is running
+	DistortionWidget->SetEnabled(false);
 }
 
 void ULensDistortionTool::SaveCalibrationResult()
 {
-	ULensFile* LensFile = CameraCalibrationStepsController.Pin()->GetLensFile();
+	TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin();
+	if (!StepsController)
+	{
+		return;
+	}
 
+	ULensFile* LensFile = StepsController->GetLensFile();
 	if (!LensFile)
 	{
 		return;
@@ -492,7 +691,7 @@ void ULensDistortionTool::SaveCalibrationResult()
 		CalibrationResult.STMap.DistortionMap = (ImportedImages.Num() > 0) ? Cast<UTexture>(ImportedImages[0]) : nullptr;
 	}
 
-	// Depending on the algo, it is possible that the result feature calibrated distortion parameters or an ST Map.
+	// The result may have featured calibrated distortion parameters or an ST Map.
 	// If the result contains any distortion parameters, then the results will be written as a distortion point in the Lens File
 	// Otherwise, if the result contains a valid ST Map, then it will be added to the Lens File
 	if (CalibrationResult.Parameters.Parameters.Num() > 0)
@@ -503,7 +702,7 @@ void ULensDistortionTool::SaveCalibrationResult()
 			UE_LOG(LogCameraCalibrationEditor, Log, TEXT("The LensFile's data mode was set to ST Map, but the latest calibration result returned distortion parameters. Data mode will change to Parameters."));
 		}
 
-		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Current Distortion Data"));
+		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Calibrated Distortion to Lens Asset"));
 		LensFile->Modify();
 
 		LensFile->AddDistortionPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.Parameters, CalibrationResult.FocalLength);
@@ -517,7 +716,7 @@ void ULensDistortionTool::SaveCalibrationResult()
 			UE_LOG(LogCameraCalibrationEditor, Log, TEXT("The LensFile's data mode was set to Parameters, but the latest calibration result returned an ST Map. Data mode will change to ST Map."));
 		}
 
-		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Current Distortion Data"));
+		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Calibrated Distortion to Lens Asset"));
 		LensFile->Modify();
 
 		LensFile->AddSTMapPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.STMap);
@@ -525,27 +724,204 @@ void ULensDistortionTool::SaveCalibrationResult()
 		LensFile->AddImageCenterPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.ImageCenter);
 	}
 
-	if (UCameraLensDistortionAlgo* Algo = GetAlgo())
+	// If the calibration result contains a meaningful nodal offset result, add it to the Lens File
+	if (SolverSettings.bSolveNodalOffset && CaptureSettings.bIsCalibratorTracked && CaptureSettings.bIsCameraTracked)
 	{
-		Algo->OnDistortionSavedToLens();
+		if (!CalibrationResult.NodalOffset.LocationOffset.Equals(FVector::ZeroVector) || !CalibrationResult.NodalOffset.RotationOffset.Equals(FQuat::Identity))
+		{
+			FScopedTransaction Transaction(LOCTEXT("SaveNodalOffsetResult", "Save Calibrated Nodal Offset to Lens Asset"));
+			LensFile->Modify();
+
+			LensFile->AddNodalOffsetPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.NodalOffset);
+		}
+	}
+
+	ClearCalibrationRows();
+}
+
+void ULensDistortionTool::CancelCalibration()
+{
+	if (Solver)
+	{
+		Solver->Cancel();
 	}
 }
 
-FCameraCalibrationStepsController* ULensDistortionTool::GetCameraCalibrationStepsController() const
+bool ULensDistortionTool::GetCalibrationStatus(FText& StatusText) const
 {
-	if (!CameraCalibrationStepsController.IsValid())
+	if (Solver)
 	{
-		return nullptr;
+		return Solver->GetStatusText(StatusText);
 	}
-
-	return CameraCalibrationStepsController.Pin().Get();
+	return false;
 }
 
-TArray<FName> ULensDistortionTool::GetAlgos() const
+void ULensDistortionTool::SetCalibrator(AActor* InCalibrator)
 {
-	TArray<FName> OutKeys;
-	SupportedAlgosMap.GetKeys(OutKeys);
-	return OutKeys;
+	CaptureSettings.Calibrator = InCalibrator;
+
+	if (!InCalibrator)
+	{
+		return;
+	}
+
+	CalibrationComponents.Reset();
+	UpdateCalibrationComponents();
+
+	// Initialize the component index used by the single point detection mode
+	SetComponentIndex(0);
+
+	CachedComponentLocations.Reserve(CalibrationComponents.Num());
+}
+
+void ULensDistortionTool::UpdateCalibrationComponents()
+{
+	bool bNeedsUpdate = false;
+
+	for (TWeakObjectPtr<UCalibrationPointComponent> Component : CalibrationComponents)
+	{
+		if (!Component.IsValid())
+		{
+			bNeedsUpdate = true;
+			break;
+		}
+	}
+
+	if (CalibrationComponents.IsEmpty())
+	{
+		bNeedsUpdate = true;
+	}
+
+	if (bNeedsUpdate && CaptureSettings.Calibrator.IsValid())
+	{
+		// Find all of the calibration components attached to calibrator actor
+		TArray<UCalibrationPointComponent*> CalibrationPoints;
+		CaptureSettings.Calibrator->GetComponents(CalibrationPoints);
+
+		// Store weak references to all of the calibration components that have an attached scene component
+		CalibrationComponents.Reset();
+		for (UCalibrationPointComponent* CalibrationPoint : CalibrationPoints)
+		{
+			if (CalibrationPoint && CalibrationPoint->GetAttachParent())
+			{
+				CalibrationComponents.Add(CalibrationPoint);
+			}
+		}
+	}
+}
+
+void ULensDistortionTool::ClearCalibrationRows()
+{
+	Dataset.CalibrationRows.Empty();
+
+	if (DistortionWidget)
+	{
+		DistortionWidget->RefreshListView();
+	}
+
+	// Reset the calibration component index to restart the pattern
+	SetComponentIndex(0);
+
+	RefreshCoverage();
+
+	// End the current calibration session (a new one will begin the next time a new row is added)
+	EndCalibrationSession();
+}
+
+void ULensDistortionTool::SetComponentIndex(int32 Index)
+{
+	CalibrationComponentIndex = Index;
+
+	// If the Index would loop around, reset it to 0
+	if (CalibrationComponentIndex == CalibrationComponents.Num())
+	{
+		CalibrationComponentIndex = 0;
+	}
+
+	UpdateCalibrationComponents();
+
+	if (CalibrationComponents.IsValidIndex(CalibrationComponentIndex))
+	{
+		CaptureSettings.NextPoint = FText::FromString(CalibrationComponents[CalibrationComponentIndex]->GetName());
+	}
+}
+
+void ULensDistortionTool::RefreshCoverage()
+{
+	UE::CameraCalibration::Private::ClearTexture(OverlayTexture);
+
+	for (const TSharedPtr<FCalibrationRow>& Row : Dataset.CalibrationRows)
+	{
+		if (Row->Pattern == ECalibrationPattern::Checkerboard)
+		{
+			TArray<FVector2D> CameraFeedAdjustedCorners = Row->ImagePoints.Points;
+			const FIntPoint OverlayTextureSize = FIntPoint(OverlayTexture->GetSizeX(), OverlayTexture->GetSizeY());
+			const FIntPoint ImageSize = FIntPoint(Row->MediaImage.SizeX, Row->MediaImage.SizeY);
+			RescalePoints(CameraFeedAdjustedCorners, OverlayTextureSize, ImageSize);
+
+			FOpenCVHelper::DrawCheckerboardCorners(CameraFeedAdjustedCorners, Row->CheckerboardDimensions, OverlayTexture);
+		}
+	}
+
+	// The coverage texture may have changed as a result of a change in size or pixel format.
+	// Therefore, the material parameter should be updated to ensure it is up to date.
+	if (OverlayTexture)
+	{
+		OverlayMID->SetTextureParameterValue(FName(TEXT("CoverageTexture")), OverlayTexture);
+	}
+
+	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
+	{
+		StepsController->RefreshOverlay();
+	}
+}
+
+void ULensDistortionTool::RescalePoints(TArray<FVector2D>& Points, FIntPoint DebugTextureSize, FIntPoint CameraFeedSize)
+{
+	// It is possible that the size of the debug texture is different than the size of the camera feed.
+	// Therefore, the input points should be shifted so that they appear at the correct location in the debug image.
+	const FVector2D TopLeftCorner = (DebugTextureSize - CameraFeedSize) / 2.0f;
+
+	for (FVector2D& Point : Points)
+	{
+		Point += TopLeftCorner;
+	}
+}
+
+void ULensDistortionTool::GenerateDummyCheckerboardPoints(TArray<FObjectPoints>& Samples3d, int32 NumImages, FIntPoint CheckerboardDimensions)
+{
+	// If the camera is not tracked, the distortion solver must initialize the camera pose for each image using linear algebra techniques.
+	// However, it struggles to do so when "real" tracking data is used for the calibrator. So in this case, we replace the tracked calibrator data 
+	// with a set of dummy points for the 3D checkerboard corners. The board is assumed to lie in the YZ plane with the TopLeft corner at (0, 0, 0) in world space.
+	Samples3d.Empty();
+	for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
+	{
+		FObjectPoints Points3d;
+		for (int32 RowIdx = 0; RowIdx < CheckerboardDimensions.Y; ++RowIdx)
+		{
+			for (int32 ColIdx = 0; ColIdx < CheckerboardDimensions.X; ++ColIdx)
+			{
+				Points3d.Points.Add(FVector(0, ColIdx, -RowIdx));
+			}
+		}
+
+		Samples3d.Add(Points3d);
+	}
+}
+
+bool ULensDistortionTool::DependsOnStep(UCameraCalibrationStep* Step) const
+{
+	return Cast<ULensInfoStep>(Step) != nullptr;
+}
+
+void ULensDistortionTool::Activate()
+{
+	bIsActive = true;
+}
+
+void ULensDistortionTool::Deactivate()
+{
+	bIsActive = false;
 }
 
 bool ULensDistortionTool::IsActive() const
@@ -555,22 +931,12 @@ bool ULensDistortionTool::IsActive() const
 
 UMaterialInstanceDynamic* ULensDistortionTool::GetOverlayMID() const
 {
-	if (CurrentAlgo)
-	{
-		return AlgoOverlayMIDs.FindRef(CurrentAlgo->FriendlyName()).Get();
-	}
-
-	return nullptr;
+	return OverlayMID;
 }
 
 bool ULensDistortionTool::IsOverlayEnabled() const
 {
-	if (CurrentAlgo)
-	{
-		return CurrentAlgo->IsOverlayEnabled();
-	}
-
-	return false;
+	return CaptureSettings.bShowOverlay;
 }
 
 void ULensDistortionTool::StartCalibrationSession()
@@ -603,8 +969,7 @@ FString ULensDistortionTool::GetSessionSaveDir() const
 
 	const FString SessionDateString = SessionInfo.StartTime.ToString(TEXT("%Y-%m-%d"));
 	const FString SessionTimeString = SessionInfo.StartTime.ToString(TEXT("%H-%M-%S"));
-	const FString DatasetPrefix = TEXT("Dataset-") + CurrentAlgo->ShortName().ToString() + TEXT("Algorithm-");
-	const FString DatasetDir = DatasetPrefix + SessionTimeString;
+	const FString DatasetDir = SessionTimeString;
 
 	const FString ProjectSaveDir = FPaths::ProjectSavedDir() / TEXT("CameraCalibration") / TEXT("LensDistortion");
 
@@ -643,84 +1008,6 @@ void ULensDistortionTool::DeleteExportedRow(const int32& RowIndex) const
 	}
 }
 
-void ULensDistortionTool::ExportCalibrationRow(int32 RowIndex, const TSharedRef<FJsonObject>& RowObject, const FImageView& RowImage)
-{
-	if (!GetDefault<UCameraCalibrationSettings>()->IsCalibrationDatasetImportExportEnabled())
-	{
-		return;
-	}
-
-	// Start a calibration session (if one is not currently active)
-	StartCalibrationSession();
-
-	// Assemble the path and filename for this row based on the session and row index
-	const FString PathName = GetSessionSaveDir();
-	const FString FileName = GetRowFilename(RowIndex) + FDateTime::Now().ToString(TEXT("%H-%M-%S"));
-
-	const FString JsonFileName = PathName / FileName + TEXT(".json");
-	const FString ImageFileName = PathName / FileName + TEXT(".png");
-
-	// Create and open a new Json file for writing, and initialize a JsonWriter to serialize the contents
-	if (TUniquePtr<FArchive> FileWriter = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*JsonFileName)))
-	{
-		TSharedRef< TJsonWriter<> > JsonWriter = TJsonWriterFactory<>::Create(FileWriter.Get());
-
-		// Write the Json row data out and save the file
-		FJsonSerializer::Serialize(RowObject, JsonWriter);
-		FileWriter->Close();
-
-		UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool wrote to dataset row file: %s"), *JsonFileName);
-	}
-
-	// If the row has an image to export, save it out to a file
-	if (RowImage.RawData != nullptr)
-	{
-		FImageUtils::SaveImageByExtension(*ImageFileName, RowImage);
-	}
-}
-
-void ULensDistortionTool::ExportSessionData(const TSharedRef<FJsonObject>& SessionDataObject)
-{
-	using namespace UE::CameraCalibration::Private;
-
-	if (!GetDefault<UCameraCalibrationSettings>()->IsCalibrationDatasetImportExportEnabled())
-	{
-		return;
-	}
-
-	// Start a calibration session (if one is not currently active)
-	StartCalibrationSession();
-
-	// Assemble the path and filename for this row based on the session and row index
-	const FString PathName = GetSessionSaveDir();
-	const FString FileName = TEXT("SessionData");
-
-	const FString SessionFileName = PathName / FileName + TEXT(".ucamcalib");
-
-	// Delete the existing session data file (if it exists)
-	if (IFileManager::Get().FileExists(*SessionFileName))
-	{
-		IFileManager::Get().Delete(*SessionFileName);
-	}
-
-	// Create and open a new Json file for writing, and initialize a JsonWriter to serialize the contents
-	if (TUniquePtr<FArchive> FileWriter = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*SessionFileName)))
-	{
-		TSharedRef< TJsonWriter<> > JsonWriter = TJsonWriterFactory<>::Create(FileWriter.Get());
-
-		const FString SessionDateTimeString = SessionInfo.StartTime.ToString(TEXT("%Y-%m-%d")) + TEXT("-") + SessionInfo.StartTime.ToString(TEXT("%H-%M-%S"));
-
-		SessionDataObject->SetStringField(LensDistortionTool::SessionDateTimeField, SessionDateTimeString);
-		SessionDataObject->SetStringField(LensDistortionTool::AlgoNameField, CurrentAlgo->FriendlyName().ToString());
-
-		// Write the Json row data out and save the file
-		FJsonSerializer::Serialize(SessionDataObject, JsonWriter);
-		FileWriter->Close();
-
-		UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool wrote to dataset session file: %s"), *SessionFileName);
-	}
-}
-
 void ULensDistortionTool::ImportCalibrationDataset()
 {
 	using namespace UE::CameraCalibration::Private;
@@ -731,7 +1018,7 @@ void ULensDistortionTool::ImportCalibrationDataset()
 	}
 
 	// If there is existing calibration data that will be overwritten during import, ask the user to confirm that they want to continue
-	if (CurrentAlgo->HasCalibrationData())
+	if (Dataset.CalibrationRows.Num() > 0)
 	{
 		const FText ConfirmationMessage = LOCTEXT(
 			"ImportDatasetConfirmationMessage",
@@ -781,6 +1068,7 @@ void ULensDistortionTool::ImportCalibrationDataset()
 
 	// Import the session data
 	FDateTime ImportedSessionDateTime = FDateTime::Now();
+	EDatasetVersion ImportedDatasetVersion = EDatasetVersion::Invalid;
 	{
 		const FString SessionFile = SelectedDirectory / SessionFileName;
 
@@ -804,29 +1092,32 @@ void ULensDistortionTool::ImportCalibrationDataset()
 					UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool failed to deserialize the date/time from the session file: %s"), *SessionFile);
 				}
 
-				// Import the algo name so we can set the appropriate algo before importing the row data
-				FString AlgoString;
-				if (JsonSessionData->TryGetStringField(LensDistortionTool::AlgoNameField, AlgoString))
+				int32 Version = 0;
+				if (JsonSessionData->TryGetNumberField(LensDistortionTool::Version, Version))
 				{
-					// Ensure that the algo name matches one of the algos for this tool
-					const FName AlgoName = FName(*AlgoString);
-					if (AlgosMap.Contains(AlgoName))
-					{
-						SetAlgo(AlgoName);
-					}
-					else
-					{
-						const FText ErrorMessage = LOCTEXT("UnknownCalibrationAlgo", "The selected dataset does not represent a lens distortion calibration. Choose a different .ucamcalib dataset file from a lens distortion calibration.");
-						FMessageDialog::Open(EAppMsgType::Ok, ErrorMessage);
-						return;
-					}
-				}
-				else
-				{
-					UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool failed to deserialize the algo name from the session file: %s"), *SessionFile);
+					ImportedDatasetVersion = (EDatasetVersion)Version;
 				}
 
-				CurrentAlgo->ImportSessionData(JsonSessionData.ToSharedRef());
+				// This version predates the calibration pattern field, but the data can be reconstructed by looking at the "Algo Name" field.
+				if (ImportedDatasetVersion == EDatasetVersion::SeparateAlgoClasses)
+				{
+					FString AlgoString;
+					if (JsonSessionData->TryGetStringField(TEXT("AlgoName"), AlgoString))
+					{
+						if (AlgoString.Contains(TEXT("Checkerboard"), ESearchCase::IgnoreCase))
+						{
+							CaptureSettings.CalibrationPattern = ECalibrationPattern::Checkerboard;
+						}
+						else if (AlgoString.Contains(TEXT("Aruco"), ESearchCase::IgnoreCase))
+						{
+							CaptureSettings.CalibrationPattern = ECalibrationPattern::Aruco;
+						}
+						else if (AlgoString.Contains(TEXT("Points"), ESearchCase::IgnoreCase))
+						{
+							CaptureSettings.CalibrationPattern = ECalibrationPattern::Points;
+						}
+					}
+				}
 			}
 			else
 			{
@@ -835,7 +1126,7 @@ void ULensDistortionTool::ImportCalibrationDataset()
 		}
 	}
 
-	CurrentAlgo->PreImportCalibrationData();
+	Dataset.CalibrationRows.Empty();
 
 	// Initialize a maximum row index which will be used to set the current session row index if the user wants to add additional rows after importing
 	int32 MaxRowIndex = -1;
@@ -861,7 +1152,7 @@ void ULensDistortionTool::ImportCalibrationDataset()
 			TSharedPtr<FJsonObject> JsonRowData = MakeShared<FJsonObject>();
 			if (FJsonSerializer::Deserialize(JsonReader, JsonRowData))
 			{
-				int32 RowNum = CurrentAlgo->ImportCalibrationRow(JsonRowData.ToSharedRef(), RowImage);
+				int32 RowNum = ImportCalibrationRow(JsonRowData.ToSharedRef(), RowImage, ImportedDatasetVersion);
 				MaxRowIndex = FMath::Max(MaxRowIndex, RowNum);
 			}
 			else
@@ -871,12 +1162,304 @@ void ULensDistortionTool::ImportCalibrationDataset()
 		}
 	}
 
-	CurrentAlgo->PostImportCalibrationData();
+	// Sort imported calibration rows by row index
+	Dataset.CalibrationRows.Sort([](const TSharedPtr<FCalibrationRow>& LHS, const TSharedPtr<FCalibrationRow>& RHS) { return LHS->Index < RHS->Index; });
+
+	// Notify the ListView of the new data
+	if (DistortionWidget)
+	{
+		DistortionWidget->RefreshListView();
+	}
+
+	// Redraw the coverage overlay for the imported data
+	RefreshCoverage();
 
 	// Set the current session's start date/time and row index to match what was just imported to support adding/deleting rows
 	SessionInfo.bIsActive = true;
 	SessionInfo.StartTime = ImportedSessionDateTime;
 	SessionInfo.RowIndex = MaxRowIndex;
+}
+
+void ULensDistortionTool::ExportSessionData()
+{
+	if (!GetDefault<UCameraCalibrationSettings>()->IsCalibrationDatasetImportExportEnabled())
+	{
+		return;
+	}
+
+	using namespace UE::CameraCalibration::Private;
+
+	TSharedPtr<FJsonObject> JsonSessionData = MakeShared<FJsonObject>();
+
+	int32 DatasetVersion = (int32)EDatasetVersion::CurrentVersion;
+	JsonSessionData->SetNumberField(LensDistortionTool::Version, DatasetVersion);
+
+	// Start a calibration session (if one is not currently active)
+	StartCalibrationSession();
+
+	// Assemble the path and filename for this row based on the session and row index
+	const FString PathName = GetSessionSaveDir();
+	const FString FileName = TEXT("SessionData");
+
+	const FString SessionFileName = PathName / FileName + TEXT(".ucamcalib");
+
+	// Delete the existing session data file (if it exists)
+	if (IFileManager::Get().FileExists(*SessionFileName))
+	{
+		IFileManager::Get().Delete(*SessionFileName);
+	}
+
+	// Create and open a new Json file for writing, and initialize a JsonWriter to serialize the contents
+	if (TUniquePtr<FArchive> FileWriter = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*SessionFileName)))
+	{
+		TSharedRef< TJsonWriter<> > JsonWriter = TJsonWriterFactory<>::Create(FileWriter.Get());
+
+		const FString SessionDateTimeString = SessionInfo.StartTime.ToString(TEXT("%Y-%m-%d")) + TEXT("-") + SessionInfo.StartTime.ToString(TEXT("%H-%M-%S"));
+
+		JsonSessionData->SetStringField(LensDistortionTool::SessionDateTimeField, SessionDateTimeString);
+
+		// Write the Json row data out and save the file
+		FJsonSerializer::Serialize(JsonSessionData.ToSharedRef(), JsonWriter);
+		FileWriter->Close();
+
+		UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool wrote to dataset session file: %s"), *SessionFileName);
+	}
+}
+
+void ULensDistortionTool::ExportCalibrationRow(TSharedPtr<FCalibrationRow> Row)
+{
+	if (!GetDefault<UCameraCalibrationSettings>()->IsCalibrationDatasetImportExportEnabled())
+	{
+		return;
+	}
+
+	if (const TSharedPtr<FJsonObject>& RowObject = FJsonObjectConverter::UStructToJsonObject<FCalibrationRow>(Row.ToSharedRef().Get()))
+	{
+		// Start a calibration session (if one is not currently active)
+		StartCalibrationSession();
+
+		// Assemble the path and filename for this row based on the session and row index
+		const FString PathName = GetSessionSaveDir();
+		const FString FileName = GetRowFilename(Row->Index) + FDateTime::Now().ToString(TEXT("%H-%M-%S"));
+
+		const FString JsonFileName = PathName / FileName + TEXT(".json");
+		const FString ImageFileName = PathName / FileName + TEXT(".png");
+
+		// Create and open a new Json file for writing, and initialize a JsonWriter to serialize the contents
+		if (TUniquePtr<FArchive> FileWriter = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*JsonFileName)))
+		{
+			TSharedRef< TJsonWriter<> > JsonWriter = TJsonWriterFactory<>::Create(FileWriter.Get());
+
+			// Write the Json row data out and save the file
+			FJsonSerializer::Serialize(RowObject.ToSharedRef(), JsonWriter);
+			FileWriter->Close();
+
+			UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool wrote to dataset row file: %s"), *JsonFileName);
+		}
+
+		// If the row has an image to export, save it out to a file
+		FImageView ImageView = Row->MediaImage;
+		if (ImageView.RawData != nullptr)
+		{
+			FImageUtils::SaveImageByExtension(*ImageFileName, ImageView);
+		}
+	}
+}
+
+int32 ULensDistortionTool::ImportCalibrationRow(const TSharedRef<FJsonObject>& CalibrationRowObject, const FImage& RowImage, EDatasetVersion DatasetVersion)
+{
+	// Create a new row to populate with data from the Json object
+	TSharedPtr<FCalibrationRow> NewRow = MakeShared<FCalibrationRow>();
+
+	if (!RowImage.RawData.IsEmpty())
+	{
+		NewRow->MediaImage = RowImage;
+	}
+
+	if (DatasetVersion == EDatasetVersion::SeparateAlgoClasses)
+	{
+		NewRow->Pattern = CaptureSettings.CalibrationPattern;
+
+		CalibrationRowObject->TryGetNumberField(TEXT("index"), NewRow->Index);
+
+		if (NewRow->Pattern == ECalibrationPattern::Checkerboard)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* Points3DArray;
+			if (CalibrationRowObject->TryGetArrayField(TEXT("points3d"), Points3DArray))
+			{
+				for (TSharedPtr<FJsonValue> PointValue : *Points3DArray)
+				{
+					TSharedPtr<FJsonObject> PointObject = PointValue->AsObject();
+					FVector NewPoint;
+					PointObject->TryGetNumberField(TEXT("x"), NewPoint.X);
+					PointObject->TryGetNumberField(TEXT("y"), NewPoint.Y);
+					PointObject->TryGetNumberField(TEXT("z"), NewPoint.Z);
+
+					NewRow->ObjectPoints.Points.Add(NewPoint);
+				}
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* Points2DArray;
+			if (CalibrationRowObject->TryGetArrayField(TEXT("points2d"), Points2DArray))
+			{
+				for (TSharedPtr<FJsonValue> PointValue : *Points2DArray)
+				{
+					TSharedPtr<FJsonObject> PointObject = PointValue->AsObject();
+					FVector2D NewPoint;
+					PointObject->TryGetNumberField(TEXT("x"), NewPoint.X);
+					PointObject->TryGetNumberField(TEXT("y"), NewPoint.Y);
+
+					NewRow->ImagePoints.Points.Add(NewPoint);
+				}
+			}
+
+			CalibrationRowObject->TryGetNumberField(TEXT("numCornerCols"), NewRow->CheckerboardDimensions.X);
+			CalibrationRowObject->TryGetNumberField(TEXT("numCornerRows"), NewRow->CheckerboardDimensions.Y);
+
+			if (!NewRow->ObjectPoints.Points.IsEmpty() && NewRow->ObjectPoints.Points.Num() == (NewRow->CheckerboardDimensions.X * NewRow->CheckerboardDimensions.Y))
+			{
+				FVector TopLeft = NewRow->ObjectPoints.Points[0];
+				FVector TopRight = NewRow->ObjectPoints.Points[NewRow->CheckerboardDimensions.Y - 1];
+				FVector BottomLeft = NewRow->ObjectPoints.Points[NewRow->CheckerboardDimensions.X * (NewRow->CheckerboardDimensions.Y - 1)];
+
+				NewRow->TargetPose.SetLocation(TopLeft);
+
+				FRotator BoardRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+				NewRow->TargetPose.SetRotation(BoardRotation.Quaternion());
+			}
+		}
+		else if (NewRow->Pattern == ECalibrationPattern::Aruco)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* ArucoPointArray;
+			if (CalibrationRowObject->TryGetArrayField(TEXT("arucoPoints"), ArucoPointArray))
+			{
+				for (TSharedPtr<FJsonValue> ArucoPointValue : *ArucoPointArray)
+				{
+					TSharedPtr<FJsonObject> ArucoPointObject = ArucoPointValue->AsObject();
+
+					const TArray<TSharedPtr<FJsonValue>>* Corners3DArray;
+					if (ArucoPointObject->TryGetArrayField(TEXT("corners3D"), Corners3DArray))
+					{
+						for (TSharedPtr<FJsonValue> CornerValue : *Corners3DArray)
+						{
+							TSharedPtr<FJsonObject> CornerObject = CornerValue->AsObject();
+
+							FVector Corner;
+							CornerObject->TryGetNumberField(TEXT("x"), Corner.X);
+							CornerObject->TryGetNumberField(TEXT("y"), Corner.Y);
+							CornerObject->TryGetNumberField(TEXT("z"), Corner.Z);
+
+							NewRow->ObjectPoints.Points.Add(Corner);
+						}
+					}
+
+					const TArray<TSharedPtr<FJsonValue>>* Corners2DArray;
+					if (ArucoPointObject->TryGetArrayField(TEXT("corners2D"), Corners2DArray))
+					{
+						for (TSharedPtr<FJsonValue> CornerValue : *Corners2DArray)
+						{
+							TSharedPtr<FJsonObject> CornerObject = CornerValue->AsObject();
+
+							FVector2D Corner;
+							CornerObject->TryGetNumberField(TEXT("x"), Corner.X);
+							CornerObject->TryGetNumberField(TEXT("y"), Corner.Y);
+
+							NewRow->ImagePoints.Points.Add(Corner);
+						}
+					}
+
+					if (NewRow->ObjectPoints.Points.Num() >= 4)
+					{
+						FVector TopLeft = NewRow->ObjectPoints.Points[0];
+						FVector TopRight = NewRow->ObjectPoints.Points[1];
+						FVector BottomLeft = NewRow->ObjectPoints.Points[3];
+
+						NewRow->TargetPose.SetLocation(TopLeft);
+
+						FRotator FirstMarkerRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+						NewRow->TargetPose.SetRotation(FirstMarkerRotation.Quaternion());
+					}
+				}
+			}
+		}
+		else if (NewRow->Pattern == ECalibrationPattern::Points)
+		{
+			const TSharedPtr<FJsonObject>* PointDataJsonObject;
+			if (CalibrationRowObject->TryGetObjectField(TEXT("calibratorPointData"), PointDataJsonObject))
+			{
+				const TSharedPtr<FJsonObject>* Point3DJsonObject;
+				if (PointDataJsonObject->Get()->TryGetObjectField(TEXT("point3d"), Point3DJsonObject))
+				{
+					FVector NewPoint;
+					Point3DJsonObject->Get()->TryGetNumberField(TEXT("x"), NewPoint.X);
+					Point3DJsonObject->Get()->TryGetNumberField(TEXT("y"), NewPoint.Y);
+					Point3DJsonObject->Get()->TryGetNumberField(TEXT("z"), NewPoint.Z);
+
+					NewRow->ObjectPoints.Points.Add(NewPoint);
+				}
+
+				const TSharedPtr<FJsonObject>* Point2DJsonObject;
+				if (PointDataJsonObject->Get()->TryGetObjectField(TEXT("point2d"), Point2DJsonObject))
+				{
+					FVector2D NewPoint;
+					Point2DJsonObject->Get()->TryGetNumberField(TEXT("x"), NewPoint.X);
+					Point2DJsonObject->Get()->TryGetNumberField(TEXT("y"), NewPoint.Y);
+
+					NewRow->ImagePoints.Points.Add(NewPoint);
+				}
+			}
+		}
+
+		const TSharedPtr<FJsonObject>* CameraDataJsonObject;
+		if (CalibrationRowObject->TryGetObjectField(TEXT("cameraData"), CameraDataJsonObject))
+		{
+			const TSharedPtr<FJsonObject>* CameraPoseJsonObject;
+			if (CameraDataJsonObject->Get()->TryGetObjectField(TEXT("pose"), CameraPoseJsonObject))
+			{
+				const TSharedPtr<FJsonObject>* RotationJsonObject;
+				if (CameraPoseJsonObject->Get()->TryGetObjectField(TEXT("rotation"), RotationJsonObject))
+				{
+					FQuat Rotation;
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("x"), Rotation.X);
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("y"), Rotation.Y);
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("z"), Rotation.Z);
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("w"), Rotation.W);
+					NewRow->CameraPose.SetRotation(Rotation);
+				}
+
+				const TSharedPtr<FJsonObject>* TranslationJsonObject;
+				if (CameraPoseJsonObject->Get()->TryGetObjectField(TEXT("translation"), TranslationJsonObject))
+				{
+					FVector Translation;
+					TranslationJsonObject->Get()->TryGetNumberField(TEXT("x"), Translation.X);
+					TranslationJsonObject->Get()->TryGetNumberField(TEXT("y"), Translation.Y);
+					TranslationJsonObject->Get()->TryGetNumberField(TEXT("z"), Translation.Z);
+					NewRow->CameraPose.SetTranslation(Translation);
+				}
+			}
+		}
+
+		Dataset.CalibrationRows.Add(NewRow);
+	}
+	else if (DatasetVersion == EDatasetVersion::CombinedAlgoClasses)
+	{
+		// We enforce strict mode to ensure that every field in the UStruct of row data is present in the imported json.
+		// If any fields are missing, it is likely the row will be invalid, which will lead to errors in the calibration.
+		constexpr int64 CheckFlags = 0;
+		constexpr int64 SkipFlags = 0;
+		constexpr bool bStrictMode = true;
+		if (FJsonObjectConverter::JsonObjectToUStruct<FCalibrationRow>(CalibrationRowObject, NewRow.Get(), CheckFlags, SkipFlags, bStrictMode))
+		{
+			CaptureSettings.CalibrationPattern = NewRow->Pattern;
+			Dataset.CalibrationRows.Add(NewRow);
+		}
+		else
+		{
+			UE_LOG(LogCameraCalibrationEditor, Warning, TEXT("Failed to import calibration row because at least one field could not be deserialized from the json file."));
+		}
+	}
+
+	return NewRow->Index;
 }
 
 #undef LOCTEXT_NAMESPACE

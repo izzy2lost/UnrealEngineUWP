@@ -48,9 +48,6 @@ bool FPCGMergeAttributesElement::ExecuteInternal(FPCGContext* Context) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMergeAttributesElement::Execute);
 	check(Context);
 
-	const UPCGMergeAttributesSettings* Settings = Context->GetInputSettings<UPCGMergeAttributesSettings>();
-	check(Settings);
-
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	FPCGTaggedData* MergedOutput = nullptr;
@@ -83,7 +80,7 @@ bool FPCGMergeAttributesElement::ExecuteInternal(FPCGContext* Context) const
 		// When we're merging the 2nd element, create the actual merged attribute set
 		if (!MergedAttributeSet)
 		{
-			MergedAttributeSet = NewObject<UPCGParamData>();
+			MergedAttributeSet = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 			check(MergedOutput);
 			MergedAttributeSet->Metadata->InitializeAsCopy(CastChecked<const UPCGParamData>(MergedOutput->Data)->Metadata);
 			MergedOutput->Data = MergedAttributeSet;

@@ -54,6 +54,9 @@ void FKeyStructCustomization::CustomizeHeader( TSharedRef<class IPropertyHandle>
 {
 	PropertyHandle = StructPropertyHandle;
 
+	// We only want to allow the FKey to be changed if the property is NOT const.
+	const bool bCanChangeKey = !StructPropertyHandle->GetProperty()->HasAnyPropertyFlags(CPF_EditConst);
+	
 	// create struct header
 	HeaderRow.NameContent()
 	[
@@ -69,6 +72,7 @@ void FKeyStructCustomization::CustomizeHeader( TSharedRef<class IPropertyHandle>
 		.Font(StructCustomizationUtils.GetRegularFont())
 		.AllowClear(!StructPropertyHandle->GetProperty()->HasAnyPropertyFlags(CPF_NoClear))
 		.FilterBlueprintBindable(false)
+		.AllowKeyChange(bCanChangeKey)
 	];
 }
 

@@ -4,6 +4,7 @@
 #include "PhysicsAssetEditorPhysicsHandleComponent.h"
 #include "PhysicsAssetRenderUtils.h"
 #include "PhysicsEngine/RigidBodyIndexPair.h"
+#include "Math/Axis.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/UObjectIterator.h"
@@ -26,6 +27,7 @@
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsAssetEditorAnimInstance.h"
 #include "IPersonaPreviewScene.h"
 #include "PhysicsPublic.h"
@@ -45,14 +47,49 @@
 
 #define LOCTEXT_NAMESPACE "PhysicsAssetEditorShared"
 
-//PRAGMA_DISABLE_OPTIMIZATION
-
 namespace SharedDataConstants
 {
 	const FString ConstraintType = TEXT("Constraint");
 	const FString BodyType = TEXT("SkeletalBodySetup");
 }
 
+bool SetSelected(TArray<FPhysicsAssetEditorSharedData::FSelection>& SelectedElements, const TArray<FPhysicsAssetEditorSharedData::FSelection>& DeltaElements, const bool bSelected)
+{
+	if (DeltaElements.Num() == 0)
+	{
+		return false;
+	}
+
+	if (bSelected)
+	{
+		for (const FPhysicsAssetEditorSharedData::FSelection& Element : DeltaElements)
+		{
+			SelectedElements.AddUnique(Element);
+		}
+	}
+	else
+	{
+		for (const FPhysicsAssetEditorSharedData::FSelection& Element : DeltaElements)
+		{
+			SelectedElements.Remove(Element);
+		}
+	}
+
+	return true;
+}
+
+bool SetSelected(TArray<FPhysicsAssetEditorSharedData::FSelection>& SelectedElements, const TArray<int32>& DeltaElementIndexs, const bool bSelected)
+{
+	TArray<FPhysicsAssetEditorSharedData::FSelection> DeltaElements;
+	DeltaElements.Reserve(DeltaElementIndexs.Num());
+
+	for (const int32 ElementIndex : DeltaElementIndexs)
+	{
+		DeltaElements.Add(FPhysicsAssetEditorSharedData::FSelection(ElementIndex, EAggCollisionShape::Unknown, INDEX_NONE));
+	}
+
+	return SetSelected(SelectedElements, DeltaElements, bSelected);
+}
 
 FScopedBulkSelection::FScopedBulkSelection(TSharedPtr<FPhysicsAssetEditorSharedData> InSharedData)
 	: SharedData(InSharedData)
@@ -65,6 +102,30 @@ FScopedBulkSelection::~FScopedBulkSelection()
 	SharedData->bSuspendSelectionBroadcast = false;
 	SharedData->BroadcastSelectionChanged();
 }
+
+// struct FBodyData //
+
+FBodyData::FBodyData()
+: CoMAxisFixedInComponentSpaceFlags(0)
+{}
+
+bool FBodyData::IsCoMAxisFixedInComponentSpace(const EAxis::Type InAxis) const
+{
+	return CoMAxisFixedInComponentSpaceFlags & GetBitFlag(InAxis);
+}
+
+void FBodyData::SetCoMAxisFixedInComponentSpace(const EAxis::Type InAxis, const bool bValue)
+{
+	CoMAxisFixedInComponentSpaceFlags = (bValue) ? CoMAxisFixedInComponentSpaceFlags | GetBitFlag(InAxis) : CoMAxisFixedInComponentSpaceFlags & ~GetBitFlag(InAxis);
+}
+
+int32 FBodyData::GetBitFlag(const EAxis::Type InAxis) const
+{
+	return int32(1) << InAxis;
+}
+
+
+// class FPhysicsAssetEditorSharedData //
 
 FPhysicsAssetEditorSharedData::FPhysicsAssetEditorSharedData()
 	: COMRenderColor(255,255,100)
@@ -183,10 +244,13 @@ void FPhysicsAssetEditorSharedData::Initialize(const TSharedRef<IPersonaPreviewS
 		}
 	}
 
+	EditorBodyData.SetNum(PhysicsAsset->SkeletalBodySetups.Num(), EAllowShrinking::Yes);
+
 	// Support undo/redo
 	PhysicsAsset->SetFlags(RF_Transactional);
 
 	ClearSelectedBody();
+	ClearSelectedCoMs();
 	ClearSelectedConstraints();
 }
 
@@ -194,7 +258,7 @@ void FPhysicsAssetEditorSharedData::BroadcastSelectionChanged()
 {
 	if (!bSuspendSelectionBroadcast)
 	{
-		SelectionChangedEvent.Broadcast(SelectedBodies, SelectedConstraints);
+		SelectionChangedEvent.Broadcast(SelectedBodies, SelectedConstraints, SelectedCoMs);
 	}
 }
 
@@ -289,17 +353,14 @@ bool FPhysicsAssetEditorSharedData::ClipboardHasCompatibleData()
 
 void FPhysicsAssetEditorSharedData::ToggleShowCom()
 {
-	if(FPhysicsAssetRenderSettings* const PhysicsAssetRenderSettings = GetRenderSettings())
-	{
-		PhysicsAssetRenderSettings->bShowCOM = !PhysicsAssetRenderSettings->bShowCOM;
-	}
+	SetShowCom(!GetShowCom());
 }
 
 void FPhysicsAssetEditorSharedData::SetShowCom(bool InValue)
 {
 	if(FPhysicsAssetRenderSettings* const PhysicsAssetRenderSettings = GetRenderSettings())
 	{
-		PhysicsAssetRenderSettings->bShowCOM = InValue;
+		PhysicsAssetRenderSettings->CenterOfMassViewMode = (InValue) ? EPhysicsAssetEditorCenterOfMassViewMode::All : EPhysicsAssetEditorCenterOfMassViewMode::None;
 	}
 }
 
@@ -307,10 +368,51 @@ bool FPhysicsAssetEditorSharedData::GetShowCom() const
 {
 	if(FPhysicsAssetRenderSettings* const PhysicsAssetRenderSettings = GetRenderSettings())
 	{
-		return PhysicsAssetRenderSettings->bShowCOM;
+		return PhysicsAssetRenderSettings->CenterOfMassViewMode == EPhysicsAssetEditorCenterOfMassViewMode::All;
 	}
 
 	return false;
+}
+
+FVector FPhysicsAssetEditorSharedData::GetCOMRenderPosition(const int32 BodyIndex) const
+{
+	if (bManipulating) 
+	{
+		if (const FSelection* const SelectedCoM = SelectedCoMs.FindByPredicate([BodyIndex](const FSelection& Element) { return Element.Index == BodyIndex; }))
+		{
+			// Return the Selection objects CoM position when manipulating as that is the one we're actually updating with the 
+			// manipulator widget (as updating the CoM in the physics body proper is complicated).
+			return SelectedCoM->CoMPosition;
+		}
+	}
+
+	if (EditorSkelComp && EditorSkelComp->Bodies.IsValidIndex(BodyIndex))
+	{
+		if (const FBodyInstance* const EditorBodyInstance = EditorSkelComp->Bodies[BodyIndex])
+		{
+			return EditorBodyInstance->GetCOMPosition();
+		}
+	}
+
+	return FVector::ZeroVector;
+}
+
+bool FPhysicsAssetEditorSharedData::IsCoMAxisFixedInComponentSpace(const int32 BodyIndex, const EAxis::Type InAxis) const
+{
+	if (EditorBodyData.IsValidIndex(BodyIndex))
+	{
+		return EditorBodyData[BodyIndex].IsCoMAxisFixedInComponentSpace(InAxis);
+	}
+
+	return false;
+}
+
+void FPhysicsAssetEditorSharedData::SetCoMAxisFixedInComponentSpace(const int32 BodyIndex, const EAxis::Type InAxis, const bool bValue)
+{
+	if (EditorBodyData.IsValidIndex(BodyIndex))
+	{
+		return EditorBodyData[BodyIndex].SetCoMAxisFixedInComponentSpace(InAxis, bValue);
+	}
 }
 
 bool FPhysicsAssetEditorSharedData::ParseClipboard(UPhysicsAsset*& OutAsset, FString& OutObjectType, UObject*& OutObject)
@@ -549,6 +651,18 @@ EPhysicsAssetEditorMeshViewMode FPhysicsAssetEditorSharedData::GetCurrentMeshVie
 	}
 }
 
+EPhysicsAssetEditorCenterOfMassViewMode FPhysicsAssetEditorSharedData::GetCurrentCenterOfMassViewMode(const bool bSimulation) const
+{
+	if (bSimulation)
+	{
+		return EditorOptions->SimulationCenterOfMassViewMode;
+	}
+	else
+	{
+		return EditorOptions->CenterOfMassViewMode;
+	}
+}
+
 EPhysicsAssetEditorCollisionViewMode FPhysicsAssetEditorSharedData::GetCurrentCollisionViewMode(bool bSimulation)
 {
 	if (bSimulation)
@@ -578,6 +692,12 @@ void FPhysicsAssetEditorSharedData::HitBone(int32 BodyIndex, EAggCollisionShape:
 	if (!bRunningSimulation)
 	{
 		FPhysicsAssetEditorSharedData::FSelection Selection(BodyIndex, PrimType, PrimIndex);
+
+		if (EditorSkelComp && EditorSkelComp->Bodies.IsValidIndex(BodyIndex))
+		{
+			Selection.CoMPosition = EditorSkelComp->Bodies[BodyIndex]->GetCOMPosition();
+		}
+
 		if(bGroupSelect)
 		{
 			if(IsBodySelected(Selection))
@@ -593,6 +713,36 @@ void FPhysicsAssetEditorSharedData::HitBone(int32 BodyIndex, EAggCollisionShape:
 		{
 			ClearSelectedBody();
 			SetSelectedBody(Selection, true);
+		}
+	}
+}
+
+void FPhysicsAssetEditorSharedData::HitCoM(const int32 BodyIndex, const bool bGroupSelect)
+{
+	if (!bRunningSimulation)
+	{
+		FPhysicsAssetEditorSharedData::FSelection Selection(BodyIndex, EAggCollisionShape::Unknown, INDEX_NONE);
+
+		if (EditorSkelComp && EditorSkelComp->Bodies.IsValidIndex(BodyIndex))
+		{
+			Selection.CoMPosition = EditorSkelComp->Bodies[BodyIndex]->GetCOMPosition();
+		}
+
+		if (bGroupSelect)
+		{
+			if (IsCoMSelected(BodyIndex))
+			{
+				SetSelectedCoM(Selection, false);
+			}
+			else
+			{
+				SetSelectedCoM(Selection, true);
+			}
+		}
+		else
+		{
+			ClearSelectedCoMs();
+			SetSelectedCoM(Selection, true);
 		}
 	}
 }
@@ -626,14 +776,20 @@ void FPhysicsAssetEditorSharedData::RefreshPhysicsAssetChange(const UPhysicsAsse
 	{
 		InPhysAsset->RefreshPhysicsAssetChange();
 
-		// Broadbcast delegate
+		// Broadcast delegate
 		FPhysicsDelegates::OnPhysicsAssetChanged.Broadcast(InPhysAsset);
 
 		FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-		// since we recreate physicsstate, a lot of transient state data will be gone
+		// since we recreate physics state, a lot of transient state data will be gone
 		// so have to turn simulation off again. 
 		// ideally maybe in the future, we'll fix it by controlling tick?
 		EditorSkelComp->RecreatePhysicsState();
+
+		for (int32 BodyIndex = 0, BodyCount = EditorSkelComp->Bodies.Num(); BodyIndex < BodyCount; ++BodyIndex)
+		{
+			EditorSkelComp->Bodies[BodyIndex]->BodySetup = InPhysAsset->SkeletalBodySetups[BodyIndex];
+		}
+
 		if(bFullClothRefresh)
 		{
 			EditorSkelComp->RecreateClothingActors();
@@ -724,11 +880,54 @@ void FPhysicsAssetEditorSharedData::SetSelectedBodiesPrimitives(const TArray<int
 	SetSelectedBodies(NewSelection, bSelected);
 }
 
-void FPhysicsAssetEditorSharedData::ClearSelectedBody()
+void FPhysicsAssetEditorSharedData::ClearSelected()
 {
 	SelectedBodies.Empty();
+	SelectedCoMs.Empty();
 	SelectedConstraints.Empty();
+
 	BroadcastSelectionChanged();
+}
+
+void FPhysicsAssetEditorSharedData::ClearSelectedCoMs()
+{
+	if (InsideSelChange)
+	{
+		return;
+	}
+
+	ClearSelected();
+
+	++InsideSelChange;
+	BroadcastPreviewChanged();
+	--InsideSelChange;
+}
+
+void FPhysicsAssetEditorSharedData::SetSelectedCoM(const FSelection& InSelectedElement, const bool bSelected)
+{
+	SetSelectedCoMs({ InSelectedElement }, bSelected);
+}
+
+void FPhysicsAssetEditorSharedData::SetSelectedCoMs(const TArray<FSelection>& InSelectedElements, const bool bSelected)
+{
+	if (!InsideSelChange && SetSelected(SelectedCoMs, InSelectedElements, bSelected))
+	{
+		BroadcastSelectionChanged();
+
+		++InsideSelChange;
+		BroadcastPreviewChanged();
+		--InsideSelChange;
+	}	
+}
+
+bool FPhysicsAssetEditorSharedData::IsCoMSelected(const int32 BodyIndex) const
+{
+	return SelectedCoMs.ContainsByPredicate([BodyIndex](const FSelection& Element) { return Element.Index == BodyIndex; });
+}
+
+void FPhysicsAssetEditorSharedData::ClearSelectedBody()
+{
+	ClearSelected();
 }
 
 void FPhysicsAssetEditorSharedData::SetSelectedBody(const FSelection& Body, bool bSelected)
@@ -738,42 +937,30 @@ void FPhysicsAssetEditorSharedData::SetSelectedBody(const FSelection& Body, bool
 
 void FPhysicsAssetEditorSharedData::SetSelectedBodies(const TArray<FSelection>& Bodies, bool bSelected)
 {
-	if (InsideSelChange || Bodies.Num() == 0)
+	if (!InsideSelChange && SetSelected(SelectedBodies, Bodies, bSelected))
 	{
-		return;
-	}
+		BroadcastSelectionChanged();
 
-	if (bSelected)
-	{
-		for (const FSelection& Body : Bodies)
+		if (!GetSelectedBody())
 		{
-			SelectedBodies.AddUnique(Body);
+			return;
 		}
-	}
-	else
-	{
-		for (const FSelection& Body : Bodies)
-		{
-			SelectedBodies.Remove(Body);
-		}
-	}
 
-	BroadcastSelectionChanged();
-
-	if (!GetSelectedBody())
-	{
-		return;
+		UpdateNoCollisionBodies();
+		++InsideSelChange;
+		BroadcastPreviewChanged();
+		--InsideSelChange;
 	}
-
-	UpdateNoCollisionBodies();
-	++InsideSelChange;
-	BroadcastPreviewChanged();
-	--InsideSelChange;
 }
 
 bool FPhysicsAssetEditorSharedData::IsBodySelected(const FSelection& Body) const
 {
 	return SelectedBodies.Contains(Body);
+}
+
+bool FPhysicsAssetEditorSharedData::IsBodySelected(const int32 BodyIndex) const
+{
+	return SelectedBodies.ContainsByPredicate([BodyIndex](const FSelection& SelectedBody) { return SelectedBody.Index == BodyIndex; });
 }
 
 void FPhysicsAssetEditorSharedData::ToggleSelectionType(bool bIgnoreUserConstraints)
@@ -1185,10 +1372,7 @@ void FPhysicsAssetEditorSharedData::ClearSelectedConstraints()
 		return;
 	}
 
-	SelectedBodies.Empty();
-	SelectedConstraints.Empty();
-
-	BroadcastSelectionChanged();
+	ClearSelected();
 
 	++InsideSelChange;
 	BroadcastPreviewChanged();
@@ -1202,35 +1386,7 @@ void FPhysicsAssetEditorSharedData::SetSelectedConstraint(int32 ConstraintIndex,
 
 void FPhysicsAssetEditorSharedData::SetSelectedConstraints(const TArray<int32> ConstraintsIndices, bool bSelected)
 {
-	if (ConstraintsIndices.Num() == 0)
-	{
-		return;
-	}
-
-	if (InsideSelChange)
-	{
-		return;
-	}
-
-	bool bSelectionchanged = false;
-	for (int32 ConstraintIndex : ConstraintsIndices)
-	{
-		if (ConstraintIndex != INDEX_NONE)
-		{
-			FSelection Constraint(ConstraintIndex, EAggCollisionShape::Unknown, INDEX_NONE);
-			if (bSelected)
-			{
-				SelectedConstraints.AddUnique(Constraint);
-			}
-			else
-			{
-				SelectedConstraints.Remove(Constraint);
-			}
-			bSelectionchanged = true;
-		}
-	}
-
-	if (bSelectionchanged)
+	if (!InsideSelChange && SetSelected(SelectedConstraints, ConstraintsIndices, bSelected))
 	{
 		BroadcastSelectionChanged();
 
@@ -1936,6 +2092,12 @@ void FPhysicsAssetEditorSharedData::PasteBodyProperties()
 		ClearSelectedBody();	//paste can change the primitives on our selected bodies. There's probably a way to properly update this, but for now just deselect
 		BroadcastPreviewChanged();
 	}
+}
+
+void FPhysicsAssetEditorSharedData::CopyBodyName()
+{
+	check(SelectedBodies.Num() == 1);
+	FPlatformApplicationMisc::ClipboardCopy(*PhysicsAsset->SkeletalBodySetups[GetSelectedBody()->Index]->BoneName.ToString());
 }
 
 bool FPhysicsAssetEditorSharedData::WeldSelectedBodies(bool bWeld /* = true */)

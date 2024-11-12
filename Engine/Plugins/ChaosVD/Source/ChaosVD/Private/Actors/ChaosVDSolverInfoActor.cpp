@@ -5,37 +5,84 @@
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "EditorActorFolders.h"
+#include "Components/ChaosVDGenericDebugDrawDataComponent.h"
+#include "Components/ChaosVDGTAccelerationStructuresDataComponent.h"
 #include "Components/ChaosVDParticleDataComponent.h"
+#include "Components/ChaosVDSceneQueryDataComponent.h"
+#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/World.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Settings/ChaosVDParticleVisualizationSettings.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+AChaosVDSolverInfoActor::AChaosVDSolverInfoActor()
 {
 	CollisionDataComponent = CreateDefaultSubobject<UChaosVDSolverCollisionDataComponent>(TEXT("SolverCollisionDataComponent"));
 	ParticleDataComponent = CreateDefaultSubobject<UChaosVDParticleDataComponent>(TEXT("ParticleCollisionDataComponent"));
 	JointsDataComponent = CreateDefaultSubobject<UChaosVDSolverJointConstraintDataComponent>(TEXT("JointDataComponent"));
+	CharacterGroundConstraintDataComponent = CreateDefaultSubobject<UChaosVDSolverCharacterGroundConstraintDataComponent>(TEXT("CharacterGroundConstraintDataComponent"));
+	GTAccelerationStructuresDataComponent = CreateDefaultSubobject<UChaosVDGTAccelerationStructuresDataComponent>(TEXT("GTAccelerationStructuresDataComponent"));
+	SceneQueryDataComponent = CreateDefaultSubobject<UChaosVDSceneQueryDataComponent>(TEXT("ChaosVDSceneQueryDataComponent"));
+	GenericDebugDrawDataComponent = CreateDefaultSubobject<UChaosVDGenericDebugDrawDataComponent>(TEXT("UChaosVDGenericDebugDrawDataComponent"));
 	bIsServer = false;
+
+	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
+	{
+		ParticleVisualizationSettings->OnSettingsChanged().AddUObject(this, &AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated);
+	}
+	
+	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationColorSettings>())
+	{
+		ColorVisualizationSettings->OnSettingsChanged().AddUObject(this, &AChaosVDSolverInfoActor::HandleColorsSettingsUpdated);
+	}
 }
 
-void AChaosVDSolverInfoActor::SetSolverName(const FString& InSolverName)
+void AChaosVDSolverInfoActor::SetSolverID(int32 InSolverID)
+{
+	SolverID = InSolverID;
+	
+	TInlineComponentArray<UChaosVDSolverDataComponent*> SolverDataComponents(this);
+	for (UChaosVDSolverDataComponent* Component : SolverDataComponents)
+	{
+		if (Component)
+		{
+			Component->SetSolverID(InSolverID);
+		}
+	}
+}
+
+void AChaosVDSolverInfoActor::SetSolverName(const FName& InSolverName)
 {
 	SolverName = InSolverName;
-	SetActorLabel(TEXT("Solver Data Container | ") + InSolverName);
+	SetActorLabel(TEXT("Solver Data Container | ") + InSolverName.ToString());
 }
 
 void AChaosVDSolverInfoActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 {
-	FChaosVDSceneObjectBase::SetScene(InScene);
+	Super::SetScene(InScene);
 
 	if (TSharedPtr<FChaosVDScene> ScenePtr = InScene.Pin())
 	{
 		RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
+	}
+
+	TInlineComponentArray<UChaosVDSolverDataComponent*> SolverDataComponents(this);
+	GetComponents(SolverDataComponents);
+
+	for (UChaosVDSolverDataComponent* Component : SolverDataComponents)
+	{
+		if(!Component)
+		{
+			continue;
+		}
+
+		Component->SetScene(InScene);
 	}
 }
 
@@ -62,9 +109,9 @@ void AChaosVDSolverInfoActor::RegisterParticleActor(int32 ParticleID, AChaosVDPa
 
 AChaosVDParticleActor* AChaosVDSolverInfoActor::GetParticleActor(int32 ParticleID)
 {
-	AChaosVDParticleActor** FoundParticleActor = SolverParticlesByID.Find(ParticleID);
+	TObjectPtr<AChaosVDParticleActor>* FoundParticleActor = SolverParticlesByID.Find(ParticleID);
 
-	return FoundParticleActor ? *FoundParticleActor : nullptr;
+	return FoundParticleActor ? ToRawPtr(*FoundParticleActor) : nullptr;
 }
 
 bool AChaosVDSolverInfoActor::IsParticleSelectedByID(int32 ParticleID)
@@ -86,7 +133,7 @@ bool AChaosVDSolverInfoActor::SelectParticleByID(int32 ParticleIDToSelect)
 	AChaosVDParticleActor* ParticleToSelect = GetParticleActor(ParticleIDToSelect);
 	if (!ParticleToSelect)
 	{
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Particle ID [%d] not found in Solver [%s]"), ANSI_TO_TCHAR(__FUNCTION__), ParticleIDToSelect, *GetSolverName());
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Particle ID [%d] not found in Solver [%s]"), ANSI_TO_TCHAR(__FUNCTION__), ParticleIDToSelect, *GetSolverName().ToString());
 		return false;
 	}
 
@@ -95,9 +142,9 @@ bool AChaosVDSolverInfoActor::SelectParticleByID(int32 ParticleIDToSelect)
 	return true;
 }
 
-void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated()
+void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated(UObject* SettingsObject)
 {
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
+	for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleWithIDPair : SolverParticlesByID)
 	{
 		if (AChaosVDParticleActor* ParticleActor = ParticleWithIDPair.Value)
 		{
@@ -106,9 +153,9 @@ void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated()
 	}
 }
 
-void AChaosVDSolverInfoActor::HandleColorsSettingsUpdated()
+void AChaosVDSolverInfoActor::HandleColorsSettingsUpdated(UObject* SettingsObject)
 {
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
+	for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleWithIDPair : SolverParticlesByID)
 	{
 		if (AChaosVDParticleActor* ParticleActor = ParticleWithIDPair.Value)
 		{
@@ -181,7 +228,7 @@ void AChaosVDSolverInfoActor::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
 		FScopedSlowTask VisibilityUpdateProgress(AmountOfWork, LOCTEXT("UpdatingParticlesVisisibility", "Updating Particles Visibility ..."));
 		VisibilityUpdateProgress.MakeDialog();
 
-		for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticlesByID)
+		for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleVDInstanceWithID : SolverParticlesByID)
 		{
 			ApplySolverVisibilityToParticle(ParticleVDInstanceWithID.Value, bIsHidden);
 
@@ -204,17 +251,30 @@ void AChaosVDSolverInfoActor::Destroyed()
 		return;
 	}
 
-	constexpr float AmountOfWork = 1.0f;
-	const float PercentagePerElement = 1.0f / SolverParticlesByID.Num();
-
-	FScopedSlowTask CleaningParticleDataSlowTask(AmountOfWork, LOCTEXT("CleaningParticleDataMessage", "Cleaning Up Particle Data ..."));
-	CleaningParticleDataSlowTask.MakeDialog();
-	
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticlesByID)
+	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
 	{
-		World->DestroyActor(ParticleVDInstanceWithID.Value);
+		ParticleVisualizationSettings->OnSettingsChanged().RemoveAll(this);
+	}
+	
+	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationColorSettings>())
+	{
+		ColorVisualizationSettings->OnSettingsChanged().RemoveAll(this);
+	}
 
-		CleaningParticleDataSlowTask.EnterProgressFrame(PercentagePerElement);
+	if (SolverParticlesByID.Num() > 0)
+	{
+		constexpr float AmountOfWork = 1.0f;
+		const float PercentagePerElement = 1.0f / SolverParticlesByID.Num();
+
+		FScopedSlowTask CleaningParticleDataSlowTask(AmountOfWork, LOCTEXT("CleaningParticleDataMessage", "Cleaning Up Particle Data ..."));
+		CleaningParticleDataSlowTask.MakeDialog();
+
+		for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleVDInstanceWithID : SolverParticlesByID)
+		{
+			World->DestroyActor(ParticleVDInstanceWithID.Value);
+
+			CleaningParticleDataSlowTask.EnterProgressFrame(PercentagePerElement);
+		}
 	}
 
 	RemoveSolverFolders(World);
@@ -233,7 +293,7 @@ void AChaosVDSolverInfoActor::HandlePostSelectionChange(const UTypedElementSelec
 	{
 		if (AChaosVDParticleActor* SelectedParticle = SelectedParticles[0])
 		{
-			if (const FChaosVDParticleDataWrapper* ParticleData = SelectedParticle->GetParticleData())
+			if (TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData = SelectedParticle->GetParticleData())
 			{
 				SelectedParticlesID.Add(ParticleData->ParticleIndex);
 			}
@@ -249,7 +309,7 @@ FName AChaosVDSolverInfoActor::GetFolderPathForParticleType(EChaosVDParticleType
 	}
 	else
 	{
-		const FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
+		const FStringFormatOrderedArguments Args {SolverName.ToString(), FString::FromInt(SolverID)};
 		const FName ParticleFolderPath = *FPaths::Combine(FString::Format(TEXT("Solver {0} | ID {1}"), Args), UEnum::GetDisplayValueAsText(ParticleType).ToString());
 
 		FolderPathByParticlePath.Add(ParticleType, ParticleFolderPath);

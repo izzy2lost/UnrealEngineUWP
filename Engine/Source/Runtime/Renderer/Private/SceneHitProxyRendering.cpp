@@ -35,6 +35,7 @@
 #include "HairStrands/HairStrandsData.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshSceneProxy.h"
+#include "PixelShaderUtils.h"
 
 class FHitProxyShaderElementData : public FMeshMaterialShaderElementData
 {
@@ -224,11 +225,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FHitProxyPassParameters, )
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-BEGIN_SHADER_PARAMETER_STRUCT(FHitProxyCopyToViewFamilyParameters, )
-	RDG_TEXTURE_ACCESS(HitProxyTexture, ERHIAccess::SRVGraphics)
-	RENDER_TARGET_BINDING_SLOTS()
-END_SHADER_PARAMETER_STRUCT()
-
 static void AddViewMeshElementsPass(const TIndirectArray<FMeshBatch> &MeshElements, FRDGBuilder& GraphBuilder, FHitProxyPassParameters* PassParameters, const FScene* Scene, const FViewInfo& View, const FMeshPassProcessorRenderState& DrawRenderState, FInstanceCullingManager& InstanceCullingManager)
 {
 	AddSimpleMeshPass(GraphBuilder, PassParameters, Scene, View, &InstanceCullingManager, RDG_EVENT_NAME("HitProxy::MeshElementsPass"), View.ViewRect,
@@ -250,6 +246,28 @@ static void AddViewMeshElementsPass(const TIndirectArray<FMeshBatch> &MeshElemen
 		}
 	);
 }
+
+class FHitProxyCopyPS : public FGlobalShader
+{
+public:
+	DECLARE_GLOBAL_SHADER(FHitProxyCopyPS);
+	SHADER_USE_PARAMETER_STRUCT(FHitProxyCopyPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState,  UndistortingDisplacementSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HitProxyTexture)
+
+		SHADER_PARAMETER(FScreenTransform, PassSvPositionToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToHitProxyPixelPos)
+		SHADER_PARAMETER(FIntPoint, HitProxyPixelPosMin)
+		SHADER_PARAMETER(FIntPoint, HitProxyPixelPosMax)
+
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FHitProxyCopyPS, "/Engine/Private/HitProxyCopy.usf", "MainPS", SF_Pixel);
+
 
 static void DoRenderHitProxies(
 	FRDGBuilder& GraphBuilder, 
@@ -273,7 +291,7 @@ static void DoRenderHitProxies(
 			RDG_EVENT_NAME("HitProxies::Clear"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&Views, HitProxyTextureExtent](FRHICommandList& RHICmdList)
+			[&Views, HitProxyTextureExtent](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			// Clear color for each view.
 			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -348,11 +366,11 @@ static void DoRenderHitProxies(
 			// Adjust the visibility map for this view
 			if (View.bAllowTranslucentPrimitivesInHitProxy)
 			{
-				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxy].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxy].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			}
 			else
 			{
-				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxyOpaqueOnly].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxyOpaqueOnly].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			}
 
 			DrawDynamicMeshPass(View, RHICmdList,
@@ -476,78 +494,36 @@ static void DoRenderHitProxies(
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, ViewFamily);
 	check(ViewFamilyTexture);
 
-	//
-	// Copy the hit proxy buffer into the view family's render target.
-	//
-
+	// Copy & Apply lens distortion of the hit proxy buffer into the view family's render target.
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
-		auto* PassParameters = GraphBuilder.AllocParameters<FHitProxyCopyToViewFamilyParameters>();
+		const FViewInfo& View = Views[ViewIndex];
+
+		FHitProxyCopyPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHitProxyCopyPS::FParameters>();
+		PassParameters->PassSvPositionToViewportUV = FScreenTransform::SvPositionToViewportUV(View.UnscaledViewRect);
+		PassParameters->ViewportUVToHitProxyPixelPos = FScreenTransform::ChangeTextureBasisFromTo(
+			FScreenPassTextureViewport(HitProxyTexture, View.ViewRect), FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TexelPosition);
+		PassParameters->HitProxyPixelPosMin = View.ViewRect.Min;
+		PassParameters->HitProxyPixelPosMax = View.ViewRect.Max - 1;
+
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		if (View.LensDistortionLUT.IsEnabled())
+		{
+			PassParameters->UndistortingDisplacementTexture = View.LensDistortionLUT.UndistortingDisplacementTexture;
+		}
 		PassParameters->HitProxyTexture = HitProxyTexture;
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(ViewFamilyTexture, ERenderTargetLoadAction::ELoad);
 
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("HitProxies::CopyOutput"),
+		TShaderMapRef<FHitProxyCopyPS> PixelShader(View.ShaderMap);
+
+		FPixelShaderUtils::AddFullscreenPass(
+			GraphBuilder,
+			View.ShaderMap,
+			RDG_EVENT_NAME("HitProxyCopy %dx%d", View.UnscaledViewRect.Width(), View.UnscaledViewRect.Height()),
+			PixelShader,
 			PassParameters,
-			ERDGPassFlags::Raster,
-			[&Views, HitProxyTextureExtent, HitProxyTexture, ViewFamilyTexture, FeatureLevel](FRHICommandListImmediate& RHICmdList)
-		{
-			// Set up a FTexture that is used to draw the hit proxy buffer to the view family's render target.
-			FTexture HitProxyRenderTargetTexture;
-			HitProxyRenderTargetTexture.TextureRHI = HitProxyTexture->GetRHI();
-			HitProxyRenderTargetTexture.SamplerStateRHI = TStaticSamplerState<>::GetRHI();
-
-			// Generate the vertices and triangles mapping the hit proxy RT pixels into the view family's RT pixels.
-			FBatchedElements BatchedElements;
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-			{
-				const FViewInfo& View = Views[ViewIndex];
-
-				float InvBufferSizeX = 1.0f / HitProxyTextureExtent.X;
-				float InvBufferSizeY = 1.0f / HitProxyTextureExtent.Y;
-
-				const float U0 = View.ViewRect.Min.X * InvBufferSizeX;
-				const float V0 = View.ViewRect.Min.Y * InvBufferSizeY;
-				const float U1 = View.ViewRect.Max.X * InvBufferSizeX;
-				const float V1 = View.ViewRect.Max.Y * InvBufferSizeY;
-
-				// Note: High DPI .  We are drawing to the size of the unscaled view rect because that is the size of the views render target
-				// if we do not do this clicking would be off.
-				const int32 V00 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Min.X, View.UnscaledViewRect.Min.Y, 0, 1), FVector2f(U0, V0), FLinearColor::White, FHitProxyId());
-				const int32 V10 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Max.X, View.UnscaledViewRect.Min.Y, 0, 1), FVector2f(U1, V0), FLinearColor::White, FHitProxyId());
-				const int32 V01 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Min.X, View.UnscaledViewRect.Max.Y, 0, 1), FVector2f(U0, V1), FLinearColor::White, FHitProxyId());
-				const int32 V11 = BatchedElements.AddVertexf(FVector4f(View.UnscaledViewRect.Max.X, View.UnscaledViewRect.Max.Y, 0, 1), FVector2f(U1, V1), FLinearColor::White, FHitProxyId());
-
-				BatchedElements.AddTriangle(V00, V10, V11, &HitProxyRenderTargetTexture, BLEND_Opaque);
-				BatchedElements.AddTriangle(V00, V11, V01, &HitProxyRenderTargetTexture, BLEND_Opaque);
-			}
-
-			// Generate a transform which maps from view family RT pixel coordinates to Normalized Device Coordinates.
-			FIntPoint ViewFamilyTextureExtent = ViewFamilyTexture->Desc.Extent;
-
-			const FMatrix PixelToView =
-				FTranslationMatrix(FVector(0, 0, 0)) *
-				FMatrix(
-					FPlane(1.0f / ((float)ViewFamilyTextureExtent.X / 2.0f), 0.0, 0.0f, 0.0f),
-					FPlane(0.0f, -GProjectionSignY / ((float)ViewFamilyTextureExtent.Y / 2.0f), 0.0f, 0.0f),
-					FPlane(0.0f, 0.0f, 1.0f, 0.0f),
-					FPlane(-1.0f, GProjectionSignY, 0.0f, 1.0f)
-				);
-
-			FSceneView SceneView = FBatchedElements::CreateProxySceneView(PixelToView, FIntRect(0, 0, ViewFamilyTextureExtent.X, ViewFamilyTextureExtent.Y));
-			FMeshPassProcessorRenderState DrawRenderState;
-
-			DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
-			DrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
-
-			BatchedElements.Draw(
-				RHICmdList,
-				DrawRenderState,
-				FeatureLevel,
-				SceneView,
-				false,
-				1.0f
-			);
-		});
+			View.UnscaledViewRect);
 	}
 }
 #endif
@@ -616,7 +592,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	FInstanceCullingManager& InstanceCullingManager = *GraphBuilder.AllocObject<FInstanceCullingManager>(GetSceneUniforms(), Scene->GPUScene.IsEnabled(), GraphBuilder);
 
 	// Find the visible primitives.
-	FLumenSceneFrameTemporaries LumenFrameTemporaries;
+	FLumenSceneFrameTemporaries LumenFrameTemporaries(Views);
 	FInitViewTaskDatas InitViewTaskDatas(VisibilityTaskData);
 	FRDGExternalAccessQueue ExternalAccessQueue;
 	BeginInitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
@@ -735,8 +711,6 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
 	GetSceneExtensionsRenderers().PostRender(GraphBuilder);
-
-	AddDispatchToRHIThreadPass(GraphBuilder);
 #endif
 
 	OnRenderFinish(GraphBuilder, nullptr);
@@ -937,11 +911,15 @@ bool FEditorSelectionMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT M
 
 void FEditorSelectionMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId)
 {
+	if (!PrimitiveSceneProxy)
+	{
+		return;
+	}
+	const bool bWantsEditorEffects = PrimitiveSceneProxy->WantsEditorEffects();
+	const bool bWantsOutlineForSelection = PrimitiveSceneProxy->WantsSelectionOutline() && (PrimitiveSceneProxy->IsSelected() || PrimitiveSceneProxy->IsHovered());
 	if (MeshBatch.bUseForMaterial 
 		&& MeshBatch.bUseSelectionOutline 
-		&& PrimitiveSceneProxy
-		&& PrimitiveSceneProxy->WantsSelectionOutline() 
-		&& (PrimitiveSceneProxy->IsSelected() || PrimitiveSceneProxy->IsHovered()))
+		&& (bWantsEditorEffects || bWantsOutlineForSelection))
 	{
 		const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
 		while (MaterialRenderProxy)
@@ -989,8 +967,8 @@ bool FEditorSelectionMeshProcessor::Process(
 	const int32 StencilRef = GetStencilValue(ViewIfDynamicMeshCommand, PrimitiveSceneProxy);
 	PassDrawRenderState.SetStencilRef(StencilRef);
 
-	FHitProxyId DummyId;
-	FHitProxyShaderElementData ShaderElementData(DummyId);
+	const FHitProxyId OverlayColor = PrimitiveSceneProxy->GetOverlayColor();
+	FHitProxyShaderElementData ShaderElementData(OverlayColor);
 	ShaderElementData.InitializeMeshMaterialData(ViewIfDynamicMeshCommand, PrimitiveSceneProxy, MeshBatch, StaticMeshId, false);
 
 	const FMeshDrawCommandSortKey SortKey = CalculateMeshStaticSortKey(HitProxyPassShaders.VertexShader, HitProxyPassShaders.PixelShader);
@@ -1018,15 +996,6 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 
 	const int32* ExistingStencilValue = PrimitiveSceneProxy->IsIndividuallySelected() ? ProxyToStencilIndex.Find(PrimitiveSceneProxy) : ActorNameToStencilIndex.Find(PrimitiveSceneProxy->GetOwnerName());
 
-	// Reserved values for the stencil buffer that carry specific meaning
-	enum ESelectionStencilValues : int32
-	{
-		NotSelected = 0,
-		BSP = 1, // The outlines of all BSPs should be merged
-
-		COUNT,
-	};
-
 	static constexpr int BitsAvailable = 8; // Stencil buffer is 8-bit
 	static constexpr int ColorBits = 3; // Can be changed
 	static constexpr int UniqueIdBits = BitsAvailable - ColorBits;
@@ -1043,7 +1012,7 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 		// Allow all colors except one to use the full range of unreserved values
 		if (ColorIndex == 0)
 		{
-			Bits |= (UniqueId % (MaxUniqueId - ESelectionStencilValues::COUNT) + ESelectionStencilValues::COUNT) & UniqueIdMask;
+			Bits |= (UniqueId % (MaxUniqueId - EEditorSelectionStencilValues::COUNT) + EEditorSelectionStencilValues::COUNT) & UniqueIdMask;
 		}
 		else
 		{
@@ -1052,11 +1021,11 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 		return Bits;
 	};
 	
-	int32 StencilValue = ESelectionStencilValues::NotSelected;
+	int32 StencilValue = EEditorSelectionStencilValues::NotSelected;
 
 	if (PrimitiveSceneProxy->GetOwnerName() == NAME_BSP)
 	{
-		StencilValue = ESelectionStencilValues::BSP;
+		StencilValue = EEditorSelectionStencilValues::BSP;
 	}
 	else if (ExistingStencilValue != nullptr)
 	{
@@ -1069,7 +1038,7 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 		StencilValue = EncodeSelectionStencilValue(Color, UniqueId);
 		ProxyToStencilIndex.Add(PrimitiveSceneProxy, StencilValue);
 	}
-	else
+	else if (PrimitiveSceneProxy->IsParentSelected())
 	{
 		int Color = PrimitiveSceneProxy->GetSelectionOutlineColorIndex();
 		if (bActorSelectionColorIsSubdued && (Color == 0))
@@ -1090,10 +1059,10 @@ FEditorSelectionMeshProcessor::FEditorSelectionMeshProcessor(const FScene* Scene
 {
 	checkf(InViewIfDynamicMeshCommand, TEXT("Editor selection mesh process required dynamic mesh command mode."));
 
-	ActorNameToStencilIndex.Add(NAME_BSP, 1);
+	ActorNameToStencilIndex.Add(NAME_BSP, EEditorSelectionStencilValues::BSP);
 
 	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI());
-	PassDrawRenderState.SetBlendState(TStaticBlendStateWriteMask<CW_NONE, CW_NONE, CW_NONE, CW_NONE>::GetRHI());
+	PassDrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
 }
 
 FMeshPassProcessor* CreateEditorSelectionPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
@@ -1208,8 +1177,7 @@ bool FEditorLevelInstanceMeshProcessor::Process(
 
 int32 FEditorLevelInstanceMeshProcessor::GetStencilValue(const FSceneView* View, const FPrimitiveSceneProxy* PrimitiveSceneProxy)
 {
-	// Set the stencil value to 1 for primitives which belong to an editing level instance, 0 otherwise
-	return PrimitiveSceneProxy->IsEditingLevelInstanceChild() ? 1 : 0;
+	return PrimitiveSceneProxy->IsEditingLevelInstanceChild() ? EEditorSelectionStencilValues::VisualizeLevelInstances : EEditorSelectionStencilValues::NotSelected;
 }
 
 FEditorLevelInstanceMeshProcessor::FEditorLevelInstanceMeshProcessor(const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)

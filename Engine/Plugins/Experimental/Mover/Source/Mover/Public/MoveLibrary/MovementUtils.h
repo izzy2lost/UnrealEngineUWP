@@ -6,6 +6,9 @@
 #include "MoverSimulationTypes.h"
 #include "MoverDataModelTypes.h"
 #include "Components/PrimitiveComponent.h"
+#include "Engine/Blueprint.h" // For gathering CDO info from a BP
+#include "Engine/SCS_Node.h" // For gathering CDO info from a BP
+#include "Engine/SimpleConstructionScript.h" // For gathering CDO info from a BP
 
 #include "MovementUtils.generated.h"
 
@@ -116,6 +119,10 @@ public:
 	// JAH TODO: Make sure all 'out' parameters are last in the param list and marked as "Out"
 	// JAH TODO: separate out the public-facing ones from the internally-used ones and make all public-facing ones BlueprintCallable
 
+	// Gets CDO component type - useful for getting original values
+	template <class ComponentType>
+	static const ComponentType* GetOriginalComponentType(const AActor* MoverCompOwner);
+	
 	/** Checks whether a given velocity is exceeding a maximum speed, with some leeway to account for numeric imprecision */
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	static bool IsExceedingMaxSpeed(const FVector& Velocity, float InMaxSpeed);
@@ -142,29 +149,41 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	static FVector ConstrainToPlane(const FVector& Vector, const FPlane& MovementPlane, bool bMaintainMagnitude=true);
 
+	/** Project a vector onto the floor defined by the gravity direction. */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	static FVector ProjectToGravityFloor(const FVector& Vector, const FVector& UpDirection) { return FVector::VectorPlaneProject(Vector, -UpDirection); }
+
+	/** Returns the component of the vector in the gravity-space vertical direction.  */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	static FVector GetGravityVerticalComponent(const FVector& Vector, const FVector& UpDirection) { return Vector.Dot(-UpDirection) * -UpDirection; }
+
+	/** Set the vertical component of the vector to the given value in the gravity-space vertical direction. */
+	static void SetGravityVerticalComponent(FVector& Vector, const FVector::FReal VerticalValue, const FVector& UpDirection) { Vector = ProjectToGravityFloor(Vector, UpDirection) - VerticalValue * -UpDirection; }
+
 	// Surface sliding
 
 	/** Returns an alternative move delta to slide along a surface, based on parameters describing a blocked attempted move */
 	UFUNCTION(BlueprintCallable, Category=Mover)
-	static FVector ComputeSlideDelta(const FVector& Delta, const float PctOfDeltaToMove, const FVector& Normal, const FHitResult& Hit);
+	static FVector ComputeSlideDelta(const FMovingComponentSet& MovingComps, const FVector& Delta, const float PctOfDeltaToMove, const FVector& Normal, const FHitResult& Hit);
 
 	/** Returns an alternative move delta when we are in contact with 2 surfaces */
-	static FVector ComputeTwoWallAdjustedDelta(const FVector& MoveDelta, const FHitResult& Hit, const FVector& OldHitNormal);
+	static FVector ComputeTwoWallAdjustedDelta(const FMovingComponentSet& MovingComps, const FVector& MoveDelta, const FHitResult& Hit, const FVector& OldHitNormal);
 
 	/** Attempts to move a component along a surface. Returns the percent of time applied, with 0.0 meaning no movement occurred. */
 	UFUNCTION(BlueprintCallable, Category=Mover)
-	static float TryMoveToSlideAlongSurface(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, UMoverComponent* MoverComponent, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, FMovementRecord& MoveRecord);
+	static float TryMoveToSlideAlongSurface(const FMovingComponentSet& MovingComps, const FVector& Delta, float PctOfDeltaToMove, const FQuat Rotation, const FVector& Normal, FHitResult& Hit, bool bHandleImpact, FMovementRecord& MoveRecord);
+
 	// Component movement
 
 	/** Attempts to move a component and resolve any penetration issues with the proposed move Delta */
 	UFUNCTION(BlueprintCallable, Category=Mover)
-	static bool TrySafeMoveUpdatedComponent(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult& OutHit, ETeleportType Teleport, FMovementRecord& MoveRecord);
+	static bool TrySafeMoveUpdatedComponent(const FMovingComponentSet& MovingComps, const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult& OutHit, ETeleportType Teleport, FMovementRecord& MoveRecord);
 
 	/** Returns a movement step that should get the subject of the hit result out of an initial penetration condition */
 	static FVector ComputePenetrationAdjustment(const FHitResult& Hit);
 	
 	/** Attempts to move out of a situation where the component is stuck in geometry, using a suggested adjustment to start. */
-	static bool TryMoveToResolvePenetration(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, EMoveComponentFlags MoveComponentFlags, const FVector& ProposedAdjustment, const FHitResult& Hit, const FQuat& NewRotationQuat, FMovementRecord& MoveRecord);
+	static bool TryMoveToResolvePenetration(const FMovingComponentSet& MovingComps, EMoveComponentFlags MoveComponentFlags, const FVector& ProposedAdjustment, const FHitResult& Hit, const FQuat& NewRotationQuat, FMovementRecord& MoveRecord);
 	static void InitCollisionParams(const UPrimitiveComponent* UpdatedPrimitive, FCollisionQueryParams& OutParams, FCollisionResponseParams& OutResponseParam);
 	static bool OverlapTest(const USceneComponent* UpdatedComponent, const UPrimitiveComponent* UpdatedPrimitive, const FVector& Location, const FQuat& RotationQuat, const ECollisionChannel CollisionChannel, const FCollisionShape& CollisionShape, const AActor* IgnoreActor);
 
@@ -180,10 +199,62 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	static FVector ComputeDirectionIntent(const FVector& MoveInput, EMoveInputType MoveInputType);
 
+	/** Returns whether this rotator representing angular velocity has any non-zero values. This function exists due to FRotator::IsZero queries performing undesired wrapping and clamping. */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	static bool IsAngularVelocityZero(const FRotator& AngularVelocity);
+
+
 	// Internal functions - not meant to be called outside of this library
 	
 	/** Internal function that other move functions use to perform all actual component movement and retrieve results
 	 *  Note: This function moves the character directly and should only be used if needed. Consider using something like TrySafeMoveUpdatedComponent.
 	 */
-	static bool TryMoveUpdatedComponent_Internal(USceneComponent* UpdatedComponent, const FVector& Delta, const FQuat& NewRotation, bool bSweep, EMoveComponentFlags MoveComponentFlags, FHitResult* OutHit, ETeleportType Teleport);
+	static bool TryMoveUpdatedComponent_Internal(const FMovingComponentSet& MovingComps, const FVector& Delta, const FQuat& NewRotation, bool bSweep, EMoveComponentFlags MoveComponentFlags, FHitResult* OutHit, ETeleportType Teleport);
+
 };
+
+template <class ComponentType>
+const ComponentType* UMovementUtils::GetOriginalComponentType(const AActor* MoverCompOwner)
+{
+	const ComponentType* OriginalComponent = nullptr;
+
+	if (MoverCompOwner)
+	{
+		if (const AActor* OwnerCDO = Cast<AActor>(MoverCompOwner->GetClass()->GetDefaultObject()))
+		{
+			// Check if native CDO has Capsule component
+			OriginalComponent = OwnerCDO->FindComponentByClass<ComponentType>();
+
+			// check if it comes from a BP
+			if (!OriginalComponent)
+			{
+				if (const UBlueprintGeneratedClass* OwnerClassAsBP = Cast<UBlueprintGeneratedClass>(OwnerCDO->GetClass()))
+				{
+					TArray<const UBlueprintGeneratedClass*> BlueprintClasses;
+					UBlueprintGeneratedClass::GetGeneratedClassesHierarchy(OwnerClassAsBP, BlueprintClasses);
+					for (const UBlueprintGeneratedClass* BlueprintClass : BlueprintClasses)
+					{
+						if (BlueprintClass->SimpleConstructionScript)
+						{
+							// Check Simple construction script
+							const TArray<USCS_Node*>& SCSNodes = BlueprintClass->SimpleConstructionScript->GetAllNodes();
+							for (USCS_Node* SCSNode : SCSNodes)
+							{
+								if (SCSNode)
+								{
+									if (const ComponentType* BPComponent = Cast<ComponentType>(SCSNode->ComponentTemplate))
+									{
+										OriginalComponent = BPComponent;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return OriginalComponent;
+}

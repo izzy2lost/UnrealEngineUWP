@@ -22,6 +22,67 @@ float GetRectLightBarnDoorMaxAngle()
 	return 88.f;
 }
 
+static float SolveQuadraticEq(float A, float B, float C)
+{
+	float Disc = B * B - 4.0f * C * A;
+	if (Disc > UE_KINDA_SMALL_NUMBER)
+	{
+		Disc = FMath::Sqrt(Disc);
+		const float Denom = 1.0f / (2.0f * A);
+		float Root0 = (-B + Disc) * Denom;
+		float Root1 = (-B - Disc) * Denom;
+
+		return Root0;
+	}
+
+	return -1;
+}
+
+void CalculateRectLightCullingBarnExtentAndDepth(float Size, float Length, float AngleRad, float Radius, float& OutExtent, float& OutDepth)
+{
+	float T = Size / 2.0f;
+
+	// 1. calculate opposite side (law of cosines)
+	float A = Size;
+	float B = Length;
+	float C = FMath::Sqrt(A * A + B * B - 2 * A * B * FMath::Cos(AngleRad + UE_HALF_PI));
+
+	// 2. calculate angle between rect plane and shadow boundary (law of sines)
+	float AuxAngleRad = FMath::Asin(B * FMath::Sin(AngleRad + UE_HALF_PI) / C);
+
+	// 3. calculate shadow boundary line
+	float M = FMath::Tan(AuxAngleRad);
+	float K = M * T;
+
+	// 4. intersect shadow boundary line with circle
+	float X = SolveQuadraticEq(M * M + 1, 2 * M * K, K * K - Radius * Radius);
+	float Y = M * X + K;
+
+	if (FMath::Sqrt((X + T) * (X + T) + Y * Y) >= C)
+	{
+		OutExtent = X - T;
+		OutDepth = Y;
+	}
+	else
+	{
+		// if intersection is closer than regular barn doors, fallback to base extent / depth 
+		OutExtent = FMath::Sin(AngleRad) * Length;
+		OutDepth = FMath::Cos(AngleRad) * Length;
+	}
+}
+
+void CalculateRectLightBarnCorners(float SourceWidth, float SourceHeight, float BarnExtent, float BarnDepth, TStaticArray<FVector, 8>& OutCorners)
+{
+	OutCorners[0] = FVector(0.0f, +0.5f * SourceWidth, +0.5f * SourceHeight);
+	OutCorners[1] = FVector(0.0f, +0.5f * SourceWidth, -0.5f * SourceHeight);
+	OutCorners[2] = FVector(BarnDepth, +0.5f * SourceWidth + BarnExtent, +0.5f * SourceHeight + BarnExtent);
+	OutCorners[3] = FVector(BarnDepth, +0.5f * SourceWidth + BarnExtent, -0.5f * SourceHeight - BarnExtent);
+	OutCorners[4] = FVector(0.0f, -0.5f * SourceWidth, +0.5f * SourceHeight);
+	OutCorners[5] = FVector(0.0f, -0.5f * SourceWidth, -0.5f * SourceHeight);
+	OutCorners[6] = FVector(BarnDepth, -0.5f * SourceWidth - BarnExtent, +0.5f * SourceHeight + BarnExtent);
+	OutCorners[7] = FVector(BarnDepth, -0.5f * SourceWidth - BarnExtent, -0.5f * SourceHeight - BarnExtent);
+}
+
 URectLightComponent::URectLightComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, RayTracingData(new FRectLightRayTracingData())
@@ -44,6 +105,7 @@ URectLightComponent::URectLightComponent(const FObjectInitializer& ObjectInitial
 	SourceTexture = nullptr;
 	BarnDoorAngle = GetRectLightBarnDoorMaxAngle();
 	BarnDoorLength = 20.0f;
+	LightFunctionConeAngle = 0.0f;
 	// RayTracingData will be initialised on the render thread.
 }
 
@@ -149,6 +211,25 @@ void URectLightComponent::SetLightBrightness(float InBrightness)
 		Super::SetLightBrightness(InBrightness / 16); // Legacy scale of 16
 	}
 }
+
+bool URectLightComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (InProperty)
+	{
+		FString PropertyName = InProperty->GetName();
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(URectLightComponent, LightFunctionConeAngle))
+		{
+			if (Mobility == EComponentMobility::Static)
+			{
+				return false;
+			}
+			return LightFunctionMaterial != NULL;
+		}
+	}
+
+	return Super::CanEditChange(InProperty);
+}
 #endif // WITH_EDITOR
 
 /**
@@ -209,6 +290,7 @@ FRectLightSceneProxy::FRectLightSceneProxy(const URectLightComponent* Component)
 	, BarnDoorLength(FMath::Max(0.1f, Component->BarnDoorLength))
 	, RayTracingData(Component->RayTracingData)
 	, SourceTexture(Component->SourceTexture)
+	, LightFunctionConeAngleTangent(Component->LightFunctionConeAngle > 0 ? FMath::Tan(FMath::Clamp(Component->LightFunctionConeAngle, 0.0f, 89.0f) * (float)UE_PI / 180.0f) : 0.0f)
 {
 	RectAtlasId = ~0u;
 }
@@ -238,7 +320,8 @@ void FRectLightSceneProxy::GetLightShaderParameters(FLightRenderParameters& Ligh
 	LightParameters.Direction = FVector3f(-GetDirection());
 	LightParameters.Tangent = FVector3f(WorldToLight.M[0][2], WorldToLight.M[1][2], WorldToLight.M[2][2]);
 	LightParameters.SpotAngles = FVector2f(-2.0f, 1.0f);
-	LightParameters.SpecularScale = SpecularScale;
+	LightParameters.SpecularScale = FMath::Clamp(SpecularScale, 0.f, 1.f);
+	LightParameters.DiffuseScale = FMath::Clamp(DiffuseScale, 0.f, 1.f);
 	LightParameters.SourceRadius = SourceWidth * 0.5f;
 	LightParameters.SoftSourceRadius = 0.0f;
 	LightParameters.SourceLength = SourceHeight * 0.5f;
@@ -250,6 +333,7 @@ void FRectLightSceneProxy::GetLightShaderParameters(FLightRenderParameters& Ligh
 	LightParameters.IESAtlasIndex = INDEX_NONE;
 	LightParameters.InverseExposureBlend = InverseExposureBlend;
 	LightParameters.LightFunctionAtlasLightIndex = GetLightFunctionAtlasLightIndex();
+	LightParameters.bAffectsTranslucentLighting = AffectsTranslucentLighting() ? 1 : 0;
 
 	if (IESAtlasId != ~0)
 	{
@@ -262,8 +346,7 @@ void FRectLightSceneProxy::GetLightShaderParameters(FLightRenderParameters& Ligh
 	}
 	
 	// Render RectLight approximately as SpotLight if the requester does not support rect light (e.g., translucent light grid or mobile)
-	const bool bRenderAsSpotLight = !!(Flags & ELightShaderParameterFlags::RectAsSpotLight) || (SceneInterface && IsMobilePlatform(SceneInterface->GetShaderPlatform()));
-	if (bRenderAsSpotLight)
+	if (!!(Flags & ELightShaderParameterFlags::RectAsSpotLight))
 	{
 		float ClampedOuterConeAngle = FMath::DegreesToRadians(89.001f);
 		float ClampedInnerConeAngle = FMath::DegreesToRadians(70.0f);

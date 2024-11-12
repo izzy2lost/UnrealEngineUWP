@@ -110,7 +110,7 @@ namespace UE::MultiUserServer
 		}
 
 		int64 PackageRevision;
-		const bool bCouldGetHeadRevision = Database->GetPackageHeadRevision(Args.PackageInfo.PackageName, PackageRevision);
+		const bool bCouldGetHeadRevision = (*Database)->GetPackageHeadRevision(Args.PackageInfo.PackageName, PackageRevision);
 		if (ensureMsgf(bCouldGetHeadRevision, TEXT("The activity should have been processed properly before this event was emitted")))
 		{
 			return SendDirection == EPackageSendDirection::ClientToServer

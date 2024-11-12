@@ -2,7 +2,9 @@
 
 #include "NiagaraEnumTypeEditorUtilities.h"
 #include "SNiagaraParameterEditor.h"
+#include "NiagaraClipboard.h"
 #include "NiagaraTypes.h"
+#include "NiagaraVariant.h"
 #include "NiagaraEditorCommon.h"
 #include "NiagaraEditorStyle.h"
 #include "NiagaraVariableMetaData.h"
@@ -138,7 +140,7 @@ void FNiagaraEditorEnumTypeUtilities::UpdateVariableWithDefaultValue(FNiagaraVar
 	checkf(Enum != nullptr, TEXT("Variable is not an enum type."));
 
 	FNiagaraInt32 EnumIntValue;
-	EnumIntValue.Value = Enum->GetValueByIndex(0);
+	EnumIntValue.Value = static_cast<int32>(Enum->GetValueByIndex(0));
 
 	Variable.SetValue<FNiagaraInt32>(EnumIntValue);
 }
@@ -235,4 +237,35 @@ FText FNiagaraEditorEnumTypeUtilities::GetSearchTextFromValue(const FNiagaraVari
 FText FNiagaraEditorEnumTypeUtilities::GetStackDisplayText(const FNiagaraVariable& Variable) const
 {
 	return Variable.GetType().GetEnum()->GetDisplayNameTextByValue(Variable.GetValue<int32>());
+}
+
+bool FNiagaraEditorEnumTypeUtilities::TryUpdateClipboardPortableValueFromTypedValue(const FNiagaraTypeDefinition& InSourceType, const FNiagaraVariant& InSourceValue, FNiagaraClipboardPortableValue& InTargetClipboardPortableValue) const
+{
+	if (InSourceType.IsEnum() && InSourceValue.GetNumBytes() == FNiagaraTypeDefinition::GetIntDef().GetSize())
+	{
+		FNiagaraVariable Temp(InSourceType, NAME_None);
+		Temp.SetData(InSourceValue.GetBytes());
+		UEnum* ValueEnum = InSourceType.GetEnum();
+		InTargetClipboardPortableValue.ValueString = ValueEnum->GetNameStringByValue(Temp.GetValue<FNiagaraInt32>().Value);
+		return true;
+	}
+	return false;
+}
+
+bool FNiagaraEditorEnumTypeUtilities::TryUpdateTypedValueFromClipboardPortableValue(const FNiagaraClipboardPortableValue& InSourceClipboardPortableValue, const FNiagaraTypeDefinition& InTargetType, FNiagaraVariant& InTargetValue) const
+{
+	if (InTargetType.IsEnum())
+	{
+		int32 EnumValue = (int32)InTargetType.GetEnum()->GetValueByNameString(InSourceClipboardPortableValue.ValueString);
+		if (EnumValue != INDEX_NONE)
+		{
+			FNiagaraInt32 NiagaraIntValue;
+			NiagaraIntValue.Value = EnumValue;
+			FNiagaraVariable Temp(InTargetType, NAME_None);
+			Temp.SetValue<FNiagaraInt32>(NiagaraIntValue);
+			InTargetValue.SetBytes(Temp.GetData(), Temp.GetSizeInBytes());
+			return true;
+		}
+	}
+	return false;
 }

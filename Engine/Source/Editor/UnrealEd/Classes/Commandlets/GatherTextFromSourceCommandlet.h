@@ -19,6 +19,12 @@ enum class EGatherTextSourceFileTypes : uint8
 };
 ENUM_CLASS_FLAGS(EGatherTextSourceFileTypes);
 
+enum EGatherSourcePasses : uint8
+{
+	Prepass = 0,
+	Mainpass = 1,
+};
+
 /**
  *	UGatherTextFromSourceCommandlet: Localization commandlet that collects all text to be localized from the source code.
  */
@@ -84,6 +90,57 @@ private:
 		TMap<FString, FParsedStringTableEntryMetaDataMap, FDefaultSetAllocator, FLocKeyMapFuncs<FParsedStringTableEntryMetaDataMap>> MetaDataEntries;
 	};
 
+	// Macro with nested standard macros, collected in a prepass
+	struct FParsedNestedMacro
+	{
+		FString MacroName;			// Outer macro name
+		FString MacroNameNested;	// Which nested macro (LOCTEXT, NSLOCTEXT, UI_COMMAND, UI_COMMAND_EXT) is contained by this macro
+		FString Filename;
+		FString Content;			// Lines of the macro, including following lines ending with '\' and one more
+		int32 LineStart;
+		int32 LineCount;
+		bool bExclude = false;		// A duplicate macro in a header (.h or .inl) is excluded from parsing, see PrunePrepassResults
+
+		FParsedNestedMacro()
+		{}
+
+		FParsedNestedMacro(const FString& InMacroName, const FString& InMacroNameNested, const FString& InFilename, const FString& InContent, int32 InLineStart, int32 InLineCount)
+			: MacroName(InMacroName)
+			, MacroNameNested(InMacroNameNested)
+			, Filename(InFilename)
+			, Content(InContent)
+			, LineStart(InLineStart)
+			, LineCount(InLineCount)
+		{}
+
+		inline bool operator==(const FParsedNestedMacro& Other) const
+		{
+			// It is sufficient to compare a subset to know they match. We can avoid comparing the larger Content field.
+			return (MacroName == Other.MacroName &&
+				MacroNameNested == Other.MacroNameNested &&
+				Filename == Other.Filename &&
+				LineStart == Other.LineStart);
+		}
+
+		static int32 Size(const FParsedNestedMacro& Result);
+	};
+
+	// Results of mainpass to submit to FLocTextHelper once parallel processing completes
+	struct FManifestEntryResult
+	{
+		FLocKey Namespace;
+		FString Source;
+		FManifestContext Context;
+		FString Description;
+
+		FManifestEntryResult(const FLocKey& InNamespace, const FString& InSource, const FManifestContext& InContext, const FString& InDescription)
+			: Namespace(InNamespace)
+			, Source(InSource)
+			, Context(InContext)
+			, Description(InDescription)
+		{}
+	};
+
 	class FMacroArgumentGatherer
 	{
 	public:
@@ -136,7 +193,7 @@ private:
 
 	struct FSourceFileParseContext
 	{
-		bool AddManifestText( const FString& Token, const FString& Namespace, const FString& SourceText, const FManifestContext& Context );
+		void AddManifestText(const FString& Token, const FString& Namespace, const FString& SourceText, const FManifestContext& Context, bool IsNested);
 
 		void PushMacroBlock( const FString& InBlockCtx );
 
@@ -161,7 +218,8 @@ private:
 		//Working data
 		EGatherTextSourceFileTypes FileTypes;
 		FString Filename;
-		int32 LineNumber;
+		int32 LineIdx;					// Line index that is advanced by more than one in the prepass when collecting macros with nested macros
+		int32 LineNumber;				// Log friendly index equal to (LineIdx + 1)
 		FName FilePlatformName;
 		FString LineText;
 		FString Namespace;
@@ -182,9 +240,14 @@ private:
 
 		TArray<FString> TextLines;
 
-		FSourceFileParseContext(UGatherTextFromSourceCommandlet* InOwnerCommandlet)
+		EGatherSourcePasses Pass;
+		TArray<FManifestEntryResult>& MainpassResults;
+		bool bIsNested = false;
+
+		FSourceFileParseContext(const TMap<FName, FString>& inSplitPlatforms, TArray<FManifestEntryResult>& IoMainpassResults)
 			: FileTypes(EGatherTextSourceFileTypes::None)
 			, Filename()
+			, LineIdx(0)
 			, LineNumber(0)
 			, FilePlatformName()
 			, LineText()
@@ -197,11 +260,12 @@ private:
 			, WithinNamespaceDefineLineNumber(INDEX_NONE)
 			, WithinStartingLine(nullptr)
 			, ShouldGatherFromEditorOnlyData(false)
+			, Pass(EGatherSourcePasses::Prepass)
+			, MainpassResults(IoMainpassResults)
 			, MacroBlockStack()
 			, CachedEditorOnlyDefineState()
-			, OwnerCommandlet(InOwnerCommandlet)
+			, SplitPlatforms(inSplitPlatforms)
 		{
-			check(OwnerCommandlet);
 		}
 
 	private:
@@ -213,7 +277,7 @@ private:
 		TArray<FString> MacroBlockStack;
 		mutable TOptional<EEditorOnlyDefineState> CachedEditorOnlyDefineState;
 
-		UGatherTextFromSourceCommandlet* OwnerCommandlet;
+		TMap<FName, FString> SplitPlatforms;
 	};
 
 	class FParsableDescriptor
@@ -223,8 +287,9 @@ private:
 		virtual const FString& GetToken() const = 0;
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const = 0;
 
-		bool MatchesFileTypes(const EGatherTextSourceFileTypes InFileTypes) { return EnumHasAnyFlags(ApplicableFileTypes, InFileTypes); }
-		bool OverridesLongerTokens() { return bOverridesLongerTokens; }
+		virtual bool IsApplicableFile(const FString& InFilename) const { return true; }
+		bool IsApplicableFileType(const EGatherTextSourceFileTypes InFileTypes) const { return EnumHasAnyFlags(ApplicableFileTypes, InFileTypes); }
+		bool OverridesLongerTokens() const { return bOverridesLongerTokens; }
 
 	protected:
 		EGatherTextSourceFileTypes ApplicableFileTypes = EGatherTextSourceFileTypes::None;
@@ -241,7 +306,6 @@ private:
 		}
 
 	protected:
-		static const FString DefineString;
 		static const FString UndefString;
 		static const FString IfString;
 		static const FString IfDefString;
@@ -255,7 +319,7 @@ private:
 	class FDefineDescriptor : public FPreProcessorDescriptor
 	{
 	public:
-		virtual const FString& GetToken() const override { return FPreProcessorDescriptor::DefineString; }
+		virtual const FString& GetToken() const override { return UGatherTextFromSourceCommandlet::DefineString; }
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
 	};
 
@@ -314,7 +378,7 @@ private:
 		}
 
 		virtual const FString& GetToken() const override
-			{
+		{
 			return Name;
 		}
 
@@ -341,7 +405,7 @@ private:
 	{
 	public:
 		FUICommandMacroDescriptor()
-			: FMacroDescriptor(TEXT("UI_COMMAND"), 5)
+			: FMacroDescriptor(MacroString_UI_COMMAND, 5)
 		{
 		}
 
@@ -360,30 +424,57 @@ private:
 	{
 	public:
 		FUICommandExtMacroDescriptor()
-			: FUICommandMacroDescriptor(TEXT("UI_COMMAND_EXT"), 5)
+			: FUICommandMacroDescriptor(MacroString_UI_COMMAND_EXT, 5)
 		{
 		}
 
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
 	};
-/** Macro descriptor to parse METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) macros. */
-	class FMetasoundParamMacroDescriptor : public FMacroDescriptor
+
+	/** This descripter runs in a prepass to collect macros with nested localizable macros
+	* Example:
+	*	#define METASOUND_PARAM(NAME, NAME_TEXT) \
+	*		static const FText NAME##DisplayName = LOCTEXT(#NAME "DisplayName", NAME_TEXT);
+	*/
+	class FNestedMacroPrepassDescriptor : public FMacroDescriptor
 	{
 	public:
-		FMetasoundParamMacroDescriptor()
-			: FMacroDescriptor(TEXT("METASOUND_PARAM"), 3)
+		FNestedMacroPrepassDescriptor(TArray<FParsedNestedMacro>& InPrepassResults)
+			: FMacroDescriptor(UGatherTextFromSourceCommandlet::DefineString, INT_MAX)
+			, PrepassResults(InPrepassResults)
 		{
 		}
 
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
 
-	protected:
-		FMetasoundParamMacroDescriptor(FString InName, int32 InMinNumberOfArgument)
-			: FMacroDescriptor(MoveTemp(InName), InMinNumberOfArgument)
+	private:
+		TArray<FParsedNestedMacro>& PrepassResults;
+	};
+
+	// This descriptor finds macros that match those found in the prepass (FNestedMacroPrepassDescriptor)
+	class FNestedMacroDescriptor : public FMacroDescriptor
+	{
+	public:
+		FNestedMacroDescriptor(FString InMacroName, FString InMacroNameNested, FString InFilename, FString InContent)
+			: FMacroDescriptor(MoveTemp(InMacroName), 1)
+			, MacroNameNested(MoveTemp(InMacroNameNested))
+			, Filename(MoveTemp(InFilename))
+			, Content(MoveTemp(InContent))
 		{
 		}
 
-		void TryParseArgs(const FString& Text, FSourceFileParseContext& Context, const TArray<FString>& Arguments, const int32 ArgIndexOffset) const;
+		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
+
+		virtual bool IsApplicableFile(const FString& InFilename) const override;
+
+		static void TestNestedMacroDescriptorParseArgs();
+
+	private:
+		static void TryParseArgs(const FString& MacroInnerParams, FString& ParamsNewAll);
+
+		const FString MacroNameNested;
+		const FString Filename;
+		const FString Content;
 	};
 
 	class FStringMacroDescriptor : public FMacroDescriptor
@@ -445,7 +536,8 @@ private:
 	class FStringTableFromFileMacroDescriptor : public FMacroDescriptor
 	{
 	public:
-		FStringTableFromFileMacroDescriptor(FString InName, FString InRootPath) : FMacroDescriptor(MoveTemp(InName), 3), RootPath(MoveTemp(InRootPath)) {}
+		FStringTableFromFileMacroDescriptor(FString InName, FString InRootPath)
+			: FMacroDescriptor(MoveTemp(InName), 3), RootPath(MoveTemp(InRootPath)) {}
 
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
 
@@ -504,12 +596,23 @@ private:
 		virtual void TryParse(const FString& Text, FSourceFileParseContext& Context) const override;
 	};
 
-	static const FString ChangelistName;
+	static const FString DefineString;
+	static const FString MacroString_LOCTEXT;
+	static const FString MacroString_NSLOCTEXT;
+	static const FString MacroString_UI_COMMAND;
+	static const FString MacroString_UI_COMMAND_EXT;
+
+	void GetFilesToProcess(const TArray<FString>& SearchDirectoryPaths, const TArray<FString>& FileNameFilters, TArray<FString>& IncludePathFilters, TArray<FString>& ExcludePathFilters, TArray<FString>& FilesToProcess, bool bAdditionalGatherPaths) const;
+	void GetParsables(TArray<FParsableDescriptor*>& Parsables, EGatherSourcePasses Pass, TArray<FParsedNestedMacro>& PrepassResults);
+	void RunPass(EGatherSourcePasses Pass, bool ShouldGatherFromEditorOnlyData, const TArray<FString>& FilesToProcess, const FString& GatheredSourceBasePath, TArray<FParsedNestedMacro>& PrepassResults);
 
 	static FString UnescapeLiteralCharacterEscapeSequences(const FString& InString);
 	static FString RemoveStringFromTextMacro(const FString& TextMacro, const FString& IdentForLogging, bool& Error);
 	static FString StripCommentsFromToken(const FString& InToken, FSourceFileParseContext& Context);
-	static bool ParseSourceText(const FString& Text, const TArray<FParsableDescriptor*>& Parsables, FSourceFileParseContext& ParseCtxt);
+	static bool ParseSourceText(const FString& Text, const TArray<FParsableDescriptor*>& Parsables, FSourceFileParseContext& ParseCtxt, TArray<FParsedNestedMacro>& PrepassResults);
+	static void CountFileTypes(const TArray<FString>& FilesToProcess, EGatherSourcePasses Pass);
+	static void PrunePrepassResults(TArray<FParsedNestedMacro>& Results);
+	static bool HandledInPrepass(const TArray<FParsedNestedMacro>& Results, const FString& Filename, int32 LineNumber, int32& AdvanceByLines);
 
 public:
 	//~ Begin UCommandlet Interface
@@ -518,5 +621,7 @@ public:
 	//~ Begin UGatherTextCommandletBase  Interface
 	virtual bool ShouldRunInPreview(const TArray<FString>& Switches, const TMap<FString, FString>& ParamVals) const override;
 	//~ End UGatherTextCommandletBase  Interface
+
+	static void LogStats();
 #undef LOC_DEFINE_REGION
 };

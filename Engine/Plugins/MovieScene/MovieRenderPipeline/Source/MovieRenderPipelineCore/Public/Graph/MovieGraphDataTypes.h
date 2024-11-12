@@ -31,6 +31,9 @@ namespace UE::MovieGraph
 	struct FRenderTimeStatistics;
 }
 
+/** Convenience type for passing around pass data plus its identifier. */
+typedef TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>> FMovieGraphPassData;
+
 USTRUCT(BlueprintType)
 struct FMovieGraphImagePreviewData
 {
@@ -42,11 +45,15 @@ struct FMovieGraphImagePreviewData
 
 	/** The texture this preview image was rendered to. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
-	class UTexture* Texture;
+	TObjectPtr<class UTexture> Texture;
 	
 	/** The identifier for the image, containing the branch name, renderer, etc. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FMovieGraphRenderDataIdentifier Identifier;
+
+	/** If true, then there is more than one camera name being used (ie: multi-camera rendering) */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	bool bMultipleCameraNames = false;
 };
 
 USTRUCT(BlueprintType)
@@ -177,11 +184,31 @@ public:
 	float PrevMaxUndilatedFrameTime;
 };
 
+namespace UE::MovieGraph
+{
+	/** 
+	* When fetching multiple cameras from the Data Source, we need to know both
+	* the rendering information (ViewInfo), but also who the renderering object
+	* is, which isn't stored in the ViewInfo.
+	*/
+	struct FMinimalCameraInfo
+	{
+		FMinimalCameraInfo()
+		: ViewActor(nullptr)
+		{}
+		
+		TWeakObjectPtr<AActor> ViewActor;
+		FMinimalViewInfo ViewInfo;
+	};
+}
+
 UCLASS(BlueprintType, Abstract)
 class MOVIERENDERPIPELINECORE_API UMovieGraphRendererBase : public UObject
 {
 	GENERATED_BODY()
 public:
+
+	
 	/** Get an array of image previews that are valid this frame. */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphImagePreviewData> GetPreviewData() const { return TArray<FMovieGraphImagePreviewData>(); }
@@ -190,7 +217,13 @@ public:
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual UE::MovieGraph::FRenderTimeStatistics* GetRenderTimeStatistics(const int32 InFrameNumber) { return nullptr; }
+
+	UE_DEPRECATED(5.5, "Use the version that doesn't take a config instead. The information from the config is now derived from the index value.")
+	virtual UE::MovieGraph::FMinimalCameraInfo GetMinimalCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const { return GetMinimalCameraInfo(InCameraIndex); }
 	
+	/** InCameraIndex can be -1 (for primary camera when not using multi-layer rendering) or 0...n for sidecar cameras. */
+	virtual UE::MovieGraph::FMinimalCameraInfo GetMinimalCameraInfo(const int32 InCameraIndex) const { return UE::MovieGraph::FMinimalCameraInfo(); }
+
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
 
@@ -222,6 +255,9 @@ public:
 	/** Called by the Time Step system when the external data source should pause playback. */
 	virtual void PauseDataSource() {}
 
+	/** Called by the Time Step system when the external data source should stop playback (typically at the end of rendering). */
+	virtual void StopDataSource() {}
+
 	/** Called by the Time Step system when the external data source should jump to the given time. Time is in TickResolution scale. */
 	virtual void JumpDataSource(const FFrameTime& InTimeToJumpTo) {}
 
@@ -232,13 +268,14 @@ public:
 	virtual void CacheDataPreJob(const FMovieGraphInitConfig& InInitConfig) {}
 	virtual void RestoreCachedDataPostJob() {}
 	virtual void UpdateShotList() {}
-	virtual void InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
+	virtual void InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const FFrameTime& InEvalTime) {}
 	virtual void CacheHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void RestoreHierarchyForShot(const TObjectPtr<UMoviePipelineExecutorShot> &InShot) {}
 	virtual void MuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void UnmuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InLeftDeltaFrames, const int32 InLeftDeltaFramesUserPoV,
 		const int32 InRightDeltaFrames, const bool bInPrepass) {}
+	virtual TArray<UE::MovieGraph::FMinimalCameraInfo> GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const { return TArray<UE::MovieGraph::FMinimalCameraInfo>(); }
 
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
@@ -280,7 +317,8 @@ struct FMovieGraphRenderPassLayerData
 {
 	FName BranchName;
 	FString LayerName;
-	FGuid CameraIdentifier;
+	int32 CameraIndex;
+	FString CameraName;
 	TWeakObjectPtr<class UMovieGraphRenderPassNode> RenderPassNode;
 };
 // ToDo: Both of these can probably go into the Default Renderer implementation.
@@ -336,10 +374,16 @@ namespace UE::MovieGraph
 			, bRequiresAccumulator(false)
 			, bFetchFromAccumulator(false)
 			, bCompositeOnOtherRenders(false)
+			, bAllowsCompositing(true)
 			, OverscanFraction(0.f)
 			, CompositingSortOrder(0)
 			, bAllowOCIO(true)
 		{}
+
+		virtual TSharedRef<FMovieGraphSampleState> Copy() const
+		{
+			return MakeShared<FMovieGraphSampleState>(*this);
+		}
 
 		/** The traversal context used to read graph values at the time of submission. */
 		FMovieGraphTraversalContext TraversalContext;
@@ -365,6 +409,9 @@ namespace UE::MovieGraph
 		/** Set this to true if this pass should be composited on top of other renders. */
 		bool bCompositeOnOtherRenders;
 
+		/** Set this to false if this pass should not allow other passes to be composited onto it. */
+		bool bAllowsCompositing;
+
 		/** When using high-res tiling, how many pixels does each tile overlap the adjacent tiles (on each side)? This should be zero if not using tiling. */
 		FIntPoint OverlappedPad;
 
@@ -388,6 +435,19 @@ namespace UE::MovieGraph
 
 		/** Render scene capture source used for tracking the output color space (without OpenColorIO). */
 		ESceneCaptureSource SceneCaptureSource;
+
+		/**
+		 * Additional metadata that should be added to the output. In most cases, the node's GetFormatResolveArgs() should be used to provide
+		 * metadata unless the metadata is generated at a point in the pipeline where GetFormatResolveArgs() cannot be used.
+		 */
+		TMap<FString, FString> AdditionalFileMetadata;
+
+		/**
+		 * For multi-layer output formats, setting this allows the layer name to be explicitly specified. Normally the layer name will be
+		 * procedurally generated from multiple data sources to avoid collision with other layer names, but there are scenarios where specifying an
+		 * exact layer name may be needed.
+		 */
+		FString LayerNameOverride;
 	};
 
 	/**
@@ -399,6 +459,7 @@ namespace UE::MovieGraph
 		int32 BranchCount = 0;
 		int32 ActiveBranchRendererCount = 0;
 		int32 ActiveRendererSubresourceCount = 0;
+		int32 ActiveCameraCount = 0;
 	};
 
 	/**

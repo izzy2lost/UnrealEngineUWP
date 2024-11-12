@@ -46,6 +46,13 @@ enum class EInitResult
 	Error
 };
 
+enum class EProcessResult
+{
+	Success = 0,
+	Error,
+	ChildProcessError
+};
+
 class FUnrealVirtualizationToolApp
 {
 public:
@@ -53,13 +60,13 @@ public:
 	~FUnrealVirtualizationToolApp();
 
 	EInitResult Initialize();
-	bool Run();
+	EProcessResult Run();
 
 private:
 
 	void PrintCmdLineHelp() const;
 
-	bool ProcessProjects(TArray<TUniquePtr<FCommandOutput>>& OutputArray);
+	EProcessResult ProcessProjects(TArray<TUniquePtr<FCommandOutput>>& OutputArray);
 
 	bool TryLoadModules();
 	bool TryInitEnginePlugins();
@@ -83,9 +90,9 @@ private:
 	/** Note not currently static due to dependencies */
 	bool TryReadChildProcessInputFile(const FString& InputPath);
 	static bool TryWriteChildProcessInputFile(const FGuid& ChildProcessId, const FCommand& Command, const FProject& Project, FStringBuilderBase& OutPath);
+	static void CleanUpChildProcessFiles(const FGuid& ChildProcessId);
 
-
-	static bool LaunchChildProcess(const FCommand& Command, const FProject& Project, FStringView GlobalOptions, TArray<TUniquePtr<FCommandOutput>>& OutputArray);
+	static EProcessResult LaunchChildProcess(const FCommand& Command, const FProject& Project, FStringView GlobalOptions, TArray<TUniquePtr<FCommandOutput>>& OutputArray);
 
 private:
 

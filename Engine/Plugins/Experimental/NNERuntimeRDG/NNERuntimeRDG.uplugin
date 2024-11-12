@@ -3,8 +3,8 @@
 	"Version": 0.1,
 	"VersionName": "0.1",
 	"FriendlyName": "NNERuntimeRDG",
-	"Description": "GPU RDG accelerated runtime for the NNE plugin (deep learning and neural network inference in Unreal Engine) backed by Unreal rendergraph RDG.",
-	"Category": "Experimental",
+	"Description": "A runtime implementing the Neural Network Engine (NNE) API, using the Render Dependency Graph (RDG).",
+	"Category": "ML",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
 	"DocsURL": "",
@@ -15,27 +15,22 @@
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
-	"SupportedTargetPlatforms": [
-		"Win64", "Linux", "Mac"
-	],
 	"Modules": [
 		{
 			"Name": "NNEHlslShaders",
 			"Type": "RuntimeAndProgram",
-			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+			"LoadingPhase": "PostConfigInit"
 		},
 		{
 			"Name": "NNERuntimeRDG",
 			"Type": "RuntimeAndProgram",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "NNERuntimeRDGUtils",
+			"Type": "EditorAndProgram",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
-		}
-	],
-	"Plugins": [
-		{
-			"Name": "NNERuntimeORT",
-			"Enabled": true
 		}
 	]
 }

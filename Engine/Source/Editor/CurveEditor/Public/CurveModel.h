@@ -21,6 +21,7 @@
 #include "UObject/UnrealType.h"
 
 class FCurveEditor;
+class FCurveEditorAxis;
 class FName;
 class IBufferedCurveModel;
 class SCurveEditorView;
@@ -35,6 +36,7 @@ struct FKeyDrawInfo;
 struct FKeyHandle;
 struct FKeyPosition;
 
+enum class ECurveEditorAxisOrientation : uint8;
 enum class ECurvePointType : uint8;
 
 /**
@@ -72,17 +74,22 @@ public:
 	 */
 	virtual void DrawCurve(const FCurveEditor& CurveEditor, const FCurveEditorScreenSpace& ScreenSpace, TArray<TTuple<double, double>>& InterpolatingPoints) const = 0;
 
+	UE_DEPRECATED(5.5, "Implement the version that doesn't take the Curve Editor parameter.")
+	virtual void GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const
+	{
+		GetKeys(MinTime, MaxTime, MinValue, MaxValue, OutKeyHandles);
+	}
+
 	/**
 	 * Retrieve all keys that lie in the specified time and value range
 	 *
-	 * @param CurveEditor             Reference to the curve editor that is retrieving keys.
 	 * @param MinTime                 Minimum key time to return in seconds
 	 * @param MaxTime                 Maximum key time to return in seconds
 	 * @param MinValue                Minimum key value to return
 	 * @param MaxValue                Maximum key value to return
 	 * @param OutKeyHandles           Array to populate with key handles that reside within the specified ranges
 	 */
-	virtual void GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const = 0;
+	virtual void GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const = 0;
 
 	/**
 	 * Add keys to this curve
@@ -244,6 +251,13 @@ public:
 	{}
 
 	/**
+	 * Called when this curve model is added to a curve editor in order to construct additional 'child'
+	 *     curves that are owned by this curve
+	 */
+	virtual void MakeChildCurves(TArray<TUniquePtr<FCurveModel>>& OutChildCurves) const
+	{}
+
+	/**
 	 * Creates a copy of this curve, stored in a minimal buffered curve object.
 	 * Buffered curves are used to cache the positions and attributes of a curve's keys. After creation, a buffered curve 
 	 * can be applied to any curve to set it to its saved state. Each curve must implement its own buffered curve which 
@@ -253,6 +267,14 @@ public:
 	virtual TUniquePtr<IBufferedCurveModel> CreateBufferedCurveCopy() const
 	{
 		return nullptr;
+	}
+
+	/**
+	 * Return a per-curve transform for this model, if used by the view
+	 */
+	virtual FTransform2d GetCurveTransform() const
+	{
+		return FTransform2d();
 	}
 
 	/** 
@@ -274,6 +296,13 @@ public:
 	virtual bool HasChangedAndResetTest()
 	{
 		return true;
+	}
+
+	/**
+	 * Allocate and/or assign axes for the this curve
+	 */
+	virtual void AllocateAxes(FCurveEditor* InCurveEditor, TSharedPtr<FCurveEditorAxis>& OutHorizontalAxis, TSharedPtr<FCurveEditorAxis>& OutVerticalAxis) const
+	{
 	}
 
 	/**
@@ -302,6 +331,21 @@ public:
 	FORCEINLINE FSimpleMulticastDelegate& OnCurveModified()
 	{
 		return CurveModifiedDelegate;
+	}
+
+	/**
+	 * Get the owning object of this curve as the specified template type, or search is outer chain if it is not the specified type.
+	 **/
+	template<typename T>
+	T* GetOwningObjectOrOuter() const
+	{
+		UObject* Obj = GetOwningObject();
+		if (T* CastResult = Cast<T>(Obj))
+		{
+			return CastResult;
+		}
+
+		return Obj ? Obj->GetTypedOuter<T>() : nullptr;
 	}
 
 public:
@@ -406,8 +450,40 @@ public:
 	}
 
 	/**
- * Retrieves whether or not to disable drawing keys
- */
+	 * Get the dash length used for rendering this curve (0 indicates a solid line should be used)
+	 */
+	FORCEINLINE float GetDashLength() const
+	{
+		return DashLengthPx;
+	}
+
+	/**
+	 * Set the dash length used for rendering this curve (0 indicates a solid line should be used)
+	 */
+	FORCEINLINE void SetDashLength(float InDashLengthPx)
+	{
+		DashLengthPx = InDashLengthPx;
+	}
+
+	/**
+	 * Get this curve's visual thickness in screen space
+	 */
+	FORCEINLINE float GetThickness() const
+	{
+		return Thickness;
+	}
+
+	/**
+	 * Set this curve's visual thickness in screen space
+	 */
+	FORCEINLINE void SetThickness(float InThickness)
+	{
+		Thickness = InThickness;
+	}
+
+	/**
+	 * Retrieves whether or not to disable drawing keys
+	 */
 	FORCEINLINE bool IsKeyDrawEnabled() const
 	{
 		return bKeyDrawEnabled.Get();
@@ -456,6 +532,12 @@ protected:
 
 	/** Whether or not to draw curve's keys */
 	TAttribute<bool> bKeyDrawEnabled;
+
+	/** When this curve is to be drawn dashed, the length of each dash (or 0.f if solid) */
+	float DashLengthPx = 0.f;
+
+	/** Default thickness for this curve */
+	float Thickness = 2.f;
 
 	/** A set of views supported by this curve */
 	ECurveEditorViewID SupportedViews;

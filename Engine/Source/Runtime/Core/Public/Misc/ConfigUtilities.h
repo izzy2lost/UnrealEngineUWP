@@ -14,6 +14,21 @@
 
 class FString;
 class IConsoleVariable;
+class FConfigModificationTracker;
+
+
+namespace UE::DynamicConfig
+{
+	extern CORE_API void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTracker*)> PerformModification, TFunction<void(FConfigModificationTracker*)> PostModification=nullptr);
+
+	// this isn't directly used in this module, but the OnlineHotfixManager and GameFeatures plugin use it to talk to each other
+	extern CORE_API TMulticastDelegate<void(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker)> HotfixPluginForBranch;
+
+	// this calls the UObjectBaseUtility from code where object system is not linked (it also calls TSOnConfigSectionsChanged()!)
+	extern CORE_API TMulticastDelegate<void(const FConfigModificationTracker* ChangeTracker)> ReloadObjects;
+
+	extern CORE_API TMulticastDelegate<void(const TSet<FString>& ModifiedSections)> UpdateDeviceProfiles;
+}
 
 
 namespace UE::ConfigUtilities
@@ -21,7 +36,7 @@ namespace UE::ConfigUtilities
 	/**
 	 * Single function to set a cvar from ini (handing friendly names, cheats for shipping and message about cheats in non shipping)
 	 */
-	CORE_API void OnSetCVarFromIniEntry(const TCHAR* IniFile, const TCHAR* Key, const TCHAR* Value, uint32 SetBy, bool bAllowCheating=false, bool bNoLogging=false);
+	CORE_API void OnSetCVarFromIniEntry(const TCHAR* IniFile, const TCHAR* Key, const TCHAR* Value, uint32 SetBy, bool bAllowCheating=false, bool bNoLogging=false, FName Tag=NAME_None);
 
 	/**
 	 * When boot the game, use this function to apply cvars from last saved file from hotfix

@@ -102,23 +102,11 @@ public:
 
 	FORCEINLINE UObject* Get() const
 	{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		// Ensure the handle is resolved first (for late resolve), even if it's not considered type safe.
-		UObject* ResolvedObject = UE::CoreUObject::Private::ResolveObjectHandle(Handle);
-		return IsObjectHandleTypeSafe(Handle) ? ResolvedObject : nullptr;
-#else
 		return UE::CoreUObject::Private::ResolveObjectHandle(Handle);
-#endif
 	}
 
 	FORCEINLINE UClass* GetClass() const
 	{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		if (!IsObjectHandleTypeSafe(Handle))
-		{
-			return nullptr;
-		}
-#endif
 		return UE::CoreUObject::Private::ResolveObjectHandleClass(Handle);
 	}
 
@@ -190,13 +178,13 @@ public:
 	FORCEINLINE UObject& operator*() const { return *Get(); }
 
 	UE_DEPRECATED(5.1, "IsNull is deprecated, please use operator bool instead.")
-	FORCEINLINE bool IsNull() const { return IsNullNoResolve_Internal() || (UE::CoreUObject::Private::ResolveObjectHandleNoRead(Handle) == nullptr); }
+	FORCEINLINE bool IsNull() const { return UE::CoreUObject::Private::ResolveObjectHandleNoRead(Handle) == nullptr; }
 	
 	UE_DEPRECATED(5.1, "IsNullNoResolve is deprecated, please use operator bool instead.")
-	FORCEINLINE bool IsNullNoResolve() const { return IsNullNoResolve_Internal(); }
+	FORCEINLINE bool IsNullNoResolve() const { return IsObjectHandleNull(Handle); }
 	
-	FORCEINLINE bool operator!() const { return IsNullNoResolve_Internal(); }
-	explicit FORCEINLINE operator bool() const { return !IsNullNoResolve_Internal(); }
+	FORCEINLINE bool operator!() const { return IsObjectHandleNull(Handle); }
+	explicit FORCEINLINE operator bool() const { return !IsObjectHandleNull(Handle); }
 
 	FORCEINLINE bool IsResolved() const { return IsObjectHandleResolved(Handle); }
 
@@ -311,15 +299,6 @@ private:
 		}
 	}
 #endif // UE_OBJECT_PTR_GC_BARRIER
-
-	FORCEINLINE bool IsNullNoResolve_Internal() const
-	{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		return IsObjectHandleNull(Handle) || !IsObjectHandleTypeSafe(Handle);
-#else
-		return IsObjectHandleNull(Handle);
-#endif
-	}
 };
 
 template <typename T>
@@ -406,6 +385,64 @@ namespace ObjectPtr_Private
 		return IsObjectPtrEqualToRawPtrOfRelatedType<T>(Ptr, ObjectPtr_Private::CoerceToPointer<T>(Other));
 	}
 
+	/** Check for NULL without resolving the handle. */
+	template <
+		typename T
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		UE_REQUIRES(std::is_same_v<std::remove_const_t<T>, UObject>)
+#endif
+	>
+	FORCEINLINE bool IsObjectPtrNull(const FObjectPtr& ObjectPtr)
+	{
+		return !ObjectPtr.operator bool();
+	}
+
+	/** Resolve and return the underlying reference. */
+	template <
+		typename T
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		UE_REQUIRES(std::is_same_v<std::remove_const_t<T>, UObject>)
+#endif
+	>
+	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
+	{
+		return (T*)ObjectPtr.Get();
+	}
+
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	/** Check for NULL without resolving the handle. Always returns true if the handle is not type safe (only when T != UObject). */
+	template <
+		typename T
+		UE_REQUIRES(!std::is_same_v<std::remove_const_t<T>, UObject>)
+	>
+	FORCEINLINE bool IsObjectPtrNull(const FObjectPtr& ObjectPtr)
+	{
+		if (!IsObjectHandleTypeSafe(ObjectPtr.GetHandle()))
+		{
+			// Type is unsafe; this pointer will resolve to NULL.
+			return true;
+		}
+
+		return !ObjectPtr.operator bool();
+	}
+
+	/** Resolve and return the underlying reference. Always returns NULL if the handle is not type safe (only when T != UObject). */
+	template <
+		typename T
+		UE_REQUIRES(!std::is_same_v<std::remove_const_t<T>, UObject>)
+	>
+	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
+	{
+		if (!IsObjectHandleTypeSafe(ObjectPtr.GetHandle()))
+		{
+			// Type is unsafe; return NULL without resolving.
+			return nullptr;
+		}
+
+		return (T*)ObjectPtr.Get();
+	}
+#endif
+
 	template <typename T, int = sizeof(T)>
 	char (&ResolveTypeIsComplete(int))[2];
 
@@ -478,8 +515,8 @@ public:
 	}
 
 	template <
-		typename U,
-		decltype(ImplicitConv<T*>(std::declval<U*>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
 	>
 	FORCEINLINE TObjectPtr(const TObjectPtr<U>& Other)
 		: ObjectPtr(Other.ObjectPtr)
@@ -488,9 +525,8 @@ public:
 	}
 
 	template <
-		typename U,
-		decltype(ImplicitConv<T*>(std::declval<U>()))* = nullptr
-		UE_REQUIRES(!TIsTObjectPtr_V<std::decay_t<U>>)
+		typename U
+		UE_REQUIRES(!TIsTObjectPtr_V<std::decay_t<U>> && std::is_convertible_v<U, T*>)
 	>
 	FORCEINLINE TObjectPtr(const U& Object)
 		: ObjectPtr(const_cast<std::remove_const_t<T>*>(ImplicitConv<T*>(Object)))
@@ -530,8 +566,8 @@ public:
 	}
 
 	template <
-		typename U,
-		decltype(ImplicitConv<T*>(std::declval<U*>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
 	>
 	FORCEINLINE TObjectPtr<T>& operator=(const TObjectPtr<U>& Other)
 	{
@@ -541,9 +577,8 @@ public:
 	}
 
 	template <
-		typename U,
-		decltype(ImplicitConv<T*>(std::declval<U>()))* = nullptr
-		UE_REQUIRES(!TIsTObjectPtr_V<std::decay_t<U>>)
+		typename U
+		UE_REQUIRES(!TIsTObjectPtr_V<std::decay_t<U>> && std::is_convertible_v<U, T*>)
 	>
 	FORCEINLINE TObjectPtr<T>& operator=(U&& Object)
 	{
@@ -567,16 +602,22 @@ public:
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
 		// Do a NULL test first before comparing the underlying handles, in case either side is
 		// a non-NULL, but unsafe type pointer (which would equate to NULL when Get() is called).
-		return !ObjectPtr ? !Other : ObjectPtr == Other.ObjectPtr;
-#else
-		return ObjectPtr == Other.ObjectPtr;
+		if (ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr))
+		{
+			return ObjectPtr_Private::IsObjectPtrNull<U>(Other.ObjectPtr);
+		}
+		else if (ObjectPtr_Private::IsObjectPtrNull<U>(Other.ObjectPtr))
+		{
+			return false;
+		}
 #endif
+		return ObjectPtr == Other.ObjectPtr;
 	}
 
 	// Equality/Inequality comparisons against nullptr
 	FORCEINLINE bool operator==(TYPE_OF_NULLPTR) const
 	{
-		return !ObjectPtr.operator bool();
+		return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr);
 	}
 
 	// Equality/Inequality comparisons against another type that can be implicitly converted to the pointer type kept in a TObjectPtr
@@ -603,7 +644,7 @@ public:
 	//			a reference to the wrong type of object which we'll just send back static_casted as the wrong type.  Doing
 	//			a check or checkSlow here could catch this, but it would be better if the check could happen elsewhere that
 	//			isn't called as frequently.
-	FORCEINLINE T* Get() const { return (T*)(ObjectPtr.Get()); }
+	FORCEINLINE T* Get() const { return ObjectPtr_Private::Get<T>(ObjectPtr); }
 	FORCEINLINE UClass* GetClass() const { return ObjectPtr.GetClass(); }
 	FORCEINLINE TObjectPtr<UObject> GetOuter() const
 	{ 
@@ -629,13 +670,13 @@ public:
 	explicit FORCEINLINE operator T*& () { return GetInternalRef(); }
 
 	UE_DEPRECATED(5.1, "IsNull is deprecated, please use operator bool instead.  if (!MyObjectPtr) { ... }")
-	FORCEINLINE bool IsNull() const { return !ObjectPtr.operator bool(); }
+	FORCEINLINE bool IsNull() const { return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
 
 	UE_DEPRECATED(5.1, "IsNullNoResolve is deprecated, please use operator bool instead.  if (!MyObjectPtr) { ... }")
-	FORCEINLINE bool IsNullNoResolve() const { return !ObjectPtr.operator bool(); }
+	FORCEINLINE bool IsNullNoResolve() const { return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
 
-	FORCEINLINE bool operator!() const { return ObjectPtr.operator!(); }
-	explicit FORCEINLINE operator bool() const { return ObjectPtr.operator bool(); }
+	FORCEINLINE bool operator!() const { return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
+	explicit FORCEINLINE operator bool() const { return !ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
 	FORCEINLINE bool IsResolved() const { return ObjectPtr.IsResolved(); }
 	FORCEINLINE FString GetPath() const { return ObjectPtr.GetPath(); }
 	FORCEINLINE FString GetPathName() const { return ObjectPtr.GetPathName(); }
@@ -670,7 +711,10 @@ private:
 	//			to handle this case without forcing the calling code to be modified.
 	FORCEINLINE T*& GetInternalRef()
 	{
-		ObjectPtr.Get();
+		ObjectPtr_Private::Get<T>(ObjectPtr);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
+		check(ObjectPtr.IsResolved());
+#endif
 		return (T*&)ObjectPtr.GetHandleRef();
 	}
 
@@ -881,6 +925,7 @@ ToRawPtrArrayUnsafe(TObjectPtr<T>(&ArrayOfPtr)[Size])
 	{
 		// NOTE: Relying on the fact that the TObjectPtr will cache the resolved pointer in place after calling Get.
 		Item.Get();
+		check(Item.IsResolved());
 	}
 #endif
 
@@ -927,6 +972,11 @@ ToRawPtrTArrayUnsafe(ArrayType&& Array)
 	using NewArrayType             = TArray<QualifiedRawPointerType, ArrayAllocatorType>;
 	using RefQualifiedNewArrayType = typename TCopyQualifiersAndRefsFromTo<ArrayType, NewArrayType>::Type;
 
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
+	using TypeCompat = TContainerElementTypeCompatibility<ArrayElementType>;
+	TypeCompat::ReinterpretRange(Array.begin(), Array.end());
+#endif
+
 	return (RefQualifiedNewArrayType&)Array;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -945,6 +995,7 @@ struct TContainerElementTypeCompatibility<TObjectPtr<T>>
 		while (Iter != IterEnd)
 		{
 			Operator(Iter).Get();
+			check(Operator(Iter).IsResolved());
 			++Iter;
 		}
 #endif
@@ -961,6 +1012,7 @@ struct TContainerElementTypeCompatibility<TObjectPtr<T>>
 			auto& Ptr = Operator(Iter);
 			const FObjectPtr& ObjPtr = reinterpret_cast<const FObjectPtr&>(Ptr);
 			UE::CoreUObject::Private::ResolveObjectHandleNoRead(ObjPtr.GetHandleRef());
+			check(ObjPtr.IsResolved());
 			++Iter;
 		}
 		const UObject* const* ObjPtr = reinterpret_cast<const UObject* const*>(Begin);
@@ -986,6 +1038,7 @@ struct TContainerElementTypeCompatibility<const TObjectPtr<T>>
 		while (Iter != IterEnd)
 		{
 			Operator(Iter).Get();
+			check(Operator(Iter).IsResolved());
 			++Iter;
 		}
 #endif
@@ -1002,6 +1055,7 @@ struct TContainerElementTypeCompatibility<const TObjectPtr<T>>
 			auto& Ptr = Operator(Iter);
 			const FObjectPtr& ObjPtr = reinterpret_cast<const FObjectPtr&>(Ptr);
 			UE::CoreUObject::Private::ResolveObjectHandleNoRead(ObjPtr.GetHandleRef());
+			check(ObjPtr.IsResolved());
 			++Iter;
 		}
 		const UObject* const* ObjPtr = reinterpret_cast<const UObject* const*>(Begin);
@@ -1213,6 +1267,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 		{
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
 			Value.Get();
+			check(Value.IsResolved());
 #endif
 		}
 	};
@@ -1652,8 +1707,8 @@ public:
 	 * Constructs a non-null pointer from another non-null pointer
 	 */
 	template <
-		typename OtherObjectType,
-		decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))* = nullptr
+		typename OtherObjectType
+		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE TNonNullPtr(const TNonNullPtr<OtherObjectType>& Other)
 		: Object(Other.Object)
@@ -1684,8 +1739,8 @@ public:
 	 * Assignment operator taking another TNonNullPtr
 	 */
 	template <
-		typename OtherObjectType,
-		decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))* = nullptr
+		typename OtherObjectType
+		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE TNonNullPtr& operator=(const TNonNullPtr<OtherObjectType>& Other)
 	{
@@ -1740,6 +1795,16 @@ public:
 		ensureMsgf(Object, TEXT("Tried to access null pointer!"));		
 		return Object;
 	}	
+
+	FORCEINLINE bool IsInitialized() const
+	{
+		return Object != nullptr;
+	}
+
+	/**
+	 * Use IsInitialized if needed
+	 */
+	explicit operator bool() const = delete;
 
 private:
 

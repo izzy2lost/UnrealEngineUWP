@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGGather.h"
+
+#include "NNEAttributeMap.h"
+#include "NNEHlslShadersGatherCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHelperGather.h"
 #include "NNERuntimeRDGHlslHelper.h"
-#include "NNEHlslShadersGatherCS.h"
-#include "NNEAttributeMap.h"
 #include "NNETypes.h"
 #include "NNETensor.h"
 
@@ -73,33 +75,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(InputTensorDescs.Num() == 2)
 			check(OutputTensorDescs.Num() == 1)
 
-			const int32 MaxNumDimensions = NNEHlslShaders::Internal::FGatherConstants::MAX_NUM_DIMENSIONS;
-
 			const NNE::FTensorDesc& Data = InputTensorDescs[0];
 			const NNE::FTensorDesc& Indices = InputTensorDescs[1];
 			const NNE::FTensorDesc& Output = OutputTensorDescs[0];
 
-			if (Output.GetShape().Rank() > MaxNumDimensions)
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Gather first input should be of rank %d or less but is %d"), MaxNumDimensions, Output.GetShape().Rank());
-				return false;
-			}
-
-			if ((Data.GetShape().Rank() + Indices.GetShape().Rank() - 1) > MaxNumDimensions)
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Gather sum of input 0 and 1 ranks -1 should be less than %d"), MaxNumDimensions);
-				return false;
-			}
-
 			Axis = Attributes.GetValueOrDefault(TEXT("axis"), Axis);
 			if (Axis >= Data.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Gather Axis attribute should be inferior to first input rank"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: Axis attribute should be inferior to first input rank"));
 				return false;
 			}
 			if (Axis < -Data.GetShape().Rank())
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Gather Axis attribute should be superior or equal to minus the first input rank"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: Axis attribute should be superior or equal to minus the first input rank"));
 				return false;
 			}
 			Axis = Axis >= 0 ? Axis : Data.GetShape().Rank() + Axis;
@@ -118,8 +106,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(OutputTensors[0] != nullptr);
 			check(OutputTensors[0]->GetShape().Rank() <= FGatherConstants::MAX_NUM_DIMENSIONS)
 			check(InputTensors[0]->GetShape().Rank() > 0)
-			check(InputTensors[1]->GetShape().Rank() > 0)
-			check(InputTensors[0]->GetShape().Rank() + (InputTensors[1]->GetShape().Rank() - 1) <= FGatherConstants::MAX_NUM_DIMENSIONS)
+			check(InputTensors[1]->GetShape().Rank() + (InputTensors[0]->GetShape().Rank() - 1) <= FGatherConstants::MAX_NUM_DIMENSIONS)
 
 			const FTensorRDG& Data = *InputTensors[0];
 			const FTensorRDG& Indices = *InputTensors[1];
@@ -129,16 +116,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			TGatherCS::FParameters* Parameters = GraphBuilder.AllocParameters<TGatherCS::FParameters>();
 			TGatherCS::FillInParameters(Axis, Data, Indices, *Parameters);
 			Parameters->Data = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Data.GetBuffer(), PF_R32_FLOAT));
+			// NOTE: Indices tensor can be int64, but UE lacks support of int64 buffers. Here we use a 32-bit pixel format and 
+			// in the shader we discard the upper 32-bits of each value. This means that index values need to be representable by 32 bits
 			Parameters->Indices = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Indices.GetBuffer(), PF_R32_FLOAT));
 			Parameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
 
 			TGatherCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<TGatherCS::FGatherNumOutputDimensions>(Output.GetShape().Rank());
+			PermutationVector.Set<TGatherCS::FGather64BitIndices>(Indices.GetDataType() == ENNETensorDataType::Int64);
 			TShaderMapRef<TGatherCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
 			FIntVector ThreadGroupCount = TGatherCS::GetGroupCount(*Parameters);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Gather");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGather, "NNE.Operator.Hlsl.Gather");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGather);
 
 			FComputeShaderUtils::AddPass(
@@ -172,7 +162,25 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		InputValidator.AddRequired(1);
 		bIsValid &= InputValidator.Validate(InputTypes);
 
-		return bIsValid;
+		if(!bIsValid)
+		{
+			return false;
+		}
+
+		if(InputShapes[0].Rank() < 1)
+		{
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: input tensor must have rank >= 1."));
+			return false;
+		}
+
+		const int32 OutputRank = InputShapes[1].Rank() + (InputShapes[0].Rank() - 1);
+		if(OutputRank > NNEHlslShaders::Internal::FGatherConstants::MAX_NUM_DIMENSIONS)
+		{
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gather: output tensor has rank %d higher than maximum supported: %d."), OutputRank, NNEHlslShaders::Internal::FGatherConstants::MAX_NUM_DIMENSIONS);
+			return false;
+		}
+
+		return true;
 	}
 
 	FOperatorHlsl* CreateGatherOperator()

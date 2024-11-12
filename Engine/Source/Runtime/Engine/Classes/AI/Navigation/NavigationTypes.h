@@ -11,14 +11,12 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GameFramework/Actor.h"
 #include "AI/Navigation/NavDataGatheringMode.h"
-#endif
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AI/Navigation/NavAgentSelector.h"
-#include "AI/Navigation/NavigationBounds.h"
-#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "NavigationDirtyArea.h"
+#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "NavigationTypes.generated.h"
 
-#define INVALID_NAVNODEREF (0)
 #define INVALID_NAVQUERYID uint32(0)
 #define INVALID_NAVDATA uint32(0)
 #define INVALID_NAVEXTENT (FVector::ZeroVector)
@@ -34,6 +32,7 @@ struct FNavigationPath;
 
 /** uniform identifier type for navigation data elements may it be a polygon or graph node */
 typedef uint64 NavNodeRef;
+#define INVALID_NAVNODEREF NavNodeRef(0)
 
 namespace FNavigationSystem
 {
@@ -65,55 +64,16 @@ namespace FNavigationSystem
 }
 
 UENUM()
-namespace ENavigationOptionFlag
+enum class ENavigationOptionFlag : uint8
 {
-	enum Type : int
-	{
-		Default,
-		Enable UMETA(DisplayName = "Yes"),	// UHT was complaining when tried to use True as value instead of Enable
-
-		Disable UMETA(DisplayName = "No"),
-
-		MAX UMETA(Hidden)
-	};
-}
+	Default,
+	Enable UMETA(DisplayName = "Yes"), // UHT was complaining when tried to use True as value instead of Enable
+	Disable UMETA(DisplayName = "No"),
+	MAX UMETA(Hidden)
+};
 
 //////////////////////////////////////////////////////////////////////////
 // Navigation data generation
-
-namespace ENavigationDirtyFlag
-{
-	enum Type
-	{
-		Geometry			= (1 << 0),
-		DynamicModifier		= (1 << 1),
-		UseAgentHeight		= (1 << 2),
-		NavigationBounds	= (1 << 3),
-
-		All				= Geometry | DynamicModifier,		// all rebuild steps here without additional flags
-	};
-}
-
-struct FNavigationDirtyArea
-{
-	FBox Bounds;
-	int32 Flags;
-	TWeakObjectPtr<UObject> OptionalSourceObject;
-	
-	FNavigationDirtyArea() : Flags(0) {}
-	ENGINE_API FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject = nullptr);
-	FORCEINLINE bool HasFlag(ENavigationDirtyFlag::Type Flag) const { return (Flags & Flag) != 0; }
-
-	bool operator==(const FNavigationDirtyArea& Other) const 
-	{ 
-		return Flags == Other.Flags && OptionalSourceObject == Other.OptionalSourceObject && Bounds.Equals(Other.Bounds); 
-	}
-	
-	bool operator!=( const FNavigationDirtyArea& Other) const
-	{
-		return !(*this == Other);
-	}
-};
 
 UENUM()
 enum class ENavDataGatheringModeConfig : uint8
@@ -196,6 +156,11 @@ struct FNavLinkId
 		: Id(InId)
 	{}
 
+	bool IsValid() const
+	{
+		return Id != InvalidLinkId;
+	}
+
 	bool operator==(const FNavLinkId& Other) const
 	{
 		return Id == Other.Id;
@@ -228,6 +193,11 @@ struct FNavLinkId
 		return (Id & NavLinkIdBitMask) == 0;
 	}
 
+	/**
+	 *  Helper function: returns unique ID number for custom links.
+	 */
+	static ENGINE_API FNavLinkId GenerateUniqueId();
+	
 	/**
 	 *  Helper function: returns unique ID number for custom links.
 	 */
@@ -448,6 +418,35 @@ struct FMovementProperties
 	}
 };
 
+/**
+ * Struct to hold properties a user might set for navigation movement
+ */
+USTRUCT(BlueprintType)
+struct FNavMovementProperties
+{
+	GENERATED_BODY()
+
+	/** Braking distance override used with acceleration driven path following (bUseAccelerationForPaths) */
+	UPROPERTY(EditAnywhere, Category = NavMovement, meta = (EditCondition = "bUseFixedBrakingDistanceForPaths"))
+	float FixedPathBrakingDistance = 0;
+
+	/** If set to true, NavAgentProperties' radius and height will be updated with Owner's collision capsule size */
+	UPROPERTY(EditAnywhere, Category = NavMovement)
+	bool bUpdateNavAgentWithOwnersCollision = true;
+
+	/** If set, pathfollowing will control character movement via acceleration values. If false, it will set velocities directly. */
+	UPROPERTY(EditAnywhere, Category = NavMovement, GlobalConfig)
+	bool bUseAccelerationForPaths = false;
+
+	/** If set, FixedPathBrakingDistance will be used for path following deceleration */
+	UPROPERTY(EditAnywhere, Category = NavMovement, meta = (EditCondition = "bUseAccelerationForPaths"))
+	bool bUseFixedBrakingDistanceForPaths = false;
+
+	/** If set, StopActiveMovement call will abort current path following request */
+	UPROPERTY(EditAnywhere, Category = NavMovement)
+	bool bStopMovementAbortPaths = true;
+};
+
 /** Properties of representation of an 'agent' (or Pawn) used by AI navigation/pathfinding. */
 USTRUCT(BlueprintType)
 struct FNavAgentProperties : public FMovementProperties
@@ -614,9 +613,12 @@ struct FNavigationRaycastWork : FRayStartEnd
 	/** depending on bDidHit HitLocation contains either actual hit location or RayEnd*/
 	FNavLocation HitLocation;
 	bool bDidHit;
+	/** when bDidHit is false, bIsRayEndInCorridor indicates if the projection of RayEnd is located in the corridor explored from the ray. 
+    *  When bIsRayEndInCorridor is false, it means that RayEnd failed to project to the NavigationData or on a navigation node that is not part of the explored corridor (e.g. different height) */
+	bool bIsRayEndInCorridor;
 
 	FNavigationRaycastWork(const FVector& InRayStart, const FVector& InRayEnd)
-		: FRayStartEnd(InRayStart, InRayEnd), HitLocation(InRayEnd), bDidHit(false)
+		: FRayStartEnd(InRayStart, InRayEnd), HitLocation(InRayEnd), bDidHit(false), bIsRayEndInCorridor(false)
 	{}
 };
 

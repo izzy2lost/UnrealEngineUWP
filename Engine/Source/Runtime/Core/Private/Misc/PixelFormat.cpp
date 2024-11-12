@@ -144,6 +144,8 @@ FPixelFormatInfo    GPixelFormats[PF_MAX] =
 	FPixelFormatInfo(PF_ASTC_8x8_NORM_RG,   TEXT("ASTC_8x8_NORM_RG"),      8,          8,          1,          16,         2,              0),
 	FPixelFormatInfo(PF_ASTC_10x10_NORM_RG, TEXT("ASTC_10x10_NORM_RG"),    10,         10,         1,          16,         2,              0),
 	FPixelFormatInfo(PF_ASTC_12x12_NORM_RG, TEXT("ASTC_12x12_NORM_RG"),    12,         12,         1,          16,         2,              0),
+
+	FPixelFormatInfo(PF_R16G16_SINT,        TEXT("PF_R16G16_SINT"),        1,          1,          1,          4,          4,              1),
 };
 
 

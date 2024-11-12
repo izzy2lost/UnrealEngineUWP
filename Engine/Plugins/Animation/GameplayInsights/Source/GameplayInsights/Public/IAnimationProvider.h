@@ -12,6 +12,7 @@ struct FSkeletalMeshInfo
 {
 	uint64 ParentIndicesStartIndex = 0;
 	uint64 Id = 0;
+	uint64 SkeletonId = 0;
 	uint32 BoneCount = 0;
 };
 
@@ -51,6 +52,7 @@ struct FSkeletalMeshPoseMessage
 	uint16 FrameCounter = 0;
 	uint16 LodIndex = 0;
 	uint16 NumExternalMorphSets = 0;
+	bool bIsVisible = true;
 };
 
 struct FPoseWatchMessage

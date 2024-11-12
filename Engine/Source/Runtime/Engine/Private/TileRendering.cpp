@@ -71,6 +71,11 @@ FCanvasTileRendererItem::FRenderData::FRenderData(
 	, VertexFactory(&StaticMeshVertexBuffers, InFeatureLevel)
 {}
 
+FCanvasTileRendererItem::FRenderData::~FRenderData()
+{
+	ReleaseTileMesh();
+}
+
 uint32 FCanvasTileRendererItem::FRenderData::GetNumVertices() const
 {
 	return Tiles.Num() * CanvasTileVertexCount;
@@ -166,8 +171,9 @@ void FCanvasTileRendererItem::FRenderData::RenderTiles(
 		return;
 	}
 
+	RDG_EVENT_SCOPE_STAT(RenderContext.GraphBuilder, CanvasDrawTiles, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
 	RDG_GPU_STAT_SCOPE(RenderContext.GraphBuilder, CanvasDrawTiles);
-	RDG_EVENT_SCOPE(RenderContext.GraphBuilder, "%s", *MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(CanvasDrawTiles);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CanvasDrawTiles)
 
@@ -200,11 +206,6 @@ void FCanvasTileRendererItem::FRenderData::RenderTiles(
 	// Flush the final batch: 
 	check(CurrentMeshBatch != nullptr);
 	GetRendererModule().DrawTileMesh(RenderContext, DrawRenderState, View, *CurrentMeshBatch, bIsHitTesting, CurrentMeshBatch->BatchHitProxyId, bUse128bitRT);
-
-	AddPass(RenderContext.GraphBuilder, RDG_EVENT_NAME("ReleaseTileMesh"), [this](FRHICommandListImmediate&)
-	{
-		ReleaseTileMesh();
-	});
 }
 
 bool FCanvasTileRendererItem::Render_RenderThread(FCanvasRenderContext& RenderContext, FMeshPassProcessorRenderState& DrawRenderState, const FCanvas* Canvas)
@@ -288,7 +289,7 @@ bool FCanvasTileRendererItem::Render_GameThread(const FCanvas* Canvas, FCanvasRe
 
 		bool bRequiresExplicit128bitRT = false;
 
-		FTexture2DRHIRef CanvasRTTexture = CanvasRenderTarget->GetRenderTargetTexture();
+		FTextureRHIRef CanvasRTTexture = CanvasRenderTarget->GetRenderTargetTexture();
 		if (CanvasRTTexture)
 		{
 			bRequiresExplicit128bitRT = PlatformRequires128bitRT(CanvasRTTexture->GetFormat());

@@ -218,6 +218,7 @@ void UUVSelectTool::Setup()
 
 	// Make sure that if undo/redo events act on the meshes, we update our state.
 	// The trees will be updated by the tree store, which listens to the same broadcasts.
+	// This also handles the case of UV editor one-off actions, which don't actually shut down this tool when they run.
 	for (int32 i = 0; i < Targets.Num(); ++i)
 	{
 		Targets[i]->OnCanonicalModified.AddWeakLambda(this, [this]
@@ -227,7 +228,7 @@ void UUVSelectTool::Setup()
 			{
 				// We update the gizmo with 'true' here to have the selection api recompute the
 				// centroid because it may not yet be notified that the mesh has changed.
-				UpdateGizmo(true);
+				ReinitializeFromSelection(true);
 				SelectionAPI->RebuildUnwrapHighlight(TransformGizmo->GetGizmoTransform());
 			}
 		});
@@ -253,6 +254,7 @@ void UUVSelectTool::Setup()
 	TransformGizmo->bSnapToWorldGrid = false;
 	TransformGizmo->bSnapToWorldRotGrid = false;
 	TransformGizmo->bUseContextCoordinateSystem = false;
+	TransformGizmo->bSnapToScaleGrid = false;
 
 	TransformGizmo->SetActiveTarget(TransformProxy, GetToolManager());
 	
@@ -364,7 +366,7 @@ void UUVSelectTool::UpdateGizmo(bool bForceRecomputeSelectionCenters)
 void UUVSelectTool::OnSelectionChanged(bool, uint32 SelectionChangeType)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UVSelectTool_OnSelectionChanged);
-	
+
 	using namespace UVSelectToolLocals;
 
 	if (!(SelectionChangeType & (uint32)ESelectionChangeTypeFlag::SelectionChanged))
@@ -372,6 +374,11 @@ void UUVSelectTool::OnSelectionChanged(bool, uint32 SelectionChangeType)
 		return;
 	}
 
+	ReinitializeFromSelection(false);
+}
+
+void UUVSelectTool::ReinitializeFromSelection(bool bForceRecomputeCachedSelectionCentroid)
+{
 	MovingVidsPerSelection.Reset();
 	MovingVertOriginalPositionsPerSelection.Reset();
 	RenderUpdateTidsPerSelection.Reset();
@@ -473,7 +480,7 @@ void UUVSelectTool::OnSelectionChanged(bool, uint32 SelectionChangeType)
 		RenderUpdateTidsPerSelection.Emplace(TidSet);
 	}
 
-	UpdateGizmo();
+	UpdateGizmo(bForceRecomputeCachedSelectionCentroid);
 }
 
 void UUVSelectTool::GizmoTransformStarted(UTransformProxy* Proxy)

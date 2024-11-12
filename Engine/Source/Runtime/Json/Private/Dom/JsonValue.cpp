@@ -175,7 +175,16 @@ bool FJsonValue::CompareEqual( const FJsonValue& Lhs, const FJsonValue& Rhs )
 {
 	if (Lhs.Type != Rhs.Type)
 	{
-		return false;
+		const bool bLhsIsSimpleVariant = Lhs.Type == EJson::Boolean || Lhs.Type == EJson::Number || Lhs.Type == EJson::String;
+		const bool bRhsIsSimpleVariant = Rhs.Type == EJson::Boolean || Rhs.Type == EJson::Number || Rhs.Type == EJson::String;
+		if (bLhsIsSimpleVariant && bRhsIsSimpleVariant)
+		{
+			return UE::Json::ToSimpleJsonVariant(Lhs) == UE::Json::ToSimpleJsonVariant(Rhs);
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	switch (Lhs.Type)
@@ -335,5 +344,17 @@ TSharedPtr<FJsonValue> FJsonValue::Duplicate(const TSharedPtr<FJsonValue>& Src)
 
 void FJsonValue::ErrorMessage(const FString& InType) const
 {
-	UE_LOG(LogJson, Error, TEXT("Json Value of type '%s' used as a '%s'."), *GetType(), *InType);
+	if (IsNull())
+	{
+		UE_LOG(LogJson, Warning, TEXT("Json Value of type '%s' used as a '%s'."), *GetType(), *InType);
+	}
+	else
+	{
+		UE_LOG(LogJson, Error, TEXT("Json Value of type '%s' used as a '%s'."), *GetType(), *InType);
+	}
+}
+
+SIZE_T FJsonValueObject::GetAllocatedSize() const
+{
+	return Value.IsValid() ? Value->GetMemoryFootprint() : 0;
 }

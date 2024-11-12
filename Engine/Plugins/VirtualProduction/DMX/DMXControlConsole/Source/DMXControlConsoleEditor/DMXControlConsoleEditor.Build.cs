@@ -19,7 +19,8 @@ public class DMXControlConsoleEditor : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
-			{              
+			{
+				"AppFramework",
 				"AssetDefinition",
 				"AssetRegistry",
 				"ContentBrowser",

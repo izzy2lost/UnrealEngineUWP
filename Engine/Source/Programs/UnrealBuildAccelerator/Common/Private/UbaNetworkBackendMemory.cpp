@@ -110,6 +110,11 @@ namespace uba
 		peer.disconnectContext = context;
 	}
 
+	void NetworkBackendMemory::SetAllowLessThanBodySize(void* connection, bool allow)
+	{
+		// Not implemented
+	}
+
 	bool NetworkBackendMemory::StartListen(Logger& logger, u16 port, const tchar* ip, const ListenConnectedFunc& connectedFunc)
 	{
 		SCOPED_WRITE_LOCK(m_connectedFuncLock, l);

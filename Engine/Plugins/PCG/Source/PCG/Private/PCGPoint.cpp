@@ -16,6 +16,8 @@ namespace PCGPointCustomPropertyNames
 	const FName PositionName = TEXT("Position");
 	const FName RotationName = TEXT("Rotation");
 	const FName ScaleName = TEXT("Scale");
+	const FName LocalSizeName = TEXT("LocalSize");
+	const FName ScaledLocalSizeName = TEXT("ScaledLocalSize");
 }
 
 /** Serialized fields of a FPCGPoint, the values here can't change as they are being used to mask out serialization */
@@ -56,7 +58,7 @@ bool FPCGPoint::Serialize(FStructuredArchive::FSlot Slot)
 	
 	const FPCGPoint Default;
 	EPCGPointSerializeFields SerializeMask = EPCGPointSerializeFields::None;
-	if (UnderlyingArchive.IsSaving())
+	if (!UnderlyingArchive.IsLoading())
 	{
 		if (Density != Default.Density)
 		{
@@ -182,7 +184,9 @@ bool FPCGPoint::HasCustomPropertyGetterSetter(FName Name)
 		Name == PCGPointCustomPropertyNames::LocalCenterName ||
 		Name == PCGPointCustomPropertyNames::PositionName ||
 		Name == PCGPointCustomPropertyNames::RotationName ||
-		Name == PCGPointCustomPropertyNames::ScaleName;
+		Name == PCGPointCustomPropertyNames::ScaleName ||
+		Name == PCGPointCustomPropertyNames::LocalSizeName ||
+		Name == PCGPointCustomPropertyNames::ScaledLocalSizeName;
 }
 
 TUniquePtr<IPCGAttributeAccessor> FPCGPoint::CreateCustomPropertyAccessor(FName Name)
@@ -220,6 +224,18 @@ TUniquePtr<IPCGAttributeAccessor> FPCGPoint::CreateCustomPropertyAccessor(FName 
 		return MakeUnique<FPCGCustomPointAccessor<FVector>>(
 			[](const FPCGPoint& Point, void* OutValue) { *reinterpret_cast<FVector*>(OutValue) = Point.Transform.GetScale3D(); return true; },
 			[](FPCGPoint& Point, const void* InValue) { Point.Transform.SetScale3D(*reinterpret_cast<const FVector*>(InValue)); return true; }
+		);
+	}
+	else if (Name == PCGPointCustomPropertyNames::LocalSizeName)
+	{
+		return MakeUnique<FPCGCustomPointAccessor<FVector>>(
+			[](const FPCGPoint& Point, void* OutValue) { *reinterpret_cast<FVector*>(OutValue) = Point.GetLocalSize(); return true; }
+		);
+	}
+	else if (Name == PCGPointCustomPropertyNames::ScaledLocalSizeName)
+	{
+		return MakeUnique<FPCGCustomPointAccessor<FVector>>(
+			[](const FPCGPoint& Point, void* OutValue) { *reinterpret_cast<FVector*>(OutValue) = Point.GetScaledLocalSize(); return true; }
 		);
 	}
 

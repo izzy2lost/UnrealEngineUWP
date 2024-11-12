@@ -74,7 +74,11 @@ namespace UVUnwrapMeshUtilLocals
 			}
 
 			FIndex3i NewTriangle = UVOverlayIn.GetTriangle(Tid);
-			UnwrapMeshOut.InsertTriangle(Tid, NewTriangle, 0, true);
+			UE::Geometry::EMeshResult Result = UnwrapMeshOut.InsertTriangle(Tid, NewTriangle, 0, true);
+			
+			// One way you could hit this ensure is if the corresponding vertices didn't exist in the unwrap. That
+			// means that somewhere, newly added elements were excluded from the list of changed elements.
+			ensure(Result == UE::Geometry::EMeshResult::Ok);
 		}
 		UnwrapMeshOut.EndUnsafeTrianglesInsert();
 
@@ -553,12 +557,12 @@ bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay(const FDynamicMeshUVOverlay& Overl
 #undef UVEDITOR_CHECK_AND_RETURN_ON_FAILURE
 
 // Explicit instantiations
-template bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay<EValidityCheckFailMode::ReturnOnly>
+template DYNAMICMESH_API bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay<EValidityCheckFailMode::ReturnOnly>
 (const FDynamicMeshUVOverlay& Overlay, const FDynamicMesh3& UnwrapMesh,
 	TFunctionRef<FVector3d(const FVector2f&)> UVToVertPosition, double Tolerance);
-template bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay<EValidityCheckFailMode::Check>
+template DYNAMICMESH_API bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay<EValidityCheckFailMode::Check>
 (const FDynamicMeshUVOverlay& Overlay, const FDynamicMesh3& UnwrapMesh,
 	TFunctionRef<FVector3d(const FVector2f&)> UVToVertPosition, double Tolerance);
-template bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay<EValidityCheckFailMode::Ensure>
+template DYNAMICMESH_API bool UVUnwrapMeshUtil::DoesUnwrapMatchOverlay<EValidityCheckFailMode::Ensure>
 (const FDynamicMeshUVOverlay& Overlay, const FDynamicMesh3& UnwrapMesh,
 	TFunctionRef<FVector3d(const FVector2f&)> UVToVertPosition, double Tolerance);

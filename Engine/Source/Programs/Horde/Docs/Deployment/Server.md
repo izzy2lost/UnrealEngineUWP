@@ -85,7 +85,7 @@ install all the prerequisites using [Homebrew](https://brew.sh/).
    instead if you prefer.
 
     ```bash
-    export Horde__DatabaseConnectionString=mongodb://localhost:27017
+    export Horde__MongoConnectionString=mongodb://localhost:27017
     export Horde__HttpPort=37107
     export Horde__Http2Port=37109
 
@@ -136,7 +136,7 @@ As an ASP.NET application, Horde's application configuration supports the follow
 
 * Individual properties can be overridden through **environment variables** using standard ASP.NET syntax (see
   [MSDN](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-7.0#naming-of-environment-variables)).
-  For example, the database connection string can be passed in using the `Horde__DatabaseConnectionString` environment variable.
+  For example, the database connection string can be passed in using the `Horde__MongoConnectionString` environment variable.
 * The deployment environment can be configured using the ASPNETCORE_ENVIRONMENT environment variable. Standard values
   for Horde are `Production`, `Development`, and `Local`.
 * A deployment-specific configuration file can be created called `appsettings.{Environment}.json` (e.g.
@@ -150,8 +150,8 @@ more information.
 
 ### MongoDB
 
-The MongoDB connection string can be specified via the `DatabaseConnectionString` property in the
-[Server.json](ServerSettings.md) file or the `Horde__DatabaseConnectionString` environment variable. The
+The MongoDB connection string can be specified via the `MongoConnectionString` property in the
+[Server.json](ServerSettings.md) file or the `Horde__MongoConnectionString` environment variable. The
 connection string should be in standard
 [MongoDB syntax](https://www.mongodb.com/docs/manual/reference/connection-string/), e.g.:
 
@@ -164,7 +164,7 @@ to use the primary database instance using the `readPreference=primary` argument
 secondary instance for reads can cause deadlocks because the server gets out-of-date documents in a read-modify-write
 cycle.
 
-The MongoDB connection can be configured to use a trusted set of certificates via the `DatabasePublicCert` property.
+The MongoDB connection can be configured to use a trusted set of certificates via the `MongoPublicCertificate` property.
 For example, when running on AWS using DocumentDB, this property can be set to use Amazon's
 [combined certificate bundle](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html) by
 placing the `global-bundle.pem` file into the server's application directory.
@@ -172,7 +172,7 @@ placing the `global-bundle.pem` file into the server's application directory.
 ### Redis
 
 The Redis server is configured through the RedisConnectionConfig property in the [Server.json](ServerSettings.md)
-file or via the `Horde__DatabaseConnectionString` environment variable. This string is formatted as a plain server
+file or via the `Horde__MongoConnectionString` environment variable. This string is formatted as a plain server
 and port, e.g.:
 
 ```text

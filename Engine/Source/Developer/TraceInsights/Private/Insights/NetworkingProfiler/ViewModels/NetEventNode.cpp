@@ -2,7 +2,10 @@
 
 #include "NetEventNode.h"
 
-#define LOCTEXT_NAMESPACE "FNetEventNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::FNetEventNode"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 INSIGHTS_IMPLEMENT_RTTI(FNetEventNode)
 
@@ -21,5 +24,7 @@ void FNetEventNode::SetAggregatedStats(const TraceServices::FNetProfilerAggregat
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

@@ -13,13 +13,28 @@ class UAvaHideEmptyModifier : public UAvaArrangeBaseModifier
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|HideEmpty")
+	AVALANCHEMODIFIERS_API void SetContainerActor(AActor* InActor)
+	{
+		SetContainerActorWeak(InActor);
+	}
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|HideEmpty")
+	AActor* GetContainerActor() const
+	{
+		return ContainerActorWeak.Get();
+	}
+
 	AVALANCHEMODIFIERS_API void SetContainerActorWeak(TWeakObjectPtr<AActor> InContainer);
 	TWeakObjectPtr<AActor> GetContainerActorWeak() const
 	{
 		return ContainerActorWeak;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|HideEmpty")
 	AVALANCHEMODIFIERS_API void SetInvertVisibility(bool bInInvert);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|HideEmpty")
 	bool GetInvertVisibility() const
 	{
 		return bInvertVisibility;
@@ -51,11 +66,11 @@ protected:
 	//~ End IAvaSceneTreeUpdateModifierExtension
 
 	/** The container to hide when text is empty, by default self */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="HideEmpty", meta=(DisplayName="ContainerActor", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="HideEmpty", meta=(DisplayName="ContainerActor", AllowPrivateAccess="true"))
 	TWeakObjectPtr<AActor> ContainerActorWeak;
 
 	/** Invert the behaviour and visibility of the container if text is empty */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInvertVisibility", Getter="GetInvertVisibility", Category="HideEmpty", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetInvertVisibility", Getter="GetInvertVisibility", Category="HideEmpty", meta=(AllowPrivateAccess="true"))
 	bool bInvertVisibility = false;
 
 private:

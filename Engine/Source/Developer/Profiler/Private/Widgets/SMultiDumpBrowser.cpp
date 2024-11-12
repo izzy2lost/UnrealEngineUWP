@@ -40,7 +40,6 @@ void SMultiDumpBrowser::Construct(const FArguments& InArgs)
 				[
 					SAssignNew(FileList, SListView<TSharedPtr<FFileDescriptor>>)
 					.ListItemsSource(&StatsFiles)
-					.ItemHeight(16)
 					.OnGenerateRow(this, &SMultiDumpBrowser::GenerateFileRow)
 					.OnSelectionChanged(this, &SMultiDumpBrowser::SelectionChanged)
 				]

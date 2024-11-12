@@ -77,6 +77,8 @@ UDiffAssetBulkDataCommandlet::UDiffAssetBulkDataCommandlet(const FObjectInitiali
 
 int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 {
+	UE_LOG(LogDiffAssetBulk, Error, TEXT("Has been moved, use the Program DiffAssetBulkData"));
+
 	FString BaseFileName, CurrentFileName;
 	const TCHAR* CmdLine = *FullCommandLine;
 	if (FParse::Value(CmdLine, TEXT("Base="), BaseFileName) == false ||
@@ -150,24 +152,74 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 	const TMap<FName, const FAssetPackageData*>& BasePackages = BaseState.GetAssetPackageDataMap();
 	const TMap<FName, const FAssetPackageData*>& CurrentPackages = CurrentState.GetAssetPackageDataMap();
 
-	TArray<FName> NewPackages, DeletedPackages, SharedPackages;
+	TArray<FName> NewPackages, DeletedPackages;
+
+	struct FIteratedPackage
+	{
+		FName Name = NAME_None;
+		const FAssetPackageData* Base = nullptr;
+		const FAssetPackageData* Current = nullptr;
+		FIteratedPackage() = default;
+		FIteratedPackage(FName _Name, const FAssetPackageData* _Base, const FAssetPackageData* _Current) :
+			Name(_Name),
+			Base(_Base),
+			Current(_Current) {}
+
+	};
+	TArray<FIteratedPackage> UnionedPackages;
+
+	uint64 CurrentTotalSize = 0;
+	uint64 BaseTotalSize = 0;
+	uint64 DeletedSize = 0;
+	uint64 NewSize = 0;
+
 	{
 		for (const TPair<FName, const FAssetPackageData*>& NamePackageDataPair : BasePackages)
 		{
-			if (CurrentState.GetAssetPackageData(NamePackageDataPair.Key) == nullptr)
+			const FAssetPackageData* Current = CurrentState.GetAssetPackageData(NamePackageDataPair.Key);
+
+			const FAssetData* BaseMIAsset = UE::AssetRegistry::GetMostImportantAsset(
+				BaseState.CopyAssetsByPackageName(NamePackageDataPair.Key),
+				UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+			uint64 BaseCompressedSize = 0;
+			if (BaseMIAsset && BaseMIAsset->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, BaseCompressedSize))
 			{
-				DeletedPackages.Add(NamePackageDataPair.Key);
-				continue;
+				BaseTotalSize += BaseCompressedSize;
+				if (Current == nullptr)
+				{
+					DeletedSize += BaseCompressedSize;
+				}
 			}
 
-			SharedPackages.Add(NamePackageDataPair.Key);
+			UnionedPackages.Emplace(FIteratedPackage(NamePackageDataPair.Key, NamePackageDataPair.Value, Current));
+
+			if (Current == nullptr)
+			{
+				DeletedPackages.Add(NamePackageDataPair.Key);
+			}
 		}
 
 		for (const TPair<FName, const FAssetPackageData*>& NamePackageDataPair : CurrentPackages)
 		{
-			if (BaseState.GetAssetPackageData(NamePackageDataPair.Key) == nullptr)
+			const FAssetPackageData* Base = BaseState.GetAssetPackageData(NamePackageDataPair.Key);
+
+			const FAssetData* CurrentMIAsset = UE::AssetRegistry::GetMostImportantAsset(
+				CurrentState.CopyAssetsByPackageName(NamePackageDataPair.Key),
+				UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+			uint64 CurrentCompressedSize = 0;
+			if (CurrentMIAsset && CurrentMIAsset->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CurrentCompressedSize))
+			{
+				CurrentTotalSize += CurrentCompressedSize;
+				if (Base == nullptr)
+				{
+					NewSize += CurrentCompressedSize;
+				}
+			}
+
+			if (Base == nullptr)
 			{
 				NewPackages.Add(NamePackageDataPair.Key);
+				UnionedPackages.Emplace(FIteratedPackage(NamePackageDataPair.Key, nullptr, NamePackageDataPair.Value));
 			}
 		}
 	}
@@ -177,38 +229,60 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 	// This whole thing assumes that the index parameter of CreateIoChunkId is always 0. This is likely not going
 	// to be true with FDerivedData, once that gets turned on, but should be easy to update when the time comes.
 	//
-	TArray<FName> ChangedChunksByType[(uint32)EIoChunkType::MAX], NewChunksByType[(uint32)EIoChunkType::MAX], DeletedChunksByType[(uint32)EIoChunkType::MAX];
-	for (const FName& SharedPackage : SharedPackages)
+	TSet<FName> ChangedChunksByType[(uint32)EIoChunkType::MAX], NewChunksByType[(uint32)EIoChunkType::MAX], DeletedChunksByType[(uint32)EIoChunkType::MAX];
+	for (const FIteratedPackage& IteratedPackage : UnionedPackages)
 	{
-		const FAssetPackageData* BasePackage = BasePackages[SharedPackage];
-		const FAssetPackageData* CurrentPackage = CurrentPackages[SharedPackage];
+		const FAssetPackageData* BasePackage = IteratedPackage.Base;
+		const FAssetPackageData* CurrentPackage = IteratedPackage.Current;
 
-		for (const TPair<FIoChunkId, FIoHash>& ChunkHashPair : BasePackage->ChunkHashes)
+		if (BasePackage)
 		{
-			const FIoHash* CurrentHash = CurrentPackage->ChunkHashes.Find(ChunkHashPair.Key);
-			if (CurrentHash == nullptr)
+			for (const TPair<FIoChunkId, FIoHash>& ChunkHashPair : BasePackage->ChunkHashes)
 			{
-				TArray<FName>& Deleted = DeletedChunksByType[(uint32)ChunkHashPair.Key.GetChunkType()];
-				check(Deleted.Contains(SharedPackage) == false); // Because only 0 chunk index
-				Deleted.Add(SharedPackage);
-				continue;
-			}
+				if (ChunkHashPair.Key.GetChunkType() != EIoChunkType::BulkData &&
+					ChunkHashPair.Key.GetChunkType() != EIoChunkType::OptionalBulkData &&
+					ChunkHashPair.Key.GetChunkType() != EIoChunkType::MemoryMappedBulkData)
+					continue;
 
-			if (*CurrentHash != ChunkHashPair.Value)
-			{
-				TArray<FName>& Changed = ChangedChunksByType[(uint32)ChunkHashPair.Key.GetChunkType()];
-				check(Changed.Contains(SharedPackage) == false); // Because only 0 chunk index
-				Changed.Add(SharedPackage);
+				const FIoHash* CurrentHash = nullptr;
+				if (CurrentPackage)
+				{
+					CurrentHash = CurrentPackage->ChunkHashes.Find(ChunkHashPair.Key);
+				}
+
+				if (CurrentHash == nullptr)
+				{
+					TSet<FName>& Deleted = DeletedChunksByType[(uint32)ChunkHashPair.Key.GetChunkType()];
+					check(Deleted.Contains(IteratedPackage.Name) == false); // Because only 0 chunk index
+					Deleted.Add(IteratedPackage.Name);
+					continue;
+				}
+
+				if (*CurrentHash != ChunkHashPair.Value)
+				{
+					TSet<FName>& Changed = ChangedChunksByType[(uint32)ChunkHashPair.Key.GetChunkType()];
+					check(Changed.Contains(IteratedPackage.Name) == false); // Because only 0 chunk index
+					Changed.Add(IteratedPackage.Name);
+				}
 			}
 		}
 
-		for (const TPair<FIoChunkId, FIoHash>& ChunkHashPair : CurrentPackage->ChunkHashes)
+		if (CurrentPackage)
 		{
-			if (BasePackage->ChunkHashes.Contains(ChunkHashPair.Key) == false)
+			for (const TPair<FIoChunkId, FIoHash>& ChunkHashPair : CurrentPackage->ChunkHashes)
 			{
-				TArray<FName>& New = NewChunksByType[(uint32)ChunkHashPair.Key.GetChunkType()];
-				check(New.Contains(SharedPackage) == false); // Because only 0 chunk index
-				New.Add(SharedPackage);
+				if (ChunkHashPair.Key.GetChunkType() != EIoChunkType::BulkData &&
+					ChunkHashPair.Key.GetChunkType() != EIoChunkType::OptionalBulkData &&
+					ChunkHashPair.Key.GetChunkType() != EIoChunkType::MemoryMappedBulkData)
+					continue;
+
+				if (!BasePackage ||
+					BasePackage->ChunkHashes.Contains(ChunkHashPair.Key) == false)
+				{
+					TSet<FName>& New = NewChunksByType[(uint32)ChunkHashPair.Key.GetChunkType()];
+					check(New.Contains(IteratedPackage.Name) == false); // Because only 0 chunk index
+					New.Add(IteratedPackage.Name);
+				}
 			}
 		}
 	}
@@ -242,10 +316,12 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 	TArray<FName /* PackageName */> PackagesWithUnassignableDiffsAndUntaggedAssets;
 	TMap<FTopLevelAssetPath /* AssetClass */, TArray<FName /* PackageName */>> PackagesWithUnassignableDiffsByAssumedClass;
 	
+	uint64 TotalChangedSize = 0;
+	TMap < FName /* PackageName */, TPair<uint64, uint64>> PackageSizes;
 	for (const FName& ChangedPackageName : ChangedPackages)
 	{
-		TConstArrayView<FAssetData const*> BaseAssetDatas = BaseState.GetAssetsByPackageName(ChangedPackageName);		
-		TConstArrayView<FAssetData const*> CurrentAssetDatas = CurrentState.GetAssetsByPackageName(ChangedPackageName);
+		TArray<FAssetData const*> BaseAssetDatas = BaseState.CopyAssetsByPackageName(ChangedPackageName);
+		TArray<FAssetData const*> CurrentAssetDatas = CurrentState.CopyAssetsByPackageName(ChangedPackageName);
 
 		struct FDiffTag
 		{
@@ -260,6 +336,28 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 			const FAssetData* BaseAssetData;
 			const FAssetData* CurrentAssetData;
 		};
+
+		// Get the size change.
+		const FAssetData* BaseMIAsset = UE::AssetRegistry::GetMostImportantAsset(BaseAssetDatas, UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+		const FAssetData* CurrentMIAsset = UE::AssetRegistry::GetMostImportantAsset(CurrentAssetDatas, UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+		if (BaseMIAsset && CurrentMIAsset)
+		{
+			// IoStoreUtilities puts the size of the package on the most important asset
+			uint64 BaseCompressedSize = 0;
+			uint64 CurrentCompressedSize = 0;
+			if (BaseMIAsset->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, BaseCompressedSize) &&
+				CurrentMIAsset->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CurrentCompressedSize))
+			{
+				PackageSizes.Add(ChangedPackageName, {BaseCompressedSize, CurrentCompressedSize});
+
+				// All we can really do here is assume the entire package gets resent, which is not likely
+				// in the general case, but it _is_ reasonably likely in the cases where a package's bulk data changes,
+				// which happens to be what we select on.
+				// The counter argument is that it's possible that the bulk data is Very Large (i.e. multiple compression blocks), and only
+				// one block out of the entire thing changed.
+				TotalChangedSize += CurrentCompressedSize;
+			}
+		}
 		
 		// We want to find all the tags that are in both base/current.
 		TMap<FName /* AssetName */, TArray<FDiffTag>> PackageDiffTags;
@@ -388,6 +486,13 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 			}
 		}
 	}
+
+	if (PackageSizes.Num() == 0)
+	{
+		UE_LOG(LogDiffAssetBulk, Display, TEXT("No package sizes found - stage with asset registry writeback (project settings -> packaging) to get package size info"));
+	}
+
+	int32 PackagesWithNoSize = ChangedPackages.Num() - PackageSizes.Num();
 	
 	int32 TotalNewChunks = 0, TotalChangedChunks = 0, TotalDeletedChunks = 0;
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("Modifications By IoStore Chunk (only bulk data tracked atm):"));
@@ -403,25 +508,27 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 			continue;
 		}
 
-		const TArray<FName>& NewChunksForType = NewChunksByType[ChunkTypeIndex];
-		const TArray<FName>& DeletedChunksForType = DeletedChunksByType[ChunkTypeIndex];
-		const TArray<FName>& ChangedChunksForType = ChangedChunksByType[ChunkTypeIndex];
+		const TSet<FName>& NewChunksForType = NewChunksByType[ChunkTypeIndex];
+		const TSet<FName>& DeletedChunksForType = DeletedChunksByType[ChunkTypeIndex];
+		const TSet<FName>& ChangedChunksForType = ChangedChunksByType[ChunkTypeIndex];
 
 		TotalNewChunks += NewChunksForType.Num();
 		TotalChangedChunks += ChangedChunksForType.Num();
 		TotalDeletedChunks += DeletedChunksForType.Num();
 		UE_LOG(LogDiffAssetBulk, Display, TEXT("    %-20s %10d %10d %10d"), *LexToString(ChunkType), NewChunksForType.Num(), DeletedChunksForType.Num(), ChangedChunksForType.Num());
 	}
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("    =================================================="));
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    ====================================================="));
 
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    %-20s %10d %10d %10d"), TEXT("Total"), TotalNewChunks, TotalDeletedChunks, TotalChangedChunks);
 
 	UE_LOG(LogDiffAssetBulk, Display, TEXT(""));
 
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Packages Added:     %8d"), NewPackages.Num());
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Packages Deleted:   %8d"), DeletedPackages.Num());
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Packages Changed:   %8d"), ChangedPackages.Num());
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Packages Unmodified:%8d"), SharedPackages.Num() - ChangedPackages.Num());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Base Packages:                %8d (%s bytes)"), BasePackages.Num(), *FText::AsNumber(BaseTotalSize).ToString());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Current Packages:             %8d (%s bytes)"), CurrentPackages.Num(), *FText::AsNumber(CurrentTotalSize).ToString());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Added:     %8d (%s bytes"), NewPackages.Num(), *FText::AsNumber(NewSize).ToString());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Deleted:   %8d (%s bytes)"), DeletedPackages.Num(), *FText::AsNumber(DeletedSize).ToString());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Bulk Data Packages Changed:   %8d (%s bytes -- all chunks!)"), ChangedPackages.Num(), *FText::AsNumber(TotalChangedSize).ToString());
+	UE_LOG(LogDiffAssetBulk, Display, TEXT("    Packages with no size info:   %8d"), PackagesWithNoSize);
 
 	if (ChangedPackages.Num() == 0)
 	{
@@ -432,9 +539,20 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 
 	TArray<FName>& CantDetermineAssetClassPackages = NoTagPackagesByAssumedClass.FindOrAdd(FTopLevelAssetPath());
 
+	// Note this output is parsed by build scripts, be sure to fix those up if you change anything here.
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("Changed package breakdown:"));
 	UE_LOG(LogDiffAssetBulk, Display, TEXT("    No blame information available:"));
-	UE_LOG(LogDiffAssetBulk, Display, TEXT("        Can't determine asset class   : %d"), CantDetermineAssetClassPackages.Num());
+	{
+		Algo::Sort(CantDetermineAssetClassPackages, FNameLexicalLess());
+		UE_LOG(LogDiffAssetBulk, Display, TEXT("        Can't determine asset class   : %-7d // Couldn't pick a representative asset in the package. -ListUnrepresented"), CantDetermineAssetClassPackages.Num());
+		if (bListUnrepresented)
+		{
+			for (const FName& PackageName : CantDetermineAssetClassPackages)
+			{
+				UE_LOG(LogDiffAssetBulk, Display, TEXT("            %s"), *PackageName.ToString());
+			}
+		}
+	}
 	for (TPair<FTopLevelAssetPath, TArray<FName>>& ClassPackages : NoTagPackagesByAssumedClass)
 	{
 		if (ClassPackages.Key == FTopLevelAssetPath())
@@ -442,7 +560,17 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 			continue;
 		}
 
-		UE_LOG(LogDiffAssetBulk, Display, TEXT("        %-30s: %d  // -ListNoBlame=%s"), *ClassPackages.Key.ToString(), ClassPackages.Value.Num(), *ClassPackages.Key.ToString());
+		uint64 TotalSizes = 0;
+		for (const FName& PackageName : ClassPackages.Value)
+		{
+			TPair<uint64, uint64>* Sizes = PackageSizes.Find(PackageName);
+			if (Sizes)
+			{
+				TotalSizes += Sizes->Value;
+			}
+		}
+
+		UE_LOG(LogDiffAssetBulk, Display, TEXT("        %-30s: %d (%s bytes)  // -ListNoBlame=%s"), *ClassPackages.Key.ToString(), ClassPackages.Value.Num(), *FText::AsNumber(TotalSizes).ToString(), *ClassPackages.Key.ToString());
 		if (ListNoBlame.Compare(TEXT("All"), ESearchCase::IgnoreCase) == 0 ||
 			ListNoBlame.Compare(ClassPackages.Key.ToString(), ESearchCase::IgnoreCase) == 0)
 		{
@@ -453,18 +581,7 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 		}
 	}
 
-	if (CantDetermineAssetClassPackages.Num())
-	{
-		Algo::Sort(CantDetermineAssetClassPackages, FNameLexicalLess());
-		UE_LOG(LogDiffAssetBulk, Display, TEXT("    Can't determine asset class:  : %-7d // Couldn't pick a representative asset in the package. -ListUnrepresented"), CantDetermineAssetClassPackages.Num());
-		if (bListUnrepresented)
-		{
-			for (const FName& PackageName : CantDetermineAssetClassPackages)
-			{
-				UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s"), *PackageName.ToString());
-			}
-		}
-	}
+
 
 	if (PackagesWithUnassignableDiffsByAssumedClass.Num())
 	{
@@ -475,16 +592,26 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 		}
 		
 
-		UE_LOG(LogDiffAssetBulk, Warning, TEXT("    Can't determine blame:        : %-7d // Assets had blame tags but all matched - check determinism! -ListDeterminism"), TotalUnassignablePackages);
+		UE_LOG(LogDiffAssetBulk, Display, TEXT("    Can't determine blame:        : %-7d // Assets had blame tags but all matched - check determinism! -ListDeterminism"), TotalUnassignablePackages);
 		for (TPair<FTopLevelAssetPath, TArray<FName>>& ClassPackages : PackagesWithUnassignableDiffsByAssumedClass)
 		{
-			UE_LOG(LogDiffAssetBulk, Warning, TEXT("        %s : %d"), *ClassPackages.Key.ToString(), ClassPackages.Value.Num());
+			uint64 TotalSizes = 0;
+			for (const FName& PackageName : ClassPackages.Value)
+			{
+				TPair<uint64, uint64>* Sizes = PackageSizes.Find(PackageName);
+				if (Sizes)
+				{
+					TotalSizes += Sizes->Value;
+				}
+			}
+
+			UE_LOG(LogDiffAssetBulk, Display, TEXT("        %s : %d (%s bytes)"), *ClassPackages.Key.ToString(), ClassPackages.Value.Num(), *FText::AsNumber(TotalSizes).ToString());
 			Algo::Sort(ClassPackages.Value, FNameLexicalLess());
 			if (bListDeterminism)
 			{
 				for (const FName& PackageName : ClassPackages.Value)
 				{
-					UE_LOG(LogDiffAssetBulk, Warning, TEXT("            %s"), *PackageName.ToString());
+					UE_LOG(LogDiffAssetBulk, Display, TEXT("            %s"), *PackageName.ToString());
 				}
 			}
 		}

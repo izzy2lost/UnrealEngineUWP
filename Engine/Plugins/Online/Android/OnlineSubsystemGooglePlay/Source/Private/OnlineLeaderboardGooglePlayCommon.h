@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Containers/UnrealString.h"
+
 struct FGooglePlayLeaderboardScore
 {
 	// Leaderboard ID as shown in GooglePlay Console

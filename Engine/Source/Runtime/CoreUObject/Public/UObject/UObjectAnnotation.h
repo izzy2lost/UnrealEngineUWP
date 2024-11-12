@@ -7,8 +7,8 @@
 #pragma once
 
 #include "UObject/UObjectArray.h"
-#include "Misc/ScopeLock.h"
-#include "Misc/ScopeRWLock.h"
+#include "Misc/TransactionallySafeRWLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 
 /**
 * FUObjectAnnotationSparse is a helper class that is used to store sparse, slow, temporary, editor only, external 
@@ -39,7 +39,7 @@ public:
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if (!bAutoRemove)
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			// in this case we are only verifying that the external assurances of removal are met
 			check(!AnnotationMap.Find(Object));
 		}
@@ -86,13 +86,22 @@ private:
 		}
 		else
 		{
-			bool bWasEmpty = false;
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			const bool bWasEmpty = (AnnotationMap.Num() == 0);
+
+			// If we are not in a trasncation update our cache values with the correct information
+			// While in a transaction avoid updating these as it pulls from closed code memory and can cause memory stomps if we abort here
+			if (!AutoRTFM::IsTransactional())
 			{
-				FScopeLock AnnotationMapLock(&AnnotationMapCritical);
 				AnnotationCacheKey = Object;
 				AnnotationCacheValue = MoveTemp(LocalAnnotation);
-				bWasEmpty = (AnnotationMap.Num() == 0);
 				AnnotationMap.Add(AnnotationCacheKey, AnnotationCacheValue);
+			}
+			else
+			{
+				AnnotationMap.Add(Object, LocalAnnotation);
+				AnnotationCacheKey = nullptr;
+				AnnotationCacheValue = TAnnotation();
 			}
 
 			if (bWasEmpty)
@@ -102,7 +111,15 @@ private:
 				if (bAutoRemove)
 #endif
 				{
-					GUObjectArray.AddUObjectDeleteListener(this);
+					UE_AUTORTFM_OPEN
+					{
+						GUObjectArray.AddUObjectDeleteListener(this);
+					};
+
+					UE_AUTORTFM_ONABORT(this)
+					{
+						GUObjectArray.RemoveUObjectDeleteListener(this);
+					};
 				}
 			}
 		}
@@ -139,13 +156,14 @@ public:
 		// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 		TAnnotation Result;
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			AnnotationCacheKey = Object;
 			AnnotationCacheValue = TAnnotation();
 			bHadElements = (AnnotationMap.Num() > 0);
 			AnnotationMap.RemoveAndCopyValue(AnnotationCacheKey, Result);
 			bIsNowEmpty = (AnnotationMap.Num() == 0);
 		}
+
 		if (bHadElements && bIsNowEmpty)
 		{
 			// we are removing the last one, so if we are auto removing or verifying removal, unregister now
@@ -165,28 +183,31 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
-		check(Object);
-		bool bHadElements = false;
-		bool bIsNowEmpty = false;
-		// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
+		UE_AUTORTFM_ONCOMMIT(this, Object)
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
-			AnnotationCacheKey = Object;
-			AnnotationCacheValue = TAnnotation();
-			bHadElements = (AnnotationMap.Num() > 0);
-			AnnotationMap.Remove(AnnotationCacheKey);
-			bIsNowEmpty = (AnnotationMap.Num() == 0);
-		}
-		if (bHadElements && bIsNowEmpty)
-		{
-			// we are removing the last one, so if we are auto removing or verifying removal, unregister now
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (bAutoRemove)
-#endif
+			check(Object);
+			bool bHadElements = false;
+			bool bIsNowEmpty = false;
+			// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 			{
-				GUObjectArray.RemoveUObjectDeleteListener(this);
+				FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
+				AnnotationCacheKey = Object;
+				AnnotationCacheValue = TAnnotation();
+				bHadElements = (AnnotationMap.Num() > 0);
+				AnnotationMap.Remove(AnnotationCacheKey);
+				bIsNowEmpty = (AnnotationMap.Num() == 0);
 			}
-		}
+			if (bHadElements && bIsNowEmpty)
+			{
+				// we are removing the last one, so if we are auto removing or verifying removal, unregister now
+#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (bAutoRemove)
+#endif
+				{
+					GUObjectArray.RemoveUObjectDeleteListener(this);
+				}
+			}
+		};
 	}
 	/**
 	 * Removes all annotation from the annotation list. 
@@ -198,7 +219,7 @@ public:
 
 		// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			AnnotationCacheKey = nullptr;
 			AnnotationCacheValue = TAnnotation();
 			bHadElements = (AnnotationMap.Num() > 0);
@@ -224,7 +245,8 @@ public:
 	FORCEINLINE TAnnotation GetAnnotation(const UObjectBase *Object)
 	{
 		check(Object);
-		FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+
+		FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 		if (Object != AnnotationCacheKey)
 		{			
 			AnnotationCacheKey = Object;
@@ -238,6 +260,7 @@ public:
 				AnnotationCacheValue = TAnnotation();
 			}
 		}
+
 		return AnnotationCacheValue;
 	}
 
@@ -255,8 +278,13 @@ public:
 	 */
 	void Reserve(int32 ExpectedNumElements)
 	{
-		FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+		FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 		AnnotationMap.Empty(ExpectedNumElements);
+	}
+
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return AnnotationMap.GetAllocatedSize();
 	}
 
 private:
@@ -265,7 +293,7 @@ private:
 	 * Map from live objects to an annotation
 	 */
 	TMap<const UObjectBase *,TAnnotation> AnnotationMap;
-	FCriticalSection AnnotationMapCritical;
+	FTransactionallySafeCriticalSection AnnotationMapCritical;
 
 	/**
 	 * Key for a one-item cache of the last lookup into AnnotationMap.
@@ -328,7 +356,7 @@ public:
 	 */
 	UObject* Find(const TAnnotation& Annotation)
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		checkSlow(!Annotation.IsDefault()); // it is not legal to search for the default annotation
 		return (UObject*)InverseAnnotationMap.FindRef(Annotation);
 	}
@@ -337,7 +365,7 @@ private:
 	template<typename T> 
 	void AddAnnotationInternal(const UObjectBase* Object, T&& Annotation)
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		if (Annotation.IsDefault())
 		{
 			RemoveAnnotation(Object); // adding the default annotation is the same as removing an annotation
@@ -382,7 +410,7 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		TAnnotation Annotation = this->GetAndRemoveAnnotation(Object);
 		if (Annotation.IsDefault())
 		{
@@ -401,19 +429,22 @@ public:
 	 */
 	void RemoveAllAnnotations()
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		Super::RemoveAllAnnotations();
 		InverseAnnotationMap.Empty();
 	}
 
-
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return InverseAnnotationMap.GetAllocatedSize() + Super::GetAllocatedSize();
+	}
 private:
 
 	/**
 	 * Inverse Map annotation to live object
 	 */
 	TMap<TAnnotation, const UObjectBase *> InverseAnnotationMap;
-	FCriticalSection InverseAnnotationMapCritical;
+	FTransactionallySafeCriticalSection InverseAnnotationMapCritical;
 };
 
 
@@ -557,7 +588,7 @@ class FUObjectAnnotationChunked : public FUObjectArray::FUObjectDeleteListener
 	uint32 MaxAllocatedMemory;
 
 	/** Mutex */
-	FRWLock AnnotationArrayCritical;
+	FTransactionallySafeRWLock AnnotationArrayCritical;
 
 	/**
 	* Makes sure we have enough chunks to fit the new index
@@ -729,13 +760,13 @@ public:
 	 */
 	void AddAnnotation(int32 Index, const TAnnotation& Annotation)
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		AddAnnotationInternal(Index, Annotation);
 	}
 
 	void AddAnnotation(int32 Index, TAnnotation&& Annotation)
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		AddAnnotationInternal(Index, MoveTemp(Annotation));
 	}
 
@@ -752,7 +783,7 @@ public:
 	 */
 	TAnnotation& AddOrGetAnnotation(int32 Index, TFunctionRef<TAnnotation()> NewAnnotationFn)
 	{		
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		
 		if (NumAnnotations == 0 && Chunks.Num() == 0)
 		{
@@ -805,7 +836,7 @@ public:
 	 */
 	void RemoveAnnotation(int32 Index)
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		FreeAnnotation(Index);
 	}
 
@@ -831,9 +862,9 @@ public:
 
 		TAnnotation Result = TAnnotation();
 
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN
 		{
-			FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_ReadOnly);
+			FTransactionallySafeReadScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 
 			const int32 ChunkIndex = Index / NumAnnotationsPerChunk;
 			if (ChunkIndex < Chunks.Num())
@@ -846,7 +877,7 @@ public:
 					Result = Chunk.Items[WithinChunkIndex];
 				}
 			}
-		});
+		};
 
 		return Result;
 	}
@@ -899,7 +930,7 @@ public:
 	void RemoveAllAnnotations()
 	{
 		bool bHadAnnotations = (NumAnnotations > 0);	
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		FreeAllAnnotations();
 		if (bHadAnnotations)
 		{
@@ -918,7 +949,7 @@ public:
 	 */
 	void TrimAnnotations()
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		for (TAnnotationChunk& Chunk : Chunks)
 		{
 			if (Chunk.Num == 0 && Chunk.Items)
@@ -933,9 +964,9 @@ public:
 	}
 
 	/** Returns the memory allocated by the internal array */
-	uint32 GetAllocatedSize() const
+	virtual SIZE_T GetAllocatedSize() const override
 	{
-		uint32 AllocatedSize = Chunks.GetAllocatedSize();
+		SIZE_T AllocatedSize = Chunks.GetAllocatedSize();
 		for (const TAnnotationChunk& Chunk : Chunks)
 		{
 			if (Chunk.Items)
@@ -1215,7 +1246,7 @@ public:
 	}
 
 	/** Returns the memory allocated by the internal array */
-	uint32 GetAllocatedSize() const
+	virtual SIZE_T GetAllocatedSize() const override
 	{
 		return AnnotationArray.GetAllocatedSize();
 	}
@@ -1324,6 +1355,11 @@ public:
 			return !!(AnnotationArray[Index / BitsPerElement] & TBitType(TBitType(1) << (Index % BitsPerElement)));
 		}
 		return false;
+	}
+
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return AnnotationArray.GetAllocatedSize();
 	}
 
 private:

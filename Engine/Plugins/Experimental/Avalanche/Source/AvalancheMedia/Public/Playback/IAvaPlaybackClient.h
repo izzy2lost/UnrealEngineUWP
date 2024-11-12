@@ -11,7 +11,7 @@ class UMediaOutput;
 struct FAvaPlayableRemoteControlValues;
 struct FAvaPlaybackAnimPlaySettings;
 
-class AVALANCHEMEDIA_API IAvaPlaybackClient
+class IAvaPlaybackClient
 {
 public:
 	IAvaPlaybackClient() = default;
@@ -52,7 +52,7 @@ public:
 	virtual void RequestRemoteControlUpdate(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FAvaPlayableRemoteControlValues& InRemoteControlValues) = 0;
 	virtual void RequestPlayableTransitionStart(const FGuid& InTransitionId, TArray<FGuid>&& InEnterInstanceIds, TArray<FGuid>&& InPlayingInstanceIds, TArray<FGuid>&& InExitInstanceIds, TArray<FAvaPlayableRemoteControlValues>&& InEnterValues, const FName& InChannelName, EAvaPlayableTransitionFlags InTransitionFlags) = 0;
 	virtual void RequestPlayableTransitionStop(const FGuid& InTransitionId, const FName& InChannelName) = 0;
-	virtual void RequestBroadcast(const FString& InProfile, const FName& InChannel, const TArray<UMediaOutput*>& InRemoteMediaOutputs, EAvaBroadcastAction InAction) = 0;
+	virtual void RequestBroadcast(const FString& InProfile, const FName& InChannel, const TArray<UMediaOutput*>& InRemoteMediaOutputs, EAvaBroadcastAction InAction, const FString& InServerName = FString()) = 0;
 	/**
 	 * Use the device provider to determine if the media output is remote.
 	 * This function should only be used as fallback if the channel's media output info is not valid.
@@ -68,6 +68,11 @@ public:
 	 * commands to server even if they are not live yet (but connected).
 	 */
 	virtual bool HasAnyServerOnlineForChannel(const FName& InChannelName) const = 0;
+
+	/**
+	 * Returns a list of all connected servers having outputs in the given channel.
+	 */
+	virtual TArray<FString> GetOnlineServersForChannel(const FName& InChannelName) const = 0;
 	
 	/**
 	 * Returns the status of the playback asset on the given channel on the remote server.

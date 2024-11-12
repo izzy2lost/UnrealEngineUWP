@@ -47,9 +47,9 @@ TOptional<FRotator> SRigVMGraphPinQuat::GetRotator() const
 		{
 			// try to import a quaternion
 			{
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 				FQuat Quat = FQuat::Identity;
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				TBaseStructure<FQuat>::Get()->ImportText(*DefaultValue, &Quat, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FQuat>::Get()->GetName(), true);
 				if(ErrorPipe.NumErrors == 0)
 				{
@@ -59,9 +59,9 @@ TOptional<FRotator> SRigVMGraphPinQuat::GetRotator() const
 
 			// also try to import a rotator - in case that's how it got stored
 			{
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe; 
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose); 
 				FRotator Rotator = FRotator::ZeroRotator;
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				TBaseStructure<FRotator>::Get()->ImportText(*DefaultValue, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FQuat>::Get()->GetName(), true);
 				if(ErrorPipe.NumErrors == 0)
 				{

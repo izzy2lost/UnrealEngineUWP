@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// </summary>
 	/// <param name="Version">Version number for the following file data</param>
 	/// <param name="HeaderLength">Length of the initial header</param>
-	public record struct BundleSignature(BundleVersion Version, int HeaderLength)
+	public readonly record struct BundleSignature(BundleVersion Version, int HeaderLength)
 	{
 		/// <summary>
 		/// Number of bytes in a signature when serialized

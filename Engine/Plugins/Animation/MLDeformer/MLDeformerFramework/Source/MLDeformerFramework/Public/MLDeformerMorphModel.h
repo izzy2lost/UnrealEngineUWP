@@ -59,16 +59,21 @@ public:
 	bool GetIncludeMorphTargetNormals() const						{ return bIncludeNormals; }
 	EMLDeformerMaskChannel GetMaskChannel() const					{ return MaskChannel; }
 	bool GetInvertMaskChannel() const								{ return bInvertMaskChannel; }
+	bool GetHasOnlyEmptyMorphs() const								{ return bHasOnlyEmptyMorphs; }
 
 	UFUNCTION(BlueprintPure, Category = "MLDeformerMorphModel")
 	bool CanDynamicallyUpdateMorphTargets() const;
 
 	void SetMorphDeltaZeroThreshold(float Threshold)				{ MorphDeltaZeroThreshold = Threshold; }
-	void SetMorphCompressionlevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
+	void SetMorphCompressionLevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
 	void SetIncludeMorphTargetNormals(bool bInclude)				{ bIncludeNormals = bInclude; }
 	void SetMaskChannel(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }
 	void SetInvertMaskChannel(bool bInvert)							{ bInvertMaskChannel = bInvert; }
 	void SetClampMorphTargetsWeights(bool bEnabled)					{ bClampMorphWeights = bEnabled; }
+	void SetHasOnlyEmptyMorphs(bool bOnlyEmpty)						{ bHasOnlyEmptyMorphs = bOnlyEmpty; }
+
+	UE_DEPRECATED(5.5, "Please use SetMorphCompressionLevel, with upper case L for Level.")
+	void SetMorphCompressionlevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
 
 	UE_DEPRECATED(5.3, "Use SetMaskChannel instead.")
 	void SetWeightMask(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }
@@ -94,6 +99,10 @@ public:
 	static FName GetCompressedMorphDataSizeInBytesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, CompressedMorphDataSizeInBytes); }
 	static FName GetUncompressedMorphDataSizeInBytesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, UncompressedMorphDataSizeInBytes); }
 	static FName GetClampMorphTargetWeightsPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, bClampMorphWeights); }
+
+#if WITH_EDITORONLY_DATA
+	static FName GetGlobalMaskAttributePropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, VertexAttributeName); }
+#endif
 
 	UE_DEPRECATED(5.4, "This method will be removed.")
 	static FName GetQualityLevelsPropertyName()						{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, QualityLevels_DEPRECATED); }
@@ -284,6 +293,11 @@ public:
 	UE_DEPRECATED(5.4, "Please use the GetNumActiveMorphsForLOD.")
 	int32 GetNumActiveMorphs(int32 QualityLevel) const;
 
+#if WITH_EDITORONLY_DATA
+	/** Get the name of the attribute used for the global mask. */
+	FName GetGlobalMaskAttributeName() const;
+#endif
+
 private:
 	/** The compressed morph target data, ready for the GPU. */
 	TSharedPtr<FExternalMorphSet> MorphTargetSet_DEPRECATED;
@@ -357,6 +371,7 @@ private:
 	 * Include vertex normals in the morph targets?
 	 * The advantage of this can be that it is higher performance than recomputing the normals.
 	 * The disadvantage is it can result in lower quality and uses more memory for the stored morph targets.
+	 * In most cases you want this unchecked and calculate the normals using a deformer graph or using the skeletal mesh's tangent recompute settings in the section details.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets()"))
 	bool bIncludeNormals = false;
@@ -365,16 +380,19 @@ private:
 	 * Morph target delta values that are smaller than or equal to this threshold will be zeroed out.
 	 * This essentially removes small deltas from morph targets, which will lower the memory usage at runtime, however when set too high it can also introduce visual artifacts.
 	 * A value of 0 will result in the highest quality morph targets, at the cost of higher runtime memory usage.
+	 * On the left side in the MLD asset editor you can see the estimated GPU Memory Usage. That value should change when you modify this property.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Morph Targets", DisplayName = "Delta Zero Threshold", meta = (ClampMin = "0.0", ClampMax = "1.0", ForceUnits="cm", EditCondition = "CanDynamicallyUpdateMorphTargets()"))
-	float MorphDeltaZeroThreshold = 0.0025f;
+	float MorphDeltaZeroThreshold = 0.001f;
 
 	/** 
 	 * The morph target compression level. Higher values result in larger compression, but could result in visual artifacts.
-	 * Most of the times this is a value between 20 and 200.
+	 * Most of the times this is a value between 1 and 50. It is best to first try increasing the "Delta Zero Threshold" property as high as you can though.
+	 * Once that is set to the highest acceptable value, try increasing this morph comrpession level as high as visually acceptable.
+	 * On the left side in the MLD asset editor you can see the estimated GPU Memory Usage. That value should change when you modify this property.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Morph Targets", DisplayName = "Compression Level", meta = (ClampMin = "0.01", ClampMax = "1000", EditCondition = "CanDynamicallyUpdateMorphTargets()"))
-	float MorphCompressionLevel = 20.0f;
+	float MorphCompressionLevel = 1.0f;
 
 	/**
 	 * The channel data that represents the delta mask multipliers.
@@ -383,6 +401,12 @@ private:
 	 */
 	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets()"))
 	EMLDeformerMaskChannel MaskChannel = EMLDeformerMaskChannel::Disabled;
+
+#if WITH_EDITORONLY_DATA
+	/** The global vertex attribute attribute name. This is an attribute on the skeletal mesh, which can be created using the skeletal mesh editor. */
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets() && MaskChannel == EMLDeformerMaskChannel::VertexAttribute", GetOptions = "GetVertexAttributeNames", NoResetToDefault))
+	FName VertexAttributeName;
+#endif
 
 	/** 
 	 * Enable this if you want to invert the mask channel values. For example if you painted the neck seam vertices in red, and you wish the vertices that got painted to NOT move, you have to invert the mask.
@@ -393,4 +417,7 @@ private:
 
 	/** The fence that let's us wait for all render commands to finish, before this instance is destroyed. */
 	FRenderCommandFence RenderCommandFence;
+
+	/** Set to true when all the morph targets got their deltas filtered out. This can happen when your global mask is all 0's for example. */
+	bool bHasOnlyEmptyMorphs = true;
 };

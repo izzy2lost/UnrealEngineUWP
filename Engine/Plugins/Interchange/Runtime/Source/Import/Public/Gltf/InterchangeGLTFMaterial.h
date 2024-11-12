@@ -124,6 +124,30 @@ namespace UE::Interchange::GLTFMaterials
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(IridescenceThickness)
 		const FString IridescenceThicknessMinimum = TEXT("IridescenceThicknessMinimum");
 		const FString IridescenceThicknessMaximum = TEXT("IridescenceThicknessMaximum");
+
+
+		//Anisotropy Specific:
+		DECLARE_INTERCHANGE_GLTF_MI_MAP(Anisotropy);
+		const FString AnisotropyStrength = TEXT("AnisotropyStrength");
+		const FString AnisotropyRotation = TEXT("AnisotropyRotation");
+
+		namespace Configuration
+		{
+			//For StaticSwitch optimizations:
+			// Note: only usable in Editor, the Default values are true so that Runtime will still use the complete graph (without optimization).
+			const FString bHasBaseColorTexture = TEXT("bHasBaseColorTexture");
+			const FString bHasMetallicRoughnessTexture = TEXT("bHasMetallicRoughnessTexture");
+			const FString bHasDiffuseSpecGlossTexture = TEXT("bHasDiffuseSpecGlossTexture");
+			const FString bHasEmissiveTexture = TEXT("bHasEmissiveTexture");
+			const FString bHasNormalTexture = TEXT("bHasNormalTexture");
+			const FString bHasOcclusionTexture = TEXT("bHasOcclusionTexture");
+			const FString bHasSpecularTexture = TEXT("bHasSpecularTexture");
+			const FString bHasClearCoatTexture = TEXT("bHasClearCoatTexture");
+			const FString bHasSheenTexture = TEXT("bHasSheenTexture");
+			const FString bHasTransmissionTexture = TEXT("bHasTransmissionTexture");
+			const FString bHasIridescence = TEXT("bHasIridescence");
+			const FString bHasAnisotropyTextureAndOrRotation = TEXT("bHasAnisotropyTextureAndOrRotation"); //AnistropyRotation can affect the Tangents so we check
+		}
 	}
 
 	enum EShadingModel : uint8
@@ -163,8 +187,8 @@ namespace UE::Interchange::GLTFMaterials
 	static const TMap<EShadingModel, FGLTFMaterialInformation> ShadingModelToMaterialInformation = {
 		{EShadingModel::DEFAULT,
 		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Default_Body.MF_Default_Body"),
-			TEXT("/Interchange/gltf/M_Default.M_Default"),
+			TEXT("/InterchangeAssets/gltf/MaterialBodies/MF_Default_Body.MF_Default_Body"),
+			TEXT("/InterchangeAssets/gltf/M_Default.M_Default"),
 			TArray<FString>{
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
@@ -179,8 +203,8 @@ namespace UE::Interchange::GLTFMaterials
 
 		{EShadingModel::UNLIT,
 		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Unlit_Body.MF_Unlit_Body"),
-			TEXT("/Interchange/gltf/M_Unlit.M_Unlit"),
+			TEXT("/InterchangeAssets/gltf/MaterialBodies/MF_Unlit_Body.MF_Unlit_Body"),
+			TEXT("/InterchangeAssets/gltf/M_Unlit.M_Unlit"),
 			TArray<FString>{
 					TEXT("UnlitColor"),
 					TEXT("Opacity"),
@@ -189,8 +213,8 @@ namespace UE::Interchange::GLTFMaterials
 
 		{EShadingModel::CLEARCOAT,
 		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_ClearCoat_Body.MF_ClearCoat_Body"),
-			TEXT("/Interchange/gltf/M_ClearCoat.M_ClearCoat"),
+			TEXT("/InterchangeAssets/gltf/MaterialBodies/MF_ClearCoat_Body.MF_ClearCoat_Body"),
+			TEXT("/InterchangeAssets/gltf/M_ClearCoat.M_ClearCoat"),
 			TArray<FString>{
 					TEXT("ClearCoatNormal"),
 					TEXT("BaseColor"),
@@ -208,8 +232,8 @@ namespace UE::Interchange::GLTFMaterials
 
 		{EShadingModel::SHEEN,
 		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Sheen_Body.MF_Sheen_Body"),
-			TEXT("/Interchange/gltf/M_Sheen.M_Sheen"),
+			TEXT("/InterchangeAssets/gltf/MaterialBodies/MF_Sheen_Body.MF_Sheen_Body"),
+			TEXT("/InterchangeAssets/gltf/M_Sheen.M_Sheen"),
 			TArray<FString>{
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
@@ -226,8 +250,8 @@ namespace UE::Interchange::GLTFMaterials
 
 		{EShadingModel::TRANSMISSION,
 		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Transmission_Body.MF_Transmission_Body"),
-			TEXT("/Interchange/gltf/M_Transmission.M_Transmission"),
+			TEXT("/InterchangeAssets/gltf/MaterialBodies/MF_Transmission_Body.MF_Transmission_Body"),
+			TEXT("/InterchangeAssets/gltf/M_Transmission.M_Transmission"),
 			TArray<FString>{
 					TEXT("TransmissionColor"),
 					TEXT("BaseColor"),
@@ -242,8 +266,8 @@ namespace UE::Interchange::GLTFMaterials
 
 		{EShadingModel::SPECULARGLOSSINESS,
 		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_SpecularGlossiness_Body.MF_SpecularGlossiness_Body"),
-			TEXT("/Interchange/gltf/M_SpecularGlossiness.M_SpecularGlossiness"),
+			TEXT("/InterchangeAssets/gltf/MaterialBodies/MF_SpecularGlossiness_Body.MF_SpecularGlossiness_Body"),
+			TEXT("/InterchangeAssets/gltf/M_SpecularGlossiness.M_SpecularGlossiness"),
 			TArray<FString>{
 					TEXT("BaseColor"),
 					TEXT("Metallic"),

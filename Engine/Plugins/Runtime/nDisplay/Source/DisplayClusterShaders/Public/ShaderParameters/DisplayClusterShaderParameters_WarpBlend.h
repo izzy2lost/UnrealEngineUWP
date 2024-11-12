@@ -13,10 +13,10 @@ struct FDisplayClusterShaderParameters_WarpBlend
 {
 	struct FResourceWithRect
 	{
-		FRHITexture2D* Texture;
+		FRHITexture* Texture;
 		FIntRect       Rect;
 
-		void Set(FRHITexture2D* InTexture, const FIntRect& InRect)
+		void Set(FRHITexture* InTexture, const FIntRect& InRect)
 		{
 			Texture = InTexture;
 			Rect = InRect;

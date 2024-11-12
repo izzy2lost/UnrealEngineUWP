@@ -25,7 +25,7 @@ class IElectraSafeMediaOptionInterface;
 class FElectraPlayerResourceDelegate;
 
 
-DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayerPlugin, Log, All);
+ELECTRAPLAYERPLUGIN_API DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayerPlugin, Log, All);
 
 //-----------------------------------------------------------------------------
 
@@ -34,15 +34,16 @@ class FMediaSamples;
 class FArchive;
 
 /**
-	* Implements a media player
-	* Supports multiple platforms.
-	*/
+ * Implements a media player
+ * Supports multiple platforms.
+ */
 class FElectraPlayerPlugin
 	: public IMediaPlayer
 	, protected IMediaCache
 	, protected IMediaView
 	, protected IMediaControls
 	, public IMediaTracks
+	, public IElectraPlayerAdapterDelegate
 	, public TSharedFromThis<FElectraPlayerPlugin, ESPMode::ThreadSafe>
 {
 public:
@@ -98,6 +99,8 @@ public:
 	void TickInput(FTimespan DeltaTime, FTimespan Timecode) override;
 	void SetLastAudioRenderedSampleTime(FTimespan SampleTime) override;
 
+	virtual FVariant GetMediaInfo(FName InInfoName) const override;
+
 	TSharedPtr<TMap<FString, TArray<TUniquePtr<IMediaMetadataItem>>>, ESPMode::ThreadSafe> GetMediaMetadata() const override;
 
 	bool GetPlayerFeatureFlag(EFeatureFlag flag) const override;
@@ -130,6 +133,10 @@ private:
 	TRange<FTimespan> GetPlaybackTimeRange(EMediaTimeRangeType InRangeToGet) const override;
 	bool SetPlaybackTimeRange(const TRange<FTimespan>& InTimeRange) override;
 
+	// From IMediaCache
+	bool QueryCacheState(EMediaCacheState State, TRangeSet<FTimespan>& OutTimeRanges) const override;
+
+
 	// From IMediaTracks
 	bool GetAudioTrackFormat(int32 TrackIndex, int32 FormatIndex, FMediaAudioTrackFormat& OutFormat) const override;
 	int32 GetNumTracks(EMediaTrackType TrackType) const override;
@@ -147,37 +154,85 @@ private:
 	IElectraPlayerResourceDelegate* PlatformCreatePlayerResourceDelegate();
 
 	// IElectraPlayerAdapterDelegate impl
-	class FPlayerAdapterDelegate : public IElectraPlayerAdapterDelegate
-	{
-	public:
-		FPlayerAdapterDelegate(const TSharedPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> & InHost) : Host(InHost) {}
-
-		Electra::FVariantValue QueryOptions(EOptionType Type, const Electra::FVariantValue & Param) override;
-		void BlobReceived(const TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe>& InBlobData, IElectraPlayerAdapterDelegate::EBlobResultType InResultType, int32 InResultCode, const Electra::FParamDict* InExtraInfo) override;
-		void SendMediaEvent(EPlayerEvent Event) override;
-		void OnVideoFlush() override;
-		void OnAudioFlush() override;
-		void OnSubtitleFlush() override;
-		void PresentVideoFrame(const FVideoDecoderOutputPtr& InVideoFrame) override;
-		void PresentAudioFrame(const IAudioDecoderOutputPtr& InAudioFrame) override;
-		void PresentSubtitleSample(const ISubtitleDecoderOutputPtr& InSubtitleSample) override;
-		void PresentMetadataSample(const IMetaDataDecoderOutputPtr& InMetadataSample) override;
-		bool CanReceiveVideoSamples(int32 NumFrames) override;
-		bool CanReceiveAudioSamples(int32 NumFrames) override;
-		void PrepareForDecoderShutdown() override;
-		FString GetVideoAdapterName() const override;
-		TSharedPtr<IElectraPlayerResourceDelegate, ESPMode::ThreadSafe> GetResourceDelegate() const override;
-
-	private:
-		TWeakPtr<FElectraPlayerPlugin, ESPMode::ThreadSafe> Host;
-	};
-	friend class FPlayerAdapterDelegate;
-	TSharedPtr<FPlayerAdapterDelegate, ESPMode::ThreadSafe> PlayerDelegate;
+	Electra::FVariantValue QueryOptions(EOptionType Type, const Electra::FVariantValue & Param) override;
+	void BlobReceived(const TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe>& InBlobData, IElectraPlayerAdapterDelegate::EBlobResultType InResultType, int32 InResultCode, const Electra::FParamDict* InExtraInfo) override;
+	void SendMediaEvent(EPlayerEvent Event) override;
+	void OnVideoFlush() override;
+	void OnAudioFlush() override;
+	void OnSubtitleFlush() override;
+	void PresentVideoFrame(const FVideoDecoderOutputPtr& InVideoFrame) override;
+	void PresentAudioFrame(const IAudioDecoderOutputPtr& InAudioFrame) override;
+	void PresentSubtitleSample(const ISubtitleDecoderOutputPtr& InSubtitleSample) override;
+	void PresentMetadataSample(const IMetaDataDecoderOutputPtr& InMetadataSample) override;
+	bool CanReceiveVideoSamples(int32 NumFrames) override;
+	bool CanReceiveAudioSamples(int32 NumFrames) override;
+	void PrepareForDecoderShutdown() override;
+	FString GetVideoAdapterName() const override;
+	TSharedPtr<IElectraPlayerResourceDelegate, ESPMode::ThreadSafe> GetResourceDelegate() const override;
 
 
 private:
+	template <typename T>
+	struct FSequenceIndexMapper
+	{
+		void Reset()
+		{
+			SetExpectedPrimaryIndex(0);
+		}
+		void SetExpectedPrimaryIndex(int32 InIndex)
+		{
+			RemapPrimaryIndex.Reset();
+			RemapSecondaryIndex.Reset();
+			PrimaryIndex = InIndex;
+			SecondaryIndex = 0;
+		}
+		void SetRemapPrimaryIndex(int32 InIndex, const TOptional<int32>& InLoop)
+		{
+			RemapPrimaryIndex = InIndex;
+			RemapSecondaryIndex = InLoop;
+		}
+		bool Remap(T InOutSample)
+		{
+			FDecoderTimeStamp ts = InOutSample->GetTime();
+			// Remap?
+			if (RemapPrimaryIndex.IsSet())
+			{
+				ts = RemapTime(ts);
+				InOutSample->SetTime(ts);
+			}
+			// Always return true for now.
+			// In the future we could check if the sequence index is
+			// what is expected and if not return false to indicate this.
+			return true;
+		}
+		FDecoderTimeStamp RemapTime(FDecoderTimeStamp InTime)
+		{
+			int32 InLoopCount = (int32)(InTime.SequenceIndex & 0xffffffff);
+			// Do we have an established loop count yet?
+			if (!RemapSecondaryIndex.IsSet())
+			{
+				RemapSecondaryIndex = InLoopCount;
+			}
+			uint32 NewLoopCount = (uint32)InLoopCount - (uint32)RemapSecondaryIndex.GetValue();
+
+			InTime.SequenceIndex = ((int64)RemapPrimaryIndex.Get(0) << 32) | NewLoopCount;
+			return InTime;
+		}
+		int32 PrimaryIndex = 0;
+		int32 SecondaryIndex = 0;
+		TOptional<int32> RemapPrimaryIndex;
+		TOptional<int32> RemapSecondaryIndex;
+	};
+	FSequenceIndexMapper<FVideoDecoderOutputPtr> SequenceIndexMapperVideo;
+	FSequenceIndexMapper<IAudioDecoderOutputPtr> SequenceIndexMapperAudio;
+	FSequenceIndexMapper<ISubtitleDecoderOutputPtr> SequenceIndexMapperSubtitle;
+	FSequenceIndexMapper<IMetaDataDecoderOutputPtr> SequenceIndexMapperMetadata;
+	int32 CurrentSequenceIndex = 0;
+
+
 	/** Output queues as needed by MediaFramework */
 	TUniquePtr<FMediaSamples> MediaSamples;
+	mutable FCriticalSection MediaSamplesLock;
 
 	/** Lock to guard the POD callback pointers from being changed while being used. */
 	FCriticalSection CallbackPointerLock;

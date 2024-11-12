@@ -40,7 +40,7 @@ public:
 	virtual UWorld* GetTickableGameObjectWorld() const override;
 	virtual bool IsTickableInEditor() const { return true; }
 	virtual ETickableTickType GetTickableTickType() const override;
-	virtual bool IsAllowedToTick() const override;
+	virtual bool IsTickable() const override;
 	virtual void Tick(float DeltaTime) override;
 	TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UEnhancedInputEditorSubsystem, STATGROUP_Tickables); }
 	//~ End FTickableGameObject interface

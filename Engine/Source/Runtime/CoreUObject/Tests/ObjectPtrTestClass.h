@@ -16,6 +16,18 @@ public:
 
 };
 
+//abstract test class for testing TObjectPtr resolve behavior
+class UObjectPtrAbstractTestClass : public UObject
+{
+	DECLARE_CLASS_INTRINSIC(UObjectPtrAbstractTestClass, UObject, CLASS_MatchedSerializers | CLASS_Abstract, TEXT("/Script/CoreUObject"))
+};
+
+//derived-from-abstract test class for testing TObjectPtr resolve behavior
+class UObjectPtrAbstractDerivedTestClass : public UObjectPtrAbstractTestClass
+{
+	DECLARE_CLASS_INTRINSIC(UObjectPtrAbstractDerivedTestClass, UObjectPtrAbstractTestClass, CLASS_MatchedSerializers, TEXT("/Script/CoreUObject"))
+};
+
 //test class with typed reference to another class
 class UObjectPtrTestClassWithRef : public UObject
 {
@@ -24,6 +36,7 @@ class UObjectPtrTestClassWithRef : public UObject
 public:
 	TObjectPtr<UObjectPtrTestClass> ObjectPtr;
 	TObjectPtr<UObjectPtrTestClass> ObjectPtrNonNullable;
+	TObjectPtr<UObjectPtrAbstractTestClass> ObjectPtrAbstractNonNullable;
 	TArray<TObjectPtr<UObjectPtrTestClass>> ArrayObjPtr;
 };
 

@@ -17,6 +17,7 @@
 
 // Number of samples used for integrating directional albedo 
 uint NumSamples;
+uint EnergyTableResolution;
 // x: directional albedo for rough diffuse
 RWTexture2D<float>  Output1Texture2D;
 // x: directional albedo of pure GGX lobe
@@ -28,7 +29,7 @@ RWTexture3D<float2> OutputTexture3D;
 [numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, 1)]
 void BuildEnergyTableCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	const float3 Index = (float3(DispatchThreadId) + 0.5) / float(ENERGY_TABLE_RESOLUTION);
+	const float3 Index = (float3(DispatchThreadId) + 0.5) / float(EnergyTableResolution);
 
 	// Map from thread ID to the exact roughness/viewing angle we want to compute
 	const float NoV = max(Index.x, 1e-8);

@@ -189,7 +189,10 @@ public:
 	
 	/** Adds widgets to the specified header toolbar (Left or Right). */
 	void AddHeaderToolbarItem(EToolbar InToolbar, TSharedRef<SWidget> InWidget);
-	
+
+	/** Clear toolbar items */
+	void ClearHeaderToolbarItems() const;
+
 private:
 
 	/** Actual toolbar widget located left to the footer. */
@@ -206,4 +209,7 @@ private:
 
 	/** Actual toolbar widget located Center to the header. */
     TSharedPtr<SHorizontalBox> CenterHeaderToolbar;
+
+	/** Index of the Content slot */
+	int32 ContentIndex = 0;
 };

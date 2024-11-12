@@ -218,13 +218,14 @@ class SAssetMenuEntry : public SCompoundWidget
 static bool CanReplaceActors()
 {
 	bool bCanReplace = false;
-
+	FText OutReason;
 	for (FSelectionIterator SelectionIter = GEditor->GetSelectedActorIterator(); SelectionIter; ++SelectionIter)
 	{
 		if (AActor* Actor = Cast<AActor>(*SelectionIter))
 		{ 
 			bCanReplace = true;
-			if(!Actor->IsUserManaged() || FActorEditorUtils::IsABuilderBrush(Actor))
+			
+			if(!Actor->CanReplaceSelectedActor(OutReason))
 			{
 				bCanReplace = false;
 				break;
@@ -344,17 +345,6 @@ static void BuildSingleAssetAddReplaceActorMenu(FToolMenuSection& Section, const
 		return;
 	}
 
-#if PLATFORM_MAC
-	// Cannot use asset tile if this is being shown in the Mac global menu bar, force a normal menu entry
-	if (ULevelEditorContextMenuContext* Context = Section.FindContext<ULevelEditorContextMenuContext>())
-	{
-		if (Context->ContextType == ELevelEditorMenuContext::MainMenu)
-		{
-			bUseAssetTile = false;
-		}
-	}
-#endif
-
 	if ( AssetMenuOptions.Num() == 1 )
 	{
 		const FActorFactoryAssetProxy::FMenuItem& MenuItem = AssetMenuOptions[0];
@@ -451,14 +441,14 @@ void LevelEditorCreateActorMenu::FillAddReplaceContextMenuSections(FToolMenuSect
 	}
 }
 
-bool GReplaceSelectedActorsWithSelectedClassCopyProperties = true;
+bool GReplaceSelectedActorsWithSelectedClassCopyProperties = false;
 void LevelEditorCreateActorMenu::FillAddReplaceActorMenu(UToolMenu* Menu, EActorCreateMode::Type CreateMode)
 {
 	if ( CreateMode == EActorCreateMode::Replace )
 	{
 		FToolMenuSection& Section = Menu->AddSection("Options", NSLOCTEXT("LevelViewportContextMenu", "Options", "Options"));
 
-		GReplaceSelectedActorsWithSelectedClassCopyProperties = true;
+		GReplaceSelectedActorsWithSelectedClassCopyProperties = false;
 
 		FToolMenuEntry ToolMenuEntry = FToolMenuEntry::InitMenuEntry(
 			"CopyProperties",
@@ -620,14 +610,19 @@ void LevelEditorCreateActorMenu::FillAddReplaceActorMenu(UToolMenu* Menu, EActor
 		{
 			AssetMenuOptions.Empty();
 			UActorFactory* Factory = GEditor->ActorFactories[FactoryIdx];
-			FAssetData AssetData = FAssetData( Factory->GetDefaultActorClass( FAssetData() ) );
 
-			const bool FactoryWorksWithoutAsset = Factory->CanCreateActorFrom( NoAssetData, UnusedErrorMessage );
-
-			if ( FactoryWorksWithoutAsset && Factory->bShowInEditorQuickMenu )
+			if (Factory->bShowInEditorQuickMenu)
 			{
-				AssetMenuOptions.Add( FActorFactoryAssetProxy::FMenuItem( Factory, NoAssetData ) );
-				BuildSingleAssetAddReplaceActorMenu(Section, AssetData, AssetMenuOptions, CreateMode);
+				FAssetData AssetData(Factory->GetDefaultActorClass(FAssetData()));
+				const bool bFactoryWorksWithoutAsset = Factory->CanCreateActorFrom(NoAssetData, UnusedErrorMessage);
+				const bool bFactoryWorksWithAsset = AssetData.IsValid() && Factory->CanCreateActorFrom(AssetData, UnusedErrorMessage);
+				const bool bFactoryWorks = bFactoryWorksWithAsset || bFactoryWorksWithoutAsset;
+
+				if (bFactoryWorks)
+				{
+					AssetMenuOptions.Add(FActorFactoryAssetProxy::FMenuItem(Factory, bFactoryWorksWithAsset ? AssetData : NoAssetData));
+					BuildSingleAssetAddReplaceActorMenu(Section, AssetData, AssetMenuOptions, CreateMode);
+				}
 			}
 		}
 	}

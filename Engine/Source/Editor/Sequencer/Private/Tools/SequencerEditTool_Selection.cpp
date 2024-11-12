@@ -41,8 +41,11 @@ struct FSelectionPreviewVisitor final
 	{
 		using namespace UE::Sequencer;
 
-		TSharedPtr<IPinnableExtension> PinnableItem = Channel->GetLinkedOutlinerItem().ImplicitCast();
-		if (PinnableItem && PinnableItem->IsPinned() != bPinned)
+		TViewModelPtr<IOutlinerExtension> OutlinerItem = Channel->GetLinkedOutlinerItem();
+		TSharedPtr<IPinnableExtension> PinnableItem = OutlinerItem.ImplicitCast();
+
+		const bool bIsItemPinned = (PinnableItem && PinnableItem->IsPinned()) || (OutlinerItem && OutlinerItem->ShouldAnchorToTop());
+		if (bIsItemPinned != bPinned)
 		{
 			return;
 		}

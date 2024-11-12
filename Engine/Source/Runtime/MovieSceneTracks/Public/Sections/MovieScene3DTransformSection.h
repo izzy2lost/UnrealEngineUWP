@@ -231,10 +231,10 @@ public:
 #endif
 
 	/* From UMovieSection*/
-	
-	MOVIESCENETRACKS_API virtual bool ShowCurveForChannel(const void *Channel) const override;
+
+	MOVIESCENETRACKS_API virtual bool ShowCurveForChannel(const void* Channel) const override;
 	MOVIESCENETRACKS_API virtual void SetBlendType(EMovieSceneBlendType InBlendType) override;
-	MOVIESCENETRACKS_API virtual void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, const FMovieSceneSequenceHierarchy* Hierarchy, IMovieScenePlayer& Player) override;
+	MOVIESCENETRACKS_API virtual void OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixedObjectBindingID, UE::MovieScene::FFixedObjectBindingID>& OldFixedToNewFixedMap, FMovieSceneSequenceID LocalSequenceID, TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) override;
 	MOVIESCENETRACKS_API virtual void GetReferencedBindings(TArray<FGuid>& OutBindings) override;
 	MOVIESCENETRACKS_API virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 
@@ -269,6 +269,10 @@ public:
 	*/
 	MOVIESCENETRACKS_API void SetUseQuaternionInterpolation(bool bInUseQuaternionInterpolation);
 
+	/**
+	* Get Weight Channel
+	*/
+	MOVIESCENETRACKS_API FMovieSceneFloatChannel* GetWeightChannel() { return &ManualWeight; }
 protected:
 
 	MOVIESCENETRACKS_API virtual TSharedPtr<FStructOnScope> GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles) override;

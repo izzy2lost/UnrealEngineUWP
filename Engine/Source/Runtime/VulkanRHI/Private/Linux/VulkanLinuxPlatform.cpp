@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VulkanLinuxPlatform.h"
-#include "../VulkanRHIPrivate.h"
-#include "../VulkanRayTracing.h"
-#include "../VulkanExtensions.h"
+#include "VulkanDevice.h"
+#include "VulkanRHIPrivate.h"
+#include "VulkanRayTracing.h"
+#include "VulkanExtensions.h"
 #include <dlfcn.h>
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -14,6 +15,7 @@
 ENUM_VK_ENTRYPOINTS_ALL(DEFINE_VK_ENTRYPOINTS)
 
 static bool GRenderOffScreen = false;
+extern int32 GVulkanAMDCompatibilityMode;
 
 void* FVulkanLinuxPlatform::VulkanLib = nullptr;
 bool FVulkanLinuxPlatform::bAttemptedLoad = false;
@@ -49,6 +51,17 @@ bool FVulkanLinuxPlatform::LoadVulkanLibrary()
 		return (VulkanLib != nullptr);
 	}
 	bAttemptedLoad = true;
+
+	// Set regardless of GPU being used, it will simply get ignored on other vendors
+	if (GVulkanAMDCompatibilityMode && FPlatformMisc::GetEnvironmentVariable(TEXT("RADV_DEBUG")).IsEmpty())
+	{
+		// Force compiler backend to llvm for better compatibility with our ray tracing pipeline shaders at time of release 5.5 (with Mesa 24.0.9)
+		FPlatformMisc::SetEnvironmentVar(TEXT("RADV_DEBUG"), TEXT("llvm"));
+	}
+	else
+	{
+		UE_LOG(LogVulkanRHI, Display, TEXT("Found existing RADV_DEBUG, it will not be overwritten."));
+	}
 
 #if VULKAN_HAS_DEBUGGING_ENABLED
 	const FString VulkanSDK = FPlatformMisc::GetEnvironmentVariable(TEXT("VULKAN_SDK"));
@@ -142,13 +155,11 @@ bool FVulkanLinuxPlatform::LoadVulkanInstanceFunctions(VkInstance inInstance)
 		return false;
 	}
 
-#if VULKAN_RHI_RAYTRACING
 	const bool bFoundRayTracingEntries = FVulkanRayTracingPlatform::CheckVulkanInstanceFunctions(inInstance);
 	if (!bFoundRayTracingEntries)
 	{
 		UE_LOG(LogVulkanRHI, Warning, TEXT("Vulkan RHI ray tracing is enabled, but failed to load instance functions."));
 	}
-#endif
 
 	ENUM_VK_ENTRYPOINTS_OPTIONAL_INSTANCE(GETINSTANCE_VK_ENTRYPOINTS);
 	ENUM_VK_ENTRYPOINTS_OPTIONAL_PLATFORM_INSTANCE(GETINSTANCE_VK_ENTRYPOINTS);
@@ -244,20 +255,24 @@ void FVulkanLinuxPlatform::CreateSurface(void* WindowHandle, VkInstance Instance
 	}
 }
 
-void FVulkanLinuxPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
+void FVulkanLinuxPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding)
 {
 	ensure(Entries.Num() <= GMaxCrashBufferEntries);
 
 	if (OptionalExtensions.HasAMDBufferMarker)
 	{
 		// AMD API only allows updating one entry at a time. Assume buffer has entry 0 as num entries
-		VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, 0, Entries.Num());
+		VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, 0, Entries.Num());
 		if (bAdding)
 		{
 			int32 LastIndex = Entries.Num() - 1;
 			// +1 size as entries start at index 1
-			VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, (1 + LastIndex) * sizeof(uint32), Entries[LastIndex]);
+			VulkanDynamicAPI::vkCmdWriteBufferMarkerAMD(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, DestBuffer, (1 + LastIndex) * sizeof(uint32), Entries[LastIndex]);
 		}
+	}
+	else
+	{
+		WriteCrashMarkerWithoutExtensions(CmdBuffer, DestBuffer, Entries, bAdding);
 	}
 
 	if (OptionalExtensions.HasNVDiagnosticCheckpoints)
@@ -266,7 +281,7 @@ void FVulkanLinuxPlatform::WriteCrashMarker(const FOptionalVulkanDeviceExtension
 		{
 			int32 LastIndex = Entries.Num() - 1;
 			uint32 Value = Entries[LastIndex];
-			VulkanDynamicAPI::vkCmdSetCheckpointNV(CmdBuffer, (void*)(size_t)Value);
+			VulkanDynamicAPI::vkCmdSetCheckpointNV(CmdBuffer->GetHandle(), (void*)(size_t)Value);
 		}
 	}
 }

@@ -21,6 +21,7 @@
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 
+#include "CoreGlobals.h"
 #include "GraphEditorActions.h"
 #include "ScopedTransaction.h"
 #include "ToolMenu.h"
@@ -711,7 +712,8 @@ bool UPCGEditorGraphNodeBase::IsCompatible(const UPCGPin* InputPin, const UPCGPi
 	if (PCGEditorGraphSwitches::CVarCheckConnectionCycles.GetValueOnAnyThread() && InputPin && OutputPin && InputPin->Node == PCGNode)
 	{
 		// Upstream Visitor
-		auto Visitor = [ThisPCGNode = PCGNode](const UPCGNode* InNode, auto VisitorLambda) -> bool
+		TSet<const UPCGNode*> VisitedNodes;
+		auto Visitor = [&VisitedNodes, ThisPCGNode = PCGNode](const UPCGNode* InNode, auto VisitorLambda) -> bool
 		{
 			if (InNode)
 			{
@@ -719,6 +721,12 @@ bool UPCGEditorGraphNodeBase::IsCompatible(const UPCGPin* InputPin, const UPCGPi
 				{
 					return false;
 				}
+				else if (VisitedNodes.Contains(InNode))
+				{
+					return true;
+				}
+
+				VisitedNodes.Add(InNode);
 
 				for (const TObjectPtr<UPCGPin>& InputPin : InNode->GetInputPins())
 				{
@@ -787,6 +795,13 @@ void UPCGEditorGraphNodeBase::ReconstructNode()
 	if (DeferredReconstructCounter > 0)
 	{
 		bDeferredReconstruct = true;
+		return;
+	}
+
+	// While in an Undo/Redo a call to ReconstructNode should not be needed as the transaction object records
+	// should be enough to serialize the nodes back into their proper state 
+	if (GIsTransacting)
+	{
 		return;
 	}
 	
@@ -912,6 +927,10 @@ FEdGraphPinType UPCGEditorGraphNodeBase::GetPinType(const UPCGPin* InPin)
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::LandscapeDataType;
 		}
+		else if (CheckType(EPCGDataType::BaseTexture))
+		{
+			EdPinType.PinSubCategory = FPCGEditorCommon::BaseTextureDataType;
+		}
 		else if (CheckType(EPCGDataType::Texture))
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::TextureDataType;
@@ -927,6 +946,10 @@ FEdGraphPinType UPCGEditorGraphNodeBase::GetPinType(const UPCGPin* InPin)
 		else if (CheckType(EPCGDataType::Volume))
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::VolumeDataType;
+		}
+		else if (CheckType(EPCGDataType::DynamicMesh))
+		{
+			EdPinType.PinSubCategory = FPCGEditorCommon::DynamicMeshDataType;
 		}
 		else if (CheckType(EPCGDataType::Primitive))
 		{

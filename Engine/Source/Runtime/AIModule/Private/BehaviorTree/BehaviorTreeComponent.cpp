@@ -33,8 +33,11 @@ double UBehaviorTreeComponent::FrameSearchTime = 0.;
 int32 UBehaviorTreeComponent::NumSearchTimeCalls = 0;
 #endif
 
-namespace UE::BehaviorTreeCVars
+namespace UE::BehaviorTree
 {
+	// Dedicated value used to stop ticking the tree
+	constexpr float DisableTick = FLT_MAX;
+
 	// Note this is defaulted to off for now as it caused a further bug, there is a BT unit test that will fire if this
 	// code is re-enabled, once that is addressed this can be re-enabled by default.
 	static bool bApplyAuxNodesFromFailedSearches = false;
@@ -42,6 +45,13 @@ namespace UE::BehaviorTreeCVars
 		TEXT("BehaviorTree.ApplyAuxNodesFromFailedSearches"),
 		bApplyAuxNodesFromFailedSearches,
 		TEXT("Apply Aux Nodes From Failed Searches"));
+
+	// Enables the ensure in ScheduleExecutionUpdate to validate that either the pending execution or execution node is valid
+	static bool bEnsureOnScheduleExecutionUpdateWithInvalidExecutionRequest = true;
+	static FAutoConsoleVariableRef CVarEnsureOnScheduleExecutionUpdateWithInvalidExecutionRequest(
+		TEXT("BehaviorTree.EnsureOnScheduleExecutionUpdateWithInvalidExecutionRequest"), 
+		bEnsureOnScheduleExecutionUpdateWithInvalidExecutionRequest,
+		TEXT("Should we ensure when pending execution and execution node are invalid when scheduling execution update."));
 }
 
 //----------------------------------------------------------------------//
@@ -430,6 +440,9 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 	bRequestedStop = false;
 	bIsRunning = false;
 	bWaitingForLatentAborts = false;
+
+	// make sure to not process scheduled ticks
+	ScheduleNextTick(UE::BehaviorTree::DisableTick);
 }
 
 void UBehaviorTreeComponent::RestartTree(EBTRestartMode RestartMode /*= EBTRestartMode::SkipReAddedNodes*/)
@@ -1131,6 +1144,8 @@ static void FindCommonParent(const TArray<FBehaviorTreeInstance>& Instances, con
 void UBehaviorTreeComponent::ScheduleExecutionUpdate()
 {
 	ScheduleNextTick(0.0f);
+
+	ensureMsgf(!UE::BehaviorTree::bEnsureOnScheduleExecutionUpdateWithInvalidExecutionRequest || PendingExecution.IsSet() || ExecutionRequest.ExecuteNode, TEXT("Expecting either a pending execution or an execution node in the request."));
 	bRequestedFlowUpdate = true;
 }
 
@@ -1652,7 +1667,7 @@ void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 
 void UBehaviorTreeComponent::ApplyDiscardedSearch()
 {
-	if (UE::BehaviorTreeCVars::bApplyAuxNodesFromFailedSearches)
+	if (UE::BehaviorTree::bApplyAuxNodesFromFailedSearches)
 	{
 		// Apply aux nodes from last search with the currently active node as the 'NewNode'
 		int32 NewNodeExecutionIdx = 0;
@@ -1678,6 +1693,8 @@ void UBehaviorTreeComponent::ApplyDiscardedSearch()
 
 void UBehaviorTreeComponent::TickComponent(float DeltaTime, const ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
+	ensureMsgf(bIsRunning || NextTickDeltaTime != UE::BehaviorTree::DisableTick, TEXT("Tree should never be ticked if it is no longer running"));
+
 	// Tick can be optimized by the tick function to not be called every frame so we need
 	// to set the current frame delta time based on that information for other tick scenarios (e.g. manual ticking in unit tests)
 	const UWorld* World = GetWorld();
@@ -1725,13 +1742,13 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, const ELevelTick Tic
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	SCOPE_CYCLE_COUNTER(STAT_AI_Overall);
 	SCOPE_CYCLE_COUNTER(STAT_AI_BehaviorTree_Tick);
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	// Configurable CSV_SCOPED_TIMING_STAT_EXCLUSIVE(BehaviorTreeTick);
 	FScopedCsvStatExclusive _ScopedCsvStatExclusive_BehaviorTreeTick(CSVTickStatName);
 #endif
 
 	check(IsValid(this));
-	float NextNeededDeltaTime = FLT_MAX;
+	float NextNeededDeltaTime = UE::BehaviorTree::DisableTick;
 
 	checkf(PendingBranchActionRequests.Num() == 0, TEXT("Pending branches action requests should always be flushed immediately with the new system"))
 
@@ -1787,7 +1804,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, const ELevelTick Tic
 
         // Since hierarchy might changed in the ProcessExecutionRequest, we need to go through all the active auxiliary nodes again to fetch new next DeltaTime
 		bActiveAuxiliaryNodeDTDirty = true;
-		NextNeededDeltaTime = FLT_MAX;
+		NextNeededDeltaTime = UE::BehaviorTree::DisableTick;
 	}
 
 	if (InstanceStack.Num() > 0 && bIsRunning && !bIsPaused)
@@ -1908,7 +1925,7 @@ void UBehaviorTreeComponent::ScheduleNextTick(const float NextNeededDeltaTime)
 	}
 
 	UE_VLOG(GetOwner(), LogBehaviorTree, VeryVerbose, TEXT("BT(%i) schedule next tick %f, asked %f."), GFrameCounter, NextTickDeltaTime, NextNeededDeltaTime);
-	if (NextTickDeltaTime == FLT_MAX)
+	if (NextTickDeltaTime == UE::BehaviorTree::DisableTick)
 	{
 		if (IsComponentTickEnabled())
 		{
@@ -1955,6 +1972,12 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 	if (PendingExecution.IsSet())
 	{
 		ProcessPendingExecution();
+		return;
+	}
+
+	if (ExecutionRequest.ExecuteNode == nullptr)
+	{
+		UE_VLOG(GetOwner(), LogBehaviorTree, Display, TEXT("Ignoring ProcessExecutionRequest call, node to be executed is not set."));
 		return;
 	}
 
@@ -2557,7 +2580,7 @@ void UBehaviorTreeComponent::RegisterMessageObserver(const UBTTaskNode* TaskNode
 			);
 
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Message[%s:%d] observer added for %s"),
-			*MessageType.ToString(), RequestID, *UBehaviorTreeTypes::DescribeNodeHelper(TaskNode));
+			*MessageType.ToString(), RequestID.GetID(), *UBehaviorTreeTypes::DescribeNodeHelper(TaskNode));
 	}
 }
 

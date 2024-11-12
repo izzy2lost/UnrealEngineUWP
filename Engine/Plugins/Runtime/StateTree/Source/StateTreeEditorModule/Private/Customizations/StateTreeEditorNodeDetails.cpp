@@ -9,9 +9,14 @@
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
 #include "StateTreePropertyRef.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
+#include "Widgets/Text/SRichTextBlock.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/SStateTreeNodeTypePicker.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Styling/SlateIconFinder.h"
 #include "Modules/ModuleManager.h"
 #include "InstancedStructDetails.h"
 #include "StateTreeBindingExtension.h"
@@ -22,19 +27,19 @@
 #include "Blueprint/StateTreeEvaluatorBlueprintBase.h"
 #include "Blueprint/StateTreeTaskBlueprintBase.h"
 #include "Blueprint/StateTreeConditionBlueprintBase.h"
-#include "StateTreeEditorModule.h"
-#include "StateTreeNodeClassCache.h"
+#include "Blueprint/StateTreeConsiderationBlueprintBase.h"
 #include "Styling/StyleColors.h"
-#include "StateTreeCompiler.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "ScopedTransaction.h"
-#include "Widgets/Input/SSearchBox.h"
-#include "EditorFontGlyphs.h"
 #include "StateTreeEditorNodeUtils.h"
-#include "StateTreeEditorSettings.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "Widgets/Notifications/SNotificationList.h"
 #include "Debugger/StateTreeDebuggerUIExtensions.h"
+#include "StateTreePropertyBindings.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Styling/SlateTypes.h"
+#include "TextStyleDecorator.h"
+#include "Framework/Application/SlateApplication.h"
+#include "StateTreePropertyFunctionBase.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -59,42 +64,29 @@ public:
 
 namespace UE::StateTreeEditor::Internal
 {
-	/**
-	 * This function recursively instantiates instanced objects of a given struct.
-	 * It is needed to fixup nodes pasted from clipboard, which seem to give shallow copy.
-	 */
-	void InstantiateStructSubobjects(UObject& OuterObject, FStructView Struct)
+	/* Returns true if provided property is direct or indirect child of PropertyFunction */
+	bool IsOwnedByPropertyFunctionNode(TSharedPtr<IPropertyHandle> Property)
 	{
-		// Empty struct, nothing to do.
-		if (!Struct.IsValid())
+		while (Property)
 		{
-			return;
+			if (FStructProperty* StructProperty = CastField<FStructProperty>(Property->GetProperty()))
+			{
+				if (StructProperty->Struct == FStateTreeEditorNode::StaticStruct())
+				{
+					if (const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(Property))
+					{
+						if (const UScriptStruct* ScriptStruct = Node->Node.GetScriptStruct())
+						{
+							return ScriptStruct->IsChildOf<FStateTreePropertyFunctionBase>();
+						}
+					}
+				}	
+			}
+
+			Property = Property->GetParentHandle();
 		}
 
-		for (TPropertyValueIterator<FProperty> It(Struct.GetScriptStruct(), Struct.GetMemory()); It; ++It)
-		{
-			if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(It->Key))
-			{
-				// Duplicate instanced objects.
-				if (ObjectProperty->HasAnyPropertyFlags(CPF_InstancedReference | CPF_PersistentInstance))
-				{
-					if (UObject* Object = ObjectProperty->GetObjectPropertyValue(It->Value))
-					{
-						UObject* DuplicatedObject = DuplicateObject(Object, &OuterObject);
-						ObjectProperty->SetObjectPropertyValue(const_cast<void*>(It->Value), DuplicatedObject);
-					}
-				}
-			}
-			if (const FStructProperty* StructProperty = CastField<FStructProperty>(It->Key))
-			{
-				// If we encounter instanced struct, recursively handle it too.
-				if (StructProperty->Struct == TBaseStructure<FInstancedStruct>::Get())
-				{
-					FInstancedStruct& InstancedStruct = *static_cast<FInstancedStruct*>(const_cast<void*>(It->Value));
-					InstantiateStructSubobjects(OuterObject, InstancedStruct);
-				}
-			}
-		}
+		return false;
 	}
 
 	/** @return text describing the pin type, matches SPinTypeSelector. */
@@ -149,6 +141,13 @@ namespace UE::StateTreeEditor::Internal
 		const EStateTreePropertyUsage Usage = UE::StateTree::GetUsageFromMetaData(ChildPropHandle->GetProperty());
 		const FProperty* Property = ChildPropHandle->GetProperty();
 		
+		// Hide output properties for PropertyFunctionNode.
+		if (Usage == EStateTreePropertyUsage::Output && UE::StateTreeEditor::Internal::IsOwnedByPropertyFunctionNode(ChildPropHandle))
+		{
+			ChildRow.Visibility(EVisibility::Hidden);
+			return;
+		}
+
 		// Conditionally control visibility of the value field of bound properties.
 		if (Usage != EStateTreePropertyUsage::Invalid && ID.IsValid())
 		{
@@ -161,18 +160,10 @@ namespace UE::StateTreeEditor::Internal
 			FDetailWidgetRow Row;
 			ChildRow.GetDefaultWidgets(NameWidget, ValueWidget, Row);
 
-			auto IsValueVisible = TAttribute<EVisibility>::Create([Path, EditorPropBindings]() -> EVisibility
-				{
-					return EditorPropBindings->HasPropertyBinding(Path) ? EVisibility::Collapsed : EVisibility::Visible;
-				});
-
-			bool bShowChildren = true;
-			
-			if (Usage == EStateTreePropertyUsage::Input || Usage == EStateTreePropertyUsage::Output || Usage == EStateTreePropertyUsage::Context)
-			{
-				// Do not show children for input, output and context.
-				bShowChildren = false;
-				
+			const bool bHasChildPropertyBinding = EditorPropBindings->HasPropertyBinding(Path, FStateTreeEditorPropertyBindings::ESearchMode::Includes);
+			const bool bValidUsage = Usage == EStateTreePropertyUsage::Input || Usage == EStateTreePropertyUsage::Output || Usage == EStateTreePropertyUsage::Context;
+			if (bHasChildPropertyBinding || bValidUsage)
+			{				
 				FEdGraphPinType PinType;
 				const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
 
@@ -180,13 +171,27 @@ namespace UE::StateTreeEditor::Internal
 				if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
 				{
 					// Use internal type to construct PinType if it's property of PropertyRef type.
-					PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property);
+					FStateTreeDataView TargetDataView;
+					if (ensure(EditorData->GetDataViewByID(ID, TargetDataView)))
+					{
+						TArray<FStateTreePropertyPathIndirection> TargetIndirections;
+						if (ensure(Path.ResolveIndirectionsWithValue(TargetDataView, TargetIndirections)))
+						{
+							const void* PropertyRef = TargetIndirections.Last().GetPropertyAddress();
+							PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property, PropertyRef);
+						}
+					}
 				}
 				else
 				{
 					Schema->ConvertPropertyToPinType(Property, PinType);
 				}
-				
+
+				auto IsValueVisible = TAttribute<EVisibility>::Create([Path, EditorPropBindings]() -> EVisibility
+					{
+						return EditorPropBindings->HasPropertyBinding(Path, FStateTreeEditorPropertyBindings::ESearchMode::Exact) ? EVisibility::Collapsed : EVisibility::Visible;
+					});
+
 				const FSlateBrush* Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
 				FText Text = GetPinTypeText(PinType);
 				
@@ -194,6 +199,7 @@ namespace UE::StateTreeEditor::Internal
 				FLinearColor IconColor = Schema->GetPinTypeColor(PinType);
 				FText Label;
 				FText LabelToolTip;
+				FSlateColor TextColor = FSlateColor::UseForeground();
 
 				if (Usage == EStateTreePropertyUsage::Input)
 				{
@@ -239,9 +245,15 @@ namespace UE::StateTreeEditor::Internal
 						IconColor = FLinearColor::White;
 					}
 				}
+				else if (ensure(bHasChildPropertyBinding))
+				{
+					Icon = FCoreStyle::Get().GetBrush("Icons.Link");
+					Text = LOCTEXT("PropertyMemberIsBoundTooltip", "{Member(s) Bound_B}");
+					TextColor = FSlateColor::UseSubduedForeground();
+				}
 				
 				ChildRow
-					.CustomWidget(bShowChildren)
+					.CustomWidget(true)
 					.NameContent()
 					[
 						SNew(SHorizontalBox)
@@ -259,7 +271,7 @@ namespace UE::StateTreeEditor::Internal
 						.Padding(4.0f, 0.0f)
 						[
 							SNew(SBorder)
-							.Padding(FMargin(6, 1))
+							.Padding(FMargin(6.0f, 1.0f))
 							.BorderImage(FStateTreeEditorStyle::Get().GetBrush("StateTree.Param.Background"))
 							.Visibility(Label.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible)
 							[
@@ -294,6 +306,7 @@ namespace UE::StateTreeEditor::Internal
 						[
 							SNew(STextBlock)
 							.Font(IDetailLayoutBuilder::GetDetailFont())
+							.ColorAndOpacity(TextColor)
 							.Text(Text)
 							.ToolTipText(ToolTip)
 						]
@@ -302,124 +315,6 @@ namespace UE::StateTreeEditor::Internal
 		}
 	}
 
-	struct FNodeRetainPropertyData
-	{
-		FStateTreeNodeBase* NodeBase = nullptr;
-		const UScriptStruct* NodeBaseStruct = nullptr;
-		const UStruct* InstanceStruct = nullptr;
-		void* InstanceData = nullptr;
-	};
-
-	FNodeRetainPropertyData GetNodeData(FStateTreeEditorNode& EditorNode)
-	{
-		FNodeRetainPropertyData Data;
-		Data.NodeBase = EditorNode.Node.GetMutablePtr<FStateTreeNodeBase>();
-
-		if (Data.NodeBase)
-		{
-			Data.NodeBaseStruct = EditorNode.Node.GetScriptStruct();
-			if (const UStruct* InstanceDataType = Data.NodeBase->GetInstanceDataType())
-			{
-				if (InstanceDataType->IsA<UScriptStruct>())
-				{
-					Data.InstanceStruct = EditorNode.Instance.GetScriptStruct();
-					Data.InstanceData = EditorNode.Instance.GetMutableMemory();
-				}
-				else if (InstanceDataType->IsA<UClass>())
-				{
-					Data.InstanceStruct = EditorNode.InstanceObject.GetClass();
-					Data.InstanceData = EditorNode.InstanceObject;
-				}
-			}
-		}
-
-		return Data;
-	}
-
-	void CopyPropertyValues(const UStruct* OldStruct, const void* OldData, const UStruct* NewStruct, void* NewData)
-	{
-		for (TFieldIterator<FProperty> It(OldStruct); It; ++It)
-		{
-			const FProperty* OldProperty = *It;
-			const FProperty* NewProperty = NewStruct->FindPropertyByName(OldProperty->GetFName());
-			if (!NewProperty)
-			{
-				// Let's check if we have the same property present but with(out) the 'b' prefix
-				const FBoolProperty* BoolProperty = ExactCastField<const FBoolProperty>(OldProperty);
-				if (!BoolProperty)
-					continue;
-
-				FString String = OldProperty->GetName();
-				if (String.IsEmpty())
-					continue;
-
-				if (String[0] == TEXT('b'))
-					String.RightChopInline(1, EAllowShrinking::No);
-				else
-					String.InsertAt(0, TEXT('b'));
-
-				NewProperty = NewStruct->FindPropertyByName(FName(String));
-			}
-
-			constexpr uint64 WantedFlags = CPF_Edit;
-			constexpr uint64 UnwantedFlags = CPF_DisableEditOnInstance | CPF_EditConst;
-
-			if (NewProperty
-				&& OldProperty->HasAllPropertyFlags(WantedFlags)
-				&& NewProperty->HasAllPropertyFlags(WantedFlags)
-				&& !OldProperty->HasAnyPropertyFlags(UnwantedFlags)
-				&& !NewProperty->HasAnyPropertyFlags(UnwantedFlags)
-				&& NewProperty->SameType(OldProperty))
-			{
-				OldProperty->CopyCompleteValue(
-					NewProperty->ContainerPtrToValuePtr<void>(NewData),
-					OldProperty->ContainerPtrToValuePtr<void>(OldData)
-				);
-			}
-		}
-	}
-
-	void RetainProperties(FStateTreeEditorNode& OldNode, FStateTreeEditorNode& NewNode)
-	{
-		const FNodeRetainPropertyData OldNodeData = GetNodeData(OldNode);
-		const FNodeRetainPropertyData NewNodeData = GetNodeData(NewNode);
-
-		if (OldNodeData.NodeBase && NewNodeData.NodeBase)
-		{
-			// Copy node -> node
-			CopyPropertyValues(
-				OldNodeData.NodeBaseStruct, OldNodeData.NodeBase,
-				NewNodeData.NodeBaseStruct, NewNodeData.NodeBase
-			);
-
-			if (OldNodeData.InstanceStruct && OldNodeData.InstanceData)
-			{
-				// Copy instance data -> node
-				CopyPropertyValues(
-					OldNodeData.InstanceStruct, OldNodeData.InstanceData,
-					NewNodeData.NodeBaseStruct, NewNodeData.NodeBase
-				);
-
-				if (NewNodeData.InstanceStruct && NewNodeData.InstanceData)
-				{
-					// Copy instance data -> instance data
-					CopyPropertyValues(
-						OldNodeData.InstanceStruct, OldNodeData.InstanceData,
-						NewNodeData.InstanceStruct, NewNodeData.InstanceData
-					);
-				}
-			}
-
-			if (NewNodeData.InstanceStruct && NewNodeData.InstanceData)
-			{
-				// Copy node -> instance data
-				CopyPropertyValues(
-					OldNodeData.NodeBaseStruct, OldNodeData.NodeBase,
-					NewNodeData.InstanceStruct, NewNodeData.InstanceData
-				);
-			}
-		}
-	}
 } // UE::StateTreeEditor::Internal
 
 // Customized version of FInstancedStructDataDetails used to hide bindable properties.
@@ -427,25 +322,26 @@ class FBindableNodeInstanceDetails : public FInstancedStructDataDetails
 {
 public:
 
-	FBindableNodeInstanceDetails(TSharedPtr<IPropertyHandle> InStructProperty, FGuid InID, UStateTreeEditorData* InEditorData)
+	FBindableNodeInstanceDetails(TSharedPtr<IPropertyHandle> InStructProperty, TSharedPtr<IPropertyHandle> InIDProperty, UStateTreeEditorData* InEditorData)
 		: FInstancedStructDataDetails(InStructProperty)
 		, EditorData(InEditorData)
+		, IDProperty(InIDProperty)
 	{
-		ID = InID;
 	}
 
-	virtual void OnChildRowAdded(IDetailPropertyRow& ChildRow)
+	virtual void OnChildRowAdded(IDetailPropertyRow& ChildRow) override
 	{
+		FGuid ID;
+		UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(IDProperty, ID);
+		
 		UE::StateTreeEditor::Internal::ModifyRow(ChildRow, ID, EditorData);
 	}
 
 	UStateTreeEditorData* EditorData;
-	FGuid ID;
+	TSharedPtr<IPropertyHandle> IDProperty;
 };
 
 ////////////////////////////////////
-
-TMap<FObjectKey, FStateTreeEditorNodeDetails::FCategoryExpansionState> FStateTreeEditorNodeDetails::CategoryExpansionStates;
 
 TSharedRef<IPropertyTypeCustomization> FStateTreeEditorNodeDetails::MakeInstance()
 {
@@ -462,13 +358,13 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 	StructProperty = StructPropertyHandle;
 	PropUtils = StructCustomizationUtils.GetPropertyUtilities();
 
-	NodeProperty = StructProperty->GetChildHandle(TEXT("Node"));
-	InstanceProperty = StructProperty->GetChildHandle(TEXT("Instance"));
-	InstanceObjectProperty = StructProperty->GetChildHandle(TEXT("InstanceObject"));
-	IDProperty = StructProperty->GetChildHandle(TEXT("ID"));
+	NodeProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Node));
+	InstanceProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Instance));
+	InstanceObjectProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, InstanceObject));
+	IDProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ID));
 
-	IndentProperty = StructProperty->GetChildHandle(TEXT("ConditionIndent"));
-	OperandProperty = StructProperty->GetChildHandle(TEXT("ConditionOperand"));
+	IndentProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ExpressionIndent));
+	OperandProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ExpressionOperand));
 
 	check(NodeProperty.IsValid());
 	check(InstanceProperty.IsValid());
@@ -476,58 +372,87 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 	check(IndentProperty.IsValid());
 	check(OperandProperty.IsValid());
 
-	// Find base class and struct from meta data.
-	static const FName BaseStructMetaName(TEXT("BaseStruct")); // TODO: move these names into one central place.
-	static const FName BaseClassMetaName(TEXT("BaseClass")); // TODO: move these names into one central place.
-	
-	const FString BaseStructName = StructProperty->GetMetaData(BaseStructMetaName);
-	BaseScriptStruct = UClass::TryFindTypeSlow<UScriptStruct>(BaseStructName);
+	UE::StateTreeEditor::EditorNodeUtils::GetNodeBaseScriptStructAndClass(StructProperty, BaseScriptStruct, BaseClass);
 
-	const FString BaseClassName = StructProperty->GetMetaData(BaseClassMetaName);
-	BaseClass = UClass::TryFindTypeSlow<UClass>(BaseClassName);
-	
+	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeEditorNodeDetails::OnIdentifierChanged);
+	OnBindingChangedHandle = UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.AddRaw(this, &FStateTreeEditorNodeDetails::OnBindingChanged);
+	FindOuterObjects();
+
+	// Don't draw the header if it's a PropertyFunction.
+	if (UE::StateTreeEditor::Internal::IsOwnedByPropertyFunctionNode(StructProperty))
+	{
+		return;
+	}
+
 	const FIsResetToDefaultVisible IsResetVisible = FIsResetToDefaultVisible::CreateSP(this, &FStateTreeEditorNodeDetails::ShouldResetToDefault);
 	const FResetToDefaultHandler ResetHandler = FResetToDefaultHandler::CreateSP(this, &FStateTreeEditorNodeDetails::ResetToDefault);
 	const FResetToDefaultOverride ResetOverride = FResetToDefaultOverride::Create(IsResetVisible, ResetHandler);
 
-	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeEditorNodeDetails::OnIdentifierChanged);
-	OnBindingChangedHandle = UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.AddRaw(this, &FStateTreeEditorNodeDetails::OnBindingChanged);
-
-	FindOuterObjects();
+	auto IndentColor = [this]() -> FSlateColor
+	{
+		return (RowBorder && RowBorder->IsHovered()) ? FSlateColor::UseForeground() : FSlateColor(FLinearColor::Transparent);
+	};
 
 	HeaderRow
 		.WholeRowContent()
 		.VAlign(VAlign_Center)
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.FillWidth(2.0f)
+			// Border to capture mouse clicks on the row (used for right click menu).
+			SAssignNew(RowBorder, SBorder)
+			.BorderImage(FStyleDefaults::GetNoBrush())
+			.Padding(0)
+			.OnMouseButtonDown(this, &FStateTreeEditorNodeDetails::OnRowMouseDown)
+			.OnMouseButtonUp(this, &FStateTreeEditorNodeDetails::OnRowMouseUp)
 			[
 				SNew(SHorizontalBox)
+				
 				// Indent
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
 					SNew(SBox)
-					.WidthOverride(this, &FStateTreeEditorNodeDetails::GetIndentSize)
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
+					.WidthOverride(30.f)
+					.Visibility(this, &FStateTreeEditorNodeDetails::AreIndentButtonsVisible)
 					[
-						SNew(SComboButton)
-						.ComboButtonStyle(FStateTreeEditorStyle::Get(), "StateTree.Node.Indent.ComboBox")
-						.ContentPadding(2.0f)
-						.HasDownArrow(false)
-						.VAlign(VAlign_Center)
-						.OnGetMenuContent(this, &FStateTreeEditorNodeDetails::OnGetIndentContent)
-						.ButtonContent()
+						SNew(SButton)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.OnClicked(this, &FStateTreeEditorNodeDetails::HandleIndentPlus)
+						.HAlign(HAlign_Center)
+						.ContentPadding(FMargin(4.f, 4.f))
+						.ToolTipText(LOCTEXT("IncreaseIdentTooltip", "Increment the depth of the expression row controlling parentheses and expression order"))
 						[
-							SNew(STextBlock)
-							.Text(FText::FromString(TEXT(">")))
-							.TextStyle(FStateTreeEditorStyle::Get(), "Details.Normal")
-							.ToolTipText(LOCTEXT("IndentTooltip", "Indent of the expression row, controls parentheses and evaluation order."))
+							SNew(SImage)
+							.DesiredSizeOverride(FVector2D(8.f, 8.f))
+							.Image(FAppStyle::GetBrush("Icons.Plus"))
+							.ColorAndOpacity_Lambda(IndentColor)
 						]
 					]
 				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(SBox)
+					.WidthOverride(this, &FStateTreeEditorNodeDetails::GetIndentSize)
+					.Visibility(this, &FStateTreeEditorNodeDetails::AreIndentButtonsVisible)
+					[
+						SNew(SButton)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.OnClicked(this, &FStateTreeEditorNodeDetails::HandleIndentMinus)
+						.HAlign(HAlign_Center)
+						.ContentPadding(FMargin(4.f, 4.f))
+						.ToolTipText(LOCTEXT("DecreaseIndentTooltip", "Decrement the depth of the expression row controlling parentheses and expression order"))
+						[
+							SNew(SImage)
+							.DesiredSizeOverride(FVector2D(8.f, 8.f))
+							.Image(FAppStyle::GetBrush("Icons.Minus"))
+							.ColorAndOpacity_Lambda(IndentColor)
+						]
+					]
+				]
+
 				// Operand
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
@@ -535,9 +460,9 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 				[
 					SNew(SBox)
 					.WidthOverride(30.0f)
-					.Padding(FMargin(2, 4))
+					.Padding(FMargin(2, 4, 2, 3))
 					.VAlign(VAlign_Center)
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
+					.Visibility(this, &FStateTreeEditorNodeDetails::IsOperandVisible)
 					[
 						SNew(SComboButton)
 						.IsEnabled(TAttribute<bool>(this, &FStateTreeEditorNodeDetails::IsOperandEnabled))
@@ -560,46 +485,65 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
-					SNew(STextBlock)
-					.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Node.Parens")
-					.Text(this, &FStateTreeEditorNodeDetails::GetOpenParens)
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
-				]
-				// Name & type selection
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(FMargin(FMargin(4.0f, 0.0f, 0.0f, 0.0f)))
-				.VAlign(VAlign_Center)
-				[
-					SAssignNew(ComboButton, SComboButton)
-					.OnGetMenuContent(this, &FStateTreeEditorNodeDetails::GeneratePicker)
-					.ToolTipText(this, &FStateTreeEditorNodeDetails::GetDisplayValueString)
-					.ContentPadding(FMargin(2, 2, 2, 2))
-					.ButtonContent()
+					SNew(SBox)
+					.Padding(FMargin(FMargin(0.0f, 0.0f, 4.0f, 0.0f)))
+					.Visibility(this, &FStateTreeEditorNodeDetails::AreParensVisible)
 					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.Padding(0, 0, 4, 0)
+						SNew(STextBlock)
+						.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Node.Parens")
+						.Text(this, &FStateTreeEditorNodeDetails::GetOpenParens)
+					]
+				]
+				// Description
+				+ SHorizontalBox::Slot()
+				.FillContentWidth(0.0f, 1.0f) // no growing, allow shrink
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(0, 4))
+				[
+					SNew(SHorizontalBox)
+					// Icon
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.Padding(0, 0, 4, 0)
+					[
+						SNew(SImage)
+						.Image(this, &FStateTreeEditorNodeDetails::GetIcon)
+						.ColorAndOpacity(this, &FStateTreeEditorNodeDetails::GetIconColor)
+						.Visibility(this, &FStateTreeEditorNodeDetails::IsIconVisible)
+					]
+					// Rich text description and name edit 
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					.Padding(0, 0, 0, 0)
+					[
+						SAssignNew(NameSwitcher, SWidgetSwitcher)
+						.WidgetIndex(0)
+						+ SWidgetSwitcher::Slot()
 						[
-							SNew(STextBlock)
-							.Text(FEditorFontGlyphs::Paper_Plane)
-							.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.DetailsIcon")
-							.Visibility(this, &FStateTreeEditorNodeDetails::IsTaskVisible)
+							SNew(SBox)
+							.Padding(FMargin(1,0, 1, 1))
+							[
+								SNew(SRichTextBlock)
+								.Text(this, &FStateTreeEditorNodeDetails::GetNodeDescription)
+								.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Node.Normal"))
+								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+								.Visibility(this, &FStateTreeEditorNodeDetails::IsNodeDescriptionVisible)
+								.ToolTipText(this, &FStateTreeEditorNodeDetails::GetNodeTooltip)
+								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Node.Normal")))
+								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Node.Bold")))
+								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Node.Subdued")))
+							]
 						]
-						+ SHorizontalBox::Slot()
-						.VAlign(VAlign_Center)
-						.Padding(0, 0, 8, 0)
+						+ SWidgetSwitcher::Slot()
 						[
-							SNew(SEditableText)
-							.IsEnabled(TAttribute<bool>(this, &FStateTreeEditorNodeDetails::IsNameEnabled))
+							SAssignNew(NameEdit, SInlineEditableTextBlock)
+							.Style(FStateTreeEditorStyle::Get(), "StateTree.Node.TitleInlineEditableText")
 							.Text(this, &FStateTreeEditorNodeDetails::GetName)
-							.OnTextCommitted(this, &FStateTreeEditorNodeDetails::OnNameCommitted)
-							.SelectAllTextWhenFocused(true)
-							.RevertTextOnEscape(true)
-							.Style(FStateTreeEditorStyle::Get(), "StateTree.Node.Name")
-							.Visibility(this, &FStateTreeEditorNodeDetails::IsNameVisible)
+							.OnTextCommitted(this, &FStateTreeEditorNodeDetails::HandleNameCommitted)
+							.OnVerifyTextChanged(this, &FStateTreeEditorNodeDetails::HandleVerifyNameChanged)
+							.Visibility(this, &FStateTreeEditorNodeDetails::IsNodeDescriptionVisible)
 						]
 					]
 				]
@@ -611,26 +555,122 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 					SNew(STextBlock)
 					.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Node.Parens")
 					.Text(this, &FStateTreeEditorNodeDetails::GetCloseParens)
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
+					.Visibility(this, &FStateTreeEditorNodeDetails::AreParensVisible)
 				]
 
+				// Debug and property widgets
 				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					StructPropertyHandle->CreateDefaultPropertyButtonWidgets()
-				]
-
-				+ SHorizontalBox::Slot()
+				.FillContentWidth(1.0f, 0.0f) // grow, no shrinking
+				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Right)
-				.FillWidth(1.0f)
+				.Padding(FMargin(8, 0, 2, 0))
 				[
-					UE::StateTreeEditor::DebuggerExtensions::CreateEditorNodeWidget(StructPropertyHandle, EditorData)
+					SNew(SHorizontalBox)
+					
+					// Debugger labels
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						UE::StateTreeEditor::DebuggerExtensions::CreateEditorNodeWidget(StructPropertyHandle, EditorData)
+					]
+
+					// Browse To BP Button
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(SBox)
+						.Visibility(this, &FStateTreeEditorNodeDetails::IsBrowseToNodeBlueprintVisible)
+						.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+						[
+							SNew(SButton)
+							.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+							.OnClicked(this, &FStateTreeEditorNodeDetails::OnBrowseToNodeBlueprint)
+							.ToolTipText(LOCTEXT("BrowseToCurrentNodeBP", "Browse to the current node blueprint in Content Browser"))
+							.ContentPadding(.0f)
+							[
+								SNew(SImage)
+								.Image(FAppStyle::GetBrush("Icons.BrowseContent"))
+								.ColorAndOpacity(FSlateColor::UseForeground())
+							]
+						]
+					]
+					// Edit BP Button
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(SBox)
+						.Visibility(this, &FStateTreeEditorNodeDetails::IsEditNodeBlueprintVisible)
+						.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+						[
+							SNew(SButton)
+							.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+							.OnClicked(this, &FStateTreeEditorNodeDetails::OnEditNodeBlueprint)
+							.ToolTipText(LOCTEXT("EditCurrentNodeBP", "Edit the current node blueprint in Editor"))
+							.ContentPadding(.0f)
+							[
+								SNew(SImage)
+								.Image(FAppStyle::GetBrush("Icons.Edit"))
+								.ColorAndOpacity(FSlateColor::UseForeground())
+							]
+						]
+					]
+
+					// Options
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+					[
+						SNew(SComboButton)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.OnGetMenuContent(this, &FStateTreeEditorNodeDetails::GenerateOptionsMenu)
+						.ToolTipText(LOCTEXT("ItemActions", "Item actions"))
+						.HasDownArrow(false)
+						.ContentPadding(FMargin(4.f, 2.f))
+						.ButtonContent()
+						[
+							SNew(SImage)
+							.Image(FAppStyle::GetBrush("Icons.ChevronDown"))
+							.ColorAndOpacity(FSlateColor::UseForeground())
+						]
+					]
 				]
 			]
 		]
 		.OverrideResetToDefault(ResetOverride)
 		.CopyAction(FUIAction(FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnCopyNode)))
 		.PasteAction(FUIAction(FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnPasteNode)));
+}
+
+
+FReply FStateTreeEditorNodeDetails::OnRowMouseDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
+}
+
+FReply FStateTreeEditorNodeDetails::OnRowMouseUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
+		FSlateApplication::Get().PushMenu(
+			NameSwitcher.ToSharedRef(),
+			WidgetPath,
+			GenerateOptionsMenu(),
+			MouseEvent.GetScreenSpacePosition(),
+			FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+
+		return FReply::Handled();
+	}
+	
+	return FReply::Unhandled();
 }
 
 void FStateTreeEditorNodeDetails::OnCopyNode()
@@ -687,7 +727,8 @@ void FStateTreeEditorNodeDetails::OnPasteNode()
 		// BP nodes are identified by the instance type.
 		if (NodeTypeStruct->IsChildOf(FStateTreeBlueprintEvaluatorWrapper::StaticStruct())
 			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintTaskWrapper::StaticStruct())
-			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct()))
+			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct())
+			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintConsiderationWrapper::StaticStruct()))
 		{
 			if (const FStateTreeNodeBase* Node = TempNode.Node.GetPtr<FStateTreeNodeBase>())
 			{
@@ -734,21 +775,16 @@ void FStateTreeEditorNodeDetails::OnPasteNode()
 				*EditorNode = TempNode;
 
 				// Ensure unique instance value
-				UE::StateTreeEditor::Internal::InstantiateStructSubobjects(*OuterObject, EditorNode->Node);
+				UE::StateTreeEditor::EditorNodeUtils::InstantiateStructSubobjects(*OuterObject, EditorNode->Node);
 				if (EditorNode->InstanceObject)
 				{
 					EditorNode->InstanceObject = DuplicateObject(EditorNode->InstanceObject, OuterObject);
 				}
 				else
 				{
-					UE::StateTreeEditor::Internal::InstantiateStructSubobjects(*OuterObject, EditorNode->Instance);
+					UE::StateTreeEditor::EditorNodeUtils::InstantiateStructSubobjects(*OuterObject, EditorNode->Instance);
 				}
 				
-				if (FStateTreeNodeBase* Node = EditorNode->Node.GetMutablePtr<FStateTreeNodeBase>())
-				{
-					Node->Name = FName(Node->Name.ToString() + TEXT(" Copy"));
-				}
-
 				const FGuid OldStructID = EditorNode->ID; 
 				EditorNode->ID = FGuid::NewGuid();
 
@@ -803,17 +839,17 @@ void FStateTreeEditorNodeDetails::ResetToDefault(TSharedPtr<IPropertyHandle> Pro
 {
 	UE::StateTreeEditor::EditorNodeUtils::ModifyNodeInTransaction(LOCTEXT("OnTaskEnableToggled", "Toggled Task Enabled"),
 		StructProperty,
-		[](IPropertyHandle& StructPropertyHandle)
+		[](const TSharedPtr<IPropertyHandle>& StructPropertyHandle)
 		{
-	TArray<void*> RawNodeData;
-			StructPropertyHandle.AccessRawData(RawNodeData);
-	for (void* Data : RawNodeData)
-	{
-		if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(Data))
-		{
-			Node->Reset();
-		}
-	}
+			TArray<void*> RawNodeData;
+			StructPropertyHandle->AccessRawData(RawNodeData);
+			for (void* Data : RawNodeData)
+			{
+				if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(Data))
+				{
+					Node->Reset();
+				}
+			}
 		});
 
 	if (PropUtils)
@@ -835,11 +871,11 @@ void FStateTreeEditorNodeDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 	}
 	
 	// Node
-	TSharedRef<FBindableNodeInstanceDetails> NodeDetails = MakeShareable(new FBindableNodeInstanceDetails(NodeProperty, FGuid(), EditorData));
+	TSharedRef<FBindableNodeInstanceDetails> NodeDetails = MakeShareable(new FBindableNodeInstanceDetails(NodeProperty, {}, EditorData));
 	StructBuilder.AddCustomBuilder(NodeDetails);
 
 	// Instance
-	TSharedRef<FBindableNodeInstanceDetails> InstanceDetails = MakeShareable(new FBindableNodeInstanceDetails(InstanceProperty, ID, EditorData));
+	TSharedRef<FBindableNodeInstanceDetails> InstanceDetails = MakeShareable(new FBindableNodeInstanceDetails(InstanceProperty, IDProperty, EditorData));
 	StructBuilder.AddCustomBuilder(InstanceDetails);
 
 	// InstanceObject
@@ -856,7 +892,7 @@ void FStateTreeEditorNodeDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 			TSharedPtr<IPropertyHandle> PropertyHandle;
 			EStateTreePropertyUsage Usage = EStateTreePropertyUsage::Invalid;
 		};
-		
+
 		TArray<FSortedChild> SortedChildren;
 		for (uint32 Index = 0; Index < NumChildren; Index++)
 		{
@@ -983,23 +1019,19 @@ void FStateTreeEditorNodeDetails::FindOuterObjects()
 
 FOptionalSize FStateTreeEditorNodeDetails::GetIndentSize() const
 {
-	return FOptionalSize(15.0f + GetIndent() * 30.0f);
+	return FOptionalSize(static_cast<float>(GetIndent()) * 30.0f);
 }
 
-TSharedRef<SWidget> FStateTreeEditorNodeDetails::OnGetIndentContent() const
+FReply FStateTreeEditorNodeDetails::HandleIndentPlus()
 {
-	FMenuBuilder MenuBuilder(true, NULL);
+	SetIndent(GetIndent() + 1);
+	return FReply::Handled();
+}
 
-	for (int32 Indent = 0; Indent < UE::StateTree::MaxConditionIndent; Indent++)
-	{
-		FUIAction ItemAction(
-			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetIndent, Indent),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsIndent, Indent));
-		MenuBuilder.AddMenuEntry(FText::AsNumber(Indent), TAttribute<FText>(), FSlateIcon(), ItemAction, FName(), EUserInterfaceActionType::Check);
-	}
-
-	return MenuBuilder.MakeWidget();
+FReply FStateTreeEditorNodeDetails::HandleIndentMinus()
+{
+	SetIndent(GetIndent() - 1);
+	return FReply::Handled();
 }
 
 int32 FStateTreeEditorNodeDetails::GetIndent() const
@@ -1016,7 +1048,7 @@ void FStateTreeEditorNodeDetails::SetIndent(const int32 Indent) const
 {
 	check(IndentProperty);
 	
-	IndentProperty->SetValue((uint8)FMath::Clamp(Indent, 0, UE::StateTree::MaxConditionIndent - 1));
+	IndentProperty->SetValue((uint8)FMath::Clamp(Indent, 0, UE::StateTree::MaxExpressionIndent - 1));
 }
 
 bool FStateTreeEditorNodeDetails::IsIndent(const int32 Indent) const
@@ -1033,7 +1065,7 @@ bool FStateTreeEditorNodeDetails::IsFirstItem() const
 int32 FStateTreeEditorNodeDetails::GetCurrIndent() const
 {
 	// First item needs to be zero indent to make the parentheses counting to work properly.
-	return IsFirstItem() ? 0 : GetIndent();
+	return IsFirstItem() ? 0 : (GetIndent() + 1);
 }
 
 int32 FStateTreeEditorNodeDetails::GetNextIndent() const
@@ -1069,7 +1101,7 @@ int32 FStateTreeEditorNodeDetails::GetNextIndent() const
 		return 0;
 	}
 	
-	TSharedPtr<IPropertyHandle> NextIndentProperty = NextStructProperty->GetChildHandle(TEXT("ConditionIndent"));
+	TSharedPtr<IPropertyHandle> NextIndentProperty = NextStructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ExpressionIndent));
 	if (!NextIndentProperty.IsValid())
 	{
 		return 0;
@@ -1078,7 +1110,7 @@ int32 FStateTreeEditorNodeDetails::GetNextIndent() const
 	uint8 Indent = 0;
 	NextIndentProperty->GetValue(Indent);
 
-	return Indent;
+	return Indent + 1;
 }
 
 FText FStateTreeEditorNodeDetails::GetOpenParens() const
@@ -1090,7 +1122,7 @@ FText FStateTreeEditorNodeDetails::GetOpenParens() const
 	const int32 DeltaIndent = NextIndent - CurrIndent;
 	const int32 OpenParens = FMath::Max(0, DeltaIndent);
 
-	static_assert(UE::StateTree::MaxConditionIndent == 4);
+	static_assert(UE::StateTree::MaxExpressionIndent == 4);
 	switch (OpenParens)
 	{
 		case 1: return FText::FromString(TEXT("("));
@@ -1110,7 +1142,7 @@ FText FStateTreeEditorNodeDetails::GetCloseParens() const
 	const int32 DeltaIndent = NextIndent - CurrIndent;
 	const int32 CloseParens = FMath::Max(0, -DeltaIndent);
 
-	static_assert(UE::StateTree::MaxConditionIndent == 4);
+	static_assert(UE::StateTree::MaxExpressionIndent == 4);
 	switch (CloseParens)
 	{
 	case 1: return FText::FromString(TEXT(")"));
@@ -1125,21 +1157,29 @@ FText FStateTreeEditorNodeDetails::GetOperandText() const
 {
 	check(OperandProperty);
 
-	// First item does not relate to anything existing, it could be empty, we return IF to indicate that we're building condition. 
+	// First item does not relate to anything existing, it could be empty. 
+	// return IF to indicate that we're building condition and IS for consideration.
 	if (IsFirstItem())
 	{
-		return LOCTEXT("IfOperand", "IF");
+		if (IsConditionVisible() == EVisibility::Visible)
+		{
+			return LOCTEXT("IfOperand", "IF");
+		}
+		else //IsConsiderationVisible() == EVisibility::Visible
+		{
+			return LOCTEXT("IsOperand", "IS");
+		}
 	}
 
 	uint8 Value = 0;
 	OperandProperty->GetValue(Value);
-	const EStateTreeConditionOperand Operand = (EStateTreeConditionOperand)Value;
+	const EStateTreeExpressionOperand Operand = (EStateTreeExpressionOperand)Value;
 
-	if (Operand == EStateTreeConditionOperand::And)
+	if (Operand == EStateTreeExpressionOperand::And)
 	{
 		return LOCTEXT("AndOperand", "AND");
 	}
-	else if (Operand == EStateTreeConditionOperand::Or)
+	else if (Operand == EStateTreeExpressionOperand::Or)
 	{
 		return LOCTEXT("OrOperand", "OR");
 	}
@@ -1162,13 +1202,13 @@ FSlateColor FStateTreeEditorNodeDetails::GetOperandColor() const
 
 	uint8 Value = 0; 
 	OperandProperty->GetValue(Value);
-	const EStateTreeConditionOperand Operand = (EStateTreeConditionOperand)Value;
+	const EStateTreeExpressionOperand Operand = (EStateTreeExpressionOperand)Value;
 
-	if (Operand == EStateTreeConditionOperand::And)
+	if (Operand == EStateTreeExpressionOperand::And)
 	{
 		return FStyleColors::AccentPink;
 	}
-	else if (Operand == EStateTreeConditionOperand::Or)
+	else if (Operand == EStateTreeExpressionOperand::Or)
 	{
 		return FStyleColors::AccentBlue;
 	}
@@ -1185,14 +1225,14 @@ TSharedRef<SWidget> FStateTreeEditorNodeDetails::OnGetOperandContent() const
 	FMenuBuilder MenuBuilder(true, NULL);
 
 	FUIAction AndAction(
-		FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeConditionOperand::And),
+		FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeExpressionOperand::And),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeConditionOperand::And));
+		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeExpressionOperand::And));
 	MenuBuilder.AddMenuEntry(LOCTEXT("AndOperand", "AND"), TAttribute<FText>(), FSlateIcon(), AndAction, FName(), EUserInterfaceActionType::Check);
 
-	FUIAction OrAction(FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeConditionOperand::Or),
+	FUIAction OrAction(FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeExpressionOperand::Or),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeConditionOperand::Or));
+		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeExpressionOperand::Or));
 	MenuBuilder.AddMenuEntry(LOCTEXT("OrOperand", "OR"), TAttribute<FText>(), FSlateIcon(), OrAction, FName(), EUserInterfaceActionType::Check);
 
 	return MenuBuilder.MakeWidget();
@@ -1203,18 +1243,18 @@ bool FStateTreeEditorNodeDetails::IsOperandEnabled() const
 	return !IsFirstItem();
 }
 
-bool FStateTreeEditorNodeDetails::IsOperand(const EStateTreeConditionOperand Operand) const
+bool FStateTreeEditorNodeDetails::IsOperand(const EStateTreeExpressionOperand Operand) const
 {
 	check(OperandProperty);
 
 	uint8 Value = 0; 
 	OperandProperty->GetValue(Value);
-	const EStateTreeConditionOperand CurrOperand = (EStateTreeConditionOperand)Value;
+	const EStateTreeExpressionOperand CurrOperand = (EStateTreeExpressionOperand)Value;
 
 	return CurrOperand == Operand;
 }
 
-void FStateTreeEditorNodeDetails::SetOperand(const EStateTreeConditionOperand Operand) const
+void FStateTreeEditorNodeDetails::SetOperand(const EStateTreeExpressionOperand Operand) const
 {
 	check(OperandProperty);
 
@@ -1226,48 +1266,109 @@ EVisibility FStateTreeEditorNodeDetails::IsConditionVisible() const
 	return UE::StateTreeEditor::EditorNodeUtils::IsConditionVisible(StructProperty);
 }
 
-EVisibility FStateTreeEditorNodeDetails::IsTaskVisible() const
+EVisibility FStateTreeEditorNodeDetails::IsConsiderationVisible() const
 {
-	return UE::StateTreeEditor::EditorNodeUtils::IsTaskVisible(StructProperty);
+	return UE::StateTreeEditor::EditorNodeUtils::IsConsiderationVisible(StructProperty);
 }
 
-FText FStateTreeEditorNodeDetails::GetName() const
+EVisibility FStateTreeEditorNodeDetails::IsOperandVisible() const
+{
+	// Assume the Condition and Consideration's Visibility is either Visible or Collapsed
+	if (IsConditionVisible() == EVisibility::Visible || IsConsiderationVisible() == EVisibility::Visible)
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
+EVisibility FStateTreeEditorNodeDetails::AreIndentButtonsVisible() const
+{
+	if (IsFirstItem())
+	{
+		return EVisibility::Collapsed;
+	}
+
+	// Assume the Condition and Consideration's Visibility is either Visible or Collapsed
+	if (IsConditionVisible() == EVisibility::Visible || IsConsiderationVisible() == EVisibility::Visible)
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
+EVisibility FStateTreeEditorNodeDetails::AreParensVisible() const
+{
+	//Assume the Condition and Consideration's Visibility is either Visible or Collapsed
+	if (EVisibility::Visible.Value & (IsConditionVisible().Value | IsConsiderationVisible().Value))
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
+EVisibility FStateTreeEditorNodeDetails::IsIconVisible() const
+{
+	return UE::StateTreeEditor::EditorNodeUtils::IsIconVisible(StructProperty);
+}
+
+const FSlateBrush* FStateTreeEditorNodeDetails::GetIcon() const
+{
+	return UE::StateTreeEditor::EditorNodeUtils::GetIcon(StructProperty).GetIcon();
+}
+
+FSlateColor FStateTreeEditorNodeDetails::GetIconColor() const
+{
+	return UE::StateTreeEditor::EditorNodeUtils::GetIconColor(StructProperty);
+}
+
+FReply FStateTreeEditorNodeDetails::OnDescriptionClicked(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const
+{
+	if (NameSwitcher && NameEdit)
+	{
+		if (NameSwitcher->GetActiveWidgetIndex() == 0)
+		{
+			// Enter edit mode
+			NameSwitcher->SetActiveWidgetIndex(1);
+
+			// Focus on name edit.
+			FReply Reply = FReply::Handled();
+			Reply.SetUserFocus(NameEdit.ToSharedRef());
+			NameEdit->EnterEditingMode();
+			return Reply;
+		}
+	}
+
+	return FReply::Unhandled();
+}
+
+FText FStateTreeEditorNodeDetails::GetNodeDescription() const
 {
 	check(StructProperty);
-
+	if (!EditorData)
+	{
+		return FText::GetEmpty();
+	}
+	
 	// Multiple names do not make sense, just if only one node is selected.
 	TArray<void*> RawNodeData;
 	StructProperty->AccessRawData(RawNodeData);
 	if (RawNodeData.Num() == 1)
 	{
-		// Dig out name from the struct without knowing the type.
-		FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[0]);
-
-		// Make sure the associated property has valid data (e.g. while moving an node in array)
-		const UScriptStruct* ScriptStruct = Node != nullptr ? Node->Node.GetScriptStruct() : nullptr;
-		if (ScriptStruct != nullptr)
+		FText Description = LOCTEXT("EmptyNodeRich", "<s>None</>");
+		if (const FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[0]))
 		{
-			if (FProperty* NameProperty = ScriptStruct->FindPropertyByName(TEXT("Name")))
-			{
-				if (NameProperty->IsA(FNameProperty::StaticClass()))
-				{
-					void* Ptr = const_cast<void*>(static_cast<const void*>(Node->Node.GetMemory()));
-					const FName NameValue = *NameProperty->ContainerPtrToValuePtr<FName>(Ptr);
-					if (NameValue.IsNone())
-					{
-						return GetDisplayValueString();
-					}
-					return FText::FromName(NameValue);
-				}
-			}
+			return EditorData->GetNodeDescription(*Node, EStateTreeNodeFormatting::RichText);
 		}
-		return LOCTEXT("Empty", "Empty");
+		return Description;
 	}
 
-	return LOCTEXT("MultipleSelected", "Multiple Selected");
+	return LOCTEXT("MultipleSelectedRich", "<s>Multiple Selected</>");
 }
 
-EVisibility FStateTreeEditorNodeDetails::IsNameVisible() const
+EVisibility FStateTreeEditorNodeDetails::IsNodeDescriptionVisible() const
 {
 	const UScriptStruct* ScriptStruct = nullptr;
 	if (const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(StructProperty))
@@ -1288,69 +1389,172 @@ EVisibility FStateTreeEditorNodeDetails::IsNameVisible() const
 	return EVisibility::Visible;
 }
 
-void FStateTreeEditorNodeDetails::OnNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const
+FText FStateTreeEditorNodeDetails::GetNodeTooltip() const
+{
+	check(StructProperty);
+	if (!EditorData)
+	{
+		return FText::GetEmpty();
+	}
+	
+	TArray<void*> RawNodeData;
+	StructProperty->AccessRawData(RawNodeData);
+	if (RawNodeData.Num() == 1)
+	{
+		FText NameText;
+		FText PathText;
+		FText DescText;
+
+		if (const FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[0]))
+		{
+			const UStruct* Struct = Node->GetInstance().GetStruct();
+			if (Struct == nullptr || !Struct->IsChildOf<UStateTreeNodeBlueprintBase>())
+			{
+				Struct = Node->Node.GetScriptStruct();
+			}
+
+			if (Struct)
+			{
+				static const FName NAME_Tooltip(TEXT("Tooltip"));
+				const FText StructToolTipText = Struct->HasMetaData(NAME_Tooltip) ? Struct->GetToolTipText() : FText::GetEmpty();
+
+				FTextBuilder TooltipBuilder;
+				TooltipBuilder.AppendLineFormat(LOCTEXT("NodeTooltip", "{0} ({1})"), Struct->GetDisplayNameText(), FText::FromString(Struct->GetPathName()));
+
+				if (!StructToolTipText.IsEmpty())
+				{
+					TooltipBuilder.AppendLine();
+					TooltipBuilder.AppendLine(StructToolTipText);
+				}
+				return TooltipBuilder.ToText();
+			}
+		}
+	}
+
+	return FText::GetEmpty();
+}
+
+FText FStateTreeEditorNodeDetails::GetName() const
+{
+	check(StructProperty);
+
+	// Multiple names do not make sense, just if only one node is selected.
+	TArray<void*> RawNodeData;
+	StructProperty->AccessRawData(RawNodeData);
+	if (RawNodeData.Num() == 1)
+	{
+		if (const FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[0]))
+		{
+			if (const FStateTreeNodeBase* BaseNode = Node->Node.GetPtr<FStateTreeNodeBase>())
+			{
+				if (!BaseNode->Name.IsNone())
+				{
+					return FText::FromName(BaseNode->Name);
+				}
+				const FText Desc = EditorData->GetNodeDescription(*Node, EStateTreeNodeFormatting::Text);
+				if (!Desc.IsEmpty())
+				{
+					return Desc;
+				}
+			}
+		}
+
+		return FText::GetEmpty();
+	}
+
+	return LOCTEXT("MultipleSelected", "Multiple Selected");
+}
+
+bool FStateTreeEditorNodeDetails::HandleVerifyNameChanged(const FText& InText, FText& OutErrorMessage) const
+{
+	const FString NewName = FText::TrimPrecedingAndTrailing(InText).ToString();
+	if (NewName.Len() >= NAME_SIZE)
+	{
+		OutErrorMessage = LOCTEXT("VerifyNodeLabelFailed_MaxLength", "Max length exceeded");
+		return false;
+	}
+	return NewName.Len() > 0;
+}
+
+void FStateTreeEditorNodeDetails::HandleNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const
 {
 	check(StructProperty);
 
 	if (InTextCommit == ETextCommit::OnEnter || InTextCommit == ETextCommit::OnUserMovedFocus)
 	{
 		// Remove excess whitespace and prevent categories with just spaces
-		FString NewName = FText::TrimPrecedingAndTrailing(NewText).ToString();
-
-		if (GEditor)
+		const FString NewName = FText::TrimPrecedingAndTrailing(NewText).ToString();
+		if (NewName.Len() > 0 && NewName.Len() < NAME_SIZE)
 		{
-			GEditor->BeginTransaction(LOCTEXT("SetName", "Set Name"));
-		}
-		StructProperty->NotifyPreChange();
+			if (GEditor)
+			{
+				GEditor->BeginTransaction(LOCTEXT("SetName", "Set Name"));
+			}
+			StructProperty->NotifyPreChange();
 
-		TArray<void*> RawNodeData;
-		StructProperty->AccessRawData(RawNodeData);
-		
-		for (void* Data : RawNodeData)
-		{
-			if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(Data))
+			TArray<void*> RawNodeData;
+			StructProperty->AccessRawData(RawNodeData);
+
+			for (void* Data : RawNodeData)
 			{
 				// Set Name
-				if (const UScriptStruct* ScriptStruct = Node->Node.GetScriptStruct())
+				if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(Data))
 				{
-					if (FProperty* NameProperty = ScriptStruct->FindPropertyByName(TEXT("Name")))
+					if (FStateTreeNodeBase* BaseNode = Node->Node.GetMutablePtr<FStateTreeNodeBase>())
 					{
-						if (NameProperty->IsA(FNameProperty::StaticClass()))
-						{
-							void* Ptr = const_cast<void*>(static_cast<const void*>(Node->Node.GetMemory()));
-							FName& NameValue = *NameProperty->ContainerPtrToValuePtr<FName>(Ptr);
-							NameValue = FName(NewName);
-						}
+						BaseNode->Name = FName(NewName);
 					}
 				}
 			}
+
+			StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
+
+			if (StateTree)
+			{
+				UE::StateTree::Delegates::OnIdentifierChanged.Broadcast(*StateTree);
+			}
+
+			if (GEditor)
+			{
+				GEditor->EndTransaction();
+			}
+
+			StructProperty->NotifyFinishedChangingProperties();
 		}
-
-		StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
-
-		if (StateTree)
-		{
-			UE::StateTree::Delegates::OnIdentifierChanged.Broadcast(*StateTree);
-		}
-
-		if (GEditor)
-		{
-			GEditor->EndTransaction();
-		}
-
-		StructProperty->NotifyFinishedChangingProperties();
 	}
+
+	// Switch back to rich view.
+	NameSwitcher->SetActiveWidgetIndex(0);
 }
 
-bool FStateTreeEditorNodeDetails::IsNameEnabled() const
+FText FStateTreeEditorNodeDetails::GetNodePickerTooltip() const
 {
-	// Can only edit if we have valid instantiated type.
-	const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(StructProperty);
-	return Node && Node->Node.IsValid();
-}
+	check(StructProperty);
+	if (!EditorData)
+	{
+		return FText::GetEmpty();
+	}
 
-FText FStateTreeEditorNodeDetails::GetDisplayValueString() const
-{
+	FTextBuilder TextBuilder;
+
+	// Append full description.
+	TArray<void*> RawNodeData;
+	StructProperty->AccessRawData(RawNodeData);
+	if (RawNodeData.Num() == 1)
+	{
+		FText Description = LOCTEXT("EmptyNodeStyled", "<s>None</>");
+		if (const FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[0]))
+		{
+			TextBuilder.AppendLine(EditorData->GetNodeDescription(*Node));
+		}
+	}
+
+	if (TextBuilder.GetNumLines() > 0)
+	{
+		TextBuilder.AppendLine(FText::GetEmpty());
+	}
+	
+	// Text describing the type.
 	if (const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(StructProperty))
 	{
 		if (const UScriptStruct* ScriptStruct = Node->Node.GetScriptStruct())
@@ -1362,569 +1566,96 @@ FText FStateTreeEditorNodeDetails::GetDisplayValueString() const
 				if (Node->InstanceObject != nullptr
 					&& Node->InstanceObject->GetClass() != nullptr)
 				{
-					return Node->InstanceObject->GetClass()->GetDisplayNameText();
+					TextBuilder.AppendLine(Node->InstanceObject->GetClass()->GetDisplayNameText());
 				}
 			}
 			else
 			{
-				return ScriptStruct->GetDisplayNameText();
+				TextBuilder.AppendLine(ScriptStruct->GetDisplayNameText());
 			}
 		}
 	}
-	return FText();
+
+	return TextBuilder.ToText();
 }
 
-const FSlateBrush* FStateTreeEditorNodeDetails::GetDisplayValueIcon() const
+FReply FStateTreeEditorNodeDetails::OnBrowseToNodeBlueprint() const
 {
-	if (const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(StructProperty))
+	const UObject* InstanceObject = nullptr;
+	const FPropertyAccess::Result AccessResult = InstanceObjectProperty->GetValue(InstanceObject);
+	if (AccessResult == FPropertyAccess::Success)
 	{
-		if (const UScriptStruct* ScriptStruct = Node->Node.GetScriptStruct())
+		check(InstanceObject);
+		if (const UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(InstanceObject->GetClass()))
 		{
-			if (ScriptStruct->IsChildOf(FStateTreeBlueprintEvaluatorWrapper::StaticStruct())
-				|| ScriptStruct->IsChildOf(FStateTreeBlueprintTaskWrapper::StaticStruct())
-				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct()))
+			//If the blueprint asset has been cooked, UBlueprint Object will be set to null and we need to browse to its BlueprintGeneratedClass
+			GEditor->SyncBrowserToObject(BlueprintGeneratedClass->ClassGeneratedBy ? BlueprintGeneratedClass->ClassGeneratedBy.Get() : BlueprintGeneratedClass);
+		}
+	}
+
+	return FReply::Handled();
+}
+
+FReply FStateTreeEditorNodeDetails::OnEditNodeBlueprint() const
+{
+	const UObject* InstanceObject = nullptr;
+	const FPropertyAccess::Result AccessResult = InstanceObjectProperty->GetValue(InstanceObject);
+	if (AccessResult == FPropertyAccess::Success)
+	{
+		check(InstanceObject);
+		const UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(InstanceObject->GetClass());
+		if (BlueprintGeneratedClass && BlueprintGeneratedClass->ClassGeneratedBy)
+		{
+			//Cooked blueprint asset is not editable
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(BlueprintGeneratedClass->ClassGeneratedBy);
+		}
+	}
+
+	return FReply::Handled();
+}
+
+EVisibility FStateTreeEditorNodeDetails::IsBrowseToNodeBlueprintVisible() const
+{
+	const UObject* InstanceObject = nullptr;
+	const FPropertyAccess::Result AccessResult = InstanceObjectProperty->GetValue(InstanceObject);
+	if (AccessResult == FPropertyAccess::Success)
+	{
+		//The read could be null with an Success AccessResult in updating visibility 
+		if (InstanceObject)
+		{
+			if (const UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(InstanceObject->GetClass()))
 			{
-				if (Node->InstanceObject != nullptr)
-				{
-					return FSlateIconFinder::FindIconBrushForClass(Node->InstanceObject->GetClass());
-				}
+				return EVisibility::Visible;
 			}
 		}
 	}
-	
-	return FSlateIconFinder::FindIconBrushForClass(UScriptStruct::StaticClass());
+
+	return EVisibility::Collapsed;
 }
 
-void FStateTreeEditorNodeDetails::SortNodeTypesFunctionItemsRecursive(TArray<TSharedPtr<FStateTreeNodeTypeItem>>& Items)
+EVisibility FStateTreeEditorNodeDetails::IsEditNodeBlueprintVisible() const
 {
-	Items.Sort([](const TSharedPtr<FStateTreeNodeTypeItem>& A, const TSharedPtr<FStateTreeNodeTypeItem>& B)
+	const UObject* InstanceObject = nullptr;
+	const FPropertyAccess::Result AccessResult = InstanceObjectProperty->GetValue(InstanceObject);
+	if (AccessResult == FPropertyAccess::Success)
 	{
-		if (!A->GetCategoryName().IsEmpty() && !B->GetCategoryName().IsEmpty())
+		//The read could be null with an Success AccessResult in updating visibility 
+		if (InstanceObject)
 		{
-			return A->GetCategoryName() < B->GetCategoryName();
-		}
-		if (!A->GetCategoryName().IsEmpty() && B->GetCategoryName().IsEmpty())
-		{
-			return true;
-		}
-		if (A->GetCategoryName().IsEmpty() && !B->GetCategoryName().IsEmpty())
-		{
-			return false;
-		}
-		if (A->Struct != nullptr && B->Struct != nullptr)
-		{
-			return A->Struct->GetDisplayNameText().CompareTo(B->Struct->GetDisplayNameText()) <= 0;
-		}
-		return true;
-	});
-
-	for (const TSharedPtr<FStateTreeNodeTypeItem>& Item : Items)
-	{
-		SortNodeTypesFunctionItemsRecursive(Item->Children);
-	}
-}
-
-TSharedPtr<FStateTreeEditorNodeDetails::FStateTreeNodeTypeItem> FStateTreeEditorNodeDetails::FindOrCreateItemForCategory(TArray<TSharedPtr<FStateTreeNodeTypeItem>>& Items, TArrayView<FString> CategoryPath)
-{
-	check(CategoryPath.Num() > 0);
-
-	const FString& CategoryName = CategoryPath.Last();
-
-	int32 Idx = 0;
-	for (; Idx < Items.Num(); ++Idx)
-	{
-		// found item
-		if (Items[Idx]->GetCategoryName() == CategoryName)
-		{
-			return Items[Idx];
-		}
-
-		// passed the place where it should have been, break out
-		if (Items[Idx]->GetCategoryName() > CategoryName)
-		{
-			break;
-		}
-	}
-
-	TSharedPtr<FStateTreeNodeTypeItem> NewItem = Items.Insert_GetRef(MakeShared<FStateTreeNodeTypeItem>(), Idx);
-	NewItem->CategoryPath = CategoryPath;
-	return NewItem;
-}
-
-void FStateTreeEditorNodeDetails::AddNode(const UStruct* Struct)
-{
-	if (!Struct || !RootNode.IsValid())
-	{
-		return;
-	}
-		
-	const FText CategoryName = Struct->GetMetaDataText("Category");
-	if (CategoryName.IsEmpty())
-	{
-		TSharedPtr<FStateTreeNodeTypeItem>& Item = RootNode->Children.Add_GetRef(MakeShared<FStateTreeNodeTypeItem>());
-		Item->Struct = Struct;
-		return;
-	}
-
-	// Split into subcategories and trim
-	TArray<FString> CategoryPath;
-	CategoryName.ToString().ParseIntoArray(CategoryPath, TEXT("|"));
-	for (FString& SubCategory : CategoryPath)
-	{
-		SubCategory.TrimStartAndEndInline();
-	}
-
-	TSharedPtr<FStateTreeNodeTypeItem> ParentItem = RootNode;
-
-	// Create items for the entire category path
-	// eg. "Math|Boolean|AND" 
-	// Math 
-	//   > Boolean
-	//     > AND
-	for (int32 PathIndex = 0; PathIndex < CategoryPath.Num(); ++PathIndex)
-	{
-		ParentItem = FindOrCreateItemForCategory(ParentItem->Children, MakeArrayView(CategoryPath.GetData(), PathIndex + 1));
-	}
-
-	if (ParentItem)
-	{
-		TSharedPtr<FStateTreeNodeTypeItem>& Item = ParentItem->Children.Add_GetRef(MakeShared<FStateTreeNodeTypeItem>());
-		Item->Struct = Struct;
-	}
-}
-
-void FStateTreeEditorNodeDetails::CacheNodeTypes()
-{
-	const UStateTreeSchema* Schema = EditorData ? EditorData->Schema : nullptr;
-
-	// Get all usable nodes from the node class cache.
-	FStateTreeEditorModule& EditorModule = FModuleManager::GetModuleChecked<FStateTreeEditorModule>(TEXT("StateTreeEditorModule"));
-	FStateTreeNodeClassCache* ClassCache = EditorModule.GetNodeClassCache().Get();
-	check(ClassCache);
-
-	TArray<TSharedPtr<FStateTreeNodeClassData>> StructNodes;
-	TArray<TSharedPtr<FStateTreeNodeClassData>> ObjectNodes;
-	
-	ClassCache->GetScripStructs(BaseScriptStruct, StructNodes);
-	ClassCache->GetClasses(BaseClass, ObjectNodes);
-
-	// Create tree of node types based on category.
-	RootNode = MakeShared<FStateTreeNodeTypeItem>();
-	
-	for (const TSharedPtr<FStateTreeNodeClassData>& Data : StructNodes)
-	{
-		if (const UScriptStruct* ScriptStruct = Data->GetScriptStruct())
-		{
-			if (ScriptStruct == BaseScriptStruct)
+			const UBlueprintGeneratedClass* BlueprintGeneratedClass = Cast<UBlueprintGeneratedClass>(InstanceObject->GetClass());
+			if (BlueprintGeneratedClass && BlueprintGeneratedClass->ClassGeneratedBy)
 			{
-				continue;
-			}
-			if (ScriptStruct->HasMetaData(TEXT("Hidden")))
-			{
-				continue;				
-			}
-			if (Schema && !Schema->IsStructAllowed(ScriptStruct))
-			{
-				continue;				
-			}
-
-			AddNode(ScriptStruct);
-		}
-	}
-
-	for (const TSharedPtr<FStateTreeNodeClassData>& Data : ObjectNodes)
-	{
-		if (Data->GetClass() != nullptr)
-		{
-			const UClass* Class = Data->GetClass();
-			if (Class == BaseClass)
-			{
-				continue;
-			}
-			if (Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Hidden | CLASS_HideDropDown))
-			{
-				continue;				
-			}
-			if (Class->HasMetaData(TEXT("Hidden")))
-			{
-				continue;
-			}
-			if (Schema && !Schema->IsClassAllowed(Class))
-			{
-				continue;
-			}
-
-			AddNode(Class);
-		}
-	}
-
-	SortNodeTypesFunctionItemsRecursive(RootNode->Children);
-
-	// Empty node
-	RootNode->Children.Insert(MakeShared<FStateTreeNodeTypeItem>(), 0);
-
-	FilteredRootNode = RootNode;
-}
-
-TSharedRef<ITableRow> FStateTreeEditorNodeDetails::GenerateNodeTypeRow(TSharedPtr<FStateTreeNodeTypeItem> Item, const TSharedRef<STableViewBase>& OwnerTable)
-{
-	FText DisplayName = LOCTEXT("None", "None");
-
-	if (Item->IsNode())
-	{
-		DisplayName = Item->Struct->GetDisplayNameText();
-	}
-	else if (Item->IsCategory())
-	{
-		DisplayName = FText::FromString(Item->GetCategoryName());
-	}
-	
-	FText Tooltip = Item->Struct ? Item->Struct->GetMetaDataText("Tooltip") : FText::GetEmpty();
-	if (Tooltip.IsEmpty())
-	{
-		Tooltip = DisplayName;
-	}
-
-	const FSlateBrush* Icon = nullptr;
-	if (!Item->IsCategory())
-	{
-		if (const UClass* ItemClass = Cast<UClass>(Item->Struct))
-		{
-			Icon = FSlateIconFinder::FindIconBrushForClass(ItemClass);
-		}
-		else if (const UScriptStruct* ItemScriptStruct = Cast<UScriptStruct>(Item->Struct))
-		{
-			Icon = FSlateIconFinder::FindIconBrushForClass(UScriptStruct::StaticClass());
-		}
-		else
-		{
-			// None
-			Icon = FSlateIconFinder::FindIconBrushForClass(nullptr);
-		}
-	}
-
-	return SNew(STableRow<TSharedPtr<FStateTreeNodeTypeItem>>, OwnerTable)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(0, 2.0f, 4.0f, 2.0f)
-			.AutoWidth()
-			[
-				SNew(SImage)
-				.Visibility(Icon ? EVisibility::Visible : EVisibility::Collapsed)
-				.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
-				.Image(Icon)
-			]
-			+ SHorizontalBox::Slot()
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Font(Item->IsCategory() ? FAppStyle::Get().GetFontStyle("BoldFont") : FAppStyle::Get().GetFontStyle("NormalText"))
-				.Text(DisplayName)
-				.ToolTipText(Tooltip)
-				.HighlightText_Lambda([this]() { return SearchBox.IsValid() ? SearchBox->GetText() : FText::GetEmpty(); })
-			]
-		];
-}
-
-void FStateTreeEditorNodeDetails::GetNodeTypeChildren(TSharedPtr<FStateTreeNodeTypeItem> Item, TArray<TSharedPtr<FStateTreeNodeTypeItem>>& OutItems) const
-{
-	if (Item.IsValid())
-	{
-		OutItems = Item->Children;
-	}
-}
-
-void FStateTreeEditorNodeDetails::OnNodeTypeSelected(TSharedPtr<FStateTreeNodeTypeItem> SelectedItem, ESelectInfo::Type Type)
-{
-	// Skip selection set via code, or if Selected Item is invalid
-	if (Type == ESelectInfo::Direct || !SelectedItem.IsValid())
-	{
-		return;
-	}
-	
-	if (const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(SelectedItem->Struct))
-	{
-		OnStructPicked(ScriptStruct);
-	}
-	else if (const UClass* Class = Cast<UClass>(SelectedItem->Struct))
-	{
-		OnClassPicked(Class);
-	}
-	else if (SelectedItem->CategoryPath.IsEmpty())
-	{
-		// None
-		OnStructPicked(nullptr);
-	}
-	else
-	{
-		// Clicked on category
-	}
-}
-
-void FStateTreeEditorNodeDetails::OnNodeTypeExpansionChanged(TSharedPtr<FStateTreeNodeTypeItem> ExpandedItem, bool bInExpanded)
-{
-	// Do not save expansion state we're restoring expansion state, or when showing filtered results. 
-	if (bIsRestoringExpansion || FilteredRootNode != RootNode)
-	{
-		return;
-	}
-
-	if (ExpandedItem.IsValid() && ExpandedItem->CategoryPath.Num() > 0)
-	{
-		FCategoryExpansionState& ExpansionState = CategoryExpansionStates.FindOrAdd(FObjectKey(BaseScriptStruct));
-		const FString Path = FString::Join(ExpandedItem->CategoryPath, TEXT("|"));
-		if (bInExpanded)
-		{
-			ExpansionState.ExpandedCategories.Add(Path);
-		}
-		else
-		{
-			ExpansionState.ExpandedCategories.Remove(Path);
-		}
-	}
-}
-
-void FStateTreeEditorNodeDetails::OnSearchBoxTextChanged(const FText& NewText)
-{
-	if (!NodeTypeTree.IsValid())
-	{
-		return;
-	}
-	
-	FilteredRootNode.Reset();
-
-	TArray<FString> FilterStrings;
-	NewText.ToString().ParseIntoArrayWS(FilterStrings);
-	FilterStrings.RemoveAll([](const FString& String) { return String.IsEmpty(); });
-	
-	if (FilterStrings.IsEmpty())
-	{
-		// Show all when there's no filter string.
-		FilteredRootNode = RootNode;
-		NodeTypeTree->SetTreeItemsSource(&FilteredRootNode->Children);
-		RestoreExpansionState();
-		NodeTypeTree->RequestTreeRefresh();
-		return;
-	}
-
-	FilteredRootNode = MakeShared<FStateTreeNodeTypeItem>();
-	FilterNodeTypesChildren(FilterStrings, /*bParentMatches*/false, RootNode->Children, FilteredRootNode->Children);
-
-	NodeTypeTree->SetTreeItemsSource(&FilteredRootNode->Children);
-	ExpandAll(FilteredRootNode->Children);
-	NodeTypeTree->RequestTreeRefresh();
-}
-
-
-int32 FStateTreeEditorNodeDetails::FilterNodeTypesChildren(const TArray<FString>& FilterStrings, const bool bParentMatches,
-															const TArray<TSharedPtr<FStateTreeNodeTypeItem>>& SourceArray,
-															TArray<TSharedPtr<FStateTreeNodeTypeItem>>& OutDestArray)
-{
-	int32 NumFound = 0;
-
-	auto MatchFilter = [&FilterStrings](const TSharedPtr<FStateTreeNodeTypeItem>& SourceItem)
-	{
-		const FString ItemName = SourceItem->Struct ? SourceItem->Struct->GetDisplayNameText().ToString() : SourceItem->GetCategoryName();
-		for (const FString& Filter : FilterStrings)
-		{
-			if (ItemName.Contains(Filter))
-			{
-				return true;
-			}
-		}
-		return false;
-	};
-
-	for (const TSharedPtr<FStateTreeNodeTypeItem>& SourceItem : SourceArray)
-	{
-		// Check if our name matches the filters
-		// If bParentMatches is true, the search matched a parent category.
-		const bool bMatchesFilters = bParentMatches || MatchFilter(SourceItem);
-
-		int32 NumChildren = 0;
-		if (bMatchesFilters)
-		{
-			NumChildren++;
-		}
-
-		// if we don't match, then we still want to check all our children
-		TArray<TSharedPtr<FStateTreeNodeTypeItem>> FilteredChildren;
-		NumChildren += FilterNodeTypesChildren(FilterStrings, bMatchesFilters, SourceItem->Children, FilteredChildren);
-
-		// then add this item to the destination array
-		if (NumChildren > 0)
-		{
-			TSharedPtr<FStateTreeNodeTypeItem>& NewItem = OutDestArray.Add_GetRef(MakeShared<FStateTreeNodeTypeItem>());
-			NewItem->CategoryPath = SourceItem->CategoryPath;
-			NewItem->Struct = SourceItem->Struct; 
-			NewItem->Children = FilteredChildren;
-
-			NumFound += NumChildren;
-		}
-	}
-
-	return NumFound;
-}
-
-void FStateTreeEditorNodeDetails::SaveExpansionState()
-{
-	if (!NodeTypeTree.IsValid())
-	{
-		return;
-	}
-	
-	TSet<TSharedPtr<FStateTreeNodeTypeItem>> ExpandedItems;
-	NodeTypeTree->GetExpandedItems(ExpandedItems);
-
-	FCategoryExpansionState& ExpansionState = CategoryExpansionStates.FindOrAdd(FObjectKey(BaseScriptStruct));
-	
-	ExpansionState.ExpandedCategories.Reset();
-	for (const TSharedPtr<FStateTreeNodeTypeItem>& Item : ExpandedItems)
-	{
-		if (Item->CategoryPath.Num() > 0)
-		{
-			const FString Path = FString::Join(Item->CategoryPath, TEXT("|"));
-			ExpansionState.ExpandedCategories.Add(Path);
-		}
-	}
-}
-
-void FStateTreeEditorNodeDetails::RestoreExpansionState()
-{
-	FCategoryExpansionState& ExpansionState = CategoryExpansionStates.FindOrAdd(FObjectKey(BaseScriptStruct));
-
-	TSet<TSharedPtr<FStateTreeNodeTypeItem>> ExpandedNodes;
-	for (const FString& Category : ExpansionState.ExpandedCategories)
-	{
-		TArray<FString> CategoryPath;
-		Category.ParseIntoArray(CategoryPath, TEXT("|"));
-
-		TSharedPtr<FStateTreeNodeTypeItem> CurrentParent = RootNode;
-
-		for (const FString& SubCategory : CategoryPath)
-		{
-			TSharedPtr<FStateTreeNodeTypeItem>* FoundItem = 
-				CurrentParent->Children.FindByPredicate([&SubCategory](const TSharedPtr<FStateTreeNodeTypeItem>& Item)
-				{
-					return Item->GetCategoryName() == SubCategory;
-				});
-
-			if (FoundItem != nullptr)
-			{
-				ExpandedNodes.Add(*FoundItem);
-				CurrentParent = *FoundItem;
+				//Cooked blueprint asset is not editable
+				return EVisibility::Visible;
 			}
 		}
 	}
 
-	if (NodeTypeTree.IsValid())
-	{
-		bIsRestoringExpansion = true;
-		
-		NodeTypeTree->ClearExpandedItems();
-		for (const TSharedPtr<FStateTreeNodeTypeItem>& Node : ExpandedNodes)
-		{
-			NodeTypeTree->SetItemExpansion(Node, true);
-		}
-
-		bIsRestoringExpansion = false;
-	}
+	return EVisibility::Collapsed;
 }
 
-void FStateTreeEditorNodeDetails::ExpandAll(const TArray<TSharedPtr<FStateTreeNodeTypeItem>>& Items)
+void FStateTreeEditorNodeDetails::GeneratePickerMenu(class FMenuBuilder& InMenuBuilder)
 {
-	for (const TSharedPtr<FStateTreeNodeTypeItem>& Item : Items)
-	{
-		NodeTypeTree->SetItemExpansion(Item, true);
-		ExpandAll(Item->Children);
-	}
-}
-
-TArray<TSharedPtr<FStateTreeEditorNodeDetails::FStateTreeNodeTypeItem>> FStateTreeEditorNodeDetails::GetPathToItemStruct(const UStruct* Struct) const
-{
-	TArray<TSharedPtr<FStateTreeNodeTypeItem>> Path;
-
-	TSharedPtr<FStateTreeNodeTypeItem> CurrentParent = FilteredRootNode;
-
-	FText FullCategoryName = Struct->GetMetaDataText("Category");
-	if (!FullCategoryName.IsEmpty())
-	{
-		TArray<FString> CategoryPath;
-		FullCategoryName.ToString().ParseIntoArray(CategoryPath, TEXT("|"));
-
-		for (const FString& SubCategory : CategoryPath)
-		{
-			const FString Trimmed = SubCategory.TrimStartAndEnd();
-
-			TSharedPtr<FStateTreeNodeTypeItem>* FoundItem = 
-				CurrentParent->Children.FindByPredicate([&Trimmed](const TSharedPtr<FStateTreeNodeTypeItem>& Item)
-				{
-					return Item->GetCategoryName() == Trimmed;
-				});
-
-			if (FoundItem != nullptr)
-			{
-				Path.Add(*FoundItem);
-				CurrentParent = *FoundItem;
-			}
-		}
-	}
-
-	const TSharedPtr<FStateTreeNodeTypeItem>* FoundItem = 
-		CurrentParent->Children.FindByPredicate([Struct](const TSharedPtr<FStateTreeNodeTypeItem>& Item)
-		{
-			return Item->Struct == Struct;
-		});
-
-	if (FoundItem != nullptr)
-	{
-		Path.Add(*FoundItem);
-	}
-
-	return Path;
-}
-
-TSharedRef<SWidget> FStateTreeEditorNodeDetails::GeneratePicker()
-{
-	CacheNodeTypes();
-
-	TSharedRef<SWidget> MenuWidget = 
-		SNew(SBox)
-		.MinDesiredWidth(400)
-		.MinDesiredHeight(300)
-		.MaxDesiredHeight(300)
-		.Padding(2)	
-		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Top)
-			.Padding(4, 2, 4, 2)
-			.AutoHeight()
-			[
-				SAssignNew(SearchBox, SSearchBox)
-				.OnTextChanged(this, &FStateTreeEditorNodeDetails::OnSearchBoxTextChanged)
-			]
-			+ SVerticalBox::Slot()
-			[
-				SAssignNew(NodeTypeTree, STreeView<TSharedPtr<FStateTreeNodeTypeItem>>)
-				.SelectionMode(ESelectionMode::Single)
-				.ItemHeight(20.0f)
-				.TreeItemsSource(&FilteredRootNode->Children)
-				.OnGenerateRow(this, &FStateTreeEditorNodeDetails::GenerateNodeTypeRow)
-				.OnGetChildren(this, &FStateTreeEditorNodeDetails::GetNodeTypeChildren)
-				.OnSelectionChanged(this, &FStateTreeEditorNodeDetails::OnNodeTypeSelected)
-				.OnExpansionChanged(this, &FStateTreeEditorNodeDetails::OnNodeTypeExpansionChanged)
-			]
-		];
-
-	// Restore category expansion state from previous use.
-	RestoreExpansionState();
-	
 	// Expand and select currently selected item.
 	const UStruct* CommonStruct  = nullptr;
 	if (const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(StructProperty))
@@ -1933,7 +1664,8 @@ TSharedRef<SWidget> FStateTreeEditorNodeDetails::GeneratePicker()
 		{
 			if (ScriptStruct->IsChildOf(FStateTreeBlueprintEvaluatorWrapper::StaticStruct())
 				|| ScriptStruct->IsChildOf(FStateTreeBlueprintTaskWrapper::StaticStruct())
-				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct()))
+				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct())
+				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConsiderationWrapper::StaticStruct()))
 			{
 				if (Node->InstanceObject != nullptr)
 				{
@@ -1946,213 +1678,175 @@ TSharedRef<SWidget> FStateTreeEditorNodeDetails::GeneratePicker()
 			}
 		}
 	}
-	if (CommonStruct)
-	{
-		const TArray<TSharedPtr<FStateTreeNodeTypeItem>> Path = GetPathToItemStruct(CommonStruct);
-		if (Path.Num() > 0)
-		{
-			// Expand all categories up to the selected item.
-			bIsRestoringExpansion = true;
-			for (const TSharedPtr<FStateTreeNodeTypeItem>& Item : Path)
-			{
-				NodeTypeTree->SetItemExpansion(Item, true);
-			}
-			bIsRestoringExpansion = false;
-			
-			NodeTypeTree->SetItemSelection(Path.Last(), true);
-			NodeTypeTree->RequestScrollIntoView(Path.Last());
-		}
-	}
-	
-	ComboButton->SetMenuContentWidgetToFocus(SearchBox);
 
-	return MenuWidget;
+	TSharedRef<SStateTreeNodeTypePicker> Picker = SNew(SStateTreeNodeTypePicker)
+		.Schema(EditorData->Schema)
+		.BaseScriptStruct(BaseScriptStruct)
+		.BaseClass(BaseClass)
+		.CurrentStruct(CommonStruct)
+		.OnNodeTypePicked(SStateTreeNodeTypePicker::FOnNodeStructPicked::CreateSP(this, &FStateTreeEditorNodeDetails::OnNodePicked));
+	
+	InMenuBuilder.AddWidget(SNew(SBox)
+		.MinDesiredWidth(400.f)
+		.MinDesiredHeight(300.f)
+		.MaxDesiredHeight(300.f)
+		.Padding(2)	
+		[
+			Picker
+		],
+		FText::GetEmpty(), /*bNoIdent*/true);
+}
+	
+TSharedRef<SWidget> FStateTreeEditorNodeDetails::GenerateOptionsMenu()
+{
+	FMenuBuilder MenuBuilder(/*ShouldCloseWindowAfterMenuSelection*/true, /*CommandList*/nullptr);
+
+	MenuBuilder.BeginSection(FName("Type"), LOCTEXT("Type", "Type"));
+
+	// Change type
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("ReplaceWith", "Replace With"),
+		FText::GetEmpty(),
+		FNewMenuDelegate::CreateSP(this, &FStateTreeEditorNodeDetails::GeneratePickerMenu));
+
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection(FName("Edit"), LOCTEXT("Edit", "Edit"));
+
+	// Copy
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("CopyItem", "Copy"),
+		LOCTEXT("CopyItemTooltip", "Copy this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Copy"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnCopyNode),
+			FCanExecuteAction()
+		));
+
+	// Paste
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("PasteItem", "Paste"),
+		LOCTEXT("PasteItemTooltip", "Paste into this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Paste"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnPasteNode),
+			FCanExecuteAction()
+		));
+
+	// Duplicate
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DuplicateItem", "Duplicate"),
+		LOCTEXT("DuplicateItemTooltip", "Duplicate this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Duplicate"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnDuplicateNode),
+			FCanExecuteAction()
+		));
+
+	// Delete
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DeleteItem", "Delete"),
+		LOCTEXT("DeleteItemTooltip", "Delete this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnDeleteNode),
+			FCanExecuteAction()
+		));
+
+	// Delete
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("DeleteAllItems", "Delete all"),
+		LOCTEXT("DeleteAllItemsTooltip", "Delete all items"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Delete"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnDeleteAllNodes),
+			FCanExecuteAction()
+		));
+
+	// Rename
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RenameNode", "Rename"),
+		LOCTEXT("RenameNodeTooltip", "Rename this item"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Rename"),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnRenameNode),
+			FCanExecuteAction()
+		));
+
+	MenuBuilder.EndSection();
+
+	// Append debugger items.
+	UE::StateTreeEditor::DebuggerExtensions::AppendEditorNodeMenuItems(MenuBuilder, StructProperty, EditorData);
+
+	return MenuBuilder.MakeWidget();
 }
 
-void FStateTreeEditorNodeDetails::OnStructPicked(const UScriptStruct* InStruct) const
+void FStateTreeEditorNodeDetails::OnDeleteNode() const
 {
-	check(StructProperty);
-	check(StateTree);
+	const int32 Index = StructProperty->GetArrayIndex();
+	if (const TSharedPtr<IPropertyHandle> ParentHandle = StructProperty->GetParentHandle())
+	{
+		if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ParentHandle->AsArray())
+		{
+			ArrayHandle->DeleteItem(Index);
+		}
+	}
+}
 
-	TArray<UObject*> OuterObjects;
-	TArray<void*> RawNodeData;
-	StructProperty->GetOuterObjects(OuterObjects);
-	StructProperty->AccessRawData(RawNodeData);
+void FStateTreeEditorNodeDetails::OnDeleteAllNodes() const
+{
+	if (const TSharedPtr<IPropertyHandle> ParentHandle = StructProperty->GetParentHandle())
+	{
+		if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ParentHandle->AsArray())
+		{
+			ArrayHandle->EmptyArray();
+		}
+	}
+}
 
+void FStateTreeEditorNodeDetails::OnDuplicateNode() const
+{
+	const int32 Index = StructProperty->GetArrayIndex();
+	if (const TSharedPtr<IPropertyHandle> ParentHandle = StructProperty->GetParentHandle())
+	{
+		if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ParentHandle->AsArray())
+		{
+			ArrayHandle->DuplicateItem(Index);
+		}
+	}
+}
+
+void FStateTreeEditorNodeDetails::OnRenameNode() const
+{
+	if (NameSwitcher && NameEdit)
+	{
+		if (NameSwitcher->GetActiveWidgetIndex() == 0)
+		{
+			// Enter edit mode
+			NameSwitcher->SetActiveWidgetIndex(1);
+
+			FSlateApplication::Get().SetKeyboardFocus(NameEdit);
+			FSlateApplication::Get().SetUserFocus(0, NameEdit);
+			NameEdit->EnterEditingMode();
+		}
+	}
+}
+
+void FStateTreeEditorNodeDetails::OnNodePicked(const UStruct* InStruct) const
+{
 	GEditor->BeginTransaction(LOCTEXT("SelectNode", "Select Node"));
 
 	StructProperty->NotifyPreChange();
 
-	if (OuterObjects.Num() == RawNodeData.Num())
-	{
-		for (int32 Index = 0; Index < RawNodeData.Num(); Index++)
-		{
-			if (UObject* Outer = OuterObjects[Index])
-			{
-				if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[Index]))
-				{
-					const bool bRetainProperties = InStruct && UStateTreeEditorSettings::Get().bRetainNodePropertyValues;
-					FStateTreeEditorNode OldNode = bRetainProperties ? *Node : FStateTreeEditorNode();
-
-					Node->Reset();
-					
-					if (InStruct)
-					{
-						// Generate new ID.
-						Node->ID = FGuid::NewGuid();
-
-						// Initialize node
-						Node->Node.InitializeAs(InStruct);
-						
-						// Generate new name and instantiate instance data.
-						if (InStruct->IsChildOf(FStateTreeTaskBase::StaticStruct()))
-						{
-							FStateTreeTaskBase& Task = Node->Node.GetMutable<FStateTreeTaskBase>();
-							Task.Name = FName(InStruct->GetDisplayNameText().ToString());
-
-							if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Task.GetInstanceDataType()))
-							{
-								Node->Instance.InitializeAs(InstanceType);
-							}
-							else if (const UClass* InstanceClass = Cast<const UClass>(Task.GetInstanceDataType()))
-							{
-								Node->InstanceObject = NewObject<UObject>(Outer, InstanceClass);
-							}
-						}
-						else if (InStruct->IsChildOf(FStateTreeEvaluatorBase::StaticStruct()))
-						{
-							FStateTreeEvaluatorBase& Eval = Node->Node.GetMutable<FStateTreeEvaluatorBase>();
-							Eval.Name = FName(InStruct->GetDisplayNameText().ToString());
-
-							if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Eval.GetInstanceDataType()))
-							{
-								Node->Instance.InitializeAs(InstanceType);
-							}
-							else if (const UClass* InstanceClass = Cast<const UClass>(Eval.GetInstanceDataType()))
-							{
-								Node->InstanceObject = NewObject<UObject>(Outer, InstanceClass);
-							}
-						}
-						else if (InStruct->IsChildOf(FStateTreeConditionBase::StaticStruct()))
-						{
-							FStateTreeConditionBase& Cond = Node->Node.GetMutable<FStateTreeConditionBase>();
-							Cond.Name = FName(InStruct->GetDisplayNameText().ToString());
-
-							if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Cond.GetInstanceDataType()))
-							{
-								Node->Instance.InitializeAs(InstanceType);
-							}
-							else if (const UClass* InstanceClass = Cast<const UClass>(Cond.GetInstanceDataType()))
-							{
-								Node->InstanceObject = NewObject<UObject>(Outer, InstanceClass);
-							}
-						}
-
-						if (bRetainProperties)
-						{
-							UE::StateTreeEditor::Internal::RetainProperties(OldNode, *Node);
-						}
-					}
-				}
-			}
-		}
-	}
+	UE::StateTreeEditor::EditorNodeUtils::SetNodeType(StructProperty, InStruct);
 
 	StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
 	StructProperty->NotifyFinishedChangingProperties();
 
 	GEditor->EndTransaction();
 
-	ComboButton->SetIsOpen(false);
-
-	if (PropUtils)
-	{
-		PropUtils->ForceRefresh();
-	}
-}
-
-void FStateTreeEditorNodeDetails::OnClassPicked(const UClass* InClass) const
-{
-	check(StructProperty);
-	check(StateTree);
-
-	TArray<UObject*> OuterObjects;
-	TArray<void*> RawNodeData;
-	StructProperty->GetOuterObjects(OuterObjects);
-	StructProperty->AccessRawData(RawNodeData);
-
-	GEditor->BeginTransaction(LOCTEXT("SelectBlueprintNode", "Select Blueprint Node"));
-
-	StructProperty->NotifyPreChange();
-
-	if (OuterObjects.Num() == RawNodeData.Num())
-	{
-		for (int32 Index = 0; Index < RawNodeData.Num(); Index++)
-		{
-			if (UObject* Outer = OuterObjects[Index])
-			{
-				if (FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[Index]))
-				{
-					bool bRetainProperties = InClass && UStateTreeEditorSettings::Get().bRetainNodePropertyValues;
-					FStateTreeEditorNode OldNode = bRetainProperties ? *Node : FStateTreeEditorNode();
-
-					Node->Reset();
-
-					if (InClass && InClass->IsChildOf(UStateTreeTaskBlueprintBase::StaticClass()))
-					{
-						Node->Node.InitializeAs(FStateTreeBlueprintTaskWrapper::StaticStruct());
-						FStateTreeBlueprintTaskWrapper& Task = Node->Node.GetMutable<FStateTreeBlueprintTaskWrapper>();
-						Task.TaskClass = const_cast<UClass*>(InClass);
-						Task.Name = FName(InClass->GetDisplayNameText().ToString());
-						
-						Node->InstanceObject = NewObject<UObject>(Outer, InClass);
-
-						Node->ID = FGuid::NewGuid();
-					}
-					else if (InClass && InClass->IsChildOf(UStateTreeEvaluatorBlueprintBase::StaticClass()))
-					{
-						Node->Node.InitializeAs(FStateTreeBlueprintEvaluatorWrapper::StaticStruct());
-						FStateTreeBlueprintEvaluatorWrapper& Eval = Node->Node.GetMutable<FStateTreeBlueprintEvaluatorWrapper>();
-						Eval.EvaluatorClass = const_cast<UClass*>(InClass);
-						Eval.Name = FName(InClass->GetDisplayNameText().ToString());
-						
-						Node->InstanceObject = NewObject<UObject>(Outer, InClass);
-
-						Node->ID = FGuid::NewGuid();
-					}
-					else if (InClass && InClass->IsChildOf(UStateTreeConditionBlueprintBase::StaticClass()))
-					{
-						Node->Node.InitializeAs(FStateTreeBlueprintConditionWrapper::StaticStruct());
-						FStateTreeBlueprintConditionWrapper& Cond = Node->Node.GetMutable<FStateTreeBlueprintConditionWrapper>();
-						Cond.ConditionClass = const_cast<UClass*>(InClass);
-						Cond.Name = FName(InClass->GetDisplayNameText().ToString());
-
-						Node->InstanceObject = NewObject<UObject>(Outer, InClass);
-
-						Node->ID = FGuid::NewGuid();
-					}
-					else
-					{
-						// Not retaining properties if we haven't initialized a new node
-						bRetainProperties = false;
-					}
-
-					if (bRetainProperties)
-					{
-						UE::StateTreeEditor::Internal::RetainProperties(OldNode, *Node);
-					}
-				}
-			}
-		}
-	}
-
-	StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
-	StructProperty->NotifyFinishedChangingProperties();
-
-	GEditor->EndTransaction();
-
-	ComboButton->SetIsOpen(false);
-
+	FSlateApplication::Get().DismissAllMenus();
+	
 	if (PropUtils)
 	{
 		PropUtils->ForceRefresh();

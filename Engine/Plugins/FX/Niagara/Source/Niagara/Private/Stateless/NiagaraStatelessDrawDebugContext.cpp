@@ -9,7 +9,7 @@
 #if WITH_EDITOR
 void FNiagaraStatelessDrawDebugContext::DrawArrow(const FVector& Origin, const FVector& DirectionWithLength, const FColor& Color) const
 {
-	const float Len = DirectionWithLength.Length();
+	const float Len = static_cast<float>(DirectionWithLength.Length());
 	if (Len > UE_SMALL_NUMBER)
 	{
 		DrawDebugDirectionalArrow(

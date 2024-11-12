@@ -235,7 +235,10 @@ TArray<uint8> FNiagaraStackFunctionInputBinder::GetData() const
 		ValidScriptGraphChangeIdForDefaultPin != GetChangeIdFromFunctionScript())
 	{
 		RefreshGraphPins();
-		checkf(OverridePin == nullptr || OverridePin->LinkedTo.Num() == 0, TEXT("Binding no longer valid because the function was overriden"));
+		if (!OverridePin || OverridePin->LinkedTo.Num() == 0)
+		{
+			UE_LOG(LogNiagaraEditor, Warning, TEXT("FNiagaraStackFunctionInputBinder - OverridePin is no longer valid because the function was overriden"));
+		}
 	}
 
 	// We copy the data to an array here rather than return a pointer to the data because values stored in pins are 

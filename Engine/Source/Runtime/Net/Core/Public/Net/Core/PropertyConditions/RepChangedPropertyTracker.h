@@ -19,36 +19,15 @@ class UObject;
  * TODO: This class (and arguably IRepChangedPropertyTracker) should be renamed to reflect
  *			what they actually do now.
  */
-class FRepChangedPropertyTracker : public IRepChangedPropertyTracker
+class FRepChangedPropertyTracker
 {
 public:
 	FRepChangedPropertyTracker() = delete;
 	FRepChangedPropertyTracker(FCustomPropertyConditionState&& InActiveState);
 
-	UE_DEPRECATED(5.1, "Replay arguments no longer used.")
-	FRepChangedPropertyTracker(const bool InbIsReplay, const bool InbIsClientReplayRecording);
-
-	virtual ~FRepChangedPropertyTracker() = default;
-
-	//~ Begin IRepChangedPropertyTracker Interface.
-	/**
-		* Manually set whether or not Property should be marked inactive.
-		* This will change the Active status for all connections.
-		*
-		* @see DOREPLIFETIME_ACTIVE_OVERRIDE
-		*
-		* @param OwningObject	The object that we're tracking.
-		* @param RepIndex		Replication index for the Property.
-		* @param bIsActive		The new Active state.
-		*/
-	UE_DEPRECATED(5.2, "Please use FNetPropertyConditionManager::SetPropertyActiveOverride instead.")
-	virtual void SetCustomIsActiveOverride(UObject* OwningObject, const uint16 RepIndex, const bool bIsActive) override;
-
-	virtual void CountBytes(FArchive& Ar) const override;
-	//~ End IRepChangedPropertyTracker Interface
-
-	UE_DEPRECATED(5.1, "No longer used, ActiveState must be constructed with the correct number of properties.")
-	void InitActiveParents(int32 ParentCount) {}
+	~FRepChangedPropertyTracker() = default;
+	
+	void CountBytes(FArchive& Ar) const;
 
 	bool IsParentActive(uint16 ParentIndex) const
 	{
@@ -74,7 +53,8 @@ private:
 	friend UE::Net::Private::FNetPropertyConditionManager;
 
 	// Called from FNetPropertyConditionManager 
-	void CallSetDynamicCondition(const UObject* OwningObject, const uint16 RepIndex, const ELifetimeCondition Condition);
+	void SetDynamicCondition(const UObject* OwningObject, const uint16 RepIndex, const ELifetimeCondition Condition);
+	void SetCustomIsActiveOverride(const UObject* OwningObject, const uint16 RepIndex, const bool bIsActive);
 
 	/** Activation data for top level Properties on the given Actor / Object. */
 	FCustomPropertyConditionState ActiveState;

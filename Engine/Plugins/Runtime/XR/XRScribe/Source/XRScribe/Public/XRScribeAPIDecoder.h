@@ -8,6 +8,9 @@
 #include "Serialization/ArrayReader.h"
 #include "XRScribeFileFormat.h"
 
+
+DEFINE_LOG_CATEGORY_STATIC(LogXRScribeEmulate, Log, All);
+
 namespace UE::XRScribe
 {
 
@@ -17,7 +20,7 @@ public:
 	explicit FOpenXRCaptureDecoder();
 	~FOpenXRCaptureDecoder();
 
-	void DecodeDataFromMemory();
+	bool DecodeDataFromMemory();
 
 	// state accessors
 	[[nodiscard]] const TArray<XrExtensionProperties>& GetInstanceExtensionProperties() { return InstanceExtensionProperties; }
@@ -56,74 +59,74 @@ public:
 protected:
 
 	// packet decoders
-	void DecodeEnumerateApiLayerProperties(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateInstanceExtensionProperties(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateInstance(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeDestroyInstance(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetInstanceProperties(const FOpenXRAPIPacketBase& BasePacket);
-	//void DecodePollEvent(const FOpenXRAPIPacketBase& BasePacket);
-	//void DecodeResultToString(const FOpenXRAPIPacketBase& BasePacket);
-	//void DecodeStructureTypeToString(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetSystem(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetSystemProperties(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateEnvironmentBlendModes(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateSession(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeDestroySession(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateReferenceSpaces(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateReferenceSpace(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetReferenceSpaceBoundsRect(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateActionSpace(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeLocateSpace(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeDestroySpace(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateViewConfigurations(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetViewConfigurationProperties(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateViewConfigurationViews(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateSwapchainFormats(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateSwapchain(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeDestroySwapchain(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEnumerateSwapchainImages(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeAcquireSwapchainImage(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeWaitSwapchainImage(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeReleaseSwapchainImage(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeBeginSession(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEndSession(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeRequestExitSession(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeWaitFrame(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeBeginFrame(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeEndFrame(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeLocateViews(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeStringToPath(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodePathToString(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateActionSet(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeDestroyActionSet(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeCreateAction(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeDestroyAction(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateApiLayerProperties(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateInstanceExtensionProperties(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateInstance(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeDestroyInstance(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetInstanceProperties(const FOpenXRAPIPacketBase& BasePacket);
+	//bool DecodePollEvent(const FOpenXRAPIPacketBase& BasePacket);
+	//bool DecodeResultToString(const FOpenXRAPIPacketBase& BasePacket);
+	//bool DecodeStructureTypeToString(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetSystem(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetSystemProperties(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateEnvironmentBlendModes(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateSession(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeDestroySession(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateReferenceSpaces(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateReferenceSpace(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetReferenceSpaceBoundsRect(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateActionSpace(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeLocateSpace(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeDestroySpace(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateViewConfigurations(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetViewConfigurationProperties(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateViewConfigurationViews(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateSwapchainFormats(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateSwapchain(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeDestroySwapchain(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEnumerateSwapchainImages(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeAcquireSwapchainImage(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeWaitSwapchainImage(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeReleaseSwapchainImage(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeBeginSession(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEndSession(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeRequestExitSession(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeWaitFrame(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeBeginFrame(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeEndFrame(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeLocateViews(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeStringToPath(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodePathToString(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateActionSet(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeDestroyActionSet(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeCreateAction(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeDestroyAction(const FOpenXRAPIPacketBase& BasePacket);
 
-	void DecodeSuggestInteractionProfileBindings(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeAttachSessionActionSets(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetCurrentInteractionProfile(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetActionStateBoolean(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetActionStateFloat(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetActionStateVector2f(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetActionStatePose(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeSyncActions(const FOpenXRAPIPacketBase& BasePacket);
-	//void DecodeEnumerateBoundSourcesForAction(const FOpenXRAPIPacketBase& BasePacket);
-	//void DecodeGetInputSourceLocalizedName(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeSuggestInteractionProfileBindings(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeAttachSessionActionSets(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetCurrentInteractionProfile(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetActionStateBoolean(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetActionStateFloat(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetActionStateVector2f(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetActionStatePose(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeSyncActions(const FOpenXRAPIPacketBase& BasePacket);
+	//bool DecodeEnumerateBoundSourcesForAction(const FOpenXRAPIPacketBase& BasePacket);
+	//bool DecodeGetInputSourceLocalizedName(const FOpenXRAPIPacketBase& BasePacket);
 
-	void DecodeApplyHapticFeedback(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeStopHapticFeedback(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeInitializeLoaderKHR(const FOpenXRAPIPacketBase& BasePacket);
-	void DecodeGetVisibilityMaskKHR(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeApplyHapticFeedback(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeStopHapticFeedback(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeInitializeLoaderKHR(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetVisibilityMaskKHR(const FOpenXRAPIPacketBase& BasePacket);
 #if defined(XR_USE_GRAPHICS_API_D3D11)
-	void DecodeGetD3D11GraphicsRequirementsKHR(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetD3D11GraphicsRequirementsKHR(const FOpenXRAPIPacketBase& BasePacket);
 #endif
 #if defined(XR_USE_GRAPHICS_API_D3D12)
-	void DecodeGetD3D12GraphicsRequirementsKHR(const FOpenXRAPIPacketBase& BasePacket);
+	bool DecodeGetD3D12GraphicsRequirementsKHR(const FOpenXRAPIPacketBase& BasePacket);
 #endif
 
 	FArrayReader EncodedData;
 
-	typedef void(FOpenXRCaptureDecoder::* ApiDecodeFn)(const FOpenXRAPIPacketBase& BasePacket);
+	typedef bool(FOpenXRCaptureDecoder::* ApiDecodeFn)(const FOpenXRAPIPacketBase& BasePacket);
 	TStaticArray<ApiDecodeFn, (uint32)EOpenXRAPIPacketId::NumValidAPIPacketIds> DecodeFnTable;
 
 	// derived state from capture

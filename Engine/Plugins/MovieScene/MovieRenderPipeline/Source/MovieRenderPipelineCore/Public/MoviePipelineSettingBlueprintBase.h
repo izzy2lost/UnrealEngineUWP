@@ -22,9 +22,6 @@ public:
 	{
 		CategoryText = NSLOCTEXT("MovieRenderPipelineBP", "DefaultCategoryName_Text", "Custom Settings");
 		bIsValidOnPrimary = true;
-#if WITH_EDITORONLY_DATA
-		bIsValidOnMaster_DEPRECATED = true;
-#endif
 		bIsValidOnShots = true;
 		bCanBeDisabled = true;
 	}
@@ -89,11 +86,4 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Movie Pipeline")
 	bool bCanBeDisabled;
-
-private:
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	bool bIsValidOnMaster_DEPRECATED;
-#endif
 };

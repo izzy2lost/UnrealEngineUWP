@@ -83,6 +83,60 @@ namespace UE::StateTree
 // FStateTreeInstanceStorage
 //----------------------------------------------------------------//
 
+FStateTreeInstanceStorage::FStateTreeInstanceStorage() = default;
+
+FStateTreeInstanceStorage::FStateTreeInstanceStorage(const FStateTreeInstanceStorage& Other)
+	: InstanceStructs(Other.InstanceStructs)
+	, ExecutionState(Other.ExecutionState)
+	, TemporaryInstances(Other.TemporaryInstances)
+	, EventQueue(MakeShared<FStateTreeEventQueue>(*Other.EventQueue))
+	, TransitionRequests(Other.TransitionRequests)
+	, GlobalParameters(Other.GlobalParameters)
+{
+}
+
+FStateTreeInstanceStorage::FStateTreeInstanceStorage(FStateTreeInstanceStorage&& Other) noexcept
+	: InstanceStructs(MoveTemp(Other.InstanceStructs))
+	, ExecutionState(MoveTemp(Other.ExecutionState))
+	, TemporaryInstances(MoveTemp(Other.TemporaryInstances))
+	, EventQueue(Other.EventQueue)
+	, TransitionRequests(MoveTemp(Other.TransitionRequests))
+	, GlobalParameters(MoveTemp(Other.GlobalParameters))
+{
+	Other.EventQueue = MakeShared<FStateTreeEventQueue>();
+}
+
+FStateTreeInstanceStorage& FStateTreeInstanceStorage::operator=(const FStateTreeInstanceStorage& Other)
+{
+	InstanceStructs = Other.InstanceStructs;
+	ExecutionState = Other.ExecutionState;
+	TemporaryInstances = Other.TemporaryInstances;
+	EventQueue = MakeShared<FStateTreeEventQueue>(*Other.EventQueue);
+	TransitionRequests = Other.TransitionRequests;
+	GlobalParameters = Other.GlobalParameters;
+
+	return *this;
+}
+
+FStateTreeInstanceStorage& FStateTreeInstanceStorage::operator=(FStateTreeInstanceStorage&& Other) noexcept
+{
+	InstanceStructs = MoveTemp(Other.InstanceStructs);
+	ExecutionState = MoveTemp(Other.ExecutionState);
+	TemporaryInstances = MoveTemp(Other.TemporaryInstances);
+	EventQueue = Other.EventQueue;
+	Other.EventQueue = MakeShared<FStateTreeEventQueue>();
+	TransitionRequests = MoveTemp(Other.TransitionRequests);
+	GlobalParameters = MoveTemp(Other.GlobalParameters);
+
+	return *this;
+}
+
+void FStateTreeInstanceStorage::SetSharedEventQueue(const TSharedRef<FStateTreeEventQueue>& InSharedEventQueue)
+{
+	EventQueue = InSharedEventQueue;
+	bIsOwningEventQueue = false;
+}
+
 void FStateTreeInstanceStorage::AddTransitionRequest(const UObject* Owner, const FStateTreeTransitionRequest& Request)
 {
 	constexpr int32 MaxPendingTransitionRequests = 32;
@@ -197,6 +251,24 @@ void FStateTreeInstanceStorage::SetGlobalParameters(const FInstancedPropertyBag&
 	GlobalParameters = Parameters;
 }
 
+void FStateTreeInstanceStorage::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddPropertyReferencesWithStructARO(TBaseStructure<FStateTreeInstanceStorage>::Get(), this);
+	Collector.AddPropertyReferencesWithStructARO(TBaseStructure<FStateTreeEventQueue>::Get(), &EventQueue.Get());
+}
+
+void FStateTreeInstanceStorage::Reset()
+{
+	InstanceStructs.Reset();
+	if (bIsOwningEventQueue)
+	{
+		EventQueue->Reset();
+	}
+	ExecutionState.Reset();
+	TemporaryInstances.Reset();
+	GlobalParameters.Reset();
+}
+
 //----------------------------------------------------------------//
 // FStateTreeInstanceData
 //----------------------------------------------------------------//
@@ -208,7 +280,7 @@ FStateTreeInstanceData::FStateTreeInstanceData(const FStateTreeInstanceData& Oth
 	InstanceStorage = MakeShared<FStateTreeInstanceStorage>(*Other.InstanceStorage);
 }
 
-FStateTreeInstanceData::FStateTreeInstanceData(FStateTreeInstanceData&& Other)
+FStateTreeInstanceData::FStateTreeInstanceData(FStateTreeInstanceData&& Other) noexcept
 {
 	InstanceStorage = Other.InstanceStorage;
 	Other.InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
@@ -220,7 +292,7 @@ FStateTreeInstanceData& FStateTreeInstanceData::operator=(const FStateTreeInstan
 	return *this;
 }
 
-FStateTreeInstanceData& FStateTreeInstanceData::operator=(FStateTreeInstanceData&& Other)
+FStateTreeInstanceData& FStateTreeInstanceData::operator=(FStateTreeInstanceData&& Other) noexcept
 {
 	InstanceStorage = Other.InstanceStorage;
 	Other.InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
@@ -254,12 +326,27 @@ FStateTreeInstanceStorage& FStateTreeInstanceData::GetMutableStorage()
 
 FStateTreeEventQueue& FStateTreeInstanceData::GetMutableEventQueue()
 {
-	return GetMutableStorage().EventQueue;	
+	return GetMutableStorage().GetMutableEventQueue();
+}
+
+const TSharedRef<FStateTreeEventQueue>& FStateTreeInstanceData::GetSharedMutableEventQueue()
+{
+	return GetMutableStorage().GetSharedMutableEventQueue();
 }
 
 const FStateTreeEventQueue& FStateTreeInstanceData::GetEventQueue() const
 {
-	return GetStorage().EventQueue;
+	return GetStorage().GetEventQueue();
+}
+
+bool FStateTreeInstanceData::IsOwningEventQueue() const
+{
+	return GetStorage().IsOwningEventQueue();
+}
+
+void FStateTreeInstanceData::SetSharedEventQueue(const TSharedRef<FStateTreeEventQueue>& InSharedEventQueue)
+{
+	return GetMutableStorage().SetSharedEventQueue(InSharedEventQueue);
 }
 
 void FStateTreeInstanceData::AddTransitionRequest(const UObject* Owner, const FStateTreeTransitionRequest& Request)
@@ -378,7 +465,7 @@ bool FStateTreeInstanceData::Identical(const FStateTreeInstanceData* Other, uint
 
 void FStateTreeInstanceData::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
-	Collector.AddPropertyReferencesWithStructARO(FStateTreeInstanceStorage::StaticStruct(), &GetMutableStorage());
+	GetMutableStorage().AddStructReferencedObjects(Collector);
 }
 
 bool FStateTreeInstanceData::Serialize(FArchive& Ar)
@@ -556,10 +643,6 @@ void FStateTreeInstanceData::ShrinkTo(const int32 NumStructs)
 
 void FStateTreeInstanceData::Reset()
 {
-	FStateTreeInstanceStorage& Storage = GetMutableStorage();
-	Storage.InstanceStructs.Reset();
-	Storage.EventQueue.Reset();
-	Storage.ExecutionState.Reset();
-	Storage.TemporaryInstances.Reset();
-	Storage.GlobalParameters.Reset();
+	GetMutableStorage().Reset();
+
 }

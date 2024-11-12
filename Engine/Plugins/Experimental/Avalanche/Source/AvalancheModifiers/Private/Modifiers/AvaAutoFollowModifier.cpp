@@ -20,24 +20,24 @@ bool UAvaAutoFollowModifier::IsModifierDirtyable() const
 	{
 		return Super::IsModifierDirtyable();
 	}
-	
+
 	const FBox ReferenceActorLocalBounds = FAvaModifiersActorUtils::GetActorsBounds(FollowedActor, true);
 	const FBox ModifiedActorLocalBounds = FAvaModifiersActorUtils::GetActorsBounds(ActorModified, true);
-	
+
 	// Compare bounds/center to detect changes
 	if (ReferenceActorLocalBounds.Equals(CachedReferenceBounds, 0.01)
 		&& ModifiedActorLocalBounds.Equals(CachedModifiedBounds, 0.01))
 	{
 		return Super::IsModifierDirtyable();
 	}
-	
+
 	return true;
 }
 
 void UAvaAutoFollowModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata)
 {
 	Super::OnModifierCDOSetup(InMetadata);
-	
+
 	InMetadata.AllowTick(true);
 	InMetadata.SetName(TEXT("AutoFollow"));
 	InMetadata.SetCategory(TEXT("Layout"));
@@ -57,6 +57,8 @@ void UAvaAutoFollowModifier::OnModifierAdded(EActorModifierCoreEnableReason InRe
 	{
 		SceneExtension->TrackSceneTree(0, &ReferenceActor);
 	}
+
+	bDeprecatedPropertiesMigrated = true;
 }
 
 void UAvaAutoFollowModifier::OnModifierEnabled(EActorModifierCoreEnableReason InReason)
@@ -85,7 +87,7 @@ void UAvaAutoFollowModifier::OnModifiedActorTransformed()
 {
 	const AActor* const FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	const AActor* const ActorModified = GetModifiedActor();
-	
+
 	if (!FollowedActor || !ActorModified)
 	{
 		return;
@@ -96,18 +98,24 @@ void UAvaAutoFollowModifier::OnModifiedActorTransformed()
 	{
 		return;
 	}
-	
+
 	MarkModifierDirty();
 }
 
 void UAvaAutoFollowModifier::Apply()
 {
 	AActor* const ModifyActor = GetModifiedActor();
-	
+
 	AActor* const FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	if (!IsValid(FollowedActor))
 	{
 		Next();
+		return;
+	}
+
+	if (ModifyActor->IsAttachedTo(FollowedActor))
+	{
+		Fail(LOCTEXT("InvalidReferenceActor", "Followed actor cannot be a parent of modified actor"));
 		return;
 	}
 
@@ -129,10 +137,10 @@ void UAvaAutoFollowModifier::Apply()
 	const bool bReferenceActorZeroSizeBounds = CachedReferenceBounds.GetSize().IsNearlyZero();
 	const bool bModifyActorZeroSizeBounds = CachedModifiedBounds.GetSize().IsNearlyZero();
 
-	// Get actors location 
+	// Get actors location
 	const FVector ReferenceActorLocation = FollowedActor->GetActorLocation();
 	const FVector ModifyActorLocation = ModifyActor->GetActorLocation();
-	
+
 	// Get bounds center (pivot)
 	const FVector ReferenceActorCenter = !bReferenceActorZeroSizeBounds ? CachedReferenceBounds.GetCenter() : ReferenceActorLocation;
 	const FVector ModifierActorCenter = !bModifyActorZeroSizeBounds ? CachedModifiedBounds.GetCenter() : ModifyActorLocation;
@@ -140,15 +148,15 @@ void UAvaAutoFollowModifier::Apply()
 	// Get bounds extents
 	const FVector ReferenceActorExtent = CachedReferenceBounds.GetExtent();
 	const FVector ModifierActorExtent = CachedModifiedBounds.GetExtent();
-	
+
 	// using world space extents so that the modified actor is moved also taking into account reference actor rotation
 	const FVector ReferenceActorLocalOffset = ReferenceActorExtent * OffsetAxis;
 	const FVector ModifierActorLocalOffset = ModifierActorExtent * OffsetAxis;
-	
+
 	// Use user alignments for followed and modify actors
     const FVector ReferenceActorBoundsOffset = FollowedAlignment.LocalBoundsOffset(FBox(-ReferenceActorExtent, ReferenceActorExtent));
     const FVector ModifierActorBoundsOffset = LocalAlignment.LocalBoundsOffset(FBox(-ModifierActorExtent, ModifierActorExtent));
-	
+
 	// this offset can be non-zero when the actor pivot and bounds origin do not coincide: we need to take this into account
 	const FVector ReferenceActorPivotToBoundsOffset = ReferenceActorLocation - ReferenceActorCenter;
 	const FVector ModifiedActorPivotToBoundsOffset = ModifyActorLocation - ModifierActorCenter;
@@ -165,23 +173,25 @@ void UAvaAutoFollowModifier::Apply()
 
 	// target location needs to start from reference actor bounds location + proper location offset
 	CachedFollowLocation = ModifyActorLocation + (ReferenceActorLocation - ModifyActorLocation + OffsetLocation) * FollowAxisVector;
-	
+
 	ModifyActor->SetActorLocation(CachedFollowLocation);
-	
+
 	Next();
 }
 
 void UAvaAutoFollowModifier::PostLoad()
 {
-	if (!bDeprecatedPropertiesMigrated)
+	if (!bDeprecatedPropertiesMigrated
+		&& ReferenceActor.ReferenceContainer == EAvaReferenceContainer::Other
+		&& ReferenceActor.ReferenceActorWeak == nullptr)
 	{
 		ReferenceActor.ReferenceContainer = ReferenceContainer_DEPRECATED;
 		ReferenceActor.ReferenceActorWeak = ReferenceActorWeak_DEPRECATED;
 		ReferenceActor.bSkipHiddenActors = bIgnoreHiddenActors_DEPRECATED;
-		
+
 		bDeprecatedPropertiesMigrated = true;
 	}
-	
+
 	Super::PostLoad();
 }
 
@@ -200,7 +210,7 @@ void UAvaAutoFollowModifier::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	static const FName LocalAlignmentPropertyName = GET_MEMBER_NAME_CHECKED(UAvaAutoFollowModifier, LocalAlignment);
 	static const FName OffsetAxisPropertyName = GET_MEMBER_NAME_CHECKED(UAvaAutoFollowModifier, OffsetAxis);
 	static const FName FollowedAxisPropertyName = GET_MEMBER_NAME_CHECKED(UAvaAutoFollowModifier, FollowedAxis);
-	
+
 	if (MemberName == ReferenceActorPropertyName)
 	{
 		OnReferenceActorChanged();
@@ -216,14 +226,14 @@ void UAvaAutoFollowModifier::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	}
 	else if (MemberName == FollowedAxisPropertyName)
 	{
-		OnFollowedAxisChanged();	
+		OnFollowedAxisChanged();
 	}
 }
 
 void UAvaAutoFollowModifier::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
 {
 	OnReferenceActorChanged();
-	
+
 	Super::PostTransacted(TransactionEvent);
 }
 #endif // WITH_EDITOR
@@ -234,7 +244,7 @@ void UAvaAutoFollowModifier::SetReferenceActor(const FAvaSceneTreeActor& InRefer
 	{
 		return;
 	}
-	
+
 	ReferenceActor = InReferenceActor;
 	OnReferenceActorChanged();
 }
@@ -261,44 +271,44 @@ void UAvaAutoFollowModifier::OnFollowedAxisChanged()
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetDefaultDistance(const FVector& NewDefaultDistance)
+void UAvaAutoFollowModifier::SetDefaultDistance(const FVector& InDefaultDistance)
 {
-	DefaultDistance = NewDefaultDistance;
+	DefaultDistance = InDefaultDistance;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetMaxDistance(const FVector& NewMaxDistance)
+void UAvaAutoFollowModifier::SetMaxDistance(const FVector& InMaxDistance)
 {
-	MaxDistance = NewMaxDistance;
+	MaxDistance = InMaxDistance;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetProgress(const FVector& NewProgress)
+void UAvaAutoFollowModifier::SetProgress(const FVector& InProgress)
 {
-	Progress = NewProgress;
+	Progress = InProgress;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetFollowedAlignment(const FAvaAnchorAlignment& NewFollowedAlignment)
+void UAvaAutoFollowModifier::SetFollowedAlignment(const FAvaAnchorAlignment& InFollowedAlignment)
 {
-	FollowedAlignment = NewFollowedAlignment;
+	FollowedAlignment = InFollowedAlignment;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetLocalAlignment(const FAvaAnchorAlignment& NewLocalAlignment)
+void UAvaAutoFollowModifier::SetLocalAlignment(const FAvaAnchorAlignment& InLocalAlignment)
 {
-	LocalAlignment = NewLocalAlignment;
+	LocalAlignment = InLocalAlignment;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetOffsetAxis(const FVector& NewOffsetAxis)
+void UAvaAutoFollowModifier::SetOffsetAxis(const FVector& InOffsetAxis)
 {
-	OffsetAxis = NewOffsetAxis;
+	OffsetAxis = InOffsetAxis;
 
 	MarkModifierDirty();
 }
@@ -310,12 +320,12 @@ void UAvaAutoFollowModifier::OnTransformUpdated(AActor* InActor, bool bInParentM
 	{
 		return;
 	}
-	
+
 	const AActor* FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	const bool bIsAttachedToReferenceActor = InActor->IsAttachedTo(FollowedActor);
 	const bool bIsReferenceActor = InActor == FollowedActor;
-	
-	if (IsValid(FollowedActor) && (bIsAttachedToReferenceActor || bIsReferenceActor))
+
+	if (!bInParentMoved && IsValid(FollowedActor) && (bIsAttachedToReferenceActor || bIsReferenceActor))
 	{
 		MarkModifierDirty();
 	}
@@ -328,25 +338,29 @@ void UAvaAutoFollowModifier::OnRenderStateUpdated(AActor* InActor, UActorCompone
 	{
 		return;
 	}
-	
+
 	const AActor* FollowedActor = ReferenceActor.ReferenceActorWeak.Get();
 	const UAvaTransformModifierShared* LayoutShared = GetShared<UAvaTransformModifierShared>(false);
-	
+
 	if (!InActor || !FollowedActor || !LayoutShared)
 	{
 		return;
 	}
-	
+
 	const bool bIsReferenceActor = FollowedActor == InActor;
 	const bool bIsAttachedToReferenceActor = InActor->IsAttachedTo(FollowedActor);
-	const bool bModifierDirtyable = IsModifierDirtyable();
 
-	if (!bIsReferenceActor && !bIsAttachedToReferenceActor && !bModifierDirtyable)
+	if (!bIsReferenceActor && !bIsAttachedToReferenceActor)
 	{
 		return;
 	}
-	
-	MarkModifierDirty();
+
+	const bool bModifierDirtyable = IsModifierDirtyable();
+
+	if (bModifierDirtyable)
+	{
+		MarkModifierDirty();
+	}
 }
 
 void UAvaAutoFollowModifier::OnSceneTreeTrackedActorChanged(int32 InIdx, AActor* InPreviousActor, AActor* InNewActor)
@@ -383,13 +397,17 @@ void UAvaAutoFollowModifier::OnSceneTreeTrackedActorChildrenChanged(int32 InIdx,
 	}
 
 	ChildrenActorsWeak = InNewChildrenActors;
-	
+
 	MarkModifierDirty();
 }
 
 void UAvaAutoFollowModifier::OnReferenceActorChanged()
 {
-	if (ReferenceActor.ReferenceActorWeak.Get() == GetModifiedActor())
+	const AActor* FollowerActor = GetModifiedActor();
+	const AActor* TrackedActor = ReferenceActor.ReferenceActorWeak.Get();
+
+	if (TrackedActor == FollowerActor
+		|| FollowerActor->IsAttachedTo(TrackedActor))
 	{
 		ReferenceActor.ReferenceActorWeak = nullptr;
 	}

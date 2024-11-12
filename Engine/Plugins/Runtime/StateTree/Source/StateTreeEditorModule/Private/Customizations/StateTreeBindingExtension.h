@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IDetailPropertyExtensionHandler.h"
+#include "IDetailPropertyChildrenCustomizationHandler.h"
 
 enum class EStateTreePropertyUsage : uint8;
 
@@ -11,6 +12,7 @@ class IDetailLayoutBuilder;
 class IPropertyAccessEditor;
 struct FStateTreeEditorPropertyPath;
 struct FStateTreePropertyPath;
+class FProperty;
 
 namespace UE::StateTree::PropertyBinding
 {
@@ -34,6 +36,11 @@ namespace UE::StateTree::PropertyBinding
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStateTreePropertyBindingChanged, const FStateTreePropertyPath& /*SourcePath*/, const FStateTreePropertyPath& /*TargetPath*/);
 	extern STATETREEEDITORMODULE_API FOnStateTreePropertyBindingChanged OnStateTreePropertyBindingChanged;
+
+	/**
+	 * Returns true if provided Property is bindable.
+	 */
+	bool IsPropertyBindable(const FProperty& Property);
 } // UE::StateTree::PropertyBinding
 
 class FStateTreeBindingExtension : public IDetailPropertyExtensionHandler
@@ -42,4 +49,15 @@ public:
 	// IDetailPropertyExtensionHandler interface
 	virtual bool IsPropertyExtendable(const UClass* InObjectClass, const IPropertyHandle& PropertyHandle) const override;
 	virtual void ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, const IDetailLayoutBuilder& InDetailBuilder, const UClass* InObjectClass, TSharedPtr<IPropertyHandle> PropertyHandle) override;
+
+private:
+	bool CanPromoteToParameter(const TSharedPtr<IPropertyHandle>& InPropertyHandle) const;
+};
+
+/* Overrides bound property's children composition. */
+class FStateTreeBindingsChildrenCustomization : public IDetailPropertyChildrenCustomizationHandler
+{
+public:
+	bool ShouldCustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle) override;
+	void CustomizeChildren(IDetailChildrenBuilder& ChildrenBuilder, TSharedPtr<IPropertyHandle> InPropertyHandle) override;
 };

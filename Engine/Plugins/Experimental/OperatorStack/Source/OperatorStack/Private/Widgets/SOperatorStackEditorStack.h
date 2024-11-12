@@ -26,7 +26,7 @@ class SOperatorStackEditorStack : public SCompoundWidget
 	friend class SOperatorStackEditorStackRow;
 
 public:
-	static inline constexpr float Padding = 3.f;
+	static constexpr float Padding = 2.f;
 	static const TMap<EOperatorStackEditorMessageType, FLinearColor> MessageBoxColors;
 	static const TMap<EOperatorStackEditorMessageType, const FSlateBrush*> MessageBoxIcons;
 
@@ -50,6 +50,9 @@ public:
 
 	FOperatorStackEditorContextPtr GetContext() const;
 
+	/** Apply a filter on all items */
+	void FilterItems(const FText& InText);
+
 protected:
 	TSharedRef<ITableRow> OnGenerateRow(FOperatorStackEditorItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable);
 
@@ -65,7 +68,7 @@ protected:
 	/** List selection changed */
 	void OnSelectionChanged(FOperatorStackEditorItemPtr InItem, ESelectInfo::Type InSelect) const;
 
-	/** Is this item selectable in the list view, here check if item is draggable */
+	/** Is this item selectable in the list view */
 	bool IsSelectableRow(FOperatorStackEditorItemPtr InItem) const;
 
 	/** A stack widget consists of a header, body and footer */
@@ -78,6 +81,7 @@ protected:
 	/** Generate this named menu widget for this context */
 	TSharedRef<SWidget> GenerateMenuWidget(FName InMenuName) const;
 
+	EVisibility GetHeaderVisibility() const;
 	EVisibility GetBodyVisibility() const;
 	EVisibility GetFooterVisibility() const;
 
@@ -85,6 +89,9 @@ protected:
 	FLinearColor GetMessageBoxBackgroundColor() const;
 	const FSlateBrush* GetMessageBoxIcon() const;
 	EVisibility GetMessageBoxIconVisibility() const;
+
+	/** The customization to use */
+	TWeakObjectPtr<UOperatorStackEditorStackCustomization> StackCustomizationWeak;
 
 	/** The main panel we are in */
 	TWeakPtr<SOperatorStackEditorPanel> MainPanelWeak;
@@ -106,9 +113,6 @@ protected:
 
 	/** Footer custom view for properties in footer */
 	TSharedPtr<ICustomDetailsView> FooterDetailsView;
-
-	/** The customization to use */
-	TWeakObjectPtr<UOperatorStackEditorStackCustomization> StackCustomizationWeak;
 
 	/** Children items widget created from this, used for search propagation */
 	TArray<TSharedPtr<SOperatorStackEditorStack>> ItemsWidgets;
@@ -140,6 +144,8 @@ protected:
 	/** When set will display an alert message in the header */
 	TAttribute<EOperatorStackEditorMessageType> MessageBoxType;
 
+	bool bHiddenByFilter = false;
+
 private:
 	static TSharedRef<ICustomDetailsView> CreateDetailsView(const FCustomDetailsViewArgs& InArgs, const FOperatorStackEditorItem& InItem);
 
@@ -147,8 +153,13 @@ private:
 	void OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
 	void OnSearchPinnedKeyword(ECheckBoxState InCheckState, FString InPinnedKeyword);
 
-	void OnSearchChanged();
+	/** Request an async search on the main panel */
+	void RequestSearchAsync() const;
+
+	/** Handles search in a recursive way, hiding items that do not match keywords */
+	bool HandleRecursiveSearch(const TSet<FString>& InSearchedKeywords_OR, const TSet<FString>& InSearchedKeywords_AND);
+
+	/** Returns true when this item matches the keywords */
 	bool MatchSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND) const;
-	bool HandleSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND);
 };
 

@@ -222,7 +222,7 @@ namespace TextFilterTests
 	}
 };
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextFilterTests_TextFilterExpressionEvaluator, "System.Core.Text.TextFilterExpressionEvaluator", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextFilterTests_TextFilterExpressionEvaluator, "System.Core.Text.TextFilterExpressionEvaluator", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FTextFilterTests_TextFilterExpressionEvaluator::RunTest(const FString& Parameters)
 {
 	using namespace TextFilterTests;
@@ -248,7 +248,7 @@ bool FTextFilterTests_TextFilterExpressionEvaluator::RunTest(const FString& Para
 	return bResult;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextFilterTests_TextFilter, "System.Core.Text.TextFilter", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextFilterTests_TextFilter, "System.Core.Text.TextFilter", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FTextFilterTests_TextFilter::RunTest(const FString& Parameters)
 {
 	using namespace TextFilterTests;

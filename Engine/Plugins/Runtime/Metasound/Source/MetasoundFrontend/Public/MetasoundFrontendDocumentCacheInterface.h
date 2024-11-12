@@ -88,7 +88,9 @@ namespace Metasound::Frontend
 		virtual ~IDocumentGraphInterfaceCache() = default;
 
 		virtual const FMetasoundFrontendClassInput* FindInput(FName InputName) const = 0;
+		virtual const int32* FindInputIndex(FName InputName) const = 0;
 		virtual const FMetasoundFrontendClassOutput* FindOutput(FName OutputName) const = 0;
+		virtual const int32* FindOutputIndex(FName OutputName) const = 0;
 	};
 
 	/** Interface for querying cached document dependencies. */
@@ -106,9 +108,25 @@ namespace Metasound::Frontend
 
 		virtual const FMetasoundFrontendDocument& GetDocument() const = 0;
 
-		virtual const IDocumentGraphNodeCache& GetNodeCache() const = 0;
-		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const = 0;
+		UE_DEPRECATED(5.5, "Use overload providing pageID")
+		virtual const IDocumentGraphNodeCache& GetNodeCache() const { return GetNodeCache(::Metasound::Frontend::DefaultPageID); }
+
+		// Returns NodeCache associated with the given PageID
+		virtual const IDocumentGraphNodeCache& GetNodeCache(const FGuid& InPageID) const = 0;
+
+		UE_DEPRECATED(5.5, "Use overload providing pageID")
+		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const { return GetEdgeCache(::Metasound::Frontend::DefaultPageID); }
+
+		// Returns EdgeCache associated with the given PageID
+		virtual const IDocumentGraphEdgeCache& GetEdgeCache(const FGuid& InPageID) const = 0;
+
+		// Returns InterfaceCache for the given document
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const = 0;
+
+#if WITH_EDITORONLY_DATA
+		// Sets the default BuildPageID for the given document
+		virtual void SetBuildPageID(const FGuid& InPageID) = 0;
+#endif // WITH_EDITORONLY_DATA
 	};
 
 } // namespace Metasound::Frontend

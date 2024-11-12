@@ -2,7 +2,7 @@
 
 #include "ReplicationDiscoveryContainer.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void FReplicationDiscoveryContainer::AddDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer)
 	{

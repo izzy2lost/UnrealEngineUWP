@@ -3,43 +3,41 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
-#include "VerseVM/VVMRestValue.h"
+#include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMShape.h"
+
+class FVerseVMEngineEnvironment;
 
 namespace Verse
 {
-struct VClass;
-struct VProcedure;
 struct VUniqueString;
 
-static constexpr uint8 IsStructBit = 4;
-
-/// A Verse object that may store fields and associated values for those fields on it.
+/// Base class for Verse objects that may store fields and associated values for those fields on it.
 /// An object points to an emergent type, which in turn points to a "shape".
 /// A "shape" is a dynamic memory layout of fields and their offsets.
 struct VObject : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	/// Allocate a new object with the given shape, populated with placeholders
-	static VObject& NewUninitialized(FAllocationContext Context, VEmergentType& InEmergentType);
+	VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
+	FOpResult SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value);
 
-	const VValue LoadField(FAllocationContext Context, VUniqueString& Name);
+	bool IsStruct() { return IsDeeplyMutable(); };
+	void SetIsStruct() { SetIsDeeplyMutable(); };
 
-	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
-	/// The data is retrieved from the object, rather than the shape.
-	VRestValue& GetFieldSlot(FAllocationContext Context, VUniqueString& Name);
-
-	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
-
-	bool IsStruct() const { return !!(Misc2 & IsStructBit); };
-
-private:
-	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
-	COREUOBJECT_API uint32 GetTypeHashImpl();
+protected:
+	friend class ::FVerseVMEngineEnvironment;
+	friend class FInterpreter;
+	friend struct VClass;
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
+
+	static constexpr const size_t DataAlignment = alignof(VRestValue);
+
+	VValue LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field);
+	static FOpResult SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value);
+
+	static size_t DataOffset(const VCppClassInfo& CppClassInfo);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.
@@ -47,9 +45,9 @@ private:
 	 *
 	 * ```
 	 * c := class {x:int}
-	 * c := C{}
-	 * Foo(c.X) # allocates a placeholder
-	 * c.X := 1  # This is the first time `c.X` actually gets defined.
+	 * C := c{}
+	 * Foo(C.X) # allocates a placeholder
+	 * C.X := 1  # This is the first time `c.X` actually gets defined.
 	 * ```
 	 *
 	 * This stores the actual data for individual fields. Some constants and procedures are stored in the shape, not the
@@ -60,7 +58,29 @@ private:
 	 * caches for retrieving fields on objects. It also helps reduce memory usage because multiple objects can share
 	 * the same hash table that describes their layouts.
 	 */
-	VRestValue Data[];
+	FORCEINLINE void* GetData(const VCppClassInfo& CppClassInfo);
+	FORCEINLINE VRestValue* GetFieldData(const VCppClassInfo& CppClassInfo);
 };
+
+inline VObject::VObject(FAllocationContext Context, VEmergentType& InEmergentType)
+	: VHeapValue(Context, &InEmergentType)
+{
+	// Leave initialization of the data to the subclasses
+}
+
+FORCEINLINE size_t VObject::DataOffset(const VCppClassInfo& CppClassInfo)
+{
+	return Align(CppClassInfo.SizeWithoutFields, DataAlignment);
+}
+
+FORCEINLINE void* VObject::GetData(const VCppClassInfo& CppClassInfo)
+{
+	return BitCast<uint8*>(this) + DataOffset(CppClassInfo);
+}
+
+FORCEINLINE VRestValue* VObject::GetFieldData(const VCppClassInfo& CppClassInfo)
+{
+	return BitCast<VRestValue*>(GetData(CppClassInfo));
+}
 } // namespace Verse
 #endif // WITH_VERSE_VM

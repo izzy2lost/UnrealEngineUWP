@@ -146,3 +146,44 @@ EStateTreeRunStatus FStateTreeBlueprintTaskWrapper::Tick(FStateTreeExecutionCont
 	return Instance->Tick(Context, DeltaTime);
 }
 
+#if WITH_EDITOR
+FText FStateTreeBlueprintTaskWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	FText Description;
+	if (const UStateTreeTaskBlueprintBase* Instance = InstanceDataView.GetPtr<UStateTreeTaskBlueprintBase>())
+	{
+		Description = Instance->GetDescription(ID, InstanceDataView, BindingLookup, Formatting);
+	}
+	if (Description.IsEmpty() && TaskClass)
+	{
+		Description = TaskClass->GetDisplayNameText();
+	}
+	return Description;
+}
+
+FName FStateTreeBlueprintTaskWrapper::GetIconName() const
+{
+	if (TaskClass)
+	{
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(TaskClass))
+		{
+			return NodeCDO->GetIconName();
+		}
+	}
+
+	return FStateTreeTaskBase::GetIconName();
+}
+
+FColor FStateTreeBlueprintTaskWrapper::GetIconColor() const
+{
+	if (TaskClass)
+	{
+		if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(TaskClass))
+		{
+			return NodeCDO->GetIconColor();
+		}
+	}
+
+	return FStateTreeTaskBase::GetIconColor();
+}
+#endif

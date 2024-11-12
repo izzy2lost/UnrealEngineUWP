@@ -262,41 +262,6 @@ protected:
 	};
 
 public:
-
-	/** Construct a SWidget based on initial parameters. */
-	 UE_DEPRECATED(4.27, "SWidget::Construct should not be called directly. Use SNew or SAssignNew to create a SWidget")
-	SLATECORE_API void Construct(
-		const TAttribute<FText>& InToolTipText,
-		const TSharedPtr<IToolTip>& InToolTip,
-		const TAttribute< TOptional<EMouseCursor::Type> >& InCursor,
-		const TAttribute<bool>& InEnabledState,
-		const TAttribute<EVisibility>& InVisibility,
-		const float InRenderOpacity,
-		const TAttribute<TOptional<FSlateRenderTransform>>& InTransform,
-		const TAttribute<FVector2D>& InTransformPivot,
-		const FName& InTag,
-		const bool InForceVolatile,
-		const EWidgetClipping InClipping,
-		const EFlowDirectionPreference InFlowPreference,
-		const TOptional<FAccessibleWidgetData>& InAccessibleData,
-		const TArray<TSharedRef<ISlateMetaData>>& InMetaData);
-
-	UE_DEPRECATED(4.27, "SWidget::SWidgetConstruct should not be called directly. Use SNew or SAssignNew to create a SWidget")
-	SLATECORE_API void SWidgetConstruct(const TAttribute<FText>& InToolTipText,
-		const TSharedPtr<IToolTip>& InToolTip,
-		const TAttribute< TOptional<EMouseCursor::Type> >& InCursor,
-		const TAttribute<bool>& InEnabledState,
-		const TAttribute<EVisibility>& InVisibility,
-		const float InRenderOpacity,
-		const TAttribute<TOptional<FSlateRenderTransform>>& InTransform,
-		const TAttribute<FVector2D>& InTransformPivot,
-		const FName& InTag,
-		const bool InForceVolatile,
-		const EWidgetClipping InClipping,
-		const EFlowDirectionPreference InFlowPreference,
-		const TOptional<FAccessibleWidgetData>& InAccessibleData,
-		const TArray<TSharedRef<ISlateMetaData>>& InMetaData);
-
 	//
 	// GENERAL EVENTS
 	//
@@ -773,6 +738,7 @@ private:
 	void SetDesiredSize(const FVector2D& InDesiredSize)
 	{
 		DesiredSize = FVector2f(InDesiredSize);
+		bDesiredSizeSet = true;
 	}
 
 #if STATS || ENABLE_STATNAMEDEVENTS
@@ -845,9 +811,6 @@ public:
 		return TStatId(); // not doing stats at the moment, or ever
 #endif
 	}
-
-	UE_DEPRECATED(4.24, "GetRelativeLayoutScale(int32 ChildIndex, float LayoutScaleMultiplier), your widget will also need to set bHasRelativeLayoutScale in their Construct/ctor.")
-	virtual float GetRelativeLayoutScale(const FSlotBase& Child, float LayoutScaleMultiplier) const { return 1.0f; }
 
 	/** What is the Child's scale relative to this widget. */
 	SLATECORE_API virtual float GetRelativeLayoutScale(const int32 ChildIndex, float LayoutScaleMultiplier) const;
@@ -950,11 +913,6 @@ public:
 	 */
 	SLATECORE_API bool HasMouseCaptureByUser(int32 UserIndex, TOptional<int32> PointerIndex = TOptional<int32>()) const;
 
-protected:
-	/** Called when this widget had captured the mouse, but that capture has been revoked for some reason. */
-	UE_DEPRECATED(4.20, "Please use OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)")
-	void OnMouseCaptureLost() { }
-
 public:
 	/** Called when this widget had captured the mouse, but that capture has been revoked for some reason. */
 	SLATECORE_API virtual void OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent);
@@ -1035,13 +993,6 @@ public:
 
 	/** @param InVisibility  should this widget be */
 	SLATECORE_API virtual void SetVisibility(TAttribute<EVisibility> InVisibility);
-
-	/**
-	 * @return is the widget visible and its parents also visible.
-	 * @note only valid if the widget is contained by an InvalidationRoot (the proxy is valid).
-	 */
-	UE_DEPRECATED(5.0, "IsFastPathVisible is deprecated and should not be used.")
-	SLATECORE_API bool IsFastPathVisible() const;
 
 #if WITH_ACCESSIBILITY
 	/**
@@ -1146,9 +1097,6 @@ public:
 	{
 		bCachedVolatile = bForceVolatile || ComputeVolatility();
 	}
-
-	UE_DEPRECATED(5.0, "InvalidatePrepass is deprecated. Use the Invalidate(EInvalidateWidgetReason::Prepass) or use MarkPrepassAsDirty()")
-	SLATECORE_API void InvalidatePrepass();
 
 	/**
 	 * In fast path, if the widget is mark, do a full Prepass on its next update to calculate it's desired size.
@@ -1325,8 +1273,29 @@ public:
 	}
 
 	/** Gets the desired flow direction for the layout. */
-	EFlowDirectionPreference GetFlowDirectionPreference() const { return FlowDirectionPreference; }
+	EFlowDirectionPreference GetFlowDirectionPreference() const
+	{
+		return FlowDirectionPreference;
+	}
 
+protected:
+	/** Establishes a new flow direction potentially, if this widget has a particular preference for it and all its children. */
+	EFlowDirection ComputeFlowDirection() const
+	{
+		switch (FlowDirectionPreference)
+		{
+		case EFlowDirectionPreference::Culture:
+			return FLayoutLocalization::GetLocalizedLayoutDirection();
+		case EFlowDirectionPreference::LeftToRight:
+			return EFlowDirection::LeftToRight;
+		case EFlowDirectionPreference::RightToLeft:
+			return EFlowDirection::RightToLeft;
+		}
+
+		return GSlateFlowDirection;
+	}
+
+public:
 	/** Set the tool tip that should appear when this widget is hovered. */
 	SLATECORE_API void SetToolTipText(const TAttribute<FText>& ToolTipText);
 
@@ -1348,7 +1317,6 @@ protected:
 	SLATECORE_API virtual TOptional<EMouseCursor::Type> GetCursor() const;
 
 public:
-
 	/**
 	 * Get the metadata of the type provided.
 	 * @return the first metadata of the type supplied that we encounter
@@ -1658,8 +1626,10 @@ private:
 	SLATECORE_API void Prepass_Internal(float LayoutScaleMultiplier);
 
 protected:
-
-	float GetPrepassLayoutScaleMultiplier() const { return PrepassLayoutScaleMultiplier.Get(1.0f); }
+	float GetPrepassLayoutScaleMultiplier() const
+	{
+		return bPrepassLayoutScaleMultiplierSet ? PrepassLayoutScaleMultiplierValue : 1.0f;
+	}
 	
 	SLATECORE_API void Prepass_ChildLoop(float InLayoutScaleMultiplier, FChildren* MyChildren);
 
@@ -1695,7 +1665,10 @@ public:
 	SLATECORE_API void UnRegisterActiveTimer( const TSharedRef<FActiveTimerHandle>& ActiveTimerHandle );
 	
 	/** Does this widget have any active timers? */
-	bool HasActiveTimers() const { return ActiveTimers.Num() > 0; }
+	bool HasActiveTimers() const
+	{
+		return bHasActiveTimers;
+	}
 
 private:
 
@@ -1750,12 +1723,6 @@ protected:
 	  */
 	uint8 bClippingProxy : 1;
 
-#if WITH_EDITORONLY_DATA
-	/** Is this widget hovered? */
-	UE_DEPRECATED(5.0, "Direct access to bIsHovered is now deprecated. Use the IsHovered getter.")
-	uint8 bIsHovered : 1;
-#endif
-
 private:
 	/**
 	 * Whether this widget is a "tool tip force field".  That is, tool-tips should never spawn over the area
@@ -1781,14 +1748,20 @@ private:
 	/** Are bound Slate Attributes will be updated once per frame. */
 	uint8 bEnabledAttributesUpdate : 1;
 
-	/** At least one SlateAttributes was updated but the invalidation was delayed. */
-	uint8 bHasPendingAttributesInvalidation : 1;
-
 	/** The SNew or SAssignedNew construction is completed. */
 	uint8 bIsDeclarativeSyntaxConstructionCompleted : 1;
 
 	/** Is the attribute IsHovered is set? */
 	uint8 bIsHoveredAttributeSet : 1;
+
+	/** Is there at least one ActiveTimer currently registered. */
+	uint8 bHasActiveTimers : 1;
+
+	/** Is the DesiredSize set. */
+	uint8 bDesiredSizeSet : 1;
+
+	/** Is the PrepassLayoutScaleMultiplier set. */
+	uint8 bPrepassLayoutScaleMultiplierSet : 1;
 
 protected:
 	uint8 bHasCustomPrepass : 1;
@@ -1817,38 +1790,12 @@ protected:
 	 */
 	EWidgetPixelSnapping PixelSnappingMethod;
 
-protected:
-	/** Establishes a new flow direction potentially, if this widget has a particular preference for it and all its children. */
-	EFlowDirection ComputeFlowDirection() const
-	{
-		switch (FlowDirectionPreference)
-		{
-		case EFlowDirectionPreference::Culture:
-			return FLayoutLocalization::GetLocalizedLayoutDirection();
-		case EFlowDirectionPreference::LeftToRight:
-			return EFlowDirection::LeftToRight;
-		case EFlowDirectionPreference::RightToLeft:
-			return EFlowDirection::RightToLeft;
-		}
-
-		return GSlateFlowDirection;
-	}
-
 private:
-
 	/** Flow direction preference */
 	EFlowDirectionPreference FlowDirectionPreference;
 
 	/** The different updates this widget needs next frame. */
 	EWidgetUpdateFlags UpdateFlags;
-
-	mutable FSlateWidgetPersistentState PersistentState;
-
-	/** The list of active timer handles for this widget. */
-	TArray<TSharedRef<FActiveTimerHandle>> ActiveTimers;
-
-	/** Stores the ideal size this widget wants to be. */
-	TOptional<FVector2f> DesiredSize;
 
 	/** Is this widget visible, hidden or collapsed */
 	TSlateAttribute<EVisibility> VisibilityAttribute;
@@ -1859,6 +1806,14 @@ private:
 	/** Whether or not this widget is hovered */
 	TSlateAttribute<bool> HoveredAttribute;
 
+	//~ See PrepassLayoutScaleMultiplier
+	float PrepassLayoutScaleMultiplierValue;
+
+	mutable FSlateWidgetPersistentState PersistentState;
+
+	/** Stores the ideal size this widget wants to be. See bDesiredSizeSet. */
+	FVector2f DesiredSize;
+
 	/** Render transform pivot of this widget (in normalized local space) */
 	TSlateAttribute<FVector2D> RenderTransformPivotAttribute;
 
@@ -1866,8 +1821,6 @@ private:
 	TSlateAttribute<TOptional<FSlateRenderTransform>> RenderTransformAttribute;
 
 protected:
-
-	TOptional<float> PrepassLayoutScaleMultiplier;
 	/**
 	* Can be used to enlarge the culling bounds of this widget (pre-intersection), this can be useful if you've got
 	* children that you know are using rendering transforms to render outside their standard bounds, if that happens
@@ -1875,21 +1828,6 @@ protected:
 	* you should extend the bounds of the culling area to add a bit more slack to how culling is performed to this panel.
 	*/
 	FMargin CullingBoundsExtension;
-
-#if WITH_EDITORONLY_DATA
-	/** Whether or not this widget is enabled */
-	UE_DEPRECATED(5.0, "Direct access to EnabledState is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<bool> EnabledState;
-	/** Is this widget visible, hidden or collapsed */
-	UE_DEPRECATED(5.0, "Direct access to Visibility is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<EVisibility> Visibility;
-	/** Render transform of this widget. TOptional<> to allow code to skip expensive overhead if there is no render transform applied. */
-	UE_DEPRECATED(5.0, "Direct access to RenderTransform is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute< TOptional<FSlateRenderTransform> > RenderTransform;
-	/** Render transform pivot of this widget (in normalized local space) */
-	UE_DEPRECATED(5.0, "Direct access to RenderTransformPivot is now deprecated. Use the setter or getter.")
-	TAttribute<FVector2D> RenderTransformPivot;
-#endif
 
 	/** The opacity of the widget. Automatically applied during rendering. */
 	float RenderOpacity;
@@ -1907,12 +1845,24 @@ private:
 	/** Debugging information on the type of widget we're creating for the Widget Reflector. */
 	FName TypeOfWidget;
 
-private: 
+protected:
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Direct access to PrepassLayoutScaleMultiplier is deprecated. Use the GetPrepassLayoutScaleMultiplier. The scale multitplier can only be set in the prepass.")
+	TOptional<float> PrepassLayoutScaleMultiplier;
+#endif
 
+private: 
 #if !UE_BUILD_SHIPPING
 	/** Full file path (and line) in which this widget was created */
 	FName CreatedInLocation;
 #endif
+
+#if WITH_SLATE_DEBUGGING
+	/** The last time this widget got painted. */
+	uint32 LastPaintFrame = 0;
+	/** Flag to help detect when we access an invalid Widget. */
+	uint8 Debug_DestroyedTag = 0xDC;
+#endif // WITH_SLATE_DEBUGGING
 
 #if UE_SLATE_TRACE_ENABLED
 	/**
@@ -1922,19 +1872,6 @@ private:
 	 */
 	mutable uint8 Debug_LastTraceInfoSent = 0;
 #endif // UE_SLATE_TRACE_ENABLED
-
-#if WITH_SLATE_DEBUGGING
-	/** The last time this widget got painted. */
-	uint32 LastPaintFrame = 0;
-	/** Flag to help detect when we access an invalid Widget. */
-	uint8 Debug_DestroyedTag = 0xDC;
-#endif // WITH_SLATE_DEBUGGING
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	UE_DEPRECATED(4.27, "Access to SWidget::Cursor is deprecated and will not function. Call SetCursor/GetCursor instead")
-	/** The cursor to show when the mouse is hovering over this widget. */
-	TAttribute<TOptional<EMouseCursor::Type>> Cursor;
-#endif
 
 #if UE_SLATE_WITH_WIDGET_UNIQUE_IDENTIFIER
 	/** The widget's id */

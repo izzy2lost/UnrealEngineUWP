@@ -9,6 +9,7 @@
 #include "RigHierarchyElements.h"
 #include "RigHierarchyCache.h"
 #include "RigHierarchyPose.h"
+#include "RigHierarchyPoseAdapter.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "EdGraph/EdGraphPin.h"
 #include "RigHierarchyDefines.h"
@@ -31,6 +32,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FRigHierarchyMetadataTagChangedDelegate, 
 
 extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableRotationOrder;
 extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableModules;
+extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnablePhysics;
 
 UENUM()
 enum ERigTransformStackEntryType : int
@@ -282,6 +284,21 @@ public:
 	void UnsetCurveValues(bool bSetupUndo = false);
 
 	/**
+	 * Returns all changed curve values
+	 */
+	const TArray<int32>& GetChangedCurveIndices() const;
+
+	/**
+	 * Returns all changed curve values
+	 */
+	void ResetChangedCurveIndices();
+
+	/**
+	 * Returns the flag used decide if we should be recording curve changes
+	 */
+	bool& GetRecordCurveChangesFlag() { return bRecordCurveChanges; }
+	
+	/**
 	 * Returns the number of elements in the Hierarchy.
 	 * @return The number of elements in the Hierarchy
 	 */
@@ -430,6 +447,30 @@ public:
 		}
 		return INDEX_NONE;
 	}
+
+	/**
+	 * Returns the key and index pair of an element given its key
+	 * @param InKey The key of the element to retrieve the information for
+	 * @return The key and index pair of the element
+	 */
+	FRigElementKeyAndIndex GetKeyAndIndex(const FRigElementKey& InKey) const
+	{
+		return GetKeyAndIndex(GetIndex(InKey));
+	};
+
+	/**
+	 * Returns the key and index pair of an element given its index
+	 * @param InIndex The index of the element to retrieve the information for
+	 * @return The key and index pair of the element
+	 */
+	FRigElementKeyAndIndex GetKeyAndIndex(int32 InIndex) const
+	{
+		if(const FRigBaseElement* Element = Get(InIndex))
+		{
+			return Element->GetKeyAndIndex();
+		}
+		return FRigElementKeyAndIndex();
+	};
 
 	/**
 	 * Returns the index of an element given its key within its default parent (or root)
@@ -661,7 +702,7 @@ public:
 	{
 		return Get<T>(GetIndex(InKey));
 	}
-	
+
 private:
 	/**
 	* Returns bone element for a given key, for scripting purpose only, for cpp usage, use Find<FRigBoneElement>()
@@ -845,6 +886,14 @@ public:
 	{
 		return GetElementsOfType<FRigBoneElement>(bTraverse);
 	}
+	
+	/**
+   	 * Returns all Bone elements without traversing the hierarchy
+   	 */
+   	TArray<FRigBaseElement*>& GetBonesFast() const
+   	{
+   		return ElementsPerType[RigElementTypeToFlatIndex(ERigElementType::Bone)];
+   	}
 
 	/**
 	 * Returns all Bone elements
@@ -914,6 +963,14 @@ public:
 	}
 
 	/**
+	 * Returns all Curve elements without traversing the hierarchy
+	 */
+	TArray<FRigBaseElement*>& GetCurvesFast() const
+	{
+		return ElementsPerType[RigElementTypeToFlatIndex(ERigElementType::Curve)];
+	}
+
+	/**
 	 * Returns all Curve elements
 	 */
 	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get Curves", ScriptName = "GetCurves"))
@@ -923,22 +980,22 @@ public:
 	}
 
 	/**
-	 * Returns all RigidBody elements
+	 * Returns all Physics elements
 	 * @param bTraverse Returns the elements in order of a depth first traversal
 	 */
-	TArray<FRigRigidBodyElement*> GetRigidBodies(bool bTraverse = false) const
+	TArray<FRigPhysicsElement*> GetPhysicsElements(bool bTraverse = false) const
 	{
-		return GetElementsOfType<FRigRigidBodyElement>(bTraverse);
+		return GetElementsOfType<FRigPhysicsElement>(bTraverse);
 	}
 
 	/**
-	 * Returns all RigidBody elements
+	 * Returns all Physics elements
 	 * @param bTraverse Returns the elements in order of a depth first traversal
 	 */
-	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get RigidBodies", ScriptName = "GetRigidBodies"))
-    TArray<FRigElementKey> GetRigidBodyKeys(bool bTraverse = true) const
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get Physics Keys", ScriptName = "GetPhysicsKeys"))
+    TArray<FRigElementKey> GetPhysicsKeys(bool bTraverse = true) const
 	{
-		return GetKeysOfType<FRigRigidBodyElement>(bTraverse);
+		return GetKeysOfType<FRigPhysicsElement>(bTraverse);
 	}
 
 	/**
@@ -1044,6 +1101,20 @@ public:
 			return GetNumberOfParents(Element.Index) == 0;
 		}, false);
 	}
+
+	/**
+	 * Finds a new physics solver given its guid
+	 * @param InID The id identifying the physics solver
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* FindPhysicsSolver(const FRigPhysicsSolverID& InID) const; 
+
+	/**
+	 * Finds a new physics solver given its name
+	 * @param InName The name identifying the physics solver in the scope of this hierarchy
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* FindPhysicsSolverByName(const FName& InName) const; 
 
 	/**
 	 * Returns the name of metadata for a given element
@@ -2553,13 +2624,13 @@ public:
 		return FQuat();
 	}
 
-	FVector GetControlAnglesFromQuat(const FRigControlElement* InControlElement, const FQuat& InQuat) const
+	FVector GetControlAnglesFromQuat(const FRigControlElement* InControlElement, const FQuat& InQuat, bool bUseRotationOrder) const
 	{
 		FVector Angle(0, 0, 0);
 		if (InControlElement)
 		{
 
-			if (GetUsePreferredRotationOrder(InControlElement))
+			if (bUseRotationOrder && InControlElement->Settings.bUsePreferredRotationOrder)
 			{
 				FRotator Rotator = InControlElement->PreferredEulerAngles.GetRotatorFromQuat(InQuat);
 				Angle = Rotator.Euler();
@@ -3010,6 +3081,14 @@ public:
 	TArray<FRigElementKey> GetChildren(FRigElementKey InKey, bool bRecursive = false) const;
 
 	/**
+	 * Returns the child elements of a given element key
+	 * @param InKey The key of the element to retrieve the children for
+	 * @param bRecursive If set to true grand-children will also be returned etc
+	 * @return Returns the child elements
+	 */
+	FRigBaseElementChildrenArray GetActiveChildren(const FRigBaseElement* InElement, bool bRecursive = false) const;
+
+	/**
 	 * Returns the child elements of a given element index
 	 * @param InIndex The index of the element to retrieve the children for
 	 * @param bRecursive If set to true grand-children will also be returned etc
@@ -3156,11 +3235,26 @@ public:
 	TArray<FRigElementWeight> GetParentWeightArray(const FRigBaseElement* InChild, bool bInitial = false) const;
 
 	/**
-	 * Get the current active for the passed in key. This is only valid when only one parent has a weight value and the other parents have zero weights
+	 * Get the current active parent for the passed in key. This is only valid when only one parent has a weight value and the other parents have zero weights
 	 * @param InKey The multi parented element
+	 * @param bReferenceKey Whether or not to return a reference key
 	 * @return Returns the first parent with a non-zero weight
 	 */
-	FRigElementKey GetActiveParent(const FRigElementKey& InKey) const;
+	FRigElementKey GetActiveParent(const FRigElementKey& InKey, bool bReferenceKey = true) const;
+
+	/**
+	 * Get the current active parent for a given element index. This is only valid when only one parent has a weight value and the other parents have zero weights
+	 * @param InIndex The index of the element to retrieve the parent for
+	 * @return Returns the first parent index (or INDEX_NONE) with a non-zero weight
+	 */
+	int32 GetActiveParent(int32 InIndex) const;
+
+	/**
+	 * Get the current active parent for the passed in key. This is only valid when only one parent has a weight value and the other parents have zero weights
+	 * @param InElement The element to retrieve the parents for
+	 * @return Returns the first parent with a non-zero weight
+	 */
+	FRigBaseElement* GetActiveParent(const FRigBaseElement* InElement) const;
 
 	/**
 	 * Sets the weight of a parent below a multi parent element
@@ -3357,6 +3451,30 @@ public:
 		}
 		return false;
 	}
+
+	/**
+	 * Returns the animation channels of a given element key
+	 * @param InKey The key of the element to retrieve the animation channels for
+	 * @param bOnlyDirectChildren If set to false also animation channels with secondary parenting relationships will be retrieved
+	 * @return Returns the animation channels' indices
+	 */
+	TArray<FRigElementKey> GetAnimationChannels(FRigElementKey InKey, bool bOnlyDirectChildren = true) const;
+
+	/**
+	 * Returns the animation channels of a given element index
+	 * @param InIndex The index of the element to retrieve the animation channels for
+	 * @param bOnlyDirectChildren If set to false also animation channels with secondary parenting relationships will be retrieved
+	 * @return Returns the animation channels' indices
+	 */
+	TArray<int32> GetAnimationChannels(int32 InIndex, bool bOnlyDirectChildren = true) const;
+
+	/**
+	 * Returns the animation channels of a given element
+	 * @param InElement The element to retrieve the animation channels for
+	 * @param bOnlyDirectChildren If set to false also animation channels with secondary parenting relationships will be retrieved
+	 * @return Returns the animation channels
+	 */
+	TArray<FRigControlElement*> GetAnimationChannels(const FRigControlElement* InElement, bool bOnlyDirectChildren = true) const;
 
 	/**
 	 * Returns all element keys of this hierarchy
@@ -3629,6 +3747,20 @@ public:
 	}
 
 	/**
+	 * Sets the pose adapter used for storage of pose data
+	 * @param InPoseAdapter The pose adapter to set on the hierarchy
+	 */
+	void LinkPoseAdapter(TSharedPtr<FRigHierarchyPoseAdapter> InPoseAdapter);
+
+	/**
+	 * Clears the pose adapter used for storage of pose data
+	 */
+	void UnlinkPoseAdapter()
+	{
+		return LinkPoseAdapter(nullptr);
+	}
+
+	/**
 	 * Creates a rig control value from a bool value
 	 * @param InValue The value to create the rig control value from
 	 * @return The converted control rig val ue
@@ -3826,6 +3958,8 @@ private:
 	FRigHierarchyMetadataChangedDelegate MetadataChangedDelegate;
 	FRigHierarchyMetadataTagChangedDelegate MetadataTagChangedDelegate;
 	FRigEventDelegate EventDelegate;
+
+	TSharedPtr<FRigHierarchyPoseAdapter> PoseAdapter;
 
 public:
 
@@ -4123,7 +4257,7 @@ private:
 	 * Templated helper function to create an element
 	 */
 	template<typename ElementType = FRigBaseElement>
-	ElementType* NewElement(int32 Num = 1)
+	ElementType* NewElement(int32 Num = 1, bool bAllocateStorage = false)
 	{
 		ElementType* NewElements = static_cast<ElementType*>(FMemory::Malloc(sizeof(ElementType) * Num));
 		for(int32 Index=0;Index<Num;Index++)
@@ -4131,6 +4265,13 @@ private:
 			new(&NewElements[Index]) ElementType(this);
 		}
 		NewElements[0].OwnedInstances = Num;
+		if(bAllocateStorage)
+		{
+			for(int32 Index=0;Index<Num;Index++)
+			{
+				AllocateDefaultElementStorage(&NewElements[Index], false);
+			}
+		}
 		return NewElements;
 	}
 
@@ -4199,6 +4340,9 @@ private:
 	// Storage for the elements
 	mutable TArray<TArray<FRigBaseElement*>> ElementsPerType;
 
+	TArray<int32> ChangedCurveIndices;
+	bool bRecordCurveChanges;
+	
 	//
 	struct FMetadataStorage
 	{
@@ -4221,14 +4365,62 @@ private:
 
 	TMap<FRigElementKey, FString> UserDefinedElementName;
 
+	// Per element pose storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry poses with them.
+	FRigReusableElementStorage<FTransform> ElementTransforms;
+
+	// Per element dirty state storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry metadata with them.
+	FRigReusableElementStorage<bool> ElementDirtyStates;
+
+	// Per element curve storage. Storage is defined here rather than on the elements
+	// to reduce memory consumption. Only elements created by MakeElement point to
+	// the element storage. Copied elements via the copy constructor or copy operator
+	// do not have URigHierarchy as an owner and therefore do not carry curves with them.
+	FRigReusableElementStorage<float> ElementCurves;
+
+	// A list of ranges which can be used to copy all poses from initial to current, for example 
+	TMap<ERigTransformType::Type, TTuple<int32, int32>> ElementTransformRanges;
+
+	// Allocates the default element storage for an element
+	void AllocateDefaultElementStorage(FRigBaseElement* InElement, bool bUpdateAllElements);
+
+	// Deallocates the default element storage for an element
+	void DeallocateElementStorage(FRigBaseElement* InElement);
+
+	// Updates all storage pointers of the elements for poses and dirty states
+	void UpdateElementStorage();
+
+	// Orders the element storage by storing first initial, then current,
+	// within each first local, then global, and within each of those lists
+	// we'll place bones, nulls, controls etc in that order
+	bool SortElementStorage();
+
+	// Compacts the element storage
+	bool ShrinkElementStorage();
+
+	// Helper function to iterate all transform element storage
+	void ForEachTransformElementStorage(TFunction<void(FRigTransformElement*,ERigTransformType::Type,ERigTransformStorageType::Type,FRigComputedTransform*,FRigTransformDirtyState*)> InCallback);
+
+	// Returns the computed transform and dirty state for a given element
+	TTuple<FRigComputedTransform*,FRigTransformDirtyState*> GetElementTransformStorage(
+		const FRigElementKeyAndIndex& InKey,
+		ERigTransformType::Type InTransformType,
+		ERigTransformStorageType::Type InStorageType = ERigTransformStorageType::Pose);
+
+	// Returns the range of the element transform / dirty state storage for a given
+	// transform type. this is only valid if the element storage has been sorted. 
+	TOptional<TTuple<int32,int32>> GetElementStorageRange(ERigTransformType::Type InTransformType) const;
+
 	// Element metadata storage. Storage is defined here rather than on the elements
 	// to reduce memory consumption. Only elements created by MakeElement point to
 	// the element storage. Copied elements via the copy constructor or copy operator
 	// do not have URigHierarchy as an owner and therefore do not carry metadata with them.
-	TArray<FMetadataStorage> ElementMetadata;
-
-	// List of metadata storage entries that have been freed and can be recycled.
-	TArray<int32> ElementMetadataFreeList;
+	FRigReusableElementStorage<FMetadataStorage> ElementMetadata;
 
 	// A quick-lookup cache for elements' children. Each element that has a ChildCacheIndex
 	// not equal to INDEX_NONE is an index into the offset and count cache below, which in
@@ -4438,7 +4630,7 @@ protected:
 			{
 				return 3;
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
 				return 4;
 			}
@@ -4486,7 +4678,7 @@ protected:
 			}
 			case 4:
 			{
-				return ERigElementType::RigidBody;
+				return ERigElementType::Physics;
 			}
 			case 5:
 			{
@@ -4796,6 +4988,68 @@ private:
 	void ForEachListeningHierarchy(TFunctionRef<void(const FRigHierarchyListener&)> PerListeningHierarchyFunction);
 #endif
 
+public:
+	
+	template<typename RangeType>
+	static void ConvertElementsToKeys(RangeType InElements, TArray<FRigElementKey>& OutKeys)
+	{
+		OutKeys.Reserve(OutKeys.Num() + InElements.Num());
+		for (const typename RangeType::ElementType Element: InElements)
+		{
+			OutKeys.Add(Element->Key);
+		}
+	}
+
+	template<typename RangeType>
+	static void ConvertElementsToIndices(RangeType InElements, TArray<int32>& OutIndices)
+	{
+		OutIndices.Reserve(OutIndices.Num() + InElements.Num());
+		for (const typename RangeType::ElementType Element: InElements)
+		{
+			OutIndices.Add(Element->Index);
+		}
+	}
+
+	template<typename ElementType = FRigBaseElement, typename RangeType = TArray<FRigBaseElement*>>
+	static void ConvertElements(RangeType InElements, TArray<ElementType*>& OutElements, bool bFilterNull = true)
+	{
+		OutElements.Reserve(OutElements.Num() + InElements.Num());
+		for (const typename RangeType::ElementType Element: InElements)
+		{
+			ElementType* CastElement = Cast<ElementType>(Element);
+			if(CastElement || bFilterNull)
+			{
+				OutElements.Add(CastElement);
+			}
+		}
+	}
+
+	template<typename RangeType>
+	static TArray<FRigElementKey> ConvertElementsToKeys(RangeType InElements)
+	{
+		TArray<FRigElementKey> ElementKeys;
+		ConvertElementsToKeys(InElements, ElementKeys);
+		return ElementKeys;
+	}
+
+	template<typename RangeType>
+	static TArray<int32> ConvertElementsToIndices(RangeType InElements)
+	{
+		TArray<int32> ElementIndices;
+		ConvertElementsToIndices(InElements, ElementIndices);
+		return ElementIndices;
+	}
+
+	template<typename ElementType = FRigBaseElement, typename RangeType = TArray<FRigBaseElement*>>
+	static TArray<ElementType*> ConvertElements(RangeType InElements, bool bFilterNull = true)
+	{
+		TArray<ElementType*> OutElements;
+		ConvertElements<ElementType, RangeType>(InElements, OutElements, bFilterNull);
+		return OutElements;
+	}
+
+private:
+	
 	// the currently destroyed element - used to avoid notification storms
 	const FRigBaseElement* ElementBeingDestroyed; 
 	
@@ -4814,6 +5068,10 @@ private:
 	friend struct FRigDispatch_SetMetadata;
 	friend struct FRigDispatch_GetModuleMetadata;
 	friend struct FRigDispatch_SetModuleMetadata;
+	friend class FControlRigHierarchySortElementStorage;
+	friend class FControlRigHierarchyShrinkElementStorage;
+	friend class FControlRigHierarchyRelinkElementStorage;
+	friend class FRigHierarchyPoseAdapter;
 };
 
 struct CONTROLRIG_API FRigHierarchyInteractionBracket
@@ -4851,7 +5109,9 @@ private:
 
 	// certain units are allowed to use this
 	friend struct FRigUnit_AddParent;
+	friend struct FRigUnit_AddParents;
 	friend struct FRigUnit_SetDefaultParent;
+	friend struct FRigUnit_SetChannelHosts;
 
 private:
 	TGuardValue<bool> GuardIsControllerAvailable;

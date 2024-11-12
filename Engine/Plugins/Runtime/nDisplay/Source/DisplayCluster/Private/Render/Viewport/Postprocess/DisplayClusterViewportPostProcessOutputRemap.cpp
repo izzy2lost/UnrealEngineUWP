@@ -222,7 +222,7 @@ bool FDisplayClusterViewportPostProcessOutputRemap::MarkProceduralMeshComponentG
 	return false;
 }
 
-void FDisplayClusterViewportPostProcessOutputRemap::PerformPostProcessFrame_RenderThread(FRHICommandListImmediate& RHICmdList, const TArray<FRHITexture2D*>* InFrameTargets, const TArray<FRHITexture2D*>* InAdditionalFrameTargets) const
+void FDisplayClusterViewportPostProcessOutputRemap::PerformPostProcessFrame_RenderThread(FRHICommandListImmediate& RHICmdList, const TArray<FRHITexture*>* InFrameTargets, const TArray<FRHITexture*>* InAdditionalFrameTargets) const
 {
 	check(IsInRenderingThread());
 
@@ -233,8 +233,8 @@ void FDisplayClusterViewportPostProcessOutputRemap::PerformPostProcessFrame_Rend
 		{
 			for (int32 Index = 0; Index < InFrameTargets->Num(); Index++)
 			{
-				FRHITexture2D* InOutTexture = (*InFrameTargets)[Index];
-				FRHITexture2D* TempTargetableTexture = (*InAdditionalFrameTargets)[Index];
+				FRHITexture* InOutTexture = (*InFrameTargets)[Index];
+				FRHITexture* TempTargetableTexture = (*InAdditionalFrameTargets)[Index];
 
 				static IDisplayClusterShaders& ShadersAPI = IDisplayClusterShaders::Get();
 				if (ShadersAPI.RenderPostprocess_OutputRemap(RHICmdList, InOutTexture, TempTargetableTexture, *MeshProxy))

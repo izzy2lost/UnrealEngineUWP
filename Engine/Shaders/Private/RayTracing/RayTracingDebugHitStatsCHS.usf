@@ -12,8 +12,12 @@ RAY_TRACING_ENTRY_ANY_HIT(RayTracingDebugHitStatsAHS,
 	FRayTracingDebugPayload, Payload,
 	FRayTracingIntersectionAttributes, Attributes)
 {
-	uint Index = GetInstanceUserData();
-	RayTracingDebugHitStatsUniformBuffer.HitStatsOutput[Index].PrimitiveID = Index;
+	const uint Index = InstanceIndex();
+
+	const uint GPUSceneInstanceId = GetInstanceUserData();
+	const FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceId, Scene.GPUScene.InstanceDataSOAStride);
+
+	RayTracingDebugHitStatsUniformBuffer.HitStatsOutput[Index].PrimitiveID = InstanceSceneData.PrimitiveId;
 	InterlockedAdd(RayTracingDebugHitStatsUniformBuffer.HitStatsOutput[Index].Count, 1);
 }
 

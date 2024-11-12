@@ -2,6 +2,7 @@
 
 #include "Metadata/PCGMetadataPartitionCommon.h"
 
+#include "PCGContext.h"
 #include "PCGModule.h"
 #include "PCGParamData.h"
 #include "Data/PCGPointData.h"
@@ -236,6 +237,12 @@ namespace PCGMetadataPartitionCommon
 			return {};
 		}
 
+		// Implementation note:
+		// We'll use the attribute partition only for compressed types here (+ needs to be basic attribute only)
+		// because otherwise we can run into issues where keeping track of the breadth of values is not great.
+		bool bUseAttributePartition = false;
+		const FPCGMetadataAttributeBase* Attribute = nullptr;
+
 		if (InSelector.IsBasicAttribute())
 		{
 			const UPCGMetadata* Metadata = InData->ConstMetadata();
@@ -245,7 +252,7 @@ namespace PCGMetadataPartitionCommon
 				return {};
 			}
 
-			const FPCGMetadataAttributeBase* Attribute = Metadata->GetConstAttribute(InSelector.GetName());
+			Attribute = Metadata->GetConstAttribute(InSelector.GetName());
 			if (!Attribute)
 			{
 				if (!bSilenceMissingAttributeErrors)
@@ -256,6 +263,12 @@ namespace PCGMetadataPartitionCommon
 				return {};
 			}
 
+			bUseAttributePartition = Attribute->UsesValueKeys();
+		}
+
+		if (bUseAttributePartition)
+		{
+			check(Attribute);
 			return AttributePartition<PartitionType>(Attribute, *Keys, InOptionalContext);
 		}
 		else
@@ -290,6 +303,14 @@ namespace PCGMetadataPartitionCommon
 
 			return PCGMetadataAttribute::CallbackWithRightType(Accessor->GetUnderlyingType(), Operation);
 		}
+	}
+
+	/**
+	* Dispatch the partition according to the data and selector.
+	*/
+	TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
+	{
+		return AttributeGenericPartition<TArray<int32>>(InData, InSelector, InOptionalContext, bSilenceMissingAttributeErrors);
 	}
 
 	/**
@@ -417,7 +438,7 @@ namespace PCGMetadataPartitionCommon
 				continue;
 			}
 
-			UPCGPointData* CurrentPointData = NewObject<UPCGPointData>();
+			UPCGPointData* CurrentPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InOptionalContext);
 			PartitionedData.Add(CurrentPointData);
 			CurrentPointData->InitializeFromData(InData);
 
@@ -430,6 +451,40 @@ namespace PCGMetadataPartitionCommon
 		}
 
 		return PartitionedData;
+	}
+
+	UPCGData* RemoveDuplicatesPoint(const UPCGPointData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
+	{
+		TArray<TArray<int32>> Partition = AttributeGenericPartition(InData, InSelectorArrayView, InOptionalContext, bSilenceMissingAttributeErrors);
+		if (Partition.IsEmpty())
+		{
+			return nullptr;
+		}
+
+		const TArray<FPCGPoint>& Points = InData->GetPoints();
+
+		UPCGPointData* OutputPointData = nullptr;
+
+		for (TArray<int32>& Indices : Partition)
+		{
+			if (Indices.IsEmpty())
+			{
+				continue;
+			}
+
+			if (!OutputPointData)
+			{
+				OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InOptionalContext);
+				OutputPointData->InitializeFromData(InData);
+
+				OutputPointData->GetMutablePoints().Reserve(Partition.Num());
+			}
+
+			check(OutputPointData);
+			OutputPointData->GetMutablePoints().Add(Points[Indices[0]]);
+		}
+
+		return OutputPointData;
 	}
 
 	TArray<UPCGData*> AttributeParamSpatialPartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArray, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
@@ -468,14 +523,14 @@ namespace PCGMetadataPartitionCommon
 
 			if (InSpatialData)
 			{
-				UPCGSpatialData* NewData = NewObject<UPCGSpatialData>();
+				UPCGSpatialData* NewData = FPCGContext::NewObject_AnyThread<UPCGSpatialData>(InOptionalContext);
 				NewData->InitializeFromData(InSpatialData);
 				NewMetadata = NewData->Metadata;
 				PartitionedData.Add(NewData);
 			}
 			else
 			{
-				UPCGParamData* NewData = NewObject<UPCGParamData>();
+				UPCGParamData* NewData = FPCGContext::NewObject_AnyThread<UPCGParamData>(InOptionalContext);
 				NewData->Metadata->AddAttributes(OriginalMetadata);
 				NewMetadata = NewData->Metadata;
 				PartitionedData.Add(NewData);
@@ -509,17 +564,81 @@ namespace PCGMetadataPartitionCommon
 		return PartitionedData;
 	}
 
+	UPCGData* RemoveDuplicatesParamSpatial(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArray, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
+	{
+		if (!InData->IsA<UPCGSpatialData>() && !InData->IsA<UPCGParamData>())
+		{
+			PCGLog::LogErrorOnGraph(LOCTEXT("InvalidDataType", "Input data is not an attribute set nor a spatial data. Operation not supported."), InOptionalContext);
+			return nullptr;
+		}
+
+		const TArray<TArray<int32>> Partition = AttributeGenericPartition(InData, InSelectorArray, InOptionalContext, bSilenceMissingAttributeErrors);
+
+		if (Partition.IsEmpty())
+		{
+			return nullptr;
+		}
+
+		const UPCGSpatialData* InSpatialData = Cast<const UPCGSpatialData>(InData);
+
+		UPCGData* OutputData = nullptr;
+		UPCGMetadata* OutMetadata = nullptr;
+
+		TArray<FName> AttributeNames;
+		TArray<EPCGMetadataTypes> AttributeTypes;
+		const UPCGMetadata* OriginalMetadata = InData->ConstMetadata();
+		OriginalMetadata->GetAttributes(AttributeNames, AttributeTypes);
+
+		for (const TArray<int32>& Indices : Partition)
+		{
+			if (Indices.IsEmpty())
+			{
+				continue;
+			}
+
+			if (!OutputData)
+			{
+				if (InSpatialData)
+				{
+					UPCGSpatialData* NewData = FPCGContext::NewObject_AnyThread<UPCGSpatialData>(InOptionalContext);
+					NewData->InitializeFromData(InSpatialData);
+					OutputData = NewData;
+					OutMetadata = NewData->Metadata;
+				}
+				else
+				{
+					UPCGParamData* NewData = FPCGContext::NewObject_AnyThread<UPCGParamData>(InOptionalContext);
+					NewData->Metadata->AddAttributes(OriginalMetadata);
+					OutputData = NewData;
+					OutMetadata = NewData->Metadata;
+				}
+			}
+
+			check(OutMetadata);
+
+			const PCGMetadataEntryKey CurrentEntryKey = OutMetadata->AddEntry();
+
+			for (const FName AttributeName : AttributeNames)
+			{
+				const FPCGMetadataAttributeBase* OriginalAttribute = OriginalMetadata->GetConstAttribute(AttributeName);
+				FPCGMetadataAttributeBase* NewAttribute = OutMetadata->GetMutableAttribute(AttributeName);
+				check(OriginalAttribute && NewAttribute);
+
+				NewAttribute->SetValue(CurrentEntryKey, OriginalAttribute, Indices[0]);
+
+				if (Partition.Num() == 1)
+				{
+					NewAttribute->SetDefaultValueToFirstEntry();
+				}
+			}
+		}
+
+		return OutputData;
+	}
+
 	TArray<UPCGData*> AttributePartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
 	{
-		const TArrayView<const FPCGAttributePropertySelector> ArrayView(&InSelector, 1);
-		if (const UPCGPointData* InPointData = Cast<UPCGPointData>(InData))
-		{
-			return AttributePointPartition(InPointData, ArrayView, InOptionalContext, bSilenceMissingAttributeErrors);
-		}
-		else
-		{
-			return AttributeParamSpatialPartition(InData, ArrayView, InOptionalContext, bSilenceMissingAttributeErrors);
-		}
+		return AttributePartition(InData, TArrayView<const FPCGAttributePropertySelector>(&InSelector, 1), InOptionalContext, bSilenceMissingAttributeErrors);
 	}
 
 	TArray<UPCGData*> AttributePartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
@@ -531,6 +650,23 @@ namespace PCGMetadataPartitionCommon
 		else
 		{
 			return AttributeParamSpatialPartition(InData, InSelectorArrayView, InOptionalContext, bSilenceMissingAttributeErrors);
+		}
+	}
+
+	UPCGData* RemoveDuplicates(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
+	{
+		return RemoveDuplicates(InData, TArrayView<const FPCGAttributePropertySelector>(&InSelector, 1), InOptionalContext, bSilenceMissingAttributeErrors);
+	}
+
+	UPCGData* RemoveDuplicates(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
+	{
+		if (const UPCGPointData* InPointData = Cast<UPCGPointData>(InData))
+		{
+			return RemoveDuplicatesPoint(InPointData, InSelectorArrayView, InOptionalContext, bSilenceMissingAttributeErrors);
+		}
+		else
+		{
+			return RemoveDuplicatesParamSpatial(InData, InSelectorArrayView, InOptionalContext, bSilenceMissingAttributeErrors);
 		}
 	}
 }

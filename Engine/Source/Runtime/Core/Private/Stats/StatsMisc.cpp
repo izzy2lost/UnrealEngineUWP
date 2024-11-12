@@ -4,12 +4,14 @@
 #include "Stats/Stats.h"
 #include "Logging/LogMacros.h"
 #include "CoreGlobals.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 
 #if !STATS && !UE_BUILD_DEBUG && defined(USE_LIGHTWEIGHT_STATS_FOR_HITCH_DETECTION) && USE_LIGHTWEIGHT_STATS_FOR_HITCH_DETECTION && USE_HITCH_DETECTION
 #include "HAL/ThreadHeartBeat.h"
 #include "HAL/ThreadManager.h"
 
+UE_AUTORTFM_ALWAYS_OPEN
 void FLightweightStatScope::ReportHitch()
 {
 	if (StatString)

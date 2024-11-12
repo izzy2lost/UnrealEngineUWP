@@ -9,6 +9,7 @@
 #include "Engine/NetConnection.h"
 #include "GameFramework/DamageType.h"
 #include "GameFramework/WorldSettings.h"
+#include "Net/Core/Misc/NetContext.h"
 #include "Net/Core/PropertyConditions/PropertyConditions.h"
 #include "TimerManager.h"
 #include "GameFramework/Pawn.h"
@@ -43,6 +44,7 @@
 #include "ObjectTrace.h"
 #include "Engine/AutoDestroySubsystem.h"
 #include "WorldPartition/WorldPartitionRuntimeCellInterface.h"
+#include "AutoRTFM/AutoRTFM.h"
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
@@ -73,6 +75,7 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
+#include "WorldPartition/ActorInstanceGuids.h"
 
 DEFINE_LOG_CATEGORY(LogActor);
 
@@ -98,7 +101,7 @@ extern int32 GOptimizeActorRegistration;
 FOnProcessEvent AActor::ProcessEventDelegate;
 #endif
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 /** Count of total actors created */
 int32 CSVActorTotalCount = 0;
@@ -107,7 +110,7 @@ TMap<FName, int32> CSVActorClassNameToCountMap;
 /** Critical section to control access to map */
 FCriticalSection CSVActorClassNameToCountMapLock;
 
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITOR
 AActor::FDuplicationSeedInterface::FDuplicationSeedInterface(TMap<UObject*, UObject*>& InDuplicationSeed)
@@ -120,10 +123,51 @@ void AActor::FDuplicationSeedInterface::AddEntry(UObject* Source, UObject* Desti
 	DuplicationSeed.Emplace(Source, Destination);
 }
 
+namespace ActorUtils
+{
+	bool CanDeleteOrReplaceCommon(const AActor* InActor, FText& OutReason)
+	{
+		if (!InActor->IsUserManaged())
+		{
+			OutReason = LOCTEXT("CanDeleteOrReplace_Error_UserManaged", "Actor is not user managed");
+			return false;
+		}
+
+		// Actors in LevelInstances can't be deleted unless they are in a regular edit level instance (not property override)
+		if (InActor->IsInLevelInstance() && !InActor->IsInEditLevelInstance())
+		{
+			OutReason = LOCTEXT("CanDeleteOrReplace_Error_NonEditLevelInstance", "Actor is in a non edit level instance");
+			return false;
+		}
+
+		return true;
+	}
+}
 
 #endif
 
 uint32 AActor::BeginPlayCallDepth = 0;
+
+namespace ActorUtils
+{
+	template<class Function>
+	static void ForEachNetDriver(UEngine* Engine, const UWorld* const World, const Function InFunction)
+	{
+		if (Engine == nullptr || World == nullptr)
+		{
+			return;
+		}
+
+		FWorldContext* const Context = Engine->GetWorldContextFromWorld(World);
+		if (Context != nullptr)
+		{
+			for (FNamedNetDriver& Driver : Context->ActiveNetDrivers)
+			{
+				InFunction(Driver.NetDriver);
+			}
+		}
+	}
+}
 
 AActor::AActor()
 {
@@ -142,6 +186,7 @@ void AActor::InitializeDefaults()
 	// Default to no tick function, but if we set 'never ticks' to false (so there is a tick function) it is enabled by default
 	PrimaryActorTick.bCanEverTick = false;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	PrimaryActorTick.bAllowTickBatching = true;
 	PrimaryActorTick.SetTickFunctionEnable(false); 
 	bAsyncPhysicsTickEnabled = false;
 
@@ -155,8 +200,8 @@ void AActor::InitializeDefaults()
 	bReplicateUsingRegisteredSubObjectList = GDefaultUseSubObjectReplicationList;
 	PhysicsReplicationMode = EPhysicsReplicationMode::Default;
 	NetPriority = 1.0f;
-	NetUpdateFrequency = 100.0f;
-	MinNetUpdateFrequency = 2.0f;
+	SetNetUpdateFrequency(100.0f);
+	SetMinNetUpdateFrequency(2.0f);
 	bNetLoadOnClient = true;
 #if WITH_EDITORONLY_DATA
 	bEditable = true;
@@ -172,7 +217,7 @@ void AActor::InitializeDefaults()
 	bForceExternalActorLevelReferenceForPIE = false;
 #endif // WITH_EDITORONLY_DATA
 	bEnableAutoLODGeneration = true;
-	NetCullDistanceSquared = 225000000.0f;
+	SetNetCullDistanceSquared(225000000.0f);
 	NetDriverName = NAME_GameNetDriver;
 	NetDormancy = DORM_Awake;
 	// will be updated in PostInitProperties
@@ -195,15 +240,16 @@ void AActor::InitializeDefaults()
 	bHasRegisteredAllComponents = false;
 
 #if WITH_EDITORONLY_DATA
-	bIsInEditLevelInstanceHierarchy = false;
-	bIsInEditLevelInstance = false;
-	bIsInLevelInstance = false;
+	LevelInstanceFlags = ELevelInstanceFlags::None;
+	LevelInstanceType = ELevelInstanceType::None;
 	PivotOffset = FVector::ZeroVector;
 #endif
 	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	// Increment actor class count
+	// Update our ActorClassName count after the transaction finishes
+	UE_AUTORTFM_ONCOMMIT(this)
 	{
 		if (!HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 		{
@@ -215,8 +261,8 @@ void AActor::InitializeDefaults()
 			CurrentCount++;
 			CSVActorTotalCount++;
 		}
-	}
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+	};
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITORONLY_DATA
 	bIsSpatiallyLoaded = true;
@@ -230,7 +276,7 @@ void AActor::InitializeDefaults()
 
 void FActorTickFunction::ExecuteTick(float DeltaTime, enum ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
-	if (Target && IsValidChecked(Target) && !Target->IsUnreachable())
+	if (IsValid(Target))
 	{
 		if (TickType != LEVELTICK_ViewportsOnly || Target->ShouldTickIfViewportsOnly())
 		{
@@ -385,7 +431,15 @@ void AActor::PostInitProperties()
 	Super::PostInitProperties();
 
 #if WITH_EDITOR
-	UEngineElementsLibrary::CreateEditorActorElement(this);
+	if (IsInGameThread())
+	{
+		// This will be executed in PostLoad instead during loading
+		UEngineElementsLibrary::CreateEditorActorElement(this);
+	}
+	else
+	{
+		check(IsInAsyncLoadingThread());
+	}
 #endif	// WITH_EDITOR
 
 	RemoteRole = (bReplicates ? ROLE_SimulatedProxy : ROLE_None);
@@ -748,8 +802,10 @@ void AActor::BeginDestroy()
 		Level->Actors.RemoveSingleSwap(this, EAllowShrinking::No);
 	}
 
-#if (CSV_PROFILER && !UE_BUILD_SHIPPING)
+#if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	// Decrement actor class count
+	// Update our ActorClassName count after the transaction finishes
+	UE_AUTORTFM_ONCOMMIT(this)
 	{
 		if (!HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 		{
@@ -764,8 +820,8 @@ void AActor::BeginDestroy()
 			}
 			CSVActorTotalCount--;
 		}
-	}
-#endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
+	};
+#endif // (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITOR
 	UEngineElementsLibrary::DestroyEditorActorElement(this);
@@ -851,7 +907,7 @@ void AActor::Serialize(FArchive& Ar)
 
 		if (bIsCooked)
 		{
-#if !(WITH_EDITORONLY_DATA || (!WITH_EDITOR && ACTOR_HAS_LABELS))
+#if !(WITH_EDITORONLY_DATA || ACTOR_HAS_LABELS)
 			// In non-development builds, just skip over the actor labels. We need to figure out a way to either strip that data from shipping builds,
 			// or skip over the string data without doing any memory allocations, probably with a custom FString::SerializeToNull implementation.
 			FString ActorLabel;
@@ -873,16 +929,19 @@ void AActor::Serialize(FArchive& Ar)
 		}
 		else if (Ar.IsPersistent() && !ActorGuid.IsValid())
 		{
-			ActorGuid = FGuid::NewGuid();
+			ActorGuid = FGuid::NewDeterministicGuid(GetPathName());
 		}
 		else if ((Ar.GetPortFlags() & (PPF_Duplicate | PPF_DuplicateForPIE)) == PPF_Duplicate)
 		{
 			ActorGuid = FGuid::NewGuid();
 		}
 
-		if (!CanChangeIsSpatiallyLoadedFlag() && (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ActorGridPlacementDeprecateDefaultValueFixup))
+		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ActorGridPlacementDeprecateDefaultValueFixup)
 		{
-			bIsSpatiallyLoaded = GetClass()->GetDefaultObject<AActor>()->bIsSpatiallyLoaded;
+			if (!CanChangeIsSpatiallyLoadedFlag())
+			{
+				bIsSpatiallyLoaded = GetClass()->GetDefaultObject<AActor>()->bIsSpatiallyLoaded;
+			}
 		}
 
 		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeContentBundleGuid)
@@ -900,11 +959,20 @@ void AActor::Serialize(FArchive& Ar)
 		}
 	}
 #endif
+
+	if ((Ar.IsCooking() || Ar.IsLoadingFromCookedPackage()) && (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::LevelInstanceStaticLightingSupport))
+	{		
+		FActorInstanceGuid::Serialize(Ar, *this);
+	}
 }
 
 void AActor::PostLoad()
 {
 	Super::PostLoad();
+
+#if WITH_EDITOR
+	UEngineElementsLibrary::CreateEditorActorElement(this);
+#endif
 
 	// add ourselves to our Owner's Children array
 	if (Owner != nullptr)
@@ -981,9 +1049,9 @@ void AActor::PostLoadSubobjects(FObjectInstancingGraph* OuterInstanceGraph)
 	USceneComponent* OldRoot = RootComponent;
 	USceneComponent* OldRootParent = (OldRoot ? OldRoot->GetAttachParent() : nullptr);
 	bool bHadRoot = !!OldRoot;
-	FRotator OldRotation;
-	FVector OldTranslation;
-	FVector OldScale;
+	FRotator OldRotation = FRotator::ZeroRotator;
+	FVector OldTranslation = FVector::ZeroVector;
+	FVector OldScale = FVector::ZeroVector;
 	if (bHadRoot)
 	{
 		OldRotation = OldRoot->GetRelativeRotation();
@@ -1098,57 +1166,64 @@ void AActor::ProcessEvent(UFunction* Function, void* Parameters)
 }
 
 #if WITH_EDITOR
-static bool IsComponentStreamingRelevant(const AActor* InActor, const UActorComponent* InComponent, FBox& OutStreamingBounds)
-{
-	check(InActor);
-	check(InComponent);
-
-	if (!InComponent->IsRegistered())
-	{
-		return false;
-	}
-
-	// Transient components shoudn't be part of the streeaming bounds, unless the actor itself is transient.
-	if (!InActor->HasAnyFlags(RF_Transient) && InComponent->HasAnyFlags(RF_Transient))
-	{
-		return false;
-	}
-
-	// Editor-only components shoudn't be part of the streeaming bounds, unless the actor itself is editor-only.
-	if (!InActor->IsEditorOnly() && InComponent->IsEditorOnly())
-	{
-		return false;
-	}
-
-	OutStreamingBounds = InComponent->GetStreamingBounds();
-	return !!OutStreamingBounds.IsValid;
-}
-
 template <class F>
-static bool ForEachStreamingRelevantComponent(const AActor* InActor, F Func)
+static bool ForEachStreamingRelevantComponent(const AActor* InActor, bool bForEditor, F Func)
 {
-	bool bHasStreamingRelevantComponents = false;
-
-	auto HandleComponent = [InActor, &bHasStreamingRelevantComponents, &Func](const UActorComponent* Component)
+	auto GetComponentStreamingBounds = [InActor, bForEditor](const UActorComponent* InComponent, FBox& OutStreamingBounds) -> bool
 	{
-		FBox ComponentStreamingBound;
-		if (IsComponentStreamingRelevant(InActor, Component, ComponentStreamingBound))
+		check(InActor);
+		check(InComponent);
+
+		if (!InComponent->IsRegistered())
 		{
-			Func(Component, ComponentStreamingBound);
-			bHasStreamingRelevantComponents = true;
+			return false;
 		}
+
+		// Transient components shouldn't be part of the streaming bounds, unless the actor itself is transient.
+		// This is to allow transient actors to be loaded in PIE.
+		if (!InActor->HasAnyFlags(RF_Transient) && InComponent->HasAnyFlags(RF_Transient))
+		{
+			return false;
+		}
+
+		// Editor-only components shouldn't be part of the streaming bounds, unless the actor itself is editor-only.
+		// This is to allow editor-only actors to be loaded in PIE.
+		if (!bForEditor && !InActor->IsEditorOnly() && InComponent->IsEditorOnly())
+		{
+			return false;
+		}
+
+		OutStreamingBounds = bForEditor ? InComponent->GetStreamingBoundsEditor() : InComponent->GetStreamingBounds();
+		return !!OutStreamingBounds.IsValid;
 	};
 
-	InActor->ForEachComponent<UPrimitiveComponent>(true, [&HandleComponent](UActorComponent* Component)
+	auto HandleComponent = [&GetComponentStreamingBounds, &Func](const UActorComponent* Component) -> bool
 	{
-		HandleComponent(Component);
+		FBox ComponentStreamingBound;
+		if (GetComponentStreamingBounds(Component, ComponentStreamingBound))
+		{
+			Func(Component, ComponentStreamingBound);
+			return true;
+		}
+		return false;
+	};
+
+	bool bHasStreamingRelevantComponents = false;
+
+	InActor->ForEachComponent<UPrimitiveComponent>(true, [&bHasStreamingRelevantComponents, &HandleComponent](UActorComponent* Component)
+	{
+		bHasStreamingRelevantComponents |= HandleComponent(Component);
 	});
 
-	if (!bHasStreamingRelevantComponents)
+	if (bForEditor || !bHasStreamingRelevantComponents)
 	{
-		InActor->ForEachComponent<UActorComponent>(false, [&HandleComponent](UActorComponent* Component)
+		InActor->ForEachComponent<UActorComponent>(false, [&bHasStreamingRelevantComponents, &HandleComponent](UActorComponent* Component)
 		{
-			HandleComponent(Component);
+			// We already handled UPrimitive components.
+			if (!Cast<UPrimitiveComponent>(Component))
+			{
+				bHasStreamingRelevantComponents |= HandleComponent(Component);
+			}
 		});
 	}
 
@@ -1158,17 +1233,32 @@ static bool ForEachStreamingRelevantComponent(const AActor* InActor, F Func)
 static bool HasComponentForceActorNonSpatiallyLoaded(const AActor* InActor)
 {
 	bool bHasComponentForceActorNonSpatiallyLoaded = false;
-	ForEachStreamingRelevantComponent(InActor, [&bHasComponentForceActorNonSpatiallyLoaded](const UActorComponent* Component, const FBox& StreamingBound)
+	ForEachStreamingRelevantComponent(InActor, false, [&bHasComponentForceActorNonSpatiallyLoaded](const UActorComponent* Component, const FBox& StreamingBound)
 	{
 		bHasComponentForceActorNonSpatiallyLoaded |= Component->ForceActorNonSpatiallyLoaded();
 	});
 	return bHasComponentForceActorNonSpatiallyLoaded;
 }
 
+void AActor::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
+{
+	OutRuntimeBounds.Init();
+	ForEachStreamingRelevantComponent(this, false, [&OutRuntimeBounds](const UActorComponent* Component, const FBox& StreamingBound)
+	{
+		OutRuntimeBounds += StreamingBound;
+	});
+
+	OutEditorBounds.Init();
+	ForEachStreamingRelevantComponent(this, true, [&OutEditorBounds](const UActorComponent* Component, const FBox& StreamingBound)
+	{
+		OutEditorBounds += StreamingBound;
+	});
+}
+
 FBox AActor::GetStreamingBounds() const
 {
 	FBox StreamingBounds(ForceInit);
-	ForEachStreamingRelevantComponent(this, [&StreamingBounds](const UActorComponent* Component, const FBox& StreamingBound)
+	ForEachStreamingRelevantComponent(this, false, [&StreamingBounds](const UActorComponent* Component, const FBox& StreamingBound)
 	{
 		StreamingBounds += StreamingBound;
 	});
@@ -1429,8 +1519,7 @@ bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags 
 	{
 		if (ULevel* MyLevel = GetLevel())
 		{
-			MyLevel->Actors.Add(this);
-			MyLevel->ActorsForGC.Add(this);
+			MyLevel->TryAddActorToList(this, /*bAddUnique*/false);
 
 			UWorld* World = MyLevel->GetWorld();
 			if (World && World->bIsWorldInitialized && bPerformComponentRegWork)
@@ -1482,11 +1571,8 @@ bool AActor::DestroyNetworkActorHandled()
 
 void AActor::TickActor( float DeltaSeconds, ELevelTick TickType, FActorTickFunction& ThisTickFunction )
 {
-	//root of tick hierarchy
-
-	// Non-player update.
-	// If an Actor has been Destroyed or its level has been unloaded don't execute any queued ticks
-	if (IsValidChecked(this) && GetWorld())
+	// Actor validity was checked before this
+	if (GetWorld())
 	{
 		Tick(DeltaSeconds);	// perform any tick functions unique to an actor subclass
 	}
@@ -1496,16 +1582,13 @@ void AActor::Tick( float DeltaSeconds )
 {
 	if (GetClass()->HasAnyClassFlags(CLASS_CompiledFromBlueprint) || !GetClass()->HasAnyClassFlags(CLASS_Native))
 	{
-		// Blueprint code outside of the construction script should not run in the editor
 		// Allow tick if we are not a dedicated server, or we allow this tick on dedicated servers
-		if (GetWorldSettings() != nullptr && (bAllowReceiveTickEventOnDedicatedServer || !IsRunningDedicatedServer()))
+		if (bAllowReceiveTickEventOnDedicatedServer || !IsRunningDedicatedServer())
 		{
 			ReceiveTick(DeltaSeconds);
 		}
 
-
 		// Update any latent actions we have for this actor
-
 		// If this tick is skipped on a frame because we've got a TickInterval, our latent actions will be ticked
 		// anyway by UWorld::Tick(). Given that, our latent actions don't need to be passed a larger
 		// DeltaSeconds to make up the frames that they missed (because they wouldn't have missed any).
@@ -1518,7 +1601,6 @@ void AActor::Tick( float DeltaSeconds )
 		}
 	}
 }
-
 
 /** If true, actor is ticked even if TickType==LEVELTICK_ViewportsOnly */
 bool AActor::ShouldTickIfViewportsOnly() const
@@ -1563,7 +1645,13 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 	const bool bPreReplication = ShouldCallPreReplication();
 	const bool bPreReplicationForReplay = ShouldCallPreReplicationForReplay();
 
-	TSharedPtr<FRepChangedPropertyTracker> ActorChangedPropertyTracker;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// This interface is obsolete and will be removed or re-purposed and renamed to pass parameters to PreReplication.
+	IRepChangedPropertyTracker DummyRepChangedPropertyTracker;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	// Allow lazy creation/find of FRepChangedPropertyTracker
+	UE::Net::Private::FNetPropertyConditionManager::FAllowCreateTrackerFromSetPropertyActiveOverrideScope AllowCreateTracker(UE::Net::Private::FNetPropertyConditionManager::Get());	
 
 	if (bPreReplication)
 	{
@@ -1574,8 +1662,7 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 		// In that case we call PreReplication on the locally controlled Character as well.
 		if ((LocalRole == ROLE_Authority) || ((LocalRole == ROLE_AutonomousProxy) && World && World->IsRecordingClientReplay()))
 		{
-			ActorChangedPropertyTracker = NetDriver->FindOrCreateRepChangedPropertyTracker(this);
-			PreReplication(*(ActorChangedPropertyTracker.Get()));
+			PreReplication(DummyRepChangedPropertyTracker);
 		}
 	}
 
@@ -1584,12 +1671,7 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 		// If we're recording a replay, call this for everyone (includes SimulatedProxies).
 		if (Cast<UDemoNetDriver>(NetDriver) || NetDriver->HasReplayConnection())
 		{
-			if (!ActorChangedPropertyTracker.IsValid())
-			{
-				ActorChangedPropertyTracker = NetDriver->FindOrCreateRepChangedPropertyTracker(this);
-			}
-
-			PreReplicationForReplay(*(ActorChangedPropertyTracker.Get()));
+			PreReplicationForReplay(DummyRepChangedPropertyTracker);
 		}
 	}
 
@@ -1601,8 +1683,7 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 			// Only call on components that aren't pending kill
 			if (IsValid(Component))
 			{
-				TSharedPtr<FRepChangedPropertyTracker> ComponentChangedPropertyTracker = NetDriver->FindOrCreateRepChangedPropertyTracker(Component);
-				Component->PreReplication(*(ComponentChangedPropertyTracker.Get()));
+				Component->PreReplication(DummyRepChangedPropertyTracker);
 			}
 		}
 	}
@@ -2076,7 +2157,14 @@ bool AActor::WasRecentlyRendered(float Tolerance) const
 
 float AActor::GetLastRenderTime() const
 {
-	return LastRenderTime;
+	if (LastRenderTime.NumAlwaysVisibleComponents.load(std::memory_order_relaxed) > 0)
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			return World->GetTimeSeconds();
+		}
+	}
+	return LastRenderTime.LastRenderTime;
 }
 
 void AActor::SetOwner(AActor* NewOwner)
@@ -2705,6 +2793,7 @@ void AActor::RouteEndPlay(const EEndPlayReason::Type EndPlayReason)
 		if (ActorHasBegunPlay == EActorBeginPlayState::HasBegunPlay)
 		{
 			EndPlay(EndPlayReason);
+			ensureMsgf(ActorHasBegunPlay == EActorBeginPlayState::HasNotBegunPlay, TEXT("EndPlay on %s failed. Make sure to call Super::EndPlay() in your override function."), *GetName());
 		}
 
 		// Behaviors specific to an actor being unloaded due to a streaming level removal
@@ -2718,7 +2807,7 @@ void AActor::RouteEndPlay(const EEndPlayReason::Type EndPlayReason)
 				World->RemoveNetworkActor(this);
 #if UE_WITH_IRIS
 				EndReplication(EndPlayReason);
-#endif // UE_WITH_IRIS
+#endif
 			}
 		}
 
@@ -2741,8 +2830,9 @@ void AActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		ActorHasBegunPlay = EActorBeginPlayState::HasNotBegunPlay;
 
 #if UE_WITH_IRIS
+		// This must be called otherwise the ReplicationSystem will keep a reference to the actor forever.
 		EndReplication(EndPlayReason);
-#endif // UE_WITH_IRIS
+#endif
 
 		// Dispatch the blueprint events
 		ReceiveEndPlay(EndPlayReason);
@@ -2756,6 +2846,7 @@ void AActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			if (Component->HasBegunPlay())
 			{
 				Component->EndPlay(EndPlayReason);
+				ensureMsgf(Component->HasBegunPlay() == false, TEXT("EndPlay on %s failed. Make sure to call Super::EndPlay() in the override function in class %s."), *Component->GetName(), *Component->GetClass()->GetName());
 			}
 		}
 	}
@@ -3234,9 +3325,9 @@ void AActor::ForceNetRelevant()
 	{
 		SetReplicates(true);
 		bAlwaysRelevant = true;
-		if (NetUpdateFrequency == 0.f)
+		if (GetNetUpdateFrequency() == 0.f)
 		{
-			NetUpdateFrequency = 0.1f;
+			SetNetUpdateFrequency(0.1f);
 		}
 	}
 	ForceNetUpdate();
@@ -3594,6 +3685,8 @@ void AActor::PostRegisterAllComponents()
 	ensureMsgf(bHasRegisteredAllComponents == true, TEXT("bHasRegisteredAllComponents must be set to true prior to calling PostRegisterAllComponents()"));
 
 	FNavigationSystem::OnActorRegistered(*this);
+
+	FActorInstanceGuid::ReleaseActorInstanceGuid(*this);
 }
 
 /** Util to call OnComponentCreated on components */
@@ -3615,15 +3708,13 @@ static void DispatchOnComponentsCreated(AActor* NewActor)
 
 bool AActor::CanDeleteSelectedActor(FText& OutReason) const
 {
-	if (!IsUserManaged())
-	{
-		OutReason = LOCTEXT("UserManaged", "Actor is not user managed");
-		return false;
-	}
-
-	return true;
+	return ActorUtils::CanDeleteOrReplaceCommon(this, OutReason);
 }
 
+bool AActor::CanReplaceSelectedActor(FText& OutReason) const
+{
+	return ActorUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
 
 void AActor::PostEditImport()
 {
@@ -3747,7 +3838,7 @@ void AActor::PostSpawnInitialize(FTransform const& UserSpawnTransform, AActor* I
 	CreationTime = (World ? World->GetTimeSeconds() : 0.f);
 
 	// Set network role.
-	check(GetLocalRole() == ROLE_Authority);
+	ensureMsgf(GetLocalRole() == ROLE_Authority, TEXT("Actor %s has an invalid Role and may be a corrupt asset!"), *GetFullName());
 	ExchangeNetRoles(bRemoteOwned);
 
 	// Set owner.
@@ -4340,9 +4431,9 @@ void AActor::DisableInput(APlayerController* PlayerController)
 		{
 			PlayerController->PopInputComponent(InputComponent);
 		}
-		else
+		else if (UWorld* World = GetWorld())
 		{
-			for (FConstPlayerControllerIterator PCIt = GetWorld()->GetPlayerControllerIterator(); PCIt; ++PCIt)
+			for (FConstPlayerControllerIterator PCIt = World->GetPlayerControllerIterator(); PCIt; ++PCIt)
 			{
 				if (APlayerController* PC = PCIt->Get())
 				{
@@ -4379,7 +4470,7 @@ float AActor::GetInputAxisKeyValue(const FKey InputAxisKey) const
 
 FVector AActor::GetInputVectorAxisValue(const FKey InputAxisKey) const
 {
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 
 	if (InputComponent)
 	{
@@ -4979,18 +5070,29 @@ int32 AActor::GetFunctionCallspace( UFunction* Function, FFrame* Stack )
 		}
 	}
 
-	// if we are the server, and it's not a send-to-client function,
-	if (bIsServer && !(Function->FunctionFlags & FUNC_NetClient))
+	if (Function->FunctionFlags & (FUNC_NetServer | FUNC_NetClient | FUNC_NetMulticast))
 	{
-		// don't replicate
-		DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Server calling Server function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
-		return Callspace;
+		// Handle uni-directional RPCs
+
+		// if we are the server, and it's not a send-to-client function,
+		if (bIsServer && !(Function->FunctionFlags & FUNC_NetClient))
+		{
+			// don't replicate
+			DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Server calling Server function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
+			return Callspace;
+		}
+		// if we aren't the server, and it's not a send-to-server function,
+		if (!bIsServer && !(Function->FunctionFlags & FUNC_NetServer))
+		{
+			// don't replicate
+			DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Client calling Client function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
+			return Callspace;
+		}
 	}
-	// if we aren't the server, and it's not a send-to-server function,
-	if (!bIsServer && !(Function->FunctionFlags & FUNC_NetServer))
+	else if (UE::Net::FNetContext::IsInsideNetRPC())
 	{
-		// don't replicate
-		DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Client calling Client function: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
+		// Received a function with FUNC_Net but not Client, Server, or Multicast (Remote specifier) - can be sent bi-directionally
+		DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Received a Remote function, calling: %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
 		return Callspace;
 	}
 
@@ -5010,7 +5112,14 @@ int32 AActor::GetFunctionCallspace( UFunction* Function, FFrame* Stack )
 					DEBUG_CALLSPACE(TEXT("GetFunctionCallspace Client without owner absorbed %s"), *Function->GetName());
 					return FunctionCallspace::Absorbed;
 				}
-				
+
+				if ((Function->FunctionFlags & (FUNC_NetServer | FUNC_NetClient | FUNC_NetMulticast)) == 0)
+				{
+					// Calling a Remote function (client or server) with no owning player, absorb these.
+					UE_LOG(LogNet, Error, TEXT("GetFunctionCallspace calling a Remote function without owner, absorbing: %s"), *Function->GetName());
+					return FunctionCallspace::Absorbed;
+				}
+
 				// Role authority object calling a client RPC locally (ie AI owned objects)
 				DEBUG_CALLSPACE(TEXT("GetFunctionCallspace authority non client owner %s %s"), *Function->GetName(), FunctionCallspace::ToString(Callspace));
 				return Callspace;
@@ -5190,6 +5299,18 @@ AActor* AActor::GetSelectionParent() const
 	return nullptr;
 }
 
+bool AActor::SupportsSubRootSelection() const
+{
+#if WITH_EDITOR
+	if (IsInLevelInstance())
+	{
+		return UWorld::GetSubsystem<ULevelInstanceSubsystem>(GetWorld())->IsSubSelectionEnabled();
+	}
+#endif
+
+	return false;
+}
+
 AActor* AActor::GetRootSelectionParent() const
 {
 	AActor* Parent = GetSelectionParent();
@@ -5258,13 +5379,20 @@ void AActor::PushLevelInstanceEditingStateToProxies(bool bInEditingState)
 	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
 	GetComponents(PrimComponents);
 
-	bIsInEditLevelInstanceHierarchy = bInEditingState;
+	if (bInEditingState)
+	{
+		EnumAddFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
+	}
+	else
+	{
+		EnumRemoveFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
+	}
 
 	for (const auto& PrimComponent : PrimComponents)
 	{
 		if (PrimComponent->IsRegistered())
 		{
-			PrimComponent->PushLevelInstanceEditingStateToProxy(bIsInEditLevelInstanceHierarchy);
+			PrimComponent->PushLevelInstanceEditingStateToProxy(bInEditingState);
 		}
 	}
 
@@ -6023,11 +6151,6 @@ bool AActor::IsHLODRelevant() const
 		return false;
 	}
 
-	if (IsTemplate())
-	{
-		return false;
-	}
-
 	if (IsHidden())
 	{
 		return false;
@@ -6050,13 +6173,6 @@ bool AActor::IsHLODRelevant() const
 		return false;
 	}
 #endif
-
-	FVector Origin, Extent;
-	GetActorBounds(false, Origin, Extent);
-	if (Extent.SizeSquared() <= 0.1)
-	{
-		return false;
-	}
 
 	return HasHLODRelevantComponents();
 }
@@ -6154,6 +6270,61 @@ void AActor::SetReplicatedMovement(const FRepMovement& InReplicatedMovement)
 	{
 		UpdateReplicatePhysicsCondition();
 	}
+}
+
+void AActor::SetNetUpdateFrequency(float Frequency)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	NetUpdateFrequency = Frequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	UE_LOG(LogNet, Verbose, TEXT("AActor::SetNetUpdateFrequency(): %s Frequency=%f HasActorBegunPlay()=%d"), *this->GetFullName(), Frequency, HasActorBegunPlay());
+
+	if (IsActorInitialized())
+	{
+		ActorUtils::ForEachNetDriver(GEngine, GetWorld(), [this](UNetDriver* NetDriver)
+		{
+			if (NetDriver)
+			{
+				NetDriver->GetOnNetUpdateFrequencyChanged().Broadcast(this);
+			}
+		});
+	}
+}
+
+float AActor::GetNetUpdateFrequency() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return NetUpdateFrequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+void AActor::SetMinNetUpdateFrequency(float MinFrequency)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+	MinNetUpdateFrequency = MinFrequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+float AActor::GetMinNetUpdateFrequency() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+	return MinNetUpdateFrequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+void AActor::SetNetCullDistanceSquared(float DistanceSq)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+	NetCullDistanceSquared = DistanceSq;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+float AActor::GetNetCullDistanceSquared() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return NetCullDistanceSquared;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void AActor::SetInstigator(APawn* InInstigator)
@@ -6319,9 +6490,9 @@ TArray<const UDataLayerInstance*> AActor::GetDataLayerInstancesInternal(bool bUs
 		}
 		return DataLayerInstances;
 	}
-#endif
-	
+#else
 	return TArray<const UDataLayerInstance*>();
+#endif
 }
 
 bool AActor::ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const
@@ -6383,7 +6554,7 @@ bool AActor::HasDataLayers() const
 {
 	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
 	{
-		return Cell->HasDataLayers();
+		return Cell->GetDataLayers().Num() > 0;
 	}
 
 #if WITH_EDITOR
@@ -6525,6 +6696,5 @@ void AActor::ForEachComponentOfActorClassDefault(const TSubclassOf<AActor>& Acto
 		});
 	}
 }
-
 
 #undef LOCTEXT_NAMESPACE

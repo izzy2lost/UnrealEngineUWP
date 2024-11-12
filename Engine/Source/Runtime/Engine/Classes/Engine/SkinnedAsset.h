@@ -11,13 +11,8 @@
 #include "Engine/StreamableRenderAsset.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
 #include "ReferenceSkeleton.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "PSOPrecache.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "SkeletalMeshTypes.h"
-#include "SkinnedAssetAsyncCompileUtils.h"
-#include "SkinnedAssetCommon.h"
-#endif
 #include "SkinnedAsset.generated.h"
 
 struct FSkeletalMaterial;
@@ -106,8 +101,10 @@ public:
 	PURE_VIRTUAL(USkinnedAsset::GetRefBasesInvMatrix, static const TArray<FMatrix44f> Dummy; return Dummy;);
 
 	/** Return the whole array of LOD info. */
+	UE_DEPRECATED(5.5, "Use GetLODInfo and GetLODNum instead.")
 	ENGINE_API virtual TArray<FSkeletalMeshLODInfo>& GetLODInfoArray()
 	PURE_VIRTUAL(USkinnedAsset::GetLODInfoArray, return GetMeshLodInfoDummyArray(););
+	UE_DEPRECATED(5.5, "Use GetLODInfo and GetLODNum instead.")
 	ENGINE_API virtual const TArray<FSkeletalMeshLODInfo>& GetLODInfoArray() const
 	PURE_VIRTUAL(USkinnedAsset::GetLODInfoArray, return GetMeshLodInfoDummyArray(););
 

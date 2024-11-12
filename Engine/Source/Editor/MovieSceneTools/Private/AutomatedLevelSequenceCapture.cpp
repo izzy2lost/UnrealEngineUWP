@@ -423,7 +423,8 @@ bool UAutomatedLevelSequenceCapture::InitializeShots()
 		{
 			// Expand the inner shot section range by the handle size, multiplied by the difference between the outer and inner tick resolutions (and factoring in the time scale)
 			const float OuterToInnerRateDilation = (MovieScene->GetTickResolution() == ShotMovieScene->GetTickResolution()) ? 1.f : (ShotMovieScene->GetTickResolution() / MovieScene->GetTickResolution()).AsDecimal();
-			const float OuterToInnerScale = OuterToInnerRateDilation * ShotSection->Parameters.TimeScale;
+			// coderot: this is not considering timewarping
+			const float OuterToInnerScale = OuterToInnerRateDilation;
 
 			CachedShotStates.Add(FCinematicShotCache(ShotSection->IsActive(), ShotSection->IsLocked(), ShotSection->GetRange(), ShotMovieScene ? ShotMovieScene->GetPlaybackRange() : TRange<FFrameNumber>::Empty()));
 

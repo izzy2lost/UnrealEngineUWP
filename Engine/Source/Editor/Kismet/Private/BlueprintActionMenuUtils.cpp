@@ -396,7 +396,20 @@ static void BlueprintActionMenuUtilsImpl::AddLevelActorSections(FBlueprintAction
 
 	if (LevelActorsFilter.Context.SelectedObjects.Num() == 1)
 	{
-		FText const ActorName = FText::FromName(LevelActorsFilter.Context.SelectedObjects.Last().GetFName());
+		auto GetDisplayNameText = [](const FFieldVariant& Element) -> const FText
+		{
+			// If we have an actor, then use it's name
+			if (const AActor* const Actor = Element.Get<AActor>())
+			{
+				return FText::FromString(Actor->GetActorLabel());
+			}
+
+			// otherwise, fall back to just using its FName
+			return FText::FromName(Element.GetFName());
+		};
+		
+		FText const ActorName = GetDisplayNameText(LevelActorsFilter.Context.SelectedObjects.Last());
+		
 		FuncSectionHeading  = FText::Format(LOCTEXT("SingleActorFuncCategory", "Call Function on {0}"), ActorName);
 		EventSectionHeading = FText::Format(LOCTEXT("SingleActorEventCategory", "Add Event for {0}"), ActorName);
 	}
@@ -525,7 +538,7 @@ void FBlueprintActionMenuUtils::MakeContextMenu(FBlueprintActionContext const& C
 	FAssetReferenceFilterContext AssetReferenceFilterContext;
 	for (UBlueprint* Blueprint : Context.Blueprints)
 	{
-		AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(Blueprint));
+		AssetReferenceFilterContext.AddReferencingAsset(FAssetData(Blueprint));
 	}
 
 	MainMenuFilter.AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
@@ -794,41 +807,48 @@ void FBlueprintActionMenuUtils::MakeFavoritesMenu(FBlueprintActionContext const&
 }
 
 //------------------------------------------------------------------------------
-const UK2Node* FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(TSharedPtr<FEdGraphSchemaAction> PaletteAction)
+const UK2Node* FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(const TSharedPtr<FEdGraphSchemaAction>& PaletteAction)
 {
-	UK2Node const* TemplateNode = NULL;
 	if (PaletteAction.IsValid())
 	{
-		FName const ActionId = PaletteAction->GetTypeId();
-		if (ActionId == FBlueprintActionMenuItem::StaticGetTypeId())
-		{
-			FBlueprintActionMenuItem* NewNodeActionMenuItem = (FBlueprintActionMenuItem*)PaletteAction.Get();
-			TemplateNode = Cast<UK2Node>(NewNodeActionMenuItem->GetRawAction()->GetTemplateNode());
-		}
-		else if (ActionId == FBlueprintDragDropMenuItem::StaticGetTypeId())
-		{
-// 			FBlueprintDragDropMenuItem* DragDropActionMenuItem = (FBlueprintDragDropMenuItem*)PaletteAction.Get();
-// 			TemplateNode = Cast<UK2Node>(DragDropActionMenuItem->GetSampleAction()->GetTemplateNode());
-		}
-		// if this action inherits from FEdGraphSchemaAction_K2NewNode
-		else if (ActionId == FEdGraphSchemaAction_K2NewNode::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2AssignDelegate::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2AddComponent::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2AddCustomEvent::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2AddCallOnActor::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2TargetNode::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2Event::StaticGetTypeId() || 
-			ActionId == FEdGraphSchemaAction_K2AddEvent::StaticGetTypeId() ||
-			ActionId == FEdGraphSchemaAction_K2InputAction::StaticGetTypeId())
-		{
-			FEdGraphSchemaAction_K2NewNode* NewNodeAction = (FEdGraphSchemaAction_K2NewNode*)PaletteAction.Get();
-			TemplateNode = NewNodeAction->NodeTemplate;
-		}
-		else if (ActionId == FEdGraphSchemaAction_K2ViewNode::StaticGetTypeId())
-		{
-			FEdGraphSchemaAction_K2ViewNode* FocusNodeAction = (FEdGraphSchemaAction_K2ViewNode*)PaletteAction.Get();
-			TemplateNode = FocusNodeAction->NodePtr;
-		}
+		return ExtractNodeTemplateFromAction(*PaletteAction);
+	}
+
+	return nullptr;
+}
+
+const UK2Node* FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(const FEdGraphSchemaAction& PaletteAction)
+{
+	UK2Node const* TemplateNode = nullptr;
+	FName const ActionId = PaletteAction.GetTypeId();
+	if (ActionId == FBlueprintActionMenuItem::StaticGetTypeId())
+	{
+		const FBlueprintActionMenuItem& NewNodeActionMenuItem = (const FBlueprintActionMenuItem&)PaletteAction;
+		TemplateNode = Cast<UK2Node>(NewNodeActionMenuItem.GetRawAction()->GetTemplateNode());
+	}
+	else if (ActionId == FBlueprintDragDropMenuItem::StaticGetTypeId())
+	{
+		// 			const FBlueprintDragDropMenuItem& DragDropActionMenuItem = (const FBlueprintDragDropMenuItem&)PaletteAction.Get();
+		// 			TemplateNode = Cast<UK2Node>(DragDropActionMenuItem.GetSampleAction()->GetTemplateNode());
+	}
+	// if this action inherits from FEdGraphSchemaAction_K2NewNode
+	else if (ActionId == FEdGraphSchemaAction_K2NewNode::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2AssignDelegate::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2AddComponent::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2AddCustomEvent::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2AddCallOnActor::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2TargetNode::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2Event::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2AddEvent::StaticGetTypeId() ||
+		ActionId == FEdGraphSchemaAction_K2InputAction::StaticGetTypeId())
+	{
+		const FEdGraphSchemaAction_K2NewNode& NewNodeAction = (const FEdGraphSchemaAction_K2NewNode&)PaletteAction;
+		TemplateNode = NewNodeAction.NodeTemplate;
+	}
+	else if (ActionId == FEdGraphSchemaAction_K2ViewNode::StaticGetTypeId())
+	{
+		const FEdGraphSchemaAction_K2ViewNode& FocusNodeAction = (const FEdGraphSchemaAction_K2ViewNode&)PaletteAction;
+		TemplateNode = FocusNodeAction.NodePtr;
 	}
 
 	return TemplateNode;

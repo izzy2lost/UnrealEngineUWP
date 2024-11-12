@@ -109,11 +109,11 @@ protected:
 	FOptionalSize GetSelectionListMaxWidth() const;
 
 	/** Makes the widget for the suggestions messages in the list view */
-	TSharedRef<ITableRow> MakeSuggestionListItemWidget(TSharedPtr<FString> Message, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> MakeSuggestionListItemWidget(TSharedPtr<FConsoleSuggestion> Message, const TSharedRef<STableViewBase>& OwnerTable);
 
-	void SuggestionSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
+	void SuggestionSelectionChanged(TSharedPtr<FConsoleSuggestion> NewValue, ESelectInfo::Type SelectInfo);
 		
-	void SetSuggestions(TArray<FString>& Elements, FText Highlight);
+	void SetSuggestions(TArray<FConsoleSuggestion>& Elements, FText Highlight);
 
 	void MarkActiveSuggestion();
 
@@ -134,6 +134,8 @@ protected:
 	FText GetActiveCommandExecutorHintText() const;
 
 	bool GetActiveCommandExecutorAllowMultiLine() const;
+
+	FText GetInputHelpText() const;
 
 	bool IsCommandExecutorMenuEnabled() const;
 
@@ -182,7 +184,7 @@ private:
 			}
 		}
 
-		TSharedPtr<FString> GetSelectedSuggestion() const
+		TSharedPtr<FConsoleSuggestion> GetSelectedSuggestion() const
 		{
 			return SuggestionsList.IsValidIndex(SelectedSuggestion) ? SuggestionsList[SelectedSuggestion] : nullptr;
 		}
@@ -191,7 +193,7 @@ private:
 		int32 SelectedSuggestion;
 
 		/** All log messages stored in this widget for the list view */
-		TArray<TSharedPtr<FString>> SuggestionsList;
+		TArray<TSharedPtr<FConsoleSuggestion>> SuggestionsList;
 
 		/** Highlight text to use for the suggestions list */
 		FText SuggestionsHighlight;
@@ -204,7 +206,7 @@ private:
 	TSharedPtr< SMenuAnchor > SuggestionBox;
 
 	/** The list view for showing all log messages. Should be replaced by a full text editor */
-	TSharedPtr< SListView< TSharedPtr<FString> > > SuggestionListView;
+	TSharedPtr< SListView< TSharedPtr<FConsoleSuggestion> > > SuggestionListView;
 
 	/** Active list of suggestions */
 	FSuggestions Suggestions;
@@ -283,6 +285,9 @@ struct FOutputLogFilter
 	/** Adds a Log Category to the list of available categories, if it isn't already present */
 	void AddAvailableLogCategory(const FName& LogCategory);
 
+	/** Returns true if the specified log category is in the list of available categories */
+	bool IsLogCategoryAvailable(const FName& LogCategory) const;
+
 	/** Enables or disables a Log Category in the filter */
 	void ToggleLogCategory(const FName& LogCategory);
 
@@ -317,11 +322,19 @@ public:
 
 		SLATE_EVENT(FSimpleDelegate, OnCloseConsole)
 
+		SLATE_EVENT(FSimpleDelegate, OnClearLog)
+
 		/** All messages captured before this log window has been created */
 		SLATE_ARGUMENT( TArray< TSharedPtr<FOutputLogMessage> >, Messages )
 
 		/**  */
 		SLATE_ARGUMENT_DEFAULT( EOutputLogSettingsMenuFlags, SettingsMenuFlags ) = EOutputLogSettingsMenuFlags::None;
+
+		/** Should this output log enable support for limiting the number of logged lines. */
+		SLATE_ARGUMENT_DEFAULT( bool, EnableLoggingLimitMenu ) = false;
+
+		/** The limit to the number of lines we output to the logging widget. */
+		SLATE_ARGUMENT_DEFAULT( TOptional<int32>, LoggingLineLimit ) = {};
 
 		SLATE_ARGUMENT( FDefaultCategorySelectionMap, DefaultCategorySelection )
 
@@ -418,7 +431,12 @@ protected:
 	/** True if the user has scrolled the window upwards */
 	bool bIsUserScrolled;
 
+	FSimpleDelegate OnClearLogDelegate; 
+
 private:
+
+	/** The log limit menu entry to prevent logs from consuming the output log widget. */
+	TSharedRef<SWidget> MakeLogLimitMenuItem();
 
 	void BuildInitialLogCategoryFilter(const FArguments& InArgs);
 	
@@ -500,6 +518,7 @@ private:
 	void OpenLogFileInExternalEditor();
 
 	FReply OnDockInLayoutClicked();
+
 protected:
 	TSharedPtr<SConsoleInputBox> ConsoleInputBox;
 
@@ -509,6 +528,12 @@ protected:
 	FDelegateHandle SettingsWatchHandle;
 
 	bool bShouldCreateDrawerDockButton = false;
+
+	bool bShouldShowLoggingLimitMenu = false;
+
+	bool bEnableLoggingLimit = false;
+
+	int32 LoggingLineLimit = 10000;
 };
 
 /** Output log text marshaller to convert an array of FOutputLogMessages into styled lines to be consumed by an FTextLayout */
@@ -532,6 +557,7 @@ public:
 
 	int32 GetNumMessages() const;
 	int32 GetNumFilteredMessages();
+	int32 GetNumCachedMessages();
 
 	void MarkMessagesCacheAsDirty();
 

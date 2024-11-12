@@ -1,4 +1,27 @@
-/* Copyright Epic Games, Inc. All Rights Reserved. */
+/*
+ * Copyright (c) 2023-2024 Epic Games, Inc. All Rights Reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY EPIC GAMES, INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL EPIC GAMES, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ */
 
 #ifndef VERSE_HEAP_CONFIG_H
 #define VERSE_HEAP_CONFIG_H
@@ -75,8 +98,10 @@ static PAS_ALWAYS_INLINE verse_heap_page_header* verse_heap_page_header_for_segr
 static PAS_ALWAYS_INLINE verse_heap_page_header* verse_heap_page_header_for_boundary(
     void* boundary, pas_segregated_page_config_variant variant)
 {
-    if (variant == pas_medium_segregated_page_config_variant)
-        return &verse_heap_chunk_map_entry_medium_segregated_header_object(verse_heap_get_chunk_map_entry((uintptr_t)boundary))->verse;
+    if (variant == pas_medium_segregated_page_config_variant) {
+        return &verse_heap_chunk_map_entry_header_medium_segregated_header_object(
+            verse_heap_get_chunk_map_entry_header((uintptr_t)boundary))->verse;
+    }
     return (verse_heap_page_header*)boundary;
 }
 
@@ -207,7 +232,9 @@ PAS_API extern const unsigned verse_heap_config_medium_segregated_non_committabl
         .exclusive_payload_size = VERSE_HEAP_ ## variant_uppercase ## _SEGREGATED_PAYLOAD_SIZE, \
         .shared_logging_mode = pas_segregated_deallocation_no_logging_mode, \
         .exclusive_logging_mode = pas_segregated_deallocation_no_logging_mode, \
-        .use_reversed_current_word = PAS_ARM64, \
+        .use_reversed_current_word = \
+            (pas_ ## variant_lowercase ## _segregated_page_config_variant \
+             == pas_small_segregated_page_config_variant ? PAS_ARM64 : false), \
         .check_deallocation = false, \
         .enable_empty_word_eligibility_optimization_for_shared = false, \
         .enable_empty_word_eligibility_optimization_for_exclusive = false, \

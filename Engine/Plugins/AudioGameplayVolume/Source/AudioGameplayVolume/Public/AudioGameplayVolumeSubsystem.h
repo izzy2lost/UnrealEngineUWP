@@ -136,7 +136,7 @@ public:
 	//~ Begin IActiveSoundUpdateInterface
 	virtual void GatherInteriorData(const FActiveSound& ActiveSound, FSoundParseParameters& ParseParams) override;
 	virtual void ApplyInteriorSettings(const FActiveSound& ActiveSound, FSoundParseParameters& ParseParams) override;
-	virtual void OnNotifyPendingDelete(const FActiveSound& ActiveSound) override;
+	virtual void NotifyActiveSoundDeleting(const FActiveSound& ActiveSound) override;
 	//~ End IActiveSoundUpdateInterface
 	
 	/** Add a volume to the system */

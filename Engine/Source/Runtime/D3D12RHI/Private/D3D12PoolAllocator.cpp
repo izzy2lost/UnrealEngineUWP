@@ -1,12 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHIPrivate.h"
 #include "D3D12PoolAllocator.h"
+#include "D3D12RHIPrivate.h"
 #include "HAL/LowLevelMemTracker.h"
-
-#ifndef NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND
-#define NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND 0
-#endif
 
 LLM_DECLARE_TAG(D3D12AllocatorUnused);
 
@@ -88,8 +84,12 @@ void FD3D12MemoryPool::Init()
 		{
 			LLM_PLATFORM_SCOPE(ELLMTag::GraphicsPlatform);
 
-			// we are tracking allocations ourselves, so don't let XMemAlloc track these as well
+#if PLATFORM_WINDOWS
+			// we are tracking allocations ourselves
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+#else
+			LLM_SCOPE_BYTAG(D3D12AllocatorUnused);
+#endif
 			VERIFYD3D12RESULT(Adapter->GetD3DDevice()->CreateHeap(&Desc, IID_PPV_ARGS(&Heap)));
 		}
 
@@ -105,7 +105,11 @@ void FD3D12MemoryPool::Init()
 	else
 	{
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+#else
+			LLM_SCOPE_BYTAG(D3D12AllocatorUnused);
+#endif
 			const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InitConfig.HeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
 			VERIFYD3D12RESULT(Adapter->CreateBuffer(HeapProps, GetGPUMask(), InitConfig.InitialResourceState, ED3D12ResourceStateMode::SingleState, InitConfig.InitialResourceState, PoolSize, BackingResource.GetInitReference(), TEXT("Resource Allocator Underlying Buffer"), InitConfig.ResourceFlags));
 #if UE_MEMORY_TRACE_ENABLED
@@ -135,14 +139,18 @@ void FD3D12MemoryPool::Init()
 	}
 #endif // D3D12_RHI_RAYTRACING
 
+#if PLATFORM_WINDOWS
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(PoolSize), ELLMTracker::Platform, ELLMAllocType::System);
+#endif
 	FRHIMemoryPool::Init();
 }
 
 
 void FD3D12MemoryPool::Destroy()
 {
+#if PLATFORM_WINDOWS
 	LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+#endif
 
 	FRHIMemoryPool::Destroy();
 
@@ -196,10 +204,7 @@ FD3D12ResourceInitConfig FD3D12PoolAllocator::GetResourceAllocatorInitConfig(D3D
 	InitConfig.HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
 	if (EnumHasAnyFlags(InBufferUsage, BUF_DrawIndirect))
 	{
-		check(InResourceFlags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-#if !NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND
 		InitConfig.HeapFlags |= D3D12RHI_HEAP_FLAG_ALLOW_INDIRECT_BUFFERS;
-#endif
 	}
 
 	return InitConfig;
@@ -247,6 +252,14 @@ FD3D12PoolAllocator::~FD3D12PoolAllocator()
 
 bool FD3D12PoolAllocator::SupportsAllocation(D3D12_HEAP_TYPE InHeapType, D3D12_RESOURCE_FLAGS InResourceFlags, EBufferUsageFlags InBufferUsage, ED3D12ResourceStateMode InResourceStateMode, uint32 Alignment) const
 {
+#if WITH_MGPU
+	// NNE resources must be in heaps visible on GPU0 only.  Required by DirectML.
+	if (EnumHasAnyFlags(InBufferUsage, EBufferUsageFlags::NNE) && VisibilityMask != FRHIGPUMask::GPU0())
+	{
+		return false;
+	}
+#endif
+
 	FD3D12ResourceInitConfig InInitConfig = GetResourceAllocatorInitConfig(InHeapType, InResourceFlags, InBufferUsage);
 	EResourceAllocationStrategy InAllocationStrategy = GetResourceAllocationStrategy(InResourceFlags, InResourceStateMode, Alignment);
 
@@ -324,17 +337,8 @@ void FD3D12PoolAllocator::AllocateResource(uint32 GPUIndex, D3D12_HEAP_TYPE InHe
 			bPlacedResource = false;
 		}
 	}
-
-	// Disable pooling for VRAM allocated textures and force use the committed resource path
-	bool bForceCommittedResourcePath = false;
-#if PLATFORM_WINDOWS
-	if (bPoolResource && GD3D12WorkaroundFlags.bForceCommittedResourceTextureAllocation && InHeapType == D3D12_HEAP_TYPE_DEFAULT && InDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
-	{
-		bForceCommittedResourcePath = true;
-	}
-#endif // PLATFORM_WINDOWS
-
-	if (bPoolResource && !bForceCommittedResourcePath)
+	   
+	if (bPoolResource)
 	{
 		uint32 AllocationAlignment = InAllocationAlignment;
 
@@ -413,7 +417,7 @@ void FD3D12PoolAllocator::AllocateResource(uint32 GPUIndex, D3D12_HEAP_TYPE InHe
 
 		// If we are tracking all allocation data and allocating a standalone texture, then first create a heap so we can retrieve the GPU virtual address as well
 		// UAV Aliasing needs a Heap to create the aliased resource in.
-		if (InDesc.NeedsUAVAliasWorkarounds() || (Adapter->IsTrackingAllAllocations() && InDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER && !bForceCommittedResourcePath))
+		if (InDesc.NeedsUAVAliasWorkarounds() || (Adapter->IsTrackingAllAllocations() && InDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER))
 		{
 			D3D12_HEAP_DESC HeapDesc = {};
 			HeapDesc.SizeInBytes = FMath::Max((uint64)D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT, InSize);
@@ -435,7 +439,12 @@ void FD3D12PoolAllocator::AllocateResource(uint32 GPUIndex, D3D12_HEAP_TYPE InHe
 			TRefCountPtr<FD3D12Heap> BackingHeap = new FD3D12Heap(GetParentDevice(), GetVisibilityMask(), TraceHeapId);
 			bool bTrack = false;
 			BackingHeap->SetHeap(Heap, InName, bTrack);
-			BackingHeap->BeginTrackingResidency(HeapDesc.SizeInBytes);
+
+			// Only track resources that cannot be accessed on the CPU.
+			if (IsGPUOnly(InHeapType, &HeapProps))
+			{
+				BackingHeap->BeginTrackingResidency(HeapDesc.SizeInBytes);
+			}
 
 			VERIFYD3D12RESULT(Adapter->CreatePlacedResource(Desc, BackingHeap, 0, InCreateState, InResourceStateMode, InCreateState, InClearValue, &NewResource, InName));
 		}
@@ -574,7 +583,7 @@ FRHIMemoryPool* FD3D12PoolAllocator::CreateNewPool(int16 InPoolIndex, uint32 InM
 }
 
 
-bool FD3D12PoolAllocator::HandleDefragRequest(FRHICommandListBase& RHICmdList, FRHIPoolAllocationData* InSourceBlock, FRHIPoolAllocationData& InTmpTargetBlock)
+bool FD3D12PoolAllocator::HandleDefragRequest(FRHIContextArray const& Contexts, FRHIPoolAllocationData* InSourceBlock, FRHIPoolAllocationData& InTmpTargetBlock)
 {
 	// Cache source copy data
 	FD3D12ResourceLocation* Owner = (FD3D12ResourceLocation*)InSourceBlock->GetOwner();
@@ -592,7 +601,7 @@ bool FD3D12PoolAllocator::HandleDefragRequest(FRHICommandListBase& RHICmdList, F
 	Owner->SetPoolAllocator(this);
 
 	// Notify owner of moved allocation data (recreated resources and SRVs if needed)
-	Owner->OnAllocationMoved(RHICmdList, InSourceBlock);
+	Owner->OnAllocationMoved(Contexts, InSourceBlock);
 
 	// Add request to unlock the source block on the next fence value (copy operation should have been done by then)
 	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();
@@ -695,7 +704,9 @@ void FD3D12PoolAllocator::CleanUpAllocations(uint64 InFrameLag, bool bForceFree)
 		FD3D12MemoryPool* MemoryPool = (FD3D12MemoryPool*) Pools[PoolIndex];
 		if (MemoryPool != nullptr && MemoryPool->IsEmpty() && (bForceFree || (MemoryPool->GetLastUsedFrameFence() + InFrameLag <= CompletedFence)))
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(MemoryPool->GetPoolSize()), ELLMTracker::Platform, ELLMAllocType::System);
+#endif
 			MemoryPool->Destroy();
 			delete(MemoryPool);
 			Pools[PoolIndex] = nullptr;
@@ -819,11 +830,21 @@ void FD3D12PoolAllocator::UpdateAllocationTracking(FD3D12ResourceLocation& InAll
 		
 		if (InAllocationType == EAllocationType::Allocate)
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - AllocSize, ELLMTracker::Platform, ELLMAllocType::System);
+#else
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, InAllocation.GetAddressForLLMTracking(), AllocSize));
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - AllocSize, ELLMTracker::Default, ELLMAllocType::System);
+#endif
 		}
 		else
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, AllocSize, ELLMTracker::Platform, ELLMAllocType::System);
+#else
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Default, InAllocation.GetAddressForLLMTracking()));
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, AllocSize, ELLMTracker::Default, ELLMAllocType::System);
+#endif
 		}
 	}
 #endif

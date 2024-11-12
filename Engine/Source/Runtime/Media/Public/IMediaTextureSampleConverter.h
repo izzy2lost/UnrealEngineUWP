@@ -6,6 +6,7 @@
 
 #include "RHI.h"
 #include "RHIResources.h"
+#include "RHICommandList.h"
 
 /**
  * Interface class to implement custom sample conversion
@@ -33,7 +34,13 @@ public:
 		return ConverterInfoFlags_Default;
 	}
 
-	virtual bool Convert(FTexture2DRHIRef & InDstTexture, const FConversionHints & Hints) = 0;
+	virtual bool Convert(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDstTexture, const FConversionHints& Hints) = 0;
+
+	UE_DEPRECATED(5.5, "The overload of IMediaTextureSampleConverter::Convert which does not take an RHI command list is deprecated.")
+	bool Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
+	{
+		return Convert(FRHICommandListImmediate::Get(), InDstTexture, Hints);
+	}
 };
 
 /**
@@ -48,6 +55,12 @@ public:
 	 * Apply a color conversion on the input and store the result in the destination texture.
 	 * @return true If the color conversion was successfully applied.
 	 */
-	virtual bool ApplyColorConversion(FTexture2DRHIRef& InSrcTexture, FTexture2DRHIRef& InDstTexture) = 0;
+	virtual bool ApplyColorConversion(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture) = 0;
+
+	UE_DEPRECATED(5.5, "The overload of IMediaTextureSampleColorConverter::ApplyColorConversion which does not take an RHI command list is deprecated.")
+	bool ApplyColorConversion(FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture)
+	{
+		return ApplyColorConversion(FRHICommandListImmediate::Get(), InSrcTexture, InDstTexture);
+	}
 };
 

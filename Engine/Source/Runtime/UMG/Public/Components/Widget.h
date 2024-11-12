@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Binding/States/WidgetStateBitfield.h"
 #include "UObject/ObjectMacros.h"
 #include "FieldNotificationDeclaration.h"
 #include "INotifyFieldValueChanged.h"
@@ -41,7 +42,6 @@ class UPanelSlot;
 class UPropertyBinding;
 class UUserWidget;
 struct FDynamicPropertyPath;
-struct FWidgetStateBitfield;
 enum class ECheckBoxState : uint8;
 
 namespace UMWidget
@@ -266,14 +266,14 @@ public:
 	UPROPERTY()
 	FGetBool bIsEnabledDelegate;
 
+	/** A bindable delegate for ToolTipText */
+	UPROPERTY()
+	FGetText ToolTipTextDelegate;
+
 	UE_DEPRECATED(5.1, "Direct access to ToolTipText is deprecated. Please use the getter or setter.")
 	/** Tooltip text to show when the user hovers over the widget with the mouse */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter="SetToolTipText", Category="Behavior", meta=(MultiLine=true))
 	FText ToolTipText;
-
-	/** A bindable delegate for ToolTipText */
-	UPROPERTY()
-	FGetText ToolTipTextDelegate;
 
 	UE_DEPRECATED(5.1, "Direct access to ToolTipWidget is deprecated. Please use the getter or setter.")
 	/** Tooltip widget to show when the user hovers over the widget with the mouse */
@@ -389,6 +389,12 @@ protected:
 	/** Cached value that indicate if the widget was added to the GameViewportSubsystem. */
 	uint8 bIsManagedByGameViewportSubsystem:1;
 
+	/** False will skip state broadcasts. Useful for child classes to call Super methods without broadcasting early / late. */
+	bool bShouldBroadcastState : 1;
+
+	/** True implies widget state has been initialized. */
+	bool bWidgetStateInitialized : 1;
+
 public:
 #if WITH_EDITORONLY_DATA
 	/** Stores the design time flag setting if the widget is hidden inside the designer */
@@ -426,16 +432,18 @@ public:
 	/** The visibility of the widget */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, FieldNotify, Getter, Setter, BlueprintGetter="GetVisibility", BlueprintSetter="SetVisibility", Category="Behavior")
 	ESlateVisibility Visibility;
+	
+private:
+	/** If the widget will draw snapped to the nearest pixel.  Improves clarity but might cause visibile stepping in animation */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Rendering", meta=(AllowPrivateAccess = true))
+	EWidgetPixelSnapping PixelSnapping;
+
+protected:
 
 	UE_DEPRECATED(5.1, "Direct access to RenderOpacity is deprecated. Please use the getter or setter.")
 	/** The opacity of the widget */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintGetter="GetRenderOpacity", BlueprintSetter="SetRenderOpacity", Category="Rendering")
 	float RenderOpacity;
-
-private:
-	/** If the widget will draw snapped to the nearest pixel.  Improves clarity but might cause visibile stepping in animation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Rendering", meta=(AllowPrivateAccess = true))
-	EWidgetPixelSnapping PixelSnapping;
 
 private:
 	/** A custom set of accessibility rules for this widget. If null, default rules for the widget are used. */
@@ -1003,10 +1011,6 @@ public:
 	UMG_API virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	//~ End UObject
 
-	//~ Begin UVisual
-	UMG_API virtual void ReleaseSlateResources(bool bReleaseChildren) override;
-	//~ End UVisual
-
 	FORCEINLINE bool CanSafelyRouteEvent()
 	{
 		return !IsDesignTime() && CanSafelyRouteCall();
@@ -1110,6 +1114,7 @@ protected:
 	 *
 	 * @param StateChange bitfield marking states that should be changed
 	 */
+	UE_DEPRECATED(5.5, "FWidgetStateBitfield currently no longer supports enum states")
 	UMG_API void BroadcastEnumPostStateChange(const FWidgetStateBitfield& StateChange);
 
 protected:
@@ -1125,12 +1130,12 @@ protected:
 	UMG_API virtual TSharedRef<SWidget> RebuildDesignWidget(TSharedRef<SWidget> Content);
 
 	UMG_API TSharedRef<SWidget> CreateDesignerOutline(TSharedRef<SWidget> Content) const;
-#endif
-
-	UMG_API void UpdateRenderTransform();
 
 	/** Gets the base name used to generate the display label/name of this widget. */
 	UMG_API FText GetDisplayNameBase() const;
+#endif
+
+	UMG_API void UpdateRenderTransform();
 
 	/** Copy all accessible properties to the AccessibleWidgetData object */
 	UMG_API void SynchronizeAccessibleData();
@@ -1169,10 +1174,7 @@ protected:
 	TWeakPtr<SObjectWidget> MyGCWidget;
 
 	/** The bitfield for this widget's state */
-	TSharedPtr<FWidgetStateBitfield> MyWidgetStateBitfield;
-
-	/** False will skip state broadcasts. Useful for child classes to call Super methods without broadcasting early / late. */
-	bool bShouldBroadcastState;
+	FWidgetStateBitfield MyWidgetStateBitfield;
 
 	/** Delegate that broadcasts after current widget state has fully changed, including all state-related side effects */
 	FOnWidgetStateBroadcast PostWidgetStateChanged;

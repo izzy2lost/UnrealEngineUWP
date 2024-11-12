@@ -128,6 +128,11 @@ class SwappyCommon {
         mLastLatencyRecorded = callback;
     }
 
+    void resetFramePacing();
+
+    void enableFramePacing(bool enable);
+    void enableBlockingWait(bool enable);
+
    protected:
     // Used for testing
     SwappyCommon(const SwappyCommonSettings& settings);
@@ -192,7 +197,8 @@ class SwappyCommon {
     };
 
     void addFrameDuration(FrameDuration duration);
-    std::chrono::nanoseconds wakeClient();
+    std::chrono::nanoseconds wakeClient(
+        std::optional<std::chrono::nanoseconds> sfToVsyncDelay);
 
     bool swapFaster(int newSwapInterval) REQUIRES(mMutex);
 
@@ -250,6 +256,7 @@ class SwappyCommon {
     std::chrono::steady_clock::time_point mCurrentFrameTimestamp =
         std::chrono::steady_clock::now();
     int32_t mCurrentFrame = 0;
+    std::optional<std::chrono::nanoseconds> mSfToVsyncDelay;
     std::atomic<std::chrono::nanoseconds> mMeasuredSwapDuration;
 
     std::chrono::steady_clock::time_point mSwapTime;
@@ -366,6 +373,14 @@ class SwappyCommon {
     // Counts the number of consecutive missed frames (as judged by expected
     // latency).
     int mMissedFrameCounter = 0;
+
+    bool mFramePacingResetRequested GUARDED_BY(mMutex) = false;
+
+    std::chrono::nanoseconds mInitialRefreshPeriod;
+
+    bool mFramePacingToggleRequested GUARDED_BY(mMutex) = false;
+    bool mFramePacingEnabled GUARDED_BY(mMutex) = true;
+    bool mBlockingWaitEnabled GUARDED_BY(mMutex) = true;
 };
 
 }  // namespace swappy

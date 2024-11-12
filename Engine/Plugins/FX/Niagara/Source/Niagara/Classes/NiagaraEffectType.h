@@ -390,7 +390,13 @@ public:
 
 //////////////////////////////////////////////////////////////////////////
 
-/** Contains settings and working data shared among many NiagaraSystems that share some commonality of type. For example ImpactFX vs EnvironmentalFX. */
+/** Contains settings and working data shared among many Niagara systems that share some commonality of type, for example ImpactFX vs EnvironmentalFX.
+ *  Main usage of effect types is to control scalability settings for a group of effects, setting visibility and cull reactions on a per-platform basis.
+ *
+ *  Effect types can also be used for validation, checking that the content passes all the configured validation rule sets.
+ *
+ *  The effect type is set in Niagara systems in the system properties.
+ */
 UCLASS(config = Niagara, perObjectConfig, MinimalAPI)
 class UNiagaraEffectType : public UObject
 {
@@ -400,7 +406,6 @@ class UNiagaraEffectType : public UObject
 	NIAGARA_API virtual void BeginDestroy()override;
 	NIAGARA_API virtual bool IsReadyForFinishDestroy()override;
 	NIAGARA_API virtual void Serialize(FArchive& Ar)override;
-	NIAGARA_API virtual void PostInitProperties()override;
 	NIAGARA_API virtual void PostLoad()override;
 #if WITH_EDITORONLY_DATA
 	static NIAGARA_API void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
@@ -418,7 +423,10 @@ class UNiagaraEffectType : public UObject
 	UPROPERTY(EditAnywhere, Category = "Scalability", meta=(DisplayInSystemScalability, ScalabilityBarDisplayName="Frequency"))
 	ENiagaraScalabilityUpdateFrequency UpdateFrequency;
 
-	/** How effects of this type react when they fail the cull checks. */
+	/**
+	How effects of this type react when they fail the cull checks.
+	Applied to all effects using this effect type and can not be overridden per effect.
+	*/
 	UPROPERTY(EditAnywhere, Category = "Scalability", meta=(DisplayInSystemScalability, ScalabilityBarDisplayName="Reaction"))
 	ENiagaraCullReaction CullReaction;
 
@@ -506,6 +514,8 @@ public:
 #endif
 
 #if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
+	void PopulatePerfStatNames();
+
 	//Cached CSV Stat names for this system.
 	FName CSVStat_Count = NAME_None;
 	FName CSVStat_Total = NAME_None;

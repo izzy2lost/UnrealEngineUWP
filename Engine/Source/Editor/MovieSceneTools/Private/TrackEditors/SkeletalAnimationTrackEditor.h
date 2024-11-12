@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
 #include "Templates/SubclassOf.h"
+#include "Templates/UniquePtr.h"
 #include "Widgets/SWidget.h"
 #include "ISequencer.h"
 #include "MovieSceneTrack.h"
@@ -12,8 +13,16 @@
 #include "ISequencerTrackEditor.h"
 #include "MovieSceneTrackEditor.h"
 #include "EditModes/SkeletalAnimationTrackEditMode.h"
+#include "SequencerCoreFwd.h"
+
+namespace UE::Sequencer
+{
+	class ITrackExtension;
+}
 
 struct FAssetData;
+struct FMovieSceneTimeWarpChannel;
+struct FMovieSceneSequenceTransform;
 class FMenuBuilder;
 class FSequencerSectionPainter;
 class UMovieSceneSkeletalAnimationSection;
@@ -66,7 +75,8 @@ public:
 	virtual TSharedRef<ISequencerSection> MakeSectionInterface( UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding ) override;
 	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const override;
 	virtual bool SupportsType( TSubclassOf<UMovieSceneTrack> Type ) const override;
-	virtual void BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track ) override;
+	virtual void BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) override;
+	virtual void BuildTrackSidebarMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) override;
 	virtual TSharedPtr<SWidget> BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params) override;
 	virtual bool OnAllowDrop(const FDragDropEvent& DragDropEvent, FSequencerDragDropParams& DragDropParams) override;
 	virtual FReply OnDrop(const FDragDropEvent& DragDropEvent, const FSequencerDragDropParams& DragDropParams) override;
@@ -76,6 +86,7 @@ public:
 private:
 
 	/** Animation sub menu */
+	TSharedRef<SWidget> BuildAddAnimationSubMenu(FGuid ObjectBinding, USkeleton* Skeleton, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> TrackModel);
 	TSharedRef<SWidget> BuildAnimationSubMenu(FGuid ObjectBinding, USkeleton* Skeleton, UMovieSceneTrack* Track);
 	void AddAnimationSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings, USkeleton* Skeleton, UMovieSceneTrack* Track);
 
@@ -108,6 +119,9 @@ private:
 
 	/** Can Open the linked Anim Sequence*/
 	bool CanOpenLinkedAnimSequence(FGuid Binding);
+
+	/** Common function used to build context and sidebar menus */
+	void BuildTrackContextMenu_Internal(FMenuBuilder& MenuBuilder, UMovieSceneTrack* const InTrack, const bool bAddSeparatorAtEnd);
 
 	friend class FMovieSceneSkeletalAnimationParamsDetailCustomization;
 
@@ -142,7 +156,7 @@ public:
 	FSkeletalAnimationSection( UMovieSceneSection& InSection, TWeakPtr<ISequencer> InSequencer);
 
 	/** Virtual destructor. */
-	virtual ~FSkeletalAnimationSection() { }
+	virtual ~FSkeletalAnimationSection();
 
 public:
 
@@ -163,6 +177,7 @@ public:
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& InObjectBinding) override;
 	virtual void BeginDilateSection() override;
 	virtual void DilateSection(const TRange<FFrameNumber>& NewRange, float DilationFactor) override;
+	virtual bool RequestDeleteKeyArea(const TArray<FName>& KeyAreaNamePath) override;
 
 
 private:
@@ -175,9 +190,7 @@ private:
 	/** Used to draw animation frame, need selection state and local time*/
 	TWeakPtr<ISequencer> Sequencer;
 
-	/** Cached first loop start offset value valid only during resize */
-	FFrameNumber InitialFirstLoopStartOffsetDuringResize;
-
-	/** Cached start time valid only during resize */
-	FFrameNumber InitialStartTimeDuringResize;
+	TUniquePtr<FMovieSceneSequenceTransform> InitialDragTransform;
+	TUniquePtr<FMovieSceneTimeWarpChannel> PreDilateChannel;
+	double PreDilatePlayRate;
 };

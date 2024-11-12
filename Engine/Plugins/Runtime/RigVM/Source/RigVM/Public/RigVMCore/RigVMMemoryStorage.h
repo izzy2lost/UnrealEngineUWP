@@ -1031,9 +1031,9 @@ public:
 
 private:
 	
-	static const FString ArrayPrefix;
-	static const FString MapPrefix;
-	static const FString ContainerSuffix;
+	static const inline TCHAR* ArrayPrefix = TEXT("TArray<");
+	static const inline TCHAR* MapPrefix = TEXT("TMap<");
+	static const inline TCHAR* ContainerSuffix = TEXT(">");
 };
 
 /**

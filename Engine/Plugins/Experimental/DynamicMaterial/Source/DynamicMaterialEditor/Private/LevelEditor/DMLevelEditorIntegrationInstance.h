@@ -2,14 +2,16 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
 class AActor;
+class FString;
 class ILevelEditor;
-class SDMEditor;
+class SDMMaterialDesigner;
 class SDockTab;
-class UDynamicMaterialModel;
 class UTypedElementSelectionSet;
 class UWorld;
 
@@ -22,11 +24,17 @@ public:
 
 	static const FDMLevelEditorIntegrationInstance* GetIntegrationForWorld(UWorld* InWorld);
 
+	static FDMLevelEditorIntegrationInstance* GetMutableIntegrationForWorld(UWorld* InWorld);
+
 	~FDMLevelEditorIntegrationInstance();
 
-	const TSharedPtr<SDMEditor>& GetEditor() const;
+	const TSharedPtr<SDMMaterialDesigner>& GetMaterialDesigner() const;
 
 	TSharedPtr<SDockTab> InvokeTab() const;
+
+	const FString& GetLastOpenAssetPartialPath() const;
+
+	void SetLastAssetOpenPartialPath(const FString& InPath);
 
 private:
 	static TArray<FDMLevelEditorIntegrationInstance, TInlineAllocator<1>> Instances;
@@ -36,7 +44,8 @@ private:
 	TWeakPtr<ILevelEditor> LevelEditorWeak;
 	TWeakObjectPtr<UTypedElementSelectionSet> ActorSelectionSetWeak;
 	TWeakObjectPtr<UTypedElementSelectionSet> ObjectSelectionSetWeak;
-	TSharedPtr<SDMEditor> Editor;
+	TSharedPtr<SDMMaterialDesigner> MaterialDesigner;
+	FString LastOpenAssetPartialPath;
 
 	FDMLevelEditorIntegrationInstance(const TSharedRef<ILevelEditor>& InLevelEditor);
 
@@ -53,6 +62,4 @@ private:
 	void OnActorSelected(AActor* InActor);
 
 	void OnObjectSelectionChanged(const UTypedElementSelectionSet* InSelectionSet);
-
-	void OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel);
 };

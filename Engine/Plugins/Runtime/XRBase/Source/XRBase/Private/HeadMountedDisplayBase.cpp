@@ -12,6 +12,7 @@
 #include "DefaultSpectatorScreenController.h"
 #include "DefaultXRCamera.h"
 #include "Engine/Engine.h"
+#include "HeadMountedDisplayFunctionLibrary.h"
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h" // for UEditorEngine::IsHMDTrackingAllowed()
 #endif
@@ -45,10 +46,19 @@ void FHeadMountedDisplayBase::RecordAnalytics()
 bool FHeadMountedDisplayBase::PopulateAnalyticsAttributes(TArray<FAnalyticsEventAttribute>& EventAttributes)
 {
 	IHeadMountedDisplay::MonitorInfo MonitorInfo;
-	GetHMDMonitorInfo(MonitorInfo);
+	if (!GetHMDMonitorInfo(MonitorInfo))
+	{
+		// still send the event but fill it with predictable values
+		MonitorInfo = IHeadMountedDisplay::MonitorInfo();
+		MonitorInfo.MonitorId = -1;
+		MonitorInfo.MonitorName = TEXT("FailedToGetHMDMonitorInfo");
+	}
 
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DeviceName"), GetSystemName().ToString()));
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("VersionString"), UHeadMountedDisplayFunctionLibrary::GetVersionString()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DisplayDeviceName"), *MonitorInfo.MonitorName));
+	// duplicating the metric because DisplayDeviceName has been sent garbage values before and cannot be trusted.
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("HMDMonitorName"), *MonitorInfo.MonitorName));
 #if PLATFORM_WINDOWS
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DisplayId"), MonitorInfo.MonitorId));
 #else // Other platforms need some help in formatting size_t as text
@@ -60,6 +70,7 @@ bool FHeadMountedDisplayBase::PopulateAnalyticsAttributes(TArray<FAnalyticsEvent
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("InterpupillaryDistance"), GetInterpupillaryDistance()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("ChromaAbCorrectionEnabled"), IsChromaAbCorrectionEnabled()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("MirrorToWindow"), IsSpectatorScreenActive()));
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("PixelDensity"), UHeadMountedDisplayFunctionLibrary::GetPixelDensity()));
 
 	return true;
 }
@@ -164,17 +175,24 @@ void FHeadMountedDisplayBase::CVarSinkHandler()
 
 	if (GEngine && GEngine->XRSystem.IsValid())
 	{
-		static const auto PixelDensityCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.PixelDensity"));
+		static const auto SecondaryScreenPercentageHMDCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("xr.SecondaryScreenPercentage.HMDRenderTarget"));
 		IHeadMountedDisplay* const HMDDevice = GEngine->XRSystem->GetHMDDevice();
-		if (HMDDevice && PixelDensityCVar)
+		if (HMDDevice && SecondaryScreenPercentageHMDCVar)
 		{
-			float NewPixelDensity = PixelDensityCVar->GetFloat();
+			float NewPixelDensity = SecondaryScreenPercentageHMDCVar->GetFloat() / 100.0f;
 			if (NewPixelDensity < PixelDensityMin || NewPixelDensity > PixelDensityMax)
 			{
-				UE_LOG(LogHMD, Warning, TEXT("Invalid pixel density. Valid values must be within the range: [%f, %f]."), PixelDensityMin, PixelDensityMax);
+				UE_LOG(LogHMD, Warning, TEXT("Invalid secondary screen percentage. Valid values must be within the range: [%f, %f]."), PixelDensityMin * 100, PixelDensityMax * 100);
 				NewPixelDensity = FMath::Clamp(NewPixelDensity, PixelDensityMin, PixelDensityMax);
 			}
 			HMDDevice->SetPixelDensity(NewPixelDensity);
+		}
+
+		// If vr.PixelDensity is defined in a config file or set manually somewhere, trigger an ensure.
+		static const auto DeprecatedCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.PixelDensity"));
+		if (DeprecatedCVar && DeprecatedCVar->GetFloat() != 1.0f)
+		{
+			ensureMsgf(false, TEXT("vr.PixelDensity is deprecated in UE 5.5 and will not affect the resolution. Use xr.SecondaryScreenPercentage.HMDRenderTarget instead, where 100.0f = ideal resolution."));
 		}
 	}
 }

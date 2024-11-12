@@ -692,8 +692,19 @@ namespace PropertyPathHelpersInternal
 			// We only support calling functions that return a single value and take no parameters.
 			if ( InFunction->NumParms == 1 )
 			{
+				// Find the pointer to the only param
+				FProperty* ReturnProperty = nullptr;
+				for (TFieldIterator<FProperty> It(InFunction); It; ++It)
+				{
+					if (It->PropertyFlags & CPF_Parm)
+					{
+						ReturnProperty = *It;
+						break;
+					}
+				}
+
 				// Verify there's a return property.
-				if ( FProperty* ReturnProperty = InFunction->GetReturnProperty() )
+				if ( ReturnProperty && ReturnProperty->PropertyFlags & (CPF_ReturnParm | CPF_OutParm) )
 				{
 					// Verify that the cpp type matches a known property type.
 					if ( IsConcreteTypeCompatibleWithReflectedType<T>(ReturnProperty) )
@@ -926,7 +937,7 @@ namespace PropertyPathHelpersInternal
 						const FPropertyStructView& InStuctView = static_cast<const FPropertyStructView&>(InValue);
 
 						// Ensure that the element sizes are the same, prevents the user from doing something terribly wrong.
-						if (ParamProperty->ElementSize == InStuctView.ScriptStruct->GetStructureSize() && !InContainer->IsUnreachable())
+						if (ParamProperty->GetElementSize() == InStuctView.ScriptStruct->GetStructureSize() && !InContainer->IsUnreachable())
 						{
 							InContainer->ProcessEvent(InFunction, const_cast<uint8*>(InStuctView.Memory));
 							return true;
@@ -969,7 +980,7 @@ namespace PropertyPathHelpersInternal
 
 				// Ensure that the element sizes are the same, prevents the user from doing something terribly wrong.
 				ArrayIndex = ArrayIndex == INDEX_NONE ? 0 : ArrayIndex;
-				if ( Property->ElementSize == InStuctView.ScriptStruct->GetStructureSize() && ArrayIndex < Property->ArrayDim)
+				if ( Property->GetElementSize() == InStuctView.ScriptStruct->GetStructureSize() && ArrayIndex < Property->ArrayDim)
 				{
 					if (Property->HasSetter())
 					{
@@ -1109,7 +1120,7 @@ namespace PropertyPathHelpersInternal
 						const FPropertyStructView& InStuctView = static_cast<const FPropertyStructView&>(InValue);
 
 						// Ensure that the element sizes are the same, prevents the user from doing something terribly wrong.
-						if (ArrayProp->Inner->ElementSize == InStuctView.ScriptStruct->GetStructureSize())
+						if (ArrayProp->Inner->GetElementSize() == InStuctView.ScriptStruct->GetStructureSize())
 						{
 							if (void* Address = static_cast<void*>(ArrayHelper.GetRawPtr(ArrayIndex)))
 							{

@@ -21,6 +21,13 @@ namespace Geometry
 class FDynamicMesh3;
 template<typename RealType> class TDynamicMeshScalarTriangleAttribute;
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FMeshPlaneCutFixLayout
+{
+public:
+	virtual ~FMeshPlaneCutFixLayout() = default;
+};
+
 /**
  * Cut the Mesh with the Plane. The *positive* side, ie (p-o).n > 0, is removed.
  * If possible, returns boundary loop(s) along cut
@@ -38,7 +45,7 @@ template<typename RealType> class TDynamicMeshScalarTriangleAttribute;
  *	  6) (optionally) change an attribute tag for all triangles on positive side
  *    7) find loops through valid boundary edges (ie connected to splits, or on-plane edges) (if second half was kept, do this separately for each separate mesh ID label)
  */
-class DYNAMICMESH_API FMeshPlaneCut
+class DYNAMICMESH_API FMeshPlaneCut : public FMeshPlaneCutFixLayout
 {
 public:
 
@@ -53,18 +60,18 @@ public:
 	 */
 	TUniqueFunction<bool(int32)> EdgeFilterFunc = nullptr;
 
+	/** Control whether we attempt to auto-simplify the small planar triangles that the plane cut operation tends to generate */
+	bool bSimplifyAlongNewEdges = false;
+
 	bool bCollapseDegenerateEdgesOnCut = true;
-	double DegenerateEdgeTol = FMathd::ZeroTolerance;
 
 	/** UVs on any hole fill surfaces are scaled by this amount */
 	float UVScaleFactor = 1.0f;
 
+	double DegenerateEdgeTol = FMathd::ZeroTolerance;
+
 	/** Tolerance distance for considering a vertex to be 'on plane' */
 	double PlaneTolerance = FMathf::ZeroTolerance * 10.0;
-
-
-	/** Control whether we attempt to auto-simplify the small planar triangles that the plane cut operation tends to generate */
-	bool bSimplifyAlongNewEdges = false;
 
 	/** Settings to apply if bSimplifyAlongNewEdges == true */
 	FLocalPlanarSimplify SimplifySettings;
@@ -178,7 +185,7 @@ public:
 	/**
 	 *  Fill cut loops with FPlanarHoleFiller, using a caller-provided triangulation function
 	 */
-	virtual bool HoleFill(TFunction<TArray<FIndex3i>(const FGeneralPolygon2d&)> PlanarTriangulationFunc, bool bFillSpans, int ConstantGroupID = -1);
+	virtual bool HoleFill(TFunction<TArray<FIndex3i>(const FGeneralPolygon2d&)> PlanarTriangulationFunc, bool bFillSpans, int ConstantGroupID = -1, int MaterialID = -1);
 
 	
 	virtual void TransferTriangleLabelsToHoleFillTriangles(TDynamicMeshScalarTriangleAttribute<int>* TriLabels);

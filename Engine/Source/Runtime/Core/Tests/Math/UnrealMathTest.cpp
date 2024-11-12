@@ -2200,7 +2200,7 @@ bool RunDoubleVectorTest()
 
 	// Quat / Rotator conversion to vectors, matrices
 	{
-		FQuat4d Q0, Q1, Q2, Q3;
+		FQuat4d Q0, Q1;
 
 		FRotator3d Rotator0;
 		Rotator0 = FRotator3d(30.0f, -45.0f, 90.0f);
@@ -2315,7 +2315,7 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	float F1 = 1.f;
 	uint32 U1 = *(uint32*)&F1;
 	VectorRegister4Float V0, V1, V2, V3;
-	VectorRegister4Int VI0, VI1;
+	VectorRegister4Int VI0, VI1, VI2, VI3;
 	float Float0, Float1, Float2, Float3;
 
 	// Using a union as we need to do a bitwise cast of 0xFFFFFFFF into a float for NaN.
@@ -2606,8 +2606,7 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	V0 = MakeVectorRegister(1.0f, 3.0f, 2.0f, 4.0f);
 	LogTest<float>(TEXT("VectorCombineLow"), TestVectorsEqual(V0, V1));
 
-	// LoadByte4
-
+	// LoadByte4 and StoreByte4
 	uint8 Bytes[4] = { 25, 75, 125, 200 };
 	V0 = VectorLoadByte4(Bytes);
 	V1 = MakeVectorRegister(25.f, 75.f, 125.f, 200.f);
@@ -2622,6 +2621,38 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	VectorStoreByte4(V0, Bytes);
 	V1 = VectorLoadByte4(Bytes);
 	LogTest<float>(TEXT("VectorStoreByte4"), TestVectorsEqual(V0, V1));
+
+	// LoadSignedByte4 and StoreSignedByte4
+	int8 SignedBytes[4] = { 25, -75, 125, -50 };
+	V0 = VectorLoadSignedByte4(SignedBytes);
+	V1 = MakeVectorRegister(25.f, -75.f, 125.f, -50.f);
+	LogTest<float>(TEXT("VectorLoadSignedByte4"), TestVectorsEqual(V0, V1));
+
+	V0 = MakeVectorRegister(-4.0f, 3.0f, -2.0f, 1.0f);
+	VectorStoreSignedByte4(V0, SignedBytes);
+	V1 = VectorLoadSignedByte4(SignedBytes);
+	LogTest<float>(TEXT("VectorStoreSignedByte4"), TestVectorsEqual(V0, V1));
+
+	// LoadURGBA16N and StoreURGBA16N
+	// NOTE: StoreURGBA16N is _not_ symmetric with Load. Load just gives you the
+	// values as floats in [0,65535], but Load expects the values as floats in
+	// [0,1], clamps to that range first, then scales to write ints.
+	uint16 UInt16s[4] = { 1234, 2345, 3456, 64000 };
+	V0 = VectorLoadURGBA16N(UInt16s);
+	V1 = MakeVectorRegister(1234.f, 2345.f, 3456.f, 64000.f);
+	LogTest<float>(TEXT("VectorLoadURGBA16N"), TestVectorsEqual(V0, V1));
+
+	V0 = MakeVectorRegister(-200000.f, 123.f / 65535.f, 234.f / 65535.f, 1.5f);
+	VectorStoreURGBA16N(V0, UInt16s);
+	V0 = MakeVectorRegister(0.f, 123.f, 234.f, 65535.f);
+	V1 = VectorLoadURGBA16N(UInt16s);
+	LogTest<float>(TEXT("VectorStoreURGBA16N"), TestVectorsEqual(V0, V1));
+
+	// LoadSRGBA16N
+	int16 Int16s[4] = { 1234, -2345, 3456, -32500 };
+	V0 = VectorLoadSRGBA16N(Int16s);
+	V1 = MakeVectorRegister(1234.f, -2345.f, 3456.f, -32500.f);
+	LogTest<float>(TEXT("VectorLoadSRGBA16N"), TestVectorsEqual(V0, V1));
 
 	// Vector Any/All comparisons
 	V0 = MakeVectorRegister(2.0f, 4.0f, 6.0f, 8.0f);
@@ -2940,6 +2971,38 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	V0 = MakeVectorRegister(-1.0f, 2.0f, -3.0f, 4.0f);
 	MaskBits = VectorMaskBits(V0);
 	LogTest<float>(TEXT("VectorMaskBits"), MaskBits == 5);
+
+	// VectorIntSelect
+	VI0 = MakeVectorRegisterInt(1, 3, 2, 8);
+	VI1 = MakeVectorRegisterInt(2, 4, 2, 1);
+	VI2 = MakeVectorRegisterInt(-1, 0, 0, -1);
+	VI2 = VectorIntSelect(VI2, VI0, VI1);
+	VI3 = MakeVectorRegisterInt(1, 4, 2, 8);
+	LogTest<int32>(TEXT("VectorIntSelect"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	VI0 = MakeVectorRegisterInt(1, 3, 5, 7);
+	VI1 = MakeVectorRegisterInt(2, 4, 6, 8);
+	VI2 = MakeVectorRegisterInt(0, -1, -1, 0);
+	VI2 = VectorIntSelect(VI2, VI0, VI1);
+	VI3 = MakeVectorRegisterInt(2, 3, 5, 8);
+	LogTest<int32>(TEXT("VectorIntSelect"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	// VectorIntMin/VectorIntMax
+	VI0 = MakeVectorRegisterInt(10, 12, 30, 22);
+	VI1 = MakeVectorRegisterInt(5, 14, 32, -100);
+	VI2 = VectorIntMin(VI0, VI1);
+	VI3 = MakeVectorRegisterInt(5, 12, 30, -100);
+	LogTest<int32>(TEXT("VectorIntMin"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	VI2 = VectorIntMax(VI0, VI1);
+	VI3 = MakeVectorRegisterInt(10, 14, 32, 22);
+	LogTest<int32>(TEXT("VectorIntMax"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	// VectorIntAbs
+	VI0 = MakeVectorRegisterInt(1, -2, 3, -4);
+	VI2 = VectorIntAbs(VI0);
+	VI3 = MakeVectorRegisterInt(1, 2, 3, 4);
+	LogTest<int32>(TEXT("VectorIntAbs"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
 
 	// Matrix multiplications and transformations
 	{
@@ -4285,6 +4348,31 @@ public:
 		return true;
 	}
 };
+
+// ConstExprCeilLogTwo
+static_assert(FMath::ConstExprCeilLogTwo(0) == 0, "0 -> 0");
+static_assert(FMath::ConstExprCeilLogTwo(1) == 0, "1 -> 0");
+static_assert(FMath::ConstExprCeilLogTwo(2) == 1, "2 -> 1");
+static_assert(FMath::ConstExprCeilLogTwo(3) == 2, "3 -> 2");
+static_assert(FMath::ConstExprCeilLogTwo(4) == 2, "4 -> 2");
+static_assert(FMath::ConstExprCeilLogTwo(5) == 3, "5 -> 3");
+static_assert(FMath::ConstExprCeilLogTwo(6) == 3, "6 -> 3");
+static_assert(FMath::ConstExprCeilLogTwo(7) == 3, "7 -> 3");
+static_assert(FMath::ConstExprCeilLogTwo(8) == 3, "8 -> 3");
+static_assert(FMath::ConstExprCeilLogTwo(16) == 4, "16 -> 4");
+static_assert(FMath::ConstExprCeilLogTwo(17) == 5, "17 -> 5");
+static_assert(FMath::ConstExprCeilLogTwo(31) == 5, "31 -> 5");
+static_assert(FMath::ConstExprCeilLogTwo(32) == 5, "32 -> 5");
+static_assert(FMath::ConstExprCeilLogTwo(33) == 6, "33 -> 6");
+static_assert(FMath::ConstExprCeilLogTwo(1U << 16) == 16, "2^16 -> 16");
+static_assert(FMath::ConstExprCeilLogTwo(uint64(1) << 31) == 31, "2^31 -> 31");
+static_assert(FMath::ConstExprCeilLogTwo((uint64(1) << 32) - 1) == 32, "2^32 - 1 -> 32");
+static_assert(FMath::ConstExprCeilLogTwo(uint64(1) << 32) == 32, "2^32 -> 32");
+static_assert(FMath::ConstExprCeilLogTwo(uint64(0xfffffffffffffffe)) == 64, "2^64 - 2 -> 64");
+static_assert(FMath::ConstExprCeilLogTwo(uint64(0xffffffffffffffff)) == 64, "2^64 - 1 -> 64");
+
+
+
 TEST_CASE_NAMED(FIsNearlyEqualByULPTest, "System::Core::Math::IsNearlyEqualByULP", "[ApplicationContextMask][SmokeFilter]")
 {
 	FIsNearlyEqualByULPTestClass Instance;
@@ -4557,181 +4645,120 @@ TEST_CASE_NAMED(FBitCastTest, "System::Core::Math::Bitcast", "[ApplicationContex
 
 TEST_CASE_NAMED(FMathWrapTest, "System::Core::Math::Wrap", "[ApplicationContextMask][SmokeFilter]")
 {
-	// Tests wrapping of FMath::Wrap(Val, Min, Max) with a set of values in a set of ranges.
-	//
-	// The values to test are of the form ValFrom + X*ValStep, and do not exceed ValTo.
-	// The minimum values in the wrapping range are of the form: MinFrom + Y*MinStep, and do not exceed MinTo.
-	// The sizes of each range (where Max == Min + Size) are of the form: SizeFrom + Z*SizeStep, and do not exceed SizeTo.
-	auto WrapTest = []<typename T>(T ValFrom, T ValTo, T ValStep, T MinFrom, T MinTo, T MinStep, T SizeFrom, T SizeTo, T SizeStep)
-	{
-		for (T Val = ValFrom; Val < ValTo; Val += ValStep)
-		{
-			for (T Min = MinFrom; Min < MinTo; Min += MinStep)
-			{
-				for (T Size = SizeFrom; Size < SizeTo; Size += SizeStep)
-				{
-					if (Size == (T)0)
-					{
-						T Wrap = FMath::Wrap(Val, Min, Min);
-
-						CHECK_MESSAGE(TEXT("Wrapped value should be in the empty range"), Wrap == Min);
-					}
-					else
-					{
-						T Max = Min + Size;
-						T Wrap = FMath::Wrap(Val, Min, Max);
-
-						CHECK_MESSAGE(TEXT("Wrapped value should be in the non-empty range"), Wrap >= Min && Wrap <= Max);
-						T Mod = FMath::Modulo((Wrap - Val), Size);
-						if constexpr (std::is_integral_v<T>)
-						{
-							CHECK_MESSAGE(FString::Printf(TEXT("Wrapped value should be at a distance which is an exact multiple of the range size: (Val: %d, Min: %d, Max: %d, Wrap: %d, Mod: %d)"), Val, Min, Max, Wrap, Mod), Mod == 0);
-						}
-						else
-						{
-							T Tolerance;
-							if constexpr (std::is_same_v<T, float>)
-							{
-								Tolerance = UE_KINDA_SMALL_NUMBER;
-							}
-							else
-							{
-								Tolerance = UE_DOUBLE_KINDA_SMALL_NUMBER;
-							}
-
-							// We need to check that we're in the range of zero *or* +/- size because of rounding
-							bool bIsExactMultipleOfSize = FMath::Square(Mod) < Tolerance || FMath::Square(Mod - Size) < Tolerance || FMath::Square(Mod + Size) < Tolerance;
-							CHECK_MESSAGE(FString::Printf(TEXT("Wrapped value should be at a distance which is an exact multiple of the range size: (Val: %f, Min: %f, Max: %f, Wrap: %f, Mod: %f)"), Val, Min, Max, Wrap, Mod), bIsExactMultipleOfSize);
-						}
-
-						if (Val < Min)
-						{
-							CHECK_FALSE_MESSAGE(TEXT("Wrapping a value from below a non-empty range should never give the max"), Wrap == Max);
-						}
-						else if (Val > Max)
-						{
-							CHECK_FALSE_MESSAGE(TEXT("Wrapping a value from above a non-empty range should never give the min"), Wrap == Min);
-						}
-					}
-				}
-			}
-		}
-	};
-
-	// Integral
-	WrapTest(
-		/* ValFrom  */ -25,
-		/* ValTo    */  25,
-		/* ValStep  */   1,
-		/* MinFrom  */  -5,
-		/* MinTo    */   5,
-		/* MinStep  */   1,
-		/* SizeFrom */   0,
-		/* SizeTo   */   5,
-		/* SizeStep */   1
-	);
-
 	// Floats (with integral values)
-	WrapTest(
-		/* ValFrom  */ -25.0f,
-		/* ValTo    */  25.0f,
-		/* ValStep  */   1.0f,
-		/* MinFrom  */  -5.0f,
-		/* MinTo    */   5.0f,
-		/* MinStep  */   1.0f,
-		/* SizeFrom */   0.0f,
-		/* SizeTo   */   5.0f,
-		/* SizeStep */   1.0f
-	);
-
-	// Floats (with fractional values)
-	WrapTest(
-		/* ValFrom  */  -7.34f,
-		/* ValTo    */  12.19f,
-		/* ValStep  */   0.7361f,
-		/* MinFrom  */  -8.43f,
-		/* MinTo    */  11.84f,
-		/* MinStep  */   0.69f,
-		/* SizeFrom */   0.0f,
-		/* SizeTo   */   7.23f,
-		/* SizeStep */   0.59f
-	);
+	CHECK(FMath::Wrap(-17.0f, 10.0f, 20.0f) == 13.0f);
+	CHECK(FMath::Wrap(-1.0f,  10.0f, 20.0f) == 19.0f);
+	CHECK(FMath::Wrap(0.0f,   10.0f, 20.0f) == 10.0f);
+	CHECK(FMath::Wrap(5.0f,   10.0f, 20.0f) == 15.0f);
+	CHECK(FMath::Wrap(9.0f,   10.0f, 20.0f) == 19.0f);
+	CHECK(FMath::Wrap(10.0f,  10.0f, 20.0f) == 10.0f);
+	CHECK(FMath::Wrap(15.0f,  10.0f, 20.0f) == 15.0f);
+	CHECK(FMath::Wrap(19.0f,  10.0f, 20.0f) == 19.0f);
+	CHECK(FMath::Wrap(20.0f,  10.0f, 20.0f) == 20.0f);
+	CHECK(FMath::Wrap(21.0f,  10.0f, 20.0f) == 11.0f);
+	CHECK(FMath::Wrap(25.0f,  10.0f, 20.0f) == 15.0f);
+	CHECK(FMath::Wrap(29.0f,  10.0f, 20.0f) == 19.0f);
+	CHECK(FMath::Wrap(30.0f,  10.0f, 20.0f) == 20.0f);
+	CHECK(FMath::Wrap(54.0f,  10.0f, 20.0f) == 14.0f);
+	CHECK(FMath::Wrap(60.0f,  10.0f, 20.0f) == 20.0f);
 
 	// Doubles (with integral values)
-	WrapTest(
-		/* ValFrom  */ -25.0,
-		/* ValTo    */  25.0,
-		/* ValStep  */   1.0,
-		/* MinFrom  */  -5.0,
-		/* MinTo    */   5.0,
-		/* MinStep  */   1.0,
-		/* SizeFrom */   0.0,
-		/* SizeTo   */   5.0,
-		/* SizeStep */   1.0
-	);
+	CHECK(FMath::Wrap(-17.0, 10.0, 20.0) == 13.0);
+	CHECK(FMath::Wrap( -1.0, 10.0, 20.0) == 19.0);
+	CHECK(FMath::Wrap(  0.0, 10.0, 20.0) == 10.0);
+	CHECK(FMath::Wrap(  5.0, 10.0, 20.0) == 15.0);
+	CHECK(FMath::Wrap(  9.0, 10.0, 20.0) == 19.0);
+	CHECK(FMath::Wrap( 10.0, 10.0, 20.0) == 10.0);
+	CHECK(FMath::Wrap( 15.0, 10.0, 20.0) == 15.0);
+	CHECK(FMath::Wrap( 19.0, 10.0, 20.0) == 19.0);
+	CHECK(FMath::Wrap( 20.0, 10.0, 20.0) == 20.0);
+	CHECK(FMath::Wrap( 21.0, 10.0, 20.0) == 11.0);
+	CHECK(FMath::Wrap( 25.0, 10.0, 20.0) == 15.0);
+	CHECK(FMath::Wrap( 29.0, 10.0, 20.0) == 19.0);
+	CHECK(FMath::Wrap( 30.0, 10.0, 20.0) == 20.0);
+	CHECK(FMath::Wrap( 54.0, 10.0, 20.0) == 14.0);
+	CHECK(FMath::Wrap( 60.0, 10.0, 20.0) == 20.0);
+
+	// Floats (with fractional values)
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap(-17.62f, 2.37f, 8.44f), 6.66f, UE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap( -1.89f, 2.37f, 8.44f), 4.18f, UE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap(  7.12f, 2.37f, 8.44f), 7.12f, UE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap( 11.31f, 2.37f, 8.44f), 5.24f, UE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap( 23.65f, 2.37f, 8.44f), 5.44f, UE_KINDA_SMALL_NUMBER));
 
 	// Doubles (with fractional values)
-	WrapTest(
-		/* ValFrom  */  -7.34,
-		/* ValTo    */  12.19,
-		/* ValStep  */   0.7361,
-		/* MinFrom  */  -8.43,
-		/* MinTo    */  11.84,
-		/* MinStep  */   0.69,
-		/* SizeFrom */   0.0,
-		/* SizeTo   */   7.23,
-		/* SizeStep */   0.59
-	);
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap(-17.62, 2.37, 8.44), 6.66, UE_DOUBLE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap( -1.89, 2.37, 8.44), 4.18, UE_DOUBLE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap(  7.12, 2.37, 8.44), 7.12, UE_DOUBLE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap( 11.31, 2.37, 8.44), 5.24, UE_DOUBLE_KINDA_SMALL_NUMBER));
+	CHECK(FMath::IsNearlyEqual(FMath::Wrap( 23.65, 2.37, 8.44), 5.44, UE_DOUBLE_KINDA_SMALL_NUMBER));
 
-	// Test large values far away from the range
-	WrapTest(
-		/* ValFrom  */  1 << 30,
-		/* ValTo    */  (1 << 30) + 1,
-		/* ValStep  */  1,
-		/* MinFrom  */  0,
-		/* MinTo    */  1,
-		/* MinStep  */  1,
-		/* SizeFrom */  2,
-		/* SizeTo   */  3,
-		/* SizeStep */  1
-	);
-	WrapTest(
-		/* ValFrom  */  (float)(1 << 25),
-		/* ValTo    */  (float)(1 << 25) + 4.0f,
-		/* ValStep  */  4.0f,
-		/* MinFrom  */  0.0f,
-		/* MinTo    */  1.0f,
-		/* MinStep  */  1.0f,
-		/* SizeFrom */  1.0f,
-		/* SizeTo   */  2.0f,
-		/* SizeStep */  1.0f
-	);
-	WrapTest(
-		/* ValFrom  */  (double)(1ull << 54),
-		/* ValTo    */  (double)(1ull << 54) + 4.0,
-		/* ValStep  */  4.0,
-		/* MinFrom  */  0.0,
-		/* MinTo    */  1.0,
-		/* MinStep  */  1.0,
-		/* SizeFrom */  1.0,
-		/* SizeTo   */  2.0,
-		/* SizeStep */  1.0
-	);
+	// Floats (large values far away from the range)
+	CHECK(FMath::Wrap(-(float)(1 << 25), 1.0f, 2.0f) == 1.0f);
+	CHECK(FMath::Wrap( (float)(1 << 25), 1.0f, 2.0f) == 2.0f);
 
-	// Test constexpr
-	static_assert(FMath::Wrap(-3, 0, 5) == 2);
-	//static_assert(FMath::Wrap(-3.0f, 0.0f, 5.0f) == 2); // needs constexpr fmod support in C++23
-	//static_assert(FMath::Wrap(-3.0, 0.0, 5.0) == 2); // needs constexpr fmod support in C++23
-
-	// These will fail to compile due to signed overload if we don't use unsigned diffs in the implementation
-	static_assert(FMath::Wrap(MAX_int32, MIN_int32 + 2, MAX_int32)); // range size will overflow
-	static_assert(FMath::Wrap(MIN_int32, MAX_int32 - 2, MAX_int32)); // distance from val to min will overflow
-	static_assert(FMath::Wrap(MAX_int32, MIN_int32, MIN_int32 + 2)); // distance from max to val will overflow
-
-	// Try with bytes too, where the value is more than 128 away from the range
-	static_assert(FMath::Wrap((int8)123, (int8)-20, (int8)-10) == (int8)-17);
-	static_assert(FMath::Wrap((int8)-123, (int8)10, (int8)20) == (int8)17);
+	// Doubles (large values far away from the range)
+	CHECK(FMath::Wrap(-(double)(1 << 25), 1.0, 2.0) == 1.0);
+	CHECK(FMath::Wrap( (double)(1 << 25), 1.0, 2.0) == 2.0);
 }
+
+TEST_CASE_NAMED(FMathWrapExclusiveTest, "System::Core::Math::WrapExclusive", "[ApplicationContextMask][SmokeFilter]")
+{
+	// Ints (compile time)
+	static_assert(FMath::WrapExclusive(-17, 10, 20) == 13);
+	static_assert(FMath::WrapExclusive(-1,  10, 20) == 19);
+	static_assert(FMath::WrapExclusive(0,   10, 20) == 10);
+	static_assert(FMath::WrapExclusive(5,   10, 20) == 15);
+	static_assert(FMath::WrapExclusive(9,   10, 20) == 19);
+	static_assert(FMath::WrapExclusive(10,  10, 20) == 10);
+	static_assert(FMath::WrapExclusive(15,  10, 20) == 15);
+	static_assert(FMath::WrapExclusive(19,  10, 20) == 19);
+	static_assert(FMath::WrapExclusive(20,  10, 20) == 10);
+	static_assert(FMath::WrapExclusive(21,  10, 20) == 11);
+	static_assert(FMath::WrapExclusive(25,  10, 20) == 15);
+	static_assert(FMath::WrapExclusive(29,  10, 20) == 19);
+	static_assert(FMath::WrapExclusive(30,  10, 20) == 10);
+	static_assert(FMath::WrapExclusive(54,  10, 20) == 14);
+	static_assert(FMath::WrapExclusive(60,  10, 20) == 10);
+
+	// Ints (runtime)
+	CHECK(FMath::WrapExclusive(-17, 10, 20) == 13);
+	CHECK(FMath::WrapExclusive(-1,  10, 20) == 19);
+	CHECK(FMath::WrapExclusive(0,   10, 20) == 10);
+	CHECK(FMath::WrapExclusive(5,   10, 20) == 15);
+	CHECK(FMath::WrapExclusive(9,   10, 20) == 19);
+	CHECK(FMath::WrapExclusive(10,  10, 20) == 10);
+	CHECK(FMath::WrapExclusive(15,  10, 20) == 15);
+	CHECK(FMath::WrapExclusive(19,  10, 20) == 19);
+	CHECK(FMath::WrapExclusive(20,  10, 20) == 10);
+	CHECK(FMath::WrapExclusive(21,  10, 20) == 11);
+	CHECK(FMath::WrapExclusive(25,  10, 20) == 15);
+	CHECK(FMath::WrapExclusive(29,  10, 20) == 19);
+	CHECK(FMath::WrapExclusive(30,  10, 20) == 10);
+	CHECK(FMath::WrapExclusive(54,  10, 20) == 14);
+	CHECK(FMath::WrapExclusive(60,  10, 20) == 10);
+
+	// Ints (compile time - distance to range is greater than std::numeric_limits<T>::max())
+	static_assert(FMath::WrapExclusive(MIN_int32, MAX_int32 - 8, MAX_int32) == MAX_int32 - 7);
+	static_assert(FMath::WrapExclusive(MAX_int32, MIN_int32, MIN_int32 + 8) == MIN_int32 + 7);
+	static_assert(FMath::WrapExclusive((int8)123, (int8)-20, (int8)-10) == (int8)-17);
+	static_assert(FMath::WrapExclusive((int8)-123, (int8)10, (int8)20) == (int8)17);
+
+	// Ints (runtime - distance to range is greater than std::numeric_limits<T>::max())
+	CHECK(FMath::WrapExclusive(MIN_int32, MAX_int32 - 8, MAX_int32) == MAX_int32 - 7);
+	CHECK(FMath::WrapExclusive(MAX_int32, MIN_int32, MIN_int32 + 8) == MIN_int32 + 7);
+	CHECK(FMath::WrapExclusive((int8)123, (int8)-20, (int8)-10) == (int8)-17);
+	CHECK(FMath::WrapExclusive((int8)-123, (int8)10, (int8)20) == (int8)17);
+
+	// Ints (compile time - range-size is greater than std::numeric_limits<T>::max())
+	static_assert(FMath::WrapExclusive(MAX_int32, MIN_int32 + 2, MAX_int32));
+	static_assert(FMath::WrapExclusive((int8)-123, (int8)-120, (int8)120) == (int8)117);
+
+	// Ints (runtime - range-size is greater than std::numeric_limits<T>::max())
+	CHECK(FMath::WrapExclusive(MAX_int32, MIN_int32 + 2, MAX_int32));
+	CHECK(FMath::WrapExclusive((int8)-123, (int8)-120, (int8)120) == (int8)117);
+}
+
 class FInitVectorTestClass {
 public:
 

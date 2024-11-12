@@ -113,6 +113,14 @@ namespace PCGTestsCommon
 		return PCGTestsCommon::InitializeTestContext(Settings->GetElement().Get(), InputData, TestPCGComponent, InNode);
 	}
 
+	void FTestData::SetCurrentGenerationTask(FPCGTaskId InTaskId)
+	{
+		if (TestPCGComponent)
+		{
+			TestPCGComponent->CurrentGenerationTask = InTaskId;
+		}
+	}
+
 	AActor* CreateTemporaryActor()
 	{
 		return NewObject<AActor>();

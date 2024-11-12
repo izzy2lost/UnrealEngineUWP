@@ -83,7 +83,7 @@ namespace EpicGames.UHT.Parsers
 		}
 
 		/** return if more parameters can be marked */
-		public bool CanMarkMore()
+		public readonly bool CanMarkMore()
 		{
 			return _bUseNumber ? _numberLeaveUnmarked > 0 : (_parameterNames != null && _parameterNames.Length > 0);
 		}
@@ -129,7 +129,7 @@ namespace EpicGames.UHT.Parsers
 
 		private static UhtParseResult ParseUDelegate(UhtParsingScope parentScope, UhtToken token, bool hasSpecifiers)
 		{
-			UhtFunction function = new(parentScope.ScopeType, token.InputLine);
+			UhtFunction function = new(parentScope.HeaderFile, parentScope.ScopeType, token.InputLine);
 
 			{
 				using UhtParsingScope topScope = new(parentScope, function, parentScope.Session.GetKeywordTable(UhtTableNames.Function), UhtAccessSpecifier.Public);
@@ -299,7 +299,7 @@ namespace EpicGames.UHT.Parsers
 
 		private static UhtParseResult ParseUFunction(UhtParsingScope parentScope, UhtToken token)
 		{
-			UhtFunction function = new(parentScope.ScopeType, token.InputLine);
+			UhtFunction function = new(parentScope.HeaderFile, parentScope.ScopeType, token.InputLine);
 
 			{
 				using UhtParsingScope topScope = new(parentScope, function, parentScope.Session.GetKeywordTable(UhtTableNames.Function), UhtAccessSpecifier.Public);
@@ -624,10 +624,7 @@ namespace EpicGames.UHT.Parsers
 
 		private static void AddFunction(UhtFunction function)
 		{
-			if (function.Outer != null)
-			{
-				function.Outer.AddChild(function);
-			}
+			function.Outer?.AddChild(function);
 		}
 
 		private static void SetFunctionNames(UhtFunction function)

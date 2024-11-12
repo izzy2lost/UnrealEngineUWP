@@ -17,7 +17,7 @@ namespace EpicGames.Horde
 	[JsonSchemaString]
 	[JsonConverter(typeof(StringIdJsonConverter))]
 	[TypeConverter(typeof(StringIdTypeConverter))]
-	public struct StringId : IEquatable<StringId>, IEquatable<string>, IEquatable<ReadOnlyMemory<char>>
+	public readonly struct StringId : IEquatable<StringId>, IEquatable<string>, IEquatable<ReadOnlyMemory<char>>
 	{
 		/// <summary>
 		/// Enum used to disable validation on string arguments
@@ -92,23 +92,37 @@ namespace EpicGames.Horde
 		public static StringId Sanitize(string text)
 		{
 			StringBuilder result = new StringBuilder();
-			for (int idx = 0; idx < text.Length; idx++)
+			for (int idx = 0; idx < text.Length && result.Length < MaxLength; idx++)
 			{
 				char character = (char)text[idx];
 				if (character >= 'A' && character <= 'Z')
 				{
 					result.Append((char)('a' + (character - 'A')));
 				}
+				else if (character == '.')
+				{
+					if (result.Length > 0)
+					{
+						if (result[^1] == '-')
+						{
+							result[^1] = character;
+						}
+						else
+						{
+							result.Append(character);
+						}
+					}
+				}
 				else if (IsValidCharacter(character))
 				{
 					result.Append(character);
 				}
-				else if (result.Length > 0 && result[^1] != '-')
+				else if (result.Length > 0 && result[^1] != '-' && result[^1] != '.')
 				{
 					result.Append('-');
 				}
 			}
-			while (result.Length > 0 && result[^1] == '-')
+			while (result.Length > 0 && (result[^1] == '-' || result[^1] == '.'))
 			{
 				result.Remove(result.Length - 1, 1);
 			}
@@ -125,7 +139,7 @@ namespace EpicGames.Horde
 		{
 			if (text.Length > MaxLength)
 			{
-				throw new ArgumentException($"String id may not be longer than {MaxLength} characters", paramName);
+				throw new ArgumentException($"String id '{text}' may not be longer than {MaxLength} characters", paramName);
 			}
 
 			if (text.Length > 0 && (text[0] == '.' || text[^1] == '.'))

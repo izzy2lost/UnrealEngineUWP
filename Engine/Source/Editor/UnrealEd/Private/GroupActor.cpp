@@ -251,15 +251,19 @@ void AGroupActor::GetActorBounds(bool bOnlyCollidingComponents, FVector& Origin,
 }
 
 #if WITH_EDITOR
-FBox AGroupActor::GetStreamingBounds() const
+void AGroupActor::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	FBox StreamingBounds = Super::GetStreamingBounds();
+	Super::GetStreamingBounds(OutRuntimeBounds, OutEditorBounds);
 
 	for (AActor* Actor : GroupActors)
 	{
 		if (Actor)
 		{
-			StreamingBounds += Actor->GetStreamingBounds();
+			FBox RuntimeBounds;
+			FBox EditorBounds;
+			Actor->GetStreamingBounds(RuntimeBounds, EditorBounds);
+			OutRuntimeBounds += RuntimeBounds;
+			OutEditorBounds += EditorBounds;
 		}
 	}
 
@@ -267,11 +271,14 @@ FBox AGroupActor::GetStreamingBounds() const
 	{
 		if (SubGroupActor)
 		{
-			StreamingBounds += SubGroupActor->GetStreamingBounds();
+			FBox RuntimeBounds;
+			FBox EditorBounds;
+			SubGroupActor->GetStreamingBounds(RuntimeBounds, EditorBounds);
+			OutRuntimeBounds += RuntimeBounds;
+			OutEditorBounds += EditorBounds;
+
 		}
 	}
-
-	return StreamingBounds;
 }
 #endif
 

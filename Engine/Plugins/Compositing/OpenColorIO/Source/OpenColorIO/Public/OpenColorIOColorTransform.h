@@ -34,10 +34,6 @@ public:
 	virtual ~UOpenColorIOColorTransform() {};
 
 public:
-	UE_DEPRECATED(5.3, "This method is deprecated, please use Initialize without the owner argument.")
-	bool Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues = {});
-	UE_DEPRECATED(5.3, "This method is deprecated, please use Initialize without the owner argument.")
-	bool Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues = {});
 	UE_DEPRECATED(5.4, "This method is deprecated, please use Initialize without the context argument.")
 	bool Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues);
 	UE_DEPRECATED(5.4, "This method is deprecated, please use Initialize without the context argument.")
@@ -50,15 +46,6 @@ public:
 	bool Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection);
 
 	/**
-	 * Serialize LUT data. This will effectively serialize the LUT only when cooking
-	 */
-	UE_DEPRECATED(5.3, "This method is deprecated.")
-	void SerializeLuts(FArchive& Ar) { }
-
-	UE_DEPRECATED(5.3, "This method is deprecated.")
-	void CacheResourceTextures() { }
-
-	/**
 	 * Cache resource shaders for rendering.
 	 * If a matching shader map is not found in memory or the DDC, a new one will be compiled.
 	 */
@@ -67,9 +54,6 @@ public:
 	
 	UE_DEPRECATED_FORGAME(5.4, "Do not use. Will be made private in 5.5")
 	void CacheShadersForResources(EShaderPlatform InShaderPlatform, FOpenColorIOTransformResource* InResourcesToCache, bool bApplyCompletedShaderMapForRendering, bool bIsCooking, const ITargetPlatform* TargetPlatform = nullptr);
-
-	UE_DEPRECATED(5.3, "This method is deprecated.")
-	FOpenColorIOTransformResource* AllocateResource();
 
 	/**
 	 * Returns the desired resources required to apply this transform during rendering.
@@ -151,12 +135,6 @@ protected:
 	UE_DEPRECATED_FORGAME(5.4, "Do not use. Will be made private in 5.5")
 	static void GetOpenColorIOLUTKeyGuid(const FString& InProcessorIdentifier, const FName& InName, FGuid& OutLutGuid );
 
-	UE_DEPRECATED(5.3, "This method is deprecated.")
-	bool GenerateColorTransformData(const FString& InSourceColorSpace, const FString& InDestinationColorSpace) { return false; }
-
-	UE_DEPRECATED(5.3, "This method is deprecated.")
-	bool GenerateColorTransformData(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection) { return false; }
-
 	/**
 	 * Helper function returning the color space transform name based on source and destination color spaces.
 	 */
@@ -232,12 +210,6 @@ public:
 	void ReleaseResources();
 
 public:
-
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.3, "ConfigurationOwner is deprecated, use GetOuter() instead.")
-	UPROPERTY(Transient, meta = (DeprecatedProperty))
-	TObjectPtr<UOpenColorIOConfiguration> ConfigurationOwner_DEPRECATED;
-#endif
 
 	UPROPERTY(VisibleAnywhere, Category = "ColorSpace")
 	bool bIsDisplayViewType = false;

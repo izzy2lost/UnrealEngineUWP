@@ -5,6 +5,7 @@
 #include "VertexFactory.h"
 #include "Containers/DynamicRHIResourceArray.h"
 #include "WaterInstanceDataBuffer.h"
+#include "RHIResourceUtils.h"
 
 class FShaderParameterMap;
 struct FShaderCompilerEnvironment;
@@ -15,7 +16,6 @@ struct FShaderCompilerEnvironment;
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FWaterVertexFactoryParameters, )
 	SHADER_PARAMETER(float, LODScale)
 	SHADER_PARAMETER(float, LeafSize)
-	SHADER_PARAMETER(float, CaptureDepthRange)
 	SHADER_PARAMETER(int32, NumQuadsPerTileSide)
 	SHADER_PARAMETER(int32, NumQuadsLOD0)
 	SHADER_PARAMETER(int32, NumDensities)
@@ -59,7 +59,7 @@ private:
 	template <typename IndexType>
 	FBufferRHIRef CreateIndexBuffer(FRHICommandListBase& RHICmdList)
 	{
-		TResourceArray<IndexType, INDEXBUFFER_ALIGNMENT> Indices;
+		TArray<IndexType> Indices;
 
 		// Allocate room for indices
 		Indices.Reserve(NumQuadsPerSide * NumQuadsPerSide * 6);
@@ -95,12 +95,9 @@ private:
 		}
 
 		NumIndices = Indices.Num();
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(IndexType);
 
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FWaterMeshIndexBuffer"), &Indices);
-		return RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		return UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FWaterMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	int32 NumIndices = 0;
@@ -196,7 +193,7 @@ public:
 	static constexpr int32 NumRenderGroups = bWithWaterSelectionSupport ? 3 : 1; // Must match EWaterMeshRenderGroupType
 	static constexpr int32 NumAdditionalVertexStreams = TWaterInstanceDataBuffers<bWithWaterSelectionSupport>::NumBuffers;
 
-	TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, const FVector& InQuadTreePositionWS, int32 InNumQuadsPerSide, int32 InNumQuadsLOD0, int32 InNumDensities, float InLeafSize, float InLODScale, float InCaptureDepthRange);
+	TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, int32 InNumQuadsPerSide, int32 InNumQuadsLOD0, int32 InNumDensities, float InLeafSize, float InLODScale);
 	~TWaterVertexFactory();
 
 	/**
@@ -222,8 +219,6 @@ public:
 
 	inline const FUniformBufferRHIRef GetWaterVertexFactoryUniformBuffer(EWaterMeshRenderGroupType InRenderGroupType) const { return UniformBuffers[(int32)InRenderGroupType]; }
 
-	inline FVector GetQuadTreePositionWS() const { return QuadTreePositionWS; }
-
 	static constexpr bool UsesIndirectDraws() { return DrawMode == EWaterVertexFactoryDrawMode::Indirect || DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo; }
 	static constexpr bool UsesInstancedStereo() { return DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo; }
 
@@ -237,13 +232,11 @@ public:
 private:
 	TStaticArray<FWaterVertexFactoryBufferRef, NumRenderGroups> UniformBuffers;
 
-	const FVector QuadTreePositionWS = FVector::ZeroVector;
 	const int32 NumQuadsPerSide = 0;
 	const int32 NumQuadsLOD0 = 0;
 	const int32 NumDensities = 0;
 	const float LeafSize = 0.0f;
 	const float LODScale = 0.0f;
-	const float CaptureDepthRange = 0.0f;
 };
 
 extern const FVertexFactoryType* GetWaterVertexFactoryType(bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode);
@@ -270,6 +263,8 @@ struct TWaterMeshUserData
 	FUniformBufferRHIRef WaterVertexFactoryRaytracingVFUniformBuffer = nullptr;
 #endif
 
+	FVector QuadTreePosition = FVector::ZeroVector;
+	float CaptureDepthRange = 0.0f;
 	FRHIBuffer* IndirectInstanceData0 = nullptr;
 	FRHIBuffer* IndirectInstanceData1 = nullptr;
 	FRHIBuffer* IndirectInstanceData2 = nullptr;

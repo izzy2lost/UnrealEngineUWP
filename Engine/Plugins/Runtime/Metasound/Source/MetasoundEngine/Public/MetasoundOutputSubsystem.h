@@ -8,13 +8,12 @@
 #include "MetasoundOutputSubsystem.generated.h"
 
 class UAudioComponent;
-class UMetasoundGeneratorHandle;
 
 /**
  * Provides access to a playing Metasound generator's outputs
  */
 UCLASS()
-class METASOUNDENGINE_API UMetaSoundOutputSubsystem : public UTickableWorldSubsystem
+class METASOUNDENGINE_API UMetaSoundOutputSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -45,16 +44,10 @@ public:
 		const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
 		FName AnalyzerName = NAME_None,
 		FName AnalyzerOutputName = NAME_None);
-	
-	/** Begin UTickableWorldSubsystem */
-	virtual bool IsTickable() const override;
-	virtual void Tick(float DeltaTime) override;
-	virtual TStatId GetStatId() const override;
-	/** End UTickableWorldSubsystem */
 
 private:
-	UMetasoundGeneratorHandle* GetOrCreateGeneratorHandle(UAudioComponent* AudioComponent);
+	TSharedPtr<Metasound::FMetasoundGeneratorHandle> GetOrCreateGeneratorHandle(UAudioComponent* AudioComponent);
+	void CleanUpInvalidGeneratorHandles();
 
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UMetasoundGeneratorHandle>> TrackedGenerators;
+	TArray<TSharedPtr<Metasound::FMetasoundGeneratorHandle>> TrackedGenerators;
 };

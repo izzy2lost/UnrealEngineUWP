@@ -8,8 +8,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Constant)
 #define LOCTEXT_NAMESPACE "RigVMDispatch_Constant"
 
-const FName FRigVMDispatch_Constant::ValueName = TEXT("Value");
-
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_Constant::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> Infos;

@@ -11,7 +11,9 @@
 	<Property Name="PGOProfileOutputLinux" Value="$(ProjectPath)/Build/Linux/PGO"/>
 	<Property Name="PGOProfileOutputFilterLinux" Value="*.profdata"/>
 	<Property Name="PGOProfileCommandLineLinux" Value=""/>
-	<Property Name="PGOCompileArgsLinux" Value=""/>
+	<Property Name="PGOProfileRunTestArgsLinux" Value=""/>
+	<Property Name="PGOProfileCompileArgsLinux" Value="-PGOProfile"/>
+	<Property Name="PGOOptimizeCompileArgsLinux" Value="-PGOOptimize"/>
 	<Property Name="PGOCompileExtraBinariesLinux" Value=""/>
 
 	<!-- no special preprocessing required for this platform -->

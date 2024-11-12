@@ -24,6 +24,7 @@
 #include "UVEditorSubsystem.h"
 #include "UVEditorModule.h"
 #include "UVEditorStyle.h"
+#include "UVEditor3DViewportMode.h"
 #include "ContextObjects/UVToolContextObjects.h"
 #include "UVEditorModeUILayer.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -109,6 +110,7 @@ FUVEditorToolkit::FUVEditorToolkit(UAssetEditor* InOwningAssetEditor)
 
 	LivePreviewEditorModeManager = MakeShared<FAssetEditorModeManager>();
 	LivePreviewEditorModeManager->SetPreviewScene(LivePreviewScene.Get());
+	LivePreviewEditorModeManager->SetDefaultMode(UUVEditor3DViewportMode::EM_ModeID);
 	LivePreviewInputRouter = LivePreviewEditorModeManager->GetInteractiveToolsContext()->InputRouter;
 
 	LivePreviewTabContent = MakeShareable(new FEditorViewportTabContent());
@@ -297,17 +299,17 @@ void FUVEditorToolkit::OnClose()
 	// This is super important to do, otherwise currently opened tabs won't be marked as "closed".
 	// This results in tabs not being properly recycled upon reopening the editor and tab
 	// duplication for each opening event.
-	GetEditorModeManager().ActivateDefaultMode();
+	GetEditorModeManager().DeactivateAllModes();
 
 	FAssetEditorToolkit::OnClose();
 }
 
 // These get called indirectly (via toolkit host) from the mode toolkit when the mode starts or ends a tool,
 // in order to add or remove an accept/cancel overlay.
-void FUVEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) 
+void FUVEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder) 
 {
 	TSharedPtr<SUVEditor2DViewport> ViewportWidget = StaticCastSharedPtr<SUVEditor2DViewport>(ViewportTabContent->GetFirstViewport());
-	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget);
+	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget, ZOrder);
 }
 void FUVEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
 {
@@ -438,10 +440,12 @@ void FUVEditorToolkit::PostInitAssetEditor()
 	ModeUILayer = MakeShareable(new FUVEditorModeUILayer(PinnedToolkitHost.Get()));
 	ModeUILayer->SetModeMenuCategory( UVEditorMenuCategory );
 
+	// Needed so that the live preview dummy mode is initialized enough to be able to route hotkeys
+	LivePreviewEditorModeManager->SetToolkitHost(PinnedToolkitHost.ToSharedRef());
+
 	TArray<TObjectPtr<UObject>> ObjectsToEdit;
 	OwningAssetEditor->GetObjectsToEdit(MutableView(ObjectsToEdit));
 
-	// TODO: get these when possible (from level editor selection, for instance), and set them to something reasonable otherwise.
 	TArray<FTransform> ObjectTransforms;
 	Cast<UUVEditor>(OwningAssetEditor)->GetWorldspaceRelativeTransforms(ObjectTransforms);
 
@@ -566,6 +570,28 @@ void FUVEditorToolkit::PostInitAssetEditor()
 					.MinDesiredWidth(500)
 				[
 					UVModeToolkit->CreateBackgroundSettingsWidget()
+				]
+				];
+
+			Container->AddSlot()
+				.AutoHeight()
+				.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+				[
+					SNew(SBox)
+					.MinDesiredWidth(500)
+				[
+					UVModeToolkit->CreateUnwrappedUXSettingsWidget()
+				]
+				];
+
+			Container->AddSlot()
+				.AutoHeight()
+				.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+				[
+					SNew(SBox)
+					.MinDesiredWidth(500)
+				[
+					UVModeToolkit->CreateLivePreviewUXSettingsWidget()
 				]
 				];
 

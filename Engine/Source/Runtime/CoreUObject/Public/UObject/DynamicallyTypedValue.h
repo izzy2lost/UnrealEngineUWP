@@ -10,6 +10,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 class FReferenceCollector;
 
@@ -62,9 +63,9 @@ namespace UE
 	{
 		static COREUOBJECT_API FDynamicallyTypedValueType& NullType();
 
-		FDynamicallyTypedValue() { InitializeToNull(); }
-		FDynamicallyTypedValue(const FDynamicallyTypedValue& Copyee) { InitializeFromCopy(Copyee); }
-		FDynamicallyTypedValue(FDynamicallyTypedValue&& Movee) { InitializeFromMove(MoveTemp(Movee)); }
+		FDynamicallyTypedValue() { UE_AUTORTFM_OPEN{ InitializeToNull(); }; }
+		FDynamicallyTypedValue(const FDynamicallyTypedValue& Copyee) { UE_AUTORTFM_OPEN{ InitializeFromCopy(Copyee); }; }
+		FDynamicallyTypedValue(FDynamicallyTypedValue&& Movee) { UE_AUTORTFM_OPEN{ InitializeFromMove(MoveTemp(Movee)); }; }
 
 		~FDynamicallyTypedValue() { Deinit(); }
 
@@ -113,7 +114,7 @@ namespace UE
 		}
 
 		// Returns hash of the underlying FDynamicallyTypedValue's value. Added to allow for FDynamicallyTypedValue to be used as TMap keys.
-		friend uint32 GetTypeHash(const FDynamicallyTypedValue& DynamicallyTypedValue)
+		[[nodiscard]] friend uint32 GetTypeHash(const FDynamicallyTypedValue& DynamicallyTypedValue)
 		{
 			return DynamicallyTypedValue.GetType().GetValueHash(DynamicallyTypedValue.GetDataPointer());
 		}
@@ -221,3 +222,5 @@ namespace UE
 		}
 	};
 }
+
+Expose_TNameOf(UE::FDynamicallyTypedValue)

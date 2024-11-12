@@ -205,7 +205,7 @@ FORCEINLINE static void* FastParticleSmallBlockAlloc(size_t AllocSize)
 		if ( Allocations  && Allocations->FreeAllocations.Num() )
 		{
 			void* Result = Allocations->FreeAllocations[0];
-			Allocations->FreeAllocations.RemoveAtSwap(0,1, EAllowShrinking::No);
+			Allocations->FreeAllocations.RemoveAtSwap(0, EAllowShrinking::No);
 			Allocations->LastUsedTime = FPlatformTime::Seconds();
 			GFreePoolSizeBytes -= AllocSize;
 #if FASTPARTICLEALLOC_CHECKSIZE
@@ -276,7 +276,7 @@ FORCEINLINE static void FastParticleSmallBlockFree(void *RawMemory, size_t Alloc
 			check( OldestPool );
 			check( OldestPoolAllocSize  != 0 );
 			void* OldAllocation = OldestPool->FreeAllocations[0];
-			OldestPool->FreeAllocations.RemoveAtSwap(0, 1, EAllowShrinking::No);
+			OldestPool->FreeAllocations.RemoveAtSwap(0, EAllowShrinking::No);
 			GFreePoolSizeBytes -= OldestPoolAllocSize;
 			FMemory::Free(OldAllocation);
 		}
@@ -394,8 +394,8 @@ const float FParticleEmitterInstance::PeakActiveParticleUpdateDelta = 0.05f;
 FParticleEmitterInstance::FParticleEmitterInstance() :
 	  SpriteTemplate(NULL)
     , Component(NULL)
-    , CurrentLODLevelIndex(0)
     , CurrentLODLevel(NULL)
+    , CurrentLODLevelIndex(0)
     , TypeDataOffset(0)
 	, TypeDataInstanceOffset(-1)
     , SubUVDataOffset(0)
@@ -404,6 +404,7 @@ FParticleEmitterInstance::FParticleEmitterInstance() :
 	, LightVolumetricScatteringIntensity(0)
 	, OrbitModuleOffset(0)
 	, CameraPayloadOffset(0)
+    , PayloadOffset(0)
 	, bEnabled(1)
     , bKillOnDeactivate(0)
     , bKillOnCompleted(0)
@@ -420,7 +421,6 @@ FParticleEmitterInstance::FParticleEmitterInstance() :
     , ParticleIndices(NULL)
     , InstanceData(NULL)
     , InstancePayloadSize(0)
-    , PayloadOffset(0)
     , ParticleSize(0)
     , ParticleStride(0)
     , ActiveParticles(0)

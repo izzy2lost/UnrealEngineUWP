@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "Kismet2/ReloadUtilities.h"
+#include "AssetCompilingManager.h"
 #include "Async/AsyncWork.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
@@ -675,7 +676,7 @@ namespace UE::Reload::Private
 						*FString::Printf(TEXT("BPGC_ARCH_FOR_CDO_%s"), *Pair.Value.OldClass->GetName())
 					).ToString(),
 					GetTransientPackage(),
-					REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses | REN_ForceNoResetLoaders);
+					REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_SkipGeneratedClasses);
 
 				// Clear the class default object so it gets recreated.
 				Pair.Value.OldClass->ClassDefaultObject = nullptr;
@@ -870,6 +871,7 @@ void FReload::Reset()
 	FunctionRemap.Empty();
 	ReconstructedCDOsMap.Empty();
 	ReinstancedClasses.Empty();
+	NewClasses.Empty();
 	ReinstancedEnums.Empty();
 	ReinstancedStructs.Empty();
 	Packages.Empty();
@@ -931,7 +933,6 @@ void FReload::NotifyChange(UClass* New, UClass* Old)
 		bHasReinstancingOccurred = true;
 	}
 
-	// Ignore new classes
 	if (Old != nullptr)
 	{
 		// Don't allow re-instancing of UEngine classes
@@ -946,6 +947,10 @@ void FReload::NotifyChange(UClass* New, UClass* Old)
 		{
 			Ar.Logf(ELogVerbosity::Warning, TEXT("Engine class '%s' has changed but will be ignored for reload"), *New->GetName());
 		}
+	}
+	else if (New != nullptr) // should always be the case, but protect against it
+	{
+		NewClasses.Add(New);
 	}
 }
 
@@ -1176,6 +1181,7 @@ const UObject* FReload::GetReinstancedCDO(const UObject* CDO)
 
 void FReload::Finalize(bool bRunGC)
 {
+	FAssetCompilingManager::Get().FinishAllCompilation();
 
 	// Make sure new classes have the token stream assembled
 	UClass::AssembleReferenceTokenStreams();

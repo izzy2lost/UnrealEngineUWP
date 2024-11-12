@@ -283,10 +283,23 @@ inline F128 andnot(const F128& lhs, const F128& rhs) {
     return F128{_mm_andnot_ps(lhs.data, rhs.data)};
 }
 
+inline F128 rsqrt(const F128& rhs) {
+    #ifndef TRIMD_ENABLE_FAST_INVERSE_SQRT
+    return F128{_mm_rsqrt_ps(rhs.data)};
+    #else
+    const __m128i shifted = _mm_srli_epi32(_mm_castps_si128(rhs.data), 1);
+    const __m128i subtracted = _mm_sub_epi32(_mm_set1_epi32(0x5f1ffff9), shifted);
+    F128 result{_mm_castsi128_ps(subtracted)};
+    result *= F128{0.703952253f} * (F128{2.38924456f} - rhs * result * result);
+    return result;
+    #endif  // TRIMD_ENABLE_FAST_INVERSE_SQRT
+}
+
 using F256 = fallback::T256<F128>;
 using fallback::transpose;
 using fallback::abs;
 using fallback::andnot;
+using fallback::rsqrt;
 
 } // namespace sse
 

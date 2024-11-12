@@ -34,7 +34,15 @@ namespace EpicGames.Horde.Compute.Transports
 		/// <inheritdoc/>
 		public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
-			int read = await _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+			int read;
+			try
+			{
+				read = await _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+			}
+			catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Shutdown)
+			{
+				read = 0;
+			}
 			Position += read;
 			return read;
 		}

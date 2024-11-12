@@ -252,7 +252,7 @@ GeodesicSingleTriangleUtils::FTraceResult  GeodesicSingleTriangleUtils::TraceTan
 {
 	bool bHasIntersection = false;
 	double RayDistance = TMathUtilConstants<double>::MaxReal;
-	FVector2d HitPoint;
+	FVector2d HitPoint = FVector2d::ZeroVector;
 
 	// special case of ray starting on edge and traveling parallel to the edge.  Say the vertex at the end of the edge is the hit
 	if (FMath::Abs(RayOrigin.Y) < TMathUtilConstants<double>::ZeroTolerance && FMath::Abs(RayDir.Y) < TMathUtilConstants<double>::ZeroTolerance)

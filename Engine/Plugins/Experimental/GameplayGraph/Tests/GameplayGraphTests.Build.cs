@@ -4,6 +4,15 @@ using UnrealBuildTool;
 
 public class GameplayGraphTests : TestModuleRules
 {
+	static GameplayGraphTests()
+	{
+		TestMetadata = new Metadata()
+		{
+			TestName = "GameplayGraph",
+			TestShortName = "GameplayGraph"
+		};
+	}
+
 	public GameplayGraphTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
@@ -12,10 +21,5 @@ public class GameplayGraphTests : TestModuleRules
 				"CoreUObject",
 				"GameplayGraph"
 			});
-
-		UpdateBuildGraphPropertiesFile(new Metadata() {
-			TestName = "GameplayGraph",
-			TestShortName = "GameplayGraph"
-		});
 	}
 }

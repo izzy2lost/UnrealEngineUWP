@@ -8,8 +8,13 @@
 #include "NiagaraParameterCollection.generated.h"
 
 class UMaterialParameterCollection;
+class UMaterialParameterCollectionInstance;
 class UNiagaraParameterCollection;
 
+/**
+ * Can be used to override selected parameters from a Niagara parameter collection with another value.
+ * The values in the parameter collection instance can be set from Blueprint or C++, same as the regular parameter collection. 
+ */
 UCLASS(MinimalAPI)
 class UNiagaraParameterCollectionInstance : public UObject
 {
@@ -61,6 +66,9 @@ private:
 
 	UPROPERTY()
 	FNiagaraParameterStore ParameterStorage;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialParameterCollectionInstance> SourceMaterialCollectionInstance;
 
 	FRWLock DirtyParameterLock;
 	TArray<TPair<FName, float>> DirtyScalarParameters;
@@ -127,7 +135,12 @@ public:
 	NIAGARA_API void SetQuatParameter(const FString& InVariableName, const FQuat& InValue);
 };
 
-/** Asset containing a collection of global parameters usable by Niagara. */
+/** Asset containing a collection of global parameters usable by Niagara. Similar to Material parameter collections,
+ *  any number of Niagara assets may reference attributes from this parameter collection and will get new values when they are changed.
+ *
+ *  A Niagara parameter collection can reference a Material parameter collection, so it is in sync with the values provided to a Material.
+ *  To use a value from a parameter collection in a Niagara system or emitter, add a reference to it from the Parameters panel (in the Niagara Parameter Collection section).
+ */
 UCLASS(MinimalAPI)
 class UNiagaraParameterCollection : public UObject
 {
@@ -163,7 +176,12 @@ public:
 	Takes the friendly name presented to the UI and converts to the real parameter name used under the hood.
 	Converts from "ParameterName" to "CollectionUniqueName_ParameterName".
 	*/
-	NIAGARA_API FString ParameterNameFromFriendlyName(const FString& FriendlyName)const;
+	UE_DEPRECATED(5.5, "Use ParameterNameFromFriendlyString(FString) or ConditionalAddFullNamespace(FName) instead")
+	NIAGARA_API FString ParameterNameFromFriendlyName(const FString& FriendlyName) const;
+
+	NIAGARA_API FName ConditionalAddFullNamespace(FName FriendlyParameterName) const;
+	NIAGARA_API FName ParameterNameFromFriendlyString(const FString& FriendlyName) const;
+
 	/**
 	Takes the real parameter name used under the hood and converts to the friendly name for use in the UI.
 	Converts from "CollectionUniqueName_ParameterName" to "ParameterName".
@@ -172,8 +190,14 @@ public:
 	NIAGARA_API FNiagaraVariable CollectionParameterFromFriendlyParameter(const FNiagaraVariable& FriendlyParameter)const;
 	NIAGARA_API FNiagaraVariable FriendlyParameterFromCollectionParameter(const FNiagaraVariable& CollectionParameter)const;
 
-	NIAGARA_API FString FriendlyNameFromParameterName(FString ParameterName)const;
-	NIAGARA_API FString GetFullNamespace()const;
+	UE_DEPRECATED(5.5, "Use FriendlyNameFromParameterName(FName) instead")
+	NIAGARA_API FString FriendlyNameFromParameterName(FString ParameterName) const;
+	NIAGARA_API FName FriendlyNameFromParameterName(FName ParameterName) const;
+
+	UE_DEPRECATED(5.5, "Use GetFullNamespaceName() instead")
+	NIAGARA_API FString GetFullNamespace() const;
+
+	FName GetFullNamespaceName() const { return FullNamespace; };
 
 	/** The compile Id is an indicator to any compiled scripts that reference this collection that contents may have changed and a recompile is recommended to be safe.*/
 	NIAGARA_API FNiagaraCompileHash GetCompileHash() const;
@@ -203,7 +227,7 @@ protected:
 	/** Namespace for this parameter collection. Is enforced to be unique across all parameter collections. */
 	UPROPERTY(EditAnywhere, Category = "Parameter Collection", AssetRegistrySearchable)
 	FName Namespace;
-	
+
 	UPROPERTY()
 	TArray<FNiagaraVariable> Parameters;
 
@@ -217,4 +241,9 @@ protected:
 	/** Used to track whenever something of note changes in this parameter collection that might invalidate a compilation downstream of a script/emitter/system.*/
 	UPROPERTY()
 	FGuid CompileId;
+
+	void BuildFullNamespace();
+
+	// transient variable holding the full namespace (NPC.<namespace>.)
+	FName FullNamespace;
 };

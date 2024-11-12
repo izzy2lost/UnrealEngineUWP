@@ -16,7 +16,7 @@ enum class EConcertSessionResponseCode : uint8;
 
 struct FConcertSessionContext;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IClientStreamSynchronizer;
 	struct FSubmitAuthorityChangesResponse;

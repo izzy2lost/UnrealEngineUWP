@@ -4,9 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Stats/Stats2.h"
-#include "Misc/FrameRate.h"
 #include "Misc/EnumClassFlags.h"
-#include "MovieSceneSequenceID.h"
 #include "HAL/PreprocessorHelpers.h"
 
 #include "MovieSceneFwd.generated.h"
@@ -19,15 +17,24 @@
 	#define UE_MOVIESCENE_EXPENSIVE_CONSISTENCY_CHECKS 0
 #endif
 
-namespace UE
-{
-namespace MovieScene
+#ifndef UE_MOVIESCENE_ENTITY_DEBUG
+	#define UE_MOVIESCENE_ENTITY_DEBUG !UE_BUILD_SHIPPING
+#endif
+
+#ifndef MOVIESCENE_DETAILED_STATS
+	#define MOVIESCENE_DETAILED_STATS 0
+#endif
+
+struct FFrameRate;
+struct FFrameNumber;
+class UObject;
+
+namespace UE::MovieScene
 {
 
-class ISequenceDataEventHandler;
+	class ISequenceDataEventHandler;
 
-} // namespace MovieScene
-} // namespace UE
+} // namespace UE::MovieScene
 
 UENUM()
 namespace EMovieScenePlayerStatus
@@ -86,7 +93,7 @@ enum class EUpdateClockSource : uint8
 /**
  * Bitfield flags that define special behavior for any UMovieSceneSequence.
  */
-UENUM()
+UENUM(Flags)
 enum class EMovieSceneSequenceFlags : uint8
 {
 	/** Symbolic entry for no flags */
@@ -118,7 +125,7 @@ ENUM_CLASS_FLAGS(EMovieSceneSequenceFlags);
 /**
  * 
  */
-UENUM(meta=(Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+UENUM(Flags, meta=(Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EMovieSceneServerClientMask : uint8
 {
 	None           = 0 UMETA(Hidden),
@@ -138,9 +145,6 @@ MOVIESCENE_API FFrameRate GetLegacyConversionFrameRate();
 MOVIESCENE_API void EmitLegacyOutOfBoundsError(UObject* ErrorContext, FFrameRate InFrameRate, double InTime);
 MOVIESCENE_API FFrameNumber UpgradeLegacyMovieSceneTime(UObject* ErrorContext, FFrameRate InFrameRate, double InTime);
 
-#ifndef MOVIESCENE_DETAILED_STATS
-	#define MOVIESCENE_DETAILED_STATS 0
-#endif
 
 #if MOVIESCENE_DETAILED_STATS
 	#define MOVIESCENE_DETAILED_SCOPE_CYCLE_COUNTER SCOPE_CYCLE_COUNTER

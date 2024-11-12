@@ -15,21 +15,25 @@ public class Facebook : ModuleRules
 			bEnableObjCAutomaticReferenceCounting = true;
 
 			PrivateDependencyModuleNames.Add("Swift");
-			
+
+			PublicWeakFrameworks.Add("AuthenticationServices");
+			PublicWeakFrameworks.Add("SafariServices");			
 			PublicWeakFrameworks.Add("Accelerate");
 			
 			// Dependency from other Facebook kits
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBAEMKit",
-					"IOS/FacebookSDK/FBAEMKit.xcframework"
+					$"IOS/FacebookSDK/FBAEMKit.xcframework.zip",
+					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
 
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKCoreKit_Basics",
-					"IOS/FacebookSDK/FBSDKCoreKit_Basics.xcframework"
+					$"IOS/FacebookSDK/FBSDKCoreKit_Basics.xcframework.zip",
+					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
 
@@ -37,7 +41,8 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKCoreKit",
-					"IOS/FacebookSDK/FBSDKCoreKit.xcframework"
+					$"IOS/FacebookSDK/FBSDKCoreKit.xcframework.zip",
+					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
 
@@ -45,7 +50,8 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKLoginKit",
-					"IOS/FacebookSDK/FBSDKLoginKit.xcframework"
+					"IOS/FacebookSDK/FBSDKLoginKit.xcframework.zip",
+					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
 
@@ -53,7 +59,8 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKShareKit",
-					"IOS/FacebookSDK/FBSDKShareKit.xcframework"
+					"IOS/FacebookSDK/FBSDKShareKit.xcframework.zip",
+					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
 		}

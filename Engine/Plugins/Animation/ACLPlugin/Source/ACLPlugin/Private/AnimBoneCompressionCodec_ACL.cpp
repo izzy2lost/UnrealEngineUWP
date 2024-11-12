@@ -11,6 +11,7 @@
 
 THIRD_PARTY_INCLUDES_START
 #include <acl/compression/track_error.h>
+#include <acl/core/bitset.h>
 #include <acl/decompression/decompress.h>
 THIRD_PARTY_INCLUDES_END
 
@@ -50,7 +51,7 @@ void UAnimBoneCompressionCodec_ACL::PopulateDDCKey(const UE::Anim::Compression::
 	uint32 ForceRebuildVersion = 1;
 	uint32 SettingsHash = Settings.get_hash();
 
-	Ar	<< ForceRebuildVersion << SettingsHash;
+	Ar << ForceRebuildVersion << SettingsHash;
 
 	for (USkeletalMesh* SkelMesh : OptimizationTargets)
 	{
@@ -69,7 +70,7 @@ void UAnimBoneCompressionCodec_ACL::DecompressPose(FAnimSequenceDecompressionCon
 	const acl::compressed_tracks* CompressedClipData = AnimData.GetCompressedTracks();
 	check(CompressedClipData != nullptr && CompressedClipData->is_valid(false).empty());
 
-	acl::decompression_context<UE4DefaultDecompressionSettings> ACLContext;
+	acl::decompression_context<UEDefaultDecompressionSettings> ACLContext;
 	ACLContext.initialize(*CompressedClipData);
 
 	::DecompressPose(DecompContext, ACLContext, RotationPairs, TranslationPairs, ScalePairs, OutAtoms);
@@ -81,7 +82,7 @@ void UAnimBoneCompressionCodec_ACL::DecompressPose(FAnimSequenceDecompressionCon
 	const acl::compressed_tracks* CompressedClipData = AnimData.GetCompressedTracks();
 	check(CompressedClipData != nullptr && CompressedClipData->is_valid(false).empty());
 
-	acl::decompression_context<UE4DefaultDecompressionSettings> ACLContext;
+	acl::decompression_context<UEDefaultDecompressionSettings> ACLContext;
 	ACLContext.initialize(*CompressedClipData);
 
 	::DecompressPose(DecompContext, ACLContext, DecompressionData);
@@ -93,7 +94,7 @@ void UAnimBoneCompressionCodec_ACL::DecompressBone(FAnimSequenceDecompressionCon
 	const acl::compressed_tracks* CompressedClipData = AnimData.GetCompressedTracks();
 	check(CompressedClipData != nullptr && CompressedClipData->is_valid(false).empty());
 
-	acl::decompression_context<UE4DefaultDecompressionSettings> ACLContext;
+	acl::decompression_context<UEDefaultDecompressionSettings> ACLContext;
 	ACLContext.initialize(*CompressedClipData);
 
 	::DecompressBone(DecompContext, ACLContext, TrackIndex, OutAtom);

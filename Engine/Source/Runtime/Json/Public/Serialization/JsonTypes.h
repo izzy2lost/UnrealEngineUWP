@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/TVariant.h"
 
 class Error;
 
@@ -80,3 +81,10 @@ using FJsonSerializableKeyValueMapInt64 = TMap<FString, int64>;
 using FJsonSerializableKeyValueMapFloat = TMap<FString, float>;
 using FJsonSerializableKeyValueMapArrayInt = TMap<FString, FJsonSerializableArrayInt>;
 
+/** We always read with the highest precisions (int64 or double), but we can write with any level of precision */
+using JsonNumberValueVariants = TVariant<int32, uint32, int64, float, double>; 
+
+using JsonSimpleValueVariant = TVariant<bool /* EJson::Boolean */, JsonNumberValueVariants /* EJson::Number */, FString /* EJson::String */>;
+
+/** Helps keep key values unique */
+using FJsonSerializableKeySimpleValueVariantMap = TMap<FString, JsonSimpleValueVariant>;

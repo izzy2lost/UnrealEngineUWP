@@ -5,6 +5,7 @@
 #include "ChaosClothAsset/ClothEditor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/SkeletalMeshActor.h"
+#include "Engine/SkeletalMesh.h"
 #include "AssetEditorModeManager.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Animation/AnimSingleNodeInstance.h"
@@ -17,7 +18,8 @@
 #include "Transforms/TransformGizmoDataBinder.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
-
+#include "UObject/PackageReload.h"
+#include "EditorReimportHandler.h"
 
 #define LOCTEXT_NAMESPACE "UChaosClothEditorPreviewScene"
 
@@ -147,6 +149,8 @@ FChaosClothPreviewScene::FChaosClothPreviewScene(FPreviewScene::ConstructionValu
 	ClothComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FChaosClothPreviewScene::IsComponentSelected);
 	ClothComponent->RegisterComponentWithWorld(GetWorld());
 	
+	OnPackageReloadedDelegateHandle = FCoreUObjectDelegates::OnPackageReloaded.AddRaw(this, &FChaosClothPreviewScene::HandlePackageReloaded);
+	OnPostReimportDelegateHandle = FReimportManager::Instance()->OnPostReimport().AddRaw(this, &FChaosClothPreviewScene::HandleReimportManagerPostReimport);
 }
 
 FChaosClothPreviewScene::~FChaosClothPreviewScene()
@@ -163,6 +167,9 @@ FChaosClothPreviewScene::~FChaosClothPreviewScene()
 		ClothComponent->SelectionOverrideDelegate.Unbind();
 		ClothComponent->UnregisterComponent();
 	}
+
+	FCoreUObjectDelegates::OnPackageReloaded.Remove(OnPackageReloadedDelegateHandle);
+	FReimportManager::Instance()->OnPostReimport().Remove(OnPostReimportDelegateHandle);
 }
 
 void FChaosClothPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
@@ -173,9 +180,17 @@ void FChaosClothPreviewScene::AddReferencedObjects(FReferenceCollector& Collecto
 	Collector.AddReferencedObject(ClothComponent);
 	Collector.AddReferencedObject(SkeletalMeshComponent);
 	Collector.AddReferencedObject(SceneActor);
-	Collector.AddReferencedObject(PreviewAnimInstance);
 }
 
+void FChaosClothPreviewScene::Tick(float DeltaT)
+{
+	FAdvancedPreviewScene::Tick(DeltaT);
+
+	if (SavedAnimState)
+	{
+		RestoreSavedAnimationState();
+	}
+}
 
 void FChaosClothPreviewScene::UpdateSkeletalMeshAnimation()
 {
@@ -186,7 +201,7 @@ void FChaosClothPreviewScene::UpdateSkeletalMeshAnimation()
 
 	if (PreviewSceneDescription->AnimationAsset)
 	{
-		PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
+		TObjectPtr<UAnimSingleNodeInstance> PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
 		PreviewAnimInstance->SetAnimationAsset(PreviewSceneDescription->AnimationAsset);
 
 		SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
@@ -233,6 +248,8 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, SkeletalMeshAsset))
 	{
 		check(SkeletalMeshComponent);
+		
+		SaveAnimationState();
 
 		SkeletalMeshComponent->SetSkeletalMeshAsset(PreviewSceneDescription->SkeletalMeshAsset);
 
@@ -259,10 +276,6 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, AnimationAsset))
 	{
-		if (!PreviewSceneDescription->AnimationAsset)
-		{
-			PreviewAnimInstance = nullptr;
-		}
 		UpdateSkeletalMeshAnimation();
 
 		if (UChaosClothAsset* const ClothAsset = ClothComponent->GetClothAsset())
@@ -279,6 +292,13 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 		}
 	}
 
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, SolverGeometryScale))
+	{
+		if (ClothComponent)
+		{
+			ClothComponent->SetClothGeometryScale(PreviewSceneDescription->SolverGeometryScale);
+		}
+	}
 }
 
 UChaosClothComponent* FChaosClothPreviewScene::GetClothComponent()
@@ -370,17 +390,82 @@ void FChaosClothPreviewScene::SetClothAsset(UChaosClothAsset* Asset)
 
 UAnimSingleNodeInstance* FChaosClothPreviewScene::GetPreviewAnimInstance()
 {
-	return PreviewAnimInstance;
+	check(SkeletalMeshComponent);
+
+	if (SkeletalMeshComponent->AnimScriptInstance)
+	{
+		return CastChecked<UAnimSingleNodeInstance>(SkeletalMeshComponent->AnimScriptInstance);
+	}
+	return nullptr;
 }
 
 const UAnimSingleNodeInstance* const FChaosClothPreviewScene::GetPreviewAnimInstance() const
 {
-	return PreviewAnimInstance;
+	check(SkeletalMeshComponent);
+
+	if (SkeletalMeshComponent->AnimScriptInstance)
+	{
+		return CastChecked<UAnimSingleNodeInstance>(SkeletalMeshComponent->AnimScriptInstance);
+	}
+	return nullptr;
 }
 
 void FChaosClothPreviewScene::SetGizmoDataBinder(TSharedPtr<FTransformGizmoDataBinder> InDataBinder)
 {
 	DataBinder = InDataBinder;
+}
+
+
+void FChaosClothPreviewScene::SaveAnimationState()
+{
+	if (const UAnimSingleNodeInstance* const AnimInstance = GetPreviewAnimInstance())
+	{
+		SavedAnimState = FAnimState();
+		SavedAnimState->Time = AnimInstance->GetCurrentTime();
+		SavedAnimState->bIsReverse = AnimInstance->IsReverse();
+		SavedAnimState->bIsLooping = AnimInstance->IsLooping();
+		SavedAnimState->bIsPlaying = AnimInstance->IsPlaying();
+	}
+}
+
+void FChaosClothPreviewScene::RestoreSavedAnimationState()
+{
+	if (SavedAnimState)
+	{
+		if (UAnimSingleNodeInstance* const AnimInstance = GetPreviewAnimInstance())
+		{
+			AnimInstance->SetPosition(SavedAnimState->Time);
+			AnimInstance->SetReverse(SavedAnimState->bIsReverse);
+			AnimInstance->SetLooping(SavedAnimState->bIsLooping);
+			AnimInstance->SetPlaying(SavedAnimState->bIsPlaying);
+		}
+		SavedAnimState.Reset();
+	}
+}
+
+void FChaosClothPreviewScene::HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
+{
+	if (InPackageReloadPhase == EPackageReloadPhase::PrePackageFixup)
+	{
+		for (const TPair<UObject*, UObject*>& RepointPair : InPackageReloadedEvent->GetRepointedObjects())
+		{
+			if (RepointPair.Key == PreviewSceneDescription->SkeletalMeshAsset.Get())
+			{
+				// If we are going to be reloading the SkeletalMesh, first save the animation state since the AnimInstance will be reinitialized when the component is reregistered.
+				// Note we restore from the saved state in the Tick function above because AnimInstance reinitialization happens /after/ all reload delegates are called.
+				SaveAnimationState();
+			}
+		}
+	}
+}
+
+void FChaosClothPreviewScene::HandleReimportManagerPostReimport(UObject* ReimportedObject, bool bWasSuccessful)
+{
+	if (ReimportedObject == PreviewSceneDescription->SkeletalMeshAsset && bWasSuccessful)
+	{
+		// If we have reimported the SkeletalMesh, save the animation state since the AnimInstance will be reinitialized when the component is reregistered.
+		SaveAnimationState();
+	}
 }
 
 } // namespace UE::Chaos::ClothAsset

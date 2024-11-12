@@ -5,8 +5,6 @@
 #include "RenderResource.h"
 #include "MeshBatch.h"
 
-#if RHI_RAYTRACING
-
 class FRayTracingGeometry;
 
 struct FRayTracingMaskAndFlags
@@ -15,6 +13,7 @@ struct FRayTracingMaskAndFlags
 		: Mask(0xFF)
 		, bForceOpaque(false)
 		, bDoubleSided(false)
+		, bReverseCulling(false)
 		, bAnySegmentsDecal(false)
 		, bAllSegmentsDecal(false)
 	{}
@@ -27,6 +26,9 @@ struct FRayTracingMaskAndFlags
 
 	/** Whether ray hits should be registered for front and back faces. */
 	uint8 bDoubleSided : 1;
+	
+	/** Whether front and back facings should be reversed. */
+	uint8 bReverseCulling : 1;
 
 	/** Whether any or all of the segments in the instance are decals. */
 	uint8 bAnySegmentsDecal : 1;
@@ -55,7 +57,7 @@ struct FRayTracingInstance
 	TArray<FMeshBatch> Materials;
 
 	/** Similar to Materials, but memory is owned by someone else (i.g. FPrimitiveSceneProxy). */
-	TArrayView<const FMeshBatch> MaterialsView;
+	TConstArrayView<FMeshBatch> MaterialsView;
 
 	bool OwnsMaterials() const
 	{
@@ -100,23 +102,48 @@ struct FRayTracingInstance
 	*/
 	uint32 NumTransforms = 0;
 
+	// Indices of primitive instances to be included in ray tracing scene
+	TArray<uint32> PrimitiveInstanceIndices;
+
+	/** Similar to PrimitiveInstanceIndices, but memory is owned by someone else (i.g. FPrimitiveSceneProxy). */
+	TConstArrayView<uint32> PrimitiveInstanceIndicesView;
+
+	bool OwnsPrimitiveInstanceIndices() const
+	{
+		return PrimitiveInstanceIndices.Num() != 0;
+	}
+
+	TConstArrayView<uint32> GetPrimitiveInstanceIndices() const
+	{
+		if (OwnsPrimitiveInstanceIndices())
+		{
+			check(PrimitiveInstanceIndicesView.Num() == 0);
+			return TConstArrayView<uint32>(PrimitiveInstanceIndices);
+		}
+		else
+		{
+			check(PrimitiveInstanceIndices.Num() == 0);
+			return PrimitiveInstanceIndicesView;
+		}
+	}
+
 	/** Instance transforms. */
 	TArray<FMatrix> InstanceTransforms;
 
 	/** Similar to InstanceTransforms, but memory is owned by someone else (i.g. FPrimitiveSceneProxy). */
-	TArrayView<const FMatrix> InstanceTransformsView;
+	TConstArrayView<FMatrix> InstanceTransformsView;
 
 	bool OwnsTransforms() const
 	{
 		return InstanceTransforms.Num() != 0;
 	}
 
-	TArrayView<const FMatrix> GetTransforms() const
+	TConstArrayView<FMatrix> GetTransforms() const
 	{
 		if (OwnsTransforms())
 		{
 			check(InstanceTransformsView.Num() == 0);
-			return TArrayView<const FMatrix>(InstanceTransforms);
+			return TConstArrayView<FMatrix>(InstanceTransforms);
 		}
 		else
 		{
@@ -126,6 +153,7 @@ struct FRayTracingInstance
 	}
 
 	/** When instance transforms are only available in GPU, this SRV holds them. */
+	UE_DEPRECATED(5.5, "InstanceGPUTransformsSRV has been deprecated. GPU Scene should be used instead.")
 	FShaderResourceViewRHIRef InstanceGPUTransformsSRV;
 
 	//disable deprecation warnings for default constructors
@@ -138,5 +166,3 @@ struct FRayTracingInstance
 	~FRayTracingInstance() = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
-
-#endif

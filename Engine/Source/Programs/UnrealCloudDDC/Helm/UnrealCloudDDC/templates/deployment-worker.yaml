@@ -29,10 +29,13 @@ spec:
       {{- include "common.tplvalues.render" ( dict "value" $worker.podLabels "context" $ ) | nindent 8 }}
       {{- end }}
 
-      {{- if $worker.podAnnotations }}
+      {{- if or $worker.podAnnotations .Values.restartPodOnConfigMapChange }}
       annotations:
         {{- if $worker.podAnnotations }}
         {{- include "common.tplvalues.render" (dict "value" $worker.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+        {{- if .Values.restartPodOnConfigMapChange }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-worker.yaml") . | sha256sum }}
         {{- end }}
       {{- end }}
     spec:

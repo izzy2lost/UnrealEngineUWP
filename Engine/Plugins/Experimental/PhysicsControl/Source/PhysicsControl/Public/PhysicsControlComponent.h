@@ -5,8 +5,9 @@
 #include "PhysicsControlData.h"
 #include "PhysicsControlLimbData.h"
 #include "PhysicsControlNameRecords.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAsset.h"
 #include "PhysicsControlRecord.h"
+#include "PhysicsControlPoseData.h"
 
 #include "UObject/ObjectMacros.h"
 #include "Components/SceneComponent.h"
@@ -100,9 +101,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	FName CreateControl(
-		UMeshComponent*               ParentMeshComponent,
+		UPrimitiveComponent*          ParentComponent,
 		FName                         ParentBoneName,
-		UMeshComponent*               ChildMeshComponent,
+		UPrimitiveComponent*          ChildComponent,
 		const FName                   ChildBoneName,
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlTarget   ControlTarget, 
@@ -122,12 +123,12 @@ public:
 	 *        SetControlEnabled(true) in order to enable it.
 	 * @return True if a new control was created, false if a control of the specified name already exists
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool CreateNamedControl(
 		FName                         Name,
-		UMeshComponent*               ParentMeshComponent,
+		UPrimitiveComponent*          ParentComponent,
 		const FName                   ParentBoneName,
-		UMeshComponent*               ChildMeshComponent,
+		UPrimitiveComponent*          ChildComponent,
 		const FName                   ChildBoneName,
 		const FPhysicsControlData     ControlData, 
 		const FPhysicsControlTarget   ControlTarget, 
@@ -276,7 +277,7 @@ public:
 		const TMap<FName, FPhysicsControlLimbBones>& LimbBones,
 		const EPhysicsControlType                    ControlType,
 		const FPhysicsControlData                    ControlData,
-		UMeshComponent*                              WorldComponent = nullptr,
+		UPrimitiveComponent*                         WorldComponent = nullptr,
 		FName                                        WorldBoneName = NAME_None,
 		FString                                      NamePrefix = TEXT(""));
 
@@ -309,12 +310,18 @@ public:
 		const bool                                   bEnabled = true);
 
 	/**
+	 * Destroys all controls and body modifiers
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void DestroyAllControlsAndBodyModifiers();
+
+	/**
 	 * Destroys a control
 	 *
 	 * @param Name The name of the control to destroy. 
 	 * @return     Returns true if the control was found and destroyed, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool DestroyControl(const FName Name);
 
 	/**
@@ -339,11 +346,11 @@ public:
 	 * Updates the parent object part of a control. Note that this won't change the name of the control (which may
 	 * subsequently be misleading), or any set it is included in, etc.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlParent(
-		const FName     Name, 
-		UMeshComponent* ParentMeshComponent,
-		const FName     ParentBoneName);
+		const FName          Name, 
+		UPrimitiveComponent* ParentComponent,
+		const FName          ParentBoneName);
 
 	/**
 	 * Updates the parent object part of controls. Note that this won't change the name of the controls (which may
@@ -352,14 +359,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void SetControlParents(
 		const TArray<FName>& Names,
-		UMeshComponent*      ParentMeshComponent,
+		UPrimitiveComponent* ParentComponent,
 		const FName          ParentBoneName);
 
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void SetControlParentsInSet(
-		const FName     Set,
-		UMeshComponent* ParentMeshComponent,
-		const FName     ParentBoneName);
+		const FName          Set,
+		UPrimitiveComponent* ParentComponent,
+		const FName          ParentBoneName);
 
 	/**
 	 * Modifies an existing control data - i.e. the strengths etc of the control driving towards the target
@@ -368,7 +375,7 @@ public:
 	 * @param ControlData The new control data
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlData(const FName Name, const FPhysicsControlData ControlData);
 
 	/**
@@ -398,7 +405,7 @@ public:
 	 * @param ControlData The new control data
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlSparseData(const FName Name, const FPhysicsControlSparseData ControlData);
 
 	/**
@@ -429,7 +436,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlMultiplier
 	(const FName Name, const FPhysicsControlMultiplier ControlMultiplier, const bool bEnableControl = true);
 
@@ -469,7 +476,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlSparseMultiplier(
 		const FName Name, const FPhysicsControlSparseMultiplier ControlMultiplier, const bool bEnableControl = true);
 
@@ -512,7 +519,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlLinearData(
 		const FName Name,
 		const float Strength = 1.0f, 
@@ -532,7 +539,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlAngularData(
 		const FName Name,
 		const float Strength = 1.0f, 
@@ -548,7 +555,7 @@ public:
 	 * @param Position The position of the control point on the child mesh object (only relevant if that 
 	 *        object is in use and is being simulated)
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlPoint(const FName Name, const FVector Position);
 
 	/**
@@ -556,7 +563,7 @@ public:
 	 *
 	 * @param Name The name of the control to modify. 
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool ResetControlPoint(const FName Name);
 
 	/**
@@ -567,7 +574,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTarget(const FName Name, const FPhysicsControlTarget ControlTarget, const bool bEnableControl = true);
 
 	/**
@@ -613,9 +620,9 @@ public:
 	 *        want to specify the target transform for the object as a whole. If false, then the 
 	 *        target transform is used as is, and the system drives the control point towards this
 	 *        transform.
-	 * @return                  Returns true if the control was found and modified, false if not
+	 * @return Returns true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPositionAndOrientation(
 		const FName    Name,
 		const FVector  Position,
@@ -665,7 +672,7 @@ public:
 	 *        transform.
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPosition(
 		const FName   Name,
 		const FVector Position, 
@@ -712,7 +719,7 @@ public:
 	 *        transform.
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetOrientation(
 		const FName    Name,
 		const FRotator Orientation, 
@@ -747,7 +754,7 @@ public:
 	 * in size.
 	 * @return true if the control/position arrays match, false if they don't.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPositionsFromArray(
 		const TArray<FName>&   Names,
 		const TArray<FVector>& Positions, 
@@ -760,7 +767,7 @@ public:
 	 * in size.
 	 * @return true if the control/position arrays match, false if they don't.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetOrientationsFromArray(
 		const TArray<FName>&    Names,
 		const TArray<FRotator>& Orientations, 
@@ -773,7 +780,7 @@ public:
 	 * These array should match in size.
 	 * @return true if the control/position/orientation arrays match, false if they don't.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPositionsAndOrientationsFromArray(
 		const TArray<FName>&    Names,
 		const TArray<FVector>&  Positions,
@@ -796,7 +803,7 @@ public:
 	 * @param bEnableControl    Enables the control if it is currently disabled
 	 * @return                  Returns true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPoses(
 		const FName    Name,
 		const FVector  ParentPosition, 
@@ -817,7 +824,7 @@ public:
 	 *        the amount of velocity extracted from the animation that is used as targets for the controls
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlUseSkeletalAnimation(
 		const FName Name,
 		const bool  bUseSkeletalAnimation = true,
@@ -862,7 +869,7 @@ public:
 	 * @param bEnable  Whether to enable/disable the control
 	 * @return         Returns true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlEnabled(const FName Name, const bool bEnable = true);
 
 	/**
@@ -890,7 +897,7 @@ public:
 	 * @param bDisableCollision If set then the control will disable collision between the bodies it connects.
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlDisableCollision(const FName Name, const bool bDisableCollision);
 
 	/**
@@ -913,7 +920,7 @@ public:
 	 * @param Control  The control data that will be filled in if found
 	 * @return         Returns true if the control was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlData(const FName Name, FPhysicsControlData& ControlData) const;
 
 	/**
@@ -921,7 +928,7 @@ public:
 	 * @param Control  The control multipliers that will be filled in if found
 	 * @return         Returns true if the control was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlMultiplier(const FName Name, FPhysicsControlMultiplier& ControlMultiplier) const;
 
 	/**
@@ -929,20 +936,20 @@ public:
 	 * @param Control  The control target, if found
 	 * @return         Returns true if the control was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlTarget(const FName Name, FPhysicsControlTarget& ControlTarget) const;
 
 	/**
 	 * @param Name        The name of the control to access. 
 	 * @return            Returns true if the control is enabled
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlEnabled(const FName Name) const;
 
 	/**
 	 * Creates a new body modifier for mesh components
 	 * 
-	 * @param MeshComponent The Mesh Component used as a target for the modifier
+	 * @param Component The Mesh Component used as a target for the modifier
 	 * @param BoneName The bone name, if a skeletal mesh is used
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically 
 	 *        gets added to the set "All"
@@ -950,7 +957,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	FName CreateBodyModifier(
-		UMeshComponent*                   MeshComponent,
+		UPrimitiveComponent*              Component,
 		const FName                       BoneName,
 		const FName                       Set,
 		const FPhysicsControlModifierData BodyModifierData);
@@ -959,16 +966,16 @@ public:
 	 * Creates a new body modifier for mesh components
 	 * 
 	 * @param The name of the body modifier that will be created. Creation will fail if this name is already in use.
-	 * @param MeshComponent The Mesh Component used as a target for the modifier
+	 * @param Component The Mesh Component used as a target for the modifier
 	 * @param BoneName The bone name, if a skeletal mesh is used
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically
 	 *        gets added to the set "All"
 	 * @param BodyModifierData The initial properties of the modifier
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool CreateNamedBodyModifier(
 		const FName                       Name,
-		UMeshComponent*                   MeshComponent,
+		UPrimitiveComponent*              Component,
 		const FName                       BoneName,
 		const FName                       Set,
 		const FPhysicsControlModifierData BodyModifierData);
@@ -1014,7 +1021,7 @@ public:
 	 * @param Name        The name of the body modifier to destroy. 
 	 * @return            Returns true if the body modifier was found and destroyed, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool DestroyBodyModifier(const FName Name);
 
 	/**
@@ -1042,7 +1049,7 @@ public:
 	 * @param ModifierData The new data
 	 * @return true if the modifier was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierData(const FName Name, const FPhysicsControlModifierData ModifierData);
 
 	/**
@@ -1072,7 +1079,7 @@ public:
 	 * @param ModifierData The new data
 	 * @return true if the modifier was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierSparseData(const FName Name, const FPhysicsControlModifierSparseData ModifierData);
 
 	/**
@@ -1106,7 +1113,7 @@ public:
 	 * @param bMakeKinematic If set then the body will be made kinematic. If not set, then it won't be changed.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierKinematicTarget(
 		const FName    Name,
 		const FVector  KinematicTargetPosition, 
@@ -1120,7 +1127,7 @@ public:
 	 * @param MovementType Whether to enable/disable simulation on the body
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierMovementType(
 		const FName                Name,
 		const EPhysicsMovementType MovementType = EPhysicsMovementType::Simulated);
@@ -1156,7 +1163,7 @@ public:
 	 * @param CollisionType Collision type to set on the body
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierCollisionType(
 		const FName                   Name,
 		const ECollisionEnabled::Type CollisionType = ECollisionEnabled::QueryAndPhysics);
@@ -1192,7 +1199,7 @@ public:
 	 * @param GravityMultiplier The amount of gravity to apply when simulating
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierGravityMultiplier(
 		const FName Name,
 		const float GravityMultiplier = 1.0f);
@@ -1229,7 +1236,7 @@ public:
 	 *        animation and that coming from simulation.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierPhysicsBlendWeight(
 		const FName Name,
 		const float PhysicsBlendWeight = 1.0f);
@@ -1268,7 +1275,7 @@ public:
 	 *        animation, rather than world space. Only relevant if the body is part of a skeletal mesh.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierUseSkeletalAnimation(
 		const FName Name,
 		const bool  bUseSkeletalAnimation);
@@ -1311,7 +1318,7 @@ public:
 	 *        dynamic ones.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierUpdateKinematicFromSimulation(
 		const FName Name,
 		const bool  bUpdateKinematicFromSimulation);
@@ -1361,8 +1368,8 @@ public:
 	 * It is also possible to specify a mesh component to use for the "world" object - so that the world controls can 
 	 * be made to work in the space of another object (or a bone if that is a skeletal mesh component)
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void CreateControlsAndBodyModifiersFromLimbBones(
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
+	bool CreateControlsAndBodyModifiersFromLimbBones(
 		FPhysicsControlNames&                       AllWorldSpaceControls,
 		TMap<FName, FPhysicsControlNames>&          LimbWorldSpaceControls,
 		FPhysicsControlNames&                       AllParentSpaceControls,
@@ -1374,26 +1381,28 @@ public:
 		const FPhysicsControlData                   WorldSpaceControlData,
 		const FPhysicsControlData                   ParentSpaceControlData,
 		const FPhysicsControlModifierData           BodyModifierData,
-		UMeshComponent*                             WorldComponent = nullptr,
+		UPrimitiveComponent*                        WorldComponent = nullptr,
 		FName                                       WorldBoneName = NAME_None);
 
 	/**
-	 * This uses the control profile asset (that should have already been set) to create
-	 * controls and body modifiers
+	 * This uses the control profile asset (that should have already been assigned in our data) to create
+	 * controls and body modifiers.
 	 * It is also possible to specify a mesh component to use for the "world" object - so that the world controls can
 	 * be made to work in the space of another object (or a bone if that is a skeletal mesh component)
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void CreateControlsAndBodyModifiersFromControlProfileAsset(
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
+	bool CreateControlsAndBodyModifiersFromPhysicsControlAsset(
 		USkeletalMeshComponent* SkeletalMeshComponent,
-		UMeshComponent*         WorldComponent,
+		UPrimitiveComponent*    WorldComponent,
 		FName                   WorldBoneName);
 
 	/**
 	 * Looks up the profile which should exist in the registered control profile asset, and invokes it.
+	 * 
+	 * @return true if successful, and false if the profile cannot be found.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void InvokeControlProfile(FName ProfileName);
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
+	bool InvokeControlProfile(FName ProfileName);
 
 	/**
 	 * Adds a Control to a Set. This will add a new set if necessary. For example, you might
@@ -1508,30 +1517,6 @@ public:
 		const TArray<FName>&          BoneNames);
 
 	/**
-	 * Gets the linear velocities of the requested bones that will be used as targets (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	TArray<FVector> GetCachedBoneVelocities(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const TArray<FName>&          BoneNames);
-
-	/**
-	 * Gets the angular velocities of the requested bones that will be used as targets (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	TArray<FVector> GetCachedBoneAngularVelocities(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const TArray<FName>&          BoneNames);
-
-	/**
 	 * Gets the transforms of the requested bone that will be used as a target (in world space). Targets for bones
 	 * that are not found will be set to Identity. Note that these targets will have been calculated and cached
 	 * at the start of the Physics Control Component, so if using the built in tick, may be too old to be useful.
@@ -1568,30 +1553,6 @@ public:
 		const FName                   BoneName);
 
 	/**
-	 * Gets the linear velocity of the requested bone that will be used as a target (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	FVector GetCachedBoneVelocity(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const FName                   BoneName);
-
-	/**
-	 * Gets the angular velocity of the requested bone that will be used as a target (in world space). Target 
-	 * velocities for bones that are not found will be set to zero. Note that these targets will have been 
-	 * calculated and cached at the start of the Physics Control Component update, so if using the built in tick, 
-	 * may be too old to be useful. If you manually update the component then you can access these target 
-	 * velocities prior to applying your own targets.
-	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	FVector GetCachedBoneAngularVelocity(
-		const USkeletalMeshComponent* SkeletalMeshComponent,
-		const FName                   BoneName);
-
-	/**
 	 * This allows the caller to override the target that will have been calculated and cached at the start of 
 	 * the Physics Control Component update. This is unlikely to be useful when using the built in tick, 
 	 * but if you are manually updating the component then you may wish to call this after UpdateTargetCaches 
@@ -1599,13 +1560,18 @@ public:
 	 * 
 	 * @return true if successful, and false if no cached target can be found for the bone.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetCachedBoneData(
 		const USkeletalMeshComponent* SkeletalMeshComponent,
 		const FName                   BoneName, 
-		const FTransform&             TM,
-		const FVector                 Velocity,
-		const FVector                 AngularVelocity);
+		const FTransform&             TM);
+
+	/**
+	 * This sets cached bone velocities to zero, by forgetting any previously used transform. This may be useful if 
+	 * the pose is changed suddenly and you don't want this change to show up in the simulated velocities.
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetCachedBoneVelocitiesToZero();
 
 	/**
 	 * This flags the body associated with the modifier to set (using teleport) its position and velocity to 
@@ -1616,7 +1582,7 @@ public:
 	 * 
 	 * @return true if the body modifier is found (even if no cached target is found), and false otherwise.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool ResetBodyModifierToCachedBoneTransform(
 		const FName                        Name,
 		const EResetToCachedTargetBehavior Behavior = EResetToCachedTargetBehavior::ResetImmediately);
@@ -1638,18 +1604,22 @@ public:
 		const EResetToCachedTargetBehavior Behavior = EResetToCachedTargetBehavior::ResetImmediately);
 
 	/** Indicates if a control with the name exists (doesn't produce a warning if it doesn't) */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlExists(const FName Name) const;
 
 	/** Indicates if a body modifier with the name exists (doesn't produce a warning if it doesn't) */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetBodyModifierExists(const FName Name) const;
 
 public:
 	// Public property data
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControlProfile)
-	TSoftObjectPtr<UPhysicsControlProfileAsset> PhysicsControlProfileAsset;
+	/**
+	 * Optional PhysicsControlAsset to use. If this is set, then controls can be instantiated from the asset. 
+	 * Individual profiles can subsequently be "invoked" referencing the named profiles in the asset.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControlAsset)
+	TSoftObjectPtr<UPhysicsControlAsset> PhysicsControlAsset;
 
 	/**
 	 * If the component moves by more than this distance then it is treated as a teleport,
@@ -1717,11 +1687,14 @@ public:
 	bool bWarnAboutInvalidNames = true;
 
 public:
-#if WITH_EDITOR
 	//Begin ActorComponent interface
 	virtual void OnRegister() override;
+	virtual bool ShouldCreatePhysicsState() const override;
+	virtual void OnCreatePhysicsState() override;
+	virtual void OnDestroyPhysicsState() override;
 	//End ActorComponent interface
 
+#if WITH_EDITOR
 	// Used by the component visualizer
 	virtual void DebugDraw(FPrimitiveDrawInterface* PDI) const;
 	virtual void DebugDrawControl(FPrimitiveDrawInterface* PDI, const FPhysicsControlRecord& Record, const FName ControlName) const;
@@ -1735,19 +1708,23 @@ protected:
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	// End UActorComponent Interface
 
+	// Terminates everything we have made in physics
+	void DestroyPhysicsState();
 
 	/**
 	 * Retrieves the bone data for the specified bone given the skeletal mesh component.
 	 * 
 	 * @param OutBoneData If successful, this will contain the output bone data.
+	 * @param OutPoseData If successful, this will contain the pose data structure, in case more info is required
 	 * @param InSkeletalMeshComponent Required to be a valid pointer to a skeletal mesh component
 	 * @param InBoneName The name of the bone to retrieve data for
 	 * @return true if the bone and data were found, false if not (in which case warnings will be logged)
 	 */
 	bool GetBoneData(
-		FCachedSkeletalMeshData::FBoneData& OutBoneData,
-		const USkeletalMeshComponent*       InSkeletalMeshComponent,
-		const FName                         InBoneName) const;
+		UE::PhysicsControl::FBoneData&                      OutBoneData,
+		const UE::PhysicsControl::FPhysicsControlPoseData*& OutPoseData,
+		const USkeletalMeshComponent*                       InSkeletalMeshComponent,
+		const FName                                         InBoneName) const;
 
 	/*
 	 * Retrieves the bone data for the specified bone given the skeletal mesh component, for modification
@@ -1758,7 +1735,7 @@ protected:
 	 * @return true if the bone and data were found, false if not (in which case warnings will be logged)
 	 */
 	bool GetModifiableBoneData(
-		FCachedSkeletalMeshData::FBoneData*& OutBoneData,
+		UE::PhysicsControl::FBoneData*&      OutBoneData,
 		const USkeletalMeshComponent*        InSkeletalMeshComponent,
 		const FName                          InBoneName);
 
@@ -1778,20 +1755,6 @@ protected:
 	 * Updates the world-space bone positions etc for each skeleton we're tracking
 	 */
 	void UpdateCachedSkeletalBoneData(float DeltaTime);
-
-	/**
-	 * @return true if the difference between the old and new TMs exceeds the teleport
-	 * translation/rotation thresholds
-	 */
-	bool DetectTeleport(const FTransform& OldTM, const FTransform& NewTM) const;
-
-	/**
-	 * @return true if the difference between the old and new TMs exceeds the teleport
-	 * translation/rotation thresholds
-	 */
-	bool DetectTeleport(
-		const FVector& OldPosition, const FQuat& OldOrientation,
-		const FVector& NewPosition, const FQuat& NewOrientation) const;
 
 	/**
 	 * Terminates the underlying physical constraints, resets our internal stored state for each control,
@@ -1836,10 +1799,11 @@ protected:
 	 */
 	void CalculateControlTargetData(
 		FTransform&                  OutTargetTM, 
+		FTransform&                  OutSkeletalTargetTM,
 		FVector&                     OutTargetVelocity,
 		FVector&                     OutTargetAngularVelocity,
 		const FPhysicsControlRecord& Record,
-		bool                         bCalculateVelocity) const;
+		bool                         bUsePreviousSkeletalTargetTM) const;
 
 	/** Updates the body based on the modifier */
 	void ApplyBodyModifier(FPhysicsBodyModifierRecord& BodyModifier);
@@ -1887,7 +1851,7 @@ protected:
 
 	// Cached transforms from each skeletal mesh we're working with. Will be updated at the
 	// beginning of each tick.
-	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FCachedSkeletalMeshData> CachedSkeletalMeshDatas;
+	TMap<TWeakObjectPtr<USkeletalMeshComponent>, UE::PhysicsControl::FPhysicsControlPoseData> CachedPoseDatas;
 
 	// Track which skeletons have been affected by a body modifier - some settings get overridden
 	// and then need to be restored when the last body modifier is destroyed.
@@ -1899,4 +1863,7 @@ protected:
 	// Keep track of the names of everything we have created
 	FPhysicsControlNameRecords NameRecords;
 
+	// Update counter - incremented every tick, and used to check whether previous targets etc are
+	// valid when calculating velocities.
+	FGraphTraversalCounter CurrentUpdateCounter;
 };

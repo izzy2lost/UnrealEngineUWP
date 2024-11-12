@@ -32,7 +32,7 @@ public:
 		TArray<FString> TargetPlatformNames;
 		if (FPlatformProperties::RequiresCookedData())
 		{
-			FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
+			GetCookOnTheFlyTargetPlatforms(TargetPlatformNames);
 		}
 		
 		FBufferArchive HandshakeRequestPayload;
@@ -198,6 +198,24 @@ public:
 	}
 
 private:
+	static void GetCookOnTheFlyTargetPlatforms(TArray<FString>& TargetPlatformNames)
+	{
+		FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
+		// COTF server (a.k.a. UE Editor) appends "Client" to platform names for client-only targets
+		// Desktop platforms do the same for runtime client config, but non-desktop platforms don't
+		// Append "Client" to platform names, if not already present, in client-only configs to match COTF server
+		if (FPlatformProperties::IsClientOnly())
+		{
+			for (FString& TargetPlatformName : TargetPlatformNames)
+			{
+				if (!TargetPlatformName.Contains(TEXT("Client")))
+				{
+					TargetPlatformName.Append(TEXT("Client"));
+				}
+			}
+		}
+	}
+
 	void Disconnect()
 	{
 		if (!bStopRequested.Exchange(true))
@@ -282,6 +300,7 @@ private:
 			});
 
 		UE_LOG(LogCotfServerConnection, Display, TEXT("Terminating connection to server"));
+		Flush();
 		Transport.Reset();
 	}
 
@@ -310,6 +329,25 @@ private:
 	{
 		FScopeLock _(&RequestsCriticalSection);
 		PendingRequests.Remove(PendingRequest->RequestHeader.CorrelationId);
+	}
+
+	void Flush()
+	{
+		if (!PendingRequests.IsEmpty())
+		{
+			using namespace UE::Cook;
+			FCookOnTheFlyRequest SyntheticRequest;
+			FScopeLock _(&RequestsCriticalSection);
+			for (const TPair<uint32, TUniquePtr<FPendingRequest>>& Pair : PendingRequests)
+			{
+				FPendingRequest& PendingRequest = *Pair.Value;
+				SyntheticRequest.SetHeader(PendingRequest.RequestHeader);
+				FCookOnTheFlyResponse ErrorResponse(SyntheticRequest);
+				ErrorResponse.SetStatus(ECookOnTheFlyMessageStatus::Error);
+				PendingRequest.ResponsePromise.SetValue(ErrorResponse);
+			}
+			PendingRequests.Empty();
+		}
 	}
 	
 	FPendingRequest* GetRequest(uint32 CorrelationId)

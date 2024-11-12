@@ -34,6 +34,8 @@
 #include "DatasmithSketchUpSDKCeases.h"
 
 // Imath third party library.
+#include "Algo/Compare.h"
+#include "Algo/Copy.h"
 #include "Imath/ImathMatrixAlgo.h"
 
 
@@ -196,9 +198,45 @@ SUMaterialRef DatasmithSketchUpUtils::GetMaterial(
 }
 
 void DatasmithSketchUpUtils::SetActorTransform(
-	TSharedPtr<IDatasmithActorElement> InActorElement,
+	const TSharedPtr<IDatasmithActorElement>& InActorElement,
 	SUTransformation const& InWorldTransform
 )
+{
+	FVector Translation{};
+	FQuat Rotation{};
+	FVector Scale{};
+	FVector Shear{};
+
+	if (DecomposeTransform(InWorldTransform, Translation, Rotation, Scale, Shear))
+	{
+		if (Rotation.IsNormalized())
+		{
+			InActorElement->SetTranslation(Translation.X, Translation.Y, Translation.Z, false);
+			InActorElement->SetRotation(Rotation.X, Rotation.Y, Rotation.Z, Rotation.W, false);
+			InActorElement->SetScale(Scale.X, Scale.Y, Scale.Z, false);
+		}
+		else
+		{
+			ToRuby::LogWarn(
+				FString::Printf(TEXT("WARNING: Actor %ls (%ls) has unnormalized rotation"), 
+					InActorElement->GetName(), InActorElement->GetLabel()));
+		}
+
+	}
+	else
+	{
+		ToRuby::LogWarn(
+			FString::Printf(TEXT("WARNING: Actor %ls (%ls) has some zero scaling or rotation can't be converted"), 
+				InActorElement->GetName(), InActorElement->GetLabel()));
+	}
+}
+
+bool DatasmithSketchUpUtils::DecomposeTransform(
+	SUTransformation const& InWorldTransform, // SketchUp world transform to convert
+	FVector& OutTranslation,
+	FQuat& OutRotation,
+	FVector& OutScale,
+	FVector& OutShear)
 {
 	// We use Imath::extractAndRemoveScalingAndShear() because FMatrix::ExtractScaling() is deemed unreliable.
 
@@ -212,19 +250,20 @@ void DatasmithSketchUpUtils::SetActorTransform(
 	// Remove any scaling from the matrix and get the scale vector that was initially present.
 	Imath::Vec3<float> Scale;
 	Imath::Vec3<float> Shear;
-	bool bExtracted = Imath::extractAndRemoveScalingAndShear<float>(Matrix, Scale, Shear, false);
-
-	if (!bExtracted)
+	if (!Imath::extractAndRemoveScalingAndShear<float>(Matrix, Scale, Shear, false))
 	{
-		ADD_SUMMARY_LINE(TEXT("WARNING: Actor %ls (%ls) has some zero scaling"), InActorElement->GetName(), InActorElement->GetLabel());
-		return;
+		// Scaling is zero
+		return false;
 	}
 
 	if (SMatrix[15] != 1.0)
 	{
 		// Apply the extra SketchUp uniform scaling factor.
-		Scale *= float(SMatrix[15]);
+		Scale *= SMatrix[15];
 	}
+
+	OutScale = FVector(Scale.x, Scale.y, Scale.z);
+	OutShear = FVector(Shear.x, Shear.y, Shear.z);
 
 	// Initialize a rotation quaternion with the rotation matrix.
 	Imath::Quat<float> Quaternion = Imath::extractQuat<float>(Matrix);
@@ -238,21 +277,75 @@ void DatasmithSketchUpUtils::SetActorTransform(
 	// Make sure Unreal will be able to handle the rotation quaternion.
 	float              Angle = Quaternion.angle();
 	Imath::Vec3<float> Axis = Quaternion.axis();
-	FQuat Rotation(FVector(Axis.x, Axis.y, Axis.z), Angle);
-
-	ensure(Rotation.IsNormalized());
+	OutRotation = FQuat(FVector(Axis.x, Axis.y, Axis.z), Angle);
 
 	// Convert the SketchUp right-handed Z-up coordinate translation into an Unreal left-handed Z-up coordinate translation.
 	// To avoid perturbating X, which is forward in Unreal, the handedness conversion is done by flipping the side vector Y.
 	// SketchUp uses inches as internal system unit for all 3D coordinates in the model while Unreal uses centimeters.
+	OutTranslation = FromSketchUp::ConvertPosition(SMatrix[12], SMatrix[13], SMatrix[14]);
 
-	FVector3f Translation = DatasmithSketchUpUtils::FromSketchUp::ConvertPosition(SMatrix[12], SMatrix[13], SMatrix[14]);
-
-	// Set the world transform of the Datasmith actor.
-	InActorElement->SetTranslation(Translation.X, Translation.Y, Translation.Z, false);
-	InActorElement->SetRotation((float)Rotation.X, (float)Rotation.Y, (float)Rotation.Z, (float)Rotation.W, false);
-	InActorElement->SetScale(Scale.x, Scale.y, Scale.z, false);
+	return true;
 }
+
+bool DatasmithSketchUpUtils::SplitTransform(
+	SUTransformation const& InWorldTransform, // SketchUp world transform to convert
+	SUTransformation& OutWorldTransform,
+	SUTransformation& OutMeshActorWorldTransform,
+	SUTransformation& OutBakeTransform
+)
+{
+	// Set up a scaling and rotation matrix.
+	auto& SMatrix = InWorldTransform.values;
+	Imath::Matrix44<double> Matrix(
+		SMatrix[0], SMatrix[1],  SMatrix[2], 0.0,
+		SMatrix[4], SMatrix[5],  SMatrix[6], 0.0,
+		SMatrix[8], SMatrix[9], SMatrix[10], 0.0,
+		       0.0,        0.0,         0.0, 1.0);
+
+	// Remove any scaling from the matrix and get the scale vector that was initially present.
+	Imath::Vec3<double> Scale;
+	Imath::Vec3<double> Shear;
+	if (!Imath::extractAndRemoveScalingAndShear<double>(Matrix, Scale, Shear, false))
+	{
+		// Scaling is zero
+		return false;
+	}
+	// Scale/Shear removed, now it's just Rotation
+	Imath::Matrix44<double> RotationMatrix(Matrix);
+
+	Imath::Matrix44<double> TranslationMatrix;
+	TranslationMatrix.translate(Imath::Vec3<double>(SMatrix[12], SMatrix[13], SMatrix[14]));
+
+	if (SMatrix[15] > UE_SMALL_NUMBER)
+	{
+		// Apply the extra SketchUp uniform (inverse)scaling factor.
+		Scale /= SMatrix[15];
+	}
+
+	Imath::Matrix44<double> ScaleMatrix;
+	ScaleMatrix.scale(Scale);
+
+	Imath::Matrix44<double> ShearMatrix;
+	ShearMatrix.shear(Shear);
+
+	Imath::Matrix44<double> ActorMatrix = RotationMatrix*TranslationMatrix;
+	Imath::Matrix44<double> MeshActorMatrix = RotationMatrix*TranslationMatrix;
+
+	auto CopyImathMatrixToSU = [](const Imath::Matrix44<double>& Source, SUTransformation& Dest)
+	{
+		for (int32 Index=0; Index<16; ++Index)
+		{
+			Dest.values[Index] = Source.getValue()[Index];
+		}
+	};
+
+	CopyImathMatrixToSU(ActorMatrix, OutWorldTransform);
+	CopyImathMatrixToSU(MeshActorMatrix, OutMeshActorWorldTransform);
+	CopyImathMatrixToSU(ScaleMatrix*ShearMatrix, OutBakeTransform);
+
+	return true;
+}
+
 
 SUTransformation DatasmithSketchUpUtils::GetComponentInstanceTransform(SUComponentInstanceRef InComponentInstanceRef, SUTransformation const& InWorldTransform)
 {
@@ -264,5 +357,13 @@ SUTransformation DatasmithSketchUpUtils::GetComponentInstanceTransform(SUCompone
 	SUTransformation SComponentInstanceWorldTransform;
 	SUTransformationMultiply(&InWorldTransform, &SComponentInstanceTransform, &SComponentInstanceWorldTransform); // we can ignore the returned SU_RESULT
 	return SComponentInstanceWorldTransform;
+}
+
+bool DatasmithSketchUpUtils::CompareSUTransformations(const SUTransformation& A, const SUTransformation& B)
+{
+	return Algo::Compare(
+		MakeArrayView(A.values, std::size(A.values)), 
+		MakeArrayView(B.values, std::size(B.values)),
+		[](const double& A, const double& B) {  return FMath::Abs(A-B) < UE_KINDA_SMALL_NUMBER; });
 }
 

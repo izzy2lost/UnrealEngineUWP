@@ -12,6 +12,7 @@
 #include "Delegates/Delegate.h"
 #include "Features/IModularFeature.h"
 #include "Templates/EnableIf.h"
+#include "Internationalization/Text.h"
 
 #define TRACK_CONSOLE_FIND_COUNT !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
@@ -180,6 +181,7 @@ enum EConsoleVariableFlags
 	op(PluginLowPriority) \
 	op(DeviceProfile) \
 	op(PluginHighPriority) \
+	op(GameOverride) \
 	op(ConsoleVariablesIni) \
 	op(Hotfix) \
 	op(Preview) \
@@ -389,6 +391,14 @@ public:
 	 * Sets the internal flag state to the specified value.
 	 */
 	virtual void SetFlags(const EConsoleVariableFlags Value) = 0;
+	/** 
+	 *  @return a (potentially) more detailed help than GetHelp (e.g. current value for console variables)
+	 */
+	virtual FText GetDetailedHelp() const
+	{
+		// By default, just return the standard help message :
+		return FText::FromString(GetHelp());
+	}
 
 	// Convenience methods -------------------------------------
 
@@ -408,6 +418,25 @@ public:
 	{
 		return ((uint32)GetFlags() & (uint32)Value) != 0;
 	}
+
+	/**
+	 * Test the validity of the variable wrt its flags and current build type (e.g. ECVF_Cheat variables are disabled on some targets)
+	 */
+	bool IsEnabled() const
+	{
+#if DISABLE_CHEAT_CVARS
+		if (TestFlags(ECVF_Cheat))
+		{
+			return false;
+		}
+#endif // DISABLE_CHEAT_CVARS
+		if (TestFlags(ECVF_Unregistered))
+		{
+			return false;
+		}
+		return true;
+	}
+
 
 	/**
 	 * If the object has a parent (for instance the main cvar that owns an other-platform cvar), return it
@@ -460,6 +489,15 @@ public:
 	virtual struct IConsoleCommand* AsCommand()
 	{
 		return 0; 
+	}
+
+	/**
+	 * A shadow ConsoleObject is one that exists and can be used, but shouldn't be iterated over in anything that walks over every 
+	 * object and acts on it
+	 */
+	virtual bool IsShadowObject() const
+	{
+		return false;
 	}
 
 private: // -----------------------------------------
@@ -583,6 +621,16 @@ public:
 	
 #endif
 
+	/**
+	 * Print the history to a log
+	*/
+	virtual void LogHistory(FOutputDevice& Ar) = 0;
+	
+	/**
+	 * Track memory used by history data
+	 */
+	virtual SIZE_T GetHistorySize() = 0;
+
 	// convenience methods
 
 	/** Set the internal value from the specified bool. */
@@ -698,6 +746,19 @@ private:
 	FDelegateHandle Handle;
 };
 
+struct FConsoleSuggestion
+{
+	FString Name;
+	FString Help;
+
+	FConsoleSuggestion(FString InName, FString InHelp)
+	: Name(InName)
+	, Help(InHelp)
+	{}
+
+	FConsoleSuggestion()
+	{}
+};
 
 /**
  * Handles executing console commands
@@ -737,9 +798,15 @@ public:
 	virtual FText GetHintText() const = 0;
 
 	/**
-	 * Get the list of auto-complete suggestions for the given command.
-	 */
-	virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out) = 0;
+	* Get the list of auto-complete suggestions for the given command.
+	*/
+	virtual void GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out) = 0;
+
+	/**
+	* Get the list of auto-complete suggestions for the given command.
+	*/
+	UE_DEPRECATED(5.5, "Use GetSuggestedCompletions instead")
+	virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out){};
 
 	/**
 	 * Get the list of commands that this executor has recently processed.
@@ -1741,6 +1808,11 @@ public:
 		return TEXT("NO_CVARS, no help");
 	}
 
+	virtual FText GetDetailedHelp() const override
+	{
+		return INVTEXT("NO_CVARS, no help");
+	}
+
 	virtual void SetHelp(const TCHAR* InHelp) override
 	{
 		check(false);
@@ -1859,6 +1931,19 @@ public:
 	{
 	}
 
+    /**
+    * Register a console command that takes an output device
+    *
+    * @param	Name		The name of this command (must not be nullptr)
+    * @param	Help		Help text for this command
+    * @param	Command		The user function to call when this command is executed
+    * @param	Flags		Optional flags bitmask
+    */
+    FAutoConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithArgsAndOutputDeviceDelegate& Command, uint32 Flags = ECVF_Default)
+        : FAutoConsoleObject(IConsoleManager::Get().RegisterConsoleCommand(Name, Help, Command, Flags))
+    {
+    }
+
 	/**
 	* Register a console command that takes a world argument
 	*
@@ -1894,6 +1979,18 @@ public:
 	}
 
 	FAutoConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithArgsDelegate& Command, uint32 Flags = ECVF_Default)
+	{
+	}
+
+	FAutoConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithOutputDeviceDelegate& Command, uint32 Flags = ECVF_Default)
+	{
+	}
+
+	FAutoConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithArgsAndOutputDeviceDelegate& Command, uint32 Flags = ECVF_Default)
+	{
+	}
+
+	FAutoConsoleCommand(const TCHAR* Name, const TCHAR* Help, const FConsoleCommandWithWorldDelegate& Command, uint32 Flags = ECVF_Default)
 	{
 	}
 
@@ -2027,6 +2124,76 @@ public:
 };
 
 #endif
+
+
+enum class EShadowCVarBehavior : uint8
+{
+	// skip all messaging
+	NoMessaging,
+	// log a warning on first usage
+	Warn,
+	// log an error on first usage
+	Error,
+	// throw an ensure on first usage
+	Ensure,
+	// throw an assertion on first usage
+	Assert,
+};
+
+/**
+ * A class that can be used to shadow a CVar, where both are valid to use. To deprecate a CVar, it's suggested to use the FAutoConsoleVariableDeprecated class below
+ * 
+ * FAutoConsoleVariableShadow ShadowCVar(TEXT("r.newname"), TEXT("r.oldname"));
+ * 
+ */
+class FAutoConsoleVariableShadow
+{
+public:
+
+		/**
+		 * @param Name The name of this cvar
+		 * @param CVarToShadow The name of the existing cvar that this one will shadow
+		 * @param LookupFailureBehavior How to handle failure of looking up the CVarToShadow name - defaults to ensure
+		 */
+		CORE_API FAutoConsoleVariableShadow(const TCHAR* Name, const TCHAR* CVarToShadow, EShadowCVarBehavior LookupFailureBehavior=EShadowCVarBehavior::Ensure);
+};
+
+/**
+ * A class that can be used to deprecate a CVar - rename your existing CVar to the new name, then
+ * create a shadow of it with the old name with something like this:
+ *
+ * FAutoConsoleVariableDeprecated ShadowCVar(TEXT("r.newname"), TEXT("r.oldname"), TEXT("5.5"));
+ * FAutoConsoleVariableDeprecated ShadowCVar(TEXT("r.newname"), TEXT("r.oldname"), TEXT("5.5"), EShadowCVarBehavior::Assert);
+ *
+ */
+class FAutoConsoleVariableDeprecated
+{
+public:
+	/**
+	 * @param Name The name of this cvar
+	 * @param CVarToShadow The name of the existing cvar that this one will shadow
+	 * @param DeprecatedAtVersion THe first UE version when this was deprecated
+	 * @param UsageBehavior How to handle uses of the shadowed cvar by the deprecated name - defaults to ensure
+	 * @param LookupFailureBehavior How to handle failure of looking up the CVarToShadow name - defaults to ensure
+	 */
+	CORE_API FAutoConsoleVariableDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior=EShadowCVarBehavior::Ensure, EShadowCVarBehavior LookupFailureBehavior = EShadowCVarBehavior::Ensure);
+};
+
+/**
+ * A class that can be used to deprecate a ConsoleCommand - use just like FAutoConsoleVariableDeprecated
+ */
+class FAutoConsoleCommandDeprecated
+{
+public:
+	/**
+	 * @param Name The name of this cvar
+	 * @param CVarToShadow The name of the existing cvar that this one will shadow
+	 * @param DeprecatedAtVersion THe first UE version when this was deprecated
+	 * @param UsageBehavior How to handle uses of the shadowed cvar by the deprecated name - defaults to ensure
+	 * @param LookupFailureBehavior How to handle failure of looking up the CVarToShadow name - defaults to ensure
+	 */
+	CORE_API FAutoConsoleCommandDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior = EShadowCVarBehavior::Ensure, EShadowCVarBehavior LookupFailureBehavior = EShadowCVarBehavior::Ensure);
+};
 
 CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConsoleResponse, Log, All);
 

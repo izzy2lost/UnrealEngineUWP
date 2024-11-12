@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "Containers/Ticker.h"
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Ticker.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 
@@ -14,7 +15,7 @@
 class FThreadTrackEvent;
 class FUICommandList;
 
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 class FContextSwitchesSharedState;
@@ -51,7 +52,7 @@ public:
 
 	void OnSessionChanged();
 
-	TSharedPtr<Insights::FContextSwitchesSharedState> GetContextSwitchesSharedState() { return ContextSwitchesSharedState;	}
+	TSharedPtr<FContextSwitchesSharedState> GetContextSwitchesSharedState() { return ContextSwitchesSharedState; }
 
 private:
 	/** Updates this manager, done through FCoreTicker. */
@@ -79,4 +80,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::ContextSwitches

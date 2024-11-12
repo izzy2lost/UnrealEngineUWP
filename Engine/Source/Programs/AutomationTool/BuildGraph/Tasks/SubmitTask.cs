@@ -1,19 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildBase;
-using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -26,61 +20,61 @@ namespace AutomationTool.Tasks
 		/// The description for the submitted changelist.
 		/// </summary>
 		[TaskParameter]
-		public string Description;
+		public string Description { get; set; }
 
 		/// <summary>
 		/// The files to submit.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The Perforce file type for the submitted files (for example, binary+FS32).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string FileType;
+		public string FileType { get; set; }
 
 		/// <summary>
 		/// The workspace name. If specified, a new workspace will be created using the given stream and root directory to submit the files. If not, the current workspace will be used.
 		/// </summary>
-		[TaskParameter(Optional=true)]
-		public string Workspace;
+		[TaskParameter(Optional = true)]
+		public string Workspace { get; set; }
 
 		/// <summary>
 		/// The stream for the workspace -- defaults to the current stream. Ignored unless the Workspace attribute is also specified.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Stream;
+		public string Stream { get; set; }
 
 		/// <summary>
 		/// Branch for the workspace (legacy P4 depot path). May not be used in conjunction with Stream.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// Root directory for the stream. If not specified, defaults to the current root directory.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference RootDir;
+		public DirectoryReference RootDir { get; set; }
 
 		/// <summary>
 		/// Whether to revert unchanged files before attempting to submit.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool RevertUnchanged;
+		public bool RevertUnchanged { get; set; }
 
 		/// <summary>
 		/// Force the submit to happen -- even if a resolve is needed (always accept current version).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Force;
+		public bool Force { get; set; }
 
 		/// <summary>
 		/// Allow verbose P4 output (spew).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool P4Verbose;
+		public bool P4Verbose { get; set; }
 	}
 
 	/// <summary>
@@ -89,30 +83,27 @@ namespace AutomationTool.Tasks
 	[TaskElement("Submit", typeof(SubmitTaskParameters))]
 	public class SubmitTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for the task
-		/// </summary>
-		SubmitTaskParameters Parameters;
+		readonly SubmitTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a version task
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public SubmitTask(SubmitTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public SubmitTask(SubmitTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
-			if (Files.Count == 0)
+			HashSet<FileReference> files = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
+			if (files.Count == 0)
 			{
 				Logger.LogInformation("No files to submit.");
 			}
@@ -125,50 +116,50 @@ namespace AutomationTool.Tasks
 				try
 				{
 					// Get the connection that we're going to submit with
-					P4Connection SubmitP4 = CommandUtils.P4;
-					if (Parameters.Workspace != null)
+					P4Connection submitP4 = CommandUtils.P4;
+					if (_parameters.Workspace != null)
 					{
 						// Create a brand new workspace
-						P4ClientInfo Client = new P4ClientInfo();
-						Client.Owner = CommandUtils.P4Env.User;
-						Client.Host = Unreal.MachineName;
-						Client.RootPath = Parameters.RootDir.FullName ?? Unreal.RootDirectory.FullName;
-						Client.Name = $"{Parameters.Workspace}_{Regex.Replace(Client.Host, "[^a-zA-Z0-9]", "-")}_{ContentHash.MD5((CommandUtils.P4Env.ServerAndPort ?? "").ToUpperInvariant())}";
-						Client.Options = P4ClientOption.NoAllWrite | P4ClientOption.Clobber | P4ClientOption.NoCompress | P4ClientOption.Unlocked | P4ClientOption.NoModTime | P4ClientOption.RmDir;
-						Client.LineEnd = P4LineEnd.Local;
-						if (!String.IsNullOrEmpty(Parameters.Branch))
+						P4ClientInfo client = new P4ClientInfo();
+						client.Owner = CommandUtils.P4Env.User;
+						client.Host = Unreal.MachineName;
+						client.RootPath = _parameters.RootDir.FullName ?? Unreal.RootDirectory.FullName;
+						client.Name = $"{_parameters.Workspace}_{Regex.Replace(client.Host, "[^a-zA-Z0-9]", "-")}_{ContentHash.MD5((CommandUtils.P4Env.ServerAndPort ?? "").ToUpperInvariant())}";
+						client.Options = P4ClientOption.NoAllWrite | P4ClientOption.Clobber | P4ClientOption.NoCompress | P4ClientOption.Unlocked | P4ClientOption.NoModTime | P4ClientOption.RmDir;
+						client.LineEnd = P4LineEnd.Local;
+						if (!String.IsNullOrEmpty(_parameters.Branch))
 						{
-							Client.View.Add(new KeyValuePair<string, string>($"{Parameters.Branch}/...", $"/..."));
+							client.View.Add(new KeyValuePair<string, string>($"{_parameters.Branch}/...", $"/..."));
 						}
 						else
 						{
-							Client.Stream = Parameters.Stream ?? CommandUtils.P4Env.Branch;
+							client.Stream = _parameters.Stream ?? CommandUtils.P4Env.Branch;
 						}
-						CommandUtils.P4.CreateClient(Client, AllowSpew: Parameters.P4Verbose);
+						CommandUtils.P4.CreateClient(client, AllowSpew: _parameters.P4Verbose);
 
 						// Create a new connection for it
-						SubmitP4 = new P4Connection(Client.Owner, Client.Name);
+						submitP4 = new P4Connection(client.Owner, client.Name);
 					}
 
 					// Get the latest version of it
-					int NewCL = SubmitP4.CreateChange(Description: Parameters.Description.Replace("\\n", "\n"));
-					foreach(FileReference File in Files)
+					int newCl = submitP4.CreateChange(Description: _parameters.Description.Replace("\\n", "\n", StringComparison.Ordinal));
+					foreach (FileReference file in files)
 					{
-						SubmitP4.Revert(String.Format("-k \"{0}\"", File.FullName), AllowSpew: Parameters.P4Verbose);
-						SubmitP4.Sync(String.Format("-k \"{0}\"", File.FullName), AllowSpew: Parameters.P4Verbose);
-						SubmitP4.Add(NewCL, String.Format("\"{0}\"", File.FullName));
-						SubmitP4.Edit(NewCL, String.Format("\"{0}\"", File.FullName), AllowSpew: Parameters.P4Verbose);
-						if (Parameters.FileType != null)
+						submitP4.Revert(String.Format("-k \"{0}\"", file.FullName), AllowSpew: _parameters.P4Verbose);
+						submitP4.Sync(String.Format("-k \"{0}\"", file.FullName), AllowSpew: _parameters.P4Verbose);
+						submitP4.Add(newCl, String.Format("\"{0}\"", file.FullName));
+						submitP4.Edit(newCl, String.Format("\"{0}\"", file.FullName), AllowSpew: _parameters.P4Verbose);
+						if (_parameters.FileType != null)
 						{
-							SubmitP4.P4(String.Format("reopen -t \"{0}\" \"{1}\"", Parameters.FileType, File.FullName), AllowSpew: Parameters.P4Verbose);
+							submitP4.P4(String.Format("reopen -t \"{0}\" \"{1}\"", _parameters.FileType, file.FullName), AllowSpew: _parameters.P4Verbose);
 						}
 					}
 
 					// Revert any unchanged files
-					if(Parameters.RevertUnchanged)
+					if (_parameters.RevertUnchanged)
 					{
-						SubmitP4.RevertUnchanged(NewCL);
-						if(SubmitP4.TryDeleteEmptyChange(NewCL))
+						submitP4.RevertUnchanged(newCl);
+						if (submitP4.TryDeleteEmptyChange(newCl))
 						{
 							Logger.LogInformation("No files to submit; ignored.");
 							return Task.CompletedTask;
@@ -176,19 +167,19 @@ namespace AutomationTool.Tasks
 					}
 
 					// Submit it
-					int SubmittedCL;
-					SubmitP4.Submit(NewCL, out SubmittedCL, Force: Parameters.Force);
-					if (SubmittedCL <= 0)
+					int submittedCl;
+					submitP4.Submit(newCl, out submittedCl, Force: _parameters.Force);
+					if (submittedCl <= 0)
 					{
 						throw new AutomationException("Submit failed.");
 					}
 
-					Logger.LogInformation("Submitted in changelist {SubmittedCL}", SubmittedCL);
+					Logger.LogInformation("Submitted in changelist {SubmittedCL}", submittedCl);
 				}
-				catch (P4Exception Ex)
+				catch (P4Exception ex)
 				{
-					Logger.LogError(KnownLogEvents.Systemic_Perforce, "{Message}", Ex.Message);
-					throw new AutomationException(Ex.ErrorCode, Ex, "{0}", Ex.Message) { OutputFormat = AutomationExceptionOutputFormat.Silent };
+					Logger.LogError(KnownLogEvents.Systemic_Perforce, "{Message}", ex.Message);
+					throw new AutomationException(ex.ErrorCode, ex, "{0}", ex.Message) { OutputFormat = AutomationExceptionOutputFormat.Silent };
 				}
 			}
 			return Task.CompletedTask;
@@ -197,9 +188,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -208,7 +199,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>

@@ -122,6 +122,7 @@ public:
 	FControlRigExecuteContext()
 		: FRigVMExecuteContext()
 		, Hierarchy(nullptr)
+		, ControlRig(nullptr)
 		, RigModuleNameSpace()
 		, RigModuleNameSpaceHash(0)
 	{
@@ -133,6 +134,7 @@ public:
 
 		const FControlRigExecuteContext* OtherContext = (const FControlRigExecuteContext*)InOtherContext; 
 		Hierarchy = OtherContext->Hierarchy;
+		ControlRig = OtherContext->ControlRig;
 	}
 
 	/**
@@ -158,6 +160,11 @@ public:
 		}
 		return nullptr;
 	}
+
+	/**
+	 * Returns true if the event currently running is considered a construction event
+	 */
+	bool IsRunningConstructionEvent() const;
 
 	/**
 	 * Add the namespace from a given name
@@ -221,6 +228,7 @@ public:
 	
 	FRigUnitContext UnitContext;
 	URigHierarchy* Hierarchy;
+	UControlRig* ControlRig;
 
 #if WITH_EDITOR
 	virtual void Report(const FRigVMLogSettings& InLogSettings, const FName& InFunctionName, int32 InInstructionIndex, const FString& InMessage) const override

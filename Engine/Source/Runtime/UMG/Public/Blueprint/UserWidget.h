@@ -997,6 +997,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "IsInputActionBlocking", Setter = "SetInputActionBlocking", BlueprintSetter = "SetInputActionBlocking", Category = "Input")
 	uint8 bStopAction : 1;
 
+	/**
+	 * If true, this widget will automatically register its own input component upon construction.
+	 * This will allow the use of binding input delegates in the event graph.
+	 * 
+	 * This is set during the compilation of the widget blueprint. 
+	 */
+	UPROPERTY()
+	uint8 bAutomaticallyRegisterInputOnConstruction : 1;
+
 public:
 
 	/**
@@ -1552,6 +1561,7 @@ protected:
 	UMG_API virtual FCursorReply NativeOnCursorQuery( const FGeometry& InGeometry, const FPointerEvent& InCursorEvent );
 	UMG_API virtual FNavigationReply NativeOnNavigation(const FGeometry& InGeometry, const FNavigationEvent& InNavigationEvent);
 	UMG_API virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent);
+	UMG_API virtual void NativeOnFinishedPointerInput() {}
 
 protected:
 

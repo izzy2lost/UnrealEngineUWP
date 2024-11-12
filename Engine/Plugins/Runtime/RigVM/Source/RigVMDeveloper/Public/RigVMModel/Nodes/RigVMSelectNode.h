@@ -40,10 +40,10 @@ protected:
 
 private:
 
-	static const FString SelectName;
-	static const FString IndexName;
-	static const FString ValueName;
-	static const FString ResultName;
+	static const inline TCHAR* SelectName = TEXT("Select");
+	static const inline TCHAR* IndexName = TEXT("Index");
+	static const inline TCHAR* ValueName = TEXT("Values");
+	static const inline TCHAR* ResultName = TEXT("Result");
 
 	friend class URigVMController;
 	friend class URigVMCompiler;

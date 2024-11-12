@@ -1280,7 +1280,7 @@ void FDistanceFieldSceneData::GenerateStreamingRequests(
 		FRHIGPUBufferReadback* ReadbackBuffer = StreamingRequestReadbackBuffers[ReadbackBuffersWriteIndex];
 
 		AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("DistanceFieldAssetReadback"), StreamingRequestsBuffer,
-			[ReadbackBuffer, StreamingRequestsBuffer](FRHICommandList& RHICmdList)
+			[ReadbackBuffer, StreamingRequestsBuffer](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			ReadbackBuffer->EnqueueCopy(RHICmdList, StreamingRequestsBuffer->GetRHI(), 0u);
 		});

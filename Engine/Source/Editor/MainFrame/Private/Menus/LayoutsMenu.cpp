@@ -368,8 +368,9 @@ void FPrivateLayoutsMenu::DisplayLayoutsInternal(FToolMenuSection& InSection, co
 		if (FLayoutSaveRestore::IsValidConfig(LayoutFilePath))
 		{
 			// Read and display localization name from INI file
-			const FText LayoutName = FLayoutSaveRestore::LoadSectionFromConfig(LayoutFilePath, "LayoutName");
-			const FText LayoutDescription = FLayoutSaveRestore::LoadSectionFromConfig(LayoutFilePath, "LayoutDescription");
+			constexpr bool bAreSectionsOptional = true;
+			const FText LayoutName = FLayoutSaveRestore::LoadSectionFromConfig(LayoutFilePath, "LayoutName", bAreSectionsOptional);
+			const FText LayoutDescription = FLayoutSaveRestore::LoadSectionFromConfig(LayoutFilePath, "LayoutDescription", bAreSectionsOptional);
 			// If no localization name, then display the file name
 			const FText DisplayName = (!LayoutName.IsEmpty() ? LayoutName : GetDisplayTextInternal(InLayoutIniFileNames[LayoutIndex]));
 			const FText Tooltip = GetTooltipTextInternal(DisplayName, LayoutFilePath, LayoutDescription);
@@ -391,7 +392,6 @@ void FPrivateLayoutsMenu::DisplayLayoutsInternal(FToolMenuSection& InSection, co
 					// Cannot save engine or project layouts
 					continue;
 				}
-
 			}
 			else if (InLayoutsMenu == ELayoutsMenu::Remove)
 			{

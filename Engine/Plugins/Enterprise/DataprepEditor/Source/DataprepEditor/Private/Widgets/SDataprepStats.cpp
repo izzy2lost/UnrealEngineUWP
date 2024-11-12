@@ -235,7 +235,6 @@ void SDataprepStats::Construct(const FArguments& InArgs)
 			+ SVerticalBox::Slot()
 			[
 				SAssignNew(StatsListView, FDataprepStatListView)
-					.ItemHeight(20.0f)
 					.ListItemsSource(&ListEntries)
 
 					.OnGenerateRow_Lambda([this](FStatListEntryPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable)
@@ -247,7 +246,7 @@ void SDataprepStats::Construct(const FArguments& InArgs)
 					(
 						SNew(SHeaderRow)
 						+ SHeaderRow::Column(DataprepStats::ColumnNameOnImport)
-							.DefaultLabel(LOCTEXT("ColumnOnImportLabel", ""))
+							.DefaultLabel(FText())
 							.FillWidth(0.33f)
 						+ SHeaderRow::Column(DataprepStats::ColumnNameOnImportCount)
 							.DefaultLabel(LOCTEXT("ColumnPreCountLabel", "On Import"))

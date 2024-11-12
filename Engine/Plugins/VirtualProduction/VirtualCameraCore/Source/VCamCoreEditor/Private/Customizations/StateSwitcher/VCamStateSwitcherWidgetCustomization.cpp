@@ -8,7 +8,7 @@
 #include "DetailWidgetRow.h"
 #include "Util/SharedPropertyCustomizationUtils.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedRef<IDetailCustomization> FVCamStateSwitcherWidgetCustomization::MakeInstance()
 	{

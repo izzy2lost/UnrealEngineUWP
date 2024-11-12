@@ -1321,7 +1321,7 @@ FGraphSchemaSearchWeightModifiers UMaterialGraphSchema::GetSearchWeightModifiers
 	return Modifiers;
 }
 
-float UMaterialGraphSchema::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+float UMaterialGraphSchema::GetActionFilteredWeight(const FEdGraphSchemaAction& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
 {
 	// The overall 'weight'
 	float TotalWeight = 0.0f;
@@ -1330,79 +1330,75 @@ float UMaterialGraphSchema::GetActionFilteredWeight(const FGraphActionListBuilde
 	TArray<FGraphSchemaSearchTextWeightInfo> WeightedArrayList;
 	FGraphSchemaSearchTextDebugInfo DebugInfo;
 
-	int32 Action = 0;
-	if (InCurrentAction.Actions[Action].IsValid() == true)
+	FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
+	int32 NonLocalizedFirstIndex = CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &DebugInfo);
+
+	// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
+	for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
 	{
-		FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
-		int32 NonLocalizedFirstIndex = CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &DebugInfo);
-
-		// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
-		for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
+		const FString& EachTerm = InFilterTerms[FilterIndex];
+		const FString& EachTermSanitized = InSanitizedFilterTerms[FilterIndex];
+		// Now check the weighted lists
+		for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); iFindCount++)
 		{
-			const FString& EachTerm = InFilterTerms[FilterIndex];
-			const FString& EachTermSanitized = InSanitizedFilterTerms[FilterIndex];
-			// Now check the weighted lists
-			for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); iFindCount++)
+			float WeightPerList = 0.0f;
+			const TArray<FString>& WordArray = *WeightedArrayList[iFindCount].Array;
+			float ArrayWeight = WeightedArrayList[iFindCount].WeightModifier;
+			int32 WholeMatchCount = 0;
+			float WholeMatchMultiplier = (iFindCount < NonLocalizedFirstIndex) ? MaterialEditorContextMenuConsoleVariables::WholeMatchLocalizedWeightMultiplier : MaterialEditorContextMenuConsoleVariables::WholeMatchWeightMultiplier;
+
+			// Count of how many words in this array contain a search term that the user has typed in
+			int32 WordMatchCount = 0;
+			// The number of characters in the best matching word
+			int32 BestMatchCharLength = 0;
+
+			for (int32 iEachWord = 0; iEachWord < WordArray.Num(); iEachWord++)
 			{
-				float WeightPerList = 0.0f;
-				const TArray<FString>& WordArray = *WeightedArrayList[iFindCount].Array;
-				float ArrayWeight = WeightedArrayList[iFindCount].WeightModifier;
-				int32 WholeMatchCount = 0;
-				float WholeMatchMultiplier = (iFindCount < NonLocalizedFirstIndex) ? MaterialEditorContextMenuConsoleVariables::WholeMatchLocalizedWeightMultiplier : MaterialEditorContextMenuConsoleVariables::WholeMatchWeightMultiplier;
+				float WeightPerWord = 0.0f;
 
-				// Count of how many words in this array contain a search term that the user has typed in
-				int32 WordMatchCount = 0;
-				// The number of characters in the best matching word
-				int32 BestMatchCharLength = 0;
-
-				for (int32 iEachWord = 0; iEachWord < WordArray.Num(); iEachWord++)
+				// If a word contains the search phrase that the user has typed in, then give it weight					
+				if (WordArray[iEachWord].Contains(EachTermSanitized, ESearchCase::CaseSensitive) || WordArray[iEachWord].Contains(EachTerm, ESearchCase::CaseSensitive))
 				{
-					float WeightPerWord = 0.0f;
+					++WordMatchCount;
+					WeightPerWord += ArrayWeight * WholeMatchMultiplier;
 
-					// If a word contains the search phrase that the user has typed in, then give it weight					
-					if (WordArray[iEachWord].Contains(EachTermSanitized, ESearchCase::CaseSensitive) || WordArray[iEachWord].Contains(EachTerm, ESearchCase::CaseSensitive))
+					// If the word starts with the search term, give it extra boost of weight
+					if (WordArray[iEachWord].StartsWith(EachTermSanitized, ESearchCase::CaseSensitive) || WordArray[iEachWord].StartsWith(EachTerm, ESearchCase::CaseSensitive))
 					{
-						++WordMatchCount;
-						WeightPerWord += ArrayWeight * WholeMatchMultiplier;
-
-						// If the word starts with the search term, give it extra boost of weight
-						if (WordArray[iEachWord].StartsWith(EachTermSanitized, ESearchCase::CaseSensitive) || WordArray[iEachWord].StartsWith(EachTerm, ESearchCase::CaseSensitive))
-						{
-							WeightPerWord += ArrayWeight * MaterialEditorContextMenuConsoleVariables::StartsWithBonusWeightMultiplier;
-						}
-					}
-
-					if (WeightPerWord > WeightPerList)
-					{
-						// Use the best word match weight, we don't want to count similar words more than one
-						WeightPerList = WeightPerWord;
-						BestMatchCharLength = WordArray[iEachWord].Len();
+						WeightPerWord += ArrayWeight * MaterialEditorContextMenuConsoleVariables::StartsWithBonusWeightMultiplier;
 					}
 				}
 
-				if (BestMatchCharLength > 0 && WeightPerList > 0)
+				if (WeightPerWord > WeightPerList)
 				{
-					// Higher number of matching words contributes to higher weight
-					float PercentMatch = (float)WordMatchCount / (float)WordArray.Num();
-					float PercentMatchWeight = (WeightPerList * PercentMatch * MaterialEditorContextMenuConsoleVariables::PercentageMatchWeightMultiplier);
-					WeightPerList += PercentMatchWeight;
-					DebugInfo.PercentMatchWeight += PercentMatchWeight;
-					DebugInfo.PercentMatch += PercentMatch;
-
-					// The shorter the best matched word, the larger bonus it gets
-					float ShorterMatchFactor = (float)EachTerm.Len() / (float)BestMatchCharLength;
-					float ShorterMatchWeight = ShorterMatchFactor * MaterialEditorContextMenuConsoleVariables::ShorterMatchWeight;
-					WeightPerList += ShorterMatchWeight;
-					DebugInfo.ShorterMatchWeight += ShorterMatchWeight;
+					// Use the best word match weight, we don't want to count similar words more than one
+					WeightPerList = WeightPerWord;
+					BestMatchCharLength = WordArray[iEachWord].Len();
 				}
-
-				if (WeightedArrayList[iFindCount].DebugWeight)
-				{
-					*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
-				}
-
-				TotalWeight += WeightPerList;
 			}
+
+			if (BestMatchCharLength > 0 && WeightPerList > 0)
+			{
+				// Higher number of matching words contributes to higher weight
+				float PercentMatch = (float)WordMatchCount / (float)WordArray.Num();
+				float PercentMatchWeight = (WeightPerList * PercentMatch * MaterialEditorContextMenuConsoleVariables::PercentageMatchWeightMultiplier);
+				WeightPerList += PercentMatchWeight;
+				DebugInfo.PercentMatchWeight += PercentMatchWeight;
+				DebugInfo.PercentMatch += PercentMatch;
+
+				// The shorter the best matched word, the larger bonus it gets
+				float ShorterMatchFactor = (float)EachTerm.Len() / (float)BestMatchCharLength;
+				float ShorterMatchWeight = ShorterMatchFactor * MaterialEditorContextMenuConsoleVariables::ShorterMatchWeight;
+				WeightPerList += ShorterMatchWeight;
+				DebugInfo.ShorterMatchWeight += ShorterMatchWeight;
+			}
+
+			if (WeightedArrayList[iFindCount].DebugWeight)
+			{
+				*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+			}
+
+			TotalWeight += WeightPerList;
 		}
 
 		DebugInfo.TotalWeight = TotalWeight;
@@ -1411,6 +1407,19 @@ float UMaterialGraphSchema::GetActionFilteredWeight(const FGraphActionListBuilde
 
 	return TotalWeight;
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+float UMaterialGraphSchema::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+{
+	int32 Action = 0;
+	if (InCurrentAction.Actions[Action].IsValid() == true)
+	{
+		return GetActionFilteredWeight(*InCurrentAction.Actions[Action], InFilterTerms, InSanitizedFilterTerms, DraggedFromPins);
+	}
+	return 0.f;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 #endif // WITH_EDITORONLY_DATA
 
 #undef LOCTEXT_NAMESPACE

@@ -5,7 +5,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "IAvaMaskMaterialHandle.h"
 #include "IAvaObjectHandle.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "Templates/UnrealTypeTraits.h"
 
 class UAvaObjectHandleSubsystem;

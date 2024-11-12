@@ -116,6 +116,9 @@ public:
 	UPROPERTY(replicated)
 	uint8 RemoteViewPitch;
 
+	/** Playback of replays writes blended pitch to this, rather than the RemoteViewPitch. This is to avoid having to compress and interpolated value. */
+	float BlendedReplayViewPitch;
+
 	/** Default class to use when pawn is controlled by AI. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(DisplayName="AI Controller Class"), Category=Pawn)
 	TSubclassOf<AController> AIControllerClass;
@@ -180,9 +183,6 @@ protected:
 	virtual void OnPlayerStateChanged(APlayerState* NewPlayerState, APlayerState* OldPlayerState) { }
 
 public:
-
-	/** Playback of replays writes blended pitch to this, rather than the RemoteViewPitch. This is to avoid having to compress and interpolated value. */
-	float BlendedReplayViewPitch;
 
 	/** Controller of the last Actor that caused us damage. */
 	UPROPERTY(BlueprintReadOnly, transient, Category="Pawn")

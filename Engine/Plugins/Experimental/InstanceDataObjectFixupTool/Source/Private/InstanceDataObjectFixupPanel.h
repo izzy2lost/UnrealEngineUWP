@@ -15,22 +15,22 @@ struct FRedirectedPropertyNode : public TSharedFromThis<FRedirectedPropertyNode>
 	FRedirectedPropertyNode() = default;
 	FRedirectedPropertyNode(const FRedirectedPropertyNode& Other);
 	FRedirectedPropertyNode(const FPropertyInfo& Info, const TWeakPtr<FRedirectedPropertyNode>& Parent);
-	FRedirectedPropertyNode(FName InPropertyName, FName InType, int32 InArrayIndex, const TWeakPtr<FRedirectedPropertyNode>& InParent);
+	FRedirectedPropertyNode(FName InPropertyName, const UE::FPropertyTypeName& InType, int32 InArrayIndex, const TWeakPtr<FRedirectedPropertyNode>& InParent);
 	TSharedPtr<FRedirectedPropertyNode> FindOrAdd(const FPropertyPath& Path, int32 PathIndex = 0);
 	TSharedPtr<FRedirectedPropertyNode> FindOrAdd(const FPropertyInfo& ChildInfo);
-	TSharedPtr<FRedirectedPropertyNode> FindOrAdd(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex = 0);
+	TSharedPtr<FRedirectedPropertyNode> FindOrAdd(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex = 0);
 	bool Remove(const FPropertyPath& Path, int32 PathIndex = 0);
 	bool Remove(const FPropertyInfo& ChildInfo);
-	bool Remove(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex = 0);
+	bool Remove(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex = 0);
 	TSharedPtr<FRedirectedPropertyNode> Find(const FPropertyPath& Path, int32 PathIndex = 0) const;
 	TSharedPtr<FRedirectedPropertyNode> Find(const FPropertyInfo& ChildInfo) const;
-	TSharedPtr<FRedirectedPropertyNode> Find(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex = 0) const;
+	TSharedPtr<FRedirectedPropertyNode> Find(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex = 0) const;
 	bool Move(const FPropertyPath& FromPath, const FPropertyPath& ToPath);
 	int32 FindIndex(const FPropertyInfo& ChildInfo) const;
-	int32 FindIndex(FName ChildPropertyName, FName ChildType, int32 ChildArrayIndex = 0) const;
+	int32 FindIndex(FName ChildPropertyName, const UE::FPropertyTypeName& ChildType, int32 ChildArrayIndex = 0) const;
 
 	FName PropertyName;
-	FName Type;
+	UE::FPropertyTypeName Type;
 	int32 ArrayIndex;
 	TWeakPtr<FRedirectedPropertyNode> Parent;
 	TArray<TSharedPtr<FRedirectedPropertyNode>> Children;
@@ -53,7 +53,9 @@ public:
 		DefaultRightPanel = HideLooseProperties,
 	};
 	
-	FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags ViewFlags);
+	FInstanceDataObjectFixupPanel(
+		TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, TObjectPtr<UObject> InstanceDataObjectsOwner, EViewFlags ViewFlags);
+	~FInstanceDataObjectFixupPanel();
 	
 	int32 Find(UObject* Value) const;
 	TSharedPtr<IDetailsView>& GenerateDetailsView(bool bScrollbarOnLeft = false);
@@ -135,7 +137,7 @@ private:
 	{
 		TArray<uint8> OriginalValue;
 		FPropertyPath OriginalPath;
-		bool bWasTransient;
+		bool bHadSkipSerialization;
 		bool bWasHidden;
 	};
 
@@ -149,6 +151,7 @@ private:
 	void InitRedirectedPropertyTree();
 	
 	TArray<TObjectPtr<UObject>> Instances; // stores either InstanceDataObject property bag or just regular objects
+	TObjectPtr<UObject> InstancesOwner; // if not null, then it stores the common parent for the instances.
 
 	// the redirected property tree keeps track of which properties in the InstanceDataObject were either set by a property bag during serialization or
 	// redirected to from a floating property. The members of the tree are visible in the left panel.

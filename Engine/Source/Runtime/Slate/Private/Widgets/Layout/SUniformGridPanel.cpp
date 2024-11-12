@@ -11,6 +11,8 @@ SUniformGridPanel::SUniformGridPanel()
 {
 }
 
+SUniformGridPanel::~SUniformGridPanel() = default;
+
 SUniformGridPanel::FSlot::FSlotArguments SUniformGridPanel::Slot(int32 Column, int32 Row)
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>(Column, Row));

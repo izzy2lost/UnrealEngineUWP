@@ -7,6 +7,7 @@
 #include "InteractiveToolActivity.h"
 #include "GroupTopology.h" // FGroupTopologySelection
 #include "ModelingOperators.h" // IDynamicMeshOperatorFactory
+#include "Operations/ExtrudeBoundaryEdges.h" // FExtrudeFrame
 
 #include "PolyEditExtrudeEdgeActivity.generated.h"
 
@@ -93,10 +94,9 @@ public:
 	// IDynamicMeshOperatorFactory
 	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator() override;
 
+private:
 	UPROPERTY()
 	TObjectPtr<UPolyEditExtrudeEdgeActivityProperties> Settings = nullptr;
-
-protected:
 
 	UPROPERTY()
 	TObjectPtr<UPolyEditActivityContext> ActivityContext;
@@ -121,8 +121,8 @@ protected:
 	void ApplyExtrude();
 	void EndInternal();
 
-	FFrame3d ExtrudeFrameForGizmoMeshSpace;
-	FVector3d ExtrudeFrameScaling; // in mesh space, when using bAdjustToExtrudeEvenly 
+	UE::Geometry::FExtrudeBoundaryEdges::FExtrudeFrame ExtrudeFrameForGizmoMeshSpace;
+
 	FFrame3d ExtrudeFrameForGizmoWorldSpace;
 	
 	// These are the parameters we actually end up using, initialized from gizmos or detail panel.
@@ -150,4 +150,8 @@ protected:
 
 	// TODO: Might be worth having a getter in ActivityContext
 	FTransform CurrentMeshTransform;
+
+	// This is helpful so that in our distance watcher, we know that the previous distance
+	//  was negative, and therefore the extrude direction is actually opposite.
+	bool bExtrudeDistanceWasNegative = false;
 };

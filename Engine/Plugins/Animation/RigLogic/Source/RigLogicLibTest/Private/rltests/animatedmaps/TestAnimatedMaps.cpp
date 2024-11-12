@@ -31,6 +31,7 @@ TEST_P(AnimatedMapsTest, LODLimitsCondTableSize) {
     auto inputInstanceFactory = ControlsFactory::getInstanceFactory(0,
                                                                     static_cast<std::uint16_t>(conditionalTableInputs.size()),
                                                                     0,
+                                                                    0,
                                                                     0);
     auto outputInstanceFactory = AnimatedMapsFactory::getInstanceFactory(conditionals.getOutputCount());
     rl4::AnimatedMapsImpl animatedMaps{std::move(lods), std::move(conditionals), outputInstanceFactory};

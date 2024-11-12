@@ -117,7 +117,7 @@ public:
 				float LengthScale = 1;
 				if (bIsViewDependent)
 				{
-					LengthScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldOrigin);
+					LengthScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldOrigin);
 				}
 
 				FVector WorldCenter = WorldOrigin
@@ -310,7 +310,7 @@ bool UGizmoBoxComponent::LineTraceComponent(FHitResult& OutHit, const FVector St
 
 	if (bIsViewDependent)
 	{
-		DynamicPixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
+		DynamicPixelToWorldScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
 			GizmoViewContext, WorldOrigin);
 	}
 

@@ -65,6 +65,7 @@
 #include "Rendering/SubstrateMaterialShared.h"
 #include "SGraphSubstrateMaterial.h"
 #include "MaterialShared.h"
+#include "RenderGraphBuilder.h"
 
 class FWidgetStyle;
 class SWidget;
@@ -87,15 +88,20 @@ public:
 	}
 
 	/** Sets the texture that this target renders to */
-	void SetRenderTargetTexture( FTexture2DRHIRef& InRHIRef )
+	void SetRenderTargetTexture(FRDGTexture* Texture)
 	{
-		RenderTargetTextureRHI = InRHIRef;
+		RDGTexture = Texture;
 	}
 
 	/** Clears the render target texture */
 	void ClearRenderTargetTexture()
 	{
-		RenderTargetTextureRHI.SafeRelease();
+		RDGTexture = nullptr;
+	}
+
+	FRDGTextureRef GetRenderTargetTexture(FRDGBuilder&) const override
+	{
+		return RDGTexture;
 	}
 
 	/** Sets the viewport rect for the render target */
@@ -123,6 +129,7 @@ public:
 	}
 
 private:
+	FRDGTexture* RDGTexture = nullptr;
 	FIntRect ViewRect;
 	FIntRect ClippingRect;
 };
@@ -264,29 +271,28 @@ void FPreviewElement::UpdateExpressionPreview(UMaterialGraphNode* MaterialNode)
 	);
 }
 
-void FPreviewElement::Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params)
+void FPreviewElement::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs)
 {
 	if(ExpressionPreview)
 	{
-		RenderTarget->SetRenderTargetTexture(*(FTexture2DRHIRef*)InWindowBackBuffer);
+		RenderTarget->SetRenderTargetTexture(Inputs.OutputTexture);
 		{
 			// Check realtime mode for whether to pass current time to canvas
 			double CurrentTime = bIsRealtime ? (FApp::GetCurrentTime() - GStartTime) : 0.0;
 			float DeltaTime = bIsRealtime ? FApp::GetDeltaTime() : 0.0f;
 
-			FCanvas Canvas(RenderTarget, NULL, FGameTime::CreateUndilated(CurrentTime, DeltaTime), GMaxRHIFeatureLevel);
+			FCanvas* Canvas = GraphBuilder.AllocObject<FCanvas>(RenderTarget, nullptr, FGameTime::CreateUndilated(CurrentTime, DeltaTime), GMaxRHIFeatureLevel);
 			{
-				Canvas.SetAllowedModes(0);
-				Canvas.SetRenderTargetRect(RenderTarget->GetViewRect());
-				Canvas.SetRenderTargetScissorRect(RenderTarget->GetClippingRect());
+				Canvas->SetAllowedModes(0);
+				Canvas->SetRenderTargetRect(RenderTarget->GetViewRect());
+				Canvas->SetRenderTargetScissorRect(RenderTarget->GetClippingRect());
 
 				FCanvasTileItem TileItem(FVector2D::ZeroVector, ExpressionPreview, RenderTarget->GetSizeXY());
-				Canvas.DrawItem(TileItem);
+				Canvas->DrawItem(TileItem);
+				Canvas->Flush_RenderThread(GraphBuilder, true);
 			}
-			Canvas.Flush_RenderThread(RHICmdList, true);
 		}
 		RenderTarget->ClearRenderTargetTexture();
-		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 	}
 }
 

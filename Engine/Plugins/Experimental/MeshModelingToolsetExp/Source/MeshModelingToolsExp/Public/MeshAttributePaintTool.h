@@ -93,6 +93,9 @@ public:
 
 	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 
@@ -231,6 +234,8 @@ public:
 	{
 		return true;
 	}
+
+	UE::Geometry::TDynamicVerticesOctree3<FDynamicMesh3>& GetVerticesOctree() { return VerticesOctree; }
 
 protected:
 	virtual void ApplyStamp(const FBrushStampData& Stamp);

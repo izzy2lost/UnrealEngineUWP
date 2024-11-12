@@ -118,7 +118,36 @@ struct FSystemDependencyGraph
 		}
 	}
 
-	void DebugPrint(bool bUpdateCache = true)
+	void PrintFilteredFlowGraph(TArrayView<const TBitArray<>> GroupFilters, FStringBuilderBase& OutString)
+	{
+		using FDirectionalEdge = FDirectedGraph::FDirectionalEdge;
+
+		FDirectedGraph::FDiscoverCyclicEdges CyclicEdges(&FlowGraph);
+		CyclicEdges.Search();
+
+		TArrayView<const FDirectionalEdge> FlowEdges = FlowGraph.GetEdges();
+		for (int32 EdgeIndex = 0; EdgeIndex < FlowEdges.Num(); ++EdgeIndex)
+		{
+			FDirectionalEdge Edge = FlowEdges[EdgeIndex];
+
+			for (int32 GroupIndex = 0; GroupIndex < GroupFilters.Num(); ++GroupIndex)
+			{
+				if (GroupFilters[GroupIndex].IsValidIndex(Edge.FromNode) && GroupFilters[GroupIndex][Edge.FromNode] && 
+					GroupFilters[GroupIndex].IsValidIndex(Edge.ToNode) && GroupFilters[GroupIndex][Edge.ToNode])
+				{
+					const bool bIsCyclic = CyclicEdges.IsCyclic(EdgeIndex);
+
+					OutString.Appendf(TEXT("\tflow_node%d_%d -> flow_node%d_%d [color=\"%s\"];\n"),
+						(int32)Edge.FromNode, GroupIndex,
+						(int32)Edge.ToNode, GroupIndex,
+						bIsCyclic ? TEXT("#FF0000") : TEXT("#3992ad")
+					);
+				}
+			}
+		}
+	}
+
+	void DebugPrint(bool bUpdateCache)
 	{
 		const TCHAR FormatString[] =
 			TEXT("----------------------------------------------------------------------------------\n")
@@ -132,6 +161,11 @@ struct FSystemDependencyGraph
 
 		GLog->Log(TEXT("Printing debug graph for Entity System Graph (in standard graphviz syntax):"));
 		GLog->Log(FString::Printf(FormatString, *ToString()));
+	}
+
+	MOVIESCENE_API void DebugPrint()
+	{
+		DebugPrint(true);
 	}
 
 	FString ToString() const
@@ -190,7 +224,7 @@ struct FSystemDependencyGraph
 				{
 					FlowStrings[1] += FString::Printf(TEXT("\t\tflow_node%d_1[label=\"%s\"];\n"), NodeID, *SystemClass->GetName());
 				}
-				if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Evaluation))
+				if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Evaluation | ESystemPhase::Scheduling))
 				{
 					FlowStrings[2] += FString::Printf(TEXT("\t\tflow_node%d_2[label=\"%s\"];\n"), NodeID, *SystemClass->GetName());
 				}
@@ -222,7 +256,7 @@ struct FSystemDependencyGraph
 						FlowStrings[1] += FString::Printf(TEXT("\t\tflow_node%d_1[label=\"Component ID=%s\"];\n"), NodeID, Node.WriteComponentType.BitIndex());
 #endif
 					}
-					if (EnumHasAnyFlags(*ConnectedSystemPhase, ESystemPhase::Evaluation))
+					if (EnumHasAnyFlags(*ConnectedSystemPhase, ESystemPhase::Evaluation | ESystemPhase::Scheduling))
 					{
 #if UE_MOVIESCENE_ENTITY_DEBUG
 						FlowStrings[2] += FString::Printf(TEXT("\t\tflow_node%d_2[label=\"%s\"];\n"), NodeID, *WriteComponentInfo.DebugInfo->DebugName);
@@ -281,8 +315,8 @@ struct FSystemDependencyGraph
 				{
 					String += FString::Printf(TEXT("\tflow_node%d_1 -> flow_node%d_1 [color=\"%s\"];\n"), (int32)Edge.FromNode, (int32)Edge.ToNode, *EdgeColor);
 				}
-				if ((FromPhase == ESystemPhase::None || EnumHasAnyFlags(FromPhase, ESystemPhase::Evaluation)) && 
-						(ToPhase == ESystemPhase::None || EnumHasAnyFlags(ToPhase, ESystemPhase::Evaluation)))
+				if ((FromPhase == ESystemPhase::None || EnumHasAnyFlags(FromPhase, ESystemPhase::Evaluation | ESystemPhase::Scheduling)) && 
+						(ToPhase == ESystemPhase::None || EnumHasAnyFlags(ToPhase, ESystemPhase::Evaluation | ESystemPhase::Scheduling)))
 				{
 					String += FString::Printf(TEXT("\tflow_node%d_2 -> flow_node%d_2 [color=\"%s\"];\n"), (int32)Edge.FromNode, (int32)Edge.ToNode, *EdgeColor);
 				}
@@ -347,7 +381,7 @@ private:
 
 		FlowGraph.CleanUpDanglingEdges();
 
-		checkf(!FlowGraph.IsCyclic(), TEXT("Cycle detected in system flow graph!"));
+		checkf(!FlowGraph.IsCyclic(), TEXT("Cycle detected in system flow graph! \n\n %s"), *ToString());
 	}
 
 	void SetupFlowDependencies(int32 NodeIndex)
@@ -611,6 +645,13 @@ void UMovieSceneEntitySystem::GetSubsequentSystems(uint16 FromGlobalNodeID, TArr
 	using namespace UE::MovieScene;
 
 	GlobalDependencyGraph.GetSubsequents(FromGlobalNodeID, OutSubsequentGlobalNodeIDs);
+}
+
+void UMovieSceneEntitySystem::PrintFilteredFlowGraph(TArrayView<const TBitArray<>> GroupFilters, FStringBuilderBase& OutString)
+{
+	using namespace UE::MovieScene;
+
+	GlobalDependencyGraph.PrintFilteredFlowGraph(GroupFilters, OutString);
 }
 
 void UMovieSceneEntitySystem::DebugPrintGlobalDependencyGraph(bool bUpdateCache)

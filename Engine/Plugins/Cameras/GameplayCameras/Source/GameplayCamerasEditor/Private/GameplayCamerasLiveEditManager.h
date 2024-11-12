@@ -7,27 +7,37 @@
 #include "CoreTypes.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UPackage;
+
+namespace UE::Cameras
+{
+
 class FGameplayCamerasLiveEditManager : public IGameplayCamerasLiveEditManager
 {
 public:
 
 	FGameplayCamerasLiveEditManager();
-
-	/** Clean-up any invalid entries in the map of known instantiated objects. */
-	void CleanUp();
+	~FGameplayCamerasLiveEditManager();
 
 public:
 
 	// IGameplayCamerasLiveEditManager interface
-	virtual void RegisterInstantiatedObjects(const TMap<UObject*, UObject*> InstantiatedObjects) override;
-	virtual void ForwardPropertyChange(const UObject* Object, const FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void NotifyPostBuildAsset(const UPackage* InAssetPackage) const override;
+	virtual void AddListener(const UPackage* InAssetPackage, IGameplayCamerasLiveEditListener* Listener) override;
+	virtual void RemoveListener(const UPackage* InAssetPackage, IGameplayCamerasLiveEditListener* Listener) override;
 
 private:
 
-	struct FInstantiationInfo
-	{
-		TArray<TWeakObjectPtr<>> InstantiatedObjects;
-	};
-	TMap<TWeakObjectPtr<UObject>, FInstantiationInfo> Instantiations;
+	void OnPostGarbageCollection();
+
+	void RemoveGarbage();
+
+private:
+
+	using FListenerArray = TArray<IGameplayCamerasLiveEditListener*>;
+	using FListenerMap = TMap<TWeakObjectPtr<const UPackage>, FListenerArray>;
+	FListenerMap ListenerMap;
 };
+
+}  // namespace UE::Cameras
 

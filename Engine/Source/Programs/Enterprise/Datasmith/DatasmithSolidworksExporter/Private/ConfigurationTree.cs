@@ -115,7 +115,8 @@ namespace DatasmithSolidworks
 			public HashSet<FActorName> Meshes = null;
 
 			public List<FComponentTreeNode> Children;
-
+			public FMetadata Metadata;
+			
 			// Traverse tree passing result of function computation for each node to its children
 			// Function - receives parent's computed value and current node and returns value computed for the node(to pass to children)
 			public void Traverse<T>(T ParentValue, Func<T, FComponentTreeNode, T> Function)
@@ -225,7 +226,7 @@ namespace DatasmithSolidworks
 			}
 		};
 
-		static public void Merge(FComponentTreeNode OutCombined, FComponentTreeNode InTree, FVariantName InConfigurationName,
+		public static void Merge(FComponentTreeNode OutCombined, FComponentTreeNode InTree, FVariantName InConfigurationName,
 			bool bIsActiveConfiguration)
 		{
 			foreach (FComponentTreeNode Child in InTree.EnumChildren())
@@ -273,13 +274,26 @@ namespace DatasmithSolidworks
 				{
 					CombinedChild.Configurations.AddRange(Child.Configurations);
 				}
+				
+				if (Child.Metadata != null)
+				{
+					if (CombinedChild.Metadata == null)
+					{
+						CombinedChild.Metadata = Child.Metadata;
+						CombinedChild.Metadata.OwnerName = Child.ActorName;
+					}
+					else
+					{
+						CombinedChild.Metadata.Pairs.AddRange(Child.Metadata.Pairs);
+					}
+				}
 
 				// Recurse to children
 				Merge(CombinedChild, Child, InConfigurationName, bIsActiveConfiguration);
 			}
 		}
 
-		static public void Compress(FComponentTreeNode InNode, FConfigurationExporter ConfigurationExporter)
+		public static void Compress(FComponentTreeNode InNode, FConfigurationExporter ConfigurationExporter)
 		{
 			bool CheckMaterialsEqual(List<FComponentConfig> ConfigList)
 			{

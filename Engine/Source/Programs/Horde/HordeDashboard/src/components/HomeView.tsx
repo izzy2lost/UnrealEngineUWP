@@ -9,6 +9,7 @@ import { projectStore } from '../backend/ProjectStore';
 import { ProjectData } from '../backend/Api';
 import { Breadcrumbs } from './Breadcrumbs';
 import { getHordeStyling } from '../styles/Styles';
+import dashboard from '../backend/Dashboard';
 
 export const HomeView: React.FC = observer(() => {
 
@@ -26,11 +27,12 @@ export const HomeView: React.FC = observer(() => {
 						{
 							projectStore.projects.sort((a: ProjectData, b: ProjectData) => {
 								return a.order - b.order;
-							}).map((project) => {
+                     }).map((project) => {
+                        const logoSrc = `/api/v1/projects/${project.id}/logo${dashboard.darktheme ? "?darkTheme=true" : ""}`;
 								return (
 									<Stack.Item key={project.id} className={hordeClasses.projectLogoCardDropShadow}>
 										<Link onClick={() => { projectStore.setActive(project.id); }} to={`/project/${project.id}`}>
-											<img src={`/api/v1/projects/${project.id}/logo`} alt="Project logo" width={560} height={280} />
+											<img src={logoSrc} alt="Project logo" width={560} height={280} />
 										</Link>
 									</Stack.Item>
 								);

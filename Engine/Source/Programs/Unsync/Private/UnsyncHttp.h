@@ -10,10 +10,12 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <functional>
 
 namespace unsync {
 
 struct FRemoteDesc;
+struct FHttpResponse;
 
 enum class EHttpContentType
 {
@@ -33,6 +35,9 @@ enum class EHttpMethod
 	POST,
 	PUT,
 };
+
+using FHttpMessageCallback = std::function<void(FHttpResponse&& Response)>;
+using FHttpChunkCallback   = std::function<void(FHttpResponse& Response)>;
 
 struct FHttpRequest
 {
@@ -55,14 +60,21 @@ struct FHttpResponse
 
 	EHttpContentType ContentType = EHttpContentType::Unknown;
 
+	std::vector<std::pair<std::string, std ::string>> Headers;
+
+	bool bConnectionEncrypted = false;
+
 	bool Success() const { return Code >= 200 && Code < 300; }
 
 	std::string_view AsStringView() const { return std::string_view((const char*)Buffer.Data(), Buffer.Size()); }
+
+	std::string_view FindHeader(const std::string_view Name) const;
 };
 
 struct FHttpConnection
 {
-	FHttpConnection(const std::string_view InHostAddress, uint16 InPort, const FTlsClientSettings* TlsSettings = nullptr);
+	FHttpConnection(const std::string_view InHostAddress, uint16 InPort) : FHttpConnection(InHostAddress, InPort, ETlsRequirement::None, FTlsClientSettings{}) {}
+	FHttpConnection(const std::string_view InHostAddress, uint16 InPort, ETlsRequirement InTlsRequirement, const FTlsClientSettings& InTlsSettings);
 	FHttpConnection(const FHttpConnection& Other);
 
 	[[nodiscard]] static FHttpConnection CreateDefaultHttp(const std::string_view InHostAddress, uint16 Port = 80);
@@ -72,12 +84,12 @@ struct FHttpConnection
 	bool Open();
 	void Close();
 
-	const std::string HostAddress;		 // NOLINT
-	const uint16	  HostPort = 80;	 // NOLINT
-	const bool		  bUseTls  = false;	 // NOLINT
+	std::string		HostAddress;
+	uint16			HostPort	   = 80;
 
 	bool bKeepAlive = true;
 
+	ETlsRequirement			 TlsRequirement	   = ETlsRequirement::None;
 	bool					 bTlsVerifySubject = true;
 	std::string				 TlsSubject;
 	bool					 bTlsVerifyCertificate = true;
@@ -98,6 +110,8 @@ struct FHttpConnection
 		return *Socket;
 	}
 
+	bool IsEncrypted() const { return Socket && Socket->IsEncrypted(); }
+
 protected:
 	std::unique_ptr<FSocketBase> Socket;
 };
@@ -106,7 +120,7 @@ const char* HttpStatusToString(int32 Code);
 
 // Synchronous HTTP request API
 
-FHttpResponse HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request);
+FHttpResponse HttpRequest(FHttpConnection& Connection, const FHttpRequest& Request, FHttpChunkCallback ChunkCallback = {});
 
 inline FHttpResponse
 HttpRequest(FHttpConnection& Connection,
@@ -144,8 +158,10 @@ HttpRequest(FHttpConnection& Connection,
 	return HttpRequest(Connection, Request);
 }
 
-FHttpResponse
-HttpRequest(const FRemoteDesc& RemoteDesc, EHttpMethod Method, std::string_view RequestUrl, std::string_view BearerToken = {});
+FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
+						  EHttpMethod		 Method,
+						  std::string_view	 RequestUrl,
+						  std::string_view	 BearerToken = {});
 
 FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
 						  EHttpMethod		 Method,
@@ -158,6 +174,6 @@ FHttpResponse HttpRequest(const FRemoteDesc& RemoteDesc,
 
 bool HttpRequestBegin(FHttpConnection& Connection, const FHttpRequest& Request);
 
-FHttpResponse HttpRequestEnd(FHttpConnection& Connection);
+FHttpResponse HttpRequestEnd(FHttpConnection& Connection, FHttpChunkCallback ChunkCallback = {});
 
 }  // namespace unsync

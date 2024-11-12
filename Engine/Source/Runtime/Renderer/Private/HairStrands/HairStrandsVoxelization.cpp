@@ -15,6 +15,10 @@
 #include "ScenePrivate.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
+DECLARE_GPU_STAT(HairStrandsIndVoxelPageClear);
+DECLARE_GPU_STAT(HairStrandsVoxelize);
+DECLARE_GPU_STAT(HairStrandsDensityMipGen);
+
 // Common threading group layout used in voxelization code by the following pass
 // * FVoxelIndPageClearCS
 // * FVirtualVoxelInjectOpaqueCS
@@ -828,7 +832,7 @@ static FHairStrandsVoxelResources AllocateVirtualVoxelResources(
 	FHairStrandsViewStateData* OutViewStateData)
 {
 	DECLARE_GPU_STAT(HairStrandsVoxelPageAllocation);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsVoxelPageAllocation");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsVoxelPageAllocation, "HairStrandsVoxelPageAllocation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsVoxelPageAllocation);
 
 
@@ -1016,9 +1020,7 @@ static void IndirectVoxelPageClear(
 	const FViewInfo& ViewInfo,
 	FHairStrandsVoxelResources& VoxelResources)
 {
-	DECLARE_GPU_STAT(HairStrandsIndVoxelPageClear);
-	SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, HairStrandsIndVoxelPageClear);
-	SCOPED_GPU_STAT(GraphBuilder.RHICmdList, HairStrandsIndVoxelPageClear);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsIndVoxelPageClear, "HairStrandsIndVoxelPageClear");
 
 	FVoxelIndPageClearCS::FParameters* Parameters = GraphBuilder.AllocParameters<FVoxelIndPageClearCS::FParameters>();
 	Parameters->VirtualVoxelParams = VoxelResources.Parameters.Common;
@@ -1084,9 +1086,7 @@ static void AddVirtualVoxelizationRasterPass(
 	const FHairStrandsVoxelResources& VoxelResources,
 	const TArray<FInstanceData>& InstanceDatas)
 {
-	DECLARE_GPU_STAT(HairStrandsVoxelize);
-	SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, HairStrandsVoxelize);
-	SCOPED_GPU_STAT(GraphBuilder.RHICmdList, HairStrandsVoxelize);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsVoxelize, "HairStrandsVoxelize");
 
 	if (ViewInfo)
 	{
@@ -1210,9 +1210,7 @@ static void AddVirtualVoxelGenerateMipPass(
 	if (!VoxelResources.IsValid())
 		return;
 
-	DECLARE_GPU_STAT(HairStrandsDensityMipGen);
-	SCOPED_DRAW_EVENT(GraphBuilder.RHICmdList, HairStrandsDensityMipGen);
-	SCOPED_GPU_STAT(GraphBuilder.RHICmdList, HairStrandsDensityMipGen);
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsDensityMipGen, "HairStrandsDensityMipGen");
 
 	const uint32 MipCount = VoxelResources.PageTexture->Desc.NumMips;
 
@@ -1278,7 +1276,7 @@ static void AddVirtualVoxelGenerateMipPass(
 			RDG_EVENT_NAME("HairStrands::ComputeVoxelMip"),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader](FRHICommandList& RHICmdList)
+			[Parameters, ComputeShader](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *Parameters, Parameters->IndirectDispatchArgs->GetIndirectRHICallBuffer(), 0);
 		});
@@ -1323,7 +1321,7 @@ void VoxelizeHairStrands(
 	}
 
 	DECLARE_GPU_STAT(HairStrandsVoxelization);
-	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsVoxelization");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, HairStrandsVoxelization, "HairStrandsVoxelization");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsVoxelization);
 
 	check(TransientResources);

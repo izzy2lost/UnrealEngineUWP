@@ -81,10 +81,11 @@ class USpecularProfile : public UObject
 	//~ Begin UObject Interface
 	virtual void BeginDestroy();
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode);
 	//~ End UObject Interface
 };
 
-namespace SpecularProfileAtlas
+namespace SpecularProfile
 {
 // Atlas - Initializes or updates the contents of the specular profile texture.
 ENGINE_API void UpdateSpecularProfileTextureAtlas(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform);
@@ -103,4 +104,7 @@ ENGINE_API FName GetSpecularProfileParameterName(const USpecularProfile* InProfi
 
 // Profile - Returns the specular profile ID for a given Specular Profile object
 ENGINE_API float GetSpecularProfileId(const USpecularProfile* In);
+
+// Profile - Returns the shader parameter name for a Specular profile.
+ENGINE_API FName CreateSpecularProfileParameterName(USpecularProfile* InProfile);
 }

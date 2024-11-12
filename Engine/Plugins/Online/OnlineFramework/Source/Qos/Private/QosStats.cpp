@@ -28,6 +28,9 @@ const FString FQosDatacenterStats::QosStats_BestRegionId = TEXT("BestRegionId");
 const FString FQosDatacenterStats::QosStats_BestRegionPing = TEXT("BestRegionPing");
 const FString FQosDatacenterStats::QosStats_BestEndpointId = TEXT("BestEndpointId");
 const FString FQosDatacenterStats::QosStats_BestEndpointPing = TEXT("BestEndpointPing");
+const FString FQosDatacenterStats::QosStats_ChosenRegionId = TEXT("ChosenbRegionId");
+const FString FQosDatacenterStats::QosStats_ChosenSubRegionId = TEXT("ChosenSubRegionId");
+const FString FQosDatacenterStats::QosStats_ChosenSubRegionPing = TEXT("ChosenSubRegionPing");
 
 /**
  * Debug output for the contents of a recorded stats event
@@ -108,6 +111,22 @@ void FQosDatacenterStats::RecordQosAttempt(const FString& Region, const FString&
 	}
 }
 
+void FQosDatacenterStats::SetChosenSubRegion(FString&& SubRegion)
+{
+	if (bAnalyticsInProgress)
+	{
+		QosData.RulesChosenSubRegion = MoveTemp(SubRegion);
+	}
+}
+
+void FQosDatacenterStats::SetChosenRegion(FString && Region)
+{
+	if (bAnalyticsInProgress)
+	{
+		QosData.RulesChosenRegion = MoveTemp(Region);
+	}
+}
+
 void FQosDatacenterStats::EndQosPass(EDatacenterResultType Result)
 {
 	if (bAnalyticsInProgress)
@@ -154,6 +173,8 @@ void FQosDatacenterStats::Upload(TSharedPtr<IAnalyticsProvider>& AnalyticsProvid
  * @EventParam BestRegionPing integer ping in the best RegionId (that is usable, 0 if BestRegionId is UNREACHABLE)
  * @EventParam BestEndpointId string RegionId with best ping (regardless of usability, UNREACHABLE if none pass QoS)
  * @EventParam BestEndpointPing integer ping in the best RegionId (regardless of usability, 0 if BestEndpointId is UNREACHABLE)
+ * @EventParam ChosenRegionId string RegionId chosen by RegionManager including bias, may differ form best (that is usable, UNREACHABLE if none pass QoS)
+ * @EventParam ChosenRegionPing integer ping in the chosen RegionId (that is usable, 0 if BestRegionId is UNREACHABLE)
  * @EventParam RegionDetails json representation of ping details
  * @Comments Analytics data for a complete qos datacenter determination attempt
  * 
@@ -179,6 +200,9 @@ void FQosDatacenterStats::ParseQosResults(TSharedPtr<IAnalyticsProvider>& Analyt
 		FString BestEndpointId(TEXT("Unknown"));
 		int32 BestEndpointPing = INT_MAX;
 
+		FString ChosenSubRegionId(TEXT("Unknown"));
+		int32 ChosenSubRegionPing = INT_MAX;
+
 		for (const FQosStats_RegionInfo& Region : QosData.Regions)
 		{
 			if (Region.AvgPing < BestPing)
@@ -192,9 +216,16 @@ void FQosDatacenterStats::ParseQosResults(TSharedPtr<IAnalyticsProvider>& Analyt
 				BestEndpointId = Region.RegionId;
 				BestEndpointPing = Region.AvgPing;
 			}
+
+			if(Region.RegionId == QosData.RulesChosenSubRegion)
+			{
+				ChosenSubRegionId = Region.RegionId;
+				ChosenSubRegionPing = Region.AvgPing;
+			}
 		}
 
 		BestPing = FMath::Clamp(BestPing, 0, UNREACHABLE_PING);
+		ChosenSubRegionPing = FMath::Clamp(ChosenSubRegionPing, 0, UNREACHABLE_PING);
 		if (BestPing < UNREACHABLE_PING)
 		{
 			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_BestRegionId, BestRegionId));
@@ -204,6 +235,22 @@ void FQosDatacenterStats::ParseQosResults(TSharedPtr<IAnalyticsProvider>& Analyt
 		{
 			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_BestRegionId, TEXT("UNREACHABLE")));
 			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_BestRegionPing, 0));
+		}
+
+		if (ChosenSubRegionPing < UNREACHABLE_PING)
+		{
+			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_ChosenSubRegionId, ChosenSubRegionId));
+			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_ChosenSubRegionPing, ChosenSubRegionPing));
+		}
+		else
+		{
+			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_ChosenSubRegionId, TEXT("UNREACHABLE")));
+			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_ChosenSubRegionPing, 0));
+		}
+
+		if(!QosData.RulesChosenRegion.IsEmpty())
+		{
+			QoSAttributes.Add(FAnalyticsEventAttribute(QosStats_ChosenRegionId, QosData.RulesChosenRegion));
 		}
 
 		BestEndpointPing = FMath::Clamp(BestEndpointPing, 0, UNREACHABLE_PING);

@@ -531,11 +531,44 @@ namespace CrossCompiler
 		{
 			for (auto* Statement : Statements)
 			{
-				if (Statement)
-				{
-					delete Statement;
-				}
+				delete Statement;
 			}
+		}
+
+		FStaticAssertStatement::FStaticAssertStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InKeyword) :
+			FNode(InAllocator, InInfo),
+			Keyword(InKeyword),
+			Condition(nullptr)
+		{
+		}
+
+		FStaticAssertStatement::~FStaticAssertStatement()
+		{
+			delete Condition;
+		}
+
+		void FStaticAssertStatement::Write(FASTWriter& Writer) const
+		{
+			Writer.DoIndent();
+			Writer << *Keyword << TEXT("(");
+			checkf(Condition != nullptr, TEXT("Cannot write %s()-statement in HLSL without a conditional expression"), *Keyword);
+			Condition->Write(Writer);
+			Writer << TEXT(", \"") << *Message << TEXT("\");\n");
+		}
+
+		FC99PragmaStatement::FC99PragmaStatement(FLinearAllocator* InAllocator, const FSourceInfo& InInfo, const FString& InArgument) :
+			FNode(InAllocator, InInfo),
+			Argument(InArgument)
+		{
+		}
+
+		FC99PragmaStatement::~FC99PragmaStatement()
+		{
+		}
+
+		void FC99PragmaStatement::Write(FASTWriter& Writer) const
+		{
+			Writer << TEXT("_Pragma(\"") << *Argument << TEXT("\")\n");
 		}
 
 		FFunctionDefinition::FFunctionDefinition(FLinearAllocator* InAllocator, const FSourceInfo& InInfo) :

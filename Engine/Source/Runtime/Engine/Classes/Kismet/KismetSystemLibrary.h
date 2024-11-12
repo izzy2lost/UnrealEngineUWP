@@ -71,6 +71,20 @@ namespace EQuitPreference
 	};
 }
 
+/** States a property value queried by IsEditorPropertyOverridden can be in */
+UENUM()
+enum class EEditorPropertyValueState
+{
+	/** This property is in a default state */
+	Default,
+	/** This property is in an overridden state */
+	Overridden,
+	/** The property was not found on the object or its archetype; its state is unknown */
+	NotFound,
+	/** The property could not be accessed to query its state; its state is unknown */
+	AccessDenied,
+};
+
 USTRUCT(BlueprintInternalUseOnly)
 struct FGenericStruct
 {
@@ -372,6 +386,10 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	/** Resolves or loads a Soft Class Reference immediately, this will cause hitches and Async Load Class Asset should be used if possible */
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DeterminesOutputType = "AssetClass"))
 	static ENGINE_API UClass* LoadClassAsset_Blocking(TSoftClassPtr<UObject> AssetClass);
+
+	/** Returns true if Object is of type SoftClass - either an instance of the class or child class, or implements the interface. Alternative to Cast - slower but without adding a hard reference. */
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (ExpandEnumAsExecs = ReturnValue, DisplayName = "IsA ( soft )"))
+	static bool IsObjectOfSoftClass(const UObject* Object, TSoftClassPtr<UObject> SoftClass);
 
 	// Internal functions used by K2Node_LoadAsset and K2Node_ConvertAsset
 
@@ -995,9 +1013,6 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	/** Set a custom structure property by name */
 	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "Value", AutoCreateRefTerm = "Value"))
 	static ENGINE_API void SetStructurePropertyByName(UObject* Object, FName PropertyName, const FGenericStruct& Value);
-
-	UE_DEPRECATED(5.2, "Function has been deprecated.")
-	static ENGINE_API void Generic_SetStructurePropertyByName(UObject* OwnerObject, FName StructPropertyName, const void* SrcStructAddr);
 
 	/** Based on UKismetArrayLibrary::execSetArrayPropertyByName */
 	DECLARE_FUNCTION(execSetStructurePropertyByName);
@@ -1676,6 +1691,10 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = "Utilities|Platform")
 	static ENGINE_API void LaunchURL(const FString& URL);
 
+	// Opens an external URL in the platform's web browser of choice if it meets the allowlist of passed in domains
+	UFUNCTION(BlueprintCallable, Category = "Utilities|Platform")
+	static ENGINE_API void LaunchExternalUrl(const TArray<FString>& InDomainStrings, const FString& URL);
+
 	UFUNCTION(BlueprintCallable, Category = "Utilities|Platform")
 	static ENGINE_API bool CanLaunchURL(const FString& URL);
 
@@ -1983,6 +2002,17 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta=(ScriptMethod))
 	static ENGINE_API bool ResetEditorProperty(UObject* Object, const FName PropertyName, const EPropertyAccessChangeNotifyMode ChangeNotifyMode = EPropertyAccessChangeNotifyMode::Default);
+
+	/**
+	 * Attempts to query whether the value of a named property on the given object overrides the value of its archetype (ie, would ResetEditorProperty do anything?).
+	 *
+	 * @param Object The object you want to query a property value on.
+	 * @param PropertyName The name of the object property to query the value of.
+	 *
+	 * @return What state the requested property is in.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta=(ScriptMethod))
+	static ENGINE_API EEditorPropertyValueState IsEditorPropertyOverridden(UObject* Object, const FName PropertyName);
 #endif
 
 	// --- Transactions ------------------------------

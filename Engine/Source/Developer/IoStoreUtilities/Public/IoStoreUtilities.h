@@ -28,6 +28,7 @@ UE_API bool LegacyListIoStoreContainer(
 UE_API bool ListIoStoreContainer(const TCHAR* CmdLine);
 UE_API bool ListIoStoreContainerBulkData(const TCHAR* CmdLine);
 
+UE_API bool DiffIoStoreContainer(const TCHAR* CmdLine);
 UE_API bool LegacyDiffIoStoreContainers(
 	const TCHAR* InContainerFilename1,
 	const TCHAR* InContainerFilename2,
@@ -57,11 +58,5 @@ UE_API bool ProcessFilesFromIoStoreContainer(
 	int32 MaxConcurrentReaders);
 
 UE_API bool SignIoStoreContainer(const TCHAR* InContainerFilename, const FRSAKeyHandle InSigningKey);
-
-UE_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
-
-UE_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
-
-UE_API bool ListOnDemandTocs();
 
 #undef UE_API

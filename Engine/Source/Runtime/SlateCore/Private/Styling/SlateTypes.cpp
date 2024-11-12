@@ -36,6 +36,9 @@ FCheckBoxStyle::FCheckBoxStyle()
 {
 }
 
+FCheckBoxStyle::FCheckBoxStyle(const FCheckBoxStyle&) = default;
+FCheckBoxStyle::~FCheckBoxStyle() = default;
+
 const FName FCheckBoxStyle::TypeName( TEXT("FCheckBoxStyle") );
 
 const FCheckBoxStyle& FCheckBoxStyle::GetDefault()
@@ -85,6 +88,10 @@ FTextBlockStyle::FTextBlockStyle()
 {
 }
 
+FTextBlockStyle::FTextBlockStyle(const FTextBlockStyle&) = default;
+FTextBlockStyle::~FTextBlockStyle() = default; // To get around linker errors on one old platform
+
+
 const FName FTextBlockStyle::TypeName( TEXT("FTextBlockStyle") );
 
 void FTextBlockStyle::GetResources(TArray< const FSlateBrush* >& OutBrushes) const
@@ -118,6 +125,9 @@ FButtonStyle::FButtonStyle()
 {
 	Disabled = FSlateNoResource();
 }
+
+FButtonStyle::FButtonStyle(const FButtonStyle&) = default;
+FButtonStyle::~FButtonStyle() = default;
 
 const FName FButtonStyle::TypeName( TEXT("FButtonStyle") );
 
@@ -157,6 +167,9 @@ FComboButtonStyle::FComboButtonStyle()
 {
 }
 
+FComboButtonStyle::FComboButtonStyle(const FComboButtonStyle&) = default;
+FComboButtonStyle::~FComboButtonStyle() = default;
+
 const FName FComboButtonStyle::TypeName( TEXT("FComboButtonStyle") );
 
 void FComboButtonStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
@@ -178,6 +191,9 @@ FComboBoxStyle::FComboBoxStyle()
 {
 	ComboButtonStyle.SetMenuBorderPadding(FMargin(1.0));
 }
+
+FComboBoxStyle::FComboBoxStyle(const FComboBoxStyle&) = default;
+FComboBoxStyle::~FComboBoxStyle() = default;
 
 const FName FComboBoxStyle::TypeName( TEXT("FComboBoxStyle") );
 
@@ -211,6 +227,9 @@ FHyperlinkStyle::FHyperlinkStyle()
 {
 }
 
+FHyperlinkStyle::FHyperlinkStyle(const FHyperlinkStyle&) = default;
+FHyperlinkStyle::~FHyperlinkStyle() = default;
+
 const FName FHyperlinkStyle::TypeName( TEXT("FHyperlinkStyle") );
 
 void FHyperlinkStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
@@ -232,6 +251,9 @@ FEditableTextStyle::FEditableTextStyle()
 	, CaretImage()
 {
 }
+
+FEditableTextStyle::FEditableTextStyle(const FEditableTextStyle&) = default;
+FEditableTextStyle::~FEditableTextStyle() = default;
 
 void FEditableTextStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -268,6 +290,12 @@ FEditableTextBoxStyle::FEditableTextBoxStyle()
 {
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FEditableTextBoxStyle::FEditableTextBoxStyle(const FEditableTextBoxStyle&) = default;
+FEditableTextBoxStyle& FEditableTextBoxStyle::operator=(const FEditableTextBoxStyle&) = default;
+FEditableTextBoxStyle::~FEditableTextBoxStyle() = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void FEditableTextBoxStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &BackgroundImageNormal );
@@ -291,6 +319,8 @@ FInlineEditableTextBlockStyle::FInlineEditableTextBlockStyle()
 {
 }
 
+FInlineEditableTextBlockStyle::~FInlineEditableTextBlockStyle() = default;
+
 void FInlineEditableTextBlockStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	EditableTextBoxStyle.GetResources(OutBrushes);
@@ -310,6 +340,8 @@ FProgressBarStyle::FProgressBarStyle()
 	: EnableFillAnimation(false)
 {
 }
+
+FProgressBarStyle::~FProgressBarStyle() = default;
 
 void FProgressBarStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -341,6 +373,9 @@ FScrollBarStyle::FScrollBarStyle()
 {
 }
 
+FScrollBarStyle::FScrollBarStyle(const FScrollBarStyle&) = default;
+FScrollBarStyle::~FScrollBarStyle() = default;
+
 void FScrollBarStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &HorizontalBackgroundImage );
@@ -368,6 +403,8 @@ FExpandableAreaStyle::FExpandableAreaStyle()
 {
 }
 
+FExpandableAreaStyle::~FExpandableAreaStyle() = default;
+
 void FExpandableAreaStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &CollapsedImage );
@@ -389,6 +426,8 @@ FSearchBoxStyle::FSearchBoxStyle()
 	, bLeftAlignGlassImageAndClearButton(false)
 {
 }
+
+FSearchBoxStyle::~FSearchBoxStyle() = default;
 
 FSearchBoxStyle& FSearchBoxStyle::SetTextBoxStyle( const FEditableTextBoxStyle& InTextBoxStyle )
 { 
@@ -432,6 +471,9 @@ FSliderStyle::FSliderStyle()
 {
 }
 
+FSliderStyle::FSliderStyle(const FSliderStyle&) = default;
+FSliderStyle::~FSliderStyle() = default;
+
 void FSliderStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &NormalBarImage );
@@ -454,6 +496,8 @@ const FSliderStyle& FSliderStyle::GetDefault()
 FVolumeControlStyle::FVolumeControlStyle()
 {
 }
+
+FVolumeControlStyle::~FVolumeControlStyle() = default;
 
 void FVolumeControlStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -479,6 +523,9 @@ FInlineTextImageStyle::FInlineTextImageStyle()
 {
 }
 
+FInlineTextImageStyle::FInlineTextImageStyle(const FInlineTextImageStyle&) = default;
+FInlineTextImageStyle::~FInlineTextImageStyle() = default;
+
 void FInlineTextImageStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &Image );
@@ -500,6 +547,9 @@ FSpinBoxStyle::FSpinBoxStyle()
 	, InsetPadding(FMargin(0))
 {
 }
+
+FSpinBoxStyle::FSpinBoxStyle(const FSpinBoxStyle&) = default;
+FSpinBoxStyle::~FSpinBoxStyle() = default;
 
 void FSpinBoxStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -525,6 +575,8 @@ FSplitterStyle::FSplitterStyle()
 {
 }
 
+FSplitterStyle::~FSplitterStyle() = default;
+
 void FSplitterStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &HandleNormalBrush );
@@ -543,6 +595,8 @@ FTableViewStyle::FTableViewStyle()
 	: BackgroundBrush(FSlateNoResource())
 {
 }
+
+FTableViewStyle::~FTableViewStyle() = default;
 
 void FTableViewStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -563,6 +617,8 @@ FTableRowStyle::FTableRowStyle()
 	, SelectedTextColor(FLinearColor::White)
 {
 }
+
+FTableRowStyle::~FTableRowStyle() = default;
 
 void FTableRowStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -595,6 +651,8 @@ FTableColumnHeaderStyle::FTableColumnHeaderStyle()
 {
 }
 
+FTableColumnHeaderStyle::~FTableColumnHeaderStyle() = default;
+
 void FTableColumnHeaderStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &SortPrimaryAscendingImage );
@@ -623,6 +681,8 @@ FHeaderRowStyle::FHeaderRowStyle()
 	, HorizontalSeparatorThickness(0)
 {
 }
+
+FHeaderRowStyle::~FHeaderRowStyle() = default;
 
 void FHeaderRowStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -654,6 +714,8 @@ FDockTabStyle::FDockTabStyle()
 {
 }
 
+FDockTabStyle::~FDockTabStyle() = default;
+
 void FDockTabStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	CloseButtonStyle.GetResources(OutBrushes);
@@ -680,6 +742,8 @@ FScrollBoxStyle::FScrollBoxStyle()
 {
 }
 
+FScrollBoxStyle::~FScrollBoxStyle() = default;
+
 void FScrollBoxStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
 	OutBrushes.Add( &TopShadowBrush );
@@ -700,6 +764,8 @@ const FScrollBoxStyle& FScrollBoxStyle::GetDefault()
 FScrollBorderStyle::FScrollBorderStyle()
 {
 }
+
+FScrollBorderStyle::~FScrollBorderStyle() = default;
 
 void FScrollBorderStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
 {
@@ -724,6 +790,9 @@ FWindowStyle::FWindowStyle()
 	, BorderPadding(FMargin(5, 5, 5, 5))
 {
 }
+
+FWindowStyle::FWindowStyle(const FWindowStyle&) = default;
+FWindowStyle::~FWindowStyle() = default;
 
 void FWindowStyle::GetResources(TArray< const FSlateBrush* >& OutBrushes) const
 {

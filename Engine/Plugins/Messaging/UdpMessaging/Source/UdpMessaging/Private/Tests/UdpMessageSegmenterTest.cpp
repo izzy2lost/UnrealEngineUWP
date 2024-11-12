@@ -9,7 +9,7 @@
 #include "Transport/UdpMessageSegmenter.h"
 
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUdpMessageSegmenterTest, "System.Core.Messaging.Transports.Udp.UdpMessageSegmenter", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUdpMessageSegmenterTest, "System.Core.Messaging.Transports.Udp.UdpMessageSegmenter", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 
 void RunSegmentationTest(FAutomationTestBase& Test, uint32 MessageSize, uint16 SegmentSize, bool WithReliableMessages)

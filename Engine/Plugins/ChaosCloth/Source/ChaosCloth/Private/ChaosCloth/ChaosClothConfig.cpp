@@ -208,6 +208,15 @@ void UChaosClothConfig::PostLoad()
 		LocalDampingCoefficient = DampingCoefficient;
 		DampingCoefficient = 0.f;
 	}
+
+	if (FortniteMainBranchObjectVersion < FFortniteMainBranchObjectVersion::ChaosClothAllowZeroBucklingStiffness)
+	{
+		// Before this version, there was a bug where BucklingStiffness.Low == BucklingStiffness.High == 0 would result in the parameter being set to default (1.f).
+		if (BucklingStiffnessWeighted.Low <= 0 && BucklingStiffnessWeighted.High <= 0)
+		{
+			BucklingStiffnessWeighted.Low = BucklingStiffnessWeighted.High = 1.f;
+		}
+	}
 #endif  // #if WITH_EDITORONLY_DATA
 }
 

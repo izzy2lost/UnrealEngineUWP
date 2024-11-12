@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ReplicationSystemServerClientTestFixture.h"
+#include "Logging/LogScopedVerbosityOverride.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
@@ -64,23 +65,55 @@ void FDataStreamTestUtil::AddDataStreamDefinition(const TCHAR* StreamName, const
 // FReplicationSystemTestNode implementation
 FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCHAR* Name)
 {
+	Setup(bIsServer, Name);
+}
+
+FReplicationSystemTestNode::FReplicationSystemTestNode(FReplicationSystemTestNode::EDelaySetup)
+{
+	// Do nothing until asked to start up
+}
+
+void FReplicationSystemTestNode::Setup(bool bIsServer, const TCHAR* Name, FReplicationSystemTestNode::FReplicationSystemParamsOverride* ParamsOverride)
+{
+	// Init NetTokenStore
+	{
+		using namespace UE::Net;
+
+		NetTokenStore = MakeUnique<FNetTokenStore>();
+
+		FNetTokenStore::FInitParams NetTokenStoreInitParams;
+		NetTokenStoreInitParams.Authority = bIsServer ? FNetToken::ENetTokenAuthority::Authority : FNetToken::ENetTokenAuthority::None;
+		NetTokenStore->Init(NetTokenStoreInitParams);
+
+		// Register data stores for supported types, $TODO: make this configurable.
+		NetTokenStore->CreateAndRegisterDataStore<FStringTokenStore>();
+		NetTokenStore->CreateAndRegisterDataStore<FNameTokenStore>();
+	}
+
 	ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
+	check(ReplicationBridge != nullptr);
+
 	CreatedObjects.Add(TStrongObjectPtr<UObject>(ReplicationBridge));
 
 	UReplicationSystem::FReplicationSystemParams Params;
 	Params.ReplicationBridge = ReplicationBridge;
 	Params.bIsServer = bIsServer;
 	Params.bAllowObjectReplication = bIsServer;
+	Params.NetTokenStore = NetTokenStore.Get();
 
-	auto IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
-	LogIris.SetVerbosity(ELogVerbosity::Error);
+	if (ParamsOverride)
+	{
+		Params.MaxReplicatedObjectCount = ParamsOverride->MaxReplicatedObjectCount > 0 ? ParamsOverride->MaxReplicatedObjectCount : Params.MaxReplicatedObjectCount;
+		Params.InitialNetObjectListCount = ParamsOverride->InitialNetObjectListCount > 0 ? ParamsOverride->InitialNetObjectListCount : Params.InitialNetObjectListCount;
+		Params.NetObjectListGrowCount = ParamsOverride->NetObjectListGrowCount > 0 ? ParamsOverride->NetObjectListGrowCount : Params.NetObjectListGrowCount;
+	}
+
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Error);
 	ReplicationSystem = FReplicationSystemFactory::CreateReplicationSystem(Params);	
 	if (!bIsServer)
 	{
 		ReplicationBridge->SetCreatedObjectsOnNode(&CreatedObjects);
 	}
-	LogIris.SetVerbosity(IrisLogVerbosity);
-	check(ReplicationBridge != nullptr);
 
 	UE_NET_TRACE_UPDATE_INSTANCE(GetNetTraceId(), bIsServer, Name);
 }
@@ -88,6 +121,8 @@ FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCH
 FReplicationSystemTestNode::~FReplicationSystemTestNode()
 {
 	const uint32 NetTraceId = ReplicationSystem->GetId();
+
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Error);
 	FReplicationSystemFactory::DestroyReplicationSystem(ReplicationSystem);
 	CreatedObjects.Empty();
 
@@ -100,7 +135,7 @@ uint32 FReplicationSystemTestNode::GetNetTraceId() const
 	return ReplicationSystem ? ReplicationSystem->GetId() : ~0U;
 }
 
-UTestReplicatedIrisObject* FReplicationSystemTestNode::CreateObject(const UObjectReplicationBridge::FCreateNetRefHandleParams& Params, UTestReplicatedIrisObject::FComponents* ComponentsToCreate)
+UTestReplicatedIrisObject* FReplicationSystemTestNode::CreateObject(const UObjectReplicationBridge::FRootObjectReplicationParams& Params, UTestReplicatedIrisObject::FComponents* ComponentsToCreate)
 {
 	UTestReplicatedIrisObject* CreatedObject = NewObject<UTestReplicatedIrisObject>();
 
@@ -207,6 +242,10 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	Connection.DataStreamManager = DataStreamManager;
 	CreatedObjects.Add(TStrongObjectPtr<UObject>(Connection.DataStreamManager));
 
+	// Init and store RemoteNetTokenStoreState
+	ReplicationSystem->GetNetTokenStore()->InitRemoteNetTokenStoreState(Connection.ConnectionId);
+	Connection.RemoteNetTokenStoreState = ReplicationSystem->GetNetTokenStore()->GetRemoteNetTokenStoreState(Connection.ConnectionId);
+
 	// Streams created based on config
 	Connection.DataStreamManager->CreateStream("NetToken");
 	Connection.NetTokenDataStream = StaticCast<UNetTokenDataStream*>(Connection.DataStreamManager->GetStream("NetToken"));
@@ -223,9 +262,6 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	ReplicationSystem->InitDataStreams(Connection.ConnectionId, Connection.DataStreamManager);
 	ReplicationSystem->SetReplicationEnabledForConnection(Connection.ConnectionId, true);
 
-	// Store RemoteNetTokenStoreState
-	Connection.RemoteNetTokenStoreState = &ReplicationSystem->GetReplicationSystemInternal()->GetConnections().GetRemoteNetTokenStoreState(Connection.ConnectionId);
-
 	// Add view
 	FReplicationView View;
 	View.Views.AddDefaulted();
@@ -235,6 +271,31 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	Connections.Add(Connection);
 
 	return Connection.ConnectionId;
+}
+
+void FReplicationSystemTestNode::RemoveConnection(uint32 ConnectionId)
+{
+	for (TArray<FConnectionInfo>::TIterator It = Connections.CreateIterator(); It; ++It)
+	{
+		FConnectionInfo& ConnectionInfo = *It;
+		if (ConnectionInfo.ConnectionId != ConnectionId)
+		{
+			continue;
+		}
+
+		ReplicationSystem->RemoveConnection(ConnectionInfo.ConnectionId);
+
+		if (IsValid(ConnectionInfo.DataStreamManager))
+		{
+			ConnectionInfo.DataStreamManager->Deinit();
+			ConnectionInfo.DataStreamManager->MarkAsGarbage();
+		}
+
+		UE_NET_TRACE_CONNECTION_CLOSED(GetNetTraceId(), ConnectionId);
+
+		It.RemoveCurrent();
+		break;
+	}
 }
 
 void FReplicationSystemTestNode::PreSendUpdate(const UReplicationSystem::FSendUpdateParams& Params)
@@ -360,7 +421,7 @@ uint32 FReplicationSystemTestNode::GetReplicationSystemId() const
 
 float FReplicationSystemTestNode::ConvertPollPeriodIntoFrequency(uint32 PollPeriod) const
 {
-	const float PollFrequency = ReplicationBridge->GetMaxTickRate() / (float)PollPeriod;
+	const float PollFrequency = ReplicationBridge->GetMaxTickRate() / (float)(PollPeriod + 1);
 	return PollFrequency;
 }
 
@@ -484,6 +545,19 @@ FReplicationSystemTestClient* FReplicationSystemServerClientTestFixture::CreateC
 	Client->ConnectionIdOnServer = Server->AddConnection();
 
 	return Client;
+}
+
+void FReplicationSystemServerClientTestFixture::DestroyClient(FReplicationSystemTestClient* Client)
+{
+	if (!Clients.Remove(Client))
+	{
+		UE_LOG(LogIris, Warning, TEXT("Unable to find FReplicationSystemTestClient %p for destroy. NOT destroying."), Client);
+		return;
+	}
+
+	Server->RemoveConnection(Client->ConnectionIdOnServer);
+
+	delete Client;
 }
 
 }

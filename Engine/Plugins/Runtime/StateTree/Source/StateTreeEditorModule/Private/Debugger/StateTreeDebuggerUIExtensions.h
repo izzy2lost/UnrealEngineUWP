@@ -11,14 +11,20 @@ class SWidget;
 class IPropertyHandle;
 class IDetailLayoutBuilder;
 class FDetailWidgetRow;
+class FMenuBuilder;
 class FStateTreeViewModel;
 class UStateTreeEditorData;
 
 namespace UE::StateTreeEditor::DebuggerExtensions
 {
 
-TSharedRef<SWidget> CreateStateWidget(const IDetailLayoutBuilder& DetailBuilder, UStateTreeEditorData* TreeData);
+TSharedRef<SWidget> CreateStateWidget(TSharedPtr<IPropertyHandle> StateEnabledProperty, UStateTreeEditorData* TreeData);
+void AppendStateMenuItems(FMenuBuilder& InMenuBuilder, TSharedPtr<IPropertyHandle> StateEnabledProperty, UStateTreeEditorData* TreeData);
+
 TSharedRef<SWidget> CreateEditorNodeWidget(const TSharedPtr<IPropertyHandle>& StructPropertyHandle, UStateTreeEditorData* TreeData);
+void AppendEditorNodeMenuItems(FMenuBuilder& InMenuBuilder, const TSharedPtr<IPropertyHandle>& StructPropertyHandle, UStateTreeEditorData* TreeData);
+
 TSharedRef<SWidget> CreateTransitionWidget(const TSharedPtr<IPropertyHandle>& StructPropertyHandle, UStateTreeEditorData* TreeData);
+void AppendTransitionMenuItems(FMenuBuilder& InMenuBuilder, const TSharedPtr<IPropertyHandle>& StructPropertyHandle, UStateTreeEditorData* TreeData);
 
 }; // UE::StateTreeEditor::DebuggerExtensions

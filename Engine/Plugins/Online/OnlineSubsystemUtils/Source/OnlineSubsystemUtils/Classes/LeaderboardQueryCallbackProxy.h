@@ -22,7 +22,7 @@ class ULeaderboardQueryCallbackProxy : public UObject
 
 	// Queries a leaderboard for an integer value
 	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", DisplayName="Read Leaderboard Integer"), Category="Online|Leaderboard")
-	static ULeaderboardQueryCallbackProxy* CreateProxyObjectForIntQuery(class APlayerController* PlayerController, FName StatName);
+	static ULeaderboardQueryCallbackProxy* CreateProxyObjectForIntQuery(class APlayerController* PlayerController, const FString& StatName);
 
 public:
 	//~ Begin UObject Interface
@@ -38,7 +38,7 @@ private:
 	void RemoveDelegate();
 
 	/** Triggers the query for a specifed user; the ReadObject must already be set up */
-	void TriggerQuery(class APlayerController* PlayerController, FName InStatName, EOnlineKeyValuePairDataType::Type StatType);
+	void TriggerQuery(class APlayerController* PlayerController, const FString& InStatName, EOnlineKeyValuePairDataType::Type StatType);
 
 private:
 	/** Delegate called when a leaderboard has been successfully read */
@@ -54,7 +54,7 @@ private:
 	bool bFailedToEvenSubmit;
 
 	/** Name of the stat being queried */
-	FName StatName;
+	FString StatName;
 
 	// Pointer to the world, needed to delay the results slightly
 	TWeakObjectPtr<UWorld> WorldPtr;

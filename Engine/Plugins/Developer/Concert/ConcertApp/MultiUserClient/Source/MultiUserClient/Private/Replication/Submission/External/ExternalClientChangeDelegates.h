@@ -6,7 +6,7 @@
 
 struct FConcertObjectReplicationMap;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	DECLARE_DELEGATE_RetVal(const FConcertObjectReplicationMap*, FGetStreamContent);
 }

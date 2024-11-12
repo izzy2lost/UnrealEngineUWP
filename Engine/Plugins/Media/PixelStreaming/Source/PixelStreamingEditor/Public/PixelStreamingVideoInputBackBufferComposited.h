@@ -54,7 +54,7 @@ private:
     FPixelStreamingVideoInputBackBufferComposited();
     void CompositeWindows();
 
-    void OnBackBufferReady(SWindow &SlateWindow, const FTexture2DRHIRef &FrameBuffer);
+    void OnBackBufferReady(SWindow &SlateWindow, const FTextureRHIRef &FrameBuffer);
     void OnPreTick(float DeltaTime);
 
     FDelegateHandle OnBackBufferReadyToPresentHandle;

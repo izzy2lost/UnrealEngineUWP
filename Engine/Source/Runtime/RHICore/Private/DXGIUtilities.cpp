@@ -2,6 +2,9 @@
 
 #include "DXGIUtilities.h"
 
+#include "RHIStats.h"
+#include "CoreMinimal.h"
+
 #if PLATFORM_MICROSOFT
 
 const TCHAR* UE::DXGIUtilities::GetFormatString(DXGI_FORMAT Format)
@@ -47,6 +50,93 @@ const TCHAR* UE::DXGIUtilities::GetFormatString(DXGI_FORMAT Format)
 	}
 #undef DXGI_FORMAT_CASE
 	return Result;
+}
+
+HRESULT UE::DXGIUtilities::GetD3DMemoryStats(IDXGIAdapter* Adapter, FD3DMemoryStats& OutStats)
+{
+#if PLATFORM_WINDOWS
+	SCOPE_CYCLE_COUNTER(STAT_D3DUpdateVideoMemoryStats);
+
+	TRefCountPtr<IDXGIAdapter3> Adapter3;
+	HRESULT Res = Adapter->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference()));
+	if (FAILED(Res))
+	{
+		return Res;
+	}
+
+	DXGI_QUERY_VIDEO_MEMORY_INFO LocalMemoryInfo;
+	Res = Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &LocalMemoryInfo);
+	if (FAILED(Res))
+	{
+		return Res;
+	}
+
+	DXGI_QUERY_VIDEO_MEMORY_INFO NonLocalMemoryInfo;
+	Res = Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &NonLocalMemoryInfo);
+	if (FAILED(Res))
+	{
+		return Res;
+	}
+
+	// In case of multiple GPUs, use the memory info from the one with the highest local budget.
+	if (!GVirtualMGPU)
+	{
+		for (uint32 Index = 1; Index < GNumExplicitGPUsForRendering; ++Index)
+		{
+			DXGI_QUERY_VIDEO_MEMORY_INFO TempLocalMemoryInfo;
+			Res = Adapter3->QueryVideoMemoryInfo(Index, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &TempLocalMemoryInfo);
+			if (FAILED(Res))
+			{
+				return Res;
+			}
+
+			DXGI_QUERY_VIDEO_MEMORY_INFO TempNonLocalMemoryInfo;
+			Res = Adapter3->QueryVideoMemoryInfo(Index, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &TempNonLocalMemoryInfo);
+			if (FAILED(Res))
+			{
+				return Res;
+			}
+
+			if (TempLocalMemoryInfo.Budget > LocalMemoryInfo.Budget)
+			{
+				LocalMemoryInfo = TempLocalMemoryInfo;
+				NonLocalMemoryInfo = TempNonLocalMemoryInfo;
+			}
+		}
+	}
+
+	OutStats.BudgetLocal = LocalMemoryInfo.Budget;
+	OutStats.BudgetSystem = NonLocalMemoryInfo.Budget;
+	OutStats.UsedLocal = LocalMemoryInfo.CurrentUsage;
+	OutStats.UsedSystem = NonLocalMemoryInfo.CurrentUsage;
+
+	// Check if we're over budget.
+	if (OutStats.UsedLocal > OutStats.BudgetLocal)
+	{
+		OutStats.AvailableLocal = 0;
+		OutStats.DemotedLocal = OutStats.UsedLocal - OutStats.BudgetLocal;
+	}
+	else
+	{
+		OutStats.AvailableLocal = OutStats.BudgetLocal - OutStats.UsedLocal;
+		OutStats.DemotedLocal= 0;
+	}
+
+	if (OutStats.UsedSystem > OutStats.BudgetSystem)
+	{
+		OutStats.AvailableSystem = 0;
+		OutStats.DemotedSystem = OutStats.UsedSystem - OutStats.BudgetSystem;
+	}
+	else
+	{
+		OutStats.AvailableSystem = OutStats.BudgetSystem - OutStats.UsedSystem;
+		OutStats.DemotedSystem = 0;
+	}
+
+	return S_OK;
+#else
+	return E_NOINTERFACE;
+#endif
 }
 
 #endif // PLATFORM_MICROSOFT

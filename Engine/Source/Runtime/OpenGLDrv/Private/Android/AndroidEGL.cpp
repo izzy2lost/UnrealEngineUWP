@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Android/AndroidPlatform.h"
+#include "AndroidEGL.h"
 
 #if USE_ANDROID_OPENGL
 
@@ -16,6 +16,7 @@
 #include "UObject/GarbageCollection.h"
 #include "Android/AndroidPlatformFramePacer.h"
 #include <dlfcn.h>
+#include "UnrealEngine.h"
 
 
 AndroidEGL* AndroidEGL::Singleton = NULL;
@@ -1127,6 +1128,8 @@ void FAndroidAppEntry::ReInitWindow(void* NewNativeWindowHandle)
 	// Window creation is now handled by BlockRendering, when it resumes after a new window is created.
 	FPlatformMisc::LowLevelOutputDebugString(TEXT("AndroidEGL::ReInitWindow()"));
 
+	GSystemResolution.bForceRefresh = true;
+
 	// It isn't safe to call ShouldUseVulkan if AndroidEGL is not initialized.
 	// However, since we don't need to ReInit the window in that case anyways we
 	// can return early.
@@ -1156,7 +1159,8 @@ void AndroidEGL::RefreshWindowSize()
 	ENQUEUE_RENDER_COMMAND(EGLResizeRenderContextSurface)(
 		[](FRHICommandListImmediate& RHICmdList)
 	{
-		RunOnGLRenderContextThread([&] {
+		RHICmdList.EnqueueLambda([](FRHICommandListImmediate&)
+		{
 			AndroidEGL::GetInstance()->ResizeRenderContextSurface();
 		});
 	});
@@ -1270,10 +1274,10 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 	// Hold GC scope guard, as GC will timeout if anything waits for RT fences.
 	FGCScopeGuard GCGuard;
 	
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	UE_LOG(LogAndroid, Log, TEXT("Blocking renderer"));
 	if (FAndroidMisc::ShouldUseVulkan())
 	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 		if (IsRunningRHIInSeparateThread() && !RHICmdList.Bypass()) 
 		{
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock FlushRHIThread"));
@@ -1302,14 +1306,16 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 	}
 	else
 	{
-		RunOnGLRenderContextThread([&] {
+		RHICmdList.EnqueueLambda([RTBlockedTrigger](FRHICommandListImmediate&)
+		{
 			RTBlockedTrigger->Trigger();
 			GAndroidWindowLock.Lock();
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock acquired window lock"));
 			AndroidEGL::GetInstance()->SetRenderContextWindowSurface();
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock updating window"));
 			GAndroidWindowLock.Unlock();
-		}, true);
+		});
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 	UE_LOG(LogAndroid, Log, TEXT("RendererBlock released window lock"));
 }
@@ -1336,6 +1342,7 @@ void BlockRendering()
 		FPlatformProcess::ReturnSynchEventToPool(EventToDelete);
 	});
 
+#if !USE_ANDROID_ALTERNATIVE_SUSPEND
 	// Flush GT first in case it has any dependency on RT work to complete
 	FGraphEventRef GTBlockTask = FFunctionGraphTask::CreateAndDispatchWhenReady([BlockedTrigger]()
 		{
@@ -1344,6 +1351,7 @@ void BlockRendering()
 
 	UE_LOG(LogAndroid, Log, TEXT("Waiting for game thread to release EGL context/surface."));
 	BlockedTrigger->Wait();
+#endif
 
 	// Wait for GC to complete and prevent further GCs
 	FGCScopeGuard GCGuard;

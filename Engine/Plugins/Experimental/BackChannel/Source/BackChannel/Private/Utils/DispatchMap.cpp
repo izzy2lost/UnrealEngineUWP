@@ -11,7 +11,7 @@ FBackChannelDispatchMap::FBackChannelDispatchMap()
 
 FDelegateHandle FBackChannelDispatchMap::AddRoute(FStringView InPath, FBackChannelRouteDelegate::FDelegate Delegate)
 {
-	FString LowerPath = FString(InPath.Len(), InPath.GetData()).ToLower();
+	FString LowerPath = FString::ConstructFromPtrSize(InPath.GetData(), InPath.Len()).ToLower();
 
 	if (DispatchMap.Contains(LowerPath) == false)
 	{
@@ -23,7 +23,7 @@ FDelegateHandle FBackChannelDispatchMap::AddRoute(FStringView InPath, FBackChann
 
 void FBackChannelDispatchMap::RemoveRoute(FStringView InPath, FDelegateHandle DelegateHandle)
 {
-	FString LowerPath = FString(InPath.Len(), InPath.GetData()).ToLower();
+	FString LowerPath = FString::ConstructFromPtrSize(InPath.GetData(), InPath.Len()).ToLower();
 
 	auto DelegateList = DispatchMap.Find(LowerPath);
 

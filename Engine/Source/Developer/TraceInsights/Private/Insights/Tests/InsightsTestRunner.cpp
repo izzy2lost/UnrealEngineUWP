@@ -4,17 +4,20 @@
 
 #if !UE_BUILD_SHIPPING && !WITH_EDITOR
 
-#include "Misc/App.h"
-#include "Misc/AutomationTest.h"
 #include "IAutomationControllerModule.h"
 #include "IAutomationWindowModule.h"
 #include "IAutomationWorkerModule.h"
 #include "ISessionManager.h"
 #include "ISessionServicesModule.h"
+#include "Misc/App.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/CoreMisc.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Common/InsightsCoreStyle.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
@@ -68,6 +71,7 @@ void FInsightsTestRunner::Initialize(IUnrealInsightsModule& InsightsModule)
 		FModuleManager::Get().LoadModule("AutomationWorker");
 	}
 
+	using namespace UE::Insights;
 	SessionAnalysisCompletedHandle = FInsightsManager::Get()->GetSessionAnalysisCompletedEvent().AddSP(this, &FInsightsTestRunner::OnSessionAnalysisCompleted);
 
 	// Register tick functions.
@@ -86,6 +90,8 @@ void FInsightsTestRunner::Shutdown()
 
 void FInsightsTestRunner::RegisterMajorTabs(IUnrealInsightsModule& InsightsModule)
 {
+	using namespace UE::Insights;
+
 	if (bInitAutomationModules)
 	{
 		const FInsightsMajorTabConfig& AutomationConfig = InsightsModule.FindMajorTabConfig(FInsightsManagerTabs::AutomationWindowTabId);
@@ -96,7 +102,7 @@ void FInsightsTestRunner::RegisterMajorTabs(IUnrealInsightsModule& InsightsModul
 				FOnSpawnTab::CreateRaw(this, &FInsightsTestRunner::SpawnAutomationWindowTab))
 				.SetDisplayName(AutomationConfig.TabLabel.IsSet() ? AutomationConfig.TabLabel.GetValue() : LOCTEXT("AutomationTab", "Automation"))
 				.SetTooltipText(AutomationConfig.TabTooltip.IsSet() ? AutomationConfig.TabTooltip.GetValue() : LOCTEXT("AutomationTooltipText", "Opens the automation tab."))
-				.SetIcon(AutomationConfig.TabIcon.IsSet() ? AutomationConfig.TabIcon.GetValue() : FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TestAutomation"));
+				.SetIcon(AutomationConfig.TabIcon.IsSet() ? AutomationConfig.TabIcon.GetValue() : FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.TestAutomation"));
 
 			TSharedRef<FWorkspaceItem> Group = AutomationConfig.WorkspaceGroup.IsValid() ? AutomationConfig.WorkspaceGroup.ToSharedRef() : FInsightsManager::Get()->GetInsightsMenuBuilder()->GetWindowsGroup();
 			TabSpawnerEntry.SetGroup(Group);
@@ -108,6 +114,7 @@ void FInsightsTestRunner::RegisterMajorTabs(IUnrealInsightsModule& InsightsModul
 
 void FInsightsTestRunner::UnregisterMajorTabs()
 {
+	using namespace UE::Insights;
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::AutomationWindowTabId);
 }
 
@@ -151,8 +158,8 @@ void FInsightsTestRunner::RunTests()
 			bIsRunningTestsLocal = false;
 		});
 
-	StaticExec(NULL, *CommandToExecute);
 	bIsRunningTests = true;
+	StaticExec(NULL, *CommandToExecute);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -169,6 +176,7 @@ void FInsightsTestRunner::OnSessionAnalysisCompleted()
 
 	bIsAnalysisComplete = true;
 
+	using namespace UE::Insights;
 	FInsightsManager::Get()->GetSessionAnalysisCompletedEvent().Remove(SessionAnalysisCompletedHandle);
 }
 

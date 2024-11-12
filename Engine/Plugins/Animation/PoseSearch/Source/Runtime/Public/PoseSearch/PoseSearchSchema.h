@@ -20,9 +20,11 @@ enum class EPoseSearchDataPreprocessor : int32
 	Normalize,
 
 	// The data will be normalized against its deviation
+	// Experimental, this feature might be removed without warning, not for production use
 	NormalizeOnlyByDeviation UMETA(DisplayName = "Normalize Only By Deviation (Experimental)"),
 
 	// same behavior as Normalize, but it'll index all the databases in the normalization set with the same schema
+	// Experimental, this feature might be removed without warning, not for production use
 	NormalizeWithCommonSchema UMETA(DisplayName = "Normalize With Common Schema (Experimental)"),
 };
 
@@ -48,6 +50,9 @@ struct POSESEARCH_API FPoseSearchRoledSkeleton
 
 	UPROPERTY(Transient)
 	TArray<uint16> BoneIndicesWithParents;
+
+	UPROPERTY(Transient)
+	TArray<FName> RequiredCurves;
 };
 
 /**
@@ -114,9 +119,14 @@ public:
 	// the original intent is to add UPoseSearchFeatureChannel_Position(s) to help with the complexity of the debug drawing
 	// (the database will have all the necessary positions to draw lines at the right location and time).
 	UPROPERTY(EditAnywhere, Category = "Debug")
-	bool bInjectAdditionalDebugChannels;
+	bool bInjectAdditionalDebugChannels = false;
 
-	//bool IsValid () const;
+#if WITH_EDITORONLY_DATA
+	// if bDrawInjectAdditionalDebugChannels is true, all the channels added for debug purposes with 
+	// bInjectAdditionalDebugChannels (as well as all those channels with an associated zero weight) will be drawn
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawInjectAdditionalDebugChannels = false;
+#endif // WITH_EDITORONLY_DATA
 
 	TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>> GetChannels() const { return FinalizedChannels; }
 
@@ -136,15 +146,16 @@ public:
 	}
 
 	// UObject
-	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void PostLoad() override;
 
 	int8 AddBoneReference(const FBoneReference& BoneReference, const UE::PoseSearch::FRole& Role);
+	int8 AddCurveReference(const FName& CurveReference, const UE::PoseSearch::FRole& Role);
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	const UE::PoseSearch::FRole GetDefaultRole() const;
 #endif // WITH_EDITOR
+	const TArray<FPoseSearchRoledSkeleton>& GetRoledSkeletons() const { return Skeletons; }
 
 	TConstArrayView<float> BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const;
 

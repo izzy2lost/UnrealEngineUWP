@@ -8,16 +8,16 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Jupiter.Implementation;
-using Jupiter.Implementation.Blob;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
+using Jupiter.Implementation;
+using Jupiter.Implementation.Blob;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using OpenTelemetry.Trace;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jupiter.UnitTests
 {
@@ -35,7 +35,7 @@ namespace Jupiter.UnitTests
 		private readonly MemoryBlobStore _second = new MemoryBlobStore(throwOnOverwrite: false);
 		private readonly MemoryBlobStore _third = new MemoryBlobStore(throwOnOverwrite: false);
 		private BlobService _chained = null!;
-		
+
 		private readonly BlobId _onlyFirstId = new BlobId(new string('1', 40));
 		private readonly BlobId _onlySecondId = new BlobId(new string('2', 40));
 		private readonly BlobId _onlyThirdId = new BlobId(new string('3', 40));
@@ -53,7 +53,7 @@ namespace Jupiter.UnitTests
 		public async Task SetupAsync()
 		{
 			Mock<IServiceProvider> serviceProviderMock = new Mock<IServiceProvider>();
-			MemoryBlobStore blobStore =  new MemoryBlobStore();
+			MemoryBlobStore blobStore = new MemoryBlobStore();
 			serviceProviderMock.Setup(x => x.GetService(typeof(MemoryBlobStore))).Returns(blobStore);
 			IOptionsMonitor<UnrealCloudDDCSettings> settingsMonitor = Mock.Of<IOptionsMonitor<UnrealCloudDDCSettings>>(_ => _.CurrentValue == new UnrealCloudDDCSettings());
 			IOptionsMonitor<JupiterSettings> jupiterSettingsMonitor = Mock.Of<IOptionsMonitor<JupiterSettings>>(_ => _.CurrentValue == new JupiterSettings());
@@ -64,20 +64,20 @@ namespace Jupiter.UnitTests
 			IOptionsMonitor<BufferedPayloadOptions> bufferedPayloadOptions = Mock.Of<IOptionsMonitor<BufferedPayloadOptions>>(_ => _.CurrentValue == new BufferedPayloadOptions());
 			BufferedPayloadFactory bufferedPayloadFactory = new BufferedPayloadFactory(bufferedPayloadOptions, tracer);
 
-			_chained = new BlobService(serviceProviderMock.Object, settingsMonitor, jupiterSettingsMonitor, Mock.Of<IBlobIndex>(), Mock.Of<IPeerStatusService>(), Mock.Of<IHttpClientFactory>(), Mock.Of<IServiceCredentials>(), mockPolicyResolver.Object, Mock.Of<IHttpContextAccessor>(), null, tracer, bufferedPayloadFactory, NullLogger<BlobService>.Instance, null);
+			_chained = new BlobService(serviceProviderMock.Object, settingsMonitor, jupiterSettingsMonitor, Mock.Of<IBlobIndex>(), Mock.Of<IReplicationLog>(), Mock.Of<IPeerStatusService>(), Mock.Of<IHttpClientFactory>(), Mock.Of<IServiceCredentials>(), mockPolicyResolver.Object, Mock.Of<IHttpContextAccessor>(), null, tracer, bufferedPayloadFactory, NullLogger<BlobService>.Instance, null);
 			_chained.BlobStore = new List<IBlobStore> { _first, _second, _third };
 
 			await _first.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlyFirstContent"), _onlyFirstId);
 			await _second.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlySecondContent"), _onlySecondId);
 			await _third.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlyThirdContent"), _onlyThirdId);
-			
+
 			await _first.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
 			await _second.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
 			await _third.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("allContent"), _allId);
 			await _first.PutObjectAsync(NsOnlyFirst, Encoding.ASCII.GetBytes("onlyFirstUniqueNs"), _onlyFirstUniqueNsId);
 			await _second.PutObjectAsync(NsOnlySecond, Encoding.ASCII.GetBytes("onlySecondUniqueNs"), _onlySecondUniqueNsId);
 		}
-		
+
 		[TestMethod]
 		public async Task PutObjectAsync()
 		{
@@ -88,7 +88,7 @@ namespace Jupiter.UnitTests
 			Assert.IsTrue(await _first.ExistsAsync(Ns, new1));
 			Assert.IsTrue(await _second.ExistsAsync(Ns, new1));
 		}
-		
+
 		[TestMethod]
 		public async Task GetObjectAsync()
 		{
@@ -105,22 +105,22 @@ namespace Jupiter.UnitTests
 			Assert.AreEqual(2, _second.GetIdentifiers(Ns).Count());
 			Assert.AreEqual(2, _third.GetIdentifiers(Ns).Count());
 		}
-		
+
 		[TestMethod]
 		public async Task PopulateHierarchyAsync()
 		{
 			Assert.IsFalse(await _first.ExistsAsync(Ns, _onlyThirdId));
 			Assert.IsFalse(await _second.ExistsAsync(Ns, _onlyThirdId));
 			Assert.IsTrue(await _third.ExistsAsync(Ns, _onlyThirdId));
-			
+
 			// Should populate 'first' and 'second' as they are higher up in the hierarchy
 			Assert.AreEqual("onlyThirdContent", BlobToString(await _chained.GetObjectAsync(Ns, _onlyThirdId)));
-			
+
 			Assert.AreEqual("onlyThirdContent", BlobToString(await _first.GetObjectAsync(Ns, _onlyThirdId)));
 			Assert.AreEqual("onlyThirdContent", BlobToString(await _second.GetObjectAsync(Ns, _onlyThirdId)));
 			Assert.AreEqual("onlyThirdContent", BlobToString(await _third.GetObjectAsync(Ns, _onlyThirdId)));
 		}
-		
+
 		[TestMethod]
 		public async Task ExistsAsync()
 		{
@@ -129,29 +129,29 @@ namespace Jupiter.UnitTests
 			Assert.IsTrue(await _chained.ExistsAsync(Ns, _allId));
 			Assert.IsFalse(await _chained.ExistsAsync(Ns, _nonExisting));
 		}
-		
+
 		[TestMethod]
 		public async Task DeleteObjectAsync()
 		{
 			Assert.IsFalse(await _chained.ExistsAsync(NsnonExistingNs, _nonExisting));
 			Assert.IsFalse(await _chained.ExistsAsync(NsOnlyFirst, _nonExisting));
 			Assert.IsFalse(await _chained.ExistsAsync(NsOnlySecond, _nonExisting));
-			
+
 			Assert.IsTrue(await _first.ExistsAsync(Ns, _onlyFirstId));
 			await _chained.DeleteObjectAsync(Ns, _onlyFirstId);
 			Assert.IsFalse(await _first.ExistsAsync(Ns, _onlyFirstId));
-			
+
 			Assert.IsTrue(await _second.ExistsAsync(NsOnlySecond, _onlySecondUniqueNsId));
 			await _chained.DeleteObjectAsync(NsOnlySecond, _onlySecondUniqueNsId);
 			Assert.IsFalse(await _second.ExistsAsync(NsOnlySecond, _onlySecondUniqueNsId));
-			
+
 			Assert.IsTrue(await _first.ExistsAsync(Ns, _allId));
 			Assert.IsTrue(await _second.ExistsAsync(Ns, _allId));
 			await _chained.DeleteObjectAsync(Ns, _allId);
 			Assert.IsFalse(await _first.ExistsAsync(Ns, _allId));
 			Assert.IsFalse(await _second.ExistsAsync(Ns, _allId));
 		}
-		
+
 		[TestMethod]
 		public async Task DeleteNamespaceAsync()
 		{

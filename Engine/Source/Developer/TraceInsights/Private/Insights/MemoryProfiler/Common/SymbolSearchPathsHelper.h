@@ -1,9 +1,16 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
 #pragma once
+
 #include "Internationalization/Text.h"
+
+// TraceServices
 #include "TraceServices/Model/Modules.h"
 
-#define LOCTEXT_NAMESPACE "SymbolSearchPathsHelper"
+#define LOCTEXT_NAMESPACE "UE::Insights::FSymbolSearchPathsHelper"
+
+namespace UE::Insights
+{
 
 class FSymbolSearchPathsHelper
 {
@@ -26,5 +33,7 @@ public:
 		return LOCTEXT("SymbolResolutionNoPaths", "No symbol paths has been setup. Use configuration file, UE_INSIGHTS_SYMBOL_PATH environment variable or manually select a file or directory from the Modules view.");
 	}
 };
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

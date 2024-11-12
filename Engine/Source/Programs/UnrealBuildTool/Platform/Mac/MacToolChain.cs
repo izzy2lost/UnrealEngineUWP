@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -35,7 +34,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="bVerbose">Whether to output verbose logging</param>
 		/// <param name="Logger">Logger for output</param>
-		public MacToolChainSettings(bool bVerbose, ILogger Logger) 
+		public MacToolChainSettings(bool bVerbose, ILogger Logger)
 			: base("MacOSX", null, "macos", bVerbose, Logger)
 		{
 		}
@@ -72,7 +71,7 @@ namespace UnrealBuildTool
 		{
 			FileReference CompilerPath = FileReference.Combine(Settings.ToolchainDir, MacCompiler);
 			FileReference ArchiverPath = FileReference.Combine(Settings.ToolchainDir, MacArchiver);
-			return new AppleToolChainInfo(CompilerPath, ArchiverPath, Logger);
+			return new AppleToolChainInfo(UnrealTargetPlatform.Mac, MacToolChainSettings.XcodeDeveloperDir, CompilerPath, ArchiverPath, Logger);
 		}
 
 		public static DirectoryReference FindProductDirectory(FileReference? ProjectFile, DirectoryReference BinaryDir, string? NameIfProgram)
@@ -94,9 +93,9 @@ namespace UnrealBuildTool
 		{
 			DirectoryReference? ProgramFinder = StartingDir;
 			while (ProgramFinder != null &&
-				String.Compare(ProgramFinder.GetDirectoryName(), "Source", true) != 0 &&
-				String.Compare(ProgramFinder.GetDirectoryName(), "Intermediate", true) != 0 &&
-				String.Compare(ProgramFinder.GetDirectoryName(), "Binaries", true) != 0)
+!String.Equals(ProgramFinder.GetDirectoryName(), "Source", StringComparison.CurrentCultureIgnoreCase) &&
+!String.Equals(ProgramFinder.GetDirectoryName(), "Intermediate", StringComparison.CurrentCultureIgnoreCase) &&
+!String.Equals(ProgramFinder.GetDirectoryName(), "Binaries", StringComparison.CurrentCultureIgnoreCase))
 			{
 				ProgramFinder = ProgramFinder.ParentDirectory;
 			}
@@ -380,7 +379,6 @@ namespace UnrealBuildTool
 					FinalExeDir = ExeAbsolutePath + ".app/Contents/MacOS";
 				}
 				string RelativePath = Utils.MakePathRelativeTo(LibraryDir, FinalExeDir).Replace("\\", "/");
-				
 
 				if (bCanUseMultipleRPATHs)
 				{
@@ -454,7 +452,7 @@ namespace UnrealBuildTool
 				LinkAllFiles(LinkEnvironment, true, Graph);
 			}
 
-			return new FileItem[] { };
+			return Array.Empty<FileItem>();
 		}
 
 		public override FileItem? LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, IActionGraphBuilder Graph)
@@ -537,10 +535,7 @@ namespace UnrealBuildTool
 				AppendMacLine(FinalizeAppBundleScript, "cd \"{0}\"", BinariesPath.Replace("$", "\\$"));
 
 				string BundleVersion = LinkEnvironment.BundleVersion!;
-				if (BundleVersion == null)
-				{
-					BundleVersion = LoadEngineDisplayVersion();
-				}
+				BundleVersion ??= LoadEngineDisplayVersion();
 
 				string ExeName = Path.GetFileName(OutputFiles[0].AbsolutePath);
 				bool bIsLauncherProduct = ExeName.StartsWith("EpicGamesLauncher") || ExeName.StartsWith("EpicGamesBootstrapLauncher");
@@ -549,7 +544,7 @@ namespace UnrealBuildTool
 
 				// bundle identifier
 				// plist replacements
-				DirectoryReference? DirRef = (!String.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()) ? new DirectoryReference(UnrealBuildTool.GetRemoteIniPath()!) : (ProjectFile != null ? ProjectFile.Directory : null));
+				DirectoryReference? DirRef = (!String.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()) ? new DirectoryReference(UnrealBuildTool.GetRemoteIniPath()!) : (ProjectFile?.Directory));
 				ConfigHierarchy IOSIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirRef, UnrealTargetPlatform.IOS);
 
 				string BundleIdentifier;
@@ -690,6 +685,7 @@ namespace UnrealBuildTool
 
 			// Create an action that invokes the linker.
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
+			LinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 
 			FileReference LinkerPath = LinkEnvironment.bIsBuildingLibrary ? Info.Archiver : Info.Clang;
 
@@ -858,10 +854,7 @@ namespace UnrealBuildTool
 			{
 				// Add the output file to the command-line.
 				string? InstallName = LinkEnvironment.InstallName;
-				if (InstallName == null)
-				{
-					InstallName = String.Format("{0}/{1}", DylibsPath, Path.GetFileName(OutputFile.AbsolutePath).Replace($".dylib_{LinkEnvironment.Architecture}", ".dylib"));
-				}
+				InstallName ??= String.Format("{0}/{1}", DylibsPath, Path.GetFileName(OutputFile.AbsolutePath).Replace($".dylib_{LinkEnvironment.Architecture}", ".dylib"));
 				LinkCommand += String.Format(" -install_name \"{0}\"", InstallName);
 			}
 
@@ -1053,7 +1046,7 @@ namespace UnrealBuildTool
 
 				foreach (KeyValuePair<FileReference, BuildProductType> BuildProductPair in BuildProductsArray)
 				{
-					string[] DebugExtensions = new string[] { };
+					string[] DebugExtensions = Array.Empty<string>();
 					switch (BuildProductPair.Value)
 					{
 						case BuildProductType.Executable:

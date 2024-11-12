@@ -9,7 +9,6 @@ namespace Jupiter.Implementation;
 public class ScyllaSettings : IValidatableObject
 {
 	public string ConnectionString { get; set; } = "Contact Points=localhost,scylla;Default Keyspace=jupiter";
-	public long InlineBlobMaxSize { get; set; } = 32 * 1024; // default to 32 kb blobs max
 	public int MaxSnapshotsPerNamespace { get; set; } = 10;
 
 	/// <summary>
@@ -33,8 +32,8 @@ public class ScyllaSettings : IValidatableObject
 	/// </summary>
 	[Required]
 	public string LocalDatacenterName { get; set; } = null!;
-		
-	[Required] 
+
+	[Required]
 	public string LocalKeyspaceSuffix { get; set; } = null!;
 
 	/// <summary>

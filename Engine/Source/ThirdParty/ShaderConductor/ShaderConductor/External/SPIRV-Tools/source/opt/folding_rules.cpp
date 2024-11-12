@@ -14,7 +14,6 @@
 
 #include "source/opt/folding_rules.h"
 
-#include <climits>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -111,6 +110,12 @@ bool IsValidResult(T val) {
     default:
       return true;
   }
+}
+
+// Returns true if `type` is a cooperative matrix.
+bool IsCooperativeMatrix(const analysis::Type* type) {
+  return type->kind() == analysis::Type::kCooperativeMatrixKHR ||
+         type->kind() == analysis::Type::kCooperativeMatrixNV;
 }
 
 const analysis::Constant* ConstInput(
@@ -308,6 +313,11 @@ FoldingRule ReciprocalFDiv() {
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+	
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+	
     if (!inst->IsFloatingPointFoldingAllowed()) return false;
 
     uint32_t width = ElementWidth(type);
@@ -389,6 +399,11 @@ FoldingRule MergeNegateMulDivArithmetic() {
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+		
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+	
     if (HasFloatingPoint(type) && !inst->IsFloatingPointFoldingAllowed())
       return false;
 
@@ -450,6 +465,11 @@ FoldingRule MergeNegateAddSubArithmetic() {
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     if (HasFloatingPoint(type) && !inst->IsFloatingPointFoldingAllowed())
       return false;
 
@@ -681,6 +701,11 @@ FoldingRule MergeMulMulArithmetic() {
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     if (HasFloatingPoint(type) && !inst->IsFloatingPointFoldingAllowed())
       return false;
 
@@ -735,6 +760,11 @@ FoldingRule MergeMulDivArithmetic() {
 
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     if (!inst->IsFloatingPointFoldingAllowed()) return false;
 
     uint32_t width = ElementWidth(type);
@@ -848,6 +878,11 @@ FoldingRule MergeDivDivArithmetic() {
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     if (!inst->IsFloatingPointFoldingAllowed()) return false;
 
     uint32_t width = ElementWidth(type);
@@ -1063,6 +1098,11 @@ FoldingRule MergeSubNegateArithmetic() {
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     bool uses_float = HasFloatingPoint(type);
     if (uses_float && !inst->IsFloatingPointFoldingAllowed()) return false;
 
@@ -1111,6 +1151,11 @@ FoldingRule MergeAddAddArithmetic() {
            inst->opcode() == spv::Op::OpIAdd);
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     bool uses_float = HasFloatingPoint(type);
     if (uses_float && !inst->IsFloatingPointFoldingAllowed()) return false;
@@ -1159,6 +1204,11 @@ FoldingRule MergeAddSubArithmetic() {
            inst->opcode() == spv::Op::OpIAdd);
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     bool uses_float = HasFloatingPoint(type);
     if (uses_float && !inst->IsFloatingPointFoldingAllowed()) return false;
@@ -1219,6 +1269,11 @@ FoldingRule MergeSubAddArithmetic() {
            inst->opcode() == spv::Op::OpISub);
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     bool uses_float = HasFloatingPoint(type);
     if (uses_float && !inst->IsFloatingPointFoldingAllowed()) return false;
@@ -1285,6 +1340,11 @@ FoldingRule MergeSubSubArithmetic() {
            inst->opcode() == spv::Op::OpISub);
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     analysis::ConstantManager* const_mgr = context->get_constant_mgr();
     bool uses_float = HasFloatingPoint(type);
     if (uses_float && !inst->IsFloatingPointFoldingAllowed()) return false;
@@ -1378,6 +1438,11 @@ FoldingRule MergeGenericAddSubArithmetic() {
            inst->opcode() == spv::Op::OpIAdd);
     const analysis::Type* type =
         context->get_type_mgr()->GetType(inst->type_id());
+
+    if (IsCooperativeMatrix(type)) {
+      return false;
+    }
+
     bool uses_float = HasFloatingPoint(type);
     if (uses_float && !inst->IsFloatingPointFoldingAllowed()) return false;
 
@@ -2068,7 +2133,8 @@ FoldingRule FMixFeedingExtract() {
 }
 
 // Returns the number of elements in the composite type |type|.  Returns 0 if
-// |type| is a scalar value.
+// |type| is a scalar value. Return UINT32_MAX when the size is unknown at
+// compile time.
 uint32_t GetNumberOfElements(const analysis::Type* type) {
   if (auto* vector_type = type->AsVector()) {
     return vector_type->element_count();
@@ -2080,21 +2146,27 @@ uint32_t GetNumberOfElements(const analysis::Type* type) {
     return static_cast<uint32_t>(struct_type->element_types().size());
   }
   if (auto* array_type = type->AsArray()) {
-    return array_type->length_info().words[0];
+    if (array_type->length_info().words[0] ==
+            analysis::Array::LengthInfo::kConstant &&
+        array_type->length_info().words.size() == 2) {
+      return array_type->length_info().words[1];
+    }
+    return UINT32_MAX;
   }
   return 0;
 }
 
 // Returns a map with the set of values that were inserted into an object by
 // the chain of OpCompositeInsertInstruction starting with |inst|.
-// The map will map the index to the value inserted at that index.
+// The map will map the index to the value inserted at that index. An empty map
+// will be returned if the map could not be properly generated.
 std::map<uint32_t, uint32_t> GetInsertedValues(Instruction* inst) {
   analysis::DefUseManager* def_use_mgr = inst->context()->get_def_use_mgr();
   std::map<uint32_t, uint32_t> values_inserted;
   Instruction* current_inst = inst;
   while (current_inst->opcode() == spv::Op::OpCompositeInsert) {
     if (current_inst->NumInOperands() > inst->NumInOperands()) {
-      // This is the catch the case
+      // This is to catch the case
       //   %2 = OpCompositeInsert %m2x2int %v2int_1_0 %m2x2int_undef 0
       //   %3 = OpCompositeInsert %m2x2int %int_4 %2 0 0
       //   %4 = OpCompositeInsert %m2x2int %v2int_2_3 %3 1
@@ -2885,8 +2957,12 @@ FoldingRule UpdateImageOperands() {
                "Offset and ConstOffset may not be used together");
         if (offset_operand_index < inst->NumOperands()) {
           if (constants[offset_operand_index]) {
-            image_operands =
-                image_operands | uint32_t(spv::ImageOperandsMask::ConstOffset);
+            if (constants[offset_operand_index]->IsZero()) {
+              inst->RemoveInOperand(offset_operand_index);
+            } else {
+              image_operands = image_operands |
+                               uint32_t(spv::ImageOperandsMask::ConstOffset);
+            }
             image_operands =
                 image_operands & ~uint32_t(spv::ImageOperandsMask::Offset);
             inst->SetInOperand(operand_index, {image_operands});
@@ -2918,10 +2994,8 @@ void FoldingRules::AddFoldingRules() {
   rules_[spv::Op::OpCompositeExtract].push_back(VectorShuffleFeedingExtract());
   rules_[spv::Op::OpCompositeExtract].push_back(FMixFeedingExtract());
 
-  if (false) { // Disabled until OpCompositeInsert bug is fixed
-    rules_[spv::Op::OpCompositeInsert].push_back(
-        CompositeInsertToCompositeConstruct);
-  }
+  rules_[spv::Op::OpCompositeInsert].push_back(
+      CompositeInsertToCompositeConstruct);
 
   rules_[spv::Op::OpDot].push_back(DotProductDoingExtract());
 

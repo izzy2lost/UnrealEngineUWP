@@ -10,25 +10,29 @@
 namespace Electra
 {
 
-	class FMP4StaticDataReader : public IParserISO14496_12::IReader
+	class FMP4StaticDataReader : public IGenericDataReader
 	{
 	public:
 		FMP4StaticDataReader() = default;
 		virtual ~FMP4StaticDataReader() = default;
-		virtual void SetParseData(TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> InResponseBuffer)
+		virtual void SetParseData(TSharedPtrTS<FWaitableBuffer> InResponseBuffer)
 		{
 			ResponseBuffer = InResponseBuffer;
-			DataSize = ResponseBuffer->Buffer.Num();
-			Data = (const uint8*)ResponseBuffer->Buffer.GetLinearReadData();
+			DataSize = ResponseBuffer->Num();
+			Data = (const uint8*)ResponseBuffer->GetLinearReadData();
 			CurrentOffset = 0;
+		}
+		virtual bool HaveParseData() const
+		{
+			return ResponseBuffer.IsValid();
 		}
 	private:
 		//----------------------------------------------------------------------
-		// Methods from IParserISO14496_12::IReader
+		// Methods from IGenericDataReader
 		//
-		virtual int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override
+		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead, int64 InFromOffset) override
 		{
-			if (NumBytesToRead <= DataSize - CurrentOffset)
+			if (ResponseBuffer.IsValid() && NumBytesToRead <= DataSize - CurrentOffset)
 			{
 				if (IntoBuffer)
 				{
@@ -39,20 +43,25 @@ namespace Electra
 			}
 			return -1;
 		}
-		virtual bool HasReachedEOF() const override
+		bool HasReachedEOF() const override
 		{
-			return ResponseBuffer->Buffer.GetEOD() && CurrentOffset >= DataSize;
+			return ResponseBuffer.IsValid() ? ResponseBuffer->GetEOD() && CurrentOffset >= DataSize : true;
 		}
-		virtual bool HasReadBeenAborted() const override
+		bool HasReadBeenAborted() const override
 		{
-			return ResponseBuffer->Buffer.WasAborted();
+			return ResponseBuffer.IsValid() ? ResponseBuffer->WasAborted() : true;
 		}
-		virtual int64 GetCurrentOffset() const override
+		int64 GetCurrentOffset() const override
 		{
 			return CurrentOffset;
 		}
+		int64 GetTotalSize() const override
+		{
+			check(!"this should not be called");
+			return -1;
+		}
 
-		TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> ResponseBuffer;
+		TSharedPtrTS<FWaitableBuffer> ResponseBuffer;
 		const uint8* Data = nullptr;
 		int64 DataSize = 0;
 		int64 CurrentOffset = 0;

@@ -12,7 +12,7 @@
 // The runtime ON/OFF toggle
 static TAutoConsoleVariable<int32> CVarLocalFogVolume(
 	TEXT("r.LocalFogVolume"), 1,
-	TEXT("LocalFogVolume components are rendered when this is not 0, otherwise ignored."),
+	TEXT("Project settings enabling the rendering of Local Fog Volumes."),
 	ECVF_RenderThreadSafe);
 
 // The project setting (disable runtime and shader code)
@@ -29,7 +29,7 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderDuringHeightFogPass(
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderIntoVolumetricFog(
 	TEXT("r.LocalFogVolume.RenderIntoVolumetricFog"), 1,
-	TEXT("LocalFogVolume are going to be voxelised into the volumetric fog when this is not 0, otherwise it will remain isolated."),
+	TEXT("Enables the voxelization of local fog volumes into the volumetric fog rendering system. Otherwise, local fog volumes will remain isolated."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<float> CVarLocalFogVolumeMaxDensityIntoVolumetricFog(
@@ -49,12 +49,12 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeTilePixelSize(
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileMaxInstanceCount(
 	TEXT("r.LocalFogVolume.TileMaxInstanceCount"), 32,
-	TEXT("Maximum number of local fog volume to account for per view (and per tile or consistency)."),
+	TEXT("Maximum number of local fog volumes to account for per view (and per tile or consistency)."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileCullingUseAsync(
 	TEXT("r.LocalFogVolume.TileCullingUseAsync"), 1,
-	TEXT("True if we want to try and use culling on the async pipe."),
+	TEXT("Enables running the culling process on the async compute pipe."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileDebug(
@@ -69,12 +69,12 @@ static TAutoConsoleVariable<float> CVarLocalFogVolumeGlobalStartDistance(
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeUseHZB(
 	TEXT("r.LocalFogVolume.UseHZB"), 1,
-	TEXT("Use the HZB to cull loca lfog volume away.\n"),
+	TEXT("Enables the use of the HZB to cull local fog volumes away.\n"),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeHalfResolution(
 	TEXT("r.LocalFogVolume.HalfResolution"), 0,
-	TEXT("Set to one to render local fog volumes at half resoltuion with an upsampling to full resolution later. Only work for the mobile path for now.\n"),
+	TEXT("Enables half resolution rendering of local fog volumes with an upsampling to full resolution later. Only works for the mobile path for now.\n"),
 	ECVF_RenderThreadSafe);
 
 // Example of tile setup
@@ -194,7 +194,7 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV= nullptr;
 
 	View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume = false;
-	View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackDummy(GraphBuilder);
+	View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
 	View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView);
 	View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GSystemTextures.GetBlackDummy(GraphBuilder);
 	View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth);
@@ -205,6 +205,14 @@ void SetDummyLocalFogVolumeForViews(FRDGBuilder& GraphBuilder, TArray<FViewInfo>
 	for (FViewInfo& View : Views)
 	{
 		SetDummyLocalFogVolumeForView(GraphBuilder, View);
+	}
+}
+
+void SetDummyLocalFogVolumeForViews(FRDGBuilder& GraphBuilder, TArray<FViewInfo*>& Views)
+{
+	for (FViewInfo* View : Views)
+	{
+		SetDummyLocalFogVolumeForView(GraphBuilder, *View);
 	}
 }
 
@@ -362,7 +370,8 @@ static void LocalFogVolumeViewTiledCullingPass(FViewInfo& View, FRDGBuilder& Gra
 	Local height fog rendering common function
 =============================================================================*/
 
-void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out)
+// This is view data because the transform is expressed in translated world space
+void GetLocalFogVolumeViewSortingData(const FScene* Scene, const FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out)
 {
 	check(Scene->LocalFogVolumes.Num() > 0); // We should not get there if there is not any local fog volume.
 
@@ -386,12 +395,13 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		const float FalloffScaleUI = 0.01f;
 		const float SafeFallOff = FMath::Max(LHF->HeightFogFalloff, SafeFalloffThreshold) * FalloffScaleUI;
 
-		FMatrix44f Transform = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
-		FMatrix44f InvTransform = Transform.Inverse();
+		FTransform RotationScaleMatrix = LHF->FogTransform;
+		RotationScaleMatrix.SetTranslation(FVector::ZeroVector);
+		FMatrix44f InvTransform = FMatrix44f(RotationScaleMatrix.ToMatrixWithScale().Inverse());
 
 		FVector3f XVec(InvTransform.M[0][0], InvTransform.M[0][1], InvTransform.M[0][2]);
 		FVector3f YVec(InvTransform.M[1][0], InvTransform.M[1][1], InvTransform.M[1][2]);
-		FVector3f Tran(InvTransform.M[3][0], InvTransform.M[3][1], InvTransform.M[3][2]);
+		FVector3f TranslatedWorldPosition(View.ViewMatrices.GetPreViewTranslation() + LHF->FogTransform.GetTranslation());
 
 		// Normalization requires small tolerance for large volumes.
 		const float NormalizeTolerance = 1.e-32;
@@ -425,12 +435,12 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		};
 
 		// Translation and scale at fp32 for stability. Further optimization: we could use fp16 if translated/view space position would be sent.
-		LocalFogVolumeGPUInstanceDataIt->Data0[0] = AsUint32(Tran.X);
-		LocalFogVolumeGPUInstanceDataIt->Data0[1] = AsUint32(Tran.Y);
-		LocalFogVolumeGPUInstanceDataIt->Data0[2] = AsUint32(Tran.Z);
+		LocalFogVolumeGPUInstanceDataIt->Data0[0] = AsUint32(TranslatedWorldPosition.X);
+		LocalFogVolumeGPUInstanceDataIt->Data0[1] = AsUint32(TranslatedWorldPosition.Y);
+		LocalFogVolumeGPUInstanceDataIt->Data0[2] = AsUint32(TranslatedWorldPosition.Z);
 		LocalFogVolumeGPUInstanceDataIt->Data0[3] = AsUint32(LHF->FogUniformScale);
 
-		// Store X and Y from the rotation matrix and recover Z in the shader. Further optimization: could be fp16.
+		// Store X and Y from the rotation matrix and recover Z in the shader.
 		LocalFogVolumeGPUInstanceDataIt->Data1[0] = FVector2DHalf(XVec.X, XVec.Y).AsUInt32();
 		LocalFogVolumeGPUInstanceDataIt->Data1[1] = FVector2DHalf(XVec.Z, YVec.X).AsUInt32();
 		LocalFogVolumeGPUInstanceDataIt->Data1[2] = FVector2DHalf(YVec.Y, YVec.Z).AsUInt32();
@@ -602,7 +612,7 @@ void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRD
 	else
 	{
 		View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.HalfResTextureSizeAndInvSize = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
-		View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackDummy(GraphBuilder);
+		View.LocalFogVolumeViewData.HalfResLocalFogVolumeView = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
 		View.LocalFogVolumeViewData.HalfResLocalFogVolumeViewSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView);
 		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth = GSystemTextures.GetBlackDummy(GraphBuilder);
 		View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepthSRV = GraphBuilder.CreateSRV(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth);
@@ -624,13 +634,14 @@ void InitLocalFogVolumesForViews(
 	const bool bShouldRenderLocalFogVolume = ShouldRenderLocalFogVolume(Scene, SceneViewFamily);
 	if (LocalFogVolumeInstanceCount > 0 && bShouldRenderLocalFogVolume)
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LocalFogVolumeVolumes, "LocalFogVolumeVolumes");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
-
-		FLocalFogVolumeSortingData SortingData;
-		GetLocalFogVolumeSortingData(Scene, GraphBuilder, SortingData);
 
 		for (FViewInfo& View : Views)
 		{
+			FLocalFogVolumeSortingData SortingData;
+			GetLocalFogVolumeViewSortingData(Scene, View, GraphBuilder, SortingData);
+
 			CreateViewLocalFogVolumeBufferSRV(Scene, View, GraphBuilder, SortingData, ShouldRenderLocalFogVolumeInVolumetricFog(Scene, SceneViewFamily, bShouldRenderVolumetricFog), bUseHalfResLocalFogVolume);
 
 			if (View.LocalFogVolumeViewData.GPUInstanceCount > 0)
@@ -774,6 +785,7 @@ void RenderLocalFogVolume(
 	uint32 LocalFogVolumeInstanceCount = Scene->LocalFogVolumes.Num();
 	if (LocalFogVolumeInstanceCount > 0 && ShouldRenderLocalFogVolume(Scene, SceneViewFamily))
 	{
+		RDG_EVENT_SCOPE_STAT(GraphBuilder, LocalFogVolumeVolumes, "LocalFogVolumeVolumes");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, LocalFogVolumeVolumes);
 
 		FRDGTextureRef SceneColorTexture = SceneTextures.Color.Resolve;
@@ -821,7 +833,7 @@ void RenderLocalFogVolume(
 				RDG_EVENT_NAME("LocalFogVolume.Tiled (%u X %u)", LocalFogVolumeTileDataTextureResolution.X, LocalFogVolumeTileDataTextureResolution.Y),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[VertexShader, PixelShader, PassParameters, ViewRect, DepthBoundSetup](FRHICommandList& RHICmdList)
+				[VertexShader, PixelShader, PassParameters, ViewRect, DepthBoundSetup](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				FGraphicsPipelineStateInitializer GraphicsPSOInit;
 				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -990,7 +1002,15 @@ void RenderLocalFogVolumeMobile(
 	// Render back faces only since camera may intersect
 	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
 	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
-	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero,
+		CW_NONE, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
+
 	GraphicsPSOInit.PrimitiveType = PT_TriangleList; // LFV_TODO check if rects are supported and use them if so
 
 	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
@@ -1033,10 +1053,14 @@ void RenderLocalFogVolumeHalfResMobile(
 	}
 	FMobileLocalFogVolumeTiledRenderHalfResPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMobileLocalFogVolumeTiledRenderHalfResPS::FParameters>();
 
-	PassParameters->View = View.GetShaderParameters();;
+	// When rendering the half resolution LFV texture, we are right after the depth prepass so it should not be bound (the texture is going to be generated now).
+	// That is why we notify that we are still in the prepass stage.
+	const EMobileBasePass BasePass = EMobileBasePass::DepthPrePass;
+
+	PassParameters->View = View.GetShaderParameters();
 	PassParameters->LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 	PassParameters->LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
-	PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, EMobileSceneTextureSetupMode::SceneDepth);
+	PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, BasePass, EMobileSceneTextureSetupMode::SceneDepth);
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(View.LocalFogVolumeViewData.HalfResLocalFogVolumeView, ERenderTargetLoadAction::ENoAction);
 	PassParameters->RenderTargets[1] = FRenderTargetBinding(View.LocalFogVolumeViewData.HalfResLocalFogVolumeDepth, ERenderTargetLoadAction::ENoAction);
 

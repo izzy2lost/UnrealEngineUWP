@@ -3,6 +3,8 @@
 #include "GeometryProcessing/MeshAutoUVImpl.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "DynamicMeshToMeshDescription.h"
+#include "MeshAttributes.h"
+#include "StaticMeshAttributes.h"
 #include "ParameterizationOps/ParameterizeMeshOp.h"
 
 
@@ -50,20 +52,43 @@ void FMeshAutoUVImpl::GenerateUVs(FMeshDescription& InOutMesh, const IGeometryPr
 	}
 
 	ParameterizeMeshOp.CalculateResult(nullptr);
+	
+	TUniquePtr<UE::Geometry::FDynamicMesh3> DynamicMeshWithUVs = ParameterizeMeshOp.ExtractResult();
+	if (DynamicMeshWithUVs)
+	{
+		// The DynamicMesh has now been populated with valid UVs for each vertex instance.
+		// Rather than performing a full conversion of the dynamic mesh back to a mesh description, 
+		// we can use the mapping in TriIDMap which was generated during the MeshDescription -> DynamicMesh conversion
+		// This is actually required as the conversion to a DynamicMesh may have removed duplicate triangles.
+		FDynamicMeshUVOverlay* DynamicMeshUVs = DynamicMeshWithUVs->Attributes()->PrimaryUV();
+		TVertexInstanceAttributesRef<FVector2f> MeshDescriptionUVs = InOutMesh.VertexInstanceAttributes().GetAttributesRef<FVector2f>(MeshAttribute::VertexInstance::TextureCoordinate);
 
-	TUniquePtr<UE::Geometry::FDynamicMesh3> ResultMesh = ParameterizeMeshOp.ExtractResult();
+		// For each triangle of the dynamic mesh.
+		for (const int DynamicMeshTID : DynamicMeshWithUVs->TriangleIndicesItr())
+		{
+			// Map triangle from the DynamicMesh to it's equivalent in the MeshDescription.
+			int32 MeshDescriptionTID = MeshDescriptionToDynamicMesh.TriIDMap[DynamicMeshTID];
 
-	ResultsOut.ResultCode = IGeometryProcessing_MeshAutoUV::EResultCode::Success;
+			// Grab the vertex instances (3) used by that triangle.
+			const FIndex3i DynamicMeshTriVIDs = DynamicMeshWithUVs->GetTriangle(DynamicMeshTID);
 
-	FConversionToMeshDescriptionOptions ConversionOptions;
-	ConversionOptions.bSetPolyGroups = false;
-	ConversionOptions.bUpdatePositions = false;
-	ConversionOptions.bUpdateNormals = false;
-	ConversionOptions.bUpdateTangents = false;
-	ConversionOptions.bUpdateUVs = true;
-	ConversionOptions.bUpdateVtxColors = false;
-	ConversionOptions.bTransformVtxColorsSRGBToLinear = false;
+			// For each triangle corner index...
+			for (int Index = 0; Index < 3; ++Index)
+			{
+				// Grab the computed UV in the dynamic mesh for that vertex instance.
+				const int DynamicMeshVID = DynamicMeshTriVIDs[Index];
+				FVector2f UV = DynamicMeshUVs->GetElementAtVertex(DynamicMeshTID, DynamicMeshVID);
 
-	FDynamicMeshToMeshDescription Converter(ConversionOptions);
-	Converter.UpdateUsingConversionOptions(ResultMesh.Get(), InOutMesh);
+				// Assign the computed UV to the mesh description vertex instance.
+				FVertexInstanceID MeshDescriptionVID = InOutMesh.GetTriangleVertexInstance(MeshDescriptionTID, Index);
+				MeshDescriptionUVs.Set(MeshDescriptionVID, UV);
+			}
+		}
+
+		ResultsOut.ResultCode = IGeometryProcessing_MeshAutoUV::EResultCode::Success;
+	}
+	else
+	{
+		ResultsOut.ResultCode = IGeometryProcessing_MeshAutoUV::EResultCode::UnknownError;
+	}
 }

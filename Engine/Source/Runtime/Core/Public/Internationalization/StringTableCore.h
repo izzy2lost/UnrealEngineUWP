@@ -101,14 +101,20 @@ public:
 	/** Has this string table been fully loaded yet? (used during asset loading) */
 	CORE_API bool IsLoaded() const;
 
-	/** Set whether this string table has been fully loaded yet */
+	/** Set whether this string table has been fully loaded */
 	CORE_API void IsLoaded(const bool bInIsLoaded);
+
+	/** Is this string table considered internal (ie, shouldn't appear in pickers) */
+	CORE_API bool IsInternal() const;
+
+	/** Set whether this string table is considered internal */
+	CORE_API void IsInternal(const bool bInIsInternal);
 
 	/** @return The namespace used by all entries in this string table */
 	CORE_API FString GetNamespace() const;
 
 	/** Set the namespace used by all entries in this string table */
-	CORE_API void SetNamespace(const FString& InNamespace);
+	CORE_API void SetNamespace(const FTextKey& InNamespace);
 
 	/** Get the source string used by the given entry (if any) */
 	CORE_API bool GetSourceString(const FTextKey& InKey, FString& OutSourceString) const;
@@ -166,6 +172,9 @@ private:
 
 	/** True if this table has been fully loaded (used for assets) */
 	bool bIsLoaded;
+
+	/** True if this table is internal and shouldn't appear in pickers */
+	bool bIsInternal;
 
 	/** The namespace to use for all the strings in this table */
 	FTextKey TableNamespace;

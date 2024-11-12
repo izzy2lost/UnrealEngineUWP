@@ -8,11 +8,19 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Common/InsightsCoreStyle.h"
+#include "InsightsCore/Common/MiscUtils.h"
+
+// TraceInsights
 #include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/InsightsManager.h"
 
-#define LOCTEXT_NAMESPACE "InsightsMenuBuilder"
+#define LOCTEXT_NAMESPACE "UE::Insights::MenuBuilder"
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FInsightsMenuBuilder
@@ -54,17 +62,27 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 {
 #if !WITH_EDITOR
 	MenuBuilder.BeginSection("Insights");
+
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("ImportTable", "Import Table..."),
 		LOCTEXT("ImportTable_ToolTip", "Import CSV or TSV data from a file to an Insights Table."),
-		FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.ImportTable"),
+		FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.ImportTable"),
 		FUIAction(FExecuteAction::CreateLambda([] { Insights::FTableImportTool::Get()->StartImportProcess(); })));
-	MenuBuilder.AddSeparator();
+
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("OpenSessionBrowser", "Session Browser"),
-		LOCTEXT("OpenSessionBrowser_ToolTip", "Opens the Unreal Insights Session Browser window."),
+		LOCTEXT("DiffTables", "Diff Tables..."),
+		LOCTEXT("DiffTables_Tooltip", "Opens two table files in diff mode."),
+		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FolderOpen"),
+		FUIAction(FExecuteAction::CreateLambda([] { Insights::FTableImportTool::Get()->StartDiffProcess(); })));
+
+	MenuBuilder.AddSeparator();
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("OpenUnrealInsightsFrontend", "Unreal Insights Frontend"),
+		LOCTEXT("OpenUnrealInsightsFrontend_ToolTip", "Opens the Unreal Insights Frontend window."),
 		FSlateIcon(FInsightsStyle::GetStyleSetName(), "AppIcon.Small"),
-		FUIAction(FExecuteAction::CreateLambda([] { FInsightsManager::Get()->OpenUnrealInsights(); })));
+		FUIAction(FExecuteAction::CreateLambda([] { FMiscUtils::OpenUnrealInsights(); })));
+
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("OpenTraceFile_SubMenu", "Open Trace File"),
 		LOCTEXT("OpenTraceFile_SubMenu_Desc", "Starts analysis for a specified trace file."),
@@ -72,6 +90,13 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		false,
 		FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.FolderOpen")
 	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("OpenTraceControl", "Live Trace Control"),
+		LOCTEXT("OpenTraceControl_ToolTip", "Opens the Trace Control window."),
+		FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TraceControl"),
+		FUIAction(FExecuteAction::CreateLambda([] { FInsightsManager::Get()->OpenTraceControlWindow(); })));
+
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AutoOpenLiveTrace", "Auto Open Live Trace"),
 		LOCTEXT("AutoOpenLiveTrace_ToolTip", "If enabled, the analysis starts automatically for each new live trace session, replacing the current analysis session."),
@@ -83,6 +108,7 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		),
 		NAME_None,
 		EUserInterfaceActionType::ToggleButton);
+
 	MenuBuilder.EndSection();
 
 	FGlobalTabmanager::Get()->PopulateLocalTabSpawnerMenu(MenuBuilder);
@@ -112,7 +138,7 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("OpenStarshipSuite", "Starship Test Suite"),
 			LOCTEXT("OpenStarshipSuite_ToolTip", "Opens the Starship UX test suite."),
-			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Test"),
+			FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.Test"),
 			OpenStarshipSuiteAction,
 			NAME_None,
 			EUserInterfaceActionType::Button
@@ -182,5 +208,7 @@ void FInsightsMenuBuilder::AddMenuEntry(
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

@@ -29,29 +29,23 @@ namespace RuntimeVirtualTexture
 		LocalTransform.SetComponents(TargetRotation, TargetPosition, FVector::OneVector);
 		FTransform WorldToLocal = LocalTransform.Inverse();
 
-		// Special case where if the bounds align actor is a landscape we want to automatically include all associated landscape components.
-		FGuid BoundsAlignLandscapeGuid;
+		// Expand bounds for the BoundsAlignActor and all primitive components that write to this virtual texture.
+		FBox Bounds(ForceInit);
+
+		// Special case where if the bounds align actor is a landscape: we want to automatically include all associated landscape components, 
+		//  including those that are not currently loaded. Luckily there's a function for that:
 		if (BoundsAlignActor.IsValid())
 		{
-			if (ALandscape const* LandscapeProxy = Cast<ALandscape>(BoundsAlignActor.Get()))
+			if (ALandscape const* Landscape = Cast<ALandscape>(BoundsAlignActor.Get()))
 			{
-				BoundsAlignLandscapeGuid = LandscapeProxy->GetLandscapeGuid();
+				FBox WorldBounds = Landscape->GetCompleteBounds();
+				Bounds = WorldBounds.TransformBy(WorldToLocal);
 			}
 		}
 
-		// Expand bounds for the BoundsAlignActor and all primitive components that write to this virtual texture.
-		FBox Bounds(ForceInit);
 		for (TObjectIterator<UPrimitiveComponent> It(RF_ClassDefaultObject, true, EInternalObjectFlags::Garbage); It; ++It)
 		{
 			bool bUseBounds = BoundsAlignActor.IsValid() && It->GetOwner() == BoundsAlignActor.Get();
-
-			if (BoundsAlignLandscapeGuid.IsValid())
-			{
-				if (ALandscapeProxy const* LandscapeProxy = Cast<ALandscapeProxy>(It->GetOwner()))
-				{
-					bUseBounds |= LandscapeProxy->GetLandscapeGuid() == BoundsAlignLandscapeGuid;
-				}
-			}
 
 			TArray<URuntimeVirtualTexture*> const& VirtualTextures = It->GetRuntimeVirtualTextures();
 			for (int32 Index = 0; !bUseBounds && Index < VirtualTextures.Num(); ++Index) 
@@ -65,18 +59,25 @@ namespace RuntimeVirtualTexture
 			if (bUseBounds)
 			{
 				FBoxSphereBounds LocalSpaceBounds = It->CalcBounds(It->GetComponentTransform() * WorldToLocal);
-				if (LocalSpaceBounds.GetBox().GetVolume() > 0.f)
-				{
-					Bounds += LocalSpaceBounds.GetBox();
-				}
+				Bounds += LocalSpaceBounds.GetBox();
 			}
 		}
 
-		// Expand bounds.
-		const float ExpandBounds = InComponent->GetExpandBounds();
-		if (Bounds.IsValid && ExpandBounds > 0)
+		if (Bounds.IsValid)
 		{
-			Bounds = Bounds.ExpandBy(ExpandBounds);
+			const FVector BoundsSize = Bounds.GetSize();
+			// If XY bounds are valid but Z is 0, let's just expand by a little value to get something to render still (e.g. flat landscape)
+			if ((BoundsSize.X > UE_KINDA_SMALL_NUMBER) && (BoundsSize.Y > UE_KINDA_SMALL_NUMBER) && (BoundsSize.Z <= UE_KINDA_SMALL_NUMBER))
+			{
+				Bounds = Bounds.ExpandBy(FVector(0.0, 0.0, 0.5));
+			}
+
+			// Expand bounds if requested
+			const float ExpandBounds = InComponent->GetExpandBounds();
+			if (ExpandBounds > 0.0f)
+			{
+				Bounds = Bounds.ExpandBy(ExpandBounds);
+			}
 		}
 
 		// Calculate the transform to fit the bounds.
@@ -118,8 +119,8 @@ namespace RuntimeVirtualTexture
 				// Adjust position to snap at a half texel offset from landscape.
 				const FVector BaseVirtualTexturePosition = Transform.GetTranslation();
 				const FVector LandscapeSnapPosition = LandscapePosition - 0.5f * VirtualTexelWorldSize;
-				const float SnapOffsetX = FMath::Frac((BaseVirtualTexturePosition.X - LandscapeSnapPosition.X) / VirtualTexelWorldSize.X) * VirtualTexelWorldSize.X;
-				const float SnapOffsetY = FMath::Frac((BaseVirtualTexturePosition.Y - LandscapeSnapPosition.Y) / VirtualTexelWorldSize.Y) * VirtualTexelWorldSize.Y;
+				const double SnapOffsetX = FMath::Frac((BaseVirtualTexturePosition.X - LandscapeSnapPosition.X) / VirtualTexelWorldSize.X) * VirtualTexelWorldSize.X;
+				const double SnapOffsetY = FMath::Frac((BaseVirtualTexturePosition.Y - LandscapeSnapPosition.Y) / VirtualTexelWorldSize.Y) * VirtualTexelWorldSize.Y;
 				const FVector VirtualTexturePosition = BaseVirtualTexturePosition - FVector(SnapOffsetX, SnapOffsetY, 0);
 				Transform.SetTranslation(FVector(BaseVirtualTexturePosition.X - SnapOffsetX, BaseVirtualTexturePosition.Y - SnapOffsetY, BaseVirtualTexturePosition.Z));
 			}

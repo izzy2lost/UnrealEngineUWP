@@ -4,18 +4,27 @@
 
 #include "Components/DMXPixelMappingBaseComponent.h"
 
+#include "DMXPixelMappingComponentReference.generated.h"
+
 class FDMXPixelMappingToolkit;
 
 /**
  * The Component reference is a useful way to hold onto the selection in a way that allows for up to date access to the current preview object.
  * This is a safe way to communicate between different parts of the pixel mapping editor
  */
-class FDMXPixelMappingComponentReference
+USTRUCT()
+struct FDMXPixelMappingComponentReference
 {
+	GENERATED_BODY()
+
 	friend FDMXPixelMappingToolkit;
 
 public:
-	FDMXPixelMappingComponentReference()
+	FDMXPixelMappingComponentReference() = default;
+
+	FDMXPixelMappingComponentReference(TSharedPtr<FDMXPixelMappingToolkit> InToolkit, UDMXPixelMappingBaseComponent* InComponent)
+		: ToolkitWeakPtr(InToolkit)
+		, Component(InComponent)
 	{}
 
 	/** Checks if widget reference is the same as another component reference, based on the template pointers. */
@@ -40,12 +49,7 @@ public:
 	/** @returns stored component pointer */
 	UDMXPixelMappingBaseComponent* GetComponent() const { return Component.Get(); }
 
-	FDMXPixelMappingComponentReference(TSharedPtr<FDMXPixelMappingToolkit> InToolkit, UDMXPixelMappingBaseComponent* InComponent)
-		: ToolkitWeakPtr(InToolkit)
-		, Component(InComponent)
-	{}
-
-	friend FORCEINLINE uint32 GetTypeHash(const class FDMXPixelMappingComponentReference& ComponentRef)
+	friend FORCEINLINE uint32 GetTypeHash(const FDMXPixelMappingComponentReference& ComponentRef)
 	{
 		return GetTypeHash(ComponentRef.GetComponent());
 	}
@@ -53,6 +57,6 @@ public:
 private:
 	TWeakPtr<FDMXPixelMappingToolkit> ToolkitWeakPtr;
 
+	UPROPERTY(Transient)
 	TWeakObjectPtr<UDMXPixelMappingBaseComponent> Component;
 };
-

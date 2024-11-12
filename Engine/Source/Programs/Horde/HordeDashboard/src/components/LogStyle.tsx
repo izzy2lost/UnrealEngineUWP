@@ -13,7 +13,7 @@ export const logMetricNormal = {
    fontSize: 11
 }
 
-const adjustForDisplayScale = (window as any).safari === undefined && window.devicePixelRatio > 1.25;
+const adjustForDisplayScale = /*(window as any).safari === undefined &&*/ window.devicePixelRatio > 1.25;
 
 export const logMetricSmall = {
    // note, making this any larger limits log line range for overflow
@@ -57,8 +57,7 @@ export const getLogStyles = () => {
 
    const logStyleBase = _logStyleBase ?? mergeStyleSets({
       container: {
-         overflow: 'auto',
-         height: 'calc(100vh - 292px)',
+         overflow: 'auto',         
          marginTop: 8,
       },
       logLine: [
@@ -85,7 +84,7 @@ export const getLogStyles = () => {
          }
       },
       errorButtonDisabled: {         
-         color: dashboard.darktheme ? "#909398" : undefined,
+         color: dashboard.darktheme ? "#909398" : "#616E85 !important",
          backgroundColor: dashboard.darktheme ? "#1F2223" : "#f3f2f1"
       },
       warningButton: {

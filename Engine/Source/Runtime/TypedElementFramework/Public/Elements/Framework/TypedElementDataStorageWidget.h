@@ -20,33 +20,34 @@ class STedsWidget : public SCompoundWidget
 public:
 
 	SLATE_BEGIN_ARGS(STedsWidget)
-		: _UiRowHandle(TypedElementDataStorage::InvalidRowHandle)
-		, _ConstructorTypeInfo(nullptr)
+		: _UiRowHandle(UE::Editor::DataStorage::InvalidRowHandle)
 		, _Content()
 	{
 	}
 
 	// The UI Row this widget will be assigned to
-	SLATE_ARGUMENT(TypedElementDataStorage::RowHandle, UiRowHandle)
-
-	// The typeinfo for the constructor that will create this widget
-	SLATE_ARGUMENT(const UScriptStruct*, ConstructorTypeInfo)
-
+	SLATE_ARGUMENT(UE::Editor::DataStorage::RowHandle, UiRowHandle)
+	
 	/** The actual widget content */
 	SLATE_DEFAULT_SLOT(FArguments, Content)
 	
 	SLATE_END_ARGS()
 	
-	STedsWidget();
+	TYPEDELEMENTFRAMEWORK_API STedsWidget();
 
-	void Construct( const FArguments& InArgs );
+	TYPEDELEMENTFRAMEWORK_API void Construct( const FArguments& InArgs );
 	
-	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* GetWidgetConstructorTypeInfo() const;
 	TYPEDELEMENTFRAMEWORK_API void SetContent(const TSharedRef< SWidget >& InContent);
 
+	TYPEDELEMENTFRAMEWORK_API UE::Editor::DataStorage::RowHandle GetRowHandle() const;
+
+private:
+
+	void RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget);
 	
+	static IEditorDataStorageProvider* GetStorageIfAvailable();
+
 private:
 	
-    TypedElementDataStorage::RowHandle UiRowHandle;
-	const UScriptStruct* ConstructorTypeInfo = nullptr;
+	UE::Editor::DataStorage::RowHandle UiRowHandle;
 };

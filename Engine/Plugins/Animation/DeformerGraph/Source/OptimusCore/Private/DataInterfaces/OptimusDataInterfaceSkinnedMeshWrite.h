@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IOptimusOutputBufferWriter.h"
 #include "OptimusComputeDataInterface.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 
@@ -15,7 +16,9 @@ class USkinnedMeshComponent;
 
 /** Compute Framework Data Interface for writing skinned mesh. */
 UCLASS(Category = ComputeFramework)
-class OPTIMUSCORE_API UOptimusSkinnedMeshWriteDataInterface : public UOptimusComputeDataInterface
+class OPTIMUSCORE_API UOptimusSkinnedMeshWriteDataInterface :
+	public UOptimusComputeDataInterface,
+	public IOptimusOutputBufferWriter
 {
 	GENERATED_BODY()
 
@@ -39,6 +42,9 @@ public:
 	UComputeDataProvider* CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const override;
 	//~ End UComputeDataInterface Interface
 
+	//~ Begin IOptimusOutputBufferWriter Interface
+	EMeshDeformerOutputBuffer GetOutputBuffer(int32 InBoundOutputFunctionIndex) const override;
+	//~ End IOptimusOutputBufferWriter Interface 
 private:
 	static TCHAR const* TemplateFilePath;
 };
@@ -53,7 +59,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
 	TObjectPtr<USkinnedMeshComponent> SkinnedMesh = nullptr;
 
-	uint64 OutputMask;
+	uint64 OutputMask = 0;
+
+	// Served as persistent storage for the provider proxy, should not be used by the data provider itself
+	int32 LastLodIndexCachedByRenderProxy = 0;
 
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
@@ -63,7 +72,7 @@ public:
 class FOptimusSkinnedMeshWriteDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FOptimusSkinnedMeshWriteDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InOutputMask);
+	FOptimusSkinnedMeshWriteDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InOutputMask, int32* InLastLodIndexPtr);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	bool IsValid(FValidationData const& InValidationData) const override;
@@ -74,8 +83,9 @@ public:
 private:
 	using FParameters = FSkinedMeshWriteDataInterfaceParameters;
 
-	FSkeletalMeshObject* SkeletalMeshObject;
-	uint64 OutputMask;
+	FSkeletalMeshObject* SkeletalMeshObject = nullptr;
+	uint64 OutputMask = 0;
+	int32* LastLodIndexPtr = nullptr; 
 
 	FRDGBuffer* PositionBuffer = nullptr;
 	FRDGBufferUAV* PositionBufferUAV = nullptr;

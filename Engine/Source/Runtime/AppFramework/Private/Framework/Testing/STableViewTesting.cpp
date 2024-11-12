@@ -1021,8 +1021,6 @@ public:
 									// The list view being tested
 									SAssignNew( ListBeingTested, SListView< TSharedPtr<FTestData> > )
 									.ExternalScrollbar( ExternalScrollbar )
-									// List view items are this tall
-									.ItemHeight(24)
 									// Tell the list view where to get its source data
 									.ListItemsSource( &Items )
 									// When the list view needs to generate a widget for some data item, use this method
@@ -1081,7 +1079,6 @@ public:
 							[
 								// The TreeView being tested; mostly identical to ListView except for OnGetChildren
 								SAssignNew( TreeBeingTested, STreeView< TSharedPtr<FTestData> > )
-								.ItemHeight(24)
 								.TreeItemsSource( &Items )
 								.OnGenerateRow( this, &STableViewTesting::OnGenerateWidgetForTree )
 								// Given some DataItem, this is how we find out if it has any children and what they are.

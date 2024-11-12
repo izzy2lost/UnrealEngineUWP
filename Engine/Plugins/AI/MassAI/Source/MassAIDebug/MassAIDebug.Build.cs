@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
 		{
 			PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",
@@ -31,8 +33,6 @@ namespace UnrealBuildTool.Rules
 					"MassRepresentation",
 					"MassSignals",
 					"MassLOD",
-					"StructUtils",
-					"StructUtils",
 					"MassSmartObjects",
 					"SmartObjectsModule",
 				}

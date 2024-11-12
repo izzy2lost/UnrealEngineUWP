@@ -23,7 +23,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/Conditionals/ReplicationCondition.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
 #endif // UE_WITH_IRIS
 #include "Physics/Experimental/PhysScene_Chaos.h"
 
@@ -378,7 +378,7 @@ void AActor::SyncReplicatedPhysicsSimulation()
 
 bool AActor::IsWithinNetRelevancyDistance(const FVector& SrcLocation) const
 {
-	return FVector::DistSquared(SrcLocation, GetActorLocation()) < NetCullDistanceSquared;
+	return FVector::DistSquared(SrcLocation, GetActorLocation()) < GetNetCullDistanceSquared();
 }
 
 bool AActor::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const
@@ -1076,7 +1076,7 @@ void AActor::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext&
 	}
 }
 
-void AActor::BeginReplication(const FActorBeginReplicationParams& Params)
+void AActor::BeginReplication(const FActorReplicationParams& Params)
 {
 	UE::Net::FReplicationSystemUtil::BeginReplication(this, Params);
 	UpdateOwningNetConnection();
@@ -1084,7 +1084,7 @@ void AActor::BeginReplication(const FActorBeginReplicationParams& Params)
 
 void AActor::BeginReplication()
 {
-	const FActorBeginReplicationParams BeginReplicationParams;
+	const FActorReplicationParams BeginReplicationParams;
 
 	BeginReplication(BeginReplicationParams);
 }
@@ -1108,7 +1108,7 @@ void AActor::UpdateOwningNetConnection()
 	uint32 NewOwningNetConnectionId = 0U;
 	if (const UNetConnection* NetConnection = GetNetConnection())
 	{
-		NewOwningNetConnectionId = NetConnection->GetParentConnectionId();
+		NewOwningNetConnectionId = NetConnection->GetConnectionHandle().GetParentConnectionId();
 	}
 
 	// If this actor isn't replicated there's no way for us to tell whether we need to update our children.
@@ -1198,5 +1198,5 @@ EPhysicsReplicationMode AActor::GetPhysicsReplicationMode()
 
 float AActor::GetResimulationThreshold() const
 {
-	return UPhysicsSettings::Get()->PhysicsPrediction.ResimulationErrorThreshold;
+	return UPhysicsSettings::Get()->PhysicsPrediction.ResimulationSettings.ResimulationErrorPositionThreshold;
 }

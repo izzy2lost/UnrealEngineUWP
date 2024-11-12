@@ -50,6 +50,23 @@ uint32 GetSlateFontAtlasContentBytesPerPixel(ESlateFontAtlasContentType InConten
 /* FSlateTextureAtlas helper class
  *****************************************************************************/
 
+FSlateTextureAtlas::FSlateTextureAtlas( uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel, ESlateTextureAtlasPaddingStyle InPaddingStyle, bool bInUpdatesAfterInitialization )
+	: AtlasData()
+	, AtlasUsedSlots(NULL)
+	, AtlasEmptySlotsMap()
+	, AtlasWidth( InWidth )
+	, AtlasHeight( InHeight )
+	, BytesPerPixel( InBytesPerPixel )
+	, PaddingStyle( InPaddingStyle )
+	, bNeedsUpdate( false )
+	, bUpdatesAfterInitialization(bInUpdatesAfterInitialization)
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	, AtlasOwnerThread( ESlateTextureAtlasThreadId::Unknown )
+#endif
+{
+	InitAtlasData();
+}
+
 FSlateTextureAtlas::~FSlateTextureAtlas()
 {
 	EmptyAtlasData();

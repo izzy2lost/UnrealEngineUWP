@@ -58,6 +58,16 @@ struct FTableRowBase
 	 * @param InRowName						The name of the row we're performing fix-up on
 	 */
 	virtual void OnDataTableChanged(const UDataTable* InDataTable, const FName InRowName) {}
+
+#if WITH_EDITOR
+	/** Generic function to validate data table row.
+	 *
+	 * @param	Context	the context holding validation warnings/errors.
+	 * @return	Valid if this table row has data validation rules set up for it and the data for this object is valid.
+	 *			Returns Invalid if it does not pass the rules. Returns NotValidated if no rules are set for this object.
+	 */
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const { return EDataValidationResult::NotValidated; }
+#endif // WITH_EDITOR
 };
 
 
@@ -69,8 +79,6 @@ class UDataTable
 	: public UObject
 {
 	GENERATED_UCLASS_BODY()
-
-	virtual ~UDataTable() {};
 
 	DECLARE_MULTICAST_DELEGATE(FOnDataTableChanged);
 	DECLARE_MULTICAST_DELEGATE(FOnDataTableImport);
@@ -118,13 +126,20 @@ public:
 	UPROPERTY(EditAnywhere, Category = ImportOptions)
 	uint8 bIgnoreMissingFields : 1;
 
+	/** Set to true to preserve existing values for any fields that are expected but missing in the CSV file. If false, missing fields will be populated with default values. */
+	UPROPERTY(EditAnywhere, Category = ImportOptions)
+	uint8 bPreserveExistingValues : 1;
+
 	/** Explicit field in import data to use as key. If this is empty it uses Name for JSON and the first field found for CSV */
 	UPROPERTY(EditAnywhere, Category=ImportOptions)
 	FString ImportKeyField;
 	
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	ENGINE_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const override;
+	ENGINE_API virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+protected:
+	ENGINE_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const override;
+public:
 #endif // WITH_EDITOR
 
 	//~ Begin UObject Interface.
@@ -317,6 +332,7 @@ public:
 
 	/** Copies RowData into table. That is: create Row if not found and copy data into the RowMap based on RowData. This is a "copy in" operation, so changing the passed in RowData after the fact does nothing. */
 	ENGINE_API virtual void AddRow(FName RowName, const FTableRowBase& RowData);
+	ENGINE_API virtual void AddRow(FName RowName, const uint8* RowData, const UScriptStruct* RowType);
 
 #if WITH_EDITOR
 	ENGINE_API virtual void CleanBeforeStructChange();

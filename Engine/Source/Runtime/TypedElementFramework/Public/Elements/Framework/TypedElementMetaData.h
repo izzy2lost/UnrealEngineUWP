@@ -13,7 +13,7 @@
 
 class UScriptStruct;
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	struct FQueryDescription;
 
@@ -124,14 +124,14 @@ namespace TypedElementDataStorage
 	public:
 		~FQueryMetaDataView() override = default;
 
-		TYPEDELEMENTFRAMEWORK_API explicit FQueryMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery);
+		TYPEDELEMENTFRAMEWORK_API explicit FQueryMetaDataView(const FQueryDescription& InQuery);
 		
 		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindGeneric(FName AttributeName) const override;
 		TYPEDELEMENTFRAMEWORK_API FMetaDataEntryView FindForColumn(
 			TWeakObjectPtr<const UScriptStruct> Column, FName AttributeName) const override;
 
 	private:
-		const TypedElementDataStorage::FQueryDescription& Query;
+		const FQueryDescription& Query;
 	};
 
 	/**
@@ -201,6 +201,6 @@ namespace TypedElementDataStorage
 		TTuple<ViewTypes...> Views;
 	};
 
-} // TypedElementDataStorage
+} // UE::Editor::DataStorage
 
 #include "Elements/Framework/TypedElementMetaData.inl"

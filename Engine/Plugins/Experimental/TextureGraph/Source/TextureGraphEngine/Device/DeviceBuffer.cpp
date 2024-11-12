@@ -100,6 +100,7 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 		return cti::make_ready_continuable(RawData);
 
 	check(!IsNull());
+	FetchingRaw = true;
 
 	return GetOwnerDevice()->Use()
 		.then([this](int32) mutable
@@ -111,6 +112,7 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 
 			/// Add to blobber
 			NewHash = TextureGraphEngine::GetBlobber()->AddGloballyUniqueHash(NewHash);
+			FetchingRaw = false;
 
 			return PromiseUtil::OnGameThread();
 
@@ -125,6 +127,25 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 
 			return RawData;
 		});
+}
+
+AsyncRawBufferPtr DeviceBuffer::GetRawOrMaketIt()
+{
+	check(IsInGameThread());
+	if (!IsFetchingRaw())
+	{
+		return Raw();
+	}
+	else
+	{
+		return GetOwnerDevice()->Use().then([this](int32) mutable
+			{
+				RawBufferPtr RawObj = Raw_Now();
+
+				// Return to game thread with the payload
+				return PromiseUtil::OnGameThread(std::move(RawObj));
+			});
+	}
 }
 
 CHashPtr DeviceBuffer::CalcHash()

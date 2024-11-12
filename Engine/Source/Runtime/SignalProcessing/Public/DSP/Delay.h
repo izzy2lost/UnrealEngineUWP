@@ -16,7 +16,7 @@ namespace Audio
 		SIGNALPROCESSING_API FDelay();
 
 		// Virtual Destructor
-		SIGNALPROCESSING_API virtual ~FDelay() = default;
+		SIGNALPROCESSING_API virtual ~FDelay();
 
 		// Initialization of the delay with given sample rate and max buffer size in samples.
 		// (calls Reset())
@@ -25,6 +25,8 @@ namespace Audio
 		// Resets the delay line state, flushes buffer and resets read/write pointers.
 		// (called by Init())
 		SIGNALPROCESSING_API void Reset();
+		SIGNALPROCESSING_API void ResetWithFade();
+		
 
 		// Sets the delay line length. Will clamp to within range of the max initialized delay line length (won't resize).
 		SIGNALPROCESSING_API void SetDelayMsec(const float InDelayMsec);
@@ -92,8 +94,15 @@ namespace Audio
 		// Output attenuation value.
 		float OutputAttenuation;
 
+
 		// Attenuation in decibel
 		float OutputAttenuationDB;
+
+	private:
+
+		// Used to do a quick fade-in of input after a call to "ResetWithFade()"
+		float InputAttenuation = 1.f;
+		float InputFadeGainStep = 0.f;
 	};
 
 }

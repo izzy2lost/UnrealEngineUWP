@@ -53,12 +53,22 @@ public:
 	static int32 ResolveVersionNumber(FMovieGraphFilenameResolveParams InParams, const bool bGetNextVersion = true);
 
 	/**
+	* Retrieves the cached version number calculated for the current shot, which depends on where the version token was used in the File Name Output
+	* ie: If {version} comes before {shot_name} then all shots will use the same version number, but if it comes afterwards then each shot may
+	* have a different version (which is the highest number found of that particular shot). This function should retrieve what is used in the
+	* filename writing step either way.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static int32 GetCurrentVersionNumber(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
 	* In case of overscan percentage being higher than 0, additional pixels are rendered. This function returns the resolution with overscan taken into account.
 	* @param	InEvaluatedGraph	- The evaluated graph that will provide context for resolving the resolution
+	* @param	DefaultOverscan		- The default overscan to use if there are no camera settings that provide an overscan override value, from 0.0 to 1.0
 	* @return						- The output resolution, taking into account overscan
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	static FIntPoint GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph);
+	static FIntPoint GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph, float DefaultOverscan = 0.0f);
 
 	/**
 	* Gets the name of the current job.
@@ -174,28 +184,28 @@ public:
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static float GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static float GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 
 	/**
 	* Gets the focal length for the camera currently in use.
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static float GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static float GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 	
 	/**
 	* Gets the aperture for the camera currently in use.
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static float GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static float GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 
 	/**
 	* Gets the currently active cine camera, or nullptr if one was not found.
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static UCineCameraComponent* GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static UCineCameraComponent* GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 
 
 
@@ -218,5 +228,11 @@ public:
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	static FMovieGraphNamedResolution NamedResolutionFromSize(const int32 InResX, const int32 InResY);
+
+	/**
+	* Gets the current shot being rendered by the graph (could be nullptr if rendering hasn't started or has moved to Finalize!)
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static UMoviePipelineExecutorShot* GetCurrentExecutorShot(const UMovieGraphPipeline* InMoviePipeline);
 
 };

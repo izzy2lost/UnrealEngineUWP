@@ -118,43 +118,61 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 	SourceTaggedData.Data = SourceData;
 	SourceData->TargetActor = TestData.TestActor;
 
+	const FName BoolName = TEXT("Bool");
 	const FName FloatName = TEXT("Float");
 	const FName DoubleName = TEXT("Double");
 	const FName IntName = TEXT("Int");
 	const FName VecName = TEXT("Vec");
 	const FName Vec4Name = TEXT("Vec4");
 	const FName RotatorName = TEXT("Rotator");
+	const FName QuatName = TEXT("Quat");
+
+	const FPCGAttributePropertyInputSelector BoolSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(BoolName);
+	const FPCGAttributePropertyInputSelector FloatSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(FloatName);
+	const FPCGAttributePropertyInputSelector DoubleSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(DoubleName);
+	const FPCGAttributePropertyInputSelector IntSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(IntName);
+	const FPCGAttributePropertyInputSelector VecSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(VecName);
+	const FPCGAttributePropertyInputSelector Vec4Selector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(Vec4Name);
+	const FPCGAttributePropertyInputSelector RotatorSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(RotatorName);
+	const FPCGAttributePropertyInputSelector QuatSelector = FPCGAttributePropertySelector::CreateAttributeSelector<FPCGAttributePropertyInputSelector>(QuatName);
 
 	const bool bAllowsInterpolation = false;
 	const bool bOverrideParent = false;
 
+	SourceData->Metadata->CreateBoolAttribute(BoolName, 0, bAllowsInterpolation, bOverrideParent);
 	SourceData->Metadata->CreateFloatAttribute(FloatName, 0, bAllowsInterpolation, bOverrideParent);
 	SourceData->Metadata->CreateDoubleAttribute(DoubleName, 0, bAllowsInterpolation, bOverrideParent);
 	SourceData->Metadata->CreateInteger64Attribute(IntName, 0, bAllowsInterpolation, bOverrideParent);
 	SourceData->Metadata->CreateVectorAttribute(VecName, FVector::Zero(), bAllowsInterpolation, bOverrideParent);
 	SourceData->Metadata->CreateVector4Attribute(Vec4Name, FVector4::Zero(), bAllowsInterpolation, bOverrideParent);
 	SourceData->Metadata->CreateRotatorAttribute(RotatorName, FRotator::ZeroRotator, bAllowsInterpolation, bOverrideParent);
+	SourceData->Metadata->CreateQuatAttribute(QuatName, FQuat::Identity, bAllowsInterpolation, bOverrideParent);
 
 	TArray<FPCGPoint>& SourcePoints = SourceData->GetMutablePoints();
 
+	TArray<float> BoolValues;
 	TArray<float> FloatValues;
 	TArray<float> DoubleValues;
 	TArray<float> IntValues;
 	TArray<float> VecValues;
 	TArray<float> Vec4Values;
 	TArray<float> RotatorValues;
+	TArray<float> QuatValues;
 
 	FRandomStream RandomSource(TestData.Seed);
 	int NumPoints = 5;
 	for (int I = 0; I < NumPoints; ++I)
 	{
+		const bool BoolValue = I % 2 == 0;
 		const float FloatValue = (I + 0.f) / NumPoints;
 		const double DoubleValue = FloatValue + 1;
 		const int64 IntValue = I;
 		const FVector VecValue = FVector(1, 2, 3) * I;
 		const FVector4 Vec4Value = -FVector(1, 2, 3) * I;
 		const FRotator RotatorValue = FRotator(15, 30, 45) * I;
+		const FQuat QuatValue(RotatorValue);
 
+		BoolValues.Add(BoolValue);
 		FloatValues.Add(FloatValue);
 		DoubleValues.Add(DoubleValue);
 		IntValues.Add(IntValue);
@@ -168,13 +186,19 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 		RotatorValues.Add(RotatorValue.Roll);
 		RotatorValues.Add(RotatorValue.Pitch);
 		RotatorValues.Add(RotatorValue.Yaw);
+		QuatValues.Add(QuatValue.X);
+		QuatValues.Add(QuatValue.Y);
+		QuatValues.Add(QuatValue.Z);
+		QuatValues.Add(QuatValue.W);
 
+		UPCGMetadataAccessorHelpers::SetBoolAttribute(SourcePoints[I], SourceData->Metadata, BoolName, BoolValue);
 		UPCGMetadataAccessorHelpers::SetFloatAttribute(SourcePoints[I], SourceData->Metadata, FloatName, FloatValue);
 		UPCGMetadataAccessorHelpers::SetDoubleAttribute(SourcePoints[I], SourceData->Metadata, DoubleName, DoubleValue);
 		UPCGMetadataAccessorHelpers::SetInteger64Attribute(SourcePoints[I], SourceData->Metadata, IntName, IntValue);
 		UPCGMetadataAccessorHelpers::SetVectorAttribute(SourcePoints[I], SourceData->Metadata, VecName, VecValue);
 		UPCGMetadataAccessorHelpers::SetVector4Attribute(SourcePoints[I], SourceData->Metadata, Vec4Name, Vec4Value);
 		UPCGMetadataAccessorHelpers::SetRotatorAttribute(SourcePoints[I], SourceData->Metadata, RotatorName, RotatorValue);
+		UPCGMetadataAccessorHelpers::SetQuatAttribute(SourcePoints[I], SourceData->Metadata, QuatName, QuatValue);
 	}
 
 	Settings->SetInstancePackerType(UPCGInstanceDataPackerByAttribute::StaticClass());
@@ -182,58 +206,70 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 	UPCGMeshSelectorWeighted* MeshSelector = CastChecked<UPCGMeshSelectorWeighted>(Settings->MeshSelectorParameters);
 
 	const FString CubePath = TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'");
-	const UStaticMesh* CubeMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), NULL, *CubePath));
+	UStaticMesh* CubeMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), NULL, *CubePath));
 	MeshSelector->MeshEntries.Add(FPCGMeshSelectorWeightedEntry(CubeMesh, 1));
 
 	bool bTestPassed = true;
 
 	// No attributes
 	{
-		InstancePacker->AttributeNames = {};
+		InstancePacker->AttributeSelectors = {};
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, {}, 0);
+	}
+
+	// Bool Attribute
+	{
+		InstancePacker->AttributeSelectors = { BoolSelector };
+		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, BoolValues, 1);
 	}
 
 	// Float Attribute
 	{
-		InstancePacker->AttributeNames = { FloatName };
+		InstancePacker->AttributeSelectors = { FloatSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, FloatValues, 1);
 	}
 
 	// Double Attribute
 	{
-		InstancePacker->AttributeNames = { DoubleName };
+		InstancePacker->AttributeSelectors = { DoubleSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, DoubleValues, 1);
 	}
 
 	// Int Attribute
 	{
-		InstancePacker->AttributeNames = { IntName };
+		InstancePacker->AttributeSelectors = { IntSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, IntValues, 1);
 	}
 
 	// Vector Attribute
 	{
-		InstancePacker->AttributeNames = { VecName };
+		InstancePacker->AttributeSelectors = { VecSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, VecValues, 3);
 	}
 
 	// Vector4 Attribute
 	{
-		InstancePacker->AttributeNames = { Vec4Name };
+		InstancePacker->AttributeSelectors = { Vec4Selector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, Vec4Values, 4);
 	}
 
 	// Rotator Attribute
 	{
-		InstancePacker->AttributeNames = { RotatorName };
+		InstancePacker->AttributeSelectors = { RotatorSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, RotatorValues, 3);
+	}
+
+	// Quat Attribute
+	{
+		InstancePacker->AttributeSelectors = { QuatSelector };
+		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, QuatValues, 4);
 	}
 
 	// Float + Vector
 	{
 		TArray<float> ExpectedCustomData = LocalPackFloats({ { FloatValues, 1 }, { VecValues, 3 } }, NumPoints);
 
-		InstancePacker->AttributeNames = { FloatName, VecName };
+		InstancePacker->AttributeSelectors = { FloatSelector, VecSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, ExpectedCustomData, 4);
 	}
 
@@ -241,7 +277,7 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 	{
 		TArray<float> ExpectedCustomData = LocalPackFloats({ { VecValues, 3 }, { FloatValues, 1 } }, NumPoints);
 
-		InstancePacker->AttributeNames = { VecName, FloatName };
+		InstancePacker->AttributeSelectors = { VecSelector, FloatSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, ExpectedCustomData, 4);
 	}
 
@@ -249,7 +285,7 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 	{
 		TArray<float> ExpectedCustomData = LocalPackFloats({ { VecValues, 3 }, { FloatValues, 1 }, { VecValues, 3 } }, NumPoints);
 
-		InstancePacker->AttributeNames = { VecName, FloatName, VecName };
+		InstancePacker->AttributeSelectors = { VecSelector, FloatSelector, VecSelector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, ExpectedCustomData, 7);
 	}
 
@@ -257,7 +293,7 @@ bool FPCGStaticMeshSpawnerInstancePackerByAttributeTest::RunTest(const FString& 
 	{
 		TArray<float> ExpectedCustomData = LocalPackFloats({ { VecValues, 3 }, { FloatValues, 1 }, { VecValues, 3 }, { Vec4Values, 4 } }, NumPoints);
 
-		InstancePacker->AttributeNames = { VecName, FloatName, VecName, Vec4Name };
+		InstancePacker->AttributeSelectors = { VecSelector, FloatSelector, VecSelector, Vec4Selector };
 		bTestPassed &= ValidateInstancePacker(this, TestData, Settings, ExpectedCustomData, 11);
 	}
 
@@ -339,7 +375,7 @@ bool FPCGStaticMeshSpawnerInstancePackerByRegexTest::RunTest(const FString& Para
 	UPCGMeshSelectorWeighted* MeshSelector = CastChecked<UPCGMeshSelectorWeighted>(Settings->MeshSelectorParameters);
 
 	const FString CubePath = TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'");
-	const UStaticMesh* CubeMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), NULL, *CubePath));
+	UStaticMesh* CubeMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), NULL, *CubePath));
 	MeshSelector->MeshEntries.Add(FPCGMeshSelectorWeightedEntry(CubeMesh, 1));
 
 	bool bTestPassed = true;

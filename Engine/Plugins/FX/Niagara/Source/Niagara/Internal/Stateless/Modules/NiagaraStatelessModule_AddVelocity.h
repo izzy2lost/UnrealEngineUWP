@@ -17,13 +17,14 @@ enum class ENSM_VelocityType
 	InCone,			// Max, Min, Cone| Cone Axis, Cone Angle, Inner Cone
 };
 
+// Add to the velocity applied to all particles
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Add Velocity"))
 class UNiagaraStatelessModule_AddVelocity : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, Category = "Parameters")
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(SegmentedDisplay))
 	ENSM_VelocityType VelocityType = ENSM_VelocityType::Linear;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Velocity", DisableUniformDistribution, DisableBindingDistribution, EditConditionHides, EditCondition = "VelocityType == ENSM_VelocityType::Linear"))
@@ -50,7 +51,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (EditCondition = "bSpeedFalloffFromConeAxisEnabled && VelocityType == ENSM_VelocityType::InCone", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
 	float SpeedFalloffFromConeAxis = 0.0f;
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (SegmentedDisplay))
+	ENiagaraCoordinateSpace CoordinateSpace = ENiagaraCoordinateSpace::Local;
+
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
 
 #if WITH_EDITOR
 	virtual bool CanDisableModule() const override { return true; }

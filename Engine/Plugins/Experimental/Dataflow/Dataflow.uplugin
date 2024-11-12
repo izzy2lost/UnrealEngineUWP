@@ -12,14 +12,13 @@
     "SupportURL" : "",
     "EnabledByDefault" : true,
     "CanContainContent" : true,
-    "IsBetaVersion" : true,
 	"IsExperimentalVersion": true,
     "Installed" : false,
 	"Modules": [
 		{
 			"Name": "DataflowEditor",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PostDefault"
 		},
 		{
 			"Name": "DataflowAssetTools",
@@ -53,6 +52,14 @@
 		},
 		{
 			"Name": "MeshModelingToolsetExp",
+			"Enabled": true
+		},
+		{
+			"Name": "ChaosCaching",
+			"Enabled": true
+		},
+		{
+			"Name": "GeometryCache",
 			"Enabled": true
 		}
 	]

@@ -11,6 +11,11 @@
 #include "UObject/Stack.h"
 #include "UObject/OverridableManager.h"
 
+#if WITH_EDITORONLY_DATA
+#include "Serialization/PropertyLocalizationDataGathering.h"
+#include "StructUtils/InstancedStruct.h"
+#endif	// WITH_EDITORONLY_DATA
+
 void UClassRegisterAllCompiledInClasses();
 bool IsInAsyncLoadingThreadCoreUObjectInternal();
 bool IsAsyncLoadingCoreUObjectInternal();
@@ -50,6 +55,10 @@ public:
 		IsAsyncLoadingMultithreaded = &IsAsyncLoadingMultithreadedCoreUObjectInternal;
 		GetLoaderType = &GetLoaderTypeInternal;
 
+#if WITH_EDITORONLY_DATA
+		FCoreDelegates::OnPostEngineInit.AddStatic(&RegisterCustomLocalizationDataGathering);
+#endif
+
 		// Register the script callstack callback to the runtime error logging
 #if UE_RAISE_RUNTIME_ERRORS
 		FRuntimeErrors::OnRuntimeIssueLogged.BindStatic(&FCoreUObjectModule::RouteRuntimeMessageToBP);
@@ -62,6 +71,37 @@ public:
 		FFrame::InitPrintScriptCallstack();
 #endif
 	}
+
+#if WITH_EDITORONLY_DATA
+	static void RegisterCustomLocalizationDataGathering()
+	{
+		{
+			static const FAutoRegisterLocalizationDataGatheringCallback _(TBaseStructure<FInstancedStruct>::Get(),
+				[](const FString& PathToParent, const UScriptStruct* Struct, const void* StructData, const void* DefaultStructData, FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags)
+			{
+				const FInstancedStruct* ThisInstance = static_cast<const FInstancedStruct*>(StructData);
+				const FInstancedStruct* DefaultInstance = static_cast<const FInstancedStruct*>(DefaultStructData);
+
+				PropertyLocalizationDataGatherer.GatherLocalizationDataFromStruct(PathToParent, Struct, StructData, DefaultStructData, GatherTextFlags);
+
+				if (const UScriptStruct* StructTypePtr = ThisInstance->GetScriptStruct())
+				{
+					const uint8* DefaultInstanceMemory = nullptr;
+					if (DefaultInstance)
+					{
+						// Types must match
+						if (StructTypePtr == DefaultInstance->GetScriptStruct())
+						{
+							DefaultInstanceMemory = DefaultInstance->GetMemory();
+						}
+					}
+
+					PropertyLocalizationDataGatherer.GatherLocalizationDataFromStructWithCallbacks(PathToParent + TEXT(".StructInstance"), StructTypePtr, ThisInstance->GetMemory(), DefaultInstanceMemory, GatherTextFlags);
+				}
+			});
+		}
+	}
+#endif
 };
 IMPLEMENT_MODULE( FCoreUObjectModule, CoreUObject );
 
@@ -143,10 +183,8 @@ UObject* FObjectInstancingGraph::GetInstancedSubobject( UObject* SourceSubobject
 {
 	checkSlow(SourceSubobject);
 
-	const bool bAreOverridesEnabled = SourceSubobject && FOverridableManager::Get().IsEnabled(*SourceSubobject);
 	const bool bDoNotCreateNewInstance = !!(Flags & EInstancePropertyValueFlags::DoNotCreateNewInstance);
-	const bool bAllowSelfReference     = !!(Flags & EInstancePropertyValueFlags::AllowSelfReference) || bAreOverridesEnabled;
-
+	const bool bAllowSelfReference     = !!(Flags & EInstancePropertyValueFlags::AllowSelfReference);
 
 	UObject* InstancedSubobject = INVALID_OBJECT;
 
@@ -169,7 +207,8 @@ UObject* FObjectInstancingGraph::GetInstancedSubobject( UObject* SourceSubobject
 		if ( bShouldInstance )
 		{
 			// If the CurrentValue is within the SourceRoot, lets use it to instantiate as it must have come from the merge result of the serialization
-			if (bAreOverridesEnabled && SourceSubobject != CurrentValue && CurrentValue->IsIn(SourceRoot))
+			const bool bIsInstantiatingSubObjectForOverridableSerialization = SourceSubobject && FOverridableManager::Get().NeedSubObjectTemplateInstantiation(*SourceSubobject);
+			if (bIsInstantiatingSubObjectForOverridableSerialization && SourceSubobject != CurrentValue && CurrentValue->IsIn(SourceRoot))
 			{
 				SourceSubobject = CurrentValue;
 			}

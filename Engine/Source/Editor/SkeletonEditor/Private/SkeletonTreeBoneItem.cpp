@@ -23,6 +23,7 @@
 #include "UObject/Package.h"
 #include "Editor.h"
 #include "ScopedTransaction.h"
+#include "Preferences/PersonaOptions.h"
 
 #define LOCTEXT_NAMESPACE "FSkeletonTreeBoneItem"
 
@@ -82,7 +83,7 @@ void FSkeletonTreeBoneItem::GenerateWidgetForNameColumn( TSharedPtr< SHorizontal
 		UDebugSkelMeshComponent* PreviewComponent = GetSkeletonTree()->GetPreviewScene()->GetPreviewMeshComponent();
 		CacheLODChange(PreviewComponent);
 	}	
-	
+
 	FText ToolTip = GetBoneToolTip();
 	Box->AddSlot()
 		.AutoWidth()
@@ -95,6 +96,26 @@ void FSkeletonTreeBoneItem::GenerateWidgetForNameColumn( TSharedPtr< SHorizontal
 			.HighlightText( FilterText )
 			.Font(this, &FSkeletonTreeBoneItem::GetBoneTextFont)
 			.ToolTipText( ToolTip )
+		];
+
+	Box->AddSlot()
+		.AutoWidth()
+		.Padding(4, 0, 0, 0)
+		.VAlign(VAlign_Center)
+		[
+			SNew (STextBlock)
+			.ColorAndOpacity(this, &FSkeletonTreeBoneItem::GetBoneTextColor, InIsSelected)
+			.Text_Lambda( [BoneName=BoneName, EditableSkeleton=GetEditableSkeleton()]() -> FText
+			{
+				const int32 BoneIndex = EditableSkeleton->GetSkeleton().GetReferenceSkeleton().FindBoneIndex(BoneName);
+				return FText::Format(LOCTEXT("BoneIndexValue", "<{0}>"), FText::AsNumber(BoneIndex));
+			})
+			.Font(this, &FSkeletonTreeBoneItem::GetBoneTextFont)
+			.ToolTipText( LOCTEXT("BoneIndexTooltip", "The index of this bone in the reference skeleton's flat list of bones.") )
+			.Visibility_Lambda([]() -> EVisibility
+			{
+				return GetDefault<UPersonaOptions>()->bShowBoneIndexes ? EVisibility::Visible : EVisibility::Collapsed;
+			})
 		];
 }
 
@@ -535,12 +556,8 @@ bool FSkeletonTreeBoneItem::IsBoneRequired(int32 MeshBoneIndex, UDebugSkelMeshCo
 		return false;
 	}
 
-	//Get current LOD
-	const int32 LODIndex = FMath::Clamp(PreviewComponent->GetPredictedLODLevel(), 0, PreviewComponent->GetSkeletalMeshAsset()->GetResourceForRendering()->LODRenderData.Num() - 1);
-	FSkeletalMeshLODRenderData& LODData = PreviewComponent->GetSkeletalMeshAsset()->GetResourceForRendering()->LODRenderData[LODIndex];
-
-	//Check whether the bone is vertex weighted
-	int32 Index = LODData.RequiredBones.Find(IntCastChecked<FBoneIndexType>(MeshBoneIndex));
+	//Check whether the bone is vertex weighted or required by physics or other forced requirements (see USkeletalMeshComponent::ComputeRequiredBones)
+	const int32 Index = PreviewComponent->RequiredBones.Find(IntCastChecked<FBoneIndexType>(MeshBoneIndex));
 
 	return Index != INDEX_NONE;
 }

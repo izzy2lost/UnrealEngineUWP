@@ -31,6 +31,14 @@ FNavMeshPath::FNavMeshPath()
 	InternalResetNavMeshPath();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FNavMeshPath::~FNavMeshPath() = default;
+FNavMeshPath::FNavMeshPath(const FNavMeshPath&) = default;
+FNavMeshPath::FNavMeshPath(FNavMeshPath&& Other) = default;
+FNavMeshPath& FNavMeshPath::operator=(const FNavMeshPath& Other) = default;
+FNavMeshPath& FNavMeshPath::operator=(FNavMeshPath&& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void FNavMeshPath::ResetForRepath()
 {
 	Super::ResetForRepath();
@@ -862,7 +870,7 @@ void FNavMeshPath::DescribeSelfToVisLog(FVisualLogEntry* Snapshot) const
 			AreaMarkElem.Description = AreaClass->GetName();
 
 			AreaMarkElem.Points.Add(CenterPt + CorridorOffset);
-			AreaMarkElem.Points.Add(CenterPt + CorridorOffset + FVector(0,0,100.0f + NumAreaMark * 50.0f));
+			AreaMarkElem.Points.Add(CenterPt + CorridorOffset + FVector(0,0,100 + static_cast<double>(NumAreaMark) * 50));
 			Snapshot->ElementsToDraw.Add(AreaMarkElem);
 
 			NumAreaMark = (NumAreaMark + 1) % 5;

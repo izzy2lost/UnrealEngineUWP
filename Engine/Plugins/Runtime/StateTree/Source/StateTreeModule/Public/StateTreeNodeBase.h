@@ -11,7 +11,27 @@ struct FStateTreePropertyPath;
 struct IStateTreeBindingLookup;
 
 /**
- * Base struct of StateTree Conditions, Evaluators, and Tasks.
+ * Enum describing in what format a text is expected to be returned.
+ *
+ * - Normal text should be used for values
+ * - Bold text should generally be used for actions, like name a of a task "<b>Play Animation</> {AnimName}".
+ * - Subdued should be generally used for secondary/structural information, like "{Left} <s>equals</> {Right}".
+ */
+UENUM(BlueprintType)
+enum EStateTreeNodeFormatting : uint8
+{
+	/**
+	 * The returned text can contain following right text formatting (no nesting)
+	 *	- <b>Bold</> (bolder font is used)
+	 *	- <s>Subdued</> (normal font with lighter color) */
+	RichText,
+	
+	/** The text should be unformatted */
+	Text,
+};
+
+/**
+ * Base struct of StateTree Conditions, Considerations, Evaluators, and Tasks.
  */
 USTRUCT()
 struct STATETREEMODULE_API FStateTreeNodeBase
@@ -53,15 +73,49 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.3, "Use version with FStateTreePropertyPath instead.")
 	virtual void OnBindingChanged(const FGuid& ID, FStateTreeDataView InstanceData, const FStateTreeEditorPropertyPath& SourcePath, const FStateTreeEditorPropertyPath& TargetPath, const IStateTreeBindingLookup& BindingLookup) final {}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	/**
+	 * Returns description for the node, use in the UI.
+	 * The UI description is selected as follows: 
+	 * - Node Name, if not empty
+	 * - Description if not empty
+	 * - Display name of the node struct
+	 * @param ID ID of the item, can be used make property paths to this item.
+	 * @param InstanceDataView View to the instance data, can be struct or class.
+	 * @param BindingLookup Reference to binding lookup which can be used to reason about property paths.
+	 * @param Formatting Requested formatting (whether rich or plain text should be returned).
+	 */
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const
+	{
+		return FText::GetEmpty();
+	}
+
+	/**
+	 * @returns name of the icon in format:
+	 *		StyleSetName | StyleName [ | SmallStyleName | StatusOverlayStyleName]
+	 *		SmallStyleName and StatusOverlayStyleName are optional.
+	 *		Example: "StateTreeEditorStyle|Node.Animation" 
+	 */
+	virtual FName GetIconName() const
+	{
+		return FName();
+	}
+
+	/** @return the color to be used with the icon. */
+	virtual FColor GetIconColor() const
+	{
+		return UE::StateTree::Colors::DarkGrey;
+	}
+
 	/**
 	 * Called when binding of any of the properties in the node changes.
 	 * @param ID ID of the item, can be used make property paths to this item.
-	 * @param InstanceData view to the instance data, can be struct or class.
+	 * @param InstanceDataView view to the instance data, can be struct or class.
 	 * @param SourcePath Source path of the new binding.
 	 * @param TargetPath Target path of the new binding (the property in the condition).
 	 * @param BindingLookup Reference to binding lookup which can be used to reason about property paths.
 	 */
-	virtual void OnBindingChanged(const FGuid& ID, FStateTreeDataView InstanceData, const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath, const IStateTreeBindingLookup& BindingLookup) {}
+	virtual void OnBindingChanged(const FGuid& ID, FStateTreeDataView InstanceDataView, const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath, const IStateTreeBindingLookup& BindingLookup) {}
 
 	/**
 	 * Called when a property of the node has been modified externally
@@ -77,6 +131,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 */
 	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) {}
 #endif
+
+	/**
+	* Called after the state tree asset that contains this node is loaded from disk.
+	* @param InstanceDataView view to the instance data, can be struct or class.
+	*/
+	virtual void PostLoad(FStateTreeDataView InstanceDataView) {}
 
 	/** Name of the node. */
 	UPROPERTY(EditDefaultsOnly, Category = "", meta=(EditCondition = "false", EditConditionHides))

@@ -148,7 +148,7 @@ bool FMediaMovieStreamer::Tick(float DeltaTime)
 			FTextureResource* TextureResource = MediaTexture->GetResource();
 			if (TextureResource != nullptr)
 			{
-				FRHITexture2D* RHITexture2D = TextureResource->GetTexture2DRHI();
+				FRHITexture* RHITexture2D = TextureResource->GetTexture2DRHI();
 				if (RHITexture2D != nullptr)
 				{
 					// Get slate texture.
@@ -161,7 +161,7 @@ bool FMediaMovieStreamer::Tick(float DeltaTime)
 						}
 
 						// Update the slate texture.
-						FTexture2DRHIRef ref = RHITexture2D;
+						FTextureRHIRef ref = RHITexture2D;
 						CurrentTexture->SetRHIRef(ref, MediaTexture->GetWidth(), MediaTexture->GetHeight());
 
 						// Update viewport.
@@ -241,7 +241,7 @@ void FMediaMovieStreamer::Cleanup()
 	}
 }
 
-FTexture2DRHIRef FMediaMovieStreamer::GetTexture()
+FTextureRHIRef FMediaMovieStreamer::GetTexture()
 {
 	return nullptr;
 }

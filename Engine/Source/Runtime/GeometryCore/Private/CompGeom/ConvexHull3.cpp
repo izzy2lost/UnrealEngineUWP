@@ -228,7 +228,7 @@ struct FHullConnectivity
 					int32 PointIdx = Indices[SubIdx];
 					if (PointIdx == SourcePointIdx)
 					{
-						Indices.RemoveAtSwap(SubIdx, 1, EAllowShrinking::No);
+						Indices.RemoveAtSwap(SubIdx, EAllowShrinking::No);
 						SubIdx--;
 					}
 					else
@@ -269,9 +269,6 @@ struct FHullConnectivity
 	TArray<FIndex3i> TriNeighbors;
 	TArray<FVisiblePoints> VisiblePoints;
 	TSet<int32> TrisWithPoints;
-	
-	TArray<uint16> PointMemberships; // Used for tracking set membership for point indices
-	uint16 MembershipNumber = 0;
 
 	// If positive, this threshold additionally filters which points are considered 'visible' as only points at least this far from the plane
 	double VisibleDistanceThreshold = -FMathd::MaxReal;
@@ -330,6 +327,18 @@ struct FHullConnectivity
 	{
 		VisiblePoints.SetNum(Triangles.Num());
 
+		// Track which points are already assigned so never assign one point to multiple tris
+		TArray<bool> PointAssigned;
+		PointAssigned.SetNumZeroed(NumPoints);
+		for (int32 TriIdx = 0; TriIdx < Triangles.Num(); TriIdx++)
+		{
+			FIndex3i Tri = Triangles[TriIdx];
+			for (int32 SubIdx = 0; SubIdx < 3; ++SubIdx)
+			{
+				PointAssigned[Tri[SubIdx]] = true;
+			}
+		}
+
 		TVector<RealType> TriPts[3];
 		TVector<RealType> Pt;
 		for (int32 TriIdx = 0; TriIdx < Triangles.Num(); TriIdx++)
@@ -339,7 +348,7 @@ struct FHullConnectivity
 
 			for (int32 PtIdx = 0; PtIdx < NumPoints; PtIdx++)
 			{
-				if (!FilterFunc(PtIdx))
+				if (!FilterFunc(PtIdx) || PointAssigned[PtIdx] == true)
 				{
 					continue;
 				}
@@ -353,6 +362,7 @@ struct FHullConnectivity
 						TrisWithPoints.Add(TriIdx);
 					}
 					VisiblePoints[TriIdx].AddPtByValue(PtIdx, Distance);
+					PointAssigned[PtIdx] = true;
 				}
 			}
 		}
@@ -682,33 +692,6 @@ struct FHullConnectivity
 		int32 NumAdd = ToAdd.Num();
 		TVector<RealType> TriPts[3];
 
-		// Remove duplicates from the unclaimed list (unless the list is small)
-		if (NewlyUnclaimed.Num() > 10)
-		{
-			// Use  PointMemberships to track if we've already seen the point
-			if (PointMemberships.Num() != NumPoints || MembershipNumber == MAX_uint16)
-			{
-				MembershipNumber = 1;
-				PointMemberships.Reset();
-				PointMemberships.SetNumZeroed(NumPoints);
-			}
-			else
-			{
-				MembershipNumber++;
-			}
-			for (int32 Idx = 0; Idx < NewlyUnclaimed.Num(); ++Idx)
-			{
-				int32 UnclaimedIdx = NewlyUnclaimed[Idx];
-				if (PointMemberships[UnclaimedIdx] == MembershipNumber)
-				{
-					NewlyUnclaimed.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
-				}
-				else
-				{
-					PointMemberships[UnclaimedIdx] = MembershipNumber;
-				}
-			}
-		}
 
 		for (int32 AddIdx = 0; AddIdx < NumAdd; AddIdx++)
 		{
@@ -734,7 +717,7 @@ struct FHullConnectivity
 					if (PlaneDist > VisibleDistanceThreshold && IsVisible(TriPts, UnPt))
 					{
 						Visible.AddPtByValue(UnPtIdx, PlaneDist);
-						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, EAllowShrinking::No);
+						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, EAllowShrinking::No);
 						UnclaimedIdx--;
 						continue;
 					}
@@ -749,7 +732,7 @@ struct FHullConnectivity
 					if (IsVisible(TriPts, UnPt))
 					{
 						Visible.AddPt(UnPtIdx, UnPt);
-						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, EAllowShrinking::No);
+						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, EAllowShrinking::No);
 						UnclaimedIdx--;
 						continue;
 					}
@@ -1354,14 +1337,14 @@ void TConvexHull3<RealType>::GetSimplifiedFaces(TArray<FPolygonFace>& OutPolygon
 				}
 				else
 				{
-					OutPolygons.RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
+					OutPolygons.RemoveAtSwap(PolyIdx, EAllowShrinking::No);
 					if (OutPolygonNormals)
 					{
-						OutPolygonNormals->RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
+						OutPolygonNormals->RemoveAtSwap(PolyIdx, EAllowShrinking::No);
 					}
 					else
 					{
-						PolygonToGroup.RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
+						PolygonToGroup.RemoveAtSwap(PolyIdx, EAllowShrinking::No);
 					}
 					bHasDeletedFaces = true;
 					PolyIdx--;

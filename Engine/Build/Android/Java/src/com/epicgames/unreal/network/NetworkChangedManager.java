@@ -232,6 +232,7 @@ public final class NetworkChangedManager implements NetworkConnectivityClient {
 		executor.execute(new Runnable() {
 			@Override
 			public void run() {
+				android.net.TrafficStats.setThreadStatsTag(1);
 				HttpURLConnection urlConnection = null;
 				boolean connectedSuccessfully = false;
 				// Attempt to connect to any of the hostnames. If any succeed we are connected to
@@ -371,16 +372,24 @@ public final class NetworkChangedManager implements NetworkConnectivityClient {
 	}
 
 	private void fireNetworkChangeListeners(ConnectivityState state, NetworkTransportType networkTransportType) {
-		Iterator<WeakReference<Listener>> changeListenersIterator = networkChangedListeners.iterator();
-		while (changeListenersIterator.hasNext()) {
-			WeakReference<Listener> listenerWeakReference = changeListenersIterator.next();
-			Listener listener = listenerWeakReference.get();
-			if (listener == null) {
-				changeListenersIterator.remove();
-			} else {
-				fireNetworkChangeListenerInternal(listener, state, networkTransportType);
+		// can be called from callbacks that should return quickly
+		final ExecutorService executor = Executors.newSingleThreadExecutor();
+		executor.execute(new Runnable() {
+			@Override
+			public void run() {
+				Iterator<WeakReference<Listener>> changeListenersIterator = networkChangedListeners.iterator();
+				while (changeListenersIterator.hasNext()) {
+					WeakReference<Listener> listenerWeakReference = changeListenersIterator.next();
+					Listener listener = listenerWeakReference.get();
+					if (listener == null) {
+						changeListenersIterator.remove();
+					} else {
+						fireNetworkChangeListenerInternal(listener, state, networkTransportType);
+					}
+				}
+				executor.shutdownNow();
 			}
-		}
+		});
 	}
 
 	private void fireNetworkChangeListenerInternal(Listener listener, ConnectivityState state, NetworkTransportType networkTransportType) {

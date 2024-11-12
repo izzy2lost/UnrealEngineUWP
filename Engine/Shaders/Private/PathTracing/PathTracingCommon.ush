@@ -9,6 +9,7 @@
 #include "Material/PathTracingMaterialCommon.ush"
 #include "../RayTracing/RayTracingCommon.ush"
 #include "../OctahedralCommon.ush"
+#include "../DoubleFloat.ush"
 #include "/Engine/Shared/PathTracingDefinitions.h"
 
 // These flags are analogous to RAY_TRACING_PAYLOAD_* flags. There are currently 9 bits available.
@@ -33,7 +34,11 @@
 #define PATH_TRACING_PAYLOAD_NORMAL_BITS  32
 
 // shading model extensions beyond the default count
-#define SHADINGMODELID_MEDIUM  (SHADINGMODELID_NUM + 1)
+#define SHADINGMODELID_MEDIUM  			(SHADINGMODELID_NUM + 1)
+#define SHADINGMODELID_SOLID_GLASS 		(SHADINGMODELID_NUM + 2)
+
+HLSL_STATIC_ASSERT(SHADINGMODELID_MEDIUM      <= SHADINGMODELID_MASK, "");
+HLSL_STATIC_ASSERT(SHADINGMODELID_SOLID_GLASS <= SHADINGMODELID_MASK, "");
 
 #define PATH_TRACING_ABSORPTION_SCALE  0.01        // inverse distance at which we hit the transmission color (Beer's law)
 
@@ -65,14 +70,12 @@ float3 PayloadDecodeUnitVector(uint Encoded)
 
 uint PayloadEncodeHDRColor(float3 rgb)
 {
-	// clamp to the largest representable value
-	rgb = clamp(rgb, 0.0, Max111110BitsFloat3);
-	return PackR11G11B10F(rgb);
+	return PackRGB998E6(rgb);
 }
 
 float3 PayloadDecodeHDRColor(uint rgb)
 {
-	return UnpackR11G11B10F(rgb);
+	return UnpackRGB998E6(rgb);
 }
 
 uint PayloadEncodeLDRColor(float3 rgb)
@@ -235,7 +238,6 @@ struct FPackedPathTracingPayload : FMinimalPayload
 
 	void PackWorldNormal(float3 N)   { PackedData[3] = PayloadEncodeUnitVector(N); }
 	void PackRadiance(float3 R)      { PackedData[4] = PayloadEncodeHDRColor(R); }
-
 	
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 
@@ -357,7 +359,6 @@ struct FPackedPathTracingPayload : FMinimalPayload
 		PackedData[13] |= f32tof16(DBufferC.w) << 16;
 	}
 	
-#if PATHTRACING_SUBSTRATE_PAYLOAD
 	void SetStochasticSlabRand(float SlabRand)
 	{
 		PackedData[14] = asuint(SlabRand);
@@ -367,7 +368,36 @@ struct FPackedPathTracingPayload : FMinimalPayload
 	{
 		return asfloat(PackedData[14]);
 	}
-#endif
+
+	// Volumetric callable shaders
+	void SetVolumetricCallableShaderInput(FDFVector3 AbsolutePosition, float CloudHeightKm)
+	{
+		PackedData[0] = asuint(AbsolutePosition.High.x);
+		PackedData[1] = asuint(AbsolutePosition.High.y);
+		PackedData[2] = asuint(AbsolutePosition.High.z);
+		PackedData[3] = asuint(AbsolutePosition.Low.x);
+		PackedData[4] = asuint(AbsolutePosition.Low.y);
+		PackedData[5] = asuint(AbsolutePosition.Low.z);
+		PackedData[6] = asuint(CloudHeightKm);
+	}
+	FDFVector3 GetVolumetricCallableShaderInputAbsolutePosition()
+	{
+		return MakeDFVector3(
+			float3(asfloat(PackedData[0]), asfloat(PackedData[1]), asfloat(PackedData[2])),
+			float3(asfloat(PackedData[3]), asfloat(PackedData[4]), asfloat(PackedData[5]))
+		);
+	}
+	float GetVolumetricCallableShaderInputCloudHeightKm() { return asfloat(PackedData[6]); }
+
+	void SetVolumetricCallableShaderOutput(uint4 Data)
+	{
+		PackedData[ 7] = Data.x;
+		PackedData[ 8] = Data.y;
+		PackedData[ 9] = Data.z;
+		PackedData[10] = Data.w;
+	}
+
+	uint4 GetVolumetricCallableShaderOutput() { return uint4(PackedData[7], PackedData[8], PackedData[9], PackedData[10]); }
 
 #endif // IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_GPULIGHTMASS)
 };
@@ -490,6 +520,13 @@ struct FPathTracingPayload : FMinimalPayload
 		SpecularColor = Weight;
 		PhaseG = G;
 	}
+	float3 GetDualHGWeight() { return SpecularEdgeColor; }
+	float3 GetDualHGPhaseData() { return RoughnessData; }
+	void SetDualHG(float3 Weight, float3 PhaseData)
+	{
+		SpecularEdgeColor = Weight;
+		RoughnessData = PhaseData;
+	}
 
 	// SHADINGMODELID_EYE
 	float GetEyeRoughness() { return RoughnessData.x; }
@@ -516,6 +553,10 @@ struct FPathTracingPayload : FMinimalPayload
 	// SHADINGMODELID_THIN_TRANSLUCENT
 	float3 GetTransmittanceColor() { return exp(-GetExtinction() * SUBSTRATE_SIMPLEVOLUME_THICKNESS_CM); }
 
+	// SHADINGMODELID_TWOSIDED_FOLIAGE
+	float3 GetFoliageTransmissionColor() { return MeanFreePath; }
+	void SetFoliageTransmissionColor(float3 C) { MeanFreePath = C; }
+
 
 #else // PATHTRACING_SUBSTRATE_PAYLOAD
 	// Various ways to interpret CustomData (depending on ShadingModelID)
@@ -541,7 +582,7 @@ struct FPathTracingPayload : FMinimalPayload
 	float GetSubsurfacePhaseFunction() { return CustomData0.a; }
 	void SetSubsurfacePhaseFunction(float G) { CustomData0.a = G; }
 
-	// SHADINGMODELID_SUBSURFACE, SHADINGMODELID_TWO_SIDED_FOLIAGE (note that SHADINGMODELID_SUBSURFACE_PROFILE and SHADINGMODELID_EYE don't use this as they use DiffuseColor directly)
+	// SHADINGMODELID_SUBSURFACE, SHADINGMODELID_TWOSIDED_FOLIAGE (note that SHADINGMODELID_SUBSURFACE_PROFILE and SHADINGMODELID_EYE don't use this as they use DiffuseColor directly)
 	float3 GetSubsurfaceColor() { return CustomData1.xyz; }
 	void SetSubsurfaceColor(float3 SubsurfaceColor) { CustomData1.xyz = SubsurfaceColor; }
 	
@@ -589,6 +630,15 @@ struct FPathTracingPayload : FMinimalPayload
 	float3 GetHGWeight() { return CustomData0.xyz; }
 	float GetHGPhaseG() { return CustomData0.w; }
 	void SetHG(float3 Weight, float G) { CustomData0 = float4(Weight, G); }
+	float3 GetDualHGWeight() { return CustomData1.xyz; }
+	float3 GetDualHGPhaseData() { return float3(Metallic, Specular, Roughness); }
+	void SetDualHG(float3 Weight, float3 PhaseData)
+	{
+		CustomData1.xyz = Weight;
+		Metallic = PhaseData.x;
+		Specular = PhaseData.y;
+		Roughness = PhaseData.z;
+	}
 #endif // PATHTRACING_SUBSTRATE_PAYLOAD
 
 	// Methods used by the integrator
@@ -603,7 +653,7 @@ struct FPathTracingPayload : FMinimalPayload
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 		return ShadingModelID == SHADINGMODELID_SUBSTRATE && HasRefraction();
 #else
-		return ShadingModelID == SHADINGMODELID_DEFAULT_LIT && HasRefraction() && BSDFOpacity < 1;
+		return ShadingModelID == SHADINGMODELID_SOLID_GLASS;
 #endif
 	}
 
@@ -612,7 +662,7 @@ struct FPathTracingPayload : FMinimalPayload
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 		return ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT && HasRefraction();
 #else
-		return ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT && HasRefraction() && BSDFOpacity < 1;
+		return ShadingModelID == SHADINGMODELID_THIN_TRANSLUCENT && HasRefraction();
 #endif
 	}
 
@@ -697,6 +747,7 @@ FPackedPathTracingPayload PackPathTracingPayload(FPathTracingPayload Input)
 	Output.PackedData[2] = PayloadEncodeUnitVector(Input.WorldSmoothNormal);
 	Output.PackedData[3] = PayloadEncodeUnitVector(Input.WorldNormal);
 	Output.PackedData[4] = PayloadEncodeHDRColor(Input.Radiance);
+	// PackedData[4] is for Radiance (see PackRadiance call below)
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 	Output.PackedData[5] = PayloadEncodeLDRColor(Input.DiffuseColor);
 	Output.PackedData[6] = PayloadEncodeLDRColor(Input.SpecularColor);
@@ -730,7 +781,6 @@ FPackedPathTracingPayload PackPathTracingPayload(FPathTracingPayload Input)
 #else // PATHTRACING_SUBSTRATE_PAYLOAD
 
 
-
 	Output.PackedData[5] = PayloadEncodeLDRColor(Input.BaseColor);
 	Output.PackedData[6] = PayloadEncodeLDRColor(Input.TransparencyColor);
 
@@ -754,10 +804,12 @@ FPackedPathTracingPayload PackPathTracingPayload(FPathTracingPayload Input)
 	Output.PackedData[14] = f32tof16(Input.Ior);
 	// NOTE: 16 bits left in PackedData[14]
 #endif // PATHTRACING_SUBSTRATE_PAYLOAD
+
 #endif // IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_GPULIGHTMASS)
 	return Output;
 }
 
+#if RAYGENSHADER
 FPathTracingPayload UnpackPathTracingPayload(FPackedPathTracingPayload Input, FRayDesc Ray)
 {
 	FPathTracingPayload Output = (FPathTracingPayload)0;
@@ -840,3 +892,4 @@ FPathTracingPayload UnpackPathTracingPayload(FPackedPathTracingPayload Input, FR
 #endif // IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_GPULIGHTMASS)
 	return Output;
 }
+#endif

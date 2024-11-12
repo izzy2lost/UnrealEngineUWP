@@ -17,6 +17,7 @@ class ACompositingElement;
 class FCameraCalibrationToolkit;
 class SWidget;
 class UMediaPlayer;
+class UMediaSource;
 class UMediaTexture;
 class UCameraCalibrationStep;
 class UCompositingElementMaterialPass;
@@ -114,15 +115,33 @@ public:
 	/** Returns the distortion handler used to distort the CG being displayed in the simulcam viewport */
 	const ULensDistortionModelHandlerBase* GetDistortionHandler() const;
 
-	/** Sets the media source url to be played. Returns true if the url is a valid media source */
-	bool SetMediaSourceUrl(const FString& InMediaSourceUrl);
+	/** Sets the current media source being used in the calibration */
+	bool SetMediaSource(UMediaSource* InMediaSource);
 
-	/** Finds available media sources and adds their urls to the given array */
-	void FindMediaSourceUrls(TArray<TSharedPtr<FString>>& OutMediaSourceUrls) const;
+	/** Sets the current media to a media texture being used in the calibration */
+	bool SetMediaTexture(UMediaTexture* InMediaTexture);
 
+	/** Clears out any media source or media texture currently being played */
+	void ClearMedia();
+
+	/** Gets a list of valid media sources from the current media profile */
+	void GetMediaProfileSources(TArray<TWeakObjectPtr<UMediaSource>>& OutSources) const;
+
+	/** Gets all media source assets in the content browser */
+	TArray<TSoftObjectPtr<UMediaSource>> GetMediaSourceAssets() const;
+
+	/** Gets all media texture assets in the content browser */
+	TArray<TSoftObjectPtr<UMediaTexture>> GetMediaTextureAssets() const;
+	
 	/** Gets the current media source url being played. Empty if None */
 	FString GetMediaSourceUrl() const;
 
+	/** Gets the current media source being played, or nullptr if nothing is being played */
+	UMediaSource* GetMediaSource() const;
+
+	/** Gets the current media texture being displayed, or nullptr if the media texture is not being overridden */
+	UMediaTexture* GetMediaTexture() const;
+	
 	/** Returns the calibration steps */
 	const TConstArrayView<TStrongObjectPtr<UCameraCalibrationStep>> GetCalibrationSteps() const;
 
@@ -163,6 +182,9 @@ public:
 
 	/** Called by the UI when the Simulcam Viewport receives keyboard input */
 	bool OnSimulcamViewportInputKey(const FKey& InKey, const EInputEvent& InEvent);
+
+	/** Called by the UI when the Simulcam Viewport receives a marquee select event */
+	void OnSimulcamViewportMarqueeSelect(FVector2D StartPosition, FVector2D EndPosition);
 
 	/** Called by the UI when the rewind button is clicked */
 	FReply OnRewindButtonClicked();
@@ -288,6 +310,9 @@ private:
 	/** The media texture used by the media plate */
 	TWeakObjectPtr<UMediaTexture> MediaTexture;
 
+	/** An external media texture to use by the media plate instead of the internal one */
+	TWeakObjectPtr<UMediaTexture> ExternalMediaTexture;
+	
 	/** The media player that is playing the selected media source */
 	TStrongObjectPtr<UMediaPlayer> MediaPlayer;
 

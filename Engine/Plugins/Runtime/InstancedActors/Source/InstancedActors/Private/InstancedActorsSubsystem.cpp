@@ -7,6 +7,7 @@
 #include "InstancedActorsDebug.h"
 #include "InstancedActorsData.h"
 #include "InstancedActorsSettingsTypes.h"
+#include "InstancedActorsSettings.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "Algo/Find.h"
 #include "DataRegistry.h"
@@ -15,8 +16,10 @@
 #include "Engine/Level.h"
 #include "EngineUtils.h"
 #include "MassEntityTypes.h"
+#include "MassEntitySubsystem.h"
 #include "Misc/ArchiveMD5.h"
 #include "Misc/ReverseIterate.h"
+#include "VisualLogger/VisualLogger.h"
 
 #if WITH_EDITOR
 #include "Logging/MessageLog.h"
@@ -88,13 +91,14 @@ namespace InstancedActorsCVars
 UInstancedActorsSubsystem::UInstancedActorsSubsystem()
 {
 	SettingsType = FInstancedActorsSettings::StaticStruct();
+	InstancedActorsManagerClass = AInstancedActorsManager::StaticClass();
 }
 
 UInstancedActorsSubsystem* UInstancedActorsSubsystem::Get(UObject* WorldContextObject)
 {
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
-		return World->GetSubsystem<UInstancedActorsSubsystem>();
+		return UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	}
 
 	return nullptr;
@@ -103,32 +107,34 @@ UInstancedActorsSubsystem* UInstancedActorsSubsystem::Get(UObject* WorldContextO
 UInstancedActorsSubsystem& UInstancedActorsSubsystem::GetChecked(UObject* WorldContextObject)
 {
 	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::Assert);
-	UInstancedActorsSubsystem* Subsystem = World->GetSubsystem<UInstancedActorsSubsystem>();
+	check(World);
+	UInstancedActorsSubsystem* Subsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	check(Subsystem);
 	return *Subsystem;
 }
 
 bool UInstancedActorsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
-	if(!Super::ShouldCreateSubsystem(Outer))
+	if (Super::ShouldCreateSubsystem(Outer) && Outer)
 	{
-		return false;
-	}
+		if (UWorld* World = Outer->GetWorld())
+		{
+#if WITH_EDITOR
+			// we don't want to create subsystems for Editor worlds while PIE is active
+			// This wouldn't happen in normal world lifecycle, but can happen if FSubsystemCollectionBase::ActivateExternalSubsystem
+			// is used (it adds an instance of a given subsystem class to ALL worlds) - for example by GameFeatureActions.
+			if (GEditor && GEditor->IsPlayingSessionInEditor() && World->WorldType == EWorldType::Editor)
+			{
+				return false;
+			}
+#endif // WITH_EDITOR
 
-	// do not instantiate if configured to use a different (sub)class
-	if (GET_INSTANCEDACTORS_CONFIG_VALUE(InstancedActorsSubsystemClass) != GetClass())
-	{
-		return false;
+			// we only ever want to have a single instance of this subsystem. Attempting to add multiple
+			// instances can be a result of subsystem adding game feature actions.
+			return World->GetSubsystemBase(GetClass()) == nullptr;
+		}
 	}
-
-	// UInstancedActorsSubsystem must always be present for editor worlds to allow for InstanceActor etc editor operations
-	UWorld* World = CastChecked<UWorld>(Outer);
-	if (World->WorldType == EWorldType::Editor)
-	{
-		return true;
-	}
-
-	return true;
+	return false;
 }
 
 void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -155,6 +161,10 @@ void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	UWorld* World = GetWorld();
 	check(World);
 
+	UMassEntitySubsystem* EntitySubsystem = Collection.InitializeDependency<UMassEntitySubsystem>();
+	check(EntitySubsystem);
+	EntityManager = EntitySubsystem->GetMutableEntityManager().AsShared();
+
 	// As playlist GFP's are initialized after main map load, we account for latent subsystem creation here by registering any existing
 	// AInstancedActorsModifierVolume's and AInstancedActorsManager's that may already have loaded before subsystem creation.
 
@@ -172,18 +182,20 @@ void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 
 	// Collect existing managers, calling AInstancedActorsManager::OnAddedToSubsystem to inform them of latent addition to this subsystem
-	for (TActorIterator<AInstancedActorsManager> MangerIt(World); MangerIt; ++MangerIt)
+	for (TActorIterator<AInstancedActorsManager> ManagerIt(World); ManagerIt; ++ManagerIt)
 	{
-		AInstancedActorsManager* Manager = *MangerIt;
+		AInstancedActorsManager* Manager = *ManagerIt;
 		check(Manager);
-
-		AddManager(*Manager);
+		// we only case about managers that have already begun play and missed their chance to registred in their BeginPlay
+		if (Manager->HasActorBegunPlay())
+		{
+			AddManager(*Manager);
+		}
 	}
 }
 
 void UInstancedActorsSubsystem::Deinitialize()
 {
-
 #if WITH_EDITOR
 	InstancedActorsCVars::CVarRefreshSettings.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate());
 #endif
@@ -192,6 +204,7 @@ void UInstancedActorsSubsystem::Deinitialize()
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem Deinitialize);
 
+	EntityManager.Reset();
 	ExemplarActors.Reset();
 
 	if (IsValid(ExemplarActorWorld))
@@ -213,24 +226,30 @@ TStatId UInstancedActorsSubsystem::GetStatId() const
 
 FInstancedActorsManagerHandle UInstancedActorsSubsystem::AddManager(AInstancedActorsManager& Manager)
 {
+	FInstancedActorsManagerHandle ManagerHandle;
 	const FBox ManagerBounds = Manager.GetInstanceBounds();
 
-	check(Algo::Find(Managers, &Manager) == nullptr);
-	const int32 ManagerID = Managers.Add(&Manager);
-
-	FInstancedActorsManagerHandle ManagerHandle = ManagerID;
-	ManagersHashGrid.Add(ManagerHandle, ManagerBounds);
+	if (ensureMsgf(Algo::Find(Managers, &Manager) == nullptr, TEXT("A given Manager instance is not expected to be added twice")))
+	{
+		ManagerHandle = Managers.Add(&Manager);
+		ManagersHashGrid.Add(ManagerHandle, ManagerBounds);
 
 #if WITH_INSTANCEDACTORS_DEBUG
-	// Record initial bounds so we can compare on removal to make sure it wasn't changed
-	DebugManagerBounds.Add(&Manager, ManagerBounds);
+		// Record initial bounds so we can compare on removal to make sure it wasn't changed
+		DebugManagerBounds.Add(&Manager, ManagerBounds);
 #endif
 
-	// Let Manager know the subsystem is ready. 
-	//
-	// Common callback for both AInstancedActorsManager::BeginPlay -> AddManager and latent 
-	// UInstancedActorsSubsystem::Initialize -> AddManager
-	Manager.OnAddedToSubsystem(*this, ManagerHandle);
+		// Let Manager know the subsystem is ready. 
+		//
+		// Common callback for both AInstancedActorsManager::BeginPlay -> AddManager and latent 
+		// UInstancedActorsSubsystem::Initialize -> AddManager
+		Manager.OnAddedToSubsystem(*this, ManagerHandle);
+	}
+	else
+	{
+		ManagerHandle = Manager.GetManagerHandle();
+		checkf(ManagerHandle.IsValid(), TEXT("If a given Manager has already been registered we expect it to host a valid ManagerHandle"));
+	}
 	
 	return ManagerHandle;
 }
@@ -371,15 +390,33 @@ void UInstancedActorsSubsystem::RemoveModifierVolume(const FInstancedActorsModif
 #if WITH_EDITOR
 FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags)
 {
-	return InstanceActor(ActorClass, InstanceTransform, Level, InstanceTags, AInstancedActorsManager::StaticClass());
+	return InstanceActor(ActorClass, InstanceTransform, Level, InstanceTags, InstancedActorsManagerClass);
 }
 
 FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags, TSubclassOf<AInstancedActorsManager> ManagerClass)
 {
+	if (!ensureMsgf(Level, TEXT("Expecting a valid Level. Received nullptr.")))
+	{
+		return FInstancedActorsInstanceHandle();
+	}
+
 	UWorld* World = Level->GetWorld();
 	if (!ensureMsgf(!World->IsGameWorld(), TEXT("Instanced Actors doesn't yet support runtime addition of instances. Skipping instance creation")))
 	{
 		return FInstancedActorsInstanceHandle();
+	}
+	else if (!ensureMsgf(ActorClass, TEXT("Expecting a valid ActorClass. Received None.")))
+	{
+		return FInstancedActorsInstanceHandle();
+	}
+
+	if (!ManagerClass)
+	{
+		if (!ensureMsgf(InstancedActorsManagerClass, TEXT("%hs called with ManagerClass being None and default InstancedActorsManagerClass not being set"), __FUNCTION__))
+		{
+			return FInstancedActorsInstanceHandle();
+		}
+		ManagerClass = InstancedActorsManagerClass;
 	}
 
 	// Ensure settings presence for ActorClass
@@ -437,7 +474,8 @@ FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclas
 	FVector CellCenter(ForceInitToZero);
 	
 	// If this is a world partition world we want to be in the centre of a cell.
-	const bool bIsPartitionedWorld = Level->GetWorld()->IsPartitionedWorld();
+	const bool bIsPartitionedLevel = (Level->GetWorldPartitionRuntimeCell() != nullptr);
+	const bool bIsPartitionedWorld = bIsPartitionedLevel || Level->GetWorld()->IsPartitionedWorld();
 	if (bIsPartitionedWorld)
 	{
 		FBox CellBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, ManagerGridSize);
@@ -445,7 +483,6 @@ FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclas
 	}
 
 	// Note: These will be re-compiled at runtime in UInstancedActorsData::BeginPlay, and may differ as such.
-	//TSharedPtr<const FInstancedActorsSettings> Settings = GetOrCompileSettingsForActorClass(ActorClass);
 	FSharedStruct SharedSettings = GetOrCompileSettingsForActorClass(ActorClass);
 	const FInstancedActorsSettings& Settings = SharedSettings.Get<FInstancedActorsSettings>();
 
@@ -564,25 +601,47 @@ void UInstancedActorsSubsystem::ForEachInstance(const FBox& QueryBounds, TFuncti
 	});
 }
 
-AActor& UInstancedActorsSubsystem::GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass)
+bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass
+	, const bool bTestActorsIfSpawned, const EInstancedActorsBulkLODMask AllowedLODs) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem::HasInstancesOfClass);
+	
+	UE_VLOG_BOX(this, LogInstancedActors, Log, QueryBounds, FColor::Orange, TEXT(""));
+
+	bool bHasInstances = false;
+	ForEachManager(QueryBounds, [QueryBounds, ActorClass, &bHasInstances, bTestActorsIfSpawned, AllowedLODs](AInstancedActorsManager& Manager)
+	{
+		bHasInstances = Manager.HasInstancesOfClass(QueryBounds, ActorClass, bTestActorsIfSpawned, AllowedLODs);
+		const bool bContinue = !bHasInstances;
+		return bContinue;
+	});
+
+	return bHasInstances;
+}
+
+TSharedRef<UE::InstancedActors::FExemplarActorData> UInstancedActorsSubsystem::GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem GetOrCreateExemplarActor);
 
-	check(ActorClass.Get());
+	UClass* ActorClassPtr = ActorClass.Get();
+	check(ActorClassPtr);
 
 	// Return existing?
-	TObjectPtr<AActor>* CachedExemplarActor = ExemplarActors.Find(ActorClass.Get());
-	if (CachedExemplarActor)
+	const TObjectKey<const UClass> ActorClassKey(ActorClassPtr);
+	const uint32 ActorClassHash = GetTypeHash(ActorClassKey);
+	
+	if (const TWeakPtr<UE::InstancedActors::FExemplarActorData>* CachedExemplarActorDataPtr = ExemplarActors.FindByHash(ActorClassHash, ActorClassKey))
 	{
 		// This can fail in editor with undo/redo in the mix.
-		if (IsValid(*CachedExemplarActor))
+		TSharedPtr<UE::InstancedActors::FExemplarActorData> CachedExemplarActorData = CachedExemplarActorDataPtr->Pin();
+		if (CachedExemplarActorData.IsValid() && CachedExemplarActorData->Actor.Get() != nullptr)
 		{
-			return **CachedExemplarActor;
+			return CachedExemplarActorData.ToSharedRef();
 		}
 		else
 		{
 			// The examplar is not valid, we'll remove it and then re-create it below.
-			ExemplarActors.Remove(ActorClass.Get());
+			ExemplarActors.RemoveByHash(ActorClassHash, ActorClassKey);
 		}
 	}
 
@@ -626,13 +685,27 @@ AActor& UInstancedActorsSubsystem::GetOrCreateExemplarActor(TSubclassOf<AActor> 
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	check(ExemplarActorWorld);
-	AActor* NewExemplarActor = ExemplarActorWorld->SpawnActor(ActorClass, /*Transform*/nullptr, SpawnParameters);
+	AActor* NewExemplarActor = ExemplarActorWorld->SpawnActor(ActorClassPtr, /*Transform*/nullptr, SpawnParameters);
 	check(NewExemplarActor);
 
 	// Cache for subsequent calls
-	ExemplarActors.Add(ActorClass.Get(), NewExemplarActor);
+	TSharedPtr<UE::InstancedActors::FExemplarActorData> NewExemplarActorDataPtr{new UE::InstancedActors::FExemplarActorData{*NewExemplarActor, *this}};
+	ExemplarActors.AddByHash(ActorClassHash, ActorClassKey, NewExemplarActorDataPtr);
 
-	return *NewExemplarActor;
+	return NewExemplarActorDataPtr.ToSharedRef();
+}
+
+void UInstancedActorsSubsystem::UnregisterExemplarActorClass(TSubclassOf<AActor> ActorClass)
+{
+	const UClass* const ActorClassPtr = ActorClass.Get();
+	check(ActorClassPtr);
+	const TObjectKey<const UClass> ActorClassKey(ActorClassPtr);
+	
+	const uint32 ActorClassHash = GetTypeHash(ActorClassKey);	
+	if (const TWeakPtr<UE::InstancedActors::FExemplarActorData>* CachedExemplarActorDataPtr = ExemplarActors.FindByHash(ActorClassHash, ActorClassPtr))
+	{
+		ExemplarActors.RemoveByHash(ActorClassHash, ActorClassKey);
+	}
 }
 
 FSharedStruct UInstancedActorsSubsystem::GetOrCompileSettingsForActorClass(TSubclassOf<AActor> ActorClass)
@@ -813,4 +886,62 @@ void UInstancedActorsSubsystem::PopAllDirtyRepresentationInstances(TArray<FInsta
 FInstancedActorsVisualizationDesc UInstancedActorsSubsystem::CreateVisualDescriptionFromActor(const AActor& ExemplarActor) const
 {
 	return FInstancedActorsVisualizationDesc::FromActor(ExemplarActor);
+}
+
+TArray<UInstancedActorsSubsystem::FNextTickSharedFragment>& UInstancedActorsSubsystem::GetTickableSharedFragments()
+{	
+	RegisterNewSharedFragmentsInternal();
+	return SortedSharedFragments;
+}
+
+void UInstancedActorsSubsystem::UpdateAndResetTickTime(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem_UpdateTickableSharedFragments);
+
+	const bool bParamStructFound = RegisterNewSharedFragmentsInternal(InstancedActorsDataSharedFragment);
+	if (bParamStructFound == false)
+	{
+		// we need to find the one. Naive implementation for now.
+		// starting from back in assumption stuff has been removed and re-added so the relevant data should be closer 
+		// to the back due to being at EMassLOD::Off level
+		for (int32 Index = SortedSharedFragments.Num() - 1; Index >= 0; --Index)
+		{
+			if (SortedSharedFragments[Index].SharedStruct == InstancedActorsDataSharedFragment)
+			{
+				FNextTickSharedFragment TickFragment = SortedSharedFragments[Index];
+				// setting to 0 will force update the very next time Batch LOD is being calculated. 
+				TickFragment.NextTickTime = 0;
+				SortedSharedFragments.HeapRemoveAt(Index, EAllowShrinking::No);
+				SortedSharedFragments.HeapPush(MoveTemp(TickFragment));
+				break;
+			}
+		}
+	}
+}
+
+bool UInstancedActorsSubsystem::RegisterNewSharedFragmentsInternal(TConstStructView<FInstancedActorsDataSharedFragment> InstancedActorsDataSharedFragment)
+{
+	check(EntityManager);
+
+	const bool bParamStructProvided = InstancedActorsDataSharedFragment.IsValid();
+	// starting with !bParamStructProvided will result in short-circuiting the assignment operation below if InstancedActorsDataSharedFragment is empty
+	bool bParamStructFound = !bParamStructProvided;
+	TConstArrayView<FSharedStruct> AllSharedFragmentsOfType = EntityManager->GetSharedFragmentsOfType<FInstancedActorsDataSharedFragment>();
+	
+	if (SortedSharedFragments.Num() < AllSharedFragmentsOfType.Num())
+	{
+		// We add all of them at the front for immediate processing.
+		const int32 StartingIndex = SortedSharedFragments.Num();
+		const int32 NewItemsCount = (AllSharedFragmentsOfType.Num() - SortedSharedFragments.Num());
+		SortedSharedFragments.InsertDefaulted(0, NewItemsCount);
+		for (int32 NewIndex = 0; NewIndex < NewItemsCount; ++NewIndex)
+		{
+			SortedSharedFragments[NewIndex].SharedStruct = AllSharedFragmentsOfType[StartingIndex + NewIndex];
+			bParamStructFound = bParamStructFound || (AllSharedFragmentsOfType[StartingIndex + NewIndex] == InstancedActorsDataSharedFragment);
+		}
+		SortedSharedFragments.Heapify();
+	}
+	check(SortedSharedFragments.Num() == AllSharedFragmentsOfType.Num());
+
+	return bParamStructFound;
 }

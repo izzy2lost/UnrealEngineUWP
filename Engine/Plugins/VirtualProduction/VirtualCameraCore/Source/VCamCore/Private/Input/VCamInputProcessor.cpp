@@ -8,7 +8,7 @@
 #include "GameFramework/PlayerInput.h"
 #include "Input/Events.h"
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	FVCamInputProcessor::FVCamInputProcessor(UInputVCamSubsystem& OwningSubsystem)
 		: OwningSubsystem(&OwningSubsystem)

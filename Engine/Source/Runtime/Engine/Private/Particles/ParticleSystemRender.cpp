@@ -101,6 +101,9 @@ float GMinParticleDrawTimeToTrack = .0001f;
 /** Whether to do LOD calculation on GameThread in game */
 extern bool GbEnableGameThreadLODCalculation;
 
+/** When to precache Cascade systems' PSOs */
+extern int32 GCascadePSOPrecachingTime;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -952,13 +955,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 
 				// Set the sprite uniform buffer for this view.
 				SpriteVertexFactory->SetSpriteUniformBuffer(CollectorResources.UniformBuffer);
-#if PLATFORM_SWITCH
-				// use the full vertex for non-instancing case, and the "4 float" instance data for the instanced case
-				uint32 InstanceBufferStride = ((sizeof(float) * 4) * NumVerticesPerParticle);
-#else
-				uint32 InstanceBufferStride = VertexSize;
-#endif
-				SpriteVertexFactory->SetInstanceBuffer(Allocation.VertexBuffer, Allocation.VertexOffset, InstanceBufferStride);
+				SpriteVertexFactory->SetInstanceBuffer(Allocation.VertexBuffer, Allocation.VertexOffset, VertexSize);
 				SpriteVertexFactory->SetDynamicParameterBuffer(DynamicParameterAllocation.VertexBuffer, DynamicParameterAllocation.VertexOffset, GetDynamicParameterVertexStride());
 
 				if (SourceData->RequiredModule->bCutoutTexureIsValid)
@@ -1743,7 +1740,7 @@ void FDynamicMeshEmitterData::CalculateParticleTransform(
 		}
 	}
 
-	FQuat PointToLockedAxis;
+	FQuat PointToLockedAxis = FQuat::Identity;
 	if (bUseMeshLockedAxis == true)
 	{
 		// facing axis is taken to be the local x axis.	
@@ -2560,8 +2557,6 @@ void FDynamicBeam2EmitterData::RenderLines(const FParticleSystemSceneProxy* Prox
 		FVector	LastPosition, LastDrawPosition, LastTangent;
 		// The current position
 		FVector	CurrPosition, CurrDrawPosition;
-		// The target
-		FVector	TargetPosition, TargetDrawPosition;
 		// The next target
 		FVector	NextTargetPosition, NextTargetDrawPosition, TargetTangent;
 		// The interperted draw position
@@ -2572,8 +2567,6 @@ void FDynamicBeam2EmitterData::RenderLines(const FParticleSystemSceneProxy* Prox
 
 		FVector Location;
 		FVector EndPoint;
-		FVector Offset;
-		FVector LastOffset;
 		float	fStrength;
 		float	fTargetStrength;
 
@@ -2672,7 +2665,7 @@ void FDynamicBeam2EmitterData::RenderLines(const FParticleSystemSceneProxy* Prox
 
 			bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-			FVector	UseNoisePoint, CheckNoisePoint;
+			FVector	CheckNoisePoint;
 			FVector	NoiseDir;
 
 			// Reset the texture coordinate
@@ -3186,8 +3179,8 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 
 			FVector EndPoint	= Particle->Location;
 			FVector Location	= (FVector)BeamPayloadData->SourcePoint;
-			FVector Right, Up;
-			FVector WorkingUp;
+			FVector Right;
+			FVector Up			= FVector::ZeroVector;
 
 			Right = Location - EndPoint;
 			Right.Normalize();
@@ -3224,6 +3217,7 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 			// For the direct case, this isn't a big deal, as it will not require much work per sheet.
 			for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
 			{
+				FVector WorkingUp;
 				if (SheetIndex)
 				{
 					float	Angle		= ((float)UE_PI / (float)Source.Sheets) * SheetIndex;
@@ -3377,8 +3371,7 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 			FVector Location;
 			FVector EndPoint;
 			FVector Right;
-			FVector Up;
-			FVector WorkingUp;
+			FVector Up = FVector::ZeroVector;
 			float	fU;
 
 			float	Tex_U2 = 0.0f;
@@ -3403,6 +3396,7 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 					}
 				}
 
+				FVector WorkingUp;
 				if (SheetIndex)
 				{
 					Angle		= ((float)UE_PI / (float)Source.Sheets) * SheetIndex;
@@ -3559,8 +3553,6 @@ int32 FDynamicBeam2EmitterData::FillData_Noise(FAsyncBufferFillData& Me) const
 	FVector	LastPosition, LastDrawPosition, LastTangent;
 	// The current position
 	FVector	CurrPosition, CurrDrawPosition;
-	// The target
-	FVector	TargetPosition, TargetDrawPosition;
 	// The next target
 	FVector	NextTargetPosition, NextTargetDrawPosition, TargetTangent;
 	// The interperted draw position
@@ -3693,7 +3685,7 @@ int32 FDynamicBeam2EmitterData::FillData_Noise(FAsyncBufferFillData& Me) const
 
 			bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-			FVector	UseNoisePoint, CheckNoisePoint;
+			FVector	CheckNoisePoint;
 			FVector	NoiseDir;
 
 			for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
@@ -4105,7 +4097,7 @@ int32 FDynamicBeam2EmitterData::FillData_Noise(FAsyncBufferFillData& Me) const
 
 			bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-			FVector	UseNoisePoint, CheckNoisePoint;
+			FVector	CheckNoisePoint;
 			FVector	NoiseDir;
 
 			for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
@@ -4522,8 +4514,6 @@ int32 FDynamicBeam2EmitterData::FillData_InterpolatedNoise(FAsyncBufferFillData&
 	FVector	LastPosition, LastDrawPosition, LastTangent;
 	// The current position
 	FVector	CurrPosition, CurrDrawPosition;
-	// The target
-	FVector	TargetPosition, TargetDrawPosition;
 	// The next target
 	FVector	NextTargetPosition, NextTargetDrawPosition, TargetTangent;
 	// The interperted draw position
@@ -4670,7 +4660,7 @@ int32 FDynamicBeam2EmitterData::FillData_InterpolatedNoise(FAsyncBufferFillData&
 
 		bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-		FVector	UseNoisePoint, CheckNoisePoint;
+		FVector	CheckNoisePoint;
 		FVector	NoiseDir;
 
 		for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
@@ -6960,6 +6950,10 @@ FPrimitiveSceneProxy* UParticleSystemComponent::CreateSceneProxy()
 #if UE_WITH_PSO_PRECACHING
 		if (!bPSOPrecacheCalled)
 		{
+			if (GCascadePSOPrecachingTime == 3)
+			{
+				Template->PrecachePSOs();
+			}
 			PrecacheAssetPSOs(Template);
 		}
 

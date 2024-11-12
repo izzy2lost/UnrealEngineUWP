@@ -26,6 +26,7 @@ struct FInputActionBinding;
 struct FInputAxisBinding;
 struct FInputKeyBinding;
 
+
 /** Struct containing mappings for legacy method of binding keys to exec commands. */
 USTRUCT()
 struct FKeyBind
@@ -33,43 +34,43 @@ struct FKeyBind
 	GENERATED_USTRUCT_BODY()
 
 	/** The key to be bound to the command */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	FKey Key;
 
 	/** The command to execute when the key is pressed/released */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	FString Command;
 
 	/** Whether the control key needs to be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 Control:1;
 
 	/** Whether the shift key needs to be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 Shift:1;
 
 	/** Whether the alt key needs to be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 Alt:1;
 
 	/** Whether the command key needs to be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 Cmd:1;
 
 	/** Whether the control key must not be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 bIgnoreCtrl:1;
 
 	/** Whether the shift key must not be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 bIgnoreShift:1;
 
 	/** Whether the alt key must not be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 bIgnoreAlt:1;
 
 	/** Whether the command key must not be held when the key event occurs */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	uint8 bIgnoreCmd:1;
 
 	UPROPERTY(transient)
@@ -398,6 +399,8 @@ struct FInputKeyParams
 	FVector Get3DAxisDelta() const { return Delta; }
 };
 
+ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogPlayerInput, Log, All);
+
 /**
  * Object within PlayerController that processes player input.
  * Only exists on the client in network games.
@@ -433,7 +436,7 @@ private:
 
 public:
 	/** Generic bindings of keys to Exec()-compatible strings for development purposes only */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	TArray<struct FKeyBind> DebugExecBindings;
 
 	/** This player's version of the Axis Properties */
@@ -446,7 +449,7 @@ public:
 	TArray<struct FInputAxisKeyMapping> AxisMappings;
 
 	/** List of Axis Mappings that have been inverted */
-	UPROPERTY(config)
+	UPROPERTY(config, EditAnywhere, Category = "Input")
 	TArray<FName> InvertedAxis;
 
 	/** Gets the axis properties for a given AxisKey.  Returns if true if AxisKey was found in the AxisConfig array. */
@@ -578,15 +581,7 @@ public:
 	ENGINE_API void FlushPressedActionBindingKeys(FName ActionName);
 
 	/** Handles a key input event.  Returns true if there is an action that handles the specified key. */
-	UE_DEPRECATED(5.0, "This version of InputKey has been deprecated, please use that which takes in FInputKeyParams")
-	ENGINE_API virtual bool InputKey(FKey Key, enum EInputEvent Event, float AmountDepressed, bool bGamepad);
-
-	/** Handles a key input event.  Returns true if there is an action that handles the specified key. */
 	ENGINE_API virtual bool InputKey(const FInputKeyParams& Params);
-	
-	/** Handles an axis input event.  Returns true if a legacy key bind handled the input, otherwise false. */
-	UE_DEPRECATED(5.0, "InputAxis has been deprecated, please use the version of InputKey which takes in FInputKeyParams")
-	ENGINE_API bool InputAxis(FKey Key, float Delta, float DeltaTime, int32 NumSamples, bool bGamepad);
 
 	/** Handles a touch input event.  Returns true. */
 	ENGINE_API bool InputTouch(uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex);

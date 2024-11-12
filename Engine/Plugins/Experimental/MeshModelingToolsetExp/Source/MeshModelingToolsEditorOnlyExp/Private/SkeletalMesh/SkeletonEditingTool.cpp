@@ -18,6 +18,7 @@
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseGizmos/GizmoViewContext.h"
 #include "DynamicMesh/MeshNormals.h"
+#include "Preferences/PersonaOptions.h"
 #include "Selection/PolygonSelectionMechanic.h"
 
 #include "SkeletalMesh/SkeletonTransformProxy.h"
@@ -111,6 +112,8 @@ void USkeletonEditingTool::Setup()
 		return;
 	}
 
+	WeakMesh = SkeletalMesh;
+
 	SetupModifier(SkeletalMesh);
 	SetupPreviewMesh();
 	SetupProperties();
@@ -160,6 +163,10 @@ void USkeletonEditingTool::SetupPreviewMesh()
 	{
 		PreviewMesh->SetSecondaryRenderMaterial(SelectionMaterial);
 	}
+
+	// FIXME: This setting really belongs on the underlying mesh.
+	UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(PreviewMesh->GetRootComponent());
+	DynamicMeshComponent->SetVertexColorSpaceTransformMode(EDynamicMeshVertexColorTransformMode::LinearToSRGB);
 
 	// hide the skeletal mesh component
 	UE::ToolTarget::HideSourceObject(Target);
@@ -1302,8 +1309,11 @@ void USkeletonEditingTool::OnClickPress(const FInputDeviceRay& InPressPos)
 {
 	if (PendingFunction)
 	{
-		PendingFunction();
-		PendingFunction.Reset();
+		if (!bDeferUntilFocused)
+		{
+			PendingFunction();
+			PendingFunction.Reset();
+		}
 	}
 	else
 	{ // make sure that the PendingFunction handles BeginChange if it needs to
@@ -1313,6 +1323,11 @@ void USkeletonEditingTool::OnClickPress(const FInputDeviceRay& InPressPos)
 
 void USkeletonEditingTool::OnClickDrag(const FInputDeviceRay& InDragPos)
 {
+	if (bDeferUntilFocused)
+	{
+		return;
+	}
+	
 	if (Operation != EEditingOperation::Create)
 	{
 		return;
@@ -1531,6 +1546,9 @@ void USkeletonEditingTool::OnTerminateDragSequence()
 
 void USkeletonEditingTool::OnTick(float DeltaTime)
 {
+	const FViewport* Viewport = GetToolManager()->GetContextQueriesAPI()->GetFocusedViewport();
+	bDeferUntilFocused = Viewport && !Viewport->HasFocus();
+	
 	if (PendingFunction)
 	{
 		PendingFunction();
@@ -1547,9 +1565,11 @@ void USkeletonEditingTool::OnTick(float DeltaTime)
 
 FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceRay& InPressPos)
 {
+	static const FInputRayHit InvalidRayHit;
+	
 	if (Properties->bEnableComponentSelection)
 	{
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
 	
 	PendingFunction.Reset();
@@ -1558,12 +1578,14 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 	FViewport* Viewport = GetToolManager()->GetContextQueriesAPI()->GetFocusedViewport();
 	if (!Viewport)
 	{
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
+
+	bDeferUntilFocused = !Viewport->HasFocus();
 	
 	if (GizmoWrapper && GizmoWrapper->IsGizmoHit(InPressPos))
 	{
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
 	
 	auto PickBone = [&]() -> int32
@@ -1595,7 +1617,7 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 		{
 			const FReferenceSkeleton& ReferenceSkeleton = Modifier->GetReferenceSkeleton();
 			ParentBones(ReferenceSkeleton.GetBoneName(BoneIndex));
-			return FInputRayHit();
+			return InvalidRayHit;
 		}
 		
 		// otherwise, update current selection
@@ -1617,7 +1639,7 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 	{
 		Selection.Empty();
 		Properties->Name = GetCurrentBone();
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
 
 	// if we're in creation mode then create a new bone
@@ -1642,7 +1664,7 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 		}
 	}
 	
-	return FInputRayHit();
+	return InvalidRayHit;
 }
 
 TWeakObjectPtr<USkeletonModifier> USkeletonEditingTool::GetModifier() const
@@ -1659,7 +1681,7 @@ void USkeletonEditingTool::HandleSkeletalMeshModified(const TArray<FName>& InBon
 
 	TArray<FName> BoneNames(InBoneNames);
 	const FReferenceSkeleton& RefSkeleton = Modifier->GetReferenceSkeleton();
-	BoneNames.RemoveAll([&](const FName& BoneName)
+	BoneNames.RemoveAll([&RefSkeleton](const FName& BoneName)
 	{
 		return RefSkeleton.FindRawBoneIndex(BoneName) == INDEX_NONE;
 	});
@@ -1670,9 +1692,9 @@ void USkeletonEditingTool::HandleSkeletalMeshModified(const TArray<FName>& InBon
 			Selection = BoneNames;
 			break;
 		case ESkeletalMeshNotifyType::BonesRemoved:
-			Selection.RemoveAll([&](const FName& BoneName)
+			Selection.RemoveAll([&InBoneNames](const FName& BoneName)
 			{
-				return BoneNames.Contains(BoneName);
+				return InBoneNames.Contains(BoneName);
 			});
 			break;
 		case ESkeletalMeshNotifyType::BonesMoved:
@@ -1708,25 +1730,26 @@ void USkeletonEditingTool::DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* Rend
 
 void USkeletonEditingTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	// FIXME many things could be caches here and updated lazilly
+	// NOTE many things could be cached here and updated lazily
 	if (!Target)
 	{
 		return;
 	}
 
-	static const FLinearColor DefaultBoneColor(0.0f,0.0f,0.025f,1.0f);
-	static const FLinearColor SelectedBoneColor(0.2f,1.0f,0.2f,1.0f);
-	static const FLinearColor AffectedBoneColor(1.0f,1.0f,1.0f,1.0f);
-	static const FLinearColor ParentOfSelectedBoneColor(0.85f,0.45f,0.12f,1.0f);
+	const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
 	static FSkelDebugDrawConfig DrawConfig;
 		DrawConfig.BoneDrawMode = EBoneDrawMode::Type::All;
+#if WITH_EDITORONLY_DATA
+		DrawConfig.BoneDrawSize = WeakMesh.IsValid() ? WeakMesh->BoneDrawSize : 1.f;
+#else
 		DrawConfig.BoneDrawSize = 1.f;
+#endif
 		DrawConfig.bAddHitProxy = true;
 		DrawConfig.bForceDraw = false;
-		DrawConfig.DefaultBoneColor = DefaultBoneColor;
-		DrawConfig.AffectedBoneColor = AffectedBoneColor;
-		DrawConfig.SelectedBoneColor = SelectedBoneColor;
-		DrawConfig.ParentOfSelectedBoneColor = ParentOfSelectedBoneColor;
+		DrawConfig.DefaultBoneColor = PersonaOptions->DefaultBoneColor;
+		DrawConfig.AffectedBoneColor = PersonaOptions->AffectedBoneColor;
+		DrawConfig.SelectedBoneColor = PersonaOptions->SelectedBoneColor;
+		DrawConfig.ParentOfSelectedBoneColor = PersonaOptions->ParentOfSelectedBoneColor;
 		DrawConfig.AxisConfig.Thickness = Properties->AxisThickness;
 		DrawConfig.AxisConfig.Length = Properties->AxisLength;
 	
@@ -1742,13 +1765,15 @@ void USkeletonEditingTool::Render(IToolsContextRenderAPI* RenderAPI)
 	TArray<FBoneIndexType> RequiredBones; RequiredBones.AddUninitialized(NumBones);
 	TArray<FTransform> WorldTransforms; WorldTransforms.AddUninitialized(NumBones);
 	TArray<FLinearColor> BoneColors; BoneColors.AddUninitialized(NumBones);
+
+	const bool bUseBoneColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
 	
 	for (int32 Index = 0; Index < NumBones; ++Index)
 	{
 		const FTransform& BoneTransform = Modifier->GetTransform(Index, true);
 		WorldTransforms[Index] = BoneTransform;
 		RequiredBones[Index] = Index;
-		BoneColors[Index] = DefaultBoneColor;
+		BoneColors[Index] = bUseBoneColors ? SkeletalDebugRendering::GetSemiRandomColorForBone(Index) : DrawConfig.DefaultBoneColor;
 		HitProxies.Add(new HBoneHitProxy(Index, RefSkeleton.GetBoneName(Index)));
 	}
 

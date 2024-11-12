@@ -149,7 +149,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 
 			StuckNoteGuard.UnstickNotes(*MidiStreamInPin, [this, &NoteOffTriggerFrame](const FMidiStreamEvent& Event)
 			{
-				TriggerNoteOff(0, Event.MidiMessage.GetStdData1());
+				TriggerNoteOff(0);
 				NoteOffTriggerFrame = 0;
 			});
 
@@ -157,7 +157,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 			{
 				if (SoundingNote >= 0)
 				{
-					TriggerNoteOff(0, SoundingNote);
+					TriggerNoteOff(0);
 				}
 				return;
 			}
@@ -168,7 +168,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 				const TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> Clock = MidiStreamInPin->GetClock();
 				if (Clock.IsValid() && Clock->GetTransportStateAtEndOfBlock() != EMusicPlayerTransportState::Playing)
 				{
-					TriggerNoteOff(0, SoundingNote);
+					TriggerNoteOff(0);
 					return;
 				}
 			}
@@ -180,7 +180,8 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 					if (SoundingNote > -1)
 					{
 						// Stop sounding note
-						TriggerNoteOff(Event.BlockSampleFrameIndex, SoundingNote);
+						TriggerNoteOff(Event.BlockSampleFrameIndex);
+						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
 					}
 
 					// Play new note
@@ -188,24 +189,36 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 					*VelOutPin     = Event.MidiMessage.GetStdData2();
 					*NoteNumOutPin = Event.MidiMessage.GetStdData1();
 					NoteOnOutPin->TriggerFrame(NoteOffTriggerFrame == Event.BlockSampleFrameIndex ? NoteOffTriggerFrame + 1 : Event.BlockSampleFrameIndex);
-					SoundingNote   = Event.MidiMessage.GetStdData1();;
+					SoundingNote   = Event.MidiMessage.GetStdData1();
 				}
 				else if (Event.MidiMessage.IsNoteOff())
 				{
 					if (Event.GetVoiceId() == PlayingId)
 					{
-						TriggerNoteOff(Event.BlockSampleFrameIndex, Event.MidiMessage.GetStdData1());
+						TriggerNoteOff(Event.BlockSampleFrameIndex);
 						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
+						PlayingId = FMidiVoiceId::None();
+						SoundingNote = -1;
+					}
+				}
+				else if (Event.MidiMessage.IsAllNotesOff() || Event.MidiMessage.IsAllNotesKill())
+				{
+					if (SoundingNote > -1)
+					{
+						// Stop sounding note
+						TriggerNoteOff(Event.BlockSampleFrameIndex);
+						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
+						PlayingId = FMidiVoiceId::None();
+						SoundingNote = -1;
 					}
 				}
 			}
 		}
 		
 	private:
-		void TriggerNoteOff(int32 BlockSampleFrameIndex, int32 NoteNumber)
+		void TriggerNoteOff(int32 BlockSampleFrameIndex)
 		{
 			*VelOutPin = 0;
-			*NoteNumOutPin = NoteNumber;
 			NoteOffOutPin->TriggerFrame(BlockSampleFrameIndex);
 			SoundingNote = -1;
 			PlayingId = FMidiVoiceId::None();

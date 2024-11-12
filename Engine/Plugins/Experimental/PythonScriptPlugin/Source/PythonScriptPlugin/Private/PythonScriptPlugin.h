@@ -39,7 +39,7 @@ public:
 	virtual FText GetDisplayName() const override;
 	virtual FText GetDescription() const override;
 	virtual FText GetHintText() const override;
-	virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out) override;
+	virtual void GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out) override;
 	virtual void GetExecHistory(TArray<FString>& Out) override;
 	virtual bool Exec(const TCHAR* Input) override;
 	virtual bool AllowHotKeyClose() const override;
@@ -64,7 +64,7 @@ public:
 	virtual FText GetDisplayName() const override;
 	virtual FText GetDescription() const override;
 	virtual FText GetHintText() const override;
-	virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out) override;
+	virtual void GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out) override;
 	virtual void GetExecHistory(TArray<FString>& Out) override;
 	virtual bool Exec(const TCHAR* Input) override;
 	virtual bool AllowHotKeyClose() const override;
@@ -123,9 +123,7 @@ public:
 #if WITH_PYTHON
 	void RunStartupScripts();
 
-#if WITH_EDITOR	
 	void OnPostEngineInit();
-#endif
 
 	/** Sync the remote execution environment to the current settings, starting or stopping it as required */
 	void SyncRemoteExecutionToSettings();

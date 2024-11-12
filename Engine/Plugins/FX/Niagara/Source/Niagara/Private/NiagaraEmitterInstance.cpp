@@ -93,12 +93,12 @@ bool FNiagaraEmitterInstance::IsDisabledFromIsolation() const
 
 int64 FNiagaraEmitterInstance::GetTotalBytesUsed() const
 {
-	int32 ByteSize = 0;
+	int64 ByteSize = 0;
 	if (ParticleDataSet)
 	{
 		ByteSize += ParticleDataSet->GetSizeBytes();
 	}
-	return 0;
+	return ByteSize;
 }
 
 const FNiagaraEmitterHandle& FNiagaraEmitterInstance::GetEmitterHandle() const

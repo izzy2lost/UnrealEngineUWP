@@ -18,6 +18,10 @@
 #include "ModelingToolTargetUtil.h"
 #include "ToolTargetManager.h"
 
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
+
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UVLayoutTool)
 
@@ -39,6 +43,17 @@ bool UUVLayoutToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) con
 	return UMultiSelectionMeshEditingToolBuilder::CanBuildTool(SceneState) &&
 		SceneState.TargetManager->CountSelectedAndTargetableWithPredicate(SceneState, GetTargetRequirements(),
 			[](UActorComponent& Component) { return ToolBuilderUtil::ComponentTypeCouldHaveUVs(Component); }) > 0;
+}
+
+const FToolTargetTypeRequirements& UUVLayoutToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
 }
 
 /*
@@ -132,8 +147,7 @@ void UUVLayoutTool::UpdateNumPreviews()
 		for (int32 PreviewIdx = CurrentNumPreview; PreviewIdx < TargetNumPreview; PreviewIdx++)
 		{
 			OriginalDynamicMeshes[PreviewIdx] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
-			FMeshDescriptionToDynamicMesh Converter;
-			Converter.Convert(UE::ToolTarget::GetMeshDescription(Targets[PreviewIdx]), *OriginalDynamicMeshes[PreviewIdx]);
+			*OriginalDynamicMeshes[PreviewIdx] = UE::ToolTarget::GetDynamicMeshCopy(Targets[PreviewIdx]);
 
 			Factories[PreviewIdx]= NewObject<UUVLayoutOperatorFactory>();
 			Factories[PreviewIdx]->OriginalMesh = OriginalDynamicMeshes[PreviewIdx];

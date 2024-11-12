@@ -49,6 +49,7 @@ ACameraRig_Rail::ACameraRig_Rail(const FObjectInitializer& ObjectInitializer)
 		PreviewMesh_Mount = CreateOptionalDefaultSubobject<UStaticMeshComponent>(TEXT("PreviewMesh_Mount"));
 		if (PreviewMesh_Mount)
 		{
+			PreviewMesh_Mount->SetCanEverAffectNavigation(false);
 			PreviewMesh_Mount->SetStaticMesh(MountMesh.Object);
 			PreviewMesh_Mount->SetIsVisualizationComponent(true);
 			PreviewMesh_Mount->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);

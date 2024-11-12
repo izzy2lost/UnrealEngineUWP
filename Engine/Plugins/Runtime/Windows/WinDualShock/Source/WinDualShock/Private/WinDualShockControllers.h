@@ -2,9 +2,15 @@
 
 #pragma once
 
+#if DUALSHOCK4_SUPPORT
+
 #include "WinDualShock.h"
-#include <pad.h>
-#include <pad_audio.h>
+#include LIBSCEPAD_PLATFORM_INCLUDE
+
+THIRD_PARTY_INCLUDES_START
+	#include <pad.h>
+	#include <pad_audio.h>
+THIRD_PARTY_INCLUDES_END
 
 class FWinDualShockControllers : public FPlatformControllers
 {
@@ -49,3 +55,5 @@ public:
 private:
 	float OutputGain = 1.0f;
 };
+
+#endif // DUALSHOCK4_SUPPORT

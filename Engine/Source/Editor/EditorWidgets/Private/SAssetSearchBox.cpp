@@ -111,7 +111,6 @@ void SAssetSearchBox::Construct( const FArguments& InArgs )
 						.SelectionMode( ESelectionMode::Single )							// Ideally the mouse over would not highlight while keyboard controls the UI
 						.OnGenerateRow(this, &SAssetSearchBox::MakeSuggestionListItemWidget)
 						.OnSelectionChanged( this, &SAssetSearchBox::OnSelectionChanged)
-						.ItemHeight(18)
 						.ScrollbarDragFocusCause(EFocusCause::SetDirectly) // Use SetDirect so that clicking the scrollbar doesn't close the suggestions list
 					]
 				]

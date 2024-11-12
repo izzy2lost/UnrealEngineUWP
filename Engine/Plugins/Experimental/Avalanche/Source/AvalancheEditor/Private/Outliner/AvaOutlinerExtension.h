@@ -47,6 +47,7 @@ public:
 	virtual bool CanOutlinerProcessActorSpawn(AActor* InActor) const override;
 	virtual bool ShouldHideItem(const FAvaOutlinerItemPtr& InItem) const override;
 	virtual void OutlinerDuplicateActors(const TArray<AActor*>& InTemplateActors) override;
+	virtual void OutlinerDeleteActors(const TArray<AActor*>& InDeleteActors) override;
 	virtual FEditorModeTools* GetOutlinerModeTools() const override;
 	virtual FAvaSceneTree* GetSceneTree() const override;
 	virtual UWorld* GetOutlinerWorld() const override;
@@ -63,6 +64,8 @@ public:
 
 private:
 	void GroupSelection();
+
+	bool OnSceneRigFilterPass(FAvaOutlinerFilterType InItem) const;
 
 	TSharedPtr<IAvaOutliner> AvaOutliner;
 

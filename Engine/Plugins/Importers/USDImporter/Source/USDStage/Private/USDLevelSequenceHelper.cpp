@@ -4,15 +4,15 @@
 
 #include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
-#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
-#include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
 #include "USDLayerUtils.h"
 #include "USDListener.h"
 #include "USDLog.h"
+#include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
+#include "USDPrimLinkCache.h"
 #include "USDPrimTwin.h"
 #include "USDProjectSettings.h"
 #include "USDSkeletalDataConversion.h"
@@ -65,13 +65,17 @@
 #include "MovieSceneTrack.h"
 #include "Rigs/FKControlRig.h"
 #include "RigVMBlueprintGeneratedClass.h"
+#include "Sections/MovieSceneAudioSection.h"
 #include "Sections/MovieSceneFloatSection.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Templates/SharedPointer.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
+#include "Tracks/MovieSceneAudioTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneColorTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
@@ -94,6 +98,13 @@
 #include "MovieSceneToolHelpers.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #endif	  // WITH_EDITOR
+
+#if USE_USD_SDK
+#include "USDIncludesStart.h"
+#include "pxr/usd/usdGeom/tokens.h"
+#include "pxr/usd/usdMedia/tokens.h"
+#include "USDIncludesEnd.h"
+#endif	  // USE_USD_SDK
 
 #define LOCTEXT_NAMESPACE "USDLevelSequenceHelper"
 
@@ -218,7 +229,8 @@ namespace UsdLevelSequenceHelperImpl
 			}
 		}
 
-		TArray<UObject*, TInlineAllocator<1>> Objects = MovieSceneSequence.LocateBoundObjects(Guid, ParentContext);
+		TArray<UObject*, TInlineAllocator<1>> Objects;
+		MovieSceneSequence.LocateBoundObjects(Guid, UE::UniversalObjectLocator::FResolveParams(ParentContext), nullptr, Objects);
 		if (Objects.Num() > 0)
 		{
 			return Objects[0];
@@ -263,7 +275,11 @@ namespace UsdLevelSequenceHelperImpl
 	TSharedPtr<ISequencer> GetOpenedSequencerForLevelSequence(ULevelSequence* LevelSequence)
 	{
 		const bool bFocusIfOpen = false;
-		IAssetEditorInstance* AssetEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(LevelSequence, bFocusIfOpen);
+		IAssetEditorInstance* AssetEditor = GEditor ? GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(
+												LevelSequence,
+												bFocusIfOpen
+											)
+													: nullptr;
 		ILevelSequenceEditorToolkit* LevelSequenceEditor = static_cast<ILevelSequenceEditorToolkit*>(AssetEditor);
 		return LevelSequenceEditor ? LevelSequenceEditor->GetSequencer() : nullptr;
 	}
@@ -329,17 +345,13 @@ namespace UsdLevelSequenceHelperImpl
 
 			ExportOptions->bTransactRecording = false;
 
-			FMovieSceneSequenceIDRef Template = MovieSceneSequenceID::Root;
 			FMovieSceneSequenceTransform RootToLocalTransform;
-			bResult = MovieSceneToolHelpers::ExportToAnimSequence(
-				AnimSequence,
-				ExportOptions,
-				MovieScene,
-				Player,
-				SkeletalMeshComp,
-				Template,
-				RootToLocalTransform
-			);
+			FAnimExportSequenceParameters AESP;
+			AESP.Player = Player;
+			AESP.RootToLocalTransform = RootToLocalTransform;
+			AESP.MovieSceneSequence = LevelSequence;
+			AESP.RootMovieSceneSequence = LevelSequence;
+			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESP, SkeletalMeshComp);
 			if (!bResult)
 			{
 				goto cleanup;
@@ -435,14 +447,11 @@ namespace UsdLevelSequenceHelperImpl
 			Track->SetTrackName(FName(*ObjectName));
 			Track->SetDisplayName(FText::FromString(ObjectName));
 
-			// We want the baked keyframe times to match exactly the source animation keyframe times. The way that
-			// LoadAnimSequenceIntoThisSection uses this however indicates it's meant to be relative to the start
-			// of the playback range, which we do here
-			ControlRigSectionStartFrame -= UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange());
-
 			const bool bResetControls = true;
+			const FFrameNumber SequenceStart{0};
 			ParamSection->LoadAnimSequenceIntoThisSection(
 				AnimSequence,
+				SequenceStart,
 				MovieScene,
 				SkeletalMeshComp,
 				bReduceKeys,
@@ -579,6 +588,177 @@ cleanup:
 			}
 		}
 	}
+
+	void ShowStageActorPropertyTrackWarning(FName PropertyName)
+	{
+		const FText Text = LOCTEXT("TrackUnboundTitle", "USD: Failed to bind property");
+
+		const FText SubText = FText::Format(
+			LOCTEXT(
+				"TrackUnboundMessage",
+				"Cannot bind the Stage Actor property '{0}' to it's own Level Sequence!\n\nThis sequence is an analogue for animation contained in the USD stage. For now it is not possible to create bindings or bind tracks that cannot be translated back into USD information."
+			),
+			FText::FromName(PropertyName)
+		);
+
+		UE_LOG(LogUsd, Warning, TEXT("%s"), *SubText.ToString().Replace(TEXT("\n\n"), TEXT(" ")));
+
+		static TWeakPtr<SNotificationItem> Notification;
+
+		FNotificationInfo Toast(Text);
+		Toast.SubText = SubText;
+		Toast.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
+		Toast.bUseLargeFont = false;
+		Toast.bFireAndForget = false;
+		Toast.FadeOutDuration = 0.0f;
+		Toast.ExpireDuration = 0.0f;
+		Toast.bUseThrobber = false;
+		Toast.bUseSuccessFailIcons = false;
+		Toast.ButtonDetails.Emplace(
+			LOCTEXT("TrackUnboundOk", "Ok"),
+			FText::GetEmpty(),
+			FSimpleDelegate::CreateLambda(
+				[]()
+				{
+					if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+					{
+						PinnedNotification->SetCompletionState(SNotificationItem::CS_Success);
+						PinnedNotification->ExpireAndFadeout();
+					}
+				}
+			)
+		);
+
+		// Only show one at a time
+		if (!Notification.IsValid())
+		{
+			Notification = FSlateNotificationManager::Get().AddNotification(Toast);
+		}
+
+		if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+		{
+			PinnedNotification->SetCompletionState(SNotificationItem::CS_Pending);
+		}
+	}
+
+	void ShowVisibilityWarningIfNeeded(const UMovieScenePropertyTrack* PropertyTrack, const UE::FUsdPrim& UsdPrim)
+	{
+		if (!PropertyTrack || !UsdPrim)
+		{
+			return;
+		}
+
+		FName PropertyPath = PropertyTrack->GetPropertyName();
+		if (PropertyPath != UnrealIdentifiers::HiddenPropertyName && PropertyPath != UnrealIdentifiers::HiddenInGamePropertyName)
+		{
+			return;
+		}
+
+		// Only show the warning after we have at least one key in the track, otherwise pressing 'File->Regenerate sequence' will
+		// really just wipe the empty tracks and bindings in the first place...
+		bool bHasKeys = false;
+		const TArray<UMovieSceneSection*>& Sections = PropertyTrack->GetAllSections();
+		for (UMovieSceneSection* Section : Sections)
+		{
+			if (Section->IsActive())
+			{
+				FMovieSceneChannelProxy& Proxy = Section->GetChannelProxy();
+				for (int32 ChannelIndex = 0; ChannelIndex < Proxy.NumChannels(); ++ChannelIndex)
+				{
+					if (FMovieSceneBoolChannel* Channel = Proxy.GetChannel<FMovieSceneBoolChannel>(ChannelIndex))
+					{
+						if (Channel->GetNumKeys() > 0)
+						{
+							bHasKeys = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if (bHasKeys)
+			{
+				break;
+			}
+		}
+		if (!bHasKeys)
+		{
+			return;
+		}
+
+		const static FString VisibilityAttrName = UsdToUnreal::ConvertToken(pxr::UsdGeomTokens->visibility);
+		UE::FUsdAttribute VisibilityAttr = UsdPrim.GetAttribute(*VisibilityAttrName);
+		if (!VisibilityAttr || VisibilityAttr.GetNumTimeSamples() > 0)
+		{
+			// Only show the warning when first creating a visibility track for something that doesn't
+			// previously have any. Presumably if the visibility animation comes from USD the user is already aware
+			// of the differences between UE/USD given all the additional tracks we'll generate on the UE side
+			return;
+		}
+
+		const FText Text = LOCTEXT("VisibilityWarningTitle", "USD: Inherited visibility");
+
+		const FText SubText = LOCTEXT(
+			"VisibilityWarningTooltip",
+			"Visibility in USD is inherited (if a parent prim is hidden, its children are also implicitly hidden), while it is not inherited in Unreal. This means that authoring visibility animation from Unreal may have unexpected consequences on the USD stage.\n\nYou may want to use 'File -> Regenerate sequence' to resynchronize the LevelSequence with the current state of the stage, whenever is convenient."
+		);
+
+		const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
+		if (Settings && Settings->bShowInheritedVisibilityWarning)
+		{
+			static TWeakPtr<SNotificationItem> Notification;
+
+			FNotificationInfo Toast(Text);
+			Toast.SubText = SubText;
+			Toast.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
+			Toast.CheckBoxText = LOCTEXT("DontAskAgain", "Don't prompt again");
+			Toast.bUseLargeFont = false;
+			Toast.bFireAndForget = false;
+			Toast.FadeOutDuration = 0.0f;
+			Toast.ExpireDuration = 0.0f;
+			Toast.bUseThrobber = false;
+			Toast.bUseSuccessFailIcons = false;
+			Toast.ButtonDetails.Emplace(
+				LOCTEXT("OverridenOpinionMessageOk", "Ok"),
+				FText::GetEmpty(),
+				FSimpleDelegate::CreateLambda(
+					[]()
+					{
+						if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+						{
+							PinnedNotification->SetCompletionState(SNotificationItem::CS_Success);
+							PinnedNotification->ExpireAndFadeout();
+						}
+					}
+				)
+			);
+			// This is flipped because the default checkbox message is "Don't prompt again"
+			Toast.CheckBoxState = Settings->bShowInheritedVisibilityWarning ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+			Toast.CheckBoxStateChanged = FOnCheckStateChanged::CreateStatic(
+				[](ECheckBoxState NewState)
+				{
+					if (UUsdProjectSettings* Settings = GetMutableDefault<UUsdProjectSettings>())
+					{
+						// This is flipped because the default checkbox message is "Don't prompt again"
+						Settings->bShowInheritedVisibilityWarning = NewState == ECheckBoxState::Unchecked;
+						Settings->SaveConfig();
+					}
+				}
+			);
+
+			// Only show one at a time
+			if (!Notification.IsValid())
+			{
+				UE_LOG(LogUsd, Warning, TEXT("%s"), *SubText.ToString().Replace(TEXT("\n\n"), TEXT(" ")));
+				Notification = FSlateNotificationManager::Get().AddNotification(Toast);
+			}
+
+			if (TSharedPtr<SNotificationItem> PinnedNotification = Notification.Pin())
+			{
+				PinnedNotification->SetCompletionState(SNotificationItem::CS_Pending);
+			}
+		}
+	}
 #endif	  // WITH_EDITOR
 }	 // namespace UsdLevelSequenceHelperImpl
 
@@ -589,7 +769,8 @@ public:
 	~FUsdLevelSequenceHelperImpl();
 
 	ULevelSequence* Init(const UE::FUsdStage& InUsdStage);
-	void SetInfoCache(TSharedPtr<FUsdInfoCache> InfoCache);
+	bool Serialize(FArchive& Ar);
+	void SetPrimLinkCache(UUsdPrimLinkCache* PrimLinkCache);
 	void SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache);
 	bool HasData() const;
 	void Clear();
@@ -699,6 +880,7 @@ private:
 	void AddGroomTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddGeometryCacheTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddVolumeTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
+	void AddAudioTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 
 	template<typename TrackType>
 	TrackType* AddTrack(
@@ -728,12 +910,24 @@ private:
 
 	struct FPrimTwinBindings
 	{
+		// clang fix for std::is_default_constructible_v
+		// returning false in inlined code of outer class
+		FPrimTwinBindings()
+		{
+		}
+
 		ULevelSequence* Sequence = nullptr;
 
 		// For now we support one binding per component type (mostly so we can fit a binding to a scene component and
 		// camera component for a Camera prim twin)
-		TMap<const UClass*, FGuid> ObjectClassToBindingGuid;
+		TMap<TWeakObjectPtr<const UClass>, FGuid> ObjectClassToBindingGuid;
 	};
+	friend FArchive& operator<<(FArchive& Ar, FUsdLevelSequenceHelperImpl::FPrimTwinBindings& Bindings)
+	{
+		Ar << Bindings.Sequence;
+		Ar << Bindings.ObjectClassToBindingGuid;
+		return Ar;
+	}
 
 	TMap<TWeakObjectPtr<const UUsdPrimTwin>, FPrimTwinBindings> PrimTwinToBindings;
 
@@ -786,7 +980,7 @@ private:
 	void HandleMovieSceneChange(UMovieScene& MovieScene);
 	void HandleSubSectionChange(UMovieSceneSubSection& Section);
 	void HandleControlRigSectionChange(UMovieSceneControlRigParameterSection& Section);
-	void HandleTrackChange(const UMovieSceneTrack& Track, bool bIsMuteChange);
+	void HandleTrackChange(UMovieSceneTrack& Track, bool bIsMuteChange);
 	void HandleDisplayRateChange(const double DisplayRate);
 
 	FDelegateHandle OnObjectTransactedHandle;
@@ -806,9 +1000,14 @@ private:
 	FUsdLevelSequenceHelper::FOnSkelAnimationBaked OnSkelAnimationBaked;
 
 	TWeakObjectPtr<AUsdStageActor> StageActor = nullptr;
-	TSharedPtr<FUsdInfoCache> InfoCache = nullptr;			  // We keep a pointer to this directly because we may be called via the USDStageImporter
-															  // directly, when we don't have an available actor
-	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache = nullptr;	  // Same as for the info cache
+
+	// We keep a pointer to these directly because we may be called via the
+	// USDStageImporter directly, when we don't have an available actor.
+	// This has to be weak or else we get a circular reference, as this will hold on the PrimLinkCache,
+	// that has an Outer reference to the stage actor, that owns this
+	TWeakObjectPtr<UUsdPrimLinkCache> PrimLinkCache = nullptr;
+	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache = nullptr;
+
 	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
 	FGuid StageActorBinding;
 
@@ -875,9 +1074,34 @@ ULevelSequence* FUsdLevelSequenceHelperImpl::Init(const UE::FUsdStage& InUsdStag
 	return MainLevelSequence;
 }
 
-void FUsdLevelSequenceHelperImpl::SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache)
+bool FUsdLevelSequenceHelperImpl::Serialize(FArchive& Ar)
 {
-	InfoCache = InInfoCache;
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdLevelSequenceHelperImpl::Serialize);
+
+	Ar << MainLevelSequence;
+	Ar << LevelSequencesByIdentifier;
+	Ar << IdentifierByLevelSequence;
+	Ar << LocalLayersSequences;
+	Ar << SequencesID;
+	Ar << LayerIdentifierByLevelSequenceName;
+	Ar << PrimPathByLevelSequenceName;
+	Ar << PrimTwinToBindings;
+	Ar << RootMotionHandling;
+	Ar << StageActorBinding;
+
+	// Always keep SequenceHierarchyCache up-to-date given that it can't be serialized itself
+	if (Ar.IsLoading() && MainLevelSequence && MainLevelSequence->GetMovieScene())
+	{
+		UMovieSceneCompiledDataManager::CompileHierarchy(MainLevelSequence, &SequenceHierarchyCache, EMovieSceneServerClientMask::All);
+	}
+
+	return true;
+}
+
+void FUsdLevelSequenceHelperImpl::SetPrimLinkCache(UUsdPrimLinkCache* InPrimLinkCache)
+{
+	// PrimLinkCache.Reset(InPrimLinkCache);
+	PrimLinkCache = InPrimLinkCache;
 }
 
 void FUsdLevelSequenceHelperImpl::SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache)
@@ -925,6 +1149,19 @@ bool FUsdLevelSequenceHelperImpl::HasData() const
 
 void FUsdLevelSequenceHelperImpl::Clear()
 {
+	for (const TPair<FString, TObjectPtr<ULevelSequence>>& IdentifierAndSeq : LevelSequencesByIdentifier)
+	{
+		if (ULevelSequence* Seq = IdentifierAndSeq.Value.Get())
+		{
+#if WITH_EDITOR
+			if (!IsEngineExitRequested())
+			{
+				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(Seq);
+			}
+#endif	  // WITH_EDITOR
+		}
+	}
+
 	MainLevelSequence = nullptr;
 	LevelSequencesByIdentifier.Empty();
 	IdentifierByLevelSequence.Empty();
@@ -1015,7 +1252,7 @@ void FUsdLevelSequenceHelperImpl::BindToUsdStageActor(AUsdStageActor* InStageAct
 	UnbindFromUsdStageActor();
 
 	StageActor = InStageActor;
-	SetInfoCache(InStageActor ? InStageActor->GetInfoCache() : nullptr);
+	SetPrimLinkCache(InStageActor ? InStageActor->PrimLinkCache : nullptr);
 	SetBBoxCache(InStageActor ? InStageActor->GetBBoxCache() : nullptr);
 	SetRootMotionHandling(InStageActor ? InStageActor->RootMotionHandling : EUsdRootMotionHandling::NoAdditionalRootMotion);
 
@@ -1064,7 +1301,7 @@ void FUsdLevelSequenceHelperImpl::UnbindFromUsdStageActor()
 		StageActor.Reset();
 	}
 
-	SetInfoCache(nullptr);
+	SetPrimLinkCache(nullptr);
 	SetRootMotionHandling(EUsdRootMotionHandling::NoAdditionalRootMotion);
 
 	OnStageEditTargetChangedHandle.Reset();
@@ -1210,14 +1447,15 @@ ULevelSequence* FUsdLevelSequenceHelperImpl::FindOrAddSequenceForLayer(
 		// due to references from the transaction buffer, so we would basically end up creating a identical new object on top of an existing one (the
 		// new object has the same address as the existing one). When importing we don't actually want to do this though, because we want these assets
 		// name to conflict so that we can publish/replace old assets if desired. The stage importer will make these names unique later if needed. We
-		// only get an InfoCache when importing (from UUsdStageImporter::ImportFromFile) or when BindToUsdStageActor is called, which also gives us a
-		// stage actor. So if we don't have an actor but have a cache, we're importing
-		const bool bIsImporting = StageActor.IsExplicitlyNull() && InfoCache;
-		FName UniqueSequenceName = bIsImporting ? *IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
+		// only get a PrimLinkCache when importing (from UUsdStageImporter::ImportFromFile) or when BindToUsdStageActor is called, which also gives us
+		// a stage actor. So if we don't have an actor but have a cache, we're importing
+
+		const bool bIsImporting = StageActor.IsExplicitlyNull() && PrimLinkCache.IsValid();
+		FName UniqueSequenceName = bIsImporting ? *UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
 												: MakeUniqueObjectName(
 													GetTransientPackage(),
 													ULevelSequence::StaticClass(),
-													*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
+													*UsdUnreal::ObjectUtils::SanitizeObjectName(FPaths::GetBaseFilename(SequenceDisplayName))
 												);
 
 		Sequence = NewObject<ULevelSequence>(GetTransientPackage(), UniqueSequenceName, FUsdLevelSequenceHelperImpl::DefaultObjFlags);
@@ -1347,7 +1585,7 @@ void FUsdLevelSequenceHelperImpl::CreateSubSequenceSection(ULevelSequence& Seque
 	{
 		if (UE::FUsdPrim SequencePrim = UsdStage.GetPrimAtPath(UE::FSdfPath(*PrimPathsForSequence[0])))
 		{
-			TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(SequencePrim, UnrealIdentifiers::TransformPropertyName);
+			TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(SequencePrim, UnrealIdentifiers::TransformPropertyName);
 			if (Attrs.Num() > 0)
 			{
 				SubLayerOffset = UsdUtils::GetLayerToStageOffset(Attrs[0]);
@@ -1659,7 +1897,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 
 		// Get all *animated* attributes that may contribute to the transform
 		bool bAreAllMuted = true;
-		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, UnrealIdentifiers::TransformPropertyName);
+		TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, UnrealIdentifiers::TransformPropertyName);
 		for (int32 Index = Attrs.Num() - 1; Index >= 0; --Index)
 		{
 			const UE::FUsdAttribute& Attr = Attrs[Index];
@@ -1738,7 +1976,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 		}
 	}
 
-	TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, UnrealIdentifiers::HiddenInGamePropertyName);
+	TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, UnrealIdentifiers::HiddenInGamePropertyName);
 	if (Attrs.Num() > 0)
 	{
 		UE::FUsdAttribute VisibilityAttribute = Attrs[0];
@@ -1747,6 +1985,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 			// Collect all the time samples we'll need to sample our visibility at (USD has inherited visibilities, so every time
 			// a parent has a key, we need to recompute the child visibility at that moment too)
 			TArray<double> TotalVisibilityTimeSamples;
+			VisibilityAttribute.GetTimeSamples(TotalVisibilityTimeSamples);
 
 			// If we're adding a visibility track because a parent has visibility animations, we want to write our baked visibility
 			// tracks on the same layer as the first one of our parents that actually has animated visibility.
@@ -1754,7 +1993,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 			// many parents and specs on multiple layers, but this is hopefully at least *a* reasonable answer.
 			UE::FUsdAttribute FirstAnimatedVisibilityParentAttr;
 
-			if ((VisibilityAttribute.GetTimeSamples(TotalVisibilityTimeSamples) && TotalVisibilityTimeSamples.Num() > 0) || bForceVisibilityTracks)
+			if (bForceVisibilityTracks)
 			{
 				// TODO: Improve this, as this is extremely inefficient since we'll be parsing this tree for the root down and repeatedly
 				// redoing this one child at a time...
@@ -1763,7 +2002,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 				{
 					if (UsdUtils::HasAnimatedVisibility(ParentPrim))
 					{
-						TArray<UE::FUsdAttribute> ParentAttrs = UnrealToUsd::GetAttributesForProperty(
+						TArray<UE::FUsdAttribute> ParentAttrs = UsdUtils::GetAttributesForProperty(
 							ParentPrim,
 							UnrealIdentifiers::HiddenInGamePropertyName
 						);
@@ -2009,7 +2248,7 @@ void FUsdLevelSequenceHelperImpl::AddCameraTracks(const UUsdPrimTwin& PrimTwin, 
 
 	for (const FName& PropertyName : TrackedProperties)
 	{
-		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyName);
+		TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, PropertyName);
 		if (Attrs.Num() < 1)
 		{
 			continue;
@@ -2133,7 +2372,7 @@ void FUsdLevelSequenceHelperImpl::AddLightTracks(const UUsdPrimTwin& PrimTwin, c
 		const FName& PropertyPath = Pair.Key;
 		ETrackType TrackType = Pair.Value;
 
-		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath);
+		TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, PropertyPath);
 		if (Attrs.Num() < 1)
 		{
 			continue;
@@ -2226,7 +2465,8 @@ void FUsdLevelSequenceHelperImpl::AddSkeletalTracks(const UUsdPrimTwin& PrimTwin
 		return;
 	}
 
-	if (!InfoCache)
+	UUsdPrimLinkCache* PrimLinkCachePtr = PrimLinkCache.Get();
+	if (!PrimLinkCachePtr)
 	{
 		return;
 	}
@@ -2245,7 +2485,7 @@ void FUsdLevelSequenceHelperImpl::AddSkeletalTracks(const UUsdPrimTwin& PrimTwin
 	// but we may belong to a FUsdStageImportContext, and so there's no AUsdStageActor at all to use.
 	// At this point it doesn't matter much though, because we shouldn't need to uncollapse a SkelAnimation prim path anyway
 	const UE::FSdfPath PrimPath = Prim.GetPrimPath();
-	UAnimSequence* Sequence = InfoCache->GetSingleAssetForPrim<UAnimSequence>(PrimPath);
+	UAnimSequence* Sequence = PrimLinkCachePtr->GetInner().GetSingleAssetForPrim<UAnimSequence>(PrimPath);
 	if (!Sequence)
 	{
 		return;
@@ -2318,14 +2558,15 @@ void FUsdLevelSequenceHelperImpl::AddSkeletalTracks(const UUsdPrimTwin& PrimTwin
 void FUsdLevelSequenceHelperImpl::AddGeometryCacheTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim)
 {
 	UGeometryCacheComponent* ComponentToBind = Cast<UGeometryCacheComponent>(PrimTwin.GetSceneComponent());
-	if (!ComponentToBind || !InfoCache)
+	UUsdPrimLinkCache* PrimLinkCachePtr = PrimLinkCache.Get();
+	if (!ComponentToBind || !PrimLinkCachePtr)
 	{
 		return;
 	}
 
 	// Fetch the geometry cache asset from the asset cache. If there's none, don't actually need to create track
 	const UE::FSdfPath PrimPath = Prim.GetPrimPath();
-	UGeometryCache* GeometryCache = InfoCache->GetSingleAssetForPrim<UGeometryCache>(PrimPath);
+	UGeometryCache* GeometryCache = PrimLinkCachePtr->GetInner().GetSingleAssetForPrim<UGeometryCache>(PrimPath);
 	if (!GeometryCache)
 	{
 		return;
@@ -2396,7 +2637,8 @@ void FUsdLevelSequenceHelperImpl::AddGroomTracks(const UUsdPrimTwin& PrimTwin, c
 		return;
 	}
 
-	if (!InfoCache)
+	UUsdPrimLinkCache* PrimLinkCachePtr = PrimLinkCache.Get();
+	if (!PrimLinkCachePtr)
 	{
 		return;
 	}
@@ -2404,7 +2646,7 @@ void FUsdLevelSequenceHelperImpl::AddGroomTracks(const UUsdPrimTwin& PrimTwin, c
 	// Fetch the groom cache asset from the asset cache. If there's none, don't actually need to create track
 	const FString PrimPath = Prim.GetPrimPath().GetString();
 	const FString GroomCachePath = FString::Printf(TEXT("%s_strands_cache"), *PrimPath);
-	UGroomCache* GroomCache = InfoCache->GetSingleAssetForPrim<UGroomCache>(UE::FSdfPath{*GroomCachePath});
+	UGroomCache* GroomCache = PrimLinkCachePtr->GetInner().GetSingleAssetForPrim<UGroomCache>(UE::FSdfPath{*GroomCachePath});
 	if (!GroomCache)
 	{
 		return;
@@ -2479,7 +2721,7 @@ void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, 
 	// Here we'll just get *any* of the filePath attrs from this Volume prim to check for the
 	// muted bool. We won't use the attribute itself for the baking though, as our timeSamples are already
 	// on the SparseVolumeTexture AssetUserData, and the keyframe values are just their indices
-	TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath);
+	TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, PropertyPath);
 	if (Attrs.Num() < 1)
 	{
 		return;
@@ -2503,7 +2745,7 @@ void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, 
 			{
 				if (SparseVolumeTexture->GetNumFrames() > 1)
 				{
-					UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(UsdUtils::GetAssetUserData(SparseVolumeTexture));
+					UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(UsdUnreal::ObjectUtils::GetAssetUserData(SparseVolumeTexture));
 				}
 			}
 
@@ -2620,6 +2862,321 @@ void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, 
 	PrimPathByLevelSequenceName.AddUnique(PrimSequence->GetFName(), Prim.GetPrimPath().GetString());
 }
 
+namespace UE::LevelSequenceHelper::Private
+{
+	template<typename T>
+	TOptional<T> GetAuthoredValue(const UE::FUsdPrim& Prim, const FString& AttrName)
+	{
+		if (UE::FUsdAttribute Attr = Prim.GetAttribute(*AttrName))
+		{
+			UE::FVtValue VtValue;
+			if (Attr.HasAuthoredValue() && Attr.Get(VtValue) && !VtValue.IsEmpty())
+			{
+				return UsdUtils::GetUnderlyingValue<T>(VtValue);
+			}
+		}
+
+		return TOptional<T>{};
+	}
+};
+
+void FUsdLevelSequenceHelperImpl::AddAudioTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim)
+{
+	using namespace UnrealIdentifiers;
+	using namespace UE::LevelSequenceHelper::Private;
+
+	UAudioComponent* AudioComponent = Cast<UAudioComponent>(PrimTwin.GetSceneComponent());
+	if (!AudioComponent)
+	{
+		return;
+	}
+
+	UUsdPrimLinkCache* PrimLinkCachePtr = PrimLinkCache.Get();
+	if (!PrimLinkCachePtr)
+	{
+		return;
+	}
+
+	// Note: We pull the audio directly from the info cache here, and not the component:
+	// See big comment within FUsdMediaSpatialAudioTranslator::UpdateComponents
+	USoundBase* Sound = PrimLinkCachePtr->GetInner().GetSingleAssetForPrim<USoundBase>(Prim.GetPrimPath());
+	if (!Sound)
+	{
+		return;
+	}
+
+	static FString FilePathToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->filePath);
+	static FString AuralModeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->auralMode);
+	static FString MediaOffsetSecondsToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->mediaOffset);
+	static FString StartTimeCodeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->startTime);
+	static FString EndTimeCodeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->endTime);
+	static FString PlaybackModeToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->playbackMode);
+	static FString GainToken = UsdToUnreal::ConvertToken(pxr::UsdMediaTokens->gain);
+
+	// Set up the actual audio track
+	{
+		// If we're using references so that our prim references another layer with the SpatialAudio prim,
+		// using just "the layer for the prim" here would mean we end up with the referencer layer, and so
+		// we'd end up placing the audio track directly on the LevelSequence for the referencer layer, which
+		// is not what we want.
+		// Instead, we use the file path attribute as the "main attribute" for the audio track: If you author
+		// filePath on the referencer layer, the audio track will end up on the corresponding LevelSequence.
+		// If you author it on the referenced layer, the audio track will end up on that subsequence
+		UE::FUsdAttribute Attr = Prim.GetAttribute(*FilePathToken);
+
+		UE::FSdfLayer SequenceLayer;
+		ULevelSequence* AttributeSequence = FindOrAddSequenceForAttribute(Attr, &SequenceLayer);
+		if (!AttributeSequence)
+		{
+			return;
+		}
+
+		UMovieScene* MovieScene = AttributeSequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			return;
+		}
+
+		UsdLevelSequenceHelperImpl::FScopedReadOnlyDisable ReadOnlyGuard{MovieScene, SequenceLayer, UsdStage};
+
+		// Since the schema has fallbacks for these, we should always have values here.
+		//
+		// Note that since startTime and endTime have pxr::SdfTimeCode data types, USD will already do the
+		// proper conversions regarding sublayer/reference offset and scale. In other words, these timeCode
+		// values as retrieved by UE::FUsdAttribute::Get() are *already relative to the stage*.
+		// Example: If startTime was set to 15 for a SpatialAudio prim defined in a sublayer, added to the stage
+		// with offset of 10 and scale of 2, when querying the attribute for the prim we'd get that startTime
+		// actually has the value of 40, because 15 * 2 + 10 = 40
+		TOptional<double> MediaOffset = GetAuthoredValue<double>(Prim, MediaOffsetSecondsToken);
+		TOptional<pxr::SdfTimeCode> StartTimeCode = GetAuthoredValue<pxr::SdfTimeCode>(Prim, StartTimeCodeToken);
+		TOptional<pxr::SdfTimeCode> EndTimeCode = GetAuthoredValue<pxr::SdfTimeCode>(Prim, EndTimeCodeToken);
+		TOptional<pxr::TfToken> PlaybackMode = GetAuthoredValue<pxr::TfToken>(Prim, PlaybackModeToken);
+		TOptional<pxr::TfToken> AuralMode = GetAuthoredValue<pxr::TfToken>(Prim, AuralModeToken);
+
+		// The documentation mentions to swap these in edge cases like negative scaling
+		if (StartTimeCode.IsSet() && EndTimeCode.IsSet())
+		{
+			if (StartTimeCode.GetValue() > EndTimeCode.GetValue())
+			{
+				Swap(StartTimeCode, EndTimeCode);
+			}
+		}
+
+		// Handle the different playback modes
+		bool bIsLooping = false;
+		if (PlaybackMode.IsSet())
+		{
+			const pxr::TfToken PlaybackModeValue = PlaybackMode.GetValue();
+			if (PlaybackModeValue == pxr::UsdMediaTokens->onceFromStart)
+			{
+				// "Play the audio once, starting at startTime, continuing until the audio completes."
+				EndTimeCode.Reset();
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->onceFromStartToEnd)
+			{
+				// "Play the audio once beginning at startTime, continuing until endTime or until the
+				// audio completes, whichever comes first."
+				//
+				// Do nothing: Just continue using startTime and endTime as we have already
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->loopFromStart)
+			{
+				// "Start playing the audio at startTime and continue looping through to the stage's
+				// authored endTimeCode."
+				bIsLooping = true;
+				EndTimeCode = Prim.GetStage().GetEndTimeCode();
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->loopFromStartToEnd)
+			{
+				// "Start playing the audio at startTime and continue looping through, stopping
+				// the audio at endTime."
+				bIsLooping = true;
+			}
+			else if (PlaybackModeValue == pxr::UsdMediaTokens->loopFromStage)
+			{
+				// "Start playing the audio at the stage's authored startTimeCode and continue looping
+				// through to the stage's authored endTimeCode. This can be useful for ambient sounds
+				// that should always be active."
+				bIsLooping = true;
+
+				// Fetch time range from the stage instead
+				UE::FSdfLayer RootLayer = Prim.GetStage().GetRootLayer();
+				if (RootLayer)
+				{
+					StartTimeCode = RootLayer.GetStartTimeCode();
+
+					// Since the fallback value for EndTimeCode is also 0, we have to take care to check
+					// whether the stage actually has it authored or not
+					if (RootLayer.HasEndTimeCode())
+					{
+						EndTimeCode = RootLayer.GetEndTimeCode();
+					}
+					else
+					{
+						EndTimeCode.Reset();
+					}
+				}
+			}
+		}
+
+		// Convert time codes to being relative to the stage to being relative to the Subsequence they are in
+		//
+		// This may seem like it undoes the conversions above, and it really does: For cases where we have a
+		// sublayer with an offset and scale, we'll end up adding the layer-local time samples to the subsequence,
+		// like we want. Using PrimToStage AND the SequenceTransform is needed for a different case however: Prim
+		// references with sublayer and offsets. In that case the prim itself may have a sublayer and offset, but
+		// its track will be placed in the levelsequence for the *referencer* layer: This means we want to see the
+		// keys on that layer instead, at times relative to it
+		FFrameNumber StartFrameNumber;
+		TOptional<FFrameNumber> EndFrameNumber;
+		FFrameNumber MediaFrameNumberOffset;
+		{
+			FMovieSceneSequenceTransform SequenceTransform;
+			FMovieSceneSequenceID SequenceID = SequencesID.FindRef(AttributeSequence);
+			if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+			{
+				SequenceTransform = SubSequenceData->RootToSequenceTransform;
+			}
+
+			const FFrameRate Resolution = MovieScene->GetTickResolution();
+			const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+			const double StageTimeCodesPerSecond = Prim.GetStage().GetTimeCodesPerSecond();
+			const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
+
+			if (StartTimeCode.IsSet())
+			{
+				double DoubleValue = static_cast<double>(StartTimeCode.GetValue());
+				int32 FrameNumber = FMath::FloorToInt(DoubleValue);
+				float SubFrameNumber = DoubleValue - FrameNumber;
+				FFrameTime FrameTime(FrameNumber, SubFrameNumber);
+				FFrameTime KeyFrameTime = FFrameRate::TransformTime(FrameTime, StageFrameRate, Resolution);
+				KeyFrameTime *= SequenceTransform;
+				StartFrameNumber = KeyFrameTime.FloorToFrame();
+			}
+
+			if (EndTimeCode.IsSet())
+			{
+				double DoubleValue = static_cast<double>(EndTimeCode.GetValue());
+				int32 FrameNumber = FMath::FloorToInt(DoubleValue);
+				float SubFrameNumber = DoubleValue - FrameNumber;
+				FFrameTime FrameTime(FrameNumber, SubFrameNumber);
+				FFrameTime KeyFrameTime = FFrameRate::TransformTime(FrameTime, StageFrameRate, Resolution);
+				KeyFrameTime *= SequenceTransform;
+				EndFrameNumber = KeyFrameTime.FloorToFrame();
+			}
+
+			if (MediaOffset.IsSet())
+			{
+				double OffsetSeconds = MediaOffset.GetValue();
+				MediaFrameNumberOffset = Resolution.AsFrameNumber(OffsetSeconds);
+			}
+		}
+
+		// Get the attenuation settings we'll use if we're in spatial mode
+		USoundAttenuation* Attenuation = nullptr;
+		if (AuralMode.IsSet() && AuralMode.GetValue() == pxr::UsdMediaTokens->spatial)
+		{
+			const UUsdProjectSettings* ProjectSettings = GetDefault<UUsdProjectSettings>();
+			if (ProjectSettings)
+			{
+				Attenuation = Cast<USoundAttenuation>(ProjectSettings->DefaultSoundAttenuation.TryLoad());
+			}
+		}
+
+		MovieScene->Modify();
+		MovieScene->SetClockSource(EUpdateClockSource::Audio);
+
+		// We name it AudioTrack here instead of prim name because in general we'll already have the actor and component
+		// binding show the prim name anyway... It's not very useful to see "MyPrim / MyPrim / MyPrim" on the Sequencer
+		const bool bIsMuted = false;
+		if (UMovieSceneAudioTrack* AudioTrack = AddTrack<
+				UMovieSceneAudioTrack>(TEXT("Audio track"), PrimTwin, *AudioComponent, *AttributeSequence, bIsMuted))
+		{
+			AudioTrack->RemoveAllAnimationData();
+
+			const FFrameNumber Time = StartFrameNumber;
+			UMovieSceneAudioSection* NewAudioSection = Cast<UMovieSceneAudioSection>(AudioTrack->AddNewSound(Sound, Time));
+
+			if (NewAudioSection)
+			{
+				NewAudioSection->Modify();
+				NewAudioSection->SetLooping(bIsLooping);
+				NewAudioSection->SetStartOffset(MediaFrameNumberOffset);
+
+				// Parse gain into channel volume
+				UE::FUsdAttribute GainAttr = Prim.GetAttribute(*GainToken);
+				if (GainAttr && GainAttr.HasAuthoredValue())
+				{
+					// We have to dig through the channel proxy because UMovieSceneAudioSection doesn't expose non-const access
+					// to the volume channel...
+					FMovieSceneChannelProxy& ChannelProxy = NewAudioSection->GetChannelProxy();
+					FMovieSceneFloatChannel* VolumeChannel = ChannelProxy.GetChannel<FMovieSceneFloatChannel>(0);
+					if (VolumeChannel)
+					{
+						// Set default value into the channel in case we don't have any animation
+						UE::FVtValue DefaultValue;
+						if (GainAttr.Get(DefaultValue))
+						{
+							TOptional<double> DefaultGain = UsdUtils::GetUnderlyingValue<double>(DefaultValue);
+							if (DefaultGain.IsSet())
+							{
+								VolumeChannel->SetDefault(static_cast<float>(DefaultGain.GetValue()));
+							}
+						}
+
+						FMovieSceneSequenceTransform SequenceTransform;
+						FMovieSceneSequenceID SequenceID = SequencesID.FindRef(AttributeSequence);
+						if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+						{
+							SequenceTransform = SubSequenceData->RootToSequenceTransform;
+						}
+
+						// Parse time-sampled animation into the volume channel
+						TArray<double> TimeSamples;
+						if (GainAttr.GetTimeSamples(TimeSamples) && TimeSamples.Num() > 0)
+						{
+							UsdToUnreal::FPropertyTrackReader Reader = UsdToUnreal::CreatePropertyTrackReader(Prim, TEXT("Volume"));
+							UsdToUnreal::ConvertFloatTimeSamples(
+								UsdStage,
+								TimeSamples,
+								Reader.FloatReader,
+								*VolumeChannel,
+								*MovieScene,
+								SequenceTransform
+							);
+						}
+					}
+				}
+
+				// Enable spatial audio if we should
+				if (Attenuation)
+				{
+					const bool bOverrideAttenuation = true;
+					NewAudioSection->SetOverrideAttenuation(bOverrideAttenuation);
+					NewAudioSection->SetAttenuationSettings(Attenuation);
+				}
+
+				// Start with the auto-size range because the section can't be unbounded, so if we want
+				// the audio to play to completion we'd otherwise need to specify the end of the section
+				// ourselves in order to get a valid range
+				TOptional<TRange<FFrameNumber>> Range = NewAudioSection->GetAutoSizeRange();
+				if (Range.IsSet())
+				{
+					TRange<FFrameNumber>& RangeValue = Range.GetValue();
+					RangeValue.SetLowerBound(TRangeBound<FFrameNumber>{StartFrameNumber});
+					if (EndFrameNumber.IsSet())
+					{
+						RangeValue.SetUpperBound(TRangeBound<FFrameNumber>{EndFrameNumber.GetValue()});
+					}
+					NewAudioSection->SetRange(RangeValue);
+				}
+			}
+		}
+
+		PrimPathByLevelSequenceName.AddUnique(AttributeSequence->GetFName(), Prim.GetPrimPath().GetString());
+	}
+}
+
 void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds)
 {
 	if (!UsdStage)
@@ -2688,6 +3245,10 @@ void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVis
 	{
 		AddVolumeTracks(PrimTwin, UsdPrim);
 	}
+	else if (UsdPrim.IsA(TEXT("SpatialAudio")))
+	{
+		AddAudioTracks(PrimTwin, UsdPrim);
+	}
 
 	AddCommonTracks(PrimTwin, UsdPrim, bForceVisibilityTracks);
 
@@ -2737,6 +3298,10 @@ TrackType* FUsdLevelSequenceHelperImpl::AddTrack(
 		}
 #if WITH_EDITOR
 		else if constexpr (std::is_base_of_v<UMovieSceneSkeletalAnimationTrack, TrackType>)
+		{
+			Track->SetDisplayName(FText::FromName(TrackName));
+		}
+		else if constexpr (std::is_base_of_v<UMovieSceneAudioTrack, TrackType>)
 		{
 			Track->SetDisplayName(FText::FromName(TrackName));
 		}
@@ -2794,6 +3359,12 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 {
 #if WITH_EDITOR
 	if (!UsdStage)
+	{
+		return;
+	}
+
+	UUsdPrimLinkCache* PrimLinkCachePtr = PrimLinkCache.Get();
+	if (!PrimLinkCachePtr)
 	{
 		return;
 	}
@@ -2861,7 +3432,7 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 	// Fetch the UAnimSequence asset from the asset cache. Ideally we'd call AUsdStageActor::GetGeneratedAssets,
 	// but we may belong to a FUsdStageImportContext, and so there's no AUsdStageActor at all to use.
 	// At this point it doesn't matter much though, because we shouldn't need to uncollapse a SkelAnimation prim path anyway
-	UAnimSequence* AnimSequence = InfoCache->GetSingleAssetForPrim<UAnimSequence>(PrimPath);
+	UAnimSequence* AnimSequence = PrimLinkCachePtr->GetInner().GetSingleAssetForPrim<UAnimSequence>(PrimPath);
 
 	UE::FUsdEditContext EditContext{UsdStage, SkelAnimationLayer};
 	FString Identifier = SkelAnimationLayer.GetIdentifier();
@@ -3043,7 +3614,7 @@ void FUsdLevelSequenceHelperImpl::RemovePossessable(const UUsdPrimTwin& PrimTwin
 	// ones don't modify the Sequence and change properties, so we must modify them here
 	Bindings->Sequence->Modify();
 
-	for (const TPair<const UClass*, FGuid>& Pair : Bindings->ObjectClassToBindingGuid)
+	for (const TPair<TWeakObjectPtr<const UClass>, FGuid>& Pair : Bindings->ObjectClassToBindingGuid)
 	{
 		const FGuid& ComponentPossessableGuid = Pair.Value;
 
@@ -3146,8 +3717,12 @@ void FUsdLevelSequenceHelperImpl::UpdateUsdLayerOffsetFromSection(const UMovieSc
 	// This will obviously be quantized to frame intervals for now
 	double SubSectionStartTimeCode = TickResolution.AsSeconds(ModifiedStartFrame) * TimeCodesPerSecond;
 
+	const double FixedPlayRate = Section->Parameters.TimeScale.GetType() == EMovieSceneTimeWarpType::FixedPlayRate
+									 ? Section->Parameters.TimeScale.AsFixedPlayRate()
+									 : 1.f;
+
 	UE::FSdfLayerOffset NewLayerOffset;
-	NewLayerOffset.Scale = FMath::IsNearlyZero(Section->Parameters.TimeScale) ? 0.f : 1.f / Section->Parameters.TimeScale;
+	NewLayerOffset.Scale = FMath::IsNearlyZero(FixedPlayRate) ? 0.f : 1.f / FixedPlayRate;
 	NewLayerOffset.Offset = SubSectionStartTimeCode - SubStartTimeCode * NewLayerOffset.Scale;
 
 	if (FMath::IsNearlyZero(NewLayerOffset.Offset))
@@ -3329,6 +3904,12 @@ void FUsdLevelSequenceHelperImpl::OnObjectTransacted(UObject* Object, const clas
 		return;
 	}
 
+	// Never write back to the stage if we don't have authority
+	if (StageActor.IsValid() && !StageActor->HasAuthorityOverStage())
+	{
+		return;
+	}
+
 	if (UMovieScene* MovieScene = Cast<UMovieScene>(Object))
 	{
 		HandleMovieSceneChange(*MovieScene);
@@ -3488,7 +4069,12 @@ FGuid FUsdLevelSequenceHelperImpl::GetOrCreateComponentBinding(
 	// Make sure we always bind the parent actor too
 	if (AActor* Actor = ComponentToBind.GetOwner())
 	{
-		ActorBinding = Sequence.FindBindingFromObject(Actor, Actor->GetWorld());
+		TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = MovieSceneHelpers::CreateTransientSharedPlaybackState(
+			Actor,
+			&Sequence
+		);
+
+		ActorBinding = Sequence.FindBindingFromObject(Actor, SharedPlaybackState);
 		if (!ActorBinding.IsValid())
 		{
 			// We use the label here because that will always be named after the prim that caused the actor
@@ -3527,6 +4113,8 @@ FGuid FUsdLevelSequenceHelperImpl::GetOrCreateComponentBinding(
 
 void FUsdLevelSequenceHelperImpl::HandleMovieSceneChange(UMovieScene& MovieScene)
 {
+	using namespace UsdLevelSequenceHelperImpl;
+
 	// It's possible to get this called when the actor and it's level sequences are being all destroyed in one go.
 	// We need the FScopedBlockNotices in this function, but if our StageActor is already being destroyed, we can't reliably
 	// use its listener, and so then we can't do anything. We likely don't want to write back to the stage at this point anyway.
@@ -3627,7 +4215,7 @@ void FUsdLevelSequenceHelperImpl::HandleMovieSceneChange(UMovieScene& MovieScene
 	{
 		if (!UsdLevelSequenceHelperImpl::FindTrackTypeOrDerived<UMovieScenePropertyTrack>(&MovieScene, Guid, PropertyPath))
 		{
-			for (UE::FUsdAttribute& Attr : UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath))
+			for (UE::FUsdAttribute& Attr : UsdUtils::GetAttributesForProperty(Prim, PropertyPath))
 			{
 				RemoveTimeSamplesForAttr(Attr);
 			}
@@ -3646,7 +4234,8 @@ void FUsdLevelSequenceHelperImpl::HandleMovieSceneChange(UMovieScene& MovieScene
 			continue;
 		}
 
-		for (TMap<const UClass*, FGuid>::TIterator BindingIt = Bindings.ObjectClassToBindingGuid.CreateIterator(); BindingIt; ++BindingIt)
+		for (TMap<TWeakObjectPtr<const UClass>, FGuid>::TIterator BindingIt = Bindings.ObjectClassToBindingGuid.CreateIterator(); BindingIt;
+			 ++BindingIt)
 		{
 			const FGuid& Guid = BindingIt->Value;
 
@@ -3674,7 +4263,16 @@ void FUsdLevelSequenceHelperImpl::HandleMovieSceneChange(UMovieScene& MovieScene
 				if (UE::FUsdPrim UsdPrim = UsdStage.GetPrimAtPath(UE::FSdfPath(*UsdPrimTwin->PrimPath)))
 				{
 					RemoveTimeSamplesForPropertyIfNeeded(UsdPrim, Guid, UnrealIdentifiers::TransformPropertyName);
-					RemoveTimeSamplesForPropertyIfNeeded(UsdPrim, Guid, UnrealIdentifiers::HiddenInGamePropertyName);
+
+					// Handle visibility explicitly here because we may have a visibility track on the actor or on the component
+					if (!FindTrackTypeOrDerived<UMovieScenePropertyTrack>(&MovieScene, Guid, UnrealIdentifiers::HiddenInGamePropertyName)
+						&& !FindTrackTypeOrDerived<UMovieScenePropertyTrack>(&MovieScene, Guid, UnrealIdentifiers::HiddenPropertyName))
+					{
+						for (UE::FUsdAttribute& Attr : UsdUtils::GetAttributesForProperty(UsdPrim, UnrealIdentifiers::HiddenInGamePropertyName))
+						{
+							RemoveTimeSamplesForAttr(Attr);
+						}
+					}
 
 					if (bIsCamera)
 					{
@@ -3862,7 +4460,7 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 			PinnedSequencer->EnterSilentMode();
 		}
 
-		FSpawnableRestoreState SpawnableRestoreState(MovieScene);
+		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
 		if (LevelPlayer && SpawnableRestoreState.bWasChanged)
 		{
 			// Evaluate at the beginning of the subscene time to ensure that spawnables are created before export
@@ -3888,7 +4486,7 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 	const UsdUtils::FBlendShapeMap& BlendShapeMap = StageActorValue->GetBlendShapeMap();
 	bool bBaked = UnrealToUsd::ConvertControlRigSection(
 		&Section,
-		SequenceTransform.InverseNoLooping(),
+		SequenceTransform.Inverse(),
 		MovieScene,
 		Player,
 		Skeleton->GetReferenceSkeleton(),
@@ -3925,7 +4523,7 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 #endif	  // WITH_EDITOR
 }
 
-void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Track, bool bIsMuteChange)
+void FUsdLevelSequenceHelperImpl::HandleTrackChange(UMovieSceneTrack& Track, bool bIsMuteChange)
 {
 	if (!StageActor.IsValid())
 	{
@@ -3963,6 +4561,20 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 		return;
 	}
 
+	// The only stage actor property we allow binding on the transient level sequence is 'Time'. Anything else we
+	// need to force-unbind as not only will it be lost when reloading the stage anyway, but it can even lead to
+	// crashes (e.g. UE-215067)
+	UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(&Track);
+	const FName PropertyPath = PropertyTrack ? PropertyTrack->GetPropertyPath() : NAME_None;
+	if (BoundObject == StageActor.Get() && PropertyPath != GET_MEMBER_NAME_CHECKED(AUsdStageActor, Time))
+	{
+#if WITH_EDITOR
+		UsdLevelSequenceHelperImpl::ShowStageActorPropertyTrackWarning(PropertyPath);
+#endif	  // WITH_EDITOR
+		MovieScene->RemoveTrack(*PropertyTrack);
+		return;
+	}
+
 	// Our tracked bindings are always directly to components
 	USceneComponent* BoundSceneComponent = Cast<USceneComponent>(BoundObject);
 	if (!BoundSceneComponent)
@@ -3988,10 +4600,8 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 	// for the camera component directly, so try again
 	if (!PrimTwin && BoundSceneComponent->IsA<UCineCameraComponent>())
 	{
-		if (const UMovieScenePropertyTrack* PropertyTrack = Cast<const UMovieScenePropertyTrack>(&Track))
+		if (PropertyTrack)
 		{
-			const FName& PropertyPath = PropertyTrack->GetPropertyPath();
-
 			// In the scenario where we're trying to make non-decomposed Camera prims work, we only ever want to write out
 			// actual camera properties from the CameraComponent to the Camera prim. We won't write its USceneComponent
 			// properties, as we will use the ones from the ACineCameraActor's parent USceneComponent instead
@@ -4039,11 +4649,9 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 
 		if (bIsMuteChange)
 		{
-			if (const UMovieScenePropertyTrack* PropertyTrack = Cast<const UMovieScenePropertyTrack>(&Track))
+			if (PropertyTrack)
 			{
-				const FName& PropertyPath = PropertyTrack->GetPropertyPath();
-
-				TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(UsdPrim, PropertyPath);
+				TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(UsdPrim, PropertyPath);
 				if (Attrs.Num() > 0)
 				{
 					// Only mute/unmute the first (i.e. main) attribute: If we mute the intensity track we don't want to also mute the
@@ -4120,8 +4728,12 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 			// Right now we don't write out changes to SkeletalAnimation tracks, and only property tracks... the UAnimSequence
 			// asset can't be modified all that much in UE anyway. Later on we may want to enable writing it out anyway though,
 			// and pick up on changes to the section offset or play rate and bake out the UAnimSequence again
-			if (const UMovieScenePropertyTrack* PropertyTrack = Cast<const UMovieScenePropertyTrack>(&Track))
+			if (PropertyTrack)
 			{
+#if WITH_EDITOR
+				UsdLevelSequenceHelperImpl::ShowVisibilityWarningIfNeeded(PropertyTrack, UsdPrim);
+#endif
+
 				TSet<FName> PropertyPathsToRefresh;
 				UnrealToUsd::FPropertyTrackWriter
 					Writer = UnrealToUsd::CreatePropertyTrackWriter(*BoundSceneComponent, *PropertyTrack, UsdPrim, PropertyPathsToRefresh);
@@ -4143,6 +4755,10 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 				else if (const UMovieSceneBoolTrack* BoolTrack = Cast<const UMovieSceneBoolTrack>(&Track))
 				{
 					UnrealToUsd::ConvertBoolTrack(*BoolTrack, SequenceTransform, Writer.BoolWriter, UsdPrim);
+				}
+				else if (const UMovieSceneVisibilityTrack* VisTrack = Cast<const UMovieSceneVisibilityTrack>(&Track))
+				{
+					UnrealToUsd::ConvertBoolTrack(*VisTrack, SequenceTransform, Writer.BoolWriter, UsdPrim);
 				}
 				else if (const UMovieSceneColorTrack* ColorTrack = Cast<const UMovieSceneColorTrack>(&Track))
 				{
@@ -4203,6 +4819,37 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 					RefreshSequencer();
 				}
 			}
+			else if (const UMovieSceneAudioTrack* AudioTrack = Cast<const UMovieSceneAudioTrack>(&Track))
+			{
+				const TArray<UMovieSceneSection*>& Sections = AudioTrack->GetAudioSections();
+				if (Sections.Num() > 1)
+				{
+					UE_LOG(
+						LogUsd,
+						Warning,
+						TEXT(
+							"The audio track '%s' has %d sections, but only the first audio section of an audio track can be written out to USD for now"
+						),
+						*AudioTrack->GetPathName(),
+						Sections.Num()
+					);
+				}
+
+				if (Sections.Num() > 0)
+				{
+					if (UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(Sections[0]))
+					{
+						FMovieSceneSequenceTransform Identity;
+						UnrealToUsd::ConvertAudioSection(*AudioSection, Identity, UsdPrim);
+					}
+				}
+			}
+		}
+
+		// Notify the USD Stage Editor to refresh this prim the next frame
+		if (AUsdStageActor* StageActorPtr = StageActor.Get())
+		{
+			StageActorPtr->OnPrimChanged.Broadcast(PrimTwin->PrimPath, false);
 		}
 	}
 }
@@ -4311,7 +4958,11 @@ public:
 	{
 		return nullptr;
 	}
-	void SetInfoCache(TSharedPtr<FUsdInfoCache> InfoCache){};
+	bool Serialize(FArchive& Ar)
+	{
+		return false;
+	}
+	void SetPrimLinkCache(UUsdPrimLinkCache* PrimLinkCache){};
 	void SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache){};
 	bool HasData() const
 	{
@@ -4402,6 +5053,16 @@ ULevelSequence* FUsdLevelSequenceHelper::Init(const UE::FUsdStage& UsdStage)
 	}
 }
 
+bool FUsdLevelSequenceHelper::Serialize(FArchive& Ar)
+{
+	if (UsdSequencerImpl.IsValid())
+	{
+		return UsdSequencerImpl->Serialize(Ar);
+	}
+
+	return false;
+}
+
 void FUsdLevelSequenceHelper::OnStageActorRenamed()
 {
 	if (UsdSequencerImpl.IsValid())
@@ -4410,11 +5071,17 @@ void FUsdLevelSequenceHelper::OnStageActorRenamed()
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FUsdLevelSequenceHelper::SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache)
+{
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+void FUsdLevelSequenceHelper::SetPrimLinkCache(UUsdPrimLinkCache* PrimLinkCache)
 {
 	if (UsdSequencerImpl.IsValid())
 	{
-		UsdSequencerImpl->SetInfoCache(InInfoCache);
+		UsdSequencerImpl->SetPrimLinkCache(PrimLinkCache);
 	}
 }
 

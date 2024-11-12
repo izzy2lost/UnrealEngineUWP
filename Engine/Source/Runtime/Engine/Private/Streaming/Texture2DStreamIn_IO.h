@@ -9,7 +9,7 @@ Texture2DStreamIn.h: Stream in helper for 2D textures using texture streaming fi
 #include "CoreMinimal.h"
 #include "Texture2DStreamIn.h"
 
-class IBulkDataIORequest;
+class FBulkDataRequest;
 
 // Base StreamIn framework exposing MipData
 class FTexture2DStreamIn_IO : public FTexture2DStreamIn
@@ -32,7 +32,7 @@ protected:
 	// Report IO errors if any.
 	void ReportIOError(const FContext& Context);
 	// Set the IO callback used for streaming the mips.
-	void SetAsyncFileCallback();
+	void SetAsyncFileCallback() { };
 	// Cancel all IO requests.
 	void CancelIORequests();
 
@@ -40,9 +40,6 @@ protected:
 	void Abort() override;
 
 private:
-
-	// Poll if any of the mips currently have an active IO request
-	bool HasPendingIORequests();
 
 	class FCancelIORequestsTask : public FNonAbandonableTask
 	{
@@ -60,16 +57,13 @@ private:
 	typedef FAutoDeleteAsyncTask<FCancelIORequestsTask> FAsyncCancelIORequestsTask;
 	friend class FCancelIORequestsTask;
 
-
-	// Request for loading into each mip.
-	TArray<IBulkDataIORequest*, TInlineAllocator<MAX_TEXTURE_MIP_COUNT> > IORequests;
-
 	// Whether an IO error was detected (when files do not exists).
 	bool bFailedOnIOError = false;
 
 	// Whether the IO request should be created with an higher priority for quicker response time.
 	bool bPrioritizedIORequest = false;
 
-	FBulkDataIORequestCallBack AsyncFileCallBack;
+	// I/O request handle
+	FBulkDataBatchRequest BatchRequest;
 };
 

@@ -529,7 +529,7 @@ public:
 		const SizeType LastIndex = Num() - 1;
 		const SizeType LastPageIndex = GetPageIndex(LastIndex);
 		const SizeType LastIndexInPage = GetPageOffset(LastIndex);
-		Pages[LastPageIndex].RemoveAt(LastIndexInPage, 1, EAllowShrinking::No);
+		Pages[LastPageIndex].RemoveAt(LastIndexInPage, EAllowShrinking::No);
 		if (AllowShrinking == EAllowShrinking::Yes && LastIndexInPage == 0)
 		{
 			Pages.SetNum(LastPageIndex);
@@ -556,7 +556,7 @@ public:
 		const SizeType LastPageIndex = GetPageIndex(LastIndex);
 		if (TargetPageIndex == LastPageIndex)
 		{
-			Pages[TargetPageIndex].RemoveAtSwap(TargetIndexInPage, 1, EAllowShrinking::No);
+			Pages[TargetPageIndex].RemoveAtSwap(TargetIndexInPage, EAllowShrinking::No);
 			if (AllowShrinking == EAllowShrinking::Yes && Pages[TargetPageIndex].IsEmpty())
 			{
 				Pages.SetNum(TargetPageIndex);
@@ -566,7 +566,7 @@ public:
 		{
 			const SizeType LastIndexInPage = GetPageOffset(LastIndex);
 			Pages[TargetPageIndex][TargetIndexInPage] = MoveTempIfPossible(Pages[LastPageIndex][LastIndexInPage]);
-			Pages[LastPageIndex].RemoveAt(LastIndexInPage, 1, EAllowShrinking::No);
+			Pages[LastPageIndex].RemoveAt(LastIndexInPage, EAllowShrinking::No);
 		}
 		--Count;
 	}

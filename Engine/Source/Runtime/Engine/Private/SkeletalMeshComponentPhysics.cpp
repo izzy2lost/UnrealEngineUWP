@@ -8,6 +8,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "SkeletalMeshSceneProxy.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "Modules/ModuleManager.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
@@ -21,8 +22,10 @@
 #include "CollisionDebugDrawingPublic.h"
 
 
+#include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsEngine/SphylElem.h"
 #include "PhysicsEngine/TaperedCapsuleElem.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
@@ -59,10 +62,6 @@ static TAutoConsoleVariable<float> CVarClothTeleportDistanceThreshold(TEXT("p.Cl
 static TAutoConsoleVariable<float> CVarClothTeleportRotationThreshold(TEXT("p.Cloth.TeleportRotationThreshold"), 0.f, TEXT("Require p.Cloth.TeleportOverride. Rotation threshold in degrees, ranging from 0 to 180.\n Conduct teleportation if the character's rotation is greater than this threshold in 1 frame.\n Zero or negative values will skip the check.\n Default 0."));
 
 static TAutoConsoleVariable<int32> CVarEnableKinematicDeferralPrePhysicsCondition(TEXT("p.EnableKinematicDeferralPrePhysicsCondition"), 1, TEXT("If is 1, and deferral would've been disallowed due to EUpdateTransformFlags, allow if in PrePhysics tick. If 0, condition is unchanged."));
-
-//This is the total cloth time split up among multiple computation (updating gpu, updating sim, etc...)
-DECLARE_CYCLE_STAT(TEXT("Cloth Total"), STAT_ClothTotalTime, STATGROUP_Physics);
-DECLARE_CYCLE_STAT(TEXT("Cloth Writeback"), STAT_ClothWriteback, STATGROUP_Physics);
 
 // Used as a default return value for invalid cloth data access
 static const TMap<int32, FClothSimulData> SEmptyClothSimulationData;
@@ -250,8 +249,9 @@ void USkeletalMeshComponent::OnComponentCollisionSettingsChanged(bool bUpdateOve
 		}
 	}
 
-	if (SceneProxy)
+	if (SceneProxy && !SceneProxy->IsNaniteMesh())
 	{
+		// TODO: Nanite-Skinning
 		((FSkeletalMeshSceneProxy*)SceneProxy)->SetCollisionEnabled_GameThread(IsCollisionEnabled());
 	}
 
@@ -854,6 +854,11 @@ void USkeletalMeshComponent::InstantiatePhysicsAssetBodies_Internal(const UPhysi
 			BodyInst->InstanceBoneIndex = BoneIndex; // Set bone index
 
 			BodyInst->bStartAwake = UseRootBodyIndex >= 0 ? BodyInstance.bStartAwake : true;	//We don't allow customization here. Just use whatever the component is set to
+
+			//Copying code from BodyInstance here, every body instance get same iteration count
+			BodyInst->PositionSolverIterationCount = BodyInstance.PositionSolverIterationCount;
+			BodyInst->VelocitySolverIterationCount = BodyInstance.VelocitySolverIterationCount;
+			BodyInst->ProjectionSolverIterationCount = BodyInstance.ProjectionSolverIterationCount;
 
 			if(BodyIdx == UseRootBodyIndex)
 			{
@@ -2169,8 +2174,12 @@ void USkeletalMeshComponent::UpdateHasValidBodies()
 		// For each body in physics asset..
 		for( int32 BodyIndex = 0; BodyIndex < PhysicsAsset->SkeletalBodySetups.Num(); BodyIndex++ )
 		{
+			int32 BoneIndex = INDEX_NONE;
 			// .. find the matching graphics bone index
-			int32 BoneIndex = GetBoneIndex( PhysicsAsset->SkeletalBodySetups[ BodyIndex ]->BoneName );
+			if (TObjectPtr<USkeletalBodySetup> SkeletalBodySetup = PhysicsAsset->SkeletalBodySetups[BodyIndex])
+			{
+				BoneIndex = GetBoneIndex(SkeletalBodySetup->BoneName);
+			}
 
 			// If we found a valid graphics bone, set the 'valid' flag
 			if(BoneIndex != INDEX_NONE)
@@ -2730,12 +2739,12 @@ void USkeletalMeshComponent::RecreateClothingActors()
 	ReleaseAllClothingResources();
 
 	USkeletalMesh* SkelMesh = GetSkeletalMeshAsset();
-	if(!bAllowClothActors || SkelMesh == nullptr || !IsRegistered())
+	if (SkelMesh == nullptr || !IsRegistered())
 	{
 		return;
 	}
 
-	if(CVarEnableClothPhysics.GetValueOnGameThread() && (SkelMesh->GetMeshClothingAssets().Num() > 0))
+	if (bAllowClothActors && CVarEnableClothPhysics.GetValueOnGameThread() && (SkelMesh->GetMeshClothingAssets().Num() > 0))
 	{
 		UClass* SimFactoryClass = *ClothingSimulationFactory;
 		if (SimFactoryClass)
@@ -2768,6 +2777,7 @@ void USkeletalMeshComponent::RecreateClothingActors()
 			if (World && World->bShouldSimulatePhysics && World->GetPhysicsScene())
 #endif
 			{
+				UE_LOG(LogSkeletalMesh, Log, TEXT("USkeletalMeshComponent: Recreating Clothing Actors for '%s' with '%s'"), *GetName(), *SkelMesh->GetName());
 				TArray<UClothingAssetBase*> AssetsInUse;
 				SkelMesh->GetClothingAssetsInUse(AssetsInUse);
 
@@ -3427,8 +3437,11 @@ void USkeletalMeshComponent::ProcessClothCollisionWithEnvironment()
 	ClothingSimulation->AddExternalCollisions(NewCollisionData);
 }
 
+#endif// #if WITH_CLOTH_COLLISION_DETECTION
+
 void USkeletalMeshComponent::AddClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset)
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	if(InSourceComponent && InSourcePhysicsAsset)
 	{
 		FClothCollisionSource* FoundCollisionSource = ClothCollisionSources.FindByPredicate(
@@ -3451,10 +3464,12 @@ void USkeletalMeshComponent::AddClothCollisionSource(USkeletalMeshComponent* InS
 			ClothTickFunction.AddPrerequisite(InSourceComponent, InSourceComponent->PrimaryComponentTick);
 		}
 	}
+#endif
 }
 
-void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent)
+void USkeletalMeshComponent::RemoveClothCollisionSources(USkeletalMeshComponent* InSourceComponent)
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	if(InSourceComponent)
 	{
 		ClothCollisionSources.RemoveAll([InSourceComponent](const FClothCollisionSource& InCollisionSource)
@@ -3462,10 +3477,12 @@ void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* 
 			return !InCollisionSource.SourceComponent.IsValid() || InCollisionSource.SourceComponent.Get() == InSourceComponent; 
 		});
 	}
+#endif
 }
 
 void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* InSourceComponent, UPhysicsAsset* InSourcePhysicsAsset)
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	if(InSourceComponent && InSourcePhysicsAsset)
 	{
 		ClothCollisionSources.RemoveAll([InSourceComponent, InSourcePhysicsAsset](const FClothCollisionSource& InCollisionSource)
@@ -3473,14 +3490,15 @@ void USkeletalMeshComponent::RemoveClothCollisionSource(USkeletalMeshComponent* 
 			return !InCollisionSource.SourceComponent.IsValid() || (InCollisionSource.SourceComponent.Get() == InSourceComponent && InCollisionSource.SourcePhysicsAsset.Get() == InSourcePhysicsAsset); 
 		});
 	}
+#endif
 }
 
 void USkeletalMeshComponent::ResetClothCollisionSources()
 {
+#if WITH_CLOTH_COLLISION_DETECTION
 	ClothCollisionSources.Reset();
+#endif
 }
-
-#endif// #if WITH_CLOTH_COLLISION_DETECTION
 
 void USkeletalMeshComponent::EndPhysicsTickComponent(FSkeletalMeshComponentEndPhysicsTickFunction& ThisTickFunction)
 {
@@ -3761,7 +3779,7 @@ const TMap<int32, FClothSimulData>& USkeletalMeshComponent::GetCurrentClothingDa
 		return SEmptyClothSimulationData;
 	}
 
-	return CurrentSimulationData;
+	return ClothingSimulation ? CurrentSimulationData : SEmptyClothSimulationData;
 }
 
 const TMap<int32, FClothSimulData>& USkeletalMeshComponent::GetCurrentClothingData_AnyThread() const
@@ -3769,7 +3787,7 @@ const TMap<int32, FClothSimulData>& USkeletalMeshComponent::GetCurrentClothingDa
 	// This is called during EndOfFrameUpdates, usually in a parallel-for loop. We need to be sure that
 	// the cloth task (if there is one) is complete, but it cannpt be waited for here. See OnPreEndOfFrameUpdateSync
 	// which is called just before EOF updates and is where we would have waited for the cloth task.
-	if (!IsValidRef(ParallelClothTask) || ParallelClothTask->IsComplete())
+	if (ClothingSimulation && (!IsValidRef(ParallelClothTask) || ParallelClothTask->IsComplete()))
 	{
 		return CurrentSimulationData;
 	}

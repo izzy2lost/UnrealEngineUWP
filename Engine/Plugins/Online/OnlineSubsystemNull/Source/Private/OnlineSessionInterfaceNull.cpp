@@ -196,6 +196,7 @@ bool FOnlineSessionNull::CreateSession(int32 HostingPlayerNum, FName SessionName
 		// Create a new session and deep copy the game settings
 		Session = AddNamedSession(SessionName, NewSessionSettings);
 		check(Session);
+		Session->bHosting = true;
 		Session->SessionState = EOnlineSessionState::Creating;
 		Session->NumOpenPrivateConnections = NewSessionSettings.NumPrivateConnections;
 		Session->NumOpenPublicConnections = NewSessionSettings.NumPublicConnections;	// always start with full public connections, local player will register later
@@ -247,7 +248,7 @@ bool FOnlineSessionNull::CreateSession(int32 HostingPlayerNum, FName SessionName
 
 	if (Result != ONLINE_IO_PENDING)
 	{
-		TriggerOnCreateSessionCompleteDelegates(SessionName, (Result == ONLINE_SUCCESS) ? true : false);
+		TriggerOnCreateSessionCompleteDelegates(SessionName, (Result == ONLINE_SUCCESS));
 	}
 	
 	return Result == ONLINE_IO_PENDING || Result == ONLINE_SUCCESS;

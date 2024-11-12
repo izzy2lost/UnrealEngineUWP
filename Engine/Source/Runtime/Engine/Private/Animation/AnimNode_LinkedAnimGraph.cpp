@@ -337,6 +337,13 @@ void FAnimNode_LinkedAnimGraph::SetAnimClass(TSubclassOf<UAnimInstance> InClass,
 {
 	UClass* NewClass = InClass.Get();
 
+	// Make sure this is a valid blueprint class
+	if (NewClass && IAnimClassInterface::GetFromClass(NewClass) == nullptr)
+	{
+		ensure(false);
+		return;
+	}
+
 	// Verified OK, so set it now
 	TSubclassOf<UAnimInstance> OldClass = InstanceClass;
 	InstanceClass = InClass;
@@ -514,6 +521,11 @@ void FAnimNode_LinkedAnimGraph::HandleObjectsReinstanced_Impl(UObject* InSourceO
 		// Call Initialize here to ensure any custom proxies are initialized (as they may have been re-created during
 		// re-instancing, and they dont call the constructor that takes a UAnimInstance*)
 		SourceProxy.Initialize(SourceAnimInstance);
+
+		// Similarly call Initialize here to catch any custom target proxies
+		UAnimInstance* TargetAnimInstance = CastChecked<UAnimInstance>(InTargetObject);
+		FAnimInstanceProxy& TargetProxy = TargetAnimInstance->GetProxyOnAnyThread<FAnimInstanceProxy>();
+		TargetProxy.Initialize(TargetAnimInstance);
 
 		InitializeProperties(SourceAnimInstance, GetTargetClass());
 		DynamicUnlink(SourceAnimInstance);

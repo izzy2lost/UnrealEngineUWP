@@ -3,31 +3,46 @@
 #pragma once
 
 #include "UObject/Object.h"
-#include "MultiUserReplicationStream.h"
+
+#include "Replication/Data/ActorLabelRemapping.h"
 #include "Replication/Data/ReplicationStream.h"
+
 #include "MultiUserReplicationClientPreset.generated.h"
 
-/**
- * 
- */
-UCLASS()
-class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationClientPreset : public UObject
+/** Stores info about a client's content in a preset. */
+USTRUCT()
+struct FMultiUserReplicationClientPreset
 {
 	GENERATED_BODY()
-public:
 
-	/** The stream ID that is used by all Multi-User streams. */
-	static constexpr FGuid MultiUserStreamID { 0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC, 0xDDDDDDDD };
+	/** The objects this stream will modify. */
+	UPROPERTY()
+	FConcertObjectReplicationMap ReplicationMap;
+	
+	/** The frequency setting the stream has. */
+	UPROPERTY()
+	FConcertStreamFrequencySettings FrequencySettings;
 
-	/** The stream this client is managing */
-	UPROPERTY(Instanced)
-	TObjectPtr<UMultiUserReplicationStream> Stream;
+	/**
+	 * For each FSoftObjectPath in ReplicationMap that references an actor this saves its actor label.
+	 * 
+	 * When the preset is applied, potentially in a new world or different session, this allows rebinding the original FSoftObjectPaths
+	 * to FSoftObjectPaths that now point to different objects but that share the same actor label and share the same subobject hierarchy.
+	 */
+	UPROPERTY()
+	FConcertReplicationRemappingData ActorLabelRemappingData;
 
-	UMultiUserReplicationClientPreset();
+	/** The FConcertClientInfo::DisplayName of the client. */
+	UPROPERTY()
+	FString DisplayName;
+	/** The FConcertClientInfo::DeviceName of the client. */
+	UPROPERTY()
+	FString DeviceName;
 
-	/** Resets the contents everything to defaults. Empties the stream */
-	void ClearClient();
+	FMultiUserReplicationClientPreset() = default;
 
-	/** Generates a description that can be sent to the MU server. */
-	FConcertReplicationStream GenerateDescription() const;
+	FMultiUserReplicationClientPreset(const FString& DisplayName, const FString& DeviceName)
+		: DisplayName(DisplayName)
+		, DeviceName(DeviceName)
+	{}
 };

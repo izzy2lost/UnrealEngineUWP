@@ -45,6 +45,11 @@ void FDMXOutputPortConfigCustomization::CustomizeHeader(TSharedRef<IPropertyHand
 
 void FDMXOutputPortConfigCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
+	if (!StructPropertyHandle->IsExpanded())
+	{	
+		StructPropertyHandle->SetExpanded(true);
+	}
+
 	// Retrieve structure's child properties
 	uint32 NumChildren;
 	StructPropertyHandle->GetNumChildren(NumChildren);

@@ -6,6 +6,7 @@
 #include "AvaTransitionSubsystem.h"
 #include "Containers/Array.h"
 #include "Execution/IAvaTransitionExecutor.h"
+#include "StateTreePropertyBindings.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionLayerUtils"
 
@@ -47,13 +48,35 @@ FAvaTransitionLayerComparator FAvaTransitionLayerUtils::BuildComparator(const FA
 	return LayerComparator;
 }
 
-FText FAvaTransitionLayerUtils::GetLayerQueryText(EAvaTransitionLayerCompareType InLayerType, FName InSpecificLayerName)
+#if WITH_EDITOR
+FText FAvaTransitionLayerUtils::GetLayerQueryText(FLayerQueryTextParams&& InParams, const FGuid& InId, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting)
 {
-	if (InLayerType == EAvaTransitionLayerCompareType::MatchingTag)
+	FText LayerType = InBindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(InId, InParams.LayerTypePropertyName), InFormatting);
+
+	// If Layer Type is bound assume it might be set to Specific Layer, so always set it
+	if (!LayerType.IsEmpty() || InParams.LayerType == EAvaTransitionLayerCompareType::MatchingTag)
 	{
-		return FText::Format(LOCTEXT("LayerTagText", "'{0}' layer"), FText::FromName(InSpecificLayerName));
+		FText SpecificLayer = InBindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(InId, InParams.SpecificLayerPropertyName), InFormatting);
+
+		if (SpecificLayer.IsEmpty())
+		{
+			SpecificLayer = FText::FromName(InParams.SpecificLayerName);
+		}
+
+		return InFormatting == EStateTreeNodeFormatting::RichText
+			? FText::Format(LOCTEXT("SpecificLayerQueryTextRich", "<s>layer</> '<b>{0}</>'"), SpecificLayer)
+			: FText::Format(LOCTEXT("SpecificLayerQueryText", "layer '{0}'"), SpecificLayer);
 	}
-	return FText::Format(LOCTEXT("LayerTypeText", "{0} layer"), UEnum::GetDisplayValueAsText(InLayerType).ToLower());
+
+	if (LayerType.IsEmpty())
+	{
+		LayerType = UEnum::GetDisplayValueAsText(InParams.LayerType).ToLower();
+	}
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("LayerQueryTextRich", "<b>{0}</> <s>layer</>"), LayerType)
+		: FText::Format(LOCTEXT("LayerQueryText", "{0} layer"), LayerType);
 }
+#endif
 
 #undef LOCTEXT_NAMESPACE

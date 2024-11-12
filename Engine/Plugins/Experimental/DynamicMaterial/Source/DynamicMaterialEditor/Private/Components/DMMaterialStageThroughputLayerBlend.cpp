@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
  
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
+ 
 #include "Components/DMMaterialLayer.h"
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialSubStage.h"
@@ -9,23 +11,22 @@
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
-#include "DMDefs.h"
-#include "DMMaterialFunctionLibrary.h"
-#include "DMPrivate.h"
+#include "DMEDefs.h"
 #include "DynamicMaterialEditorSettings.h"
-#include "Helpers/DMInputNodeBuilder.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionMultiply.h"
-#include "Materials/MaterialExpressionSceneTexture.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
- 
+#include "Utils/DMInputNodeBuilder.h"
+#include "Utils/DMMaterialFunctionLibrary.h"
+#include "Utils/DMPrivate.h"
+#include "Utils/DMUtils.h"
+
 #define LOCTEXT_NAMESPACE "DMMaterialStageThroughputLayerBlend"
 
 namespace UE::DynamicMaterialEditor::Private
@@ -96,6 +97,8 @@ void UDMMaterialStageThroughputLayerBlend::OnComponentAdded()
 	{
 		UpdateAlphaOnlyMasks(EDMUpdateType::Structure);
 	}
+
+	PushMaskChannelOverride();
 }
  
 void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) const
@@ -108,7 +111,7 @@ void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) c
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
  
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	check(Layer);
  
 	switch (InInputIndex)
@@ -145,7 +148,7 @@ void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) c
 			UDMMaterialValueTexture* InputTexture = Cast<UDMMaterialValueTexture>(InputValue->GetValue());
 			check(InputTexture);
 
-			InputTexture->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultOpaqueTexture.LoadSynchronous());
+			InputTexture->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultMask.LoadSynchronous());
 			InputTexture->ApplyDefaultValue();
 			break;
 		}
@@ -171,9 +174,14 @@ bool UDMMaterialStageThroughputLayerBlend::IsInputVisible(int32 InputIndex) cons
 	return (InputIndex == InputMaskSource);
 }
  
-void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageThroughputLayerBlend::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (bBlockUpdate)
+	{
+		return;
+	}
+
+	if (!FDMUpdateGuard::CanUpdate())
 	{
 		return;
 	}
@@ -188,7 +196,7 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
 		return;
 	}
  
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		UDMMaterialStage* Stage = GetStage();
 		check(Stage);
@@ -196,7 +204,7 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
 		InputConnectors[1].Type = EDMValueType::VT_Float_Any;
 		OutputConnectors[0].Type = EDMValueType::VT_Float_Any;
  
-		if (const UDMMaterialLayerObject* Layer = Stage->GetLayer())
+		if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 		{
 			if (const UDMMaterialStageSource* LayerSource = Layer->GetStage(EDMMaterialLayerStage::Base)->GetSource())
 			{
@@ -208,12 +216,12 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
 			}
 		}
 	}
- 
+
 	UpdateLinkedInputStage(InUpdateType);
  
 	UpdateAlphaOnlyMasks(InUpdateType);
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	PullMaskChannelOverride();
 }
@@ -227,13 +235,13 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveInput(const TSharedRef<FDMMat
 			const UDMMaterialStage* Stage = GetStage();
 			check(Stage);
 
-			const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+			UDMMaterialLayerObject* Layer = Stage->GetLayer();
 			check(Layer);
 
 			EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 			check(StageProperty != EDMMaterialPropertyType::None);
 
-			if (const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
+			if (UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
 			{
 				PreviousLayer->GenerateExpressions(InBuildState);
 				OutExpressions.Append(InBuildState->GetLayerExpressions(PreviousLayer));
@@ -255,7 +263,7 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveInput(const TSharedRef<FDMMat
 			const UDMMaterialStage* Stage = GetStage();
 			check(Stage);
  
-			const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+			UDMMaterialLayerObject* Layer = Stage->GetLayer();
 			check(Layer);
 
 			UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base, /* Enabled Only */ true);
@@ -288,7 +296,9 @@ void UDMMaterialStageThroughputLayerBlend::GenerateExpressions(const TSharedRef<
 		return;
 	}
 
-	if (InBuildState->IsPreviewMaterial())
+	UObject* PreviewObject = InBuildState->GetPreviewObject();
+
+	if (PreviewObject == this || PreviewObject == GetStage())
 	{
 		GeneratePreviewExpressions(InBuildState);
 	}
@@ -328,7 +338,7 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 	check(GetAlphaBlend());
 
-	UMaterialExpressionMaterialFunctionCall* FunctionCall = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMaterialFunctionCall>(UE_DM_NodeComment_Default);;
+	UMaterialExpressionMaterialFunctionCall* FunctionCall = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMaterialFunctionCall>(UE_DM_NodeComment_Default);
 	FunctionCall->SetMaterialFunction(GetAlphaBlend());
 	FunctionCall->UpdateFromFunctionResource();
 
@@ -341,7 +351,7 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 	if (UDMMaterialStage* Stage = GetStage())
 	{
-		if (const UDMMaterialLayerObject* Layer = Stage->GetLayer())
+		if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 		{
 			switch (Layer->GetMaterialProperty())
 			{
@@ -363,17 +373,15 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 					if (ModelEditorOnlyData)
 					{
-						switch (ModelEditorOnlyData->GetShadingModel())
+						if (UDMMaterialSlot* BaseColorSlot = ModelEditorOnlyData->GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::BaseColor))
 						{
-							case EDMMaterialShadingModel::DefaultLit:
-								RGBProperty = EDMMaterialPropertyType::BaseColor;
-								RGBSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(RGBProperty);
-								break;
-
-							case EDMMaterialShadingModel::Unlit:
-								RGBProperty = EDMMaterialPropertyType::EmissiveColor;
-								RGBSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(RGBProperty);
-								break;
+							RGBProperty = EDMMaterialPropertyType::BaseColor;
+							RGBSlot = BaseColorSlot;
+						}
+						else if (UDMMaterialSlot* EmissiveColorSlot = ModelEditorOnlyData->GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+						{
+							RGBProperty = EDMMaterialPropertyType::EmissiveColor;
+							RGBSlot = EmissiveColorSlot;
 						}
 					}
 				}
@@ -386,7 +394,7 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 		UMaterialExpression* LastExpression = nullptr;
 		int32 OutputIndex;
 		int32 OutputChannel;
-		ModelEditorOnlyData->GenerateOpacityExpressions(InBuildState, RGBSlot, RGBProperty, LastExpression, OutputIndex, OutputChannel);
+		UDMMaterialProperty::GenerateOpacityExpressions(InBuildState, RGBSlot, RGBProperty, LastExpression, OutputIndex, OutputChannel);
 
 		if (LastExpression)
 		{
@@ -471,7 +479,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateLinkedInputStage(EDMUpdateType 
 		MaskStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = MaskStage->GetLayer();
+	UDMMaterialLayerObject* Layer = MaskStage->GetLayer();
 
 	if (!Layer)
 	{
@@ -524,7 +532,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateLinkedInputStage(EDMUpdateType 
 	if (bInputInCommon)
 	{
 		bBlockUpdate = true;
-		BaseStage->Update(InUpdateType);
+		BaseStage->Update(this, InUpdateType);
 		bBlockUpdate = false;
 	}
 }
@@ -551,7 +559,7 @@ FText UDMMaterialStageThroughputLayerBlend::GetStageDescription() const
 	return Super::GetComponentDescription();
 }
 
-bool UDMMaterialStageThroughputLayerBlend::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageThroughputLayerBlend::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
 	check(InStage);
@@ -575,7 +583,7 @@ bool UDMMaterialStageThroughputLayerBlend::UpdateStagePreviewMaterial(UDMMateria
 	}
 
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(InStage);
 
 	UDMMaterialStageSource* PreviewSource = GetInputMask();
 
@@ -590,6 +598,7 @@ bool UDMMaterialStageThroughputLayerBlend::UpdateStagePreviewMaterial(UDMMateria
 	UMaterialExpression* ComponentMask = SourceExpressions.Last();
 	OutputIndex = InputConnectionMap[InputMaskSource].Channels[0].OutputIndex;
 	int32 Channel;
+	bool bGenerateBitmask = true;
 
 	{
 		const UDMMaterialStageSource* Source = nullptr;
@@ -611,41 +620,52 @@ bool UDMMaterialStageThroughputLayerBlend::UpdateStagePreviewMaterial(UDMMateria
 		if (Source && Source->GetOutputConnectors().IsValidIndex(OutputIndex))
 		{
 			OutputIndex = Source->GetOutputConnectors()[OutputIndex].Index;
+
+			const int32 InnateOutputIndex = Source->GetInnateMaskOutput(OutputIndex, InputConnectionMap[InputMaskSource].Channels[0].OutputChannel);
+
+			if (InnateOutputIndex != INDEX_NONE)
+			{
+				OutputIndex = InnateOutputIndex;
+				bGenerateBitmask = false;
+			}
 		}
 	}
 
-	// Pick the first selected channel - this is always a single channel.
-	if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL)
+	if (bGenerateBitmask)
 	{
-		Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
-	}
-	else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL)
-	{
-		Channel = FDMMaterialStageConnectorChannel::SECOND_CHANNEL;
-	}
-	else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL)
-	{
-		Channel = FDMMaterialStageConnectorChannel::THIRD_CHANNEL;
-	}
-	else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL)
-	{
-		Channel = FDMMaterialStageConnectorChannel::FOURTH_CHANNEL;
-	}
-	else
-	{
-		Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
-	}
+		// Pick the first selected channel - this is always a single channel.
+		if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
+		}
+		else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::SECOND_CHANNEL;
+		}
+		else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::THIRD_CHANNEL;
+		}
+		else if (InputConnectionMap[InputMaskSource].Channels[0].OutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL)
+		{
+			Channel = FDMMaterialStageConnectorChannel::FOURTH_CHANNEL;
+		}
+		else
+		{
+			Channel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
+		}
 
-	ComponentMask = BuildState->GetBuildUtils().CreateExpressionBitMask(
-		ComponentMask,
-		OutputIndex,
-		Channel
-	);
+		ComponentMask = BuildState->GetBuildUtils().CreateExpressionBitMask(
+			ComponentMask,
+			OutputIndex,
+			Channel
+		);
 
-	SourceExpressions.Add(ComponentMask);
+		SourceExpressions.Add(ComponentMask);
 
-	OutputIndex = 0;
-	Channel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+		OutputIndex = 0;
+		Channel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+	}
 
 	Layer->ApplyEffects(BuildState, InStage, SourceExpressions, Channel, OutputIndex);
 
@@ -675,12 +695,12 @@ void UDMMaterialStageThroughputLayerBlend::NotifyPostChange(const FPropertyChang
 	Super::NotifyPostChange(InPropertyChangedEvent, InPropertyThatChanged);
 }
 
-void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIndex, 
-	UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
+void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx,
+	int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel)
 {
 	check(InSourceExpression);
 	check(InSourceExpression->GetOutputs().IsValidIndex(InSourceOutputIndex));
-	check(InInputIndex >= InputPreviousLayer && InInputIndex <= InputMaskSource);
+	check(InExpressionInputIndex >= InputPreviousLayer && InExpressionInputIndex <= InputMaskSource);
  
 	const TArray<UMaterialExpression*>& StageSourceExpressions = InBuildState->GetStageSourceExpressions(this);
 	check(!StageSourceExpressions.IsEmpty());
@@ -720,7 +740,7 @@ void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef
 		}
 	}
  
-	switch (InInputIndex)
+	switch (InExpressionInputIndex)
 	{
 		case InputPreviousLayer:
 			ConnectOutputToInput_Internal(
@@ -760,7 +780,17 @@ void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef
 			break;
 	}
 }
- 
+
+void UDMMaterialStageThroughputLayerBlend::OnPostInputAdded(int32 InInputIdx)
+{
+	Super::OnPostInputAdded(InInputIdx);
+
+	if (MaskChannelOverride != EAvaColorChannel::None)
+	{
+		PushMaskChannelOverride();
+	}
+}
+
 void UDMMaterialStageThroughputLayerBlend::GetMaskOutput(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression,
 	int32& OutOutputIndex, int32& OutOutputChannel) const
 {
@@ -786,7 +816,7 @@ void UDMMaterialStageThroughputLayerBlend::SetPremultiplyAlpha(bool bInValue)
  
 	bPremultiplyAlpha = bInValue;
  
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
  
 int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
@@ -798,7 +828,7 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 	UDMMaterialStage* ThisStage = GetStage();
 	check(ThisStage);
  
-	const UDMMaterialLayerObject* ThisLayer = ThisStage->GetLayer();
+	UDMMaterialLayerObject* ThisLayer = ThisStage->GetLayer();
 	check(ThisLayer);
 	check(ThisLayer->GetStage(EDMMaterialLayerStage::Mask));
 
@@ -810,7 +840,7 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 		OutChannel.OutputIndex
 	);
 		
-	while (const UDMMaterialLayerObject* NextLayer = ThisLayer->GetNextLayer(ThisLayer->GetMaterialProperty(), EDMMaterialLayerStage::Mask))
+	while (UDMMaterialLayerObject* NextLayer = ThisLayer->GetNextLayer(ThisLayer->GetMaterialProperty(), EDMMaterialLayerStage::Mask))
 	{
 		UDMMaterialStage* NextMaskStage = NextLayer->GetStage(EDMMaterialLayerStage::Mask, /* Enabled Only */ true);
 
@@ -885,26 +915,11 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 	return OutChannel.OutputIndex;
 }
  
-void UDMMaterialStageThroughputLayerBlend::UpdatePreviewMaterial(UMaterial* InPreviewMaterial /*= nullptr*/)
+void UDMMaterialStageThroughputLayerBlend::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
- 
-		InPreviewMaterial = PreviewMaterial;
- 
-		if (!InPreviewMaterial)
-		{
-			return;
-		}
 	}
  
 	UDMMaterialStage* Stage = GetStage();
@@ -953,7 +968,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdatePreviewMaterial(UMaterial* InPr
 	}
  
 	TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
-	BuildState->SetPreviewMaterial();
+	BuildState->SetPreviewObject(this);
 
 	if (ChannelInputs.IsEmpty())
 	{
@@ -982,7 +997,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMaskStatus()
 		return;
 	}
  
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	
 	if (!Layer)
 	{
@@ -992,7 +1007,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMaskStatus()
 	bIsAlphaOnlyBlend = (Layer->IsStageEnabled(EDMMaterialLayerStage::Base) == false && Layer->IsStageEnabled(EDMMaterialLayerStage::Mask) == true);
 }
  
-void UDMMaterialStageThroughputLayerBlend::OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageThroughputLayerBlend::OnStageUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (bBlockUpdate)
 	{
@@ -1004,7 +1019,7 @@ void UDMMaterialStageThroughputLayerBlend::OnStageUpdated(UDMMaterialComponent* 
 		return;
 	}
 
-	if (InUpdateType == EDMUpdateType::Structure)
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
 		const bool bIsAlphaOnlyBlendNow = bIsAlphaOnlyBlend;
 		UpdateAlphaOnlyMaskStatus();
@@ -1030,7 +1045,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMasks(EDMUpdateType In
 		return;
 	}
  
-	const UDMMaterialLayerObject* CurrentLayer = Stage->GetLayer();
+	UDMMaterialLayerObject* CurrentLayer = Stage->GetLayer();
 	
 	if (!CurrentLayer)
 	{
@@ -1044,7 +1059,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMasks(EDMUpdateType In
 		return;
 	}
  
-	const UDMMaterialLayerObject* PreviousLayer = nullptr;
+	UDMMaterialLayerObject* PreviousLayer = nullptr;
  
 	while (true)
 	{
@@ -1077,7 +1092,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMasks(EDMUpdateType In
 		// Calling this will inevitably recall this method when the chain updates.
 		// Block this update.
 		bBlockUpdate = true;
-		PreviousLayer->GetStage(EDMMaterialLayerStage::Mask)->Update(InUpdateType);
+		PreviousLayer->GetStage(EDMMaterialLayerStage::Mask)->Update(this, InUpdateType);
 		bBlockUpdate = false;
 	}
 }
@@ -1130,7 +1145,17 @@ void UDMMaterialStageThroughputLayerBlend::SetMaskChannelOverride(EAvaColorChann
 	MaskChannelOverride = InMaskChannel;
 	PushMaskChannelOverride();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
+}
+
+FSlateIcon UDMMaterialStageThroughputLayerBlend::GetComponentIcon() const
+{
+	if (UDMMaterialStageInput* InputMaskValue = GetInputMask())
+	{
+		return InputMaskValue->GetComponentIcon();
+	}
+
+	return Super::GetComponentIcon();
 }
 
 bool UDMMaterialStageThroughputLayerBlend::CanUseMaskChannelOverride() const
@@ -1290,8 +1315,9 @@ void UDMMaterialStageThroughputLayerBlend::PushMaskChannelOverride()
 			break;
 	}
 
-	Stage->UpdateInputMap(InputMaskSource, MaskConnectorChannel.SourceIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		OutputIndex, OutputChannel, MaskConnectorChannel.MaterialProperty);
+	Stage->UpdateInputMap(UDMMaterialStageThroughputLayerBlend::InputMaskSource, MaskConnectorChannel.SourceIndex,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, OutputIndex, OutputChannel, 
+		MaskConnectorChannel.MaterialProperty);
 }
 
 #undef LOCTEXT_NAMESPACE

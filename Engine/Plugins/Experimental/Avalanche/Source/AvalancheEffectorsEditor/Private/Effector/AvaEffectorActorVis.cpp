@@ -5,7 +5,11 @@
 #include "AvaShapeSprites.h"
 #include "AvaVisBase.h"
 #include "EditorViewportClient.h"
-#include "Effector/CEEffectorComponent.h"
+#include "Effector/Types/CEEffectorBoxType.h"
+#include "Effector/Types/CEEffectorPlaneType.h"
+#include "Effector/Types/CEEffectorRadialType.h"
+#include "Effector/Types/CEEffectorSphereType.h"
+#include "Effector/Types/CEEffectorTorusType.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvalancheComponentVisualizersModule.h"
@@ -20,50 +24,99 @@ FAvaEffectorActorVisualizer::FAvaEffectorActorVisualizer()
 	: FAvaVisualizerBase()
 {
 	using namespace UE::AvaCore;
-	InnerRadiusProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerRadius));
-	OuterRadiusProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterRadius));
-	InnerExtentProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerExtent));
-	OuterExtentProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterExtent));
-	PlaneSpacingProperty = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PlaneSpacing));
+
+	// Sphere
+	InnerRadiusProperty  = GetProperty<UCEEffectorSphereType>(GET_MEMBER_NAME_CHECKED(UCEEffectorSphereType, InnerRadius));
+	OuterRadiusProperty  = GetProperty<UCEEffectorSphereType>(GET_MEMBER_NAME_CHECKED(UCEEffectorSphereType, OuterRadius));
+
+	// Box
+	InnerExtentProperty  = GetProperty<UCEEffectorBoxType>(GET_MEMBER_NAME_CHECKED(UCEEffectorBoxType, InnerExtent));
+	OuterExtentProperty  = GetProperty<UCEEffectorBoxType>(GET_MEMBER_NAME_CHECKED(UCEEffectorBoxType, OuterExtent));
+
+	// Plane
+	PlaneSpacingProperty = GetProperty<UCEEffectorPlaneType>(GET_MEMBER_NAME_CHECKED(UCEEffectorPlaneType, PlaneSpacing));
+
+	// Radial
+	RadialAngleProperty = GetProperty<UCEEffectorRadialType>(GET_MEMBER_NAME_CHECKED(UCEEffectorRadialType, RadialAngle));
+	RadialMinRadiusProperty = GetProperty<UCEEffectorRadialType>(GET_MEMBER_NAME_CHECKED(UCEEffectorRadialType, RadialMinRadius));
+	RadialMaxRadiusProperty = GetProperty<UCEEffectorRadialType>(GET_MEMBER_NAME_CHECKED(UCEEffectorRadialType, RadialMaxRadius));
+
+	// Torus
+	TorusRadiusProperty = GetProperty<UCEEffectorTorusType>(GET_MEMBER_NAME_CHECKED(UCEEffectorTorusType, TorusRadius));
+	TorusInnerRadiusProperty = GetProperty<UCEEffectorTorusType>(GET_MEMBER_NAME_CHECKED(UCEEffectorTorusType, TorusInnerRadius));
+	TorusOuterRadiusProperty = GetProperty<UCEEffectorTorusType>(GET_MEMBER_NAME_CHECKED(UCEEffectorTorusType, TorusOuterRadius));
 }
 
 void FAvaEffectorActorVisualizer::StoreInitialValues()
 {
 	Super::StoreInitialValues();
-	
-	if (GetEditedComponent() == nullptr)
+
+	const UCEEffectorComponent* EffectorComponent = EffectorComponentWeak.Get();
+
+	if (!EffectorComponent)
 	{
 		return;
 	}
 
-	InitialInnerRadius = EffectorActorWeak->GetInnerRadius();
-	InitialOuterRadius = EffectorActorWeak->GetOuterRadius();
-	InitialInnerExtent = EffectorActorWeak->GetInnerExtent();
-	InitialOuterExtent = EffectorActorWeak->GetOuterExtent();
-	InitialPlaneSpacing = EffectorActorWeak->GetPlaneSpacing();
+	if (UCEEffectorSphereType* SphereType = EffectorComponent->GetActiveType<UCEEffectorSphereType>())
+	{
+		// Sphere
+		InitialInnerRadius = SphereType->GetInnerRadius();
+		InitialOuterRadius = SphereType->GetOuterRadius();
+	}
+	else if (UCEEffectorBoxType* BoxType = EffectorComponent->GetActiveType<UCEEffectorBoxType>())
+	{
+		// Box
+		InitialInnerExtent = BoxType->GetInnerExtent();
+		InitialOuterExtent = BoxType->GetOuterExtent();
+	}
+	else if (UCEEffectorPlaneType* PlaneType = EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
+	{
+		// Plane
+		InitialPlaneSpacing = PlaneType->GetPlaneSpacing();
+	}
+	else if (UCEEffectorRadialType* RadialType = EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+	{
+		// Radial
+		InitialRadialAngle = RadialType->GetRadialAngle();
+		InitialRadialMinRadius = RadialType->GetRadialMinRadius();
+		InitialRadialMaxRadius = RadialType->GetRadialMaxRadius();
+	}
+	else if (UCEEffectorTorusType* TorusType = EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+	{
+		// Torus
+		InitialTorusRadius = TorusType->GetTorusRadius();
+		InitialTorusInnerRadius = TorusType->GetTorusInnerRadius();
+		InitialTorusOuterRadius = TorusType->GetTorusOuterRadius();
+	}
 }
 
 FBox FAvaEffectorActorVisualizer::GetComponentBounds(const UActorComponent* InComponent) const
 {
 	if (const UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InComponent))
 	{
-		if (const ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(EffectorComponent->GetOwner()))
+		if (UCEEffectorSphereType* SphereType = EffectorComponent->GetActiveType<UCEEffectorSphereType>())
 		{
-			if (EffectorActor->GetType() == ECEClonerEffectorType::Box)
-			{
-				return FBox(-EffectorActor->GetOuterExtent(), EffectorActor->GetOuterExtent());
-			}
-			if (EffectorActor->GetType() == ECEClonerEffectorType::Sphere)
-			{
-				return FBox(-FVector(EffectorActor->GetOuterRadius() / 2), FVector(EffectorActor->GetOuterRadius() / 2));
-			}
-			if (EffectorActor->GetType() == ECEClonerEffectorType::Plane)
-			{
-				return FBox(-FVector(EffectorActor->GetPlaneSpacing() / 2), FVector(EffectorActor->GetPlaneSpacing() / 2));
-			}
+			return FBox(-FVector(SphereType->GetOuterRadius() / 2), FVector(SphereType->GetOuterRadius() / 2));
+		}
+		else if (UCEEffectorBoxType* BoxType = EffectorComponent->GetActiveType<UCEEffectorBoxType>())
+		{
+			return FBox(-BoxType->GetOuterExtent(), BoxType->GetOuterExtent());
+		}
+		else if (UCEEffectorPlaneType* PlaneType = EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
+		{
+			return FBox(-FVector(PlaneType->GetPlaneSpacing() / 2), FVector(PlaneType->GetPlaneSpacing() / 2));
+		}
+		else if (UCEEffectorRadialType* RadialType = EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+		{
+			return FBox(-FVector(RadialType->GetRadialMaxRadius() / 2), FVector(RadialType->GetRadialMaxRadius() / 2));
+		}
+		else if (UCEEffectorTorusType* TorusType = EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+		{
+			return FBox(-FVector((TorusType->GetTorusRadius() + TorusType->GetTorusOuterRadius()) / 2), FVector((TorusType->GetTorusRadius() + TorusType->GetTorusOuterRadius()) / 2));
 		}
 	}
-	
+
 	return Super::GetComponentBounds(InComponent);
 }
 
@@ -74,63 +127,139 @@ bool FAvaEffectorActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient
 		return false;
 	}
 
-	if (ACEEffectorActor* EffectorActor = EffectorActorWeak.Get())
+	if (UCEEffectorComponent* EffectorComponent = EffectorComponentWeak.Get())
 	{
 		if (GetViewportWidgetMode(InViewportClient) == UE::Widget::WM_Translate)
 		{
 			if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::XYZ)
 			{
-				if (EffectorActor->GetType() == ECEClonerEffectorType::Box)
+				if (UCEEffectorBoxType* BoxType = EffectorComponent->GetActiveType<UCEEffectorBoxType>())
 				{
-					if (bEditingInnerZone)
+					if (EditingHandleType == HandleTypeInnerZone)
 					{
-						EffectorActor->SetInnerExtent(InitialInnerExtent + InAccumulatedTranslation);
-						EffectorActor->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(EffectorActor, InnerExtentProperty, EPropertyChangeType::Interactive);
+						ModifyProperty(BoxType, InnerExtentProperty, EPropertyChangeType::Interactive, [this, &BoxType, &InAccumulatedTranslation]()
+						{
+							BoxType->SetInnerExtent(InitialInnerExtent + InAccumulatedTranslation);
+						});
 					}
-					else if (bEditingOuterZone)
+					else if (EditingHandleType == HandleTypeOuterZone)
 					{
-						EffectorActor->SetOuterExtent(InitialOuterExtent + InAccumulatedTranslation);
-						EffectorActor->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(EffectorActor, OuterExtentProperty, EPropertyChangeType::Interactive);
+						ModifyProperty(BoxType, OuterExtentProperty, EPropertyChangeType::Interactive, [this, &BoxType, &InAccumulatedTranslation]()
+						{
+							BoxType->SetOuterExtent(InitialOuterExtent + InAccumulatedTranslation);
+						});
 					}
-					
+
 					return true;
 				}
 			}
+
 			if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 			{
-				if (EffectorActor->GetType() == ECEClonerEffectorType::Plane)
+				if (UCEEffectorPlaneType* PlaneType = EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
 				{
-					if (bEditingOuterZone || bEditingInnerZone)
+					if (EditingHandleType == HandleTypeInnerZone || EditingHandleType == HandleTypeOuterZone)
 					{
-						EffectorActor->SetPlaneSpacing(InitialPlaneSpacing + InAccumulatedTranslation.Y);
-						EffectorActor->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(EffectorActor, PlaneSpacingProperty, EPropertyChangeType::Interactive);
+						ModifyProperty(PlaneType, PlaneSpacingProperty, EPropertyChangeType::Interactive, [this, &PlaneType, &InAccumulatedTranslation]()
+						{
+							PlaneType->SetPlaneSpacing(InitialPlaneSpacing + InAccumulatedTranslation.Y);
+						});
 					}
-					
+
 					return true;
 				}
-				if (EffectorActor->GetType() == ECEClonerEffectorType::Sphere)
+
+				if (UCEEffectorSphereType* SphereType = EffectorComponent->GetActiveType<UCEEffectorSphereType>())
 				{
-					if (bEditingInnerZone)
+					if (EditingHandleType == HandleTypeInnerZone)
 					{
-						EffectorActor->SetInnerRadius(InitialInnerRadius + InAccumulatedTranslation.Y);
-						EffectorActor->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(EffectorActor, InnerRadiusProperty, EPropertyChangeType::Interactive);
+						ModifyProperty(SphereType, InnerRadiusProperty, EPropertyChangeType::Interactive, [this, &SphereType, &InAccumulatedTranslation]()
+						{
+							SphereType->SetInnerRadius(InitialInnerRadius + InAccumulatedTranslation.Y);
+						});
 					}
-					else if (bEditingOuterZone)
+					else if (EditingHandleType == HandleTypeOuterZone)
 					{
-						EffectorActor->SetOuterRadius(InitialOuterRadius + InAccumulatedTranslation.Y);
-						EffectorActor->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(EffectorActor, OuterRadiusProperty, EPropertyChangeType::Interactive);
+						ModifyProperty(SphereType, OuterRadiusProperty, EPropertyChangeType::Interactive, [this, &SphereType, &InAccumulatedTranslation]
+						{
+							SphereType->SetOuterRadius(InitialOuterRadius + InAccumulatedTranslation.Y);
+						});
 					}
-					
+
+					return true;
+				}
+
+				if (UCEEffectorRadialType* RadialType = EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+				{
+					if (EditingHandleType == HandleTypeInnerZone)
+					{
+						ModifyProperty(RadialType, RadialMinRadiusProperty, EPropertyChangeType::Interactive, [this, &RadialType, &InAccumulatedTranslation]
+						{
+							RadialType->SetRadialMinRadius(InitialRadialMinRadius + InAccumulatedTranslation.Y);
+						});
+					}
+					else if (EditingHandleType == HandleTypeOuterZone)
+					{
+						ModifyProperty(RadialType, RadialMaxRadiusProperty, EPropertyChangeType::Interactive, [this, &RadialType, &InAccumulatedTranslation]()
+						{
+							RadialType->SetRadialMaxRadius(InitialRadialMaxRadius + InAccumulatedTranslation.Y);
+						});
+					}
+
+					return true;
+				}
+
+				if (UCEEffectorTorusType* TorusType = EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+				{
+					if (EditingHandleType == HandleTypeRadius)
+					{
+						ModifyProperty(TorusType, TorusRadiusProperty, EPropertyChangeType::Interactive, [this, &TorusType, &InAccumulatedTranslation]()
+						{
+							TorusType->SetTorusRadius(InitialTorusRadius + InAccumulatedTranslation.Y);
+						});
+					}
+
+					return true;
+				}
+			}
+
+			if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Z)
+			{
+				if (UCEEffectorTorusType* TorusType = EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+				{
+					if (EditingHandleType == HandleTypeInnerZone)
+					{
+						ModifyProperty(TorusType, TorusInnerRadiusProperty, EPropertyChangeType::Interactive, [this, &TorusType, &InAccumulatedTranslation]()
+						{
+							TorusType->SetTorusInnerRadius(InitialTorusInnerRadius + InAccumulatedTranslation.Z);
+						});
+					}
+					else if (EditingHandleType == HandleTypeOuterZone)
+					{
+						ModifyProperty(TorusType, TorusOuterRadiusProperty, EPropertyChangeType::Interactive, [this, &TorusType, &InAccumulatedTranslation]()
+						{
+							TorusType->SetTorusOuterRadius(InitialTorusOuterRadius + InAccumulatedTranslation.Z);
+						});
+					}
+
+					return true;
+				}
+			}
+		}
+		else if (GetViewportWidgetMode(InViewportClient) == UE::Widget::WM_Rotate)
+		{
+			if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Z)
+			{
+				if (UCEEffectorRadialType* RadialType = EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+				{
+					if (EditingHandleType == HandleTypeAngle)
+					{
+						ModifyProperty(RadialType, RadialAngleProperty, EPropertyChangeType::Interactive, [this, &RadialType, &InAccumulatedRotation]()
+						{
+							RadialType->SetRadialAngle(InitialRadialAngle + InAccumulatedRotation.Yaw);
+						});
+					}
+
 					return true;
 				}
 			}
@@ -140,7 +269,7 @@ bool FAvaEffectorActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient
 	{
 		EndEditing();
 	}
-	
+
 	return Super::HandleInputDeltaInternal(InViewportClient, InViewport, InAccumulatedTranslation, InAccumulatedRotation, InAccumulatedScale);
 }
 
@@ -155,21 +284,26 @@ void FAvaEffectorActorVisualizer::DrawVisualizationEditing(const UActorComponent
 		return;
 	}
 
-	const ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(EffectorComponent->GetOwner());
-
-	if (!EffectorActor)
+	if (!EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
 	{
-		return;
-	}
-
-	if (EffectorActor->GetType() != ECEClonerEffectorType::Plane)
-	{
-		DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, true, FAvaVisualizerBase::Inactive);
+		DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeInnerZone, FAvaVisualizerBase::Active);
 		InOutIconIndex++;
 	}
 
-	DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, false, bEditingOuterZone ? FAvaVisualizerBase::Active : FAvaVisualizerBase::Inactive);
+	DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeOuterZone, FAvaVisualizerBase::Active);
 	InOutIconIndex++;
+
+	if (EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+	{
+		DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeAngle, FAvaVisualizerBase::Active);
+		InOutIconIndex++;
+	}
+
+	if (EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+	{
+		DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeRadius, FAvaVisualizerBase::Active);
+		InOutIconIndex++;
+	}
 }
 
 void FAvaEffectorActorVisualizer::DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex)
@@ -183,62 +317,119 @@ void FAvaEffectorActorVisualizer::DrawVisualizationNotEditing(const UActorCompon
 		return;
 	}
 
-	const ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(EffectorComponent->GetOwner());
-
-	if (!EffectorActor)
+	if (!EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
 	{
-		return;
-	}
-
-	if (EffectorActor->GetType() != ECEClonerEffectorType::Plane)
-	{
-		DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, true, FAvaVisualizerBase::Inactive);
+		DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeInnerZone, FAvaVisualizerBase::Inactive);
 		InOutIconIndex++;
 	}
-	
-	DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, false, FAvaVisualizerBase::Inactive);
+
+	DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeOuterZone, FAvaVisualizerBase::Inactive);
 	InOutIconIndex++;
+
+	if (EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+	{
+		DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeAngle, FAvaVisualizerBase::Inactive);
+		InOutIconIndex++;
+	}
+
+	if (EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+	{
+		DrawZoneButton(EffectorComponent, InView, InPDI, InOutIconIndex, HandleTypeRadius, FAvaVisualizerBase::Inactive);
+		InOutIconIndex++;
+	}
 }
 
-FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const ACEEffectorActor* InEffectorActor, bool bInInnerSize) const
+FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const UCEEffectorComponent* InEffectorComponent, int32 InHandleType) const
 {
-	const FVector EffectorScale = InEffectorActor->GetActorScale();
-	const FRotator EffectorRotation = InEffectorActor->GetActorRotation();
-	FVector OutLocation = InEffectorActor->GetActorLocation();
+	const FVector EffectorScale = InEffectorComponent->GetComponentScale();
+	const FRotator EffectorRotation = InEffectorComponent->GetComponentRotation();
+	FVector OutLocation = InEffectorComponent->GetComponentLocation();
 
-	if (InEffectorActor->GetType() == ECEClonerEffectorType::Box)
+	// To avoid inner/outer handle to be near actor gizmo and hard to select
+	constexpr float MinHandleOffset = 50.f;
+	constexpr float MaxHandleOffset = 100.f;
+
+	if (UCEEffectorBoxType* BoxType = InEffectorComponent->GetActiveType<UCEEffectorBoxType>())
 	{
-		if (bInInnerSize)
+		if (InHandleType == HandleTypeInnerZone)
 		{
-			OutLocation += EffectorRotation.RotateVector(InEffectorActor->GetInnerExtent()) * EffectorScale;
+			OutLocation += EffectorRotation.RotateVector(BoxType->GetInnerExtent()) * EffectorScale;
 		}
-		else
-			{
-			OutLocation += EffectorRotation.RotateVector(InEffectorActor->GetOuterExtent()) * EffectorScale;
+		else if (InHandleType == HandleTypeOuterZone)
+		{
+			OutLocation += EffectorRotation.RotateVector(BoxType->GetOuterExtent()) * EffectorScale;
 		}
 	}
-	else if (InEffectorActor->GetType() == ECEClonerEffectorType::Plane)
+	else if (UCEEffectorPlaneType* PlaneType = InEffectorComponent->GetActiveType<UCEEffectorPlaneType>())
 	{
-		const float ComponentScale = (EffectorRotation.RotateVector(-FVector::YAxisVector) * EffectorScale).Length();
-		OutLocation += EffectorRotation.RotateVector(FVector::YAxisVector) * (InEffectorActor->GetPlaneSpacing() / 2) * ComponentScale;
+		if (InHandleType == HandleTypeInnerZone
+			|| InHandleType == HandleTypeOuterZone)
+		{
+			const float ComponentScale = (EffectorRotation.RotateVector(-FVector::YAxisVector) * EffectorScale).Length();
+			const FVector HandleAxis = EffectorRotation.RotateVector(FVector::YAxisVector);
+
+			OutLocation += HandleAxis * (PlaneType->GetPlaneSpacing() / 2) * ComponentScale;
+		}
 	}
-	else if (InEffectorActor->GetType() == ECEClonerEffectorType::Sphere)
+	else if (UCEEffectorSphereType* SphereType = InEffectorComponent->GetActiveType<UCEEffectorSphereType>())
 	{
 		const float MinComponentScale = FMath::Min<float>(FMath::Min<float>(EffectorScale.X, EffectorScale.Y), EffectorScale.Z);
-		if (bInInnerSize)
+		const FVector HandleAxis = EffectorRotation.RotateVector(FVector::YAxisVector);
+
+		if (InHandleType == HandleTypeInnerZone)
 		{
-			OutLocation += EffectorRotation.RotateVector(FVector::YAxisVector) * InEffectorActor->GetInnerRadius() * MinComponentScale;
+			OutLocation += FVector::Max(HandleAxis * SphereType->GetInnerRadius(), HandleAxis * MinHandleOffset) * MinComponentScale;
 		}
-		else
+		else if (InHandleType == HandleTypeOuterZone)
 		{
-			OutLocation += EffectorRotation.RotateVector(FVector::YAxisVector) * InEffectorActor->GetOuterRadius() * MinComponentScale;
+			OutLocation += FVector::Max(HandleAxis * SphereType->GetOuterRadius(), HandleAxis * MaxHandleOffset) * MinComponentScale;
 		}
 	}
-	
+	else if (UCEEffectorRadialType* RadialType = InEffectorComponent->GetActiveType<UCEEffectorRadialType>())
+	{
+		const float MinComponentScale = FMath::Min<float>(FMath::Min<float>(EffectorScale.X, EffectorScale.Y), EffectorScale.Z);
+		const FVector UpHandleAxis = EffectorRotation.RotateVector(FVector::ZAxisVector);
+		const FVector RightHandleAxis = EffectorRotation.RotateVector(FVector::YAxisVector);
+
+		if (InHandleType == HandleTypeInnerZone)
+		{
+			OutLocation += FVector::Max(RightHandleAxis * RadialType->GetRadialMinRadius(), RightHandleAxis * MinHandleOffset) * MinComponentScale;
+		}
+		else if (InHandleType == HandleTypeOuterZone)
+		{
+			OutLocation += FVector::Max(RightHandleAxis * RadialType->GetRadialMaxRadius(), RightHandleAxis * MaxHandleOffset) * MinComponentScale;
+		}
+		else if (InHandleType == HandleTypeAngle)
+		{
+			OutLocation += UpHandleAxis * MaxHandleOffset * MinComponentScale;
+		}
+	}
+	else if (UCEEffectorTorusType* TorusType = InEffectorComponent->GetActiveType<UCEEffectorTorusType>())
+	{
+		const float MinComponentScale = FMath::Min<float>(FMath::Min<float>(EffectorScale.X, EffectorScale.Y), EffectorScale.Z);
+		const FVector UpHandleAxis = EffectorRotation.RotateVector(FVector::ZAxisVector);
+		const FVector RightHandleAxis = EffectorRotation.RotateVector(FVector::YAxisVector);
+
+		if (InHandleType == HandleTypeInnerZone)
+		{
+			OutLocation += RightHandleAxis * TorusType->GetTorusRadius()
+				+ FVector::Max(UpHandleAxis * TorusType->GetTorusInnerRadius(), UpHandleAxis * MinHandleOffset) * MinComponentScale;
+		}
+		else if (InHandleType == HandleTypeOuterZone)
+		{
+			OutLocation += RightHandleAxis * TorusType->GetTorusRadius()
+				+ FVector::Max(UpHandleAxis * TorusType->GetTorusOuterRadius(), UpHandleAxis * MaxHandleOffset) * MinComponentScale;
+		}
+		else if (InHandleType == HandleTypeRadius)
+		{
+			OutLocation += FVector::Max(RightHandleAxis * TorusType->GetTorusRadius(), RightHandleAxis * MinHandleOffset) * MinComponentScale;
+		}
+	}
+
 	return OutLocation;
 }
 
-void FAvaEffectorActorVisualizer::DrawZoneButton(const ACEEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const
+void FAvaEffectorActorVisualizer::DrawZoneButton(const UCEEffectorComponent* InEffectorComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, int32 InHandleType, FLinearColor InColor) const
 {
 	UTexture2D* ZoneSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::BevelSprite);
 
@@ -251,35 +442,41 @@ void FAvaEffectorActorVisualizer::DrawZoneButton(const ACEEffectorActor* InEffec
 	float IconSize;
 	GetIconMetrics(InView, InIconIndex, IconLocation, IconSize);
 
-	IconLocation = GetHandleZoneLocation(InEffectorActor, bInInnerZone);
+	IconLocation = GetHandleZoneLocation(InEffectorComponent, InHandleType);
 
-	InPDI->SetHitProxy(new HAvaEffectorActorZoneHitProxy(InEffectorActor->GetRootComponent(), bInInnerZone));
+	InPDI->SetHitProxy(new HAvaEffectorActorZoneHitProxy(InEffectorComponent, InHandleType));
 	InPDI->DrawSprite(IconLocation, IconSize, IconSize, ZoneSprite->GetResource(), InColor, SDPG_Foreground, 0, 0, 0, 0, SE_BLEND_Opaque);
 	InPDI->SetHitProxy(nullptr);
 }
 
 UActorComponent* FAvaEffectorActorVisualizer::GetEditedComponent() const
 {
-	return EffectorActorWeak.IsValid() ? EffectorActorWeak->GetRootComponent() : nullptr;
+	return EffectorComponentWeak.Get();
 }
 
 TMap<UObject*, TArray<FProperty*>> FAvaEffectorActorVisualizer::GatherEditableProperties(UObject* InObject) const
 {
-	if (UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InObject))
+	if (const UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InObject))
 	{
-		if (ACEEffectorActor* EffectorActor = EffectorComponent->GetOuterACEEffectorActor())
+		if (UCEEffectorSphereType* SphereType = EffectorComponent->GetActiveType<UCEEffectorSphereType>())
 		{
-			switch (EffectorActor->GetType())
-			{
-				case ECEClonerEffectorType::Plane:
-					return {{EffectorActor, {PlaneSpacingProperty}}};
-
-				case ECEClonerEffectorType::Box:
-					return {{EffectorActor, {InnerExtentProperty, OuterExtentProperty}}};
-
-				case ECEClonerEffectorType::Sphere:
-					return {{EffectorActor, {InnerRadiusProperty, OuterRadiusProperty}}};
-			}
+			return {{SphereType, {InnerRadiusProperty, OuterRadiusProperty}}};
+		}
+		else if (UCEEffectorBoxType* BoxType = EffectorComponent->GetActiveType<UCEEffectorBoxType>())
+		{
+			return {{BoxType, {InnerExtentProperty, OuterExtentProperty}}};
+		}
+		else if (UCEEffectorPlaneType* PlaneType = EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
+		{
+			return {{PlaneType, {PlaneSpacingProperty}}};
+		}
+		else if (UCEEffectorRadialType* RadialType = EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+		{
+			return {{RadialType, {RadialAngleProperty, RadialMinRadiusProperty, RadialMaxRadiusProperty}}};
+		}
+		else if (UCEEffectorTorusType* TorusType = EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+		{
+			return {{TorusType, {TorusRadiusProperty, TorusInnerRadiusProperty, TorusOuterRadiusProperty}}};
 		}
 	}
 
@@ -296,7 +493,7 @@ bool FAvaEffectorActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InV
 
 	UActorComponent* Component = const_cast<UActorComponent*>(InVisProxy->Component.Get());
 
-	if (!Component || !Component->GetOwner()->IsA<ACEEffectorActor>())
+	if (!Component || !Component->IsA<UCEEffectorComponent>())
 	{
 		return Super::VisProxyHandleClick(InViewportClient, InVisProxy, InClick);
 	}
@@ -304,11 +501,10 @@ bool FAvaEffectorActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InV
 	if (InVisProxy->IsA(HAvaEffectorActorZoneHitProxy::StaticGetType()))
 	{
 		EndEditing();
-		EffectorActorWeak = Cast<ACEEffectorActor>(InVisProxy->Component->GetOwner());
-		bEditingInnerZone = static_cast<HAvaEffectorActorZoneHitProxy*>(InVisProxy)->bInnerZone;
-		bEditingOuterZone = !bEditingInnerZone;
+		EffectorComponentWeak = Cast<UCEEffectorComponent>(Component);
+		EditingHandleType = static_cast<HAvaEffectorActorZoneHitProxy*>(InVisProxy)->HandleType;
 		StartEditing(InViewportClient, Component);
-		
+
 		return true;
 	}
 
@@ -317,59 +513,124 @@ bool FAvaEffectorActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InV
 
 bool FAvaEffectorActorVisualizer::GetWidgetLocation(const FEditorViewportClient* InViewportClient, FVector& OutLocation) const
 {
-	if (EffectorActorWeak.IsValid())
+	if (const UCEEffectorComponent* EffectorComponent = EffectorComponentWeak.Get())
 	{
-		OutLocation = GetHandleZoneLocation(EffectorActorWeak.Get(), bEditingInnerZone);
+		OutLocation = GetHandleZoneLocation(EffectorComponent, EditingHandleType);
 		return true;
 	}
-	
+
 	return Super::GetWidgetLocation(InViewportClient, OutLocation);
 }
 
 bool FAvaEffectorActorVisualizer::GetWidgetMode(const FEditorViewportClient* InViewportClient,
 	UE::Widget::EWidgetMode& OutMode) const
 {
-	if (bEditingOuterZone || bEditingInnerZone)
+	if (EditingHandleType == HandleTypeInnerZone
+		|| EditingHandleType == HandleTypeOuterZone
+		|| EditingHandleType == HandleTypeRadius)
 	{
 		OutMode = UE::Widget::EWidgetMode::WM_Translate;
 		return true;
 	}
-	
+
+	if (EditingHandleType == HandleTypeAngle)
+	{
+		OutMode = UE::Widget::EWidgetMode::WM_Rotate;
+		return true;
+	}
+
 	return Super::GetWidgetMode(InViewportClient, OutMode);
 }
 
 bool FAvaEffectorActorVisualizer::GetWidgetAxisList(const FEditorViewportClient* InViewportClient,
 	UE::Widget::EWidgetMode InWidgetMode, EAxisList::Type& OutAxisList) const
 {
-	if (bEditingOuterZone || bEditingInnerZone)
+	if (UCEEffectorComponent* EffectorComponent = EffectorComponentWeak.Get())
 	{
-		if (EffectorActorWeak->GetType() != ECEClonerEffectorType::Box)
+		if (EditingHandleType == HandleTypeInnerZone
+		|| EditingHandleType == HandleTypeOuterZone)
 		{
-			OutAxisList = EAxisList::Type::Y;
+			if (!!EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+			{
+				OutAxisList = EAxisList::Type::Z;
+			}
+			else if (!!EffectorComponent->GetActiveType<UCEEffectorBoxType>())
+			{
+				OutAxisList = EAxisList::Type::XYZ;
+			}
+			else
+			{
+				OutAxisList = EAxisList::Type::Y;
+			}
+
+			return true;
 		}
-		else
+
+		if (EditingHandleType == HandleTypeRadius)
 		{
-			OutAxisList = EAxisList::Type::XYZ;
+			if (!!EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+			{
+				OutAxisList = EAxisList::Type::Y;
+			}
+
+			return true;
 		}
-		
-		return true;
+
+		if (EditingHandleType == HandleTypeAngle)
+		{
+			if (!!EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+			{
+				OutAxisList = EAxisList::Type::Z;
+			}
+
+			return true;
+		}
 	}
-	
+
 	return Super::GetWidgetAxisList(InViewportClient, InWidgetMode, OutAxisList);
 }
 
 bool FAvaEffectorActorVisualizer::GetWidgetAxisListDragOverride(const FEditorViewportClient* InViewportClient,
 	UE::Widget::EWidgetMode InWidgetMode, EAxisList::Type& OutAxisList) const
 {
-	if (bEditingOuterZone || bEditingInnerZone)
+	if (UCEEffectorComponent* EffectorComponent = EffectorComponentWeak.Get())
 	{
-		if (EffectorActorWeak->GetType() != ECEClonerEffectorType::Box)
+		if (EditingHandleType == HandleTypeInnerZone
+		|| EditingHandleType == HandleTypeOuterZone)
 		{
-			OutAxisList = EAxisList::Type::Y;
+			if (!!EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+			{
+				OutAxisList = EAxisList::Type::Z;
+				return true;
+			}
+
+			if (!EffectorComponent->GetActiveType<UCEEffectorBoxType>())
+			{
+				OutAxisList = EAxisList::Type::Y;
+				return true;
+			}
+		}
+
+		if (EditingHandleType == HandleTypeRadius)
+		{
+			if (!!EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+			{
+				OutAxisList = EAxisList::Type::Y;
+				return true;
+			}
+		}
+
+		if (EditingHandleType == HandleTypeAngle)
+		{
+			if (!!EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+			{
+				OutAxisList = EAxisList::Type::Z;
+			}
+
 			return true;
 		}
 	}
-	
+
 	return Super::GetWidgetAxisListDragOverride(InViewportClient, InWidgetMode, OutAxisList);
 }
 
@@ -379,74 +640,126 @@ bool FAvaEffectorActorVisualizer::ResetValue(FEditorViewportClient* InViewportCl
 	{
 		return Super::ResetValue(InViewportClient, InHitProxy);
 	}
-	
+
 	const HAvaEffectorActorZoneHitProxy* ComponentHitProxy = static_cast<HAvaEffectorActorZoneHitProxy*>(InHitProxy);
-	
-	if (!ComponentHitProxy->Component.IsValid() || !ComponentHitProxy->Component->IsA<UCEEffectorComponent>())
+	UActorComponent* Component = const_cast<UActorComponent*>(ComponentHitProxy->Component.Get());
+
+	if (!Component || !Component->IsA<UCEEffectorComponent>())
 	{
 		return Super::ResetValue(InViewportClient, InHitProxy);
 	}
 
-	if (ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(ComponentHitProxy->Component->GetOwner()))
+	if (UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(Component))
 	{
-		if (EffectorActor->GetType() == ECEClonerEffectorType::Box)
+		const int32 HandleType = ComponentHitProxy->HandleType;
+
+		FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
+
+		if (UCEEffectorBoxType* BoxType = EffectorComponent->GetActiveType<UCEEffectorBoxType>())
 		{
-			if (ComponentHitProxy->bInnerZone)
+			if (HandleType == HandleTypeInnerZone)
 			{
-				FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-				EffectorActor->SetFlags(RF_Transactional);
-				EffectorActor->SetInnerExtent(FVector(50.f));
-				EffectorActor->Modify();
-				NotifyPropertyModified(EffectorActor, InnerExtentProperty, EPropertyChangeType::ValueSet);
+				ModifyProperty(BoxType, InnerExtentProperty, EPropertyChangeType::ValueSet, [&BoxType]()
+				{
+					BoxType->SetInnerExtent(FVector(50.f));
+				});
 			}
-			else
+			else if (HandleType == HandleTypeOuterZone)
 			{
-				FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-				EffectorActor->SetFlags(RF_Transactional);
-				EffectorActor->SetOuterExtent(FVector(200.f));
-				EffectorActor->Modify();
-				NotifyPropertyModified(EffectorActor, OuterExtentProperty, EPropertyChangeType::ValueSet);
+				ModifyProperty(BoxType, OuterExtentProperty, EPropertyChangeType::ValueSet, [&BoxType]()
+				{
+					BoxType->SetOuterExtent(FVector(200.f));
+				});
 			}
 		}
-		else if (EffectorActor->GetType() == ECEClonerEffectorType::Plane)
+		else if (UCEEffectorPlaneType* PlaneType = EffectorComponent->GetActiveType<UCEEffectorPlaneType>())
 		{
-			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-			EffectorActor->SetFlags(RF_Transactional);
-			EffectorActor->SetPlaneSpacing(200.f);
-			EffectorActor->Modify();
-			NotifyPropertyModified(EffectorActor, PlaneSpacingProperty, EPropertyChangeType::ValueSet);
-		}
-		else if (EffectorActor->GetType() == ECEClonerEffectorType::Sphere)
-		{
-			if (ComponentHitProxy->bInnerZone)
+			if (HandleType == HandleTypeInnerZone
+				|| HandleType == HandleTypeOuterZone)
 			{
-				FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-				EffectorActor->SetFlags(RF_Transactional);
-				EffectorActor->SetInnerRadius(50.f);
-				EffectorActor->Modify();
-				NotifyPropertyModified(EffectorActor, InnerRadiusProperty, EPropertyChangeType::ValueSet);
+				ModifyProperty(PlaneType, PlaneSpacingProperty, EPropertyChangeType::ValueSet, [&PlaneType]()
+				{
+					PlaneType->SetPlaneSpacing(200.f);
+				});
 			}
-			else
+		}
+		else if (UCEEffectorSphereType* SphereType = EffectorComponent->GetActiveType<UCEEffectorSphereType>())
+		{
+			if (HandleType == HandleTypeInnerZone)
 			{
-				FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
-				EffectorActor->SetFlags(RF_Transactional);
-				EffectorActor->SetOuterRadius(200.f);
-				EffectorActor->Modify();
-				NotifyPropertyModified(EffectorActor, OuterRadiusProperty, EPropertyChangeType::ValueSet);
+				ModifyProperty(SphereType, InnerRadiusProperty, EPropertyChangeType::ValueSet, [&SphereType]()
+				{
+					SphereType->SetInnerRadius(50.f);
+				});
+			}
+			else if (HandleType == HandleTypeOuterZone)
+			{
+				ModifyProperty(SphereType, OuterRadiusProperty, EPropertyChangeType::ValueSet, [&SphereType]()
+				{
+					SphereType->SetOuterRadius(200.f);
+				});
+			}
+		}
+		else if (UCEEffectorRadialType* RadialType = EffectorComponent->GetActiveType<UCEEffectorRadialType>())
+		{
+			if (HandleType == HandleTypeInnerZone)
+			{
+				ModifyProperty(RadialType, RadialMinRadiusProperty, EPropertyChangeType::ValueSet, [&RadialType]()
+				{
+					RadialType->SetRadialMinRadius(0.f);
+				});
+			}
+			else if (HandleType == HandleTypeOuterZone)
+			{
+				ModifyProperty(RadialType, RadialMaxRadiusProperty, EPropertyChangeType::ValueSet, [&RadialType]()
+				{
+					RadialType->SetRadialMaxRadius(1000.f);
+				});
+			}
+			else if (HandleType == HandleTypeAngle)
+			{
+				ModifyProperty(RadialType, RadialAngleProperty, EPropertyChangeType::ValueSet, [&RadialType]()
+				{
+					RadialType->SetRadialAngle(180.f);
+				});
+			}
+		}
+		else if (UCEEffectorTorusType* TorusType = EffectorComponent->GetActiveType<UCEEffectorTorusType>())
+		{
+			if (HandleType == HandleTypeInnerZone)
+			{
+				ModifyProperty(TorusType, TorusInnerRadiusProperty, EPropertyChangeType::ValueSet, [&TorusType]()
+				{
+					TorusType->SetTorusInnerRadius(50.f);
+				});
+			}
+			else if (HandleType == HandleTypeOuterZone)
+			{
+				ModifyProperty(TorusType, TorusOuterRadiusProperty, EPropertyChangeType::ValueSet, [&TorusType]()
+				{
+					TorusType->SetTorusOuterRadius(200.f);
+				});
+			}
+			else if (HandleType == HandleTypeRadius)
+			{
+				ModifyProperty(TorusType, TorusRadiusProperty, EPropertyChangeType::ValueSet, [&TorusType]()
+				{
+					TorusType->SetTorusRadius(250.f);
+				});
 			}
 		}
 	}
-	
+
 	return true;
 }
 
 bool FAvaEffectorActorVisualizer::IsEditing() const
 {
-	if (bEditingInnerZone || bEditingOuterZone)
+	if (EditingHandleType != INDEX_NONE)
 	{
 		return true;
 	}
-	
+
 	return Super::IsEditing();
 }
 
@@ -454,9 +767,8 @@ void FAvaEffectorActorVisualizer::EndEditing()
 {
 	Super::EndEditing();
 
-	EffectorActorWeak.Reset();
-	bEditingInnerZone = false;
-	bEditingOuterZone = false;
+	EffectorComponentWeak.Reset();
+	EditingHandleType = INDEX_NONE;
 }
 
 #undef LOCTEXT_NAMESPACE

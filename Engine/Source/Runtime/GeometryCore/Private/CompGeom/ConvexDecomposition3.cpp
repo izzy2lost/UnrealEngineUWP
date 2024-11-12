@@ -339,6 +339,8 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		{
 			MarchingCubes.Bounds = HullAABB.GetBoundingBox();
 			MarchingCubes.Bounds.Expand(SampleSettings.MinRadius + SampleSettings.ReduceRadiusMargin + UE_DOUBLE_KINDA_SMALL_NUMBER);
+			// enforce max voxels per dim after bounds expand
+			MarchingCubes.CubeSize = FMath::Max(MarchingCubes.CubeSize, MarchingCubes.Bounds.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim);
 			const double MinRadSq = SampleSettings.MinRadius * SampleSettings.MinRadius;
 			MarchingCubes.Implicit = [&HullMeshWrap, &HullAABB, &Spatial, WindingSign, &SampleSettings, MinRadSq](const FVector3d& Pt) -> double
 			{
@@ -1410,20 +1412,61 @@ struct FPartialCutResult
 				// optionally re-try w/ minimal offsets in degen directions
 				if (ThickenHullAfterFailure > 0)
 				{
+					int32 Dimension = HullCompute.GetDimension();
 					const int32 OrigMaxID = Convex.InternalGeo.MaxVertexID();
 					FMeshNormals Normals(&Convex.InternalGeo);
-					Normals.ComputeVertexNormals();
+					bool bUseNormalsForOffset = Dimension >= 2;
+					if (bUseNormalsForOffset)
+					{
+						Normals.ComputeVertexNormals();
+					}
+					// Compute offsets to use based on the dimension of the failed convex hull
+					FVector3d OffsetBasis[3];
+					FVector3d FallbackOffset = FVector3d(1, 1, 1) * FMathd::InvSqrt3;
+					int32 NumOffsets = 0;
+					if (Dimension == 0)
+					{
+						OffsetBasis[0] = FVector3d(1, 0, 0);
+						OffsetBasis[1] = FVector3d(0, 1, 0);
+						OffsetBasis[2] = FVector3d(0, 0, 1);
+						NumOffsets = 3;
+					}
+					else if (Dimension == 1)
+					{
+						FLine3d Line = HullCompute.GetLine();
+						VectorUtil::MakePerpVectors(Line.Direction, OffsetBasis[0], OffsetBasis[1]);
+						NumOffsets = 2;
+					}
+					else if (Dimension == 2)
+					{
+						FPlane3d HullPlane = HullCompute.GetPlane();
+						OffsetBasis[0] = HullPlane.Normal;
+						FallbackOffset = HullPlane.Normal;
+						NumOffsets = 1;
+					}
 					const double OffsetFactor = ThickenHullAfterFailure;
 					for (int32 VID = 0; VID < OrigMaxID; ++VID)
 					{
 						if (Convex.InternalGeo.IsVertex(VID) && ForHull[Side][VID])
 						{
-							FVector3d Normal = Normals[VID];
-							if (Normal == FVector::ZeroVector)
+							
+							if (bUseNormalsForOffset)
 							{
-								Normal = FVector::OneVector * FMathd::InvSqrt3; // for degenerate normals, arbitrarily pick a diagonal offset direction
+								FVector3d Offset = Normals[VID];
+								if (Offset == FVector::ZeroVector)
+								{
+									Offset = FallbackOffset;
+								}
+								OffsetVertices[Side].Add(Convex.InternalGeo.GetVertex(VID) - Offset * OffsetFactor);
 							}
-							OffsetVertices[Side].Add(Convex.InternalGeo.GetVertex(VID) - Normals[VID] * OffsetFactor);
+							else
+							{
+								for (int32 OffsetIdx = 0; OffsetIdx < NumOffsets; ++OffsetIdx)
+								{
+									OffsetVertices[Side].Add(Convex.InternalGeo.GetVertex(VID) - OffsetBasis[OffsetIdx] * OffsetFactor);
+								}
+							}
+							
 						}
 					}
 					bOK = HullCompute.Solve(Convex.InternalGeo.MaxVertexID() + CutVertices.Num() + OffsetVertices[Side].Num(),
@@ -1513,8 +1556,14 @@ void FConvexDecomposition3::FConvexPart::Compact()
 
 void FConvexDecomposition3::InitializeFromMesh(const FDynamicMesh3& SourceMesh, bool bMergeEdges)
 {
+	FPreprocessMeshOptions Options;
+	Options.bMergeEdges = bMergeEdges;
+	InitializeFromMesh(SourceMesh, Options);
+}
+void FConvexDecomposition3::InitializeFromMesh(const FDynamicMesh3& SourceMesh, const FPreprocessMeshOptions& Options)
+{
 	Decomposition.Empty();
-	FConvexPart* Convex = new FConvexPart(SourceMesh, bMergeEdges, ResultTransform);
+	FConvexPart* Convex = new FConvexPart(SourceMesh, Options, ResultTransform);
 	if (Convex->IsFailed())
 	{
 		delete Convex;
@@ -1528,7 +1577,17 @@ FConvexDecomposition3::FConvexPart::FConvexPart(const FDynamicMesh3& SourceMesh,
 	// Copy out the source mesh
 	InternalGeo.Copy(SourceMesh, false, false, false, false);
 
-	InitializeFromInternalGeo(bMergeEdges, TransformOut);
+	FConvexDecomposition3::FPreprocessMeshOptions Options;
+	Options.bMergeEdges = bMergeEdges;
+	InitializeFromInternalGeo(Options, TransformOut);
+}
+
+FConvexDecomposition3::FConvexPart::FConvexPart(const FDynamicMesh3& SourceMesh, const FConvexDecomposition3::FPreprocessMeshOptions& Options, FTransformSRT3d& TransformOut)
+{
+	// Copy out the source mesh
+	InternalGeo.Copy(SourceMesh, false, false, false, false);
+
+	InitializeFromInternalGeo(Options, TransformOut);
 }
 
 FConvexDecomposition3::FConvexPart::FConvexPart(TArrayView<const FVector3f> Vertices, TArrayView<const FIntVector3> Faces, bool bMergeEdges, FTransformSRT3d& TransformOut, int32 FaceVertexOffset)
@@ -1542,28 +1601,44 @@ FConvexDecomposition3::FConvexPart::FConvexPart(TArrayView<const FVector3f> Vert
 		InternalGeo.AppendTriangle(FIndex3i(F.X + FaceVertexOffset, F.Y + FaceVertexOffset, F.Z + FaceVertexOffset));
 	}
 
-	InitializeFromInternalGeo(bMergeEdges, TransformOut);
+	FConvexDecomposition3::FPreprocessMeshOptions Options;
+	Options.bMergeEdges = bMergeEdges;
+	InitializeFromInternalGeo(Options, TransformOut);
 }
 
-void FConvexDecomposition3::FConvexPart::InitializeFromInternalGeo(bool bMergeEdges, FTransformSRT3d& TransformOut)
+void FConvexDecomposition3::FConvexPart::InitializeFromInternalGeo(const FConvexDecomposition3::FPreprocessMeshOptions& Preprocess, FTransformSRT3d& TransformOut)
 {
-	// Transform the mesh to a standard unit-cube-at-origin space, so threshold have a consistent meaning
 	FAxisAlignedBox3d InitialBounds = InternalGeo.GetBounds();
 	double InvScaleFactor = FMath::Clamp(InitialBounds.MaxDim(), KINDA_SMALL_NUMBER, 1e8);
 	double ScaleFactor = 1.0 / InvScaleFactor;
+
+	// Weld close edges so we can sample convex edges
+	if (Preprocess.bMergeEdges)
+	{
+		FMergeCoincidentMeshEdges MergeEdges(&InternalGeo);
+		// scale the tolerance by the bounds size, for consistency across input scales
+		MergeEdges.MergeVertexTolerance = FMath::Max(MergeEdges.MergeVertexTolerance * ScaleFactor, FMathd::Epsilon);
+		MergeEdges.Apply();
+	}
+
+	// Apply any custom preprocessing (e.g., simplification, mesh repair, etc)
+	if (Preprocess.CustomPreprocess)
+	{
+		Preprocess.CustomPreprocess(InternalGeo, InitialBounds);
+		
+		// Re-compute bounds and scale factors, as the preprocess might have changed them
+		InitialBounds = InternalGeo.GetBounds();
+		InvScaleFactor = FMath::Clamp(InitialBounds.MaxDim(), KINDA_SMALL_NUMBER, 1e8);
+		ScaleFactor = 1.0 / InvScaleFactor;
+	}
+
+	// Transform the mesh to a standard unit-cube-at-origin space, so thresholds have a consistent meaning
 	FTransformSRT3d MeshTransform(-ScaleFactor * InitialBounds.Center());
 	MeshTransform.SetScale(ScaleFactor * MeshTransform.GetScale());
 	MeshTransforms::ApplyTransform(InternalGeo, MeshTransform);
 	// Return the inverse transform by reference, so we can put the results back into the original space
 	TransformOut = FTransformSRT3d(InitialBounds.Center());
 	TransformOut.SetScale(FVector3d(InvScaleFactor, InvScaleFactor, InvScaleFactor));
-	
-	// Weld close edges so we can sample convex edges
-	if (bMergeEdges)
-	{
-		FMergeCoincidentMeshEdges MergeEdges(&InternalGeo);
-		MergeEdges.Apply();
-	}
 
 	// Compute hull and standard measurements (volume, center, bounds, etc)
 	ComputeHull();
@@ -1755,6 +1830,7 @@ bool FConvexDecomposition3::SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, 
 	}
 
 	double MinSplitSize = MinSplitSizeInWorldSpace <= 0 ? MinSplitSizeInWorldSpace : ConvertDistanceToleranceToLocalSpace(MinSplitSizeInWorldSpace);
+	double ThickenAfterHullFailureLocalSpace = ConvertDistanceToleranceToLocalSpace(ThickenAfterHullFailure);
 
 	double VolumeTolerance = ConvertDistanceToleranceToLocalVolumeTolerance(ErrorTolerance);
 
@@ -1786,7 +1862,7 @@ bool FConvexDecomposition3::SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, 
 	// stop early if there are no negative-space overlaps, and we're only splitting in those cases
 	if (!bHasOverlapsNegative && bOnlySplitIfNegativeSpaceCovered)
 	{
-		return 0;
+		return true;
 	}
 	for (int32 PartIdx = 0; PartIdx < Decomposition.Num(); PartIdx++)
 	{
@@ -1996,11 +2072,13 @@ bool FConvexDecomposition3::SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, 
 	double LowestError = FMathd::MaxReal;
 	int32 BestPlaneIdx = -1;
 	FPartialCutResult BestCutResult;
+	// use solid cuts only if the setting is enabled and we haven't found problems w/ this geometry in previous cuts
+	const bool bCutAsSolid = bTreatAsSolid && !Part.bGeometryVolumeUnreliable;
 
 	for (int32 PlaneIdx = 0; PlaneIdx < CandidatePlanes.Num(); PlaneIdx++)
 	{
 		const FPlane3d& Plane = CandidatePlanes[PlaneIdx];
-		FPartialCutResult PlaneResult(Part, Plane, OnPlaneTolerance, bTreatAsSolid, ThickenAfterHullFailure);
+		FPartialCutResult PlaneResult(Part, Plane, OnPlaneTolerance, bCutAsSolid, ThickenAfterHullFailureLocalSpace);
 		if (!PlaneResult.bSuccess)
 		{
 			continue;
@@ -2026,7 +2104,7 @@ bool FConvexDecomposition3::SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, 
 
 	int32 NewPartsStartIdx = Decomposition.Num();
 	int32 OtherSideStartIdx = -1;
-	BestCutResult.ApplyToGeo(Decomposition, WorstIdx, CandidatePlanes[BestPlaneIdx], OtherSideStartIdx, OnPlaneTolerance, ConnectedComponentTolerance, NegativeSpace, bTreatAsSolid, bSplitDisconnectedComponents);
+	BestCutResult.ApplyToGeo(Decomposition, WorstIdx, CandidatePlanes[BestPlaneIdx], OtherSideStartIdx, OnPlaneTolerance, ConnectedComponentTolerance, NegativeSpace, bCutAsSolid, bSplitDisconnectedComponents);
 
 	UpdateProximitiesAfterSplit(WorstIdx, NewPartsStartIdx, CandidatePlanes[BestPlaneIdx], OtherSideStartIdx, OrigHullVolume);
 
@@ -2272,6 +2350,7 @@ int32 FConvexDecomposition3::MergeBest(const FMergeSettings& Settings)
 	// Support having a max error tolerance
 	double VolumeTolerance = ConvertDistanceToleranceToLocalVolumeTolerance(MaxErrorTolerance);
 	double MinThicknessTolerance = ConvertDistanceToleranceToLocalSpace(MinThicknessToleranceWorldSpace);
+	double ThickenAfterHullFailureLocalSpace = ConvertDistanceToleranceToLocalSpace(ThickenAfterHullFailure);
 
 	int32 MergeNum = 0;
 
@@ -2379,7 +2458,7 @@ int32 FConvexDecomposition3::MergeBest(const FMergeSettings& Settings)
 						{
 							continue;
 						}
-						FPartialCutResult PlaneResult(PartToSplit, Plane, OnPlaneTolerance, bTreatAsSolid, ThickenAfterHullFailure);
+						FPartialCutResult PlaneResult(PartToSplit, Plane, OnPlaneTolerance, bTreatAsSolid, ThickenAfterHullFailureLocalSpace);
 						if (!PlaneResult.bSuccess)
 						{
 							continue;
@@ -2658,7 +2737,7 @@ int32 FConvexDecomposition3::MergeBest(const FMergeSettings& Settings)
 
 				// Swap-Remove the proximity links
 				int32 LastProxIdx = Proximities.Num() - 1;
-				Proximities.RemoveAtSwap(ProxIdx, 1, EAllowShrinking::No);
+				Proximities.RemoveAtSwap(ProxIdx, EAllowShrinking::No);
 
 				// Update the proximity that was swapped back to this position (if any)
 				if (ProxIdx < LastProxIdx)
@@ -2716,7 +2795,7 @@ int32 FConvexDecomposition3::MergeBest(const FMergeSettings& Settings)
 				}
 			}(LastIdx, DecoToRm);
 		}
-		Decomposition.RemoveAtSwap(DecoToRm, 1, EAllowShrinking::No);
+		Decomposition.RemoveAtSwap(DecoToRm, EAllowShrinking::No);
 
 		// Add new proximities for all new links to the merged part
 		for (int32 ToLink : NewLinks)
@@ -2761,7 +2840,7 @@ void FConvexDecomposition3::DeleteProximity(TArray<int32>&& ToRemoveProx, bool b
 
 		if (ProxIdx == Proximities.Num() - 1)
 		{
-			Proximities.RemoveAt(ProxIdx, 1, EAllowShrinking::No);
+			Proximities.RemoveAt(ProxIdx, EAllowShrinking::No);
 			return;
 		}
 		else
@@ -2769,7 +2848,7 @@ void FConvexDecomposition3::DeleteProximity(TArray<int32>&& ToRemoveProx, bool b
 			// Remove by swapping the last element to the new slot, and removing the last element
 			// Then update links for that swapped-in proximity
 			int32 LastProxIdx = Proximities.Num() - 1;
-			Proximities.RemoveAtSwap(ProxIdx, 1, EAllowShrinking::No);
+			Proximities.RemoveAtSwap(ProxIdx, EAllowShrinking::No);
 			const FProximity& NewProx = Proximities[ProxIdx];
 			DecompositionToProximity.RemoveSingle(NewProx.Link.A, LastProxIdx);
 			DecompositionToProximity.RemoveSingle(NewProx.Link.B, LastProxIdx);

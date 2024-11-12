@@ -139,9 +139,9 @@ FRigVMOperand FRigVMCompilerWorkData::AddProperty(
 	return FRigVMOperand(InMemoryType, PropertyIndex);
 }
 
-FRigVMOperand FRigVMCompilerWorkData::FindProperty(ERigVMMemoryType InMemoryType, const FName& InName)
+FRigVMOperand FRigVMCompilerWorkData::FindProperty(ERigVMMemoryType InMemoryType, const FName& InName) const
 {
-	TArray<FRigVMPropertyDescription>* PropertyArray = PropertyDescriptions.Find(InMemoryType);
+	const TArray<FRigVMPropertyDescription>* PropertyArray = PropertyDescriptions.Find(InMemoryType);
 	if(PropertyArray)
 	{
 		for(int32 Index=0;Index<PropertyArray->Num();Index++)
@@ -277,6 +277,18 @@ TRigVMTypeIndex FRigVMCompilerWorkData::GetTypeIndexForOperand(const FRigVMOpera
 	RigVMPropertyUtils::GetTypeFromProperty(Property, CPPTypeName, CPPTypeObject);
 
 	return FRigVMRegistry::Get().GetTypeIndex(CPPTypeName, CPPTypeObject);
+}
+
+FName FRigVMCompilerWorkData::GetUniquePropertyName(ERigVMMemoryType InMemoryType, const FName& InDesiredName) const
+{
+	const FString Prefix = InDesiredName.ToString(); 
+	FString Name =  Prefix;
+	int32 Suffix = 1;
+	while(FindProperty(ERigVMMemoryType::Literal, *Name).IsValid())
+	{
+		Name = FString::Printf(TEXT("%s_%d"), *Prefix, Suffix++);
+	}
+	return *Name;
 }
 
 void FRigVMCompilerWorkData::ReportInfo(const FString& InMessage) const
@@ -518,7 +530,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 							bool bSuccessfullCompilation = false;
 							if (!CompilationData->IsValid() || CompilationData->RequiresRecompilation())
 							{
-								if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData->Header.LibraryPointer.LibraryNode.TryLoad()))
+								if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData->Header.LibraryPointer.GetNodeSoftPath().TryLoad()))
 								{
 									IRigVMClientHost* ClientHost = LibraryNode->GetImplementingOuter<IRigVMClientHost>();
 									URigVMController* FunctionController = ClientHost->GetRigVMClient()->GetOrCreateController(LibraryNode->GetLibrary());
@@ -599,7 +611,16 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 			}
 			if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Nodes[i]))
 			{
-				Nodes.Append(CollapseNode->GetContainedGraph()->GetNodes());
+				if (CollapseNode->GetContainedGraph())
+				{
+					Nodes.Append(CollapseNode->GetContainedGraph()->GetNodes());
+				}
+				else
+				{
+					static const FString FunctionCompilationErrorMessage = TEXT("Could not find contained graph for collapse node @@.");
+					Settings.ASTSettings.Report(EMessageSeverity::Error, CollapseNode, FunctionCompilationErrorMessage);
+					bEncounteredGraphError = true;
+				}
 			}
 		}
 	}
@@ -731,7 +752,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 				}
 			}
 
-			if(ModelNode->IsA<URigVMFunctionEntryNode>() || ModelNode->IsA<URigVMFunctionReturnNode>())
+			if(ModelNode->IsA<URigVMFunctionInterfaceNode>())
 			{
 				for(URigVMPin* ExecutePin : ModelNode->Pins)
 				{
@@ -845,7 +866,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 					{
 						for (TFieldIterator<FProperty> It(ScriptStruct, EFieldIterationFlags::None); It; ++It)
 						{
-							const FRigVMTemplateArgument ExpectedArgument(*It);
+							const FRigVMTemplateArgument ExpectedArgument = FRigVMTemplateArgument::Make(*It);
 							const TRigVMTypeIndex ExpectedTypeIndex = ExpectedArgument.GetSupportedTypeIndices()[0];
 							if (URigVMPin* Pin = UnitNode->FindPin(ExpectedArgument.Name.ToString()))
 							{
@@ -1544,7 +1565,7 @@ bool URigVMCompiler::CompileFunction(const FRigVMCompileSettings& InSettings, co
 	URigVM* TempVM = NewObject<URigVM>(InLibraryNode->GetContainedGraph(), TEXT("CompilerTemp_VM"));
 	const bool bSuccess = Compile(InSettings, {InLibraryNode->GetContainedGraph()}, LibraryController, TempVM, OutVMContext, ExternalVariables, &Operands, nullptr, OutFunctionCompilationData);
 	TempVM->ClearMemory(OutVMContext);
-	TempVM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+	TempVM->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 	TempVM->MarkAsGarbage();
 
 	CompileTimer.Stop();
@@ -1602,7 +1623,7 @@ bool URigVMCompiler::TraverseExpression(const FRigVMExprAST* InExpr, FRigVMCompi
 			{
 				if(!BlockInfo->ExecuteStateOperand.IsValid())
 				{
-					static constexpr TCHAR Format[] = TEXT("BlockExecuteState_%zu");
+					static constexpr TCHAR Format[] = TEXT("BlockExecuteState_%u");
 					const FString BlockStateName = FString::Printf(Format, NextBlockHash.GetValue());
 					BlockInfo->ExecuteStateOperand = WorkData.AddProperty(
 						ERigVMMemoryType::Work,
@@ -2068,6 +2089,59 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 		{
 			return false;
 		}
+
+		if(WorkData.Settings.ASTSettings.bSetupTraits)
+		{
+			const TArray<URigVMPin*> TraitPins = Node->GetTraitPins(); 
+			if(!TraitPins.IsEmpty())
+			{
+				// also take care of the empty trait list
+				if(!WorkData.TraitListLiterals.Contains(nullptr))
+				{
+					const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("EmptyTraitList"));
+					const FRigVMOperand& ListOperand = WorkData.AddProperty(ERigVMMemoryType::Literal, Name, RigVMTypeUtils::ArrayTypeFromBaseType(RigVMTypeUtils::Int32Type), nullptr, TEXT("()"));
+					WorkData.TraitListLiterals.Add(nullptr, ListOperand);
+				}
+
+				if(!WorkData.TraitListLiterals.Contains(Node))
+				{
+					TArray<FString> DefaultValues;
+					for(const URigVMPin* TraitPin : TraitPins)
+					{
+						auto AddPinRegister = [this, &DefaultValues, &WorkData](const FRigVMVarExprAST* InPinExpr)
+						{
+							const FRigVMOperand TraitOperand = FindOrAddRegister(InPinExpr, WorkData);
+							check(TraitOperand.GetMemoryType() == ERigVMMemoryType::Work);
+							DefaultValues.Add(FString::FromInt(TraitOperand.GetRegisterIndex()));
+						};
+
+						if(const FRigVMVarExprAST* TraitPinExpr = InExpr->FindVarWithPinName(TraitPin->GetFName()))
+						{
+							// Add programmatic pin expressions first. This is done to allow memory handles to be built at runtime and passed to their
+							// respective 'owning' traits
+							const TArray<URigVMPin*> ProgrammaticPins = TraitPin->GetProgrammaticSubPins(); 
+							for(URigVMPin* ProgrammaticPin : ProgrammaticPins)
+							{
+								if(const FRigVMVarExprAST* ProgrammaticPinExpr = InExpr->FindVarWithPinName(*ProgrammaticPin->GetPinPath()))
+								{
+									AddPinRegister(ProgrammaticPinExpr);
+								}
+							}
+
+							AddPinRegister(TraitPinExpr);
+						}
+					}
+
+					if(!DefaultValues.IsEmpty())
+					{
+						const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("TraitList"));
+						const FString DefaultValue = FString::Printf(TEXT("(%s)"), *FString::Join(DefaultValues, TEXT(",")));
+						const FRigVMOperand& ListOperand = WorkData.AddProperty(ERigVMMemoryType::Literal, Name, RigVMTypeUtils::ArrayTypeFromBaseType(RigVMTypeUtils::Int32Type), nullptr, DefaultValue);
+						WorkData.TraitListLiterals.Add(Node, ListOperand);
+					}
+				}
+			}
+		}
 	}
 	else
 	{
@@ -2256,6 +2330,18 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 			return false;
 		}
 
+		// setup the trait list for the context
+		bool bSetupTraits = false;
+		if(const FRigVMOperand* TraitListOperand = WorkData.TraitListLiterals.Find(Node))
+		{
+			if (WorkData.Settings.SetupNodeInstructionIndex)
+			{
+				WorkData.VM->GetByteCode().SetSubject(WorkData.VM->GetByteCode().GetNumInstructions(), Callstack.GetCallPath(), Callstack.GetStack());
+			}
+			WorkData.VM->GetByteCode().AddSetupTraitsOp(*TraitListOperand);
+			bSetupTraits = true;
+		}
+
 		// setup the instruction
 		const int32 FunctionIndex = WorkData.VM->AddRigVMFunction(Function->GetName());
 		check(FunctionIndex != INDEX_NONE);
@@ -2411,6 +2497,19 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 				WorkData.VM->GetByteCode().BranchInfos[BranchIndex].LastInstruction = WorkData.VM->GetByteCode().GetNumInstructions() - 1;
 			}
 		}
+
+		if(bSetupTraits)
+		{
+			// passing nullptr retrieves the empty trait list
+			if(const FRigVMOperand* EmptyTraitListOperand = WorkData.TraitListLiterals.Find(nullptr))
+			{
+				if (WorkData.Settings.SetupNodeInstructionIndex)
+				{
+					WorkData.VM->GetByteCode().SetSubject(WorkData.VM->GetByteCode().GetNumInstructions(), Callstack.GetCallPath(), Callstack.GetStack());
+				}
+				WorkData.VM->GetByteCode().AddSetupTraitsOp(*EmptyTraitListOperand);
+			}
+		}
 	}
 
 	return true;
@@ -2438,13 +2537,31 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 	const FRigVMByteCode& FunctionByteCode = FunctionCompilationData->ByteCode;
 
 	// Bytecode to be inlined should never be aligned
-	checkf(!FunctionByteCode.bByteCodeIsAligned, TEXT("Trying to inline aligned function bytecode %s in package %s"), *FunctionReferenceNode->GetFunctionIdentifier().LibraryNode.ToString(), *GetPackage()->GetPathName());
+	checkf(!FunctionByteCode.bByteCodeIsAligned, TEXT("Trying to inline aligned function bytecode %s in package %s"), *FunctionReferenceNode->GetFunctionIdentifier().GetLibraryNodePath(), *GetPackage()->GetPathName());
 	
 	if (WorkData.bSetupMemory)
 	{
 		if (!TraverseChildren(InExpr, WorkData))
 		{
 			return false;
+		}
+
+		// create a map of all of the trait setup lists (indices to trait properties)
+		TMap<int32, FRigVMOperand> LiteralValueToSetupTraitArg;
+		const FRigVMInstructionArray FunctionInstructions = FunctionByteCode.GetInstructions();
+		for(const FRigVMInstruction& Instruction : FunctionInstructions)
+		{
+			if(Instruction.OpCode == ERigVMOpCode::SetupTraits)
+			{
+				const FRigVMSetupTraitsOp& Op = FunctionByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instruction);
+				check(Op.Arg.GetMemoryType() == ERigVMMemoryType::Literal);
+				check(FunctionCompilationData->LiteralPropertyDescriptions.IsValidIndex(Op.Arg.GetRegisterIndex()));
+				const FString& DefaultValue = FunctionCompilationData->LiteralPropertyDescriptions[Op.Arg.GetRegisterIndex()].DefaultValue;
+				if(!DefaultValue.IsEmpty() && DefaultValue != TEXT("()"))
+				{
+					LiteralValueToSetupTraitArg.Add(Op.Arg.GetRegisterIndex(), FRigVMOperand());
+				}
+			}
 		}
 
 		// Add internal operands (not the ones represented by interface pins)
@@ -2454,22 +2571,22 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 			TArray<FRigVMFunctionCompilationPropertyDescription> Properties;
 			switch (MemoryType)
 			{
-				case ERigVMMemoryType::Work:
+			case ERigVMMemoryType::Work:
 				{
 					Properties = FunctionCompilationData->WorkPropertyDescriptions;
 					break;
 				}
-				case ERigVMMemoryType::Literal:
+			case ERigVMMemoryType::Literal:
 				{
 					Properties = FunctionCompilationData->LiteralPropertyDescriptions;
 					break;
 				}
-				case ERigVMMemoryType::External:
+			case ERigVMMemoryType::External:
 				{
 					Properties = FunctionCompilationData->ExternalPropertyDescriptions;
 					break;
 				}
-				case ERigVMMemoryType::Debug:
+			case ERigVMMemoryType::Debug:
 				{
 					Properties = FunctionCompilationData->DebugPropertyDescriptions;
 					break;
@@ -2505,11 +2622,12 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				}
 			}
 
-			auto FindOrAddProperty = [&WorkData, MemoryType] (const FRigVMFunctionCompilationPropertyDescription& InProperty, const FString& InNewName, const bool bIsExecuteState) -> FRigVMOperand
+			auto FindOrAddProperty = [&WorkData, MemoryType, LiteralValueToSetupTraitArg]
+			(const FRigVMFunctionCompilationPropertyDescription& InProperty, const FString& InNewName, const bool bIsExecuteState) -> FRigVMOperand
 			{
 				// Sharing / reusing memory / operands happens as per following contract:
 				// 1. properties are only shared if their CPP type matches
-				// 2. Literal / constant memory is only shared if the constant values match
+				// 2. Literal / constant memory is only shared if the constant values match (and it is not a trait list)
 				// 3. Work state is only shared if it is not internal work state private to the instruction referring to it
 				// 4. Work state of type FRigVMInstructionSetExecuteState (bIsExecuteState) is never shared either since it is work state private to a lazy branch.
 
@@ -2527,7 +2645,9 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 					{
 						if(MemoryType == ERigVMMemoryType::Literal)
 						{
-							if(ExistingProperty.DefaultValue.Equals(InProperty.DefaultValue))
+							// if the value is the same and this is not a trait setup list
+							if(ExistingProperty.DefaultValue.Equals(InProperty.DefaultValue) &&
+								!LiteralValueToSetupTraitArg.Contains(Operand.GetRegisterIndex()))
 							{
 								return Operand;
 							}
@@ -2566,10 +2686,13 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				FString NewName = Description.Name.ToString();
 				static const FString FunctionLibraryPrefix = TEXT("FunctionLibrary");
 
+				const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Description.CPPTypeObject.Get());
+
 				// instantiate function library specific work state as well as
 				// instruction set execute state - which is used for lazy blocks.
 				const bool bIsExecuteState = Description.CPPType.Equals(RigVMInstructionSetExecuteStateName);
-				if (NewName.StartsWith(FunctionLibraryPrefix) || bIsExecuteState)
+				const bool bIsTrait = ScriptStruct && ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct());
+				if (NewName.StartsWith(FunctionLibraryPrefix) || bIsExecuteState || bIsTrait)
 				{
 					NewName = FString::Printf(TEXT("%s%s"), *FunctionReferenceNode->GetNodePath(), *NewName.RightChop(FunctionLibraryPrefix.Len()));
 					FRigVMPropertyDescription::SanitizeName(NewName);
@@ -2578,6 +2701,49 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				const FRigVMOperand Operand = FindOrAddProperty(Description, NewName, bIsExecuteState);
 				FRigVMCompilerWorkData::FFunctionRegisterData Data = {FunctionReferenceNode, MemoryType, PropertyIndex};
 				WorkData.FunctionRegisterToOperand.Add(Data, Operand);
+
+				if(MemoryType == ERigVMMemoryType::Literal && LiteralValueToSetupTraitArg.Contains(PropertyIndex))
+				{
+					LiteralValueToSetupTraitArg.FindChecked(PropertyIndex) = Operand;
+				}
+			}
+		}
+		// For trait setup lists we need to update the integer values (pointing to trait property indices)
+		for(const TPair<int32, FRigVMOperand>& Pair : LiteralValueToSetupTraitArg)
+		{
+			const FRigVMOperand TraitIndicesOperand = Pair.Value;
+			const int32 LiteralPropertyIndex = TraitIndicesOperand.GetRegisterIndex();
+			FString OriginalTraitIndicesString = WorkData.PropertyDescriptions[ERigVMMemoryType::Literal][LiteralPropertyIndex].DefaultValue;
+			if(!OriginalTraitIndicesString.IsEmpty() && OriginalTraitIndicesString != TEXT("()"))
+			{
+				OriginalTraitIndicesString = OriginalTraitIndicesString.TrimChar(TEXT('('));
+				OriginalTraitIndicesString = OriginalTraitIndicesString.TrimChar(TEXT(')'));
+				FString PinPathRemaining = OriginalTraitIndicesString;
+				FString Left, Right;
+				TArray<FString> IndexStrings;
+				while(PinPathRemaining.Split(TEXT(","), &Left, &Right))
+				{
+					IndexStrings.Add(Left.TrimStartAndEnd());
+					Left.Empty();
+					PinPathRemaining = Right;
+				}
+				if (!Right.IsEmpty())
+				{
+					IndexStrings.Add(Right.TrimStartAndEnd());
+				}
+
+				for(int32 PartIndex = 0; PartIndex < IndexStrings.Num(); PartIndex++)
+				{
+					const int32 OriginalIndex = FCString::Atoi(*IndexStrings[PartIndex]);
+					FRigVMCompilerWorkData::FFunctionRegisterData Data = {FunctionReferenceNode, ERigVMMemoryType::Work, OriginalIndex};
+					const FRigVMOperand& NewOperand = WorkData.FunctionRegisterToOperand.FindChecked(Data);
+					check(NewOperand.GetMemoryType() == ERigVMMemoryType::Work);
+					IndexStrings[PartIndex] = FString::FromInt(NewOperand.GetRegisterIndex());
+				}
+
+				IndexStrings.Remove(FString());
+				WorkData.PropertyDescriptions[ERigVMMemoryType::Literal][LiteralPropertyIndex].DefaultValue =
+					FString::Printf(TEXT("(%s)"), *FString::Join(IndexStrings, TEXT(",")));
 			}
 		}
 	}
@@ -2963,6 +3129,11 @@ bool URigVMCompiler::TraverseAssign(const FRigVMAssignExprAST* InExpr, FRigVMCom
 					
 					URigVMPin* RootPin = Pin->GetRootPin();
 					if (Pin == RootPin && !bHasTargetSegmentPath)
+					{
+						return;
+					}
+
+					if(Pin->IsProgrammaticPin())
 					{
 						return;
 					}
@@ -3401,7 +3572,7 @@ FString URigVMCompiler::GetPinHashImpl(const URigVMPin* InPin, const FRigVMVarEx
 					bUseFullNodePath = false;
 				}
 			}
-			else if(Node->IsA<URigVMFunctionEntryNode>() || Node->IsA<URigVMFunctionReturnNode>())
+			else if(Node->IsA<URigVMFunctionInterfaceNode>())
 			{
 				const FString FullPath = InPinProxy.GetCallstack().GetCallPath(true);
 				return FString::Printf(TEXT("%s%s%s"), *Prefix, *FullPath, *Suffix);
@@ -4018,6 +4189,11 @@ const FRigVMCompilerWorkData::FRigVMASTProxyArray& URigVMCompiler::FindProxiesWi
 				{
 					continue;
 				}
+
+				if(Pin->IsProgrammaticPin())
+				{
+					continue;
+				}
 			}
 			PinProxies.Add(PinProxiesToProcess[ProxyIndex]);
 		}
@@ -4068,7 +4244,9 @@ const FRigVMCompilerWorkData::FRigVMASTProxyArray& URigVMCompiler::FindProxiesWi
 
 FString URigVMCompiler::GetPinNameWithDirectionPrefix(const URigVMPin* Pin)
 {
-	const FString & Prefix = (Pin->GetDirection() == ERigVMPinDirection::Input) ? FRigVMGraphFunctionData::EntryString : (Pin->GetDirection() == ERigVMPinDirection::Output) ? FRigVMGraphFunctionData::ReturnString : "";
+	static const FString EntryString = FRigVMGraphFunctionData::EntryString;
+	static const FString ReturnString = FRigVMGraphFunctionData::ReturnString;
+	const FString & Prefix = (Pin->GetDirection() == ERigVMPinDirection::Input) ? EntryString : (Pin->GetDirection() == ERigVMPinDirection::Output) ? ReturnString : "";
 	const FString NameWithDirectionPrefix = Prefix + "_" + FRigVMPropertyDescription::SanitizeName(FName(Pin->GetName())).ToString();
 	return NameWithDirectionPrefix;
 }

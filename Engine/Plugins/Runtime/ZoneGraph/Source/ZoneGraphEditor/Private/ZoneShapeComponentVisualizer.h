@@ -195,9 +195,9 @@ protected:
 
 	struct ZoneShapeConnectorRenderInfo
 	{
-		ZoneShapeConnectorRenderInfo(FVector InPosition, FVector InNormal, FVector InUp)
+		ZoneShapeConnectorRenderInfo(FVector InPosition, FVector InFoward, FVector InUp)
 			: Position(InPosition)
-			, Normal(InNormal)
+			, Foward(InFoward)
 			, Up(InUp)
 		{
 
@@ -206,8 +206,8 @@ protected:
 		// Position of the connector.
 		FVector Position = FVector::ZeroVector;
 
-		// Normal direction of the connector.
-		FVector Normal = FVector::ForwardVector;
+		// Foward direction of the connector.
+		FVector Foward = FVector::ForwardVector;
 
 		// Up direction of the connector.
 		FVector Up = FVector::UpVector;
@@ -232,7 +232,7 @@ protected:
 	bool DuplicatePointForAltDrag(const FVector& InDrag) const;
 
 	/** Split segment using given interpolation value, selects the new point */
-	void SplitSegment(const int32 InSegmentIndex, const float SegmentSplitT) const;
+	void SplitSegment(const int32 InSegmentIndex, const float SegmentSplitT, UZoneShapeComponent* ShapeComp = nullptr) const;
 
 	/** Duplicates selected points and selects them. */
 	void DuplicateSelectedPoints(const FVector& WorldOffset = FVector::ZeroVector, bool bInsertAfter = true) const;
@@ -310,15 +310,45 @@ protected:
 
 	bool bIsSelectingComponent = false;
 
-	bool bIsAutoConnecting = false;
+	/** The point used to calculate the auto connect and intersection states. */
 	int32 SelectedPointForConnecting = -1;
-	TArray<ZoneShapeConnectorRenderInfo> DestShapeConnectorInfos;
-	int32 ClosestShapeConnectorInfoIndex = INDEX_NONE;
-	FVector NearestPointWorldPosition;
-	FVector NearestPointWorldNormal;
+
+	bool bIsAutoConnecting = false;
+	struct FAutoConnectState
+	{
+		TArray<ZoneShapeConnectorRenderInfo> DestShapeConnectorInfos;
+		int32 ClosestShapeConnectorInfoIndex = INDEX_NONE;
+		FVector NearestPointWorldPosition = FVector::ZeroVector;
+		FVector NearestPointWorldNormal = FVector::ZeroVector;
+	};
+	FAutoConnectState AutoConnectState;
+
+	bool bIsCreatingIntersection = false;
+	struct FCreateIntersectionState
+	{
+		TWeakObjectPtr<UZoneShapeComponent> WeakTargetShapeComponent;
+		int32 OverlappingSegmentIndex = INDEX_NONE;
+		float OverlappingSegmentT = -1.0f;
+		int32 ClosePointIndex = INDEX_NONE;
+		FVector PreviewLocation = FVector::ZeroVector;
+	};
+	FCreateIntersectionState CreateIntersectionState;
 
 private:
 
-	void BreakAtPoint(bool bCreateNewActor) const;
+	TArray<UZoneShapeComponent*>  BreakAtPoint(bool bCreateNewActor, UZoneShapeComponent* ShapeComp = nullptr) const;
 	void BreakAtSegment(bool bCreateNewActor) const;
+
+	void DetectCloseByShapeForAutoConnection(const UZoneShapeComponent* ShapeComp, const FZoneShapePoint& DraggedPoint);
+	void DetectCloseByShapeForAutoIntersectionCreation(const UZoneShapeComponent* ShapeComp, const FZoneShapePoint& DraggedPoint);
+
+	void CreateIntersection(UZoneShapeComponent* ShapeComp);
+	void CreateIntersectionForSplineShape(UZoneShapeComponent* ShapeComp, FZoneShapePoint& DraggedPoint, bool DestroyCoveredShape = true);
+	void CreateIntersectionForPolygonShape(UZoneShapeComponent* ShapeComp, FZoneShapePoint& DraggedPoint);
+
+	void ClearAutoConnectingStatus();
+	void ClearAutoIntersectionStatus();
+
+	bool CanAutoConnect(const UZoneShapeComponent* ShapeComp) const;
+	bool CanAutoCreateIntersection(const UZoneShapeComponent* ShapeComp) const;
 };

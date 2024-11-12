@@ -3,6 +3,35 @@
 #include "CookPackageSplitter.h"
 
 #if WITH_EDITOR
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
+#include "Misc/PathViews.h"
+
+const TCHAR* ICookPackageSplitter::GetGeneratedPackageSubPath()
+{
+	return FPackageName::GetGeneratedPackageSubPath();
+}
+
+bool ICookPackageSplitter::IsUnderGeneratedPackageSubPath(FStringView FileOrLongPackagePath)
+{
+	return FPackageName::IsUnderGeneratedPackageSubPath(FileOrLongPackagePath);
+}
+
+FString ICookPackageSplitter::ConstructGeneratedPackageName(FName OwnerPackageName, FStringView RelPath,
+	FStringView GeneratedRootOverride)
+{
+	FString PackageRoot;
+	if (GeneratedRootOverride.IsEmpty())
+	{
+		PackageRoot = OwnerPackageName.ToString();
+	}
+	else
+	{
+		PackageRoot = GeneratedRootOverride;
+	}
+	return FPaths::RemoveDuplicateSlashes(FString::Printf(TEXT("/%s/%s/%.*s"),
+		*PackageRoot, GetGeneratedPackageSubPath(), RelPath.Len(), RelPath.GetData()));
+}
 
 namespace UE::Cook::Private
 {

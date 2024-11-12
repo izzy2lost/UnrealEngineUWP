@@ -8,7 +8,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SlateUser.h"
 #include "Styling/AppStyle.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Misc/StringUtility.h"
 #include "ScopedTransaction.h"
 #include "K2Node_GetDataTableRow.h"
@@ -658,7 +658,7 @@ bool FDataTableEditorUtils::MoveRow(UDataTable* DataTable, FName RowName, ERowMo
 	}
 
 	// Swap the order around as requested
-	OrderedRowNames.RemoveAt(CurrentRowIndex, 1, EAllowShrinking::No);
+	OrderedRowNames.RemoveAt(CurrentRowIndex, EAllowShrinking::No);
 	OrderedRowNames.Insert(RowName, NewRowIndex);
 
 	// Build a name -> index map as the KeySort will hit this a lot

@@ -21,8 +21,18 @@ UMockAI_BT::UMockAI_BT(const FObjectInitializer& ObjectInitializer)
 		UseBrainComponent<UBehaviorTreeComponent>();
 
 		BTComp = Cast<UBehaviorTreeComponent>(BrainComp);
+
+		// We want our component to be ticked manually by the test framework, never by the TickFunction
+		BTComp->PrimaryComponentTick.bCanEverTick = false;
 		BTComp->RegisterComponent();
-		BTComp->InitializeComponent();
+
+		// Test running in a game world will get initialized automatically by
+		// the previous call to RegisterComponent. Otherwise, we initialize it
+		// manually.
+		if (!BTComp->HasBeenInitialized() && BTComp->bWantsInitializeComponent)
+		{
+			BTComp->InitializeComponent();
+		}
 	}
 }
 

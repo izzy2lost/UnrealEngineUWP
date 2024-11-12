@@ -58,8 +58,9 @@ struct FNiagaraGpuSpawnInfo
 
 struct INiagaraComputeDataBufferInterface
 {
+	virtual ~INiagaraComputeDataBufferInterface() = default;
 	virtual bool HasTranslucentDataToRender() const = 0;
-	virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const = 0;
+	virtual FNiagaraDataBuffer* GetDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const = 0;
 };
 
 struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterface
@@ -69,7 +70,7 @@ struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterfa
 
 	// Begin: INiagaraComputeDataBufferInterface
 	virtual bool HasTranslucentDataToRender() const override { return TranslucentDataToRender != nullptr; }
-	virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const override
+	virtual FNiagaraDataBuffer* GetDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const override
 	{
 		if (bIsLowLatencyTranslucent)
 		{
@@ -112,15 +113,15 @@ struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterfa
 #if WITH_NIAGARA_DEBUG_EMITTER_NAME
 	FName GetDebugSimFName() const { return DebugSimFName; }
 	const TCHAR* GetDebugSimName() const { return *DebugSimName; }
-	void SetDebugSimName(const TCHAR* InDebugSimName)
+	void SetDebugSimName(const TCHAR* InDebugSimName, FName InDebugSimFName)
 	{
 		DebugSimName = InDebugSimName;
-		DebugSimFName = FName(DebugSimName);
+		DebugSimFName = InDebugSimFName;
 	}
 #else
 	FName GetDebugSimFName() const { return NAME_None; }
 	const TCHAR* GetDebugSimName() const { return TEXT(""); }
-	void SetDebugSimName(const TCHAR*) { }
+	void SetDebugSimName(const TCHAR*, FName) { }
 #endif
 
 #if STATS

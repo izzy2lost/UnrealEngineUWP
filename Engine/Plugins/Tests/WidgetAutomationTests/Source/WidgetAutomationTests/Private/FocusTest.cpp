@@ -13,7 +13,7 @@
 
 namespace UE::SlateWidgetAutomationTest
 {
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFocusTest, "Slate.FocusTest", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFocusTest, "Slate.FocusTest", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 template<class T>
 class FSlateTestFocus : public FSlateTestBase<T>

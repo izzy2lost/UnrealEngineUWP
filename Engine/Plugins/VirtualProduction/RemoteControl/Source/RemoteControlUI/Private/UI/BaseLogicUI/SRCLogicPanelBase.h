@@ -39,8 +39,14 @@ public:
 	/** "Delete Items" UI command implementation for panels*/
 	virtual void DeleteSelectedPanelItems() = 0;
 
+	/** Whether this panel can Duplicate Items */
+	virtual bool CanDuplicateItems() const { return !GetSelectedLogicItems().IsEmpty(); }
+
 	/** "Duplicate Items" UI command implementation for action panels */
 	virtual void DuplicateSelectedPanelItems() {}
+
+	/** Whether this panel can Copy Items */
+	virtual bool CanCopyItems() const { return !GetSelectedLogicItems().IsEmpty(); }
 
 	/** "Copy Items" UI command implementation for panels*/
 	virtual void CopySelectedPanelItems() {}

@@ -496,6 +496,7 @@ class SbListenerHelper:
         self.clobber_engine: bool = False
         self.clobber_project: bool = False
         self.generate_after_sync: bool = False
+        self.ugs_versioning: bool = False
 
         self.dry_run: bool = False
         self.p4user: Optional[str] = None
@@ -544,6 +545,9 @@ class SbListenerHelper:
         sync_parser.add_argument(
             '--clobber-project', action='store_true',
             help='Override noclobber for project files')
+        sync_parser.add_argument(
+            '--ugs-versioning', action='store_true',
+            help='Maintain depot CompatibleChangelist (e.g. hotfix stream)')
 
         sync_parser.add_argument('-n', '--dry-run', action='store_true',
                                  help='Preview sync; do not update files')
@@ -625,13 +629,13 @@ class SbListenerHelper:
                     uuid.UUID(id)
                     for id in options.include_categories.split(','))
                 self.ugs_filters.read_categories_from_ini_parser(ugs_config)
-                for category in self.ugs_filters.categories.values():
-                    if category.id not in include_ids:
-                        logging.debug(f'Excluding sync filter "{category.name}"')
-                        self.ugs_filters.exclude_category(category.id)
+                for cat in self.ugs_filters.categories.values():
+                    if cat.catid not in include_ids:
+                        logging.debug(f'Excluding sync filter "{cat.name}"')
+                        self.ugs_filters.exclude_category(cat.catid)
                         any_active_filters = True
                     else:
-                        include_ids.remove(category.id)
+                        include_ids.remove(cat.catid)
 
                 # Any remaining IDs here were unmatched to categories
                 if len(include_ids):
@@ -868,7 +872,7 @@ class SbListenerHelper:
             if quick_lower > 0:
                 quick_range = f'{quick_lower},{upper_cl}'
                 check_lower = p4_utils.p4_latest_code_change(
-                    paths, range=quick_range, exts=['.cpp'], **p4opts)
+                    paths, in_range=quick_range, exts=['.cpp'], **p4opts)
 
                 if check_lower:
                     if in_lower_cl:
@@ -899,14 +903,14 @@ class SbListenerHelper:
             eng_code_cl = eng_upper_bound_cl
         else:
             eng_code_cl = p4_utils.p4_latest_code_change(
-                engine_paths, range=eng_range, **p4opts)
+                engine_paths, in_range=eng_range, **p4opts)
 
         if proj_upper_bound_cl:
             if lower_bound_cl and (lower_bound_cl >= proj_upper_bound_cl):
                 proj_code_cl = proj_upper_bound_cl
             else:
                 proj_code_cl = p4_utils.p4_latest_code_change(
-                    project_paths, range=proj_range, **p4opts)
+                    project_paths, in_range=proj_range, **p4opts)
         else:
             proj_code_cl = None
 
@@ -931,11 +935,16 @@ class SbListenerHelper:
             'BranchName': branch_name.replace('/', '+'),
         }
 
-        # Don't overwrite the compatible changelist if we're in a hotfix
-        # release.
-        no_depot_compat = build_ver['CompatibleChangelist'] == 0
-        licensee_changed = (build_ver['IsLicenseeVersion']
-                            != updates['IsLicenseeVersion'])
+        if self.ugs_versioning:
+            # Don't overwrite the compatible changelist if we're in a hotfix
+            # release stream.
+            no_depot_compat = build_ver['CompatibleChangelist'] == 0
+            licensee_changed = (build_ver['IsLicenseeVersion']
+                                != updates['IsLicenseeVersion'])
+        else:
+            # Always overwrite compatible changelist.
+            no_depot_compat = True
+
         if no_depot_compat or licensee_changed:
             updates['CompatibleChangelist'] = ver_compatible_cl
 
@@ -980,7 +989,14 @@ class SbListenerHelper:
             end = '' if progress_pct != 1.0 else None
             print(f'\r{" "*70}\r{progress_str}\r', end=end, flush=True)
         else:
-            logging.info(progress_str)
+            # Limit number of progress lines; otherwise one per file
+            MAX_PROGRESS_LINES = 5000
+            progress_interval = max(1, total_files // MAX_PROGRESS_LINES)
+            if (
+                (completed_files % progress_interval == 0) or
+                (completed_files == total_files)
+            ):
+                logging.info(progress_str)
 
     def check_sync_options(self, options: argparse.Namespace):
         '''
@@ -990,6 +1006,7 @@ class SbListenerHelper:
         self.dry_run = options.dry_run
         self.clobber_engine = options.clobber_engine
         self.clobber_project = options.clobber_project
+        self.ugs_versioning = options.ugs_versioning
         self.ugs_lib_dir = options.ugs_lib_dir
 
         self.p4user = options.p4user

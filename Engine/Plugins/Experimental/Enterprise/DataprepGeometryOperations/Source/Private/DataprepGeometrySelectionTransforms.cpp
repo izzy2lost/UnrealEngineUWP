@@ -14,6 +14,7 @@
 #include "MeshMergeModule.h"
 #include "MeshMergeData.h"
 #include "MeshAttributes.h"
+#include "MeshMerge/MeshMergingSettings.h"
 #include "Modules/ModuleManager.h"
 #include "StaticMeshOperations.h"
 

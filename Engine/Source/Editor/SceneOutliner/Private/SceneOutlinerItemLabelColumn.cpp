@@ -15,6 +15,7 @@
 #include "SceneOutlinerStandaloneTypes.h"
 #include "ISceneOutlinerMode.h"
 #include "SceneOutlinerDragDrop.h"
+#include "SceneOutlinerHelpers.h"
 #include "Widgets/Views/SListView.h"
 #include "SortHelper.h"
 #include "Widgets/SToolTip.h"
@@ -41,6 +42,7 @@ const TSharedRef<SWidget> FSceneOutlinerItemLabelColumn::ConstructRowWidget(FSce
 void FSceneOutlinerItemLabelColumn::PopulateSearchStrings( const ISceneOutlinerTreeItem& Item, TArray< FString >& OutSearchStrings ) const
 {
 	OutSearchStrings.Add(Item.GetDisplayString());
+	SceneOutliner::FSceneOutlinerHelpers::PopulateExtraSearchStrings(Item, OutSearchStrings);
 }
 
 void FSceneOutlinerItemLabelColumn::SortItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems, const EColumnSortMode::Type SortMode) const

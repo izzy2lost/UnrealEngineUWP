@@ -5,6 +5,7 @@
 #include "Containers/ArrayView.h"
 #include "InstancedActorsTypes.h"
 #include "InstancedActorsIndex.h"
+#include "MassEntityQuery.h"
 #include "ActorPartition/PartitionActor.h"
 #include "Containers/BitArray.h"
 #include "Templates/SharedPointer.h"
@@ -22,10 +23,20 @@ struct FMassEntityManager;
 class UInstancedActorsData;
 class UInstancedStaticMeshComponent;
 
-namespace UE::InstancedActors::CVars
+namespace UE::InstancedActors
 {
-	extern INSTANCEDACTORS_API bool bEnablePersistence;
-}
+	enum EInsideBoundsTestResult
+	{
+		NotInside,
+		OverlapLocation,
+		OverlapBounds
+	};
+
+	namespace CVars
+	{
+		extern INSTANCEDACTORS_API bool bEnablePersistence;
+	}
+} // UE::InstancedActors
 
 DECLARE_STATS_GROUP(TEXT("InstanceActor Rendering"), STATGROUP_InstancedActorsRendering, STATCAT_Advanced);
 
@@ -49,21 +60,26 @@ class INSTANCEDACTORS_API AInstancedActorsManager : public APartitionActor, publ
 public:
 	AInstancedActorsManager();
 
-	// Adds modifiers already registered with InInstancedActorSubsystem and either calls InitializeModifyAndSpawnEntities to spawn
-	// entities immediately, or schedules deferred call by InInstancedActorSubsystem if IA.DeferSpawnEntities is enabled.
-	//
-	// Called either in BeginPlay if InInstancedActorSubsystem was already initialized or latently once it is, in
-	// UInstancedActorsSubsystem::Initialize
+	/** 
+	 * Adds modifiers already registered with InInstancedActorSubsystem and either calls InitializeModifyAndSpawnEntities to spawn
+	 * entities immediately, or schedules deferred call by InInstancedActorSubsystem if IA.DeferSpawnEntities is enabled.
+	 * Called either in BeginPlay if InInstancedActorSubsystem was already initialized or latently once it is, in
+	 * UInstancedActorsSubsystem::Initialize
+	 */
 	void OnAddedToSubsystem(UInstancedActorsSubsystem& InInstancedActorSubsystem, FInstancedActorsManagerHandle InManagerHandle);
 
-	// Initializes all PerActorClassInstanceData, applies pre-spawn modifiers, spawns entities then applies post-spawn modifiers.
-	//
-	// Called either directly in OnAddedToSubsystem or deferred and time-sliced in UInstancedActorsSubsystem::Tick if
-	// IA.DeferSpawnEntities is enabled.
+	FInstancedActorsManagerHandle GetManagerHandle() const;
+
+	/** 
+	 * Initializes all PerActorClassInstanceData, applies pre-spawn modifiers, spawns entities then applies post-spawn modifiers.
+	 * 
+	 * Called either directly in OnAddedToSubsystem or deferred and time-sliced in UInstancedActorsSubsystem::Tick if
+	 * IA.DeferSpawnEntities is enabled.
+	 */
 	void InitializeModifyAndSpawnEntities();
 
-	// Returns true if InstanceTransforms have been consumed to spawn Mass entities in InitializeModifyAndSpawnEntities
-	bool HasSpawnedEntities() const { return bHasSpawnedEntities; }
+	/** @return true if InstanceTransforms have been consumed to spawn Mass entities in InitializeModifyAndSpawnEntities */
+	bool HasSpawnedEntities() const;
 
 #if WITH_EDITOR
 	/** Adds an instance of ActorClass at InstanceTransform location to instance data */
@@ -83,11 +99,11 @@ public:
 	bool RemoveActorInstance(const FInstancedActorsInstanceHandle& InstanceToRemove);
 #endif
 
-	// Searches PerActorClassInstanceData, returning the IAD with matching UInstancedActorsData::ID, if any (nullptr otherwise)
+	/** Searches PerActorClassInstanceData, returning the IAD with matching UInstancedActorsData::ID, if any(nullptr otherwise) */
 	UInstancedActorsData* FindInstanceDataByID(uint16 InstanceDataID) const;
 
-	// Returns the full set of instance data for this manager
-	TConstArrayView<TObjectPtr<UInstancedActorsData>> GetAllInstanceData() const { return PerActorClassInstanceData; }
+	/** @return the full set of instance data for this manager */
+	TConstArrayView<TObjectPtr<UInstancedActorsData>> GetAllInstanceData() const;
 
 	/**
 	 * Removes all instances as if they were never present i.e: these removals are not persisted as
@@ -99,17 +115,19 @@ public:
 	 */
 	void RuntimeRemoveAllInstances();
 
-	// Returns the current valid instance count (i.e: NumInstances - FreeList.Num()) sum for all instance datas
+	/** @return the current valid instance count (i.e: NumInstances - FreeList.Num()) sum for all instance datas */
 	int32 GetNumValidInstances() const;
 
 	bool HasAnyValidInstances() const;
 
-	// Returns true if InstanceHandle refers to this manager and we have current information for an
-	// instance at InstanceHandle.InstanceIndex in InstanceHandle.InstancedActorData
+	/**
+	 * @return true if InstanceHandle refers to this manager and we have current information for an
+	 *	instance at InstanceHandle.InstanceIndex in InstanceHandle.InstancedActorData  
+	 */
 	bool IsValidInstance(const FInstancedActorsInstanceHandle& InstanceHandle) const;
 
-	// Returns world space cumulative instance bounds. Only valid after BeginPlay.
-	FBox GetInstanceBounds() const { return InstanceBounds; }
+	/** @return world space cumulative instance bounds. Only valid after BeginPlay. */
+	FBox GetInstanceBounds() const;
 
 	/**
 	 * Iteration callback for ForEachInstance
@@ -148,38 +166,50 @@ public:
 	template <typename TBoundsType>
 	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation) const;
 	template <typename TBoundsType>
-	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation, FInstancedActorsIterationContext& IterationContext, TOptional<FInstancedActorDataPredicateFunc> InstancedActorDataPredicate = TOptional<FInstancedActorDataPredicateFunc>()) const;
+	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation, FInstancedActorsIterationContext& IterationContext
+		, TOptional<FInstancedActorDataPredicateFunc> InstancedActorDataPredicate = TOptional<FInstancedActorDataPredicateFunc>()) const;
 
-	// Outputs instance metrics to Ar
+	/**
+	 * Checks whether there are any instanced actors within this manager, representing ActorClass or its subclasses inside QueryBounds.
+	 * The check doesn't differentiate between hydrated and dehydrated actors (i.e. whether there's an actor instance
+	 * associated with the instance or not).
+	 * @param bTestActorsIfSpawned if true then when an instance is found to overlap given bounds, and it has an actor 
+	 *	spawned associated with it, then the actor itself will be tested against the bounds for more precise test.
+	 */
+	bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned = false
+		, const EInstancedActorsBulkLODMask AllowedLODs = EInstancedActorsBulkLODMask::All) const;
+
+	/** 
+	 * Determines whether the actor instance given by InstanceHandle overlaps QueryBounds. The test involves calculating 
+	 * bounding box of the actor representation of the given instance (i.e. it's not only the transform that's being tested).
+	 */
+	template <typename TBoundsType>
+	static UE::InstancedActors::EInsideBoundsTestResult IsInstanceInsideBounds(const TBoundsType & QueryBounds
+		, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform & InstanceTransform);
+
+	/** Outputs instance metrics to Ar */
 	void AuditInstances(FOutputDevice& Ar, bool bDebugDraw = false, float DebugDrawDuration = 10.0f) const;
 
-	// Called by IA.CompactInstances console command to fully remove FreeList instances
+	/** Called by IA.CompactInstances console command to fully remove FreeList instances */
 	void CompactInstances(FOutputDevice& Ar);
 
 	void AddModifierVolume(UInstancedActorsModifierVolumeComponent& ModifierVolume);
 	void RemoveModifierVolume(UInstancedActorsModifierVolumeComponent& ModifierVolume);
+	void RemoveAllModifierVolumes();
 
-	// Request the persistant data system to re-save this managers persistent data
+	/** Request the persistent data system to re-save this managers persistent data */
 	void RequestPersistentDataSave();
 
-	// Helper function to deduce appropriate instanced static mesh bounds for ActorClass
+	/** Helper function to deduce appropriate instanced static mesh bounds for ActorClass */
 	static FBox CalculateBounds(TSubclassOf<AActor> ActorClass);
 
-	// Returns the Mass entity manager used to spawn entities. Valid only after BeginPlay
-	FORCEINLINE TSharedPtr<FMassEntityManager> GetMassEntityManager() const { return MassEntityManager; }
-	FORCEINLINE FMassEntityManager& GetMassEntityManagerChecked() const
-	{
-		check(MassEntityManager.IsValid());
-		return *MassEntityManager;
-	}
+	/** @return the Mass entity manager used to spawn entities. Valid only after BeginPlay */
+	TSharedPtr<FMassEntityManager> GetMassEntityManager() const;
+	FMassEntityManager& GetMassEntityManagerChecked() const;
 
-	// Returns the Instanced Actor Subsystem this Manager is registered with. Valid only after BeginPlay
-	FORCEINLINE UInstancedActorsSubsystem* GetInstancedActorSubsystem() const { return InstancedActorSubsystem; }
-	FORCEINLINE UInstancedActorsSubsystem& GetInstancedActorSubsystemChecked() const
-	{
-		check(InstancedActorSubsystem);
-		return *InstancedActorSubsystem;
-	}
+	/** @return the Instanced Actor Subsystem this Manager is registered with. Valid only after BeginPlay */
+	UInstancedActorsSubsystem* GetInstancedActorSubsystem() const;
+	UInstancedActorsSubsystem& GetInstancedActorSubsystemChecked() const;
 
 	//~ Begin APartitionActor Overrides
 #if WITH_EDITOR
@@ -214,48 +244,59 @@ protected:
 	virtual void RequestActorSave(AActor* Actor) {}
 
 	//~ Begin AActor Overrides
+#if UE_WITH_IRIS
+	virtual void BeginReplication() override;
+#endif
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual bool IsHLODRelevant() const override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual bool IsUserManaged() const override { return true; }
-	virtual FBox GetStreamingBounds() const override;
+	virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 #endif
 	//~ End AActor Overrides
 
 	//~ Begin IActorInstanceManagerInterface Overrides
-	virtual int32 ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const /*override*/;
-	virtual AActor* FindActor(const FActorInstanceHandle& Handle) /*override*/;
-	virtual AActor* FindOrCreateActor(const FActorInstanceHandle& Handle) /*override*/;
-	virtual UClass* GetRepresentedClass(const int32 InstanceIndex) const /*override*/;
-	virtual ULevel* GetLevelForInstance(const int32 InstanceIndex) const /*override*/;
-	virtual FTransform GetTransform(const FActorInstanceHandle& Handle) const /*override*/;
+	virtual int32 ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const override;
+	virtual AActor* FindActor(const FActorInstanceHandle& Handle) override;
+	virtual AActor* FindOrCreateActor(const FActorInstanceHandle& Handle) override;
+	virtual UClass* GetRepresentedClass(const int32 InstanceIndex) const override;
+	virtual ULevel* GetLevelForInstance(const int32 InstanceIndex) const override;
+	virtual FTransform GetTransform(const FActorInstanceHandle& Handle) const override;
 	//~ End IActorInstanceManagerInterface Overrides
 
-	// Called by Serialize for SaveGame archives to save / load IAD persistence data
-	// @param Record		The archive record to read / write IAD save data to
-	// @param InstanceData	The InstanceData to serialize from / to. May be nullptr when loading if Record's IAD has been removed since saving.
-	//						In this case, we still need to read Record to seek the archive past this IAD record consistently.
-	// @param TimeDelta		Real time in seconds since serialization (0 when saving)
+	/** 
+	 * Called by Serialize for SaveGame archives to save / load IAD persistence data
+	 * @param Record		The archive record to read / write IAD save data to
+	 * @param InstanceData	The InstanceData to serialize from / to. May be nullptr when loading if Record's IAD has been removed since saving.
+	 * 						In this case, we still need to read Record to seek the archive past this IAD record consistently.
+	 * @param TimeDelta		Real time in seconds since serialization (0 when saving)
+	 */
 	void SerializeInstancePersistenceData(FStructuredArchive::FRecord Record, UInstancedActorsData* InstanceData, int64 TimeDelta) const;
 
-	// Attempts to run any 'pending' modifiers in ModifierVolumes where are appropriate to run givem HasSpawnedEntities
-	// Called in BeginPlay prior to, and then again after SpawnEntities. Also called in AddModifierVolume.
-	// @see UInstancedActorsModifierBase::bRequiresSpawnedEntities
+	/** Despawns all entities spawned by individual UInstancedActorsData instances. */
+	virtual void DespawnAllEntities();
+
+	/** Attempts to run any 'pending' modifiers in ModifierVolumes where are appropriate to run given HasSpawnedEntities
+	 * Called in BeginPlay prior to, and then again after SpawnEntities. Also called in AddModifierVolume.
+	 * @see UInstancedActorsModifierBase::bRequiresSpawnedEntities
+	 */
 	void TryRunPendingModifiers();
 
-	// Called when persistent data has been applied / restored
+	/** Called when persistent data has been applied / restored */
 	void OnPersistentDataRestored();
 
-	// Calculate cumulative local space instance bounds for all PerActorClassInstanceData
+	/** Calculate cumulative local space instance bounds for all PerActorClassInstanceData */
 	FBox CalculateLocalInstanceBounds() const;
 
 #if WITH_EDITOR
-	// Helper function to create and initialize per-actor-class UInstancedActorsData's, optionally further partitioned by InstanceTags
+	/** Helper function to create and initialize per-actor-class UInstancedActorsData's, optionally further partitioned by InstanceTags */
 	UInstancedActorsData& GetOrCreateActorInstanceData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags);
 
-	// Used to set the right properties on the editor ISMCs so we can do per-instance selection.
+	virtual UInstancedActorsData* CreateNextInstanceActorData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags);
+
+	/** Used to set the right properties on the editor ISMCs so we can do per-instance selection. */
 	virtual void PreRegisterAllComponents() override;
 #endif
 
@@ -267,7 +308,7 @@ protected:
 
 	TSharedPtr<FMassEntityManager> MassEntityManager;
 
-	/** Saved Actor Guid. Initialized from the actor name in constructor */
+	/** Saved Actor Guid. Initialized from the actor name in constructor */ 
 	UPROPERTY(VisibleAnywhere, Category=InstancedActors)
 	FGuid SavedActorGuid = FGuid();
 
@@ -275,45 +316,57 @@ protected:
 	UPROPERTY(Transient)
 	bool bHasSpawnedEntities = false;
 
-	// Incremented in GetOrCreateActorInstanceData to provide IAD's with a stable, unique identifier
-	// within this IAM.
-	// @see UInstancedActorsData::ID
+	/** 
+	 * Incremented in GetOrCreateActorInstanceData to provide IAD's with a stable, unique identifier
+	 * within this IAM.
+	 * @see UInstancedActorsData::ID
+	 */
 	UPROPERTY()
 	uint16 NextInstanceDataID = 0;
 
-	// Per-actor-class instance data populated by AddActorInstance
+	/** Per-actor-class instance data populated by AddActorInstance */
 	UPROPERTY(Instanced, VisibleAnywhere, Category=InstancedActors)
 	TArray<TObjectPtr<UInstancedActorsData>> PerActorClassInstanceData;
 
-	// World space cumulative instance bounds, calculated in BeginPlay
+	/** World space cumulative instance bounds, calculated in BeginPlay */
 	UPROPERTY(Transient)
 	FBox InstanceBounds = FBox(ForceInit);
 
-	// Modifier volumes added via AddModifierVolume
+	/** Modifier volumes added via AddModifierVolume */
 	TArray<TWeakObjectPtr<UInstancedActorsModifierVolumeComponent>> ModifierVolumes;
 
-	// A bit flag per volume in ModifierVolumes for whether the volume has pending Modifiers to run on this manager
-	// i.e if PendingModifierVolumeModifiers[VolumeIndex] has any true flags.
-	// Some modifiers can run prior to entity spawning for efficiency purposes, others must be held 'pending'
-	// later execution after entities have spawned.
+	/** 
+	 * A bit flag per volume in ModifierVolumes for whether the volume has pending Modifiers to run on this manager
+	 * i.e if PendingModifierVolumeModifiers[VolumeIndex] has any true flags.
+	 * Some modifiers can run prior to entity spawning for efficiency purposes, others must be held 'pending'
+	 * later execution after entities have spawned.
+	 */
 	TBitArray<> PendingModifierVolumes;
 
-	// A set of bit flags per volume in ModifierVolumes, matching each modifiers Modifiers list, marking
-	// whether the Modifier has yet to run on this manager or not (true = needs running).
-	//
-	// Some modifiers can run prior to entity spawning for efficiency purposes, others must be held 'pending'
-	// later execution after entities have spawned.
+	/** 
+	 * A set of bit flags per volume in ModifierVolumes, matching each modifiers Modifiers list, marking
+	 * whether the Modifier has yet to run on this manager or not (true = needs running).
+	 * 
+	 * Some modifiers can run prior to entity spawning for efficiency purposes, others must be held 'pending'
+	 * later execution after entities have spawned.
+	 */
 	TArray<TBitArray<>> PendingModifierVolumeModifiers;
 
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UInstancedStaticMeshComponent>, int32> ISMComponentToInstanceDataMap;
+
+	/** Class to be spawned to represent individual actor class instances. */
+	UPROPERTY(EditAnywhere, Category=InstancedActor)
+	TSubclassOf<UInstancedActorsData> InstancedActorsDataClass;
+
+	mutable FMassEntityQuery InstancedActorLocationQuery;
 
 private:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FGuid ManagerGridGuid;
 
-	// Set this to false to be able to move the instances contained by this IAM. The property is not saved and will reset.
+	/** Set this to false to be able to move the instances contained by this IAM.The property is not saved and will reset. */
 	UPROPERTY(EditAnywhere, Transient, meta = (DisplayPriority = 1), Category = InstancedActors)
 	bool bLockInstanceLocation = true;
 #endif
@@ -337,7 +390,55 @@ private:
 	 * Try to extract the actor from the provided handle or from associated Mass Entity.
 	 * When unable to retrieve it returns nullptr but also the associated EntityView so caller could reuse it to create the actor.
 	 */
-	AActor* FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, bool bEnsureOnMissingInstanceDataOrMassEntity);
+	AActor* FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, bool bEnsureOnMissingInstanceDataOrMassEntity) const;
+
+	AActor* GetActorForInstance(const UInstancedActorsData& InstanceData, const int32 InstancedActorIndex) const;
 
 	FInstancedActorsInstanceHandle ActorInstanceHandleFromFSMInstanceId(const FSMInstanceId& InstanceId) const;
 };
+
+
+//-----------------------------------------------------------------------------
+// inlines
+//-----------------------------------------------------------------------------
+FORCEINLINE FInstancedActorsManagerHandle AInstancedActorsManager::GetManagerHandle() const
+{ 
+	return ManagerHandle; 
+}
+
+FORCEINLINE FBox AInstancedActorsManager::GetInstanceBounds() const
+{ 
+	return InstanceBounds; 
+}
+
+FORCEINLINE bool AInstancedActorsManager::HasSpawnedEntities() const
+{ 
+	return bHasSpawnedEntities; 
+}
+
+FORCEINLINE TConstArrayView<TObjectPtr<UInstancedActorsData>> AInstancedActorsManager::GetAllInstanceData() const
+{ 
+	return PerActorClassInstanceData; 
+}
+
+FORCEINLINE TSharedPtr<FMassEntityManager> AInstancedActorsManager::GetMassEntityManager() const 
+{ 
+	return MassEntityManager; 
+}
+
+FORCEINLINE FMassEntityManager& AInstancedActorsManager::GetMassEntityManagerChecked() const
+{
+	check(MassEntityManager.IsValid());
+	return *MassEntityManager;
+}
+
+FORCEINLINE UInstancedActorsSubsystem* AInstancedActorsManager::GetInstancedActorSubsystem() const 
+{ 
+	return InstancedActorSubsystem; 
+}
+
+FORCEINLINE UInstancedActorsSubsystem& AInstancedActorsManager::GetInstancedActorSubsystemChecked() const
+{
+	check(InstancedActorSubsystem);
+	return *InstancedActorSubsystem;
+}

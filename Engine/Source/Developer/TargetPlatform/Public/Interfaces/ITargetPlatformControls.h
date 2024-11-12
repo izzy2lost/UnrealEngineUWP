@@ -61,7 +61,6 @@ namespace ETargetPlatformReadyStatus
 class ITargetPlatformControls
 {
 public:
-	ITargetPlatformControls() {};
 	ITargetPlatformControls(ITargetPlatformSettings* InTargetPlatformSettings) :TargetPlatformSettings(InTargetPlatformSettings) {};
 	/**
 	 * Add a target device by name.
@@ -338,13 +337,6 @@ public:
 	virtual FName GetPhysicsFormat(class UBodySetup* Body) const = 0;
 
 	/**
-	 * Gets a list of modules that may contain the GetAllTargetedShaderFormats. This is optional -
-	 * if any required shader format isn't found in this list, then it will use the old path
-	 * of loading all shader format modules to gather all available shader formats
-	 */
-	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const = 0;
-
-	/**
 	 * Gets the texture format to use for each layer in the given texture, for each of the platform's formats.
 	 * _Most_ platforms only supply one format for a given texture, so OutFormats.Num() is usually 1. The exception is Android_Multi,
 	 * where you can get several formats due to targeting different devices.
@@ -352,6 +344,13 @@ public:
 	 * OutFormats[0...N].Num() == Texture->Source.GetNumLayers().
 	 */
 	virtual void GetTextureFormats(const class UTexture* Texture, TArray< TArray<FName> >& OutFormats) const = 0;
+
+	/**
+	 * Get the limitations on texture size (bytes) on this platform
+	 * this limitation is in addition to any dimension limits (specified in device profiles)
+	 * all built textures must be <= this size
+	 */
+	virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const = 0;
 
 	/**
 	 * Gets the texture formats this platform can use
@@ -478,6 +477,12 @@ public:
 	 * Copy a file to the target
 	 */
 	virtual bool CopyFileToTarget(const FString& DeviceId, const FString& HostFilename, const FString& TargetFilename, const TMap<FString, FString>& CustomPlatformData) = 0;
+
+	/**
+	 * Hook called when a TargetPlatform is selected for cooking. Load any required assets or data.
+	 * May be called multiple times per process; it is called each time a cook starts for the platform.
+	 */
+	virtual void InitializeForCook() = 0;
 
 	/**
 	 * Gets a list of package names to cook when cooking this platform

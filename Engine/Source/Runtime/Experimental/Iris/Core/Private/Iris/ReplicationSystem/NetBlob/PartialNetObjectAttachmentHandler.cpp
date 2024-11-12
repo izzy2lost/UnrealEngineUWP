@@ -7,6 +7,7 @@
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
+#include "Iris/Serialization/NetExportContext.h"
 
 UPartialNetObjectAttachmentHandler::UPartialNetObjectAttachmentHandler()
 : USequentialPartialNetBlobHandler()
@@ -27,7 +28,7 @@ void UPartialNetObjectAttachmentHandler::Init(const FPartialNetObjectAttachmentH
 	Super::Init(ParentInitParams);
 }
 
-bool UPartialNetObjectAttachmentHandler::PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<UE::Net::FNetObjectAttachment>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, bool bSerializeWithObject) const
+bool UPartialNetObjectAttachmentHandler::PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<UE::Net::FNetObjectAttachment>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, bool bSerializeWithObject)
 {
 	using namespace UE::Net;
 	
@@ -52,19 +53,27 @@ bool UPartialNetObjectAttachmentHandler::PreSerializeAndSplitNetBlob(uint32 Conn
 	SerializationContext.SetLocalConnectionId(ConnectionId);
 	SerializationContext.SetInternalContext(&InternalContext);
 
-	if (bSerializeWithObject)
-	{
-		Blob->SerializeWithObject(SerializationContext, Blob->GetNetObjectReference().GetRefHandle());
-	}
-	else
-	{
-		Blob->Serialize(SerializationContext);
-	}
+	// Setup ExportScope to capture non object reference exports.
+	Private::FNetExportContext::FBatchExports BatchExports;
+	Private::FNetExports::FExportScope ExportScope = NetExports.MakeExportScope(SerializationContext, BatchExports);
 
-	// Errors are bad. We cannot recover from this.
-	if (SerializationContext.HasError())
 	{
-		return false;
+		Private::FNetExportRollbackScope ExportRollBack(SerializationContext);
+
+		if (bSerializeWithObject)
+		{
+			Blob->SerializeWithObject(SerializationContext, Blob->GetNetObjectReference().GetRefHandle());
+		}
+		else
+		{
+			Blob->Serialize(SerializationContext);
+		}
+
+		// Errors are bad. We cannot recover from this.
+		if (SerializationContext.HasError())
+		{
+			return false;
+		}
 	}
 
 	Writer.CommitWrites();
@@ -75,16 +84,16 @@ bool UPartialNetObjectAttachmentHandler::PreSerializeAndSplitNetBlob(uint32 Conn
 		// This will redo all the serialization work, but it should rarely happen.
 		if (bSerializeWithObject)
 		{
-			return Super::SplitNetBlob(Blob->GetNetObjectReference(), reinterpret_cast<const TRefCountPtr<FNetBlob>&>(Blob), OutPartialBlobs);
+			return Super::SplitNetBlob(SerializationContext, Blob->GetNetObjectReference(), reinterpret_cast<const TRefCountPtr<FNetBlob>&>(Blob), OutPartialBlobs);
 		}
 		else
 		{
-			return Super::SplitNetBlob(reinterpret_cast<const TRefCountPtr<FNetBlob>&>(Blob), OutPartialBlobs);
+			return Super::SplitNetBlob(SerializationContext, reinterpret_cast<const TRefCountPtr<FNetBlob>&>(Blob), OutPartialBlobs);
 		}
 	}
 	else
 	{
-		FShrinkWrapNetObjectAttachment* ShrinkWrapNetBlob = new FShrinkWrapNetObjectAttachment(Blob, MoveTemp(Payload), Writer.GetPosBits());
+		FShrinkWrapNetObjectAttachment* ShrinkWrapNetBlob = new FShrinkWrapNetObjectAttachment(SerializationContext, Blob, MoveTemp(Payload), Writer.GetPosBits());
 		OutPartialBlobs.AddDefaulted_GetRef() = ShrinkWrapNetBlob;
 		return true;
 	}

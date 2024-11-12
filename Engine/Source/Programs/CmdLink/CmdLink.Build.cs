@@ -10,6 +10,7 @@ public class CmdLink : ModuleRules
             new string[]
             {
 	            "Core",
+				"Projects",
             }
         );
         

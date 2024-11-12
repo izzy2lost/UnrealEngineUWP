@@ -2,7 +2,6 @@
 
 #include "Playback/AvaPlaybackServer.h"
 
-#include "Async/Async.h"
 #include "AvaMediaMessageUtils.h"
 #include "AvaMediaSettings.h"
 #include "AvaPlaybackSyncManager.h"
@@ -10,6 +9,7 @@
 #include "Broadcast/OutputDevices/AvaBroadcastDeviceProviderData.h"
 #include "Broadcast/OutputDevices/AvaBroadcastDeviceProviderProxy.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
+#include "Containers/Ticker.h"
 #include "IAvaModule.h"
 #include "MediaOutput.h"
 #include "MessageEndpointBuilder.h"
@@ -24,29 +24,62 @@ DEFINE_LOG_CATEGORY(LogAvaPlaybackServer);
 namespace UE::AvaPlaybackServer::Private
 {
 	FAvaPlaybackStatus* MakePlaybackStatusMessage(const FGuid& InInstanceId, const FString& InChannelName,
+		const FSoftObjectPath& InAssetPath, EAvaPlaybackStatus InStatus, const FString& InUserData, const bool bInUserDataValid = true)
+	{
+		FAvaPlaybackStatus* Message = FMessageEndpoint::MakeMessage<FAvaPlaybackStatus>();
+		Message->InstanceId = InInstanceId;
+		Message->ChannelName = InChannelName;
+		Message->AssetPath = InAssetPath;
+		Message->Status = InStatus;
+		Message->UserData = InUserData;
+		Message->bValidUserData = bInUserDataValid;
+		return Message;
+	}
+
+	FAvaPlaybackStatus* MakePlaybackStatusMessage(const FGuid& InInstanceId, const FString& InChannelName,
 		const FSoftObjectPath& InAssetPath, EAvaPlaybackStatus InStatus)
 	{
-		FAvaPlaybackStatus* Message = FMessageEndpoint::MakeMessage<FAvaPlaybackStatus>();
-		Message->InstanceId = InInstanceId;
-		Message->ChannelName = InChannelName;
-		Message->AssetPath = InAssetPath;
-		Message->Status = InStatus;
-		Message->bValidUserData = false;
-		return Message;
+		return MakePlaybackStatusMessage(InInstanceId, InChannelName, InAssetPath, InStatus, FString(), /*bInUserDataValid*/ false);
 	}
-	
-	FAvaPlaybackStatus* MakePlaybackStatusMessage(const FGuid& InInstanceId, const FString& InChannelName,
-		const FSoftObjectPath& InAssetPath, EAvaPlaybackStatus InStatus, const FString& InUserData)
+
+	FString GetCommandActionString(const FAvaPlaybackCommand& InCommand)
 	{
-		FAvaPlaybackStatus* Message = FMessageEndpoint::MakeMessage<FAvaPlaybackStatus>();
-		Message->InstanceId = InInstanceId;
-		Message->ChannelName = InChannelName;
-		Message->AssetPath = InAssetPath;
-		Message->Status = InStatus;
-		Message->bValidUserData = true;
-		Message->UserData = InUserData;
-		return Message;
+		FString ActionString = AvaPlayback::Utils::StaticEnumToString(InCommand.Action); 
+		if (InCommand.Arguments.IsEmpty())
+		{
+			return ActionString;
+		}
+
+		return FString::Printf(TEXT("%s \"%s\""), *ActionString, *InCommand.Arguments);
+	};
+
+	/** Returns the command priority order of execution. */
+	int32 GetCommandActionPriority(EAvaPlaybackAction InAction)
+	{
+		switch (InAction)
+		{
+		case EAvaPlaybackAction::None:			return 10;
+		case EAvaPlaybackAction::Load:			return 1;
+		case EAvaPlaybackAction::Start:			return 2;
+		case EAvaPlaybackAction::Stop:			return 5;
+		case EAvaPlaybackAction::Unload:		return 6;
+		case EAvaPlaybackAction::Status:		return 7;		// We want the status after all other commands have been executed.
+		case EAvaPlaybackAction::SetUserData:	return 3;		// Should be after Load and Start.
+		case EAvaPlaybackAction::GetUserData:	return 4;		// Should be after "set user data". 
+		default:
+			return 10;
+		}
 	}
+
+	// Simulate network latency by delaying playback commands a random amount.
+	// This is used to cause desynchronization between the nodes on clustered rendering
+	// and see how well the synchronization handles it.
+	TAutoConsoleVariable<float> CVarTestMaxRandomWaitForPlaybackCommands(
+		TEXT("MotionDesignPlaybackServer.Test.MaxRandomWaitForPlaybackCommands")
+		, 0.0f
+		, TEXT("if not zero, the server will wait a random duration between 0 and the specified delay before executing playback commands. Unit: seconds"), ECVF_Default);
+
+	FRandomStream GPlaybackServerRandomStream((int32)FPlatformTime::Cycles());
 }
 
 /**
@@ -129,6 +162,7 @@ void FAvaPlaybackServer::Init(const FString& InAssignedServerName)
 	.Handling<FAvaPlaybackDeviceProviderDataRequest>(this, &FAvaPlaybackServer::HandleDeviceProviderDataRequest)
 	.Handling<FAvaPlaybackUpdateClientInfo>(this, &FAvaPlaybackServer::HandleUpdateClientInfo)
 	.Handling<FAvaPlaybackInstanceSettingsUpdate>(this, &FAvaPlaybackServer::HandleAvaInstanceSettingsUpdate)
+	.Handling<FAvaPlaybackPlayableSettingsUpdate>(this, &FAvaPlaybackServer::HandlePlayableSettingsUpdate)
 	.Handling<FAvaPlaybackPackageEvent>(this, &FAvaPlaybackServer::HandlePackageEvent)
 	.Handling<FAvaPlaybackAssetStatusRequest>(this, &FAvaPlaybackServer::HandlePlaybackAssetStatusRequest)
 	.Handling<FAvaPlaybackRequest>(this, &FAvaPlaybackServer::HandlePlaybackRequest)
@@ -383,6 +417,17 @@ const FAvaInstanceSettings* FAvaPlaybackServer::GetAvaInstanceSettings() const
 	return nullptr;
 }
 
+const FAvaPlayableSettings* FAvaPlaybackServer::GetPlayableSettings() const
+{
+	// Returns the first client we have.
+	// Todo: In case we have multiple clients, we will need a smarter way to handle this.
+	for (const TPair<FString, TSharedPtr<FClientInfo>>& Client : Clients)
+	{
+		return &Client.Value->PlayableSettings;
+	}
+	return nullptr;
+}
+
 bool FAvaPlaybackServer::RemovePlaybackInstanceTransition(const FGuid& InTransitionId)
 {
 	if (PlaybackInstanceTransitions)
@@ -400,6 +445,7 @@ void FAvaPlaybackServer::SendPlayableTransitionEvent(
 	Message->ChannelName = InChannelName.ToString();
 	Message->TransitionId = InTransitionId;
 	Message->InstanceId = InInstanceId;
+	Message->FrameNumber = GFrameNumber;
 	Message->SetEventFlags(InFlags);
 	SendResponse(Message, GetClientAddressSafe(InClientName));
 }
@@ -497,6 +543,14 @@ void FAvaPlaybackServer::HandleAvaInstanceSettingsUpdate(const FAvaPlaybackInsta
 	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("Received new instance settings from client \"%s\"."), *InMessage.ClientName);
 }
 
+void FAvaPlaybackServer::HandlePlayableSettingsUpdate(const FAvaPlaybackPlayableSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	FClientInfo& ClientInfo = GetOrCreateClientInfo(InMessage.ClientName, InContext->GetSender());
+	ClientInfo.PlayableSettings = InMessage.PlayableSettings;
+	
+	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("Received new playable settings from client \"%s\"."), *InMessage.ClientName);
+}
+
 void FAvaPlaybackServer::HandlePackageEvent(const FAvaPlaybackPackageEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
 	const FClientInfo* ClientInfo = GetClientInfo(InContext->GetSender());
@@ -566,9 +620,28 @@ void FAvaPlaybackServer::HandlePlaybackAssetStatusRequest(const FAvaPlaybackAsse
 
 void FAvaPlaybackServer::HandlePlaybackRequest(const FAvaPlaybackRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
+	using namespace UE::AvaPlaybackServer::Private;
+	const float MaxRandomWait = CVarTestMaxRandomWaitForPlaybackCommands.GetValueOnAnyThread();
+
+	const FDateTime UtcNow = FDateTime::UtcNow();
+	
 	for (const FAvaPlaybackCommand& Command : InMessage.Commands)
 	{
-		PendingPlaybackCommands.Add({InContext->GetSender(), Command});
+		TSharedPtr<FPendingPlaybackCommand> PendingCommand
+			= MakeShared<FPendingPlaybackCommand>(UtcNow, GFrameNumber, GetCommandActionPriority(Command.Action), InContext->GetSender(), Command);
+
+		if (MaxRandomWait > 0.0f && (Command.Action == EAvaPlaybackAction::Load || Command.Action == EAvaPlaybackAction::Start))
+		{
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this, PendingCommand] (float) 
+			{
+				PendingPlaybackCommands.Add(PendingCommand);	
+				return false;
+			}), GPlaybackServerRandomStream.GetFraction() * MaxRandomWait);
+		}
+		else
+		{
+			PendingPlaybackCommands.Add(MoveTemp(PendingCommand));
+		}
 	}
 }
 
@@ -596,7 +669,7 @@ void FAvaPlaybackServer::HandlePlayableTransitionStartRequest(const FAvaPlayback
 {
 	check(PlaybackInstanceTransitions);
 	
-	UAvaPlaybackServerTransition* Transition = NewObject<UAvaPlaybackServerTransition>();
+	UAvaPlaybackServerTransition* Transition = UAvaPlaybackServerTransition::MakeNew(AsShared());
 	Transition->SetTransitionId(InMessage.TransitionId);
 	Transition->SetChannelName(FName(InMessage.ChannelName));
 	Transition->SetClientName(GetClientNameSafe(InContext->GetSender()));
@@ -604,10 +677,10 @@ void FAvaPlaybackServer::HandlePlayableTransitionStartRequest(const FAvaPlayback
 	Transition->SetTransitionFlags(InMessage.GetTransitionFlags());
 
 	// Enter Instances are likely not loaded yet.
-	Transition->SetEnterInstanceIds(InMessage.EnterInstanceIds);
+	Transition->AddPendingEnterInstanceIds(InMessage.EnterInstanceIds);
 	Transition->SetEnterValues(InMessage.EnterValues);
 
-	// We can resolve the playing instances since they should be loaded.
+	// We try to resolve the playing instances since they should be loaded (unless delayed).
 	for (const FGuid& PlayingInstanceId : InMessage.PlayingInstanceIds)
 	{
 		if (TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(PlayingInstanceId))
@@ -616,13 +689,15 @@ void FAvaPlaybackServer::HandlePlayableTransitionStartRequest(const FAvaPlayback
 		}
 		else
 		{
-			UE_LOG(LogAvaPlaybackServer, Error,
+			Transition->AddPendingPlayingInstanceId(PlayingInstanceId);	// Will be resolved later.
+
+			UE_LOG(LogAvaPlaybackServer, Warning,
 				TEXT("Transition \"%s\" from client \"%s\": \"Playing\" Instance Id \"%s\" was not found in active playback instances."),
 				*InMessage.TransitionId.ToString(), *GetClientNameSafe(InContext->GetSender()), *PlayingInstanceId.ToString());
 		}
 	}
 	
-	// We can resolve the exit instances since they should be loaded.
+	// We try to resolve the exit instances since they should be loaded (unless delayed).
 	for (const FGuid& ExitInstanceId : InMessage.ExitInstanceIds)
 	{
 		if (TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(ExitInstanceId))
@@ -631,7 +706,9 @@ void FAvaPlaybackServer::HandlePlayableTransitionStartRequest(const FAvaPlayback
 		}
 		else
 		{
-			UE_LOG(LogAvaPlaybackServer, Error,
+			Transition->AddPendingExitInstanceId(ExitInstanceId);	// Will be resolved later.
+			
+			UE_LOG(LogAvaPlaybackServer, Warning,
 				TEXT("Transition \"%s\" from client \"%s\": \"Exit\" Instance Id \"%s\" was not found in active playback instances."),
 				*InMessage.TransitionId.ToString(), *GetClientNameSafe(InContext->GetSender()), *ExitInstanceId.ToString());
 		}
@@ -755,7 +832,7 @@ void FAvaPlaybackServer::HandleBroadcastStatusRequest(const FAvaBroadcastStatusR
 	// Make sure all the channel status are refreshed
 	{
 		// Block channel status update while we refresh, we want to send one clean update at the end.
-		TGuardValue BlockChannelStatusUpdate(bBlockChannelStatusUpdate, true);
+		TGuardValue<bool> BlockChannelStatusUpdate(bBlockChannelStatusUpdate, true);
 		for (FAvaBroadcastOutputChannel* Channel : UAvaBroadcast::Get().GetCurrentProfile().GetChannels())
 		{
 			Channel->RefreshState();
@@ -772,8 +849,8 @@ FString FAvaPlaybackServer::GetMessageEndpointAddressId() const
 
 void FAvaPlaybackServer::Tick()
 {
-	const FDateTime CurrentTime = FDateTime::UtcNow();
-	RemoveDeadClients(CurrentTime);
+	const FDateTime CurrentTimeUtc = FDateTime::UtcNow();
+	RemoveDeadClients(CurrentTimeUtc);
 
 	for (const TPair<FString, TSharedPtr<FClientInfo>>& Client : Clients)
 	{
@@ -784,7 +861,7 @@ void FAvaPlaybackServer::Tick()
 	}
 
 	// Execute the pending commands in batch for this tick.
-	ExecutePendingPlaybackCommands();
+	ExecutePendingPlaybackCommands(CurrentTimeUtc);
 
 	// Try to resolve the instance for loaded transitions.
 	for (const TPair<FGuid, TObjectPtr<UAvaPlaybackServerTransition>>& Transition : PlaybackInstanceTransitions->Transitions)
@@ -947,7 +1024,7 @@ void FAvaPlaybackServer::ShowStatusCommand(const TArray<FString>& InArgs)
 			ClientInfo.BroadcastSettings.Settings.ChannelDefaultResolution.Y);
 		UE_LOG(LogAvaPlaybackServer, Display, TEXT("   - BroadcastSettings.bDrawPlaceholderWidget: %s"),
 			ClientInfo.BroadcastSettings.Settings.bDrawPlaceholderWidget ? TEXT("true") : TEXT("false"));
-		UE_LOG(LogAvaPlaybackServer, Display, TEXT("   - BroadcastSettings.PlaceholderWidgetClass: "),
+		UE_LOG(LogAvaPlaybackServer, Display, TEXT("   - BroadcastSettings.PlaceholderWidgetClass: %s"),
 			*ClientInfo.BroadcastSettings.Settings.PlaceholderWidgetClass.ToString());
 
 		UE_LOG(LogAvaPlaybackServer, Display, TEXT("   - MediaSyncManager: %s."),
@@ -972,7 +1049,7 @@ void FAvaPlaybackServer::ShowStatusCommand(const TArray<FString>& InArgs)
 		const TSharedPtr<FAvaPlaybackInstance>& Instance = ActivePlaybackInstance.Value;
 		UE_LOG(LogAvaPlaybackServer, Display, TEXT("   - Id:%s, Channel: %s, Asset: %s, Status: %s, UserData: %s ."),
 			*Instance->GetInstanceId().ToString(), *Instance->GetChannelName(), *Instance->GetSourcePath().ToString(),
-			*StaticEnum<EAvaPlaybackStatus>()->GetNameByValue(static_cast<int32>(Instance->GetStatus())).ToString(),
+			*UE::AvaPlayback::Utils::StaticEnumToString(Instance->GetStatus()),
 			*Instance->GetInstanceUserData());
 	}
 	
@@ -1048,7 +1125,7 @@ void FAvaPlaybackServer::OnPlaybackAssetRemoved(const FSoftObjectPath& InAssetPa
 	}
 }
 
-void FAvaPlaybackServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType)
+void FAvaPlaybackServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType)
 {
 	if (!InPlayable)
 	{
@@ -1075,8 +1152,9 @@ void FAvaPlaybackServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const
 	Message->InstanceId = InPlayable->GetInstanceId();
 	Message->AssetPath = PlaybackInstance->GetSourcePath();
 	Message->ChannelName = PlaybackInstance->GetChannelName();
-	Message->SequenceName = SequenceName.ToString();
+	Message->SequenceLabel = InSequenceLabel.ToString();
 	Message->EventType = InEventType;
+	Message->FrameNumber = GFrameNumber;
 	SendResponse(Message, ClientAddresses);
 }
 
@@ -1099,17 +1177,6 @@ void FAvaPlaybackServer::ApplyAvaMediaSettings()
 	{
 		ReplicationOutputDevice.Reset();
 	}
-
-#if !NO_LOGGING
-	if (Settings.bVerbosePlaybackServerLogging)
-	{
-		LogAvaPlaybackServer.SetVerbosity(ELogVerbosity::Verbose);
-	}
-	else
-	{
-		LogAvaPlaybackServer.SetVerbosity(ELogVerbosity::Log);
-	}
-#endif
 }
 
 void FAvaPlaybackServer::SendUserDataUpdate(const TArray<FMessageAddress>& InRecipients)
@@ -1193,47 +1260,85 @@ void FAvaPlaybackServer::SendLogMessage(const TCHAR* InText, ELogVerbosity::Type
 	SendResponse(Message, ClientAddresses);
 }
 
-void FAvaPlaybackServer::ExecutePendingPlaybackCommands()
+void FAvaPlaybackServer::ExecutePendingPlaybackCommands(const FDateTime& InUtcNow)
 {
-	for (const FPendingPlaybackCommand& PendingCommand : PendingPlaybackCommands)
+	if (PendingPlaybackCommands.IsEmpty())
 	{
-		const FAvaPlaybackCommand& Command = PendingCommand.Command;
+		return;
+	}
+
+	// Sort pending commands according to priority of execution. (Should minimize the amount of re-scheduling)
+	Algo::Sort(PendingPlaybackCommands, [](const TSharedPtr<FPendingPlaybackCommand>& InA, const TSharedPtr<FPendingPlaybackCommand>& InB)
+	{
+		return InA->Priority < InB->Priority;
+	});
+
+	for (TArray<TSharedPtr<FPendingPlaybackCommand>>::TIterator PendingCommandIt(PendingPlaybackCommands); PendingCommandIt; ++PendingCommandIt)
+	{
+		const FAvaPlaybackCommand& Command = (*PendingCommandIt)->Command;
+		const FMessageAddress& ReplyTo = (*PendingCommandIt)->ReplyTo;
+		bool bReschedule = false;
+		
 		switch (Command.Action)
 		{
 		case EAvaPlaybackAction::None:
 			break;
 			
 		case EAvaPlaybackAction::Load:
-			LoadPlayback(PendingCommand.ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
+			LoadPlayback(ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
 			break;
 			
 		case EAvaPlaybackAction::Start:
-			StartPlayback(PendingCommand.ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
+			StartPlayback(ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
 			break;
 			
 		case EAvaPlaybackAction::Stop:
-			StopPlayback(PendingCommand.ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
+			StopPlayback(ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
 			break;
 			
 		case EAvaPlaybackAction::Unload:
-			UnloadPlayback(PendingCommand.ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
+			UnloadPlayback(ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
 			break;
 			
 		case EAvaPlaybackAction::Status:
-			SendPlaybackStatus(PendingCommand.ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
+			SendPlaybackStatus(ReplyTo, Command.InstanceId, Command.ChannelName, Command.AssetPath);
 			break;
 			
 		case EAvaPlaybackAction::SetUserData:	
-			SetPlaybackUserData(PendingCommand.ReplyTo, Command.InstanceId, Command.Arguments);
+			bReschedule = !SetPlaybackUserData(ReplyTo, Command.InstanceId, Command.Arguments);
 			break;
 
 		case EAvaPlaybackAction::GetUserData:
-			SendPlaybackUserData(PendingCommand.ReplyTo, Command.InstanceId);
+			bReschedule = !SendPlaybackUserData(ReplyTo, Command.InstanceId);
 			break;
 		}
-	}
+		using namespace UE::AvaPlaybackServer::Private;
+		using namespace UE::AvaPlayback::Utils;
+		
+		if (bReschedule)
+		{
+			const UAvaMediaSettings& Settings = UAvaMediaSettings::Get();
+			const float CommandWaitTime = (InUtcNow - (*PendingCommandIt)->ReceivedUtc).GetTotalSeconds();
+			
+			if (CommandWaitTime > Settings.ServerPendingPlaybackCommandTimeout)
+			{
+				UE_LOG(LogAvaPlaybackServer, Warning, TEXT("%s Discarding Playback Command [%s] (Timed out after %f seconds) for asset: \"%s\" (id:%s) on channel %s"),
+					*GetBriefFrameInfo(), *GetCommandActionString(Command), CommandWaitTime,
+					*Command.AssetPath.GetAssetName(), *Command.InstanceId.ToString(), *Command.ChannelName);
 
-	PendingPlaybackCommands.Reset();
+				PendingCommandIt.RemoveCurrent();
+			}
+		}
+		else
+		{
+			UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("%s Playback Command [%s] Executed for asset: \"%s\" (id:%s) on channel \"%s\", received frame [%d], wait time: %.2f ms"),
+				*GetBriefFrameInfo(), *GetCommandActionString(Command),
+				*Command.AssetPath.GetAssetName(), *Command.InstanceId.ToString(), *Command.ChannelName,
+				(*PendingCommandIt)->ReceivedFrameNumber, (InUtcNow - (*PendingCommandIt)->ReceivedUtc).GetTotalMilliseconds());
+
+			PendingCommandIt.RemoveCurrent();
+		}
+	}
 }
 
 TSharedPtr<FAvaPlaybackInstance> FAvaPlaybackServer::GetOrLoadPlaybackInstance(const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath)
@@ -1297,7 +1402,8 @@ void FAvaPlaybackServer::LoadPlayback(const FMessageAddress& InReplyToAddress, c
 			{
 				PlaybackInstance->GetPlayback()->LoadInstances();
 			}
-			SendPlaybackStatus(InReplyToAddress, InInstanceId, InChannelName, InAssetPath, EAvaPlaybackStatus::Loading);
+			PlaybackInstance->UpdateStatus();
+			SendPlaybackStatus(InReplyToAddress, InInstanceId, InChannelName, InAssetPath, PlaybackInstance->GetStatus());
 		}
 		else
 		{
@@ -1383,6 +1489,20 @@ void FAvaPlaybackServer::UnloadPlayback(const FMessageAddress& InReplyToAddress,
 	{
 		if (const TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(InInstanceId))
 		{
+			// Validation of the operation.
+			// Unloading an instance that is part of a transition is an error state.
+			if (PlaybackInstanceTransitions)
+			{
+				for (const TPair<FGuid, TObjectPtr<UAvaPlaybackServerTransition>>& Transition : PlaybackInstanceTransitions->Transitions)
+				{
+					if (Transition.Value && Transition.Value->ContainsInstance(InInstanceId))
+					{
+						UE_LOG(LogAvaPlaybackServer, Error, TEXT("%s Unloading instance \"%s\" (id:%s) while it is part of transition %s."),
+							*UE::AvaPlayback::Utils::GetBriefFrameInfo(), *Instance->GetSourcePath().GetAssetName(), *InInstanceId.ToString(), *Transition.Value->GetTransitionId().ToString());
+					}
+				}
+			}
+			
 			Instance->Unload();
 			ActivePlaybackInstances.Remove(InInstanceId);
 			SendPlaybackStatus(InReplyToAddress, InInstanceId, Instance->GetChannelName(), Instance->GetSourcePath(), GetUnloadedPlaybackStatus(Instance->GetSourcePath()));
@@ -1421,34 +1541,46 @@ void FAvaPlaybackServer::UnloadPlayback(const FMessageAddress& InReplyToAddress,
 	}
 }
 
-void FAvaPlaybackServer::SetPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InUserData)
+bool FAvaPlaybackServer::SetPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InUserData)
 {
 	if (InInstanceId.IsValid())
 	{
-		if (const TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(InInstanceId))
+		const TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(InInstanceId);
+
+		// Instance may not be loaded yet.
+		if (!Instance)
 		{
-			Instance->SetInstanceUserData(InUserData);
-			
-			using namespace UE::AvaPlaybackServer::Private;
-			SendResponse( MakePlaybackStatusMessage(InInstanceId,
-				Instance->GetChannelName(), Instance->GetSourcePath(),
-				Instance->GetStatus(), Instance->GetInstanceUserData()), InReplyToAddress);
+			return false;
 		}
+		
+		Instance->SetInstanceUserData(InUserData);
+			
+		using namespace UE::AvaPlaybackServer::Private;
+		SendResponse( MakePlaybackStatusMessage(InInstanceId,
+			Instance->GetChannelName(), Instance->GetSourcePath(),
+			Instance->GetStatus(), Instance->GetInstanceUserData()), InReplyToAddress);
 	}
+	return true;
 }
 
-void FAvaPlaybackServer::SendPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId)
+bool FAvaPlaybackServer::SendPlaybackUserData(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId)
 {
 	if (InInstanceId.IsValid())
 	{
-		if (const TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(InInstanceId))
+		const TSharedPtr<FAvaPlaybackInstance> Instance = FindActivePlaybackInstance(InInstanceId);
+
+		// Instance may not be loaded yet.
+		if (!Instance)
 		{
-			using namespace UE::AvaPlaybackServer::Private;
-			SendResponse( MakePlaybackStatusMessage(InInstanceId,
-				Instance->GetChannelName(), Instance->GetSourcePath(),
-				Instance->GetStatus(), Instance->GetInstanceUserData()), InReplyToAddress);
+			return false;
 		}
+
+		using namespace UE::AvaPlaybackServer::Private;
+		SendResponse( MakePlaybackStatusMessage(InInstanceId,
+			Instance->GetChannelName(), Instance->GetSourcePath(),
+			Instance->GetStatus(), Instance->GetInstanceUserData()), InReplyToAddress);
 	}
+	return true;
 }
 
 void FAvaPlaybackServer::SendPlaybackStatus(const FMessageAddress& InReplyToAddress, const FGuid& InInstanceId, const FString& InChannelName, const FSoftObjectPath& InAssetPath)
@@ -1600,18 +1732,22 @@ bool FAvaPlaybackServer::UpdateChannelOutputConfig(FAvaBroadcastOutputChannel& I
 		if (!NewOutputs.IsEmpty())
 		{
 			{
+				// Both RemoveMediaOutput and AddMediaOutput will broadcast channel events
+				// we don't want those temporary states to propagate to the playback client.
+				TGuardValue<bool> BlockChannelStatusUpdate(bBlockChannelStatusUpdate, true);
+			
 				TArray<UMediaOutput*> MediaOutputs = InChannel.GetMediaOutputs();
 				for (UMediaOutput* MediaOutput : MediaOutputs)
 				{
 					InChannel.RemoveMediaOutput(MediaOutput);
 				}
-			}
 
-			for (int32 Index = 0; Index < NewOutputs.Num(); ++Index)
-			{
-				// Make the device info "local" for this server.
-				NewOutputInfos[Index].ServerName = FAvaBroadcastDeviceProviderProxyManager::LocalServerName;
-				InChannel.AddMediaOutput(NewOutputs[Index].Get(), NewOutputInfos[Index]);
+				for (int32 Index = 0; Index < NewOutputs.Num(); ++Index)
+				{
+					// Make the device info "local" for this server.
+					NewOutputInfos[Index].ServerName = FAvaBroadcastDeviceProviderProxyManager::LocalServerName;
+					InChannel.AddMediaOutput(NewOutputs[Index].Get(), NewOutputInfos[Index]);
+				}
 			}
 
 			// We may not desired refresh state here to avoid spurious states if

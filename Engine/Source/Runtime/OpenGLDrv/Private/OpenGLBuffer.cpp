@@ -214,7 +214,6 @@ FBufferRHIRef FOpenGLDynamicRHI::RHICreateBuffer(FRHICommandListBase& RHICmdList
 void* FOpenGLDynamicRHI::LockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI, uint32 Offset, uint32 Size, EResourceLockMode LockMode)
 {
 	check(Size > 0);
-	RHITHREAD_GLCOMMAND_PROLOGUE();
 
 	VERIFY_GL_SCOPE();
 	FOpenGLBuffer* Buffer = ResourceCast(BufferRHI);
@@ -230,25 +229,16 @@ void* FOpenGLDynamicRHI::LockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList
 	const bool bReadOnly = (LockMode == EResourceLockMode::RLM_ReadOnly);
 	const bool bDiscard = !bReadOnly; // Always use 'orphaning' on write as buffer could be in use by GPU atm
 	return (void*)Buffer->Lock(Offset, Size, bReadOnly, bDiscard);
-	RHITHREAD_GLCOMMAND_EPILOGUE_RETURN(void*);
 }
 
 void FOpenGLDynamicRHI::UnlockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI)
 {
-	RHITHREAD_GLCOMMAND_PROLOGUE();
 	VERIFY_GL_SCOPE();
 	FOpenGLBuffer* Buffer = ResourceCast(BufferRHI);
 	if (!RetireAllocation(Buffer))
 	{
 		Buffer->Unlock();
 	}
-	RHITHREAD_GLCOMMAND_EPILOGUE();
-}
-
-void FOpenGLDynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)
-{
-	check(SourceBufferRHI && DestBufferRHI && SourceBufferRHI->GetSize() == DestBufferRHI->GetSize());
-	RHICopyBufferRegion(DestBufferRHI, 0, SourceBufferRHI, 0, SourceBufferRHI->GetSize());
 }
 
 void FOpenGLDynamicRHI::RHICopyBufferRegion(FRHIBuffer* DestBufferRHI, uint64 DstOffset, FRHIBuffer* SourceBufferRHI, uint64 SrcOffset, uint64 NumBytes)
@@ -264,27 +254,6 @@ void FOpenGLDynamicRHI::RHICopyBufferRegion(FRHIBuffer* DestBufferRHI, uint64 Ds
 	glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
 }
 
-void FOpenGLDynamicRHI::RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer)
-{
-	VERIFY_GL_SCOPE();
-	FOpenGLBuffer* Dst = ResourceCast(DestBuffer);
-	FOpenGLBuffer* Src = ResourceCast(SrcBuffer);
-
-	if (Src)
-	{
-		// The source buffer should not have any associated views.
-		check(!Src->HasLinkedViews());
-
-		Dst->TakeOwnership(*Src);
-	}
-	else
-	{
-		Dst->ReleaseOwnership();
-	}
-
-	Dst->UpdateLinkedViews();
-}
-
 FStagingBufferRHIRef FOpenGLDynamicRHI::RHICreateStagingBuffer()
 {
 	return new FOpenGLStagingBuffer();
@@ -295,20 +264,20 @@ void FOpenGLStagingBuffer::Initialize()
 	ShadowBuffer = 0;
 	ShadowSize = 0;
 	Mapping = nullptr;
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	RHITHREAD_GLCOMMAND_PROLOGUE();
-	VERIFY_GL_SCOPE();
-	glGenBuffers(1, &ShadowBuffer);
-	RHITHREAD_GLCOMMAND_EPILOGUE();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
+	{
+		VERIFY_GL_SCOPE();
+		glGenBuffers(1, &ShadowBuffer);
+	});
+	RHITHREAD_GLTRACE_BLOCKING;
+	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 }
 
 FOpenGLStagingBuffer::~FOpenGLStagingBuffer()
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	RHITHREAD_GLCOMMAND_PROLOGUE();
 	VERIFY_GL_SCOPE();
 	glDeleteBuffers(1, &ShadowBuffer);
-	RHITHREAD_GLCOMMAND_EPILOGUE_NORETURN();
 }
 
 // If we do not support the BufferStorage extension or if PersistentMapping is set to false, this will send the command to the RHI and flush it
@@ -317,17 +286,19 @@ void* FOpenGLStagingBuffer::Lock(uint32 Offset, uint32 NumBytes)
 {
 	if (!FOpenGL::SupportsBufferStorage() || !OpenGLConsoleVariables::bUsePersistentMappingStagingBuffer)
 	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		VERIFY_GL_SCOPE();
-
-		check(ShadowBuffer != 0);
-		glBindBuffer(GL_COPY_WRITE_BUFFER, ShadowBuffer);
-		void* LocalMapping = FOpenGL::MapBufferRange(GL_COPY_WRITE_BUFFER, 0, NumBytes, FOpenGL::EResourceLockMode::RLM_ReadOnly);
-		check(LocalMapping);
-		return reinterpret_cast<uint8*>(LocalMapping) + Offset;
-
-		RHITHREAD_GLCOMMAND_EPILOGUE_RETURN(void*);
+		void* ReturnValue = nullptr;
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&) {
+			VERIFY_GL_SCOPE();
+			check(ShadowBuffer != 0);
+			glBindBuffer(GL_COPY_WRITE_BUFFER, ShadowBuffer);
+			void* LocalMapping = FOpenGL::MapBufferRange(GL_COPY_WRITE_BUFFER, 0, NumBytes, FOpenGL::EResourceLockMode::RLM_ReadOnly);
+			check(LocalMapping);
+			ReturnValue = reinterpret_cast<uint8*>(LocalMapping) + Offset;
+			});
+		RHITHREAD_GLTRACE_BLOCKING;
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		return ReturnValue;
 	}
 	else
 	{
@@ -342,12 +313,12 @@ void FOpenGLStagingBuffer::Unlock()
 {
 	if (!FOpenGL::SupportsBufferStorage() || !OpenGLConsoleVariables::bUsePersistentMappingStagingBuffer)
 	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		RHITHREAD_GLCOMMAND_PROLOGUE();
-		FOpenGL::UnmapBuffer(GL_COPY_WRITE_BUFFER);
-		Mapping = nullptr;
-		glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
-		RHITHREAD_GLCOMMAND_EPILOGUE();
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&) {
+			FOpenGL::UnmapBuffer(GL_COPY_WRITE_BUFFER);
+			Mapping = nullptr;
+			glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+		});
 	}
 }
 

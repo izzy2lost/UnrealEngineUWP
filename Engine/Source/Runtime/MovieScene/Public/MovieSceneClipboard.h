@@ -191,11 +191,12 @@ public:
 
 	/** Create a key track that wraps the specified key type */
 	template<typename KeyType>
-	static FMovieSceneClipboardKeyTrack Create(FName InName)
+	static FMovieSceneClipboardKeyTrack Create(FName InName, FFrameNumber KeyOffset = 0)
 	{
 		FMovieSceneClipboardKeyTrack Track;
 		Track.TypeName = MovieSceneClipboard::GetKeyTypeName<KeyType>();
 		Track.Name = MoveTemp(InName);
+		Track.KeyOffset = KeyOffset;
 		return Track;
 	}
 
@@ -220,6 +221,8 @@ public:
 	template<typename KeyType>
 	void AddKey(FFrameNumber Time, KeyType Value)
 	{
+		Time -= KeyOffset;
+
 		checkf(IsKeyOfType<KeyType>(), TEXT("Unable to add a key of a different value type to the track"));
 		Keys.Add(FMovieSceneClipboardKey(Time, MoveTemp(Value)));
 	}
@@ -268,6 +271,9 @@ private:
 
 	/** Generic name of this track (generally the name of a key area within a track e.g. Location.X) */
 	FName Name;
+
+	/** Optional key offset that is applied to all keys added to the clipboard */
+	FFrameNumber KeyOffset;
 };
 
 /** Structure representing an environment a clipboard applies to */
@@ -329,6 +335,9 @@ private:
 class FMovieSceneClipboardBuilder
 {
 public:
+
+	/** Optional key offset that is applied to all keys added to the clipboard */
+	FFrameNumber KeyOffset;
 
 	/** Generate a clipboard for the current state of this builder, resetting the builder back to its default state */
 	MOVIESCENE_API FMovieSceneClipboard Commit(TOptional<FFrameNumber> CopyRelativeTo);

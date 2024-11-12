@@ -6,6 +6,7 @@
 
 #if RHI_RAYTRACING
 
+#include "LightFunctionRendering.h"
 #include "LightRendering.h"
 #include "LightSceneProxy.h"
 #include "SceneRendering.h"
@@ -31,6 +32,14 @@ TAutoConsoleVariable<int32> CVarRayTracingLightGridMaxCount(
 	TEXT("Controls the maximum number of lights per cell in the 2D light grid. The minimum of this value and the number of lights in the scene is used. (default = 128)\n"),
 	ECVF_RenderThreadSafe
 );
+
+TAutoConsoleVariable<int32> CVarRayTracingLightGridAxis(
+	TEXT("r.RayTracing.LightGridAxis"),
+	-1,
+	TEXT("Choose the coordinate axis along which to project the light grid (default = -1, automatic)\n"),
+	ECVF_RenderThreadSafe
+);
+
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FRayTracingLightGrid, "RaytracingLightGridData");
 
@@ -160,19 +169,23 @@ static void PrepareLightGrid(FRDGBuilder& GraphBuilder, FGlobalShaderMap* Shader
 	LightGridParameters->LightGridResolution = Resolution;
 	LightGridParameters->LightGridMaxCount = MaxCount;
 
-	// pick the shortest axis
-	FVector3f Diag = LightGridParameters->SceneLightsTranslatedBoundMax - LightGridParameters->SceneLightsTranslatedBoundMin;
-	if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+	LightGridParameters->LightGridAxis = CVarRayTracingLightGridAxis.GetValueOnRenderThread();
+	if (LightGridParameters->LightGridAxis < 0 || LightGridParameters->LightGridAxis > 2)
 	{
-		LightGridParameters->LightGridAxis = 0;
-	}
-	else if (Diag.Y < Diag.Z)
-	{
-		LightGridParameters->LightGridAxis = 1;
-	}
-	else
-	{
-		LightGridParameters->LightGridAxis = 2;
+		// pick the shortest axis if user did not explicitly pick an axis
+		FVector3f Diag = LightGridParameters->SceneLightsTranslatedBoundMax - LightGridParameters->SceneLightsTranslatedBoundMin;
+		if (Diag.X < Diag.Y && Diag.X < Diag.Z)
+		{
+			LightGridParameters->LightGridAxis = 0;
+		}
+		else if (Diag.Y < Diag.Z)
+		{
+			LightGridParameters->LightGridAxis = 1;
+		}
+		else
+		{
+			LightGridParameters->LightGridAxis = 2;
+		}
 	}
 
 
@@ -244,6 +257,8 @@ static bool ShouldIncludeRayTracingLight(const FLightSceneInfoCompact& Light)
 	return !bHasStaticLighting && bAffectReflection;
 }
 
+uint32 PackRG16(float In0, float In1);
+
 TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
@@ -309,13 +324,13 @@ TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 
 			// Ray tracing should compute fade parameters ignoring lightmaps
 			const FVector2D FadeParams = Light.LightSceneInfo->Proxy->GetDirectionalLightDistanceFadeParameters(View.GetFeatureLevel(), false, View.MaxShadowCascades);
-			const FVector2D DistanceFadeMAD = { FadeParams.Y, -FadeParams.X * FadeParams.Y };
-
+			
 			LightDataElement.SpotAngles = LightParameters.SpotAngles;
-			LightDataElement.DistanceFadeMAD = FVector2f(DistanceFadeMAD);
+			LightDataElement.DistanceFadeMAD = PackRG16(FadeParams.Y, -FadeParams.X * FadeParams.Y);
+			LightDataElement.IndirectLightScale = Light.LightSceneInfo->Proxy->GetIndirectLightingScale();
 
 			LightDataElement.InvRadius = LightParameters.InvRadius;
-			LightDataElement.SpecularScale = LightParameters.SpecularScale;
+			LightDataElement.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);
 			LightDataElement.FalloffExponent = LightParameters.FalloffExponent;
 			LightDataElement.SourceRadius = LightParameters.SourceRadius;
 			LightDataElement.SourceLength = LightParameters.SourceLength;
@@ -361,7 +376,7 @@ TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 		LightGridParameters->SceneInfiniteLightCount = 0;
 		LightGridParameters->SceneLightsTranslatedBoundMin = FVector3f::ZeroVector;
 		LightGridParameters->SceneLightsTranslatedBoundMax = FVector3f::ZeroVector;
-		LightGridParameters->SceneLights = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, sizeof(uint32), 0u), PF_R32_UINT);
+		LightGridParameters->SceneLights = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FRTLightingData), 0u));
 		LightGridParameters->LightGrid = GSystemTextures.GetDefaultTexture2D(GraphBuilder, PF_R32_UINT, 0u);
 		LightGridParameters->LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32), 0u), PF_R32_UINT);
 		LightGridParameters->LightGridResolution = 0;
@@ -391,6 +406,11 @@ class FRayTracingLightingMS : public FGlobalShader
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FRayTracingLightingMS, "/Engine/Private/RayTracing/RayTracingLightingMS.usf", "RayTracingLightingMS", SF_RayMiss);
@@ -407,6 +427,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionParametersRayTracing, )
 	SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
+	SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionParametersRayTracing, "RaytracingLightFunctionParameters");
@@ -441,6 +462,8 @@ static TUniformBufferRef<FLightFunctionParametersRayTracing> CreateLightFunction
 		LightSceneInfo->Proxy->GetLightFunctionFadeDistance(),
 		LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness(),
 		bRenderingPreviewShadowIndicator ? 1.0f : 0.0f);
+
+	LightFunctionParameters.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 	return CreateUniformBufferImmediate(LightFunctionParameters, Usage);
 }
@@ -495,6 +518,9 @@ public:
 
 		//bind light data
 		ShaderBindings.Add(LightDataPacked, LightGridBuffer);
+
+		// LightFunctions can use primitive data, set identity so we do not crash on a missing binding
+		ShaderBindings.Add(GetUniformBufferParameter<FPrimitiveUniformShaderParameters>(), GIdentityPrimitiveUniformBuffer);
 	}
 
 	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -506,6 +532,11 @@ public:
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 private:
@@ -561,8 +592,8 @@ static void BindLightFunction(
 	int32 Index
 	)
 {
-	FRHIRayTracingScene* RTScene = View.GetRayTracingSceneChecked();
 	FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
+	FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 	const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
 
 	TShaderRef<FLightFunctionRayTracingShader> Shader = MaterialShaderMap->GetShader<FLightFunctionRayTracingShader>();
@@ -576,7 +607,7 @@ static void BindLightFunction(
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, Shader.GetRayTracingShader(), true);
 
-	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, RTScene, Pipeline, MissShaderPipelineIndex, Index);
+	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, SBT, Index, Pipeline, MissShaderPipelineIndex);
 }
 
 FRHIRayTracingShader* GetRayTracingLightingMissShader(const FGlobalShaderMap* ShaderMap)
@@ -621,7 +652,11 @@ void BindLightFunctionShaders(
 template< typename ShaderClass>
 static int32 BindParameters(const TShaderRef<ShaderClass>& Shader, typename ShaderClass::FParameters & Parameters, int32 MaxParams, const FRHIUniformBuffer **OutUniformBuffers)
 {
+	// Allow FRayTracingShaderBindingsWriter
+	// #yuriy-todo: ResourceBinder here appears to only be used to fill OutUniformBuffers. Add a dedicated helper for this? 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRayTracingShaderBindingsWriter ResourceBinder;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	auto &ParameterMap = Shader->ParameterMapInfo;
 
@@ -652,24 +687,30 @@ static int32 BindParameters(const TShaderRef<ShaderClass>& Shader, typename Shad
 	return MaxUniformBufferUsed + 1;
 }
 
-void FDeferredShadingSceneRenderer::SetupRayTracingDefaultMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupRayTracingDefaultMissShader(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, GetRayTracingDefaultMissShader(View.ShaderMap), true);
 
-	RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(),
+	RHICmdList.SetRayTracingMissShader(
+		View.RayTracingSBT,
 		RAY_TRACING_MISS_SHADER_SLOT_DEFAULT,
 		View.RayTracingMaterialPipeline,
 		MissShaderPipelineIndex,
 		0, nullptr, 0);
 }
 
-void FDeferredShadingSceneRenderer::SetupRayTracingLightingMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupRayTracingLightingMissShader(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
 	FRayTracingLightingMS::FParameters MissParameters;
 	MissParameters.ViewUniformBuffer = View.ViewUniformBuffer;
 	MissParameters.LightDataPacked = View.RayTracingLightGridUniformBuffer;
 
+	// Allow FRayTracingShaderBindingsWriter
+	// #yuriy-todo: ResourceBinder here appears to only be used to fill OutUniformBuffers. Add a dedicated helper for this? 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	static constexpr uint32 MaxUniformBuffers = UE_ARRAY_COUNT(FRayTracingShaderBindings::UniformBuffers);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	const FRHIUniformBuffer* MissData[MaxUniformBuffers] = {};
 	auto MissShader = View.ShaderMap->GetShader<FRayTracingLightingMS>();
 
@@ -677,7 +718,8 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightingMissShader(FRHIComman
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, MissShader.GetRayTracingShader(), true);
 
-	RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(),
+	RHICmdList.SetRayTracingMissShader(
+		View.RayTracingSBT,
 		RAY_TRACING_MISS_SHADER_SLOT_LIGHTING,
 		View.RayTracingMaterialPipeline,
 		MissShaderPipelineIndex,

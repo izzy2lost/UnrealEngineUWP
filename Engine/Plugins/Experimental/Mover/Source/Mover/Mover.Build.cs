@@ -5,7 +5,10 @@ using UnrealBuildTool;
 public class Mover : ModuleRules
 {
 	public Mover(ReadOnlyTargetRules Target) : base(Target)
-	{		
+	{
+
+		// TODO: find a better way to manage optional dependencies, such as Water and PoseSearch. This includes module dependencies here, as well as .uplugin dependencies.
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -16,6 +19,7 @@ public class Mover : ModuleRules
 				"AnimGraphRuntime",
 				"MotionWarping",
 				"Water",
+				"GameplayTags"
 			}
 			);
 			
@@ -28,7 +32,7 @@ public class Mover : ModuleRules
 				"Engine",
 				"PhysicsCore",
 				"DeveloperSettings",
-				// ... add private dependencies that you statically link with here ...	
+				"PoseSearch"
 			}
 			);
 

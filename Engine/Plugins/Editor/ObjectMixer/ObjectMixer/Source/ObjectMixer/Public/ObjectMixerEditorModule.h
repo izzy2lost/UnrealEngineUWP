@@ -7,7 +7,7 @@
 #include "Widgets/Docking/SDockTab.h"
 
 class FObjectMixerEditorList;
-class FObjectMixerEditorList;
+class ISequencer;
 
 class OBJECTMIXEREDITOR_API FObjectMixerEditorModule : public IModuleInterface
 {
@@ -32,6 +32,9 @@ public:
 	virtual TSharedPtr<SWidget> MakeObjectMixerDialog(
 		TSubclassOf<UObjectMixerObjectFilter> InDefaultFilterClass = nullptr);
 
+	/** Get a list of sequencers that are currently active in the editor. */
+	virtual TArray<TWeakPtr<ISequencer>> GetSequencers() const;
+
 	/**
 	 * Tries to find the nomad tab assigned to this instance of Object Mixer.
 	 * If DockTab is not set, will try to find the tab using GetTabSpawnerId().
@@ -43,17 +46,6 @@ public:
 	 * @return True if the widget was regenerated. False if the DockTab was invalid and could not be found.
 	 */
 	bool RegenerateListWidget();
-
-	/**
-	 * Regenerate the list items and refresh the list. Call when adding or removing variables.
-	 */
-	virtual void RequestRebuildList() const;
-	
-	/**
-	 * Refresh filters and sorting.
-	 * Useful for when the list state has gone stale but the variable count has not changed.
-	 */
-	virtual void RefreshList() const;
 
 	/** Called when the Rename command is executed from the UI or hotkey. */
 	virtual void OnRenameCommand();
@@ -94,11 +86,6 @@ public:
 
 protected:
 
-	virtual void BindDelegates();
-
-	/** If a property is changed that has a name found in this set, the panel will be refreshed. */
-	TSet<FName> GetPropertiesThatRequireRefresh() const;
-	
 	/** Lives for as long as the module is loaded. */
 	TSharedPtr<FObjectMixerEditorList> ListModel;
 
@@ -119,8 +106,6 @@ protected:
 	 * This filter class cannot be turned off by the end user.
 	 */
 	TSubclassOf<UObjectMixerObjectFilter> DefaultFilterClass;
-	
-	TSet<FDelegateHandle> DelegateHandles;
 
 	FOnBlueprintFilterCompiled OnBlueprintFilterCompiledDelegate;
 

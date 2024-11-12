@@ -100,6 +100,9 @@ public:
 
 	/////// RHI Methods
 
+	virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList) override final;
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) override final;
+
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) override final
 	{
@@ -233,11 +236,6 @@ public:
 	virtual FRHIShaderLibraryRef RHICreateShaderLibrary(EShaderPlatform Platform, FString const& FilePath, FString const& Name) override final
 	{
 		return RHI->RHICreateShaderLibrary(Platform, FilePath, Name);
-	}
-
-	virtual FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries = UINT32_MAX) override final
-	{
-		return RHI->RHICreateRenderQueryPool(QueryType, NumQueries);
 	}
 
 	virtual FGPUFenceRHIRef RHICreateGPUFence(const FName &Name) override final
@@ -398,8 +396,13 @@ public:
 		check(Layout);
 		check(Layout->Resources.Num() > 0 || Layout->ConstantBufferSize > 0);
 		FUniformBufferRHIRef UniformBuffer = RHI->RHICreateUniformBuffer(Contents, Layout, Usage, Validation);
-		// Use the render thread frame ID for any non RHI thread allocations.
-		UniformBuffer->InitLifetimeTracking(IsInRHIThread() ? RHIThreadFrameID : RenderThreadFrameID, Contents, Usage);
+
+		// Use the render thread frame ID for any non RHI thread allocations. TODO: This is actually incorrect as command list recording on the render thread timeline
+		// can straddle EndFrame boundaries, causing a uniform buffer allocated in frame N to be recorded as being allocated in frame N+1. The solution here is to introduce
+		// a command list to RHICreateUniformBuffer so that the correct render thread frame can be propagated. Unfortunately, in the meantime, this means that the lifetime
+		// tracker can miss legitimate cases. For example, if a (single frame) uniform buffer is allocated in frame N (but straddles to frame N+1), and then is incorrectly
+		// used in frame N+1, that test will pass because they are equal. However, since the issue is timing dependent, it's still likely to catch legitimate allocation misuses.
+		UniformBuffer->InitLifetimeTracking(IsInRHIThread() ? RHIThreadFrameID : RenderThreadFrameID.load(std::memory_order_relaxed), Contents, Usage);
 		return UniformBuffer;
 	}
 
@@ -408,7 +411,11 @@ public:
 		check(UniformBufferRHI);
 		check(Contents);
 		RHI->RHIUpdateUniformBuffer(RHICmdList, UniformBufferRHI, Contents);
-		UniformBufferRHI->UpdateAllocation(RenderThreadFrameID);
+
+		RHICmdList.EnqueueLambda([this, UniformBufferRHI] (FRHICommandListBase& RHICmdList)
+		{
+			UniformBufferRHI->UpdateAllocation(RHIThreadFrameID);
+		});
 	}
 
 	/**
@@ -434,13 +441,6 @@ public:
 		return Buffer;
 	}
 
-	/** Copies the contents of one vertex buffer to another vertex buffer.  They must have identical sizes. */
-	// FlushType: Flush Immediate (seems dangerous)
-	virtual void RHICopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer) override final
-	{
-		RHI->RHICopyBuffer(SourceBuffer, DestBuffer);
-	}
-
 	// FlushType: Flush RHI Thread
 	virtual void* RHILockBuffer(class FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode) override final;
 	virtual void* RHILockBufferMGPU(class FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 GPUIndex, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode) override final;
@@ -455,6 +455,15 @@ public:
 		RHI->RHIUnlockBufferMGPU(RHICmdList, Buffer, GPUIndex);
 	}
 
+	virtual FTextureReferenceRHIRef RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)
+	{
+		return RHI->RHICreateTextureReference(RHICmdList, InReferencedTexture);
+	}
+	virtual void RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* NewTexture)
+	{
+		RHI->RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
+	}
+
 	virtual FShaderResourceViewRHIRef RHICreateShaderResourceView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) override final
 	{
 		return RHI->RHICreateShaderResourceView(RHICmdList, Resource, ViewDesc);
@@ -462,6 +471,11 @@ public:
 	virtual FUnorderedAccessViewRHIRef RHICreateUnorderedAccessView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) override final
 	{
 		return RHI->RHICreateUnorderedAccessView(RHICmdList, Resource, ViewDesc);
+	}
+
+	virtual FRHIResourceCollectionRef RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+	{
+		return RHI->RHICreateResourceCollection(RHICmdList, InMembers);
 	}
 
 	virtual FRHICalcTextureSizeResult RHICalcTexturePlatformSize(FRHITextureDesc const& Desc, uint32 FirstMipIndex) override final
@@ -534,23 +548,9 @@ public:
 		return Texture;
 	}
 
-	void RHITransferBufferUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIBuffer* DestBuffer, FRHIBuffer* SrcBuffer) override final
+	virtual void RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos) override final
 	{
-		RHI->RHITransferBufferUnderlyingResource(RHICmdList, DestBuffer, SrcBuffer);
-	}
-
-	/**
-	* Generates mip maps for a texture.
-	*/
-	// FlushType: Flush Immediate (NP: this should be queued on the command list for RHI thread execution, not flushed)
-	virtual void RHIGenerateMips(FRHITexture* Texture) override final
-	{
-		return RHI->RHIGenerateMips(Texture);
-	}
-
-	virtual bool RHIRequiresComputeGenerateMips() const final override
-	{
-		return RHI->RHIRequiresComputeGenerateMips();
+		RHI->RHIReplaceResources(RHICmdList, MoveTemp(ReplaceInfos));
 	}
 
 	/**
@@ -582,12 +582,12 @@ public:
 	*/
 	// FlushType: Flush RHI Thread
 	// NP: Note that no RHI currently implements this as an async call, we should simplify the API.
-	virtual FTexture2DRHIRef RHIAsyncReallocateTexture2D(FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) override final
+	virtual FTextureRHIRef RHIAsyncReallocateTexture2D(FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) override final
 	{
 		// TODO: find proper state for new texture
 		ERHIAccess ResourceState = ERHIAccess::SRVMask;
 
-		FTexture2DRHIRef NewTexture2D = RHI->RHIAsyncReallocateTexture2D(Texture2D, NewMipCount, NewSizeX, NewSizeY, RequestStatus);
+		FTextureRHIRef NewTexture2D = RHI->RHIAsyncReallocateTexture2D(Texture2D, NewMipCount, NewSizeX, NewSizeY, RequestStatus);
 		NewTexture2D->InitBarrierTracking(NewMipCount, 1, NewTexture2D->GetFormat(), NewTexture2D->GetFlags(), ResourceState, NewTexture2D->GetTrackerResource()->GetDebugName()); // @todo the threading of GetDebugName() is wrong.
 		return NewTexture2D;
 	}
@@ -604,7 +604,7 @@ public:
 	*	TexRealloc_InProgress	Reallocation is still in progress, try again later
 	*/
 	// FlushType: Wait RHI Thread
-	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) override final
+	virtual ETextureReallocationStatus RHIFinalizeAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted) override final
 	{
 		return RHI->RHIFinalizeAsyncReallocateTexture2D(Texture2D, bBlockUntilCompleted);
 	}
@@ -618,7 +618,7 @@ public:
 	* @return						Reallocation status
 	*/
 	// FlushType: Wait RHI Thread
-	virtual ETextureReallocationStatus RHICancelAsyncReallocateTexture2D(FRHITexture2D* Texture2D, bool bBlockUntilCompleted) override final
+	virtual ETextureReallocationStatus RHICancelAsyncReallocateTexture2D(FRHITexture* Texture2D, bool bBlockUntilCompleted) override final
 	{
 		return RHI->RHICancelAsyncReallocateTexture2D(Texture2D, bBlockUntilCompleted);
 	}
@@ -633,7 +633,7 @@ public:
 	* @return pointer to the CPU accessible resource data
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void* RHILockTexture2D(FRHITexture2D* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount) override final
+	virtual void* RHILockTexture2D(FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, uint64* OutLockedByteCount) override final
 	{
 		return RHI->RHILockTexture2D(Texture, MipIndex, LockMode, DestStride, bLockWithinMiptail, OutLockedByteCount);
 	}
@@ -645,7 +645,7 @@ public:
 	* @param bLockWithinMiptail - for platforms that support packed miptails allow locking of individual mip levels within the miptail
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUnlockTexture2D(FRHITexture2D* Texture, uint32 MipIndex, bool bLockWithinMiptail) override final
+	virtual void RHIUnlockTexture2D(FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail) override final
 	{
 		RHI->RHIUnlockTexture2D(Texture, MipIndex, bLockWithinMiptail);
 	}
@@ -660,7 +660,7 @@ public:
 	* @return pointer to the CPU accessible resource data
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void* RHILockTexture2DArray(FRHITexture2DArray* Texture, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
+	virtual void* RHILockTexture2DArray(FRHITexture* Texture, uint32 TextureIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
 	{
 		return RHI->RHILockTexture2DArray(Texture, TextureIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
 	}
@@ -672,7 +672,7 @@ public:
 	* @param bLockWithinMiptail - for platforms that support packed miptails allow locking of individual mip levels within the miptail
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUnlockTexture2DArray(FRHITexture2DArray* Texture, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
+	virtual void RHIUnlockTexture2DArray(FRHITexture* Texture, uint32 TextureIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
 	{
 		RHI->RHIUnlockTexture2DArray(Texture, TextureIndex, MipIndex, bLockWithinMiptail);
 	}
@@ -686,12 +686,12 @@ public:
 	* @param SourceData - source image data, starting at the upper left corner of the source rectangle (in same pixel format as texture)
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData) override final
+	virtual void RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, const uint8* SourceData) override final
 	{
 		RHI->RHIUpdateTexture2D(RHICmdList, Texture, MipIndex, UpdateRegion, SourcePitch, SourceData);
 	}
 
-	virtual void RHIUpdateFromBufferTexture2D(FRHICommandListBase& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, FRHIBuffer* Buffer, uint32 BufferOffset) override final
+	virtual void RHIUpdateFromBufferTexture2D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion2D& UpdateRegion, uint32 SourcePitch, FRHIBuffer* Buffer, uint32 BufferOffset) override final
 	{
 		RHI->RHIUpdateFromBufferTexture2D(RHICmdList, Texture, MipIndex, UpdateRegion, SourcePitch, Buffer, BufferOffset);
 	}
@@ -706,7 +706,7 @@ public:
 	* @param SourceData - source image data, starting at the upper left corner of the source rectangle (in same pixel format as texture)
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture3D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData) override final
+	virtual void RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData) override final
 	{
 		RHI->RHIUpdateTexture3D(RHICmdList, Texture, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, SourceData);
 	}
@@ -721,7 +721,7 @@ public:
 	* @return pointer to the CPU accessible resource data
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void* RHILockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
+	virtual void* RHILockTextureCubeFace(FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
 	{
 		return RHI->RHILockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
 	}
@@ -733,7 +733,7 @@ public:
 	* @param bLockWithinMiptail - for platforms that support packed miptails allow locking of individual mip levels within the miptail
 	*/
 	// FlushType: Flush RHI Thread
-	virtual void RHIUnlockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
+	virtual void RHIUnlockTextureCubeFace(FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
 	{
 		RHI->RHIUnlockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail);
 	}
@@ -804,14 +804,14 @@ public:
 		return RHI->RHIGetRenderQueryResult(RenderQuery, OutResult, bWait, GPUIndex);
 	}
 
-	virtual void RHIBeginOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, uint32 NumQueriesInBatch) override final
+	virtual void RHIBeginRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType) override final
 	{
-		RHI->RHIBeginOcclusionQueryBatch_TopOfPipe(RHICmdList, NumQueriesInBatch);
+		RHI->RHIBeginRenderQueryBatch_TopOfPipe(RHICmdList, QueryType);
 	}
 
-	virtual void RHIEndOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList) override final
+	virtual void RHIEndRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType) override final
 	{
-		RHI->RHIEndOcclusionQueryBatch_TopOfPipe(RHICmdList);
+		RHI->RHIEndRenderQueryBatch_TopOfPipe(RHICmdList, QueryType);
 	}
 
 	virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final
@@ -832,9 +832,9 @@ public:
 
 	// With RHI thread, this is the current backbuffer from the perspective of the render thread.
 	// FlushType: Thread safe
-	virtual FTexture2DRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport) override final
+	virtual FTextureRHIRef RHIGetViewportBackBuffer(FRHIViewport* Viewport) override final
 	{
-		FTexture2DRHIRef Texture = RHI->RHIGetViewportBackBuffer(Viewport);
+		FTextureRHIRef Texture = RHI->RHIGetViewportBackBuffer(Viewport);
 		if (!Texture->GetTrackerResource()->IsBarrierTrackingInitialized())
 		{
 			// Assume present and renderer needs to perform transition to RTV if needed
@@ -874,29 +874,18 @@ public:
 		RHI->RHIGetDisplaysInformation(OutDisplayInformation);
 	}
 
-	virtual void RHIAdvanceFrameFence() override final
-	{
-		check(IsInRenderingThread());
-		RHI->RHIAdvanceFrameFence();
-		RenderThreadFrameID++;
-	}
-
 	// Only relevant with an RHI thread, this advances the backbuffer for the purpose of GetViewportBackBuffer
 	// FlushType: Thread safe
 	virtual void RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Viewport) override final
 	{
 		RHI->RHIAdvanceFrameForGetViewportBackBuffer(Viewport);
 	}
-	/*
-	* Acquires or releases ownership of the platform-specific rendering context for the calling thread
-	*/
-	// FlushType: Flush RHI Thread
+
 	virtual void RHIAcquireThreadOwnership() override final
 	{
 		RHI->RHIAcquireThreadOwnership();
 	}
 
-	// FlushType: Flush RHI Thread
 	virtual void RHIReleaseThreadOwnership() override final
 	{
 		RHI->RHIReleaseThreadOwnership();
@@ -938,11 +927,6 @@ public:
 		RHI->RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 	}
 
-	virtual EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport) override final
-	{
-		return RHI->RHIGetColorSpace(Viewport);
-	}
-
 	virtual EPixelFormat RHIPreferredPixelFormatHint(EPixelFormat PreferredPixelFormat) override final
 	{
 		return RHI->RHIPreferredPixelFormatHint(PreferredPixelFormat);
@@ -970,13 +954,6 @@ public:
 	virtual void RHIBlockUntilGPUIdle() override final
 	{
 		RHI->RHIBlockUntilGPUIdle();
-	}
-
-	// Kicks the current frame and makes sure GPU is actively working on them
-	// FlushType: Flush Immediate (copied from RHIBlockUntilGPUIdle)
-	virtual void RHISubmitCommandsAndFlushGPU() override final
-	{
-		RHI->RHISubmitCommandsAndFlushGPU();
 	}
 
 	// Tells the RHI we're about to suspend it
@@ -1036,7 +1013,7 @@ public:
 	* @param FirstMip - the first mip that should be in memory
 	*/
 	// FlushType: Wait RHI Thread
-	virtual void RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 FirstMip) override final
+	virtual void RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FirstMip) override final
 	{
 		RHI->RHIVirtualTextureSetFirstMipInMemory(RHICmdList, Texture, FirstMip);
 	}
@@ -1047,18 +1024,9 @@ public:
 	* @param FirstMip - the first mip that should be visible to the GPU
 	*/
 	// FlushType: Wait RHI Thread
-	virtual void RHIVirtualTextureSetFirstMipVisible(FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 FirstMip) override final
+	virtual void RHIVirtualTextureSetFirstMipVisible(FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FirstMip) override final
 	{
 		RHI->RHIVirtualTextureSetFirstMipVisible(RHICmdList, Texture, FirstMip);
-	}
-
-	/**
-	* Called once per frame just before deferred deletion in FRHIResource::FlushPendingDeletes
-	*/
-	// FlushType: called from render thread when RHI thread is flushed 
-	virtual void RHIPerFrameRHIFlushComplete() override final
-	{
-		RHI->RHIPerFrameRHIFlushComplete();
 	}
 
 	/**
@@ -1116,32 +1084,41 @@ public:
 	}
 
 	virtual IRHICommandContext* RHIGetDefaultContext() override final;
-	virtual IRHIComputeContext* RHIGetDefaultAsyncComputeContext() override final;
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) override final;
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* OuterContext) override final;
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> OuterCommandLists, bool bFlushResources) override final;
+	virtual IRHIUploadContext* RHIGetUploadContext() final override
+	{
+		return RHI->RHIGetUploadContext();
+	}
+	
+	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) override final;
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) override final;
+	
+	virtual void RHIProcessDeleteQueue() override final
+	{
+		RHI->RHIProcessDeleteQueue();
+	}
 
 	virtual uint64 RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat Format) override final
 	{
 		return RHI->RHIGetMinimumAlignmentForBufferBackedSRV(Format);
 	}
 
-	virtual FTexture2DRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) override final
+	virtual FTextureRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus) override final
 	{
 		// TODO: find proper state for new texture
 		ERHIAccess ResourceState = ERHIAccess::SRVMask;
 
-		FTexture2DRHIRef NewTexture2D = RHI->AsyncReallocateTexture2D_RenderThread(RHICmdList, Texture2D, NewMipCount, NewSizeX, NewSizeY, RequestStatus);
+		FTextureRHIRef NewTexture2D = RHI->AsyncReallocateTexture2D_RenderThread(RHICmdList, Texture2D, NewMipCount, NewSizeX, NewSizeY, RequestStatus);
 		NewTexture2D->InitBarrierTracking(NewMipCount, 1, NewTexture2D->GetFormat(), NewTexture2D->GetFlags(), ResourceState, NewTexture2D->GetTrackerResource()->GetDebugName()); // @todo the threading of GetDebugName() is wrong.
 		return NewTexture2D;
 	}
 
-	virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted) override final
+	virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, bool bBlockUntilCompleted) override final
 	{
 		return RHI->FinalizeAsyncReallocateTexture2D_RenderThread(RHICmdList, Texture2D, bBlockUntilCompleted);
 	}
 
-	virtual ETextureReallocationStatus CancelAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted) override final
+	virtual ETextureReallocationStatus CancelAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, bool bBlockUntilCompleted) override final
 	{
 		return RHI->CancelAsyncReallocateTexture2D_RenderThread(RHICmdList, Texture2D, bBlockUntilCompleted);
 	}
@@ -1157,27 +1134,27 @@ public:
 		RHI->UnlockBuffer_BottomOfPipe(RHICmdList, Buffer);
 	}
 
-	virtual void* LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true, uint64* OutLockedByteCount = nullptr) override final
+	virtual void* LockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true, uint64* OutLockedByteCount = nullptr) override final
 	{
 		return RHI->LockTexture2D_RenderThread(RHICmdList, Texture, MipIndex, LockMode, DestStride, bLockWithinMiptail, bNeedsDefaultRHIFlush, OutLockedByteCount);
 	}
 
-	virtual void UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true) override final
+	virtual void UnlockTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 MipIndex, bool bLockWithinMiptail, bool bNeedsDefaultRHIFlush = true) override final
 	{
 		RHI->UnlockTexture2D_RenderThread(RHICmdList, Texture, MipIndex, bLockWithinMiptail, bNeedsDefaultRHIFlush);
 	}
 
-	virtual void* LockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2DArray* Texture, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
+	virtual void* LockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
 	{
 		return RHI->LockTexture2DArray_RenderThread(RHICmdList, Texture, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
 	}
 
-	virtual void UnlockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2DArray* Texture, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
+	virtual void UnlockTexture2DArray_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
 	{
 		RHI->UnlockTexture2DArray_RenderThread(RHICmdList, Texture, ArrayIndex, MipIndex, bLockWithinMiptail);
 	}
 
-	virtual FUpdateTexture3DData RHIBeginUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture3D* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion) override final
+	virtual FUpdateTexture3DData RHIBeginUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* Texture, uint32 MipIndex, const struct FUpdateTextureRegion3D& UpdateRegion) override final
 	{
 		return RHI->RHIBeginUpdateTexture3D(RHICmdList, Texture, MipIndex, UpdateRegion);
 	}
@@ -1197,11 +1174,11 @@ public:
 		return RHI->RHICreateShaderLibrary_RenderThread(RHICmdList, Platform, FilePath, Name);
 	}
 
-	virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
+	virtual void* RHILockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, EResourceLockMode LockMode, uint32& DestStride, bool bLockWithinMiptail) override final
 	{
 		return RHI->RHILockTextureCubeFace_RenderThread(RHICmdList, Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
 	}
-	virtual void RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITextureCube* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
+	virtual void RHIUnlockTextureCubeFace_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, uint32 FaceIndex, uint32 ArrayIndex, uint32 MipIndex, bool bLockWithinMiptail) override final
 	{
 		RHI->RHIUnlockTextureCubeFace_RenderThread(RHICmdList, Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail);
 	}
@@ -1209,18 +1186,6 @@ public:
 	virtual void RHIReadSurfaceFloatData_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, FIntRect Rect, TArray<FFloat16Color>& OutData, ECubeFace CubeFace, int32 ArrayIndex, int32 MipIndex) override final
 	{
 		RHI->RHIReadSurfaceFloatData_RenderThread(RHICmdList, Texture, Rect, OutData, CubeFace, ArrayIndex, MipIndex);
-	}
-
-	//Utilities
-	virtual void EnableIdealGPUCaptureOptions(bool bEnable) override final
-	{
-		RHI->EnableIdealGPUCaptureOptions(bEnable);
-	}
-
-	//checks if the GPU is still alive.
-	virtual bool CheckGpuHeartbeat() const override final
-	{
-		return RHI->CheckGpuHeartbeat();
 	}
 
 	virtual FRHIFlipDetails RHIWaitForFlip(double TimeoutInSeconds) override final
@@ -1231,16 +1196,6 @@ public:
 	virtual void RHISignalFlipEvent() override final
 	{
 		RHI->RHISignalFlipEvent();
-	}
-
-	virtual void RHICalibrateTimers() override final
-	{
-		RHI->RHICalibrateTimers();
-	}
-
-	virtual void RHIPollRenderQueryResults() override final
-	{
-		RHI->RHIPollRenderQueryResults();
 	}
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() override final
@@ -1257,7 +1212,7 @@ public:
 		return Result;
 	}
 
-	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer) override final
+	virtual FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer Initializer) override final
 	{
 		FName DebugName = Initializer.DebugName;
 		FRayTracingSceneRHIRef Result = RHI->RHICreateRayTracingScene(MoveTemp(Initializer));
@@ -1275,25 +1230,25 @@ public:
 		return RHI->RHICreateRayTracingPipelineState(Initializer);
 	}
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags) override final
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(const FRayTracingSceneInitializer& Initializer) override final
 	{
-		return RHI->RHICalcRayTracingSceneSize(MaxInstances, Flags);
+		return RHI->RHICalcRayTracingSceneSize(Initializer);
 	}
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer) override final
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer) override final
 	{
-		return RHI->RHICalcRayTracingGeometrySize(RHICmdList, Initializer);
+		return RHI->RHICalcRayTracingGeometrySize(Initializer);
 	}
 
-	void RHITransferRayTracingGeometryUnderlyingResource(FRHICommandListBase& RHICmdList, FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry) override final
+	virtual FShaderBindingTableRHIRef RHICreateShaderBindingTable(FRHICommandListBase& RHICmdList, const FRayTracingShaderBindingTableInitializer& Initializer) override final
 	{
-		RHI->RHITransferRayTracingGeometryUnderlyingResource(RHICmdList, DestGeometry, SrcGeometry);
+		return RHI->RHICreateShaderBindingTable(RHICmdList, Initializer);
 	}
 #endif // RHI_RAYTRACING
 
-	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords) override final
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(const FShaderBundleCreateInfo& CreateInfo) override final
 	{
-		return RHI->RHICreateShaderBundle(NumRecords);
+		return RHI->RHICreateShaderBundle(CreateInfo);
 	}
 
 //protected:
@@ -1302,7 +1257,7 @@ public:
 	FDynamicRHI*				RHI;
 	TMap<FRHIDepthStencilState*, FDepthStencilStateInitializerRHI> DepthStencilStates;
 
-	uint64						RenderThreadFrameID;
+	std::atomic_uint64_t		RenderThreadFrameID;
 	uint64						RHIThreadFrameID;
 
 private:

@@ -62,8 +62,8 @@ namespace Math
 template<typename T>
 struct alignas( TAlignOfTransform<T>::Value ) TTransform
 {
-	// Can't have a TEMPLATE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
-	static_assert(TIsFloatingPoint<T>::Value, "TTransform only supports float and double types.");
+	// Can't have a UE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
+	static_assert(std::is_floating_point_v<T>, "TTransform only supports float and double types.");
 
 	friend Z_Construct_UScriptStruct_FTransform3f_Statics;
 	friend Z_Construct_UScriptStruct_FTransform3d_Statics;
@@ -979,15 +979,8 @@ public:
 	*/
 	FORCEINLINE void Accumulate(const TTransform<T>& SourceAtom)
 	{
-		const TransformVectorRegister BlendedRotation = SourceAtom.Rotation;
-		const TransformVectorRegister RotationW = VectorReplicate(BlendedRotation, 3);
-
-		// if( Square(SourceAtom.Rotation.W) < 1.f - DELTA * DELTA )
-		if (VectorAnyGreaterThan(GlobalVectorConstants::RotationSignificantThreshold, VectorMultiply(RotationW, RotationW)))
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		Rotation = VectorQuaternionMultiply2(SourceAtom.Rotation, Rotation);
 
 		// Translation += SourceAtom.Translation;
 		// Scale *= SourceAtom.Scale;
@@ -1019,15 +1012,8 @@ public:
 		const TransformVectorRegister BlendedRotation = VectorMultiply(Atom.Rotation, BlendWeight);
 		const TransformVectorRegister BlendedScale = VectorMultiply(Atom.Scale3D, BlendWeight);
 
-		const TransformVectorRegister RotationW = VectorReplicate(BlendedRotation, 3);
-
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		// if( Square(SourceAtom.Rotation.W) < 1.f - DELTA * DELTA )
-		if (VectorAnyGreaterThan(GlobalVectorConstants::RotationSignificantThreshold, VectorMultiply(RotationW, RotationW)))
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
 
 		// Translation += SourceAtom.Translation;
 		// Scale *= SourceAtom.Scale;
@@ -1085,15 +1071,8 @@ public:
 		// SourceAtom = Atom * BlendWeight;
 		const TransformVectorRegister BlendedRotation = VectorMultiply(Atom.Rotation, BlendWeight);
 
-		const TransformVectorRegister RotationW = VectorReplicate(BlendedRotation, 3);
-
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		// if( Square(SourceAtom.Rotation.W) < 1.f - DELTA * DELTA )
-		if (VectorAnyGreaterThan(GlobalVectorConstants::RotationSignificantThreshold, VectorMultiply(RotationW, RotationW)))
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
 
 		// Translation += SourceAtom.Translation;
 		// Scale *= SourceAtom.Scale;
@@ -1475,12 +1454,18 @@ public:
 
 	// Conversion to other type.
 	friend struct TTransform<double>;
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, float>)>
-	explicit TTransform(const TTransform<FArg>& From) : TTransform(MakeVectorRegisterFloatFromDouble(From.Rotation), MakeVectorRegisterFloatFromDouble(From.Translation), MakeVectorRegisterFloatFromDouble(From.Scale3D)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, float>)>
+	explicit TTransform(const TTransform<FArg>& From)
+		: TTransform(MakeVectorRegisterFloatFromDouble(From.Rotation), MakeVectorRegisterFloatFromDouble(From.Translation), MakeVectorRegisterFloatFromDouble(From.Scale3D))
+	{
+	}
 
 	friend struct TTransform<float>;
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, double>)>
-	explicit TTransform(const TTransform<FArg>& From) : TTransform(MakeVectorRegisterDouble(From.Rotation), MakeVectorRegisterDouble(From.Translation), MakeVectorRegisterDouble(From.Scale3D)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, double>)>
+	explicit TTransform(const TTransform<FArg>& From)
+		: TTransform(MakeVectorRegisterDouble(From.Rotation), MakeVectorRegisterDouble(From.Translation), MakeVectorRegisterDouble(From.Scale3D))
+	{
+	}
 };
 
 #if !defined(_MSC_VER) || defined(__clang__)  // MSVC can't forward declare explicit specializations

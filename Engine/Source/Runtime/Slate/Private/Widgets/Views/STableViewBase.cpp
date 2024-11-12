@@ -78,7 +78,7 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 		.NumDesiredItems(this, &STableViewBase::GetNumPinnedItems)
 		.ItemAlignment(InItemAlignment)
 		.ListOrientation(Orientation)
-		.Visibility(this, &STableViewBase::GetPinnedItemsVisiblity);
+		.Visibility(EVisibility::Collapsed);
 
 	TSharedPtr<SWidget> ListAndScrollbar;
 	if (InScrollBar)
@@ -97,10 +97,11 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 			.Style(InScrollBarStyle ? InScrollBarStyle : &FAppStyle::Get().GetWidgetStyle<FScrollBarStyle>("ScrollBar"))
 			.PreventThrottling(bInPreventThrottling);
 
-		const FOptionalSize ScrollBarSize(16.f);
+		const FOptionalSize ScrollBarSize(InScrollBarStyle ? InScrollBarStyle->Thickness + (SScrollBar::DefaultUniformPadding * 2.0f) : 16.f);
 
 		if (Orientation == Orient_Vertical)
 		{
+			VerticalScrollBarSlot = nullptr;
 			ListAndScrollbar = SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
 				.FillWidth(1)
@@ -119,6 +120,8 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
+				.Padding(ScrollBarSlotPadding)
+				.Expose(VerticalScrollBarSlot)
 				[
 					SNew(SBox)
 					.WidthOverride(ScrollBarSize)
@@ -129,6 +132,7 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 		}
 		else
 		{
+			HorizontalScrollBarSlot = nullptr;
 			ListAndScrollbar = SNew(SVerticalBox)
 				+SVerticalBox::Slot()
 				.FillHeight(1)
@@ -147,6 +151,8 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 				]
 				+SVerticalBox::Slot()
 				.AutoHeight()
+				.Padding(ScrollBarSlotPadding)
+				.Expose(HorizontalScrollBarSlot)
 				[
 					SNew(SBox)
 					.HeightOverride(ScrollBarSize)
@@ -290,9 +296,16 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 			const EScrollIntoViewResult ScrollIntoViewResult = ScrollIntoView(PanelGeometry);
 
 			double TargetScrollOffset = GetTargetScrollOffset();
+			
+			if (InertialScrollManager.GetShouldStopScrollNow())
+			{
+				TargetScrollOffset = DesiredScrollOffset = CurrentScrollOffset;
+				InertialScrollManager.ResetShouldStopScrollNow();
+			}
+
 			if((bStartedTouchInteraction && bEnableTouchAnimatedScrolling) || (!bStartedTouchInteraction && bEnableAnimatedScrolling))
 			{
-				CurrentScrollOffset = FMath::FInterpTo(CurrentScrollOffset, TargetScrollOffset, (double)InDeltaTime, 12.0);
+				CurrentScrollOffset = FMath::FInterpTo(CurrentScrollOffset, TargetScrollOffset, (double)InDeltaTime, ScrollingAnimationInterpolationSpeed);
 				if (FMath::IsNearlyEqual(CurrentScrollOffset, TargetScrollOffset, 0.01))
 				{
 					CurrentScrollOffset = TargetScrollOffset;
@@ -382,6 +395,8 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 			{
 				NotifyFinishedScrolling();
 			}
+
+			OnItemsRebuilt.ExecuteIfBound();
 		}
 	}
 }
@@ -398,8 +413,8 @@ FReply STableViewBase::OnPreviewMouseButtonDown( const FGeometry& MyGeometry, co
 {
 	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent())
 	{
-		// Clear any inertia 
-		this->InertialScrollManager.ClearScrollVelocity();
+		// Clear any inertia
+		InertialScrollManager.ClearScrollVelocity(true);
 		// We have started a new interaction; track how far the user has moved since they put their finger down.
 		AmountScrolledWhileRightMouseDown = 0;
 
@@ -419,7 +434,7 @@ FReply STableViewBase::OnPreviewMouseButtonDown( const FGeometry& MyGeometry, co
 FReply STableViewBase::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
 	// Zero the scroll velocity so the list stops immediately on mouse down, even if the user does not drag
-	this->InertialScrollManager.ClearScrollVelocity();
+	InertialScrollManager.ClearScrollVelocity(true);
 
 	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 	{
@@ -573,6 +588,11 @@ void STableViewBase::OnMouseLeave( const FPointerEvent& MouseEvent )
 
 FReply STableViewBase::OnMouseWheel( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
+	if (WheelScrollMultiplier == 0.0f)
+    {
+        return FReply::Unhandled();
+    }
+
 	if( bIsPointerScrollingEnabled && !MouseEvent.IsControlDown() )
 	{
 		// Make sure scroll velocity is cleared so it doesn't fight with the mouse wheel input
@@ -700,6 +720,11 @@ int32 STableViewBase::GetNumGeneratedChildren() const
 		: 0;
 }
 
+TSharedPtr<SWidget> STableViewBase::GetGeneratedChildAt(const int32 Index) const
+{
+	return GetNumGeneratedChildren() > Index ? ItemsPanel->GetChildren()->GetChildAt(Index).ToSharedPtr() : nullptr;
+}
+
 TSharedPtr<SHeaderRow> STableViewBase::GetHeaderRow() const
 {
 	return HeaderRow;
@@ -794,6 +819,8 @@ STableViewBase::STableViewBase( ETableViewMode::Type InTableViewMode )
 	FixedLineScrollOffset = 0.25f;
 }
 
+STableViewBase::~STableViewBase() = default;
+
 double STableViewBase::GetTargetScrollOffset() const
 {
 	if (FixedLineScrollOffset.IsSet() && !IsRightClickScrolling() && InertialScrollManager.GetScrollVelocity() == 0.f)
@@ -876,6 +903,26 @@ void STableViewBase::SetScrollbarVisibility(const EVisibility InVisibility)
 	}
 }
 
+void STableViewBase::SetScrollbarPadding(const FMargin& InScrollbarPadding)
+{
+	ScrollBarSlotPadding = InScrollbarPadding;
+
+	if (Orientation == Orient_Vertical)
+	{
+		if (VerticalScrollBarSlot)
+		{
+			VerticalScrollBarSlot->SetPadding(ScrollBarSlotPadding);
+		}
+	}
+	else
+	{
+		if (HorizontalScrollBarSlot)
+		{
+			HorizontalScrollBarSlot->SetPadding(ScrollBarSlotPadding);
+		}
+	}
+}
+
 EVisibility STableViewBase::GetScrollbarVisibility() const
 {
 	return ScrollBar ? ScrollBar->ShouldBeVisible() : EVisibility::Collapsed;
@@ -903,6 +950,11 @@ void STableViewBase::SetFixedLineScrollOffset(TOptional<double> InFixedLineScrol
 void STableViewBase::SetIsScrollAnimationEnabled(bool bInEnableScrollAnimation)
 {
 	bEnableAnimatedScrolling = bInEnableScrollAnimation;
+}
+
+void STableViewBase::SetScrollingAnimationInterpolationSpeed(float InScrollingAnimationInterpolationSpeed)
+{
+	ScrollingAnimationInterpolationSpeed = InScrollingAnimationInterpolationSpeed;
 }
 
 void STableViewBase::SetEnableTouchAnimatedScrolling(bool bInEnableTouchAnimatedScrolling)
@@ -934,6 +986,11 @@ void STableViewBase::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 void STableViewBase::SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnabled)
 {
 	bIsPointerScrollingEnabled = bInIsPointerScrollingEnabled;
+}
+
+void STableViewBase::SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled)
+{
+	bIsGamepadScrollingEnabled = bInIsGamepadScrollingEnabled;
 }
 
 void STableViewBase::SetBackgroundBrush(const TAttribute<const FSlateBrush*>& InBackgroundBrush)
@@ -973,6 +1030,7 @@ void STableViewBase::InsertPinnedWidget( const TSharedRef<SWidget> & WidgetToIns
 	[
 		WidgetToInset
 	];
+	PinnedItemsPanel->SetVisibility(EVisibility::Visible);
 }
 
 void STableViewBase::AppendPinnedWidget( const TSharedRef<SWidget>& WidgetToAppend )
@@ -981,10 +1039,12 @@ void STableViewBase::AppendPinnedWidget( const TSharedRef<SWidget>& WidgetToAppe
 	[
 		WidgetToAppend
 	];
+	PinnedItemsPanel->SetVisibility(EVisibility::Visible);
 }
 
 void STableViewBase::ClearPinnedWidgets()
 {
+	PinnedItemsPanel->SetVisibility(EVisibility::Collapsed);
 	PinnedItemsPanel->ClearItems();
 }
 

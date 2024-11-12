@@ -18,7 +18,7 @@ struct FDirectoryManifest;
 struct FTlsClientSettings;
 
 // Returns number of blocks pushed
-TResult<uint64> JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, FTlsClientSettings* TlsSettings = nullptr);
+TResult<uint64> JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, const FTlsClientSettings& TlsSettings);
 
 TResult<> JupiterPutRawBlob(FHttpConnection&	   Connection,
 							const std::string_view BaseUrl,
@@ -35,15 +35,12 @@ TResult<> JupiterCheckAccess(FHttpConnection& Connection, std::string_view Jupit
 
 struct FJupiterProtocolImpl : FRemoteProtocolBase
 {
-	FJupiterProtocolImpl(const FRemoteDesc&		   InSettings,
-						 const FBlockRequestMap*   InRequestMap,
-						 const FTlsClientSettings* TlsSettings,
-						 std::string_view		   HttpHeaders);
-	virtual bool			 IsValid() const override;
-	virtual TResult<FBuffer> DownloadManifest(std::string_view ManifestName) override;
-	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
-	virtual void			 Invalidate() override;
-	virtual bool			 Contains(const FDirectoryManifest& Manifest) override;
+	FJupiterProtocolImpl(const FRemoteDesc& InSettings, const FBlockRequestMap* InRequestMap, std::string_view HttpHeaders);
+	virtual bool						IsValid() const override;
+	virtual TResult<FDirectoryManifest> DownloadManifest(std::string_view ManifestName) override;
+	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
+	virtual void			Invalidate() override;
+	virtual bool			Contains(const FDirectoryManifest& Manifest) override;
 
 	FHttpConnection Connection;
 	std::string		HttpHeaders;  // TODO: store this in the HttpConnection instead

@@ -28,6 +28,7 @@ public:
 	FIntegerChannelCurveModel(TMovieSceneChannelHandle<FMovieSceneIntegerChannel> InChannel, UMovieSceneSection* InOwningSection, TWeakPtr<ISequencer> InWeakSequencer);
 
 	// FCurveModel
+	virtual void DrawCurve(const FCurveEditor& CurveEditor, const FCurveEditorScreenSpace& ScreenSpace, TArray<TTuple<double, double>>& InterpolatingPoints) const override;
 	virtual void CreateKeyProxies(TArrayView<const FKeyHandle> InKeyHandles, TArrayView<UObject*> OutObjects) override;
 	virtual TUniquePtr<IBufferedCurveModel> CreateBufferedCurveCopy() const override;
 	virtual void GetCurveAttributes(FCurveAttributes& OutAttributes) const override;

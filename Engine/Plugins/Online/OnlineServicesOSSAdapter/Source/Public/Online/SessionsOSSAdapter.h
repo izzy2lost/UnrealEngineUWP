@@ -97,9 +97,17 @@ private:
 	/** Builds a V1 Session data type from a V2 equivalent */
 	FOnlineSession BuildV1Session(const TSharedRef<const ISession> InSession) const;
 	/** Builds a V2 Session data type from a V1 equivalent */
+	TSharedRef<FSessionCommon> BuildV2Session(const FNamedOnlineSession* InSession) const;
 	TSharedRef<FSessionCommon> BuildV2Session(const FOnlineSession* InSession) const;
 	/** Builds a V2 Session Search Results array from the passed V1 equivalent types */
 	TArray<TSharedRef<FSessionCommon>> BuildV2SessionSearchResults(const TArray<FOnlineSessionSearchResult>& SessionSearchResults) const;
+
+	/** Helper to get access to the account id and session id for V1 named sessions */
+	bool GetAccountIdAndSessionIdFromNamedSession(const FName& SessionName, FAccountId& AccountId, FOnlineSessionId& OnlineSessionId) const;
+	/** Helper to get the V2 session id from a v1 named session */
+	bool GetV2SessionIdFromV1NamedSession(const FName& SessionName, FOnlineSessionId& OnlineSessionId) const;
+	/** Helper to get the V2 session creator account id from a v1 named session */
+	bool GetV2SessionCreatorFromV1NamedSession(const FName& SessionName, FAccountId& AccountId) const;
 
 	FOnlineSessionIdRegistryOSSAdapter& GetSessionIdRegistry() const;
 	FOnlineSessionInviteIdRegistryOSSAdapter& GetSessionInviteIdRegistry() const;

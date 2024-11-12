@@ -141,7 +141,7 @@ namespace UnrealBuildTool
 
 					// Keep track of progress
 					int Index = 0;
-					int Total = AllModules.Count();
+					int Total = AllModules.Count;
 
 					// Create the global compile environment for this target
 					CppCompileEnvironment GlobalCompileEnvironment = Target.CreateCompileEnvironmentForProjectFiles(Logger);

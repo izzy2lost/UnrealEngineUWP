@@ -3,6 +3,7 @@
 #pragma once
 
 #include "BoneIndices.h"
+#include "Animation/AttributesRuntime.h"
 #include "Containers/IndirectArray.h"
 #include "ReferencePose.h"
 #include "LODPose.h"
@@ -59,6 +60,13 @@ public:
 	// Calculate the bone indexes difference from LOD0 for LODIndex
 	static void CalculateDifferenceFromParentLOD(int32 LODIndex, TArray<FGenerationLODData>& GenerationLODData);
 
+	// Check the required bones in LOD(N) are required in LOD(N-1) 
+	// and add missing bones at LOD(N-1), to enable fast path on malformed LODs
+	static void FixLODRequiredBones(const int32 NumLODs
+		, const USkeletalMesh* SkeletalMesh
+		, TArray<FGenerationLODData>& GenerationLODData
+		, TArray<FGenerationLODData>& GenerationComponentSpaceLODData);
+
 	// For each LOD :
 	// Check the excluded bones in LOD(N) contain all the bones excluded in LOD(N-1)
 	static bool CheckExcludedBones(const int32 NumLODs
@@ -98,6 +106,18 @@ public:
 	// The target pose should be assigned to the correct reference pose prior to this call, as transforms will not be filled
 	// in by this call if they are not affected by the current LOD.
 	static void RemapPose(const FLODPose& SourcePose, TArrayView<FTransform> TargetTransforms);
+
+	// Converts AnimNext attributes to AnimBP attributes
+	static void RemapAttributes(
+		const FLODPose& LODPose,
+		const UE::Anim::FHeapAttributeContainer& InAttributes,
+		UE::Anim::FMeshAttributeContainer& OutAttributes);
+
+	// Converts AnimNext attributes to AnimBP attributes
+	static void RemapAttributes(
+		const FLODPose& LODPose,
+		const UE::Anim::FHeapAttributeContainer& InAttributes,
+		FPoseContext& OutPose);
 
 	// Converts a local space to component space buffer given a number of required bones
 	static void ConvertLocalSpaceToComponentSpace(TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FTransform> InBoneSpaceTransforms, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TArrayView<FTransform> OutComponentSpaceTransforms);

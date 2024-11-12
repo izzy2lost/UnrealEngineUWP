@@ -60,3 +60,8 @@ float UAnimNotifyLibrary::GetCurrentAnimationNotifyStateTimeRatio(const FAnimNot
 
 	return 0.0f;
 }
+
+bool UAnimNotifyLibrary::IsBlendingOut(const FAnimNotifyEventReference& EventReference)
+{
+	return !EventReference.IsActiveContext();
+}

@@ -12,6 +12,7 @@
 #include "PrimitiveViewRelevance.h"
 #include "MaterialShared.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialSharedPrivate.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/PropertyPortFlags.h"
@@ -43,6 +44,7 @@
 #include "UObject/ArchiveCookContext.h"
 #include "UObject/Package.h"
 #include "ShaderCompiler.h"
+#include "Materials/MaterialInsights.h"
 
 #if WITH_EDITOR
 #include "ObjectCacheEventSink.h"
@@ -51,7 +53,7 @@
 
 #define LOCTEXT_NAMESPACE "MaterialInterface"
 
-/**
+/** 
  * This is used to deprecate data that has been built with older versions.
  * To regenerate the data, commands like "BUILDMATERIALTEXTURESTREAMINGDATA" can be used in the editor.
  * Ideally the data would be stored the DDC instead of the asset, but this is not yet  possible because it requires the GPU.
@@ -116,7 +118,7 @@ static void DisposeInvalidEditorOnlyData(UMaterialInterface* MaterialInterface, 
 	if (EditorOnlyExisting && EditorOnlyExisting != MaterialInterface->GetEditorOnlyData())
 	{
 		FName UniqueDummyName = MakeUniqueObjectName(GetTransientPackage(), UMaterialInterfaceEditorOnlyData::StaticClass());
-		EditorOnlyExisting->Rename(*UniqueDummyName.ToString(), GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		EditorOnlyExisting->Rename(*UniqueDummyName.ToString(), GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors);
 		EditorOnlyExisting->MarkAsGarbage();
 	}
 }
@@ -135,7 +137,7 @@ void FMaterialRelevance::SetPrimitiveViewRelevance(FPrimitiveViewRelevance& OutV
 
 #if WITH_EDITORONLY_DATA
 
-namespace MaterialInterface
+namespace UE::MaterialInterface
 {
 	FString GetEditorOnlyDataName(const TCHAR* InMaterialName)
 	{
@@ -225,7 +227,7 @@ void UMaterialInterface::Serialize(FArchive& Ar)
 		Struct->SerializeTaggedProperties(Ar, (uint8*)CachedExpressionData.Get(), Struct, nullptr);
 
 #if WITH_EDITOR
-		FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+		FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 	}
     // we don't consider bLoadedCachedExpressionData here because in editor we call UpdateCachedExpressionData which can
@@ -306,6 +308,11 @@ bool UMaterialInterface::IsUsingNewHLSLGenerator() const
 	return BaseMaterial ? BaseMaterial->bEnableNewHLSLGenerator : false;
 }
 
+bool UMaterialInterface::IsUsingNewTranslatorPrototype() const
+{
+	return IsUsingNewHLSLGenerator() && IsUsingNewMaterialTranslatorPrototype();
+}
+
 const FSubstrateCompilationConfig& UMaterialInterface::GetSubstrateCompilationConfig() const
 {
 	const UMaterial* BaseMaterial = GetMaterial_Concurrent();
@@ -369,6 +376,11 @@ TArrayView<const TObjectPtr<UObject>> UMaterialInterface::GetReferencedTextures(
 	return GetCachedExpressionData().ReferencedTextures;
 }
 
+TConstArrayView<TObjectPtr<UTextureCollection>> UMaterialInterface::GetReferencedTextureCollections() const
+{
+	return GetCachedExpressionData().ReferencedTextureCollections;
+}
+
 #if WITH_EDITOR
 void UMaterialInterface::GetReferencedTexturesAndOverrides(TSet<const UTexture*>& InOutTextures) const
 {
@@ -419,107 +431,108 @@ bool UMaterialInterface::GetStaticComponentMaskParameterValue(const FHashedMater
 
 FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Material, ERHIFeatureLevel::Type InFeatureLevel) const
 {
-	if(Material)
-	{
-		const FMaterialResource* MaterialResource = GetMaterialResource(InFeatureLevel);
-
-		// If material is invalid e.g. unparented instance, fallback to the passed in material
-		bool bIsValidMaterialResource = (MaterialResource != nullptr) && (MaterialResource->GetMaterial() != nullptr);
-		if (!bIsValidMaterialResource && (Material != nullptr))
-		{
-			MaterialResource = Material->GetMaterialResource(InFeatureLevel);
-		}
-
-		if (MaterialResource == nullptr)
-		{
-			return FMaterialRelevance();
-		}
-
-		const bool bIsMobile = InFeatureLevel <= ERHIFeatureLevel::ES3_1;
-		const bool bUsesSingleLayerWaterMaterial = MaterialResource->GetShadingModels().HasShadingModel(MSM_SingleLayerWater);
-		const bool bIsSinglePassWaterTranslucent = bIsMobile && bUsesSingleLayerWaterMaterial;
-		const bool bIsMobilePixelProjectedTranslucent = MaterialResource->IsUsingPlanarForwardReflections() 
-														&& IsUsingMobilePixelProjectedReflection(GetFeatureLevelShaderPlatform(InFeatureLevel));
-
-		// Note that even though XX_GameThread() api is called, this function can be called on non game thread via 
-		// GetRelevance_Concurrent()
-		bool bUsesAnisotropy = MaterialResource->GetShadingModels().HasAnyShadingModel({ MSM_DefaultLit, MSM_ClearCoat }) && 
-			MaterialResource->MaterialUsesAnisotropy_GameThread();
-
-		const EBlendMode BlendMode = (EBlendMode)GetBlendMode();
-		const bool bIsTranslucent = IsTranslucentBlendMode(BlendMode) || bIsSinglePassWaterTranslucent || bIsMobilePixelProjectedTranslucent; // We want meshes with water materials to be scheduled for translucent pass on mobile. And we also have to render the meshes used for mobile pixel projection reflection in translucent pass.
-
-		EMaterialDomain Domain = (EMaterialDomain)MaterialResource->GetMaterialDomain();
-		bool bDecal = (Domain == MD_DeferredDecal);
-
-		// Determine the material's view relevance.
-		FMaterialRelevance MaterialRelevance;
-
-		MaterialRelevance.ShadingModelMask = GetShadingModels().GetShadingModelField();
-		MaterialRelevance.CustomDepthStencilUsageMask = MaterialResource->GetCustomDepthStencilUsageMask_GameThread();
-		MaterialRelevance.bDecal = bDecal;
-
-		// Check whether the material can be drawn in the separate translucency pass as per FMaterialResource::IsTranslucencyAfterDOFEnabled and IsMobileSeparateTranslucencyEnabled
-		EMaterialTranslucencyPass TranslucencyPass = MTP_BeforeDOF;
-		const bool bSupportsSeparateTranslucency = Material->MaterialDomain != MD_UI && Material->MaterialDomain != MD_DeferredDecal;
-		if (bIsTranslucent && bSupportsSeparateTranslucency)
-		{
-			if (bIsMobile)
-			{
-				if (Material->bEnableMobileSeparateTranslucency)
-				{
-					TranslucencyPass = MTP_AfterDOF;
-				}
-			}
-			else
-			{
-				TranslucencyPass = Material->TranslucencyPass;
-			}
-		}			
-
-		// If dual blending is supported, and we are rendering post-DOF translucency, then we also need to render a second pass to the modulation buffer.
-		// The modulation buffer can also be used for regular modulation shaders after DoF.
-		const bool bMaterialSeparateModulation = MaterialResource->IsDualBlendingEnabled(GShaderPlatformForFeatureLevel[InFeatureLevel]) || IsModulateBlendMode(BlendMode);
-
-		// Encode Substrate BSDF into a mask where each bit correspond to a number of BSDF (1-8)
-		const uint8 SubstrateBSDFCount = FMath::Max(MaterialResource->MaterialGetSubstrateClosureCount_GameThread(), uint8(1u));
-		const uint8 SubstrateBSDFCountMask = 1u << uint8(FMath::Min(SubstrateBSDFCount - 1, 8));
-		const uint8 SubstrateUintPerPixel = FMath::Max(MaterialResource->MaterialGetSubstrateUintPerPixel_GameThread(), uint8(1u));
-
-		MaterialRelevance.bOpaque = !bIsTranslucent;
-		MaterialRelevance.bMasked = IsMasked();
-		MaterialRelevance.bDistortion = MaterialResource->IsDistorted();
-		MaterialRelevance.bHairStrands = IsCompatibleWithHairStrands(MaterialResource, InFeatureLevel);
-		MaterialRelevance.bTwoSided = MaterialResource->IsTwoSided();
-		MaterialRelevance.bSeparateTranslucency = bIsTranslucent && (TranslucencyPass == MTP_AfterDOF);
-		MaterialRelevance.bTranslucencyModulate = bMaterialSeparateModulation;
-		MaterialRelevance.bPostMotionBlurTranslucency = (TranslucencyPass == MTP_AfterMotionBlur);
-		MaterialRelevance.bNormalTranslucency = bIsTranslucent && (TranslucencyPass == MTP_BeforeDOF);
-		MaterialRelevance.bDisableDepthTest = bIsTranslucent && Material->bDisableDepthTest;		
-		MaterialRelevance.bUsesSceneColorCopy = bIsTranslucent && MaterialResource->RequiresSceneColorCopy_GameThread();
-		MaterialRelevance.bOutputsTranslucentVelocity = Material->IsTranslucencyWritingVelocity();
-		MaterialRelevance.bUsesGlobalDistanceField = MaterialResource->UsesGlobalDistanceField_GameThread();
-		MaterialRelevance.bUsesWorldPositionOffset = MaterialResource->MaterialUsesWorldPositionOffset_GameThread();
-		MaterialRelevance.bUsesDisplacement = MaterialResource->MaterialUsesDisplacement_GameThread();
-		MaterialRelevance.bUsesPixelDepthOffset = MaterialResource->MaterialUsesPixelDepthOffset_GameThread();
-		ETranslucencyLightingMode TranslucencyLightingMode = MaterialResource->GetTranslucencyLightingMode();
-		MaterialRelevance.bTranslucentSurfaceLighting = bIsTranslucent && (TranslucencyLightingMode == TLM_SurfacePerPixelLighting || TranslucencyLightingMode == TLM_Surface);
-		MaterialRelevance.bUsesSceneDepth = MaterialResource->MaterialUsesSceneDepthLookup_GameThread();
-		MaterialRelevance.bHasVolumeMaterialDomain = MaterialResource->IsVolumetricPrimitive();
-		MaterialRelevance.bUsesDistanceCullFade = MaterialResource->MaterialUsesDistanceCullFade_GameThread();
-		MaterialRelevance.bUsesSkyMaterial = Material->bIsSky;
-		MaterialRelevance.bUsesSingleLayerWaterMaterial = bUsesSingleLayerWaterMaterial;
-		MaterialRelevance.bUsesAnisotropy = bUsesAnisotropy;
-		MaterialRelevance.SubstrateClosureCountMask = SubstrateBSDFCountMask;
-		MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
-		MaterialRelevance.bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
-
-		return MaterialRelevance;
-	}
-	else
+	if (!Material)
 	{
 		return FMaterialRelevance();
 	}
+
+	const FMaterialResource* MaterialResource = GetMaterialResource(InFeatureLevel);
+
+	// If material is invalid e.g. unparented instance, fallback to the passed in material
+	bool bIsValidMaterialResource = (MaterialResource != nullptr) && (MaterialResource->GetMaterial() != nullptr);
+	if (!bIsValidMaterialResource && (Material != nullptr))
+	{
+		MaterialResource = Material->GetMaterialResource(InFeatureLevel);
+	}
+
+	if (MaterialResource == nullptr)
+	{
+		return FMaterialRelevance();
+	}
+
+	const bool bIsMobile = InFeatureLevel <= ERHIFeatureLevel::ES3_1;
+	const bool bUsesSingleLayerWaterMaterial = MaterialResource->GetShadingModels().HasShadingModel(MSM_SingleLayerWater);
+	const bool bIsSinglePassWaterTranslucent = bIsMobile && bUsesSingleLayerWaterMaterial;
+	const bool bIsMobilePixelProjectedTranslucent = MaterialResource->IsUsingPlanarForwardReflections() 
+													&& IsUsingMobilePixelProjectedReflection(GetFeatureLevelShaderPlatform(InFeatureLevel));
+
+	// Note that even though XX_GameThread() api is called, this function can be called on non game thread via 
+	// GetRelevance_Concurrent()
+	bool bUsesAnisotropy = MaterialResource->GetShadingModels().HasAnyShadingModel({ MSM_DefaultLit, MSM_ClearCoat }) && 
+		MaterialResource->MaterialUsesAnisotropy_GameThread();
+
+	const EBlendMode BlendMode = (EBlendMode)GetBlendMode();
+	const bool bIsTranslucent = IsTranslucentBlendMode(BlendMode) || bIsSinglePassWaterTranslucent || bIsMobilePixelProjectedTranslucent; // We want meshes with water materials to be scheduled for translucent pass on mobile. And we also have to render the meshes used for mobile pixel projection reflection in translucent pass.
+
+	EMaterialDomain Domain = (EMaterialDomain)MaterialResource->GetMaterialDomain();
+	bool bDecal = (Domain == MD_DeferredDecal);
+
+	// Determine the material's view relevance.
+	FMaterialRelevance MaterialRelevance;
+
+	MaterialRelevance.ShadingModelMask = GetShadingModels().GetShadingModelField();
+	MaterialRelevance.CustomDepthStencilUsageMask = MaterialResource->GetCustomDepthStencilUsageMask_GameThread();
+	MaterialRelevance.bDecal = bDecal;
+
+	// Check whether the material can be drawn in the separate translucency pass as per FMaterialResource::IsTranslucencyAfterDOFEnabled and IsMobileSeparateTranslucencyEnabled
+	EMaterialTranslucencyPass TranslucencyPass = MTP_BeforeDOF;
+	const bool bSupportsSeparateTranslucency = Material->MaterialDomain != MD_UI && Material->MaterialDomain != MD_DeferredDecal;
+	if (bIsTranslucent && bSupportsSeparateTranslucency)
+	{
+		if (bIsMobile)
+		{
+			if (Material->bEnableMobileSeparateTranslucency)
+			{
+				TranslucencyPass = MTP_AfterDOF;
+			}
+		}
+		else
+		{
+			TranslucencyPass = Material->TranslucencyPass;
+		}
+	}			
+
+	// If dual blending is supported, and we are rendering post-DOF translucency, then we also need to render a second pass to the modulation buffer.
+	// The modulation buffer can also be used for regular modulation shaders after DoF.
+	const bool bMaterialSeparateModulation = MaterialResource->IsDualBlendingEnabled(GShaderPlatformForFeatureLevel[InFeatureLevel]) || IsModulateBlendMode(BlendMode);
+
+	// Encode Substrate BSDF into a mask where each bit correspond to a number of BSDF (1-8)
+	const uint8 SubstrateBSDFCount = FMath::Max(MaterialResource->MaterialGetSubstrateClosureCount_GameThread(), uint8(1u));
+	const uint8 SubstrateBSDFCountMask = 1u << uint8(FMath::Min(SubstrateBSDFCount - 1, 8));
+	const uint8 SubstrateUintPerPixel = FMath::Max(MaterialResource->MaterialGetSubstrateUintPerPixel_GameThread(), uint8(1u));
+
+	MaterialRelevance.bOpaque = !bIsTranslucent;
+	MaterialRelevance.bMasked = IsMasked();
+	MaterialRelevance.bDistortion = MaterialResource->IsDistorted();
+	MaterialRelevance.bHairStrands = IsCompatibleWithHairStrands(MaterialResource, InFeatureLevel);
+	MaterialRelevance.bTwoSided = MaterialResource->IsTwoSided();
+	MaterialRelevance.bSeparateTranslucency = bIsTranslucent && (TranslucencyPass == MTP_AfterDOF);
+	MaterialRelevance.bTranslucencyModulate = bMaterialSeparateModulation;
+	MaterialRelevance.bPostMotionBlurTranslucency = (TranslucencyPass == MTP_AfterMotionBlur);
+	MaterialRelevance.bNormalTranslucency = bIsTranslucent && (TranslucencyPass == MTP_BeforeDOF);
+	MaterialRelevance.bDisableDepthTest = bIsTranslucent && Material->bDisableDepthTest;		
+	MaterialRelevance.bUsesSceneColorCopy = bIsTranslucent && MaterialResource->RequiresSceneColorCopy_GameThread();
+	MaterialRelevance.bOutputsTranslucentVelocity = MaterialResource->IsTranslucencyWritingVelocity();
+	MaterialRelevance.bUsesGlobalDistanceField = MaterialResource->UsesGlobalDistanceField_GameThread();
+	MaterialRelevance.bUsesWorldPositionOffset = MaterialResource->MaterialUsesWorldPositionOffset_GameThread();
+	MaterialRelevance.bUsesDisplacement = MaterialResource->MaterialUsesDisplacement_GameThread();
+	MaterialRelevance.bUsesPixelDepthOffset = MaterialResource->MaterialUsesPixelDepthOffset_GameThread();
+	ETranslucencyLightingMode TranslucencyLightingMode = MaterialResource->GetTranslucencyLightingMode();
+	MaterialRelevance.bTranslucentSurfaceLighting = bIsTranslucent && (TranslucencyLightingMode == TLM_SurfacePerPixelLighting || TranslucencyLightingMode == TLM_Surface);
+	MaterialRelevance.bUsesSceneDepth = MaterialResource->MaterialUsesSceneDepthLookup_GameThread();
+	MaterialRelevance.bHasVolumeMaterialDomain = MaterialResource->IsVolumetricPrimitive();
+	MaterialRelevance.bUsesDistanceCullFade = MaterialResource->MaterialUsesDistanceCullFade_GameThread();
+	MaterialRelevance.bUsesSkyMaterial = Material->bIsSky;
+	MaterialRelevance.bUsesSingleLayerWaterMaterial = bUsesSingleLayerWaterMaterial;
+	MaterialRelevance.bUsesAnisotropy = bUsesAnisotropy;
+	MaterialRelevance.bUsesCustomizedUVs = MaterialResource->GetNumCustomizedUVs() > 0;
+	MaterialRelevance.bUsesVertexInterpolator = MaterialResource->HasVertexInterpolator();
+	MaterialRelevance.SubstrateClosureCountMask = SubstrateBSDFCountMask;
+	MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
+	MaterialRelevance.bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
+	MaterialRelevance.bIsLightFunctionAtlasCompatible = MaterialResource->MaterialIsLightFunctionAtlasCompatible_GameThread();
+
+	return MaterialRelevance;
 }
 
 FMaterialParameterInfo UMaterialInterface::GetParameterInfo(EMaterialParameterAssociation Association, FName ParameterName, UMaterialFunctionInterface* LayerFunction) const
@@ -607,10 +620,10 @@ void UMaterialInterface::SetForceMipLevelsToBeResident( bool OverrideForceMiplev
 
 void UMaterialInterface::RecacheAllMaterialUniformExpressions(bool bRecreateUniformBuffer)
 {
-	// For each interface, reacache its uniform parameters
-	for( TObjectIterator<UMaterialInterface> MaterialIt; MaterialIt; ++MaterialIt )
+	// For each interface, recache its uniform parameters
+	for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
-		MaterialIt->RecacheUniformExpressions(bRecreateUniformBuffer);
+		It->RecacheUniformExpressions(bRecreateUniformBuffer);
 	}
 }
 
@@ -623,7 +636,7 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 
 	for (IPrimitiveComponent* PrimitiveComponentInterface : ObjectCacheScope.GetContext().GetPrimitiveComponents())
 	{
-		if (World && PrimitiveComponentInterface->GetWorld() == World)
+		if (World && PrimitiveComponentInterface->GetWorld() != World)
 		{
 			continue;
 		}
@@ -642,7 +655,7 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 	}
 
 	// Add UI and PP Materials.
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
+	for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UMaterial* Material = It->GetMaterial();
 		if (Material &&
@@ -654,7 +667,7 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 	}
 
 	// Add Decal Component Materials.
-	for (TObjectIterator<UDecalComponent> It; It; ++It)
+	for (TObjectIterator<UDecalComponent> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		if (It)
 		{
@@ -735,7 +748,7 @@ void UMaterialInterface::PostDuplicate(bool bDuplicateForPIE)
 #if WITH_EDITORONLY_DATA
 	// Duplication will create a new editor only data but this MI already links a populated data. This makes sure that the
 	// duplicate instance EOD has the correct name (necessary for running the editor on cooked data).
-	FString EditorOnlyDataName = MaterialInterface::GetEditorOnlyDataName(*GetName());
+	FString EditorOnlyDataName = UE::MaterialInterface::GetEditorOnlyDataName(*GetName());
 	DisposeInvalidEditorOnlyData(this, EditorOnlyDataName);
 	if (GetEditorOnlyData())
 	{
@@ -790,6 +803,15 @@ void UMaterialInterface::GetAssetRegistryTags(FAssetRegistryTagsContext Context)
 	Super::GetAssetRegistryTags(Context);
 }
 #endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void UMaterialInterface::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+{
+	Super::AppendToClassSchema(Context);
+
+	UE::MaterialInterface::Private::HashMaterialStaticClassDependenciesForCook(Context);
+}
+#endif
 
 void UMaterialInterface::GetLightingGuidChain(bool bIncludeTextures, TArray<FGuid>& OutGuids) const
 {
@@ -944,6 +966,17 @@ bool UMaterialInterface::GetTextureParameterValue(const FHashedMaterialParameter
 	return false;
 }
 
+bool UMaterialInterface::GetTextureCollectionParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, UTextureCollection*& OutValue, bool bOveriddenOnly) const
+{
+	FMaterialParameterMetadata Result;
+	if (GetParameterValue(EMaterialParameterType::TextureCollection, ParameterInfo, Result, MakeParameterValueFlags(bOveriddenOnly)))
+	{
+		OutValue = Result.Value.TextureCollection;
+		return true;
+	}
+	return false;
+}
+
 bool UMaterialInterface::GetRuntimeVirtualTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, URuntimeVirtualTexture*& OutValue, bool bOveriddenOnly) const
 {
 	FMaterialParameterMetadata Result;
@@ -1036,6 +1069,17 @@ bool UMaterialInterface::GetTextureParameterDefaultValue(const FHashedMaterialPa
 	if (GetParameterDefaultValue(EMaterialParameterType::Texture, ParameterInfo, Result))
 	{
 		OutValue = Result.Value.Texture;
+		return true;
+	}
+	return false;
+}
+
+bool UMaterialInterface::GetTextureCollectionParameterDefaultValue(const FHashedMaterialParameterInfo& ParameterInfo, class UTextureCollection*& OutValue) const
+{
+	FMaterialParameterMetadata Result;
+	if (GetParameterDefaultValue(EMaterialParameterType::TextureCollection, ParameterInfo, Result))
+	{
+		OutValue = Result.Value.TextureCollection;
 		return true;
 	}
 	return false;
@@ -1139,6 +1183,11 @@ void UMaterialInterface::GetAllTextureParameterInfo(TArray<FMaterialParameterInf
 	GetAllParameterInfoOfType(EMaterialParameterType::Texture, OutParameterInfo, OutParameterIds);
 }
 
+void UMaterialInterface::GetAllTextureCollectionParameterInfo(TArray<FMaterialParameterInfo>& OutParameterInfo, TArray<FGuid>& OutParameterIds) const
+{
+	GetAllParameterInfoOfType(EMaterialParameterType::TextureCollection, OutParameterInfo, OutParameterIds);
+}
+
 void UMaterialInterface::GetAllRuntimeVirtualTextureParameterInfo(TArray<FMaterialParameterInfo>& OutParameterInfo, TArray<FGuid>& OutParameterIds) const
 {
 	GetAllParameterInfoOfType(EMaterialParameterType::RuntimeVirtualTexture, OutParameterInfo, OutParameterIds);
@@ -1170,6 +1219,43 @@ bool UMaterialInterface::GetRefractionSettings(float& OutBiasValue) const
 {
 	return false;
 }
+
+bool UMaterialInterface::GetUserSceneTextureOverride(FName& InOutName) const
+{
+	return false;
+}
+
+FName UMaterialInterface::GetUserSceneTextureOutput(const UMaterial* Base) const
+{
+	FName Result = NAME_None;
+
+	// Replacing tonemapper can't override output.
+	if (Base->BlendableLocation != BL_ReplacingTonemapper)
+	{
+		// UserSceneTexture output overrides are stored under key "NAME_None".  We store them in the override lookup to save space
+		// in the base structure, by avoiding a separate field just for the output override.
+		if (!GetUserSceneTextureOverride(Result) && Base)
+		{
+			// If no override was found, get the result from the base material
+			Result = FName(Base->UserSceneTexture);
+		}
+	}
+	return Result;
+
+}
+
+// Certain implementations support overrides to the base material setting, default behavior is to just return the value from the base material
+EBlendableLocation UMaterialInterface::GetBlendableLocation(const UMaterial* Base) const
+{
+	check(Base);
+	return Base->BlendableLocation;
+}
+int32 UMaterialInterface::GetBlendablePriority(const UMaterial* Base) const
+{
+	check(Base);
+	return Base->BlendablePriority;
+}
+
 
 #if WITH_EDITOR
 bool UMaterialInterface::GetParameterDesc(const FHashedMaterialParameterInfo& ParameterInfo, FString& OutDesc) const
@@ -1300,6 +1386,16 @@ FDisplacementScaling UMaterialInterface::GetDisplacementScaling() const
 	return FDisplacementScaling();
 }
 
+bool UMaterialInterface::IsDisplacementFadeEnabled() const
+{
+	return false;
+}
+
+FDisplacementFadeRange UMaterialInterface::GetDisplacementFadeRange() const
+{
+	return FDisplacementFadeRange();
+}
+
 float UMaterialInterface::GetMaxWorldPositionOffsetDisplacement() const
 {
 	return 0.0f;
@@ -1320,12 +1416,42 @@ bool UMaterialInterface::IsDeferredDecal() const
 	return false;
 }
 
+bool UMaterialInterface::IsUIMaterial() const
+{
+	return false;
+}
+
+bool UMaterialInterface::IsPostProcessMaterial() const
+{
+	return false;
+}
+
 bool UMaterialInterface::GetCastDynamicShadowAsMasked() const
 {
 	return false;
 }
 
+bool UMaterialInterface::HasVertexInterpolator() const
+{
+	return false;
+}
+
+bool UMaterialInterface::HasCustomizedUVs() const
+{
+	return false;
+}
+
 bool UMaterialInterface::WritesToRuntimeVirtualTexture() const
+{
+	return false;
+}
+
+bool UMaterialInterface::HasMeshPaintTexture() const
+{
+	return false;
+}
+
+bool UMaterialInterface::HasCustomPrimitiveData() const
 {
 	return false;
 }
@@ -1342,7 +1468,17 @@ bool UMaterialInterface::IsShadingModelFromMaterialExpression() const
 
 USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfile_Internal() const
 {
-	return NULL;
+	return nullptr;
+}
+
+USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfileRoot_Internal(uint32 Index) const
+{
+	return nullptr;
+}
+
+USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfileOverride_Internal() const
+{
+	return nullptr;
 }
 
 USpecularProfile* UMaterialInterface::GetSpecularProfile_Internal(uint32 Index) const
@@ -1355,6 +1491,10 @@ UNeuralProfile* UMaterialInterface::GetNeuralProfile_Internal() const
 	return nullptr;
 }
 
+uint32 UMaterialInterface::NumSubsurfaceProfileRoot_Internal() const
+{
+	return 0u;
+}
 
 uint32 UMaterialInterface::NumSpecularProfile_Internal() const
 {
@@ -1413,8 +1553,9 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 
 	FMaterialShadingModelField MaterialShadingModels = GetShadingModels();
 
-	// for better performance we only update SubsurfaceProfileRT if the feature is used
-	if (UseSubsurfaceProfile(MaterialShadingModels))
+	// For better performance we only update SubsurfaceProfileRT if the feature is used and substrate is not enabled
+	// When Substrate is enabled, this is ONLY used as an override for Subsurface Profile on material instance (override all Subsurface Profiles at once for now)
+	if (UseSubsurfaceProfile(MaterialShadingModels) && !Substrate::IsSubstrateEnabled())
 	{
 		USubsurfaceProfile* LocalSubsurfaceProfile = GetSubsurfaceProfile_Internal();
 		
@@ -1473,43 +1614,98 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 
 	if (Substrate::IsSubstrateEnabled())
 	{
-		struct FEntry
+		FMaterialRenderProxy* InProxy = &Proxy;
+
+		// Specular profiles
 		{
-			USpecularProfile* Profile = nullptr;
-			FSpecularProfileStruct Settings;
-			const FTextureReference* Texture = nullptr;
-			FGuid Guid;
-		};
-		TArray<FEntry> Entries;
-		for (int32 It = 0, Count = NumSpecularProfile_Internal(); It<Count; ++It)
-		{
-			FEntry& Entry = Entries.AddDefaulted_GetRef();
-			Entry.Profile = GetSpecularProfile_Internal(It);
-			if (Entry.Profile)
+			struct FEntry
 			{
-				Entry.Settings 	= Entry.Profile->Settings;
-				Entry.Guid 		= Entry.Profile->Guid;	
-				if (!Entry.Settings.IsProcedural())
+				USpecularProfile* Profile = nullptr;
+				FSpecularProfileStruct Settings;
+				const FTextureReference* Texture = nullptr;
+				FGuid Guid;
+			};
+			TArray<FEntry> Entries;
+			for (int32 It = 0, Count = NumSpecularProfile_Internal(); It<Count; ++It)
+			{
+				FEntry& Entry = Entries.AddDefaulted_GetRef();
+				Entry.Profile = GetSpecularProfile_Internal(It);
+				if (Entry.Profile)
 				{
-					Entry.Texture = &Entry.Profile->Settings.Texture->TextureReference;
+					Entry.Settings 	= Entry.Profile->Settings;
+					Entry.Guid 		= Entry.Profile->Guid;	
+					if (!Entry.Settings.IsProcedural())
+					{
+						Entry.Texture = &Entry.Profile->Settings.Texture->TextureReference;
+					}
 				}
+			}
+
+			if (Entries.Num() > 0)
+			{
+				ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySpecular)(
+				[InProxy, Entries](FRHICommandListImmediate& RHICmdList)
+				{
+					for (const FEntry& Entry : Entries)
+					{
+						if (Entry.Profile)
+						{
+							const uint32 AllocationId = SpecularProfile::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
+							check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
+						}
+						InProxy->AddSpecularProfileRT(Entry.Profile);
+					}
+				});
 			}
 		}
 
-		FMaterialRenderProxy* InProxy = &Proxy;
-		ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySpecular)(
-		[InProxy, Entries](FRHICommandListImmediate& RHICmdList)
+		// Subsurface profiles
 		{
-			for (const FEntry& Entry : Entries)
+			struct FEntry
 			{
+				USubsurfaceProfile* Profile = nullptr;
+				FSubsurfaceProfileStruct Settings;
+			};
+			TArray<FEntry> Entries;
+			for (int32 It = 0, Count = NumSubsurfaceProfileRoot_Internal(); It < Count; ++It)
+			{
+				FEntry& Entry = Entries.AddDefaulted_GetRef();
+				Entry.Profile = GetSubsurfaceProfileRoot_Internal(It);
 				if (Entry.Profile)
 				{
-					const uint32 AllocationId = SpecularProfileAtlas::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Settings, Entry.Texture);
-					check(AllocationId >= 0 && AllocationId < MAX_SPECULAR_PROFILE_COUNT);
+					Entry.Settings = Entry.Profile->Settings;
 				}
-				InProxy->AddSpecularProfileRT(Entry.Profile);
 			}
-		});
+
+			USubsurfaceProfile* SubsurfaceProfileOverride = GetSubsurfaceProfileOverride_Internal();
+			FSubsurfaceProfileStruct SubsurfaceProfileOverrideSettings;
+			if (SubsurfaceProfileOverride)
+			{
+				SubsurfaceProfileOverrideSettings = SubsurfaceProfileOverride->Settings;
+			}
+
+			ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxySubsurfaceProfiles)(
+			[InProxy, Entries, SubsurfaceProfileOverride, SubsurfaceProfileOverrideSettings](FRHICommandListImmediate& RHICmdList)
+			{
+				for (const FEntry& Entry : Entries)
+				{
+					if (Entry.Profile)
+					{
+						const uint32 AllocationId = GSubsurfaceProfileTextureObject.AddOrUpdateProfile(Entry.Settings, Entry.Profile);
+						check(AllocationId >= 0 && AllocationId < MAX_SUBSURFACE_PROFILE_COUNT);
+					}
+					InProxy->AddSubsurfaceProfileRT(Entry.Profile);
+				}
+
+				if (SubsurfaceProfileOverride)
+				{
+					GSubsurfaceProfileTextureObject.AddOrUpdateProfile(SubsurfaceProfileOverrideSettings, SubsurfaceProfileOverride);
+				}
+
+				// Set the subsurface profile override using the default SubsurfaceProfile pointer.
+				InProxy->SetSubsurfaceProfileRT(SubsurfaceProfileOverride);
+			});
+		}
 	}
 }
 
@@ -1691,7 +1887,7 @@ void UMaterialInterface::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	// Make sure the EditorOnlyData is named correctly. Some MI assets have a differently named editor only data that can cause problems in
 	// the editor running on cooked data.
 	UMaterialInterfaceEditorOnlyData* EditorOnly = GetEditorOnlyData();
-	FString EditorOnlyDataName = MaterialInterface::GetEditorOnlyDataName(*GetName());
+	FString EditorOnlyDataName = UE::MaterialInterface::GetEditorOnlyDataName(*GetName());
 	if (!ObjectSaveContext.IsProceduralSave() && EditorOnly && EditorOnly->GetName() != EditorOnlyDataName)
 	{
 		UE_LOG(LogMaterial, Display, TEXT("MaterialInterface %s has a incorrectly name EditorOnlyData '%s'. This may cause issues when running the editor on cooked data. Trying to rename it to the correct name '%s'."), *GetName(), *EditorOnly->GetName(), *EditorOnlyDataName);
@@ -1785,7 +1981,7 @@ void UMaterialInterface::FilterOutPlatformShadingModels(const EShaderPlatform In
 	const FStaticShaderPlatform Platform(InPlatform);
 	if (ShadingModels.CountShadingModels() > 1 && !AllowPerPixelShadingModels(Platform))
 	{
-		ShadingModels = FMaterialShadingModelField(ShadingModels.GetFirstShadingModel());
+		ShadingModels = FMaterialShadingModelField(MSM_DefaultLit);
 	}
 
 	uint32 ShadingModelsMask = GetPlatformShadingModelsMask(Platform);
@@ -1795,7 +1991,7 @@ void UMaterialInterface::FilterOutPlatformShadingModels(const EShaderPlatform In
 		ShadingModels.SetShadingModelField(FilteredShadingModels);
 		if (!ShadingModels.IsValid())
 		{
-			ShadingModels.AddShadingModel(MSM_DefaultLit);
+			ShadingModels = FMaterialShadingModelField(MSM_DefaultLit);
 		}
 	}
 }
@@ -1815,7 +2011,7 @@ UMaterialInterfaceEditorOnlyData* UMaterialInterface::CreateEditorOnlyData()
 	check(EditorOnlyClass);
 	check(EditorOnlyClass->HasAllClassFlags(CLASS_Optional));
 
-	const FString EditorOnlyName = MaterialInterface::GetEditorOnlyDataName(*GetName());
+	const FString EditorOnlyName = UE::MaterialInterface::GetEditorOnlyDataName(*GetName());
 	const EObjectFlags EditorOnlyFlags = GetMaskedFlags(RF_PropagateToSubObjects);
 	return NewObject<UMaterialInterfaceEditorOnlyData>(this, EditorOnlyClass, *EditorOnlyName, EditorOnlyFlags);
 }
@@ -1828,7 +2024,7 @@ bool UMaterialInterface::Rename(const TCHAR* NewName, UObject* NewOuter, ERename
 	// if we have EditorOnlyData, also rename it if we are changing the material's name
 	if (bRenamed && NewName && EditorOnlyData)
 	{
-		FString EditorOnlyDataName = MaterialInterface::GetEditorOnlyDataName(NewName);
+		FString EditorOnlyDataName = UE::MaterialInterface::GetEditorOnlyDataName(NewName);
 		DisposeInvalidEditorOnlyData(this, EditorOnlyDataName);
 		bRenamed = EditorOnlyData->Rename(*EditorOnlyDataName, nullptr, Flags);
 	}

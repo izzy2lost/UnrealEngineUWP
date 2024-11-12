@@ -144,6 +144,20 @@ public:
 	SLATECORE_API static void MakeShapedText( FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const FShapedGlyphSequenceRef& InShapedGlyphSequence, ESlateDrawEffect InDrawEffects, const FLinearColor& BaseTint, const FLinearColor& OutlineTint, FTextOverflowArgs TextOverflowArgs = FTextOverflowArgs());
 
 	/**
+	 * Creates a text element which displays a series of shaped glyphs on the screen
+	 *
+	 * @param ElementList			The list in which to add elements
+	 * @param InLayer               The layer to draw the element on
+	 * @param PaintGeometry         DrawSpace position and dimensions; see FPaintGeometry
+	 * @param InShapedGlyphSequence The shaped glyph sequence to draw
+	 * @param InDrawEffects         Optional draw effects to apply
+	 * @param BaseTint              Color to tint the element
+	 * @param OutlineTint           Color to tint the outline
+	 * @param Angle2D               The rotation of the element in radians
+	 */
+	SLATECORE_API static void MakeRotatedShapedText(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const FShapedGlyphSequenceRef& InShapedGlyphSequence, ESlateDrawEffect InDrawEffects, const FLinearColor& BaseTint, const FLinearColor& OutlineTint, float Angle2D, const UE::Slate::FDeprecateOptionalVector2DParameter& InRotationPoint = TOptional<FVector2f>(), ERotationSpace RotationSpace = RelativeToElement, const FTextOverflowArgs& TextOverflowArgs = FTextOverflowArgs());
+	
+	/**
 	 * Creates a gradient element
 	 *
 	 * @param ElementList			   The list in which to add elements
@@ -208,6 +222,21 @@ public:
 
 
 	/**
+	 * Creates a dashed or dotted line defined by the provided points. Such lines are always renderd using the anti-aliased shader method.
+	 *
+	 * @param ElementList              The list in which to add elements
+	 * @param InLayer                  The layer to draw the element on
+	 * @param PaintGeometry            DrawSpace position and dimensions; see FPaintGeometry
+	 * @param Points                   Points that make up the lines.  The points are joined together. I.E if Points has A,B,C there the line is A-B-C.  To draw non-joining line segments call MakeLines multiple times
+	 * @param InDrawEffects            Optional draw effects to apply
+	 * @param InTint                   Color to tint the element
+	 * @param Thickness                The thickness of the line
+	 * @param DashLengthPx             The screen-space length of each dash (and each gap - irregular spacings are not supported)
+	 * @param DashScreenOffset         A screen space offset that can be used to 'anchor' dashes to prevent them sliding when moving lines drawn in a virtual space.
+	 */
+	SLATECORE_API static void MakeDashedLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f>&& Points, ESlateDrawEffect InDrawEffects = ESlateDrawEffect::None, const FLinearColor& InTint = FLinearColor::White, float Thickness = 1.0f, float DashLengthPx = 10.0f, float DashScreenOffset = 0.f);
+
+	/**
 	 * Creates a line defined by the provided points
 	 *
 	 * @param ElementList              The list in which to add elements
@@ -224,6 +253,22 @@ public:
 	SLATECORE_API static void MakeLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const TArray<FVector2d>& Points, const TArray<FLinearColor>& PointColors, ESlateDrawEffect InDrawEffects = ESlateDrawEffect::None, const FLinearColor& InTint=FLinearColor::White, bool bAntialias = true, float Thickness = 1.0f);
 #endif
 	SLATECORE_API static void MakeLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f> Points, TArray<FLinearColor> PointColors, ESlateDrawEffect InDrawEffects = ESlateDrawEffect::None, const FLinearColor& InTint=FLinearColor::White, bool bAntialias = true, float Thickness = 1.0f);
+
+	/**
+	 * Creates a dashed or dotted line defined by the provided points. Such lines are always renderd using the anti-aliased shader method.
+	 *
+	 * @param ElementList              The list in which to add elements
+	 * @param InLayer                  The layer to draw the element on
+	 * @param PaintGeometry            DrawSpace position and dimensions; see FPaintGeometry
+	 * @param Points                   Points that make up the lines.  The points are joined together. I.E if Points has A,B,C there the line is A-B-C.  To draw non-joining line segments call MakeLines multiple times
+	 * @param PointColors              Vertex Color for each defined points
+	 * @param InDrawEffects            Optional draw effects to apply
+	 * @param InTint                   Color to tint the element
+	 * @param Thickness                The thickness of the line
+	 * @param DashLengthPx             The screen-space length of each dash (and each gap - irregular spacings are not supported)
+	 * @param DashScreenOffset         A screen space offset that can be used to 'anchor' dashes to prevent them sliding when moving lines drawn in a virtual space.
+	 */
+	SLATECORE_API static void MakeDashedLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f>&& Points, TArray<FLinearColor>&& PointColors, ESlateDrawEffect InDrawEffects = ESlateDrawEffect::None, const FLinearColor& InTint = FLinearColor::White, float Thickness = 1.0f, float DashLengthPx = 10.0f, float DashScreenOffset = 0.f);
 
 	/**
 	 * Creates a viewport element which is useful for rendering custom data in a texture into Slate
@@ -314,12 +359,6 @@ public:
 	 * @param InOffset         Absolute translation delta
 	 */
 	void ApplyPositionOffset(UE::Slate::FDeprecateVector2DParameter InOffset);
-
-	UE_DEPRECATED(4.23, "GetClippingIndex has been deprecated.  If you were using this please use GetPrecachedClippingIndex instead.")
-	FORCEINLINE const int32 GetClippingIndex() const { return GetPrecachedClippingIndex(); }
-
-	UE_DEPRECATED(4.23, "SetClippingIndex has been deprecated.  If you were using this please use SetPrecachedClippingIndex instead.")
-	FORCEINLINE void SetClippingIndex(const int32 InClippingIndex) { SetPrecachedClippingIndex(InClippingIndex); }
 
 private:
 	void Init(FSlateWindowElementList& ElementList, EElementType InElementType, uint32 InLayer, const FPaintGeometry& PaintGeometry, ESlateDrawEffect InDrawEffects);
@@ -569,6 +608,8 @@ struct FSlateLineElement : public FSlateDrawElement, public FSlateTintableElemen
 	TArray<FVector2f> Points;
 	TArray<FLinearColor> PointColors;
 	float Thickness;
+	float DashLength = 0.f;
+	float DashOffset = 0.f;
 
 	bool bAntialias;
 

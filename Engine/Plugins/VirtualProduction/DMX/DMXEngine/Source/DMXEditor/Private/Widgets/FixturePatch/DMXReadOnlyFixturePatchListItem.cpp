@@ -11,12 +11,6 @@
 FDMXReadOnlyFixturePatchListItem::FDMXReadOnlyFixturePatchListItem(const FDMXEntityFixturePatchRef& FixturePatchReference)
 {
 	FixturePatch = FixturePatchReference.GetFixturePatch();
-
-	int32 FixtureID;
-	if (FixturePatch->FindFixtureID(FixtureID))
-	{
-		OptionalFixtureID = FixtureID;
-	}
 }
 
 UDMXLibrary* FDMXReadOnlyFixturePatchListItem::GetDMXLibrary() const
@@ -49,9 +43,9 @@ FText FDMXReadOnlyFixturePatchListItem::GetUniverseChannelText() const
 
 FText FDMXReadOnlyFixturePatchListItem::GetFixtureIDText() const
 {
-	if (FixturePatch && OptionalFixtureID.IsSet())
+	if (FixturePatch)
 	{
-		const FString FixtureIDAsString = FString::FromInt(OptionalFixtureID.GetValue());
+		const FString FixtureIDAsString = FString::FromInt(FixturePatch->GetFixtureID());
 		return FText::FromString(FixtureIDAsString);
 	}
 

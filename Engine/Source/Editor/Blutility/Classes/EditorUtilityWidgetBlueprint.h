@@ -94,6 +94,10 @@ private:
 	UPROPERTY(Category = Settings, EditDefaultsOnly)
 	bool bIsEnabledInDebugging = false;
 
+	// Should the widget be spawned on a Nomad tab to be docked anywhere
+	UPROPERTY(Category = Settings, EditDefaultsOnly)
+	bool bSpawnAsNomadTab = false;
+
 	FName RegistrationName;
 
 	TWeakPtr<SDockTab> CreatedTab;

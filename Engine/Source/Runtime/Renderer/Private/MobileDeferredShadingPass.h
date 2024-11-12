@@ -6,6 +6,7 @@
 #include "RenderGraphDefinitions.h"
 #include "SceneRendering.h"
 
+enum class EMobileSSRQuality;
 class FMobileSceneTextureUniformParameters;
 class FRDGBuilder;
 class FRHICommandListImmediate;
@@ -23,4 +24,5 @@ void MobileDeferredShadingPass(
 	const FViewInfo& View,
 	const FScene& Scene, 
 	const FSortedLightSetSceneInfo& SortedLightSet,
-	const TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos);
+	const TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos,
+	EMobileSSRQuality MobileSSRQuality);

@@ -7,6 +7,7 @@
 #include "Engine/NetSerialization.h"
 #include "Serialization/BitWriter.h"
 #include "Containers/BitArray.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #if UE_WITH_IRIS
 #include "Iris/Serialization/IrisObjectReferencePackageMap.h"
 #endif
@@ -59,9 +60,13 @@ struct FCharacterNetworkSerializationPackedBits
 	TBitArray<TInlineAllocator<CHARACTER_SERIALIZATION_PACKEDBITS_RESERVED_SIZE / NumBitsPerDWORD>> DataBits;
 
 #if UE_WITH_IRIS
-	// Since this struct uses custom serialization path we need to explicitly capture object references, this is managed by the use of a custom packagemap.
-	UIrisObjectReferencePackageMap::FObjectReferenceArray ObjectReferences;
+	// Since this struct uses custom serialization path we need to explicitly capture exports in order to forward them to iris
+	// This is managed by the use of a custom packagemap.
+	UE::Net::FIrisPackageMapExports PackageMapExports;
 #endif
+
+	// Since we capturing data outside of the normal serialization path we also need to store exports to inject when actually sending the data.
+	UE::Net::FNetTokenExportContext::FNetTokenExports NetTokensPendingExport;
 
 private:
 	UPackageMap* SavedPackageMap;

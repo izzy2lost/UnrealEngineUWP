@@ -34,6 +34,7 @@ public:
 public:
 
 	SLATE_API SWeakWidget();
+	SLATE_API virtual ~SWeakWidget();
 
 	SLATE_API void Construct(const FArguments& InArgs);
 

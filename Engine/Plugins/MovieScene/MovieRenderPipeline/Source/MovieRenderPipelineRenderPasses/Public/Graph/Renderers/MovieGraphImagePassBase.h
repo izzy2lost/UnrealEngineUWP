@@ -10,10 +10,11 @@ class UMovieGraphImagePassBaseNode;
 
 namespace UE::MovieGraph::Rendering
 {
-	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphRenderDataAccumulationArgs
+	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphRenderDataAccumulationArgs : ::MoviePipeline::IMoviePipelineAccumulationArgs
 	{
 	public:
-		TWeakPtr<FImageOverlappedAccumulator, ESPMode::ThreadSafe> ImageAccumulator;
+		TWeakPtr<::MoviePipeline::IMoviePipelineOverlappedAccumulator, ESPMode::ThreadSafe> ImageAccumulator;
+		DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance;
 		TWeakPtr<IMovieGraphOutputMerger, ESPMode::ThreadSafe> OutputMerger;
 
 		// If it's the first sample then we will reset the accumulator to a clean slate before accumulating into it.
@@ -23,7 +24,7 @@ namespace UE::MovieGraph::Rendering
 	};
 
 	// Forward Declare
-	void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const FMovieGraphRenderDataAccumulationArgs& InAccumulationParams);
+	void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const FMovieGraphSampleState InSampleState, const TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs> InAccumulatorArgs);
 
 	struct MOVIERENDERPIPELINERENDERPASSES_API FViewFamilyInitData
 	{
@@ -48,6 +49,7 @@ namespace UE::MovieGraph::Rendering
 		EAntiAliasingMethod AntiAliasingMethod;
 		FEngineShowFlags ShowFlags;
 		EViewModeIndex ViewModeIndex;
+		TEnumAsByte<ECameraProjectionMode::Type> ProjectionMode;
 	};
 	
 
@@ -66,26 +68,42 @@ namespace UE::MovieGraph::Rendering
 		virtual TWeakObjectPtr<UMovieGraphDefaultRenderer> GetRenderer() const { return WeakGraphRenderer; }
 
 	protected:
+		typedef TFunction<void(TUniquePtr<FImagePixelData>&&, const FMovieGraphSampleState, const TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs>)> FAccumulatorSampleFunc;
+		
 		/** Utility function for calculating a Projection Matrix (Orthographic or Perspective), and modify it based on the overscan percentage, aspect ratio, etc. */
-		virtual FMatrix CalculateProjectionMatrix(const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const;
+		virtual void CalculateProjectionMatrix(UE::MovieGraph::DefaultRenderer::FCameraInfo& InOutCameraInfo, FSceneViewProjectionData& InOutProjectionData, const FIntPoint InBackbufferResolution, const FIntPoint InAccumulatorResolution) const;
+		
 		/** Utility function for modifying the projection matrix to match the given tiling parameters. */
 		virtual void ModifyProjectionMatrixForTiling(const UE::MovieGraph::DefaultRenderer::FMovieGraphTilingParams& InTilingParams, const bool bInOrthographic, FMatrix& InOutProjectionMatrix, float& OutDoFSensorScale) const;
+		
 		/** Utility function for calculating the PrinciplePointOffset with the given tiling parameters. Used to make some effects (like vignette) work with tiling. */
 		virtual FVector4f CalculatePrinciplePointOffsetForTiling(const UE::MovieGraph::DefaultRenderer::FMovieGraphTilingParams& InTilingParams) const;
+		
 		/** Utility function for creating FSceneViewInitOptions based on the specified camera info. */
 		virtual FSceneViewInitOptions CreateViewInitOptions(const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo, FSceneViewFamilyContext* InViewFamily, FSceneViewStateReference& InViewStateRef) const;
+		
 		/** Utility function for creating a FSceneView for the given InitOptions, Family, and Camera. */
 		virtual FSceneView* CreateSceneView(const FSceneViewInitOptions& InInitOptions, TSharedRef<FSceneViewFamilyContext> InViewFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const;
 
-		virtual void ApplyCameraManagerPostProcessBlends(FSceneView* InView) const;
-		virtual TSharedRef<FSceneViewFamilyContext> CreateSceneViewFamily(const FViewFamilyInitData& InInitData, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const;
+		/** Gets the render target init params that will be used when creating the render target. */
+		virtual DefaultRenderer::FRenderTargetInitParams GetRenderTargetInitParams(const FMovieGraphTimeStepData& InTimeData, const FIntPoint& InResolution);
+
+		virtual void ApplyCameraManagerPostProcessBlends(FSceneView* InView, const FMinimalViewInfo& InViewInfo, bool bApplyCameraManagerPostProcessBlends) const;
+		virtual TSharedRef<FSceneViewFamilyContext> CreateSceneViewFamily(const FViewFamilyInitData& InInitData) const;
 		virtual void ApplyMovieGraphOverridesToSceneView(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const;
 		virtual void ApplyMovieGraphOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData) const;
-		virtual void PostRendererSubmission(const UE::MovieGraph::FMovieGraphSampleState& InSampleState, const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo);
+		virtual void PostRendererSubmission(const UE::MovieGraph::FMovieGraphSampleState& InSampleState, const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InRenderTargetInitParams, FCanvas& InCanvas, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const;
 		virtual TFunction<void(TUniquePtr<FImagePixelData>&&)> MakeForwardingEndpoint(const FMovieGraphSampleState& InSampleState, const FMovieGraphTimeStepData& InTimeData);
 		virtual bool ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const { return false; }
+		virtual void ApplyMovieGraphOverridesToSampleState(FMovieGraphSampleState& SampleState) const {}
 		/** For this image pass, look up the associated node by type for the given config. */
 		virtual UMovieGraphImagePassBaseNode* GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const { return nullptr; }
+
+		/** Gets an accumulator that's in use for the provided sample state (or creates a new one), and returns the accumulator args that are in use. */
+		virtual TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs> GetOrCreateAccumulator(TObjectPtr<UMovieGraphDefaultRenderer> InGraphRenderer, const FMovieGraphSampleState& InSampleState) const;
+
+		/** Gets the function that the accumulator will use to perform accumulation. */
+		virtual FAccumulatorSampleFunc GetAccumulateSampleFunction() const;
 
 	protected:
 		TWeakObjectPtr<UMovieGraphDefaultRenderer> WeakGraphRenderer;

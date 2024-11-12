@@ -58,7 +58,7 @@ void FDisplayClusterViewportPreviewResource::ReleaseViewportResource()
 	EnumRemoveFlags(GetResourceState(), EDisplayClusterViewportResourceState::Initialized);
 }
 
-FRHITexture2D* FDisplayClusterViewportPreviewResource::GetViewportResourceRHI_RenderThread() const
+FRHITexture* FDisplayClusterViewportPreviewResource::GetViewportResourceRHI_RenderThread() const
 {
 	check(IsInRenderingThread());
 

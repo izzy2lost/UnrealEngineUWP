@@ -60,6 +60,16 @@ public:
 	 */
 	virtual UObject* GetReinstancedCDO(UObject* CDO) = 0;
 	virtual const UObject* GetReinstancedCDO(const UObject* CDO) = 0;
+
+	/**
+	 * Return a map of the reinstanced classes where the old class is the key and the new class is the value.
+	 */
+	 virtual const TMap<UClass*, UClass*>& GetReinstancedClasses() = 0;
+
+	 /**
+	  * Return an array of the new classes
+	  */
+	 virtual const TArray<UClass*>& GetNewClasses() = 0;
 };
 
 /**

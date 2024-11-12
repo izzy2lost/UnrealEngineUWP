@@ -843,7 +843,7 @@ void URenderGridQueue::OnProcessJob(URenderGridJob* Job)
 		while (!RemainingJobs.IsEmpty() && !bCanceled && !bFinished)
 		{
 			TObjectPtr<URenderGridJob> NextJob = RemainingJobs[0];
-			RemainingJobs.RemoveAt(0, 1, EAllowShrinking::No);
+			RemainingJobs.RemoveAt(0, EAllowShrinking::No);
 
 			if (IsValid(NextJob))
 			{

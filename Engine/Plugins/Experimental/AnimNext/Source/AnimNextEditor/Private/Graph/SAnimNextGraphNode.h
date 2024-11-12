@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/SRigVMGraphNode.h"
 
-class UAnimNextGraph_EdGraphNode;
+class UAnimNextEdGraphNode;
 
 class SAnimNextGraphNode : public SRigVMGraphNode
 {
@@ -14,12 +14,9 @@ public:
 		: _GraphNodeObj(nullptr)
 		{}
 
-	SLATE_ARGUMENT(UAnimNextGraph_EdGraphNode*, GraphNodeObj)
+	SLATE_ARGUMENT(UAnimNextEdGraphNode*, GraphNodeObj)
 
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-
-protected:
-	virtual void UpdatePinTreeView() override;
 };

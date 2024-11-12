@@ -80,18 +80,32 @@ public:
 	bool ToggleDebugConsole(TSharedRef<SWindow> ParentWindow, bool bAlwaysToggleDrawer=false);
 
 	/**
+	 * Opens the output log drawer for a status bar residing in the active window
+	 *
+	 * @return true if the output log was opened
+	 */
+	bool OpenOutputLogDrawer();
+
+	/**
 	 * Opens the content browser drawer for a status bar residing in the active window 
 	 * 
-	 * @return true if the content browser was opened or false if no status bar in the active window was found
+	 * @return true if the content browser was opened
 	 */
 	bool OpenContentBrowserDrawer();
 
 	/**
-	 * Opens the output log drawer for a status bar residing in the active window
-	 *
-	 * @return true if the output log was opened or false if no status bar in the active window was found
+	 * Opens or closes the content browser drawer for a status bar residing in the active window 
+	 * 
+	 * @return true if the content browser was toggled or false if no status bar in the active window was found
 	 */
-	bool OpenOutputLogDrawer();
+	bool ToggleContentBrowserDrawer();
+
+	/**
+	 * Closes the content browser drawer for a status bar residing in the active window 
+	 * 
+	 * @return true if the content browser was dismissed
+	 */
+	bool DismissContentBrowserDrawer();
 
 	/**
 	 * Tries to toggle the given drawer
@@ -187,7 +201,19 @@ private:
 	virtual void UpdateProgressNotification(FProgressNotificationHandle Handle, int32 TotalWorkDone, int32 UpdatedTotalWorkToDo, FText UpdatedDisplayText) override;
 	virtual void CancelProgressNotification(FProgressNotificationHandle Handle) override;
 
-	bool ToggleContentBrowser(TSharedRef<SWindow> ParentWindow);
+	enum class EDrawerTriggerMode : uint8
+	{
+		None = 0,
+
+		Open = 1 << 0,
+		Dismiss = 1 << 1,
+
+		Toggle = Open | Dismiss
+	};
+	FRIEND_ENUM_CLASS_FLAGS(EDrawerTriggerMode);
+
+	bool TriggerContentBrowser(EDrawerTriggerMode DrawerTriggerMode);
+
 	void OnDebugConsoleClosed(TWeakPtr<SStatusBar> OwningStatusBar);
 	void CreateContentBrowserIfNeeded();
 	void CreateAndShowNewUserTipIfNeeded(TSharedPtr<SWindow> ParentWindow, bool bIsRunningStartupDialog);

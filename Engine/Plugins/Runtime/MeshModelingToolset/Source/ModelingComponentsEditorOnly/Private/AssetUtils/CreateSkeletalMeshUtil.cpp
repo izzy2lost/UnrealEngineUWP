@@ -70,7 +70,9 @@ UE::AssetUtils::ECreateSkeletalMeshResult UE::AssetUtils::CreateSkeletalMeshAsse
 			for (const FDynamicMesh3* DynamicMesh : Options.SourceMeshes.DynamicMeshes)
 			{
 				ConstructedMeshDescriptions.AddDefaulted();
-				FDynamicMeshToMeshDescription Converter;
+				FConversionToMeshDescriptionOptions ConverterOptions;
+				ConverterOptions.bConvertBackToNonManifold = Options.bConvertBackToNonManifold;
+				FDynamicMeshToMeshDescription Converter(ConverterOptions);
 				FSkeletalMeshAttributes Attributes(ConstructedMeshDescriptions.Last());
 				Attributes.Register();
 				Converter.Convert(DynamicMesh, ConstructedMeshDescriptions.Last(), !Options.bEnableRecomputeTangents);

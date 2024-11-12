@@ -22,7 +22,9 @@ class FTransformDynamicCollection : public FManagedArrayCollection
 public:
 	typedef FManagedArrayCollection Super;
 
+	UE_DEPRECATED(5.4, "No longer handles a raw ptr, use the version taking TSharedPtr")
 	CHAOS_API FTransformDynamicCollection(const FGeometryCollection* InRestCollection);
+	CHAOS_API FTransformDynamicCollection(TSharedPtr<const FGeometryCollection> InRestCollection);
 	FTransformDynamicCollection(FTransformDynamicCollection&) = delete;
 	FTransformDynamicCollection& operator=(const FTransformDynamicCollection&) = delete;
 	FTransformDynamicCollection(FTransformDynamicCollection&&) = delete;
@@ -43,9 +45,9 @@ public:
 	template<typename Lambda>
 	void IterateThroughChildren(int32 Index, Lambda&& LambdaIt) const
 	{
-		if (RestCollection && RestCollection->Children.IsValidIndex(Index))
-		{
-			const TSet<int32>& Children = RestCollection->Children[Index];
+		if (RestCollectionShared && RestCollectionShared->Children.IsValidIndex(Index))
+		{	
+			const TSet<int32>& Children = RestCollectionShared->Children[Index];
 			for (const int32 Child : Children)
 			{
 				if (GetHasParent(Child))
@@ -61,8 +63,9 @@ public:
 	}
 
 protected:
+	UE_DEPRECATED(5.4, "Raw pointer no longer in use, instead access the shared version")
 	const FGeometryCollection* RestCollection;
-
+	TSharedPtr<const FGeometryCollection> RestCollectionShared;
 private:
 	TManagedArray<bool>         HasParent;
 	TManagedArray<FTransform3f> Transform;
@@ -83,7 +86,9 @@ private:
 class FGeometryDynamicCollection : public FTransformDynamicCollection
 {
 public:
+	UE_DEPRECATED(5.4, "No longer handles a raw ptr, use the version taking TSharedPtr")
 	CHAOS_API FGeometryDynamicCollection(const FGeometryCollection* InRestCollection);
+	CHAOS_API FGeometryDynamicCollection(TSharedPtr<const FGeometryCollection> InRestCollection);
 	FGeometryDynamicCollection(FGeometryDynamicCollection&) = delete;
 	FGeometryDynamicCollection& operator=(const FGeometryDynamicCollection&) = delete;
 	FGeometryDynamicCollection(FGeometryDynamicCollection&&) = delete;
@@ -113,7 +118,9 @@ public:
 	TManagedArray<uint8> DynamicState; 
 	static_assert(sizeof(EObjectStateTypeEnum) <= sizeof(uint8)); // DynamicState must fit  EObjectStateTypeEnum
 
+	UE_DEPRECATED(5.5, "Simplicials array is optional and should be queried using the FindAttribute method")
 	TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>> Simplicials;
+
 	TManagedArray<bool> SimulatableParticles;
 
 	UE_DEPRECATED(5.4, "CollisionStructureID attribute is no longer supported")

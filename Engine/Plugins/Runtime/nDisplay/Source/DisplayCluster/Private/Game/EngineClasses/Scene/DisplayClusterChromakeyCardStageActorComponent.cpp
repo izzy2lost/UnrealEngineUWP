@@ -34,7 +34,7 @@ void UDisplayClusterChromakeyCardStageActorComponent::PostEditChangeProperty(FPr
 		const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(PropertyName.ToString());
 		if (ArrayIndex >= 0 && ArrayIndex < ICVFXCameras.Num())
 		{
-			RootActor = ICVFXCameras[ArrayIndex].OtherActor.Get();
+			RootActor = Cast<ADisplayClusterRootActor>(ICVFXCameras[ArrayIndex].OtherActor.Get());
 			RemoveInvalidComponents();
 		}
 	}

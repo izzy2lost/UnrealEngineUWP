@@ -28,6 +28,7 @@
 #include "NiagaraCullProxyComponent.h"
 #include "SceneInterface.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/UObjectThreadContext.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "NiagaraActor.h"
 
@@ -44,6 +45,14 @@ DECLARE_CYCLE_STAT(TEXT("Get Dynamic Mesh Elements (RT)"), STAT_NiagaraComponent
 DEFINE_LOG_CATEGORY(LogNiagara);
 
 DEFINE_RENDER_COMMAND_PIPE(NiagaraDynamicData, ERenderCommandPipeFlags::None);
+
+static bool GNiagaraParallelGDME = true;
+static FAutoConsoleVariableRef CVarNiagaraParallelGDME(
+	TEXT("fx.Niagara.ParallelGDME"),
+	GNiagaraParallelGDME,
+	TEXT("Allow Niagara to run parallel in GDME."),
+	ECVF_Default
+);
 
 static int GNiagaraSoloTickEarly = 1;
 static FAutoConsoleVariableRef CVarNiagaraSoloTickEarly(
@@ -98,6 +107,16 @@ static FAutoConsoleVariableRef CVarNiagaraForceWaitForCompilationOnActivate(
 	TEXT("fx.Niagara.ForceWaitForCompilationOnActivate"),
 	GNiagaraForceWaitForCompilationOnActivate,
 	TEXT("When a component is activated it will stall waiting for any pending shader compilation."),
+	ECVF_Default
+);
+
+static bool GNiagaraComponentBoostPSOPrecacheHighest = false;
+static FAutoConsoleVariableRef CVarNiagaraComponentBoostPSOPrecacheHighest(
+	TEXT("r.PSOPrecache.NiagaraComponentPSOPrecachePriority"),
+	GNiagaraComponentBoostPSOPrecacheHighest,
+	TEXT("Niagara component PSO precache priority level.\n")
+	TEXT(" 0. Niagara component's PSO precache requests are set to high priority (default)\n")
+	TEXT(" 1. Niagara component's PSO precache requests are set to highest priority"),
 	ECVF_Default
 );
 
@@ -190,6 +209,14 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent, InComponent->GetAsset() ? InComponent->GetAsset()->GetFName() : FName())
 	, OcclusionQueryMode(InComponent->GetOcclusionQueryMode())
 {
+	SetWireframeColor(FLinearColor(3.0f, 0.0f, 0.0f));
+
+	// Prevent continuous VSM invalidation from the bounds of the primitive.
+	bHasDeformableMesh = false;
+
+	// Optionally enable GDME for Niagara, any caveats are covered below
+	bSupportsParallelGDME = GNiagaraParallelGDME;
+
 	FNiagaraSystemInstanceControllerConstPtr SystemInstanceController = InComponent->GetSystemInstanceController();
 	UNiagaraSystem* NiagaraSystem = InComponent->GetAsset();
 	if (SystemInstanceController && NiagaraSystem)
@@ -206,12 +233,15 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 #if NIAGARAPROXY_EVENTS_ENABLED
 		SystemStatString = NiagaraSystem->GetFName().ToString();
 #endif
-	}
 
-	// Prevent continuous VSM invalidation from the bounds of the primitive.
-	bHasDeformableMesh = false;
-	// Niagara renderers reference a lot of common contexts that aren't locked (and would otherwise introduce a lot of contention).
-	bSupportsParallelGDME = false;
+		// Any GPU simulations that tick in PostInitView can not run parallel in GDME as GDME runs async over the top of this call
+		//-OPT: Would it be better to run these simulations in PreRender which is after we join from parallel GDME?
+		const ENiagaraGpuComputeTickStage::Type GpuComputeTickStage = SystemInstanceController->GetGpuComputeTickStage();
+		if (GpuComputeTickStage == ENiagaraGpuComputeTickStage::PostInitViews )
+		{
+			bSupportsParallelGDME = false;
+		}
+	}
 }
 
 SIZE_T FNiagaraSceneProxy::GetTypeHash() const
@@ -346,6 +376,7 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 		KeyHash = HashCombine(KeyHash, CustomFloatHash);
 	}
 
+	UE::TScopeLock LockGuard(CustomUniformBuffersGuard);
 	TUniformBuffer<FPrimitiveUniformShaderParameters>*& CustomUBRef = CustomUniformBuffers.FindOrAdd(KeyHash);
 	if (CustomUBRef == nullptr)
 	{
@@ -374,7 +405,8 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 				.HasCapsuleRepresentation(HasDynamicIndirectShadowCasterRepresentation())
 				.UseVolumetricLightmap(bHasPrecomputedVolumetricLightmap)
 				.UseSingleSampleShadowFromStationaryLights(UseSingleSampleShadowFromStationaryLights())
-				.HasPixelAnimation(AnyMaterialHasPixelAnimation());
+				.HasPixelAnimation(AnyMaterialHasPixelAnimation())
+				.IsFirstPersonPrimitive(bIsFirstPerson);
 		if ( InstanceBounds.IsValid )
 		{
 			UBBuilder.InstanceLocalBounds(InstanceBounds);
@@ -391,11 +423,6 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 	return CustomUBRef;
 }
 
-TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustomUniformBufferResource(bool bHasVelocity, const FBox& InstanceBounds) const
-{
-	return GetCustomUniformBufferResource(FRHICommandListImmediate::Get(), bHasVelocity, InstanceBounds);
-}
-
 FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(FRHICommandListBase& RHICmdList, bool bHasVelocity, const FBox& InstanceBounds) const
 {
 	// Default UB we create for the primitive
@@ -405,11 +432,6 @@ FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(FRHICommandListBas
 	}
 
 	return GetCustomUniformBufferResource(RHICmdList, bHasVelocity, InstanceBounds)->GetUniformBufferRHI();
-}
-
-FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(bool bHasVelocity, const FBox& InstanceBounds) const
-{
-	return GetCustomUniformBuffer(FRHICommandListImmediate::Get(), bHasVelocity, InstanceBounds);
 }
 
 uint32 FNiagaraSceneProxy::GetMemoryFootprint() const
@@ -518,11 +540,11 @@ void FNiagaraSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>&
 }
 
 #if RHI_RAYTRACING
-void FNiagaraSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+void FNiagaraSceneProxy::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector)
 {
 if (RenderData)
 	{
-		RenderData->GetDynamicRayTracingInstances(Context, OutRayTracingInstances, *this);
+		RenderData->GetDynamicRayTracingInstances(Collector, *this);
 	}
 }
 #endif
@@ -759,10 +781,10 @@ void UNiagaraComponent::ReleaseToPool()
 uint32 UNiagaraComponent::GetApproxMemoryUsage() const
 {
 	uint32 MemoryBytes = sizeof(UNiagaraComponent);
-	MemoryBytes += OverrideParameters.GetResourceSize();
+	MemoryBytes += static_cast<uint32>(OverrideParameters.GetResourceSize());
 	if (SystemInstanceController)
 	{
-		MemoryBytes += uint32(SystemInstanceController->GetTotalBytesUsed());
+		MemoryBytes += static_cast<uint32>(SystemInstanceController->GetTotalBytesUsed());
 	}
 	return MemoryBytes;
 }
@@ -886,15 +908,14 @@ void UNiagaraComponent::TickComponent(float DeltaSeconds, enum ELevelTick TickTy
 		{
 			float AgeDiff = FMath::Max(DesiredAge, 0.0f) - SystemInstanceController->GetAge();
 			int32 TicksToProcess = 0;
-
-			if (AgeDiff < 0.0f)
-			{
-				SystemInstanceController->Reset(FNiagaraSystemInstance::EResetMode::ResetAll);
-				AgeDiff = DesiredAge - SystemInstanceController->GetAge();
-			}
-
 			if (FMath::Abs(AgeDiff) >= UE_KINDA_SMALL_NUMBER)
 			{
+				if (AgeDiff < 0.0f)
+				{
+					SystemInstanceController->Reset(FNiagaraSystemInstance::EResetMode::ResetAll);
+					AgeDiff = DesiredAge - SystemInstanceController->GetAge();
+				}
+
 				FNiagaraSystemSimulation* SystemSim = SystemInstanceController->GetSoloSystemSimulation().Get();
 				if (SystemSim)
 				{
@@ -1058,7 +1079,9 @@ bool UNiagaraComponent::IsPaused()const
 {
 	//check the system instance is actually in the right state. 
 	//In cases where we don't have a system instance or we're culled by scalability, the instance can have a differnt internal state to the user's desired state.
-	check(SystemInstanceController.IsValid() == false || bIsCulledByScalability || SystemInstanceController->IsPaused() == bDesiredPauseState);
+	bool bIsInstanceValid = SystemInstanceController.IsValid();
+	bool bIsInstanceRunning = bIsInstanceValid && SystemInstanceController->GetRequestedExecutionState() == ENiagaraExecutionState::Active && SystemInstanceController->GetActualExecutionState() == ENiagaraExecutionState::Active;
+	ensure(bIsInstanceRunning == false || bIsCulledByScalability || SystemInstanceController->IsPaused() == bDesiredPauseState);
 	return bDesiredPauseState;
 }
 
@@ -1622,6 +1645,12 @@ void UNiagaraComponent::PostSystemTick_GameThread()
 {
 	check(SystemInstanceController.IsValid()); // sanity
 
+	if (FUObjectThreadContext::Get().IsRoutingPostLoad)
+	{
+		// return early when we're in the middle of another object's postload phase, as ticking data interfaces and renderers might lead to failed assertions
+		return;
+	}
+
 #if WITH_EDITOR
 	if (SystemInstanceController->HandleNeedsUIResync())
 	{
@@ -1839,8 +1868,7 @@ void UNiagaraComponent::OnPooledReuse(UWorld* NewWorld)
 	{
 		// Rename the NC to move it into the current PersistentLevel - it may have been spawned in one
 		// level but is now needed in another level.
-		// Use the REN_ForceNoResetLoaders flag to prevent the rename from potentially calling FlushAsyncLoading.
-		Rename(nullptr, NewWorld, REN_ForceNoResetLoaders);
+		Rename(nullptr, NewWorld);
 	}
 
 	//We reset last render time to the current time so that any visibility culling on a delay will function correctly.
@@ -2201,6 +2229,7 @@ void UNiagaraComponent::SendRenderDynamicData_Concurrent()
 {
 	LLM_SCOPE(ELLMTag::Niagara);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
+	CSV_SCOPED_TIMING_STAT(Particles, CoreSystems_NiagaraSendRenderDynamicData);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraComponentSendRenderData);
 	PARTICLE_PERF_STAT_CYCLES_GT(FParticlePerfStatsContext(GetWorld(), GetAsset(), this), EndOfFrame);
 
@@ -2328,7 +2357,8 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 			PrecacheAssetPSOs(Asset);
 		}
 
-		if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
+		EPSOPrecachePriority PSOPrecachePriority = GNiagaraComponentBoostPSOPrecacheHighest ? EPSOPrecachePriority::Highest : EPSOPrecachePriority::High;
+		if (CheckPSOPrecachingAndBoostPriority(PSOPrecachePriority) && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 		{
 			UE_LOG(LogNiagara, Verbose, TEXT("Skipping CreateSceneProxy for UNiagaraComponent %s (UNiagaraSystem PSOs are still compiling)"), *GetFullName());
 			return nullptr;
@@ -3991,7 +4021,7 @@ void UNiagaraComponent::SetPreviewLODDistance(bool bInEnablePreviewLODDistance, 
 
 void UNiagaraComponent::SetSimCache(UNiagaraSimCache* InSimCache, bool bResetSystem)
 {
-	const bool bForceReset = SimCache ? SimCache->GetAttributeCaptureMode() != ENiagaraSimCacheAttributeCaptureMode::All : false;
+	const bool bForceReset = IsActive() && SimCache ? SimCache->GetAttributeCaptureMode() != ENiagaraSimCacheAttributeCaptureMode::All : false;
 
 	SimCache = InSimCache;
 	UpdateInstanceSoloMode();
@@ -4094,6 +4124,13 @@ void UNiagaraComponent::SetAsset(UNiagaraSystem* InAsset, bool bResetExistingOve
 	Asset = InAsset;
 
 #if WITH_EDITOR
+	if (Asset != nullptr && bResetExistingOverrideParameters)
+	{
+		// To mirror the cooked path we reset the parameters is the asset is valid
+		OverrideParameters.Empty();
+		InstanceParameterOverrides.Empty();
+	}
+
 	SynchronizeWithSourceSystem();
 	if (Asset != nullptr)
 	{

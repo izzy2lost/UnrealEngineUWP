@@ -19,22 +19,7 @@
 // the configuration will set up anything not set up by the platform
 #include "VulkanConfiguration.h"
 
-#if VULKAN_COMMANDWRAPPERS_ENABLE
-	#if VULKAN_DYNAMICALLYLOADED
-		// Vulkan API is defined in VulkanDynamicAPI namespace.
-		#define VULKANAPINAMESPACE VulkanDynamicAPI
-	#else
-		// Vulkan API is in the global namespace.
-		#define VULKANAPINAMESPACE
-	#endif
-	#include "VulkanCommandWrappers.h"
-#else
-	#if VULKAN_DYNAMICALLYLOADED
-		#include "VulkanCommandsDirect.h"
-	#else
-		#error "Statically linked vulkan api must be wrapped!"
-	#endif
-#endif
+#include "VulkanCommandWrappers.h"
 
 #include "VulkanState.h"
 #include "VulkanResources.h"
@@ -43,26 +28,10 @@
 #include "VulkanDynamicRHI.h"
 #include "RHI.h"
 
-#if VK_HEADER_VERSION >= 141
-//workaround for removed defines in sdk 141
-#define VK_DESCRIPTOR_TYPE_BEGIN_RANGE (VK_DESCRIPTOR_TYPE_SAMPLER)
-#define VK_DESCRIPTOR_TYPE_END_RANGE (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
-#define VK_DESCRIPTOR_TYPE_RANGE_SIZE (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT - VK_DESCRIPTOR_TYPE_SAMPLER + 1)
-#define VK_IMAGE_VIEW_TYPE_RANGE_SIZE (VK_IMAGE_VIEW_TYPE_CUBE_ARRAY - VK_IMAGE_VIEW_TYPE_1D + 1)
-#define VK_DYNAMIC_STATE_BEGIN_RANGE (VK_DYNAMIC_STATE_VIEWPORT)
-#define VK_DYNAMIC_STATE_END_RANGE (VK_DYNAMIC_STATE_STENCIL_REFERENCE)
-#define VK_DYNAMIC_STATE_RANGE_SIZE (VK_DYNAMIC_STATE_STENCIL_REFERENCE - VK_DYNAMIC_STATE_VIEWPORT + 1)
-#define VK_FORMAT_RANGE_SIZE (VK_FORMAT_ASTC_12x12_SRGB_BLOCK - VK_FORMAT_UNDEFINED + 1)
-
-#endif
-
 #include "GPUProfiler.h"
-#include "VulkanDevice.h"
 #include "VulkanQueue.h"
 #include "VulkanCommandBuffer.h"
 #include "Stats/Stats2.h"
-
-using namespace VulkanRHI;
 
 class FVulkanQueue;
 class FVulkanCmdBuffer;
@@ -71,7 +40,6 @@ class FVulkanDescriptorSetsLayout;
 class FVulkanGfxPipeline;
 class FVulkanRenderPass;
 class FVulkanCommandBufferManager;
-struct FInputAttachmentData;
 class FValidationContext;
 
 
@@ -92,17 +60,15 @@ inline VkShaderStageFlagBits UEFrequencyToVKStageBit(EShaderFrequency InStage)
 	switch (InStage)
 	{
 	case SF_Vertex:			return VK_SHADER_STAGE_VERTEX_BIT;
+	case SF_Mesh:			return VK_SHADER_STAGE_MESH_BIT_EXT;
+	case SF_Amplification:	return VK_SHADER_STAGE_TASK_BIT_EXT;
 	case SF_Pixel:			return VK_SHADER_STAGE_FRAGMENT_BIT;
 	case SF_Geometry:		return VK_SHADER_STAGE_GEOMETRY_BIT;
 	case SF_Compute:		return VK_SHADER_STAGE_COMPUTE_BIT;
-
-#if VULKAN_RHI_RAYTRACING
 	case SF_RayGen:			return VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 	case SF_RayMiss:		return VK_SHADER_STAGE_MISS_BIT_KHR;
 	case SF_RayHitGroup:	return VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR; // vkrt todo: How to handle VK_SHADER_STAGE_ANY_HIT_BIT_KHR?
 	case SF_RayCallable:	return VK_SHADER_STAGE_CALLABLE_BIT_KHR;
-#endif // VULKAN_RHI_RAYTRACING
-
 	default:
 		checkf(false, TEXT("Undefined shader stage %d"), (int32)InStage);
 		break;
@@ -117,10 +83,11 @@ inline EShaderFrequency VkStageBitToUEFrequency(VkShaderStageFlagBits FlagBits)
 	{
 	case VK_SHADER_STAGE_VERTEX_BIT:					return SF_Vertex;
 	case VK_SHADER_STAGE_FRAGMENT_BIT:					return SF_Pixel;
+	case VK_SHADER_STAGE_MESH_BIT_EXT:					return SF_Mesh;
+	case VK_SHADER_STAGE_TASK_BIT_EXT:					return SF_Amplification;
 	case VK_SHADER_STAGE_GEOMETRY_BIT:					return SF_Geometry;
 	case VK_SHADER_STAGE_COMPUTE_BIT:					return SF_Compute;
 
-#if VULKAN_RHI_RAYTRACING
 	case VK_SHADER_STAGE_RAYGEN_BIT_KHR:				return SF_RayGen;
 	case VK_SHADER_STAGE_MISS_BIT_KHR:					return SF_RayMiss;
 	case VK_SHADER_STAGE_CALLABLE_BIT_KHR:				return SF_RayCallable;
@@ -130,7 +97,6 @@ inline EShaderFrequency VkStageBitToUEFrequency(VkShaderStageFlagBits FlagBits)
 	case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
 	case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
 		return SF_RayHitGroup;
-#endif // VULKAN_RHI_RAYTRACING
 
 	default:
 		checkf(false, TEXT("Undefined VkShaderStageFlagBits %d"), (int32)FlagBits);
@@ -138,6 +104,23 @@ inline EShaderFrequency VkStageBitToUEFrequency(VkShaderStageFlagBits FlagBits)
 	}
 
 	return SF_NumFrequencies;
+}
+
+static constexpr int32 GetNumStagesForBindPoint(VkPipelineBindPoint BindPoint)
+{
+	switch (BindPoint)
+	{
+	case VK_PIPELINE_BIND_POINT_GRAPHICS:
+		return ShaderStage::NumGraphicsStages;
+
+	case VK_PIPELINE_BIND_POINT_COMPUTE:
+		return ShaderStage::NumComputeStages;
+
+	case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+		return ShaderStage::NumRayTracingStages;
+	};
+
+	return 0;
 }
 
 class FVulkanRenderTargetLayout
@@ -165,6 +148,7 @@ public:
 	inline uint32 GetNumColorAttachments() const { return NumColorAttachments; }
 	inline bool GetHasDepthStencil() const { return bHasDepthStencil != 0; }
 	inline bool GetHasResolveAttachments() const { return bHasResolveAttachments != 0; }
+	inline bool GetHasDepthStencilResolve() const { return bHasDepthStencilResolve != 0; }
 	inline bool GetHasFragmentDensityAttachment() const { return bHasFragmentDensityAttachment != 0; }
 	inline uint32 GetNumAttachmentDescriptions() const { return NumAttachmentDescriptions; }
 	inline uint32 GetNumSamples() const { return NumSamples; }
@@ -177,26 +161,26 @@ public:
 	inline const VkAttachmentReference* GetResolveAttachmentReferences() const { return bHasResolveAttachments ? ResolveReferences : nullptr; }
 	inline const VkAttachmentReference* GetDepthAttachmentReference() const { return bHasDepthStencil ? &DepthReference : nullptr; }
 	inline const VkAttachmentReferenceStencilLayout* GetStencilAttachmentReference() const { return bHasDepthStencil ? &StencilReference : nullptr; }
+	inline const VkAttachmentReference* GetDepthStencilResolveAttachmentReference() const { return bHasDepthStencilResolve ? &DepthStencilResolveReference : nullptr; }
 	inline const VkAttachmentReference* GetFragmentDensityAttachmentReference() const { return bHasFragmentDensityAttachment ? &FragmentDensityReference : nullptr; }
 
 	inline const VkAttachmentDescriptionStencilLayout* GetStencilDesc() const { return bHasDepthStencil ? &StencilDesc : nullptr; }
 
 	inline const ESubpassHint GetSubpassHint() const { return SubpassHint; }
-	inline const VkSurfaceTransformFlagBitsKHR GetQCOMRenderPassTransform() const { return QCOMRenderPassTransform; }
 
 protected:
 	VkImageLayout GetVRSImageLayout() const;
 
 protected:
-	VkSurfaceTransformFlagBitsKHR QCOMRenderPassTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	VkAttachmentReference ColorReferences[MaxSimultaneousRenderTargets];
 	VkAttachmentReference DepthReference;
 	VkAttachmentReferenceStencilLayout StencilReference;
 	VkAttachmentReference FragmentDensityReference;
 	VkAttachmentReference ResolveReferences[MaxSimultaneousRenderTargets];
+	VkAttachmentReference DepthStencilResolveReference;
 
-	// Depth goes in the "+1" slot and the Shading Rate texture goes in the "+2" slot.
-	VkAttachmentDescription Desc[MaxSimultaneousRenderTargets * 2 + 2];
+	// Depth goes in the "+1" slot, Depth resolve goes in the "+2 slot", and the Shading Rate texture goes in the "+3" slot.
+	VkAttachmentDescription Desc[MaxSimultaneousRenderTargets * 2 + 3];
 	VkAttachmentDescriptionStencilLayout StencilDesc;
 
 	uint8 NumAttachmentDescriptions;
@@ -204,6 +188,7 @@ protected:
 	uint8 NumInputAttachments = 0;
 	uint8 bHasDepthStencil;
 	uint8 bHasResolveAttachments;
+	uint8 bHasDepthStencilResolve;
 	uint8 bHasFragmentDensityAttachment;
 	uint8 NumSamples;
 	uint8 NumUsedClearValues;
@@ -233,6 +218,7 @@ protected:
 		FMemory::Memzero(DepthReference);
 		FMemory::Memzero(FragmentDensityReference);
 		FMemory::Memzero(ResolveReferences);
+		FMemory::Memzero(DepthStencilResolveReference);
 		FMemory::Memzero(Desc);
 		FMemory::Memzero(Offset);
 		FMemory::Memzero(Extent);
@@ -247,6 +233,7 @@ protected:
 		NumColorAttachments = 0;
 		bHasDepthStencil = 0;
 		bHasResolveAttachments = 0;
+		bHasDepthStencilResolve = 0;
 		bHasFragmentDensityAttachment = 0;
 		NumSamples = 0;
 		NumUsedClearValues = 0;
@@ -332,6 +319,7 @@ private:
 	VkImage ColorRenderTargetImages[MaxSimultaneousRenderTargets];
 	VkImage ColorResolveTargetImages[MaxSimultaneousRenderTargets];
 	VkImage DepthStencilRenderTargetImage;
+	VkImage DepthStencilResolveRenderTargetImage;
 	VkImage FragmentDensityImage;
 
 	// Predefined set of barriers, when executes ensuring all writes are finished
@@ -466,14 +454,6 @@ DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Max Potential Desc Sets"), STAT_Vulk
 
 namespace VulkanRHI
 {
-	struct FPendingBufferLock
-	{
-		FStagingBuffer* StagingBuffer;
-		uint32 Offset;
-		uint32 Size;
-		EResourceLockMode LockMode;
-	};
-
 	static uint32 GetNumBitsPerPixel(VkFormat Format)
 	{
 		switch (Format)
@@ -901,7 +881,7 @@ namespace VulkanRHI
 inline bool UseVulkanDescriptorCache()
 {
 	// Descriptor cache path for WriteAccelerationStructure() is not implemented, so disable if RT is enabled
-	return ((PLATFORM_ANDROID) && !(VULKAN_RHI_RAYTRACING)) || GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1;
+	return GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1;
 }
 
 inline bool ValidateShadingRateDataType()
@@ -929,9 +909,6 @@ inline bool ValidateShadingRateDataType()
 extern int32 GVulkanSubmitAfterEveryEndRenderPass;
 extern int32 GWaitForIdleOnSubmit;
 
-// Vendor-specific GPU crash dumps
-extern bool GGPUCrashDebuggingEnabled;
-
 #if VULKAN_HAS_DEBUGGING_ENABLED
 extern bool GRenderDocFound;
 #endif
@@ -945,7 +922,3 @@ extern TAtomic<uint64> GVulkanBufferViewHandleIdCounter;
 extern TAtomic<uint64> GVulkanImageViewHandleIdCounter;
 extern TAtomic<uint64> GVulkanSamplerHandleIdCounter;
 extern TAtomic<uint64> GVulkanDSetLayoutHandleIdCounter;
-
-#if NV_AFTERMATH
-extern bool GVulkanNVAftermathModuleLoaded;
-#endif

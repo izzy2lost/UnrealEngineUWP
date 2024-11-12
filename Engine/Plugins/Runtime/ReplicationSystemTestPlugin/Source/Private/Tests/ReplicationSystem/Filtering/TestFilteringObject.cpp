@@ -21,17 +21,3 @@ void UTestFilteringObject::GetLifetimeReplicatedProps( TArray< class FLifetimePr
 	DOREPLIFETIME(ThisClass, NetTest_FilterOut);
 	DOREPLIFETIME(ThisClass, ReplicatedCounter);
 }
-
-
-void UTestLocationFragmentFilteringObject::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
-{
-	// Build descriptors and allocate PropertyReplicationFragments for this object
-	UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags);
-}
-
-void UTestLocationFragmentFilteringObject::GetLifetimeReplicatedProps(TArray< class FLifetimeProperty >& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ThisClass, WorldLocation);
-	DOREPLIFETIME(ThisClass, NetCullDistanceSquared);
-}

@@ -22,10 +22,10 @@ namespace UnrealBuildTool.Rules
 					"MassLOD",
 					"MassSmartObjects",
 					"MassSignals",
-					"StructUtils",
 					"DataRegistry",
 					"DeveloperSettings",
 					"NetCore",
+					"GameFeatures"
 				}
 			);
 
@@ -45,6 +45,7 @@ namespace UnrealBuildTool.Rules
 			}
 
 			SetupGameplayDebuggerSupport(Target);
+			SetupIrisSupport(Target);
 		}
 	}
 }

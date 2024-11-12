@@ -20,6 +20,10 @@
 #include "Engine/StaticMeshSocket.h"
 #include "SEditorViewportToolBarMenu.h"
 #include "Editor.h"
+#include "PreviewProfileController.h"
+#include "StaticMeshEditorViewportToolbarSections.h"
+#include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Text/SRichTextBlock.h"
 
 #define HITPROXY_SOCKET	1
@@ -80,7 +84,7 @@ void SStaticMeshEditorViewport::PopulateViewportOverlays(TSharedRef<SOverlay> Ov
 	Overlay->AddSlot()
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Left)
-		.Padding(FMargin(6.0f, 36.0f, 6.0f, 6.0f))
+		.Padding(TAttribute<FMargin>(this, &SStaticMeshEditorViewport::GetOverlayMargin))
 		[
 			SNew(SBorder)
 			.BorderImage( FAppStyle::Get().GetBrush( "FloatingBorder" ) )
@@ -228,6 +232,32 @@ bool SStaticMeshEditorViewport::IsShowNaniteFallbackVisible() const
 	const UStaticMesh* PreviewStaticMesh = PreviewMeshComponent ? ToRawPtr(PreviewMeshComponent->GetStaticMesh()) : nullptr;
 
 	return PreviewStaticMesh && PreviewStaticMesh->IsNaniteEnabled() ? true : false;
+}
+
+void SStaticMeshEditorViewport::ToggleShowDistanceField()
+{
+	if (EditorViewportClient)
+	{
+		EditorViewportClient->EngineShowFlags.SetVisualizeMeshDistanceFields(!EditorViewportClient->EngineShowFlags.VisualizeMeshDistanceFields);
+		SceneViewport->Invalidate();
+	}
+}
+
+bool SStaticMeshEditorViewport::IsShowDistanceFieldChecked() const
+{
+	return EditorViewportClient ? EditorViewportClient->EngineShowFlags.VisualizeMeshDistanceFields : false;
+}
+
+bool SStaticMeshEditorViewport::IsShowDistanceFieldVisible() const
+{
+	return true;
+}
+
+FMargin SStaticMeshEditorViewport::GetOverlayMargin() const
+{
+	return UE::UnrealEd::ShowNewViewportToolbars() && UE::UnrealEd::ShowOldViewportToolbars()
+			 ? FMargin(6.0f, 72.0f, 6.0f, 6.0f)
+			 : FMargin(6.0f, 36.0f, 6.0f, 6.0f);
 }
 
 void SStaticMeshEditorViewport::UpdatePreviewSocketMeshes()
@@ -549,7 +579,26 @@ TSharedRef<FEditorViewportClient> SStaticMeshEditorViewport::MakeEditorViewportC
 
 TSharedPtr<SWidget> SStaticMeshEditorViewport::MakeViewportToolbar()
 {
-	return SNew(SStaticMeshEditorViewportToolbar, SharedThis(this));
+	TSharedRef<SStaticMeshEditorViewportToolbar> OldViewportToolbar =
+		SNew(SStaticMeshEditorViewportToolbar, SharedThis(this))
+			.Visibility_Lambda(
+				[this]() -> EVisibility
+				{
+					return UE::UnrealEd::ShowOldViewportToolbars() ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+			);
+
+	// clang-format off
+	return SNew(SVerticalBox)
+		.Visibility( EVisibility::SelfHitTestInvisible )
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0, 1.0f, 0, 0)
+		.VAlign(VAlign_Top)
+		[
+			OldViewportToolbar
+		];
+	// clang-format on
 }
 
 EVisibility SStaticMeshEditorViewport::OnGetViewportContentVisibility() const
@@ -571,6 +620,13 @@ void SStaticMeshEditorViewport::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &SStaticMeshEditorViewport::IsShowNaniteFallbackChecked),
 		FIsActionButtonVisible::CreateSP(this, &SStaticMeshEditorViewport::IsShowNaniteFallbackVisible));
+
+	CommandList->MapAction(
+		Commands.SetShowDistanceField,
+		FExecuteAction::CreateSP(this, &SStaticMeshEditorViewport::ToggleShowDistanceField),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &SStaticMeshEditorViewport::IsShowDistanceFieldChecked),
+		FIsActionButtonVisible::CreateSP(this, &SStaticMeshEditorViewport::IsShowDistanceFieldVisible));
 
 	CommandList->MapAction(
 		Commands.SetShowWireframe,
@@ -690,21 +746,21 @@ void SStaticMeshEditorViewport::OnFocusViewportToSelection()
 {
 	// If we have selected sockets, focus on them
 	UStaticMeshSocket* SelectedSocket = StaticMeshEditorPtr.Pin()->GetSelectedSocket();
-	if( SelectedSocket && PreviewMeshComponent )
+	if (SelectedSocket && PreviewMeshComponent)
 	{
 		FTransform SocketTransform;
-		SelectedSocket->GetSocketTransform( SocketTransform, PreviewMeshComponent );
+		SelectedSocket->GetSocketTransform(SocketTransform, PreviewMeshComponent);
 
 		const FVector Extent(30.0f);
 
 		const FVector Origin = SocketTransform.GetLocation();
 		const FBox Box(Origin - Extent, Origin + Extent);
 
-		EditorViewportClient->FocusViewportOnBox( Box );
+		EditorViewportClient->FocusViewportOnBox(Box);
 		return;
 	}
 
-	// If we have selected primitives, focus on them 
+	// If we have selected primitives, focus on them
 	FBox Box(ForceInit);
 	const bool bSelectedPrim = StaticMeshEditorPtr.Pin()->CalcSelectedPrimsAABB(Box);
 	if (bSelectedPrim)
@@ -714,11 +770,166 @@ void SStaticMeshEditorViewport::OnFocusViewportToSelection()
 	}
 
 	// Fallback to focusing on the mesh, if nothing else
-	if( PreviewMeshComponent )
+	if (PreviewMeshComponent)
 	{
-		EditorViewportClient->FocusViewportOnBox( PreviewMeshComponent->Bounds.GetBox() );
+		EditorViewportClient->FocusViewportOnBox(PreviewMeshComponent->Bounds.GetBox());
 		return;
 	}
+}
+
+TSharedPtr<SWidget> SStaticMeshEditorViewport::BuildViewportToolbar()
+{
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	const FName ViewportToolbarName = "StaticMeshEditor.ViewportToolbar";
+
+	if (!UToolMenus::Get()->IsMenuRegistered(ViewportToolbarName))
+	{
+		UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+			ViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+		);
+
+		ViewportToolbarMenu->StyleName = "ViewportToolbar";
+
+		// Add the left-aligned part of the viewport toolbar.
+		{
+			FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+
+			// Add the "Transforms" sub menu.
+			{
+				FToolMenuEntry TransformsSubmenu = UE::UnrealEd::CreateViewportToolbarTransformsSection();
+				TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(TransformsSubmenu);
+			}
+
+			// Add the "Selection" sub menu.
+			{
+				FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectSection();
+				SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SelectionSubmenu);
+			}
+
+			// Add the "Snapping" sub menu.
+			{
+				FToolMenuEntry SnappingSubmenu = UE::UnrealEd::CreateViewportToolbarSnappingSubmenu();
+				SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SnappingSubmenu);
+			}
+		}
+
+		// Add the right-aligned part of the viewport toolbar.
+		{
+			// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
+			// default-positioned submenus external code might add.
+			FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+			RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+			// Add the "Camera" submenu.
+			{
+				const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+				const FName ParentSubmenuName = "StaticMeshEditor.ViewportToolbar.Camera";
+				const FName SubmenuName = "StaticMeshEditor.ViewportToolbar.CameraOptions";
+
+				// Create our grandparent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+				}
+
+				// Create our parent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+				}
+
+				// Create our menu.
+				UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+				UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
+
+				FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+				CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(CameraSubmenu);
+			}
+
+			// Add the "View Modes" sub menu.
+			{
+				// Stay backward-compatible with the old viewport toolbar.
+				{
+					const FName ParentSubmenuName = "UnrealEd.ViewportToolbar.View";
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(ParentSubmenuName);
+					}
+
+					// Register our ToolMenu here first, before we create the submenu, so we can set our parent.
+					UToolMenus::Get()->RegisterMenu("StaticMeshEditor.ViewportToolbar.ViewModes", ParentSubmenuName);
+				}
+
+				FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+				ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(ViewModesSubmenu);
+			}
+
+			// Add the "Show" sub menu
+			{
+				FToolMenuEntry ShowSubmenu = UE::StaticMeshEditor::CreateShowSubmenu();
+				ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(ShowSubmenu);
+			}
+
+			// Add the "LOD" sub menu
+			{
+				FToolMenuEntry LODSubmenu = UE::StaticMeshEditor::CreateLODSubmenu();
+				LODSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(LODSubmenu);
+			}
+
+			// Add the "Performance and Scalability" sub menu.
+			{
+				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
+				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+			}
+
+			// Add the "Preview Profile" sub menu.
+			{
+				PreviewProfileController = MakeShared<FPreviewProfileController>();
+				FToolMenuEntry PreviewProfileSubmenu =
+					UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+				PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PreviewProfileSubmenu);
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject =
+				UE::UnrealEd::CreateViewportToolbarDefaultContext(SharedThis(this));
+
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+
+	// clang-format off
+	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
+	.Visibility_Lambda(
+		[this]() -> EVisibility
+		{
+			return  UE::UnrealEd::ShowNewViewportToolbars() ? EVisibility::Visible: EVisibility::Collapsed;
+		}
+	)
+	[
+		UToolMenus::Get()->GenerateWidget(ViewportToolbarName, ViewportToolbarContext)
+	];
+	// clang-format on
+
+	return NewViewportToolbar;
 }
 
 #undef LOCTEXT_NAMESPACE

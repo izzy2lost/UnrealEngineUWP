@@ -130,7 +130,7 @@ public:
 	UTestPropertyReplicationState_TestClassWithTArray() : UReplicatedTestObject() {}
 
 	UPROPERTY(ReplicatedUsing=OnRep_ReferencedObjects)
-	TArray<UObject*> ReferencedObjects;
+	TArray<TObjectPtr<UObject>> ReferencedObjects;
 
 	UPROPERTY(Replicated)
 	uint32 ForceReplication = 0;
@@ -143,4 +143,16 @@ protected:
 	UFUNCTION()
 	void OnRep_ReferencedObjects();
 
+};
+
+
+UCLASS()
+class UTestPropertyReplicationState_NoRegisterFragments : public UReplicatedTestObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(Transient, Replicated)
+	int IntA = 0;
 };

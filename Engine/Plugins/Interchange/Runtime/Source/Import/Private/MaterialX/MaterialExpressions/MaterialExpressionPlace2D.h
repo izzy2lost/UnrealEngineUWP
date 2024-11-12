@@ -14,7 +14,7 @@
  * -pivot, translate, rotate, scale, +pivot which does not introduce texture shear.
  * Default is 0 "SRT" for backward compatibility.*/
 UCLASS(MinimalAPI, collapsecategories, hidecategories = Object, meta = (Private))
-class UMaterialExpressionMaterialXPlace2D : public UMaterialExpression
+class UE_DEPRECATED(5.5, "UMaterialExpressionMaterialXPlace2D is now deprecated, please use Material Function MX_Place2D") UMaterialExpressionMaterialXPlace2D : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
 

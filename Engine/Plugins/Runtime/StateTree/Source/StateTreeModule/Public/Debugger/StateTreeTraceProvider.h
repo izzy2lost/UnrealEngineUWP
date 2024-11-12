@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_STATETREE_DEBUGGER
+#if WITH_STATETREE_TRACE_DEBUGGER
 
 #include "IStateTreeTraceProvider.h"
 #include "Model/PointTimeline.h"
@@ -31,6 +31,7 @@ public:
 
 	void AppendAssetDebugId(const UStateTree* InStateTree, const FStateTreeIndex16 AssetDebugId);
 	bool GetAssetFromDebugId(const FStateTreeIndex16 AssetDebugId, TWeakObjectPtr<const UStateTree>& WeakStateTree) const;
+	bool GetAssetFromInstanceId(const FStateTreeInstanceDebugId InstanceId, TWeakObjectPtr<const UStateTree>& WeakStateTree) const;
 
 protected:
 	/** IStateTreeDebuggerProvider interface */
@@ -47,10 +48,16 @@ private:
 
 	struct FStateTreeDebugIdPair
 	{
+		FStateTreeDebugIdPair(const TWeakObjectPtr<const UStateTree>& WeakStateTree, const FStateTreeIndex16 Id)
+			: WeakStateTree(WeakStateTree)
+			, Id(Id)
+		{
+		}
+
 		TWeakObjectPtr<const UStateTree> WeakStateTree;
 		FStateTreeIndex16 Id;
 	};
 
 	TArray<FStateTreeDebugIdPair> StateTreeAssets;
 };
-#endif // WITH_STATETREE_DEBUGGER
+#endif // WITH_STATETREE_TRACE_DEBUGGER

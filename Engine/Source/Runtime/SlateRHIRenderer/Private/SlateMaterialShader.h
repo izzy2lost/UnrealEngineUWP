@@ -9,6 +9,8 @@
 #include "MaterialShaderType.h"
 #include "MaterialShader.h"
 
+class FMeshDrawSingleShaderBindings;
+
 class FSlateMaterialShaderVS : public FMaterialShader
 {
 	DECLARE_TYPE_LAYOUT(FSlateMaterialShaderVS, NonVirtual);
@@ -20,21 +22,12 @@ public:
 
 	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters);
 
-	/** 
-	 * Sets the view projection parameter
-	 *
-	 * @param InViewProjection	The ViewProjection matrix to use when this shader is bound 
-	 */
-	void SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection );
-
-	void SetMaterialShaderParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material);
-
-	/** Serializes the shader data */
-	//virtual bool Serialize( FArchive& Ar ) override;
-private:
-	
-		/** ViewProjection parameter used by the shader */
-		LAYOUT_FIELD(FShaderParameter, ViewProjection)
+	void SetMaterialShaderParameters(
+		FMeshDrawSingleShaderBindings& ShaderBindings,
+		const FSceneInterface* Scene,
+		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+		const FMaterialRenderProxy* MaterialRenderProxy,
+		const FMaterial* Material);
 };
 
 class FSlateMaterialShaderPS : public FMaterialShader
@@ -51,15 +44,19 @@ public:
 	FSlateMaterialShaderPS() {}
 	FSlateMaterialShaderPS(const FMaterialShaderType::CompiledShaderInitializerType& Initializer);
 
-	void SetBlendState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FMaterial* Material);
+	void SetMaterialShaderParameters(
+		FMeshDrawSingleShaderBindings& ShaderBindings,
+		const FSceneInterface* Scene,
+		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+		const FMaterialRenderProxy* MaterialRenderProxy,
+		const FMaterial* Material,
+		const FShaderParams& InShaderParams);
 
-	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material, const FShaderParams& InShaderParams);
+	void SetDisplayGammaAndContrast(FMeshDrawSingleShaderBindings& ShaderBindings, float InDisplayGamma, float InContrast);
 
-	void SetDisplayGammaAndContrast(FRHIBatchedShaderParameters& BatchedParameters, float InDisplayGamma, float InContrast);
+	void SetAdditionalTexture(FMeshDrawSingleShaderBindings& ShaderBindings, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState );
 
-	void SetAdditionalTexture(FRHIBatchedShaderParameters& BatchedParameters, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState );
-
-	void SetDrawFlags(FRHIBatchedShaderParameters& BatchedParameters, bool bDrawDisabledEffect);
+	void SetDrawFlags(FMeshDrawSingleShaderBindings& ShaderBindings, bool bDrawDisabledEffect);
 
 private:
 	LAYOUT_FIELD(FShaderParameter, GammaAndAlphaValues);

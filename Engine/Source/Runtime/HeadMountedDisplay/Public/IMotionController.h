@@ -15,7 +15,7 @@ UENUM(BlueprintType)
 enum class ETrackingStatus : uint8
 {
 	NotTracked,
-	InertialOnly,
+	InertialOnly, //Note This value of the enum is deprecated and only used by legacy platforms.  Please do not introduce new usages of it.
 	Tracked,
 };
 
@@ -163,6 +163,16 @@ public:
 	UE_DEPRECATED(5.4, "UPlayerMappableInputConfig has been deprecated. Please use SetInputMappingContexts instead.")
 	virtual bool SetPlayerMappableInputConfig(TObjectPtr<class UPlayerMappableInputConfig> InputConfig = nullptr) { return true; };
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	/**
+	* Add a set of enhanced input user settings to the motion controller. This allows the motion controller to support
+	* Enhanced Input actions.
+	*
+	* @param InputConfig		The path to the enhanced user input settings asset
+	*
+	* @return			False if the input config can't be attached to the session, true otherwise
+	*/
+	virtual bool SetEnhancedInputUserSettings(TObjectPtr<class UEnhancedInputUserSettings> InputSettings = nullptr) { return true; };
 
 	/**
 	 * Add input mapping contexts to the motion controller. This allows the motion controller to support

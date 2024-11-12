@@ -40,12 +40,13 @@ namespace EpicGames.OIDC
 			}
 		}
 
-		private readonly Dictionary<string, byte[]> _providerToRefreshToken = new Dictionary<string, byte[]>();
+		private readonly Dictionary<string, byte[]> _providerToRefreshToken;
+		private readonly List<string> _dirtyProviders = new List<string>();
 		private readonly SymmetricAlgorithm _crypt = Aes.Create();
 
 		public FilesystemTokenStore()
 		{
-			ReadStoreFromDisk();
+			_providerToRefreshToken = ReadStoreFromDisk();
 		}
 
 		private static FileInfo GetStorePath()
@@ -53,13 +54,13 @@ namespace EpicGames.OIDC
 			return new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Epic", "UnrealEngine", "Common", "OidcToken", "tokenStore.dat"));
 		}
 
-		private void ReadStoreFromDisk()
+		private Dictionary<string, byte[]> ReadStoreFromDisk()
 		{
 			FileInfo fi = GetStorePath();
 			if (!fi.Exists)
 			{
 				// if we have no store on disk then we just initialize it to empty
-				return;
+				return new Dictionary<string, byte[]>();
 			}
 
 			using FileStream fs = fi.OpenRead();
@@ -77,15 +78,18 @@ namespace EpicGames.OIDC
 			if (state == null)
 			{
 				// if we fail to deserialize the state just drop it, will mean users will need to login again
-				return;
+				return new Dictionary<string, byte[]>();
 			}
+			Dictionary<string, byte[]> providers = new Dictionary<string, byte[]>();
 
 			foreach ((string key, string value) in state.Providers)
 			{
-				_providerToRefreshToken[key] = Convert.FromBase64String(value);
+				providers[key] = Convert.FromBase64String(value);
 			}
-
+			
 			_crypt.IV = Convert.FromBase64String(state.Key);
+
+			return providers;
 		}
 
 		private void SaveStoreToDisk()
@@ -97,14 +101,32 @@ namespace EpicGames.OIDC
 				Directory.CreateDirectory(fi.Directory!.FullName);
 			}
 
-			string tempFile = Path.GetTempFileName();
+			lock (_dirtyProviders)
 			{
-				using FileStream fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write);
-				using Utf8JsonWriter writer = new Utf8JsonWriter(fs);
-				JsonSerializer.Serialize<TokenStoreState>(writer, new TokenStoreState(_crypt.IV, _providerToRefreshToken));
-			}
+				// no providers have changed, do not touch the state file
+				if (_dirtyProviders.Count == 0)
+				{
+					return;
+				}
 
-			File.Move(tempFile, fi.FullName, true);
+				// read back the state of all providers but only overwrite the state of the ones we have actually got new state for (are dirty)
+				Dictionary<string, byte[]> providers = ReadStoreFromDisk();
+
+				foreach (string providerId in _dirtyProviders)
+				{
+					providers[providerId] = _providerToRefreshToken[providerId];
+				}
+
+				string tempFile = Path.GetTempFileName();
+				{
+					using FileStream fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write);
+					using Utf8JsonWriter writer = new Utf8JsonWriter(fs);
+					JsonSerializer.Serialize<TokenStoreState>(writer, new TokenStoreState(_crypt.IV, providers));
+				}
+
+				File.Move(tempFile, fi.FullName, true);
+				_dirtyProviders.Clear();
+			}
 		}
 
 		public bool TryGetRefreshToken(string oidcProvider, out string refreshToken)
@@ -130,6 +152,11 @@ namespace EpicGames.OIDC
 
 			byte[] encryptedToken = encryptor.TransformFinalBlock(bytes, 0, bytes.Length);
 			_providerToRefreshToken[providerIdentifier] = encryptedToken;
+
+			lock (_dirtyProviders)
+			{
+				_dirtyProviders.Add(providerIdentifier);
+			}
 		}
 
 		public void Save()

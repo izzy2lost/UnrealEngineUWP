@@ -45,6 +45,9 @@ public:
 	[[nodiscard]] UE_API static FValueId FromName(FUtf8StringView Name);
 	[[nodiscard]] UE_API static FValueId FromName(FWideStringView Name);
 
+	/** Returns a copy of this ID with the last 4 bytes replaced by the index. Use for arrays of values. */
+	[[nodiscard]] UE_API FValueId MakeIndexed(int32 Index) const;
+
 	/** Returns a reference to the raw byte array for the ID. */
 	inline const ByteArray& GetBytes() const { return Bytes; }
 

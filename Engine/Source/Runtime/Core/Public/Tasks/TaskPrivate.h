@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/EventCount.h"
 #include "Async/Fundamental/Scheduler.h"
 #include "Async/Fundamental/Task.h"
 #include "Async/Mutex.h"
@@ -429,25 +430,24 @@ public:
 			// @return true if the task is completed
 			CORE_API bool Wait(FTimeout Timeout);
 
+			// waits for task's completion. Tries to retract the task and execute it in-place, if failed - blocks until the task 
+			// is completed by another thread. 
+			CORE_API void Wait();
+
 			// mimics the old tasks (TaskGraph) behaviour on named threads: waiting for a task on a named thread pulls other tasks from this
 			// named thread queue and executes them
 			CORE_API void WaitWithNamedThreadsSupport();
 
 			// waits until the task is completed or waiting timed out, while executing other tasks
+			UE_DEPRECATED(5.5, "Use Wait instead")
 			bool BusyWait(FTimeout Timeout)
 			{
-				TaskTrace::FWaitingScope WaitingScope(GetTraceId());
-				TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::BusyWait);
-
-				// ignore the result as we still have to make sure the task is completed upon returning from this function call
-				TryRetractAndExecute(Timeout);
-
-				LowLevelTasks::BusyWaitUntil([this, Timeout] { return IsCompleted() || Timeout; });
-				return IsCompleted();
+				return Wait(Timeout);
 			}
 
 			// waits until the task is completed or the condition returns true, while executing other tasks
 			template<typename ConditionType>
+			UE_DEPRECATED(5.5, "This method will be removed.")
 			bool BusyWait(ConditionType&& Condition)
 			{
 				TaskTrace::FWaitingScope WaitingScope(GetTraceId());
@@ -530,15 +530,11 @@ public:
 			{
 				TASKGRAPH_VERBOSE_EVENT_SCOPE(FTaskBase::Close);
 				checkSlow(!IsCompleted());
-
-				if (GetPipe() != nullptr)
-				{
-					ClearPipe();
-				}
-
+				
 				// Push the first subsequent to the local queue so we pick it up directly as our next task.
 				// This saves us the cost of going to the global queue and performing a wake-up.
-				bool bWakeUpWorker = false;
+				// But if we're a task event, always wake up new workers because the current task could continue executing for a long time after the trigger.
+				bool bWakeUpWorker = ExtendedPriority == EExtendedTaskPriority::TaskEvent;
 
 				for (FTaskBase* Subsequent : Subsequents.Close())
 				{
@@ -547,10 +543,20 @@ public:
 					Subsequent->TryUnlock(bWakeUpWorker);
 				}
 
+				// Clear the pipe after the task is completed (subsequents closed) so that any tasks part of the
+				// pipe are not seen still being executed after FPipe::WaitUntilEmpty has returned.
+				if (GetPipe() != nullptr)
+				{
+					ClearPipe();
+				}
+
 				// release nested tasks
 				ReleasePrerequisites();
 
 				TaskTrace::Completed(GetTraceId());
+
+				// In case a thread is waiting on us to perform retraction, now is the time to try retraction again.
+				StateChangeEvent.Notify();
 			}
 
 			CORE_API void ClearPipe();
@@ -610,6 +616,8 @@ public:
 						TryExecuteTask(); // result doesn't matter, this can fail if task retraction jumped in and got execution
 						// permission between this thread unlocked the task and tried to execute it
 						ReleaseInternalReference();
+
+						// Use-after-free territory, do not touch any of the task's properties here.
 					}
 					else if (ExtendedPriority == EExtendedTaskPriority::TaskEvent)
 					{
@@ -621,11 +629,15 @@ public:
 							ReleasePrerequisites();
 							Close();
 							ReleaseInternalReference();
+
+							// Use-after-free territory, do not touch any of the task's properties here.
 						}
 					}
 					else
 					{
 						Schedule(bWakeUpWorker);
+
+						// Use-after-free territory, do not touch any of the task's properties here.
 					}
 
 					return true;
@@ -641,6 +653,9 @@ public:
 				// this thread unlocked the task, no other thread can reach this point concurrently, we can touch the task again
 				Close();
 				Release(); // the internal reference that kept the task alive for nested tasks
+
+				// Use-after-free territory, do not touch any of the task's properties here.
+
 				return true;
 			}
 
@@ -675,7 +690,66 @@ public:
 			CORE_API bool WaitImpl(FTimeout Timeout);
 
 		private:
+			// the number of times that the task should be unlocked before it can be scheduled or completed
+			// initial count is 1 for launching the task (it can't be scheduled before it's launched)
+			// reaches 0 the task is scheduled for execution.
+			// NumLocks's the most significant bit (see `ExecutionFlag`) is set on task execution start, and indicates that now 
+			// NumLocks is about how many times the task must be unlocked to be completed
+			static constexpr uint32 NumInitialLocks = 1;
+			std::atomic<uint32> NumLocks{ NumInitialLocks };
+
+			FPipe* Pipe{ nullptr };
+
+			FEventCount StateChangeEvent;
+
 			EExtendedTaskPriority ExtendedPriority; // internal priorities, if any
+
+			std::atomic<uint32> ExecutingThreadId = FThread::InvalidThreadId;
+
+#if UE_TASK_TRACE_ENABLED
+			std::atomic<TaskTrace::FId> TraceId{ TaskTrace::GenerateTaskId() };
+#endif
+
+			// stores backlinks to prerequsites, either execution prerequisites or nested tasks (completion prerequisites).
+			// It's populated in three stages:
+			// 1) by adding execution prerequisites, before the task is launched.
+			// 2) by piping, when the previous piped task (if any) is added as a prerequisite. can happen concurrently with other threads accessing prerequisites for
+			//		task retraction.
+			// 3) by adding nested tasks. after piping. during task execution.
+			template <typename AllocatorType = FDefaultAllocator>
+			class FPrerequisites
+			{
+			public:
+				void Push(FTaskBase* Prerequisite)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::Push);
+					UE::TUniqueLock Lock(Mutex);
+					Prerequisites.Emplace(Prerequisite);
+				}
+
+				void PushNoLock(FTaskBase* Prerequisite)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PushNoLock);
+					Prerequisites.Emplace(Prerequisite);
+				}
+
+				TArray<FTaskBase*, AllocatorType> PopAll()
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PopAll);
+					UE::TUniqueLock Lock(Mutex);
+					return MoveTemp(Prerequisites);
+				}
+
+				void Unlock()
+				{
+					Mutex.Unlock();
+				}
+			private:
+				TArray<FTaskBase*, AllocatorType> Prerequisites;
+				UE::FMutex Mutex{ UE::AcquireLock }; // Start locked by default to avoid compare exchange during construction.
+			};
+
+			FPrerequisites<TInlineAllocator<1>> Prerequisites;
 
 			LowLevelTasks::FTask LowLevelTask;
 
@@ -721,62 +795,6 @@ public:
 
 			FSubsequents<TInlineAllocator<1>> Subsequents;
 
-			// stores backlinks to prerequsites, either execution prerequisites or nested tasks (completion prerequisites).
-			// It's populated in three stages:
-			// 1) by adding execution prerequisites, before the task is launched.
-			// 2) by piping, when the previous piped task (if any) is added as a prerequisite. can happen concurrently with other threads accessing prerequisites for
-			//		task retraction.
-			// 3) by adding nested tasks. after piping. during task execution.
-			template <typename AllocatorType = FDefaultAllocator>
-			class FPrerequisites
-			{
-			public:
-				void Push(FTaskBase* Prerequisite)
-				{
-					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::Push);
-					UE::TUniqueLock Lock(Mutex);
-					Prerequisites.Emplace(Prerequisite);
-				}
-
-				void PushNoLock(FTaskBase* Prerequisite)
-				{
-					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PushNoLock);
-					Prerequisites.Emplace(Prerequisite);
-				}
-
-				TArray<FTaskBase*, AllocatorType> PopAll()
-				{
-					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PopAll);
-					UE::TUniqueLock Lock(Mutex);
-					return MoveTemp(Prerequisites);
-				}
-
-				void Unlock()
-				{
-					Mutex.Unlock();
-				}
-			private:
-				TArray<FTaskBase*, AllocatorType> Prerequisites;
-				UE::FMutex Mutex { UE::AcquireLock }; // Start locked by default to avoid compare exchange during construction.
-			};
-
-			FPrerequisites<TInlineAllocator<1>> Prerequisites;
-
-			FPipe* Pipe{ nullptr };
-
-#if UE_TASK_TRACE_ENABLED
-			std::atomic<TaskTrace::FId> TraceId{ TaskTrace::GenerateTaskId() };
-#endif
-
-			// the number of times that the task should be unlocked before it can be scheduled or completed
-			// initial count is 1 for launching the task (it can't be scheduled before it's launched)
-			// reaches 0 the task is scheduled for execution.
-			// NumLocks's the most significant bit (see `ExecutionFlag`) is set on task execution start, and indicates that now 
-			// NumLocks is about how many times the task must be unlocked to be completed
-			static constexpr uint32 NumInitialLocks = 1;
-			std::atomic<uint32> NumLocks{ NumInitialLocks };
-
-			std::atomic<uint32> ExecutingThreadId = FThread::InvalidThreadId;
 
 protected:
 			void UnlockPrerequisites()
@@ -973,7 +991,7 @@ protected:
 					bResult = false;  // do not stop here to let this thread to help in executing tasks as much as possible, as it's waiting for their completion anyway
 				}
 
-				if (Timeout)
+				if (Timeout.IsExpired())
 				{
 					return false;
 				}

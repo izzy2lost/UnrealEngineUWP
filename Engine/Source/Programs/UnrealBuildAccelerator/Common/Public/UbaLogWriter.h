@@ -24,6 +24,6 @@ namespace uba
 		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) = 0;
 	};
 
-	extern LogWriter& g_consoleLogWriter;
-	extern LogWriter& g_nullLogWriter;
+	UBA_API extern LogWriter& g_consoleLogWriter;
+	UBA_API extern LogWriter& g_nullLogWriter;
 }

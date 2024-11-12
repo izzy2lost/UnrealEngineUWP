@@ -17,6 +17,7 @@
 #include "HAL/MallocAnsi.h"
 #include "HAL/MallocBinned.h"
 #include "HAL/MallocBinned2.h"
+#include "HAL/MallocBinned3.h"
 #include "CoreGlobals.h"
 
 #include <stdlib.h>
@@ -287,45 +288,51 @@ void FApplePlatformMemory::Init()
 	
 }
 
-// Use MallocBinned2 as default, can be overriden below.
-#define USE_MALLOC_BINNED2 1
-
 void FApplePlatformMemory::SetAllocatorToUse()
 {
     // force Ansi allocator in particular cases
     if(getenv("UE4_FORCE_MALLOC_ANSI") != nullptr)
     {
-        UE_LOG(LogTemp, Display, TEXT("Using Ansi allocator."));
+		NSLog(@"UE4_FORCE_MALLOC_ANSI is set, using Ansi allocator.\n");
         AllocatorToUse = EMemoryAllocatorToUse::Ansi;
         return;
     }
     if (FORCE_ANSI_ALLOCATOR)
     {
-        UE_LOG(LogTemp, Display, TEXT("Using Ansi allocator."));
+		NSLog(@"FORCE_ANSI_ALLOCATOR defined, using Ansi allocator.\n");
         AllocatorToUse = EMemoryAllocatorToUse::Ansi;
         return;
     }
-    if (USE_MALLOC_BINNED2)
+
+	if (USE_MALLOC_BINNED3)
+	{
+		if (!CanOverallocateVirtualMemory())
+		{
+			NSLog(@"MallocBinned3 requested but com.apple.developer.kernel.extended-virtual-addressing entitlement not found. Check your entitlements. Falling back to Ansi.\n");
+			AllocatorToUse = EMemoryAllocatorToUse::Ansi;
+			return;
+		}
+
+		NSLog(@"Using MallocBinned3 allocator.\n");
+		AllocatorToUse = EMemoryAllocatorToUse::Binned3;
+		return;
+	}
+    else if (USE_MALLOC_BINNED2)
     {
- #if PLATFORM_IOS || PLATFORM_TVOS
-        if(!FIOSPlatformMisc::IsEntitlementEnabled("com.apple.developer.kernel.extended-virtual-addressing"))
+        if(!CanOverallocateVirtualMemory())
         {
-            UE_LOG(LogTemp, Warning, TEXT("MallocBinned2 requested but Virtual Address Space entitlement not found. Check your entitlements. Falling back to Ansi."));
+			NSLog(@"MallocBinned2 requested but com.apple.developer.kernel.extended-virtual-addressing entitlement not found. Check your entitlements. Falling back to Ansi.\n");
             AllocatorToUse = EMemoryAllocatorToUse::Ansi;
             return;
         }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Virtual Address Space entitlement found. Using MallocBinned2 allocator"));
-        }
-#endif
-        UE_LOG(LogTemp, Display, TEXT("Using MallocBinned2 allocator."));
+
+		NSLog(@"Using MallocBinned2 allocator.\n");
         AllocatorToUse = EMemoryAllocatorToUse::Binned2;
         return;
     }
     else
     {
-        UE_LOG(LogTemp, Display, TEXT("Defaulting to Ansi allocator."));
+		NSLog(@"Defaulting to Ansi allocator.\n");
         AllocatorToUse = EMemoryAllocatorToUse::Ansi;
         return;
     }
@@ -339,11 +346,12 @@ FMalloc* FApplePlatformMemory::BaseAllocator()
 		return Instance;
 	}
 
-#if ENABLE_LOW_LEVEL_MEM_TRACKER
 	FPlatformMemoryStats MemStats = FApplePlatformMemory::GetStats();
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
 	FLowLevelMemTracker::Get().SetProgramSize(MemStats.UsedPhysical);
 #endif
-    
+	FPlatformMemory::ProgramSize = MemStats.UsedPhysical;
+
     SetAllocatorToUse();
     
     switch (AllocatorToUse)
@@ -353,6 +361,12 @@ FMalloc* FApplePlatformMemory::BaseAllocator()
             Instance = new FMallocAnsi();
             break;
         }
+
+		case EMemoryAllocatorToUse::Binned3:
+		{
+			Instance = new FMallocBinned3();
+			break;
+		}
 
         case EMemoryAllocatorToUse::Binned2:
         {
@@ -457,6 +471,7 @@ const FPlatformMemoryConstants& FApplePlatformMemory::GetConstants()
 		// actual physical memory. To work around this, we add 1Gb - 1b so it will be truncated 
 		// correctly and will not affect macOS
 		MemoryConstants.TotalPhysicalGB = ([NSProcessInfo processInfo].physicalMemory + (1024*1024*1024 - 1)) / 1024 / 1024 / 1024;
+		MemoryConstants.AddressLimit = FPlatformMath::RoundUpToPowerOfTwo64(MemoryConstants.TotalPhysical);
 
 		// Calculate total and available Virtual Memory
 		mach_port_t HostPort = mach_host_self();
@@ -793,13 +808,14 @@ void FApplePlatformMemory::FPlatformVirtualMemoryBlock::Commit(size_t InOffset, 
 {
 	check(IsAligned(InOffset, GetCommitAlignment()) && IsAligned(InSize, GetCommitAlignment()));
 	check(InOffset >= 0 && InSize >= 0 && InOffset + InSize <= GetActualSize() && Ptr);
+	madvise(((uint8*)Ptr) + InOffset, InSize, MADV_FREE_REUSE);
 }
 
 void FApplePlatformMemory::FPlatformVirtualMemoryBlock::Decommit(size_t InOffset, size_t InSize)
 {
 	check(IsAligned(InOffset, GetCommitAlignment()) && IsAligned(InSize, GetCommitAlignment()));
 	check(InOffset >= 0 && InSize >= 0 && InOffset + InSize <= GetActualSize() && Ptr);
-	if (madvise(((uint8*)Ptr) + InOffset, InSize, MADV_DONTNEED) != 0)
+	if (madvise(((uint8*)Ptr) + InOffset, InSize, MADV_FREE_REUSABLE) != 0)
 	{
 		// we can ran out of VMAs here too!
 		FPlatformMemory::OnOutOfMemory(InSize, 0);
@@ -850,6 +866,15 @@ bool FApplePlatformMemory::GetLLMAllocFunctions(void*_Nonnull(*_Nonnull&OutAlloc
 #else
     return false;
 #endif
+}
+
+bool FApplePlatformMemory::CanOverallocateVirtualMemory()
+{
+#if PLATFORM_IOS || PLATFORM_TVOS
+	static bool bHasExtendedVirtualAddressingEntitlement = FIOSPlatformMisc::IsEntitlementEnabled("com.apple.developer.kernel.extended-virtual-addressing");
+	return bHasExtendedVirtualAddressingEntitlement;
+#endif
+	return true;	// 64 bit Mac process can allocate ~18 exabytes of addressable space
 }
 
 NS_ASSUME_NONNULL_END

@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using EpicGames.Core;
@@ -19,7 +21,7 @@ namespace UnrealBuildTool
 	{
 		/// config section for platform-specific target settings
 		protected virtual string IniSection_PlatformTargetSettings => String.Format("/Script/{0}PlatformEditor.{0}TargetSettings", Platform.ToString());
-		
+
 		/// config section for  platform-specific general target settings (i.e. settings with are unrelated to manifest generation)
 		protected virtual string? IniSection_GeneralPlatformSettings => null;
 
@@ -61,7 +63,7 @@ namespace UnrealBuildTool
 
 		/// Logger for output
 		protected readonly ILogger Logger;
-		
+
 		/// Whether we have logged the deprecation warning for PerCultureResources CultureId being replaced by StageIdOverrides
 		protected static bool bHasWarnedAboutDeprecatedCultureId = false;
 
@@ -71,7 +73,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Create a manifest generator for the given platform variant.
 		/// </summary>
-		public AppXManifestGeneratorBase(UnrealTargetPlatform InPlatform, ILogger InLogger)
+		protected AppXManifestGeneratorBase(UnrealTargetPlatform InPlatform, ILogger InLogger)
 		{
 			Platform = InPlatform;
 			Logger = InLogger;
@@ -246,14 +248,13 @@ namespace UnrealBuildTool
 
 			// read StageId overrides
 			bool bHasStageIdOverrides = false;
-			if (EngineIni!.GetString(IniSection_PlatformTargetSettings, "StageIdOverrides", out string? StageIdOverridesString) && 
-				ConfigHierarchy.TryParseAsMap(StageIdOverridesString, out Dictionary<string,string>? StageIdOverrides))
+			if (EngineIni!.GetString(IniSection_PlatformTargetSettings, "StageIdOverrides", out string? StageIdOverridesString) &&
+				ConfigHierarchy.TryParseAsMap(StageIdOverridesString, out Dictionary<string, string>? StageIdOverrides))
 			{
 				bHasStageIdOverrides = true;
 				UEStageIdToAppXCultureId = StageIdOverrides;
 				AppXResources!.AddCultures(UEStageIdToAppXCultureId.Values);
 			}
-
 
 			// add per culture strings
 			if (EngineIni.GetArray(IniSection_PlatformTargetSettings, "PerCultureResources", out List<string>? PerCultureResources))
@@ -451,7 +452,26 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Get the path to the makepri.exe tool
 		/// </summary>
-		protected abstract FileReference GetMakePriBinaryPath();
+		protected virtual FileReference GetMakePriBinaryPath()
+		{
+			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				throw new BuildException("unsupported platform");
+			}			
+			
+			if (!MicrosoftPlatformSDK.TryGetWindowsSdkDir(null, Logger, out VersionNumber? SdkVersion, out DirectoryReference? SdkDir))
+			{
+				throw new BuildException("Cannot get default Windows Sdk directory");
+			}
+
+			FileReference MakePriPath = FileReference.Combine(SdkDir, "bin", SdkVersion.ToString(), "x64", "makepri.exe");
+			if (!FileReference.Exists(MakePriPath))
+			{
+				throw new BuildException($"{MakePriPath} - file not found");
+			}
+
+			return MakePriPath;
+		}
 
 		/// <summary>
 		/// Get any additional platform-specific parameters for makepri.exe

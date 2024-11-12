@@ -47,6 +47,12 @@ namespace UE
 {
 	namespace Interchange
 	{
+		const FAttributeKey& FStaticMeshNodeStaticData::GetLODScreenSizeBaseKey()
+		{
+			static FAttributeKey LODScreenSize_BaseKey(TEXT("__LODScreenSize__"));
+			return LODScreenSize_BaseKey;
+		}
+
 		const FAttributeKey& FStaticMeshNodeStaticData::GetSocketUidsBaseKey()
 		{
 			static FAttributeKey SocketUids_BaseKey = FAttributeKey(TEXT("SocketUids"));
@@ -61,6 +67,7 @@ UInterchangeStaticMeshFactoryNode::UInterchangeStaticMeshFactoryNode()
 #if WITH_ENGINE
 	AssetClass = nullptr;
 #endif
+	LODScreenSizes.Initialize(Attributes.ToSharedRef(), UE::Interchange::FStaticMeshNodeStaticData::GetLODScreenSizeBaseKey().ToString());
 	SocketUids.Initialize(Attributes, UE::Interchange::FStaticMeshNodeStaticData::GetSocketUidsBaseKey().ToString());
 }
 
@@ -131,6 +138,37 @@ FString UInterchangeStaticMeshFactoryNode::GetAttributeCategory(const UE::Interc
 }
 
 #endif //WITH_EDITOR
+
+bool UInterchangeStaticMeshFactoryNode::GetCustomAutoComputeLODScreenSizes(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AutoComputeLODScreenSizes, bool)
+}
+
+bool UInterchangeStaticMeshFactoryNode::SetCustomAutoComputeLODScreenSizes(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(AutoComputeLODScreenSizes, bool)
+}
+
+int32 UInterchangeStaticMeshFactoryNode::GetLODScreenSizeCount() const
+{
+	return LODScreenSizes.GetCount();
+}
+
+void UInterchangeStaticMeshFactoryNode::GetLODScreenSizes(TArray<float>& OutLODScreenSizes) const
+{
+	LODScreenSizes.GetItems(OutLODScreenSizes);
+}
+
+bool UInterchangeStaticMeshFactoryNode::SetLODScreenSizes(const TArray<float>& InLODScreenSizes)
+{
+	LODScreenSizes.RemoveAllItems();
+	for (const float& ScreenSize: InLODScreenSizes)
+	{
+		LODScreenSizes.AddItem(ScreenSize);
+	}
+
+	return true;
+}
 
 bool UInterchangeStaticMeshFactoryNode::GetCustomBuildNanite(bool& AttributeValue) const
 {

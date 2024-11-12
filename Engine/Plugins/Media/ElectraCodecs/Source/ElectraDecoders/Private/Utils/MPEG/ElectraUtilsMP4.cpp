@@ -53,7 +53,7 @@ bool FMP4AtomReader::ReadString(FString& OutString, uint16 NumBytes)
 			return false;
 		}
 		FUTF8ToTCHAR cnv((const ANSICHAR*)Buf.GetData(), NumBytes);
-		OutString = FString(cnv.Length(), cnv.Get());
+		OutString = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 		return true;
 	}
 	return false;
@@ -80,7 +80,7 @@ bool FMP4AtomReader::ReadStringUTF8(FString& OutString, int32 NumBytes)
 	if (ReadBytes(Buf.GetData(), NumBytes))
 	{
 		FUTF8ToTCHAR cnv((const ANSICHAR*)Buf.GetData(), NumBytes);
-		OutString = FString(cnv.Length(), cnv.Get());
+		OutString = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 		return true;
 	}
 	return false;

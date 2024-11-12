@@ -2,13 +2,21 @@
 
 #include "SAssetView.h"
 
+#include "Algo/AnyOf.h"
+#include "Algo/Compare.h"
+#include "Algo/RemoveIf.h"
 #include "Algo/Transform.h"
 #include "AssetRegistry/AssetRegistryState.h"
 #include "AssetSelection.h"
+#include "AssetTextFilter.h"
 #include "AssetToolsModule.h"
 #include "AssetView/AssetViewConfig.h"
 #include "AssetViewTypes.h"
 #include "AssetViewWidgets.h"
+#include "Async/ParallelFor.h"
+#include "Async/WordMutex.h"
+#include "Async/UniqueLock.h"
+#include "ContentBrowserCommands.h"
 #include "ContentBrowserConfig.h"
 #include "ContentBrowserDataDragDropOp.h"
 #include "ContentBrowserDataLegacyBridge.h"
@@ -16,8 +24,10 @@
 #include "ContentBrowserDataSubsystem.h"
 #include "ContentBrowserLog.h"
 #include "ContentBrowserMenuContexts.h"
+#include "ContentBrowserMenuUtils.h"
 #include "ContentBrowserModule.h"
 #include "ContentBrowserSingleton.h"
+#include "ContentBrowserStyle.h"
 #include "ContentBrowserUtils.h"
 #include "DesktopPlatformModule.h"
 #include "DragAndDrop/AssetDragDropOp.h"
@@ -28,6 +38,7 @@
 #include "Engine/Level.h"
 #include "Factories/Factory.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -75,13 +86,118 @@
 	#define checkAssetList(cond)
 #endif
 
-namespace
+namespace UE::AssetView
 {
 	/** Time delay between recently added items being added to the filtered asset items list */
-	const double TimeBetweenAddingNewAssets = 4.0;
+	constexpr double TimeBetweenAddingNewAssets = 4.0;
 
 	/** Time delay between performing the last jump, and the jump term being reset */
-	const double JumpDelaySeconds = 2.0;
+	constexpr double JumpDelaySeconds = 2.0;
+
+	/** Number of frames a deferred pending list will wait before clearing out the data.*/
+	constexpr int32 DeferredSyncTimeoutFramesCount = 30;
+
+	bool AllowAsync = true;
+	FAutoConsoleVariableRef CVarAllowAsync(
+		TEXT("AssetView.AllowAsync"),
+		AllowAsync,
+		TEXT("Whether to allow the asset view to perform work with async tasks (rather than time-sliced)"),
+		ECVF_Default
+	);
+	 
+	bool AllowParallelism = true;
+	FAutoConsoleVariableRef CVarAllowParallelism(
+		TEXT("AssetView.AllowParallelism"),
+		AllowParallelism,
+		TEXT("Whether to allow the asset view to perform work in parallel (e.g. ParallelFor)"),
+		ECVF_Default
+	);
+
+	// Return the max size of the batch of items to text filter per task - do fewer if parallelism is disabled
+	int32 GetMaxTextFilterItemBatch()
+	{
+		static const int32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers();
+		return AllowParallelism ? NumWorkers * 1024 : 1024;
+	}
+
+	bool AreBackendFiltersDifferent(const FARFilter& A, const FARFilter& B)
+	{
+		if (A.PackageNames.Num() != B.PackageNames.Num()
+		|| A.PackagePaths.Num() != B.PackageNames.Num() 
+		|| A.SoftObjectPaths.Num() != B.SoftObjectPaths.Num()
+		|| A.ClassPaths.Num() != B.ClassPaths.Num()
+		|| A.TagsAndValues.Num() != B.TagsAndValues.Num()
+		|| A.RecursiveClassPathsExclusionSet.Num() != B.RecursiveClassPathsExclusionSet.Num()
+		|| A.bRecursivePaths != B.bRecursivePaths
+		|| A.bRecursiveClasses != B.bRecursiveClasses
+		|| A.bIncludeOnlyOnDiskAssets != B.bIncludeOnlyOnDiskAssets
+		|| A.WithoutPackageFlags != B.WithoutPackageFlags 
+		|| A.WithPackageFlags != B.WithPackageFlags)
+		{
+			return true;
+		}
+
+		// Expect things to be generated in the same order by the filter bar, so just check linear matching
+		if (!Algo::Compare(A.PackageNames, B.PackageNames)
+		|| !Algo::Compare(A.PackagePaths, B.PackagePaths)
+		|| !Algo::Compare(A.SoftObjectPaths, B.SoftObjectPaths)
+		|| !Algo::Compare(A.ClassPaths, B.ClassPaths))
+		{
+			return true;
+		}
+
+		for (const FTopLevelAssetPath& Path : A.RecursiveClassPathsExclusionSet)
+		{
+			if (!B.RecursiveClassPathsExclusionSet.Contains(Path))
+			{
+				return true;
+			}
+		}
+
+		for (const FTopLevelAssetPath& Path : B.RecursiveClassPathsExclusionSet)
+		{
+			if (!A.RecursiveClassPathsExclusionSet.Contains(Path))
+			{
+				return true;
+			}
+		}
+
+		TArray<FName> AKeys;
+		A.TagsAndValues.GetKeys(AKeys);
+		for (FName Key : AKeys)
+		{
+			if (!B.TagsAndValues.Contains(Key))
+			{
+				return true;
+			}
+			TArray<TOptional<FString>> AValues;
+			A.TagsAndValues.MultiFind(Key, AValues);
+			Algo::SortBy(AValues, [](const TOptional<FString>& S) { return S.Get(FString()); });
+			TArray<TOptional<FString>> BValues;
+			B.TagsAndValues.MultiFind(Key, BValues);
+			Algo::SortBy(BValues, [](const TOptional<FString>& S) { return S.Get(FString()); });
+
+			if (!Algo::Compare(AValues, BValues))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool AreCustomPermissionListsDifferent(TArray<TSharedRef<const FPathPermissionList>>* InCustomPermissionLists,
+		TArray<TSharedRef<const FPathPermissionList>>& ExistingPermissionLists)
+	{
+		if (InCustomPermissionLists == nullptr)
+		{
+			return ExistingPermissionLists.IsEmpty();
+		}
+
+		// Expect order to be built in the same way so if order is different, trigger a rebuild
+		// Also expect that if filters change their permission lists, they create a new object. 
+		return !Algo::Compare(*InCustomPermissionLists, ExistingPermissionLists);
+	}
 }
 
 
@@ -97,6 +213,8 @@ FText SAssetView::ThumbnailSizeToDisplayName(EThumbnailSize InSize)
 		return LOCTEXT("MediumThumbnailSize", "Medium");
 	case EThumbnailSize::Large:
 		return LOCTEXT("LargeThumbnailSize", "Large");
+	case EThumbnailSize::XLarge:
+		return LOCTEXT("XLargeThumbnailSize", "X Large");
 	case EThumbnailSize::Huge:
 		return LOCTEXT("HugeThumbnailSize", "Huge");
 	default:
@@ -110,8 +228,19 @@ public:
 	explicit FAssetViewFrontendFilterHelper(SAssetView* InAssetView)
 		: AssetView(InAssetView)
 		, ContentBrowserData(IContentBrowserDataModule::Get().GetSubsystem())
+		, FolderFilter()
 		, bDisplayEmptyFolders(AssetView->IsShowingEmptyFolders())
 	{
+		if (!bDisplayEmptyFolders)
+		{
+			FolderFilter = FContentBrowserFolderContentsFilter{};
+			FolderFilter->ItemCategoryFilter = InAssetView->DetermineItemCategoryFilter();
+		}
+	}
+
+	bool NeedsQueryFilter()
+	{
+		return AssetView->OnShouldFilterItem.IsBound() || AssetView->OnShouldFilterAsset.IsBound();
 	}
 
 	bool DoesItemPassQueryFilter(const TSharedPtr<FAssetViewItem>& InItemToFilter)
@@ -146,7 +275,11 @@ public:
 		// Folders are only subject to "empty" filtering
 		if (InItemToFilter->IsFolder())
 		{
-			return ContentBrowserData->IsFolderVisible(InItemToFilter->GetItem().GetVirtualPath(), ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmptyFolders));
+			if (!ContentBrowserData->IsFolderVisible(InItemToFilter->GetItem().GetVirtualPath(), ContentBrowserUtils::GetIsFolderVisibleFlags(bDisplayEmptyFolders), FolderFilter))
+			{
+				return false;
+			}
+			return true;
 		}
 
 		// Run the item through the filters
@@ -161,8 +294,744 @@ public:
 private:
 	SAssetView* AssetView = nullptr;
 	UContentBrowserDataSubsystem* ContentBrowserData = nullptr;
+	TOptional<FContentBrowserFolderContentsFilter> FolderFilter;
 	const bool bDisplayEmptyFolders = true;
 };
+
+
+struct FAssetViewItemFilterState
+{
+	uint8 Removed : 1;
+	uint8 PassedFrontendFilter : 1;
+	uint8 PassedTextFilter : 1;	
+
+	// This item passed filtering and was published to the view
+	uint8 Published : 1;
+	// Priority filtering was performed because of data updates, do not overwrite results with async filtering results
+	uint8 PriorityFiltered : 1;
+};
+
+/**
+ * Manages items returned from backend query and incrementally/asynchronously filtering them.
+ * - Recycling of old objects on new query
+ */
+class FAssetViewItemCollection
+{
+public: 
+	FAssetViewItemCollection()
+	{
+	}
+
+	/** Returns the number of items which were fetched and have not been removed. */
+	int32 Num() const { return NumValidItems; }
+
+	/** Returns true if there is any incomplete filtering work. */
+	bool HasItemsPendingFilter()
+	{
+		// No need to check text filtering progress/task here as PublishProgress cannot surpass text filtering
+		return ItemsPendingPriorityFilter.Num() != 0 || PublishProgress < Items.Num() || ItemsPendingPriorityPublish.Num();
+	}
+
+	/** Return the amount of progress made in filtering for presentation to the user; a number between 0 and Num() */
+	int32 GetFilterProgress() const
+	{
+		return PublishProgress;
+	}
+
+	/** 
+	 * Fetch all items from the given paths (sources) matching the given filter, recycling old FAssetViewItem objects.
+	 * 
+	 * @param bAllowItemRecycling Whether or not to allow reuse of items and therefore widgets. 
+	 * 	Setting to false can avoid lots of time firing modification delegates for recursive searches.
+	 */
+	void RefreshItemsFromBackend(const FSourcesData& SourcesData, const FContentBrowserDataFilter& DataFilter, bool bAllowItemRecycling);
+	
+	/** 
+	 * Find an FAssetViewItem containing the given content browser data if one exists.
+	 * Returned item should not be modified as background text processing may be operating on it.
+	 */
+	TSharedPtr<FAssetViewItem> FindItemForRename(const FContentBrowserItem& InItem);
+
+	/** 
+	 * Create the given item from user interaction (e.g. create asset, rename asset).
+	 * Makes the item visible immediately. 
+	 */
+	TSharedPtr<FAssetViewItem> CreateItemFromUser(FContentBrowserItem&& InItem, TArray<TSharedPtr<FAssetViewItem>>& FilteredAssetItems);
+	
+	/** 
+	 * Find an existing item or create one from an incremental data update.
+	 * If an item exists, the data in it is replaced and a callback fired to be handled by widgets bound to it.
+	 * Safe to call during threaded text filtering.
+	 */
+	TSharedPtr<FAssetViewItem> UpdateData(FContentBrowserItemData&& InData);
+
+	/**
+	 * Remove the given item data from the FAssetViewItem that contains it and if that item no longer contains any data,
+	 * remove the FAssetViewItem and return it.
+	 * Safe to call during threaded text filtering.
+	 */
+	TSharedPtr<FAssetViewItem> RemoveItemData(const FContentBrowserItemData& InItemData);
+	TSharedPtr<FAssetViewItem> RemoveItemData(const FContentBrowserMinimalItemData& InItemData);
+
+	/**
+	 * Remove the given item that was being created/renamed.
+	 * Safe to call during threaded text filtering.
+	 */
+	void RemoveItem(const TSharedPtr<FAssetViewItem>& ToRemove);
+
+	/** 
+	 * Cancel any in progress async text filtering operation and wait for tasks to shut down.
+	 */
+	void AbortTextFiltering();	
+	
+	/** 
+	 * Clear the filtering results of all known non-removed items to be run again with new filters.
+	 * Cancels async text filtering and waits for cancellation to complete safely.
+	 */
+	void ResetFilterState();
+	
+	/** 
+	 * Start filtering all items against the given text filter in the background.
+	 * Results will be fetched and merged during UpdateItemFiltering.
+	 */
+	void StartTextFiltering(TSharedPtr<FAssetTextFilter> TextFilter);
+
+	/** 
+	 * Run main-thread filtering on items until the specified end time.
+	 * 
+	 * @param InTextFilter Text filter if any for launching new async text filtering tasks if necessary
+	 * @param OutItems Array to populate with new items that passed the filter if any.
+	 */
+	void UpdateItemFiltering(FAssetViewFrontendFilterHelper& InHelper, double InEndTime, TArray<TSharedPtr<FAssetViewItem>>& OutItems);
+
+	/** 
+	 * Perform filtering on any items which already existed and had been filtered when a data update was received.
+	 * Returns true if any items changed filter result.
+	 * 
+	 * @param FilteredAssetItems Items which have already been determined to be visible, to be updated. 
+	 */
+	bool PerformPriorityFiltering(FAssetViewFrontendFilterHelper& Helper,
+		TArray<TSharedPtr<FAssetViewItem>>& FilteredAssetItems);
+
+private:
+	int32 CreateItem_Locked(FContentBrowserItemData&& InItem)
+	{
+		return CreateItem_Locked(FContentBrowserItem(MoveTemp(InItem)));
+	}
+
+	int32 CreateItem_Locked(FContentBrowserItem&& InItem)
+	{
+		uint32 Hash = HashItem(InItem);
+		TSharedPtr<FAssetViewItem> NewItem = MakeShared<FAssetViewItem>(Items.Num(), MoveTemp(InItem));
+		Items.Add(MoveTemp(NewItem));
+		FilterState.AddZeroed(1);
+		++NumValidItems;
+		if (!RefreshLookup())
+		{
+			// Resize lookup's index list to match capacity of Items rather than its own growth strategy 
+			if (Lookup.GetIndexSize() < (uint32)Items.Num())
+			{
+				Lookup.Resize(Items.Max());	
+			}
+			Lookup.Add(Hash, Items.Num() - 1);
+		}
+		return Items.Num() - 1;
+	}
+
+	uint32 HashItem(const FContentBrowserItem& Item)
+	{
+		check(Item.IsValid());
+		return GetTypeHash(Item.GetVirtualPath());
+	}
+	uint32 HashItem(const FContentBrowserItemData& Item)
+	{
+		check(Item.IsValid());
+		return GetTypeHash(Item.GetVirtualPath());
+	}
+	uint32 HashItem(const FContentBrowserMinimalItemData& Item)
+	{
+		check(!Item.GetVirtualPath().IsNone());
+		return GetTypeHash(Item.GetVirtualPath());
+	}
+	 
+	inline bool IsItemValid(int32 ItemIndex)
+	{
+		return Items[ItemIndex].IsValid() && FilterState[ItemIndex].Removed == false;
+	}
+
+	struct FTextFilterResult
+	{
+		int32 StartIndex;
+		TBitArray<> Results;
+		UE::Tasks::TTask<FTextFilterResult> Next;
+	};
+	FTextFilterResult AsyncFilterText(int32 StartIndex, int32 MaxItems) const;
+
+	inline bool ItemPassedAllFilters(int32 Index) const
+	{
+		return !FilterState[Index].Removed && FilterState[Index].PassedFrontendFilter && (bAllItemsPassedTextFilter || FilterState[Index].PassedTextFilter);
+	}
+	
+	inline TSharedPtr<FAssetViewItem> MarkItemRemoved(int32 Index)
+	{
+		check(Items[Index].IsValid() && !FilterState[Index].Removed);
+		--NumValidItems;
+		bItemsPendingRemove = true;
+		FilterState[Index].Removed = true;
+		// Do not null out the item because we want to be able to remove it from published items in PerformPriorityFiltering
+		return Items[Index];
+	}
+
+	/** 
+	 * If the number of stored items has grown beyond the bounds of Lookup, rebuild it with larger hash 
+	 * @return true if the lookup was rebuilt 
+	 */
+	bool RefreshLookup();
+
+private:
+	// Lock for access to the size and contents of Items - e.g. when text filtering is operating on a batch of items
+	// The size of Items may need to change or the ItemData object within items may need modification as data scanning progresses
+	mutable FRWLock Lock;
+
+	// Hash of items by virtual path. There may be multiple items with the same virtual path, deduplication is done manually during 
+	// population. Objects with the same path may exist unless they are folders, in which case they are merged.
+	// After population, objects are looked up by path & source for updates.
+	// This lookup is only used on the main thread so it can be safely rebuilt during async text filtering.
+	FHashTable Lookup;
+	// Linear list of items indexed by Lookup. May contain null entries. 
+	TArray<TSharedPtr<FAssetViewItem>> Items;
+	// State of non-text filtering matching items in Items. Only modified on main thread. 
+	TArray<FAssetViewItemFilterState> FilterState;
+
+	// How many items in Items are not null. Atomically decreased during batch merge of folder items.
+	// Also decreased when items are removed by data update notifications.
+	std::atomic<int32> NumValidItems{0};
+	// How many elements of Items have been tested against frontend filtering if required.
+	int32 FrontendFilterProgress = 0;
+	// How many elements of Items have gone through text filtering and had their results merged on the main thread.
+	int32 TextFilterProgress = 0;
+	// How many elements of Items have been published to the view - smaller of FilterProgress and TextFilterProgress on last update 
+	// Items with indices below this may have been added to the list/tile/column view so updates to those items require re-filtering
+	int32 PublishProgress = 0;
+
+	// Cached compiled text filter for the current filtering pass
+	TSharedPtr<FCompiledAssetTextFilter> CompiledTextFilter;
+
+	// Handle to ongoing task filtering Items by a text query. 
+	// Modifications during filtering are protected by the Lock in this class and otherwise yet-to-be-filtered items should not be
+	// provided to external code or modified.
+	UE::Tasks::TTask<FTextFilterResult> TextFilterTask;
+	// Flag to signal cancellation of text filtering task 
+	std::atomic<bool> ShouldCancelTextFiltering{false}; 
+
+	// Items which have been updated while visible, so should be re-filtered immediately
+	TSet<int32> ItemsPendingPriorityFilter;
+	// Items which were updated and passed filtering when they previously failed, so need to be published again
+	TSet<int32> ItemsPendingPriorityPublish;
+
+	// If true all items passed text filtering and TextFilterState may be emptied - e.g. if no text filter was applied at all
+	bool bAllItemsPassedTextFilter = false;
+
+	// Some items have been marked for removal but their pointers have not been cleared yet because we need to compare against them
+	std::atomic<bool> bItemsPendingRemove = false;
+};
+
+bool FAssetViewItemCollection::RefreshLookup()
+{
+	uint32 HashSize = TSetAllocator<>::GetNumberOfHashBuckets(Items.Num());
+	if (Lookup.GetHashSize() < HashSize)
+	{
+		Lookup.Clear(HashSize, Items.Max());
+		ParallelFor(TEXT("FAssetViewItemCollection::RefreshLookup"), Items.Num(), 16 * 1024, [this](int32 ItemIndex){
+			if (!IsItemValid(ItemIndex))
+			{
+				return;
+			}
+
+			const TSharedPtr<FAssetViewItem> Item = Items[ItemIndex];
+			uint32 Hash = HashItem(Item->GetItem());
+			Lookup.Add_Concurrent(Hash, ItemIndex);
+		}, UE::AssetView::AllowParallelism ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread);
+		return true;
+	}
+	return false;
+}
+
+TSharedPtr<FAssetViewItem> FAssetViewItemCollection::FindItemForRename(const FContentBrowserItem& InItem)
+{
+	const uint32 Hash = HashItem(InItem);
+	FContentBrowserItemKey ItemKey(InItem);
+	for (uint32 It = Lookup.First(Hash); Lookup.IsValid(It); It = Lookup.Next(It))
+	{
+		if (IsItemValid(It) && ItemKey == FContentBrowserItemKey(Items[It]->GetItem()))
+		{
+			checkf(FilterState[It].Published, 
+				TEXT("Only items which have been made visible in the UI should be available for renaming to maintain thread safety with async text filtering."));
+			return Items[It];
+		}
+	}
+	return {};
+}
+
+TSharedPtr<FAssetViewItem> FAssetViewItemCollection::CreateItemFromUser(FContentBrowserItem&& InItem, TArray<TSharedPtr<FAssetViewItem>>& FilteredAssetItems)
+{
+	int32 Index;
+	{
+		FWriteScopeLock Guard(Lock);
+		Index = CreateItem_Locked(MoveTemp(InItem));
+	}
+	// Make this item visible immediately, forcing it to be so regardless of current filter set until filtering is refreshed.
+	FilterState[Index].PassedFrontendFilter = true;
+	FilterState[Index].PassedTextFilter = true;
+	FilterState[Index].Published = true;
+	FilterState[Index].PriorityFiltered = true;
+	FilteredAssetItems.Add(Items[Index]);
+	return Items[Index];
+}
+
+TSharedPtr<FAssetViewItem> FAssetViewItemCollection::UpdateData(FContentBrowserItemData&& InData)
+{
+	const uint32 Hash = HashItem(InData);
+	FContentBrowserItemKey ItemKey(InData);
+	int32 ExistingItemIndex = INDEX_NONE;
+	for (uint32 It = Lookup.First(Hash); Lookup.IsValid(It); It = Lookup.Next(It))
+	{
+		if (IsItemValid(It) && ItemKey == FContentBrowserItemKey(Items[It]->GetItem()))
+		{
+			ExistingItemIndex = It;
+			break;
+		}
+	}
+
+	if (ExistingItemIndex != INDEX_NONE)
+	{
+		FWriteScopeLock Guard(Lock);
+		// Update the item and mark it for re-filtering if it has already been filtered
+		Items[ExistingItemIndex]->AppendItemData(MoveTemp(InData));
+		Items[ExistingItemIndex]->BroadcastItemDataChanged();
+		check(!FilterState[ExistingItemIndex].Removed);
+	}
+	else
+	{
+		FWriteScopeLock Guard(Lock);
+		ExistingItemIndex = CreateItem_Locked(MoveTemp(InData));
+	}
+
+	if (ExistingItemIndex < PublishProgress) 
+	{
+		// This item was already filtered so we may want to remove it from the view or add it 
+		ItemsPendingPriorityFilter.Add(ExistingItemIndex);
+	}
+	return Items[ExistingItemIndex];
+}
+
+TSharedPtr<FAssetViewItem> FAssetViewItemCollection::RemoveItemData(const FContentBrowserItemData& InItemData)
+{
+	return RemoveItemData(FContentBrowserMinimalItemData(InItemData));
+}
+
+TSharedPtr<FAssetViewItem> FAssetViewItemCollection::RemoveItemData(const FContentBrowserMinimalItemData& InItemData)
+{
+	const uint32 Hash = HashItem(InItemData);
+	FContentBrowserItemKey ItemKey(InItemData.GetItemType(), InItemData.GetVirtualPath(), InItemData.GetDataSource());
+	for (uint32 It = Lookup.First(Hash); Lookup.IsValid(It); It = Lookup.Next(It))
+	{
+		if (IsItemValid(It) && ItemKey == FContentBrowserItemKey(Items[It]->GetItem()))
+		{
+			TSharedRef<FAssetViewItem> ItemToRemove = Items[It].ToSharedRef();
+
+			{
+				// We only need to lock around the modification of the data stored in ItemToRemove because the background text search may be reading it.
+				FWriteScopeLock Guard(Lock);
+				ItemToRemove->RemoveItemData(InItemData);
+			}
+
+			// Only fully remove this item if every sub-item is removed (items become invalid when empty)
+			if (ItemToRemove->GetItem().IsValid())
+			{
+				return {};
+			}
+
+			// This item was already filtered so we may want to remove it from the view.
+			if (It < (uint32)PublishProgress) 
+			{
+				ItemsPendingPriorityFilter.Add(It);
+			}
+			Lookup.Remove(Hash, It);
+			return MarkItemRemoved(It);
+		}
+	}
+	return {};
+}
+ 
+
+void FAssetViewItemCollection::RemoveItem(const TSharedPtr<FAssetViewItem>& ToRemove)
+{
+	// There is no need to lock here because we don't modify the item which the background text search may be reading.
+	const uint32 Hash = HashItem(ToRemove->GetItem());
+	for (uint32 It = Lookup.First(Hash); Lookup.IsValid(It); It = Lookup.Next(It))
+	{
+		if (Items[It] == ToRemove)
+		{
+			check(!FilterState[It].Removed);
+		 	Lookup.Remove(Hash, It);
+			// This item was already filtered so we may want to remove it from the view.
+			if (It < (uint32)PublishProgress)
+			{
+				ItemsPendingPriorityFilter.Add(It);
+			}
+			MarkItemRemoved(It);	
+			return;
+		}
+	}
+}
+
+void FAssetViewItemCollection::ResetFilterState()
+{
+	check(!TextFilterTask.IsValid());
+
+	if (bItemsPendingRemove)
+	{
+		for (int32 i=0; i < Items.Num(); ++i)
+		{
+			if (FilterState[i].Removed)
+			{
+				Items[i].Reset();
+			}
+		}
+		bItemsPendingRemove = false;
+	}
+
+	ShouldCancelTextFiltering = true;
+
+	ItemsPendingPriorityPublish.Reset();
+	FilterState.Reset();
+	FilterState.AddZeroed(Items.Num());
+	FrontendFilterProgress = 0;
+	PublishProgress = 0;
+	TextFilterProgress = 0;
+
+	// Recreate the Removed flag if necessary after FilterState was wiped so that we know which items are expected to be null
+	if (Items.Num() != NumValidItems)
+	{
+		for (int32 i=0; i < Items.Num(); ++i)
+		{
+			if (!Items[i].IsValid())
+			{
+				FilterState[i].Removed = true;
+			}
+		}
+	}		
+}
+
+void FAssetViewItemCollection::AbortTextFiltering()
+{
+	ShouldCancelTextFiltering = true;
+	// Wait until the task sees the flag and doesn't spawn a continuation
+	while (TextFilterTask.IsValid())
+	{
+		TextFilterTask.Wait();
+		TextFilterTask = TextFilterTask.GetResult().Next;
+	}
+}
+
+void FAssetViewItemCollection::StartTextFiltering(TSharedPtr<FAssetTextFilter> TextFilter)
+{
+	// Text filter task reads CompiledTextFilter so must not be running here
+	check(!TextFilterTask.IsValid());
+
+	ShouldCancelTextFiltering = false;
+	if (!TextFilter.IsValid() || TextFilter->IsEmpty())
+	{
+		CompiledTextFilter.Reset();
+		bAllItemsPassedTextFilter = true;
+		return;
+	}
+
+	CompiledTextFilter = TextFilter->Compile();
+	bAllItemsPassedTextFilter = false;
+
+	if (UE::AssetView::AllowAsync)
+	{
+		const int32 MaxItemsPerTask = UE::AssetView::GetMaxTextFilterItemBatch();
+		TextFilterTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, MaxItemsPerTask]() {
+			return AsyncFilterText(0, MaxItemsPerTask);
+		});
+	}
+}
+
+FAssetViewItemCollection::FTextFilterResult FAssetViewItemCollection::AsyncFilterText(int32 StartIndex, int32 InMaxItems) const
+{
+	if (ShouldCancelTextFiltering)
+	{
+		return FTextFilterResult{ StartIndex, {}, {} };
+	}
+
+	FReadScopeLock Guard(Lock);
+
+	// How many items to filter in between checking for interruption and allowing other threads to acquire the lock
+	int32 NumItemsToFilter = FMath::Min(InMaxItems, Items.Num() - StartIndex);
+
+	TBitArray<> MergedResult;
+	MergedResult.Add(false, NumItemsToFilter);
+
+	constexpr int32 MinThreadWorkSize = 1024;
+	TArray<FCompiledAssetTextFilter> Contexts;
+	auto CreateContext = [this](int32 ContextIndex, int32 NumContexts) {
+		return CompiledTextFilter->CloneForThreading();
+	};
+	auto DoWork = [&MergedResult, StartIndex, this](FCompiledAssetTextFilter& Filter, int32 TaskIndex) {
+		const TSharedPtr<FAssetViewItem>& Item = Items[StartIndex + TaskIndex];
+		bool bPasses = Item.IsValid() && Filter.PassesFilter(Item->GetItem());
+		if (bPasses)
+		{
+			MergedResult[TaskIndex].AtomicSet(true);
+		}
+	};
+	ParallelForWithTaskContext(TEXT("AssetViewTextFiltering"), Contexts, NumItemsToFilter, MinThreadWorkSize, CreateContext,
+		DoWork, UE::AssetView::AllowParallelism ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread);
+
+	int32 NextStartIndex = StartIndex + NumItemsToFilter;
+	// Need to check termination condition while holding the lock
+	bool bContinue = NextStartIndex < Items.Num() && UE::AssetView::AllowAsync && !ShouldCancelTextFiltering; 
+	UE::Tasks::TTask<FTextFilterResult> NextTask;
+	if (bContinue)
+	{
+		return FTextFilterResult{ StartIndex, MoveTemp(MergedResult),
+			UE::Tasks::Launch(
+				UE_SOURCE_LOCATION, [this, NextStartIndex, InMaxItems]() mutable { return AsyncFilterText(NextStartIndex, InMaxItems); }) };
+	}
+	else
+	{
+		return FTextFilterResult{ StartIndex, MoveTemp(MergedResult), {} };
+	}
+}
+
+void FAssetViewItemCollection::UpdateItemFiltering(
+	FAssetViewFrontendFilterHelper& InHelper, double InEndTime, TArray<TSharedPtr<FAssetViewItem>>& OutItems)
+{
+	if (ItemsPendingPriorityFilter.Num())
+	{
+		PerformPriorityFiltering(InHelper, OutItems);
+	}
+
+	const bool bNeedsQueryFilter = InHelper.NeedsQueryFilter();
+	do 
+	{
+		constexpr int FilterBatchSize = 128;
+		const int32 End = FMath::Min(FrontendFilterProgress + FilterBatchSize, Items.Num());
+
+		// Query filter
+		if (bNeedsQueryFilter)
+		{
+			for (int32 Index = FrontendFilterProgress; Index < End; ++Index)
+			{
+				if (FilterState[Index].Removed || FilterState[Index].PriorityFiltered)
+				{
+					continue;
+				}
+				if (!InHelper.DoesItemPassQueryFilter(Items[Index]))
+				{
+					// Failing this filter is equivalent to not being returned from the backend
+					MarkItemRemoved(Index);
+				}
+			}
+		}
+		for (int32 Index = FrontendFilterProgress; Index < End; ++Index)
+		{
+			if (FilterState[Index].Removed || FilterState[Index].PriorityFiltered)
+			{
+				continue;
+			}
+
+			if (InHelper.DoesItemPassFrontendFilter(Items[Index]))
+			{
+				FilterState[Index].PassedFrontendFilter = true;
+			}
+		}
+
+		if (!bAllItemsPassedTextFilter)
+		{
+			check(CompiledTextFilter.IsValid());
+			// Result must be moved in so TextFilterTask can be overwritten 
+			auto MergeTextFilterResult = [this](FTextFilterResult Result) {
+				TextFilterTask = MoveTemp(Result.Next);
+				TextFilterProgress = Result.StartIndex + Result.Results.Num();
+			
+				for (TConstSetBitIterator<> It(Result.Results); It; ++It)
+				{
+					int32 ItemIndex = Result.StartIndex + It.GetIndex();
+					if (!FilterState[ItemIndex].PriorityFiltered)
+					{
+						FilterState[ItemIndex].PassedTextFilter = true;
+					}
+				}
+			};
+
+			if (TextFilterTask.IsValid() && TextFilterTask.IsCompleted())
+			{
+				MergeTextFilterResult(MoveTemp(TextFilterTask.GetResult()));
+			}
+
+			if (!TextFilterTask.IsValid() && TextFilterProgress < Items.Num() && UE::AssetView::AllowAsync)
+			{
+				// New elements were added after the text filter attempted to launch a continuation task
+				TextFilterTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
+					[this, StartIndex = TextFilterProgress]() {
+						return AsyncFilterText(StartIndex, UE::AssetView::GetMaxTextFilterItemBatch());
+					});
+			}
+			
+			// In case flag was flipped while filtering was running, wait til task ends before performing text filtering on the game thread.
+			if (!UE::AssetView::AllowAsync && !TextFilterTask.IsValid() && TextFilterProgress < Items.Num())
+			{
+				FTextFilterResult Result = AsyncFilterText(TextFilterProgress, UE::AssetView::GetMaxTextFilterItemBatch());
+				MergeTextFilterResult(Result);
+			}
+		}
+
+		FrontendFilterProgress = End;
+	} while(FPlatformTime::Seconds() < InEndTime);
+
+	// Append items which have passed both text and frontend filtering to OutItems
+	int32 CanPublish = FMath::Min(FrontendFilterProgress, bAllItemsPassedTextFilter ? Items.Num() : TextFilterProgress);
+	for (int32 i = PublishProgress; i < CanPublish; ++i)
+	{
+		if (!FilterState[i].PriorityFiltered && ensureMsgf(!FilterState[i].Published, TEXT("Standard-publish item %d was already published. PublishProgress: %d CanPublish: %d"), i, PublishProgress, CanPublish))
+		{
+			const bool bPublish = ItemPassedAllFilters(i);
+			FilterState[i].Published = bPublish;
+			if (bPublish)
+			{
+				OutItems.Add(Items[i]);
+			}
+		}
+	}
+
+	// Publish items which originally failed filtering and then were updated to pass it 
+	for (int32 Index : ItemsPendingPriorityPublish)
+	{
+		if (ensureMsgf(!FilterState[Index].Published, TEXT("Priority-publish item %d was already published. PublishProgress: %d CanPublish: %d"), Index, PublishProgress, CanPublish))
+		{
+			// Check we didn't update the state again to failure or removal
+			const bool bPublish = ItemPassedAllFilters(Index);
+			FilterState[Index].Published = bPublish;
+			if (bPublish)
+			{
+				OutItems.Add(Items[Index]);
+			}
+		}
+	}
+	ItemsPendingPriorityPublish.Reset();
+
+	PublishProgress = CanPublish;
+}
+
+bool FAssetViewItemCollection::PerformPriorityFiltering(FAssetViewFrontendFilterHelper& Helper,
+	TArray<TSharedPtr<FAssetViewItem>>& FilteredAssetItems)
+{
+	int32 PrevNum = FilteredAssetItems.Num();
+	if (ItemsPendingPriorityFilter.Num())
+	{
+		const bool bRunQueryFilter = Helper.NeedsQueryFilter();
+		if (bRunQueryFilter)
+		{
+			for (int32 Index : ItemsPendingPriorityFilter)
+			{
+				if (FilterState[Index].Removed)
+				{
+					continue;
+				}
+				if (!Helper.DoesItemPassQueryFilter(Items[Index]))
+				{
+					// Failing this filter is equivalent to not being returned from the backend
+					MarkItemRemoved(Index);
+				}
+			}
+		}
+		for (int32 Index : ItemsPendingPriorityFilter)
+		{
+			if (FilterState[Index].Removed)
+			{
+				continue;
+			}
+
+			// This may hide an item which was shown or show an item which was hidden - later we will check if we can remove without a re-sort, or if we need to add and re-sort
+			FilterState[Index].PassedFrontendFilter = Helper.DoesItemPassFrontendFilter(Items[Index]);
+		}
+
+		if (!bAllItemsPassedTextFilter)
+		{
+			check(CompiledTextFilter.IsValid());
+			// TODO: Is it possible we get a very large update from the backend for items which have already been filtered? So should we launch tasks to do this? 
+			for (int32 Index : ItemsPendingPriorityFilter)
+			{
+				if (FilterState[Index].Removed)
+				{
+					continue;
+				}
+
+				bool bPassed = CompiledTextFilter->PassesFilter(Items[Index]->GetItem());
+				FilterState[Index].PassedTextFilter = bPassed;
+			}
+		}
+		
+		TSet<TSharedPtr<FAssetViewItem>> ToRemove;
+		for (int32 Index : ItemsPendingPriorityFilter)
+		{
+			if (Index >= PublishProgress)
+			{
+				// If item has yet to be published in the normal order, just leave the filter results for UpdateItemFiltering
+				continue;
+			}
+
+			// Only set flag if we're taking control of this item's publish state
+			FilterState[Index].PriorityFiltered = true;
+			const bool bPublish = !FilterState[Index].Removed && FilterState[Index].PassedFrontendFilter
+				&& (bAllItemsPassedTextFilter || FilterState[Index].PassedTextFilter);
+
+			if (FilterState[Index].Published && !bPublish)
+			{
+				// Remove item while maintaining sorting of remaining items
+				ToRemove.Add(Items[Index]);
+			}
+			else if (!FilterState[Index].Published && bPublish)
+			{
+				// Newly passing item - this means the view will have to be re-sorted 
+				// Defer addition until UpdateItemFiltering
+				ItemsPendingPriorityPublish.Add(Index);
+			}
+		}
+
+		FilteredAssetItems.SetNum(Algo::StableRemoveIf(
+			FilteredAssetItems, [&ToRemove](const TSharedPtr<FAssetViewItem> Item) { return ToRemove.Contains(Item); }));
+
+		ItemsPendingPriorityFilter.Reset();
+	}
+	
+	if (bItemsPendingRemove)
+	{
+		FWriteScopeLock Guard(Lock);
+		for (int32 i=0; i < Items.Num(); ++i)
+		{
+			if (FilterState[i].Removed && Items[i].IsValid())
+			{
+				Items[i].Reset();
+			}
+		}
+		bItemsPendingRemove = false;
+	}
+	return PrevNum != FilteredAssetItems.Num();
+}
+
+/** 
+ * SAssetView
+ */
+SAssetView::SAssetView()
+: Items(MakePimpl<FAssetViewItemCollection>())
+{
+
+}
 
 SAssetView::~SAssetView()
 {
@@ -198,6 +1067,9 @@ void SAssetView::Construct( const FArguments& InArgs )
 
 	bFillEmptySpaceInTileView = InArgs._FillEmptySpaceInTileView;
 	FillScale = 1.0f;
+
+	bShowRedirectors = InArgs._ShowRedirectors;
+	bLastShowRedirectors = bShowRedirectors.Get(false);
 
 	ThumbnailHintFadeInSequence.JumpToStart();
 	ThumbnailHintFadeInSequence.AddCurve(0, 0.5f, ECurveEaseFunction::Linear);
@@ -236,11 +1108,21 @@ void SAssetView::Construct( const FArguments& InArgs )
 	ListViewThumbnailSize = 64;
 	ListViewThumbnailPadding = 4;
 	TileViewThumbnailResolution = 256;
-	TileViewThumbnailSize = 150;
+
+	// Max Size for the thumbnail
+#if UE_CONTENTBROWSER_NEW_STYLE
+	constexpr int32 MaxTileViewThumbnailSize = 160;
+#else
+	constexpr int32 MaxTileViewThumbnailSize = 150;
+#endif
+
+	TileViewThumbnailSize = MaxTileViewThumbnailSize;
+
 	TileViewThumbnailPadding = 9;
 
 	TileViewNameHeight = 50;
 
+	UpdateThumbnailSizeValue();
 	MinThumbnailScale = 0.2f * ThumbnailScaleRangeScalar;
 	MaxThumbnailScale = 1.9f * ThumbnailScaleRangeScalar;
 
@@ -278,9 +1160,14 @@ void SAssetView::Construct( const FArguments& InArgs )
 	BackendFilter = InArgs._InitialBackendFilter;
 
 	FrontendFilters = InArgs._FrontendFilters;
-	if ( FrontendFilters.IsValid() )
+	if (FrontendFilters.IsValid())
 	{
-		FrontendFilters->OnChanged().AddSP( this, &SAssetView::OnFrontendFiltersChanged );
+		FrontendFilters->OnChanged().AddSP(this, &SAssetView::OnFrontendFiltersChanged);
+	}
+	TextFilter = InArgs._TextFilter;
+	if (TextFilter.IsValid())
+	{
+		TextFilter->OnChanged().AddSP(this, &SAssetView::OnFrontendFiltersChanged);
 	}
 
 	OnShouldFilterAsset = InArgs._OnShouldFilterAsset;
@@ -309,7 +1196,8 @@ void SAssetView::Construct( const FArguments& InArgs )
 	OnSearchOptionsChanged = InArgs._OnSearchOptionsChanged;
 	bShowPathViewFilters = InArgs._bShowPathViewFilters;
 	OnExtendAssetViewOptionsMenuContext = InArgs._OnExtendAssetViewOptionsMenuContext;
-
+	AssetViewOptionsProfile = InArgs._AssetViewOptionsProfile;
+	
 	if ( InArgs._InitialViewType >= 0 && InArgs._InitialViewType < EAssetViewType::MAX )
 	{
 		CurrentViewType = InArgs._InitialViewType;
@@ -339,10 +1227,31 @@ void SAssetView::Construct( const FArguments& InArgs )
 	FolderPermissionList = AssetToolsModule.Get().GetFolderPermissionList();
 	WritableFolderPermissionList = AssetToolsModule.Get().GetWritableFolderPermissionList();
 
+	if(InArgs._AllowCustomView)
+	{
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+
+		if(ContentBrowserModule.GetContentBrowserViewExtender().IsBound())
+		{
+			ViewExtender = ContentBrowserModule.GetContentBrowserViewExtender().Execute();
+
+			// Bind the delegates the custom view is responsible for firing
+			if(ViewExtender)
+			{
+				ViewExtender->OnSelectionChanged().BindSP(this, &SAssetView::AssetSelectionChanged);
+				ViewExtender->OnContextMenuOpened().BindSP(this, &SAssetView::OnGetContextMenuContent);
+				ViewExtender->OnItemScrolledIntoView().BindSP(this, &SAssetView::ItemScrolledIntoView);
+				ViewExtender->OnItemDoubleClicked().BindSP(this, &SAssetView::OnListMouseButtonDoubleClick);
+			}
+		}
+	}
+	
 	FEditorWidgetsModule& EditorWidgetsModule = FModuleManager::LoadModuleChecked<FEditorWidgetsModule>("EditorWidgets");
 	TSharedRef<SWidget> AssetDiscoveryIndicator = EditorWidgetsModule.CreateAssetDiscoveryIndicator(EAssetDiscoveryIndicatorScaleMode::Scale_Vertical);
 
 	TSharedRef<SVerticalBox> VerticalBox = SNew(SVerticalBox);
+
+	BindCommands();
 
 	ChildSlot
 	.Padding(0.0f)
@@ -536,10 +1445,9 @@ void SAssetView::Construct( const FArguments& InArgs )
 
 TOptional< float > SAssetView::GetIsWorkingProgressBarState() const
 {
-	if (InitialNumAmortizedTasks > 0)
+	if (Items->HasItemsPendingFilter())
 	{
-		const int32 CompletedTasks = FMath::Max(0, InitialNumAmortizedTasks - ItemsPendingFrontendFilter.Num());
-		return static_cast<float>(CompletedTasks) / static_cast<float>(InitialNumAmortizedTasks);
+		return static_cast<float>(Items->GetFilterProgress()) / static_cast<float>(Items->Num());
 	}
 	return 0.0f;
 }
@@ -579,11 +1487,26 @@ bool SAssetView::IsAssetPathSelected() const
 	return NumAssetPaths > 0 && NumClassPaths == 0;
 }
 
-void SAssetView::SetBackendFilter(const FARFilter& InBackendFilter)
+void SAssetView::SetBackendFilter(const FARFilter& InBackendFilter, TArray<TSharedRef<const FPathPermissionList>>* InCustomPermissionLists)
 {
-	// Update the path and collection lists
-	BackendFilter = InBackendFilter;
-	RequestSlowFullListRefresh();
+	using namespace UE::AssetView;
+	// Sometimes "filter changed" notifications are broadcast for the content browser to rebuild its filtering when nothing actually changed
+	// Notably custom text filters will do this. 
+	// If we don't need to do a full refresh, don't bother. 
+	if (AreBackendFiltersDifferent(BackendFilter, InBackendFilter) 
+	|| AreCustomPermissionListsDifferent(InCustomPermissionLists, BackendCustomPathFilters))
+	{
+		BackendFilter = InBackendFilter;
+		if (InCustomPermissionLists)
+		{
+			BackendCustomPathFilters = *InCustomPermissionLists;
+		}
+		else
+		{
+			BackendCustomPathFilters.Reset();
+		}
+		RequestSlowFullListRefresh();
+	}
 }
 
 void SAssetView::AppendBackendFilter(FARFilter& FilterToAppendTo) const
@@ -675,8 +1598,8 @@ void SAssetView::BeginCreateDeferredItem()
 {
 	if (DeferredItemToCreate.IsValid() && !DeferredItemToCreate->bWasAddedToView)
 	{
-		TSharedPtr<FAssetViewItem> NewItem = MakeShared<FAssetViewItem>(DeferredItemToCreate->ItemContext.GetItem());
-		NewItem->RenameWhenScrolledIntoView();
+		TSharedPtr<FAssetViewItem> NewItem = MakeShared<FAssetViewItem>(INDEX_NONE, DeferredItemToCreate->ItemContext.GetItem());
+		AwaitingScrollIntoViewForRename = NewItem;
 		DeferredItemToCreate->bWasAddedToView = true;
 
 		FilteredAssetItems.Insert(NewItem, 0);
@@ -698,6 +1621,7 @@ FContentBrowserItem SAssetView::EndCreateDeferredItem(const TSharedPtr<FAssetVie
 		checkf(FContentBrowserItemKey(InItem->GetItem()) == FContentBrowserItemKey(DeferredItemToCreate->ItemContext.GetItem()), TEXT("DeferredItemToCreate was still set when attempting to rename a different item!"));
 
 		// Remove the temporary item before we do any work to ensure the new item creation is not prevented
+		Items->RemoveItem(InItem);
 		FilteredAssetItems.Remove(InItem);
 		RefreshList();
 
@@ -729,9 +1653,9 @@ void SAssetView::CreateNewAsset(const FString& DefaultAssetName, const FString& 
 
 void SAssetView::RenameItem(const FContentBrowserItem& ItemToRename)
 {
-	if (const TSharedPtr<FAssetViewItem> Item = AvailableBackendItems.FindRef(FContentBrowserItemKey(ItemToRename)))
+	if (const TSharedPtr<FAssetViewItem> Item = Items->FindItemForRename(ItemToRename))
 	{
-		Item->RenameWhenScrolledIntoView();
+		AwaitingScrollIntoViewForRename = Item;
 		
 		SetSelection(Item);
 		RequestScrollIntoView(Item);
@@ -746,7 +1670,7 @@ void SAssetView::SyncToItems(TArrayView<const FContentBrowserItem> ItemsToSync, 
 	{
 		PendingSyncItems.SelectedVirtualPaths.Add(Item.GetVirtualPath());
 	}
-
+	InitDeferredPendingSyncItems();	
 	bPendingFocusOnSync = bFocusOnSync;
 }
 
@@ -757,7 +1681,7 @@ void SAssetView::SyncToVirtualPaths(TArrayView<const FName> VirtualPathsToSync, 
 	{
 		PendingSyncItems.SelectedVirtualPaths.Add(VirtualPathToSync);
 	}
-
+	InitDeferredPendingSyncItems();
 	bPendingFocusOnSync = bFocusOnSync;
 }
 
@@ -765,8 +1689,14 @@ void SAssetView::SyncToLegacy(TArrayView<const FAssetData> AssetDataList, TArray
 {
 	PendingSyncItems.Reset();
 	ContentBrowserUtils::ConvertLegacySelectionToVirtualPaths(AssetDataList, FolderList, /*UseFolderPaths*/false, PendingSyncItems.SelectedVirtualPaths);
-
+	InitDeferredPendingSyncItems();
 	bPendingFocusOnSync = bFocusOnSync;
+}
+
+void SAssetView::InitDeferredPendingSyncItems()
+{
+	DeferredPendingSyncItems.AddMissingVirtualPaths(PendingSyncItems);
+	DeferredSyncTimeoutFrames = UE::AssetView::DeferredSyncTimeoutFramesCount;
 }
 
 void SAssetView::SyncToSelection( const bool bFocusOnSync )
@@ -781,7 +1711,6 @@ void SAssetView::SyncToSelection( const bool bFocusOnSync )
 			PendingSyncItems.SelectedVirtualPaths.Add(Item->GetItem().GetVirtualPath());
 		}
 	}
-
 	bPendingFocusOnSync = bFocusOnSync;
 }
 
@@ -799,6 +1728,7 @@ TArray<TSharedPtr<FAssetViewItem>> SAssetView::GetSelectedViewItems() const
 		case EAssetViewType::List: return ListView->GetSelectedItems();
 		case EAssetViewType::Tile: return TileView->GetSelectedItems();
 		case EAssetViewType::Column: return ColumnView->GetSelectedItems();
+		case EAssetViewType::Custom: return ViewExtender->GetSelectedItems();
 		default:
 		ensure(0); // Unknown list type
 		return TArray<TSharedPtr<FAssetViewItem>>();
@@ -908,7 +1838,8 @@ void SAssetView::SaveSettings(const FString& IniFilename, const FString& IniSect
 {
 	GConfig->SetInt(*IniSection, *GetThumbnailScaleSettingPath(SettingsString), (int32)ThumbnailSize, IniFilename);
 	GConfig->SetInt(*IniSection, *GetCurrentViewTypeSettingPath(SettingsString), CurrentViewType, IniFilename);
-	
+	GConfig->SetFloat(*IniSection, *(SettingsString + TEXT(".ZoomScale")), ZoomScale, IniFilename);
+
 	GConfig->SetArray(*IniSection, *(SettingsString + TEXT(".HiddenColumns")), HiddenColumnNames, IniFilename);
 }
 
@@ -920,7 +1851,16 @@ void SAssetView::LoadSettings(const FString& IniFilename, const FString& IniSect
 		// Clamp value to normal range and update state
 		ThumbnailSizeConfig = FMath::Clamp<int32>(ThumbnailSizeConfig, 0, (int32)EThumbnailSize::MAX-1);
 
+		// TODO: Remove this afterwards, current CB should hide new size
+#if !UE_CONTENTBROWSER_NEW_STYLE
+		if ((EThumbnailSize)ThumbnailSizeConfig == EThumbnailSize::XLarge)
+		{
+			ThumbnailSizeConfig -= 1;
+		}
+#endif
 		ThumbnailSize = (EThumbnailSize) ThumbnailSizeConfig;
+		// Set the thumbnail value here after the Size enum is retrieved from the config
+		UpdateThumbnailSizeValue();
 	}
 
 	int32 ViewType = EAssetViewType::Tile;
@@ -933,7 +1873,14 @@ void SAssetView::LoadSettings(const FString& IniFilename, const FString& IniSect
 		}
 		SetCurrentViewType( (EAssetViewType::Type)ViewType );
 	}
-	
+
+	float Zoom = 0;
+	if ( GConfig->GetFloat(*IniSection, *(SettingsString + TEXT(".ZoomScale")), Zoom, IniFilename) )
+	{
+		// Clamp value to normal range and update state
+		ZoomScale = FMath::Clamp<float>(Zoom, 0.f, 1.f);
+	}
+
 	TArray<FString> LoadedHiddenColumnNames;
 	GConfig->GetArray(*IniSection, *(SettingsString + TEXT(".HiddenColumns")), LoadedHiddenColumnNames, IniFilename);
 	if (LoadedHiddenColumnNames.Num() > 0)
@@ -993,6 +1940,8 @@ void SAssetView::AdjustActiveSelection(int32 SelectionDelta)
 
 void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 {
+	using namespace UE::AssetView;
+
 	// Adjust min and max thumbnail scale based on dpi
 	MinThumbnailScale = (0.2f * ThumbnailScaleRangeScalar)/AllottedGeometry.Scale;
 	MaxThumbnailScale = (1.9f * ThumbnailScaleRangeScalar)/AllottedGeometry.Scale;
@@ -1005,6 +1954,13 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	{
 		// If we're in a model window then we need to tick the thumbnail pool in order for thumbnails to render correctly.
 		AssetThumbnailPool->Tick(InDeltaTime);
+	}
+
+	const bool bNewShowRedirectors = bShowRedirectors.Get(false);
+	if (bNewShowRedirectors != bLastShowRedirectors)
+	{
+		bLastShowRedirectors = bNewShowRedirectors;
+		OnFrontendFiltersChanged(); // refresh the same as if filters changed
 	}
 
 	CalculateThumbnailHintColorAndOpacity();
@@ -1044,12 +2000,12 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 		if (AmortizeStartTime == 0)
 		{
 			AmortizeStartTime = FPlatformTime::Seconds();
-			InitialNumAmortizedTasks = ItemsPendingFrontendFilter.Num();
+			InitialNumAmortizedTasks = Items->Num();
 			
 			CurrentFrontendFilterTelemetry = { ViewCorrelationGuid, FilterSessionCorrelationGuid };
 			CurrentFrontendFilterTelemetry.FrontendFilters = FrontendFilters;
-			CurrentFrontendFilterTelemetry.TotalItemsToFilter = ItemsPendingFrontendFilter.Num() + ItemsPendingPriorityFilter.Num();
-			CurrentFrontendFilterTelemetry.PriorityItemsToFilter = ItemsPendingPriorityFilter.Num();
+			CurrentFrontendFilterTelemetry.TotalItemsToFilter = Items->Num();
+			CurrentFrontendFilterTelemetry.PriorityItemsToFilter = 0;
 		}
 
 		int32 PreviousFilteredAssetItems = FilteredAssetItems.Num();
@@ -1126,8 +2082,11 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 			const auto& Item = *ItemIt;
 			if(Item.IsValid())
 			{
-				if (PendingSyncItems.SelectedVirtualPaths.Contains(Item->GetItem().GetVirtualPath()))
+				const FName ItemVirtualPath = Item->GetItem().GetVirtualPath();
+				if (PendingSyncItems.SelectedVirtualPaths.Contains(ItemVirtualPath))
 				{
+					DeferredPendingSyncItems.SelectedVirtualPaths.Remove(ItemVirtualPath);
+
 					SetItemSelection(Item, true, ESelectInfo::OnNavigation);
 					
 					// Scroll the first item in the list that can be shown into view
@@ -1142,19 +2101,32 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	
 		bBulkSelecting = false;
 
-		if (bShouldNotifyNextAssetSync && !bUserSearching)
+		if (DeferredSyncTimeoutFrames > 0)
 		{
-			AssetSelectionChanged(TSharedPtr<FAssetViewItem>(), ESelectInfo::Direct);
+			DeferredSyncTimeoutFrames--;
+
+			if (DeferredSyncTimeoutFrames == 0)
+			{
+				DeferredPendingSyncItems.Reset();
+			}
 		}
 
-		// Default to always notifying
-		bShouldNotifyNextAssetSync = true;
-
-		PendingSyncItems.Reset();
-
-		if (bAllowFocusOnSync && bPendingFocusOnSync)
+		if (DeferredPendingSyncItems.Num() == 0)
 		{
-			FocusList();
+			if (bShouldNotifyNextAssetSync && !bUserSearching)
+			{
+				AssetSelectionChanged(TSharedPtr<FAssetViewItem>(), ESelectInfo::Direct);
+			}
+
+			// Default to always notifying
+			bShouldNotifyNextAssetSync = true;
+			
+			PendingSyncItems.Reset();
+
+			if (bAllowFocusOnSync && bPendingFocusOnSync)
+			{
+				FocusList();
+			}
 		}
 	}
 
@@ -1193,13 +2165,11 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 		TSharedPtr<SWindow> OwnerWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
 		if (!OwnerWindow.IsValid())
 		{
-			AssetAwaitingRename->ClearRenameWhenScrolledIntoView();
 			AwaitingRename = nullptr;
 		}
 		else if (OwnerWindow->HasAnyUserFocusOrFocusedDescendants())
 		{
 			AssetAwaitingRename->OnRenameRequested().ExecuteIfBound();
-			AssetAwaitingRename->ClearRenameWhenScrolledIntoView();
 			AwaitingRename = nullptr;
 		}
 	}
@@ -1215,13 +2185,13 @@ void SAssetView::CalculateFillScale( const FGeometry& AllottedGeometry )
 		const float ScrollbarWidth = 16 + 1;
 		float TotalWidth = AllottedGeometry.GetLocalSize().X -(ScrollbarWidth);
 		float Coverage = TotalWidth / ItemWidth;
-		int32 Items = (int)( TotalWidth / ItemWidth );
+		int32 NumItems = (int)( TotalWidth / ItemWidth );
 
 		// If there isn't enough room to support even a single item, don't apply a fill scale.
-		if ( Items > 0 )
+		if ( NumItems > 0 )
 		{
-			float GapSpace = ItemWidth * ( Coverage - (float)Items );
-			float ExpandAmount = GapSpace / (float)Items;
+			float GapSpace = ItemWidth * ( Coverage - (float)NumItems );
+			float ExpandAmount = GapSpace / (float)NumItems;
 			FillScale = ( ItemWidth + ExpandAmount ) / ItemWidth;
 			FillScale = FMath::Max( 1.0f, FillScale );
 		}
@@ -1273,7 +2243,7 @@ void SAssetView::CalculateThumbnailHintColorAndOpacity()
 
 bool SAssetView::HasItemsPendingFilter() const
 {
-	return (ItemsPendingPriorityFilter.Num() + ItemsPendingFrontendFilter.Num()) > 0;
+	return Items->HasItemsPendingFilter();
 }
 
 void SAssetView::ProcessItemsPendingFilter(const double TickStartTime)
@@ -1281,97 +2251,24 @@ void SAssetView::ProcessItemsPendingFilter(const double TickStartTime)
 	const double ProcessItemsPendingFilterStartTime = FPlatformTime::Seconds();
 
 	FAssetViewFrontendFilterHelper FrontendFilterHelper(this);
+	const bool bFlushAllPendingItems = TickStartTime < 0;
+	int32 OldCount = FilteredAssetItems.Num();
+	Items->UpdateItemFiltering(FrontendFilterHelper, bFlushAllPendingItems ? MAX_dbl : TickStartTime + MaxSecondsPerFrame, FilteredAssetItems);
 
-	auto UpdateFilteredAssetItemTypeCounts = [this](const TSharedPtr<FAssetViewItem>& InItem)
+	if (CurrentViewType == EAssetViewType::Column)
 	{
-		if (CurrentViewType == EAssetViewType::Column)
+		for (int32 i = OldCount; i < FilteredAssetItems.Num(); ++i)
 		{
-			const FContentBrowserItemDataAttributeValue TypeNameValue = InItem->GetItem().GetItemAttribute(ContentBrowserItemAttributes::ItemTypeName);
+			const TSharedPtr<FAssetViewItem>& Item = FilteredAssetItems[i];
+			const FContentBrowserItemDataAttributeValue TypeNameValue = Item->GetItem().GetItemAttribute(ContentBrowserItemAttributes::ItemTypeName);
 			if (TypeNameValue.IsValid())
 			{
 				FilteredAssetItemTypeCounts.FindOrAdd(TypeNameValue.GetValue<FName>())++;
 			}
 		}
-	};
-
-	const bool bRunQueryFilter = OnShouldFilterAsset.IsBound() || OnShouldFilterItem.IsBound();
-	const bool bFlushAllPendingItems = TickStartTime < 0;
-
-	bool bRefreshList = false;
-	bool bHasTimeRemaining = true;
-
-	auto FilterItem = [this, bRunQueryFilter, &bRefreshList, &FrontendFilterHelper, &UpdateFilteredAssetItemTypeCounts](const TSharedPtr<FAssetViewItem>& ItemToFilter)
-	{
-		// Run the query filter if required
-		if (bRunQueryFilter)
-		{
-			const bool bPassedBackendFilter = FrontendFilterHelper.DoesItemPassQueryFilter(ItemToFilter);
-			if (!bPassedBackendFilter)
-			{
-				AvailableBackendItems.Remove(FContentBrowserItemKey(ItemToFilter->GetItem()));
-				return;
-			}
-		}
-
-		// Run the frontend filter
-		{
-			const bool bPassedFrontendFilter = FrontendFilterHelper.DoesItemPassFrontendFilter(ItemToFilter);
-			if (bPassedFrontendFilter)
-			{
-				checkAssetList(!FilteredAssetItems.Contains(ItemToFilter));
-
-				bRefreshList = true;
-				FilteredAssetItems.Add(ItemToFilter);
-				UpdateFilteredAssetItemTypeCounts(ItemToFilter);
-			}
-		}
-	};
-
-	// Run the prioritized set first
-	// This data must be processed this frame, so skip the amortization time checks within the loop itself
-	if (ItemsPendingPriorityFilter.Num() > 0)
-	{
-		for (const TSharedPtr<FAssetViewItem>& ItemToFilter : ItemsPendingPriorityFilter)
-		{
-			// Make sure this item isn't pending in another list
-			{
-				const uint32 ItemToFilterHash = GetTypeHash(ItemToFilter);
-				ItemsPendingFrontendFilter.RemoveByHash(ItemToFilterHash, ItemToFilter);
-			}
-
-			// Apply any filters and update the view
-			FilterItem(ItemToFilter);
-		}
-		ItemsPendingPriorityFilter.Reset();
-
-		// Check to see if we have run out of time in this tick
-		if (!bFlushAllPendingItems && (FPlatformTime::Seconds() - TickStartTime) > MaxSecondsPerFrame)
-		{
-			bHasTimeRemaining = false;
-		}
 	}
 
-	// Filter as many items as possible until we run out of time
-	if (bHasTimeRemaining && ItemsPendingFrontendFilter.Num() > 0)
-	{
-		for (auto ItemIter = ItemsPendingFrontendFilter.CreateIterator(); ItemIter; ++ItemIter)
-		{
-			const TSharedPtr<FAssetViewItem> ItemToFilter = *ItemIter;
-			ItemIter.RemoveCurrent();
-
-			// Apply any filters and update the view
-			FilterItem(ItemToFilter);
-
-			// Check to see if we have run out of time in this tick
-			if (!bFlushAllPendingItems && (FPlatformTime::Seconds() - TickStartTime) > MaxSecondsPerFrame)
-			{
-				bHasTimeRemaining = false;
-				break;
-			}
-		}
-	}
-
-	if (bRefreshList)
+	if (FilteredAssetItems.Num() > OldCount)
 	{
 		bPendingSortFilteredItems = true;
 		RefreshList();
@@ -1561,93 +2458,12 @@ FReply SAssetView::OnKeyChar( const FGeometry& MyGeometry,const FCharacterEvent&
 	return FReply::Unhandled();
 }
 
-static bool IsValidObjectPath(const FString& Path, FString& OutObjectClassName, FString& OutObjectPath, FString& OutPackageName)
-{
-	if (FPackageName::ParseExportTextPath(Path, &OutObjectClassName, &OutObjectPath))
-	{
-		if (UClass* ObjectClass = UClass::TryFindTypeSlow<UClass>(OutObjectClassName, EFindFirstObjectOptions::ExactClass))
-		{
-			OutPackageName = FPackageName::ObjectPathToPackageName(OutObjectPath);
-			if (FPackageName::IsValidLongPackageName(OutPackageName))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-static bool ContainsT3D(const FString& ClipboardText)
-{
-	return (ClipboardText.StartsWith(TEXT("Begin Object")) && ClipboardText.EndsWith(TEXT("End Object")))
-		|| (ClipboardText.StartsWith(TEXT("Begin Map")) && ClipboardText.EndsWith(TEXT("End Map")));
-}
-
 FReply SAssetView::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent )
 {
 	const bool bIsControlOrCommandDown = InKeyEvent.IsControlDown() || InKeyEvent.IsCommandDown();
-	
-	if (bIsControlOrCommandDown && InKeyEvent.GetCharacter() == 'V' && IsAssetPathSelected())
+
+	if (Commands->ProcessCommandBindings(InKeyEvent))
 	{
-		FString AssetPaths;
-		TArray<FString> AssetPathsSplit;
-
-		// Get the copied asset paths
-		FPlatformApplicationMisc::ClipboardPaste(AssetPaths);
-
-		// Make sure the clipboard does not contain T3D
-		AssetPaths.TrimEndInline();
-		if (!ContainsT3D(AssetPaths))
-		{
-			AssetPaths.ParseIntoArrayLines(AssetPathsSplit);
-
-			// Get assets and copy them
-			TArray<UObject*> AssetsToCopy;
-			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-			for (const FString& AssetPath : AssetPathsSplit)
-			{
-				// Validate string
-				FString ObjectClassName;
-				FString ObjectPath;
-				FString PackageName;
-				if (IsValidObjectPath(AssetPath, ObjectClassName, ObjectPath, PackageName))
-				{
-					// Only duplicate the objects of the supported classes.
-					if (AssetToolsModule.Get().GetAssetClassPathPermissionList(EAssetClassAction::ViewAsset)->PassesStartsWithFilter(ObjectClassName))
-					{
-						FLinkerInstancingContext InstancingContext({ ULevel::LoadAllExternalObjectsTag });
-						UObject* ObjectToCopy = LoadObject<UObject>(nullptr, *ObjectPath, nullptr, LOAD_None, nullptr, &InstancingContext);
-						if (ObjectToCopy && !ObjectToCopy->IsA(UClass::StaticClass()))
-						{
-							AssetsToCopy.Add(ObjectToCopy);
-						}
-					}
-				}
-			}
-			
-			if (AssetsToCopy.Num())
-			{
-				UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
-				if (ensure(ContentBrowserData))
-				{
-					for (const FName& SelectedVirtualPath : SourcesData.VirtualPaths)
-					{
-						const FContentBrowserItem SelectedItem = ContentBrowserData->GetItemAtPath(SelectedVirtualPath, EContentBrowserItemTypeFilter::IncludeFolders);
-						if (SelectedItem.IsValid())
-						{
-							FName PackagePath;
-							if (SelectedItem.Legacy_TryGetPackagePath(PackagePath))
-							{
-								ContentBrowserUtils::CopyAssets(AssetsToCopy, PackagePath.ToString());
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-
 		return FReply::Handled();
 	}
 	// Swallow the key-presses used by the quick-jump in OnKeyChar to avoid other things (such as the viewport commands) getting them instead
@@ -1665,14 +2481,47 @@ FReply SAssetView::OnMouseWheel( const FGeometry& MyGeometry, const FPointerEven
 	// Make sure to not change the thumbnail scaling when we're in Columns view since thumbnail scaling isn't applicable there.
 	if( MouseEvent.IsControlDown() && IsThumbnailScalingAllowed() )
 	{
+#if UE_CONTENTBROWSER_NEW_STYLE
+		const float NewDelta = MouseEvent.GetWheelDelta() * 0.4f;
+		if ((ZoomScale == 1.f && NewDelta > 0) || (ZoomScale == 0.f && NewDelta < 0))
+		{
+			int32 Step = (int32)FMath::Sign(NewDelta);
+			EThumbnailSize OldSize = ThumbnailSize;
+			ThumbnailSize = (EThumbnailSize)FMath::Clamp<int32>(((int32)ThumbnailSize + Step), 0, (int32)EThumbnailSize::MAX - 1);
+			if (OldSize != ThumbnailSize)
+			{
+				OnThumbnailSizeChanged(ThumbnailSize);
+				ZoomScale = NewDelta > 0.f ? 0.f : 1.f;
+			}
+		}
+		else
+		{
+			ZoomScale = FMath::Clamp(ZoomScale + NewDelta, 0.f, 1.f);
+		}
+#else
 		// Step up/down a level depending on the scroll wheel direction.
 		// Clamp value to enum min/max before updating.
 		const int32 Delta = MouseEvent.GetWheelDelta() > 0 ? 1 : -1;
-		const EThumbnailSize DesiredThumbnailSize = (EThumbnailSize)FMath::Clamp<int32>((int32)ThumbnailSize + Delta, 0, (int32)EThumbnailSize::MAX - 1);
+		EThumbnailSize DesiredThumbnailSize = (EThumbnailSize)FMath::Clamp<int32>((int32)ThumbnailSize + Delta, 0, (int32)EThumbnailSize::MAX - 1);
+
+		// TODO: Remove this afterwards, current CB should hide new size
+		if (DesiredThumbnailSize == EThumbnailSize::XLarge)
+		{
+			if (Delta > 0)
+			{
+				DesiredThumbnailSize = EThumbnailSize::Huge;
+			}
+			else
+			{
+				DesiredThumbnailSize = EThumbnailSize::Large;
+			}
+		}
+
 		if ( DesiredThumbnailSize != ThumbnailSize )
 		{
 			OnThumbnailSizeChanged(DesiredThumbnailSize);
-		}		
+		}
+#endif
 		return FReply::Handled();
 	}
 	return FReply::Unhandled();
@@ -1689,6 +2538,7 @@ TSharedRef<SAssetTileView> SAssetView::CreateTileView()
 		.SelectionMode( SelectionMode )
 		.ListItemsSource(&FilteredAssetItems)
 		.OnGenerateTile(this, &SAssetView::MakeTileViewWidget)
+		.OnItemToString_Debug_Static(&FAssetViewItem::ItemToString_Debug)
 		.OnItemScrolledIntoView(this, &SAssetView::ItemScrolledIntoView)
 		.OnContextMenuOpening(this, &SAssetView::OnGetContextMenuContent)
 		.OnMouseButtonDoubleClick(this, &SAssetView::OnListMouseButtonDoubleClick)
@@ -1710,6 +2560,7 @@ TSharedRef<SAssetListView> SAssetView::CreateListView()
 		.SelectionMode( SelectionMode )
 		.ListItemsSource(&FilteredAssetItems)
 		.OnGenerateRow(this, &SAssetView::MakeListViewWidget)
+		.OnItemToString_Debug_Static(&FAssetViewItem::ItemToString_Debug)
 		.OnItemScrolledIntoView(this, &SAssetView::ItemScrolledIntoView)
 		.OnContextMenuOpening(this, &SAssetView::OnGetContextMenuContent)
 		.OnMouseButtonDoubleClick(this, &SAssetView::OnListMouseButtonDoubleClick)
@@ -1755,6 +2606,7 @@ TSharedRef<SAssetColumnView> SAssetView::CreateColumnView()
 		.SelectionMode( SelectionMode )
 		.ListItemsSource(&FilteredAssetItems)
 		.OnGenerateRow(this, &SAssetView::MakeColumnViewWidget)
+		.OnItemToString_Debug_Static(&FAssetViewItem::ItemToString_Debug)
 		.OnItemScrolledIntoView(this, &SAssetView::ItemScrolledIntoView)
 		.OnContextMenuOpening(this, &SAssetView::OnGetContextMenuContent)
 		.OnMouseButtonDoubleClick(this, &SAssetView::OnListMouseButtonDoubleClick)
@@ -1860,6 +2712,37 @@ bool SAssetView::IsValidSearchToken(const FString& Token) const
 	return true;
 }
 
+EContentBrowserItemCategoryFilter SAssetView::DetermineItemCategoryFilter() const
+{
+	// Check whether any legacy delegates are bound (the Content Browser doesn't use these, only pickers do)
+	// These limit the view to things that might use FAssetData
+	const bool bHasLegacyDelegateBindings = OnIsAssetValidForCustomToolTip.IsBound()
+										 || OnGetCustomAssetToolTip.IsBound()
+										 || OnVisualizeAssetToolTip.IsBound()
+										 || OnAssetToolTipClosing.IsBound()
+										 || OnShouldFilterAsset.IsBound();
+
+	EContentBrowserItemCategoryFilter ItemCategoryFilter = bHasLegacyDelegateBindings ? EContentBrowserItemCategoryFilter::IncludeAssets : InitialCategoryFilter;
+	if (IsShowingCppContent())
+	{
+		ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeClasses;
+	}
+	else
+	{
+		ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeClasses;
+	}
+	ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeCollections;
+	if (IsShowingRedirectors())
+	{
+		ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeRedirectors;
+	}
+	else
+	{
+		ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeRedirectors;
+	}
+	return ItemCategoryFilter;
+}
+
 FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCache) const
 {
 	// Assemble the filter using the current sources
@@ -1868,31 +2751,13 @@ FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCa
 	const bool bRecurse = ShouldFilterRecursively();
 	const bool bUsingFolders = IsShowingFolders() && !bRecurse;
 
-	// Check whether any legacy delegates are bound (the Content Browser doesn't use these, only pickers do)
-	// These limit the view to things that might use FAssetData
-	const bool bHasLegacyDelegateBindings 
-		=  OnIsAssetValidForCustomToolTip.IsBound()
-		|| OnGetCustomAssetToolTip.IsBound()
-		|| OnVisualizeAssetToolTip.IsBound()
-		|| OnAssetToolTipClosing.IsBound()
-		|| OnShouldFilterAsset.IsBound();
-
 	FContentBrowserDataFilter DataFilter;
 	DataFilter.bRecursivePaths = bRecurse || !bUsingFolders || bHasCollections;
 
 	DataFilter.ItemTypeFilter = EContentBrowserItemTypeFilter::IncludeFiles
 		| ((bUsingFolders && !bHasCollections) ? EContentBrowserItemTypeFilter::IncludeFolders : EContentBrowserItemTypeFilter::IncludeNone);
 
-	DataFilter.ItemCategoryFilter = bHasLegacyDelegateBindings ? EContentBrowserItemCategoryFilter::IncludeAssets : InitialCategoryFilter;
-	if (IsShowingCppContent())
-	{
-		DataFilter.ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeClasses;
-	}
-	else
-	{
-		DataFilter.ItemCategoryFilter &= ~EContentBrowserItemCategoryFilter::IncludeClasses;
-	}
-	DataFilter.ItemCategoryFilter |= EContentBrowserItemCategoryFilter::IncludeCollections;
+	DataFilter.ItemCategoryFilter = DetermineItemCategoryFilter();
 
 	DataFilter.ItemAttributeFilter = EContentBrowserItemAttributeFilter::IncludeProject
 		| (IsShowingEngineContent() ? EContentBrowserItemAttributeFilter::IncludeEngine : EContentBrowserItemAttributeFilter::IncludeNone)
@@ -1901,7 +2766,44 @@ FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCa
 		| (IsShowingLocalizedContent() ? EContentBrowserItemAttributeFilter::IncludeLocalized : EContentBrowserItemAttributeFilter::IncludeNone);
 
 	TSharedPtr<FPathPermissionList> CombinedFolderPermissionList = ContentBrowserUtils::GetCombinedFolderPermissionList(FolderPermissionList, IsShowingReadOnlyFolders() ? nullptr : WritableFolderPermissionList);
+	
+	UContentBrowserDataSubsystem* CBData = IContentBrowserDataModule::Get().GetSubsystem();
+	if (BackendCustomPathFilters.Num())
+	{
+		if (!CombinedFolderPermissionList.IsValid())
+		{
+			CombinedFolderPermissionList = MakeShared<FPathPermissionList>();
+		}
 
+		if (!CombinedFolderPermissionList->HasAllowListEntries() 
+		&& Algo::AnyOf(BackendCustomPathFilters, UE_PROJECTION_MEMBER(FPathPermissionList, HasAllowListEntries)))
+		{
+			// Need to add an explicit allow-root to the combined list before combining so that the allow list entries don't take everything away
+			CombinedFolderPermissionList->AddAllowListItem("AssetView", TEXTVIEW("/"));
+		}
+
+		TArray<FName> SelectedPaths;
+		SelectedPaths.Reserve(SourcesData.VirtualPaths.Num());
+		// Convert paths to internal if possible
+		for (FName VirtualPath : SourcesData.VirtualPaths)
+		{
+			FName ConvertedPath;
+			CBData->TryConvertVirtualPath(VirtualPath, ConvertedPath);
+			SelectedPaths.Add(ConvertedPath);
+		}
+		// If a filter list explicitly denies a folder we have selected, ignore that filter.
+		for (const TSharedRef<const FPathPermissionList>& CustomList : BackendCustomPathFilters)
+		{
+			const bool bFiltersExplicitSelection = !bRecurse && Algo::AnyOf(SelectedPaths, [&CustomList](FName SelectedPath) {
+				return !CustomList->PassesStartsWithFilter(WriteToString<256>(SelectedPath));
+			});
+			if (!bFiltersExplicitSelection)
+			{
+				CombinedFolderPermissionList = MakeShared<FPathPermissionList>(CombinedFolderPermissionList->CombinePathFilters(*CustomList));
+			}
+		}
+	}
+	
 	if (bShowDisallowedAssetClassAsUnsupportedItems && AssetClassPermissionList && AssetClassPermissionList->HasFiltering())
 	{
 		// The unsupported item will created as an unsupported asset item instead of normal asset item for the writable folders
@@ -1954,115 +2856,233 @@ void SAssetView::RefreshSourceItems()
 
 	FilterSessionCorrelationGuid = FGuid::NewGuid();
 	UE::Telemetry::ContentBrowser::FBackendFilterTelemetry Telemetry(ViewCorrelationGuid, FilterSessionCorrelationGuid);
-	FilteredAssetItems.Reset();
-	FilteredAssetItemTypeCounts.Reset();
 	VisibleItems.Reset();
 	RelevantThumbnails.Reset();
 
-	TMap<FContentBrowserItemKey, TSharedPtr<FAssetViewItem>> PreviousAvailableBackendItems = MoveTemp(AvailableBackendItems);
-	AvailableBackendItems.Reset();
-	ItemsPendingPriorityFilter.Reset();
-	ItemsPendingFrontendFilter.Reset();
+	if (SourcesData.OnEnumerateCustomSourceItemDatas.IsBound())
 	{
-		UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+		Telemetry.bHasCustomItemSources = true;
+	}
 
-		auto AddNewItem = [this, &PreviousAvailableBackendItems](FContentBrowserItemData&& InItemData)
+	const bool bInvalidateFilterCache = true;
+	FContentBrowserDataFilter DataFilter = CreateBackendDataFilter(bInvalidateFilterCache);
+	Telemetry.DataFilter = &DataFilter;
+	bool bChangedRecursiveness = bWereItemsRecursivelyFiltered != DataFilter.bRecursivePaths;
+	bWereItemsRecursivelyFiltered = DataFilter.bRecursivePaths;
+
+	Items->RefreshItemsFromBackend(SourcesData, DataFilter, !bChangedRecursiveness);
+
+	Telemetry.NumBackendItems = Items->Num();
+	Telemetry.RefreshSourceItemsDurationSeconds = FPlatformTime::Seconds() - RefreshSourceItemsStartTime;
+	FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
+	UE_LOG(LogContentBrowser, VeryVerbose, TEXT("AssetView - RefreshSourceItems completed in %0.4f seconds"), 
+		FPlatformTime::Seconds() - RefreshSourceItemsStartTime);
+}
+
+void FAssetViewItemCollection::RefreshItemsFromBackend(const FSourcesData& SourcesData, const FContentBrowserDataFilter& DataFilter, bool bAllowItemRecycling)
+{
+	AbortTextFiltering();
+
+	UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+	TArray<FContentBrowserItemData> NewItemDatas;
+	if (DataFilter.bRecursivePaths)
+	{
+		NewItemDatas.Reserve(1024 * 1024); // Assume many recursive searches will return a lot of items and start with a lot of space 
+	}
+
+	if (SourcesData.OnEnumerateCustomSourceItemDatas.IsBound())
+	{
+		SourcesData.OnEnumerateCustomSourceItemDatas.Execute([&NewItemDatas](FContentBrowserItemData&& InItemData) { NewItemDatas.Add(MoveTemp(InItemData)); return true; });
+	}
+
+	if (SourcesData.IsIncludingVirtualPaths() || SourcesData.HasCollections()) 
+	{
+		if (SourcesData.HasCollections() && EnumHasAnyFlags(DataFilter.ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeCollections))
 		{
-			const FContentBrowserItemKey ItemDataKey(InItemData);
-			const uint32 ItemDataKeyHash = GetTypeHash(ItemDataKey);
-
-			TSharedPtr<FAssetViewItem>& NewItem = AvailableBackendItems.FindOrAddByHash(ItemDataKeyHash, ItemDataKey);
-			if (!NewItem && InItemData.IsFile())
+			// If we are showing collections then we may need to add dummy folder items for the child collections
+			// Note: We don't check the IncludeFolders flag here, as that is forced to false when collections are selected,
+			// instead we check the state of bIncludeChildCollections which will be false when we want to show collection folders
+			const FContentBrowserDataCollectionFilter* CollectionFilter = DataFilter.ExtraFilters.FindFilter<FContentBrowserDataCollectionFilter>();
+			if (CollectionFilter && !CollectionFilter->bIncludeChildCollections)
 			{
-				// Re-use the old view item where possible to avoid list churn when our backend view already included the item
-				if (TSharedPtr<FAssetViewItem>* PreviousItem = PreviousAvailableBackendItems.FindByHash(ItemDataKeyHash, ItemDataKey))
+				FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
+			
+				TArray<FCollectionNameType> ChildCollections;
+				for(const FCollectionNameType& Collection : SourcesData.Collections)
 				{
-					NewItem = *PreviousItem;
-					NewItem->ClearCachedCustomColumns();
+					ChildCollections.Reset();
+					CollectionManagerModule.Get().GetChildCollections(Collection.Name, Collection.Type, ChildCollections);
+
+					for (const FCollectionNameType& ChildCollection : ChildCollections)
+					{
+						// Use "Collections" as the root of the path to avoid this being confused with other view folders - see ContentBrowserUtils::IsCollectionPath
+						FContentBrowserItemData FolderItemData(
+							nullptr, 
+							EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Collection, 
+							*FString::Printf(TEXT("/Collections/%s/%s"), ECollectionShareType::ToString(ChildCollection.Type), *ChildCollection.Name.ToString()), 
+							ChildCollection.Name, 
+							FText::FromName(ChildCollection.Name), 
+							nullptr,
+							FName()
+							);
+
+						NewItemDatas.Add(MoveTemp(FolderItemData));
+					}
 				}
 			}
-			if (NewItem)
-			{
-				NewItem->AppendItemData(InItemData);
-				NewItem->CacheCustomColumns(CustomColumns, true, true, false /*bUpdateExisting*/);
-			}
-			else
-			{
-				NewItem = MakeShared<FAssetViewItem>(MoveTemp(InItemData));
-			}
-
-			return true;
-		};
-
-		if (SourcesData.OnEnumerateCustomSourceItemDatas.IsBound())
-		{
-			Telemetry.bHasCustomItemSources = true;
-			SourcesData.OnEnumerateCustomSourceItemDatas.Execute(AddNewItem);
 		}
 
-		FContentBrowserDataFilter DataFilter; // Must live long enough to provide telemetry
-		if (SourcesData.IsIncludingVirtualPaths() || SourcesData.HasCollections()) 
+		if (SourcesData.IsIncludingVirtualPaths())
 		{
-			const bool bInvalidateFilterCache = true;
-			DataFilter = CreateBackendDataFilter(bInvalidateFilterCache);
-			Telemetry.DataFilter = &DataFilter;
-
-			bWereItemsRecursivelyFiltered = DataFilter.bRecursivePaths;
-
-			if (SourcesData.HasCollections() && EnumHasAnyFlags(DataFilter.ItemCategoryFilter, EContentBrowserItemCategoryFilter::IncludeCollections))
+			SCOPED_NAMED_EVENT(FetchCBItems, FColor::White);
+			static const FName RootPath = "/";
+			const TArrayView<const FName> DataSourcePaths = SourcesData.HasVirtualPaths() ? MakeArrayView(SourcesData.VirtualPaths) : MakeArrayView(&RootPath, 1);
+			for (const FName& DataSourcePath : DataSourcePaths)
 			{
-				// If we are showing collections then we may need to add dummy folder items for the child collections
-				// Note: We don't check the IncludeFolders flag here, as that is forced to false when collections are selected,
-				// instead we check the state of bIncludeChildCollections which will be false when we want to show collection folders
-				const FContentBrowserDataCollectionFilter* CollectionFilter = DataFilter.ExtraFilters.FindFilter<FContentBrowserDataCollectionFilter>();
-				if (CollectionFilter && !CollectionFilter->bIncludeChildCollections)
-				{
-					FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
+				// Ensure paths do not contain trailing slash
+				ensure(DataSourcePath == RootPath || !FStringView(FNameBuilder(DataSourcePath)).EndsWith(TEXT('/')));
+				ContentBrowserData->EnumerateItemsUnderPath(DataSourcePath, DataFilter, [&NewItemDatas](FContentBrowserItemData&& Item) { NewItemDatas.Add(MoveTemp(Item)); return true; });
+			}
+		}
+	}
+
+	TArray<TSharedPtr<FAssetViewItem>> OldItems = MoveTemp(Items);
+	FHashTable OldLookup = MoveTemp(Lookup); 
+	TArray<FContentBrowserItemKey> OldItemKeys;
+	OldItemKeys.AddZeroed(OldItems.Num());
+	ParallelFor(TEXT("ExtractOldItemKeys"), OldItems.Num(), 16 * 1024, 
+		[&OldItems, &OldItemKeys](int32 Index) {
+			if (OldItems[Index].IsValid())
+			{
+				OldItemKeys[Index] = FContentBrowserItemKey(OldItems[Index]->GetItem());
+			}
+		});
+
+	Items.Reset(NewItemDatas.Num());
+	Items.AddZeroed(NewItemDatas.Num());
+	bItemsPendingRemove = false;
+
+	// Create or recyle FAssetViewItem for each FContentBrowserItemData. Build new hashtable concurrently at the same time
+	uint32 HashSize = TSetAllocator<>::GetNumberOfHashBuckets(Items.Num());
+	std::atomic<bool> bAnyFolders(false);
+	std::atomic<bool> bAnyRecycled(false);
+	Lookup.Clear(HashSize, Items.Num());
+	{
+		// Used to handle multiple item data (folder) mapping to the same old item.
+		UE::FMutex OldItemMutex;
+		SCOPED_NAMED_EVENT(CreateItems, FColor::White);
+		ParallelFor(TEXT("CreateFAssetViewItem"), NewItemDatas.Num(), 16 * 1024,
+			[&NewItemDatas, &OldItems, &OldLookup, &OldItemKeys, bAllowItemRecycling, &bAnyRecycled, &bAnyFolders, &OldItemMutex, this](int32 Index) {
+				FContentBrowserItemData& ItemData = NewItemDatas[Index];
+				FName VirtualPath = ItemData.GetVirtualPath();
+				int32 OldItemIndex = INDEX_NONE;
 				
-					TArray<FCollectionNameType> ChildCollections;
-					for(const FCollectionNameType& Collection : SourcesData.Collections)
+				FContentBrowserItemKey ItemKey(ItemData);
+				uint32 Hash = HashItem(ItemData);
+				if (bAllowItemRecycling)
+				{
+					for (OldItemIndex = OldLookup.First(Hash); OldLookup.IsValid(OldItemIndex); OldItemIndex = OldLookup.Next(OldItemIndex))
 					{
-						ChildCollections.Reset();
-						CollectionManagerModule.Get().GetChildCollections(Collection.Name, Collection.Type, ChildCollections);
-
-						for (const FCollectionNameType& ChildCollection : ChildCollections)
+						if (ItemKey == OldItemKeys[OldItemIndex])
 						{
-							// Use "Collections" as the root of the path to avoid this being confused with other view folders - see ContentBrowserUtils::IsCollectionPath
-							FContentBrowserItemData FolderItemData(
-								nullptr, 
-								EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Collection, 
-								*FString::Printf(TEXT("/Collections/%s/%s"), ECollectionShareType::ToString(ChildCollection.Type), *ChildCollection.Name.ToString()), 
-								ChildCollection.Name, 
-								FText::FromName(ChildCollection.Name), 
-								nullptr
-								);
-
-							const FContentBrowserItemKey FolderItemDataKey(FolderItemData);
-							AvailableBackendItems.Add(FolderItemDataKey, MakeShared<FAssetViewItem>(MoveTemp(FolderItemData)));
+							bAnyRecycled.store(true, std::memory_order_relaxed);
+							break;
 						}
+					}
+				}
+
+				if (ItemData.IsFolder())
+				{
+					bAnyFolders.store(true, std::memory_order_relaxed);
+				}
+
+				if (OldLookup.IsValid(OldItemIndex))
+				{
+					TSharedPtr<FAssetViewItem> OldItem;
+					// Try and acquire old item if another thread doesn't get there first (folder items share keys)
+					{
+						UE::TUniqueLock OldItemLock(OldItemMutex);
+						OldItem = MoveTemp(OldItems[OldItemIndex]);
+						OldItems[OldItemIndex].Reset();
+					}
+
+					if (OldItem.IsValid())
+					{
+						OldItem->ResetItemData(OldItemIndex, Index, MoveTemp(ItemData));
+						Items[Index] = MoveTemp(OldItem);
+						Lookup.Add_Concurrent(Hash, Index);
+						return;
+					}
+				}
+
+				// Was not able to recycle an old item
+				Items[Index] = MakeShared<FAssetViewItem>(Index, MoveTemp(ItemData));
+				Lookup.Add_Concurrent(Hash, Index);
+			}, UE::AssetView::AllowParallelism ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread);
+	}
+
+	// Reset this before merging to avoid duplicate work around nulled entries
+	ResetFilterState();	
+
+	NumValidItems = Items.Num();
+	if (bAnyFolders.load())
+	{
+		SCOPED_NAMED_EVENT(MergeDuplicates, FColor::White);
+		// Merge items with the same path
+		// Loop over each bucket lookup for duplicate names in that bucket and merging the items
+		// This is done in parallel because each worker will only touch items in its bucket
+		ParallelFor(TEXT("MergeDuplicates"), HashSize, 8, [this](int32 JobIndex) {
+			uint32 Bucket = *reinterpret_cast<uint32*>(&JobIndex);
+			for (uint32 StartIndex = Lookup.First(Bucket); Lookup.IsValid(StartIndex); StartIndex = Lookup.Next(StartIndex))
+			{
+				if (!Items[StartIndex]->IsFolder())
+				{
+					continue;
+				}
+
+				FContentBrowserItemKey MergeWithKey(Items[StartIndex]->GetItem());
+				uint32 Other = Lookup.Next(StartIndex);
+				while (Lookup.IsValid(Other))
+				{
+					check(Items[Other].IsValid());
+					FContentBrowserItemKey OtherKey(Items[Other]->GetItem());
+					if (MergeWithKey == OtherKey)
+					{
+						uint32 ToRemove = Other;
+						Other = Lookup.Next(Other);
+						Lookup.Remove(Bucket, ToRemove);
+						TSharedPtr<FAssetViewItem> RemovedItem = MarkItemRemoved(ToRemove);
+						Items[StartIndex]->AppendItemData(RemovedItem->GetItem()); 
+						Items[ToRemove].Reset();
+					}
+					else
+					{
+						Other = Lookup.Next(Other);
 					}
 				}
 			}
 
-			if (SourcesData.IsIncludingVirtualPaths())
-			{
-				static const FName RootPath = "/";
-				const TArrayView<const FName> DataSourcePaths = SourcesData.HasVirtualPaths() ? MakeArrayView(SourcesData.VirtualPaths) : MakeArrayView(&RootPath, 1);
-				for (const FName& DataSourcePath : DataSourcePaths)
-				{
-					// Ensure paths do not contain trailing slash
-					ensure(DataSourcePath == RootPath || !FStringView(FNameBuilder(DataSourcePath)).EndsWith(TEXT('/')));
-					ContentBrowserData->EnumerateItemsUnderPath(DataSourcePath, DataFilter, AddNewItem);
-				}
-			}
-		}
-
-		Telemetry.NumBackendItems = AvailableBackendItems.Num();
-		Telemetry.RefreshSourceItemsDurationSeconds = FPlatformTime::Seconds() - RefreshSourceItemsStartTime;
-		FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
+		}, EParallelForFlags::Unbalanced | (UE::AssetView::AllowParallelism ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread));
 	}
 
-	UE_LOG(LogContentBrowser, VeryVerbose, TEXT("AssetView - RefreshSourceItems completed in %0.4f seconds"), FPlatformTime::Seconds() - RefreshSourceItemsStartTime);
+	// We already nulled out the items we removed above 
+	bItemsPendingRemove = false;
+
+	// If we recycled any items (e.g. we changed item visibility settings but not path) notify their widgets that we changed the item data
+	if (bAnyRecycled.load())
+	{
+		for (const TSharedPtr<FAssetViewItem>& Item : Items)
+		{
+			if (Item.IsValid())
+			{
+				Item->BroadcastItemDataChanged();
+			}
+		}
+	}
+
+	// Until we start filtering and get a compiled filter, initialize to no filtering
+	bAllItemsPassedTextFilter = true;
+	CompiledTextFilter.Reset();
 }
 
 bool SAssetView::IsFilteringRecursively() const
@@ -2150,7 +3170,6 @@ void SAssetView::RefreshFilteredItems()
 
 	OnInterruptFiltering();
 	
-	ItemsPendingFrontendFilter.Reset();
 	FilteredAssetItems.Reset();
 	FilteredAssetItemTypeCounts.Reset();
 	RelevantThumbnails.Reset();
@@ -2161,10 +3180,11 @@ void SAssetView::RefreshFilteredItems()
 	LastSortTime = 0;
 	bPendingSortFilteredItems = true;
 
-	ItemsPendingFrontendFilter.Reserve(AvailableBackendItems.Num());
-	for (const auto& AvailableBackendItemPair : AvailableBackendItems)
+	Items->AbortTextFiltering();
+	Items->ResetFilterState();
+	if (TextFilter.IsValid())
 	{
-		ItemsPendingFrontendFilter.Add(AvailableBackendItemPair.Value);
+		Items->StartTextFiltering(TextFilter);
 	}
 
 	// Let the frontend filters know the currently used asset filter in case it is necessary to conditionally filter based on path or class filters
@@ -2217,6 +3237,185 @@ FAssetViewInstanceConfig* SAssetView::GetAssetViewConfig() const
 	}
 
 	return nullptr;
+}
+
+void SAssetView::BindCommands()
+{
+	Commands = TSharedPtr<FUICommandList>(new FUICommandList);
+
+	Commands->MapAction(FGenericCommands::Get().Copy, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecuteCopy, EAssetViewCopyType::ExportTextPath)
+	));
+
+	Commands->MapAction(FContentBrowserCommands::Get().AssetViewCopyObjectPath, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecuteCopy, EAssetViewCopyType::ObjectPath)
+	));
+
+	Commands->MapAction(FContentBrowserCommands::Get().AssetViewCopyPackageName, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecuteCopy, EAssetViewCopyType::PackageName)
+	));
+
+	Commands->MapAction(FGenericCommands::Get().Paste, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecutePaste),
+		FCanExecuteAction::CreateSP(this, &SAssetView::IsAssetPathSelected)
+	));
+
+	FInputBindingManager::Get().RegisterCommandList(FContentBrowserCommands::Get().GetContextName(), Commands.ToSharedRef());
+}
+
+void SAssetView::PopulateSelectedFilesAndFolders(TArray<FContentBrowserItem>& OutSelectedFolders, TArray<FContentBrowserItem>& OutSelectedFiles) const
+{
+	for (const FContentBrowserItem& SelectedItem : GetSelectedItems())
+	{
+		if (SelectedItem.IsFile())
+		{
+			OutSelectedFiles.Add(SelectedItem);
+		}
+		else if (SelectedItem.IsFolder())
+		{
+			OutSelectedFolders.Add(SelectedItem);
+		}
+	}
+}
+
+void SAssetView::ExecuteCopy(EAssetViewCopyType InCopyType) const
+{
+	TArray<FContentBrowserItem> SelectedFiles;
+	TArray<FContentBrowserItem> SelectedFolders;
+
+	PopulateSelectedFilesAndFolders(SelectedFolders, SelectedFiles);
+
+	FString ClipboardText;
+	if (SelectedFiles.Num() > 0)
+	{
+		switch (InCopyType)
+		{
+			case EAssetViewCopyType::ExportTextPath:
+				ClipboardText += ContentBrowserUtils::GetItemReferencesText(SelectedFiles);
+				break;
+
+			case EAssetViewCopyType::ObjectPath:
+				ClipboardText += ContentBrowserUtils::GetItemObjectPathText(SelectedFiles);
+				break;
+
+			case EAssetViewCopyType::PackageName:
+				ClipboardText += ContentBrowserUtils::GetItemPackageNameText(SelectedFiles);
+				break;
+		}
+	}
+
+	ExecuteCopyFolders(SelectedFolders, ClipboardText);
+
+	if (!ClipboardText.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
+	}
+}
+
+void SAssetView::ExecuteCopyFolders(const TArray<FContentBrowserItem>& InSelectedFolders, FString& OutClipboardText) const
+{
+	if (InSelectedFolders.Num() > 0)
+	{
+		if (!OutClipboardText.IsEmpty())
+		{
+			OutClipboardText += LINE_TERMINATOR;
+		}
+		OutClipboardText += ContentBrowserUtils::GetFolderReferencesText(InSelectedFolders);
+	}
+}
+
+static bool IsValidObjectPath(const FString& Path, FString& OutObjectClassName, FString& OutObjectPath, FString& OutPackageName)
+{
+	if (FPackageName::ParseExportTextPath(Path, &OutObjectClassName, &OutObjectPath))
+	{
+		if (UClass* ObjectClass = UClass::TryFindTypeSlow<UClass>(OutObjectClassName, EFindFirstObjectOptions::ExactClass))
+		{
+			OutPackageName = FPackageName::ObjectPathToPackageName(OutObjectPath);
+			if (FPackageName::IsValidLongPackageName(OutPackageName))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static bool ContainsT3D(const FString& ClipboardText)
+{
+	return (ClipboardText.StartsWith(TEXT("Begin Object")) && ClipboardText.EndsWith(TEXT("End Object")))
+		|| (ClipboardText.StartsWith(TEXT("Begin Map")) && ClipboardText.EndsWith(TEXT("End Map")));
+}
+
+void SAssetView::ExecutePaste()
+{
+	FString AssetPaths;
+	TArray<FString> AssetPathsSplit;
+
+	// Get the copied asset paths
+	FPlatformApplicationMisc::ClipboardPaste(AssetPaths);
+
+	// Make sure the clipboard does not contain T3D
+	AssetPaths.TrimEndInline();
+	if (!ContainsT3D(AssetPaths))
+	{
+		AssetPaths.ParseIntoArrayLines(AssetPathsSplit);
+
+		// Get assets and copy them
+		TArray<UObject*> AssetsToCopy;
+		FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+		for (const FString& AssetPath : AssetPathsSplit)
+		{
+			// Validate string
+			FString ObjectClassName;
+			FString ObjectPath;
+			FString PackageName;
+			if (IsValidObjectPath(AssetPath, ObjectClassName, ObjectPath, PackageName))
+			{
+				// Only duplicate the objects of the supported classes.
+				if (AssetToolsModule.Get().GetAssetClassPathPermissionList(EAssetClassAction::ViewAsset)->PassesStartsWithFilter(ObjectClassName))
+				{
+					FLinkerInstancingContext InstancingContext({ ULevel::LoadAllExternalObjectsTag });
+					UObject* ObjectToCopy = LoadObject<UObject>(nullptr, *ObjectPath, nullptr, LOAD_None, nullptr, &InstancingContext);
+					if (ObjectToCopy && !ObjectToCopy->IsA(UClass::StaticClass()))
+					{
+						AssetsToCopy.Add(ObjectToCopy);
+					}
+				}
+			}
+		}
+
+		if (AssetsToCopy.Num())
+		{
+			UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+			if (ensure(ContentBrowserData))
+			{
+				for (const FName& SelectedVirtualPath : SourcesData.VirtualPaths)
+				{
+					const FContentBrowserItem SelectedItem = ContentBrowserData->GetItemAtPath(SelectedVirtualPath, EContentBrowserItemTypeFilter::IncludeFolders);
+					if (SelectedItem.IsValid())
+					{
+						FName PackagePath;
+						if (SelectedItem.Legacy_TryGetPackagePath(PackagePath))
+						{
+							ContentBrowserUtils::CopyAssets(AssetsToCopy, PackagePath.ToString());
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+bool SAssetView::IsCustomViewSet() const
+{
+	return ViewExtender.IsValid();
+}
+
+TSharedRef<SWidget> SAssetView::CreateCustomView()
+{
+	return IsCustomViewSet() ? ViewExtender->CreateView(&FilteredAssetItems) : SNullWidget::NullWidget;
 }
 
 void SAssetView::ToggleShowAllFolder()
@@ -2492,11 +3691,34 @@ void SAssetView::OnCollectionUpdated( const FCollectionNameType& Collection )
 
 void SAssetView::OnFrontendFiltersChanged()
 {
+	// We're refreshing so update the redirector visibility state in case it's not also bound to a frontend filter.
+	// This potentially avoids a double refresh on the next tick.
+	bLastShowRedirectors = bShowRedirectors.Get(false);
+
 	RequestQuickFrontendListRefresh();
 
-	// If we're not operating on recursively filtered data, we need to ensure a full slow
-	// refresh is performed.
-	if ( ShouldFilterRecursively() && !bWereItemsRecursivelyFiltered )
+	// Combine any currently active custom text filters with the asset text filtering task
+	if (TextFilter.IsValid() && FrontendFilters.IsValid())
+	{ 
+		TArray<FText> CustomTextFilters;
+		for (int32 i = 0; i < FrontendFilters->Num(); ++i)
+		{
+			TSharedPtr<FFrontendFilter> Filter = StaticCastSharedPtr<FFrontendFilter>(FrontendFilters->GetFilterAtIndex(i));
+			if (Filter.IsValid())
+			{
+				TOptional<FText> Text = Filter->GetAsCustomTextFilter();
+				if (Text.IsSet())
+				{
+					CustomTextFilters.Add(Text.GetValue());
+				}
+			}
+		}
+		TextFilter->SetCustomTextFilters(MoveTemp(CustomTextFilters));
+	}
+	
+
+	// If we're changing between recursive and non-recursive data, we need to fully refresh the source items
+	if (ShouldFilterRecursively() != bWereItemsRecursivelyFiltered)
 	{
 		RequestSlowFullListRefresh();
 	}
@@ -2568,6 +3790,13 @@ TSharedRef<SWidget> SAssetView::GetViewButtonContent()
 	TSharedPtr<FExtender> MenuExtender = FExtender::Combine(Extenders);
 	FToolMenuContext MenuContext(nullptr, MenuExtender, Context);
 
+	if(AssetViewOptionsProfile.IsSet())
+	{
+		UToolMenuProfileContext* ProfileContext = NewObject<UToolMenuProfileContext>();
+		ProfileContext->ActiveProfiles.Add(AssetViewOptionsProfile.GetValue());
+		MenuContext.AddObject(ProfileContext);
+	}
+
 	if (OnExtendAssetViewOptionsMenuContext.IsBound())
 	{
 		OnExtendAssetViewOptionsMenuContext.Execute(MenuContext);
@@ -2584,13 +3813,24 @@ void SAssetView::RegisterGetViewButtonMenu()
 		Menu->bCloseSelfOnly = true;
 		Menu->AddDynamicSection("DynamicContent", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 		{
+			FName OwningContentBrowserName = NAME_None;
+			FFiltersAdditionalParams FilterParams;
 			if (UContentBrowserAssetViewContextMenuContext* Context = InMenu->FindContext<UContentBrowserAssetViewContextMenuContext>())
 			{
 				if (Context->AssetView.IsValid())
 				{
-					Context->AssetView.Pin()->PopulateViewButtonMenu(InMenu);
+					const TSharedPtr<SAssetView> AssetView = Context->AssetView.Pin();
+					AssetView->PopulateViewButtonMenu(InMenu);
+					AssetView->PopulateFilterAdditionalParams(FilterParams);
+				}
+
+				if (Context->OwningContentBrowser.IsValid())
+				{
+					OwningContentBrowserName = Context->OwningContentBrowser.Pin()->GetInstanceName();
 				}
 			}
+
+			ContentBrowserMenuUtils::AddFiltersToMenu(InMenu, OwningContentBrowserName, FilterParams);
 		}));
 	}
 }
@@ -2634,6 +3874,23 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 				FExecuteAction::CreateSP( this, &SAssetView::SetCurrentViewTypeFromMenu, EAssetViewType::Column ),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP( this, &SAssetView::IsCurrentViewType, EAssetViewType::Column )
+				),
+			EUserInterfaceActionType::RadioButton
+			);
+
+		const FText CustomViewLabel = ViewExtender ? ViewExtender->GetViewDisplayName() : LOCTEXT("CustomViewOption", "Custom");
+		const FText CustomViewTooltip = ViewExtender ? ViewExtender->GetViewTooltipText() : LOCTEXT("CustomViewOptionToolTip", "A user specified custom view.");
+
+		Section.AddMenuEntry(
+			"CustomView",
+			CustomViewLabel,
+			CustomViewTooltip,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP( this, &SAssetView::SetCurrentViewTypeFromMenu, EAssetViewType::Custom ),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP( this, &SAssetView::IsCurrentViewType, EAssetViewType::Custom ),
+				FIsActionButtonVisible::CreateSP(this, &SAssetView::IsCustomViewSet)
 				),
 			EUserInterfaceActionType::RadioButton
 			);
@@ -2772,74 +4029,6 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 	}
 
 	{
-		FToolMenuSection& Section = Menu->AddSection("Content", LOCTEXT("ContentHeading", "Content"));
-		Section.AddMenuEntry(
-			"ShowCppClasses",
-			LOCTEXT("ShowCppClassesOption", "Show C++ Classes"),
-			LOCTEXT("ShowCppClassesOptionToolTip", "Show C++ classes in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowCppContent ),
-				FCanExecuteAction::CreateSP( this, &SAssetView::IsToggleShowCppContentAllowed ),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingCppContent )
-			),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowDevelopersContent",
-			LOCTEXT("ShowDevelopersContentOption", "Show Developers Content"),
-			LOCTEXT("ShowDevelopersContentOptionToolTip", "Show developers content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowDevelopersContent ),
-				FCanExecuteAction::CreateSP( this, &SAssetView::IsToggleShowDevelopersContentAllowed ),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingDevelopersContent )
-				),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowEngineFolder",
-			LOCTEXT("ShowEngineFolderOption", "Show Engine Content"),
-			LOCTEXT("ShowEngineFolderOptionToolTip", "Show engine content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowEngineContent ),
-				FCanExecuteAction::CreateSP( this, &SAssetView::IsToggleShowEngineContentAllowed),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingEngineContent )
-			),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowPluginFolder",
-			LOCTEXT("ShowPluginFolderOption", "Show Plugin Content"),
-			LOCTEXT("ShowPluginFolderOptionToolTip", "Show plugin content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowPluginContent ),
-				FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowPluginContentAllowed),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingPluginContent )
-			),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowLocalizedContent",
-			LOCTEXT("ShowLocalizedContentOption", "Show Localized Content"),
-			LOCTEXT("ShowLocalizedContentOptionToolTip", "Show localized content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP(this, &SAssetView::ToggleShowLocalizedContent),
-				FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowLocalizedContentAllowed),
-				FIsActionChecked::CreateSP(this, &SAssetView::IsShowingLocalizedContent)
-				),
-			EUserInterfaceActionType::ToggleButton
-			);
-	}
-
-	{
 		FToolMenuSection& Section = Menu->AddSection("Search", LOCTEXT("SearchHeading", "Search"));
 		Section.AddMenuEntry(
 			"IncludeClassName",
@@ -2890,6 +4079,13 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 			
 			for (int32 EnumValue = (int32)EThumbnailSize::Tiny; EnumValue < (int32)EThumbnailSize::MAX; ++EnumValue)
 			{
+#if !UE_CONTENTBROWSER_NEW_STYLE
+				if ((EThumbnailSize)EnumValue == EThumbnailSize::XLarge)
+				{
+					continue;
+				}
+#endif
+
 				SizeSection.AddMenuEntry(
 					NAME_None,
 					SAssetView::ThumbnailSizeToDisplayName((EThumbnailSize)EnumValue),
@@ -2962,6 +4158,15 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 			);
 		}
 	}
+}
+
+void SAssetView::PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams)
+{
+	OutParams.CanShowCPPClasses = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowCppContentAllowed);
+	OutParams.CanShowDevelopersContent = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowDevelopersContentAllowed);
+	OutParams.CanShowEngineFolder = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowEngineContentAllowed);
+	OutParams.CanShowPluginFolder = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowPluginContentAllowed);
+	OutParams.CanShowLocalizedContent = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowLocalizedContentAllowed);
 }
 
 void SAssetView::ToggleShowFolders()
@@ -3041,6 +4246,11 @@ bool SAssetView::IsShowingEmptyFolders() const
 	}
 
 	return GetDefault<UContentBrowserSettings>()->DisplayEmptyFolders;
+}
+
+bool SAssetView::IsShowingRedirectors() const
+{
+	return bShowRedirectors.Get(false);
 }
 
 void SAssetView::ToggleRealTimeThumbnails()
@@ -3290,23 +4500,6 @@ bool SAssetView::HasDockedCollections() const
 	return GetDefault<UContentBrowserSettings>()->GetDockCollections();
 }
 
-void SAssetView::ToggleShowCppContent()
-{
-	check(IsToggleShowCppContentAllowed());
-
-	bool bNewState = !GetDefault<UContentBrowserSettings>()->GetDisplayCppFolders();
-
-	if (FContentBrowserInstanceConfig* Config = GetContentBrowserConfig())
-	{
-		bNewState = !Config->bShowCppFolders;
-		Config->bShowCppFolders = bNewState;
-		UContentBrowserConfig::Get()->SaveEditorConfig();
-	}
-
-	GetMutableDefault<UContentBrowserSettings>()->SetDisplayCppFolders(bNewState);
-	GetMutableDefault<UContentBrowserSettings>()->PostEditChange();
-}
-
 bool SAssetView::IsToggleShowCppContentAllowed() const
 {
 	return bCanShowClasses;
@@ -3448,6 +4641,15 @@ void SAssetView::SetCurrentViewType(EAssetViewType::Type NewType)
 {
 	if ( ensure(NewType != EAssetViewType::MAX) && NewType != CurrentViewType )
 	{
+		// If we are setting to the custom type, but the view extender does not exist for some reason - default back to tile
+		if(NewType == EAssetViewType::Custom)
+		{
+			if(!IsCustomViewSet())
+			{
+				NewType = EAssetViewType::Tile;
+			}
+		}
+		
 		ResetQuickJump();
 
 		CurrentViewType = NewType;
@@ -3522,6 +4724,11 @@ void SAssetView::CreateCurrentView()
 			ColumnView = CreateColumnView();
 			NewView = CreateShadowOverlay(ColumnView.ToSharedRef());
 			break;
+		case EAssetViewType::Custom:
+			// The custom view does not necessarily have an accessible list, so we create a generic scroll border
+			CustomView = CreateCustomView();
+			NewView = CustomView.ToSharedRef();
+			break;
 	}
 	
 	ViewContainer->SetContent( NewView );
@@ -3567,6 +4774,7 @@ void SAssetView::RefreshList()
 		case EAssetViewType::List: ListView->RequestListRefresh(); break;
 		case EAssetViewType::Tile: TileView->RequestListRefresh(); break;
 		case EAssetViewType::Column: ColumnView->RequestListRefresh(); break;
+		case EAssetViewType::Custom: ViewExtender->OnItemListChanged(&FilteredAssetItems); break;
 	}
 }
 
@@ -3577,6 +4785,7 @@ void SAssetView::SetSelection(const TSharedPtr<FAssetViewItem>& Item)
 		case EAssetViewType::List: ListView->SetSelection(Item); break;
 		case EAssetViewType::Tile: TileView->SetSelection(Item); break;
 		case EAssetViewType::Column: ColumnView->SetSelection(Item); break;
+		case EAssetViewType::Custom: ViewExtender->SetSelection(Item, true, ESelectInfo::Direct); break;
 	}
 }
 
@@ -3587,6 +4796,7 @@ void SAssetView::SetItemSelection(const TSharedPtr<FAssetViewItem>& Item, bool b
 		case EAssetViewType::List: ListView->SetItemSelection(Item, bSelected, SelectInfo); break;
 		case EAssetViewType::Tile: TileView->SetItemSelection(Item, bSelected, SelectInfo); break;
 		case EAssetViewType::Column: ColumnView->SetItemSelection(Item, bSelected, SelectInfo); break;
+		case EAssetViewType::Custom: ViewExtender->SetSelection(Item, bSelected, SelectInfo); break;
 	}
 }
 
@@ -3597,6 +4807,7 @@ void SAssetView::RequestScrollIntoView(const TSharedPtr<FAssetViewItem>& Item)
 		case EAssetViewType::List: ListView->RequestScrollIntoView(Item); break;
 		case EAssetViewType::Tile: TileView->RequestScrollIntoView(Item); break;
 		case EAssetViewType::Column: ColumnView->RequestScrollIntoView(Item); break;
+		case EAssetViewType::Custom: ViewExtender->RequestScrollIntoView(Item); break;
 	}
 }
 
@@ -3629,6 +4840,7 @@ void SAssetView::ClearSelection(bool bForceSilent)
 		case EAssetViewType::List: ListView->ClearSelection(); break;
 		case EAssetViewType::Tile: TileView->ClearSelection(); break;
 		case EAssetViewType::Column: ColumnView->ClearSelection(); break;
+		case EAssetViewType::Custom: ViewExtender->ClearSelection(); break;
 	}
 }
 
@@ -3712,13 +4924,15 @@ TSharedRef<ITableRow> SAssetView::MakeTileViewWidget(TSharedPtr<FAssetViewItem> 
 	{
 		TSharedPtr< STableRow<TSharedPtr<FAssetViewItem>> > TableRowWidget;
 		SAssignNew( TableRowWidget, STableRow<TSharedPtr<FAssetViewItem>>, OwnerTable )
-			.Style( FAppStyle::Get(), "ContentBrowser.AssetListView.TileTableRow" )
+			.Style(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.AssetListView.TileTableRow" )
 			.Cursor( bAllowDragging ? EMouseCursor::GrabHand : EMouseCursor::Default )
 			.OnDragDetected( this, &SAssetView::OnDraggingAssetItem );
 
 		TSharedRef<SAssetTileItem> Item =
 			SNew(SAssetTileItem)
 			.AssetItem(AssetItem)
+			.CurrentThumbnailSize(this, &SAssetView::GetThumbnailSize)
+			.ThumbnailDimension(this, &SAssetView::GetTileViewThumbnailDimension)
 			.ThumbnailPadding((float)TileViewThumbnailPadding)
 			.ItemWidth(this, &SAssetView::GetTileViewItemWidth)
 			.OnRenameBegin(this, &SAssetView::AssetRenameBegin)
@@ -3747,7 +4961,7 @@ TSharedRef<ITableRow> SAssetView::MakeTileViewWidget(TSharedPtr<FAssetViewItem> 
 
 		TSharedPtr< STableRow<TSharedPtr<FAssetViewItem>> > TableRowWidget;
 		SAssignNew( TableRowWidget, STableRow<TSharedPtr<FAssetViewItem>>, OwnerTable )
-		.Style(FAppStyle::Get(), "ContentBrowser.AssetListView.TileTableRow")
+		.Style(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.AssetListView.TileTableRow")
 		.Cursor( bAllowDragging ? EMouseCursor::GrabHand : EMouseCursor::Default )
 		.OnDragDetected( this, &SAssetView::OnDraggingAssetItem );
 
@@ -3757,6 +4971,7 @@ TSharedRef<ITableRow> SAssetView::MakeTileViewWidget(TSharedPtr<FAssetViewItem> 
 			.AssetItem(AssetItem)
 			.ThumbnailPadding((float)TileViewThumbnailPadding)
 			.CurrentThumbnailSize(this, &SAssetView::GetThumbnailSize)
+			.ThumbnailDimension(this, &SAssetView::GetTileViewThumbnailDimension)
 			.ItemWidth(this, &SAssetView::GetTileViewItemWidth)
 			.OnRenameBegin(this, &SAssetView::AssetRenameBegin)
 			.OnRenameCommit(this, &SAssetView::AssetRenameCommit)
@@ -3788,11 +5003,11 @@ TSharedRef<ITableRow> SAssetView::MakeColumnViewWidget(TSharedPtr<FAssetViewItem
 	if ( !ensure(AssetItem.IsValid()) )
 	{
 		return SNew( STableRow<TSharedPtr<FAssetViewItem>>, OwnerTable )
-			.Style(FAppStyle::Get(), "ContentBrowser.AssetListView.ColumnListTableRow");
+			.Style(UE::ContentBrowser::Private::FContentBrowserStyle::Get(), "ContentBrowser.AssetListView.ColumnListTableRow");
 	}
 
 	// Update the cached custom data
-	AssetItem->CacheCustomColumns(CustomColumns, false, true, false);
+	AssetItem->CacheCustomColumns(CustomColumns, /* bUpdateSortData */ false, /* bUpdateDisplayText */ true, /* bUpdateExisting */ false);
 	
 	return
 		SNew( SAssetColumnViewRow, OwnerTable )
@@ -3812,6 +5027,7 @@ TSharedRef<ITableRow> SAssetView::MakeColumnViewWidget(TSharedPtr<FAssetViewItem
 				.OnAssetToolTipClosing( OnAssetToolTipClosing )
 		);
 }
+
 
 void SAssetView::AssetItemWidgetDestroyed(const TSharedPtr<FAssetViewItem>& Item)
 {
@@ -3945,7 +5161,14 @@ TSharedPtr<FAssetThumbnail> SAssetView::AddItemToNewThumbnailRelevancyMap(const 
 		}
 
 		// The thumbnail newly relevant, create a new thumbnail
-		const int32 ThumbnailResolution = FMath::TruncToInt((float)CurrentThumbnailSize * MaxThumbnailScale);
+		int32 ThumbnailResolution = 0;
+
+#if UE_CONTENTBROWSER_NEW_STYLE
+		ThumbnailResolution = CurrentThumbnailSize;
+#else
+		ThumbnailResolution = FMath::TruncToInt((float)CurrentThumbnailSize * MaxThumbnailScale);
+#endif
+
 		Thumbnail = MakeShared<FAssetThumbnail>(FAssetData(), ThumbnailResolution, ThumbnailResolution, AssetThumbnailPool);
 		Item->GetItem().UpdateThumbnail(*Thumbnail);
 		Thumbnail->GetViewportRenderTargetTexture(); // Access the texture once to trigger it to render
@@ -3976,8 +5199,10 @@ void SAssetView::AssetSelectionChanged( TSharedPtr< FAssetViewItem > AssetItem, 
 
 void SAssetView::ItemScrolledIntoView(TSharedPtr<FAssetViewItem> AssetItem, const TSharedPtr<ITableRow>& Widget )
 {
-	if (AssetItem->ShouldRenameWhenScrolledIntoView())
+	if (AssetItem == AwaitingScrollIntoViewForRename)
 	{
+		AwaitingScrollIntoViewForRename.Reset();
+
 		// Make sure we have window focus to avoid the inline text editor from canceling itself if we try to click on it
 		// This can happen if creating an asset opens an intermediary window which steals our focus, 
 		// eg, the blueprint and slate widget style class windows (TTP# 314240)
@@ -4155,7 +5380,6 @@ void SAssetView::AssetRenameBegin(const TSharedPtr<FAssetViewItem>& Item, const 
 
 void SAssetView::AssetRenameCommit(const TSharedPtr<FAssetViewItem>& Item, const FString& NewName, const FSlateRect& MessageAnchor, const ETextCommit::Type CommitType)
 {
-	bool bSuccess = false;
 	FText ErrorMessage;
 	TSharedPtr<FAssetViewItem> UpdatedItem;
 
@@ -4168,11 +5392,8 @@ void SAssetView::AssetRenameCommit(const TSharedPtr<FAssetViewItem>& Item, const
 		FContentBrowserItem NewItem = EndCreateDeferredItem(Item, NewName, bFinalize, ErrorMessage);
 		if (NewItem.IsValid())
 		{
-			bSuccess = true;
-
 			// Add result to view
-			UpdatedItem = AvailableBackendItems.Add(FContentBrowserItemKey(NewItem), MakeShared<FAssetViewItem>(NewItem));
-			FilteredAssetItems.Add(UpdatedItem);
+			UpdatedItem = Items->CreateItemFromUser(MoveTemp(NewItem), FilteredAssetItems);
 		}
 	}
 	else if (CommitType != ETextCommit::OnCleared && !Item->GetItem().GetItemName().ToString().Equals(NewName))
@@ -4183,55 +5404,49 @@ void SAssetView::AssetRenameCommit(const TSharedPtr<FAssetViewItem>& Item, const
 		FContentBrowserItem NewItem;
 		if (Item->GetItem().CanRename(&NewName, &ErrorMessage) && Item->GetItem().Rename(NewName, &NewItem))
 		{
-			bSuccess = true;
-
 			// Add result to view (the old item will be removed via the notifications, as not all data sources may have been able to perform the rename)
-			UpdatedItem = AvailableBackendItems.Add(FContentBrowserItemKey(NewItem), MakeShared<FAssetViewItem>(NewItem));
-			FilteredAssetItems.Add(UpdatedItem);
+			UpdatedItem = Items->CreateItemFromUser(MoveTemp(NewItem), FilteredAssetItems);
 		}
 	}
 	
-	if (bSuccess)
+	if (UpdatedItem)
 	{
-		if (UpdatedItem)
-		{
-			// Sort in the new item
-			bPendingSortFilteredItems = true;
+		// Sort in the new item
+		bPendingSortFilteredItems = true;
 
-			if (UpdatedItem->IsFile())
+		if (UpdatedItem->IsFile())
+		{
+			// Refresh the thumbnail
+			if (TSharedPtr<FAssetThumbnail> AssetThumbnail = RelevantThumbnails.FindRef(Item))
 			{
-				// Refresh the thumbnail
-				if (TSharedPtr<FAssetThumbnail> AssetThumbnail = RelevantThumbnails.FindRef(Item))
+				if (UpdatedItem != Item)
 				{
-					if (UpdatedItem != Item)
-					{
-						// This item was newly created - move the thumbnail over from the temporary item
-						RelevantThumbnails.Remove(Item);
-						RelevantThumbnails.Add(UpdatedItem, AssetThumbnail);
-						UpdatedItem->GetItem().UpdateThumbnail(*AssetThumbnail);
-					}
-					if (AssetThumbnail->GetAssetData().IsValid())
-					{
-						AssetThumbnailPool->RefreshThumbnail(AssetThumbnail);
-					}
+					// This item was newly created - move the thumbnail over from the temporary item
+					RelevantThumbnails.Remove(Item);
+					RelevantThumbnails.Add(UpdatedItem, AssetThumbnail);
+					UpdatedItem->GetItem().UpdateThumbnail(*AssetThumbnail);
+				}
+				if (AssetThumbnail->GetAssetData().IsValid())
+				{
+					AssetThumbnailPool->RefreshThumbnail(AssetThumbnail);
 				}
 			}
-			
-			// Sync the view
-			{
-				TArray<FContentBrowserItem> ItemsToSync;
-				ItemsToSync.Add(UpdatedItem->GetItem());
+		}
+		
+		// Sync the view
+		{
+			TArray<FContentBrowserItem> ItemsToSync;
+			ItemsToSync.Add(UpdatedItem->GetItem());
 
-				if (OnItemRenameCommitted.IsBound() && !bUserSearching)
-				{
-					// If our parent wants to potentially handle the sync, let it, but only if we're not currently searching (or it would cancel the search)
-					OnItemRenameCommitted.Execute(ItemsToSync);
-				}
-				else
-				{
-					// Otherwise, sync just the view
-					SyncToItems(ItemsToSync);
-				}
+			if (OnItemRenameCommitted.IsBound() && !bUserSearching)
+			{
+				// If our parent wants to potentially handle the sync, let it, but only if we're not currently searching (or it would cancel the search)
+				OnItemRenameCommitted.Execute(ItemsToSync);
+			}
+			else
+			{
+				// Otherwise, sync just the view
+				SyncToItems(ItemsToSync);
 			}
 		}
 	}
@@ -4264,6 +5479,10 @@ bool SAssetView::ShouldAllowToolTips() const
 
 		case EAssetViewType::Column:
 			bIsRightClickScrolling = ColumnView->IsRightClickScrolling();
+			break;
+		
+		case EAssetViewType::Custom:
+			bIsRightClickScrolling = ViewExtender->IsRightClickScrolling();
 			break;
 
 		default:
@@ -4351,6 +5570,7 @@ void SAssetView::ToggleThumbnailEditMode()
 void SAssetView::OnThumbnailSizeChanged(EThumbnailSize NewThumbnailSize)
 {
 	ThumbnailSize = NewThumbnailSize;
+	UpdateThumbnailSizeValue();
 
 	if (FAssetViewInstanceConfig* Config = GetAssetViewConfig())
 	{
@@ -4383,6 +5603,9 @@ float SAssetView::GetThumbnailScale() const
 	case EThumbnailSize::Large:
 		BaseScale = 0.75f;
 		break;
+	case EThumbnailSize::XLarge:
+		BaseScale = 0.9f;
+		break;
 	case EThumbnailSize::Huge:
 		BaseScale = 1.0f;
 		break;
@@ -4394,13 +5617,60 @@ float SAssetView::GetThumbnailScale() const
 	return BaseScale * GetTickSpaceGeometry().Scale;
 }
 
+float SAssetView::GetThumbnailSizeValue() const
+{
+	return FMath::Lerp(MinThumbnailSize, MaxThumbnailSize, ZoomScale);
+}
+
+void SAssetView::UpdateThumbnailSizeValue()
+{
+	switch (ThumbnailSize)
+	{
+	case EThumbnailSize::Tiny:
+		MinThumbnailSize = 64.f;
+		MaxThumbnailSize = 80.f;
+		break;
+	case EThumbnailSize::Small:
+		MinThumbnailSize = 80.f;
+		MaxThumbnailSize = 96.f;
+		break;
+	case EThumbnailSize::Medium:
+		MinThumbnailSize = 96.f;
+		MaxThumbnailSize = 112.f;
+		break;
+	case EThumbnailSize::Large:
+		MinThumbnailSize = 112.f;
+		MaxThumbnailSize = 128.f;
+		break;
+	case EThumbnailSize::XLarge:
+		MinThumbnailSize = 128.f;
+		MaxThumbnailSize = 136.f;
+		break;
+	case EThumbnailSize::Huge:
+		MinThumbnailSize = 136.f;
+		MaxThumbnailSize = 160.f;
+		break;
+	default:
+		MinThumbnailSize = 64.f;
+		MaxThumbnailSize = 80.f;
+		break;
+	}
+}
+
 bool SAssetView::IsThumbnailScalingAllowed() const
 {
-	return GetCurrentViewType() != EAssetViewType::Column;
+	return GetCurrentViewType() != EAssetViewType::Column && GetCurrentViewType() != EAssetViewType::Custom;
 }
 
 float SAssetView::GetTileViewTypeNameHeight() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+		if (ThumbnailSize == EThumbnailSize::Tiny)
+		{
+			return 0;
+		}
+		return 67.f;
+#else
 	float TypeNameHeight = 0;
 
 	if (bShowTypeInTileView)
@@ -4427,6 +5697,7 @@ float SAssetView::GetTileViewTypeNameHeight() const
 		}
 	}
 	return TypeNameHeight;
+#endif
 }
 
 float SAssetView::GetSourceControlIconHeight() const
@@ -4441,22 +5712,43 @@ float SAssetView::GetListViewItemHeight() const
 
 float SAssetView::GetTileViewItemHeight() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewItemBaseWidth() + GetTileViewTypeNameHeight() + TileViewHeightPadding;
+#else
 	return (((float)TileViewNameHeight + GetTileViewTypeNameHeight()) * FMath::Lerp(MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale())) + GetTileViewItemBaseHeight() * FillScale + GetSourceControlIconHeight();
+#endif
 }
 
 float SAssetView::GetTileViewItemBaseHeight() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewItemBaseWidth();
+#else
 	return (float)(TileViewThumbnailSize + TileViewThumbnailPadding * 2) * FMath::Lerp(MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale());
+#endif
 }
 
 float SAssetView::GetTileViewItemWidth() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewItemBaseWidth() + TileViewWidthPadding;
+#else
 	return GetTileViewItemBaseWidth() * FillScale;
+#endif
+}
+
+float SAssetView::GetTileViewThumbnailDimension() const
+{
+	return GetThumbnailSizeValue();
 }
 
 float SAssetView::GetTileViewItemBaseWidth() const //-V524
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewThumbnailDimension();
+#else
 	return (float)( TileViewThumbnailSize + TileViewThumbnailPadding * 2 ) * FMath::Lerp( MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale() );
+#endif
 }
 
 EColumnSortMode::Type SAssetView::GetColumnSortMode(const FName ColumnId) const
@@ -4541,11 +5833,13 @@ bool SAssetView::HasSingleCollectionSource() const
 
 void SAssetView::SetUserSearching(bool bInSearching)
 {
-	if(bUserSearching != bInSearching)
+	bUserSearching = bInSearching;
+
+	// If we're changing between recursive and non-recursive data, we need to fully refresh the source items
+	if (ShouldFilterRecursively() != bWereItemsRecursivelyFiltered)
 	{
 		RequestSlowFullListRefresh();
 	}
-	bUserSearching = bInSearching;
 }
 
 void SAssetView::HandleSettingChanged(FName PropertyName)
@@ -4847,56 +6141,18 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 	bool bRefreshView = false;
 	TSet<TSharedPtr<FAssetViewItem>> ItemsPendingInplaceFrontendFilter;
 
-	auto AddItem = [this, &ItemsPendingInplaceFrontendFilter](const FContentBrowserItemKey& InItemDataKey, FContentBrowserItemData&& InItemData)
+	auto AddItem = [this, &ItemsPendingInplaceFrontendFilter](FContentBrowserItemData&& InItemData)
 	{
-		TSharedPtr<FAssetViewItem>& ItemToUpdate = AvailableBackendItems.FindOrAdd(InItemDataKey);
-		if (ItemToUpdate)
-		{
-			// Update the item
-			ItemToUpdate->AppendItemData(MoveTemp(InItemData));
-
-			// Update the custom column data
-			ItemToUpdate->CacheCustomColumns(CustomColumns, true, true, true);
-
-			// This item was modified, so put it in the list of items to be in-place re-tested against the active frontend filter (this can avoid a costly re-sort of the view)
-			// If the item can't be queried in-place (because the item isn't in the view) then it will be added to ItemsPendingPriorityFilter instead
-			ItemsPendingInplaceFrontendFilter.Add(ItemToUpdate);
-		}
-		else
-		{
-			ItemToUpdate = MakeShared<FAssetViewItem>(MoveTemp(InItemData));
-
-			// This item is new so put it in the pending set to be processed over time
-			ItemsPendingFrontendFilter.Add(ItemToUpdate);
-		}
+		TSharedPtr<FAssetViewItem> ItemToUpdate = Items->UpdateData(MoveTemp(InItemData));
+		// Update the custom column data if it exists
+		ItemToUpdate->CacheCustomColumns(CustomColumns, /* bUpdateSortData */ true, /* bUpdateDisplayText */ true, /* bUpdateExisting */ true);
 	};
 
-	auto RemoveItem = [this, &bRefreshView, &ItemsPendingInplaceFrontendFilter](const FContentBrowserItemKey& InItemDataKey, const FContentBrowserItemData& InItemData)
+	auto RemoveItem = [this, &bRefreshView, &ItemsPendingInplaceFrontendFilter](const FContentBrowserMinimalItemData& ItemDataKey)
 	{
-		const uint32 ItemDataKeyHash = GetTypeHash(InItemDataKey);
-
-		if (const TSharedPtr<FAssetViewItem>* ItemToRemovePtr = AvailableBackendItems.FindByHash(ItemDataKeyHash, InItemDataKey))
+		TSharedPtr<FAssetViewItem> RemovedItem = Items->RemoveItemData(ItemDataKey);
+		if (RemovedItem.IsValid())
 		{
-			TSharedPtr<FAssetViewItem> ItemToRemove = *ItemToRemovePtr;
-			check(ItemToRemove);
-
-			// Only fully remove this item if every sub-item is removed (items become invalid when empty)
-			ItemToRemove->RemoveItemData(InItemData);
-			if (ItemToRemove->GetItem().IsValid())
-			{
-				return;
-			}
-
-			AvailableBackendItems.RemoveByHash(ItemDataKeyHash, InItemDataKey);
-
-			const uint32 ItemToRemoveHash = GetTypeHash(ItemToRemove);
-
-			// Also ensure this item has been removed from the pending filter lists and the current list view data
-			FilteredAssetItems.RemoveSingle(ItemToRemove);
-			ItemsPendingPriorityFilter.RemoveByHash(ItemToRemoveHash, ItemToRemove);
-			ItemsPendingFrontendFilter.RemoveByHash(ItemToRemoveHash, ItemToRemove);
-			ItemsPendingInplaceFrontendFilter.RemoveByHash(ItemToRemoveHash, ItemToRemove);
-
 			// Need to refresh manually after removing items, as adding relies on the pending filter lists to trigger this
 			bRefreshView = true;
 		}
@@ -4932,37 +6188,34 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 	{
 		bool bItemPassFilter = false;
 		FContentBrowserItemData ItemData = GetBackendFilterCompliantItem(ItemDataUpdate.GetItemData(), bItemPassFilter);
-		const FContentBrowserItemKey ItemDataKey(ItemData);
 
 		switch (ItemDataUpdate.GetUpdateType())
 		{
 		case EContentBrowserItemUpdateType::Added:
 			if (bItemPassFilter)
 			{
-				AddItem(ItemDataKey, MoveTemp(ItemData));
+				AddItem(MoveTemp(ItemData));
 			}
 			break;
 
 		case EContentBrowserItemUpdateType::Modified:
 			if (bItemPassFilter)
 			{
-				AddItem(ItemDataKey, MoveTemp(ItemData));
+				AddItem(MoveTemp(ItemData));
 			}
 			else
 			{
-				RemoveItem(ItemDataKey, ItemData);
+				RemoveItem(FContentBrowserMinimalItemData(ItemData));
 			}
 			break;
 
 		case EContentBrowserItemUpdateType::Moved:
 			{
-				const FContentBrowserItemData OldMinimalItemData(ItemData.GetOwnerDataSource(), ItemData.GetItemType(), ItemDataUpdate.GetPreviousVirtualPath(), NAME_None, FText(), nullptr);
-				const FContentBrowserItemKey OldItemDataKey(OldMinimalItemData);
-				RemoveItem(OldItemDataKey, OldMinimalItemData);
-
+				const FContentBrowserMinimalItemData OldItemDataKey(ItemData.GetItemType(), ItemDataUpdate.GetPreviousVirtualPath(), ItemData.GetOwnerDataSource());
+				RemoveItem(OldItemDataKey);
 				if (bItemPassFilter)
 				{
-					AddItem(ItemDataKey, MoveTemp(ItemData));
+					AddItem(MoveTemp(ItemData));
 				}
 				else
 				{
@@ -4972,7 +6225,7 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 			break;
 
 		case EContentBrowserItemUpdateType::Removed:
-			RemoveItem(ItemDataKey, ItemData);
+			RemoveItem(FContentBrowserMinimalItemData(ItemData));
 			break;
 
 		default:
@@ -4981,57 +6234,10 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 		}
 	}
 
-	// Now patch in the in-place frontend filter requests (if possible)
-	if (ItemsPendingInplaceFrontendFilter.Num() > 0)
+	FAssetViewFrontendFilterHelper FrontendFilterHelper(this);
+	if (Items->PerformPriorityFiltering(FrontendFilterHelper, FilteredAssetItems))
 	{
-		FAssetViewFrontendFilterHelper FrontendFilterHelper(this);
-		const bool bRunQueryFilter = OnShouldFilterAsset.IsBound() || OnShouldFilterItem.IsBound();
-
-		for (auto It = FilteredAssetItems.CreateIterator(); It && ItemsPendingInplaceFrontendFilter.Num() > 0; ++It)
-		{
-			const TSharedPtr<FAssetViewItem> ItemToFilter = *It;
-
-			if (ItemsPendingInplaceFrontendFilter.Remove(ItemToFilter) > 0)
-			{
-				bool bRemoveItem = false;
-
-				// Run the query filter if required
-				if (bRunQueryFilter)
-				{
-					const bool bPassedBackendFilter = FrontendFilterHelper.DoesItemPassQueryFilter(ItemToFilter);
-					if (!bPassedBackendFilter)
-					{
-						bRemoveItem = true;
-						AvailableBackendItems.Remove(FContentBrowserItemKey(ItemToFilter->GetItem()));
-					}
-				}
-
-				// Run the frontend filter
-				if (!bRemoveItem)
-				{
-					const bool bPassedFrontendFilter = FrontendFilterHelper.DoesItemPassFrontendFilter(ItemToFilter);
-					if (!bPassedFrontendFilter)
-					{
-						bRemoveItem = true;
-					}
-				}
-
-				// Remove this item?
-				if (bRemoveItem)
-				{
-					bRefreshView = true;
-					It.RemoveCurrent();
-				}
-			}
-		}
-
-		// Do we still have items that could not be in-place filtered?
-		// If so, add them to ItemsPendingPriorityFilter so they are processed into the view ASAP
-		if (ItemsPendingInplaceFrontendFilter.Num() > 0)
-		{
-			ItemsPendingPriorityFilter.Append(MoveTemp(ItemsPendingInplaceFrontendFilter));
-			ItemsPendingInplaceFrontendFilter.Reset();
-		}
+		bRefreshView = true;
 	}
 
 	if (bRefreshView)
@@ -5039,7 +6245,8 @@ void SAssetView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataU
 		RefreshList();
 	}
 
-	UE_LOG(LogContentBrowser, VeryVerbose, TEXT("AssetView - HandleItemDataUpdated completed in %0.4f seconds for %d items (%d available items)"), FPlatformTime::Seconds() - HandleItemDataUpdatedStartTime, InUpdatedItems.Num(), AvailableBackendItems.Num());
+	UE_LOG(LogContentBrowser, VeryVerbose, TEXT("AssetView - HandleItemDataUpdated completed in %0.4f seconds for %d items (%d available items)"), 
+		FPlatformTime::Seconds() - HandleItemDataUpdatedStartTime, InUpdatedItems.Num(), Items->Num());
 }
 
 void SAssetView::HandleItemDataDiscoveryComplete()
@@ -5054,6 +6261,12 @@ void SAssetView::HandleItemDataDiscoveryComplete()
 void SAssetView::SetFilterBar(TSharedPtr<SFilterList> InFilterBar)
 {
 	FilterBar = InFilterBar;
+}
+
+void SAssetView::SetShouldFilterItem(FOnShouldFilterItem InCallback)
+{
+	OnShouldFilterItem = MoveTemp(InCallback);
+	RequestQuickFrontendListRefresh();
 }
 
 void SAssetView::OnCompleteFiltering(double InAmortizeDuration)

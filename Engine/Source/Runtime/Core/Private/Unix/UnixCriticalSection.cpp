@@ -16,9 +16,9 @@
 
 FUnixSystemWideCriticalSection::FUnixSystemWideCriticalSection(const FString& InName, FTimespan InTimeout)
 {
-	check(InName.Len() > 0)
-	check(InTimeout >= FTimespan::Zero())
-	check(InTimeout.GetTotalSeconds() < (double)FLT_MAX)
+	check(InName.Len() > 0);
+	check(InTimeout >= FTimespan::Zero());
+	check(InTimeout.GetTotalSeconds() < (double)FLT_MAX);
 
 	const FString LockPath = FString(FPlatformProcess::ApplicationSettingsDir()) / InName;
 	FString NormalizedFilepath(LockPath);

@@ -127,7 +127,7 @@ FLinearColor SPropertyEditorColor::OnGetColor() const
 	const FProperty* Property = PropertyEditor->GetProperty();
 	check(Property);
 
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 
 	FReadAddressList ReadAddresses;
 	PropertyNode->GetReadAddress( false, ReadAddresses, false );

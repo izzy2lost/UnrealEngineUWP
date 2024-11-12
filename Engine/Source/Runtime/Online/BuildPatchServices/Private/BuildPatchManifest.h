@@ -351,22 +351,27 @@ private:
 	 */
 	void DestroyData();
 
+protected:
 	/**
 	 * Setups the lookup maps that optimize data access, should be called when Data changes
 	 */
 	void InitLookups();
+private:
 
 	/**
 	 * Helper for the public EnumerateProducibleChunks functions.
 	 */
 	int32 EnumerateProducibleChunks_Internal(const TFunction<bool(const FString&)>& FileAccessChecker, const TSet<FGuid>& ChunksRequired, TSet<FGuid>& ChunksAvailable) const;
 
-private:
+protected:
 	/** Holds the actual manifest data. Some other variables point to the memory held by these objects */
+
 	BuildPatchServices::FManifestMeta ManifestMeta;
 	BuildPatchServices::FChunkDataList ChunkDataList;
 	BuildPatchServices::FFileManifestList FileManifestList;
 	BuildPatchServices::FCustomFields CustomFields;
+
+private:
 
 	/** Holds the handle to our PreExit delegate */
 	FDelegateHandle OnPreExitHandle;

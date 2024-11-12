@@ -5,7 +5,6 @@
 #include "Dom/WebAPIEnum.h"
 #include "Dom/WebAPIType.h"
 #include "Dom/WebAPITypeRegistry.h"
-#include "IWebAPIEditorModule.h"
 #include "V2/WebAPISwaggerProvider.h"
 
 #define LOCTEXT_NAMESPACE "WebAPISwaggerConverter"
@@ -17,7 +16,7 @@ namespace UE::WebAPI::Swagger
 														const FWebAPINameVariant& InPropertyName,
 														const TSharedPtr<SchemaType>& InSchema,
 														const FString& InDefinitionName,
-														const TObjectPtr<UWebAPIProperty>& OutProperty)
+														UWebAPIProperty* OutProperty)
 	{
 		static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V2::FSchemaBase>::Value, "Type is not derived from OpenAPI::V2::FSchemaBase.");
 
@@ -37,8 +36,8 @@ namespace UE::WebAPI::Swagger
 
 		OutProperty->Type = ResolveType<SchemaType>(ItemSchema, DefinitionName);
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = OutProperty;
-		if (!ConvertModelBase(ItemSchema, ModelBase))
+		UWebAPIModelBase* ModelBase = OutProperty;
+		if (!ConvertModelBase<SchemaType, UWebAPIModelBase>(ItemSchema, ModelBase))
 		{
 			return false;
 		}
@@ -56,7 +55,7 @@ namespace UE::WebAPI::Swagger
 			const FWebAPITypeNameVariant EnumTypeName = OutProperty->Type;
 			EnumTypeName.TypeInfo->SetName(ProviderSettings.MakeNestedPropertyTypeName(InModelName, InPropertyName));
 
-			const TObjectPtr<UWebAPIEnum>& Enum = ConvertEnum(InSchema, EnumTypeName);
+			const UWebAPIEnum* Enum = ConvertEnum(InSchema, EnumTypeName);
 
 			const FText LogMessage = FText::FormatNamed(
 				LOCTEXT("AddedImplicitEnumForPropertyOfModel", "Implicit enum created for property \"{PropertyName}\" of model \"{ModelName}\"."),
@@ -70,7 +69,7 @@ namespace UE::WebAPI::Swagger
 			Enum->Name.TypeInfo->SetNested(InModelName);
 
 			OutProperty->Type = Enum->Name;
-			OutProperty->Type.TypeInfo->Model = Enum;
+			OutProperty->Type.TypeInfo->SetModel(Enum);
 		}
 		// Add struct as it's own model, and reference it as this properties type
 		else if (OutProperty->Type.ToString(true).IsEmpty())
@@ -80,7 +79,7 @@ namespace UE::WebAPI::Swagger
 			ModelTypeName.TypeInfo->Prefix = TEXT("F");
 			ModelTypeName.TypeInfo->SetNested(InModelName);
 
-			const TObjectPtr<UWebAPIModel>& Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.HasTypeInfo() ? ModelTypeName.TypeInfo.Get() : nullptr);
+			UWebAPIModel* Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.HasTypeInfo() ? ModelTypeName.TypeInfo.Get() : nullptr);
 			PatchModel(InSchema, {}, Model);
 
 			const FText LogMessage = FText::FormatNamed(
@@ -95,7 +94,7 @@ namespace UE::WebAPI::Swagger
 			Model->Name.TypeInfo->JsonType = UWebAPIStaticTypeRegistry::ToFromJsonType;
 
 			OutProperty->Type = Model->Name;
-			OutProperty->Type.TypeInfo->Model = Model;
+			OutProperty->Type.TypeInfo->SetModel(Model);
 		}
 		
 		OutProperty->Name = ResolvePropertyName(OutProperty, InModelName);
@@ -104,184 +103,183 @@ namespace UE::WebAPI::Swagger
 	}
 
 		template <typename SchemaType>
-			TObjectPtr<UWebAPIProperty> FWebAPISwaggerSchemaConverter::ConvertProperty(const TSharedPtr<SchemaType>& InSrcSchema, const TObjectPtr<UWebAPIModel>& InModel, const FWebAPINameVariant& InPropertyName, const FString& InDefinitionName)
+		TObjectPtr<UWebAPIProperty> FWebAPISwaggerSchemaConverter::ConvertProperty(const TSharedPtr<SchemaType>& InSrcSchema, const TObjectPtr<UWebAPIModel>& InModel, const FWebAPINameVariant& InPropertyName, const FString& InDefinitionName)
+		{
+			static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V2::FSchemaBase>::Value, "Type is not derived from OpenAPI::V2::FSchemaBase.");
+
+			const FWebAPINameVariant SrcPropertyName = InPropertyName;
+			FString SrcPropertyDefinitionName = ProviderSettings.MakeNestedPropertyTypeName(*InModel->Name.ToString(true), SrcPropertyName);
+			const TSharedPtr<OpenAPI::V2::FSchema> SrcPropertyValue = ResolveReference(InSrcSchema, SrcPropertyDefinitionName);
+
+			if (SrcPropertyValue)
 			{
-				static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V2::FSchemaBase>::Value, "Type is not derived from OpenAPI::V2::FSchemaBase.");
+				const TObjectPtr<UWebAPIProperty>& DstProperty = InModel->Properties.Add_GetRef(NewObject<UWebAPIProperty>(InModel));
+				PatchProperty(InModel->Name,
+					FWebAPINameInfo(NameTransformer(SrcPropertyName), SrcPropertyName.GetJsonName(), InModel->Name),
+					SrcPropertyValue,
+					SrcPropertyDefinitionName,
+					DstProperty);
 
-				const FWebAPINameVariant SrcPropertyName = InPropertyName;
-				FString SrcPropertyDefinitionName = ProviderSettings.MakeNestedPropertyTypeName(*InModel->Name.ToString(true), SrcPropertyName);
-				const TSharedPtr<OpenAPI::V2::FSchema> SrcPropertyValue = ResolveReference(InSrcSchema, SrcPropertyDefinitionName);
-
-				if (SrcPropertyValue)
-				{
-					const TObjectPtr<UWebAPIProperty>& DstProperty = InModel->Properties.Add_GetRef(NewObject<UWebAPIProperty>(InModel));
-					PatchProperty(InModel->Name,
-						FWebAPINameInfo(NameTransformer(SrcPropertyName), SrcPropertyName.GetJsonName(), InModel->Name),
-						SrcPropertyValue,
-						SrcPropertyDefinitionName,
-						DstProperty);
-					
-					return DstProperty;
-				}
-
-				return nullptr;
+				return DstProperty;
 			}
 
-			template <typename SchemaType>
-			bool FWebAPISwaggerSchemaConverter::PatchModel(const TSharedPtr<SchemaType>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, const TObjectPtr<UWebAPIModel>& OutModel)
+			return nullptr;
+		}
+
+		template <typename SchemaType>
+		bool FWebAPISwaggerSchemaConverter::PatchModel(const TSharedPtr<SchemaType>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, UWebAPIModel* OutModel)
+		{
+			static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V2::FSchemaBase>::Value, "Type is not derived from OpenAPI::V2::FSchemaBase.");
+
+			FWebAPITypeNameVariant ModelTypeName;
+			if(InModelTypeName.IsValid())
 			{
-				static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V2::FSchemaBase>::Value, "Type is not derived from OpenAPI::V2::FSchemaBase.");
+				ModelTypeName = InModelTypeName;
+			}
+			else if(OutModel && OutModel->Name.HasTypeInfo())
+			{
+				ModelTypeName = OutModel->Name;
+			}
+			else
+			{
+				const FString ModelName = InSrcSchema->Name;
+				check(!ModelName.IsEmpty());
 
-				FWebAPITypeNameVariant ModelTypeName;
-				if(InModelTypeName.IsValid())
+				ModelTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
+					EWebAPISchemaType::Model,
+					NameTransformer(*ModelName),
+					*ModelName,
+					TEXT("F"));
+			}
+
+			if (!InSrcSchema.IsValid())
+			{
+				FFormatNamedArguments Args;
+				Args.Add(TEXT("ModelName"), FText::FromString(*ModelTypeName.ToString(true)));
+				MessageLog->LogWarning(
+					FText::Format(LOCTEXT("SchemaInvalid",
+							"The schema for model \"{ModelName}\" was invalid/null."),
+						Args),
+					FWebAPISwaggerProvider::LogName);
+				return false;
+			}
+
+			const TObjectPtr<UWebAPIModel>& Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
+
+			UWebAPIModelBase* ModelBase = Model;
+			if (!ConvertModelBase(InSrcSchema, ModelBase))
+			{
+				return false;
+			}
+
+			Model->Name = ModelTypeName;
+
+			if (InSrcSchema->Properties.IsSet() && !InSrcSchema->Properties->IsEmpty())
+			{
+				for (const TTuple<FString, Json::TJsonReference<OpenAPI::V2::FSchema>>& NamePropertyPair : InSrcSchema->Properties.GetValue())
 				{
-					ModelTypeName = InModelTypeName;
-				}
-				else if(OutModel->Name.HasTypeInfo())
-				{
-					ModelTypeName = OutModel->Name;
-				}
-				else
-				{
-					const FString ModelName = InSrcSchema->Name;
-					check(!ModelName.IsEmpty());
+					const FString& SrcPropertyName = NamePropertyPair.Key;
+					FString SrcPropertyDefinitionName = ProviderSettings.MakeNestedPropertyTypeName(*ModelTypeName.ToString(true), SrcPropertyName);
+					TSharedPtr<OpenAPI::V2::FSchema> SrcPropertyValue = ResolveReference(NamePropertyPair.Value, SrcPropertyDefinitionName);
 
-					ModelTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
-						EWebAPISchemaType::Model,
-						NameTransformer(*ModelName),
-						*ModelName,
-						TEXT("F"));
-				}
-
-				if (!InSrcSchema.IsValid())
-				{
-					FFormatNamedArguments Args;
-					Args.Add(TEXT("ModelName"), FText::FromString(*ModelTypeName.ToString(true)));
-					MessageLog->LogWarning(
-						FText::Format(LOCTEXT("SchemaInvalid",
-								"The schema for model \"{ModelName}\" was invalid/null."),
-							Args),
-						FWebAPISwaggerProvider::LogName);
-					return false;
-				}
-
-				const TObjectPtr<UWebAPIModel>& Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
-
-				const TObjectPtr<UWebAPIModelBase> ModelBase = Model;
-				if (!ConvertModelBase(InSrcSchema, ModelBase))
-				{
-					return false;
-				}
-
-				Model->Name = ModelTypeName;
-
-				if (InSrcSchema->Properties.IsSet() && !InSrcSchema->Properties->IsEmpty())
-				{
-					for (const TTuple<FString, Json::TJsonReference<OpenAPI::V2::FSchema>>& NamePropertyPair : InSrcSchema->Properties.GetValue())
+					if (SrcPropertyValue)
 					{
-						const FString& SrcPropertyName = NamePropertyPair.Key;
-						FString SrcPropertyDefinitionName = ProviderSettings.MakeNestedPropertyTypeName(*ModelTypeName.ToString(true), SrcPropertyName);
-						TSharedPtr<OpenAPI::V2::FSchema> SrcPropertyValue = ResolveReference(NamePropertyPair.Value, SrcPropertyDefinitionName);
-
-						if (SrcPropertyValue)
-						{
-							TObjectPtr<UWebAPIProperty>& DstProperty = Model->Properties.Add_GetRef(NewObject<UWebAPIProperty>(Model));
-							PatchProperty(Model->Name,
-								FWebAPINameInfo(NameTransformer(SrcPropertyName), SrcPropertyName, ModelTypeName),
-								SrcPropertyValue,
-								SrcPropertyDefinitionName,
-								DstProperty);
-						}
+						TObjectPtr<UWebAPIProperty>& DstProperty = Model->Properties.Add_GetRef(NewObject<UWebAPIProperty>(Model));
+						PatchProperty(Model->Name,
+							FWebAPINameInfo(NameTransformer(SrcPropertyName), SrcPropertyName, ModelTypeName),
+							SrcPropertyValue,
+							SrcPropertyDefinitionName,
+							DstProperty);
 					}
 				}
-
-				Model->BindToTypeInfo();
-
-				return true;
 			}
 
-			template <>
-			inline bool FWebAPISwaggerSchemaConverter::PatchModel<OpenAPI::V2::FParameter>(const TSharedPtr<OpenAPI::V2::FParameter>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, const TObjectPtr<UWebAPIModel>& OutModel)
+			Model->BindToTypeInfo();
+
+			return true;
+		}
+
+		template <>
+		inline bool FWebAPISwaggerSchemaConverter::PatchModel<OpenAPI::V2::FParameter>(const TSharedPtr<OpenAPI::V2::FParameter>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName, UWebAPIModel* OutModel)
+		{
+			FWebAPITypeNameVariant ModelTypeName;
+			if(InModelTypeName.IsValid() && InModelTypeName.HasTypeInfo())
 			{
-				FWebAPITypeNameVariant ModelTypeName;
-				if(InModelTypeName.IsValid() && InModelTypeName.HasTypeInfo())
-				{
-					ModelTypeName = InModelTypeName;
-				}
-				else if(OutModel->Name.HasTypeInfo())
-				{
-					ModelTypeName = OutModel->Name;
-				}
-				else
-				{
-					const FString ModelName = InSrcSchema->Name;
-					check(!ModelName.IsEmpty());
-
-					ModelTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
-						EWebAPISchemaType::Model,
-						NameTransformer(*ModelName),
-						*ModelName,
-						TEXT("F"));
-				}
-
-				if (!InSrcSchema.IsValid())
-				{
-					FFormatNamedArguments Args;
-					Args.Add(TEXT("ModelName"), FText::FromString(*ModelTypeName.ToString(true)));
-					MessageLog->LogWarning(
-						FText::Format(LOCTEXT("SchemaInvalid",
-								"The schema for model \"{ModelName}\" was invalid/null."),
-							Args),
-						FWebAPISwaggerProvider::LogName);
-					return false;
-				}
-
-				const TObjectPtr<UWebAPIModel>& Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
-
-				const TObjectPtr<UWebAPIModelBase> ModelBase = Model;
-				if (!ConvertModelBase(InSrcSchema, ModelBase))
-				{
-					return false;
-				}
-
-				Model->Name = ModelTypeName;
-
-				Model->BindToTypeInfo();
-
-				return true;
+				ModelTypeName = InModelTypeName;
 			}
-
-			template <typename SchemaType>
-			TObjectPtr<UWebAPIModel> FWebAPISwaggerSchemaConverter::ConvertModel(const TSharedPtr<SchemaType>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName)
+			else if(OutModel && OutModel->Name.HasTypeInfo())
 			{
-				check(InSrcSchema.IsValid());
-
-				FWebAPITypeNameVariant ModelTypeName;
-				if(InModelTypeName.IsValid() && ModelTypeName.HasTypeInfo())
-				{
-					ModelTypeName = InModelTypeName;
-				}
-				else
-				{
-					const FString ModelName = InSrcSchema->Name;
-					check(!ModelName.IsEmpty());
-
-					ModelTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
-						EWebAPISchemaType::Model,
-						NameTransformer(*ModelName),
-						*ModelName,
-						TEXT("F"));
-				}
-				
-				const TObjectPtr<UWebAPIModel>& Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
-				if(PatchModel(InSrcSchema, ModelTypeName, Model))
-				{
-					return Model;
-				}
-
-				return nullptr;
+				ModelTypeName = OutModel->Name;
 			}
-	
+			else
+			{
+				const FString ModelName = InSrcSchema->Name;
+				check(!ModelName.IsEmpty());
+
+				ModelTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
+					EWebAPISchemaType::Model,
+					NameTransformer(*ModelName),
+					*ModelName,
+					TEXT("F"));
+			}
+
+			if (!InSrcSchema.IsValid())
+			{
+				FFormatNamedArguments Args;
+				Args.Add(TEXT("ModelName"), FText::FromString(*ModelTypeName.ToString(true)));
+				MessageLog->LogWarning(
+					FText::Format(LOCTEXT("SchemaInvalid",
+							"The schema for model \"{ModelName}\" was invalid/null."),
+						Args),
+					FWebAPISwaggerProvider::LogName);
+				return false;
+			}
+
+			UWebAPIModel* Model = OutModel ? OutModel : OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
+
+			UWebAPIModelBase* ModelBase = Model;
+			if (!ConvertModelBase<OpenAPI::V2::FParameter, UWebAPIModelBase>(InSrcSchema, ModelBase))
+			{
+				return false;
+			}
+
+			Model->Name = ModelTypeName;
+
+			Model->BindToTypeInfo();
+
+			return true;
+		}
+
+		template <typename SchemaType>
+		TObjectPtr<UWebAPIModel> FWebAPISwaggerSchemaConverter::ConvertModel(const TSharedPtr<SchemaType>& InSrcSchema, const FWebAPITypeNameVariant& InModelTypeName)
+		{
+			check(InSrcSchema.IsValid());
+
+			FWebAPITypeNameVariant ModelTypeName;
+			if(InModelTypeName.IsValid() && ModelTypeName.HasTypeInfo())
+			{
+				ModelTypeName = InModelTypeName;
+			}
+			else
+			{
+				const FString ModelName = InSrcSchema->Name;
+				check(!ModelName.IsEmpty());
+
+				ModelTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
+					EWebAPISchemaType::Model,
+					NameTransformer(*ModelName),
+					*ModelName,
+					TEXT("F"));
+			}
+
+			const TObjectPtr<UWebAPIModel>& Model = OutputSchema->AddModel<UWebAPIModel>(ModelTypeName.TypeInfo.Get());
+			if(PatchModel(InSrcSchema, ModelTypeName, Model))
+			{
+				return Model;
+			}
+
+			return nullptr;
+		}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -198,7 +198,7 @@ namespace UnrealBuildTool
 
 			if (HeadersFile != null)
 			{
-				Task<ClangTrace[]> Tasks = Task.WhenAll(SourceFiles.Select(x => ParseTimingDataFile(x, Logger)));
+				Task<ClangTrace[]> Tasks = Task.WhenAll(SourceFiles.Select(x => ParseTimingDataFileAsync(x, Logger)));
 				Tasks.Wait();
 				List<ClangTrace> ClangTraces = Tasks.Result.ToList();
 
@@ -258,7 +258,7 @@ namespace UnrealBuildTool
 			return Task.FromResult(0);
 		}
 
-		private async Task<ClangTrace> ParseTimingDataFile(FileReference SourceFile, ILogger Logger)
+		private async Task<ClangTrace> ParseTimingDataFileAsync(FileReference SourceFile, ILogger Logger)
 		{
 			if (!ClangTraceCache.ContainsKey(SourceFile))
 			{
@@ -277,7 +277,7 @@ namespace UnrealBuildTool
 
 		private async Task<TraceData> GetTraceData(FileReference SourceFile, ILogger Logger)
 		{
-			ClangTrace Trace = await ParseTimingDataFile(SourceFile, Logger);
+			ClangTrace Trace = await ParseTimingDataFileAsync(SourceFile, Logger);
 			return new TraceData(SourceFile, Trace);
 		}
 	}

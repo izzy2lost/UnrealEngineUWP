@@ -43,12 +43,14 @@ void FDatasmithNativeTranslator::ResolveSceneFilePaths(TSharedRef<IDatasmithScen
 		Mesh->SetFile(*ResolveFilePath(Path, ResourcePaths));
 	}
 
-	for (int32 Index = 0; Index < Scene->GetClothesCount(); ++Index)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (int32 Index = 0; Index < Scene->GetClothesCount(); ++Index)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	{
 		const TSharedPtr<IDatasmithClothElement>& Cloth = Scene->GetCloth(Index);
 		const TCHAR* Path = Cloth->GetFile();
 		Cloth->SetFile(*ResolveFilePath(Path, ResourcePaths));
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (int32 Index = 0; Index < Scene->GetTexturesCount(); ++Index)
 	{
@@ -159,7 +161,8 @@ bool FDatasmithNativeTranslator::LoadLevelSequence(const TSharedRef<IDatasmithLe
 	return false;
 }
 
-bool FDatasmithNativeTranslator::LoadCloth(const TSharedRef<IDatasmithClothElement> ClothElement, FDatasmithClothElementPayload& OutClothPayload)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FDatasmithNativeTranslator::LoadCloth(const TSharedRef<IDatasmithClothElement> ClothElement, FDatasmithClothElementPayload& OutClothPayload)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDatasmithNativeTranslator::LoadCloth);
 
@@ -174,4 +177,5 @@ bool FDatasmithNativeTranslator::LoadCloth(const TSharedRef<IDatasmithClothEleme
 
 	return false;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

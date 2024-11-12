@@ -4,9 +4,10 @@
 #include "Modules/ModuleManager.h"
 #include "Async/ParallelFor.h"
 #include "Serialization/CompactBinaryWriter.h"
-#include "TransferFunctions.h"
-#include "ColorSpace.h"
+#include "ColorManagement/TransferFunctions.h"
+#include "ColorManagement/ColorSpace.h"
 #include "ImageParallelFor.h"
+#include "Tasks/Task.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogImageCore, Log, All);
 
@@ -162,15 +163,29 @@ IMAGECORE_API int32 ImageParallelForComputeNumJobsForRows(int32 & OutNumItemsPer
 template <typename Lambda>
 static void ParallelLoop(const TCHAR* DebugName, int32 NumJobs, int64 TexelsPerJob, int64 NumTexels, const Lambda& Func)
 {
-	ParallelFor(DebugName, NumJobs, 1, [=](int64 JobIndex)
+	if ( NumJobs <= 1 )
 	{
-		const int64 StartIndex = JobIndex * TexelsPerJob;
-		const int64 EndIndex = FMath::Min(StartIndex + TexelsPerJob, NumTexels);
-		for (int64 TexelIndex = StartIndex; TexelIndex < EndIndex; ++TexelIndex)
+		// special case for non-parallel
+		//	this is mainly to avoid making insights traces for this case
+		//	would be nice if ParallelFor just had a very early out for this
+
+		for (int64 TexelIndex = 0; TexelIndex < NumTexels; ++TexelIndex)
 		{
 			Func(TexelIndex);
 		}
-	}, EParallelForFlags::Unbalanced);
+	}
+	else
+	{
+		ParallelFor(DebugName, NumJobs, 1, [=](int64 JobIndex)
+		{
+			const int64 StartIndex = JobIndex * TexelsPerJob;
+			const int64 EndIndex = FMath::Min(StartIndex + TexelsPerJob, NumTexels);
+			for (int64 TexelIndex = StartIndex; TexelIndex < EndIndex; ++TexelIndex)
+			{
+				Func(TexelIndex);
+			}
+		}, EParallelForFlags::Unbalanced);
+	}
 }
 
 // ParallelOr : call Func() on all texels ; returns true if Func is true for any texel
@@ -381,7 +396,8 @@ IMAGECORE_API void FImageCore::CopyImage(const FImageView & SrcImage,const FImag
 		return;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.CopyImage);
+	bool bDoTrace = SrcImage.GetNumPixels() > 16384;
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL("Texture.CopyImage",bDoTrace);
 
 	check(SrcImage.IsImageInfoValid());
 	check(DestImage.IsImageInfoValid());
@@ -391,7 +407,7 @@ IMAGECORE_API void FImageCore::CopyImage(const FImageView & SrcImage,const FImag
 	if ( SrcImage.Format == DestImage.Format &&
 		SrcImage.GammaSpace == DestImage.GammaSpace )
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.CopyImage.memcpy);
+		//TRACE_CPUPROFILER_EVENT_SCOPE(Texture.CopyImage.memcpy);
 
 		int64 Bytes = SrcImage.GetImageSizeBytes();
 		check( DestImage.GetImageSizeBytes() == Bytes );
@@ -730,10 +746,10 @@ IMAGECORE_API void FImageCore::CopyImage(const FImageView & SrcImage,const FImag
 				{
 					int64 SrcIndex = TexelIndex * 4;
 					DestColors[TexelIndex] = FLinearColor(
-						SrcColors[SrcIndex + 0] / 65535.0f,
-						SrcColors[SrcIndex + 1] / 65535.0f,
-						SrcColors[SrcIndex + 2] / 65535.0f,
-						SrcColors[SrcIndex + 3] / 65535.0f
+						SrcColors[SrcIndex + 0] * (1.f/65535.0f),
+						SrcColors[SrcIndex + 1] * (1.f/65535.0f),
+						SrcColors[SrcIndex + 2] * (1.f/65535.0f),
+						SrcColors[SrcIndex + 3] * (1.f/65535.0f)
 					);
 				});
 			}
@@ -863,9 +879,34 @@ IMAGECORE_API void FImageCore::CopyImage(const FImageView & SrcImage,const FImag
 		// Arbitrary conversion, use 32-bit linear float as an intermediate format.
 		// this is unnecessarily expensive to do something like G8 to R16F, but rare
 		// if this shows up as a hot spot, identify the formats using this path and add direct conversions between them
-		FImage TempImage(SrcImage.SizeX, SrcImage.SizeY, SrcImage.NumSlices, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
-		FImageCore::CopyImage(SrcImage, TempImage);
-		FImageCore::CopyImage(TempImage, DestImage);
+
+		if ( SrcImage.GetNumPixels()*16 < 65536 ) // RGBA32F fits in 64K
+		{
+			// whole image temp
+
+			FImage TempImage(SrcImage.SizeX, SrcImage.SizeY, SrcImage.NumSlices, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+			FImageCore::CopyImage(SrcImage, TempImage);
+			FImageCore::CopyImage(TempImage, DestImage);
+		}
+		else
+		{
+			// use per-line temp, not whole image temp!
+
+			ImageParallelFor(TEXT("PF.CopyImage.TempLinear"),SrcImage,[&](const FImageView & SrcImagePart,int64 StartY)
+			{
+				FImage TempRow(SrcImage.SizeX, 1, 1, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+				int64 NumRows = SrcImagePart.SizeY;
+
+				for(int64 RowY = StartY; RowY < StartY+NumRows; RowY++)
+				{
+					FImageView SrcRow  = ImageParallelForGetOneRowView(SrcImage,RowY);
+					FImageView DestRow = ImageParallelForGetOneRowView(DestImage,RowY);
+				
+					FImageCore::CopyImage(SrcRow, TempRow);
+					FImageCore::CopyImage(TempRow,DestRow);
+				}
+			});
+		}
 	}
 }
 
@@ -978,6 +1019,35 @@ void FImage::Init(int32 InSizeX, int32 InSizeY, ERawImageFormat::Type InFormat, 
 /* FImage interface
  *****************************************************************************/
  
+void FImage::FreeData(bool bAsyncDetached)
+{
+	if ( !bAsyncDetached )
+	{
+		RawData.Empty();
+	}
+	else
+	{
+		// do the free on a task, without waiting for it (detached)
+		// but do immediately invalidate the RawData member
+
+		TArray64<uint8>* PtrImageData = new TArray64<uint8> ();
+		::Swap(RawData,*PtrImageData);
+			
+		UE::Tasks::Launch(TEXT("FImage.FreeData.Task"),
+			[PtrImageData]() // by value, not ref
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FImage.FreeData.Task);
+				delete PtrImageData;
+				return true;
+			},
+			LowLevelTasks::ETaskPriority::BackgroundHigh);
+
+		// beware this can cause false out-of-memory conditions
+		//	because the next time an alloc tries to find memory, there may still be pending free tasks
+		//	to fix that, use "robust detached frees"
+	}
+}
+
 void FImage::Swap(FImage & Other)
 {
 	::Swap(RawData,Other.RawData);
@@ -1001,7 +1071,6 @@ void FImage::ChangeFormat(ERawImageFormat::Type DestFormat, EGammaSpace DestGamm
 	{
 		FImage Temp;
 		CopyTo(Temp,DestFormat,DestGammaSpace);
-		//*this = MoveTemp(Temp); // or swap?
 		Swap(Temp);
 	}
 }
@@ -1257,10 +1326,10 @@ void FImage::Linearize(uint8 SourceEncoding, FImage& DestImage) const
 			{
 				int64 SrcIndex = TexelIndex * 4;
 				FLinearColor Color(
-					SrcColors[SrcIndex + 0] / 65535.0f,
-					SrcColors[SrcIndex + 1] / 65535.0f,
-					SrcColors[SrcIndex + 2] / 65535.0f,
-					SrcColors[SrcIndex + 3] / 65535.0f
+					SrcColors[SrcIndex + 0] * (1.f/65535.0f),
+					SrcColors[SrcIndex + 1] * (1.f/65535.0f),
+					SrcColors[SrcIndex + 2] * (1.f/65535.0f),
+					SrcColors[SrcIndex + 3] * (1.f/65535.0f)
 				);
 				Color = DecodeFunction(Color);
 				DestColors[TexelIndex] = SaturateToHalfFloat(Color);
@@ -1314,6 +1383,86 @@ void FImage::Linearize(uint8 SourceEncoding, FImage& DestImage) const
 			});
 			break;
 		}
+	}
+}
+
+
+
+void FMipMapImage::Init(ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace)
+{
+	Format = InFormat;
+	GammaSpace = InGammaSpace;
+	SubImages.Empty();
+	RawData.Empty();
+}
+
+void FMipMapImage::Init(int32 MipZeroWidth, int32 MipZeroHeight, int32 NumMips, ERawImageFormat::Type InFormat, EGammaSpace InGammaSpace)
+{
+	Format = InFormat;
+	GammaSpace = InGammaSpace;
+
+	const int32 BytesPerPixel = ERawImageFormat::GetBytesPerPixel(Format);
+	int64 BufferSizeBytes = 0;
+
+	int32 CurrMipWidth = MipZeroWidth;
+	int32 CurrMipHeight = MipZeroHeight;
+
+	SubImages.Empty(NumMips);
+	
+	do 
+	{
+		const int32 MipSizeBytes = CurrMipWidth * CurrMipHeight * BytesPerPixel;
+		SubImages.Add(FMipInfo{ CurrMipWidth, CurrMipHeight, BufferSizeBytes, MipSizeBytes });
+
+		BufferSizeBytes += MipSizeBytes;
+		CurrMipWidth = CurrMipWidth >> 1;
+		CurrMipHeight = CurrMipHeight >> 1;
+		NumMips--;
+	} while ((NumMips > 0) && (CurrMipWidth > 0) && (CurrMipHeight > 0));
+
+	RawData.Empty(BufferSizeBytes);
+	RawData.AddUninitialized(BufferSizeBytes);
+}
+
+void FMipMapImage::CopyTo(FMipMapImage& DestImage, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace)
+{
+	// if gamma correction is done, it's always *TO* sRGB , not to Pow22
+	// so if Pow22 was requested, change to sRGB
+	// so that Float->int->Float roundtrips correctly
+	if (DestGammaSpace == EGammaSpace::Pow22 && GammaSpace != EGammaSpace::Pow22)
+	{
+		// fix call sites that hit this
+		UE_LOG(LogImageCore, Warning, TEXT("Pow22 should not be used as a Dest GammaSpace.  Pow22 Source should encode to sRGB Dest."));
+		DestGammaSpace = EGammaSpace::sRGB;
+	}
+
+	constexpr int32 MipLevel = 0;
+	int32 Width, Height;
+	if (GetMipDimensions(MipLevel, Width, Height))
+	{
+		// existing contents of DestImage are freed and replaced
+		DestImage.Init(Width, Height, GetMipCount(), DestFormat, DestGammaSpace);
+		ParallelFor(GetMipCount(), [this, &DestImage](int32 MipLevel) 
+		{
+			FImageView SrcMipImageView = GetMipImage(MipLevel);
+			FImageView DestMipImageView = DestImage.GetMipImage(MipLevel);
+			FImageCore::CopyImage(SrcMipImageView, DestMipImageView);
+		});
+	}
+}
+
+void FMipMapImage::ChangeFormat(ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace)
+{
+	if (Format == DestFormat &&
+		(GammaSpace == DestGammaSpace || !ERawImageFormat::GetFormatNeedsGammaSpace(Format)))
+	{
+		// no action needed
+	}
+	else
+	{
+		FMipMapImage Temp;
+		CopyTo(Temp, DestFormat, DestGammaSpace);
+		::Swap(*this, Temp);
 	}
 }
 
@@ -1416,6 +1565,11 @@ IMAGECORE_API bool ERawImageFormat::IsHDR(Type Format)
 	return Format == RGBA16F || Format == RGBA32F || Format == R16F || Format == R32F || Format == BGRE8;
 }
 
+IMAGECORE_API bool ERawImageFormat::HasAlphaChannel(Type Format)
+{
+	return Format == BGRA8 || Format == RGBA16 || Format == RGBA16F || Format == RGBA32F;
+}
+
 IMAGECORE_API const FLinearColor ERawImageFormat::GetOnePixelLinear(const void * PixelData,ERawImageFormat::Type Format,EGammaSpace Gamma)
 {
 	switch(Format)
@@ -1512,6 +1666,11 @@ void FImageCore::SanitizeFloat16AndSetAlphaOpaqueForBC6H(const FImageView & InOu
 
 bool FImageCore::DetectAlphaChannel(const FImageView & InImage)
 {
+	if ( ! HasAlphaChannel(InImage.Format) )
+	{
+		return false;
+	}
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.DetectAlphaChannel);
 
 	// opaque alpha threshold where we'd quantize to < 255 in U8
@@ -1574,17 +1733,10 @@ bool FImageCore::DetectAlphaChannel(const FImageView & InImage)
 			return (ColorPtr[TexelIndex].A.GetFloat() <= FloatNonOpaqueAlpha);
 		});
 	}
-	else if (InImage.Format == ERawImageFormat::G8 ||
-		InImage.Format == ERawImageFormat::BGRE8 ||
-		InImage.Format == ERawImageFormat::G16 ||
-		InImage.Format == ERawImageFormat::R16F ||
-		InImage.Format == ERawImageFormat::R32F)
-	{
-		// source image formats don't have alpha
-	}
 	else
 	{
 		// new format ?
+		//	formats without HasAlphaChannel were previously excluded
 		check(0);
 	}
 
@@ -1666,6 +1818,11 @@ static void SetAlphaOpaque_SingleThreaded(const FImageView & InImage)
 
 void FImageCore::SetAlphaOpaque(const FImageView & InImage)
 {
+	if ( ! HasAlphaChannel(InImage.Format) )
+	{
+		return;
+	}
+
 	ImageParallelFor(TEXT("PF.SetAlphaOpaque"),InImage,[](const FImageView & Part,int64 Row) {
 		SetAlphaOpaque_SingleThreaded(Part);
 	} );
@@ -1831,6 +1988,26 @@ static bool GetFormatSTBIR(ERawImageFormat::Type Format,EGammaSpace GammaSpace,
 	}
 }
 
+static stbir_pixel_layout ChangeToAlphaWeighted(stbir_pixel_layout layout)
+{
+	// incoming layout is not alpha weighted
+
+	// we initially made 4-channel RGBA formats with the _PM flag
+	// to tell STBIR (falsely) that they are pre-multiplied already
+	// that makes STBIR do non-alpha-weighted resize, which is our default
+	// instead now take off the _PM flag
+	// that tells STBIR to do alpha-weighted resize
+
+	switch(layout)
+	{
+	case STBIR_RGBA_PM: return STBIR_RGBA;
+	case STBIR_BGRA_PM: return STBIR_BGRA;
+	default:
+		check(0); // we're only called on 4-channel layouts
+		return layout;
+	}
+}
+
 static bool FilterIsNopWhenSameSize(EResizeImageFilter FilterWithFlags)
 {
 	EResizeImageFilter Filter = FilterWithFlags & EResizeImageFilter::WithoutFlagsMask;
@@ -1848,6 +2025,12 @@ static bool FilterIsNopWhenSameSize(EResizeImageFilter FilterWithFlags)
 		case EResizeImageFilter::CubicGaussian:
 		case EResizeImageFilter::CubicSharp:
 		case EResizeImageFilter::CubicMitchell:
+		case EResizeImageFilter::MitchellOneQuarter:
+		case EResizeImageFilter::MitchellOneSixth:
+		case EResizeImageFilter::MitchellNegOneSixth:
+		case EResizeImageFilter::MitchellNegOneThird:
+		case EResizeImageFilter::Lanczos4:
+		case EResizeImageFilter::Lanczos5:
 			return false;
 
 		default: // all enum values should be explicitly listed above
@@ -1856,7 +2039,99 @@ static bool FilterIsNopWhenSameSize(EResizeImageFilter FilterWithFlags)
 	}
 }
 
-static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 SizeFm,int64 SizeTo,uint32 WrapFlag, stbir_edge & OutStbirEdgeMode)
+// B in [0,5/3]
+//	smaller B = sharper, larger B = blurrier
+//  B = 0 is the catmull-rom interpolating b-spline
+//	B = 1/3 is standard compromise Mitchell
+//  B = 1 is the cubic Gaussian
+// in between pulse_cubic_mitchell_B = lerp( catrom, cubic, B )
+static float pulse_cubic_mitchell_B(const float signed_x,const float B)
+{
+	const float ax = fabsf(signed_x);
+	if (ax<1.f)
+	{
+		return ax*ax* ( ((9/6.f)-(6/6.f)*B)*ax - (15/6.f) + (9/6.f)*B ) + ((6/6.f) - (2/6.f)*B);
+	}
+	else if (ax<2.f)
+	{
+		return ax*ax* ( ((2/6.f)*B - (3/6.f))*ax + ((15/6.f) - (9/6.f)*B) ) + ((12/6.f)*B - (24/6.f))*ax + ((12/6.f) - (4/6.f)*B);
+	}
+	else
+	{
+		return 0.0f;
+	}
+}
+
+// template on integer denominator to make Mitchell filters of various B :
+//	(note denom can be negative but not zero)
+template <int denom> 
+static float my_filter_mitchell_B(float x, float s, void * user_data)
+{
+	const float B = 1.f/denom;
+
+	return pulse_cubic_mitchell_B(x,B);
+}
+
+static float my_pulse_sinc(const float x) 
+{
+	const float pix = (3.141592653590f) * x;
+
+	const float tiny = 1e-4f;
+	if ( fabsf(pix) < tiny )
+	{
+		// Taylor series of sin for x small
+		return 1.f - (pix*pix)*(1/6.f);
+	}
+	else
+	{
+		return sinf(pix) / pix;
+	}
+}
+
+// "support" must match the support function used
+static float my_filter_lanczos(float x, float support)
+{
+	if ( fabsf(x) >= support ) return 0.f; // ? is this necessary, or does STBIR do this already ?
+
+	float pulse = my_pulse_sinc(x);
+	float window = my_pulse_sinc(x * (1.f/support));
+	return pulse * window;
+}
+
+static float my_filter_lanczos4(float x, float s, void * user_data)
+{
+	return my_filter_lanczos(x,2.f);
+}
+static float my_filter_lanczos5(float x, float s, void * user_data)
+{	
+	return my_filter_lanczos(x,2.5f);
+}
+
+static float my_filter_support_two(float s, void * user_data) 
+{
+	return 2;
+}
+static float my_filter_support_twoandhalf(float s, void * user_data) 
+{
+	return 2.5f;
+}
+
+struct stbir_kernel_and_support
+{
+	stbir__kernel_callback * kernel = nullptr;
+	stbir__support_callback * support = nullptr;
+};
+
+static const stbir_kernel_and_support c_my_ks_mitchell_onequarter = { my_filter_mitchell_B<4> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_mitchell_onesixth = { my_filter_mitchell_B<6> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_mitchell_negonesixth = { my_filter_mitchell_B<-6> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_mitchell_negonethird = { my_filter_mitchell_B<-3> , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_lanczos4 = { my_filter_lanczos4 , my_filter_support_two };
+static const stbir_kernel_and_support c_my_ks_lanczos5 = { my_filter_lanczos5 , my_filter_support_twoandhalf };
+
+
+static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 SizeFm,int64 SizeTo,uint32 WrapFlag, stbir_edge & OutStbirEdgeMode,
+	stbir_kernel_and_support & OutCustomKS)
 {
 	if ( SizeFm == SizeTo && FilterIsNopWhenSameSize(FilterWithFlags) )
 	{
@@ -1867,6 +2142,9 @@ static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 Size
 	OutStbirEdgeMode = WrapFlag ? STBIR_EDGE_WRAP : STBIR_EDGE_CLAMP;
 	
 	EResizeImageFilter Filter = FilterWithFlags & EResizeImageFilter::WithoutFlagsMask;
+	
+	//const stbir_filter STBIR_FILTER_OutCustomKS = STBIR_FILTER_OTHER; // <- not allowed
+	const stbir_filter STBIR_FILTER_OutCustomKS = STBIR_FILTER_DEFAULT;
 
 	switch(Filter)
 	{
@@ -1876,6 +2154,25 @@ static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 Size
 		case EResizeImageFilter::CubicSharp: return STBIR_FILTER_CATMULLROM;
 		case EResizeImageFilter::CubicMitchell: return STBIR_FILTER_MITCHELL;
 		case EResizeImageFilter::PointSample: return STBIR_FILTER_POINT_SAMPLE;
+		
+		case EResizeImageFilter::MitchellOneQuarter:
+			OutCustomKS = c_my_ks_mitchell_onequarter;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::MitchellOneSixth:
+			OutCustomKS = c_my_ks_mitchell_onesixth;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::MitchellNegOneSixth:
+			OutCustomKS = c_my_ks_mitchell_negonesixth;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::MitchellNegOneThird:
+			OutCustomKS = c_my_ks_mitchell_negonethird;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::Lanczos4:
+			OutCustomKS = c_my_ks_lanczos4;
+			return STBIR_FILTER_OutCustomKS;
+		case EResizeImageFilter::Lanczos5:
+			OutCustomKS = c_my_ks_lanczos5;
+			return STBIR_FILTER_OutCustomKS;
 
 		case EResizeImageFilter::Default: // AdaptiveSharp matches STBIR_FILTER_DEFAULT
 		case EResizeImageFilter::AdaptiveSharp:
@@ -2000,15 +2297,27 @@ IMAGECORE_API void FImageCore::ResizeImage(const FImageView & SourceImage,const 
 		SourceImage.RawData,SourceImage.SizeX,SourceImage.SizeY,SourceImage.GetBytesPerPixel()*SourceImage.SizeX,
 		DestImage.RawData,DestImage.SizeX,DestImage.SizeY,DestImage.GetBytesPerPixel()*DestImage.SizeX,
 		SourceLayout,SourceDataType);
-
-	stbir_edge StbirEdgeX,StbirEdgeY;
-	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX, (uint32)(Filter & EResizeImageFilter::Flag_WrapX), StbirEdgeX);
-	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY, (uint32)(Filter & EResizeImageFilter::Flag_WrapY), StbirEdgeY);
-
-	stbir_set_filters(&resize, StbirFilterX, StbirFilterY);
+	
+	// we only use STBIR with the same channel count in src and dest
+	//	so questions about how PM/RGBA translate to 1CHANNEL are moot
+	check( SourceNumChannels == DestNumChannels );
+	if ( (uint32)( Filter & EResizeImageFilter::Flag_AlphaWeighted ) && SourceNumChannels == 4 )
+	{
+		SourceLayout = ChangeToAlphaWeighted(SourceLayout);
+		DestLayout = ChangeToAlphaWeighted(DestLayout);
+	}
+	
 	stbir_set_pixel_layouts(&resize,SourceLayout,DestLayout);
 	stbir_set_datatypes(&resize,SourceDataType,DestDataType);
-	stbir_set_edgemodes(&resize, StbirEdgeX, StbirEdgeY);
+
+	stbir_edge StbirEdgeX,StbirEdgeY;
+	stbir_kernel_and_support StbirKSX,StbirKSY;
+	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX, (uint32)(Filter & EResizeImageFilter::Flag_WrapX), StbirEdgeX, StbirKSX);
+	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY, (uint32)(Filter & EResizeImageFilter::Flag_WrapY), StbirEdgeY, StbirKSY);
+
+	stbir_set_edgemodes(&resize, StbirEdgeX, StbirEdgeY);	
+	stbir_set_filters(&resize, StbirFilterX, StbirFilterY);
+	stbir_set_filter_callbacks(&resize,StbirKSX.kernel,StbirKSX.support,StbirKSY.kernel,StbirKSY.support);
 
 	const int32 NumWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
 
@@ -2064,7 +2373,15 @@ IMAGECORE_API void FImageCore::ResizeImageAllocDest(const FImageView & SourceIma
 
 IMAGECORE_API void FImageCore::ResizeImageAllocDest(const FImageView & SourceImage,FImage & DestImage,int32 DestSizeX, int32 DestSizeY, EResizeImageFilter Filter)
 {
-	ResizeImageAllocDest(SourceImage,DestImage,DestSizeX,DestSizeY,SourceImage.Format,SourceImage.GetGammaSpace(),Filter);
+	EGammaSpace DestGammaSpace = SourceImage.GetGammaSpace();
+	
+	// can't write Pow22 :
+	if ( DestGammaSpace == EGammaSpace::Pow22 )
+	{
+		DestGammaSpace = EGammaSpace::sRGB;
+	}
+
+	ResizeImageAllocDest(SourceImage,DestImage,DestSizeX,DestSizeY,SourceImage.Format,DestGammaSpace,Filter);
 }
 
 IMAGECORE_API void FImageCore::ResizeImageInPlace(FImage & Image,int32 DestSizeX, int32 DestSizeY, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace, EResizeImageFilter Filter)
@@ -2094,3 +2411,5 @@ IMAGECORE_API void FImageCore::ResizeImageInPlace(FImage & Image,int32 DestSizeX
 
 //} resize
 //----------------------
+
+

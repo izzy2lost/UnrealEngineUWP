@@ -3,7 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/SWidget.h"
-#include "Engine/MeshMerging.h"
+#include "MeshMerge/MeshProxySettings.h"
 #include "MergeActorsTool.h"
 
 #include "MeshProxyTool.generated.h"

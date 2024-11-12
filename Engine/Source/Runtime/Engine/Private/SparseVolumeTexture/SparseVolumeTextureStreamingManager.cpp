@@ -339,7 +339,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bUseAsy
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SVT::StreamingBeginAsyncUpdate");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SVTStreaming, "SVT::StreamingBeginAsyncUpdate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SVTStreaming);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SVTStreaming);
 	SCOPED_NAMED_EVENT_TEXT("SVT::StreamingBeginAsyncUpdate", FColor::Green);
@@ -512,7 +512,7 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 	}
 	check(AsyncState.bUpdateActive);
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SVT::StreamingEndAsyncUpdate");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SVTStreaming, "SVT::StreamingEndAsyncUpdate");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SVTStreaming);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SVTStreaming);
 	SCOPED_NAMED_EVENT_TEXT("SVT::StreamingEndAsyncUpdate", FColor::Green);
@@ -619,7 +619,7 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 		return;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "SVT::StreamingAddInternal");
+	RDG_EVENT_SCOPE_STAT(GraphBuilder, SVTStreaming, "SVT::StreamingAddInternal");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SVTStreaming);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, SVTStreaming);
 	SCOPED_NAMED_EVENT_TEXT("SVT::StreamingAddInternal", FColor::Green);
@@ -1134,6 +1134,9 @@ void FStreamingManager::IssueRequests()
 	DDCRequestsBlocking.Reserve(TileRangesToStream.Num());
 #endif
 
+	// Indicies into requests we should block on after sending them all
+	TArray<int32> BlockingDiskRequests;
+
 	// Process all tile ranges selected for streaming, allocate a slot in the tile data texture for every tile and finally create IO requests for every range.
 	for (FTileRange& TileRange : TileRangesToStream)
 	{
@@ -1331,6 +1334,11 @@ void FStreamingManager::IssueRequests()
 					Batch.Read(BulkData, ReadOffset, ReadSize);
 					Batch.Issue(PendingRequest.RequestBuffer, Priority, [](FBulkDataRequest::EStatus){}, PendingRequest.Request);
 
+					if (PendingRequest.bBlocking)
+					{
+						BlockingDiskRequests.Add(PendingRequestIndex);
+					}
+
 #if WITH_EDITORONLY_DATA
 					PendingRequest.State = FPendingRequest::EState::Disk;
 #endif
@@ -1346,6 +1354,14 @@ void FStreamingManager::IssueRequests()
 				FrameInfo.StreamingTiles.SetRange(PendingRequest.TileOffset, PendingRequest.TileCount, true);
 			}
 		}
+	}
+
+	// Wait on all blocking disk requests
+	for (int32 PendingRequestIndex : BlockingDiskRequests)
+	{
+		FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+		LOCK_PENDING_REQUEST(PendingRequest);
+		PendingRequest.Request.Wait();
 	}
 
 	// Now we can finally issue the requests
@@ -1860,6 +1876,8 @@ UE::DerivedData::FCacheGetChunkRequest FStreamingManager::BuildDDCRequest(const 
 	const uint32 ReadOffsetInChunk = Resources.StreamingMetaData.TileDataOffsets[FirstTileIndex] - Resources.StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk];
 	const uint32 ReadSizeInChunk = Resources.StreamingMetaData.TileDataOffsets[FirstTileIndex + NumTiles] - Resources.StreamingMetaData.TileDataOffsets[FirstTileIndex];
 	const uint32 ChunkTotalSize = Resources.StreamingMetaData.TileDataOffsets[LastTileIndexInChunkPlusOne] - Resources.StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk];
+
+	checkf(ReadSizeInChunk > 0, TEXT("DDC chunk request sizes must be greater than zero."));
 
 	FCacheGetChunkRequest Request;
 	Request.Id = FValueId(FMemoryView(Resources.DDCChunkIds[ChunkIndex].GetData(), 12));

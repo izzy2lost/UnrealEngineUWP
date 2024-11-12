@@ -85,36 +85,97 @@ namespace ESettingsDOF
 	};
 }
 
+/** Default settings for physics replication using EPhysicsReplicationMode::Resimulation */
+USTRUCT()
+struct FPhysicsReplicationResimulationSettings
+{
+	GENERATED_BODY();
+
+	/** Enable positional error threshold to trigger resimulation */
+	UPROPERTY(config, EditDefaultsOnly, Category = "Replication", Meta = (InlineEditConditionToggle))
+	bool bEnableResimulationErrorPositionThreshold;
+
+	/** Distance in centimeters before a state discrepancy triggers a resimulation */
+	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnableResimulationErrorPositionThreshold"))
+	float ResimulationErrorPositionThreshold;
+
+	/** Enable rotational error threshold to trigger resimulation */
+	UPROPERTY(config, EditDefaultsOnly, Category = "Replication", Meta = (InlineEditConditionToggle))
+	bool bEnableResimulationErrorRotationThreshold;
+
+	/** Rotation difference in degrees before a state discrepancy triggers a resimulation */
+	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnableResimulationErrorRotationThreshold"))
+	float ResimulationErrorRotationThreshold;
+
+	/** Enable linear velocity error threshold to trigger resimulation */
+	UPROPERTY(config, EditDefaultsOnly, Category = "Replication", Meta = (InlineEditConditionToggle))
+	bool bEnableResimulationErrorLinearVelocityThreshold;
+
+	/** Velocity difference in centimeters / second before a state discrepancy triggers a resimulation */
+	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnableResimulationErrorLinearVelocityThreshold"))
+	float ResimulationErrorLinearVelocityThreshold;
+
+	/** Enable angular velocity error threshold to trigger resimulation */
+	UPROPERTY(config, EditDefaultsOnly, Category = "Replication", Meta = (InlineEditConditionToggle))
+	bool bEnableResimulationErrorAngularVelocityThreshold;
+
+	/** Velocity degrees / second before a state discrepancy triggers a resimulation */
+	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnableResimulationErrorAngularVelocityThreshold"))
+	float ResimulationErrorAngularVelocityThreshold;
+
+	FPhysicsReplicationResimulationSettings()
+		: bEnableResimulationErrorPositionThreshold(true)
+		, ResimulationErrorPositionThreshold(10.0f)
+		, bEnableResimulationErrorRotationThreshold(true)
+		, ResimulationErrorRotationThreshold(4.0f)
+		, bEnableResimulationErrorLinearVelocityThreshold(false)
+		, ResimulationErrorLinearVelocityThreshold(5.0f)
+		, bEnableResimulationErrorAngularVelocityThreshold(false)
+		, ResimulationErrorAngularVelocityThreshold(2.0f)
+	{ }
+};
+
+
 /** Physics Prediction Settings */
 USTRUCT()
 struct FPhysicsPredictionSettings
 {
 	GENERATED_BODY();
 
+	/** bEnablePhysicsResimulation has been renamed, please use bEnablePhysicsHistoryCapture*/
+	UPROPERTY(config)
+	bool bEnablePhysicsResimulation_DEPRECATED;
+
+	/** ResimulationErrorThreshold has been renamed and moved, please use FPhysicsReplicationResimulationSettings.ResimulationErrorPositionThreshold*/
+	UPROPERTY(config)
+	float ResimulationErrorThreshold_DEPRECATED;
+
 	/** Enable networked physics prediction (experimental)
-	* Note: If an AActor::PhysicsReplicationMode is set to use Resimulation this will allow physics to cache history which is required by resimulation replication.
-	* Note: This can also affect how physics is solved even when not using resimulation. */
+	* This syncs the physics tick number between client and server and keeps it in sync via time dilation performed on the client, see APlayerController::GetPhysicsTimestamp().
+	* If an AActor::PhysicsReplicationMode is set to use Resimulation this will also enable RewindData to cache physics history on the client which is required by resimulation replication.
+	* IMPORTANT: Physics Prediction needs Physics -> Framerate -> Tick Physics Async enabled to function as intended. */
 	UPROPERTY(EditAnywhere, Category = "Replication")
 	bool bEnablePhysicsPrediction;
 
-	/** Forces the PlayerController to sync inputs as used in Physics Prediction.
-	* Only enable this if actively using a custom solution that needs this enabled for resimulation.
-	* This is automatically enabled when using the recommended NetworkPhysicsComponent on a pawn to handle Rewind / Resimulation. */
-	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnablePhysicsPrediction"))
-	bool bEnablePhysicsResimulation;
-
-	/** Distance in centimeters before a state discrepancy triggers a resimulation */
-	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnablePhysicsPrediction"))
-	float ResimulationErrorThreshold;
+	/** Enables FRewindData to cache physics history
+	* Note: This is not recommended for networked physics unless developing a custom resimulation solution since this starts caching physics on both client and server, 
+	 instead only enable bEnablePhysicsPrediction which will automatically enable FRewindData caching on the client if needed by the chosen replication mode. */
+	UPROPERTY(EditAnywhere, Category = "Replication")
+	bool bEnablePhysicsHistoryCapture;
 
 	/** Amount of RTT (Round Trip Time) latency for the prediction to support in milliseconds. */
-	UPROPERTY(EditAnywhere, Category = "Replication", meta = (editcondition = "bEnablePhysicsPrediction"))
+	UPROPERTY(EditAnywhere, Category = "Replication")
 	float MaxSupportedLatencyPrediction;
 
+	/** Default settings for physics replication using EPhysicsReplicationMode::Resimulation. */
+	UPROPERTY(EditAnywhere, Category = "Replication", meta = (DisplayName = "Default Resimulation Replication Settings (EPhysicsReplicationMode::Resimulation)"))
+	FPhysicsReplicationResimulationSettings ResimulationSettings;
+
 	FPhysicsPredictionSettings()
-		: bEnablePhysicsPrediction(false)
-		, bEnablePhysicsResimulation(false)
-		, ResimulationErrorThreshold(10.0)
+		: bEnablePhysicsResimulation_DEPRECATED(false)
+		, ResimulationErrorThreshold_DEPRECATED(10.0f)
+		, bEnablePhysicsPrediction(false)
+		, bEnablePhysicsHistoryCapture(false)
 		, MaxSupportedLatencyPrediction(1000)
 	{ }
 };
@@ -149,8 +210,8 @@ class UPhysicsSettings : public UPhysicsSettingsCore
 	UPROPERTY(Config, EditAnywhere, Category = Replication, meta = (DisplayName = "Physics Prediction (Experimental)"))
 	FPhysicsPredictionSettings PhysicsPrediction;
 
-	/** Error correction data for replicating simulated physics (rigid bodies) */
-	UPROPERTY(config, EditAnywhere, Category = Replication)
+	/** Default settings for physics replication using EPhysicsReplicationMode::Default */
+	UPROPERTY(config, EditAnywhere, Category = Replication, meta = (DisplayName = "Default Physics Replication Settings (EPhysicsReplicationMode::Default)"))
 	FRigidBodyErrorCorrection PhysicErrorCorrection;
 
 	UPROPERTY(config)

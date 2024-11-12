@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
 
-FWorldPartitionUtils::FSimulateCookedSession::FSimulateCookedSession(UWorld* InWorld)
+FWorldPartitionUtils::FSimulateCookedSession::FSimulateCookedSession(UWorld* InWorld, const FSimulateCookSessionParams& Params)
 	: CookContext(nullptr)
 {
 	UE_CLOG(!InWorld, LogWorldPartition, Error, TEXT("FSimulateCookedSession was given an invalid world."));
@@ -24,14 +24,14 @@ FWorldPartitionUtils::FSimulateCookedSession::FSimulateCookedSession(UWorld* InW
 		WorldPartition = InWorld->GetWorldPartition();
 		if (WorldPartition.IsValid())
 		{
-			SimulateCook();
+			SimulateCook(Params);
 		}
 	}
 
 	UE_CLOG(!IsValid(), LogWorldPartition, Warning, TEXT("FSimulateCookedSession failed to generate streaming."));
 }
 
-bool FWorldPartitionUtils::FSimulateCookedSession::SimulateCook()
+bool FWorldPartitionUtils::FSimulateCookedSession::SimulateCook(const FSimulateCookSessionParams& InParams)
 {
 	check(WorldPartition.IsValid());
 	if (!WorldPartition->CanGenerateStreaming() || IsRunningGame() || WorldPartition->GetWorld()->IsGameWorld() || IsRunningCookCommandlet())
@@ -47,7 +47,10 @@ bool FWorldPartitionUtils::FSimulateCookedSession::SimulateCook()
 	CookContext = new FWorldPartitionCookPackageContext;
 	WorldPartition->BeginCook(*CookContext);
 
-	if (!CookContext->GatherPackagesToCook())
+	FWorldPartitionCookPackageContextParams Params;
+	Params.FilteredClasses = InParams.FilteredClasses;
+
+	if (!CookContext->GatherPackagesToCook(Params))
 	{
 		return false;
 	}
@@ -80,13 +83,11 @@ FWorldPartitionUtils::FSimulateCookedSession::~FSimulateCookedSession()
 				URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = ContentBundle->GetStreamingObject();
 				WorldPartition->RuntimeHash->RemoveExternalStreamingObject(ExternalStreamingObject);
 				// Trash external streaming object
-				ExternalStreamingObject->Rename(*MakeUniqueObjectName(GetTransientPackage(), URuntimeHashExternalStreamingObjectBase::StaticClass()).ToString(), GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+				ExternalStreamingObject->Rename(*MakeUniqueObjectName(GetTransientPackage(), URuntimeHashExternalStreamingObjectBase::StaticClass()).ToString(), GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_DoNotDirty);
 			}
 		}
 
 		WorldPartition->EndCook(*CookContext);
-		WorldPartition->FlushStreaming();
-
 		delete CookContext;
 	}
 }

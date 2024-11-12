@@ -1,7 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.UHT.Utils;
-using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 
@@ -54,8 +53,9 @@ namespace UnrealBuildTool
 			}
 			if (ClangVersion >= new VersionNumber(18))
 			{
-				Arguments.Add("-Wno-deprecated-this-capture");          // https://clang.llvm.org/docs/DiagnosticsReference.html#wdeprecated-this-capture
-				Arguments.Add("-Wno-enum-constexpr-conversion");        // https://clang.llvm.org/docs/DiagnosticsReference.html#wenum-constexpr-conversion
+				Arguments.Add("-Wno-nan-infinity-disabled");            // https://clang.llvm.org/docs/DiagnosticsReference.html#wnan-infinity-disabled					// We use the NAN macro in a few places to initialize floats while we also set -ffast-math, which disables NaN support.
+																																										// It could be easily fixed in the engine, but would create the risk of Win64 building fine and the code failing just on Clang-based platforms.
+																																										// We tend to use NAN just as a bit pattern, and not rely on it in calculations, so it should be reasonably safe to disable.
 			}
 
 			Arguments.Add("-Wno-gnu-string-literal-operator-template"); // https://clang.llvm.org/docs/DiagnosticsReference.html#wgnu-string-literal-operator-template	// We use this feature to allow static FNames.
@@ -115,8 +115,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// Clang 17 suffers from https://github.com/llvm/llvm-project/issues/71976 and should not be used as a preferred version until resolved
-			if (ClangVersion >= new VersionNumber(17))
+			if (ClangVersion >= new VersionNumber(17) && ClangVersion < new VersionNumber(18, 1, 3))
 			{
 				Arguments.Add("-Wno-shadow");
 			}
@@ -130,9 +129,9 @@ namespace UnrealBuildTool
 			}
 
 			// https://clang.llvm.org/docs/DiagnosticsReference.html#wundef
-			if (CompileEnvironment.bEnableUndefinedIdentifierWarnings)
+			if (CompileEnvironment.UndefinedIdentifierWarningLevel != WarningLevel.Off)
 			{
-				Arguments.Add("-Wundef" + (CompileEnvironment.bUndefinedIdentifierWarningsAsErrors ? "" : " -Wno-error=undef"));
+				Arguments.Add("-Wundef" + (CompileEnvironment.UndefinedIdentifierWarningLevel == WarningLevel.Error ? "" : " -Wno-error=undef"));
 			}
 
 			// Note: This should be kept in sync with PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS in ClangPlatformCompilerPreSetup.h
@@ -166,6 +165,17 @@ namespace UnrealBuildTool
 					Arguments.Add("-Wno-" + Warning);
 				}
 			}
+
+			// The code base contains lots of places where we do "extern template X_API class ..." and we want to keep doing that to reduce compile times.
+			Arguments.Add("-Wno-dllexport-explicit-instantiation-decl");
+		}
+
+		internal static void GetHeaderDisabledWarnings(List<string> Arguments)
+		{
+			// This warning was to catch #pragma once inside a source file.
+			// If we're compiling a header directly, we should always have the pragma once, so we need to ignore this warning.
+			Arguments.Add("-Wno-pragma-once-outside-header");
+			Arguments.Add("-Wno-#pragma-messages");
 		}
 
 		// Additional disabled warnings for msvc. Everything below should be checked if it is necessary
@@ -237,6 +247,25 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-logical-not-parentheses");
 			Arguments.Add("-Wno-c++20-extensions");
 			Arguments.Add("-Wno-deprecated-declarations");
+			Arguments.Add("-Wno-shorten-64-to-32");
 		}
+
+		// TODO: Get valid checkers by calling clang -cc1 -analyzer-checker-help
+		static Lazy<Dictionary<string, int>> CheckerAddedVersion = new Lazy<Dictionary<string, int>>(() => new()
+			{
+				{ "core.BitwiseShift", 18 },
+				{ "optin.core.EnumCastOutOfRange", 18 },
+				{ "security.cert.env.InvalidPtr", 18 },
+				{ "unix.Errno", 18 },
+				{ "unix.StdCLibraryFunctions", 18 },
+				{ "cplusplus.ArrayDelete", 19 },
+				{ "optin.taint.TaintedAlloc", 19 },
+				{ "security.PutenvStackArray", 19 },
+				{ "security.SetgidSetuidOrder", 19 },
+				{ "unix.BlockInCriticalSection", 19 },
+				{ "unix.Stream", 19 },
+			});
+
+		internal static bool IsAvailableAnalyzerChecker(string Checker, VersionNumber ClangVersion) => !CheckerAddedVersion.Value.ContainsKey(Checker) || ClangVersion.Components[0] >= CheckerAddedVersion.Value[Checker];
 	}
 }

@@ -8,6 +8,12 @@
 #include "BaseGizmos/TransformGizmoUtil.h"
 #include "BaseGizmos/CombinedTransformGizmo.h"
 
+#include "Drawing/PreviewGeometryActor.h"
+#include "Drawing/ScriptableToolLineSet.h"
+#include "Drawing/ScriptableToolPointSet.h"
+#include "Drawing/ScriptableToolTriangleSet.h"
+
+
 #include "Engine/Font.h"
 #include "ToolDataVisualizer.h"
 #include "CanvasTypes.h"
@@ -15,11 +21,23 @@
 #include "InteractiveGizmoManager.h"
 #include "SceneView.h"
 
+#include "Blueprint/UserWidget.h"
+#include "ContextObjectStore.h"
+#include "Utility/ScriptableToolContextObjects.h"
+#include "Slate/SObjectWidget.h"
+#include "ModelingWidgets/SDraggableBox.h"
+#include "Components/Widget.h"
+
+
 #include "UObject/EnumProperty.h"
 
 #define LOCTEXT_NAMESPACE "UScriptableInteractiveTool"
 
-
+namespace ScriptableInteractiveToolLocals
+{
+	class SScriptableToolViewportOverlayDragContainer : public SObjectWidget
+	{ };
+}
 
 UScriptableInteractiveTool* UScriptableInteractiveToolPropertySet::GetOwningTool(EToolsFrameworkOutcomePins& Outcome)
 {
@@ -186,6 +204,18 @@ void UScriptableInteractiveTool::Setup()
 	RenderHelper = NewObject<UScriptableTool_RenderAPI>();
 	DrawHUDHelper = NewObject<UScriptableTool_HUDAPI>();
 
+	ToolDrawableGeometry = NewObject<UPreviewGeometry>();
+	ToolDrawableGeometry->CreateInWorld(GetWorld(), FTransform::Identity);
+
+	DefaultLineSet = NewObject<UScriptableToolLineSet>();
+	DefaultLineSet->Initialize(ToolDrawableGeometry);
+
+	DefaultPointSet = NewObject<UScriptableToolPointSet>();
+	DefaultPointSet->Initialize(ToolDrawableGeometry);
+
+	DefaultTriangleSet = NewObject<UScriptableToolTriangleSet>();
+	DefaultTriangleSet->Initialize(ToolDrawableGeometry);
+
 	OnScriptSetup();
 }
 
@@ -193,6 +223,24 @@ void UScriptableInteractiveTool::OnTick(float DeltaTime)
 {
 	UInteractiveTool::OnTick(DeltaTime);
 	OnScriptTick(DeltaTime);
+
+	DefaultLineSet->OnTick();
+	for (UScriptableToolLineSet* LineSet : LineSets)
+	{
+		LineSet->OnTick();
+	}
+
+	DefaultPointSet->OnTick();
+	for (UScriptableToolPointSet* PointSet : PointSets)
+	{
+		PointSet->OnTick();
+	}
+
+	DefaultTriangleSet->OnTick();
+	for (UScriptableToolTriangleSet* TriangleSet : TriangleSets)
+	{
+		TriangleSet->OnTick();
+	}
 }
 
 bool UScriptableInteractiveTool::HasAccept() const
@@ -233,6 +281,9 @@ void UScriptableInteractiveTool::Shutdown(EToolShutdownType ShutdownType)
 	RenderHelper = nullptr;
 	DrawHUDHelper = nullptr;
 
+	ToolDrawableGeometry->Disconnect();
+	ToolDrawableGeometry = nullptr;
+
 	UInteractiveTool::Shutdown(ShutdownType);
 }
 
@@ -266,6 +317,45 @@ void UScriptableInteractiveTool::PostInitProperties()
 	}
 }
 
+
+UBaseScriptableToolBuilder* UScriptableInteractiveTool::GetNewCustomToolBuilderInstance(UObject* Outer)
+{
+	switch (ToolStartupRequirements)
+	{
+	case EScriptableToolStartupRequirements::None:
+		return NewObject<UBaseScriptableToolBuilder>(Outer);
+	case EScriptableToolStartupRequirements::ToolTarget:
+	{
+		if (!ToolTargetToolBuilderClass->IsValidLowLevelFast())
+		{
+			return NewObject<UBaseScriptableToolBuilder>(Outer);
+		}
+
+		TObjectPtr<UCustomScriptableToolBuilderContainer> BuilderWrapper = NewObject<UCustomScriptableToolBuilderContainer>(Outer);
+		TObjectPtr<UCustomScriptableToolBuilderComponentBase> InterfacePointer = NewObject<UCustomScriptableToolBuilderComponentBase>(Outer, ToolTargetToolBuilderClass.Get());
+		Cast<UToolTargetScriptableToolBuilder>(InterfacePointer)->Initialize();
+		BuilderWrapper->Initialize(InterfacePointer);
+
+		return BuilderWrapper;
+	}	
+	case EScriptableToolStartupRequirements::Custom:
+	{
+		if (!CustomToolBuilderClass->IsValidLowLevelFast())
+		{
+			return NewObject<UBaseScriptableToolBuilder>(Outer);
+		}
+
+		TObjectPtr<UCustomScriptableToolBuilderContainer> BuilderWrapper = NewObject<UCustomScriptableToolBuilderContainer>(Outer);
+		TObjectPtr<UCustomScriptableToolBuilderComponentBase> InterfacePointer = NewObject<UCustomScriptableToolBuilderComponentBase>(Outer, CustomToolBuilderClass.Get());
+		BuilderWrapper->Initialize(InterfacePointer);
+
+		return BuilderWrapper;
+	}
+	default:
+		ensure(false);
+		return NewObject<UBaseScriptableToolBuilder>(Outer);
+	}
+}
 
 
 void UScriptableInteractiveTool::SetTargetWorld(UWorld* World)
@@ -784,7 +874,7 @@ UScriptableInteractiveToolPropertySet* UScriptableInteractiveTool::WatchProperty
 			[this, ArrayIndex, ArrayProperty, PropertySet]()->uint32 { 
 				const void* ArrayValuePtr = ArrayProperty->ContainerPtrToValuePtr<void>(PropertySet);
 				FScriptArrayHelper ArrayHelper(ArrayProperty, ArrayValuePtr);
-				int32 ElementSize = ArrayProperty->Inner->ElementSize;
+				int32 ElementSize = ArrayProperty->Inner->GetElementSize();
 				int32 NumElements = ArrayHelper.Num();
  				uint32 CRCValue = NumElements;
 				for ( int32 k = 0; k < NumElements; ++k )
@@ -1089,9 +1179,103 @@ void UScriptableInteractiveTool::ClearUserMessages(bool bNotifications, bool bWa
 }
 
 
+void UScriptableInteractiveTool::SetTargets(TArray<TObjectPtr<UToolTarget>> TargetsIn)
+{
+	Targets = TargetsIn;
+}
+
+TArray<UToolTarget*> UScriptableInteractiveTool::GetToolTargets() const
+{
+	return Targets;
+}
 
 
 
+
+UScriptableToolLineSet* UScriptableInteractiveTool::GetDefaultLineSet() const
+{
+	return DefaultLineSet;
+}
+
+
+UScriptableToolLineSet* UScriptableInteractiveTool::AddLineSet()
+{
+	TObjectPtr<UScriptableToolLineSet> LineSet = NewObject<UScriptableToolLineSet>();
+	LineSet->Initialize(ToolDrawableGeometry);
+	LineSets.Add( LineSet );
+	return LineSet;
+}
+
+UScriptableToolPointSet* UScriptableInteractiveTool::GetDefaultPointSet() const
+{
+	return DefaultPointSet;
+}
+
+
+UScriptableToolPointSet* UScriptableInteractiveTool::AddPointSet()
+{
+	TObjectPtr<UScriptableToolPointSet> PointSet = NewObject<UScriptableToolPointSet>();
+	PointSet->Initialize(ToolDrawableGeometry);
+	PointSets.Add(PointSet);
+	return PointSet;
+}
+
+
+UScriptableToolTriangleSet* UScriptableInteractiveTool::GetDefaultTriangleSet() const
+{
+	return DefaultTriangleSet;
+}
+
+
+UScriptableToolTriangleSet* UScriptableInteractiveTool::AddTriangleSet()
+{
+	TObjectPtr<UScriptableToolTriangleSet> TriangleSet = NewObject<UScriptableToolTriangleSet>();
+	TriangleSet->Initialize(ToolDrawableGeometry);
+	TriangleSets.Add(TriangleSet);
+	return TriangleSet;
+}
+
+
+void UScriptableInteractiveTool::SetOverlayWidget(UUserWidget* Widget, bool bMakeDraggable )
+{
+	UContextObjectStore* ContextStore = GetToolManager()->GetContextObjectStore();
+
+	UScriptableToolViewportWidgetAPI* ViewportWidgetAPI = ContextStore->FindContext< UScriptableToolViewportWidgetAPI>();
+	if (ViewportWidgetAPI && Widget)
+	{
+		if (bMakeDraggable)
+		{
+
+			TSharedRef<SWidget> WrappedWidget = Widget->TakeDerivedWidget<ScriptableInteractiveToolLocals::SScriptableToolViewportOverlayDragContainer>([](UUserWidget* Widget, TSharedRef<SWidget> Content) {
+				return SNew(ScriptableInteractiveToolLocals::SScriptableToolViewportOverlayDragContainer, Widget)
+					[
+						SNew(SDraggableBoxOverlay)
+						[
+							Content
+						]
+					];
+				});
+
+			ViewportWidgetAPI->SetOverlayWidget(WrappedWidget);
+
+		}
+		else
+		{
+			ViewportWidgetAPI->SetOverlayWidget(Widget->TakeWidget());
+		}
+	}
+}
+
+void UScriptableInteractiveTool::ClearOverlayWidget()
+{
+	UContextObjectStore* ContextStore = GetToolManager()->GetContextObjectStore();
+
+	UScriptableToolViewportWidgetAPI* ViewportWidgetAPI = ContextStore->FindContext< UScriptableToolViewportWidgetAPI>();
+	if (ViewportWidgetAPI)
+	{
+		ViewportWidgetAPI->ClearOverlayWidget();
+	}
+}
 
 FInputRayHit UScriptableToolsUtilityLibrary::MakeInputRayHit_Miss()
 {

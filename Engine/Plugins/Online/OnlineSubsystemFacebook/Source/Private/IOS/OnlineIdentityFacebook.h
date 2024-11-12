@@ -4,11 +4,12 @@
  
 // Module includes
 #include "OnlineIdentityFacebookCommon.h"
-#include "OnlineAccountFacebookCommon.h"
 #include "OnlineSubsystemFacebookPackage.h"
+#include "OnlineAccountFacebookIOS.h"
 
 #import "FacebookHelper.h"
 
+class FUserOnlineAccountFacebookIOS;
 class FOnlineSubsystemFacebook;
 
 @class FBSDKAccessToken;
@@ -16,7 +17,7 @@ class FOnlineSubsystemFacebook;
 @class FFacebookHelper;
 
 /** iOS implementation of a Facebook user account */
-using FUserOnlineAccountFacebook  = FUserOnlineAccountFacebookCommon;
+using FUserOnlineAccountFacebook  = FUserOnlineAccountFacebookIOS;
 
 /**
  * Facebook service implementation of the online identity interface
@@ -32,6 +33,7 @@ public:
 	//~ Begin IOnlineIdentity Interface	
 	virtual bool Login(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials) override;
 	virtual bool Logout(int32 LocalUserNum) override;
+	virtual FString GetAuthToken(int32 LocalUserNum) const override;
 	//~ End IOnlineIdentity Interface
 
 public:
@@ -57,31 +59,36 @@ PACKAGE_SCOPE:
 	void Shutdown();
 
 	/**
-	 * Login user to Facebook, given a valid access token
+	 * Login user to Facebook using classic login, given a valid access token
 	 *
 	 * @param LocalUserNum local id of the requesting user
 	 * @param AccessToken opaque Facebook supplied access token
 	 */
 	void Login(int32 LocalUserNum, const FString& AccessToken);
 
-private:
+	/**
+	 * Gathers login information from limited login token
+	 *
+	 * @param LocalUserNum local id of the requesting user
+	 */
+	void LoginLimited(int32 LocalUserNum);
 
 	/**
-	 * Delegate called when current permission request completes
+	 * Returns whether we are using classic login or limited login
 	 *
-	 * @param LocalUserNum user that made the request
-	 * @param bWasSuccessful was the request successful
-	 * @param NewPermissions array of all known permissions
+	 * @return true if using classic login. false if using limited login
 	 */
-	void OnRequestCurrentPermissionsComplete(int32 LocalUserNum, bool bWasSuccessful, const TArray<FSharingPermission>& NewPermissions);
+	bool IsUsingClassicLogin() const;
+private:
 
 	/**
 	 * Generic callback for all attempts at login, called to end the attempt
 	 *
 	 * @param local id of the requesting user
+	 * @param bSucceeded was login succesful?
 	 * @param ErrorStr any error as a result of the login attempt
 	 */
-	void OnLoginAttemptComplete(int32 LocalUserNum, const FString& ErrorStr);
+	void OnLoginAttemptComplete(int32 LocalUserNum, bool bSucceeded, const FString& ErrorStr);
 
     virtual void OnFacebookTokenChange(FBSDKAccessToken* OldToken, FBSDKAccessToken* NewToken) override;
     virtual void OnFacebookUserIdChange() override;
@@ -91,10 +98,17 @@ private:
 	FFacebookHelper* FacebookHelper;
 
 	/** The current state of our login */
-	ELoginStatus::Type LoginStatus;
+	ELoginStatus::Type LoginStatus = ELoginStatus::NotLoggedIn;
 
 	/** Config based list of permission scopes to use when logging in */
 	TArray<FString> ScopeFields;
+	
+	/** Did we log in using limited login? */
+	bool bIsUsingClassicLogin = false;
+	
+	/** Did we started a login but didn't finished yet? */
+	bool bIsLoginInProgress = false;
+	 
 };
 
 typedef TSharedPtr<FOnlineIdentityFacebook, ESPMode::ThreadSafe> FOnlineIdentityFacebookPtr;

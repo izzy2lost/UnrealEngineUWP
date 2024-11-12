@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "SBaseRejectionNotification"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SBaseRejectionNotification::Construct(const FArguments& InArgs)
 	{

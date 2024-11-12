@@ -6,6 +6,7 @@
 #include "Features/IPluginsEditorFeature.h"
 
 DECLARE_DELEGATE_OneParam(FOnLaunchReferenceViewer, TSharedPtr<IPlugin>);
+DECLARE_MULTICAST_DELEGATE(FOnPluginDirectoriesChanged);
 
 /**
  * The public interface to this module
@@ -50,6 +51,12 @@ public:
 	 * Allows another module that supplies the plugin reference viewer to launch when requested.
 	 */
 	virtual FOnLaunchReferenceViewer& OnLaunchReferenceViewerDelegate() = 0;
+
+	/** Called when the external plugin directories configuration is modified via the browser. */
+	virtual FOnPluginDirectoriesChanged& OnPluginDirectoriesChanged() = 0;
+
+	/** Can optionally be bound to override the "restart required" button behavior. */
+	virtual FSimpleDelegate& OnRestartClicked() = 0;
 };
 
 

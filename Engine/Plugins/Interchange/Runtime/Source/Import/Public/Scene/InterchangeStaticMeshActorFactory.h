@@ -13,7 +13,7 @@ class AActor;
 class AStaticMeshActor;
 class UInterchangeActorFactoryNode;
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeStaticMeshActorFactory : public UInterchangeActorFactory
 {
 	GENERATED_BODY()
@@ -23,6 +23,8 @@ public:
 	// Interchange factory base interface begin
 
 	virtual UClass* GetFactoryClass() const override;
+
+	virtual void SetupObject_GameThread(const FSetupObjectParams& Arguments) override;
 
 	// Interchange factory base interface end
 	//////////////////////////////////////////////////////////////////////////

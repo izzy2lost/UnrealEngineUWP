@@ -26,10 +26,9 @@ public:
 	virtual const TArray<FAnalyticsEventAttribute>& GetAttributes() const override;
 	virtual void SetStackDepth(uint32 Depth) override;
 	virtual uint32 GetStackDepth() const override;
-	virtual void SetParentSpan(TSharedPtr<IAnalyticsSpan> ParentSpan) override;
-	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const override;
 	virtual double GetDuration() const override;
 	virtual bool GetIsActive() const override;
+	virtual FGuid GetId() const override;
 
 private:
 
@@ -42,8 +41,7 @@ private:
 	double								Duration = 0;
 	bool								IsActive = false;
 	TSharedPtr<IAnalyticsProvider>		AnalyticsProvider;
-	TArray<FAnalyticsEventAttribute>	Attributes;
-	TWeakPtr<IAnalyticsSpan>			ParentSpan;
+	TArray<FAnalyticsEventAttribute>	Attributes;;
 };
 
 /**
@@ -61,7 +59,6 @@ public:
 	virtual void EndSession() override;
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) override;
 	virtual TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
-	virtual bool StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual bool EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual TSharedPtr<IAnalyticsSpan> GetCurrentSpan() const override;
 	virtual TSharedPtr<IAnalyticsSpan> GetSessionSpan() const override;
@@ -72,11 +69,15 @@ private:
 	bool StartSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
 	bool EndSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
 	TSharedPtr<IAnalyticsSpan> GetSpanInternal(const FName Name);
+	void BeginRegion(TSharedPtr<IAnalyticsSpan> Span);
+	void EndRegion(TSharedPtr<IAnalyticsSpan> Span);
 
-	TSharedPtr<IAnalyticsProvider>			AnalyticsProvider;	// The Analytics provider we will send our span events to
-	TSharedPtr<IAnalyticsSpan>				SessionSpan;		// The root span, this will always be present in an active session
-	TArray<TSharedPtr<IAnalyticsSpan>>		ActiveSpanStack;	// Stack of active spans as WeakPtrs
-	FCriticalSection						CriticalSection;	
+	TSharedPtr<IAnalyticsProvider>					AnalyticsProvider;	// The Analytics provider we will send our span events to
+	TSharedPtr<IAnalyticsSpan>						SessionSpan;		// The root span, this will always be present in an active session
+	TArray<TSharedPtr<IAnalyticsSpan>>				ActiveSpanStack;	// Stack of active spans as WeakPtrs
+	TMap<FGuid, TArray<TWeakPtr<IAnalyticsSpan>>>	SpanHeirarchy;		// List of child spans per parent span
+	TMap<FName, FGuid>								RegionNames;		// Temprorary fix for duplicate span names in regions	
+	FCriticalSection								CriticalSection;	
 };
 
 

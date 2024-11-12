@@ -35,7 +35,9 @@ struct SCENEOUTLINER_API FActorModeParams
 {
 	FActorModeParams() {}
 
-	FActorModeParams(SSceneOutliner* InSceneOutliner, const TWeakObjectPtr<UWorld>& InSpecifiedWorldToDisplay = nullptr, bool bInHideComponents = true, bool bInHideLevelInstanceHierarchy = true, bool bInHideUnloadedActors = true, bool bInHideEmptyFolders = true, bool bInCanInteractWithSelectableActorsOnly = true)
+	FActorModeParams(SSceneOutliner* InSceneOutliner, const TWeakObjectPtr<UWorld>& InSpecifiedWorldToDisplay = nullptr, bool bInHideComponents = true,
+		bool bInHideLevelInstanceHierarchy = true, bool bInHideUnloadedActors = true, bool bInHideEmptyFolders = true,
+		bool bInCanInteractWithSelectableActorsOnly = true, bool binSearchComponentsByActorName = false)
 		: SpecifiedWorldToDisplay(InSpecifiedWorldToDisplay)
 		, SceneOutliner(InSceneOutliner)
 		, bHideComponents(bInHideComponents)
@@ -43,6 +45,7 @@ struct SCENEOUTLINER_API FActorModeParams
 		, bHideUnloadedActors(bInHideUnloadedActors)
 		, bHideEmptyFolders(bInHideEmptyFolders)
 		, bCanInteractWithSelectableActorsOnly(bInCanInteractWithSelectableActorsOnly)
+		, bSearchComponentsByActorName(binSearchComponentsByActorName)
 	{}
 
 	TWeakObjectPtr<UWorld> SpecifiedWorldToDisplay = nullptr;
@@ -53,6 +56,8 @@ struct SCENEOUTLINER_API FActorModeParams
 	bool bHideUnloadedActors = true;
 	bool bHideEmptyFolders = true;
 	bool bCanInteractWithSelectableActorsOnly = true;
+	bool bShouldUpdateContentWhileInPIEFocused = false;
+	bool bSearchComponentsByActorName = false;
 };
 
 class SCENEOUTLINER_API FActorMode : public ISceneOutlinerMode
@@ -83,6 +88,7 @@ public:
 	virtual FFolder::FRootObject GetPasteTargetRootObject() const override;
 
 	virtual bool CanInteract(const ISceneOutlinerTreeItem& Item) const override;
+	virtual bool CanPopulate() const override;
 	
 	virtual TSharedPtr<FDragDropOperation> CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const override;
 	virtual bool ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const override;
@@ -102,12 +108,15 @@ private:
 
 protected:
 	void SynchronizeActorSelection();
-	bool IsActorDisplayable(const AActor* InActor) const;
+	virtual bool IsActorDisplayable(const AActor* InActor) const;
 
 	/** Set the Scene Outliner attached to this mode as the most recently used outliner in the Level Editor */
 	void SetAsMostRecentOutliner() const;
 
 	virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;
+
+	// Called when actors are attached to a parent actor via drag and drop
+	virtual void OnActorsAttached(AActor* ParentActor, TArray<TWeakObjectPtr<AActor>> ChildActors) const {}
 	
 	FFolder GetWorldDefaultRootFolder() const;
 protected:
@@ -133,4 +142,10 @@ protected:
 	bool bAlwaysFrameSelection;
 	/** If True, CanInteract will be restricted to selectable actors only. */
 	bool bCanInteractWithSelectableActorsOnly;
+	/** Should we update content when in PIE and the PIE viewport has focus. */
+	bool bShouldUpdateContentWhileInPIEFocused;
+	/** If true and bHideComponents is false, components will be shown if the owning actor is searched for even if the search text does not match
+	 * the components
+	 */
+	bool bSearchComponentsByActorName;
 };

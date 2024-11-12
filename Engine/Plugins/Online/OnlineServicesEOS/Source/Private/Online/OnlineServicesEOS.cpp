@@ -11,8 +11,8 @@
 
 namespace UE::Online {
 
-FOnlineServicesEOS::FOnlineServicesEOS(FName InInstanceName)
-	: Super(InInstanceName)
+FOnlineServicesEOS::FOnlineServicesEOS(FName InInstanceName, FName InInstanceConfigName)
+	: Super(InInstanceName, InInstanceConfigName)
 {
 }
 

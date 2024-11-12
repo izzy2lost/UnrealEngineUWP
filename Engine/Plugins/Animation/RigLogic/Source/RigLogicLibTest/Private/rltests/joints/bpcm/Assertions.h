@@ -4,9 +4,22 @@
 
 #include "rltests/Defs.h"
 
-#include "riglogic/joints/bpcm/Evaluator.h"
+#include "riglogic/joints/cpu/CPUJointsEvaluator.h"
+#include "riglogic/joints/cpu/bpcm/BPCMJointsEvaluator.h"
 
 namespace rl4 {
+
+struct CPUJointsEvaluator::Accessor {
+
+    static JointsEvaluator* getBPCMEvaluator(CPUJointsEvaluator* parent) {
+        return parent->bpcmEvaluator.get();
+    }
+
+    static JointsEvaluator* getQuaternionEvaluator(CPUJointsEvaluator* parent) {
+        return parent->quaternionEvaluator.get();
+    }
+
+};
 
 namespace bpcm {
 
@@ -17,6 +30,8 @@ struct Evaluator<TValue>::Accessor {
         ASSERT_EQ(result.storage.inputIndices, expected.storage.inputIndices);
         ASSERT_EQ(result.storage.outputIndices, expected.storage.outputIndices);
         ASSERT_EQ(result.storage.values, expected.storage.values);
+        ASSERT_EQ(result.storage.outputRotationIndices, expected.storage.outputRotationIndices);
+        ASSERT_EQ(result.storage.outputRotationLODs, expected.storage.outputRotationLODs);
     }
 
     static void assertJointGroupsEqual(const Evaluator<TValue>& result, const Evaluator<TValue>& expected) {
@@ -30,6 +45,8 @@ struct Evaluator<TValue>::Accessor {
             ASSERT_EQ(jointGroup.inputIndicesSizeAlignedTo8, expectedJointGroup.inputIndicesSizeAlignedTo8);
             ASSERT_EQ(jointGroup.lodsOffset, expectedJointGroup.lodsOffset);
             ASSERT_EQ(jointGroup.outputIndicesOffset, expectedJointGroup.outputIndicesOffset);
+            ASSERT_EQ(jointGroup.outputRotationIndicesOffset, expectedJointGroup.outputRotationIndicesOffset);
+            ASSERT_EQ(jointGroup.outputRotationLODsOffset, expectedJointGroup.outputRotationLODsOffset);
             ASSERT_EQ(jointGroup.valuesOffset, expectedJointGroup.valuesOffset);
             ASSERT_EQ(jointGroup.valuesSize, expectedJointGroup.valuesSize);
         }
@@ -41,9 +58,8 @@ struct Evaluator<TValue>::Accessor {
             const auto& lodRegion = result.storage.lodRegions[lod];
             const auto& expectedLodRegion = expected.storage.lodRegions[lod];
             ASSERT_EQ(lodRegion.size, expectedLodRegion.size);
-            ASSERT_EQ(lodRegion.sizeAlignedToLastFullBlock, expectedLodRegion.sizeAlignedToLastFullBlock);
-            ASSERT_EQ(lodRegion.sizeAlignedToSecondLastFullBlock,
-                      expectedLodRegion.sizeAlignedToSecondLastFullBlock);
+            ASSERT_EQ(lodRegion.sizePaddedToLastFullBlock, expectedLodRegion.sizePaddedToLastFullBlock);
+            ASSERT_EQ(lodRegion.sizePaddedToSecondLastFullBlock, expectedLodRegion.sizePaddedToSecondLastFullBlock);
         }
     }
 

@@ -29,5 +29,5 @@ private:
 private:
 	TWeakPtr<SWidget> PermutationSelector;
 	FMediaIOConfiguration SelectedConfiguration;
-	bool bAutoDetectFormat = true;
+	bool bAutoDetectFormat = false;
 };

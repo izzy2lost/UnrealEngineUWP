@@ -207,6 +207,21 @@ struct FMergeEdgesInfo
 	// Even more Removed and Kept edges, in cases where there were multiple such edges on one or both sides of the merged edge
 	// Only possible if the pre-merge mesh had non-manifold vertices (aka bowties), in almost all meshes these arrays will be empty
 	TArray<int, TInlineAllocator<4>> BowtiesRemovedEdges, BowtiesKeptEdges;
+
+	double InterpolationT = 0;	// Interpolation parameter for each kept vertex in range [0,1] where 0 => KeptVertex and 1 => RemovedVertex
+};
+
+/** Information about mesh elements modified by MergeVertices() */
+struct FMergeVerticesInfo
+{
+	int KeptVertex;				// the vertex that was kept
+	int RemovedVertex;			// the vertex that was removed
+	double InterpolationT = 0;	// Interpolation parameter for the kept vertex in range [0,1] where 0 => KeptVertex and 1 => RemovedVertex
+
+	// If the merge resolves as an edge collapse, the information is stored here
+	TOptional<FEdgeCollapseInfo> EdgeCollapseInfo;
+	// If the merge resolves as an edge weld, the information is stored here
+	TOptional<FMergeEdgesInfo> MergeEdgesInfo;
 };
 
 /** Information about mesh elements modified/created by PokeTriangle() */

@@ -166,14 +166,35 @@ static inline FErrorDetail PostError(IPlayerSessionServices* InPlayerSessionServ
 }
 
 
-
-class FErrorReporter
-{
-public:
-	FErrorReporter();
-	~FErrorReporter();
-};
-
+#define ELECTRA_CLASS_DEFAULT_ERROR_METHODS(SessionService, ErrorFacility)															\
+inline FErrorDetail CreateError(const FString& InMessage, uint16 InCode)															\
+{																																	\
+	FErrorDetail Error;																												\
+	Error.SetError(UEMEDIA_ERROR_DETAIL);																							\
+	Error.SetFacility(Facility::EFacility::ErrorFacility);																			\
+	Error.SetCode(InCode);																											\
+	Error.SetMessage(InMessage);																									\
+	return Error;																													\
+}																																	\
+inline FErrorDetail CreateErrorAndLog(const FString& InMessage, uint16 InCode)														\
+{																																	\
+	FErrorDetail Error = CreateError(InMessage, InCode);																			\
+	SessionService->PostLog(Facility::EFacility::ErrorFacility, IInfoLog::ELevel::Error, Error.GetPrintable());						\
+	return Error;																													\
+}																																	\
+inline void LogMessage(IInfoLog::ELevel InLevel, const FString& InMessage)															\
+{																																	\
+	SessionService->PostLog(Facility::EFacility::ErrorFacility, InLevel, InMessage);												\
+}																																	\
+inline FErrorDetail PostError(const FErrorDetail& InError)																			\
+{																																	\
+	SessionService->PostError(InError);																								\
+	return InError;																													\
+}																																	\
+inline FErrorDetail PostError(const FString& InMessage, uint16 InCode)																\
+{																																	\
+	return PostError(CreateError(InMessage, InCode));																				\
+}
 
 
 } // namespace Electra

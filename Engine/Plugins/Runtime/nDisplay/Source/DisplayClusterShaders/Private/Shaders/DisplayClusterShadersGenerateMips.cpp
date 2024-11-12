@@ -7,20 +7,15 @@
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 
-bool FDisplayClusterShadersGenerateMips::GenerateMips(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InOutMipsTexture, const FDisplayClusterShaderParameters_GenerateMips& InSettings)
+bool FDisplayClusterShadersGenerateMips::GenerateMips(FRHICommandListImmediate& RHICmdList, FRHITexture* InOutMipsTexture, const FDisplayClusterShaderParameters_GenerateMips& InSettings)
 {
-	check(IsInRenderingThread());
-
 	if (InSettings.IsEnabled())
 	{
 		check(InOutMipsTexture);
 
-		//const EGenerateMipsPass GenerateMipsPass = EGenerateMipsPass::Compute;
 		FGenerateMipsParams GenerateMipsParams{ InSettings.MipsSamplerFilter == TF_Nearest ? SF_Point : (InSettings.MipsSamplerFilter == TF_Trilinear ? SF_Trilinear : SF_Bilinear),
 			InSettings.MipsAddressU == TA_Wrap ? AM_Wrap : (InSettings.MipsAddressU == TA_Mirror ? AM_Mirror : AM_Clamp),
 			InSettings.MipsAddressV == TA_Wrap ? AM_Wrap : (InSettings.MipsAddressV == TA_Mirror ? AM_Mirror : AM_Clamp) };
-
-		check(&RHICmdList == &FRHICommandListExecutor::GetImmediateCommandList());
 		
 		FRDGBuilder GraphBuilder(RHICmdList);
 		TRefCountPtr<IPooledRenderTarget> PoolRenderTarget = CreateRenderTarget(InOutMipsTexture, TEXT("nDisplayViewportMips"));

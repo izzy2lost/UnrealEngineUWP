@@ -195,6 +195,28 @@ namespace CrossCompiler
 		Half3x4,
 		Half4x4,
 
+		Min16Float,
+		Min16Float1,
+		Min16Float2,
+		Min16Float3,
+		Min16Float4,
+		Min16Float1x1,
+		Min16Float2x1,
+		Min16Float3x1,
+		Min16Float4x1,
+		Min16Float1x2,
+		Min16Float2x2,
+		Min16Float3x2,
+		Min16Float4x2,
+		Min16Float1x3,
+		Min16Float2x3,
+		Min16Float3x3,
+		Min16Float4x3,
+		Min16Float1x4,
+		Min16Float2x4,
+		Min16Float3x4,
+		Min16Float4x4,
+
 		Float,
 		Float1,
 		Float2,
@@ -282,6 +304,8 @@ namespace CrossCompiler
 		Literal,
 		BoolConstant,
 		StringConstant,	// C-style "string"
+		StaticAssert, // _Static_assert (HLSL), static_assert (C++11)
+		C99Pragma, // _Pragma (C99/C++11)
 	};
 
 	enum class ELiteralType

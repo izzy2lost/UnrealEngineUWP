@@ -14,21 +14,29 @@
 #include "DMXEditorSettings.h"
 #include "DMXEditorUtils.h"
 #include "Editor.h"
+#include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/Controllers/DMXControlConsoleMatrixCellController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Models/DMXControlConsoleCompactEditorModel.h"
+#include "Models/DMXControlConsoleCueStackModel.h"
 #include "Models/DMXControlConsoleEditorModel.h"
+#include "Models/DMXControlConsoleEditorPlayMenuModel.h"
 #include "ScopedTransaction.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
+#include "Views/SDMXControlConsoleEditorCueStackView.h"
 #include "Views/SDMXControlConsoleEditorDetailsView.h"
 #include "Views/SDMXControlConsoleEditorDMXLibraryView.h"
 #include "Views/SDMXControlConsoleEditorFiltersView.h"
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "ToolMenus.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorToolkit"
@@ -39,6 +47,7 @@ namespace UE::DMX::Private
 	const FName FDMXControlConsoleEditorToolkit::LayoutViewTabID(TEXT("DMXControlConsoleEditorToolkit_LayoutViewTabID"));
 	const FName FDMXControlConsoleEditorToolkit::DetailsViewTabID(TEXT("DMXControlConsoleEditorToolkit_DetailsViewTabID"));
 	const FName FDMXControlConsoleEditorToolkit::FiltersViewTabID(TEXT("DMXControlConsoleEditorToolkit_FiltersViewTabID"));
+	const FName FDMXControlConsoleEditorToolkit::CueStackViewTabID(TEXT("DMXControlConsoleEditorToolkit_CueStackViewTabID"));
 
 	FDMXControlConsoleEditorToolkit::FDMXControlConsoleEditorToolkit()
 		: ControlConsole(nullptr)
@@ -47,16 +56,26 @@ namespace UE::DMX::Private
 
 	FDMXControlConsoleEditorToolkit::~FDMXControlConsoleEditorToolkit()
 	{
-		StopPlayingDMX();
+		UDMXControlConsoleData* ControlConsoleData = ControlConsole ? ControlConsole->GetControlConsoleData() : nullptr;
+		if (ControlConsoleData && ControlConsoleData->IsSendingDMX() && bStopSendingDMXOnDestruct)
+		{
+			ControlConsoleData->StopSendingDMX();
+		}
 	}
 
 	void FDMXControlConsoleEditorToolkit::InitControlConsoleEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UDMXControlConsole* InControlConsole)
 	{
 		checkf(InControlConsole, TEXT("Invalid control console, can't initialize toolkit correctly."));
+
 		ControlConsole = InControlConsole;
 
 		EditorModel = NewObject<UDMXControlConsoleEditorModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
-		EditorModel->Initialize(SharedThis(this));
+		EditorModel->Initialize(ControlConsole);
+
+		PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+		PlayMenuModel->Initialize(ControlConsole, GetToolkitCommands());
+
+		CueStackModel = MakeShared<FDMXControlConsoleCueStackModel>(ControlConsole);
 
 		UDMXEditorSettings* DMXEditorSettings = GetMutableDefault<UDMXEditorSettings>();
 		if (DMXEditorSettings)
@@ -228,22 +247,26 @@ namespace UE::DMX::Private
 
 		const FScopedTransaction ClearAllTransaction(LOCTEXT("ClearAllTransaction", "Clear All"));
 		ActiveLayout->PreEditChange(nullptr);
-		ActiveLayout->ClearAll();
+
+		constexpr bool bClearPatchedControllers = true;
+		bool bClearUnpatchedControllers = true;
+		ActiveLayout->ClearAll(bClearPatchedControllers, bClearUnpatchedControllers);
 		if (ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
-			constexpr bool bClearOnlyPatchedControllers = true;
+			bClearUnpatchedControllers = false;
 			const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 			for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 			{
 				UserLayout->PreEditChange(nullptr);
-				UserLayout->ClearAll(bClearOnlyPatchedControllers);
+				UserLayout->ClearAll(bClearPatchedControllers, bClearUnpatchedControllers);
 				UserLayout->PostEditChange();
 			}
 
 			if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
 			{
 				ControlConsoleData->PreEditChange(nullptr);
-				ControlConsoleData->Clear(bClearOnlyPatchedControllers);
+				constexpr bool bClearPatchedFaderGroups = true;
+				ControlConsoleData->Clear(bClearPatchedFaderGroups);
 				ControlConsoleData->PostEditChange();
 			}
 		}
@@ -287,8 +310,9 @@ namespace UE::DMX::Private
 					Fader->Modify();
 				}
 
-				ElementController->Modify();
+				ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
 				ElementController->ResetToDefault();
+				ElementController->PostEditChange();
 			}
 		}
 
@@ -347,6 +371,47 @@ namespace UE::DMX::Private
 		}
 	}
 
+	void FDMXControlConsoleEditorToolkit::Reload()
+	{
+		// Don't allow asset reload during PIE
+		if (GIsPlayInEditorWorld)
+		{
+			FNotificationInfo Notification(LOCTEXT("CannotReloadAssetInPIE", "Assets cannot be reloaded while in PIE."));
+			Notification.ExpireDuration = 3.0f;
+			FSlateNotificationManager::Get().AddNotification(Notification);
+			return;
+		}
+
+		if (ControlConsole)
+		{
+			const TArray<UPackage*> PackagesToReload({ ControlConsole->GetOutermost() });
+			UPackageTools::ReloadPackages(PackagesToReload);
+		}
+	}
+
+	void FDMXControlConsoleEditorToolkit::ShowCompactEditor()
+	{
+		const FDMXControlConsoleEditorModule& EditorModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
+		if (const TSharedPtr<SDockTab> CompactEditorTab = EditorModule.GetCompactEditorTab())
+		{		
+			// In the odd case that the compact editor window was docked to this editor, close it so it undocks, then reopen it.
+			if (CompactEditorTab->GetTabManagerPtr() == GetTabManager())
+			{
+				CompactEditorTab->RequestCloseTab();
+			}
+		}
+		
+		if (ControlConsole)
+		{
+			bSwitchingToCompactEditor = true;
+			 
+			CloseWindow(EAssetEditorCloseReason::AssetEditorHostClosed);
+
+			UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetMutableDefault<UDMXControlConsoleCompactEditorModel>();
+			CompactEditorModel->SetControlConsole(ControlConsole);
+		}
+	}
+
 	void FDMXControlConsoleEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 	{
 		WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_ControlConsoleEditor", "DMX Control Console Editor"));
@@ -373,6 +438,11 @@ namespace UE::DMX::Private
 			.SetDisplayName(LOCTEXT("Tab_FiltersView", "Filters"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Filter"));
+
+		InTabManager->RegisterTabSpawner(CueStackViewTabID, FOnSpawnTab::CreateSP(this, &FDMXControlConsoleEditorToolkit::SpawnTab_CueStackView))
+			.SetDisplayName(LOCTEXT("Tab_CueStackView", "Cue Stack"))
+			.SetGroup(WorkspaceMenuCategoryRef)
+			.SetIcon(FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.CueStack"));
 	}
 
 	void FDMXControlConsoleEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -383,6 +453,7 @@ namespace UE::DMX::Private
 		InTabManager->UnregisterTabSpawner(LayoutViewTabID);
 		InTabManager->UnregisterTabSpawner(DetailsViewTabID);
 		InTabManager->UnregisterTabSpawner(FiltersViewTabID);
+		InTabManager->UnregisterTabSpawner(CueStackViewTabID);
 	}
 
 	const FSlateBrush* FDMXControlConsoleEditorToolkit::GetDefaultTabIcon() const
@@ -409,6 +480,7 @@ namespace UE::DMX::Private
 	{
 		Collector.AddReferencedObject(EditorModel);
 		Collector.AddReferencedObject(ControlConsole);
+		Collector.AddReferencedObject(PlayMenuModel);
 	}
 
 	FString FDMXControlConsoleEditorToolkit::GetReferencerName() const
@@ -418,15 +490,18 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolkit::InitializeInternal(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, const FGuid& MessageLogGuid)
 	{
-		if (!ControlConsole)
+		const UDMXControlConsoleData* ControlConsoleData = ControlConsole ? ControlConsole->GetControlConsoleData() : nullptr;
+		if (!ControlConsole || !ControlConsoleData)
 		{
 			return;
 		}
 
+		bStopSendingDMXOnDestruct = !ControlConsoleData->IsSendingDMX();
+
 		ExtendToolbar();
 		GenerateInternalViews();
 
-		TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_ControlConsole_Layout_1.5")
+		TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_ControlConsole_Layout_2.5")
 			->AddArea
 			(
 				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
@@ -452,7 +527,12 @@ namespace UE::DMX::Private
 						->AddTab(DetailsViewTabID, ETabState::SidebarTab, ESidebarLocation::Right, .2f)
 						->SetSizeCoefficient(.2f)
 					)
-
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(CueStackViewTabID, ETabState::SidebarTab, ESidebarLocation::Right, .2f)
+						->SetSizeCoefficient(.2f)
+					)
 					->Split
 					(
 						FTabManager::NewStack()
@@ -477,6 +557,7 @@ namespace UE::DMX::Private
 		GenerateLayoutView();
 		GenerateDetailsView();
 		GenerateFiltersView();
+		GenerateCueStackView();
 	}
 
 	TSharedRef<SDMXControlConsoleEditorDMXLibraryView> FDMXControlConsoleEditorToolkit::GenerateDMXLibraryView()
@@ -517,6 +598,16 @@ namespace UE::DMX::Private
 		}
 
 		return FiltersView.ToSharedRef();
+	}
+
+	TSharedRef<SDMXControlConsoleEditorCueStackView> FDMXControlConsoleEditorToolkit::GenerateCueStackView()
+	{
+		if (!CueStackView.IsValid() && CueStackModel.IsValid())
+		{
+			CueStackView = SNew(SDMXControlConsoleEditorCueStackView, CueStackModel);
+		}
+
+		return CueStackView.ToSharedRef();
 	}
 
 	TSharedRef<SDockTab> FDMXControlConsoleEditorToolkit::SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args)
@@ -571,90 +662,21 @@ namespace UE::DMX::Private
 		return SpawnedTab;
 	}
 
+	TSharedRef<SDockTab> FDMXControlConsoleEditorToolkit::SpawnTab_CueStackView(const FSpawnTabArgs& Args)
+	{
+		check(Args.GetTabId() == CueStackViewTabID);
+
+		const TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+			.Label(LOCTEXT("CueStackViewTabID", "Cue Stack"))
+			[
+				CueStackView.ToSharedRef()
+			];
+
+		return SpawnedTab;
+	}
+
 	void FDMXControlConsoleEditorToolkit::SetupCommands()
 	{
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().PlayDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::PlayDMX),
-			FCanExecuteAction::CreateLambda([this]
-				{
-					return !IsPlayingDMX() && !bPaused;
-				}),
-			FIsActionChecked(),
-			FIsActionButtonVisible::CreateLambda([this]
-				{
-					return !IsPlayingDMX() && !bPaused;
-				})
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().PauseDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::PauseDMX),
-			FCanExecuteAction::CreateLambda([this]
-				{
-					return IsPlayingDMX();
-				}),
-			FIsActionChecked(),
-			FIsActionButtonVisible::CreateLambda([this]
-				{
-					return IsPlayingDMX();
-				})
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().ResumeDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::PlayDMX),
-			FCanExecuteAction::CreateLambda([this]
-				{
-					return !IsPlayingDMX() && bPaused;
-				}),
-			FIsActionChecked(),
-			FIsActionButtonVisible::CreateLambda([this]
-				{
-					return !IsPlayingDMX() && bPaused;
-				})
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().StopDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::StopPlayingDMX),
-			FCanExecuteAction::CreateLambda([this]
-				{
-					return IsPlayingDMX() || bPaused;
-				})
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().TogglePlayPauseDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::TogglePlayPauseDMX)
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().TogglePlayStopDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::TogglePlayStopDMX)
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().EditorStopKeepsLastValues,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::SetStopDMXMode, EDMXControlConsoleStopDMXMode::DoNotSendValues),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode, EDMXControlConsoleStopDMXMode::DoNotSendValues)
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().EditorStopSendsDefaultValues,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::SetStopDMXMode, EDMXControlConsoleStopDMXMode::SendDefaultValues),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode, EDMXControlConsoleStopDMXMode::SendDefaultValues)
-		);
-
-		GetToolkitCommands()->MapAction(
-			FDMXControlConsoleEditorCommands::Get().EditorStopSendsZeroValues,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::SetStopDMXMode, EDMXControlConsoleStopDMXMode::SendZeroValues),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode, EDMXControlConsoleStopDMXMode::SendZeroValues)
-		);		
-
 		GetToolkitCommands()->MapAction
 		(
 			FDMXControlConsoleEditorCommands::Get().RemoveElements,
@@ -679,6 +701,12 @@ namespace UE::DMX::Private
 			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::ResetToZero)
 		);
 
+		GetToolkitCommands()->MapAction
+		(
+			FDMXControlConsoleEditorCommands::Get().Reload,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::Reload)
+		);
+
 		if (EditorModel)
 		{
 			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
@@ -693,90 +721,17 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolkit::ExtendToolbar()
 	{
+		UToolMenu* ToolMenu = UToolMenus::Get()->ExtendMenu(GetToolMenuToolbarName());
+		if (ensureMsgf(ToolMenu && PlayMenuModel, TEXT("Cannot find tool menu or play menu model for control console toolkit. Cannot build play menu.")))
+		{
+			PlayMenuModel->CreatePlayMenu(*ToolMenu);
+		}
+
 		Toolbar = MakeShared<FDMXControlConsoleEditorToolbar>(SharedThis(this));
 
 		const TSharedRef<FExtender> ToolbarExtender = MakeShareable(new FExtender);
 		Toolbar->BuildToolbar(ToolbarExtender);
 		AddToolbarExtender(ToolbarExtender);
-	}
-
-	void FDMXControlConsoleEditorToolkit::PlayDMX()
-	{
-		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
-		{
-			ControlConsoleData->StartSendingDMX();
-		}
-	}
-
-	bool FDMXControlConsoleEditorToolkit::IsPlayingDMX() const
-	{
-		UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-		return ControlConsoleData && ControlConsoleData->IsSendingDMX();
-	}
-
-	void FDMXControlConsoleEditorToolkit::PauseDMX()
-	{
-		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
-		{
-			// When pausing, always use the stop mode that does not send DMX values
-			const EDMXControlConsoleStopDMXMode RestoreStopDMXMode = ControlConsoleData->GetStopDMXMode();
-			ControlConsoleData->SetStopDMXMode(EDMXControlConsoleStopDMXMode::DoNotSendValues);
-
-			ControlConsoleData->StopSendingDMX();
-
-			ControlConsoleData->SetStopDMXMode(RestoreStopDMXMode);
-		}
-	}
-
-	void FDMXControlConsoleEditorToolkit::StopPlayingDMX()
-	{
-		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
-		{
-			ControlConsoleData->StopSendingDMX();
-		}
-	}
-
-	void FDMXControlConsoleEditorToolkit::TogglePlayPauseDMX()
-	{
-		if (IsPlayingDMX())
-		{
-			PauseDMX();
-		}
-		else
-		{
-			PlayDMX();
-		}
-	}
-
-	void FDMXControlConsoleEditorToolkit::TogglePlayStopDMX()
-	{
-		if (IsPlayingDMX())
-		{
-			StopPlayingDMX();
-		}
-		else
-		{
-			PlayDMX();
-		}
-	}
-
-	void FDMXControlConsoleEditorToolkit::SetStopDMXMode(EDMXControlConsoleStopDMXMode StopDMXMode)
-	{
-		// Intentionally without transaction, changes should not follow undo/redo
-		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
-		{
-			ControlConsoleData->MarkPackageDirty();
-			ControlConsoleData->SetStopDMXMode(StopDMXMode);
-		}
-	}
-
-	bool FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode(EDMXControlConsoleStopDMXMode TestStopDMXMode) const
-	{
-		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
-		{
-			return ControlConsoleData->GetStopDMXMode() == TestStopDMXMode;
-		}
-		return false;
 	}
 }
 

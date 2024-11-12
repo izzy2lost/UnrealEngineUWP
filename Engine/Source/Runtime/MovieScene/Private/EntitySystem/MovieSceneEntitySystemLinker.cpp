@@ -163,6 +163,8 @@ UMovieSceneEntitySystemLinker::UMovieSceneEntitySystemLinker(const FObjectInitia
 
 		InstanceRegistry.Reset(new FInstanceRegistry(this));
 
+		Runner = MakeShared<FMovieSceneEntitySystemRunner>(this);
+
 #if WITH_EDITOR
 		FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UMovieSceneEntitySystemLinker::OnObjectsReplaced);
 #endif
@@ -314,15 +316,13 @@ bool UMovieSceneEntitySystemLinker::HasStructureChangedSinceLastRun() const
 	return EntityManager.HasStructureChangedSince(LastInstantiationVersion);
 }
 
-bool UMovieSceneEntitySystemLinker::StartEvaluation(FMovieSceneEntitySystemRunner& InRunner)
+bool UMovieSceneEntitySystemLinker::StartEvaluation()
 {
-
-	if (ActiveRunners.Num() == 0 || ActiveRunnerReentrancyFlags[ActiveRunners.Num()-1])
+	if (RunnerReentrancyFlags.Num() == 0 || RunnerReentrancyFlags[RunnerReentrancyFlags.Num() - 1])
 	{
 		// Default to re-entrancy being forbidden. The runner will allow re-entrancy at specific spots
 		// in the evaluation loop, via a "re-entrancy window".
-		ActiveRunners.Emplace(&InRunner);
-		ActiveRunnerReentrancyFlags.Add(false);
+		RunnerReentrancyFlags.Add(false);
 		return true;
 	}
 		
@@ -330,33 +330,25 @@ bool UMovieSceneEntitySystemLinker::StartEvaluation(FMovieSceneEntitySystemRunne
 	return false;
 }
 
-FMovieSceneEntitySystemRunner* UMovieSceneEntitySystemLinker::GetActiveRunner() const
+TSharedRef<FMovieSceneEntitySystemRunner> UMovieSceneEntitySystemLinker::GetRunner() const
 {
-	if (ActiveRunners.Num() > 0)
-	{
-		return ActiveRunners.Last();
-	}
-	return nullptr;
+	// The runner might lose us if we are GC'ed while someone else is keeping the runner's ref-count up,
+	// but we can never lose our runner, since we have at least one reference.
+	return Runner.ToSharedRef();
 }
 
-void UMovieSceneEntitySystemLinker::PostInstantation(FMovieSceneEntitySystemRunner& InRunner)
+void UMovieSceneEntitySystemLinker::PostInstantation()
 {
 	LastInstantiationVersion = EntityManager.GetSystemSerial();
 
 	GetInstanceRegistry()->PostInstantation();
 }
 
-void UMovieSceneEntitySystemLinker::EndEvaluation(FMovieSceneEntitySystemRunner& InRunner)
+void UMovieSceneEntitySystemLinker::EndEvaluation()
 {
-	if (ensureMsgf((ActiveRunners.Num() > 0 && ActiveRunners.Last() == &InRunner),
-				TEXT("Trying end the evaluation of a runner that's not the latest one to run.")))
-	{
-		const int32 LastIndex = ActiveRunners.Num()-1;
-		ensureAlways(ActiveRunnerReentrancyFlags[LastIndex] == false);
-
-		ActiveRunners.Pop();
-		ActiveRunnerReentrancyFlags.RemoveAt(LastIndex);
-	}
+	const int32 LastIndex = RunnerReentrancyFlags.Num()-1;
+	ensureAlways(RunnerReentrancyFlags[LastIndex] == false);
+	RunnerReentrancyFlags.RemoveAt(LastIndex);
 }
 
 void UMovieSceneEntitySystemLinker::HandlePreGarbageCollection()
@@ -458,16 +450,13 @@ void UMovieSceneEntitySystemLinker::CleanGarbage()
 	InstanceRegistry->CleanupLinkerEntities(FreedEntities);
 
 	// If we have any runners part-way through an evaluation, we need to reset them so that they re-evaluate from the start
-	ResetActiveRunners();
+	ResetRunner();
 }
 
-void UMovieSceneEntitySystemLinker::ResetActiveRunners()
+void UMovieSceneEntitySystemLinker::ResetRunner()
 {
 	// If we have any runners part-way through an evaluation, we need to reset them so that they re-evaluate from the start
-	for (int32 Index = ActiveRunners.Num()-1; Index >= 0; --Index)
-	{
-		ActiveRunners[Index]->ResetFlushState();
-	}
+	Runner->ResetFlushState();
 }
 
 void UMovieSceneEntitySystemLinker::DestroyInstanceImmediately(UE::MovieScene::FRootInstanceHandle Instance)
@@ -478,7 +467,7 @@ void UMovieSceneEntitySystemLinker::DestroyInstanceImmediately(UE::MovieScene::F
 	// Destroy the instance and any sub sequences. Any pre-existing NeedsLink entities will be forcibly made NeedsUnlink and cleaned as garbage
 	GetInstanceRegistry()->DestroyInstance(Instance);
 	CleanGarbage();
-	ResetActiveRunners();
+	ResetRunner();
 }
 
 void UMovieSceneEntitySystemLinker::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
@@ -498,6 +487,8 @@ void UMovieSceneEntitySystemLinker::OnObjectsReplaced(const TMap<UObject*, UObje
 		}
 	});
 #endif
+
+	PreAnimatedState.OnObjectsReplaced(ReplacementMap);
 }
 
 void UMovieSceneEntitySystemLinker::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)

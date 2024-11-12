@@ -5,8 +5,22 @@
 #include "CoreMinimal.h"
 #include "AssetRegistry/AssetData.h"
 #include "EditorSubsystem.h"
-
 #include "EditorAssetSubsystem.generated.h"
+
+UENUM(BlueprintType, DisplayName = "Sort Order")
+enum class EEditorAssetSortOrder : uint8
+{
+	Ascending,
+	Descending
+};
+
+UENUM(BlueprintType, DisplayName = "Meta Data Sort Type")
+enum class EEditorAssetMetaDataSortType : uint8
+{
+	String,
+	Numeric,
+	DateTime
+};
 
 /**
 * UEditorAssetSubsystem
@@ -211,6 +225,15 @@ public:
 	UNREALED_API bool RenameDirectory(const FString& SourceDirectoryPath, const FString& DestinationDirectoryPath);
 	
 	/**
+	 * Set the package dirty flag for an asset
+	 * @param	Object			Object we want to set the package dirty state.
+	 * @param	bDirtyState		The dirty state, true mean the asset package need to be save.
+	 * @return	True if the operation succeeds.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API bool SetDirtyFlag(UObject* Object, const bool bDirtyState);
+
+	/**
 	 * Checkout the asset corresponding to an object.
 	 * @param	AssetToCheckout		Asset to checkout.
 	 * @return	True if the operation succeeds.
@@ -271,6 +294,14 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
 	UNREALED_API bool SaveAsset(const FString& AssetToSave, bool bOnlyIfIsDirty = true);
+
+	/** Returns the length of the computed cooked package name and path */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API int32 GetAssetFilenameLengthForCooking(const FString& AssetPath);
+
+	/** Returns the length of the computed cooked package name and path */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API int32 GetLoadedAssetFilenameLengthForCooking(const UObject* Asset);
 
 	/**
 	 * Save the packages the assets live in inside the directory. All objects that are in the directory will be saved.
@@ -386,14 +417,14 @@ public:
 	 * for example from a drag and drop operation.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
-		UNREALED_API void AddOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
+	UNREALED_API void AddOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
 
 	/**
 	 * Call this to remove a callback added with AddOnExtractAssetFromFile.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
-		UNREALED_API void RemoveOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
-
+	UNREALED_API void RemoveOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
+	
 	/**
 	 * Get the delegate for extracting an asset from a file,
 	 * for example from a drag and drop operation.
@@ -402,6 +433,28 @@ public:
 	 * Broadcasting this will also call anything added with AddOnExtractAssetFromFile.
 	 */
 	FOnExtractAssetFromFile& GetOnExtractAssetFromFile() { return OnExtractAssetFromFile; }
+	
+	/**
+	 * Gets all assets which have the given tags.
+	 * 
+	 * @params RequiredTags The tags the assets should have
+	 * @params AllowedClasses The class types the contained assets should have
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API TArray<FAssetData> GetAllAssetsByMetaDataTags(const TSet<FName>& RequiredTags, const TSet<UClass*>& AllowedClasses);
+	
+	/**
+	 * Sorts the assets based on their meta data's type.
+	 * Supported types: FString, int, float, FDateTime.
+	 * 
+	 * @param Assets The assets to sort
+	 * @param MetaDataTag The on which the sort is based
+	 * @param MetaDataType The meta data type of MetaDataTag
+	 * @param SortOrder Whether to sort ascending or descending
+	 * @return Whether the data was sorted, e.g. false if not all assets have the MetaDataTag.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API bool SortByMetaData(UPARAM(Ref) TArray<FAssetData>& Assets, FName MetaDataTag, EEditorAssetMetaDataSortType MetaDataType, EEditorAssetSortOrder SortOrder);
 
 private:
 

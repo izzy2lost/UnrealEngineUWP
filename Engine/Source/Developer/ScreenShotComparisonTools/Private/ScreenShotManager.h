@@ -28,8 +28,7 @@ public:
 	enum class EApprovedFolderOptions : int8
 	{
 		None = 0,
-		UsePlatformFolders	= 1 >> 0,
-		UseLegacyPaths		= 1 >> 1
+		UsePlatformFolders	= 1 << 0
 	};
 
 	/**
@@ -46,7 +45,7 @@ public:
 
 	virtual TFuture<FImageComparisonResult> CompareScreenshotAsync(const FString& IncomingPath, const FAutomationScreenshotMetadata& MetaData, const EScreenShotCompareOptions Options) override;
 
-	virtual FScreenshotExportResult ExportScreenshotComparisonResult(FString ScreenshotName, FString ExportPath = TEXT(""), bool bOnlyIncoming = false) override;
+	virtual FScreenshotExportResult ExportScreenshotComparisonResult(FString ScreenshotName, FString ExportPath = TEXT(""), bool bOnlyGeneratedFiles = false) override;
 
 	TFuture<TSharedPtr<TArray<FComparisonReport>>> OpenComparisonReportsAsync(const FString& ImportPath) override;
 	
@@ -73,7 +72,7 @@ private:
 
 	FImageComparisonResult CompareScreenshot(const FString& IncomingPath, const FAutomationScreenshotMetadata& MetaData, const EScreenShotCompareOptions Options);
 
-	void CopyDirectory(const FString& DestDir, const FString& SrcDir, const FString& Pattern);
+	void CopyDirectory(const FString& DestDir, const FString& SrcDir, const TArray<FString> Patterns);
 
 	void BuildFallbackPlatformsListFromConfig();
 

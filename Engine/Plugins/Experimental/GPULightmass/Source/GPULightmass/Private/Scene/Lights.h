@@ -29,6 +29,7 @@ struct FLightShaderConstants
 	float		SoftSourceRadius;
 	float		RectLightBarnCosAngle;
 	float		RectLightBarnLength;
+	float		DiffuseScale;
 
 	FLightShaderConstants() = default;
 
@@ -42,6 +43,7 @@ struct FLightShaderConstants
 		FalloffExponent = LightShaderParameters.FalloffExponent;
 		Direction = LightShaderParameters.Direction;
 		SpecularScale = LightShaderParameters.SpecularScale;
+		DiffuseScale = LightShaderParameters.DiffuseScale;
 		Tangent = LightShaderParameters.Tangent;
 		SourceRadius = LightShaderParameters.SourceRadius;
 		PositionLow = AbsoluteWorldPosition.Low;

@@ -551,6 +551,7 @@ public class CreatePlatformExtension : BuildCommand
 	/// Determines whether we should attempt to add a child module reference for the given plugin module
 	/// </summary>
 	/// <param name="ModuleDesc"></param>
+	/// <param name="bHasPlatform"></param>
 	/// <param name="Platform"></param>
 	/// <returns></returns>
 	private bool ShouldCreateChildReferenceForModule( ModuleDescriptor ModuleDesc, bool bHasPlatform, UnrealTargetPlatform Platform )
@@ -587,6 +588,8 @@ public class CreatePlatformExtension : BuildCommand
 	/// Determines whether we should attempt to add this dependent plugin module to the child plugin references
 	/// </summary>
 	/// <param name="PluginDesc"></param>
+	/// <param name="bHasPlatform"></param>
+	/// <param name="Platform"></param>
 	/// <returns></returns>
 	private bool ShouldCreateChildReferenceForDependentPlugin( PluginReferenceDescriptor PluginDesc, bool bHasPlatform, UnrealTargetPlatform Platform )
 	{
@@ -615,7 +618,7 @@ public class CreatePlatformExtension : BuildCommand
 
 
 	/// <summary>
-	/// Generates the final platform extension file path for the given source directory, platform & filename
+	/// Generates the final platform extension file path for the given source directory, platform and filename
 	/// </summary>
 	private string MakePlatformExtensionPathFromSource( DirectoryReference RootDir, DirectoryReference SourceDir, string PlatformName, string Filename )
 	{

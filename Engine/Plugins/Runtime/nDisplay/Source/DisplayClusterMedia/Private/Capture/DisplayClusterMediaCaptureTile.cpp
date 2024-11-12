@@ -3,15 +3,22 @@
 #include "Capture/DisplayClusterMediaCaptureTile.h"
 
 
-FDisplayClusterMediaCaptureTile::FDisplayClusterMediaCaptureTile(const FString& InMediaId, const FString& InClusterNodeId, const FString& InViewportId, UMediaOutput* InMediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy)
-	: FDisplayClusterMediaCaptureViewport(InMediaId, InClusterNodeId, InViewportId, InMediaOutput, SyncPolicy)
+FDisplayClusterMediaCaptureTile::FDisplayClusterMediaCaptureTile(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	const FString& InViewportId,
+	UMediaOutput* InMediaOutput,
+	UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy,
+	bool bInLateOCIO
+)
+	: FDisplayClusterMediaCaptureViewport(InMediaId, InClusterNodeId, InViewportId, InMediaOutput, SyncPolicy, bInLateOCIO)
 {
 }
 
 bool FDisplayClusterMediaCaptureTile::GetCaptureSizeFromConfig(FIntPoint& OutSize) const
 {
 	// The upper level logic always tries to get actual capture size from the game proxy. If the game proxy
-	// is not availalbe (camera/viewport is disabled or deactivated on start and therefore not being rendered),
+	// is not available (camera/viewport is disabled or deactivated on start and therefore not being rendered),
 	// it tries to acquire capture size from config. Being here means exactly this case.
 	//
 	// The problem is the tiles can't know their size until they start to render. There is a bunch of intermediate

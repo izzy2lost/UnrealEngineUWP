@@ -76,7 +76,7 @@ bool FPCGDensityFilterElement::ExecuteInternal(FPCGContext* Context) const
 
 		const TArray<FPCGPoint>& Points = OriginalData->GetPoints();
 		
-		UPCGPointData* FilteredData = NewObject<UPCGPointData>();
+		UPCGPointData* FilteredData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		FilteredData->InitializeFromData(OriginalData);
 		TArray<FPCGPoint>& FilteredPoints = FilteredData->GetMutablePoints();
 

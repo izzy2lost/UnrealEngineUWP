@@ -6,19 +6,44 @@
 #include "Containers/ChunkedArray.h"
 #include "Net/Core/NetBitArray.h"
 #include "Math/Vector.h"
+#include "WorldLocations.generated.h"
+
+namespace UE::Net::Private
+{
+	typedef uint32 FInternalNetRefIndex;
+}
+
+/**
+* Common settings used to configure how the GridFilter behaves
+*/
+UCLASS(Config=Engine)
+class UWorldLocationsConfig : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** All world positions will be clamped to MinPos and MaxPos. */
+	UPROPERTY(Config)
+	FVector MinPos = { -0.5f * 2097152.0f, -0.5f * 2097152.0f, -0.5f * 2097152.0f };
+
+	/** All world positions will be clamped to MinPos and MaxPos. */
+	UPROPERTY(Config)
+	FVector MaxPos = { +0.5f * 2097152.0f, +0.5f * 2097152.0f, +0.5f * 2097152.0f };
+};
 
 namespace UE::Net
 {
 
 struct FWorldLocationsInitParams
 {
-	uint32 MaxObjectCount = 0;
+	UE::Net::Private::FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 };
 
 class FWorldLocations
 {
 public:
 	void Init(const FWorldLocationsInitParams& InitParams);
+	void Deinit();
 
 	/** Returns whether the object has a valid cached data or not. */
 	bool HasInfoForObject(uint32 ObjectIndex) const;
@@ -67,6 +92,15 @@ public:
 	/** Returns the list of objects that registered world location information */
 	const FNetBitArrayView GetObjectsWithWorldInfo() const { return MakeNetBitArrayView(ValidInfoIndexes); }
 
+	/** Return the world boundaries (min and max position). */
+	const FVector& GetWorldMinPos() const { return MinWorldPos; };
+	const FVector& GetWorldMaxPos() const { return MaxWorldPos; };
+	
+	/** Return a position clamped to the configured world boundary. */
+	FVector ClampPositionToBoundary(const FVector& Position);
+
+	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
+
 private:
 	enum : uint32
 	{
@@ -81,6 +115,10 @@ private:
 	FNetBitArray ObjectsRequiringFrequentWorldLocationUpdate;
 
 	TChunkedArray<FObjectInfo, BytesPerLocationChunk> StoredObjectInfo;
+
+	/** World boundaries (min and max position). */
+	FVector MinWorldPos;
+	FVector MaxWorldPos;
 };
 
 inline bool FWorldLocations::HasInfoForObject(uint32 ObjectIndex) const

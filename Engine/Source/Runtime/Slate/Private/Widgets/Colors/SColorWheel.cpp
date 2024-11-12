@@ -8,6 +8,8 @@ SColorWheel::SColorWheel()
 	: SelectedColor(*this, FLinearColor(ForceInit))
 {}
 
+SColorWheel::~SColorWheel() = default;
+
 /* SColorWheel methods
  *****************************************************************************/
 

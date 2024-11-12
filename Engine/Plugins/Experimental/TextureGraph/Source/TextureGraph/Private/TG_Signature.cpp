@@ -12,10 +12,23 @@ bool FTG_Argument::IsScalar() const
 {
 	return (CPPTypeName == TEXT("float")) || (CPPTypeName == TEXT("int32")) || (CPPTypeName == TEXT("uint32")) || CPPTypeName == FTG_Variant::GetArgNameFromType(ETG_VariantType::Scalar);
 }
+
+bool FTG_Argument::IsBool() const
+{
+	return CPPTypeName == TEXT("bool");
+}
+
+bool FTG_Argument::IsString() const
+{
+	return CPPTypeName == TEXT("FString") || 
+		CPPTypeName == TEXT("FText");
+}
+
 bool FTG_Argument::IsColor() const
 {
 	return CPPTypeName == TEXT("FLinearColor") || CPPTypeName == FTG_Variant::GetArgNameFromType(ETG_VariantType::Color);
 }
+
 bool FTG_Argument::IsVector() const
 {
 	return (CPPTypeName == TEXT("FVector4f")) || CPPTypeName == FTG_Variant::GetArgNameFromType(ETG_VariantType::Vector);
@@ -69,6 +82,17 @@ FTG_Hash FTG_Argument::Hash(const FTG_Argument& Argument)
 	FTG_Hash v = TG_HashName(Argument.Name);
 	v += static_cast<uint8>(Argument.ArgumentType.Flags);
 	return TG_Hash(v);
+}
+
+TArray<FName> TG_MakeArrayOfArgumentNames(const FTG_Arguments& InArguments)
+{
+	TArray<FName> Names;
+	Names.Empty(InArguments.Num());
+	for (auto& Arg : InArguments)
+	{
+		Names.Add(Arg.Name);
+	}
+	return Names;
 }
 
 FTG_Hash FTG_ArgumentSet::Hash(const FTG_ArgumentSet& Set)

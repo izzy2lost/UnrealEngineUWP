@@ -3,7 +3,6 @@
 #include "AudioDevice.h"
 #include "Sound/AudioBus.h"
 #include "AudioBusSubsystem.h"
-#include "DSP/ConvertDeinterleave.h"
 #include "Internationalization/Text.h"
 #include "MetasoundAudioBuffer.h"
 #include "MetasoundAudioBus.h"
@@ -30,6 +29,29 @@ namespace Metasound
 		METASOUND_PARAM(InParamAudioBusInput, "Audio Bus", "Audio Bus Asset.")
 
 		METASOUND_PARAM(OutParamAudio, "Out {0}", "Audio bus output for channel {0}.");
+	}
+
+	int32 AudioBusReaderNodeInitialNumBlocks(int32 BlockSizeFrames, int32 AudioMixerOutputFrames)
+	{
+		// One extra block is required to cover the first metasound iteration.
+		int32 ExtraBlocks = 1;
+
+		// Find the number of whole blocks that fit in the mixer output.
+		int32 WholeBlocks = FMath::DivideAndRoundDown(AudioMixerOutputFrames, BlockSizeFrames);
+
+		// Determine if any frames remain.
+		int32 FramesRemainder = AudioMixerOutputFrames % BlockSizeFrames;
+		if (FramesRemainder > 0)
+		{
+			// Find the number of extra frames required to consistently cover the remainder.
+			int32 ExtraFrames = FMath::DivideAndRoundUp(BlockSizeFrames, FramesRemainder) * FramesRemainder;
+
+			// Find the number of blocks required to cover the extra frames.
+			ExtraBlocks += FMath::DivideAndRoundUp(ExtraFrames, BlockSizeFrames);
+		}
+
+		// Determine the total number of blocks required.
+		return WholeBlocks + ExtraBlocks;
 	}
 
 	template <uint32 NumChannels>
@@ -150,108 +172,90 @@ namespace Metasound
 
 		void Execute()
 		{
-			const int32 BlockSizeFrames = AudioOutputs[0]->Num();
-			const int32 NumSamplesToPop = BlockSizeFrames * AudioBusChannels;
-
 			const FAudioBusProxyPtr& BusProxy = AudioBusAsset->GetAudioBusProxy();
-			if (BusProxy.IsValid() && BusProxy->AudioBusId != AudioBusId)
+			if (!BusProxy.IsValid() || BusProxy->NumChannels <= 0)
 			{
-				AudioBusPatchOutput.Reset();
+				// the audio bus is invalid / uninitialized
+				return;
+			}
+
+			if (BusProxy->AudioBusId != AudioBusId)
+			{
+				InterleavedBuffer.Reset();
 			}
 			
-			if (!AudioBusPatchOutput.IsValid())
+			if (InterleavedBuffer.IsEmpty())
 			{
 				// if environment vars & a valid audio bus have been set since starting, try to create the patch now
 				if (SampleRate > 0.f && BusProxy.IsValid())
 				{
-					CreatePatchOutput(BlockSizeFrames);
-					if (!AudioBusPatchOutput.IsValid())
-					{
-						return;
-					}
-				}
-				else
-				{
-					return;
+					CreatePatchOutput();
 				}
 			}
 
-			bool bPerformPop = false;
-
-			if (bFirstBlock)
+			if (InterleavedBuffer.IsEmpty())
 			{
-				// Ensure there are enough samples in the patch output to support the maximum metasound executions the mixer requires to fill its output frames before popping begins.
-				if (uint32(AudioBusPatchOutput->GetNumSamplesAvailable()) >= FMath::DivideAndRoundUp(AudioMixerOutputFrames, BlockSizeFrames) * BlockSizeFrames * AudioBusChannels)
-				{
-					bPerformPop = true;
-
-					InterleavedBuffer.Reset();
-					InterleavedBuffer.AddUninitialized(NumSamplesToPop);
-				}
-			}
-			else
-			{
-				// Give input patch samples some time to arrive.
-				if (AudioBusPatchOutput->WaitUntilNumSamplesAvailable(NumSamplesToPop, uint32(AudioBusReaderNodePatchWaitTimeout)))
-				{
-					bPerformPop = true;
-				}
+				return;
 			}
 
-			if (bPerformPop)
+			// Pop off the interleaved data from the audio bus
+			int32 NumSamplesToPop = BlockSizeFrames * AudioBusChannels;
+			int32 SamplesPopped = AudioBusPatchOutput->PopAudio(InterleavedBuffer.GetData(), NumSamplesToPop, false);
+			if (SamplesPopped < NumSamplesToPop && !bWasUnderrunReported)
 			{
-				bFirstBlock = false;
-
-				// Pop off the interleaved data from the audio bus
-				int32 SamplesPopped = AudioBusPatchOutput->PopAudio(InterleavedBuffer.GetData(), NumSamplesToPop, false);
-				if (SamplesPopped < NumSamplesToPop)
-				{
-					UE_LOG(LogMetaSound, Warning, TEXT("Underrun detected in audio bus reader node."));
-				}
-
-				const uint32 MinChannels = FMath::Min(NumChannels, AudioBusChannels);
-				for (uint32 ChannelIndex = 0; ChannelIndex < MinChannels; ++ChannelIndex)
-				{
-					float* AudioOutputBufferPtr = AudioOutputs[ChannelIndex]->GetData();
-					for (int32 FrameIndex = 0; FrameIndex < BlockSizeFrames; ++FrameIndex)
-					{
-						AudioOutputBufferPtr[FrameIndex] = InterleavedBuffer[FrameIndex * AudioBusChannels + ChannelIndex];
-					}
-				}
+				UE_LOG(LogMetaSound, Warning, TEXT("Underrun detected in audio bus reader node."));
+				bWasUnderrunReported = true;
 			}
-			else
+
+			const uint32 MinChannels = FMath::Min(NumChannels, AudioBusChannels);
+			for (uint32 ChannelIndex = 0; ChannelIndex < MinChannels; ++ChannelIndex)
 			{
-				UE_CLOG(!bFirstBlock, LogMetaSound, Warning, TEXT("Underrun detected in audio bus reader node."));
+				float* AudioOutputBufferPtr = AudioOutputs[ChannelIndex]->GetData();
+				for (int32 FrameIndex = 0; FrameIndex < BlockSizeFrames; ++FrameIndex)
+				{
+					AudioOutputBufferPtr[FrameIndex] = InterleavedBuffer[FrameIndex * AudioBusChannels + ChannelIndex];
+				}
 			}
 		}
 
-		void CreatePatchOutput(const int32 BlockSizeFrames)
+		void CreatePatchOutput()
 		{
 			const FAudioBusProxyPtr& AudioBusProxy = AudioBusAsset->GetAudioBusProxy();
 			if (AudioBusProxy.IsValid())
 			{
+				if (AudioBusProxy->NumChannels <= 0)
+				{
+					UE_LOG(LogMetaSound, Warning, TEXT("AudioBusProxy is invalid (NumChannels = %i)."), AudioBusProxy->NumChannels);
+					return;
+				}
+
+				UAudioBusSubsystem* AudioBusSubsystem = nullptr;
 				if (FAudioDeviceManager* ADM = FAudioDeviceManager::Get())
 				{
 					if (FAudioDevice* AudioDevice = ADM->GetAudioDeviceRaw(AudioDeviceId))
 					{
-						// Start the audio bus in case it's not already started
-						AudioBusChannels = static_cast<uint32>(FMath::Min(AudioBusProxy->NumChannels, static_cast<int32>(EAudioBusChannels::MaxChannelCount)));
-						AudioBusId = AudioBusProxy->AudioBusId;
-						
-						const Audio::FAudioBusKey AudioBusKey = Audio::FAudioBusKey(AudioBusId);
-						UAudioBusSubsystem* AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
-						
+						AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
 						check(AudioBusSubsystem);
-						
-						AudioBusSubsystem->StartAudioBus(AudioBusKey, AudioBusChannels, false);
-
-						// Create a bus patch output with enough room for the number of samples we expect and some buffering
-						AudioBusPatchOutput = AudioBusSubsystem->AddPatchOutputForAudioBus(AudioBusKey, BlockSizeFrames, AudioBusChannels);
 					}
 				}
-			}
+				if (!AudioBusSubsystem)
+				{
+					return;
+				}
 
-			bFirstBlock = true;
+				AudioBusChannels = uint32(FMath::Min(AudioBusProxy->NumChannels, int32(EAudioBusChannels::MaxChannelCount)));
+				AudioBusId = AudioBusProxy->AudioBusId;
+
+				Audio::FAudioBusKey AudioBusKey(AudioBusId);
+				AudioBusSubsystem->StartAudioBus(AudioBusKey, AudioBusChannels, false);
+
+				AudioBusPatchOutput = AudioBusSubsystem->AddPatchOutputForSoundAndAudioBus(InstanceID, AudioBusKey, BlockSizeFrames, int32(AudioBusChannels));
+				PatchInput = AudioBusPatchOutput;
+				PatchInput.PushAudio(nullptr, NumBlocksToNumSamples(InitialNumBlocks()));
+
+				InterleavedBuffer.Reset();
+				InterleavedBuffer.AddUninitialized(NumBlocksToNumSamples(1));
+			}
 		}
 		
 		void Reset(const IOperator::FResetParams& InParams)
@@ -259,19 +263,32 @@ namespace Metasound
 			using namespace Frontend;
 			using namespace AudioBusReaderNode;
 
+			InterleavedBuffer.Reset();
+			AudioMixerOutputFrames = INDEX_NONE;
+			AudioDeviceId = INDEX_NONE;
+			InstanceID = 0;
+			AudioBusId = 0;
+			SampleRate = 0.0f;
+			AudioBusPatchOutput.Reset();
+			PatchInput.Reset();
+			AudioBusChannels = INDEX_NONE;
+			BlockSizeFrames = 0;
+			bWasUnderrunReported = false;
+
 			bool bHasEnvironmentVars = InParams.Environment.Contains<Audio::FDeviceId>(SourceInterface::Environment::DeviceID);
 			bHasEnvironmentVars &= InParams.Environment.Contains<int32>(SourceInterface::Environment::AudioMixerNumOutputFrames);
+			bHasEnvironmentVars &= InParams.Environment.Contains<uint64>(SourceInterface::Environment::TransmitterID);
 
 			if (bHasEnvironmentVars)
 			{
-				SampleRate = InParams.OperatorSettings.GetSampleRate();
 				AudioDeviceId = InParams.Environment.GetValue<Audio::FDeviceId>(SourceInterface::Environment::DeviceID);
 				AudioMixerOutputFrames = InParams.Environment.GetValue<int32>(SourceInterface::Environment::AudioMixerNumOutputFrames);
+				InstanceID = InParams.Environment.GetValue<uint64>(SourceInterface::Environment::TransmitterID);
 			}
 			else
 			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Audio bus reader node requires audio device ID '%s' and audio mixer num output frames '%s' environment variables")
-					, *SourceInterface::Environment::DeviceID.ToString(), *SourceInterface::Environment::AudioMixerNumOutputFrames.ToString());
+				UE_LOG(LogMetaSound, Warning, TEXT("Audio bus reader node requires audio device ID '%s', audio mixer num output frames '%s' and transmitter id '%s' environment variables")
+					, *SourceInterface::Environment::DeviceID.ToString(), *SourceInterface::Environment::AudioMixerNumOutputFrames.ToString(), *SourceInterface::Environment::TransmitterID.ToString());
 			}
 			
 			for(const FAudioBufferWriteRef& Buffer : AudioOutputs)
@@ -279,25 +296,35 @@ namespace Metasound
 				Buffer->Zero();
 			}
 			
-			// Wait until Execute to connect the AudioBusPatchOutput.
-			// Otherwise the mixer will start filling the patch before the MetaSound starts.
-			AudioBusPatchOutput.Reset();
+			SampleRate = InParams.OperatorSettings.GetSampleRate();
+			BlockSizeFrames = InParams.OperatorSettings.GetNumFramesPerBlock();
 		}
 
 	private:
+		int32 InitialNumBlocks() const
+		{
+			return AudioBusReaderNodeInitialNumBlocks(BlockSizeFrames, AudioMixerOutputFrames);
+		}
+
+		int32 NumBlocksToNumSamples(int32 NumBlocks) const
+		{
+			return NumBlocks * BlockSizeFrames * AudioBusChannels;
+		}
+
 		FAudioBusAssetReadRef AudioBusAsset;
 		TArray<FAudioBufferWriteRef> AudioOutputs;
 
 		TArray<float> InterleavedBuffer;
 		int32 AudioMixerOutputFrames = INDEX_NONE;
 		Audio::FDeviceId AudioDeviceId = INDEX_NONE;
+		uint64 InstanceID = 0;
 		uint32 AudioBusId = 0;
 		float SampleRate = 0.0f;
 		Audio::FPatchOutputStrongPtr AudioBusPatchOutput;
-		TUniquePtr<Audio::IConvertDeinterleave> ConvertDeinterleave;
-		Audio::FMultichannelBuffer DeinterleavedBuffer;
+		Audio::FPatchInput PatchInput;
 		uint32 AudioBusChannels = INDEX_NONE;
-		bool bFirstBlock = true;
+		int32 BlockSizeFrames = 0;
+		bool bWasUnderrunReported = false;
 	};
 
 	template<uint32 NumChannels>

@@ -82,9 +82,9 @@ protected:
 		Result = AdaptResult(A.Equals(B), InContext);
 	}
 
-	static const FName AName;
-	static const FName BName;
-	static const FName ResultName;
+	static inline FLazyName AName = FLazyName(TEXT("A"));
+	static inline FLazyName BName = FLazyName(TEXT("B"));
+	static inline FLazyName ResultName = FLazyName(TEXT("Result"));
 };
 
 /*

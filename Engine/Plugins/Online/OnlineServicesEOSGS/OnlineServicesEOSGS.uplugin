@@ -15,9 +15,12 @@
 			"Name": "OnlineServicesEOSGS",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"PlatformDenyList": [
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux",
 				"LinuxArm64",
-				"TVOS"
+				"Android"
 			]
 		}
 	],

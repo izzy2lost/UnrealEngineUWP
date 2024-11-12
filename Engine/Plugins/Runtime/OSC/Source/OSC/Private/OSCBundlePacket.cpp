@@ -6,94 +6,93 @@
 #include "OSCStream.h"
 
 
-FOSCBundlePacket::FOSCBundlePacket()
-	: IOSCPacket()
-	, TimeTag(0)
+namespace UE::OSC
 {
-}
-
-FOSCBundlePacket::~FOSCBundlePacket()
-{
-}
-
-void FOSCBundlePacket::SetTimeTag(uint64 NewTimeTag)
-{
-	TimeTag = FOSCType(NewTimeTag);
-}
-
-uint64 FOSCBundlePacket::GetTimeTag() const
-{
-	return TimeTag.GetTimeTag();
-}
-
-void FOSCBundlePacket::WriteData(FOSCStream& Stream)
-{
-	// Write bundle & time tag
-	Stream.WriteString(OSC::BundleTag);
-	Stream.WriteUInt64(GetTimeTag());
-
-	for (TSharedPtr<IOSCPacket>& Packet : Packets)
+	FBundlePacket::FBundlePacket(FIPv4Endpoint InEndpoint)
+		: FPacketBase(InEndpoint)
+		, TimeTag(0)
 	{
-		int32 StreamPos = Stream.GetPosition();
-		Stream.WriteInt32(0);
-
-		int32 InitPos = Stream.GetPosition();
-		Packet->WriteData(Stream);
-		int32 NewPos = Stream.GetPosition();
-
-		Stream.SetPosition(StreamPos);
-		Stream.WriteInt32(NewPos - InitPos);
-		Stream.SetPosition(NewPos);
-	}
-}
-
-void FOSCBundlePacket::ReadData(FOSCStream& Stream)
-{
-	Packets.Reset();
-
-	FString BundleTag = Stream.ReadString();
-	if (BundleTag != OSC::BundleTag)
-	{
-		UE_LOG(LogOSC, Warning, TEXT("Failed to parse OSCBundle of invalid format. #bundle identifier not first item in packet."));
-		return;
 	}
 
-	TimeTag = FOSCType(Stream.ReadUInt64());
-
-	while (!Stream.HasReachedEnd())
+	void FBundlePacket::SetTimeTag(uint64 NewTimeTag)
 	{
-		int32 PacketLength = Stream.ReadInt32();
+		TimeTag = FOSCData(NewTimeTag);
+	}
 
-		int32 StartPos = Stream.GetPosition();
-		TSharedPtr<IOSCPacket> Packet = IOSCPacket::CreatePacket(Stream.GetData() + Stream.GetPosition(), IPAddress, Port);
-		if (!Packet.IsValid())
+	uint64 FBundlePacket::GetTimeTag() const
+	{
+		return TimeTag.GetTimeTag();
+	}
+
+	void FBundlePacket::WriteData(FStream& Stream)
+	{
+		// Write bundle & time tag
+		Stream.WriteString(OSC::BundleTag);
+		Stream.WriteUInt64(GetTimeTag());
+
+		for (const TSharedRef<UE::OSC::IPacket>& Packet : Packets)
 		{
-			break;
-		}
+			int32 StreamPos = Stream.GetPosition();
+			Stream.WriteInt32(0);
 
-		Packet->ReadData(Stream);
-		Packets.Add(Packet);
-		int32 EndPos = Stream.GetPosition();
+			int32 InitPos = Stream.GetPosition();
+			Packet->WriteData(Stream);
+			int32 NewPos = Stream.GetPosition();
 
-		if (EndPos - StartPos != PacketLength)
-		{
-			UE_LOG(LogOSC, Warning, TEXT("Failed to parse OSCBundle of invalid format. Element size mismatch."));
-			break;
+			Stream.SetPosition(StreamPos);
+			Stream.WriteInt32(NewPos - InitPos);
+			Stream.SetPosition(NewPos);
 		}
 	}
-}
 
-FOSCBundlePacket::FPacketBundle& FOSCBundlePacket::GetPackets()
-{
-	return Packets;
-}
+	void FBundlePacket::ReadData(FStream& Stream)
+	{
+		Packets.Reset();
 
-bool FOSCBundlePacket::IsBundle()
-{
-	return true;
-}
+		const FString ThisBundleTag = Stream.ReadString();
+		if (ThisBundleTag != UE::OSC::BundleTag)
+		{
+			UE_LOG(LogOSC, Warning, TEXT("Failed to parse OSCBundle of invalid format. #bundle identifier not first item in packet."));
+			return;
+		}
 
-bool FOSCBundlePacket::IsMessage()
-{
-	return false;
-}
+		TimeTag = FOSCData(Stream.ReadUInt64());
+
+		while (!Stream.HasReachedEnd())
+		{
+			int32 PacketLength = Stream.ReadInt32();
+
+			int32 StartPos = Stream.GetPosition();
+			TSharedPtr<UE::OSC::IPacket> Packet = UE::OSC::IPacket::CreatePacket(Stream.GetData() + Stream.GetPosition(), IPEndpoint);
+			if (!Packet.IsValid())
+			{
+				break;
+			}
+
+			Packet->ReadData(Stream);
+			Packets.Add(Packet->AsShared());
+			int32 EndPos = Stream.GetPosition();
+
+			if (EndPos - StartPos != PacketLength)
+			{
+				UE_LOG(LogOSC, Warning, TEXT("Failed to parse OSCBundle of invalid format. Element size mismatch."));
+				break;
+			}
+		}
+	}
+
+	TArray<TSharedRef<UE::OSC::IPacket>>& FBundlePacket::GetPackets()
+	{
+		return Packets;
+	}
+
+	bool FBundlePacket::IsBundle()
+	{
+		return true;
+	}
+
+	bool FBundlePacket::IsMessage()
+	{
+		return false;
+	}
+} // namespace UE::OSC

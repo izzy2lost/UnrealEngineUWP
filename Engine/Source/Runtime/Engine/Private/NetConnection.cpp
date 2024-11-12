@@ -48,7 +48,8 @@
 #include "Iris/IrisConfig.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
-#include "Net/Iris/ReplicationSystem/ActorReplicationBridge.h"
+#include "Net/Iris/ReplicationSystem/EngineReplicationBridge.h"
+#include "Iris/ReplicationSystem/NetTokenStore.h"
 #endif // UE_WITH_IRIS
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NetConnection)
@@ -108,6 +109,11 @@ static int32 GNetCloseTimingDebug = 0;
 
 static FAutoConsoleVariableRef CVarCloseTimingDebug(TEXT("net.CloseTimingDebug"), GNetCloseTimingDebug,
 	TEXT("Logs the last packet send/receive and TickFlush/TickDispatch times, on connection close - for debugging blocked send/recv paths."));
+
+static bool GCVarLogAllConnectionCleanup = false;
+static FAutoConsoleVariableRef CVarLogAllConnectionCleanup(TEXT("net.Connection.LogAllCleanup"), GCVarLogAllConnectionCleanup, TEXT("When true log every connection CleanUp even when it was a normal socket closure."));
+
+static TAutoConsoleVariable<bool> CVarSkipMissingLevelDisconnect( TEXT("net.SkipMissingLevelDisconnect"), false, TEXT("If true skip disconnecting a player if they have a level that doesn't exist on server"));
 
 extern int32 GNetDormancyValidate;
 extern bool GbNetReuseReplicatorsForDormantObjects;
@@ -204,6 +210,9 @@ namespace UE::Net::Connection::Private
 		return false;
 	}
 
+	bool bGracefulCloseEnabled = true;
+	FAutoConsoleVariableRef CVarNetGracefulCloseEnabled(TEXT("net.GracefulCloseEnabled"), bGracefulCloseEnabled, TEXT("If enabled, connections will wait for reliable bunches to be acked before cleaning up."));
+
 	int32 bTrackFlushedDormantObjects = true;
 	FAutoConsoleVariableRef CVarNetTrackFlushedDormantObjects(TEXT("net.TrackFlushedDormantObjects"), bTrackFlushedDormantObjects, TEXT("If enabled, track dormant subobjects when dormancy is flushed, so they can be properly deleted if destroyed prior to the next ReplicateActor."));
 
@@ -281,10 +290,6 @@ namespace UE::Net::Private
 	extern bool bTrackDormantObjectsByLevel;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-const int32 UNetConnection::DEFAULT_MAX_CHANNEL_SIZE = 32767;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 /*-----------------------------------------------------------------------------
 	UNetConnection implementation.
 -----------------------------------------------------------------------------*/
@@ -309,8 +314,9 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 ,	Handler()
 ,	StatelessConnectComponent()
 ,	PacketOverhead		( 0 )
-,	ResponseId			( 0 )
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+,	ResponseId			( 0 ) // variable is unused and will be deleted
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 ,	QueuedBits			( 0 )
 ,	TickCount			( 0 )
 ,	LastProcessedFrame	( 0 )
@@ -376,13 +382,7 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 ,	PacketOrderCacheStartIdx(0)
 ,	PacketOrderCacheCount(0)
 ,	bFlushingPacketOrderCache(false)
-,	ConnectionId(0)
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	EngineNetworkProtocolVersion = FNetworkVersion::GetEngineNetworkProtocolVersion();
-	GameNetworkProtocolVersion = FNetworkVersion::GetGameNetworkProtocolVersion();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	NetworkCustomVersions = FNetworkVersion::GetNetworkCustomVersions();
 }
 
@@ -423,10 +423,6 @@ void UNetConnection::InitChannelData()
 
 	UE_LOG(LogNet, Log, TEXT("%s setting maximum channels to: %d"), *GetNameSafe(this), ChannelSize);
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	MaxChannelSize = ChannelSize;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	Channels.AddDefaulted(ChannelSize);
 	OutReliable.AddDefaulted(ChannelSize);
 	InReliable.AddDefaulted(ChannelSize);
@@ -466,7 +462,7 @@ void UNetConnection::InitBase(UNetDriver* InDriver,class FSocket* InSocket, cons
 	NetTraceId = Driver->GetNetTraceId();
 #endif
 
-	SetConnectionId(InDriver->AllocateConnectionId());
+	SetConnectionHandle(UE::Net::FConnectionHandle(InDriver->AllocateConnectionId()));
 
 	const double DriverElapsedTime = Driver->GetElapsedTime();
 
@@ -560,6 +556,15 @@ void UNetConnection::InitBase(UNetDriver* InDriver,class FSocket* InSocket, cons
 		CurrentNetSpeed = FMath::Max<int32>(CurrentNetSpeed, 1800);
 	}
 
+	// For now, NetToken are only enabled if we compile with iris.
+#if UE_WITH_IRIS
+	// Init RemoteNetTokenState.
+	if (Driver->GetNetTokenStore())
+	{
+		Driver->GetNetTokenStore()->InitRemoteNetTokenStoreState(GetConnectionHandle().GetParentConnectionId());
+	}
+#endif
+
 	// Create package map.
 	UPackageMapClient* PackageMapClient = NewObject<UPackageMapClient>(this, PackageMapClass);
 
@@ -596,14 +601,14 @@ void UNetConnection::InitBase(UNetDriver* InDriver,class FSocket* InSocket, cons
 
 	NetPing = FNetPing::CreateNetPing(this);
 
-	UE_NET_TRACE_CONNECTION_CREATED(NetTraceId, GetConnectionId());
-	UE_NET_TRACE_CONNECTION_STATE_UPDATED(NetTraceId, GetConnectionId(), static_cast<uint8>(GetConnectionState()));
+	UE_NET_TRACE_CONNECTION_CREATED(NetTraceId, GetConnectionHandle().GetParentConnectionId());
+	UE_NET_TRACE_CONNECTION_STATE_UPDATED(NetTraceId, GetConnectionHandle().GetParentConnectionId(), static_cast<uint8>(GetConnectionState()));
 
 #if UE_WITH_IRIS
 	if (UReplicationSystem* ReplicationSystem = Driver->GetReplicationSystem())
 	{
-		ReplicationSystem->AddConnection(GetConnectionId());
-		ReplicationSystem->SetConnectionUserData(GetConnectionId(), this);
+		ReplicationSystem->AddConnection(GetConnectionHandle().GetParentConnectionId());
+		ReplicationSystem->SetConnectionUserData(GetConnectionHandle().GetParentConnectionId(), this);
 	}
 #endif // UE_WITH_IRIS
 }
@@ -629,7 +634,7 @@ void UNetConnection::InitConnection(UNetDriver* InDriver, EConnectionState InSta
 	NetTraceId = Driver->GetNetTraceId();
 #endif
 
-	SetConnectionId(InDriver->AllocateConnectionId());
+	SetConnectionHandle(UE::Net::FConnectionHandle(InDriver->AllocateConnectionId()));
 
 	// We won't be sending any packets, so use a default size
 	MaxPacket = (InMaxPacket == 0 || InMaxPacket > MAX_PACKET_SIZE) ? MAX_PACKET_SIZE : InMaxPacket;
@@ -668,8 +673,8 @@ void UNetConnection::InitConnection(UNetDriver* InDriver, EConnectionState InSta
 	PackageMapClient->Initialize(this, Driver->GuidCache);
 	PackageMap = PackageMapClient;
 
-	UE_NET_TRACE_CONNECTION_CREATED(NetTraceId, GetConnectionId());
-	UE_NET_TRACE_CONNECTION_STATE_UPDATED(NetTraceId, GetConnectionId(), static_cast<uint8>(GetConnectionState()));
+	UE_NET_TRACE_CONNECTION_CREATED(NetTraceId, GetConnectionHandle().GetParentConnectionId());
+	UE_NET_TRACE_CONNECTION_STATE_UPDATED(NetTraceId, GetConnectionHandle().GetParentConnectionId(), static_cast<uint8>(GetConnectionState()));
 }
 
 void UNetConnection::InitHandler()
@@ -718,15 +723,7 @@ void UNetConnection::InitHandler()
 				StatelessConnectHandlerComponent* CurComponent = StatelessConnectComponent.Pin().Get();
 				
 				CurComponent->SetDriver(Driver);
-
-				CurComponent->SetHandshakeFailureCallback([this](FStatelessHandshakeFailureInfo HandshakeFailureInfo)
-					{
-						if (HandshakeFailureInfo.FailureReason == EHandshakeFailureReason::WrongVersion)
-						{
-							this->HandleReceiveNetUpgrade(HandshakeFailureInfo.RemoteNetworkVersion, HandshakeFailureInfo.RemoteNetworkFeatures,
-															ENetUpgradeSource::StatelessHandshake);
-						}
-					});
+				CurComponent->SetHandshakeFailureCallback([this](FStatelessHandshakeFailureInfo FailureInfo){this->OnStatelessHandshakeFailure(FailureInfo);});
 			}
 
 
@@ -777,6 +774,22 @@ void UNetConnection::InitSequence(int32 IncomingSequence, int32 OutgoingSequence
 	}
 }
 
+void UNetConnection::OnStatelessHandshakeFailure(UE::Net::FStatelessHandshakeFailureInfo HandshakeFailureInfo)
+{
+	using namespace UE::Net;
+
+	if (HandshakeFailureInfo.FailureReason == EHandshakeFailureReason::WrongVersion)
+	{
+		const bool bUpgradeSuccess = HandleReceiveNetUpgrade(HandshakeFailureInfo.RemoteNetworkVersion, HandshakeFailureInfo.RemoteNetworkFeatures, ENetUpgradeSource::StatelessHandshake);
+
+		if (bUpgradeSuccess)
+		{
+			// Restart the handshake since the network driver is now compatible
+			StatelessConnectComponent.Pin().Get()->NotifyHandshakeBegin();
+		}
+	}
+}
+
 void UNetConnection::NotifyAnalyticsProvider()
 {
 	if (Handler.IsValid())
@@ -787,7 +800,7 @@ void UNetConnection::NotifyAnalyticsProvider()
 
 void UNetConnection::NotifyConnectionUpdated()
 {
-	if (const uint32 MyConnectionId = GetConnectionId() && OwningActor && RemoteAddr)
+	if (const uint32 MyConnectionId = GetConnectionHandle().GetParentConnectionId() && OwningActor && RemoteAddr)
 	{
 		UE_NET_TRACE_CONNECTION_UPDATED(NetTraceId, MyConnectionId, *(RemoteAddr->ToString(true)), *(OwningActor->GetName()));
 	}
@@ -1008,7 +1021,7 @@ EConnectionState const UNetConnection::GetConnectionState() const
 void UNetConnection::SetConnectionState(EConnectionState ConnectionState)
 {
 	State = ConnectionState;
-	UE_NET_TRACE_CONNECTION_STATE_UPDATED(NetTraceId, GetConnectionId(), static_cast<uint8>(State));
+	UE_NET_TRACE_CONNECTION_STATE_UPDATED(NetTraceId, GetConnectionHandle().GetParentConnectionId(), static_cast<uint8>(State));
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
@@ -1030,6 +1043,12 @@ const TCHAR* LexToString(const EConnectionState Value)
 		return TEXT("Invalid");
 		break;
 	}
+}
+
+bool UNetConnection::IsClosingOrClosed() const
+{
+	const EConnectionState CurrentState = GetConnectionState();
+	return CurrentState == USOCK_Closing || CurrentState == USOCK_Closed;
 }
 
 void UNetConnection::Close(FNetResult&& CloseReason)
@@ -1097,6 +1116,61 @@ void UNetConnection::Close(FNetResult&& CloseReason)
 	LogCallLastTime		= 0;
 	LogCallCount		= 0;
 	LogSustainedCount	= 0;
+}
+
+void UNetConnection::GracefulClose(FNetResult&& CloseReason)
+{
+	bPendingDestroy = true;
+
+	if (Channels[0] && GetConnectionState() != USOCK_Closed)
+	{
+		if (UE::Net::Connection::Private::bGracefulCloseEnabled && GetConnectionState() != USOCK_Closing)
+		{
+			UE_LOG(LogNet, Log, TEXT("Initiating graceful close. CloseReason: %s. %s"), ToCStr(CloseReason.DynamicToString(UE::Net::ENetResultString::WithChain)), *Describe());
+
+			PendingGracefulCloseResult = MakePimpl<FNetResult, EPimplPtrMode::DeepCopy>(MoveTemp(CloseReason));
+
+			SetConnectionState(EConnectionState::USOCK_Closing);
+			GracefulCloseTimeoutDeadline = Driver->GetElapsedTime() + Driver->GracefulCloseConnectionTimeout;
+
+#if UE_WITH_IRIS
+			if (UReplicationSystem* ReplicationSystem = Driver->GetReplicationSystem())
+			{
+				ReplicationSystem->SetConnectionGracefullyClosing(ConnectionHandle.GetParentConnectionId());
+			}
+#endif
+
+			// Might as well try to close immediately in case there isn't any pending reliable data.
+			TryClosePendingGracefulClose();
+		}
+		else
+		{
+			Close(MoveTemp(CloseReason));
+		}
+	}
+}
+
+void UNetConnection::TryClosePendingGracefulClose()
+{
+	if (GetConnectionState() == USOCK_Closing)
+	{
+		bool bAllChannelsReadyToClose = true;
+
+		for (TObjectPtr<class UChannel> Channel : OpenChannels)
+		{
+			if (Channel != nullptr && !Channel->HasAcknowledgedAllReliableData())
+			{
+				bAllChannelsReadyToClose = false;
+				break;
+			}
+		}
+
+		if (bAllChannelsReadyToClose)
+		{
+			UE_LOG(LogNet, Log, TEXT("Graceful close complete, closing connection: %s"), *Describe());
+			Close(MoveTemp(*PendingGracefulCloseResult));
+		}
+	}
 }
 
 void UNetConnection::HandleNetResultOrClose(ENetCloseResult InResult)
@@ -1206,40 +1280,61 @@ void UNetConnection::HandleReceiveCloseReason(const FString& CloseReasonList)
 	}
 }
 
-void UNetConnection::HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures,
-												UE::Net::ENetUpgradeSource NetUpgradeSource/*=UE::Net::ENetUpgradeSource::ControlChannel*/)
+bool UNetConnection::HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures, UE::Net::ENetUpgradeSource NetUpgradeSource)
 {
-	TStringBuilder<128> RemoteFeaturesDescription;
-	TStringBuilder<128> LocalFeaturesDescription;
+	bool bUpgradeSucceeded = false;
+	const uint32 LocalNetworkVersion = FNetworkVersion::GetLocalNetworkVersion();
 
-	FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(RemoteNetworkFeatures, RemoteFeaturesDescription);
+	const bool bIsNetCLValid = FNetworkVersion::IsNetworkCompatible(LocalNetworkVersion, RemoteNetworkVersion);
 
-	if (Driver != nullptr)
+	// If the NetCL is not identical, we cannot upgrade and must disconnect
+	if (!bIsNetCLValid || Driver == nullptr)
 	{
-		FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(Driver->GetNetworkRuntimeFeatures(), LocalFeaturesDescription);
+		bUpgradeSucceeded = false;
+	}
+	else
+	{
+		Driver->TryUpgradeNetworkFeatures(RemoteNetworkFeatures);
+		bUpgradeSucceeded = Driver->GetNetworkRuntimeFeatures() == RemoteNetworkFeatures;
 	}
 
-	UE_LOG(LogNet, Error, TEXT("Server is incompatible with the local version of the game: RemoteNetworkVersion=%u, ")
-			TEXT("RemoteNetworkFeatures=%s vs LocalNetworkVersion=%u, LocalNetworkFeatures=%s"), 
-			RemoteNetworkVersion, RemoteFeaturesDescription.ToString(), FNetworkVersion::GetLocalNetworkVersion(),
-			LocalFeaturesDescription.ToString());
-
-
-	const FString ConnectionError = NSLOCTEXT("Engine", "ClientOutdated",
-		"The match you are trying to join is running an incompatible version of the game.  Please try upgrading your game version.").ToString();
-
-	GEngine->BroadcastNetworkFailure(GetWorld(), Driver, ENetworkFailure::OutdatedClient, ConnectionError);
-
-	if (NetUpgradeSource == UE::Net::ENetUpgradeSource::StatelessHandshake)
+	if (!bUpgradeSucceeded)
 	{
-		Close(ENetCloseResult::OutdatedClient);
+		const EEngineNetworkRuntimeFeatures LocalNetworkFeatures = Driver ? Driver->GetNetworkRuntimeFeatures() : EEngineNetworkRuntimeFeatures::None;
+
+		TStringBuilder<128> LocalFeaturesDescription;
+		TStringBuilder<128> RemoteFeaturesDescription;
+		FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(LocalNetworkFeatures, LocalFeaturesDescription);
+		FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(RemoteNetworkFeatures, RemoteFeaturesDescription);
+
+		UE_LOG(LogNet, Error, TEXT("Server is incompatible with the local version of the game: RemoteNetworkVersion=%u vs LocalNetworkVersion=%u, RemoteNetworkFeatures=%s vs LocalNetworkFeatures=%s"),
+			RemoteNetworkVersion, LocalNetworkVersion,
+			RemoteFeaturesDescription.ToString(), LocalFeaturesDescription.ToString());
+
+		const FString ConnectionError = NSLOCTEXT("Engine", "ClientOutdated", "The match you are trying to join is running an incompatible version of the game.  Please try upgrading your game version.").ToString();
+		GEngine->BroadcastNetworkFailure(GetWorld(), Driver, ENetworkFailure::OutdatedClient, ConnectionError);
+
+		if (NetUpgradeSource == UE::Net::ENetUpgradeSource::StatelessHandshake)
+		{
+			Close(ENetCloseResult::OutdatedClient);
+		}
 	}
+
+	return bUpgradeSucceeded;
 }
 
 FString UNetConnection::Describe()
 {
+	// `LowLevelGetRemoteAddress` just returns a human readable description of the remote address
+	// and will, on some implementations, call into system stuff to do that (think getting the IP
+	// address or stuff like that). So we need to call this in the open as a result.
+	FString RemoteAddress = AutoRTFM::Open([&]
+		{
+			return LowLevelGetRemoteAddress(true);
+		});
+
 	return FString::Printf( TEXT( "[UNetConnection] RemoteAddr: %s, Name: %s, Driver: %s, IsServer: %s, PC: %s, Owner: %s, UniqueId: %s" ),
-			*LowLevelGetRemoteAddress( true ),
+			*RemoteAddress,
 			*GetName(),
 			Driver ? *Driver->GetDescription() : TEXT( "NULL" ),
 			Driver && Driver->IsServer() ? TEXT( "YES" ) : TEXT( "NO" ),
@@ -1257,10 +1352,9 @@ void UNetConnection::CleanUp()
 	}
 	Children.Empty();
 
-	if ( GetConnectionState() != USOCK_Closed )
-	{
-		UE_LOG( LogNet, Log, TEXT( "UNetConnection::Cleanup: Closing open connection. %s" ), *Describe() );
-	}
+	const bool bWasSocketClosed = GetConnectionState() == USOCK_Closed;
+
+	UE_CLOG((GCVarLogAllConnectionCleanup || !bWasSocketClosed), LogNet, Log, TEXT("UNetConnection::Cleanup: Closing open connection. %s"), *Describe());
 
 	Close(ENetCloseResult::Cleanup);
 
@@ -1305,25 +1399,24 @@ void UNetConnection::CleanUp()
 		}
 	}
 
-	const uint32 MyConnectionId = GetConnectionId();
-	if (MyConnectionId)
+	if (ConnectionHandle.IsParentConnection())
 	{
-		UE_NET_TRACE_CONNECTION_CLOSED(NetTraceId, MyConnectionId);
+		UE_NET_TRACE_CONNECTION_CLOSED(NetTraceId, ConnectionHandle.GetParentConnectionId());
 	}
 
 	if (Driver != nullptr)
 	{
 		// It would be nicer to have the Driver handle this internally, but unfortunately the ServerConnection member is public.
 		// Otherwise we'd be able to do the appropriate logic in Add/Remove Client/ServerConnection
-		if (MyConnectionId)
+		if (ConnectionHandle.IsParentConnection())
 		{
 #if UE_WITH_IRIS
 			if (UReplicationSystem* ReplicationSystem = Driver->GetReplicationSystem())
 			{
-				ReplicationSystem->RemoveConnection(MyConnectionId);
+				ReplicationSystem->RemoveConnection(ConnectionHandle.GetParentConnectionId());
 			}
 #endif // UE_WITH_IRIS
-			Driver->FreeConnectionId(MyConnectionId);
+			Driver->FreeConnectionId(ConnectionHandle.GetParentConnectionId());
 		}
 	}
 
@@ -1412,6 +1505,48 @@ void UChildConnection::InitChildConnection(UNetDriver* InDriver, UNetConnection*
 	CurrentNetSpeed = InParent->CurrentNetSpeed;
 
 	InitChannelData();
+
+	AssignConnectionHandle();
+}
+
+void UChildConnection::AssignConnectionHandle()
+{
+	if (const UNetConnection* ParentConn = Parent.Get())
+	{
+		// Don't assume the children remain on a particular index or that the array isn't ever shrinking. This code will assign as low an ID as possible.
+		const uint32 MaxNeededChildId = ParentConn->Children.Num() + 1;
+		TBitArray<> UsedChildIds;
+		UsedChildIds.SetNum(static_cast<int32>(MaxNeededChildId) + 1, false);
+		constexpr uint32 InvalidChildId = 0;
+		UsedChildIds[InvalidChildId] = true;
+		for (const UChildConnection* ChildConn : ParentConn->Children)
+		{
+			const uint32 ChildId = Cast<UNetConnection>(ChildConn)->GetConnectionHandle().GetChildConnectionId();
+			// If the ChildId is outside our small range we don't need to know it's used and the bitarray isn't large enough to store the information.
+			if (ChildId <= MaxNeededChildId)
+			{
+				UsedChildIds[ChildId] = true;
+			}
+		}
+
+		// There will be at least one unused child ID.
+		int32 ChildId = UsedChildIds.Find(false);
+		if (ChildId == INDEX_NONE)
+		{
+			ensureMsgf(false, TEXT("Logic failed assigning child connection ID."));
+			ChildId = InvalidChildId;
+		}
+		
+		SetConnectionHandle(UE::Net::FConnectionHandle(ParentConn->GetConnectionHandle().GetParentConnectionId(), static_cast<uint32>(ChildId)));
+	}
+}
+
+void UChildConnection::GracefulClose(FNetCloseResult&& CloseReason)
+{
+	if (Parent)
+	{
+		Parent->GracefulClose(MoveTemp(CloseReason));
+	}
 }
 
 void UNetConnection::FinishDestroy()
@@ -1481,7 +1616,7 @@ bool UNetConnection::Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar 
 void UNetConnection::AssertValid()
 {
 	// Make sure this connection is in a reasonable state.
-	check(GetConnectionState()==USOCK_Closed || GetConnectionState()==USOCK_Pending || GetConnectionState()==USOCK_Open);
+	check(IsClosingOrClosed() || GetConnectionState() == USOCK_Pending || GetConnectionState() == USOCK_Open);
 
 }
 
@@ -1505,7 +1640,7 @@ FNetLevelVisibilityTransactionId UNetConnection::UpdateLevelStreamStatusChangedT
 				const UReplicationBridge* ReplicationBridge = ReplicationSystem->GetReplicationBridge();
 				if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle.IsValid())
 				{
-					ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionId(), UE::Net::ENetFilterStatus::Disallow);
+					ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionHandle().GetParentConnectionId(), UE::Net::ENetFilterStatus::Disallow);
 				}
 			}
 		}
@@ -1661,7 +1796,7 @@ void UNetConnection::UpdateLevelVisibilityInternal(const FUpdateLevelVisibilityL
 					const UReplicationBridge* ReplicationBridge = ReplicationSystem->GetReplicationBridge();
 					if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle.IsValid())
 					{
-						ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionId(), UE::Net::ENetFilterStatus::Allow);
+						ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionHandle().GetParentConnectionId(), UE::Net::ENetFilterStatus::Allow);
 					}
 				}
 			}
@@ -1706,7 +1841,8 @@ void UNetConnection::UpdateLevelVisibilityInternal(const FUpdateLevelVisibilityL
 			UE_LOG(LogPlayerController, Warning, TEXT("ServerUpdateLevelVisibility() ignored non-existant package. PackageName='%s', FileName='%s'"),
 					ToCStr(PackageNameStr), ToCStr(FileNameStr));
 
-			if (!LevelVisibility.bSkipCloseOnError)
+			// Added CVAR to address #sh-06-13-desert-biome-server-kicks-ext. Should be removed once a proper solution is found
+			if (!CVarSkipMissingLevelDisconnect.GetValueOnAnyThread() && !LevelVisibility.bSkipCloseOnError)
 			{
 				TStringBuilder<1024> VisibilityParms;
 
@@ -1758,7 +1894,7 @@ void UNetConnection::UpdateLevelVisibilityInternal(const FUpdateLevelVisibilityL
 					const UReplicationBridge* ReplicationBridge = ReplicationSystem->GetReplicationBridge();
 					if (UE::Net::FNetObjectGroupHandle GroupHandle = ReplicationBridge->GetLevelGroup(Level); GroupHandle.IsValid())
 					{
-						ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionId(), UE::Net::ENetFilterStatus::Disallow);
+						ReplicationSystem->SetGroupFilterStatus(GroupHandle, GetConnectionHandle().GetParentConnectionId(), UE::Net::ENetFilterStatus::Disallow);
 					}
 				}
 			}
@@ -2004,7 +2140,7 @@ void UNetConnection::PreTickDispatch()
 
 	if (!IsReplay())
 	{
-		double LastTickDispatchRealtime = Driver->LastTickDispatchRealtime;
+		const double LastTickDispatchRealtime = Driver->LastTickDispatchRealtime;
 
 		if (bIsServer && RPCDoS.IsValid())
 		{
@@ -2061,7 +2197,13 @@ void UNetConnection::FlushPacketOrderCache(bool bFlushWholeCache/*=false*/)
 			{
 				UE_LOG(LogNet, VeryVerbose, TEXT("'Out of Order' Packet Cache, replaying packet with cache index: %i (bFlushWholeCache: %i)"), PacketOrderCacheStartIdx, (int32)bFlushWholeCache);
 
-				ReceivedPacket(*CurCachePacket.Get());
+#if DO_ENABLE_NET_TEST
+				// Packets in the packet order cache have already had packet simulation applied. Make sure it's not applied again.
+				TGuardValue<bool> ReinjectingGuard(bIsReinjectingDelayedPackets, true);
+#endif
+
+				constexpr bool bIsReinjectedPacket = true;
+				ReceivedPacket(*CurCachePacket.Get(), bIsReinjectedPacket);
 
 				CurCachePacket.Reset();
 
@@ -2090,9 +2232,17 @@ void UNetConnection::ReinjectDelayedPackets()
 		TGuardValue<bool> ReinjectingGuard(bIsReinjectingDelayedPackets, true);
 
 		uint32 NbReinjected(0);
-		for (const FDelayedIncomingPacket& DelayedPacket : DelayedIncomingPackets)
+		for (FDelayedIncomingPacket& DelayedPacket : DelayedIncomingPackets)
 		{
-			if (DelayedPacket.ReinjectionTime > CurrentTime)
+			if (DelayedPacket.ReinjectionFrameCount > 0)
+			{
+				if (DelayedPacket.ReinjectionFrameCount > 1)
+				{
+					DelayedPacket.ReinjectionFrameCount--;
+					break;
+				}
+			}			
+			else if (DelayedPacket.ReinjectionTime > CurrentTime)
 			{
 				break;
 			}
@@ -2185,12 +2335,12 @@ void UNetConnection::FlushNet(bool bIgnoreSimulation)
 #if UE_NET_TRACE_ENABLED	
 		if (OutTraceCollector)
 		{
-			UE_NET_TRACE_FLUSH_COLLECTOR(OutTraceCollector, NetTraceId, GetConnectionId(), ENetTracePacketType::Outgoing);
+			UE_NET_TRACE_FLUSH_COLLECTOR(OutTraceCollector, NetTraceId, GetConnectionHandle().GetParentConnectionId(), ENetTracePacketType::Outgoing);
 			UE_NET_TRACE_DESTROY_COLLECTOR(OutTraceCollector);
 			OutTraceCollector = nullptr;
 		}
 		// Report end of packet
-		UE_NET_TRACE_PACKET_SEND(NetTraceId, GetConnectionId(), OutPacketId, SendBuffer.GetNumBits());
+		UE_NET_TRACE_PACKET_SEND(NetTraceId, GetConnectionHandle().GetParentConnectionId(), OutPacketId, SendBuffer.GetNumBits());
 #endif
 
 		// Send now.
@@ -2368,6 +2518,13 @@ bool UNetConnection::CheckOutgoingPacketEmulation(FOutPacketTraits& Traits)
 		
 		return true;
 	}
+	else if (PacketSimulationSettings.PktFrameDelay > 0)
+	{
+		FDelayedPacket& B = *(new(Delayed)FDelayedPacket(SendBuffer.GetData(), SendBuffer.GetNumBits(), Traits));
+		B.DelayFrameCount = PacketSimulationSettings.PktFrameDelay;
+		
+		return true;
+	}
 
 	return false;
 }
@@ -2481,7 +2638,7 @@ void UNetConnection::ReceivedNak( int32 NakPacketId )
 {
 	UE_LOG(LogNetTraffic, Verbose, TEXT("   Received nak %i"), NakPacketId);
 
-	UE_NET_TRACE_PACKET_DROPPED(NetTraceId, GetConnectionId(), NakPacketId, ENetTracePacketType::Outgoing);
+	UE_NET_TRACE_PACKET_DROPPED(NetTraceId, GetConnectionHandle().GetParentConnectionId(), NakPacketId, ENetTracePacketType::Outgoing);
 
 	SCOPE_CYCLE_COUNTER(Stat_NetConnectionReceivedNak);
 
@@ -2826,6 +2983,17 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 			UE_LOG(LogNet, VeryVerbose, TEXT("Delaying incoming packet for %f seconds"), ExtraLagInSec);
 			return;
 		}
+		else if (PacketSimulationSettings.PktIncomingFrameDelay)
+		{
+			FDelayedIncomingPacket DelayedPacket;
+			DelayedPacket.PacketData = MakeUnique<FBitReader>(Reader);
+			DelayedPacket.ReinjectionFrameCount = PacketSimulationSettings.PktIncomingFrameDelay;
+
+			DelayedIncomingPackets.Emplace(MoveTemp(DelayedPacket));
+
+			UE_LOG(LogNet, VeryVerbose, TEXT("Delaying incoming packet for %u frames"), PacketSimulationSettings.PktIncomingFrameDelay);
+			return;
+		}
 	}
 #endif //#if DO_ENABLE_NET_TEST
 
@@ -3139,19 +3307,19 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 #if UE_NET_TRACE_ENABLED
 	if (InTraceCollector)
 	{
-		UE_NET_TRACE_FLUSH_COLLECTOR(InTraceCollector, NetTraceId, GetConnectionId(), ENetTracePacketType::Incoming);
+		UE_NET_TRACE_FLUSH_COLLECTOR(InTraceCollector, NetTraceId, GetConnectionHandle().GetParentConnectionId(), ENetTracePacketType::Incoming);
 		UE_NET_TRACE_DESTROY_COLLECTOR(InTraceCollector);
 		InTraceCollector = nullptr;
 	}
 #endif
 
 	// Trace end marker of this incoming data packet.
-	UE_NET_TRACE_PACKET_RECV(NetTraceId, GetConnectionId(), InPacketId, Reader.GetNumBits());
+	UE_NET_TRACE_PACKET_RECV(NetTraceId, GetConnectionHandle().GetParentConnectionId(), InPacketId, Reader.GetNumBits());
 
 	if ((bHasBunchErrors || bSkipAck) && !IsInternalAck())
 	{
 		// Trace packet as lost on receiving end to indicate bSkipAck or errors in traced data
-		UE_NET_TRACE_PACKET_DROPPED(NetTraceId, GetConnectionId(), InPacketId, ENetTracePacketType::Incoming);
+		UE_NET_TRACE_PACKET_DROPPED(NetTraceId, GetConnectionHandle().GetParentConnectionId(), InPacketId, ENetTracePacketType::Incoming);
 	}
 }
 
@@ -3165,6 +3333,9 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 	const bool bIgnoreRPCs = Driver->ShouldIgnoreRPCs();
 
 	const FEngineNetworkCustomVersion::Type PacketEngineNetVer = static_cast<FEngineNetworkCustomVersion::Type>(Reader.EngineNetVer());
+
+	// We want to be able to read replays that do not support export extentions.
+	const bool bHasPartialCustomExportsFinalBit = !(IsInternalAck() && PacketEngineNetVer < FEngineNetworkCustomVersion::CustomExports);
 
 	// Disassemble and dispatch all bunches in the packet.
 	while( !Reader.AtEnd() && GetConnectionState()!=USOCK_Closed )
@@ -3254,6 +3425,10 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 							if (bPartial)
 							{
 								Reader.ReadBit(); // bPartialInitial
+								if (bHasPartialCustomExportsFinalBit)
+								{
+									Reader.ReadBit(); // bPartialCustomExportsFinal
+								}
 								Reader.ReadBit(); // bPartialFinal
 							}
 
@@ -3284,9 +3459,9 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 			Bunch.bHasMustBeMappedGUIDs	= Reader.ReadBit();
 			Bunch.bPartial				= Reader.ReadBit();
 
-			if ( Bunch.bReliable )
+			if (Bunch.bReliable)
 			{
-				if ( IsInternalAck() )
+				if (IsInternalAck())
 				{
 					// We can derive the sequence for 100% reliable connections
 					Bunch.ChSequence = InReliable[Bunch.ChIndex] + 1;
@@ -3294,10 +3469,10 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 				else
 				{
 					// If this is a reliable bunch, use the last processed reliable sequence to read the new reliable sequence
-					Bunch.ChSequence = MakeRelative( Reader.ReadInt( MAX_CHSEQUENCE ), InReliable[Bunch.ChIndex], MAX_CHSEQUENCE );
+					Bunch.ChSequence = MakeRelative(Reader.ReadInt(MAX_CHSEQUENCE), InReliable[Bunch.ChIndex], MAX_CHSEQUENCE);
 				}
 			} 
-			else if ( Bunch.bPartial )
+			else if (Bunch.bPartial)
 			{
 				// If this is an unreliable partial bunch, we simply use packet sequence since we already have it
 				Bunch.ChSequence = PacketId;
@@ -3308,6 +3483,7 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 			}
 
 			Bunch.bPartialInitial = Bunch.bPartial ? Reader.ReadBit() : 0;
+			Bunch.bPartialCustomExportsFinal = Bunch.bPartial && bHasPartialCustomExportsFinalBit ? Reader.ReadBit() : 0;
 			Bunch.bPartialFinal = Bunch.bPartial ? Reader.ReadBit() : 0;
 
 			if (PacketEngineNetVer < FEngineNetworkCustomVersion::ChannelNames)
@@ -3376,7 +3552,7 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 
 			const int32 HeaderPos = Reader.GetPosBits();
 
-			if( Reader.IsError() )
+			if(Reader.IsError())
 			{
 				UE_LOG(LogNet, Warning, TEXT("Bunch header overflowed"));
 
@@ -4091,6 +4267,7 @@ int32 UNetConnection::SendRawBunch(FOutBunch& Bunch, bool InAllowMerge, const FN
 	if (Bunch.bPartial)
 	{
 		SendBunchHeader.WriteBit(Bunch.bPartialInitial);
+		SendBunchHeader.WriteBit(Bunch.bPartialCustomExportsFinal);
 		SendBunchHeader.WriteBit(Bunch.bPartialFinal);
 	}
 
@@ -4152,7 +4329,7 @@ int32 UNetConnection::SendRawBunch(FOutBunch& Bunch, bool InAllowMerge, const FN
 
 	UE_LOG(LogNetTraffic, Verbose, TEXT("UNetConnection::SendRawBunch. ChIndex: %d. Bits: %d. PacketId: %d"), Bunch.ChIndex, Bunch.GetNumBits(), Bunch.PacketId);
 
-	if (PackageMap && Bunch.bHasPackageMapExports)
+	if (PackageMap && (Bunch.bHasPackageMapExports || Bunch.bPartialCustomExportsFinal))
 	{
 		PackageMap->NotifyBunchCommit(Bunch.PacketId, &Bunch);
 	}
@@ -4314,43 +4491,7 @@ void UNetConnection::Tick(float DeltaSeconds)
 
 	// Lag simulation.
 #if DO_ENABLE_NET_TEST
-	if (Delayed.Num() > 0)
-	{
-		if (bSendDelayedPacketsOutofOrder)
-		{
-			for (int Idx=0; Idx < Delayed.Num(); ++Idx)
-			{
-				if (CurrentRealtimeSeconds > Delayed[Idx].SendTime)
-				{
-					LowLevelSend((char*)&(Delayed[Idx].Data[0]), Delayed[Idx].SizeBits, Delayed[Idx].Traits);
-				}
-			}
-
-			Delayed.RemoveAll([&CurrentRealtimeSeconds](const FDelayedPacket& rhs)
-			{
-				return CurrentRealtimeSeconds > rhs.SendTime;
-			});
-		}
-		else
-		{
-			uint32 NbPacketsSent(0);
-			for (FDelayedPacket& DelayedPacket : Delayed)
-			{
-				if (CurrentRealtimeSeconds > DelayedPacket.SendTime)
-				{
-					LowLevelSend((char*)&DelayedPacket.Data[0], DelayedPacket.SizeBits, DelayedPacket.Traits);
-					++NbPacketsSent;
-				}
-				else
-				{
-					// Break now instead of continuing to iterate through the list. Otherwise may cause out of order sends
-					break;
-				}
-			}
-
-			Delayed.RemoveAt(0, NbPacketsSent, EAllowShrinking::No);
-		}
-	}
+	UpdateDelayedPackets(CurrentRealtimeSeconds);
 #endif
 
 	// if this is 0 it's our first tick since init, so start our real-time tracking from here
@@ -4477,11 +4618,21 @@ void UNetConnection::Tick(float DeltaSeconds)
 	// Handle timeouts.
 	const float Timeout = GetTimeoutValue();
 
-	if ((CurrentRealtimeSeconds - LastReceiveRealtime) > Timeout)
+	const bool bReceiveTimedOut = (CurrentRealtimeSeconds - LastReceiveRealtime) > Timeout;
+	const bool bGracefulCloseTimedOut = (GetConnectionState() == USOCK_Closing) && (DriverElapsedTime > GracefulCloseTimeoutDeadline);
+
+	if (bReceiveTimedOut || bGracefulCloseTimedOut)
 	{
 		const TCHAR* const TimeoutString = TEXT("UNetConnection::Tick: Connection TIMED OUT. Closing connection.");
 		const TCHAR* const DestroyString = TEXT("UNetConnection::Tick: Connection closing during pending destroy, not all shutdown traffic may have been negotiated");
-		
+
+		const TCHAR* ErrorString = bPendingDestroy ? DestroyString : TimeoutString;
+
+		if (bGracefulCloseTimedOut)
+		{
+			ErrorString = TEXT("UNetConnection::Tick: Connection graceful close timed out, not all shutdown traffic was negotiated");
+		}
+
 		// Compute true realtime since packet was received (as well as truly processed)
 		const double Seconds = FPlatformTime::Seconds();
 
@@ -4490,12 +4641,12 @@ void UNetConnection::Tick(float DeltaSeconds)
 
 		// Timeout.
 		FString Error = FString::Printf(TEXT("%s. Elapsed: %2.2f, Real: %2.2f, Good: %2.2f, DriverTime: %2.2f, Threshold: %2.2f, %s"),
-			bPendingDestroy ? DestroyString : TimeoutString,
+			ErrorString,
 			DriverElapsedTime - LastReceiveTime,
 			ReceiveRealtimeDelta,
 			GoodRealtimeDelta,
 			DriverElapsedTime,
-			Timeout,
+			bGracefulCloseTimedOut ? Driver->GracefulCloseConnectionTimeout : Timeout,
 			*Describe());
 		
 		static double LastTimePrinted = 0.0f;
@@ -4578,7 +4729,7 @@ void UNetConnection::Tick(float DeltaSeconds)
 				// Remove the actor channel from the array
 				if ( bRemoveChannel )
 				{
-					ActorChannelArray.RemoveAt( ActorChannelIdx, 1, EAllowShrinking::No);
+					ActorChannelArray.RemoveAt( ActorChannelIdx, EAllowShrinking::No);
 					--ActorChannelIdx;
 				}
 			}
@@ -4588,6 +4739,9 @@ void UNetConnection::Tick(float DeltaSeconds)
 				ProcessingActorMapIter.RemoveCurrent();
 			}
 		}
+
+		// If gracefully closing, check whether all channels are ready for close
+		TryClosePendingGracefulClose();
 
 		// If channel 0 has closed, mark the connection as closed.
 		if (Channels[0] == nullptr && (OutReliable[0] != InitOutReliable || InReliable[0] != InitInReliable))
@@ -4693,6 +4847,49 @@ void UNetConnection::Tick(float DeltaSeconds)
 	}
 }
 
+#if DO_ENABLE_NET_TEST
+void UNetConnection::UpdateDelayedPackets(const double CurrentRealtimeSeconds)
+{
+	for (int32 Index = 0; Index < Delayed.Num(); ++Index)
+	{
+		FDelayedPacket& Packet = Delayed[Index];
+		bool bSendPacket = false;
+
+		if (Packet.DelayFrameCount > 0)
+		{
+			if (Packet.DelayFrameCount == 1)
+			{
+				bSendPacket = true;
+			}
+			else
+			{
+				Packet.DelayFrameCount--;
+			}
+		}
+		else if (CurrentRealtimeSeconds > Packet.SendTime)
+		{
+			bSendPacket = true;
+		}
+
+		if (bSendPacket)
+		{
+			LowLevelSend((char*)&(Packet.Data[0]), Packet.SizeBits, Packet.Traits);
+			Packet.bSent = true;
+		}
+		else if (!bSendDelayedPacketsOutofOrder)
+		{
+			// Break now instead of continuing to iterate through the list. Otherwise it causes out of order packets due to the random variance added to each latency
+			break;
+		}
+	}
+
+	Delayed.RemoveAll([](const FDelayedPacket& Packet)
+	{
+		return Packet.bSent;
+	});
+}
+#endif // DO_ENABLE_NET_TEST
+
 void UNetConnection::HandleConnectionTimeout(const FString& Error)
 {
 	if (!bPendingDestroy)
@@ -4758,7 +4955,7 @@ void UNetConnection::HandleClientPlayer( APlayerController *PC, UNetConnection* 
 		// Enable replication
 		if (UReplicationSystem* ReplicationSystem = Driver->GetReplicationSystem())
 		{
-			ReplicationSystem->SetReplicationEnabledForConnection(GetConnectionId(), true);
+			ReplicationSystem->SetReplicationEnabledForConnection(GetConnectionHandle().GetParentConnectionId(), true);
 		}
 	}
 #endif // UE_WITH_IRIS
@@ -5177,7 +5374,7 @@ void UNetConnection::SetClientLoginState( const EClientLoginState::Type NewState
 		if (NewState == EClientLoginState::ReceivedJoin)
 		{
 			// Enable replication
-			ReplicationSystem->SetReplicationEnabledForConnection(GetConnectionId(), true);
+			ReplicationSystem->SetReplicationEnabledForConnection(GetConnectionHandle().GetParentConnectionId(), true);
 		}
 	}
 #endif // UE_WITH_IRIS
@@ -5593,12 +5790,7 @@ void UNetConnection::SendChallengeControlMessage(const FEncryptionKeyResponse& R
 
 uint32 UNetConnection::GetParentConnectionId() const
 {
-	if (const UChildConnection* ChildConnection = const_cast<UNetConnection*>(this)->GetUChildConnection())
-	{
-		return ChildConnection->Parent->GetParentConnectionId();
-	}
-
-	return GetConnectionId();
+	return GetConnectionHandle().GetParentConnectionId();
 }
 
 void UNetConnection::NotifyActorDestroyed(AActor* Actor, bool IsSeamlessTravel /* = false */)

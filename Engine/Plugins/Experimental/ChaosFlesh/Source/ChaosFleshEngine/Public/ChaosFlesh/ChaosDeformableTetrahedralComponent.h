@@ -10,6 +10,7 @@
 #include "ChaosFlesh/ChaosFleshDeformerBufferManager.h"
 #include "ChaosFlesh/SimulationAsset.h"
 #include "Components/MeshComponent.h"
+#include "Dataflow/Interfaces/DataflowInterfaceGeometryCachable.h"
 #include "UObject/ObjectMacros.h"
 #include "ProceduralMeshComponent.h"
 #include "ChaosDeformableTetrahedralComponent.generated.h"
@@ -18,6 +19,8 @@ class FFleshCollection;
 class ADeformableSolverActor;
 class UDeformableSolverComponent;
 class FChaosDeformableTetrahedralSceneProxy;
+class USkinnedAsset;
+class USkeletalMesh;
 
 /**
 *  Options for binding positions query.
@@ -84,7 +87,7 @@ struct FBodyForcesGroup
 *	UDeformableTetrahedralComponent
 */
 UCLASS(meta = (BlueprintSpawnableComponent))
-class CHAOSFLESHENGINE_API UDeformableTetrahedralComponent : public UDeformablePhysicsComponent
+class CHAOSFLESHENGINE_API UDeformableTetrahedralComponent : public UDeformablePhysicsComponent, public IDataflowGeometryCachable
 {
 	GENERATED_UCLASS_BODY()
 
@@ -114,7 +117,10 @@ public:
 	virtual void UpdateFromSimulation(const FDataMapValue* SimualtionBuffer) override;
 
 	/** RestCollection */
+	UFUNCTION(BlueprintCallable, Category = "Physics")
 	void SetRestCollection(const UFleshAsset * InRestCollection);
+	
+	UFUNCTION(BlueprintCallable, Category = "Physics")
 	const UFleshAsset* GetRestCollection() const { return RestCollection; }
 
 	/** DynamicCollection */
@@ -130,7 +136,17 @@ public:
 	/** @deprecated Use GetSkeletalMeshEmbeddedPositions() instead. */
 	UFUNCTION(BlueprintCallable, Category = "Physics", meta = (DeprecatedFunction, DeprecationMessage = "Use GetSkeletalMeshEmbeddedPositions() instead."))
 	TArray<FVector> GetSkeletalMeshBindingPositions(const USkeletalMesh* InSkeletalMesh) const;
+	
+	//~ Begin IDataflowGeometryCachable Interface
+	virtual TArray<FVector3f> GetGeometryCachePositions(const USkeletalMesh* SkeletalMesh) const override;
 
+	virtual TOptional<TArray<int32>> GetMeshImportVertexMap(const USkinnedAsset& SkinnedMeshAsset) const override;
+	//~ End IDataflowGeometryCachable Interface
+
+	virtual void SetMaterial(int32 Index, UMaterialInterface* InMaterial) override
+	{
+		Material = InMaterial;
+	}
 	/**
 	* Get the current positions of the transformation hierarchy from \c TargetDeformationSkeleton,
 	* deformed by the tetrahedral mesh.  Results can be in world space postions/deltas, component space
@@ -152,6 +168,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Rendering")
 	TObjectPtr<UProceduralMeshComponent> Mesh;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Rendering")
+	TObjectPtr<UMaterialInterface> Material = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Rendering")
 	TArray<int32> HideTetrahedra;

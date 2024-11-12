@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
+
+#include "Algo/Find.h"
 #include "Graph/MovieGraphProjectSettings.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
+#include "MoviePipelineTelemetry.h"
 #include "Styling/AppStyle.h"
-#include "Algo/Find.h"
 
 UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	: OutputFrameRate(FFrameRate(24, 1))
@@ -14,6 +16,7 @@ UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	, HandleFrameCount(0)
 	, CustomPlaybackRangeStartFrame(0)
 	, CustomPlaybackRangeEndFrame(0)
+	, bDropFrameTimecode(true)	// Defaults to true because most 29.97 FPS content uses this
 	, bFlushDiskWritesPerShot(false)
 {
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");
@@ -46,6 +49,11 @@ void UMovieGraphGlobalOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolve
 	}
 
 	// We don't resolve the version here because that's handled on a per-file/shot basis
+}
+
+void UMovieGraphGlobalOutputSettingNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->HandleFrameCount = HandleFrameCount;
 }
 
 #if WITH_EDITOR

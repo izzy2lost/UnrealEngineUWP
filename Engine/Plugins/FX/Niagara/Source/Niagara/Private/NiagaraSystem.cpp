@@ -37,26 +37,30 @@
 
 #include "Algo/RemoveIf.h"
 #include "Algo/StableSort.h"
+#include "Cooker/CookDependency.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/ScopeExit.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "ProfilingDebugging/ScopedTimers.h"
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/Package.h"
 #include "PipelineStateCache.h"
+#include "ShaderDiagnostics.h"
 #include "NiagaraDataChannel.h"
 #include "UObject/UObjectIterator.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraSystem)
 
 #define LOCTEXT_NAMESPACE "NiagaraSystem"
-
-#if WITH_EDITOR
-#endif
 
 DECLARE_CYCLE_STAT(TEXT("Niagara - System - CompileScript"), STAT_Niagara_System_CompileScript, STATGROUP_Niagara);
 DECLARE_CYCLE_STAT(TEXT("Niagara - System - CompileScript_ResetAfter"), STAT_Niagara_System_CompileScriptResetAfter, STATGROUP_Niagara);
@@ -78,6 +82,7 @@ namespace NiagaraSystemPrivate
 {
 	static const FName NAME_ActiveEmitters("ActiveEmitters");
 	static const FName NAME_ActiveRenderers("ActiveRenderers");
+	static const FName NAME_ActiveStatelessEmitters("ActiveStatelessEmitters");
 	static const FName NAME_GPUSimsMissingFixedBounds("GPUSimsMissingFixedBounds");
 	static const FName NAME_EffectType("EffectType");
 	static const FName NAME_WarmupTime("WarmupTime");
@@ -88,7 +93,56 @@ namespace NiagaraSystemPrivate
 	static const FName NAME_HasGPUEmitter("HasGPUEmitter");
 	static const FName NAME_FixedBoundsSize("FixedBoundsSize");
 	static const FName NAME_NumEmitters("NumEmitters");
+
+#if WITH_EDITOR
+	constexpr int32 CookDependenciesArgsVersion = 1;
+	void HashDependenciesForCook(FCbFieldViewIterator Args, UE::Cook::FCookDependencyContext& Context);
+	void RegisterCookDependencies(FObjectPreSaveContext ObjectSaveContext, bool bIncludeGpuTarget);
+
+	struct FCookDependency
+	{
+		TArray<FName> ShaderFormatNames;
+
+		bool TryLoad(FCbFieldViewIterator& ArgField);
+		void Save(FCbWriter& Writer);
+	};
+
+	template<typename TAction>
+	void ForEachDataInterfaceUserParameterBinding(UObject* Outer, TAction Action, bool bShouldModifyObjects = true)
+	{
+		ForEachObjectWithOuter(
+			Outer,
+			[&Action, bShouldModifyObjects](UObject* Object)
+			{
+				if (Object && Object->IsA<UNiagaraDataInterface>())
+				{
+					bool bNeedsModify = bShouldModifyObjects;
+					for (TFieldIterator<const FStructProperty> PropertyIt(Object->GetClass()); PropertyIt; ++PropertyIt)
+					{
+						const FStructProperty* StructProperty = *PropertyIt;
+						if (const UStruct* InnerStruct = StructProperty->Struct)
+						{
+							if (InnerStruct->IsChildOf(FNiagaraUserParameterBinding::StaticStruct()))
+							{
+								if ( bNeedsModify )
+								{
+									bNeedsModify = false;
+									Object->Modify();
+								}
+
+								FNiagaraUserParameterBinding* ParameterBinding = StructProperty->ContainerPtrToValuePtr<FNiagaraUserParameterBinding>(Object);
+								Action(*ParameterBinding);
+							}
+						}
+					}
+				}
+			}
+		);
+	}
+#endif
 }
+
+UE_COOK_DEPENDENCY_FUNCTION(HashNiagaraSystemDependenciesForCook, NiagaraSystemPrivate::HashDependenciesForCook);
 
 //Disable for now until we can spend more time on a good method of applying the data gathered.
 int32 GEnableNiagaraRuntimeCycleCounts = 0;
@@ -117,6 +171,13 @@ static FAutoConsoleVariableRef CVarNiagaraCompileWaitLoggingTerminationCap(
 	TEXT("During automation, how many times do we log before failing compilation?"),
 	ECVF_Default
 );
+
+int32 GNiagaraPrecachePSOAtAssetLoadingTime = 1;
+FAutoConsoleVariableRef CVarNiagaraPrecachePSOAtAssetLoadingTime(
+	TEXT("r.PSOPrecache.NiagaraPrecachePSOAtAssetLoadingTime"),
+	GNiagaraPrecachePSOAtAssetLoadingTime,
+	TEXT("Controls whether Niagara systems start PSO precaching at asset loading time (1 = default) or only when activated (0)."),
+	ECVF_Default);
 
 #if WITH_EDITORONLY_DATA
 static int GNiagaraOnDemandCompileEnabled = 1;
@@ -291,6 +352,14 @@ void UNiagaraSystem::PreSave(FObjectPreSaveContext ObjectSaveContext)
 #if WITH_EDITORONLY_DATA
 	WaitForCompilationComplete();
 #endif
+
+#if WITH_EDITOR
+	if (ObjectSaveContext.IsCooking())
+	{
+		UpdateHasGPUEmitters();
+		NiagaraSystemPrivate::RegisterCookDependencies(ObjectSaveContext, bHasAnyGPUEmitters);
+	}
+#endif
 }
 
 #if WITH_EDITOR
@@ -344,8 +413,21 @@ void UNiagaraSystem::HandleVariableRenamed(const FNiagaraVariable& InOldVariable
 {
 	if (InOldVariable.IsInNameSpace(FNiagaraConstants::UserNamespaceString))
 	{
+		NiagaraSystemPrivate::ForEachDataInterfaceUserParameterBinding(
+			this,
+			[&InOldVariable, &InNewVariable](FNiagaraUserParameterBinding& ParameterBinding)
+			{
+				if (ParameterBinding.Parameter == InOldVariable)
+				{
+					ParameterBinding.Parameter = InNewVariable;
+				}
+			}
+		);
+
 		if (GetExposedParameters().IndexOf(InOldVariable) != INDEX_NONE)
+		{
 			GetExposedParameters().RenameParameter(InOldVariable, InNewVariable.GetName());
+		}
 		InitSystemCompiledData();
 	}
 
@@ -368,8 +450,21 @@ void UNiagaraSystem::HandleVariableRemoved(const FNiagaraVariable& InOldVariable
 {
 	if (InOldVariable.IsInNameSpace(FNiagaraConstants::UserNamespaceString))
 	{
+		NiagaraSystemPrivate::ForEachDataInterfaceUserParameterBinding(
+			this,
+			[&InOldVariable](FNiagaraUserParameterBinding& ParameterBinding)
+			{
+				if (ParameterBinding.Parameter == InOldVariable)
+				{
+					ParameterBinding.Parameter = FNiagaraVariable();
+				}
+			}
+		);
+
 		if (GetExposedParameters().IndexOf(InOldVariable) != INDEX_NONE)
+		{
 			GetExposedParameters().RemoveParameter(InOldVariable);
+		}
 		InitSystemCompiledData();
 	}
 	for (const FNiagaraEmitterHandle& Handle : GetEmitterHandles())
@@ -487,10 +582,21 @@ bool UNiagaraSystem::UsesCollection(const UNiagaraParameterCollection* Collectio
 
 	for (const FNiagaraEmitterHandle& EmitterHandle : GetEmitterHandles())
 	{
-		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
-		if (EmitterData && EmitterData->UsesCollection(Collection))
+		if (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Standard)
 		{
-			return true;
+			FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			if (EmitterData && EmitterData->UsesCollection(Collection))
+			{
+				return true;
+			}
+		}
+		else
+		{
+			UNiagaraStatelessEmitter* Emitter = EmitterHandle.GetStatelessEmitter();
+			if (Emitter && Emitter->UsesCollection(Collection))
+			{
+				return true;
+			}
 		}
 	}
 
@@ -1251,7 +1357,10 @@ void UNiagaraSystem::PostLoad()
 	}
 #endif // WITH_EDITORONLY_DATA
 
-	PrecachePSOs();
+	if (GNiagaraPrecachePSOAtAssetLoadingTime)
+	{
+		PrecachePSOs();
+	}
 }
 
 void UNiagaraSystem::PostDuplicate(bool bDuplicateForPIE)
@@ -1307,7 +1416,7 @@ void UNiagaraSystem::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutCons
 
 void UNiagaraSystem::PrecachePSOs()
 {
-	if (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled())
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}
@@ -1525,35 +1634,68 @@ void UNiagaraSystem::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 	// Gather up generic NumActive values
 	uint32 NumActiveEmitters = 0;
 	uint32 NumActiveRenderers = 0;
+	uint32 NumActiveStatelessEmitters = 0;
 	TArray<const UNiagaraRendererProperties*> ActiveRenderers;
 	for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
 	{
-		if (Handle.GetIsEnabled())
+		if (!Handle.GetIsEnabled())
 		{
+			continue;
+		}
 
-			NumActiveEmitters++;
-			if (FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData())
+		++NumActiveEmitters;
+
+		switch ( Handle.GetEmitterMode() )
+		{
+			case ENiagaraEmitterMode::Standard:
 			{
-				// Only register fixed bounds requirement for GPU if the system itself isn't fixed bounds.
-				if (bFixedBounds == false && EmitterData->CalculateBoundsMode == ENiagaraEmitterCalculateBoundMode::Dynamic && EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
+				if (FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData())
 				{
-					GPUSimsMissingFixedBounds++;
-				}
-
-				for (const UNiagaraRendererProperties* Props : EmitterData->GetRenderers())
-				{
-					if (Props)
+					// Only register fixed bounds requirement for GPU if the system itself isn't fixed bounds.
+					if (bFixedBounds == false && EmitterData->CalculateBoundsMode == ENiagaraEmitterCalculateBoundMode::Dynamic && EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
 					{
-						NumActiveRenderers++;
-						ActiveRenderers.Add(Props);
+						GPUSimsMissingFixedBounds++;
+					}
+
+					for (const UNiagaraRendererProperties* Props : EmitterData->GetRenderers())
+					{
+						if (Props)
+						{
+							NumActiveRenderers++;
+							ActiveRenderers.Add(Props);
+						}
 					}
 				}
+				break;
 			}
+
+			case ENiagaraEmitterMode::Stateless:
+				{
+					if (UNiagaraStatelessEmitter* StatelessEmitter = Handle.GetStatelessEmitter())
+					{
+						++NumActiveStatelessEmitters;
+
+						for (const UNiagaraRendererProperties* Props : StatelessEmitter->GetRenderers())
+						{
+							if (Props)
+							{
+								NumActiveRenderers++;
+								ActiveRenderers.Add(Props);
+							}
+						}
+					}
+					break;
+				}
+
+			default:
+				checkNoEntry();
+				break;
 		}
 	}
 
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_ActiveEmitters, LexToString(NumActiveEmitters), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_ActiveRenderers, LexToString(NumActiveRenderers), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_ActiveStatelessEmitters, LexToString(NumActiveStatelessEmitters), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_GPUSimsMissingFixedBounds, LexToString(GPUSimsMissingFixedBounds), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_EffectType, EffectType != nullptr ? EffectType->GetName() : FString(TEXT("None")), FAssetRegistryTag::TT_Alphabetical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_WarmupTime, LexToString(WarmupTime), FAssetRegistryTag::TT_Numerical));
@@ -1571,19 +1713,16 @@ void UNiagaraSystem::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 
 		for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
 		{
-			if (Handle.GetIsEnabled())
+			if (!Handle.GetIsEnabled())
 			{
-				FVersionedNiagaraEmitter Emitter = Handle.GetInstance();
-				FVersionedNiagaraEmitterData* EmitterData = Emitter.GetEmitterData();
-				if (EmitterData)
+				continue;
+			}
+
+			for (int32 i = 0; i < NumQualityLevels; i++)
+			{
+				if ( Handle.IsEnabledOnEffectQualityLevel(i) )
 				{
-					for (int32 i = 0; i < NumQualityLevels; i++)
-					{
-						if (EmitterData->Platforms.IsEffectQualityEnabled(i))
-						{
-							QualityLevelsNumActive[i]++;
-						}
-					}
+					QualityLevelsNumActive[i]++;
 				}
 			}
 		}
@@ -1713,12 +1852,17 @@ void UNiagaraSystem::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMe
 		NiagaraSystemPrivate::NAME_ActiveEmitters,
 		FAssetRegistryTagMetadata()
 		.SetDisplayName(LOCTEXT("ActiveEmitters", "Active Emitters"))
-		.SetTooltip(LOCTEXT("ActiveEmittersTooltip", "The nunmber of active emitters in the system"))
+		.SetTooltip(LOCTEXT("ActiveEmittersTooltip", "The number of active emitters in the system"))
 	);
 	OutMetadata.Add(
 		NiagaraSystemPrivate::NAME_ActiveRenderers,
 		FAssetRegistryTagMetadata()
 		.SetDisplayName(LOCTEXT("ActiveRenderers", "Active Renderers"))
+	);
+	OutMetadata.Add(
+		NiagaraSystemPrivate::NAME_ActiveStatelessEmitters,
+		FAssetRegistryTagMetadata()
+		.SetDisplayName(LOCTEXT("ActiveStatelessEmitters", "Active Lightweight Emitters"))
 	);
 	OutMetadata.Add(
 		NiagaraSystemPrivate::NAME_GPUSimsMissingFixedBounds,
@@ -1997,6 +2141,7 @@ void UNiagaraSystem::ComputeEmittersExecutionOrder()
 		const FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[EmitterIdx];
 		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
 
+		EmitterExecutionOrder[EmitterIdx].bStartNewOverlapGroup = false;
 		EmitterExecutionOrder[EmitterIdx].EmitterIndex = EmitterIdx;
 		EmitterPriorities[EmitterIdx] = -1;
 
@@ -2011,6 +2156,15 @@ void UNiagaraSystem::ComputeEmittersExecutionOrder()
 		}
 
 		EmitterDependencies.SetNum(0, EAllowShrinking::No);
+
+		for (const FNiagaraDataInterfaceEmitterBinding& EmitterBinding : EmitterData->EmitterDependencies)
+		{
+			const FNiagaraEmitterHandle* ResolvedHandle = EmitterBinding.ResolveHandle(this, &EmitterHandle);
+			if (ResolvedHandle)
+			{
+				EmitterDependencies.Add(ResolvedHandle->GetInstance());
+			}
+		}
 
 		if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim && EmitterData->GetGPUComputeScript())
 		{
@@ -2682,7 +2836,6 @@ void UNiagaraSystem::RemoveEmitterHandlesById(const TSet<FGuid>& HandlesToRemove
 }
 #endif
 
-
 UNiagaraScript* UNiagaraSystem::GetSystemSpawnScript()
 {
 	return SystemSpawnScript;
@@ -2701,6 +2854,15 @@ const UNiagaraScript* UNiagaraSystem::GetSystemSpawnScript() const
 const UNiagaraScript* UNiagaraSystem::GetSystemUpdateScript() const
 {
 	return SystemUpdateScript;
+}
+
+const TCHAR* UNiagaraSystem::GetSystemStateModeString() const
+{
+	if ( SystemStateData.bRunUpdateScript == false )
+	{
+		return SystemStateData.bRunSpawnScript ? TEXT("[Fast-U]") : TEXT("[Fast-SU]");
+	}
+	return nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
@@ -2847,6 +3009,11 @@ void UNiagaraSystem::InvalidateActiveCompiles()
 	{
 		ActiveCompilation->Invalidate();
 	}
+}
+
+bool UNiagaraSystem::HasActiveCompilations() const
+{
+	return !ActiveCompilations.IsEmpty();
 }
 
 bool UNiagaraSystem::PollForCompilationComplete(bool bFlushRequestCompile)
@@ -3376,6 +3543,12 @@ bool UNiagaraSystem::RequestCompile(bool bForce, FNiagaraSystemUpdateContext* Op
 	if (bForce)
 	{
 		ForceGraphToRecompileOnNextCheck();
+
+		// if we're forcing a recompile in development mode then flush the shader file cache to catch any datainterface files that may have been edited
+		if (IsShaderDevelopmentModeEnabled())
+		{
+			FlushShaderFileCache();
+		}
 	}
 
 	// we can't compile systems that have been cooked without editor data
@@ -3811,17 +3984,16 @@ void UNiagaraSystem::GatherStaticVariables(TArray<FNiagaraVariable>& OutVars, TA
 void UNiagaraSystem::ResolveRequiresScripts()
 {
 #if WITH_EDITORONLY_DATA
-	TOptional<FNiagaraSystemStateData> NewSystemStateData;
-
 	if (bAllowSystemStateFastPath)
 	{
 		INiagaraModule& NiagaraModule = FModuleManager::GetModuleChecked<INiagaraModule>("Niagara");
 		const INiagaraEditorOnlyDataUtilities& EditorOnlyDataUtilities = NiagaraModule.GetEditorOnlyDataUtilities();
-		NewSystemStateData = EditorOnlyDataUtilities.TryGetSystemStateData(*this);
+		SystemStateData = EditorOnlyDataUtilities.GetSystemStateData(*this);
 	}
-
-	bSystemStateFastPathEnabled = NewSystemStateData.IsSet();
-	SystemStateData = NewSystemStateData.Get(FNiagaraSystemStateData());
+	else
+	{
+		SystemStateData = FNiagaraSystemStateData();
+	}
 #endif //WITH_EDITORONLY_DATA
 }
 
@@ -4143,6 +4315,126 @@ const FNiagaraDataSetCompiledData& FNiagaraEmitterCompiledData::GetGPUCaptureDat
 	return GPUCaptureDataSetCompiledData;
 }
 #endif
+
+
+
+//////////////////////////////////////////////////////////////////////////
+// This section is related to iterative cooking and defining the implicit dependencies that 
+// the NiagaraScript might have.  We don't have to worry about package to package dependencies
+// but are more focused on what external changes might require us to recook the script.
+// There are two paths we take to handle these changes:
+// AppendToClassSchema - evaluation of anything static that isn't tied to the target platform.
+// Registered cook dependencies - saves data into the oplog of individual packages during cook
+//	which can be evaluated on subsequent cooks to see if anything has changed
+// 
+
+#if WITH_EDITORONLY_DATA
+void UNiagaraSystem::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+{
+	Super::AppendToClassSchema(Context);
+
+	// Used by iterative cooking.  This will provide additional context for if things have changed such that a cook will
+	// be required.  This is focused on global settings rather than the usual dependencies between objects.
+
+	UNiagaraScript::BuildClassSchema(Context);
+}
+
+#endif
+
+#if WITH_EDITOR
+
+namespace NiagaraSystemPrivate
+{
+
+bool FCookDependency::TryLoad(FCbFieldViewIterator& ArgField)
+{
+	const int32 ShaderFormatCount = (ArgField++).AsInt32();
+	ShaderFormatNames.Reset(ShaderFormatCount);
+	for (int32 i = 0; i < ShaderFormatCount; ++i)
+	{
+		ShaderFormatNames.Emplace((ArgField++).AsString());
+	}
+
+	return true;
+}
+
+void FCookDependency::Save(FCbWriter& Writer)
+{
+	const int32 ShaderFormatCount = ShaderFormatNames.Num();
+	Writer << ShaderFormatCount;
+	for (int32 i = 0; i < ShaderFormatCount; ++i)
+	{
+		Writer << ShaderFormatNames[i].ToString();
+	}
+}
+
+void HashDependenciesForCook(FCbFieldViewIterator Args, UE::Cook::FCookDependencyContext& Context)
+{
+	FCbFieldViewIterator ArgField(Args);
+
+	FCookDependency CookDependency;
+	const int32 ArgsVersion = (ArgField++).AsInt32();
+	bool bDependenciesValid = false;
+	if (ArgsVersion == CookDependenciesArgsVersion)
+	{
+		if (CookDependency.TryLoad(ArgField))
+		{
+			bDependenciesValid = true;
+		}
+	}
+
+	if (!bDependenciesValid)
+	{
+		Context.LogError(FString::Printf(TEXT("Unsupported arguments version %d."), ArgsVersion));
+		return;
+	}
+
+	if (!CookDependency.ShaderFormatNames.IsEmpty())
+	{
+		FShaderKeyGenerator KeyGen([&Context](const void* Data, uint64 Size) { Context.Update(Data, Size); });
+
+		ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
+		for (const FName& ShaderFormat : CookDependency.ShaderFormatNames)
+		{
+			const uint32 ShaderFormatVersion = TargetPlatformManager.ShaderFormatVersion(ShaderFormat);
+			Context.Update(&ShaderFormatVersion, sizeof(ShaderFormatVersion));
+
+			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(ShaderFormat);
+			if (ShaderPlatform != SP_NumPlatforms)
+			{
+				ShaderMapAppendKey(ShaderPlatform, KeyGen);
+			}
+		}
+	}
+}
+
+void RegisterCookDependencies(FObjectPreSaveContext ObjectSaveContext, bool bIncludeGpuTarget)
+{
+	const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+
+	FCookDependency CookDependency;
+	if (bIncludeGpuTarget)
+	{
+		TargetPlatform->GetAllTargetedShaderFormats(CookDependency.ShaderFormatNames);
+	}
+
+	CookDependency.ShaderFormatNames.Add(TEXT("VVM_1_0"));
+
+	Algo::Sort(CookDependency.ShaderFormatNames, FNameLexicalLess());
+
+	FCbWriter Writer;
+	Writer << CookDependenciesArgsVersion;
+
+	CookDependency.Save(Writer);
+
+	ObjectSaveContext.AddCookBuildDependency(
+		UE::Cook::FCookDependency::Function(
+			UE_COOK_DEPENDENCY_FUNCTION_CALL(HashNiagaraSystemDependenciesForCook), Writer.Save()));
+}
+
+} // NiagaraSystemPrivate
+
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE // NiagaraSystem
 

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Engine/StaticMesh.h"
+#include "IViewportSelectableObject.h"
 #include "Materials/Material.h"
 #include "Rigs/RigControlHierarchy.h"
 #include "ControlRigGizmoActor.generated.h"
@@ -51,7 +52,7 @@ struct FControlShapeActorCreationParam
 
 /** An actor used to represent a rig control */
 UCLASS(NotPlaceable, Transient)
-class CONTROLRIG_API AControlRigShapeActor : public AActor
+class CONTROLRIG_API AControlRigShapeActor : public AActor, public IViewportSelectableObject
 {
 	GENERATED_BODY()
 

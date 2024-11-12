@@ -122,11 +122,15 @@ class FCopyCardCaptureLightingToAtlasPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER(float, DiffuseColorBoost)
+		SHADER_PARAMETER(FUintVector2, CardCaptureAtlasSizeInTiles)
+		SHADER_PARAMETER(uint32, OutputAtlasWidthInTiles)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AlbedoCardCaptureAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EmissiveCardCaptureAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DirectLightingCardCaptureAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, RadiosityCardCaptureAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, RadiosityNumFramesAccumulatedCardCaptureAtlas)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint4>, TileShadowDownsampleFactorAtlasForResampling)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint4>, RWTileShadowDownsampleFactorAtlas)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FIndirectLighting : SHADER_PERMUTATION_BOOL("INDIRECT_LIGHTING");
@@ -150,20 +154,15 @@ enum class ELumenLightType
 	MAX
 };
 
-void TraceLumenHardwareRayTracedDirectLightingShadows(
-	FRDGBuilder& GraphBuilder,
-	const FScene* Scene,
-	const FViewInfo& View,
-	int32 ViewIndex,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
-	FRDGBufferRef ShadowTraceIndirectArgs,
-	FRDGBufferRef ShadowTraceAllocator,
-	FRDGBufferRef ShadowTraces,
-	FRDGBufferRef LightTileAllocator,
-	FRDGBufferRef LightTiles,
-	FRDGBufferRef LumenPackedLights,
-	FRDGBufferUAVRef ShadowMaskTilesUAV,
-	ERDGPassFlags ComputePassFlags);
+struct FLumenDirectLightingStochasticData
+{
+	bool IsValid() const { return LightSamples != nullptr; }
+
+	FRDGBufferRef  CompactedLightSampleData = nullptr;
+	FRDGBufferRef  CompactedLightSampleAllocator = nullptr;
+	FRDGTextureRef SceneDataTexture = nullptr;
+	FRDGTextureRef LightSamples = nullptr;
+};
 
 enum class ELumenDispatchCardTilesIndirectArgsOffset
 {
@@ -213,8 +212,8 @@ namespace Lumen
 		FLumenCardTileUpdateContext& OutCardTileUpdateContext,
 		ERDGPassFlags ComputePassFlags);
 
-	inline EPixelFormat GetDirectLightingAtlasFormat() { return PF_FloatR11G11B10; }
-	inline EPixelFormat GetIndirectLightingAtlasFormat() { return PF_FloatR11G11B10; }
+	EPixelFormat GetDirectLightingAtlasFormat();
+	EPixelFormat GetIndirectLightingAtlasFormat();
 	inline EPixelFormat GetNumFramesAccumulatedAtlasFormat() { return PF_R8; }
 };
 
@@ -225,8 +224,40 @@ namespace LumenSceneLighting
 
 namespace LumenSceneDirectLighting
 {
+	BEGIN_SHADER_PARAMETER_STRUCT(FLightDataParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LumenLightInfluenceSpheres)
+	END_SHADER_PARAMETER_STRUCT()
+
 	float GetMeshSDFShadowRayBias();
 	float GetHeightfieldShadowRayBias();
 	float GetGlobalSDFShadowRayBias();
 	float GetHardwareRayTracingShadowRayBias();
+
+	bool UseStochasticLighting(const FSceneViewFamily& ViewFamily);
 }
+
+void TraceLumenHardwareRayTracedDirectLightingShadows(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	int32 ViewIndex,
+	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	const FLumenDirectLightingStochasticData& StochasticData,
+	const LumenSceneDirectLighting::FLightDataParameters& LumenLightData,
+	FRDGBufferRef ShadowTraceIndirectArgs,
+	FRDGBufferRef ShadowTraceAllocator,
+	FRDGBufferRef ShadowTraces,
+	FRDGBufferRef LightTileAllocator,
+	FRDGBufferRef LightTiles,
+	FRDGBufferUAVRef ShadowMaskTilesUAV,
+	ERDGPassFlags ComputePassFlags);
+
+// Return debug information of the cards pointing by the mouse cursor
+FRDGBufferSRVRef TraceLumenHardwareRayTracedDebug(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	int32 ViewIndex,
+	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	ERDGPassFlags ComputePassFlags);

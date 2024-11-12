@@ -26,6 +26,7 @@
 #include "AssetSelection.h"
 #include "EditorBuildUtils.h"
 #include "EditorViewportCommands.h"
+#include "Toolkits/GlobalEditorCommonCommands.h"
 
 #define LOCTEXT_NAMESPACE "LevelEditorMenu"
 
@@ -45,7 +46,7 @@ void FLevelEditorMenu::RegisterLevelEditorMenus()
 			OpenSection.AddMenuEntry( FLevelEditorCommands::Get().NewLevel ).InsertPosition = InsertPos;
 
 			// Open Level
-			OpenSection.AddMenuEntry( FLevelEditorCommands::Get().OpenLevel ).InsertPosition = InsertPos;
+			OpenSection.AddMenuEntry( FGlobalEditorCommonCommands::Get().OpenLevel ).InsertPosition = InsertPos;
 
 			FToolMenuSection& AssetSection = Menu->FindOrAddSection("FileAsset");
 			
@@ -138,7 +139,11 @@ void FLevelEditorMenu::RegisterLevelEditorMenus()
 				{
 					IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
 					const FMainMRUFavoritesList& RecentsAndFavorites = *MainFrameModule.GetMRUFavoritesList();
-					if (RecentsAndFavorites.GetNumItems() > 0)
+
+					// Only show the Favorite Levels menu if either 1) the current level could be favorited (it's saved)
+					// or 2) there are 1 or more favorite levels.
+					if (FLevelEditorActionCallbacks::ToggleFavorite_CanExecute()
+						|| RecentsAndFavorites.GetNumFavorites() > 0)
 					{
 						InSection.AddSubMenu(
 							"FavoriteLevelsSubMenu",
@@ -678,7 +683,7 @@ void FLevelEditorMenu::RegisterBuildMenu()
 						: BuildTypeLocalizedNames[Index];
 
 					check(BuildTypeSection != nullptr);
-					BuildTypeSection->AddMenuEntry(CommandInfo, Label, ToolTip).Name = NAME_None;
+					BuildTypeSection->AddMenuEntry(CommandInfo, Label, ToolTip).Name = BuildTypeNames[Index];
 				}
 			}
 		}));

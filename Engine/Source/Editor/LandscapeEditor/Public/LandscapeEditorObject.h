@@ -328,7 +328,7 @@ class ULandscapeEditorObject : public UObject
 	float FlattenTarget;
 
 	// Whether to show the preview grid for the flatten target height
-	UPROPERTY(Category = "Tool Settings", EditAnywhere, NonTransactional, AdvancedDisplay, meta = (DisplayName = "Show Preview Grid", ShowForTools = "Flatten", ShowForTargetTypes = "Heightmap", EditCondition = "bUseFlattenTarget", HideEditConditionToggle, UIMin = "-32768", UIMax = "32768"))
+	UPROPERTY(Category = "Tool Settings", EditAnywhere, NonTransactional, AdvancedDisplay, meta = (DisplayName = "Show Preview Grid", ShowForTools = "Flatten", ShowForTargetTypes = "Heightmap", EditCondition = "bUseFlattenTarget", HideEditConditionToggle))
 	bool bShowFlattenTargetPreview;
 
 	// Height of the terrace intervals in unreal units, for the terrace flatten mode 
@@ -342,6 +342,10 @@ class ULandscapeEditorObject : public UObject
 	// Whether the Eye Dropper mode is activated
 	UPROPERTY(NonTransactional, Transient)
 	bool bFlattenEyeDropperModeActivated;
+
+	// When in Eye Dropper mode, indicates whether we're currently mousing over the viewport 
+	UPROPERTY(NonTransactional, Transient)
+	bool bFlattenEyeDropperModeMousingOverViewport;
 
 	UPROPERTY(NonTransactional, Transient)
 	float FlattenEyeDropperModeDesiredTarget;
@@ -440,12 +444,12 @@ class ULandscapeEditorObject : public UObject
 	// Mask Tool:
 
 	// Uses selected region as a mask for other tools
-	UPROPERTY(Category="Tool Settings", EditAnywhere, NonTransactional, meta=(DisplayName="Use Region as Mask", ShowForTools="Mask", ShowForMask))
+	UPROPERTY(Category="Select Mask", EditAnywhere, NonTransactional, meta=(DisplayName="Use Region as Mask", ShowForTools="Mask", ShowForMask))
 	bool bUseSelectedRegion;
 
 	// If enabled, protects the selected region from changes
 	// If disabled, only allows changes in the selected region
-	UPROPERTY(Category="Tool Settings", EditAnywhere, NonTransactional, meta=(DisplayName="Negative Mask", ShowForTools="Mask", ShowForMask))
+	UPROPERTY(Category="Select Mask", EditAnywhere, NonTransactional, meta=(DisplayName="Negative Mask", ShowForTools="Mask", ShowForMask))
 	bool bUseNegativeMask;
 
 	// Copy/Paste Tool:
@@ -695,13 +699,18 @@ public:
 	// Target Layer Settings:
 
 	// Limits painting to only the components that already have the selected layer
-	UPROPERTY(Category="Target Layers", EditAnywhere, NonTransactional, meta=(ShowForTargetTypes="Weightmap,Visibility"))
+	UPROPERTY(Category = "Target Layers", EditAnywhere, NonTransactional, meta=(ShowForTargetTypes="Weightmap,Visibility"))
 	ELandscapeLayerPaintingRestriction PaintingRestriction;
+
+	// This allows to hide layer names that do not match the filter
+	UPROPERTY(Transient)
+	FString TargetLayersFilterString;
 
 	// Display order of the targets
 	UPROPERTY(Category = "Target Layers", EditAnywhere)
 	ELandscapeLayerDisplayMode TargetDisplayOrder;
 
+	// Show layers that are not currently being painted anywhere
 	UPROPERTY(Category = "Target Layers", EditAnywhere)
 	bool ShowUnusedLayers;	
 
@@ -802,7 +811,6 @@ public:
 	}
 
 	void UpdateTargetLayerDisplayOrder();
-	void UpdateShowUnusedLayers();
 
 	float GetCurrentToolStrength() const;
 	void SetCurrentToolStrength(float NewToolStrength);
@@ -812,6 +820,8 @@ public:
 
 	float GetCurrentToolBrushFalloff() const;
 	void SetCurrentToolBrushFalloff(float NewBrushFalloff);
+
+	float GetFlattenTarget(bool bInReturnPreviewValueIfActive) const;
 
 private:
 

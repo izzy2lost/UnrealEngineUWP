@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
@@ -19,13 +20,15 @@ public class RequestHelper : IRequestHelper
 	private readonly IAuthorizationService _authorizationService;
 	private readonly INamespacePolicyResolver _namespacePolicyResolver;
 	private readonly IOptionsMonitor<JupiterSettings> _settings;
+	private readonly IOptionsMonitor<AuthSettings> _authSettings;
 	private readonly Tracer _tracer;
 
-	public RequestHelper(IAuthorizationService authorizationService, INamespacePolicyResolver namespacePolicyResolver, IOptionsMonitor<JupiterSettings> settings, Tracer tracer)
+	public RequestHelper(IAuthorizationService authorizationService, INamespacePolicyResolver namespacePolicyResolver, IOptionsMonitor<JupiterSettings> settings, IOptionsMonitor<AuthSettings> authSettings, Tracer tracer)
 	{
 		_authorizationService = authorizationService;
 		_namespacePolicyResolver = namespacePolicyResolver;
 		_settings = settings;
+		_authSettings = authSettings;
 		_tracer = tracer;
 	}
 
@@ -43,6 +46,22 @@ public class RequestHelper : IRequestHelper
 			return new ForbidResult();
 		}
 
+		// fetch the value of the issuer claim
+		string? issuer = user.FindFirstValue("iss");
+		AuthSchemeEntry? authScheme = _authSettings.CurrentValue.Schemes.Values.FirstOrDefault(entry => entry.JwtAuthority == issuer);
+		if (authScheme != null)
+		{
+			if (authScheme.AllowedNamespaces.Length != 0)
+			{
+				// check if the auth scheme is allowed to grant access to this namespace
+				if (!authScheme.AllowedNamespaces.Contains(ns.ToString(), StringComparer.InvariantCultureIgnoreCase))
+				{
+					// not allowed to grant access to the namespace
+					return new ForbidResult();
+				}
+			}
+		}
+
 		bool isPublicNamespace = _namespacePolicyResolver.GetPoliciesForNs(ns).IsPublicNamespace;
 
 		// public namespaces are always accessible
@@ -51,8 +70,37 @@ public class RequestHelper : IRequestHelper
 			return null;
 		}
 
-		// namespace is a restricted namespace
-		HttpContext context = request.HttpContext;
+		// namespace is a restricted namespace, check which port it is being accessed on
+		bool isPublicPort = IsPublicPort(request.HttpContext);
+
+		if (isPublicPort)
+		{
+			// trying to access restricted namespace on a public port, this is not allowed
+			return new ForbidResult();
+		}
+
+		// restricted namespace in corp or internal port, this is okay
+		return null;
+	}
+
+	public async Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, JupiterAclAction[] aclActions)
+	{
+		using TelemetrySpan _ = _tracer.StartActiveSpan("authorize").SetAttribute("operation.name", "authorize");
+		AuthorizationResult authorizationResult = await _authorizationService.AuthorizeAsync(user, new GlobalAccessRequest
+		{
+			Actions = aclActions
+		}, GlobalAccessRequirement.Name);
+
+		if (!authorizationResult.Succeeded)
+		{
+			return new ForbidResult();
+		}
+
+		return null;
+	}
+
+	public bool IsPublicPort(HttpContext context)
+	{
 		string? portHeaderValue = null;
 		if (context.Request.Headers.TryGetValue("X-Jupiter-Port", out StringValues values))
 		{
@@ -82,29 +130,6 @@ public class RequestHelper : IRequestHelper
 			}
 		}
 
-		if (isPublicPort)
-		{
-			// trying to access restricted namespace on a public port, this is not allowed
-			return new ForbidResult();
-		}
-
-		// restricted namespace in corp or internal port, this is okay
-		return null;
-	}
-
-	public async Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, JupiterAclAction[] aclActions)
-	{
-		using TelemetrySpan _ = _tracer.StartActiveSpan("authorize").SetAttribute("operation.name", "authorize");
-		AuthorizationResult authorizationResult = await _authorizationService.AuthorizeAsync(user, new GlobalAccessRequest
-		{
-			Actions = aclActions
-		}, GlobalAccessRequirement.Name);
-
-		if (!authorizationResult.Succeeded)
-		{
-			return new ForbidResult();
-		}
-
-		return null;
+		return isPublicPort;
 	}
 }

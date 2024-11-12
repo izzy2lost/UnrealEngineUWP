@@ -37,9 +37,9 @@ private:
 
 	vpx_codec_ctx_t Context;
 	TUniquePtr<FWebMMediaTextureSamplePool> VideoSamplePool;
-	TRefCountPtr<FRHITexture2D> DecodedY;
-	TRefCountPtr<FRHITexture2D> DecodedU;
-	TRefCountPtr<FRHITexture2D> DecodedV;
+	TRefCountPtr<FRHITexture> DecodedY;
+	TRefCountPtr<FRHITexture> DecodedU;
+	TRefCountPtr<FRHITexture> DecodedV;
 	FGraphEventRef VideoDecodingTask;
 	IWebMSamplesSink& Samples;
 	bool bTexturesCreated;

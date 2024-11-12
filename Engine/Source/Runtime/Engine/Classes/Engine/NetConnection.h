@@ -6,11 +6,6 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Net/RPCDoSDetection.h"
-#include "Net/NetConnectionFaultRecovery.h"
-#endif
 #include "UObject/ObjectKey.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
@@ -34,6 +29,7 @@
 #include "Net/Common/Packets/PacketTraits.h"
 #include "Net/Core/Misc/ResizableCircularQueue.h"
 #include "Net/NetAnalyticsTypes.h"
+#include "Net/Core/Connection/ConnectionHandle.h"
 #include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/TrafficControl.h"
 #include "Net/NetDormantHolder.h"
@@ -61,6 +57,7 @@ namespace UE::Net
 {
 	class FNetPing;
 	class FNetConnectionFaultRecovery;
+	struct FStatelessHandshakeFailureInfo;
 
 } // end namespace UE::Net
 
@@ -95,6 +92,7 @@ enum EConnectionState
 	USOCK_Closed    = 1, // Connection permanently closed.
 	USOCK_Pending	= 2, // Connection is awaiting connection.
 	USOCK_Open      = 3, // Connection is open.
+	USOCK_Closing   = 4, // Connection is closing and waiting for all reliable data to be acked. No new data will be sent.
 };
 ENGINE_API const TCHAR* LexToString(const EConnectionState Value);
 
@@ -197,7 +195,13 @@ struct FDelayedPacket
 	FOutPacketTraits Traits;
 
 	/** The time at which to send the packet */
-	double SendTime;
+	double SendTime = 0.0;
+
+	/** The number of frames we delay sending the packet */
+	uint32 DelayFrameCount = 0;
+
+	/** Flag telling the packet was sent and can be cleaned up */
+	bool bSent = false;
 
 public:
 
@@ -205,7 +209,6 @@ public:
 		: Data()
 		, SizeBits(InSizeBits)
 		, Traits(InTraits)
-		, SendTime(0.0)
 	{
 		int32 SizeBytes = FMath::DivideAndRoundUp(SizeBits, 8);
 
@@ -225,6 +228,9 @@ struct FDelayedIncomingPacket
 
 	/** Time at which the packet should be reinjected into the connection */
 	double ReinjectionTime = 0.0;
+
+	/** Number of frames until we can reinject the incoming packet */
+	uint32 ReinjectionFrameCount = 0;
 
 	void CountBytes(FArchive& Ar) const
 	{
@@ -410,6 +416,9 @@ public:
 	ENGINE_API const EConnectionState GetConnectionState() const;
 	ENGINE_API void SetConnectionState(EConnectionState ConnectionState);
 	
+	/** Returns true if this connection's state is USOCK_Closing or USOCK_Closed. No new data should be sent in this case. */
+	ENGINE_API bool IsClosingOrClosed() const;
+
 	uint32 bPendingDestroy:1;    // when true, playercontroller or beaconclient is being destroyed
 
 
@@ -430,8 +439,10 @@ public:
 	int32			PacketOverhead;			// Bytes overhead per packet sent.
 	FString			Challenge;				// Server-generated challenge.
 	FString			ClientResponse;			// Client-generated response.
-	int32			ResponseId;				// Id assigned by the server for linking responses to connections upon authentication
 	FString			RequestURL;				// URL requested by client
+
+	UE_DEPRECATED(5.5, "Variable is deprecated and unassigned")
+	int32			ResponseId;				// Id assigned by the server for linking responses to connections upon authentication
 
 	// Login state tracking
 	EClientLoginState::Type	ClientLoginState;
@@ -491,7 +502,7 @@ public:
 	float			StatPeriod;
 
 	/** Average lag seen during the last StatPeriod */
-	float AvgLag;
+	float 			AvgLag;
 
 	/** Total accumulated lag values during the current StatPeriod */
 	double			LagAcc;
@@ -542,6 +553,9 @@ public:
 private:
 	/** total packets received on this connection, including PacketHandler */
 	int32 InTotalHandlerPackets;
+
+	/** Driver ElapsedTime at which a graceful close will time out and terminate. */
+	double GracefulCloseTimeoutDeadline = 0.0;
 
 public:
 	int32 GetInTotalHandlerPackets() const
@@ -597,24 +611,12 @@ public:
 	UPROPERTY(config)
 	int32 DefaultMaxChannelSize;
 
-	UE_DEPRECATED(5.1, "Deprecated in favor of DefaultMaxChannelSize config property.")
-	static const int32 DEFAULT_MAX_CHANNEL_SIZE;
-
-	UE_DEPRECATED(5.1, "No longer used")
-	int32 MaxChannelSize;
-
 	TArray<TObjectPtr<UChannel>>	Channels;
 	TArray<int32>		OutReliable;
 	TArray<int32>		InReliable;
 	TArray<int32>		PendingOutRec;	// Outgoing reliable unacked data from previous (now destroyed) channel in this slot.  This contains the first chsequence not acked
 	int32				InitOutReliable;
 	int32				InitInReliable;
-
-	// Network version
-	UE_DEPRECATED(5.2, "Deprecated in favor of NetworkCustomVersions, please use GetNetworkCustomVersion instead")
-	uint32				EngineNetworkProtocolVersion;
-	UE_DEPRECATED(5.2, "Deprecated in favor of NetworkCustomVersions, please use GetNetworkCustomVersion instead")
-	uint32				GameNetworkProtocolVersion;
 
 	uint32 GetNetworkCustomVersion(const FGuid& VersionGuid) const;
 	void SetNetworkCustomVersions(const FCustomVersionContainer& CustomVersions);
@@ -629,10 +631,27 @@ public:
 	int32			LogCallCount;
 	int32			LogSustainedCount;
 
-	uint32 GetConnectionId() const { return ConnectionId; }
-	void SetConnectionId(uint32 InConnectionId) { ConnectionId = InConnectionId; }
+	/** Returns a connection identifier which contains both parent connection and child connection information. */
+	UE::Net::FConnectionHandle GetConnectionHandle() const
+	{
+		return ConnectionHandle;
+	}
 
+	UE_DEPRECATED(5.6, "Use GetConnectionHandle() instead")
+	uint32 GetConnectionId() const
+	{ 
+		return ConnectionHandle.IsParentConnection() ? ConnectionHandle.GetParentConnectionId() : UE::Net::FConnectionHandle().GetParentConnectionId();
+	}
+
+	UE_DEPRECATED(5.6, "External code should not be setting connection IDs. For valid use cases SetConnectionHandle() should be used instead.")
+	void SetConnectionId(uint32 InConnectionId)
+	{
+		// Using this deprecated method will result in previous behavior which didn't support child connections in a meaningful way. We assume this is a parent connection.
+		ConnectionHandle = UE::Net::FConnectionHandle(InConnectionId);
+	}
+	
 	/** If this is a child connection it will return the topmost parent coonnection ID, otherwise it will return its own ID. */
+	UE_DEPRECATED(5.6, "Use GetConnectionHandle instead")
 	ENGINE_API uint32 GetParentConnectionId() const;
 
 	FNetTraceCollector* GetInTraceCollector() const;
@@ -813,10 +832,6 @@ public:
 	/** This holds a list of actor channels that want to fully shutdown, but need to continue processing bunches before doing so */
 	TMap<FNetworkGUID, TArray<TObjectPtr<class UActorChannel>>> KeepProcessingActorChannelBunchesMap;
 
-	/** A list of replicators that belong to recently dormant actors/objects */
-	UE_DEPRECATED(5.2, "The DormantReplicatorMap is deprecated in favor of the private DormantReplicatorSet.")
-	TMap<FObjectKey, TSharedRef<FObjectReplicator>> DormantReplicatorMap;
-
 private:
 
 	UE::Net::Private::FDormantReplicatorHolder DormantReplicatorSet;
@@ -863,6 +878,9 @@ private:
 
 	/** Process incoming packets that have been delayed for long enough */
 	void ReinjectDelayedPackets();
+
+	/** Update local packets we queued to add latency and send those that are due */
+	void UpdateDelayedPackets(const double CurrentRealtimeSeconds);
 
 #endif //#if DO_ENABLE_NET_TEST
 
@@ -1041,6 +1059,25 @@ public:
 	 */
 	ENGINE_API void Close(FNetResult&& CloseReason);
 
+
+	/**
+	 * Starts a graceful close. If net.EnableGracefulClose is true, waits longer for reliable RPCs to be acknowledged before fully cleaning up the connection.
+	 * If net.EnableGracefulClose is false, immediately sends the control channel close bunch. Reliable RPCs may be lost.
+	 *
+	 * @param CloseReason	Specifies the reason for the Close
+	 */
+	ENGINE_API void GracefulClose(FNetResult&& CloseReason);
+
+	/**
+	 * Starts a graceful close. If net.EnableGracefulClose is true, waits longer for reliable RPCs to be acknowledged before fully cleaning up the connection.
+	 * If net.EnableGracefulClose is false, immediately sends the control channel close bunch. Reliable RPCs may be lost.
+	 *
+	 * @param CloseReason	Specifies the reason for the Close
+	 */
+	virtual void GracefulClose(FNetCloseResult&& CloseReason)
+	{
+		GracefulClose(static_cast<FNetResult&&>(MoveTemp(CloseReason)));
+	}
 
 	/** closes the control channel, cleans up structures, and prepares for deletion */
 	ENGINE_API virtual void CleanUp();
@@ -1258,10 +1295,6 @@ public:
 	/** Forces properties on this actor to do a compare for one frame (rather than share shadow state) */
 	ENGINE_API void ForcePropertyCompare( AActor* Actor );
 
-	/** Wrapper for validating an objects dormancy state, and to prepare the object for replication again */
-	UE_DEPRECATED(5.2, "FlushDormancyForObject has been replaced with a version that needs to receive the dormant actor.")
-	void FlushDormancyForObject( UObject* Object ) {}
-
 	/**
 	* Validate an objects dormancy state and prepare the object for replication again
 	* 
@@ -1359,17 +1392,9 @@ public:
 	/** Returns the OutgoingBunches array, only to be used by UChannel::SendBunch */
 	TArray<FOutBunch *>& GetOutgoingBunches() { return OutgoingBunches; }
 
-	/** Add a replicator to the dormancy map and release its strong pointer to its object */
-	UE_DEPRECATED(5.2, "AddDormantReplicator has been replaced by StoreDormantReplicator and will be removed soon.")
-	void AddDormantReplicator(UObject* Object, const TSharedRef<FObjectReplicator>& Replicator) {}
-
 	/** Store a replicator to the dormancy map and release its strong pointer to its object */
 	void StoreDormantReplicator(AActor* OwnerActor, UObject* Object, const TSharedRef<FObjectReplicator>& ObjectReplicator);
 	
-	/** Find a dormant replicator for the channel actor or one of its subobjects. Removes it from the map if found. */
-	UE_DEPRECATED(5.2, "FindAndRemoveDormantReplicator is deprecated. Use the new version that needs to receive the owning actor.")
-	TSharedPtr<FObjectReplicator> FindAndRemoveDormantReplicator(UObject* Object) { return {}; }
-
 	/** Find a dormant replicator for the channel actor or one of its subobjects. Removes it from the map if found. */
 	TSharedPtr<FObjectReplicator> FindAndRemoveDormantReplicator(AActor* OwnerActor, UObject* Object);
 
@@ -1588,6 +1613,9 @@ private:
 
 private:
 
+	/** Called when the stateless handshake component is enabled and we received an handshake failure */
+	void OnStatelessHandshakeFailure(UE::Net::FStatelessHandshakeFailureInfo HandshakeFailureInfo);
+
 	/** Called by PlayerController to tell connection about client level visibility change */
 	void UpdateLevelVisibilityInternal(const struct FUpdateLevelVisibilityLevelInfo& LevelVisibility);
 
@@ -1726,8 +1754,8 @@ private:
 	/** Whether or not PacketOrderCache is presently being flushed */
 	bool bFlushingPacketOrderCache;
 
-	/** Unique ID that can be used instead of passing around a pointer to the connection */
-	uint32 ConnectionId;
+	/** Per NetDriver unique ID that can be used instead of passing around a pointer to the connection. Be careful if caching as the handle can be re-purposed as connections are destroyed and created. */
+	UE::Net::FConnectionHandle ConnectionHandle;
 
 #if UE_NET_TRACE_ENABLED
 	FNetTraceCollector* InTraceCollector = nullptr;
@@ -1760,6 +1788,9 @@ private:
 
 	/** Whether or not this NetConnection has already received an NMT_CloseReason message */
 	bool bReceivedCloseReason = false;
+
+	/** Stored close reason from a GracefulClose call, to be used in the actual Close */
+	TPimplPtr<UE::Net::FNetResult, EPimplPtrMode::DeepCopy> PendingGracefulCloseResult;
 
 	/** Ping collection and calculation */
 	TPimplPtr<UE::Net::FNetPing> NetPing;
@@ -1821,8 +1852,9 @@ public:
 	 * @param RemoteNetworkVersion		The net version of the remote side
 	 * @param RemoteNetworkFeatures		The net runtime features of the remote side
 	 * @param NetUpgradeSource			The source of the net upgrade message
+	 * @return Return true if the connection could be upgraded and we can restart the handshake process. Return false if the upgrade was impossible and the connection must disconnect.
 	 */
-	ENGINE_API void HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures,
+	ENGINE_API bool HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures,
 											UE::Net::ENetUpgradeSource NetUpgradeSource=UE::Net::ENetUpgradeSource::ControlChannel);
 
 private:
@@ -1833,10 +1865,20 @@ private:
 	 */
 	void HandleNetResultOrClose(ENetCloseResult InResult);
 
+	/**
+	 * If this connection is in the USOCK_Closing state, check whether all reliables have been acknowledged, if so, actually Close (send control channel close bunch).
+	 */
+	void TryClosePendingGracefulClose();
+
 protected:
 	TOptional<FNetworkCongestionControl> NetworkCongestionControl;
 
 	void InitChannelData();
+
+	void SetConnectionHandle(UE::Net::FConnectionHandle Handle)
+	{
+		ConnectionHandle = Handle;
+	}
 
 public:
 	/**
@@ -1898,24 +1940,29 @@ struct FNetConnectionSettings
 	{
 #if DO_ENABLE_NET_TEST
 		PacketLag = InConnection->PacketSimulationSettings.PktLag;
+		PacketLoss = InConnection->PacketSimulationSettings.PktLoss;
 #else
 		PacketLag = 0;
+		PacketLoss = 0;
 #endif
 	}
 
 	FNetConnectionSettings( int32 InPacketLag )
 	{
 		PacketLag = InPacketLag;
+		PacketLoss = 0;
 	}
 
 	void ApplyTo(UNetConnection* Connection)
 	{
 #if DO_ENABLE_NET_TEST
 		Connection->PacketSimulationSettings.PktLag = PacketLag;
+		Connection->PacketSimulationSettings.PktLoss = PacketLoss;
 #endif
 	}
 
 	int32 PacketLag;
+	int32 PacketLoss;
 };
 
 /** Allows you to temporarily set connection settings within a scape. This will also force flush the connection before/after.
@@ -1929,19 +1976,20 @@ struct FScopedNetConnectionSettings
 		if (ShouldApply)
 		{
 			Connection->FlushNet();
-			NewSettings.ApplyTo(Connection);
+			NewSettings.ApplyTo(Connection.Get());
 		}
 	}
 	~FScopedNetConnectionSettings()
 	{
-		if (ShouldApply)
+		UNetConnection* LocalConnection = Connection.Get();
+		if (LocalConnection && ShouldApply)
 		{
-			Connection->FlushNet();
-			OldSettings.ApplyTo(Connection);
+			LocalConnection->FlushNet();
+			OldSettings.ApplyTo(LocalConnection);
 		}
 	}
 
-	UNetConnection * Connection;
+	TWeakObjectPtr<UNetConnection> Connection;
 	FNetConnectionSettings OldSettings;
 	bool ShouldApply;
 };

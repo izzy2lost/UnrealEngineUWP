@@ -191,8 +191,9 @@ void FArchiveState::Reset()
 	ArIsNetArchive						= false;
 	ArCustomPropertyList				= nullptr;
 	ArUseCustomPropertyList				= false;
+	ArMergeOverrides					= false;
 	ArShouldSkipUpdateCustomVersion		= false;
-	CookData							= nullptr;
+	SavePackageData						= nullptr;
 	SerializedProperty					= nullptr;
 
 	delete SerializedPropertyChain;
@@ -250,8 +251,9 @@ void FArchiveState::CopyTrivialFArchiveStatusMembers(const FArchiveState& Archiv
 	ArIsNetArchive                       = ArchiveToCopy.ArIsNetArchive;
 	ArCustomPropertyList                 = ArchiveToCopy.ArCustomPropertyList;
 	ArUseCustomPropertyList              = ArchiveToCopy.ArUseCustomPropertyList;
+	ArMergeOverrides					 = ArchiveToCopy.ArMergeOverrides;
 	ArShouldSkipUpdateCustomVersion		 = ArchiveToCopy.ArShouldSkipUpdateCustomVersion;
-	CookData							 = ArchiveToCopy.CookData;
+	SavePackageData						 = ArchiveToCopy.SavePackageData;
 	SerializedProperty					 = ArchiveToCopy.SerializedProperty;
 #if USE_STABLE_LOCALIZATION_KEYS
 	SetBaseLocalizationNamespace(ArchiveToCopy.GetBaseLocalizationNamespace());
@@ -768,7 +770,9 @@ void FArchive::SerializeCompressedNew(void* V, int64 Length, FName CompressionFo
 			if ((Flags & COMPRESS_DeprecatedFormatFlagsMask) != 0)
 			{
 				UE_LOG(LogSerialization, Warning, TEXT("Old style compression flags are being used with FAsyncCompressionChunk, please update any code using this!"));
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				CompressionFormatToDecode = FCompression::GetCompressionFormatFromDeprecatedFlags(Flags);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			if (CompressionFormatToDecode == NAME_Zlib && FPlatformProperties::GetZlibReplacementFormat() != nullptr)
@@ -919,7 +923,9 @@ void FArchive::SerializeCompressedNew(void* V, int64 Length, FName CompressionFo
 		{
 			check( CompressionFormatToEncode == NAME_Zlib );
 			UE_LOG(LogSerialization, Warning, TEXT("Old style compression flags are being used with FAsyncCompressionChunk, please update any code using this!"));
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			CompressionFormatToEncode = FCompression::GetCompressionFormatFromDeprecatedFlags(Flags);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// if there's a cooking target, and it wants to replace Zlib compression with another format, use it. When loading, 
@@ -1240,6 +1246,8 @@ void FArchive::SerializeCompressedNew(void* V, int64 Length, FName CompressionFo
 		Seek( EndPosition );
 	}
 }
+
+FArchive::~FArchive() = default;
 
 void FArchive::ByteSwap(void* V, int32 Length)
 {

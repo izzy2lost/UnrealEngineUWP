@@ -18,7 +18,6 @@ DEFINE_LOG_CATEGORY(LogTextureMediaPlayer);
  */
 FTextureMediaPlayer::FTextureMediaPlayer(IMediaEventSink& InEventSink)
 	: EventSink(InEventSink)
-	, OptionInterface(nullptr)
 	, State(EMediaState::Closed)
 	, Status(EMediaStatus::None)
 	, bWasClosedOnError(false)
@@ -98,9 +97,6 @@ bool FTextureMediaPlayer::Open(const FString& _InUrl, const IMediaOptions* Optio
 
 	// Clear out our work variables
 	bWasClosedOnError = false;
-
-	// Remember the option interface to poll for changes during playback.
-	OptionInterface = Options;
 
 	// Get a writable copy of the URL so we can override it for debugging.
 	MediaUrl = InUrl;

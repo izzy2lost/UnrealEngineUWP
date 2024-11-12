@@ -31,12 +31,6 @@ public:
 	// The feature name to register against for providers
 	static CLOTHINGSYSTEMRUNTIMEINTERFACE_API const FName FeatureName;
 
-	// Called by the engine to get the default clothing simulation factory to use
-	// for skeletal mesh components (see USkeletalMeshComponent constructor).
-	// Returns Factory class for simulations or nullptr to disable clothing simulation
-	UE_DEPRECATED(4.25, "GetDefaultSimulationFactoryClass() has been deprecated. Use IClothingSimulationFactoryClassProvider::GetSimulationFactoryClass() or UClothingSimulationFactory::GetDefaultClothingSimulationFactoryClass() instead.")
-	virtual UClass* GetDefaultSimulationFactoryClass() { return nullptr; }
-
 	// Called by the engine to get the clothing simulation factory associated with this
 	// provider for skeletal mesh components (see USkeletalMeshComponent constructor).
 	// Returns Factory class for simulations or nullptr to disable clothing simulation

@@ -4,10 +4,12 @@
 
 #include "AssetUtils/MeshDescriptionUtil.h"
 #include "ConversionUtils/DynamicMeshViaMeshDescriptionUtil.h"
+#include "ConversionUtils/SceneComponentToDynamicMesh.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "Engine/StaticMesh.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
+#include "ModelingToolTargetUtil.h"
 #include "RenderingThread.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -254,8 +256,7 @@ bool UStaticMeshToolTarget::CommitMaterialSetUpdate(UStaticMesh* StaticMeshIn,
 		}
 	}
 
-	StaticMeshIn->PostEditChange();
-
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(StaticMeshIn);
 	return true;
 }
 
@@ -273,6 +274,36 @@ const FMeshDescription* UStaticMeshToolTarget::GetMeshDescription(const FGetMesh
 		return GetMeshDescriptionWithScaleApplied(StaticMesh.Get(), (int32)UseLOD, CachedMeshDescriptions);
 	}
 	return nullptr;
+}
+
+TArray<int32> UStaticMeshToolTarget::GetPolygonGroupToMaterialIndexMap() const
+{
+	if (IsValid())
+	{
+		return UStaticMeshToolTarget::MapSectionToMaterialID(StaticMesh.Get(), EditingLOD);
+	}
+	return TArray<int32>();
+}
+
+TArray<int32> UStaticMeshToolTarget::MapSectionToMaterialID(const UStaticMesh* Mesh, EMeshLODIdentifier EditingLOD)
+{
+	UE::Conversion::EMeshLODType LODType = [EditingLOD]() {
+		switch (EditingLOD)
+		{
+		case EMeshLODIdentifier::MaxQuality:
+			return UE::Conversion::EMeshLODType::MaxAvailable;
+		case EMeshLODIdentifier::HiResSource:
+			return UE::Conversion::EMeshLODType::HiResSourceModel;
+		default:
+			return UE::Conversion::EMeshLODType::SourceModel;
+		}
+	}();
+	int32 UseLOD = (int32)EditingLOD;
+	if (UseLOD > 7) // map the special LODs (default, hi res, max) to index 0
+	{
+		UseLOD = 0;
+	}
+	return UE::Conversion::GetPolygonGroupToMaterialIndexMap(Mesh, LODType, UseLOD);
 }
 
 const FMeshDescription* UStaticMeshToolTarget::GetMeshDescriptionWithScaleApplied(UStaticMesh* StaticMesh, int32 UseLOD, FMeshDescriptionCache& CachedMeshDescriptions)
@@ -451,7 +482,7 @@ void UStaticMeshToolTarget::CommitMeshDescription(UStaticMesh* StaticMeshIn, con
 		ThisSourceModel.ResetReductionSetting();
 	}
 
-	StaticMeshIn->PostEditChange();
+	UE::ToolTarget::Internal::PostEditChangeWithConditionalUndo(StaticMeshIn);
 }
 
 FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh()
@@ -459,9 +490,9 @@ FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh()
 	return GetDynamicMeshViaMeshDescription(*this);
 }
 
-FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh(bool bRequestTangents)
+FDynamicMesh3 UStaticMeshToolTarget::GetDynamicMesh(const FGetMeshParameters& InGetMeshParams)
 {
-	return GetDynamicMeshViaMeshDescription(*this, bRequestTangents);
+	return GetDynamicMeshViaMeshDescription(*this, InGetMeshParams);
 }
 
 void UStaticMeshToolTarget::CommitDynamicMesh(const FDynamicMesh3& Mesh, const FDynamicMeshCommitInfo& CommitInfo)

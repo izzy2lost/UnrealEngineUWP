@@ -10,8 +10,8 @@
 FEnginePackageLocalizationCache::FEnginePackageLocalizationCache()
 	: bIsScanningPath(false)
 {
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	AssetRegistry.OnAssetAdded().AddRaw(this, &FEnginePackageLocalizationCache::HandleAssetAdded);
 	AssetRegistry.OnAssetRemoved().AddRaw(this, &FEnginePackageLocalizationCache::HandleAssetRemoved);
@@ -20,16 +20,11 @@ FEnginePackageLocalizationCache::FEnginePackageLocalizationCache()
 
 FEnginePackageLocalizationCache::~FEnginePackageLocalizationCache()
 {
-	if (FModuleManager::Get().IsModuleLoaded(TEXT("AssetRegistry")))
+	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
 	{
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-		IAssetRegistry* AssetRegistry = AssetRegistryModule.TryGet();
-		if (AssetRegistry)
-		{
-			AssetRegistry->OnAssetAdded().RemoveAll(this);
-			AssetRegistry->OnAssetRemoved().RemoveAll(this);
-			AssetRegistry->OnAssetRenamed().RemoveAll(this);
-		}
+		AssetRegistry->OnAssetAdded().RemoveAll(this);
+		AssetRegistry->OnAssetRemoved().RemoveAll(this);
+		AssetRegistry->OnAssetRenamed().RemoveAll(this);
 	}
 }
 
@@ -40,8 +35,7 @@ void FEnginePackageLocalizationCache::FindLocalizedPackages(const TMap<FString, 
 		return;
 	}
 
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	int32 NumElementsPerKeyGuess = NewSourceToLocalizedPaths.CreateConstIterator()->Value.Num();
 	int32 SizeGuess = NewSourceToLocalizedPaths.Num() * NumElementsPerKeyGuess;
@@ -82,13 +76,14 @@ void FEnginePackageLocalizationCache::FindLocalizedPackages(const TMap<FString, 
 
 		TArray<FName>& PrioritizedLocalizedPackageNames = InOutSourcePackagesToLocalizedPackages.FindOrAdd(SourcePackageName);
 		PrioritizedLocalizedPackageNames.AddUnique(LocalizedAssetData.PackageName);
+
+		UE_LOG(LogPackageLocalizationCache, Verbose, TEXT("Discovered localized package '%s' for source package '%s'"), *LocalizedAssetData.PackageName.ToString(), *SourcePackageName.ToString());
 	}
 }
 
 void FEnginePackageLocalizationCache::FindAssetGroupPackages(const FName InAssetGroupName, const FTopLevelAssetPath& InAssetClassName)
 {
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	// We use the localized paths to find the source assets for the group since it's much faster to scan those paths than perform a full scan
 	TArray<FString> LocalizedRootPaths;
@@ -113,7 +108,7 @@ void FEnginePackageLocalizationCache::FindAssetGroupPackages(const FName InAsset
 	{
 		Filter.PackagePaths.Add(*LocalizedRootPath);
 	}
-	Filter.bIncludeOnlyOnDiskAssets = false;
+	Filter.bIncludeOnlyOnDiskAssets = !GIsEditor;
 	Filter.ClassPaths.Add(InAssetClassName);
 	Filter.bRecursiveClasses = false;
 

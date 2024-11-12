@@ -68,7 +68,7 @@ int32 FBlendSpaceUtilities::GetHighestWeightSample(const TArray<struct FBlendSam
 
 int32 FBlendSpaceUtilities::GetHighestWeightMarkerSyncSample(const TArray<struct FBlendSampleData> &SampleDataList, const TArray<struct FBlendSample>& BlendSamples)
 {
-	int32 HighestWeightIndex = -1;
+	int32 HighestWeightIndex = INDEX_NONE;
 	float HighestWeight = FLT_MIN;
 
 	for (int32 I = 0; I < SampleDataList.Num(); I++)

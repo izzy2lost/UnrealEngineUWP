@@ -3,12 +3,14 @@
 #pragma once
 
 #include "Containers/ArrayView.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaTransitionSelection;
 class FAvaTransitionViewModel;
 class IDetailsView;
 class UAvaTransitionTreeEditorData;
+class UStateTree;
 struct FPropertyChangedEvent;
 
 class SAvaTransitionSelectionDetails : public SCompoundWidget
@@ -28,6 +30,8 @@ public:
 	virtual ~SAvaTransitionSelectionDetails() override;
 
 private:
+	void Refresh(const UStateTree& InStateTree);
+
 	void OnSelectionChanged(TConstArrayView<TSharedRef<FAvaTransitionViewModel>> InSelectedItems);
 
 	void OnFinishedChangingProperties(const FPropertyChangedEvent& InPropertyChangedEvent);
@@ -35,4 +39,7 @@ private:
 	TWeakPtr<FAvaTransitionSelection> SelectionWeak;
 
 	TSharedPtr<IDetailsView> DetailsView;
+
+	FDelegateHandle OnParametersChangedHandle;
+	FDelegateHandle OnSelectionChangedHandle;
 };

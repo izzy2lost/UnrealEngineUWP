@@ -35,6 +35,8 @@ public:
 	/** Whether we can create an action pertaining to a given remote control field for the current behaviour */
 	virtual bool CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const override;
 
+	/** Whether the behaviour support property id */
+	virtual bool SupportPropertyId() const override { return false; }
 	//~ End URCBehaviour interface
 
 	/** Contains behaviour-independent validation logic for determining whether a Remote Controller property can be bound to a given Controller*/

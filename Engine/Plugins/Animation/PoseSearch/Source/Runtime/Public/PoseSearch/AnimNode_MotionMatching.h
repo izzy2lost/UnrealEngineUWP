@@ -39,14 +39,68 @@ private:
 	// @todo: implement CacheBones_AnyThread to rebind the schema bones
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
+	virtual bool GetIgnoreForRelevancyTest() const override;
+	virtual bool SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest) override;
+	virtual FName GetGroupName() const override;
+	virtual EAnimGroupRole::Type GetGroupRole() const override;
+	virtual EAnimSyncMethod GetGroupMethod() const override;
+	virtual bool GetOverridePositionWhenJoiningSyncGroupAsLeader() const override;
+	virtual bool IsLooping() const override;
+	virtual bool SetGroupName(FName InGroupName) override;
+	virtual bool SetGroupRole(EAnimGroupRole::Type InRole) override;
+	virtual bool SetGroupMethod(EAnimSyncMethod InMethod) override;
+	virtual bool SetOverridePositionWhenJoiningSyncGroupAsLeader(bool InOverridePositionWhenJoiningSyncGroupAsLeader) override;
 	// End of FAnimNode_Base interface
+
+	const FVector& GetBlendspaceParameters() const;
+	float GetBlendspaceParametersDeltaThreshold() const;
+	EBlendStack_BlendspaceUpdateMode GetBlendspaceUpdateMode() const;
 
 	// FAnimNode_AssetPlayerBase interface
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
-	virtual bool GetIgnoreForRelevancyTest() const override;
-	virtual bool SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest) override;
 	// End of FAnimNode_AssetPlayerBase interface
 
+#if WITH_EDITORONLY_DATA
+	
+	// requested blend space blend parameters (if AnimationAsset is a blend space)
+	UPROPERTY(EditAnywhere, Category = Blendspace, meta = (PinHiddenByDefault, FoldProperty))
+	FVector BlendParameters = FVector::Zero();
+
+	// Use this to define a threshold to trigger a new blend when blendspace xy input pins change.
+	// By default, any delta will trigger a blend.
+	UPROPERTY(EditAnywhere, Category = Blendspace, meta = (FoldProperty))
+	float BlendParametersDeltaThreshold = 0.0f;
+
+	// The group name that we synchronize with (NAME_None if it is not part of any group). Note that
+	// this is the name of the group used to sync the output of this node - it will not force
+	// syncing of animations contained by it.
+	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+	FName GroupName = NAME_None;
+
+	// The role this node can assume within the group (ignored if GroupName is not set). Note
+	// that this is the role of the output of this node, not of animations contained by it.
+	UPROPERTY(VisibleAnywhere, Category = Sync, meta = (FoldProperty))
+	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::ExclusiveAlwaysLeader;
+	
+	// When enabled, acting as the leader, and using marker-based sync, this asset player will not sync to the previous leader's sync position when joining a sync group and before becoming the leader but instead force everyone else to match its position.
+	UPROPERTY(VisibleAnywhere, Category = Sync, meta = (FoldProperty, EditCondition = "GroupRole == EAnimGroupRole::AlwaysLeader || GroupRole == EAnimGroupRole::ExclusiveAlwaysLeader || GroupRole == EAnimGroupRole::TransitionLeader", EditConditionHides))
+	bool bOverridePositionWhenJoiningSyncGroupAsLeader = true;
+	
+	// How we should update individual blend space parameters. See dropdown options tooltips.
+	UPROPERTY(EditAnywhere, Category = Blendspace, meta = (FoldProperty))
+	EBlendStack_BlendspaceUpdateMode BlendspaceUpdateMode = EBlendStack_BlendspaceUpdateMode::InitialOnly;
+
+	// How this node will synchronize with other animations. Note that this determines how the output
+	// of this node is used for synchronization, not of animations contained by it.
+	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
+
+	// If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
+	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
+	bool bIgnoreForRelevancyTest = false;
+
+#endif
+	
 	// The database to search. This can be overridden by Anim Node Functions such as "On Become Relevant" and "On Update" via SetDatabaseToSearch/SetDatabasesToSearch.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
 	TObjectPtr<const UPoseSearchDatabase> Database = nullptr;
@@ -78,7 +132,11 @@ private:
 	// Effective range of play rate that can be applied to the animations to account for discrepancies in estimated velocity between the movement model and the animation.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin = "0.2", ClampMax = "3.0", UIMin = "0.2", UIMax = "3.0"))
 	FFloatInterval PlayRate = FFloatInterval(1.f, 1.f);
-
+	
+	// Experimental: Multiplier applied to the play rate of the selected animation after Motion Matching State has been updated.
+	UPROPERTY(EditAnywhere, Category = "Settings|Experimental", meta = (PinHiddenByDefault))
+	float PlayRateMultiplier = 1.0f;
+	
 	UPROPERTY(EditAnywhere, Category = Settings, Category = Settings)
 	bool bUseInertialBlend = false;
 
@@ -113,14 +171,12 @@ private:
 	bool bOverrideDatabaseInput = false;
 
 #if WITH_EDITORONLY_DATA
-	// If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
-	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
-	bool bIgnoreForRelevancyTest = false;
-
+	
 	UPROPERTY(meta=(FoldProperty))
 	FAnimNodeFunctionRef OnMotionMatchingStateUpdated;
 
 #endif // WITH_EDITORONLY_DATA
 
 	friend class UAnimGraphNode_MotionMatching;
+	friend class UMotionMatchingAnimNodeLibrary;
 };

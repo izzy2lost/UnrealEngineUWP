@@ -2,16 +2,20 @@
 
 #include "Customizations/MVVMPropertyBindingExtension.h"
 
+#include "Bindings/MVVMBindingHelper.h"
 #include "BlueprintEditor.h"
 #include "Components/Widget.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMEditorSubsystem.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "PropertyHandle.h"
 #include "PropertyPathHelpers.h"
+#include "ScopedTransaction.h"
+#include "Styling/CoreStyle.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/ViewModelFieldDragDropOp.h"
 #include "Widgets/Images/SImage.h"
@@ -21,7 +25,7 @@
 
 namespace UE::MVVM
 {
-static void ExtendBindingsMenu(FMenuBuilder& MenuBuilder, const UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, TSharedPtr<IPropertyHandle> WidgetPropertyHandle)
+void FMVVMPropertyBindingExtension::ExtendBindingsMenu(FMenuBuilder& MenuBuilder, TSharedRef<FMVVMPropertyBindingExtension> MVVMPropertyBindingExtension, const UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, TSharedPtr<IPropertyHandle> WidgetPropertyHandle)
 {
 	MenuBuilder.BeginSection("ViewModels", LOCTEXT("ViewModels", "View Models"));
 
@@ -38,7 +42,7 @@ static void ExtendBindingsMenu(FMenuBuilder& MenuBuilder, const UWidgetBlueprint
 
 	const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
 
-	auto CreatePropertyWidget = [Schema](const FProperty* Property, bool bRequiresConversion)
+	auto CreatePropertyWidget = [Schema, WidgetPropertyHandle, WidgetBlueprint, Widget, MVVMPropertyBindingExtension](const FProperty* Property, FGuid OwningViewModelId ,bool bRequiresConversion)
 		-> TSharedRef<SWidget>
 	{
 		FEdGraphPinType PinType;
@@ -49,8 +53,17 @@ static void ExtendBindingsMenu(FMenuBuilder& MenuBuilder, const UWidgetBlueprint
 			SNew(SHorizontalBox)
 			.ToolTipText(Property->GetDisplayNameText())
 			+ SHorizontalBox::Slot()
+			.AutoWidth()
 			.VAlign(VAlign_Center)
-			.Padding(0, 0, 5, 0)
+			.Padding(0.0f, 0.0f, 5.0f, 0.0f)
+			[
+				SNew(SImage)
+				.Image(FCoreStyle::Get().GetBrush("Icons.Check"))
+				.Visibility(MVVMPropertyBindingExtension, &UE::MVVM::FMVVMPropertyBindingExtension::GetCheckmarkVisibility, WidgetBlueprint, Widget, Property, OwningViewModelId, WidgetPropertyHandle)
+			]
+			+ SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.Padding(0.0f, 0.0f, 5.0f, 0.0f)
 			.AutoWidth()
 			[
 				SNew(SImage)
@@ -58,7 +71,7 @@ static void ExtendBindingsMenu(FMenuBuilder& MenuBuilder, const UWidgetBlueprint
 				.ColorAndOpacity(Schema->GetPinTypeColor(PinType))
 			]
 			+ SHorizontalBox::Slot()
-			.Padding(0, 0, 5, 0)
+			.Padding(0.0f, 0.0f, 5.0f, 0.0f)
 			.VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
@@ -145,7 +158,7 @@ static void ExtendBindingsMenu(FMenuBuilder& MenuBuilder, const UWidgetBlueprint
 						UIAction.ExecuteAction = FExecuteAction::CreateLambda(CreateBinding, Widget, WidgetPropertyHandle, ViewModel.GetViewModelId(), VMProperty);
 						MenuBuilder.AddMenuEntry(
 							UIAction,
-							CreatePropertyWidget(VMProperty, false)
+							CreatePropertyWidget(VMProperty, ViewModel.GetViewModelId(), false)
 						);
 					}
 
@@ -165,13 +178,39 @@ static void ExtendBindingsMenu(FMenuBuilder& MenuBuilder, const UWidgetBlueprint
 						UIAction.ExecuteAction = FExecuteAction::CreateLambda(CreateBinding, Widget, WidgetPropertyHandle, ViewModel.GetViewModelId(), VMProperty);
 						MenuBuilder.AddMenuEntry(
 							UIAction,
-							CreatePropertyWidget(VMProperty, true)
+							CreatePropertyWidget(VMProperty, ViewModel.GetViewModelId(), true)
 						);
 					}
 				}));
 	}
 
 	MenuBuilder.EndSection();
+}
+
+EVisibility FMVVMPropertyBindingExtension::GetCheckmarkVisibility(const UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FProperty* Property, FGuid OwningViewModelId, TSharedPtr<IPropertyHandle> WidgetPropertyHandle) const
+{
+	const UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint);
+	if (MVVMExtensionPtr == nullptr)
+	{
+		return EVisibility::Hidden;
+	}
+
+	const UMVVMBlueprintView* MVVMBlueprintView = MVVMExtensionPtr->GetBlueprintView();
+	const FMVVMBlueprintViewBinding* Binding = MVVMBlueprintView ? MVVMBlueprintView->FindBinding(Widget, WidgetPropertyHandle->GetProperty()) : nullptr;
+	if (Binding == nullptr)
+	{
+		return EVisibility::Hidden;
+	}
+
+	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = Binding->SourcePath.GetFields(WidgetBlueprint->GeneratedClass);
+
+	// Currently the bind menu only supports top-level properties in viewmodels, so we can only check the first field to find a match.
+	// This should be updated once we are able to expand the full tree of properties in the bind menu.
+	if (Fields.Num() > 0 && Fields[0].IsProperty() && Property == Fields[0].GetProperty() && Binding->SourcePath.GetViewModelId() == OwningViewModelId)
+	{
+		return EVisibility::Visible;
+	}
+	return EVisibility::Hidden;
 }
 
 TOptional<FName> FMVVMPropertyBindingExtension::GetCurrentValue(const UWidgetBlueprint* WidgetBlueprint, const UWidget* Widget, const FProperty* Property) const
@@ -193,6 +232,10 @@ TOptional<FName> FMVVMPropertyBindingExtension::GetCurrentValue(const UWidgetBlu
 	if (Names.Num() > 0)
 	{
 		return Names.Last();
+	}
+	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding->Conversion.GetConversionFunction(true))
+	{
+		return ConversionFunction->GetConversionFunction().GetName();
 	}
 	return TOptional<FName>();
 }
@@ -233,6 +276,58 @@ const FSlateBrush* FMVVMPropertyBindingExtension::GetCurrentIcon(const UWidgetBl
 	return nullptr;
 }
 
+TOptional<FLinearColor> FMVVMPropertyBindingExtension::GetCurrentIconColor(const UWidgetBlueprint* WidgetBlueprint, const UWidget* Widget, const FProperty* Property) const
+{
+	const UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint);
+	if (MVVMExtensionPtr == nullptr)
+	{
+		return TOptional<FLinearColor>();
+	}
+	const UMVVMBlueprintView* MVVMBlueprintView = MVVMExtensionPtr->GetBlueprintView();
+
+	const FMVVMBlueprintViewBinding* Binding = MVVMBlueprintView ? MVVMBlueprintView->FindBinding(Widget, Property) : nullptr;
+	if (Binding == nullptr)
+	{
+		return TOptional<FLinearColor>();
+	}
+
+	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = Binding->SourcePath.GetFields(WidgetBlueprint->GeneratedClass);
+	if (Fields.IsEmpty())
+	{
+		return TOptional<FLinearColor>();
+	}
+
+	UE::MVVM::FMVVMConstFieldVariant Field = Fields.Last();
+	const FProperty* IconProperty = nullptr;
+
+	if (Field.IsProperty())
+	{
+		IconProperty = Field.GetProperty();
+	}
+	else if (Field.IsFunction())
+	{
+		const UFunction* Function = Field.GetFunction();
+		const FProperty* ReturnProperty = BindingHelper::GetReturnProperty(Function);
+		if (ReturnProperty != nullptr)
+		{
+			IconProperty = ReturnProperty;
+		}
+		else
+		{
+			IconProperty = BindingHelper::GetFirstArgumentProperty(Function);
+		}
+	}
+	if (IconProperty != nullptr)
+	{
+		FSlateColor PrimaryColor, SecondaryColor;
+		const FSlateBrush* SecondaryBrush = nullptr;
+		const FSlateBrush* PrimaryBrush = FBlueprintEditor::GetVarIconAndColorFromProperty(IconProperty, PrimaryColor, SecondaryBrush, SecondaryColor);
+		return PrimaryColor.GetSpecifiedColor();
+	}
+
+	return TOptional<FLinearColor>();
+}
+
 void FMVVMPropertyBindingExtension::ClearCurrentValue(const UWidgetBlueprint* WidgetBlueprint, const UWidget* Widget, const FProperty* Property)
 {
 	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint))
@@ -241,7 +336,9 @@ void FMVVMPropertyBindingExtension::ClearCurrentValue(const UWidgetBlueprint* Wi
 		{
 			if (FMVVMBlueprintViewBinding* Binding = MVVMBlueprintView->FindBinding(Widget, Property))
 			{
-				Binding->SourcePath.ResetPropertyPath();
+				FScopedTransaction Transaction(LOCTEXT("DeleteBindingsTransaction", "Delete Binding"));
+				MVVMBlueprintView->Modify();
+				MVVMBlueprintView->RemoveBinding(Binding);
 			}
 		}
 	}
@@ -250,7 +347,7 @@ void FMVVMPropertyBindingExtension::ClearCurrentValue(const UWidgetBlueprint* Wi
 TSharedPtr<FExtender> FMVVMPropertyBindingExtension::CreateMenuExtender(const UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, TSharedPtr<IPropertyHandle> WidgetPropertyHandle)
 {
 	TSharedPtr<FExtender> Extender = MakeShared<FExtender>();
-	Extender->AddMenuExtension("BindingActions", EExtensionHook::After, nullptr, FMenuExtensionDelegate::CreateStatic(&ExtendBindingsMenu, WidgetBlueprint, Widget, WidgetPropertyHandle));
+	Extender->AddMenuExtension("BindingActions", EExtensionHook::After, nullptr, FMenuExtensionDelegate::CreateStatic(&ExtendBindingsMenu, MakeShared<FMVVMPropertyBindingExtension>(*this), WidgetBlueprint, Widget, WidgetPropertyHandle));
 	return Extender;
 }
 
@@ -327,7 +424,7 @@ IPropertyBindingExtension::EDropResult FMVVMPropertyBindingExtension::OnDrop(con
 		{
 			DestinationPropertyPath.SetWidgetName(Widget->GetFName());
 		}
-		EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, NewBinding, DestinationPropertyPath);
+		EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, NewBinding, DestinationPropertyPath, false);
 
 		return EDropResult::HandledContinue;
 	}

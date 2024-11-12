@@ -591,6 +591,31 @@ UGameViewportClient* UGameInstance::GetGameViewportClient() const
 	return WC ? WC->GameViewport : nullptr;
 }
 
+void UGameInstance::OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld)
+{
+	if (NewWorld)
+	{
+		// Fix up our world context if it is incorrect and we have a valid new world
+		FWorldContext* NewWorldContext = const_cast<FWorldContext*>(GEngine->GetWorldContextFromWorld(NewWorld));
+
+		if (WorldContext == nullptr)
+		{
+			// This may be a test/preview world that did not have a world context set before
+			WorldContext = NewWorldContext;
+		}
+		else if (WorldContext != NewWorldContext)
+		{
+			UE_LOG(LogLoad, Warning, TEXT("GameInstance %s changed from world %s to world %s with a different world context!"), *GetName(), *GetPathNameSafe(OldWorld), *GetPathNameSafe(NewWorld));
+			WorldContext = NewWorldContext;
+		}
+	}
+	else
+	{
+		// Clear our world context if our world is cleared
+		WorldContext = nullptr;
+	}
+}
+
 // This can be defined in the target.cs file to allow map overrides in shipping builds
 #ifndef UE_ALLOW_MAP_OVERRIDE_IN_SHIPPING
 #define UE_ALLOW_MAP_OVERRIDE_IN_SHIPPING 0
@@ -1109,12 +1134,6 @@ APlayerController* UGameInstance::GetPrimaryPlayerController(bool bRequiresValid
 	return PrimaryController;
 }
 
-FUniqueNetIdPtr UGameInstance::GetPrimaryPlayerUniqueId() const
-{
-	FUniqueNetIdRepl UniqueIdRepl = GetPrimaryPlayerUniqueIdRepl();
-	return UniqueIdRepl.GetV1();
-}
-
 FUniqueNetIdRepl UGameInstance::GetPrimaryPlayerUniqueIdRepl() const
 {
 	ULocalPlayer* PrimaryLP = nullptr;
@@ -1166,6 +1185,21 @@ ULocalPlayer* UGameInstance::FindLocalPlayerFromPlatformUserId(const FPlatformUs
 
 ULocalPlayer* UGameInstance::FindLocalPlayerFromUniqueNetId(const FUniqueNetId& UniqueNetId) const
 {
+	return FindLocalPlayerFromUniqueNetId(FUniqueNetIdRepl(UniqueNetId.AsShared()));
+}
+
+ULocalPlayer* UGameInstance::FindLocalPlayerFromUniqueNetId(FUniqueNetIdPtr UniqueNetId) const
+{
+	if (!UniqueNetId.IsValid())
+	{
+		return nullptr;
+	}
+
+	return FindLocalPlayerFromUniqueNetId(*UniqueNetId);
+}
+
+ULocalPlayer* UGameInstance::FindLocalPlayerFromUniqueNetId(const FUniqueNetIdRepl& UniqueNetId) const
+{
 	for (ULocalPlayer* Player : LocalPlayers)
 	{
 		if (Player == nullptr)
@@ -1184,26 +1218,6 @@ ULocalPlayer* UGameInstance::FindLocalPlayerFromUniqueNetId(const FUniqueNetId& 
 
 	// didn't find one
 	return nullptr;
-}
-
-ULocalPlayer* UGameInstance::FindLocalPlayerFromUniqueNetId(FUniqueNetIdPtr UniqueNetId) const
-{
-	if (!UniqueNetId.IsValid())
-	{
-		return nullptr;
-	}
-
-	return FindLocalPlayerFromUniqueNetId(*UniqueNetId);
-}
-
-ULocalPlayer* UGameInstance::FindLocalPlayerFromUniqueNetId(const FUniqueNetIdRepl& UniqueNetId) const
-{
-	if (!UniqueNetId.IsValid())
-	{
-		return nullptr;
-	}
-
-	return FindLocalPlayerFromUniqueNetId(*UniqueNetId);
 }
 
 ULocalPlayer* UGameInstance::GetFirstGamePlayer() const

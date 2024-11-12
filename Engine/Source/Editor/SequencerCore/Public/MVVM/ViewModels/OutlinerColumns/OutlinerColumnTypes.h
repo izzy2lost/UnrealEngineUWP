@@ -23,6 +23,8 @@ ENUM_CLASS_FLAGS(EOutlinerColumnFlags)
 
 enum class EOutlinerColumnGroup : uint8
 {
+	FarLeftGutter,
+
 	LeftGutter,
 
 	Center,
@@ -63,6 +65,7 @@ struct FOutlinerColumnLayout
 
 struct FCommonOutlinerNames
 {
+	static SEQUENCERCORE_API FName Indicator;
 	static SEQUENCERCORE_API FName Pin;
 	static SEQUENCERCORE_API FName Lock;
 	static SEQUENCERCORE_API FName Mute;
@@ -73,6 +76,8 @@ struct FCommonOutlinerNames
 	static SEQUENCERCORE_API FName Nav;
 	static SEQUENCERCORE_API FName KeyFrame;
 	static SEQUENCERCORE_API FName ColorPicker;
+	static SEQUENCERCORE_API FName TimeWarp;
+	static SEQUENCERCORE_API FName Condition;
 };
 
 

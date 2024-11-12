@@ -144,7 +144,7 @@ FReplicationProtocolIdentifier FReplicationProtocolManager::CalculateProtocolIde
 	}
 
 	FReplicationProtocolIdentifier ProtocolIdentifier;
-	ProtocolIdentifier = CityHash64(reinterpret_cast<const char*>(IdBuffer.GetData()), sizeof(uint64) * IdBuffer.Num());
+	ProtocolIdentifier = CityHash32(reinterpret_cast<const char*>(IdBuffer.GetData()), sizeof(uint64) * IdBuffer.Num());
 
 	return ProtocolIdentifier;
 }
@@ -223,9 +223,9 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
 	if (Params.bValidateProtocolId)
 	{
 		const FReplicationProtocolIdentifier NewProtocolId = CalculateProtocolIdentifier(Fragments);
-		if (!ensureMsgf(NewProtocolId == ProtocolId, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with in ProtocolId:0x%" UINT64_x_FMT "Calculated ProtocolId:0x$%" UINT64_x_FMT), DebugName, ProtocolId, NewProtocolId))
+		if (NewProtocolId != ProtocolId)
 		{
-			UE_LOG(LogIris, Warning, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with ProtocolId:0x%" UINT64_x_FMT), DebugName, ProtocolId);
+			UE_LOG(LogIris, Warning, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with ProtocolId:0x%x"), DebugName, ProtocolId);
  #if UE_NET_ENABLE_PROTOCOLMANAGER_LOG
  			if (UE_LOG_ACTIVE(LogIris, Warning))
  			{
@@ -235,6 +235,7 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
  				UE_LOG(LogIris, Warning, TEXT("%s"), StringBuilder.ToString());
  			}
  #endif
+			ensureMsgf(NewProtocolId == ProtocolId, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Id mismatch when creating protocol named %s with in ProtocolId:0x%x Calculated ProtocolId:0x%x"), DebugName, ProtocolId, NewProtocolId);
 			return nullptr;
 		}
 	}
@@ -384,12 +385,12 @@ const FReplicationProtocol* FReplicationProtocolManager::CreateReplicationProtoc
 		TStringBuilder<4096> StringBuilder;
 		FragmentListToString(StringBuilder, Fragments);
 		LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Log);
-		UE_LOG_PROTOCOLMANAGER(Log, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%" UINT64_x_FMT), ToCStr(Protocol->DebugName), ProtocolId);
+		UE_LOG_PROTOCOLMANAGER(Log, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%x"), ToCStr(Protocol->DebugName), ProtocolId);
 		UE_LOG_PROTOCOLMANAGER(Log, TEXT("%s"), StringBuilder.ToString());
 	}
 	else
 	{
-		UE_LOG_PROTOCOLMANAGER(Verbose, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%" UINT64_x_FMT), ToCStr(Protocol->DebugName), ProtocolId);	
+		UE_LOG_PROTOCOLMANAGER(Verbose, TEXT("FReplicationProtocolManager::CreateReplicationProtocol Created new protocol %s with ProtocolId:0x%x"), ToCStr(Protocol->DebugName), ProtocolId);	
 	}
 #endif
 

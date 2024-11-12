@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EOSVoiceChat.h" // IWYU pragma: keep
 #include "EOSShared.h" // IWYU pragma: keep
 #include "Logging/LogMacros.h"
 

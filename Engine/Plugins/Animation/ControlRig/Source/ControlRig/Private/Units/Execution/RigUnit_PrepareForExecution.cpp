@@ -5,11 +5,14 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_PrepareForExecution)
 
-FName FRigUnit_PrepareForExecution::EventName = TEXT("Construction");
-
 FRigUnit_PrepareForExecution_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
 	ExecuteContext.SetEventName(FRigUnit_PrepareForExecution::EventName);
 }
 
+FRigUnit_PostPrepareForExecution_Execute()
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
+	ExecuteContext.SetEventName(FRigUnit_PostPrepareForExecution::EventName);
+}

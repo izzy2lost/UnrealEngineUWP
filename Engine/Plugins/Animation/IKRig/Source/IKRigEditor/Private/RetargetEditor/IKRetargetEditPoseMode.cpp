@@ -435,21 +435,26 @@ void FIKRetargetEditPoseMode::UpdateWidgetTransform()
 		BoneEdit.GlobalTransform = FTransform::Identity;
 		return;
 	}
+
+	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+	const int32 BoneIndex = RefSkeleton.FindBoneIndex(SelectedBones.Last());
+	if (BoneIndex == INDEX_NONE)
+	{
+		BoneEdit.GlobalTransform = FTransform::Identity;
+		return;
+	}
 	
 	float Scale;
 	FVector Offset;
 	GetEditedComponentScaleAndOffset(Scale,Offset);
 
-	const UIKRetargeterController* AssetController = Controller->AssetController;
-	const FIKRetargetPose& RetargetPose = AssetController->GetCurrentRetargetPose(SourceOrTarget);
-	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
-
 	BoneEdit.Name = SelectedBones.Last();
-	BoneEdit.Index = RefSkeleton.FindBoneIndex(BoneEdit.Name);
+	BoneEdit.Index = BoneIndex;
 	BoneEdit.GlobalTransform = Controller->GetGlobalRetargetPoseOfBone(SourceOrTarget, BoneEdit.Index, Scale, Offset);
 	BoneEdit.AccumulatedGlobalOffset = FQuat::Identity;
 
 	BoneEdit.PreviousDeltaRotation.Reset();
+	const FIKRetargetPose& RetargetPose =  Controller->AssetController->GetCurrentRetargetPose(SourceOrTarget);
 	for (int32 SelectionIndex=0; SelectionIndex<SelectedBones.Num(); ++SelectionIndex)
 	{
 		FQuat PrevDeltaRotation = RetargetPose.GetDeltaRotationForBone(SelectedBones[SelectionIndex]);

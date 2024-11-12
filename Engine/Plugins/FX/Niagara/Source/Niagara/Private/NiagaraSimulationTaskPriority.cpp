@@ -61,7 +61,7 @@ namespace NiagaraSimulationTaskPriority
 			if (TickGroup >= 0 && TickGroup < TG_MAX)
 			{
 				int32 Priority = FCString::Atoi(*TGPair.Mid(SepIndex + 1));
-				Priority = FMath::Clamp(Priority, 0, UE_ARRAY_COUNT(GTaskPriorities) - 1);
+				Priority = static_cast<int32>(FMath::Clamp(Priority, 0, UE_ARRAY_COUNT(GTaskPriorities) - 1));
 				GTickGroupPriorities[TickGroup] = Priority;
 			}
 		}

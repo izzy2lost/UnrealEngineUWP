@@ -261,7 +261,7 @@ void FGameplayAttribute::PostSerialize(const FArchive& Ar)
 				Attribute = FindFProperty<FProperty>(NewClass, *NewAttributeName);
 
 				// Verbose log any applied redirectors
-				FUObjectSerializeContext* LoadContext = const_cast<FArchive*>(&Ar)->GetSerializeContext();
+				FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 				const FString AssetName = (LoadContext && LoadContext->SerializedObject) ? LoadContext->SerializedObject->GetPathName() : TEXT("Unknown Object");
 				ABILITY_LOG(Verbose, TEXT("FGameplayAttribute::PostSerialize redirected an attribute '%s' -> '%s'. (Asset: %s)"), *PathName, *RedirectedPathName, *AssetName);
 			}
@@ -286,7 +286,7 @@ void FGameplayAttribute::PostSerialize(const FArchive& Ar)
 			// Log warning if attribute failed to resolve while name + owner were non-null
 			if (!Attribute.Get())
 			{
-				FUObjectSerializeContext* LoadContext = const_cast<FArchive*>(&Ar)->GetSerializeContext();
+				FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 				const FString AssetName = (LoadContext && LoadContext->SerializedObject) ? LoadContext->SerializedObject->GetPathName() : TEXT("Unknown Object");
 				const FString OwnerName = AttributeOwner ? AttributeOwner->GetName() : TEXT("NONE");
 				ABILITY_LOG(Warning, TEXT("FGameplayAttribute::PostSerialize called on an invalid attribute with owner %s and name %s. (Asset: %s)"), *OwnerName, *AttributeName, *AssetName);

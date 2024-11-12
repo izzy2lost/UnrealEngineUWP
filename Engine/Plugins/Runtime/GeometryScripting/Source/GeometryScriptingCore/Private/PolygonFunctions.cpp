@@ -106,7 +106,7 @@ void UGeometryScriptLibrary_SimplePolygonFunctions::SetPolygonVertex(FGeometrySc
 	}
 }
 
-int32 UGeometryScriptLibrary_SimplePolygonFunctions::AddPolygonVertex(FGeometryScriptSimplePolygon Polygon, FVector2D VertexPosition)
+int32 UGeometryScriptLibrary_SimplePolygonFunctions::AddPolygonVertex(FGeometryScriptSimplePolygon& Polygon, FVector2D VertexPosition)
 {
 	if (!Polygon.Vertices.IsValid())
 	{
@@ -368,11 +368,11 @@ FGeometryScriptGeneralPolygonList UGeometryScriptLibrary_PolygonListFunctions::C
 	return PolygonList;
 }
 
-int32 UGeometryScriptLibrary_PolygonListFunctions::AddPolygonToList(FGeometryScriptGeneralPolygonList PolygonList, FGeometryScriptSimplePolygon OuterShape, const TArray<FGeometryScriptSimplePolygon>& Holes, bool bFixHoleOrientations)
+int32 UGeometryScriptLibrary_PolygonListFunctions::AddPolygonToList(FGeometryScriptGeneralPolygonList& PolygonList, FGeometryScriptSimplePolygon OuterShape, const TArray<FGeometryScriptSimplePolygon>& Holes, bool bFixHoleOrientations)
 {
 	if (!PolygonList.Polygons.IsValid())
 	{
-		PolygonList.Polygons.Reset();
+		PolygonList.Reset();
 	}
 
 	TArray<FVector2D>* UseOuterVertices = OuterShape.Vertices.Get();
@@ -414,7 +414,7 @@ FGeometryScriptGeneralPolygonList UGeometryScriptLibrary_PolygonListFunctions::C
 	return PolygonList;
 }
 
-void UGeometryScriptLibrary_PolygonListFunctions::AppendPolygonList(FGeometryScriptGeneralPolygonList PolygonList, FGeometryScriptGeneralPolygonList PolygonsToAppend)
+void UGeometryScriptLibrary_PolygonListFunctions::AppendPolygonList(FGeometryScriptGeneralPolygonList& PolygonList, FGeometryScriptGeneralPolygonList PolygonsToAppend)
 {
 	if (!PolygonList.Polygons)
 	{

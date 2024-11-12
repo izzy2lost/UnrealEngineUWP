@@ -55,7 +55,8 @@ def main(args):
     command_class = tree_node.get_command_class()
     if command_class:
         command = command_class.construct()
-        return command.invoke(tail_args)
+        command_path = tree_node.get_path()
+        return command.invoke(tail_args, invoke_path=command_path)
 
     # We've reached a point in the command tree that has no command. Inform the
     # user about the available sub-commands.

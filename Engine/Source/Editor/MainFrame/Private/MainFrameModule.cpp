@@ -133,10 +133,11 @@ void FMainFrameModule::RecreateDefaultMainFrame(const bool bStartImmersive, cons
 	// Clean previous default main frame
 	if (IsWindowInitialized())
 	{
-		// Clean FSlateApplication
-		FSlateApplication::Get().CloseAllWindowsImmediately();
 		// Clean FGlobalTabmanager
 		FGlobalTabmanager::Get()->CloseAllAreas();
+
+		// Clean FSlateApplication
+		FSlateApplication::Get().CloseAllWindowsImmediately();
 	}
 	// (Re-)create default main frame
 	CreateDefaultMainFrameAuxiliary(bStartImmersive, bStartPIE, /*bIsBeingRecreated*/true);
@@ -198,6 +199,7 @@ void FMainFrameModule::CreateDefaultMainFrameAuxiliary(const bool bStartImmersiv
 		TSharedRef<SWindow> RootWindow = SNew(SWindow)
 			.AutoCenter(WindowConfig.CenterRules)
 			.Title( WindowConfig.WindowTitle )
+			.CloseButtonToolTipText(LOCTEXT("MainFrameModuleCloseButtonToolTip", "Close Unreal Editor"))
 			.IsInitiallyMaximized( DefaultWindowLocation.InitiallyMaximized )
 			.ScreenPosition( DefaultWindowLocation.ScreenPosition )
 			.ClientSize( DefaultWindowLocation.WindowSize )
@@ -317,9 +319,16 @@ void FMainFrameModule::CreateDefaultMainFrameAuxiliary(const bool bStartImmersiv
 			// MainFrameContent will only be nullptr if its main area contains invalid tabs (probably some layout bug). If so, reset layout to avoid potential crashes
 			if (!MainFrameContent.IsValid())
 			{
+				// This code will recurse to load the default layout. If that also fail we will get into an infinite loop
+				check(!bIsReCreatingDefaultLayoutAsFallback)
+				TGuardValue<bool> GuardRecreatingDefaultLayoutFallback(bIsReCreatingDefaultLayoutAsFallback, true);
+
+				TGuardValue<bool> GuardRecreatingDefaultMainFrame(bRecreatingDefaultMainFrame, true);
+
 				// Clean FSlateApplication & FGlobalTabmanager
-				FSlateApplication::Get().CloseAllWindowsImmediately();
 				FGlobalTabmanager::Get()->CloseAllAreas();
+				FSlateApplication::Get().CloseAllWindowsImmediately();
+
 				// Remove and reload file
 				GConfig->UnloadFile(GEditorLayoutIni); // We must re-read it to avoid the Editor to use a previously cached name and description
 				const FString FaultyEditorLayoutPath = GEditorLayoutIni + TEXT("_faulty.ini");

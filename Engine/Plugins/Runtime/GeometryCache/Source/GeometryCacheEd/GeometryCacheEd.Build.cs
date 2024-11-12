@@ -8,6 +8,7 @@ public class GeometryCacheEd : ModuleRules
 	{
         PublicDependencyModuleNames.AddRange(
 			new string[] {
+				"AssetDefinition",
 				"Core",
 				"CoreUObject",
 				"Engine",
@@ -17,11 +18,15 @@ public class GeometryCacheEd : ModuleRules
                 "RenderCore",
                 "RHI",
 				"EditorFramework",
-                "UnrealEd",
+				"EditorWidgets",
+				"UnrealEd",
 				"AssetTools",
                 "GeometryCache",
 				"ToolMenus",
-				"NiagaraEditor"
+				"NiagaraEditor",
+				"AdvancedPreviewScene",
+				"SequencerWidgets",
+				"TimeManagement"
 			}
 		);
 

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Serialization/UnversionedPropertySerialization.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "Serialization/UnversionedPropertySerializationTest.h"
 #include "Hash/Blake3.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -10,7 +11,10 @@
 #include "UObject/UnrealType.h"
 
 #if WITH_EDITORONLY_DATA
+#include "Algo/Sort.h"
 #include "Misc/FileHelper.h"
+#include "UObject/MetaData.h"
+#include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
 #endif
 
@@ -49,7 +53,7 @@ public:
 	FUnversionedPropertySerializer(FProperty* InProperty, int32 InArrayIndex)
 		: Property(InProperty)
 #if CACHE_UNVERSIONED_PROPERTY_SCHEMA
-		, Offset(Property->GetOffset_ForInternal() + Property->ElementSize * InArrayIndex)
+		, Offset(Property->GetOffset_ForInternal() + Property->GetElementSize() * InArrayIndex)
 		, bSerializeAsInteger(CanSerializeAsInteger(Property))
 		, bIsOptional(IsOptional(Property->GetClass()->GetCastFlags()))
 		, IntType(GetIntType(Property->GetMinAlignment()))
@@ -123,8 +127,8 @@ public:
 		// Cached FastZeroIntNum is only uint8 and not sufficient for large unset optionals
 		if (FastZeroIntNum == 0)
 		{
-			checkf(bIsOptional && Property->ElementSize >= 256, TEXT("Only large unset optionals should hit this loading path"));
-			FMemory::Memzero(ValueData, Property->ElementSize);
+			checkf(bIsOptional && Property->GetElementSize() >= 256, TEXT("Only large unset optionals should hit this loading path"));
+			FMemory::Memzero(ValueData, Property->GetElementSize());
 			return;
 		}
 #else
@@ -179,7 +183,7 @@ private:
 
 	static uint32 GetIntNum(const FProperty* Property, EIntegerType IntType)
 	{
-		return Property->ElementSize / GetSizeOf(IntType);
+		return Property->GetElementSize() / GetSizeOf(IntType);
 	}
 
 	static bool CanSerializeAsZero(const FProperty* Property, EIntegerType IntType)
@@ -324,8 +328,10 @@ struct FUnversionedStructSchema
 
 	FORCEINLINE static FUnversionedStructSchema* Create(const UStruct* Struct, bool bSkipEditorOnly)
 	{
+		CA_ASSUME(Struct != nullptr);
 #if WITH_EDITORONLY_DATA
 		FBlake3 HashBuilder;
+		AppendClassMetaData(Struct, HashBuilder);
 #endif
 		TArray<FUnversionedPropertySerializer, TInlineAllocator<256>> Serializers;
 		for (FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
@@ -372,6 +378,48 @@ struct FUnversionedStructSchema
 	}
 
 #if WITH_EDITORONLY_DATA
+	static void AppendClassMetaData(const UStruct* Struct, FBlake3& HashBuilder)
+	{
+		// Append the full name of the struct. To improve performance, append the FNames of its outers individually
+		// rather than calculating the full name as a string.
+		const UObject* Outermost = nullptr;
+		for (const UObject* Outer = Struct; Outer; Outer = Outer->GetOuter())
+		{
+			AppendHash(HashBuilder, Outer->GetFName());
+			Outermost = Outer;
+		}
+		// Append metadata properties of the struct since they influence builds.
+		// Skip this for the structs UPackage and UMetaData to avoid infinite recursion.
+		const TMap<FName, FString>* MetaData = nullptr;
+		if (Struct != UPackage::StaticClass() && Struct != UMetaData::StaticClass())
+		{
+			if (const UPackage* Package = Cast<UPackage>(Outermost))
+			{
+				// Package is const, but there is no const accessor for GetMetaData, so we const-cast it.
+				// Avoid calling GetMetaData if the metadata does not already exist, so that we do not
+				// create the metadata on the const object. 
+				if (Package->HasMetaData())
+				{
+					const UMetaData* MetaDataObject = const_cast<UPackage*>(Package)->GetMetaData();
+					check(MetaDataObject);
+					MetaData = MetaDataObject->GetMapForObject(Struct);
+				}
+			}
+		}
+		if (MetaData)
+		{
+			TArray<FName, TInlineAllocator<16>> MetaDataNames;
+			MetaData->GenerateKeyArray(MetaDataNames);
+			Algo::Sort(MetaDataNames, FNameLexicalLess());
+			for (FName MetaDataName : MetaDataNames)
+			{
+				AppendHash(HashBuilder, MetaDataName);
+				const FString& Value = MetaData->FindChecked(MetaDataName);
+				HashBuilder.Update(*Value, Value.Len() * sizeof(**Value));
+			}
+		}
+	}
+
 	static FBlake3Hash CalculateSchemaHash(UStruct* Struct, bool bSkipEditorOnly)
 	{
 		FBlake3 HashBuilder;
@@ -405,11 +453,15 @@ const FUnversionedStructSchema& GetOrCreateUnversionedSchema(const UStruct* Stru
 
 	FUnversionedStructSchema* CreatedSchema = FUnversionedStructSchema::Create(Struct, bSkipEditorOnly);
 
-	void** CachedSchemaPtr = reinterpret_cast<void**>(const_cast<FUnversionedStructSchema**>(&GetUnversionedSchema(Struct, bSkipEditorOnly)));
-	if (const FUnversionedStructSchema* ExistingSchema = reinterpret_cast<const FUnversionedStructSchema*>(FPlatformAtomics::InterlockedCompareExchangePointer(CachedSchemaPtr, CreatedSchema, nullptr)))
+	// AutoRTFM cannot undo atomic swaps, so skip the caching if called from a transaction.
+	if (!AutoRTFM::IsClosed())
 	{
-		FUnversionedStructSchema::Delete(CreatedSchema);
-		return *ExistingSchema;
+		void** CachedSchemaPtr = reinterpret_cast<void**>(const_cast<FUnversionedStructSchema**>(&GetUnversionedSchema(Struct, bSkipEditorOnly)));
+		if (const FUnversionedStructSchema* ExistingSchema = reinterpret_cast<const FUnversionedStructSchema*>(FPlatformAtomics::InterlockedCompareExchangePointer(CachedSchemaPtr, CreatedSchema, nullptr)))
+		{
+			FUnversionedStructSchema::Delete(CreatedSchema);
+			return *ExistingSchema;
+		}
 	}
 
 	return *CreatedSchema;

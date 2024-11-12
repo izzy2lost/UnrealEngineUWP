@@ -120,7 +120,7 @@ void FD3D11DynamicRHI::ApplyStaticUniformBuffers(TRHIShader* Shader)
 {
 	if (Shader)
 	{
-		UE::RHICore::ApplyStaticUniformBuffers(Shader, Shader->StaticSlots, Shader->ShaderResourceTable.ResourceTableLayoutHashes, StaticUniformBuffers,
+		UE::RHICore::ApplyStaticUniformBuffers(Shader, StaticUniformBuffers,
 			[this](int32 BufferIndex, FRHIUniformBuffer* Buffer)
 			{
 				BindUniformBuffer<static_cast<EShaderFrequency>(TRHIShader::StaticFrequency)>(BufferIndex, Buffer);
@@ -165,7 +165,7 @@ void FD3D11DynamicRHI::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32
 
 	StateCache.SetComputeShader(ComputeShader->Resource);
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
+	RegisterGPUDispatch(FIntVector(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ));	
 
 	if (ComputeShader->bShaderNeedsGlobalConstantBuffer)
 	{
@@ -184,7 +184,7 @@ void FD3D11DynamicRHI::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBuff
 	FD3D11ComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
 	FD3D11Buffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
 
-	GPUProfilingData.RegisterGPUDispatch(FIntVector(1, 1, 1));
+	RegisterGPUDispatch(FIntVector(1, 1, 1));
 
 	StateCache.SetComputeShader(ComputeShader->Resource);
 	
@@ -353,13 +353,13 @@ struct FD3D11ResourceBinder
 		{
 			RHI.InternalSetUAVCS(Index, FD3D11DynamicRHI::ResourceCast(InUnorderedAccessView));
 		}
-		else if (ShaderFrequency == SF_Pixel)
+		else if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Vertex)
 		{
-			RHI.InternalSetUAVPS(Index, FD3D11DynamicRHI::ResourceCast(InUnorderedAccessView));
+			RHI.InternalSetUAVVSPS(Index, FD3D11DynamicRHI::ResourceCast(InUnorderedAccessView));
 		}
 		else
 		{
-			checkf(false, TEXT("UAVs are not supported on vertex and geometry shaders."));
+			checkf(false, TEXT("UAVs are only supported in compute, pixel and vertex shaders."));
 		}
 	}
 
@@ -392,6 +392,13 @@ struct FD3D11ResourceBinder
 	{
 		RHI.GetStateCache().SetSamplerState<ShaderFrequency>(FD3D11DynamicRHI::ResourceCast(Sampler)->Resource, Index);
 	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+		checkNoEntry();
+	}
+#endif
 };
 
 template<EShaderFrequency ShaderFrequency>
@@ -623,7 +630,7 @@ void FD3D11DynamicRHI::InternalSetUAVCS(uint32 BindIndex, FD3D11UnorderedAccessV
 	Direct3DDeviceIMContext->CSSetUnorderedAccessViews(BindIndex, 1, &D3D11UAV, &InitialCount);
 }
 
-void FD3D11DynamicRHI::InternalSetUAVPS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI)
+void FD3D11DynamicRHI::InternalSetUAVVSPS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI)
 {
 	check(BindIndex < D3D11_PS_CS_UAV_REGISTER_COUNT);
 	if (CurrentUAVs[BindIndex] != UnorderedAccessViewRHI)
@@ -1008,7 +1015,6 @@ void FD3D11DynamicRHI::SetResourcesFromTables(const ShaderType* RESTRICT Shader)
 	UE::RHICore::SetResourcesFromTables(
 		  FD3D11ResourceBinder<Frequency> { *this }
 		, *Shader
-		, Shader->ShaderResourceTable
 		, DirtyUniformBuffers[Frequency]
 		, BoundUniformBuffers[Frequency]
 #if ENABLE_RHI_VALIDATION
@@ -1026,46 +1032,51 @@ void FD3D11DynamicRHI::CommitGraphicsResourceTables()
 	FD3D11BoundShaderState* RESTRICT CurrentBoundShaderState = (FD3D11BoundShaderState*)BoundShaderStateHistory.GetLast();
 	check(CurrentBoundShaderState);
 
-	auto* PixelShader = CurrentBoundShaderState->GetPixelShader();
-	if (PixelShader)
+	bool bRTVInvalidate = false;
+	uint32 UAVMask = 0;
+
+	if (auto* Shader = CurrentBoundShaderState->GetPixelShader())
 	{
-		// Because d3d11 binding uses the same slots for UAVs and RTVs, we have to rebind when two shaders with different sets of rendertargets are bound,
-		// as they can potentially be used by UAVs, which can cause them to unbind RTVs used by subsequent shaders.
-		bool bRTVInvalidate = false;
-		uint32 UAVMask = PixelShader->UAVMask & CurrentRTVOverlapMask;
-		if (GDX11ReduceRTVRebinds && 
-			(0 != ((~CurrentUAVMask) & UAVMask) && CurrentUAVMask == (CurrentUAVMask & UAVMask)))
-		{
-			//if the mask only -adds- uav binds, no RTs will be missing so we just grow the mask
-			CurrentUAVMask = UAVMask;
-		}
-		else if (CurrentUAVMask != UAVMask)
-		{
-			bRTVInvalidate = true;
-			CurrentUAVMask = UAVMask;
-		}
-
-		if (bRTVInvalidate)
-		{
-			CommitRenderTargets(true);
-			DirtyUniformBuffers[SF_Pixel] = -1;
-		}
-
-		SetResourcesFromTables(PixelShader);
-
-		if (UAVSChanged)
-		{
-			CommitUAVs();
-		}
+		UAVMask |= Shader->UAVMask & CurrentRTVOverlapMask;
+		SetResourcesFromTables(Shader);
 	}
 
 	if (auto* Shader = CurrentBoundShaderState->GetVertexShader())
 	{
+		UAVMask |= Shader->UAVMask & CurrentRTVOverlapMask;
 		SetResourcesFromTables(Shader);
 	}
 	if (auto* Shader = CurrentBoundShaderState->GetGeometryShader())
 	{
+		UAVMask |= Shader->UAVMask & CurrentRTVOverlapMask;
 		SetResourcesFromTables(Shader);
+	}
+
+	// Because d3d11 binding uses the same slots for UAVs and RTVs, we have to rebind when two shaders with different sets of rendertargets are bound,
+	// as they can potentially be used by UAVs, which can cause them to unbind RTVs used by subsequent shaders.
+	if (GDX11ReduceRTVRebinds &&
+		(0 != ((~CurrentUAVMask) & UAVMask) && CurrentUAVMask == (CurrentUAVMask & UAVMask)))
+	{
+		//if the mask only -adds- uav binds, no RTs will be missing so we just grow the mask
+		CurrentUAVMask = UAVMask;
+	}
+	else if (CurrentUAVMask != UAVMask)
+	{
+		bRTVInvalidate = true;
+		CurrentUAVMask = UAVMask;
+	}
+
+	if (bRTVInvalidate)
+	{
+		CommitRenderTargets(true);
+		DirtyUniformBuffers[SF_Pixel] = -1;
+		DirtyUniformBuffers[SF_Vertex] = -1;
+		DirtyUniformBuffers[SF_Geometry] = -1;
+	}
+
+	if (UAVSChanged)
+	{
+		CommitUAVs();
 	}
 }
 
@@ -1085,7 +1096,7 @@ void FD3D11DynamicRHI::RHIDrawPrimitive(uint32 BaseVertexIndex,uint32 NumPrimiti
 
 	uint32 VertexCount = GetVertexCountForPrimitiveCount(NumPrimitives,PrimitiveType);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, VertexCount * NumInstances);
 	StateCache.SetPrimitiveTopology(GetD3D11PrimitiveType(PrimitiveType));
 	if(NumInstances > 1)
 	{
@@ -1105,7 +1116,7 @@ void FD3D11DynamicRHI::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, u
 
 	RHI_DRAW_CALL_INC();
 
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1123,7 +1134,7 @@ void FD3D11DynamicRHI::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIBu
 
 	RHI_DRAW_CALL_INC();
 
-	GPUProfilingData.RegisterGPUWork(1);
+	RegisterGPUWork(1);
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1149,7 +1160,7 @@ void FD3D11DynamicRHI::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int32
 	// called should make sure the input is valid, this avoid hidden bugs
 	ensure(NumPrimitives > 0);
 
-	GPUProfilingData.RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
+	RegisterGPUWork(NumPrimitives * NumInstances, NumVertices * NumInstances);
 
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1189,7 +1200,7 @@ void FD3D11DynamicRHI::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferRH
 
 	RHI_DRAW_CALL_INC();
 
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 	
 	CommitGraphicsResourceTables();
 	CommitNonComputeShaderConstants();
@@ -1253,24 +1264,17 @@ void FD3D11DynamicRHI::RHIClearMRTImpl(const bool* bClearColorArray, int32 NumCl
 		Direct3DDeviceIMContext->ClearDepthStencilView(DepthStencilView,ClearFlags,Depth,Stencil);
 	}
 
-	GPUProfilingData.RegisterGPUWork(0);
+	RegisterGPUWork(0);
 }
 
 // Blocks the CPU until the GPU catches up and goes idle.
 void FD3D11DynamicRHI::RHIBlockUntilGPUIdle()
 {
-	if (IsRunningRHIInSeparateThread())
-	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-	}
-	
 	D3D11_QUERY_DESC Desc = {};
 	Desc.Query = D3D11_QUERY_EVENT;
 
 	TRefCountPtr<ID3D11Query> Query;
 	VERIFYD3D11RESULT_EX(Direct3DDevice->CreateQuery(&Desc, Query.GetInitReference()), Direct3DDevice);
-	
-	FScopedD3D11RHIThreadStaller StallRHIThread;
 	
 	Direct3DDeviceIMContext->End(Query.GetReference());
 	Direct3DDeviceIMContext->Flush();
@@ -1382,10 +1386,6 @@ void FD3D11DynamicRHI::EnableDepthBoundsTest(bool bEnable,float MinDepth,float M
 	StateCache.DepthBoundsMax = MaxDepth;
 }
 
-void FD3D11DynamicRHI::RHISubmitCommandsHint()
-{
-}
-
 IRHICommandContext* FD3D11DynamicRHI::RHIGetDefaultContext()
 {
 	return this;
@@ -1397,17 +1397,61 @@ IRHIComputeContext* FD3D11DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FD3D11DynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+struct FD3D11PlatformCommandList : public IRHIPlatformCommandList
 {
-	// "Context" will always be the default context, since we don't implement parallel execution.
-	// D3D11 uses an immediate context, there's nothing to do here. Executed commands will have already reached the driver.
+	virtual ~FD3D11PlatformCommandList() = default;
+};
 
-	// Returning nullptr indicates that we don't want RHISubmitCommandLists to be called.
-	return nullptr;
+void FD3D11DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
+{
+#if RHI_NEW_GPU_PROFILER
+	FlushProfilerStats();
+#endif
+
+	// "Context" will always be the default context, since we don't implement parallel execution.
+	for (IRHIComputeContext* Context : Args.Contexts)
+	{
+		// "Context" will always be the default context, since we don't implement parallel execution.
+		check(Context == this);
+
+#if RHI_NEW_GPU_PROFILER && WITH_RHI_BREADCRUMBS
+		// We need platform command lists to contain the breadcrumb allocators
+		Output[Context->GetPipeline()] = new FD3D11PlatformCommandList;
+#endif
+	}
+
+	// Reset some context state
+	for (int32 Frequency = 0; Frequency < SF_NumStandardFrequencies; ++Frequency)
+	{
+		DirtyUniformBuffers[Frequency] = 0;
+
+		for (int32 BindIndex = 0; BindIndex < MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE; ++BindIndex)
+		{
+			BoundUniformBuffers[Frequency][BindIndex] = nullptr;
+		}
+	}
 }
 
-void FD3D11DynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FD3D11DynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
+	// Attempt to readback completed queries
+	PollQueryResults();
+
+#if RHI_NEW_GPU_PROFILER && WITH_RHI_BREADCRUMBS
+	for (IRHIPlatformCommandList* CmdList : Args.CommandLists)
+	{
+		FD3D11PlatformCommandList* D3DCmdList = static_cast<FD3D11PlatformCommandList*>(CmdList);
+
+		// Preserve the breadcrumb allocators in the profiler frame
+		// so they are kept alive until the frame's data is processed.
+		for (auto const& Allocator : D3DCmdList->BreadcrumbAllocators)
+		{
+			Profiler.Current.BreadcrumbAllocators.AddUnique(&Allocator.Get());
+		}
+
+		delete D3DCmdList;
+	}
+#endif
 }
 
 void FD3D11DynamicRHI::EnableUAVOverlap()

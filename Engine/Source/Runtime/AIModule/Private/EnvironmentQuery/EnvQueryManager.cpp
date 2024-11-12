@@ -78,9 +78,10 @@ FEnvQueryRequest& FEnvQueryRequest::SetNamedParams(const TArray<FEnvNamedValue>&
 FEnvQueryRequest& FEnvQueryRequest::SetDynamicParam(const FAIDynamicParam& Param, const UBlackboardComponent* BlackboardComponent)
 {
 	checkf(BlackboardComponent || (Param.BBKey.IsSet() == false), TEXT("BBKey.IsSet but no BlackboardComponent provided"));
+	ensureMsgf(Param.bAllowBBKey || !Param.BBKey.IsSet(), TEXT("Dynamic Param %s for query template %s doesn't allow BBKey but has a bbkey set."), *Param.ParamName.ToString(), *GetNameSafe(QueryTemplate));
 
 	// check if given param requires runtime resolve, like reading from BB
-	if (Param.BBKey.IsSet() && BlackboardComponent)
+	if (Param.bAllowBBKey && Param.BBKey.IsSet() && BlackboardComponent)
 	{
 		// grab info from BB
 		switch (Param.ParamType)
@@ -447,13 +448,14 @@ void UEnvQueryManager::Tick(float DeltaTime)
 		SCOPE_CYCLE_COUNTER(STAT_AI_EQS_TickWork);
 		
 		const int32 NumRunningQueries = RunningQueries.Num();
+		int32 NumQueriesRunningAsync = 0;
 		int32 Index = 0;
 
 		while ((TimeLeft > 0.0) 
 			&& (Index < NumRunningQueries) 
 			// make sure we account for queries that have finished (been aborted)
 			// before UEnvQueryManager::Tick has been called
-			&& (QueriesFinishedDuringUpdate + NumRunningQueriesAbortedSinceLastUpdate < NumRunningQueries))
+			&& (QueriesFinishedDuringUpdate + NumRunningQueriesAbortedSinceLastUpdate + NumQueriesRunningAsync < NumRunningQueries))
 		{
 			const double StepStartTime = FPlatformTime::Seconds();
 			double ResultHandlingDuration = 0.;
@@ -534,6 +536,13 @@ void UEnvQueryManager::Tick(float DeltaTime)
 					++QueriesFinishedDuringUpdate;
 					++Index;
 				}
+
+				// If current Query is waiting on results to be processed asynchronously, check for results next frame.
+				else if (QueryInstancePtr->IsCurrentlyRunningAsync())
+				{
+					++NumQueriesRunningAsync;
+					++Index;
+				}
 				// If we're testing queries using breadth, move on to the next query.
 				// If we're testing queries using depth, we only move on to the next query when we finish the current one.
 				else if (bTestQueriesUsingBreadth)
@@ -596,14 +605,14 @@ void UEnvQueryManager::Tick(float DeltaTime)
 					TSharedPtr<FEnvQueryInstance>& QueryInstance = RunningQueries[Index];
 					if (!QueryInstance.IsValid())
 					{
-						RunningQueries.RemoveAt(Index, 1, EAllowShrinking::No);
+						RunningQueries.RemoveAt(Index, EAllowShrinking::No);
 						continue;
 					}
 
 					if (QueryInstance->IsFinished())
 					{
 						FinishedQueriesTotalTime += (FPlatformTime::Seconds() - QueryInstance->StartTime);
-						RunningQueries.RemoveAt(Index, 1, EAllowShrinking::No);
+						RunningQueries.RemoveAt(Index, EAllowShrinking::No);
 						--FinishedQueriesCounter;
 					}
 				}
@@ -843,7 +852,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 						*GetNameSafe(LocalTemplate), OptionIndex);
 				}
 
-				LocalTemplate->Options.RemoveAt(OptionIndex, 1, EAllowShrinking::No);
+				LocalTemplate->Options.RemoveAt(OptionIndex, EAllowShrinking::No);
 				--OptionIndex; // See note at top of for loop.  We cannot iterate backwards here.
 				continue;
 			}
@@ -887,7 +896,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 					UE_VLOG_ALWAYS_UELOG(this, LogEQS, Warning, TEXT("Query [%s] can't use test [%s] in option %d [%s], removing it"),
 						*GetNameSafe(LocalTemplate), *GetNameSafe(TestOb), OptionIndex, *MyOption->Generator->OptionName);
 
-					SortedTests.RemoveAt(TestIndex, 1, EAllowShrinking::No);
+					SortedTests.RemoveAt(TestIndex, EAllowShrinking::No);
 				}
 				else if (bOptionSingleResultSearch
 					&& TestOb->TestPurpose == EEnvTestPurpose::Filter

@@ -5,7 +5,7 @@
 #include "HAL/Platform.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class ISubmissionOperation;
 

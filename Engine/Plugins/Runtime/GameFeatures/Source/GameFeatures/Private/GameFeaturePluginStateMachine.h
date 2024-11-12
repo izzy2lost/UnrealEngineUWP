@@ -90,29 +90,37 @@ Transition states are expected to transition the machine to another state after 
                |             |
                +-^---------+-+
                  |         |
-		   ------~---------~--------------------------------
+           ------~---------~--------------------------------
            |     |         |                               |
         +--v-----+--+    +-v---------+               +-----v--------------+
-        |           |    |           |				 |         !          |
+        |           |    |           |               |         !          |
         |Unmounting |    | Mounting  <---------------> ErrorMounting      |
-        |           |    |           |				 |                    |
-        +--^-----^--+    +--+--------+				 +--------------------+
+        |           |    |           |               |                    |
+        +--^-----^--+    +--+--------+               +--------------------+
            |     |          |
            ------~----------~-------------------------------
                  |          |                              |
-                 |       +--v------------------- +   +-----v-----------------------+
-                 |       |                       |	 |         !                   |
+                 |       +--v--------------------+   +-----+-----------------------+
+                 |       |                       |   |         !                   |
                  |       |WaitingForDependencies <---> ErrorWaitingForDependencies |
-                 |       |                       |	 |                             |
-                 |       +--+------------------- +	 +-----------------------------+
-                 |          |
-           ------~----------~-------------------------------
-           |     |          |                              |
-        +--v-----+----+  +--v-------- +              +-----v--------------+
-        |             |  |            |				 |         !          |
+                 |       |                       |   |                             |
+                 |       +-----+-----------------+   +-----------------------------+
+                 |             |
+                 |    ---------~-----------------------------------
+                 |    |        |                                  |
++----------------+----v---+ +--v----------------------+     +-----v-------------------------+
+|                         | |                         |     |             !                 |
+|AssetDependencyStreamOut | |AssetDependencyStreaming <-----> ErrorAssetDependencyStreaming |
+|                         | |                         |     |                               |
++----------------^--------+ +--+----------------------+     +-------------------------------+
+                 |             |
+           ------~-------------~----------------------------
+           |     |             |                           |
+        +--v-----+----+  +-----v----- +              +-----v--------------+
+        |             |  |            |              |         !          |
         |Unregistering|  |Registering <--------------> ErrorRegistering   |
-        |             |  |            |				 |                    |
-        +--------^----+  ++---------- +				 +--------------------+
+        |             |  |            |              |                    |
+        +--------^----+  ++-----------+              +--------------------+
                  |        |
                +-+--------v-+
                |      *     |
@@ -229,10 +237,11 @@ struct FInstallBundlePluginProtocolMetaData
 	FInstallBundlePluginProtocolMetaData(TArray<FName> InInstallBundles) : InstallBundles(MoveTemp(InInstallBundles)) {}
 
 	TArray<FName> InstallBundles;
+	TArray<FName> AssetDependencyBundles;
 
 	/** Functions to convert to/from the URL FString representation of this metadata **/
 	FString ToString() const;
-	static TValueOrError<FInstallBundlePluginProtocolMetaData, void> FromString(FStringView URLOptionsString);
+	static TValueOrError<FInstallBundlePluginProtocolMetaData, FString> FromString(FStringView URLOptionsString);
 };
 
 struct FGameFeatureProtocolMetadata : public TUnion<FInstallBundlePluginProtocolMetaData, FNull>
@@ -319,7 +328,7 @@ struct FGameFeaturePluginStateMachineProperties
 
 	EGameFeaturePluginProtocol GetPluginProtocol() const;
 
-	bool ParseURL();
+	TValueOrError<void, FString> ParseURL();
 
 	/** Checks to see if any invalid data was changed during a URL update. True if data updated was all values expected to be changed. */
 	UE::GameFeatures::FResult ValidateProtocolOptionsUpdate(const FGameFeatureProtocolOptions& NewProtocolOptions) const;
@@ -530,6 +539,9 @@ public:
 	/** Whether this machine is allowed to be asynchronous */
 	bool AllowAsyncLoading() const;
 
+	/** Returns true if the plugin will stream dependencies after installing. Only call if IsStatusKnown is true */
+	bool HasAssetStreamingDependencies() const;
+
 	void SetWasLoadedAsBuiltIn();
 
 	bool WasLoadedAsBuiltIn() const;
@@ -539,6 +551,8 @@ public:
 
 	/** If the plugin is registered already, we will retrieve its game feature data */
 	UGameFeatureData* GetGameFeatureDataForRegisteredPlugin(bool bCheckForRegistering = false);
+
+	const FGameFeaturePluginStateMachineProperties& GetProperties() const;
 
 private:
 	/** Returns true if the specified state is not a transition state */

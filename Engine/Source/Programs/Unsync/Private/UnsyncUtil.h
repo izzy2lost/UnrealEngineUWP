@@ -127,6 +127,7 @@ std::string BytesToHexString(const uint8* Data, uint64 Size);
 
 // Converts input bytes to hexadecimal ACII. Returns how many characters were written to output.
 uint64 BytesToHexChars(char* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize);
+uint64 BytesToHexChars(wchar_t* Output, uint64 OutputSize, const uint8* Input, uint64 InputSize);
 
 template<typename HashType>
 std::string
@@ -139,31 +140,61 @@ std::wstring ConvertUtf8ToWide(std::string_view StringUtf8);
 std::string	 ConvertWideToUtf8(std::wstring_view StringWide);
 void		 ConvertWideToUtf8(std::wstring_view StringWide, std::string& Result);
 
-std::wstring StringToLower(const std::wstring& Input);
-std::wstring StringToUpper(const std::wstring& Input);
+inline std::string
+ToString(const std::wstring_view WideStringView)
+{
+	return ConvertWideToUtf8(WideStringView);
+}
+
+inline std::string
+ToString(const std::string_view StringView)
+{
+	return std::string(StringView);
+}
+
+std::string ToString(const FPath& Path);
+
+std::string StringToLower(std::string_view Input);
+std::wstring StringToLower(std::wstring_view Input);
+std::wstring StringToUpper(std::wstring_view Input);
 
 std::string StringEscape(const std::string_view Input);
 
-// Returns a list of alternative DFS paths for a given root
-struct FDfsStorageInfo
-{
-	std::wstring Server;
-	std::wstring Share;
+bool StringEquals(const std::string_view A, const std::string_view B, bool bCaseSensitive = true);
+bool StringStartsWith(const std::string_view String, const std::string_view Prefix, bool bCaseSensitive = true);
 
-	bool IsValid() const { return !Server.empty() && !Share.empty(); }
-};
-struct FDfsMirrorInfo
+inline bool
+UncasedStringEquals(const std::string_view A, const std::string_view B)
 {
-	std::wstring				 Root;
-	std::vector<FDfsStorageInfo> Storages;
-};
-FDfsMirrorInfo DfsEnumerate(const FPath& Root);
+	return StringEquals(A, B, false);
+}
 
-struct FDfsAlias
+inline bool
+IsAsciiAlphabetCharacter(const char C)
 {
-	FPath Source;
-	FPath Target;
-};
+	return (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z');
+}
+
+inline bool
+IsAsciiNumericCharacter(const char C)
+{
+	return C >= '0' && C <= '9';
+}
+
+inline bool
+IsAsciiAlphaNumericCharacter(const char C)
+{
+	return IsAsciiAlphabetCharacter(C) || IsAsciiNumericCharacter(C);
+}
+
+std::vector<std::string_view> SplitByAny(std::string_view String, const char* SeparatorCharacters);
+inline std::vector<std::string_view>
+
+SplitBy(std::string_view String, char SeparatorCharacter)
+{
+	char Chars[2] = {SeparatorCharacter, 0};
+	return SplitByAny(String, Chars);
+}
 
 // Takes a drive-based path (e.g. P:/Foo/Bar) and converts it to universal form (e.g. //server/Foo/Bar), if possible.
 // Otherwise, returns original path.
@@ -373,5 +404,17 @@ std::string GetAnonymizedMachineIdString(std::string_view Salt = {});
 
 // Returns string in format 'Error code 123: Some description.`
 std::string FormatSystemErrorMessage(int32 ErrorCode);
+
+bool LooksLikeUrl(std::string_view Str);
+bool LooksLikeHash160(const std::string_view Str);
+bool LooksLikeHash160(const std::wstring_view Str);
+
+// Json formatting helpers
+void FormatJsonKeyValueStr(std::wstring& Output, std::wstring_view K, std::wstring_view V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueStr(std::string& Output, std::string_view K, std::string_view V, std::string_view Suffix = {});
+void FormatJsonKeyValueUInt(std::wstring& Output, std::wstring_view K, uint64 V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueUInt(std::string& Output, std::string_view K, uint64 V, std::string_view Suffix = {});
+void FormatJsonKeyValueBool(std::wstring& Output, std::wstring_view K, bool V, std::wstring_view Suffix = {});
+void FormatJsonKeyValueBool(std::string& Output, std::string_view K, bool V, std::string_view Suffix = {});
 
 }  // namespace unsync

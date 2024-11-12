@@ -26,14 +26,9 @@ bool IsMobileDistortionActive(const FViewInfo& View)
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DisableDistortion"));
 	int32 DisableDistortion = CVar->GetInt();
 
-	// Distortion on mobile requires SceneDepth information in SceneColor.A channel
-	const EMobileHDRMode HDRMode = GetMobileHDRMode();
-	const bool bVisiblePrims = View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].HasAnyDraw();
-
 	return
-		HDRMode == EMobileHDRMode::EnabledFloat16 &&
 		View.Family->EngineShowFlags.Translucency &&
-		bVisiblePrims &&
+		View.bHasDistortionPrimitives &&
 		FSceneRenderer::GetRefractionQuality(*View.Family) > 0 &&
 		DisableDistortion == 0;
 }
@@ -93,7 +88,7 @@ FMobileDistortionAccumulateOutputs AddMobileDistortionAccumulatePass(FRDGBuilder
 		[&View, SceneColorViewport, PassParameters](FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetViewport(SceneColorViewport.Rect.Min.X, SceneColorViewport.Rect.Min.Y, 0.0f, SceneColorViewport.Rect.Max.X, SceneColorViewport.Rect.Max.Y, 1.0f);
-		View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 
 	FMobileDistortionAccumulateOutputs Outputs;

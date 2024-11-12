@@ -5,7 +5,6 @@
 #include "TraceServices/ModuleService.h"
 
 class IAnimationProvider;
-namespace Insights { class ITimingViewSession; }
 
 namespace UE
 {

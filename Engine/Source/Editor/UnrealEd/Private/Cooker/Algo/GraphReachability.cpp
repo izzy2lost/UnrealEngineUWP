@@ -686,7 +686,7 @@ void FReachabilityBuilder::RelocateViews(TArray64<FVertex>& InOutTargetBuffer, T
 
 
 #if WITH_DEV_AUTOMATION_TESTS
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReachabilityTest, "System.Core.Algo.ReachabilityGraph", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReachabilityTest, "System.Core.Algo.ReachabilityGraph", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 
 bool FReachabilityTest::RunTest(const FString& Parameters)
 {

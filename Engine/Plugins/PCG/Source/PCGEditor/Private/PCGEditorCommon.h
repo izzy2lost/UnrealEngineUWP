@@ -2,7 +2,12 @@
 
 #pragma once
 
+#include "HAL/IConsoleManager.h"
+#include "Misc/AssetCategoryPath.h"
+
 #include "PCGEditorCommon.generated.h"
+
+#define LOCTEXT_NAMESPACE "PCGEditorCommon"
 
 UENUM()
 enum class EPCGElementType : uint8
@@ -38,8 +43,17 @@ namespace FPCGEditorCommon
 	const FName PolyLineDataType = FName(TEXT("Poly Line Data"));
 	const FName SurfaceDataType = FName(TEXT("Surface Data"));
 	const FName LandscapeDataType = FName(TEXT("Landscape Data"));
+	const FName BaseTextureDataType = FName(TEXT("Base Texture Data"));
 	const FName TextureDataType = FName(TEXT("Texture Data"));
 	const FName RenderTargetDataType = FName(TEXT("Render Target Data"));
 	const FName VolumeDataType = FName(TEXT("Volume Data"));
-	const FName PrimitiveDataType = FName(TEXT("Primitive Data"));	
+	const FName PrimitiveDataType = FName(TEXT("Primitive Data"));
+	const FName DynamicMeshDataType = FName(TEXT("Dynamic Mesh Data"));
+
+	extern TAutoConsoleVariable<bool> CVarShowAdvancedAttributesFields;
+
+	const FAssetCategoryPath PCGAssetCategoryPath(LOCTEXT("PCGCategory", "PCG"));
+	const FAssetCategoryPath PCGAdvancedAssetCategoryPath(FPCGEditorCommon::PCGAssetCategoryPath, LOCTEXT("PCGAvancedCategory", "Advanced"));
 };
+
+#undef LOCTEXT_NAMESPACE

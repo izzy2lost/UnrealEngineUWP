@@ -79,9 +79,8 @@ void MainPS(
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
-		float3 WorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
 		float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-		float3 CameraToPixel = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin));
+		float3 CameraToPixel = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 		float3 V = -CameraToPixel;
 
 		// Sample the ambient occlusion that is dynamically generated every frame.

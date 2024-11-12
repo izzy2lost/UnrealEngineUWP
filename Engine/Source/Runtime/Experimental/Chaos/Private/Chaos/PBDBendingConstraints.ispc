@@ -95,6 +95,39 @@ export void InitBendingConstraintsIsBuckled(const uniform FVector3f X[],
 	}
 }
 
+export void InitBendingConstraintsIsBuckledWithMaps(const uniform FVector3f X[],
+									const uniform FIntVector4 Constraints[],
+									const uniform float RestAngles[],
+									uniform bool IsBuckled[],
+									const uniform uint8 BucklingRatioIndices[],
+									const uniform float BucklingRatioTable[],
+									const uniform int32 NumConstraints)
+{
+	foreach(i = 0 ... NumConstraints)
+	{
+		const varying FIntVector4 Constraint = VectorLoad(&Constraints[extract(i,0)]);
+
+		const varying int32 Index1 = Constraint.V[0];
+		const varying int32 Index2 = Constraint.V[1];
+		const varying int32 Index3 = Constraint.V[2];
+		const varying int32 Index4 = Constraint.V[3];
+		const varying int8 BucklingRatioIndex = BucklingRatioIndices[i];
+
+		const varying FVector3f X1 = VectorGather(&X[Index1]);
+		const varying FVector3f X2 = VectorGather(&X[Index2]);
+		const varying FVector3f X3 = VectorGather(&X[Index3]);
+		const varying FVector3f X4 = VectorGather(&X[Index4]);
+		
+		#pragma ignore warning(perf)
+		const varying float BucklingRatio = BucklingRatioTable[BucklingRatioIndex];
+		const varying float RestAngle = RestAngles[i];
+		const varying float BucklingAngle = BucklingRatio * (FLOAT_PI - abs(RestAngle));
+
+		const varying float Angle = CalcAngle(X1, X2, X3, X4);
+		IsBuckled[i] = FLOAT_PI - abs(Angle) < BucklingAngle;
+	}
+}
+
 export void ApplyBendingConstraints(uniform FVector4f PandInvM[],
 									const uniform FIntVector4 Constraints[],
 									const uniform float RestAngles[],

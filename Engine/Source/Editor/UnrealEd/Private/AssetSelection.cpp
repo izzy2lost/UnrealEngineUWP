@@ -54,6 +54,7 @@
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "Misc/MessageDialog.h"
+#include "Subsystems/BrowseToAssetOverrideSubsystem.h"
 #include "Subsystems/PlacementSubsystem.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementRegistry.h"
@@ -98,6 +99,8 @@ namespace AssetSelectionUtils
 
 			if( FirstActor && !FirstActor->IsTemplate() )
 			{
+				UBrowseToAssetOverrideSubsystem* BrowseToAssetOverrideSubsystem = UBrowseToAssetOverrideSubsystem::Get();
+
 				UClass* FirstClass = FirstActor->GetClass();
 				UObject* FirstArchetype = FirstActor->GetArchetype();
 
@@ -317,7 +320,7 @@ namespace AssetSelectionUtils
 						++ActorInfo.NumSimulationChanges;
 					}
 
-					if (!CurrentActor->GetBrowseToAssetOverride().IsEmpty())
+					if (!BrowseToAssetOverrideSubsystem->GetBrowseToAssetOverride(CurrentActor).IsNone())
 					{
 						ActorInfo.bHaveBrowseOverride = true;
 					}
@@ -676,6 +679,7 @@ TArray<FTypedElementHandle> PlaceAssetUsingFactory(UObject* Asset, TScriptInterf
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.ObjectFlags = ObjectFlags;
 			SpawnParams.Name = Name;
+			SpawnParams.bTemporaryEditorActor = FLevelEditorViewportClient::IsDroppingPreviewActor();
 
 			if (AActor* PlacedActor = ActorFactory->CreateActor(Asset, DesiredLevel, ActorTransform, SpawnParams))
 			{

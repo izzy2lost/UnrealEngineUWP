@@ -24,6 +24,16 @@ REGISTER_METASOUND_DATATYPE(AudioModulation::FSoundModulatorAsset, "Modulator", 
 REGISTER_METASOUND_DATATYPE(AudioModulation::FSoundModulationParameterAsset, "ModulationParameter", Metasound::ELiteralType::UObjectProxy, USoundModulationParameter);
 #endif // WITH_AUDIOMODULATION_METASOUND_SUPPORT
 
+namespace AudioModulationCVars
+{
+	static bool bAudioModulationEnabledCVar = true;
+	FAutoConsoleVariableRef CVarAudioModulationEnabled(
+		TEXT("au.EnableAudioModulation"),
+		bAudioModulationEnabledCVar,
+		TEXT("Set to 0 to disable Audio Modulation entirely.\n"),
+		ECVF_Default);
+}
+
 namespace AudioModulation
 {
 	FAudioModulationManager::FAudioModulationManager()
@@ -48,7 +58,7 @@ namespace AudioModulation
 
 	void FAudioModulationManager::ActivateBus(const USoundControlBus& InBus)
 	{
-		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateBus is deprecated. Use UAudioModulationDestination API (see SetModulator) instead to enforce generator lifetime"));
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateBus is deprecated. Use UAudioModulationDestination API (see SetModulator) instead to enforce bus lifetime"));
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->ActivateBus(InBus);
@@ -95,7 +105,7 @@ namespace AudioModulation
 
 	void FAudioModulationManager::DeactivateGenerator(const USoundModulationGenerator& InGenerator)
 	{
-		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateGenerator is deprecated. Use UAudioModulationDestination API (see ClearModulator) instead to enforce bus lifetime"));
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateGenerator is deprecated. Use UAudioModulationDestination API (see ClearModulator) instead to enforce generator lifetime"));
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->DeactivateGenerator(InGenerator);
@@ -211,6 +221,10 @@ namespace AudioModulation
 
 	void FAudioModulationManager::ProcessModulators(const double InElapsed)
 	{
+		if (!AudioModulationCVars::bAudioModulationEnabledCVar)
+		{
+			return;
+		}
 		ModSystem->ProcessModulators(InElapsed);
 	}
 

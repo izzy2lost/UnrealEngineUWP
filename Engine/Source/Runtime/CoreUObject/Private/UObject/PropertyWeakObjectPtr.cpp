@@ -11,10 +11,22 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FWeakObjectProperty)
 
-FWeakObjectProperty::FWeakObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FWeakObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+FWeakObjectProperty::FWeakObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
+
+FWeakObjectProperty::FWeakObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FWeakObjectPropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FWeakObjectProperty::FWeakObjectProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FWeakObjectProperty::GetCPPType( FString* ExtendedTypeText/*=NULL*/, uint32 CPPExportFlags/*=0*/ ) const
 {
@@ -86,14 +98,14 @@ void FWeakObjectProperty::SerializeItem( FStructuredArchive::FSlot Slot, void* V
 	}
 }
 
-TObjectPtr<UObject> FWeakObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
-{
-	return TObjectPtr<UObject>(GetPropertyValue(PropertyValueAddress).Get());
-}
-
 UObject* FWeakObjectProperty::GetObjectPropertyValue(const void* PropertyValueAddress) const
 {
 	return GetPropertyValue(PropertyValueAddress).Get();
+}
+
+TObjectPtr<UObject> FWeakObjectProperty::GetObjectPtrPropertyValue(const void* PropertyValueAddress) const
+{
+	return TObjectPtr<UObject>(GetPropertyValue(PropertyValueAddress).Get());
 }
 
 UObject* FWeakObjectProperty::GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
@@ -103,14 +115,31 @@ UObject* FWeakObjectProperty::GetObjectPropertyValue_InContainer(const void* Con
 	return Result;
 }
 
-void FWeakObjectProperty::SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const
+TObjectPtr<UObject> FWeakObjectProperty::GetObjectPtrPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex) const
+{
+	TObjectPtr<UObject> Result = nullptr;
+	GetWrappedUObjectPtrValues<FWeakObjectPtr>(&Result, ContainerAddress, EPropertyMemoryAccess::InContainer, ArrayIndex, 1);
+	return Result;
+}
+
+void FWeakObjectProperty::SetObjectPropertyValueUnchecked(void* PropertyValueAddress, UObject* Value) const
 {
 	SetPropertyValue(PropertyValueAddress, TCppType(Value));
 }
 
-void FWeakObjectProperty::SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
+void FWeakObjectProperty::SetObjectPtrPropertyValueUnchecked(void* PropertyValueAddress, TObjectPtr<UObject> Ptr) const
+{
+	SetPropertyValue(PropertyValueAddress, TCppType(Ptr));
+}
+
+void FWeakObjectProperty::SetObjectPropertyValueUnchecked_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex) const
 {
 	SetWrappedUObjectPtrValues<FWeakObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Value, ArrayIndex, 1);
+}
+
+void FWeakObjectProperty::SetObjectPtrPropertyValueUnchecked_InContainer(void* ContainerAddress, TObjectPtr<UObject> Ptr, int32 ArrayIndex) const
+{
+	SetWrappedUObjectPtrValues<FWeakObjectPtr>(ContainerAddress, EPropertyMemoryAccess::InContainer, &Ptr, ArrayIndex, 1);
 }
 
 uint32 FWeakObjectProperty::GetValueTypeHashInternal(const void* Src) const

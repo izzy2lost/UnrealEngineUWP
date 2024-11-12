@@ -10,36 +10,37 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 
-	struct CHAOSVEHICLESCORE_API FEngineSimModuleDatas : public FTorqueSimModuleDatas
+	struct CHAOSVEHICLESCORE_API FEngineSimModuleData
+		: public FTorqueSimModuleData
+		, public Chaos::TSimulationModuleTypeable<class FEngineSimModule,FEngineSimModuleData>
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FEngineSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleDatas(NodeArrayIndex, InDebugString) {}
+		FEngineSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleData(NodeArrayIndex, InDebugString) {}
 #else
-		FEngineSimModuleDatas(int NodeArrayIndex) : FTorqueSimModuleDatas(NodeArrayIndex) {}
+		FEngineSimModuleData(int NodeArrayIndex) : FTorqueSimModuleData(NodeArrayIndex) {}
 #endif
-
-		virtual eSimType GetType() override { return eSimType::Engine; }
 
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Engine);
-			FTorqueSimModuleDatas::FillSimState(SimModule);
+			check(SimModule->IsSimType<class FEngineSimModule>());
+			FTorqueSimModuleData::FillSimState(SimModule);
 		}
 
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Engine);
-			FTorqueSimModuleDatas::FillNetState(SimModule);
+			check(SimModule->IsSimType<class FEngineSimModule>());
+			FTorqueSimModuleData::FillNetState(SimModule);
 		}
 
 	};
 
-	struct CHAOSVEHICLESCORE_API FEngineOutputData : public FSimOutputData
+	struct CHAOSVEHICLESCORE_API FEngineOutputData
+		: public FSimOutputData
+		, public Chaos::TSimulationModuleTypeable<class FEngineSimModule,FEngineOutputData>
 	{
 		virtual FSimOutputData* MakeNewData() override { return FEngineOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FEngineOutputData(); }
 
-		virtual eSimType GetType() override { return eSimType::Engine; }
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -82,22 +83,17 @@ namespace Chaos
 		float EngineInertia;
 	};
 
-	class CHAOSVEHICLESCORE_API FEngineSimModule : public FTorqueSimModule, public TSimModuleSettings<FEngineSettings>
+	class CHAOSVEHICLESCORE_API FEngineSimModule : public FTorqueSimModule, public TSimModuleSettings<FEngineSettings>, public TSimulationModuleTypeable<FEngineSimModule>
 	{
 	public:
-
-		FEngineSimModule(const FEngineSettings& Settings) : TSimModuleSettings<FEngineSettings>(Settings)
-			, EngineIdleSpeed(RPMToOmega(Setup().IdleRPM))
-			, MaxEngineSpeed(RPMToOmega(Setup().MaxRPM))
-			, EngineStarted(true)
-		{
-		}
+		DEFINE_CHAOSSIMTYPENAME(FEngineSimModule);
+		FEngineSimModule(const FEngineSettings& Settings);
 
 		virtual ~FEngineSimModule() {}
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const override
 		{
-			return MakeShared<FEngineSimModuleDatas>(
+			return MakeShared<FEngineSimModuleData>(
 				SimArrayIndex
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				, GetDebugName()
@@ -108,8 +104,6 @@ namespace Chaos
 		{
 			return FEngineOutputData::MakeNew();
 		}
-
-		virtual eSimType GetSimType() const { return eSimType::Engine; }
 
 		virtual const FString GetDebugName() const { return TEXT("Engine"); }
 
@@ -127,6 +121,16 @@ namespace Chaos
 		float MaxEngineSpeed;
 		bool EngineStarted;		// is the engine turned off or has it been started
 
+	};
+
+	class CHAOSVEHICLESCORE_API FEngineSimFactory
+		: public FSimFactoryModule<FEngineSimModuleData>
+		, public TSimulationModuleTypeable<FEngineSimModule,FEngineSimFactory>
+		, public TSimFactoryAutoRegister<FEngineSimFactory>
+	
+	{
+	public:
+		FEngineSimFactory() : FSimFactoryModule(TEXT("EngineSimFactory")) {}
 	};
 
 } // namespace Chaos

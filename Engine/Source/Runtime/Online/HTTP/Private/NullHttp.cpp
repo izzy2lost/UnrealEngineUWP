@@ -67,6 +67,21 @@ void FNullHttpRequest::SetURL(const FString& InURL)
 	Url = InURL;
 }
 
+FString FNullHttpRequest::GetOption(const FName Option) const
+{
+	const FString* OptionValue = Options.Find(Option);
+	if (OptionValue)
+	{
+		return *OptionValue;
+	}
+	return TEXT("");
+}
+
+void FNullHttpRequest::SetOption(const FName Option, const FString& OptionValue)
+{
+	Options.Add(Option, OptionValue);
+}
+
 void FNullHttpRequest::SetContent(const TArray<uint8>& ContentPayload)
 {
 	Payload = ContentPayload;
@@ -217,6 +232,10 @@ void FNullHttpRequest::SetTimeout(float InTimeoutSecs)
 void FNullHttpRequest::ClearTimeout() 
 {
 	TimeoutSecs.Reset();
+}
+
+void FNullHttpRequest::ResetTimeoutStatus() 
+{
 }
 
 TOptional<float> FNullHttpRequest::GetTimeout() const 

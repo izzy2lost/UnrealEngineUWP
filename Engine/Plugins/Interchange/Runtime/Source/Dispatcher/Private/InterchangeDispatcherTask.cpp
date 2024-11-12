@@ -27,6 +27,7 @@ namespace UE
 			ActionDataObject->SetBoolField(GetDoesConvertSceneJsonKey(), GetDoesConvertScene());
 			ActionDataObject->SetBoolField(GetDoesForceFrontXAxisJsonKey(), GetDoesForceFrontXAxis());
 			ActionDataObject->SetBoolField(GetDoesConvertSceneUnitJsonKey(), GetDoesConvertSceneUnit());
+			ActionDataObject->SetBoolField(GetDoesKeepFbxNamespaceJsonKey(), GetDoesKeepFbxNamespace());
 			CmdObject->SetObjectField(GetCommandDataJsonKey(), ActionDataObject);
 
 			FString LoadSourceCmd;
@@ -87,6 +88,10 @@ namespace UE
 				return false;
 			}
 			if (!((*ActionDataObject)->TryGetBoolField(GetDoesConvertSceneUnitJsonKey(), bConvertSceneUnit)))
+			{
+				return false;
+			}
+			if (!((*ActionDataObject)->TryGetBoolField(GetDoesKeepFbxNamespaceJsonKey(), bKeepFbxNamespace)))
 			{
 				return false;
 			}
@@ -306,23 +311,23 @@ namespace UE
 			return true;
 		}
 
-		FString FJsonFetchAnimationBakeTransformPayloadCmd::ToJson() const
+		FString FJsonFetchAnimationQueriesCmd::ToJson() const
 		{
 			//Code should not do a ToJson if the data was not set before
 			ensure(bIsDataInitialize);
 
 			TSharedPtr<FJsonObject> CmdObject = MakeShared<FJsonObject>();
+			
 			TSharedPtr<FJsonObject> ActionDataObject = MakeShared<FJsonObject>();
 			//CmdObject
 			CmdObject->SetStringField(GetCommandIDJsonKey(), GetAction());
 			CmdObject->SetStringField(GetTranslatorIDJsonKey(), GetTranslatorID());
+			
 			ActionDataObject->SetStringField(GetPayloadKeyJsonKey(), GetPayloadKey());
-			
-			//Bake settings
-			ActionDataObject->SetNumberField(GetBakeFrequencyJsonKey(), GetBakeFrequency());
-			ActionDataObject->SetNumberField(GetRangeStartTimeJsonKey(), GetRangeStartTime());
-			ActionDataObject->SetNumberField(GetRangeEndTimeJsonKey(), GetRangeEndTime());
-			
+
+			//Queries:
+			ActionDataObject->SetStringField(GetQueriesJsonStringKey(), QueriesJsonString);
+
 			CmdObject->SetObjectField(GetCommandDataJsonKey(), ActionDataObject);
 
 			FString FetchPayloadCmd;
@@ -335,7 +340,7 @@ namespace UE
 			return FetchPayloadCmd;
 		}
 
-		bool FJsonFetchAnimationBakeTransformPayloadCmd::FromJson(const FString& JsonString)
+		bool FJsonFetchAnimationQueriesCmd::FromJson(const FString& JsonString)
 		{
 			TSharedRef<TJsonReader<TCHAR>> Reader = FJsonStringReader::Create(JsonString);
 
@@ -345,6 +350,7 @@ namespace UE
 				//Cannot read the json file
 				return false;
 			}
+
 			FString JsonActionValue;
 			if (!CmdObject->TryGetStringField(GetCommandIDJsonKey(), JsonActionValue))
 			{
@@ -375,22 +381,55 @@ namespace UE
 				return false;
 			}
 
-			//Bake settings
-			if (!(*ActionDataObject)->TryGetNumberField(GetBakeFrequencyJsonKey(), BakeFrequency))
-			{
-				return false;
-			}
-			if (!(*ActionDataObject)->TryGetNumberField(GetRangeStartTimeJsonKey(), RangeStartTime))
-			{
-				return false;
-			}
-			if (!(*ActionDataObject)->TryGetNumberField(GetRangeEndTimeJsonKey(), RangeEndTime))
+			if (!((*ActionDataObject)->TryGetStringField(GetQueriesJsonStringKey(), QueriesJsonString)))
 			{
 				return false;
 			}
 
 			//Since we filled the data from the json file, set the data has been initialize.
 			bIsDataInitialize = true;
+			return true;
+		}
+
+		FString FJsonFetchAnimationQueriesCmd::JsonAnimationQueriesResultParser::ToJson() const
+		{
+			TSharedPtr<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+
+			for (const TPair<FString, FString>& HashToFilename : HashToFilenames)
+			{
+				ResultObject->SetStringField(HashToFilename.Key, HashToFilename.Value);
+			}
+
+			FString JsonResult;
+			TSharedRef< TJsonWriter< TCHAR, TPrettyJsonPrintPolicy<TCHAR> > > JsonWriter = TJsonWriterFactory< TCHAR, TPrettyJsonPrintPolicy<TCHAR> >::Create(&JsonResult);
+			if (!FJsonSerializer::Serialize(ResultObject.ToSharedRef(), JsonWriter))
+			{
+				//Error creating the json cmd string 
+				return FString();
+			}
+			return JsonResult;
+		}
+
+		bool FJsonFetchAnimationQueriesCmd::JsonAnimationQueriesResultParser::FromJson(const FString& JsonString)
+		{
+			HashToFilenames.Empty();
+
+			TSharedRef<TJsonReader<TCHAR>> Reader = FJsonStringReader::Create(JsonString);
+
+			TSharedPtr<FJsonObject> ResultObject;
+			if (!FJsonSerializer::Deserialize(Reader, ResultObject) || !ResultObject.IsValid())
+			{
+				//Cannot read the json file
+				return false;
+			}
+
+			HashToFilenames.Reserve(ResultObject->Values.Num());
+
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& Value : ResultObject->Values)
+			{
+				HashToFilenames.Add(Value.Key, Value.Value->AsString());
+			}
+
 			return true;
 		}
 	} //ns Interchange

@@ -53,8 +53,7 @@ namespace Gauntlet
 		/// Constructor that takes an array of of potential argument names, e.g. {"build","builds"}
 		/// Members with no matching param will be left as-is.
 		/// </summary>
-		/// <param name="Name"></param>
-		/// <param name="Default"></param>
+		/// <param name="OptionNames"></param>
 		protected AutoParam(params string[] OptionNames)
 		{
 			this.OptionNames = OptionNames;
@@ -78,8 +77,8 @@ namespace Gauntlet
 		/// Constructor that takes an array of of potential argument names, e.g. {"build","builds"}
 		/// Members with no matching param will be set to 'Default'
 		/// </summary>
-		/// <param name="Name"></param>
 		/// <param name="Default"></param>
+		/// <param name="OptionNames"></param>
 		protected AutoParam(object Default, params string[] OptionNames)
 		{
 			this.OptionNames = OptionNames;
@@ -93,7 +92,6 @@ namespace Gauntlet
 		/// returns Default
 		/// </summary>
 		/// <param name="Param"></param>
-		/// <param name="Default"></param>
 		/// <param name="Args"></param>
 		/// <returns></returns>
 		static protected bool SwitchExists(string Param, string[] Args)
@@ -120,7 +118,7 @@ namespace Gauntlet
 		/// provided default
 		/// </summary>
 		/// <param name="Param"></param>
-		/// <param name="Default"></param>
+		/// <param name="ParamType"></param>
 		/// <param name="Args"></param>
 		/// <returns></returns>
 		static protected object ParaseAndCoerceParam(string Param, Type ParamType, string[] Args)
@@ -184,6 +182,7 @@ namespace Gauntlet
 		/// </summary>
 		/// <param name="Obj"></param>
 		/// <param name="Args"></param>
+		/// <param name="ApplyDefaults"></param>
 		protected static void ApplyParamsAndDefaultsInternal(object Obj, string[] Args, bool ApplyDefaults)
 		{
 			// get all field and property members

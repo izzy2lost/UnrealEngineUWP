@@ -101,4 +101,15 @@ bool FJsonObjectWrapper::JsonObjectFromString(const FString& Str)
 	return FJsonSerializer::Deserialize(JsonReader, JsonObject);
 }
 
+SIZE_T FJsonObjectWrapper::GetAllocatedSize() const
+{
+	SIZE_T SizeBytes = 0;
+
+	SizeBytes += JsonString.GetAllocatedSize();
+	// NOTE - Given JsonObject is a shared ptr it's possible the underlying object is referenced by multiple things, 
+	// so there's potential memory here could be getting counted multiple times by multiple wrappers
+	SizeBytes += JsonObject.IsValid() ? JsonObject->GetMemoryFootprint() : 0;
+
+	return SizeBytes;
+}
 

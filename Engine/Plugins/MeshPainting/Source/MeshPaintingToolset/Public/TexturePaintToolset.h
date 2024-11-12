@@ -82,14 +82,8 @@ public:
 	/** Static: Creates a temporary texture used to transfer data to a render target in memory */
 	static UTexture2D* CreateScratchUncompressedTexture(UTexture2D* SourceTexture);
 
-	/** Makes sure that the render target is ready to paint on */
-	static void SetupInitialRenderTargetData(FPaintTexture2DData& PaintTextureData);
-
 	/** Keep old legacy method of initializing render target data for the paint brush texture; @todo MeshPaint: Migrate to the method with texture re-use */
 	static void SetupInitialRenderTargetData(UTexture2D* InTextureSource, UTextureRenderTarget2D* InRenderTarget);
-
-	/** Update the render target base on scratch texture */
-	static void UpdateRenderTargetData(FPaintTexture2DData& PaintTextureData);
 
 	/** Tries to find Materials using the given Texture and retrieve the corresponding material indices from the MEsh Compon*/
 	static void FindMaterialIndicesUsingTexture(const UTexture* Texture, const UMeshComponent* MeshComponent, TArray<int32>& OutIndices);
@@ -101,8 +95,5 @@ public:
 	static void RetrieveMeshSectionsForMaterialIndices(const UMeshComponent* MeshComponent, int32 LODIndex, const TArray<int32>& MaterialIndices, TArray<FTexturePaintMeshSectionInfo>& OutSectionInfo);
 
 	/** Retrieves all Paintable Textures from the given MeshComponent */
-	static void RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, TArray<FPaintableTexture>& OutTextures);
-
-	/** Checks whether or not the given MeshComponent's materials use the specified texture */
-	static bool DoesMeshComponentUseTexture(UMeshComponent* MeshComponent, UTexture* Texture);
+	static void RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, int32& OutDefaultIndex, TArray<FPaintableTexture>& OutTextures);
 };

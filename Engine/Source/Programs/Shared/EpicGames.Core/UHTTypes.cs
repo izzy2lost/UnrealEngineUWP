@@ -72,6 +72,32 @@ namespace EpicGames.Core
 		GameThirdParty,
 	}
 
+	/// <summary>
+	/// Describes the origin and visibility of Verse code
+	/// </summary>
+	public enum UHTVerseScope
+	{
+		/// <summary>
+		/// Created by Epic and only public definitions will be visible to public users
+		/// </summary>
+		PublicAPI,
+
+		/// <summary>
+		/// Created by Epic and is entirely hidden from public users
+		/// </summary>
+		InternalAPI,
+
+		/// <summary>
+		/// Created by a public user
+		/// </summary>
+		PublicUser,
+
+		/// <summary>
+		/// Created by an Epic internal user
+		/// </summary>
+		InternalUser
+	}
+
 	public class UHTManifest
 	{
 		public class Module
@@ -94,6 +120,11 @@ namespace EpicGames.Core
 			[JsonConverter(typeof(JsonStringEnumConverter))]
 			[JsonPropertyName("UHTGeneratedCodeVersion")]
 			public EGeneratedCodeVersion GeneratedCodeVersion { get; set; } = EGeneratedCodeVersion.None;
+			public string VersePath { get; set; } = "";
+			[JsonConverter(typeof(JsonStringEnumConverter))]
+			public UHTVerseScope VerseScope { get; set; } = UHTVerseScope.PublicAPI;
+			public bool HasVerse { get; set; } = false;
+			public string VersePluginName { get; set; } = "";
 
 			public override string ToString()
 			{

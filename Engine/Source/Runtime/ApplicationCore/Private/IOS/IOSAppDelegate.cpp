@@ -501,7 +501,11 @@ static IOSAppDelegate* CachedDelegate = nil;
 
 -(bool)IsIdleTimerEnabled
 {
-	return ([UIApplication sharedApplication].idleTimerDisabled == NO);
+	__block BOOL Result;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		Result = ([UIApplication sharedApplication].idleTimerDisabled == NO);
+	});
+	return Result;
 }
 
 -(void)DeferredEnableIdleTimer
@@ -569,18 +573,23 @@ static IOSAppDelegate* CachedDelegate = nil;
 
 	[[NSNotificationCenter defaultCenter] addObserverForName:AVAudioSessionRouteChangeNotification object : nil queue : nil usingBlock : ^ (NSNotification *notification)
 	{
-		switch ([[[notification userInfo] objectForKey:AVAudioSessionRouteChangeReasonKey] unsignedIntegerValue])
+		NSUInteger RouteChangeReason = [[[notification userInfo] objectForKey:AVAudioSessionRouteChangeReasonKey] unsignedIntegerValue];
+		[FIOSAsyncTask CreateTaskWithBlock : ^ bool(void)
 		{
-			case AVAudioSessionRouteChangeReasonNewDeviceAvailable:
-				// headphones plugged in
-				FCoreDelegates::AudioRouteChangedDelegate.Broadcast(true);
-				break;
-
-			case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
-				// headphones unplugged
-				FCoreDelegates::AudioRouteChangedDelegate.Broadcast(false);
-				break;
-		}
+			switch (RouteChangeReason)
+			{
+				case AVAudioSessionRouteChangeReasonNewDeviceAvailable:
+					// headphones plugged in
+					FCoreDelegates::AudioRouteChangedDelegate.Broadcast(true);
+					break;
+					
+				case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
+					// headphones unplugged
+					FCoreDelegates::AudioRouteChangedDelegate.Broadcast(false);
+					break;
+			}
+			return true;
+		}];
 	}];
 
 	self.bAudioSessionInitialized = true;
@@ -1129,53 +1138,60 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 #if !PLATFORM_TVOS
 - (UIInterfaceOrientationMask)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(UIWindow*)window
 {
-	bool bSupportsPortrait;
-	bool bSupportsPortraitUpsideDown;
-	bool bSupportsLandscapeLeft;
-	bool bSupportsLandscapeRight;
+	static bool bInitialized = false;
+	static UIInterfaceOrientationMask Mask = 0;
 	
-	// This is called during app startup and IOSRuntimeSettings may not have been loaded yet
-	bool hasValue = GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsPortraitOrientation"), bSupportsPortrait, GEngineIni);
-	
-	NSArray<NSString*> *SupportedOrientations = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UISupportedInterfaceOrientations"];
-	if (!hasValue && SupportedOrientations != NULL)
+	if (!bInitialized)
 	{
-		// Loop through the Info.plist UISupportedInterfaceOrientations array values looking for "Portrait", "Left" and "Right"
-		NSPredicate *predicate = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationPortrait"];
-		bSupportsPortrait = ([SupportedOrientations filteredArrayUsingPredicate:predicate].count > 0);
+		bInitialized = true;
 		
-		NSPredicate *predicateDown = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationPortraitUpsideDown"];
-		bSupportsPortraitUpsideDown = ([SupportedOrientations filteredArrayUsingPredicate:predicateDown].count > 0);
+		bool bSupportsPortrait;
+		bool bSupportsPortraitUpsideDown;
+		bool bSupportsLandscapeLeft;
+		bool bSupportsLandscapeRight;
 		
-		NSPredicate *PredicateLeft = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationLandscapeLeft"];
-		bSupportsLandscapeLeft = ([SupportedOrientations filteredArrayUsingPredicate:PredicateLeft].count > 0);
+		// This is called during app startup and IOSRuntimeSettings may not have been loaded yet
+		bool hasValue = GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsPortraitOrientation"), bSupportsPortrait, GEngineIni);
 		
-		NSPredicate *PredicateRight = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationLandscapeRight"];
-		bSupportsLandscapeRight = ([SupportedOrientations filteredArrayUsingPredicate:PredicateRight].count > 0);
-	}
-	else
-	{
-		GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsUpsideDownOrientation"), bSupportsPortraitUpsideDown, GEngineIni);
-		GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsLandscapeLeftOrientation"), bSupportsLandscapeLeft, GEngineIni);
-		GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsLandscapeRightOrientation"), bSupportsLandscapeRight, GEngineIni);
-	}
-	
-	UIInterfaceOrientationMask Mask = 0;
-	if (bSupportsPortrait)
-	{
-		Mask |= UIInterfaceOrientationMaskPortrait;
-	}
-	if (bSupportsPortraitUpsideDown)
-	{
-		Mask |= UIInterfaceOrientationMaskPortraitUpsideDown;
-	}
-	if (bSupportsLandscapeLeft)
-	{
-		Mask |= UIInterfaceOrientationMaskLandscapeLeft;
-	}
-	if (bSupportsLandscapeRight)
-	{
-		Mask |= UIInterfaceOrientationMaskLandscapeRight;
+		NSArray<NSString*> *SupportedOrientations = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UISupportedInterfaceOrientations"];
+		if (!hasValue && SupportedOrientations != NULL)
+		{
+			// Loop through the Info.plist UISupportedInterfaceOrientations array values looking for "Portrait", "Left" and "Right"
+			NSPredicate *predicate = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationPortrait"];
+			bSupportsPortrait = ([SupportedOrientations filteredArrayUsingPredicate:predicate].count > 0);
+			
+			NSPredicate *predicateDown = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationPortraitUpsideDown"];
+			bSupportsPortraitUpsideDown = ([SupportedOrientations filteredArrayUsingPredicate:predicateDown].count > 0);
+			
+			NSPredicate *PredicateLeft = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationLandscapeLeft"];
+			bSupportsLandscapeLeft = ([SupportedOrientations filteredArrayUsingPredicate:PredicateLeft].count > 0);
+			
+			NSPredicate *PredicateRight = [NSPredicate predicateWithFormat:@"SELF == %@", @"UIInterfaceOrientationLandscapeRight"];
+			bSupportsLandscapeRight = ([SupportedOrientations filteredArrayUsingPredicate:PredicateRight].count > 0);
+		}
+		else
+		{
+			GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsUpsideDownOrientation"), bSupportsPortraitUpsideDown, GEngineIni);
+			GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsLandscapeLeftOrientation"), bSupportsLandscapeLeft, GEngineIni);
+			GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsLandscapeRightOrientation"), bSupportsLandscapeRight, GEngineIni);
+		}
+		
+		if (bSupportsPortrait)
+		{
+			Mask |= UIInterfaceOrientationMaskPortrait;
+		}
+		if (bSupportsPortraitUpsideDown)
+		{
+			Mask |= UIInterfaceOrientationMaskPortraitUpsideDown;
+		}
+		if (bSupportsLandscapeLeft)
+		{
+			Mask |= UIInterfaceOrientationMaskLandscapeLeft;
+		}
+		if (bSupportsLandscapeRight)
+		{
+			Mask |= UIInterfaceOrientationMaskLandscapeRight;
+		}
 	}
 	
 	// If no orientation constraints are set, default to MaskAll
@@ -1342,6 +1358,19 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 			FCoreDelegates::OnSafeFrameChangedEvent.Broadcast();
 		}, TStatId(), NULL, ENamedThreads::GameThread);
 	}
+	else
+	{
+		[FIOSAsyncTask CreateTaskWithBlock : ^ bool(void)
+		{
+			FIOSApplication* Application = [IOSAppDelegate GetDelegate].IOSApplication;
+			Application->OrientationChanged(Orientation);
+			FCoreDelegates::ApplicationReceivedScreenOrientationChangedNotificationDelegate.Broadcast((int32)[IOSAppDelegate ConvertFromUIInterfaceOrientation:Orientation]);
+
+			//we also want to fire off the safe frame event
+			FCoreDelegates::OnSafeFrameChangedEvent.Broadcast();
+			return true;
+		}];
+	}
 #endif
 }
 
@@ -1351,24 +1380,27 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 	NSLog(@"%s", "IOSAppDelegate openURL\n");
 #endif
 
-	NSString* EncdodedURLString = [url absoluteString];
-	NSString* URLString = [EncdodedURLString stringByRemovingPercentEncoding];
-	FString CommandLineParameters(URLString);
-
-	// Strip the "URL" part of the URL before treating this like args. It comes in looking like so:
-	// "MyGame://arg1 arg2 arg3 ..."
-	// So, we're going to make it look like:
-	// "arg1 arg2 arg3 ..."
-	int32 URLTerminator = CommandLineParameters.Find( TEXT("://"), ESearchCase::CaseSensitive);
-	if ( URLTerminator > -1 )
+	if (FString(url.scheme) == FApp::GetName())
 	{
-		CommandLineParameters.RightChopInline(URLTerminator + 3, false);
+		NSString* EncdodedURLString = [url absoluteString];
+		NSString* URLString = [EncdodedURLString stringByRemovingPercentEncoding];
+		FString CommandLineParameters(URLString);
+		
+		// Strip the "URL" part of the URL before treating this like args. It comes in looking like so:
+		// "MyGame://arg1 arg2 arg3 ..."
+		// So, we're going to make it look like:
+		// "arg1 arg2 arg3 ..."
+		int32 URLTerminator = CommandLineParameters.Find( TEXT("://"), ESearchCase::CaseSensitive);
+		if ( URLTerminator > -1 )
+		{
+			CommandLineParameters.RightChopInline(URLTerminator + 3, EAllowShrinking::No);
+		}
+		
+		FIOSCommandLineHelper::InitCommandArgs(CommandLineParameters);
+		self.bCommandLineReady = true;
+		[self.CommandLineParseTimer invalidate];
+		self.CommandLineParseTimer = nil;
 	}
-
-	FIOSCommandLineHelper::InitCommandArgs(CommandLineParameters);
-	self.bCommandLineReady = true;
-	[self.CommandLineParseTimer invalidate];
-	self.CommandLineParseTimer = nil;
 	
 	//    Save openurl infomation before engine initialize.
 	//    When engine is done ready, running like previous. ( if OnOpenUrl is bound on game source. )
@@ -1381,8 +1413,8 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 #if !NO_LOGGING
 		NSLog(@"%s", "Before Engine Init receive IOSAppDelegate openURL\n");
 #endif
-			NSDictionary* openUrlParameter = [NSDictionary dictionaryWithObjectsAndKeys :
-		application, @"application",
+		NSDictionary* openUrlParameter = [NSDictionary dictionaryWithObjectsAndKeys :
+			application, @"application",
 			url, @"url",
 			sourceApplication, @"sourceApplication",
 			annotation, @"annotation",
@@ -1483,6 +1515,7 @@ FCriticalSection RenderSuspend;
 
     self.bAudioActive = false;
     FAppEntry::Suspend(true);
+	FBackgroundURLSessionHandler::HandleDidEnterBackground();
 
 	FEmbeddedCommunication::KeepAwake(TEXT("Background"), false);
 
@@ -1500,6 +1533,7 @@ FCriticalSection RenderSuspend;
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
 {
+	FBackgroundURLSessionHandler::HandleWillEnterForeground();
 	FEmbeddedCommunication::KeepAwake(TEXT("Background"), false);
 	/*
 	 Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
@@ -1614,9 +1648,9 @@ extern double GCStartTime;
     //Save off completionHandler so that a future call to FCoreDelegates::ApplicationBackgroundSessionEventsAllSentDelegate can execute it
     self.BackgroundSessionEventCompleteDelegate = completionHandler;
     
-    //Create background session with this identifier if needed to handle these events
+    // Invoke background session with this identifier if needed to handle these events
 	FString Id(identifier);
-	FBackgroundURLSessionHandler::InitBackgroundSession(Id);
+	FBackgroundURLSessionHandler::HandleEventsForBackgroundURLSession(Id);
 
 	FCoreDelegates::ApplicationBackgroundSessionEventDelegate.Broadcast(Id);
 }

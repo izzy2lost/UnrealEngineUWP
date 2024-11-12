@@ -1,10 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNEHlslShadersElementWiseUnaryCS.h"
-#include "NNE.h"
+#include "NNEHlslShadersLog.h"
 
 namespace UE::NNEHlslShaders::Internal
 {
+	bool TElementWiseUnaryCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		if (!FHlslShaderBase::ShouldCompilePermutation(Parameters))
+		{
+			return false;
+		}
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		NNE::Internal::EElementWiseUnaryOperatorType OpType = PermutationVector.Get<TElementWiseUnaryCS::FOperatorType>();
+		const bool bAlphaOnGpu = PermutationVector.Get<TElementWiseUnaryCS::FAlphaOnGPU>();
+		const bool bBetaOnGpu = PermutationVector.Get<TElementWiseUnaryCS::FBetaOnGPU>();
+
+		return OpType == NNE::Internal::EElementWiseUnaryOperatorType::Clip || (!bAlphaOnGpu && !bBetaOnGpu);
+	}
+
 	void TElementWiseUnaryCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
@@ -70,13 +86,13 @@ namespace UE::NNEHlslShaders::Internal
 
 		FString OpFunc = OpTable[(int32) OpType];
 
-		if (OpFunc == "")
+		if (OpFunc == FString(""))
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Undefined ElementWise Unary operator name for operator:%d"), int(OpType));
+			UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Undefined ElementWise Unary operator name for operator:%d"), int(OpType));
 		}
 
 		return OpFunc;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TElementWiseUnaryCS, "/NNE/NNEHlslShadersElementWiseUnary.usf", "ElementWiseUnary", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TElementWiseUnaryCS, "/NNEHlslShaders/NNEHlslShadersElementWiseUnary.usf", "ElementWiseUnary", SF_Compute);
 } // UE::NNEHlslShaders::Internal

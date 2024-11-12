@@ -144,7 +144,9 @@ float4 GetAuxilary    (float2 InAtlasUV, float4 InDefault)      { float4 Out = I
 
 float GetHairCardsDepth(float2 InAtlasUV, float InDeviceZ)
 {
-	return select(IsOrthoProjection(), 0.0f, ConvertToDeviceZ(ConvertFromDeviceZ(InDeviceZ) + GetDepthOffset(InAtlasUV)));
+	const float SceneDepthOffset = GetDepthOffset(InAtlasUV);
+	const float SceneDepth = ConvertFromDeviceZ(InDeviceZ);
+	return ConvertToDeviceZ(SceneDepth + SceneDepthOffset);
 }
 
 float3 GetHairCardsTangent(float2 InAtlasUV, half3x3 TangentToWorld, bool bUseTangentSpace)

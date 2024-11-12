@@ -54,8 +54,17 @@ public:
 	}
 	
 	/**
+	 * Attempt to create a new object from the given source object, and fill in OutObject.
+	 * @return True if this function handled the creation attempt (this doesn't mean that OutObject isn't null!), or false if we should fallback to using StaticDuplicateObject.
+	 */
+	virtual bool DuplicateObject(UObject*& OutObject, const UObject* SourceObject, UObject* Outer, const UClass* Class, const FName Name, const EObjectFlags Flags) const
+	{
+		return false;
+	}
+
+	/**
 	 * Perform any additional initialization on the given objects.
-	 * @note This is called after CreateObject has been called for every object in the transaction, and can be used for delayed initialization of interdependent objects.
+	 * @note This is called after CreateObject/DuplicateObject has been called for every object in the transaction, and can be used for delayed initialization of interdependent objects.
 	 */
 	virtual void InitializeObjects(TArrayView<UObject* const> Objects) const
 	{

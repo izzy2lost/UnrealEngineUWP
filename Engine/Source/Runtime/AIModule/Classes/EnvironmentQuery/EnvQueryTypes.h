@@ -811,6 +811,9 @@ struct FEnvQueryInstance : public FEnvQueryResult
 	/** true if this query has logged a warning that it overran the time limit */
 	uint8 bHasLoggedTimeLimitWarning : 1;
 
+	/** true if current Generator or Test is running asynchronously */
+	uint8 bIsCurrentlyRunningAsync : 1;
+
 	/** timestamp of creating query instance */
 	double StartTime;
 
@@ -854,6 +857,8 @@ struct FEnvQueryInstance : public FEnvQueryResult
 	bool IsInSingleItemFinalSearch() const { return !!bPassOnSingleResult; }
 	/** check if current test can batch its calculations */
 	bool CanBatchTest() const { return !IsInSingleItemFinalSearch(); }
+
+	bool IsCurrentlyRunningAsync() const { return bIsCurrentlyRunningAsync; }
 
 	/** raw data operations */
 	AIMODULE_API void ReserveItemData(int32 NumAdditionalItems);
@@ -1295,17 +1300,22 @@ struct FAIDynamicParam
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = EQS)
 	EAIParamType ParamType;
 
+	UPROPERTY(BlueprintReadWrite, Category = EQS)
+	uint8 bAllowBBKey : 1;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EQS)
 	float Value;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EQS)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EQS, meta=(EditCondition="bAllowBBKey", EditConditionHides))
 	FBlackboardKeySelector BBKey;
+
 
 	FAIDynamicParam()
 	{
 		ParamType = EAIParamType::Float;
 		Value = 0.f;
 		BBKey.AllowNoneAsValue(true);
+		bAllowBBKey = true;
 	}
 
 	AIMODULE_API void ConfigureBBKey(UObject &QueryOwner);

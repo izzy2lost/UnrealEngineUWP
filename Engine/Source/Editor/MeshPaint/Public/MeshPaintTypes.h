@@ -5,6 +5,9 @@
 #include "Engine/Texture.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Materials/MaterialInterface.h"
+#include "Templates/Requires.h"
+
+#include <type_traits>
 
 #include "MeshPaintTypes.generated.h"
 
@@ -86,7 +89,10 @@ struct FPaintableTexture
 		, UVChannelIndex(0)
 	{}
 
-	template<typename T, decltype(ImplicitConv<UTexture*>(DeclVal<T>()))* = nullptr>
+	template <
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, UTexture*>)
+	>
 	FPaintableTexture(T InTexture, uint32 InUVChannelIndex = 0)
 		: Texture(InTexture)
 		, UVChannelIndex(InUVChannelIndex)

@@ -16,6 +16,7 @@
 #include "IDetailGroup.h"
 #include "PropertyHandle.h"
 
+#include "ColorGradingEditorUtil.h"
 #include "EditorSupportDelegates.h"
 #include "SSearchableComboBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -32,7 +33,7 @@ namespace DisplayClusterRootActorDetailsCustomizationUtils
 		{
 			TEXT("TransformCommon"),
 			DisplayClusterConfigurationStrings::categories::ViewportsCategory,
-			DisplayClusterConfigurationStrings::categories::ICVFXCategory,
+			DisplayClusterConfigurationStrings::categories::InCameraVFXCategory,
 			DisplayClusterConfigurationStrings::categories::ColorGradingCategory,
 			DisplayClusterConfigurationStrings::categories::OCIOCategory,
 			DisplayClusterConfigurationStrings::categories::ChromaKeyCategory,
@@ -78,10 +79,32 @@ void FDisplayClusterRootActorDetailsCustomization::CustomizeDetails(IDetailLayou
 {
 	FDisplayClusterConfiguratorBaseDetailCustomization::CustomizeDetails(InLayoutBuilder);
 
+	// Add the Color Grading button at the top of the relevant category
+	{
+		IDetailCategoryBuilder& ColorGradingCategory = InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::ColorGradingCategory, LOCTEXT("ColorGradingDetails", "Color Grading"));
+		ColorGradingCategory.AddCustomRow(NSLOCTEXT("ColorCorrectWindowDetails", "OpenColorGrading", "Open Color Grading"))
+			.RowTag("OpenColorGrading")
+			[
+				ColorGradingEditorUtil::MakeColorGradingLaunchButton()
+			];
+	}
+
 	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = InLayoutBuilder.GetSelectedObjects();
 	bMultipleObjectsSelected = SelectedObjects.Num() > 1;
 
 	ForcePropertyWindowRebuildHandle = FEditorSupportDelegates::ForcePropertyWindowRebuild.AddSP(this, &FDisplayClusterRootActorDetailsCustomization::OnForcePropertyWindowRebuild);
+
+	// Hide Categories:
+	InLayoutBuilder.HideCategory(DisplayClusterConfigurationStrings::categories::ViewPointStereoCategory);
+	InLayoutBuilder.HideCategory(DisplayClusterConfigurationStrings::categories::ViewPointCameraPostProcessCategory);
+	InLayoutBuilder.HideCategory(DisplayClusterConfigurationStrings::categories::ViewPointInFrustumProjectionCategory);
+
+	// For DCRA in a scene, hide more categories:
+	if (!IsRunningForBlueprintEditor())
+	{
+		InLayoutBuilder.HideCategory(DisplayClusterConfigurationStrings::categories::ConfigurationCategory);
+		InLayoutBuilder.HideCategory(DisplayClusterConfigurationStrings::categories::DefaultCategory);
+	}
 
 	InLayoutBuilder.SortCategories(DisplayClusterRootActorDetailsCustomizationUtils::SortCategories);
 	
@@ -111,7 +134,7 @@ void FDisplayClusterRootActorDetailsCustomization::CustomizeDetails(IDetailLayou
 	}
 
 	// Manually label the ICVFX category to properly format it to have the dash in "In-Camera"
-	InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::ICVFXCategory, LOCTEXT("ICVFXCategoryLabel", "In-Camera VFX"));
+	InLayoutBuilder.EditCategory(DisplayClusterConfigurationStrings::categories::InCameraVFXCategory, LOCTEXT("InCameraVFXCategoryLabel", "In-Camera VFX"));
 
 	// Customize the PreviewNodeId property to be a dropdown filled with the nodes configured on the root actor.
 	{

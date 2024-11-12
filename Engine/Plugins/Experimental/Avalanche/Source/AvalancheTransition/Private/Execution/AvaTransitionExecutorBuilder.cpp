@@ -22,14 +22,14 @@ FAvaTransitionExecutorBuilder& FAvaTransitionExecutorBuilder::SetContextName(con
 FAvaTransitionExecutorBuilder& FAvaTransitionExecutorBuilder::AddEnterInstance(FAvaTransitionBehaviorInstance& InInstance)
 {
 	InInstance.SetTransitionType(EAvaTransitionType::In);
-	Instances.Add(InInstance);
+	EnterInstances.Add(InInstance);
 	return *this;
 }
 
 FAvaTransitionExecutorBuilder& FAvaTransitionExecutorBuilder::AddExitInstance(FAvaTransitionBehaviorInstance& InInstance)
 {
 	InInstance.SetTransitionType(EAvaTransitionType::Out);
-	Instances.Add(InInstance);
+	ExitInstances.Add(InInstance);
 	return *this;
 }
 

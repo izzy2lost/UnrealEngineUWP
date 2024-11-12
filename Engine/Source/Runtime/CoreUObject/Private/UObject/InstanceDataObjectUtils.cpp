@@ -2,15 +2,39 @@
 
 #include "UObject/InstanceDataObjectUtils.h"
 
+#include "Serialization/ObjectReader.h"
+#include "Serialization/ObjectWriter.h"
+
+#if WITH_EDITORONLY_DATA
+
 #include "HAL/IConsoleManager.h"
+#include "Misc/ReverseIterate.h"
 #include "UObject/Class.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/Field.h"
-#include "UObject/PropertyBag.h"
+#include "UObject/Package.h"
+#include "UObject/PropertyBagRepository.h"
+#include "UObject/PropertyHelper.h"
 #include "UObject/PropertyOptional.h"
+#include "UObject/PropertyPathNameTree.h"
 #include "UObject/UnrealType.h"
 
-static const FName NAME_ValuesSetBySerialization(ANSITEXTVIEW("_ValuesSetBySerialization"));
+static const FName NAME_InitializedValues(ANSITEXTVIEW("_InitializedValues"));
+static const FName NAME_SerializedValues(ANSITEXTVIEW("_SerializedValues"));
+
+/** Type used for InstanceDataObject classes. */
+class UInstanceDataObjectClass final : public UClass
+{
+public:
+	DECLARE_CASTED_CLASS_INTRINSIC(UInstanceDataObjectClass, UClass, CLASS_Transient, TEXT("/Script/CoreUObject"), CASTCLASS_UClass)
+
+	FByteProperty* InitializedValuesProperty = nullptr;
+	FByteProperty* SerializedValuesProperty = nullptr;
+};
+
+IMPLEMENT_CORE_INTRINSIC_CLASS(UInstanceDataObjectClass, UClass,
+{
+});
 
 /** Type used for InstanceDataObject structs to provide support for hashing and custom guids. */
 class UInstanceDataObjectStruct final : public UScriptStruct
@@ -21,6 +45,8 @@ public:
 	uint32 GetStructTypeHash(const void* Src) const final;
 	FGuid GetCustomGuid() const final { return Guid; }
 
+	FByteProperty* InitializedValuesProperty = nullptr;
+	FByteProperty* SerializedValuesProperty = nullptr;
 	FGuid Guid;
 };
 
@@ -67,7 +93,7 @@ uint32 UInstanceDataObjectStruct::GetStructTypeHash(const void* Src) const
 	uint32 ValueHash = 0;
 	for (TFieldIterator<const FProperty> It(this); It; ++It)
 	{
-		if (It->GetFName() == NAME_ValuesSetBySerialization)
+		if (It->GetFName() == NAME_InitializedValues || It->GetFName() == NAME_SerializedValues)
 		{
 			continue;
 		}
@@ -102,25 +128,14 @@ uint32 UInstanceDataObjectStruct::GetStructTypeHash(const void* Src) const
 
 namespace UE
 {
-	// typedef to help make it clearer when a pathName has indices and when the indices are wildcarded away
-	using FWildcardPropertyPathName = FPropertyPathName;
-
-	static const FName NAME_StructOriginalTypeMetadata(ANSITEXTVIEW("OriginalType"));
+	static const FName NAME_DisplayName(ANSITEXTVIEW("DisplayName"));
 	static const FName NAME_PresentAsTypeMetadata(ANSITEXTVIEW("PresentAsType"));
 	static const FName NAME_IsLooseMetadata(ANSITEXTVIEW("IsLoose"));
+	static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
 	static const FName NAME_VerseClass(ANSITEXTVIEW("VerseClass"));
+	static const FName NAME_VerseDevice(ANSITEXTVIEW("VerseDevice_C"));
 	static const FName NAME_IDOMapKey(ANSITEXTVIEW("Key"));
 	static const FName NAME_IDOMapValue(ANSITEXTVIEW("Value"));
-
-	struct ResolvePropertyPathNameHelperParams
-	{
-		void* Data = nullptr;
-		FProperty* ResultProperty = nullptr;
-		const UE::FPropertyPathName& Path;
-		int32 CurPathIndex = 0;
-		int32 EndPathIndex = INDEX_NONE; // INDEX_NONE has the same behavior as Path.GetSegmentCount()
-		bool bAddIfNeeded = false;
-	};
 
 	bool bEnableIDOSupport = false;
 	FAutoConsoleVariableRef EnableIDOSupportCVar(
@@ -129,170 +144,67 @@ namespace UE
 		TEXT("Allows property bags and IDOs to be created for supported classes.")
 	);
 
-	bool IsInstanceDataObjectSupportEnabled(UObject* InObject)
+	FString ExcludedLoosePropertyTypesVar = TEXT("VerseFunctionProperty");
+	FAutoConsoleVariableRef ExcludedLoosePropertyTypesCVar(
+		TEXT("IDO.ExcludedLoosePropertyTypes"),
+		ExcludedLoosePropertyTypesVar,
+		TEXT("Comma separated list of property types that will be excluded from loose properties in IDOs.")
+	);
+
+	static TSet<FString> GetExcludedLoosePropertyTypes()
 	{
-		// Note: NULL is a valid (default) input here; in that case we just return the enable flag.
-		bool bIsEnabled = bEnableIDOSupport;
-		if (bIsEnabled && InObject)
-		{
-			//@todo FH: change to check trait when available or use config object
-			const UClass* ObjClass = InObject->GetClass();
-			while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
-			{
-				ObjClass = ObjClass->GetSuperClass();
-			}
-
-			bIsEnabled = !!ObjClass;
-		}
-
-		return bIsEnabled;
+		TArray<FString> Result;
+		ExcludedLoosePropertyTypesVar.ParseIntoArray(Result, TEXT(","));
+		return TSet<FString>(Result);
 	}
 
-	static FProperty* FindPropertyByType(UStruct* Struct, FName PropertyName, FPropertyTypeName PropertyType)
+	bool IsInstanceDataObjectSupportEnabled()
 	{
-		for (FProperty* Property : TFieldRange<FProperty>(Struct))
-		{
-			if (Property->GetFName() == PropertyName && Property->CanSerializeFromTypeName(PropertyType))
-			{
-				return Property;
-			}
-		}
-		return nullptr;
+		return bEnableIDOSupport;
 	}
 
-	static bool ResolvePropertyPathName(
-		UObject* Object, const FPropertyPathName& Path,
-		void*& OutData, FProperty*& OutProperty,
-		void*& OutOwnerData, FStructProperty*& OutOwnerProperty)
+	bool IsInstanceDataObjectSupportEnabled(const UObject* InObject)
 	{
-		OutData = Object;
-		OutProperty = nullptr;
-		OutOwnerData = nullptr;
-		OutOwnerProperty = nullptr;
-
-		if (!Object)
+		if(!IsInstanceDataObjectSupportEnabled() || !InObject)
 		{
 			return false;
 		}
 
-		const int32 SegmentCount = Path.GetSegmentCount();
-		for (int32 SegmentIndex = 0; SegmentIndex < SegmentCount;)
+		// Property bag placeholder objects are always enabled for IDO support
+		if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(InObject))
 		{
-			// Assign the owner of the property in this segment.
-			OutOwnerProperty = CastField<FStructProperty>(OutProperty);
-			OutOwnerData = OutOwnerProperty ? OutData : nullptr;
+			return true;
+		}
 
-			// Find the struct to search within.
-			UStruct* Struct = nullptr;
-			if (SegmentIndex == 0)
+		//@todo FH: change to check trait when available or use config object
+		const UClass* ObjClass = InObject->GetClass();
+		if (!ObjClass->CanCreateInstanceDataObject())
+		{
+			return false;
+		}
+
+		// TODO: Temp! Remove with the conditions below.
+		while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
+		{
+			ObjClass = ObjClass->GetSuperClass();
+		}
+
+		if (ObjClass)
+		{
+			// TODO: Temp! Don't generate IDOs for anything within a creative device
+			for (UObject* Outer = InObject->GetOuter(); Outer; Outer = Outer->GetOuter())
 			{
-				Struct = Object->GetClass();
-			}
-			else if (OutOwnerProperty)
-			{
-				Struct = OutOwnerProperty->Struct;
-			}
-			else
-			{
-				return false;
+				if (Outer->GetClass()->GetFName() == NAME_VerseDevice)
+				{
+					return false;
+				}
 			}
 
-			// Find the named property within the struct/class.
-			const FPropertyPathNameSegment Segment = Path.GetSegment(SegmentIndex++);
-			FProperty* Property = FindPropertyByType(Struct, Segment.Name, Segment.Type);
-			if (!Property)
+			// TODO: Temp! Don't generate IDOs for anything transient that isn't a CDO.
+			if (!InObject->HasAnyFlags(RF_ClassDefaultObject))
 			{
-				return false;
-			}
-
-			// Find the address of the property value.
-			const bool bIsIndexedProperty = Property->IsA<FArrayProperty>() || Property->IsA<FSetProperty>() || Property->IsA<FMapProperty>();
-			const int32 ArrayIndex = !bIsIndexedProperty && Segment.Index >= 0 ? Segment.Index : 0;
-			if (ArrayIndex >= Property->ArrayDim)
-			{
-				return false;
-			}
-			OutProperty = Property;
-			OutData = Property->ContainerPtrToValuePtr<void>(OutData, ArrayIndex);
-
-			if (bIsIndexedProperty)
-			{
-				if (Segment.Index == INDEX_NONE)
-				{
-					// A segment may only resolve directly to an indexed property if it is the last segment.
-					if (SegmentIndex < SegmentCount)
-					{
-						return false;
-					}
-				}
-				else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
-				{
-					FScriptArrayHelper Array(ArrayProperty, OutData);
-					if (!Array.IsValidIndex(Segment.Index))
-					{
-						return false;
-					}
-					OutProperty = ArrayProperty->Inner;
-					OutData = Array.GetElementPtr(Segment.Index);
-				}
-				else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
-				{
-					FScriptSetHelper Set(SetProperty, OutData);
-					if (!Set.IsValidIndex(Segment.Index))
-					{
-						return false;
-					}
-					OutProperty = SetProperty->ElementProp;
-					OutData = Set.GetElementPtr(Segment.Index);
-				}
-				else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
-				{
-					FScriptMapHelper Map(MapProperty, OutData);
-					if (!Map.IsValidIndex(Segment.Index))
-					{
-						return false;
-					}
-					// Resolve to the pair if Key or Value are not in the path.
-					if (SegmentIndex == SegmentCount)
-					{
-						// Clear the property because there is no property for the pair, only the key and value.
-						OutProperty = nullptr;
-						OutData = Map.GetPairPtr(Segment.Index);
-						// Clear the owner because this logically resolves to the element, which is owned by the map.
-						OutOwnerProperty = nullptr;
-						OutOwnerData = nullptr;
-					}
-					else
-					{
-						const FPropertyPathNameSegment MapSegment = Path.GetSegment(SegmentIndex++);
-						if (MapSegment.Name == NAME_IDOMapKey)
-						{
-							OutProperty = MapProperty->KeyProp;
-							OutData = Map.GetKeyPtr(Segment.Index);
-						}
-						else if (MapSegment.Name == NAME_IDOMapValue)
-						{
-							OutProperty = MapProperty->ValueProp;
-							OutData = Map.GetValuePtr(Segment.Index);
-						}
-						else
-						{
-							return false;
-						}
-					}
-				}
-			}
-			else if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(Property))
-			{
-				FOptionalPropertyLayout Optional(OptionalProperty->GetValueProperty());
-				// Resolve to the value if it is set, otherwise resolve to the unset optional.
-				if (void* Data = Optional.GetValuePointerForReplaceIfSet(OutData))
-				{
-					OutProperty = Optional.GetValueProperty();
-					OutData = Data;
-				}
-				// A segment may only resolve directly to an unset optional if it is the last segment.
-				else if (SegmentIndex < SegmentCount)
+				const UPackage* Package = InObject->GetPackage();
+				if (!Package || Package->HasAnyFlags(RF_Transient) || Package == GetTransientPackage())
 				{
 					return false;
 				}
@@ -302,49 +214,151 @@ namespace UE
 		return true;
 	}
 
-	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
-		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path);
-	template <typename TStructType>
-	TStructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+	bool CanCreatePropertyBagPlaceholderTypeForImportClass(const UClass* ImportClass)
 	{
-		return CastChecked<TStructType>(CreateInstanceDataObjectStructRec(TStructType::StaticClass(), TemplateStruct, Outer, LooseProperties, Path));
+		// @todo - Expand to other import types (e.g. prefab BPs) later; for now restricted to Verse class objects only.
+		return ImportClass && ImportClass->GetFName() == NAME_VerseClass;
 	}
 
-	static FPropertyPathNameSegment CreateSegmentFromProperty(const FProperty* Inner, int32 Index = INDEX_NONE)
+	bool IsClassOfInstanceDataObjectClass(UStruct* Class)
 	{
-		FPropertyTypeNameBuilder TypeBuilder;
-		Inner->SaveTypeName(TypeBuilder);
+		return Class->IsA(UInstanceDataObjectClass::StaticClass()) || Class->IsA(UInstanceDataObjectStruct::StaticClass());
+	}
 
-		FPropertyPathNameSegment Result;
-		Result.Index = INDEX_NONE; 
-		Result.Name = Inner->GetFName();
-		Result.Type = TypeBuilder.Build();
+
+	bool StructContainsLooseProperties(const UStruct* Struct)
+	{
+		return Struct->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
+	}
+
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames);
+
+	template <typename StructType>
+	StructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames)
+	{
+		return CastChecked<StructType>(CreateInstanceDataObjectStructRec(StructType::StaticClass(), TemplateStruct, Outer, PropertyTree, EnumNames));
+	}
+
+	UEnum* FindOrCreateInstanceDataObjectEnum(UEnum* TemplateEnum, UObject* Outer, const FProperty* Property, const FUnknownEnumNames* EnumNames)
+	{
+		if (!TemplateEnum || !EnumNames)
+		{
+			return TemplateEnum;
+		}
+
+		TArray<FName> UnknownNames;
+		bool bHasFlags = false;
+
+		// Use the original type name because the template may be a fallback enum or an IDO.
+		FPropertyTypeName EnumTypeName = FindOriginalType(Property);
+		if (EnumTypeName.IsEmpty())
+		{
+			FPropertyTypeNameBuilder Builder;
+			Builder.AddPath(TemplateEnum);
+			EnumTypeName = Builder.Build();
+		}
+
+		EnumNames->Find(EnumTypeName, UnknownNames, bHasFlags);
+		if (UnknownNames.IsEmpty())
+		{
+			return TemplateEnum;
+		}
+
+		int64 MaxEnumValue = -1;
+		int64 CombinedEnumValues = 0;
+		TArray<TPair<FName, int64>> EnumValueNames;
+		TStringBuilder<128> EnumName(InPlace, EnumTypeName.GetName());
+
+		const auto MakeFullEnumName = [&EnumName, Form = TemplateEnum->GetCppForm()](FName Name) -> FName
+		{
+			if (Form == UEnum::ECppForm::Regular)
+			{
+				return Name;
+			}
+			return FName(WriteToString<128>(EnumName, TEXTVIEW("::"), Name));
+		};
+
+		const auto MakeNextEnumValue = [&MaxEnumValue, &CombinedEnumValues, bHasFlags]() -> int64
+		{
+			if (!bHasFlags)
+			{
+				return ++MaxEnumValue;
+			}
+			const int64 NextEnumValue = ~CombinedEnumValues & (CombinedEnumValues + 1);
+			CombinedEnumValues |= NextEnumValue;
+			return NextEnumValue;
+		};
+
+		// Copy existing values except for MAX.
+		const bool bContainsExistingMax = TemplateEnum->ContainsExistingMax();
+		for (int32 Index = 0, Count = TemplateEnum->NumEnums() - (bContainsExistingMax ? 1 : 0); Index < Count; ++Index)
+		{
+			FName EnumValueName = TemplateEnum->GetNameByIndex(Index);
+			int64 EnumValue = TemplateEnum->GetValueByIndex(Index);
+			EnumValueNames.Emplace(EnumValueName, EnumValue);
+			MaxEnumValue = FMath::Max(MaxEnumValue, EnumValue);
+			CombinedEnumValues |= EnumValue;
+		}
+
+		// Copy unknown names and assign values sequentially.
+		for (FName UnknownName : UnknownNames)
+		{
+			EnumValueNames.Emplace(MakeFullEnumName(UnknownName), MakeNextEnumValue());
+		}
+
+		// Copy or create MAX with a new value.
+		const FName MaxEnumName = bContainsExistingMax ? TemplateEnum->GetNameByIndex(TemplateEnum->NumEnums() - 1) : MakeFullEnumName("MAX");
+		EnumValueNames.Emplace(MaxEnumName, bHasFlags ? CombinedEnumValues : MaxEnumValue);
+
+		// Construct a transient type that impersonates the original type.
+		const FName InstanceDataObjectName(WriteToString<128>(EnumName, TEXTVIEW("_InstanceDataObject")));
+		UEnum* Enum = NewObject<UEnum>(Outer, MakeUniqueObjectName(Outer, UEnum::StaticClass(), InstanceDataObjectName));
+		Enum->SetEnums(EnumValueNames, TemplateEnum->GetCppForm(), bHasFlags ? EEnumFlags::Flags : EEnumFlags::None, /*bAddMaxKeyIfMissing*/ false);
+		Enum->SetMetaData(*WriteToString<32>(NAME_OriginalType), *WriteToString<128>(EnumTypeName));
+
+		// TODO: Detect out-of-bounds values and increase the size of the underlying type accordingly.
+
+		return Enum;
+	}
+
+	static FString UnmanglePropertyName(const FName MaybeMangledName, bool& bOutNameWasMangled)
+	{
+		FString Result = MaybeMangledName.ToString();
+		if (Result.StartsWith(TEXTVIEW("__verse_0x")))
+		{
+			// chop "__verse_0x" (10 char) + CRC (8 char) + "_" (1 char)
+			Result = Result.RightChop(19);
+			bOutNameWasMangled = true;
+		}
+		else
+		{
+			bOutNameWasMangled = false;
+		}
 		return Result;
 	}
 
 	// recursively re-instances all structs contained by this property to include loose properties
-	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames)
 	{
+		if (!Property->HasMetaData(NAME_DisplayName))
+		{
+			bool bNeedsDisplayName = false;
+			FString DisplayName = UnmanglePropertyName(Property->GetFName(), bNeedsDisplayName);
+			if (bNeedsDisplayName)
+			{
+				Property->SetMetaData(NAME_DisplayName, MoveTemp(DisplayName));
+			}
+		}
+
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())
 			{
-#if WITH_EDITORONLY_DATA
-				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
+				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owners, if any, this is useful for testing purposes
 				FString OriginalName;
-				if (const FString* OriginalType = AsStructProperty->FindMetaData(NAME_StructOriginalTypeMetadata))
+				if (const FString* OriginalType = FindOriginalTypeName(AsStructProperty))
 				{
 					OriginalName = *OriginalType;
-				}
-				//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
-				else if (FField* OwnerField = AsStructProperty->Owner.ToField())
-				{
-					if (const FString* OwnerOriginalType = OwnerField->FindMetaData(NAME_StructOriginalTypeMetadata))
-					{
-						OriginalName = *OwnerOriginalType;
-					}
 				}
 
 				if (OriginalName.IsEmpty())
@@ -353,131 +367,107 @@ namespace UE
 					OriginalNameBuilder.AddPath(AsStructProperty->Struct);
 					OriginalName = WriteToString<256>(OriginalNameBuilder.Build()).ToView();
 				}
-#endif
-				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
+
+				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, PropertyTree, EnumNames);
 				if (const FName StructGuidName = PropertyType.GetParameterName(1); !StructGuidName.IsNone())
 				{
 					FGuid::Parse(StructGuidName.ToString(), Struct->Guid);
 				}
 				AsStructProperty->Struct = Struct;
-#if WITH_EDITORONLY_DATA
-				AsStructProperty->SetMetaData(NAME_StructOriginalTypeMetadata, *OriginalName);
+				AsStructProperty->SetMetaData(NAME_OriginalType, *OriginalName);
 				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
+				AsStructProperty->Struct->SetMetaData(NAME_OriginalType, *OriginalName);
 				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
-#endif
 			}
 		}
-		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
+		else if (FByteProperty* AsByteProperty = CastField<FByteProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			AsByteProperty->Enum = FindOrCreateInstanceDataObjectEnum(AsByteProperty->Enum, Outer, Property, EnumNames);
 		}
-		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
+		else if (FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			AsEnumProperty->SetEnumForImpersonation(FindOrCreateInstanceDataObjectEnum(AsEnumProperty->GetEnum(), Outer, Property, EnumNames));
 		}
-		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
+		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			Path.Push({NAME_IDOMapKey});
-			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
-			Path.Pop();
-			
-			Path.Push({NAME_IDOMapValue});
-			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, LooseProperties, Path);
-			Path.Pop();
+			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, PropertyTree, EnumNames);
 		}
-		else if (const FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
+		else if (FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, PropertyTree, EnumNames);
 		}
-	}
-	
-	// copy template property then convert it into an InstanceDataObject property by adding loose properties
-	static FProperty* CreateInstanceDataObjectProperty(const FProperty* TemplateProperty, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
-	{
-		FProperty* InstanceDataObjectProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Outer));
-#if WITH_EDITORONLY_DATA
-		FField::CopyMetaData(TemplateProperty, InstanceDataObjectProperty);
-#endif
-		ConvertToInstanceDataObjectProperty(InstanceDataObjectProperty, Path.GetSegment(Path.GetSegmentCount() - 1).Type, Outer, LooseProperties, Path);
-		return InstanceDataObjectProperty;
-	}
-
-	// return a copy of Path with all the indices set to -1. This way all container elements will have the same wildcard path
-	static FWildcardPropertyPathName ConvertToWildcardPath(const FPropertyPathName& Path)
-	{
-		FWildcardPropertyPathName Result = Path;
-		// make path a wildcard path
-		for (int I = 0; I < Result.GetSegmentCount(); ++I)
+		else if (FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
-			FPropertyPathNameSegment Segment = Result.GetSegment(I);
-			Segment.Index = INDEX_NONE;
-			Result.SetSegment(I, Segment);
-		}
-		return Result;
-	}
-
-	// recursively add all the wildcard paths of both Property and all it's sub-Properties to OutLooseProperties
-	static void AddWildcardedProperties(TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& OutProperties, FWildcardPropertyPathName& ParentPath, const FProperty* Property)
-	{
-		OutProperties.FindOrAdd(ParentPath).Add(Property->GetFName(), Property);
-		
-		ParentPath.Push(CreateSegmentFromProperty(Property));
-		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
-		{
-			for (const FProperty* SubProperty : TFieldRange<FProperty>(AsStructProperty->Struct))
+			const FPropertyPathNameTree* KeyTree = nullptr;
+			const FPropertyPathNameTree* ValueTree = nullptr;
+			if (PropertyTree)
 			{
-				AddWildcardedProperties(OutProperties, ParentPath, SubProperty);
+				FPropertyPathName Path;
+				Path.Push({NAME_IDOMapKey});
+				KeyTree = PropertyTree->Find(Path).GetSubTree();
+				Path.Pop();
+				Path.Push({NAME_IDOMapValue});
+				ValueTree = PropertyTree->Find(Path).GetSubTree();
+				Path.Pop();
 			}
+
+			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, KeyTree, EnumNames);
+			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, ValueTree, EnumNames);
 		}
-		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
+		else if (FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
 		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsArrayProperty->Inner);
+			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, PropertyTree, EnumNames);
 		}
-		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsSetProperty->ElementProp);
-		}
-		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsMapProperty->KeyProp);
-			AddWildcardedProperties(OutProperties, ParentPath, AsMapProperty->ValueProp);
-		}
-		else if (const FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsOptionalProperty->GetValueProperty());
-		}
-		ParentPath.Pop();
 	}
 
-	// construct a map that keys a parent struct by it's wildcard path and returns an array of all it's loose properties
-	static TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> GetWildcardedLooseProperties(const FPropertyBag* PropertyBag)
+	// recursively sets NAME_ContainsLoosePropertiesMetadata on all properties that contain loose properties
+	static void TrySetContainsLoosePropertyMetadata(FProperty* Property)
 	{
-		
-		TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> LooseProperties;
-		if (PropertyBag)
+		const auto Helper = [](FProperty* Property, const FFieldVariant& Inner)
 		{
-			for (FPropertyBag::FConstIterator Itr = PropertyBag->CreateConstIterator(); Itr; ++Itr)
+			if (Inner.HasMetaData(NAME_ContainsLoosePropertiesMetadata))
 			{
-				FWildcardPropertyPathName ParentPath = ConvertToWildcardPath(Itr.GetPath());
-				ParentPath.Pop();
-				const FProperty* Property = Itr.GetProperty();
-				if (ensure(Property))
-				{
-					AddWildcardedProperties(LooseProperties, ParentPath, Property);
-				}
+				Property->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
 			}
+		};
+
+		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
+		{
+			Helper(AsStructProperty, AsStructProperty->Struct);
 		}
-		
-		return LooseProperties;
+		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
+		{
+			TrySetContainsLoosePropertyMetadata(AsArrayProperty->Inner);
+			Helper(AsArrayProperty, AsArrayProperty->Inner);
+		}
+		else if (FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
+		{
+			TrySetContainsLoosePropertyMetadata(AsSetProperty->ElementProp);
+			Helper(AsSetProperty, AsSetProperty->ElementProp);
+		}
+		else if (FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
+		{
+			TrySetContainsLoosePropertyMetadata(AsMapProperty->KeyProp);
+			Helper(AsMapProperty, AsMapProperty->KeyProp);
+			TrySetContainsLoosePropertyMetadata(AsMapProperty->ValueProp);
+			Helper(AsMapProperty, AsMapProperty->ValueProp);
+		}
+		else if (FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
+		{
+			TrySetContainsLoosePropertyMetadata(AsOptionalProperty->GetValueProperty());
+			Helper(AsOptionalProperty, AsOptionalProperty->GetValueProperty());
+		}
+
+		if (Property->GetBoolMetaData(NAME_IsLooseMetadata) || Property->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+		{
+			Property->GetOwnerStruct()->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
+		}
 	}
 
 	// recursively gives a property the metadata and flags of a loose property
 	static void MarkPropertyAsLoose(FProperty* Property)
 	{
-#if WITH_EDITORONLY_DATA
 		Property->SetMetaData(NAME_IsLooseMetadata, TEXT("True"));
-#endif
 		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
 		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
@@ -496,237 +486,485 @@ namespace UE
 		{
 			MarkPropertyAsLoose(AsOptionalProperty->GetValueProperty());
 		}
+		else if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
+		{
+			for (FProperty* InnerProperty : TFieldRange<FProperty>(AsStructProperty->Struct))
+			{
+				MarkPropertyAsLoose(InnerProperty);
+			}
+		}
+		else if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
+		{
+			// Hack for now - the assumption is that IDOs are generated only for class types that impose this flag on all object properties.
+			// There is currently an implicit assumption in the serialization logic that all inner properties have this flag set for containers.
+			// Since this is a "loose" property, the underlying type will not explicitly tell us this, and there is no way to know from the tagged
+			// property data stream if this flag was set when it was last serialized for the instance in question. So for now we just always set it.
+			// 
+			// Note that we are not currently including other related flags such as CPF_InstancedReference, CPF_ContainsInstancedReference, etc.
+			// For the most part those have been relegated to object construction and loading paths. We are not instancing IDO types explicitly;
+			// they are instead serving as an editable data archetype for the actual instance, whose type may impose some post-initialization
+			// effects on that data as part of the construction/serialization path.
+			// 
+			// @todo - Remove if/when this flag is no longer required to signal whether this value is to be resolved via a subobject instancing graph.
+			Property->SetPropertyFlags(CPF_PersistentInstance| CPF_InstancedReference);
+		}
 	}
 
 	// constructs an InstanceDataObject struct by merging the properties in 
-	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
-		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames)
 	{
-		UStruct* Super = nullptr;
+		TSet<FPropertyPathName> SuperPropertyPathsFromTree;
 
-		const TMap<FName, const FProperty*>* BagProperties = LooseProperties.Find(Path);
+		// UClass is required to inherit from UObject
+		UStruct* Super = StructClass->IsChildOf<UClass>() ? UObject::StaticClass() : nullptr;
 
-		auto MatchesBagProperty = [&BagProperties](const FProperty* Property)
-		{
-			if (BagProperties)
-			{
-				if (const FProperty* const* Found = BagProperties->Find(Property->GetFName()))
-				{
-					return (*Found)->SameType(Property);
-				}
-			}
-			return false;
-		};
-		
 		if (TemplateStruct)
 		{
-			const FName SuperName(TemplateStruct->GetName() + TEXT("_Super"));
-			Super = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, SuperName));
-			
+			{
+				const FName SuperName(WriteToString<128>(TemplateStruct->GetName(), TEXTVIEW("_Super")));
+				const UClass* SuperStructClass = StructClass->GetSuperClass();
+				UStruct* NewSuper = NewObject<UStruct>(Outer, SuperStructClass, MakeUniqueObjectName(nullptr, SuperStructClass, SuperName));
+				NewSuper->SetSuperStruct(Super);
+				Super = NewSuper;
+			}
+
 			// Gather properties for Super Struct
 			TArray<FProperty*> SuperProperties;
 			for (const FProperty* TemplateProperty : TFieldRange<FProperty>(TemplateStruct))
 			{
-				if (MatchesBagProperty(TemplateProperty))
-				{
-					// this property was determined to be loose despite it being in the template.
-					// this likely occurred due to an entire struct instance being loose and that instance becoming a template
-					continue;
-				}
-				Path.Push(CreateSegmentFromProperty(TemplateProperty));
-				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path);
-				
-				Path.Pop();
+				FProperty* SuperProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Super));
 				SuperProperties.Add(SuperProperty);
+
+				FField::CopyMetaData(TemplateProperty, SuperProperty);
+
+				FPropertyTypeName Type;
+				{
+					FPropertyTypeNameBuilder TypeBuilder;
+					TemplateProperty->SaveTypeName(TypeBuilder);
+					Type = TypeBuilder.Build();
+				}
+
+				// Find the sub-tree containing unknown properties for this template property.
+				const FPropertyPathNameTree* SubTree = nullptr;
+				if (PropertyTree)
+				{
+					FPropertyPathName Path;
+					Path.Push({TemplateProperty->GetFName(), Type});
+					if (FPropertyPathNameTree::FConstNode Node = PropertyTree->Find(Path))
+					{
+						SubTree = Node.GetSubTree();
+						SuperPropertyPathsFromTree.Add(MoveTemp(Path));
+					}
+				}
+
+				ConvertToInstanceDataObjectProperty(SuperProperty, Type, Super, SubTree, EnumNames);
+				TrySetContainsLoosePropertyMetadata(SuperProperty);
 			}
 
-			if (StructClass == UClass::StaticClass())
-			{
-				// UClasses are required to inherit from a UObject class
-				Super->SetSuperStruct(UObject::StaticClass());
-			}
-		    
 			// AddCppProperty expects reverse property order for StaticLink to work correctly
-			for (int32 I = SuperProperties.Num() - 1; I >= 0; --I)
+			for (FProperty* Property : ReverseIterate(SuperProperties))
 			{
-				Super->AddCppProperty(SuperProperties[I]);
+				Super->AddCppProperty(Property);
 			}
 			Super->Bind();
-			Super->StaticLink(/*RelinkExistingProperties*/true);
-		}
-		else if (StructClass == UClass::StaticClass())
-		{
-			// UClasses are required to inherit from a UObject class
-			Super = UObject::StaticClass();
+			Super->StaticLink(/*bRelinkExistingProperties*/true);
 		}
 
-		const FName InstanceDataObjectName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_InstanceDataObject")) : FName(TEXT("InstanceDataObject"));
-		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, InstanceDataObjectName));
+		const FName InstanceDataObjectName = (TemplateStruct) ? FName(WriteToString<128>(TemplateStruct->GetName(), TEXTVIEW("_InstanceDataObject"))) : FName(TEXTVIEW("InstanceDataObject"));
+		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, InstanceDataObjectName));
+		Result->SetSuperStruct(Super);
+
+		// inherit ContainsLooseProperties metadata
+		if (Super && Super->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+		{
+			Result->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
+		}
+
+		TSet<FString> ExcludedLoosePropertyTypes = GetExcludedLoosePropertyTypes();
 
 		// Gather "loose" properties for child Struct
 		TArray<FProperty*> LooseInstanceDataObjectProperties;
-		if (BagProperties)
+		if (PropertyTree)
 		{
-			for (const TPair<FName, const FProperty*>& BagProperty : *BagProperties)
+			for (FPropertyPathNameTree::FConstIterator It = PropertyTree->CreateConstIterator(); It; ++It)
 			{
-				Path.Push(CreateSegmentFromProperty(BagProperty.Value));
-				FProperty* LooseProperty = CreateInstanceDataObjectProperty(BagProperty.Value, Result, LooseProperties, Path);
-				Path.Pop();
-				
-				MarkPropertyAsLoose(LooseProperty);
-				LooseInstanceDataObjectProperties.Add(LooseProperty);
+				FName Name = It.GetName();
+				if (Name == NAME_InitializedValues || Name == NAME_SerializedValues)
+				{
+					// In rare cases, these hidden properties will get serialized even though they are transient.
+					// Ignore them here since they are generated below.
+					continue;
+				}
+				FPropertyTypeName Type = It.GetType();
+				FPropertyPathName Path;
+				Path.Push({Name, Type});
+				if (!SuperPropertyPathsFromTree.Contains(Path))
+				{
+					// Construct a property from the type and try to use it to serialize the value.
+					FField* Field = FField::TryConstruct(Type.GetName(), Result, Name, RF_NoFlags);
+					if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(Type, It.GetNode().GetTag()))
+					{
+						if (ExcludedLoosePropertyTypes.Contains(Property->GetClass()->GetName()))
+						{
+							// skip loose types that have been explicitly excluded from IDOs
+							continue;
+						}
+						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetNode().GetSubTree(), EnumNames);
+						MarkPropertyAsLoose(Property);	// note: make sure not to mark until AFTER conversion, as this can mutate property flags on nested struct fields
+						TrySetContainsLoosePropertyMetadata(Property);
+						LooseInstanceDataObjectProperties.Add(Property);
+						continue;
+					}
+					delete Field;
+				}
 			}
 		}
 
-		// add a hidden set property used to record whether this struct's properties were set serialization.
+		// Add hidden byte array properties to record whether its sibling properties were initialized or set by serialization.
+		FByteProperty* InitializedValuesProperty = CastFieldChecked<FByteProperty>(FByteProperty::Construct(Result, NAME_InitializedValues, RF_Transient | RF_MarkAsNative));
+		FByteProperty* SerializedValuesProperty = CastFieldChecked<FByteProperty>(FByteProperty::Construct(Result, NAME_SerializedValues, RF_Transient | RF_MarkAsNative));
 		{
-			FSetProperty* ValuesSetBySerializationProperty = CastFieldChecked<FSetProperty>(FSetProperty::Construct(Result, NAME_ValuesSetBySerialization, RF_Transient | RF_MarkAsNative));
-			static FName Name_PropertyName(TEXT("PropertyName"));
-			ValuesSetBySerializationProperty->ElementProp = CastFieldChecked<FProperty>(FInt64Property::Construct(ValuesSetBySerializationProperty, Name_PropertyName, RF_Transient));
-			ValuesSetBySerializationProperty->SetPropertyFlags(CPF_Transient | CPF_EditorOnly | CPF_NativeAccessSpecifierPrivate);
-			Result->AddCppProperty(ValuesSetBySerializationProperty);
+			InitializedValuesProperty->SetPropertyFlags(CPF_Transient | CPF_EditorOnly | CPF_SkipSerialization | CPF_NativeAccessSpecifierPrivate);
+			SerializedValuesProperty->SetPropertyFlags(CPF_Transient | CPF_EditorOnly | CPF_SkipSerialization | CPF_NativeAccessSpecifierPrivate);
+			Result->AddCppProperty(InitializedValuesProperty);
+			Result->AddCppProperty(SerializedValuesProperty);
 		}
 
-		Result->SetSuperStruct(Super);
-		
-		// AddCppProperty expects reverse property order for StaticLink to work correctly
-		for (int32 I = LooseInstanceDataObjectProperties.Num() - 1; I >= 0; --I)
+		// Store generated properties to avoid scanning every property to find it when it is needed.
+		if (UInstanceDataObjectClass* IdoClass = Cast<UInstanceDataObjectClass>(Result))
 		{
-			Result->AddCppProperty(LooseInstanceDataObjectProperties[I]);
+			IdoClass->InitializedValuesProperty = InitializedValuesProperty;
+			IdoClass->SerializedValuesProperty = SerializedValuesProperty;
 		}
+		else if (UInstanceDataObjectStruct* IdoStruct = Cast<UInstanceDataObjectStruct>(Result))
+		{
+			IdoStruct->InitializedValuesProperty = InitializedValuesProperty;
+			IdoStruct->SerializedValuesProperty = SerializedValuesProperty;
+		}
+
+		// AddCppProperty expects reverse property order for StaticLink to work correctly
+		for (FProperty* Property : ReverseIterate(LooseInstanceDataObjectProperties))
+		{
+			Result->AddCppProperty(Property);
+		}
+
+		// Count properties and set the size of the array of flags.
+		int32 PropertyCount = -2; // Start at -2 to exclude the two hidden properties.
+		for (TFieldIterator<FProperty> It(Result); It; ++It)
+		{
+			PropertyCount += It->ArrayDim;
+		}
+		const int32 PropertyCountBytes = FMath::Max(1, FMath::DivideAndRoundUp(PropertyCount, 8));
+		InitializedValuesProperty->ArrayDim = PropertyCountBytes;
+		SerializedValuesProperty->ArrayDim = PropertyCountBytes;
+
 		Result->Bind();
-		Result->StaticLink(/*RelinkExistingProperties*/true);
+		Result->StaticLink(/*bRelinkExistingProperties*/true);
 		return Result;
 	}
 
-	void CopyCDO(const UObject* Source, UObject* Destination)
+	struct FSerializingDefaultsScope
 	{
-		for (const FProperty* SourceProperty : TFieldRange<FProperty>(Source->GetClass()))
+		UE_NONCOPYABLE(FSerializingDefaultsScope);
+
+		inline FSerializingDefaultsScope(FArchive& Ar, const UObject* Object)
 		{
-			if (const FProperty* DestinationProperty = Destination->GetClass()->FindPropertyByName(SourceProperty->GetFName()))
+			if (Object->HasAnyFlags(RF_ClassDefaultObject))
 			{
-				if (SourceProperty->SameType(DestinationProperty))
+				Archive = &Ar;
+				Archive->StartSerializingDefaults();
+			}
+		}
+
+		inline ~FSerializingDefaultsScope()
+		{
+			if (Archive)
+			{
+				Archive->StopSerializingDefaults();
+			}
+		}
+
+		FArchive* Archive = nullptr;
+	};
+
+	void CopyTaggedProperties(const UObject* Source, UObject* Dest)
+	{
+		FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+		TGuardValue<bool> ImpersonatePropertiesScope(SerializeContext->bImpersonateProperties, true);
+		// don't mark properties as set by serialization when performing copy
+		TGuardValue<bool> ScopedTrackSerializedProperties(SerializeContext->bTrackSerializedProperties, false);
+		TGuardValue<bool> ScopedTrackUnknownProperties(SerializeContext->bTrackUnknownProperties, false);
+
+		TArray<uint8> Buffer;
+		Buffer.Reserve(Source->GetClass()->GetStructureSize());
+
+		FObjectWriter Writer(Buffer);
+		FSerializingDefaultsScope WriterDefaultsScope(Writer, Source);
+		Writer.ArNoDelta = true;
+		Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), nullptr);
+
+		FObjectReader Reader(Buffer);
+		FSerializingDefaultsScope ReaderDefaultsScope(Reader, Dest);
+		Reader.ArMergeOverrides = true;
+		Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), nullptr);
+	}
+
+	static void SetClassFlags(UClass* IDOClass, const UClass* OwnerClass)
+	{
+		// always set
+		IDOClass->AssembleReferenceTokenStream();
+		IDOClass->ClassFlags |= CLASS_NotPlaceable | CLASS_Hidden | CLASS_HideDropDown;
+		
+		// copy flags from OwnerClass
+		IDOClass->ClassFlags |= OwnerClass->ClassFlags & (
+			CLASS_EditInlineNew | CLASS_CollapseCategories | CLASS_Const | CLASS_CompiledFromBlueprint | CLASS_HasInstancedReference);
+	}
+
+	UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames, UClass* OwnerClass, UObject* Outer)
+	{
+		UClass* Result = CreateInstanceDataObjectStructRec<UInstanceDataObjectClass>(OwnerClass, Outer, PropertyTree, EnumNames);
+		if (const FString& DisplayName = OwnerClass->GetMetaData(NAME_DisplayName); !DisplayName.IsEmpty())
+		{
+			Result->SetMetaData(NAME_DisplayName, *DisplayName);
+		}
+
+		SetClassFlags(Result, OwnerClass);
+
+		const UObject* OwnerCDO = OwnerClass->GetDefaultObject();
+		UObject* ResultCDO = Result->GetDefaultObject();
+		if (ensure(OwnerCDO && ResultCDO))
+		{
+			CopyTaggedProperties(OwnerCDO, ResultCDO);
+		}
+		return Result;
+	}
+
+	static const FByteProperty* FindSerializedValuesProperty(const UStruct* Struct)
+	{
+		if (const UInstanceDataObjectClass* IdoClass = Cast<UInstanceDataObjectClass>(Struct))
+		{
+			return IdoClass->SerializedValuesProperty;
+		}
+		if (const UInstanceDataObjectStruct* IdoStruct = Cast<UInstanceDataObjectStruct>(Struct))
+		{
+			return IdoStruct->SerializedValuesProperty;
+		}
+		return CastField<FByteProperty>(Struct->FindPropertyByName(NAME_SerializedValues));
+	}
+
+	void MarkPropertyValueSerialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
+	{
+		if (const FByteProperty* SerializedValuesProperty = FindSerializedValuesProperty(Struct))
+		{
+			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
+			const int32 ByteIndex = PropertyIndex / 8;
+			const int32 BitOffset = PropertyIndex % 8;
+			if (ByteIndex < SerializedValuesProperty->ArrayDim)
+			{
+				uint8* PropertyDataPtr = SerializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
+				*PropertyDataPtr |= (1 << BitOffset);
+			}
+		}
+	}
+
+	bool WasPropertyValueSerialized(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
+	{
+		if (const FByteProperty* SerializedValuesProperty = FindSerializedValuesProperty(Struct))
+		{
+			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
+			const int32 ByteIndex = PropertyIndex / 8;
+			const int32 BitOffset = PropertyIndex % 8;
+			if (ByteIndex < SerializedValuesProperty->ArrayDim)
+			{
+				const uint8* PropertyDataPtr = SerializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
+				return (*PropertyDataPtr & (1 << BitOffset)) != 0;
+			}
+		}
+		return false;
+	}
+
+	void CopyPropertyValueSerializedData(const FFieldVariant& OldField, void* OldDataPtr, const FFieldVariant& NewField, void* NewDataPtr)
+	{
+		if (const FStructProperty* OldAsStructProperty = OldField.Get<FStructProperty>())
+		{
+			const FStructProperty* NewAsStructProperty = NewField.Get<FStructProperty>();
+			checkf(NewAsStructProperty, TEXT("Type mismatch between OldField and NewField. Expected FStructProperty"));
+			CopyPropertyValueSerializedData(OldAsStructProperty->Struct, OldDataPtr, NewAsStructProperty->Struct, NewDataPtr);
+		}
+		else if (const FArrayProperty* OldAsArrayProperty = OldField.Get<FArrayProperty>())
+		{
+			const FArrayProperty* NewAsArrayProperty = NewField.Get<FArrayProperty>();
+			checkf(NewAsArrayProperty, TEXT("Type mismatch between OldField and NewField. Expected FArrayProperty"));
+			
+			FScriptArrayHelper OldArrayHelper(OldAsArrayProperty, OldDataPtr);
+			FScriptArrayHelper NewArrayHelper(NewAsArrayProperty, NewDataPtr);
+			for (int32 ArrayIndex = 0; ArrayIndex < OldArrayHelper.Num(); ++ArrayIndex)
+			{
+				if (NewArrayHelper.IsValidIndex(ArrayIndex))
 				{
-					const void* SourceValue = SourceProperty->ContainerPtrToValuePtr<void>(Source);
-					void* DestinationValue = DestinationProperty->ContainerPtrToValuePtr<void>(Destination);
-					DestinationProperty->CopyCompleteValue(DestinationValue, SourceValue);
+					CopyPropertyValueSerializedData(
+						OldAsArrayProperty->Inner, OldArrayHelper.GetElementPtr(ArrayIndex),
+						NewAsArrayProperty->Inner, NewArrayHelper.GetElementPtr(ArrayIndex));
+				}
+			}
+		}
+		else if (const FSetProperty* OldAsSetProperty = OldField.Get<FSetProperty>())
+		{
+			const FSetProperty* NewAsSetProperty = NewField.Get<FSetProperty>();
+			checkf(NewAsSetProperty, TEXT("Type mismatch between OldField and NewField. Expected FSetProperty"));
+			
+			FScriptSetHelper OldSetHelper(OldAsSetProperty, OldDataPtr);
+			FScriptSetHelper NewSetHelper(NewAsSetProperty, NewDataPtr);
+			FScriptSetHelper::FIterator OldItr = OldSetHelper.CreateIterator();
+			FScriptSetHelper::FIterator NewItr = NewSetHelper.CreateIterator();
+			
+			for (; OldItr && NewItr; ++OldItr, ++NewItr)
+			{
+				CopyPropertyValueSerializedData(
+					OldAsSetProperty->ElementProp, OldSetHelper.GetElementPtr(OldItr),
+					NewAsSetProperty->ElementProp, NewSetHelper.GetElementPtr(NewItr));
+			}
+		}
+		else if (const FMapProperty* OldAsMapProperty = OldField.Get<FMapProperty>())
+		{
+			const FMapProperty* NewAsMapProperty = NewField.Get<FMapProperty>();
+			checkf(NewAsMapProperty, TEXT("Type mismatch between OldField and NewField. Expected FMapProperty"));
+			
+			FScriptMapHelper OldMapHelper(OldAsMapProperty, OldDataPtr);
+			FScriptMapHelper NewMapHelper(NewAsMapProperty, NewDataPtr);
+			FScriptMapHelper::FIterator OldItr = OldMapHelper.CreateIterator();
+			FScriptMapHelper::FIterator NewItr = NewMapHelper.CreateIterator();
+			
+			for (; OldItr && NewItr; ++OldItr, ++NewItr)
+			{
+				CopyPropertyValueSerializedData(
+					OldAsMapProperty->KeyProp, OldMapHelper.GetKeyPtr(OldItr),
+					NewAsMapProperty->KeyProp, NewMapHelper.GetKeyPtr(NewItr));
+				CopyPropertyValueSerializedData(
+					OldAsMapProperty->ValueProp, OldMapHelper.GetValuePtr(OldItr),
+					NewAsMapProperty->ValueProp, NewMapHelper.GetValuePtr(NewItr));
+			}
+		}
+		else if (UStruct* OldAsStruct = OldField.Get<UStruct>())
+		{
+			const UStruct* NewAsStruct = NewField.Get<UStruct>();
+			checkf(NewAsStruct, TEXT("Type mismatch between OldField and NewField. Expected UStruct"));
+
+			auto FindMatchingProperty = [](const UStruct* Struct, const FProperty* Property) -> const FProperty*
+			{
+				for (const FProperty* StructProperty : TFieldRange<FProperty>(Struct))
+				{
+					if (StructProperty->GetFName() == Property->GetFName() && StructProperty->GetID() == Property->GetID())
+					{
+						return StructProperty;
+					}
+				}
+				return nullptr;
+			};
+
+			// clear existing set-flags first
+			if (const FByteProperty* SerializedValuesProperty = FindSerializedValuesProperty(NewAsStruct))
+			{
+				SerializedValuesProperty->InitializeValue_InContainer(NewDataPtr);
+			}
+			
+			for (const FProperty* OldSubProperty : TFieldRange<FProperty>(OldAsStruct))
+			{
+				if (const FProperty* NewSubProperty = FindMatchingProperty(NewAsStruct, OldSubProperty))
+				{
+					for (int32 ArrayIndex = 0; ArrayIndex < FMath::Min(OldSubProperty->ArrayDim, NewSubProperty->ArrayDim); ++ArrayIndex)
+					{
+						// copy set flags to new struct instance
+						if (WasPropertyValueSerialized(OldAsStruct, OldDataPtr, OldSubProperty, ArrayIndex))
+						{
+							MarkPropertyValueSerialized(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
+						}
+						else if (NewSubProperty->GetBoolMetaData(NAME_IsLooseMetadata))
+						{
+							// loose properties should be marked as serialized regardless of whether the old struct marked them as such
+							MarkPropertyValueSerialized(NewAsStruct, NewDataPtr, NewSubProperty, ArrayIndex);
+						}
+					
+						// recurse
+						CopyPropertyValueSerializedData(
+							OldSubProperty, OldSubProperty->ContainerPtrToValuePtr<void>(OldDataPtr, ArrayIndex),
+							NewSubProperty, NewSubProperty->ContainerPtrToValuePtr<void>(NewDataPtr, ArrayIndex));
+					}
+				}
+			}
+		}
+	}
+
+	static const FByteProperty* FindInitializedValuesProperty(const UStruct* Struct)
+	{
+		if (const UInstanceDataObjectClass* IdoClass = Cast<UInstanceDataObjectClass>(Struct))
+		{
+			return IdoClass->InitializedValuesProperty;
+		}
+		if (const UInstanceDataObjectStruct* IdoStruct = Cast<UInstanceDataObjectStruct>(Struct))
+		{
+			return IdoStruct->InitializedValuesProperty;
+		}
+		return CastField<FByteProperty>(Struct->FindPropertyByName(NAME_InitializedValues));
+	}
+
+	static void SetPropertyValueInitializedFlag(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex, bool bValue)
+	{
+		if (const FByteProperty* InitializedValuesProperty = FindInitializedValuesProperty(Struct))
+		{
+			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
+			const int32 ByteIndex = PropertyIndex / 8;
+			const int32 BitOffset = PropertyIndex % 8;
+			if (ByteIndex < InitializedValuesProperty->ArrayDim)
+			{
+				uint8* PropertyDataPtr = InitializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
+				if (bValue)
+				{
+					*PropertyDataPtr |= (1 << BitOffset);
 				}
 				else
 				{
-					FString ValueText;
-					const void* SourceValue = SourceProperty->ContainerPtrToValuePtr<void>(Source);
-					void* DestinationValue = DestinationProperty->ContainerPtrToValuePtr<void>(Destination);
-					SourceProperty->ExportText_Direct(ValueText, SourceValue, SourceValue, const_cast<UObject*>(Source), PPF_None);
-					DestinationProperty->ImportText_Direct(*ValueText, DestinationValue, Destination, PPF_None);
+					*PropertyDataPtr &= ~(1 << BitOffset);
 				}
 			}
 		}
 	}
-	
-	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UClass* OwnerClass, UObject* Outer)
-	{
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> LooseProperties = GetWildcardedLooseProperties(PropertyBag);
-		FWildcardPropertyPathName ParentPath;
-		UClass* Result = CreateInstanceDataObjectStructRec<UClass>(OwnerClass, Outer, LooseProperties, ParentPath);
-#if WITH_EDITORONLY_DATA
-		const FString& DisplayName = OwnerClass->GetMetaData(TEXT("DisplayName"));
-		if (!DisplayName.IsEmpty())
-		{
-			Result->SetMetaData(TEXT("DisplayName"), *DisplayName);
-		}
-#endif
 
-		const UObject* OwnerCDO = OwnerClass->GetDefaultObject(true);
-		UObject* ResultCDO = Result->GetDefaultObject(true);
-		if (ensure(OwnerCDO && ResultCDO))
-		{
-			CopyCDO(OwnerCDO, ResultCDO);
-		}
-		return Result;
-	}
-
-	static void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)
+	bool IsPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization)))
+		if (const FByteProperty* InitializedValuesProperty = FindInitializedValuesProperty(Struct))
 		{
-			FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
-			const int64 ValueOffset = static_cast<const uint8*>(PropertyDataPtr) - static_cast<const uint8*>(StructData);
-			const int32 FoundIndex = ValuesSetByPropertyBag.FindElementIndex(&ValueOffset);
-			if (FoundIndex == INDEX_NONE)
+			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
+			const int32 ByteIndex = PropertyIndex / 8;
+			const int32 BitOffset = PropertyIndex % 8;
+			if (ByteIndex < InitializedValuesProperty->ArrayDim)
 			{
-				ValuesSetByPropertyBag.AddElement(&ValueOffset);
-			}
-		}
-	}
-	
-	void MarkPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
-	{
-		void* ResolvedData = nullptr;
-		void* ResolvedOwnerData = nullptr;
-		FProperty* ResolvedProperty = nullptr;
-		FStructProperty* ResolvedOwnerProperty = nullptr;
-		if (ensureMsgf(ResolvePropertyPathName(Object, Path, ResolvedData, ResolvedProperty, ResolvedOwnerData, ResolvedOwnerProperty),
-			TEXT("Failed to resolve property path name %s"), *WriteToString<256>(Path)))
-		{
-			// only mark properties set if they're in structs/classes
-			if (ResolvedOwnerProperty)
-			{
-				MarkPropertySetBySerialization(ResolvedOwnerProperty->Struct, ResolvedOwnerData, ResolvedData);
-			}
-		}
-	}
-
-	static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)
-	{
-		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization)))
-		{
-			const FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
-			const int64 ValueOffset = static_cast<const uint8*>(PropertyDataPtr) - static_cast<const uint8*>(StructData);
-			return ValuesSetByPropertyBag.FindElementIndex(&ValueOffset) != INDEX_NONE;
-		}
-		return false;
-	}
-
-	bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
-	{
-		void* ResolvedData = nullptr;
-		void* ResolvedOwnerData = nullptr;
-		FProperty* ResolvedProperty = nullptr;
-		FStructProperty* ResolvedOwnerProperty = nullptr;
-		if (ensureMsgf(ResolvePropertyPathName(Object, Path, ResolvedData, ResolvedProperty, ResolvedOwnerData, ResolvedOwnerProperty),
-			TEXT("Failed to resolve property path name %s"), *WriteToString<256>(Path)))
-		{
-			// only properties in structs/classes have been marked
-			if (ResolvedOwnerProperty)
-			{
-				return WasPropertySetBySerialization(ResolvedOwnerProperty->Struct, ResolvedOwnerData, ResolvedData);
+				const uint8* PropertyDataPtr = InitializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData, ByteIndex);
+				return (*PropertyDataPtr & (1 << BitOffset)) != 0;
 			}
 		}
 		return false;
 	}
-	
-	bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
-	{
-		if (ArrayIndex == INDEX_NONE)
-		{
-			ArrayIndex = 0;
-		}
-		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(NAME_ValuesSetBySerialization)))
-		{
-			const uint8* PropertyDataPtr;
-			if (ArrayIndex == INDEX_NONE || Property->IsA<FArrayProperty>() || Property->IsA<FMapProperty>() || Property->IsA<FSetProperty>())
-			{
-				PropertyDataPtr = Property->ContainerPtrToValuePtr<uint8>(StructData);
-			}
-			else
-			{
-				PropertyDataPtr = Property->ContainerPtrToValuePtr<uint8>(StructData, ArrayIndex);
-			}
 
-			const FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
-			const int64 ValueOffset = PropertyDataPtr - static_cast<const uint8*>(StructData);
-			return ValuesSetByPropertyBag.FindElementIndex(&ValueOffset) != INDEX_NONE;
-		}
-		return false;
+	void SetPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
+	{
+		SetPropertyValueInitializedFlag(Struct, StructData, Property, ArrayIndex, /*bValue*/ true);
 	}
+
+	void ClearPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
+	{
+		SetPropertyValueInitializedFlag(Struct, StructData, Property, ArrayIndex, /*bValue*/ false);
+	}
+
+	void ResetPropertyValueInitialized(const UStruct* Struct, void* StructData)
+	{
+		if (const FByteProperty* InitializedValuesProperty = FindInitializedValuesProperty(Struct))
+		{
+			uint8* PropertyDataPtr = InitializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData);
+			FMemory::Memzero(PropertyDataPtr, InitializedValuesProperty->ArrayDim);
+		}
+	}
+
 } // UE
+
+#endif // WITH_EDITORONLY_DATA

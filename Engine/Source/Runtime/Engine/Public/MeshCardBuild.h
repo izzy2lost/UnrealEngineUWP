@@ -20,6 +20,11 @@ public:
 	FLumenCardOBBf OBB;
 	uint8 AxisAlignedDirectionIndex;
 
+	bool ContainsNaN() const
+	{
+		return OBB.ContainsNaN();
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FLumenCardBuildData& Data)
 	{
 		// Note: this is derived data, no need for versioning (bump the DDC guid)
@@ -82,12 +87,17 @@ public:
 class FMeshCardsBuildData
 {
 public:
-	FBox Bounds;
-	bool bMostlyTwoSided;
+	FBox Bounds = FBox(ForceInit);
+	bool bMostlyTwoSided = false;
 	TArray<FLumenCardBuildData> CardBuildData;
 
 	// Temporary debug visualization data, don't serialize
 	FLumenCardBuildDebugData DebugData;
+
+	bool ContainsNaN() const
+	{
+		return Bounds.ContainsNaN() || CardBuildData.ContainsByPredicate([](const FLumenCardBuildData& Data) { return Data.ContainsNaN(); });
+	}
 
 	friend FArchive& operator<<(FArchive& Ar, FMeshCardsBuildData& Data)
 	{
@@ -147,6 +157,11 @@ public:
 		FResourceSizeEx ResSize;
 		GetResourceSizeEx(ResSize);
 		return ResSize.GetTotalMemoryBytes();
+	}
+
+	bool ContainsNaN() const
+	{
+		return MeshCardsBuildData.ContainsNaN();
 	}
 
 #if WITH_EDITORONLY_DATA

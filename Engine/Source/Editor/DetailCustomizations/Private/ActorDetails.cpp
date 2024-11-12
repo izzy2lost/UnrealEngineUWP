@@ -55,11 +55,13 @@
 #include "Misc/MessageDialog.h"
 #include "ScopedTransaction.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "WorldPartition/WorldPartition.h"
 #include "Algo/AnyOf.h"
 
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "K2Node_AddDelegate.h"
 #include "EdGraphSchema_K2_Actions.h"
+#include "Subsystems/EditorActorSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "ActorDetails"
 
@@ -154,7 +156,6 @@ void FActorDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 		if (!bShouldDisplayWorldPartitionProperties)
 		{
 			DetailLayout.HideProperty(DetailLayout.GetProperty(AActor::GetRuntimeGridPropertyName(), AActor::StaticClass()));
-			DetailLayout.HideProperty(DetailLayout.GetProperty(AActor::GetIsSpatiallyLoadedPropertyName(), AActor::StaticClass()));
 			DetailLayout.HideProperty(DetailLayout.GetProperty(AActor::GetDataLayerAssetsPropertyName(), AActor::StaticClass()));
 			DetailLayout.HideProperty(DetailLayout.GetProperty(AActor::GetDataLayerPropertyName(), AActor::StaticClass()));
 			DetailLayout.HideProperty(DetailLayout.GetProperty(AActor::GetHLODLayerPropertyName(), AActor::StaticClass()));
@@ -210,7 +211,7 @@ void FActorDetails::OnConvertActor(UClass* ChosenClass)
 			// it will be parented to an invalid actor details widget
 			FSlateApplication::Get().DismissAllMenus();
 
-			GEditor->ConvertActors(SelectedActorsRaw, ChosenClass, TSet<FString>(), true);
+			UEditorActorSubsystem::ConvertActors(SelectedActorsRaw, ChosenClass, TSet<FString>(), true);
 		}
 	}
 }
@@ -476,8 +477,8 @@ void FActorDetails::AddTransformCategory( IDetailLayoutBuilder& DetailBuilder )
 	{
 		return;
 	}
-	
-	TSharedRef<FComponentTransformDetails> TransformDetails = MakeShareable( new FComponentTransformDetails( DetailBuilder.GetSelectedObjects(), SelectedActorInfo, DetailBuilder ) );
+
+	TSharedRef<FComponentTransformDetails> TransformDetails = MakeShared<FComponentTransformDetails>(DetailBuilder.GetSelectedObjects(), SelectedActorInfo, DetailBuilder);
 
 	IDetailCategoryBuilder& TransformCategory = DetailBuilder.EditCategory( "TransformCommon", LOCTEXT("TransformCommonCategory", "Transform"), ECategoryPriority::Transform );
 
@@ -638,22 +639,26 @@ void FActorDetails::AddActorCategory( IDetailLayoutBuilder& DetailBuilder, const
 
 			if (Actor->GetContentBundleGuid().IsValid())
 			{
-				const FText ActorContentBundleGuidText = FText::FromString(Actor->GetContentBundleGuid().ToString());
-				ActorCategory.AddCustomRow( LOCTEXT("ContentBundleGuid", "ContentBundleGuid") )
-					.NameContent()
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("ContentBundleGuid2", "Content Bundle Guid"))
-						.ToolTipText(LOCTEXT("ActorContentBundleGuid_ToolTip", "Actor Content BundleGuid"))
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-					.ValueContent()
-					[
-						SNew(STextBlock)
-							.Text(ActorContentBundleGuidText)
+				UWorldPartition* WorldPartition = Actor->GetWorld() ? Actor->GetWorld()->GetWorldPartition() : nullptr;
+				if (WorldPartition && WorldPartition->IsContentBundleEnabled())
+				{
+					const FText ActorContentBundleGuidText = FText::FromString(Actor->GetContentBundleGuid().ToString());
+					ActorCategory.AddCustomRow( LOCTEXT("ContentBundleGuid", "ContentBundleGuid") )
+						.NameContent()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("ContentBundleGuid2", "Content Bundle Guid"))
+							.ToolTipText(LOCTEXT("ActorContentBundleGuid_ToolTip", "Actor Content BundleGuid"))
 							.Font(IDetailLayoutBuilder::GetDetailFont())
-							.IsEnabled(false)
-					];
+						]
+						.ValueContent()
+						[
+							SNew(STextBlock)
+								.Text(ActorContentBundleGuidText)
+								.Font(IDetailLayoutBuilder::GetDetailFont())
+								.IsEnabled(false)
+						];
+				}
 			}
 		}
 	};

@@ -73,5 +73,5 @@ protected:
 	void DoFinishUpdate(const FContext& Context);
 
 	/** The intermediate texture created in the update process. In the virtual path, this can exceptionally end update being the same as the original texture. */
-	FTexture2DRHIRef IntermediateTextureRHI;
+	FTextureRHIRef IntermediateTextureRHI;
 };

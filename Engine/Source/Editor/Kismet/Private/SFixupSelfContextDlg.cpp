@@ -117,7 +117,6 @@ void SFixupSelfContextDialog::Construct(const FArguments& InArgs, const TArray< 
 					.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 					[
 						SNew(SListView<FListViewItem>)
-						.ItemHeight(24.0f)
 						.ListItemsSource(&FunctionsToFixup)
 						.SelectionMode(ESelectionMode::None)
 						.OnGenerateRow(this, &SFixupSelfContextDialog::OnGenerateRow)
@@ -177,8 +176,7 @@ bool SFixupSelfContextDialog::CreateModal(const TArray<UK2Node_CallFunction*>& N
 	Window = SNew(SWindow)
 		.Title(LOCTEXT("FixupReferencesTitle", "Fix Self Context Function References"))
 		.SizingRule(ESizingRule::UserSized)
-		.MinWidth(400.f)
-		.MinHeight(300.f)
+		.ClientSize(FVector2D(400.f, 300.f))
 		.SupportsMaximize(true)
 		.SupportsMinimize(false)
 		.HasCloseButton(false)

@@ -7,8 +7,10 @@
 enum class ECheckBoxState : uint8;
 enum class EDMXControlConsoleEditorViewMode : uint8;
 enum class EDMXControlConsoleLayoutMode : uint8;
+struct EVisibility;
 struct FCustomTextFilterData;
 class FExtender;
+class FReply;
 struct FSlateIcon;
 class FToolBarBuilder;
 class SDMXControlConsoleEditorPortSelector;
@@ -38,9 +40,6 @@ namespace UE::DMX::Private
 	private:
 		/** Callback, raised when the menu extender requests to build the toolbar */
 		void BuildToolbarCallback(FToolBarBuilder& ToolbarBuilder);
-
-		/** Generates a play options menu widget */
-		TSharedRef<SWidget> GeneratePlayOptionsMenuWidget();
 
 		/** Generates a widget for the clear options */
 		TSharedRef<SWidget> GenerateClearMenuWidget();
@@ -99,11 +98,8 @@ namespace UE::DMX::Private
 		/** Called when the Control Console gets cleared */
 		void OnClearAll();
 
-		/** Gets the text for the send dmx button */
-		FText GetSendDMXButtonText() const;
-
-		/** Gets the icon for the send dmx button */
-		FSlateIcon GetSendDMXButtonIcon() const;
+		/** Called when the show compact editor button was clicked */
+		FReply OnShowCompactEditorButtonClicked();
 
 		/** Reference to the Control Console's searchbox used for global filtering */
 		TSharedPtr<SFilterSearchBox> GlobalFilterSearchBox;

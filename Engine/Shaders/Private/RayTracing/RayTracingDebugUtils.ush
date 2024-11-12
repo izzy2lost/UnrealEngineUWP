@@ -11,10 +11,9 @@ struct FRayTracingDebugPayload : FMinimalPayload
 	uint InstanceHash;
 	uint TriangleIndex;
 	uint InstanceIndex;
-	uint GeometryInstanceIndex;
+	uint GeometryIndex;
 
 	float3 WorldNormal;
-	uint GeometryIndex;
 	
 	uint TriangleHitCountPerRay;
 	uint ScenePrimitiveIndex;

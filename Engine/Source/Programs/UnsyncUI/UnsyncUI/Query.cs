@@ -12,10 +12,33 @@ using System.Collections;
 
 namespace UnsyncUI
 {
+	public class UnsyncServerConfig
+	{
+		public String address;
+		public String protocol;
+
+		public String GetCommandLineArgs()
+		{
+			List<String> args = new List<String>();
+
+			if (!string.IsNullOrWhiteSpace(address))
+			{
+				args.Add($"--server {address}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(protocol))
+			{
+				args.Add($"--protocol {protocol}");
+			}
+
+			return string.Join(" ", args);
+		}
+	}
+
 	public class UnsyncQueryConfig
 	{
 		public String unsyncPath;
-		public String proxyAddress;
+		public UnsyncServerConfig server;
 	}
 
 	class SearchQueryResultEntry
@@ -45,6 +68,16 @@ namespace UnsyncUI
 		public List<String> groups { get; set; }
 	}
 
+	public class UnsyncMirrorDesc
+	{
+		public String name { get; set; }
+		public String description { get; set; }
+		public String address { get; set; }
+		public uint port { get; set; }
+		public uint ping { get; set; }
+		public bool ok { get; set; }
+	}
+
 	public class UnsyncQueryUtil
 	{
 		UnsyncQueryConfig Config;
@@ -53,33 +86,62 @@ namespace UnsyncUI
 			Config = InConfig;
 		}
 
-		public UnsyncQueryUtil(string unsyncPath, string proxyAddress)
+		public UnsyncQueryUtil(string unsyncPath, string serverAddress, string serverProtocol)
+			: this(unsyncPath, new UnsyncServerConfig { address = serverAddress, protocol = serverProtocol } )
+		{
+		}
+
+		public UnsyncQueryUtil(string unsyncPath, UnsyncServerConfig server)
 		{
 			Config = new UnsyncQueryConfig();
 			Config.unsyncPath = unsyncPath;
-			Config.proxyAddress = proxyAddress;
+			Config.server = server;
+		}
+
+		private string RunCommand(string argsStr)
+		{
+			AsyncProcess proc = new AsyncProcess(Config.unsyncPath, argsStr);
+			CancellationToken cancellationToken = new CancellationToken();
+
+			var response = "";
+			var diagnostics = "";
+
+			var QueryTask = Task.Run(async () => {
+				await foreach (var (str, kind) in proc.RunAsyncStreams(cancellationToken))
+				{
+					if (kind == AsyncProcess.StreamKind.StdOut)
+					{
+						response += str;
+					}
+					else
+					{
+						diagnostics += str;
+					}
+				}
+			});
+
+			QueryTask.Wait();
+
+			if (proc.ExitCode == 0)
+			{
+				return response;
+			}
+			else
+			{
+				throw new Exception($"Exit code {proc.ExitCode}\n{diagnostics}");
+			}
+		}
+
+		public List<UnsyncMirrorDesc> Mirrors()
+		{
+			string responseJson = RunCommand($"query mirrors {Config.server.GetCommandLineArgs()}");
+			return JsonSerializer.Deserialize<List<UnsyncMirrorDesc>>(responseJson);
 		}
 
 		public LoginQueryResult Login()
 		{
-			String argsStr = $"login --decode --proxy {Config.proxyAddress}";
-			AsyncProcess proc = new AsyncProcess(Config.unsyncPath, argsStr);
-			CancellationToken cancellationToken = new CancellationToken();
-
-			var responseJson = "";
-
-			var LoginTask = Task.Run(async () => {
-				// TODO: read stderr stream and somehow report status/errors
-				await foreach (var str in proc.RunAsync(cancellationToken, false /*ReadStdErr*/))
-				{
-					responseJson += str;
-				}
-			});
-			LoginTask.Wait();
-
-			LoginQueryResult queryResult = JsonSerializer.Deserialize<LoginQueryResult>(responseJson);
-
-			return queryResult;
+			string responseJson = RunCommand($"login --decode {Config.server.GetCommandLineArgs()}");
+			return JsonSerializer.Deserialize<LoginQueryResult>(responseJson);
 		}
 	}
 
@@ -119,10 +181,27 @@ namespace UnsyncUI
 			this.DirectorySchema = DirectorySchema;
 		}
 
+		public string FormatArtifactPath(string virtualPath) 
+		{
+			if (Config.server?.protocol == "horde")
+			{
+				// extract artifact ID assuming 'foobar#1234abcd' convention
+				int artifactIdPos = virtualPath.LastIndexOf('#');
+				string artifactId = artifactIdPos == -1 ? virtualPath : virtualPath.Substring(artifactIdPos);				
+				return artifactId;
+			}
+			else
+			{
+				return virtualPath; 
+			}
+		}
+
 		private async Task LazyInit(CancellationToken cancellationToken)
 		{
 			if (!Initialized)
 			{
+				Entries = new List<Entry>();
+
 				if (ProjectSchema != null)
 				{
 					await InitProject(cancellationToken);
@@ -145,11 +224,6 @@ namespace UnsyncUI
 
 		private void ProcessQueryResult(SearchQueryResult queryResult)
 		{
-			if (Entries == null)
-			{
-				Entries = new List<Entry>();
-			}
-
 			foreach (var queryEntry in queryResult.entries)
 			{
 				Entry entry = new Entry();
@@ -166,7 +240,7 @@ namespace UnsyncUI
 		{
 			foreach (String query in queryStrings)
 			{
-				String argsStr = query + $" --proxy {Config.proxyAddress}";
+				String argsStr = query + $" {Config.server.GetCommandLineArgs()}";
 
 				var proc = new AsyncProcess(Config.unsyncPath, argsStr);
 				var responseJson = "";
@@ -185,7 +259,7 @@ namespace UnsyncUI
 					}
 					catch (Exception ex)
 					{
-						App.Current.LogError("Exception while parsing unsync query JSON: " + ex.Message);
+						App.Current.LogError("Exception during unsync query: " + ex.Message);
 					}
 				}
 			}

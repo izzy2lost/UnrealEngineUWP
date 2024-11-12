@@ -123,7 +123,7 @@ void UOptimusEditorGraphSchema::GetGraphActions(
 	{
 		// For now only allow variable/resource compatible types to spawn constant nodes
 		if (DataTypeHandle->CanCreateProperty() &&
-			EnumHasAnyFlags(DataTypeHandle->UsageFlags, EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable))
+			EnumHasAnyFlags(DataTypeHandle->UsageFlags, EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::Property))
 		{
 			const FText NodeName = FText::Format(LOCTEXT("ConstantValueNode", "{0} Constant"), DataTypeHandle->DisplayName);
 			const FText NodeCategory = FText::FromName(UOptimusNode::CategoryName::Values);

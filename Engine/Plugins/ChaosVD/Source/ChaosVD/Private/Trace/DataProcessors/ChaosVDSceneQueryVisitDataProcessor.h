@@ -1,12 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "IChaosVDDataProcessor.h"
+#include "ChaosVDDataProcessorBase.h"
 
 /**
  * Data processor implementation that is able to deserialize traced SQ Visits
  */
-class FChaosVDSceneQueryVisitDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDSceneQueryVisitDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDSceneQueryVisitDataProcessor();

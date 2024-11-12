@@ -99,6 +99,7 @@ bool FPluginDescriptor::Load(const TCHAR* FileName, FText* OutFailReason /*= nul
 #if WITH_EDITOR
 	CachedJson.Reset();
 	AdditionalFieldsToWrite.Reset();
+	AdditionalFieldsToRemove.Reset();
 #endif // WITH_EDITOR
 
 	FString Text;
@@ -124,6 +125,7 @@ bool FPluginDescriptor::Read(const FString& Text, FText* OutFailReason /*= nullp
 #if WITH_EDITOR
 	CachedJson.Reset();
 	AdditionalFieldsToWrite.Reset();
+	AdditionalFieldsToRemove.Reset();
 #endif // WITH_EDITOR
 
 	// Deserialize a JSON object from the string
@@ -136,6 +138,7 @@ bool FPluginDescriptor::Read(const FString& Text, FText* OutFailReason /*= nullp
 #if WITH_EDITOR
 			CachedJson = JsonObject;
 			AdditionalFieldsToWrite.Reset();
+			AdditionalFieldsToRemove.Reset();
 #endif // WITH_EDITOR
 			return true;
 		}
@@ -257,6 +260,8 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 	}
 
 	Object.TryGetBoolField(TEXT("EnableVerseAssetReflection"), bEnableVerseAssetReflection);
+
+	Object.TryGetBoolField(TEXT("EnableIAD"), bEnableIAD);
 
 	bool bEnabledByDefault;
 	if(Object.TryGetBoolField(TEXT("EnabledByDefault"), bEnabledByDefault))
@@ -427,6 +432,15 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 		JsonObject.RemoveField(TEXT("EnableVerseAssetReflection"));
 	}
 
+	if (bEnableIAD)
+	{
+		JsonObject.SetBoolField(TEXT("EnableIAD"), bEnableIAD);
+	}
+	else
+	{
+		JsonObject.RemoveField(TEXT("EnableIAD"));
+	}
+
 	if (EnabledByDefault != EPluginEnabledByDefault::Unspecified)
 	{
 		JsonObject.SetBoolField(TEXT("EnabledByDefault"), (EnabledByDefault == EPluginEnabledByDefault::Enabled));
@@ -543,10 +557,6 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 	PreBuildSteps.UpdateJson(JsonObject, TEXT("PreBuildSteps"));
 	PostBuildSteps.UpdateJson(JsonObject, TEXT("PostBuildSteps"));
 
-	// Removing the plugins field to force the array to be rebuilt in the same order as the Plugins array otherwise 
-	// all new items are appended at the back.
-	JsonObject.RemoveField(TEXT("Plugins"));
-
 	FPluginReferenceDescriptor::UpdateArray(JsonObject, TEXT("Plugins"), Plugins);
 
 	FPluginDisallowedDescriptor::UpdateArray(JsonObject, TEXT("DisallowedPlugins"), DisallowedPlugins);
@@ -555,6 +565,11 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 	for (const auto& KVP : AdditionalFieldsToWrite)
 	{
 		JsonObject.SetField(KVP.Key, FJsonValue::Duplicate(KVP.Value));
+	}
+
+	for (const FString& Field : AdditionalFieldsToRemove)
+	{
+		JsonObject.RemoveField(Field);
 	}
 #endif //if WITH_EDITOR
 }

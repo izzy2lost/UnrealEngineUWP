@@ -28,6 +28,14 @@ FAutoConsoleVariableRef CVarRecordInteractionShadowPrimitives(
 	TEXT(""),
 	ECVF_RenderThreadSafe);
 
+static int32 GTestMobilityForStaticSceneMembership = 1;
+FAutoConsoleVariableRef CVarTestMobilityForStaticSceneMembership(
+	TEXT("r.Light.TestMobilityForStaticSceneMembership"),
+	GTestMobilityForStaticSceneMembership,
+	TEXT("Deprecated (UE5.5): Temporary flag to switch back to the old behavior (testing the cast static shadow flag)\n.")
+	TEXT("  The old behavior checked the HasStaticShadowing flag on the proxy, but that is cleared for VSMs so the new behavior tests the mobility instead."),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 void FLightSceneInfoCompact::Init(FLightSceneInfo* InLightSceneInfo)
 {
 	LightSceneInfo = InLightSceneInfo;
@@ -43,7 +51,9 @@ void FLightSceneInfoCompact::Init(FLightSceneInfo* InLightSceneInfo)
 	bAffectReflection = InLightSceneInfo->Proxy->AffectReflection();
 	bAffectGlobalIllumination = InLightSceneInfo->Proxy->AffectGlobalIllumination();
 	bIsMovable = InLightSceneInfo->Proxy->IsMovable();
-	CastRaytracedShadow = InLightSceneInfo->Proxy->CastsRaytracedShadow();
+    CastRaytracedShadow = InLightSceneInfo->Proxy->CastsRaytracedShadow();
+	bAllowMegaLights = InLightSceneInfo->Proxy->AllowMegaLights();
+	MegaLightsShadowMethod = InLightSceneInfo->Proxy->GetMegaLightsShadowMethod();
 }
 
 FLightSceneInfo::FLightSceneInfo(FLightSceneProxy* InProxy, bool InbVisible)
@@ -51,6 +61,7 @@ FLightSceneInfo::FLightSceneInfo(FLightSceneProxy* InProxy, bool InbVisible)
 	, DynamicInteractionOftenMovingPrimitiveList(NULL)
 	, DynamicInteractionStaticPrimitiveList(NULL)
 	, Proxy(InProxy)
+	, Type((ELightComponentType)InProxy->GetLightType())
 	, Id(INDEX_NONE)
 	, DynamicShadowMapChannel(-1)
 	, bPrecomputedLightingIsValid(InProxy->GetLightComponent()->IsPrecomputedLightingValid())
@@ -114,21 +125,24 @@ void FLightSceneInfo::AddToScene()
 	}
 }
 
-/**
- * If the light affects the primitive, create an interaction, and process children 
- * 
- * @param LightSceneInfoCompact Compact representation of the light
- * @param PrimitiveSceneInfoCompact Compact representation of the primitive
- */
+bool FLightSceneInfo::ShouldCreateLightPrimitiveInteraction(const FLightSceneInfoCompact& LightSceneInfoCompact, const FPrimitiveSceneInfoCompact& PrimitiveSceneInfoCompact)
+{
+	if (LightSceneInfoCompact.AffectsPrimitive(FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfoCompact.Proxy))
+	{
+		// create light interaction and add to light/primitive lists
+		return FLightPrimitiveInteraction::ShouldCreate(this, PrimitiveSceneInfoCompact.PrimitiveSceneInfo).bShouldCreate;
+	}
+	return false;
+}
+
 void FLightSceneInfo::CreateLightPrimitiveInteraction(const FLightSceneInfoCompact& LightSceneInfoCompact, const FPrimitiveSceneInfoCompact& PrimitiveSceneInfoCompact)
 {
-	if(	!Scene->IsPrimitiveBeingRemoved(PrimitiveSceneInfoCompact.PrimitiveSceneInfo) && LightSceneInfoCompact.AffectsPrimitive(FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfoCompact.Proxy))
+	if (LightSceneInfoCompact.AffectsPrimitive(FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfoCompact.Proxy))
 	{
 		// create light interaction and add to light/primitive lists
 		FLightPrimitiveInteraction::Create(this,PrimitiveSceneInfoCompact.PrimitiveSceneInfo);
 	}
 }
-
 
 void FLightSceneInfo::RemoveFromScene()
 {
@@ -173,14 +187,29 @@ FBoxCenterAndExtent FLightSceneInfo::GetBoundingBox() const
 	return FBoxCenterAndExtent(BoundingSphere.Center, FVector(BoundingSphere.W, BoundingSphere.W, BoundingSphere.W));
 }
 
+inline static bool IsInDesiredSceneSubset(const FViewInfo& View, FLightSceneProxy *Proxy)
+{
+	if (!View.bStaticSceneOnly)
+	{
+		return true;
+	}
+
+	if (GTestMobilityForStaticSceneMembership)
+	{
+		return !Proxy->IsMovable();
+	}
+	else
+	{
+		return Proxy->HasStaticShadowing();
+	}
+}
+
 bool FLightSceneInfo::ShouldRenderLight(const FViewInfo& View, bool bOffscreen) const
 {
 	// Only render the light if it is in the view frustum
 	bool bLocalVisible = bVisible && (bOffscreen ? View.VisibleLightInfos[Id].bInDrawRange : View.VisibleLightInfos[Id].bInViewFrustum);
 
 #if !UE_BUILD_SHIPPING
-	ELightComponentType Type = (ELightComponentType)Proxy->GetLightType();
-
 	switch(Type)
 	{
 		case LightType_Directional:
@@ -212,7 +241,7 @@ bool FLightSceneInfo::ShouldRenderLight(const FViewInfo& View, bool bOffscreen) 
 
 	return bLocalVisible
 		// Only render lights with static shadowing for reflection captures, since they are only captured at edit time
-		&& (!View.bStaticSceneOnly || Proxy->HasStaticShadowing())
+		&& IsInDesiredSceneSubset(View, Proxy)
 		// Only render lights in the default channel, or if there are any primitives outside the default channel
 		&& (Proxy->GetLightingChannelMask() & GetDefaultLightingChannelMask() || View.bUsesLightingChannels || bOffscreen);
 }
@@ -390,7 +419,10 @@ uint32 FLightSceneInfo::PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLi
 
 	Result |= Proxy->LightFunctionAtlasLightIndex << (BitOffset);		BitOffset += 8;
 
-	// 28 bits used, 4 bits free
+	uint32 AffectsTranslucentLighting = Proxy->AffectsTranslucentLighting() ? 1 : 0;
+	Result |= AffectsTranslucentLighting << (BitOffset);				BitOffset += 1;
+
+	// 29 bits used, 3 bits free
 
 	return Result;
 }

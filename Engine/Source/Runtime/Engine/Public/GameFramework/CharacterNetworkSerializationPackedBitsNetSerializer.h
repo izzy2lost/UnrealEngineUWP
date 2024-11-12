@@ -13,10 +13,6 @@ struct FCharacterNetworkSerializationPackedBitsNetSerializerConfig : public FNet
 	// Value used to sanity check incoming data so that we do not over-allocate dynamic memory
 	UPROPERTY()
 	uint32 MaxAllowedDataBits = 8192; 
-
-	// Value used to sanity check incoming data so that we do not over-allocate dynamic memory
-	UPROPERTY()
-	uint32 MaxAllowedObjectReferences = 128; 
 };
 
 namespace UE::Net

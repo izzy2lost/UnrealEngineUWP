@@ -40,12 +40,13 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Materials/Material.h"
 #include "Model/Mix/ViewportSettings.h"
+#include "TextureGraph.h"
 
 
 class FTG_EditorViewportClient : public FEditorViewportClient
 {
 public:
-	FTG_EditorViewportClient(TWeakPtr<ITG_Editor> InTG_AssetEditor, FAdvancedPreviewScene& InPreviewScene, const TSharedRef<STG_EditorViewport>& InTG_AssetEditorViewport);
+	FTG_EditorViewportClient(TObjectPtr<UTextureGraph> InTextureGraphPtr, FAdvancedPreviewScene& InPreviewScene, const TSharedRef<STG_EditorViewport>& InTG_AssetEditorViewport);
 
 	// FEditorViewportClient interface
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
@@ -67,17 +68,17 @@ public:
 
 private:
 
-	/** Pointer back to the material editor tool that owns us */
-	TWeakPtr<ITG_Editor> TG_EditorPtr;
+	/** Pointer to the Edited Texture Graph */
+	TObjectPtr<UTextureGraph> TextureGraphPtr;
 
 	/** Preview Scene - uses advanced preview settings */
 	class FAdvancedPreviewScene* AdvancedPreviewScene;
 };
 
 
-FTG_EditorViewportClient::FTG_EditorViewportClient(TWeakPtr<ITG_Editor> InTG_Editor, FAdvancedPreviewScene& InPreviewScene, const TSharedRef<STG_EditorViewport>& InTG_EditorViewport)
+FTG_EditorViewportClient::FTG_EditorViewportClient(TObjectPtr<UTextureGraph> InTextureGraphPtr, FAdvancedPreviewScene& InPreviewScene, const TSharedRef<STG_EditorViewport>& InTG_EditorViewport)
 	: FEditorViewportClient(nullptr, &InPreviewScene, StaticCastSharedRef<SEditorViewport>(InTG_EditorViewport))
-	, TG_EditorPtr(InTG_Editor)
+	, TextureGraphPtr(InTextureGraphPtr)
 {
 	bUsesDrawHelper = true;
 	// Setup defaults for the common draw helper.
@@ -171,13 +172,8 @@ FLinearColor FTG_EditorViewportClient::GetBackgroundColor() const
 	}
 	else
 	{
-		FLinearColor BackgroundColor = FLinearColor::Black;
+		FLinearColor BackgroundColor = FColor(64, 64, 64);			
 		
-		if (TG_EditorPtr.IsValid())
-		{
-			BackgroundColor = FColor(64, 64, 64);			
-		}
-
 		return BackgroundColor;
 	}
 }
@@ -230,18 +226,9 @@ void FTG_EditorViewportClient::FocusViewportOnBounds(const FBoxSphereBounds Boun
 
 void STG_EditorViewport::Construct(const FArguments& InArgs)
 {
-	//_previewScene = new FAdvancedPreviewScene(FPreviewScene::ConstructionValues(), 
+	TextureGraphPtr = InArgs._InTextureGraph;
 
-	TG_EditorPtr = InArgs._TG_Editor;
-
-	TSharedPtr<ITG_Editor> PinnedEditor = TG_EditorPtr.Pin();
-	
 	PreviewScene = MakeShareable(new FAdvancedPreviewScene(FPreviewScene::ConstructionValues()));
-	/*if (StaticMesh)
-	{
-		_previewScene->SetFloorOffset(-StaticMesh->GetExtendedBounds().Origin.Z + StaticMesh->GetExtendedBounds().BoxExtent.Z);
-	}*/
-	PreviewScene->SetFloorVisibility(false, false);
 
 	// restore last used feature level
 	UWorld* World = PreviewScene->GetWorld();
@@ -262,23 +249,24 @@ void STG_EditorViewport::Construct(const FArguments& InArgs)
 
 	SEditorViewport::Construct(SEditorViewport::FArguments());
 
-	/*_previewMeshComponent = NewObject<UStaticMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);*/
-	
 	PreviewMeshComponent = nullptr;
 	
-	// InitPreviewMesh();
-
 	ERHIFeatureLevel::Type FeatureLevel = GEditor->PreviewPlatform.GetEffectivePreviewFeatureLevel();
 	if (FeatureLevel <= ERHIFeatureLevel::ES3_1)
 	{
 		PreviewMeshComponent->SetMobility(EComponentMobility::Static);
 	}
 
+	UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
+	const int32 ProfileIndex = PreviewScene->GetCurrentProfileIndex();
+	if (Settings->Profiles.IsValidIndex(ProfileIndex))
+	{
+		PreviewScene->SetEnvironmentVisibility(Settings->Profiles[ProfileIndex].bShowEnvironment, true);
+	}
+
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &STG_EditorViewport::OnObjectPropertyChanged);
 	
 	GenerateRendermodeToolbar();
-	
-	TogglePreviewBackground();
 }
 
 STG_EditorViewport::STG_EditorViewport()
@@ -289,8 +277,13 @@ STG_EditorViewport::STG_EditorViewport()
 
 STG_EditorViewport::~STG_EditorViewport()
 {
-	CastChecked<UEditorEngine>(GEngine)->OnPreviewFeatureLevelChanged().Remove(PreviewFeatureLevelChangedHandle);
-
+	if (PreviewFeatureLevelChangedHandle.IsValid())
+	{
+		if (UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine))
+		{
+			EditorEngine->OnPreviewFeatureLevelChanged().Remove(PreviewFeatureLevelChangedHandle);
+		}
+	}
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 	if (EditorViewportClient.IsValid())
 	{
@@ -324,7 +317,7 @@ TSharedRef<SEditorViewport> STG_EditorViewport::GetViewportWidget()
 
 TSharedRef<FEditorViewportClient> STG_EditorViewport::MakeEditorViewportClient()
 {
-	EditorViewportClient = MakeShareable(new FTG_EditorViewportClient(TG_EditorPtr, *PreviewScene.Get(), SharedThis(this)));
+	EditorViewportClient = MakeShareable(new FTG_EditorViewportClient(TextureGraphPtr, *PreviewScene.Get(), SharedThis(this)));
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().AddRaw(this, &STG_EditorViewport::OnAssetViewerSettingsChanged);
 	EditorViewportClient->SetViewLocation(FVector::ZeroVector);
 	EditorViewportClient->SetViewRotation(FRotator(-25.0f, -135.0f, 0.0f));
@@ -378,9 +371,6 @@ void STG_EditorViewport::BindCommands()
 	SEditorViewport::BindCommands();
 
 	const FTG_EditorCommands& Commands = FTG_EditorCommands::Get();
-
-	check(TG_EditorPtr.IsValid());
-	CommandList->Append(TG_EditorPtr.Pin()->GetToolkitCommands());
 
 	// Add the commands to the toolkit command list so that the toolbar buttons can find them
 	CommandList->MapAction(
@@ -436,7 +426,7 @@ void STG_EditorViewport::SetRenderMode(FName InRenderModeName)
 	check(RenderModeMgr);
 	
 	RenderModeName = InRenderModeName;
-	RenderModeMgr->ChangeRenderMode(RenderModeName);
+	RenderModeMgr->ChangeRenderMode(RenderModeName, TextureGraphPtr);
 	
 	// set editor viewport view mode
 #if WITH_EDITOR
@@ -456,8 +446,9 @@ void STG_EditorViewport::SetRenderMode(FName InRenderModeName)
 void STG_EditorViewport::InitRenderModes(UTextureGraph* InTextureGraph)
 {
 	if (!RenderModeMgr)
-		RenderModeMgr = MakeShared<TG_RenderModeManager>(InTextureGraph);
+		RenderModeMgr = MakeShared<TG_RenderModeManager>();
 	
+	TextureGraphPtr = InTextureGraph;
 	RenderModeMgr->Clear();
 	UpdateRenderMode();
 }
@@ -469,7 +460,10 @@ void STG_EditorViewport::UpdateRenderMode()
 
 void STG_EditorViewport::InitPreviewMesh()
 {
-	SetPreviewAsset(GUnrealEd->GetThumbnailManager()->EditorCube);
+	UStaticMesh* Primitive = GUnrealEd->GetThumbnailManager()->EditorCube;
+	SetPreviewAsset(Primitive);
+	TextureGraphPtr->GetSettings()->SetPreviewMesh(Primitive);	
+			
 }
 
 bool STG_EditorViewport::IsPreviewPrimitiveChecked(EThumbnailPrimType PrimType) const
@@ -493,7 +487,7 @@ void STG_EditorViewport::OnSetPreviewPrimitive(EThumbnailPrimType PrimType, bool
 		if (Primitive != nullptr)
 		{
 			SetPreviewAsset(Primitive);
-			TG_EditorPtr.Pin().Get()->GetTextureGraphInterface()->PreviewMesh = Primitive->GetPathName();	
+			TextureGraphPtr->GetSettings()->SetPreviewMesh(Primitive);	
 			
 			RefreshViewport();
 		}
@@ -502,11 +496,10 @@ void STG_EditorViewport::OnSetPreviewPrimitive(EThumbnailPrimType PrimType, bool
 
 void STG_EditorViewport::OnSetPreviewMeshFromSelection()
 {
-	//TODO: Need to enable the code. 
 	bool bFoundPreviewMesh = false;
 	FEditorDelegates::LoadSelectedAssetsIfNeeded.Broadcast();
 
-	UMixInterface* TG_Interface = TG_EditorPtr.Pin()->GetTextureGraphInterface();
+	UMixSettings* TextureGraphSettings = TextureGraphPtr->GetSettings();
 
 	// Look for a selected asset that can be converted to a mesh component
 	for (FSelectionIterator SelectionIt(*GEditor->GetSelectedObjects()); SelectionIt && !bFoundPreviewMesh; ++SelectionIt)
@@ -519,7 +512,7 @@ void STG_EditorViewport::OnSetPreviewMeshFromSelection()
 				if (ComponentClass->IsChildOf(UMeshComponent::StaticClass()))
 				{
 					SetPreviewAsset(TestAsset);
-					TG_Interface->PreviewMesh = TestAsset->GetPathName();
+					TextureGraphSettings->SetPreviewMesh(Cast<UStaticMesh>(TestAsset));
 					bFoundPreviewMesh = true;
 				}
 			}
@@ -528,9 +521,6 @@ void STG_EditorViewport::OnSetPreviewMeshFromSelection()
 
 	if (bFoundPreviewMesh)
 	{
-		//FTG_Editor::UpdateThumbnailInfoPreviewMesh(TG_Interface);
-
-		//TG_Interface->MarkPackageDirty();
 		RefreshViewport();
 	}
 	else
@@ -707,29 +697,36 @@ bool STG_EditorViewport::SetPreviewAsset(UObject* InAsset)
 		PreviewScene->SetFloorOffset(-PreviewMeshComponent->Bounds.Origin.Z + PreviewMeshComponent->Bounds.BoxExtent.Z);
 
 	}
-	TG_EditorPtr.Pin()->SetMesh(PreviewMeshComponent, PreviewScene->GetWorld());
-
+	if (IsValid(TextureGraphPtr))
+	{
+		TextureGraphPtr->SetEditorMesh(Cast<UStaticMeshComponent>(PreviewMeshComponent), PreviewScene->GetWorld()).then([this]()
+		{
+			this->InitRenderModes(TextureGraphPtr);
+		});
+	}
 	return (PreviewMeshComponent != nullptr);
 }
 
 void STG_EditorViewport::GenerateRenderModesList()
 {
-	UMixInterface* TextureGraph = GetEditorPtr().Pin().Get()->GetTextureGraphInterface();
-	UMixSettings* Settings = TextureGraph->GetSettings();
-	
-	if(ensure(Settings->GetViewportSettings().Material))
+	if (IsValid(TextureGraphPtr))
 	{
-		const FName MaterialName = Settings->GetViewportSettings().GetMaterialName();
-
-		CurrentMaterialName = MaterialName;
-		RenderModeName = MaterialName;
-
-		RenderModesList.Empty();
-		RenderModesList.Add(MaterialName);
-
-		for(FMaterialMappingInfo MaterialMappingInfo : Settings->GetViewportSettings().MaterialMappingInfos)
+		UMixSettings* Settings = TextureGraphPtr->GetSettings();
+	
+		if(ensure(Settings->GetViewportSettings().Material))
 		{
-			RenderModesList.Add(MaterialMappingInfo.MaterialInput);
+			const FName MaterialName = Settings->GetViewportSettings().GetMaterialName();
+
+			CurrentMaterialName = MaterialName;
+			RenderModeName = MaterialName;
+
+			RenderModesList.Empty();
+			RenderModesList.Add(MaterialName);
+
+			for(FMaterialMappingInfo MaterialMappingInfo : Settings->GetViewportSettings().MaterialMappingInfos)
+			{
+				RenderModesList.Add(MaterialMappingInfo.MaterialInput);
+			}
 		}
 	}
 }

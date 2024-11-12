@@ -29,44 +29,47 @@ static const FName SequencePinName(TEXT("Sequence"));
 
 #define LOCTEXT_NAMESPACE "UK2Node_GetSequenceBinding"
 
-void EnsureFullyLoaded(UObject* Object)
+void EnsureFullyPreloaded(UObject* Object)
 {
 	if (!Object)
 	{
 		return;
 	}
 
-	bool bLoadInternalReferences = false;
-
+	FLinkerLoad* Linker = Object->GetLinker();
 	if (Object->HasAnyFlags(RF_NeedLoad))
 	{
-		FLinkerLoad* Linker = Object->GetLinker();
 		if (ensure(Linker))
 		{
 			Linker->Preload(Object);
-			bLoadInternalReferences = true;
 			check(!Object->HasAnyFlags(RF_NeedLoad));
 		}
 	}
 
-	bLoadInternalReferences = bLoadInternalReferences || Object->HasAnyFlags(RF_NeedPostLoad | RF_NeedPostLoadSubobjects);
-
-	Object->ConditionalPostLoad();
-	Object->ConditionalPostLoadSubobjects();
-	
-	if (bLoadInternalReferences)
+	// We only want to ensure that _loaded_ objects have RF_LoadCompleted set.
+	// Some objects can be created during postload, so we don't need to verify RF_LoadCompleted in those cases.
+	if (Linker)
 	{
-		// Collect a list of all things this element owns
-		TArray<UObject*> ObjectReferences;
-		FReferenceFinder(ObjectReferences, nullptr, false, true, false, true).FindReferences(Object);
+		check(Object->HasAnyFlags(RF_LoadCompleted));
+	}
 
-		// Iterate over the list, and preload everything so it is valid for refreshing
-		for (UObject* Reference : ObjectReferences)
+	TArray<UObject*> ObjectReferences;
+	FReferenceFinder(ObjectReferences, nullptr, false, true, false, true).FindReferences(Object);
+
+	for (UObject* Reference : ObjectReferences)
+	{
+		check(Reference);
+
+		const bool bIsMovieSceneType =
+			Reference->IsA<UMovieSceneSequence>() ||
+			Reference->IsA<UMovieScene>() ||
+			Reference->IsA<UMovieSceneTrack>() ||
+			Reference->IsA<UMovieSceneSection>()
+		;
+
+		if (bIsMovieSceneType)
 		{
-			if (Reference->IsA<UMovieSceneSequence>() || Reference->IsA<UMovieScene>() || Reference->IsA<UMovieSceneTrack>() || Reference->IsA<UMovieSceneSection>())
-			{
-				EnsureFullyLoaded(Reference);
-			}
+			EnsureFullyPreloaded(Reference);
 		}
 	}
 }
@@ -94,10 +97,26 @@ public:
 	}
 };
 
-UMovieSceneSequence* UK2Node_GetSequenceBinding::GetSequence() const
+void UK2Node_GetSequenceBinding::SetSequence(UMovieSceneSequence* InSequence)
 {
-	FLinkerLoad* Linker = GetLinker();
-	return Cast<UMovieSceneSequence>(SourceSequence.TryLoad(Linker ? Linker->GetSerializeContext() : nullptr));
+	SourceMovieSequence = InSequence;
+}
+
+void UK2Node_GetSequenceBinding::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	const bool bConvertSoftToHardReference =
+		Ar.IsLoading() && 
+		((Ar.GetPortFlags() & PPF_Duplicate) == 0) &&
+		!SourceSequence_DEPRECATED.IsNull()
+	;
+
+	if (bConvertSoftToHardReference)
+	{
+		SourceMovieSequence = Cast<UMovieSceneSequence>(SourceSequence_DEPRECATED.TryLoad());
+		SourceSequence_DEPRECATED.Reset();
+	}
 }
 
 void UK2Node_GetSequenceBinding::ValidateNodeDuringCompilation(FCompilerResultsLog& MessageLog) const
@@ -133,24 +152,20 @@ void UK2Node_GetSequenceBinding::PostPlacedNewNode()
 	// Attempt to assign the sequence asset from our outer if this BP is contained within a sequence
 	if (UMovieSceneSequence* OuterSequence = GetTypedOuter<UMovieSceneSequence>())
 	{
-		SourceSequence = OuterSequence;
+		SourceMovieSequence = OuterSequence;
 	}
 	Super::PostPlacedNewNode();
 }
 
 UMovieScene* UK2Node_GetSequenceBinding::GetObjectMovieScene() const
 {
-	UMovieSceneSequence* Sequence = GetSequence();
-	if (Sequence && Binding.IsValid())
+	if (SourceMovieSequence && Binding.IsValid())
 	{
-		// Ensure that the sequence data is as loaded as it can be - we many only be able to partially load the structural information as part of a blueprint compile as that may happen at Preload time
-		EnsureFullyLoaded(Sequence);
-
 		FMovieSceneSequenceID SequenceID = Binding.GetRelativeSequenceID();
 		if (SequenceID == MovieSceneSequenceID::Root)
 		{
 			// Look it up in the moviescene itself
-			return Sequence->GetMovieScene();
+			return SourceMovieSequence->GetMovieScene();
 		}
 		else
 		{
@@ -186,7 +201,7 @@ UMovieScene* UK2Node_GetSequenceBinding::GetObjectMovieScene() const
 				SequenceSignatureCache.Reset();
 				SequenceHierarchyCache = FMovieSceneSequenceHierarchy();
 
-				UMovieSceneCompiledDataManager::CompileHierarchy(Sequence, &SequenceHierarchyCache, EMovieSceneServerClientMask::All);
+				UMovieSceneCompiledDataManager::CompileHierarchy(SourceMovieSequence, &SequenceHierarchyCache, EMovieSceneServerClientMask::All);
 
 				for (const TTuple<FMovieSceneSequenceID, FMovieSceneSubSequenceData>& Pair : SequenceHierarchyCache.AllSubSequenceData())
 				{
@@ -217,13 +232,12 @@ FNodeHandlingFunctor* UK2Node_GetSequenceBinding::CreateNodeHandler(FKismetCompi
 
 void UK2Node_GetSequenceBinding::PreloadRequiredAssets()
 {
-	EnsureFullyLoaded(GetSequence());
+	EnsureFullyPreloaded(SourceMovieSequence);
 }
 
 FText UK2Node_GetSequenceBinding::GetSequenceName() const
 {
-	UMovieSceneSequence* Sequence = GetSequence();
-	return Sequence ? FText::FromName(Sequence->GetFName()) : LOCTEXT("NoSequence", "No Sequence");
+	return SourceMovieSequence ? FText::FromName(SourceMovieSequence->GetFName()) : LOCTEXT("NoSequence", "No Sequence");
 }
 
 FText UK2Node_GetSequenceBinding::GetBindingName() const
@@ -264,18 +278,16 @@ void UK2Node_GetSequenceBinding::GetNodeContextMenuActions(UToolMenu* Menu, UGra
 		FToolMenuSection& Section = Menu->AddSection("K2NodeGetSequenceBinding", LOCTEXT("ThisNodeHeader", "This Node"));
 		if (!Context->Pin)
 		{
-			UMovieSceneSequence* Sequence = GetSequence();
-
 			Section.AddSubMenu(
 				"SetSequence",
 				LOCTEXT("SetSequence_Text", "Sequence"),
 				LOCTEXT("SetSequence_ToolTip", "Sets the sequence to get a binding from"),
-				FNewToolMenuDelegate::CreateLambda([this, Sequence](UToolMenu* SubMenu)
+				FNewToolMenuDelegate::CreateLambda([this](UToolMenu* SubMenu)
 				{
 					TArray<const UClass*> AllowedClasses({ UMovieSceneSequence::StaticClass() });
 
 					TSharedRef<SWidget> MenuContent = PropertyCustomizationHelpers::MakeAssetPickerWithMenu(
-						FAssetData(Sequence),
+						FAssetData(SourceMovieSequence),
 						true /* bAllowClear */,
 						AllowedClasses,
 						PropertyCustomizationHelpers::GetNewAssetFactoriesForClasses(AllowedClasses),
@@ -296,7 +308,7 @@ void UK2Node_GetSequenceBinding::SetSequence(const FAssetData& InAssetData)
 	const FScopedTransaction Transaction(LOCTEXT("SetSequence", "Set Sequence"));
 	Modify();
 
-	SourceSequence = Cast<UMovieSceneSequence>(InAssetData.GetAsset());
+	SourceMovieSequence = Cast<UMovieSceneSequence>(InAssetData.GetAsset());
 }
 
 void UK2Node_GetSequenceBinding::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
@@ -309,8 +321,6 @@ void UK2Node_GetSequenceBinding::GetMenuActions(FBlueprintActionDatabaseRegistra
 		ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
 	}
 }
-
-#if WITH_EDITOR
 
 TSharedPtr<SGraphNode> UK2Node_GetSequenceBinding::CreateVisualWidget()
 {
@@ -335,9 +345,8 @@ TSharedPtr<SGraphNode> UK2Node_GetSequenceBinding::CreateVisualWidget()
 		virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 		{
 			UK2Node_GetSequenceBinding* Node = CastChecked<UK2Node_GetSequenceBinding>(GraphNode);
-			UMovieSceneSequence* Sequence = Node->GetSequence();
 
-			if (bNeedsUpdate || Sequence != LastSequence.Get())
+			if (bNeedsUpdate || Node->SourceMovieSequence != LastSequence.Get())
 			{
 				Initialize();
 				UpdateGraphNode();
@@ -345,7 +354,7 @@ TSharedPtr<SGraphNode> UK2Node_GetSequenceBinding::CreateVisualWidget()
 				bNeedsUpdate = false;
 			}
 
-			LastSequence = Sequence;
+			LastSequence = Node->SourceMovieSequence;
 
 			SGraphNode::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 		}
@@ -412,7 +421,7 @@ TSharedPtr<SGraphNode> UK2Node_GetSequenceBinding::CreateVisualWidget()
 
 		FReply BrowseToAsset()
 		{
-			UMovieSceneSequence* Sequence = CastChecked<UK2Node_GetSequenceBinding>(GraphNode)->GetSequence();
+			UMovieSceneSequence* Sequence = CastChecked<UK2Node_GetSequenceBinding>(GraphNode)->SourceMovieSequence;
 			if (Sequence)
 			{
 				TArray<UObject*> Objects{ Sequence };
@@ -540,7 +549,7 @@ TSharedPtr<SGraphNode> UK2Node_GetSequenceBinding::CreateVisualWidget()
 		}
 		virtual UMovieSceneSequence* GetSequence() const override
 		{
-			return CastChecked<UK2Node_GetSequenceBinding>(GraphNode)->GetSequence();
+			return CastChecked<UK2Node_GetSequenceBinding>(GraphNode)->SourceMovieSequence;
 		}
 
 		FSlateColor OnGetComboForeground() const
@@ -565,7 +574,5 @@ TSharedPtr<SGraphNode> UK2Node_GetSequenceBinding::CreateVisualWidget()
 
 	return SNew(SGraphNodeGetSequenceBinding, this);
 }
-
-#endif
 
 #undef LOCTEXT_NAMESPACE

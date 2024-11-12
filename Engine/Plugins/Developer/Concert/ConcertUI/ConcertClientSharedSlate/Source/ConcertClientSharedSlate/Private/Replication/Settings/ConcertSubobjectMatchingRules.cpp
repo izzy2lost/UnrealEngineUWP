@@ -6,6 +6,8 @@
 #include "Internationalization/Regex.h"
 #include "Misc/EBreakBehavior.h"
 
+#include "UObject/ObjectMacros.h"
+
 namespace UE::ConcertSharedSlate
 {
 	static bool MatchesAnyRegex(const FString& Input, const TSet<FString>& AllRegex)
@@ -64,5 +66,5 @@ void FConcertSubobjectMatchingRules::MatchToSubobjectsBreakable(const UObject& A
 		}
 		
 		return true;
-	}, bIncludeNested);
+	}, bIncludeNested, RF_MirroredGarbage);
 }

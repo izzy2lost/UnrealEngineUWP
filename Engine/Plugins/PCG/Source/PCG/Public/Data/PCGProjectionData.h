@@ -23,6 +23,7 @@ public:
 	const FPCGProjectionParams& GetProjectionParams() const { return ProjectionParams; }
 
 	// ~Begin UPCGData interface
+	virtual FPCGCrc ComputeCrc(bool bFullDataCrc) const override;
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 	// ~End UPCGData interface
 
@@ -35,7 +36,7 @@ public:
 	virtual bool HasNonTrivialTransform() const override;
 	virtual bool RequiresCollapseToSample() const override;
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:
@@ -68,7 +69,3 @@ protected:
 	UPROPERTY(BlueprintReadwrite, VisibleAnywhere, Category = SpatialData)
 	FPCGProjectionParams ProjectionParams;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PCGPointData.h"
-#endif

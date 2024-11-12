@@ -235,6 +235,12 @@ public:
 		const FAnimationPoseData& SourcePoseTwoData,
 		const TArray<float>& WeightsOfSource2,
 		/*out*/ FAnimationPoseData& OutAnimationPoseData);
+
+	static ENGINE_API void BlendTwoPosesTogetherPerBone(
+		const FCompactPose& SourcePoseOneData,
+		const FCompactPose& SourcePoseTwoData,
+		const TArray<float>& WeightsOfSource2,
+		/*out*/ FCompactPose& OutAnimationPoseData);
 		
 	/**
 	* Blends together a set of poses, each with a given weight.
@@ -417,11 +423,6 @@ public:
 
 	/** Fill ref pose **/
 	static ENGINE_API void FillWithRefPose(TArray<FTransform>& OutAtoms, const FBoneContainer& RequiredBones);
-
-#if WITH_EDITOR
-	/** fill with retarget base ref pose but this isn't used during run-time, so it always copies all of them */
-	static ENGINE_API void FillWithRetargetBaseRefPose(FCompactPose& OutPose, const USkeletalMesh* Mesh);
-#endif
 
 	/** Convert LocalTransforms into MeshSpaceTransforms over RequiredBones. */
 	static ENGINE_API void ConvertPoseToMeshSpace(const TArray<FTransform>& LocalTransforms, TArray<FTransform>& MeshSpaceTransforms, const FBoneContainer& RequiredBones);
@@ -621,8 +622,6 @@ public:
 
 #if WITH_EDITOR
 	static ENGINE_API void FillUpComponentSpaceTransformsRefPose(const USkeleton* Skeleton, TArray<FTransform> &ComponentSpaceTransforms);
-	static ENGINE_API void FillUpComponentSpaceTransformsRetargetBasePose(const USkeleton* Skeleton, TArray<FTransform> &ComponentSpaceTransforms);
-	static ENGINE_API void FillUpComponentSpaceTransformsRetargetBasePose(const USkeletalMesh* Mesh, TArray<FTransform> &ComponentSpaceTransforms);
 #endif
 
 	/* Weight utility functions */

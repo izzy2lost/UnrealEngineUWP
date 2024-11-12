@@ -109,6 +109,15 @@ void UK2Node_SwitchEnum::AddPinSearchMetaDataInfo(const UEdGraphPin* Pin, TArray
 	}
 }
 
+void UK2Node_SwitchEnum::ValidateNodeDuringCompilation(FCompilerResultsLog& MessageLog) const
+{
+	if (!Enum)
+	{
+		MessageLog.Error(*LOCTEXT("MissingSwitchEnum", "@@ must have a valid enum - check log for 'Failed import' add a redirector or recreate the enum").ToString(), this);
+	}
+	return Super::ValidateNodeDuringCompilation(MessageLog);
+}
+
 bool UK2Node_SwitchEnum::IsConnectionDisallowed(const UEdGraphPin* MyPin, const UEdGraphPin* OtherPin, FString& OutReason) const
 {
 	const UEnum* SubCategoryObject = Cast<UEnum>( OtherPin->PinType.PinSubCategoryObject.Get() );

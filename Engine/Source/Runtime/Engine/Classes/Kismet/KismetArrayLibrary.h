@@ -390,7 +390,7 @@ public:
  
  		// Since NewItem isn't really an int, step the stack manually
  		const FProperty* InnerProp = ArrayProperty->Inner;
- 		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+ 		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
  		void* StorageSpace = FMemory_Alloca(PropertySize);
  		InnerProp->InitializeValue(StorageSpace);
  
@@ -420,7 +420,7 @@ public:
 
 		// Since NewItem isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -551,7 +551,7 @@ public:
 
 		// Since NewItem isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -601,7 +601,7 @@ public:
 		}
 		// Since Item isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -759,7 +759,7 @@ public:
 
 		// Since Item isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -770,7 +770,7 @@ public:
 		const FFieldClass* MostRecentPropClass = Stack.MostRecentProperty->GetClass();
 		void* ItemPtr;
 		// If the destination and the inner type are identical in size and their field classes derive from one another, then permit the writing out of the array element to the destination memory
-		if (Stack.MostRecentPropertyAddress != NULL && (PropertySize == Stack.MostRecentProperty->ElementSize*Stack.MostRecentProperty->ArrayDim) &&
+		if (Stack.MostRecentPropertyAddress != NULL && (PropertySize == Stack.MostRecentProperty->GetElementSize()*Stack.MostRecentProperty->ArrayDim) &&
 			(MostRecentPropClass->IsChildOf(InnerPropClass) || InnerPropClass->IsChildOf(MostRecentPropClass)))
 		{
 			ItemPtr = Stack.MostRecentPropertyAddress;
@@ -802,7 +802,7 @@ public:
 
 		// Since NewItem isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -857,7 +857,7 @@ public:
 		}
 		// Since ItemToFind isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -892,7 +892,7 @@ public:
 		}
 		// Since ItemToFind isn't really an int, step the stack manually
 		const FProperty* InnerProp = ArrayProperty->Inner;
-		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		InnerProp->InitializeValue(StorageSpace);
 
@@ -921,6 +921,12 @@ public:
 
 		Stack.StepCompiledIn<FArrayProperty>(NULL);
 		void* SrcArrayAddr = Stack.MostRecentPropertyAddress;
+		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!ArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
 
 		P_FINISH;
 

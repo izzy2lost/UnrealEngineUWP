@@ -299,6 +299,16 @@ private:
 
 	void SwapSafeZoneTypes();
 
+	bool IsSelectableInSequencer(UWidget* const InWidget) const;
+
+	void OnSelectedAnimationChanged();
+
+	void OnSelectionLimitedChanged(const bool bInEnabled);
+
+	void DeselectNonSequencerWidgets();
+
+	EVisibility GetSelectionLimitedTextVisibility() const;
+
 private:
 	/** A reference to the BP Editor that owns this designer */
 	TWeakPtr<FWidgetBlueprintEditor> BlueprintEditor;

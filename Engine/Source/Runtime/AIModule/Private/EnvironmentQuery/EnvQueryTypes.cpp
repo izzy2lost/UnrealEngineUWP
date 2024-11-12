@@ -324,6 +324,7 @@ FEnvQueryInstance::FEnvQueryInstance()
 	, bFoundSingleResult(false)
 	, bPassOnSingleResult(false)
 	, bHasLoggedTimeLimitWarning(false)
+	, bIsCurrentlyRunningAsync(false)
 	, StartTime(0)
 	, TotalExecutionTime(0)
 	, CurrentStepTimeLimit(0)
@@ -467,6 +468,17 @@ void FEQSParametrizedQueryExecutionRequest::PostEditChangeProperty(UObject& Owne
 		else
 		{
 			QueryConfig.Reset();
+		}
+	}
+	else if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(FAIDynamicParam, bAllowBBKey))
+	{
+		const int32 ChangedIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_CHECKED(FEQSParametrizedQueryExecutionRequest, QueryConfig).ToString());
+		if (QueryConfig.IsValidIndex(ChangedIndex))
+		{
+			if (!QueryConfig[ChangedIndex].bAllowBBKey)
+			{
+				QueryConfig[ChangedIndex].BBKey.InvalidateResolvedKey();
+			}
 		}
 	}
 }

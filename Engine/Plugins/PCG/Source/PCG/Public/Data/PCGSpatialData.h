@@ -55,7 +55,7 @@ public:
 	*   They are mainly cached values (and octree for points).
 	*   TODO: If we want to also copy those values (can be an optimization), we need to guard the copy.
 	*/
-	virtual UPCGSpatialData* DuplicateData(bool bInitializeMetadata = true) const override;
+	virtual UPCGSpatialData* DuplicateData(FPCGContext* Context, bool bInitializeMetadata = true) const override;
 	// ~End UPCGData interface
 
 	/** Returns the dimension of the data type, which has nothing to do with the dimension of its points */
@@ -100,7 +100,7 @@ public:
 	virtual void SamplePoints(const TArrayView<const TPair<FTransform, FBox>>& Samples, const TArrayView<FPCGPoint>& OutPoints, UPCGMetadata* OutMetadata) const;
 
 	/** Sample rotation, scale and other attributes from this data at the query position. Returns true if Transform location and Bounds overlaps this data. */
-	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName="SamplePoint"))
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName = "Sample Point"))
 	bool K2_SamplePoint(const FTransform& Transform, const FBox& Bounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const;
 
 	/** Project the query point onto this data, and sample point and metadata information at the projected position. Returns true if successful. */
@@ -112,7 +112,7 @@ public:
 	*/
 	virtual void ProjectPoints(const TArrayView<const TPair<FTransform, FBox>>& Samples, const FPCGProjectionParams& InParams, const TArrayView<FPCGPoint>& OutPoints, UPCGMetadata* OutMetadata) const;
 
-	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName="ProjectPoint"))
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName = "Project Point"))
 	bool K2_ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const;
 
 	/** Returns true if the data has a non-trivial transform */
@@ -120,19 +120,39 @@ public:
 	virtual bool HasNonTrivialTransform() const { return false; }
 
 	/** Returns a specialized data to intersect with another data */
-	UFUNCTION(BlueprintCallable, Category = SpatialData)
-	virtual UPCGIntersectionData* IntersectWith(const UPCGSpatialData* InOther) const;
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName = "Intersect With"))
+	UPCGIntersectionData* K2_IntersectWith(const UPCGSpatialData* InOther) const;
+
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
+	virtual UPCGIntersectionData* IntersectWith(const UPCGSpatialData* InOther) const { return IntersectWith(nullptr, InOther); }
+
+	virtual UPCGIntersectionData* IntersectWith(FPCGContext* InContext, const UPCGSpatialData* InOther) const;
 
 	/** Returns a specialized data to project this on another data of equal or higher dimension. Returns copy of this data if projection fails. */
-	UFUNCTION(BlueprintCallable, Category = SpatialData, meta=(AutoCreateRefTerm="InParams"))
-	virtual UPCGSpatialData* ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams = FPCGProjectionParams()) const;
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (AutoCreateRefTerm = "InParams", DisplayName  ="Project On"))
+	UPCGSpatialData* K2_ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams = FPCGProjectionParams()) const;
+
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
+	virtual UPCGSpatialData* ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams = FPCGProjectionParams()) const { return ProjectOn(nullptr, InOther, InParams); }
+
+	virtual UPCGSpatialData* ProjectOn(FPCGContext* InContext, const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams = FPCGProjectionParams()) const;
 
 	/** Returns a specialized data to union this with another data */
-	UFUNCTION(BlueprintCallable, Category = SpatialData)
-	virtual UPCGUnionData* UnionWith(const UPCGSpatialData* InOther) const;
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName = "Union With"))
+	UPCGUnionData* K2_UnionWith(const UPCGSpatialData* InOther) const;
 
-	UFUNCTION(BlueprintCallable, Category = SpatialData)
-	virtual UPCGDifferenceData* Subtract(const UPCGSpatialData* InOther) const;
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
+	virtual UPCGUnionData* UnionWith(const UPCGSpatialData* InOther) const { return UnionWith(nullptr, InOther); }
+
+	virtual UPCGUnionData* UnionWith(FPCGContext* InContext, const UPCGSpatialData* InOther) const;
+
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName = "Subtract"))
+	UPCGDifferenceData* K2_Subtract(const UPCGSpatialData* InOther) const;
+
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
+	virtual UPCGDifferenceData* Subtract(const UPCGSpatialData* InOther) const { return Subtract(nullptr, InOther); }
+
+	virtual UPCGDifferenceData* Subtract(FPCGContext* InContext, const UPCGSpatialData* InOther) const;
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)
 	virtual const UPCGMetadata* ConstMetadata() const override { return Metadata; }
@@ -164,7 +184,10 @@ public:
 	TObjectPtr<UPCGMetadata> Metadata = nullptr;
 
 protected:
-	virtual UPCGSpatialData* CopyInternal() const PURE_VIRTUAL(UPCGSpatialData::CopyInternal, return nullptr;);
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
+	virtual UPCGSpatialData* CopyInternal() const { return nullptr; }
+
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const PURE_VIRTUAL(UPCGSpatialData::CopyInternal, return nullptr;);
 
 private:
 	/** Cache to keep track of the latest attribute manipulated on this data. */
@@ -206,8 +229,3 @@ private:
 
 	mutable FCriticalSection CacheLock;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGContext.h"
-#endif

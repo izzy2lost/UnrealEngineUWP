@@ -19,60 +19,45 @@ void UAvaBevelModifier::OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadat
 	InMetadata.SetName(TEXT("Bevel"));
 	InMetadata.SetCategory(TEXT("Geometry"));
 #if WITH_EDITOR
-	InMetadata.SetDescription(LOCTEXT("ModifierDescription", "Create chamfered or rounded corners to geometry that smooth edges and corners"));
+	InMetadata.SetDescription(LOCTEXT("ModifierDescription", "Create chamfered or rounded corners on geometry that smooth edges and corners"));
 #endif
 }
 
 void UAvaBevelModifier::Apply()
 {
 	UDynamicMeshComponent* const DynMeshComp = GetMeshComponent();
-	
+
 	if (!IsValid(DynMeshComp))
 	{
 		Fail(LOCTEXT("InvalidDynamicMeshComponent", "Invalid dynamic mesh component on modified actor"));
 		return;
 	}
 
-	if (Inset <= 0.f)
+	if (Inset <= 0.f || DynMeshComp->GetDynamicMesh()->GetTriangleCount() == 0)
 	{
 		Next();
 		return;
 	}
-	
+
 	using namespace UE::Geometry;
-			
-	DynMeshComp->GetDynamicMesh()->EditMesh([this, DynMeshComp](FDynamicMesh3& EditMesh) 
+
+	DynMeshComp->GetDynamicMesh()->EditMesh([this, DynMeshComp](FDynamicMesh3& EditMesh)
 	{
-		if (EditMesh.TriangleCount() > 0)
-		{
-			// weld edges
-			FMergeCoincidentMeshEdges Welder(&EditMesh);
-			Welder.Apply();
-		}
+		// Weld edges
+		FMergeCoincidentMeshEdges Welder(&EditMesh);
+		Welder.Apply();
 
-		float BevelDistance = Inset;
-		float Divider = 4.f;
-				
 		// Apply bevel operator for multiple iterations
-		TArray<int32> NewTriangles;
-		for (int32 ItIdx = 0; ItIdx < Iterations; ItIdx++)
-		{
-			const FGroupTopology Topology(&EditMesh, true);
-					
-			FMeshBevel Bevel;
-			Bevel.InsetDistance = BevelDistance;
-			Bevel.InitializeFromGroupTopology(EditMesh, Topology);
-			Bevel.Apply(EditMesh, nullptr);
-					
-			NewTriangles.Append(Bevel.NewTriangles);
-
-			// lets reduce the distance to avoid reversed triangles and overlapping triangles
-			BevelDistance /= Divider;
-			Divider /= 2.f;
-		}
+		const FGroupTopology Topology(&EditMesh, true);
+		FMeshBevel Bevel;
+		Bevel.InsetDistance = Inset;
+		Bevel.NumSubdivisions = Iterations;
+		Bevel.RoundWeight = Iterations > 0 ? Roundness : 0;
+		Bevel.InitializeFromGroupTopology(EditMesh, Topology);
+		Bevel.Apply(EditMesh, nullptr);
 
 		// Get polygroup layer for back side
-		FDynamicMeshPolygroupAttribute* const BevelPolygroup = FindOrCreatePolygroupLayer(EditMesh, UAvaBevelModifier::BevelPolygroupLayerName, &NewTriangles);
+		FDynamicMeshPolygroupAttribute* const BevelPolygroup = FindOrCreatePolygroupLayer(EditMesh, UAvaBevelModifier::BevelPolygroupLayerName, &Bevel.NewTriangles);
 
 		// TODO : Fix UVs temp, UV modifier needed instead of this
 		FRotator BoxRotation = DynMeshComp->GetComponentTransform().Rotator();
@@ -82,100 +67,104 @@ void UAvaBevelModifier::Apply()
 		FDynamicMeshUVEditor UVEditor(&EditMesh, UVOverlay);
 		const FFrame3d ProjectionFrame(PlaneTransform);
 		FUVEditResult Result;
-		UVEditor.SetTriangleUVsFromBoxProjection(NewTriangles, [](const FVector3d& Pos)
+		UVEditor.SetTriangleUVsFromBoxProjection(Bevel.NewTriangles, [](const FVector3d& Pos)
 		{
 			return Pos;
 		}
 		, ProjectionFrame, MeshBounds.GetSize(), 3, &Result);
-				
-	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);	
+
+	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
 
 	Next();
 }
 
 #if WITH_EDITOR
-void UAvaBevelModifier::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UAvaBevelModifier::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
-	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
-	
-	static const FName InsetName = GET_MEMBER_NAME_CHECKED(UAvaBevelModifier, Inset);
-	static const FName IterationsName = GET_MEMBER_NAME_CHECKED(UAvaBevelModifier, Iterations);
-	
-	if (MemberName == InsetName)
+	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaBevelModifier, Inset))
 	{
 		OnInsetChanged();
 	}
-	else if (MemberName == IterationsName)
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaBevelModifier, Iterations))
 	{
 		OnIterationsChanged();
+	}
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaBevelModifier, Roundness))
+	{
+		OnRoundnessChanged();
 	}
 }
 #endif
 
 void UAvaBevelModifier::SetInset(float InInset)
 {
-	if (Inset == InInset)
+	InInset = FMath::Clamp(InInset, UAvaBevelModifier::MinInset, GetMaxInsetDistance());
+
+	if (FMath::IsNearlyEqual(Inset, InInset))
 	{
 		return;
 	}
 
-	Inset = FMath::Clamp(InInset, UAvaBevelModifier::MinInset, GetMaxBevel());
-	
+	Inset = InInset;
 	OnInsetChanged();
 }
 
 void UAvaBevelModifier::SetIterations(int32 InIterations)
 {
+	InIterations = FMath::Clamp(InIterations, UAvaBevelModifier::MinIterations, UAvaBevelModifier::MaxIterations);
+
 	if (Iterations == InIterations)
 	{
 		return;
 	}
 
-	Iterations = FMath::Clamp(InIterations, UAvaBevelModifier::MinIterations, UAvaBevelModifier::MaxIterations);
-	
+	Iterations = InIterations;
 	OnIterationsChanged();
+}
+
+void UAvaBevelModifier::SetRoundness(float InRoundness)
+{
+	InRoundness = FMath::Clamp(InRoundness, UAvaBevelModifier::MinRoundness, UAvaBevelModifier::MaxRoundness);
+
+	if (FMath::IsNearlyEqual(Roundness, InRoundness))
+	{
+		return;
+	}
+
+	Roundness = InRoundness;
+	OnRoundnessChanged();
 }
 
 void UAvaBevelModifier::OnInsetChanged()
 {
-	Inset = FMath::Min(Inset, GetMaxBevel());
+	Inset = FMath::Min(Inset, GetMaxInsetDistance());
 	MarkModifierDirty();
 }
 
 void UAvaBevelModifier::OnIterationsChanged()
 {
-	Inset = FMath::Min(Inset, GetMaxBevel());
 	MarkModifierDirty();
 }
 
-float UAvaBevelModifier::GetMaxBevel() const
+void UAvaBevelModifier::OnRoundnessChanged()
 {
-	float MaxBevelDistance = 0;
-	
+	MarkModifierDirty();
+}
+
+float UAvaBevelModifier::GetMaxInsetDistance() const
+{
 	if (!PreModifierCachedMesh.IsSet())
 	{
-		return MaxBevelDistance;
+		return 0.f;
 	}
 
 	const FBox Bounds = static_cast<FBox>(PreModifierCachedMesh.GetValue().GetBounds(true));
 	const FVector Size3d = Bounds.GetSize();
-
-	const float MinBevelDistance = FMath::Min3(Size3d.X / 2, Size3d.Y / 2, Size3d.Z / 2);
-	float Divider = 4.f;
-	float BevelDistance = MinBevelDistance;
-	MaxBevelDistance = MinBevelDistance;
-	
-	for (int32 Idx = 1; Idx < Iterations; Idx++)
-	{
-		const float Reduce = BevelDistance / Divider;
-		MaxBevelDistance -= Reduce;
-		BevelDistance = Reduce;
-		Divider /= 2.f;
-	}
-	
-	return MaxBevelDistance;
+	return FMath::Max(0, FMath::Min3(Size3d.X / 2, Size3d.Y / 2, Size3d.Z / 2) - 0.001f);
 }
 
 #undef LOCTEXT_NAMESPACE

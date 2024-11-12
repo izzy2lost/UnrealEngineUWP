@@ -7,12 +7,15 @@
 #include "CoreTypes.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
+#include "Elements/Common/EditorDataStorageFeatures.h"
 #include "Elements/Common/TypedElementQueryConditions.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Tests/TestHarnessAdapter.h"
 #include "UObject/Class.h"
 
-using namespace TypedElementDataStorage;
-
+namespace UE::Editor::DataStorage::Tests
+{
+	using namespace UE::Editor::DataStorage::Queries;
 
 static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo)
 {
@@ -27,8 +30,12 @@ static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct
 #endif
 }
 
-static bool TestMatching(const FQueryConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
+static bool TestMatching(FConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
 {
+	IEditorDataStorageProvider* Storage = GetMutableDataStorageFeature<IEditorDataStorageProvider>(StorageFeatureName);
+
+	TestQuery.Compile(FEditorStorageQueryConditionCompileContext(Storage));
+	
 	if (Sort)
 	{
 		Algo::SortBy(RequestedColumns,
@@ -99,174 +106,176 @@ static bool TestMatching(const FQueryConditions& TestQuery, const TArray<FColumn
 	return (Result == Expected);
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_NoColumn, "TypedElementQueryBuilder::FTypedElementQueryConditions_NoColumn", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_NoColumn, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions_NoColumn", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example;
+	FConditions Example;
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 0);
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>() }, false));
+	// Since there are no restrictions provided in the query, all input passes.
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, true));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_OneColumn, "TypedElementQueryBuilder::FTypedElementQueryConditions_OneColumn", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_OneColumn, "Editor::DataStorage::Queries::FTypedElementQueryConditions_OneColumn", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example{ FColumn<FTestColumnA>() };
+	FConditions Example{ TColumn<FTestColumnA>() };
 
 	CHECK(Example.MinimumColumnMatchRequired() == 1);
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, true));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions1, "TypedElementQueryBuilder::FTypedElementQueryConditions A && B && C", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions1, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A && B && C", "[ApplicationContextMask][EngineFilter]")
 {
-	FColumn TestA(FTestColumnA::StaticStruct());
+	TColumn<FTestColumnA> TestA;
 	
-	FQueryConditions Example = FColumn<FTestColumnA>() && FColumn<FTestColumnB>() && FColumn<FTestColumnC>();
+	FConditions Example = TColumn<FTestColumnA>() && TColumn<FTestColumnB>() && TColumn<FTestColumnC>();
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 3);
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>(), FColumn<FTestColumnC>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>(), FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions2, "TypedElementQueryBuilder::FTypedElementQueryConditions A || B || C", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions2, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A || B || C", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example = FColumn<FTestColumnA>() || FColumn<FTestColumnB>() || FColumn<FTestColumnC>();
+	FConditions Example = TColumn<FTestColumnA>() || TColumn<FTestColumnB>() || TColumn<FTestColumnC>();
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 1);
-	CHECK(TestMatching(Example, { FColumn<FTestColumnB>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnB>(), FColumn<FTestColumnC>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions3, "TypedElementQueryBuilder::FTypedElementQueryConditions A && (B || C)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions3, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A && (B || C)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example = FColumn<FTestColumnA>() && (FColumn<FTestColumnB>() || FColumn<FTestColumnC>());
+	FConditions Example = TColumn<FTestColumnA>() && (TColumn<FTestColumnB>() || TColumn<FTestColumnC>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnD>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnD>(), FColumn<FTestColumnB>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnD>(), TColumn<FTestColumnB>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions4, "TypedElementQueryBuilder::FTypedElementQueryConditions A && (B || C) && (D || E)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions4, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions A && (B || C) && (D || E)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example = 
-		FColumn<FTestColumnA>() && 
-		(FColumn<FTestColumnB>() || FColumn<FTestColumnC>()) &&
-		(FColumn<FTestColumnD>() || FColumn<FTestColumnE>());
+	FConditions Example = 
+		TColumn<FTestColumnA>() && 
+		(TColumn<FTestColumnB>() || TColumn<FTestColumnC>()) &&
+		(TColumn<FTestColumnD>() || TColumn<FTestColumnE>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 3);
 	
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, false));
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>(), FColumn<FTestColumnD>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>(), FColumn<FTestColumnE>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>(), FColumn<FTestColumnD>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnD>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnE>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, true));
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>(), FColumn<FTestColumnF>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnF>(), FColumn<FTestColumnD>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnB>(), FColumn<FTestColumnC>(), FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnF>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnF>(), TColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions5, "TypedElementQueryBuilder::FTypedElementQueryConditions (A || B) && (C || D) && (E || F)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions5, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions (A || B) && (C || D) && (E || F)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(FColumn<FTestColumnA>() || FColumn<FTestColumnB>()) &&
-		(FColumn<FTestColumnC>() || FColumn<FTestColumnD>()) &&
-		(FColumn<FTestColumnE>() || FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
+		(TColumn<FTestColumnC>() || TColumn<FTestColumnD>()) &&
+		(TColumn<FTestColumnE>() || TColumn<FTestColumnF>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 3); 
 	
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>() }, false));
 	
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>(), FColumn<FTestColumnE>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnB>(), FColumn<FTestColumnC>(), FColumn<FTestColumnE>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnE>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>(), TColumn<FTestColumnE>() }, true));
 	
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>(), FColumn<FTestColumnG>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnG>(), FColumn<FTestColumnD>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnG>(), FColumn<FTestColumnC>(), FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnG>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnG>(), TColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnG>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions6, "TypedElementQueryBuilder::FTypedElementQueryConditions ((A || B) && (C || D)) || (E && F)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions6, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions ((A || B) && (C || D)) || (E && F)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
+	FConditions Example =
 		(
-			(FColumn<FTestColumnA>() || FColumn<FTestColumnB>()) &&
-			(FColumn<FTestColumnC>() || FColumn<FTestColumnD>())
+			(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
+			(TColumn<FTestColumnC>() || TColumn<FTestColumnD>())
 		) ||
-		(FColumn<FTestColumnE>() && FColumn<FTestColumnF>());
+		(TColumn<FTestColumnE>() && TColumn<FTestColumnF>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>() }, true));
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnE>(), FColumn<FTestColumnF>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnG>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnG>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions7, "TypedElementQueryBuilder::FTypedElementQueryConditions (A && B) || (C && D) || (E && F)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions7, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions (A && B) || (C && D) || (E && F)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(FColumn<FTestColumnA>() && FColumn<FTestColumnB>()) ||
-		(FColumn<FTestColumnC>() && FColumn<FTestColumnD>()) ||
-		(FColumn<FTestColumnE>() && FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() && TColumn<FTestColumnB>()) ||
+		(TColumn<FTestColumnC>() && TColumn<FTestColumnD>()) ||
+		(TColumn<FTestColumnE>() && TColumn<FTestColumnF>());
 
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnC>(), FColumn<FTestColumnD>() }, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnE>(), FColumn<FTestColumnF>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true));
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnC>(), FColumn<FTestColumnD>(), FColumn<FTestColumnE>(), FColumn<FTestColumnF>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>(), TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true));
 
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnE>() }, false));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnG>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnG>() }, false));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_MultiMatch, "TypedElementQueryBuilder::FTypedElementQueryConditions_MultiMatch", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_MultiMatch, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions_MultiMatch", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(FColumn<FTestColumnA>() || FColumn<FTestColumnB>()) &&
-		(FColumn<FTestColumnC>() || FColumn<FTestColumnD>()) &&
-		(FColumn<FTestColumnE>() || FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
+		(TColumn<FTestColumnC>() || TColumn<FTestColumnD>()) &&
+		(TColumn<FTestColumnE>() || TColumn<FTestColumnF>());
 
 	CHECK(TestMatching(Example, 
 		{ 
-			FColumn<FTestColumnA>(), 
-			FColumn<FTestColumnB>(), 
-			FColumn<FTestColumnC>(), 
-			FColumn<FTestColumnD>(),
-			FColumn<FTestColumnE>(),
-			FColumn<FTestColumnF>()
+			TColumn<FTestColumnA>(), 
+			TColumn<FTestColumnB>(), 
+			TColumn<FTestColumnC>(), 
+			TColumn<FTestColumnD>(),
+			TColumn<FTestColumnE>(),
+			TColumn<FTestColumnF>()
 		}, true));
 
 	CHECK(TestMatching(Example,
 		{
-			FColumn<FTestColumnA>(),
-			FColumn<FTestColumnC>(),
-			FColumn<FTestColumnE>(),
-			FColumn<FTestColumnG>()
+			TColumn<FTestColumnA>(),
+			TColumn<FTestColumnC>(),
+			TColumn<FTestColumnE>(),
+			TColumn<FTestColumnG>()
 		}, true));
 }
 
-TEST_CASE_NAMED(FTypedElementQueryConditions_Sorted, "TypedElementQueryBuilder::FTypedElementQueryConditions_Sorted", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(FTypedElementQueryConditions_Sorted, "Editor::DataStorage::QueryBuilder::FTypedElementQueryConditions_Sorted", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(FColumn<FTestColumnA>() && FColumn<FTestColumnB>()) ||
-		(FColumn<FTestColumnC>() && FColumn<FTestColumnD>()) ||
-		(FColumn<FTestColumnE>() && FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() && TColumn<FTestColumnB>()) ||
+		(TColumn<FTestColumnC>() && TColumn<FTestColumnD>()) ||
+		(TColumn<FTestColumnE>() && TColumn<FTestColumnF>());
 
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnA>(), FColumn<FTestColumnB>() }, true, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnC>(), FColumn<FTestColumnD>() }, true, true));
-	CHECK(TestMatching(Example, { FColumn<FTestColumnE>(), FColumn<FTestColumnF>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true, true));
 
-	CHECK(TestMatching(Example, { FColumn<FTestColumnC>(), FColumn<FTestColumnD>(), FColumn<FTestColumnE>(), FColumn<FTestColumnF>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>(), TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true, true));
 }
+} // namespace UE::Editor::DataStorage::Tests
 
 #endif // WITH_TESTS

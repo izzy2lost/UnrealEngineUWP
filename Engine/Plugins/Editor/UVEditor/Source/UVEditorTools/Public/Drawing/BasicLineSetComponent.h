@@ -44,6 +44,12 @@ public:
 	/** Set per line material parameters that are uniform for all lines. */
 	void SetLineSetParameters(FColor InColor, float InSize, float InDepthBias);
 
+	/** Set per line material Line Color parameter that is uniform for all lines */
+	void SetColor(FColor InColor);
+
+	/** Set per line material Line Size/Thickness parameter that is uniform for all lines */
+	void SetLineThickness(float InSize);
+
 protected:
 
 	//~ UMeshComponent Interface.

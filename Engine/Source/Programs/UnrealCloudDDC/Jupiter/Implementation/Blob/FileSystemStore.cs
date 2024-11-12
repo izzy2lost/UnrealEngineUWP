@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
-	public class FileSystemStore : IBlobStore, IBlobCleanup 
+	public class FileSystemStore : IBlobStore, IBlobCleanup
 	{
 		private readonly IServiceProvider _provider;
 		private readonly IOptionsMonitor<FilesystemSettings> _settings;
@@ -131,6 +131,15 @@ namespace Jupiter.Implementation
 			await GetBackend(ns).DeleteAsync(path, CancellationToken.None);
 		}
 
+		public async Task DeleteObjectAsync(IEnumerable<NamespaceId> namespaces, BlobId objectName)
+		{
+			string path = GetFilesystemPath(objectName);
+			foreach (NamespaceId ns in namespaces)
+			{
+				await GetBackend(ns).DeleteAsync(path, CancellationToken.None);
+			}
+		}
+		
 		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			DirectoryInfo namespaceDirectory = GetFilesystemPath(ns).ToDirectoryInfo();
@@ -142,7 +151,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
@@ -172,12 +181,14 @@ namespace Jupiter.Implementation
 		/// <returns></returns>
 		public async Task<ulong> CleanupInternalAsync(CancellationToken cancellationToken, int batchSize = 1_000_000)
 		{
+			_ = batchSize;
+
 			using TelemetrySpan scope = _tracer.StartActiveSpan("gc.filesystem")
 				.SetAttribute("operation.name", "gc.filesystem");
 
 			ulong maxSizeBytes = _settings.CurrentValue.MaxSizeBytes;
-			long triggerSize = (long) (maxSizeBytes * _settings.CurrentValue.TriggerThresholdPercentage);
-			long targetSize = (long) (maxSizeBytes * _settings.CurrentValue.TargetThresholdPercentage); // Target to shrink to if triggered
+			long triggerSize = (long)(maxSizeBytes * _settings.CurrentValue.TriggerThresholdPercentage);
+			long targetSize = (long)(maxSizeBytes * _settings.CurrentValue.TargetThresholdPercentage); // Target to shrink to if triggered
 			ulong countOfBlobsRemoved = 0;
 
 			// Perform a maximum of 5 clean up runs
@@ -199,30 +210,50 @@ namespace Jupiter.Implementation
 
 					return countOfBlobsRemoved;
 				}
-				
+
 				_logger.LogInformation("Filesystem cleanup running. Disksize used: {UsedDiskSize} . Trigger size was {TriggerSize}", size, triggerSize);
-				IEnumerable<FileInfo> fileInfos = GetLeastRecentlyAccessedObjects(maxResults: batchSize);
+
+				// define progressively shorter windows of how long we keep data around for, based on their last write time
+				DateTime[] cutoffPeriods = new DateTime[]
+				{
+					DateTime.Now.AddDays(-14),
+					DateTime.Now.AddDays(-7),
+					DateTime.Now.AddDays(-3),
+					DateTime.Now.AddDays(-1),
+					DateTime.Now.AddHours(-12),
+					DateTime.Now /* This is a bit extreme as it will just throw out any object that exists right now, but if we get this far we need to really remove something */
+				};
 
 				bool hadFiles = false;
 				long totalBytesDeleted = 0;
-				foreach (FileInfo fi in fileInfos)
-				{
-					hadFiles = true;
-					try
-					{
-						totalBytesDeleted += fi.Length;
-						fi.Delete();
-						++countOfBlobsRemoved;
 
-						long currentSize = size - totalBytesDeleted;
-						if (currentSize <= targetSize || cancellationToken.IsCancellationRequested)
-						{
-							return countOfBlobsRemoved;
-						}
-					}
-					catch (FileNotFoundException)
+				foreach (DateTime cutoff in cutoffPeriods)
+				{
+					IEnumerable<FileInfo> fileInfos = GetObjectsOlderThen(cutoff);
+
+					foreach (FileInfo fi in fileInfos)
 					{
-						// if the file was gced while running we can just ignore it
+						hadFiles = true;
+						try
+						{
+							totalBytesDeleted += fi.Length;
+							fi.Delete();
+							++countOfBlobsRemoved;
+
+							long currentSize = size - totalBytesDeleted;
+							if (currentSize <= targetSize || cancellationToken.IsCancellationRequested)
+							{
+								return countOfBlobsRemoved;
+							}
+						}
+						catch (FileNotFoundException)
+						{
+							// if the file was gced while running we can just ignore it
+						}
+						catch (DirectoryNotFoundException)
+						{
+							// if the directory was deleted then we can ignore it to, end result is the blob is gone which is what matters
+						}
 					}
 				}
 
@@ -231,8 +262,19 @@ namespace Jupiter.Implementation
 					return countOfBlobsRemoved;
 				}
 			}
-			
+
 			return countOfBlobsRemoved;
+		}
+
+		public IEnumerable<FileInfo> GetObjectsOlderThen(DateTime cutoff, NamespaceId? ns = null)
+		{
+			string path = ns != null ? Path.Combine(GetRootDir(), ns.ToString()!) : GetRootDir();
+			DirectoryInfo di = new DirectoryInfo(path);
+			if (!di.Exists)
+			{
+				return Array.Empty<FileInfo>();
+			}
+			return di.EnumerateFiles("*", SearchOption.AllDirectories).Where(x => x.LastWriteTime < cutoff);
 		}
 
 		/// <summary>
@@ -255,7 +297,7 @@ namespace Jupiter.Implementation
 
 			return di.EnumerateFiles("*", SearchOption.AllDirectories).Take(maxCountOfObjectsScanned).OrderBy(x => x.LastWriteTime).Take(maxResults);
 		}
-		
+
 		/// <summary>
 		/// Calculate the total size of blobs on disk for given namespace
 		/// </summary>
@@ -272,7 +314,7 @@ namespace Jupiter.Implementation
 			{
 				return 0;
 			}
-			
+
 			return await Task.Run(() => di.EnumerateFiles("*", SearchOption.AllDirectories).Sum(x =>
 			{
 				try
@@ -286,7 +328,7 @@ namespace Jupiter.Implementation
 				}
 			}));
 		}
-		
+
 		public IAsyncEnumerable<NamespaceId> ListNamespaces()
 		{
 			DirectoryInfo di = new DirectoryInfo(GetRootDir());

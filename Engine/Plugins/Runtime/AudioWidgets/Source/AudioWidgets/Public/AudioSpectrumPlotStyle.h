@@ -44,4 +44,12 @@ struct AUDIOWIDGETS_API FAudioSpectrumPlotStyle : public FSlateWidgetStyle
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
 	FSlateColor SpectrumColor = FStyleColors::Foreground;
 	FAudioSpectrumPlotStyle& SetSpectrumColor(const FSlateColor& InSpectrumColor) { SpectrumColor = InSpectrumColor; return *this; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FSlateColor CrosshairColor = FStyleColors::Foreground;
+	FAudioSpectrumPlotStyle& SetCrosshairColor(const FSlateColor& InCrosshairColor) { CrosshairColor = InCrosshairColor; return *this; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FSlateFontInfo CrosshairLabelFont = FStyleDefaults::GetFontInfo(8);
+	FAudioSpectrumPlotStyle& SetCrosshairLabelFont(const FSlateFontInfo& InCrosshairLabelFont) { CrosshairLabelFont = InCrosshairLabelFont; return *this; }
 };

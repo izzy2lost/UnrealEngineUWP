@@ -194,6 +194,17 @@ inline FCbWriter& operator<<(FCbWriter& Writer, const TMap<KeyType, ValueType, S
 	return Writer;
 }
 
+inline FCbWriter& operator<<(FCbWriter& Writer, const UE::CompactBinaryTCP::FMarshalledMessage& Value)
+{
+	Writer.BeginObject();
+	Writer << "T" << Value.MessageType;
+	Writer << "V" << Value.Object;
+	Writer.EndObject();
+	return Writer;
+}
+
+UNREALED_API bool LoadFromCompactBinary(FCbFieldView Field, UE::CompactBinaryTCP::FMarshalledMessage& Value);
+
 // FSoftObjectPath has an implicit constructor from FString for backwards compatibility; if we
 // try to create an operator<< for it, it will cause operator<< to be ambiguous.
 // This prevents us from using it directly in containers. To hack around this,

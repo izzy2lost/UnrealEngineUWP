@@ -4,6 +4,7 @@
 
 #include "MetasoundDataTypeRegistrationMacro.h"
 
+REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMusicTransportEvent, "MusicTransportEvent")
 REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMusicTransportEventStream, "MusicTransport")
 
 namespace HarmonixMetasound
@@ -238,5 +239,24 @@ namespace HarmonixMetasound
 		       TransportState == EMusicPlayerTransportState::Prepared ||
 		       TransportState == EMusicPlayerTransportState::Stopping ||
 		       TransportState == EMusicPlayerTransportState::Killing;
+	}
+
+	FString HARMONIXMETASOUND_API MusicPlayerTransportStateToString(EMusicPlayerTransportState State)
+	{
+		switch (State)
+		{
+		case EMusicPlayerTransportState::Invalid:    return TEXT("Invalid");
+		case EMusicPlayerTransportState::Preparing:	 return TEXT("Preparing");
+		case EMusicPlayerTransportState::Prepared:	 return TEXT("Prepared");
+		case EMusicPlayerTransportState::Starting:	 return TEXT("Starting");
+		case EMusicPlayerTransportState::Playing:	 return TEXT("Playing");
+		case EMusicPlayerTransportState::Seeking:	 return TEXT("Seeking");
+		case EMusicPlayerTransportState::Pausing:	 return TEXT("Pausing");
+		case EMusicPlayerTransportState::Paused:	 return TEXT("Paused");
+		case EMusicPlayerTransportState::Continuing: return TEXT("Continuing");
+		case EMusicPlayerTransportState::Stopping:	 return TEXT("Stopping");
+		case EMusicPlayerTransportState::Killing:	 return TEXT("Killing");
+		}											
+		return TEXT("<Unrecognized>");
 	}
 }

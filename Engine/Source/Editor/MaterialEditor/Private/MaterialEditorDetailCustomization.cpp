@@ -982,14 +982,18 @@ void FMaterialExpressionLayersParameterDetails::CustomizeDetails(IDetailLayoutBu
 {
 	FMaterialExpressionParameterDetails::CustomizeDetails(DetailLayout);
 	// for expression parameters all their properties are in one category based on their class name.
+
 	FName LayerCategory = FName("Layers");
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	DetailLayout.HideCategory(LayerCategory);
+#endif
 	IDetailCategoryBuilder& Category = DetailLayout.EditCategory(LayerCategory);
 	// Get a handle to the property we are about to edit
 	GroupPropertyHandle = DetailLayout.GetProperty("DefaultLayers");
 	GroupPropertyHandle->MarkHiddenByCustomization();
 	TSharedRef<FMaterialLayersFunctionsCustomization> MaterialLayersFunctionsCustomization = MakeShareable(new FMaterialLayersFunctionsCustomization(GroupPropertyHandle, &DetailLayout));
 	Category.AddCustomBuilder(MaterialLayersFunctionsCustomization);
-	
+
 }
 
 TSharedRef<class IDetailCustomization> FMaterialExpressionCompositeDetails::MakeInstance()

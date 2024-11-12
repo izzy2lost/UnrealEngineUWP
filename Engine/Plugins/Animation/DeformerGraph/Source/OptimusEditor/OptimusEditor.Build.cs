@@ -23,6 +23,7 @@ namespace UnrealBuildTool.Rules
 					"InputCore",
 					"RHI", 
 					"ToolMenus",
+					"ToolWidgets",
 					"ComputeFramework",
 					"OptimusCore",
 					"OptimusDeveloper",
@@ -31,8 +32,9 @@ namespace UnrealBuildTool.Rules
 					"MessageLog",
 					"PropertyEditor",
 					"KismetCompiler",
-					"SourceCodeAccess"
-				}
+					"SourceCodeAccess", 
+					"StructUtilsEditor"
+                }
 			);
 
         }

@@ -14,6 +14,7 @@
 #include "AttributeCurve.generated.h"
 
 namespace UE { namespace Anim { class IAttributeBlendOperator; struct Attributes; } }
+namespace UE::AnimNext { class FDecompressionTools; }
 
 typedef UE::Anim::TWrappedAttribute<FDefaultAllocator> FWrappedAttribute;
 
@@ -190,7 +191,7 @@ protected:
 
 	friend class UAnimSequence;
 	friend struct UE::Anim::Attributes;
-	friend struct FAnimNextAnimSequenceKeyframeTask;
+	friend UE::AnimNext::FDecompressionTools;
 };
 
 template<>

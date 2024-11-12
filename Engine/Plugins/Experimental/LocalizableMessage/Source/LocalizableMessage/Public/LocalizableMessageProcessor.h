@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Containers/Map.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Logging/LogMacros.h"
 #include "Templates/Function.h"
 #include "Templates/Tuple.h"

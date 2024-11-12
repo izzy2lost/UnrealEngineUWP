@@ -15,15 +15,11 @@
 #define VULKAN_SHOULD_ENABLE_DESKTOP_HMD_SUPPORT	1
 #define VULKAN_SIGNAL_UNIMPLEMENTED()				checkf(false, TEXT("Unimplemented vulkan functionality: %s"), StringCast<TCHAR>(__FUNCTION__).Get())
 #define VULKAN_SUPPORTS_AMD_BUFFER_MARKER			1
+#define VULKAN_SUPPORTS_SCALAR_BLOCK_LAYOUT			1
+#define VULKAN_SUPPORTS_RAY_TRACING_POSITION_FETCH	1
 
-#define VULKAN_RHI_RAYTRACING 						(RHI_RAYTRACING)
-#define VULKAN_SUPPORTS_SCALAR_BLOCK_LAYOUT			(VULKAN_RHI_RAYTRACING)
+#define UE_VK_API_VERSION							VK_API_VERSION_1_1
 
-#if VULKAN_RHI_RAYTRACING
-#	define UE_VK_API_VERSION						VK_API_VERSION_1_2
-#else
-#	define UE_VK_API_VERSION						VK_API_VERSION_1_1
-#endif // VULKAN_RHI_RAYTRACING
 
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
 #	include "vk_enum_string_helper.h"
@@ -60,7 +56,7 @@ public:
 
 	static bool SupportsDeviceLocalHostVisibleWithNoPenalty(EGpuVendorId VendorId);
 
-	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, VkCommandBuffer CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
+	static void WriteCrashMarker(const FOptionalVulkanDeviceExtensions& OptionalExtensions, FVulkanCmdBuffer* CmdBuffer, VkBuffer DestBuffer, const TArrayView<uint32>& Entries, bool bAdding);
 
 private:
 	static bool bAttemptedLoad;

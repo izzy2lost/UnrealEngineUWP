@@ -5,10 +5,17 @@
 #include "AssetDefinitionDefault.h"
 #include "AssetDefinition_ClothAsset.generated.h"
 
+class UChaosClothAsset;
+
 UCLASS()
 class UAssetDefinition_ClothAsset : public UAssetDefinitionDefault
 {
 	GENERATED_BODY()
+
+public:
+
+	UE_DEPRECATED(5.5, "Dataflow assets are now created through the physics menu.")
+	static UObject* NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset);
 
 private:
 

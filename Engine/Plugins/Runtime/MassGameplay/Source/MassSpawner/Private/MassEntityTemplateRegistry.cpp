@@ -5,17 +5,36 @@
 #include "MassEntityManager.h"
 #include "Engine/World.h"
 #include "VisualLogger/VisualLogger.h"
-#include "HAL/IConsoleManager.h"
 #include "MassSpawnerSubsystem.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
-#include "Logging/MessageLog.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "MassDebugger.h"
+#include "MassEntityEditor.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "Mass"
+
+namespace UE::Mass::Debug
+{
+	const FName TraitFailedValidation(TEXT("TraitFailedValidation"));
+	const FName TraitIgnored(TEXT("TraitIgnored"));
+
+	static bool bReportDuplicatedFragmentsAsWarnings = false;
+	// anonymous namespace to force CVars's uniqueness - we use the same name in many places, sometimes withing same namespaces
+	namespace 
+	{
+		FAutoConsoleVariableRef CVars[] =
+		{
+			{ TEXT("mass.template.DuplicateElementsAsWarnings")
+				, bReportDuplicatedFragmentsAsWarnings
+				, TEXT("Whether to report a detection of a given element type being added by multiple traits as a Warning. Otherise we print the information out as `Info`")
+				, ECVF_Cheat}
+		};
+	}
+}
 
 //----------------------------------------------------------------------//
 // FMassEntityTemplateRegistry 
@@ -88,100 +107,170 @@ void FMassEntityTemplateRegistry::DestroyTemplate(FMassEntityTemplateID Template
 //----------------------------------------------------------------------//
 bool FMassEntityTemplateBuildContext::BuildFromTraits(TConstArrayView<UMassEntityTraitBase*> Traits, const UWorld& World)
 {
-	TraitAddedTypes.Reset();
-	TraitsDependencies.Reset();
+	ensureMsgf(bBuildInProgress == false, TEXT("Unexpected occurrence - it suggests FMassEntityTemplateBuildContext::BuildFromTraits "
+		"has been called as a consequence of some UMassEntityTraitBase::BuildTemplate call. Check the callstack."));
 
+	bBuildInProgress = true;
 	for (const UMassEntityTraitBase* Trait : Traits)
 	{
 		check(Trait);
-		BuildingTrait = Trait;
-		BuildingTrait->BuildTemplate(*this, World);
+		if (SetTraitBeingProcessed(Trait))
+		{
+			Trait->BuildTemplate(*this, World);
+		}
+	}
+	// now remove all that has been requested to be removed
+	// those are only tags for now, thus the shortcut of going directly for tags
+	for (FRemovedType& Removed : RemovedTypes)
+	{
+		check(Removed.TypeRemoved);
+		TemplateData.RemoveTag(*CastChecked<UScriptStruct>(Removed.TypeRemoved));
 	}
 
-	BuildingTrait = nullptr;
+	bBuildInProgress = false;
 
-	return ValidateBuildContext(World);
+	const bool bTemplateValid = ValidateBuildContext(World);
+	
+	ResetBuildTimeData();
+
+	return bTemplateValid;
+}
+
+bool FMassEntityTemplateBuildContext::SetTraitBeingProcessed(const UMassEntityTraitBase* Trait)
+{
+	if (Trait == nullptr || TraitsProcessed.Contains(Trait) == false)
+	{
+		TraitsData.Add({Trait});
+		return true;
+	}
+
+	UE_LOG(LogMass, Warning, TEXT("Attempting to add %s to FMassEntityTemplateBuildContext while this or another instance of the trait class has already been added.")
+		, *GetNameSafe(Trait));
+
+	IgnoredTraits.Add(Trait);
+	return false;
 }
 
 bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 {
-	// Group same types(key) together
-	TraitAddedTypes.KeySort( [](const UStruct& LHS, const UStruct& RHS) { return LHS.GetName() < RHS.GetName(); } );
+#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR && WITH_EDITORONLY_DATA && WITH_MASSENTITY_DEBUG
+#define IF_MESSAGES(Message) if (GEditor) { Message }
+#else
+#define IF_MESSAGES(_)
+#endif
 
-	// Loop through all the registered fragments and make sure only one trait registered them.
-	const UStruct* CurrentStruct = nullptr;
-	const UMassEntityTraitBase* CurrentTrait = nullptr;
-	bool bHeaderOutputted = false;
-	bool bFragmentHasMultipleOwners = false;
-	for (const auto& Pair : TraitAddedTypes)
-	{
-		if (CurrentStruct != Pair.Key)
-		{
-			CurrentStruct = Pair.Key;
-			CurrentTrait = Pair.Value;
-			check(CurrentTrait);
-			CurrentTrait->ValidateTemplate(*this, World);
-			bHeaderOutputted = false;
-		}
-		else
-		{
-			if (!bHeaderOutputted)
-			{
-				UE_LOG(LogMass, Warning, TEXT("%s: Fragment(%s) was added multiple time and should only be added by one trait. Fragment was added by:")
-					, CurrentTrait ? *GetNameSafe(CurrentTrait->GetOuter()) : TEXT("None")
-					, CurrentStruct ? *CurrentStruct->GetName() : TEXT("null"));
-				UE_LOG(LogMass, Warning, TEXT("\t\t%s"), CurrentTrait ? *CurrentTrait->GetClass()->GetName() : TEXT("null"));
-				bHeaderOutputted = true;
-			}
-			UE_LOG(LogMass, Warning, TEXT("\t\t%s"), *Pair.Value->GetClass()->GetName());
-			bFragmentHasMultipleOwners = true;
-		}
- 	}
+	int32 ErrorCount = 0;
+	int32 WarningCount = 0;
 
-	// Loop through all the traits dependencies and check if they have been added
-	CurrentTrait = nullptr;
-	bHeaderOutputted = false;
-	bool bMissingFragmentDependencies = false;
-	for (const auto& Dependency : TraitsDependencies)
+	// Doing the trait-specific validation first since it can add required elements to the build context
+	for (FTraitData& TraitData : TraitsData)
 	{
-		if (CurrentTrait != Dependency.Get<1>())
+		UMassEntityTraitBase::FAdditionalTraitRequirements TraitRequirementsWrapper(TraitData.TypesRequired);
+		if (LIKELY(TraitData.Trait) && TraitData.Trait->ValidateTemplate(*this, World, TraitRequirementsWrapper) == false)
 		{
-			CurrentTrait = Dependency.Get<1>();
-			bHeaderOutputted = false;
-		}
-		if (!TraitAddedTypes.Contains(Dependency.Get<0>()))
-		{
-			if (!bHeaderOutputted)
-			{
-				check(CurrentTrait);
-				UE_LOG(LogMass, Error, TEXT("%s: Trait(%s) has missing dependency:"), *GetNameSafe(CurrentTrait->GetOuter())
-					, *CurrentTrait->GetClass()->GetName());
-				bHeaderOutputted = true;
-			}
-			UE_LOG(LogMass, Error, TEXT("\t\t%s"), *Dependency.Get<0>()->GetName());
-			bMissingFragmentDependencies = true;
+			++ErrorCount;
+			IF_MESSAGES(
+				FMassDebugger::DebugEvent(UE::Mass::Debug::TraitFailedValidation, FConstStructView::Make(FMassGenericDebugEvent{TraitData.Trait}));
+			);
 		}
 	}
+
+	TMap<const UStruct*, const UMassEntityTraitBase*> TypesAlreadyAdded;
+
+	// these are non-critical warnings, we want to report these to the users as a potential configuration issue,
+	// but it won't affect the final entity template composition (for example adding the same fragment is fine since 
+	// the entity template handles that gracefully).
+	for (const FTraitData& TraitData : TraitsData)
+	{
+		for (const UStruct* TypeAdded : TraitData.TypesAdded)
+		{
+			const UMassEntityTraitBase*& SourceTrait = TypesAlreadyAdded.FindOrAdd(TypeAdded);
+			if (SourceTrait != nullptr)
+			{
+				if (UE::Mass::Debug::bReportDuplicatedFragmentsAsWarnings)
+				{
+					// we report this only if it wasn't added twice by the same trait, the one we're processing right now
+					UE_CLOG(SourceTrait != TraitData.Trait
+						, LogMass, Warning, TEXT("%s: Fragment %s already added by %s. Check the entity config for conflicting traits")
+						, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeAdded), *SourceTrait->GetName());
+					++WarningCount;
+				}
+				IF_MESSAGES(
+					FMassDebugger::DebugEvent(FMassDuplicateElementsMessage::StaticStruct()->GetFName()
+						, FConstStructView::Make(FMassDuplicateElementsMessage{TraitData.Trait, SourceTrait, TypeAdded})
+						, UE::Mass::Debug::bReportDuplicatedFragmentsAsWarnings ? EMassDebugMessageSeverity::Warning : EMassDebugMessageSeverity::Info);
+				);
+			}
+			else
+			{
+				SourceTrait = TraitData.Trait;
+			}
+		}
+	}
+
+	// now to properly test if something required was removed we need to filter TypesAlreadyAdded first
+	for (const FRemovedType& RemovedElement : RemovedTypes)
+	{
+		if (RemovedElement.TypeRemoved)
+		{
+			TypesAlreadyAdded.Remove(RemovedElement.TypeRemoved);
+		}
+	}
+
+	// these are critical, we're going to fail the validation if anything here fails
+	for (const FTraitData& TraitData : TraitsData)
+	{
+		for (const UStruct* TypeRequired : TraitData.TypesRequired)
+		{
+			if (TypesAlreadyAdded.Contains(TypeRequired) == false)
+			{
+				UE_LOG(LogMass, Error, TEXT("%s: Missing required element of type %s")
+					, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeRequired));
+				++ErrorCount;
+				IF_MESSAGES(
+				{
+					// check if it was removed
+					const UMassEntityTraitBase* RemovedByTrait = nullptr;
+					const int32 RemoverIndex = RemovedTypes.Find(FRemovedType({TypeRequired}));
+					if (RemoverIndex != INDEX_NONE)
+					{
+						RemovedByTrait = RemovedTypes[RemoverIndex].Remover;
+					}
+
+					FMassDebugger::DebugEvent<FMassMissingTraitMessage>(TraitData.Trait, TypeRequired, RemovedByTrait);
+				});
+			}
+		}
+	}
+
+	for (const UMassEntityTraitBase* IgnoredTrait : IgnoredTraits)
+	{
+		IF_MESSAGES(
+			FMassDebugger::DebugEvent(UE::Mass::Debug::TraitIgnored, FConstStructView::Make(FMassGenericDebugEvent{IgnoredTrait}));
+		);
+		++WarningCount;
+	}
+	
+	// @todo add dependencies on trait classes? might be hard if traits are unrelated, like requiring UMassLODCollectorTrait 
+	// or UMassDistanceLODCollectorTrait - both supply alternative implementations of a given functionality, but are unrelated.
+	// Could be done with a complex requirements system (similar to entity queries - "all of X", "any of Y", etc) - probably 
+	// not worth it since we don't even have a use case for it right now.
 
 #if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
-	if (GEditor && (bFragmentHasMultipleOwners || bMissingFragmentDependencies))
+	if (GEditor && (ErrorCount || WarningCount))
 	{
-		FMessageLog EditorErrors("MassEntity");
-		if (bFragmentHasMultipleOwners)
-		{
-			EditorErrors.Warning(LOCTEXT("MassEntityTraitsFragmentOwnershipError", "Some fragments are added by multiple traits and can only be added by one!"));
-			EditorErrors.Notify(LOCTEXT("MassEntityTraitsFragmentOwnershipError", "Some fragments are added by multiple traits and can only be added by one!"));
-		}
-		if (bMissingFragmentDependencies)
-		{
-			EditorErrors.Error(LOCTEXT("MassEntityTraitsMissingFragment", "Some traits are requiring the presence of fragments which are missing!"));
-			EditorErrors.Notify(LOCTEXT("MassEntityTraitsMissingFragment", "Some traits are requiring the presence of fragments which are missing!"));
-		}
-		EditorErrors.Info(FText::FromString(TEXT("See the log for details")));
+		FMassEditorNotification Notification;
+		Notification.Message = FText::FormatOrdered(LOCTEXT("TraitResult", "Mass Entity Template validation:\n{0} errors and {1} warnings found"), ErrorCount, WarningCount);
+		Notification.Severity = ErrorCount ? EMessageSeverity::Error : EMessageSeverity::Warning;
+		Notification.bIncludeSeeOutputLogForDetails = true;
+		Notification.Show();
 	}
-#endif // WITH_UNREAL_DEVELOPER_TOOLS
+#endif // WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
 
-	return !bFragmentHasMultipleOwners && !bMissingFragmentDependencies;
+#undef IF_MESSAGES
+
+	// only the Errors render the template invalid, Warnings just warn about stuff not being set up quite right, but we can recover.
+	return (ErrorCount == 0);
 }
 
 //-----------------------------------------------------------------------------

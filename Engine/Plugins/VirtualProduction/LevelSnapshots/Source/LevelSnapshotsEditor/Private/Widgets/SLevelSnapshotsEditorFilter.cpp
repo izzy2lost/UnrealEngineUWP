@@ -175,7 +175,7 @@ FText SLevelSnapshotsEditorFilter::GetFilterTooltip() const
 			return LOCTEXT("Negate", "Filter result is negated. Click to toggle.");
 		}
 	}
-	return LOCTEXT("Invalid", "");
+	return FText();
 }
 
 FSlateColor SLevelSnapshotsEditorFilter::GetFilterColor() const

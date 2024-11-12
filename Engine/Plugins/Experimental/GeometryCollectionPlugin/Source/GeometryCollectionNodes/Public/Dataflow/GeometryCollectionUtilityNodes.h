@@ -10,9 +10,15 @@
 #include "CompGeom/ConvexDecomposition3.h"
 
 #include "FractureEngineConvex.h"
+#include "FractureEngineUtility.h"
 
 #include "GeometryCollectionUtilityNodes.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
+#endif
 
 UENUM(BlueprintType)
 enum class EConvexOverlapRemovalMethodEnum : uint8
@@ -98,9 +104,9 @@ public:
 	UPROPERTY(meta = (DataflowOutput))
 	FDataflowConvexDecompositionSettings DecompositionSettings;
 
-	FMakeDataflowConvexDecompositionSettingsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FMakeDataflowConvexDecompositionSettingsNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 USTRUCT(meta = (DataflowGeometryCollection))
@@ -140,9 +146,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Convex, meta = (DataflowInput))
 	FDataflowConvexDecompositionSettings ConvexDecompositionSettings;
 
-	FCreateLeafConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FCreateLeafConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 USTRUCT(meta = (DataflowGeometryCollection))
@@ -178,9 +184,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Convex")
 	bool bUseExistingVertices = false;
 
-	FSimplifyConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FSimplifyConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -218,9 +224,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = AutomaticOverlapRemoval, meta = (DataflowInput, DisplayName = "Max Removal Fraction", ClampMin = 0.01f, ClampMax = 1.f))
 	float CanRemoveFraction = 0.3f;
 
-	FCreateNonOverlappingConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FCreateNonOverlappingConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -322,9 +328,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput, ClampMin = 0, Units = cm, EditCondition = "bProtectNegativeSpace", EditConditionHides))
 	double MinRadius = 10.0;
 
-	FGenerateClusterConvexHullsFromLeafHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FGenerateClusterConvexHullsFromLeafHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -399,14 +405,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput, ClampMin = 0, Units = cm, EditCondition = "bProtectNegativeSpace", EditConditionHides))
 	double MinRadius = 10.0;
 
-	FGenerateClusterConvexHullsFromChildrenHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FGenerateClusterConvexHullsFromChildrenHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
 
-/** Clear convex hulls from the selected transforms */
+/** Clear convex hulls from a collection */
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FClearConvexHullsDataflowNode : public FDataflowNode
 {
@@ -417,11 +423,11 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Convex hulls will be cleared from these transforms */
-	UPROPERTY(meta = (DataflowInput, DataflowIntrinsic))
+	/** [Optional] selection of transforms to clear convex on, if not set all the transform will be used */
+	UPROPERTY(meta = (DataflowInput))
 	FDataflowTransformSelection TransformSelection;
 
-	FClearConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	FClearConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
@@ -430,7 +436,7 @@ public:
 		RegisterOutputConnection(&Collection, &Collection);
 	}
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 
@@ -501,9 +507,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput, ClampMin = 0, Units = cm, EditCondition = "bProtectNegativeSpace", EditConditionHides))
 	double MinRadius = 10.0;
 
-	FMergeConvexHullsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FMergeConvexHullsDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 
 };
 
@@ -523,9 +529,9 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput))
 	FManagedArrayCollection Collection;
 
-	FUpdateVolumeAttributesDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FUpdateVolumeAttributesDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
 /**
@@ -557,13 +563,240 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bVolumeOfUnion = false;
 
-	FGetConvexHullVolumeDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+	FGetConvexHullVolumeDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
+/**
+ * 
+ * Editor Fracture Mode / Utilities / TinyGeo tool
+ * Merge pieces of geometry onto their neighbors -- use it to, for example, clean up too small pieces of geometry.
+ * 
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FFixTinyGeoDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FFixTinyGeoDataflowNode, "FixTinyGeo", "GeometryCollection|Fracture|Utilities", "")
 
-namespace Dataflow
+public:
+	/** Collection to use */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** The selected pieces to use */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/** Whether to merge small geometry, or small clusters */
+	UPROPERTY(EditAnywhere, Category = Distribution)
+	EFixTinyGeoMergeType MergeType = EFixTinyGeoMergeType::MergeGeometry;
+
+	/** Only consider bones at the current Fracture Level */
+	UPROPERTY(EditAnywhere, Category = MergeSettings, meta = (EditCondition = "!bFractureLevelIsAll && MergeType == EFixTinyGeoMergeType::MergeClusters", EditConditionHides))
+	bool bOnFractureLevel = true;
+
+	/** Only auto - consider clusters for merging.Note that leaf nodes can still be consider if manually selected. */
+	UPROPERTY(EditAnywhere, Category = MergeSettings, meta = (EditCondition = "!bFractureLevelIsAll && MergeType == EFixTinyGeoMergeType::MergeClusters && bOnFractureLevel", EditConditionHides))
+	bool bOnlyClusters = false;
+
+	/** Only merge to neighbors with the same parent in the hierarchy */
+	UPROPERTY(EditAnywhere, Category = MergeSettings, meta = (EditCondition = "MergeType == EFixTinyGeoMergeType::MergeClusters", EditConditionHides))
+	bool bOnlySameParent = true;
+
+	/** Helper variable to let the EditConditions above check whether the Fracture Level is set to 'All' */
+	UPROPERTY()
+	bool bFractureLevelIsAll = false;
+
+	UPROPERTY(EditAnywhere, Category = MergeSettings, meta = (DisplayName = "Merge To"))
+	EFixTinyGeoNeighborSelectionMethod NeighborSelection = EFixTinyGeoNeighborSelectionMethod::LargestNeighbor;
+
+	/** Only merge pieces that are connected in the proximity graph.If unchecked, connected pieces will still be favored, but if none are available the closest disconnected piece can be merged. */
+	UPROPERTY(EditAnywhere, Category = MergeSettings, meta = (EditCondition = "MergeType == EFixTinyGeoMergeType::MergeClusters", EditConditionHides))
+	bool bOnlyToConnected = true;
+
+	/** Options for using the current bone selection */
+	UPROPERTY(EditAnywhere, Category = MergeSettings, meta = (DisplayName = "Bone Selection"))
+	EFixTinyGeoUseBoneSelection UseBoneSelection = EFixTinyGeoUseBoneSelection::NoEffect;
+
+	UPROPERTY(EditAnywhere, Category = FilterSettings)
+	EFixTinyGeoGeometrySelectionMethod SelectionMethod = EFixTinyGeoGeometrySelectionMethod::RelativeVolume;
+
+	/** If size (cube root of volume) is less than this value, geometry should be merged into neighbors -- i.e. a value of 2 merges geometry smaller than a 2x2x2 cube */
+	UPROPERTY(EditAnywhere, Category = FilterSettings, meta = (DisplayName = "MinSize", ClampMin = ".00001", UIMin = ".1", UIMax = "10", EditCondition = "SelectionMethod == EFixTinyGeoGeometrySelectionMethod::VolumeCubeRoot", EditConditionHides))
+	float MinVolumeCubeRoot = 1.f;
+
+	/** If cube root of volume relative to the overall shape's cube root of volume is less than this, the geometry should be merged into its neighbors.
+	(Note: This is a bit different from the histogram viewer's "Relative Size," which instead shows values relative to the largest rigid bone.) */
+	UPROPERTY(EditAnywhere, Category = FilterSettings, meta = (ClampMin = "0", UIMax = ".1", ClampMax = "1.0", EditCondition = "SelectionMethod == EFixTinyGeoGeometrySelectionMethod::RelativeVolume", EditConditionHides))
+	float RelativeVolume = .01f;
+
+	/**
+	 * If enabled, add extra vertices (without triangles) to the geometry in regions where vertices are spaced too far apart (e.g. across large triangles)
+	 * These extra vertices will be used as collision samples in particle-implicit collisions, and can help the physics system detect collisions more accurately
+	 *
+	 * Note this is *only* useful for simulations that use particle-implicit collisions
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision");
+	bool AddSamplesForCollision = false;
+
+	/**
+	 * The number of centimeters to allow between vertices on the mesh surface: If there are gaps larger than this, add additional vertices (without triangles) to help support particle-implicit collisions
+	 * Only used if Add Samples For Collision is enabled
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision", meta = (DataflowInput, DisplayName = "Point Spacing", UIMin = 0.f, EditCondition = "AddSamplesForCollision"));
+	float CollisionSampleSpacing = 50.f;
+
+	FFixTinyGeoDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&TransformSelection);
+		RegisterInputConnection(&CollisionSampleSpacing);
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+/**
+ *
+ * Editor Fracture Mode / Utilities / Normals tool
+ * Recompute normals and tangents.
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FRecomputeNormalsInGeometryCollectionDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FRecomputeNormalsInGeometryCollectionDataflowNode, "RecomputeNormalsInGeometryCollection", "GeometryCollection|Fracture|Utilities", "")
+
+public:
+	/** Collection to use */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** The selected pieces to use */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/** Whether to only recompute tangents, and leave normals as they were */
+	UPROPERTY(EditAnywhere, Category = RecomputeSettings)
+	bool bOnlyTangents = false;
+
+	/** If true, update where edges are 'sharp' by comparing adjacent triangle face normals vs the Sharp Edge Angle Threshold. */
+	UPROPERTY(EditAnywhere, Category = RecomputeSettings, meta = (EditCondition = "!bOnlyTangents"))
+	bool bRecomputeSharpEdges = false;
+
+	/** Threshold on angle of change in face normals across an edge, above which we create a sharp edge if bRecomputeSharpEdges is true */
+	UPROPERTY(EditAnywhere, Category = RecomputeSettings, meta = (UIMin = "0.0", UIMax = "180.0", ClampMin = "0.0", ClampMax = "180.0", EditCondition = "bRecomputeSharpEdges && !bOnlyTangents"))
+	float SharpEdgeAngleThreshold = 60.0f;
+
+	/** Whether to only change internal surface normals / tangents */
+	UPROPERTY(EditAnywhere, Category = RecomputeSettings, AdvancedDisplay)
+	bool bOnlyInternalSurfaces = true;
+
+	FRecomputeNormalsInGeometryCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&TransformSelection);
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+/**
+ *
+ * Editor Fracture Mode / Utilities / Resample tool
+ * Resample to add collision particles in large flat regions that otherwise might have poor collision response.
+ * Only useful to help improve Particle - Implicit collisions.
+ * 
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FResampleGeometryCollectionDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FResampleGeometryCollectionDataflowNode, "ResampleGeometryCollection", "GeometryCollection|Fracture|Utilities", "")
+
+public:
+	/** Collection to use */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** The selected pieces to use */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection"))
+	FDataflowTransformSelection TransformSelection;
+
+	/**
+	 * If enabled, add extra vertices (without triangles) to the geometry in regions where vertices are spaced too far apart (e.g. across large triangles)
+	 * These extra vertices will be used as collision samples in particle-implicit collisions, and can help the physics system detect collisions more accurately
+	 *
+	 * Note this is *only* useful for simulations that use particle-implicit collisions
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision");
+	bool AddSamplesForCollision = false;
+
+	/**
+	 * The number of centimeters to allow between vertices on the mesh surface: If there are gaps larger than this, add additional vertices (without triangles) to help support particle-implicit collisions
+	 * Only used if Add Samples For Collision is enabled
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision", meta = (DataflowInput, DisplayName = "Point Spacing", UIMin = 0.f, EditCondition = "AddSamplesForCollision"));
+	float CollisionSampleSpacing = 50.f;
+
+	FResampleGeometryCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&TransformSelection);
+		RegisterInputConnection(&CollisionSampleSpacing);
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+/**
+ *
+ * Editor Fracture Mode / Utilities / Validate tool
+ * Ensures that geometrycollection is valid and clean.
+ * 
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FValidateGeometryCollectionDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FValidateGeometryCollectionDataflowNode, "ValidateGeometryCollection", "GeometryCollection|Fracture|Utilities", "")
+
+public:
+	/** Collection to use */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	/** Find and remove any unused geometry data */
+	UPROPERTY(EditAnywhere, Category = CleanUnused)
+	bool bRemoveUnreferencedGeometry = true;
+
+	/** Whether to collapse any clusters with only a single child */
+	UPROPERTY(EditAnywhere, Category = Clustering)
+	bool bRemoveClustersOfOne = false;
+
+	/** Remove dangling clusters -- Note this can invalidate caches */
+	UPROPERTY(EditAnywhere, Category = Clustering)
+	bool bRemoveDanglingClusters = false;
+
+	FValidateGeometryCollectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+namespace UE::Dataflow
 {
 	void GeometryCollectionUtilityNodes();
 }

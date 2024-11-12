@@ -5,7 +5,7 @@
 #include "StormSyncTransportSettings.h"
 #include "Utils/StormSyncTransportCommandUtils.h"
 
-BEGIN_DEFINE_SPEC(FStormSyncTransportCommandUtilsSpec, "StormSync.StormSyncTransportCore.StormSyncTransportCommandUtils", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncTransportCommandUtilsSpec, "StormSync.StormSyncTransportCore.StormSyncTransportCommandUtils", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 	FString OriginalCmdLine;
 END_DEFINE_SPEC(FStormSyncTransportCommandUtilsSpec)
 

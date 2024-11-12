@@ -131,6 +131,42 @@ TSharedRef<FAvaTransitionSelection> FAvaTransitionEditorViewModel::GetSelection(
 	return GetSharedData()->GetSelection();
 }
 
+TSharedRef<SWidget> FAvaTransitionEditorViewModel::GetTreeWidget()
+{
+	if (!TreeView.IsValid())
+	{
+		TreeView = SNew(SAvaTransitionTreeView, SharedThis(this));
+	}
+
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			Toolbar->GenerateTreeToolbarWidget()
+		]
+		+ SVerticalBox::Slot()
+		.FillHeight(1.f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			[
+				SNew(SScrollBox)
+				.Orientation(Orient_Horizontal)
+				+ SScrollBox::Slot()
+				.FillSize(1.f)
+				[
+					TreeView.ToSharedRef()
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				TreeView->GetVerticalScrollbar()
+			]
+		];
+}
+
 void FAvaTransitionEditorViewModel::OnInitialize()
 {
 	FAvaTransitionViewModel::OnInitialize();
@@ -153,14 +189,17 @@ void FAvaTransitionEditorViewModel::OnInitialize()
 		ViewModelSharedData->SetReadOnly(Editor->IsReadOnly());
 	}
 
-	TreeView = SNew(SAvaTransitionTreeView, This);
+	UE::StateTree::Delegates::OnPostCompile.AddSP(This, &FAvaTransitionEditorViewModel::OnPostCompile);
 }
 
 void FAvaTransitionEditorViewModel::PostRefresh()
 {
 	FAvaTransitionViewModel::PostRefresh();
+
 	RefreshTreeView();
 	UpdateTree();
+
+	OnPostRefreshDelegate.Broadcast();
 }
 
 void FAvaTransitionEditorViewModel::RefreshTreeView()
@@ -199,38 +238,6 @@ void FAvaTransitionEditorViewModel::PostUndo(bool bInSuccess)
 	Refresh();
 }
 
-TSharedRef<SWidget> FAvaTransitionEditorViewModel::CreateWidget()
-{
-	check(TreeView.IsValid());
-	return SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			Toolbar->GenerateTreeToolbarWidget()
-		]
-		+ SVerticalBox::Slot()
-		.FillHeight(1.f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			[
-				SNew(SScrollBox)
-				.Orientation(Orient_Horizontal)
-				+ SScrollBox::Slot()
-				.FillSize(1.f)
-				[
-					TreeView.ToSharedRef()
-				]
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				TreeView->GetVerticalScrollbar()
-			]
-		];
-}
-
 UObject* FAvaTransitionEditorViewModel::GetObject() const
 {
 	return GetEditorData();
@@ -263,6 +270,15 @@ void FAvaTransitionEditorViewModel::UnbindDelegates()
 
 	UE::StateTree::Delegates::OnIdentifierChanged.RemoveAll(this);
 	UE::StateTree::Delegates::OnSchemaChanged.RemoveAll(this);
+}
+
+void FAvaTransitionEditorViewModel::OnPostCompile(const UStateTree& InStateTree)
+{
+	if (&InStateTree == GetTransitionTree())
+	{
+		// Full refresh on compile
+		Refresh();
+	}
 }
 
 void FAvaTransitionEditorViewModel::OnIdentifierChanged(const UStateTree& InStateTree)

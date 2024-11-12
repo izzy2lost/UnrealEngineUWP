@@ -20,7 +20,7 @@
 #include "Animation/CustomAttributes.h"
 #include "Animation/AnimData/AnimDataNotifications.h"
 #include "Animation/AttributeCurve.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "IO/IoHash.h"
 
 #if WITH_EDITOR
@@ -39,6 +39,7 @@ struct FAnimSequenceDecompressionContext;
 struct FCompactPose;
 
 namespace UE { namespace Anim { class FAnimSequenceCompilingManager; namespace Compression { struct FScopedCompressionGuard; } class FAnimationSequenceAsyncCacheTask; } }
+namespace UE::AnimNext { class FDecompressionTools; }
 
 extern ENGINE_API int32 GPerformFrameStripping;
 
@@ -324,6 +325,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** If RetargetSource is set to Default (None), this is asset for the base pose to use when retargeting. Transform data will be saved in RetargetSourceAssetReferencePose. */
+	UE_DEPRECATED(5.5, "Direct access to RetargetSourceAsset has been deprecated. Please use members GetRetargetSourceAsset & SetRetargetSourceAsset instead.")
 	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category=Animation, meta = (DisallowedClasses = "/Script/ApexDestruction.DestructibleMesh"))
 	TSoftObjectPtr<USkeletalMesh> RetargetSourceAsset;
 #endif
@@ -337,7 +339,7 @@ public:
 	EAnimInterpolationType Interpolation;
 	
 	/** If this is on, it will allow extracting of root motion **/
-	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category = RootMotion, meta = (DisplayName = "EnableRootMotion"))
+	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category = RootMotion)
 	bool bEnableRootMotion;
 
 	/** Root Bone will be locked to that position when extracting root motion.**/
@@ -349,7 +351,7 @@ public:
 	bool bForceRootLock;
 
 	/** If this is on, it will use a normalized scale value for the root motion extracted: FVector(1.0, 1.0, 1.0) **/
-	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category = RootMotion, meta = (DisplayName = "Use Normalized Root Motion Scale"))
+	UPROPERTY(EditAnywhere, AssetRegistrySearchable, Category = RootMotion)
 	bool bUseNormalizedRootMotionScale;
 
 	/** Have we copied root motion settings from an owning montage */
@@ -490,9 +492,30 @@ protected:
 	
 	UE_DEPRECATED(5.3, "Please use UpdateCompressedCurveName that takes FNames.")
 	void UpdateCompressedCurveName(SmartName::UID_Type CurveUID, const struct FSmartName& NewCurveName) {}
-private:
-	ENGINE_API void UpdateRetargetSourceAsset();
+#endif
 
+public:
+#if WITH_EDITOR
+	// Assigns the passed skeletal mesh to the retarget source
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	ENGINE_API void SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset);
+
+	// Resets the retarget source asset
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	ENGINE_API void ClearRetargetSourceAsset();
+
+	// Returns the retarget source asset soft object pointer.
+	UFUNCTION(BlueprintPure, Category = "Animation")
+	ENGINE_API const TSoftObjectPtr<USkeletalMesh>& GetRetargetSourceAsset() const;
+
+	// Update the retarget data pose from the source, if it exist, else clears the retarget data pose saved in RetargetSourceAssetReferencePose.
+	// Warning : This function calls LoadSynchronous at the retarget source asset soft object pointer, so it can not be used at PostLoad
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	ENGINE_API void UpdateRetargetSourceAssetData();
+#endif
+
+private:
+#if WITH_EDITORONLY_DATA
 	/** Updates the stored sampling frame-rate using the sequence length and number of sampling keys */
 	UE_DEPRECATED(5.0, "UpdateFrameRate has been deprecated see UAnimDataController::SetFrameRate")
 	ENGINE_API void UpdateFrameRate();
@@ -541,10 +564,12 @@ public:
 	 * @param	TrackIndex		Index of track to interpolate.
 	 * @param	Time			Time on track to interpolate to.
 	 * @param	bUseRawData		If true, use raw animation data instead of compressed data.
+	 * @param   InterpolationOverride The optional animation interpolation type to use. If not set, it will use the AnimSequence interpolation type.
 	 */
+	ENGINE_API void GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex BoneIndex, double Time, bool bUseRawData, TOptional<EAnimInterpolationType> InterpolationOverride=TOptional<EAnimInterpolationType>()) const;
+
 	UE_DEPRECATED(5.1, "Use other GetBoneTransform signature using double and skeleton index")
 	void GetBoneTransform(FTransform& OutAtom, int32 TrackIndex, float Time, bool bUseRawData) const {}
-	ENGINE_API void GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex BoneIndex, double Time, bool bUseRawData) const;
 
 	/**
 	 * Get Bone Transform of the Time given, relative to Parent for the Track Given
@@ -562,7 +587,7 @@ public:
 	/** @return	estimate uncompressed raw size. This is *not* the real raw size. 
 				Here we estimate what it would be with no trivial compression. */
 #if WITH_EDITOR
-	ENGINE_API int32 GetUncompressedRawSize() const;
+	ENGINE_API int64 GetUncompressedRawSize() const;
 
 	/**
 	 * @return		The approximate size of raw animation data.
@@ -877,12 +902,12 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = "Animation")
-	FFrameRate TargetFrameRate;
-
-	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = "Animation")
 	FPerPlatformFrameRate PlatformTargetFrameRate;
 
 #if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FFrameRate TargetFrameRate;	
+
 	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = "Animation", Transient, DuplicateTransient)
 	int32 NumberOfSampledKeys;
 
@@ -904,6 +929,9 @@ protected:
 
 #if WITH_EDITOR
 	ENGINE_API FIoHash CreateDerivedDataKeyHash(const ITargetPlatform* TargetPlatform);
+private:
+	FString CreateDerivedDataKeyString(const ITargetPlatform* TargetPlatform);
+protected:
 	ENGINE_API FIoHash BeginCacheDerivedData(const ITargetPlatform* TargetPlatform);
 	ENGINE_API bool PollCacheDerivedData(const FIoHash& KeyHash) const;
 	ENGINE_API void EndCacheDerivedData(const FIoHash& KeyHash);
@@ -914,6 +942,7 @@ protected:
 
 protected:
 	ENGINE_API bool TryCancelAsyncTasks();
+	ENGINE_API bool WaitForAsyncTasks(float TimeLimitSeconds);
 	ENGINE_API void FinishAsyncTasks();
 	ENGINE_API void Reschedule(FQueuedThreadPool* InThreadPool, EQueuedWorkPriority InPriority);
 	ENGINE_API bool IsAsyncTaskComplete() const;
@@ -934,10 +963,11 @@ public:
 	friend class UAnimationBlueprintLibrary;
 	friend class UAnimBoneCompressionSettings;
 	friend class FCustomAttributeCustomization;
+	friend class FAnimSequenceDeterminismHelper;
 	friend class FAnimSequenceTestBase;
 	friend struct UE::Anim::Compression::FScopedCompressionGuard;
 	friend class FAnimDataControllerTestBase;
 	friend class UE::Anim::FAnimSequenceCompilingManager;
-	friend struct FAnimNextAnimSequenceKeyframeTask;
+	friend UE::AnimNext::FDecompressionTools;
 	friend class FAnimSequenceDetails;
 };

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,13 +10,13 @@ namespace AutomationTool
 {
     public partial class CommandUtils
     {
-        /// <summary>
-        /// Given a path to a file, strips off the base directory part of the path
-        /// </summary>
-        /// <param name="FilePath">The full path</param>
-        /// <param name="BaseDirectory">The base directory, which must be the first part of the path</param>
-        /// <returns>The part of the path after the base directory</returns>
-        public static string StripBaseDirectory(string InFilePath, string InBaseDirectory)
+		/// <summary>
+		/// Given a path to a file, strips off the base directory part of the path
+		/// </summary>
+		/// <param name="InFilePath"></param>
+		/// <param name="InBaseDirectory">The base directory, which must be the first part of the path</param>
+		/// <returns>The part of the path after the base directory</returns>
+		public static string StripBaseDirectory(string InFilePath, string InBaseDirectory)
         {
             var FilePath = CombinePaths(InFilePath);
             var BaseDirectory = CombinePaths(InBaseDirectory);

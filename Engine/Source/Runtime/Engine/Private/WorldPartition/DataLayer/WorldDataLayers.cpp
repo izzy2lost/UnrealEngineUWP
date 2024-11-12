@@ -15,6 +15,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionRuntimeCellInterface.h"
+#include "WorldPartition/WorldPartitionStreamingPolicy.h"
 #include "Engine/Level.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Net/UnrealNetwork.h"
@@ -24,9 +25,12 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldDataLayers)
 
 #if WITH_EDITOR
+#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
+#include "WorldPartition/ContentBundle/ContentBundleEditorSubsystemInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
+#include "Interfaces/IPluginManager.h"
 #include "Algo/Find.h"
 #include "Misc/MessageDialog.h"
 #include "Editor.h"
@@ -64,9 +68,6 @@ AWorldDataLayers::AWorldDataLayers(const FObjectInitializer& ObjectInitializer)
 	// Avoid actor from being Destroyed/Recreated when scrubbing a replay
 	// instead AWorldDataLayers::RewindForReplay() gets called to reset this actors state
 	bReplayRewindable = true;
-
-	AllEffectiveActiveDataLayerNamesEpoch = MAX_int32;
-	AllEffectiveLoadedDataLayerNamesEpoch = MAX_int32;
 }
 
 void AWorldDataLayers::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
@@ -81,9 +82,18 @@ void AWorldDataLayers::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& O
 	DOREPLIFETIME_WITH_PARAMS_FAST(AWorldDataLayers, RepEffectiveActiveDataLayerNames, Params);
 }
 
-void AWorldDataLayers::BeginPlay()
+void AWorldDataLayers::RewindForReplay()
 {
-	Super::BeginPlay();
+	Super::RewindForReplay();
+
+	// Same as PostRegisterAllComponents when rewinding we want to reset our state to the initial state and rely on the Replay/Replication.
+	ResetDataLayerRuntimeStates();
+	InitializeDataLayerRuntimeStates();
+}
+
+void AWorldDataLayers::PostRegisterAllComponents()
+{
+	Super::PostRegisterAllComponents();
 
 	// When running a Replay we want to reset our state to the initial state and rely on the Replay/Replication.
 	// Unfortunately this can't be tested in the PostLoad as the World doesn't have a demo driver yet.
@@ -94,18 +104,56 @@ void AWorldDataLayers::BeginPlay()
 	}
 }
 
-void AWorldDataLayers::RewindForReplay()
-{
-	Super::RewindForReplay();
-
-	// Same as BeginPlay when rewinding we want to reset our state to the initial state and rely on the Replay/Replication.
-	ResetDataLayerRuntimeStates();
-	InitializeDataLayerRuntimeStates();
-}
-
 #define AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(ReplicatedArray, SourceArray) \
 	MARK_PROPERTY_DIRTY_FROM_NAME(AWorldDataLayers, ReplicatedArray, this); \
 	ReplicatedArray = SourceArray;
+
+bool AWorldDataLayers::CanChangeDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, AWorldDataLayers::ESetDataLayerRuntimeStateError* OutReason) const
+{
+	if (!InDataLayerInstance->IsRuntime())
+	{
+		if (OutReason)
+		{
+			*OutReason = ESetDataLayerRuntimeStateError::NotRuntime;
+		}
+		return false;
+	}
+
+	const ENetMode NetMode = GetNetMode();
+
+	if (InDataLayerInstance->IsClientOnly())
+	{
+		if (NetMode != NM_Standalone && NetMode != NM_Client)
+		{
+			if (OutReason)
+			{
+				*OutReason = ESetDataLayerRuntimeStateError::ClientOnlyFromServer;
+			}
+			return false;
+		}
+	}
+	else if (InDataLayerInstance->IsServerOnly())
+	{
+		if (NetMode == NM_Client)
+		{
+			if (OutReason)
+			{
+				*OutReason = ESetDataLayerRuntimeStateError::ServerOnlyFromClient;
+			}
+			return false;
+		}
+	}
+	else if (NetMode == NM_Client)
+	{
+		if (OutReason)
+		{
+			*OutReason = ESetDataLayerRuntimeStateError::AuthoritativeFromClient;
+		}
+		return false;
+	}
+
+	return true;
+}
 
 void AWorldDataLayers::InitializeDataLayerRuntimeStates()
 {
@@ -123,21 +171,26 @@ void AWorldDataLayers::InitializeDataLayerRuntimeStates()
 
 		ForEachDataLayerInstance([this, &RuntimeDataLayerInstances](UDataLayerInstance* DataLayerInstance)
 		{
-			const bool bDataLayerClientOnly = DataLayerInstance->IsClientOnly();
-			const bool bDataLayerServerOnly = DataLayerInstance->IsServerOnly();
-
-			if (DataLayerInstance->IsRuntime() && !bDataLayerClientOnly && !bDataLayerServerOnly)
+			if (CanChangeDataLayerRuntimeState(DataLayerInstance))
 			{
-				if (DataLayerInstance->GetInitialRuntimeState() == EDataLayerRuntimeState::Activated)
-				{
-					ActiveDataLayerNames.Add(DataLayerInstance->GetDataLayerFName());
-				}
-				else if (DataLayerInstance->GetInitialRuntimeState() == EDataLayerRuntimeState::Loaded)
-				{
-					LoadedDataLayerNames.Add(DataLayerInstance->GetDataLayerFName());
-				}
+				const bool bDataLayerClientOnly = DataLayerInstance->IsClientOnly();
+				const bool bDataLayerServerOnly = DataLayerInstance->IsServerOnly();
+				const bool bIsLocalDataLayer = bDataLayerClientOnly || bDataLayerServerOnly;
+				TSet<FName>& TargetLoadedDataLayerNames = bIsLocalDataLayer ? LocalLoadedDataLayerNames : LoadedDataLayerNames;
+				TSet<FName>& TargetActiveDataLayerNames = bIsLocalDataLayer ? LocalActiveDataLayerNames : ActiveDataLayerNames;
 
-				RuntimeDataLayerInstances.Add(DataLayerInstance);
+				if (DataLayerInstance->IsRuntime())
+				{
+					if (DataLayerInstance->GetInitialRuntimeState() == EDataLayerRuntimeState::Loaded)
+					{
+						TargetLoadedDataLayerNames.Add(DataLayerInstance->GetDataLayerFName());
+					}
+					else if (DataLayerInstance->GetInitialRuntimeState() == EDataLayerRuntimeState::Activated)
+					{
+						TargetActiveDataLayerNames.Add(DataLayerInstance->GetDataLayerFName());
+					}
+					RuntimeDataLayerInstances.Add(DataLayerInstance);
+				}
 			}
 			return true;
 		});
@@ -152,8 +205,8 @@ void AWorldDataLayers::InitializeDataLayerRuntimeStates()
 			ResolveEffectiveRuntimeState(DataLayerInstance, bNotifyChange);
 		}
 
-		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveActiveDataLayerNames.Array());
-		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveLoadedDataLayerNames.Array());
+		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveStates.GetReplicatedEffectiveActiveDataLayerNames().Array());
+		AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveStates.GetReplicatedEffectiveLoadedDataLayerNames().Array());
 
 		UE_CLOG(RepEffectiveActiveDataLayerNames.Num() || RepEffectiveLoadedDataLayerNames.Num(), LogWorldPartition, Log, TEXT("Initial Data Layer Effective States Activated(%s) Loaded(%s)"), *JoinDataLayerShortNamesFromInstanceNames(this, RepEffectiveActiveDataLayerNames), *JoinDataLayerShortNamesFromInstanceNames(this, RepEffectiveLoadedDataLayerNames));
 	}
@@ -166,11 +219,8 @@ void AWorldDataLayers::ResetDataLayerRuntimeStates()
 	LocalActiveDataLayerNames.Reset();
 	LocalLoadedDataLayerNames.Reset();
 
-	EffectiveActiveDataLayerNames.Reset();
-	EffectiveLoadedDataLayerNames.Reset();
-	LocalEffectiveActiveDataLayerNames.Reset();
-	LocalEffectiveLoadedDataLayerNames.Reset();
-
+	EffectiveStates.Reset();
+	
 	static const TArray<FName> Empty;
 	FlushNetDormancy();
 	AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepActiveDataLayerNames, Empty);
@@ -179,98 +229,69 @@ void AWorldDataLayers::ResetDataLayerRuntimeStates()
 	AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, Empty);
 }
 
-void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive)
+bool AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive)
 {
-	if (!InDataLayerInstance || !InDataLayerInstance->IsRuntime())
+	if (!InDataLayerInstance)
 	{
-		return;
+		return false;
 	}
 
-	const ENetMode NetMode = GetNetMode();
-	const bool bDataLayerClientOnly = InDataLayerInstance->IsClientOnly();
-	const bool bDataLayerServerOnly = InDataLayerInstance->IsServerOnly();
 	const EDataLayerRuntimeState CurrentState = GetDataLayerRuntimeStateByName(InDataLayerInstance->GetDataLayerFName());
 
-	if (bDataLayerClientOnly)
+	ESetDataLayerRuntimeStateError Reason;
+	if (!CanChangeDataLayerRuntimeState(InDataLayerInstance, &Reason))
 	{
-		if (NetMode != NM_Standalone && NetMode != NM_Client)
+		switch (Reason)
 		{
-			UE_LOG(LogWorldPartition, Log, TEXT("Client Only Data Layer state change '%s' was ignored: %s -> %s"),
+		case ESetDataLayerRuntimeStateError::NotRuntime:
+			UE_LOG(LogWorldPartition, Verbose, TEXT("Non-Runtime Data Layer '%s' state change was ignored"),
+				*InDataLayerInstance->GetDataLayerShortName());
+			break;
+		case ESetDataLayerRuntimeStateError::ClientOnlyFromServer:
+			UE_LOG(LogWorldPartition, Verbose, TEXT("Client Only Data Layer '%s' state change was ignored: %s -> %s"),
 				*InDataLayerInstance->GetDataLayerShortName(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-			return;
-		}
-	}
-	else if (bDataLayerServerOnly)
-	{
-		if (NetMode == NM_Client)
-		{
-			UE_LOG(LogWorldPartition, Log, TEXT("Server Only Data Layer state change '%s' was ignored: %s -> %s"),
+			break;
+		case ESetDataLayerRuntimeStateError::ServerOnlyFromClient:
+			UE_LOG(LogWorldPartition, Verbose, TEXT("Server Only Data Layer '%s' state change was ignored: %s -> %s"),
 				*InDataLayerInstance->GetDataLayerShortName(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-			return;
+			break;
+		case ESetDataLayerRuntimeStateError::AuthoritativeFromClient:
+				UE_LOG(LogWorldPartition, Verbose, TEXT("Data Layer '%s' state change was ignored on client: %s -> %s"),
+					*InDataLayerInstance->GetDataLayerShortName(),
+					*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
+					*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
+				break;
 		}
-	}
-	else if (NetMode == NM_Client)
-	{
-		UE_LOG(LogWorldPartition, Log, TEXT("Data Layer '%s' state change was ignored on client: %s -> %s"),
-			*InDataLayerInstance->GetDataLayerShortName(),
-			*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
-			*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-		return;
+		return false;
 	}
 
 	if (CurrentState != InState)
 	{
-		if (GetWorld()->IsGameWorld())
-		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			if (DataLayersFilterDelegate.IsBound())
-			{
-				const FString DataLayerShortName(InDataLayerInstance->GetDataLayerShortName());
-				if (!DataLayersFilterDelegate.Execute(FName(*DataLayerShortName), CurrentState, InState))
-				{
-					UE_LOG(LogWorldPartition, Log, TEXT("Data Layer '%s' state change was filtered out: %s -> %s"),
-						*DataLayerShortName,
-						*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
-						*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-					return;
-				}
-			}
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
+		const ENetMode NetMode = GetNetMode();
+		const bool bDataLayerClientOnly = InDataLayerInstance->IsClientOnly();
+		const bool bDataLayerServerOnly = InDataLayerInstance->IsServerOnly();
+		const bool bIsLocalDataLayer = bDataLayerClientOnly || bDataLayerServerOnly;
+		TSet<FName>& TargetLoadedDataLayerNames = bIsLocalDataLayer ? LocalLoadedDataLayerNames : LoadedDataLayerNames;
+		TSet<FName>& TargetActiveDataLayerNames = bIsLocalDataLayer ? LocalActiveDataLayerNames : ActiveDataLayerNames;
 
-		LoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
-		ActiveDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
-		LocalLoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
+		TargetLoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
+		TargetActiveDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 
 		if (InState == EDataLayerRuntimeState::Loaded)
 		{
-			if (bDataLayerClientOnly || bDataLayerServerOnly)
-			{
-				LocalLoadedDataLayerNames.Add(InDataLayerInstance->GetDataLayerFName());
-			}
-			else
-			{
-				LoadedDataLayerNames.Add(InDataLayerInstance->GetDataLayerFName());
-			}
+			TargetLoadedDataLayerNames.Add(InDataLayerInstance->GetDataLayerFName());
 		}
 		else if (InState == EDataLayerRuntimeState::Activated)
 		{
-			if (bDataLayerClientOnly || bDataLayerServerOnly)
-			{
-				LocalActiveDataLayerNames.Add(InDataLayerInstance->GetDataLayerFName());
-			}
-			else
-			{
-				ActiveDataLayerNames.Add(InDataLayerInstance->GetDataLayerFName());
-			}
+			TargetActiveDataLayerNames.Add(InDataLayerInstance->GetDataLayerFName());
 		}
 
 		// Update replicated properties
-		if (NetMode == NM_DedicatedServer || NetMode == NM_ListenServer)
+		if (!bIsLocalDataLayer && (NetMode == NM_DedicatedServer || NetMode == NM_ListenServer))
 		{
 			FlushNetDormancy();
 			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepActiveDataLayerNames, ActiveDataLayerNames.Array());
@@ -297,6 +318,8 @@ void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InData
 			return true;
 		});
 	}
+
+	return true;
 }
 
 void AWorldDataLayers::OnDataLayerRuntimeStateChanged_Implementation(const UDataLayerInstance* InDataLayer, EDataLayerRuntimeState InState)
@@ -350,63 +373,36 @@ EDataLayerRuntimeState AWorldDataLayers::GetDataLayerRuntimeStateByName(FName In
 void AWorldDataLayers::OnRep_EffectiveActiveDataLayerNames()
 {
 	++DataLayersStateEpoch;
-	EffectiveActiveDataLayerNames.Reset();
-	EffectiveActiveDataLayerNames.Append(RepEffectiveActiveDataLayerNames);
+	// TSet do not support replication so we replicate an array and update the set here
+	EffectiveStates.SetReplicatedEffectiveActiveDataLayerNames(RepEffectiveActiveDataLayerNames);
 }
 
 void AWorldDataLayers::OnRep_EffectiveLoadedDataLayerNames()
 {
 	++DataLayersStateEpoch;
-	EffectiveLoadedDataLayerNames.Reset();
-	EffectiveLoadedDataLayerNames.Append(RepEffectiveLoadedDataLayerNames);
+	// TSet do not support replication so we replicate an array and update the set here
+	EffectiveStates.SetReplicatedEffectiveLoadedDataLayerNames(RepEffectiveLoadedDataLayerNames);
 }
 
 EDataLayerRuntimeState AWorldDataLayers::GetDataLayerEffectiveRuntimeStateByName(FName InDataLayerName) const
 {
-	if (EffectiveActiveDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!EffectiveLoadedDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Activated;
-	}
-	else if (EffectiveLoadedDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!EffectiveActiveDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Loaded;
-	}
-	else if (LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Activated;
-	}
-	else if (LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName))
-	{
-		check(!LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName));
-		return EDataLayerRuntimeState::Loaded;
-	}
+	return EffectiveStates.GetDataLayerEffectiveRuntimeStateByName(InDataLayerName);
+}
 
-	return EDataLayerRuntimeState::Unloaded;
+const FWorldDataLayersEffectiveStates& AWorldDataLayers::GetEffectiveStates() const
+{
+	check(IsInGameThread());
+	return EffectiveStates;
 }
 
 const TSet<FName>& AWorldDataLayers::GetEffectiveActiveDataLayerNames() const
 {
-	if (AllEffectiveActiveDataLayerNamesEpoch != DataLayersStateEpoch)
-	{
-		AllEffectiveActiveDataLayerNames = EffectiveActiveDataLayerNames;
-		AllEffectiveActiveDataLayerNames.Append(LocalEffectiveActiveDataLayerNames);
-		AllEffectiveActiveDataLayerNamesEpoch = DataLayersStateEpoch;
-	}
-	return AllEffectiveActiveDataLayerNames;
+	return EffectiveStates.GetAllEffectiveActiveDataLayerNames();
 }
 
 const TSet<FName>& AWorldDataLayers::GetEffectiveLoadedDataLayerNames() const
 {
-	if (AllEffectiveLoadedDataLayerNamesEpoch != DataLayersStateEpoch)
-	{
-		AllEffectiveLoadedDataLayerNames = EffectiveLoadedDataLayerNames;
-		AllEffectiveLoadedDataLayerNames.Append(LocalEffectiveLoadedDataLayerNames);
-		AllEffectiveLoadedDataLayerNamesEpoch = DataLayersStateEpoch;
-	}
-	return AllEffectiveLoadedDataLayerNames;
+	return EffectiveStates.GetAllEffectiveLoadedDataLayerNames();
 }
 
 void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* InDataLayerInstance, bool bInNotifyChange)
@@ -415,8 +411,8 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 	const ENetMode NetMode = GetNetMode();
 	const bool bDataLayerClientOnly = InDataLayerInstance->IsClientOnly();
 	const bool bDataLayerServerOnly = InDataLayerInstance->IsServerOnly();
+	const bool bIsLocalDataLayer = (bDataLayerClientOnly || bDataLayerServerOnly);
 	const FName DataLayerName = InDataLayerInstance->GetDataLayerFName();
-	EDataLayerRuntimeState CurrentEffectiveRuntimeState = GetDataLayerEffectiveRuntimeStateByName(DataLayerName);
 	EDataLayerRuntimeState NewEffectiveRuntimeState = GetDataLayerRuntimeStateByName(DataLayerName);
 	const UDataLayerInstance* Parent = InDataLayerInstance->GetParent();
 
@@ -430,42 +426,15 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 		Parent = Parent->GetParent();
 	}
 
-	if (CurrentEffectiveRuntimeState != NewEffectiveRuntimeState)
+	EDataLayerRuntimeState OldEffectiveRuntimeState;
+	if (EffectiveStates.SetDataLayerEffectiveRuntimeState(DataLayerName, bIsLocalDataLayer, NewEffectiveRuntimeState, OldEffectiveRuntimeState))
 	{
-		EffectiveLoadedDataLayerNames.Remove(DataLayerName);
-		EffectiveActiveDataLayerNames.Remove(DataLayerName);
-		LocalEffectiveLoadedDataLayerNames.Remove(DataLayerName);
-		LocalEffectiveActiveDataLayerNames.Remove(DataLayerName);
-
-		if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Loaded)
-		{
-			if (bDataLayerClientOnly || bDataLayerServerOnly)
-			{
-				LocalEffectiveLoadedDataLayerNames.Add(DataLayerName);
-			}
-			else
-			{
-				EffectiveLoadedDataLayerNames.Add(DataLayerName);
-			}
-		}
-		else if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Activated)
-		{
-			if (bDataLayerClientOnly || bDataLayerServerOnly)
-			{
-				LocalEffectiveActiveDataLayerNames.Add(DataLayerName);
-			}
-			else
-			{
-				EffectiveActiveDataLayerNames.Add(DataLayerName);
-			}
-		}
-
 		// Update Replicated Properties
-		if (NetMode == NM_DedicatedServer || NetMode == NM_ListenServer)
+		if (!bIsLocalDataLayer && (NetMode == NM_DedicatedServer || NetMode == NM_ListenServer))
 		{
 			FlushNetDormancy();
-			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveActiveDataLayerNames.Array());
-			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveLoadedDataLayerNames.Array());
+			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveActiveDataLayerNames, EffectiveStates.GetReplicatedEffectiveActiveDataLayerNames().Array());
+			AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, EffectiveStates.GetReplicatedEffectiveLoadedDataLayerNames().Array());
 		}
 
 		++DataLayersStateEpoch;
@@ -474,7 +443,7 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 		{
 			UE_LOG(LogWorldPartition, Log, TEXT("Data Layer Instance '%s' effective state changed: %s -> %s"),
 				*InDataLayerInstance->GetDataLayerShortName(),
-				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentEffectiveRuntimeState).ToString(),
+				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)OldEffectiveRuntimeState).ToString(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)NewEffectiveRuntimeState).ToString());
 
 			OnDataLayerRuntimeStateChanged(InDataLayerInstance, NewEffectiveRuntimeState);
@@ -607,12 +576,12 @@ void AWorldDataLayers::DumpDataLayers(FOutputDevice& OutputDevice) const
 			}
 		};
 
-		if (EffectiveLoadedDataLayerNames.Num() || EffectiveActiveDataLayerNames.Num())
+		if (EffectiveStates.GetAllEffectiveLoadedDataLayerNames().Num() || EffectiveStates.GetAllEffectiveActiveDataLayerNames().Num())
 		{
 			OutputDevice.Logf(TEXT("----------------------------------------------------"));
 			OutputDevice.Logf(TEXT(" Data Layers Runtime States"));
-			DumpDataLayersRuntimeState(TEXT("Loaded"), EffectiveLoadedDataLayerNames);
-			DumpDataLayersRuntimeState(TEXT("Active"), EffectiveActiveDataLayerNames);
+			DumpDataLayersRuntimeState(TEXT("Loaded"), EffectiveStates.GetAllEffectiveLoadedDataLayerNames());
+			DumpDataLayersRuntimeState(TEXT("Active"), EffectiveStates.GetAllEffectiveActiveDataLayerNames());
 			OutputDevice.Logf(TEXT("----------------------------------------------------"));
 			OutputDevice.Logf(TEXT(""));
 		}
@@ -632,10 +601,35 @@ void AWorldDataLayers::DumpDataLayers(FOutputDevice& OutputDevice) const
 }
 
 #if WITH_EDITOR
-
 TUniquePtr<class FWorldPartitionActorDesc> AWorldDataLayers::CreateClassActorDesc() const
 {
 	return TUniquePtr<FWorldPartitionActorDesc>(new FWorldDataLayersActorDesc());
+}
+
+void AWorldDataLayers::OnLoadedActorRemovedFromLevel()
+{
+	Super::OnLoadedActorRemovedFromLevel();
+
+	if (IsUsingExternalPackageDataLayerInstances())
+	{
+		// Validation will sometimes load the world without invoking the full initialization of its systems so
+		// perform a minimal initialization on ExternalPackage DataLayerInstances so that we can iterate over them
+		InitializeExternalPackageDataLayerInstances();
+
+		// Iterate on Data Layer Instances excluding Transient Data Layer Instances
+		for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
+		{
+			check(DataLayerInstance->IsPackageExternal())
+			ForEachObjectWithPackage(DataLayerInstance->GetPackage(), [](UObject* Object)
+			{
+				if (Object->HasAnyFlags(RF_Public | RF_Standalone))
+				{
+					CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
+				}
+				return true;
+			}, false);
+		}
+	}
 }
 
 AWorldDataLayers* AWorldDataLayers::Create(UWorld* World, FName InWorldDataLayerName)
@@ -659,13 +653,16 @@ AWorldDataLayers* AWorldDataLayers::Create(const FActorSpawnParameters& SpawnPar
 		if (!IsValidChecked(WorldDataLayers))
 		{
 			// Handle the case where the actor already exists, but it's pending kill
-			WorldDataLayers->Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
+			WorldDataLayers->Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 			WorldDataLayers = nullptr;
 		}
 	}
 
 	if (!WorldDataLayers)
 	{
+		// Make sure there's no context while creating the AWorldDataLayers (avoids generating any warnings while spawning)
+		FScopedActorEditorContextSetExternalDataLayerAsset ScopeDisableCurrentEDL(nullptr);
+		FScopedOverrideSpawningLevelMountPointObject ScopeDisableOverrideEDL(nullptr);
 		UWorld* World = SpawnParameters.OverrideLevel->GetWorld();
 		WorldDataLayers = World->SpawnActor<AWorldDataLayers>(AWorldDataLayers::StaticClass(), SpawnParameters);
 	}
@@ -869,6 +866,9 @@ bool AWorldDataLayers::AddToActorEditorContext(UDataLayerInstance* InDataLayerIn
 			CurrentDataLayers.DataLayerInstanceNames.Remove(DataLayerInstanceName);
 		}
 
+		// EDL has priority over Content Bundle
+		IContentBundleEditorSubsystemInterface::Get()->DeactivateCurrentContentBundleEditing();
+
 		bSuccess = true;
 	}
 	else if (!CurrentDataLayers.DataLayerInstanceNames.Contains(InDataLayerInstance->GetDataLayerFName()))
@@ -999,6 +999,11 @@ bool AWorldDataLayers::ContainsDataLayer(const UDataLayerInstance* InDataLayerIn
 
 const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const FName& InDataLayerInstanceName) const
 {
+	if (InDataLayerInstanceName.IsNone())
+	{
+		return nullptr;
+	}
+
 #if WITH_EDITOR	
 	{
 		const UDataLayerInstance* FoundDataLayerInstance = nullptr;
@@ -1033,13 +1038,13 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const FName& In
 	return nullptr;
 }
 
-const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const
+const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const
 {
 #if WITH_EDITOR	
 	const UDataLayerInstance* FoundDataLayerInstance = nullptr;
-	ForEachDataLayerInstance([InDataLayerAssetFullName, &FoundDataLayerInstance](UDataLayerInstance* DataLayerInstance)
+	ForEachDataLayerInstance([InDataLayerAssetPathName, &FoundDataLayerInstance](UDataLayerInstance* DataLayerInstance)
 	{
-		if (DataLayerInstance->GetDataLayerFullName().Equals(InDataLayerAssetFullName.ToString(), ESearchCase::IgnoreCase))
+		if (DataLayerInstance->GetDataLayerFullName().Equals(InDataLayerAssetPathName.ToString(), ESearchCase::IgnoreCase))
 		{
 			FoundDataLayerInstance = DataLayerInstance;
 			return false;
@@ -1048,7 +1053,7 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(co
 	});
 	return FoundDataLayerInstance;
 #else
-	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAssetFullName.ToString()))
+	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAssetPathName.ToString()))
 	{
 		return *FoundDataLayerInstance;
 	}
@@ -1076,7 +1081,7 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const UDataLaye
 	});
 	return FoundDataLayerInstance;
 #else
-	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAsset->GetFullName()))
+	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAsset->GetPathName()))
 	{
 		return *FoundDataLayerInstance;
 	}
@@ -1164,17 +1169,30 @@ TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances()
 	return DataLayerInstances;
 }
 
+#if WITH_EDITOR
+void AWorldDataLayers::InitializeExternalPackageDataLayerInstances()
+{
+	check(IsUsingExternalPackageDataLayerInstances());
+	ExternalPackageDataLayerInstances.Append(LoadedExternalPackageDataLayerInstances);
+	LoadedExternalPackageDataLayerInstances.Reset();
+}
+#endif
+
 void AWorldDataLayers::OnDataLayerManagerInitialized()
 {
 #if WITH_EDITOR
-	ConditionalPostLoad();
 	// At this point, LoadedExternalPackageDataLayerInstances are fully loaded, transfer them to the DataLayerInstances list.
-	ExternalPackageDataLayerInstances.Append(LoadedExternalPackageDataLayerInstances);
-	LoadedExternalPackageDataLayerInstances.Reset();
+	if (IsUsingExternalPackageDataLayerInstances())
+	{
+		InitializeExternalPackageDataLayerInstances();
+	}
+	
 	if (IsRunningCookCommandlet())
 	{
 		// Embed external DataLayerInstances when cooking
+		UE_CLOG(IsUsingExternalPackageDataLayerInstances(), LogWorldPartition, Display, TEXT("Internalizing DataLayerInstances in %s in package (%s)"), *GetPathName(), *GetPackage()->GetName());
 		SetUseExternalPackageDataLayerInstances(false);
+		UE_CLOG(IsUsingExternalPackageDataLayerInstances(), LogWorldPartition, Error, TEXT("Error while internalizing DataLayerInstances."));
 	}
 
 	if (RootExternalDataLayerInstance)
@@ -1227,11 +1245,6 @@ void AWorldDataLayers::OnDataLayerManagerInitialized()
 #endif
 
 	InitializeDataLayerRuntimeStates();
-}
-
-void AWorldDataLayers::OnDataLayerManagerDeinitialized()
-{
-	ResetDataLayerRuntimeStates();
 }
 
 void AWorldDataLayers::Serialize(FArchive& Ar)
@@ -1309,26 +1322,72 @@ void AWorldDataLayers::UpdateAccelerationTable(const UDataLayerInstance* DataLay
 	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "Remove unnecessary cast. All DataLayerInstance now have assets");
 	if (const UDataLayerInstanceWithAsset* DataLayerInstanceWithAsset = Cast<UDataLayerInstanceWithAsset>(DataLayerInstance))
 	{
-		if (!DataLayerInstanceWithAsset->GetAsset())
-		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("DataLayerWithAsset %s has null asset."), *DataLayerInstanceWithAsset->GetPathName());
-		}
-		else
+		if (const UDataLayerAsset* DataLayerAsset = DataLayerInstanceWithAsset->GetAsset())
 		{
 			if (bIsAdding)
 			{
-				AssetNameToInstance.Add(DataLayerInstanceWithAsset->GetAsset()->GetFullName(), DataLayerInstance);
+				AssetNameToInstance.Add(DataLayerAsset->GetPathName(), DataLayerInstance);
 			}
 			else
 			{
-				AssetNameToInstance.Remove(DataLayerInstanceWithAsset->GetAsset()->GetFullName());
+				AssetNameToInstance.Remove(DataLayerAsset->GetPathName());
 			}
+		}
+		else
+		{
+			UE_LOG(LogWorldPartition, Warning, TEXT("DataLayerWithAsset %s has null asset."), *DataLayerInstanceWithAsset->GetPathName());
 		}
 	}
 }
 #endif
 
 #if WITH_EDITOR
+
+bool AWorldDataLayers::CanReferenceDataLayerAsset(const UDataLayerAsset* InDataLayerAsset, FText* OutFailureReason) const
+{
+	auto PassesAssetReferenceFiltering = [](const UObject* InReferencingObject, const UDataLayerAsset* InDataLayerAsset, FText* OutReason)
+	{
+		FAssetReferenceFilterContext AssetReferenceFilterContext;
+		AssetReferenceFilterContext.AddReferencingAsset(FAssetData(InReferencingObject));
+		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
+		return AssetReferenceFilter.IsValid() ? AssetReferenceFilter->PassesFilter(FAssetData(InDataLayerAsset), OutReason) : true;
+	};
+
+	const UExternalDataLayerAsset* RootExternalDataLayerAsset = GetRootExternalDataLayerAsset();
+	const UObject* ReferencingObject = RootExternalDataLayerAsset ? Cast<UObject>(RootExternalDataLayerAsset) : Cast<UObject>(this);
+	if (!PassesAssetReferenceFiltering(ReferencingObject, InDataLayerAsset, OutFailureReason))
+	{
+		return false;
+	}
+	// Validate that AWorldDataLayers and its EDL Asset are part of the same plugin
+	else if (InDataLayerAsset && (RootExternalDataLayerAsset == InDataLayerAsset))
+	{
+		const UPackage* Package = GetPackage();
+		const FString PackageName = !Package->GetLoadedPath().IsEmpty() ? Package->GetLoadedPath().GetPackageName() : Package->GetName();
+
+		IPluginManager& PluginManager = IPluginManager::Get();
+		const FString AssetMountPoint = FPackageName::GetPackageMountPoint(InDataLayerAsset->GetPackage()->GetName()).ToString();
+		const FString ThisMountPoint = FPackageName::GetPackageMountPoint(PackageName).ToString();
+		TSharedPtr<IPlugin> AssetPlugin = PluginManager.FindPluginFromPath(AssetMountPoint);
+		TSharedPtr<IPlugin> ThisPlugin = PluginManager.FindPluginFromPath(ThisMountPoint);
+		if (AssetPlugin != ThisPlugin)
+		{
+			if (OutFailureReason)
+			{
+				*OutFailureReason = FText::Format(LOCTEXT("WorldDataLayerAndDataLayerAssetPluginMismatch", "{0} part of {1}'{2}' cannot be referenced by {3} part of {4}'{5}'."),
+					FText::FromString(InDataLayerAsset->GetName()),
+					FText::FromString(AssetPlugin.IsValid() ? TEXT("plugin ") : TEXT("")),
+					FText::FromString(AssetMountPoint),
+					FText::FromString(GetActorLabel()),
+					FText::FromString(ThisPlugin.IsValid() ? TEXT("plugin ") : TEXT("")),
+					FText::FromString(ThisMountPoint));
+			}
+			return false;
+		}
+	}
+	return true;
+}
+
 void AWorldDataLayers::RemoveEditorDataLayers()
 {
 	TArray<UDataLayerInstance*> EditorDataLayers;
@@ -1426,7 +1485,12 @@ bool AWorldDataLayers::SetUseExternalPackageDataLayerInstances(bool bInNewValue,
 	for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
 	{
 		check(DataLayerInstance->GetDirectOuterWorldDataLayers() == this);
+		UPackage* PreviousPackage = DataLayerInstance->GetPackage();
 		FExternalPackageHelper::SetPackagingMode(DataLayerInstance, this, bInNewValue);
+		UE_LOG(LogWorldPartition, Display, TEXT("DataLayerInstance %s changed package from %s to %s"),
+			*DataLayerInstance->GetPathName(),
+			*PreviousPackage->GetName(),
+			*DataLayerInstance->GetPackage()->GetName());
 	}
 	bUseExternalPackageDataLayerInstances = bInNewValue;
 	Swap(DataLayerInstances, ExternalPackageDataLayerInstances);
@@ -1637,5 +1701,108 @@ TArray<const UDataLayerInstance*> AWorldDataLayers::GetDataLayerInstances(const 
 }
 
 //~ End Deprecated
+
+FWorldDataLayersEffectiveStates::FWorldDataLayersEffectiveStates()
+	: UpdateEpoch(0)
+	, AllEffectiveActiveDataLayerNamesEpoch(MAX_int32)
+	, AllEffectiveLoadedDataLayerNamesEpoch(MAX_int32)
+{}
+
+void FWorldDataLayersEffectiveStates::SetReplicatedEffectiveActiveDataLayerNames(const TArray<FName>& InRepEffectiveActiveDataLayerNames)
+{
+	ReplicatedEffectiveActiveDataLayerNames.Reset();
+	ReplicatedEffectiveActiveDataLayerNames.Append(InRepEffectiveActiveDataLayerNames);
+	++UpdateEpoch;
+}
+
+void FWorldDataLayersEffectiveStates::SetReplicatedEffectiveLoadedDataLayerNames(const TArray<FName>& InRepEffectiveLoadedDataLayerNames)
+{
+	ReplicatedEffectiveLoadedDataLayerNames.Reset();
+	ReplicatedEffectiveLoadedDataLayerNames.Append(InRepEffectiveLoadedDataLayerNames);
+	++UpdateEpoch;
+}
+
+bool FWorldDataLayersEffectiveStates::SetDataLayerEffectiveRuntimeState(FName InDataLayerName, bool bIsLocalDataLayer, EDataLayerRuntimeState NewEffectiveRuntimeState, EDataLayerRuntimeState& OutOldEffectiveRuntimeState)
+{
+	OutOldEffectiveRuntimeState = GetDataLayerEffectiveRuntimeStateByName(InDataLayerName);
+	if (OutOldEffectiveRuntimeState != NewEffectiveRuntimeState)
+	{
+		TSet<FName>& TargetEffectiveLoadedDataLayerNames = bIsLocalDataLayer ? LocalEffectiveLoadedDataLayerNames : ReplicatedEffectiveLoadedDataLayerNames;
+		TSet<FName>& TargetEffectiveActiveDataLayerNames = bIsLocalDataLayer ? LocalEffectiveActiveDataLayerNames : ReplicatedEffectiveActiveDataLayerNames;
+
+		TargetEffectiveLoadedDataLayerNames.Remove(InDataLayerName);
+		TargetEffectiveActiveDataLayerNames.Remove(InDataLayerName);
+
+		if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Loaded)
+		{
+			TargetEffectiveLoadedDataLayerNames.Add(InDataLayerName);
+		}
+		else if (NewEffectiveRuntimeState == EDataLayerRuntimeState::Activated)
+		{
+			TargetEffectiveActiveDataLayerNames.Add(InDataLayerName);
+		}
+
+		++UpdateEpoch;
+		return true;
+	}
+	return false;
+}
+
+void FWorldDataLayersEffectiveStates::Reset()
+{
+	ReplicatedEffectiveActiveDataLayerNames.Reset();
+	ReplicatedEffectiveLoadedDataLayerNames.Reset();
+	LocalEffectiveActiveDataLayerNames.Reset();
+	LocalEffectiveLoadedDataLayerNames.Reset();
+	++UpdateEpoch;
+}
+
+EDataLayerRuntimeState FWorldDataLayersEffectiveStates::GetDataLayerEffectiveRuntimeStateByName(FName InDataLayerName) const
+{
+	if (ReplicatedEffectiveActiveDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!ReplicatedEffectiveLoadedDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Activated;
+	}
+	else if (ReplicatedEffectiveLoadedDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!ReplicatedEffectiveActiveDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Loaded;
+	}
+	else if (LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Activated;
+	}
+	else if (LocalEffectiveLoadedDataLayerNames.Contains(InDataLayerName))
+	{
+		check(!LocalEffectiveActiveDataLayerNames.Contains(InDataLayerName));
+		return EDataLayerRuntimeState::Loaded;
+	}
+
+	return EDataLayerRuntimeState::Unloaded;
+}
+
+const TSet<FName>& FWorldDataLayersEffectiveStates::GetAllEffectiveActiveDataLayerNames() const
+{
+	if (AllEffectiveActiveDataLayerNamesEpoch != UpdateEpoch)
+	{
+		AllEffectiveActiveDataLayerNames = ReplicatedEffectiveActiveDataLayerNames;
+		AllEffectiveActiveDataLayerNames.Append(LocalEffectiveActiveDataLayerNames);
+		AllEffectiveActiveDataLayerNamesEpoch = UpdateEpoch;
+	}
+	return AllEffectiveActiveDataLayerNames;
+}
+
+const TSet<FName>& FWorldDataLayersEffectiveStates::GetAllEffectiveLoadedDataLayerNames() const
+{
+	if (AllEffectiveLoadedDataLayerNamesEpoch != UpdateEpoch)
+	{
+		AllEffectiveLoadedDataLayerNames = ReplicatedEffectiveLoadedDataLayerNames;
+		AllEffectiveLoadedDataLayerNames.Append(LocalEffectiveLoadedDataLayerNames);
+		AllEffectiveLoadedDataLayerNamesEpoch = UpdateEpoch;
+	}
+	return AllEffectiveLoadedDataLayerNames;
+}
 
 #undef LOCTEXT_NAMESPACE

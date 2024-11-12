@@ -5,6 +5,7 @@
 #include "OptimusComputeDataInterface.h"
 #include "OptimusDataType.h"
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusValueContainerStruct.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 
 #include "OptimusDataInterfaceAnimAttribute.generated.h"
@@ -30,9 +31,10 @@ struct FOptimusAnimAttributeDescription
 	UPROPERTY(EditAnywhere, Category = "Data Interface", meta=(UseInAnimAttribute))
 	FOptimusDataTypeRef DataType;
 
-	UPROPERTY(EditAnywhere, Category = "Data Interface", meta=(EditInLine))
-	TObjectPtr<UOptimusValueContainer> DefaultValue = nullptr;
-	
+	// Default value if the animation attribute is not found
+	UPROPERTY(EditAnywhere, Category = "Data Interface")
+	FOptimusValueContainerStruct DefaultValueStruct;
+
 	UPROPERTY()
 	FString HlslId;
 
@@ -42,14 +44,20 @@ struct FOptimusAnimAttributeDescription
 	void UpdatePinNameAndHlslId(bool bInIncludeBoneName = true, bool bInIncludeTypeName = true);
 	
 	// Helpers
-	FOptimusAnimAttributeDescription& Init(class UOptimusAnimAttributeDataInterface* InOwner,const FString& InName, FName InBoneName,
+	FOptimusAnimAttributeDescription& Init(const FString& InName, FName InBoneName,
 	const FOptimusDataTypeRef& InDataType);
 	
 private:
+	friend class UOptimusAnimAttributeDataInterface;
+	
 	FString GetFormattedId(
 		const FString& InDelimiter,
 		bool bInIncludeBoneName,
 		bool bInIncludeTypeName) const;
+
+	// Deprecated
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "use DefaultValueStruct instead"))
+	TObjectPtr<UOptimusValueContainer> DefaultValue_DEPRECATED = nullptr;
 };
 
 USTRUCT()
@@ -111,11 +119,17 @@ public:
 #if WITH_EDITOR
 	void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
+	void PostLoad() override;
 	
 	//~ Begin UOptimusComputeDataInterface Interface
 	FString GetDisplayName() const override;
 	virtual TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const override;
 	TSubclassOf<UActorComponent> GetRequiredComponentClass() const override;
+	
+	void Initialize() override;
+	bool CanPinDefinitionChange() override {return true;};
+	void RegisterPropertyChangeDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) override;
+	
 	//~ End UOptimusComputeDataInterface Interface
 	
 	//~ Begin UComputeDataInterface Interface
@@ -131,11 +145,7 @@ public:
 
 	const FOptimusAnimAttributeDescription& AddAnimAttribute(const FString& InName, FName InBoneName, const FOptimusDataTypeRef& InDataType);
 
-	// Value containers use generated classes that not duplicated when the asset is duplicated
-	// so they have to be recreated with classes in the current asset
-	void RecreateValueContainers();
-
-	void OnDataTypeChanged(FName InDataType);
+	void OnDataTypeChanged(FName InTypeName) override;
 	
 	UPROPERTY(EditAnywhere, Category = "Animation Attribute", meta = (ShowOnlyInnerProperties))
 	FOptimusAnimAttributeArray AttributeArray;
@@ -143,6 +153,9 @@ public:
 private:
 	FString GetUnusedAttributeName(const FString& InName) const;
 	void UpdateAttributePinNamesAndHlslIds();
+	
+	FOnPinDefinitionChanged OnPinDefinitionChangedDelegate;
+	FOnPinDefinitionRenamed OnPinDefinitionRenamedDelegate;
 };
 
 // Runtime data with cached values baked out from AttributeDescription
@@ -153,6 +166,7 @@ struct FOptimusAnimAttributeRuntimeData
 	FOptimusAnimAttributeRuntimeData(const FOptimusAnimAttributeDescription& InDescription);
 	
 	FName Name;
+	FName HlslId;
 
 	FName BoneName;
 
@@ -170,7 +184,7 @@ struct FOptimusAnimAttributeRuntimeData
 
 	UScriptStruct* AttributeType = nullptr;
 
-	FShaderValueType::FValue CachedDefaultValue;
+	FShaderValueContainer CachedDefaultValue;
 };
 
 /** Compute Framework Data Provider for reading animation attributes on skeletal mesh. */
@@ -184,7 +198,7 @@ public:
 	
 	void Init(
 		USkeletalMeshComponent* InSkeletalMesh,
-		TArray<FOptimusAnimAttributeDescription> InAttributeArray
+		const TArray<FOptimusAnimAttributeDescription>& InAttributeArray
 	);
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
@@ -224,7 +238,7 @@ public:
 public:
 	TArray<uint8> AttributeBuffer;
 	TArray<FArrayMetadata> AttributeArrayMetadata;
-	TArray<TArray<uint8>> AttributeArrayData;
+	TArray<FArrayShaderValue> AttributeArrayData;
 
 private:
 	TArray<FRDGBuffer*> ArrayBuffers;

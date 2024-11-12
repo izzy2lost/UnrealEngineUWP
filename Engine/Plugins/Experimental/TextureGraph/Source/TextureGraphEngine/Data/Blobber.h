@@ -165,6 +165,7 @@ private:
 	void							AddHashMapping(HashType LHS, CHashPtr RHS);
 	void							AddBlobEntry(HashType Hash, BlobPtr BlobObj, BlobCacheOptions Options);
 	void							AddBlobEntryThreadSafe(HashType Hash, BlobPtr BlobObj, BlobCacheOptions Options);
+	void							RemoveHashMapping(HashType Hash);
 
 	void							PrintStats();
 	BlobRef							AddInternal(BlobPtr BlobObj, BlobCacheOptions Options);

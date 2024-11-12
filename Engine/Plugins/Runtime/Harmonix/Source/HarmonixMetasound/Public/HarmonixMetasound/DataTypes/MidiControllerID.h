@@ -5,6 +5,7 @@
 #include "MetasoundEnumRegistrationMacro.h"
 #include "MetasoundDataReference.h"
 #include "MetasoundDataTypeRegistrationMacro.h"
+#include "MidiControllerID.generated.h"
 
 /**
  * standard Midi Controller ID according to the MIDI Association 

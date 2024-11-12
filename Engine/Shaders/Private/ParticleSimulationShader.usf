@@ -64,7 +64,7 @@ void VertexMain(
 	float3 TileOffset = Input.TileOffsets.xyz;
 #endif
 	
-	float2 TileCoord = Input.TexCoord.xy * TexCoordScale.xy + TileOffset * TilePageScale.xy + GetTilePageOffset(TileOffset.z, TilePageScale, true);
+	float2 TileCoord = Input.TexCoord.xy * TexCoordScale.xy + TileOffset.xy * TilePageScale.xy + GetTilePageOffset(TileOffset.z, TilePageScale, true);
 
 	OutPosition = float4(
 		TileCoord.xy * float2(2.0f,-2.0f) + float2(-1.0f,1.0f),
@@ -267,7 +267,7 @@ float CollisionDepthBounds;
 /** TODO: Should be moved to Common.usf and used globaly. */
 float3 TranslatedWorldPositionFromSceneDepth(float2 ScreenPosition, float SceneDepth)
 {
-	float3 WorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
+	float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 	return WorldPosition;
 }
 
@@ -343,7 +343,7 @@ void CollideWithDepthBuffer(
 		// Sample the depth buffer to get a world position near the particle.
 		float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
 		float SceneDepth = CalcSceneDepth(ScreenUV);
-		if (abs(ClipPosition.w - SceneDepth) < CollisionDepthBounds)
+		if (abs(GetScreenPositionDepth(ClipPosition) - SceneDepth) < CollisionDepthBounds)
 		{
 #if FORWARD_SHADING_ACCURATE_NORMAL && FORWARD_SHADING_NORMAL_CALC
 			float SceneDepth0 = CalcSceneDepth(ScreenUV + float2(View.BufferSizeAndInvSize.z, 0.0));

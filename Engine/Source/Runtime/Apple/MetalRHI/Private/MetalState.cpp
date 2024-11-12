@@ -4,6 +4,8 @@
 	MetalState.cpp: Metal state implementation.
 =============================================================================*/
 
+#include "MetalState.h"
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
 #include "MetalProfiler.h"
 #include "RHIUtilities.h"
@@ -227,7 +229,7 @@ private:
 static FMetalStateObjectCache<FSamplerStateInitializerRHI, MTL::SamplerState*> Samplers;
 static FCriticalSection SamplersCS;
 
-static MTL::SamplerState* FindOrCreateSamplerState(MTL::Device* Device, const FSamplerStateInitializerRHI& Initializer)
+static MTL::SamplerState* FindOrCreateSamplerState(FMetalDevice& Device, const FSamplerStateInitializerRHI& Initializer)
 {
 	FScopeLock Lock(&SamplersCS);
     MTL::SamplerState* State = Samplers.Find(Initializer);
@@ -269,7 +271,7 @@ static MTL::SamplerState* FindOrCreateSamplerState(MTL::Device* Device, const FS
 #if PLATFORM_TVOS
 		Desc->setCompareFunction(MTL::CompareFunctionNever);
 #elif PLATFORM_IOS
-		Desc->setCompareFunction(Device->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1) ? TranslateSamplerCompareFunction(Initializer.SamplerComparisonFunction) : MTL::CompareFunctionNever);
+		Desc->setCompareFunction(Device.GetDevice()->supportsFeatureSet(MTL::FeatureSet_iOS_GPUFamily3_v1) ? TranslateSamplerCompareFunction(Initializer.SamplerComparisonFunction) : MTL::CompareFunctionNever);
 #else
 		Desc->setCompareFunction(TranslateSamplerCompareFunction(Initializer.SamplerComparisonFunction));
 #endif
@@ -277,13 +279,13 @@ static MTL::SamplerState* FindOrCreateSamplerState(MTL::Device* Device, const FS
 		Desc->setBorderColor(Initializer.BorderColor == 0 ? MTL::SamplerBorderColorTransparentBlack : MTL::SamplerBorderColorOpaqueWhite);
 #endif
 #if !METAL_USE_METAL_SHADER_CONVERTER
-		if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesIABs))
+		if (Device.SupportsFeature(EMetalFeaturesIABs))
 #endif
 		{
 			Desc->setSupportArgumentBuffers(true);
 		}
 		
-		State = Device->newSamplerState(Desc);
+		State = Device.GetDevice()->newSamplerState(Desc);
         Desc->release();
         
 		Samplers.Add(Initializer, State);
@@ -291,9 +293,9 @@ static MTL::SamplerState* FindOrCreateSamplerState(MTL::Device* Device, const FS
 	return State;
 }
 
-FMetalSamplerState::FMetalSamplerState(FMetalDeviceContext* Context, const FSamplerStateInitializerRHI& Initializer)
+FMetalSamplerState::FMetalSamplerState(FMetalDevice& MetalDevice, const FSamplerStateInitializerRHI& Initializer)
+	: Device(MetalDevice)
 {
-	MTL::Device* Device = Context->GetDevice();
 	State = FindOrCreateSamplerState(Device, Initializer);
 #if !PLATFORM_MAC
 	if (GetMetalMaxAnisotropy(Initializer.Filter, Initializer.MaxAnisotropy))
@@ -304,7 +306,7 @@ FMetalSamplerState::FMetalSamplerState(FMetalDeviceContext* Context, const FSamp
 	}
 #endif
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Context->GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
@@ -318,12 +320,9 @@ FMetalSamplerState::FMetalSamplerState(FMetalDeviceContext* Context, const FSamp
 FMetalSamplerState::~FMetalSamplerState()
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
-    check(BindlessDescriptorManager);
-
 	if(IsMetalBindlessEnabled())
 	{
-		BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
+		FMetalDynamicRHI::Get().DeferredDelete(BindlessHandle);
 	}
 #endif
 }
@@ -541,7 +540,7 @@ bool FMetalBlendState::GetInitializer(FBlendStateInitializerRHI& Initializer)
 FSamplerStateRHIRef FMetalDynamicRHI::RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-	return new FMetalSamplerState(ImmediateContext.Context, Initializer);
+	return new FMetalSamplerState(*Device, Initializer);
 }
 
 FRasterizerStateRHIRef FMetalDynamicRHI::RHICreateRasterizerState(const FRasterizerStateInitializerRHI& Initializer)
@@ -553,7 +552,7 @@ FRasterizerStateRHIRef FMetalDynamicRHI::RHICreateRasterizerState(const FRasteri
 FDepthStencilStateRHIRef FMetalDynamicRHI::RHICreateDepthStencilState(const FDepthStencilStateInitializerRHI& Initializer)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-	return new FMetalDepthStencilState(ImmediateContext.Context->GetDevice(), Initializer);
+	return new FMetalDepthStencilState(Device->GetDevice(), Initializer);
 }
 
 

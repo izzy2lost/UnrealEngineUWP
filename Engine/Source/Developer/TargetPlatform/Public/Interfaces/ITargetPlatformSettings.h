@@ -10,6 +10,13 @@ enum class EOfflineBVHMode
 	MinimizeMemory,
 };
 
+enum class ERayTracingRuntimeMode
+{
+	Disabled,
+	Inline,
+	Full
+};
+
 /**
  * Enumerates features that may be supported by target platforms.
  */
@@ -99,8 +106,8 @@ enum class ETargetPlatformFeatures
 	/** The platform supports Luminance + Alpha encoding mode for normalmaps */
 	NormalmapLAEncodingMode,
 
-	/** All devices of this platform should be grouped under one platform group */
-	ShowAsPlatformGroup,
+	/** Should the Aggregate Device be shown for this platform (ex: All_Android_on_...) */
+	ShowAggregateDevice,
 
 	/** Does the platform allow various connection types to be used (ie: wifi and usb) */
 	SupportsMultipleConnectionTypes,
@@ -162,6 +169,11 @@ public:
 	* Gets whether the platform will use ray tracing.
 	*/
 	virtual bool UsesRayTracing() const = 0;
+
+	/**
+	* Gets ray tracing runtime mode (disabled/inline/hit-lighting).
+	*/
+	virtual ERayTracingRuntimeMode GetRayTracingMode() const = 0;
 
 	/**
 	 * Gets a platform-dependent bitfield describing which hardware generations are supported.
@@ -249,6 +261,13 @@ public:
 	virtual bool SupportsFeature(ETargetPlatformFeatures Feature) const = 0;
 
 #if WITH_ENGINE
+	/**
+	 * Gets a list of modules that may contain the GetAllTargetedShaderFormats. This is optional -
+	 * if any required shader format isn't found in this list, then it will use the old path
+	 * of loading all shader format modules to gather all available shader formats
+	 */
+	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const = 0;
+
 	/**
 	 * Gets the reflection capture formats this platform needs.
 	 *

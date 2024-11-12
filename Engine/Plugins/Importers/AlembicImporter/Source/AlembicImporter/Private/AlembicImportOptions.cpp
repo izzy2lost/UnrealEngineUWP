@@ -84,7 +84,6 @@ void SAlembicImportOptions::Construct(const FArguments& InArgs)
 				.MaxDesiredHeight(MaxDesiredHeight)
 				[
 					SNew(SListView<FPolyMeshDataPtr>)
-					.ItemHeight(24)						
 					.ScrollbarVisibility(EVisibility::Visible)
 					.ListItemsSource(&PolyMeshData)
 					.OnMouseButtonDoubleClick(this, &SAlembicImportOptions::OnItemDoubleClicked)

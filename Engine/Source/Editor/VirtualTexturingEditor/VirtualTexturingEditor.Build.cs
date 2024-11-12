@@ -6,14 +6,15 @@ public class VirtualTexturingEditor : ModuleRules
 {
 	public VirtualTexturingEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
-        PrivateDependencyModuleNames.AddRange(
-            new string[] {
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
 				"AppFramework",
 				"AssetRegistry",
 				"ContentBrowser",
 				"Core",
 				"CoreUObject",
 				"EditorFramework",
+				"EditorWidgets",
 				"Engine",
 				"InputCore",
 				"Landscape",
@@ -26,7 +27,9 @@ public class VirtualTexturingEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
-            }
-        );
-    }
+			}
+		);
+
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+	}
 }

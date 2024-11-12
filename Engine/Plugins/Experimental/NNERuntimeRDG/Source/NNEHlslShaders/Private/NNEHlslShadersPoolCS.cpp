@@ -14,5 +14,5 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FPoolCS, "/NNE/NNEHlslShadersPool.usf", "Pool", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FPoolCS, "/NNEHlslShaders/NNEHlslShadersPool.usf", "Pool", SF_Compute);
 } // UE::NNEHlslShaders::Internal

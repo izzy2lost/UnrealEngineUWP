@@ -4,28 +4,6 @@
 
 #include "Misc/App.h"
 
-
-namespace StageProviderMessageUtils
-{
-	static const FQualifiedFrameTime InvalidTime = FQualifiedFrameTime(FFrameTime(FFrameNumber(-1)), FFrameRate(-1, -1));
-}
-
-FStageProviderMessage::FStageProviderMessage()
-{
-	//Common setup of timecode for all provider messages
-	TOptional<FQualifiedFrameTime> CurrentFrameTime = FApp::GetCurrentFrameTime();
-	DateTime = FDateTime::Now();
-	
-	if (CurrentFrameTime.IsSet())
-	{
-		FrameTime = CurrentFrameTime.GetValue();
-	}
-	else
-	{
-		FrameTime = StageProviderMessageUtils::InvalidTime;
-	}
-}
-
 FString FCriticalStateProviderMessage::ToString() const
 {
 	switch (State)

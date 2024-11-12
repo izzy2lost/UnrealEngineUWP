@@ -10,6 +10,7 @@
 #include "MovieEdGraphNode.h"
 #include "ScopedTransaction.h"
 #include "SGraphActionMenu.h"
+#include "SGraphPalette.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
 #define LOCTEXT_NAMESPACE "SMoviePipelineMembersTabContent"
@@ -33,6 +34,34 @@ namespace UE::MovieGraph::Private
 		}
 
 		return nullptr;
+	}
+
+	/** Gets all selected graph members of the specified MemberType within the action menu. */
+	template<typename MemberType>
+	TArray<MemberType*> GetAllSelectedMembers(const TSharedPtr<SGraphActionMenu> InActionMenu)
+	{
+		TArray<MemberType*> SelectedMembers;
+		
+		if (!InActionMenu.IsValid())
+		{
+			return SelectedMembers;
+		}
+
+		TArray<TSharedPtr<FEdGraphSchemaAction>> SelectedActions;
+		InActionMenu->GetSelectedActions(SelectedActions);
+	
+		for (TSharedPtr<FEdGraphSchemaAction> SelectedAction : SelectedActions)
+		{
+			if (UMovieGraphMember* GraphMember = GetMemberFromAction(SelectedAction.Get()))
+			{
+				if (MemberType* Member = Cast<MemberType>(GraphMember))
+				{
+					SelectedMembers.Add(Member);
+				}
+			}
+		}
+
+		return SelectedMembers;
 	}
 
 	static bool GetIconAndColorFromDataType(const UMovieGraphVariable* InGraphVariable, const FSlateBrush*& OutPrimaryBrush, FSlateColor& OutIconColor, const FSlateBrush*& OutSecondaryBrush, FSlateColor& OutSecondaryColor)
@@ -70,6 +99,17 @@ void SMovieGraphMembersTabContent::Construct(const FArguments& InArgs)
 	// Update the UI whenever the graph adds/updates variables. In this case it's not known which variable is added/updated, so just pass nullptr.
 	UMovieGraphMember* UpdatedMember = nullptr;
 	CurrentGraph->OnGraphVariablesChangedDelegate.AddSP(this, &SMovieGraphMembersTabContent::RefreshMemberActions, UpdatedMember);
+
+	// Also update the UI when inputs/outputs are added to the graph.
+	CurrentGraph->OnGraphInputAddedDelegate.AddSPLambda(this, [this](UMovieGraphInput* InInput)
+	{
+		RefreshMemberActions(InInput);
+	});
+
+	CurrentGraph->OnGraphOutputAddedDelegate.AddSPLambda(this, [this](UMovieGraphOutput* InOutput)
+	{
+		RefreshMemberActions(InOutput);
+	});
 	
 	ChildSlot
 	[
@@ -78,6 +118,7 @@ void SMovieGraphMembersTabContent::Construct(const FArguments& InArgs)
 		.AutoExpandActionMenu(true)
 		.AlphaSortItems(false)
 		.OnActionDragged(this, &SMovieGraphMembersTabContent::OnActionDragged)
+		.OnCategoryDragged(this, &SMovieGraphMembersTabContent::OnCategoryDragged)
 		.OnCreateWidgetForAction(this, &SMovieGraphMembersTabContent::CreateActionWidget)
 		.OnCollectStaticSections(this, &SMovieGraphMembersTabContent::CollectStaticSections)
 		.OnContextMenuOpening(this, &SMovieGraphMembersTabContent::OnContextMenuOpening)
@@ -108,6 +149,12 @@ FReply SMovieGraphMembersTabContent::OnActionDragged(const TArray<TSharedPtr<FEd
 	return FReply::Unhandled();
 }
 
+FReply SMovieGraphMembersTabContent::OnCategoryDragged(const FText& InCategory, const FPointerEvent& MouseEvent)
+{
+	const TSharedRef<FMovieGraphDragAction_Category> DragOperation = FMovieGraphDragAction_Category::New(InCategory, CurrentGraph);
+	return FReply::Handled().BeginDragDrop(DragOperation);
+}
+
 TSharedRef<SWidget> SMovieGraphMembersTabContent::CreateActionWidget(FCreateWidgetForActionData* InCreateData) const
 {
 	// For variables, show an icon w/ the color representing the variable's type (in addition to the variable name)
@@ -121,23 +168,23 @@ TSharedRef<SWidget> SMovieGraphMembersTabContent::CreateActionWidget(FCreateWidg
 			: FEdGraphPinType();
 		const FLinearColor PinColor = CurrentGraph->PipelineEdGraph->GetSchema()->GetPinTypeColor(PinType);
 		
-		return
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+		const TSharedPtr<SHorizontalBox> RowBox = SNew(SHorizontalBox);
+		RowBox->AddSlot()
 			.AutoWidth()
 			.Padding(0, 0, 5, 0)
 			[
 				SNew(SImage)
 				.Image(FAppStyle::GetBrush("Kismet.AllClasses.VariableIcon"))
 				.ColorAndOpacity(PinColor)
-			]
+			];
 			
-			+ SHorizontalBox::Slot()
+		RowBox->AddSlot()
 			.FillWidth(1.f)
 			[
-				SNew(STextBlock)
-				.Text(InCreateData->Action->GetMenuDescription())
-			];	
+				SNew(SGraphPaletteItem, InCreateData)
+			];
+
+		return RowBox->AsShared();
 	}
 	
 	return
@@ -160,22 +207,17 @@ void SMovieGraphMembersTabContent::ClearSelection() const
 
 void SMovieGraphMembersTabContent::DeleteSelectedMembers()
 {
-	if (!ActionMenu.IsValid() || !CurrentGraph)
+	if (!CurrentGraph)
 	{
 		return;
 	}
 
-	TArray<TSharedPtr<FEdGraphSchemaAction>> SelectedActions;
-	ActionMenu->GetSelectedActions(SelectedActions);
-	for (TSharedPtr<FEdGraphSchemaAction> SelectedAction : SelectedActions)
+	FScopedTransaction Transaction(LOCTEXT("DeleteGraphMembers", "Delete Graph Member(s)"));
+	
+	for (UMovieGraphMember* Member : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphMember>(ActionMenu))
 	{
-		if (UMovieGraphMember* GraphMember = UE::MovieGraph::Private::GetMemberFromAction(SelectedAction.Get()))
-		{
-			FScopedTransaction Transaction(LOCTEXT("DeleteGraphMember", "Delete Graph Member"));
-			
-			MemberChangedHandles.Remove(GraphMember);
-			CurrentGraph->DeleteMember(GraphMember);
-		}
+		MemberChangedHandles.Remove(Member);
+		CurrentGraph->DeleteMember(Member);
 	}
 
 	RefreshMemberActions();
@@ -183,27 +225,50 @@ void SMovieGraphMembersTabContent::DeleteSelectedMembers()
 
 bool SMovieGraphMembersTabContent::CanDeleteSelectedMembers() const
 {
-	if (!ActionMenu.IsValid())
+	// Don't allow deletion if the member was explicitly marked as non-deletable
+	for (const UMovieGraphMember* Member : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphMember>(ActionMenu))
 	{
-		return false;
-	}
-
-	TArray<TSharedPtr<FEdGraphSchemaAction>> SelectedActions;
-	ActionMenu->GetSelectedActions(SelectedActions);
-	
-	for (const TSharedPtr<FEdGraphSchemaAction>& SelectedAction : SelectedActions)
-	{
-		// Don't allow deletion if the member was explicitly marked as non-deletable
-		if (const UMovieGraphMember* Member = UE::MovieGraph::Private::GetMemberFromAction(SelectedAction.Get()))
+		if (!Member->IsDeletable())
 		{
-			if (!Member->IsDeletable())
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
 	return true;
+}
+
+void SMovieGraphMembersTabContent::DuplicateSelectedMembers()
+{
+	if (!CurrentGraph)
+	{
+		return;
+	}
+	
+	FScopedTransaction Transaction(LOCTEXT("DuplicateGraphMembers", "Duplicate Graph Member(s)"));
+
+	for (UMovieGraphVariable* GraphVariable : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphVariable>(ActionMenu))
+	{
+		if (GraphVariable && !GraphVariable->IsGlobal())
+		{
+			CurrentGraph->DuplicateVariable(GraphVariable);
+		}
+	}
+
+	RefreshMemberActions();
+}
+
+bool SMovieGraphMembersTabContent::CanDuplicateSelectedMembers() const
+{
+	// Only allow duplication of non-global variables for now
+	for (const UMovieGraphVariable* GraphVariable : UE::MovieGraph::Private::GetAllSelectedMembers<UMovieGraphVariable>(ActionMenu))
+	{
+		if (GraphVariable && !GraphVariable->IsGlobal())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void SMovieGraphMembersTabContent::PostUndo(bool bSuccess)
@@ -220,8 +285,6 @@ void SMovieGraphMembersTabContent::PostRedo(bool bSuccess)
 
 void SMovieGraphMembersTabContent::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 {
-	static const FText UserVariablesCategory = LOCTEXT("UserVariablesCategory", "User Variables");
-	static const FText GlobalVariablesCategory = LOCTEXT("GlobalVariablesCategory", "Global Variables");
 	static const FText EmptyCategory = FText::GetEmpty();
 	
 	if (!CurrentGraph)
@@ -235,7 +298,7 @@ void SMovieGraphMembersTabContent::CollectAllActions(FGraphActionListBuilderBase
 	auto AddToActionMenu = [&ActionMenuBuilder, this](UMovieGraphMember* ActionTarget, const EActionSection Section, const FText& Category) -> void
 	{
 		const FText MemberActionDesc = FText::FromString(ActionTarget->GetMemberName());
-		const FText MemberActionTooltip;
+		const FText MemberActionTooltip = FText::FromString(ActionTarget->Description);
 		const FText MemberActionKeywords;
 		const int32 MemberActionSectionID = static_cast<int32>(Section);
 		const TSharedPtr<FMovieGraphSchemaAction> MemberAction(new FMovieGraphSchemaAction(Category, MemberActionDesc, MemberActionTooltip, 0, MemberActionKeywords, MemberActionSectionID));
@@ -292,7 +355,15 @@ void SMovieGraphMembersTabContent::CollectAllActions(FGraphActionListBuilderBase
 	{
 		if (Variable && !Variable->IsGlobal())
 		{
-			AddToActionMenu(Variable, EActionSection::Variables, UserVariablesCategory);
+			// If the user didn't specify a custom category, just use the default. If one was specified, concat the default category and the user's category
+			// so they display in a hierarchy.
+			FText VariableCategory = FMovieGraphSchemaAction::UserVariablesCategory;
+			if (!Variable->GetCategory().IsEmpty())
+			{
+				VariableCategory = FText::Format(INVTEXT("{0}|{1}"), FMovieGraphSchemaAction::UserVariablesCategory, FText::FromString(Variable->GetCategory()));
+			}
+			
+			AddToActionMenu(Variable, EActionSection::Variables, VariableCategory);
 		}
 	}
 
@@ -301,7 +372,7 @@ void SMovieGraphMembersTabContent::CollectAllActions(FGraphActionListBuilderBase
 	{
 		if (Variable && Variable->IsGlobal())
 		{
-			AddToActionMenu(Variable, EActionSection::Variables, GlobalVariablesCategory);
+			AddToActionMenu(Variable, EActionSection::Variables, FMovieGraphSchemaAction::GlobalVariablesCategory);
 		}
 	}
 	
@@ -394,6 +465,7 @@ TSharedPtr<SWidget> SMovieGraphMembersTabContent::OnContextMenuOpening()
 
 	FMenuBuilder MenuBuilder(true, PinnedToolkit->GetToolkitCommands());
 	MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
+	MenuBuilder.AddMenuEntry(FGenericCommands::Get().Duplicate);
 	
 	return MenuBuilder.MakeWidget();
 }
@@ -417,8 +489,6 @@ FReply SMovieGraphMembersTabContent::OnAddButtonClickedOnSection(const int32 InS
 		FScopedTransaction Transaction(LOCTEXT("AddNewVariable", "Add New Variable"));
 		CurrentGraph->AddVariable();
 	}
-
-	RefreshMemberActions();
 
 	return FReply::Handled();
 }
@@ -464,7 +534,81 @@ TSharedRef<FMovieGraphDragAction_Variable> FMovieGraphDragAction_Variable::New(
 
 void FMovieGraphDragAction_Variable::HoverTargetChanged()
 {
+	const FSlateBrush* ErrorBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+	const FSlateBrush* OkBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.OK"));
+	
+	if (SourceAction.IsValid())
+	{
+		// Moving the action to a category
+		if (!HoveredCategoryName.IsEmpty())
+		{
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("DisplayName"), SourceAction->GetMenuDescription());
+			Args.Add(TEXT("HoveredCategoryName"), HoveredCategoryName);
+			
+			if (HoveredCategoryName.EqualTo(SourceAction->GetCategory()))
+			{
+				const FText ErrorMessage = LOCTEXT("MoveVariableToCategory_Error", "Cannot move variable to '{HoveredCategoryName}' because it is already in that category.");
+				SetSimpleFeedbackMessage(ErrorBrush, FLinearColor::White, FText::Format(ErrorMessage, Args));
+			}
+			else
+			{
+				const FText Message = LOCTEXT("MoveVariableToCategory_OK", "Move '{DisplayName}' to category '{HoveredCategoryName}'.");
+				SetSimpleFeedbackMessage(OkBrush, FLinearColor::White, FText::Format(Message, Args));
+			}
+
+			return;
+		}
+
+		// Moving the action before another action
+		if (HoveredAction.IsValid())
+		{
+			const TSharedPtr<FEdGraphSchemaAction> HoveredActionPtr = HoveredAction.Pin();
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("DraggedDisplayName"), SourceAction->GetMenuDescription());
+			Args.Add(TEXT("DropTargetDisplayName"), HoveredActionPtr->GetMenuDescription());
+
+			if (HoveredAction == SourceAction)
+			{
+				const FText ErrorMessage = LOCTEXT("MoveVariable_SameVariableError", "Cannot move variable '{DraggedDisplayName}' before itself.");
+				SetSimpleFeedbackMessage(ErrorBrush, FLinearColor::White, FText::Format(ErrorMessage, Args));
+			}
+			else
+			{
+				const FText Message = LOCTEXT("MoveVariable_OK", "Move '{DraggedDisplayName}' before '{DropTargetDisplayName}'.");
+				SetSimpleFeedbackMessage(OkBrush, FLinearColor::White, FText::Format(Message, Args));
+			}
+
+			return;
+		}
+	}
+	
 	FGraphSchemaActionDragDropAction::HoverTargetChanged();
+}
+
+FReply FMovieGraphDragAction_Variable::DroppedOnAction(TSharedRef<FEdGraphSchemaAction> Action)
+{
+	// The drop can only target another variable action
+	const TSharedRef<FMovieGraphSchemaAction> GraphAction = StaticCastSharedRef<FMovieGraphSchemaAction>(Action);
+	if (!GraphAction->ActionTarget->IsA<UMovieGraphVariable>())
+	{
+		return FReply::Unhandled();
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("MoveGraphVariable", "Move Graph Variable"));
+
+	SourceAction->ReorderToBeforeAction(GraphAction);
+
+	return FReply::Handled();
+}
+
+FReply FMovieGraphDragAction_Variable::DroppedOnCategory(FText Category)
+{
+	FScopedTransaction Transaction(LOCTEXT("MoveGraphVariableToCategory", "Move Graph Variable to Category"));
+	
+	SourceAction->MovePersistentItemToCategory(Category);
+
+	return FReply::Handled();
 }
 
 FReply FMovieGraphDragAction_Variable::DroppedOnPanel(
@@ -497,6 +641,99 @@ void FMovieGraphDragAction_Variable::GetDefaultStatusSymbol(
 	{
 		return FGraphSchemaActionDragDropAction::GetDefaultStatusSymbol(OutPrimaryBrush, OutIconColor, OutSecondaryBrush, OutSecondaryColor);
 	}
+}
+
+TSharedRef<FMovieGraphDragAction_Category> FMovieGraphDragAction_Category::New(const FText& InCategory, UMovieGraphConfig* InGraph)
+{
+	TSharedRef<FMovieGraphDragAction_Category> Operation = MakeShared<FMovieGraphDragAction_Category>();
+	Operation->Construct();
+	Operation->DraggedCategory = InCategory;
+	Operation->GraphConfig = InGraph;
+	
+	return Operation;
+}
+
+void FMovieGraphDragAction_Category::HoverTargetChanged()
+{
+	const FSlateBrush* ErrorBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+	const FSlateBrush* OkBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.OK"));
+
+	// Get the name of the category without all of the "|" separators
+	TArray<FString> CategoryHierarchy;
+	DraggedCategory.ToString().ParseIntoArray(CategoryHierarchy, TEXT("|"));
+
+	if (CategoryHierarchy.IsEmpty())
+	{
+		FGraphSchemaActionDragDropAction::HoverTargetChanged();
+		return;
+	}
+	
+	const FString DraggedCategoryName = CategoryHierarchy.Last();
+	
+	FFormatNamedArguments Args;
+	Args.Add(TEXT("CategoryName"), FText::FromString(DraggedCategoryName));
+	Args.Add(TEXT("HoveredCategoryName"), HoveredCategoryName);
+
+	// Moving the category to another category
+	if (!HoveredCategoryName.IsEmpty())
+	{
+		if (HoveredCategoryName.EqualTo(DraggedCategory))
+		{
+			const FText ErrorMessage = LOCTEXT("MoveCategoryToCategory_SelfError", "Cannot move category '{CategoryName}' before itself.");
+			SetSimpleFeedbackMessage(ErrorBrush, FLinearColor::White, FText::Format(ErrorMessage, Args));
+		}
+		else
+		{
+			const FText Message = LOCTEXT("MoveCategoryToCategory_OK", "Move category '{CategoryName}' before category '{HoveredCategoryName}'.");
+			SetSimpleFeedbackMessage(OkBrush, FLinearColor::White, FText::Format(Message, Args));
+		}
+
+		// Unfortunately the DraggedCategory is set to the display name and there's no easy way to change this. Because of that, we can't warn about
+		// dragging a child category into its immediate parent, or a parent category into a child category. That will have to be handled when the
+		// drop actually happens.
+
+		return;
+	}
+
+	// Invalid drop of a category on a non-category item
+	if (HoveredAction.IsValid())
+	{
+		const FText ErrorMessage = LOCTEXT("MoveCategoryToCategory_InvalidActionError", "Can only insert category '{CategoryName}' before another category.");
+		SetSimpleFeedbackMessage(ErrorBrush, FLinearColor::White, FText::Format(ErrorMessage, Args));
+
+		return;
+	}
+	
+	FGraphSchemaActionDragDropAction::HoverTargetChanged();
+}
+
+FReply FMovieGraphDragAction_Category::DroppedOnCategory(FText Category)
+{
+	static const FString UserVariablesPrefix = FString::Format(TEXT("{0}|"), {FMovieGraphSchemaAction::UserVariablesCategory.ToString()});;
+	
+	if (GraphConfig)
+	{
+		const FString DraggedCategoryString = DraggedCategory.ToString();
+		const FString CategoryString = Category.ToString();
+
+		// Remove the "User Variables|" prefix. "User Variables" is the top-level category the variables are displayed under; variables should not
+		// have this stored as part of their category.
+		const FString SourceCategory = DraggedCategoryString.StartsWith(UserVariablesPrefix)
+			? DraggedCategoryString.RightChop(UserVariablesPrefix.Len())
+			: DraggedCategoryString;
+		const FString DestinationCategory = CategoryString.StartsWith(UserVariablesPrefix)
+			? CategoryString.RightChop(UserVariablesPrefix.Len())
+			: CategoryString;
+
+		FScopedTransaction Transaction(LOCTEXT("MoveGraphVariableCategory", "Move Graph Variable Category"));
+		
+		// SourceAction will be invalid for a category drag/drop, so go directly to the graph
+		GraphConfig->MoveCategoryBefore(SourceCategory, DestinationCategory);
+		
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
 }
 
 #undef LOCTEXT_NAMESPACE

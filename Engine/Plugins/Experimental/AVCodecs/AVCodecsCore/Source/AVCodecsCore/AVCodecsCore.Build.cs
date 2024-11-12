@@ -11,22 +11,17 @@ public class AVCodecsCore : ModuleRules
     {
         // Without these two compilation fails on VS2017 with D8049: command line is too long to fit in debug record.
         bLegacyPublicIncludePaths = false;
-        DefaultBuildSettings = BuildSettingsVersion.V2;
-
-        // PCHUsage = PCHUsageMode.NoPCHs;
-
-        // PrecompileForTargets = PrecompileTargetsType.None;
+        DefaultBuildSettings = BuildSettingsVersion.Latest;
 
         PublicIncludePaths.AddRange(new string[] {
 			// ... add public include paths required here ...
 		});
 
         PrivateIncludePaths.AddRange(new string[] {
-			// ... add other private include paths required here ...
-		});
+        });
 
         PrivateDependencyModuleNames.AddRange(new string[] {
-            "Engine"
+            "CoreUObject",
         });
 
         PublicDependencyModuleNames.AddRange(new string[] {
@@ -43,12 +38,12 @@ public class AVCodecsCore : ModuleRules
             PublicIncludePathModuleNames.Add("Vulkan");
             AddEngineThirdPartyPrivateStaticDependencies(Target, "Vulkan");
 
-        	PublicDefinitions.Add("AVCODECS_USE_VULKAN=1");
-		} 
-		else
-		{
-			PublicDefinitions.Add("AVCODECS_USE_VULKAN=0");
-		}
+            PublicDefinitions.Add("AVCODECS_USE_VULKAN=1");
+        }
+        else
+        {
+            PublicDefinitions.Add("AVCODECS_USE_VULKAN=0");
+        }
 
         if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
         {
@@ -58,33 +53,33 @@ public class AVCodecsCore : ModuleRules
             PublicDelayLoadDLLs.Add("mfuuid.dll");
             PublicDelayLoadDLLs.Add("Mfreadwrite.dll");
 
-        	PublicDefinitions.Add("AVCODECS_USE_D3D=1");
-		}
-		else
-		{
-			PublicDefinitions.Add("AVCODECS_USE_D3D=0");
-		}
+            PublicDefinitions.Add("AVCODECS_USE_D3D=1");
+        }
+        else
+        {
+            PublicDefinitions.Add("AVCODECS_USE_D3D=0");
+        }
 
         if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
-		{
-			PublicFrameworks.AddRange(new string[]{
-				"AVFoundation",
-				"VideoToolbox"
-			});
-   
+        {
+            PublicFrameworks.AddRange(new string[]{
+                "AVFoundation",
+                "VideoToolbox"
+            });
+
             PublicDependencyModuleNames.AddRange(new string[] {
                 "MetalRHI",
             });
-   
+
             PublicWeakFrameworks.Add("Metal");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
-			
-			PublicDefinitions.Add("AVCODECS_USE_METAL=1");
-		}
-		else
-		{
-			PublicDefinitions.Add("AVCODECS_USE_METAL=0");
-		}
+            AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
+
+            PublicDefinitions.Add("AVCODECS_USE_METAL=1");
+        }
+        else
+        {
+            PublicDefinitions.Add("AVCODECS_USE_METAL=0");
+        }
 
         PublicDefinitions.Add("DEBUG_DUMP_TO_DISK=0");
     }

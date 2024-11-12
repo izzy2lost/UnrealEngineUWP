@@ -230,7 +230,7 @@ namespace Metasound
 	 *  Compares two inputs against enumerated comparison types.
 	 */
 	template<typename ValueType>
-	class METASOUNDSTANDARDNODES_API TTriggerCompareNode : public FNodeFacade
+	class TTriggerCompareNode : public FNodeFacade
 	{
 	public:
 		/**

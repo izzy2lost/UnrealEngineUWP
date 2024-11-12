@@ -21,7 +21,9 @@ struct FAsyncEnumerateTaskData
 	double EndTime;
 	EEventSortOrder SortOrder;
 	const FDetailLevel<InEventType, SettingsType>* DetailLevel;
-	typename ITimeline<InEventType>::AsyncEventRangeCallback Callback;
+
+	typename ITimeline<InEventType>::AsyncEventRangeCallback EventRangeCallback;
+	typename ITimeline<InEventType>::AsyncEventCallback EventCallback;
 };
 
 template<typename InEventType, typename SettingsType>
@@ -253,7 +255,7 @@ public:
 						{
 							if (OutputEvent.EndTime >= Data.StartTime && OutputEvent.StartTime <= Data.EndTime)
 							{
-								if (this->Data.Callback(OutputEvent.StartTime, OutputEvent.EndTime, OutputEvent.Depth, OutputEvent.Event, Data.TaskIndex) == EEventEnumerate::Stop)
+								if (this->Data.EventRangeCallback(OutputEvent.StartTime, OutputEvent.EndTime, OutputEvent.Depth, OutputEvent.Event, Data.TaskIndex) == EEventEnumerate::Stop)
 								{
 									return EEventEnumerate::Stop;
 								}
@@ -298,7 +300,7 @@ public:
 
 					if (Time >= Data.StartTime && StackEntry.StartTime <= Data.EndTime)
 					{
-						if (this->Data.Callback(StackEntry.StartTime, Time, CurrentDepth, Event, Data.TaskIndex) == EEventEnumerate::Stop)
+						if (this->Data.EventRangeCallback(StackEntry.StartTime, Time, CurrentDepth, Event, Data.TaskIndex) == EEventEnumerate::Stop)
 						{
 							return EEventEnumerate::Stop;
 						}
@@ -311,13 +313,27 @@ public:
 
 	void DoWork()
 	{
-		if (Data.SortOrder == EEventSortOrder::ByEndTime)
+		if (Data.EventRangeCallback != nullptr)
 		{
-			EnumerateOrderedByEndTime();
+			if (Data.SortOrder == EEventSortOrder::ByEndTime)
+			{
+				EnumerateOrderedByEndTime();
+			}
+			else if (Data.SortOrder == EEventSortOrder::ByStartTime)
+			{
+				EnumerateOrderedByStartTime();
+			}
 		}
-		else if (Data.SortOrder == EEventSortOrder::ByStartTime)
+		else
 		{
-			EnumerateOrderedByStartTime();
+			EnumerateAsyncAlgoritm<InEventType, SettingsType>::EnumerateEventsDownSampled(Data,
+				[](int32 InInitialDepth)
+				{
+				},
+				[this](bool IsEnter, double Time, const EventType& Event)
+				{
+					return this->Data.EventCallback(IsEnter, Time, Event, Data.TaskIndex);
+				});
 		}
 	}
 

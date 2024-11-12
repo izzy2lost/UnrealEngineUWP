@@ -575,15 +575,13 @@ void LayoutMaterial(UMaterialInterface* MaterialInterface, bool bOffsetOddColumn
 		{
 			Expression->MaterialExpressionEditorX = FMath::Min(Expression->MaterialExpressionEditorX, -Width);
 
-			TArrayView<FExpressionInput*> Inputs = Expression->GetInputsView();
-			for (int32 InputIndex = 0; InputIndex < Inputs.Num(); ++InputIndex)
+			for (FExpressionInputIterator It{ Expression }; It; ++It)
 			{
-				UMaterialExpression* Input = Inputs[InputIndex]->Expression;
-				if (Input != NULL)
+				if (UMaterialExpression* InputExpression = It->Expression)
 				{
-					if (Input->MaterialExpressionEditorX > Expression->MaterialExpressionEditorX - Width)
+					if (InputExpression->MaterialExpressionEditorX > Expression->MaterialExpressionEditorX - Width)
 					{
-						Input->MaterialExpressionEditorX = Expression->MaterialExpressionEditorX - Width;
+						InputExpression->MaterialExpressionEditorX = Expression->MaterialExpressionEditorX - Width;
 						bContinue = true;
 					}
 				}
@@ -619,10 +617,9 @@ void LayoutMaterial(UMaterialInterface* MaterialInterface, bool bOffsetOddColumn
 				// all the outputs to other expressions
 				for (UMaterialExpression* OtherExpression : Material->GetExpressions())
 				{
-					TArrayView<FExpressionInput*> Inputs = OtherExpression->GetInputsView();
-					for (int32 InputIndex = 0; InputIndex < Inputs.Num(); ++InputIndex)
+					for (FExpressionInputIterator It{ OtherExpression }; It; ++It)
 					{
-						if (Inputs[InputIndex]->Expression == Expression)
+						if (It->Expression == Expression)
 						{
 							Expression->MaterialExpressionEditorY += OtherExpression->MaterialExpressionEditorY;
 							++NumOutputs;

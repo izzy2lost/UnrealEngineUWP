@@ -8,7 +8,8 @@
 
 #include "NiagaraStatelessModule_MeshIndex.generated.h"
 
-UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Mesh Index"))
+// Sets the mesh index to use with mesh renderers
+UCLASS(MinimalAPI, EditInlineNew, Experimental, meta = (DisplayName = "Mesh Index"))
 class UNiagaraStatelessModule_MeshIndex : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
@@ -23,7 +24,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (EditConditionHides, EditCondition="NeedsMeshIndexWeights()"))
 	TArray<float> MeshIndexWeight;
 
-	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
+	virtual void BuildShaderParameters(FNiagaraStatelessShaderParametersBuilder& ShaderParametersBuilder) const override;
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override;
 
 	UFUNCTION()

@@ -240,6 +240,15 @@ void FGameplayAbilitySpec::PreReplicatedRemove(const struct FGameplayAbilitySpec
 	}
 }
 
+void FGameplayAbilitySpec::PostReplicatedChange(const struct FGameplayAbilitySpecContainer& InArraySerializer)
+{
+	if (InArraySerializer.Owner)
+	{
+		UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: AbilitySpecChanged (Non-Auth): [%s] %s. Level: %d"), *GetNameSafe(InArraySerializer.Owner->GetOwner()), *Handle.ToString(), *GetNameSafe(Ability), Level)
+		UE_VLOG(InArraySerializer.Owner->GetOwner(), VLogAbilitySystem, Verbose, TEXT("AbilitySpecChanged (Non-Auth): [%s] %s. Level: %d"), *Handle.ToString(), *GetNameSafe(Ability), Level);
+	}
+}
+
 void FGameplayAbilitySpec::PostReplicatedAdd(const struct FGameplayAbilitySpecContainer& InArraySerializer)
 {
 	if (InArraySerializer.Owner)
@@ -385,7 +394,7 @@ TSharedRef<FAbilityReplicatedDataCache> FGameplayAbilityReplicatedDataContainer:
 			// Reset it first (don't do this during remove or you will clear invocation lists of delegates that are being invoked!)
 			SharedPtr->ResetAll();
 
-			FreeData.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			FreeData.RemoveAtSwap(i, EAllowShrinking::No);
 			break;
 		}
 	}
@@ -413,7 +422,7 @@ void FGameplayAbilityReplicatedDataContainer::Remove(const FGameplayAbilitySpecH
 			// Add it to the free list
 			FreeData.Add(RemovedElement);
 
-			InUseData.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			InUseData.RemoveAtSwap(i, EAllowShrinking::No);
 			break;
 		}
 	}

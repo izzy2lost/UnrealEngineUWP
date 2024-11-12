@@ -16,6 +16,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Stateless/NiagaraStatelessDistribution.h"
 #include "Styling/StyleColors.h"
+#include "TypeEditorUtilities/NiagaraIntegerTypeEditorUtilities.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/NiagaraDistributionEditorUtilities.h"
 #include "Widgets/SBoxPanel.h"
@@ -38,6 +39,15 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 		WeakPropertyHandle	= InPropertyHandle;
 		WeakOwnerObject = InOwnerObject;
 		Distribution = InDistribution;
+		WidgetCustomizationOptions = FNiagaraInputParameterCustomization::MakeFromProperty(InPropertyHandle);
+
+		static const FName UnitsName("Units");
+		if (InPropertyHandle->HasMetaData(UnitsName))
+		{
+			FString UnitString = InPropertyHandle->GetMetaData(UnitsName);
+			TOptional<EUnit> PropertyUnit = FUnitConversion::UnitFromString(*UnitString);
+			DisplayUnit = PropertyUnit.Get(EUnit::Unspecified);
+		}
 
 		ChildSlot
 		[
@@ -179,7 +189,7 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 			return SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				[
-					ConstructIntWidget(0, FText())
+					ConstructCustomizableWidget(0)
 				];
 		}
 		else if (Mode == ENiagaraDistributionEditorMode::UniformRange)
@@ -197,7 +207,7 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedRef<SWidget> ConstructIntWidget(int32 ValueIndex, FText LabelText)
+	TSharedRef<SWidget> ConstructIntWidget(int32 ValueIndex, const FText& LabelText)
 	{
 		TSharedRef<SWidget> LabelWidget = SNullWidget::NullWidget;
 		if ( !LabelText.IsEmpty() )
@@ -221,12 +231,22 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 			.MinSliderValue(TOptional<int32>())
 			.MaxSliderValue(TOptional<int32>())
 			.BroadcastValueChangesPerKey(false)
+			.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<int32>(DisplayUnit)))
 			.LabelVAlign(EVerticalAlignment::VAlign_Center)
 			.MinDesiredValueWidth(30)
 			.Label()
 			[
 				LabelWidget
 			];
+	}
+
+	TSharedRef<SWidget> ConstructCustomizableWidget(int32 ValueIndex)
+	{
+		return SNew(SNiagaraIntegerParameterEditor, DisplayUnit, WidgetCustomizationOptions)
+			.Value(this, &SNiagaraDistributionIntPropertyWidget::GetValueInt, ValueIndex)
+			.OnValueChanged(this, &SNiagaraDistributionIntPropertyWidget::ValueChanged, ValueIndex)
+			.OnBeginValueChange(this, &SNiagaraDistributionIntPropertyWidget::BeginValueSliderMovement)
+			.OnEndValueChange(this, &SNiagaraDistributionIntPropertyWidget::EndValueSliderMovement);
 	}
 
 	TOptional<int32> GetValue(int32 ValueIndex) const
@@ -239,6 +259,12 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 			Value = ValueIndex == 0  ? Distribution->Min : Distribution->Max;
 		}
 		return Value;
+	}
+
+	int32 GetValueInt(int32 ValueIndex) const
+	{
+		TOptional<int32> Value = GetValue(ValueIndex);
+		return Value.Get(0);
 	}
 
 	void ValueChanged(int32 Value, int32 ValueIndex)
@@ -371,10 +397,12 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 
 private:
 	TWeakPtr<IPropertyHandle>		WeakPropertyHandle;
-	TWeakObjectPtr<UObject>			WeakOwnerObject;
+	TWeakObjectPtr<>			WeakOwnerObject;
 	FNiagaraDistributionRangeInt*	Distribution = nullptr;
 	bool							bContinuousChangeActive = false;
 	TSharedPtr<SBox>				ContentBox;
+	EUnit							DisplayUnit = EUnit::Unspecified;
+	FNiagaraInputParameterCustomization WidgetCustomizationOptions;
 };
 
 TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionIntPropertyCustomization::MakeIntInstance(UObject* OptionalOuter)

@@ -16,6 +16,8 @@ FSlateDrawBuffer::FSlateDrawBuffer()
 	, ResourceVersion(0)
 { }
 
+FSlateDrawBuffer::~FSlateDrawBuffer() = default;
+
 FSlateWindowElementList& FSlateDrawBuffer::AddWindowElementList(TSharedRef<SWindow> ForWindow)
 {
 	ensureMsgf(IsLocked(), TEXT("The SlateDrawBuffer should be lock before modifying it."));
@@ -73,18 +75,23 @@ bool FSlateDrawBuffer::Lock()
 	return bIsLock;
 }
 
-void FSlateDrawBuffer::Unlock()
+void FSlateDrawBuffer::Unlock(const UE::Tasks::FTask& PrerequisiteTask)
 {
-	ensureMsgf(IsLocked(), TEXT("The SlateDrawBuffer should be lock before modifying it."));
-	FScopeLock ScopeLock(&GCLock);
-
-	// Rendering doesn't need the batch data anymore
-	for (TSharedRef<FSlateWindowElementList>& ExistingElementList : WindowElementLists)
+	// Launch an inline task that will unlock the buffer when the prerequisite tasks have completed.
+	UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]
 	{
-		ExistingElementList->ResetElementList();
-	}
+		ensureMsgf(IsLocked(), TEXT("The SlateDrawBuffer should be lock before modifying it."));
+		FScopeLock ScopeLock(&GCLock);
 
-	bIsLocked = false;
+		// Rendering doesn't need the batch data anymore
+		for (TSharedRef<FSlateWindowElementList>& ExistingElementList : WindowElementLists)
+		{
+			ExistingElementList->ResetElementList();
+		}
+
+		bIsLocked = false;
+
+	}, PrerequisiteTask, UE::Tasks::ETaskPriority::Normal, UE::Tasks::EExtendedTaskPriority::Inline);
 }
 
 void FSlateDrawBuffer::AddReferencedObjects(FReferenceCollector& Collector)

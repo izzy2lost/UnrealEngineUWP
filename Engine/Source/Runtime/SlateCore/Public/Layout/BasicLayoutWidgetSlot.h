@@ -11,7 +11,7 @@
 
 #include <type_traits>
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 /** Mixin to add the alignment functionality to a base slot. */
 template <typename MixedIntoType>
 class TAlignmentWidgetSlotMixin
@@ -59,21 +59,6 @@ protected:
 	}
 
 public:
-	UE_DEPRECATED(5.0, "HAlign is now deprecated. Use the FSlotArgument or the SetHorizontalAlignment function.")
-	MixedIntoType& HAlign(EHorizontalAlignment InHAlignment)
-	{
-		HAlignment = InHAlignment;
-		return *(static_cast<MixedIntoType*>(this));
-	}
-
-	UE_DEPRECATED(5.0, "VAlign is now deprecated. Use the FSlotArgument or the SetVerticalAlignment function.")
-	MixedIntoType& VAlign(EVerticalAlignment InVAlignment)
-	{
-		VAlignment = InVAlignment;
-		return *(static_cast<MixedIntoType*>(this));
-	}
-
-public:
 	void SetHorizontalAlignment(EHorizontalAlignment Alignment)
 	{
 		if (HAlignment != Alignment)
@@ -102,18 +87,14 @@ public:
 		return VAlignment;
 	}
 
-public:
+private:
 	/** Horizontal positioning of child within the allocated slot */
-	UE_DEPRECATED(5.0, "Direct access to HAlignment is now deprecated. Use the getter.")
 	EHorizontalAlignment HAlignment;
 	/** Vertical positioning of child within the allocated slot */
-	UE_DEPRECATED(5.0, "Direct access to VAlignment is now deprecated. Use the getter.")
 	EVerticalAlignment VAlignment;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Mixin to add the alignment functionality to a base slot that is also a single children. */
 template <typename MixedIntoType>
 class TAlignmentSingleWidgetSlotMixin
@@ -206,18 +187,14 @@ public:
 		return VAlignment;
 	}
 
-public:
+private:
 	/** Horizontal positioning of child within the allocated slot */
-	UE_DEPRECATED(5.0, "Direct access to HAlignment is now deprecated. Use the getter.")
 	EHorizontalAlignment HAlignment;
 	/** Vertical positioning of child within the allocated slot */
-	UE_DEPRECATED(5.0, "Direct access to VAlignment is now deprecated. Use the getter.")
 	EVerticalAlignment VAlignment;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Mixin to add the padding functionality to a base slot. */
 template <typename MixedIntoType>
 class TPaddingWidgetSlotMixin
@@ -278,35 +255,6 @@ protected:
 	}
 
 public:
-	UE_DEPRECATED(5.0, "Padding is now deprecated. Use the FSlotArgument or the SetPadding function.")
-	MixedIntoType& Padding(TAttribute<FMargin> InPadding)
-	{
-		SetPadding(MoveTemp(InPadding));
-		return *(static_cast<MixedIntoType*>(this));
-	}
-
-	UE_DEPRECATED(5.0, "Padding is now deprecated. Use the FSlotArgument or the SetPadding function.")
-	MixedIntoType& Padding(float Uniform)
-	{
-		SetPadding(FMargin(Uniform));
-		return *(static_cast<MixedIntoType*>(this));
-	}
-
-	UE_DEPRECATED(5.0, "Padding is now deprecated. Use the FSlotArgument or the SetPadding function.")
-	MixedIntoType& Padding(float Horizontal, float Vertical)
-	{
-		SetPadding(FMargin(Horizontal, Vertical));
-		return *(static_cast<MixedIntoType*>(this));
-	}
-
-	UE_DEPRECATED(5.0, "Padding is now deprecated. Use the FSlotArgument or the SetPadding function.")
-	MixedIntoType& Padding(float Left, float Top, float Right, float Bottom)
-	{
-		SetPadding(FMargin(Left, Top, Right, Bottom));
-		return *(static_cast<MixedIntoType*>(this));
-	}
-
-public:
 	void SetPadding(TAttribute<FMargin> InPadding)
 	{
 		SlotPaddingAttribute.Assign(static_cast<MixedIntoType&>(*this), MoveTemp(InPadding));
@@ -317,20 +265,13 @@ public:
 		return SlotPaddingAttribute.Get();
 	}
 
-public:
-	UE_DEPRECATED(5.0, "Direct access to SlotPadding is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FMargin> SlotPadding;
-
 private:
 	using SlotPaddingCompareType = TSlateAttributeComparePredicate<>;
 	using SlotPaddingType = ::SlateAttributePrivate::TSlateContainedAttribute<FMargin, ::SlateAttributePrivate::FSlateAttributeNoInvalidationReason, SlotPaddingCompareType>;
 	SlotPaddingType SlotPaddingAttribute;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Mixin to add the padding functionality to a base slot that is also a single children. */
 template <typename MixedIntoType, EInvalidateWidgetReason InPaddingInvalidationReason = EInvalidateWidgetReason::Layout>
 class TPaddingSingleWidgetSlotMixin
@@ -419,11 +360,6 @@ public:
 		return *(static_cast<MixedIntoType*>(this));
 	}
 
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to SlotPadding is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FMargin> SlotPadding;
-#endif
-
 public:
 	void SetPadding(TAttribute<FMargin> InPadding)
 	{
@@ -453,7 +389,6 @@ public:
 protected:
 	SlotPaddingAttributeType SlotPaddingAttribute;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 /** A templated basic slot that can be used by layout. */

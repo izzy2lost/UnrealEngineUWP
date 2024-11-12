@@ -4,7 +4,7 @@
 
 #include "Channel.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 namespace UE {
 namespace Trace {
@@ -32,4 +32,4 @@ inline bool FChannel::operator | (const FChannel& Rhs) const
 } // namespace Trace
 } // namespace UE
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

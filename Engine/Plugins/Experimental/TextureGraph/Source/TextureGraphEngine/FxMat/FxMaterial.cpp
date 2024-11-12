@@ -3,7 +3,8 @@
 #include "ShaderParameters.h" 
 #include "Device/Device.h"
 #include "EngineModule.h"
-#include <TextureResource.h>
+#include "RHIResourceUtils.h"
+#include "TextureResource.h"
 
 IMPLEMENT_GLOBAL_SHADER(VSH_Simple, "/Plugin/TextureGraph/Simple.usf", "VSH_Simple", SF_Vertex);
 IMPLEMENT_GLOBAL_SHADER(FSH_Simple, "/Plugin/TextureGraph/Simple.usf", "FSH_Simple", SF_Pixel);
@@ -124,7 +125,7 @@ void FxMaterial::BindTexturesForBlitting()
 			FRHITexture* tex = BoundTex.Texture->GetResource()->TextureRHI;
 			check(tex);
 
-			FRHITexture2DArray* texture2DArray = tex->GetTexture2DArray();
+			FRHITexture* texture2DArray = tex->GetTexture2DArray();
 
 			if (!texture2DArray)
 			{
@@ -132,7 +133,7 @@ void FxMaterial::BindTexturesForBlitting()
 			}
 			else
 			{
-				memcpy(BoundTex.Arg, (const char*)&texture2DArray, sizeof(FRHITexture2DArray**));
+				memcpy(BoundTex.Arg, (const char*)&texture2DArray, sizeof(FRHITexture**));
 			}
 		}
 		else if (BoundTex.tiles.size())
@@ -268,24 +269,15 @@ void QuadScreenBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 	//Elements.Add(FVertexElement(0, STRUCT_OFFSET(FFilterVertex, UV), VET_Float2, 1, Stride));
 	//VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(Elements);
 
-	TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
-	Vertices.SetNumUninitialized(4);
+	const FFilterVertex Vertices[] =
+	{
+		FFilterVertex { FVector4f(-1, 1, 0, 1), FVector2f(0, 0) },
+		FFilterVertex { FVector4f( 1, 1, 0, 1), FVector2f(1, 0) },
+		FFilterVertex { FVector4f(-1,-1, 0, 1), FVector2f(0, 1) },
+		FFilterVertex { FVector4f( 1,-1, 0, 1), FVector2f(1, 1) },
+	};
 
-	Vertices[0].Position = FVector4f(-1, 1, 0, 1);
-	Vertices[0].UV = FVector2f(0, 0);
-
-	Vertices[1].Position = FVector4f(1, 1, 0, 1);
-	Vertices[1].UV = FVector2f(1, 0);
-
-	Vertices[2].Position = FVector4f(-1, -1, 0, 1);
-	Vertices[2].UV = FVector2f(0, 1);
-
-	Vertices[3].Position = FVector4f(1, -1, 0, 1);
-	Vertices[3].UV = FVector2f(1, 1);
-
-	// Create vertex buffer. Fill buffer with initial data upon creation
-	FRHIResourceCreateInfo CreateInfo(TEXT("FxMaterial_VB"), &Vertices);
-	VertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfo);
+	VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FxMaterial_VB"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 }
 
 //////////////////////////////////////////////////////////////////////////

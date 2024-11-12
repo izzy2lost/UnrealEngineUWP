@@ -7,6 +7,8 @@
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisDebugging.h"
 
+#include "Iris/ReplicationSystem/NetCullDistanceOverrides.h"
+
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
@@ -16,6 +18,8 @@
 
 #include "Net/Core/NetBitArrayPrinter.h"
 #include "Net/Core/Trace/NetDebugName.h"
+
+#include "UObject/CoreNet.h"
 
 /**
  * This class contains misc console commands that log the state of different Iris systems.
@@ -132,16 +136,12 @@ void PrintDefaultNetObjectState(UReplicationSystem* ReplicationSystem, uint32 Co
 {
 	FReplicationSystemInternal* ReplicationSystemInternal = ReplicationSystem->GetReplicationSystemInternal();
 
-	// In order to be able to output object references we need the TokenStoreState, for the server we just use the local one but if we are a client we must use the remote token store state
-	FReplicationConnections& Connections = ReplicationSystemInternal->GetConnections();
-	FNetTokenStoreState* TokenStoreState = ReplicationSystem->IsServer() ? ReplicationSystemInternal->GetNetTokenStore().GetLocalNetTokenStoreState() : &Connections.GetRemoteNetTokenStoreState(ConnectionId);
-
 	// Setup Context
 	FInternalNetSerializationContext InternalContext;
 	FInternalNetSerializationContext::FInitParameters InternalContextInitParams;
 	InternalContextInitParams.ReplicationSystem = ReplicationSystem;
 	InternalContextInitParams.PackageMap = ReplicationSystemInternal->GetIrisObjectReferencePackageMap();
-	InternalContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = TokenStoreState;
+	InternalContextInitParams.ObjectResolveContext.RemoteNetTokenStoreState = ReplicationSystem->GetNetTokenStore()->GetRemoteNetTokenStoreState(ConnectionId);
 	InternalContextInitParams.ObjectResolveContext.ConnectionId = ConnectionId;
 	InternalContext.Init(InternalContextInitParams);
 
@@ -150,14 +150,13 @@ void PrintDefaultNetObjectState(UReplicationSystem* ReplicationSystem, uint32 Co
 	NetSerializationContext.SetLocalConnectionId(ConnectionId);
 
 	FReplicationInstanceOperations::OutputInternalDefaultStateToString(NetSerializationContext, StringBuilder, RegisteredFragments);
+	FReplicationInstanceOperations::OutputInternalDefaultStateMemberHashesToString(ReplicationSystem, StringBuilder, RegisteredFragments);
 }
 
-void RemoteProtocolMismatchDetected(UReplicationSystem* ReplicationSystem, uint32 ConnectionId, const FReplicationFragments& RegisteredFragments, const UObject* ArchetypeOrCDOKey, const UObject* InstancePtr)
+void RemoteProtocolMismatchDetected(TMap<FObjectKey, bool>& ArchetypesAlreadyPrinted, UReplicationSystem* ReplicationSystem, uint32 ConnectionId, const FReplicationFragments& RegisteredFragments, const UObject* ArchetypeOrCDOKey, const UObject* InstancePtr)
 {
 	if (UE_LOG_ACTIVE(LogIris, Error))
 	{
-		static TMap<FObjectKey, bool> ArchetypesAlreadyPrinted;
-
 		// Only print the CDO state once
 		if (ArchetypesAlreadyPrinted.Find(FObjectKey(ArchetypeOrCDOKey)) == nullptr)
 		{
@@ -334,8 +333,8 @@ void UObjectReplicationBridge::PrintReplicatedObjects(uint32 ArgTraits) const
 	uint32 TotalSubObjects = 0;
 
 	FNetBitArray RootObjects;
+	RootObjects.Init(NetRefHandleManager->GetCurrentMaxInternalNetRefIndex());
 	FNetBitArrayView RootObjectsView = MakeNetBitArrayView(RootObjects);
-	RootObjects.Init(NetRefHandleManager->GetMaxActiveObjectCount());
 	RootObjectsView.Set(NetRefHandleManager->GetGlobalScopableInternalIndices(), FNetBitArrayView::AndNotOp, NetRefHandleManager->GetSubObjectInternalIndicesView());
 
 	TArray<FRootObjectData> RootObjectArray;
@@ -388,8 +387,8 @@ void UObjectReplicationBridge::PrintRelevantObjects(uint32 ArgTraits) const
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 
 	FNetBitArray RootObjects;
+	RootObjects.Init(NetRefHandleManager->GetCurrentMaxInternalNetRefIndex());
 	FNetBitArrayView RootObjectsView = MakeNetBitArrayView(RootObjects);
-	RootObjects.Init(NetRefHandleManager->GetMaxActiveObjectCount());
 	RootObjectsView.Set(NetRefHandleManager->GetRelevantObjectsInternalIndices(), FNetBitArrayView::AndNotOp, NetRefHandleManager->GetSubObjectInternalIndicesView());
 
 	TArray<FRootObjectData> RootObjectArray;
@@ -436,7 +435,7 @@ void UObjectReplicationBridge::PrintAlwaysRelevantObjects(uint32 ArgTraits) cons
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 
 	FNetBitArray AlwaysRelevantList;
-	AlwaysRelevantList.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+	AlwaysRelevantList.Init(NetRefHandleManager->GetCurrentMaxInternalNetRefIndex());
 	
 	ReplicationSystemInternal->GetFiltering().BuildAlwaysRelevantList(MakeNetBitArrayView(AlwaysRelevantList), ReplicationSystemInternal->GetNetRefHandleManager().GetGlobalScopableInternalIndices());
 
@@ -501,7 +500,7 @@ void UObjectReplicationBridge::PrintRelevantObjectsForConnections(const TArray<F
 	TArray<uint32> RequestedConnectionList = FindConnectionsFromArgs(Args);
 	if (RequestedConnectionList.Num())
 	{
-		ConnectionsToPrint.Reset();
+		ConnectionsToPrint.ClearAllBits();
 		for (uint32 ConnectionId : RequestedConnectionList)
 		{
 			if (ValidConnections.IsBitSet(ConnectionId))
@@ -536,7 +535,7 @@ void UObjectReplicationBridge::PrintRelevantObjectsForConnections(const TArray<F
 		UE_LOG(LogIrisBridge, Display, TEXT(""));
 
 		FNetBitArray RootObjects;
-		RootObjects.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+		RootObjects.Init(NetRefHandleManager->GetCurrentMaxInternalNetRefIndex());
 		MakeNetBitArrayView(RootObjects).Set(GetReplicationSystem()->GetReplicationSystemInternal()->GetFiltering().GetRelevantObjectsInScope(ConnectionId), FNetBitArrayView::AndNotOp, NetRefHandleManager->GetSubObjectInternalIndicesView());
 
 		TArray<FRootObjectData> RelevantObjects;
@@ -566,7 +565,7 @@ void UObjectReplicationBridge::PrintRelevantObjectsForConnections(const TArray<F
 //-----------------------------------------------
 FAutoConsoleCommand ObjectBridgePrintNetCullDistances(
 TEXT("Net.Iris.PrintNetCullDistances"),
-TEXT("Prints the list of replicated objects and their current netculldistance."),
+TEXT("Prints the list of replicated objects and their current netculldistance. Add -NumClasses=X to limit the printing to the X classes with the largest net cull distances."),
 FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 {
 	using namespace UE::Net;
@@ -578,8 +577,6 @@ FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 	{
 		if (UObjectReplicationBridge* ObjectBridge = CastChecked<UObjectReplicationBridge>(RepSystem->GetReplicationBridge()))
 		{
-			FReplicationSystemInternal* ReplicationSystemInternal = RepSystem->GetReplicationSystemInternal();
-
 			ObjectBridge->PrintNetCullDistances(Args);
 		}
 	}
@@ -591,19 +588,43 @@ void UObjectReplicationBridge::PrintNetCullDistances(const TArray<FString>& Args
 	using namespace UE::Net::Private;
 	using namespace UE::Net::Private::ObjectBridgeDebugging;
 
+	// Number of classes to print. If 0, print all.
+	int32 NumClassesToPrint = 0;
+	if (const FString* ClassCountArg = Args.FindByPredicate([](const FString& Str) { return Str.Contains(TEXT("NumClasses=")); }))
+	{
+		FParse::Value(**ClassCountArg, TEXT("NumClasses="), NumClassesToPrint);
+	}
+
 	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 	const FWorldLocations& WorldLocations = ReplicationSystemInternal->GetWorldLocations();
+	const FNetCullDistanceOverrides& CullDistanceOverrides = ReplicationSystemInternal->GetNetCullDistanceOverrides();
 
 	struct FCullDistanceInfo
 	{
 		UClass* Class = nullptr;
 		float CDOCullDistance = 0.0f;
 
-		uint32 NumTotal = 0; // Total replicated rootobjects of this class
-		uint32 NumCDOCullDistance = 0; // Total replicated rootobjects
+		// Total replicated root objects of this class
+		uint32 NumTotal = 0;
 
-		// Track culldistance values for actors that are different from the CDO
-		TMap<float /*CullDistance*/, uint32 /*ActorCount with culldistance value*/> DivergentCullDistances; 
+		// Track unique culldistance values for replicated root objects
+		TMap<float /*CullDistance*/, uint32 /*ActorCount with culldistance value*/> UniqueCullDistances; 
+
+		const float FindMostUsedCullDistance() const
+		{
+			float MostUsedCullDistance = 0.0;
+			uint32 MostUsedCount = 0;
+			for (auto It : UniqueCullDistances)
+			{
+				if (It.Value >= MostUsedCount)
+				{
+					MostUsedCount = It.Value;
+					MostUsedCullDistance = FMath::Max(It.Key, MostUsedCullDistance);
+				}
+			}
+
+			return MostUsedCullDistance;
+		}
 	};
 
 	TMap<UClass*, FCullDistanceInfo> ClassCullDistanceMap;
@@ -617,74 +638,186 @@ void UObjectReplicationBridge::PrintNetCullDistances(const TArray<FString>& Args
 	// Filter down to objects in the GridFilter. Other filters do not use net culling
 	{
 		FNetBitArray GridFilterList;
-		GridFilterList.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+		GridFilterList.Init(NetRefHandleManager->GetCurrentMaxInternalNetRefIndex());
 		ReplicationSystemInternal->GetFiltering().BuildObjectsInFilterList(MakeNetBitArrayView(GridFilterList), TEXT("Spatial"));
 		RootObjects.Combine(GridFilterList, FNetBitArray::AndOp);
 	}
 
 	RootObjects.ForAllSetBits([&](uint32 RootObjectIndex)
 	{
-		const float CurrentCullDistance = WorldLocations.GetCullDistance(RootObjectIndex);
-
 		if( UObject* RepObj = NetRefHandleManager->GetReplicatedObjectInstance(RootObjectIndex) )
 		{
 			UClass* RepObjClass = RepObj->GetClass();
-			UObject* RepClassCDO = RepObjClass->GetDefaultObject();
-
-			float CDOCullDistance = 0.0;
-
-			// Try to find the object's actual culldistance and that of the CDO.
-			if (GetInstanceWorldObjectInfoFunction)
+			// Find this object's current net cull distance
+			float RootObjectCullDistance = WorldLocations.GetCullDistance(RootObjectIndex);
+			if (CullDistanceOverrides.HasCullDistanceOverride(RootObjectIndex))
 			{
-				FVector Loc;
-				GetInstanceWorldObjectInfoFunction(NetRefHandleManager->GetNetRefHandleFromInternalIndex(RootObjectIndex), RepClassCDO, Loc, CDOCullDistance);
+				RootObjectCullDistance = FMath::Sqrt(CullDistanceOverrides.GetCullDistanceSqr(RootObjectIndex));
 			}
 
 			FCullDistanceInfo& Info = ClassCullDistanceMap.FindOrAdd(RepObjClass);
-
 			if (Info.Class == nullptr)
 			{
+				UObject* RepClassCDO = RepObjClass->GetDefaultObject();
+
+				// Find the CullDistance of the CDO.
+				float CDOCullDistance = 0.0;
+				if (GetInstanceWorldObjectInfoFunction)
+				{
+					FVector Loc;
+					GetInstanceWorldObjectInfoFunction(NetRefHandleManager->GetNetRefHandleFromInternalIndex(RootObjectIndex), RepClassCDO, Loc, CDOCullDistance);
+				}
+
 				Info.Class = RepObjClass;
 				Info.CDOCullDistance = CDOCullDistance;
 			}
 
 			Info.NumTotal++;
-			
-			// Check if Obj has diverged from the CDO
-			if(CurrentCullDistance != CDOCullDistance)
-			{
-				uint32& NumDivergent = Info.DivergentCullDistances.FindOrAdd(CurrentCullDistance, 0);
-				++NumDivergent;
-			}
-			else
-			{
-				Info.NumCDOCullDistance++;
-			}
+
+			uint32& NumUsingCullDistance = Info.UniqueCullDistances.FindOrAdd(RootObjectCullDistance, 0);
+			++NumUsingCullDistance;
 		}
 	});
 
 	// Sort from highest to lowest
-	ClassCullDistanceMap.ValueSort([](const FCullDistanceInfo& lhs, const FCullDistanceInfo& rhs) { return lhs.CDOCullDistance >= rhs.CDOCullDistance; });
+	ClassCullDistanceMap.ValueSort([](const FCullDistanceInfo& lhs, const FCullDistanceInfo& rhs) 
+	{ 
+		const float LHSSortingCullDistance = lhs.FindMostUsedCullDistance();
+		const float RHSSortingCullDistance = rhs.FindMostUsedCullDistance();
+		return LHSSortingCullDistance >= RHSSortingCullDistance;
+	});
 
 	UE_LOG(LogIrisBridge, Display, TEXT("################ Start Printing NetCullDistance Values ################"));
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 
+	int32 NumClassesPrinted = 0;
 	for (auto ClassIt = ClassCullDistanceMap.CreateIterator(); ClassIt; ++ClassIt)
 	{
 		FCullDistanceInfo& Info = ClassIt.Value();
 		UClass* Class = Info.Class;
 
-		UE_LOG(LogIrisBridge, Display, TEXT("NetCullDistance: %f | Class: %s | ReplicatedCount: %u | Using CDO CullDistance: %u (%.2f%%)"),
-			Info.CDOCullDistance, *Info.Class->GetName(), Info.NumTotal, Info.NumCDOCullDistance, ((float)Info.NumCDOCullDistance/(float)Info.NumTotal)*100.f);
+		UE_LOG(LogIrisBridge, Display, TEXT("MostCommon NetCullDistance: %f | Class: %s | Instances: %u"), Info.FindMostUsedCullDistance(), *Info.Class->GetName(), Info.NumTotal);
 
-		Info.DivergentCullDistances.KeySort([](const float& lhs, const float& rhs){ return lhs >= rhs; });
-
-		for (auto DivergentIt = Info.DivergentCullDistances.CreateConstIterator(); DivergentIt; ++DivergentIt)
+		Info.UniqueCullDistances.KeySort([](const float& lhs, const float& rhs){ return lhs >= rhs; });
+		for (auto DivergentIt = Info.UniqueCullDistances.CreateConstIterator(); DivergentIt; ++DivergentIt)
 		{
-			UE_LOG(LogIrisBridge, Display, TEXT("\tNetCullDistance: %f | UseCount: %d (%.2f%%)"), DivergentIt.Key(), DivergentIt.Value(), ((float)DivergentIt.Value()/(float)Info.NumTotal)*100.f);
+			UE_LOG(LogIrisBridge, Display, TEXT("\tNetCullDistance: %f | UseCount: %d/%d (%.2f%%)"), DivergentIt.Key(), DivergentIt.Value(), Info.NumTotal,((float)DivergentIt.Value()/(float)Info.NumTotal)*100.f);
+		}
+
+		if (++NumClassesPrinted == NumClassesToPrint)
+		{
+			break;
 		}
 	}
 	
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 	UE_LOG(LogIrisBridge, Display, TEXT("################ Stop Printing NetCullDistance Values ################"));
+}
+
+//-----------------------------------------------
+FAutoConsoleCommand ObjectBridgePrintPushBasedStatuses(
+	TEXT("Net.Iris.PrintPushBasedStatuses"), 
+	TEXT("Prints the push-based statuses of all classes."), 
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
+{
+	using namespace UE::Net::Private;
+	using namespace UE::Net::Private::ObjectBridgeDebugging;
+
+	UReplicationSystem* RepSystem = FindReplicationSystemFromArg(Args);
+	if (!RepSystem)
+	{
+		UE_LOG(LogIrisBridge, Error, TEXT("Could not find ReplicationSystem."));
+		return;
+	}
+
+	UObjectReplicationBridge* ObjectBridge = RepSystem->GetReplicationBridgeAs<UObjectReplicationBridge>();
+	if (!ObjectBridge)
+	{
+		UE_LOG(LogIrisBridge, Error, TEXT("Could not find ObjectReplicationBridge."));
+		return;
+	}
+
+	ObjectBridge->PrintPushBasedStatuses();
+}));
+
+void UObjectReplicationBridge::PrintPushBasedStatuses() const
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	FReplicationProtocolManager* ProtocolManager = GetReplicationProtocolManager();
+	if (!ProtocolManager)
+	{
+		UE_LOG(LogIrisBridge, Error, TEXT("Could not find ReplicationProtocolManager."));
+		return;
+	}
+
+	struct FPushBasedInfo
+	{
+		const UClass* Class = nullptr;
+		int32 RefCount = 0;
+		bool bIsFullyPushBased = false;
+	};
+
+	TArray<FPushBasedInfo> PushBasedInfos;
+	ProtocolManager->ForEachProtocol([&](const FReplicationProtocol* Protocol, const UObject* ArchetypeOrCDOUsedAsKey)
+	{
+		if (!ArchetypeOrCDOUsedAsKey)
+		{
+			return;
+		}
+
+		for (const FReplicationStateDescriptor* StateDescriptor : MakeArrayView(Protocol->ReplicationStateDescriptors, Protocol->ReplicationStateCount))
+		{
+			if (!EnumHasAnyFlags(StateDescriptor->Traits, EReplicationStateTraits::HasPushBasedDirtiness))
+			{
+				PushBasedInfos.Add({ArchetypeOrCDOUsedAsKey->GetClass(), Protocol->GetRefCount(), false});
+				return;
+			}
+		}
+
+		PushBasedInfos.Add({ArchetypeOrCDOUsedAsKey->GetClass(), Protocol->GetRefCount(), true});
+	});
+
+	// Print by push-based status (not push-based first), then by ref count, then by name.
+	Algo::Sort(PushBasedInfos, [](const FPushBasedInfo& A, const FPushBasedInfo& B) 
+	{
+		if (A.bIsFullyPushBased != B.bIsFullyPushBased)
+		{
+			return B.bIsFullyPushBased;
+		}
+		else if (A.RefCount != B.RefCount)
+		{
+			return A.RefCount > B.RefCount;
+		}
+		return A.Class->GetName() < B.Class->GetName();
+	});
+
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Start Printing Push-Based Statuses ################"));
+	UE_LOG(LogIrisBridge, Display, TEXT(""));
+
+	for (const FPushBasedInfo& Info : PushBasedInfos)
+	{
+		UE_LOG(LogIrisBridge, Display, TEXT("%s (RefCount: %d) (PushBased: %d)"), ToCStr(Info.Class->GetName()), Info.RefCount, (int32)Info.bIsFullyPushBased);
+		if (!Info.bIsFullyPushBased)
+		{
+			UE_LOG(LogIrisBridge, Display, TEXT("\tPrinting properties that aren't push-based:"));
+
+			TArray<FLifetimeProperty> LifetimeProps;
+			LifetimeProps.Reserve(Info.Class->ClassReps.Num());
+			Info.Class->GetDefaultObject()->GetLifetimeReplicatedProps(LifetimeProps);
+			for (const FLifetimeProperty& LifetimeProp : LifetimeProps)
+			{
+				if (!LifetimeProp.bIsPushBased && LifetimeProp.Condition != COND_Never)
+				{
+					const FRepRecord& RepRecord = Info.Class->ClassReps[LifetimeProp.RepIndex];
+					const FProperty* Prop = RepRecord.Property;
+					UE_LOG(LogIrisBridge, Display, TEXT("\t\t%s"), ToCStr(Prop->GetPathName()));
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogIrisBridge, Display, TEXT(""));
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Stop Printing Push-Based Statuses ################"));
 }

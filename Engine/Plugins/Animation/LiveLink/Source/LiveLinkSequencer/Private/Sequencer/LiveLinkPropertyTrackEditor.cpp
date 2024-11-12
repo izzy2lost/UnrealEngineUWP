@@ -43,41 +43,49 @@ protected:
 
 void FLiveLinkSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& InObjectBinding)
 {
-	UMovieSceneLiveLinkSection* LiveLinkSection = CastChecked<UMovieSceneLiveLinkSection>(WeakSection.Get());
-	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
-
-	auto MakeUIAction = [=](int32 Index)
+	auto MakeUIAction = [this](int32 Index)
 	{
 		return FUIAction(
-			FExecuteAction::CreateLambda([=]
-			{
-				FScopedTransaction Transaction(LOCTEXT("SetLiveLinkActiveChannelsTransaction", "Set Live LinkActive Channels"));
-				LiveLinkSection->Modify();
-				TArray<bool> ChannelMask = LiveLinkSection->ChannelMask;
-				ChannelMask[Index] = !ChannelMask[Index];
-				LiveLinkSection->SetMask(ChannelMask);
+			FExecuteAction::CreateLambda([this, Index]
+				{
+					const TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+					if (!SequencerPtr.IsValid())
+					{
+						return;
+					}
 
-				SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-			}
-			),
+					UMovieSceneLiveLinkSection* LiveLinkSection = CastChecked<UMovieSceneLiveLinkSection>(WeakSection.Get());
+					
+					FScopedTransaction Transaction(LOCTEXT("SetLiveLinkActiveChannelsTransaction", "Set Live LinkActive Channels"));
+					LiveLinkSection->Modify();
+					TArray<bool> ChannelMask = LiveLinkSection->ChannelMask;
+					ChannelMask[Index] = !ChannelMask[Index];
+					LiveLinkSection->SetMask(ChannelMask);
+
+					SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+				}),
 			FCanExecuteAction(),
-			FGetActionCheckState::CreateLambda([=]
-			{
-				TArray<bool> ChannelMask = LiveLinkSection->ChannelMask;
-				if (ChannelMask[Index])
+			FGetActionCheckState::CreateLambda([this, Index]
 				{
-					return ECheckBoxState::Checked;
-				}
-				else 
-				{
-					return ECheckBoxState::Unchecked;
-				}
-			})
+					UMovieSceneLiveLinkSection* LiveLinkSection = CastChecked<UMovieSceneLiveLinkSection>(WeakSection.Get());
+
+					TArray<bool> ChannelMask = LiveLinkSection->ChannelMask;
+					if (ChannelMask[Index])
+					{
+						return ECheckBoxState::Checked;
+					}
+					else 
+					{
+						return ECheckBoxState::Unchecked;
+					}
+				})
 		);
 	};
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("LiveLinkChannelsText", "Active Live Link Channels"));
 	{
+		UMovieSceneLiveLinkSection* LiveLinkSection = CastChecked<UMovieSceneLiveLinkSection>(WeakSection.Get());
+
 		TArray<FMovieSceneChannelMetaData> AllMetaData;
 		for (const FMovieSceneChannelEntry& Entry : LiveLinkSection->GetChannelProxy().GetAllEntries())
 		{

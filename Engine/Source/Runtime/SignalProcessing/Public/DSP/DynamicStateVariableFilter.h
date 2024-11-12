@@ -125,7 +125,5 @@ namespace Audio
 		SIGNALPROCESSING_API void UpdatePostFilterVariables();
 		
 		SIGNALPROCESSING_API float CalcGain(const float KeySample);
-		
-		SIGNALPROCESSING_API void ClearFilterDenormals();
 	};
 }

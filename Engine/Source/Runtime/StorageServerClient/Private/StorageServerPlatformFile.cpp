@@ -5,12 +5,12 @@
 #include "CookOnTheFly.h"
 #include "CookOnTheFlyPackageStore.h"
 #include "HAL/FileManagerGeneric.h"
-#include "HAL/IPlatformFileModule.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/PathViews.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/StringBuilder.h"
 #include "Modules/ModuleManager.h"
@@ -18,13 +18,36 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "ProfilingDebugging/PlatformFileTrace.h"
+#include "ProfilingDebugging/CountersTrace.h"
 #include "StorageServerConnection.h"
 #include "StorageServerIoDispatcherBackend.h"
 #include "StorageServerPackageStore.h"
+#include "Containers/LruCache.h"
+#include <atomic>
 
 DEFINE_LOG_CATEGORY_STATIC(LogStorageServerPlatformFile, Log, All);
 
 #if !UE_BUILD_SHIPPING
+
+#ifndef EXCLUDE_NONSERVER_UE_EXTENSIONS
+#define EXCLUDE_NONSERVER_UE_EXTENSIONS 1	// Use .Build.cs file to disable this if the game relies on accessing loose files on the local filesystem
+#endif
+
+#if !defined(HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE)
+#	define HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE 0
+#endif
+
+#if HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE
+	IWrappedFileHandle* CreateCompressedPlatformFileHandle(IFileHandle* InLowerLevelHandle);
+#else
+	IWrappedFileHandle* CreateCompressedPlatformFileHandle(IFileHandle* InLowerLevelHandle)
+	{
+		return nullptr;
+	}
+#endif // HAS_STORAGE_SERVER_COMPRESSED_FILE_HANDLE
+
+static FDateTime GAssumedImmutableTimeStamp = FDateTime::Now();
 
 FStorageServerFileSystemTOC::~FStorageServerFileSystemTOC()
 {
@@ -57,7 +80,7 @@ FStorageServerFileSystemTOC::FDirectory* FStorageServerFileSystemTOC::AddDirecto
 	return Directory;
 }
 
-void FStorageServerFileSystemTOC::AddFile(const FIoChunkId& FileChunkId, FStringView PathView)
+void FStorageServerFileSystemTOC::AddFile(const FIoChunkId& FileChunkId, FStringView PathView, int64 RawSize)
 {
 	FWriteScopeLock _(TocLock);
 
@@ -66,6 +89,7 @@ void FStorageServerFileSystemTOC::AddFile(const FIoChunkId& FileChunkId, FString
 	FFile& NewFile = Files.AddDefaulted_GetRef();
 	NewFile.FileChunkId = FileChunkId;
 	NewFile.FilePath = PathView;
+	NewFile.RawSize = RawSize;
 	
 	FilePathToIndexMap.Add(NewFile.FilePath, FileIndex);
 	
@@ -100,7 +124,30 @@ const FIoChunkId* FStorageServerFileSystemTOC::GetFileChunkId(const FString& Pat
 	return nullptr;
 }
 
-bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*)> Callback)
+int64 FStorageServerFileSystemTOC::GetFileSize(const FString& Path)
+{
+	FReadScopeLock _(TocLock);
+	if (const int32* FileIndex = FilePathToIndexMap.Find(Path))
+	{
+		return Files[*FileIndex].RawSize;
+	}
+	return STORAGE_SERVER_FILE_UNKOWN_SIZE;
+}
+
+bool FStorageServerFileSystemTOC::GetFileData(const FString& Path, FIoChunkId& OutChunkId, int64& OutRawSize)
+{
+	FReadScopeLock _(TocLock);
+	if (const int32* FileIndex = FilePathToIndexMap.Find(Path))
+	{
+		const FFile& File = Files[*FileIndex];
+		OutChunkId = File.FileChunkId;
+		OutRawSize = File.RawSize;
+		return true;
+	}
+	return false;
+}
+
+bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64 RawSize)> Callback)
 {
 	UE_LOG(LogStorageServerPlatformFile, Verbose, TEXT("IterateDirectory '%s'"), *Path);
 
@@ -114,20 +161,258 @@ bool FStorageServerFileSystemTOC::IterateDirectory(const FString& Path, TFunctio
 	for (int32 FileIndex : Directory->Files)
 	{
 		const FFile& File = Files[FileIndex];
-		if (!Callback(File.FileChunkId, *File.FilePath))
+		if (!Callback(File.FileChunkId, *File.FilePath, File.RawSize))
 		{
 			return false;
 		}
 	}
 	for (const FString& ChildDirectoryPath : Directory->Directories)
 	{
-		if (!Callback(FIoChunkId(), *ChildDirectoryPath))
+		if (!Callback(FIoChunkId(), *ChildDirectoryPath, 0))
 		{
 			return false;
 		}
 	}
 	return true;
 }
+
+bool FStorageServerFileSystemTOC::IterateDirectoryRecursively(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback)
+{
+	UE_LOG(LogStorageServerPlatformFile, Verbose, TEXT("IterateDirectoryRecursively '%s'"), *Path);
+
+	FReadScopeLock _(TocLock);
+	FDirectory* Directory = Directories.FindRef(Path);
+	if (!Directory)
+	{
+		return false;
+	}
+	for (int32 FileIndex : Directory->Files)
+	{
+		const FFile& File = Files[FileIndex];
+		if (!Callback(File.FileChunkId, *File.FilePath, File.RawSize))
+		{
+			return false;
+		}
+	}
+	bool bFail = false;
+	for (const FString& ChildDirectoryPath : Directory->Directories)
+	{
+		bFail |= !IterateDirectoryRecursively(ChildDirectoryPath, Callback);
+	}
+
+	return !bFail;
+}
+
+#if COUNTERSTRACE_ENABLED
+	TRACE_DECLARE_ATOMIC_FLOAT_COUNTER(StorageServerCache_HitRatioBytes, TEXT("ZenClient/FileCacheHitRatio"));
+	namespace
+	{
+		static std::atomic<uint64> CacheHitBytes = 0;
+		static std::atomic<uint64> CacheMissBytes = 0;
+	}
+
+	#define STORAGESERVER_CACHEMISS(Bytes) \
+	{\
+		CacheMissBytes += Bytes; \
+		TRACE_COUNTER_SET(StorageServerCache_HitRatioBytes, (double)CacheHitBytes / (double)(CacheMissBytes+CacheHitBytes) ); \
+	}
+
+	#define STORAGESERVER_CACHEHIT(Bytes) \
+	{\
+		CacheHitBytes += Bytes; \
+		TRACE_COUNTER_SET(StorageServerCache_HitRatioBytes, (double)CacheHitBytes / (double)(CacheMissBytes+CacheHitBytes) ); \
+	}
+
+#else
+
+	#define STORAGESERVER_CACHEMISS(Bytes)
+	#define STORAGESERVER_CACHEHIT(Bytes)
+
+#endif // COUNTERSTRACE_ENABLED
+
+
+
+class FStorageServerFileCache
+{
+private:
+	typedef FIoChunkId CacheKey;
+
+	typedef DefaultKeyComparer<FIoChunkId> CacheKeyComparer;
+public:
+	// zen compression block size is often 256kb
+	static const int64 BlockSize = 256 * 1024;
+
+	// up to 4 mb cache, not counting temporary read buffers
+	static const uint32 MaxCacheElements = 16; 
+
+
+	struct CacheEntry
+	{
+		int64 Start = -1;
+		TArray<uint8, TInlineAllocator<BlockSize>> Buffer;
+
+		FORCEINLINE int64 End()
+		{
+			return Start + Buffer.Num();
+		}
+
+		bool TryReadFromCache(int64& FilePos, uint8*& Destination, int64& BytesToRead, int64& BytesRead)
+		{
+			if (FilePos >= Start && FilePos < End())
+			{
+				BytesRead = FMath::Min(End() - FilePos, BytesToRead);
+				FMemory::Memcpy(Destination, Buffer.GetData() + FilePos - Start, BytesRead);
+				FilePos += BytesRead;
+				Destination += BytesRead;
+				BytesToRead -= BytesRead;
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+	};
+
+	static FORCEINLINE int64 BlockOffset(int64 Position)
+	{
+		return (Position / BlockSize) * BlockSize;
+	}
+
+	static FStorageServerFileCache& Get()
+	{
+		static FStorageServerFileCache Instance;
+		return Instance;
+	}
+
+	void Lock()
+	{
+		CriticalSection.Lock();
+	}
+
+	void Unlock()
+	{
+		CriticalSection.Unlock();
+	}
+
+	CacheEntry& FindOrAdd(FIoChunkId FileChunkId)
+	{
+		CacheKey Key = FileChunkId;
+		if (const CacheEntry* ExistingEntry = Cache.FindAndTouch(Key))
+		{
+			return *const_cast<CacheEntry*>(ExistingEntry); // TODO change LRU cache API
+		}
+		else
+		{
+			CacheEntry& Entry = Cache.AddUninitialized_GetRef(Key);
+			Entry.Start = -1;
+			Entry.Buffer.Empty();
+
+			return Entry;
+		}
+	}
+
+	void ReadCached(FStorageServerConnection* Connection, FIoChunkId FileChunkId, int64& FilePos, uint8*& Destination, int64& BytesToRead)
+	{
+		if (BytesToRead == 0)
+		{
+			return;
+		}
+
+		// try to read existing data from cache
+		{
+			UE::TScopeLock Lock(*this);
+
+			CacheEntry& Entry = FindOrAdd(FileChunkId);
+			int64 BytesRead = 0;
+			if (Entry.TryReadFromCache(FilePos, Destination, BytesToRead, BytesRead))
+			{
+				STORAGESERVER_CACHEHIT(BytesRead);
+			}
+
+			if (BytesToRead == 0)
+			{
+				return;
+			}
+		}
+
+
+		// if request spans multiple blocks, satisfy all but last block without cache 
+		if (BlockOffset(FilePos) < BlockOffset(FilePos + BytesToRead))
+		{
+			const int64 BytesToReadRequested = BlockOffset(BytesToRead + FilePos) - FilePos;
+			const int64 BytesRead = SendReadMessage(Connection, Destination, FileChunkId, FilePos, BytesToReadRequested);
+			STORAGESERVER_CACHEMISS(BytesRead);
+			FilePos += BytesRead;
+			Destination += BytesRead;
+			BytesToRead -= BytesRead;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return;
+		}
+
+		// try to read last block from cache
+		{
+			UE::TScopeLock Lock(*this);
+
+			CacheEntry& Entry = FindOrAdd(FileChunkId);
+			int64 BytesRead = 0;
+			if (Entry.TryReadFromCache(FilePos, Destination, BytesToRead, BytesRead))
+			{
+				STORAGESERVER_CACHEHIT(BytesRead);
+				if (ensure(BytesToRead == 0))
+				{
+					return;
+				}
+			}
+
+		}
+
+		// read and cache last block
+		// TODO try to avoid doing two requests for large reads 
+		{
+			TArray<uint8> TempBuffer; // allocating a temporary BlockSize buffer here for the read - one per parallel file access
+			TempBuffer.AddUninitialized(BlockSize);
+			int64 TempStart = BlockOffset(FilePos);
+
+			int64 BytesRead = SendReadMessage(Connection, TempBuffer.GetData(), FileChunkId, TempStart, TempBuffer.Num());
+			STORAGESERVER_CACHEMISS(BytesRead);
+
+			{
+				UE::TScopeLock Lock(*this);
+
+				CacheEntry& Entry = FindOrAdd(FileChunkId);
+				Entry.Start = TempStart;
+				Entry.Buffer.SetNum(BytesRead);
+				FMemory::Memcpy(Entry.Buffer.GetData(), TempBuffer.GetData(), BytesRead);
+
+				ensure(Entry.TryReadFromCache(FilePos, Destination, BytesToRead, BytesRead));
+			}
+		}
+
+		check(BytesToRead == 0);
+	}
+
+private:
+	FStorageServerFileCache()
+		: Cache(MaxCacheElements)
+	{
+	}
+
+	int64 SendReadMessage(FStorageServerConnection* Connection, uint8* Destination, const FIoChunkId& FileChunkId, int64 Offset, int64 BytesToRead)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FStorageServerFileCache::SendReadMessage);
+		int64 BytesRead = 0;
+		TIoStatusOr<FIoBuffer> Result = Connection->ReadChunkRequest(FileChunkId, Offset, BytesToRead, FIoBuffer(FIoBuffer::Wrap, Destination, BytesToRead), false);
+		BytesRead = Result.IsOk() ? Result.ValueOrDie().GetSize() : 0;
+		return BytesRead;
+	}
+
+	TLruCache<CacheKey, CacheEntry, CacheKeyComparer> Cache;
+	FCriticalSection CriticalSection;
+};
 
 class FStorageServerFileHandle
 	: public IFileHandle
@@ -144,17 +429,23 @@ class FStorageServerFileHandle
 	int64 BufferStart = -1;
 	int64 BufferEnd = -1;
 	uint8 Buffer[BufferSize];
+	FCriticalSection BufferCS;
 
 public:
-	FStorageServerFileHandle(FStorageServerPlatformFile& InOwner, FIoChunkId InFileChunkId, const TCHAR* InFilename)
+	FStorageServerFileHandle(FStorageServerPlatformFile& InOwner, FIoChunkId InFileChunkId, int64 InFileSize, const TCHAR* InFilename)
 		: Owner(InOwner)
 		, FileChunkId(InFileChunkId)
 		, Filename(InFilename)
+		, FileSize(InFileSize)
 	{
+		TRACE_PLATFORMFILE_BEGIN_OPEN(*FString::Printf(TEXT("zen:%s"), InFilename));
+		TRACE_PLATFORMFILE_END_OPEN(this);
 	}
 
 	~FStorageServerFileHandle()
 	{
+		TRACE_PLATFORMFILE_BEGIN_CLOSE(this);
+		TRACE_PLATFORMFILE_END_CLOSE(this);
 	}
 
 	virtual int64 Size() override
@@ -193,6 +484,27 @@ public:
 
 	virtual bool Read(uint8* Destination, int64 BytesToRead) override
 	{
+		TRACE_PLATFORMFILE_BEGIN_READ(Destination, this, FilePos, BytesToRead);
+		if (BytesToRead == 0)
+		{
+			TRACE_PLATFORMFILE_END_READ(Destination, 0);
+			return true;
+		}
+
+		FStorageServerFileCache& Cache = FStorageServerFileCache::Get();
+
+		uint8* DestinationPtr = Destination;
+		int64 BytesRemaining = BytesToRead;
+		Cache.ReadCached(Owner.Connection.Get(), FileChunkId, /*out*/FilePos, /*out*/DestinationPtr, /*out*/BytesRemaining);
+		int64 BytesRead = (BytesToRead - BytesRemaining);
+
+		TRACE_PLATFORMFILE_END_READ(Destination, BytesRead);
+		
+		return BytesRemaining == 0;
+	}
+
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset)
+	{
 		if (BytesToRead == 0)
 		{
 			return true;
@@ -200,43 +512,49 @@ public:
 
 		if (BytesToRead > BufferSize)
 		{
-			const int64 BytesRead = Owner.SendReadMessage(Destination, FileChunkId, FilePos, BytesToRead);
+			const int64 BytesRead = Owner.SendReadMessage(Destination, FileChunkId, Offset, BytesToRead);
 			if (BytesRead == BytesToRead)
 			{
-				FilePos += BytesRead;
+				STORAGESERVER_CACHEMISS(BytesRead);
 				return true;
 			}
 			return false;
 		}
 
-		int64 BytesReadFromBuffer = 0;
-		if (FilePos >= BufferStart && FilePos < BufferEnd)
 		{
-			const int64 BufferOffset = FilePos - BufferStart;
-			check(BufferOffset < BufferSize);
-			BytesReadFromBuffer = FMath::Min(BufferSize - BufferOffset, BytesToRead);
-			FMemory::Memcpy(Destination, Buffer + BufferOffset, BytesReadFromBuffer);
+			FScopeLock BufferLock(&BufferCS);
+
+			int64 BytesReadFromBuffer = 0;
+			if (Offset >= BufferStart && Offset < BufferEnd)
+			{
+				const int64 BufferOffset = Offset - BufferStart;
+				check(BufferOffset < BufferSize);
+				BytesReadFromBuffer = FMath::Min(BufferSize - BufferOffset, BytesToRead);
+				FMemory::Memcpy(Destination, Buffer + BufferOffset, BytesReadFromBuffer);
+				STORAGESERVER_CACHEHIT(BytesReadFromBuffer);
+				if (BytesReadFromBuffer == BytesToRead)
+				{
+					Offset += BytesReadFromBuffer;
+					return true;
+				}
+			}
+
+			const int64 BytesRead = Owner.SendReadMessage(Buffer, FileChunkId, Offset + BytesReadFromBuffer, BufferSize);
+			BufferStart = Offset + BytesReadFromBuffer;
+			BufferEnd = BufferStart + BytesRead;
+
+			const int64 BytesToReadFromBuffer = FMath::Min(BytesRead, BytesToRead - BytesReadFromBuffer);
+			FMemory::Memcpy(Destination + BytesReadFromBuffer, Buffer, BytesToReadFromBuffer);
+			BytesReadFromBuffer += BytesToReadFromBuffer;
 			if (BytesReadFromBuffer == BytesToRead)
 			{
-				FilePos += BytesReadFromBuffer;
+				Offset += BytesReadFromBuffer;
+				STORAGESERVER_CACHEMISS(BytesReadFromBuffer);
 				return true;
 			}
-		}
 
-		const int64 BytesRead = Owner.SendReadMessage(Buffer, FileChunkId, FilePos + BytesReadFromBuffer, BufferSize);
-		BufferStart = FilePos + BytesReadFromBuffer;
-		BufferEnd = BufferStart + BytesRead;
-
-		const int64 BytesToReadFromBuffer = FMath::Min(BytesRead, BytesToRead - BytesReadFromBuffer);
-		FMemory::Memcpy(Destination + BytesReadFromBuffer, Buffer, BytesToReadFromBuffer);
-		BytesReadFromBuffer += BytesToReadFromBuffer;
-		if (BytesReadFromBuffer == BytesToRead)
-		{
-			FilePos += BytesReadFromBuffer;
-			return true;
+			return false;
 		}
-		
-		return false;
 	}
 
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
@@ -258,6 +576,11 @@ public:
 
 FStorageServerPlatformFile::FStorageServerPlatformFile()
 {
+	if (UE::IsUsingZenPakFileStreaming())
+	{
+		ServerEngineDirView = FStringView(TEXT("Engine/"));
+		ServerProjectDirView = FStringView(TEXT(PREPROCESSOR_TO_STRING(UE_PROJECT_NAME)) TEXT("/"));
+	}
 }
 
 FStorageServerPlatformFile::~FStorageServerPlatformFile()
@@ -271,15 +594,22 @@ TUniquePtr<FArchive> FStorageServerPlatformFile::TryFindProjectStoreMarkerFile(I
 		return nullptr;
 	}
 
-	FString RelativeStagedPath = TEXT("../../../");
-	FString RootPath = FPaths::RootDir();
-	FString PlatformName = FPlatformProperties::PlatformName();
-	FString CookedOutputPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved"), TEXT("Cooked"), PlatformName);
-
 	TArray<FString> PotentialProjectStorePaths;
-	PotentialProjectStorePaths.Add(RelativeStagedPath);
-	PotentialProjectStorePaths.Add(CookedOutputPath);
-	PotentialProjectStorePaths.Add(RootPath);
+	if (CustomProjectStorePath.IsEmpty())
+	{
+		FString RelativeStagedPath = TEXT("../../../");
+		FString RootPath = FPaths::RootDir();
+		FString PlatformName = FPlatformProperties::PlatformName();
+		FString CookedOutputPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved"), TEXT("Cooked"), PlatformName);
+
+		PotentialProjectStorePaths.Add(RelativeStagedPath);
+		PotentialProjectStorePaths.Add(CookedOutputPath);
+		PotentialProjectStorePaths.Add(RootPath);
+	}
+	else
+	{
+		PotentialProjectStorePaths.Add(CustomProjectStorePath);
+	}
 
 	for (const FString& ProjectStorePath : PotentialProjectStorePaths)
 	{
@@ -292,6 +622,41 @@ TUniquePtr<FArchive> FStorageServerPlatformFile::TryFindProjectStoreMarkerFile(I
 	}
 	return nullptr;
 }
+
+FAnsiString FStorageServerPlatformFile::MakeBaseURI()
+{
+	TAnsiStringBuilder<256> BaseURIBuilder;
+	if (!BaseURI.IsEmpty())
+	{
+		BaseURIBuilder.Append(BaseURI);
+	}
+	else
+	{
+		BaseURIBuilder.Append("/prj/");
+		if (ServerProject.IsEmpty())
+		{
+			BaseURIBuilder.Append(TCHAR_TO_ANSI(*FApp::GetZenStoreProjectId()));
+		}
+		else
+		{
+			BaseURIBuilder.Append(ServerProject);
+		}
+		BaseURIBuilder.Append("/oplog/");
+		if (ServerPlatform.IsEmpty())
+		{
+			TArray<FString> TargetPlatformNames;
+			FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
+			check(TargetPlatformNames.Num() > 0);
+			BaseURIBuilder.Append(TCHAR_TO_ANSI(*TargetPlatformNames[0]));
+		}
+		else
+		{
+			BaseURIBuilder.Append(ServerPlatform);
+		}
+	}
+	return BaseURIBuilder.ToString();
+}
+
 
 bool FStorageServerPlatformFile::ShouldBeUsed(IPlatformFile* Inner, const TCHAR* CmdLine) const
 {
@@ -316,7 +681,7 @@ bool FStorageServerPlatformFile::ShouldBeUsed(IPlatformFile* Inner, const TCHAR*
 			if (ProjectStoreObject->TryGetObjectField(TEXT("zenserver"), ZenServerObjectPtr) && (ZenServerObjectPtr != nullptr))
 			{
 				const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
-#if PLATFORM_DESKTOP
+#if PLATFORM_DESKTOP || PLATFORM_ANDROID
 				FString HostName;
 				if (ZenServerObject->TryGetStringField(TEXT("hostname"), HostName) && !HostName.IsEmpty())
 				{
@@ -343,6 +708,10 @@ bool FStorageServerPlatformFile::ShouldBeUsed(IPlatformFile* Inner, const TCHAR*
 				UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using connection settings from ue.projectstore: HostAddrs='%s' and HostPort='%d'"), *FString::Join(HostAddrs, TEXT("+")), HostPort);
 			}
 		}
+		else
+		{
+			UE_LOG(LogStorageServerPlatformFile, Error, TEXT("Failed to Deserialize ue.projectstore!'"));
+		}
 	}
 
 	FString Host;
@@ -366,6 +735,22 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 	LowerLevel = Inner;
 	if (HostAddrs.Num() > 0)
 	{
+#if EXCLUDE_NONSERVER_UE_EXTENSIONS && !WITH_EDITOR
+		// Extensions for file types that should only ever be on the server. Used to stop unnecessary access to the lower level platform file.
+		ExcludedNonServerExtensions.Add(TEXT("uasset"));
+		ExcludedNonServerExtensions.Add(TEXT("umap"));
+		ExcludedNonServerExtensions.Add(TEXT("ubulk"));
+		ExcludedNonServerExtensions.Add(TEXT("uexp"));
+		ExcludedNonServerExtensions.Add(TEXT("uptnl"));
+		ExcludedNonServerExtensions.Add(TEXT("ushaderbytecode"));
+		ExcludedNonServerExtensions.Add(TEXT("ini")); //special cases of local only ini file needs to be managed as special exclusion
+#endif
+
+#if !WITH_EDITOR
+		// Extensions for file types that will be assumed to be immutable - their time stamp will remain unchanged.
+		AssumedImmutableTimeStampExtensions.Add(TEXT("uplugin"));
+#endif
+
 		// Don't initialize the connection yet because we want to incorporate project file path information into the initialization.
 
 		TUniquePtr<FArchive> ProjectStoreMarkerReader = TryFindProjectStoreMarkerFile(Inner);
@@ -381,6 +766,10 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 					const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
 					ServerProject = ZenServerObject->GetStringField(TEXT("projectid"));
 					ServerPlatform = ZenServerObject->GetStringField(TEXT("oplogid"));
+					if (!ZenServerObject->TryGetStringField(TEXT("baseuri"), BaseURI))
+					{
+						BaseURI.Empty();
+					}
 					UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from ue.projectstore: ServerProject='%s' and ServerPlatform='%s'"), *ServerProject, *ServerPlatform);
 				}
 			}
@@ -394,6 +783,16 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 		{
 			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from command line: -ZenStorePlatform='%s'"), *ServerPlatform);
 		}
+		if (FParse::Value(CmdLine, TEXT("-ZenStoreBaseURI="), BaseURI))
+		{
+			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from command line: -ZenStoreBaseURI='%s'"), *BaseURI);
+		}
+
+		if (UE::IsUsingZenPakFileStreaming())
+		{
+			InitializeConnection();
+		}
+
 		return true;
 	}
 	return false;
@@ -401,6 +800,22 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 
 void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 {
+	InitializeConnection();
+
+	// optional debugging module depends on a valid Connection
+	if (FModuleManager::Get().ModuleExists(TEXT("StorageServerClientDebug")))
+	{
+		FModuleManager::Get().LoadModule("StorageServerClientDebug");
+	}
+}
+
+void FStorageServerPlatformFile::InitializeConnection()
+{
+	if (Connection)
+	{
+		return;
+	}
+
 #if WITH_COTF
 	UE::Cook::ICookOnTheFlyModule& CookOnTheFlyModule = FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly"));
 	CookOnTheFlyServerConnection = CookOnTheFlyModule.GetDefaultServerConnection();
@@ -412,45 +827,47 @@ void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 	}
 #endif
 	Connection.Reset(new FStorageServerConnection());
-	const TCHAR* ProjectOverride = ServerProject.IsEmpty() ? nullptr : *ServerProject;
-	const TCHAR* PlatformOverride = ServerPlatform.IsEmpty() ? nullptr : *ServerPlatform;
-	if (Connection->Initialize(HostAddrs, HostPort, ProjectOverride, PlatformOverride))
+	if (Connection->Initialize(HostAddrs, HostPort, MakeBaseURI()))
 	{
 		if (SendGetFileListMessage())
 		{
-			FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
-			TSharedRef<FStorageServerIoDispatcherBackend> IoDispatcherBackend = MakeShared<FStorageServerIoDispatcherBackend>(*Connection.Get());
-			IoDispatcher.Mount(IoDispatcherBackend);
+			if (bAllowPackageIo)
+			{
+				FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
+				TSharedRef<FStorageServerIoDispatcherBackend> IoDispatcherBackend = MakeShared<FStorageServerIoDispatcherBackend>(*Connection.Get());
+				IoDispatcher.Mount(IoDispatcherBackend);
 #if WITH_COTF
-			if (CookOnTheFlyServerConnection)
-			{
-				FPackageStore::Get().Mount(MakeShared<FCookOnTheFlyPackageStoreBackend>(*CookOnTheFlyServerConnection.Get()));
-			}
-			else
+				if (CookOnTheFlyServerConnection)
+				{
+					FPackageStore::Get().Mount(MakeShared<FCookOnTheFlyPackageStoreBackend>(*CookOnTheFlyServerConnection.Get()));
+				}
+				else
 #endif
-			{
-				FPackageStore::Get().Mount(MakeShared<FStorageServerPackageStoreBackend>(*Connection.Get()));
+				{
+					FPackageStore::Get().Mount(MakeShared<FStorageServerPackageStoreBackend>(*Connection.Get()));
+				}
 			}
 		}
 		else
 		{
-			UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to get file list from Zen at '%s'"), *Connection->GetHostAddr());
+			FStringView HostAddr = Connection->GetHostAddr();
+			UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to get file list from Zen at '%.*s'"), HostAddr.Len(), HostAddr.GetData());
 		}
 	}
-	else
+	else if (bAbortOnConnectionFailure)
 	{
 		if (!FApp::IsUnattended())
 		{
-			FText FailedConnectionTitle = NSLOCTEXT("StorageServer", "StorageServer_ConnectFailedTitle", "Failed to connect");
-			FText FailedConnectionText = FText::Format(NSLOCTEXT("StorageServer", "StorageServer_ConnectFailedText",
-				"Network data streaming failed to connect to any of the following data sources:\n\n{0}\n\n"
+			FString FailedConnectionTitle = TEXT("Failed to connect");
+			FString FailedConnectionText = FString::Printf(TEXT(
+				"Network data streaming failed to connect to any of the following data sources:\n\n%s\n\n"
 				"This can be due to the sources being offline, the Unreal Zen Storage process not currently running, "
-				"invalid addresses, firewall blocking, or the sources being on a different network from this device. "
+				"invalid addresses, firewall blocking, or the sources being on a different network from this device.\n"
 				"Please verify that your Unreal Zen Storage process is running using the ZenDashboard utility. "
 				"If these issues can't be addressed, you can use an installed build without network data streaming by "
 				"building with the '-pak' argument. This process will now exit."),
-				FText::FromString(FString::Join(HostAddrs, TEXT("\n"))));
-			FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, *FailedConnectionText.ToString(), *FailedConnectionTitle.ToString());
+				*FString::Join(HostAddrs, TEXT("\n")));
+			FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, *FailedConnectionText, *FailedConnectionTitle);
 		}
 
 		UE_LOG(LogStorageServerPlatformFile, Error, TEXT("Failed to initialize connection to %s"), *FString::Join(HostAddrs, TEXT("\n")));
@@ -465,7 +882,8 @@ bool FStorageServerPlatformFile::FileExists(const TCHAR* Filename)
 	{
 		return true;
 	}
-	return LowerLevel->FileExists(Filename);
+
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->FileExists(Filename) : false;
 }
 
 FDateTime FStorageServerPlatformFile::GetTimeStamp(const TCHAR* Filename)
@@ -473,14 +891,12 @@ FDateTime FStorageServerPlatformFile::GetTimeStamp(const TCHAR* Filename)
 	TStringBuilder<1024> StorageServerFilename;
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		if (ServerToc.FileExists(*StorageServerFilename))
 		{
-			const FFileStatData FileStatData = SendGetStatDataMessage(*FileChunkId);
-			check(FileStatData.bIsValid);
-			return FileStatData.ModificationTime;
+			return IsAssumedImmutableTimeStampFilename(*StorageServerFilename) ? GAssumedImmutableTimeStamp : FDateTime::Now();
 		}
 	}
-	return LowerLevel->GetTimeStamp(Filename);
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->GetTimeStamp(Filename) : FDateTime::MinValue();
 }
 
 FDateTime FStorageServerPlatformFile::GetAccessTimeStamp(const TCHAR* Filename)
@@ -488,14 +904,12 @@ FDateTime FStorageServerPlatformFile::GetAccessTimeStamp(const TCHAR* Filename)
 	TStringBuilder<1024> StorageServerFilename;
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		if (ServerToc.FileExists(*StorageServerFilename))
 		{
-			const FFileStatData FileStatData = SendGetStatDataMessage(*FileChunkId);
-			check(FileStatData.bIsValid);
-			return FileStatData.AccessTime;
+			return IsAssumedImmutableTimeStampFilename(*StorageServerFilename) ? GAssumedImmutableTimeStamp : FDateTime::Now();
 		}
 	}
-	return LowerLevel->GetAccessTimeStamp(Filename);
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->GetAccessTimeStamp(Filename) : FDateTime::MinValue();
 }
 
 int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename)
@@ -503,14 +917,13 @@ int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename)
 	TStringBuilder<1024> StorageServerFilename;
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		int64 FileSize = ServerToc.GetFileSize(*StorageServerFilename);
+		if (FileSize > STORAGE_SERVER_FILE_UNKOWN_SIZE)
 		{
-			const FFileStatData FileStatData = SendGetStatDataMessage(*FileChunkId);
-			check(FileStatData.bIsValid);
-			return FileStatData.FileSize;
+			return FileSize;
 		}
 	}
-	return LowerLevel->FileSize(Filename);
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->FileSize(Filename) : STORAGE_SERVER_FILE_UNKOWN_SIZE;
 }
 
 bool FStorageServerPlatformFile::IsReadOnly(const TCHAR* Filename)
@@ -520,7 +933,7 @@ bool FStorageServerPlatformFile::IsReadOnly(const TCHAR* Filename)
 	{
 		return true;
 	}
-	return LowerLevel->IsReadOnly(Filename);
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->IsReadOnly(Filename) : false;
 }
 
 FFileStatData FStorageServerPlatformFile::GetStatData(const TCHAR* FilenameOrDirectory)
@@ -528,9 +941,16 @@ FFileStatData FStorageServerPlatformFile::GetStatData(const TCHAR* FilenameOrDir
 	TStringBuilder<1024> StorageServerFilenameOrDirectory;
 	if (MakeStorageServerPath(FilenameOrDirectory, StorageServerFilenameOrDirectory))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilenameOrDirectory))
+		int64 FileSize = ServerToc.GetFileSize(*StorageServerFilenameOrDirectory);
+		if (FileSize > STORAGE_SERVER_FILE_UNKOWN_SIZE)
 		{
-			return SendGetStatDataMessage(*FileChunkId);
+			return FFileStatData(
+				FDateTime::Now(),
+				FDateTime::Now(),
+				FDateTime::Now(),
+				FileSize,
+				false,
+				true);
 		}
 		else if (ServerToc.DirectoryExists(*StorageServerFilenameOrDirectory))
 		{
@@ -543,25 +963,36 @@ FFileStatData FStorageServerPlatformFile::GetStatData(const TCHAR* FilenameOrDir
 				true);
 		}
 	}
-	return LowerLevel->GetStatData(FilenameOrDirectory);
+	FFileStatData FileStatData;
+	if (LowerLevel && IsNonServerFilenameAllowed(FilenameOrDirectory))
+	{
+		FileStatData = LowerLevel->GetStatData(FilenameOrDirectory);
+	}
+	return FileStatData;
 }
 
-IFileHandle* FStorageServerPlatformFile::InternalOpenFile(const FIoChunkId& FileChunkId, const TCHAR* LocalFilename)
+IFileHandle* FStorageServerPlatformFile::InternalOpenFile(const FIoChunkId& FileChunkId, int64 RawSize, const TCHAR* LocalFilename)
 {
-	return new FStorageServerFileHandle(*this, FileChunkId, LocalFilename);
+	IFileHandle* FileHandle = new FStorageServerFileHandle(*this, FileChunkId, RawSize, LocalFilename);
+	IWrappedFileHandle* FileDecompressor = CreateCompressedPlatformFileHandle(FileHandle);
+	
+	return FileDecompressor ? FileDecompressor : FileHandle;
 }
 
 IFileHandle* FStorageServerPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
 {
 	TStringBuilder<1024> StorageServerFilename;
+
 	if (MakeStorageServerPath(Filename, StorageServerFilename))
 	{
-		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		FIoChunkId FileChunkId;
+		int64 RawSize = STORAGE_SERVER_FILE_UNKOWN_SIZE;
+		if (ServerToc.GetFileData(*StorageServerFilename, FileChunkId, RawSize))
 		{
-			return InternalOpenFile(*FileChunkId, Filename);
+			return InternalOpenFile(FileChunkId, RawSize, Filename);
 		}
 	}
-	return LowerLevel->OpenRead(Filename, bAllowWrite);
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->OpenRead(Filename, bAllowWrite) : nullptr;
 }
 
 bool FStorageServerPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor)
@@ -570,7 +1001,29 @@ bool FStorageServerPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatf
 	bool bResult = false;
 	if (MakeStorageServerPath(Directory, StorageServerDirectory) && ServerToc.DirectoryExists(*StorageServerDirectory))
 	{
-		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* FilenameOrDirectory)
+		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* FilenameOrDirectory, int64 RawSize)
+		{
+			TStringBuilder<1024> LocalPath;
+			bool bConverted = MakeLocalPath(FilenameOrDirectory, LocalPath);
+			check(bConverted);
+			const bool bDirectory = !FileChunkId.IsValid();
+			return Visitor.CallShouldVisitAndVisit(*LocalPath, bDirectory);
+		});
+	}
+	else if (LowerLevel)
+	{
+		bResult |= LowerLevel->IterateDirectory(Directory, Visitor);
+	}
+	return bResult;
+}
+
+bool FStorageServerPlatformFile::IterateDirectoryRecursively(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor)
+{
+	TStringBuilder<1024> StorageServerDirectory;
+	bool bResult = false;
+	if (MakeStorageServerPath(Directory, StorageServerDirectory) && ServerToc.DirectoryExists(*StorageServerDirectory))
+	{
+		bResult |= ServerToc.IterateDirectoryRecursively(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* FilenameOrDirectory, int64 RawSize)
 		{
 			TStringBuilder<1024> LocalPath;
 			bool bConverted = MakeLocalPath(FilenameOrDirectory, LocalPath);
@@ -581,8 +1034,9 @@ bool FStorageServerPlatformFile::IterateDirectory(const TCHAR* Directory, IPlatf
 	}
 	else
 	{
-		bResult |= LowerLevel->IterateDirectory(Directory, Visitor);
+		bResult |= LowerLevel->IterateDirectoryRecursively(Directory, Visitor);
 	}
+
 	return bResult;
 }
 
@@ -592,7 +1046,7 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 	bool bResult = false;
 	if (MakeStorageServerPath(Directory, StorageServerDirectory) && ServerToc.DirectoryExists(*StorageServerDirectory))
 	{
-		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* ServerFilenameOrDirectory)
+		bResult |= ServerToc.IterateDirectory(*StorageServerDirectory, [this, &Visitor](const FIoChunkId& FileChunkId, const TCHAR* ServerFilenameOrDirectory, int64 RawSize)
 		{
 			TStringBuilder<1024> LocalPath;
 			bool bConverted = MakeLocalPath(ServerFilenameOrDirectory, LocalPath);
@@ -600,7 +1054,13 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 			FFileStatData FileStatData;
 			if (FileChunkId.IsValid())
 			{
-				FileStatData = SendGetStatDataMessage(FileChunkId);
+				FileStatData = FFileStatData(
+					FDateTime::Now(),
+					FDateTime::Now(),
+					FDateTime::Now(),
+					RawSize,
+					false,
+					true);
 				check(FileStatData.bIsValid);
 			}
 			else
@@ -616,11 +1076,16 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 			return Visitor.CallShouldVisitAndVisit(*LocalPath, FileStatData);
 		});
 	}
-	else
+	else if (LowerLevel)
 	{
 		bResult |= LowerLevel->IterateDirectoryStat(Directory, Visitor);
 	}
 	return bResult;
+}
+
+IMappedFileHandle* FStorageServerPlatformFile::OpenMapped(const TCHAR* Filename)
+{
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->OpenMapped(Filename) : nullptr;
 }
 
 bool FStorageServerPlatformFile::DirectoryExists(const TCHAR* Directory)
@@ -630,7 +1095,7 @@ bool FStorageServerPlatformFile::DirectoryExists(const TCHAR* Directory)
 	{
 		return true;
 	}
-	return LowerLevel->DirectoryExists(Directory);
+	return LowerLevel && LowerLevel->DirectoryExists(Directory);
 }
 
 FString FStorageServerPlatformFile::GetFilenameOnDisk(const TCHAR* Filename)
@@ -641,7 +1106,7 @@ FString FStorageServerPlatformFile::GetFilenameOnDisk(const TCHAR* Filename)
 		UE_LOG(LogStorageServerPlatformFile, Warning, TEXT("Attempting to get disk filename of remote file '%s'"), Filename);
 		return Filename;
 	}
-	return LowerLevel->GetFilenameOnDisk(Filename);
+	return (LowerLevel && IsNonServerFilenameAllowed(Filename)) ? LowerLevel->GetFilenameOnDisk(Filename) : Filename;
 }
 
 bool FStorageServerPlatformFile::DeleteFile(const TCHAR* Filename)
@@ -651,11 +1116,16 @@ bool FStorageServerPlatformFile::DeleteFile(const TCHAR* Filename)
 	{
 		return false;
 	}
-	return LowerLevel->DeleteFile(Filename);
+	return LowerLevel && LowerLevel->DeleteFile(Filename);
 }
 
 bool FStorageServerPlatformFile::MoveFile(const TCHAR* To, const TCHAR* From)
 {
+	if (!LowerLevel)
+	{
+		return false;
+	}
+
 	TStringBuilder<1024> StorageServerTo;
 	if (MakeStorageServerPath(To, StorageServerTo) && ServerToc.FileExists(*StorageServerTo))
 	{
@@ -664,7 +1134,9 @@ bool FStorageServerPlatformFile::MoveFile(const TCHAR* To, const TCHAR* From)
 	TStringBuilder<1024> StorageServerFrom;
 	if (MakeStorageServerPath(From, StorageServerFrom))
 	{
-		if (const FIoChunkId* FromFileChunkId = ServerToc.GetFileChunkId(*StorageServerFrom))
+		FIoChunkId FromFileChunkId;
+		int64 FromFileRawSize = STORAGE_SERVER_FILE_UNKOWN_SIZE;
+		if (ServerToc.GetFileData(*StorageServerFrom, FromFileChunkId, FromFileRawSize))
 		{
 			TUniquePtr<IFileHandle> ToFile(LowerLevel->OpenWrite(To, false, false));
 			if (!ToFile)
@@ -672,7 +1144,7 @@ bool FStorageServerPlatformFile::MoveFile(const TCHAR* To, const TCHAR* From)
 				return false;
 			}
 
-			TUniquePtr<IFileHandle> FromFile(InternalOpenFile(*FromFileChunkId, *StorageServerFrom));
+			TUniquePtr<IFileHandle> FromFile(InternalOpenFile(FromFileChunkId, FromFileRawSize, *StorageServerFrom));
 			if (!FromFile)
 			{
 				return false;
@@ -707,7 +1179,7 @@ bool FStorageServerPlatformFile::SetReadOnly(const TCHAR* Filename, bool bNewRea
 	{
 		return bNewReadOnlyValue;
 	}
-	return LowerLevel->SetReadOnly(Filename, bNewReadOnlyValue);
+	return LowerLevel && LowerLevel->SetReadOnly(Filename, bNewReadOnlyValue);
 }
 
 void FStorageServerPlatformFile::SetTimeStamp(const TCHAR* Filename, FDateTime DateTime)
@@ -717,7 +1189,10 @@ void FStorageServerPlatformFile::SetTimeStamp(const TCHAR* Filename, FDateTime D
 	{
 		return;
 	}
-	LowerLevel->SetTimeStamp(Filename, DateTime);
+	if (LowerLevel)
+	{
+		LowerLevel->SetTimeStamp(Filename, DateTime);
+	}
 }
 
 IFileHandle* FStorageServerPlatformFile::OpenWrite(const TCHAR* Filename, bool bAppend, bool bAllowRead)
@@ -727,7 +1202,11 @@ IFileHandle* FStorageServerPlatformFile::OpenWrite(const TCHAR* Filename, bool b
 	{
 		return nullptr;
 	}
-	return LowerLevel->OpenWrite(Filename, bAppend, bAllowRead);
+	if (LowerLevel)
+	{
+		return LowerLevel->OpenWrite(Filename, bAppend, bAllowRead);
+	}
+	return nullptr;
 }
 
 bool FStorageServerPlatformFile::CreateDirectory(const TCHAR* Directory)
@@ -737,7 +1216,7 @@ bool FStorageServerPlatformFile::CreateDirectory(const TCHAR* Directory)
 	{
 		return true;
 	}
-	return LowerLevel->CreateDirectory(Directory);
+	return LowerLevel && LowerLevel->CreateDirectory(Directory);
 }
 
 bool FStorageServerPlatformFile::DeleteDirectory(const TCHAR* Directory)
@@ -747,7 +1226,7 @@ bool FStorageServerPlatformFile::DeleteDirectory(const TCHAR* Directory)
 	{
 		return false;
 	}
-	return LowerLevel->DeleteDirectory(Directory);
+	return LowerLevel && LowerLevel->DeleteDirectory(Directory);
 }
 
 FString FStorageServerPlatformFile::ConvertToAbsolutePathForExternalAppForRead(const TCHAR* Filename)
@@ -786,14 +1265,49 @@ FString FStorageServerPlatformFile::ConvertToAbsolutePathForExternalAppForRead(c
 	if (PTRINT(DotSlashSkip - Filename) == 9) // 9 == ../../../
 	{
 		Result << DotSlashSkip;
-		if (LowerLevel->FileExists(Result.ToString()))
+		if (LowerLevel && LowerLevel->FileExists(Result.ToString()))
 		{
-			return FString(Result.GetData(), Result.Len());
+			return FString::ConstructFromPtrSize(Result.GetData(), Result.Len());
 		}
 	}
 #endif
 
-	return LowerLevel->ConvertToAbsolutePathForExternalAppForRead(Filename);
+	if (LowerLevel)
+	{
+		return LowerLevel->ConvertToAbsolutePathForExternalAppForRead(Filename);
+	}
+
+	return IStorageServerPlatformFile::ConvertToAbsolutePathForExternalAppForRead(Filename);
+}
+
+bool FStorageServerPlatformFile::IsNonServerFilenameAllowed(FStringView InFilename)
+{
+	bool bAllowed = true;
+
+#if EXCLUDE_NONSERVER_UE_EXTENSIONS
+	if (!HostAddrs.IsEmpty() && (LowerLevel == &IPlatformFile::GetPlatformPhysical()))
+	{
+		bool bRelative = FPathViews::IsRelativePath(InFilename);
+
+		if (bRelative)
+		{
+			FName Ext = FName(FPathViews::GetExtension(InFilename));
+			bAllowed = !ExcludedNonServerExtensions.Contains(Ext);
+
+			UE_CLOG(!bAllowed, LogStorageServerPlatformFile, VeryVerbose,
+				TEXT("Access to file '%.*s' is limited to server contents due to file extension being listed in ExcludedNonServerExtensions."),
+				InFilename.Len(), InFilename.GetData())
+		}
+	}
+#endif
+
+	return bAllowed;
+}
+
+bool FStorageServerPlatformFile::IsAssumedImmutableTimeStampFilename(FStringView InFilename) const
+{
+	FName Ext = FName(FPathViews::GetExtension(InFilename));
+	return AssumedImmutableTimeStampExtensions.Contains(Ext);
 }
 
 bool FStorageServerPlatformFile::MakeStorageServerPath(const TCHAR* LocalFilenameOrDirectory, FStringBuilderBase& OutPath) const
@@ -847,9 +1361,9 @@ bool FStorageServerPlatformFile::SendGetFileListMessage()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerPlatformFileGetFileList);
 	
-	Connection->FileManifestRequest([&](FIoChunkId Id, FStringView Path)
+	Connection->FileManifestRequest([&](FIoChunkId Id, FStringView Path, int64 RawSize)
 	{
-		ServerToc.AddFile(Id, Path);
+		ServerToc.AddFile(Id, Path, RawSize);
 	});
 
 	return true;
@@ -874,12 +1388,8 @@ FFileStatData FStorageServerPlatformFile::SendGetStatDataMessage(const FIoChunkI
 int64 FStorageServerPlatformFile::SendReadMessage(uint8* Destination, const FIoChunkId& FileChunkId, int64 Offset, int64 BytesToRead)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerPlatformFileRead);
-	int64 BytesRead = 0;
-	Connection->ReadChunkRequest(FileChunkId, Offset, BytesToRead, [Destination, Offset, BytesToRead, &BytesRead](FStorageServerResponse& Response)
-	{
-		BytesRead = Response.SerializeChunkTo(MakeMemoryView(Destination, BytesToRead), Offset);
-	});
-	return BytesRead;
+	TIoStatusOr<FIoBuffer> Result = Connection->ReadChunkRequest(FileChunkId, Offset, BytesToRead, FIoBuffer(FIoBuffer::Wrap, Destination, BytesToRead), false);
+	return Result.IsOk() ? Result.ValueOrDie().GetSize() : 0;
 }
 
 bool FStorageServerPlatformFile::SendMessageToServer(const TCHAR* Message, IPlatformFile::IFileServerMessageHandler* Handler)
@@ -910,6 +1420,16 @@ bool FStorageServerPlatformFile::SendMessageToServer(const TCHAR* Message, IPlat
 	return false;
 }
 
+FStringView FStorageServerPlatformFile::GetHostAddr() const
+{
+	return Connection->GetHostAddr();
+}
+
+void FStorageServerPlatformFile::GetAndResetConnectionStats(FConnectionStats& OutStats)
+{
+	return Connection->GetAndResetStats(OutStats);
+}
+
 #if WITH_COTF
 void FStorageServerPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTheFlyMessage& Message)
 {
@@ -933,7 +1453,7 @@ void FStorageServerPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTh
 			for (int32 Idx = 0, Num = Filenames.Num(); Idx < Num; ++Idx)
 			{
 				UE_LOG(LogCookOnTheFly, Verbose, TEXT("Adding file '%s'"), *Filenames[Idx]);
-				ServerToc.AddFile(ChunkIds[Idx], Filenames[Idx]);
+				ServerToc.AddFile(ChunkIds[Idx], Filenames[Idx], STORAGE_SERVER_FILE_UNKOWN_SIZE);
 			}
 
 			break;
@@ -941,19 +1461,5 @@ void FStorageServerPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTh
 	}
 }
 #endif
-
-class FStorageServerClientFileModule
-	: public IPlatformFileModule
-{
-public:
-
-	virtual IPlatformFile* GetPlatformFile() override
-	{
-		static TUniquePtr<IPlatformFile> AutoDestroySingleton = MakeUnique<FStorageServerPlatformFile>();
-		return AutoDestroySingleton.Get();
-	}
-};
-
-IMPLEMENT_MODULE(FStorageServerClientFileModule, StorageServerClient);
 
 #endif

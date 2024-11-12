@@ -116,7 +116,7 @@ protected:
 	const FString& GetHardwareDeviceIdentifierName(const IGameInputDeviceProcessor::FGameInputEventParams& Params) const;
 
 	/** A general use function to call the message handler and tell it about a controller analog key being used */
-	void OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone);
+	void OnControllerAnalog(const FGameInputEventParams& Params, const FName& GamePadKey, float NewAxisValueNormalized, float OldAxisValueNormalized, float DeadZone, const bool bSetDeviceScope = true);
 
 	/**
 	 * Helper function for processing the button states of Game input.
@@ -493,6 +493,77 @@ protected:
 	*/
 	static const uint32 MaxSupportedButtons = 16;
 	double RepeatTime[MaxSupportedButtons];
+};
+
+
+/**
+* Processor for the GameInputKindArcadeStick type.
+* 
+* These are typically accessories to "fighting" style games, or other arcade style games.
+*/
+class GAMEINPUTBASE_API FGameInputArcadeStickProcessor : public IGameInputDeviceProcessor
+{
+public:
+	FGameInputArcadeStickProcessor();
+
+protected:
+
+	virtual bool ProcessInput(const FGameInputEventParams& Params) override;
+	virtual void ClearState(const FGameInputEventParams& Params) override;
+	virtual GameInputKind GetSupportedReadingKind() const override;
+
+	/** The previously processed arcade stick state. */
+	GameInputArcadeStickState PreviousState;
+
+	/**
+	* Array of repeat times to calculate if a button has been held long enough
+	* to receive an IE_REPEAT event.
+	*/
+	static const uint32 MaxSupportedButtons = 16;
+	double RepeatTime[MaxSupportedButtons];
+};
+
+/**
+ *  Processor for the GameInputKindFlightStick type.
+ */
+class GAMEINPUTBASE_API FGameInputFlightStickProcessor : public IGameInputDeviceProcessor
+{
+public:
+	FGameInputFlightStickProcessor();
+
+protected:
+
+	virtual bool ProcessInput(const FGameInputEventParams& Params) override;
+	virtual bool PostProcessInput(const FGameInputEventParams& Params) override;
+	virtual void ClearState(const FGameInputEventParams& Params) override;
+	virtual GameInputKind GetSupportedReadingKind() const override;
+
+	/**
+	 * Process Flight stick specific buttons.
+	 */
+	bool ProcessFlightStickButtons(const FGameInputEventParams& Params, GameInputFlightStickState& State);
+
+	/**
+	 * Process the analog values (yaw, pitch, roll, and throttle) of the flight stick
+	 */
+	bool ProcessFlightStickAnalog(const FGameInputEventParams& Params, GameInputFlightStickState& State);
+	
+	/**
+	* Keeps track of how many times this gamepad has been processed this frame.
+	* Every successful processing of button input in ProcessInput will increment this value.
+	* This will get reset at the end of the input frame in PostProcessInput.
+	*/
+	int32 NumReadingsProcessedThisFrame = 0;
+	
+	/** State of the flight stick from the previous frame */
+	GameInputFlightStickState PreviousState = {};
+
+	// Repeat times for any pressed buttons
+	static constexpr uint32 MaxSupportedButtons = 32;
+	double RepeatTime[MaxSupportedButtons];
+
+	/** Repeat times for when switches are pressed (aka the DPad) */
+	TArray<double> SwitchRepeatTimes;
 };
 
 #endif	// GAME_INPUT_SUPPORT

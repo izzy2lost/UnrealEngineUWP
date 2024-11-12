@@ -11,13 +11,18 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SExpanderArrow.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/MemoryProfiler/Widgets/SMemTagTreeViewTableRow.h"
 
-#define LOCTEXT_NAMESPACE "SMemTagTreeViewView"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemTagTreeView"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +99,7 @@ TSharedRef<SWidget> SMemTagTreeViewTableCell::GenerateWidgetForNameColumn(const 
 			.HeightOverride(14.0f)
 			[
 				SNew(SBorder)
-				.BorderImage(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+				.BorderImage(FAppStyle::Get().GetBrush("WhiteBrush"))
 				.BorderBackgroundColor(this, &SMemTagTreeViewTableCell::GetBoxColorAndOpacity)
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Fill)
@@ -174,5 +179,7 @@ TSharedRef<SWidget> SMemTagTreeViewTableCell::GenerateWidgetForStatsColumn(const
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

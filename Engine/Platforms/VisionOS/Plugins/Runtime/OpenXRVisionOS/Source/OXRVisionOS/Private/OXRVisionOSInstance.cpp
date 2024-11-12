@@ -281,7 +281,7 @@ XrResult FOXRVisionOSInstance::XrEnumerateEnvironmentBlendModes(
 		{
 			check(EnvironmentBlendModeCapacityInput >= 1); // Because we only need 1 we can't ever need to return XR_ERROR_SIZE_INSUFFICIENT
 
-			EnvironmentBlendModes[0] = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+			EnvironmentBlendModes[0] = XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND;
 		}
 		return XrResult::XR_SUCCESS;
 	}

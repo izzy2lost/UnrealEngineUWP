@@ -11,6 +11,7 @@
 #include "Preferences/PhysicsAssetEditorOptions.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Chaos/Core.h"
 #include "SkeletalMeshTypes.h"
 #include "Styling/AppStyle.h"
@@ -40,11 +41,24 @@ FTransform GetConstraintMatrix(const USkeletalMeshComponent* const SkeletalMeshC
 	return LFrame * BoneTM;
 }
 
+void DrawWireStar(FPrimitiveDrawInterface* PDI, const FTransform& Transform, float Size, const FLinearColor& Color, uint8 DepthPriority, const float Thickness)
+{
+	const FVector Position = Transform.GetLocation();
+	const FVector XAxis = Transform.GetUnitAxis(EAxis::X);
+	const FVector YAxis = Transform.GetUnitAxis(EAxis::Y);
+	const FVector ZAxis = Transform.GetUnitAxis(EAxis::Z);
+
+	PDI->DrawLine(Position + Size * XAxis, Position - Size * XAxis, Color, DepthPriority, Thickness);
+	PDI->DrawLine(Position + Size * YAxis, Position - Size * YAxis, Color, DepthPriority, Thickness);
+	PDI->DrawLine(Position + Size * ZAxis, Position - Size * ZAxis, Color, DepthPriority, Thickness);
+}
+
 ////////////////////////////////////////
 // struct FPhysicsAssetRenderSettings
 
 FPhysicsAssetRenderSettings::FPhysicsAssetRenderSettings()
-	: CollisionViewMode(EPhysicsAssetEditorCollisionViewMode::Solid)
+	: CenterOfMassViewMode(EPhysicsAssetEditorCenterOfMassViewMode::None)
+	, CollisionViewMode(EPhysicsAssetEditorCollisionViewMode::Solid)
 	, ConstraintViewMode(EPhysicsAssetEditorConstraintViewMode::AllLimits)
 	, ConstraintViewportManipulationFlags(EConstraintTransformComponentFlags::All)
 	, ConstraintTransformComponentDisplayRelativeToDefaultFlags(EConstraintTransformComponentFlags::None)
@@ -52,14 +66,17 @@ FPhysicsAssetRenderSettings::FPhysicsAssetRenderSettings()
 	, PhysicsBlend(1.0f)
 	, bHideKinematicBodies(false)
 	, bHideSimulatedBodies(false)
+	, bHideBodyMass(false)
 	, bRenderOnlySelectedConstraints(false)
-	, bShowCOM(false)
+	, bShowCOM_DEPRECATED(false)
 	, bShowConstraintsAsPoints(false)
 	, bDrawViolatedLimits(false)
 	, BoneUnselectedColor(170, 155, 225)
 	, NoCollisionColor(200, 200, 200)
 	, COMRenderColor(255, 255, 100)
-	, COMRenderSize(5.0f)
+	, COMRenderSize(2.0f)
+	, COMRenderLineThickness(0.2f)
+	, COMRenderMassTextOffsetScreenspace(8.0f)
 	, InfluenceLineLength(2.0f)
 	, BoneUnselectedMaterial(nullptr)
 	, BoneNoCollisionMaterial(nullptr)
@@ -253,12 +270,15 @@ void FPhysicsAssetRenderSettings::ResetEditorViewportOptions()
 {
 	const FPhysicsAssetRenderSettings DefaultObject = FPhysicsAssetRenderSettings();
 
+	CenterOfMassViewMode = DefaultObject.CenterOfMassViewMode;
 	CollisionViewMode = DefaultObject.CollisionViewMode;
+	COMRenderSize = DefaultObject.COMRenderSize;
 	ConstraintViewMode = DefaultObject.ConstraintViewMode;
 	ConstraintDrawSize = DefaultObject.ConstraintDrawSize;
 	PhysicsBlend = DefaultObject.PhysicsBlend;
 	bHideKinematicBodies = DefaultObject.bHideKinematicBodies;
 	bHideSimulatedBodies = DefaultObject.bHideSimulatedBodies;
+	bHideBodyMass = DefaultObject.bHideBodyMass;
 	bRenderOnlySelectedConstraints = DefaultObject.bRenderOnlySelectedConstraints;
 	bShowConstraintsAsPoints = DefaultObject.bShowConstraintsAsPoints;
 	bDrawViolatedLimits = DefaultObject.bDrawViolatedLimits;
@@ -280,9 +300,8 @@ namespace PhysicsAssetRender
 
 		// Draw Constraints.
 		{
-			auto HitProxyFn = [](const int32) { return nullptr; };
-			auto IsSelectedFn = [](const uint32) { return false; };
-			DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, IsSelectedFn, false, HitProxyFn);
+			auto HitProxyFunctor = [](const int32) { return nullptr; };
+			DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, IsSelectedFn(), false, HitProxyFunctor);
 		}
 	}
 
@@ -428,15 +447,56 @@ namespace PhysicsAssetRender
 	
 				PDI->SetHitProxy(NULL);
 			}
+		}
+	}
 
-			if (RenderSettings->bShowCOM && SkeletalMeshComponent->Bodies.IsValidIndex(i))
+	void DebugDrawCenterOfMass(USkeletalMeshComponent* const SkeletalMeshComponent, class UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunctionRef< FVector(const uint32) > GetCoMPosition, TFunctionRef< bool(const uint32) > IsSelected, CreateCoMHitProxyFn CreateHitProxy)
+	{
+		static const float SelectedItemRenderSizeMultiplier = 1.5f;
+
+		const FPhysicsAssetRenderSettings* const RenderSettings = UPhysicsAssetRenderUtilities::GetSettings(PhysicsAsset);
+
+		if (RenderSettings && (RenderSettings->CenterOfMassViewMode != EPhysicsAssetEditorCenterOfMassViewMode::None))
+		{
+			const bool bDrawSelectedOnly = RenderSettings->CenterOfMassViewMode == EPhysicsAssetEditorCenterOfMassViewMode::Selected;
+
+			for (int32 BodyIndex = 0, BodyCount = SkeletalMeshComponent->Bodies.Num(); BodyIndex < BodyCount; ++BodyIndex)
 			{
-				SkeletalMeshComponent->Bodies[i]->DrawCOMPosition(PDI, RenderSettings->COMRenderSize, RenderSettings->COMRenderColor);
+				const bool bIsSelected = IsSelected(BodyIndex);
+
+				if (!bDrawSelectedOnly || bIsSelected)
+				{
+					const FBodyInstance* const BodyInstance = SkeletalMeshComponent->Bodies[BodyIndex];
+
+					if (BodyInstance && BodyInstance->IsValidBodyInstance())
+					{
+						float COMRenderSize = RenderSettings->COMRenderSize;
+						float COMRenderLineThickness = RenderSettings->COMRenderLineThickness;
+
+						if (bIsSelected)
+						{
+							COMRenderSize *= SelectedItemRenderSizeMultiplier;
+							COMRenderLineThickness *= SelectedItemRenderSizeMultiplier;
+						}
+
+						FTransform CoMMarkerTM(GetCoMPosition(BodyIndex));
+						
+						if (BodyInstance->GetBodySetup())
+						{
+							const FName BoneName = BodyInstance->GetBodySetup()->BoneName;
+							CoMMarkerTM.SetRotation(SkeletalMeshComponent->GetBoneTransform(BoneName).GetRotation());
+						}
+
+						PDI->SetHitProxy(CreateHitProxy(BodyIndex));
+						DrawWireStar(PDI, CoMMarkerTM, COMRenderSize, RenderSettings->COMRenderColor, SDPG_Foreground, COMRenderLineThickness);
+						PDI->SetHitProxy(NULL);
+					}
+				}
 			}
 		}
 	}
 
-	void DebugDrawConstraints(USkeletalMeshComponent* const SkeletalMeshComponent, UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunctionRef< bool(const uint32) > IsConstraintSelected, const bool bRunningSimulation, CreateConstraintHitProxyFn CreateHitProxy)
+	void DebugDrawConstraints(USkeletalMeshComponent* const SkeletalMeshComponent, UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI, TFunction< bool(const uint32) > IsSelected, const bool bRunningSimulation, CreateConstraintHitProxyFn CreateHitProxy)
 	{
 		check(SkeletalMeshComponent);
 		check(PhysicsAsset);
@@ -450,11 +510,14 @@ namespace PhysicsAssetRender
 
 		if (RenderSettings->ConstraintViewMode != EPhysicsAssetEditorConstraintViewMode::None)
 		{
+			const bool bIsSelectedStateAvailable = (IsSelected != nullptr);
+			const bool bRenderOnlySelected = bIsSelectedStateAvailable && RenderSettings->bRenderOnlySelectedConstraints;
+
 			for (int32 ConstraintIndex = 0; ConstraintIndex < PhysicsAsset->ConstraintSetup.Num(); ++ConstraintIndex)
 			{
-				const bool bConstraintSelected = IsConstraintSelected(ConstraintIndex);
+				const bool bConstraintSelected = bIsSelectedStateAvailable && IsSelected(ConstraintIndex);
 
-				if ((!RenderSettings->bRenderOnlySelectedConstraints || (RenderSettings->bRenderOnlySelectedConstraints && bConstraintSelected)) &&
+				if ((!bRenderOnlySelected || bConstraintSelected) &&
 					!RenderSettings->IsConstraintHidden(ConstraintIndex))
 				{
 					const bool bDrawLimits = (RenderSettings->ConstraintViewMode == EPhysicsAssetEditorConstraintViewMode::AllLimits) || bConstraintSelected;
@@ -560,7 +623,8 @@ void UPhysicsAssetRenderUtilities::Initialise()
 			PhysicsAssetRenderUtilities->PhysicsAssetRenderInterface = new FPhysicsAssetRenderInterface;
 		}
 
-		IModularFeatures::Get().RegisterModularFeature("PhysicsAssetRenderInterface", PhysicsAssetRenderUtilities->PhysicsAssetRenderInterface);
+		IModularFeatures::Get().RegisterModularFeature(IPhysicsAssetRenderInterface::GetModularFeatureName(), 
+			PhysicsAssetRenderUtilities->PhysicsAssetRenderInterface);
 	}
 }
 
@@ -695,8 +759,7 @@ void FPhysicsAssetRenderInterface::DebugDrawBodies(USkeletalMeshComponent* const
 void FPhysicsAssetRenderInterface::DebugDrawConstraints(USkeletalMeshComponent* const SkeletalMeshComponent, UPhysicsAsset* const PhysicsAsset, FPrimitiveDrawInterface* PDI)
 {
 	auto HitProxyFn   = [](const int32) { return nullptr; };
-	auto IsSelectedFn = [](const uint32) { return false; };
-	PhysicsAssetRender::DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, IsSelectedFn, false, HitProxyFn);
+	PhysicsAssetRender::DebugDrawConstraints(SkeletalMeshComponent, PhysicsAsset, PDI, PhysicsAssetRender::IsSelectedFn(), false, HitProxyFn);
 }
 
 void FPhysicsAssetRenderInterface::SaveConfig()

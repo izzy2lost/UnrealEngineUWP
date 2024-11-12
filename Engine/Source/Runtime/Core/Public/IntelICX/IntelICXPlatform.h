@@ -37,3 +37,5 @@
 // Intel ICX does not support constexpr for __builtin_FILE and __builtin_LINE
 // Check with (__has_constexpr_builtin(__builtin_FILE) && __has_constexpr_builtin(__builtin_LINE)
 #define PLATFORM_COMPILER_SUPPORTS_CONSTEXPR_BUILTIN_FILE_AND_LINE 0
+
+#define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST 0

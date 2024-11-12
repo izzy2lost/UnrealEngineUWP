@@ -46,7 +46,9 @@ void FCurlHttpThread::HttpThreadTick(float DeltaSeconds)
 					CURL* CompletedHandle = Message->easy_handle;
 					curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, CompletedHandle);
 
-					IHttpThreadedRequest** Request = HandlesToRequests.Find(CompletedHandle);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					FHttpRequestCommon** Request = HandlesToRequests.Find(CompletedHandle);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					if (Request)
 					{
 						FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(*Request);
@@ -68,7 +70,8 @@ void FCurlHttpThread::HttpThreadTick(float DeltaSeconds)
 	FLegacyHttpThread::HttpThreadTick(DeltaSeconds);
 }
 
-bool FCurlHttpThread::StartThreadedRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FCurlHttpThread::StartThreadedRequest(FHttpRequestCommon* Request)
 {
 	FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(Request);
 	CURL* EasyHandle = CurlRequest->GetEasyHandle();
@@ -94,7 +97,7 @@ bool FCurlHttpThread::StartThreadedRequest(IHttpThreadedRequest* Request)
 	return FLegacyHttpThread::StartThreadedRequest(Request);
 }
 
-void FCurlHttpThread::CompleteThreadedRequest(IHttpThreadedRequest* Request)
+void FCurlHttpThread::CompleteThreadedRequest(FHttpRequestCommon* Request)
 {
 	FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(Request);
 	CURL* EasyHandle = CurlRequest->GetEasyHandle();
@@ -104,6 +107,9 @@ void FCurlHttpThread::CompleteThreadedRequest(IHttpThreadedRequest* Request)
 		curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, EasyHandle);
 		HandlesToRequests.Remove(EasyHandle);
 	}
+
+	CurlRequest->CleanupRequestHttpThread();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif

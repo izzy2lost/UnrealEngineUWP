@@ -36,7 +36,7 @@ public:
 		OwningRenderer = Renderer;
 	}
 
-	void Initialize(ESampleFormat InFormat, uint32 InNumChannels, uint32 InSampleRate, FTimespan InDuration, const FDecoderTimeStamp & InPts, uint32 InBufferSizeBytes) override
+	void Initialize(ESampleFormat InFormat, uint32 InNumChannels, uint32 InSampleRate, FTimespan InDuration, const FDecoderTimeStamp& InPts, uint32 InBufferSizeBytes) override
 	{
 		check(BufferMaxSizeBytes >= InBufferSizeBytes);
 
@@ -108,6 +108,11 @@ public:
 	uint32 GetSampleRate() const override
 	{
 		return SampleRate;
+	}
+
+	void SetTime(const FDecoderTimeStamp& InTime) override
+	{
+		Time = InTime;
 	}
 
 	void ShutdownPoolable() override

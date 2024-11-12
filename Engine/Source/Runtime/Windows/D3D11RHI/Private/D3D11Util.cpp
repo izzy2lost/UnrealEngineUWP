@@ -4,6 +4,7 @@
 	D3D11Util.h: D3D RHI utility implementation.
 =============================================================================*/
 
+#include "D3D11Util.h"
 #include "D3D11RHIPrivate.h"
 #include "EngineModule.h"
 #include "RendererInterface.h"
@@ -91,45 +92,11 @@ static FString GetD3D11TextureFlagString(uint32 TextureFlags)
 extern CORE_API bool GIsGPUCrashed;
 static void TerminateOnDeviceRemoved(HRESULT D3DResult, ID3D11Device* Direct3DDevice)
 {
-	if (GDynamicRHI)
-	{
-		GDynamicRHI->CheckGpuHeartbeat();
-	}
-
 	if (D3DResult == DXGI_ERROR_DEVICE_REMOVED)
 	{
-#if NV_AFTERMATH
-		GFSDK_Aftermath_Result Result{};
-		uint32 bDeviceActive = 0;
-		if (GDX11NVAfterMathEnabled)
-		{
-			// Wait until the Aftermath crash dump has been handled.
-			GFSDK_Aftermath_CrashDump_Status AftermathStatus{};
-			GFSDK_Aftermath_GetCrashDumpStatus(&AftermathStatus);
-			if (AftermathStatus != GFSDK_Aftermath_CrashDump_Status_Unknown && AftermathStatus != GFSDK_Aftermath_CrashDump_Status_NotStarted)
-			{
-				const float StartTime = FPlatformTime::Seconds();
-				const float EndTime = StartTime + GDX11NVAfterMathDumpWaitTime;
-				while (AftermathStatus != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed
-					&& AftermathStatus != GFSDK_Aftermath_CrashDump_Status_Finished
-					&& FPlatformTime::Seconds() < EndTime)
-				{
-					FPlatformProcess::Sleep(0.01f);
-					GFSDK_Aftermath_GetCrashDumpStatus(&AftermathStatus);
-				}
-			}
-
-			GFSDK_Aftermath_Device_Status Status;
-			Result = GFSDK_Aftermath_GetDeviceStatus(&Status);
-			if (Result == GFSDK_Aftermath_Result_Success)
-			{
-				bDeviceActive = Status == GFSDK_Aftermath_Device_Status_Active ? 1 : 0;
-			}
-		}
-		UE_LOG(LogD3D11RHI, Log, TEXT("[Aftermath] GDynamicRHI=%p, GDX11NVAfterMathEnabled=%d, Result=0x%08X, bDeviceActive=%d"), GDynamicRHI, GDX11NVAfterMathEnabled, Result, bDeviceActive);
-#else
-		UE_LOG(LogD3D11RHI, Log, TEXT("[Aftermath] NV_AFTERMATH is not set"));
-#endif
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::OnGPUCrash();
+	#endif
 
 		// Report the GPU crash which will raise the exception
 		ReportGPUCrash(TEXT("GPU Crash dump Triggered"), nullptr);
@@ -162,23 +129,22 @@ static void TerminateOnDeviceRemoved(HRESULT D3DResult, ID3D11Device* Direct3DDe
 		// Workaround for the fact that in non-monolithic builds the exe gets into a weird state and exception handling fails. 
 		// @todo investigate why non-monolithic builds fail to capture the exception when graphics driver crashes.
 #if !IS_MONOLITHIC
-		FPlatformMisc::RequestExit(true, TEXT("TerminateOnDeviceRemoved"));
+		FPlatformMisc::RequestExit(true, TEXT("TerminateOnDeviceRemoved")); //-V779
 #endif
 	}
 }
 
-void GetAndLogMemoryInfo(const FD3D11Adapter& InAdapter, uint64& OutVRAMBudgetBytes, uint64& OutVRAMUsageBytes)
+void GetAndLogMemoryStats(const FD3D11Adapter& InAdapter, uint64& OutVRAMBudgetBytes, uint64& OutVRAMUsageBytes)
 {
-	TRefCountPtr<IDXGIAdapter3> Adapter3;
-	const HRESULT AdapterHR = InAdapter.DXGIAdapter->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference()));
-	if (SUCCEEDED(AdapterHR))
+	FD3DMemoryStats MemoryStats;
+	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(InAdapter.DXGIAdapter, MemoryStats)))
 	{
-		DXGI_QUERY_VIDEO_MEMORY_INFO LocalMemoryInfo{};
-		VERIFYD3D11RESULT(Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &LocalMemoryInfo));
-		UE_LOG(LogD3D11RHI, Error, TEXT("\tBudget:\t%7.2f MB"), LocalMemoryInfo.Budget / (1024.0f * 1024));
-		UE_LOG(LogD3D11RHI, Error, TEXT("\tUsed:\t%7.2f MB"), LocalMemoryInfo.CurrentUsage / (1024.0f * 1024));
-		OutVRAMBudgetBytes = LocalMemoryInfo.Budget;
-		OutVRAMUsageBytes = LocalMemoryInfo.CurrentUsage;
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tLocal Budget:\t%7.2f MB"), MemoryStats.BudgetLocal / (1024.0f * 1024));
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tLocal Used:\t%7.2f MB"), MemoryStats.UsedLocal / (1024.0f * 1024));
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tSystem Budget:\t%7.2f MB"), MemoryStats.BudgetSystem / (1024.0f * 1024));
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tSystem Used:\t%7.2f MB"), MemoryStats.UsedSystem / (1024.0f * 1024));
+		OutVRAMBudgetBytes = MemoryStats.BudgetLocal;
+		OutVRAMUsageBytes = MemoryStats.UsedLocal;
 	}
 }
 
@@ -187,7 +153,8 @@ static void TerminateOnOutOfMemory(HRESULT D3DResult, bool bCreatingTextures)
 	if (D3DResult == E_OUTOFMEMORY)
 	{
 		uint64 VRAMBudgetBytes = 0, VRAMUsageBytes = 0;
-		GetAndLogMemoryInfo(GD3D11RHI->GetAdapter(), VRAMBudgetBytes, VRAMUsageBytes);
+		GetAndLogMemoryStats(GD3D11RHI->GetAdapter(), VRAMBudgetBytes, VRAMUsageBytes);
+		FPlatformMemory::DumpStats(*GLog);
 		FCoreDelegates::GetGPUOutOfMemoryDelegate().Broadcast(VRAMBudgetBytes, VRAMUsageBytes);
 
 		if (bCreatingTextures)

@@ -19,10 +19,10 @@ def _qr(x:List[int], a:int, b:int, c:int, d:int) -> None:
 
 #-------------------------------------------------------------------------------
 def _read_blocks(key:bytes, nonce:bytes, counter:int=0) -> Iterator[bytes]:
-    key = memoryview(key).cast("L")
-    nonce = memoryview(nonce).cast("L")
+    key = memoryview(key).cast("I")
+    nonce = memoryview(nonce).cast("I")
     state = [0x61707865, 0x3320646e, 0x79622d32, 0x6b206574, *key, 0, 0, *nonce]
-    out = memoryview(bytearray(4 * 16)).cast("L")
+    out = memoryview(bytearray(4 * 16)).cast("I")
     while True:
         state[12] = counter
         state[13] = counter >> 32
@@ -55,6 +55,8 @@ def _hash(x):
     return ret
 
 
+TOC_SIZE        = 8192
+TOC_ENTRY_SIZE  = 128
 
 #-------------------------------------------------------------------------------
 class Blob(object):
@@ -68,12 +70,12 @@ class Blob(object):
             data = memoryview(data)
         self._set_data(data)
         self._ranges = []
-        self._toc_set = [0] * (len(self._toc) // 128)
+        self._toc_set = [0] * (len(self._toc) // TOC_ENTRY_SIZE)
 
     def _set_data(self, data):
         self._data = data.cast("B")
         self._lede = data[:256]
-        self._toc = data[256:4096]
+        self._toc = data[256:TOC_SIZE]
 
     def get_data(self) -> memoryview:
         return self._data
@@ -86,10 +88,10 @@ class Blob(object):
 
     def find(self, key:memoryview) -> Iterator[Tuple[str, memoryview]]:
         key, nonce, nonce_toc = self._diffuse(key)
-        for i in range(0, len(self._toc), 128):
-            piece = self._toc[i:i + 128]
+        for i in range(0, len(self._toc), TOC_ENTRY_SIZE):
+            piece = self._toc[i:i + TOC_ENTRY_SIZE]
             piece = _chacha20(piece, key=key, nonce=nonce_toc)
-            piece = memoryview(piece).cast("L")
+            piece = memoryview(piece).cast("I")
             name = piece[4:].cast("B")
             if piece[2] == _hash(name):
                 name = name[:piece[3]]
@@ -99,18 +101,20 @@ class Blob(object):
                 data = self._data[offset:offset + size]
                 data = _chacha20(data, key=key, nonce=nonce)
 
-                yield bytes(name).decode(), data
+                name = bytes(name).replace(b"\\", b"/")
+                name = name.decode()
+                yield name, data
 
     def add(self, item:Path, key:memoryview, toc_name=None) -> None:
         size = item.stat().st_size
 
         # find somewhere to store it or grow if we fail a lot
         offset = 0
-        space = len(self._data) - size - 4096
+        space = len(self._data) - size - TOC_SIZE
         assert space > 0
         for i in range(100):
             offset = secrets.randbelow(space)
-            offset += 4096
+            offset += TOC_SIZE
             for l,r in self._ranges:
                 if not (offset + size <= l or offset >= r):
                     offset = 0
@@ -132,14 +136,16 @@ class Blob(object):
             data = _chacha20(inp.read(), key=key, nonce=nonce)
 
         # create a toc entry
-        name = (toc_name or str(item)).encode()
+        toc_name = (toc_name or str(item))
+        toc_name = toc_name.replace("\\", "/")
+        name = toc_name.encode()
         name_length = len(name)
         assert name_length <= 112
         name = name + secrets.token_bytes(112 - name_length)
 
-        toc_entry = bytearray(128)
+        toc_entry = bytearray(TOC_ENTRY_SIZE)
         toc_entry[16:] = name
-        toc_entry = memoryview(toc_entry).cast("L")
+        toc_entry = memoryview(toc_entry).cast("I")
         toc_entry[0] = offset
         toc_entry[1] = size
         toc_entry[2] = _hash(name)
@@ -153,8 +159,10 @@ class Blob(object):
             if self._toc_set[toc_index] == 0:
                 self._toc_set[toc_index] = 1
                 break
+            if 0 not in self._toc_set:
+                raise RuntimeError("toc is full")
 
         # blit encrypted parts into blob
-        toc_index = toc_index * 128
+        toc_index = toc_index * TOC_ENTRY_SIZE
         self._data[offset:offset + size] = data
-        self._toc[toc_index:toc_index + 128] = toc_entry
+        self._toc[toc_index:toc_index + TOC_ENTRY_SIZE] = toc_entry

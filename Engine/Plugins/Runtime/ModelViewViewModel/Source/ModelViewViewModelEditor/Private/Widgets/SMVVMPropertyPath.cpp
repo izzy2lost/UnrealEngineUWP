@@ -29,6 +29,7 @@ void SPropertyPath::Construct(const FArguments& InArgs, const UWidgetBlueprint* 
 	TextStyle = InArgs._TextStyle;
 	bShowContext = InArgs._ShowContext;
 	bShowOnlyLastPath = InArgs._ShowOnlyLastPath;
+	bShowFieldNotify = InArgs._ShowFieldNotify;
 
 	ChildSlot
 	[
@@ -102,7 +103,7 @@ void SPropertyPath::SetPropertyPath(const FMVVMBlueprintPropertyPath& InProperty
 					SNew(SFieldPaths)
 					.TextStyle(TextStyle)
 					.FieldPaths(AllFields)
-					.HighlightField(HighlightRange)
+					.HighlightField(bShowFieldNotify ? HighlightRange : TOptional<FInt32Range>())
 					.ShowOnlyLast(bShowOnlyLastPath)
 				];
 		}

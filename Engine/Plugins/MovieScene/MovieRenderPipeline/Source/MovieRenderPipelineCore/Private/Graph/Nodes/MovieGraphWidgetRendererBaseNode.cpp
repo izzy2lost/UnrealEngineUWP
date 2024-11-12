@@ -73,16 +73,14 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Setup(TWeakObject
 {
 	LayerData = InLayer;
 	Renderer = InRenderer;
-	RenderPassNode = CastChecked<UMovieGraphWidgetRendererBaseNode>(InLayer.RenderPassNode);
 
 	RenderDataIdentifier.RootBranchName = LayerData.BranchName;
 	RenderDataIdentifier.LayerName = LayerData.LayerName;
-	RenderDataIdentifier.RendererName = RenderPassNode->GetRendererName();
+	RenderDataIdentifier.RendererName = CastChecked<UMovieGraphWidgetRendererBaseNode>(InLayer.RenderPassNode)->GetRendererName();
 
 	// NOTE: Subclasses should specify the SubResourceName
 
-	UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = Renderer->GetCameraInfo(LayerData.CameraIdentifier);
-	RenderDataIdentifier.CameraName = CameraInfo.CameraName;
+	RenderDataIdentifier.CameraName = InLayer.CameraName;
 }
 
 void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Teardown()
@@ -90,11 +88,27 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Teardown()
 	// Nothing to do
 }
 
+UMovieGraphWidgetRendererBaseNode* UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const
+{
+	const bool bIncludeCDOs = true;
+	UMovieGraphWidgetRendererBaseNode* ParentNode = InConfig->GetSettingForBranch<UMovieGraphWidgetRendererBaseNode>(RenderDataIdentifier.RootBranchName, bIncludeCDOs);
+	if (!ensureMsgf(ParentNode, TEXT("FMovieGraphWidgetPass should not exist without parent node in graph.")))
+	{
+		return nullptr;
+	}
+
+	return ParentNode;
+}
+
+
 void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
 	const UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
-	
-	const FIntPoint OutputResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig);
+	UMovieGraphWidgetRendererBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
+
+	const float CameraOverscan = Renderer->GetCameraOverscan(LayerData.CameraIndex);
+
+	const FIntPoint OutputResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, CameraOverscan);
 	const int32 MaxResolution = GetMax2DTextureDimension();
 	if ((OutputResolution.X > MaxResolution) || (OutputResolution.Y > MaxResolution))
 	{
@@ -120,10 +134,10 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMov
 		TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> OutputMerger = Pipeline->GetOutputMerger();
 		
 		// The CDO contains the resources which are shared with all pass instances
-		UMovieGraphWidgetRendererBaseNode* NodeCDO = RenderPassNode->GetClass()->GetDefaultObject<UMovieGraphWidgetRendererBaseNode>();
+		UMovieGraphWidgetRendererBaseNode* NodeCDO = ParentNodeThisFrame->GetClass()->GetDefaultObject<UMovieGraphWidgetRendererBaseNode>();
 		const TSharedPtr<SVirtualWindow> VirtualWindow = NodeCDO->GetOrCreateVirtualWindow(OutputResolution);
 
-		const TSharedPtr<SWidget> WidgetToRender = GetWidget();
+		const TSharedPtr<SWidget> WidgetToRender = GetWidget(ParentNodeThisFrame);
 		if (!WidgetToRender)
 		{
 			// The subclass implementation of GetWidget() is responsible for emitting error messages if getting the widget failed
@@ -133,13 +147,13 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMov
 		// Put the widget in our window
 		VirtualWindow->SetContent(WidgetToRender.ToSharedRef());
 
-		// Draw the widget to the render target
+		// Draw the widget to the render target.  This leaves the texture in SRV state so no transition is needed.
 		NodeCDO->WidgetRenderer->DrawWindow(RenderTarget, VirtualWindow->GetHittestGrid(), VirtualWindow.ToSharedRef(),
 			1.f, OutputResolution, InTimeData.FrameDeltaTime);
 
 		ENQUEUE_RENDER_COMMAND(WidgetRenderTargetResolveCommand)(
 			[InTimeData, InFrameTraversalContext, RenderTargetInitParams, RenderDataIdentifier = this->RenderDataIdentifier,
-			bComposite = RenderPassNode->bCompositeOntoFinalImage, CompositingSortOrder = GetCompositingSortOrder(),
+			bComposite = ParentNodeThisFrame->bCompositeOntoFinalImage, CompositingSortOrder = GetCompositingSortOrder(),
 			BackbufferRenderTarget, OutputMerger, OutputResolution](FRHICommandListImmediate& RHICmdList)
 			{
 				const FIntRect SourceRect = FIntRect(0, 0, BackbufferRenderTarget->GetSizeXY().X, BackbufferRenderTarget->GetSizeXY().Y);

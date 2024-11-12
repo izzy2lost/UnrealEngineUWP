@@ -10,6 +10,7 @@
 #include "Types/SlateStructs.h"
 #include "Widgets/SWindow.h"
 #include "Application/ThrottleManager.h"
+#include "Delegates/DelegateCombinations.h"
 
 class FWidgetPath;
 class SMenuPanel;
@@ -57,6 +58,8 @@ struct FPopupTransitionEffect
 		: SlideDirection(InitSlideDirection)
 	{ }
 };
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnMenuDestroyed, const TSharedRef<IMenu>& InMenu);
 
 /**
  * Represents a stack of open menus. The last item in the stack is the top most menu
@@ -203,6 +206,9 @@ public:
 	 * @return Returns whether the menu has child menus. If the menu isn't in the stack, returns false.
 	 */
 	bool HasOpenSubMenus(TSharedPtr<IMenu> InMenu) const;
+
+	/** Delegate called when a menu is dismissed and destroyed */
+	FOnMenuDestroyed& OnMenuDestroyedEvent() { return MenuDestroyedEvent; }
 
 private:
 	/**
@@ -366,4 +372,7 @@ private:
 
 	/** Guard to prevent the HostWindow and HostWindowPopupPanel being set reentrantly */
 	bool bHostWindowGuard;
+
+	/** Called when a menu is destroyed */
+	FOnMenuDestroyed MenuDestroyedEvent;
 };

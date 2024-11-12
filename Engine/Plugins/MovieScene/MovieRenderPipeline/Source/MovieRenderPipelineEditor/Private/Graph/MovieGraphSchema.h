@@ -18,25 +18,26 @@ public:
 	//~ Begin EdGraphSchema Interface
 	virtual void CreateDefaultNodesForGraph(UEdGraph& Graph) const override;
 	virtual void GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const override;
-	//virtual void GetContextMenuActions(class UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const override;
 	virtual const FPinConnectionResponse CanCreateConnection(const UEdGraphPin* A, const UEdGraphPin* B) const override;
 	virtual bool TryCreateConnection(UEdGraphPin* InA, UEdGraphPin* InB) const override;
-	//virtual const FPinConnectionResponse CanMergeNodes(const UEdGraphNode* A, const UEdGraphNode* B) const override;
 	static FLinearColor GetTypeColor(const FName& InPinCategory, const FName& InPinSubCategory);
 	virtual FLinearColor GetPinTypeColor(const FEdGraphPinType& PinType) const override;
 	virtual FConnectionDrawingPolicy* CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const override;
-
-	//virtual int32 GetNodeSelectionCount(const UEdGraph* Graph) const override;
-	//virtual bool IsCacheVisualizationOutOfDate(int32 InVisualizationCacheID) const override;
-	//virtual int32 GetCurrentVisualizationCacheID() const override;
-	//virtual void ForceVisualizationCacheClear() const override;
-	//virtual TSharedPtr<FEdGraphSchemaAction> GetCreateCommentAction() const override;
 	virtual void BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotification) const override;
 	virtual void BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraphPin* TargetPin) const override;
 	virtual bool SupportsPinTypeContainer(TWeakPtr<const FEdGraphSchemaAction> SchemaAction, const FEdGraphPinType& PinType, const EPinContainerType& ContainerType) const override;
 	virtual bool ShouldHidePinDefaultValue(UEdGraphPin* Pin) const override;
+	virtual bool SupportsDropPinOnNode(UEdGraphNode* InTargetNode, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection, FText& OutErrorMessage) const override;
+	virtual UEdGraphPin* DropPinOnNode(UEdGraphNode* InTargetNode, const FName& InSourcePinName, const FEdGraphPinType& InSourcePinType, EEdGraphPinDirection InSourcePinDirection) const override;
 	//~ End EdGraphSchema Interface
+	
 	static void InitMoviePipelineNodeClasses();
+
+	/**
+	 * Gets all node classes that the graph is aware of and are usable within the graph (including those from plugins).
+	 * Should only be called after all plugins that contain nodes have been loaded.
+	 */
+	static const TArray<UClass*>& GetNodeClasses();
 
 private:
 	/**
@@ -96,6 +97,12 @@ struct FMovieGraphSchemaAction : public FEdGraphSchemaAction
 		static FName Type("FMovieGraphSchemaAction");
 		return Type;
 	}
+
+	static const FText UserVariablesCategory;
+	static const FText GlobalVariablesCategory;
+
+	virtual void MovePersistentItemToCategory(const FText& NewCategoryName) override;
+	virtual bool ReorderToBeforeAction(TSharedRef<FEdGraphSchemaAction> OtherAction) override;
 
 	/** The object the action relates to. */
 	UPROPERTY()

@@ -116,5 +116,8 @@ protected:
 	// Inner arrays for these two are 1:1 with each other
 	TArray<TArray<int32>> MovingVidsPerSelection;
 	TArray<TArray<FVector3d>> MovingVertOriginalPositionsPerSelection;
+
+private:
+	void ReinitializeFromSelection(bool bForceRecomputeSelectionCenters);
 };
 

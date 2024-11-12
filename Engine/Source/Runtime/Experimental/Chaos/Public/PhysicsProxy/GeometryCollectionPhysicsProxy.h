@@ -257,21 +257,21 @@ public:
 	const FGeometryCollectionResults* GetConsumerResultsGT() const 
 	{ return PhysToGameInterchange.PeekConsumerBuffer(); }
 
-	/** Enqueue a field \p Command to be processed by \c ProcessCommands() or 
-	 * \c FieldForcesUpdateCallback(). 
-	 */
-	void BufferCommand(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command)
-	{ 
-		check(RigidsSolver != nullptr);
-		RigidsSolver->GetGeometryCollectionPhysicsProxiesField_Internal().Add(this);
-		Commands.Add(Command); 
-	}
+	/** Enqueue a field \p Command to be processed by \c ProcessCommands() or \c FieldForcesUpdateCallback(). Game thread only */
+	CHAOS_API void BufferFieldCommand_External(FFieldSystemCommand&& Command);
 
-	static CHAOS_API void InitializeSharedCollisionStructures(Chaos::FErrorReporter& ErrorReporter, FGeometryCollection& RestCollection, const FSharedSimulationParameters& SharedParams);
+	UE_DEPRECATED(5.5, "Use BufferFieldCommand_Internal instead when calling on the physics thread or the _external version when calling on the gamethread")
+	CHAOS_API void BufferCommand(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command);
+
+	/** Enqueue a field \p Command to be processed by \c ProcessCommands() or \c FieldForcesUpdateCallback(). Physics thread only*/
+	CHAOS_API void BufferFieldCommand_Internal(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command);
 
 	CHAOS_API void FieldForcesUpdateCallback(Chaos::FPBDRigidsSolver* RigidSolver);
 
 	CHAOS_API void FieldParameterUpdateCallback(Chaos::FPBDRigidsSolver* RigidSolver, const bool bUpdateViews = true);
+
+	static CHAOS_API bool NeedToInitializeSharedCollisionStructures(const FGeometryCollection& RestCollection);
+	static CHAOS_API void InitializeSharedCollisionStructures(Chaos::FErrorReporter& ErrorReporter, FGeometryCollection& RestCollection, const FSharedSimulationParameters& SharedParams);
 
 	void UpdateKinematicBodiesCallback(const FParticlesType& InParticles, const float InDt, const float InTime, FKinematicProxy& InKinematicProxy) {}
 	void StartFrameCallback(const float InDt, const float InTime) {}
@@ -404,9 +404,12 @@ public:
 		if (ChildTransformIndex >= 0 && ChildTransformIndex < GTParticles.Num())
 		{
 			const TUniquePtr<FParticle>& ChildGTParticle = GTParticles[ChildTransformIndex];
-			if (const int32* InternalClusterUniqueIdx = GTParticlesToInternalClusterUniqueIdx.Find(ChildGTParticle.Get()))
+			if (const FGTParticleIndices* Indices = GTParticleToIndices.Find(ChildGTParticle.Get()))
 			{
-				return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(*InternalClusterUniqueIdx);
+				if (Indices->InternalClusterUniqueId != INDEX_NONE)
+				{
+					return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(Indices->InternalClusterUniqueId);
+				}
 			}
 		}
 		return FGeometryCollectionItemIndex::CreateInvalidItemIndex();
@@ -424,23 +427,29 @@ public:
 	FGeometryCollectionItemIndex GetItemIndexFromGTParticle_External(const FParticle* GTPParticle) const
 	{
 		// internal cluster have  no representation on the GT, so we use the child GT particle to find the matching internal cluster unique index 
-		if (const int32* InternalClusterUniqueIdx = GTParticlesToInternalClusterUniqueIdx.Find(GTPParticle))
+		if (const FGTParticleIndices* Indices = GTParticleToIndices.Find(GTPParticle))
 		{
-			return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(*InternalClusterUniqueIdx);
-		}
-		// regular particle that has a matching transform index 
-		if (const int32* TransformGroupIndex = GTParticlesToTransformGroupIndex.Find(GTPParticle))
-		{
-			return FGeometryCollectionItemIndex::CreateTransformItemIndex(*TransformGroupIndex);
+			if (Indices->InternalClusterUniqueId != INDEX_NONE)
+			{
+				return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(Indices->InternalClusterUniqueId);
+			}
+			// regular particle that has a matching transform index 
+			if (Indices->TransformGroupIndex != INDEX_NONE)
+			{
+				return FGeometryCollectionItemIndex::CreateTransformItemIndex(Indices->TransformGroupIndex);
+			}
 		}
 		return FGeometryCollectionItemIndex::CreateInvalidItemIndex();
 	}
 
 	FGeometryCollectionItemIndex GetItemIndexFromGTParticleNoInternalCluster_External(const FParticle* GTPParticle) const
 	{
-		if (const int32* TransformGroupIndex = GTParticlesToTransformGroupIndex.Find(GTPParticle))
+		if (const FGTParticleIndices* Indices = GTParticleToIndices.Find(GTPParticle))
 		{
-			return FGeometryCollectionItemIndex::CreateTransformItemIndex(*TransformGroupIndex);
+			if (Indices->TransformGroupIndex != INDEX_NONE)
+			{
+				return FGeometryCollectionItemIndex::CreateTransformItemIndex(Indices->TransformGroupIndex);
+			}
 		}
 		return FGeometryCollectionItemIndex::CreateInvalidItemIndex();
 	}
@@ -478,8 +487,8 @@ public:
 
 	CHAOS_API float ComputeMaterialBasedDamageThreshold_Internal(Chaos::FPBDRigidClusteredParticleHandle& ClusteredParticle) const;
 
-	FProxyInterpolationBase& GetInterpolationData() { return InterpolationData; }
-	const FProxyInterpolationBase& GetInterpolationData() const { return InterpolationData; }
+	FProxyInterpolationBase* GetInterpolationData() { return InterpolationData.Get(); }
+	const FProxyInterpolationBase* GetInterpolationData() const { return InterpolationData.Get(); }
 
 	enum class EReplicationMode: uint8
 	{
@@ -510,6 +519,7 @@ public:
 	CHAOS_API void SetDamageModel_External(EDamageModelTypeEnum DamageModel);
 	CHAOS_API void SetUseMaterialDamageModifiers_External(bool bUseMaterialDamageModifiers);
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier);
+	CHAOS_API void SetEnableGravity_External(bool EnableGravity_External);
 	CHAOS_API void SetGravityGroupIndex_External(int32 GravityGroupIndex);
 	CHAOS_API void SetOneWayInteractionLevel_External(int32 OneWayInteractionLevel);
 	CHAOS_API void SetPhysicsMaterial_External(const Chaos::FMaterialHandle& MaterialHandle);
@@ -549,6 +559,9 @@ public:
 	CHAOS_API void CreateChildrenGeometry_Internal();
 
 	int32 GetFromParticleToTransformIndex(int32 Index) const { check(FromParticleToTransformIndex.IsValidIndex(Index));  return FromParticleToTransformIndex[Index]; }
+
+	CHAOS_API bool GetSkipChildToParentUpdateWhenInClusterUnion() const { return bSkipChildToParentUpdateWhenInClusterUnion; };
+	CHAOS_API void SetSkipChildToParentUpdateWhenInClusterUnion(bool bValue) { bSkipChildToParentUpdateWhenInClusterUnion = bValue; };
 
 protected:
 
@@ -610,10 +623,11 @@ protected:
 	/** Scale the cluster particles geometry (creates if necessary an additional TImplicitObjectScaled object into the implicits hierarchy) */
 	CHAOS_API void ScaleClusterGeometry_Internal(const FVector& WorldScale);
 
-	CHAOS_API void SetWorldTransform_Internal(const FTransform& WorldTransform);
+	CHAOS_API void SetWorldTransform_Internal(const FTransform& WorldTransform, bool bInSkipChildToParentUpdateWhenInClusterUnion = false);
 	CHAOS_API void SetFilterData_Internal(const FCollisionFilterData& NewSimFilter, const FCollisionFilterData& NewQueryFilter);
 	CHAOS_API void SetPerParticleFilterData_Internal(const TArray<FParticleCollisionFilterData>& PerParticleData);
 	CHAOS_API void SetDamagePropagationData_Internal(bool bEnabled, float BreakDamagePropagationFactor, float ShockDamagePropagationFactor);
+	CHAOS_API void SetEnableGravity_Internal(bool bEnabled);
 	CHAOS_API void SetDamageThresholds_Internal(const TArray<float>& DamageThresholds);
 	CHAOS_API void SetDamageModel_Internal(EDamageModelTypeEnum DamageModel);
 	CHAOS_API void SetUseMaterialDamageModifiers_Internal(bool bUseMaterialDamageModifiers);
@@ -644,22 +658,54 @@ private:
 	 */
 	bool PullNonInterpolatableDataFromSinglePhysicsState(const Chaos::FDirtyGeometryCollectionData& BufferData, bool bForcePullXRVW, const TBitArray<>* Seen);
 
-	/* set to true once InitializeBodiesPT has been called*/
-	bool bIsInitializedOnPhysicsThread = false;
-
 	FSimulationParameters Parameters;
-	TArray<FFieldSystemCommand> Commands;
-
-	/** Field Datas stored during evaluation */
-	FFieldExecutionDatas ExecutionDatas;
 
 	TArray<Chaos::FPhysicsObjectUniquePtr> PhysicsObjects;
+
+	// todo : we should probably keep a simulation parameter copy on the game thread instead 
+	FTransform WorldTransform_External;
+	FTransform PreviousWorldTransform_External;
+
 	//
 	//  Proxy State Information
 	//
 	int32 NumTransforms;
 	int32 NumEffectiveParticles;
 	int32 BaseParticleIndex;
+	// Per object collision fraction.
+	float CollisionParticlesPerObjectFraction;
+
+	/** structure that contains the necessary information for processing fields */
+	struct FFieldData
+	{
+		/** field command to execute */
+		TArray<FFieldSystemCommand> Commands;
+
+		/** Field Datas stored during evaluation */
+		FFieldExecutionDatas ExecutionDatas;
+	};
+	// data is allocated on demand on the physics thread only ( see GetOrCreateFieldData_Internal )
+	TUniquePtr<FFieldData> FieldData_Internal;
+
+	FFieldData& GetOrCreateFieldData_Internal();
+
+	EReplicationMode ReplicationMode = EReplicationMode::Unknown;
+
+	uint8 bIsGameThreadWorldTransformDirty : 1;
+	uint8 bHasBuiltGeometryOnPT : 1;
+	uint8 bHasBuiltGeometryOnGT : 1;
+	/* set to true once InitializeBodiesPT has been called*/
+	bool bIsInitializedOnPhysicsThread : 1 = false;
+	//
+	// Buffer Results State Information
+	//
+	bool IsObjectDynamic : 1; // Records current dynamic state
+	bool IsObjectLoading : 1; // Indicate when loaded
+	bool IsObjectDeleting : 1; // Indicate when pending deletion
+
+	/** when true and part of a cluster union this will skip the Child to parent update part */
+	bool bSkipChildToParentUpdateWhenInClusterUnion : 1; 
+
 	TArray<FParticleHandle*> SolverClusterID;
 	TArray<FClusterHandle*> SolverClusterHandles; // make a TArray of the base clase with type
 	TArray<FClusterHandle*> SolverParticleHandles;// make a TArray of base class and join with above
@@ -670,73 +716,38 @@ private:
 	TArray<int32> FromTransformToParticleIndex;
 	TBitArray<> EffectiveParticles;
 
-	//
-	// Buffer Results State Information
-	//
-	bool IsObjectDynamic; // Records current dynamic state
-	bool IsObjectLoading; // Indicate when loaded
-	bool IsObjectDeleting; // Indicate when pending deletion
-
-	EReplicationMode ReplicationMode = EReplicationMode::Unknown;	
-
+	// Game thread particles 
 	TArray<TUniquePtr<FParticle>> GTParticles;
-	TMap<FParticle*, int32> GTParticlesToTransformGroupIndex;
-	TMap<FParticle*, int32> GTParticlesToInternalClusterUniqueIdx;
-	TMap<int32, TArray<int32>> InternalClusterUniqueIdxToChildrenTransformIndices;
 
-	TMap<int32, TUniquePtr<FParticle>> GTInternalClustersByUniqueIdx;
+	struct FGTParticleIndices
+	{
+		/** Correponding transform index of the GTparticle */
+		int32 TransformGroupIndex = INDEX_NONE;
+
+		/** unique index of the parent the GT particle is a child of internal cluster  */
+		int32 InternalClusterUniqueId = INDEX_NONE;
+	};
+
+	TMap<FParticle*, FGTParticleIndices> GTParticleToIndices;
+	TMap<int32, TArray<int32>> InternalClusterUniqueIdxToChildrenTransformIndices;
 
 	// These are read on both threads and should not be changed
 	const FCollisionFilterData SimFilter;
 	const FCollisionFilterData QueryFilter;
 
-	// This is a subset of the geometry group that are used in the transform hierarchy to represent geometry
-	TArray<FBox> ValidGeometryBoundingBoxes;
-	TArray<int32> ValidGeometryTransformIndices;
-
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	FCreateTraceCollisionGeometryCallback CreateTraceCollisionGeometryCallback;
 	
-#ifdef TODO_REIMPLEMENT_RIGID_CACHING
-	TFunction<void(void)> ResetAnimationCacheCallback;
-	TFunction<void(const TArrayView<FTransform> &)> UpdateTransformsCallback;
-	TFunction<void(const int32 & CurrentFrame, const TManagedArray<int32> & RigidBodyID, const TManagedArray<int32>& Level, const TManagedArray<int32>& Parent, const TManagedArray<TSet<int32>>& Children, const TManagedArray<uint32>& SimulationType, const TManagedArray<uint32>& StatusFlags, const FParticlesType& Particles)> UpdateRestStateCallback;
-	TFunction<void(float SolverTime, const TManagedArray<int32> & RigidBodyID, const FParticlesType& Particles, const Chaos::FPBDCollisionConstraints& CollisionRule)> UpdateRecordedStateCallback;
-	TFunction<void(FRecordedTransformTrack& InTrack)> CommitRecordedStateCallback;
-
-	// Index of the first particles for this collection in the larger particle array
-	// Time since this object started simulating
-	float ProxySimDuration;
-
-	// Sync frame numbers so we don't do many syncs when physics is running behind
-	uint32 LastSyncCountGT;
-
-	// Storage for the recorded frame information when we're caching the geometry component results.
-	// Synced back to the component with SyncBeforeDestroy
-	FRecordedTransformTrack RecordedTracks;
-#endif
-
 	// called after we sync the physics thread data ( called on the game thread )
 	TFunction<void()> PostPhysicsSyncCallback;
 	TFunction<void()> PostParticlesCreatedCallback;
 	
-	// Per object collision fraction.
-	float CollisionParticlesPerObjectFraction;
-
 	// The Simulation data is copied between the game and physics thread. It is 
 	// expected that the two data sets will diverge, based on how the simulation
 	// uses the data, but at the start of the simulation the PhysicsThreadCollection
 	// is a deep copy from the GameThreadCollection. 
 	FGeometryDynamicCollection PhysicsThreadCollection;
 	FGeometryDynamicCollection& GameThreadCollection;
-
-	// todo : we should probably keep a simulation parameter copy on the game thread instead 
-	FTransform WorldTransform_External;
-	FTransform PreviousWorldTransform_External;
-	uint8 bIsGameThreadWorldTransformDirty : 1;
-
-	uint8 bHasBuiltGeometryOnPT : 1;
-	uint8 bHasBuiltGeometryOnGT : 1;
 
 	// Currently this is using triple buffers for game-physics and 
 	// physics-game thread communication, but not for any reason other than this 
@@ -749,10 +760,28 @@ private:
 	// paradigm, at least for this component of the handshake.
 	Chaos::FGuardedTripleBuffer<FGeometryCollectionResults> PhysToGameInterchange;
 
-	FProxyInterpolationError InterpolationData;
+	TUniquePtr<FProxyInterpolationBase> InterpolationData;
 
+	/** Get or create a derived FProxyInterpolationBase that handles error corrections */
+	template<typename ErrorDataType>
+	ErrorDataType* GetOrCreateErrorInterpolationData()
+	{
+		if (!InterpolationData.IsValid())
+		{
+			InterpolationData = MakeUnique<ErrorDataType>();
+		}
+		else if (InterpolationData.Get()->GetInterpolationType() != ErrorDataType::InterpolationType)
+		{
+			InterpolationData = MakeUnique<ErrorDataType>(InterpolationData.Get()->GetPullDataInterpIdx_External(), InterpolationData.Get()->GetInterpChannel_External());
+		}
+
+		return static_cast<ErrorDataType*>(InterpolationData.Get());
+	}
+
+#if WITH_EDITORONLY_DATA
 	// this is used as a unique ID when collecting data from runtime
 	FGuid CollectorGuid;
+#endif
 };
 
 /**

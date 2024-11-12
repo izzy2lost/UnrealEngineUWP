@@ -10,6 +10,7 @@
 #include "Math/UnrealMathSSE.h"
 #include "PipelineStateCache.h"
 #include "PixelFormat.h"
+#include "RenderGraphUtils.h"
 #include "RHI.h"
 #include "RHICommandList.h"
 #include "RHIDefinitions.h"
@@ -51,6 +52,9 @@ struct TClearReplacementBase : public FGlobalShader
 {
 	static_assert(NumChannels >= 1 && NumChannels <= 4, "Only 1 to 4 channels are supported.");
 	DECLARE_INLINE_TYPE_LAYOUT(TClearReplacementBase, NonVirtual);
+
+	// Wrapping group counts will require bounds checking to account for additional groups from the wrapping stride.
+	static constexpr bool bSupportsWrappedGroupCount = bEnableBounds;
 
 protected:
 	TClearReplacementBase() {}
@@ -143,6 +147,9 @@ public:
 	static constexpr uint32 ThreadGroupSizeX = ClearReplacementCS::TThreadGroupSize<ResourceType>::X;
 	static constexpr uint32 ThreadGroupSizeY = ClearReplacementCS::TThreadGroupSize<ResourceType>::Y;
 	static constexpr uint32 ThreadGroupSizeZ = ClearReplacementCS::TThreadGroupSize<ResourceType>::Z;
+
+	// Use wrapping for 1D layouts if supported.
+	static constexpr bool bUseWrappedGroupCount = (ThreadGroupSizeY == 1) && (ThreadGroupSizeZ == 1) && BaseType::bSupportsWrappedGroupCount;
 	
 	TClearReplacementCS() {}
 	TClearReplacementCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -168,6 +175,7 @@ public:
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), ThreadGroupSizeX);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), ThreadGroupSizeY);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Z"), ThreadGroupSizeZ);
+		OutEnvironment.SetDefine(TEXT("USE_WRAPPED_GROUP_COUNT"), bUseWrappedGroupCount ? 1 : 0);
 		OutEnvironment.SetDefine(TEXT("RESOURCE_TYPE"), uint32(ResourceType));
 	}
 	
@@ -175,6 +183,19 @@ public:
 
 	inline const FShaderResourceParameter& GetClearResourceParam() const { return ClearResourceParam; }
 	inline uint32 GetResourceParamIndex() const { return ClearResourceParam.GetBaseIndex(); }
+
+	static inline FIntVector GetGroupCount(uint32 SizeX, uint32 SizeY, uint32 SizeZ)
+	{
+		if (bUseWrappedGroupCount)
+		{
+			return FComputeShaderUtils::GetGroupCountWrapped(SizeX, ThreadGroupSizeX);
+		}
+
+		return FIntVector(
+			FMath::DivideAndRoundUp(SizeX, ThreadGroupSizeX), 
+			FMath::DivideAndRoundUp(SizeY, ThreadGroupSizeY), 
+			FMath::DivideAndRoundUp(SizeZ, ThreadGroupSizeZ));
+	}
 
 private:
 	LAYOUT_FIELD(FShaderResourceParameter, ClearResourceParam);
@@ -353,11 +374,9 @@ inline void ClearUAVShader_T(FRHIComputeCommandList& RHICmdList, FRHIUnorderedAc
 
 	ResourceBindCallback(ShaderRHI, ComputeShader->GetClearResourceParam(), true);
 
-	RHICmdList.DispatchComputeShader(
-		FMath::DivideAndRoundUp(SizeX, ComputeShader->ThreadGroupSizeX),
-		FMath::DivideAndRoundUp(SizeY, ComputeShader->ThreadGroupSizeY),
-		FMath::DivideAndRoundUp(SizeZ, ComputeShader->ThreadGroupSizeZ)
-	);
+	FIntVector GroupCount = FClearShader::GetGroupCount(SizeX, SizeY, SizeZ);
+
+	RHICmdList.DispatchComputeShader(GroupCount.X, GroupCount.Y, GroupCount.Z);
 
 	ResourceBindCallback(ShaderRHI, ComputeShader->GetClearResourceParam(), false);
 
@@ -392,11 +411,9 @@ inline void ClearUAVShader_T(FRHIComputeCommandList& RHICmdList, FRHIUnorderedAc
 
 	RHICmdList.SetBatchedShaderParameters(ShaderRHI, BatchedParameters);
 
-	RHICmdList.DispatchComputeShader(
-		FMath::DivideAndRoundUp(SizeX, ComputeShader->ThreadGroupSizeX),
-		FMath::DivideAndRoundUp(SizeY, ComputeShader->ThreadGroupSizeY),
-		FMath::DivideAndRoundUp(SizeZ, ComputeShader->ThreadGroupSizeZ)
-	);
+	const FIntVector GroupCount = FClearShader::GetGroupCount(SizeX, SizeY, SizeZ);
+
+	RHICmdList.DispatchComputeShader(GroupCount.X, GroupCount.Y, GroupCount.Z);
 
 	if (RHICmdList.NeedsShaderUnbinds())
 	{

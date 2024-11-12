@@ -3,12 +3,14 @@
 #include "Components/MaterialValues/DMMaterialValueBool.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueBoolDynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Model/IDMMaterialBuildUtilsInterface.h"
+#include "Utils/DMUtils.h"
 #endif
  
 #define LOCTEXT_NAMESPACE "DMMaterialValueBool"
@@ -35,7 +37,12 @@ void UDMMaterialValueBool::GenerateExpression(const TSharedRef<IDMMaterialBuildS
 		return;
 	}
  
-	UMaterialExpressionStaticBoolParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionStaticBoolParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionStaticBoolParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionStaticBoolParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = Value;
@@ -53,7 +60,8 @@ void UDMMaterialValueBool::SetMIDParameter(UMaterialInstanceDynamic* InMID) cons
 
 	check(InMID);
  
-	// No idea how to implement this
+	// True dynamic branching is currently being worked on. When it is in, this will become relevant.
+	// There is no Jira yet.
 	checkNoEntry();
 }
 
@@ -71,6 +79,42 @@ void UDMMaterialValueBool::ApplyDefaultValue()
 void UDMMaterialValueBool::ResetDefaultValue()
 {
 	bDefaultValue = false;
+}
+
+UDMMaterialValueDynamic* UDMMaterialValueBool::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueBoolDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueBoolDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueBool::GetComponentPathComponent() const
+{
+	return TEXT("Bool");
+}
+
+FText UDMMaterialValueBool::GetComponentDescription() const
+{
+	return LOCTEXT("Bool", "Bool");
+}
+
+TSharedPtr<FJsonValue> UDMMaterialValueBool::JsonSerialize() const
+{
+	return FDMJsonUtils::Serialize(Value);
+}
+
+bool UDMMaterialValueBool::JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue)
+{
+	bool bValueJson;
+
+	if (FDMJsonUtils::Deserialize(InJsonValue, bValueJson))
+	{
+		SetValue(bValueJson);
+		return true;
+	}
+
+	return false;
 }
 
 void UDMMaterialValueBool::SetDefaultValue(bool bInDefaultValue)
@@ -93,7 +137,7 @@ void UDMMaterialValueBool::SetValue(bool InValue)
 
 	Value = InValue;
  
-	OnValueUpdated(/* bForceStructureUpdate */ false);
+	OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 }
  
 #undef LOCTEXT_NAMESPACE

@@ -1,15 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "InterchangeAssetImportData.h"
+#include "InterchangeCustomVersion.h"
 #include "InterchangeEngineLogPrivate.h"
 #include "InterchangeManager.h"
 #include "InterchangePipelineBase.h"
-
-#include "InterchangeCustomVersion.h"
-
+#include "InterchangeProjectSettings.h"
 #include "JsonObjectConverter.h"
-#include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/LargeMemoryReader.h"
+#include "Serialization/LargeMemoryWriter.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/UObjectIterator.h"
 
@@ -138,6 +137,79 @@ void UInterchangeAssetImportData::Serialize(FArchive& Ar)
 	}
 }
 
+#if WITH_EDITOR
+bool UInterchangeAssetImportData::ConvertAssetImportDataToNewOwner(UObject* Owner)
+{
+	if (!Owner)
+	{
+		return false;
+	}
+
+	ProcessPipelinesCache();
+	if (TransientPipelines.Num() == 0)
+	{
+		return false;
+	}
+	//Find the default asset stack for the first file of this "asset import data"
+	//Then we will generate all the pipeline with the correct context
+	//The final goal is to transfer the UInterchangePiplineBase::PropertiesStates to make sure property category are not hidden if user re-import the asset owning this AssetImportData
+	constexpr bool bImportSceneFalse = false;
+	const FInterchangeImportSettings& InterchangeImportSettings = FInterchangeProjectSettingsUtils::GetDefaultImportSettings(bImportSceneFalse);
+	const TMap<FName, FInterchangePipelineStack>& DefaultPipelineStacks = InterchangeImportSettings.PipelineStacks;
+	UE::Interchange::FScopedSourceData InterchangeSourceData(GetFirstFilename());
+	UE::Interchange::FScopedTranslator ScopedTranslator(InterchangeSourceData.GetSourceData());
+	FName DefaultStackName = FInterchangeProjectSettingsUtils::GetDefaultPipelineStackName(bImportSceneFalse, *InterchangeSourceData.GetSourceData());
+	if (DefaultPipelineStacks.Contains(DefaultStackName))
+	{
+		TArray<UInterchangePipelineBase*> GeneratedPipelines;
+		const FInterchangePipelineStack& PipelineStack = DefaultPipelineStacks.FindChecked(DefaultStackName);
+		const TArray<FSoftObjectPath>* SoftPathPipelines = &PipelineStack.Pipelines;
+		// If applicable, check to see if a specific pipeline stack is associated with this translator
+		for (const FInterchangeTranslatorPipelines& TranslatorPipelines : PipelineStack.PerTranslatorPipelines)
+		{
+			const UClass* TranslatorClass = TranslatorPipelines.Translator.LoadSynchronous();
+			if (ScopedTranslator.GetTranslator() && ScopedTranslator.GetTranslator()->IsA(TranslatorClass))
+			{
+				SoftPathPipelines = &TranslatorPipelines.Pipelines;
+				break;
+			}
+		}
+
+		for (int32 PipelineIndex = 0; PipelineIndex < SoftPathPipelines->Num(); ++PipelineIndex)
+		{
+			if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance((*SoftPathPipelines)[PipelineIndex]))
+			{
+				FInterchangePipelineContextParams ContextParams;
+				ContextParams.ContextType = EInterchangePipelineContext::AssetImport;
+				ContextParams.ReimportAsset = Owner;
+				ContextParams.BaseNodeContainer = GetNodeContainer();
+				GeneratedPipeline->AdjustSettingsForContext(ContextParams);
+				GeneratedPipelines.Add(GeneratedPipeline);
+			}
+		}
+
+		//We are now properly setup with Some generated pipelines stack that has the correct context value for the PropertiesStates
+		for (TObjectPtr<UObject>& PipelinePtr : TransientPipelines)
+		{
+			if (UInterchangePipelineBase* Pipeline = Cast<UInterchangePipelineBase>(PipelinePtr.Get()))
+			{
+				UClass* PipelineClass = Pipeline->GetClass();
+				for (UInterchangePipelineBase* GeneratedPipeline : GeneratedPipelines)
+				{
+					if (GeneratedPipeline->GetClass()->IsChildOf(PipelineClass))
+					{
+						//Push the properties states to the pipeline
+						Pipeline->TransferAdjustSettings(GeneratedPipeline);
+						Pipeline->AdjustSettingsFromCache();
+						break;
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+#endif
 
 UInterchangeBaseNodeContainer* UInterchangeAssetImportData::GetNodeContainer() const
 {
@@ -172,12 +244,13 @@ const UInterchangeTranslatorSettings* UInterchangeAssetImportData::GetTranslator
 void UInterchangeAssetImportData::SetTranslatorSettings(UInterchangeTranslatorSettings* TranslatorSettings) const
 {
 	TransientTranslatorSettings = TranslatorSettings;
+	TransientTranslatorSettings->SetFlags(RF_Standalone);
 
 	//Serialize cache
 	CachedTranslatorSettings = {};
 	if (TranslatorSettings)
 	{
-		FString TranslatorSettingsJSON = SerializePipeline(TranslatorSettings);
+		FString TranslatorSettingsJSON = SerializeTranslatorSettings(TranslatorSettings);
 
 		FString TranslatorSettingsClassFullName = TranslatorSettings->GetClass()->GetFullName();
 		CachedTranslatorSettings = TPair<FString, FString>(TranslatorSettingsClassFullName, TranslatorSettingsJSON);
@@ -280,6 +353,12 @@ void UInterchangeAssetImportData::ProcessTranslatorCache() const
 {
 	if (UInterchangeManager::IsInterchangeImportEnabled())
 	{
+		//Verify our transient object was not garbage collect
+		if (TransientTranslatorSettings && (TransientTranslatorSettings->IsGarbageEliminationEnabled() || TransientTranslatorSettings->HasAnyFlags(RF_BeginDestroyed | RF_FinishDestroyed)) )
+		{
+			TransientTranslatorSettings = nullptr;
+		}
+
 		//de-serialize
 		if (!TransientTranslatorSettings && !CachedTranslatorSettings.Key.IsEmpty())
 		{
@@ -309,6 +388,7 @@ void UInterchangeAssetImportData::ProcessTranslatorCache() const
 			UClass* ToCreateClass = ClassPerName.FindChecked(ClassFullName);
 
 			TransientTranslatorSettings = Cast<UInterchangeTranslatorSettings>(DeSerializeTranslatorSettings(CachedTranslatorSettings.Value, ToCreateClass));
+			TransientTranslatorSettings->SetFlags(RF_Standalone);
 		}
 	}
 }
@@ -381,4 +461,31 @@ void UInterchangeAssetImportData::ProcessDeprecatedData() const
 			}
 		}
 	}
+}
+
+void UInterchangeAssetImportData::BackupSourceData() const
+{
+#if WITH_EDITORONLY_DATA
+	if (SourceDataBackup.SourceFiles.Num() == 0)
+	{
+		SourceDataBackup = SourceData;
+	}
+#endif
+}
+
+void UInterchangeAssetImportData::ClearBackupSourceData() const
+{
+#if WITH_EDITORONLY_DATA
+	SourceDataBackup = FAssetImportInfo();
+#endif
+}
+
+void UInterchangeAssetImportData::ReinstateBackupSourceData()
+{
+#if WITH_EDITORONLY_DATA
+	if (SourceDataBackup.SourceFiles.Num() > 0)
+	{
+		SourceData = SourceDataBackup;
+	}
+#endif
 }

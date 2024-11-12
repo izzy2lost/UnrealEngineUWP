@@ -38,9 +38,9 @@ ULearningAgentsCritic::ULearningAgentsCritic(FVTableHelper& Helper) : Super(Help
 ULearningAgentsCritic::~ULearningAgentsCritic() = default;
 
 ULearningAgentsCritic* ULearningAgentsCritic::MakeCritic(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsPolicy* InPolicy,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
+	ULearningAgentsPolicy*& InPolicy,
 	TSubclassOf<ULearningAgentsCritic> Class,
 	const FName Name,
 	ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset,
@@ -78,9 +78,9 @@ ULearningAgentsCritic* ULearningAgentsCritic::MakeCritic(
 }
 
 void ULearningAgentsCritic::SetupCritic(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor, 
-	ULearningAgentsPolicy* InPolicy,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor, 
+	ULearningAgentsPolicy*& InPolicy,
 	ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset,
 	const bool bReinitializeCriticNetwork,
 	const FLearningAgentsCriticSettings& CriticSettings,
@@ -286,7 +286,7 @@ void ULearningAgentsCritic::EvaluateCritic()
 
 	for (const int32 AgentId : Manager->GetAllAgentSet())
 	{
-		if (Policy->ObservationVectorEncodedIteration[AgentId] == 0)
+		if (!Policy->HasEncodedObservationsForAgent(AgentId))
 		{
 			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i has not made observations so critic will not be evaluated for it. Was EncodeObservations run without error?"), *GetName(), AgentId);
 			continue;
@@ -300,10 +300,10 @@ void ULearningAgentsCritic::EvaluateCritic()
 
 	// Evaluate Critic
 
-	if (CriticObject->GetNeuralNetwork()->GetInputSize() != Policy->ObservationVectorsEncoded.Num<1>() + Policy->MemoryState.Num<1>())
+	if (CriticObject->GetNeuralNetwork()->GetInputSize() != Policy->GetObservationVectorsEncoded().Num<1>() + Policy->GetMemoryState().Num<1>())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Critic Network Input size doesn't match. Network input size is %i but Critic expects %i."), *GetName(),
-			CriticObject->GetNeuralNetwork()->GetInputSize(), Policy->ObservationVectorsEncoded.Num<1>() + Policy->MemoryState.Num<1>());
+			CriticObject->GetNeuralNetwork()->GetInputSize(), Policy->GetObservationVectorsEncoded().Num<1>() + Policy->GetMemoryState().Num<1>());
 		return;
 	}
 
@@ -316,8 +316,8 @@ void ULearningAgentsCritic::EvaluateCritic()
 
 	CriticObject->Evaluate(
 		Returns,
-		Policy->ObservationVectorsEncoded,
-		Policy->MemoryState,
+		Policy->GetObservationVectorsEncoded(),
+		Policy->GetMemoryState(),
 		ValidAgentSet);
 
 	// Increment Discounted Return Iteration

@@ -35,7 +35,7 @@ public:
 private:
 	virtual ~FNetRPC();
 
-	virtual TArrayView<const FNetObjectReference> GetExports() const override final;
+	virtual TArrayView<const FNetObjectReference> GetNetObjectReferenceExports() const override final;
 
 	virtual void SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const override;
 	virtual void DeserializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) override;

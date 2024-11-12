@@ -20,6 +20,8 @@ import ErrorBoundary from './ErrorBoundary';
 import { TopNav } from './TopNav';
 import { getHordeStyling } from '../styles/Styles';
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type DivSelectionType = d3.Selection<HTMLDivElement, unknown, null, undefined>;
@@ -810,11 +812,11 @@ class AutomationGraph {
          "Skipped": scolors.get(StatusColor.Skipped)!
       };
 
-      const X = d3.map(refs, (r) => handler.changeDates.get(r.buildChangeList)!.getTime() / 1000);
-      const Y = d3.map(refs, (r) => this.metaIds.indexOf(r.metaId));
+      const X = _d3.map(refs, (r) => handler.changeDates.get(r.buildChangeList)!.getTime() / 1000);
+      const Y = _d3.map(refs, (r) => this.metaIds.indexOf(r.metaId));
       let Z: (TestOutcome | "Unspecified" | "Warning" | "Success" | "Failure")[] = [];
       if (this.suite) {
-         Z = d3.map(refs, (r) => {
+         Z = _d3.map(refs, (r) => {
 
             if (!r.suiteErrorCount && !r.suiteWarningCount && !r.suiteSkipCount) {
                // If there are skipped, will be a shape with warning/error/success included??
@@ -832,12 +834,12 @@ class AutomationGraph {
 
          });
       } else {
-         Z = d3.map(refs, (r) => r.outcome ?? "Unspecified");
+         Z = _d3.map(refs, (r) => r.outcome ?? "Unspecified");
       }
 
-      const xDomain = d3.extent(handler.changeDates.values(), d => d.getTime() / 1000);
+      const xDomain = d3.extent(handler.changeDates.values() as any, (d:any) => d.getTime() / 1000);
       let yDomain: any = Y;
-      yDomain = new d3.InternSet(yDomain);
+      yDomain = new _d3.InternSet(yDomain);
 
       const I = d3.range(X.length);
 
@@ -847,8 +849,8 @@ class AutomationGraph {
       const xRange = [this.margin.left, width - this.margin.right];
       let yRange = [this.margin.top, height - this.margin.bottom];
 
-      const xScale = d3.scaleTime(xDomain as any, xRange);
-      const yScale = d3.scalePoint(yDomain, yRange).round(true).padding(yPadding);
+      const xScale = _d3.scaleTime(xDomain, xRange);
+      const yScale = _d3.scalePoint(yDomain, yRange).round(true).padding(yPadding);
 
       const svg = d3.select(container)
          .append("svg")
@@ -859,12 +861,13 @@ class AutomationGraph {
 
       const g = svg.append("g")
          .selectAll()
-         .data(d3.group(I, i => Y[i]))
+         .data(_d3.group(I, i => Y[i]))
          .join("g")
          .attr("transform", ([y]) => `translate(0,${(yScale(y) as any) + 16})`);
 
       g.append("line")
-         .attr("stroke", ([y]) => {
+         .attr("stroke", (y: any) => {
+            // Test Vite
             const status = this.metaStatus.get(this.metaIds[y])!;
             if (status === "Failure") {
                return colors[this.metaStatus.get(this.metaIds[y])!]
@@ -895,7 +898,7 @@ class AutomationGraph {
          .style("font-family", "Horde Open Sans Regular")
          .style("font-size", 10)
          .attr("dy", "0.15em") // center stream name
-         .attr("x", ([, I]) => 0)
+         .attr("x", () => 0)
          .attr("fill", ([y]) => {
             const status = this.metaStatus.get(this.metaIds[y])!;
             if (!dashboard.darktheme && status === "Failure") {
@@ -1001,8 +1004,8 @@ class AutomationGraph {
 
       const handleMouseMove = (event: any) => {
 
-         const mouseX = d3.pointer(event)[0];
-         const mouseY = d3.pointer(event)[1];
+         const mouseX = _d3.pointer(event)[0];
+         const mouseY = _d3.pointer(event)[1];
 
          const closest = closestData(mouseX, mouseY);
          if (closest) {
@@ -1033,8 +1036,8 @@ class AutomationGraph {
 
       const handleMouseClick = (event: any) => {
 
-         const mouseX = d3.pointer(event)[0];
-         const mouseY = d3.pointer(event)[1];
+         const mouseX = _d3.pointer(event)[0];
+         const mouseY = _d3.pointer(event)[1];
 
          const closest = closestData(mouseX, mouseY);
          if (closest) {

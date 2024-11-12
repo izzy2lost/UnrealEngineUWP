@@ -139,6 +139,19 @@ public:
 		return CDO;
 	}
 
+	virtual const TMap<UClass*, UClass*>& GetReinstancedClasses() override
+	{
+		static const TMap<UClass*, UClass*> Empty;
+		return Empty;
+	}
+
+	virtual const TArray<UClass*>& GetNewClasses() override
+	{
+		static const TArray<UClass*> Empty;
+		return Empty;
+	}
+
+
 	bool HasReinstancingOccurred() const
 	{
 		return bHasReinstancingOccurred;
@@ -335,7 +348,7 @@ void FLiveCodingModule::StartupModule()
 {
 	LLM_SCOPE_BYTAG(LiveCoding);
 
-	// Register with NT to get dll nitrifications
+	// Register with NT to get dll notifications
 	FNtDllFunction RegisterFunc("LdrRegisterDllNotification");
 	RegisterFunc(0, OnDllNotification, this, &CallbackCookie);
 
@@ -344,7 +357,7 @@ void FLiveCodingModule::StartupModule()
 	{
 		TCHAR Scratch[MAX_PATH];
 		int Length = GetModuleFileNameEx(::GetCurrentProcess(), NULL, Scratch, MAX_PATH);
-		MainModuleName = FString(Length, Scratch);
+		MainModuleName = FString::ConstructFromPtrSize(Scratch, Length);
 	}
 
 	// https://docs.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb_ldr_data
@@ -396,7 +409,7 @@ void FLiveCodingModule::StartupModule()
 			break;
 		}
 
-		FString FullPath(ModuleData.FullDllName.Length / sizeof(ModuleData.FullDllName.Buffer[0]), ModuleData.FullDllName.Buffer);
+		FString FullPath = FString::ConstructFromPtrSize(ModuleData.FullDllName.Buffer, ModuleData.FullDllName.Length / sizeof(ModuleData.FullDllName.Buffer[0]));
 		if (!FullPath.Equals(MainModuleName, ESearchCase::IgnoreCase))
 		{
 			FPaths::NormalizeFilename(FullPath);
@@ -420,6 +433,13 @@ void FLiveCodingModule::StartupModule()
 		TEXT("LiveCoding.Compile"),
 		TEXT("Initiates a live coding compile"),
 		FConsoleCommandDelegate::CreateLambda([this] { Compile(ELiveCodingCompileFlags::None, nullptr); }),
+		ECVF_Cheat
+	);
+	
+	CompileSyncCommand = ConsoleManager.RegisterConsoleCommand(
+		TEXT("LiveCoding.CompileSync"),
+		TEXT("Initiates a live coding compile and waits for completion"),
+		FConsoleCommandDelegate::CreateLambda([this] { Compile(ELiveCodingCompileFlags::WaitForCompletion, nullptr); }),
 		ECVF_Cheat
 	);
 
@@ -501,6 +521,7 @@ void FLiveCodingModule::ShutdownModule()
 	ConsoleManager.UnregisterConsoleObject(SourceProjectVariable);
 	ConsoleManager.UnregisterConsoleObject(ConsolePathVariable);
 	ConsoleManager.UnregisterConsoleObject(CompileCommand);
+	ConsoleManager.UnregisterConsoleObject(CompileSyncCommand);
 	ConsoleManager.UnregisterConsoleObject(EnableCommand);
 
 	// Unregister from the dll notifications
@@ -549,6 +570,10 @@ void FLiveCodingModule::EnableForSession(bool bEnable)
 		switch (State)
 		{
 		case EState::NotRunning:
+			if (!SetupConsolePath())
+			{
+				return;
+			}
 			StartLiveCoding(ELiveCodingStartupMode::Manual); // State set in this method
 			ShowConsole();
 			break;
@@ -1013,8 +1038,10 @@ void FLiveCodingModule::ShowNotification(bool Success, const FText& Title, const
 	{
 		Info.SubText = *SubText;
 	}
-	TSharedPtr<SNotificationItem> CompileNotification = FSlateNotificationManager::Get().AddNotification(Info);
-	CompileNotification->SetCompletionState(Success ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail);
+	if (TSharedPtr<SNotificationItem> CompileNotification = FSlateNotificationManager::Get().AddNotification(Info))
+	{
+		CompileNotification->SetCompletionState(Success ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail);
+	}
 }
 #endif
 
@@ -1025,6 +1052,13 @@ ILiveCodingModule::FOnPatchCompleteDelegate& FLiveCodingModule::GetOnPatchComple
 
 void FLiveCodingModule::StartLiveCodingAsync(ELiveCodingStartupMode StartupMode)
 {
+	// Make sure we can setup the console path correctly
+	if (!SetupConsolePath())
+	{
+		State = EState::NotRunning;
+		return;
+	}
+
 	if (IsRunningCommandlet())
 	{
 		StartLiveCoding(StartupMode);
@@ -1038,6 +1072,40 @@ void FLiveCodingModule::StartLiveCodingAsync(ELiveCodingStartupMode StartupMode)
 
 		FFunctionGraphTask::CreateAndDispatchWhenReady(MoveTemp(Task), TStatId());
 	}
+}
+
+bool FLiveCodingModule::SetupConsolePath()
+{
+	// Setup the console path
+	GLiveCodingConsolePath = ConsolePathVariable->GetString();
+	if (!FPaths::FileExists(GLiveCodingConsolePath))
+	{
+		// Check from the executable as the user might have specified different base dir
+		FString CodingConsolePathFromExecutable = FullEngineDirFromExecutable / DefaultConsolePath;
+		FPaths::CollapseRelativeDirectories(CodingConsolePathFromExecutable);
+		if (!FPaths::FileExists(CodingConsolePathFromExecutable))
+		{
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("Executable"), FText::FromString(GLiveCodingConsolePath));
+			const static FText FormatString = LOCTEXT("LiveCodingMissingExecutable", "Unable to start live coding session. Missing executable '{Executable}'. Use the LiveCoding.ConsolePath console variable to modify.");
+			EnableErrorText = FText::Format(FormatString, Args);
+			UE_LOG(LogLiveCoding, Error, TEXT("Unable to start live coding session. Missing executable '%s'. Use the LiveCoding.ConsolePath console variable to modify."), *GLiveCodingConsolePath);
+			return false;
+		}
+
+		GLiveCodingConsolePath = CodingConsolePathFromExecutable;
+
+		// If we found the console from the executable path, chances are users wants the project from there as well
+		const FString ExecutablePath = FPaths::GetPath(FPlatformProcess::ExecutablePath());
+		FString SourceProjectFromExecutable = ExecutablePath / FPaths::GetProjectFilePath();
+		FPaths::NormalizeDirectoryName(SourceProjectFromExecutable);
+		FPaths::CollapseRelativeDirectories(SourceProjectFromExecutable);
+		if(SourceProjectFromExecutable.Len() > 0 && FPaths::FileExists(SourceProjectFromExecutable))
+		{
+			SourceProjectVariable->Set(*SourceProjectFromExecutable);
+		}
+	}
+	return true;
 }
 
 bool FLiveCodingModule::StartLiveCoding(ELiveCodingStartupMode StartupMode)
@@ -1062,39 +1130,6 @@ bool FLiveCodingModule::StartLiveCoding(ELiveCodingStartupMode StartupMode)
 			UE_LOG(LogLiveCoding, Error, TEXT("Unable to start live coding session. Some modules have already been hot reloaded."));
 			State = EState::NotRunning;
 			return false;
-		}
-
-		// Setup the console path
-		GLiveCodingConsolePath = ConsolePathVariable->GetString();
-		if (!FPaths::FileExists(GLiveCodingConsolePath))
-		{
-			// Check from the executable as the user might have specified different base dir
-			FString CodingConsolePathFromExecutable = FullEngineDirFromExecutable / DefaultConsolePath;
-			FPaths::CollapseRelativeDirectories(CodingConsolePathFromExecutable);
-			if (!FPaths::FileExists(CodingConsolePathFromExecutable))
-			{
-				FFormatNamedArguments Args;
-				Args.Add(TEXT("Executable"), FText::FromString(GLiveCodingConsolePath));
-				const static FText FormatString = LOCTEXT("LiveCodingMissingExecutable", "Unable to start live coding session. Missing executable '{Executable}'. Use the LiveCoding.ConsolePath console variable to modify.");
-				EnableErrorText = FText::Format(FormatString, Args);
-				UE_LOG(LogLiveCoding, Error, TEXT("Unable to start live coding session. Missing executable '%s'. Use the LiveCoding.ConsolePath console variable to modify."), *GLiveCodingConsolePath);
-				State = EState::NotRunning;
-				return false;
-			}
-			else
-			{
-				GLiveCodingConsolePath = CodingConsolePathFromExecutable;
-
-				// If we found the console from the executable path, chances are users wants the project from there as well
-				const FString ExecutablePath = FPaths::GetPath(FPlatformProcess::ExecutablePath());
-				FString SourceProjectFromExecutable = ExecutablePath / FPaths::GetProjectFilePath();
-				FPaths::NormalizeDirectoryName(SourceProjectFromExecutable);
-				FPaths::CollapseRelativeDirectories(SourceProjectFromExecutable);
-				if(SourceProjectFromExecutable.Len() > 0 && FPaths::FileExists(SourceProjectFromExecutable))
-				{
-					SourceProjectVariable->Set(*SourceProjectFromExecutable);
-				}
-			}
 		}
 
 		// Get the source project filename
@@ -1276,7 +1311,7 @@ void FLiveCodingModule::UpdateModules(bool bAllowStarting)
 			}
 		}
 
-		if (EnableModules.Num() > 0)
+		if (!EnableModules.IsEmpty() || !LazyLoadModules.IsEmpty())
 		{
 			TArray<const TCHAR*> EnableModuleFileNames;
 			for (const FString& EnableModule : EnableModules)
@@ -1473,7 +1508,7 @@ void FLiveCodingModule::OnDllNotification(unsigned int Reason, const void* DataP
 		UPTRINT	Base;
 	};
 	const auto& Data = *(FNotificationData*)DataPtr;
-	FString FullPath(Data.FullPath.Length / sizeof(Data.FullPath.Buffer[0]), Data.FullPath.Buffer);
+	FString FullPath = FString::ConstructFromPtrSize(Data.FullPath.Buffer, Data.FullPath.Length / sizeof(Data.FullPath.Buffer[0]));
 	FPaths::NormalizeFilename(FullPath);
 
 	switch (Reason)

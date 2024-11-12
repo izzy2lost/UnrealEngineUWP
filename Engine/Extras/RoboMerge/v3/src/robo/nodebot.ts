@@ -18,7 +18,7 @@ import { makeClLink, SlackMessages } from './notifications';
 import { PerforceStatefulBot } from './perforce-stateful-bot';
 import { BlockageNodeOpUrls, OperationUrlHelper } from './roboserver';
 import { Context } from './settings';
-import { SlackMessage, SlackMessageField, SlackMessageStyles } from './slack';
+import { SlackFile, SlackMessage, SlackMessageField, SlackMessageStyles } from './slack';
 import { PauseState } from './state-interfaces';
 import { newTickJournal, TickJournal } from './tick-journal';
 import { computeTargets, parseDescriptionLines, processOtherBotTargets, getIntegrationOwner, getNodeBotFullName, getNodeBotFullNameForLogging } from './targets';
@@ -127,12 +127,6 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		)
 
 		this.initTickJournal()
-
-		if (!this.branch.workspace) {
-			throw new Error(`Branch ${this.fullName} has no valid workspace specified`)
-		}
-
-		// not looking for min CL of edges any more
 
 		// Finally after setup, create the edges. (Edges may rely on NodeBot data for setup, so always do this last.)
 		this.edges = this.createEdges()
@@ -512,13 +506,19 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		const prevValue = this._forceSetLastCl_NoReset(value)
 
 		if (prevValue !== value) {
-			this.onForcedLastCl(this.displayName, value, prevValue, culprit, reason)
+			this.onForcedLastCl(this.displayName, this.branch.upperName, value, prevValue, culprit, reason)
 		}
 		return prevValue
 	}
 	
-	onForcedLastCl(nodeOrEdgeName: string, forcedCl: number, previousCl: number, culprit: string, reason: string) {
-		this.conflicts.onForcedLastCl({nodeOrEdgeName, forcedCl, previousCl, culprit, reason})
+	setGateCl(_1: number, _2: string, _3:string): Promise<number | null> {
+		const err = new Error('setGateCl not implemented on NodeBot')
+		this.nodeBotLogger.printException(err)
+		throw err
+	}
+
+	onForcedLastCl(nodeOrEdgeName: string, targetBranchUpperName: string, forcedCl: number, previousCl: number, culprit: string, reason: string) {
+		this.conflicts.onForcedLastCl({nodeOrEdgeName, sourceBranchUpperName: this.branch.upperName, targetBranchUpperName, forcedCl, previousCl, culprit, reason})
 	}
 
 	persistQueuedChanges() {
@@ -661,7 +661,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		const edgeMap = new Map<string, EdgeBot>([[edge.targetBranch.upperName, edge]])
 		let integratedCl: Change | null = null // Set to possible undefines as we use this in the finally clause
 		try {
-			const processResult = await this._createChangeInfo(blockageChange, edgeMap, this.p4.username, targetBranch.workspace, targetBranch)
+			const workspace = await edge.getWorkspace()
+			const processResult = await this._createChangeInfo(blockageChange, edgeMap, this.p4.username, workspace, targetBranch)
 			if (!processResult.info) {
 				return {
 					success: false, 
@@ -693,7 +694,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 			let p4ChangeResult
 			try {
-				p4ChangeResult = await this.p4.getChange( targetBranch.rootPath, changelist, 'shelved')
+				p4ChangeResult = await this.p4.getChange(changelist)
 			}
 			catch (err) {
 				return { 
@@ -705,7 +706,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			integratedCl = p4ChangeResult as Change
 
 			// Unshelve 
-			if (!await this.p4.unshelve(targetBranch.workspace, integratedCl.change)) {
+			if (!await this.p4.unshelve(workspace, integratedCl.change)) {
 				return { 
 					success: false, 
 					message: `Unable to unshelve CL ${integratedCl.change}`
@@ -751,11 +752,11 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			// We need the depot file for each conflict file to do comparisons
 			for (const remainingFile of remainingFiles) {
 				// Find target file 
-				const targetFileInDepotZtag = await this.p4.where(integratedCl.client, remainingFile.clientFile)
-				if (!targetFileInDepotZtag[0].depotFile) { 
+				const targetFileInDepot = await this.p4.where(integratedCl.client, remainingFile.clientFile)
+				if (!targetFileInDepot[0].depotFile) { 
 					throw new Error(`Error retrieving depot path for the merge target of ${remainingFile.clientFile}`)
 				}
-				remainingFile.targetDepotFile = targetFileInDepotZtag[0].depotFile
+				remainingFile.targetDepotFile = targetFileInDepot[0].depotFile
 			}
 
 			let remainingAllBinary = true
@@ -1071,7 +1072,20 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			filesByUser.set(lockedFile.user, [...(filesByUser.get(lockedFile.user) || []), lockedFile.depotPath])
 		}
 
-		filesByClient.forEach((files,client) => this.p4.revertFiles(files,client))
+		let results = await Promise.all(Array.from(filesByClient.entries()).map(async ([client,files]) => 
+			{ 
+				try { 
+					await this.p4.revertFiles(files,client)
+				} catch (reason) {
+					return { success: false, message: reason }
+				}
+				return { success: true }
+			}))
+		results = results.filter(result => !result.success)
+		
+		if (results.length > 0) {
+			return { success: false, message: results.map(result => result.message).join('\n') }
+		}
 
 		if (this.slackMessages) {
 			
@@ -1255,7 +1269,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		}
 
 		status.conflicts = [] as any[]
-		this.conflicts.applyStatus(status.conflicts)
+		this.conflicts.applyStatus(status.conflicts, this.slackMessages)
 
 		status.tick_count = this.tickCount
 
@@ -1453,13 +1467,18 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			return
 		}
 
-		this.nodeBotLogger.info(`Sending reconsider shelf creation (shelf CL ${pendingChange.newCl}) notification to ${pendingChange.change.owner} for source CL ${pendingChange.change.source_cl}`)
+		this.nodeBotLogger.info(`Sending shelf creation (shelf CL ${pendingChange.newCl}) notification to ${pendingChange.change.owner} for source CL ${pendingChange.change.source_cl}`)
+
+		let showStillBlockedMessage = pendingChange.change.forceCreateAShelf && !pendingChange.action.flags.has('manual')
 
 		if (this.slackMessages) {
 			let dm: SlackMessage = {
 				text: `Robomerge has created shelf CL ${pendingChange.newCl} in workspace ${pendingChange.change.targetWorkspaceForShelf} ` +
 				`for merging source CL ${pendingChange.change.source_cl} (${this.fullName}).\n` +
-				`\`\`\`${pendingChange.change.description}\`\`\``,
+				`\`\`\`${pendingChange.change.description}\`\`\`` +
+				(showStillBlockedMessage	?
+					'\n\n*Creating a shelf does not skip or unblock robomerge. It is still time sensitive that you resolve the conflict and submit, or skip the conflict.*'
+					: ''),
 				channel: '',
 				mrkdwn: true
 			}
@@ -1473,7 +1492,10 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 				new Recipients(owner),
 				`Robomerge created Shelf CL ${pendingChange.newCl} in ${pendingChange.change.targetWorkspaceForShelf}`,
 				`Robomerge has created shelf CL ${pendingChange.newCl} in workspace ${pendingChange.change.targetWorkspaceForShelf} ` +
-					`for merging source CL ${pendingChange.change.source_cl} (${this.fullName}).`,
+					`for merging source CL ${pendingChange.change.source_cl} (${this.fullName}).` +
+				showStillBlockedMessage	?
+					'\n\nCreating a shelf does not skip or unblock robomerge. It is still time sensitive that you resolve the conflict and submit, or skip the conflict.'
+					: '',
 				`${pendingChange.change.source_cl}:\n${pendingChange.change.description}`)
 		}
 	}
@@ -1587,9 +1609,21 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		let isManualChange = numTargets > 0 ? result.info.targets![0].flags.has('manual') : false;
 		if (change.forceCreateAShelf || (change.isUserRequest && !change.forceStompChanges) || isManualChange) {
 			if (!optWorkspaceOverride && numTargets == 1) {
-				result.info.targetWorkspaceForShelf = await p4util.chooseBestWorkspaceForUser(this.p4, result.info.owner||result.info.author, result.info.targets![0].branch.stream)
+				const targetStream = result.info.targets![0].branch.stream ? result.info.targets![0].branch.stream.toLowerCase() : undefined
+				const targetWorkspaceDef = await p4util.chooseBestWorkspaceForUser(this.p4, result.info.owner||result.info.author, targetStream)
+				if (targetWorkspaceDef) {
+					result.info.targetWorkspaceForShelf = targetWorkspaceDef.client
+					if (targetWorkspaceDef.Stream) {
+						result.info.targetWorkspaceIsPartialMatch = targetWorkspaceDef.Stream.toLowerCase() == targetStream
+					}
+				}
 				optWorkspaceOverride = result.info.targetWorkspaceForShelf
-				this.nodeBotLogger.info(`Chose workspace ${optWorkspaceOverride}`)
+				if (result.info.targetWorkspaceIsPartialMatch) {
+					this.nodeBotLogger.info(`Chose workspace ${optWorkspaceOverride} (${targetWorkspaceDef!.Stream}) as a partial match for ${targetStream}`)
+				}
+				else {
+					this.nodeBotLogger.info(`Chose workspace ${optWorkspaceOverride}`)
+				}
 			}
 			if (optWorkspaceOverride) {
 				// see if we need to talk to an edge server to create the shelf
@@ -1647,19 +1681,11 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			}
 
 			if (blockAssetEdges.length > 0) {
-				const describeResult = await this.p4.describe(change.change)
 
-				let changeContainsAssets = false
-				for (const entry of describeResult!.entries) {
-					const fileExtIndex = entry.depotFile.lastIndexOf('.')
-					if (fileExtIndex !== -1) {
-						const fileExt = entry.depotFile.substring(fileExtIndex + 1)
-						if (fileExt === 'uasset' || fileExt === 'umap') {
-							changeContainsAssets = true
-							break
-						}
-					}
-				}
+				let uassetSize = this.p4.sizes(`//....uasset@=${change.change}`, true)
+				let umapSize = this.p4.sizes(`//....umap@=${change.change}`, true)
+
+				const changeContainsAssets = ((await uassetSize)[0].fileCount > 0 || (await umapSize)[0].fileCount > 0)
 
 				if (changeContainsAssets) {
 					for (const [edge, action] of blockAssetEdges) {
@@ -2112,8 +2138,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 			let message = `While reconsidering CL#${pending.change.cl}`
 
-			if (failure.summary) {
-				message += '\n' + failure.summary 
+			if (failure.details) {
+				message += '\n' + failure.details 
 			}
 			else
 			{
@@ -2122,6 +2148,12 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 			if (postIntegrate && pending.change.targetWorkspaceForShelf) {
 				message += `\n\nShelved ${pending.newCl} in workspace ${pending.change.targetWorkspaceForShelf}`
+
+				if (pending.change.targetWorkspaceIsPartialMatch) {
+					message += `\n\n*NOTE: The target workspace was not an exact match for the shelved files. `
+					message += "You may need to remap the workspace to the target stream, move the files to "
+					message += "another workspace, or create a workspace for these files and reconsider again.*"
+				}
 			}
 
 			if (this.slackMessages) {
@@ -2135,6 +2167,15 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 				
 				let emailAddress = await this.findEmail(owner)
 				this.slackMessages.postDM(emailAddress, pending.newCl, this.branch, dm)
+
+				if (failure.details) {
+					let file: SlackFile = {
+						content: failure.details,
+						channels: "",
+						filename: "failuredetails.txt"
+					}
+					this.slackMessages.postFileToDM(emailAddress, pending.newCl, this.branch, file)
+				}				
 			}
 			else {
 				this.sendErrorEmail(new Recipients(owner), shortMessage, message)
@@ -2171,18 +2212,24 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 	async reportApprovalRequired(approval: ApprovalOptions, pending: PendingChange) {
 		if (this.slackMessages) {
-			const userEmail = await this.p4.getEmail(pending.change.author)
-			const slackUser = userEmail ? await this.slackMessages.getSlackUser(userEmail) : null
-			const channelPing = slackUser ? `<@${slackUser}>` : `@${pending.change.author}`
+			const authorEmail = await this.p4.getEmail(pending.change.author)
+			const slackAuthor = authorEmail ? await this.slackMessages.getSlackUser(authorEmail) : null
+			const ownerEmail = pending.change.owner && pending.change.owner != pending.change.author ? await this.p4.getEmail(pending.change.owner) : null
+			const slackOwner = ownerEmail ?  await this.slackMessages.getSlackUser(ownerEmail) : null
 
 			const fields: SlackMessageField[] = [
 				{title: 'Change', short: true, value: makeClLink(pending.newCl)}
 			]
 
+			let message = (slackAuthor ? `<@${slackAuthor}>` : `@${pending.change.author}`) +
+						  "'s change " +
+						  (ownerEmail ? "owned by " + (slackOwner ? `<@${slackOwner}> ` : `@${pending.change.owner} `) : "") +
+						  `in ${pending.action.branch.name} needs to be approved.\n\n` +
+						  approval.description
+
 			const opts: SlackMessage = { 
 				title:'', 
-				text: `${channelPing}'s change in ${pending.action.branch.name} needs to be approved.\n\n` +
-						approval.description, 
+				text: message, 
 				style: SlackMessageStyles.DANGER, 
 				fields,
 				mrkdwn: true,

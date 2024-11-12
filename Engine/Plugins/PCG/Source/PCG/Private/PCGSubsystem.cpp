@@ -25,6 +25,11 @@
 #include "Editor.h"
 #include "PackageSourceControlHelper.h"
 #include "ObjectTools.h"
+#include "Misc/ScopedSlowTask.h"
+#include "Subsystems/ActorEditorContextSubsystem.h"
+#include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #else
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -109,8 +114,23 @@ namespace PCGSubsystemConsole
 				PCGSubsystem->DestroyAllPCGWorldActors();
 			}
 		}));
+
+	static FAutoConsoleCommand CommandRefreshRuntimeGen(
+		TEXT("pcg.RuntimeGeneration.Refresh"),
+		TEXT("Cleans up and re-generates all GenerateAtRuntime PCG components, including their partition actors."),
+		FConsoleCommandDelegate::CreateLambda([]()
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->RefreshAllRuntimeGenComponents(EPCGChangeType::GenerationGrid);
+			}
+		}));
 #endif
 }
+
+#if WITH_EDITOR
+TSet<UWorld*> UPCGSubsystem::DisablePartitionActorCreationForWorld;
+#endif
 
 UPCGSubsystem::UPCGSubsystem()
 	: Super()
@@ -166,28 +186,28 @@ void UPCGSubsystem::PostInitialize()
 {
 	Super::PostInitialize();
 
-	ActorAndComponentMapping.Initialize(GetWorld());
-
-	// Initialize graph executor
-	check(!GraphExecutor);
-	GraphExecutor = new FPCGGraphExecutor();
-
-	// Initialize runtime generation scheduler
-	check(!RuntimeGenScheduler);
-	RuntimeGenScheduler = new FPCGRuntimeGenScheduler(GetWorld(), &ActorAndComponentMapping);
-
 	// Gather world pcg actor if it exists
 	if (!PCGWorldActor)
 	{
 		if (UWorld* World = GetWorld())
 		{
-			UPCGActorHelpers::ForEachActorInWorld<APCGWorldActor>(World, [this](AActor* InActor)
+			UPCGActorHelpers::ForEachActorInLevel<APCGWorldActor>(World->PersistentLevel, [this](AActor* InActor)
 			{
 				PCGWorldActor = Cast<APCGWorldActor>(InActor);
 				return PCGWorldActor == nullptr;
 			});
 		}
 	}
+
+	ActorAndComponentMapping.Initialize();
+
+	// Initialize graph executor
+	check(!GraphExecutor);
+	GraphExecutor = new FPCGGraphExecutor(GetWorld());
+
+	// Initialize runtime generation scheduler
+	check(!RuntimeGenScheduler);
+	RuntimeGenScheduler = new FPCGRuntimeGenScheduler(GetWorld(), &ActorAndComponentMapping);
 }
 
 UPCGSubsystem* UPCGSubsystem::GetInstance(UWorld* World)
@@ -201,6 +221,11 @@ UPCGSubsystem* UPCGSubsystem::GetInstance(UWorld* World)
 	{
 		return nullptr;
 	}
+}
+
+void UPCGSubsystem::RegisterBeginTickAction(FTickAction&& Action)
+{
+	BeginTickActions.Emplace(Action);
 }
 
 #if WITH_EDITOR
@@ -248,6 +273,8 @@ bool UPCGSubsystem::RemoveAndCopyConstructionScriptSourceComponent(AActor* InCom
 void UPCGSubsystem::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	ExecuteBeginTickActions();
 
 #if WITH_EDITOR
 	PerActorConstructionScriptSourceComponents.Empty();
@@ -545,16 +572,15 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 	ensure(PCGHelpers::GetGenerationGridSizes(PCGComponent->GetGraph(), GetPCGWorldActor(), GridSizes, bHasUnbounded));
 
 	// Create the PartitionActors if necessary. Skip if this is a runtime managed component, PAs are handled manually by the RuntimeGenScheduler.
+	// Editor only because we expect at runtime for PAs to already exist so they can properly be streamed in and out (creating them at runtime would leave them unmanaged and always loaded)
 	if (PCGComponent->IsPartitioned() && !PCGComponent->IsManagedByRuntimeGenSystem())
 	{
+#if WITH_EDITOR
 		if (!GridSizes.IsEmpty())
 		{
-			// In this case create the PA and update the mapping
-			// Note: This is an immediate operation, as we need the PA for the generation.
-			auto ScheduleTask = [](APCGPartitionActor* PCGActor, const FBox& InIntersectedBounds) { return InvalidPCGTaskId; };
-
-			ForAllOverlappingCells(PCGComponent->GetGridBounds(), GridSizes, /*bCanCreateActor=*/true, /*Dependencies=*/{}, ScheduleTask);
+			CreatePartitionActorsWithinBounds(PCGComponent, PCGComponent->GetGridBounds(), GridSizes);
 		}
+#endif // WITH_EDITOR
 
 		ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(PCGComponent);
 	}
@@ -818,6 +844,11 @@ FPCGTaskId UPCGSubsystem::ScheduleGenericWithContext(TFunction<bool(FPCGContext*
 
 void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 {
+	CancelGeneration(Component, /*bCleanupUnusedResources=*/true);
+}
+
+void UPCGSubsystem::CancelGeneration(UPCGComponent* Component, bool bCleanupUnusedResources)
+{
 	check(GraphExecutor && IsInGameThread());
 	if (!Component || !Component->IsGenerating())
 	{
@@ -826,11 +857,11 @@ void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 
 	if (Component->IsPartitioned())
 	{
-		auto LocalCancel = [this](UPCGComponent* LocalComponent)
+		auto LocalCancel = [this, bCleanupUnusedResources](UPCGComponent* LocalComponent)
 		{
 			if (LocalComponent->IsGenerating())
 			{
-				CancelGeneration(LocalComponent);
+				CancelGeneration(LocalComponent, bCleanupUnusedResources);
 			}
 
 			return InvalidPCGTaskId;
@@ -844,7 +875,7 @@ void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
 	{
 		if (CancelledComponent)
 		{
-			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true);
+			CancelledComponent->OnProcessGraphAborted(/*bQuiet=*/true, bCleanupUnusedResources);
 		}
 	}	
 }
@@ -896,6 +927,30 @@ void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, 
 		RuntimeGenScheduler->RefreshComponent(RuntimeComponent, bRemovePartitionActors);
 	}
 }
+
+void UPCGSubsystem::RefreshAllRuntimeGenComponents(EPCGChangeType ChangeType)
+{
+	for (UPCGComponent* Component : GetAllRegisteredComponents())
+	{
+		if (Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			RefreshRuntimeGenComponent(Component, ChangeType);
+		}
+	}
+}
+
+#if WITH_EDITOR
+void UPCGSubsystem::RefreshAllComponentsFiltered(const TFunction<bool(UPCGComponent*)>& ComponentFilter, EPCGChangeType ChangeType)
+{
+	for (UPCGComponent* Component : GetAllRegisteredComponents())
+	{
+		if (ComponentFilter(Component))
+		{
+			Component->Refresh(ChangeType);
+		}
+	}
+}
+#endif
 
 bool UPCGSubsystem::IsGraphCurrentlyExecuting(UPCGGraph* Graph)
 {
@@ -961,7 +1016,7 @@ void UPCGSubsystem::ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComp
 	});
 }
 
-FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes, bool bCanCreateActor, const TArray<FPCGTaskId>& Dependencies, TFunctionRef<FPCGTaskId(APCGPartitionActor*, const FBox&)> InFunc) const
+FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes, bool bCanCreateActor, const TArray<FPCGTaskId>& Dependencies, TFunctionRef<FPCGTaskId(APCGPartitionActor*, const FBox&)> InFunc) const
 {
 	if (!GraphExecutor || !PCGWorldActor)
 	{
@@ -977,29 +1032,18 @@ FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(const FBox& InBounds, const PCG
 
 	if (GridSizes.IsEmpty())
 	{
-		ensureMsgf(false, TEXT("Must have grid sizes."));
 		return InvalidPCGTaskId;
 	}
 
-	PCGWorldActor->CreateGridGuidsIfNecessary(GridSizes, /*bAreGridsSerialized=*/true);
-
-	PCGHiGenGrid::FSizeToGuidMap GridSizeToGuid;
-	PCGWorldActor->GetSerializedGridGuids(GridSizeToGuid);
-	
 	TArray<FPCGTaskId> CellTasks;
 	for (uint32 GridSize : GridSizes)
 	{
-		const FGuid* GuidPtr = GridSizeToGuid.Find(GridSize);
-		if (!ensure(GuidPtr))
-		{
-			continue;
-		}
-
-		const FGuid GridGuid = *GuidPtr;
+		FPCGGridDescriptor Descriptor = InComponent->GetGridDescriptor(GridSize);
+		check(!Descriptor.IsRuntime());
 
 		// In case of 2D grid, we are clamping our bounds in Z to be within 0 and GridSize to create a 2D grid instead of 3D.
 		FBox ModifiedInBounds = InBounds;
-		if (PCGWorldActor->bUse2DGrid)
+		if (Descriptor.Is2DGrid())
 		{
 			FVector MinBounds = InBounds.Min;
 			FVector MaxBounds = InBounds.Max;
@@ -1010,13 +1054,13 @@ FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(const FBox& InBounds, const PCG
 		}
 
 		// Helper lambda to apply 'InFunc' to the specified grid cell. Only applies if the cell overlaps the modified bounds, and the actor can be found or created and is not unloaded.
-		auto ApplyOnCell = [this, &CellTasks, ModifiedInBounds, bCanCreateActor, &GridGuid, GridSize, &InFunc](const FIntVector& CellCoord, const FBox& CellBounds)
+		auto ApplyOnCell = [this, &CellTasks, ModifiedInBounds, bCanCreateActor, &Descriptor, &InFunc](const FIntVector& CellCoord, const FBox& CellBounds)
 		{
 			const FBox IntersectedBounds = ModifiedInBounds.Overlap(CellBounds);
 
 			if (IntersectedBounds.IsValid)
 			{
-				if (APCGPartitionActor* Actor = FindOrCreatePCGPartitionActor(GridGuid, GridSize, CellCoord, /*bRuntimeGenerated=*/false, bCanCreateActor))
+				if (APCGPartitionActor* Actor = FindOrCreatePCGPartitionActor(Descriptor, CellCoord, bCanCreateActor))
 				{
 					FPCGTaskId ExecuteTaskId = InFunc(Actor, IntersectedBounds);
 
@@ -1028,8 +1072,8 @@ FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(const FBox& InBounds, const PCG
 			}
 		};
 
-		FIntVector MinCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Min, GridSize, PCGWorldActor->bUse2DGrid);
-		FIntVector MaxCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Max, GridSize, PCGWorldActor->bUse2DGrid);
+		FIntVector MinCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Min, GridSize, Descriptor.Is2DGrid());
+		FIntVector MaxCellCoords = UPCGActorHelpers::GetCellCoord(InBounds.Max, GridSize, Descriptor.Is2DGrid());
 
 		// Apply 'InFunc' to all cells in the provided bounds.
 		for (int32 Z = MinCellCoords.Z; Z <= MaxCellCoords.Z; ++Z)
@@ -1089,17 +1133,51 @@ void UPCGSubsystem::CleanupLocalComponentsImmediate(UPCGComponent* InOriginalCom
 	}
 }
 
+// deprecated
 UPCGComponent* UPCGSubsystem::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient) const
 {
-	return ActorAndComponentMapping.GetLocalComponent(GridSize, CellCoords, InOriginalComponent, bTransient);
+	check(InOriginalComponent);
+
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIsRuntime(bTransient)
+		.SetIs2DGrid(InOriginalComponent->Use2DGrid());
+
+	return GetLocalComponent(GridDescriptor, CellCoords, InOriginalComponent);
 }
 
+// deprecated
 APCGPartitionActor* UPCGSubsystem::GetRegisteredPCGPartitionActor(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated) const
 {
-	return ActorAndComponentMapping.GetPartitionActor(GridSize, GridCoords, bRuntimeGenerated);
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIsRuntime(bRuntimeGenerated);
+
+	return GetRegisteredPCGPartitionActor(GridDescriptor, GridCoords);
 }
 
+// deprecated
 APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Guid, uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated, bool bCanCreateActor) const
+{
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIsRuntime(bRuntimeGenerated);
+
+	return FindOrCreatePCGPartitionActor(GridDescriptor, GridCoords, bCanCreateActor);
+}
+
+UPCGComponent* UPCGSubsystem::GetLocalComponent(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent) const
+{
+	check(InOriginalComponent);
+	return ActorAndComponentMapping.GetLocalComponent(GridDescriptor, CellCoords, InOriginalComponent);
+}
+
+APCGPartitionActor* UPCGSubsystem::GetRegisteredPCGPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords) const
+{
+	return ActorAndComponentMapping.GetPartitionActor(GridDescriptor, GridCoords);
+}
+
+APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords, bool bCanCreateActor, bool bHideFromOutliner) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::FindOrCreatePCGPartitionActor);
 
@@ -1118,19 +1196,43 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Gu
 	}
 
 	// Attempt to find an existing PA.
-	if (APCGPartitionActor* ExistingActor = GetRegisteredPCGPartitionActor(GridSize, GridCoords, bRuntimeGenerated))
+	if (APCGPartitionActor* ExistingActor = GetRegisteredPCGPartitionActor(GridDescriptor, GridCoords))
 	{
 		return ExistingActor;
 	}
-	else if (!bRuntimeGenerated)
+	else if (!GridDescriptor.IsRuntime())
 	{
-		// Check if there is already an unloaded actor for this cell. RuntimeGenerated PAs are never unloaded, so we ignore them.
-		if (PCGWorldActor->DoesSerializedPartitionActorExist(Guid, GridSize, GridCoords))
+		// In a Game World PAs need to be Pre-Existing. 
+		// The Original PCG Component will be marked as Generated on load see UPCGComponent::BeginPlay
+		if (GetWorld()->IsGameWorld())
 		{
 			return nullptr;
 		}
+
+#if WITH_EDITOR
+		// Check if there is already an unloaded actor for this cell. RuntimeGenerated PAs are never unloaded, so we ignore them.
+		if (ActorAndComponentMapping.DoesPartitionActorRecordExist(GridDescriptor, GridCoords))
+		{
+			return nullptr;
+		}
+#endif
 	}
 
+	// If FindOrCreatePCGPartitionActor is called on a Level while it is not fully registered.
+	// We can't create the actor as it may already exist but not have been registered yet.
+	if (!World->PersistentLevel->bAreComponentsCurrentlyRegistered)
+	{
+		return nullptr;
+	}
+
+#if WITH_EDITOR
+	// Do not try and create while executing a Undo/Redo because actor might already be in the process of being re-created by the transaction
+	if (GIsTransacting)
+	{
+		return nullptr;
+	}
+#endif
+	
 	if (!bCanCreateActor)
 	{
 		return nullptr;
@@ -1138,19 +1240,54 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Gu
 
 	FActorSpawnParameters SpawnParams;
 #if WITH_EDITOR
-	SpawnParams.Name = *APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, bRuntimeGenerated);
-	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
+	SpawnParams.Name = *APCGPartitionActor::GetPCGPartitionActorName(GridDescriptor, GridCoords);
+	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Required_Fatal;
+	SpawnParams.bHideFromSceneOutliner = bHideFromOutliner;
 #endif
-	if (bRuntimeGenerated)
+	if (GridDescriptor.IsRuntime())
 	{
+		SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 		SpawnParams.ObjectFlags |= RF_Transient;
 		SpawnParams.ObjectFlags &= ~RF_Transactional;
 	}
+		
+#if WITH_EDITOR
+	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayerAssets;
+	const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
+			
+	GridDescriptor.GetDataLayerAssets(DataLayerAssets, ExternalDataLayerAsset);
 
-	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridSize);
+	// Avoid relying on the Editor Context at all
+	UActorEditorContextSubsystem::Get()->PushContext();
+	ON_SCOPE_EXIT{ UActorEditorContextSubsystem::Get()->PopContext(); };
+
+	// Specify EDL we want to use if any for spawning this actor
+	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerAsset);
+
+	// Handle the case where the actor already exists, but is in the undo stack (was deleted) (copied from ActorPartitionSubsystem, we should probably merge back into it at some point) 
+	if (SpawnParams.NameMode == FActorSpawnParameters::ESpawnActorNameMode::Required_Fatal)
+	{
+		if (UObject* ExistingObject = StaticFindObject(nullptr, World->PersistentLevel, *SpawnParams.Name.ToString()))
+		{
+			AActor* ExistingActor = CastChecked<AActor>(ExistingObject);
+			// This actor is expected to be invalid
+			check(!IsValidChecked(ExistingActor));
+			ExistingActor->Modify();
+
+			// Don't go through AActor::Rename here because we aren't changing outers (the actor's level). We just want to rename that actor 
+			// out of the way so we can spawn the new one in the exact same package, keeping the package name intact.
+			ExistingActor->UObject::Rename(nullptr, nullptr, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
+
+			// Reuse ActorGuid so that ActorDesc can be updated on save
+			SpawnParams.OverrideActorGuid = ExistingActor->GetActorGuid();
+		}
+	}
+#endif
+
+	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridDescriptor.GetGridSize());
 	APCGPartitionActor* NewActor = CastChecked<APCGPartitionActor>(World->SpawnActor(APCGPartitionActor::StaticClass(), &CellCenter, nullptr, SpawnParams));
 
-	if (bRuntimeGenerated)
+	if (GridDescriptor.IsRuntime())
 	{
 		NewActor->SetToRuntimeGenerated();
 	}
@@ -1158,11 +1295,10 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Gu
 #if WITH_EDITOR
 	NewActor->SetLockLocation(true);
 	NewActor->SetActorLabel(SpawnParams.Name.ToString());
-	NewActor->SetGridSize(GridSize);
 #endif
 
 	// Empty GUID if runtime generated, since transient PAs don't need one.
-	NewActor->PostCreation(bRuntimeGenerated ? FGuid() : Guid, GridSize);
+	NewActor->PostCreation(GridDescriptor);
 
 	return NewActor;
 }
@@ -1177,10 +1313,31 @@ FPCGGenSourceManager* UPCGSubsystem::GetGenSourceManager() const
 	return RuntimeGenScheduler ? RuntimeGenScheduler->GenSourceManager : nullptr;
 }
 
+FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler()
+{
+	return GraphExecutor ? GraphExecutor->GetCompiler() : nullptr;
+}
+
+UPCGComputeGraph* UPCGSubsystem::GetComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex)
+{
+	if (FPCGGraphCompiler* GraphCompiler = GetGraphCompiler())
+	{
+		return GraphCompiler->GetComputeGraph(InGraph, GridSize, ComputeGraphIndex);
+	}
+
+	return nullptr;
+}
+
 bool UPCGSubsystem::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData)
 {
 	check(GraphExecutor);
 	return GraphExecutor->GetOutputData(TaskId, OutData);
+}
+
+void UPCGSubsystem::ClearOutputData(FPCGTaskId TaskId)
+{
+	check(GraphExecutor);
+	GraphExecutor->ClearOutputData(TaskId);
 }
 
 #if WITH_EDITOR
@@ -1245,7 +1402,7 @@ void UPCGSubsystem::ClearPCGLink(UPCGComponent* InComponent, const FBox& InBound
 	FPCGTaskId TaskId = InvalidPCGTaskId;
 	if (!GridSizes.IsEmpty())
 	{
-		TaskId = ForAllOverlappingCells(InBounds, GridSizes, /*bCanCreateActor=*/false, /*Dependencies=*/{}, ScheduleTask);
+		TaskId = ForAllOverlappingCells(InComponent, InBounds, GridSizes, /*bCanCreateActor=*/false, /*Dependencies=*/{}, ScheduleTask);
 	}
 
 	// Verify if the NewActor has some components attached to its root or attached actors. If not, destroy it.
@@ -1306,28 +1463,101 @@ void UPCGSubsystem::DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool
 		return;
 	}
 
-	auto GatherAndDestroyActors = [this, &PackagesToCleanup, World, bOnlyDeleteUnused, bOnlyChildren](AActor* Actor) -> bool
+	UWorldPartition* WorldPartition = World->GetWorldPartition();
+	TMap<FGuid, TArray<FGuid>> Attachments;
+
+	auto GetAttachments = [WorldPartition](const FGuid& ParentActor, const TMap<FGuid, TArray<FGuid>>& Attachments, auto GetAttachmentsRecursive, TArray<FGuid>& OutAttachedActors) -> void
+	{
+		if (const TArray<FGuid>* Attached = Attachments.Find(ParentActor))
+		{
+			OutAttachedActors.Append(*Attached);
+			for (const FGuid& AttachedGuid : *Attached)
+			{
+				GetAttachmentsRecursive(AttachedGuid, Attachments, GetAttachmentsRecursive, OutAttachedActors);
+			}
+		}
+	};
+
+	auto GatherAndDestroyActors = [this, &PackagesToCleanup, World, WorldPartition, bOnlyDeleteUnused, bOnlyChildren, &GetAttachments, &Attachments](AActor* Actor) -> bool
 	{
 		TObjectPtr<APCGPartitionActor> PartitionActor = CastChecked<APCGPartitionActor>(Actor);
 
 		// Do not delete RuntimeGen PAs or PAs with graph instances if we are only deleting unused PAs.
 		if (!PartitionActor->IsRuntimeGenerated() && (!bOnlyDeleteUnused || !PartitionActor->HasGraphInstances()))
 		{
-			// Gather all child actors
+			TArray<AActor*> ActorsToDelete;
+
+			TArray<FWorldPartitionReference> ActorReferences;
+
+			// Load Generated Resources to delete them
+			TArray<TSoftObjectPtr<AActor>> ManagedActors = UPCGComponent::GetManagedActorPaths(PartitionActor);
+			for (const TSoftObjectPtr<AActor>& ManagedActorPath : ManagedActors)
+			{
+				// Test to see if actor is loaded first to support non World Partition worlds
+				AActor* ManagedActor = ManagedActorPath.Get();
+				if (!ManagedActor && WorldPartition)
+				{
+					if (const FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstanceByPath(ManagedActorPath.ToSoftObjectPath()))
+					{
+						FWorldPartitionReference& ActorReference = ActorReferences.Emplace_GetRef(FWorldPartitionReference(ActorDescInstance->GetContainerInstance(), ActorDescInstance->GetGuid()));
+						ManagedActor = ActorReference.GetActor();
+					}
+				}
+
+				if (ManagedActor)
+				{
+					ActorsToDelete.Add(ManagedActor);
+				}
+			}
+			
+			// Load Attachments before getting them in the next code block, since loading an actor doesn't load it's attachments (the reference is child to parent)
+			if (WorldPartition)
+			{
+				TArray<FGuid> AttachedActors;
+				GetAttachments(Actor->GetActorGuid(), Attachments, GetAttachments, AttachedActors);
+				for (const FGuid& AttachedActor : AttachedActors)
+				{
+					ActorReferences.Add(FWorldPartitionReference(WorldPartition, AttachedActor));
+				}
+			}
+
+			// We might have actors that weren't saved as managed resources that are attached and have the proper tag
 			TArray<AActor*> AttachedActors;
 			PartitionActor->GetAttachedActors(AttachedActors, /*bResetArray=*/true, /*bRecursivelyIncludeAttachedActors=*/ true);
+			for (AActor* AttachedActor : AttachedActors)
+			{
+				if (AttachedActor->ActorHasTag(PCGHelpers::DefaultPCGActorTag))
+				{
+					if (!ActorsToDelete.Contains(AttachedActor))
+					{
+						ActorsToDelete.Add(AttachedActor);
+					}
+				}
+				else if (WorldPartition && !bOnlyChildren)
+				{
+					// If actor isn't getting deleted but is an attached actor and it's Partition Actor parent 
+					// will get deleted then Pin the actor so it stays loaded and modified for the user to save
+					WorldPartition->PinActors({ AttachedActor->GetActorGuid() });
+				}
+			}
 
 			if (!bOnlyChildren)
 			{
-				AttachedActors.Add(PartitionActor);
-
-				PCGWorldActor->RemoveSerializedPartitionActorRecord({ PartitionActor->PCGGuid, PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord() });
+				ActorsToDelete.Add(PartitionActor);
 			}
 
-			for (AActor* ActorToDelete : AttachedActors)
+			for (AActor* ActorToDelete : ActorsToDelete)
 			{
 				if (UPackage* ExternalPackage = ActorToDelete->GetExternalPackage())
 				{
+					// Since we aren't in a transaction (and this operation isnt undoable) make sure UPackage objects are no longer marked as RF_Standalone so it they can get properly GCed in (ObjectTools::CleanupAfterSuccessfulDelete)
+					// Without this call we end up spamming in UWorldPartition::OnGCPostReachabilityAnalysis
+					ForEachObjectWithPackage(ExternalPackage, [this, Actor](UObject* Object)
+					{
+						Object->ClearFlags(RF_Standalone);
+						return true;
+					}, false);
+
 					PackagesToCleanup.Add(ExternalPackage);
 				}
 
@@ -1342,18 +1572,71 @@ void UPCGSubsystem::DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool
 	if (GEditor)
 	{
 		GEditor->SelectNone(true, true, false);
+		// Any reference in the Transaction buffer to the deleted actors will prevent them from being properly GCed so here we reset the transaction buffer
+		GEditor->ResetTransaction(NSLOCTEXT("PCGSubsystem", "DeletePartitionActorsResetTransaction", "Deleted PCG Actors"));
 	}
 
-	// Attempt destroy on all PAs in the level.
-	if (ULevel* Level = World->GetCurrentLevel())
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSubsystem::DeleteSerializedPartitionActors::ForEachActorInLevel);
-		UPCGActorHelpers::ForEachActorInLevel<APCGPartitionActor>(Level, GatherAndDestroyActors);
-	}
+		FScopedSlowTask DeleteTask(0, NSLOCTEXT("PCGSubsystem", "DeletePartitionActors", "Deleting PCG Actors..."));
+		DeleteTask.MakeDialog();
 
-	if (PackagesToCleanup.Num() > 0)
-	{
-		ObjectTools::CleanupAfterSuccessfulDelete(PackagesToCleanup.Array(), /*bPerformanceReferenceCheck=*/true);
+		FWorldPartitionHelpers::FForEachActorWithLoadingResult LoadingResult;
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSubsystem::DeleteSerializedPartitionActors::ForEachActorInLevel);
+			if (WorldPartition)
+			{
+				// Gather Attach Parent information
+				FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [&Attachments](const FWorldPartitionActorDescInstance* ActorDescInstance)
+				{
+					if (ActorDescInstance->GetParentActor().IsValid())
+					{
+						Attachments.FindOrAdd(ActorDescInstance->GetParentActor()).Add(ActorDescInstance->GetGuid());
+					}
+
+					return true;
+				});
+
+				// Process Loaded Actors first (and unsaved actors that don't have an Actor Desc yet)
+				// Do not use UPCGActorHelpers::ForEachActorInLevel as GatherAndDestroy can end up modifying the Actors array (by loading actors) in a WP World
+				TSet<FGuid> ProcessedActors;
+				const TArray<AActor*> ActorsCopy(World->PersistentLevel->Actors);
+				for (AActor* Actor : ActorsCopy)
+				{
+					if (APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(Actor))
+					{
+						ProcessedActors.Add(Actor->GetActorGuid());
+						GatherAndDestroyActors(Actor);
+					}
+				}
+				
+				FWorldPartitionHelpers::FForEachActorWithLoadingParams ForEachActorWithLoadingParams;
+				ForEachActorWithLoadingParams.bKeepReferences = true;
+				ForEachActorWithLoadingParams.ActorClasses = { APCGPartitionActor::StaticClass() };
+
+				// Load and Process remaining actors
+				FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&GatherAndDestroyActors, &ProcessedActors](const FWorldPartitionActorDescInstance* ActorDescInstance)
+				{
+					if(AActor* Actor = ActorDescInstance->GetActor(); Actor && !ProcessedActors.Contains(Actor->GetActorGuid()))
+					{
+						GatherAndDestroyActors(Actor);
+					}
+					return true;
+				},
+				ForEachActorWithLoadingParams);
+			}
+			else
+			{
+				UPCGActorHelpers::ForEachActorInLevel<APCGPartitionActor>(World->PersistentLevel, GatherAndDestroyActors);
+			}
+		}
+
+		if (PackagesToCleanup.Num() > 0)
+		{
+			ObjectTools::CleanupAfterSuccessfulDelete(PackagesToCleanup.Array(), /*bPerformanceReferenceCheck=*/true);
+		}
+
+		// Non World Partition Levels might have deleted actors without saving anything and we need to GC so that Partition Actors can be created again (avoid name clash)
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	}
 }
 
@@ -1418,16 +1701,6 @@ void UPCGSubsystem::ClearLandscapeCache()
 	}
 }
 
-FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler()
-{
-	if (GraphExecutor)
-	{
-		return &(GraphExecutor->GetCompiler());
-	}
-
-	return nullptr;
-}
-
 bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext)
 {
 	UPCGGraph* Graph = InComponent ? InComponent->GetGraph() : nullptr;
@@ -1448,14 +1721,15 @@ bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackC
 
 	if (bDoesComponentExecute)
 	{
-		GetGraphCompiler()->GetCompiledTasks(Graph, InComponent->GetGenerationGridSize(), OutStackContext);
-		return true;
+		if (FPCGGraphCompiler* GraphCompiler = GetGraphCompiler())
+		{
+			GraphCompiler->GetCompiledTasks(Graph, InComponent->GetGenerationGridSize(), OutStackContext, /*bIsTopGraph=*/false);
+			return true;
+		}
 	}
-	else
-	{
-		OutStackContext = FPCGStackContext();
-		return false;
-	}
+
+	OutStackContext = FPCGStackContext();
+	return false;
 }
 
 uint32 UPCGSubsystem::GetGraphCacheEntryCount(IPCGElement* InElement) const
@@ -1495,7 +1769,7 @@ TArray<FPCGStack> UPCGSubsystem::GetExecutedStacks(const UPCGComponent* InCompon
 
 	for (const FPCGStack& Stack : ExecutedStacks)
 	{
-		if (Stack.GetRootComponent() == InComponent && Stack.GetGraphForCurrentFrame() == InSubgraph)
+		if ((!InComponent || Stack.GetRootComponent() == InComponent) && Stack.GetGraphForCurrentFrame() == InSubgraph)
 		{
 			MatchingStacks.Add(Stack);
 		}
@@ -1534,14 +1808,173 @@ void UPCGSubsystem::ClearExecutedStacks(const UPCGGraph* InContainingGraph)
 	}
 }
 
+void UPCGSubsystem::CreateMissingPartitionActors()
+{
+	if (!PCGHelpers::IsRuntimeOrPIE())
+	{
+		ActorAndComponentMapping.ForAllOriginalComponents([this](UPCGComponent* PCGComponent)
+		{
+			if (PCGComponent->IsPartitioned() && !PCGComponent->IsManagedByRuntimeGenSystem())
+			{
+				bool bHasUnbounded = false;
+				PCGHiGenGrid::FSizeArray GridSizes;
+				ensure(PCGHelpers::GetGenerationGridSizes(PCGComponent->GetGraph(), GetPCGWorldActor(), GridSizes, bHasUnbounded));
+				if (!GridSizes.IsEmpty())
+				{
+					CreatePartitionActorsWithinBounds(PCGComponent, PCGComponent->GetGridBounds(), GridSizes);
+				}
+				ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(PCGComponent);
+			}
+		});
+	}
+}
+
+void UPCGSubsystem::CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes)
+{
+	UWorld* World = GetWorld();
+	if (!PCGHelpers::IsRuntimeOrPIE() && !IsPartitionActorCreationDisabledForWorld(World))
+	{
+		// We can't spawn actors if we are running constructions scripts, asserting when we try to get the actor with the WP API.
+		// We should never enter this if we are in a construction script. If the ensure is hit, we need to fix it.
+		if (ensure(World && !World->bIsRunningConstructionScript))
+		{
+			ForAllOverlappingCells(InComponent, InBounds, InGridSizes, true, {}, [](APCGPartitionActor*, const FBox&) { return InvalidPCGTaskId; });
+		}
+	}
+}
+
+void UPCGSubsystem::UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent) 
+{ 
+	ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(InComponent); 
+}
+
+TSet<TObjectPtr<APCGPartitionActor>> UPCGSubsystem::GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const 
+{ 
+	return ActorAndComponentMapping.GetPCGComponentPartitionActorMappings(InComponent); 
+}
+
+void UPCGSubsystem::OnPCGGraphCancelled(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphCancelled(InComponent);
+}
+
+void UPCGSubsystem::OnPCGGraphStartGenerating(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphStartsGenerating(InComponent);
+}
+
+void UPCGSubsystem::OnPCGGraphGenerated(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphGeneratedOrCleaned(InComponent);
+}
+
+void UPCGSubsystem::OnPCGGraphCleaned(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphGeneratedOrCleaned(InComponent);
+}
+
 #endif // WITH_EDITOR
 
-void UPCGSubsystem::FlushCache()
+UPCGData* UPCGSubsystem::GetPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetInputPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetInputPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetActorPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetActorPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetLandscapePCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetLandscapeHeightPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+UPCGData* UPCGSubsystem::GetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId)
+{
+	return GraphExecutor ? GraphExecutor->GetOriginalActorPCGData(InGraphExecutionTaskId) : nullptr;
+}
+
+void UPCGSubsystem::SetPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
 {
 	if (GraphExecutor)
 	{
+		GraphExecutor->SetPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetInputPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetInputPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetActorPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetLandscapePCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetLandscapePCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetLandscapeHeightPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetLandscapeHeightPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::SetOriginalActorPCGData(FPCGTaskId InGraphExecutionTaskId, UPCGData* InData)
+{
+	if (GraphExecutor)
+	{
+		GraphExecutor->SetOriginalActorPCGData(InGraphExecutionTaskId, InData);
+	}
+}
+
+void UPCGSubsystem::ExecuteBeginTickActions()
+{
+	TArray<FTickAction> Actions = MoveTemp(BeginTickActions);
+	BeginTickActions.Reset();
+
+	for (FTickAction& Action : Actions)
+	{
+		Action();
+	}
+}
+
+IPCGGraphCache* UPCGSubsystem::GetCache()
+{
+	return GraphExecutor ? &(GraphExecutor->GetCache()) : nullptr;
+}
+
+void UPCGSubsystem::FlushCache()
+{
+	if (GraphExecutor && GraphExecutor->GetCompiler())
+	{
 		GraphExecutor->GetCache().ClearCache();
-		GraphExecutor->GetCompiler().ClearCache();
+		GraphExecutor->GetCompiler()->ClearCache();
 	}
 
 #if WITH_EDITOR

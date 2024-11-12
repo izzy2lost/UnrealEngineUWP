@@ -3,8 +3,7 @@
 import * as Sentry from '@sentry/node';
 import { ContextualLogger } from '../common/logger';
 import { Mailer } from '../common/mailer';
-import * as p4util from '../common/p4util';
-import { PerforceContext, Workspace, StreamSpecs } from '../common/perforce';
+import { PerforceContext } from '../common/perforce';
 import { AutoBranchUpdater } from './autobranchupdater';
 import { bindBadgeHandler } from './badges';
 import { Bot } from './bot-interfaces';
@@ -44,39 +43,44 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 
 	private p4: PerforceContext;
 
-	constructor(botname: string, private mailer: Mailer, private externalUrl: string, allStreamSpecs: StreamSpecs) {
+	private constructor(private mailer: Mailer, private externalUrl: string) {
+	}
+
+	static async CreateAsync(botname: string, mailer: Mailer, externalUrl: string) {
+		let graphBot = new GraphBot(mailer, externalUrl)
+
 		if (!GraphBot.dataDirectory) {
 			throw new Error('Data directory must be set before creating a BranchGraph')
 		}
 
-		this.botLogger = new ContextualLogger(botname.toUpperCase())
-		this.p4 = new PerforceContext(this.botLogger)
+		graphBot.botLogger = new ContextualLogger(botname.toUpperCase())
+		graphBot.p4 = new PerforceContext(graphBot.botLogger)
 
-		this.branchGraph = new BranchGraph(botname)
-		this.filename = botname + '.branchmap.json'
+		graphBot.branchGraph = new BranchGraph(botname)
+		graphBot.filename = botname + '.branchmap.json'
 
-		const branchSettingsPath = `${GraphBot.dataDirectory}/${this.filename}`
+		const branchSettingsPath = `${GraphBot.dataDirectory}/${graphBot.filename}`
 
-		this.botLogger.info(`Loading branch map from ${branchSettingsPath}`)
+		graphBot.botLogger.info(`Loading branch map from ${branchSettingsPath}`)
 		const fileText = require('fs').readFileSync(branchSettingsPath, 'utf8')
 
 		const validationErrors: string[] = []
-		const result = BranchDefs.parseAndValidate(validationErrors, fileText, allStreamSpecs)
+		const result = await BranchDefs.parseAndValidate(graphBot.p4, validationErrors, fileText)
 		if (!result.branchGraphDef) {
 			throw new Error(validationErrors.length === 0 ? 'Failed to parse' : validationErrors.join('\n'))
 		}
 
-		this.branchGraph.config = result.config
+		graphBot.branchGraph.config = result.config
 
 		let error: string | null = null
 		try {
-			this.branchGraph._initFromBranchDefInternal(result.branchGraphDef)
+			graphBot.branchGraph._initFromBranchDefInternal(result.branchGraphDef)
 		}
 		catch (exc) {
 			// reset - don't keep a partially configured bot around
-			this.branchGraph = new BranchGraph(botname)
-			this.branchGraph.config = result.config
-			this.branchGraph._initFromBranchDefInternal(null)
+			graphBot.branchGraph = new BranchGraph(botname)
+			graphBot.branchGraph.config = result.config
+			graphBot.branchGraph._initFromBranchDefInternal(null)
 			error = exc.toString();
 		}
 
@@ -86,12 +90,14 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 
 		// start empty bot on error - can be fixed up by branch definition check-in
 		if (error) {
-			this.botLogger.error(`Problem starting up bot ${botname}: ${error}`);
+			graphBot.botLogger.error(`Problem starting up bot ${botname}: ${error}`);
 		}
 
-		this.settings = new Settings(botname, this.branchGraph, this.botLogger, this.p4)
+		graphBot._settings = new Settings(botname, graphBot.branchGraph, graphBot.botLogger, graphBot.p4)
 
-		this.externalUrl = externalUrl
+		graphBot.externalUrl = externalUrl
+
+		return graphBot
 	}
 
 	findNode(branchname: BranchArg): NodeBot | undefined {
@@ -177,20 +183,6 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 		const msg = `${who} restarted bot ${this.branchGraph.botname}`
 		this.botLogger.info(msg)
 		postToRobomergeAlerts(msg)
-
-		if (this.branchGraph.branches.length !== 0) {
-			const workspaces = this.branchGraph.branches.map(branch => 
-				[(branch.workspace as Workspace).name || (branch.workspace as string),
-				branch.rootPath]) as [string, string][]
-			const mirrorWorkspace = AutoBranchUpdater.getMirrorWorkspace(this)
-			if (mirrorWorkspace) {
-				// add /... to match branches' rootPath format
-				workspaces.push([mirrorWorkspace.name, mirrorWorkspace.stream + '/...'])
-			}
-
-			this.botLogger.info('Cleaning all workspaces')
-			await p4util.cleanWorkspaces(this.p4, workspaces)
-		}
 
 		await this.startBotsAsync()
 	}
@@ -495,7 +487,11 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 		}
 	}
 
-	readonly settings: Settings
+	private _settings: Settings
+
+	get settings() {
+		return this._settings;
+	}
 	private botlist: Bot[] = []
 	private waitTime?: number
 

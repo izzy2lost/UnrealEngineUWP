@@ -13,13 +13,22 @@
 #include "MediaOutput.h"
 
 #include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "RHICommandList.h"
+#include "RHIUtilities.h"
 
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 
 
-FDisplayClusterMediaCaptureBase::FDisplayClusterMediaCaptureBase(const FString& InMediaId, const FString& InClusterNodeId, UMediaOutput* InMediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* InSyncPolicy)
-	: FDisplayClusterMediaBase(InMediaId, InClusterNodeId)
+FDisplayClusterMediaCaptureBase::FDisplayClusterMediaCaptureBase(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	UMediaOutput* InMediaOutput,
+	UDisplayClusterMediaOutputSynchronizationPolicy* InSyncPolicy,
+	bool bInLateOCIO
+)
+	: FDisplayClusterMediaBase(InMediaId, InClusterNodeId, bInLateOCIO)
 	, SyncPolicy(InSyncPolicy)
 {
 	checkSlow(InMediaOutput);
@@ -115,18 +124,30 @@ void FDisplayClusterMediaCaptureBase::StopCapture()
 	}
 }
 
-void FDisplayClusterMediaCaptureBase::ExportMediaData(FRDGBuilder& GraphBuilder, const FMediaTextureInfo& TextureInfo)
+void FDisplayClusterMediaCaptureBase::ExportMediaData_RenderThread(FRDGBuilder& GraphBuilder, const FMediaOutputTextureInfo& TextureInfo)
 {
-	FRHITexture* const SrcTexture = TextureInfo.Texture;
-
-	if (SrcTexture)
+	// Check if source texture is valid
+	if (!TextureInfo.Texture)
 	{
-		UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("MediaCapture '%s': exporting texture on RT frame '%lu'..."), *GetMediaId(), GFrameCounterRenderThread);
+		UE_LOG(LogDisplayClusterMedia, Warning, TEXT("MediaCapture '%s': invalid source texture on RT frame %lu"), *GetMediaId(), GFrameCounterRenderThread);
+		return;
+	}
 
-		MediaCapture->SetValidSourceGPUMask(GraphBuilder.RHICmdList.GetGPUMask());
+	MediaCapture->SetValidSourceGPUMask(GraphBuilder.RHICmdList.GetGPUMask());
 
-		LastSrcRegionSize = FIntSize(TextureInfo.Region.Size());
-		MediaCapture->CaptureImmediate_RenderThread(GraphBuilder, SrcTexture);
+	const FIntPoint SrcTextureSize = TextureInfo.Texture->Desc.Extent;
+	const FIntPoint SrcRegionSize  = TextureInfo.Region.Size();
+
+	LastSrcRegionSize = FIntSize(SrcRegionSize);
+
+	UE_LOG(LogDisplayClusterMedia, VeryVerbose, TEXT("MediaCapture '%s': exporting texture [size=%dx%d, rect=%dx%d] on RT frame '%lu'..."),
+		*GetMediaId(), SrcTextureSize.X, SrcTextureSize.Y, SrcRegionSize.X, SrcRegionSize.Y, GFrameCounterRenderThread);
+
+	// Capture
+	bool bCaptureSucceeded = MediaCapture->TryCaptureImmediate_RenderThread(GraphBuilder, TextureInfo.Texture, TextureInfo.Region);
+	if(!bCaptureSucceeded)
+	{
+		UE_LOG(LogDisplayClusterMedia, VeryVerbose, TEXT("MediaCapture '%s': failed to capture resource"), *GetMediaId());
 	}
 }
 
@@ -134,7 +155,26 @@ void FDisplayClusterMediaCaptureBase::OnPostClusterTick()
 {
 	if (MediaCapture)
 	{
-		const EMediaCaptureState MediaCaptureState = MediaCapture->GetState();
+		EMediaCaptureState MediaCaptureState = MediaCapture->GetState();
+
+		// If we're capturing but the desired capture resolution does not match the texture being captured,
+		// restart the capture with the updated size.
+
+		if (MediaCaptureState == EMediaCaptureState::Capturing)
+		{
+			const FIntPoint LastSrcRegionIntPoint = LastSrcRegionSize.load().ToIntPoint();
+			const FIntPoint DesiredSize = MediaCapture->GetDesiredSize();
+
+			if (DesiredSize != LastSrcRegionIntPoint)
+			{
+				UE_LOG(LogDisplayClusterMedia, Log, TEXT("Stopping MediaCapture '%s' because its DesiredSize (%d, %d) doesn't match the captured texture size (%d, %d)"), 
+					*GetMediaId(), DesiredSize.X, DesiredSize.Y, LastSrcRegionIntPoint.X, LastSrcRegionIntPoint.Y);
+
+				MediaCapture->StopCapture(false /* bAllowPendingFrameToBeProcess */);
+				MediaCaptureState = MediaCapture->GetState(); // Re-sample state to restart the media capture right away
+			}
+		}
+
 		const bool bMediaCaptureNeedsRestart = (MediaCaptureState == EMediaCaptureState::Error) || (MediaCaptureState == EMediaCaptureState::Stopped);
 
 		if (!bWasCaptureStarted || bMediaCaptureNeedsRestart)
@@ -173,7 +213,7 @@ bool FDisplayClusterMediaCaptureBase::StartMediaCapture()
 
 	FMediaCaptureOptions MediaCaptureOptions;
 	MediaCaptureOptions.NumberOfFramesToCapture = -1;
-	MediaCaptureOptions.bAutoRestartOnSourceSizeChange = true;
+	MediaCaptureOptions.bAutoRestartOnSourceSizeChange = false; // true won't work due to MediaCapture auto-changing crop mode to custom when capture region is specified.
 	MediaCaptureOptions.bSkipFrameWhenRunningExpensiveTasks = false;
 	MediaCaptureOptions.OverrunAction = EMediaCaptureOverrunAction::Flush;
 

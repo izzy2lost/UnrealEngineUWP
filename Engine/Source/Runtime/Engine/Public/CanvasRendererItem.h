@@ -103,6 +103,8 @@ private:
 			const FMaterialRenderProxy* InMaterialRenderProxy,
 			const FCanvas::FTransformEntry& InTransform);
 
+		~FRenderData();
+
 		void RenderTiles(
 			FCanvasRenderContext& RenderContext,
 			FMeshPassProcessorRenderState& DrawRenderState,
@@ -263,6 +265,8 @@ private:
 			, Transform(InTransform)
 			, VertexFactory(&StaticMeshVertexBuffers, InFeatureLevel)
 		{}
+
+		~FRenderData();
 
 		FORCEINLINE int32 AddTriangle(const FCanvasUVTri& Tri, FHitProxyId HitProxyId)
 		{

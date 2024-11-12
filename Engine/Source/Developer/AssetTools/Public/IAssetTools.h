@@ -21,6 +21,7 @@ struct FAssetData;
 class IAssetTools;
 class IAssetTypeActions;
 class IClassTypeActions;
+class ILocalizedAssetTools;
 class UFactory;
 class UAssetImportTask;
 class UAdvancedCopyCustomization;
@@ -37,6 +38,8 @@ namespace UE::AssetTools
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FCanMigrateAsset, FName);
 
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FCanAssetBePublic, FStringView /*AssetPath*/);
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FShouldCreateAssetsAsExternallyReferenceableForPath, FStringView /*AssetPath*/, TOptional<bool>& /*ExternallyReferenceable*/);
 }
 
 UENUM()
@@ -106,9 +109,14 @@ struct FAssetRenameData
 	/** If true, only fix soft references. This will work even if Asset is null because it has already been renamed */
 	UPROPERTY()
 	bool bOnlyFixSoftReferences;
+	
+	/** If true, will also try to rename all localized variants with corresponding paths */
+	UPROPERTY()
+	bool bAlsoRenameLocalizedVariants;
 
 	FAssetRenameData()
 		: bOnlyFixSoftReferences(false)
+		, bAlsoRenameLocalizedVariants(false) // This should probably always be true but it is false for backward compatibility reasons
 	{}
 
 	/** These constructors leave some fields empty, they are fixed up inside AssetRenameManager */
@@ -117,13 +125,24 @@ struct FAssetRenameData
 		, NewPackagePath(InNewPackagePath)
 		, NewName(InNewName)
 		, bOnlyFixSoftReferences(false)
+		, bAlsoRenameLocalizedVariants(false) // This should probably always be true but it is false for backward compatibility reasons
+	{
+	}
+	/** These constructors leave some fields empty, they are fixed up inside AssetRenameManager */
+	FAssetRenameData(const TWeakObjectPtr<UObject>& InAsset, const FString& InNewPackagePath, const FString& InNewName, bool bInOnlyFixSoftReferences, bool bInAlsoRenameLocalizedVariants)
+		: Asset(InAsset)
+		, NewPackagePath(InNewPackagePath)
+		, NewName(InNewName)
+		, bOnlyFixSoftReferences(bInOnlyFixSoftReferences)
+		, bAlsoRenameLocalizedVariants(bInAlsoRenameLocalizedVariants)
 	{
 	}
 	
-	FAssetRenameData(const FSoftObjectPath& InOldObjectPath, const FSoftObjectPath& InNewObjectPath, bool bInOnlyFixSoftReferences = false)
+	FAssetRenameData(const FSoftObjectPath& InOldObjectPath, const FSoftObjectPath& InNewObjectPath, bool bInOnlyFixSoftReferences = false, bool bInAlsoRenameLocalizedVariants = false)
 		: OldObjectPath(InOldObjectPath)
 		, NewObjectPath(InNewObjectPath)
 		, bOnlyFixSoftReferences(bInOnlyFixSoftReferences)
+		, bAlsoRenameLocalizedVariants(bInAlsoRenameLocalizedVariants) // This should probably be true by default but it is false for backward compatibility reasons
 	{
 	}
 };
@@ -132,7 +151,7 @@ DECLARE_DYNAMIC_DELEGATE_TwoParams(FAdvancedCopyCompletedEvent, bool, bSuccess, 
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FAssetPostRenameEvent, const TArray<FAssetRenameData>&);
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FIsNameAllowed, const FString& /*Name*/, FText* /*OutErrorMessage*/);
-
+DECLARE_DELEGATE_OneParam(FSanitizeName, FString& /*NameToSanitize*/);
 
 struct FAdvancedAssetCategory
 {
@@ -272,6 +291,8 @@ public:
 	/** Gets the appropriate AssetTypeActions for the supplied class */
 	virtual TWeakPtr<IAssetTypeActions> GetAssetTypeActionsForClass(const UClass* Class) const = 0;
 
+	virtual TSharedPtr<ILocalizedAssetTools> GetLocalizedAssetTools() const = 0;
+
 	virtual bool CanLocalize(const UClass* Class) const = 0;
 
 	virtual TOptional<FLinearColor> GetTypeColor(const UClass* Class) const = 0;
@@ -365,8 +386,14 @@ public:
 	/** Controls whether or not newly created assets are made externally referneceable or not */
 	virtual void SetCreateAssetsAsExternallyReferenceable(bool bValue) = 0;
 
-	/** Gets whether assets are being made externally referenceable or not */
+	/** Gets whether all assets being made at any location are externally referenceable or not */
 	virtual bool GetCreateAssetsAsExternallyReferenceable() = 0;
+
+	/** Gets whether assets being made at this location are externally referenceable or not */
+	virtual bool ShouldCreateAssetsAsExternallyReferenceableForPath(const FStringView AssetPath) const = 0;
+
+	/** Delegate to control whether assets being made at a specific location are externally referenceable or not */
+	virtual UE::AssetTools::FShouldCreateAssetsAsExternallyReferenceableForPath& GetOnShouldCreateAssetsAsExternallyReferenceableForPath() = 0;
 
 	/** Gets whether assets registry is still loading assets or not */
 	virtual bool IsDiscoveringAssetsInProgress() const = 0;
@@ -465,6 +492,14 @@ public:
 	virtual void ExportAssets(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const = 0;
 	
 	/**
+	 * Exports the specified objects to file using the clean filename as the saved filename.
+	 *
+	 * @param	AssetsToExport					List of assets to export
+	 * @param	ExportPath						The directory path to export to.
+	 */
+	virtual void ExportAssetsWithCleanFilename(const TArray<UObject*>& AssetsToExport, const FString& ExportPath) const = 0;
+
+	/**
 	 * Exports the specified objects to file. First prompting the user to pick an export directory and optionally prompting the user to pick a unique directory per file
 	 *
 	 * @param	AssetsToExport					List of assets to export
@@ -561,12 +596,6 @@ public:
 	/** Copies files after the flattened map of sources and destinations was confirmed */
 	virtual bool AdvancedCopyPackages(const TMap<FString, FString>& SourceAndDestPackages, const bool bForceAutosave = false, const bool bCopyOverAllDestinationOverlaps = true, FDuplicatedObjects* OutDuplicatedObjects = nullptr, EMessageSeverity::Type NotificationSeverityFilter = EMessageSeverity::Info) const = 0;
 
-	/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
-	virtual bool PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const = 0;
-
-	/** Generates the SearchAndReplace map for a PatchCopyPackageFile if all you are doing is changing the root and not the name. */
-	virtual TMap<FString, FString> GetMappingsForRootPackageRename(const FString& SrcRoot, const FString& DstRoot, const FString& SrcBaseDir, const TArray<TPair<FString, FString>>& SourceAndDestFiles) const = 0;
-
 	/* Given a set of packages to copy, generate the map of those packages to destination filenames */
 	virtual void GenerateAdvancedCopyDestinations(FAdvancedCopyParams& InParams, const TArray<FName>& InPackageNamesToCopy, const UAdvancedCopyCustomization* CopyCustomization, TMap<FString, FString>& OutPackagesAndDestinations) const = 0;
 
@@ -622,12 +651,19 @@ public:
 	/** Returns true if all in list pass writable folder filter */
 	virtual bool AllPassWritableFolderFilter(const TArray<FString>& InPaths) const = 0;
 
-	/** Returns true if IsNameAllowedDelegate is not set, or if the name passes the filter function*/
+	/** Returns true if IsNameAllowedDelegate is not set, or if the name passes the filter function */
 	virtual bool IsNameAllowed(const FString& Name, FText* OutErrorMessage = nullptr) const = 0;
-	/** Allows setting of a global name filter that is applied to folders, assets, plugins, etc. */
+	/** Allows setting of a global name filter that is applied to assets and folders */
 	virtual void RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNameAllowed Delegate) = 0;
 	/** Remove a previously-set global name filter */
 	virtual void UnregisterIsNameAllowedDelegate(const FName OwnerName) = 0;
+
+	/** Sanitize the name by calling all registered delegates. */
+	virtual bool SanitizeName(FString& NameToSanitize) = 0;
+	/** Allows setting of a global name filter that is applied to assets and folders */
+	virtual void RegisterSanitizeNameDelegate(const FName OwnerName, FSanitizeName Delegate) = 0;
+	/** Remove a previously-set global name filter */
+	virtual void UnregisterSanitizeNameDelegate(const FName OwnerName) = 0;
 
 	/** Show notification that writable folder filter blocked an action */
 	virtual void NotifyBlockedByWritableFolderFilter() const = 0;

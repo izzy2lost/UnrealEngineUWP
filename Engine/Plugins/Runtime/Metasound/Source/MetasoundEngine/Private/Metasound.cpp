@@ -5,12 +5,15 @@
 #include "Internationalization/Text.h"
 #include "Logging/TokenizedMessage.h"
 #include "MetasoundAssetBase.h"
+#include "MetasoundAssetManager.h"
 #include "MetasoundAudioFormats.h"
 #include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundEngineAsset.h"
 #include "MetasoundEngineEnvironment.h"
 #include "MetasoundEnvironment.h"
 #include "MetasoundFrontendController.h"
+#include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendQuery.h"
 #include "MetasoundFrontendQuerySteps.h"
 #include "MetasoundFrontendRegistries.h"
@@ -28,6 +31,12 @@
 #include "UObject/ObjectSaveContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Metasound)
+
+
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif // WITH_EDITOR
+
 
 #if WITH_EDITORONLY_DATA
 #include "EdGraph/EdGraph.h"
@@ -52,7 +61,6 @@ int32 UMetasoundEditorGraphBase::GetHighestMessageSeverity() const
 	return HighestMessageSeverity;
 }
 
-
 UMetaSoundPatch::UMetaSoundPatch(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, FMetasoundAssetBase()
@@ -64,12 +72,10 @@ Metasound::Frontend::FDocumentAccessPtr UMetaSoundPatch::GetDocumentAccessPtr()
 	using namespace Metasound::Frontend;
 
 	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
-	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
-	// documents using both systems at the same time as it can corrupt a builder document's cache.
-	if (UMetaSoundBuilderSubsystem* BuilderSubsystem = UMetaSoundBuilderSubsystem::Get())
+	// the builder registry, so the document cache is invalidated here.
+	if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 	{
-		const FMetasoundFrontendClassName& Name = RootMetaSoundDocument.RootGraph.Metadata.GetClassName();
-		BuilderSubsystem->InvalidateDocumentCache(Name);
+		BuilderRegistry->ReloadBuilder(RootMetaSoundDocument.RootGraph.Metadata.GetClassName());
 	}
 
 	// Return document using FAccessPoint to inform the TAccessPtr when the 
@@ -90,31 +96,42 @@ const UClass& UMetaSoundPatch::GetBaseMetaSoundUClass() const
 	return *UMetaSoundPatch::StaticClass();
 }
 
+const UClass& UMetaSoundPatch::GetBuilderUClass() const
+{
+	return *UMetaSoundPatchBuilder::StaticClass();
+}
+
 const FMetasoundFrontendDocument& UMetaSoundPatch::GetConstDocument() const
 {
 	return RootMetaSoundDocument;
 }
 
 #if WITH_EDITOR
+void UMetaSoundPatch::PreDuplicate(FObjectDuplicationParameters& DupParams)
+{
+	Super::PreDuplicate(DupParams);
+	Metasound::Engine::FAssetHelper::PreDuplicate(this, DupParams);
+}
+
 void UMetaSoundPatch::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
-
-	// Guid is reset as asset may share implementation from
-	// asset duplicated from but should not be registered as such.
-	if (InDuplicateMode == EDuplicateMode::Normal)
-	{
-		AssetClassID = FGuid::NewGuid();
-		Metasound::Frontend::FRenameRootGraphClass::Generate(GetDocumentHandle(), AssetClassID);
-	}
+	Metasound::Engine::FAssetHelper::PostDuplicate(this, InDuplicateMode, AssetClassID);
 }
 
 void UMetaSoundPatch::PostEditUndo()
 {
 	Super::PostEditUndo();
-	Metasound::FMetaSoundEngineAssetHelper::PostEditUndo(*this);
+	Metasound::Engine::FAssetHelper::PostEditUndo(*this);
 }
-#endif // WITHEDITOR
+
+EDataValidationResult UMetaSoundPatch::IsDataValid(FDataValidationContext& Context) const
+{
+	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, RootMetaSoundDocument, Context);
+	return CombineDataValidationResults(Result, Super::IsDataValid(Context));
+}
+
+#endif // WITH_EDITOR
 
 void UMetaSoundPatch::BeginDestroy()
 {
@@ -125,36 +142,36 @@ void UMetaSoundPatch::BeginDestroy()
 void UMetaSoundPatch::PreSave(FObjectPreSaveContext InSaveContext)
 {
 	Super::PreSave(InSaveContext);
-	Metasound::FMetaSoundEngineAssetHelper::PreSaveAsset(*this, InSaveContext);
+	Metasound::Engine::FAssetHelper::PreSaveAsset(*this, InSaveContext);
 }
 
 void UMetaSoundPatch::Serialize(FArchive& InArchive)
 {
 	Super::Serialize(InArchive);
-	Metasound::FMetaSoundEngineAssetHelper::SerializeToArchive(*this, InArchive);
+	Metasound::Engine::FAssetHelper::SerializeToArchive(*this, InArchive);
 }
 
 #if WITH_EDITORONLY_DATA
-UEdGraph* UMetaSoundPatch::GetGraph()
+void UMetaSoundPatch::MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder)
 {
-	return Graph;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (Graph)
+	{
+		Graph->MigrateEditorDocumentData(OutBuilder);
+		Graph = nullptr;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-const UEdGraph* UMetaSoundPatch::GetGraph() const
+UEdGraph* UMetaSoundPatch::GetGraph() const
 {
-	return Graph;
+	return EditorGraph;
 }
 
-UEdGraph& UMetaSoundPatch::GetGraphChecked()
+UEdGraph& UMetaSoundPatch::GetGraphChecked() const
 {
-	check(Graph);
-	return *Graph;
-}
-
-const UEdGraph& UMetaSoundPatch::GetGraphChecked() const
-{
-	check(Graph);
-	return *Graph;
+	check(EditorGraph);
+	return *EditorGraph;
 }
 FText UMetaSoundPatch::GetDisplayName() const
 {
@@ -165,32 +182,32 @@ FText UMetaSoundPatch::GetDisplayName() const
 
 void UMetaSoundPatch::SetRegistryAssetClassInfo(const Metasound::Frontend::FNodeClassInfo& InNodeInfo)
 {
-	Metasound::FMetaSoundEngineAssetHelper::SetMetaSoundRegistryAssetClassInfo(*this, InNodeInfo);
+	Metasound::Engine::FAssetHelper::SetMetaSoundRegistryAssetClassInfo(*this, InNodeInfo);
 }
 #endif // WITH_EDITORONLY_DATA
 
 
 FTopLevelAssetPath UMetaSoundPatch::GetAssetPathChecked() const
 {
-	return Metasound::FMetaSoundEngineAssetHelper::GetAssetPathChecked(*this);
+	return Metasound::Engine::FAssetHelper::GetAssetPathChecked(*this);
 }
 
 void UMetaSoundPatch::PostLoad() 
 {
 	Super::PostLoad();
-	Metasound::FMetaSoundEngineAssetHelper::PostLoad(*this);
+	Metasound::Engine::FAssetHelper::PostLoad(*this);
 }
 
 #if WITH_EDITOR
 void UMetaSoundPatch::SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses)
 {
-	Metasound::FMetaSoundEngineAssetHelper::SetReferencedAssetClasses(*this, MoveTemp(InAssetClasses));
+	Metasound::Engine::FAssetHelper::SetReferencedAssetClasses(*this, MoveTemp(InAssetClasses));
 }
 #endif
 
 TArray<FMetasoundAssetBase*> UMetaSoundPatch::GetReferencedAssets()
 {
-	return Metasound::FMetaSoundEngineAssetHelper::GetReferencedAssets(*this);
+	return Metasound::Engine::FAssetHelper::GetReferencedAssets(*this);
 }
 
 const TSet<FSoftObjectPath>& UMetaSoundPatch::GetAsyncReferencedAssetClassPaths() const 
@@ -200,10 +217,10 @@ const TSet<FSoftObjectPath>& UMetaSoundPatch::GetAsyncReferencedAssetClassPaths(
 
 void UMetaSoundPatch::OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAssetBase*>& InAsyncReferences)
 {
-	Metasound::FMetaSoundEngineAssetHelper::OnAsyncReferencedAssetsLoaded(*this, InAsyncReferences);
+	Metasound::Engine::FAssetHelper::OnAsyncReferencedAssetsLoaded(*this, InAsyncReferences);
 }
 
-bool UMetaSoundPatch::IsBuilderActive() const
+bool UMetaSoundPatch::IsActivelyBuilding() const
 {
 	return bIsBuilderActive;
 }

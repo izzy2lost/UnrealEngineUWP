@@ -165,7 +165,7 @@ struct FGooglePlayLeaderboardMapping
 UENUM()
 namespace EAndroidAudio
 {
-	enum Type : int
+	enum UE_DEPRECATED(5.5, "Please don't use") Type : int
 	{
 		Default = 0 UMETA(DisplayName = "Default", ToolTip = "This option selects the default encoder."),
 		OGG = 1 UMETA(DisplayName = "Ogg Vorbis", ToolTip = "Selects Ogg Vorbis encoding."),
@@ -407,6 +407,22 @@ public:
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = DistributionSigning, Meta = (DisplayName = "Key Password (leave blank to use Key Store Password)"))
 	FString KeyPassword;
 
+	// This is the file that keytool outputs, specified with the -keystore parameter (file should be in <Project>/Build/Android)
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = DebugSigning, Meta = (DisplayName = "Debug Key Store (output of keytool, placed in <Project>/Build/Android)"))
+	FString DebugKeyStore;
+	
+	// This is the name of the key that you specified with the -alias parameter to keytool
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = DebugSigning, Meta = (DisplayName = "Debug Key Alias (-alias parameter to keytool)"))
+	FString DebugKeyAlias;
+	
+	// This is the password that you specified FOR THE KEYSTORE NOT THE KEY, when running keytool (either with -storepass or by typing it in).
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = DebugSigning, Meta = (DisplayName = "Debug Key Store Password (-storepass parameter to keytool)"))
+	FString DebugKeyStorePassword;
+	
+	// This is the password for the key that you may have specified with keytool, if it's different from the keystore password. Leave blank to use same as Debug Keystore
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = DebugSigning, Meta = (DisplayName = "Debug Key Password (leave blank to use Debug Key Store Password)"))
+	FString DebugKeyPassword;
+
 	// Enable Arm64 support?
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Support arm64 [aka arm64-v8a]"))
 	bool bBuildForArm64;
@@ -557,10 +573,6 @@ public:
 	// Block force feedback on the device when controllers are attached.
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Input, meta = (DisplayName = "Block force feedback on the device when controllers are attached"))
 	bool bControllersBlockDeviceFeedback;
-
-	/** Android encoding options. */
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = Audio, meta = (DisplayName = "Encoding Format"))
-	TEnumAsByte<EAndroidAudio::Type> AndroidAudio;
 
 	/** Sample rate to run the audio mixer with. */
 	UPROPERTY(config, EditAnywhere, Category = "Audio", Meta = (DisplayName = "Audio Mixer Sample Rate"))

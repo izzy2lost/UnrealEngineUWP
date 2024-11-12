@@ -189,6 +189,11 @@ const TArray <FString>& FDocumentation::GetSourcePaths() const
 
 TSharedRef< class SToolTip > FDocumentation::CreateToolTip(const TAttribute<FText>& Text, const TSharedPtr<SWidget>& OverrideContent, const FString& Link, const FString& ExcerptName) const
 {
+	return CreateToolTip(Text, OverrideContent, Link, ExcerptName, FText());
+}
+
+TSharedRef< class SToolTip > FDocumentation::CreateToolTip(const TAttribute<FText>& Text, const TSharedPtr<SWidget>& OverrideContent, const FString& Link, const FString& ExcerptName, const TAttribute<FText>& Shortcut) const
+{
 	TSharedPtr< SDocumentationToolTip > DocToolTip;
 
 	if ( !Text.IsBound() && Text.Get().IsEmpty() )
@@ -201,16 +206,18 @@ TSharedRef< class SToolTip > FDocumentation::CreateToolTip(const TAttribute<FTex
 		SAssignNew( DocToolTip, SDocumentationToolTip )
 		.DocumentationLink( Link )
 		.ExcerptName( ExcerptName )
+		.Shortcut(Shortcut)
 		[
 			OverrideContent.ToSharedRef()
 		];
 	}
 	else
 	{
-		SAssignNew( DocToolTip, SDocumentationToolTip )
-		.Text( Text )
-		.DocumentationLink( Link )
-		.ExcerptName( ExcerptName );
+		SAssignNew(DocToolTip, SDocumentationToolTip)
+		.Text(Text)
+		.DocumentationLink(Link)
+		.ExcerptName(ExcerptName)
+		.Shortcut(Shortcut);
 	}
 	
 	return SNew( SToolTip )
@@ -219,7 +226,8 @@ TSharedRef< class SToolTip > FDocumentation::CreateToolTip(const TAttribute<FTex
 		// Emulate text-only tool-tip styling that SToolTip uses when no custom content is supplied.  We want documentation tool-tips to 
 		// be styled just like text-only tool-tips
 		.BorderImage( FCoreStyle::Get().GetBrush("ToolTip.BrightBackground") )
-		.TextMargin(FMargin(11.0f))
+		// The documentation tooltip has padding built in, so that it can style its own background within the tooltip borders.
+		.TextMargin(FMargin(0.0f))
 		[
 			DocToolTip.ToSharedRef()
 		];
@@ -249,7 +257,8 @@ TSharedRef< class SToolTip > FDocumentation::CreateToolTip(const TAttribute<FTex
 		// Emulate text-only tool-tip styling that SToolTip uses when no custom content is supplied.  We want documentation tool-tips to 
 		// be styled just like text-only tool-tips
 		.BorderImage( FCoreStyle::Get().GetBrush("ToolTip.BrightBackground") )
-		.TextMargin(FMargin(11.0f))
+		// The documentation tooltip has padding built in, so that it can style its own background within the tooltip borders.
+		.TextMargin(FMargin(0.0f))
 		[
 			DocToolTip
 		];

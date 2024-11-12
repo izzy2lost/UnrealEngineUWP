@@ -6,17 +6,12 @@
 #include "Templates/SharedPointer.h"
 
 class FArrangedWidget;
-class UDMXPixelMappingRendererComponent;
-
-class FDMXPixelMappingToolkit;
-class UDMXPixelMappingBaseComponent;
-class UDMXPixelMapping;
-class FDMXPixelMappingToolkit;
-class FDMXPixelMappingComponentReference;
-class FMenuBuilder;
-
 class FDragDropEvent;
+class FDMXPixelMappingToolkit;
 class SWidget;
+class UDMXPixelMapping;
+class UDMXPixelMappingBaseComponent;
+class UDMXPixelMappingRendererComponent;
 
 /**
  * Shared Pixel Mapping editor functions

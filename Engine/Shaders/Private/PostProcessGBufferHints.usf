@@ -1,5 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if SHADER_GBUFFER_PICKING
+#define ALLOW_SSS_MATERIAL_OVERRIDE 0
+#endif
+
 #include "Common.ush"
 #include "DeferredShadingCommon.ush"
 #include "ScreenPass.ush"
@@ -120,6 +124,9 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 #include "ShaderPrint.ush"
 #include "SceneTextureParameters.ush"
 #include "DeferredShadingCommon.ush"
+#include "ShadingModels.ush"
+#include "SubsurfaceProfileCommon.ush"
+#include "PositionReconstructionCommon.ush"
 
 void PrintShadingMode(inout FShaderPrintContext Ctx, uint In)
 {
@@ -225,10 +232,29 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		}
 		else if (Data.ShadingModelID == SHADINGMODELID_SUBSURFACE_PROFILE)
 		{
-		Print(Ctx, TEXT("SSS Profil ID     : "), FontWhite); Print(Ctx, ExtractSubsurfaceProfileInt(Data.CustomData.x)); Newline(Ctx, RectMax);	
+			const uint SSSProfileID = ExtractSubsurfaceProfileInt(Data.CustomData.x);
+			const half Opacity = Data.CustomData.a;
+			float LobeMix = 0;
+			float Lobe0Roughness = 0;
+			float Lobe1Roughness = 0;
+			GetProfileDualSpecular(SSSProfileID, Data.Roughness, Opacity, Lobe0Roughness, Lobe1Roughness, LobeMix);
+
+			Print(Ctx, TEXT("SSS Profil ID     : "), FontWhite); Print(Ctx, SSSProfileID); Newline(Ctx, RectMax);
+			Print(Ctx, TEXT("SSS Lobe Mix      : "), FontWhite); Print(Ctx, LobeMix); Newline(Ctx, RectMax);
+			Print(Ctx, TEXT("SSS Roughness0    : "), FontWhite); Print(Ctx, Lobe0Roughness); Newline(Ctx, RectMax);
+			Print(Ctx, TEXT("SSS Roughness1    : "), FontWhite); Print(Ctx, Lobe1Roughness); Newline(Ctx, RectMax);
+			Print(Ctx, TEXT("SSS SpecColor     : "), FontWhite); Print(Ctx, Data.SpecularColor); Newline(Ctx, RectMax);
+			
 		}
 		PrintBackgroundRect(Ctx, RectMin, RectMax);
 		Newline(Ctx);
+		
+		// Draw tangent vector (strands)
+		{
+			const float2 UV = (ShaderPrintData.CursorCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
+			const float3 WorldPosition = ReconstructTranslatedWorldPositionFromDepth(UV, Data.Depth);
+			AddLineTWS(WorldPosition, WorldPosition + Data.WorldNormal, ColorRed, ColorYellow);
+		}
 	}
 #endif
 }

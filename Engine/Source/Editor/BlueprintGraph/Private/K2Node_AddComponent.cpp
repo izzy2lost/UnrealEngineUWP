@@ -52,7 +52,7 @@ const FName UK2Node_AddComponent::NAME_ManualAttachment(TEXT("bManualAttachment"
 UK2Node_AddComponent::UK2Node_AddComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	bIsPureFunc = false;
+	bDefaultsToPureFunc = false;
 }
 
 // We add this prefix to template object names.
@@ -87,7 +87,7 @@ void UK2Node_AddComponent::Serialize(FArchive& Ar)
 					GetBlueprint()->OldToNewComponentTemplateNames.Add(Template->GetFName()) = NewTemplateName;
 
 					// Rename the component template to conform to the new name.
-					Template->Rename(*NewTemplateName.ToString(), Template->GetOuter(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+					Template->Rename(*NewTemplateName.ToString(), Template->GetOuter(), REN_DontCreateRedirectors);
 
 					// Update the template name pin's default value to match the template name.
 					GetTemplateNamePinChecked()->DefaultValue = Template->GetName();

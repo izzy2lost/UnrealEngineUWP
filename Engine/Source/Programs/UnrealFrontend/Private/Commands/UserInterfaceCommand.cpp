@@ -11,6 +11,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Application/SlateApplication.h"
@@ -119,6 +120,7 @@ void FUserInterfaceCommand::Run(  )
 		LastTime = CurrentTime;
 
 		FStats::AdvanceFrame( false );
+		FCoreDelegates::OnEndFrame.Broadcast();
 
 		GLog->FlushThreadedLogs();
 	}

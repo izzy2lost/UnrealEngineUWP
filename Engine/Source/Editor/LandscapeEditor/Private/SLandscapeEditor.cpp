@@ -19,8 +19,19 @@
 #include "IDetailsView.h"
 #include "PropertyEditorModule.h"
 #include "LandscapeSettings.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "LandscapeEditor"
+
+namespace UE::Landscape::Private {
+	static bool bEnableRetopoTool = false;
+	static FAutoConsoleVariableRef CVarEnableRetopoTool(
+		TEXT("landscape.EnableRetopologizeTool"),
+		bEnableRetopoTool,
+		TEXT("Enable the Retopologize tool.  The tool will be fully deprecated in UE5.6, but this cvar will enable it for 5.5"),
+		ECVF_Default
+	);
+}
 
 void SLandscapeAssetThumbnail::Construct(const FArguments& InArgs, UObject* Asset, TSharedRef<FAssetThumbnailPool> ThumbnailPool)
 {
@@ -213,13 +224,8 @@ void FLandscapeToolKit::BuildToolPalette(FName PaletteName, class FToolBarBuilde
 		ToolBarBuilder.AddToolBarButton(Commands.SelectComponentTool);
 		ToolBarBuilder.AddToolBarButton(Commands.AddComponentTool);
 		ToolBarBuilder.AddToolBarButton(Commands.DeleteComponentTool);
-		// MoveToLevel isn't supported because in GridBased worlds don't support Proxies in different Levels
-		// Resize isn't supported and instead should be done through a Commandlet for GridBased worlds
-		if (!LandscapeEdMode->IsGridBased())
-		{
-			ToolBarBuilder.AddToolBarButton(Commands.MoveToLevelTool);
-			ToolBarBuilder.AddToolBarButton(Commands.ResizeLandscape);
-		}
+		ToolBarBuilder.AddToolBarButton(Commands.MoveToLevelTool);
+		ToolBarBuilder.AddToolBarButton(Commands.ResizeLandscape);
 		ToolBarBuilder.AddToolBarButton(Commands.SplineTool);
 	}
 
@@ -246,10 +252,9 @@ void FLandscapeToolKit::BuildToolPalette(FName PaletteName, class FToolBarBuilde
 		}
 
 		ToolBarBuilder.AddToolBarButton(Commands.MirrorTool);
-
-		ToolBarBuilder.AddToolBarButton(Commands.RegionSelectTool);
 		ToolBarBuilder.AddToolBarButton(Commands.RegionCopyPasteTool);
 
+		ToolBarBuilder.AddToolBarButton(Commands.RegionSelectTool);
 	}
 
 	else if (PaletteName == LandscapeEditorNames::Paint)
@@ -258,11 +263,13 @@ void FLandscapeToolKit::BuildToolPalette(FName PaletteName, class FToolBarBuilde
 		ToolBarBuilder.AddToolBarButton(Commands.SmoothTool);
 		ToolBarBuilder.AddToolBarButton(Commands.FlattenTool);
 		ToolBarBuilder.AddToolBarButton(Commands.NoiseTool);
-		
+
 		if (LandscapeEdMode->CanHaveLandscapeLayersContent() && Settings->AreBlueprintToolsAllowed())
 		{
 			ToolBarBuilder.AddToolBarButton(Commands.BlueprintBrushTool);
 		}
+
+		ToolBarBuilder.AddToolBarButton(Commands.RegionSelectTool);
 	}
 
 }
@@ -367,7 +374,28 @@ bool FLandscapeToolKit::IsToolEnabled(FName ToolName) const
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode != nullptr)
 	{
-		if (ToolName == "NewLandscape" || LandscapeEdMode->GetLandscapeList().Num() > 0)
+		// When using World Partition:
+		// MoveToLevel isn't supported because we don't support Proxies in different levels.
+		// Resize isn't supported and instead should be done via a user provided Commandlet.
+		if (LandscapeEdMode->IsGridBased() &&
+			(ToolName == "MoveToLevel" || ToolName == "ResizeLandscape"))
+		{
+			return false;
+		}
+
+		// NewLandscape is always available.
+		if (ToolName == "NewLandscape")
+		{
+			return true;
+		}
+
+		if (ToolName == "Retopologize")
+		{
+			return UE::Landscape::Private::bEnableRetopoTool && !LandscapeEdMode->CanHaveLandscapeLayersContent();
+		}
+
+		// Other tools are available if there is an existing landscape.
+		if (LandscapeEdMode->GetLandscapeList().Num() > 0)
 		{
 			return true;
 		}

@@ -9,11 +9,13 @@
 
 #if WITH_EDITOR
 #include "ContentBrowserDelegates.h"
+#include "ISceneOutlinerColumn.h"
 #endif	// WITH_EDITOR
 
 #include "MovieGraphRenderLayerSubsystem.generated.h"
 
 class SWidget;
+class UDataLayerAsset;
 
 /** Operation types available on condition groups. */
 UENUM(BlueprintType)
@@ -163,6 +165,15 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<AActor>> InActor);
 	static FText GetRowText(TSharedPtr<TSoftObjectPtr<AActor>> InActor);
+
+	/** Adds the provided actors to the query, updating the UI as needed. Calls InOnAddFinished when done. Can optionally close the Add menu. */
+	void AddActors(const TArray<AActor*>& InActors, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished, const bool bCloseAddMenu = true);
+
+	/** Removes the provided actors from the query, updating the UI as needed. */
+	void RemoveActors(const TArray<TSoftObjectPtr<AActor>>& InActors);
+
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
 #endif
 
 public:
@@ -172,6 +183,31 @@ public:
 
 private:
 #if WITH_EDITOR
+	/** Custom outliner column that allows adding/removing an actor from an Actor condition group query (via checkbox). */
+	class FActorSelectionColumn final : public ISceneOutlinerColumn
+	{
+	public:
+		explicit FActorSelectionColumn(const TWeakObjectPtr<UMovieGraphConditionGroupQuery_Actor> InWeakActorQuery)
+			: WeakActorQuery(InWeakActorQuery)
+		{}
+		
+		static FName GetID();
+		virtual FName GetColumnID() override;
+		virtual SHeaderRow::FColumn::FArguments ConstructHeaderRowColumn() override;
+		virtual const TSharedRef<SWidget> ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row) override;
+
+	private:
+		/** Determines if the given tree item (corresponding to one actor) is checked. */
+		ECheckBoxState IsRowChecked(const FActorTreeItem* InActorTreeItem) const;
+
+		/** Updates the associated actor query when a row is checked or unchecked. */
+		void OnCheckStateChanged(const ECheckBoxState NewState, const FActorTreeItem* InActorTreeItem) const;
+	
+	private:
+		/** The Actor condition group query that populates the data for this column. */
+		TWeakObjectPtr<UMovieGraphConditionGroupQuery_Actor> WeakActorQuery;
+	};
+	
 	TSharedPtr<class ISceneOutliner> ActorPickerWidget;
 
 	/** Displays the actors which have been chosen. */
@@ -271,15 +307,18 @@ public:
 public:
 	/** The type (class) that the actor needs to have in order to be a match. */
 	UPROPERTY(EditAnywhere, Category="General")
-	TArray<UClass*> ActorTypes;
+	TArray<TObjectPtr<UClass>> ActorTypes;
 
 private:
 #if WITH_EDITOR
-	static const FSlateBrush* GetRowIcon(UClass* InActorType);
-	static FText GetRowText(UClass* InActorType);
+	static const FSlateBrush* GetRowIcon(TObjectPtr<UClass> InActorType);
+	static FText GetRowText(TObjectPtr<UClass> InActorType);
+	
+	/** Adds the provided actor types to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddActorTypes(const TArray<UClass*>& InActorTypes, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
 
 	/** Displays the actor types which have been chosen. */
-	TSharedPtr<SMovieGraphSimpleList<UClass*>> ActorTypesList;
+	TSharedPtr<SMovieGraphSimpleList<TObjectPtr<UClass>>> ActorTypesList;
 #endif
 	
 	/** The class viewer widget to show in the Add menu. */
@@ -338,11 +377,11 @@ public:
 
 private:
 #if WITH_EDITOR
-	static const FSlateBrush* GetRowIcon(UClass* InComponentType);
-	static FText GetRowText(UClass* InComponentType);
+	static const FSlateBrush* GetRowIcon(TObjectPtr<UClass> InComponentType);
+	static FText GetRowText(TObjectPtr<UClass> InComponentType);
 
 	/** Displays the component types which have been chosen. */
-	TSharedPtr<SMovieGraphSimpleList<UClass*>> ComponentTypesList;
+	TSharedPtr<SMovieGraphSimpleList<TObjectPtr<UClass>>> ComponentTypesList;
 #endif
 	
 	/** The class viewer widget to show in the Add menu. */
@@ -351,7 +390,7 @@ private:
 public:
 	/** The actor must have one or more of the component type(s) in order to be a match. */
 	UPROPERTY(EditAnywhere, Category="General")
-	TArray<UClass*> ComponentTypes;
+	TArray<TObjectPtr<UClass>> ComponentTypes;
 };
 
 /** Query type which filters actors via the editor folder that they're contained in. */
@@ -376,6 +415,9 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(FName InFolderPath);
 	static FText GetRowText(FName InFolderPath);
+
+	/** Adds the provided folders to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddFolders(const TArray<FName>& InFolderPaths, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
 
 	/** Displays the paths of folders which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<FName>> FolderPathsList;
@@ -412,6 +454,12 @@ private:
 	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel);
 	static FText GetRowText(TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel);
 
+	/** Adds the provided levels to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddLevels(const TArray<UWorld*>& InLevels, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
+
 	/** Displays the names of sublevels which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UWorld>>>> SublevelsList;
 
@@ -427,6 +475,107 @@ public:
 	/** The actor must be in one of the chosen sublevels in order to be a match. */
 	UPROPERTY(EditAnywhere, Category="General")
 	TArray<TSoftObjectPtr<UWorld>> Sublevels;
+};
+
+/** Query type which filters actors via Actor Layers. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorLayer final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+	virtual bool IsEditorOnly() const override;
+
+#if WITH_EDITOR
+	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
+	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
+#endif
+
+private:
+#if WITH_EDITOR
+	static const FSlateBrush* GetRowIcon(FName InLayerName);
+	static FText GetRowText(FName InLayerName);
+
+	/** Adds the provided actor layers to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddActorLayers(const TArray<FName>& InActorLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
+	/** Displays the layers which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<FName>> LayerNamesList;
+
+	/** The data source for the layer picker widget (contains all layers which are available and not yet picked). */
+	TArray<FName> LayerPickerDataSource;
+#endif
+
+public:
+	/** The actor must be in one of the actor layers with these names in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TArray<FName> LayerNames;
+};
+
+/** Query type which filters actors via World Partition Data Layers. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_DataLayer final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+
+#if WITH_EDITOR
+	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
+	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
+#endif
+
+private:
+#if WITH_EDITOR
+	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InDataLayer);
+	static FText GetRowText(TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InDataLayer);
+	
+	/** Adds the provided data layers to the query, updating the UI as needed. Calls InOnAddFinished when done. */
+	void AddDataLayers(const TArray<const UDataLayerAsset*>& InDataLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
+
+	/** Displays the layers which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>>> DataLayersList;
+	
+	// Not ideal to store a duplicate of DataLayersList, but SListView requires TSharedPtr<...> as the data source, and UPROPERTY does not
+	// support TSharedPtr<...>
+	TArray<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>> ListDataSource;
+
+	/** Refreshes the contents of the data layer picker widget when called. */
+	FRefreshAssetViewDelegate RefreshDataLayerPicker;
+#endif
+
+public:
+	/** The actor must be in one of the these data layer assets in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayers;
+};
+
+/** Query type which filters actors by their spawnable status. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_IsSpawnable final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+
+public:
+	/** Whether the actor is a spawnable or not. */
+	UPROPERTY(EditAnywhere, Category="General")
+	bool bIsSpawnable;
 };
 
 /** A group of queries which can be added to a collection. */
@@ -469,6 +618,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool RemoveQuery(UMovieGraphConditionGroupQueryBase* InQuery);
 
+	/**
+	 * Duplicates the condition group query at the specified index. The duplicate is placed at the end of the query list. Returns the duplicate
+	 * query on success, else nullptr.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	UMovieGraphConditionGroupQueryBase* DuplicateQuery(const int32 QueryIndex);
+
 	/** Determines if this is the first condition group under the parent collection. */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool IsFirstConditionGroup() const;
@@ -493,16 +649,16 @@ private:
 	EMovieGraphConditionGroupOpType OpType;
 
 	/** The queries that are contained within the condition group. */
-	UPROPERTY(EditAnywhere, Category="General")
-	TArray<TObjectPtr<UMovieGraphConditionGroupQueryBase>> Queries;
+	UPROPERTY(EditAnywhere, Category="General", Instanced)
+	TArray<TObjectPtr<UMovieGraphConditionGroupQueryBase>> Queries;	// Note: Marked as Instanced so conditions get duplicated during copy/paste (not referenced)
 
 	/** Persisted actor set which can be re-used for query evaluations across frames to prevent constantly re-allocating it. */
-	UPROPERTY(Transient)
-	mutable TSet<AActor*> QueryResult;
+	UPROPERTY(Transient, DuplicateTransient)
+	mutable TSet<TObjectPtr<AActor>> QueryResult;
 
 	/** Persisted actor set which can be re-used for condition group evaluations across frames to prevent constantly re-allocating it. */
-	UPROPERTY(Transient)
-	mutable TSet<AActor*> EvaluationResult;
+	UPROPERTY(Transient, DuplicateTransient)
+	mutable TSet<TObjectPtr<AActor>> EvaluationResult;
 };
 
 /** A group of actors generated by actor queries. */
@@ -651,6 +807,13 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphRenderPropertyModifier : public UMo
 
 public:
 	UMovieGraphRenderPropertyModifier();
+
+	// ~UObject interface
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	// ~UObject Interface
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetHidden(const bool bInIsHidden) { bIsHidden = bInIsHidden; }
@@ -688,6 +851,9 @@ private:
 
 	/** Updates an actor's visibility state to the state contained in NewVisibilityState. */
 	void SetActorVisibilityState(const FActorVisibilityState& NewVisibilityState);
+
+	/** Convienence function to ensure that output alpha and primitive alpha holdout settings are enabled if required. */
+	void ValidateProjectSettings() const;
 
 private:
 	/** Tracks actor visibility state prior to having the modifier applied. */
@@ -730,7 +896,7 @@ public:
 
 	/**
 	 * If true, the primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections,
-	 * indirect lighting) remain. This feature is currently only implemented in the Path Tracer.
+	 * indirect lighting) remain. This feature requires activating the project setting(s) "Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer.
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "bOverride_bHoldout"))
 	uint8 bHoldout : 1;

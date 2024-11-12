@@ -5,11 +5,12 @@
 #include "Framework/SlateDelegates.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/SCompoundWidget.h"
 
-class TOOLWIDGETS_API SSimpleButton : public SButton
+class TOOLWIDGETS_API SSimpleButton
+	: public SButton
 {
 public:
-
 	SLATE_BEGIN_ARGS(SSimpleButton)
 	{}
 		/** The text to display in the button. */
@@ -19,10 +20,9 @@ public:
 
 		/** The clicked handler. */
 		SLATE_EVENT(FOnClicked, OnClicked)
-
 	SLATE_END_ARGS()
 
-	SSimpleButton() {}
+	SSimpleButton() = default;
 
 	void Construct(const FArguments& InArgs);
 };

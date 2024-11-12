@@ -17,7 +17,8 @@ public:
 
 	UDynamicMaterialModelFactory();
 
-	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags InFlags, UObject* InContext, 
+		FFeedbackContext* InWarn) override;
 	virtual FText GetDisplayName() const override;
 	virtual FText GetToolTip() const override;
 };

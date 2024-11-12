@@ -42,7 +42,7 @@ namespace uba
 
 	FileMappingHandle CreateMemoryMappingW(Logger& logger, u32 flProtect, u64 maxSize, const tchar* name)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().createFileMapping);
 #if PLATFORM_WINDOWS
 		return { InternalCreateFileMappingW(INVALID_HANDLE_VALUE, flProtect, (DWORD)ToHigh(maxSize), ToLow(maxSize), name) };
 #else
@@ -168,7 +168,7 @@ namespace uba
 
 	FileMappingHandle CreateFileMappingW(FileHandle file, u32 protect, u64 maxSize, const tchar* hint)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().createFileMapping);
 #if PLATFORM_WINDOWS
 		return { InternalCreateFileMappingW(asHANDLE(file), protect, (DWORD)ToHigh(maxSize), ToLow(maxSize), NULL) };
 #else
@@ -206,7 +206,7 @@ namespace uba
 
 	u8* MapViewOfFile(FileMappingHandle fileMappingObject, u32 desiredAccess, u64 offset, u64 bytesToMap)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().mapViewOfFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().mapViewOfFile);
 #if PLATFORM_WINDOWS
 		return (u8*)::MapViewOfFile(fileMappingObject.handle, desiredAccess, (DWORD)ToHigh(offset), ToLow(offset), bytesToMap);
 #else
@@ -237,7 +237,7 @@ namespace uba
 
 	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap, const tchar* hint)
 	{
-		ExtendedTimerScope ts(SystemStats::GetCurrent().unmapViewOfFile);
+		ExtendedTimerScope ts(KernelStats::GetCurrent().unmapViewOfFile);
 #if PLATFORM_WINDOWS
 		(void)bytesToUnmap; return ::UnmapViewOfFile(lpBaseAddress);
 #else
@@ -294,6 +294,14 @@ namespace uba
 		UBA_ASSERT(false);
 		return false;
 #endif
+	}
+
+	void MapMemoryCopy(void* dest, const void* source, u64 size)
+	{
+		auto& stats = KernelStats::GetCurrent();
+		ExtendedTimerScope ts(stats.memoryCopy);
+		stats.memoryCopy.bytes += size;
+		memcpy(dest, source, size);
 	}
 
 	FileMappingBuffer::FileMappingBuffer(Logger& logger, WorkManager* workManager)
@@ -387,12 +395,12 @@ namespace uba
 		}
 
 		u64 committedBefore = AlignUp(offset, m_pageSize);
-		u64 commitedAfter = AlignUp(newOffset, m_pageSize);
+		u64 committedAfter = AlignUp(newOffset, m_pageSize);
 
-		if (f.commitOnAlloc && committedBefore != commitedAfter)
+		if (f.commitOnAlloc && committedBefore != committedAfter)
 		{
 			u64 commitStart = committedBefore - alignedOffsetStart;
-			u64 commitSize = commitedAfter - committedBefore;
+			u64 commitSize = committedAfter - committedBefore;
 			if (!MapViewCommit(data + commitStart, commitSize))
 			{
 				UnmapViewOfFile(data, mapSize, hint);
@@ -535,7 +543,7 @@ namespace uba
 		if (!view.handle.IsValid())
 			return;
 
-		auto unmap = [=](const tchar* hint)
+		auto unmap = [=, this](const tchar* hint)
 			{
 				u8 storageIndex = 255;
 				File& file = GetFile(view.handle, storageIndex);

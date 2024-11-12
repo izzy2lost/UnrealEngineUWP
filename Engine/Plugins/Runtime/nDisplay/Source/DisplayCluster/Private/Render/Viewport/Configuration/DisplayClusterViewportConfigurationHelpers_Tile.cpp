@@ -24,47 +24,18 @@
 
 void FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(FDisplayClusterViewport& InSourceViewport, const FDisplayClusterConfigurationMediaICVFX& InCameraMediaSettings)
 {
-	// Nothing to do if media tiling is not configured
-	const bool bMediaEnabled = InCameraMediaSettings.bEnable;
-	const bool bMediaTiled = (InCameraMediaSettings.SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles);
-	if (!bMediaEnabled || !bMediaTiled)
+	if (!InSourceViewport.CanSplitIntoTiles() || !InCameraMediaSettings.ShouldMediaICVFXSplitIntoTiles())
 	{
+		// Disable tile splittings for this viewport.
 		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
 		return;
 	}
 
-	// Validate the layout
-	const bool bIsLayoutValid = FDisplayClusterConfigurationTile_Settings::IsValid(InCameraMediaSettings.TiledSplitLayout);
-	if (!bIsLayoutValid)
-	{
-		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
-		return;
-	}
-
-	// Check if viewport is able to split
-	const bool bCanSplitIntoTiles = InSourceViewport.CanSplitIntoTiles();
-	if (!bCanSplitIntoTiles)
-	{
-		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
-		return;
-	}
-
-	// Find if this cluster node is allowed to render unbound tiles
-	const FString ThisNodeId = InSourceViewport.GetClusterNodeId();
-	const bool bAllowRenderUnbound = InCameraMediaSettings.ClusterNodesToRenderUnboundTiles.ItemNames.ContainsByPredicate([&ThisNodeId](const FString& Item)
-		{
-			return ThisNodeId.Equals(Item, ESearchCase::IgnoreCase);
-		});
-
-	// Generate flags
-	EDisplayClusterViewportTileFlags TileFlags = EDisplayClusterViewportTileFlags::None;
-	if (bAllowRenderUnbound)
-	{
-		TileFlags |= EDisplayClusterViewportTileFlags::AllowUnboundRender;
-	}
+	// Get additional tile flags
+	const EDisplayClusterViewportTileFlags TileFlags = InCameraMediaSettings.GetMediaICVFXTileFlags(InSourceViewport.GetClusterNodeId());
 
 	// Generate overscan settings
-	const FDisplayClusterViewport_OverscanSettings& OverscanSettings = FDisplayClusterViewportConfigurationHelpers_Tile::GetTileOverscanSettings(InCameraMediaSettings.TileOverscan);
+	const FDisplayClusterViewport_OverscanSettings OverscanSettings = FDisplayClusterViewportConfigurationHelpers_Tile::GetTileOverscanSettings(InCameraMediaSettings.TileOverscan);
 
 	// Set this viewport as a source for tile rendering.
 	FDisplayClusterViewport_TileSettings& OutTileSettings = InSourceViewport.GetRenderSettingsImpl().TileSettings;
@@ -140,6 +111,8 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::FindT
 
 FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOrCreateTileViewport(FDisplayClusterViewport& InSourceViewport, const FIntPoint& InTilePos)
 {
+	// Note: At this point, the viewports should already be configured.
+
 	const FDisplayClusterViewport_RenderSettings& SourceRenderSettings = InSourceViewport.GetRenderSettings();
 	if (SourceRenderSettings.TileSettings.GetType() != EDisplayClusterViewportTileType::Source)
 	{
@@ -167,31 +140,33 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 	// Note: The source viewport must already be configured.
 	if (TileViewport)
 	{
-		// Gain direct access to internal resources of the NewViewport:
-		FDisplayClusterViewport_RenderSettings& InOutRenderSettings = TileViewport->GetRenderSettingsImpl();
-
 		// Reset runtime flags from prev frame.
 		// Also this function update media states.
-		TileViewport->ResetRuntimeParameters();
+		// Note: Save the new media states after calling ResetRuntimeParameters().
+		TileViewport->ResetRuntimeParameters(InSourceViewport.GetViewportConfigurationData());
+		const EDisplayClusterViewportMediaState SavedTileViewportMediaStates = TileViewport->GetRenderSettings().GetMediaStates();
 
-		// Override rendering settings from the source viewport, except for media states.
-		{
-			// Save the new media states after calling ResetRuntimeParameters().
-			const EDisplayClusterViewportMediaState TileMediaStates = TileViewport->GetRenderSettings().GetMediaStates();
+		// Gain direct access to internal resources of the NewViewport:
+		FDisplayClusterViewport_RenderSettings& InOutRenderSettings = TileViewport->GetRenderSettingsImpl();
 
 			// Copy all the settings from the source viewport, but some of them still need to be overridden.
 			InOutRenderSettings = SourceRenderSettings;
 
-			// Restore media states
-			InOutRenderSettings.AssignMediaStates(TileMediaStates);
-		}
+		// Restore media states for the tile viewport.
+		InOutRenderSettings.AssignMediaStates(SavedTileViewportMediaStates);
 
 		// Don't show Tile composing viewports on frame target
 		InOutRenderSettings.bVisible = false;
 
-		// Disable custom frustum settings and override overscan settings.
-		// Use custom overscan settings for the tile rendering.
+		// Override custom frustum settings and override overscan settings.
+		// The size of the original viewport after overscan, custom frustum, etc. is used as
+		// the base size for tiling. (see the FDisplayClusterViewport::UpdateFrameContexts() function)
+
+		// Disables the custom frustum for the tile viewport (it has already been applied to the original viewport).
 		InOutRenderSettings.CustomFrustumSettings = FDisplayClusterViewport_CustomFrustumSettings();
+
+		// Disables the overscan for the tile viewport (it has already been applied to the original viewport).
+		// Override by the overscan settings obtained by splitting the tile.
 		InOutRenderSettings.OverscanSettings = SourceRenderSettings.TileSettings.GetOverscanSettings();
 
 		// Optimize overscan values for edge tiles
@@ -221,14 +196,30 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 		// Setup as tile.
 		InOutRenderSettings.TileSettings = FDisplayClusterViewport_TileSettings(InSourceViewport.GetId(), InTilePos, InTileSize, TileFlags);
 
-		// Copy internal render settings from the source:
+		// Copy the other viewport settings:
+{
+			// Use the OCIO of the original viewport.
+			// In some cases, OCIO may be applied during the post-processing phase of rendering.
+			TileViewport->SetOpenColorIO(InSourceViewport.GetOpenColorIO());
+
+			// The tile viewport uses the same post-processing settings as the original viewport.
 		TileViewport->GetCustomPostProcessSettings() = InSourceViewport.GetCustomPostProcessSettings();
+
+			// The tile viewport uses the same visibility settings as the original viewport.
 		TileViewport->GetVisibilitySettingsImpl() = InSourceViewport.GetVisibilitySettingsImpl();
+
+			// Use the same settings for camera motion blur and DoF.
 		TileViewport->GetCameraMotionBlurImpl() = InSourceViewport.GetCameraMotionBlurImpl();
 		TileViewport->GetCameraDepthOfFieldImpl() = InSourceViewport.GetCameraDepthOfFieldImpl();
 
-		// Copy OCIO.
-		TileViewport->SetOpenColorIO(InSourceViewport.GetOpenColorIO());
+			// Ignore `OverscanRuntimeSettings` and `CustomFrustumRuntimeSettings`:
+			// These values are calculated later, in FDisplayClusterViewport::UpdateFrameContexts() function
+			// from RenderSettings.CustomFrustumSettings and RenderSettings.OverscanSettings
+
+			// Ignore `RenderSettingsICVFX`: tile viewport exists outside of the ICVFX architecture.
+
+			// Ignore `ViewportRemap` and`PostRenderSettings`: it only applies to the final source viewport.
+	}
 	}
 
 	return TileViewport;

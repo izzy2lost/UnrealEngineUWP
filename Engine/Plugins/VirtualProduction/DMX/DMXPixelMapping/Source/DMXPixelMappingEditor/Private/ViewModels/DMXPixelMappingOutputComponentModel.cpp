@@ -3,12 +3,11 @@
 #include "ViewModels/DMXPixelMappingOutputComponentModel.h"
 
 #include "Components/DMXPixelMappingFixtureGroupComponent.h"
-#include "DMXPixelMappingTypes.h"
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
 #include "Components/DMXPixelMappingMatrixCellComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
 #include "Components/DMXPixelMappingOutputComponent.h"
-#include "Components/DMXPixelMappingScreenComponent.h"
+#include "DMXPixelMappingTypes.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
 #include "MVR/DMXMVRGeneralSceneDescription.h"
@@ -113,9 +112,7 @@ namespace UE::DMX
 	bool FDMXPixelMappingOutputComponentModel::ShouldDrawNameAbove() const
 	{
 		return
-			OutputComponent &&
-			(OutputComponent->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass() ||
-			OutputComponent->GetClass() == UDMXPixelMappingScreenComponent::StaticClass());
+			OutputComponent && OutputComponent->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass();
 	}
 
 	bool FDMXPixelMappingOutputComponentModel::ShouldDrawCellID() const
@@ -269,158 +266,6 @@ namespace UE::DMX
 		}
 
 		WeakFixtureNode = GeneralSceneDescription->FindFixtureNode(MVRUUID);
-	}
-
-	FDMXPixelMappingScreenComponentModel::FDMXPixelMappingScreenComponentModel(const TSharedRef<FDMXPixelMappingToolkit>& InToolkit, TWeakObjectPtr<UDMXPixelMappingScreenComponent> InScreenComponent)
-		: WeakScreenComponent(InScreenComponent)
-		, WeakToolkit(InToolkit)
-	{
-		UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get();
-		if (!ScreenComponent)
-		{
-			return;
-		}
-
-		bSelected = InToolkit->GetSelectedComponents().Contains(FDMXPixelMappingComponentReference(InToolkit, ScreenComponent));
-
-		// Handle selection changes
-		InToolkit->GetOnSelectedComponentsChangedDelegate().AddRaw(this, &FDMXPixelMappingScreenComponentModel::OnSelectedComponentsChanged);
-	}
-
-	FDMXPixelMappingScreenComponentModel::~FDMXPixelMappingScreenComponentModel()
-	{
-		if (TSharedPtr<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin())
-		{
-			Toolkit->GetOnSelectedComponentsChangedDelegate().RemoveAll(this);
-		}
-	}
-
-	FVector2D FDMXPixelMappingScreenComponentModel::GetPosition() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->GetPosition();
-		}
-		return FVector2D::ZeroVector;
-	}
-
-	FVector2D FDMXPixelMappingScreenComponentModel::GetSize() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->GetSize();
-		}
-		return FVector2D::ZeroVector;
-	}
-
-	int32 FDMXPixelMappingScreenComponentModel::GetNumColumns() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->NumXCells;
-		}
-		return 1;
-	}
-
-	int32 FDMXPixelMappingScreenComponentModel::GetNumRows() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->NumYCells;
-		}
-		return 1;
-	}
-
-	FLinearColor FDMXPixelMappingScreenComponentModel::GetColor() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			if (bSelected)
-			{
-				return ScreenComponent->GetEditorColor();
-			}
-			else
-			{
-				return ScreenComponent->GetEditorColor().CopyWithNewOpacity(0.6f);
-			}
-		}
-
-		return FLinearColor::Red;
-	}
-
-	bool FDMXPixelMappingScreenComponentModel::Equals(UDMXPixelMappingBaseComponent* Other) const
-	{
-		return WeakScreenComponent.Get() == Other;
-	}
-
-	void FDMXPixelMappingScreenComponentModel::OnSelectedComponentsChanged()
-	{
-		TSharedPtr<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin();
-		if (!Toolkit.IsValid())
-		{
-			return;
-		}
-
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			bSelected = Toolkit->GetSelectedComponents().Contains(FDMXPixelMappingComponentReference(Toolkit, ScreenComponent));
-		}
-	}
-
-	EDMXPixelMappingDistribution FDMXPixelMappingScreenComponentModel::GetDistribution() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->Distribution;
-		}
-		return EDMXPixelMappingDistribution::BottomLeftToRight;
-	}
-
-	EDMXCellFormat FDMXPixelMappingScreenComponentModel::GetCellFormat() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->PixelFormat;
-		}
-		return EDMXCellFormat::PF_RGB;
-	}
-
-	bool FDMXPixelMappingScreenComponentModel::ComponentWantsToShowUniverse() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->bShowUniverse;
-		}
-		return false;
-	}
-
-	int32 FDMXPixelMappingScreenComponentModel::GetUniverse() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->LocalUniverse;
-		}
-
-		return 0;
-	}
-
-	bool FDMXPixelMappingScreenComponentModel::ComponentWantsToShowChannel() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->bShowAddresses;
-		}
-		return false;
-	}
-
-	int32 FDMXPixelMappingScreenComponentModel::GetStartingChannel() const
-	{
-		if (UDMXPixelMappingScreenComponent* ScreenComponent = WeakScreenComponent.Get())
-		{
-			return ScreenComponent->StartAddress;
-		}
-
-		return 0;
 	}
 }
 

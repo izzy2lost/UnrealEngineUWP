@@ -18,6 +18,7 @@
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
 #include "EditorSubsystem.h"
+#include "GetOrEnumerateSink.h"
 #include "HAL/Platform.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/NamePermissionList.h"
@@ -55,7 +56,7 @@ enum class EContentBrowserIsFolderVisibleFlags : uint8
 	/**
 	 * Hide folders that recursively contain no file items.
 	 */
-	HideEmptyFolders = 1<<0,
+	HideEmptyFolders UE_DEPRECATED(5.5, "Empty folder filtering is now dependent on which types of contents are visible, use the FContentBrowserFolderContentsFilter argument to IsFolderVisible") = 1 << 0,
 
 	/**
 	 * Default visibility flags.
@@ -177,14 +178,26 @@ public:
 	/**
 	 * Enumerate the items (folders and/or files) that match a previously compiled filter.
 	 */
-	void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
-	void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
+	void EnumerateItemsMatchingFilter(
+		const FContentBrowserDataCompiledFilter& InFilter, TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
+	void EnumerateItemsMatchingFilter(const FContentBrowserDataCompiledFilter& InFilter,
+		TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
+	void EnumerateItemsMatchingFilter(
+		const FContentBrowserDataCompiledFilter& InFilter, const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const;
 
 	/**
 	 * Enumerate the items (folders and/or files) that exist under the given virtual path.
 	 */
-	void EnumerateItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter, TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
-	void EnumerateItemsUnderPath(const FName InPath, const FContentBrowserDataFilter& InFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
+	void EnumerateItemsUnderPath(const FName InPath,
+		const FContentBrowserDataFilter& InFilter,
+		TFunctionRef<bool(FContentBrowserItem&&)> InCallback) const;
+	void EnumerateItemsUnderPath(const FName InPath,
+		const FContentBrowserDataFilter& InFilter,
+		TFunctionRef<bool(FContentBrowserItemData&&)> InCallback) const;
+	// Version which allows passing an array or a callback, allows sources to presize the array for large queries
+	void EnumerateItemsUnderPath(const FName InPath,
+		const FContentBrowserDataFilter& InFilter,
+		const TGetOrEnumerateSink<FContentBrowserItemData>& InSink) const;
 
 	/**
 	 * Get the items (folders and/or files) that exist under the given virtual path.
@@ -253,8 +266,11 @@ public:
 
 	/**
 	 * Query whether the given virtual folder should be visible in the UI.
+	 * @param Path Virtual path of folder e.g. /All/GameData/Stuff
+	 * @param Flags Currently unused
+	 * @param ContentsFilter Optional filter for limiting visibility to only folders with a certain type of contents based on desired view filtering.
 	 */
-	bool IsFolderVisible(const FName InPath, const EContentBrowserIsFolderVisibleFlags InFlags = EContentBrowserIsFolderVisibleFlags::Default) const;
+	bool IsFolderVisible(const FName Path, const EContentBrowserIsFolderVisibleFlags Flags = EContentBrowserIsFolderVisibleFlags::Default, TOptional<FContentBrowserFolderContentsFilter> ContentsFilter = {}) const;
 
 	/**
 	 * Query whether the given virtual folder should be visible if the UI is asking to hide empty content folders.
@@ -428,6 +444,8 @@ private:
 
 	//~ IContentBrowserItemDataSink interface
 	virtual void QueueItemDataUpdate(FContentBrowserItemDataUpdate&& InUpdate) override;
+
+	UE_DEPRECATED(5.5, "NotifyItemDataRefreshed is deprecated, for editor performance reasons no external systems should be able to request a full refresh.")
 	virtual void NotifyItemDataRefreshed() override;
 
 	/**
@@ -464,14 +482,15 @@ private:
 	TArray<FContentBrowserItemDataUpdate> PendingUpdates;
 
 	/**
+	 * Set of item data updates that are delayed to preserve the editor performance.
+	 * These will be passed to the PendingUpdates when we exit a pie session.
+	 */
+	TMap<FContentBrowserItemKey, FContentBrowserItemDataUpdate> DelayedPendingUpdates;
+
+	/**
 	 * True if an item data refresh notification is pending.
 	 */
 	bool bPendingItemDataRefreshedNotification = false;
-
-	/**
-	 * True if there are currently any ignored changes.
-	 */
-	bool bHasIgnoredItemUpdates = false;
 
 	/**
 	 * True if Play in Editor is active.

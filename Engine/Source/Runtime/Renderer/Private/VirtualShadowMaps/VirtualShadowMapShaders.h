@@ -47,3 +47,11 @@ public:
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
 	}
 };
+
+template <typename ShaderType>
+static bool SetStatsArgsAndPermutation(bool bGenerateStats, FRDGBufferUAVRef StatsBufferUAV, typename ShaderType::FParameters *OutPassParameters, typename ShaderType::FPermutationDomain& OutPermutationVector)
+{
+	OutPassParameters->OutStatsBuffer = StatsBufferUAV;
+	OutPermutationVector.template Set<typename ShaderType::FGenerateStatsDim>(bGenerateStats);
+	return bGenerateStats;
+}

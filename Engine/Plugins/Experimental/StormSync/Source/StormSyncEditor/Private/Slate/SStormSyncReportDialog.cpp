@@ -92,8 +92,6 @@ FStormSyncPackageReportNode::FChildrenState FStormSyncPackageReportNode::AddPack
 	return ChildrenState;
 }
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
 void SStormSyncReportDialog::Construct(const FArguments& InArgs, const FText& InReportMessage, TArray<FStormSyncReportPackageData>& InPackageNames)
 {
 	FolderOpenBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpen");
@@ -129,7 +127,6 @@ void SStormSyncReportDialog::Construct(const FArguments& InArgs, const FText& In
 				[
 					SAssignNew(ReportTreeView, SStormSyncReportTreeView)
 					.TreeItemsSource(&PackageReportRootNode.Children)
-					.ItemHeight(18)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow(this, &SStormSyncReportDialog::GenerateTreeRow)
 					.OnGetChildren_Static(&SStormSyncReportDialog::GetChildrenForTree)
@@ -143,8 +140,6 @@ void SStormSyncReportDialog::Construct(const FArguments& InArgs, const FText& In
 		PackageReportRootNode.ExpandChildrenRecursively(ReportTreeView.ToSharedRef());
 	}
 }
-
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SStormSyncReportDialog::CloseDialog()
 {

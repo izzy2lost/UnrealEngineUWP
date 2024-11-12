@@ -14,8 +14,22 @@ struct FWorldPartitionActorDescUtils
 {
 	/** @return The asset registry tag name for ActorMetaDataClass */
 	static ENGINE_API FName ActorMetaDataClassTagName();
+
 	/** @return The asset registry tag name for ActorMetaData */
 	static ENGINE_API FName ActorMetaDataTagName();
+
+	struct FActorDescInitParams
+	{
+		FActorDescInitParams() {}
+		FActorDescInitParams(const AActor* InActor);
+		FActorDescInitParams(const FString& InString);
+
+		FString ToString() const;
+
+		FName PathName;
+		FName NativeClassName;
+		FString AssetData;
+	};
 
 	/** 
 	 * Checks if the provided asset data contains a valid actor descriptor.
@@ -30,6 +44,22 @@ struct FWorldPartitionActorDescUtils
 	 * @return				The actor's native class.
 	 */
 	static ENGINE_API UClass* GetActorNativeClassFromAssetData(const FAssetData& InAssetData);
+
+	/**
+	 * Retrieve the actor's native class from the string.
+	 * @param InClassPath	The class path to resolve.
+	 * @return				The actor's native class.
+	 */
+	static ENGINE_API UClass* GetActorNativeClassFromString(const FString& InClassPath);
+
+	/** 
+	 * Creates a valid actor descriptor from the provided actor descriptor init params.
+	 * @param InActorDescInitParams	The actor dfescriptor input params.
+	 * @param InPackageName			The package name the actor descriptor comes from.
+	 * @return						Actor descriptor retrieved from the provided asset data.
+	 */
+	static ENGINE_API TUniquePtr<FWorldPartitionActorDesc> GetActorDescriptorFromInitParams(const FActorDescInitParams& InActorDescInitParams, FName InPackageName);
+
 
 	/** 
 	 * Creates a valid actor descriptor from the provided asset data.

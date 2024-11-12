@@ -7,11 +7,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Select)
 
-const FName FRigVMDispatch_SelectInt32::IndexName = TEXT("Index");
-const FName FRigVMDispatch_SelectInt32::ValuesName = TEXT("Values");
-const FName FRigVMDispatch_SelectInt32::ResultName = TEXT("Result");
-
-
 FName FRigVMDispatch_SelectInt32::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
 	if(InOperandIndex > 0 && InOperandIndex < InTotalOperands - 1)
@@ -53,11 +48,11 @@ FRigVMTemplateTypeMap FRigVMDispatch_SelectInt32::OnNewArgumentType(const FName&
 	if(InArgumentName == ValuesName)
 	{
 		Types.Add(ValuesName, InTypeIndex);
-		Types.Add(ResultName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex));
+		Types.Add(ResultName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex));
 	}
 	else
 	{
-		Types.Add(ValuesName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex));
+		Types.Add(ValuesName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex));
 		Types.Add(ResultName, InTypeIndex);
 	}
 	return Types;

@@ -476,10 +476,11 @@ bool FFbxImportAssetsAutomationTest::RunTest(const FString& Parameters)
 				FString LodFile = BaseLODFile.Replace(TEXT("_lod00"), *LodIndexString);
 				if (!FPaths::FileExists(LodFile))
 				{
-					ExecutionInfo.AddError(FString::Printf(TEXT("%s: Cannot Add Lod because file %s do not exist on disk!"), *LodFile));
+					ExecutionInfo.AddError(FString::Printf(TEXT("%s: Cannot Add Lod because file %s do not exist on disk!"), *CleanFilename, *LodFile));
 					CurTestSuccessful = false;
 					continue;
 				}
+				constexpr bool bAsyncFalse = false;
 
 				if (GlobalImportedObjects[0]->IsA(UStaticMesh::StaticClass()))
 				{
@@ -508,7 +509,7 @@ bool FFbxImportAssetsAutomationTest::RunTest(const FString& Parameters)
 					ImportData->ImportUniformScale = TestPlan->ImportUI->StaticMeshImportData->ImportUniformScale;
 					ImportData->bImportAsScene = TestPlan->ImportUI->StaticMeshImportData->bImportAsScene;
 
-					FbxMeshUtils::ImportStaticMeshLOD(ExistingStaticMesh, LodFile, TestPlan->LodIndex);
+					FbxMeshUtils::ImportStaticMeshLOD(ExistingStaticMesh, LodFile, TestPlan->LodIndex, bAsyncFalse);
 				}
 				else if (GlobalImportedObjects[0]->IsA(USkeletalMesh::StaticClass()))
 				{
@@ -540,7 +541,7 @@ bool FFbxImportAssetsAutomationTest::RunTest(const FString& Parameters)
 					ImportData->ImportUniformScale = TestPlan->ImportUI->SkeletalMeshImportData->ImportUniformScale;
 					ImportData->bImportAsScene = TestPlan->ImportUI->SkeletalMeshImportData->bImportAsScene;
 
-					FbxMeshUtils::ImportSkeletalMeshLOD(ExistingSkeletalMesh, LodFile, TestPlan->LodIndex);
+					FbxMeshUtils::ImportSkeletalMeshLOD(ExistingSkeletalMesh, LodFile, TestPlan->LodIndex, bAsyncFalse);
 				}
 			}
 			break;

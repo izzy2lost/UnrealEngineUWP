@@ -792,7 +792,7 @@ namespace UE::PixelStreaming
 				{
 					const size_t DescriptorSize = (RawBuffer.data.size() - 1) / sizeof(TCHAR);
 					const TCHAR* DescPtr = reinterpret_cast<const TCHAR*>(RawBuffer.data.data() + 1);
-					const FString Message(DescriptorSize, DescPtr);
+					const FString Message = FString::ConstructFromPtrSize(DescPtr, DescriptorSize);
 					PlayerContext->DataChannel->SendMessage(FPixelStreamingInputProtocol::FromStreamerProtocol.Find("TestEcho")->GetID(), Message);
 				}
 			}

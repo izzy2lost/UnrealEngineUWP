@@ -539,13 +539,14 @@ TSharedPtr<FAvaEaseCurvePreset> UAvaEaseCurveSubsystem::FindPreset(const FString
 	return nullptr;
 }
 
-TSharedPtr<FAvaEaseCurvePreset> UAvaEaseCurveSubsystem::FindPresetByTangents(const FAvaEaseCurveTangents& InTangents)
+TSharedPtr<FAvaEaseCurvePreset> UAvaEaseCurveSubsystem::FindPresetByTangents(const FAvaEaseCurveTangents& InTangents, const double InErrorTolerance)
 {
 	for (const TPair<FString, TArray<TSharedPtr<FAvaEaseCurvePreset>>>& Preset : Presets)
 	{
-		const TSharedPtr<FAvaEaseCurvePreset>* PresetPtr = Preset.Value.FindByPredicate([&InTangents](const TSharedPtr<FAvaEaseCurvePreset>& InPreset)
+		const TSharedPtr<FAvaEaseCurvePreset>* PresetPtr = Preset.Value.FindByPredicate([&InTangents, InErrorTolerance]
+			(const TSharedPtr<FAvaEaseCurvePreset>& InPreset)
 			{
-				return InPreset->Tangents == InTangents;
+				return InPreset->Tangents.IsNearlyEqual(InTangents, InErrorTolerance);
 			});
 		if (PresetPtr)
 		{

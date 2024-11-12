@@ -287,16 +287,60 @@ vec4 GetRoundedBoxElementColor()
 	return OutColor;
 }
 
+
+/**
+ * Computes 0-1 value that interpolates between dashes of length DashLength based on Distance with 1px of antialiasing between dashes and gaps
+ * 
+ * ie:
+ * 1 -----------------                     -----------------                     -----------------                     
+ *                    \                   /                 \                   /                 \                   /
+ * 0                   \_________________/                   \_________________/                   \_________________/ 
+ *
+ *   <  DashLength   >  <  DashLength   >  <  DashLength   >  <  DashLength   >  <  DashLength   >  <  DashLength   >
+ 
+ */
+float ModulateDashedLine(float Distance, float DashLength)
+{
+	// Add one for antialias pixel
+	DashLength += 1.0;
+
+	float HalfDash  = 0.50*DashLength;
+	float Period    = 2.00*DashLength;
+
+	// Offset the interpolation so that the dash starts at distance = 0;
+	float Interp = Distance - HalfDash + 0.50;
+	float Mod = Interp - Period*floor(Interp/Period); // mod(Interp, Period)
+
+	// Compute the dash alpha using a clamped triangle wave
+	float TriWave = 2.0 * abs(Mod - DashLength) - DashLength;
+	return clamp(TriWave, -1.0, 1.0)*0.5 + 0.5;
+}
+
+/**
+ * Generates an anti-aliased line segment pixel
+ * This is based on the fast prefiltered lines technique published in GPU Gems 2
+ *
+ * Instead of passing edge function coefficients as uniform parameters we use
+ * texture coordinates to define the line
+ *
+ * When rasterized, the submitted geometry must contain every pixel that
+ * could have coverage > 0. Failing to do so will create sharp, aliased edges
+ */
 vec4 GetLineSegmentElementColor()
 {
 	vec2 Gradient = TexCoords.xy;
+	vec2 DashParams = TexCoords.zw;
 
+	// Get coverage based on distance from segment sides and ends
 	vec2 OutsideFilterUV = vec2(1.0, 1.0);
 	vec2 InsideFilterUV = vec2(ShaderParams.x, 0.0);
 	vec2 LineCoverage = smoothstep(OutsideFilterUV, InsideFilterUV, abs(Gradient));
 
+	float DashLength = DashParams.y;
+	float DashAlpha = ModulateDashedLine(DashParams.x, DashParams.y);
+
 	vec4 OutColor = Color;
-	OutColor.a *= LineCoverage.x * LineCoverage.y;
+	OutColor.a *= LineCoverage.x * LineCoverage.y * DashAlpha;
 	return OutColor;
 }
 

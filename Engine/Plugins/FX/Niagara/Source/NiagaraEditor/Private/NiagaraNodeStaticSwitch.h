@@ -124,6 +124,8 @@ protected:
 	//~ End UNiagaraNodeUsageSelector Interface
 
 	virtual bool CanModifyPin(const UEdGraphPin* Pin) const override;
+	virtual bool CanMovePin(const UEdGraphPin* Pin, int32 DirectionToMove) const override;
+	virtual void MoveDynamicPin(UEdGraphPin* Pin, int32 MoveAmount) override;
 private:
 	/** INotifyOnEnumChanged interface */
 	virtual void PreChange(const UUserDefinedEnum* Changed, FEnumEditorUtils::EEnumEditorChangeInfo ChangedType) override;

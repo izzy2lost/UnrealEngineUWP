@@ -10,17 +10,17 @@
 #include "TechSoftBridge.h"
 #include "TUniqueTechSoftObj.h"
 
-#include "CADKernel/Core/Entity.h"
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Core/Types.h"
+#include "Core/CADEntity.h"
+#include "Core/Session.h"
+#include "Core/Types.h"
 
-#include "CADKernel/Mesh/Meshers/Mesher.h"
-#include "CADKernel/Mesh/Structure/ModelMesh.h"
+#include "Mesh/Meshers/Mesher.h"
+#include "Mesh/Structure/ModelMesh.h"
 
-#include "CADKernel/Topo/Body.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/TopologicalShapeEntity.h"
-#include "CADKernel/Topo/Topomaker.h"
+#include "Topo/Body.h"
+#include "Topo/Model.h"
+#include "Topo/TopologicalShapeEntity.h"
+#include "Topo/Topomaker.h"
 
 #include "HAL/PlatformTime.h"
 
@@ -300,9 +300,10 @@ void FTechSoftFileParserCADKernelTessellator::MeshAndGetTessellation(UE::CADKern
 	// Tessellate the body
 	TSharedRef<FModelMesh> CADKernelModelMesh = FEntity::MakeShared<FModelMesh>();
 
-	FCADKernelTools::DefineMeshCriteria(CADKernelModelMesh.Get(), CADFileData.GetImportParameters(), CADKernelSession.GetGeometricTolerance());
+	const double GeometricTolerance = CADKernelSession.GetGeometricTolerance();
 
-	const double GeometricTolerance = FImportParameters::GStitchingTolerance * 10; // cm to mm
+	FCADKernelTools::DefineMeshCriteria(CADKernelModelMesh.Get(), CADFileData.GetImportParameters(), GeometricTolerance);
+
 	const bool bActivateThinZoneMeshing = FImportParameters::bGActivateThinZoneMeshing;
 	FMesher Mesher(*CADKernelModelMesh, GeometricTolerance, bActivateThinZoneMeshing);
 	Mesher.MeshEntity(CADKernelBody);

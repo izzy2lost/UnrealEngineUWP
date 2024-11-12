@@ -42,7 +42,7 @@ bool FInputEvent::IsKeyEvent() const
 
 FText FCharacterEvent::ToText() const
 {
-	return FText::Format( NSLOCTEXT("Events", "Char", "Char({0})"), FText::FromString(FString(1, &Character)) );
+	return FText::Format( NSLOCTEXT("Events", "Char", "Char({0})"), FText::FromString(FString::ConstructFromPtrSize(&Character, 1)) );
 }
 
 FText FKeyEvent::ToText() const

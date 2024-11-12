@@ -86,7 +86,7 @@ namespace ConcertSyncClientUtil
 
 	int32 GetObjectPathDepth(UObject* InObjToTest);
 
-	FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNewName, const FName InNewOuterPath, const FName InNewPackageName, const bool bAllowCreate);
+	FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNewName, const FName InNewOuterPath, const FName InNewPackageName, const FSoftObjectPath& InSourceObject, const bool bAllowCreate);
 	
 	TArray<const FProperty*> GetExportedProperties(const UStruct* InStruct, const TArray<FName>& InPropertyNames, const bool InIncludeEditorOnlyData);
 
@@ -151,5 +151,5 @@ namespace ConcertSyncClientUtil
 	/** Return true if we are in a world partition world. */
 	bool IsWorldPartitionWorld();
 
-	void FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType, FConcertPackageInfo& OutPackageInfo);
+	FConcertPackageInfo FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType);
 }

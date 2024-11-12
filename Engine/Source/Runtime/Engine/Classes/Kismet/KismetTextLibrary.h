@@ -33,12 +33,35 @@ enum ERoundingMode : int
 };
 
 UENUM(BlueprintType)
+enum EMemoryUnitStandard : int
+{
+	/* International Electrotechnical Commission (MiB) 1024-based */
+	IEC,
+	/* International System of Units 1000-based */
+	SI
+};
+
+UENUM(BlueprintType)
 enum class ETextGender : uint8
 {
 	Masculine,
 	Feminine,
 	Neuter,
 };
+
+UENUM(BlueprintType)
+namespace EDateTimeStyle
+{
+	enum Type : int
+	{
+		Default,
+		Short,
+		Medium,
+		Long,
+		Full,
+		Custom UMETA(Hidden), // Internal use only
+	};
+}
 
 UENUM(BlueprintType)
 namespace EFormatArgumentType
@@ -172,12 +195,17 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API FText GetEmptyText();
 
 	/**
-	 * Attempts to find existing Text using the representation found in the loc tables for the specified namespace and key.
-	 * @param Namespace The namespace of the text to find (if any).
-	 * @param Key The key of the text to find.
-	 * @param SourceString If set (not empty) then the found text must also have been created from this source string.
-	 */
-	UFUNCTION(BlueprintPure, Category="Utilities|Text", meta = (AdvancedDisplay = "SourceString"))
+	  * === !! This is an ADVANCED function. USE WITH CAUTION !! ===
+	  *
+	  * Attempt to dynamically reference an EXISTING Text via its active display string in the live table.
+	  * Note: This can ONLY find text that is currently localized (gathered, translated, and has an active display string in TextLocalizationManager). If you need to find a localizable but untranslated text, see 'Make Literal Text'.
+	  * Note: Direct dynamic references to Text are EXTREMELY FRAGILE, and you may want to use a string table instead!
+	  *
+	  * @param Namespace The namespace of the text to find (if any).
+	  * @param Key The key of the text to find.
+	  * @param SourceString If set (not empty) then the found text must also have been created from this source string.
+	  */
+	UFUNCTION(BlueprintPure, Category="Utilities|Text", DisplayName="Find Text in Live Table (Advanced)", meta = (AdvancedDisplay = "SourceString", ScriptName="FindTextInLiveTable_Advanced;FindTextInLocalizationTable"))
 	static ENGINE_API bool FindTextInLocalizationTable(const FString& Namespace, const FString& Key, FText& OutText, const FString& SourceString = TEXT(""));
 
 	/** Returns true if A and B are linguistically equal (A == B). */
@@ -248,31 +276,35 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 
 	/** Converts a passed in date & time to a text, formatted as a date using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone. */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Date", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsDate_DateTime(const FDateTime& InDateTime);
+	static ENGINE_API FText AsDate_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a date using the given timezone (default is the local timezone). This will convert the given date & time from UTC to the given timezone (taking into account DST). */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Date (from UTC)", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""));
+	static ENGINE_API FText AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""), TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a date & time using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone. */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As DateTime", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsDateTime_DateTime(const FDateTime& In);
+	static ENGINE_API FText AsDateTime_DateTime(const FDateTime& In, TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a date & time using the given timezone (default is the local timezone). This will convert the given date & time from UTC to the given timezone (taking into account DST). */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As DateTime (from UTC)", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""));
+	static ENGINE_API FText AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""), TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a time using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone. */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Time", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTime_DateTime(const FDateTime& In);
+	static ENGINE_API FText AsTime_DateTime(const FDateTime& In, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a time using the given timezone (default is the local timezone). This will convert the given date & time from UTC to the given timezone (taking into account DST). */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Time (from UTC)", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""));
+	static ENGINE_API FText AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""), TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in time span to a text, formatted as a time span */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Timespan", AdvancedDisplay = "1"), Category="Utilities|Text")
 	static ENGINE_API FText AsTimespan_Timespan(const FTimespan& InTimespan);
+
+	/** Generate an FText that represents the passed number as a memory size in the current culture */
+	UFUNCTION(BlueprintPure, meta=(AdvancedDisplay = "1"), Category="Utilities|Text")
+	static ENGINE_API FText AsMemory(int64 NumBytes, TEnumAsByte<EMemoryUnitStandard> UnitStandard = EMemoryUnitStandard::IEC, bool bUseGrouping = true, int32 MinimumIntegralDigits = 1, int32 MaximumIntegralDigits = 324, int32 MinimumFractionalDigits = 0, int32 MaximumFractionalDigits = 3);
 
 	/** Used for formatting text using the FText::Format function and utilized by the UK2Node_FormatText */
 	UFUNCTION(BlueprintPure, meta=(BlueprintInternalUseOnly = "true"))
@@ -340,4 +372,9 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, CustomThunk, Category="Utilities|Text", meta=(DefaultToSelf="TextOwner"))
 	static ENGINE_API bool EditTextSourceString(UObject* TextOwner, UPARAM(ref) FText& Text, const FString& SourceString);
 	DECLARE_FUNCTION(execEditTextSourceString);
+
+	/** Converts a generic value to localized formatted text using the user culture. */
+	UFUNCTION(BlueprintPure, CustomThunk, DisplayName = "To Text", Category = "Utilities|Text", meta = (CustomStructureParam = "Value", BlueprintInternalUseOnly = "true"))
+	static ENGINE_API FText Conv_NumericPropertyToText(UPARAM(ref) const int32& Value);
+	DECLARE_FUNCTION(execConv_NumericPropertyToText);
 };

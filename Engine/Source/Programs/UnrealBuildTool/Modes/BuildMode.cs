@@ -98,6 +98,12 @@ namespace UnrealBuildTool
 		public DirectoryReference? SaveCrashDumpDirectory = null;
 
 		/// <summary>
+		/// If specified, then only this type of action will execute
+		/// </summary>
+		[CommandLine("-ActionTypeFilter=")]
+		public string? ActionTypeFilter = null;
+
+		/// <summary>
 		/// Main entry point
 		/// </summary>
 		/// <param name="Arguments">Command-line arguments</param>
@@ -127,10 +133,7 @@ namespace UnrealBuildTool
 			}
 
 			// Fixup the log path if it wasn't overridden by a config file
-			if (BaseLogFileName == null)
-			{
-				BaseLogFileName = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "Log.txt").FullName;
-			}
+			BaseLogFileName ??= FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "Log.txt").FullName;
 
 			// Create the log file, and flush the startup listener to it
 			if (!Arguments.HasOption("-NoLog") && !Log.HasFileWriter())
@@ -249,7 +252,7 @@ namespace UnrealBuildTool
 					// Create the working set provider per group.
 					using (ISourceFileWorkingSet WorkingSet = SourceFileWorkingSet.Create(Unreal.RootDirectory, ProjectDirs, Logger))
 					{
-						await BuildAsync(TargetDescriptors, BuildConfiguration, WorkingSet, Options, WriteOutdatedActionsFile, Logger, bSkipPreBuildTargets);
+						await BuildAsync(TargetDescriptors, BuildConfiguration, WorkingSet, Options, WriteOutdatedActionsFile, Logger, bSkipPreBuildTargets, ActionTypeFilter:ActionTypeFilter);
 					}
 				}
 			}
@@ -274,7 +277,7 @@ namespace UnrealBuildTool
 		{
 			if (TargetDescriptor.ProjectFile == null)
 			{
-				return new FileReference[] { };
+				return Array.Empty<FileReference>();
 			}
 
 			ProjectDescriptor ProjectDescriptor = ProjectDescriptor.FromFile(TargetDescriptor.ProjectFile);
@@ -290,7 +293,7 @@ namespace UnrealBuildTool
 
 			if (InitCommandBatches.Count == 0)
 			{
-				return new FileReference[] { };
+				return Array.Empty<FileReference>();
 			}
 
 			DirectoryReference ProjectDirectory = DirectoryReference.FromFile(TargetDescriptor.ProjectFile);
@@ -379,8 +382,9 @@ namespace UnrealBuildTool
 		/// <param name="WriteOutdatedActionsFile">Files to write the list of outdated actions to (rather than building them)</param>
 		/// <param name="Logger">Logger for output</param>
 		/// <param name="bSkipPreBuildTargets">If true then only the current target descriptors will be built.</param>
+		/// <param name="ActionTypeFilter">If specified, only actions of this type will be run</param>
 		/// <returns>Result from the compilation</returns>
-		public static async Task BuildAsync(List<TargetDescriptor> TargetDescriptors, BuildConfiguration BuildConfiguration, ISourceFileWorkingSet WorkingSet, BuildOptions Options, FileReference? WriteOutdatedActionsFile, ILogger Logger, bool bSkipPreBuildTargets = false)
+		public static async Task BuildAsync(List<TargetDescriptor> TargetDescriptors, BuildConfiguration BuildConfiguration, ISourceFileWorkingSet WorkingSet, BuildOptions Options, FileReference? WriteOutdatedActionsFile, ILogger Logger, bool bSkipPreBuildTargets = false, string? ActionTypeFilter = null)
 		{
 			List<TargetMakefile> TargetMakefiles = new List<TargetMakefile>();
 
@@ -408,8 +412,10 @@ namespace UnrealBuildTool
 				}
 			}
 
-			await BuildAsync(TargetMakefiles.ToArray(), TargetDescriptors, BuildConfiguration, Options, WriteOutdatedActionsFile, Logger);
+			await BuildAsync(TargetMakefiles.ToArray(), TargetDescriptors, BuildConfiguration, Options, WriteOutdatedActionsFile, Logger, ActionTypeFilter);
 		}
+
+		static Lazy<MemoryMappedFileCache> s_memoryMappedFileCache = new Lazy<MemoryMappedFileCache>(() => new MemoryMappedFileCache());
 
 		/// <summary>
 		/// Build a list of targets with a given set of makefiles.
@@ -420,8 +426,9 @@ namespace UnrealBuildTool
 		/// <param name="Options">Additional options for the build</param>
 		/// <param name="WriteOutdatedActionsFile">Files to write the list of outdated actions to (rather than building them)</param>
 		/// <param name="Logger">Logger for output</param>
+		/// <param name="ActionTypeFilter">If specified, only actions of this type will be run</param>
 		/// <returns>Result from the compilation</returns>
-		internal static async Task BuildAsync(TargetMakefile[] Makefiles, List<TargetDescriptor> TargetDescriptors, BuildConfiguration BuildConfiguration, BuildOptions Options, FileReference? WriteOutdatedActionsFile, ILogger Logger)
+		internal static async Task BuildAsync(TargetMakefile[] Makefiles, List<TargetDescriptor> TargetDescriptors, BuildConfiguration BuildConfiguration, BuildOptions Options, FileReference? WriteOutdatedActionsFile, ILogger Logger, string? ActionTypeFilter=null)
 		{
 			// Execute the build
 			if ((Options & BuildOptions.SkipBuild) == 0)
@@ -546,9 +553,9 @@ namespace UnrealBuildTool
 						_ => "read/write",
 					};
 
-					Logger.LogInformation("Experimental artifact system using '{directory}' in {mode} mode", artifactDirectory.FullName, mode);
+					Logger.LogInformation("Experimental artifact system using '{Directory}' in {Mode} mode", artifactDirectory.FullName, mode);
 
-					actionArtifactCache = ActionArtifactCache.CreateHordeFileCache(artifactDirectory, CppDependencies, Logger);
+					actionArtifactCache = ActionArtifactCache.CreateHordeFileCache(artifactDirectory, CppDependencies, s_memoryMappedFileCache.Value, Logger);
 					actionArtifactCache.EnableReads = BuildConfiguration.bArtifactRead;
 					actionArtifactCache.EnableWrites = BuildConfiguration.bArtifactWrites;
 					actionArtifactCache.LogCacheMisses = BuildConfiguration.bLogArtifactCacheMisses;
@@ -667,6 +674,21 @@ namespace UnrealBuildTool
 
 				// Link the action graph again to sort it
 				List<LinkedAction> MergedActionsToExecute = ActionToOutdatedFlag.Where(x => x.Value).Select(x => x.Key).ToList();
+
+				// if we want to only run one type of action, filter it now
+				if (ActionTypeFilter != null)
+				{
+					ActionType Filter;
+					if (Enum.TryParse<ActionType>(ActionTypeFilter, out Filter))
+					{
+						MergedActionsToExecute = MergedActionsToExecute.Where(x => x.ActionType == Filter).ToList();
+					}
+					else
+					{
+						throw new BuildException($"Unknown ActionType for ActionTypeFilter: {ActionTypeFilter}");
+					}
+				}
+
 				ActionGraph.Link(MergedActionsToExecute, Logger);
 
 				// Allow hot reload to override the actions

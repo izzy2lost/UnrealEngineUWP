@@ -19,10 +19,17 @@ namespace UE::Interchange::SourceNode
 		static FString StaticUid = TEXT("__SourceNode__");
 		return StaticUid;
 	}
+
+	const FString& GetExtraInformationKey()
+	{
+		static FString ExtraInformationKey(TEXT("__ExtraInformation__Key"));
+		return ExtraInformationKey;
+	}
 }
 
 UInterchangeSourceNode::UInterchangeSourceNode()
 {
+	ExtraInformation.Initialize(Attributes.ToSharedRef(), UE::Interchange::SourceNode::GetExtraInformationKey());
 }
 
 void UInterchangeSourceNode::InitializeSourceNode(const FString& UniqueID, const FString& DisplayLabel)
@@ -125,5 +132,29 @@ bool UInterchangeSourceNode::GetCustomImportUnusedMaterial(bool& AttributeValue)
 bool UInterchangeSourceNode::SetCustomImportUnusedMaterial(const bool& AttributeValue)
 {
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ImportUnusedMaterial, bool);
+}
+
+bool UInterchangeSourceNode::SetExtraInformation(const FString& Name, const FString& Value)
+{
+	return ExtraInformation.SetKeyValue(Name, Value);
+}
+
+bool UInterchangeSourceNode::RemoveExtraInformation(const FString& Name)
+{
+	return ExtraInformation.RemoveKey(Name);
+}
+
+void UInterchangeSourceNode::GetExtraInformation(TMap<FString, FString>& OutExtraInformation) const
+{
+	OutExtraInformation = ExtraInformation.ToMap();
+}
+
+bool UInterchangeSourceNode::GetCustomAxisConversionInverseTransform(FTransform& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AxisConversionInverseTransform, FTransform);
+}
+bool UInterchangeSourceNode::SetCustomAxisConversionInverseTransform(const FTransform& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(AxisConversionInverseTransform, FTransform);
 }
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Math/Transform.h" // IWYU pragma: keep
+#include "Misc/DefaultValueHelper.h"
 #include "UObject/Class.h"
 #include "UObject/SoftObjectPath.h"
 
@@ -339,6 +340,12 @@ namespace PCG
 			{
 				return A.ToString();
 			}
+
+			static T ParseFromString(const FString& InString, bool& bOutSuccess)
+			{
+				bOutSuccess = true;
+				return T(InString);
+			}
 		};
 
 		template<typename T>
@@ -485,13 +492,43 @@ namespace PCG
 			}
 		};
 
-		// Common traits for int32, int64, float, double
 		template<typename T>
 		struct MetadataTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultMinMaxTraits<T>, DefaultCompareTraits<T>, LexToStringTraits<T>, DefaultScalarDistanceTraits<T>
 		{
 			enum { CompressData = false };
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
+		};
+
+		template<>
+		struct MetadataTraits<int32> : DefaultOperationTraits<int32>, DefaultWeightedSumTraits<int32>, DefaultMinMaxTraits<int32>, DefaultCompareTraits<int32>, LexToStringTraits<int32>, DefaultScalarDistanceTraits<int32>
+		{
+			enum { CompressData = false };
+			enum { CanSearchString = false };
+			enum { NeedsConstruction = false };
+
+			static int32 ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				bOutSuccess = FDefaultValueHelper::IsStringValidInteger(InValue);
+				// FDefaultValueHelper::ParseInt/ParseInt64 have this weird behavior where numbers starting with 0, and not followed by 'x' are treated as base 8.
+				// So do our own parsing.
+				return bOutSuccess ? FCString::Strtoi(*InValue, nullptr, InValue.StartsWith(TEXT("0x")) ? 16 : 10) : 0;
+			}
+		};
+
+		template<>
+		struct MetadataTraits<int64> : DefaultOperationTraits<int64>, DefaultWeightedSumTraits<int64>, DefaultMinMaxTraits<int64>, DefaultCompareTraits<int64>, LexToStringTraits<int64>, DefaultScalarDistanceTraits<int64>
+		{
+			enum { CompressData = false };
+			enum { CanSearchString = false };
+			enum { NeedsConstruction = false };
+
+			static int64 ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				bOutSuccess = FDefaultValueHelper::IsStringValidInteger(InValue);
+				// cf int32
+				return bOutSuccess ? FCString::Strtoi64(*InValue, nullptr, InValue.StartsWith(TEXT("0x")) ? 16 : 10) : 0;
+			}
 		};
 
 		template<>
@@ -505,6 +542,13 @@ namespace PCG
 			{
 				return FMath::IsNearlyEqual(A, B);
 			}
+
+			static float ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				float OutValue;
+				bOutSuccess = FDefaultValueHelper::ParseFloat(InValue, OutValue);
+				return bOutSuccess ? OutValue : 0.0f;
+			}
 		};
 
 		template<>
@@ -517,6 +561,13 @@ namespace PCG
 			static bool Equal(const double& A, const double& B)
 			{
 				return FMath::IsNearlyEqual(A, B);
+			}
+
+			static double ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				double OutValue;
+				bOutSuccess = FDefaultValueHelper::ParseDouble(InValue, OutValue);
+				return bOutSuccess ? OutValue : 0.0;
 			}
 		};
 
@@ -582,6 +633,12 @@ namespace PCG
 			static bool GreaterOrEqual(const bool& A, const bool& B)
 			{
 				return !Less(A, B);
+			}
+
+			static bool ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				bOutSuccess = true;
+				return FCString::ToBool(*InValue);
 			}
 		};
 
@@ -664,6 +721,14 @@ namespace PCG
 			{
 				return (A.X >= B.X) && (A.Y >= B.Y);
 			}
+
+			static FVector2D ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				FVector2D OutValue;
+				// FDefaultValueHelper::ParseVector expect commas, even with X=... Y=..., which is not the format of ToString. So try to init from string if it fails.
+				bOutSuccess = FDefaultValueHelper::ParseVector2D(InValue, OutValue) || OutValue.InitFromString(InValue);
+				return bOutSuccess ? OutValue : FVector2D::ZeroVector;
+			}
 		};
 
 		template<>
@@ -703,6 +768,14 @@ namespace PCG
 			{
 				return (A.X >= B.X) && (A.Y >= B.Y) && (A.Z >= B.Z);
 			}
+
+			static FVector ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				FVector OutValue;
+				// cf Vector2D
+				bOutSuccess = FDefaultValueHelper::ParseVector(InValue, OutValue) || OutValue.InitFromString(InValue);
+				return bOutSuccess ? OutValue : FVector::ZeroVector;
+			}
 		};
 		
 		template<>
@@ -741,6 +814,14 @@ namespace PCG
 			static bool GreaterOrEqual(const FVector4& A, const FVector4& B)
 			{
 				return (A.X >= B.X) && (A.Y >= B.Y) && (A.Z >= B.Z) && (A.W >= B.W);
+			}
+
+			static FVector4 ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				FVector4 OutValue;
+				// cf Vector2D
+				bOutSuccess = FDefaultValueHelper::ParseVector4(InValue, OutValue) || OutValue.InitFromString(InValue);
+				return bOutSuccess ? OutValue : FVector4::Zero();
 			}
 		};
 
@@ -809,6 +890,14 @@ namespace PCG
 			{
 				return A.AngularDistance(B);
 			}
+
+			static FQuat ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				FVector4 Temp;
+				// cf Vector2D
+				bOutSuccess = FDefaultValueHelper::ParseVector4(InValue, Temp) || Temp.InitFromString(InValue);
+				return bOutSuccess ? FQuat(Temp.X, Temp.Y, Temp.Z, Temp.W) : FQuat::Identity;
+			}
 		};
 
 		// Rotator
@@ -872,6 +961,13 @@ namespace PCG
 				// Use quaternions for distance calculation, but return degrees instead of radians here
 				return 180.0 * FQuat(A).AngularDistance(FQuat(B)) / UE_DOUBLE_PI;
 			}
+
+			static FRotator ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				FRotator OutValue;
+				bOutSuccess = FDefaultValueHelper::ParseRotator(InValue, OutValue);
+				return bOutSuccess ? OutValue : FRotator::ZeroRotator;
+			}
 		};
 
 		// Transform
@@ -932,6 +1028,13 @@ namespace PCG
 			{
 				return FTransform(FQuat(0.0, 0.0, 0.0, 0.0), FVector::ZeroVector, FVector::ZeroVector);
 			}
+
+			static FTransform ParseFromString(const FString& InValue, bool& bOutSuccess)
+			{
+				FTransform OutValue;
+				bOutSuccess = OutValue.InitFromString(InValue);
+				return bOutSuccess ? OutValue : FTransform::Identity;
+			}
 		};
 
 		// Strings
@@ -945,6 +1048,11 @@ namespace PCG
 			enum { CanInterpolate = false };
 			enum { CanSearchString = true };
 			enum { NeedsConstruction = true };
+
+			static FString ToString(const FString& A)
+			{
+				return A;
+			}
 
 			static bool Equal(const FString& A, const FString& B)
 			{

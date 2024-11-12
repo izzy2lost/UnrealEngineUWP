@@ -7,6 +7,7 @@
 #include "Model/Mix/MixUpdateCycle.h"
 #include "UObject/NoExportTypes.h"
 #include <DataDrivenShaderPlatformInfo.h>
+#include "T_PatternMask.generated.h"
 
 UENUM()
 enum class PatternType

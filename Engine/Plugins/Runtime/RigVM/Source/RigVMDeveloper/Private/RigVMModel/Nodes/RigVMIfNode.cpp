@@ -4,17 +4,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMIfNode)
 
-const FString UDEPRECATED_RigVMIfNode::IfName = TEXT("If");
-const FString UDEPRECATED_RigVMIfNode::ConditionName = TEXT("Condition");
-const FString UDEPRECATED_RigVMIfNode::TrueName = TEXT("True");
-const FString UDEPRECATED_RigVMIfNode::FalseName = TEXT("False");
-const FString UDEPRECATED_RigVMIfNode::ResultName = TEXT("Result");
-
-
 FName UDEPRECATED_RigVMIfNode::GetNotation() const
 {
 	static constexpr TCHAR Format[] = TEXT("%s(in %s,in %s,in %s,out %s)");
-	static const FName Notation = *FString::Printf(Format, *IfName, *ConditionName, *TrueName, *FalseName, *ResultName);
+	static const FLazyName Notation(*FString::Printf(Format, IfName, ConditionName, TrueName, FalseName, ResultName));
 	return Notation;
 }
 
@@ -33,10 +26,10 @@ const FRigVMTemplate* UDEPRECATED_RigVMIfNode::GetTemplate() const
 			return IfNodeTemplate;
 		}
 
-		static const FName ConditionFName = *ConditionName;
-		static const FName TrueFName = *TrueName;
-		static const FName FalseFName = *FalseName;
-		static const FName ResultFName = *ResultName;
+		static const FLazyName ConditionFName(ConditionName);
+		static const FLazyName TrueFName(TrueName);
+		static const FLazyName FalseFName(FalseName);
+		static const FLazyName ResultFName(ResultName);
 
 		static TArray<FRigVMTemplateArgumentInfo> Infos;
 		if(Infos.IsEmpty())
@@ -69,7 +62,7 @@ const FRigVMTemplate* UDEPRECATED_RigVMIfNode::GetTemplate() const
 				return Types;
 			});
 
-		IfNodeTemplate = CachedTemplate = FRigVMRegistry::Get().GetOrAddTemplateFromArguments(*IfName, Infos, Delegates);
+		IfNodeTemplate = CachedTemplate = FRigVMRegistry::Get().GetOrAddTemplateFromArguments(IfName, Infos, Delegates);
 	}
 	return CachedTemplate;
 }

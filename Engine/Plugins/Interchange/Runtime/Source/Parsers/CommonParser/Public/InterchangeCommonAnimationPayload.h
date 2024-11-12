@@ -17,8 +17,15 @@
 
 namespace UE::Interchange
 {
+	namespace Private
+	{
+		INTERCHANGECOMMONPARSER_API FString HashString(const FString& String);
+	};
+
 	struct INTERCHANGECOMMONPARSER_API FAnimationPayloadData
 	{
+		FString SceneNodeUniqueID;
+
 #if WITH_ENGINE
 		//CURVE
 		TArray<FRichCurve> Curves;
@@ -40,13 +47,14 @@ namespace UE::Interchange
 		double RangeEndTime = 1.0 / BakeFrequency;
 		TArray<FTransform> Transforms;
 
-		//TYPE
-		EInterchangeAnimationPayLoadType Type = EInterchangeAnimationPayLoadType::NONE; //Original
+		//PayloadKey related:
+		FInterchangeAnimationPayLoadKey PayloadKey;
 		EInterchangeAnimationPayLoadType AdditionalSupportedType = EInterchangeAnimationPayLoadType::NONE;
 
 		//
-		FAnimationPayloadData(const EInterchangeAnimationPayLoadType& InType)
-			: Type(InType)
+		FAnimationPayloadData(const FString& InSceneNodeUID, const FInterchangeAnimationPayLoadKey& InPayloadKey)
+			: SceneNodeUniqueID(InSceneNodeUID)
+			, PayloadKey(InPayloadKey)
 		{
 		}
 
@@ -54,6 +62,64 @@ namespace UE::Interchange
 
 		//Conversions:
 		void CalculateDataFor(const EInterchangeAnimationPayLoadType& ToType, const FTransform& DefaultTransform = FTransform());
+	};
+	
+	struct INTERCHANGECOMMONPARSER_API FAnimationTimeDescription
+	{
+		double BakeFrequency;
+		double RangeStartSecond;
+		double RangeStopSecond;
+
+		FAnimationTimeDescription()
+			: BakeFrequency(0)
+			, RangeStartSecond(0)
+			, RangeStopSecond(0)
+		{
+		}
+
+		FAnimationTimeDescription(double InBakeFequency, double InRangeStartSecond, double InRangeStopSecond)
+			: BakeFrequency(InBakeFequency)
+			, RangeStartSecond(InRangeStartSecond)
+			, RangeStopSecond(InRangeStopSecond)
+		{
+
+		}
+
+		uint32 GetHash() const
+		{
+			return HashCombine(HashCombine(GetTypeHash(BakeFrequency), GetTypeHash(RangeStartSecond)), GetTypeHash(RangeStopSecond));
+		}
+	};
+
+	struct INTERCHANGECOMMONPARSER_API FAnimationPayloadQuery
+	{
+		FString SceneNodeUniqueID;
+		FInterchangeAnimationPayLoadKey PayloadKey;
+		FAnimationTimeDescription TimeDescription;
+
+	private:
+		FAnimationPayloadQuery()
+		{
+		}
+
+	public:
+		FAnimationPayloadQuery(const FString& InSceneNodeUniqueID, const FInterchangeAnimationPayLoadKey& InPayloadKey, double InBakeFequency = 0, double InRangeStartSecond = 0, double InRangeStopSecond = 0)
+			: SceneNodeUniqueID(InSceneNodeUniqueID)
+			, PayloadKey(InPayloadKey)
+			, TimeDescription(InBakeFequency, InRangeStartSecond, InRangeStopSecond)
+		{
+
+		}
+
+		FString GetHashString() const;
+
+		FString ToJson() const;
+		void FromJson(const FString& JsonString);
+
+		static FString ToJson(const TArray<FAnimationPayloadQuery>& Queries);
+		static void FromJson(const FString& JsonString, TArray<FAnimationPayloadQuery>& Queries);
+	private:
+		mutable TOptional<FString> HashStringCache;
 	};
 }
 

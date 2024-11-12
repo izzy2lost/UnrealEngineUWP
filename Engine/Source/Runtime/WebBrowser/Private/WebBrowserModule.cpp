@@ -8,6 +8,7 @@
 #include "Misc/Paths.h"
 #if WITH_CEF3
 #	include "CEF3Utils.h"
+#	include "include/cef_version.h"
 #	if PLATFORM_MAC
 #		include "include/wrapper/cef_library_loader.h"
 #	endif
@@ -18,7 +19,7 @@ DEFINE_LOG_CATEGORY(LogWebBrowser);
 static FWebBrowserSingleton* WebBrowserSingleton = nullptr;
 
 FWebBrowserInitSettings::FWebBrowserInitSettings()
-	: ProductVersion(FString::Printf(TEXT("%s/%s UnrealEngine/%s Chrome/90.0.4430.212"), FApp::GetProjectName(), FApp::GetBuildVersion(), *FEngineVersion::Current().ToString()))
+	: ProductVersion(FString::Printf(TEXT("%s/%s UnrealEngine/%s"), FApp::GetProjectName(), FApp::GetBuildVersion(), *FEngineVersion::Current().ToString()))
 {
 }
 
@@ -61,8 +62,18 @@ void FWebBrowserModule::StartupModule()
 	if (!CEFLibraryLoader->LoadInMain(TCHAR_TO_ANSI(*CEF3Utils::GetCEF3ModulePath())))
 	{
 		UE_LOG(LogWebBrowser, Error, TEXT("Chromium loader initialization failed"));
+		return;
 	}
 #endif // PLATFORM_MAC
+	const int CefVersionMajor = cef_version_info(0);
+	const int CefVersionMinor = cef_version_info(1);
+	const int CefVersionPatch = cef_version_info(2);
+	const int CefCommitNumber = cef_version_info(3);
+	UE_LOG(LogWebBrowser, Log, TEXT("Loaded CEF3 version %i.%i.%i.%i from %s"), CefVersionMajor, CefVersionMinor, CefVersionPatch, CefCommitNumber, *CEF3Utils::GetCEF3ModulePath());
+	if (CefVersionMajor != CEF_VERSION_MAJOR || CefVersionMinor != CEF_VERSION_MINOR || CefVersionPatch != CEF_VERSION_PATCH || CefCommitNumber != CEF_COMMIT_NUMBER)
+	{
+		UE_LOG(LogWebBrowser, Warning, TEXT("CEF3 loaded version mismatch! Module was built against %i.%i.%i.%i, check if library loading path is correct"), CEF_VERSION_MAJOR, CEF_VERSION_MINOR, CEF_VERSION_PATCH, CEF_COMMIT_NUMBER);
+	}
 #endif
 }
 

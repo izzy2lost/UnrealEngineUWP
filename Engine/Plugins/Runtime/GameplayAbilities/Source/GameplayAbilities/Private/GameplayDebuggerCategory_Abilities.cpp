@@ -84,10 +84,14 @@ void FGameplayDebuggerCategory_Abilities::OnShowGameplayAttributesToggle()
 
 void FGameplayDebuggerCategory_Abilities::FRepData::Serialize(FArchive& Ar)
 {
-	bool bSuccess;
-	OwnedTags.NetSerialize(Ar, ClientPackageMap.Get(), bSuccess);
-
 	Ar << TagCounts;
+
+	FString StrOwnedTags = OwnedTags.ToString();
+	Ar << StrOwnedTags;
+	if (Ar.IsLoading())
+	{
+		OwnedTags.FromExportString(StrOwnedTags);
+	}
 
 	int32 NumAbilities = Abilities.Num();
 	Ar << NumAbilities;
@@ -113,12 +117,7 @@ void FGameplayDebuggerCategory_Abilities::FRepData::Serialize(FArchive& Ar)
 
 	for (int32 Idx = 0; Idx < NumGE; Idx++)
 	{
-		if (Ar.IsLoading())
-		{
-			GameplayEffects[Idx].PredictionKey = FPredictionKey();
-		}
-		
-		GameplayEffects[Idx].PredictionKey.NetSerialize(Ar, ClientPackageMap.Get(), bSuccess);
+		Ar << GameplayEffects[Idx].ReplicationID;
 		Ar << GameplayEffects[Idx].Effect;
 		Ar << GameplayEffects[Idx].Context;
 		Ar << GameplayEffects[Idx].Duration;
@@ -148,10 +147,6 @@ void FGameplayDebuggerCategory_Abilities::CollectData(APlayerController* OwnerPC
 {
 	if (const UAbilitySystemComponent* AbilityComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DebugActor))
 	{
-		// Save off the package map for serialization over the network
-		UNetConnection* NetConnection = OwnerPC->GetNetConnection();
-		DataPack.ClientPackageMap = NetConnection ? NetConnection->PackageMap : nullptr;
-
 		AbilityComp->GetOwnedGameplayTags(DataPack.OwnedTags);
 
 		// Copy over the tag counts
@@ -196,8 +191,8 @@ TArray<FGameplayDebuggerCategory_Abilities::FRepData::FGameplayEffectDebug> FGam
 	for (const FActiveGameplayEffect& ActiveGE : &AbilityComp->GetActiveGameplayEffects())
 	{
 		FRepData::FGameplayEffectDebug& ItemData = DebugEffects.AddDefaulted_GetRef();
+		ItemData.ReplicationID = ActiveGE.ReplicationID;
 		ItemData.bInhibited = ActiveGE.bIsInhibited;
-		ItemData.PredictionKey = ActiveGE.PredictionKey;
 		ItemData.Duration = ActiveGE.GetDuration();
 		ItemData.Period = ActiveGE.GetPeriod();
 
@@ -529,24 +524,28 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayEffects(FGameplayDebuggerC
 	const TArray<FGameplayEffectDebug>& ServerEffects = DataPack.GameplayEffects;
 	TArray<FGameplayEffectDebug> LocalEffects = bConsiderLocalStatus ? CollectEffectsData(OwnerPC, LocalASC) : ServerEffects;
 
-	auto GetKeyHash = [](const FGameplayEffectDebug& GameplayEffectDebug) -> uint32
-		{
-			return HashCombineFast(
-				GetTypeHash(GameplayEffectDebug.PredictionKey),
-				GetTypeHash(GameplayEffectDebug.Effect));
-		};
-
 	int NumEffectCounts[+ENetworkStatus::MAX] = { 0 };
+
+	auto GetKeyHash = [](const FGameplayEffectDebug& GameplayEffectDebug, TArray<FGameplayEffectDebug> SourceArray) -> uint32
+		{
+			// If we're networked, this will be the same between the client and server (assuming it's been replicated)
+			if (GameplayEffectDebug.ReplicationID != INDEX_NONE)
+				return GameplayEffectDebug.ReplicationID;
+
+			// If we're not networked/not yet replicated, rely on the index of the item in the array & name for good measure
+			ptrdiff_t ArrayIdx = (&GameplayEffectDebug - SourceArray.GetData());
+			return HashCombineFast(GetTypeHash(GameplayEffectDebug.Effect), ArrayIdx);
+		};
 
 	TMap<uint32, FGameplayEffectDebug> Effects;
 	for (const FGameplayEffectDebug& ServerEffect : ServerEffects)
 	{
-		Effects.Add(GetKeyHash(ServerEffect)) = ServerEffect;
+		Effects.Add(GetKeyHash(ServerEffect, ServerEffects)) = ServerEffect;
 	}
 
 	for (const FGameplayEffectDebug& LocalEffect : LocalEffects)
 	{
-		FGameplayEffectDebug& Effect = Effects.FindOrAdd(GetKeyHash(LocalEffect));
+		FGameplayEffectDebug& Effect = Effects.FindOrAdd(GetKeyHash(LocalEffect, LocalEffects));
 		if (!Effect.Effect.IsEmpty())
 		{
 			Effect.NetworkStatus = ENetworkStatus::Networked;

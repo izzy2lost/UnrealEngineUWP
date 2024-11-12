@@ -285,6 +285,7 @@ struct FInstanceUploadInfo
 
 	// Optional per-instance data views
 	TConstArrayView<FInstanceDynamicData> InstanceDynamicData;
+	TConstArrayView<uint32> InstanceSkinningData;
 	TConstArrayView<FVector4f> InstanceLightShadowUVBias;
 	TConstArrayView<float> InstanceCustomData;
 	TConstArrayView<float> InstanceRandomID;
@@ -311,22 +312,24 @@ struct FInstanceUploadInfo
 #if DO_CHECK
 void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffer* InstancePayloadDataBuffer)
 {
-	const bool bHasRandomID			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM) != 0u;
-	const bool bHasCustomData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA) != 0u;
-	const bool bHasDynamicData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA) != 0u;
-	const bool bHasLightShadowUVBias = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS) != 0u;
-	const bool bHasHierarchyOffset	= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) != 0u;
-	const bool bHasLocalBounds		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS) != 0u;
-	const bool bHasPayloadExtension	= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0u;
+	const bool bHasRandomID				= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM) != 0u;
+	const bool bHasCustomData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA) != 0u;
+	const bool bHasDynamicData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA) != 0u;
+	const bool bHasLightShadowUVBias	= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS) != 0u;
+	const bool bHasSkinningData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA) != 0u;
+	const bool bHasHierarchyOffset		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) != 0u;
+	const bool bHasLocalBounds			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS) != 0u;
+	const bool bHasPayloadExtension		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0u;
 #if WITH_EDITOR
-	const bool bHasEditorData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) != 0u;
+	const bool bHasEditorData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) != 0u;
 #endif
 
 	check(!bHasRandomID || UploadInfo.InstanceRandomID.Num() == UploadInfo.NumInstances);
 	check(UploadInfo.InstanceLightShadowUVBias.Num()	== (bHasLightShadowUVBias ? UploadInfo.NumInstances : 0));
+	check(UploadInfo.InstanceSkinningData.Num()			== (bHasSkinningData ? UploadInfo.NumInstances : 0));
 	check(UploadInfo.InstanceHierarchyOffset.Num()		== (bHasHierarchyOffset	? UploadInfo.NumInstances : 0));
 #if WITH_EDITOR
-	check(UploadInfo.InstanceEditorData.Num() == (bHasEditorData ? UploadInfo.NumInstances : 0));
+	check(UploadInfo.InstanceEditorData.Num()			== (bHasEditorData ? UploadInfo.NumInstances : 0));
 #endif
 
 	if (bHasCustomData)
@@ -351,7 +354,7 @@ void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffe
 	}
 
 	// RandomID is not stored in the payload but in the instance scene data.
-	const bool bHasAnyPayloadData = bHasHierarchyOffset || bHasLocalBounds || bHasDynamicData || bHasLightShadowUVBias || bHasCustomData|| bHasPayloadExtension;
+	const bool bHasAnyPayloadData = bHasHierarchyOffset || bHasLocalBounds || bHasDynamicData || bHasSkinningData || bHasLightShadowUVBias || bHasCustomData|| bHasPayloadExtension;
 
 	if (bHasAnyPayloadData)
 	{
@@ -401,12 +404,9 @@ struct FLightMapUploadInfo
 /**
  * Implements a thin data abstraction such that the UploadGeneral function can upload primitive data from
  * both scene primitives and dynamic primitives (which are not stored in the same way). 
- * Note: handling of Nanite material table upload data is not abstracted (since at present it can only come via the scene primitives).
  */
 struct FUploadDataSourceAdapterScenePrimitives
 {
-	static constexpr bool bUpdateNaniteMaterialTables = true;
-
 	FUploadDataSourceAdapterScenePrimitives(FScene& InScene, uint32 InSceneFrameNumber, TArray<FPersistentPrimitiveIndex> InPrimitivesToUpdate, TArray<EPrimitiveDirtyState> InPrimitiveDirtyState)
 		: Scene(InScene)
 		, SceneFrameNumber(InSceneFrameNumber)
@@ -445,22 +445,32 @@ struct FUploadDataSourceAdapterScenePrimitives
 		PrimitiveUploadInfo.NaniteSceneProxy = PrimitiveSceneProxy->IsNaniteMesh() ? static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneProxy) : nullptr;
 		PrimitiveUploadInfo.PrimitiveSceneInfo = PrimitiveSceneInfo;
 
-		PrimitiveUploadInfo.NumInstanceUploads = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
-		PrimitiveUploadInfo.NumInstancePayloadDataUploads = PrimitiveSceneInfo->GetInstancePayloadDataStride() * PrimitiveUploadInfo.NumInstanceUploads;
+		// TODO: Somehow associate the procedural update with the update entry such that we can cross validate the existence of a writer here?
+		if (PrimitiveSceneProxy->IsInstanceDataGPUOnly())
+		{
+			PrimitiveUploadInfo.NumInstanceUploads = 0;
+			PrimitiveUploadInfo.NumInstancePayloadDataUploads = 0;
+		}
+		else
+		{
+			PrimitiveUploadInfo.NumInstanceUploads = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
+			PrimitiveUploadInfo.NumInstancePayloadDataUploads = PrimitiveSceneInfo->GetInstancePayloadDataStride() * PrimitiveUploadInfo.NumInstanceUploads;
+		}
 	}
 
 	FORCEINLINE uint32 PackFlags(FInstanceDataFlags Flags) const
 	{
 		uint32 PackedFlags = 0x0;
-		PackedFlags |= Flags.bHasPerInstanceRandom          ? INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM              : 0u;
-		PackedFlags |= Flags.bHasPerInstanceCustomData      ? INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA         : 0u;
-		PackedFlags |= Flags.bHasPerInstanceDynamicData     ? INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA        : 0u;
-		PackedFlags |= Flags.bHasPerInstanceLMSMUVBias      ? INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS : 0u;
-		PackedFlags |= Flags.bHasPerInstanceHierarchyOffset ? INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET    : 0u;
-		PackedFlags |= Flags.bHasPerInstanceLocalBounds     ? INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS        : 0u;
-		PackedFlags |= Flags.bHasPerInstancePayloadExtension? INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION   : 0u;
+		PackedFlags |= Flags.bHasPerInstanceRandom				? INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM              : 0u;
+		PackedFlags |= Flags.bHasPerInstanceCustomData			? INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA         : 0u;
+		PackedFlags |= Flags.bHasPerInstanceDynamicData			? INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA        : 0u;
+		PackedFlags |= Flags.bHasPerInstanceSkinningData		? INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA       : 0u;
+		PackedFlags |= Flags.bHasPerInstanceLMSMUVBias			? INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS : 0u;
+		PackedFlags |= Flags.bHasPerInstanceHierarchyOffset		? INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET    : 0u;
+		PackedFlags |= Flags.bHasPerInstanceLocalBounds			? INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS        : 0u;
+		PackedFlags |= Flags.bHasPerInstancePayloadExtension	? INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION   : 0u;
 	#if WITH_EDITOR
-		PackedFlags |= Flags.bHasPerInstanceEditorData  ? INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA         : 0u;
+		PackedFlags |= Flags.bHasPerInstanceEditorData			? INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA         : 0u;
 	#endif
 
 		return PackedFlags;
@@ -513,20 +523,20 @@ struct FUploadDataSourceAdapterScenePrimitives
 			InstanceUploadInfo.InstanceLightShadowUVBias = InstanceSceneDataBuffers.InstanceLightShadowUVBias;
 			InstanceUploadInfo.InstanceCustomData = InstanceSceneDataBuffers.InstanceCustomData;
 			InstanceUploadInfo.InstanceRandomID = InstanceSceneDataBuffers.InstanceRandomIDs;
+			InstanceUploadInfo.InstanceSkinningData = InstanceSceneDataBuffers.InstanceSkinningData;
 			InstanceUploadInfo.InstanceHierarchyOffset = InstanceSceneDataBuffers.InstanceHierarchyOffset;
 			InstanceUploadInfo.InstancePayloadExtension = InstanceSceneDataBuffers.InstancePayloadExtension;
 			InstanceUploadInfo.InstanceLocalBounds = InstanceSceneDataBuffers.InstanceLocalBounds;
-#if WITH_EDITOR
+		#if WITH_EDITOR
 			InstanceUploadInfo.InstanceEditorData = InstanceSceneDataBuffers.InstanceEditorData;
-#endif
-#if DO_CHECK
+		#endif
+		#if DO_CHECK
 			// This is already precomputed in the InstanceSceneDataBuffers and we don't need to do it again here, except for validation purposes
 			// TODO: this validation should (also?) move elsewhere and validate that the transform on RT matches that on GT
 			const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
 			const FDFVector3 AbsoluteOrigin(LocalToWorld.GetOrigin());
 			InstanceUploadInfo.PrimitiveToWorld = FDFMatrix::MakeToRelativeWorldMatrix(AbsoluteOrigin.High, LocalToWorld).M;
-#endif
-
+		#endif
 		}
 		else
 		{
@@ -542,7 +552,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 			InstanceUploadInfo.PrimitiveInstances = TConstArrayView<FInstanceSceneData>();
 			InstanceUploadInfo.InstanceDynamicData = TConstArrayView<FInstanceDynamicData>();
 
-#if 0
+		#if 0
 			// NOTE: We only need this if not using the InstanceSceneDataBuffers and if the old path were to support dynamic data
 			{
 				bool bHasPrecomputedVolumetricLightmap{};
@@ -553,17 +563,17 @@ struct FUploadDataSourceAdapterScenePrimitives
 				Scene.GetPrimitiveUniformShaderParameters_RenderThread(PrimitiveSceneInfo, bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
 				InstanceUploadInfo.PrevPrimitiveToWorld = FDFMatrix::MakeClampedToRelativeWorldMatrix(AbsoluteOrigin.High, PreviousLocalToWorld).M;
 			}
-#endif
+		#endif
 			InstanceUploadInfo.InstanceLightShadowUVBias = TConstArrayView<FVector4f>();
 			InstanceUploadInfo.InstanceCustomData = TConstArrayView<float>();
 			InstanceUploadInfo.InstanceRandomID = TConstArrayView<float>();
+			InstanceUploadInfo.InstanceSkinningData = TConstArrayView<uint32>();
 			InstanceUploadInfo.InstanceHierarchyOffset = TConstArrayView<uint32>();
 			InstanceUploadInfo.InstancePayloadExtension = TConstArrayView<FVector4f>();
 			InstanceUploadInfo.NumInstances = 1;
-
-#if WITH_EDITOR
+		#if WITH_EDITOR
 			InstanceUploadInfo.InstanceEditorData = TConstArrayView<uint32>();
-#endif
+		#endif
 		}
 
 		InstanceUploadInfo.InstancePayloadExtensionCount = 0;
@@ -690,12 +700,13 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTas
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene_Lights, FColor::Green);
 		const bool bAllowStaticLighting = IsStaticLightingAllowed();
+		const uint32 Flags = RenderRectLightsAsSpotLights(FeatureLevel) ? ELightShaderParameterFlags::RectAsSpotLight : 0u;
 
 		for (int32 Index = 0; Index < Scene.Lights.GetMaxIndex(); ++Index)
 		{
 			if (Scene.Lights.IsAllocated(Index))
 			{
-				InitLightData(Scene.Lights[Index], bAllowStaticLighting, LightData[Index]);
+				InitLightData(Scene.Lights[Index], bAllowStaticLighting, Flags, LightData[Index]);
 			}
 			else
 			{
@@ -738,13 +749,13 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTas
 	GraphBuilder.QueueBufferUpload<FLightSceneData>(LightDataBufferRDG, LightData, ERDGInitialDataFlags::NoCopy);
 }
 
-void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, FLightSceneData& DataOut)
+void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, uint32 LightShaderParameterFlags, FLightSceneData& DataOut)
 {
 	const FLightSceneInfo& LightInfo = *LightInfoCompact.LightSceneInfo;
 	const FLightSceneProxy& LightProxy = *LightInfo.Proxy;
 
 	FLightRenderParameters LightParams;
-	LightProxy.GetLightShaderParameters(LightParams);
+	LightProxy.GetLightShaderParameters(LightParams, LightShaderParameterFlags);
 
 	if (LightProxy.IsInverseSquared())
 	{
@@ -758,6 +769,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.FalloffExponent = LightParams.FalloffExponent;
 	DataOut.Direction = LightParams.Direction;
 	DataOut.SpecularScale = LightParams.SpecularScale;
+	DataOut.DiffuseScale = LightParams.DiffuseScale;
 	DataOut.Tangent = LightParams.Tangent;
 	DataOut.SourceRadius = LightParams.SourceRadius;
 	DataOut.SpotAngles = LightParams.SpotAngles;
@@ -773,7 +785,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.LightTypeAndShadowMapChannelMaskPacked = LightInfo.PackLightTypeAndShadowMapChannelMask(bAllowStaticLighting);
 }
 
-void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites)
+void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites, const FUpdateFromComputeCommands& UpdatesFromCompute)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -805,15 +817,16 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	{
 		PrimitivesToUpdate.Reset();
 		ResizeDirtyState(Scene.GetMaxPersistentPrimitiveIndex());
+		InstanceRangesToClear.Reset(Scene.Primitives.Num());
 		for (FPrimitiveSceneInfo *PrimitiveSceneInfo : Scene.Primitives)
 		{
 			PrimitiveDirtyState[PrimitiveSceneInfo->GetPersistentIndex().Index] |= EPrimitiveDirtyState::ChangedAll;
 			PrimitivesToUpdate.Add(PrimitiveSceneInfo->GetPersistentIndex());
+			InstanceRangesToClear.Add(FInstanceRange{
+				PrimitiveSceneInfo->GetPersistentIndex(),
+				(uint32)PrimitiveSceneInfo->GetInstanceSceneDataOffset(),
+				(uint32)PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() });
 		}
-
-		// Clear the full instance data range
-		InstanceRangesToClear.Empty();
-		InstanceRangesToClear.Add(FInstanceRange{ 0U, uint32(GetInstanceIdUpperBoundGPU()) });
 
 		bUpdateAllPrimitives = false;
 	}
@@ -827,7 +840,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[Index];
 		if (!PrimitiveDirtyState.IsValidIndex(PersistentPrimitiveIndex.Index))
 		{
-			PrimitivesToUpdate.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			PrimitivesToUpdate.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 		else
 		{
@@ -835,7 +848,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 			if (EnumHasAnyFlags(PrimitiveDirtyState[PersistentPrimitiveIndex.Index], EPrimitiveDirtyState::Removed) 
 				&& !EnumHasAnyFlags(PrimitiveDirtyState[PersistentPrimitiveIndex.Index], EPrimitiveDirtyState::Added))
 			{
-				PrimitivesToUpdate.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				PrimitivesToUpdate.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 			else
 			{
@@ -863,6 +876,28 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 		SCOPE_CYCLE_COUNTER(STAT_UpdateGPUSceneTime);
 
 		UploadGeneral<FUploadDataSourceAdapterScenePrimitives>(GraphBuilder, BufferState, &ExternalAccessQueue, Adapter, UpdateTaskPrerequisites);
+	}
+
+	// Update instance data using GPU compute.
+	if (!UpdatesFromCompute.IsEmpty())
+	{
+		RDG_EVENT_SCOPE(GraphBuilder, "UpdateGPUScene UpdateInstancesFromCompute");
+
+		FGPUSceneWriteDelegateParams Params;
+		GetWriteParameters(GraphBuilder, Params.GPUWriteParams);
+
+		for (const auto& Command : UpdatesFromCompute)
+		{
+			Params.PersistentPrimitiveId = (uint32)Command.SceneInfo->GetPersistentIndex().Index;
+			Params.InstanceSceneDataOffset = Command.SceneInfo->GetInstanceSceneDataOffset();
+
+			const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = Command.SceneInfo->GetInstanceSceneDataBuffers();
+			check(InstanceSceneDataBuffers);
+			Params.NumCustomDataFloats = InstanceSceneDataBuffers->GetNumCustomDataFloats();
+			Params.PackedInstanceSceneDataFlags = Adapter.PackFlags(InstanceSceneDataBuffers->GetFlags());
+
+			Command.Payload.GPUSceneWriter.Execute(GraphBuilder, Params);
+		}
 	}
 }
 
@@ -895,18 +930,6 @@ FGPUScene::FRegisteredBuffers FGPUScene::UpdateBufferAllocations(FRDGBuilder& Gr
 	const uint32 InstancePayloadDataSizeReserve = FMath::RoundUpToPowerOfTwo(PayloadFloat4Count * sizeof(FVector4f));
 	BufferState.InstancePayloadDataBuffer = ResizeStructuredBufferIfNeeded(GraphBuilder, InstancePayloadDataBuffer, InstancePayloadDataSizeReserve, TEXT("GPUScene.InstancePayloadData"));
 
-	const bool bNaniteEnabled = DoesPlatformSupportNanite(GMaxRHIShaderPlatform);
-	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
-	{
-		// Nanite draw commands build raster material tables.
-		Scene.WaitForCacheNaniteMaterialBinsTask();
-
-		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
-		{
-			Scene.NaniteMaterials[NaniteMeshPassIndex].UpdateBufferState(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex());
-		}
-	}
-	
 	const uint32 LightMapDataBufferSize = FMath::RoundUpToPowerOfTwo(FMath::Max(LightmapDataAllocator.GetMaxSize(), InitialBufferSize));
 	BufferState.LightmapDataBuffer = ResizeStructuredBufferIfNeeded(GraphBuilder, LightmapDataBuffer, LightMapDataBufferSize * sizeof(FLightmapSceneShaderData::Data), TEXT("GPUScene.LightmapData"));
 
@@ -1070,16 +1093,12 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		FRDGScatterUploader* InstanceSceneUploader = nullptr;
 		FRDGScatterUploader* LightmapUploader = nullptr;
 
-		TStaticArray<FNaniteMaterialCommands::FUploader*, ENaniteMeshPass::Num> NaniteMaterialUploaders{ InPlace, nullptr };
-
 		int32 NumPrimitiveDataUploads = 0;
 		int32 NumLightmapDataUploads = 0;
 		int32 NumInstanceSceneDataUploads = 0;
 		int32 NumInstancePayloadDataUploads = 0; // Count of float4s
 
 		uint32 InstanceSceneDataSOAStride = 1;
-
-		bool bUseNaniteMaterialUploaders = false;
 	};
 
 	FTaskContext& TaskContext = *GraphBuilder.AllocObject<FTaskContext>();
@@ -1115,16 +1134,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		TaskContext.LightmapUploader = LightmapUploadBuffer.Begin(GraphBuilder, BufferState.LightmapDataBuffer, TaskContext.NumLightmapDataUploads, sizeof(FLightmapSceneShaderData::Data), TEXT("LightmapUploadBuffer"));
 	}
 
-	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
-	{
-		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
-		{
-			TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex] = Scene.NaniteMaterials[NaniteMeshPassIndex].Begin(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex(), NumPrimitiveDataUploads);
-		}
-
-		TaskContext.bUseNaniteMaterialUploaders = true;
-	}
-
 	GraphBuilder.AddCommandListSetupTask([&TaskContext, &UploadDataSourceAdapter, bNaniteEnabled, bExecuteInParallel, FeatureLevel = FeatureLevel](FRHICommandListBase& RHICmdList)
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene_Primitives, FColor::Green);
@@ -1133,11 +1142,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		LockIfValid(RHICmdList, TaskContext.InstancePayloadUploader);
 		LockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
 		LockIfValid(RHICmdList, TaskContext.LightmapUploader);
-
-		for (FNaniteMaterialCommands::FUploader* Uploader : TaskContext.NaniteMaterialUploaders)
-		{
-			LockIfValid(RHICmdList, Uploader);
-		}
 
 		FInstanceBatcher InstanceUpdates(bExecuteInParallel, TaskContext.NumPrimitiveDataUploads);
 
@@ -1268,15 +1272,14 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 
 							int32 PayloadPosition = 0;
 
-							if (UploadInfo.InstanceFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS | INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA))
+							if (UploadInfo.InstanceFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS | INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA))
 							{
 								const uint32 InstanceHierarchyOffset = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) ? UploadInfo.InstanceHierarchyOffset[InstanceIndex] : 0;
 								InstancePayloadData[PayloadPosition].X = *(const float*)&InstanceHierarchyOffset;
 
-#if WITH_EDITOR
-								const uint32 InstanceEditorData = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) ? UploadInfo.InstanceEditorData[InstanceIndex] : 0;
-								InstancePayloadData[PayloadPosition].Y = *(const float*)&InstanceEditorData;
-#endif
+								const uint32 InstanceSkinningData = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA) ? UploadInfo.InstanceSkinningData[InstanceIndex] : 0;
+								InstancePayloadData[PayloadPosition].Y = *(const float*)&InstanceSkinningData;
+
 								if (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS)
 								{
 									check(UploadInfo.InstanceLocalBounds.Num() == UploadInfo.NumInstances);
@@ -1319,6 +1322,19 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 								}
 							}
 
+						#if WITH_EDITOR
+							if (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA)
+							{
+								check(UploadInfo.InstanceEditorData.Num() == UploadInfo.NumInstances);
+								InstancePayloadData[PayloadPosition].X = *(const float*)&UploadInfo.InstanceEditorData[InstanceIndex];
+								InstancePayloadData[PayloadPosition].Y = 0.0f; // Unused
+								InstancePayloadData[PayloadPosition].Z = 0.0f; // Unused
+								InstancePayloadData[PayloadPosition].W = 0.0f; // Unused
+								PayloadPosition += 1;
+							}
+						#endif
+
+							// TODO: Skip all this if static lighting is disabled
 							if (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS)
 							{
 								check(UploadInfo.InstanceLightShadowUVBias.Num() == UploadInfo.NumInstances);
@@ -1374,11 +1390,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		UnlockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
 		UnlockIfValid(RHICmdList, TaskContext.LightmapUploader);
 
-		for (FNaniteMaterialCommands::FUploader* Uploader : TaskContext.NaniteMaterialUploaders)
-		{
-			UnlockIfValid(RHICmdList, Uploader);
-		}
-
 	}, PrerequisiteTask);
 
 	PrimitiveUploadBuffer.End(GraphBuilder, TaskContext.PrimitiveUploader);
@@ -1398,15 +1409,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		LightmapUploadBuffer.End(GraphBuilder, TaskContext.LightmapUploader);
 	}
 
-	if (TaskContext.bUseNaniteMaterialUploaders)
-	{
-		check(ExternalAccessQueue);
-
-		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
-		{
-			Scene.NaniteMaterials[NaniteMeshPassIndex].Finish(GraphBuilder, *ExternalAccessQueue, TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex]);
-		}
-	}
 	const uint32 MaxPooledSize = uint32(CVarGPUSceneMaxPooledUploadBufferSize.GetValueOnRenderThread());
 	if (PrimitiveUploadBuffer.GetNumBytes() > MaxPooledSize)
 	{
@@ -1431,8 +1433,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 
 struct FUploadDataSourceAdapterDynamicPrimitives
 {
-	static constexpr bool bUpdateNaniteMaterialTables = false;
-
 	FUploadDataSourceAdapterDynamicPrimitives(
 		const TArray<FGPUScenePrimitiveCollector::FPrimitiveData, TInlineAllocator<8>>& InPrimitiveData,
 		int32 InPrimitiveIDStartOffset,
@@ -1564,7 +1564,7 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 	TArray<uint32, SceneRenderingAllocator> PrimitivesIds;
 };
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bRayTracing, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -1574,7 +1574,7 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 	ensure(bInBeginEndBlock);
 	ensure(DynamicPrimitivesOffset >= Scene.GetMaxPersistentPrimitiveIndex());
 
-	FGPUScenePrimitiveCollector& Collector = View.DynamicPrimitiveCollector;
+	FGPUScenePrimitiveCollector& Collector = bRayTracing ? View.RayTracingDynamicPrimitiveCollector : View.DynamicPrimitiveCollector;
 
 	// Auto-commit if not done (should usually not be done, but sometimes the UploadDynamicPrimitiveShaderDataForViewInternal is called to ensure the 
 	// CachedViewUniformShaderParameters is set on the view.
@@ -1660,6 +1660,8 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 				DeferredWrite.ViewId = View.GPUSceneViewId;
 				DeferredWrite.PrimitiveId = PrimitiveIdStart + PrimitiveIndex;
 				DeferredWrite.InstanceSceneDataOffset = InstanceIdStart + PrimData.LocalInstanceSceneDataOffset;
+				DeferredWrite.NumCustomDataFloats = PrimData.SourceData.NumInstanceCustomDataFloats;
+				DeferredWrite.PackedInstanceSceneDataFlags = PrimData.SourceData.PayloadDataFlags;
 
 				uint32 PassIndex = uint32(PrimData.SourceData.DataWriterGPUPass);
 				DeferredGPUWritePassDelegates[PassIndex].Add(DeferredWrite);
@@ -1681,6 +1683,8 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 				const FGPUScenePrimitiveCollector::FPrimitiveData& PrimData = Collector.UploadData->PrimitiveData[PrimitiveIndex];
 				Params.PersistentPrimitiveId = PrimitiveIdStart + PrimitiveIndex;
 				Params.InstanceSceneDataOffset = InstanceIdStart + PrimData.LocalInstanceSceneDataOffset;
+				Params.NumCustomDataFloats = PrimData.SourceData.NumInstanceCustomDataFloats;
+				Params.PackedInstanceSceneDataFlags = PrimData.SourceData.PayloadDataFlags;
 
 				PrimData.SourceData.DataWriterGPU.Execute(GraphBuilder, Params);
 			}
@@ -1757,7 +1761,7 @@ void FGPUScene::AddPrimitiveToUpdate(FPersistentPrimitiveIndex PersistentPrimiti
 }
 
 
-void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const UE::Tasks::FTask& UpdateTaskPrerequisites)
+void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, const FUpdateFromComputeCommands& UpdatesFromCompute, const UE::Tasks::FTask& UpdateTaskPrerequisites)
 {
 	if (bIsEnabled)
 	{
@@ -1771,17 +1775,17 @@ void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, 
 		// Default state when updated (no "dynamic primitives" pushed)
 		DynamicPrimitivesOffset = Scene.GetMaxPersistentPrimitiveIndex();
 
-		UpdateInternal(GraphBuilder, SceneUB, ExternalAccessQueue, UpdateTaskPrerequisites);
+		UpdateInternal(GraphBuilder, SceneUB, ExternalAccessQueue, UpdateTaskPrerequisites, UpdatesFromCompute);
 	}
 }
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bRayTracing, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
 {
 	if (bIsEnabled)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, ShadowInvalidatingInstances);
+		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, bRayTracing, ShadowInvalidatingInstances);
 	}
 }
 
@@ -1791,7 +1795,8 @@ inline void AddOrMergeInstanceRange(TArray<FGPUSceneInstanceRange>& Output, FGPU
 	if (!Output.IsEmpty())
 	{
 		FGPUSceneInstanceRange& Last = Output.Last();
-		if (Range.InstanceSceneDataOffset == Last.InstanceSceneDataOffset + Last.NumInstanceSceneDataEntries)
+		if (Range.InstanceSceneDataOffset == (Last.InstanceSceneDataOffset + Last.NumInstanceSceneDataEntries) &&
+			Range.Primitive == Last.Primitive)
 		{
 			Last.NumInstanceSceneDataEntries += Range.NumInstanceSceneDataEntries;
 			return;
@@ -1800,7 +1805,7 @@ inline void AddOrMergeInstanceRange(TArray<FGPUSceneInstanceRange>& Output, FGPU
 	Output.Add(Range);
 }
 
-int32 FGPUScene::AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntries)
+int32 FGPUScene::AllocateInstanceSceneDataSlots(FPersistentPrimitiveIndex PersistentPrimitiveIndex, int32 NumInstanceSceneDataEntries)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -1808,8 +1813,8 @@ int32 FGPUScene::AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntrie
 	{
 		if (NumInstanceSceneDataEntries > 0)
 		{
-			int32 InstanceSceneDataOffset = InstanceSceneDataAllocator.Allocate(NumInstanceSceneDataEntries);
-			AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
+			const int32 InstanceSceneDataOffset = InstanceSceneDataAllocator.Allocate(NumInstanceSceneDataEntries);
+			AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ PersistentPrimitiveIndex, uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
 #if LOG_INSTANCE_ALLOCATIONS
 			UE_LOG(LogTemp, Warning, TEXT("AllocateInstanceSceneDataSlots: [%6d,%6d)"), InstanceSceneDataOffset, InstanceSceneDataOffset + NumInstanceSceneDataEntries);
 #endif
@@ -1828,7 +1833,7 @@ void FGPUScene::FreeInstanceSceneDataSlots(int32 InstanceSceneDataOffset, int32 
 	if (bIsEnabled)
 	{
 		InstanceSceneDataAllocator.Free(InstanceSceneDataOffset, NumInstanceSceneDataEntries);
-		AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
+		AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ {}, uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
 #if LOG_INSTANCE_ALLOCATIONS
 		UE_LOG(LogTemp, Warning, TEXT("FreeInstanceSceneDataSlots: [%6d,%6d)"), InstanceSceneDataOffset, InstanceSceneDataOffset + NumInstanceSceneDataEntries);
 #endif
@@ -2047,7 +2052,7 @@ TRange<int32> FGPUScene::CommitPrimitiveCollector(FGPUScenePrimitiveCollector& P
 	int32 StartOffset = DynamicPrimitivesOffset;
 	DynamicPrimitivesOffset += PrimitiveCollector.Num();
 
-	PrimitiveCollector.UploadData->InstanceSceneDataOffset = AllocateInstanceSceneDataSlots(PrimitiveCollector.NumInstances());
+	PrimitiveCollector.UploadData->InstanceSceneDataOffset = AllocateInstanceSceneDataSlots({}, PrimitiveCollector.NumInstances());
 	PrimitiveCollector.UploadData->InstancePayloadDataOffset = AllocateInstancePayloadDataSlots(PrimitiveCollector.NumPayloadDataSlots());
 
 	return TRange<int32>(StartOffset, DynamicPrimitivesOffset);
@@ -2090,6 +2095,8 @@ bool FGPUScene::ExecuteDeferredGPUWritePass(FRDGBuilder& GraphBuilder, TArray<FV
 		Params.View = View;
 		Params.PersistentPrimitiveId = DeferredWrite.PrimitiveId;
 		Params.InstanceSceneDataOffset = DeferredWrite.InstanceSceneDataOffset;
+		Params.NumCustomDataFloats = DeferredWrite.NumCustomDataFloats;
+		Params.PackedInstanceSceneDataFlags = DeferredWrite.PackedInstanceSceneDataFlags;
 
 		DeferredWrite.DataWriterGPU.Execute(GraphBuilder, Params);
 	}
@@ -2118,14 +2125,11 @@ bool FGPUScene::HasPendingGPUWrite(uint32 PrimitiveId) const
 
 void FGPUScene::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ScenePreUpdateData)
 {
-	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePreUpdateData.RemovedPrimitiveIds)
+	ScenePreUpdateData.PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::Updated | ESceneUpdateCommandFilter::Deleted, EPrimitiveUpdateDirtyFlags::GPUState, 
+	[&](const FPrimitiveUpdateCommand& Cmd)
 	{
-		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::Removed);
-	}
-	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePreUpdateData.UpdatedPrimitiveIds)
-	{
-		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::ChangedTransform);
-	}
+		AddPrimitiveToUpdate(Cmd.GetPersistentId(), Cmd.IsDelete() ? EPrimitiveDirtyState::Removed : EPrimitiveDirtyState::ChangedAll );
+	});
 }
 
 void FGPUScene::OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData)
@@ -2383,7 +2387,7 @@ void FBatchedPrimitiveShaderData::Setup(const FPrimitiveUniformShaderParameters&
 
 	// Set all the custom primitive data float4. This matches the loop in SceneData.ush
 	int32 NumCustomData = FMath::Min<int32>(FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s, DataStrideInFloat4s - i);
-	for (int32 DataIndex = 0; DataIndex < FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s; ++DataIndex)
+	for (int32 DataIndex = 0; DataIndex < NumCustomData; ++DataIndex)
 	{
 		Data[i + DataIndex] = PrimitiveUniformShaderParameters.CustomPrimitiveData[DataIndex];
 	}
@@ -2403,8 +2407,9 @@ void FGPUScene::AddClearInstancesPass(FRDGBuilder& GraphBuilder, FInstanceCullin
 		Range.NumInstanceSceneDataEntries = uint32(FMath::Max(0, RangeEnd - int32(Range.InstanceSceneDataOffset)));
 
 		if (Range.NumInstanceSceneDataEntries > 0u)
-		{			
-			ClearIdData.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, INVALID_PRIMITIVE_ID);
+		{
+			const uint32 PrimitiveID = (Range.Primitive.Index != INDEX_NONE) ? uint32(Range.Primitive.Index) : INVALID_PRIMITIVE_ID;
+			ClearIdData.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, PrimitiveID);
 #if LOG_INSTANCE_ALLOCATIONS
 			RangesStr.Appendf(TEXT("[%6d, %6d), "), Range.InstanceSceneDataOffset, Range.InstanceSceneDataOffset + Range.NumInstanceSceneDataEntries);
 #endif

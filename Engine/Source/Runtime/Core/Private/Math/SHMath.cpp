@@ -3,6 +3,9 @@
 
 #include "Math/SHMath.h"
 
+#include "ColorManagement/ColorSpace.h"
+#include "HAL/IConsoleManager.h"
+
 //
 //	Spherical harmonic globals.
 //
@@ -120,4 +123,18 @@ float LegendrePolynomial(int32 L,int32 M,float X)
 	};
 
 	return 0.0f;
+}
+
+FLinearColor SHGetLuminanceFactors()
+{
+	static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LegacyLuminanceFactors"));
+
+	if (CVar && CVar->GetInt() != 0)
+	{
+		return FLinearColor(0.3f, 0.59f, 0.11f);
+	}
+	else
+	{
+		return UE::Color::FColorSpace::GetWorking().GetLuminanceFactors();
+	}
 }

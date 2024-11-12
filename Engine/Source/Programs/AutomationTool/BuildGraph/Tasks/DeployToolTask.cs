@@ -1,29 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
 using System.IO;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml;
-using UnrealBuildBase;
-using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
-using System.Threading;
-using System.Data;
-using EpicGames.Horde.Storage.Backends;
-using Microsoft.Extensions.DependencyInjection;
-using EpicGames.Horde;
 using EpicGames.Horde.Tools;
-using EpicGames.Horde.Server;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #nullable enable
 
@@ -38,43 +28,43 @@ namespace AutomationTool.Tasks
 		/// Identifier for the tool
 		/// </summary>
 		[TaskParameter]
-		public string Id = String.Empty;
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Settings file to use for the deployment. Should be a JSON file containing server name and access token.
 		/// </summary>
-		[TaskParameter]
-		public string Settings = String.Empty;
+		[TaskParameter(Optional = true)]
+		public string Settings { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Version number for the new tool
 		/// </summary>
 		[TaskParameter]
-		public string Version = String.Empty;
+		public string Version { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Duration over which to roll out the tool, in minutes.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Duration = 0;
+		public int Duration { get; set; } = 0;
 
 		/// <summary>
 		/// Whether to create the deployment as paused
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Paused = false;
+		public bool Paused { get; set; } = false;
 
 		/// <summary>
 		/// Zip file containing files to upload
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string? File = null!;
+		public string? File { get; set; } = null!;
 
 		/// <summary>
 		/// Directory to upload for the tool
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string? Directory = null!;
+		public string? Directory { get; set; } = null!;
 	}
 
 	/// <summary>
@@ -100,54 +90,61 @@ namespace AutomationTool.Tasks
 			public string? Node { get; set; }
 		}
 
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		DeployToolTaskParameters Parameters;
+		readonly DeployToolTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Helm task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public DeployToolTask(DeployToolTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public DeployToolTask(DeployToolTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference settingsFile = ResolveFile(Parameters.Settings);
-			if (!FileReference.Exists(settingsFile))
+			DeploySettings? settings = null;
+			if (!String.IsNullOrEmpty(_parameters.Settings))
 			{
-				throw new AutomationException($"Settings file '{settingsFile}' does not exist");
+				FileReference settingsFile = ResolveFile(_parameters.Settings);
+				if (!FileReference.Exists(settingsFile))
+				{
+					throw new AutomationException($"Settings file '{settingsFile}' does not exist");
+				}
+
+				byte[] settingsData = await FileReference.ReadAllBytesAsync(settingsFile);
+				JsonSerializerOptions jsonOptions = new JsonSerializerOptions { AllowTrailingCommas = true, ReadCommentHandling = JsonCommentHandling.Skip, PropertyNameCaseInsensitive = true };
+
+				settings = JsonSerializer.Deserialize<DeploySettings>(settingsData, jsonOptions);
+				if (settings == null)
+				{
+					throw new AutomationException($"Unable to read settings file {settingsFile}");
+				}
+				else if (settings.Server == null)
+				{
+					throw new AutomationException($"Missing 'server' key from {settingsFile}");
+				}
 			}
 
-			byte[] settingsData = await FileReference.ReadAllBytesAsync(settingsFile);
-			JsonSerializerOptions jsonOptions = new JsonSerializerOptions { AllowTrailingCommas = true, ReadCommentHandling = JsonCommentHandling.Skip, PropertyNameCaseInsensitive = true };
-
-			DeploySettings? settings = JsonSerializer.Deserialize<DeploySettings>(settingsData, jsonOptions);
-			if (settings == null)
-			{
-				throw new AutomationException($"Unable to read settings file {settingsFile}");
-			}
-			else if (settings.Server == null)
-			{
-				throw new AutomationException($"Missing 'server' key from {settingsFile}");
-			}
-
-			ToolId toolId = new ToolId(Parameters.Id);
+			ToolId toolId = new ToolId(_parameters.Id);
 
 			ServiceCollection serviceCollection = new ServiceCollection();
 			serviceCollection.Configure<HordeOptions>(options =>
 			{
-				options.ServerUrl = new Uri(settings.Server);
-				options.AccessToken = settings.Token;
+				if (!String.IsNullOrEmpty(settings?.Server))
+				{
+					options.ServerUrl = new Uri(settings.Server);
+				}
+				if (!String.IsNullOrEmpty(settings?.Token))
+				{
+					options.AccessToken = settings.Token;
+				}
 			});
 			serviceCollection.AddHttpClient();
 			serviceCollection.AddHorde();
@@ -158,24 +155,24 @@ namespace AutomationTool.Tasks
 			using HordeHttpClient hordeHttpClient = hordeClient.CreateHttpClient();
 
 			GetServerInfoResponse infoResponse = await hordeHttpClient.GetServerInfoAsync();
-			Logger.LogInformation("Uploading {ToolId} to {ServerUrl} (Version: {Version}, API v{ApiVersion})...", toolId, settings.Server, infoResponse.ServerVersion, (int)infoResponse.ApiVersion);
+			Logger.LogInformation("Uploading {ToolId} to {ServerUrl} (Version: {Version}, API v{ApiVersion})...", toolId, hordeClient.ServerUrl, infoResponse.ServerVersion, (int)infoResponse.ApiVersion);
 
 			BlobSerializerOptions serializerOptions = BlobSerializerOptions.Create(infoResponse.ApiVersion);
 
-			IBlobRef handle;
+			IHashedBlobRef handle;
 
-			using IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
-			await using (IBlobWriter blobWriter = storageClient.CreateBlobWriter(serializerOptions: serializerOptions))
+			IStorageNamespace storageNamespace = hordeClient.GetStorageNamespace(toolId);
+			await using (IBlobWriter blobWriter = storageNamespace.CreateBlobWriter(serializerOptions: serializerOptions))
 			{
 				DirectoryNode sandbox = new DirectoryNode();
-				if (Parameters.File != null)
+				if (_parameters.File != null)
 				{
-					using FileStream stream = FileReference.Open(ResolveFile(Parameters.File), FileMode.Open, FileAccess.Read);
+					using FileStream stream = FileReference.Open(ResolveFile(_parameters.File), FileMode.Open, FileAccess.Read);
 					await sandbox.CopyFromZipStreamAsync(stream, blobWriter, new ChunkingOptions());
 				}
-				else if (Parameters.Directory != null)
+				else if (_parameters.Directory != null)
 				{
-					DirectoryInfo directoryInfo = ResolveDirectory(Parameters.Directory).ToDirectoryInfo();
+					DirectoryInfo directoryInfo = ResolveDirectory(_parameters.Directory).ToDirectoryInfo();
 					await sandbox.AddFilesAsync(directoryInfo, blobWriter);
 				}
 				else
@@ -187,28 +184,28 @@ namespace AutomationTool.Tasks
 			}
 
 			double? duration = null;
-			if (Parameters.Duration != 0)
+			if (_parameters.Duration != 0)
 			{
-				duration = Parameters.Duration;
+				duration = _parameters.Duration;
 			}
 
 			bool? createPaused = null;
-			if (Parameters.Paused)
+			if (_parameters.Paused)
 			{
 				createPaused = true;
 			}
 
-			BlobRefValue locator = handle.GetRefValue();
-			ToolDeploymentId deploymentId = await hordeHttpClient.CreateToolDeploymentAsync(toolId, Parameters.Version, duration, createPaused, locator);
+			HashedBlobRefValue locator = handle.GetRefValue();
+			ToolDeploymentId deploymentId = await hordeHttpClient.CreateToolDeploymentAsync(toolId, _parameters.Version, duration, createPaused, locator);
 			Logger.LogInformation("Created {ToolId} deployment {DeploymentId}", toolId, deploymentId);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

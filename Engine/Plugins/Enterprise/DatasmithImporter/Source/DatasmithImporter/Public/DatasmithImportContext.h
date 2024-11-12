@@ -21,7 +21,7 @@ struct FDatasmithImportContext;
 class FJsonObject;
 class FMessageLogModule;
 class IDatasmithBaseMaterialElement;
-class IDatasmithClothElement;
+class UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.") IDatasmithClothElement;
 class IDatasmithElement;
 class IDatasmithLevelSequenceElement;
 class IDatasmithLevelVariantSetsElement;
@@ -257,9 +257,13 @@ struct DATASMITHIMPORTER_API FDatasmithImportContext
 	/** Map of imported mesh for each mesh element */
 	TMap< TSharedRef< IDatasmithMeshElement >, TObjectPtr<UStaticMesh> > ImportedStaticMeshes;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	TMap< TSharedRef< IDatasmithClothElement >, TObjectPtr<UObject> > ImportedClothes;
 
+	UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 	TArray< UObject* > ImportedClothPresets;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Register IDatasmithMeshElement by their name so they can be searched faster */
 	TMap< FString, TSharedRef < IDatasmithMeshElement > > ImportedStaticMeshesByName;

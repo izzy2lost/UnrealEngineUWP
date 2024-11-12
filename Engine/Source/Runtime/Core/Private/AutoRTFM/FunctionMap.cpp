@@ -2,6 +2,7 @@
 
 #if (defined(__AUTORTFM) && __AUTORTFM)
 #include "FunctionMap.h"
+#include "ContextInlines.h"
 #include "Atomic.h"
 #include "FastLock.h"
 #include "LockGuard.h"
@@ -10,6 +11,8 @@
 #include <string.h>
 
 #include "Containers/Array.h"
+
+#include "AutoRTFM/AutoRTFMConstants.h"
 
 namespace AutoRTFM
 {
@@ -74,7 +77,7 @@ void FunctionMapAddImpl(void* OldFunction, void* NewFunction)
             Map->KeyCount++;
             return;
         }
-        
+
         if (Entry->OldFunction == OldFunction) {
             Entry->NewFunction = NewFunction;
             return;
@@ -91,7 +94,7 @@ void FunctionMapAdd(void* OldFunction, void* NewFunction)
     }
 
     InitializeGlobalDataIfNecessary();
-    
+
     TLockGuard<FFastLock> LockGuard(GlobalData->FunctionMapLock);
     TArray<void*> Functions;
     Functions.Push(OldFunction);
@@ -101,6 +104,21 @@ void FunctionMapAdd(void* OldFunction, void* NewFunction)
         Functions.Pop();
         FunctionMapAddImpl(Function, NewFunction);
     }
+}
+
+void* FunctionMapReportError(void* OldFunction, const char* Where)
+{
+	if (Where)
+	{
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s' where '%s'."), OldFunction, *GetFunctionDescription(OldFunction), ANSI_TO_TCHAR(Where));
+	}
+	else
+	{
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s'."), OldFunction, *GetFunctionDescription(OldFunction));
+	}
+
+	FContext* Context = FContext::Get();
+	Context->AbortByLanguageAndThrow();
 }
 
 } // namespace AutoRTFM

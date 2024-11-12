@@ -27,6 +27,7 @@ public:
 	TARGETPLATFORM_API virtual bool UsesSelectiveBasePassOutputs() const override;
 	TARGETPLATFORM_API virtual bool UsesDistanceFields() const override;
 	TARGETPLATFORM_API virtual bool UsesRayTracing() const override;
+	TARGETPLATFORM_API virtual ERayTracingRuntimeMode GetRayTracingMode() const override;
 	TARGETPLATFORM_API virtual uint32 GetSupportedHardwareMask() const override;
 	TARGETPLATFORM_API virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const override;
 	TARGETPLATFORM_API virtual bool GetStaticMeshOfflineBVHCompression() const override;
@@ -39,6 +40,10 @@ public:
 	TARGETPLATFORM_API virtual void GetRayTracingShaderFormats(TArray<FName>& OutFormats) const override;
 
 #if WITH_ENGINE
+	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override
+	{
+	}
+
 	virtual void GetReflectionCaptureFormats(TArray<FName>& OutFormats) const override
 	{
 		OutFormats.Add(FName(TEXT("FullHDR")));
@@ -108,6 +113,9 @@ public:
 
 		case ETargetPlatformFeatures::CanCookPackages:
 			return false;
+
+		case ETargetPlatformFeatures::ShowAggregateDevice:
+			return true;
 
 		case ETargetPlatformFeatures::TextureStreaming:
 			return TPlatformProperties::SupportsTextureStreaming();

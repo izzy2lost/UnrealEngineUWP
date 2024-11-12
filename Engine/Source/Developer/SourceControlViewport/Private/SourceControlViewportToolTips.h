@@ -20,6 +20,8 @@ public:
 
 public:
 	void Init();
+	void SetEnabled(bool bInEnabled);
+
 	bool Tick(float DeltaTime);
 
 private:
@@ -43,7 +45,7 @@ private:
 	TSharedPtr<SToolTip> ToolTipWidget;
 
 	/* The viewport in which the canvas widget is added */
-	TSharedPtr<SLevelViewport> ViewportWidget;
+	TWeakPtr<SLevelViewport> ViewportWidget;
 
 	/* The actor in the viewport that's currently hovered */
 	TWeakObjectPtr<AActor> Actor;
@@ -59,4 +61,7 @@ private:
 	double ActorTime = 0;
 	/* The time since the actor became relevant */
 	float DelayTime = 0;
+
+	/* The enabled state of the tooltips */
+	bool bEnabled = false;
 };

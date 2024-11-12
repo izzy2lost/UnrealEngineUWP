@@ -51,7 +51,9 @@ void FOnlineAchievementsEOSPlus::WriteAchievements(const FUniqueNetId& PlayerId,
 	{
 		BaseAchievementsInterface->WriteAchievements(*NetIdPlus->GetBaseNetId(), WriteObject, Delegate);
 	}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (UEOSSettings::GetSettings().bMirrorAchievementsToEOS)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		if (NetIdPlus->GetEOSNetId().IsValid())
 		{

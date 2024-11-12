@@ -190,7 +190,8 @@ void FIKRigEditMode::RenderBones(FPrimitiveDrawInterface* PDI)
 
 	// get bone colors
 	TArray<FLinearColor> BoneColors;
-	GetBoneColors(Controller.Get(), CurrentProcessor, RefSkeleton, BoneColors);
+	const bool bUseBoneColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
+	GetBoneColors(Controller.Get(), CurrentProcessor, RefSkeleton, bUseBoneColors, BoneColors);
 
 	SkeletalDebugRendering::DrawBones(
 		PDI,
@@ -209,6 +210,7 @@ void FIKRigEditMode::GetBoneColors(
 	FIKRigEditorController* Controller,
 	const UIKRigProcessor* Processor,
 	const FReferenceSkeleton& RefSkeleton,
+	bool bUseMultiColorAsDefaultColor,
 	TArray<FLinearColor>& OutBoneColors) const
 {
 	const FLinearColor DefaultColor = GetMutableDefault<UPersonaOptions>()->DefaultBoneColor;
@@ -216,10 +218,13 @@ void FIKRigEditMode::GetBoneColors(
 	const FLinearColor ErrorColor = FLinearColor::Red;
 
 	// set all to default color
-	OutBoneColors.SetNum(RefSkeleton.GetNum());
-	for (int32 Index=0; Index<RefSkeleton.GetNum(); ++Index)
+	if (bUseMultiColorAsDefaultColor)
 	{
-		OutBoneColors[Index] = DefaultColor;
+		SkeletalDebugRendering::FillWithMultiColors(OutBoneColors, RefSkeleton.GetNum());
+	}
+	else
+	{
+		OutBoneColors.Init(DefaultColor, RefSkeleton.GetNum());		
 	}
 	
 	// highlight bones of the last selected UI element (could be solver or retarget chain) 

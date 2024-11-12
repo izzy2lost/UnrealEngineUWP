@@ -5,7 +5,7 @@
 #include "UObject/ObjectMacros.h"
 
 #if WITH_EDITOR
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #endif //WITH_EDITOR
 
 #include "SoundWaveLoadingBehavior.generated.h"
@@ -63,6 +63,11 @@ public:
 	static ISoundWaveLoadingBehaviorUtil* Get();	
 
 	virtual FClassData FindOwningLoadingBehavior(const USoundWave*, const ITargetPlatform*) const = 0;
+};
+
+namespace UE::SoundWaveLoadingUtil::Private
+{
+	void RecordSoundWaveLoadingBehaviorDependenciesForCook(FObjectPreSaveContext ObjectSaveContext, const USoundWave* SoundWave);
 };
 
 #endif //WITH_EDITOR

@@ -378,3 +378,95 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	CHECK(LoadedIsland->GetVertices().Contains(SerializedGraph.Vertices[0]) == true);
 	CHECK(LoadedIsland->GetVertices().Contains(SerializedGraph.Vertices[1]) == true);
 }
+
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Incremental::Initialization", "[graph][serialization][incremental]")
+{
+	PopulateVertices(6, true);
+	BuildLinearEdges(3);
+
+	CHECK(Graph->NumVertices() == 6);
+	CHECK(Graph->NumIslands() == 2);
+
+	FDefaultGraphSerialization Serializer;
+	Serializer << *Graph;
+
+	FDefaultGraphIncrementalSerialization IncrementalSerializer(Graph);
+	CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+}
+
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Incremental::GraphBuild", "[graph][serialization][incremental]")
+{
+	SECTION("Linear")
+	{
+		FDefaultGraphIncrementalSerialization IncrementalSerializer(Graph);
+		PopulateVertices(6, true);
+		BuildLinearEdges(3);
+
+		CHECK(Graph->NumVertices() == 6);
+		CHECK(Graph->NumIslands() == 2);
+
+		FDefaultGraphSerialization Serializer;
+		Serializer << *Graph;
+		CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+	}
+
+	SECTION("Fully Connected")
+	{
+		FDefaultGraphIncrementalSerialization IncrementalSerializer(Graph);
+		PopulateVertices(10, true);
+		BuildFullyConnectedEdges(5);
+
+		CHECK(Graph->NumVertices() == 10);
+		CHECK(Graph->NumIslands() == 2);
+
+		FDefaultGraphSerialization Serializer;
+		Serializer << *Graph;
+		CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+	}
+}
+
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Incremental::Removal", "[graph][serialization][incremental]")
+{
+	PopulateVertices(10, true);
+	BuildFullyConnectedEdges(5);
+	FDefaultGraphIncrementalSerialization IncrementalSerializer(Graph);
+
+	SECTION("Remove Vertices")
+	{
+		Graph->RemoveVertex(VertexHandles[0]);
+		Graph->RemoveVertex(VertexHandles[1]);
+		Graph->RemoveVertex(VertexHandles[6]);
+
+		{
+			FDefaultGraphSerialization Serializer;
+			Serializer << *Graph;
+			CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+		}
+
+		TArray<FGraphVertexHandle> Bulk{ VertexHandles[2], VertexHandles[7], VertexHandles[8] };
+		Graph->RemoveBulkVertices(Bulk);
+
+		{
+			FDefaultGraphSerialization Serializer;
+			Serializer << *Graph;
+			CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+		}
+	}
+
+	SECTION("Remove Island")
+	{
+		Graph->RemoveIsland(IslandHandles[0]);
+		{
+			FDefaultGraphSerialization Serializer;
+			Serializer << *Graph;
+			CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+		}
+
+		Graph->RemoveIsland(IslandHandles[0]);
+		{
+			FDefaultGraphSerialization Serializer;
+			Serializer << *Graph;
+			CHECK(Serializer.GetData() == IncrementalSerializer.GetLatestData());
+		}
+	}
+}

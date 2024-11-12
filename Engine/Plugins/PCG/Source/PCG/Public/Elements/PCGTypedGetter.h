@@ -31,16 +31,21 @@ public:
 
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
-
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings
 
-public:
 	//~Begin UPCGDataFromActorSettings interface
+public:
 	virtual EPCGDataType GetDataFilter() const override { return EPCGDataType::Landscape; }
 	virtual TSubclassOf<AActor> GetDefaultActorSelectorClass() const override;
+
+protected:
+#if WITH_EDITOR
+	virtual bool DisplayModeSettings() const override { return false; }
+#endif
 	//~End UPCGDataFromActorSettings
 
+public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ShowOnlyInnerProperties))
 	FPCGLandscapeDataProps SamplingProperties;
 
@@ -80,9 +85,14 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	//~End UPCGSettings
 
-public:
 	//~Begin UPCGDataFromActorSettings interface
+public:
 	virtual EPCGDataType GetDataFilter() const override { return EPCGDataType::PolyLine; }
+
+protected:
+#if WITH_EDITOR
+	virtual bool DisplayModeSettings() const override { return false; }
+#endif
 	//~End UPCGDataFromActorSettings
 };
 
@@ -106,9 +116,14 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	//~End UPCGSettings
 
-public:
 	//~Begin UPCGDataFromActorSettings interface
+public:
 	virtual EPCGDataType GetDataFilter() const override { return EPCGDataType::Volume; }
+
+protected:
+#if WITH_EDITOR
+	virtual bool DisplayModeSettings() const override { return false; }
+#endif
 	//~End UPCGDataFromActorSettings
 };
 
@@ -132,9 +147,14 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	//~End UPCGSettings
 
-public:
 	//~Begin UPCGDataFromActorSettings interface
+public:
 	virtual EPCGDataType GetDataFilter() const override { return EPCGDataType::Primitive; }
+
+protected:
+#if WITH_EDITOR
+	virtual bool DisplayModeSettings() const override { return false; }
+#endif
 	//~End UPCGDataFromActorSettings
 };
 
@@ -163,8 +183,13 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	//~End UPCGSettings
 
-public:
 	//~Begin UPCGDataFromActorSettings interface
+public:
 	virtual EPCGDataType GetDataFilter() const override { return EPCGDataType::Any; }
+
+protected:
+#if WITH_EDITOR
+	virtual bool DisplayModeSettings() const override { return false; }
+#endif
 	//~End UPCGDataFromActorSettings
 };

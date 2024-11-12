@@ -16,6 +16,10 @@
 #include "VT/RuntimeVirtualTexture.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "RenderUtils.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
+
+/** HLSL generating utility function */
+extern FString SceneTextureIdToHLSLString(ESceneTextureId TexId);
 
 namespace UE::HLSLTree::Material
 {
@@ -62,6 +66,16 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::VertexColor_Ddx: return FExternalInputDescription(TEXT("VertexColor_Ddx"), Shader::EValueType::Float4);
 	case EExternalInput::VertexColor_Ddy: return FExternalInputDescription(TEXT("VertexColor_Ddy"), Shader::EValueType::Float4);
 
+	case EExternalInput::PositionInstanceSpace: return FExternalInputDescription(TEXT("PositionInstanceSpace"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPositionInstanceSpace);
+	case EExternalInput::PositionInstanceSpace_NoOffsets: return FExternalInputDescription(TEXT("PositionInstanceSpace_NoOffsets"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPositionInstanceSpace_NoOffsets);
+	case EExternalInput::PositionPrimitiveSpace: return FExternalInputDescription(TEXT("PositionPrimitiveSpace"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPositionPrimitiveSpace);
+	case EExternalInput::PositionPrimitiveSpace_NoOffsets: return FExternalInputDescription(TEXT("PositionPrimitiveSpace_NoOffsets"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::PrevPositionPrimitiveSpace_NoOffsets);
+
+	case EExternalInput::PrevPositionInstanceSpace: return FExternalInputDescription(TEXT("PrevPositionInstanceSpace"), Shader::EValueType::Float3);
+	case EExternalInput::PrevPositionInstanceSpace_NoOffsets: return FExternalInputDescription(TEXT("PrevPositionInstanceSpace_NoOffsets"), Shader::EValueType::Float3);
+	case EExternalInput::PrevPositionPrimitiveSpace: return FExternalInputDescription(TEXT("PrevPositionPrimitiveSpace"), Shader::EValueType::Float3);
+	case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets: return FExternalInputDescription(TEXT("PrevPositionPrimitiveSpace_NoOffsets"), Shader::EValueType::Float3);
+
 	case EExternalInput::WorldPosition: return FExternalInputDescription(TEXT("WorldPosition"), Shader::EValueType::Double3, EExternalInput::WorldPosition_Ddx, EExternalInput::WorldPosition_Ddy, EExternalInput::PrevWorldPosition);
 	case EExternalInput::WorldPosition_NoOffsets: return FExternalInputDescription(TEXT("WorldPosition_NoOffsets"), Shader::EValueType::Double3, EExternalInput::WorldPosition_Ddx, EExternalInput::WorldPosition_Ddy, EExternalInput::PrevWorldPosition_NoOffsets);
 	case EExternalInput::TranslatedWorldPosition: return FExternalInputDescription(TEXT("TranslatedWorldPosition"), Shader::EValueType::Float3, EExternalInput::WorldPosition_Ddx, EExternalInput::WorldPosition_Ddy, EExternalInput::PrevTranslatedWorldPosition);
@@ -104,6 +118,7 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::RuntimeVirtualTextureMaxLevel: return FExternalInputDescription(TEXT("RuntimeVirtualTextureMaxLevel"), Shader::EValueType::Float1);
 	case EExternalInput::ResolutionFraction: return FExternalInputDescription(TEXT("ResolutionFraction"), Shader::EValueType::Float1);
 	case EExternalInput::RcpResolutionFraction: return FExternalInputDescription(TEXT("RcpResolutionFraction"), Shader::EValueType::Float1);
+	case EExternalInput::PostVolumeUserFlags: return FExternalInputDescription(TEXT("PostVolumeUserFlags"), Shader::EValueType::Float1);
 
 	case EExternalInput::CameraVector: return FExternalInputDescription(TEXT("CameraVector"), Shader::EValueType::Float3);
 	case EExternalInput::LightVector: return FExternalInputDescription(TEXT("LightVector"), Shader::EValueType::Float3);
@@ -235,6 +250,18 @@ EExternalInput FExpressionExternalInput::GetResolvedInputType(EShaderFrequency S
 	{
 		switch (Result)
 		{
+		case EExternalInput::PrevPositionInstanceSpace:
+			Result = EExternalInput::PositionInstanceSpace;
+			break;
+		case EExternalInput::PrevPositionInstanceSpace_NoOffsets:
+			Result = EExternalInput::PositionInstanceSpace_NoOffsets;
+			break;
+		case EExternalInput::PrevPositionPrimitiveSpace:
+			Result = EExternalInput::PositionPrimitiveSpace;
+			break;
+		case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets:
+			Result = EExternalInput::PositionPrimitiveSpace_NoOffsets;
+			break;
 		case EExternalInput::PrevWorldPosition:
 			Result = EExternalInput::WorldPosition;
 			break;
@@ -255,6 +282,18 @@ EExternalInput FExpressionExternalInput::GetResolvedInputType(EShaderFrequency S
 	{
 		switch (Result)
 		{
+		case EExternalInput::PositionInstanceSpace_NoOffsets:
+			Result = EExternalInput::PositionInstanceSpace;
+			break;
+		case EExternalInput::PositionPrimitiveSpace_NoOffsets:
+			Result = EExternalInput::PositionPrimitiveSpace;
+			break;
+		case EExternalInput::PrevPositionInstanceSpace_NoOffsets:
+			Result = EExternalInput::PrevPositionInstanceSpace;
+			break;
+		case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets:
+			Result = EExternalInput::PrevPositionPrimitiveSpace;
+			break;
 		case EExternalInput::WorldPosition_NoOffsets:
 			Result = EExternalInput::WorldPosition;
 			break;
@@ -353,6 +392,16 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::VertexColor: Code = TEXT("Parameters.VertexColor"); break;
 		case EExternalInput::VertexColor_Ddx: Code = TEXT("Parameters.VertexColor_DDX"); break;
 		case EExternalInput::VertexColor_Ddy: Code = TEXT("Parameters.VertexColor_DDY"); break;
+		
+		case EExternalInput::PositionInstanceSpace:					Code = TEXT("GetPositionInstanceSpace(Parameters)"); break;
+		case EExternalInput::PositionInstanceSpace_NoOffsets: 		Code = TEXT("GetPositionInstanceSpace_NoMaterialOffsets(Parameters)"); break;
+		case EExternalInput::PositionPrimitiveSpace:				Code = TEXT("GetPositionPrimitiveSpace(Parameters)"); break;
+		case EExternalInput::PositionPrimitiveSpace_NoOffsets:		Code = TEXT("GetPositionPrimitiveSpace_NoMaterialOffsets(Parameters)"); break;
+		case EExternalInput::PrevPositionInstanceSpace:				Code = TEXT("GetPrevPositionInstanceSpace(Parameters)"); break;
+		case EExternalInput::PrevPositionInstanceSpace_NoOffsets:	checkNoEntry(); break;
+		case EExternalInput::PrevPositionPrimitiveSpace:			Code = TEXT("GetPrevPositionPrimitiveSpace(Parameters)"); break;
+		case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets:	checkNoEntry(); break;
+		
 		case EExternalInput::WorldPosition: Code = TEXT("GetWorldPosition(Parameters)"); break;
 		case EExternalInput::WorldPosition_NoOffsets: Code = TEXT("GetWorldPosition_NoMaterialOffsets(Parameters)"); break;
 		case EExternalInput::TranslatedWorldPosition: Code = TEXT("GetTranslatedWorldPosition(Parameters)"); break;
@@ -394,6 +443,7 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::RuntimeVirtualTextureMaxLevel:  Code = TEXT("View.RuntimeVirtualTextureMipLevel.y"); break;
 		case EExternalInput::ResolutionFraction: Code = TEXT("View.ResolutionFractionAndInv.x"); break;
 		case EExternalInput::RcpResolutionFraction: Code = TEXT("View.ResolutionFractionAndInv.y"); break;
+		case EExternalInput::PostVolumeUserFlags: Code = TEXT("((float)View.PostVolumeUserFlags)"); break;
 
 		case EExternalInput::CameraVector: Code = TEXT("Parameters.CameraVector"); break;
 		case EExternalInput::LightVector: Code = TEXT("Parameters.LightVector"); break;
@@ -1727,6 +1777,19 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		bAutomaticViewMipBias);
 }
 
+bool FExpressionTextureObjectFromCollection::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	// TODO: christopher.waters - to implement
+	checkNoEntry();
+	return false;
+}
+
+void FExpressionTextureObjectFromCollection::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	// TODO: christopher.waters - to implement
+	checkNoEntry();
+}
+
 FName FExpressionStaticTerrainLayerWeight::BuildWeightmapName(const TCHAR* Weightmap, int32 Index, bool bUseIndex) const
 {
 	FName Name;
@@ -2280,7 +2343,20 @@ bool FExpressionSceneTexture::PrepareValue(FEmitContext& Context, FEmitScope& Sc
 	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
 	{
 		Context.MaterialCompilationOutput->bNeedsSceneTextures = true;
-		Context.MaterialCompilationOutput->SetIsSceneTextureUsed((ESceneTextureId)SceneTextureId);
+		if (!UserSceneTexture.IsNone())
+		{
+			// We set all HLSL tree expressions with UserSceneTexture to PPI_UserSceneTexture0.  Actual ID is determined by result of FindOrAddUserSceneTexture.
+			check(SceneTextureId == PPI_UserSceneTexture0);
+
+			if (Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture) == INDEX_NONE)
+			{
+				return Context.Errorf(TEXT("Too many unique UserSceneTexture inputs in the post process material -- max allowed is %d"), kPostProcessMaterialInputCountMax);
+			}
+		}
+		else
+		{
+			Context.MaterialCompilationOutput->SetIsSceneTextureUsed((ESceneTextureId)SceneTextureId);
+		}
 
 		const bool bNeedsGBuffer = Context.MaterialCompilationOutput->NeedsGBuffer();
 		if (bNeedsGBuffer)
@@ -2311,38 +2387,81 @@ bool FExpressionSceneTexture::PrepareValue(FEmitContext& Context, FEmitScope& Sc
 
 void FExpressionSceneTexture::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
-	const bool bSupportedOnMobile = SceneTextureId == PPI_PostProcessInput0 ||
-		SceneTextureId == PPI_CustomDepth ||
-		SceneTextureId == PPI_SceneDepth ||
-		SceneTextureId == PPI_CustomStencil;
+	FString SceneTextureIdString;
+	if (!UserSceneTexture.IsNone())
+	{
+		// SceneTextureId is arbitrarily set to PPI_UserSceneTexture0 for all UserSceneTextures in the HLSL tree.  Actual ID
+		// is allocated in PrepareValue, based on what PPI_PostProcessInput0-6 slots are available in the compilation output.
+		check(SceneTextureId == PPI_UserSceneTexture0);
+
+		int32 UserSceneTextureId = Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture);
+		check(UserSceneTextureId != INDEX_NONE);
+
+		SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)UserSceneTextureId);
+	}
+	else
+	{
+		SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)SceneTextureId);
+	}
 
 	FEmitShaderExpression* EmitTexCoord = nullptr;
 	if (TexCoordExpression)
 	{
 		EmitTexCoord = TexCoordExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
-		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%, %), %)"), EmitTexCoord, (int)SceneTextureId, (int)SceneTextureId);
+		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%, %), %)"), EmitTexCoord, *SceneTextureIdString, *SceneTextureIdString);
 	}
 	else
 	{
-		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetDefaultSceneTextureUV(Parameters, %)"), (int)SceneTextureId);
+		if (bClamped)
+		{
+			EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(GetDefaultSceneTextureUV(Parameters, %), %)"), *SceneTextureIdString, *SceneTextureIdString);
+		}
+		else
+		{
+			EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetDefaultSceneTextureUV(Parameters, %)"), *SceneTextureIdString);
+		}
 	}
 
 	FEmitShaderExpression* EmitLookup = nullptr;
 	if (Context.Material->GetFeatureLevel() >= ERHIFeatureLevel::SM5)
 	{
-		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("SceneTextureLookup(%, %, %)"), EmitTexCoord, (int)SceneTextureId, bFiltered);
+		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("SceneTextureLookup(%, %, %)"), EmitTexCoord, *SceneTextureIdString, bFiltered);
 	}
 	else
 	{
-		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("MobileSceneTextureLookup(Parameters, %, %)"), (int)SceneTextureId, EmitTexCoord);
+		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("MobileSceneTextureLookup(Parameters, %, %)"), *SceneTextureIdString, EmitTexCoord);
 	}
 
-	if (SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6 && Context.Material->GetMaterialDomain() == MD_PostProcess && Context.Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping)
+	if (((SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6) || (SceneTextureId >= PPI_UserSceneTexture0 && SceneTextureId <= PPI_UserSceneTexture6)) &&
+		Context.Material->GetMaterialDomain() == MD_PostProcess && Context.Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping && !Context.Material->GetDisablePreExposureScale())
 	{
 		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("(float4(View.OneOverPreExposure.xxx, 1) * %)"), EmitLookup);
 	}
 
 	OutResult.Code = EmitLookup;
+}
+
+bool FExpressionUserSceneTextureSize::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bNeedsSceneTextures = true;
+
+		int32 SceneTextureId = Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture);
+		if (SceneTextureId == INDEX_NONE)
+		{
+			return Context.Errorf(TEXT("Too many unique UserSceneTexture inputs in the post process material -- max allowed is %d"), kPostProcessMaterialInputCountMax);
+		}
+	}
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float2);
+}
+
+void FExpressionUserSceneTextureSize::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	int32 SceneTextureId = Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture);
+	FString SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)SceneTextureId);
+
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetSceneTextureViewSize(%).%"), *SceneTextureIdString, bReciprocal ? TEXT("zw") : TEXT("xy"));
 }
 
 bool FExpressionScreenAlignedUV::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
@@ -3071,6 +3190,26 @@ void FExpressionDepthOfFieldFunction::EmitValueShader(FEmitContext& Context, FEm
 		FunctionValue);
 }
 
+bool FExpressionPostVolumeUserFlagTest::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	const FPreparedType& InputType = Context.PrepareExpression(InputExpression, Scope, Shader::EValueType::Float1);
+	if (InputType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionPostVolumeUserFlagTest::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitInput = InputExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
+
+	OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1,
+		TEXT("PostVolumeUserFlagTest(%)"),
+		EmitInput);
+}
+
 bool FExpressionSobolFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	if ((CellExpression && Context.PrepareExpression(CellExpression, Scope, Shader::EValueType::Float2).IsVoid()) ||
@@ -3435,6 +3574,41 @@ void FExpressionDefaultSubsurfaceColor::EmitValuePreshader(FEmitContext& Context
 	const Shader::FValue Value = bHasTwoSided ? FVector3f::ZeroVector : FVector3f(FMaterialAttributeDefinitionMap::GetDefaultValue(MP_SubsurfaceColor));
 	OutResult.Type = Value.Type;
 	OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Constant).Write(Value);
+}
+
+bool FExpressionPeriodicWorldOrigin::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+static const bool IsConstFloatOfPow2Expression(FEmitContext& Context, FEmitScope& Scope, const UE::HLSLTree::FExpression* Expression)
+{
+	bool bIsConstPow2 = false;
+
+	const EExpressionEvaluation Evaluation = Context.GetPreparedType(Expression, Shader::EValueType::Float3).GetEvaluation(Scope);
+	if (Evaluation == EExpressionEvaluation::Constant || Evaluation == EExpressionEvaluation::ConstantZero)
+	{
+		UE::Shader::FFloatValue Value = Expression->GetValueConstant(Context, Scope, Shader::EValueType::Float3).AsFloat();
+		auto IsFloatPowerOfTwo = [](float Value) { return ((*reinterpret_cast<int*>(&Value)) & 0x007FFFFF) == 0; }; // zero mantisse
+		bIsConstPow2 = IsFloatPowerOfTwo(Value[0]) && IsFloatPowerOfTwo(Value[1]) && IsFloatPowerOfTwo(Value[2]) && IsFloatPowerOfTwo(Value[3]);
+	}
+
+	return bIsConstPow2;
+}
+
+void FExpressionPeriodicWorldOrigin::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitScaleExpression = Scale->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+	bool bIsScalePow2 = IsConstFloatOfPow2Expression(Context, Scope, Scale);
+	const TCHAR* FuncName = bIsScalePow2 ? TEXT("GetPeriodicWorldOrigin_Pow2") : TEXT("GetPeriodicWorldOrigin");
+	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("%s(%s)"), FuncName, EmitScaleExpression);
+}
+
+void FExpressionPeriodicWorldOrigin::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
+{
+	const Shader::FValue ZeroValue(Shader::EValueType::Float3);
+	OutResult.ExpressionDdx = Tree.NewConstant(ZeroValue);
+	OutResult.ExpressionDdy = OutResult.ExpressionDdx;
 }
 
 int32 FEmitData::FindInterpolatorIndex(const FExpression* Expression) const

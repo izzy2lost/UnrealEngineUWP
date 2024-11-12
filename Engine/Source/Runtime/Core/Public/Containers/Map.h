@@ -161,6 +161,24 @@ protected:
 		: Pairs(Other.Pairs)
 	{ }
 
+	/////////////////////////////////////////////////
+	// Start - intrusive TOptional<TMapBase> state //
+	/////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TMapBase;
+
+	explicit TMapBase(FIntrusiveUnsetOptionalState Tag)
+		: Pairs(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Pairs == Tag;
+	}
+	///////////////////////////////////////////////
+	// End - intrusive TOptional<TMapBase> state //
+	///////////////////////////////////////////////
+
 	/** Assignment operator for moving elements from a TMap with a different SetAllocator */
 	template<typename OtherSetAllocator>
 	TMapBase& operator=(TMapBase<KeyType, ValueType, OtherSetAllocator, KeyFuncs>&& Other)
@@ -569,6 +587,19 @@ public:
 		return const_cast<TMapBase*>(this)->FindByHash(KeyHash, Key);
 	}
 
+	template<typename ComparableKey>
+	FORCEINLINE ValueType& FindByHashChecked(uint32 KeyHash, const ComparableKey& Key)
+	{
+		auto* Pair = Pairs.FindByHash(KeyHash, Key);
+		check(Pair != nullptr);
+		return Pair->Value;
+	}
+	template<typename ComparableKey>
+	FORCEINLINE const ValueType& FindByHashChecked(uint32 KeyHash, const ComparableKey& Key) const
+	{
+		return const_cast<TMapBase*>(this)->FindByHashChecked(KeyHash, Key);
+	}
+
 private:
 	FORCEINLINE static uint32 HashKey(const KeyType& Key)
 	{
@@ -704,6 +735,22 @@ public:
 		}
 
 		return DefaultValue;
+	}
+
+	/**
+	 * Finds any pair in the map and returns a pointer to it.
+	 * Callers should not depend on particular patterns in the behaviour of this function.
+	 * @return A pointer to an arbitrary pair, or nullptr if the container is empty.
+	 */
+	ElementType* FindArbitraryElement()
+	{
+		// The goal of this function is to be fast, and so the implementation may be improved at any time even if it gives different results.
+
+		return Pairs.FindArbitraryElement();
+	}
+	const ElementType* FindArbitraryElement() const
+	{
+		return const_cast<TMapBase*>(this)->FindArbitraryElement();
 	}
 
 	/**
@@ -1064,6 +1111,24 @@ protected:
 		return *this;
 	}
 
+	/////////////////////////////////////////////////////////
+	// Start - intrusive TOptional<TSortableMapBase> state //
+	/////////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSortableMapBase;
+
+	explicit TSortableMapBase(FIntrusiveUnsetOptionalState Tag)
+		: Super(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Super::operator==(Tag);
+	}
+	///////////////////////////////////////////////////////
+	// End - intrusive TOptional<TSortableMapBase> state //
+	///////////////////////////////////////////////////////
+
 public:
 	/**
 	 * Sorts the pairs array using each pair's Key as the sort criteria, then rebuilds the map's hash.
@@ -1205,6 +1270,24 @@ public:
 			this->Add(Element.Key, Element.Value);
 		}
 	}
+
+	/////////////////////////////////////////////
+	// Start - intrusive TOptional<TMap> state //
+	/////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TMap;
+
+	explicit TMap(FIntrusiveUnsetOptionalState Tag)
+		: Super(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Super::operator==(Tag);
+	}
+	///////////////////////////////////////////
+	// End - intrusive TOptional<TMap> state //
+	///////////////////////////////////////////
 
 	/** Assignment operator for moving elements from a TMap with a different SetAllocator */
 	template<typename OtherSetAllocator>
@@ -1390,6 +1473,24 @@ public:
 			this->Add(Element.Key, Element.Value);
 		}
 	}
+
+	//////////////////////////////////////////////////
+	// Start - intrusive TOptional<TMultiMap> state //
+	//////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TMultiMap;
+
+	explicit TMultiMap(FIntrusiveUnsetOptionalState Tag)
+		: Super(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Super::operator==(Tag);
+	}
+	////////////////////////////////////////////////
+	// End - intrusive TOptional<TMultiMap> state //
+	////////////////////////////////////////////////
 
 	/** Assignment operator for moving elements from a TMap with a different SetAllocator */
 	template<typename OtherSetAllocator>
@@ -1719,6 +1820,24 @@ public:
 	{
 	}
 
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<TScriptMap> state //
+	///////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TScriptMap;
+
+	explicit TScriptMap(FIntrusiveUnsetOptionalState Tag)
+		: Pairs(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Pairs == Tag;
+	}
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<TScriptMap> state //
+	/////////////////////////////////////////////////
+
 	bool IsValidIndex(int32 Index) const
 	{
 		return Pairs.IsValidIndex(Index);
@@ -1732,6 +1851,11 @@ public:
 	int32 Num() const
 	{
 		return Pairs.Num();
+	}
+
+	int32 NumUnchecked() const
+	{
+		return Pairs.NumUnchecked();
 	}
 
 	/** @return The max valid index of the elements in the sparse storage. */
@@ -1929,6 +2053,14 @@ class FScriptMap : public TScriptMap<FDefaultSetAllocator, FScriptMap>
 
 public:
 	using Super::Super;
+
+	///////////////////////////////////////////////////
+	// Start - intrusive TOptional<FScriptMap> state //
+	///////////////////////////////////////////////////
+	using IntrusiveUnsetOptionalStateType = FScriptMap;
+	/////////////////////////////////////////////////
+	// End - intrusive TOptional<FScriptMap> state //
+	/////////////////////////////////////////////////
 };
 
 struct TMapPrivateFriend

@@ -57,12 +57,12 @@ FText FDMXPixelMappingHierarchyItem::GetComponentNameText() const
 
 FText FDMXPixelMappingHierarchyItem::GetFixtureIDText() const
 {
-	if (OptionalFixtureID.IsSet())
-	{
-		return FText::FromString(FString::FromInt(OptionalFixtureID.GetValue()));
-	}
+	const UDMXPixelMappingOutputDMXComponent* OutputDMXComponent = Cast<UDMXPixelMappingOutputDMXComponent>(WeakComponent.Get());
+	const UDMXEntityFixturePatch* FixturePatch = OutputDMXComponent ? OutputDMXComponent->FixturePatchRef.GetFixturePatch() : nullptr;
 
-	return FText::GetEmpty();
+	return FixturePatch ?
+		FText::FromString(FString::FromInt(FixturePatch->GetFixtureID())) :
+		FText::GetEmpty();
 }
 
 FText FDMXPixelMappingHierarchyItem::GetPatchText() const
@@ -139,9 +139,6 @@ FDMXPixelMappingHierarchyItem::FDMXPixelMappingHierarchyItem(TWeakPtr<FDMXPixelM
 void FDMXPixelMappingHierarchyItem::Initialize()
 {
 	BuildChildren();
-	UpdateFixtureID();
-
-	UDMXEntityFixturePatch::GetOnFixturePatchChanged().AddSP(this, &FDMXPixelMappingHierarchyItem::OnFixturePatchChanged);
 }
 
 void FDMXPixelMappingHierarchyItem::BuildChildren(UDMXPixelMappingBaseComponent* ParentPixelMappingComponent)
@@ -161,30 +158,6 @@ void FDMXPixelMappingHierarchyItem::BuildChildren(UDMXPixelMappingBaseComponent*
 			ChildItem->Initialize();
 
 			Children.Add(ChildItem);
-		}
-	}
-}
-
-void FDMXPixelMappingHierarchyItem::OnFixturePatchChanged(const UDMXEntityFixturePatch* FixturePatch)
-{
-	UpdateFixtureID();
-}
-
-void FDMXPixelMappingHierarchyItem::UpdateFixtureID()
-{
-	if (UDMXPixelMappingOutputDMXComponent* OutputDMXComponent = Cast<UDMXPixelMappingOutputDMXComponent>(WeakComponent.Get()))
-	{
-		if (UDMXEntityFixturePatch* FixturePatch = OutputDMXComponent->FixturePatchRef.GetFixturePatch())
-		{
-			int32 FixtureID;
-			if (FixturePatch->FindFixtureID(FixtureID))
-			{
-				OptionalFixtureID = FixtureID;
-			}
-			else
-			{
-				OptionalFixtureID.Reset();
-			}
 		}
 	}
 }

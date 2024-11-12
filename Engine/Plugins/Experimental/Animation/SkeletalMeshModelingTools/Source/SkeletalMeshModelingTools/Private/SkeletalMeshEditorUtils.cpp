@@ -259,15 +259,25 @@ void USkeletalMeshEditorContextObject::BindRefSkeletonTree(ISkeletalMeshEditingI
 			.Modifier(Modifier)
 	];
 
+	// switch between SSkeletonTree and SReferenceSkeletonTree
 	SkeletonTab->SetContent(RefSkeletonWidget.ToSharedRef());
 
 	FBindData BindData;
 	Tie(BindData.ToToolNotifierHandle, BindData.FromToolNotifierHandle) = BindInterfaceTo(InEditingInterface, RefSkeletonTree->GetNotifier());
 	TreeBindings.Emplace(InEditingInterface, BindData);
 
+	// unbind notifications on the initial SSkeletonTree to avoid useless notifications
 	if(const TSharedPtr<ISkeletalMeshEditorBinding> Binding = Editor.Pin()->GetBinding())
 	{
-		RefSkeletonTree->GetNotifier().HandleNotification(Binding->GetSelectedBones(), ESkeletalMeshNotifyType::BonesSelected);
+		const TArray<FName> SelectedBones = Binding->GetSelectedBones();
+		
+		if (const FBindData* EditorBindData = EditorBindings.Find(InEditingInterface))
+		{
+			UnbindInterfaceFrom(InEditingInterface, Binding->GetNotifier(), *EditorBindData);
+			Binding->GetNotifier().HandleNotification({}, ESkeletalMeshNotifyType::BonesSelected);
+		}
+
+		RefSkeletonTree->GetNotifier().HandleNotification(SelectedBones, ESkeletalMeshNotifyType::BonesSelected);
 	}
 }
 
@@ -275,8 +285,10 @@ void USkeletalMeshEditorContextObject::UnbindRefSkeletonTree(ISkeletalMeshEditin
 {
 	if (const FBindData* BindData = TreeBindings.Find(InEditingInterface))
 	{
+		TArray<FName> SelectedBones;
 		if (RefSkeletonTree.IsValid())
 		{
+			RefSkeletonTree->GetSelectedBoneNames(SelectedBones);
 			UnbindInterfaceFrom(InEditingInterface, RefSkeletonTree->GetNotifier(), *BindData);
 		}
 
@@ -290,6 +302,14 @@ void USkeletalMeshEditorContextObject::UnbindRefSkeletonTree(ISkeletalMeshEditin
 				{
 					SkeletonTab->SetContent(DefaultSkeletonWidget.IsValid() ? DefaultSkeletonWidget.ToSharedRef() : SNullWidget::NullWidget);
 				}
+			}
+
+			// update the SSkeletonTree with the new RefSkeleton and set current selection 
+			if (const TSharedPtr<ISkeletalMeshEditorBinding> Binding = Editor.Pin()->GetBinding())
+			{
+				ISkeletalMeshNotifier& Notifier = Binding->GetNotifier();
+				Notifier.HandleNotification(SelectedBones, ESkeletalMeshNotifyType::HierarchyChanged);
+				Notifier.HandleNotification(SelectedBones, ESkeletalMeshNotifyType::BonesSelected);
 			}
 		}
 		

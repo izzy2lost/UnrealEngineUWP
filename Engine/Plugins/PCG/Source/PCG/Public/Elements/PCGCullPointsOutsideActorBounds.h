@@ -6,6 +6,13 @@
 
 #include "PCGCullPointsOutsideActorBounds.generated.h"
 
+UENUM(BlueprintType)
+enum class EPCGCullPointsMode : uint8
+{
+	Ordered = 0,
+	Unordered
+};
+
 /**
  * Removes points that lie outside the current actor bounds.
  */
@@ -33,6 +40,9 @@ protected:
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	float BoundsExpansion = 0.0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGCullPointsMode Mode = EPCGCullPointsMode::Ordered;
 };
 
 class FPCGCullPointsOutsideActorBoundsElement : public IPCGElement
@@ -42,4 +52,5 @@ public:
 
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };

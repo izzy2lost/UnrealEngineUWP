@@ -22,5 +22,7 @@ public class OnlineServicesOSSAdapter : ModuleRules
 				"CoreOnline",
 			}
 		);
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

@@ -25,7 +25,7 @@ TSharedRef<SDockTab> FChaosVDSceneQueryDataInspectorTab::HandleTabSpawnRequest(c
 	{
 		DetailsPanelTab->SetContent
 		(
-			SAssignNew(SceneQueryDataInspector, SChaosVDSceneQueryDataInspector, GetChaosVDScene(), MainTabPtr->GetEditorModeManager().AsWeak())
+			SAssignNew(SceneQueryDataInspector, SChaosVDSceneQueryDataInspector, GetChaosVDScene(), MainTabPtr.ToSharedRef())
 		);
 	}
 	else

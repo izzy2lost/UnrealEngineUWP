@@ -5,6 +5,7 @@
 #include "Synchronization/DisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBase.h"
 
 #include "IRivermaxOutputStream.h"
+#include "IStageDataProvider.h"
 
 #include "MediaOutputSynchronizationPolicyRivermax.generated.h"
 
@@ -32,52 +33,105 @@ public:
 	virtual bool IsCaptureTypeSupported(UMediaCapture* MediaCapture) const override;
 
 protected:
-	/** Initializes dynamic barrier on the primary node. */
-	virtual bool InitializeBarrier(const FString& SyncInstanceId) override;
-
-	/** Barrier callback containing data from each node to detect if cluster is out of sync. */
-	void HandleBarrierSync(FGenericBarrierSynchronizationDelegateData& BarrierSyncData);
-
-	/** Returns true if frame time from each node are close to each other (limit controlled by cvar) */
-	bool ValidateNodesFrameTime(const TMap<FString, TArray<uint8>>& NodeRequestData) const;
-
-	/** Returns amount of time before next synchronization point. */
-	double GetTimeBeforeNextSyncPoint() const;
-
-protected:
 
 	/** Holds data provided to server by each node when joining the barrier */
 	struct FMediaSyncBarrierData
 	{
 		FMediaSyncBarrierData()
 		{
+			Reset();
 		}
 
-		/** For now, we build it directly based on presentation info from the stream */
-		FMediaSyncBarrierData(const UE::RivermaxCore::FPresentedFrameInfo& FrameInfo)
-			: PresentedFrameBoundaryNumber(FrameInfo.PresentedFrameBoundaryNumber)
-			, LastRenderedFrameNumber(FrameInfo.RenderedFrameNumber)
+		/** Reset the data to default values */
+		void Reset()
 		{
+			for (int32 Idx = 0; Idx < FRAMEHISTORYLEN; ++Idx)
+			{
+				PresentedFrameBoundaryNumber[Idx] = 0;
+				LastRenderedFrameNumber[Idx] = 0;
+			}
 		}
+
+		/** Insert the given frame information into the recorded presentation history */
+		void InsertFrameInfo(const UE::RivermaxCore::FPresentedFrameInfo& FrameInfo)
+		{
+			// Shift existing history entries
+			for (int32 Idx = FRAMEHISTORYLEN - 1; Idx > 0; --Idx)
+			{
+				PresentedFrameBoundaryNumber[Idx] = PresentedFrameBoundaryNumber[Idx - 1];
+				LastRenderedFrameNumber[Idx] = LastRenderedFrameNumber[Idx - 1];
+			}
+
+			// Insert new frame info at the beginning
+			PresentedFrameBoundaryNumber[0] = FrameInfo.PresentedFrameBoundaryNumber;
+			LastRenderedFrameNumber[0] = FrameInfo.RenderedFrameNumber;
+		}
+
+		/** Rendered frames as comma separated string */
+		FString LastRenderedFrameNumbersAsString() const;
+
+		/** Presented frame boundaries as comma separated string */
+		FString PresentedFrameBoundaryNumbersAsString() const;
+
+		/**
+		 * Returns true if the frame presentation history indicates a desynced state.
+		 *
+		 * @param OtherBarrierData
+		 *     Barrier data of the node we're comparing with.
+		 *
+		 * @param OutVsyncDelta
+		 *     When the same frame is presented at different Vsync frame boundaries, this parameter
+		 *     contains the delta between them. Useful in detecting large PTP differences between nodes.
+		 *
+		 * @return
+		 *     True if different frames were presented at the same Vsync frame boundaries.
+		 */
+		bool HasConfirmedDesync(const FMediaSyncBarrierData& OtherBarrierData, int64& OutVsyncDelta) const;
+
+		/** How many frames to include in the history */
+		static constexpr int32 FRAMEHISTORYLEN = 2;
 
 		/** Frame boundary number at which the last frame was presented.  */
-		uint64 PresentedFrameBoundaryNumber = 0;
-		
+		uint64 PresentedFrameBoundaryNumber[FRAMEHISTORYLEN];
+
 		/** Last engine frame number that was presented */
-		uint32 LastRenderedFrameNumber = 0;
+		uint32 LastRenderedFrameNumber[FRAMEHISTORYLEN];
 	};
+
+protected:
+
+	/** Initializes dynamic barrier on the primary node. */
+	virtual bool InitializeBarrier(const FString& SyncInstanceId) override;
+
+	/** Barrier callback containing data from each node to detect if cluster is out of sync. */
+	void HandleBarrierSync(FGenericBarrierSynchronizationDelegateData& BarrierSyncData);
+
+	/** Returns amount of time before next synchronization point. */
+	double GetTimeBeforeNextSyncPoint() const;
+
+	/** 
+	 * Deterministically picks a node to base ptp offsets on other nodes from.
+	 * 
+	 * @param BarrierSyncData the barrier data from all the clients.
+	 * @param OutPtpBaseNodeData Will be populated with a pointer to the barrier sync data of the selected ptp base node.
+	 * @param OutPtpBaseNodeId For convenience, this returns the name of the ptp base node.
+	 */
+	bool PickPtpBaseNodeAndData(
+		const FGenericBarrierSynchronizationDelegateData& BarrierSyncData,
+		const FMediaSyncBarrierData*& OutPtpBaseNodeData,
+		FString& OutPtpBaseNodeId
+	) const;
+
+protected:
+
+	/** Holds data provided to server by this node when joining the barrier */
+	struct FMediaSyncBarrierData BarrierDataStruct;
 
 	/** Synchronization margin (ms) */
 	float MarginMs = 5.0f;
 
 	/** Memory buffer used to contain data exchanged in the barrier */
 	TArray<uint8> BarrierData;
-
-	/** On first barrier sync, we will verify frame time range to detect if clocks are too far appart. Even when desynchronized, frame time shouldn't be further than 1-2 frame away */
-	bool bCanUseSelfRepair = true;
-
-	/** Verify clock between nodes only once */
-	bool bHasVerifiedClocks = false;
 };
 
 
@@ -102,3 +156,37 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (DisplayName = "Margin (ms)", ClampMin = "1", ClampMax = "20", UIMin = "1", UIMax = "20"))
 	float MarginMs = 5.0f;
 };
+
+/**
+ * Stage Monitor event to report nodes that are out of PTP sync with respect to a given PTP base node.
+ */
+USTRUCT()
+struct FRivermaxClusterPtpUnsyncEvent : public FStageProviderEventMessage
+{
+	GENERATED_BODY()
+
+public:
+	FRivermaxClusterPtpUnsyncEvent() = default;
+
+	FRivermaxClusterPtpUnsyncEvent(const TMap<FString, int64>& InNodePtpFrameDeltas, const FString& InPtpBaseNodeId)
+		: NodePtpFrameDeltas(InNodePtpFrameDeltas)
+		, PtpBaseNodeId(InPtpBaseNodeId)
+	{}
+
+public:
+
+	/** Nodes with PTP video frame mismatches compared to the ptp base node id. */
+	UPROPERTY(VisibleAnywhere, Category = "PtpSync")
+	TMap<FString, int64> NodePtpFrameDeltas;
+
+	/** Id of the base node the PTP delta video frames are compared with */
+	UPROPERTY(VisibleAnywhere, Category = "PtpSync")
+	FString PtpBaseNodeId;
+
+public:
+
+	//~ Begin FStageDataBaseMessage
+	virtual FString ToString() const override;
+	//~ End FStageDataBaseMessage
+};
+

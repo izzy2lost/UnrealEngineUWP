@@ -72,7 +72,9 @@ public:
 		ConstructSerializedType InConstructSerializedRef,
 		ConstructCompiledType InConstructCompiledRef,
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
+		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+		GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 		ValidateCompiledResultType InValidateCompiledResultRef,
@@ -84,7 +86,9 @@ public:
 			InConstructSerializedRef,
 			InConstructCompiledRef,
 			InShouldCompilePermutationRef,
+			InShouldPrecachePermutationRef,
 			InGetRayTracingPayloadTypeRef,
+			InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 			InModifyCompilationEnvironmentRef,
 			InValidateCompiledResultRef,

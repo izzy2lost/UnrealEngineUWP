@@ -543,16 +543,23 @@ namespace UnrealBuildTool
 			public string Header { get; init; }
 
 			/// <summary>
+			/// Name of the output include
+			/// </summary>
+			public string? Include { get; init; }
+
+			/// <summary>
 			/// Constructor
 			/// </summary>
 			/// <param name="fileName">Name of the type library. Follows the same conventions as the filename parameter in the MSVC #import directive.</param>
 			/// <param name="attributes">Additional attributes for the import directive</param>
 			/// <param name="header">Name of the output header</param>
-			public TypeLibrary(string fileName, string attributes, string header)
+			/// <param name="include">Name of the output include</param>
+			public TypeLibrary(string fileName, string attributes, string header, string? include = null)
 			{
 				FileName = fileName;
 				Attributes = attributes;
 				Header = header;
+				Include = include;
 			}
 		}
 
@@ -637,7 +644,7 @@ namespace UnrealBuildTool
 			get => overridePackageType ?? PackageOverrideType.None;
 			set => overridePackageType = !IsPlugin
 					? value
-					: throw new CompilationResultException(CompilationResult.RulesError, "Module '{ModuleName}' cannot override package type because it is part of a plugin!", Name);
+					: throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Module '{ModuleName}' cannot override package type because it is part of a plugin!", Name);
 		}
 
 		private PackageOverrideType? overridePackageType;
@@ -734,6 +741,11 @@ namespace UnrealBuildTool
 		private FPSemanticsMode? FPSemanticsPrivate = null;
 
 		/// <summary>
+		/// Header files that should be force included for every source file in this module.
+		/// </summary>
+		public List<string> ForceIncludeFiles { get; } = new List<string>();
+
+		/// <summary>
 		/// Explicit private PCH for this module. Implies that this module will not use a shared PCH.
 		/// </summary>
 		public string? PrivatePCHHeaderFile { get; set; }
@@ -790,6 +802,11 @@ namespace UnrealBuildTool
 		/// Initialized to a default based on the rules assembly it was created from.
 		/// </summary>
 		public bool bTreatAsEngineModule { get; set; }
+
+		/// <summary>
+		/// If this contains a platform and the project has had it's SDK version overriden from default, this module will be compiled as a project module, instead of shared engine module
+		/// </summary>
+		public List<UnrealTargetPlatform> SDKVersionRelevantPlatforms { get; } = new();
 
 		/// <summary>
 		/// Emits compilation errors for incorrect UE_LOG format strings.
@@ -939,8 +956,21 @@ namespace UnrealBuildTool
 		private WarningLevel UnsafeTypeCastWarningLevelPrivate;
 
 		/// <summary>
+		/// Indicates what warning/error level to treat undefined identifiers in conditional expressions.
+		/// </summary>
+		public WarningLevel UndefinedIdentifierWarningLevel
+		{
+			get => (_undefinedIdentifierWarningLevelPrivate == WarningLevel.Default) ? Target.UndefinedIdentifierWarningLevel : _undefinedIdentifierWarningLevelPrivate;
+			set => _undefinedIdentifierWarningLevelPrivate = value;
+		}
+
+		/// <inheritdoc cref="UndefinedIdentifierWarningLevel"/>
+		private WarningLevel _undefinedIdentifierWarningLevelPrivate;
+
+		/// <summary>
 		/// Enable warnings for using undefined identifiers in #if expressions
 		/// </summary>
+		[Obsolete("Deprecated in UE5.5 - Replace with ModuleRules.UndefinedIdentifierWarningLevel")]
 		public bool bEnableUndefinedIdentifierWarnings { get; set; } = true;
 
 		/// <summary>
@@ -1005,18 +1035,35 @@ namespace UnrealBuildTool
 		///    'clang -Xclang -analyzer-checker-help-alpha' 
 		/// for the list of experimental checkers.
 		/// </summary>
-		public HashSet<string> StaticAnalyzerCheckers = new();
+		public HashSet<string> StaticAnalyzerCheckers { get; } = new();
 
 		/// <summary>
 		/// The static analyzer default checkers that should be disabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang.
-		/// This overrides the default disabled checkers, which are deadcode.DeadStores and security.FloatLoopCounter
 		/// See https://clang.llvm.org/docs/analyzer/checkers.html for a full list. Or run:
 		///    'clang -Xclang -analyzer-checker-help' 
 		/// or: 
 		///    'clang -Xclang -analyzer-checker-help-alpha' 
 		/// for the list of experimental checkers.
 		/// </summary>
-		public HashSet<string> StaticAnalyzerDisabledCheckers = new() { "deadcode.DeadStores", "security.FloatLoopCounter" };
+		public HashSet<string> StaticAnalyzerDisabledCheckers { get; } = new() {
+			// Work in progress, remove disabled checkers as all warnings are fixed
+			"core.BitwiseShift",
+			"core.CallAndMessage",
+			"core.DivideZero",
+			"core.NonNullParamChecker",
+			"core.NullDereference",
+			"core.UndefinedBinaryOperatorResult",
+			"core.uninitialized.Assign",
+			"core.uninitialized.Branch",
+			"core.uninitialized.UndefReturn",
+			"cplusplus.Move",
+			"cplusplus.NewDelete",
+			"cplusplus.NewDeleteLeaks",
+			"unix.cstring.NullArg",
+
+			// Needs evaluation
+			"deadcode.DeadStores",
+		};
 
 		/// <summary>
 		/// The static analyzer non-default checkers that should be enabled. Unused if StaticAnalyzerCheckers is populated. This is only supported for Clang.
@@ -1026,7 +1073,12 @@ namespace UnrealBuildTool
 		///    'clang -Xclang -analyzer-checker-help-alpha' 
 		/// for the list of experimental checkers.
 		/// </summary>
-		public HashSet<string> StaticAnalyzerAdditionalCheckers = new();
+		public HashSet<string> StaticAnalyzerAdditionalCheckers { get; } = new();
+
+		/// <summary>
+		/// The PVS Studio analysis errors that should be disabled.
+		/// </summary>
+		public HashSet<string> StaticAnalyzerPVSDisabledErrors { get; } = new();
 
 		private bool? bUseUnityOverride;
 		/// <summary>
@@ -1102,7 +1154,16 @@ namespace UnrealBuildTool
 		/// are used, and checks that source files include their matching header first.
 		/// </summary>
 		[Obsolete("Deprecated in UE5.2 - Use IWYUSupport instead.")]
-		public bool bEnforceIWYU { set { if (!value) { IWYUSupport = IWYUSupport.None; } } }
+		public bool bEnforceIWYU
+		{
+			set
+			{
+				if (!value)
+				{
+					IWYUSupport = IWYUSupport.None;
+				}
+			}
+		}
 
 		/// <summary>
 		/// Allows "include what you use" to modify the source code when run. bEnforceIWYU must be true for this variable to matter.
@@ -1137,9 +1198,9 @@ namespace UnrealBuildTool
 		public bool bAllowConfidentialPlatformDefines { get; set; }
 
 		/// <summary>
-		/// Enables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
+		/// Disables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
 		/// </summary>
-		public bool bAllowAutoRTFMInstrumentation { get; set; }
+		public bool bDisableAutoRTFMInstrumentation { get; set; }
 
 		/// <summary>
 		/// List of modules names (no path needed) with header files that our module's public headers needs access to, but we don't need to "import" or link against.
@@ -1209,6 +1270,11 @@ namespace UnrealBuildTool
 		public List<string> PublicAdditionalLibraries = new();
 
 		/// <summary>
+		/// List of additional debug visualizers (.natvis and .natstepfilter) exposed to other modules - typically used for External (third party) modules
+		/// </summary>
+		public List<string> PublicDebugVisualizerPaths = new();
+
+		/// <summary>
 		/// Per-architecture lists of dependencies for linking to ignore (useful when building for multiple architectures, and a lib only is needed for one architecture), it's up to the Toolchain to use this
 		/// </summary>
 		public Dictionary<string, List<UnrealArch>> DependenciesToSkipPerArchitecture = new();
@@ -1221,7 +1287,7 @@ namespace UnrealBuildTool
 		public string GetModuleDirectory(string moduleName)
 		{
 			FileReference? moduleFileReference = RulesAssembly.GetModuleFileName(moduleName)
-				?? throw new CompilationResultException(CompilationResult.RulesError, "Could not find a module named '{ModuleName}'.", moduleName);
+				?? throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Could not find a module named '{ModuleName}'.", moduleName);
 			return moduleFileReference.Directory.FullName;
 		}
 
@@ -1407,7 +1473,7 @@ namespace UnrealBuildTool
 		/// Property for the directory containing this plugin. Useful for adding paths to third party dependencies.
 		/// </summary>
 		public string PluginDirectory => Plugin == null
-					? throw new CompilationResultException(CompilationResult.RulesError, "Module '{ModuleName}' does not belong to a plugin; PluginDirectory property is invalid.", Name)
+					? throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Module '{ModuleName}' does not belong to a plugin; PluginDirectory property is invalid.", Name)
 					: Plugin.Directory.FullName;
 
 		/// <summary>
@@ -1600,28 +1666,6 @@ namespace UnrealBuildTool
 			PublicDefinitions.Add("WITH_CLOTH_COLLISION_DETECTION=1");
 
 			SetupModuleChaosVisualDebuggerSupport(target);
-
-			// Modules may still be relying on appropriate definitions for physics.
-			// Nothing in engine should use these anymore as they were all deprecated and 
-			// assumed to be in the following configuration from 5.1, this will cause
-			// deprecation warning to fire in any module still relying on these macros
-			static string GetDeprecatedPhysicsMacro(string macro, string value, string version) => $"{macro}=UE_DEPRECATED_MACRO({version}, \"{macro} is deprecated and should always be considered {value}.\") {value}";
-
-			PublicDefinitions.AddRange(
-				new string[]{
-					GetDeprecatedPhysicsMacro("INCLUDE_CHAOS", "1", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_CHAOS", "1", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_CHAOS_CLOTHING", "1", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_CHAOS_NEEDS_TO_BE_FIXED", "1", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_PHYSX", "1", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_PHYSX_COOKING", "0", "5.1"),
-					GetDeprecatedPhysicsMacro("PHYSICS_INTERFACE_PHYSX", "0", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_APEX", "0", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_APEX_CLOTHING", "0", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_NVCLOTH", "0", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_IMMEDIATE_PHYSX", "0", "5.1"),
-					GetDeprecatedPhysicsMacro("WITH_CUSTOM_SQ_STRUCTURE", "0", "5.1")
-				});
 		}
 
 		/// <summary>
@@ -1658,6 +1702,13 @@ namespace UnrealBuildTool
 					invalidReason = $"Platform '{targetRules.Platform}'";
 					return false;
 				}
+			}
+
+			IEnumerable<ObsoleteAttribute> obsoleteAttributes = moduleType.GetCustomAttributes<ObsoleteAttribute>();
+			if (obsoleteAttributes.Any())
+			{
+				invalidReason = $"Obsolete '{(obsoleteAttributes.First().Message ?? "unspecified")}'";
+				return false;
 			}
 
 			invalidReason = null;

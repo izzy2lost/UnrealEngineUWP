@@ -3,7 +3,7 @@
 #include "Stateless/Modules/NiagaraStatelessModule_AddVelocity.h"
 #include "Stateless/NiagaraStatelessDrawDebugContext.h"
 
-void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const
+void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const
 {
 	if (!IsModuleEnabled())
 	{
@@ -14,6 +14,7 @@ void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(FNiagaraStatelessEmit
 	if (VelocityType == ENSM_VelocityType::Linear)
 	{
 		const FNiagaraStatelessRangeVector3 VelocityRange = LinearVelocityDistribution.CalculateRange(FVector3f::ZeroVector);
+		PhysicsBuildData.VelocityCoordinateSpace = CoordinateSpace;
 		PhysicsBuildData.VelocityRange.Min += VelocityRange.Min * LinearVelocityScale;
 		PhysicsBuildData.VelocityRange.Max += VelocityRange.Max * LinearVelocityScale;
 	}
@@ -22,6 +23,7 @@ void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(FNiagaraStatelessEmit
 		ensureMsgf(PhysicsBuildData.bPointVelocity == false, TEXT("Only a single point force is supported at the moment."));
 
 		PhysicsBuildData.bPointVelocity = true;
+		PhysicsBuildData.PointCoordinateSpace = CoordinateSpace;
 		PhysicsBuildData.PointVelocityRange = PointVelocityDistribution.CalculateRange(0.0f);
 		PhysicsBuildData.PointOrigin = PointOrigin;
 	}
@@ -30,6 +32,7 @@ void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(FNiagaraStatelessEmit
 		ensureMsgf(PhysicsBuildData.bConeVelocity == false, TEXT("Only a single cone force is supported at the moment."));
 
 		PhysicsBuildData.bConeVelocity = true;
+		PhysicsBuildData.ConeCoordinateSpace = CoordinateSpace;
 		PhysicsBuildData.ConeQuat = FQuat4f(ConeRotation.Quaternion());
 		PhysicsBuildData.ConeVelocityRange = ConeVelocityDistribution.CalculateRange(0.0f);
 		PhysicsBuildData.ConeOuterAngle = ConeAngle;

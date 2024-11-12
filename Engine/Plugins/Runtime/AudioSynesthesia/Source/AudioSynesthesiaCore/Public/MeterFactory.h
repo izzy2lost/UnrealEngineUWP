@@ -12,7 +12,7 @@ namespace Audio
 	/**
 	 * Contains settings for meter  analyzer.
 	 */
-	class AUDIOSYNESTHESIACORE_API FMeterSettings : public IAnalyzerSettings, public FMeterAnalyzerSettings
+	class FMeterSettings : public IAnalyzerSettings, public FMeterAnalyzerSettings
 	{	
 	public:
 		/** Number of seconds between loudness measurements */
@@ -35,27 +35,27 @@ namespace Audio
 	/** 
 	 * FMeterResult contains the temporal evolution of loudness for the last buffer of audio analyzed.
 	 */
-	class AUDIOSYNESTHESIACORE_API FMeterResult : public IAnalyzerResult
+	class FMeterResult : public IAnalyzerResult
 	{
 	public:
 		/**
 		 * Denotes the overall loudness as opposed individual channel indices.
 		 */
-		static const int32 ChannelIndexOverall;
+		AUDIOSYNESTHESIACORE_API static const int32 ChannelIndexOverall;
 
 		FMeterResult() {}
 
 		/** Appends an FMeterEntry to the container. */
-		void Add(const FMeterEntry& InEntry);
+		AUDIOSYNESTHESIACORE_API void Add(const FMeterEntry& InEntry);
 
 		/** Returns const reference to FMeterEntry array for individual channel. */
-		const TArray<FMeterEntry>& GetChannelMeterArray(int32 ChannelIdx) const;
+		AUDIOSYNESTHESIACORE_API const TArray<FMeterEntry>& GetChannelMeterArray(int32 ChannelIdx) const;
 
 		/** Returns const reference to FMeterEntry array associated with overall loudness. */
-		const TArray<FMeterEntry>& GetMeterArray() const;
+		AUDIOSYNESTHESIACORE_API const TArray<FMeterEntry>& GetMeterArray() const;
 
 		/** Returns the number of channels. */
-		int32 GetNumChannels() const;
+		AUDIOSYNESTHESIACORE_API int32 GetNumChannels() const;
 
 	private:
 		float DurationInSeconds = 0.0f;
@@ -65,14 +65,14 @@ namespace Audio
 	/**
 	 * FMeterWorker performs meter analysis on input sample buffers.
 	 */
-	class AUDIOSYNESTHESIACORE_API FMeterWorker : public IAnalyzerWorker
+	class FMeterWorker : public IAnalyzerWorker
 	{
 	public:
 		/** Construct a worker */
-		FMeterWorker(const FAnalyzerParameters& InParams, const FMeterSettings& InAnalyzerSettings);
+		AUDIOSYNESTHESIACORE_API FMeterWorker(const FAnalyzerParameters& InParams, const FMeterSettings& InAnalyzerSettings);
 
 		/** Analyzes input sample buffer and updates result. */
-		virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerResult* OutResult) override;
 
 	private:
 
@@ -88,21 +88,20 @@ namespace Audio
 	/**
 	 * Defines the meter analyzer and creates related classes.
 	 */
-	class AUDIOSYNESTHESIACORE_API FMeterFactory : public IAnalyzerFactory
+	class FMeterFactory : public IAnalyzerFactory
 	{
-		public:
-
+	public:
 		/** Name of specific analyzer type. */
-		virtual FName GetName() const override;
+		AUDIOSYNESTHESIACORE_API virtual FName GetName() const override;
 
 		/** Human readable name of analyzer. */
-		virtual FString GetTitle() const override;
+		AUDIOSYNESTHESIACORE_API virtual FString GetTitle() const override;
 
 		/** Creates a new FLoudnessNRTResult */
-		virtual TUniquePtr<IAnalyzerResult> NewResult() const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerResult> NewResult() const override;
 
 		/**  Creates a new FLoudnessWorker. This expects IAnalyzerNRTSettings to be a valid pointer to a FLoudnessSettings object. */
-		virtual TUniquePtr<IAnalyzerWorker> NewWorker(const FAnalyzerParameters& InParams, const IAnalyzerSettings* InSettings) const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerWorker> NewWorker(const FAnalyzerParameters& InParams, const IAnalyzerSettings* InSettings) const override;
 	};
 }
 

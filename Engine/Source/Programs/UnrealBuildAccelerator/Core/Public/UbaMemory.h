@@ -95,12 +95,14 @@ namespace uba
 		MemoryBlock(u64 reserveSize_, void* baseAddress_ = nullptr);
 		MemoryBlock(u8* baseAddress_ = nullptr);
 		~MemoryBlock();
-		void Init(u64 reserveSize_, void* baseAddress_ = nullptr);
+		bool Init(u64 reserveSize_, void* baseAddress_ = nullptr, bool useHugePages = false);
 		void Deinit();
 		void* Allocate(u64 bytes, u64 alignment, const tchar* hint);
 		void* AllocateNoLock(u64 bytes, u64 alignment, const tchar* hint);
+		void ReserveNoLock(u64 bytes, const tchar* hint);
 		void Free(void* p);
 		tchar* Strdup(const tchar* str);
+		void Swap(MemoryBlock& other);
 		
 
 		ReaderWriterLock lock;
@@ -145,9 +147,47 @@ namespace uba
 		MemoryBlock* m_block;
 	};
 
+	template<typename Type>
+	class GrowingAllocatorNoLock
+	{
+	public:
+		using value_type = Type;
+
+		GrowingAllocatorNoLock(MemoryBlock* block) : m_block(block) {}
+		GrowingAllocatorNoLock(const GrowingAllocatorNoLock& o) : m_block(o.m_block) {}
+		GrowingAllocatorNoLock(GrowingAllocatorNoLock&& o) noexcept : m_block(o.m_block) {}
+		template <class _Other>
+		constexpr GrowingAllocatorNoLock(const GrowingAllocatorNoLock<_Other>& o) noexcept : m_block(o.m_block) {}
+
+		value_type* allocate(u64 n)
+		{
+			return (value_type*)m_block->AllocateNoLock(sizeof(value_type)*n, alignof(value_type), TC("GrowingAllocatorNoLock"));
+		}
+
+		/// @warning Naive implementation, assumes `p` is valid.
+		void deallocate(value_type*, u64)
+		{
+		}
+
+		u64 max_size() const
+		{
+			return static_cast<size_t>(-1) / sizeof(value_type);
+		}
+	
+		bool operator==(const GrowingAllocatorNoLock& o) const { return m_block == o.m_block; }
+
+		MemoryBlock* m_block;
+	};
 
 	template<typename Key, typename Value, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
 	using GrowingUnorderedMap = std::unordered_map<Key, Value, Hash, EqualTo, GrowingAllocator<std::pair<const Key, Value>>>;
+	template<typename Key, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
+	using GrowingUnorderedSet = std::unordered_set<Key, Hash, EqualTo, GrowingAllocator<Key>>;
+
+	template<typename Key, typename Value, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
+	using GrowingNoLockUnorderedMap = std::unordered_map<Key, Value, Hash, EqualTo, GrowingAllocatorNoLock<std::pair<const Key, Value>>>;
+	template<typename Key, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
+	using GrowingNoLockUnorderedSet = std::unordered_set<Key, Hash, EqualTo, GrowingAllocatorNoLock<Key>>;
 
 	template<typename Type>
 	struct BlockAllocator
@@ -188,6 +228,7 @@ namespace uba
 	inline u8 HexToByte(tchar c) { return (c >= '0' && c <= '9') ? u8(c - '0') : u8(c - 'a' + 10); }
 	constexpr tchar g_hexChars[] = TC("0123456789abcdef");
 
+	// TODO: These are backwards but changing would break cas storage
 	inline u32 ValueToString(tchar* out, int capacity, u64 value)
 	{
 		(void)capacity;
@@ -204,6 +245,7 @@ namespace uba
 		return u32(it - out);
 	}
 
+	// TODO: These are backwards but changing would break cas storage
 	inline u64 StringToValue(const tchar* str, u64 len)
 	{
 		u64 v = 0;
@@ -217,4 +259,21 @@ namespace uba
 
 		return v;
 	}
+
+	inline u64 StringToValue2(const tchar* str, u64 len)
+	{
+		u64 v = 0;
+		const tchar* pos = str;
+		while (*pos)
+		{
+			u8 a = HexToByte(*pos++);
+			u8 b = HexToByte(*pos++);
+			v = u64(v << 8) | u64(a << 4 | b);
+		}
+
+		return v;
+	}
+
+	bool SupportsHugePages();
+	u64 GetHugePageCount();
 }

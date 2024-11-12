@@ -7,18 +7,11 @@
 #include "UObject/Object.h"
 #include "Animation/AnimTypes.h"
 #include "Animation/AnimationAsset.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Animation/AnimCurveTypes.h"
-#include "Animation/AnimMontage.h"
-#include "Animation/AttributesRuntime.h"
-#include "Animation/Skeleton.h"
-#include "BonePose.h"
-#include "Components/SkeletalMeshComponent.h"
-#endif
 #include "Animation/AnimNotifyQueue.h"
 #include "Animation/AnimSubsystemInstance.h"
 #include "Animation/AnimSync.h"
 #include "Animation/AnimNotifies/AnimNotify.h"
+#include "Animation/AnimInertializationRequest.h"
 #include "AnimInstance.generated.h"
 
 // Post Compile Validation requires WITH_EDITOR
@@ -58,6 +51,7 @@ typedef TArray<FTransform> FTransformArrayA2;
 namespace UE::Anim
 {
 	struct FHeapAttributeContainer;
+	// DEPRECATED use FInertializationRequest instead
 	using FSlotInertializationRequest = TPair<float, const UBlendProfile*>;
 	struct FCurveFilterSettings;
 }	// namespace UE::Anim
@@ -331,10 +325,7 @@ class UAnimInstance : public UObject
 
 	typedef FAnimInstanceProxy ProxyType;
 
-	// Disable compiler-generated deprecation warnings by implementing our own destructor
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	~UAnimInstance() {}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	ENGINE_API ~UAnimInstance();
 
 	/** This is used to extract animation. If Mesh exists, this will be overwritten by Mesh->Skeleton */
 	UPROPERTY(transient)
@@ -377,11 +368,17 @@ class UAnimInstance : public UObject
 	uint8 bUseMainInstanceMontageEvaluationData: 1;
 
 private:
+	// Should UpdateAnimation be called
+	uint8 bUpdateAnimationEnabled;
+
 	/** True when Montages are being ticked, and Montage Events should be queued. 
 	 * When Montage are being ticked, we queue AnimNotifies and Events. We trigger notifies first, then Montage events. */
 	UPROPERTY(Transient)
 	uint8 bQueueMontageEvents : 1;
 
+	/** Flag used to query if the animation instance has been uninitialized via UninitializeAnimation() call. */
+	uint8 bUninitialized : 1;
+	
 #if DO_CHECK
 	/** Guard flag used for checking whether we are in user callbacks for initialization */
 	uint8 bInitializing : 1;
@@ -888,9 +885,14 @@ private:
 protected:
 	/** Map between Active Montages and their FAnimMontageInstance */
 	TMap<class UAnimMontage*, struct FAnimMontageInstance*> ActiveMontagesMap;
+	
+
+	UE_DEPRECATED(5.5, "This property is deprecated. Please use SlotGroupInertializationRequestDataMap instead")
+	TMap<FName, UE::Anim::FSlotInertializationRequest> SlotGroupInertializationRequestMap;
 
 	/**  Inertialization requests gathered this frame. Gets reset in UpdateMontageEvaluationData */
-	TMap<FName, UE::Anim::FSlotInertializationRequest> SlotGroupInertializationRequestMap;
+	UPROPERTY(Transient)
+	TMap<FName, FInertializationRequest> SlotGroupInertializationRequestDataMap;
 
 	/* StopAllMontagesByGroupName needs a BlendMode and BlendProfile to function properly if using non-default ones in your montages. If you want default BlendMode/BlendProfiles, you need to update the calling code to do so. */
 	UE_DEPRECATED(5.0, "Use StopAllMontagesByGroupName with other signature.")
@@ -909,8 +911,15 @@ protected:
 
 public:
 
+	/** Flush completed montages when animation tick is paused. 
+		This can be used to prevent montages from infinitely stacking up when not ticking. */
+	ENGINE_API void ConditionalFlushCompletedMontages();
+
 	/**  Builds an inertialization request from the montage's group, provided duration and optional blend profile*/
 	ENGINE_API void RequestMontageInertialization(const UAnimMontage* Montage, float Duration, const UBlendProfile* BlendProfile = nullptr);
+
+	/**  Makes an inertialization request from the montage's group. */
+	ENGINE_API void RequestMontageInertialization(const UAnimMontage* Montage, const FInertializationRequest& Request);
 
 	/**  Requests an inertial blend during the next anim graph update. Requires your anim graph to have a slot node belonging to the specified group name */
 	UFUNCTION(BlueprintCallable, Category = "Animation|Inertial Blending")
@@ -1134,6 +1143,11 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 
 public:
+	
+	/** Returns a blend profile by name from our current skeleton. Null if not found. */
+	UFUNCTION(BlueprintPure, Category="Animation|Skeleton", meta=(BlueprintThreadSafe))
+	ENGINE_API const UBlendProfile* GetBlendProfileByName(FName InBlendProfileName) const;
+	
 	/** Returns the value of a named curve. */
 	UFUNCTION(BlueprintPure, Category="Animation|Curves", meta=(BlueprintThreadSafe))
 	ENGINE_API float GetCurveValue(FName CurveName) const;
@@ -1315,6 +1329,10 @@ public:
 	// Native Uninitialize override point
 	ENGINE_API virtual void NativeUninitializeAnimation();
 
+	// Enable / Disable animation update. This is provided as an optimization to disable linked instances that aren't relevant. Disabling an instance whose graph is still evaluated will assert and causes issues.
+	void EnableUpdateAnimation(bool bEnable) { bUpdateAnimationEnabled = bEnable; }
+	bool IsUpdateAnimationEnabled() const { return bUpdateAnimationEnabled != 0; }
+
 	// Executed when begin play is called on the owning component
 	ENGINE_API virtual void NativeBeginPlay();
 
@@ -1440,6 +1458,10 @@ public:
 	FGraphTraversalCounter DebugDataCounter;
 
 private:
+
+	// Used to prevent indefinitely flushing montages on a single frame. 
+	uint32 LastMontageFlushFrame = 0u;
+	
 	TMap<FName, FMontageActiveSlotTracker> SlotWeightTracker;
 	TMap<FName, FSimpleMulticastDelegate> ExternalNotifyHandlers;
 

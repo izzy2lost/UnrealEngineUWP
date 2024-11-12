@@ -115,20 +115,23 @@ public:
 
 	bool AcceptOverrideIfLastPass(EPass Pass, FScreenPassRenderTarget& OutTargetToOverride, const TOptional<int32>& AfterPassCallbackIndex = TOptional<int32>())
 	{
-		bool bLastAfterPass = AfterPass[(int32)Pass].Num() == 0;
+		const int32 PassIndex = (int32)Pass;
+		bool bHasMoreAfterPassCallbacks;
 
 		if (AfterPassCallbackIndex)
 		{
-			bLastAfterPass = AfterPassCallbackIndex.GetValue() == AfterPass[(int32)Pass].Num() - 1;
+			bHasMoreAfterPassCallbacks = AfterPassCallbackIndex.GetValue() < AfterPass[PassIndex].Num() - 1;
 		}
 		else
 		{
+			bHasMoreAfterPassCallbacks = AfterPass[PassIndex].Num() > 0;
+
 			// Display debug information for a Pass unless it is an after pass.
 			AcceptPass(Pass);
 		}
 
 		// We need to override output only if this is the last pass and the last after pass.
-		if (IsLastPass(Pass) && bLastAfterPass)
+		if (AcceptOverrideInPassIndex == PassIndex && !bHasMoreAfterPassCallbacks)
 		{
 			OutTargetToOverride = OverrideOutput;
 			return true;
@@ -163,6 +166,14 @@ public:
 					bFirstPass = false;
 				}
 				LastPass = (EPass)PassIndex;
+				AcceptOverrideInPassIndex = PassIndex;
+			}
+
+			// We can have callbacks for disabled passes which come after the last enabled pass. In that case we only
+			// accept the output override for the last callback of that pass, regardless of its state.
+			if (AfterPass[PassIndex].Num() > 0)
+			{
+				AcceptOverrideInPassIndex = PassIndex;
 			}
 		}
 	}
@@ -190,6 +201,7 @@ private:
 	TStaticArray<FPassInfo, PassCountMax> Passes;
 	TStaticArray<FAfterPassCallbackDelegateArray, PassCountMax> AfterPass;
 	EPass LastPass = EPass::MAX;
+	int32 AcceptOverrideInPassIndex = PassCountMax;
 
 #if RDG_ENABLE_DEBUG
 	EPass NextPass = EPass(0);

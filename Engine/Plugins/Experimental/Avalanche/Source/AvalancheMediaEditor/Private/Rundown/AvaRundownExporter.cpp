@@ -3,8 +3,10 @@
 #include "Rundown/AvaRundownExporter.h"
 
 #include "AvaMediaSerializationUtils.h"
+#include "Misc/FeedbackContext.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownEditorUtils.h"
+#include "Rundown/AvaRundownSerializationUtils.h"
 #include "Serialization/MemoryWriter.h"
 
 UAvaRundownExporter::UAvaRundownExporter()
@@ -31,7 +33,15 @@ bool UAvaRundownExporter::ExportText(const FExportObjectInnerContext* InContext,
 
 	if ( FCString::Stricmp(InType, TEXT("json")) == 0 )
 	{
-		bSavedToBytes = UE::AvaRundownEditor::Utils::SaveRundownToJson(Rundown, Writer);
+		FText ErrorMessage;
+		bSavedToBytes = UE::AvaMedia::RundownSerializationUtils::SaveRundownToJson(Rundown, Writer, ErrorMessage);
+		
+		if (!bSavedToBytes && InWarn)
+		{
+			InWarn->CategorizedLogf(LogAvaRundown.GetCategoryName(), ELogVerbosity::Error,
+				TEXT("Failed to export rundown \"%s\". Reason: %s"),
+				*Rundown->GetFullName(), *ErrorMessage.ToString());
+		}
 	}
 	else if (FCString::Stricmp(InType, TEXT("xml")) == 0 )
 	{

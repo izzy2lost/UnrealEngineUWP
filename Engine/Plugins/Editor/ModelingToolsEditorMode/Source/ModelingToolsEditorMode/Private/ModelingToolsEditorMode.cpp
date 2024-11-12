@@ -24,6 +24,7 @@
 #include "Snapping/ModelingSceneSnappingManager.h"
 #include "Scene/LevelObjectsObserver.h"
 #include "UnrealEdGlobals.h" // GUnrealEd
+#include "Algo/RemoveIf.h"
 
 #include "Features/IModularFeatures.h"
 #include "ModelingModeToolExtensions.h"
@@ -70,6 +71,7 @@
 #include "TransformMeshesTool.h"
 #include "UVProjectionTool.h"
 #include "UVLayoutTool.h"
+#include "UVTransferTool.h"
 #include "EditMeshMaterialsTool.h"
 #include "AddPivotActorTool.h"
 #include "EditPivotTool.h"
@@ -119,15 +121,6 @@
 
 #include "EditorModeManager.h"
 #include "UnrealWidget.h"
-
-// Stylus support is currently disabled due to issues with the stylus plugin
-// We are leaving the code in this cpp file, defined out, so that it is easier to bring back if/when the stylus plugin is improved.
-#define ENABLE_STYLUS_SUPPORT 0
-
-#if ENABLE_STYLUS_SUPPORT 
-#include "IStylusState.h"
-#include "IStylusInputModule.h"
-#endif
 
 #include "LevelEditor.h"
 #include "SLevelViewport.h"
@@ -277,102 +270,14 @@ void UModelingToolsEditorMode::Tick(FEditorViewportClient* ViewportClient, float
 		FModelingToolsEditorModeToolkit* ModelingToolkit = (FModelingToolsEditorModeToolkit*)Toolkit.Get();
 		ModelingToolkit->ShowRealtimeAndModeWarnings(ViewportClient->IsRealtime() == false);
 	}
+
+	// Recover from invalid selection state, in case objects have been deleted from under the selection manager
+	if (SelectionManager && !SelectionManager->ValidateSelectionState())
+	{
+		SelectionManager->ClearSelection();
+		SelectionManager->ClearActiveTargets();
+	}
 }
-
-// Note: Stylus support is currently non-functioning; the code to enable it is left here as reference in case it is brought back
-#if ENABLE_STYLUS_SUPPORT
-//
-// FStylusStateTracker registers itself as a listener for stylus events and implements
-// the IToolStylusStateProviderAPI interface, which allows MeshSurfacePointTool implementations
- // to query for the pen pressure.
-//
-// This is kind of a hack. Unfortunately the current Stylus module is a Plugin so it
-// cannot be used in the base ToolsFramework, and we need this in the Mode as a workaround.
-//
-class FStylusStateTracker : public IStylusMessageHandler, public IToolStylusStateProviderAPI
-{
-public:
-	const IStylusInputDevice* ActiveDevice = nullptr;
-	int32 ActiveDeviceIndex = -1;
-
-	bool bPenDown = false;
-	float ActivePressure = 1.0;
-
-	FStylusStateTracker()
-	{
-		UStylusInputSubsystem* StylusSubsystem = GEditor->GetEditorSubsystem<UStylusInputSubsystem>();
-		StylusSubsystem->AddMessageHandler(*this);
-
-		ActiveDevice = FindFirstPenDevice(StylusSubsystem, ActiveDeviceIndex);
-		bPenDown = false;
-	}
-
-	virtual ~FStylusStateTracker()
-	{
-		if (GEditor)
-		{
-			if (UStylusInputSubsystem* StylusSubsystem = GEditor->GetEditorSubsystem<UStylusInputSubsystem>())
-			{
-				StylusSubsystem->RemoveMessageHandler(*this);
-			}
-		}
-	}
-
-	virtual void OnStylusStateChanged(const FStylusState& NewState, int32 StylusIndex) override
-	{
-		if (ActiveDevice == nullptr)
-		{
-			UStylusInputSubsystem* StylusSubsystem = GEditor->GetEditorSubsystem<UStylusInputSubsystem>();
-			ActiveDevice = FindFirstPenDevice(StylusSubsystem, ActiveDeviceIndex);
-			bPenDown = false;
-		}
-		if (ActiveDevice != nullptr && ActiveDeviceIndex == StylusIndex)
-		{
-			bPenDown = NewState.IsStylusDown();
-			ActivePressure = NewState.GetPressure();
-		}
-	}
-
-
-	bool HaveActiveStylusState() const
-	{
-		return ActiveDevice != nullptr && bPenDown;
-	}
-
-	static const IStylusInputDevice* FindFirstPenDevice(const UStylusInputSubsystem* StylusSubsystem, int32& ActiveDeviceOut)
-	{
-		int32 NumDevices = StylusSubsystem->NumInputDevices();
-		for (int32 k = 0; k < NumDevices; ++k)
-		{
-			const IStylusInputDevice* Device = StylusSubsystem->GetInputDevice(k);
-			const TArray<EStylusInputType>& Inputs = Device->GetSupportedInputs();
-			for (EStylusInputType Input : Inputs)
-			{
-				if (Input == EStylusInputType::Pressure)
-				{
-					ActiveDeviceOut = k;
-					return Device;
-				}
-			}
-		}
-		return nullptr;
-	}
-
-
-
-	// IToolStylusStateProviderAPI implementation
-	virtual float GetCurrentPressure() const override
-	{
-		return (ActiveDevice != nullptr && bPenDown) ? ActivePressure : 1.0f;
-	}
-
-};
-#endif // ENABLE_STYLUS_SUPPORT
-
-
-
-
-
 
 void UModelingToolsEditorMode::Enter()
 {
@@ -391,6 +296,9 @@ void UModelingToolsEditorMode::Enter()
 	// skin weights.
 	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<USkeletalMeshComponentReadOnlyToolTargetFactory>(GetToolManager()));
 
+	// Register builders for the generic component tool target, to support tools that only need the primitive component (e.g. the transform tool)
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UPrimitiveComponentToolTargetFactory>(GetToolManager()));
+
 	// listen to post-build
 	GetToolManager()->OnToolPostBuild.AddUObject(this, &UModelingToolsEditorMode::OnToolPostBuild);
 
@@ -405,10 +313,12 @@ void UModelingToolsEditorMode::Enter()
 	GetInteractiveToolsContext()->OnRender.AddUObject(this, &UModelingToolsEditorMode::OnToolsContextRender);
 	GetInteractiveToolsContext()->OnDrawHUD.AddUObject(this, &UModelingToolsEditorMode::OnToolsContextDrawHUD);
 
-#if ENABLE_STYLUS_SUPPORT 
 	// register stylus event handler
-	StylusStateTracker = MakeUnique<FStylusStateTracker>();
-#endif
+	IToolStylusStateProviderAPI* StylusAPI = nullptr;
+	if (ensure(Toolkit.IsValid()))
+	{
+		StylusAPI = ((FModelingToolsEditorModeToolkit*)Toolkit.Get())->GetStylusStateProviderAPI();
+	}
 
 	// register gizmo helper
 	UE::TransformGizmoUtil::RegisterTransformGizmoContextObject(GetInteractiveToolsContext());
@@ -562,6 +472,9 @@ void UModelingToolsEditorMode::Enter()
 	RegisterPrimitiveToolFunc(ToolManagerCommands.BeginAddCylinderPrimitiveTool,
 							  TEXT("BeginAddCylinderPrimitiveTool"),
 							  UAddPrimitiveToolBuilder::EMakeMeshShapeType::Cylinder);
+	RegisterPrimitiveToolFunc(ToolManagerCommands.BeginAddCapsulePrimitiveTool,
+	                          TEXT("BeginAddCapsulePrimitiveTool"),
+	                          UAddPrimitiveToolBuilder::EMakeMeshShapeType::Capsule);
 	RegisterPrimitiveToolFunc(ToolManagerCommands.BeginAddConePrimitiveTool,
 							  TEXT("BeginAddConePrimitiveTool"),
 							  UAddPrimitiveToolBuilder::EMakeMeshShapeType::Cone);
@@ -622,15 +535,11 @@ void UModelingToolsEditorMode::Enter()
 	//
 
 	auto MoveVerticesToolBuilder = NewObject<UMeshVertexSculptToolBuilder>();
-#if ENABLE_STYLUS_SUPPORT 
-	MoveVerticesToolBuilder->StylusAPI = StylusStateTracker.Get();
-#endif
+	MoveVerticesToolBuilder->StylusAPI = StylusAPI;
 	RegisterTool(ToolManagerCommands.BeginSculptMeshTool, TEXT("BeginSculptMeshTool"), MoveVerticesToolBuilder);
 
 	auto MeshGroupPaintToolBuilder = NewObject<UMeshGroupPaintToolBuilder>();
-#if ENABLE_STYLUS_SUPPORT 
-	MeshGroupPaintToolBuilder->StylusAPI = StylusStateTracker.Get();
-#endif
+	MeshGroupPaintToolBuilder->StylusAPI = StylusAPI;
 	RegisterTool(ToolManagerCommands.BeginMeshGroupPaintTool, TEXT("BeginMeshGroupPaintTool"), MeshGroupPaintToolBuilder);
 	RegisterTool(ToolManagerCommands.BeginMeshVertexPaintTool, TEXT("BeginMeshVertexPaintTool"), NewObject<UMeshVertexPaintToolBuilder>());
 
@@ -684,9 +593,7 @@ void UModelingToolsEditorMode::Enter()
 
 	auto DynaSculptToolBuilder = NewObject<UDynamicMeshSculptToolBuilder>();
 	DynaSculptToolBuilder->bEnableRemeshing = true;
-#if ENABLE_STYLUS_SUPPORT 
-	DynaSculptToolBuilder->StylusAPI = StylusStateTracker.Get();
-#endif
+	DynaSculptToolBuilder->StylusAPI = StylusAPI;
 	RegisterTool(ToolManagerCommands.BeginRemeshSculptMeshTool, TEXT("BeginRemeshSculptMeshTool"), DynaSculptToolBuilder);
 
 	RegisterTool(ToolManagerCommands.BeginRemeshMeshTool, TEXT("BeginRemeshMeshTool"), NewObject<URemeshMeshToolBuilder>());
@@ -708,6 +615,9 @@ void UModelingToolsEditorMode::Enter()
 
 	auto UVLayoutToolBuilder = NewObject<UUVLayoutToolBuilder>();
 	RegisterTool(ToolManagerCommands.BeginUVLayoutTool, TEXT("BeginUVLayoutTool"), UVLayoutToolBuilder);
+
+	auto UVTransferToolBuilder = NewObject<UUVTransferToolBuilder>();
+	RegisterTool(ToolManagerCommands.BeginUVTransferTool, TEXT("BeginUVTransferTool"), UVTransferToolBuilder);
 
 #if WITH_PROXYLOD
 	auto MergeMeshesToolBuilder = NewObject<UMergeMeshesToolBuilder>();
@@ -869,8 +779,7 @@ void UModelingToolsEditorMode::Enter()
 				if ( GetToolManager() && GetToolManager()->GetContextTransactionsAPI() && GetSelectionManager() )
 				{
 					GetToolManager()->GetContextTransactionsAPI()->BeginUndoTransaction(LOCTEXT("ChangeSelectionMode", "Selection Mode"));
-					GetSelectionManager()->SetMeshTopologyMode(TopoMode); 
-					GetSelectionManager()->SetSelectionElementType(ElementMode);
+					GetSelectionManager()->SetMeshSelectionTypeAndMode(ElementMode, TopoMode,  TopoMode != UGeometrySelectionManager::EMeshTopologyMode::None);
 					GetToolManager()->GetContextTransactionsAPI()->EndUndoTransaction();
 					if (UModelingToolsModeCustomizationSettings* ModelingEditorSettings = GetMutableDefault<UModelingToolsModeCustomizationSettings>())
 					{
@@ -895,6 +804,8 @@ void UModelingToolsEditorMode::Enter()
 		RegisterSelectionMode(UGeometrySelectionManager::EMeshTopologyMode::Polygroup, UGeometrySelectionManager::EGeometryElementType::Edge, ToolManagerCommands.MeshSelectionModeAction_GroupEdges);
 	}
 
+	// Colors initialized here any time Modeling mode is entered
+	SelectionManager->SetSelectionColors(ModelingEditorSettings->UnselectedColor, ModelingEditorSettings->HoverOverSelectedColor, ModelingEditorSettings->HoverOverUnselectedColor, ModelingEditorSettings->GeometrySelectedColor);
 
 	// this function registers and tracks an active UGeometrySelectionEditCommand and it's associated UICommand
 	auto RegisterSelectionCommand = [&](UGeometrySelectionEditCommand* Command, TSharedPtr<FUICommandInfo> UICommand, bool bAlwaysVisible)
@@ -1252,10 +1163,6 @@ void UModelingToolsEditorMode::Exit()
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MeshModelingMode.Exit"), Attributes);
 	}
 
-#if ENABLE_STYLUS_SUPPORT 
-	StylusStateTracker = nullptr;
-#endif
-
 	UModelingToolsHostCustomizationAPI::Deregister(GetInteractiveToolsContext());
 
 	// TODO: cannot deregister currently because if another mode is also registering, its Enter()
@@ -1299,6 +1206,7 @@ void UModelingToolsEditorMode::OnEditorClosed()
 
 	if (SelectionManager != nullptr)
 	{
+		SelectionManager->DisconnectPreviewGeometry();
 		SelectionManager->ClearSelection();
 		SelectionManager->ClearActiveTargets();
 	}
@@ -1314,6 +1222,12 @@ void UModelingToolsEditorMode::OnEditorClosed()
 	if (EditorClosedEventHandle.IsValid() && GEditor)
 	{
 		GEditor->OnEditorClose().Remove(EditorClosedEventHandle);
+	}
+
+	// cleanup active toolkit stylus input contexts/windows
+	if (Toolkit.IsValid())
+	{
+		static_cast<FModelingToolsEditorModeToolkit*>(Toolkit.Get())->DisconnectStylusStateProviderAPI();
 	}
 }
 
@@ -1501,6 +1415,9 @@ void UModelingToolsEditorMode::UpdateSelectionManagerOnEditorSelectionChange(boo
 		}
 	}
 
+	// filter out any dynamic mesh components that aren't editable or aren't element-selectable
+	SelectedDynamicMeshComponents.SetNum(Algo::RemoveIf(SelectedDynamicMeshComponents, [](UDynamicMeshComponent* DMC)->bool {return !DMC->IsEditable() || !DMC->AllowsGeometrySelection();}));
+
 	// convert selected Component types into selection Identifiers
 	TArray<FGeometryIdentifier> ValidIdentifiers;
 	for (UDynamicMeshComponent* DynamicMeshComponent : SelectedDynamicMeshComponents)
@@ -1562,6 +1479,11 @@ bool UModelingToolsEditorMode::BoxSelect(FBox& InBox, bool InSelect)
 
 bool UModelingToolsEditorMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorViewportClient* InViewportClient, bool InSelect)
 {
+	if (bIsToolActive)
+	{
+		return true; // will signal that Frustum Select does not need to do anything; disables all frustum select when tool is active
+	}
+
 	if (GetMeshElementSelectionSystemEnabled()
 		&& SelectionManager
 		&& SelectionManager->HasActiveTargets() 
@@ -1617,6 +1539,8 @@ void UModelingToolsEditorMode::OnToolStarted(UInteractiveToolManager* Manager, U
 	// the result. This apparently broken behavior is currently by-design.
 	FSlateThrottleManager::Get().DisableThrottle(true);
 
+	bIsToolActive = true;
+
 	FModelingToolActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), false);
 	
 	if( FEngineAnalytics::IsAvailable() )
@@ -1625,12 +1549,21 @@ void UModelingToolsEditorMode::OnToolStarted(UInteractiveToolManager* Manager, U
 		                                            TEXT("ToolName"),
 		                                            GetToolName(*Tool));
 	}
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ContextStore->FindContext<UToolsContextCursorAPI>();
+	if (ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI->ClearCursorOverride();		
+	}
 }
 
 void UModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
 	// re-enable slate throttling (see OnToolStarted)
 	FSlateThrottleManager::Get().DisableThrottle(false);
+
+	bIsToolActive = false;
 
 	FModelingToolActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), true);
 	
@@ -1644,10 +1577,19 @@ void UModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UIn
 		                                            TEXT("ToolName"),
 		                                            GetToolName(*Tool));
 	}
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UToolsContextCursorAPI* ToolsContextCursorAPI = ContextStore->FindContext<UToolsContextCursorAPI>();
+	if (ToolsContextCursorAPI)
+	{
+		ToolsContextCursorAPI->ClearCursorOverride();		
+	}
 }
 
 void UModelingToolsEditorMode::BindCommands()
 {
+	Super::BindCommands();
+
 	const FModelingToolsManagerCommands& ToolManagerCommands = FModelingToolsManagerCommands::Get();
 	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
 
@@ -1812,29 +1754,20 @@ void UModelingToolsEditorMode::FocusCameraAtCursorHotkey()
 }
 
 
-bool UModelingToolsEditorMode::ComputeBoundingBoxForViewportFocus(AActor* Actor, UPrimitiveComponent* PrimitiveComponent, FBox& InOutBox) const
+FBox UModelingToolsEditorMode::ComputeCustomViewportFocus() const
 {
+	// Modeling mode prefers a slightly farther-out focus
 	auto ProcessFocusBoxFunc = [](FBox& FocusBoxInOut)
 	{
 		double MaxDimension = FocusBoxInOut.GetExtent().GetMax();
-		double ExpandAmount = (MaxDimension > SMALL_NUMBER) ? (MaxDimension * 0.2) : 25;		// 25 is a bit arbitrary here...
 		FocusBoxInOut = FocusBoxInOut.ExpandBy(MaxDimension * 0.2);
 	};
 
-	// if Tool supports custom Focus box, use that
-	if (GetToolManager()->HasAnyActiveTool())
+	FBox FocusBox = Super::ComputeCustomViewportFocus();
+	if (FocusBox.IsValid)
 	{
-		UInteractiveTool* Tool = GetToolManager()->GetActiveTool(EToolSide::Mouse);
-		IInteractiveToolCameraFocusAPI* FocusAPI = Cast<IInteractiveToolCameraFocusAPI>(Tool);
-		if (FocusAPI && FocusAPI->SupportsWorldSpaceFocusBox() )
-		{
-			InOutBox = FocusAPI->GetWorldSpaceFocusBox();
-			if (InOutBox.IsValid)
-			{
-				ProcessFocusBoxFunc(InOutBox);
-				return true;
-			}
-		}
+		ProcessFocusBoxFunc(FocusBox);
+		return FocusBox;
 	}
 
 	// if we have an active Selection we can focus on that
@@ -1842,12 +1775,29 @@ bool UModelingToolsEditorMode::ComputeBoundingBoxForViewportFocus(AActor* Actor,
 	{
 		UE::Geometry::FGeometrySelectionBounds SelectionBounds;
 		GetSelectionManager()->GetSelectionBounds(SelectionBounds);
-		InOutBox = (FBox)SelectionBounds.WorldBounds;
-		ProcessFocusBoxFunc(InOutBox);
+		FocusBox = (FBox)SelectionBounds.WorldBounds;
+		ProcessFocusBoxFunc(FocusBox);
+		return FocusBox;
+	}
+
+	// did not set a focus box, return a default (invalid) box
+	return FBox();
+}
+
+bool UModelingToolsEditorMode::HasCustomViewportFocus() const
+{
+	if (Super::HasCustomViewportFocus())
+	{
 		return true;
 	}
 
-	// fallback to base focus behavior
+	// if we have an active Selection we can focus on that
+	if (GetSelectionManager() && GetSelectionManager()->HasSelection())
+	{
+		return true;
+	}
+
+	// no mode-specific focus behavior
 	return false;
 }
 

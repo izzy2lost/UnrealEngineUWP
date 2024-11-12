@@ -26,7 +26,7 @@ void SClassTraceFilteringWidget::Construct(const FArguments& InArgs)
 		.Padding(10.0f, 0.f, 2.f, 0.f)
 		[
 			SAssignNew(ClassFiltersWrapBox, SWrapBox)
-			.UseAllottedWidth(true)
+			.UseAllottedSize(true)
 		]
 							
 		+ SVerticalBox::Slot()

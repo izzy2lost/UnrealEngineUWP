@@ -38,10 +38,10 @@ public:
 
 protected:
 	static bool ShouldShowTargetLayers();
-	static bool ShouldShowPaintingRestriction();
-	static EVisibility GetVisibility_PaintingRestriction();
-	static bool ShouldShowVisibilityTip();
-	static EVisibility GetVisibility_VisibilityTip();
+	static EVisibility GetPaintingRestrictionVisibility();
+	static EVisibility GetVisibilityMaskTipVisibility();
+	static EVisibility GetPopulateTargetLayersInfoTipVisibility();
+	static EVisibility GetFilteredTargetLayersListInfoTipVisibility();
 };
 
 class FLandscapeEditorCustomNodeBuilder_TargetLayers : public IDetailCustomNodeBuilder, public TSharedFromThis<FLandscapeEditorCustomNodeBuilder_TargetLayers>
@@ -58,10 +58,13 @@ public:
 	virtual bool InitiallyCollapsed() const override { return false; }
 	virtual FName GetName() const override { return "TargetLayers"; }
 
+	static TArray<TSharedRef<FLandscapeTargetListInfo>> PrepareTargetLayerList(bool bInSort, bool bInFilter);
+
 protected:
 	TSharedRef<FAssetThumbnailPool> ThumbnailPool;
 	TSharedRef<IPropertyHandle> TargetDisplayOrderPropertyHandle;
 	TSharedRef<IPropertyHandle> TargetShowUnusedLayersPropertyHandle;
+	TSharedPtr<SSearchBox> LayersFilterSearchBox;
 
 	static class FEdModeLandscape* GetEditorMode();
 
@@ -105,15 +108,23 @@ protected:
 	TOptional<SDragAndDropVerticalBox::EItemDropZone> HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, SDragAndDropVerticalBox::EItemDropZone DropZone, SVerticalBox::FSlot* Slot);
 	FReply HandleAcceptDrop(FDragDropEvent const& DragDropEvent, SDragAndDropVerticalBox::EItemDropZone DropZone, int32 SlotIndex, SVerticalBox::FSlot* Slot);
 
+	FReply HandleCreateLayersFromMaterials();
+	void HandleCreateLayer();
 	const FSlateBrush* GetTargetLayerDisplayOrderBrush() const;
 	TSharedRef<SWidget> GetTargetLayerDisplayOrderButtonMenuContent();
 	void SetSelectedDisplayOrder(ELandscapeLayerDisplayMode InDisplayOrder);
 	bool IsSelectedDisplayOrder(ELandscapeLayerDisplayMode InDisplayOrder) const;
 
 	TSharedRef<SWidget> GetTargetLayerShowUnusedButtonMenuContent();
+	const FSlateBrush* GetShowUnusedBrush() const;
 	void ShowUnusedLayers(bool Result);
 	bool ShouldShowUnusedLayers(bool Result) const;
 	EVisibility ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const;
+
+	void OnFilterTextChanged(const FText& InFilterText);
+	void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
+	EVisibility GetLayersFilterVisibility() const;
+	FText GetLayersFilterText() const;
 };
 
 class SLandscapeEditorSelectableBorder : public SBorder

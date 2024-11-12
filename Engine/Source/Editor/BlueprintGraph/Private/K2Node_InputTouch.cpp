@@ -35,6 +35,7 @@
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Blueprint/UserWidget.h"
 
 UK2Node_InputTouch::UK2Node_InputTouch(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -288,4 +289,13 @@ void UK2Node_InputTouch::ExpandNode(FKismetCompilerContext& CompilerContext, UEd
 			CompilerContext.MovePinLinksToIntermediate(*GetFingerIndexPin(), *InputTouchEvent->FindPin(TEXT("FingerIndex")));
 		}
 	}
+
+	// Widget blueprints require the bAutomaticallyRegisterInputOnConstruction to be set to true in order to receive callbacks
+	CompilerContext.AddPostCDOCompiledStep([](const UObject::FPostCDOCompiledContext& Context, UObject* NewCDO)
+	{
+		if (UUserWidget* Widget = Cast<UUserWidget>(NewCDO))
+		{
+			Widget->bAutomaticallyRegisterInputOnConstruction = true;
+		}
+	});
 }

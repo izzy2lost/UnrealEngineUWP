@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+
 #ifndef REQUIRE_MESSAGE
 
 #include "WorldMetricsLog.h"

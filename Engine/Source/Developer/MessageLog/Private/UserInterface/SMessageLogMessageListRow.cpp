@@ -12,6 +12,9 @@
 #include "Internationalization/Regex.h"
 #include "Styling/StyleColors.h"
 #include "AssetRegistry/AssetDataToken.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Misc/DataValidation/Fixer.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "SMessageLogMessageListRow"
 
@@ -52,8 +55,10 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 	// Create the horizontal box and add the icon
 	TSharedRef<SHorizontalBox> MessageBox = SNew(SHorizontalBox);
 	TSharedRef<SHorizontalBox> LinkBox = SNew(SHorizontalBox);
+	TSharedRef<SVerticalBox> FixBox = SNew(SVerticalBox);
 	FName SeverityImageName = NAME_None;
 	bool HasLinks = false;
+	bool bHasFixes = false;
 
 	// Iterate over parts of the message and create widgets for them
 	for (auto TokenIt = MessageTokens.CreateConstIterator(); TokenIt; ++TokenIt)
@@ -80,17 +85,31 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 		}
 			break;
 
+		case EMessageToken::Fix:
+		{
+			TSharedRef<SHorizontalBox> RowWrapper = SNew(SHorizontalBox);
+			CreateMessage(RowWrapper, Token, 2.0f);
+			FixBox->AddSlot()
+			.AutoHeight()
+			.Padding(24.0f, 0.0f, 0.0f, 0.0f)
+			[
+				RowWrapper
+			];
+			bHasFixes = true;
+		}
+			break;
+
 		default:
 			CreateMessage(MessageBox, Token, 2.0f);
 			break;
 		}
 	}
 
-	return SNew(SHorizontalBox)
+	TSharedRef<SHorizontalBox> FullMessageBox = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
+		.VAlign(VAlign_Top)
 		[
 			SNew(SBox)
 			.Padding(2.0f)
@@ -112,7 +131,7 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 
 	+ SHorizontalBox::Slot()
 	.FillWidth(1.0f)
-	.VAlign(VAlign_Center)
+	.VAlign(VAlign_Top)
 	[
 		MessageBox
 	]
@@ -120,7 +139,7 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 	+ SHorizontalBox::Slot()
 	.AutoWidth()
 	.HAlign(HAlign_Right)
-	.VAlign(VAlign_Center)
+	.VAlign(VAlign_Top)
 	.Padding(1.0f)
 	[
 		!HasLinks
@@ -132,6 +151,26 @@ TSharedRef<SWidget> SMessageLogMessageListRow::GenerateWidget()
 			LinkBox
 		])
 	];
+
+	if (bHasFixes)
+	{
+		return SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			FullMessageBox
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			FixBox
+		];
+	}
+	else
+	{
+		return FullMessageBox;
+	}
+
 }
 
 void SMessageLogMessageListRow::CreateMessage(const TSharedRef<SHorizontalBox>& InHorzBox, const TSharedRef<IMessageToken>& InMessageToken, float Padding)
@@ -386,6 +425,64 @@ void SMessageLogMessageListRow::CreateMessage(const TSharedRef<SHorizontalBox>& 
 
 		IconBrushName = FName("Icons.Search");
 		RowContent = CreateHyperlink(InMessageToken, ActorToken->ToText());
+	}
+		break;
+
+	case EMessageToken::Fix:
+	{
+		TSharedRef<FFixToken> FixToken = StaticCastSharedRef<FFixToken>(InMessageToken);
+
+		RowContent =
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.0f, 2.0f, 4.0f, 2.0f)
+				[
+					SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image_Lambda([FixToken]
+						{
+							switch (FixToken->GetFixer()->GetApplicability(FixToken->GetFixIndex()))
+							{
+								case EFixApplicability::CanBeApplied:
+									return FAppStyle::Get().GetBrush("MessageLog.Fix");
+								case EFixApplicability::Applied:
+									return FAppStyle::Get().GetBrush("Icons.Check");
+								default:
+									return FAppStyle::Get().GetBrush("Icons.BulletPoint16");
+							}
+						})
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(SHyperlink)
+						.Text(InMessageToken->ToText())
+						.TextStyle(FAppStyle::Get(), "MessageLog")
+						.IsEnabled_Lambda(
+							[FixToken]
+							{ return FixToken->GetFixer()->GetApplicability(FixToken->GetFixIndex()) == EFixApplicability::CanBeApplied; }
+						)
+						.OnNavigate(FSimpleDelegate::CreateSPLambda(
+							AsShared(),
+							[this, FixToken]
+							{
+								FFixResult Result = FixToken->GetFixer()->ApplyFix(FixToken->GetFixIndex());
+								FNotificationInfo NotificationInfo(
+									Result.bIsSuccess ? LOCTEXT("FixAppliedSuccessfully", "Fix applied successfully")
+													  : LOCTEXT("FailedToApplyFix", "Failed to apply fix")
+								);
+								NotificationInfo.SubText = Result.Message;
+								NotificationInfo.bUseThrobber = false;
+								FSlateNotificationManager::Get()
+									.AddNotification(NotificationInfo)
+									->SetCompletionState(
+										Result.bIsSuccess ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail
+									);
+							}
+						))
+				];
 	}
 		break;
 	}

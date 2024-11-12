@@ -19,10 +19,12 @@
 #include "RHIBreadcrumbs.h"
 #include "RHIResources.h"
 #include "RHIShaderParameters.h"
+#include "GPUProfiler.h"
 
 class FRHIDepthRenderTargetView;
 class FRHIRenderTargetView;
 class FRHISetRenderTargetsInfo;
+class FRHIShaderBindingLayout;
 struct FViewportBounds;
 struct FRayTracingGeometryInstance;
 struct FRayTracingShaderBindings;
@@ -58,24 +60,9 @@ public:
 		}
 	}
 
-	inline void AddUniformBuffer(FRHIUniformBuffer* UniformBuffer)
-	{
-		checkf(UniformBuffer, TEXT("Attemped to assign a null uniform buffer to the global uniform buffer bindings."));
-		const FRHIUniformBufferLayout& Layout = UniformBuffer->GetLayout();
-		const FUniformBufferStaticSlot Slot = Layout.StaticSlot;
-		checkf(IsUniformBufferStaticSlotValid(Slot), TEXT("Attempted to set a global uniform buffer %s with an invalid slot."), *Layout.GetDebugName());
+	RHI_API FUniformBufferStaticBindings(const FRHIShaderBindingLayout* InSRTDesc);
 
-#if VALIDATE_UNIFORM_BUFFER_STATIC_BINDINGS
-		if (int32 SlotIndex = Slots.Find(Slot); SlotIndex != INDEX_NONE)
-		{
-			checkf(UniformBuffers[SlotIndex] == UniformBuffer, TEXT("Uniform Buffer %s was added multiple times to the binding array but with different values."), *Layout.GetDebugName());
-		}
-#endif
-
-		Slots.Add(Slot);
-		UniformBuffers.Add(UniformBuffer);
-		SlotCount = FMath::Max(SlotCount, Slot + 1);
-	}
+	RHI_API void AddUniformBuffer(FRHIUniformBuffer* UniformBuffer);
 
 	inline void TryAddUniformBuffer(FRHIUniformBuffer* UniformBuffer)
 	{
@@ -105,22 +92,21 @@ public:
 		return SlotCount;
 	}
 
-	void Bind(TArray<FRHIUniformBuffer*>& Bindings) const
+	const FRHIShaderBindingLayout* GetShaderBindingLayout() const
 	{
-		Bindings.Reset();
-		Bindings.SetNumZeroed(SlotCount);
-
-		for (int32 Index = 0; Index < UniformBuffers.Num(); ++Index)
-		{
-			Bindings[Slots[Index]] = UniformBuffers[Index];
-		}
+		return ShaderBindingLayout;
 	}
+
+	RHI_API void Bind(TArray<FRHIUniformBuffer*>& Bindings) const;
 
 private:
 	static const uint32 InlineUniformBufferCount = 8;
 	TArray<FUniformBufferStaticSlot, TInlineAllocator<InlineUniformBufferCount>> Slots;
 	TArray<FRHIUniformBuffer*, TInlineAllocator<InlineUniformBufferCount>> UniformBuffers;
 	int32 SlotCount = 0;
+
+	// Shader binding layout used during shader generation to validate runtime bindings and know where uniform buffers need to be bound
+	const FRHIShaderBindingLayout* ShaderBindingLayout = nullptr;
 };
 
 struct FTransferResourceFenceData
@@ -165,7 +151,7 @@ struct FTransferResourceParams
 {
 	FTransferResourceParams() {}
 
-	FTransferResourceParams(FRHITexture2D* InTexture, const FIntRect& InRect, uint32 InSrcGPUIndex, uint32 InDestGPUIndex, bool InPullData, bool InLockStepGPUs)
+	FTransferResourceParams(FRHITexture* InTexture, const FIntRect& InRect, uint32 InSrcGPUIndex, uint32 InDestGPUIndex, bool InPullData, bool InLockStepGPUs)
 		: Texture(InTexture), Buffer(nullptr), Min(InRect.Min.X, InRect.Min.Y, 0), Max(InRect.Max.X, InRect.Max.Y, 1), SrcGPUIndex(InSrcGPUIndex), DestGPUIndex(InDestGPUIndex), bPullData(InPullData), bLockStepGPUs(InLockStepGPUs)
 	{
 		check(InTexture);
@@ -218,8 +204,9 @@ struct FTransferResourceParams
 };
 
 //
-// Opaque type representing a finalized platform GPU command list, which can be submitted to the GPU via RHISubmitCommandLists().
+// Type representing a finalized platform GPU command list, which can be submitted to the GPU via RHISubmitCommandLists().
 // This type is intended only for use by RHI command list management. Platform RHIs provide the implementation.
+// Also contains RHI breadcrumb allocators and ranges that platform RHIs must use if they implement GPU crash debugging.
 //
 class IRHIPlatformCommandList
 {
@@ -235,6 +222,12 @@ protected:
 	// This type is only usable by derived types (platform RHI implementations)
 	IRHIPlatformCommandList() = default;
 	~IRHIPlatformCommandList() = default;
+
+public:
+#if WITH_RHI_BREADCRUMBS
+	FRHIBreadcrumbAllocatorArray BreadcrumbAllocators {};
+	FRHIBreadcrumbRange BreadcrumbRange {};
+#endif
 };
 
 /** Context that is capable of doing Compute work.  Can be async or compute on the gfx pipe. */
@@ -289,10 +282,19 @@ public:
 		checkNoEntry();
 	}
 
-	virtual void RHIDispatchShaderBundle(
+	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
-		FRHIShaderResourceView* RecordArgBufferSRV,
-		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
+		FRHIBuffer* RecordArgBuffer,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
+		bool bEmulated) {}
+
+	virtual void RHIDispatchGraphicsShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIBuffer* RecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& BundleState,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
+		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) {}
 
 	virtual void RHIBeginUAVOverlap() {}
@@ -335,20 +337,10 @@ public:
 		/* empty default implementation */
 	}
 
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) = 0;
-
-	virtual void RHIPopEvent() = 0;
-
-	/**
-	* Submit the current command buffer to the GPU if possible.
-	*/
-	virtual void RHISubmitCommandsHint() = 0;
-
-	/**
-	 * Some RHI implementations (OpenGL) cache render state internally
-	 * Signal to RHI that cached state is no longer valid
-	 */
-	virtual void RHIInvalidateCachedState() {}
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) = 0;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) = 0;
+#endif
 
 	/**
 	 * Performs a copy of the data in 'SourceBuffer' to 'DestinationStagingBuffer.' This will occur inline on the GPU timeline. This is a mechanism to perform nonblocking readback of a buffer at a point in time.
@@ -469,16 +461,16 @@ public:
 	virtual IRHIComputeContext& GetLowestLevelContext() { return *this; }
 
 	// Returns the validation RHI context if the validation RHI is active, otherwise returns the platform RHI context.
-	virtual IRHIComputeContext& GetHighestLevelContext()
-	{
-		return WrappingContext ? *WrappingContext : *this;
-	}
+	IRHIComputeContext const& GetHighestLevelContext() const { return WrappingContext ? *WrappingContext : *this; }
+	IRHIComputeContext      & GetHighestLevelContext()       { return WrappingContext ? *WrappingContext : *this; }
 
 #else
 
 	// Fast implementations when the RHI validation layer is disabled.
-	inline IRHIComputeContext& GetLowestLevelContext () { return *this; }
-	inline IRHIComputeContext& GetHighestLevelContext() { return *this; }
+	IRHIComputeContext& GetLowestLevelContext() { return *this; }
+
+	IRHIComputeContext const& GetHighestLevelContext() const { return *this; }
+	IRHIComputeContext      & GetHighestLevelContext()       { return *this; }
 
 #endif
 
@@ -501,20 +493,43 @@ public:
 	virtual void* RHIGetNativeCommandBuffer() { return nullptr; }
 	virtual void RHIPostExternalCommandsReset() { }
 
-protected:
-	FRHIPerCategoryDrawStats* Stats = nullptr;
+private:
+	// Pointer to the RHI command list that is replaying commands into this context.
+	class FRHICommandListBase* ExecutingCmdList = nullptr;
 
 public:
-	RHI_API void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID, uint32 InGPUIndex);
-
-#if WITH_MGPU || ENABLE_RHI_VALIDATION
-	virtual
-#endif
-	void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID)
+	// Returns the RHI command list that is currently replaying commands into this context.
+	FRHICommandListBase& GetExecutingCommandList() const
 	{
-		StatsSetCategory(InStats, InCategoryID, 0);
+		check(ExecutingCmdList);
+		return *ExecutingCmdList;
 	}
+
+	// Used within FRHICommandListBase::ActivatePipeline to setup a context for command execution.
+	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList)
+	{
+		ExecutingCmdList = InCmdList;
+	}
+
+#if WITH_RHI_BREADCRUMBS
+	//
+	// Returns true if RHI breadcrumb strings should be emitted to platform GPU profiling APIs.
+	// Platform RHI implementations should check for this inside RHIBeginBreadcrumbGPU and RHIEndBreadcrumbGPU.
+	//
+	inline bool ShouldEmitBreadcrumbs() const;
+#endif
+
+protected:
+#if RHI_NEW_GPU_PROFILER
+	// Used to accumulate draw call and primitive counts,
+	// via the RHI_DRAW_CALL_INC / RHI_DRAW_CALL_STATS macros.
+	UE::RHI::GPUProfiler::FEvent::FStats StatEvent {};
+#endif
 };
+
+/** Context that is used to generate Upload commands. */
+class IRHIUploadContext
+{};
 
 // Utility function to generate pre-transfer sync points to pass to CrossGPUTransferSignal and CrossGPUTransfer
 RHI_API void RHIGenerateCrossGPUPreTransferFences(TConstArrayView<FTransferResourceParams> Params, TArray<FCrossGPUTransferFence*>& OutPreTransfer);
@@ -556,6 +571,16 @@ struct FRayTracingSceneBuildParams
 	// Buffer of native ray tracing instance descriptors. Must be in SRV state.
 	FRHIBuffer* InstanceBuffer = nullptr;
 	uint32 InstanceBufferOffset = 0;
+
+	uint32 NumInstances = 0;
+
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	TConstArrayView<FRHIRayTracingGeometry*> ReferencedGeometries;
+	// One entry per instance
+	TConstArrayView<FRHIRayTracingGeometry*> PerInstanceGeometries;
+
+	EAccelerationStructureBuildMode BuildMode = EAccelerationStructureBuildMode::Build;
 };
 
 struct FCopyBufferRegionParams
@@ -593,7 +618,7 @@ public:
 	* Rebuilds the depth target HTILE meta data (on supported platforms).
 	* @param DepthTexture - the depth surface to resummarize.
 	*/
-	virtual void RHIResummarizeHTile(FRHITexture2D* DepthTexture)
+	virtual void RHIResummarizeHTile(FRHITexture* DepthTexture)
 	{
 		/* empty default implementation */
 	}
@@ -602,18 +627,7 @@ public:
 
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) = 0;
 
-	virtual void RHICalibrateTimers()
-	{
-		/* empty default implementation */
-	}
-
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
-	{
-		/* empty default implementation */
-	}
-
-	// Used for OpenGL to check and see if any occlusion queries can be read back on the RHI thread. If they aren't ready when we need them, then we end up stalling.
-	virtual void RHIPollOcclusionQueries()
 	{
 		/* empty default implementation */
 	}
@@ -626,26 +640,6 @@ public:
 
 	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) = 0;
-
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIBeginFrame() = 0;
-
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIEndFrame() = 0;
-
-	/**
-	* Signals the beginning of scene rendering. The RHI makes certain caching assumptions between
-	* calls to BeginScene/EndScene. Currently the only restriction is that you can't update texture
-	* references.
-	*/
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIBeginScene() = 0;
-
-	/**
-	* Signals the end of scene rendering. See RHIBeginScene.
-	*/
-	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
-	virtual void RHIEndScene() = 0;
 
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) = 0;
 
@@ -760,81 +754,76 @@ public:
 
 	virtual void RHICopyTexture(FRHITexture* SourceTexture, FRHITexture* DestTexture, const FRHICopyTextureInfo& CopyInfo) = 0;
 
-	virtual void RHICopyBufferRegion(FRHIBuffer* DestBuffer, uint64 DstOffset, FRHIBuffer* SourceBuffer, uint64 SrcOffset, uint64 NumBytes)
-	{
-		checkNoEntry();
-	}
+	virtual void RHICopyBufferRegion(FRHIBuffer* DestBuffer, uint64 DstOffset, FRHIBuffer* SourceBuffer, uint64 SrcOffset, uint64 NumBytes) = 0;
 
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene)
 	{
 		checkNoEntry();
 	}
 
-	virtual void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange)
-	{
-		checkNoEntry();
-	}
-
-	void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params)
-	{
-		checkNoEntry();
-	}
-
-	void RHIBuildAccelerationStructure(FRHIRayTracingGeometry* Geometry)
-	{
-		checkNoEntry();
-	}
-
-	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams)
+	virtual void RHIClearShaderBindingTable(FRHIShaderBindingTable* SBT)
 	{
 		checkNoEntry();
 	}
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height)
 	{
 		checkNoEntry();
 	}
 
-	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
+	void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
 		FRHIRayTracingScene* Scene,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
+		uint32 Width, uint32 Height)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader,
+			Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState),
+			GlobalResourceBindings,
+			Width, Height);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 	{
 		checkNoEntry();
 	}
 
-	virtual void RHISetRayTracingBindings(FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
+	void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
+		FRHIRayTracingScene* Scene,
+		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader,
+			Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState),
+			GlobalResourceBindings,
+			ArgumentBuffer, ArgumentOffset);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
 	{
 		checkNoEntry();
 	}
 
-	virtual void RHISetRayTracingHitGroup(
-		FRHIRayTracingScene* Scene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
-		FRHIRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 LooseParameterDataSize, const void* LooseParameterData,
-		uint32 UserData)
+	virtual void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT)
 	{
 		checkNoEntry();
 	}
 
-	virtual void RHISetRayTracingCallableShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData)
+	void RHISetRayTracingBindings(FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
 	{
-		checkNoEntry();
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		RHISetBindingsOnShaderBindingTable(Scene->FindOrCreateShaderBindingTable(Pipeline), Pipeline, NumBindings, Bindings, BindingType);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
-	virtual void RHISetRayTracingMissShader(
-		FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
-		FRHIRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
-		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
-		uint32 UserData)
+	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene)
 	{
 		checkNoEntry();
 	}

@@ -2,16 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "PhysicsEngine/RigidBodyIndexPair.h"
-#include "Engine/SkeletalMesh.h"
-#include "PhysicsEngine/PhysicalAnimationComponent.h"
-#include "PhysicsEngine/BodySetup.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
 #include "PhysicsAsset.generated.h"
 
+namespace ECollisionEnabled { enum Type : int; }
+namespace EAggCollisionShape { enum Type : int; }
+
+struct FConstraintInstance;
+struct FConstraintInstanceAccessor;
+struct FReferenceSkeleton;
+
+class UMaterialInterface;
 class FMeshElementCollector;
 class USkeletalBodySetup;
 
@@ -81,12 +85,19 @@ struct FPhysicsAssetSolverSettings
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SolverSettings)
 	bool bUseLinearJointSolver;
+
+	/**
+	 * RBAN: It enables the use of multi-point contact manifolds, which are created only once at the start of each tick.
+	 * When disabled, a single-point contact is generated in each solver iteration which is more expensive.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CollisionSettings)
+	bool bUseManifolds;
 };
 
 
 /**
  * Solver settings for use by the Legacy RigidBody AnimNode (RBAN) solver.
- * Thse settings are no longer used by default and will eventually be deprecated and then removed.
+ * These settings are no longer used by default and will eventually be deprecated and then removed.
  * 
  * @note These settings have no effect when the Physics Asset is used in a world simulation (ragdoll).
  */
@@ -223,7 +234,7 @@ public:
 	FSolverIterations SolverIterations;
 
 	/** 
-	 * Solver type used in physics asset editor. This can be used to make what you see in the asset editror more closely resembles what you
+	 * Solver type used in physics asset editor. This can be used to make what you see in the asset editor more closely resembles what you
 	 * see in game (though there will be differences owing to framerate variation etc). If your asset will primarily be used as a ragdoll 
 	 * select "World", but if it will be used in the AnimGraph select "RBAN".
 	*/
@@ -279,19 +290,19 @@ public:
 	//~ End UObject Interface
 
 	// Find the index of the physics bone that is controlling this graphics bone.
-	ENGINE_API int32		FindControllingBodyIndex(class USkeletalMesh* skelMesh, int32 BoneIndex);
-	ENGINE_API int32		FindParentBodyIndex(class USkeletalMesh * skelMesh, int32 StartBoneIndex) const;
+	ENGINE_API int32		FindControllingBodyIndex(const class USkeletalMesh* skelMesh, int32 BoneIndex) const;
+	ENGINE_API int32		FindParentBodyIndex(const class USkeletalMesh * skelMesh, int32 StartBoneIndex) const;
 	ENGINE_API int32		FindParentBodyIndex(const FReferenceSkeleton& RefSkeleton, const int32 StartBoneIndex) const;
-	ENGINE_API int32		FindConstraintIndex(FName ConstraintName);
-	ENGINE_API int32		FindConstraintIndex(FName Bone1Name, FName Bone2Name);
-	FName					FindConstraintBoneName(int32 ConstraintIndex);
-	ENGINE_API int32		FindMirroredBone(class USkeletalMesh* skelMesh, int32 BoneIndex);
+	ENGINE_API int32		FindConstraintIndex(FName ConstraintName) const;
+	ENGINE_API int32		FindConstraintIndex(FName Bone1Name, FName Bone2Name) const;
+	FName					FindConstraintBoneName(int32 ConstraintIndex) const;
+	ENGINE_API int32		FindMirroredBone(const class USkeletalMesh* skelMesh, int32 BoneIndex) const;
 
 	/** Utility for getting indices of all bodies below (and including) the one with the supplied name. */
-	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, FName InBoneName, USkeletalMesh* InSkelMesh, bool bIncludeParent = true);
-	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, const FName InBoneName, const FReferenceSkeleton& RefSkeleton, const bool bIncludeParent = true);
+	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, FName InBoneName, const USkeletalMesh* InSkelMesh, bool bIncludeParent = true) const;
+	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, const FName InBoneName, const FReferenceSkeleton& RefSkeleton, const bool bIncludeParent = true) const;
 
-	ENGINE_API void			GetNearestBodyIndicesBelow(TArray<int32> & OutBodyIndices, FName InBoneName, USkeletalMesh * InSkelMesh);
+	ENGINE_API void			GetNearestBodyIndicesBelow(TArray<int32> & OutBodyIndices, FName InBoneName, const USkeletalMesh* InSkelMesh) const;
 
 	ENGINE_API FBox			CalcAABB(const class USkinnedMeshComponent* MeshComponent, const FTransform& LocalToWorld) const;
 
@@ -407,68 +418,11 @@ private:
 	TArray<TObjectPtr<class UBodySetup>> BodySetup_DEPRECATED;
 };
 
-USTRUCT()
-struct FPhysicalAnimationProfile
-{
-	GENERATED_BODY()
-	
-	/** Profile name used to identify set of physical animation parameters */
-	UPROPERTY()
-	FName ProfileName;
 
-	/** Physical animation parameters used to drive animation */
-	UPROPERTY(EditAnywhere, Category = PhysicalAnimation)
-	FPhysicalAnimationData PhysicalAnimationData;
-};
-
-UCLASS(MinimalAPI)
-class USkeletalBodySetup : public UBodySetup
-{
-	GENERATED_BODY()
-public:
-	const FPhysicalAnimationProfile* FindPhysicalAnimationProfile(const FName ProfileName) const
-	{
-		return PhysicalAnimationData.FindByPredicate([ProfileName](const FPhysicalAnimationProfile& Profile){ return ProfileName == Profile.ProfileName; });
-	}
-
-	FPhysicalAnimationProfile* FindPhysicalAnimationProfile(const FName ProfileName)
-	{
-		return PhysicalAnimationData.FindByPredicate([ProfileName](const FPhysicalAnimationProfile& Profile) { return ProfileName == Profile.ProfileName; });
-	}
-
-	const TArray<FPhysicalAnimationProfile>& GetPhysicalAnimationProfiles() const
-	{
-		return PhysicalAnimationData;
-	}
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
-	ENGINE_API FName GetCurrentPhysicalAnimationProfileName() const;
-	
-	/** Creates a new physical animation profile entry */
-	ENGINE_API void AddPhysicalAnimationProfile(FName ProfileName);
-
-	/** Removes physical animation profile */
-	ENGINE_API void RemovePhysicalAnimationProfile(FName ProfileName);
-
-	ENGINE_API void UpdatePhysicalAnimationProfiles(const TArray<FName>& Profiles);
-
-	ENGINE_API void DuplicatePhysicalAnimationProfile(FName DuplicateFromName, FName DuplicateToName);
-
-	ENGINE_API void RenamePhysicalAnimationProfile(FName CurrentName, FName NewName);
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "CoreMinimal.h"
+#include "Engine/SkeletalMesh.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/PhysicalAnimationComponent.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #endif
-
-#if WITH_EDITORONLY_DATA
-	//dummy place for customization inside phat. Profiles are ordered dynamically and we need a static place for detail customization
-	UPROPERTY(EditAnywhere, Category = PhysicalAnimation)
-	FPhysicalAnimationProfile CurrentPhysicalAnimationProfile;
-#endif
-
-	/** If true we ignore scale changes from animation. This is useful for subtle scale animations like breathing where the physics collision should remain unchanged*/
-	UPROPERTY(EditAnywhere, Category = BodySetup)
-	bool bSkipScaleFromAnimation;
-
-private:
-	UPROPERTY()
-	TArray<FPhysicalAnimationProfile> PhysicalAnimationData;
-};

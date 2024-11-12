@@ -25,17 +25,18 @@ class UTypedElementSelectionSet;
 /**
  * Unreal level editor actions
  */
-class LEVELEDITOR_API FLevelEditorCommands : public TCommands<FLevelEditorCommands>
+class FLevelEditorCommands : public TCommands<FLevelEditorCommands>
 {
 
 public:
 	FLevelEditorCommands();
-	
 
 	/**
 	 * Initialize commands
 	 */
 	virtual void RegisterCommands() override;
+
+	LEVELEDITOR_API FORCENOINLINE static const FLevelEditorCommands& Get();
 
 public:
 	
@@ -43,12 +44,13 @@ public:
 	TSharedPtr< FUICommandInfo > BrowseViewportControls;
 
 	/** Level file commands */
-	TSharedPtr< FUICommandInfo > NewLevel;
-	TSharedPtr< FUICommandInfo > OpenLevel;
-	TSharedPtr< FUICommandInfo > Save;
-	TSharedPtr< FUICommandInfo > SaveAs;
-	TSharedPtr< FUICommandInfo > SaveAllLevels;
-	TSharedPtr< FUICommandInfo > BrowseLevel;
+	TSharedPtr<FUICommandInfo> NewLevel;
+	UE_DEPRECATED(5.5, "This command has been moved to FGlobalEditorCommonCommands and is no longer registered.")
+	TSharedPtr<FUICommandInfo> OpenLevel;
+	TSharedPtr<FUICommandInfo> Save;
+	TSharedPtr<FUICommandInfo> SaveAs;
+	TSharedPtr<FUICommandInfo> SaveAllLevels;
+	TSharedPtr<FUICommandInfo> BrowseLevel;
 
 	static const int32 MaxRecentFiles = 10;
 	TArray< TSharedPtr< FUICommandInfo > > OpenRecentFileCommands;
@@ -608,7 +610,25 @@ public:
 	TSharedPtr< FUICommandInfo > ToggleFeatureLevelPreview;
 
 	TArray<TSharedPtr<FUICommandInfo>> PreviewPlatformOverrides;
+
+	struct PreviewPlatformCommand
+	{
+		PreviewPlatformCommand()
+			: bIsGeneratingJsonCommand(false)
+			, SectionName(NAME_None)
+		{
+		}
+
+		bool bIsGeneratingJsonCommand;
+		FName SectionName;
+		TSharedPtr<FUICommandInfo> CommandInfo;
+		FString FilePath;
+	};
 	
+	TSharedPtr< FUICommandInfo > DisablePlatformPreview;
+	TMap<FName, TArray<PreviewPlatformCommand>> PlatformToPreviewPlatformOverrides;
+	TMap<FName, TArray<PreviewPlatformCommand>> PlatformToPreviewJsonPlatformOverrides;
+
 	///**
 	// * Mode Commands                   
 	// */
@@ -727,7 +747,26 @@ public:
 	 * Called when import scene is selected
 	 */
 	static void ImportScene_Clicked();
+	
+	/**
+	* Called When Preview Json is selected in the Platforms Preview Sub Menu
+	*/
+	static void PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName, FString JsonFile);
 
+	/**
+	* Is Preview Json visible in the Platforms Preview Sub Menu
+	*/
+	static bool IsPreviewJsonVisible(FName PlatformName);
+
+	/**
+	* Called When Generate Preview Json is selected in the Platforms Preview Sub Menu
+	*/
+	static void GeneratePreviewJson_Clicked(FString PlatformName);
+	
+	/**
+	* Is Generate Preview Json visible in the Platforms Preview Sub Menu
+	*/
+	static bool IsGeneratePreviewJsonVisible(FName PlatformName);
 
 	/**
 	 * Called when export all is selected
@@ -1178,6 +1217,9 @@ public:
 
 	/** Focuses the outliner on the selected actors */
 	static void OnFocusOutlinerToSelection(TWeakPtr<SLevelEditor> LevelEditor);
+
+	/** Focuses the outliner on the context folder if it's currently set */
+	static void OnFocusOutlinerToContextFolder(TWeakPtr<SLevelEditor> LevelEditor);
 
 	/** Open the Place Actors Panel */
 	static void OpenPlaceActors();

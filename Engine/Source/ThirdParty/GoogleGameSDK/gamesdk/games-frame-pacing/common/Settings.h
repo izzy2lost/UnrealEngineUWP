@@ -49,6 +49,7 @@ class Settings {
 
     using Listener = std::function<void()>;
     void addListener(Listener listener);
+    void removeAllListeners();
 
     void setDisplayTimings(const DisplayTimings& displayTimings);
     void setSwapDuration(uint64_t swapNs);

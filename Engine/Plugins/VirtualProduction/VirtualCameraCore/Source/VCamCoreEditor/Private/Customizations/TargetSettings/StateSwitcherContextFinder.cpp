@@ -8,7 +8,7 @@
 #include "PropertyHandle.h"
 #include "UI/Switcher/WidgetConnectionConfig.h"
 
-namespace UE::VCamCoreEditor::Private::ConnectionTargetContextFinding
+namespace UE::VCamCoreEditor::ConnectionTargetContextFinding
 {
 	struct FStateSwitcherSearch
 	{

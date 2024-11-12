@@ -5,6 +5,7 @@
 #include "Misc/Parse.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/StringBuilder.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "HAL/PlatformFileManager.h"
 #include "GenericPlatform/GenericPlatformFile.h"
@@ -95,6 +96,13 @@ static FAutoConsoleVariableRef CVar_IoDispatcherTocsEnablePerfectHashing(
 	TEXT("s.IoDispatcherTocsEnablePerfectHashing"),
 	GIoDispatcherTocsEnablePerfectHashing,
 	TEXT("Enable perfect hashmap lookups for iostore tocs")
+);
+
+int32 GIoDispatcherCanDecompressOnStarvation = 1;
+static FAutoConsoleVariableRef CVar_IoDispatcherCanDecompressOnStarvation(
+	TEXT("s.IoDispatcherCanDecompressOnStarvation"),
+	GIoDispatcherCanDecompressOnStarvation,
+	TEXT("IoDispatcher thread will help with decompression tasks when all worker threads are IO starved to avoid deadlocks on low core count")
 );
 
 int32 GIoDispatcherForceSynchronousScatter = 0;
@@ -319,11 +327,26 @@ TArray<FFileIoStoreReadRequest*> FFileIoStoreOffsetSortedRequestQueue::RemoveMis
 		{
 			RequestsToReturn.Add(Requests[i]);
 			RequestsBySequence.Remove(Requests[i]);
-			Requests.RemoveAt(i, 1, EAllowShrinking::No);
+			Requests.RemoveAt(i, EAllowShrinking::No);
 		}
 	}
 
 	return RequestsToReturn;
+}
+
+void FFileIoStoreOffsetSortedRequestQueue::RemoveCancelledRequests(TArray<FFileIoStoreReadRequest*>& OutCancelled)
+{
+	for (int32 Idx = Requests.Num() - 1; Idx >= 0; --Idx)
+	{
+		FFileIoStoreReadRequest* Request = Requests[Idx];
+		if (Request->bCancelled)
+		{
+			PeekRequestIndex = INDEX_NONE;
+			OutCancelled.Add(Request);
+			RequestsBySequence.Remove(Request);
+			Requests.RemoveAt(Idx, EAllowShrinking::No);
+		}
+	}
 }
 
 FFileIoStoreReadRequest* FFileIoStoreOffsetSortedRequestQueue::GetNextInternal(FFileIoStoreReadRequestSortKey LastSortKey, bool bPop)
@@ -530,6 +553,48 @@ FFileIoStoreReadRequest* FFileIoStoreRequestQueue::Pop()
 	return Result;
 }
 
+void FFileIoStoreRequestQueue::PopCancelled(TArray<FFileIoStoreReadRequest*>& OutCancelled)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(RequestQueuePopCancelled);
+	FScopeLock _(&CriticalSection);
+	UpdateSortRequestsByOffset();
+	
+	if (bSortRequestsByOffset)
+	{
+		for (FFileIoStoreOffsetSortedRequestQueue& PrioQueue : SortedPriorityQueues)
+		{
+			PrioQueue.RemoveCancelledRequests(OutCancelled);
+		}
+
+		// Pop/Peek rely on empty queues being culled
+		SortedPriorityQueues.RemoveAll([](FFileIoStoreOffsetSortedRequestQueue& SubQueue) { return SubQueue.IsEmpty(); });
+	}
+	else
+	{
+		for (int32 Idx = Heap.Num() - 1; Idx >= 0; --Idx)
+		{
+			FFileIoStoreReadRequest* Request = Heap[Idx];
+			if (Request->bCancelled)
+			{
+				OutCancelled.Add(Request);
+				Heap.RemoveAt(Idx, EAllowShrinking::No);
+			}
+		}
+
+		if (!OutCancelled.IsEmpty())
+		{
+			Heap.Heapify(QueueSortFunc);
+		}
+	}
+
+	for (FFileIoStoreReadRequest* Request : OutCancelled)
+	{
+		check(Request->bCancelled);
+		Request->QueueStatus = FFileIoStoreReadRequest::QueueStatus_Started;
+		Request->ContainerFilePartition->StartedReadRequestsCount.fetch_add(1, std::memory_order_release);
+	}
+}
+
 void FFileIoStoreRequestQueue::PushToPriorityQueues(FFileIoStoreReadRequest* Request)
 {
 	int32 QueueIndex = Algo::LowerBoundBy(SortedPriorityQueues, Request->Priority, QueuePriorityProjection, TLess<int32>());
@@ -670,6 +735,8 @@ uint64 FFileIoStoreReader::GetTocAllocatedSize() const
 
 FIoStatus FFileIoStoreReader::Initialize(const TCHAR* InTocFilePath, int32 InOrder)
 {
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FName(InTocFilePath), FName(TEXT("FileIoStoreReader")), FName(InTocFilePath));
+
 	FStringView ContainerPathView(InTocFilePath);
 	if (!ContainerPathView.EndsWith(TEXT(".utoc")))
 	{
@@ -743,7 +810,8 @@ FIoStatus FFileIoStoreReader::Initialize(const TCHAR* InTocFilePath, int32 InOrd
 
 	Stats.OnTocMounted(GetTocAllocatedSize());
 
-	UE_LOG(LogIoDispatcher, Display, TEXT("Toc signature hash: %s"), *TocResource.SignatureHash.ToString());
+	UE_LOG(LogIoDispatcher, Display, TEXT("Toc loaded : %s, Id=%s, Order=%d, EntryCount=%u, SignatureHash=%s"),
+		InTocFilePath, *LexToString(TocResource.Header.ContainerId), InOrder, TocResource.Header.TocEntryCount, *TocResource.SignatureHash.ToString());
 	
 	ContainerId = TocResource.Header.ContainerId;
 	Order = InOrder;
@@ -1265,6 +1333,15 @@ void FFileIoStore::Initialize(TSharedRef<const FIoDispatcherBackendContext> InCo
 	}
 
 	Thread = FRunnableThread::Create(this, TEXT("IoService"), 0, TPri_AboveNormal);
+
+	using namespace LowLevelTasks;
+	OversubscriptionLimitReached = 
+		FScheduler::Get().GetOversubscriptionLimitReachedEvent().AddLambda(
+			[this]()
+			{
+				BackendContext->WakeUpDispatcherThreadDelegate.Execute();
+			}
+		);
 }
 
 void FFileIoStore::StopThread()
@@ -1279,6 +1356,9 @@ void FFileIoStore::StopThread()
 void FFileIoStore::Shutdown()
 {
 	StopThread();
+
+	using namespace LowLevelTasks;
+	FScheduler::Get().GetOversubscriptionLimitReachedEvent().Remove(OversubscriptionLimitReached);
 }
 
 TIoStatusOr<FIoContainerHeader> FFileIoStore::Mount(const TCHAR* InTocPath, int32 Order, const FGuid& EncryptionKeyGuid, const FAES::FAESKey& EncryptionKey)
@@ -1381,7 +1461,7 @@ bool FFileIoStore::Unmount(const TCHAR* InTocPath)
 
 bool FFileIoStore::Resolve(FIoRequestImpl* Request)
 {
-	FReadScopeLock _(IoStoreReadersLock);
+	// Assumes readers are locked, see ResolveIoRequests
 	for (const TUniquePtr<FFileIoStoreReader>& Reader : IoStoreReaders)
 	{
 		if (const FIoOffsetAndLength* OffsetAndLength = Reader->Resolve(Request->ChunkId))
@@ -1439,6 +1519,18 @@ bool FFileIoStore::Resolve(FIoRequestImpl* Request)
 	return false;
 }
 
+void FFileIoStore::ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved)
+{
+	FReadScopeLock _(IoStoreReadersLock);
+	while (FIoRequestImpl* Request = Requests.PopHead())
+	{
+		if (Resolve(Request) == false)
+		{
+			OutUnresolved.AddTail(Request);
+		}
+	}
+}
+
 void FFileIoStore::CancelIoRequest(FIoRequestImpl* Request)
 {
 	if (Request->BackendData)
@@ -1449,6 +1541,11 @@ void FFileIoStore::CancelIoRequest(FIoRequestImpl* Request)
 		{
 			ResolvedRequest->bCancelled = true;
 			CompleteDispatcherRequest(ResolvedRequest);
+		}
+		else
+		{
+			// Wake-up the I/O thread to process cancelled read requests
+			PlatformImpl->ServiceNotify();
 		}
 	}
 }
@@ -1497,11 +1594,6 @@ FAutoConsoleTaskPriority CPrio_IoDispatcherTaskPriority(
 	ENamedThreads::NormalTaskPriority, // .. at normal task priority
 	ENamedThreads::NormalTaskPriority // if we don't have background threads, then use normal priority threads at normal task priority instead
 );
-
-ENamedThreads::Type FFileIoStore::FDecompressAsyncTask::GetDesiredThread()
-{
-	return CPrio_IoDispatcherTaskPriority.Get();
-}
 
 void FFileIoStore::ScatterBlock(FFileIoStoreCompressedBlock* CompressedBlock, bool bIsAsync)
 {
@@ -1601,8 +1693,6 @@ void FFileIoStore::ScatterBlock(FFileIoStoreCompressedBlock* CompressedBlock, bo
 		FScopeLock Lock(&DecompressedBlocksCritical);
 		CompressedBlock->Next = FirstDecompressedBlock;
 		FirstDecompressedBlock = CompressedBlock;
-
-		BackendContext->WakeUpDispatcherThreadDelegate.Execute();
 	}
 }
 
@@ -1678,7 +1768,22 @@ void FFileIoStore::FinalizeCompressedBlock(FFileIoStoreCompressedBlock* Compress
 	}
 }
 
-FIoRequestImpl* FFileIoStore::GetCompletedRequests()
+namespace FileIoStoreImpl
+{
+	static std::atomic<int32> ActiveScatterTasks{ 0 };
+
+	bool HasActiveScatterTasks()
+	{
+		return ActiveScatterTasks.load(std::memory_order_relaxed) > 0;
+	}
+
+	bool IsSchedulerOversubscribed(UE::Tasks::ETaskPriority TaskPriority)
+	{
+		return LowLevelTasks::FScheduler::Get().IsOversubscriptionLimitReached(TaskPriority);
+	}
+}
+
+FIoRequestImpl* FFileIoStore::GetCompletedIoRequests()
 {
 	LLM_SCOPE(ELLMTag::FileSystem);
 	//TRACE_CPUPROFILER_EVENT_SCOPE(GetCompletedRequests);
@@ -1804,6 +1909,25 @@ FIoRequestImpl* FFileIoStore::GetCompletedRequests()
 		BlockToReap = Next;
 	}
 
+	// Cleanup finished decompression tasks
+	UE::Tasks::FTask* DecompressionTask;
+	while ((DecompressionTask = DecompressionTasks.Peek()) != nullptr && DecompressionTask->IsCompleted())
+	{
+		DecompressionTasks.Dequeue();
+	}
+
+	// Help with decompression to avoid deadlock on low-core count when all tasks threads are busy or waiting on IO requests.
+	if (GIoDispatcherCanDecompressOnStarvation && !FileIoStoreImpl::HasActiveScatterTasks() && (DecompressionTask = DecompressionTasks.Peek()) != nullptr)
+	{
+		if (FileIoStoreImpl::IsSchedulerOversubscribed(DecompressionTask->GetPriority()))
+		{
+			// Try to execute it on the current thread if not already started, no-op if already started.
+			DecompressionTask->TryRetractAndExecute();
+			// In both case we can get rid of it right away since we know progress is being made.
+			DecompressionTasks.Dequeue();
+		}
+	}
+
 	FFileIoStoreCompressedBlock* BlockToDecompress = ReadyForDecompressionHead;
 	while (BlockToDecompress)
 	{
@@ -1834,11 +1958,38 @@ FIoRequestImpl* FFileIoStore::GetCompletedRequests()
 			}
 		}
 
+		const UE::Tasks::ETaskPriority IoDispatcherTaskPriority =
+			EnumHasAnyFlags(CPrio_IoDispatcherTaskPriority.Get(), ENamedThreads::BackgroundThreadPriority) ?
+				UE::Tasks::ETaskPriority::BackgroundNormal :
+				UE::Tasks::ETaskPriority::Normal;
+
 		// Scatter block asynchronous when the block is compressed, encrypted or signed
-		bool bScatterAsync = bIsMultithreaded && GIoDispatcherForceSynchronousScatter==0 && (!BlockToDecompress->CompressionMethod.IsNone() || BlockToDecompress->EncryptionKey.IsValid() || BlockToDecompress->SignatureHash);
+		const bool bScatterAsync = bIsMultithreaded && GIoDispatcherForceSynchronousScatter == 0 &&
+			(!BlockToDecompress->CompressionMethod.IsNone() ||
+			 BlockToDecompress->EncryptionKey.IsValid() ||
+			 BlockToDecompress->SignatureHash) && 
+			 // If we're already oversubscribed, we might not receive any further event to wake us and 
+			 // allow us to process our queue. In that case we simply run decompression locally.
+			 !FileIoStoreImpl::IsSchedulerOversubscribed(IoDispatcherTaskPriority);
+
 		if (bScatterAsync)
 		{
-			TGraphTask<FDecompressAsyncTask>::CreateTask().ConstructAndDispatchWhenReady(*this, BlockToDecompress);
+			DecompressionTasks.Enqueue(
+				UE::Tasks::Launch(
+					TEXT("ScatterBlockDecompressionTask"),
+					[this, BlockToDecompress]
+					{
+						FileIoStoreImpl::ActiveScatterTasks++;
+						ScatterBlock(BlockToDecompress, true);
+						FileIoStoreImpl::ActiveScatterTasks--;
+
+						// Important that the notification goes after the decrement of the active scatter tasks
+						// otherwise we could end up missing an event and deadlock.
+						BackendContext->WakeUpDispatcherThreadDelegate.Execute();
+					},
+					IoDispatcherTaskPriority
+				)
+			);
 		}
 		else
 		{
@@ -2172,21 +2323,21 @@ FFileIoStoreStats::FFileIoStoreStats()
 	, AvailableBuffersCounter(TEXT("FileIoStore/AvailableBuffers"), TraceCounterDisplayHint_None)
 #endif
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FFileIoStoreStats::CsvTick));
 #endif
 }
 
 FFileIoStoreStats::~FFileIoStoreStats()
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 #endif
 }
 
 bool FFileIoStoreStats::CsvTick(float DeltaTime)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	CSV_CUSTOM_STAT_DEFINED(QueuedFilesystemReadMB, BytesToApproxMB(QueuedFilesystemReadBytes), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(QueuedFilesystemReads, (int32)QueuedFilesystemReads, ECsvCustomStatOp::Set);
 
@@ -2208,7 +2359,7 @@ void FFileIoStoreStats::OnReadRequestsQueued(const FFileIoStoreReadRequestList& 
 		TotalBytes += Request->Size;
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	QueuedFilesystemReadBytes += TotalBytes;
 	QueuedFilesystemReads += NumReads;
 #endif
@@ -2303,7 +2454,7 @@ void FFileIoStoreStats::OnReadRequestsCompleted(const FFileIoStoreReadRequestLis
 		TotalBytes += Request->Size;
 	}
 
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	QueuedFilesystemReadBytes -= TotalBytes;
 	QueuedFilesystemReads -= NumReads;
 #endif
@@ -2318,7 +2469,7 @@ void FFileIoStoreStats::OnReadRequestsCompleted(const FFileIoStoreReadRequestLis
 
 void FFileIoStoreStats::OnDecompressQueued(const FFileIoStoreCompressedBlock* CompressedBlock)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	++QueuedUncompressBlocks;
 	QueuedUncompressBytesIn += CompressedBlock->CompressedSize;
 	QueuedUncompressBytesOut += CompressedBlock->UncompressedSize;
@@ -2332,7 +2483,7 @@ void FFileIoStoreStats::OnDecompressQueued(const FFileIoStoreCompressedBlock* Co
 
 void FFileIoStoreStats::OnDecompressComplete(const FFileIoStoreCompressedBlock* CompressedBlock)
 {
-#if CSV_PROFILER
+#if CSV_PROFILER_STATS
 	--QueuedUncompressBlocks;
 	QueuedUncompressBytesIn -= CompressedBlock->CompressedSize;
 	QueuedUncompressBytesOut -= CompressedBlock->UncompressedSize;

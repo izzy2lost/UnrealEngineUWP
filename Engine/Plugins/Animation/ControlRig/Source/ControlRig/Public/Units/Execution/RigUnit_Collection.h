@@ -198,6 +198,7 @@ struct CONTROLRIG_API FRigUnit_CollectionChildrenArray : public FRigUnit_Collect
 		Parent = FRigElementKey(NAME_None, ERigElementType::Bone);
 		bIncludeParent = false;
 		bRecursive = false;
+		bDefaultChildren = true;
 		TypeToSearch = ERigElementType::All;
 	}
 
@@ -212,6 +213,11 @@ struct CONTROLRIG_API FRigUnit_CollectionChildrenArray : public FRigUnit_Collect
 
 	UPROPERTY(meta = (Input))
 	bool bRecursive;
+
+	/** When true, it will return all children, regardless of whether the parent is active or not.
+	 * When false, will return only the children which are influenced by this parent */
+	UPROPERTY(meta = (Input))
+	bool bDefaultChildren;
 
 	UPROPERTY(meta = (Input))
 	ERigElementType TypeToSearch;

@@ -10,13 +10,13 @@
   <Choose>
     <When Condition="'$(IsWindows)'=='true'">
       <PropertyGroup>
-        <TargetFramework>net6.0-windows10.0.19041</TargetFramework>
+        <TargetFramework>net8.0-windows10.0.19041</TargetFramework>
         <UseWindowsForms>true</UseWindowsForms>
       </PropertyGroup>
     </When>
     <Otherwise>
       <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
       </PropertyGroup>
     </Otherwise>
   </Choose>
@@ -32,6 +32,7 @@
     <RootNamespace>AutomationTool</RootNamespace>
     <AssemblyName>AutomationTool</AssemblyName>
     <WarningsNotAsErrors>612,618</WarningsNotAsErrors>
+    <NoWarn>$(NoWarn);NETSDK1206</NoWarn>
     <OutputPath>..\..\..\Binaries\DotNET\AutomationTool</OutputPath>
     <EnableDefaultItems>false</EnableDefaultItems>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
@@ -95,6 +96,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.300.105" />
     <PackageReference Include="Microsoft.Build" Version="17.1.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Build.Locator" Version="1.4.1" PrivateAssets="all" />
     <!-- Added as a temporary workaround to running from visual studio where the system version of dotnet is run. 

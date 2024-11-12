@@ -15,13 +15,15 @@
 UENUM(meta = (Bitflags))
 enum class EOptimusDataTypeUsageFlags : uint8
 {
-	None				= 0,
+	None= 0,
 	
-	Resource			= 1 << 0,		/** This type can be used in a resource */
-	Variable			= 1 << 1,		/** This type can be used in a variable */
-	AnimAttributes      = 1 << 2,       /** This type can be used to query an anim attribute*/
-	DataInterfaceOutput = 1 << 3,       /** This type can be used as output of a data interface*/
-	PinType				= 1 << 4,       /** This type can be used as pin type*/
+	Resource				= 1 << 0,		/** This type can be used in a resource */
+	Variable				= 1 << 1,		/** This type can be used in a variable */
+	AnimAttributes			= 1 << 2,		/** This type can be used to query a single anim attribute on a single bone*/
+	DataInterfaceOutput		= 1 << 3,		/** This type can be used as output of a data interface (or input for terminal data interfaces)*/
+	PinType					= 1 << 4,		/** This type can be used as pin type*/
+	PerBoneAnimAttribute	= 1 << 5,		/** This type can be used to query a per-bone anim attribute to produce a bone buffer */
+	Property				= 1 << 6,		/** This type can be used in a variable, but can only be connected to a property pin on a node*/
 };
 ENUM_CLASS_FLAGS(EOptimusDataTypeUsageFlags)
 
@@ -61,11 +63,11 @@ struct OPTIMUSCORE_API FOptimusDataType
 	// accommodate the newly converted value.
 	bool ConvertPropertyValueToShader(
 		TArrayView<const uint8> InValue,
-		FShaderValueType::FValueView OutConvertedValue
+		FShaderValueContainer& OutConvertedValue
 		) const;
 
 	// Return a value struct that can hold raw shader value of this type
-	FShaderValueType::FValue MakeShaderValue() const;
+	FShaderValueContainer MakeShaderValue() const;
 	
 	// Returns true if the data type can create a FProperty object to represent it.
 	bool CanCreateProperty() const;
@@ -164,9 +166,9 @@ struct OPTIMUSCORE_API FOptimusDataTypeRef
 	UPROPERTY(EditAnywhere, Category=Type)
 	FName TypeName;
 
-	// A weak pointer to the type object helps enforce asset dependency
+	// A soft pointer to the type object helps enforce asset dependency
 	UPROPERTY(EditAnywhere, Category=Type)
-	TWeakObjectPtr<UObject> TypeObject;
+	TSoftObjectPtr<UObject> TypeObject;
 	
 	void PostSerialize(const FArchive& Ar);
 };

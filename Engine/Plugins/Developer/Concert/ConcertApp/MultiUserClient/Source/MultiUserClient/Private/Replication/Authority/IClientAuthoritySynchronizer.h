@@ -3,11 +3,10 @@
 #pragma once
 
 #include "Delegates/Delegate.h"
-#include "Templates/UnrealTemplate.h"
 
 struct FSoftObjectPath;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Synchronizes the a client's authority state with the server. */
 	class IClientAuthoritySynchronizer
@@ -22,7 +21,7 @@ namespace UE::MultiUserClient
 
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when authority state has been updated. */
-		virtual FOnServerStateChanged& OnServerStateChanged() = 0;
+		virtual FOnServerStateChanged& OnServerAuthorityChanged() = 0;
 
 		virtual ~IClientAuthoritySynchronizer() = default;
 	};
@@ -30,12 +29,11 @@ namespace UE::MultiUserClient
 	/** Util base class for implementing the events */
 	class FAuthoritySynchronizer_Base
 		: public IClientAuthoritySynchronizer
-		, public FNoncopyable
 	{
 	public:
 
 		//~ Begin IClientAuthoritySynchronizer Interface
-		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
+		virtual FOnServerStateChanged& OnServerAuthorityChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientAuthoritySynchronizer Interface
 
 	protected:

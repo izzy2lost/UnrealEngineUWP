@@ -323,9 +323,9 @@ public:
 	const TCHAR* PaticleVelocityTextureName = TEXT("FParticleStateVelocity");
 
 	/** Contains the positions of all simulating particles. */
-	FTexture2DRHIRef PositionTextureRHI;
+	FTextureRHIRef PositionTextureRHI;
 	/** Contains the velocity of all simulating particles. */
-	FTexture2DRHIRef VelocityTextureRHI;
+	FTextureRHIRef VelocityTextureRHI;
 
 	bool bTexturesCleared;
 	int32 ParticleStateIndex = 0;
@@ -386,8 +386,8 @@ public:
 		RenderTargetSize.Y = SizeY;
 
 		// allocate the new textures
-		FTexture2DRHIRef NewPositionTextureRHI = CreateStateTextureRHI(PaticlePositonTextureName, PF_A32B32G32R32F);
-		FTexture2DRHIRef NewVelocityTextureRHI = CreateStateTextureRHI(PaticleVelocityTextureName, PF_FloatRGBA);
+		FTextureRHIRef NewPositionTextureRHI = CreateStateTextureRHI(PaticlePositonTextureName, PF_A32B32G32R32F);
+		FTextureRHIRef NewVelocityTextureRHI = CreateStateTextureRHI(PaticleVelocityTextureName, PF_FloatRGBA);
 		
 		RHICmdList.Transition(FRHITransitionInfo(NewPositionTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
 		RHICmdList.Transition(FRHITransitionInfo(PositionTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
@@ -476,9 +476,9 @@ public:
 		RenderTargetSize.Y = SizeY;
 
 		// allocate the new textures
-		FTexture2DRHIRef NewAttributesTextureRHI = CreateAttributesTextureRHI();
+		FTextureRHIRef NewAttributesTextureRHI = CreateAttributesTextureRHI();
 
-		RHICmdList.Transition(FRHITransitionInfo(NewAttributesTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
+		RHICmdList.Transition(FRHITransitionInfo(NewAttributesTextureRHI, ERHIAccess::RTV, ERHIAccess::CopyDest));
 		RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
 
 		FRHICopyTextureInfo CopyTextureInfo;
@@ -1438,7 +1438,7 @@ struct FSimulationCommandGPU
 	/** Parameters to sample the local vector field for this simulation. */
 	FVectorFieldUniformBufferRef VectorFieldsUniformBuffer;
 	/** Vector field volume textures for this simulation. */
-	FRHITexture3D* VectorFieldTexturesRHI[MAX_VECTOR_FIELDS];
+	FRHITexture* VectorFieldTexturesRHI[MAX_VECTOR_FIELDS];
 	/** The number of tiles to simulate. */
 	int32 UnalignedTileCount;
 
@@ -1451,7 +1451,7 @@ struct FSimulationCommandGPU
 		, VectorFieldsUniformBuffer(InVectorFieldsUniformBuffer)
 		, UnalignedTileCount(InTileCount)
 	{
-		FRHITexture3D* BlackVolumeTextureRHI = (FRHITexture3D*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
+		FRHITexture* BlackVolumeTextureRHI = (FRHITexture*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
 		for (int32 i = 0; i < MAX_VECTOR_FIELDS; ++i)
 		{
 			VectorFieldTexturesRHI[i] = BlackVolumeTextureRHI;
@@ -1485,7 +1485,7 @@ void ExecuteSimulationCommands(
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_GPUParticlesSimulationCommands);
-	SCOPED_DRAW_EVENT(RHICmdList, ParticleSimulation);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ParticleSimulation");
 	SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 	FUniformBufferStaticBindings StaticUniformBuffers;
@@ -1660,7 +1660,7 @@ void ClearTiles(FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& 
 		return;
 	}
 
-	SCOPED_DRAW_EVENT(RHICmdList, ClearTiles);
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ClearTiles");
 	SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 	FParticleShaderParamRef ShaderParam = GParticleScratchVertexBuffer.GetShaderParam();
@@ -1878,7 +1878,7 @@ TGlobalResource<FParticleInjectionVertexDeclaration> GParticleInjectionVertexDec
 template<bool StaticPropertiesOnly>
 void InjectNewParticles(FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& GraphicsPSOInit,  ERHIFeatureLevel::Type FeatureLevel, const TArray<FNewParticle>& NewParticles, const FParticleSimulationResources* ParticleSimulationResources)
 {
-	if (GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) || !CVarSimulateGPUParticles.GetValueOnAnyThread())
+	if (!CVarSimulateGPUParticles.GetValueOnAnyThread())
 	{
 		return;
 	}
@@ -2039,7 +2039,7 @@ static void VisualizeGPUSimulation(
 	int32 VisualizationMode,
 	FRenderTarget* RenderTarget,
 	const FParticleStateTextures& StateTextures,
-	FRHITexture2D* CurveTextureRHI
+	FRHITexture* CurveTextureRHI
 	)
 {
 	check(IsInRenderingThread());
@@ -2252,7 +2252,7 @@ static FBox ComputeParticleBounds(
 	FRHICommandListImmediate& RHICmdList,
 	ERHIFeatureLevel::Type FeatureLevel,
 	FRHIShaderResourceView* VertexBufferSRV,
-	FRHITexture2D* PositionTextureRHI,
+	FRHITexture* PositionTextureRHI,
 	int32 ParticleCount,
 	FParticleSimulationResources* ParticleSimulationResources)
 {
@@ -4769,7 +4769,7 @@ void FFXSystem::SimulateGPUParticles(
 
 
 #if WITH_MGPU
-	TArray<FTransferResourceParams, TFixedAllocator<4>> CrossGPUTransferResources;
+	TArray<FTransferResourceParams, TInlineAllocator<4>> CrossGPUTransferResources;
 	const bool bCrossTransferEnabled = GNumExplicitGPUsForRendering > 1;
 	auto AddCrossGPUTransferResource =
 		[&](FRHITexture* TextureToTransfer)
@@ -4837,7 +4837,7 @@ void FFXSystem::SimulateGPUParticles(
 		if (GPUSimulations.Num() > 0)
 		{
 			FVectorFieldUniformParameters VectorFieldParameters;
-			FRHITexture3D* BlackVolumeTextureRHI = (FRHITexture3D*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
+			FRHITexture* BlackVolumeTextureRHI = (FRHITexture*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
 			for (int32 Index = 0; Index < MAX_VECTOR_FIELDS; ++Index)
 			{
 				VectorFieldParameters.WorldToVolume[Index] = FMatrix44f::Identity;
@@ -5027,7 +5027,7 @@ void FFXSystem::SimulateGPUParticles(
 	if (NewParticles.Num())
 	{
 		SCOPE_CYCLE_COUNTER(STAT_GPUParticlesInjectionTime);
-		SCOPED_DRAW_EVENT(RHICmdList, ParticleInjection);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ParticleInjection");
 		SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 		// Set render targets.
@@ -5161,7 +5161,7 @@ void FFXSystem::UpdateMultiGPUResources(FRHICommandListImmediate& RHICmdList)
 	if (LastFrameNewParticles.Num())
 	{		
 		//Inject particles spawned in the last frame, but only update the attribute textures
-		SCOPED_DRAW_EVENT(RHICmdList, ParticleInjection);
+		RHI_BREADCRUMB_EVENT_STAT(RHICmdList, ParticleSimulation, "ParticleInjection");
 		SCOPED_GPU_STAT(RHICmdList, ParticleSimulation);
 
 		// Set render targets.

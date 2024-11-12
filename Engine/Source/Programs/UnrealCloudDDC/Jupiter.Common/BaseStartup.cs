@@ -12,11 +12,13 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using Amazon;
 using EpicGames.AspNet;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -172,12 +174,30 @@ namespace Jupiter
 							});
 							break;
 						case SchemeImplementations.Okta:
+							JwtBearerEvents bearerEvents = new JwtBearerEvents();
+							if (Auth.RemapNameClaim)
+							{
+								bool firstTime = true;
+								bearerEvents.OnMessageReceived += context =>
+								{
+									if (!firstTime)
+									{
+										return Task.CompletedTask;
+									}
+
+									firstTime = false;
+									context.Options.TokenValidationParameters.NameClaimType = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier";
+									return Task.CompletedTask;
+								};
+							}
+							
 							availableSchemes.Add(name);
 							authenticationBuilder.AddOktaWebApi(name, new OktaWebApiOptions
 							{
 								OktaDomain = scheme.OktaDomain,
 								AuthorizationServerId = scheme.OktaAuthorizationServerId,
 								Audience = scheme.JwtAudience,
+								JwtBearerEvents = bearerEvents
 							});
 							break;
 						default:
@@ -233,7 +253,7 @@ namespace Jupiter
 					policy.AuthenticationSchemes = availableSchemes;
 					policy.Requirements.Add(new NamespaceAccessRequirement());
 				});
-				
+
 				options.AddPolicy(GlobalAccessRequirement.Name, policy =>
 				{
 					policy.AuthenticationSchemes = availableSchemes;
@@ -281,7 +301,7 @@ namespace Jupiter
 				{
 					options.EnrichWithHttpRequest = (activity, request) =>
 					{
-						if (request.Headers.TryGetValue("ue-session", out StringValues ueSessionValues))
+						if (request.Headers.TryGetValue("x-ue-session", out StringValues ueSessionValues))
 						{
 							if (ueSessionValues.Count != 0)
 							{
@@ -289,11 +309,27 @@ namespace Jupiter
 							}
 						}
 
-						if (request.Headers.TryGetValue("ue-request", out StringValues ueRequestValues))
+						if (request.Headers.TryGetValue("ue-session", out StringValues ueSessionValuesOld))
+						{
+							if (ueSessionValuesOld.Count != 0)
+							{
+								activity.AddTag("ue-session", ueSessionValuesOld.First());
+							}
+						}
+
+						if (request.Headers.TryGetValue("x-ue-request", out StringValues ueRequestValues))
 						{
 							if (ueRequestValues.Count != 0)
 							{
 								activity.AddTag("ue-request", ueRequestValues.First());
+							}
+						}
+
+						if (request.Headers.TryGetValue("ue-request", out StringValues ueRequestValuesOld))
+						{
+							if (ueRequestValuesOld.Count != 0)
+							{
+								activity.AddTag("ue-request", ueRequestValuesOld.First());
 							}
 						}
 					};
@@ -446,10 +482,10 @@ namespace Jupiter
 				app.UseDeveloperExceptionPage();
 			}
 			else
-			{ 
+			{
 				app.UseExceptionHandler("/error");
 			}
-				
+
 			app.UseRouting();
 
 			app.UseAuthentication();
@@ -508,7 +544,7 @@ namespace Jupiter
 
 		protected virtual void OnConfigureApp(IApplicationBuilder app, IWebHostEnvironment env)
 		{
-			
+
 		}
 	}
 
@@ -586,12 +622,12 @@ namespace Jupiter
 		ServiceAccount
 	};
 
-	public class AuthSchemeEntry: IValidatableObject
+	public class AuthSchemeEntry : IValidatableObject
 	{
 		/// <summary>
 		/// The implementation to use, this controls which other configuration values needs to be set. For most servers JWTBearer should work fine.
 		/// </summary>
-		[Required] 
+		[Required]
 		public SchemeImplementations Implementation { get; set; } = SchemeImplementations.JWTBearer;
 
 		/// <summary>
@@ -614,6 +650,11 @@ namespace Jupiter
 		[Required]
 		public string JwtAudience { get; set; } = "";
 
+		/// <summary>
+		/// The namespaces which these scheme is allowed to grant access to, all if this is omitted or empty
+		/// </summary>
+		public string[] AllowedNamespaces { get; set; } = Array.Empty<string>();
+
 		public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 		{
 			List<ValidationResult> validationResults = new List<ValidationResult>();
@@ -627,7 +668,7 @@ namespace Jupiter
 				{
 					validationResults.Add(new ValidationResult("JWT Audience must be specified when using JWTBearer implementation"));
 				}
-			} 
+			}
 			else if (Implementation == SchemeImplementations.Okta)
 			{
 				if (string.IsNullOrEmpty(OktaDomain))
@@ -674,6 +715,11 @@ namespace Jupiter
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by the configuration system")]
 		public List<AclEntry> Acls { get; set; } = new List<AclEntry>();
+
+		/// <summary>
+		/// Remaps name claim from http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name to http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier which is required for Okta
+		/// </summary>
+		public bool RemapNameClaim { get; set; } = true;
 
 		public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 		{

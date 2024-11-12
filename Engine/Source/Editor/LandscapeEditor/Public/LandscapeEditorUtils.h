@@ -25,5 +25,5 @@ namespace LandscapeEditorUtils
 		UEditorLoadingAndSavingUtils::SavePackages(Packages, /* bOnlyDirty = */ false);
 	}
 
-	void SaveLandscapeProxies(TArrayView<ALandscapeProxy*> Proxies);
+	void SaveLandscapeProxies(UWorld* InWorld, TArrayView<ALandscapeProxy*> Proxies);
 }

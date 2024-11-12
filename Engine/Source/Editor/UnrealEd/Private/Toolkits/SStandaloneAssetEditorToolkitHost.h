@@ -61,7 +61,7 @@ public:
 	virtual UWorld* GetWorld() const override;
 	virtual UTypedElementCommonActions* GetCommonActions() const override;
 	FName GetStatusBarName() const override { return StatusBarName; } 
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
 	virtual FOnActiveViewportChanged& OnActiveViewportChanged() override { return OnActiveViewportChangedDelegate; }
 	void CreateDefaultStandaloneMenuBar(UToolMenu* MenuBar);

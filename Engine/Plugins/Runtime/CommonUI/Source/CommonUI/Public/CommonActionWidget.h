@@ -34,7 +34,7 @@ public:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	virtual void SynchronizeProperties() override;
-	/** End UWidet */
+	/** End UWidget */
 	
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	virtual FSlateBrush GetIcon() const;
@@ -43,11 +43,15 @@ public:
 	FText GetDisplayText() const;
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
+	UMaterialInstanceDynamic* GetIconDynamicMaterial();
+
+	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	void SetEnhancedInputAction(UInputAction* InInputAction);
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	void SetInputAction(FDataTableRowHandle InputActionRow);
 
+	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	void SetInputActionBinding(FUIActionBindingHandle BindingHandle);
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
@@ -57,11 +61,15 @@ public:
 	void SetIconRimBrush(FSlateBrush InIconRimBrush);
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
-	bool IsHeldAction() const;
+	virtual bool IsHeldAction() const;
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInputMethodChanged, bool, bUsingGamepad);
 	UPROPERTY(BlueprintAssignable, Category = CommonActionWidget)
 	FOnInputMethodChanged OnInputMethodChanged;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInputIconUpdated);
+	UPROPERTY(BlueprintAssignable, Category = CommonActionWidget)
+	FOnInputIconUpdated OnInputIconUpdated;
 
 	/**
 	 * The material to use when showing held progress, the progress will be sent using the material parameter
@@ -137,6 +145,7 @@ protected:
 
 	TSharedPtr<SImage> MyIconRim;
 
+	UPROPERTY()
 	FSlateBrush Icon;
 
 	bool bAlwaysHideOverride = false;

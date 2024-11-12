@@ -10,6 +10,7 @@
 #include "PCGWorldActor.h"
 #include "Grid/PCGPartitionActor.h"
 
+#include "Components/BillboardComponent.h"
 #include "Landscape.h"
 #include "Algo/AnyOf.h"
 #include "UObject/UObjectIterator.h"
@@ -159,18 +160,46 @@ namespace PCGHelpers
 			{
 				const bool bNonColliding = true;
 
-				const FTransform& ActorToWorld = InActor->GetTransform();
+				// The following code does a bounds computation in local actor space so that Box can capture the tight bounds. 
+				FTransform ActorToWorld = InActor->GetTransform();
+
+				// The matrix inverse below seems to work well for positive scales, but seems to break down badly for non uniform
+				// scales (to see, compare ActorToWorld*WorldToActor to identity) - UE-221283. The following workaround removes mirroring
+				// from the actor transform, does the bounds computation, and then re-mirrors afterwards. This works well for close-to-90deg
+				// actor transform rotations and relatively-uniform scales, but can result in artificial dilation of the bounds in some cases.
+				const FVector ScaleSign = FVector(
+					FMath::Sign(InActor->GetTransform().GetScale3D().X),
+					FMath::Sign(InActor->GetTransform().GetScale3D().Y),
+					FMath::Sign(InActor->GetTransform().GetScale3D().Z));
+
+				ActorToWorld.SetScale3D(InActor->GetTransform().GetScale3D().GetAbs());
+
 				const FTransform WorldToActor = ActorToWorld.Inverse();
 
 				InActor->ForEachComponent<UPrimitiveComponent>(/*bIncludeFromChildActors=*/true, [bNonColliding, bIgnorePCGCreatedComponents, &WorldToActor, &Box](const UPrimitiveComponent* InPrimComp)
 				{
-					if ((bNonColliding || InPrimComp->IsCollisionEnabled()) &&
-						(!bIgnorePCGCreatedComponents || !InPrimComp->ComponentTags.Contains(DefaultPCGTag)))
+					// Billboard requires access to its texture prevent this from running outside of game thread
+					if(!InPrimComp->IsA<UBillboardComponent>())
 					{
-						const FTransform ComponentToActor = InPrimComp->GetComponentTransform() * WorldToActor;
-						Box += InPrimComp->CalcBounds(ComponentToActor).GetBox();
+						if ((bNonColliding || InPrimComp->IsCollisionEnabled()) &&
+							(!bIgnorePCGCreatedComponents || !InPrimComp->ComponentTags.Contains(DefaultPCGTag)))
+						{
+							const FTransform ComponentToActor = InPrimComp->GetComponentTransform() * WorldToActor;
+							Box += InPrimComp->CalcBounds(ComponentToActor).GetBox();
+						}
 					}
 				});
+
+				// Un-mirror - see notes above.
+				for (int Axis = 0; Axis < 3; ++Axis)
+				{
+					if (ScaleSign[Axis] < 0.0)
+					{
+						Box.Min[Axis] *= -1.0;
+						Box.Max[Axis] *= -1.0;
+						Swap(Box.Min[Axis], Box.Max[Axis]);
+					}
+				}
 			}
 		}
 		else
@@ -288,10 +317,37 @@ namespace PCGHelpers
 		return (InWorld && InWorld->GetSubsystem<UPCGSubsystem>()) ? InWorld->GetSubsystem<UPCGSubsystem>()->GetPCGWorldActor() : nullptr;
 	}
 
-	TArray<FString> GetStringArrayFromCommaSeparatedString(const FString& InCommaSeparatedString)
+	// TODO: Temporary validation during transition of allowing spaces in tags/attributes. Deprecate in 5.6.
+	TArray<FString> GetStringArrayFromCommaSeparatedString(const FString& InCommaSeparatedString, const FPCGContext* InOptionalContext)
 	{
+#if WITH_EDITOR
+		if (InCommaSeparatedString.Contains(" "))
+		{
+			PCGLog::LogWarningOnGraph(
+				FText::Format(LOCTEXT(
+					"AttributeOrTagContainsSpace", "The comma separated list '{0}' contains an internal space character, which should no longer be parsed as a separator. \n"
+					"Disable 'bParseOnWhiteSpace' on the node to deprecate and update the behavior."),
+					FText::FromString(InCommaSeparatedString)),
+				InOptionalContext);
+		}
+#endif // WITH_EDITOR
+
 		TArray<FString> Result;
 		InCommaSeparatedString.ParseIntoArrayWS(Result, TEXT(","));
+
+		return Result;
+	}
+
+	TArray<FString> GetStringArrayFromCommaSeparatedList(const FString& InCommaSeparatedString)
+	{
+		TArray<FString> Result;
+		InCommaSeparatedString.ParseIntoArray(Result, TEXT(","));
+		// Trim leading and trailing spaces
+		for (FString& String : Result)
+		{
+			String.TrimStartAndEndInline();
+		}
+
 		return Result;
 	}
 
@@ -469,9 +525,35 @@ namespace PCGHelpers
 		GeneratedActorsFolder << InTargetActor->GetActorLabel() << "_Generated";
 		OutFolderPath = GeneratedActorsFolder;
 	}
+
+	void GetGeneratedActorsFolderPath(const AActor* InTargetActor, const FPCGContext* InContext, EPCGAttachOptions AttachOptions, FString& OutFolderPath)
+	{
+		if (AttachOptions == EPCGAttachOptions::Attached || AttachOptions == EPCGAttachOptions::NotAttached)
+		{
+			OutFolderPath = FString();
+		}
+		else if (AttachOptions == EPCGAttachOptions::InFolder)
+		{
+			GetGeneratedActorsFolderPath(InTargetActor, OutFolderPath);
+		}
+		else if (AttachOptions == EPCGAttachOptions::InGraphFolder && InContext && InContext->Stack && InContext->Stack->GetRootGraph())
+		{
+			OutFolderPath = InContext->Stack->GetRootGraph()->GetName() + "_Generated";
+		}
+		else // Generated folder
+		{
+			OutFolderPath = TEXT("PCG_Generated_Actors");
+		}
+	}
 #endif
 
+	// Note: deprecated
 	void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FString& InGeneratedPath)
+	{
+		AttachToParent(InActorToAttach, InParent, AttachOptions, nullptr, InGeneratedPath);
+	}
+
+	void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FPCGContext* InContext, const FString& InGeneratedPath)
 	{
 		if (!InParent)
 		{
@@ -483,13 +565,12 @@ namespace PCGHelpers
 			InActorToAttach->AttachToActor(InParent, FAttachmentTransformRules::KeepWorldTransform);
 		}
 #if WITH_EDITOR
-		else if (AttachOptions == EPCGAttachOptions::InFolder)
+		else if(AttachOptions != EPCGAttachOptions::NotAttached)
 		{
 			FString DefaultFolderPath;
-
 			if (InGeneratedPath.IsEmpty())
 			{
-				GetGeneratedActorsFolderPath(InParent, DefaultFolderPath);
+				GetGeneratedActorsFolderPath(InParent, InContext, AttachOptions, DefaultFolderPath);
 			}
 
 			const FString& FolderPath = (InGeneratedPath.IsEmpty() ? DefaultFolderPath : InGeneratedPath);
@@ -498,11 +579,11 @@ namespace PCGHelpers
 #endif
 	}
 
-	TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext)
+	TArray<UFunction*> FindUserFunctions(TSubclassOf<UObject> ObjectClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext)
 	{
 		TArray<UFunction*> Functions;
 
-		if (!ActorClass)
+		if (!ObjectClass)
 		{
 			return Functions;
 		}
@@ -514,12 +595,14 @@ namespace PCGHelpers
 				continue;
 			}
 
-			if (UFunction* Function = ActorClass->FindFunctionByName(FunctionName))
+			if (UFunction* Function = ObjectClass->FindFunctionByName(FunctionName))
 			{
 #if WITH_EDITOR
-				if (!Function->GetBoolMetaData(TEXT("CallInEditor")))
+				// Implementation note: for AActors, using ProcessEvent requires the function to either be 'CallInEditor' or GAllowActorScriptExecutionInEditor to be true.
+				// It might not be strictly needed in cases where the object is not an actor.
+				if (ObjectClass->GetDefaultObject()->IsA<AActor>() && !Function->GetBoolMetaData(TEXT("CallInEditor")))
 				{
-					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CallInEditorFailed", "Function '{0}' in class '{1}' requires CallInEditor to be true while in-editor."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CallInEditorFailed", "Function '{0}' in class '{1}' requires CallInEditor to be true while in-editor."), FText::FromName(FunctionName), FText::FromName(ObjectClass->GetFName())), InContext);
 					continue;
 				}
 #endif
@@ -534,16 +617,60 @@ namespace PCGHelpers
 
 				if (Functions.IsEmpty() || Functions.Last() != Function)
 				{
-					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersIncorrect", "Function '{0}' in class '{1}' has incorrect parameters."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersIncorrect", "Function '{0}' in class '{1}' has incorrect parameters."), FText::FromName(FunctionName), FText::FromName(ObjectClass->GetFName())), InContext);
 				}
 			}
 			else
 			{
-				PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FunctionNotFound", "Function '{0}' was not found in class '{1}'."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+				PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FunctionNotFound", "Function '{0}' was not found in class '{1}'."), FText::FromName(FunctionName), FText::FromName(ObjectClass->GetFName())), InContext);
 			}
 		}
 
 		return Functions;
+	}
+
+	TFunction<float(float, float)> GetDensityMergeFunction(EPCGDensityMergeOperation InOperation)
+	{
+		switch (InOperation)
+		{
+		case EPCGDensityMergeOperation::Set: return [](float A, float B) { return B; };
+		case EPCGDensityMergeOperation::Ignore: return [](float A, float B) { return A; };
+		case EPCGDensityMergeOperation::Minimum: return [](float A, float B) { return FMath::Min(A, B); };
+		case EPCGDensityMergeOperation::Maximum: return [](float A, float B) { return FMath::Max(A, B); };
+		case EPCGDensityMergeOperation::Add: return [](float A, float B) { return A + B; };
+		case EPCGDensityMergeOperation::Subtract: return [](float A, float B) { return A - B; };
+		case EPCGDensityMergeOperation::Multiply: return [](float A, float B) { return A * B; };
+		case EPCGDensityMergeOperation::Divide: return [](float A, float B) { return B != 0.0f ? (A / B) : 0.0f; };
+		default: checkNoEntry(); return [](float, float) { return 0.0f; };
+		}
+	}
+
+	TArray<int32> GetRandomIndices(FRandomStream& RandomStream, const int32 ArraySize, const int32 NumSelections)
+	{
+		if (ArraySize < 1 || NumSelections < 1)
+		{
+			return {};
+		}
+
+		const int32 N = FMath::Min(NumSelections, ArraySize);
+
+		TArray<int32> RandomIndices;
+		RandomIndices.Reserve(N);
+
+		const int32 Max = ArraySize - NumSelections;
+		for (int i = 0; i < N; ++i)
+		{
+			RandomIndices.Emplace(RandomStream.RandRange(0, Max));
+		}
+
+		RandomIndices.Sort();
+
+		for (int i = 0; i < RandomIndices.Num(); ++i)
+		{
+			RandomIndices[i] += i;
+		}
+
+		return RandomIndices;
 	}
 }
 

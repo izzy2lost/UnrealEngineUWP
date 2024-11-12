@@ -34,6 +34,15 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLocalVertexFactoryLooseParameters,)
 	SHADER_PARAMETER_SRV(Buffer<float4>, GPUSkinPassThroughPreSkinnedTangentBuffer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
+extern ENGINE_API void GetLocalVFUniformShaderParameters(
+	FLocalVertexFactoryUniformShaderParameters& UniformParameters,
+	const class FLocalVertexFactory* VertexFactory, 
+	uint32 LODLightmapDataIndex, 
+	class FColorVertexBuffer* OverrideColorVertexBuffer, 
+	int32 BaseVertexIndex,
+	int32 PreSkinBaseVertexIndex
+	);
+
 extern ENGINE_API TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> CreateLocalVFUniformBuffer(
 	const class FLocalVertexFactory* VertexFactory, 
 	uint32 LODLightmapDataIndex, 
@@ -100,6 +109,7 @@ public:
 		FVertexFactory::ReleaseRHI();
 	}
 
+	UE_DEPRECATED(5.5, "SetColorOverrideStream is no longer used")
 	FORCEINLINE_DEBUGGABLE void SetColorOverrideStream(FRHICommandList& RHICmdList, const FVertexBuffer* ColorVertexBuffer) const
 	{
 		checkf(ColorVertexBuffer->IsInitialized(), TEXT("Color Vertex buffer was not initialized! Name %s"), *ColorVertexBuffer->GetFriendlyName());

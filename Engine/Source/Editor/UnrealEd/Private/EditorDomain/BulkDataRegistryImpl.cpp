@@ -145,6 +145,21 @@ void FBulkDataRegistryImpl::Teardown()
 	{
 		PendingPayloadIdPair.Value->Cancel();
 	}
+
+	// Finally wait for any FUpdatePayloadWorker jobs that are still in flight
+	if (SharedDataLock->UpdatePayloadWorkerInFlight > 0)
+	{
+		const double StartTime = FPlatformTime::Seconds();
+
+		UE_LOG(LogBulkDataRegistry, Log, TEXT("Waiting on %d FUpdatePayloadWorker jobs to complete..."), SharedDataLock->UpdatePayloadWorkerInFlight.load());
+		
+		while (SharedDataLock->UpdatePayloadWorkerInFlight > 0)
+		{
+			FPlatformProcess::SleepNoStats(0.0f);
+		}
+
+		UE_LOG(LogBulkDataRegistry, Log, TEXT("All FUpdatePayloadWorker jobs finished, exit was stalled for %.1f(s)"), FPlatformTime::Seconds() - StartTime);
+	}
 }
 
 void FBulkDataRegistryImpl::OnEndLoadPackage(const FEndLoadPackageContext& Context)
@@ -974,6 +989,17 @@ void FUpdatePayloadWorker::DoWork()
 	bool bValid = true;
 	for (;;)
 	{
+		{
+			FReadScopeLock SharedDataScopeLock(SharedDataLock->ActiveLock);
+			if (!SharedDataLock->bActive)
+			{
+				// The BulkDataRegistry has destructed. Our list of requesters is on the BulkDataRegistry, so there's nothing we can do except exit
+				return;
+			}
+
+			SharedDataLock->UpdatePayloadWorkerInFlight++;
+		}
+
 		BulkData.UpdatePayloadId();
 		Buffer = BulkData.GetCompressedPayload().Get();
 
@@ -981,6 +1007,8 @@ void FUpdatePayloadWorker::DoWork()
 		FName WritePayloadIdPackageName;
 		{
 			FReadScopeLock SharedDataScopeLock(SharedDataLock->ActiveLock);
+			--SharedDataLock->UpdatePayloadWorkerInFlight;
+
 			if (!SharedDataLock->bActive)
 			{
 				// The BulkDataRegistry has destructed. Our list of requesters is on the BulkDataRegistry, so there's nothing we can do except exit

@@ -11,6 +11,7 @@ public:
 	/** A unique pointer to a FSlateSdfGenerator object. */
 	using Ptr = TUniquePtr<FSlateSdfGenerator>;
 
+	/** Generator's response to caller's request. */
 	enum class ERequestResponse
 	{
 		/** Task spawned successfully (and placeholder generated if requested) */
@@ -23,6 +24,17 @@ public:
 		PLACEHOLDER_ONLY,
 		/** Task not spawned because the request data was not valid */
 		BAD_REQUEST
+	};
+
+	/** Type of requested signed distance field. */
+	enum class ESdfType
+	{
+		/** Simple single-channel signed distance field based on true Euclidean distance (1 channel/pixel) */
+		Simple,
+		/** Single-channel signed distance field based on the perpendicular distance metric, which is always orthogonal to an edge, and produces mitered rather than rounded outlines (1 channel/pixel) */
+		Perpendicular,
+		/** Multi-channel signed distance field with simple (true) signed distance field in additional channel (4 channels/pixel, also known as MTSDF) */
+		MultichannelAndSimple
 	};
 
 	/** Glyph metrics made available immediately after spawning a new task. */
@@ -45,6 +57,8 @@ public:
 		TWeakPtr<class FFreeTypeFace> FontFace;
 		/** Numeric index of the requested glyph. */
 		uint32 GlyphIndex;
+		/** Type of requested distance field. */
+		ESdfType SdfType;
 		/** Outer portion of the width of representable distances in the output distance field expressed in em. */
 		float EmOuterSpread;
 		/** Inner portion of the width of representable distances in the output distance field expressed in em. */
@@ -65,6 +79,8 @@ public:
 	virtual ERequestResponse SpawnWithPlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) = 0;
 	/** Attempts to start generating again if previous attempt failed but produced a placeholder, whose FRequestOutputInfo must match. */
 	virtual ERequestResponse Respawn(const FRequestDescriptor& InRequest, const FRequestOutputInfo& InCharInfo) = 0;
+	/** Only generates a placeholder-quality signed distance field immediately into OutRawPixels without spawning. */
+	virtual ERequestResponse MakePlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) = 0;
 	/** Checks for finished tasks and processes each of them by calling InEnumerator. */
 	virtual void Update(const FForEachRequestDoneCallback& InEnumerator) = 0;
 	/** Flushes all started tasks. */

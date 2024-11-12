@@ -19,6 +19,51 @@ namespace Tasks2Tests
 {
 	using namespace LowLevelTasks;
 
+	// There is no event that can be waited on for low level tasks so
+	// this is acceptable for testing purpose only to spin until completion.
+	inline void WaitForTask(FTask& Task)
+	{
+		// Task has already started, wait
+		while (!Task.IsCompleted())
+		{
+			FPlatformProcess::YieldThread();
+		}
+	}
+
+	inline void WaitForTasks(TArrayView<FTask> Tasks)
+	{
+		for (FTask& Task : Tasks)
+		{
+			WaitForTask(Task);
+		}
+	}
+
+	// For highly recursive workload that waits, we need the waiters
+	// to contribute to the work otherwise we'll exhaust all threads
+	// and deadlock. So try to expedite to join the work or wait
+	// if the work is already started. Only operates on TSharedPtr
+	// since we're not waiting for task completion during expedite
+	// and may exit scope before the task is scheduled.
+	inline void ExpediteOrWaitForTask(TSharedPtr<FTask>& Task)
+	{
+		if (Task->TryExpedite())
+		{
+			return;
+		}
+
+		// Task has already started, wait
+		WaitForTask(*Task);
+	}
+
+	inline void ExpediteOrWaitForTasks(TArrayView<TSharedPtr<FTask>> Tasks)
+	{
+		for (TSharedPtr<FTask>& Task : Tasks)
+		{
+			ExpediteOrWaitForTask(Task);
+		}
+	}
+
+
 	template<int NumTasks>
 	void EmptyPerfTest(bool last)
 	{
@@ -47,7 +92,7 @@ namespace Tasks2Tests
 				TryLaunch(Tasks[i]);
 			}
 
-			BusyWaitForTasks<FTask>(Tasks);
+			WaitForTasks(Tasks);
 
 			double EndTime = FPlatformTime::Seconds();
 			double Total = EndTime - StartTime;
@@ -92,8 +137,8 @@ namespace Tasks2Tests
 			double SpawnedTime = FPlatformTime::Seconds();
 
 			TryLaunch(SignalTask);
-			BusyWaitForTasks<FTask>(Tasks);
-			BusyWaitForTask(SignalTask);
+			WaitForTasks(Tasks);
+			WaitForTask(SignalTask);
 
 			double EndTime = FPlatformTime::Seconds();
 			double Total = EndTime - StartTime;
@@ -191,33 +236,34 @@ namespace Tasks2Tests
 
 		{
 			using namespace LowLevelTasks;
-			TArray<FTask> Tasks;
+			TArray<TSharedPtr<FTask>> Tasks;
 			Tasks.AddDefaulted(NumTasks);
 
 			double StartTime = FPlatformTime::Seconds();
 
-			for (int i = 0; i < NumTasks; i++)
+			for (TSharedPtr<FTask>& Task : Tasks)
 			{
-				Tasks[i].Init(TEXT("Perf Test"), [&Garbage, &TestVal]()
+				Task = MakeShared<FTask>();
+				Task->Init(TEXT("Perf Test"), [&Garbage, &TestVal, Task]()
 				{
 					Garbage = Test::Fibonacci(TestVal);
 				});
 			}
 
-			FTask SignalTask;
-			SignalTask.Init(TEXT("Signal Task"), [&Tasks]()
+			TSharedPtr<FTask> SignalTask = MakeShared<FTask>();
+			SignalTask->Init(TEXT("Signal Task"), [&Tasks]()
 			{
 				for (int i = 0; i < NumTasks; i++)
 				{
-					TryLaunch(Tasks[i]);
+					TryLaunch(*Tasks[i]);
 				}
 			});
 
 			double SpawnedTime = FPlatformTime::Seconds();
 
-			TryLaunch(SignalTask);
-			BusyWaitForTasks<FTask>(Tasks);
-			BusyWaitForTask(SignalTask);
+			TryLaunch(*SignalTask);
+			ExpediteOrWaitForTasks(Tasks);
+			ExpediteOrWaitForTask(SignalTask);
 
 			double EndTime = FPlatformTime::Seconds();
 			double Total = EndTime - StartTime;
@@ -317,22 +363,25 @@ namespace Tasks2Tests
 				if (N > STheshold)
 				{
 					int64 Res1, Res2;
-					FTask Task1, Task2;
 
-					Task1.Init(TEXT("Basic Fibonacci Test1"), ETaskPriority::Normal, [&Res1, N]()
+					// autodelete will allow us to expedite the task without regard to lifetime
+					TSharedPtr<FTask> Task1 = MakeShared<FTask>();
+					TSharedPtr<FTask> Task2 = MakeShared<FTask>();
+
+					Task1->Init(TEXT("Basic Fibonacci Test1"), ETaskPriority::Normal, [&Res1, Task1, N]()
 					{
 						Res1 = Test::FibonacciTasksBasic(N - 1);
 					});
-					TryLaunch(Task1);
+					TryLaunch(*Task1);
 
-					Task2.Init(TEXT("Basic Fibonacci Test2"), ETaskPriority::Normal, [&Res2, N]()
+					Task2->Init(TEXT("Basic Fibonacci Test2"), ETaskPriority::Normal, [&Res2, Task2, N]()
 					{
 						Res2 = Test::FibonacciTasksBasic(N - 2);
 					});
-					TryLaunch(Task2);
+					TryLaunch(*Task2);
 
-					BusyWaitForTask(Task2);
-					BusyWaitForTask(Task1);
+					ExpediteOrWaitForTask(Task2);
+					ExpediteOrWaitForTask(Task1);
 					return Res1 + Res2;
 				}
 				return Fibonacci(N);
@@ -367,33 +416,34 @@ namespace Tasks2Tests
 		volatile int64& TestVal = STestVal;
 
 		{
-			TArray<FTask> Tasks;
+			TArray<TSharedPtr<FTask>> Tasks;
 			Tasks.AddDefaulted(NumTasks);
 
 			double StartTime = FPlatformTime::Seconds();
 
-			for (int i = 0; i < NumTasks; i++)
+			for (TSharedPtr<FTask>& Task : Tasks)
 			{
-				Tasks[i].Init(TEXT("Perf Test Stealing"), ETaskPriority::Normal, [&Garbage, &TestVal]()
+				Task = MakeShared<FTask>();
+				Task->Init(TEXT("Perf Test Stealing"), ETaskPriority::Normal, [&Garbage, &TestVal, Task]()
 				{
 					Garbage = Test::FibonacciTasksBasic(TestVal);
 				});
 			}
 
-			FTask SignalTask;
-			SignalTask.Init(TEXT("Signal Task"), [&Tasks]()
+			TSharedPtr<FTask> SignalTask = MakeShared<FTask>();
+			SignalTask->Init(TEXT("Signal Task"), [&Tasks]()
 			{
-				for (int i = 0; i < NumTasks; i++)
+				for (int32 Index = 0; Index < NumTasks; Index++)
 				{
-					TryLaunch(Tasks[i]);
+					TryLaunch(*Tasks[Index]);
 				}
 			});
 
 			double SpawnedTime = FPlatformTime::Seconds();
 
-			TryLaunch(SignalTask);
-			BusyWaitForTasks<FTask>(Tasks);
-			BusyWaitForTask(SignalTask);
+			TryLaunch(*SignalTask);
+			ExpediteOrWaitForTasks(Tasks);
+			ExpediteOrWaitForTask(SignalTask);
 
 			double EndTime = FPlatformTime::Seconds();
 			double Total = EndTime - StartTime;
@@ -467,7 +517,7 @@ namespace Tasks2Tests
 		SGarbage++;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksPerfTests2, "System.Core.LowLevelTasks.PerfTests", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::Disabled);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksPerfTests2, "System.Core.LowLevelTasks.PerfTests", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::Disabled);
 
 	bool FTasksPerfTests2::RunTest(const FString& Parameters)
 	{
@@ -480,7 +530,7 @@ namespace Tasks2Tests
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksLocalGlobalPriorities, "System.Core.LowLevelTasks.LocalGlobalPriorities", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksLocalGlobalPriorities, "System.Core.LowLevelTasks.LocalGlobalPriorities", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FTasksLocalGlobalPriorities::RunTest(const FString& Parameters)
 	{
 		using namespace LowLevelTasks;
@@ -533,7 +583,7 @@ namespace Tasks2Tests
 		return true;
 	};
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksUnitTests2, "System.Core.LowLevelTasks.UnitTests", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksUnitTests2, "System.Core.LowLevelTasks.UnitTests", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FTasksUnitTests2::RunTest(const FString& Parameters)
 	{
 		using namespace LowLevelTasks;
@@ -557,8 +607,8 @@ namespace Tasks2Tests
 				if(WasCanceled)
 				{
 					WasCanceled = !Task.TryRevive();
-				}	
-				BusyWaitForTask(Task);
+				}
+				WaitForTask(Task);
 
 				if (WasCanceled)
 				{
@@ -584,7 +634,7 @@ namespace Tasks2Tests
 				TryLaunch(*TaskHandle);
 
 				bool WasCanceled = TestCancel && TaskHandle->TryCancel();
-				BusyWaitForTask(*TaskHandle);
+				WaitForTask(*TaskHandle);
 
 				if (WasCanceled)
 				{
@@ -610,7 +660,7 @@ namespace Tasks2Tests
 				Task.TryExpedite();
 
 				verify(!Task.TryCancel());
-				BusyWaitForTask(Task);
+				WaitForTask(Task);
 
 				verify(TestValue == 42);
 			}
@@ -660,14 +710,14 @@ namespace Tasks2Tests
 				return &TaskB;
 			});
 			verify(TryLaunch(TaskA));
-			BusyWaitForTask(TaskB);
+			WaitForTask(TaskB);
 
 			verify(TestValue == 42);
 		}
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksCoroutineTests, "System.Core.Coroutine.UnitTests", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTasksCoroutineTests, "System.Core.Coroutine.UnitTests", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter);
 	bool FTasksCoroutineTests::RunTest(const FString& Parameters)
 	{
 #if WITH_CPP_COROUTINES

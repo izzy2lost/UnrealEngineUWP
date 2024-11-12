@@ -12,12 +12,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/EngineTypes.h"
 #include "HitProxies.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "BatchedElements.h"
-#include "RendererInterface.h"
-#include "StaticMeshResources.h"
-#include "UnrealEngine.h"
-#endif
 #include "CanvasTypes.generated.h"
 
 class FBatchedElementParameters;
@@ -119,17 +113,18 @@ struct FWrappedStringElement
 	UPROPERTY()
 	FVector2D LineExtent;
 
-
 	FWrappedStringElement()
 		: LineExtent(ForceInit)
 	{
 	}
 
+	FWrappedStringElement(FString&& InValue, float Width, float Height )
+		: Value(MoveTemp(InValue)), LineExtent(Width,Height)
+	{}
 
-		/** Constructor */
-		FWrappedStringElement( const TCHAR* InValue, float Width, float Height )
-		: Value(InValue), LineExtent(Width,Height)
-		{}
+	FWrappedStringElement(const FString& InValue, float Width, float Height)
+		: Value(CopyTemp(InValue)), LineExtent(Width, Height)
+	{}
 	
 };
 
@@ -142,21 +137,18 @@ public:
 private:
 	struct FWrappingState
 	{
-		FWrappingState(	const TCHAR* const InString,
-						const int32 InStringLength,
+		FWrappingState(	FStringView InString,
 						const FTextSizingParameters& InParameters,
 						TArray<FWrappedStringElement>& InResults,
 						FWrappedLineData* const InWrappedLineData)
 			: String(InString)
-			, StringLength(InStringLength)
 			, Parameters(InParameters)
 			, StartIndex(0)
 			, Results(InResults)
 			, WrappedLineData(InWrappedLineData)
 		{}
 
-		const TCHAR* const String;
-		const int32 StringLength;
+		FStringView String;
 		const FTextSizingParameters& Parameters;
 		int32 StartIndex;
 		TArray<FWrappedStringElement>& Results;
@@ -174,7 +166,7 @@ public:
 	* @param InWrapWidth The width available.
 	* @param OutWrappedLineData An optional array to fill with the indices from the source string marking the begin and end points of the wrapped lines
 	*/
-	ENGINE_API void Execute(const TCHAR* const InString, const FTextSizingParameters& InParameters, TArray<FWrappedStringElement>& OutStrings, FWrappedLineData* const OutWrappedLineData);
+	ENGINE_API void Execute(FStringView InString, const FTextSizingParameters& InParameters, TArray<FWrappedStringElement>& OutStrings, FWrappedLineData* const OutWrappedLineData);
 
 private:
 	/**
@@ -747,11 +739,11 @@ public:
 	* @param ShadowColor - Shadow color to draw underneath the text (ignored for distance field fonts)
 	* @return total size in pixels of text drawn
 	*/
-	ENGINE_API int32 DrawShadowedString(double StartX, double StartY, const TCHAR* Text, const UFont* Font, const FLinearColor& Color, const FLinearColor& ShadowColor = FLinearColor::Black );
+	ENGINE_API int32 DrawShadowedString(double StartX, double StartY, FStringView Text, const UFont* Font, const FLinearColor& Color, const FLinearColor& ShadowColor = FLinearColor::Black );
 	
 	ENGINE_API int32 DrawShadowedText(double StartX, double StartY, const FText& Text, const UFont* Font, const FLinearColor& Color, const FLinearColor& ShadowColor = FLinearColor::Black );
 
-	ENGINE_API void WrapString( FTextSizingParameters& Parameters, const float InCurX, const TCHAR* const pText, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData = nullptr);
+	ENGINE_API void WrapString( FTextSizingParameters& Parameters, const float InCurX, FStringView Text, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData = nullptr);
 
 	ENGINE_API void DrawNGon(const FVector2D& Center, const FColor& Color, int32 NumSides, float Radius);
 
@@ -863,7 +855,7 @@ public:
 * @param YL - out height
 * @param Text - string of text to be measured
 */
-extern ENGINE_API void StringSize( const UFont* Font, int32& XL, int32& YL, const TCHAR* Text);
+extern ENGINE_API void StringSize( const UFont* Font, int32& XL, int32& YL, FStringView Text);
 
 /**
  * Helper class to write a line of texts on screen

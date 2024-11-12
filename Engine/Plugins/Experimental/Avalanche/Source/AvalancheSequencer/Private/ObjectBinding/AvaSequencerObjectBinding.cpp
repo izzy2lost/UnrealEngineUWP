@@ -75,9 +75,11 @@ void FAvaSequencerObjectBinding::AddPossessActorMenuExtensions(FMenuBuilder& Out
 		{
 			FMovieScenePossessable& Possessable = MovieScene->GetPossessable(Index);
 
+			TArray<UObject*, TInlineAllocator<1>> BoundObjects;
+			static_cast<UMovieSceneSequence*>(Sequence)->LocateBoundObjects(Possessable.GetGuid(), UE::UniversalObjectLocator::FResolveParams(Sequencer->GetPlaybackContext()), Sequencer->GetSharedPlaybackState(), BoundObjects);
+
 			// A possession guid can apply to more than one object, so we get all bound objects for the GUID and add them to our set.
-			ExistingPossessedObjects.Append(static_cast<UMovieSceneSequence*>(Sequence)->LocateBoundObjects(Possessable.GetGuid()
-				, Sequencer->GetPlaybackContext()));
+			ExistingPossessedObjects.Append(BoundObjects);
 		}
 	}
 	

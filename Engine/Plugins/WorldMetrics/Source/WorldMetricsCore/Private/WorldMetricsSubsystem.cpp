@@ -37,18 +37,31 @@ bool UWorldMetricsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 
 void UWorldMetricsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	UE_LOG(LogWorldMetrics, Log, TEXT("[%hs]"), __FUNCTION__);
+	UE_LOG(LogWorldMetrics, Verbose, TEXT("[%hs]"), __FUNCTION__);
 
 	Super::Initialize(Collection);
 }
 
 void UWorldMetricsSubsystem::Deinitialize()
 {
-	UE_LOG(LogWorldMetrics, Log, TEXT("[%hs]"), __FUNCTION__);
+	UE_LOG(LogWorldMetrics, Verbose, TEXT("[%hs]"), __FUNCTION__);
 
 	Clear();
 
 	Super::Deinitialize();
+}
+
+void UWorldMetricsSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	Super::AddReferencedObjects(InThis, Collector);
+
+	UWorldMetricsSubsystem* This = CastChecked<UWorldMetricsSubsystem>(InThis);
+
+	for (TPair<TSubclassOf<UWorldMetricsExtension>, FExtension>& ExtensionPair : This->Extensions)
+	{
+		Collector.AddReferencedObject(ExtensionPair.Key.GetGCPtr());
+		Collector.AddReferencedObject(ExtensionPair.Value.Instance);
+	}
 }
 
 void UWorldMetricsSubsystem::BeginDestroy()
@@ -92,9 +105,8 @@ void UWorldMetricsSubsystem::Clear()
 	RemoveAllMetrics();
 
 	Extensions.Reset();
-	IndexedOwners.Reset();
 
-	UE_LOG(LogWorldMetrics, Log, TEXT("[%hs]"), __FUNCTION__);
+	UE_LOG(LogWorldMetrics, Verbose, TEXT("[%hs]"), __FUNCTION__);
 }
 
 void UWorldMetricsSubsystem::Enable(bool bEnable)
@@ -269,7 +281,7 @@ bool UWorldMetricsSubsystem::AddMetric(UWorldMetricInterface* InMetric)
 	}
 
 	UE_LOG(
-		LogWorldMetrics, Log, TEXT("[%hs] Added metric of class %s."), __FUNCTION__,
+		LogWorldMetrics, Verbose, TEXT("[%hs] Added metric of class %s."), __FUNCTION__,
 		*InMetric->GetClass()->GetFName().ToString());
 
 	return true;
@@ -302,7 +314,7 @@ bool UWorldMetricsSubsystem::RemoveMetric(UWorldMetricInterface* InMetric)
 	}
 
 	UE_LOG(
-		LogWorldMetrics, Log, TEXT("[%hs] Removed metric of class %s"), __FUNCTION__,
+		LogWorldMetrics, Verbose, TEXT("[%hs] Removed metric of class %s"), __FUNCTION__,
 		*InMetric->GetClass()->GetFName().ToString());
 
 	return true;
@@ -381,13 +393,6 @@ bool UWorldMetricsSubsystem::ReleaseExtension(
 	return ReleaseExtensionInternal(InExtensionOwner, InExtensionClass);
 }
 
-int32 UWorldMetricsSubsystem::GetExtensionIndex(const TSubclassOf<UWorldMetricsExtension>& InExtensionClass) const
-{
-	return Algo::IndexOfByPredicate(
-		Extensions,
-		[InExtensionClass](UWorldMetricsExtension* Extension) { return Extension->GetClass() == InExtensionClass; });
-}
-
 UWorldMetricsExtension* UWorldMetricsSubsystem::AcquireExtensionInternal(
 	UObject* InOwner,
 	const TSubclassOf<UWorldMetricsExtension>& InExtensionClass)
@@ -429,30 +434,24 @@ UWorldMetricsExtension* UWorldMetricsSubsystem::AcquireExistingExtension(
 	UObject* InOwner,
 	const TSubclassOf<UWorldMetricsExtension>& InExtensionClass)
 {
-	const int32 ExtensionIndex = GetExtensionIndex(InExtensionClass);
-	if (ExtensionIndex == INDEX_NONE)
+	FExtension* Extension = Extensions.Find(InExtensionClass);
+	if (!Extension)
 	{
 		return nullptr;
 	}
 
-	if (!ensure(IndexedOwners.IsValidIndex(ExtensionIndex)))
-	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected invalid extension's owner list"), __FUNCTION__);
-		return nullptr;
-	}
-	IndexedOwners[ExtensionIndex].Emplace(InOwner);
+	Extension->Owners.Emplace(InOwner);
 
-	return Extensions[ExtensionIndex];
+	return Extension->Instance;
 }
 
 UWorldMetricsExtension* UWorldMetricsSubsystem::AddExtension(
 	UObject* InOwner,
 	const TSubclassOf<UWorldMetricsExtension>& InExtensionClass)
 {
-	check(Extensions.Num() == IndexedOwners.Num());
-	UWorldMetricsExtension* Extension =
+	UWorldMetricsExtension* ExtensionInstance =
 		NewObject<UWorldMetricsExtension>(this, InExtensionClass, NAME_None, RF_Transient);	
-	if (UNLIKELY(!Extension))
+	if (UNLIKELY(!ExtensionInstance))
 	{
 		UE_LOG(
 			LogWorldMetrics, Error, TEXT("[%hs] Failed to create extension of class: %s"), __FUNCTION__,
@@ -460,15 +459,16 @@ UWorldMetricsExtension* UWorldMetricsSubsystem::AddExtension(
 		return nullptr;
 	}
 
-	Extensions.Emplace(Extension);
-	IndexedOwners.Emplace_GetRef().Emplace(InOwner);
-	Extension->Initialize();
+	FExtension& Extension = Extensions.Add(InExtensionClass);
+	Extension.Instance = ExtensionInstance;
+	Extension.Owners.Emplace(InOwner);
+	ExtensionInstance->Initialize();
 
 	UE_LOG(
-		LogWorldMetrics, Log, TEXT("[%hs] Added extension of class: %s"), __FUNCTION__,
+		LogWorldMetrics, Verbose, TEXT("[%hs] Added extension of class: %s"), __FUNCTION__,
 		*InExtensionClass->GetFName().ToString());
 
-	return Extension;
+	return ExtensionInstance;
 }
 
 bool UWorldMetricsSubsystem::ReleaseExtensionInternal(
@@ -486,38 +486,38 @@ bool UWorldMetricsSubsystem::ReleaseExtensionInternal(
 		return false;
 	}
 
-	const int32 ExtensionIndex = GetExtensionIndex(InExtensionClass);
-	if (ExtensionIndex == INDEX_NONE)
+	FExtension* Extension = Extensions.Find(InExtensionClass);
+	if (!Extension)
 	{
 		return false;
 	}
 
-	if (UNLIKELY(!IndexedOwners[ExtensionIndex].Remove(InOwner)))
+	Extension->Instance->OnRelease(InOwner);
+	if (UNLIKELY(!Extension->Owners.Remove(InOwner)))
 	{
 		UE_LOG(
 			LogWorldMetrics, Error, TEXT("[%hs] Parameter object doesn't own this extension: %s"), __FUNCTION__,
 			*InExtensionClass->GetFName().ToString());
 	}
-	Extensions[ExtensionIndex]->OnRelease(InOwner);
 
-	TryRemoveExtensionAt(ExtensionIndex);
+	TryRemoveExtension(InExtensionClass);
 
 	return true;
 }
 
-bool UWorldMetricsSubsystem::TryRemoveExtensionAt(int32 ExtensionIndex)
+bool UWorldMetricsSubsystem::TryRemoveExtension(const TSubclassOf<UWorldMetricsExtension>& InExtensionClass)
 {
-	if (IndexedOwners[ExtensionIndex].IsEmpty())
+	FExtension* Extension = Extensions.Find(InExtensionClass);
+	if (Extension && Extension->Owners.IsEmpty())
 	{
-		UWorldMetricsExtension* Extension = Extensions[ExtensionIndex];
-		Extension->Deinitialize();
-		Extension->MarkAsGarbage();
+		UWorldMetricsExtension* ExtensionInstance = Extension->Instance;
+		ExtensionInstance->Deinitialize();
+		ExtensionInstance->MarkAsGarbage();
 
-		Extensions.RemoveAtSwap(ExtensionIndex);
-		IndexedOwners.RemoveAtSwap(ExtensionIndex);
+		Extensions.Remove(InExtensionClass);
 		UE_LOG(
-			LogWorldMetrics, Log, TEXT("[%hs] Removed extension of class %s"), __FUNCTION__,
-			*Extension->GetClass()->GetFName().ToString());
+			LogWorldMetrics, Verbose, TEXT("[%hs] Removed extension of class %s"), __FUNCTION__,
+			*ExtensionInstance->GetClass()->GetFName().ToString());
 
 		return true;
 	}
@@ -526,50 +526,51 @@ bool UWorldMetricsSubsystem::TryRemoveExtensionAt(int32 ExtensionIndex)
 
 void UWorldMetricsSubsystem::VerifyMetricReleasedAllExtensions(UWorldMetricInterface* InMetric)
 {
-	check(Extensions.Num() == IndexedOwners.Num());
-
-	TArray<int32, TInlineAllocator<DefaultExtensionCapacity>> StaleExtensionIndices;
-	for (int32 ExtensionIndex = 0; ExtensionIndex < Extensions.Num(); ++ExtensionIndex)
+	TArray<TSubclassOf<UWorldMetricsExtension>, TInlineAllocator<DefaultExtensionCapacity>> StaleExtensionClasses;
+	for (TPair<TSubclassOf<UWorldMetricsExtension>, FExtension>& ExtensionPair : Extensions)
 	{
-		if (UNLIKELY(IndexedOwners[ExtensionIndex].Remove(InMetric)))
+		if (UNLIKELY(ExtensionPair.Value.Owners.Remove(InMetric)))
 		{
-			StaleExtensionIndices.Emplace(ExtensionIndex);
-			UWorldMetricsExtension* Extension = Extensions[ExtensionIndex];
+			StaleExtensionClasses.Emplace(ExtensionPair.Key);
+			UWorldMetricsExtension* Extension = ExtensionPair.Value.Instance;
 			UE_LOG(
 				LogWorldMetrics, Warning, TEXT("[%hs] World metric %s did not release extension %s in Deinitialize"),
 				__FUNCTION__, *InMetric->GetFName().ToString(), *Extension->GetName());
 		}
 	}
 
-	// Reverse iterate stale extension indices in case the extension can be removed
-	for (int32 i = StaleExtensionIndices.Num(); i-- > 0;)
+	for (const TSubclassOf<UWorldMetricsExtension>& ExtensionClass : StaleExtensionClasses)
 	{
-		TryRemoveExtensionAt(StaleExtensionIndices[i]);
+		TryRemoveExtension(ExtensionClass);
 	}
 }
 
 void UWorldMetricsSubsystem::VerifyRemoveOrphanExtensions()
 {
-	check(Extensions.Num() == IndexedOwners.Num());
-
 	if (Metrics.IsEmpty())
 	{
 		if (UNLIKELY(!Extensions.IsEmpty()))
 		{
-			for (UWorldMetricsExtension* Extension : Extensions)
+			TArray<TSubclassOf<UWorldMetricsExtension>, TInlineAllocator<DefaultExtensionCapacity>> ExtensionsToRemove;
+			Extensions.GenerateKeyArray(ExtensionsToRemove);
+			for (const TSubclassOf<UWorldMetricsExtension>& ExtensionClass : ExtensionsToRemove)
 			{
-				check(Extension);
+				if (const FExtension* Extension = Extensions.Find(ExtensionClass))
+				{
+					UWorldMetricsExtension* ExtensionInstance = Extension->Instance;
+					check(ExtensionInstance);
 
-				UE_LOG(
-					LogWorldMetrics, Warning,
-					TEXT("[%hs] World extension %s was acquired by another extension but never released."),
-					__FUNCTION__, *Extension->GetName());
+					UE_LOG(
+						LogWorldMetrics, Warning,
+						TEXT("[%hs] World extension %s was acquired by another extension but never released."),
+						__FUNCTION__, *ExtensionInstance->GetName());
 
-				Extension->Deinitialize();
-				Extension->MarkAsGarbage();
+					ExtensionInstance->Deinitialize();
+					ExtensionInstance->MarkAsGarbage();
+					Extensions.Remove(ExtensionClass);
+				}
 			}
 			Extensions.Reset();
-			IndexedOwners.Reset();
 		}
 	}
 }

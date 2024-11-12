@@ -9,6 +9,8 @@ namespace UnrealBuildTool.Rules
 		{
 			UnsafeTypeCastWarningLevel = WarningLevel.Error;
 
+			StaticAnalyzerDisabledCheckers.Add("core.StackAddressEscape");
+
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{

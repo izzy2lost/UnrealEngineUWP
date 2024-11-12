@@ -184,7 +184,7 @@ const UClass* GetSavedGeneratedStruct(const UClass* Class)
 	return Blueprint->GeneratedClass;
 }
 
-} //namespace
+} //namespace UE::MVVM::Private
 
 
 
@@ -471,62 +471,35 @@ TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompile
 
 TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompiledBindingLibraryCompiler::AddConversionFunctionFieldPath(const UClass* InSourceClass, const UFunction* InFunction)
 {
-	Impl->bCompiled = false;
-
-	const UClass* SourceClass = FBlueprintEditorUtils::GetMostUpToDateClass(InSourceClass);
-	const UFunction* Function = FBlueprintEditorUtils::GetMostUpToDateFunction(InFunction);
-
-	// Transient Conversion function are only added to generated class and not to the skeletal class.
-	bool bTransientConversionFunction = false;
-	if (Function == nullptr && InFunction && InFunction->GetTypedOuter<UClass>() == InSourceClass)
+	auto ValidateConversionFunction = [](const UFunction* Function)
 	{
-		Function = InFunction;
-		bTransientConversionFunction = true;
-	}
-
-	if (SourceClass == nullptr)
-	{
-		return MakeError(LOCTEXT("SourceClassInvalid", "The source class is invalid."));
-	}
-	if (Function == nullptr)
-	{
-		return MakeError(LOCTEXT("FunctionPathEmpty", "The function path is empty."));
-	}
-
-	const bool bIsSimpleFunction = BindingHelper::IsValidForSimpleRuntimeConversion(Function);
-	const bool bIsComplexFunction = BindingHelper::IsValidForComplexRuntimeConversion(Function);
-	if (!bIsSimpleFunction && !bIsComplexFunction)
-	{
-		return MakeError(FText::Format(LOCTEXT("FunctionCannotBeUsedAsConversionFunction", "Function {0} cannot be used as a runtime conversion function."), Function->GetDisplayNameText()));
-	}
-
-	if (!Function->HasAllFunctionFlags(FUNC_Static))
-	{
-		if (!SourceClass->IsChildOf(Function->GetOuterUClass()) && !bTransientConversionFunction)
+		const bool bIsSimpleFunction = BindingHelper::IsValidForSimpleRuntimeConversion(Function);
+		const bool bIsComplexFunction = BindingHelper::IsValidForComplexRuntimeConversion(Function);
+		if (!bIsSimpleFunction && !bIsComplexFunction)
 		{
-			return MakeError(FText::Format(LOCTEXT("FunctionHasInvalidSelf", "Function {0} is going to be executed with an invalid self."), Function->GetDisplayNameText()));
+			return FText::Format(LOCTEXT("FunctionCannotBeUsedAsConversionFunction", "Function {0} cannot be used as a runtime conversion function."), Function->GetDisplayNameText());
 		}
-	}
 
-	TArray<int32> RawFieldIndexes;
-	RawFieldIndexes.Add(Impl->AddUniqueField(FMVVMConstFieldVariant(Function)));
-	const int32 FoundFieldPath = Impl->FieldPaths.IndexOfByPredicate([&RawFieldIndexes](const Private::FRawFieldPath& Other)
-		{
-			return Other.RawFieldIndexes == RawFieldIndexes;
-		});
-	if (FoundFieldPath != INDEX_NONE)
+		return FText::GetEmpty();
+	};
+
+	return AddFunctionFieldPathImpl(InSourceClass, InFunction, ValidateConversionFunction);
+}
+
+TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompiledBindingLibraryCompiler::AddDelegateSignatureFieldPath(const UClass* InSourceClass, const UFunction* InFunction)
+{
+	auto ValidateDelegate = [](const UFunction* Function)
 	{
-		return MakeValue(Impl->FieldPaths[FoundFieldPath].PathHandle);
-	}
+		const bool bIsEvent = BindingHelper::IsValidForDelegateSignatureBinding(Function);
+		if (!bIsEvent)
+		{
+			return FText::Format(LOCTEXT("EventCannotBeUsedAsDelegateSignature", "Event {0} cannot be used as a runtime delegate signature function."), Function->GetDisplayNameText());
+		}
 
-	Private::FRawFieldPath RawFieldPath;
-	RawFieldPath.RawFieldIndexes = MoveTemp(RawFieldIndexes);
-	RawFieldPath.PathHandle = FFieldPathHandle::MakeHandle();
-	RawFieldPath.bIsReadable = false;
-	RawFieldPath.bIsWritable = false;
+		return FText::GetEmpty();
+	};
 
-	const int32 NewFieldPathIndex = Impl->FieldPaths.Add(MoveTemp(RawFieldPath));
-	return MakeValue(Impl->FieldPaths[NewFieldPathIndex].PathHandle);
+	return AddFunctionFieldPathImpl(InSourceClass, InFunction, ValidateDelegate);
 }
 
 
@@ -675,6 +648,65 @@ TValueOrError<FCompiledBindingLibraryCompiler::FBindingHandle, FText> FCompiledB
 		Impl->Bindings.Add(MoveTemp(NewBinding));
 		return MakeValue(ResultBindingHandle);
 	}
+}
+
+TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FCompiledBindingLibraryCompiler::AddFunctionFieldPathImpl(const UClass* InSourceClass, const UFunction* InFunction, TFunctionRef<FText(const UFunction*)> ValidateFunctionCallback)
+{
+	Impl->bCompiled = false;
+
+	const UClass* SourceClass = FBlueprintEditorUtils::GetMostUpToDateClass(InSourceClass);
+	const UFunction* Function = FBlueprintEditorUtils::GetMostUpToDateFunction(InFunction);
+
+	// Transient Conversion function are only added to generated class and not to the skeletal class.
+	bool bTransientConversionFunction = false;
+	if (Function == nullptr && InFunction && InFunction->GetTypedOuter<UClass>() == InSourceClass)
+	{
+		Function = InFunction;
+		bTransientConversionFunction = true;
+	}
+
+	if (SourceClass == nullptr)
+	{
+		return MakeError(LOCTEXT("SourceClassInvalid", "The source class is invalid."));
+	}
+	if (Function == nullptr)
+	{
+		return MakeError(LOCTEXT("FunctionPathEmpty", "The function path is empty."));
+	}
+
+	FText FunctionValidationError = ValidateFunctionCallback(Function);
+	if (!FunctionValidationError.IsEmpty())
+	{
+		return MakeError(FunctionValidationError);
+	}
+
+	if (!Function->HasAllFunctionFlags(FUNC_Static))
+	{
+		if (!SourceClass->IsChildOf(Function->GetOuterUClass()) && !bTransientConversionFunction)
+		{
+			return MakeError(FText::Format(LOCTEXT("FunctionHasInvalidSelf", "Function {0} is going to be executed with an invalid self."), Function->GetDisplayNameText()));
+		}
+	}
+
+	TArray<int32> RawFieldIndexes;
+	RawFieldIndexes.Add(Impl->AddUniqueField(FMVVMConstFieldVariant(Function)));
+	const int32 FoundFieldPath = Impl->FieldPaths.IndexOfByPredicate([&RawFieldIndexes](const Private::FRawFieldPath& Other)
+		{
+			return Other.RawFieldIndexes == RawFieldIndexes;
+		});
+	if (FoundFieldPath != INDEX_NONE)
+	{
+		return MakeValue(Impl->FieldPaths[FoundFieldPath].PathHandle);
+	}
+
+	Private::FRawFieldPath RawFieldPath;
+	RawFieldPath.RawFieldIndexes = MoveTemp(RawFieldIndexes);
+	RawFieldPath.PathHandle = FFieldPathHandle::MakeHandle();
+	RawFieldPath.bIsReadable = false;
+	RawFieldPath.bIsWritable = false;
+
+	const int32 NewFieldPathIndex = Impl->FieldPaths.Add(MoveTemp(RawFieldPath));
+	return MakeValue(Impl->FieldPaths[NewFieldPathIndex].PathHandle);
 }
 
 

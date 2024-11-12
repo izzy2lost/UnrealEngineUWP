@@ -10,11 +10,6 @@ UDMMaterialPropertyAmbientOcclusion::UDMMaterialPropertyAmbientOcclusion()
 {
 }
 
-bool UDMMaterialPropertyAmbientOcclusion::IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const
-{
-	return (InModelEditorOnlyData.GetShadingModel() != EDMMaterialShadingModel::Unlit);
-}
-
 UMaterialExpression* UDMMaterialPropertyAmbientOcclusion::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {

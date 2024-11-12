@@ -307,11 +307,14 @@ void UGeometryCacheTrackUsd::UpdateTime(float Time, bool bLooping)
 
 void UGeometryCacheTrackUsd::RegisterStream()
 {
-	const bool bNeedPrefetch = !IGeometryCacheStreamer::Get().IsTrackRegistered(this);
-	IGeometryCacheStreamer::Get().RegisterTrack(this, UsdStream.Get());
-	if (bNeedPrefetch)
+	if (UsdStream)
 	{
-		UsdStream->Prefetch(StartFrameIndex);
+		const bool bNeedPrefetch = !IGeometryCacheStreamer::Get().IsTrackRegistered(this);
+		IGeometryCacheStreamer::Get().RegisterTrack(this, UsdStream.Get());
+		if (bNeedPrefetch)
+		{
+			UsdStream->Prefetch(StartFrameIndex);
+		}
 	}
 }
 

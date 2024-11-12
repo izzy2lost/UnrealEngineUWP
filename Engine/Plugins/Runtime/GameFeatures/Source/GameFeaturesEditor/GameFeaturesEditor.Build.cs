@@ -11,7 +11,9 @@ namespace UnrealBuildTool.Rules
                 {
                     "Core",
                     "CoreUObject",
-                }
+					"GameFeatures",
+					"UnrealEd",
+				}
 			);
 
 			PrivateDependencyModuleNames.AddRange(
@@ -24,9 +26,7 @@ namespace UnrealBuildTool.Rules
 					"DeveloperSettings",
 					"Engine",
 					"ModularGameplay",
-					"GameFeatures",
 					"EditorSubsystem",
-					"UnrealEd",
 					"Projects",
 					"EditorFramework",
 					"Slate",

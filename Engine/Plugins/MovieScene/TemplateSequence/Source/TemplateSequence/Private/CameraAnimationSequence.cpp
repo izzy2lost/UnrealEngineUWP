@@ -7,6 +7,7 @@
 UCameraAnimationSequence::UCameraAnimationSequence(const FObjectInitializer& ObjectInitializer)
     : UTemplateSequence(ObjectInitializer)
 {
+	// TODO: warn about saving property values in the spawnable template
 }
 
 #if WITH_EDITOR

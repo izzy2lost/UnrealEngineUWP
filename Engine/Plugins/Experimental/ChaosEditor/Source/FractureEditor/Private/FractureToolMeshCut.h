@@ -109,6 +109,16 @@ public:
 	virtual void FractureContextChanged() override;
 	virtual int32 ExecuteFracture(const FFractureToolContext& FractureContext) override;
 
+	virtual void ConfigureCutterSettings() override
+	{
+		CutterSettings->bGroupFractureToggleEnabled = true;
+		CutterSettings->bDrawSitesToggleEnabled = false;
+		CutterSettings->bNoisePreviewToggleEnabled = false;
+		CutterSettings->bNoisePreviewHasScale = true;
+		CutterSettings->bGroutSettingEnabled = false;
+		CutterSettings->bNoiseSettingsEnabled = false;
+	}
+
 protected:
 	virtual void ClearVisualizations() override
 	{

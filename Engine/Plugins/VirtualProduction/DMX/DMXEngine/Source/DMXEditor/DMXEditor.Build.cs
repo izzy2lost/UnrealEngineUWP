@@ -29,6 +29,8 @@ public class DMXEditor : ModuleRules
 				"ContentBrowser",
 				"CoreUObject",
 				"DesktopPlatform",
+				"DMXGDTF",
+				"DMXZip",
 				"EditorFramework",
 				"EditorStyle",
 				"EditorWidgets",

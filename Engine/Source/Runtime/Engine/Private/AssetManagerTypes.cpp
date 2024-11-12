@@ -4,6 +4,7 @@
 #include "Engine/AssetManager.h"
 #include "Engine/AssetManagerSettings.h"
 #include "Engine/DeveloperSettings.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "UObject/UnrealType.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AssetManagerTypes)
@@ -195,6 +196,18 @@ void UAssetManagerSettings::PostReloadConfig(FProperty* PropertyThatWasLoaded)
 	Super::PostReloadConfig(PropertyThatWasLoaded);
 
 	UAssetManager::Get().LoadRedirectorMaps();
+}
+
+void SerializeForLog(FCbWriter& Writer, const FPrimaryAssetRules& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("PrimaryAssetRules"));
+	// no text field
+	Writer.AddInteger(ANSITEXTVIEW("Priority"), Value.Priority);
+	Writer.AddInteger(ANSITEXTVIEW("ChunkId"), Value.ChunkId);
+	Writer.AddBool(ANSITEXTVIEW("Recursive"), Value.bApplyRecursively);
+	Writer.AddString(ANSITEXTVIEW("CookRule"), UEnum::GetValueAsString(Value.CookRule));
+	Writer.EndObject();
 }
 
 #if WITH_EDITOR

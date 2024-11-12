@@ -24,6 +24,7 @@ void SConsoleVariablesEditorCustomConsoleInputBox::Construct(
 	const FArguments& InArgs)
 {
 	bHideOnFocusLost = InArgs._HideOnFocusLost;
+	bCommitOnFocusLost = InArgs._CommitOnFocusLost;
 	bClearOnCommit = InArgs._ClearOnCommit;
 	IsEnabledAttribute = InArgs._IsEnabled;
 	Font = InArgs._Font;
@@ -69,6 +70,11 @@ void SConsoleVariablesEditorCustomConsoleInputBox::Construct(
 						FSlateApplication::Get().GetUserFocusedWidget(0) != InputText)
 					{
 						SuggestionBox->SetIsOpen(false);
+
+						if (bCommitOnFocusLost)
+						{
+							CommitInput();
+						}
 
 						if (bHideOnFocusLost)
 						{
@@ -157,7 +163,6 @@ void SConsoleVariablesEditorCustomConsoleInputBox::Construct(
 							}
 						}
 					})
-					.ItemHeight(18)
 				]
 			]
 		)
@@ -257,18 +262,10 @@ void SConsoleVariablesEditorCustomConsoleInputBox::OnInputTextChanged(const FTex
 		
 		auto OnConsoleVariable = [&AutoCompleteList](const TCHAR *Name, IConsoleObject* CVar)
 		{
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Cheat))
-			{
-				return;
+			if (CVar->IsEnabled())
+			{	
+				AutoCompleteList.Add(Name);
 			}
-#endif // (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (CVar->TestFlags(ECVF_Unregistered))
-			{
-				return;
-			}
-
-			AutoCompleteList.Add(Name);
 		};
 
 		IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), *InputTextStr);

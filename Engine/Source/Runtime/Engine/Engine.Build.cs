@@ -13,6 +13,8 @@ public class Engine : ModuleRules
 
 		SharedPCHHeaderFile = "Public/EngineSharedPCH.h";
 
+		StaticAnalyzerDisabledCheckers.Add("core.uninitialized.ArraySubscript");
+
 		PublicIncludePathModuleNames.AddRange(
 			new string[] {
 				"AnimationCore",
@@ -55,12 +57,14 @@ public class Engine : ModuleRules
 			PrivateIncludePathModuleNames.AddRange(
 				new string[] {
 					"SlateReflector",
+					"TranslationEditor",
 				}
 			);
 
 			DynamicallyLoadedModuleNames.AddRange(
 				new string[] {
 					"SlateReflector",
+					"TranslationEditor",
 				}
 			);
 
@@ -109,13 +113,17 @@ public class Engine : ModuleRules
 				"DeveloperSettings",
 				"AudioLinkCore",
 				"CookOnTheFly",
-				"IoStoreOnDemand"
 			}
 		);
 
 		if (Target.bCompileAgainstApplicationCore)
 		{
 			PublicDependencyModuleNames.Add("ApplicationCore");
+		}
+
+		if (Target.bCompileIoStoreOnDemand && !Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("IoStoreOnDemand");
 		}
 
 		PublicIncludePathModuleNames.AddRange(
@@ -155,7 +163,6 @@ public class Engine : ModuleRules
 				"AudioMixerCore",
 				"IntelISPC",
 				"TraceLog",
-				"ColorManagement",
 				"Icmp",
 				"UniversalObjectLocator",
 				"XmlParser",
@@ -369,6 +376,8 @@ public class Engine : ModuleRules
 
 		}
 
+		DynamicallyLoadedModuleNames.Add("MassEntity");
+
 		if (Target.bBuildEditor == true)
 		{
 			PublicIncludePathModuleNames.AddRange(
@@ -415,7 +424,8 @@ public class Engine : ModuleRules
 					"AssetTools",
 					"HierarchicalLODUtilities",
 					"LevelInstanceEditor",
-					"NaniteBuilder"
+					"NaniteBuilder",
+					"MassEntityEditor"
 				}
 			);
 		}
@@ -451,12 +461,14 @@ public class Engine : ModuleRules
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
 			PrivateIncludePathModuleNames.Add("AndroidRuntimeSettings");
+			PrivateDefinitions.Add("ENABLE_PLATFORM_COMPRESSION_OVERRIDES=1");
 		}
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
 			PublicIncludePathModuleNames.Add("IOSPlatformFeatures");
 			PrivateIncludePathModuleNames.Add("IOSRuntimeSettings");
+			PrivateDefinitions.Add("ENABLE_PLATFORM_COMPRESSION_OVERRIDES=1");
 		}
 
 		PublicDefinitions.Add("GPUPARTICLE_LOCAL_VF_ONLY=0");
@@ -476,11 +488,9 @@ public class Engine : ModuleRules
 			PublicDefinitions.Add("WITH_ODSC=0");
 		}
 
-		const bool bIrisAddAsPublicDepedency = true;
-		SetupIrisSupport(Target, bIrisAddAsPublicDepedency);
+		const bool bIrisAddAsPublicDependency = true;
+		SetupIrisSupport(Target, bIrisAddAsPublicDependency);
 
 		PrivateDefinitions.Add("UE_DEPRECATE_LEGACY_MATH_CONSTANT_MACRO_NAMES=1");
-
-		bAllowAutoRTFMInstrumentation = true;
 	}
 }

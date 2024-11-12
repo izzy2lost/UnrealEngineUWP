@@ -11,6 +11,7 @@
 #include "LevelSequence.h"
 #include "LevelSequenceActor.h"
 #include "LevelSequencePlayer.h"
+#include "MovieSceneCommonHelpers.h"
 #include "CoreGlobals.h"
 #include "EngineUtils.h"
 #include "Engine/GameViewportClient.h"
@@ -331,6 +332,14 @@ void UMovieGraphSequenceDataSource::PauseDataSource()
 	}
 }
 
+void UMovieGraphSequenceDataSource::StopDataSource()
+{
+	if (LevelSequenceActor && LevelSequenceActor->GetSequencePlayer())
+	{
+		LevelSequenceActor->GetSequencePlayer()->Stop();
+	}
+}
+
 void UMovieGraphSequenceDataSource::JumpDataSource(const FFrameTime& InTimeToJumpTo) 
 {
 	if(LevelSequenceActor && LevelSequenceActor->GetSequencePlayer())
@@ -347,6 +356,60 @@ void UMovieGraphSequenceDataSource::JumpDataSource(const FFrameTime& InTimeToJum
 
 		LevelSequenceActor->GetSequencePlayer()->SetPlaybackPosition(FMovieSceneSequencePlaybackParams(RequestTime, EUpdatePositionMethod::Jump));
 	}
+}
+
+void UMovieGraphSequenceDataSource::InitializeShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const FFrameTime& InEvalTime)
+{
+	Super::InitializeShot(InShot, InEvalTime);
+	
+	SyncDataSourceTime(InEvalTime);
+	JumpDataSource(InEvalTime);
+}
+
+TArray<UE::MovieGraph::FMinimalCameraInfo> UMovieGraphSequenceDataSource::GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const
+{
+	TArray<UE::MovieGraph::FMinimalCameraInfo> OutInfo;
+
+	if (!bIncludeSidecar)
+	{
+		if (const APlayerController* LocalPlayerController = GetOwningGraph()->GetWorld()->GetFirstPlayerController())
+		{
+			FMinimalViewInfo ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
+
+			UE::MovieGraph::FMinimalCameraInfo MinimalInfo;
+			MinimalInfo.ViewActor = LocalPlayerController->GetViewTarget();
+			MinimalInfo.ViewInfo = ViewInfo;
+
+			OutInfo.Add(MinimalInfo);
+		}
+	}
+	else
+	{
+		for (int32 Index = 0; Index < InShot->SidecarCameras.Num(); Index++)
+		{
+			const FGuid CameraBindingRef = InShot->SidecarCameras[Index].BindingId;
+			const FMovieSceneSequenceID CameraSequenceRef = InShot->SidecarCameras[Index].SequenceId;
+
+			TArrayView<TWeakObjectPtr<UObject>> BoundCameras = LevelSequenceActor->GetSequencePlayer()->FindBoundObjects(CameraBindingRef, CameraSequenceRef);
+			if (BoundCameras.Num() > 0)
+			{
+				UCameraComponent* BoundCamera = MovieSceneHelpers::CameraComponentFromRuntimeObject(BoundCameras[0].Get());
+				if (BoundCamera)
+				{
+
+					FMinimalViewInfo ViewInfo;
+					BoundCamera->GetCameraView(GetWorld()->GetDeltaSeconds(), ViewInfo);
+
+					UE::MovieGraph::FMinimalCameraInfo MinimalInfo;
+					MinimalInfo.ViewActor = BoundCamera->GetTypedOuter<AActor>();
+					MinimalInfo.ViewInfo = ViewInfo;
+					OutInfo.Add(MinimalInfo);
+				}
+			}
+		}
+	}
+
+	return OutInfo;
 }
 
 namespace UE::MovieGraph

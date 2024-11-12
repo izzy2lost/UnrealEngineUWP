@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
 		{
 			PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"MassEntity",
@@ -22,7 +24,6 @@ namespace UnrealBuildTool.Rules
 					"MassSimulation",
 					"MassSpawner",
 					"SmartObjectsModule",
-					"StructUtils",
 					"ZoneGraph",
 					"ZoneGraphAnnotations",
 					"MassGameplayExternalTraits"

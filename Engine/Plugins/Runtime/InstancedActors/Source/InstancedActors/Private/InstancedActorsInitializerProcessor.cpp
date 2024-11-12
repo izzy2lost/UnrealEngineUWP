@@ -29,6 +29,11 @@ void UInstancedActorsInitializerProcessor::ConfigureQueries()
 	EntityQuery.AddRequirement<FMassGuidFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 }
 
+/**
+* Initializes transform and GUID fragments. For the transform, we're going to apply the InstanceActor's parent transform (i.e.,
+* the ActorInstanceManager transform). As for the GUID, we'll assign it to an incremental index, that grows each time a fragment
+* is initialized.
+*/
 template<bool bApplyManagerTranslationOnly, bool bFilterInstanceTransforms>
 void InitInstanceFragments(UInstancedActorsData* InstanceData, int32& NextInstanceIndex, const FVector& ManagerLocation
 	, const FTransform& ManagerTransform, FMassExecutionContext& Context, TArray<FMassEntityHandle>& InOutEntitiesToSignal)
@@ -158,6 +163,7 @@ void UInstancedActorsInitializerProcessor::Execute(FMassEntityManager& EntityMan
 	}
 
 #if DO_CHECK
-	checkf(NumInitializedEntities == InstanceData->NumValidInstances, TEXT("UInstancedActorsInitializerProcessor expects to initialize all spawned entities at once and to have the same number of valid transforms to assign"));
+	checkf(NumInitializedEntities == InstanceData->NumValidInstances
+		, TEXT("UInstancedActorsInitializerProcessor expects to initialize all spawned entities at once and to have the same number of valid transforms to assign"));
 #endif // DO_CHECK
 }

@@ -47,15 +47,15 @@ bool FDiagnosticsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 		uint8 AppNameOffset = EventData.GetValue<uint8>("AppNameOffset");
 		uint8 CommandLineOffset = EventData.GetValue<uint8>("CommandLineOffset");
 
-		SessionInfo.Platform = FString(AppNameOffset, (const ANSICHAR*)Attachment);
+		SessionInfo.Platform = FString::ConstructFromPtrSize((const ANSICHAR*)Attachment, AppNameOffset);
 
 		Attachment += AppNameOffset;
 		int32 AppNameLength = CommandLineOffset - AppNameOffset;
-		SessionInfo.AppName = FString(AppNameLength, (const ANSICHAR*)Attachment);
+		SessionInfo.AppName = FString::ConstructFromPtrSize((const ANSICHAR*)Attachment, AppNameLength);
 
 		Attachment += AppNameLength;
 		int32 CommandLineLength = EventData.GetAttachmentSize() - CommandLineOffset;
-		SessionInfo.CommandLine = FString(CommandLineLength, (const ANSICHAR*)Attachment);
+		SessionInfo.CommandLine = FString::ConstructFromPtrSize((const ANSICHAR*)Attachment, CommandLineLength);
 
 		SessionInfo.ConfigurationType = (EBuildConfiguration)EventData.GetValue<uint8>("ConfigurationType");
 
@@ -89,6 +89,13 @@ bool FDiagnosticsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 		SessionInfo.Changelist = EventData.GetValue<uint32>("Changelist", 0);
 		SessionInfo.ConfigurationType = (EBuildConfiguration)EventData.GetValue<uint8>("ConfigurationType");
 		SessionInfo.TargetType = (EBuildTargetType)EventData.GetValue<uint8>("TargetType");
+
+		TArrayView<const uint32> Data = EventData.GetArrayView<uint32>("InstanceId");
+		if (Data.Num() > 0)
+		{
+			check(Data.Num() == 4);
+			SessionInfo.InstanceId = FGuid(Data[0], Data[1], Data[2], Data[3]);
+		}
 
 		FAnalysisSessionEditScope _(Session);
 		Provider->SetSessionInfo(SessionInfo);

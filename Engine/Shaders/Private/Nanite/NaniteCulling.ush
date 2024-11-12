@@ -67,29 +67,32 @@ FCandidateNode UnpackCandidateNode(uint4 RawData, bool bHasEnabledMask)
 	return Node;
 }
 
-#ifndef ALLOW_TEMPLATES
-#define ALLOW_TEMPLATES 1
-#endif
-
-#if ALLOW_TEMPLATES
-
-// Load/Store/Clear are templated to also support globally coherent buffers
-template<typename BufferType>
-void StoreCandidateClusterNoCheck(BufferType CandidateClusters, uint ClusterIndex, FVisibleCluster VisibleCluster)
+// Load/Store/Clear each have globally coherent buffer versions. Fix this with templates.
+void StoreCandidateClusterNoCheckCoherent(RWCoherentByteAddressBuffer CandidateClusters, uint ClusterIndex, FVisibleCluster VisibleCluster)
 {
 	uint4 RawData = PackVisibleCluster(VisibleCluster, false);
 	CandidateClusters.Store2(GetCandidateClusterOffset() + ClusterIndex * GetCandidateClusterSize(), RawData.xy);
 }
 
-template<typename BufferType>
-void StoreCandidateCluster(BufferType CandidateClusters, uint ClusterIndex, FVisibleCluster VisibleCluster)
+void StoreCandidateClusterNoCheck(RWByteAddressBuffer CandidateClusters, uint ClusterIndex, FVisibleCluster VisibleCluster)
+{
+	uint4 RawData = PackVisibleCluster(VisibleCluster, false);
+	CandidateClusters.Store2(GetCandidateClusterOffset() + ClusterIndex * GetCandidateClusterSize(), RawData.xy);
+}
+
+void StoreCandidateClusterCoherent(RWCoherentByteAddressBuffer CandidateClusters, uint ClusterIndex, FVisibleCluster VisibleCluster)
+{
+	checkSlow(ClusterIndex < MaxCandidateClusters);
+	StoreCandidateClusterNoCheckCoherent(CandidateClusters, ClusterIndex, VisibleCluster);
+}
+
+void StoreCandidateCluster(RWByteAddressBuffer CandidateClusters, uint ClusterIndex, FVisibleCluster VisibleCluster)
 {
 	checkSlow(ClusterIndex < MaxCandidateClusters);
 	StoreCandidateClusterNoCheck(CandidateClusters, ClusterIndex, VisibleCluster);
 }
 
-template<typename BufferType>
-uint4 LoadCandidateNodeData(BufferType NodesAndClusterBatches, uint NodeIndex, bool bPostPass)
+uint4 LoadCandidateNodeDataCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, bool bPostPass)
 {
 	checkSlow(NodeIndex < MaxNodes);
 	const uint Offset = GetNodesAndBatchesOffset(bPostPass) + GetCandidateNodesOffset();
@@ -97,8 +100,15 @@ uint4 LoadCandidateNodeData(BufferType NodesAndClusterBatches, uint NodeIndex, b
 						uint4(NodesAndClusterBatches.Load2(Offset + NodeIndex * 8), 0, 0);
 }
 
-template<typename BufferType>
-void StoreCandidateNodeData(BufferType NodesAndClusterBatches, uint NodeIndex, uint4 RawData, bool bPostPass)
+uint4 LoadCandidateNodeData(RWByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, bool bPostPass)
+{
+	checkSlow(NodeIndex < MaxNodes);
+	const uint Offset = GetNodesAndBatchesOffset(bPostPass) + GetCandidateNodesOffset();
+	return bPostPass ?	uint4(NodesAndClusterBatches.Load3(Offset + NodeIndex * 12), 0) :
+						uint4(NodesAndClusterBatches.Load2(Offset + NodeIndex * 8), 0, 0);
+}
+
+void StoreCandidateNodeDataCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, uint4 RawData, bool bPostPass)
 {
 	checkSlow(NodeIndex < MaxNodes);
 	const uint Offset = GetNodesAndBatchesOffset(bPostPass) + GetCandidateNodesOffset();
@@ -108,39 +118,72 @@ void StoreCandidateNodeData(BufferType NodesAndClusterBatches, uint NodeIndex, u
 		NodesAndClusterBatches.Store2(Offset + NodeIndex * 8, RawData.xy);
 }
 
-template<typename BufferType>
-void StoreCandidateNode(BufferType NodesAndClusterBatches, uint NodeIndex, FCandidateNode Node, bool bPostPass)
+void StoreCandidateNodeData(RWByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, uint4 RawData, bool bPostPass)
+{
+	checkSlow(NodeIndex < MaxNodes);
+	const uint Offset = GetNodesAndBatchesOffset(bPostPass) + GetCandidateNodesOffset();
+	if (bPostPass)
+		NodesAndClusterBatches.Store3(Offset + NodeIndex * 12, RawData.xyz);
+	else
+		NodesAndClusterBatches.Store2(Offset + NodeIndex * 8, RawData.xy);
+}
+
+void StoreCandidateNodeCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, FCandidateNode Node, bool bPostPass)
+{
+	checkSlow(NodeIndex < MaxNodes);
+	StoreCandidateNodeDataCoherent(NodesAndClusterBatches, NodeIndex, PackCandidateNode(Node), bPostPass);
+}
+
+void StoreCandidateNode(RWByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, FCandidateNode Node, bool bPostPass)
 {
 	checkSlow(NodeIndex < MaxNodes);
 	StoreCandidateNodeData(NodesAndClusterBatches, NodeIndex, PackCandidateNode(Node), bPostPass);
 }
 
-template<typename BufferType>
-void ClearCandidateNode(BufferType NodesAndClusterBatches, uint NodeIndex, bool bPostPass)
+void ClearCandidateNodeCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, bool bPostPass)
+{
+	checkSlow(NodeIndex < MaxNodes);
+	StoreCandidateNodeDataCoherent(NodesAndClusterBatches, NodeIndex, 0xFFFFFFFFu, bPostPass);
+}
+
+void ClearCandidateNode(RWByteAddressBuffer NodesAndClusterBatches, uint NodeIndex, bool bPostPass)
 {
 	checkSlow(NodeIndex < MaxNodes);
 	StoreCandidateNodeData(NodesAndClusterBatches, NodeIndex, 0xFFFFFFFFu, bPostPass);
 }
 
-template<typename BufferType>
-uint LoadClusterBatch(BufferType NodesAndClusterBatches, uint BatchIndex, bool bPostPass)
+uint LoadClusterBatchCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint BatchIndex, bool bPostPass)
 {
 	checkSlow(BatchIndex < GetMaxClusterBatches());
 	return NodesAndClusterBatches.Load(GetNodesAndBatchesOffset(bPostPass) + GetClusterBatchesOffset() + BatchIndex * 4);
 }
 
-template<typename BufferType>
-void AddToClusterBatch(BufferType NodesAndClusterBatches, uint BatchIndex, uint Add, bool bPostPass)
+uint LoadClusterBatch(RWByteAddressBuffer NodesAndClusterBatches, uint BatchIndex, bool bPostPass)
+{
+	checkSlow(BatchIndex < GetMaxClusterBatches());
+	return NodesAndClusterBatches.Load(GetNodesAndBatchesOffset(bPostPass) + GetClusterBatchesOffset() + BatchIndex * 4);
+}
+
+void AddToClusterBatchCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint BatchIndex, uint Add, bool bPostPass)
 {
 	checkSlow(BatchIndex < GetMaxClusterBatches());
 	NodesAndClusterBatches.InterlockedAdd(GetNodesAndBatchesOffset(bPostPass) + GetClusterBatchesOffset() + BatchIndex * 4, Add);
 }
 
-template<typename BufferType>
-void ClearClusterBatch(BufferType NodesAndClusterBatches, uint BatchIndex, bool bPostPass)
+void AddToClusterBatch(RWByteAddressBuffer NodesAndClusterBatches, uint BatchIndex, uint Add, bool bPostPass)
+{
+	checkSlow(BatchIndex < GetMaxClusterBatches());
+	NodesAndClusterBatches.InterlockedAdd(GetNodesAndBatchesOffset(bPostPass) + GetClusterBatchesOffset() + BatchIndex * 4, Add);
+}
+
+void ClearClusterBatchCoherent(RWCoherentByteAddressBuffer NodesAndClusterBatches, uint BatchIndex, bool bPostPass)
 {
 	checkSlow(BatchIndex < GetMaxClusterBatches());
 	NodesAndClusterBatches.Store(GetNodesAndBatchesOffset(bPostPass) + GetClusterBatchesOffset() + BatchIndex * 4, 0);
 }
 
-#endif // ALLOW_TEMPLATES
+void ClearClusterBatch(RWByteAddressBuffer NodesAndClusterBatches, uint BatchIndex, bool bPostPass)
+{
+	checkSlow(BatchIndex < GetMaxClusterBatches());
+	NodesAndClusterBatches.Store(GetNodesAndBatchesOffset(bPostPass) + GetClusterBatchesOffset() + BatchIndex * 4, 0);
+}

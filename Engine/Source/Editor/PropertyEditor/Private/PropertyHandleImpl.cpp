@@ -38,6 +38,7 @@
 #include "SStandaloneCustomizedValueWidget.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "Internationalization/TextPackageNamespaceUtil.h"
 
 #define LOCTEXT_NAMESPACE "PropertyHandleImplementation"
 
@@ -111,7 +112,7 @@ FPropertyAccess::Result FPropertyValueImpl::GetValueData( void*& OutAddress ) co
 	FPropertyAccess::Result Res = FPropertyAccess::Fail;
 	OutAddress = nullptr;
 	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
-	if( PropertyNodePin.IsValid() )
+	if (PropertyNodePin.IsValid())
 	{
 		uint8* ValueAddress = nullptr;
 		FReadAddressList ReadAddresses;
@@ -124,7 +125,7 @@ FPropertyAccess::Result FPropertyValueImpl::GetValueData( void*& OutAddress ) co
 			if (ValueAddress && Property)
 			{
 				const int32 Index = 0;
-				OutAddress = ValueAddress + Index * Property->ElementSize;
+				OutAddress = ValueAddress + Index * Property->GetElementSize();
 				Res = FPropertyAccess::Success;
 			}
 		}
@@ -183,20 +184,20 @@ FString FPropertyValueImpl::GetPropertyValueArray() const
 					if ( FArrayProperty* ArrayProperty = CastField<FArrayProperty>(NodeProperty) )
 					{
 						FScriptArrayHelper ArrayHelper(ArrayProperty, Addr);
-						String = FString::Printf( TEXT("%(%d)"), ArrayHelper.Num() );
+						String = FString::Printf( TEXT("%%(%d)"), ArrayHelper.Num() );
 					}
 					else if ( CastField<FSetProperty>(NodeProperty) != nullptr )	
 					{
-						String = FString::Printf( TEXT("%(%d)"), FScriptSetHelper::Num(Addr) );
+						String = FString::Printf( TEXT("%%(%d)"), FScriptSetHelper::Num(Addr) );
 					}
 					else if (FMapProperty* MapProperty = CastField<FMapProperty>(NodeProperty))
 					{
 						FScriptMapHelper MapHelper(MapProperty, Addr);
-						String = FString::Printf(TEXT("%(%d)"), MapHelper.Num());
+						String = FString::Printf(TEXT("%%(%d)"), MapHelper.Num());
 					}
 					else
 					{
-						String = FString::Printf( TEXT("%[%d]"), NodeProperty->ArrayDim );
+						String = FString::Printf( TEXT("%%[%d]"), NodeProperty->ArrayDim );
 					}
 				}
 			}
@@ -514,9 +515,9 @@ FPropertyAccess::Result FPropertyValueImpl::ImportText( const TArray<FObjectBase
 					(CurObject->HasAnyFlags(RF_DefaultSubObject) && CurObject->GetOuter()->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))) &&
 					!bIsGameWorld)
 				{
-					// propagate the changes to instances unless we're modifying class shared data
-					// or the object is using overridable serialization, the propagation is done via reinstantiation
-					if (!bIsSparseClassData && !FOverridableManager::Get().IsEnabled(*CurObject))
+					// propagate the changes to instances unless the object is using overridable serialization, 
+					// the propagation is done via reinstantiation
+					if (!FOverridableManager::Get().IsEnabled(*CurObject))
 					{
 						InPropertyNode->PropagatePropertyChange(CurObject, *NewValue, PreviousContainerValue.IsEmpty() ? PreviousValue : PreviousContainerValue);
 					}
@@ -1036,6 +1037,28 @@ bool FPropertyValueImpl::IsEditConst() const
 	return false;
 }
 
+bool FPropertyValueImpl::IsExpanded() const
+{
+	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
+	if( PropertyNodePin.IsValid()  )
+	{
+		return PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::Expanded);
+	} 
+
+	return false;
+}
+
+void FPropertyValueImpl::SetExpanded(bool bExpanded)
+{
+	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
+	if (PropertyNodePin.IsValid() && PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::CanBeExpanded))
+	{
+		PropertyNodePin->SetNodeFlags(EPropertyNodeFlags::Expanded, bExpanded);
+		// if the node is built, then we need to rebuild the child to expand it.
+		PropertyNodePin->RequestRebuildChildren();
+	}
+}
+
 FText FPropertyValueImpl::GetResetToDefaultLabel() const
 {
 	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
@@ -1047,8 +1070,10 @@ FText FPropertyValueImpl::GetResetToDefaultLabel() const
 	return FText::GetEmpty();
 }
 
-void FPropertyValueImpl::AddChild()
+int32 FPropertyValueImpl::AddChild()
 {
+	int32 ReturnLogicalIndex = INDEX_NONE;
+
 	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
 	if ( PropertyNodePin.IsValid() )
 	{
@@ -1133,34 +1158,44 @@ void FPropertyValueImpl::AddChild()
 
 						int32 Index = INDEX_NONE;
 
+						// If the current object is an IDO, map the object back to the associated instance so that new items don't parent to the IDO. Note
+						// however that we're still going to modify the container property's value on the IDO and not its associated instance in this case.
+						UObject* NewItemOuter = Obj;
+						if (const UObject* InstanceFromIDO = UE::FPropertyBagRepository::Get().FindInstanceForDataObject(NewItemOuter))
+						{
+							NewItemOuter = const_cast<UObject*>(InstanceFromIDO);
+						}
+
 						if (Array)
 						{
-							Array->PerformOperationWithSetter(Obj, Addr, [Obj, Array, &Index](void* DirectAddress)
+							Array->PerformOperationWithSetter(Obj, Addr, [NewItemOuter, Array, &Index, &ReturnLogicalIndex](void* DirectAddress)
 							{								
 								FScriptArrayHelper	ArrayHelper(Array, DirectAddress);
 								Index = ArrayHelper.AddValue();
+								ReturnLogicalIndex = Index;
 
 								// check whether the inner type is flagged as a non-nullable. if so, create it.
 								FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(Array->Inner);
-								if (InnerObjectProperty && InnerObjectProperty->HasAnyPropertyFlags(CPF_NonNullable))
+								if (InnerObjectProperty && InnerObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !InnerObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
 								{
-									UObject* NewItem = NewObject<UObject>(Obj, InnerObjectProperty->PropertyClass);
+									UObject* NewItem = NewObject<UObject>(NewItemOuter, InnerObjectProperty->PropertyClass);
 									InnerObjectProperty->SetObjectPropertyValue(ArrayHelper.GetRawPtr(Index), NewItem);
 								}
 							});
 						}
 						else if (Set)
 						{
-							Set->PerformOperationWithSetter(Obj, Addr, [Obj, Set, &Index](void* DirectAddress)
+							Set->PerformOperationWithSetter(Obj, Addr, [NewItemOuter, Set, &Index, &ReturnLogicalIndex](void* DirectAddress)
 							{
 								FScriptSetHelper	SetHelper(Set, DirectAddress);
 								Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
+								ReturnLogicalIndex = SetHelper.FindLogicalIndex(Index);
 
 								// check whether the element type is flagged as a non-nullable. if so, create it.
 								FObjectProperty* ElementObjectProperty = CastField<FObjectProperty>(Set->ElementProp);
-								if (ElementObjectProperty && ElementObjectProperty->HasAnyPropertyFlags(CPF_NonNullable))
+								if (ElementObjectProperty && ElementObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !ElementObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
 								{
-									UObject* NewItem = NewObject<UObject>(Obj, ElementObjectProperty->PropertyClass);
+									UObject* NewItem = NewObject<UObject>(NewItemOuter, ElementObjectProperty->PropertyClass);
 									ElementObjectProperty->SetObjectPropertyValue(SetHelper.GetElementPtr(Index), NewItem);
 								}
 
@@ -1169,26 +1204,27 @@ void FPropertyValueImpl::AddChild()
 						}
 						else if (Map)
 						{
-							Map->PerformOperationWithSetter(Obj, Addr, [Obj, Map, &Index, &bAddedMapEntry](void* DirectAddress)
+							Map->PerformOperationWithSetter(Obj, Addr, [NewItemOuter, Map, &Index, &bAddedMapEntry, &ReturnLogicalIndex](void* DirectAddress)
 							{
 								FScriptMapHelper	MapHelper(Map, DirectAddress);
 								Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
+								ReturnLogicalIndex = MapHelper.FindLogicalIndex(Index);
 
 								// check whether the key or value type is flagged as a non-nullable. if so, create it.
 								{
 									FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(Map->KeyProp);
-									if (KeyObjectProperty && KeyObjectProperty->HasAnyPropertyFlags(CPF_NonNullable))
+									if (KeyObjectProperty && KeyObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !KeyObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
 									{
-										UObject* NewItem = NewObject<UObject>(Obj, KeyObjectProperty->PropertyClass);
+										UObject* NewItem = NewObject<UObject>(NewItemOuter, KeyObjectProperty->PropertyClass);
 										KeyObjectProperty->SetObjectPropertyValue(MapHelper.GetKeyPtr(Index), NewItem);
 									}
 								}
 
 								{
 									FObjectProperty* ValueObjectProperty = CastField<FObjectProperty>(Map->ValueProp);
-									if (ValueObjectProperty && ValueObjectProperty->HasAnyPropertyFlags(CPF_NonNullable))
+									if (ValueObjectProperty && ValueObjectProperty->HasAnyPropertyFlags(CPF_NonNullable) && !ValueObjectProperty->PropertyClass->HasAnyClassFlags(CLASS_Abstract))
 									{
-										UObject* NewItem = NewObject<UObject>(Obj, ValueObjectProperty->PropertyClass);
+										UObject* NewItem = NewObject<UObject>(NewItemOuter, ValueObjectProperty->PropertyClass);
 										ValueObjectProperty->SetObjectPropertyValue(MapHelper.GetValuePtr(Index), NewItem);
 									}
 								}
@@ -1222,6 +1258,8 @@ void FPropertyValueImpl::AddChild()
 			}
 		}
 	}
+
+	return ReturnLogicalIndex;
 }
 
 void FPropertyValueImpl::ClearChildren()
@@ -1247,6 +1285,7 @@ void FPropertyValueImpl::ClearChildren()
 			TArray<const UObject*> TopLevelObjects;
 			TopLevelObjects.Reserve(ReadAddresses.Num());
 
+			TArray< TMap<FString, int32> > ArrayIndicesPerObject;
 			TArray< TArray< UObject* > > AffectedInstancesPerObject;
 			AffectedInstancesPerObject.SetNum(ReadAddresses.Num());
 
@@ -1303,6 +1342,10 @@ void FPropertyValueImpl::ClearChildren()
 
 							TopLevelObjects.Add(Obj);
 						}
+
+						// Add on array index so we can tell which entry just changed
+						ArrayIndicesPerObject.Add(TMap<FString, int32>());
+						FPropertyValueImpl::GenerateArrayIndexMapToObjectNode(ArrayIndicesPerObject[i], PropertyNodePin.Get());
 
 						if (ArrayProperty)
 						{
@@ -1372,6 +1415,7 @@ void FPropertyValueImpl::ClearChildren()
 				}
 
 				FPropertyChangedEvent ChangeEvent(NodeProperty, EPropertyChangeType::ArrayClear, MakeArrayView(TopLevelObjects));
+				ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 				ChangeEvent.SetInstancesChanged(MoveTemp(AllAffectedInstances));
 
 				// Send the PostEditChange notification; it will be propagated to all selected objects
@@ -1455,14 +1499,6 @@ void FPropertyValueImpl::InsertChild( TSharedPtr<FPropertyNode> ChildNodeToInser
 		}
 
 		ArrayHelper.InsertValues(Index, 1 );
-
-		// check whether the inner type is flagged as a non-nullable. if so, create it.
-		FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner);
-		if (InnerObjectProperty && InnerObjectProperty->HasAnyPropertyFlags(CPF_NonNullable))
-		{
-			UObject* NewItem = NewObject<UObject>(Obj, InnerObjectProperty->PropertyClass);
-			InnerObjectProperty->SetObjectPropertyValue(ArrayHelper.GetRawPtr(Index), NewItem);
-		}
 
 		//set up indices for the coming events
 		TArray< TMap<FString,int32> > ArrayIndicesPerObject;
@@ -2514,6 +2550,16 @@ bool FPropertyHandleBase::IsEditable() const
 	return !IsEditConst();
 }
 
+bool FPropertyHandleBase::IsExpanded() const
+{
+	return Implementation->IsExpanded();
+}
+
+void FPropertyHandleBase::SetExpanded(bool bExpanded)
+{
+	Implementation->SetExpanded(bExpanded);
+}
+
 FPropertyAccess::Result FPropertyHandleBase::GetValueAsFormattedString( FString& OutValue, EPropertyPortFlags PortFlags ) const
 {
 	return Implementation->GetValueAsString(OutValue, PortFlags);
@@ -3095,6 +3141,24 @@ FPropertyAccess::Result FPropertyHandleBase::GetPerObjectValue( const int32 Obje
 
 bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems)
 {
+	TArray<FText> DisplayNames;
+	TArray<FString> ValueStrings;
+	const bool bUsesDisplayNames = GeneratePossibleValues(ValueStrings, OutToolTips, OutRestrictedItems, &DisplayNames);
+
+	if (bUsesDisplayNames)
+	{
+		Algo::Transform(DisplayNames, OutOptionStrings, [](const FText& Str) { return MakeShared<FString>(Str.ToString()); });
+	}
+	else
+	{
+		Algo::Transform(ValueStrings, OutOptionStrings, [](const FString& Str) { return MakeShared<FString>(Str); });
+	}
+	
+	return bUsesDisplayNames;
+}
+
+bool FPropertyHandleBase::GeneratePossibleValues(TArray<FString>& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems, TArray<FText>* OutDisplayNames)
+{
 	FProperty* Property = GetProperty();
 	if (Property == nullptr)
 	{
@@ -3167,17 +3231,23 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 				const bool bIsRestricted = GenerateRestrictionToolTip(EnumName, RestrictionTooltip) || RestrictedEnumValues.Contains(Enum->GetNameByIndex(EnumIndex));
 				OutRestrictedItems.Add(bIsRestricted);
 
-				if (EnumDisplayName.Len() == 0)
-				{
-					EnumDisplayName = MoveTemp(EnumName);
-				}
-				else
-				{
-					bUsesAlternateDisplayValues = true;
-				}
+				const bool bHasDisplayName = EnumDisplayName.Len() > 0;
 
-				TSharedPtr< FString > EnumStr(new FString(EnumDisplayName));
-				OutOptionStrings.Add(EnumStr);
+				if (OutDisplayNames)
+				{
+					if (bHasDisplayName)
+					{
+						OutDisplayNames->Add(FText::FromString(EnumDisplayName));
+						bUsesAlternateDisplayValues = true;
+					}
+					else
+					{
+						// Added to ensure matching index of DisplayNames to ValueStrings
+						OutDisplayNames->Add(FText::FromString(EnumName));
+					}
+				}
+				
+				OutOptionStrings.Add(EnumName);
 
 				FText EnumValueToolTip = bIsRestricted ? RestrictionTooltip : Enum->GetToolTipTextByIndex(EnumIndex);
 				OutToolTips.Add(MoveTemp(EnumValueToolTip));
@@ -3198,7 +3268,12 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 			TArray<UObject*> OuterObjects;
 			GetOuterObjects(OuterObjects);
 
-			PropertyEditorUtils::GetPropertyOptions(OuterObjects, GetOptionsFunctionName, OutOptionStrings);
+			PropertyEditorUtils::GetPropertyOptions(OuterObjects, GetOptionsFunctionName, OutOptionStrings, OutDisplayNames);
+
+			if (OutDisplayNames && !OutDisplayNames->IsEmpty())
+			{
+				bUsesAlternateDisplayValues = true;
+			}
 		}
 	}
 	else if( Property->IsA(FClassProperty::StaticClass()) || Property->IsA(FSoftClassProperty::StaticClass()) )		
@@ -3207,8 +3282,12 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 			? CastFieldChecked<FClassProperty>(Property)->MetaClass
 			: CastFieldChecked<FSoftClassProperty>(Property)->MetaClass;
 
-		TSharedPtr< FString > NoneStr( new FString( TEXT("None") ) );
+		FString NoneStr( TEXT("None") );
 		OutOptionStrings.Add( NoneStr );
+		if (OutDisplayNames)
+		{
+			OutDisplayNames->Add(FText::FromString(NoneStr));
+		}
 
 		const bool bAllowAbstract = Property->GetOwnerProperty()->HasMetaData(TEXT("AllowAbstract"));
 		const bool bBlueprintBaseOnly = Property->GetOwnerProperty()->HasMetaData(TEXT("BlueprintBaseOnly"));
@@ -3225,7 +3304,11 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 					&& (!InterfaceThatMustBeImplemented || It->ImplementsInterface(InterfaceThatMustBeImplemented))
 					&& (!bAllowOnlyPlaceable || !It->HasAnyClassFlags(CLASS_Abstract | CLASS_NotPlaceable)))
 				{
-					OutOptionStrings.Add(TSharedPtr< FString >(new FString(It->GetName())));
+					OutOptionStrings.Add(It->GetName());
+					if (OutDisplayNames)
+					{
+						OutDisplayNames->Add(FText::FromString(It->GetName()));
+					}
 				}
 			}
 		}
@@ -3241,6 +3324,32 @@ void FPropertyHandleBase::NotifyPreChange()
 	{
 		PropertyNode->NotifyPreChange( PropertyNode->GetProperty(), Implementation->GetNotifyHook() );
 	}
+}
+
+static TArray<TMap<FString, int32>> BuildArrayIndices(const TSharedPtr<FPropertyNode>& PropertyNode)
+{
+	TArray<TMap<FString, int32>> ArrayIndices;
+	FReadAddressList ReadAddresses;
+	PropertyNode->GetReadAddress(PropertyNode->HasNodeFlags(EPropertyNodeFlags::SingleSelectOnly), ReadAddresses, false, true);
+
+	const int32 ObjectNum = ReadAddresses.Num();
+	if (ArrayIndices.IsEmpty())
+	{
+		ArrayIndices.SetNum(ObjectNum);
+	}
+	
+	for (const FPropertyNode* ItemNode = PropertyNode.Get(); ItemNode; ItemNode = ItemNode->GetParentNode())
+	{
+		if (int32 Index = ItemNode->GetArrayIndex(); Index != INDEX_NONE)
+		{
+			for (int ObjectIndex = 0; ObjectIndex < ObjectNum; ++ObjectIndex)
+			{
+				ArrayIndices[ObjectIndex].Add(ItemNode->GetProperty()->GetName(), Index);
+			}
+		}
+	} 
+
+	return ArrayIndices;
 }
 
 void FPropertyHandleBase::NotifyPostChange( EPropertyChangeType::Type ChangeType )
@@ -3260,6 +3369,8 @@ void FPropertyHandleBase::NotifyPostChange( EPropertyChangeType::Type ChangeType
 		}
 
 		FPropertyChangedEvent PropertyChangedEvent( PropertyNode->GetProperty(), ChangeType, MakeArrayView(ObjectsBeingChanged) );
+		TArray<TMap<FString, int32>> ArrayIndices = BuildArrayIndices(PropertyNode);
+		PropertyChangedEvent.SetArrayIndexPerObject(ArrayIndices);
 		PropertyNode->NotifyPostChange( PropertyChangedEvent, Implementation->GetNotifyHook());
 	}
 }
@@ -4561,29 +4672,25 @@ bool FPropertyHandleVector::Supports( TSharedRef<FPropertyNode> PropertyNode )
 FPropertyHandleVector::FPropertyHandleVector( TSharedRef<class FPropertyNode> PropertyNode, class FNotifyHook* NotifyHook, TSharedPtr<IPropertyUtilities> PropertyUtilities )
 	: FPropertyHandleStruct( PropertyNode, NotifyHook, PropertyUtilities ) 
 {
-	if( Implementation->GetNumChildren() > 0 )
+	const bool bRecurse = false;
+	if( TSharedPtr<FPropertyNode> XComponentPropertyNode = Implementation->GetChildNode("X", bRecurse) )
 	{
-		const bool bRecurse = false;
-		// A vector is a struct property that has multiple children.  We get/set the values from the children
-		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( Implementation->GetChildNode("X", bRecurse).ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
+		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( XComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
+	}
 
-		if( Implementation->GetNumChildren() > 1 )
+	if( TSharedPtr<FPropertyNode> YComponentPropertyNode = Implementation->GetChildNode("Y", bRecurse) )
 		{
-			// at least a 2 component vector
-			VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( Implementation->GetChildNode("Y", bRecurse).ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
+		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( YComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
 		}
 		
-		if( Implementation->GetNumChildren() > 2 )
+	if( TSharedPtr<FPropertyNode> ZComponentPropertyNode = Implementation->GetChildNode("Z", bRecurse) )
 		{
-			// at least a 3 component vector
-			VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( Implementation->GetChildNode("Z",bRecurse).ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
+		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( ZComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
 		}
 		
-		if( Implementation->GetNumChildren() > 3 )
+	if( TSharedPtr<FPropertyNode> WComponentPropertyNode = Implementation->GetChildNode("W", bRecurse) )
 		{
-			// a 4 component vector
-			VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( Implementation->GetChildNode("W",bRecurse).ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
-		}
+		VectorComponents.Add( MakeShareable( new FPropertyHandleMixed( WComponentPropertyNode.ToSharedRef(), NotifyHook, PropertyUtilities ) ) );
 	}
 }
 
@@ -5125,7 +5232,11 @@ FPropertyAccess::Result FPropertyHandleArray::SetValueFromFormattedString(const 
 			
 			const TSharedRef<IPropertyHandle> Property = GetElement( NumElements - 1 );
 			ensure(!Property->AsStruct());
-			if (Property->IsValidHandle() && Property->SetValueFromFormattedString(Value, Flags) == FPropertyAccess::Fail)
+
+			// Trim ""
+			FString FormattedString = Value.TrimQuotes();
+			
+			if (Property->IsValidHandle() && Property->SetValueFromFormattedString(FormattedString, Flags) == FPropertyAccess::Fail)
 			{
 				Result = FPropertyAccess::Fail;
 			}
@@ -5184,6 +5295,7 @@ FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* New
 		return FPropertyAccess::Fail;
 	}
 	
+	TArray< TMap<FString, int32> > ArrayIndicesPerObject;
 	TArray<TArray<UObject*>> AffectedInstancesPerObject;
 	AffectedInstancesPerObject.SetNum(ReadAddresses.Num());
 
@@ -5235,9 +5347,15 @@ FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* New
 		TopLevelObjects.Add(Obj);
 
 		// If our OptionalValue is a ptr to an object and we are not setting to a passed in value
-		// we need to intialize a default of that object and set the ptr to it.
+		// we need to initialize a default of that object and set the ptr to it.
 		FObjectProperty* ObjectProperty = CastField<FObjectProperty>(OptionalProperty->GetValueProperty());
-		if (ObjectProperty)
+		FClassProperty* ClassProperty = CastField<FClassProperty>(OptionalProperty->GetValueProperty());
+		if (ClassProperty)
+		{
+			void* ClassPropertyValuePtr = ClassProperty->ContainerPtrToValuePtr<void>(Addr);
+			ClassProperty->SetObjectPropertyValue(ClassPropertyValuePtr, ClassProperty->MetaClass);
+		}
+		else if (ObjectProperty)
 		{
 			UObject* Outer = Obj;
 
@@ -5255,9 +5373,14 @@ FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* New
 				Implementation->ShowInvalidOperationError(LOCTEXT("SetOptionalElement", "Could not create a default value for optional object as could not determine outer object."));
 			}
 		}
+
+		// Add on array index so we can tell which entry just changed
+		ArrayIndicesPerObject.Add(TMap<FString, int32>());
+		FPropertyValueImpl::GenerateArrayIndexMapToObjectNode(ArrayIndicesPerObject[i], PropertyNode.Get());
 	}
 
 	FPropertyChangedEvent ChangeEvent(OptionalProperty, EPropertyChangeType::ValueSet, MakeArrayView(TopLevelObjects));
+	ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 	ChangeEvent.SetInstancesChanged(MoveTemp(AllAffectedInstances));
 
 	// send the PostEditChange notification; it will be propagated to all selected objects
@@ -5299,6 +5422,7 @@ FPropertyAccess::Result FPropertyHandleOptional::ClearOptionalValue()
 		return FPropertyAccess::Fail;
 	}
 
+	TArray< TMap<FString, int32> > ArrayIndicesPerObject;
 	TArray<TArray<UObject*>> AffectedInstancesPerObject;
 	AffectedInstancesPerObject.SetNum(ReadAddresses.Num());
 
@@ -5343,12 +5467,17 @@ FPropertyAccess::Result FPropertyHandleOptional::ClearOptionalValue()
 
 		void* Addr = ReadAddresses.GetAddress(i);
 		OptionalProperty->MarkUnset(Addr);
+
+		// Add on array index so we can tell which entry just changed
+		ArrayIndicesPerObject.Add(TMap<FString, int32>());
+		FPropertyValueImpl::GenerateArrayIndexMapToObjectNode(ArrayIndicesPerObject[i], PropertyNode.Get());
 	}
 
-	// Could be removed as unecessary (rebuild will do this for us... but removing now makes any future debugging clearer)
+	// Could be removed as uneccessary (rebuild will do this for us... but removing now makes any future debugging clearer)
 	PropertyNode->GetOptionalValueNode().Reset();
 
 	FPropertyChangedEvent ChangeEvent(OptionalProperty, EPropertyChangeType::ValueSet, MakeArrayView(TopLevelObjects));
+	ChangeEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
 	ChangeEvent.SetInstancesChanged(MoveTemp(AllAffectedInstances));
 
 	// send the PostEditChange notification; it will be propagated to all selected objects
@@ -5403,7 +5532,7 @@ FPropertyAccess::Result FPropertyHandleText::SetValue(const FText& NewValue, EPr
 {
 	FString StringValue;
 	FTextStringHelper::WriteToBuffer(StringValue, NewValue);
-	return Implementation->ImportText(StringValue, Flags);
+	return ImportFormattedTextString(StringValue, Flags);
 }
 
 FPropertyAccess::Result FPropertyHandleText::SetValue(const FString& NewValue, EPropertyValueSetFlags::Type Flags)
@@ -5414,6 +5543,93 @@ FPropertyAccess::Result FPropertyHandleText::SetValue(const FString& NewValue, E
 FPropertyAccess::Result FPropertyHandleText::SetValue(const TCHAR* NewValue, EPropertyValueSetFlags::Type Flags)
 {
 	return SetValue(FText::FromString(NewValue), Flags);
+}
+
+FPropertyAccess::Result FPropertyHandleText::SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags)
+{
+	return ImportFormattedTextString(InValue, Flags);
+}
+
+FPropertyAccess::Result FPropertyHandleText::ImportFormattedTextString(const FString& NewValue, EPropertyValueSetFlags::Type Flags)
+{
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+
+	TArray<FObjectBaseAddress> ObjectsToModify;
+	Implementation->GetObjectsToModify(ObjectsToModify, PropertyNode.Get());
+
+	TArray<FString> NewTextValuesToImport;
+	{
+		TArray<UPackage*> OuterPackages;
+		GetOuterPackages(OuterPackages);
+
+		FTextProperty* TextProperty = CastField<FTextProperty>(GetProperty());
+		FStringView PropertyPath = GetPropertyPath();
+
+		const FText NewTextValue = FTextStringHelper::CreateFromBuffer(*NewValue);
+		for (int32 ObjectIndex = 0; ObjectIndex < ObjectsToModify.Num(); ++ObjectIndex)
+		{
+			const FObjectBaseAddress& ObjectToModify = ObjectsToModify[ObjectIndex];
+			if (ObjectToModify.BaseAddress)
+			{
+				FText ResolvedTextValue = NewTextValue;
+
+				// If the FText value was initialized from a string, then try and generate a stable and deterministic key for it instead
+				if (TextProperty && NewTextValue.IsInitializedFromString())
+				{
+					UPackage* OuterPackage = OuterPackages.IsValidIndex(ObjectIndex) ? OuterPackages[ObjectIndex] : nullptr;
+
+					auto DeterministicTextKeyGenerator = [PropertyPath, OuterPackage, TextProperty]()
+					{
+						auto GetNameKeyHash = [](const FName Name)
+						{
+							FNameBuilder Builder(Name);
+							return TextKeyUtil::HashString(Builder.ToString(), Builder.Len());
+						};
+
+						auto GetObjectKeyHash = [](const UObject* Obj)
+						{
+							FNameBuilder Builder;
+							if (Obj)
+							{
+								Obj->GetPathName(nullptr, Builder);
+							}
+							return TextKeyUtil::HashString(Builder.ToString(), Builder.Len());
+						};
+
+						// Build a (hopefully) unique and deterministic key from a combination of the outer package and text property info
+						FGuid KeyGuid(GetObjectKeyHash(OuterPackage), TextKeyUtil::HashString(PropertyPath), GetNameKeyHash(TextProperty->GetOwnerStruct()->GetFName()), GetNameKeyHash(TextProperty->GetFName()));
+#if USE_STABLE_LOCALIZATION_KEYS
+						if (OuterPackage)
+						{
+							if (const FString PackageNamespace = TextNamespaceUtil::EnsurePackageNamespace(OuterPackage);
+								!PackageNamespace.IsEmpty())
+							{
+								// Mix the package namespace hash into the outer hash
+								KeyGuid.A = TextKeyUtil::HashString(PackageNamespace, KeyGuid.A);
+							}
+						}
+#endif // USE_STABLE_LOCALIZATION_KEYS
+						return KeyGuid.ToString();
+					};
+
+					const FText* CurrentTextValue = reinterpret_cast<FText*>(ObjectToModify.BaseAddress);
+					ResolvedTextValue = *CurrentTextValue;
+					TextNamespaceUtil::EditTextProperty_Direct(OuterPackage, &ResolvedTextValue, TextProperty, TextNamespaceUtil::ETextEditAction::SourceString, NewTextValue.ToString(), DeterministicTextKeyGenerator);
+				}
+
+				FString& NewTextValueToImport = NewTextValuesToImport.AddDefaulted_GetRef();
+				FTextStringHelper::WriteToBuffer(NewTextValueToImport, ResolvedTextValue);
+			}
+		}
+	}
+
+	FPropertyAccess::Result Result = FPropertyAccess::Fail;
+	if (NewTextValuesToImport.Num() > 0)
+	{
+		Result = Implementation->ImportText(ObjectsToModify, NewTextValuesToImport, PropertyNode.Get(), Flags);
+	}
+
+	return Result;
 }
 
 // Sets
@@ -5528,11 +5744,8 @@ FPropertyAccess::Result FPropertyHandleSet::AddItem()
 							}
 
 							// If we don't have this element then add an entry and set it to this element value.
-							Implementation->AddChild();
+							const int32 ChildNodeIndex = Implementation->AddChild();
 							Implementation->GetPropertyNode()->RebuildChildren();
-
-							// Grab the last entry since we just added it.
-							const int32 ChildNodeIndex = PropNode->GetNumChildNodes() - 1;
 							if (ChildNodeIndex >= 0)
 							{
 								TSharedPtr<FPropertyNode> ChildNode = Implementation->GetChildNode(ChildNodeIndex);
@@ -5779,10 +5992,7 @@ FPropertyAccess::Result FPropertyHandleMap::AddItem()
 							}
 
 							// If we don't have this key then add an entry and set it to this key value.
-							Implementation->AddChild();
-
-							// Grab the last entry since we just added it.
-							const int32 ChildNodeIndex = PropNode->GetNumChildNodes() - 1;
+							const int32 ChildNodeIndex = Implementation->AddChild();
 							if (ChildNodeIndex >= 0)
 							{
 								TSharedPtr<FPropertyNode> ChildNode = Implementation->GetChildNode(ChildNodeIndex);

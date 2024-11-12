@@ -23,10 +23,6 @@ struct FTextureMemoryStats
 	// Total amount of "graphics memory" that we think we can use for all our graphics resources, in bytes. -1 if unknown.
 	int64 TotalGraphicsMemory = -1;
 
-	// Size of allocated memory, in bytes
-	UE_DEPRECATED(5.3, "AllocatedMemorySize was too vague, use StreamingMemorySize in its place")
-	int64 AllocatedMemorySize = 0;
-
 	// Size of memory allocated to streaming textures, in bytes
 	uint64 StreamingMemorySize = 0;
 
@@ -38,10 +34,6 @@ struct FTextureMemoryStats
 	
 	// 0 if streaming pool size limitation is disabled, in bytes
 	int64 TexturePoolSize = 0;
-
-	// Upcoming adjustments to allocated memory, in bytes (async reallocations)
-	UE_DEPRECATED(5.3, "PendingMemoryAdjustment is unused")
-	int32 PendingMemoryAdjustment = 0;
 
 	bool AreHardwareStatsValid() const
 	{
@@ -68,21 +60,21 @@ extern RHI_API int32 GNumPrimitivesDrawnRHI[MAX_NUM_GPUS];
 
 #if HAS_GPU_STATS
 
-struct FDrawCallCategoryName
+struct FRHIDrawStatsCategory
 {
-	RHI_API FDrawCallCategoryName();
-	RHI_API FDrawCallCategoryName(FName InName);
+	RHI_API FRHIDrawStatsCategory();
+	RHI_API FRHIDrawStatsCategory(FName InName);
 
 	bool ShouldCountDraws() const { return Index != -1; }
 
 	FName  const Name;
 	uint32 const Index;
 
-	static constexpr int32 MAX_DRAWCALL_CATEGORY = 256;
+	static constexpr int32 MAX_DRAWCALL_CATEGORY = 31;
 
 	struct FManager
 	{
-		TStaticArray<FDrawCallCategoryName*, MAX_DRAWCALL_CATEGORY> Array;
+		TStaticArray<FRHIDrawStatsCategory*, MAX_DRAWCALL_CATEGORY> Array;
 
 		// A backup of the counts that can be used to display on screen to avoid flickering.
 		TStaticArray<TStaticArray<int32, MAX_NUM_GPUS>, MAX_DRAWCALL_CATEGORY> DisplayCounts;
@@ -102,85 +94,71 @@ DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Lines drawn"), STAT_RHILines, STATGROUP_
 
 #else
 
-struct FDrawCallCategoryName {};
+struct FRHIDrawStatsCategory
+{
+	static constexpr uint32 Index = 0;
+};
 
 #endif
 
 // Macros for use inside RHI context Draw functions.
-// Updates the Stats structure on the underlying RHI context class (IRHICommandContext)
-
-#define RHI_DRAW_CALL_INC() do { Stats->Draws++; } while (false)
-#define RHI_DRAW_CALL_STATS(PrimitiveType,NumPrimitives)                  \
-	do                                                                    \
-	{												                      \
-		switch (PrimitiveType)                                            \
-		{                                                                 \
-		case PT_TriangleList : Stats->Triangles  += NumPrimitives; break; \
-		case PT_TriangleStrip: Stats->Triangles  += NumPrimitives; break; \
-		case PT_LineList     : Stats->Lines      += NumPrimitives; break; \
-		case PT_QuadList     : Stats->Quads      += NumPrimitives; break; \
-		case PT_PointList    : Stats->Points     += NumPrimitives; break; \
-		case PT_RectList     : Stats->Rectangles += NumPrimitives; break; \
-		}                                                                 \
-		Stats->Draws++;                                                   \
-	} while(false)
-
-struct FRHIPerCategoryDrawStats
-{
-	uint32 Draws;
-	uint32 Triangles;
-	uint32 Lines;
-	uint32 Quads;
-	uint32 Points;
-	uint32 Rectangles;
-
-	uint32 GetTotalPrimitives() const
-	{
-		return Triangles
-			+ Lines
-			+ Quads
-			+ Points
-			+ Rectangles;
-	}
-
-	FRHIPerCategoryDrawStats& operator += (FRHIPerCategoryDrawStats const& RHS)
-	{
-		Draws += RHS.Draws;
-		Triangles += RHS.Triangles;
-		Lines += RHS.Lines;
-		Quads += RHS.Quads;
-		Points += RHS.Points;
-		Rectangles += RHS.Rectangles;
-		return *this;
-	}
-};
+// Updates the Stats structure on the executing RHI command list
+#if RHI_NEW_GPU_PROFILER
+	#define RHI_DRAW_CALL_INC()             do { StatEvent.NumDraws++; GetExecutingCommandList().Stats_AddDraw(); } while (false)
+	#define RHI_DRAW_CALL_STATS(Type,Prims) do { StatEvent.NumDraws++; StatEvent.NumPrimitives += Prims; GetExecutingCommandList().Stats_AddDrawAndPrimitives(Type, Prims); } while (false)
+#else
+	#define RHI_DRAW_CALL_INC()             do { GetExecutingCommandList().Stats_AddDraw(); } while (false)
+	#define RHI_DRAW_CALL_STATS(Type,Prims) do { GetExecutingCommandList().Stats_AddDrawAndPrimitives(Type, Prims); } while (false)
+#endif
 
 struct FRHIDrawStats
 {
 #if HAS_GPU_STATS
 	// The +1 is for "uncategorised"
-	static constexpr int32 NumCategories = FDrawCallCategoryName::MAX_DRAWCALL_CATEGORY + 1;
+	static constexpr int32 NumCategories = FRHIDrawStatsCategory::MAX_DRAWCALL_CATEGORY + 1;
 #else
 	static constexpr int32 NumCategories = 1;
 #endif
 
 	static constexpr int32 NoCategory = NumCategories - 1;
 
-	using FPerCategoryStats = FRHIPerCategoryDrawStats;
-
-	struct FPerGPUStats
+	struct FPerCategory
 	{
-		FPerCategoryStats& GetCategory(uint32 Category)
+		uint32 Draws;
+		uint32 Triangles;
+		uint32 Lines;
+		uint32 Quads;
+		uint32 Points;
+		uint32 Rectangles;
+
+		uint32 GetTotalPrimitives() const
 		{
-			checkSlow(Category < UE_ARRAY_COUNT(Categories));
-			return Categories[Category];
+			return Triangles
+				+ Lines
+				+ Quads
+				+ Points
+				+ Rectangles;
 		}
 
-	private:
-		FPerCategoryStats Categories[NumCategories];
+		FPerCategory& operator += (FPerCategory const& RHS)
+		{
+			Draws      += RHS.Draws;
+			Triangles  += RHS.Triangles;
+			Lines      += RHS.Lines;
+			Quads      += RHS.Quads;
+			Points     += RHS.Points;
+			Rectangles += RHS.Rectangles;
+			return *this;
+		}
 	};
 
-	FPerGPUStats& GetGPU(uint32 GPUIndex)
+	struct FPerGPU
+	{
+		friend struct FRHIDrawStats;
+		FPerCategory Categories[NumCategories];
+	};
+
+	FPerGPU& GetGPU(uint32 GPUIndex)
 	{
 		checkSlow(GPUIndex < UE_ARRAY_COUNT(GPUs));
 		return GPUs[GPUIndex];
@@ -196,10 +174,41 @@ struct FRHIDrawStats
 		FMemory::Memzero(*this);
 	}
 
+	void AddDraw(FRHIGPUMask GPUMask, FRHIDrawStatsCategory const* Category)
+	{
+		uint32 CategoryIndex = Category ? Category->Index : NoCategory;
+		for (uint32 GPUIndex : GPUMask)
+		{
+			FPerCategory& Stats = GPUs[GPUIndex].Categories[CategoryIndex];
+			Stats.Draws++;
+		}
+	}
+
+	void AddDrawAndPrimitives(FRHIGPUMask GPUMask, FRHIDrawStatsCategory const* Category, EPrimitiveType PrimitiveType, uint32 NumPrimitives)
+	{
+		uint32 CategoryIndex = Category ? Category->Index : NoCategory;
+		for (uint32 GPUIndex : GPUMask)
+		{
+			FPerCategory& Stats = GPUs[GPUIndex].Categories[CategoryIndex];
+			Stats.Draws++;
+
+			switch (PrimitiveType)
+			{
+			case PT_TriangleList : Stats.Triangles  += NumPrimitives; break;
+			case PT_TriangleStrip: Stats.Triangles  += NumPrimitives; break;
+			case PT_LineList     : Stats.Lines      += NumPrimitives; break;
+			case PT_QuadList     : Stats.Quads      += NumPrimitives; break;
+			case PT_PointList    : Stats.Points     += NumPrimitives; break;
+			case PT_RectList     : Stats.Rectangles += NumPrimitives; break;
+			}
+		}
+	}
+
 	RHI_API void Accumulate(FRHIDrawStats& RHS);
+	RHI_API void ProcessAsFrameStats();
 
 private:
-	FPerGPUStats GPUs[MAX_NUM_GPUS];
+	FPerGPU GPUs[MAX_NUM_GPUS];
 };
 
 // RHI memory stats.
@@ -222,6 +231,11 @@ DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Byte Address Buffer Memory"), STAT_ByteAdd
 DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Draw Indirect Buffer Memory"), STAT_DrawIndirectBufferMemory, STATGROUP_RHI, FPlatformMemory::MCR_GPU, RHI_API);
 DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Misc Buffer Memory"), STAT_MiscBufferMemory, STATGROUP_RHI, FPlatformMemory::MCR_GPU, RHI_API);
 
+DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Reserved Buffer Memory (Uncommitted)"), STAT_ReservedUncommittedBufferMemory, STATGROUP_RHI, FPlatformMemory::MCR_GPU, RHI_API);
+DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Reserved Buffer Memory (Committed)"), STAT_ReservedCommittedBufferMemory, STATGROUP_RHI, FPlatformMemory::MCR_GPU, RHI_API);
+DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Reserved Texture Memory (Uncommitted)"), STAT_ReservedUncommittedTextureMemory, STATGROUP_RHI, FPlatformMemory::MCR_GPU, RHI_API);
+DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Reserved Texture Memory (Committed)"), STAT_ReservedCommittedTextureMemory, STATGROUP_RHI, FPlatformMemory::MCR_GPU, RHI_API);
+
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Sampler Descriptors Allocated"), STAT_SamplerDescriptorsAllocated, STATGROUP_RHI, RHI_API);
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Resource Descriptors Allocated"), STAT_ResourceDescriptorsAllocated, STATGROUP_RHI, RHI_API);
 
@@ -230,3 +244,47 @@ DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Bindless Resource Heap"), STAT_BindlessRes
 
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Bindless Sampler Descriptors Allocated"), STAT_BindlessSamplerDescriptorsAllocated, STATGROUP_RHI, RHI_API);
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Bindless Resource Descriptors Allocated"), STAT_BindlessResourceDescriptorsAllocated, STATGROUP_RHI, RHI_API);
+
+#if PLATFORM_MICROSOFT
+
+// D3D memory stats.
+struct FD3DMemoryStats
+{
+	// Budget assigned by the OS. This can be considered the total memory
+	// the application should use, but an application can also go over-budget.
+	uint64 BudgetLocal = 0;
+	uint64 BudgetSystem = 0;
+
+	// Used memory.
+	uint64 UsedLocal = 0;
+	uint64 UsedSystem = 0;
+
+	// Over-budget memory. This is Budget - Used if Used > Budget.
+	uint64 DemotedLocal = 0;
+	uint64 DemotedSystem = 0;
+
+	// Available memory within budget. This is Budget - Used clamped to 0 if over-budget.
+	uint64 AvailableLocal = 0;
+	uint64 AvailableSystem = 0;
+
+	bool IsOverBudget() const
+	{
+		return DemotedLocal > 0 || DemotedSystem > 0;
+	}
+};
+
+DECLARE_STATS_GROUP(TEXT("D3D Video Memory"), STATGROUP_D3DMemory, STATCAT_Advanced);
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Total Video Memory (Budget)"), STAT_D3DTotalVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Total System Memory (Budget)"), STAT_D3DTotalSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Available Video Memory"), STAT_D3DAvailableVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Available System Memory"), STAT_D3DAvailableSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Used Video Memory"), STAT_D3DUsedVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Used System Memory"), STAT_D3DUsedSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Demoted Video Memory"), STAT_D3DDemotedVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Demoted System Memory"), STAT_D3DDemotedSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Video Memory stats update time"), STAT_D3DUpdateVideoMemoryStats, STATGROUP_D3DMemory, RHI_API);
+
+// Update D3D memory stat counters and CSV profiler stats, if enabled.
+RHI_API void UpdateD3DMemoryStatsAndCSV(const FD3DMemoryStats& MemoryStats, bool bUpdateCSV);
+
+#endif // PLATFORM_MICROSOFT

@@ -170,6 +170,7 @@ namespace UE::Learning
 		const int32 MaxBatchSize,
 		const FNeuralNetworkInferenceSettings& Settings)
 	{
+
 		TSharedRef<FNeuralNetworkInference> InferenceObject = MakeShared<FNeuralNetworkInference>(
 			*Model,
 			MaxBatchSize,
@@ -177,7 +178,10 @@ namespace UE::Learning
 			OutputSize,
 			Settings);
 
-		InferenceObjects.Emplace(InferenceObject.ToWeakPtr());
+		{
+			UE::Learning::FScopeNullableWriteLock ScopeLock(&Lock);
+			InferenceObjects.Emplace(InferenceObject.ToWeakPtr());
+		}
 
 		return InferenceObject;
 	}
@@ -199,6 +203,8 @@ namespace UE::Learning
 
 	void FNeuralNetwork::UpdateModel(const TSharedPtr<NNE::IModelCPU>& InModel, const int32 InInputSize, const int32 InOutputSize)
 	{
+		UE::Learning::FScopeNullableWriteLock ScopeLock(&Lock);
+
 		// Update Model
 
 		InputSize = InInputSize;
@@ -214,7 +220,7 @@ namespace UE::Learning
 			{
 				if (TSharedPtr<UE::Learning::FNeuralNetworkInference> InferenceObjectPtr = InferenceObject.Pin())
 				{
-					InferenceObjectPtr->ReloadModelInstances(*Model);
+					InferenceObjectPtr->ReloadModelInstances(*Model, InputSize, OutputSize);
 				}
 			}
 
@@ -236,16 +242,17 @@ namespace UE::Learning
 		const int32 InOutputSize,
 		const FNeuralNetworkInferenceSettings& InSettings)
 		: MaxBatchSize(InMaxBatchSize)
-		, InputSize(InInputSize)
-		, OutputSize(InOutputSize)
 		, Settings(InSettings)
 	{
-		ReloadModelInstances(InModel);
+		ReloadModelInstances(InModel, InInputSize, InOutputSize);
 	}
 
-	void FNeuralNetworkInference::ReloadModelInstances(NNE::IModelCPU& InModel)
+	void FNeuralNetworkInference::ReloadModelInstances(NNE::IModelCPU& InModel, const int32 InInputSize, const int32 InOutputSize)
 	{
 		UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::FNeuralNetworkInference::ReloadModelInstances);
+
+		InputSize = InInputSize;
+		OutputSize = InOutputSize;
 
 		if (Settings.bParallelEvaluation)
 		{

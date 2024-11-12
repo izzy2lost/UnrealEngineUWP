@@ -743,10 +743,11 @@ static void GLSLToPlatform(const FOpenGLCodeHeader& Header, GLenum TypeEnum, FAn
 void FOpenGLShader::Compile(GLenum TypeEnum)
 {
 	VERIFY_GL_SCOPE();
-	
 	FScopeLock Lock(&GCompiledShaderCacheCS);
+
 	FOpenGLCompiledShaderValue& FoundShader = GetOpenGLCompiledShaderCache().FindOrAdd(ShaderCodeKey);
 	Resource = FoundShader.Resource;
+
 	if (Resource == 0)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_OpenGLShaderCompileTime);
@@ -757,6 +758,7 @@ void FOpenGLShader::Compile(GLenum TypeEnum)
 		const ANSICHAR* UncompressedGlslCodeString = UncompressedShaderCode.GetData();
 		glShaderSource(Resource, 1, (const GLchar**)&UncompressedGlslCodeString, &GlslCodeLength);
 		glCompileShader(Resource);
+
 		const bool bSuccessfullyCompiled = VerifyShaderCompilation(Resource, UncompressedGlslCodeString);
 		ensure(bSuccessfullyCompiled);
 		
@@ -956,27 +958,7 @@ void OPENGLDRV_API GLSLToDeviceCompatibleGLSL(FAnsiCharArray& GlslCodeOriginal, 
 	}
 }
 
-/**
- * Helper for constructing strings of the form XXXXX##.
- * @param Str - The string to build.
- * @param Offset - Offset into the string at which to set the number.
- * @param Index - Number to set. Must be in the range [0,100).
- */
-static ANSICHAR* SetIndex(ANSICHAR* Str, int32 Offset, int32 Index)
-{
-	check(Index >= 0 && Index < 100);
-
-	Str += Offset;
-	if (Index >= 10)
-	{
-		*Str++ = '0' + (ANSICHAR)(Index / 10);
-	}
-	*Str++ = '0' + (ANSICHAR)(Index % 10);
-	*Str = '\0';
-	return Str;
-}
-
-FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash, GLenum TypeEnum)
+FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash, GLenum TypeEnum, FShaderResourceTable& SRT, FRHIShader* RHIShader)
 {
 	FMemory::Memzero(&Bindings, sizeof(Bindings));
 
@@ -987,7 +969,7 @@ FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash,
 	Ar.SetLimitSize(ShaderCode.GetActualShaderCodeSize());
 
 	FOpenGLCodeHeader Header = { 0 };
-	Ar << Header;
+	Header.Serialize(Ar, SRT);
 
 	if (Header.GlslMarker != 0x474c534c
 		|| (TypeEnum == GL_VERTEX_SHADER   && Header.FrequencyMarker != 0x5653)
@@ -1006,7 +988,7 @@ FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash,
 
 	Bindings = Header.Bindings;
 	UniformBuffersCopyInfo = Header.UniformBuffersCopyInfo;
-	UE::RHICore::InitStaticUniformBufferSlots(StaticSlots, Bindings.ShaderResourceTable);
+	UE::RHICore::InitStaticUniformBufferSlots(RHIShader);
 
 	int32 CodeOffset = Ar.Tell();
 
@@ -1019,6 +1001,15 @@ FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash,
  	AppendCString(GlslCodeOriginal, (ANSICHAR*)Code.GetData() + CodeOffset);
 	uint32 CodeCRC = FCrc::MemCrc32(GlslCodeOriginal.GetData(), GlslCodeOriginal.Num());
 	ShaderCodeKey = FOpenGLCompiledShaderKey(TypeEnum, GlslCodeOriginal.Num(), CodeCRC);
+
+	if (TypeEnum == GL_FRAGMENT_SHADER && FOpenGL::SupportsShaderFramebufferFetch())
+	{
+		// _Globals_gl_LastFragColor should only exist when 'FramebufferFetchGLES2()' is being used, not for MRT/deferred
+		if (FCStringAnsi::Strstr(GlslCodeOriginal.GetData(), "_Globals_gl_LastFragColor") != nullptr)
+		{
+			bUsesProgrammableBlending = true;
+		}
+	}
 
 	FAnsiCharArray GlslCodeFinal;
 	{
@@ -1059,6 +1050,54 @@ FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash,
 #endif
 
 	// The shader is compiled when we link program
+}
+
+FOpenGLVertexShader::FOpenGLVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_VERTEX_SHADER, ShaderResourceTable, this)
+{}
+
+void FOpenGLVertexShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_VERTEX_SHADER);
+	}
+}
+
+FOpenGLPixelShader::FOpenGLPixelShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_FRAGMENT_SHADER, ShaderResourceTable, this)
+{}
+
+void FOpenGLPixelShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_FRAGMENT_SHADER);
+	}
+}
+
+FOpenGLGeometryShader::FOpenGLGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_GEOMETRY_SHADER, ShaderResourceTable, this)
+{}
+
+void FOpenGLGeometryShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_GEOMETRY_SHADER);
+	}
+}
+
+FOpenGLComputeShader::FOpenGLComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_COMPUTE_SHADER, ShaderResourceTable, this)
+{}
+
+void FOpenGLComputeShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_COMPUTE_SHADER);
+	}
 }
 
 FVertexShaderRHIRef FOpenGLDynamicRHI::RHICreateVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
@@ -1148,109 +1187,133 @@ void FOpenGLDynamicRHI::BindUniformBufferBase(FOpenGLContextState& ContextState,
 
 struct FOpenGLUniformName
 {
-	FOpenGLUniformName()
-	{
-		FMemory::Memzero(Buffer);
-	}
+	ANSICHAR Buffer[10] {};
 	
-	ANSICHAR Buffer[10];
-	
-	friend bool operator ==(const FOpenGLUniformName& A,const FOpenGLUniformName& B)
+	/**
+	 * Helper for constructing strings of the form XXXXX##.
+	 * @param Str - The string to build.
+	 * @param Offset - Offset into the string at which to set the number.
+	 * @param Index - Number to set. Must be in the range [0,100).
+	 */
+	ANSICHAR* SetIndex(int32 Offset, int32 Index)
 	{
-		return FMemory::Memcmp(A.Buffer, B.Buffer, sizeof(A.Buffer)) == 0;
-	}
-	
-	friend uint32 GetTypeHash(const FOpenGLUniformName &Key)
-	{
-		return FCrc::MemCrc32(Key.Buffer, sizeof(Key.Buffer));
+		ANSICHAR* Str = Buffer;
+
+		check(Index >= 0 && Index < 100);
+
+		Str += Offset;
+		if (Index >= 10)
+		{
+			*Str++ = '0' + (ANSICHAR)(Index / 10);
+		}
+		*Str++ = '0' + (ANSICHAR)(Index % 10);
+		*Str = '\0';
+		return Str;
 	}
 };
 
-static TMap<GLuint, TMap<FOpenGLUniformName, int64>>& GetOpenGLUniformBlockLocations()
-{
-	static TMap<GLuint, TMap<FOpenGLUniformName, int64>> UniformBlockLocations;
-	return UniformBlockLocations;
-}
-
-static TMap<GLuint, TMap<int64, int64>>& GetOpenGLUniformBlockBindings()
-{
-	static TMap<GLuint, TMap<int64, int64>> UniformBlockBindings;
-	return UniformBlockBindings;
-}
-
-static GLuint GetOpenGLProgramUniformBlockIndex(GLuint Program, const FOpenGLUniformName& UniformBlockName)
-{
-	TMap<FOpenGLUniformName, int64>& Locations = GetOpenGLUniformBlockLocations().FindOrAdd(Program);
-	int64* Location = Locations.Find(UniformBlockName);
-	if(Location)
-	{
-		return *Location;
-	}
-	else
-	{
-		int64& Loc = Locations.Emplace(UniformBlockName);
-		Loc = (int64)FOpenGL::GetUniformBlockIndex(Program, UniformBlockName.Buffer);
-		return Loc;
-	}
-}
-
-static void GetOpenGLProgramUniformBlockBinding(GLuint Program, GLuint UniformBlockIndex, GLuint UniformBlockBinding)
-{
-	TMap<int64, int64>& Bindings = GetOpenGLUniformBlockBindings().FindOrAdd(Program);
-	int64* Bind = static_cast<int64 *>(Bindings.Find(UniformBlockIndex));
-	if(!Bind)
-	{
-		Bind = &(Bindings.Emplace(UniformBlockIndex));
-		check(Bind);
-		*Bind = -1;
-	}
-	check(Bind);
-	if(*Bind != static_cast<int64>(UniformBlockBinding))
-	{
-		*Bind = static_cast<int64>(UniformBlockBinding);
-		FOpenGL::UniformBlockBinding(Program, UniformBlockIndex, UniformBlockBinding);
-	}
-}
-
 // ============================================================================================================================
 
-class FOpenGLLinkedProgram
+class FOpenGLLinkedProgramBase
 {
 public:
-	FOpenGLLinkedProgramConfiguration Config;
+	FOpenGLProgramKey const ProgramKey;
 
+	TBitArray<>	TextureStageNeeds { false, FOpenGL::GetMaxCombinedTextureImageUnits() };
+	TBitArray<>	UAVStageNeeds     { false, FOpenGL::GetMaxCombinedUAVUnits()          };
+
+	int32		MaxTextureStage = -1;
+	int32		MaxUAVUnitUsed  = -1;
+
+	GLuint		Program = 0;
+	bool		bDrawn  = false;
+
+	int32 GetProgramBinarySize() const
+	{
+		check(Program);
+
+		GLint BinaryLength = -1;
+		glGetProgramiv(Program, GL_PROGRAM_BINARY_LENGTH, &BinaryLength);
+		check(BinaryLength > 0);
+
+		return BinaryLength;
+	}
+
+protected:
+	FOpenGLLinkedProgramBase(FOpenGLProgramKey const& ProgramKey, GLuint Program)
+		: ProgramKey(ProgramKey)
+		, Program(Program)
+	{}
+};
+
+class FOpenGLLinkedProgram final : public FOpenGLLinkedProgramBase
+{
+public:
 	struct FPackedUniformInfo
 	{
-		GLint	Location;
-		uint8	ArrayType;	// OGL_PACKED_ARRAYINDEX_TYPE
-		uint8	Index;		// OGL_PACKED_INDEX_TYPE
+		GLint Location;
+		uint8 ArrayType; // OGL_PACKED_ARRAYINDEX_TYPE
+		uint8 Index;     // OGL_PACKED_INDEX_TYPE
 	};
 
-	// Holds information needed per stage regarding packed uniform globals and uniform buffers
-	struct FStagePackedUniformInfo
+	struct FShaderStage
 	{
+		FOpenGLShaderBindings Bindings;
+
 		// Packed Uniform Arrays (regular globals); array elements per precision/type
-		TArray<FPackedUniformInfo>			PackedUniformInfos;
+		TArray<FPackedUniformInfo> PackedUniformInfos;
 
 		// Packed Uniform Buffers; outer array is per Uniform Buffer; inner array is per precision/type
-		TArray<TArray<FPackedUniformInfo>>	PackedUniformBufferInfos;
+		TArray<TArray<FPackedUniformInfo>> PackedUniformBufferInfos;
 
 		// Holds the unique ID of the last uniform buffer uploaded to the program; since we don't reuse uniform buffers
 		// (can't modify existing ones), we use this as a check for dirty/need to mem copy on Mobile
-		TArray<uint32>						LastEmulatedUniformBufferSet;
+		mutable TArray<uint32> LastEmulatedUniformBufferSet;
+
+		FShaderStage(FOpenGLLinkedProgramBase& ProgramBase, FOpenGLShader const& Shader, CrossCompiler::EShaderStage const Stage, uint32 const FirstUniformBuffer);
 	};
-	FStagePackedUniformInfo	StagePackedUniformInfo[CrossCompiler::NUM_SHADER_STAGES];
 
-	GLuint		Program;
-	bool		bDrawn;
-	bool		bConfigIsInitalized;
+	struct FGraphicsProgram
+	{
+		FShaderStage Vertex;
+		FShaderStage Pixel;
+		TOptional<FShaderStage> Geometry;
+		bool bUsesProgrammableBlending;
 
-	int32		MaxTextureStage;
-	TBitArray<>	TextureStageNeeds;
-	int32		MaxUAVUnitUsed;
-	TBitArray<>	UAVStageNeeds;
+		FGraphicsProgram(FOpenGLLinkedProgramBase& ProgramBase, FOpenGLVertexShader* VertexShader, FOpenGLPixelShader* PixelShader, FOpenGLGeometryShader* GeometryShader)
+			: Vertex(ProgramBase, *VertexShader, CrossCompiler::SHADER_STAGE_VERTEX, 0)
+			, Pixel(ProgramBase, *PixelShader, CrossCompiler::SHADER_STAGE_PIXEL, Vertex.Bindings.NumUniformBuffers)
+			, Geometry()
+			, bUsesProgrammableBlending(PixelShader->bUsesProgrammableBlending)
+		{
+			if (GeometryShader)
+			{
+				Geometry.Emplace(ProgramBase , *GeometryShader, CrossCompiler::SHADER_STAGE_GEOMETRY, Vertex.Bindings.NumUniformBuffers + Pixel.Bindings.NumUniformBuffers);
+			}
+		}
+	};
 
-	TArray<FOpenGLBindlessSamplerInfo> Samplers;
+	struct FComputeProgram
+	{
+		FShaderStage Compute;
+
+		FComputeProgram(FOpenGLLinkedProgramBase& ProgramBase, FOpenGLComputeShader* ComputeShader)
+			: Compute(ProgramBase, *ComputeShader, CrossCompiler::SHADER_STAGE_COMPUTE, 0)
+		{}
+	};
+
+private:
+	TVariant<FEmptyVariantState
+		, FGraphicsProgram
+		, FComputeProgram
+	> Config;
+
+public:
+	FGraphicsProgram const& GetGraphicsProgram() const { return Config.Get<FGraphicsProgram>(); }
+	FComputeProgram  const& GetComputeProgram () const { return Config.Get<FComputeProgram >(); }
+
+	bool IsGraphics() const { return Config.IsType<FGraphicsProgram>(); }
+	bool IsCompute () const { return Config.IsType<FComputeProgram >(); }
 
 	// TODO: This should be stored within the lru.
 	class FLRUInfo
@@ -1265,38 +1328,11 @@ public:
  		uint32 LastTouchedFrame = 0;
 	} LRUInfo;
 
-private:
-	FOpenGLLinkedProgram()
-	: Program(0), bDrawn(false), bConfigIsInitalized(false), MaxTextureStage(-1), MaxUAVUnitUsed(-1)
-	{
-		TextureStageNeeds.Init( false, FOpenGL::GetMaxCombinedTextureImageUnits() );
-		UAVStageNeeds.Init( false, FOpenGL::GetMaxCombinedUAVUnits() );
-	}
+	// Add a program without a valid config. (partially initialized)
+	FOpenGLLinkedProgram(const FOpenGLProgramKey& InProgramKey, GLuint InProgram);
 
-public:
-
-	FOpenGLLinkedProgram(const FOpenGLProgramKey& ProgramKeyIn)
-		: FOpenGLLinkedProgram()
-	{
-		Config.ProgramKey = ProgramKeyIn;
-	}
-
-	FOpenGLLinkedProgram(const FOpenGLProgramKey& ProgramKeyIn, GLuint ProgramIn)
-		: FOpenGLLinkedProgram()
-	{
-		// Add a program without a valid config. (partially initialized)
-		Program = ProgramIn;
-
-		// The key is required as the program could be evicted before being bound (set bss).
-		Config.ProgramKey = ProgramKeyIn;
-	}
-
-	FOpenGLLinkedProgram(const FOpenGLLinkedProgramConfiguration& ConfigIn, GLuint ProgramIn)
-		: FOpenGLLinkedProgram()
-	{
-		SetConfig(ConfigIn);
-		Program = ProgramIn;
-	}
+	FOpenGLLinkedProgram(FOpenGLVertexShader* VertexShader, FOpenGLPixelShader* PixelShader, FOpenGLGeometryShader* GeometryShader);
+	FOpenGLLinkedProgram(FOpenGLComputeShader* ComputeShader);
 
 	~FOpenGLLinkedProgram()
 	{
@@ -1306,100 +1342,48 @@ public:
 	void DeleteGLResources()
 	{
 		VERIFY_GL_SCOPE();
+
+		Config.Emplace<FEmptyVariantState>();
+
 		if (Program != 0)
 		{
 			SetDeletedProgramStats(Program);
 			FOpenGL::DeleteProgramPipelines(1, &Program);
-			GetOpenGLUniformBlockLocations().Remove(Program);
-			GetOpenGLUniformBlockBindings().Remove(Program);
 			Program = 0;
 		}
+	}
 
-		for (int Stage = 0; Stage < CrossCompiler::NUM_SHADER_STAGES; Stage++)
+	template <typename TProgramType, typename... TArgs>
+	void UpdateShaders(TArgs&&... Args)
+	{
+#if DO_CHECK
+		// The key of the provided RHI shaders should match the key this linked program was created with
+		FOpenGLProgramKey const LocalKey = { Forward<TArgs>(Args)... };
+		check(ProgramKey == LocalKey);
+#endif
+
+		if (Config.IsType<FEmptyVariantState>())
 		{
-			StagePackedUniformInfo[Stage].PackedUniformInfos.Empty();
-			StagePackedUniformInfo[Stage].PackedUniformBufferInfos.Empty();
-			StagePackedUniformInfo[Stage].LastEmulatedUniformBufferSet.Empty();
+			// We now have the config for this program, we must configure the program for use.
+			ensure(VerifyLinkedProgram(Program));
+			FOpenGL::BindProgramPipeline(Program);
+
+			Config.Emplace<TProgramType>(*this, Forward<TArgs>(Args)...);
 		}
 	}
 
-	void ConfigureShaderStage( int Stage, uint32 FirstUniformBuffer );
-
-	// Make sure GlobalArrays (created from shader reflection) matches our info (from the cross compiler)
-	static inline void SortPackedUniformInfos(const TArray<FPackedUniformInfo>& ReflectedUniformInfos, const TArray<CrossCompiler::FPackedArrayInfo>& PackedGlobalArrays, TArray<FPackedUniformInfo>& OutPackedUniformInfos)
+	FShaderStage const& GetStage(CrossCompiler::EShaderStage Stage) const
 	{
-		check(OutPackedUniformInfos.Num() == 0);
-		OutPackedUniformInfos.Empty(PackedGlobalArrays.Num());
-		for (int32 Index = 0; Index < PackedGlobalArrays.Num(); ++Index)
+		switch (Stage)
 		{
-			auto& PackedArray = PackedGlobalArrays[Index];
-			FPackedUniformInfo OutInfo = {-1, PackedArray.TypeName, CrossCompiler::PACKED_TYPEINDEX_MAX};
-
-			// Find this Global Array in the reflection list
-			for (int32 FindIndex = 0; FindIndex < ReflectedUniformInfos.Num(); ++FindIndex)
-			{
-				auto& ReflectedInfo = ReflectedUniformInfos[FindIndex];
-				if (ReflectedInfo.ArrayType == PackedArray.TypeName)
-				{
-					OutInfo = ReflectedInfo;
-					break;
-				}
-			}
-
-			OutPackedUniformInfos.Add(OutInfo);
+		default: checkNoEntry(); [[fallthrough]];
+		case CrossCompiler::EShaderStage::SHADER_STAGE_VERTEX  : return  GetGraphicsProgram().Vertex;
+		case CrossCompiler::EShaderStage::SHADER_STAGE_PIXEL   : return  GetGraphicsProgram().Pixel;
+		case CrossCompiler::EShaderStage::SHADER_STAGE_GEOMETRY: return *GetGraphicsProgram().Geometry;
+		case CrossCompiler::EShaderStage::SHADER_STAGE_COMPUTE : return  GetComputeProgram ().Compute;
 		}
-	}
-
-	void SetConfig(const FOpenGLLinkedProgramConfiguration& ConfigIn)
-	{
-		Config = ConfigIn;
-		bConfigIsInitalized = true;
 	}
 };
-
-static void ConfigureStageStates(FOpenGLLinkedProgram* LinkedProgram)
-{
-	const FOpenGLLinkedProgramConfiguration &Config = LinkedProgram->Config;
-
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].bValid)
-	{
-		LinkedProgram->ConfigureShaderStage(
-			CrossCompiler::SHADER_STAGE_VERTEX,
-			OGL_FIRST_UNIFORM_BUFFER
-		);
-		check(LinkedProgram->StagePackedUniformInfo[CrossCompiler::SHADER_STAGE_VERTEX].PackedUniformInfos.Num() <= Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Bindings.PackedGlobalArrays.Num());
-	}
-
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].bValid)
-	{
-		LinkedProgram->ConfigureShaderStage(
-			CrossCompiler::SHADER_STAGE_PIXEL,
-			OGL_FIRST_UNIFORM_BUFFER +
-			Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Bindings.NumUniformBuffers
-		);
-		check(LinkedProgram->StagePackedUniformInfo[CrossCompiler::SHADER_STAGE_PIXEL].PackedUniformInfos.Num() <= Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].Bindings.PackedGlobalArrays.Num());
-	}
-
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_GEOMETRY].bValid)
-	{
-		LinkedProgram->ConfigureShaderStage(
-			CrossCompiler::SHADER_STAGE_GEOMETRY,
-			OGL_FIRST_UNIFORM_BUFFER +
-			Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Bindings.NumUniformBuffers +
-			Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].Bindings.NumUniformBuffers
-		);
-		check(LinkedProgram->StagePackedUniformInfo[CrossCompiler::SHADER_STAGE_GEOMETRY].PackedUniformInfos.Num() <= Config.Shaders[CrossCompiler::SHADER_STAGE_GEOMETRY].Bindings.PackedGlobalArrays.Num());
-	}
-
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].bValid)
-	{
-		LinkedProgram->ConfigureShaderStage(
-			CrossCompiler::SHADER_STAGE_COMPUTE,
-			OGL_FIRST_UNIFORM_BUFFER
-		);
-		check(LinkedProgram->StagePackedUniformInfo[CrossCompiler::SHADER_STAGE_COMPUTE].PackedUniformInfos.Num() <= Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Bindings.PackedGlobalArrays.Num());
-	}
-}
 
 namespace UE
 {
@@ -1466,21 +1450,6 @@ namespace UE
 	}
 }
 
-static int32 GetProgramBinarySize(GLuint Program)
-{
-	GLint BinaryLength = -1;
-	glGetProgramiv(Program, GL_PROGRAM_BINARY_LENGTH, &BinaryLength);
-	check(BinaryLength > 0);
-	return BinaryLength;
-}
-
-void ConfigureGLProgramStageStates(FOpenGLLinkedProgram* LinkedProgram)
-{
-	ensure(VerifyLinkedProgram(LinkedProgram->Program));
-	FOpenGL::BindProgramPipeline(LinkedProgram->Program);
-	ConfigureStageStates(LinkedProgram);
-}
-
 class FGLProgramCacheLRU
 {
 	class FEvictedGLProgram
@@ -1488,7 +1457,7 @@ class FGLProgramCacheLRU
 		FOpenGLLinkedProgram* LinkedProgram = nullptr;
 
 		// When evicted, the cached binary program is owned here.
-		TUniqueObj<FOpenGLProgramBinary> CachedProgramBinary;
+		TUniqueObj<FOpenGLProgramBinary> CachedProgramBinary {};
 
 		FORCEINLINE_DEBUGGABLE TArrayView<const uint8> GetProgramBinaryView() const
  		{
@@ -1496,6 +1465,7 @@ class FGLProgramCacheLRU
  		}
 
 	public:
+		FEvictedGLProgram() = default;
 
 		// Create an evicted program with the program binary provided.
 		FEvictedGLProgram(const FOpenGLProgramKey& ProgramKey, TUniqueObj<FOpenGLProgramBinary>&& ProgramBinaryIn)
@@ -1529,7 +1499,7 @@ class FGLProgramCacheLRU
 		{
 			if (LinkedProgram == nullptr)
 			{
-				LinkedProgram = new FOpenGLLinkedProgram(ProgramKey);
+				LinkedProgram = new FOpenGLLinkedProgram(ProgramKey, 0);
 			}
 
 			check(LinkedProgram->Program == 0);
@@ -1551,7 +1521,7 @@ class FGLProgramCacheLRU
 			else
 			{
 				uint32 ProgramCRC = FCrc::MemCrc32(GetProgramBinaryView().GetData(), GetProgramBinaryView().Num());
-				UE_LOG(LogRHI, Log, TEXT("[%s, %d, %d, crc 0x%X]"), *LinkedProgram->Config.ProgramKey.ToString(), LinkedProgram->Program, GetProgramBinaryView().Num(), ProgramCRC );
+				UE_LOG(LogRHI, Log, TEXT("[%s, %d, %d, crc 0x%X]"), *ProgramKey.ToString(), LinkedProgram->Program, GetProgramBinaryView().Num(), ProgramCRC );
 				// dump first 32 bytes..
 				if (GetProgramBinaryView().Num() >= 32)
 				{
@@ -1562,17 +1532,16 @@ class FGLProgramCacheLRU
 					}
 				}
 				RHIGetPanicDelegate().ExecuteIfBound(FName("FailedBinaryProgramCreate"));
-				UE_LOG(LogRHI, Fatal, TEXT("RestoreGLProgramFromBinary : Failed to restore GL program from binary data! [%s]"), *LinkedProgram->Config.ProgramKey.ToString());
+				UE_LOG(LogRHI, Fatal, TEXT("RestoreGLProgramFromBinary : Failed to restore GL program from binary data! [%s]"), *ProgramKey.ToString());
 			}
 		}
 
-		FOpenGLLinkedProgram* GetLinkedProgram()
+		FOpenGLLinkedProgram* GetLinkedProgram() const
 		{
 			return LinkedProgram;
 		}
 	};
-	typedef TMap<FOpenGLProgramKey, FEvictedGLProgram> FOpenGLEvictedProgramsMap;
-	typedef TPsoLruCache<FOpenGLProgramKey, FOpenGLLinkedProgram* > FOpenGLProgramLRUCache;
+
 	const int LRUCapacity = 2048;
 	int32 LRUBinaryMemoryUse;
 
@@ -1591,33 +1560,30 @@ class FGLProgramCacheLRU
 
 	FOpenGLLinkedProgram* FindEvictedAndUpdateLRU(const FOpenGLProgramKey& ProgramKey)
 	{
-		// Missed LRU cache, check evicted cache and add back to LRU
-		FEvictedGLProgram* FoundEvicted = EvictedPrograms.Find(ProgramKey);
-		if (FoundEvicted)
+		FOpenGLLinkedProgram* LinkedProgram;
 		{
+			// Missed LRU cache, check evicted cache and add back to LRU
+			FEvictedGLProgram FoundEvicted;
+			if (!EvictedPrograms.RemoveAndCopyValue(ProgramKey, FoundEvicted))
+			{
+				return nullptr;
+			}
+
 			SCOPE_CYCLE_COUNTER(STAT_OpenGLShaderLRUMissTime);
 			INC_DWORD_STAT(STAT_OpenGLShaderLRUMissCount);
 
 			// UE_LOG(LogRHI, Warning, TEXT("LRU: found and recovered EVICTED program %s"), *ProgramKey.ToString());
-			FoundEvicted->RestoreGLProgramFromBinary(ProgramKey);
-			FOpenGLLinkedProgram* LinkedProgram = FoundEvicted->GetLinkedProgram();
-
-			// Remove from the evicted program map.
-			EvictedPrograms.Remove(ProgramKey);
-
-			// Add this back to the LRU
-			Add(ProgramKey, LinkedProgram);
-
-			DEC_DWORD_STAT(STAT_OpenGLShaderLRUEvictedProgramCount);
-
-			// reconfigure the new program:
-			ConfigureGLProgramStageStates(LinkedProgram);
-
-			return LinkedProgram;
+			FoundEvicted.RestoreGLProgramFromBinary(ProgramKey);
+			LinkedProgram = FoundEvicted.GetLinkedProgram();
 		}
 
-		// nope.
-		return nullptr;
+		// Add this back to the LRU
+		Add(ProgramKey, LinkedProgram);
+
+		DEC_DWORD_STAT(STAT_OpenGLShaderLRUEvictedProgramCount);
+
+		return LinkedProgram;
+
 	}
 
 	void EvictFromLRU(FOpenGLLinkedProgram* LinkedProgram)
@@ -1627,11 +1593,11 @@ class FGLProgramCacheLRU
 
 		DEC_DWORD_STAT(STAT_OpenGLShaderLRUProgramCount);
 
-		LRUBinaryMemoryUse -= GetProgramBinarySize(LinkedProgram->Program);
+		LRUBinaryMemoryUse -= LinkedProgram->GetProgramBinarySize();
 
-		checkf(!EvictedPrograms.Contains(LinkedProgram->Config.ProgramKey), TEXT("Program is already in the evicted program list: %s"), *LinkedProgram->Config.ProgramKey.ToString());
+		checkf(!EvictedPrograms.Contains(LinkedProgram->ProgramKey), TEXT("Program is already in the evicted program list: %s"), *LinkedProgram->ProgramKey.ToString());
 		//UE_LOG(LogRHI, Warning, TEXT("LRU: Evicting program %d"), LinkedProgram->Program);
-		FEvictedGLProgram& test = EvictedPrograms.Emplace(LinkedProgram->Config.ProgramKey, LinkedProgram);
+		FEvictedGLProgram& test = EvictedPrograms.Emplace(LinkedProgram->ProgramKey, LinkedProgram);
 		INC_DWORD_STAT(STAT_OpenGLShaderLRUEvictedProgramCount);
 	}
 
@@ -1669,7 +1635,9 @@ public:
 		}
 	}
 
-	FGLProgramCacheLRU() : LRUBinaryMemoryUse(0), LRU(LRUCapacity)
+	FGLProgramCacheLRU()
+		: LRUBinaryMemoryUse(0)
+		, LRU(LRUCapacity)
 	{
 		EvictedPrograms.Reserve(10000); // |TODO: establish a reasonable default.
 	}
@@ -1702,7 +1670,7 @@ public:
 		LinkedProgram->LRUInfo.LRUNode = LRU.Add(ProgramKey, LinkedProgram);
 		LinkedProgram->LRUInfo.Touch();
 
-		LRUBinaryMemoryUse += GetProgramBinarySize(LinkedProgram->Program);
+		LRUBinaryMemoryUse += LinkedProgram->GetProgramBinarySize();
 		INC_DWORD_STAT(STAT_OpenGLShaderLRUProgramCount);
 	}
 
@@ -1753,7 +1721,7 @@ public:
 		else
 		{
 			// This must find the program.
-			ensure(FindEvictedAndUpdateLRU(LinkedProgram->Config.ProgramKey));
+			ensure(FindEvictedAndUpdateLRU(LinkedProgram->ProgramKey));
 		}
 		LinkedProgram->LRUInfo.Touch();
 	}
@@ -1761,40 +1729,24 @@ public:
 	void Empty()
 	{
 		// delete all FOpenGLLinkedPrograms from evicted container
-		for(FOpenGLEvictedProgramsMap::TIterator It(EvictedPrograms); It; ++It )
+		for (auto const& Pair : EvictedPrograms)
 		{
-			FOpenGLLinkedProgram* LinkedProgram = It.Value().GetLinkedProgram();
+			FOpenGLLinkedProgram* LinkedProgram = Pair.Value.GetLinkedProgram();
 			delete LinkedProgram;
 		}
 		EvictedPrograms.Empty();
 
 		// delete all FOpenGLLinkedPrograms from LRU
-		for (FOpenGLProgramLRUCache::TIterator It(LRU); It; ++It)
+		for (FOpenGLLinkedProgram* Value : LRU)
 		{
-			delete It.Value();
+			delete Value;
 		}
 		LRU.Empty(LRUCapacity);
 	}
 
-	void EnumerateLinkedPrograms(TFunction<void(FOpenGLLinkedProgram*)> EnumFunc)
-	{
-		// delete all FOpenGLLinkedPrograms from evicted container
-		for (FOpenGLEvictedProgramsMap::TIterator It(EvictedPrograms); It; ++It)
-		{
-			EnumFunc( It.Value().GetLinkedProgram());
-		}
-		// delete all FOpenGLLinkedPrograms from LRU
-		for (FOpenGLProgramLRUCache::TIterator It(LRU); It; ++It)
-		{
-			EnumFunc(It.Value());
-		}
-	}
-
-	FOpenGLProgramLRUCache LRU;
-	FOpenGLEvictedProgramsMap EvictedPrograms;
+	TPsoLruCache<FOpenGLProgramKey, FOpenGLLinkedProgram*> LRU;
+	TMap<FOpenGLProgramKey, FEvictedGLProgram> EvictedPrograms;
 };
-
-typedef TMap<FOpenGLProgramKey, FOpenGLLinkedProgram*> FOpenGLProgramsMap;
 
 // FGLProgramCache is a K/V store that holds on to all FOpenGLLinkedProgram created.
 // It is implemented by either a TMap or an LRU cache that will limit the number of active GL programs at any one time.
@@ -1802,11 +1754,12 @@ typedef TMap<FOpenGLProgramKey, FOpenGLLinkedProgram*> FOpenGLProgramsMap;
 class FGLProgramCache
 {
 	FGLProgramCacheLRU ProgramCacheLRU;
-	FOpenGLProgramsMap ProgramCache;
+	TMap<FOpenGLProgramKey, FOpenGLLinkedProgram*> ProgramCache;
+
 	inline static uint32 UseLRUCacheStatus = -1;
 public:
 
-	static FORCEINLINE_DEBUGGABLE bool IsUsingLRU()
+	static bool IsUsingLRU()
 	{
 		if (UseLRUCacheStatus == -1)
 		{
@@ -1822,15 +1775,15 @@ public:
 		return UseLRUCacheStatus == 1;
 	}
 
-	FORCEINLINE_DEBUGGABLE void Touch(FOpenGLLinkedProgram* LinkedProgram)
+	void Touch(FOpenGLLinkedProgram* LinkedProgram)
 	{
 		if (IsUsingLRU())
 		{
 			ProgramCacheLRU.Touch(LinkedProgram);
 		}
 	}
-
-	FORCEINLINE_DEBUGGABLE FOpenGLLinkedProgram* Find(const FOpenGLProgramKey& ProgramKey, bool bFindAndCreateEvictedProgram)
+	
+	FOpenGLLinkedProgram* Find(const FOpenGLProgramKey& ProgramKey, bool bFindAndCreateEvictedProgram)
 	{
 		if (IsUsingLRU())
 		{
@@ -1843,7 +1796,7 @@ public:
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE bool Contains(const FOpenGLProgramKey& ProgramKey) const
+	bool Contains(const FOpenGLProgramKey& ProgramKey) const
 	{
 		if (IsUsingLRU())
 		{
@@ -1856,7 +1809,7 @@ public:
 	}
 	
 
-	FORCEINLINE_DEBUGGABLE void Add(const FOpenGLProgramKey& ProgramKey, FOpenGLLinkedProgram* LinkedProgram)
+	void Add(const FOpenGLProgramKey& ProgramKey, FOpenGLLinkedProgram* LinkedProgram)
 	{
 		if (IsUsingLRU())
 		{
@@ -1878,9 +1831,9 @@ public:
 		else
 		{
 			// delete all FOpenGLLinkedPrograms from ProgramCache
-			for (FOpenGLProgramsMap::TIterator It(ProgramCache); It; ++It)
+			for (auto& Pair : ProgramCache)
 			{
-				delete It.Value();
+				delete Pair.Value;
 			}
 			ProgramCache.Empty();
 		}
@@ -1944,22 +1897,6 @@ public:
 		check(IsUsingLRU());
 		return ProgramCacheLRU.GetLRUSize();
 	}
-
-	void EnumerateLinkedPrograms(TFunction<void(FOpenGLLinkedProgram*)> EnumFunc)
-	{
-		if (IsUsingLRU())
-		{
-			ProgramCacheLRU.EnumerateLinkedPrograms(EnumFunc);
-		}
-		else
-		{
-			// all programs are retained in map.
-			for (FOpenGLProgramsMap::TIterator It(ProgramCache); It; ++It)
-			{
-				EnumFunc(It.Value());
-			}
-		}
-	}
 };
 
 static FGLProgramCache& GetOpenGLProgramsCache()
@@ -1975,22 +1912,13 @@ static FGLProgramCache& GetOpenGLProgramsCache()
 
 #define LAST_RELEASED_PROGRAMS_CACHE_COUNT 10
 
-static FOpenGLLinkedProgram* StaticLastReleasedPrograms[LAST_RELEASED_PROGRAMS_CACHE_COUNT] = { 0 };
+static FOpenGLLinkedProgram* StaticLastReleasedPrograms[LAST_RELEASED_PROGRAMS_CACHE_COUNT] {};
 static int32 StaticLastReleasedProgramsIndex = 0;
 
 // ============================================================================================================================
 
-static int32 CountSetBits(const TBitArray<>& Array)
-{
-	int32 Result = 0;
-	for (TBitArray<>::FConstIterator BitIt(Array); BitIt; ++BitIt)
-	{
-		Result += BitIt.GetValue();
-	}
-	return Result;
-}
-
-void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformBuffer )
+FOpenGLLinkedProgram::FShaderStage::FShaderStage(FOpenGLLinkedProgramBase& ProgramBase, FOpenGLShader const& Shader, CrossCompiler::EShaderStage const Stage, uint32 const FirstUniformBuffer)
+	: Bindings(Shader.Bindings)
 {
 	static const GLint FirstTextureUnit[CrossCompiler::NUM_SHADER_STAGES] =
 	{
@@ -2027,8 +1955,6 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 
 	FOpenGLUniformName Name;
 	Name.Buffer[0] = CrossCompiler::ShaderStageIndexToTypeName(Stage);
-
-	GLuint StageProgram = Program;
 	
 	// Bind Global uniform arrays (vu_h, pu_i, etc)
 	{
@@ -2037,20 +1963,36 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 		Name.Buffer[3] = 0;
 		Name.Buffer[4] = 0;
 
-		TArray<FPackedUniformInfo> PackedUniformInfos;
+		TArray<FPackedUniformInfo, TInlineAllocator<CrossCompiler::PACKED_TYPEINDEX_MAX>> LocalPackedUniformInfos;
 		for (uint8 Index = 0; Index < CrossCompiler::PACKED_TYPEINDEX_MAX; ++Index)
 		{
 			uint8 ArrayIndexType = CrossCompiler::PackedTypeIndexToTypeName(Index);
 			Name.Buffer[3] = ArrayIndexType;
-			GLint Location = glGetUniformLocation(StageProgram, Name.Buffer);
+
+			GLint Location = glGetUniformLocation(ProgramBase.Program, Name.Buffer);
 			if ((int32)Location != -1)
 			{
-				FPackedUniformInfo Info = {Location, ArrayIndexType, Index};
-				PackedUniformInfos.Add(Info);
+				LocalPackedUniformInfos.Add({ Location, ArrayIndexType, Index });
 			}
 		}
 
-		SortPackedUniformInfos(PackedUniformInfos, Config.Shaders[Stage].Bindings.PackedGlobalArrays, StagePackedUniformInfo[Stage].PackedUniformInfos);
+		PackedUniformInfos.Empty(Bindings.PackedGlobalArrays.Num());
+		for (auto const& PackedArray : Bindings.PackedGlobalArrays)
+		{
+			FPackedUniformInfo OutInfo = { -1, PackedArray.TypeName, CrossCompiler::PACKED_TYPEINDEX_MAX };
+
+			// Find this Global Array in the reflection list
+			for (auto const& ReflectedInfo : LocalPackedUniformInfos)
+			{
+				if (ReflectedInfo.ArrayType == PackedArray.TypeName)
+				{
+					OutInfo = ReflectedInfo;
+					break;
+				}
+			}
+
+			PackedUniformInfos.Add(OutInfo);
+		}
 	}
 
 	// Bind uniform buffer packed arrays (vc0_h, pc2_i, etc)
@@ -2062,57 +2004,61 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 		Name.Buffer[5] = 0;
 		Name.Buffer[6] = 0;
 
-		check(StagePackedUniformInfo[Stage].PackedUniformBufferInfos.Num() == 0);
-		int32 NumUniformBuffers = Config.Shaders[Stage].Bindings.NumUniformBuffers;
-		StagePackedUniformInfo[Stage].PackedUniformBufferInfos.SetNum(NumUniformBuffers);
-		int32 NumPackedUniformBuffers = Config.Shaders[Stage].Bindings.PackedUniformBuffers.Num();
-		check(NumPackedUniformBuffers <= NumUniformBuffers);
+		PackedUniformBufferInfos.SetNum(Bindings.NumUniformBuffers);
 
-		for (int32 UB = 0; UB < NumPackedUniformBuffers; ++UB)
+		check(Bindings.PackedUniformBuffers.Num() <= Bindings.NumUniformBuffers);
+
+		for (int32 UB = 0; UB < Bindings.PackedUniformBuffers.Num(); ++UB)
 		{
-			const TArray<CrossCompiler::FPackedArrayInfo>& PackedInfo = Config.Shaders[Stage].Bindings.PackedUniformBuffers[UB];
-			TArray<FPackedUniformInfo>& PackedBuffers = StagePackedUniformInfo[Stage].PackedUniformBufferInfos[UB];
+			const TArray<CrossCompiler::FPackedArrayInfo>& PackedInfo = Bindings.PackedUniformBuffers[UB];
+			TArray<FPackedUniformInfo>& PackedBuffers = PackedUniformBufferInfos[UB];
 
-			ANSICHAR* Str = SetIndex(Name.Buffer, 2, UB);
+			ANSICHAR* Str = Name.SetIndex(2, UB);
 			*Str++ = '_';
 			Str[1] = 0;
-			for (uint8 Index = 0; Index < PackedInfo.Num(); ++Index)
+
+			for (auto const& Info : PackedInfo)
 			{
-				Str[0] = PackedInfo[Index].TypeName;
-				GLint Location = glGetUniformLocation(StageProgram, Name.Buffer); // This could be -1 if optimized out
-				FPackedUniformInfo Info = {Location, PackedInfo[Index].TypeName,  PackedInfo[Index].TypeIndex};
-				PackedBuffers.Add(Info);
+				Str[0] = Info.TypeName;
+
+				GLint Location = glGetUniformLocation(ProgramBase.Program, Name.Buffer); // This could be -1 if optimized out
+				PackedBuffers.Add({ Location, Info.TypeName,  Info.TypeIndex });
 			}
 		}
 	}
 
 	// Reserve and setup Space for Emulated Uniform Buffers
-	StagePackedUniformInfo[Stage].LastEmulatedUniformBufferSet.Empty(Config.Shaders[Stage].Bindings.NumUniformBuffers);
-	StagePackedUniformInfo[Stage].LastEmulatedUniformBufferSet.AddZeroed(Config.Shaders[Stage].Bindings.NumUniformBuffers);
+	LastEmulatedUniformBufferSet.Empty(Bindings.NumUniformBuffers);
+	LastEmulatedUniformBufferSet.AddZeroed(Bindings.NumUniformBuffers);
 
 	// Bind samplers.
 	Name.Buffer[1] = 's';
 	Name.Buffer[2] = 0;
 	Name.Buffer[3] = 0;
 	Name.Buffer[4] = 0;
+
 	int32 LastFoundIndex = -1;
-	for (int32 SamplerIndex = 0; SamplerIndex < Config.Shaders[Stage].Bindings.NumSamplers; ++SamplerIndex)
+	for (int32 SamplerIndex = 0; SamplerIndex < Bindings.NumSamplers; ++SamplerIndex)
 	{
-		SetIndex(Name.Buffer, 2, SamplerIndex);
-		GLint Location = glGetUniformLocation(StageProgram, Name.Buffer);
+		Name.SetIndex(2, SamplerIndex);
+
+		GLint Location = glGetUniformLocation(ProgramBase.Program, Name.Buffer);
 		if (Location == -1)
 		{
 			if (LastFoundIndex != -1)
 			{
 				// It may be an array of samplers. Get the initial element location, if available, and count from it.
-				SetIndex(Name.Buffer, 2, LastFoundIndex);
-				int32 OffsetOfArraySpecifier = (LastFoundIndex>9)?4:3;
-				int32 ArrayIndex = SamplerIndex-LastFoundIndex;
+				Name.SetIndex(2, LastFoundIndex);
+
+				int32 OffsetOfArraySpecifier = (LastFoundIndex > 9) ? 4 : 3;
+				int32 ArrayIndex = SamplerIndex - LastFoundIndex;
+
 				Name.Buffer[OffsetOfArraySpecifier] = '[';
-				ANSICHAR* EndBracket = SetIndex(Name.Buffer, OffsetOfArraySpecifier+1, ArrayIndex);
+				ANSICHAR* EndBracket = Name.SetIndex(OffsetOfArraySpecifier + 1, ArrayIndex);
 				*EndBracket++ = ']';
 				*EndBracket = 0;
-				Location = glGetUniformLocation(StageProgram, Name.Buffer);
+
+				Location = glGetUniformLocation(ProgramBase.Program, Name.Buffer);
 			}
 		}
 		else
@@ -2122,25 +2068,15 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 
 		if (Location != -1)
 		{
-			if ( OpenGLConsoleVariables::bBindlessTexture == 0 || !FOpenGL::SupportsBindlessTexture())
+			FOpenGL::ProgramUniform1i(ProgramBase.Program, Location, FirstTextureUnit[Stage] + SamplerIndex);
+
+			ProgramBase.TextureStageNeeds[ FirstTextureUnit[Stage] + SamplerIndex ] = true;
+			ProgramBase.MaxTextureStage = FMath::Max(ProgramBase.MaxTextureStage, FirstTextureUnit[Stage] + SamplerIndex);
+
+			if (SamplerIndex >= MaxTextureUnit[Stage])
 			{
-				// Non-bindless, setup the unit info
-				FOpenGL::ProgramUniform1i(StageProgram, Location, FirstTextureUnit[Stage] + SamplerIndex);
-				TextureStageNeeds[ FirstTextureUnit[Stage] + SamplerIndex ] = true;
-				MaxTextureStage = FMath::Max( MaxTextureStage, FirstTextureUnit[Stage] + SamplerIndex);
-				if (SamplerIndex >= MaxTextureUnit[Stage])
-				{
-					UE_LOG(LogShaders, Error, TEXT("%s has a shader using too many textures (idx %d, max allowed %d) at stage %d"), *Config.ProgramKey.ToString(), SamplerIndex, MaxTextureUnit[Stage]-1, Stage);
-					checkNoEntry();
-				}
-			}
-			else
-			{
-				//Bindless, save off the slot information
-				FOpenGLBindlessSamplerInfo Info;
-				Info.Handle = Location;
-				Info.Slot = FirstTextureUnit[Stage] + SamplerIndex;
-				Samplers.Add(Info);
+				UE_LOG(LogShaders, Error, TEXT("%s has a shader using too many textures (idx %d, max allowed %d) at stage %d"), *ProgramBase.ProgramKey.ToString(), SamplerIndex, MaxTextureUnit[Stage] - 1, Stage);
+				checkNoEntry();
 			}
 		}
 	}
@@ -2150,11 +2086,12 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 	Name.Buffer[2] = 0;
 	Name.Buffer[3] = 0;
 	Name.Buffer[4] = 0;
+
 	int32 LastFoundUAVIndex = -1;
-	for (int32 UAVIndex = 0; UAVIndex < Config.Shaders[Stage].Bindings.NumUAVs; ++UAVIndex)
+	for (int32 UAVIndex = 0; UAVIndex < Bindings.NumUAVs; ++UAVIndex)
 	{
-		ANSICHAR* Str = SetIndex(Name.Buffer, 2, UAVIndex);
-		GLint Location = glGetUniformLocation(StageProgram, Name.Buffer);
+		ANSICHAR* Str = Name.SetIndex(2, UAVIndex);
+		GLint Location = glGetUniformLocation(ProgramBase.Program, Name.Buffer);
 		if (Location == -1)
 		{
 			// SSBO
@@ -2163,7 +2100,7 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 			Str[2] = 'A';
 			Str[3] = 'R';
 			Str[4] = '\0';
-			Location = glGetProgramResourceIndex(StageProgram, GL_SHADER_STORAGE_BLOCK, Name.Buffer);
+			Location = glGetProgramResourceIndex(ProgramBase.Program, GL_SHADER_STORAGE_BLOCK, Name.Buffer);
 		}
 
 		if (Location == -1)
@@ -2171,14 +2108,17 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 			if (LastFoundUAVIndex != -1)
 			{
 				// It may be an array of UAVs. Get the initial element location, if available, and count from it.
-				SetIndex(Name.Buffer, 2, LastFoundUAVIndex);
-				int32 OffsetOfArraySpecifier = (LastFoundUAVIndex>9)?4:3;
+				Name.SetIndex(2, LastFoundUAVIndex);
+
+				int32 OffsetOfArraySpecifier = (LastFoundUAVIndex > 9) ? 4 : 3;
 				int32 ArrayIndex = UAVIndex-LastFoundUAVIndex;
+
 				Name.Buffer[OffsetOfArraySpecifier] = '[';
-				ANSICHAR* EndBracket = SetIndex(Name.Buffer, OffsetOfArraySpecifier+1, ArrayIndex);
+				ANSICHAR* EndBracket = Name.SetIndex(OffsetOfArraySpecifier + 1, ArrayIndex);
 				*EndBracket++ = ']';
 				*EndBracket = '\0';
-				Location = glGetUniformLocation(StageProgram, Name.Buffer);
+
+				Location = glGetUniformLocation(ProgramBase.Program, Name.Buffer);
 			}
 		}
 		else
@@ -2192,10 +2132,10 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 			// glUniform1i(Location, FirstUAVUnit[Stage] + UAVIndex);
 
 			// verify that only CS and PS uses UAVs (limitation on MALI GPUs)
-			checkf(Stage == CrossCompiler::SHADER_STAGE_COMPUTE || Stage == CrossCompiler::SHADER_STAGE_PIXEL, TEXT("%s uses UAV in vertex shader"), *Config.ProgramKey.ToString());
+			checkf(Stage == CrossCompiler::SHADER_STAGE_COMPUTE || Stage == CrossCompiler::SHADER_STAGE_PIXEL, TEXT("%s uses UAV in vertex shader"), *ProgramBase.ProgramKey.ToString());
 			
-			UAVStageNeeds[ FirstUAVUnit[Stage] + UAVIndex ] = true;
-			MaxUAVUnitUsed = FMath::Max(MaxUAVUnitUsed, FirstUAVUnit[Stage] + UAVIndex);
+			ProgramBase.UAVStageNeeds[ FirstUAVUnit[Stage] + UAVIndex ] = true;
+			ProgramBase.MaxUAVUnitUsed = FMath::Max(ProgramBase.MaxUAVUnitUsed, FirstUAVUnit[Stage] + UAVIndex);
 		}
 	}
 
@@ -2206,13 +2146,14 @@ void FOpenGLLinkedProgram::ConfigureShaderStage( int Stage, uint32 FirstUniformB
 		Name.Buffer[2] = 0;
 		Name.Buffer[3] = 0;
 		Name.Buffer[4] = 0;
-		for (int32 BufferIndex = 0; BufferIndex < Config.Shaders[Stage].Bindings.NumUniformBuffers; ++BufferIndex)
+		for (int32 BufferIndex = 0; BufferIndex < Bindings.NumUniformBuffers; ++BufferIndex)
 		{
-			SetIndex(Name.Buffer, 2, BufferIndex);
-			GLint Location = GetOpenGLProgramUniformBlockIndex(StageProgram, Name);
+			Name.SetIndex(2, BufferIndex);
+
+			GLint Location = FOpenGL::GetUniformBlockIndex(ProgramBase.Program, Name.Buffer);
 			if (Location >= 0)
 			{
-				GetOpenGLProgramUniformBlockBinding(StageProgram, Location, FirstUniformBuffer + BufferIndex);
+				FOpenGL::UniformBlockBinding(ProgramBase.Program, Location, FirstUniformBuffer + BufferIndex);
 			}
 		}
 	}
@@ -2473,44 +2414,44 @@ static void VerifyUniformBufferLayouts(GLuint Program)
 #endif  // #if ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION
 #define PROGRAM_BINARY_RETRIEVABLE_HINT             0x8257
 
-/**
- * Link vertex and pixel shaders in to an OpenGL program.
- */
-FOpenGLLinkedProgram* FOpenGLDynamicRHI::LinkProgram( const FOpenGLLinkedProgramConfiguration& Config)
+
+
+FOpenGLLinkedProgram::FOpenGLLinkedProgram(const FOpenGLProgramKey& InProgramKey, GLuint InProgram)
+	: FOpenGLLinkedProgramBase(InProgramKey, InProgram)
+{}
+
+FOpenGLLinkedProgram::FOpenGLLinkedProgram(FOpenGLVertexShader* VertexShader, FOpenGLPixelShader* PixelShader, FOpenGLGeometryShader* GeometryShader)
+	: FOpenGLLinkedProgramBase(FOpenGLProgramKey(VertexShader, PixelShader, GeometryShader), 0)
 {
-	// Make sure we have OpenGL context set up, and invalidate the parameters cache and current program (as we'll link a new one soon)
-	GetContextStateForCurrentContext().Program = -1;
-	MarkShaderParameterCachesDirty(PendingState.ShaderParameters, false);
-	PendingState.LinkedProgramAndDirtyFlag = nullptr;
+	VERIFY_GL_SCOPE();
+	OGL_BINARYCACHE_STATS_MARKBINARYCACHEMISS(ProgramKey, true);
+
+	// Link vertex and pixel shaders in to an OpenGL program.
+	VertexShader->ConditionalyCompile();
+	PixelShader->ConditionalyCompile();
+
+	if (GeometryShader)
+	{
+		GeometryShader->ConditionalyCompile();
+	}
 
 	SCOPE_CYCLE_COUNTER(STAT_OpenGLShaderLinkTime);
-	VERIFY_GL_SCOPE();
 
-	// ensure that compute shaders are always alone
-	check( (Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Resource == 0) != (Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Resource == 0));
-	check( (Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].Resource == 0) != (Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Resource == 0));
-
-	GLuint Program = 0;
 	FOpenGL::GenProgramPipelines(1, &Program);
 
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Resource)
+	check(VertexShader->Resource);
+	FOpenGL::UseProgramStages(Program, GL_VERTEX_SHADER_BIT, VertexShader->Resource);
+
+	check(PixelShader->Resource);
+	FOpenGL::UseProgramStages(Program, GL_FRAGMENT_SHADER_BIT, PixelShader->Resource);
+
+	if (GeometryShader)
 	{
-		FOpenGL::UseProgramStages(Program, GL_VERTEX_SHADER_BIT, Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Resource);
+		check(GeometryShader->Resource);
+		FOpenGL::UseProgramStages(Program, GL_GEOMETRY_SHADER_BIT, GeometryShader->Resource);
 	}
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].Resource)
-	{
-		FOpenGL::UseProgramStages(Program, GL_FRAGMENT_SHADER_BIT, Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].Resource);
-	}
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_GEOMETRY].Resource)
-	{
-		FOpenGL::UseProgramStages(Program, GL_GEOMETRY_SHADER_BIT, Config.Shaders[CrossCompiler::SHADER_STAGE_GEOMETRY].Resource);
-	}
-	if (Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Resource)
-	{
-		FOpenGL::UseProgramStages(Program, GL_COMPUTE_SHADER_BIT, Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Resource);
-	}
-	
-	if(FOpenGLProgramBinaryCache::IsEnabled() || FGLProgramCache::IsUsingLRU())
+
+	if (FOpenGLProgramBinaryCache::IsEnabled() || FGLProgramCache::IsUsingLRU())
 	{
 		FOpenGL::ProgramParameter(Program, PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE);
 	}
@@ -2520,101 +2461,131 @@ FOpenGLLinkedProgram* FOpenGLDynamicRHI::LinkProgram( const FOpenGLLinkedProgram
 
 	if (!VerifyLinkedProgram(Program))
 	{
-		return nullptr;
+#if DEBUG_GL_SHADERS
+		//if (VertexShader)
+		{
+			UE_LOG(LogRHI, Error, TEXT("Vertex Shader:\n%s"), ANSI_TO_TCHAR(VertexShader->GlslCode.GetData()));
+		}
+		//if (PixelShader)
+		{
+			UE_LOG(LogRHI, Error, TEXT("Pixel Shader:\n%s"), ANSI_TO_TCHAR(PixelShader->GlslCode.GetData()));
+		}
+		if (GeometryShader)
+		{
+			UE_LOG(LogRHI, Error, TEXT("Geometry Shader:\n%s"), ANSI_TO_TCHAR(GeometryShader->GlslCode.GetData()));
+		}
+#endif //DEBUG_GL_SHADERS
+		RHIGetPanicDelegate().ExecuteIfBound(FName("FailedProgramLink"));
+		UE_LOG(LogRHI, Fatal, TEXT("Failed to link graphics program [%s]. Current total programs: %d"), *ProgramKey.ToString(), GNumPrograms);
 	}
 
 	SetNewProgramStats(Program);
 
 	FOpenGL::BindProgramPipeline(Program);
 
-	FOpenGLLinkedProgram* LinkedProgram = new FOpenGLLinkedProgram(Config, Program);
-
-	ConfigureStageStates(LinkedProgram);
+	Config.Emplace<FGraphicsProgram>(*this, VertexShader, PixelShader, GeometryShader);
 
 #if ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION
 	VerifyUniformBufferLayouts(Program);
 #endif // #if ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION
-	return LinkedProgram;
+
+	// Link program, using the data provided in config
+	if (ShouldCacheAllProgramBinaries() && FOpenGLProgramBinaryCache::RequiresCaching(ProgramKey))
+	{
+		// In precache mode we can put any newly compiled programs in the binary cache
+		FOpenGLProgramBinary CompiledProgram = UE::OpenGL::GetProgramBinaryFromGLProgram(Program);
+		FOpenGLProgramBinaryCache::CacheProgramBinary(ProgramKey, TUniqueObj<FOpenGLProgramBinary>(MoveTemp(CompiledProgram)));
+	}
+
+	GetOpenGLProgramsCache().Add(ProgramKey, this);
 }
 
-bool FOpenGLDynamicRHI::LinkComputeShader(FRHIComputeShader* ComputeShaderRHI, FOpenGLComputeShader* ComputeShader)
+FOpenGLLinkedProgram::FOpenGLLinkedProgram(FOpenGLComputeShader* ComputeShader)
+	: FOpenGLLinkedProgramBase(FOpenGLProgramKey(ComputeShader), 0)
 {
-	check(ComputeShader);
+	check(!ComputeShader->LinkedProgram);
+	ComputeShader->LinkedProgram = this;
+
+	// Not in the cache. Create and add the program here.
+	// We can now link the compute shader, by now the shader hash has been set.
+	ComputeShader->ConditionalyCompile();
+
+	SCOPE_CYCLE_COUNTER(STAT_OpenGLShaderLinkTime);
+
+	FOpenGL::GenProgramPipelines(1, &Program);
+
+	check(ComputeShader->Resource);
+	FOpenGL::UseProgramStages(Program, GL_COMPUTE_SHADER_BIT, ComputeShader->Resource);
+
+	if (FOpenGLProgramBinaryCache::IsEnabled() || FGLProgramCache::IsUsingLRU())
+	{
+		FOpenGL::ProgramParameter(Program, PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE);
+	}
+
+	// Link.
+	glLinkProgram(Program);
+
+	if (!VerifyLinkedProgram(Program))
+	{
+#if DEBUG_GL_SHADERS
+		UE_LOG(LogRHI, Error, TEXT("Compute Shader:\n%s"), ANSI_TO_TCHAR(ComputeShader->GlslCode.GetData()));
+#endif //DEBUG_GL_SHADERS
+		checkf(false, TEXT("Compute shader failed to compile & link."));
+
+		FName LinkFailurePanic = FName("FailedComputeProgramLink");
+		RHIGetPanicDelegate().ExecuteIfBound(LinkFailurePanic);
+		UE_LOG(LogRHI, Fatal, TEXT("Failed to link compute program [%s]. Current total programs: %d"), *ProgramKey.ToString(), GNumPrograms);
+	}
+
+	SetNewProgramStats(Program);
+
+	FOpenGL::BindProgramPipeline(Program);
+
+	Config.Emplace<FComputeProgram>(*this, ComputeShader);
+
+#if ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION
+	VerifyUniformBufferLayouts(Program);
+#endif // #if ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION
+
+	GetOpenGLProgramsCache().Add(ProgramKey, this);
+}
+
+void FOpenGLDynamicRHI::LinkComputeProgram(FRHIComputeShader* ComputeShaderRHI)
+{
+	FOpenGLComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
+	if (ComputeShader->LinkedProgram)
+	{
+		return;
+	}
+
+	VERIFY_GL_SCOPE();
 	check(ComputeShaderRHI->GetHash() != FSHAHash());
 
-	FOpenGLLinkedProgramConfiguration Config;
-	Config.ProgramKey.ShaderHashes[CrossCompiler::SHADER_STAGE_COMPUTE] = ComputeShaderRHI->GetHash();
-
-	ComputeShader->LinkedProgram = GetOpenGLProgramsCache().Find(Config.ProgramKey, true);
+	FOpenGLProgramKey const ProgramKey = ComputeShaderRHI;
+	ComputeShader->LinkedProgram = GetOpenGLProgramsCache().Find(ProgramKey, true);
+	if (!ComputeShader->LinkedProgram)
+	{
+		// ensure that pending request for this program has been completed before attempting to link
+		if (FOpenGLProgramBinaryCache::CheckSinglePendingGLProgramCreateRequest(ProgramKey))
+		{
+			ComputeShader->LinkedProgram = GetOpenGLProgramsCache().Find(ProgramKey, true);
+		}
+	}
 
 	if (ComputeShader->LinkedProgram == nullptr)
 	{
-		ComputeShader->ConditionalyCompile();
-		check(ComputeShader->Resource != 0);
+		// Make sure we have OpenGL context set up, and invalidate the parameters cache and current program (as we'll link a new one soon)
+		GetContextStateForCurrentContext().Program = -1;
+		MarkShaderParameterCachesDirty(PendingState.ShaderParameters, true);
+		PendingState.LinkedProgramAndDirtyFlag = nullptr;
 
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Resource = ComputeShader->Resource;
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Bindings = ComputeShader->Bindings;
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].ShaderKey = FOpenGLDynamicRHI::ResourceCast(ComputeShaderRHI)->ShaderCodeKey;
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].bValid = true;
-		
-		ComputeShader->LinkedProgram = LinkProgram(Config);
-		if(ComputeShader->LinkedProgram == nullptr)
-		{
-		#if DEBUG_GL_SHADERS
-			UE_LOG(LogRHI, Error, TEXT("Compute Shader:\n%s"), ANSI_TO_TCHAR(ComputeShader->GlslCode.GetData()));
-		#endif //DEBUG_GL_SHADERS
-			checkf(ComputeShader->LinkedProgram, TEXT("Compute shader failed to compile & link."));
-
-			FName LinkFailurePanic = FName("FailedComputeProgramLink");
-			RHIGetPanicDelegate().ExecuteIfBound(LinkFailurePanic);
-			UE_LOG(LogRHI, Fatal, TEXT("Failed to link compute program [%s]. Current total programs: %d"), *Config.ProgramKey.ToString(), GNumPrograms);
-			return false;
-		}
-		GetOpenGLProgramsCache().Add(Config.ProgramKey, ComputeShader->LinkedProgram);
+		ComputeShader->LinkedProgram = new FOpenGLLinkedProgram(ComputeShader);
 	}
-
-	return true;
-}
-
-FOpenGLLinkedProgram* FOpenGLDynamicRHI::GetLinkedComputeProgram(FRHIComputeShader* ComputeShaderRHI)
-{
-	VERIFY_GL_SCOPE();
-	check(ComputeShaderRHI->GetHash() != FSHAHash());
-	FOpenGLComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
-
-	FOpenGLLinkedProgramConfiguration Config;
-	Config.ProgramKey.ShaderHashes[CrossCompiler::SHADER_STAGE_COMPUTE] = ComputeShaderRHI->GetHash();
-
-	FOpenGLLinkedProgram* LinkedProgram = GetOpenGLProgramsCache().Find(Config.ProgramKey, true);
-	if (!LinkedProgram)
-	{
-		// ensure that pending request for this program has been completed before attempting to link
-		if (FOpenGLProgramBinaryCache::CheckSinglePendingGLProgramCreateRequest(Config.ProgramKey))
-		{
-			LinkedProgram = GetOpenGLProgramsCache().Find(Config.ProgramKey, true);
-		}
-	}
-
-	if (LinkedProgram == nullptr)
-	{
-		// Not in the cache. Create and add the program here.
-		// We can now link the compute shader, by now the shader hash has been set.
-		LinkComputeShader(ComputeShaderRHI, ComputeShader);
-		check(ComputeShader->LinkedProgram);
-		LinkedProgram = ComputeShader->LinkedProgram;
-	}
-	else if (!LinkedProgram->bConfigIsInitalized)
+	else
 	{
 		// this has been loaded via binary program cache, properly initialize it here:
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Resource = ComputeShader->Resource; // potentially could be zero, but an already linked program should not need a compiled shader
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].Bindings = ComputeShader->Bindings;
-		Config.Shaders[CrossCompiler::SHADER_STAGE_COMPUTE].bValid = true;
-		LinkedProgram->SetConfig(Config);
-		// We now have the config for this program, we must configure the program for use.
-		ConfigureGLProgramStageStates(LinkedProgram);
+		ComputeShader->LinkedProgram->UpdateShaders<FOpenGLLinkedProgram::FComputeProgram>(ComputeShader);
 	}
-	check(LinkedProgram->bConfigIsInitalized);
-	return LinkedProgram;
 }
 
 FComputeShaderRHIRef FOpenGLDynamicRHI::RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
@@ -2661,76 +2632,23 @@ struct FOpenGLShaderVaryingMapping
 	int32 ReadLoc;
 };
 
-typedef TMap<FOpenGLLinkedProgramConfiguration,FOpenGLLinkedProgramConfiguration::ShaderInfo> FOpenGLSeparateShaderObjectCache;
-
-template<class TOpenGLStage0RHI, class TOpenGLStage1RHI>
-static void BindShaderStage(FOpenGLLinkedProgramConfiguration& Config, CrossCompiler::EShaderStage NextStage, TOpenGLStage0RHI* NextStageShaderIn, CrossCompiler::EShaderStage PrevStage, TOpenGLStage1RHI* PrevStageShaderIn)
-{
-	auto* PrevStageShader = FOpenGLDynamicRHI::ResourceCast(PrevStageShaderIn);
-	auto* NextStageShader = FOpenGLDynamicRHI::ResourceCast(NextStageShaderIn);
-
-	check(NextStageShader && PrevStageShader);
-
-	FOpenGLLinkedProgramConfiguration::ShaderInfo& ShaderInfo = Config.Shaders[NextStage];
-	FOpenGLLinkedProgramConfiguration::ShaderInfo& PrevInfo = Config.Shaders[PrevStage];
-
-	GLuint NextStageResource = NextStageShader->Resource;
-	FOpenGLShaderBindings NextStageBindings = NextStageShader->Bindings;
-	
-	ShaderInfo.Bindings = NextStageBindings;
-	ShaderInfo.Resource = NextStageResource;
-}
-
 // ============================================================================================================================
 
-static FOpenGLLinkedProgramConfiguration CreateConfig(FRHIVertexShader* VertexShaderRHI, FRHIPixelShader* PixelShaderRHI, FRHIGeometryShader* GeometryShaderRHI )
+FOpenGLProgramKey::FOpenGLProgramKey(FRHIVertexShader* VertexShaderRHI, FRHIPixelShader* PixelShaderRHI, FRHIGeometryShader* GeometryShaderRHI)
 {
-	FOpenGLVertexShader* VertexShader = FOpenGLDynamicRHI::ResourceCast(VertexShaderRHI);
-	FOpenGLPixelShader* PixelShader = FOpenGLDynamicRHI::ResourceCast(PixelShaderRHI);
-	FOpenGLGeometryShader* GeometryShader = FOpenGLDynamicRHI::ResourceCast(GeometryShaderRHI);
-
-	FOpenGLLinkedProgramConfiguration Config;
-
-	check(VertexShaderRHI);
-	check(PixelShaderRHI);
-
-	VertexShader->ConditionalyCompile();
-	PixelShader->ConditionalyCompile();
-
-	// Fill-in the configuration
-	Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Bindings = VertexShader->Bindings;
-	Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].Resource = VertexShader->Resource;
-	Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].ShaderKey = FOpenGLDynamicRHI::ResourceCast(VertexShaderRHI)->ShaderCodeKey;
-	Config.Shaders[CrossCompiler::SHADER_STAGE_VERTEX].bValid = true;
-	Config.ProgramKey.ShaderHashes[CrossCompiler::SHADER_STAGE_VERTEX] = VertexShaderRHI->GetHash();
-
+	ShaderHashes[CrossCompiler::SHADER_STAGE_VERTEX  ] = FOpenGLDynamicRHI::ResourceCast(VertexShaderRHI  )->GetHash();
+	ShaderHashes[CrossCompiler::SHADER_STAGE_PIXEL   ] = FOpenGLDynamicRHI::ResourceCast(PixelShaderRHI   )->GetHash();
+	
 	if (GeometryShaderRHI)
 	{
-		check(VertexShader);
-		GeometryShader->ConditionalyCompile();
-		BindShaderStage(Config, CrossCompiler::SHADER_STAGE_GEOMETRY, GeometryShaderRHI, CrossCompiler::SHADER_STAGE_VERTEX, VertexShaderRHI);
-		Config.ProgramKey.ShaderHashes[CrossCompiler::SHADER_STAGE_GEOMETRY] = GeometryShaderRHI->GetHash();
-		Config.Shaders[CrossCompiler::SHADER_STAGE_GEOMETRY].ShaderKey = FOpenGLDynamicRHI::ResourceCast(GeometryShaderRHI)->ShaderCodeKey;
-		Config.Shaders[CrossCompiler::SHADER_STAGE_GEOMETRY].bValid = true;
+		ShaderHashes[CrossCompiler::SHADER_STAGE_GEOMETRY] = FOpenGLDynamicRHI::ResourceCast(GeometryShaderRHI)->GetHash();
 	}
+}
 
-	check(GeometryShaderRHI || VertexShaderRHI);
-	if (GeometryShaderRHI)
-	{
-		BindShaderStage(Config, CrossCompiler::SHADER_STAGE_PIXEL, PixelShaderRHI, CrossCompiler::SHADER_STAGE_GEOMETRY, GeometryShaderRHI);
-	}
-	else
-	{
-		BindShaderStage(Config, CrossCompiler::SHADER_STAGE_PIXEL, PixelShaderRHI, CrossCompiler::SHADER_STAGE_VERTEX, VertexShaderRHI);
-	}
-	Config.ProgramKey.ShaderHashes[CrossCompiler::SHADER_STAGE_PIXEL] = PixelShaderRHI->GetHash();
-	Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].ShaderKey = FOpenGLDynamicRHI::ResourceCast(PixelShaderRHI)->ShaderCodeKey;
-	Config.Shaders[CrossCompiler::SHADER_STAGE_PIXEL].bValid = true;
-
-
-	return Config;
-};
-
+FOpenGLProgramKey::FOpenGLProgramKey(FRHIComputeShader* ComputeShaderRHI)
+{
+	ShaderHashes[CrossCompiler::SHADER_STAGE_COMPUTE] = FOpenGLDynamicRHI::ResourceCast(ComputeShaderRHI)->GetHash();
+}
 
 static bool CanCreateExternally(bool bIsFromPSO)
 {
@@ -2743,7 +2661,7 @@ static bool CanCreateExternally(bool bIsFromPSO)
 	return false;
 }
 
-static FOpenGLProgramBinary ExternalProgramCompile(const FOpenGLProgramKey& ProgramKey, FRHIVertexShader* VertexShaderRHI, FRHIPixelShader* PixelShaderRHI)
+static FOpenGLProgramBinary ExternalProgramCompile(const FOpenGLProgramKey& ProgramKey, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, FRHIVertexShader* VertexShaderRHI, FRHIPixelShader* PixelShaderRHI)
 {
 	FOpenGLProgramBinary CompiledProgram;
 #if PLATFORM_ANDROID
@@ -2761,7 +2679,7 @@ static FOpenGLProgramBinary ExternalProgramCompile(const FOpenGLProgramKey& Prog
 	}
 
 	FString FailLog;
-	TArray<uint8> CompiledProgramBytes = FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(TArrayView<uint8>((uint8*)&ProgramKey, sizeof(ProgramKey)), VSCode, PSCode, ComputeGlslCode, FailLog);
+	TArray<uint8> CompiledProgramBytes = FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(PSOCompileType, TArrayView<uint8>((uint8*)&ProgramKey, sizeof(ProgramKey)), VSCode, PSCode, ComputeGlslCode, FailLog);
 
 	if (FailLog.IsEmpty())
 	{
@@ -2834,7 +2752,7 @@ void FOpenGLDynamicRHI::PrepareGFXBoundShaderState(const FGraphicsPipelineStateI
 		if (FOpenGLProgramBinaryCache::IsBuildingCache())
 		{
 			OGL_BINARYCACHE_STATS_MARKBEGINCOMPILE(ProgramKey);
-			FOpenGLProgramBinary CompiledProgram = ExternalProgramCompile(ProgramKey, VertexShaderRHI, PixelShaderRHI);
+			FOpenGLProgramBinary CompiledProgram = ExternalProgramCompile(ProgramKey, Initializer.GetPSOPrecacheCompileType(), VertexShaderRHI, PixelShaderRHI);
 
 			if (CompiledProgram.IsValid())
 			{
@@ -2855,7 +2773,7 @@ void FOpenGLDynamicRHI::PrepareGFXBoundShaderState(const FGraphicsPipelineStateI
 	}
 }
 
-FBoundShaderStateRHIRef FOpenGLDynamicRHI::RHICreateBoundShaderState_OnThisThread(
+FBoundShaderStateRHIRef FOpenGLDynamicRHI::RHICreateBoundShaderState_Internal(
 	FRHIVertexDeclaration* VertexDeclarationRHI,
 	FRHIVertexShader* VertexShaderRHI,
 	FRHIPixelShader* PixelShaderRHI,
@@ -2863,155 +2781,64 @@ FBoundShaderStateRHIRef FOpenGLDynamicRHI::RHICreateBoundShaderState_OnThisThrea
 	bool bFromPSOFileCache
 	)
 {
-	check(IsInRenderingThread() || IsInRHIThread());
-
 	VERIFY_GL_SCOPE();
+	check(!bFromPSOFileCache);
 
 	SCOPE_CYCLE_COUNTER(STAT_OpenGLCreateBoundShaderStateTime);
-	check(!bFromPSOFileCache);
-	if (!PixelShaderRHI)
+
+	FOpenGLVertexDeclaration* VertexDeclaration = FOpenGLDynamicRHI::ResourceCast(VertexDeclarationRHI);
+	FOpenGLVertexShader*      VertexShader      = FOpenGLDynamicRHI::ResourceCast(VertexShaderRHI);
+	FOpenGLPixelShader*       PixelShader       = FOpenGLDynamicRHI::ResourceCast(PixelShaderRHI);
+	FOpenGLGeometryShader*    GeometryShader    = FOpenGLDynamicRHI::ResourceCast(GeometryShaderRHI);
+
+	if (!PixelShader)
 	{
 		// use special null pixel shader when PixelShader was set to NULL
-		TShaderMapRef<FNULLPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-		PixelShaderRHI = PixelShader.GetPixelShader();
+		TShaderMapRef<FNULLPS> NullPS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		PixelShader = FOpenGLDynamicRHI::ResourceCast(NullPS.GetPixelShader());
 	}
 
 	// Check for an existing bound shader state which matches the parameters
 	FCachedBoundShaderStateLink* CachedBoundShaderStateLink = GetCachedBoundShaderState(
-		VertexDeclarationRHI,
-		VertexShaderRHI,
-		PixelShaderRHI,
-		GeometryShaderRHI
+		VertexDeclaration,
+		VertexShader,
+		PixelShader,
+		GeometryShader
 		);
 
-	if(CachedBoundShaderStateLink)
+	if (CachedBoundShaderStateLink)
 	{
 		// If we've already created a bound shader state with these parameters, reuse it.
 		FOpenGLBoundShaderState* BoundShaderState = ResourceCast(CachedBoundShaderStateLink->BoundShaderState);
-		FOpenGLLinkedProgram* LinkedProgram = BoundShaderState->LinkedProgram;
-		GetOpenGLProgramsCache().Touch(LinkedProgram);
 
-		if (!LinkedProgram->bConfigIsInitalized)
-		{
-			// touch has unevicted the program, set it up.
-			FOpenGLLinkedProgramConfiguration Config = CreateConfig(VertexShaderRHI, PixelShaderRHI, GeometryShaderRHI );
-			LinkedProgram->SetConfig(Config);
-			// We now have the config for this program, we must configure the program for use.
-			ConfigureGLProgramStageStates(LinkedProgram);
-		}
-		return CachedBoundShaderStateLink->BoundShaderState;
+		GetOpenGLProgramsCache().Touch(BoundShaderState->LinkedProgram);
+
+		// touch may have unevicted the program, set it up.
+		BoundShaderState->LinkedProgram->UpdateShaders<FOpenGLLinkedProgram::FGraphicsProgram>(VertexShader, PixelShader, GeometryShader);
+		
+		return BoundShaderState;
 	}
 	else
 	{
-		FOpenGLLinkedProgramConfiguration Config = CreateConfig(VertexShaderRHI, PixelShaderRHI, GeometryShaderRHI);
+		// Make sure we have OpenGL context set up, and invalidate the parameters cache and current program (as we'll link a new one soon)
+		GetContextStateForCurrentContext().Program = -1;
+		MarkShaderParameterCachesDirty(PendingState.ShaderParameters, false);
+		PendingState.LinkedProgramAndDirtyFlag = nullptr;
 
-		// Check if we already have such a program in released programs cache. Use it, if we do.
-		FOpenGLLinkedProgram* LinkedProgram = 0;
-
-		int32 Index = StaticLastReleasedProgramsIndex;
-		for( int CacheIndex = 0; CacheIndex < LAST_RELEASED_PROGRAMS_CACHE_COUNT; ++CacheIndex )
-		{
-			FOpenGLLinkedProgram* Prog = StaticLastReleasedPrograms[Index];
-			if( Prog && Prog->Config == Config )
-			{
-				StaticLastReleasedPrograms[Index] = 0;
-				LinkedProgram = Prog;
-				GetOpenGLProgramsCache().Touch(LinkedProgram);
-				break;
-			}
-			Index = (Index == LAST_RELEASED_PROGRAMS_CACHE_COUNT-1) ? 0 : Index+1;
-		}
-
-		if (!LinkedProgram)
-		{
-			FOpenGLLinkedProgram* CachedProgram = GetOpenGLProgramsCache().Find(Config.ProgramKey, true);
-			if (!CachedProgram)
-			{
-				// ensure that pending request for this program has been completed before
-				if (FOpenGLProgramBinaryCache::CheckSinglePendingGLProgramCreateRequest(Config.ProgramKey))
-				{
-					CachedProgram = GetOpenGLProgramsCache().Find(Config.ProgramKey, true);
-				}
-			}
-
-			if (CachedProgram)
-			{
-				LinkedProgram = CachedProgram;
-				if (!LinkedProgram->bConfigIsInitalized)
-				{
-					LinkedProgram->SetConfig(Config);
-					// We now have the config for this program, we must configure the program for use.
-					ConfigureGLProgramStageStates(LinkedProgram);
-				}
-			}
-			else
-			{
-				OGL_BINARYCACHE_STATS_MARKBINARYCACHEMISS(Config.ProgramKey, true);
-
-				FOpenGLVertexShader* VertexShader = ResourceCast(VertexShaderRHI);
-				FOpenGLPixelShader* PixelShader = ResourceCast(PixelShaderRHI);
-				FOpenGLGeometryShader* GeometryShader = ResourceCast(GeometryShaderRHI);
-
-				// Link program, using the data provided in config
-				LinkedProgram = LinkProgram(Config);
-
-				if (LinkedProgram == NULL)
-				{
-#if DEBUG_GL_SHADERS
-					if (VertexShader)
-					{
-						UE_LOG(LogRHI, Error, TEXT("Vertex Shader:\n%s"), ANSI_TO_TCHAR(VertexShader->GlslCode.GetData()));
-					}
-					if (PixelShader)
-					{
-						UE_LOG(LogRHI, Error, TEXT("Pixel Shader:\n%s"), ANSI_TO_TCHAR(PixelShader->GlslCode.GetData()));
-					}
-					if (GeometryShader)
-					{
-						UE_LOG(LogRHI, Error, TEXT("Geometry Shader:\n%s"), ANSI_TO_TCHAR(GeometryShader->GlslCode.GetData()));
-					}
-#endif //DEBUG_GL_SHADERS
-					FName LinkFailurePanic = bFromPSOFileCache ? FName("FailedProgramLinkDuringPrecompile") : FName("FailedProgramLink");
-					RHIGetPanicDelegate().ExecuteIfBound(LinkFailurePanic);
-					UE_LOG(LogRHI, Fatal, TEXT("Failed to link program [%s]. Current total programs: %d, precompile: %d"), *Config.ProgramKey.ToString(), GNumPrograms, (uint32)bFromPSOFileCache);
-				}
-				else
-				{
-					if ( ShouldCacheAllProgramBinaries() && FOpenGLProgramBinaryCache::RequiresCaching(Config.ProgramKey))
-					{
-						// In precache mode we can put any newly compiled programs in the binary cache
-						FOpenGLProgramBinary CompiledProgram = UE::OpenGL::GetProgramBinaryFromGLProgram(LinkedProgram->Program);
-						FOpenGLProgramBinaryCache::CacheProgramBinary(Config.ProgramKey, TUniqueObj<FOpenGLProgramBinary>(MoveTemp(CompiledProgram)));
-					}
-
-					GetOpenGLProgramsCache().Add(Config.ProgramKey, LinkedProgram);
-				}
-			}
-		}
-
-		check(VertexDeclarationRHI);
-		
-		FOpenGLVertexDeclaration* VertexDeclaration = ResourceCast(VertexDeclarationRHI);
-		FOpenGLBoundShaderState* BoundShaderState = new FOpenGLBoundShaderState(
-			LinkedProgram,
-			VertexDeclarationRHI,
-			VertexShaderRHI,
-			PixelShaderRHI,
-			GeometryShaderRHI
-			);
-
-		return BoundShaderState;
+		return new FOpenGLBoundShaderState(
+			  VertexDeclaration
+			, VertexShader
+			, PixelShader
+			, GeometryShader
+		);
 	}
 }
 
 void DestroyShadersAndPrograms()
 {
 	VERIFY_GL_SCOPE();
-	GetOpenGLUniformBlockLocations().Empty();
-	GetOpenGLUniformBlockBindings().Empty();
 	
 	GetOpenGLProgramsCache().Empty();
-
 
 	StaticLastReleasedProgramsIndex = 0;
 
@@ -3026,73 +2853,6 @@ void DestroyShadersAndPrograms()
 	}
 }
 
-struct FSamplerPair
-{
-	GLuint Texture;
-	GLuint Sampler;
-
-	friend bool operator ==(const FSamplerPair& A,const FSamplerPair& B)
-	{
-		return A.Texture == B.Texture && A.Sampler == B.Sampler;
-	}
-
-	friend uint32 GetTypeHash(const FSamplerPair &Key)
-	{
-		return Key.Texture ^ (Key.Sampler << 18);
-	}
-};
-
-static TMap<FSamplerPair, GLuint64> BindlessSamplerMap;
-
-void FOpenGLDynamicRHI::SetupBindlessTextures( FOpenGLContextState& ContextState, const TArray<FOpenGLBindlessSamplerInfo> &Samplers )
-{
-	if ( OpenGLConsoleVariables::bBindlessTexture == 0 || !FOpenGL::SupportsBindlessTexture())
-	{
-		return;
-	}
-	VERIFY_GL_SCOPE();
-
-	// Bind all textures via Bindless
-	for (int32 Texture = 0; Texture < Samplers.Num(); Texture++)
-	{
-		const FOpenGLBindlessSamplerInfo &Sampler = Samplers[Texture];
-
-		GLuint64 BindlessSampler = 0xffffffff;
-		FSamplerPair Pair;
-		Pair.Texture = PendingState.Textures[Sampler.Slot].Resource;
-		Pair.Sampler = (PendingState.SamplerStates[Sampler.Slot] != NULL) ? PendingState.SamplerStates[Sampler.Slot]->Resource : 0;
-
-		if (Pair.Texture)
-		{
-			// Find Sampler pair
-			if ( BindlessSamplerMap.Contains(Pair))
-			{
-				BindlessSampler = BindlessSamplerMap[Pair];
-			}
-			else
-			{
-				// if !found, create
-
-				if (Pair.Sampler)
-				{
-					BindlessSampler = FOpenGL::GetTextureSamplerHandle( Pair.Texture, Pair.Sampler);
-				}
-				else
-				{
-					BindlessSampler = FOpenGL::GetTextureHandle( Pair.Texture);
-				}
-
-				FOpenGL::MakeTextureHandleResident( BindlessSampler);
-
-				BindlessSamplerMap.Add( Pair, BindlessSampler);
-			}
-
-			FOpenGL::UniformHandleui64( Sampler.Handle, BindlessSampler);
-		}
-	}
-}
-
-
 void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextState )
 {
 	SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLShaderBindTime);
@@ -3100,13 +2860,25 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 
 	bool ForceUniformBindingUpdate = false;
 
-	GLuint PendingProgram = PendingState.BoundShaderState->LinkedProgram->Program;
+	FOpenGLLinkedProgram* const PendingLinkedProgram = PendingState.BoundShaderState->LinkedProgram;
+	const GLuint PendingProgram = PendingLinkedProgram->Program;
 	if (ContextState.Program != PendingProgram)
 	{
 		FOpenGL::BindProgramPipeline(PendingProgram);
 		ContextState.Program = PendingProgram;
 		MarkShaderParameterCachesDirty(PendingState.ShaderParameters, false);
 		PendingState.LinkedProgramAndDirtyFlag = nullptr;
+
+#if PLATFORM_ANDROID
+		// Disable non-coherent framebuffer fetch if it's being used for programmable blending to make sure that we actually fetch the last pixel value in draw order
+		if (ContextState.bNonCoherentFramebufferFetchEnabled)
+		{
+			if (PendingLinkedProgram->GetGraphicsProgram().bUsesProgrammableBlending)
+			{
+				FAndroidOpenGL::DisableNonCoherentFramebufferFetch();
+			}
+		}
+#endif
 	}
 
 	if (PendingState.bAnyDirtyRealUniformBuffers[SF_Vertex] || 
@@ -3115,7 +2887,7 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 	{
 		int32 NextUniformBufferIndex = OGL_FIRST_UNIFORM_BUFFER;
 
-		static_assert(SF_NumGraphicsFrequencies == 5 && SF_NumFrequencies == 10, "Unexpected SF_ ordering");
+		static_assert(SF_NumGraphicsFrequencies == 5 && SF_NumFrequencies == 12, "Unexpected SF_ ordering");
 		static_assert(SF_RayGen > SF_NumGraphicsFrequencies, "SF_NumGraphicsFrequencies be the number of frequencies supported in OpenGL");
 
 		int32 NumUniformBuffers[SF_NumGraphicsFrequencies];
@@ -3162,28 +2934,59 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 		PendingState.bAnyDirtyRealUniformBuffers[SF_Pixel] = false;
 		PendingState.bAnyDirtyRealUniformBuffers[SF_Geometry] = false;
 	}
+}
 
-	if (FOpenGL::SupportsBindlessTexture())
+FOpenGLLinkedProgram* FOpenGLBoundShaderState::FindOrCreateLinkedProgram(FOpenGLVertexShader* VertexShader, FOpenGLPixelShader* PixelShader, FOpenGLGeometryShader* GeometryShader)
+{
+	FOpenGLProgramKey const ProgramKey(VertexShader, PixelShader, GeometryShader);
+
+	// Check if we already have such a program in released programs cache. Use it, if we do.
+	for (int32 CacheIndex = 0, Index = StaticLastReleasedProgramsIndex; CacheIndex < LAST_RELEASED_PROGRAMS_CACHE_COUNT; ++CacheIndex, Index = ((Index + 1) % LAST_RELEASED_PROGRAMS_CACHE_COUNT))
 	{
-		SetupBindlessTextures(ContextState, PendingState.BoundShaderState->LinkedProgram->Samplers);
+		FOpenGLLinkedProgram* Prog = StaticLastReleasedPrograms[Index];
+		if (Prog && Prog->ProgramKey == ProgramKey)
+		{
+			StaticLastReleasedPrograms[Index] = nullptr;
+			GetOpenGLProgramsCache().Touch(Prog);
+			return Prog;
+		}
 	}
+
+	{
+		FOpenGLLinkedProgram* CachedProgram = GetOpenGLProgramsCache().Find(ProgramKey, true);
+		if (!CachedProgram)
+		{
+			// ensure that pending request for this program has been completed before
+			if (FOpenGLProgramBinaryCache::CheckSinglePendingGLProgramCreateRequest(ProgramKey))
+			{
+				CachedProgram = GetOpenGLProgramsCache().Find(ProgramKey, true);
+			}
+		}
+
+		if (CachedProgram)
+		{
+			CachedProgram->UpdateShaders<FOpenGLLinkedProgram::FGraphicsProgram>(VertexShader, PixelShader, GeometryShader);
+			return CachedProgram;
+		}
+	}
+
+	return new FOpenGLLinkedProgram(VertexShader, PixelShader, GeometryShader);
 }
 
 FOpenGLBoundShaderState::FOpenGLBoundShaderState(
-	FOpenGLLinkedProgram* InLinkedProgram,
-	FRHIVertexDeclaration* InVertexDeclarationRHI,
-	FRHIVertexShader* InVertexShaderRHI,
-	FRHIPixelShader* InPixelShaderRHI,
-	FRHIGeometryShader* InGeometryShaderRHI
+	FOpenGLVertexDeclaration* InVertexDeclaration,
+	FOpenGLVertexShader* InVertexShader,
+	FOpenGLPixelShader* InPixelShader,
+	FOpenGLGeometryShader* InGeometryShader
 	)
-	: CacheLink(InVertexDeclarationRHI, InVertexShaderRHI, InPixelShaderRHI, InGeometryShaderRHI, this)
+	: CacheLink        (InVertexDeclaration, InVertexShader, InPixelShader, InGeometryShader, this)
+	, LinkedProgram    (FindOrCreateLinkedProgram(InVertexShader, InPixelShader, InGeometryShader))
+	, VertexDeclaration(InVertexDeclaration)
+	, VertexShader     (InVertexShader)
+	, PixelShader      (InPixelShader)
+	, GeometryShader   (InGeometryShader)
 {
-	VertexDeclaration = FOpenGLDynamicRHI::ResourceCast(InVertexDeclarationRHI);
-	VertexShader      = FOpenGLDynamicRHI::ResourceCast(InVertexShaderRHI);
-	PixelShader       = FOpenGLDynamicRHI::ResourceCast(InPixelShaderRHI);
-	GeometryShader    = FOpenGLDynamicRHI::ResourceCast(InGeometryShaderRHI);
-
-	LinkedProgram = InLinkedProgram;
+	check(VertexDeclaration);
 
 	if (VertexDeclaration)
 	{
@@ -3197,22 +3000,21 @@ FOpenGLBoundShaderState::FOpenGLBoundShaderState(
 
 FOpenGLBoundShaderState::~FOpenGLBoundShaderState()
 {
-	check(LinkedProgram);
-	RunOnGLRenderContextThread([LinkedProgram = LinkedProgram]()
-	{
-		const bool bIsEvicted = FGLProgramCache::IsUsingLRU() && GetOpenGLProgramsCache().IsEvicted(LinkedProgram->Config.ProgramKey);
-		if( !bIsEvicted )
-		{
-			FOpenGLLinkedProgram* Prog = StaticLastReleasedPrograms[StaticLastReleasedProgramsIndex];
-			StaticLastReleasedPrograms[StaticLastReleasedProgramsIndex++] = LinkedProgram;
-			if (StaticLastReleasedProgramsIndex == LAST_RELEASED_PROGRAMS_CACHE_COUNT)
-			{
-				StaticLastReleasedProgramsIndex = 0;
-			}
+	VERIFY_GL_SCOPE();
 
-			OnProgramDeletion(LinkedProgram->Program);
+	check(LinkedProgram);
+
+	const bool bIsEvicted = FGLProgramCache::IsUsingLRU() && GetOpenGLProgramsCache().IsEvicted(LinkedProgram->ProgramKey);
+	if (!bIsEvicted)
+	{
+		StaticLastReleasedPrograms[StaticLastReleasedProgramsIndex++] = LinkedProgram;
+		if (StaticLastReleasedProgramsIndex == LAST_RELEASED_PROGRAMS_CACHE_COUNT)
+		{
+			StaticLastReleasedProgramsIndex = 0;
 		}
-	});
+
+		OnProgramDeletion(LinkedProgram->Program);
+	}
 }
 
 bool FOpenGLBoundShaderState::NeedsTextureStage(int32 TextureStageIndex)
@@ -3288,6 +3090,7 @@ void FOpenGLDynamicRHI::BindPendingComputeShaderState(FOpenGLContextState& Conte
 	bool ForceUniformBindingUpdate = false;
 
 	GetOpenGLProgramsCache().Touch(ComputeShader->LinkedProgram);
+	ComputeShader->LinkedProgram->UpdateShaders<FOpenGLLinkedProgram::FComputeProgram>(ComputeShader);
 
 	GLuint PendingProgram = ComputeShader->LinkedProgram->Program;
 	if (ContextState.Program != PendingProgram)
@@ -3311,7 +3114,6 @@ void FOpenGLDynamicRHI::BindPendingComputeShaderState(FOpenGLContextState& Conte
 
 		PendingState.bAnyDirtyRealUniformBuffers[SF_Compute] = 0;
 	}
-	SetupBindlessTextures( ContextState, ComputeShader->LinkedProgram->Samplers );
 }
 
 /** Constructor. */
@@ -3397,7 +3199,7 @@ void FOpenGLShaderParameterCache::Set(uint32 BufferIndexName, uint32 ByteOffset,
  */
 
 
-void FOpenGLShaderParameterCache::CommitPackedGlobals(const FOpenGLLinkedProgram* LinkedProgram, int32 Stage)
+void FOpenGLShaderParameterCache::CommitPackedGlobals(const FOpenGLLinkedProgram* LinkedProgram, CrossCompiler::EShaderStage Stage)
 {
 	SCOPE_CYCLE_COUNTER(STAT_OpenGLUniformCommitTime);
 	VERIFY_GL_SCOPE();
@@ -3416,56 +3218,58 @@ void FOpenGLShaderParameterCache::CommitPackedGlobals(const FOpenGLLinkedProgram
 	 * multithreading vastly more difficult, so for now uniforms are not cached
 	 * per-program.
 	 */
-	const TArray<FOpenGLLinkedProgram::FPackedUniformInfo>& PackedUniforms = LinkedProgram->StagePackedUniformInfo[Stage].PackedUniformInfos;
-	const TArray<CrossCompiler::FPackedArrayInfo>& PackedArrays = LinkedProgram->Config.Shaders[Stage].Bindings.PackedGlobalArrays;
-	for (int32 PackedUniform = 0; PackedUniform < PackedUniforms.Num(); ++PackedUniform)
-	{
-		const FOpenGLLinkedProgram::FPackedUniformInfo& UniformInfo = PackedUniforms[PackedUniform];
-		GLint Location = UniformInfo.Location;
-		const uint32 ArrayIndex = UniformInfo.Index;
-		if (Location >= 0 && // Probably this uniform array was optimized away in a linked program
-			PackedGlobalUniformDirty[ArrayIndex].NumVectors > 0)
-		{
-			check(ArrayIndex < CrossCompiler::PACKED_TYPEINDEX_MAX);
-			const uint32 NumVectors = PackedArrays[PackedUniform].Size / BytesPerRegister;
-			const void* UniformData = PackedGlobalUniforms[ArrayIndex];
+	FOpenGLLinkedProgram::FShaderStage const& ShaderStage = LinkedProgram->GetStage(Stage);
 
-			const uint32 StartVector = PackedGlobalUniformDirty[ArrayIndex].StartVector;
-			int32 NumDirtyVectors = FMath::Min(PackedGlobalUniformDirty[ArrayIndex].NumVectors, NumVectors - StartVector);
+	for (int32 PackedUniform = 0; PackedUniform < ShaderStage.PackedUniformInfos.Num(); ++PackedUniform)
+	{
+		auto const& UniformInfo = ShaderStage.PackedUniformInfos[PackedUniform];
+		GLint Location = UniformInfo.Location;
+
+		if (Location >= 0 && // Probably this uniform array was optimized away in a linked program
+			PackedGlobalUniformDirty[UniformInfo.Index].NumVectors > 0)
+		{
+			check(UniformInfo.Index < CrossCompiler::PACKED_TYPEINDEX_MAX);
+
+			const uint32 NumVectors = ShaderStage.Bindings.PackedGlobalArrays[PackedUniform].Size / BytesPerRegister;
+			const uint32 StartVector = PackedGlobalUniformDirty[UniformInfo.Index].StartVector;
+
+			int32 NumDirtyVectors = FMath::Min(PackedGlobalUniformDirty[UniformInfo.Index].NumVectors, NumVectors - StartVector);
 			check(NumDirtyVectors);
-			UniformData = (uint8*)UniformData + StartVector * sizeof(float) * 4;
+
+			const void* UniformData = (uint8*)PackedGlobalUniforms[UniformInfo.Index] + StartVector * sizeof(float) * 4;
 			Location += StartVector;
+
 			switch (UniformInfo.Index)
 			{
 			case CrossCompiler::PACKED_TYPEINDEX_HIGHP:
 			case CrossCompiler::PACKED_TYPEINDEX_MEDIUMP:
 			case CrossCompiler::PACKED_TYPEINDEX_LOWP:
-				FOpenGL::ProgramUniform4fv(LinkedProgram->Config.Shaders[Stage].Resource, Location, NumDirtyVectors, (GLfloat*)UniformData);
+				FOpenGL::ProgramUniform4fv(LinkedProgram->Program, Location, NumDirtyVectors, static_cast<const GLfloat*>(UniformData));
 				break;
 
 			case CrossCompiler::PACKED_TYPEINDEX_INT:
-				FOpenGL::ProgramUniform4iv(LinkedProgram->Config.Shaders[Stage].Resource, Location, NumDirtyVectors, (GLint*)UniformData);
+				FOpenGL::ProgramUniform4iv(LinkedProgram->Program, Location, NumDirtyVectors, static_cast<const GLint*>(UniformData));
 				break;
 
 			case CrossCompiler::PACKED_TYPEINDEX_UINT:
-				FOpenGL::ProgramUniform4uiv(LinkedProgram->Config.Shaders[Stage].Resource, Location, NumDirtyVectors, (GLuint*)UniformData);
+				FOpenGL::ProgramUniform4uiv(LinkedProgram->Program, Location, NumDirtyVectors, static_cast<const GLuint*>(UniformData));
 				break;
 			}
 
-			PackedGlobalUniformDirty[ArrayIndex].StartVector = 0;
-			PackedGlobalUniformDirty[ArrayIndex].NumVectors = 0;
+			PackedGlobalUniformDirty[UniformInfo.Index].StartVector = 0;
+			PackedGlobalUniformDirty[UniformInfo.Index].NumVectors = 0;
 		}
 	}
 }
 
-void FOpenGLShaderParameterCache::CommitPackedUniformBuffers(FOpenGLLinkedProgram* LinkedProgram, int32 Stage, FRHIUniformBuffer** RHIUniformBuffers, const TArray<CrossCompiler::FUniformBufferCopyInfo>& UniformBuffersCopyInfo)
+void FOpenGLShaderParameterCache::CommitPackedUniformBuffers(FOpenGLLinkedProgram* LinkedProgram, CrossCompiler::EShaderStage Stage, FRHIUniformBuffer** RHIUniformBuffers, const TArray<CrossCompiler::FUniformBufferCopyInfo>& UniformBuffersCopyInfo)
 {
 	SCOPE_CYCLE_COUNTER(STAT_OpenGLConstantBufferUpdateTime);
 	VERIFY_GL_SCOPE();
 
 	// Uniform Buffers are split into precision/type; the list of RHI UBs is traversed and if a new one was set, its
 	// contents are copied per precision/type into corresponding scratch buffers which are then uploaded to the program
-	const FOpenGLShaderBindings& Bindings = LinkedProgram->Config.Shaders[Stage].Bindings;
+	const FOpenGLShaderBindings& Bindings = LinkedProgram->GetStage(Stage).Bindings;
 	check(Bindings.NumUniformBuffers <= FOpenGLRHIState::MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE);
 
 	if (Bindings.bFlattenUB)
@@ -3503,9 +3307,10 @@ void FOpenGLShaderParameterCache::CommitPackedUniformBuffers(FOpenGLLinkedProgra
 	}
 	else
 	{
-		const auto& PackedUniformBufferInfos = LinkedProgram->StagePackedUniformInfo[Stage].PackedUniformBufferInfos;
+		FOpenGLLinkedProgram::FShaderStage const& ShaderStage = LinkedProgram->GetStage(Stage);
+		auto& EmulatedUniformBufferSet = ShaderStage.LastEmulatedUniformBufferSet;
+
 		int32 LastCopyInfoIndex = 0;
-		auto& EmulatedUniformBufferSet = LinkedProgram->StagePackedUniformInfo[Stage].LastEmulatedUniformBufferSet;
 		for (int32 BufferIndex = 0; BufferIndex < Bindings.NumUniformBuffers; ++BufferIndex)
 		{
 			const FOpenGLUniformBuffer* UniformBuffer = (FOpenGLUniformBuffer*)RHIUniformBuffers[BufferIndex];
@@ -3517,7 +3322,7 @@ void FOpenGLShaderParameterCache::CommitPackedUniformBuffers(FOpenGLLinkedProgra
 
 			// Workaround for null UBs (FORT-323429), additional logging here is to give us a chance to investigate the higher level issue causing the null UB.
 #if !UE_BUILD_SHIPPING
-			UE_CLOG(UniformBuffer == nullptr && EmulatedUniformBufferSet.IsValidIndex(BufferIndex), LogRHI, Fatal, TEXT("CommitPackedUniformBuffers null UB stage %d, idx %d (%d), %s"), Stage, BufferIndex, EmulatedUniformBufferSet.Num(), *LinkedProgram->Config.ProgramKey.ToString());
+			UE_CLOG(UniformBuffer == nullptr && EmulatedUniformBufferSet.IsValidIndex(BufferIndex), LogRHI, Fatal, TEXT("CommitPackedUniformBuffers null UB stage %d, idx %d (%d), %s"), Stage, BufferIndex, EmulatedUniformBufferSet.Num(), *LinkedProgram->ProgramKey.ToString());
 #endif
 			if (UniformBuffer && EmulatedUniformBufferSet.IsValidIndex(BufferIndex) && EmulatedUniformBufferSet[BufferIndex] != UniformBuffer->UniqueID)
 			{
@@ -3546,7 +3351,7 @@ void FOpenGLShaderParameterCache::CommitPackedUniformBuffers(FOpenGLLinkedProgra
 				}
 
 				// Upload the split buffers to the program
-				const auto& UniformBufferUploadInfoList = PackedUniformBufferInfos[BufferIndex];
+				const auto& UniformBufferUploadInfoList = ShaderStage.PackedUniformBufferInfos[BufferIndex];
 				for (int32 InfoIndex = 0; InfoIndex < UniformBufferUploadInfoList.Num(); ++InfoIndex)
 				{
 					auto& UBInfo = Bindings.PackedUniformBuffers[BufferIndex];
@@ -3565,15 +3370,15 @@ void FOpenGLShaderParameterCache::CommitPackedUniformBuffers(FOpenGLLinkedProgra
 					case CrossCompiler::PACKED_TYPEINDEX_HIGHP:
 					case CrossCompiler::PACKED_TYPEINDEX_MEDIUMP:
 					case CrossCompiler::PACKED_TYPEINDEX_LOWP:
-						FOpenGL::ProgramUniform4fv(LinkedProgram->Config.Shaders[Stage].Resource, UniformInfo.Location, NumVectors, (GLfloat*)UniformData);
+						FOpenGL::ProgramUniform4fv(LinkedProgram->Program, UniformInfo.Location, NumVectors, (GLfloat*)UniformData);
 						break;
 
 					case CrossCompiler::PACKED_TYPEINDEX_INT:
-						FOpenGL::ProgramUniform4iv(LinkedProgram->Config.Shaders[Stage].Resource, UniformInfo.Location, NumVectors, (GLint*)UniformData);
+						FOpenGL::ProgramUniform4iv(LinkedProgram->Program, UniformInfo.Location, NumVectors, (GLint*)UniformData);
 						break;
 
 					case CrossCompiler::PACKED_TYPEINDEX_UINT:
-						FOpenGL::ProgramUniform4uiv(LinkedProgram->Config.Shaders[Stage].Resource, UniformInfo.Location, NumVectors, (GLuint*)UniformData);
+						FOpenGL::ProgramUniform4uiv(LinkedProgram->Program, UniformInfo.Location, NumVectors, (GLuint*)UniformData);
 						break;
 					}
 				}
@@ -3630,6 +3435,7 @@ namespace UE
 						RHIGetPanicDelegate().ExecuteIfBound(FName("FailedBinaryProgramCreateLoadRequest"));
 						UE_LOG(LogRHI, Fatal, TEXT("CompleteLoadedGLProgramRequest_internal : Failed to create GL program from binary data! [%s]"), *ProgramKey.ToString());
 					}
+
 					FOpenGLLinkedProgram* NewLinkedProgram = new FOpenGLLinkedProgram(ProgramKey, GLProgramId);
 					GetOpenGLProgramsCache().Add(ProgramKey, NewLinkedProgram);
 				}

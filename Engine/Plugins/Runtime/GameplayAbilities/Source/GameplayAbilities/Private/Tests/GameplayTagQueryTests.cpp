@@ -8,7 +8,7 @@
 #include "GameplayAbilitiesModule.h"
 #include "GameplayEffectTypes.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagQueryMatchesTagRequirementsTest, "System.AbilitySystem.GameplayTagRequirements.ConvertTagFieldsToTagQuery", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagQueryMatchesTagRequirementsTest, "System.AbilitySystem.GameplayTagRequirements.ConvertTagFieldsToTagQuery", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 #include "GameplayTagsManager.h"
 
@@ -125,8 +125,8 @@ bool FGameplayTagQueryMatchesTagRequirementsTest::RunTest(const FString& Paramet
 	} // for each scenario
 
 	AddInfo(FString::Printf(TEXT(" Ran %d tests against FGameplayTagRequirements and FGameplayTagQuery in %.4lf ms"), NumTestScenarios * NumTestsPerScenario, FPlatformTime::ToMilliseconds64(MetRequirementsCycles + QueryMatchesCycles)));
-	AddInfo(FString::Printf(TEXT("	FGameplayTagRequirements took %ull cycles (%.4lf ms) and gave %d matches"), MetRequirementsCycles, FPlatformTime::ToMilliseconds64(MetRequirementsCycles), NumMetRequirements));
-	AddInfo(FString::Printf(TEXT("	FGameplayTagQuery took %ull cycles (%.4lf ms) and gave %d matches"), QueryMatchesCycles, FPlatformTime::ToMilliseconds64(QueryMatchesCycles), NumQueryMatches));
+	AddInfo(FString::Printf(TEXT("	FGameplayTagRequirements took %" UINT64_FMT " cycles (%.4lf ms) and gave %u matches"), MetRequirementsCycles, FPlatformTime::ToMilliseconds64(MetRequirementsCycles), NumMetRequirements));
+	AddInfo(FString::Printf(TEXT("	FGameplayTagQuery took %" UINT64_FMT " cycles (%.4lf ms) and gave %u matches"), QueryMatchesCycles, FPlatformTime::ToMilliseconds64(QueryMatchesCycles), NumQueryMatches));
 
 	TestEqual(TEXT("FGameplayTagRequirements has same matching rules as FGameplayTagQuery"), NumQueryMatches, NumMetRequirements);
 	return NumMetRequirements == NumQueryMatches;

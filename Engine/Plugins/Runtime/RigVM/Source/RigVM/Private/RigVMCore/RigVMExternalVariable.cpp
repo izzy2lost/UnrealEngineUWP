@@ -285,7 +285,7 @@ TRigVMTypeIndex FRigVMExternalVariable::GetTypeIndex() const
 {
 	if(IsValid(true))
 	{
-		return FRigVMRegistry::Get().GetTypeIndexFromCPPType(GetExtendedCPPType().ToString());
+		return FRigVMRegistry_RWLock::Get().GetTypeIndexFromCPPType(GetExtendedCPPType().ToString());
 	}
 	return INDEX_NONE;
 }

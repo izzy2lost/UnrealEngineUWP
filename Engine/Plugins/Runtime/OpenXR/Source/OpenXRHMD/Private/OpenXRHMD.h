@@ -95,6 +95,62 @@ public:
 		bool bXrFrameStateUpdated = false;
 	};
 
+	struct FPipelinedFrameStateAccessorReadOnly
+	{
+		FPipelinedFrameStateAccessorReadOnly(FPipelinedFrameState const& InPipelinedFrameState, FRWLock const& InAccessGuard)
+			: PipelinedFrameState(InPipelinedFrameState), AccessGuard(const_cast<FRWLock&>(InAccessGuard))
+		{
+			AccessGuard.ReadLock();
+		}
+
+		// not virtual because we aren't going to delete via a base pointer
+		~FPipelinedFrameStateAccessorReadOnly()
+		{
+			AccessGuard.ReadUnlock();
+		}
+
+		FPipelinedFrameState const& GetFrameState() const
+		{
+			return PipelinedFrameState;
+		}
+
+	private:
+
+		/** The frame state we're guarding the access to. */
+		FPipelinedFrameState const& PipelinedFrameState;
+
+		/** Reference to the guarding lock. */
+		FRWLock& AccessGuard;
+	};
+
+	struct FPipelinedFrameStateAccessorReadWrite
+	{
+		FPipelinedFrameStateAccessorReadWrite(FPipelinedFrameState& InPipelinedFrameState, FRWLock& InAccessGuard)
+			: PipelinedFrameState(InPipelinedFrameState), AccessGuard(InAccessGuard)
+		{
+			AccessGuard.WriteLock();
+		}
+
+		// not virtual because we aren't going to delete via a base pointer
+		~FPipelinedFrameStateAccessorReadWrite()
+		{
+			AccessGuard.WriteUnlock();
+		}
+
+		FPipelinedFrameState& GetFrameState()
+		{
+			return PipelinedFrameState;
+		}
+
+	private:
+
+		/** The frame state we're guarding the access to. */
+		FPipelinedFrameState& PipelinedFrameState;
+
+		/** Reference to the guarding lock. */
+		FRWLock& AccessGuard;
+	};
+
 	struct FEmulatedLayerState
 	{
 		// These layers are used as a target to composite all the emulated face locked layers into
@@ -249,8 +305,9 @@ public:
 		return this;
 	}
 #endif
-
 	virtual void GetMotionControllerData(UObject* WorldContext, const EControllerHand Hand, FXRMotionControllerData& MotionControllerData) override;
+	virtual void GetMotionControllerState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, const EXRControllerPoseType XRControllerPoseType, FXRMotionControllerState& MotionControllerState) override;
+	virtual void GetHandTrackingState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, FXRHandTrackingState& HandTrackingState) override;
 
 	virtual float GetWorldToMetersScale() const override;
 
@@ -275,17 +332,17 @@ protected:
 	void BuildOcclusionMeshes();
 	bool BuildOcclusionMesh(XrVisibilityMaskTypeKHR Type, int View, FHMDViewMesh& Mesh);
 
-	const FPipelinedFrameState& GetPipelinedFrameStateForThread() const;
-	FPipelinedFrameState& GetPipelinedFrameStateForThread();
+	FPipelinedFrameStateAccessorReadOnly GetPipelinedFrameStateForThread() const;
+	FPipelinedFrameStateAccessorReadWrite GetPipelinedFrameStateForThread();
 
 	void UpdateDeviceLocations(bool bUpdateOpenXRExtensionPlugins);
 	void EnumerateViews(FPipelinedFrameState& PipelineState);
 	void LocateViews(FPipelinedFrameState& PipelinedState, bool ResizeViewsArray = false);
 
-	void CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* SrcTexture, FIntRect SrcRect, FRHITexture2D* DstTexture, FIntRect DstRect, 
+	void CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, FIntRect SrcRect, FRHITexture* DstTexture, FIntRect DstRect, 
 								  bool bClearBlack, ERenderTargetActions RTAction, ERHIAccess FinalDstAccess, ETextureCopyBlendModifier SrcTextureCopyModifier) const;
 	
-	void CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* SrcTexture, FIntRect SrcRect, const FXRSwapChainPtr& DstSwapChain, FIntRect DstRect, bool bClearBlack, ETextureCopyBlendModifier SrcTextureCopyModifier) const;
+	void CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, FIntRect SrcRect, const FXRSwapChainPtr& DstSwapChain, FIntRect DstRect, bool bClearBlack, ETextureCopyBlendModifier SrcTextureCopyModifier) const;
 
 	void AllocateDepthTextureInternal(uint32 SizeX, uint32 SizeY, uint32 NumSamples, uint32 ArraySize);
 
@@ -296,6 +353,11 @@ protected:
 
 	/** TStereoLayerManager<FOpenXRLayer> */
 	void UpdateLayer(FOpenXRLayer& ManagerLayer, uint32 LayerId, bool bIsValid) override;
+
+	virtual bool PopulateAnalyticsAttributes(TArray<struct FAnalyticsEventAttribute>& EventAttributes) override;
+
+	/** Populates System, SystemProperties and related fields. Can get called before OnStereoStartup. */
+	bool AcquireSystemIdAndProperties();
 
 public:
 	/** IXRTrackingSystem interface */
@@ -317,12 +379,14 @@ public:
 	virtual void SetPixelDensity(const float NewDensity) override;
 	virtual FIntPoint GetIdealRenderTargetSize() const override;
 	virtual bool GetHMDDistortionEnabled(EShadingPath ShadingPath) const override { return false; }
-	virtual FIntRect GetFullFlatEyeRect_RenderThread(FTexture2DRHIRef EyeTexture) const override;
-	virtual void CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* SrcTexture, FIntRect SrcRect, FRHITexture2D* DstTexture, FIntRect DstRect, bool bClearBlack, bool bNoAlpha) const override;
+	virtual FIntRect GetFullFlatEyeRect_RenderThread(FTextureRHIRef EyeTexture) const override;
+	virtual void CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, FIntRect SrcRect, FRHITexture* DstTexture, FIntRect DstRect, bool bClearBlack, bool bNoAlpha) const override;
 	virtual bool HasHiddenAreaMesh() const override final;
 	virtual bool HasVisibleAreaMesh() const override final;
 	virtual void DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const override final;
 	virtual void DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const override final;
+	virtual void DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const override final;
+	virtual void DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const override final;
 	virtual void OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& ViewFamily) override;
 	virtual void OnBeginRendering_GameThread() override;
 	virtual void OnLateUpdateApplied_RenderThread(FRHICommandListImmediate& RHICmdList, const FTransform& NewRelativeTransform) override;
@@ -360,9 +424,10 @@ public:
 	/** IStereoRenderTargetManager */
 	virtual bool ShouldUseSeparateRenderTarget() const override { return IsStereoEnabled() && RenderBridge.IsValid(); }
 	virtual void CalculateRenderTargetSize(const FViewport& Viewport, uint32& InOutSizeX, uint32& InOutSizeY) override;
-	virtual bool AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumLayers, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, TArray<FTexture2DRHIRef>& OutTargetableTextures, TArray<FTexture2DRHIRef>& OutShaderResourceTextures, uint32 NumSamples = 1) override;
+	virtual bool AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumLayers, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, TArray<FTextureRHIRef>& OutTargetableTextures, TArray<FTextureRHIRef>& OutShaderResourceTextures, uint32 NumSamples = 1) override;
 	virtual int32 AcquireColorTexture() override final;
-	virtual bool AllocateDepthTexture(uint32 Index, uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags InTexFlags, ETextureCreateFlags TargetableTextureFlags, FTexture2DRHIRef& OutTargetableTexture, FTexture2DRHIRef& OutShaderResourceTexture, uint32 NumSamples = 1) override final;
+	virtual int32 AcquireDepthTexture() override final;
+	virtual bool AllocateDepthTexture(uint32 Index, uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags InTexFlags, ETextureCreateFlags TargetableTextureFlags, FTextureRHIRef& OutTargetableTexture, FTextureRHIRef& OutShaderResourceTexture, uint32 NumSamples = 1) override final;
 	virtual bool ReconfigureForShaderPlatform(EShaderPlatform NewShaderPlatform) override;
 	virtual EPixelFormat GetActualColorSwapchainFormat() const override { return static_cast<EPixelFormat>(LastActualColorSwapchainFormat); }
 
@@ -371,7 +436,6 @@ public:
 
 	/** IXRTrackingSystem */
 	virtual void OnBeginPlay(FWorldContext& InWorldContext) override;
-	virtual void OnEndPlay(FWorldContext& InWorldContext) override;
 
 	/** IStereoLayers */
 	virtual bool ShouldCopyDebugLayersToSpectatorScreen() const override { return true; }
@@ -391,8 +455,8 @@ public:
 	virtual ~FOpenXRHMD();
 
 	void OnBeginSimulation_GameThread();
-	void OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain);
-	void OnFinishRendering_RHIThread();
+	void OnBeginRendering_RHIThread(IRHICommandContext& RHICmdContext, const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain);
+	void OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext);
 
 	/** IOpenXRHMD */
 	void SetInputModule(IOpenXRInputModule* InInputModule) override
@@ -422,16 +486,18 @@ public:
 	/** Returns shader platform the plugin is currently configured for, in the editor it can change due to preview platforms. */
 	EShaderPlatform GetConfiguredShaderPlatform() const { check(ConfiguredShaderPlatform != EShaderPlatform::SP_NumPlatforms); return ConfiguredShaderPlatform; }
 	FOpenXRSwapchain* GetColorSwapchain_RenderThread();
+
+	bool RuntimeRequiresRHIContext() const { return bRuntimeRequiresRHIContext; }
 private:
 
 	TArray<XrEnvironmentBlendMode> RetrieveEnvironmentBlendModes() const;
 	FDefaultStereoLayers_LayerRenderParams CalculateEmulatedLayerRenderParams(const FSceneView& InView);
-	FRHIRenderPassInfo SetupEmulatedLayersRenderPass(FRHICommandListImmediate& RHICmdList, const FSceneView& InView, TArray<IStereoLayers::FLayerDesc>& Layers, FTexture2DRHIRef RenderTarget, FDefaultStereoLayers_LayerRenderParams& OutRenderParams);
+	FRHIRenderPassInfo SetupEmulatedLayersRenderPass(FRHICommandListImmediate& RHICmdList, const FSceneView& InView, TArray<IStereoLayers::FLayerDesc>& Layers, FTextureRHIRef RenderTarget, FDefaultStereoLayers_LayerRenderParams& OutRenderParams);
 	bool IsEmulatingStereoLayers();
 	
 	void UpdateLayerSwapchainTexture(const FOpenXRLayer& Layer, FRHICommandListImmediate& RHICmdList);
 	void ConfigureLayerSwapchain(FOpenXRLayer& Layer, TArray<FOpenXRLayer>& BackupLayers);
-	void AddLayersToHeaders(TArray<const XrCompositionLayerBaseHeader*>& Headers);
+	void AddLayersToHeaders(TArray<XrCompositionLayerBaseHeader*>& Headers);
 
 	bool					bStereoEnabled;
 	TAtomic<bool>			bIsRunning;
@@ -449,6 +515,7 @@ private:
 	bool					bSpaceAccelerationSupported;
 	bool					bProjectionLayerAlphaEnabled;
 	bool					bIsStandaloneStereoOnlyDevice;
+	bool					bRuntimeRequiresRHIContext;
 	bool					bIsTrackingOnlySession;
 	bool					bIsAcquireOnAnyThreadSupported;
 	bool					bUseWaitCountToAvoidExtraXrBeginFrameCalls;
@@ -478,6 +545,12 @@ private:
 	FPipelinedFrameState	PipelinedFrameStateGame;
 	FPipelinedFrameState	PipelinedFrameStateRendering;
 	FPipelinedFrameState	PipelinedFrameStateRHI;
+
+	/** Arbitrates access to PipelinedFrameStateGame from code on task threads */
+	FRWLock					PipelinedFrameStateGameAccessGuard;
+	/** Arbitrates access to PipelinedFrameStateRendering from code on task threads */
+	FRWLock					PipelinedFrameStateRenderingAccessGuard;
+	// we do not expose PipelineFrameStateRHI in GetPipelinedFrameStateForThread() as of now, so no lock is provided for that one.
 
 	FPipelinedLayerState	PipelinedLayerStateRendering;
 	FPipelinedLayerState	PipelinedLayerStateRHI;
@@ -515,6 +588,7 @@ private:
 	XrColor4f				LayerColorScale;
 	XrColor4f				LayerColorBias;
 	bool					bCompositionLayerColorScaleBiasSupported;
+	bool					bxrGetSystemPropertiesSuccessful;
 };
 
 ENUM_CLASS_FLAGS(FOpenXRHMD::EOpenXRLayerStateFlags);

@@ -2,12 +2,11 @@
 
 #pragma once
 
-#include "AnimNextParameterExecuteContext.h"
+#include "RigUnit_AnimNextParameterBase.h"
+#include "AnimNextExecuteContext.h"
 #include "RigUnit_AnimNextParameterBeginExecution.generated.h"
 
-/**
- * Event for driving the skeleton hierarchy with variables and rig elements
- */
+/** Deprecated stub - remove once content is updated */
 USTRUCT(meta=(DisplayName="Execute", Category="Events", NodeColor="1, 0, 0", Keywords="Begin,Update,Tick,Forward,Event"))
 struct ANIMNEXT_API FRigUnit_AnimNextParameterBeginExecution : public FRigUnit_AnimNextParameterBase
 {
@@ -22,7 +21,7 @@ struct ANIMNEXT_API FRigUnit_AnimNextParameterBeginExecution : public FRigUnit_A
 
 	// The execution result
 	UPROPERTY(EditAnywhere, DisplayName = "Execute", Category = "Entry Point", meta = (Output))
-	FAnimNextParameterExecuteContext ExecuteContext;
+	FAnimNextExecuteContext ExecuteContext;
 
 	// The name of the entry point
 	UPROPERTY(VisibleAnywhere, Category = "Entry Point", meta = (Hidden))

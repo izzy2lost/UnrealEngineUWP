@@ -1,19 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimationTickRecordsTrack.h"
-#include "GameplayProvider.h"
+
 #include "AnimationProvider.h"
-#include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/ViewModels/TimingEvent.h"
-#include "Insights/ViewModels/TooltipDrawState.h"
 #include "AnimationSharedData.h"
-#include "Insights/ViewModels/TimingEventSearch.h"
-#include "Insights/ViewModels/TooltipDrawState.h"
-#include "Templates/Invoke.h"
-#include "Insights/ViewModels/GraphTrackBuilder.h"
-#include "Insights/Common/TimeUtils.h"
-#include "GameplaySharedData.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "GameplayProvider.h"
+#include "GameplaySharedData.h"
+#include "Templates/Invoke.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
+#include "Insights/ViewModels/GraphTrackBuilder.h"
+#include "Insights/ViewModels/TimingEvent.h"
+#include "Insights/ViewModels/TimingEventSearch.h"
+#include "Insights/ViewModels/TimingTrackViewport.h"
+#include "Insights/ViewModels/TooltipDrawState.h"
 
 #if WITH_EDITOR
 #include "Animation/AnimBlueprintGeneratedClass.h"
@@ -34,7 +38,7 @@ FString FTickRecordSeries::FormatValue(double Value) const
 	switch (Type)
 	{
 	case ESeriesType::PlaybackTime:
-		return TimeUtils::FormatTimeAuto(Value);
+		return UE::Insights::FormatTimeAuto(Value);
 	case ESeriesType::BlendWeight:
 	case ESeriesType::RootMotionWeight:
 	case ESeriesType::PlayRate:

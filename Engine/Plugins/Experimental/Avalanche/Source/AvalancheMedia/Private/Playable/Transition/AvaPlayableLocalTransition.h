@@ -35,12 +35,14 @@ protected:
 	
 	void PostTransitionExecutorPhase();
 
-	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType);
+	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType);
 	
 	void NotifyTransitionFinished();
 
 	void StartWaitOnPostExecutorSequences();
 	void FinishWaitOnPostExecutorSequences();
+
+	FString GetInstanceName() const;
 	
 protected:
 	/** Transition tree executor. */

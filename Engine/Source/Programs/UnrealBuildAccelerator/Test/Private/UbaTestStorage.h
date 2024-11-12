@@ -27,7 +27,9 @@ namespace uba
 		storage.LoadCasTable();
 
 		CasKey key;
-		if (!storage.StoreCasFile(key, detoursLib.data))
+		bool deferCreation = false;
+		bool fileIsCompressed = false;
+		if (!storage.StoreCasFile(key, detoursLib.data, CasKeyZero, deferCreation, fileIsCompressed))
 			return logger.Error(TC("Failed to store file %s"), detoursLib.data);
 		if (key == CasKeyZero)
 			return logger.Error(TC("Failed to find file %s"), detoursLib.data);

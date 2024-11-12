@@ -6,9 +6,11 @@
 #include "Containers/ResourceArray.h"
 #include "GPUScene.h"
 #include "GlobalShader.h"
+#include "InstanceCulling/InstanceCullingManager.h"
 #include "RHIAccess.h"
 #include "RHIFeatureLevel.h"
 #include "RHIGlobals.h"
+#include "RHIResourceUtils.h"
 #include "RHIShaderPlatform.h"
 #include "RHIStaticStates.h"
 #include "RenderGraphBuilder.h"
@@ -28,40 +30,19 @@ static TAutoConsoleVariable<int32> CVarInstanceCullingOcclusionQueries(
 	TEXT("EXPERIMENTAL: Use per-instance software occlusion queries to perform less conservative visibility test than what's possible with HZB alone"),
 	ECVF_RenderThreadSafe | ECVF_Preview);
 
+static int32 GInstanceCullingUseLoadBalancer = 1;
+static FAutoConsoleVariableRef CVarInstanceCullingUseLoadBalancer(
+	TEXT("r.InstanceCulling.UseLoadBalancer"),
+	GInstanceCullingUseLoadBalancer,
+	TEXT("Prefer to use UseLoadBalancer"),
+	ECVF_RenderThreadSafe);
+
 struct FInstanceCullingOcclusionQueryDeferredContext;
 
 namespace
 {
 
-// YURIY_TODO: Put the helpers somewhere in the common RHI code
-struct FResourceArrayView : public FResourceArrayInterface
-{
-	const void* Data = nullptr;
-	uint32 SizeInBytes = 0;
 
-	template <typename T>
-	FResourceArrayView(TArrayView<T> View)
-		: Data(View.GetData())
-		, SizeInBytes(View.Num() * View.GetTypeSize())
-	{}
-
-	// FResourceArrayInterface
-	virtual const void* GetResourceData() const override final { return Data; }
-	virtual uint32 GetResourceDataSize() const override final { return SizeInBytes; }
-	virtual void Discard() override final {};
-	virtual bool IsStatic() const override final { return true; }
-	virtual bool GetAllowCPUAccess() const override final { return false; };
-	virtual void SetAllowCPUAccess(bool /*bInNeedsCPUAccess*/) override final {};
-};
-
-template <typename T>
-static FBufferRHIRef CreateBufferWithData(FRHICommandListBase& RHICmdList, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
-{
-	FResourceArrayView DataView(Data);
-	FRHIResourceCreateInfo CreateInfo(Name);
-	CreateInfo.ResourceArray = &DataView;
-	return RHICmdList.CreateBuffer(DataView.SizeInBytes, UsageFlags, Data.GetTypeSize(), ResourceState, CreateInfo);
-}
 
 
 static EPixelFormat GetPreferredVisibilityMaskFormat()
@@ -95,6 +76,11 @@ class FInstanceCullingOcclusionQueryCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FInstanceCullingOcclusionQueryCS, FGlobalShader);
 
 public:
+
+	class FMultiView : SHADER_PERMUTATION_BOOL("DIM_MULTI_VIEW");
+	class FUseLoadBalancerDim : SHADER_PERMUTATION_BOOL("USE_LOAD_BALANCER");
+	using FPermutationDomain = TShaderPermutationDomain<FMultiView, FUseLoadBalancerDim>;
+
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return FDataDrivenShaderPlatformInfo::GetSupportsVertexShaderSRVs(Parameters.Platform);
@@ -105,27 +91,37 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		
+		// Currently, instance compaction is not supported on mobile platforms
+		if (PermutationVector.Get<FUseLoadBalancerDim>())
+		{
+			FInstanceProcessingGPULoadBalancer::SetShaderDefines(OutEnvironment);
+		}
+
 		OutEnvironment.SetDefine(TEXT("USE_GLOBAL_GPU_SCENE_DATA"), 1);
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-		OutEnvironment.SetDefine(TEXT("NUM_THREADS_PER_GROUP"), NumThreadsPerGroup);
+		OutEnvironment.SetDefine(TEXT("NUM_THREADS_PER_GROUP_DEFAULT"), NumThreadsPerGroup);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint32>, OutIndirectArgsBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint32>, OutInstanceIdBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutVisibilityMask) // One uint32 per instance (0 if instance is culled, non-0 otherwise)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWVisibilityMask) // One uint8/32 per instance (0 if instance is culled, non-0 otherwise)
 		SHADER_PARAMETER(uint32, InstanceSceneDataSOAStride)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUSceneInstanceSceneData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUSceneInstancePayloadData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUScenePrimitiveSceneData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint32>, InstanceIdBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceProcessingGPULoadBalancer::FShaderParameters, LoadBalancerParameters)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
-		SHADER_PARAMETER(FIntVector4, ViewRect)
+		SHADER_PARAMETER(FIntPoint, HZBViewRectSize)
 		SHADER_PARAMETER(float, OcclusionSlop)
 		SHADER_PARAMETER(int32, NumInstances)
+		SHADER_PARAMETER(uint32, ViewMask)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -137,6 +133,10 @@ class FInstanceCullingOcclusionQueryVS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FInstanceCullingOcclusionQueryVS, FGlobalShader);
 
 public:
+
+	class FMultiView : SHADER_PERMUTATION_BOOL("DIM_MULTI_VIEW");
+	using FPermutationDomain = TShaderPermutationDomain<FMultiView>;
+
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return FDataDrivenShaderPlatformInfo::GetSupportsVertexShaderSRVs(Parameters.Platform);
@@ -156,12 +156,14 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUSceneInstancePayloadData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUScenePrimitiveSceneData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint32>, InstanceIdBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWVisibilityMask) // One uint8/32 per instance (0 if instance is culled, non-0 otherwise)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
-		SHADER_PARAMETER(FIntVector4, ViewRect)
+		SHADER_PARAMETER(FIntPoint, HZBViewRectSize)
 		SHADER_PARAMETER(float, OcclusionSlop)
+		SHADER_PARAMETER(uint32, ViewMask)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -181,7 +183,7 @@ public:
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutVisibilityMask) // One uint32 per instance (0 if instance is culled, non-0 otherwise)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWVisibilityMask) // One uint8/32 per instance (0 if instance is culled, non-0 otherwise)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -234,13 +236,8 @@ public:
 			FVector3f(+1.0f, -1.0f, -1.0f),
 		};
 
-		IndexBuffer = CreateBufferWithData(RHICmdList, EBufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer,
-			TEXT("FInstanceCullingOcclusionQueryBox_IndexBuffer"),
-			MakeArrayView(BoxIndexBufferData));
-
-		VertexBuffer = CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
-			TEXT("FInstanceCullingOcclusionQueryBox_VertexBuffer"),
-			MakeArrayView(BoxVertexBufferData));
+		IndexBuffer = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FInstanceCullingOcclusionQueryBox_IndexBuffer"), MakeConstArrayView(BoxIndexBufferData));
+		VertexBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FInstanceCullingOcclusionQueryBox_VertexBuffer"), MakeConstArrayView(BoxVertexBufferData));
 
 		FVertexDeclarationElementList VertexDeclarationElements;
 		VertexDeclarationElements.Add(FVertexElement(0, 0, VET_Float3, 0, 12));
@@ -260,15 +257,19 @@ TGlobalResource<FInstanceCullingOcclusionQueryBox> GInstanceCullingOcclusionQuer
 static void RenderInstanceOcclusionCulling(
 	FRHICommandList& RHICmdList,
 	FViewInfo& View,
-	FOcclusionInstanceCullingParameters* PassParameters)
+	FOcclusionInstanceCullingParameters* PassParameters,
+	bool bMultiView)
 {
-	TShaderMapRef<FInstanceCullingOcclusionQueryVS> VertexShader(View.ShaderMap);
+	FInstanceCullingOcclusionQueryVS::FPermutationDomain VSPermutationVector;
+	VSPermutationVector.Set<FInstanceCullingOcclusionQueryVS::FMultiView>(bMultiView);
+	TShaderMapRef<FInstanceCullingOcclusionQueryVS> VertexShader(View.ShaderMap, VSPermutationVector);
+
 	TShaderMapRef<FInstanceCullingOcclusionQueryPS> PixelShader(View.ShaderMap);
 
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
-	FIntVector4 ViewRect = PassParameters->VS.ViewRect;
+	FIntVector4 ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
 	RHICmdList.SetViewport(ViewRect.X, ViewRect.Y, 0.0f, ViewRect.Z, ViewRect.W, 1.0f);
 
 	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GInstanceCullingOcclusionQueryBox.VertexDeclaration;
@@ -302,10 +303,11 @@ static void RenderInstanceOcclusionCulling(
 */
 struct FInstanceCullingOcclusionQueryDeferredContext
 {
-	FInstanceCullingOcclusionQueryDeferredContext(const FViewInfo* InView, int32 InNumGPUSceneInstances, EMeshPass::Type InMeshPass)
+	FInstanceCullingOcclusionQueryDeferredContext(const FViewInfo* InView, int32 InNumGPUSceneInstances, EMeshPass::Type InMeshPass, FInstanceCullingContext* InInstanceCullingContext)
 		: View(InView)
 		, NumGPUSceneInstances(InNumGPUSceneInstances)
 		, MeshPass(InMeshPass)
+		, InstanceCullingContext(InInstanceCullingContext)
 	{
 	}
 
@@ -344,20 +346,42 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 
 	void Execute()
 	{
-		if (bExecuted)
+		if (bFunctionExecuted)
 		{
 			return;
 		}
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FInstanceCullingOcclusionQueryDeferredContext::Execute);
 
-		bExecuted = true;
+		bFunctionExecuted = true;
 
 		const FParallelMeshDrawCommandPass& MeshDrawCommandPass = View->ParallelMeshDrawCommandPasses[MeshPass];
 
 		// Execute() is expected to run late enough to not stall here.
 		// If it does happen, then we may have to move the render pass to later point in the frame.
 		MeshDrawCommandPass.WaitForSetupTask(); 
+
+		if (InstanceCullingContext != nullptr)
+		{
+			InstanceProcessingGPULoadBalancer = InstanceCullingContext->LoadBalancers[int(EBatchProcessingMode::Generic)];
+			bValid = (InstanceProcessingGPULoadBalancer != nullptr);
+			static FInstanceProcessingGPULoadBalancer Dummy;
+			// Always provide a load balancer so that CreateLoadBalancerGPUDataDeferred doesn't crash. bValid=false will skip the dispatch
+			if (!bValid)
+			{
+				InstanceProcessingGPULoadBalancer = &Dummy;
+			}
+
+			// in case something goes wrong: we will skip the compute since bValid won't be true and we will fill up the data from VisibleInstanceIds
+			AlignedNumInstances = FInstanceCullingOcclusionQueryCS::NumThreadsPerGroup;
+			VisibleInstanceIds.SetNumZeroed(AlignedNumInstances);
+			InstanceProcessingGPULoadBalancer->FinalizeBatches();
+			FIntVector LoadBalancerNumThreadGroups = InstanceProcessingGPULoadBalancer->GetWrappedCsGroupCount();
+			// Needed to allocate the buffer holding the instance ids after the culling pass, see DeferredAlignedNumInstancesOutputCulling
+			AlignedNumInstances = LoadBalancerNumThreadGroups.X * LoadBalancerNumThreadGroups.Y * LoadBalancerNumThreadGroups.Z * FInstanceCullingOcclusionQueryCS::NumThreadsPerGroup;
+			
+			return;
+		}
 
 		const FMeshCommandOneFrameArray& VisibleMeshDrawCommands = MeshDrawCommandPass.GetMeshDrawCommands();
 
@@ -457,13 +481,22 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 		check(ResultCursor == ResultData + AlignedNumInstances);
 	}
 
-	FRDGBufferNumElementsCallback DeferredAlignedNumInstances()
+	FRDGBufferNumElementsCallback DeferredAlignedNumInstancesOutputCulling()
 	{
 		return [Context = this]() -> uint32
-			{
-				Context->Execute();
-				return Context->AlignedNumInstances;
-			};
+		{
+			Context->Execute();
+			return Context->AlignedNumInstances;
+		};
+	}
+
+	FRDGBufferNumElementsCallback DeferredNumInstanceIdData()
+	{
+		return [Context = this]() -> uint32
+		{
+			Context->Execute();
+			return Context->VisibleInstanceIds.Num();
+		};
 	}
 
 	FRDGBufferInitialDataCallback DeferredInstanceIdData()
@@ -485,7 +518,7 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 	}
 
 	// Execute function may be called multiple times, but we only want to run computations once
-	bool bExecuted = false;
+	bool bFunctionExecuted = false;
 
 	// If this is false, then some late validation have failed and rendering should be skipped
 	bool bValid = false;
@@ -493,12 +526,33 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 	const FViewInfo* View = nullptr;
 	int32 NumGPUSceneInstances = 0;
 	EMeshPass::Type MeshPass = EMeshPass::Num;
+	FInstanceCullingContext* InstanceCullingContext = nullptr;
+	FInstanceProcessingGPULoadBalancer* InstanceProcessingGPULoadBalancer = nullptr;
 	int32 NumInstances = 0;
 	int32 AlignedNumInstances = 0;
 	FIntVector NumThreadGroups = FIntVector::ZeroValue;
 
 	TArray<uint32> VisibleInstanceIds;
 };
+
+static void CreateLoadBalancerGPUDataDeferred(FRDGBuilder& GraphBuilder, FInstanceCullingOcclusionQueryCS::FParameters* PassParameters, FInstanceCullingOcclusionQueryDeferredContext* DeferredContext)
+{
+	PassParameters->LoadBalancerParameters.BatchBuffer = GraphBuilder.CreateSRV(
+		CreateStructuredBuffer(GraphBuilder, TEXT("InstanceCullingLoadBalancer.Batches"), [DeferredContext]() 
+			-> const TArray<FInstanceCullingLoadBalancerBase::FPackedBatch>& 
+			{ 
+				DeferredContext->Execute(); 
+				return DeferredContext->InstanceProcessingGPULoadBalancer->GetBatches(); 
+			}));
+
+	PassParameters->LoadBalancerParameters.ItemBuffer = GraphBuilder.CreateSRV(
+		CreateStructuredBuffer(GraphBuilder, TEXT("InstanceCullingLoadBalancer.Items"), [DeferredContext]() 
+			-> const TArray<FInstanceCullingLoadBalancerBase::FPackedItem>& 
+			{ 
+				DeferredContext->Execute(); 
+				return DeferredContext->InstanceProcessingGPULoadBalancer->GetItems(); 
+			}));
+}
 
 uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	FRDGBuilder& GraphBuilder,
@@ -510,7 +564,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 		return 0;
 	}
 
-	const uint32 ViewMask = RegisterView(View);
+	const uint32 ViewMask = FindOrAddViewSlot(View);
 
 	if (ViewMask == 0)
 	{
@@ -520,9 +574,22 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FInstanceCullingOcclusionQueryRenderer::Render);
 
+	// Whether to use shader permutation that preserves visibility bits corresponding to other views (slight extra cost)
+	const bool bMultiView = CurrentRenderedViewIDs.Num() > 1;
+
 	const int32 NumGPUSceneInstances = GPUScene.GetNumInstances();
 
-	FInstanceCullingOcclusionQueryDeferredContext* DeferredContext = GraphBuilder.AllocObject<FInstanceCullingOcclusionQueryDeferredContext>(&View, NumGPUSceneInstances, EMeshPass::BasePass);
+	FInstanceCullingContext* InstanceCullingContext = nullptr;
+	if (GInstanceCullingUseLoadBalancer > 0)
+	{
+		FParallelMeshDrawCommandPass& MeshDrawCommandPass = View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass];
+
+		// At this point in time, we don't have the guarantee that MeshDrawCommandPass is done. Only access stable members, not batches/items/mdcs
+		InstanceCullingContext = MeshDrawCommandPass.GetInstanceCullingContext();
+	}
+
+	FInstanceCullingOcclusionQueryDeferredContext* DeferredContext = GraphBuilder.AllocObject<FInstanceCullingOcclusionQueryDeferredContext>(&View, NumGPUSceneInstances, 
+		EMeshPass::BasePass, InstanceCullingContext);
 
 	FRDGTextureRef DepthTexture = View.GetSceneTextures().Depth.Target;
 	FRDGTextureRef HZBTexture = View.HZB;
@@ -570,14 +637,23 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	FRDGBufferUAVRef IndirectArgsUAV = GraphBuilder.CreateUAV(IndirectArgsBuffer, PF_R32_UINT);
 
 	// Buffer of GPUScene instance indices to run occlusion queries for (input for setup CS)
-	FRDGBufferRef SetupInstanceIdBuffer = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 /*real size is provided via callback later*/),
-		TEXT("FInstanceCullingOcclusionQueryRenderer_SetupInstanceIdBuffer"), 
-		DeferredContext->DeferredAlignedNumInstances());
+	FRDGBufferRef SetupInstanceIdBuffer;
 
-	GraphBuilder.QueueBufferUpload(SetupInstanceIdBuffer,
-		DeferredContext->DeferredInstanceIdData(),
-		DeferredContext->DeferredInstanceIdDataSize());
+	// When using the GPU load balancer, the upload of the data holding instance ids happens below with InstanceProcessingGPULoadBalancer->Upload
+	if (InstanceCullingContext == nullptr)
+	{
+		SetupInstanceIdBuffer = GraphBuilder.CreateBuffer(
+			FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 /*real size is provided via callback later*/),
+			TEXT("FInstanceCullingOcclusionQueryRenderer_SetupInstanceIdBuffer"), 
+			DeferredContext->DeferredNumInstanceIdData());
+		GraphBuilder.QueueBufferUpload(SetupInstanceIdBuffer,
+									   DeferredContext->DeferredInstanceIdData(),
+									   DeferredContext->DeferredInstanceIdDataSize());
+	}
+	else
+	{
+		SetupInstanceIdBuffer = GSystemTextures.GetDefaultBuffer(GraphBuilder, 4);
+	}
 
 	FRDGBufferSRVRef SetupInstanceIdBufferSRV = GraphBuilder.CreateSRV(SetupInstanceIdBuffer, PF_R32_UINT);
 
@@ -585,7 +661,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	FRDGBufferRef InstanceIdBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1 /*real size is provided via callback later*/),
 		TEXT("FInstanceCullingOcclusionQueryRenderer_InstanceIdBuffer"),
-		DeferredContext->DeferredAlignedNumInstances());
+		DeferredContext->DeferredAlignedNumInstancesOutputCulling());
 
 	FRDGBufferUAVRef InstanceIdUAV = GraphBuilder.CreateUAV(InstanceIdBuffer, PF_R32_UINT);
 	FRDGBufferSRVRef InstanceIdSRV = GraphBuilder.CreateSRV(InstanceIdBuffer, PF_R32_UINT);
@@ -596,14 +672,22 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	{
 		FInstanceCullingOcclusionQueryCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInstanceCullingOcclusionQueryCS::FParameters>();
 
+		// FInstanceGPULoadBalancer uses the SceneRenderingAllocator which should keep data alive until the graphbuilder execution
+		bool bUseGPULoadBalancer = false;
+		if (InstanceCullingContext != nullptr)
+		{
+			CreateLoadBalancerGPUDataDeferred(GraphBuilder, PassParameters, DeferredContext);
+			bUseGPULoadBalancer = true;
+		}
+
 		PassParameters->OutIndirectArgsBuffer = IndirectArgsUAV;
 		PassParameters->OutInstanceIdBuffer = InstanceIdUAV;
-		PassParameters->OutVisibilityMask = VisibilityMaskUAV;
+		PassParameters->RWVisibilityMask = VisibilityMaskUAV;
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->HZBTexture = HZBTexture;
 		PassParameters->HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		PassParameters->HZBSize = FVector2f(HZBSize.X, HZBSize.Y);
-		PassParameters->ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+		PassParameters->HZBViewRectSize = ViewRectSize;
 		PassParameters->OcclusionSlop = OCCLUSION_SLOP;
 		PassParameters->InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
 		PassParameters->GPUSceneInstanceSceneData = GPUSceneParameters.GPUSceneInstanceSceneData;
@@ -611,8 +695,12 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 		PassParameters->GPUScenePrimitiveSceneData = GPUSceneParameters.GPUScenePrimitiveSceneData;
 		PassParameters->NumInstances = 0; // filled from DeferredContext later
 		PassParameters->InstanceIdBuffer = SetupInstanceIdBufferSRV;
+		PassParameters->ViewMask = ViewMask;
 
-		TShaderMapRef<FInstanceCullingOcclusionQueryCS> ComputeShader(View.ShaderMap);
+		FInstanceCullingOcclusionQueryCS::FPermutationDomain CSPermutationVector;
+		CSPermutationVector.Set<FInstanceCullingOcclusionQueryCS::FMultiView>(bMultiView);
+		CSPermutationVector.Set<FInstanceCullingOcclusionQueryCS::FUseLoadBalancerDim>(bUseGPULoadBalancer);
+		TShaderMapRef<FInstanceCullingOcclusionQueryCS> ComputeShader(View.ShaderMap, CSPermutationVector);
 
 		ClearUnusedGraphResources(ComputeShader, PassParameters);
 
@@ -620,7 +708,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 			RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Setup"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, DeferredContext, ComputeShader](FRHIRayTracingCommandList& RHICmdList)
+			[PassParameters, DeferredContext, ComputeShader](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 		{
 			if (!DeferredContext->bValid)
 			{
@@ -629,11 +717,20 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 
 			PassParameters->NumInstances = DeferredContext->NumInstances;
 
+			FIntVector CullingNumThreadGroups(DeferredContext->NumThreadGroups);
+			FInstanceProcessingGPULoadBalancer* DeferredContextInstanceProcessingGPULoadBalancer = DeferredContext->InstanceProcessingGPULoadBalancer;
+			if (DeferredContextInstanceProcessingGPULoadBalancer)
+			{
+				PassParameters->LoadBalancerParameters.NumBatches = DeferredContextInstanceProcessingGPULoadBalancer->GetBatches().Num();
+				PassParameters->LoadBalancerParameters.NumItems = DeferredContextInstanceProcessingGPULoadBalancer->GetItems().Num();
+				CullingNumThreadGroups = DeferredContextInstanceProcessingGPULoadBalancer->GetWrappedCsGroupCount();
+			}
+
 			FComputeShaderUtils::Dispatch(
 				RHICmdList,
 				ComputeShader,
 				*PassParameters,
-				DeferredContext->NumThreadGroups);
+				CullingNumThreadGroups);
 		});
 	}
 
@@ -646,29 +743,32 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 		PassParameters->VS.HZBTexture = HZBTexture;
 		PassParameters->VS.HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		PassParameters->VS.HZBSize = FVector2f(HZBSize.X, HZBSize.Y);
-		PassParameters->VS.ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+		PassParameters->VS.HZBViewRectSize = ViewRectSize;
 		PassParameters->VS.OcclusionSlop = OCCLUSION_SLOP;
 		PassParameters->VS.InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
 		PassParameters->VS.GPUSceneInstanceSceneData = GPUSceneParameters.GPUSceneInstanceSceneData;
 		PassParameters->VS.GPUSceneInstancePayloadData = GPUSceneParameters.GPUSceneInstancePayloadData;
 		PassParameters->VS.GPUScenePrimitiveSceneData = GPUSceneParameters.GPUScenePrimitiveSceneData;
 		PassParameters->VS.InstanceIdBuffer = InstanceIdSRV;
-		PassParameters->PS.OutVisibilityMask = VisibilityMaskUAV;
+		PassParameters->VS.ViewMask = ViewMask;
+		PassParameters->VS.RWVisibilityMask = VisibilityMaskUAV;
+		PassParameters->PS.RWVisibilityMask = VisibilityMaskUAV;
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(DepthTexture,
 			ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction,
 			FExclusiveDepthStencil::DepthRead_StencilNop);
 
+
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Draw"),
 			PassParameters, ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-			[PassParameters, DeferredContext, &View](FRHICommandList& RHICmdList)
+			[PassParameters, DeferredContext, bMultiView, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 			{
 				if (!DeferredContext->bValid)
 				{
 					return;
 				}
 
-				RenderInstanceOcclusionCulling(RHICmdList, View, PassParameters);
+				RenderInstanceOcclusionCulling(RHICmdList, View, PassParameters, bMultiView);
 			});
 	}
 
@@ -713,11 +813,13 @@ void FInstanceCullingOcclusionQueryRenderer::EndFrame(FRDGBuilder& GraphBuilder)
 	CurrentRenderedViewIDs.Empty();
 }
 
-uint32 FInstanceCullingOcclusionQueryRenderer::RegisterView(const FViewInfo& View)
+uint32 FInstanceCullingOcclusionQueryRenderer::FindOrAddViewSlot(const FViewInfo& View)
 {
-	if (CurrentRenderedViewIDs.Num() < MaxViews)
+	const uint32 ViewKey = View.GetViewKey();
+
+	if (CurrentRenderedViewIDs.Num() < MaxViews && ViewKey != 0)
 	{
-		int32 Index = CurrentRenderedViewIDs.AddUnique(View.GetViewKey());
+		int32 Index = CurrentRenderedViewIDs.AddUnique(ViewKey);
 		check(Index >= 0 && Index < MaxViews);
 		return 1u << Index;
 	}
@@ -731,6 +833,7 @@ bool FInstanceCullingOcclusionQueryRenderer::IsCompatibleWithView(const FViewInf
 {
 	EPixelFormat VisibilityMaskFormat = GetPreferredVisibilityMaskFormat();
 	return FDataDrivenShaderPlatformInfo::GetSupportsVertexShaderSRVs(View.GetShaderPlatform())
+		&& View.GetViewKey() != 0
 		&& View.GetSceneTextures().Depth.Target
 		&& View.HZB
 		&& VisibilityMaskFormat != PF_Unknown
@@ -764,11 +867,13 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUScenePrimitiveSceneData)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, InstanceOcclusionQueryBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWVisibilityMask) // One uint8/32 per instance (0 if instance is culled, non-0 otherwise)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 		SHADER_PARAMETER(FVector2f, HZBSize)
-		SHADER_PARAMETER(FIntVector4, ViewRect)
+		SHADER_PARAMETER(FIntPoint, HZBViewRectSize)
 		SHADER_PARAMETER(float, OcclusionSlop)
+		SHADER_PARAMETER(uint32, ViewMask)
 	END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -812,7 +917,7 @@ static void RenderInstanceOcclusionCullingDebug(
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
-	FIntVector4 ViewRect = PassParameters->VS.ViewRect;
+	FIntVector4 ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
 	RHICmdList.SetViewport(ViewRect.X, ViewRect.Y, 0.0f, ViewRect.Z, ViewRect.W, 1.0f);
 
 	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GInstanceCullingOcclusionQueryBox.VertexDeclaration;
@@ -843,6 +948,8 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 		return;
 	}
 
+	const uint32 ViewMask = FindOrAddViewSlot(View);
+
 	FRDGTextureRef SceneColor = View.GetSceneTextures().Color.Target;
 	FRDGTextureRef SceneDepth = View.GetSceneTextures().Depth.Target;
 	FRDGBufferRef InstanceOcclusionQueryBufferRDG = GraphBuilder.RegisterExternalBuffer(InstanceOcclusionQueryBuffer);
@@ -858,10 +965,12 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 	const int32 NumInstances = GPUScene.GetNumInstances();
 	const FGPUSceneResourceParameters GPUSceneParameters = GPUScene.GetShaderParameters(GraphBuilder);
 
+	const FIntPoint ViewRectSize = View.ViewRect.Size();
+
 	FOcclusionInstanceCullingDebugParameters* PassParameters = GraphBuilder.AllocParameters<FOcclusionInstanceCullingDebugParameters>();
 
 	PassParameters->VS.OcclusionSlop = OCCLUSION_SLOP;
-	PassParameters->VS.ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+	PassParameters->VS.HZBViewRectSize = ViewRectSize;
 	PassParameters->VS.View = View.ViewUniformBuffer;
 	PassParameters->VS.InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
 	PassParameters->VS.GPUSceneInstanceSceneData = GPUSceneParameters.GPUSceneInstanceSceneData;
@@ -871,6 +980,7 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 	PassParameters->VS.HZBTexture = HZBTexture;
 	PassParameters->VS.HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->VS.HZBSize = FVector2f(HZBSize.X, HZBSize.Y);
+	PassParameters->VS.ViewMask = ViewMask;
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColor, ERenderTargetLoadAction::ELoad);
 	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepth,
 		ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction,
@@ -879,7 +989,7 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Draw"),
 		PassParameters, ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-		[PassParameters, NumInstances, &View](FRHICommandList& RHICmdList)
+		[PassParameters, NumInstances, &View](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
 			RenderInstanceOcclusionCullingDebug(RHICmdList, View, PassParameters, NumInstances);
 		});

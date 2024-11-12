@@ -114,6 +114,8 @@ struct FEditorDelegates
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnNewActorsDropped, const TArray<UObject*>&, const TArray<AActor*>&);
 	/** delegate type for triggering when new actors are placed on to the viewport. Triggers before NewActorsDropped if placement is caused by a drop action */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnNewActorsPlaced, UObject*, const TArray<AActor*>&);
+	/** delegate type for triggering when an actor is replaced by another one in the editor. Triggers once AActor::EditorReplacedActor is completed */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEditorActorReplaced, AActor*, AActor*);
 	/** delegate type for when attempting to apply an object to an actor */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnApplyObjectToActor, UObject*, AActor*);
 	/** delegate type for triggering when grid snapping has changed */
@@ -133,7 +135,11 @@ struct FEditorDelegates
 	/** delegate type for when a user requests to delete certain package */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPackageDeleted, UPackage*);
 	/** delegate type for when a user requests to delete certain assets... It allows the addition of secondary assets that should also be deleted */
+	UE_DEPRECATED(5.5, "FOnAssetsAddExtraObjectsToDelete has been deprecated, please use FOnAddExtraObjectsToDelete instead")
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAssetsAddExtraObjectsToDelete, TArray<UObject*>&);
+	/** delegate type for when a user requests to delete certain assets... It allows the addition of secondary assets that should also be deleted */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAddExtraObjectsToDelete, const TArray<UObject*>&, TSet<UObject*>&);
+	
 	/** delegate type for when a user requests to delete certain assets... DOES NOT mean the asset(s) will be deleted (the user could cancel) */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAssetsPreDelete, const TArray<UObject*>&);
 	/** delegate type for when a user requested force deleting objects. The objects(s) will be deleted (no possibility to cancel), so implementations should delete references */
@@ -290,6 +296,8 @@ struct FEditorDelegates
 	static UNREALED_API FOnNewActorsDropped OnNewActorsDropped;
 	/** Called when new actors are placed in the viewport */
 	static UNREALED_API FOnNewActorsPlaced OnNewActorsPlaced;
+	/** Called when an actor is replaced in the editor (once AActor::EditorReplacedActor is completed). The first parameter is the old actor, the second is the new actor. */
+	static UNREALED_API FOnEditorActorReplaced OnEditorActorReplaced;
 	/** Called when grid snapping is changed */
 	static UNREALED_API FOnGridSnappingChanged OnGridSnappingChanged;
 	/** Called when a lighting build has started */
@@ -319,7 +327,11 @@ struct FEditorDelegates
 	/** Called when the user requests assets to be deleted to determine if the operation is available.  */
 	static UNREALED_API FOnAssetsCanDelete OnAssetsCanDelete;
 	/** Called when the user requests certain assets be deletedand  allows the addition of secondary assets that should also be deleted */
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Delegate signature for OnAssetsAddExtraObjectsToDelete has been deprecated please use new version OnAddExtraObjectsToDelete")
 	static UNREALED_API FOnAssetsAddExtraObjectsToDelete OnAssetsAddExtraObjectsToDelete;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS	
+	static UNREALED_API FOnAddExtraObjectsToDelete OnAddExtraObjectsToDelete;	
 	/** Called when the user requests certain assets be deleted (DOES NOT imply that the asset will be deleted... the user could cancel) */
 	static UNREALED_API FOnAssetsPreDelete OnAssetsPreDelete;
 	/** Called when one or more assets have been deleted */
@@ -701,6 +713,7 @@ UNREALED_API class FEditorModeTools& GLevelEditorModeTools();
 /**
  * Checks if FEditorModeTools is valid
  */
+UE_DEPRECATED(5.5, "Checking the validity of the global mode manager is unnecessary. Instead use FLevelEditorModule::OnLevelEditorCreated to gate the access on the global mode manager.")
 UNREALED_API bool GLevelEditorModeToolsIsValid();
 
 namespace EditorUtilities

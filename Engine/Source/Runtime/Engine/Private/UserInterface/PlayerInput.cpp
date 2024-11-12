@@ -23,6 +23,8 @@
 
 DECLARE_CYCLE_STAT(TEXT("    PC Gesture Recognition"), STAT_PC_GestureRecognition, STATGROUP_PlayerController);
 
+DEFINE_LOG_CATEGORY(LogPlayerInput);
+
 bool bExecutingBindCommand = false;
 
 /** for debug rendering */
@@ -50,6 +52,25 @@ namespace UE
 		static FAutoConsoleVariableRef CVarAutoReconcilePressedEventsOnFirstRepeat(TEXT("Input.AutoReconcilePressedEventsOnFirstRepeat"),
 			bAutoReconcilePressedEventsOnFirstRepeat,
 			TEXT("If true, then we will automatically mark a IE_Pressed event if we receive an IE_Repeat event but have not received a pressed event first.\nNote: This option will be removed in a future update."));
+
+		static bool bClearAxisValueIfConsumed = true;
+		static FAutoConsoleVariableRef CVarClearAxisValueIfConsumed(TEXT("Input.ClearAxisValueIfConsumed"),
+			bClearAxisValueIfConsumed,
+			TEXT("If true, we will clear the value of any FInputAxisKeyBinding whose FKey has been previously consumed.\nNote: This option will be removed in a future update."));
+
+		const TCHAR* LexToString(const EInputEvent Event)
+		{
+			switch (Event)
+			{
+			case IE_Pressed: return TEXT("IE_Pressed"); break;
+			case IE_Released: return TEXT("IE_Released"); break;
+			case IE_Repeat: return TEXT("IE_Repeat"); break;
+			case IE_DoubleClick: return TEXT("IE_DoubleClick"); break;
+			case IE_Axis: return TEXT("IE_Axis"); break;
+			case IE_MAX: return TEXT("IE_MAX"); break;
+			default: return TEXT("Unknown");
+			}
+		}
 	}
 }
 
@@ -112,6 +133,10 @@ void UPlayerInput::PostInitProperties()
 
 void UPlayerInput::FlushPressedKeys()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPlayerInput::FlushPressedKeys);
+
+	UE_LOG(LogPlayerInput, Verbose, TEXT("[%hs] Flush pressed keys on player input object %s"), __func__, *GetNameSafe(this));
+	
 	APlayerController* PlayerController = GetOuterAPlayerController();
 	ULocalPlayer* LocalPlayer = PlayerController ? Cast<ULocalPlayer>(PlayerController->Player) : nullptr;
 	if (LocalPlayer != nullptr)
@@ -153,6 +178,8 @@ void UPlayerInput::FlushPressedKeys()
 		KeyState.bDown = false;
 		KeyState.bDownPrevious = false;
 		KeyState.LastUpDownTransitionTime = TimeSeconds;
+		// Flag each key as having been flushed this frame so that we can correctly evaluate it next time
+		KeyState.bWasJustFlushed = true;
 	}
 }
 
@@ -219,19 +246,16 @@ void UPlayerInput::FlushPressedActionBindingKeys(FName ActionName)
 	}
 }
 
-bool UPlayerInput::InputKey(FKey Key, EInputEvent Event, float AmountDepressed, bool bGamepad)
-{
-	FInputKeyParams Params;
-	Params.Key = Key;
-	Params.Event = Event;
-	Params.Delta = FVector((double)AmountDepressed, 0.0, 0.0);
-	Params.bIsGamepadOverride = bGamepad;
-	
-	return InputKey(Params);
-}
-
 bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 {
+	UE_LOG(LogPlayerInput, VeryVerbose, TEXT("[%hs] %s (outer: %s) received input : Key: %s Value: %s Event:  %s"),
+		__func__,
+		*GetNameSafe(this),
+		*GetNameSafe(GetOuter()),
+		*Params.Key.GetFName().ToString(),
+		*Params.Delta.ToString(),
+		UE::Input::LexToString(Params.Event));
+	
 	const bool bGamepad = Params.IsGamepad();
 
 	// MouseX and MouseY should not be treated as analog if there are no samples, as they need their EventAccumulator to be incremented 
@@ -340,11 +364,15 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 		UWorld* World = GetWorld();
 		check(World);
 
-		const bool bIsFirstEventForKey = (ExistingKeyState == nullptr);
+		const bool bIsFirstEventForKey = (ExistingKeyState == nullptr) || KeyState.bWasJustFlushed;
+
+		const float WorldRealTimeSeconds = World->GetRealTimeSeconds();
 
 		// If this is the first key press for us and it is a repeat, then we have missed the initial IE_Pressed event.
 		// This can happen if you are holding down a key between level transitions and the player controller gets recreated,
 		// which means that we will be using a new UPlayerInput object and the KeyState map is emptied.
+		// This can ALSO happen if "FlushPressedKeys" gets called, like when we change player controller input modes, and you keep holding down the key 
+		// in between those transitions
 		if (UE::Input::bAutoReconcilePressedEventsOnFirstRepeat && bIsFirstEventForKey && Params.Event == IE_Repeat && KeyState.EventAccumulator[IE_Pressed].IsEmpty())
 		{
 			// Mark as having received the IE_Pressed event already, so that we can correctly evaluate the 
@@ -354,8 +382,12 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 			// every frame, even if you are just holding it
 			KeyState.RawValueAccumulator.X = Params.Delta.X;
 			KeyState.EventAccumulator[IE_Pressed].Add(++EventCount);
-			KeyState.LastUpDownTransitionTime = World->GetRealTimeSeconds();
+			KeyState.LastUpDownTransitionTime = WorldRealTimeSeconds;
 			KeyState.SampleCountAccumulator++;
+
+			// We can assume that if we are getting a "Repeat event" that this key was already down the previous frame and it is down this frame
+			KeyState.bDown = true;
+			KeyState.bDownPrevious = true;
 		}
 
 		switch(Params.Event)
@@ -368,7 +400,6 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 			{
 				// check for doubleclick
 				// note, a tripleclick will currently count as a 2nd double click.
-				const float WorldRealTimeSeconds = World->GetRealTimeSeconds();
 				if ((WorldRealTimeSeconds - KeyState.LastUpDownTransitionTime) < GetDefault<UInputSettings>()->DoubleClickTime)
 				{
 					KeyState.EventAccumulator[IE_DoubleClick].Add(++EventCount);
@@ -405,19 +436,11 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 			return IsKeyHandledByAction( Params.Key);
 		}
 
+		// We have now processed this key's state, so we can clear its "just flushed" flag and treat it normally
+		KeyState.bWasJustFlushed = false;
+
 		return true;
 	}
-}
-
-bool UPlayerInput::InputAxis(FKey Key, float Delta, float DeltaTime, int32 NumSamples, bool bGamepad)
-{
-	FInputKeyParams Params;
-	Params.Key = Key;
-	Params.Delta = FVector((double)Delta, 0.0, 0.0);
-	Params.NumSamples = NumSamples;
-	Params.bIsGamepadOverride = bGamepad;
-	
-	return InputKey(Params);
 }
 
 bool UPlayerInput::InputTouch(uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex)
@@ -637,7 +660,7 @@ void UPlayerInput::InvertAxis(const FName AxisName)
 			{
 				if (InvertedAxis[InvertIndex] == AxisName)
 				{
-					InvertedAxis.RemoveAtSwap(InvertIndex, 1, EAllowShrinking::No);
+					InvertedAxis.RemoveAtSwap(InvertIndex, EAllowShrinking::No);
 				}
 			}
 		}
@@ -650,7 +673,7 @@ void UPlayerInput::InvertAxis(const FName AxisName)
 			if (InvertedAxis[InvertIndex] == AxisName)
 			{
 				bFound = true;
-				InvertedAxis.RemoveAtSwap(InvertIndex, 1, EAllowShrinking::No);
+				InvertedAxis.RemoveAtSwap(InvertIndex, EAllowShrinking::No);
 			}
 		}
 		if (!bFound)
@@ -714,7 +737,7 @@ void UPlayerInput::RemoveActionMapping(const FInputActionKeyMapping& KeyMapping)
 	{
 		if (ActionMappings[ActionIndex] == KeyMapping)
 		{
-			ActionMappings.RemoveAtSwap(ActionIndex, 1, EAllowShrinking::No);
+			ActionMappings.RemoveAtSwap(ActionIndex, EAllowShrinking::No);
 			ActionKeyMap.Reset();
 			bKeyMapsBuilt = false;
 			// we don't break because the mapping may have been in the array twice
@@ -737,7 +760,7 @@ void UPlayerInput::RemoveAxisMapping(const FInputAxisKeyMapping& InKeyMapping)
 		if (KeyMapping.AxisName == InKeyMapping.AxisName
 			&& KeyMapping.Key == InKeyMapping.Key)
 		{
-			AxisMappings.RemoveAtSwap(AxisIndex, 1, EAllowShrinking::No);
+			AxisMappings.RemoveAtSwap(AxisIndex, EAllowShrinking::No);
 			AxisKeyMap.Reset();
 			bKeyMapsBuilt = false;
 			// we don't break because the mapping may have been in the array twice
@@ -898,7 +921,7 @@ void UPlayerInput::GetChordsForKeyMapping(const FInputActionKeyMapping& KeyMappi
 			if (ChordRelationship == FInputChord::ERelationshipType::Masks)
 			{
 				// If we mask the found one, then remove it from the list
-				FoundChords.RemoveAtSwap(ChordIndex, 1, EAllowShrinking::No);
+				FoundChords.RemoveAtSwap(ChordIndex, EAllowShrinking::No);
 			}
 			else if (ChordRelationship == FInputChord::ERelationshipType::Masked)
 			{
@@ -1017,7 +1040,7 @@ void UPlayerInput::GetChordForKey(const FInputKeyBinding& KeyBinding, const bool
 					if (ChordRelationship == FInputChord::ERelationshipType::Masks)
 					{
 						// If we mask the found one, then remove it from the list
-						FoundChords.RemoveAtSwap(ChordIndex, 1, EAllowShrinking::No);
+						FoundChords.RemoveAtSwap(ChordIndex, EAllowShrinking::No);
 					}
 					else if (ChordRelationship == FInputChord::ERelationshipType::Masked)
 					{
@@ -1127,6 +1150,8 @@ void UPlayerInput::ProcessNonAxesKeys(FKey InKey, FKeyState* KeyState)
 
 void UPlayerInput::ProcessInputStack(const TArray<UInputComponent*>& InputComponentStack, const float DeltaTime, const bool bGamePaused)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPlayerInput::ProcessInputStack);
+	
 	ConditionalBuildKeyMappings();
 
 	static TArray<TPair<FKey, FKeyState*>> KeysWithEvents;
@@ -1159,6 +1184,8 @@ void UPlayerInput::ProcessInputStack(const TArray<UInputComponent*>& InputCompon
 
 void UPlayerInput::EvaluateKeyMapState(const float DeltaTime, const bool bGamePaused, OUT TArray<TPair<FKey, FKeyState*>>& KeysWithEvents)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPlayerInput::EvaluateKeyMapState);
+	
 	// Must be called non-recursively on the game thread
 	check(IsInGameThread() && !KeysWithEvents.Num());
 	
@@ -1239,6 +1266,8 @@ void UPlayerInput::EvaluateKeyMapState(const float DeltaTime, const bool bGamePa
 
 void UPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>& InputComponentStack, const float DeltaTime, const bool bGamePaused, const TArray<TPair<FKey, FKeyState*>>& KeysWithEvents)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPlayerInput::EvaluateInputDelegates);
+	
 	// We collect axis contributions by delegate, so we can sum up
 	// contributions from multiple bindings.
 	struct FAxisDelegateDetails
@@ -1289,7 +1318,7 @@ void UPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>& InputC
 	for ( ; StackIndex >= 0; --StackIndex)
 	{
 		UInputComponent* const IC = InputComponentStack[StackIndex];
-		if (IC)
+		if (IsValid(IC))
 		{
 			check(!KeysToConsume.Num() && !FoundChords.Num() && !EventIndices.Num() && !PotentialActions.Num());
 
@@ -1437,6 +1466,10 @@ void UPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>& InputC
 					{
 						KeysToConsume.AddUnique(AxisKeyBinding.AxisKey);
 					}
+				}
+				else if(UE::Input::bClearAxisValueIfConsumed)
+				{
+					AxisKeyBinding.AxisValue = 0.f;
 				}
 
 				if (AxisKeyBinding.AxisDelegate.IsBound())

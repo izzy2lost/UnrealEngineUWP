@@ -107,7 +107,9 @@ TSharedPtr<IDatasmithMaterialIDElement> FDatasmithMeshElementImpl::GetMaterialSl
 }
 
 FDatasmithClothElementImpl::FDatasmithClothElementImpl(const TCHAR* InName)
-	: FDatasmithElementImpl(InName, EDatasmithElementType::Cloth)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	: FDatasmithElementImpl(InName, EDatasmithElementType::Cloth)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	Store.RegisterParameter(File, "File");
 }
@@ -265,6 +267,8 @@ FDatasmithCameraActorElementImpl::FDatasmithCameraActorElementImpl(const TCHAR* 
 	Store.RegisterParameter(FocalLength,         "FocalLength"        );
 	Store.RegisterParameter(ActorName,           "ActorName"          );
 	Store.RegisterParameter(bLookAtAllowRoll,    "bLookAtAllowRoll"   );
+
+	SetMobility(EDatasmithActorMobilityType::Movable);
 }
 
 float FDatasmithCameraActorElementImpl::GetSensorWidth() const
@@ -1138,7 +1142,8 @@ void FDatasmithSceneImpl::RemoveMeshAt(int32 InIndex)
 	}
 }
 
-void FDatasmithSceneImpl::AddCloth(const TSharedPtr< IDatasmithClothElement >& InElement)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FDatasmithSceneImpl::AddCloth(const TSharedPtr< IDatasmithClothElement >& InElement)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Clothes.Add(InElement);
 }
@@ -1148,7 +1153,7 @@ int32 FDatasmithSceneImpl::GetClothesCount() const
 	return Clothes.Num();
 }
 
-TSharedPtr< IDatasmithClothElement > FDatasmithSceneImpl::GetCloth(int32 InIndex)
+TSharedPtr< IDatasmithClothElement > FDatasmithSceneImpl::GetCloth(int32 InIndex)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	if ( Clothes.IsValidIndex( InIndex ) )
 	{
@@ -1157,7 +1162,7 @@ TSharedPtr< IDatasmithClothElement > FDatasmithSceneImpl::GetCloth(int32 InIndex
 	return {};
 }
 
-const TSharedPtr< IDatasmithClothElement >& FDatasmithSceneImpl::GetCloth(int32 InIndex) const
+const TSharedPtr< IDatasmithClothElement >& FDatasmithSceneImpl::GetCloth(int32 InIndex) const  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	if ( Clothes.IsValidIndex( InIndex ) )
 	{
@@ -1167,12 +1172,12 @@ const TSharedPtr< IDatasmithClothElement >& FDatasmithSceneImpl::GetCloth(int32 
 	return NullCloth;
 }
 
-void FDatasmithSceneImpl::RemoveCloth(const TSharedPtr< IDatasmithClothElement >& InElement)
+void FDatasmithSceneImpl::RemoveCloth(const TSharedPtr< IDatasmithClothElement >& InElement)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Clothes.Remove(InElement);
 }
 
-void FDatasmithSceneImpl::RemoveClothAt(int32 InIndex)
+void FDatasmithSceneImpl::RemoveClothAt(int32 InIndex)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	if (Clothes.IsValidIndex(InIndex))
 	{
@@ -1180,10 +1185,11 @@ void FDatasmithSceneImpl::RemoveClothAt(int32 InIndex)
 	}
 }
 
-void FDatasmithSceneImpl::EmptyClothes()
+void FDatasmithSceneImpl::EmptyClothes()  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
 {
 	Clothes.Empty();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 static const TSharedPtr< IDatasmithMetaDataElement > InvalidMetaData;
 
@@ -1512,8 +1518,10 @@ void FDatasmithSceneImpl::AttachActorToSceneRoot(const TSharedPtr< IDatasmithAct
 	}
 }
 
-FDatasmithClothActorElementImpl::FDatasmithClothActorElementImpl(const TCHAR* InName)
+FDatasmithClothActorElementImpl::FDatasmithClothActorElementImpl(const TCHAR* InName)  // UE_DEPRECATED(5.5, "The experimental Cloth importer is no longer supported.")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	: FDatasmithActorElementImpl<IDatasmithClothActorElement>(InName, EDatasmithElementType::ClothActor)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	Store.RegisterParameter(Cloth, "Cloth");
 }

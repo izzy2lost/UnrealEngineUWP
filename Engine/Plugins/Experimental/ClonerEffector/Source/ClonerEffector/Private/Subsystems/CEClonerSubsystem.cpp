@@ -3,6 +3,9 @@
 #include "Subsystems/CEClonerSubsystem.h"
 
 #include "Cloner/CEClonerActor.h"
+#include "Cloner/CEClonerComponent.h"
+#include "Cloner/Extensions/CEClonerEffectorExtension.h"
+#include "Cloner/Extensions/CEClonerExtensionBase.h"
 #include "Cloner/Layouts/CEClonerCircleLayout.h"
 #include "Cloner/Layouts/CEClonerCylinderLayout.h"
 #include "Cloner/Layouts/CEClonerGridLayout.h"
@@ -18,12 +21,14 @@
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
-#include "HAL/IConsoleManager.h"
-
-UCEClonerSubsystem::FOnCVarChanged UCEClonerSubsystem::OnCVarChangedDelegate;
+#include "Editor.h"
+#include "ScopedTransaction.h"
 #endif
 
 UCEClonerSubsystem::FOnSubsystemInitialized UCEClonerSubsystem::OnSubsystemInitializedDelegate;
+UCEClonerSubsystem::FOnClonerSetEnabled UCEClonerSubsystem::OnClonerSetEnabledDelegate;
+
+#define LOCTEXT_NAMESPACE "CEEffectorSubsystem"
 
 UCEClonerSubsystem* UCEClonerSubsystem::Get()
 {
@@ -53,31 +58,10 @@ void UCEClonerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// Scan for new layouts
 	ScanForRegistrableClasses();
 
-#if WITH_EDITOR
-	CVarTSRShadingRejectionFlickeringPeriod = IConsoleManager::Get().FindConsoleVariable(TEXT("r.TSR.ShadingRejection.Flickering.Period"));
-
-	if (CVarTSRShadingRejectionFlickeringPeriod)
-	{
-		CVarTSRShadingRejectionFlickeringPeriod->OnChangedDelegate().AddUObject(this, &UCEClonerSubsystem::OnTSRShadingRejectionFlickeringPeriodChanged);
-	}
-#endif
-
 	OnSubsystemInitializedDelegate.Broadcast();
 }
 
-void UCEClonerSubsystem::Deinitialize()
-{
-	Super::Deinitialize();
-
-#if WITH_EDITOR
-	if (CVarTSRShadingRejectionFlickeringPeriod)
-	{
-		CVarTSRShadingRejectionFlickeringPeriod->OnChangedDelegate().RemoveAll(this);
-	}
-#endif
-}
-
-bool UCEClonerSubsystem::RegisterLayoutClass(const UClass* InClonerLayoutClass)
+bool UCEClonerSubsystem::RegisterLayoutClass(UClass* InClonerLayoutClass)
 {
 	if (!IsValid(InClonerLayoutClass))
 	{
@@ -110,7 +94,7 @@ bool UCEClonerSubsystem::RegisterLayoutClass(const UClass* InClonerLayoutClass)
 
 	// Does not overwrite existing layouts
 	const FName LayoutName = CDO->GetLayoutName();
-	if (LayoutClasses.Contains(LayoutName))
+	if (LayoutName.IsNone() || LayoutClasses.Contains(LayoutName))
 	{
 		return false;
 	}
@@ -120,38 +104,34 @@ bool UCEClonerSubsystem::RegisterLayoutClass(const UClass* InClonerLayoutClass)
 	return true;
 }
 
-bool UCEClonerSubsystem::UnregisterLayoutClass(const UClass* InClonerLayoutClass)
+bool UCEClonerSubsystem::UnregisterLayoutClass(UClass* InClonerLayoutClass)
 {
 	if (!IsValid(InClonerLayoutClass))
 	{
 		return false;
 	}
 
-	for (TMap<FName, TSubclassOf<UCEClonerLayoutBase>>::TIterator It(LayoutClasses); It; ++It)
+	TSubclassOf<UCEClonerLayoutBase> LayoutClass(InClonerLayoutClass);
+	if (const FName* LayoutName = LayoutClasses.FindKey(LayoutClass))
 	{
-		if (It->Value.Get() == InClonerLayoutClass)
-		{
-			It.RemoveCurrent();
-			return true;
-		}
+		LayoutClasses.Remove(*LayoutName);
+		return true;
 	}
 
 	return false;
 }
 
-bool UCEClonerSubsystem::IsLayoutClassRegistered(const UClass* InClonerLayoutClass)
+bool UCEClonerSubsystem::IsLayoutClassRegistered(UClass* InClonerLayoutClass)
 {
 	if (!IsValid(InClonerLayoutClass))
 	{
 		return false;
 	}
 
-	for (const TPair<FName, TSubclassOf<UCEClonerLayoutBase>>& LayoutClassPair : LayoutClasses)
+	TSubclassOf<UCEClonerLayoutBase> LayoutClass(InClonerLayoutClass);
+	if (const FName* LayoutName = LayoutClasses.FindKey(LayoutClass))
 	{
-		if (LayoutClassPair.Value.Get() == InClonerLayoutClass)
-		{
-			return true;
-		}
+		return true;
 	}
 
 	return false;
@@ -172,11 +152,303 @@ UCEClonerSubsystem::FOnGetOrderedActors& UCEClonerSubsystem::GetCustomActorResol
 	return ActorResolver;
 }
 
-TArray<FName> UCEClonerSubsystem::GetLayoutNames() const
+bool UCEClonerSubsystem::RegisterExtensionClass(UClass* InClass)
+{
+	if (!IsValid(InClass))
+	{
+		return false;
+	}
+
+	if (!InClass->IsChildOf(UCEClonerExtensionBase::StaticClass())
+		|| InClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	{
+		return false;
+	}
+
+	if (IsExtensionClassRegistered(InClass))
+	{
+		return false;
+	}
+
+	const UCEClonerExtensionBase* CDO = InClass->GetDefaultObject<UCEClonerExtensionBase>();
+
+	if (!CDO)
+	{
+		return false;
+	}
+
+	const FName ExtensionName = CDO->GetExtensionName();
+	if (ExtensionName.IsNone() || ExtensionClasses.Contains(ExtensionName))
+	{
+		return false;
+	}
+
+	ExtensionClasses.Add(ExtensionName, CDO->GetClass());
+
+	return true;
+}
+
+bool UCEClonerSubsystem::UnregisterExtensionClass(UClass* InClass)
+{
+	if (!IsValid(InClass))
+	{
+		return false;
+	}
+
+	TSubclassOf<UCEClonerExtensionBase> ExtensionClass(InClass);
+	if (const FName* ExtensionName = ExtensionClasses.FindKey(ExtensionClass))
+	{
+		ExtensionClasses.Remove(*ExtensionName);
+		return true;
+	}
+
+	return false;
+}
+
+bool UCEClonerSubsystem::IsExtensionClassRegistered(UClass* InClass) const
+{
+	if (!IsValid(InClass))
+	{
+		return false;
+	}
+
+	TSubclassOf<UCEClonerExtensionBase> ExtensionClass(InClass);
+	return !!ExtensionClasses.FindKey(ExtensionClass);
+}
+
+TSet<FName> UCEClonerSubsystem::GetExtensionNames() const
+{
+	TArray<FName> ExtensionNames;
+	ExtensionClasses.GenerateKeyArray(ExtensionNames);
+	return TSet<FName>(ExtensionNames);
+}
+
+TSet<TSubclassOf<UCEClonerExtensionBase>> UCEClonerSubsystem::GetExtensionClasses() const
+{
+	TArray<TSubclassOf<UCEClonerExtensionBase>> Extensions;
+	ExtensionClasses.GenerateValueArray(Extensions);
+	return TSet<TSubclassOf<UCEClonerExtensionBase>>(Extensions);
+}
+
+FName UCEClonerSubsystem::FindExtensionName(TSubclassOf<UCEClonerExtensionBase> InClass) const
+{
+	if (const FName* Key = ExtensionClasses.FindKey(InClass))
+	{
+		return *Key;
+	}
+
+	return NAME_None;
+}
+
+UCEClonerExtensionBase* UCEClonerSubsystem::CreateNewExtension(FName InExtensionName, UCEClonerComponent* InCloner)
+{
+	if (!IsValid(InCloner))
+	{
+		return nullptr;
+	}
+
+	TSubclassOf<UCEClonerExtensionBase> const* ExtensionClass = ExtensionClasses.Find(InExtensionName);
+
+	if (!ExtensionClass)
+	{
+		return nullptr;
+	}
+
+	return NewObject<UCEClonerExtensionBase>(InCloner, ExtensionClass->Get(), NAME_None, RF_Transactional);
+}
+
+void UCEClonerSubsystem::SetClonersEnabled(const TSet<UCEClonerComponent*>& InCloners, bool bInEnable, bool bInShouldTransact)
+{
+	if (InCloners.IsEmpty())
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = bInEnable
+		? LOCTEXT("SetClonersEnabled", "Cloners enabled")
+		: LOCTEXT("SetClonersDisabled", "Cloners disabled");
+
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	for (UCEClonerComponent* Cloner : InCloners)
+	{
+		if (!IsValid(Cloner))
+		{
+			continue;
+		}
+
+#if WITH_EDITOR
+		Cloner->Modify();
+#endif
+
+		Cloner->SetEnabled(bInEnable);
+	}
+}
+
+void UCEClonerSubsystem::SetLevelClonersEnabled(const UWorld* InWorld, bool bInEnable, bool bInShouldTransact)
+{
+	if (!IsValid(InWorld))
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = bInEnable
+		? LOCTEXT("SetLevelClonersEnabled", "Level cloners enabled")
+		: LOCTEXT("SetLevelClonersDisabled", "Level cloners disabled");
+
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	OnClonerSetEnabledDelegate.Broadcast(InWorld, bInEnable, bInShouldTransact);
+}
+
+#if WITH_EDITOR
+void UCEClonerSubsystem::ConvertCloners(const TSet<UCEClonerComponent*>& InCloners, ECEClonerMeshConversion InMeshConversion)
+{
+	if (InCloners.IsEmpty())
+	{
+		return;
+	}
+
+	using namespace UE::ClonerEffector::Conversion;
+
+	for (UCEClonerComponent* ClonerComponent : InCloners)
+	{
+		if (!IsValid(ClonerComponent) || !ClonerComponent->GetEnabled())
+		{
+			continue;
+		}
+
+		switch(InMeshConversion)
+		{
+			case ECEClonerMeshConversion::StaticMesh:
+				ClonerComponent->ConvertToStaticMesh();
+			break;
+
+			case ECEClonerMeshConversion::StaticMeshes:
+				ClonerComponent->ConvertToStaticMeshes();
+			break;
+
+			case ECEClonerMeshConversion::DynamicMesh:
+				ClonerComponent->ConvertToDynamicMesh();
+			break;
+
+			case ECEClonerMeshConversion::DynamicMeshes:
+				ClonerComponent->ConvertToDynamicMeshes();
+			break;
+
+			case ECEClonerMeshConversion::InstancedStaticMesh:
+				ClonerComponent->ConvertToInstancedStaticMeshes();
+			break;
+
+			default:;
+		}
+	}
+}
+
+void UCEClonerSubsystem::CreateLinkedEffector(const TSet<UCEClonerComponent*>& InCloners)
+{
+	if (InCloners.IsEmpty())
+	{
+		return;
+	}
+
+	for (UCEClonerComponent* ClonerComponent : InCloners)
+	{
+		if (!IsValid(ClonerComponent))
+		{
+			continue;
+		}
+
+		if (UCEClonerEffectorExtension* EffectorExtension = ClonerComponent->GetExtension<UCEClonerEffectorExtension>())
+		{
+			EffectorExtension->CreateLinkedEffector();
+		}
+	}
+}
+#endif
+
+AActor* UCEClonerSubsystem::CreateClonerWithActors(UWorld* InWorld, const TSet<AActor*>& InActors, bool bInShouldTransact)
+{
+	ACEClonerActor* NewClonerActor = nullptr;
+
+	if (!IsValid(InWorld))
+	{
+		return NewClonerActor;
+	}
+
+#if WITH_EDITOR
+	FScopedTransaction Transaction(LOCTEXT("CreateClonerWithActors", "Create cloner with actors attached"), bInShouldTransact);
+#endif
+
+	FActorSpawnParameters Parameters;
+	Parameters.ObjectFlags = RF_Transactional;
+#if WITH_EDITOR
+	Parameters.bTemporaryEditorActor = false;
+#endif
+
+	NewClonerActor = InWorld->SpawnActor<ACEClonerActor>(Parameters);
+
+	if (NewClonerActor)
+	{
+#if WITH_EDITOR
+		NewClonerActor->Modify();
+#endif
+
+		if (!InActors.IsEmpty())
+		{
+			FVector NewAverageLocation;
+
+			for (AActor* Actor : InActors)
+			{
+				if (IsValid(Actor))
+				{
+					NewAverageLocation += Actor->GetActorLocation() / InActors.Num();
+				}
+			}
+
+			NewClonerActor->SetActorLocation(NewAverageLocation);
+
+			for (AActor* Actor : InActors)
+			{
+				if (IsValid(Actor))
+				{
+#if WITH_EDITOR
+					Actor->Modify();
+#endif
+
+					Actor->AttachToActor(NewClonerActor, FAttachmentTransformRules::KeepWorldTransform);
+				}
+			}
+		}
+
+#if WITH_EDITOR
+		if (GEditor)
+		{
+			GEditor->SelectNone(/** SelectionChange */false, /** DeselectBSP */true);
+			GEditor->SelectActor(NewClonerActor, /** Selected */true, /** Notify */true);
+		}
+#endif
+	}
+
+	return NewClonerActor;
+}
+
+TSet<FName> UCEClonerSubsystem::GetLayoutNames() const
 {
 	TArray<FName> LayoutNames;
 	LayoutClasses.GenerateKeyArray(LayoutNames);
-	return LayoutNames;
+	return TSet<FName>(LayoutNames);
+}
+
+TSet<TSubclassOf<UCEClonerLayoutBase>> UCEClonerSubsystem::GetLayoutClasses() const
+{
+	TArray<TSubclassOf<UCEClonerLayoutBase>> Layouts;
+	LayoutClasses.GenerateValueArray(Layouts);
+	return TSet<TSubclassOf<UCEClonerLayoutBase>>(Layouts);
 }
 
 FName UCEClonerSubsystem::FindLayoutName(TSubclassOf<UCEClonerLayoutBase> InLayoutClass) const
@@ -189,9 +461,19 @@ FName UCEClonerSubsystem::FindLayoutName(TSubclassOf<UCEClonerLayoutBase> InLayo
 	return NAME_None;
 }
 
-UCEClonerLayoutBase* UCEClonerSubsystem::CreateNewLayout(FName InLayoutName, ACEClonerActor* InClonerActor)
+TSubclassOf<UCEClonerLayoutBase> UCEClonerSubsystem::FindLayoutClass(FName InLayoutName) const
 {
-	if (!IsValid(InClonerActor))
+	if (const TSubclassOf<UCEClonerLayoutBase>* Value = LayoutClasses.Find(InLayoutName))
+	{
+		return *Value;
+	}
+
+	return TSubclassOf<UCEClonerLayoutBase>();
+}
+
+UCEClonerLayoutBase* UCEClonerSubsystem::CreateNewLayout(FName InLayoutName, UCEClonerComponent* InCloner)
+{
+	if (!IsValid(InCloner))
 	{
 		return nullptr;
 	}
@@ -203,61 +485,30 @@ UCEClonerLayoutBase* UCEClonerSubsystem::CreateNewLayout(FName InLayoutName, ACE
 		return nullptr;
 	}
 
-	return NewObject<UCEClonerLayoutBase>(InClonerActor, LayoutClass->Get());
+	return NewObject<UCEClonerLayoutBase>(InCloner, LayoutClass->Get());
 }
 
 void UCEClonerSubsystem::ScanForRegistrableClasses()
 {
-	for (const UClass* const Class : TObjectRange<UClass>())
 	{
-		RegisterLayoutClass(Class);
+		TArray<UClass*> DerivedLayoutClasses;
+		GetDerivedClasses(UCEClonerLayoutBase::StaticClass(), DerivedLayoutClasses, true);
+
+		for (UClass* LayoutClass : DerivedLayoutClasses)
+		{
+			RegisterLayoutClass(LayoutClass);
+		}
+	}
+
+	{
+		TArray<UClass*> DerivedExtensionClasses;
+		GetDerivedClasses(UCEClonerExtensionBase::StaticClass(), DerivedExtensionClasses, true);
+
+		for (UClass* ExtensionClass : DerivedExtensionClasses)
+		{
+			RegisterExtensionClass(ExtensionClass);
+		}
 	}
 }
 
-#if WITH_EDITOR
-void UCEClonerSubsystem::EnableNoFlicker()
-{
-	if (IsNoFlickerEnabled())
-	{
-		return;
-	}
-
-	PreviousCVarValue = CVarTSRShadingRejectionFlickeringPeriod->GetInt();
-	CVarTSRShadingRejectionFlickeringPeriod->Set(NoFlicker);
-}
-
-void UCEClonerSubsystem::DisableNoFlicker()
-{
-	if (!IsNoFlickerEnabled())
-	{
-		return;
-	}
-
-	if (PreviousCVarValue.IsSet())
-	{
-		CVarTSRShadingRejectionFlickeringPeriod->Set(PreviousCVarValue.GetValue());
-	}
-	else
-	{
-		CVarTSRShadingRejectionFlickeringPeriod->Set(*CVarTSRShadingRejectionFlickeringPeriod->GetDefaultValue());
-	}
-}
-
-bool UCEClonerSubsystem::IsNoFlickerEnabled() const
-{
-	if (!CVarTSRShadingRejectionFlickeringPeriod)
-	{
-		return false;
-	}
-
-	return CVarTSRShadingRejectionFlickeringPeriod->GetInt() == NoFlicker;
-}
-
-void UCEClonerSubsystem::OnTSRShadingRejectionFlickeringPeriodChanged(IConsoleVariable* InCVar) const
-{
-	if (InCVar == CVarTSRShadingRejectionFlickeringPeriod)
-	{
-		OnCVarChangedDelegate.Broadcast();
-	}
-}
-#endif
+#undef LOCTEXT_NAMESPACE

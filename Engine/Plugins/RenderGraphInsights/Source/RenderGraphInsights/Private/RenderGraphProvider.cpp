@@ -18,6 +18,46 @@ INSIGHTS_IMPLEMENT_RTTI(FPassIntervalPacket)
 
 FName FRenderGraphProvider::ProviderName("RenderGraphProvider");
 
+template <typename ObjectType>
+TRDGHandle<ObjectType, uint32> ConvertTo32Bits(TRDGHandle<ObjectType, uint16> Handle)
+{
+	if (Handle.IsValid())
+	{
+		return TRDGHandle<ObjectType, uint32>(Handle.GetIndex());
+	}
+	return {};
+}
+
+template <typename HandleType>
+HandleType SerializeHandle(const UE::Trace::IAnalyzer::FEventData& EventData, const ANSICHAR* FieldName)
+{
+	if (EventData.GetValue<bool>("IsHandleType32Bits"))
+	{
+		return EventData.GetValue<HandleType>(FieldName);
+	}
+	return ConvertTo32Bits(EventData.GetValue<TRDGHandle<typename HandleType::ObjectType, uint16>>(FieldName));
+}
+
+template <typename HandleType>
+TArray<HandleType> SerializeHandleArray(const UE::Trace::IAnalyzer::FEventData& EventData, const ANSICHAR* FieldName)
+{
+	if (EventData.GetValue<bool>("IsHandleType32Bits"))
+	{
+		static_assert(sizeof(typename HandleType::IndexType) == 4);
+		return TArray<HandleType>(EventData.GetArrayView<HandleType>(FieldName));
+	}
+
+	using HandleType16 = TRDGHandle<typename HandleType::ObjectType, uint16>;
+	TConstArrayView<HandleType16> Handles = EventData.GetArrayView<HandleType16>(FieldName);
+	TArray<HandleType> Result;
+	Result.Reserve(Handles.Num());
+	for (HandleType16 Handle : Handles)
+	{
+		Result.Emplace(ConvertTo32Bits(Handle));
+	}
+	return Result;
+}
+
 FString GetSizeName(uint32 Bytes)
 {
 	const uint32 KB = 1024;
@@ -48,8 +88,8 @@ FPacket::FPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 
 FPassIntervalPacket::FPassIntervalPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 	: FPacket(Context)
-	, FirstPass(Context.EventData.GetValue<FRDGPassHandle>("FirstPass"))
-	, LastPass(Context.EventData.GetValue<FRDGPassHandle>("LastPass"))
+	, FirstPass(SerializeHandle<FRDGPassHandle>(Context.EventData, "FirstPass"))
+	, LastPass(SerializeHandle<FRDGPassHandle>(Context.EventData, "LastPass"))
 {}
 
 FScopePacket::FScopePacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
@@ -61,7 +101,7 @@ FResourcePacket::FResourcePacket(const UE::Trace::IAnalyzer::FOnEventContext& Co
 	: FPassIntervalPacket(Context)
 	, Order(Context.EventData.GetValue<uint16>("Order"))
 	, SizeInBytes(Context.EventData.GetValue<uint64>("SizeInBytes"))
-	, Passes(Context.EventData.GetArrayView<FRDGPassHandle>("Passes"))
+	, Passes(SerializeHandleArray<FRDGPassHandle>(Context.EventData, "Passes"))
 	, bExternal(Context.EventData.GetValue<bool>("IsExternal"))
 	, bExtracted(Context.EventData.GetValue<bool>("IsExtracted"))
 	, bCulled(Context.EventData.GetValue<bool>("IsCulled"))
@@ -84,6 +124,9 @@ FResourcePacket::FResourcePacket(const UE::Trace::IAnalyzer::FOnEventContext& Co
 		TransientAllocations[LocalIndex].MemoryRangeIndex = TransientAllocationMemoryRanges[LocalIndex];
 	}
 
+	TransientAcquirePass = Context.EventData.GetValue<FRDGPassHandle>("TransientAcquirePass");
+	TransientDiscardPass = Context.EventData.GetValue<FRDGPassHandle>("TransientDiscardPass");
+
 	if (Passes.Num())
 	{
 		FirstPass = Passes[0];
@@ -93,8 +136,8 @@ FResourcePacket::FResourcePacket(const UE::Trace::IAnalyzer::FOnEventContext& Co
 
 FTexturePacket::FTexturePacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 	: FResourcePacket(Context)
-	, Handle(Context.EventData.GetValue<FRDGTextureHandle>("Handle"))
-	, NextOwnerHandle(Context.EventData.GetValue<FRDGTextureHandle>("NextOwnerHandle"))
+	, Handle(SerializeHandle<FRDGTextureHandle>(Context.EventData, "Handle"))
+	, NextOwnerHandle(SerializeHandle<FRDGTextureHandle>(Context.EventData, "NextOwnerHandle"))
 {
 	Desc.Flags = ETextureCreateFlags(Context.EventData.GetValue<uint64>("CreateFlags"));
 	Desc.Dimension = ETextureDimension(Context.EventData.GetValue<uint16>("Dimension"));
@@ -111,8 +154,8 @@ FTexturePacket::FTexturePacket(const UE::Trace::IAnalyzer::FOnEventContext& Cont
 
 FBufferPacket::FBufferPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 	: FResourcePacket(Context)
-	, Handle(Context.EventData.GetValue<FRDGBufferHandle>("Handle"))
-	, NextOwnerHandle(Context.EventData.GetValue<FRDGBufferHandle>("NextOwnerHandle"))
+	, Handle(SerializeHandle<FRDGBufferHandle>(Context.EventData, "Handle"))
+	, NextOwnerHandle(SerializeHandle<FRDGBufferHandle>(Context.EventData, "NextOwnerHandle"))
 {
 	Desc.Usage = EBufferUsageFlags(Context.EventData.GetValue<uint32>("UsageFlags"));
 	Desc.BytesPerElement = Context.EventData.GetValue<uint32>("BytesPerElement");
@@ -124,11 +167,11 @@ FBufferPacket::FBufferPacket(const UE::Trace::IAnalyzer::FOnEventContext& Contex
 
 FPassPacket::FPassPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 	: FPacket(Context)
-	, Textures(Context.EventData.GetArrayView<FRDGTextureHandle>("Textures"))
-	, Buffers(Context.EventData.GetArrayView<FRDGBufferHandle>("Buffers"))
-	, Handle(Context.EventData.GetValue<FRDGPassHandle>("Handle"))
-	, GraphicsForkPass(Context.EventData.GetValue<FRDGPassHandle>("GraphicsForkPass"))
-	, GraphicsJoinPass(Context.EventData.GetValue<FRDGPassHandle>("GraphicsJoinPass"))
+	, Textures(SerializeHandleArray<FRDGTextureHandle>(Context.EventData, "Textures"))
+	, Buffers(SerializeHandleArray<FRDGBufferHandle>(Context.EventData, "Buffers"))
+	, Handle(SerializeHandle<FRDGPassHandle>(Context.EventData, "Handle"))
+	, GraphicsForkPass(SerializeHandle<FRDGPassHandle>(Context.EventData, "GraphicsForkPass"))
+	, GraphicsJoinPass(SerializeHandle<FRDGPassHandle>(Context.EventData, "GraphicsJoinPass"))
 	, Flags(ERDGPassFlags(Context.EventData.GetValue<uint16>("Flags")))
 	, Pipeline(ERHIPipeline(Context.EventData.GetValue<uint8>("Pipeline")))
 	, bCulled(Context.EventData.GetValue<bool>("IsCulled"))
@@ -140,6 +183,7 @@ FPassPacket::FPassPacket(const UE::Trace::IAnalyzer::FOnEventContext& Context)
 	, bParallelExecuteEnd(Context.EventData.GetValue<bool>("IsParallelExecuteEnd"))
 	, bParallelExecute(Context.EventData.GetValue<bool>("IsParallelExecute"))
 	, bParallelExecuteAllowed(Context.EventData.GetValue<bool>("IsParallelExecuteAllowed"))
+	, bParallelExecuteAsyncAllowed(Context.EventData.GetValue<bool>("IsParallelExecuteAsyncAllowed"))
 {}
 
 static const uint64 PageSize = 1024;

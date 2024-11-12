@@ -174,7 +174,6 @@ void SWidgetList::Construct(const FArguments& Args)
 		+ SVerticalBox::Slot()
 		[
 			SAssignNew(ListView, SListView<TSharedPtr<FWidgetListEntry>>)
-			.ItemHeight(24)
 			.ListItemsSource(&Entries)
 			.OnGenerateRow(this, &SWidgetList::OnGenerateRow)
 			.HeaderRow

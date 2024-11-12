@@ -72,7 +72,7 @@ int RunSlateViewer( const TCHAR* CommandLine )
 	}
 	else if (FCoreStyle::IsStarshipStyle())
 	{
-		FGlobalTabmanager::Get()->SetApplicationTitle(LOCTEXT("AppTitle", "Starship Slate Viewer"));
+		FGlobalTabmanager::Get()->SetApplicationTitle(LOCTEXT("AppTitleStarship", "Starship Slate Viewer"));
 		FAppStyle::SetAppStyleSetName(FStarshipCoreStyle::GetCoreStyle().GetStyleSetName());
 		RestoreStarshipSuite();	
 

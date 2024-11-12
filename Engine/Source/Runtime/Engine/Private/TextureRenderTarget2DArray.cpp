@@ -15,6 +15,7 @@
 #include "RHIUtilities.h"
 #include "UObject/Package.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "RenderGraphUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TextureRenderTarget2DArray)
 
@@ -28,12 +29,13 @@ UTextureRenderTarget2DArray::UTextureRenderTarget2DArray(const FObjectInitialize
 	bHDR = true;
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
+	bSupportsUAV = false;
 	bForceLinearGamma = true;
 }
 
 EPixelFormat UTextureRenderTarget2DArray::GetFormat() const
 {
-	if(OverrideFormat == PF_Unknown)
+	if (OverrideFormat == PF_Unknown)
 	{
 		return bHDR ? PF_FloatRGBA : PF_B8G8R8A8;
 	}
@@ -48,10 +50,10 @@ bool UTextureRenderTarget2DArray::IsSRGB() const
 	bool bIsSRGB = true;
 
 	// if render target gamma used was 1.0 then disable SRGB for the static texture
-	if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
+	if (FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
 	{
 		bIsSRGB = false;
-	}	
+	}
 
 	return bIsSRGB;
 }
@@ -96,10 +98,9 @@ void UTextureRenderTarget2DArray::UpdateResourceImmediate(bool bClearRenderTarge
 		FTextureRenderTarget2DArrayResource* InResource = static_cast<FTextureRenderTarget2DArrayResource*>(GetResource());
 		ENQUEUE_RENDER_COMMAND(UpdateResourceImmediate)(
 			[InResource, bClearRenderTarget](FRHICommandListImmediate& RHICmdList)
-			{
-				InResource->UpdateDeferredResource(RHICmdList, bClearRenderTarget);
-			}
-		);
+		{
+			InResource->UpdateDeferredResource(RHICmdList, bClearRenderTarget);
+		});
 	}
 }
 void UTextureRenderTarget2DArray::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
@@ -108,18 +109,23 @@ void UTextureRenderTarget2DArray::GetResourceSizeEx(FResourceSizeEx& CumulativeR
 
 	// Calculate size based on format.
 	const EPixelFormat Format = GetFormat();
-	const int64 BlockSizeX	= GPixelFormats[Format].BlockSizeX;
-	const int64 BlockSizeY	= GPixelFormats[Format].BlockSizeY;
-	const int64 BlockBytes	= GPixelFormats[Format].BlockBytes;
-	const int64 NumBlocksX	= (SizeX + BlockSizeX - 1) / BlockSizeX;
-	const int64 NumBlocksY	= (SizeY + BlockSizeY - 1) / BlockSizeY;
-	const int64 NumBytes	= NumBlocksX * NumBlocksY * Slices * BlockBytes;
+	const int64 BlockSizeX = GPixelFormats[Format].BlockSizeX;
+	const int64 BlockSizeY = GPixelFormats[Format].BlockSizeY;
+	const int64 BlockBytes = GPixelFormats[Format].BlockBytes;
+	const int64 NumBlocksX = (SizeX + BlockSizeX - 1) / BlockSizeX;
+	const int64 NumBlocksY = (SizeY + BlockSizeY - 1) / BlockSizeY;
+	const int64 NumBytes = NumBlocksX * NumBlocksY * Slices * BlockBytes;
 
 	CumulativeResourceSize.AddUnknownMemoryBytes(NumBytes);
 }
 
 FTextureResource* UTextureRenderTarget2DArray::CreateResource()
 {
+	if (bSupportsUAV)
+	{
+		bCanCreateUAV = 1;
+	}
+
 	return new FTextureRenderTarget2DArrayResource(this);
 }
 
@@ -157,7 +163,7 @@ void UTextureRenderTarget2DArray::PostLoad()
 
 FString UTextureRenderTarget2DArray::GetDesc()
 {
-	return FString::Printf( TEXT("Render to Texture 2DArray %dx%d[%s]"), SizeX, SizeX, GPixelFormats[GetFormat()].Name);
+	return FString::Printf(TEXT("Render to Texture 2DArray %dx%d[%s]"), SizeX, SizeX, GPixelFormats[GetFormat()].Name);
 }
 
 TSubclassOf<UTexture> UTextureRenderTarget2DArray::GetTextureUClass() const
@@ -224,13 +230,18 @@ void FTextureRenderTarget2DArrayResource::InitRHI(FRHICommandListBase& RHICmdLis
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetPackage(), ELLMTagSet::Assets);
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, Owner->GetPackage()->GetFName());
 
-	if((Owner->SizeX > 0) && (Owner->SizeY > 0) && (Owner->Slices > 0))
+	if ((Owner->SizeX > 0) && (Owner->SizeY > 0) && (Owner->Slices > 0))
 	{
 		// Create the RHI texture. Only one mip is used and the texture is targetable for resolve.
 		ETextureCreateFlags TexCreateFlags = Owner->IsSRGB() ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
 		if (Owner->bCanCreateUAV)
 		{
 			TexCreateFlags |= ETextureCreateFlags::UAV;
+		}
+
+		if (Owner->bTargetArraySlicesIndependently)
+		{
+			TexCreateFlags |= ETextureCreateFlags::TargetArraySlicesIndependently;
 		}
 
 		{
@@ -291,7 +302,7 @@ void FTextureRenderTarget2DArrayResource::ReleaseRHI()
 
 /**
  * Updates (resolves) the render target texture.
- * Optionally clears each face of the render target to green.
+ * Optionally clears each face of the render target to the clear color.
  * This is only called by the rendering thread.
  */
 void FTextureRenderTarget2DArrayResource::UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/)
@@ -306,12 +317,26 @@ void FTextureRenderTarget2DArrayResource::UpdateDeferredResource(FRHICommandList
 		return;
 	}
 
-	RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::Unknown, ERHIAccess::RTV));
-	ClearRenderTarget(RHICmdList, TextureRHI);
-	RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::RTV, ERHIAccess::SRVMask));
+	// If the render target has the TargetArraySlicesIndependently flag, we can do the right thing and clear all slices :
+	if (EnumHasAnyFlags(TextureRHI->GetDesc().Flags, ETextureCreateFlags::TargetArraySlicesIndependently))
+	{
+		FRDGTextureClearInfo TextureClearInfo;
+		TextureClearInfo.NumSlices = TextureRHI->GetDesc().ArraySize;
+		FRDGBuilder GraphBuilder(RHICmdList);
+		FRDGTextureRef TextureRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(TextureRHI, TEXT("TextureRenderTarget2DArrayResource")));
+		AddClearRenderTargetPass(GraphBuilder, TextureRDG, TextureClearInfo);
+		GraphBuilder.Execute();
+	}
+	else
+	{
+		// Otherwise, just (probably erroneously) clear the first slice for backwards compatibility :
+		RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::Unknown, ERHIAccess::RTV));
+		ClearRenderTarget(RHICmdList, TextureRHI);
+		RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::RTV, ERHIAccess::SRVMask));
+	}
 }
 
-/** 
+/**
  * @return width of target
  */
 uint32 FTextureRenderTarget2DArrayResource::GetSizeX() const
@@ -319,7 +344,7 @@ uint32 FTextureRenderTarget2DArrayResource::GetSizeX() const
 	return Owner->SizeX;
 }
 
-/** 
+/**
  * @return height of target
  */
 uint32 FTextureRenderTarget2DArrayResource::GetSizeY() const
@@ -327,7 +352,7 @@ uint32 FTextureRenderTarget2DArrayResource::GetSizeY() const
 	return Owner->SizeX;
 }
 
-/** 
+/**
  * @return dimensions of target surface
  */
 FIntPoint FTextureRenderTarget2DArrayResource::GetSizeXY() const
@@ -337,12 +362,12 @@ FIntPoint FTextureRenderTarget2DArrayResource::GetSizeXY() const
 
 float UTextureRenderTarget2DArray::GetDisplayGamma() const
 {
-	if(TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
+	if (TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
 		return TargetGamma;
 	}
 	EPixelFormat Format = GetFormat();
-	if(Format == PF_FloatRGB || Format == PF_FloatRGBA || bForceLinearGamma)
+	if (Format == PF_FloatRGB || Format == PF_FloatRGBA || bForceLinearGamma)
 	{
 		return 1.0f;
 	}

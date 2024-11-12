@@ -123,7 +123,7 @@ float UMVVMViewModelBindingExecTest::ConversionIncDouble(double Value)
 
 #define LOCTEXT_NAMESPACE "MVVMBindingExecuteTest"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMBindingExecuteTest, "System.Plugins.MVVM.BindingExecution", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMVVMBindingExecuteTest, "System.Plugins.MVVM.BindingExecution", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 
 bool FMVVMBindingExecuteTest::RunTest(const FString& Parameters)

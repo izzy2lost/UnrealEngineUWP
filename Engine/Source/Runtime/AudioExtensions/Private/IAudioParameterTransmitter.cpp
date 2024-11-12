@@ -18,6 +18,8 @@ namespace Audio
 	{
 	}
 
+	FParameterTransmitterBase::~FParameterTransmitterBase() = default;
+
 	bool FParameterTransmitterBase::GetParameter(FName InName, FAudioParameter& OutValue) const
 	{
 		if (const FAudioParameter* Param = FAudioParameter::FindParam(AudioParameters, InName))

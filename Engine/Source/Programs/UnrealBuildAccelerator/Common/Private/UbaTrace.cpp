@@ -4,6 +4,11 @@
 #include "UbaFileAccessor.h"
 #include "UbaProcessHandle.h"
 
+#if PLATFORM_WINDOWS
+#include <tlhelp32.h>
+#include <psapi.h>
+#endif
+
 namespace uba
 {
 	constexpr u64 TraceMessageMaxSize = 256 * 1024;
@@ -16,41 +21,40 @@ namespace uba
 
 	Trace::~Trace()
 	{
-		if (m_memoryBegin)
-			UnmapViewOfFile(m_memoryBegin, m_memoryCapacity, TC("Trace"));
-		if (m_memoryHandle.IsValid())
-			CloseFileMapping(m_memoryHandle);
+		FreeMemory();
 	}
 
 	struct Trace::WriterScope : ScopedWriteLock, BinaryWriter
 	{
 		WriterScope(Trace& trace) : ScopedWriteLock(trace.m_memoryLock), BinaryWriter(trace.m_memoryBegin, trace.m_memoryPos, trace.m_memoryCapacity), m_trace(trace)
 		{
-			isValid = EnsureMemory(TraceMessageMaxSize);
+			EnsureMemory(TraceMessageMaxSize);
 		}
 
 		~WriterScope()
 		{
+			if (!m_isValid)
+				return;
 			m_trace.m_memoryPos = GetPosition();
 			*(u32*)m_trace.m_memoryBegin = u32(m_trace.m_memoryPos);
 		}
+
+		bool IsValid() { return m_isValid; }
 
 		WriterScope(const WriterScope&) = delete;
 		void operator=(const WriterScope&) = delete;
 
 		bool EnsureMemory(u64 size)
 		{
-			u64 committedMemoryNeeded = AlignUp(m_trace.m_memoryPos + size, size);
-			if (m_trace.m_memoryCommitted >= committedMemoryNeeded)
-				return true;
-			if (!MapViewCommit(m_trace.m_memoryBegin + m_trace.m_memoryCommitted, committedMemoryNeeded - m_trace.m_memoryCommitted))
-				return m_trace.m_logger.Error(TC("Failed to commit memory for trace (Pos: %llu Capacity: %llu, Already Committed: %llu, Needed: %llu): %s"), m_trace.m_memoryPos, m_trace.m_memoryCapacity, m_trace.m_memoryCommitted, committedMemoryNeeded, LastErrorToText().data);
-			m_trace.m_memoryCommitted = committedMemoryNeeded;
-			return true;
+			if (!m_isValid)
+				return false;
+			m_trace.m_memoryPos = GetPosition();
+			m_isValid = m_trace.EnsureMemory(size);
+			return m_isValid;
 		}
 
 		Trace& m_trace;
-		bool isValid;
+		bool m_isValid = true;
 	};
 
 	bool Trace::StartWrite(const tchar* namedTrace, u64 traceMemCapacity)
@@ -75,7 +79,7 @@ namespace uba
 
 		{
 			WriterScope writer(*this);
-			if (!writer.isValid)
+			if (!writer.IsValid())
 				return false;
 			writer.AllocWrite(4);
 			writer.WriteU32(TraceVersion);
@@ -87,8 +91,10 @@ namespace uba
 
 
 		if (namedTrace && m_channel.Init())
+		{
+			m_namedTrace = namedTrace;
 			m_channel.Write(namedTrace);
-
+		}
 		return true;
 	}
 
@@ -96,15 +102,18 @@ namespace uba
 	{
 		if (!m_memoryBegin)
 			return true;
+		auto g = MakeGuard([this]() { FreeMemory(); });
+
+		if (!m_namedTrace.empty())
+			m_channel.Write(TC(""), m_namedTrace.c_str());
 
 		{
 			WriterScope writer(*this);
-			if (!writer.isValid)
+			if (!writer.IsValid())
 				return false;
 			writer.WriteByte(TraceType_Summary);
 			writer.Write7BitEncoded(GetTime() - m_startTime);
 		}
-
 
 		if (!writeFileName || !*writeFileName)
 			return true;
@@ -117,9 +126,6 @@ namespace uba
 		if (!traceFile.Close())
 			return false;
 		m_logger.Info(TC("Trace file written to %s with size %s"), writeFileName, BytesToText(fileSize).str);
-		
-		UnmapViewOfFile(m_memoryBegin, m_memoryCapacity, TC("Trace"));
-		m_memoryBegin = nullptr;
 		return true;
 	}
 
@@ -135,6 +141,41 @@ namespace uba
 		EndWork(id);
 	}
 
+	void Trace::FreeMemory()
+	{
+		if (m_memoryBegin)
+		{
+			UnmapViewOfFile(m_memoryBegin, m_memoryCapacity, TC("Trace"));
+			m_memoryBegin = nullptr;
+		}
+		if (m_memoryHandle.IsValid())
+		{
+			CloseFileMapping(m_memoryHandle);
+			m_memoryHandle = {};
+		}
+	}
+
+	bool Trace::EnsureMemory(u64 size)
+	{
+		if (!m_memoryBegin)
+			return false;
+
+		u64 committedMemoryNeeded = AlignUp(m_memoryPos + size, 64*1024);
+		if (m_memoryCommitted >= committedMemoryNeeded)
+			return true;
+
+		if (MapViewCommit(m_memoryBegin + m_memoryCommitted, committedMemoryNeeded - m_memoryCommitted))
+		{
+			m_memoryCommitted = committedMemoryNeeded;
+			return true;
+		}
+
+		FreeMemory();
+		m_logger.Warning(TC("Failed to commit memory for trace (Pos: %llu Capacity: %llu, Already Committed: %llu, Needed: %llu): %s"), m_memoryPos, m_memoryCapacity, m_memoryCommitted, committedMemoryNeeded, LastErrorToText().data);
+		return false;
+	}
+
+
 	u32 Trace::AddString(const tchar* string)
 	{
 		if (!m_memoryBegin)
@@ -148,7 +189,7 @@ namespace uba
 		{
 			insres.first->second = u32(m_strings.size() - 1);
 			WriterScope writer(*this);
-			if (!writer.isValid)
+			if (!writer.IsValid())
 				return 0;
 			writer.WriteByte(TraceType_String);
 			writer.WriteString(string, stringLen);
@@ -160,14 +201,14 @@ namespace uba
 		if (!m_memoryBegin) \
 			return; \
 		WriterScope writer(*this); \
-		if (!writer.isValid) \
+		if (!writer.IsValid()) \
 			return; \
-		writer.WriteByte(x); \
+		writer.WriteByte(TraceType_##x); \
 		writer.Write7BitEncoded(GetTime() - m_startTime);
 
 	void Trace::SessionAdded(u32 sessionId, u32 clientId, const tchar* name, const tchar* info)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_SessionAdded);
+		BEGIN_TRACE_ENTRY(SessionAdded);
 		writer.WriteString(name);
 		writer.WriteString(info);
 		writer.Write7BitEncoded(clientId);
@@ -176,7 +217,7 @@ namespace uba
 
 	void Trace::SessionUpdate(u32 sessionId, u32 connectionCount, u64 send, u64 recv, u64 lastPing, u64 memAvail, u64 memTotal, float cpuLoad)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_SessionUpdate);
+		BEGIN_TRACE_ENTRY(SessionUpdate);
 		writer.Write7BitEncoded(sessionId);
 		writer.Write7BitEncoded(connectionCount);
 		writer.Write7BitEncoded(send);
@@ -189,27 +230,27 @@ namespace uba
 
 	void Trace::SessionNotification(u32 sessionId, const tchar* text)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_SessionNotification);
+		BEGIN_TRACE_ENTRY(SessionNotification);
 		writer.WriteU32(sessionId);
 		writer.WriteString(text);
 	}
 
 	void Trace::SessionSummary(u32 sessionId, const u8* data, u64 dataSize)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_SessionSummary);
+		BEGIN_TRACE_ENTRY(SessionSummary);
 		writer.WriteU32(sessionId);
 		writer.WriteBytes(data, dataSize);
 	}
 
 	void Trace::SessionDisconnect(u32 sessionId)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_SessionDisconnect);
+		BEGIN_TRACE_ENTRY(SessionDisconnect);
 		writer.WriteU32(sessionId);
 	}
 
 	void Trace::ProcessAdded(u32 sessionId, u32 processId, const tchar* description)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_ProcessAdded);
+		BEGIN_TRACE_ENTRY(ProcessAdded);
 		writer.WriteU32(sessionId);
 		writer.WriteU32(processId);
 		writer.WriteString(description);
@@ -217,47 +258,49 @@ namespace uba
 
 	void Trace::ProcessEnvironmentUpdated(u32 processId, const tchar* reason, const u8* data, u64 dataSize)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_ProcessEnvironmentUpdated);
+		BEGIN_TRACE_ENTRY(ProcessEnvironmentUpdated);
 		writer.WriteU32(processId);
 		writer.WriteString(reason);
 		writer.WriteBytes(data, dataSize);
 	}
 
-	void Trace::ProcessExited(u32 processId, u32 exitCode, const u8* data, u64 dataSize, const Vector<ProcessLogLine>& logLines)
+	void Trace::ProcessExited(u32 processId, u32 exitCode, const u8* data, u64 dataSize, const Vector<ProcessLogLine>& logLines, const tchar* breadcrumbs)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_ProcessExited);
+		BEGIN_TRACE_ENTRY(ProcessExited);
 		writer.WriteU32(processId);
 		writer.WriteU32(exitCode);
 		writer.WriteBytes(data, dataSize);
+		writer.WriteString(breadcrumbs);
 		u32 lineCounter = 0;
 		for (auto& line : logLines)
 		{
 			if (lineCounter++ == 100) // We don't want to write the entire error in the trace stream to blow the entire buffer
 				break;
-			if (!writer.EnsureMemory(1 + (line.text.size()+1)*sizeof(tchar)))
-				break;
+			if (!writer.EnsureMemory(2 + (line.text.size()+2)*sizeof(tchar)))
+				return;
 			writer.WriteByte(line.type);
 			writer.WriteString(line.text);
 		}
 		writer.WriteByte(255);
 	}
 
-	void Trace::ProcessReturned(u32 processId)
+	void Trace::ProcessReturned(u32 processId, const StringView& reason)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_ProcessReturned);
+		BEGIN_TRACE_ENTRY(ProcessReturned);
 		writer.WriteU32(processId);
+		writer.WriteString(reason);
 	}
 
 	void Trace::ProxyCreated(u32 clientId, const tchar* proxyName)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_ProxyCreated);
+		BEGIN_TRACE_ENTRY(ProxyCreated);
 		writer.Write7BitEncoded(clientId);
 		writer.WriteString(proxyName);
 	}
 
 	void Trace::ProxyUsed(u32 clientId, const tchar* proxyName)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_ProxyUsed);
+		BEGIN_TRACE_ENTRY(ProxyUsed);
 		writer.Write7BitEncoded(clientId);
 		writer.WriteString(proxyName);
 	}
@@ -267,7 +310,7 @@ namespace uba
 		if (detailed)
 		{
 			u32 stringIndex = AddString(hint);
-			BEGIN_TRACE_ENTRY(TraceType_FileBeginFetch);
+			BEGIN_TRACE_ENTRY(FileBeginFetch);
 			writer.Write7BitEncoded(clientId);
 			writer.WriteCasKey(key);
 			writer.Write7BitEncoded(size);
@@ -275,7 +318,7 @@ namespace uba
 		}
 		else
 		{
-			BEGIN_TRACE_ENTRY(TraceType_FileFetchLight);
+			BEGIN_TRACE_ENTRY(FileFetchLight);
 			writer.Write7BitEncoded(clientId);
 			writer.Write7BitEncoded(size);
 		}
@@ -283,7 +326,7 @@ namespace uba
 
 	void Trace::FileEndFetch(u32 clientId, const CasKey& key)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_FileEndFetch);
+		BEGIN_TRACE_ENTRY(FileEndFetch);
 		writer.Write7BitEncoded(clientId);
 		writer.WriteCasKey(key);
 	}
@@ -293,7 +336,7 @@ namespace uba
 		if (detailed)
 		{
 			u32 stringIndex = AddString(hint);
-			BEGIN_TRACE_ENTRY(TraceType_FileBeginStore);
+			BEGIN_TRACE_ENTRY(FileBeginStore);
 			writer.Write7BitEncoded(clientId);
 			writer.WriteCasKey(key);
 			writer.Write7BitEncoded(size);
@@ -301,7 +344,7 @@ namespace uba
 		}
 		else
 		{
-			BEGIN_TRACE_ENTRY(TraceType_FileStoreLight);
+			BEGIN_TRACE_ENTRY(FileStoreLight);
 			writer.Write7BitEncoded(clientId);
 			writer.Write7BitEncoded(size);
 		}
@@ -309,7 +352,7 @@ namespace uba
 
 	void Trace::FileEndStore(u32 clientId, const CasKey& key)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_FileEndStore);
+		BEGIN_TRACE_ENTRY(FileEndStore);
 		writer.Write7BitEncoded(clientId);
 		writer.WriteCasKey(key);
 	}
@@ -317,26 +360,67 @@ namespace uba
 	void Trace::BeginWork(u32 workIndex, const tchar* desc)
 	{
 		u32 stringIndex = AddString(desc);
-		BEGIN_TRACE_ENTRY(TraceType_BeginWork);
+		BEGIN_TRACE_ENTRY(BeginWork);
 		writer.Write7BitEncoded(workIndex);
 		writer.Write7BitEncoded(stringIndex);
 	}
 
 	void Trace::EndWork(u32 workIndex)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_EndWork);
+		BEGIN_TRACE_ENTRY(EndWork);
 		writer.Write7BitEncoded(workIndex);
 	}
 
-	void Trace::StatusUpdate(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType)
+	void Trace::ProgressUpdate(u32 processesTotal, u32 processesDone, u32 errorCount)
 	{
-		BEGIN_TRACE_ENTRY(TraceType_StatusUpdate);
-		writer.Write7BitEncoded(statusIndex);
-		writer.Write7BitEncoded(statusNameIndent);
-		writer.WriteString(statusName);
-		writer.Write7BitEncoded(statusTextIndent);
+		BEGIN_TRACE_ENTRY(ProgressUpdate);
+		writer.Write7BitEncoded(processesTotal);
+		writer.Write7BitEncoded(processesDone);
+		writer.Write7BitEncoded(errorCount);
+	}
+
+	void Trace::StatusUpdate(u32 statusRow, u32 statusColumn, const tchar* statusText, LogEntryType statusType, const tchar* statusLink)
+	{
+		BEGIN_TRACE_ENTRY(StatusUpdate);
+		writer.Write7BitEncoded(statusRow);
+		writer.Write7BitEncoded(statusColumn);
 		writer.WriteString(statusText);
 		writer.WriteByte(statusType);
+		writer.WriteString(statusLink ? statusLink : TC(""));
+	}
+
+	void Trace::RemoteExecutionDisabled()
+	{
+		BEGIN_TRACE_ENTRY(RemoteExecutionDisabled);
+	}
+
+	void Trace::CacheBeginFetch(u32 fetchId, const tchar* description)
+	{
+		BEGIN_TRACE_ENTRY(CacheBeginFetch);
+		writer.Write7BitEncoded(fetchId);
+		writer.WriteString(description);
+	}
+
+	void Trace::CacheEndFetch(u32 fetchId, bool success, const u8* data, u64 dataSize)
+	{
+		BEGIN_TRACE_ENTRY(CacheEndFetch);
+		writer.Write7BitEncoded(fetchId);
+		writer.WriteBool(success);
+		writer.WriteBytes(data, dataSize);
+	}
+
+	void Trace::CacheBeginWrite(u32 processId)
+	{
+		BEGIN_TRACE_ENTRY(CacheBeginWrite);
+		writer.Write7BitEncoded(processId);
+	}
+
+	void Trace::CacheEndWrite(u32 processId, bool success, u64 bytesSent)
+	{
+		BEGIN_TRACE_ENTRY(CacheEndWrite);
+		writer.Write7BitEncoded(processId);
+		writer.WriteBool(success);
+		writer.Write7BitEncoded(bytesSent);
 	}
 
 	TraceChannel::TraceChannel(Logger& logger) : m_logger(logger)
@@ -393,12 +477,15 @@ namespace uba
 		#endif
 	}
 
-	bool TraceChannel::Write(const tchar* traceName)
+	bool TraceChannel::Write(const tchar* traceName, const tchar* ifMatching)
 	{
 		#if PLATFORM_WINDOWS
 		WaitForSingleObject((HANDLE)m_mutex, INFINITE);
+		auto g = MakeGuard([this]() { ReleaseMutex((HANDLE)m_mutex); });
+		if (ifMatching)
+			if (!Equals((tchar*)m_mem, ifMatching))
+				return true;
 		TStrcpy_s((tchar*)m_mem, 256, traceName);
-		ReleaseMutex((HANDLE)m_mutex);
 		#endif
 		return true;
 	}
@@ -411,5 +498,73 @@ namespace uba
 		ReleaseMutex((HANDLE)m_mutex);
 		#endif
 		return true;
+	}
+
+	static OwnerInfo InternalGetOwnerInfo()
+	{
+		static tchar buffer[260];
+		*buffer = 0;
+
+		OwnerInfo info { buffer, 0 };
+
+		StringBuffer<32> ownerPidStr;
+		ownerPidStr.count = GetEnvironmentVariableW(TC("UBA_OWNER_PID"), ownerPidStr.data, ownerPidStr.capacity);
+		if (ownerPidStr.count)
+		{
+			GetEnvironmentVariableW(TC("UBA_OWNER_ID"), buffer, sizeof_array(buffer));
+			ownerPidStr.Parse(info.pid);
+			return info;
+		}
+
+		#if PLATFORM_WINDOWS
+		HANDLE snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (snapshotHandle == INVALID_HANDLE_VALUE)
+			return info;
+
+		PROCESSENTRY32 pe = { 0 };
+		pe.dwSize = sizeof(PROCESSENTRY32);
+		UnorderedMap<u32, u32> pidToParent;
+		if (Process32First(snapshotHandle, &pe))
+		{
+			do
+			{
+				pidToParent[pe.th32ProcessID] = pe.th32ParentProcessID;
+			}
+			while (Process32Next(snapshotHandle, &pe));
+		}
+		CloseHandle(snapshotHandle);
+
+		u32 pid = ::GetCurrentProcessId();
+		while (true)
+		{
+			auto findIt = pidToParent.find(pid);
+			if (findIt == pidToParent.end())
+				break;
+			pid = findIt->second;
+			pidToParent.erase(findIt);
+
+			HANDLE parentHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+			if (parentHandle == NULL)
+				break;
+			tchar moduleName[260];
+			DWORD len = GetModuleFileNameExW(parentHandle, 0, moduleName, MAX_PATH);
+			CloseHandle(parentHandle);
+			if (!len)
+				break;
+			if (!Contains(moduleName, L"devenv.exe"))
+				continue;
+			TStrcpy_s(buffer, MAX_PATH, L"vs");
+			info.pid = pid;
+			break;
+		}
+		#endif
+
+		return info;
+	}
+
+	const OwnerInfo& GetOwnerInfo()
+	{
+		static OwnerInfo info = InternalGetOwnerInfo();
+		return info;
 	}
 }

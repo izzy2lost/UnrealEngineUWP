@@ -29,7 +29,6 @@
 #ifndef SKP_SDK_2019
 #include <SketchUpAPI/application/ruby_api.h>
 #endif
-#include "DatasmithSketchUpSDKCeases.h"
 
 #pragma warning(push)
 // disable(SU2020): "__GNUC__' is not defined as a preprocessor macro, replacing"
@@ -49,10 +48,15 @@
 // disable(SU2024): Dereferencing NULL pointer
 #pragma warning(disable: 6011)
 
+#define RB_BLOCK_CALL_FUNC_STRICT 1
 
 #undef DEPRECATED
 #include <ruby.h>
 #pragma warning(pop)
+
+#include "DatasmithSketchUpSDKCeases.h"
+
+
 
 // Datasmith SDK.
 #include "Containers/Array.h"
@@ -581,17 +585,17 @@ VALUE UnrealStringToRuby(const FString& InStr)
 {
 	FTCHARToUTF8 Converter(*InStr, InStr.Len());
 
-	return rb_str_new(Converter.Get(), Converter.Length());
+	return rb_utf8_str_new(Converter.Get(), Converter.Length());
 }
 
 typedef VALUE(*RubyFunctionType)(ANYARGS);
 
 #pragma warning(push)
 // disable: 'reinterpret_cast': unsafe conversion from 'F' to 'RubyFunctionType'
-// This IS unsafe but so is Ruby C API
+// This IS unsafe but so is Ruby C API when ANYARGS function is used
 #pragma warning(disable: 4191)
 template<typename F>
-RubyFunctionType ToRuby(F f)
+RubyFunctionType ToRubyAnyargs(F f)
 {
 	return reinterpret_cast<RubyFunctionType>(f);
 }
@@ -935,43 +939,82 @@ extern "C" DLLEXPORT void Init_DatasmithSketchUp()
 	VALUE EpicGames = rb_define_module("EpicGames");
 	VALUE Datasmith = rb_define_module_under(EpicGames, "DatasmithBackend");
 
-	rb_define_module_function(Datasmith, "on_load", ToRuby(on_load), 2);
-	rb_define_module_function(Datasmith, "on_unload", ToRuby(on_unload), 0);
+	rb_define_module_function(Datasmith, "on_load", ToRubyAnyargs(on_load), 2);
+	rb_define_module_function(Datasmith, "on_unload", ToRubyAnyargs(on_unload), 0);
 
-	rb_define_module_function(Datasmith, "open_directlink_ui", ToRuby(open_directlink_ui), 0);
-	rb_define_module_function(Datasmith, "get_directlink_cache_directory", ToRuby(get_directlink_cache_directory), 0);
+	rb_define_module_function(Datasmith, "open_directlink_ui", ToRubyAnyargs(open_directlink_ui), 0);
+	rb_define_module_function(Datasmith, "get_directlink_cache_directory", ToRubyAnyargs(get_directlink_cache_directory), 0);
 
 	DatasmithSketchUpDirectLinkExporterCRubyClass = rb_define_class_under(Datasmith, "DatasmithSketchUpDirectLinkExporter", rb_cObject);
 
-	rb_define_singleton_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "new", ToRuby(DatasmithSketchUpDirectLinkExporter_new), 3);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "start", ToRuby(DatasmithSketchUpDirectLinkExporter_start), 0);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "stop", ToRuby(DatasmithSketchUpDirectLinkExporter_stop), 0);
+	rb_define_singleton_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "new", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_new), 3);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "start", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_start), 0);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "stop", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_stop), 0);
 
 #ifndef SKP_SDK_2019
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_component_instance_changed", ToRuby(DatasmithSketchUpDirectLinkExporter_on_component_instance_changed), 1);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_added", ToRuby(DatasmithSketchUpDirectLinkExporter_on_entity_added), 2);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_layer_modified", ToRuby(DatasmithSketchUpDirectLinkExporter_on_layer_modified), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_component_instance_changed", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_component_instance_changed), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_added", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_entity_added), 2);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_layer_modified", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_layer_modified), 1);
 #endif
 
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_modified_by_id", ToRuby(DatasmithSketchUpDirectLinkExporter_on_entity_modified_by_id), 1);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_geometry_modified_by_id", ToRuby(DatasmithSketchUpDirectLinkExporter_on_geometry_modified_by_id), 1);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_added_by_id", ToRuby(DatasmithSketchUpDirectLinkExporter_on_entity_added_by_id), 2);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_material_added_by_id", ToRuby(DatasmithSketchUpDirectLinkExporter_on_material_added_by_id), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_modified_by_id", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_entity_modified_by_id), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_geometry_modified_by_id", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_geometry_modified_by_id), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_added_by_id", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_entity_added_by_id), 2);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_material_added_by_id", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_material_added_by_id), 1);
 
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_removed", ToRuby(DatasmithSketchUpDirectLinkExporter_on_entity_removed), 2);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_entity_removed", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_entity_removed), 2);
 
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_style_changed", ToRuby(DatasmithSketchUpDirectLinkExporter_on_style_changed), 0);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_color_by_layer_changed", ToRuby(DatasmithSketchUpDirectLinkExporter_on_color_by_layer_changed), 0);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_style_changed", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_style_changed), 0);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "on_color_by_layer_changed", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_on_color_by_layer_changed), 0);
 
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "update", ToRuby(DatasmithSketchUpDirectLinkExporter_update), 1);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "send_update", ToRuby(DatasmithSketchUpDirectLinkExporter_send_update), 0);
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "export_current_datasmith_scene", ToRuby(DatasmithSketchUpDirectLinkExporter_export_current_datasmith_scene), 0);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "update", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_update), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "send_update", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_send_update), 0);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "export_current_datasmith_scene", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_export_current_datasmith_scene), 0);
 
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "get_connection_status", ToRuby(DatasmithSketchUpDirectLinkExporter_get_connection_status), 0);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "get_connection_status", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_get_connection_status), 0);
 
-	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "set_active_scene", ToRuby(DatasmithSketchUpDirectLinkExporter_set_active_scene), 1);
+	rb_define_method(DatasmithSketchUpDirectLinkExporterCRubyClass, "set_active_scene", ToRubyAnyargs(DatasmithSketchUpDirectLinkExporter_set_active_scene), 1);
 
 }
+
+namespace DatasmithSketchUpUtils
+{
+
+namespace ToRuby
+{
+	const FString* LogWarn_Block_Value = nullptr;
+
+	VALUE LogWarn_Block(VALUE obj, VALUE context, int argc, const VALUE* argv, VALUE blockarg)
+	{
+		if (LogWarn_Block_Value)
+		{
+			return UnrealStringToRuby(*LogWarn_Block_Value);
+		}
+		return Qnil;
+	}
+
+	void LogWarn(const FString& Message)
+	{
+		// call: EpicGames::Datasmith.log_warn { "the message text" }
+		VALUE DatasmithRubyNamespace = rb_path2class("EpicGames::Datasmith");
+		TGuardValue BlockValueGuard(LogWarn_Block_Value, &Message);
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+// disable(pre-SU024): '(' and '{' tokens introducing statement expression appear in different macro expansion contexts [-Wcompound-token-split-by-macro]
+// a problem in Ruby's rb_intern implementation
+#pragma GCC diagnostic ignored "-Wcompound-token-split-by-macro"
+#endif
+		ID LogWarnSym = rb_intern("log_warn");
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+		rb_block_call(DatasmithRubyNamespace, LogWarnSym, 0, nullptr, LogWarn_Block, Qtrue);
+	}
+}
+
+}
+
 
 /* todo:
 - error reporting(Ruby Console, Log etc)

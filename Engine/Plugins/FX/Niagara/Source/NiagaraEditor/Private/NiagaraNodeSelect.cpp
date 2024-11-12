@@ -712,7 +712,7 @@ TArray<int32> UNiagaraNodeSelect::GetOptionValues() const
 				if(FNiagaraEditorUtilities::IsEnumIndexVisible(Enum, EnumIndex))
 				{
 					ValidEnumEntryCount++;
-					SelectorValues.Add(Enum->GetValueByIndex(EnumIndex));
+					SelectorValues.Add(static_cast<int32>(Enum->GetValueByIndex(EnumIndex)));
 				}			
 			}
 		}

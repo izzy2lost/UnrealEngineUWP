@@ -54,9 +54,9 @@ public:
 	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 	
 	// IOptimusValueProvider overrides 
-	FString GetValueName() const override;
-	FOptimusDataTypeRef GetValueType() const override;
-	FShaderValueType::FValue GetShaderValue() const override;
+	FOptimusValueIdentifier GetValueIdentifier() const override;
+	FOptimusDataTypeRef GetValueDataType() const override;
+	FOptimusValueContainerStruct GetValue() const override;
 
 	//IOptimusPinMutabilityDefiner overrides 
 	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override { return EOptimusPinMutability::Mutable; };

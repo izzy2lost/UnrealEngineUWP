@@ -22,6 +22,7 @@
 #include "Iris/Serialization/ObjectNetSerializer.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Core/IrisLog.h"
+#include "Iris/Core/IrisProfiler.h"
 #include "Containers/ArrayView.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
@@ -56,7 +57,7 @@ FNetRPC::~FNetRPC()
 {
 }
 
-TArrayView<const FNetObjectReference> FNetRPC::GetExports() const
+TArrayView<const FNetObjectReference> FNetRPC::GetNetObjectReferenceExports() const
 {
 	return ReferencesToExport.IsValid() ? MakeArrayView(*ReferencesToExport) : MakeArrayView<const FNetObjectReference>(nullptr, 0);
 }
@@ -243,7 +244,11 @@ void FNetRPC::Deserialize(FNetSerializationContext& Context)
 	
 	if (!Context.HasErrorOrOverflow())
 	{
-		check(PostNetRPCPos == Context.GetBitStreamReader()->GetPosBits());
+		if (PostNetRPCPos != Context.GetBitStreamReader()->GetPosBits())
+		{
+			UE_LOG(LogIrisRpc, Error, TEXT("DeserializeWithObject::RPC %s did not read expected number of bits ErrorContext: %s"), ToCStr(BlobDescriptor->DebugName), *Context.PrintReadJournal())
+			ensure(PostNetRPCPos == Context.GetBitStreamReader()->GetPosBits());
+		}
 	}
 }
 
@@ -476,12 +481,19 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 		return;
 	}
 
+	if ((Function->FunctionFlags & FUNC_Net) == 0)
+	{
+		UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s function %s due to it not being a Net function. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+		Context.SetError(NetError_FunctionCallNotAllowed);
+		return;
+	}
+
 	const bool bIsServer = ReplicationSystem->IsServer();
 	if (bIsServer)
 	{
-		if ((Function->FunctionFlags & FUNC_NetServer) == 0)
+		if ((Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) != 0)
 		{
-			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s RPC function %s due to access rights. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s client RPC function %s due to this being the server. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
 			Context.SetError(NetError_FunctionCallNotAllowed);
 			return;
 		}
@@ -496,9 +508,9 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 	}
 	else
 	{
-		if ((Function->FunctionFlags & (FUNC_NetClient | FUNC_NetMulticast)) == 0)
+		if ((Function->FunctionFlags & FUNC_NetServer) != 0)
 		{
-			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s RPC function %s due to access rights. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
+			UE_LOG(LogIrisRpc, Error, TEXT("Rejected %s server RPC function %s due to this being the client. %s : %s"), (Function->FunctionFlags & FUNC_NetReliable ? TEXT("reliable") : TEXT("unreliable")), ToCStr(Function->GetName()), *NetObjectReference.ToString(), *Object->GetFullName());
 			return;
 		}
 	}
@@ -554,18 +566,30 @@ void FNetRPC::CallFunction(FNetRPCCallContext& CallContext)
 		FReplicationStateOperations::Dequantize(Context, FunctionParameters, QuantizedBlobState.GetStateBuffer(), BlobDescriptor);
 	}
 
+	// Since the replicated FunctionLocator references the SuperFunction, we must lookup the actual function to call from the target object to properly support BP derived functions.
+	// See: JIRA: UE-220400
+	const UFunction* ActualFunction = Object->FindFunction(Function->GetFName());
+	if (ActualFunction == nullptr)
+	{
+		ActualFunction = Function;
+	}
+
 	// Forward function
 	if (const FForwardNetRPCCallMulticastDelegate& Delegate = CallContext.GetForwardNetRPCCallDelegate(); Delegate.IsBound())
 	{
 		UObject* RootObject = NetRPC_GetRootObject(Context, NetObjectReference);
 		UObject* SubObject = (Object != RootObject ? Object : static_cast<UObject*>(nullptr));
-		Delegate.Broadcast(RootObject, SubObject, const_cast<UFunction*>(Function), FunctionParameters);
+		Delegate.Broadcast(RootObject, SubObject, const_cast<UFunction*>(ActualFunction), FunctionParameters);
 	}
 
 	// Call function
 	{
+#if IRIS_CLIENT_PROFILER_ENABLE
+		UE::Net::FClientProfiler::RecordRPC(ActualFunction->GetFName());
+#endif
+
 		UE::Net::FScopedNetContextRPC CallingRPC;
-		Object->ProcessEvent(const_cast<UFunction*>(Function), FunctionParameters);
+		Object->ProcessEvent(const_cast<UFunction*>(ActualFunction), FunctionParameters);
 	}
 
 	// Deinitialize function parameters
@@ -676,10 +700,10 @@ static bool NetRPC_GetFunctionAndObject(FNetSerializationContext& Context, const
 	}
 
 	const FReplicationProtocol* Protocol = ReplicationSystem->GetReplicationProtocol(ObjectReference.GetRefHandle());
-	if (!ensureMsgf(Protocol != nullptr, TEXT("ReplicationProtocol doesn't exist for %s (Connection %u). Ignoring RPC (%u|%u)"), 
-		*GetNameSafe(RefObject), Context.GetLocalConnectionId(), FunctionLocator.DescriptorIndex, FunctionLocator.FunctionIndex))
+	if (!Protocol)
 	{
-		Context.SetError(NetError_InvalidNetObjectReference);
+		// Ignore this RPC and continue processing the rest of the data, Note: this might for example occur if we have incoming RPC data from client to an object that has been destroyed on server.
+  		UE_LOG(LogIrisRpc, Verbose, TEXT("ReplicationProtocol doesn't exist for %s (Connection %u). Ignoring RPC (%u|%u), this is most likely due to object %s no longer being replicated."), *GetNameSafe(RefObject), Context.GetLocalConnectionId(), FunctionLocator.DescriptorIndex, FunctionLocator.FunctionIndex, *ObjectReference.ToString());
 		return false;
 	}
 

@@ -26,18 +26,24 @@ class UAvaPlaybackServerTransition : public UAvaPlaybackTransition
 	GENERATED_BODY()
 	
 public:
+	static UAvaPlaybackServerTransition* MakeNew(const TSharedPtr<FAvaPlaybackServer>& InPlaybackServer);
+	
 	void SetChannelName(const FName& InChannelName) { ChannelName = InChannelName; }
 	void SetTransitionId(const FGuid& InTransitionId) { TransitionId = InTransitionId; }
 	void SetClientName(const FString& InClientName) { ClientName = InClientName; }
 	void SetUnloadDiscardedInstances(bool bInUnloadDiscardedInstances) { bUnloadDiscardedInstances = bInUnloadDiscardedInstances; }
 	void SetTransitionFlags(EAvaPlayableTransitionFlags InTransitionFlags) { TransitionFlags = InTransitionFlags; }
-	void SetEnterInstanceIds(const TArray<FGuid>& InInstanceIds) { EnterInstanceIds = InInstanceIds; }
+	void AddPendingEnterInstanceIds(const TArray<FGuid>& InInstanceIds);
+	void AddPendingPlayingInstanceId(const FGuid& InInstanceId);
+	void AddPendingExitInstanceId(const FGuid& InInstanceId);
 	void SetEnterValues(const TArray<FAvaPlayableRemoteControlValues>& InEnterValues);
 	bool AddEnterInstance(const TSharedPtr<FAvaPlaybackInstance>& InPlaybackInstance);
 	bool AddPlayingInstance(const TSharedPtr<FAvaPlaybackInstance>& InPlaybackInstance);
 	bool AddExitInstance(const TSharedPtr<FAvaPlaybackInstance>& InPlaybackInstance);
-
+	
 	void TryResolveInstances(const FAvaPlaybackServer& InPlaybackServer);
+
+	bool ContainsInstance(const FGuid& InInstanceId) const;
 	
 	//~ Begin IAvaPlayableVisibilityConstraint
 	virtual bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const override;
@@ -73,13 +79,17 @@ protected:
 	void UpdateChannelName(const FAvaPlaybackInstance* InPlaybackInstance);
 
 protected:
+	TWeakPtr<FAvaPlaybackServer> PlaybackServerWeak;
+	
 	FString ClientName;
 	FName ChannelName;
-	FGuid TransitionId;
 	bool bUnloadDiscardedInstances = false;
 	EAvaPlayableTransitionFlags TransitionFlags = EAvaPlayableTransitionFlags::None;
-	
-	TArray<FGuid> EnterInstanceIds;
+
+	/** Instance Ids pending resolve. */
+	TArray<FGuid> PendingEnterInstanceIds;
+	TArray<FGuid> PendingPlayingInstanceIds;
+	TArray<FGuid> PendingExitInstanceIds;
 
 	TArray<TWeakPtr<FAvaPlaybackInstance>> EnterPlaybackInstancesWeak;
 	TArray<TWeakPtr<FAvaPlaybackInstance>> PlayingPlaybackInstancesWeak;

@@ -581,7 +581,7 @@ FVector2D FLidarPointCloudImportSettings_ASCII::ReadFileMinMaxColumns(TArray<int
 		return FVector2D::ZeroVector;
 	}
 
-	FVector2D Result;
+	FVector2D Result = FVector2D::ZeroVector;
 
 	TUniquePtr<FArchive> Reader(IFileManager::Get().CreateFileReader(*Filename));
 	if (Reader)

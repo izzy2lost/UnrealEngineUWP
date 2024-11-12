@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Storage
 	[JsonSchemaString]
 	[JsonConverter(typeof(NamespaceIdJsonConverter))]
 	[TypeConverter(typeof(NamespaceIdTypeConverter))]
-	public struct NamespaceId : IEquatable<NamespaceId>
+	public readonly struct NamespaceId : IEquatable<NamespaceId>
 	{
 		/// <summary>
 		/// The text representing this id

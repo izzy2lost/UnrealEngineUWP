@@ -184,12 +184,15 @@ struct FAudioParameter
 	{
 	}
 
+// We can't move TArray<UObject*> into a TArray<TObjectPtr<UObject>> since UE_OBJECT_PTR_GC_BARRIER was added
+#if 0
 	FAudioParameter(FName InName, TArray<UObject*>&& InValue)
 		: ParamName(InName)
 		, ArrayObjectParam(MoveTemp(InValue))
 		, ParamType(EAudioParameterType::ObjectArray)
 	{
 	}
+#endif
 
 	FAudioParameter(FName InName, const TArray<FString>& InValue)
 		: ParamName(InName)

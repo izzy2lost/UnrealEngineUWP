@@ -68,6 +68,7 @@ public:
 	virtual const FName GetEditorAppName() const override;
 	virtual const FName GetEditorModeName() const override;
 	virtual TSharedPtr<FApplicationMode> CreateEditorMode() override;
+	virtual const FSlateBrush* GetDefaultTabIcon() const override;
 
 public:
 	FControlRigEditor();
@@ -93,6 +94,7 @@ public:
 	int32 GetModularRigHierarchyTabCount() const { return ModularRigHierarchyTabCount; }
 
 	bool IsModularRig() const;
+	bool IsRigModule() const;
 
 public:
 	
@@ -163,6 +165,8 @@ public:
 
 	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);
+	void SwapModuleWithinAsset();
+	void SwapModuleAcrossProject();
 
 	const FName RigHierarchyToGraphDragAndDropMenuName = TEXT("ControlRigEditor.RigHierarchyToGraphDragAndDropMenu");
 	void CreateRigHierarchyToGraphDragAndDropMenu() const;
@@ -195,10 +199,13 @@ public:
 	FSimpleMulticastDelegate& OnRequestNavigateToConnectorWarning() { return RequestNavigateToConnectorWarningDelegate; }
 
 	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos, bool bClampToScreenRectangle = false);
+
+	void FindReferencesOfItem(const FRigElementKey& InKey);
 	
 protected:
 
 	virtual void BindCommands() override;
+	virtual FMenuBuilder GenerateBulkEditMenu() override;
 
 	void OnHierarchyChanged();
 
@@ -235,18 +242,23 @@ private:
 	/** Handle preview scene setup */
 	void HandlePreviewSceneCreated(const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene);
 	void HandleViewportCreated(const TSharedRef<class IPersonaViewport>& InViewport);
+	void HandleToggleControlVisibility();
+	bool AreControlsVisible() const;
+	void HandleToggleControlsAsOverlay();
+	bool AreControlsAsOverlay() const;
 	bool IsToolbarDrawNullsEnabled() const;
-	ECheckBoxState GetToolbarDrawNulls() const;
-	void OnToolbarDrawNullsChanged(ECheckBoxState InNewValue);
+	bool GetToolbarDrawNulls() const;
+	void HandleToggleToolbarDrawNulls();
 	bool IsToolbarDrawSocketsEnabled() const;
-	ECheckBoxState GetToolbarDrawSockets() const;
-	void OnToolbarDrawSocketsChanged(ECheckBoxState InNewValue);
-	ECheckBoxState GetToolbarDrawAxesOnSelection() const;
-	void OnToolbarDrawAxesOnSelectionChanged(ECheckBoxState InNewValue);
+	bool GetToolbarDrawSockets() const;
+	void HandleToggleToolbarDrawSockets();
+	bool GetToolbarDrawAxesOnSelection() const;
+	void HandleToggleToolbarDrawAxesOnSelection();
 	TOptional<float> GetToolbarAxesScale() const;
 	void OnToolbarAxesScaleChanged(float InValue);
 	void HandleToggleSchematicViewport();
 	bool IsSchematicViewportActive() const;
+	EVisibility GetSchematicOverlayVisibility() const;
 
 		/** Handle switching skeletal meshes */
 	void HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh);
@@ -357,6 +369,7 @@ protected:
 	bool bRefreshDirectionManipulationTargetsRequired;
 	FSimpleMulticastDelegate RequestNavigateToConnectorWarningDelegate;
 	TSharedPtr<SSchematicGraphPanel> SchematicViewport;
+	bool bSchematicViewPortIsHidden;
 
 	static const TArray<FName> ForwardsSolveEventQueue;
 	static const TArray<FName> BackwardsSolveEventQueue;

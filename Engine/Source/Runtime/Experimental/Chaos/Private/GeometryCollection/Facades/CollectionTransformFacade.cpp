@@ -8,20 +8,58 @@
 namespace GeometryCollection::Facades
 {
 	FCollectionTransformFacade::FCollectionTransformFacade(FManagedArrayCollection& InCollection)
-		: ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
+		: ConstCollection(InCollection)
+		, Collection(&InCollection)
+		, ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, ChildrenAttribute(InCollection, FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup)
 		, TransformAttribute(InCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
+		, BoneNameAttribute(InCollection, "BoneName", FTransformCollection::TransformGroup)
 	{}
 
 	FCollectionTransformFacade::FCollectionTransformFacade(const FManagedArrayCollection& InCollection)
-		: ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
+		: ConstCollection(InCollection)
+		, Collection(nullptr)
+		, ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, ChildrenAttribute(InCollection, FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup)
 		, TransformAttribute(InCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
+		, BoneNameAttribute(InCollection, "BoneName", FTransformCollection::TransformGroup)
 	{}
 
 	bool FCollectionTransformFacade::IsValid() const
 	{
 		return ParentAttribute.IsValid() && ChildrenAttribute.IsValid() && TransformAttribute.IsValid();
+	}
+
+	int32 FCollectionTransformFacade::Num() const
+	{
+		return ParentAttribute.Num();
+	}
+
+	bool FCollectionTransformFacade::HasBoneNameAttribute() const
+	{
+		return BoneNameAttribute.IsValid();
+	}
+
+	FString FCollectionTransformFacade::BoneName(int32 Index) const
+	{
+		if(BoneNameAttribute.IsValid() && BoneNameAttribute.IsValidIndex(Index))
+		{
+			return BoneNameAttribute[Index];
+		}
+		return FString();
+	}
+
+	TMap<FString, int32> FCollectionTransformFacade::BoneNameIndexMap() const
+	{
+		TMap<FString, int32> BoneNameToIndex;
+		if (BoneNameAttribute.IsValid())
+		{
+			for (int32 BoneIdx = 0; BoneIdx < BoneNameAttribute.Num(); ++BoneIdx)
+			{
+				BoneNameToIndex.Add(BoneNameAttribute[BoneIdx], BoneIdx);
+			}
+		}
+		return MoveTemp(BoneNameToIndex);
 	}
 
 	TArray<int32> FCollectionTransformFacade::GetRootIndices() const
@@ -33,10 +71,13 @@ namespace GeometryCollection::Facades
 	{
 		TArray<FTransform> OutTransforms;
 
-		const TManagedArray<FTransform3f>& BoneTransforms = TransformAttribute.Get();
-		const TManagedArray<int32>& Parents = ParentAttribute.Get();
+		if(IsValid())
+		{
+			const TManagedArray<FTransform3f>& BoneTransforms = TransformAttribute.Get();
+			const TManagedArray<int32>& Parents = ParentAttribute.Get();
 
-		GeometryCollectionAlgo::GlobalMatrices(BoneTransforms, Parents, OutTransforms);
+			GeometryCollectionAlgo::GlobalMatrices(BoneTransforms, Parents, OutTransforms);
+		}
 
 		return OutTransforms;
 	}
@@ -219,6 +260,147 @@ namespace GeometryCollection::Facades
 		}
 	}
 
+	bool FCollectionTransformFacade::HasCycle(const TManagedArray<int32>& Parents, int32 Node)
+	{
+		const int32 NumParents = Parents.Num();
+		int32 WalkNode = Node;
+		for (int32 Iters = 0; WalkNode != INDEX_NONE && Iters < NumParents; ++Iters)
+		{
+			WalkNode = Parents[WalkNode];
+		}
+		return WalkNode != INDEX_NONE;
+	}
 
+	bool FCollectionTransformFacade::HasCycle(const TManagedArray<int32>& Parents, const TArray<int32>& SelectedBones)
+	{
+		for (int32 Bone : SelectedBones)
+		{
+			if (HasCycle(Parents, Bone))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void FCollectionTransformFacade::ParentTransform(const int32 TransformIndex, const int32 ChildIndex)
+	{
+		check(Collection);
+
+		TArray<int32> SelectedBones;
+		SelectedBones.Add(ChildIndex);
+		ParentTransforms(TransformIndex, SelectedBones);
+	}
+
+	void FCollectionTransformFacade::ParentTransforms(const int32 TransformIndex, const TArray<int32>& SelectedBones)
+	{
+		check(Collection);
+		TManagedArray<FTransform3f>& Transform = TransformAttribute.Modify();
+		TManagedArray<int32>& Parents = ParentAttribute.Modify();
+		TManagedArray<TSet<int32>>& Children = ChildrenAttribute.Modify();
+		
+		if (ensure(-1 <= TransformIndex && TransformIndex < Transform.Num()))
+		{
+			// pre calculate global positions
+			TArray<FTransform3f> GlobalTransform;
+			GeometryCollectionAlgo::GlobalMatrices(Transform, Parents, GlobalTransform);
+
+			// append children 
+			for (int32 Index = 0; Index < SelectedBones.Num(); Index++)
+			{
+				int32 BoneIndex = SelectedBones[Index];
+				if (ensure(0 <= BoneIndex && BoneIndex < Parents.Num()))
+				{
+					// remove entry in previous parent
+					int32 ParentIndex = Parents[BoneIndex];
+					if (ParentIndex != INDEX_NONE)
+					{
+						if (ensure(0 <= ParentIndex && ParentIndex < Parents.Num()))
+						{
+							Children[ParentIndex].Remove(BoneIndex);
+						}
+					}
+
+					// set new parent
+					Parents[BoneIndex] = TransformIndex;
+				}
+			}
+
+			FTransform3f ParentInverse = FTransform3f::Identity;
+			if (TransformIndex != INDEX_NONE)
+			{
+				Children[TransformIndex].Append(SelectedBones);
+				ParentInverse = GlobalTransform[TransformIndex].Inverse();
+			}
+
+			// move the children to the local space of the transform. 
+			for (int32 Index = 0; Index < SelectedBones.Num(); Index++)
+			{
+				int32 BoneIndex = SelectedBones[Index];
+				Transform[BoneIndex] = GlobalTransform[BoneIndex] * ParentInverse;
+			}
+
+		}
+
+		// error check for circular dependencies
+		ensure(!HasCycle(Parents, TransformIndex));
+		ensure(!HasCycle(Parents, SelectedBones));
+	}
+
+	void FCollectionTransformFacade::UnparentTransform(const int32 ChildIndex)
+	{
+		check(Collection);
+
+		if (IsValid())
+		{
+			int32 NumTransforms = Collection->NumElements(FTransformCollection::TransformGroup);
+
+			if (0 < ChildIndex && ChildIndex < NumTransforms)
+			{
+				TManagedArray<int32>& Parent = ParentAttribute.Modify();
+				TManagedArray<TSet<int32>>& Children = ChildrenAttribute.Modify();
+
+				int32 ParentIndex = Parent[ChildIndex];
+				if (0 <= ParentIndex && ParentIndex < NumTransforms)
+				{
+					Children[ParentIndex].Remove(ChildIndex);
+					Parent[ChildIndex] = INDEX_NONE;
+				}
+			}
+		}
+	}
+
+
+	CHAOS_API void FCollectionTransformFacade::EnforceSingleRoot(const FString & RootName)
+	{
+		check(Collection);
+
+		TArray<int32> Roots = GetRootIndices();
+		if (Roots.Num() > 1)
+		{
+			int32 Idx = TransformAttribute.AddElements(1);
+			ParentAttribute.Modify()[Idx] = INDEX_NONE;
+
+			if (HasBoneNameAttribute())
+			{
+				const TManagedArray<FString>& BoneName = BoneNameAttribute.Get();
+
+				auto MakeUnique = [&BoneName](FString NewName)
+				{
+					int32 CurrentIndex = 1;
+					FString TestName = NewName;
+					while (BoneName.Contains(TestName))
+					{
+						TestName = FString::Printf(TEXT("%s%d"), *NewName, CurrentIndex++);
+					}
+					return TestName;
+				};
+
+				BoneNameAttribute.Modify()[Idx]=MakeUnique(RootName);
+			}
+
+			ParentTransforms(Idx, Roots);
+		}
+	}
 
 }

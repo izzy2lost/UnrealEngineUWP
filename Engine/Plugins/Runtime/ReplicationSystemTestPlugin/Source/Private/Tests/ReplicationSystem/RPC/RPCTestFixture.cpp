@@ -11,6 +11,7 @@ void FRPCTestFixture::SetUp()
 	OriginalHandlerDefinitions = BlobHandlerDefinitions->ReadWriteHandlerDefinitions();
 
 	HandlerDefinitions.Add({ TEXT("NetRPCHandler") });
+	HandlerDefinitions.Add({ TEXT("PartialNetObjectAttachmentHandler") });
 
 	BlobHandlerDefinitions->ReadWriteHandlerDefinitions() = HandlerDefinitions;
 

@@ -25,6 +25,7 @@
 #include "Stack/SNiagaraSummaryViewToggle.h"
 #include "Stack/SNiagaraSimTargetToggle.h"
 #include "Stack/SNiagaraStackIssueIcon.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
@@ -46,6 +47,7 @@
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "AssetThumbnail.h"
+#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraOverviewStackNode"
 
@@ -413,6 +415,15 @@ void SNiagaraOverviewStackNode::Tick(const FGeometry& AllottedGeometry, const do
 {
 	if (OverviewStackNode != nullptr)
 	{
+		// To support drag & drop indicators, we mark the prepass as dirty. This will cause the invalidation widget to render using the slow path, updating the drag & drop indicators properly
+		if(FSlateApplication::Get().IsDragDropping())
+		{
+			if (ContentAreaWidget)
+			{
+				ContentAreaWidget->MarkPrepassAsDirty();
+			}
+		}
+		
 		if (OverviewStackNode->IsRenamePending() && !SGraphNode::IsRenamePending())
 		{
 			SGraphNode::RequestRename();
@@ -485,31 +496,6 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTitleWidget_Default(TShared
 			];
 	}
 
-	if (!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
-	{
-		TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = EmitterHandleViewModelWeak.Pin();
-		FNiagaraEmitterHandle* EmitterHandle = EmitterHandleViewModel.IsValid() ? EmitterHandleViewModel->GetEmitterHandle() : nullptr;
-		if (EmitterHandle && EmitterHandle->GetEmitterMode() != ENiagaraEmitterMode::Standard)
-		{
-			DefaultTitle =
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				.Padding(0, 0, 5, 0)
-				.AutoHeight()
-				[
-					SNew(STextBlock)
-						.Text(LOCTEXT("StatelessNotEnabled", "Lightweight not enabled in project settings."))
-						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8.f))
-						.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-						.AutoWrapText(true)
-				]
-				+ SVerticalBox::Slot()
-				[
-					DefaultTitle
-				];
-		}
-	}
-	
 	TSharedPtr<SWidget> TitleWidget = SNew(SHorizontalBox)
 	// Summary View Controls
 	+ SHorizontalBox::Slot()
@@ -690,7 +676,12 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateNodeContentArea_Default()
 		.BorderBackgroundColor(TAttribute<FSlateColor>(this, &SNiagaraOverviewStackNode::GetScalabilityTintAlpha))
 	];
 
-	return ScalabilityWrapper.ToSharedRef();
+	ContentAreaWidget = SNew(SInvalidationPanel)
+	[
+		ScalabilityWrapper.ToSharedRef()
+	];
+
+	return ContentAreaWidget.ToSharedRef();
 }
 
 TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTopContentBar_Default()
@@ -892,17 +883,37 @@ EVisibility SNiagaraOverviewStackNode::GetScalabilityIndicatorVisibility() const
 
 	if(EmitterHandleViewModel.IsValid())
 	{
-		if(FVersionedNiagaraEmitterData* EmitterData = EmitterHandleViewModel->GetEmitterHandle()->GetInstance().GetEmitterData())
+		FNiagaraEmitterHandle* EmitterHandle = EmitterHandleViewModel->GetEmitterHandle();
+		const FNiagaraPlatformSet* EmitterPlatformSet = nullptr;
+		const FNiagaraEmitterScalabilityOverrides* EmitterScalabilityOverrides = nullptr;
+
+		if (EmitterHandle->GetEmitterMode() == ENiagaraEmitterMode::Standard)
 		{
-			bool bIsQualityLevelMaskSetup = EmitterData->Platforms.QualityLevelMask != INDEX_NONE;
-			bool bIsScalabilitySetup = EmitterData->ScalabilityOverrides.Overrides.Num() != 0 || (bIsQualityLevelMaskSetup && EmitterData->Platforms.QualityLevelMask != FNiagaraPlatformSet::GetFullQualityLevelMask(GetDefault<UNiagaraSettings>()->QualityLevels.Num())); 
-			return bIsScalabilitySetup ? EVisibility::Visible : DisplayMode == EDisplayMode::Summary ? EVisibility::Hidden : EVisibility::Collapsed;
+			if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle->GetInstance().GetEmitterData())
+			{
+				EmitterPlatformSet = &EmitterData->Platforms;
+				EmitterScalabilityOverrides = &EmitterData->ScalabilityOverrides;
+			}
 		}
+		else
+		{
+			if (UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle->GetStatelessEmitter())
+			{
+				EmitterPlatformSet = &StatelessEmitter->GetPlatformSet();
+				EmitterScalabilityOverrides = &StatelessEmitter->GetScalabilityOverrides();
+			}
+		}
+
+		const bool bIsQualityLevelMaskSetup = EmitterPlatformSet && EmitterPlatformSet->QualityLevelMask != INDEX_NONE && EmitterPlatformSet->QualityLevelMask != FNiagaraPlatformSet::GetFullQualityLevelMask(GetDefault<UNiagaraSettings>()->QualityLevels.Num());
+		const bool bIsScalabilitySetup = EmitterScalabilityOverrides && EmitterScalabilityOverrides->Overrides.Num() != 0;
+		return (bIsQualityLevelMaskSetup || bIsScalabilitySetup) ? EVisibility::Visible : DisplayMode == EDisplayMode::Summary ? EVisibility::Hidden : EVisibility::Collapsed;
 	}
 
 	if(UNiagaraSystem* System = OverviewStackNode->GetOwningSystem())
 	{
-		bool bIsScalabilitySetup = System->GetOverrideScalabilitySettings();
+		bool bIsQualityLevelMaskSetup = System->GetScalabilityPlatformSet().QualityLevelMask != INDEX_NONE;
+		bool bIsScalabilityOverridden = System->GetOverrideScalabilitySettings();
+		bool bIsScalabilitySetup = bIsScalabilityOverridden || (System->GetScalabilityOverrides().Overrides.Num() != 0 || (bIsQualityLevelMaskSetup && System->GetScalabilityPlatformSet().QualityLevelMask != FNiagaraPlatformSet::GetFullQualityLevelMask(GetDefault<UNiagaraSettings>()->QualityLevels.Num())));
 		return bIsScalabilitySetup ? EVisibility::Visible : EVisibility::Collapsed; 
 	}
 	
@@ -1353,7 +1364,7 @@ EVisibility SNiagaraOverviewStackNode::ShowExcludedOverlay() const
 
 		if (const TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = EmitterHandleViewModelWeak.Pin())
 		{
-			if (!EmitterHandleViewModel->GetEmitterHandle()->GetEmitterData()->IsAllowedByScalability())
+			if (!EmitterHandleViewModel->GetEmitterHandle()->IsAllowedByScalability())
 			{
 				return EVisibility::HitTestInvisible;
 			}

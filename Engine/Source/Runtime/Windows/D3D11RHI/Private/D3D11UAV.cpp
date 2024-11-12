@@ -205,7 +205,7 @@ void FD3D11DynamicRHI::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D11Dynamic
 			RHICmdList.RunOnContext([UnorderedAccessView, ClearValues](auto& Context)
 			{
 				Context.Direct3DDeviceIMContext->ClearUnorderedAccessViewUint(UnorderedAccessView->View, *reinterpret_cast<const UINT(*)[4]>(ClearValues));
-				Context.GPUProfilingData.RegisterGPUWork(1);
+				Context.RegisterGPUWork(1);
 			});
 		}
 		else

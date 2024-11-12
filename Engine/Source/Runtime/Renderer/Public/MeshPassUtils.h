@@ -19,7 +19,7 @@ namespace UE::MeshPassUtils
 			FRHIComputeShader* ShaderRHI = ComputeShader.GetComputeShader();
 
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-			ShaderBindings.SetParameters(BatchedParameters, ShaderRHI);
+			ShaderBindings.SetParameters(BatchedParameters);
 			SetShaderParameters(BatchedParameters, ComputeShader, PassParameters);
 
 			SetComputePipelineState(RHICmdList, ShaderRHI);
@@ -68,7 +68,7 @@ namespace UE::MeshPassUtils
 
 	template<typename TShaderClass, typename TShaderElementData>
 	inline void SetupComputeBindings(
-		const TShaderRef<TShaderClass>& ComputeShader,
+		const TShaderRef<TShaderClass>& Shader,
 		const FScene* Scene,
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
@@ -79,14 +79,23 @@ namespace UE::MeshPassUtils
 	)
 	{
 		FMeshProcessorShaders MeshProcessorShaders;
-		MeshProcessorShaders.ComputeShader = ComputeShader;
+
+		EShaderFrequency Frequency = Shader->GetFrequency();
+		if (Frequency == SF_Compute)
+		{
+			MeshProcessorShaders.ComputeShader = Shader;
+		}
+		else if (Frequency == SF_WorkGraphComputeNode)
+		{
+			MeshProcessorShaders.WorkGraphShader = Shader;
+		}
 
 		ShaderBindings.Initialize(MeshProcessorShaders);
 
-		if (ComputeShader.IsValid())
+		if (Shader.IsValid())
 		{
-			FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute);
-			ComputeShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, SingleShaderBindings);
+			FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(Frequency);
+			Shader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, SingleShaderBindings);
 		}
 
 		ShaderBindings.Finalize(&MeshProcessorShaders);
@@ -94,7 +103,7 @@ namespace UE::MeshPassUtils
 
 	template<typename TShaderClass>
 	inline void SetupComputeBindings(
-		const TShaderRef<TShaderClass>& ComputeShader,
+		const TShaderRef<TShaderClass>& Shader,
 		const FScene* Scene,
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
@@ -106,6 +115,6 @@ namespace UE::MeshPassUtils
 		FMeshMaterialShaderElementData ShaderElementData;
 		ShaderElementData.InitializeMeshMaterialData();
 
-		SetupComputeBindings(ComputeShader, Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, ShaderBindings);
+		SetupComputeBindings(Shader, Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, ShaderBindings);
 	}
 }

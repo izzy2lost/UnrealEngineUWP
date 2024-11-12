@@ -114,8 +114,9 @@ namespace Gauntlet
 		/// <summary>
 		/// Given a platform and a client/server flag, returns the name Unreal refers to it as. E.g. "WindowsClient", "LinuxServer".
 		/// </summary>
-		/// <param name="InTargetPlatform"></param>
-		/// <param name="InTargetType"></param>
+		/// <param name="TargetPlatform"></param>
+		/// <param name="ProcessType"></param>
+		/// <param name="UsesSharedBuildType"></param>
 		/// <returns></returns>
 		public static string GetPlatformName(UnrealTargetPlatform TargetPlatform, UnrealTargetRole ProcessType, bool UsesSharedBuildType)
 		{
@@ -241,13 +242,13 @@ namespace Gauntlet
 					LocalAddress = PreferredInterface.Address;
 				}
 			}
-	
+
 			string HostIP = Globals.Params.ParseValue("hostip", "");
 			HostIP = string.IsNullOrEmpty(HostIP) ? LocalAddress.ToString() : HostIP;
 			return HostIP;
 		}
 
-		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Extension)
+		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Flavor, string Extension)
 		{
 			string ExeName = ProjectName;
 
@@ -263,6 +264,11 @@ namespace Gauntlet
 			if (Config != UnrealTargetConfiguration.Development)
 			{
 				ExeName += string.Format("-{0}-{1}", Platform, Config);
+			}
+
+			if(!string.IsNullOrEmpty(Flavor))
+			{
+				ExeName += string.Format("-{0}", Flavor);
 			}
 
 			// todo , how to find this?
@@ -285,7 +291,12 @@ namespace Gauntlet
 			return ExeName;
 		}
 
-		internal class ConfigInfo
+		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Extension)
+		{
+			return GetExecutableName(ProjectName, Platform, Config, Role, string.Empty, Extension);
+		}
+
+		public class ConfigInfo
 		{
 			public UnrealTargetRole 			RoleType;
 			public UnrealTargetPlatform? 		Platform;
@@ -314,8 +325,8 @@ namespace Gauntlet
 		{
 			CustomModuleToRoles.Add(InModuleName, InRole);
 		}
-		
-		static ConfigInfo GetUnrealConfigFromFileName(string InProjectName, string InName)
+
+		static public ConfigInfo GetUnrealConfigFromFileName(string InProjectName, string InName)
 		{
 			ConfigInfo Config = new ConfigInfo();
 
@@ -341,7 +352,7 @@ namespace Gauntlet
 			{
 				ProjectNameRegEx += string.Format("|{0}", ModuleAndRole.Key);
 			}
-			string RegExMatch = string.Format(@"^(?:.+[_-])?(({0}(Game|Client|Server|CookedEditor)){1})(?:-(.+?)-(Debug|Test|Shipping))?(?:[_-](.+))?$", ShortName, ProjectNameRegEx);
+			string RegExMatch = string.Format(@"^(?:.+[_-])?(({0}(Game|Client|Server|CookedEditor)){1})(?:-(.+?)-(Debug|DebugGame|Test|Shipping))?(?:[_-](.+))?$", ShortName, ProjectNameRegEx);
 
 			// Format should be something like
 			// FortniteClient
@@ -421,26 +432,35 @@ namespace Gauntlet
 	{
 		string PlatformPath;
 
-		public EpicRoot(string Path)
+		public EpicRoot(string InPath)
 		{
-			PlatformPath = Path;
+			PlatformPath = InPath;
 
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Mac || BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Linux)
 			{
-				string PosixMountPath = CommandUtils.IsBuildMachine ? "/Volumes/epicgames.net/root" : "/Volumes/root";
-
-				if (!Path.Contains("P:"))
+				string PosixMountPath;
+				if(CommandUtils.IsBuildMachine)
 				{
-					PlatformPath = Regex.Replace(Path, @"\\\\epicgames.net\\root", PosixMountPath, RegexOptions.IgnoreCase);
+					string PrimaryRoot = Path.Combine("/Volumes", "epicgames.net", "root");
+					string SecondaryRoot = "/Volumes";
+					PosixMountPath = Directory.Exists(PrimaryRoot) ? PrimaryRoot : SecondaryRoot;
 				}
 				else
 				{
-					PlatformPath = Regex.Replace(Path, "P:", PosixMountPath, RegexOptions.IgnoreCase);
+					PosixMountPath = Path.Combine("/Volumes", "root");
+				}
+
+				if (!InPath.Contains("P:"))
+				{
+					PlatformPath = Regex.Replace(InPath, @"\\\\epicgames.net\\root", PosixMountPath, RegexOptions.IgnoreCase);
+				}
+				else
+				{
+					PlatformPath = Regex.Replace(InPath, "P:", PosixMountPath, RegexOptions.IgnoreCase);
 				}
 				
 				PlatformPath = PlatformPath.Replace(@"\", "/");
 			}
-
 		}
 
 		public static implicit operator string(EpicRoot Path)

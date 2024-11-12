@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma autortfm
-
 #include "Catch2Includes.h"
 #include <AutoRTFM/AutoRTFM.h>
 #include <atomic>
@@ -103,4 +101,132 @@ TEST_CASE("Open.Atomics")
             AutoRTFM::Open([&] () { REQUIRE(bDidRun); });
         }));
     REQUIRE(bDidRun);
+}
+
+TEST_CASE("Open.ReturnValue")
+{
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<int>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<float>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<int*>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<void>);
+    static_assert(AutoRTFM::IsSafeToReturnFromOpen<std::tuple<int, float>>);
+    static_assert(!AutoRTFM::IsSafeToReturnFromOpen<std::string>);
+    static_assert(!AutoRTFM::IsSafeToReturnFromOpen<std::tuple<int, std::string>>);
+
+    SECTION("int")
+    {
+        int Value = 10;
+        AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&] ()
+            {
+                int Got = AutoRTFM::Open([] { return 42; });
+                AutoRTFM::Open([&] { Value = Got; });
+            });
+        REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+        REQUIRE(42 == Value);
+    }
+
+    SECTION("char*")
+    {
+        std::string Value = "<unassigned>";
+        AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&] ()
+            {
+                // Note: AutoRTFM::Open() is returning a const char*
+                std::string Got = AutoRTFM::Open([] { return "meow"; });
+                AutoRTFM::Open([&] { Value = Got; });
+            });
+        REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+        REQUIRE("meow" == Value);
+    }
+    
+    SECTION("tuple")
+    {
+        int Int = 0;
+        std::string String = "<unassigned>";
+        AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&] ()
+            {
+                auto [I, S] = AutoRTFM::Open([] 
+                    { 
+                        return std::make_tuple(42, "woof"); 
+                    });
+                AutoRTFM::Open([&]
+                    { 
+                        Int = I; 
+                        String = S; 
+                    });
+            });
+        REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+        REQUIRE(42 == Int);
+        REQUIRE("woof" == String);
+    }
+
+    SECTION("Custom type")
+    {
+        SECTION("AutoRTFMAssignFromOpenToClosed() by value")
+        {
+            struct FMyStruct
+            {
+                int Value = 0;
+                static void AutoRTFMAssignFromOpenToClosed(FMyStruct& Closed, FMyStruct Open)
+                {
+                    Closed.Value = Open.Value;
+                }
+            };
+            static_assert(AutoRTFM::IsSafeToReturnFromOpen<FMyStruct>);
+
+            FMyStruct StructResult;
+            AutoRTFM::ETransactionResult TransactionResult = AutoRTFM::Transact([&]
+            {
+                FMyStruct Closed = AutoRTFM::Open([] { return FMyStruct{42}; });
+                AutoRTFM::Open([&] { StructResult = Closed; });
+            });
+            REQUIRE(AutoRTFM::ETransactionResult::Committed == TransactionResult);
+            REQUIRE(42 == StructResult.Value);
+        }
+        SECTION("AutoRTFMAssignFromOpenToClosed() by const-ref")
+        {
+            struct FMyStruct
+            {
+                int Value = 0;
+                static void AutoRTFMAssignFromOpenToClosed(FMyStruct& Closed, const FMyStruct& Open)
+                {
+                    Closed.Value = Open.Value;
+                }
+            };
+            static_assert(AutoRTFM::IsSafeToReturnFromOpen<FMyStruct>);
+
+            FMyStruct StructResult;
+            AutoRTFM::ETransactionResult TransactionResult = AutoRTFM::Transact([&]
+            {
+                FMyStruct Closed = AutoRTFM::Open([] { return FMyStruct{42}; });
+                AutoRTFM::Open([&] { StructResult = Closed; });
+            });
+            REQUIRE(AutoRTFM::ETransactionResult::Committed == TransactionResult);
+            REQUIRE(42 == StructResult.Value);
+        }
+        SECTION("AutoRTFMAssignFromOpenToClosed() by rvalue-ref")
+        {
+            struct FMyStruct
+            {
+                int Value = 0;
+                bool* WasMoved = nullptr;
+                static void AutoRTFMAssignFromOpenToClosed(FMyStruct& Closed, FMyStruct&& Open)
+                {
+                    Closed.Value = Open.Value;
+                    *Open.WasMoved = true;
+                }
+            };
+            static_assert(AutoRTFM::IsSafeToReturnFromOpen<FMyStruct>);
+
+            bool WasMoved = false;
+            FMyStruct StructResult;
+            AutoRTFM::ETransactionResult TransactionResult = AutoRTFM::Transact([&]
+            {
+                FMyStruct Closed = AutoRTFM::Open([&] { return FMyStruct{42, &WasMoved}; });
+                AutoRTFM::Open([&] { StructResult = Closed; });
+            });
+            REQUIRE(AutoRTFM::ETransactionResult::Committed == TransactionResult);
+            REQUIRE(true == WasMoved);
+            REQUIRE(42 == StructResult.Value);
+        }
+    }
 }

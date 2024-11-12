@@ -116,7 +116,6 @@ int32 FIOSAudioSoundBuffer::GetCurrentChunkOffset() const
 bool FIOSAudioSoundBuffer::ReadCompressedInfo(USoundWave* InWave)
 {
 	check(DecompressionState != nullptr);
-	check(InWave->SoundWaveDataPtr.IsValid());
 
 	FSoundQualityInfo QualityInfo = { 0 };
 	if(bStreaming)
@@ -182,9 +181,7 @@ FIOSAudioSoundBuffer* FIOSAudioSoundBuffer::Init(FIOSAudioDevice* IOSAudioDevice
 			Buffer = new FIOSAudioSoundBuffer(IOSAudioDevice, InWave, bIsStreaming, true);
 			break;
 
-		case DTYPE_Native:
 		case DTYPE_Invalid:
-		case DTYPE_Preview:
 		default:
 			// Invalid will be set if the wave cannot be played
 			UE_LOG( LogIOSAudio, Warning, TEXT("Init Buffer on unsupported sound type name = %s type = %d"), *InWave->GetName(), int32(InWave->DecompressionType));

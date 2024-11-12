@@ -5,6 +5,7 @@
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "NiagaraCommon.h"
+#include "NiagaraEditorUtilities.h"
 #include "NiagaraSystemEditorData.h"
 #include "NiagaraSystemFactoryNew.h"
 #include "NiagaraSystemInstanceController.h"
@@ -166,7 +167,7 @@ void FNiagaraAssetPreviewViewportClient::Draw(FViewport* InViewport, FCanvas* Ca
 	{
 		if(UNiagaraSystem* NiagaraSystem = Component->GetAsset())
 		{
-			const bool bSystemCompiling = NiagaraSystem->HasOutstandingCompilationRequests();
+			const bool bHasOutstandingCompilation = NiagaraSystem->HasOutstandingCompilationRequests();
 		
 			for (const FNiagaraEmitterHandle& EmitterHandle : NiagaraSystem->GetEmitterHandles())
 			{
@@ -176,7 +177,8 @@ void FNiagaraAssetPreviewViewportClient::Draw(FViewport* InViewport, FCanvas* Ca
 					continue;
 				}
 		
-				const bool bEmitterCompiling = bSystemCompiling || !EmitterData->IsReadyToRun();
+				// we assume that if the emitter isn't ready to run and we have compilations still oustanding that we're waiting on that
+				const bool bEmitterCompiling = bHasOutstandingCompilation && !EmitterData->IsReadyToRun();
 				if (!bEmitterCompiling)
 				{
 					continue;

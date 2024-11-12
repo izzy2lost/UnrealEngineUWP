@@ -107,7 +107,6 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	void OnOutputProvidersEdited(FPropertyChangedChainEvent& PropertyChangedEvent);
-	void OnTargetViewportEdited();
 #endif // WITH_EDITOR
 
 	/** Applies the component instance cache */
@@ -269,6 +268,7 @@ public:
 	int32 GetNumberOfOutputProviders() const;
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	void GetAllOutputProviders(TArray<UVCamOutputProviderBase*>& Providers) const;
+	const TArray<TObjectPtr<UVCamOutputProviderBase>>& GetOutputProviders() const { return OutputProviders; }
 
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	UVCamOutputProviderBase* GetOutputProviderByIndex(const int32 ProviderIndex) const;
@@ -373,16 +373,20 @@ public:
 	TSubsystemClass* GetSubsystem(const TSubclassOf<TSubsystemClass>& SubsystemClass) const { return SubsystemCollection.GetSubsystem(SubsystemClass); }
 	
 	template <typename TSubsystemClass>
-	const TArray<TSubsystemClass*>& GetSubsystemArray(const TSubclassOf<TSubsystemClass>& SubsystemClass) const { return SubsystemCollection.GetSubsystemArray(SubsystemClass); }
-
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use the BP GetSubsystemArray function or call ForEachSubsystem or GetSubsystemArrayCopy on the subsytem collection instead")
+	const TArray<TSubsystemClass*>& GetSubsystemArray(const TSubclassOf<TSubsystemClass>& SubsystemClass) const 
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		 return SubsystemCollection.GetSubsystemArray(SubsystemClass); 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	/******************** Misc ********************/
-	
-	/** Updates all actor Locks on viewports to be as configured. */
-	void UpdateActorViewportLocks();
 
 	/** Whether this component is initialized, i.e. the input subsystem is set up and the output providers are allowed to be active. */
 	bool IsInitialized() const { return bIsInitialized; }
+	const FVCamViewportLocker& GetViewportLockState() const { return ViewportLocker; }
+	void SetViewportLockState(const FVCamViewportLocker& NewLockState);
 	
 private:
 	
@@ -450,7 +454,7 @@ private:
 	FVCamInputDeviceConfig InputDeviceSettings;
 
 	/** List of Output Providers (executed in order) */
-	UPROPERTY(EditAnywhere, Instanced, Category = "VirtualCamera")
+	UPROPERTY(EditAnywhere, Instanced, Category = "VirtualCamera", meta = (AllowEditInlineCustomization, ShowInnerProperties))
 	TArray<TObjectPtr<UVCamOutputProviderBase>> OutputProviders;
 	
 	/** Modifier Context object that can be accessed by the Modifier Stack */
@@ -495,6 +499,18 @@ private:
 
 	/** Whether Initialize was called but not Deinitialize yet. */
 	bool bIsInitialized = false;
+	/**
+	 * Whether we've already iterated through all modifiers once and initialized them.
+	 * True does not mean that all modifiers are actually initialized since the user can add objects through the details panel,
+	 * which are initialized later by Update.
+	 */
+	bool bHasInitedModifiers = false;
+	/**
+	 * Whether we've already iterated through all output providers  once and initialized them.
+	 * True does not mean that all output providers are actually initialized since the user can add objects through the details panel,
+	 * which are initialized later by Update.
+	 */
+	bool bHasInitedOutputProviders = false;
 
 	/**
 	 * Creates the InputComponent and binds global delegates.
@@ -503,10 +519,18 @@ private:
 	void SetupVCamSystemsIfNeeded();
 	void CleanupRegisteredDelegates();
 
+	/** Runs initialization logic for construction script created VCams. */
+	void LateInitForBlueprintCreatedVCam();
+	
 	/** Calls Initialize if not already initialized and this component is enabled. */
 	void EnsureInitializedIfAllowed();
 	/** Initializes the input system, modifiers, output providers, and locks the viewport if needed. */
 	virtual void Initialize();
+	/** Calls Initialize on all modifiers if this has not yet been done previously. */
+	void InitModifiers();
+	/** Calls Initialize on all output providers if this has not yet been done previously. */
+	void InitOutputProviders();
+	
 	/** De-initializes all systems initialized in Initialize(). */
 	virtual void Deinitialize();
 

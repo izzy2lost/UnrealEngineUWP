@@ -85,7 +85,7 @@ void UQosEvaluator::FindDatacenters(const FQosParams& InParams, const TArray<FQo
 		UE_LOG(LogQos, Log, TEXT("Qos evaluation already in progress, ignoring"));
 		// Just trigger delegate now (Finalize resets state vars)
 		GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([InCompletionDelegate]() {
-			InCompletionDelegate.ExecuteIfBound(EQosCompletionResult::Failure, TArray<FDatacenterQosInstance>());
+			InCompletionDelegate.ExecuteIfBound(EQosCompletionResult::Failure, TArray<FDatacenterQosInstance>(), nullptr, nullptr);
 		}));
 	}
 }
@@ -206,8 +206,16 @@ void UQosEvaluator::OnEchoManyCompleted(FIcmpEchoManyCompleteResult FinalResult,
 
 		CompletionResult = EQosCompletionResult::Success;
 		CalculatePingAverages();
+		FString SelectedSubRegion;
+		FString SelectedRegion;
+		InQosSearchCompleteDelegate.ExecuteIfBound(CompletionResult, Datacenters, &SelectedRegion, &SelectedSubRegion);
+
+		if (QosStats.IsValid())
+		{
+			QosStats->SetChosenRegion(MoveTemp(SelectedRegion));
+			QosStats->SetChosenSubRegion(MoveTemp(SelectedSubRegion));
+		}
 		EndAnalytics(CompletionResult);
-		InQosSearchCompleteDelegate.ExecuteIfBound(CompletionResult, Datacenters);
 	}
 	break;
 
@@ -217,7 +225,7 @@ void UQosEvaluator::OnEchoManyCompleted(FIcmpEchoManyCompleteResult FinalResult,
 
 		CompletionResult = EQosCompletionResult::Failure;
 		EndAnalytics(CompletionResult);
-		InQosSearchCompleteDelegate.ExecuteIfBound(CompletionResult, Datacenters);
+		InQosSearchCompleteDelegate.ExecuteIfBound(CompletionResult, Datacenters, nullptr, nullptr);
 	}
 	break;
 
@@ -227,7 +235,7 @@ void UQosEvaluator::OnEchoManyCompleted(FIcmpEchoManyCompleteResult FinalResult,
 
 		CompletionResult = EQosCompletionResult::Canceled;
 		EndAnalytics(CompletionResult);
-		InQosSearchCompleteDelegate.ExecuteIfBound(CompletionResult, Datacenters);
+		InQosSearchCompleteDelegate.ExecuteIfBound(CompletionResult, Datacenters, nullptr, nullptr);
 	}
 	break;
 
@@ -259,7 +267,6 @@ void UQosEvaluator::EndAnalytics(EQosCompletionResult CompletionResult)
 			{
 				ResultType = EDatacenterResultType::Normal;
 			}
-
 			QosStats->EndQosPass(ResultType);
 			QosStats->Upload(AnalyticsProvider);
 		}
@@ -358,7 +365,7 @@ bool UQosEvaluator::PingRegionServers(const FQosParams& InParams, const FOnQosSe
 	if (0 == Targets.Num())
 	{
 		// Nothing to do if no servers provided in the list of datacenters.
-		InQosSearchCompleteDelegate.ExecuteIfBound(EQosCompletionResult::Failure, Datacenters);
+		InQosSearchCompleteDelegate.ExecuteIfBound(EQosCompletionResult::Failure, Datacenters, nullptr, nullptr);
 		return false;
 	}
 

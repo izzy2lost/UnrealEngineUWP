@@ -619,7 +619,6 @@ void STutorialsBrowser::Construct(const FArguments& InArgs)
 			.FillHeight(1.0f)
 			[
 				SAssignNew(TutorialList, SListView<TSharedPtr<ITutorialListEntry>>)
-				.ItemHeight(128.0f)
 				.ListItemsSource(&FilteredEntries)
 				.OnGenerateRow(this, &STutorialsBrowser::OnGenerateTutorialRow)
 				.SelectionMode(ESelectionMode::None)

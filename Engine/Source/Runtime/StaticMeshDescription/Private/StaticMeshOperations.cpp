@@ -1302,7 +1302,7 @@ void FStaticMeshOperations::AppendMeshDescription(const FMeshDescription& Source
 
 //////////////////////////////////////////////////////////////////////////
 // Normals tangents and Bi-normals
-void FStaticMeshOperations::AreNormalsAndTangentsValid(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents)
+void FStaticMeshOperations::HasInvalidVertexInstanceNormalsOrTangents(const FMeshDescription& MeshDescription, bool& bHasInvalidNormals, bool& bHasInvalidTangents)
 {
 	bHasInvalidNormals = false;
 	bHasInvalidTangents = false;
@@ -1369,7 +1369,7 @@ void FStaticMeshOperations::RecomputeNormalsAndTangentsIfNeeded(FMeshDescription
 		bool bRecomputeNormals = false;
 		bool bRecomputeTangents = false;
 		
-		AreNormalsAndTangentsValid(MeshDescription, bRecomputeNormals, bRecomputeTangents);
+		HasInvalidVertexInstanceNormalsOrTangents(MeshDescription, bRecomputeNormals, bRecomputeTangents);
 		
 		ComputeNTBsOptions |= (bRecomputeNormals ? EComputeNTBsFlags::Normals : EComputeNTBsFlags::None);
 		ComputeNTBsOptions |= (bRecomputeTangents ? EComputeNTBsFlags::Tangents : EComputeNTBsFlags::None);
@@ -1534,7 +1534,7 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 			TMap<FVector2f, FVector3f, FDefaultSetAllocator, FNTBGroupKeyFuncs> GroupBiNormal;
 			TMap<FTriangleID, FVertexInfo> VertexInfoMap;
 			TArray<TArray<FTriangleID, TInlineAllocator<8>>> Groups;
-			TArray<FTriangleID> ConsumedTriangle;
+			TSet<FTriangleID> ConsumedTriangle;
 			TArray<FTriangleID> PolygonQueue;
 			TArray<FVertexInstanceID> VertexInstanceInGroup;
 
@@ -1596,6 +1596,7 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 				//Build all group by recursively traverse all polygon connected to the vertex
 				Groups.Reset();
 				ConsumedTriangle.Reset();
+				TSet<FEdgeID> ConsumedEdges;
 				for (auto Kvp : VertexInfoMap)
 				{
 					if (ConsumedTriangle.Contains(Kvp.Key))
@@ -1612,14 +1613,17 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 						FTriangleID CurrentPolygonID = PolygonQueue.Pop(EAllowShrinking::No);
 						FVertexInfo& CurrentVertexInfo = VertexInfoMap.FindOrAdd(CurrentPolygonID);
 						CurrentGroup.AddUnique(CurrentVertexInfo.TriangleID);
-						ConsumedTriangle.AddUnique(CurrentVertexInfo.TriangleID);
+						ConsumedTriangle.Add(CurrentVertexInfo.TriangleID);
 						for (const FEdgeID& EdgeID : CurrentVertexInfo.EdgeIDs)
 						{
-							if (EdgeHardnesses[EdgeID])
+							if (EdgeHardnesses[EdgeID] || ConsumedEdges.Contains(EdgeID))
 							{
-								//End of the group
+								//End of the group or non manifold edge
 								continue;
 							}
+
+							ConsumedEdges.Add(EdgeID);
+
 							for (const FTriangleID& TriangleID : MeshDescription.GetEdgeConnectedTriangleIDs(EdgeID))
 							{
 								if (TriangleID == CurrentVertexInfo.TriangleID)
@@ -2261,10 +2265,12 @@ bool FStaticMeshOperations::GenerateUV(const FMeshDescription& MeshDescription, 
 
 	OutTexCoords.Reset();
 
-	const bool bAutoUVAvailable = WITH_EDITOR;
 	const bool bHasUVs = VertexInstanceUVs.GetNumElements() > 0;
-	const bool bUseLegacy = GenerateUVOptions.UVMethod == EGenerateUVMethod::Legacy || !bAutoUVAvailable;
-	if (bHasUVs && bUseLegacy)
+#if WITH_EDITOR
+	if (bHasUVs && GenerateUVOptions.UVMethod == EGenerateUVMethod::Legacy)
+#else
+	if (bHasUVs)
+#endif
 	{
 		FUniqueUVMeshDescriptionView MeshDescriptionView(MeshDescription, GenerateUVOptions.bMergeTrianglesWithIdenticalAttributes, OutTexCoords);
 
@@ -2299,7 +2305,8 @@ bool FStaticMeshOperations::GenerateUV(const FMeshDescription& MeshDescription, 
 	if (OutTexCoords.IsEmpty())
 	{
 		IGeometryProcessingInterfacesModule* GeomProcInterfaces = FModuleManager::Get().GetModulePtr<IGeometryProcessingInterfacesModule>("GeometryProcessingInterfaces");
-		if (GeomProcInterfaces)
+		IGeometryProcessing_MeshAutoUV* MeshAutoUV = GeomProcInterfaces ? GeomProcInterfaces->GetMeshAutoUVImplementation() : nullptr;
+		if (MeshAutoUV)
 		{
 		    FMeshDescription MeshCopy = MeshDescription;
 			TArray<FTriangleID>	RemapTriangles;
@@ -2333,8 +2340,6 @@ bool FStaticMeshOperations::GenerateUV(const FMeshDescription& MeshDescription, 
 				}
 			};
 			    
-			IGeometryProcessing_MeshAutoUV* MeshAutoUV = GeomProcInterfaces->GetMeshAutoUVImplementation();
-
 		    IGeometryProcessing_MeshAutoUV::FOptions Options = MeshAutoUV->ConstructDefaultOptions();
 			Options.Method = GetAutoUVMethod(GenerateUVOptions.UVMethod);
 

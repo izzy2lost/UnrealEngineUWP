@@ -73,4 +73,12 @@ public:
 		return false;
 	}
 
+	/**
+	 * @return a mapping from section ID to material ID. If empty, an identity mapping is assumed.
+	 */
+	virtual TArray<int32> GetPolygonGroupToMaterialIndexMap() const
+	{
+		return TArray<int32>();
+	}
+
 };

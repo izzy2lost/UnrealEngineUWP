@@ -84,7 +84,7 @@ ENetCloseResult FromSecurityEvent(ESecurityEvent::Type Val)
 #include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNetCloseResultEnumTest, "System.Core.Networking.FNetCloseResult.EnumTest",
-									EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
+									EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::SmokeFilter);
 
 bool FNetCloseResultEnumTest::RunTest(const FString& Parameters)
 {

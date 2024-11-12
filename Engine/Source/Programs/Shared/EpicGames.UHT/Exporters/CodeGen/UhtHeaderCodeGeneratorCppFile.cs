@@ -10,7 +10,7 @@ using EpicGames.UHT.Utils;
 
 namespace EpicGames.UHT.Exporters.CodeGen
 {
-	internal struct UhtCodeBlockComment : IDisposable
+	internal readonly struct UhtCodeBlockComment : IDisposable
 	{
 		private readonly StringBuilder _builder;
 		private readonly UhtType? _primaryType = null;
@@ -60,6 +60,16 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		}
 	}
 
+	/// <summary>
+	/// Collection of all registrations for a specific package
+	/// </summary>
+	internal class UhtRegistrations
+	{
+		public UhtUsedDefineScopes<UhtEnum> Enumerations { get; } = new();
+		public UhtUsedDefineScopes<UhtScriptStruct> ScriptStructs { get; } = new();
+		public UhtUsedDefineScopes<UhtClass> Classes { get; } = new();
+	}
+
 	internal class UhtHeaderCodeGeneratorCppFile : UhtHeaderCodeGenerator
 	{
 
@@ -67,10 +77,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// Construct an instance of this generator object
 		/// </summary>
 		/// <param name="codeGenerator">The base code generator</param>
-		/// <param name="package">Package being generated</param>
 		/// <param name="headerFile">Header file being generated</param>
-		public UhtHeaderCodeGeneratorCppFile(UhtCodeGenerator codeGenerator, UhtPackage package, UhtHeaderFile headerFile)
-			: base(codeGenerator, package, headerFile)
+		public UhtHeaderCodeGeneratorCppFile(UhtCodeGenerator codeGenerator, UhtHeaderFile headerFile)
+			: base(codeGenerator,  headerFile)
 		{
 		}
 
@@ -100,6 +109,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					includesToAdd.Add("Net/Serialization/FastArraySerializerImplementation.h");
 				}
+				if (headerInfo.NeedsVerseClass)
+				{
+					includesToAdd.Add("VerseVM/VVMVerseClass.h");
+				}
+				if (headerInfo.NeedsVerseStruct)
+				{
+					includesToAdd.Add("VerseVM/VVMVerseStruct.h");
+				}
+				if (headerInfo.NeedsVerseEnum)
+				{
+					includesToAdd.Add("VerseVM/VVMVerseEnum.h");
+				}
 
 				foreach (UhtType type in HeaderFile.Children)
 				{
@@ -122,6 +143,20 @@ namespace EpicGames.UHT.Exporters.CodeGen
 							foreach (UhtProperty property in function.Properties)
 							{
 								AddIncludeForProperty(property, requireIncludeForClasses, addedIncludes, includesToAdd);
+							}
+
+							foreach (UhtType parameter in function.ParameterProperties.Span)
+							{
+								if (parameter is UhtProperty property
+										&& property.NeedsGCBarrierWhenPassedToFunction(function)
+										&& property is UhtObjectProperty objectProperty)
+								{
+									UhtClass uhtClass = objectProperty.Class;
+									if (!uhtClass.HeaderFile.IsNoExportTypes && addedIncludes.Add(uhtClass.HeaderFile))
+									{
+										includesToAdd.Add(HeaderInfos[uhtClass.HeaderFile.HeaderFileTypeIndex].IncludePath);
+									}
+								}
 							}
 						}
 
@@ -196,16 +231,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				int generatedBodyStart = builder.Length;
 
-				UhtUsedDefineScopes<UhtEnum> enums = new();
-				UhtUsedDefineScopes<UhtScriptStruct> scriptStructs = new();
-				UhtUsedDefineScopes<UhtClass> classes = new();
+				Dictionary<UhtPackage, UhtRegistrations> packageRegistrations = new();
 				foreach (UhtField field in HeaderFile.References.ExportTypes)
 				{
 					if (field is UhtEnum enumObj)
 					{
 						using UhtCodeBlockComment blockComment = new(builder, field);
 						AppendEnum(builder, enumObj);
-						enums.Add(enumObj);
+						GetRegistrations(packageRegistrations, field).Enumerations.Add(enumObj);
 					}
 					else if (field is UhtScriptStruct scriptStruct)
 					{
@@ -213,7 +246,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						AppendScriptStruct(builder, scriptStruct);
 						if (scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.Native))
 						{
-							scriptStructs.Add(scriptStruct);
+							GetRegistrations(packageRegistrations, field).ScriptStructs.Add(scriptStruct);
 						}
 					}
 					else if (field is UhtFunction function)
@@ -237,13 +270,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 							using UhtCodeBlockComment blockComment = new(builder, field);
 							AppendClass(builder, classObj, functions);
-							classes.Add(classObj);
+							GetRegistrations(packageRegistrations, field).Classes.Add(classObj);
 						}
 					}
 				}
 
-				if (!enums.IsEmpty || !scriptStructs.IsEmpty || !classes.IsEmpty)
+				foreach (UhtPackage package in Module.Packages)
 				{
+					if (!packageRegistrations.TryGetValue(package, out UhtRegistrations? registrations))
+					{
+						continue;
+					}
+
 					string name = $"Z_CompiledInDeferFile_{headerInfo.FileId}";
 					string staticsName = $"{name}_Statics";
 
@@ -253,7 +291,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.Append("struct ").Append(staticsName).Append("\r\n");
 					builder.Append("{\r\n");
 
-					builder.AppendInstances(enums, UhtDefineScopeNames.Standard, 
+					builder.AppendInstances(registrations.Enumerations, UhtDefineScopeNames.Standard, 
 						builder => builder.Append("\tstatic constexpr FEnumRegisterCompiledInInfo EnumInfo[] = {\r\n"),
 						(builder, enumObj) =>
 						{
@@ -270,7 +308,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						},
 						builder => builder.Append("\t};\r\n"));
 
-					builder.AppendInstances(scriptStructs, UhtDefineScopeNames.Standard,
+					builder.AppendInstances(registrations.ScriptStructs, UhtDefineScopeNames.Standard,
 						builder => builder.Append("\tstatic constexpr FStructRegisterCompiledInInfo ScriptStructInfo[] = {\r\n"),
 						(builder, scriptStruct) =>
 						{
@@ -291,7 +329,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						},
 						builder => builder.Append("\t};\r\n"));
 
-					builder.AppendInstances(classes, UhtDefineScopeNames.Standard,
+					builder.AppendInstances(registrations.Classes, UhtDefineScopeNames.Standard,
 						builder => builder.Append("\tstatic constexpr FClassRegisterCompiledInInfo ClassInfo[] = {\r\n"),
 						(builder, classObj) =>
 						{
@@ -318,12 +356,12 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						.Append("static FRegisterCompiledInInfo ")
 						.Append(name)
 						.Append($"_{combinedHash}(TEXT(\"")
-						.Append(Package.EngineName)
+						.Append(package.EngineName)
 						.Append("\"),\r\n");
 
-					builder.AppendArrayPtrAndCountLine(classes, UhtDefineScopeNames.Standard, staticsName, "ClassInfo", 1, ",\r\n");
-					builder.AppendArrayPtrAndCountLine(scriptStructs, UhtDefineScopeNames.Standard, staticsName, "ScriptStructInfo", 1, ",\r\n");
-					builder.AppendArrayPtrAndCountLine(enums, UhtDefineScopeNames.Standard, staticsName, "EnumInfo", 1, ");\r\n");
+					builder.AppendArrayPtrAndCountLine(registrations.Classes, UhtDefineScopeNames.Standard, staticsName, "ClassInfo", 1, ",\r\n");
+					builder.AppendArrayPtrAndCountLine(registrations.ScriptStructs, UhtDefineScopeNames.Standard, staticsName, "ScriptStructInfo", 1, ",\r\n");
+					builder.AppendArrayPtrAndCountLine(registrations.Enumerations, UhtDefineScopeNames.Standard, staticsName, "EnumInfo", 1, ");\r\n");
 				}
 
 				if (Session.IncludeDebugOutput)
@@ -440,13 +478,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append("\tif (!").Append(registrationName).Append(".OuterSingleton)\r\n");
 				builder.Append("\t{\r\n");
 				builder.Append("\t\t").Append(registrationName).Append(".OuterSingleton = GetStaticEnum(").Append(singletonName).Append(", (UObject*)")
-					.Append(PackageSingletonName).Append("(), TEXT(\"").Append(enumObj.SourceName).Append("\"));\r\n");
+					.Append(GetSingletonName(enumObj.Package, true)).Append("(), TEXT(\"").Append(enumObj.SourceName).Append("\"));\r\n");
 				builder.Append("\t}\r\n");
 				builder.Append("\treturn ").Append(registrationName).Append(".OuterSingleton;\r\n");
 
 				builder.Append("}\r\n");
 
-				builder.Append("template<> ").Append(PackageApi).Append("UEnum* StaticEnum<").Append(enumObj.CppType).Append(">()\r\n");
+				builder.Append("template<> ").Append(Module.Api).Append("UEnum* StaticEnum<").Append(enumObj.CppType).Append(">()\r\n");
 				builder.Append("{\r\n");
 				builder.Append("\treturn ").Append(enumObj.SourceName).Append("_StaticEnum();\r\n");
 				builder.Append("}\r\n");
@@ -461,18 +499,21 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					builder.AppendMetaDataDecl(enumObj, null, null, MetaDataParamsName, 1);
 
 					// Enumerators
-					builder.Append("\tstatic constexpr UECodeGen_Private::FEnumeratorParam Enumerators[] = {\r\n");
-					int enumIndex = 0;
-					foreach (UhtEnumValue value in enumObj.EnumValues)
+					if (enumObj.EnumValues.Count > 0)
 					{
-						if (!enumObj.MetaData.TryGetValue("OverrideName", enumIndex, out string? keyName))
+						builder.Append("\tstatic constexpr UECodeGen_Private::FEnumeratorParam Enumerators[] = {\r\n");
+						int enumIndex = 0;
+						foreach (UhtEnumValue value in enumObj.EnumValues)
 						{
-							keyName = value.Name.ToString();
+							if (!enumObj.MetaData.TryGetValue("OverrideName", enumIndex, out string? keyName))
+							{
+								keyName = value.Name.ToString();
+							}
+							builder.Append("\t\t{ ").AppendUTF8LiteralString(keyName).Append(", (int64)").Append(value.Name).Append(" },\r\n");
+							++enumIndex;
 						}
-						builder.Append("\t\t{ ").AppendUTF8LiteralString(keyName).Append(", (int64)").Append(value.Name).Append(" },\r\n");
-						++enumIndex;
+						builder.Append("\t};\r\n");
 					}
-					builder.Append("\t};\r\n");
 					builder.Append("\tstatic const UECodeGen_Private::FEnumParams EnumParams;\r\n");
 					builder.Append("};\r\n");
 				}
@@ -480,13 +521,22 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				// Statics definition
 				{
 					builder.Append("const UECodeGen_Private::FEnumParams ").Append(staticsName).Append("::EnumParams = {\r\n");
-					builder.Append("\t(UObject*(*)())").Append(PackageSingletonName).Append(",\r\n");
+					builder.Append("\t(UObject*(*)())").Append(GetSingletonName(enumObj.Package, true)).Append(",\r\n");
 					builder.Append('\t').Append(enumDisplayNameFn).Append(",\r\n");
 					builder.Append('\t').AppendUTF8LiteralString(enumObj.SourceName).Append(",\r\n");
 					builder.Append('\t').AppendUTF8LiteralString(enumObj.CppType).Append(",\r\n");
-					builder.Append('\t').Append(staticsName).Append("::Enumerators,\r\n");
-					builder.Append('\t').Append(ObjectFlags).Append(",\r\n");
-					builder.Append("\tUE_ARRAY_COUNT(").Append(staticsName).Append("::Enumerators),\r\n");
+					if (enumObj.EnumValues.Count > 0)
+					{
+						builder.Append('\t').Append(staticsName).Append("::Enumerators,\r\n");
+						builder.Append('\t').Append(ObjectFlags).Append(",\r\n");
+						builder.Append("\tUE_ARRAY_COUNT(").Append(staticsName).Append("::Enumerators),\r\n");
+					}
+					else
+					{
+						builder.Append('\t').Append("nullptr,\r\n");
+						builder.Append('\t').Append(ObjectFlags).Append(",\r\n");
+						builder.Append("\t0,\r\n");
+					}
 					builder.Append('\t').Append(enumObj.EnumFlags.HasAnyFlags(EEnumFlags.Flags) ? "EEnumFlags::Flags" : "EEnumFlags::None").Append(",\r\n");
 					builder.Append("\t(uint8)UEnum::ECppForm::").Append(enumObj.CppForm.ToString()).Append(",\r\n");
 					builder.Append('\t').AppendMetaDataParams(enumObj, staticsName, MetaDataParamsName).Append("\r\n");
@@ -546,7 +596,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					.Append(".OuterSingleton = GetStaticStruct(")
 					.Append(singletonName)
 					.Append(", (UObject*)")
-					.Append(PackageSingletonName)
+					.Append(GetSingletonName(scriptStruct.Package, true))
 					.Append("(), TEXT(\"")
 					.Append(scriptStruct.EngineName)
 					.Append("\"));\r\n");
@@ -626,7 +676,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append("}\r\n");
 
 				// Generate the StaticStruct specialization
-				builder.Append("template<> ").Append(PackageApi).Append("UScriptStruct* StaticStruct<").Append(scriptStruct.SourceName).Append(">()\r\n");
+				builder.Append("template<> ").Append(Module.Api).Append("UScriptStruct* StaticStruct<").Append(scriptStruct.SourceName).Append(">()\r\n");
 				builder.Append("{\r\n");
 				builder.Append("\treturn ").Append(scriptStruct.SourceName).Append("::StaticStruct();\r\n");
 				builder.Append("}\r\n");
@@ -686,7 +736,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				AppendPropertiesDefs(builder, context, properties, 0);
 
 				builder.Append("const UECodeGen_Private::FStructParams ").Append(staticsName).Append("::StructParams = {\r\n");
-				builder.Append("\t(UObject* (*)())").Append(PackageSingletonName).Append(",\r\n");
+				builder.Append("\t(UObject* (*)())").Append(GetSingletonName(scriptStruct.Package, true)).Append(",\r\n");
 				builder.Append('\t').Append(GetSingletonName(scriptStruct.SuperScriptStruct, true)).Append(",\r\n");
 				if (scriptStruct.ScriptStructFlags.HasAnyFlags(EStructFlags.Native))
 				{
@@ -723,7 +773,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 				builder.Append("\tif (!").Append(innerSingletonName).Append(")\r\n");
 				builder.Append("\t{\r\n");
-				builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams);\r\n");
+				if (scriptStruct.IsVerseField)
+				{
+					builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams, Verse::Private::ConstructUScriptStructFunc);\r\n");
+				}
+				else 
+				{
+					builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams);\r\n");
+				}
 				builder.Append("\t}\r\n");
 				builder.Append("\treturn ").Append(innerSingletonName).Append(";\r\n");
 				builder.Append("}\r\n");
@@ -982,9 +1039,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				return "nullptr";
 			}
-			else if (function.Outer is UhtHeaderFile headerFile)
+			else if (function.Outer is UhtPackage package)
 			{
-				return GetSingletonName(headerFile.Package, true);
+				return GetSingletonName(package, true);
 			}
 			else
 			{
@@ -1103,7 +1160,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 			if (!isInterfaceClass)
 			{
-				builder.Append("static FName NAME_").Append(classObj.SourceName).Append('_').Append(function.EngineName).Append(" = FName(TEXT(\"").Append(function.EngineName).Append("\"));\r\n");
+				builder.Append("static const FName NAME_").Append(classObj.SourceName).Append('_').Append(function.EngineName).Append(" = FName(TEXT(\"").Append(function.EngineName).Append("\"));\r\n");
 			}
 
 			AppendNativeFunctionHeader(builder, function, UhtPropertyTextType.EventFunctionArgOrRetVal, false, null, null, UhtFunctionExportFlags.None, 0, "\r\n");
@@ -1129,26 +1186,115 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			}
 			else
 			{
-				AppendEventFunctionPrologue(builder, function, function.EngineName, 0, "\r\n", false);
+				bool isBlueprintEvent = function.FunctionFlags.HasAnyFlags(EFunctionFlags.BlueprintEvent);
+				bool isNetEvent = function.FunctionFlags.HasAnyFlags(EFunctionFlags.Net);
+				bool isCallInEditor = function.MetaData.ContainsKey(UhtNames.CallInEditor);
+				bool isEditorFunction = function.FunctionFlags.HasAnyFlags(EFunctionFlags.EditorOnly);
+				bool hasValidCppImpl = (function.StrippedFunctionName != function.CppImplName);
+
+				// This is a small optimization that we can do for BlueprintNativeEvents.
+				// If there is a native "_Implementation" of the current function, then we can do a small
+				// optimization where we only call "ProcessEvent" if there is actually a BP script override
+				// of the native implementation. This saves us the cost of unnecessarily copying the function
+				// params to the BPVM if we don't have to. We can only do this optimization
+				// if the implementation function name is not the same as the actual C++ function name, as that
+				// would just call the function recursively. We cannot do this optimization for networked events
+				// because ProcessEvent does some important replication behavior which we do not want to lose.
+				bool doNativeImplOptimization = 
+					isBlueprintEvent && 
+					!isNetEvent && 
+					!isCallInEditor && 
+					!isEditorFunction &&
+					hasValidCppImpl;				
+				
+				if (!doNativeImplOptimization)
+				{
+					AppendEventFunctionPrologue(builder, function, function.EngineName, 0, "\r\n", false);
+
+					AppendFindUFunction(builder, classObj, function, 1, "\r\n");
+				}				
+				else
+				{
+					builder.Append("{\r\n");
+
+					AppendFindUFunction(builder, classObj, function, 1, "\r\n");
+
+					builder
+						.Append("\tif (!Func->GetOwnerClass()->HasAnyClassFlags(CLASS_Native))\r\n")
+						.Append("\t{\r\n");
+
+					AppendEventFunctionPrologue(builder, function, function.EngineName, /*tabs*/ 1, "\r\n", /*addEventParameterStruct=*/false,/*addEventParameterStruct*/ false);
+				}								
 
 				// Cast away const just in case, because ProcessEvent isn't const
 				builder.Append('\t');
 				if (function.FunctionFlags.HasAnyFlags(EFunctionFlags.Const))
 				{
-					builder.Append("const_cast<").Append(classObj.SourceName).Append("*>(this)->");
+					builder.AppendTabs(1).Append("const_cast<").Append(classObj.SourceName).Append("*>(this)->");
 				}
+
 				builder
-					.Append("ProcessEvent(FindFunctionChecked(")
-					.Append("NAME_")
-					.Append(classObj.SourceName)
-					.Append('_')
-					.Append(function.EngineName)
-					.Append("),")
+					.Append("ProcessEvent(Func,")
 					.Append(function.Children.Count > 0 ? "&Parms" : "NULL")
 					.Append(");\r\n");
 
-				AppendEventFunctionEpilogue(builder, function, 0, "\r\n");
+				// Call into the native implementation of the function if there is one
+				// We don't want to do this all the time, like for BlueprintInternalUseOnly functions
+				// which will not have a "_Implementation" appended to their name
+				if (doNativeImplOptimization)
+				{
+					AppendEventFunctionEpilogue(builder, function, /*tabs*/ 1, "\r\n", /*bAddFunctionScopeBracket=*/true);
+
+					builder
+						.AppendTabs(1)
+						.Append("else\r\n")
+						.AppendTabs(1)
+						.Append("{\r\n")
+						.AppendTabs(2)
+						.Append(function.HasReturnProperty ? "return " : "");
+
+					// Cast away const just in case, because ProcessEvent isn't const
+					if (function.FunctionFlags.HasAnyFlags(EFunctionFlags.Const))
+					{
+						builder.Append("const_cast<").Append(classObj.SourceName).Append("*>(this)->");
+					}
+
+					// Begin the native function call...
+					builder
+						.Append(function.CppImplName)
+						.Append('(');
+
+					// For every param in this function call, pass it to our native C++ function
+					int numParams = function.ParameterProperties.Length;
+					ReadOnlySpan<UhtType> paramSpan = function.ParameterProperties.Span;
+					for (int i = 0; i < numParams; i++)
+					{
+						UhtType parameter = paramSpan[i];
+
+						if (parameter is UhtProperty property)
+						{
+							builder.Append(property.SourceName);
+						}
+
+						// Add a "," between function params as long as it isn't the last one
+						if ((i + 1) != numParams)
+						{
+							builder.Append(", ");
+						}
+					}
+
+					// ...close the function call
+					builder
+						.Append(");\r\n")
+						.AppendTabs(1)
+						.Append("}\r\n}\r\n");
+				}
+				else
+				{
+					AppendEventFunctionEpilogue(builder, function, /*tabs*/ 0, "\r\n", /*bAddFunctionScopeBracket=*/true);
+				}			
 			}
+			
 			return builder;
 		}
 
@@ -1514,7 +1660,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 			bool hasInterfaces = classObj.Bases.Any(x => x is UhtClass baseClass && baseClass.ClassFlags.HasAnyFlags(EClassFlags.Interface));
 
-			builder.Append("IMPLEMENT_CLASS_NO_AUTO_REGISTRATION(").Append(classObj.SourceName).Append(");\r\n");
+			if (classObj.IsVerseField)
+			{
+				builder.Append("IMPLEMENT_CLASS_NO_AUTO_REGISTRATION_WITH_METHOD(").Append(classObj.SourceName).Append(", Verse::Private::ConstructUClass);\r\n");
+			}
+			else
+			{
+				builder.Append("IMPLEMENT_CLASS_NO_AUTO_REGISTRATION(").Append(classObj.SourceName).Append(");\r\n");
+			}
 
 			// Everything from this point on will be part of the definition hash
 			int hashCodeBlockStart = builder.Length;
@@ -1565,7 +1718,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						builder.Append("\tstatic_assert(UE_ARRAY_COUNT(").Append("FuncInfo) < 2048);\r\n");
 					});
 
-
 				if (hasInterfaces)
 				{
 					builder.Append("\tstatic const UECodeGen_Private::FImplementedInterfaceParams InterfaceParams[];\r\n");
@@ -1597,7 +1749,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					builder.Append("\t(UObject* (*)())").Append(GetSingletonName(classObj.SuperClass, true)).Append(",\r\n");
 				}
-				builder.Append("\t(UObject* (*)())").Append(GetSingletonName(Package, true)).Append(",\r\n");
+				builder.Append("\t(UObject* (*)())").Append(GetSingletonName(classObj.Package, true)).Append(",\r\n");
 				builder.Append("};\r\n");
 				builder.Append("static_assert(UE_ARRAY_COUNT(").Append(staticsName).Append("::DependentSingletons) < 16);\r\n");
 
@@ -1733,7 +1885,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 			}
 
-			builder.Append("template<> ").Append(PackageApi).Append("UClass* StaticClass<").Append(classObj.SourceName).Append(">()\r\n");
+			builder.Append("template<> ").Append(Module.Api).Append("UClass* StaticClass<").Append(classObj.SourceName).Append(">()\r\n");
 			builder.Append("{\r\n");
 			builder.Append("\treturn ").Append(classObj.SourceName).Append("::StaticClass();\r\n");
 			builder.Append("}\r\n");
@@ -1899,6 +2051,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			FindNoExportStructsRecursive(outScriptStructs, structObj);
 			outScriptStructs.Reverse();
 			return outScriptStructs;
+		}
+
+		private static UhtRegistrations GetRegistrations(Dictionary<UhtPackage, UhtRegistrations> packageRegistrations, UhtField fieldObj)
+		{
+			UhtPackage package = fieldObj.Package;
+			if (packageRegistrations.TryGetValue(package, out UhtRegistrations? registrations))
+			{
+				return registrations;
+			}
+			registrations = new();
+			packageRegistrations.Add(package, registrations);
+			return registrations;
 		}
 
 		private class PropertyMemberContextImpl : IUhtPropertyMemberContext

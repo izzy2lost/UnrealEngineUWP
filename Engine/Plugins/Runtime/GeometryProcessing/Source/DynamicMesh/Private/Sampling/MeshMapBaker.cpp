@@ -293,6 +293,9 @@ void FMeshMapBaker::Bake()
 		}
 	}
 
+	// Generate UV space mesh Spatial
+	TMeshAABBTree3 FlatSpatialCache(&FlatMesh, true);
+
 	ECorrespondenceStrategy UseStrategy = this->CorrespondenceStrategy;
 	bool bIsIdentity = true;
 	int NumDetailMeshes = 0;
@@ -444,7 +447,7 @@ void FMeshMapBaker::Bake()
 	};
 
 	FMeshMapBakerQueue OutputQueue(NumTiles);
-	ParallelFor(NumTiles, [this, &Tiles, &BorderTexelsPerTile, &GutterTexelsPerTile, &OutputQueue, &WriteToOutputBuffer, &WriteToOutputBufferQueued, &ComputeCorrespondenceSample](int32 TileIdx)
+	ParallelFor(NumTiles, [this, &Tiles, &BorderTexelsPerTile, &GutterTexelsPerTile, &OutputQueue, &WriteToOutputBuffer, &WriteToOutputBufferQueued, &ComputeCorrespondenceSample, &FlatSpatialCache](int32 TileIdx)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FMeshMapBaker::Bake_EvalTile);
 
@@ -461,7 +464,7 @@ void FMeshMapBaker::Bake()
 		OccupancyMap.GutterSize = GutterSize;
 		OccupancyMap.Initialize(Dimensions, PaddedTile, SamplesPerPixel);
 		const auto GetTriangleIDFunc = [this](int32 TriangleID) { return FlatMesh.GetTriangleGroup(TriangleID); };
-		OccupancyMap.ClassifySamplesFromUVSpaceMesh(FlatMesh, GetTriangleIDFunc, TargetMeshUVCharts);
+		OccupancyMap.ClassifySamplesFromUVSpaceMesh(FlatMesh, FlatSpatialCache, GetTriangleIDFunc, TargetMeshUVCharts);
 		ComputeGutterTexelsUsingFilterKernelCoverage(OccupancyMap, Tile, Dimensions, FilterKernelSize, IsInFilterRegionEval);
 		BorderTexelsPerTile[TileIdx] = OccupancyMap.BorderTexels;
 		GutterTexelsPerTile[TileIdx] = OccupancyMap.GutterTexels;
@@ -985,7 +988,11 @@ bool FMeshMapBaker::EvaluateIsInFilterRegion(const FVector2d& Dist)
 
 void FMeshMapBaker::ComputeUVCharts(const FDynamicMesh3& Mesh, TArray<int32>& MeshUVCharts)
 {
-	MeshUVCharts.SetNumZeroed(Mesh.TriangleCount());
+	MeshUVCharts.SetNumUninitialized(Mesh.MaxTriangleID());
+	for (int32& ChartId : MeshUVCharts)
+	{
+		ChartId = IndexConstants::InvalidID;
+	}
 	if (const FDynamicMeshUVOverlay* UVOverlay = Mesh.Attributes() ? Mesh.Attributes()->PrimaryUV() : nullptr)
 	{
 		FMeshConnectedComponents UVComponents(&Mesh);

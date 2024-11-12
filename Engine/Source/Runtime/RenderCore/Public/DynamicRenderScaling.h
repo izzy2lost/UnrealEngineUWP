@@ -266,7 +266,7 @@ RENDERCORE_API void BeginFrame(const TMap<bool>& bIsBudgetEnabled);
 RENDERCORE_API void EndFrame();
 
 /** Returns the latest available timings. */
-RENDERCORE_API const TMap<uint64>& GetLastestTimings();
+RENDERCORE_API const TMap<uint64>& GetLatestTimings();
 
 
 } // namespace DynamicRenderScaling

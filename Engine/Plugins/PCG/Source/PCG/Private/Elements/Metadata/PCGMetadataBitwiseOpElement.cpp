@@ -90,7 +90,7 @@ FString UPCGMetadataBitwiseSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBitwiseOperation>())
 	{
-		return FString("Bitwise: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return FText::Format(NSLOCTEXT("PCGMetadataBitwiseSettings", "BitwiseOperation", "Bitwise: {0}"), EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation))).ToString();
 	}
 	else
 	{
@@ -144,12 +144,10 @@ bool FPCGMetadataBitwiseElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	if (Settings->Operation == EPCGMetadataBitwiseOperation::Not)
 	{
-		DoUnaryOp<int64>(OperationData, [](const int64& Value) -> int64 { return PCGMetadataBitwiseSettings::UnaryOp(Value); });
+		return DoUnaryOp<int64>(OperationData, [](const int64& Value) -> int64 { return PCGMetadataBitwiseSettings::UnaryOp(Value); });
 	}
 	else
 	{
-		DoBinaryOp<int64, int64>(OperationData, [Operation = Settings->Operation](const int64& Value1, const int64& Value2) -> int64 { return PCGMetadataBitwiseSettings::BinaryOp(Value1, Value2, Operation); });
+		return DoBinaryOp<int64, int64>(OperationData, [Operation = Settings->Operation](const int64& Value1, const int64& Value2) -> int64 { return PCGMetadataBitwiseSettings::BinaryOp(Value1, Value2, Operation); });
 	}
-
-	return true;
 }

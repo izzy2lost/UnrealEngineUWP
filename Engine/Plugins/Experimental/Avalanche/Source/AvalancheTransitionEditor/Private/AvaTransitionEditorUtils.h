@@ -14,6 +14,8 @@ namespace UE::AvaTransitionEditor
 {
 	TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* InEditorData, bool bInCompileOnLayerPicked);
 
+	TSharedPtr<SWidget> CreateTransitionInstancingModeSelector(UAvaTransitionTree* InTransitionTree);
+	
 	void ValidateTree(UAvaTransitionTree& InTransitionTree);
 
 	uint32 CalculateTreeHash(UAvaTransitionTree& InTransitionTree);

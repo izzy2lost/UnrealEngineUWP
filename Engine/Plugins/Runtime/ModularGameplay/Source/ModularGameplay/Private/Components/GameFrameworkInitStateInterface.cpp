@@ -256,3 +256,7 @@ bool IGameFrameworkInitStateInterface::UnregisterInitStateDelegate(FActorInitSta
 	return false;
 }
 
+FString IGameFrameworkInitStateInterface::GetDebugState() const
+{
+	return FString::Printf(TEXT("CurrentState: %s"), *GetInitState().ToString());
+}

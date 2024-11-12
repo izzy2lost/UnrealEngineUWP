@@ -24,6 +24,27 @@ bool FNetSerializationContext::IsBitStreamOverflown() const
 	return false;
 }
 
+void FNetSerializationContext::AddReadJournalEntry(const TCHAR* Name)
+{
+	if (!HasErrorOrOverflow())
+	{
+		ReadJournal.AddEntry(Name, BitStreamReader->GetPosBits(), ErrorContext.GetObjectHandle());
+	}
+}
+
+void FNetSerializationContext::AddReadJournalEntry(const FNetDebugName* DebugName)
+{
+	if (!HasErrorOrOverflow())
+	{
+		ReadJournal.AddEntry(DebugName->Name, BitStreamReader->GetPosBits(), ErrorContext.GetObjectHandle());
+	}
+}
+
+FString FNetSerializationContext::PrintReadJournal()
+{
+	return ReadJournal.Print(InternalContext ? InternalContext->ReplicationSystem : nullptr);
+}
+
 void FNetSerializationContext::SetBitStreamOverflow()
 {
 	if (BitStreamReader != nullptr && !BitStreamReader->IsOverflown())
@@ -50,8 +71,43 @@ UObject* FNetSerializationContext::GetLocalConnectionUserData(uint32 ConnectionI
 		return nullptr;
 	}
 
+	if (ConnectionId == UE::Net::InvalidConnectionId)
+	{
+		return nullptr;
+	}
+
 	UObject* UserData = ReplicationSystem->GetConnectionUserData(ConnectionId);
 	return UserData;
 }
+
+const FNetTokenStore* FNetSerializationContext:: GetNetTokenStore() const
+{
+	if (InternalContext == nullptr)
+	{
+		return nullptr;
+	}
+
+	const UReplicationSystem* ReplicationSystem = InternalContext->ReplicationSystem;
+
+	return ReplicationSystem ? ReplicationSystem->GetNetTokenStore() : nullptr;
+}
+
+FNetTokenStore* FNetSerializationContext::GetNetTokenStore()
+{
+	if (InternalContext == nullptr)
+	{
+		return nullptr;
+	}
+
+	UReplicationSystem* ReplicationSystem = InternalContext->ReplicationSystem;
+
+	return ReplicationSystem ? ReplicationSystem->GetNetTokenStore() : nullptr;
+}
+
+const UE::Net::FNetTokenStoreState* FNetSerializationContext::GetRemoteNetTokenStoreState() const
+{
+	return InternalContext ? InternalContext->ResolveContext.RemoteNetTokenStoreState : nullptr;
+}
+
 
 }

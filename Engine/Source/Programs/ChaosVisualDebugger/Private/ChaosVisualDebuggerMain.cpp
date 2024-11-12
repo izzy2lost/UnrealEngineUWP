@@ -1,141 +1,84 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "ChaosVisualDebuggerMain.h"
-#include "ChaosVisualDebuggerSlateStyle.h"
+
 #include "RequiredProgramMainCPPInclude.h"
-#include "StandaloneRenderer.h"
-#include "Widgets/Testing/STestSuite.h"
-#include "Modules/ModuleManager.h"
-#include "ISlateReflectorModule.h"
+#include "EditorViewportClient.h"
+#include "LaunchEngineLoop.h"
+#include "HAL/PlatformSplash.h"
+
+IMPLEMENT_APPLICATION(ChaosVisualDebugger, "ChaosVisualDebugger");
 
 DEFINE_LOG_CATEGORY_STATIC(LogChaosVisualDebugger, Log, All);
 
-IMPLEMENT_APPLICATION(ChaosVisualDebugger, "Chaos Visual Debugger");
+// Opt in to new D3D12 redist and tell the loader where to search for D3D12Core.dll.
+// The D3D loader looks for these symbol exports in the .exe module.
+// We only support this on x64 Windows Desktop platforms. Other platforms or non-redist-aware 
+// versions of Windows will transparently load default OS-provided D3D12 library.
+#if USE_D3D12_REDIST
+extern "C" { _declspec(dllexport) extern const UINT D3D12SDKVersion = 614; } // D3D12_SDK_VERSION
+extern "C" { _declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\"; }
+#endif // USE_D3D12_REDIST
 
-
-void InitializedSlateApplication()
+int32 RunChaosVisualDebugger(const TCHAR* CommandLine)
 {
-	// crank up a normal Slate application using the platform's standalone renderer
-	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
+	FTaskTagScope Scope(ETaskTag::EGameThread);
 
-	// Set the application name.
-	const FText ApplicationTitle = NSLOCTEXT("ChaosVisualDebugger", "AppTitle", "ChaosVisualDebugger");
-	FGlobalTabmanager::Get()->SetApplicationTitle(ApplicationTitle);
-}
+#if !(UE_BUILD_SHIPPING)
 
-TSharedRef<SDockTab> SpawnViewport(const FSpawnTabArgs& Args)
-{
-	TSharedRef<SDockTab> ViewportTab =
-	SNew(SDockTab)
-	.TabRole(ETabRole::MajorTab)
-	.Label(NSLOCTEXT("ChaosVisualDebugger","ViewportTabLabel", "Viewport"))
-	.ToolTipText(NSLOCTEXT("ChaosVisualDebugger","ViewportTabToolTip", "The Chaos Visual debugger Viewport is under development"));
+	// If "-waitforattach" or "-WaitForDebugger" was specified, halt startup and wait for a debugger to attach before continuing
+	if (FParse::Param(CommandLine, TEXT("waitforattach")) || FParse::Param(CommandLine, TEXT("WaitForDebugger")))
+	{
+		while (!FPlatformMisc::IsDebuggerPresent())
+		{
+			FPlatformProcess::Sleep(0.1f);
+		}
+		UE_DEBUG_BREAK();
+	}
 
-
-	FVisualDebuggerStyle::ResetToDefault();	
-	
-	ViewportTab->SetContent
-	(
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Center)
-		.Padding(30)
-		[
-			SNew(SImage)
-			.Image(FVisualDebuggerStyle::Get().GetBrush("UE4Icon"))
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Center)
-		[
-			SNew(STextBlock)
-			.Text(NSLOCTEXT("ChaosVisualDebugger", "TestBlock", "Visual Debugger, under development!"))
-		]
-	);
-
-	return ViewportTab;
-}
-
-
-void BuildChaosVDBUserInterface()
-{
-	// Need to load this module so we have the widget reflector tab available
-	FModuleManager::LoadModuleChecked<ISlateReflectorModule>("SlateReflector");
-
-	FGlobalTabmanager::Get()->RegisterTabSpawner("Viewport", FOnSpawnTab::CreateStatic(&SpawnViewport));
-
-	TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("SlateVisualDebugger_Layout")
-		->AddArea
-		(
-			FTabManager::NewArea(1600, 1200)
-			->SetWindow(FVector2D(420, 10), false)
-			->Split
-			(
-				FTabManager::NewStack()
-				->AddTab("Viewport", ETabState::OpenedTab)
-			)
-		)
-		// This is for debugging the GUI
-		/*->AddArea
-		(
-			// This area will get a 400x600 window at 10,10
-			FTabManager::NewArea(400, 600)
-			->SetWindow(FVector2D(10, 10), false)
-			->Split
-			(
-				// The area contains a single tab with the widget reflector, for debugging purposes
-				FTabManager::NewStack()->AddTab("WidgetReflector", ETabState::OpenedTab)
-			)
-		)*/
-		;
-
-	FGlobalTabmanager::Get()->RestoreFrom(Layout, TSharedPtr<SWindow>());
-}
-
-
-int32 ChaosVisualDebuggerMain(const TCHAR* CommandLine)
-{
-	UE_LOG(LogChaosVisualDebugger, Display, TEXT("Chaos Visual Debugger - Early Prototype Development"));
+#endif
 
 	// Override the stack size for the thread pool.
 	FQueuedThreadPool::OverrideStackSize = 256 * 1024;
 
-	FCommandLine::Set(CommandLine);
+	const FText AppName = NSLOCTEXT("ChaosVisualDebugger", "ChaosVisualDebuggerSplashText", "Chaos Visual Debugger");
+	FPlatformSplash::SetSplashText(SplashTextType::GameName, *AppName.ToString());
+
+	FString Command;
+	const bool bIsRunningCommand = FParse::Value(CommandLine, TEXT("-RUN="), Command);
+
+	const FString CommandLineString = CommandLine;
+	const FString FinalCommandLine = bIsRunningCommand ? CommandLine : CommandLineString + TEXT(" EDITOR");
 
 	// start up the main loop
-	GEngineLoop.PreInit(CommandLine);
+	const int32 Result = GEngineLoop.PreInit(*FinalCommandLine);
 
-	// Make sure all UObject classes are registered and default properties have been initialized
-	ProcessNewlyLoadedUObjects();
-
-	// Tell the module manager it may now process newly-loaded UObjects when new C++ modules are loaded
-	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
-
-	InitializedSlateApplication();
-
+	if (Result != 0)
 	{
-		BuildChaosVDBUserInterface();
-		// Bring up the test suite (for testing)
-		//RestoreSlateTestSuite();
+		UE_LOG(LogChaosVisualDebugger, Error, TEXT("EngineLoop PreInit failed!"));
+		return Result;
 	}
 
-	while (!IsEngineExitRequested())
+	if (!bIsRunningCommand)
 	{
-		FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-		FStats::AdvanceFrame(false);
-		FTSTicker::GetCoreTicker().Tick(FApp::GetDeltaTime());
-		FSlateApplication::Get().PumpMessages();
-		FSlateApplication::Get().Tick();
-		FPlatformProcess::Sleep(0);
+		// Register navigation commands for all viewports
+		FViewportNavigationCommands::Register();
+
+		GEngineLoop.Init();
+
+		// Hide the splash screen now that everything is ready to go
+		FPlatformSplash::Hide();
+
+		while (!IsEngineExitRequested())
+		{
+			GEngineLoop.Tick();
+		}
 	}
 
-	FCoreDelegates::OnExit.Broadcast();
-	FSlateApplication::Shutdown();
-	FEngineLoop::AppPreExit();
-	FModuleManager::Get().UnloadModulesAtShutdown();
-	FEngineLoop::AppExit();
+	// Make sure all rendering thread work is done before we attempt to exit the program
+	FFrameEndSync::Sync(true);
 
-	return 0;
-} 
+	GEngineLoop.Exit();
+
+	return Result;
+}

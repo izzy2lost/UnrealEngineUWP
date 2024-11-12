@@ -30,6 +30,8 @@
 
 #include <type_traits>
 
+ACL_IMPL_FILE_PRAGMA_PUSH
+
 namespace acl
 {
 	ACL_IMPL_VERSION_NAMESPACE_BEGIN
@@ -48,7 +50,6 @@ namespace acl
 
 	template<class decompression_settings_type>
 	inline decompression_context<decompression_settings_type>::decompression_context()
-		: m_context()
 	{
 		m_context.reset();
 
@@ -243,3 +244,5 @@ namespace acl
 
 	ACL_IMPL_VERSION_NAMESPACE_END
 }
+
+ACL_IMPL_FILE_PRAGMA_POP

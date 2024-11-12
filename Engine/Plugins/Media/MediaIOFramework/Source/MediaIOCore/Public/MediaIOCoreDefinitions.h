@@ -77,7 +77,7 @@ enum class EMediaIOInterlaceFieldOrder : uint8
 };
 
 /**
- * Various sample evaluation types availalbe in MediaIO.
+ * Various sample evaluation types available in MediaIO.
  */
 UENUM()
 enum class EMediaIOSampleEvaluationType : uint8

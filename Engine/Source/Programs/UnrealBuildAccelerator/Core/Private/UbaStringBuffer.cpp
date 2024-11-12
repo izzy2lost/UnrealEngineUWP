@@ -45,7 +45,12 @@ namespace uba
 	bool Contains(const tchar* str, const tchar* sub, bool ignoreCase, const tchar** pos)
 	{
 		if (!ignoreCase)
-			return TStrstr(str, sub) != 0;
+		{
+			auto res = TStrstr(str, sub);
+			if (pos)
+				*pos = res;
+			return res != nullptr;
+		}
 		for (const tchar* a = str; *a; ++a)
 		{
 			bool contains = true;
@@ -127,6 +132,19 @@ namespace uba
 		Replace(str, NonPathSeparator, PathSeparator);
 	}
 
+	bool Parse(u64& out, const tchar* str, u64 strLen)
+	{
+		if (!strLen)
+			return false;
+
+		#if PLATFORM_WINDOWS
+		out = wcstoull(str, nullptr, 10);
+		#else
+		out = strtoull(str, nullptr, 10);
+		#endif
+		return out != 0 || Equals(str, TC("0"));
+	}
+
 	StringBufferBase& StringBufferBase::Append(const tchar* str)
 	{
 		return Append(str, u32(TStrlen(str)));
@@ -139,6 +157,11 @@ namespace uba
 		count += u32(charCount);
 		data[count] = 0;
 		return *this;
+	}
+
+	StringBufferBase& StringBufferBase::Append(const StringView& view)
+	{
+		return Append(view.data, view.count);
 	}
 
 	StringBufferBase& StringBufferBase::Appendf(const tchar* format, ...)
@@ -240,6 +263,16 @@ namespace uba
 		data[count] = 0;
 		return *this;
 	}
+	
+	StringBufferBase& StringBufferBase::Append(const char* str, u32 charCount)
+	{
+		u32 capacityEnd = capacity - 1;
+		for (const char* i = str; charCount && *i; ++i, --charCount)
+			if (count < capacityEnd)
+				data[count++] = *i;
+		data[count] = 0;
+		return *this;
+	}
 	#endif
 
 	StringBufferBase& StringBufferBase::Resize(u64 newSize)
@@ -305,15 +338,7 @@ namespace uba
 
 	bool StringBufferBase::Parse(u64& out)
 	{
-		if (!count)
-			return false;
-
-		#if PLATFORM_WINDOWS
-		out = wcstoull(data, nullptr, 10);
-		#else
-		out = strtoull(data, nullptr, 10);
-		#endif
-		return out != 0 || Equals(TC("0"));
+		return uba::Parse(out, data, count);
 	}
 
 	bool StringBufferBase::Parse(u32& out)
@@ -349,5 +374,27 @@ namespace uba
 		out = strtof(data, nullptr);
 		#endif
 		return out != 0 || Equals(TC("0"));
+	}
+
+	u32 StringBufferBase::Parse(char* out, u64 outCapacity)
+	{
+		#if PLATFORM_WINDOWS
+		size_t destLen;
+		if (wcstombs_s(&destLen, out, outCapacity, data, outCapacity-1) != 0)
+			return 0;
+		return (u32)destLen;
+		#else
+		if (outCapacity == 0)
+			return 0;
+		u32 toCopy = Min(u32(outCapacity - 1), count);
+		memcpy(out, data, toCopy);
+		out[toCopy] = 0;
+		return toCopy;
+		#endif
+	}
+
+	StringView ToView(const tchar* s)
+	{
+		return StringView(s, TStrlen(s));
 	}
 }

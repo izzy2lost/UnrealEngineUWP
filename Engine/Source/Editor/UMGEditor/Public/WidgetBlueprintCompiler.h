@@ -100,6 +100,8 @@ public:
 	{
 	public:
 		FProperty* CreateVariable(const FName Name, const FEdGraphPinType& Type) const;
+		FMulticastDelegateProperty* CreateMulticastDelegateVariable(const FName Name, const FEdGraphPinType& Type) const;
+		FMulticastDelegateProperty* CreateMulticastDelegateVariable(const FName Name) const;
 		void AddGeneratedFunctionGraph(UEdGraph* Graph) const;
 		UWidgetBlueprint* GetWidgetBlueprint() const;
 		UE_DEPRECATED(5.4, "GetSkeletonGeneratedClass renamed to GetGeneratedClass")
@@ -116,7 +118,8 @@ public:
 	struct UMGEDITOR_API FCreateFunctionContext
 	{
 	public:
-		void AddGeneratedFunctionGraph(UEdGraph*) const;
+		void AddGeneratedFunctionGraph(UEdGraph* Graph) const;
+		void AddGeneratedUbergraphPage(UEdGraph* Graph) const;
 		UWidgetBlueprintGeneratedClass* GetGeneratedClass() const;
 
 	private:

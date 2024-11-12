@@ -262,7 +262,7 @@ void FVisualLoggerDatabase::RemoveRow(FName RowName)
 	if (RowNameToIndex.Contains(RowName))
 	{
 		const int32 RemovedIndex = RowNameToIndex.FindAndRemoveChecked(RowName);
-		Rows.RemoveAtSwap(RemovedIndex, 1, EAllowShrinking::No);
+		Rows.RemoveAtSwap(RemovedIndex, EAllowShrinking::No);
 		if (Rows.IsValidIndex(RemovedIndex))
 		{
 			RowNameToIndex[Rows[RemovedIndex].GetOwnerName()] = RemovedIndex;
@@ -470,6 +470,11 @@ AActor* FVisualLoggerEditorInterface::GetHelperActor(UWorld* InWorld) const
 
 	// The helper actor is created on demand and only once per world so we can allow it to spawn during construction script.
 	SpawnInfo.bAllowDuringConstructionScript = true;
+
+#if WITH_EDITOR
+	// Nothing to set on this actor, se we just hide it from the outliner : 
+	SpawnInfo.bHideFromSceneOutliner = true;
+#endif //WITH_EDITOR
 
 	return World->SpawnActor<AVisualLoggerRenderingActor>(SpawnInfo);
 }

@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Trace/DataProcessors/IChaosVDDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDDataProcessorBase.h"
 
 /**
  * Data processor implementation that is able to deserialize traced scene queries data
  */
-class FChaosVDSceneQueryDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDSceneQueryDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDSceneQueryDataProcessor();

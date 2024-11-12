@@ -13,7 +13,7 @@ class FTimeFraction;
 /**
  * Keeps a time value in hundred nanoseconds (HNS).
  */
-class ELECTRABASE_API FTimeValue
+class FTimeValue
 {
 public:
 	static FTimeValue GetInvalid()
@@ -32,6 +32,12 @@ public:
 	{
 		static FTimeValue kPosInf(std::numeric_limits<double>::infinity());
 		return kPosInf;
+	}
+
+	static FTimeValue GetNegativeInfinity()
+	{
+		static FTimeValue kNegInf(-std::numeric_limits<double>::infinity());
+		return kNegInf;
 	}
 
 	static int64 MillisecondsToHNS(int64 InMilliseconds)
@@ -138,7 +144,7 @@ public:
 	}
 
 	//! Returns this time value in a custom timebase. Requires internal bigint conversion and is therefor SLOW!
-	int64 GetAsTimebase(uint32 CustomTimebase) const;
+	ELECTRABASE_API int64 GetAsTimebase(uint32 CustomTimebase) const;
 
 	FTimespan GetAsTimespan() const
 	{
@@ -180,11 +186,20 @@ public:
 		return *this;
 	}
 
+	FTimeValue& SetToNegativeInfinity(int64 InSequenceIndex=0)
+	{
+		HNS = -0x7fffffffffffffffLL;
+		SequenceIndex = InSequenceIndex;
+		bIsValid = true;
+		bIsInfinity = true;
+		return *this;
+	}
+
 	FTimeValue& SetFromSeconds(double Seconds, int64 InSequenceIndex=0)
 	{
-		if ((bIsInfinity = (Seconds == std::numeric_limits<double>::infinity())) == true)
+		if ((bIsInfinity = (Seconds == std::numeric_limits<double>::infinity() || Seconds == -std::numeric_limits<double>::infinity())) == true)
 		{
-			HNS = 0x7fffffffffffffffLL;
+			HNS = Seconds < 0.0 ? -0x7fffffffffffffffLL : 0x7fffffffffffffffLL;
 			bIsValid = true;
 		}
 		else
@@ -254,9 +269,9 @@ public:
 		return *this;
 	}
 
-	FTimeValue& SetFromND(int64 Numerator, uint32 Denominator, int64 InSequenceIndex=0);
+	ELECTRABASE_API FTimeValue& SetFromND(int64 Numerator, uint32 Denominator, int64 InSequenceIndex=0);
 
-	FTimeValue& SetFromTimeFraction(const FTimeFraction& TimeFraction, int64 InSequenceIndex=0);
+	ELECTRABASE_API FTimeValue& SetFromTimeFraction(const FTimeFraction& TimeFraction, int64 InSequenceIndex=0);
 
 
 	FTimeValue& SetFromTimespan(const FTimespan& InTimespan, int64 InSequenceIndex=0)
@@ -280,7 +295,7 @@ public:
 	{
 		SequenceIndex = InSequenceIndex;
 	}
-	
+
 	int64 GetSequenceIndex() const
 	{
 		return SequenceIndex;
@@ -344,7 +359,10 @@ public:
 			{
 				if (!bIsInfinity && !rhs.bIsInfinity)
 				{
-					HNS += rhs.HNS;
+					if (WillOverflow(HNS, HNS, rhs.HNS))
+					{
+						SetToPositiveInfinity();
+					}
 				}
 				else
 				{
@@ -415,8 +433,11 @@ public:
 		{
 			if (!bIsInfinity && !rhs.bIsInfinity)
 			{
-				Result.HNS = HNS + rhs.HNS;
 				Result.bIsValid = true;
+				if (WillOverflow(Result.HNS, HNS, rhs.HNS))
+				{
+					Result.SetToPositiveInfinity();
+				}
 			}
 			else
 			{
@@ -502,7 +523,30 @@ public:
 		return Result;
 	}
 
+	inline FTimeValue operator - () const
+	{
+		FTimeValue Result(*this);
+		Result.HNS = -Result.HNS;
+		return Result;
+	}
+
+	inline FTimeValue Abs() const
+	{
+		FTimeValue Result(*this);
+		if (Result.HNS < 0)
+		{
+			Result.HNS = -Result.HNS;
+		}
+		return Result;
+	}
+
 private:
+	static inline bool WillOverflow(int64& OutTemp, const int64 InA, const int64 InB)
+	{
+		int64 Temp = InA + InB;
+		OutTemp = Temp;
+		return (InA >= 0 && InB >= 0 && Temp < 0) || (InA < 0 && InB < 0 && Temp >= 0);
+	}
 	int64	HNS;
 	int64	SequenceIndex;
 	bool	bIsValid;
@@ -542,7 +586,7 @@ struct FTimeRange
 /**
  * Keeps a time value as a fractional.
  */
-class ELECTRABASE_API FTimeFraction
+class FTimeFraction
 {
 public:
 	static const FTimeFraction& GetInvalid()
@@ -609,7 +653,7 @@ public:
 	}
 
 	//! Returns this time value in a custom timebase. Requires internal bigint conversion and is therefor SLOW!
-	int64 GetAsTimebase(uint32 CustomTimebase) const;
+	ELECTRABASE_API int64 GetAsTimebase(uint32 CustomTimebase) const;
 
 	FTimeFraction& SetFromND(int64 InNumerator, uint32 InDenominator)
 	{
@@ -636,7 +680,7 @@ public:
 		return *this;
 	}
 
-	FTimeFraction& SetFromFloatString(const FString& In);
+	ELECTRABASE_API FTimeFraction& SetFromFloatString(const FString& In);
 
 
 	bool operator == (const FTimeFraction& rhs) const

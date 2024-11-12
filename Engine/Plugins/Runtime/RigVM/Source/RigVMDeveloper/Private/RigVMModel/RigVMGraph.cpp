@@ -9,6 +9,7 @@
 #include "UObject/Package.h"
 #include "UObject/ObjectSaveContext.h"
 #include "RigVMTypeUtils.h"
+#include "RigVMModel/RigVMClient.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMGraph)
 
@@ -16,6 +17,7 @@ URigVMGraph::URigVMGraph()
 : DiagnosticsAST(nullptr)
 , RuntimeAST(nullptr)
 , bEditable(true)
+, SchemaClass(nullptr)
 {
 	SetExecuteContextStruct(FRigVMExecuteContext::StaticStruct());
 }
@@ -68,10 +70,13 @@ TArray<URigVMGraph*> URigVMGraph::GetContainedGraphs(bool bRecursive) const
 	{
 		if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
 		{
-			Graphs.AddUnique(CollapseNode->GetContainedGraph());
-			if (bRecursive)
+			if (ensure(CollapseNode->GetContainedGraph()))
 			{
-				Graphs.Append(CollapseNode->GetContainedGraph()->GetContainedGraphs(true));
+				Graphs.AddUnique(CollapseNode->GetContainedGraph());
+				if (bRecursive)
+				{
+					Graphs.Append(CollapseNode->GetContainedGraph()->GetContainedGraphs(true));
+				}
 			}
 		}
 	}
@@ -401,6 +406,16 @@ TArray<FRigVMGraphVariableDescription> URigVMGraph::GetOutputArguments() const
 		}
 	}
 	return Outputs;
+}
+
+URigVMSchema* URigVMGraph::GetSchema() const
+{
+	return SchemaClass ? SchemaClass->GetDefaultObject<URigVMSchema>() : nullptr;
+}
+
+void URigVMGraph::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
+{
+	SchemaClass = InSchemaClass;
 }
 
 FRigVMGraphModifiedEvent& URigVMGraph::OnModified()

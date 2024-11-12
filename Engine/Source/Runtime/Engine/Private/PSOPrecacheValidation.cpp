@@ -12,6 +12,9 @@
 
 #if PSO_PRECACHING_VALIDATE && UE_WITH_PSO_PRECACHING
 
+// CSV category for PSOPrecache
+CSV_DEFINE_CATEGORY(PSOPrecache, true);
+
 /**
 * Different IHVs and drivers can have different opinions on what subset of a PSO
 * matters for caching. We track multiple PSO subsets, ranging from shaders-only
@@ -79,7 +82,7 @@ void ConditionalBreakOnPSOPrecacheMaterial(const FMaterial& Material, int32 PSOC
 {
 	if (!GPSOPrecachingBreakOnMaterialName.IsEmpty())
 	{
-		int PSOCollectorIndexToDebug = FPSOCollectorCreateManager::GetIndex(EShadingPath::Deferred, *GPSOPrecachingBreakOnPassName);
+		int PSOCollectorIndexToDebug = FPSOCollectorCreateManager::GetIndex(GetFeatureLevelShadingPath(GMaxRHIFeatureLevel), *GPSOPrecachingBreakOnPassName);
 		FString MaterialName = Material.GetAssetName();
 		if (MaterialName == GPSOPrecachingBreakOnMaterialName && PSOCollectorIndex == PSOCollectorIndexToDebug)
 		{
@@ -110,6 +113,19 @@ void ConditionalBreakOnPSOPrecacheShader(const FGraphicsPipelineStateInitializer
 	}
 }
 
+void ConditionalBreakOnPSOPrecacheShader(const FRHIComputeShader* ComputeShader)
+{
+	if (!GPSOPrecachingBreakOnShaderHash.IsEmpty() && ComputeShader)
+	{
+		FSHAHash ShaderHash;
+		ShaderHash.FromString(GPSOPrecachingBreakOnShaderHash);
+		if (ComputeShader->GetHash() == ShaderHash)
+		{
+			UE_DEBUG_BREAK();
+		}
+	}
+}
+
 PSOCollectorStats::EPSOPrecacheValidationMode PSOCollectorStats::GetPrecachingValidationMode()
 {
 	switch (GPSOPrecachingValidationMode)
@@ -127,12 +143,12 @@ PSOCollectorStats::EPSOPrecacheValidationMode PSOCollectorStats::GetPrecachingVa
 
 bool PSOCollectorStats::IsPrecachingValidationEnabled()
 {
-	return PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() != EPSOPrecacheValidationMode::Disabled;
+	return (GetPSOPrecacheMode() == EPSOPrecacheMode::PSO) && PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() != EPSOPrecacheValidationMode::Disabled;
 }
 
 bool PSOCollectorStats::IsFullPrecachingValidationEnabled()
 {
-	return PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() == EPSOPrecacheValidationMode::Full;
+	return (GetPSOPrecacheMode() == EPSOPrecacheMode::PSO) && PipelineStateCache::IsPSOPrecachingEnabled() && GetPrecachingValidationMode() == EPSOPrecacheValidationMode::Full;
 }
 
 void PSOCollectorStats::FPrecacheUsageData::Empty()
@@ -202,7 +218,7 @@ bool PSOCollectorStats::FPrecacheStatsCollector::IsStateTracked(int32 PSOCollect
 #endif
 }
 
-EPSOPrecacheResult PSOCollectorStats::FPrecacheStatsCollector::UpdatePrecacheStats(uint64 PrecacheHash, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType, bool bTracked, EPSOPrecacheResult PrecacheResult)
+bool PSOCollectorStats::FPrecacheStatsCollector::UpdatePrecacheStats(uint64 PrecacheHash, int32 PSOCollectorIndex, const FVertexFactoryType* VertexFactoryType, bool bTracked, EPSOPrecacheResult& InOutPrecacheResult)
 {
 	EPSOPrecacheResult OutResult = EPSOPrecacheResult::Unknown;
 
@@ -235,7 +251,7 @@ EPSOPrecacheResult PSOCollectorStats::FPrecacheStatsCollector::UpdatePrecacheSta
 			Stats.MissData.UpdateStats(PSOCollectorIndex, VertexFactoryType);
 			OutResult = EPSOPrecacheResult::Missed;
 		}
-		else if (PrecacheResult == EPSOPrecacheResult::Active)
+		else if (InOutPrecacheResult == EPSOPrecacheResult::Active)
 		{
 			Stats.TooLateData.UpdateStats(PSOCollectorIndex, VertexFactoryType);
 			OutResult = EPSOPrecacheResult::TooLate;
@@ -247,7 +263,8 @@ EPSOPrecacheResult PSOCollectorStats::FPrecacheStatsCollector::UpdatePrecacheSta
 		}
 	}
 
-	return OutResult;
+	InOutPrecacheResult = OutResult;
+	return bUpdateStats;
 }
 
 bool PSOCollectorStats::FPrecacheStatsCollector::IsPrecached(uint64 PrecacheStateHash)
@@ -340,16 +357,21 @@ void PSOCollectorStats::CheckFullPipelineStateInCache(
 		PrecacheStateHash = PSOCollectorStats::GetPSOPrecacheHash(Initializer);
 	}
 	
-	EPSOPrecacheResult Result = PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCacheByHash(PrecacheStateHash, PSOPrecacheResult, PSOCollectorIndex, VFType);
-	if (IsFullPrecachingValidationEnabled() && Result == EPSOPrecacheResult::Missed)
+	bool bStatUpdated = PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCacheByHash(PrecacheStateHash, PSOCollectorIndex, VFType, PSOPrecacheResult);
+	if (IsFullPrecachingValidationEnabled() && bStatUpdated && (PSOPrecacheResult == EPSOPrecacheResult::Missed || PSOPrecacheResult == EPSOPrecacheResult::TooLate))
 	{
 		// only report here if it's not missing with minimal PSO initializer
 		bool bMinimalPSOPrecached = bCheckMinimalPSOPrecached ? PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().IsPrecached(Initializer.StatePrecachePSOHash) : true;
 		if (bMinimalPSOPrecached)
 		{
 			const FMaterial* Material = MaterialRenderProxy ? MaterialRenderProxy->GetMaterialNoFallback(GMaxRHIFeatureLevel) : nullptr;
-			LogPSOMissInfo(Initializer, EPSOPrecacheMissType::FullPSO, Result, Material, VFType, PrimitiveSceneProxy, PSOCollectorIndex, 0);
+			LogPSOMissInfo(Initializer, EPSOPrecacheMissType::FullPSO, PSOPrecacheResult, Material, VFType, PrimitiveSceneProxy, PSOCollectorIndex, 0);
 		}
+	}
+
+	if (bStatUpdated)
+	{
+		UpdateCSVStats(PSOPrecacheResult);
 	}
 }
 
@@ -359,11 +381,48 @@ void PSOCollectorStats::CheckComputePipelineStateInCache(
 	const FMaterialRenderProxy* MaterialRenderProxy,
 	int32 PSOCollectorIndex)
 {
-	EPSOPrecacheResult Result = PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCache(ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, PSOPrecacheResult, PSOCollectorIndex, nullptr);
-	if (IsFullPrecachingValidationEnabled() && Result == EPSOPrecacheResult::Missed)
+	bool bStatsUpdated = PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCache(ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, PSOCollectorIndex, nullptr, PSOPrecacheResult);
+	if (IsFullPrecachingValidationEnabled() && bStatsUpdated && PSOPrecacheResult == EPSOPrecacheResult::Missed)
 	{
 		const FMaterial* Material = MaterialRenderProxy ? MaterialRenderProxy->GetMaterialNoFallback(GMaxRHIFeatureLevel) : nullptr;
-		LogPSOMissInfo(ComputeShader, Result, Material, PSOCollectorIndex);
+		LogPSOMissInfo(ComputeShader, PSOPrecacheResult, Material, PSOCollectorIndex);
+	}
+
+	if (bStatsUpdated)
+	{
+		UpdateCSVStats(PSOPrecacheResult);
+	}
+}
+
+void PSOCollectorStats::UpdateCSVStats(EPSOPrecacheResult PSOPrecacheResult)
+{
+	switch (PSOPrecacheResult)
+	{
+	case EPSOPrecacheResult::Complete:
+	{
+		CSV_CUSTOM_STAT(PSOPrecache, Hit, 1, ECsvCustomStatOp::Accumulate);
+		break;
+	}
+	case EPSOPrecacheResult::Missed:
+	{
+		CSV_CUSTOM_STAT(PSOPrecache, Miss, 1, ECsvCustomStatOp::Accumulate);
+		break;
+	}
+	case EPSOPrecacheResult::Active:
+	case EPSOPrecacheResult::TooLate:
+	{
+		CSV_CUSTOM_STAT(PSOPrecache, TooLate, 1, ECsvCustomStatOp::Accumulate);
+		break;
+	}
+	case EPSOPrecacheResult::Untracked:
+	{
+		CSV_CUSTOM_STAT(PSOPrecache, Untracked, 1, ECsvCustomStatOp::Accumulate);
+		break;
+	}
+	default:
+	{
+		check(false);
+	}
 	}
 }
 
@@ -371,22 +430,6 @@ void PSOCollectorStats::CheckComputePipelineStateInCache(
 //////////////////////////////////////////////////////////////////////////
 
 using PSOMissStringBuilder = TStringBuilder<2048>;
-
-static const TCHAR* GetPSOPrecacheResultName(EPSOPrecacheResult Result)
-{
-	const TCHAR* PSOPrecacheResultString = nullptr;
-	switch (Result)
-	{
-	case EPSOPrecacheResult::Unknown:			PSOPrecacheResultString = TEXT("Unknown"); break;
-	case EPSOPrecacheResult::Active:			PSOPrecacheResultString = TEXT("Precaching"); break;
-	case EPSOPrecacheResult::Complete:			PSOPrecacheResultString = TEXT("Precached"); break;
-	case EPSOPrecacheResult::Missed:			PSOPrecacheResultString = TEXT("Missed"); break;
-	case EPSOPrecacheResult::TooLate:			PSOPrecacheResultString = TEXT("Too Late"); break;
-	case EPSOPrecacheResult::NotSupported:		PSOPrecacheResultString = TEXT("Precache Untracked"); break;
-	case EPSOPrecacheResult::Untracked:			PSOPrecacheResultString = TEXT("Untracked"); break;
-	}
-	return PSOPrecacheResultString;
-}
 
 static const TCHAR* GetPSOMissTypeName(EPSOPrecacheMissType Type)
 {
@@ -412,13 +455,13 @@ static void LogGeneralPSOMissInfo(
 {
 	StringBuilder.Appendf(TEXT("\n\nPSO PRECACHING MISS:"));
 	StringBuilder.Appendf(TEXT("\n\tType:\t\t\t\t\t%s"), GetPSOMissTypeName(MissType));
-	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), GetPSOPrecacheResultName(PrecacheResult));
+	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), LexToString(PrecacheResult));
 	StringBuilder.Appendf(TEXT("\n\tMaterial:\t\t\t\t%s"), Material ? *Material->GetAssetName() : TEXT("Unknown"));
 	StringBuilder.Appendf(TEXT("\n\tVertexFactoryType:\t\t%s"), VFType ? VFType->GetName() : TEXT("None"));
 #if MESH_DRAW_COMMAND_STATS
 	StringBuilder.Appendf(TEXT("\n\tMDCStatsCategory:\t\t%s"), PrimitiveSceneProxy ? *PrimitiveSceneProxy->GetMeshDrawCommandStatsCategory().ToString() : TEXT("Unknown"));
 #endif // MESH_DRAW_COMMAND_STATS
-	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(EShadingPath::Deferred, PSOCollectorIndex));
+	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(GetFeatureLevelShadingPath(GMaxRHIFeatureLevel), PSOCollectorIndex));
 	StringBuilder.Appendf(TEXT("\n\tShader Hashes:"));
 	const auto LogShaderInfo = [&](const TCHAR* ShaderTypeName, FRHIShader* RHIShader)
 		{
@@ -488,7 +531,7 @@ static void LogVertexElement(const FVertexElement& VertexElement, PSOMissStringB
 {
 	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tStreamIndex:\t\t%d"), VertexElement.StreamIndex);
 	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tOffset:\t\t\t\t%d"), VertexElement.Offset);
-	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tType:\t\t\t\t%d"), VertexElement.Type);
+	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tType:\t\t\t\t%d"), VertexElement.Type.GetIntValue());
 	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tAttributeIndex:\t\t%d"), VertexElement.AttributeIndex);
 	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tStride:\t\t\t\t%d"), VertexElement.Stride);
 	StringBuilder.Appendf(TEXT("\n\t\t\t\t\tbUseInstanceIndex:\t%d"), VertexElement.bUseInstanceIndex);
@@ -757,7 +800,7 @@ void LogMinimalPSOStateMissInfo(
 	StringBuilder.Appendf(TEXT("\n\n\tShadersOnly precache information:"));
 	StringBuilder.Appendf(TEXT("\n\tMaterial:\t\t\t\t%s"), *PrecachedMaterialName);
 	StringBuilder.Appendf(TEXT("\n\tVertexFactoryType:\t\t%s"), PrecachedVertexFactoryType ? PrecachedVertexFactoryType->GetName() : TEXT("None"));
-	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(EShadingPath::Deferred, PrecachedPSOCollectorIndex));
+	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(GetFeatureLevelShadingPath(GMaxRHIFeatureLevel), PrecachedPSOCollectorIndex));
 
 	StringBuilder.Appendf(TEXT("\n\n\tMissed Info:"));
 
@@ -769,7 +812,7 @@ void LogMinimalPSOStateMissInfo(
 		{
 			StringBuilder.Appendf(TEXT("\n\t\t- Found PSO With same shaders & different state:"));
 			StringBuilder.Appendf(TEXT("\n\t\t\tVertexFactoryType:\t\t%s"), PSOPrecacheData.VertexFactoryType ? PSOPrecacheData.VertexFactoryType->GetName() : TEXT("None"));
-			StringBuilder.Appendf(TEXT("\n\t\t\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(EShadingPath::Deferred, PSOPrecacheData.PSOCollectorIndex));
+			StringBuilder.Appendf(TEXT("\n\t\t\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(GetFeatureLevelShadingPath(GMaxRHIFeatureLevel), PSOPrecacheData.PSOCollectorIndex));
 			StringBuilder.Appendf(TEXT("\n\t\t  Differences:"));
 
 			CompareVertexDeclarationAndLogChanges(PSOPrecacheData.GraphicsPSOInitializer.BoundShaderState.VertexDeclarationRHI, Initializer.BoundShaderState.VertexDeclarationRHI, StringBuilder);
@@ -779,8 +822,6 @@ void LogMinimalPSOStateMissInfo(
 			CompareRHIRasterizerStateAndLogChanges(PSOPrecacheData.GraphicsPSOInitializer.RasterizerState, Initializer.RasterizerState, StringBuilder);
 
 			CompareStateAndLogChanges(TEXT("DepthBounds"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bDepthBounds), uint32(Initializer.bDepthBounds), StringBuilder);
-			CompareStateAndLogChanges(TEXT("MultiViewCount"), uint32(PSOPrecacheData.GraphicsPSOInitializer.MultiViewCount), uint32(Initializer.MultiViewCount), StringBuilder);
-			CompareStateAndLogChanges(TEXT("HasFragmentDensityAttachment"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bHasFragmentDensityAttachment), uint32(Initializer.bHasFragmentDensityAttachment), StringBuilder);
 			CompareStateAndLogChanges(TEXT("DrawShadingRate"), uint32(PSOPrecacheData.GraphicsPSOInitializer.ShadingRate), uint32(Initializer.ShadingRate), StringBuilder);
 			CompareStateAndLogChanges(TEXT("PrimitiveType"), uint32(PSOPrecacheData.GraphicsPSOInitializer.PrimitiveType), uint32(Initializer.PrimitiveType), StringBuilder);
 
@@ -844,6 +885,8 @@ void LogFullPSOStateMissInfo(
 					CompareStateAndLogChanges(TEXT("NumSamples"), uint32(PSOPrecacheData.GraphicsPSOInitializer.NumSamples), uint32(Initializer.NumSamples), StringBuilder);
 					CompareStateAndLogChanges(TEXT("SubpassHint"), uint32(PSOPrecacheData.GraphicsPSOInitializer.SubpassHint), uint32(Initializer.SubpassHint), StringBuilder);
 					CompareStateAndLogChanges(TEXT("SubpassIndex"), uint32(PSOPrecacheData.GraphicsPSOInitializer.SubpassIndex), uint32(Initializer.SubpassIndex), StringBuilder);
+					CompareStateAndLogChanges(TEXT("MultiViewCount"), uint32(PSOPrecacheData.GraphicsPSOInitializer.MultiViewCount), uint32(Initializer.MultiViewCount), StringBuilder);
+					CompareStateAndLogChanges(TEXT("HasFragmentDensityAttachment"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bHasFragmentDensityAttachment), uint32(Initializer.bHasFragmentDensityAttachment), StringBuilder);
 					CompareStateAndLogChanges(TEXT("ConservativeRasterization"), uint32(PSOPrecacheData.GraphicsPSOInitializer.ConservativeRasterization), uint32(Initializer.ConservativeRasterization), StringBuilder);										
 				}
 			}
@@ -908,6 +951,12 @@ void LogPSOMissInfo(
 		}
 		}
 	}
+	else if (Result == EPSOPrecacheResult::TooLate)
+	{
+		check(MissType == EPSOPrecacheMissType::FullPSO);
+		
+		// Nothing extra log yet
+	}
 	else
 	{
 		// Should have get any other results on shaders only
@@ -927,9 +976,9 @@ void LogPSOMissInfo(
 	PSOMissStringBuilder StringBuilder;
 	StringBuilder.Appendf(TEXT("\n\nPSO PRECACHING MISS:"));
 	StringBuilder.Appendf(TEXT("\n\tType:\t\t\t\t\t%s"), TEXT("Compute"));
-	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), GetPSOPrecacheResultName(PrecacheResult));
+	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), LexToString(PrecacheResult));
 	StringBuilder.Appendf(TEXT("\n\tMaterial:\t\t\t\t%s"), Material ? *Material->GetAssetName() : TEXT("Unknown"));
-	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(EShadingPath::Deferred, PSOCollectorIndex));
+	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(GetFeatureLevelShadingPath(GMaxRHIFeatureLevel), PSOCollectorIndex));
 	StringBuilder.Appendf(TEXT("\n\tCompute Shader Hash:\t%s"), *(ComputeShader.GetHash().ToString()));
 
 	// Not sure yet if this is interesting data or not

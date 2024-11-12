@@ -53,6 +53,11 @@ namespace Chaos::Facades
 		/** Get parent of a specific transform index */
 		CHAOS_API int32 GetParent(int32 TransformIndex) const;
 
+		/**
+		 * Enumerate transforms at or under TransformIndex where ShouldProcess returns true, stopping recursion and calling ProcessTransformFunc on such transforms.
+		 */
+		CHAOS_API void EnumerateChildTransforms(int32 TransformIndex, TFunctionRef<bool(int32)> ShouldProcess, TFunctionRef<void(int32)> ProcessTransformFunc) const;
+
 		/** 
 		* Get initial level of a specific transform index 
 		* If the attribute is missing return INDEX_NONE

@@ -244,6 +244,17 @@ TSharedRef<SWidget> SGraphPinObject::GenerateAssetPicker()
 	AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateSP(this, &SGraphPinObject::OnAssetEnterPressedInPicker);
 	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
 	AssetPickerConfig.bAllowDragging = false;
+	AssetPickerConfig.InitialAssetSelection = CachedAssetData.GetAsset();
+
+	UObject* OwningAsset = GraphPinObj->GetOwningNode();
+	while (OwningAsset && !OwningAsset->IsAsset())
+	{
+		OwningAsset = OwningAsset->GetOuter();
+	}	
+	if (OwningAsset)
+	{
+		AssetPickerConfig.AdditionalReferencingAssets.Add(FAssetData(OwningAsset));
+	}
 
 	// Check with the node to see if there is any "AllowClasses" or "DisallowedClasses" metadata for the pin
 	FString AllowedClassesFilterString = GraphPinObj->GetOwningNode()->GetPinMetaData(GraphPinObj->PinName, FName(TEXT("AllowedClasses")));

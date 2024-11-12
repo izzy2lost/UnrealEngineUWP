@@ -12,11 +12,6 @@ UAvaSVGActorTool::UAvaSVGActorTool()
 	ActorClass = ASVGActor::StaticClass();
 }
 
-bool UAvaSVGActorTool::UseIdentityRotation() const
-{
-	return ConditionalIdentityRotation();
-}
-
 FName UAvaSVGActorTool::GetCategoryName()
 {
 	return IAvalancheInteractiveToolsModule::CategoryNameActor;
@@ -25,7 +20,7 @@ FName UAvaSVGActorTool::GetCategoryName()
 FAvaInteractiveToolsToolParameters UAvaSVGActorTool::GetToolParameters() const
 {
 	return {
-		FSVGImporterEditorCommands::Get().SpawnSVGActor,
+		FSVGImporterEditorCommands::GetExternal().SpawnSVGActor,
 		TEXT("SVG Actor Tool"),
 		6000,
 		FAvalancheInteractiveToolsCreateBuilder::CreateLambda(

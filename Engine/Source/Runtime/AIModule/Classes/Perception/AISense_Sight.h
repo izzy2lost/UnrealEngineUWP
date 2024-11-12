@@ -6,7 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "GenericTeamAgentInterface.h"
 #include "WorldCollision.h"
-#include "Misc/MTAccessDetector.h"
+#include "Misc/MTTransactionallySafeAccessDetector.h"
 #include "Perception/AISense.h"
 #include "AISense_Sight.generated.h"
 
@@ -54,9 +54,12 @@ struct FAISightTarget
 	static AIMODULE_API const FTargetId InvalidTargetId;
 
 	TWeakObjectPtr<AActor> Target;
-	IAISightTargetInterface* SightTargetInterface;
+	TWeakInterfacePtr<IAISightTargetInterface> WeakSightTargetInterface;
 	FGenericTeamId TeamId;
 	FTargetId TargetId;
+
+	UE_DEPRECATED_FORGAME(5.5, "SightTargetInterface is deprecated. Use WeakSightTargetInterface instead.")
+	IAISightTargetInterface* SightTargetInterface = nullptr;
 
 	AIMODULE_API FAISightTarget(AActor* InTarget = NULL, FGenericTeamId InTeamId = FGenericTeamId::NoTeam);
 
@@ -278,7 +281,7 @@ protected:
 	FOnPendingVisibilityQueryProcessedDelegate OnPendingCanBeSeenQueryProcessedDelegate;
 	FTraceDelegate OnPendingTraceQueryProcessedDelegate;
 
-	UE_MT_DECLARE_RW_ACCESS_DETECTOR(QueriesListAccessDetector);
+	UE_MT_DECLARE_TS_RW_ACCESS_DETECTOR(QueriesListAccessDetector);
 
 public:
 

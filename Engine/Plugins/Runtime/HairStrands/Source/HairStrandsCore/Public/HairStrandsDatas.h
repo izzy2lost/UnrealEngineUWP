@@ -852,6 +852,10 @@ struct FHairStrandsRootData
 	TArray<FHairStrandsUniqueTriangleIndexFormat::Type> UniqueTriangleIndexBuffer;
 	TArray<FHairStrandsMeshTrianglePositionFormat::Type> RestUniqueTrianglePositionBuffer;
 
+	/* Optional: Unique triangle positions before transfer. */
+	/* This data is available if triangles transfer from source to target was needed. */
+	TArray<FHairStrandsMeshTrianglePositionFormat::Type> RestUniqueTrianglePositionBuffer_TargetNonTransfered;
+
 	/* Number of samples used for the mesh interpolation */
 	uint32 SampleCount = 0;
 

@@ -193,6 +193,8 @@ public:
 
 	void Init();
 
+	bool HandleSessionExec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar);
+
 private:
 	// EOS Lobbies
 
@@ -232,6 +234,8 @@ private:
 	FCallbackBase* LobbyInviteAcceptedCallback;
 	EOS_NotificationId JoinLobbyAcceptedId;
 	FCallbackBase* JoinLobbyAcceptedCallback;
+	EOS_NotificationId LeaveLobbyRequestedId;
+	FCallbackBase* LeaveLobbyRequestedCallback;
 
 	void OnLobbyUpdateReceived(const EOS_LobbyId& LobbyId);
 	void OnLobbyMemberUpdateReceived(const EOS_LobbyId& LobbyId, const EOS_ProductUserId& TargetUserId);
@@ -239,6 +243,7 @@ private:
 	void OnLobbyInviteReceived(const EOS_Lobby_LobbyInviteReceivedCallbackInfo* Data);
 	void OnLobbyInviteAccepted(const EOS_Lobby_LobbyInviteAcceptedCallbackInfo* Data);
 	void OnJoinLobbyAccepted(const EOS_Lobby_JoinLobbyAcceptedCallbackInfo* Data);
+	void OnLeaveLobbyRequested(const EOS_Lobby_LeaveLobbyRequestedCallbackInfo* Data);
 
 	// Methods to update an API Lobby from an OSS Lobby
 	void SetLobbyPermissionLevel(EOS_HLobbyModification LobbyModificationHandle, FNamedOnlineSession* Session);
@@ -250,13 +255,13 @@ private:
 
 	// Methods to update an OSS Lobby from an API Lobby
 	typedef TFunction<void(bool bWasSuccessful)> FOnCopyLobbyDataCompleteCallback;
-	void CopyLobbyData(const TSharedRef<FLobbyDetailsEOS>& LobbyDetails, EOS_LobbyDetails_Info* LobbyDetailsInfo, FOnlineSession& OutSession, bool bCopyMemberData, const FOnCopyLobbyDataCompleteCallback& Callback);
+	void CopyLobbyData(const TSharedRef<FLobbyDetailsEOS>& LobbyDetails, EOS_LobbyDetails_Info* LobbyDetailsInfo, FOnlineSession& OutSession, bool bCopyMemberData, FOnCopyLobbyDataCompleteCallback&& Callback);
 	void CopyLobbyAttributes(const FLobbyDetailsEOS& LobbyDetails, FOnlineSession& OutSession);
 	void CopyLobbyMemberAttributes(const FLobbyDetailsEOS& LobbyDetails, const EOS_ProductUserId& TargetUserId, FSessionSettings& OutSessionSettings);
 
 	// Lobby search
 	void AddLobbySearchAttribute(EOS_HLobbySearch LobbySearchHandle, const EOS_Lobby_AttributeData* Attribute, EOS_EOnlineComparisonOp ComparisonOp);
-	void AddLobbySearchResult(const TSharedRef<FLobbyDetailsEOS>& LobbyDetails, const TSharedRef<FOnlineSessionSearch>& SearchSettings, const FOnCopyLobbyDataCompleteCallback& Callback);
+	void AddLobbySearchResult(const TSharedRef<FLobbyDetailsEOS>& LobbyDetails, const TSharedRef<FOnlineSessionSearch>& SearchSettings, FOnCopyLobbyDataCompleteCallback&& Callback);
 
 	// Helper methods
 	typedef TFunction<void(const EOS_ProductUserId& ProductUserId, EOS_EpicAccountId& EpicAccountId)> GetEpicAccountIdAsyncCallback;
@@ -265,6 +270,7 @@ private:
 	void OnSessionInviteReceived(const EOS_Sessions_SessionInviteReceivedCallbackInfo* Data);
 	void OnSessionInviteAccepted(const EOS_Sessions_SessionInviteAcceptedCallbackInfo* Data);
 	void OnJoinSessionAccepted(const EOS_Sessions_JoinSessionAcceptedCallbackInfo* Data);
+	void OnLeaveSessionRequested(const EOS_Sessions_LeaveSessionRequestedCallbackInfo* Data);
 
 	void RegisterLobbyNotifications();
 	FNamedOnlineSession* GetNamedSessionFromLobbyId(const FUniqueNetIdEOSLobby& LobbyId);
@@ -276,6 +282,8 @@ private:
 	static FString GetBucketId(const FOnlineSessionSearch& SessionSettings);
 
 	// EOS Sessions
+	TArray<TSharedRef<FSessionDetailsEOS>> SessionSearchResultsPendingIdResolution;
+
 	uint32 CreateEOSSession(int32 HostingPlayerNum, FNamedOnlineSession* Session);
 	uint32 JoinEOSSession(int32 PlayerNum, FNamedOnlineSession* Session, const FOnlineSession* SearchSession);
 	uint32 StartEOSSession(FNamedOnlineSession* Session);
@@ -291,9 +299,10 @@ private:
 	void BeginSessionAnalytics(FNamedOnlineSession* Session);
 	void EndSessionAnalytics();
 
-	void AddSearchResult(const TSharedRef<FSessionDetailsEOS>& SessionHandle, const TSharedRef<FOnlineSessionSearch>& SearchSettings);
+	typedef TFunction<void(bool bWasSuccessful)> FOnCopySessionDataCompleteCallback;
+	void AddSearchResult(const TSharedRef<FSessionDetailsEOS>& SessionHandle, const TSharedRef<FOnlineSessionSearch>& SearchSettings, FOnCopySessionDataCompleteCallback&& Callback);
 	void AddSearchAttribute(EOS_HSessionSearch SearchHandle, const EOS_Sessions_AttributeData* Attribute, EOS_EOnlineComparisonOp ComparisonOp);
-	void CopySearchResult(const FSessionDetailsEOS& SessionHandle, EOS_SessionDetails_Info* SessionInfo, FOnlineSession& SessionSettings);
+	void CopySearchResult(const FSessionDetailsEOS& SessionHandle, EOS_SessionDetails_Info* SessionInfo, FOnlineSession& SessionSettings, FOnCopySessionDataCompleteCallback&& Callback);
 	void CopyAttributes(const FSessionDetailsEOS& SessionHandle, FOnlineSession& OutSession);
 
 	void SetPermissionLevel(EOS_HSessionModification SessionModHandle, FNamedOnlineSession* Session);
@@ -332,6 +341,9 @@ private:
 	/** The last accepted invite search. It searches by session id */
 	TSharedPtr<FOnlineSessionSearch> LastInviteSearch;
 
+	/** Used to track adding asynchronous session search results */
+	bool bAggregatedAddSearchResultSuccessful;
+
 	/** Notification state for SDK events */
 	EOS_NotificationId SessionInviteReceivedId;
 	FCallbackBase* SessionInviteReceivedCallback;
@@ -339,6 +351,8 @@ private:
 	FCallbackBase* SessionInviteAcceptedCallback;
 	EOS_NotificationId JoinSessionAcceptedId;
 	FCallbackBase* JoinSessionAcceptedCallback;
+	EOS_NotificationId LeaveSessionRequestedId;
+	FCallbackBase* LeaveSessionRequestedCallback;
 
 	bool bIsUsingP2PSockets;
 };

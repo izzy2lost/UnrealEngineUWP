@@ -10,39 +10,40 @@ namespace UnrealBuildTool
 	/// Attribute which can be applied to a TargetRules-dervied class to indicate which platforms it supports
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-	public class SupportedPlatformGroupsAttribute : SupportedPlatformsAttribute
+	public sealed class SupportedPlatformGroupsAttribute : SupportedPlatformsAttribute
 	{
 		/// <summary>
 		/// Initialize the attribute with a list of platform groups
 		/// </summary>
-		/// <param name="PlatformGroups">Variable-length array of platform group arguments</param>
-		public SupportedPlatformGroupsAttribute(params string[] PlatformGroups) : base(GetPlatformsForGroups(PlatformGroups))
+		/// <param name="platformGroups">Variable-length array of platform group arguments</param>
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1019:Define accessors for attribute arguments", Justification = "Unneeded")]
+		public SupportedPlatformGroupsAttribute(params string[] platformGroups) : base(GetPlatformsForGroups(platformGroups))
 		{
 		}
 
-		private static string[] GetPlatformsForGroups(params string[] PlatformGroups)
+		private static string[] GetPlatformsForGroups(params string[] platformGroups)
 		{
-			HashSet<UnrealTargetPlatform> SupportedPlatforms = new();
+			HashSet<UnrealTargetPlatform> supportedPlatforms = new();
 			try
 			{
-				foreach (string Name in PlatformGroups)
+				foreach (string name in platformGroups)
 				{
-					if (UnrealPlatformGroup.TryParse(Name, out UnrealPlatformGroup Group))
+					if (UnrealPlatformGroup.TryParse(name, out UnrealPlatformGroup group))
 					{
-						SupportedPlatforms.UnionWith(UnrealTargetPlatform.GetValidPlatforms().Where(x => x.IsInGroup(Group)));
+						supportedPlatforms.UnionWith(UnrealTargetPlatform.GetValidPlatforms().Where(x => x.IsInGroup(group)));
 						continue;
 					}
-					throw new BuildException(String.Format("The platform group name {0} is not a valid platform group name. Valid names are ({1})", Name,
+					throw new BuildException(String.Format("The platform group name {0} is not a valid platform group name. Valid names are ({1})", name,
 						String.Join(",", UnrealPlatformGroup.GetValidGroupNames())));
 				}
 			}
-			catch (BuildException Ex)
+			catch (BuildException ex)
 			{
-				EpicGames.Core.ExceptionUtils.AddContext(Ex, $"while parsing a SupportedPlatformGroups attribute '{String.Join(',', PlatformGroups)}'");
+				EpicGames.Core.ExceptionUtils.AddContext(ex, $"while parsing a SupportedPlatformGroups attribute '{String.Join(',', platformGroups)}'");
 				throw;
 			}
 
-			return SupportedPlatforms.Select(x => x.ToString()).ToArray();
+			return supportedPlatforms.Select(x => x.ToString()).ToArray();
 		}
 	}
 }

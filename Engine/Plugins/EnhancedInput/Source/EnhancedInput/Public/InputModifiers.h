@@ -114,10 +114,27 @@ protected:
 UENUM()
 enum class EDeadZoneType : uint8
 {
-	// Apply dead zone to axes individually. This will result in input being chamfered at the corners for 2d/3d axis inputs, and matches the original UE4 deadzone logic.
+	// Apply dead zone to axes individually. This will result in input being chamfered at the corners for
+	// 2d/3d axis inputs, and matches the original UE4 deadzone logic.
 	Axial,
-	// Apply dead zone logic to all axes simultaneously. This gives smooth input (circular/spherical coverage). On a 1d axis input this works identically to Axial.
-	Radial,
+	
+	// Apply dead zone logic to all axes simultaneously. This gives smooth input (circular/spherical coverage).
+	// On a 1d axis input this works identically to Axial.
+	// 
+	// For most games, this will give the smoothest feeling analog values. The input is smoothed to avoid
+	// "jumpiness" when you are moving the analog axis.
+	Radial UMETA(DisplayName="Smoothed Radial"),
+
+	// Apply dead zone logic to all axes simultaneously without any smooth input
+	// which the normal "Radial" deadzone applies.
+	//
+	// The behavior of this deadzone type is as follows:
+	// If the magnitude of the input is less then the lower threshold, ignore it.
+	// Clamp the magnitude of the input to the upper threshold value.
+	//
+	// For some games, this may result in feeling "jumpy", because the value goes from 0.0 to
+	// the lower threshold immediately instead of being smoothed, like the normal "Radial" deadzone option.
+	UnscaledRadial
 };
 
 /** Dead Zone
@@ -132,6 +149,7 @@ class UInputModifierDeadZone : public UInputModifier
 public:
 
 	// Threshold below which input is ignored
+	// This value should always be lower then the UpperThreshold.
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category=Settings, Config, meta=(ClampMin=0, ClampMax=1))
 	float LowerThreshold = 0.2f;
 
@@ -143,6 +161,12 @@ public:
 	EDeadZoneType Type = EDeadZoneType::Radial;
 
 protected:
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
 	virtual FInputActionValue ModifyRaw_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime) override;
 
 	// Visualize as black when unmodified. Red when blocked (with differing intensities to indicate axes)
@@ -171,7 +195,7 @@ public:
 	 *  
 	 * Note: This will do nothing on boolean input action types, as they can only be true or false.
 	 */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category=Settings)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Settings)
 	FVector Scalar = FVector::OneVector;
 
 protected:

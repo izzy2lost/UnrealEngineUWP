@@ -11,6 +11,8 @@
 #include "Widgets/Layout/SBorder.h"
 
 class FText;
+// Type of individual elements in breadcrumb bar, defines the current location or one of its parents.
+struct FNavigationCrumb;
 class ITableRow;
 template<typename ItemType>
 class SBreadcrumbTrail;
@@ -21,15 +23,15 @@ class STableViewBase;
 class USlateWidgetStyleAsset;
 
 using FOnPathClicked = TDelegate<void(const FString&)>;
-using FHasPathMenuContent = TDelegate<bool(const FString&)>;
 using FGetPathMenuContent = TDelegate<TSharedRef<SWidget>(const FString&)>;
 using FGetComboOptions = TDelegate<TArray<FString>(void)>;
 using FOnCompletePrefix = TDelegate<TArray<FString>(const FString&)>;
 using FOnNavigateToPath = TDelegate<void(const FString&)>;
 using FCanEditPathAsText = TDelegate<bool(const FString&)>;
 
-// Private class for internal list view
+// Private class for internal list view, stores a full possible location to nagivate to.
 struct FLocationItem;
+
 
 class SNavigationBar : public SComboButton
 {
@@ -73,9 +75,6 @@ public:
 		/** Called when an invididual button is clicked, after the later crumbs were popped */
 		SLATE_EVENT(FOnPathClicked , OnPathClicked)
 
-		/** Called to check whether there are locations after a particular crumb to populate a dropdown*/
-		SLATE_EVENT(FHasPathMenuContent, HasPathMenuContent)
-
 		/** Called to get dropdown options for a crumb separator's menu */
 		SLATE_EVENT(FGetPathMenuContent, GetPathMenuContent)
 		
@@ -98,7 +97,7 @@ public:
 	// Remove all paths from the breadcrumb bar
 	void ClearPaths();
 	// Add a new segment to the breadcrumb bar
-	void PushPath(const FText& SegmentDisplayText, const FString& FullLocation);
+	void PushPath(const FText& SegmentDisplayText, const FString& FullLocation, bool bHasChildren);
 	// Replace the breadcrumb bar with an editable text box and focus it
 	void StartEditingPath();
 
@@ -117,6 +116,9 @@ private:
 	FReply HandleEditableTextKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent);
 	FReply HandleComboKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
 	FReply HandleComboKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& InCharEvent);
+	void HandleCrumbClicked(const FNavigationCrumb& Crumb);
+	bool HandleHasCrumbMenuContent(const FNavigationCrumb& Crumb);
+	TSharedRef<SWidget> HandleGetCrumbMenuContent(const FNavigationCrumb& Crumb);
 	
 	EActiveTimerReturnType HandleUpdateCompletionOptions(double InCurrentTime, float InDeltaTime);
 
@@ -140,7 +142,7 @@ private:
 	TSharedPtr<FActiveTimerHandle> CompletionTimerHandle;
 
 	TSharedPtr<SEditableText> EditableText;
-    TSharedPtr<SBreadcrumbTrail<FString>> BreadcrumbBar;
+    TSharedPtr<SBreadcrumbTrail<FNavigationCrumb>> BreadcrumbBar;
 	TSharedPtr<SLocationListView> ComboListView;
 	
 	FText PopupHeading;
@@ -151,4 +153,6 @@ private:
 	FGetComboOptions OnGetComboOptions;
 	FOnCompletePrefix OnCompletePrefix;	
 	FCanEditPathAsText OnCanEditPathAsText;
+	FOnPathClicked OnPathClicked;
+	FGetPathMenuContent OnGetPathMenuContent;
 };

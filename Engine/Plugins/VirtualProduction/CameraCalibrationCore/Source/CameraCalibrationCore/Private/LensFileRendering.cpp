@@ -25,16 +25,9 @@ class FDisplacementMapBlendPS : public FGlobalShader
 	
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 
-		SHADER_PARAMETER(float, EvalTime)
-		SHADER_PARAMETER(float, Curve0Key0Time)
-		SHADER_PARAMETER(float, Curve0Key1Time)
-		SHADER_PARAMETER(float, Curve0Key0Tangent)
-		SHADER_PARAMETER(float, Curve0Key1Tangent)
-		SHADER_PARAMETER(float, Curve1Key0Time)
-		SHADER_PARAMETER(float, Curve1Key1Time)
-		SHADER_PARAMETER(float, Curve1Key0Tangent)
-		SHADER_PARAMETER(float, Curve1Key1Tangent)
-		SHADER_PARAMETER(float, FocusBlendFactor)
+		SHADER_PARAMETER(float, EvalFocus)
+		SHADER_PARAMETER(float, EvalZoom)
+		SHADER_PARAMETER_ARRAY(FVector4f, PatchCorners, [4])
 		SHADER_PARAMETER(FVector2f, FxFyScale)
 		SHADER_PARAMETER(FVector2f, PrincipalPoint)
 		SHADER_PARAMETER(FIntPoint, OutputTextureExtent)
@@ -151,7 +144,12 @@ namespace LensFileRendering
 					PermutationVector.Set<FDisplacementMapBlendPS::FBlendType>(1);
 					check(SourceTextureTwoResource);
 					const FRDGTextureRef TextureTwo = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTextureTwoResource->TextureRHI, TEXT("DisplacementMapTwo")));
-					PassParameters->FocusBlendFactor = BlendParams.FocusBlendFactor;
+					PassParameters->EvalFocus = BlendParams.EvalFocus;
+					PassParameters->EvalZoom = BlendParams.EvalZoom;
+					PassParameters->PatchCorners[0] = BlendParams.PatchCorners[0].ToVector();
+					PassParameters->PatchCorners[1] = BlendParams.PatchCorners[1].ToVector();
+					PassParameters->PatchCorners[2] = FVector4f::Zero();
+					PassParameters->PatchCorners[3] = FVector4f::Zero();
 					PassParameters->SourceTextureTwo = TextureTwo;
 					break;
 				}
@@ -160,11 +158,12 @@ namespace LensFileRendering
 					PermutationVector.Set<FDisplacementMapBlendPS::FBlendType>(2);
 					check(SourceTextureTwoResource);
 					const FRDGTextureRef TextureTwo = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTextureTwoResource->TextureRHI, TEXT("DisplacementMapTwo")));
-					PassParameters->EvalTime = BlendParams.EvalTime;
-					PassParameters->Curve0Key0Time = BlendParams.Curve0Key0Time;
-					PassParameters->Curve0Key1Time = BlendParams.Curve0Key1Time;
-					PassParameters->Curve0Key0Tangent = BlendParams.Curve0Key0Tangent;
-					PassParameters->Curve0Key1Tangent = BlendParams.Curve0Key1Tangent;
+					PassParameters->EvalFocus = BlendParams.EvalFocus;
+					PassParameters->EvalZoom = BlendParams.EvalZoom;
+					PassParameters->PatchCorners[0] = BlendParams.PatchCorners[0].ToVector();
+					PassParameters->PatchCorners[1] = BlendParams.PatchCorners[1].ToVector();
+					PassParameters->PatchCorners[2] = FVector4f::Zero();
+					PassParameters->PatchCorners[3] = FVector4f::Zero();
 					PassParameters->SourceTextureTwo = TextureTwo;
 					break;
 				}
@@ -175,16 +174,12 @@ namespace LensFileRendering
 					const FRDGTextureRef TextureTwo = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTextureTwoResource->TextureRHI, TEXT("DisplacementMapTwo")));
 					const FRDGTextureRef TextureThree = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTextureThreeResource->TextureRHI, TEXT("DisplacementMapThree")));
 					const FRDGTextureRef TextureFour = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTextureFourResource->TextureRHI, TEXT("DisplacementMapFour")));
-					PassParameters->EvalTime = BlendParams.EvalTime;
-					PassParameters->Curve0Key0Time = BlendParams.Curve0Key0Time;
-					PassParameters->Curve0Key1Time = BlendParams.Curve0Key1Time;
-					PassParameters->Curve0Key0Tangent = BlendParams.Curve0Key0Tangent;
-					PassParameters->Curve0Key1Tangent = BlendParams.Curve0Key1Tangent;
-					PassParameters->Curve1Key0Time = BlendParams.Curve1Key0Time;
-					PassParameters->Curve1Key1Time = BlendParams.Curve1Key1Time;
-					PassParameters->Curve1Key0Tangent = BlendParams.Curve1Key0Tangent;
-					PassParameters->Curve1Key1Tangent = BlendParams.Curve1Key1Tangent;
-					PassParameters->FocusBlendFactor = BlendParams.FocusBlendFactor;
+					PassParameters->EvalFocus = BlendParams.EvalFocus;
+					PassParameters->EvalZoom = BlendParams.EvalZoom;
+					PassParameters->PatchCorners[0] = BlendParams.PatchCorners[0].ToVector();
+					PassParameters->PatchCorners[1] = BlendParams.PatchCorners[1].ToVector();
+					PassParameters->PatchCorners[2] = BlendParams.PatchCorners[2].ToVector();
+					PassParameters->PatchCorners[3] = BlendParams.PatchCorners[3].ToVector();
 					PassParameters->SourceTextureTwo = TextureTwo;
 					PassParameters->SourceTextureThree = TextureThree;
 					PassParameters->SourceTextureFour = TextureFour;

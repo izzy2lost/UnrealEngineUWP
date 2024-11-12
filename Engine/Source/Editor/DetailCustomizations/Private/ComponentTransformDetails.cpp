@@ -25,6 +25,7 @@
 #include "Input/Events.h"
 #include "Internationalization/Internationalization.h"
 #include "IPropertyUtilities.h"
+#include "PropertyEditorArchetypePolicy.h"
 #include "Kismet2/ComponentEditorUtils.h"
 #include "Layout/Margin.h"
 #include "Math/Quat.h"
@@ -937,7 +938,7 @@ struct FGetRootComponentArchetype
 	static USceneComponent* Get(UObject* Object)
 	{
 		auto RootComponent = Object ? GetSceneComponentFromDetailsObject(Object) : nullptr;
-		return RootComponent ? Cast<USceneComponent>(RootComponent->GetArchetype()) : nullptr;
+		return RootComponent ? Cast<USceneComponent>(PropertyEditorPolicy::GetArchetype(RootComponent)) : nullptr;
 	}
 };
 
@@ -1069,9 +1070,9 @@ void FComponentTransformDetails::OnZScaleMirrored()
 
 void FComponentTransformDetails::CacheDetails()
 {
-	FVector CurLoc;
-	FRotator CurRot;
-	FVector CurScale;
+	FVector CurLoc = FVector::ZeroVector;
+	FRotator CurRot = FRotator::ZeroRotator;
+	FVector CurScale = FVector::ZeroVector;
 	bIsEnabledCache = true;
 	for( int32 ObjectIndex = 0; ObjectIndex < SelectedObjects.Num(); ++ObjectIndex )
 	{

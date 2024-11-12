@@ -30,10 +30,16 @@ typedef TSharedRef<IHttpResponse, ESPMode::ThreadSafe> FHttpResponseRef;
  * Delegate called when an Http request completes
  *
  * @param Request original Http request that started things
- * @param Response response received from the server if a successful connection was established
- * @param bConnectedSuccessfully - indicates whether or not the request was able to connect successfully
+ * @param Response response received from the server if a successful connection was established. Note that
+ *        even if response is not null, it doesn't mean the request was processed successfully. Use
+ *        Response->GetStatus(), Response->GetFailureReason() and Response->GetResponseCode() to decide
+ *        how to handle it
+ * @param bProcessedSuccessfully this flag indicates whether or not the request was able to be processed successfully.
+ *        It could be connect error, timeout error or platform http error. Note that when this flag is true
+ *        doesn't mean the http request get 2xx success status code, it just means this request got response
+ *        from http server and completed the processing
  */
-using FHttpRequestCompleteDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, bool /*bConnectedSuccessfully*/)>;
+using FHttpRequestCompleteDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, bool /*bProcessedSuccessfully*/)>;
 
 /**
  * Delegate called when an Http request receives status code
@@ -89,9 +95,17 @@ using FHttpRequestWillRetryDelegate = TTSDelegate<void(FHttpRequestPtr /*Request
 using FHttpRequestStreamDelegate = TTSDelegate<bool(void*/*Ptr*/, int64/*Length*/)>;
 
 /**
+ * Delegate called when an Http request will send/recv data through stream
+ *
+ * @param Ptr - The buffer ptr to read/write
+ * @param InOutLength - The int64 reference length of buffer to read/write, if there is any error when serialize set it to 0
+ */
+using FHttpRequestStreamDelegateV2 = TTSDelegate<void(void*/*Ptr*/, int64&/*InOutLength*/)>;
+
+/**
  * Delegate version of FArchive, for streaming interface
  */
-class FArchiveWithDelegate final : public FArchive
+class UE_DEPRECATED(5.5, "FArchiveWithDelegate is deprecated and will be moved to internal") FArchiveWithDelegate final : public FArchive
 {
 public:
 	FArchiveWithDelegate(FHttpRequestStreamDelegate InStreamDelegate)
@@ -101,7 +115,7 @@ public:
 
 	virtual void Serialize(void* V, int64 Length) override
 	{
-		if (!StreamDelegate.Execute(V, Length))
+		if (!StreamDelegate.IsBound() || !StreamDelegate.Execute(V, Length))
 		{
 			SetError();
 		}
@@ -112,16 +126,26 @@ private:
 };
 
 /**
+ * Options that can be specified on a Http Request
+ */
+namespace HttpRequestOptions
+{
+#if UE_HTTP_SUPPORT_UNIX_SOCKET
+	static const FName UnixSocketPath("UnixSocketPath");
+#endif //UE_HTTP_SUPPORT_UNIX_SOCKET
+}
+
+/**
  * Interface for Http requests (created using FHttpFactory)
  */
-class IHttpRequest : 
+class IHttpRequest :
 	public IHttpBase, public TSharedFromThis<IHttpRequest, ESPMode::ThreadSafe>
 {
 public:
 
 	/**
 	 * Gets the verb (GET, PUT, POST) used by the request.
-	 * 
+	 *
 	 * @return the verb string
 	 */
 	virtual FString GetVerb() const = 0;
@@ -137,13 +161,29 @@ public:
 	virtual void SetVerb(const FString& Verb) = 0;
 
 	/**
-	 * Sets the URL for the request 
+	 * Sets the URL for the request
 	 * Eg. (http://my.domain.com/something.ext?key=value&key2=value).
 	 * Must be set before calling ProcessRequest.
 	 *
 	 * @param URL - URL to use.
 	 */
 	virtual void SetURL(const FString& URL) = 0;
+
+	/**
+	 * Get the current value for the given option
+	 *
+	 * @return the current value set for this option or an empty string if no value has been specified
+	 */
+	virtual FString GetOption(const FName Option) const = 0;
+
+	/**
+	 * Sets the given option for this Request
+	 * Must be set before calling ProcessRequest.
+	 *
+	 * @param Option - The option to set, see 'HttpRequestOptions' for supported options
+	 * @param OptionValue - The value of the option to set
+	 */
+	virtual void SetOption(const FName Option, const FString& OptionValue) = 0;
 
 	/**
 	 * Sets the content of the request (optional data).
@@ -194,20 +234,19 @@ public:
 	 *     it's thread-safe in there
 	 *   - Make sure the delegate is safe to be called until receiving the process complete callback
 	 *     or after canceling the request
-	 *     For example: don't destroy the instance even if using BindThreadSafeSP, because internally 
-	 *     it's calling Execute to handle error by returned value instead of calling ExecuteIfBound
 	 * @param StreamDelegate - delegate from which the payload should be streamed.
 	 * @return True if the delegate can be used to stream the request. False otherwise.
 	 */
-	bool SetContentFromStreamDelegate(FHttpRequestStreamDelegate StreamDelegate) { return SetContentFromStream(MakeShared<FArchiveWithDelegate>(StreamDelegate)); }
+	UE_DEPRECATED(5.5, "SetContentFromStreamDelegate has been deprecated and will not be supported because there is no seek support through delegate. Implement your own FArchive instead.")
+	bool SetContentFromStreamDelegate(FHttpRequestStreamDelegate StreamDelegate);
 
 	/**
-	 * Sets the stream to receive the response body. Make sure to handle the cleanup of stream when 
-	 * Serialize generated error(Stream->GetError returns true after Stream->Serialize call), this 
+	 * Sets the stream to receive the response body. Make sure to handle the cleanup of stream when
+	 * Serialize generated error(Stream->GetError returns true after Stream->Serialize call), this
 	 * http request will fail and quit.
 	 *
-	 * NOTE: Once set, the data will no longer be cached in response, IHttpResponse::GetContent() and 
-	 * IHttpResponse::GetContentAsString() will return empty result. The Stream->Serialize will be called 
+	 * NOTE: Once set, the data will no longer be cached in response, IHttpResponse::GetContent() and
+	 * IHttpResponse::GetContentAsString() will return empty result. The Stream->Serialize will be called
 	 * from another thread other than the game thread
 	 *
 	 * @param Stream - will be used to receive the response body
@@ -216,17 +255,31 @@ public:
 	virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) = 0;
 
 	/**
-	 * Sets the delegate to receive the response body. Make sure to handle the cleanup of received data when 
+	 * Sets the delegate to receive the response body. Make sure to handle the cleanup of received data when
 	 * failed to process the data(StreamDelegate return false), this http request will fail and quit.
 	 *
-	 * NOTE: Once set, the data will no longer be cached in response, IHttpResponse::GetContent() and 
+	 * NOTE: Once set, the data will no longer be cached in response, IHttpResponse::GetContent() and
 	 * IHttpResponse::GetContentAsString() will return empty result. The delegate will be called from
 	 * another thread other than the game thread
 	 *
 	 * @param StreamDelegate - will be used to receive the response body
 	 * @return True if the delegate can be used. False otherwise.
 	 */
-	bool SetResponseBodyReceiveStreamDelegate(FHttpRequestStreamDelegate StreamDelegate) { return SetResponseBodyReceiveStream(MakeShared<FArchiveWithDelegate>(StreamDelegate)); }
+	UE_DEPRECATED(5.5, "SetResponseBodyReceiveStreamDelegate has been deprecated, use SetResponseBodyReceiveStreamDelegateV2 instead")
+	HTTP_API bool SetResponseBodyReceiveStreamDelegate(FHttpRequestStreamDelegate StreamDelegate);
+
+	/**
+	 * Sets the delegate to receive the response body. Make sure to handle the cleanup of received data when
+	 * failed to process the data(StreamDelegate return false), this http request will fail and quit.
+	 *
+	 * NOTE: Once set, the data will no longer be cached in response, IHttpResponse::GetContent() and
+	 * IHttpResponse::GetContentAsString() will return empty result. The delegate will be called from
+	 * another thread other than the game thread
+	 *
+	 * @param StreamDelegate - will be used to receive the response body
+	 * @return True if the delegate can be used. False otherwise.
+	 */
+	HTTP_API bool SetResponseBodyReceiveStreamDelegateV2(FHttpRequestStreamDelegateV2 StreamDelegate);
 
 	/**
 	 * Sets optional header info.
@@ -242,7 +295,7 @@ public:
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) = 0;
 
 	/**
-	* Appends to the value already set in the header. 
+	* Appends to the value already set in the header.
 	* If there is already content in that header, a comma delimiter is used.
 	* If the header is as of yet unset, the result is the same as calling SetHeader
 	* Content-Length is the only header set for you.
@@ -279,6 +332,11 @@ public:
 	virtual void ClearTimeout() = 0;
 
 	/**
+	 * Reset the elapsed timeout duration and flag, after the request completed and need to be reused
+	 */
+	virtual void ResetTimeoutStatus() = 0;
+
+	/**
 	 * Gets the optional timeout in seconds for this entire HTTP request to complete.
 	 * If valid, this value overrides the default HTTP timeout set via FHttpModule::SetTimeout().
 	 *
@@ -301,27 +359,21 @@ public:
 	virtual FHttpRequestCompleteDelegate& OnProcessRequestComplete() = 0;
 
 	/**
-	 * Delegate called to update the request/response progress. See FHttpRequestProgressDelegate
-	 */
-	UE_DEPRECATED(5.3, "OnRequestProgress has been deprecated, use OnRequestProgress64 instead")
-	virtual FHttpRequestProgressDelegate& OnRequestProgress() = 0;
-
-	/**
 	 * Delegate called to update the request/response progress. See FHttpRequestProgressDelegate64
 	 */
 	virtual FHttpRequestProgressDelegate64& OnRequestProgress64() = 0;
-	
+
 	/**
 	* Delegate called when the request will be retried
 	*/
 	virtual FHttpRequestWillRetryDelegate& OnRequestWillRetry() = 0;
 
-	/** 
+	/**
 	 * Delegate called to signal the receipt of a header.  See FHttpRequestHeaderReceivedDelegate
 	 */
 	virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() = 0;
 
-	/** 
+	/**
 	 * Delegate called to signal the receipt of a header.  See FHttpRequestStatusCodeReceivedDelegate
 	 */
 	virtual FHttpRequestStatusCodeReceivedDelegate& OnStatusCodeReceived() = 0;
@@ -347,26 +399,26 @@ public:
 
 	/**
 	 * Gets the time that it took for the server to fully respond to the request.
-	 * 
+	 *
 	 * @return elapsed time in seconds.
 	 */
 	virtual float GetElapsedTime() const = 0;
 
 	/**
-	 * Set thread policy about which thread to trigger the delegates, set by FHttpManager::SetRequestCompletedDelegate, 
+	 * Set thread policy about which thread to trigger the delegates, set by FHttpManager::SetRequestCompletedDelegate,
 	 * IHttpRequest::OnStatusCodeReceived, IHttpRequest::OnHeaderReceived, IHttpRequest::OnRequestProgress64 and IHttpRequest::OnProcessRequestComplete.
 	 *
-	 * Note that when set it as CompleteOnHttpThread, the thread to trigger delegates could be any thread 
-	 * depends on the implementation. User code should make the delegate thread-safe and shouldn't assume 
+	 * Note that when set it as CompleteOnHttpThread, the thread to trigger delegates could be any thread
+	 * depends on the implementation. User code should make the delegate thread-safe and shouldn't assume
 	 * it's triggered by the thread where this request get created.
-	 * 
+	 *
 	 * @param InThreadPolicy - The thread policy to indicate which thread to trigger the delegates
 	 */
 	virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InThreadPolicy) = 0;
 
 	/**
 	 * Get thread policy about which thread to complete this request
-	 * 
+	 *
 	 * @return The thread policy
 	 */
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const = 0;
@@ -374,7 +426,7 @@ public:
 	/**
 	 * Blocking call to wait the request until it's completed
 	 *
-	 * WARNINGS: 
+	 * WARNINGS:
 	 *
 	 * - This is a blocking call, DON'T use this in a time-sensitive context
 	 * - Complete delegate will be used in this function so customized complete delegate is not supported
@@ -384,8 +436,8 @@ public:
 	 */
 	virtual void ProcessRequestUntilComplete() = 0;
 
-	/** 
-	 * Destructor for overrides 
+	/**
+	 * Destructor for overrides
 	 */
 	virtual ~IHttpRequest() = default;
 };

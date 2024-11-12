@@ -24,5 +24,6 @@ public:
 	UE_DEPRECATED(5.4, "Use the other signature that also returns the dialog outcome as an Enum")
 	USDCLASSESEDITOR_API static void ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2*& OutCreatedCache, bool& bOutUserAccepted);
 
+	UE_DEPRECATED(5.5, "The Default Asset Cache dialog has been deprecated. An asset cache for the project will always be created on-demand now")
 	USDCLASSESEDITOR_API static EDefaultAssetCacheDialogOption ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2*& OutCreatedCache);
 };

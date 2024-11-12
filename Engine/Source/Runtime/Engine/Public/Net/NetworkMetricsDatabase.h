@@ -40,19 +40,19 @@ public:
 	/* Add an integer metric. */
 	void CreateInt(const FName MetricName, int64 DefaultValue);
 	/* Set the value of an existing floating point metric. */
-	void SetFloat(const FName MetricName, float Value);
+	bool SetFloat(const FName MetricName, float Value);
 	/* Set the value of a floating point metric if it's smaller than the existing value. */
-	void SetMinFloat(const FName MetricName, float Value);
+	bool SetMinFloat(const FName MetricName, float Value);
 	/* Set the value of a floating point metric if it's bigger than the existing value. */
-	void SetMaxFloat(const FName MetricName, float Value);
+	bool SetMaxFloat(const FName MetricName, float Value);
 	/* Set the value of an existing integer metric. */
-	void SetInt(const FName MetricName, int64 Value);
+	bool SetInt(const FName MetricName, int64 Value);
 	/* Set the value of an integer metric if it's smaller than the existing value. */
-	void SetMinInt(const FName MetricName, int64 Value);
+	bool SetMinInt(const FName MetricName, int64 Value);
 	/* Set the value of an integer metric if it's bigger than the existing value. */
-	void SetMaxInt(const FName MetricName, int64 Value);
+	bool SetMaxInt(const FName MetricName, int64 Value);
 	/* Increment the value of an existing integer metric. */
-	void IncrementInt(const FName MetricName, int64 Value);
+	bool IncrementInt(const FName MetricName, int64 Value);
 	/* Returns true if a metric has been created in the database. */
 	bool Contains(const FName MetricName) const;
 

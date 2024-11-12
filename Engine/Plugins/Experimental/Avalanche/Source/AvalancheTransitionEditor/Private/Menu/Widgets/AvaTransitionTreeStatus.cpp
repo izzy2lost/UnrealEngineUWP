@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionTreeStatus.h"
-#include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionTree.h"
 #include "ScopedTransaction.h"
+#include "Styling/AvaTransitionEditorStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 

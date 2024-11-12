@@ -70,6 +70,9 @@ TSharedRef< FSlateStyleSet > FChaosVDStyle::Create()
 	Style->Set("RecordToLiveIcon", new IMAGE_BRUSH(TEXT("RecordLiveSession"), Icon16x16));
 	Style->Set("ConnectionIcon", new IMAGE_BRUSH_SVG(TEXT("Connection"), Icon16x16));
 
+	Style->Set("LinkedIcon", new IMAGE_BRUSH_SVG(TEXT("Linked"), Icon16x16));
+	Style->Set("UnLinkedIcon", new IMAGE_BRUSH_SVG(TEXT("UnLinked"), Icon16x16));
+
 	return Style;
 }
 

@@ -30,13 +30,7 @@ namespace UE::AvaRundownEditor::Utils
 	TStrongObjectPtr<UAvaRundown> ExportPagesToRundown(const UAvaRundown* InRundown, const TArray<int32>& InPageIds);
 
 	bool SaveRundownToXml(const UAvaRundown* InRundown, FArchive& InArchive, EXmlSerializationEncoding InXmlEncoding);
-	bool SaveRundownToXml(const UAvaRundown* InRundown, const TCHAR* InFilepath);
-
-	bool SaveRundownToJson(const UAvaRundown* InRundown, FArchive& InArchive);
-	bool SaveRundownToJson(const UAvaRundown* InRundown, const TCHAR* InFilepath);
-
-	bool LoadRundownFromJson(UAvaRundown* InRundown, FArchive& InArchive);
-	bool LoadRundownFromJson(UAvaRundown* InRundown, const TCHAR* InFilepath);
+	bool SaveRundownToXml(const UAvaRundown* InRundown, const TCHAR* InFilepath, EXmlSerializationEncoding InXmlEncoding);
 
 	/**
 	 * Check the file extenstion to see if it is a supported format to use 

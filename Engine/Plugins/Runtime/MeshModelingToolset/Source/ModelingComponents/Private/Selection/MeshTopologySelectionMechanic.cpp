@@ -124,10 +124,16 @@ void UMeshTopologySelectionMechanic::DisableBehaviors(UInteractiveTool* ParentTo
 	// TODO: Is it worth adding a way to remove the property watchers for marquee?
 }
 
-void UMeshTopologySelectionMechanic::SetIsEnabled(bool bOn)
+void UMeshTopologySelectionMechanic::SetIsEnabled(bool bBehaviorEnabledIn, bool bRenderTopologyIn)
 {
-	bIsEnabled = bOn;
+	bIsEnabled = bBehaviorEnabledIn;
+	bRenderTopology = bRenderTopologyIn;
 	UpdateMarqueeEnabled();
+}
+
+void UMeshTopologySelectionMechanic::SetTransform(const FTransform3d& InTargetTransform)
+{
+	TargetTransform = InTargetTransform;
 }
 
 void UMeshTopologySelectionMechanic::SetMarqueeSelectionUpdateType(EMarqueeSelectionUpdateType InType)
@@ -162,11 +168,18 @@ TPair<FInputCapturePriority, FInputCapturePriority> UMeshTopologySelectionMechan
 
 void UMeshTopologySelectionMechanic::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	MarqueeMechanic->Render(RenderAPI);
-
 	// Cache the view camera state so we can use for snapping/etc.
-	// This should not happen in Render() though...
 	GetParentTool()->GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
+	
+	if (bIsEnabled)
+	{
+		MarqueeMechanic->Render(RenderAPI);
+	}
+	
+	if (!bRenderTopology) 
+	{
+		return;
+	}
 
 	FViewCameraState RenderCameraState = RenderAPI->GetCameraState();
 
@@ -215,6 +228,11 @@ void UMeshTopologySelectionMechanic::Render(IToolsContextRenderAPI* RenderAPI)
 
 void UMeshTopologySelectionMechanic::DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI)
 {
+	if (!bIsEnabled)
+	{
+		return;
+	}
+	
 	MarqueeMechanic->DrawHUD(Canvas, RenderAPI);
 }
 
@@ -260,6 +278,9 @@ bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitR
 
 bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitResult& OutHit, FGroupTopologySelection& OutSelection, bool bUseOrthoSettings)
 {
+	// Note: this function should remain callable even if the mechanic is disabled, though client
+	//  could reach in to use the TopoSelector directly.
+
 	FRay3d LocalRay(TargetTransform.InverseTransformPosition((FVector3d)WorldRay.Origin),
 		TargetTransform.InverseTransformVector((FVector3d)WorldRay.Direction));
 	UE::Geometry::Normalize(LocalRay.Direction);
@@ -312,6 +333,11 @@ bool UMeshTopologySelectionMechanic::TopologyHitTest(const FRay& WorldRay, FHitR
 
 void UMeshTopologySelectionMechanic::HandleRectangleChanged(const FCameraRectangle& InRectangle)
 {
+	if (!bIsEnabled)
+	{
+		return;
+	}
+	
 	FGroupTopologySelection RectangleSelection;
 
 	TopoSelector->FindSelectedElement(PreDragTopoSelectorSettings, InRectangle, TargetTransform,
@@ -507,123 +533,6 @@ void UMeshTopologySelectionMechanic::SelectAll()
 	ParentTool->GetToolManager()->EndUndoTransaction();
 }
 
-void UMeshTopologySelectionMechanic::GrowSelection()
-{
-	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("GrowSelectionChange", "Grow Selection"));
-	BeginChange();
-
-	// add the neighbor vertices to the current selection
-	if (Properties->bSelectVertices)
-	{
-		TSet<int32> VerticesToAdd;
-		for (const int32 VertexIndex : PersistentSelection.SelectedCornerIDs)
-		{
-			for (const int32 NeighborIndex : Mesh->VtxVerticesItr(VertexIndex))
-			{
-				if (!PersistentSelection.SelectedCornerIDs.Contains(NeighborIndex))
-				{
-					VerticesToAdd.Add(NeighborIndex);
-				}
-			}	
-		}
-		
-		PersistentSelection.SelectedCornerIDs.Append(VerticesToAdd);
-	}
-
-	if (Properties->bSelectEdges || Properties->bSelectFaces)
-	{
-		// TODO add support for growing edge/face selections if your tool requires it.
-		// growing edge/face selection not yet supported
-		checkNoEntry();
-	}
-
-	SelectionTimestamp++;
-	OnSelectionChanged.Broadcast();
-	EndChangeAndEmitIfModified();
-	ParentTool->GetToolManager()->EndUndoTransaction();
-}
-
-void UMeshTopologySelectionMechanic::ShrinkSelection()
-{
-	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("ShrinkSelectionChange", "Shrink Selection"));
-	BeginChange();
-
-	// remove border vertices from the current selection
-	if (Properties->bSelectVertices)
-	{
-		TSet<int32> BorderVertices;
-		for (const int32 VertexIndex : PersistentSelection.SelectedCornerIDs)
-		{
-			for (const int32 NeighborIndex : Mesh->VtxVerticesItr(VertexIndex))
-			{
-				if (!PersistentSelection.SelectedCornerIDs.Contains(NeighborIndex))
-				{
-					BorderVertices.Add(VertexIndex);
-					break;
-				}
-			}	
-		}
-		
-		for (const int32 BorderVertex : BorderVertices)
-		{
-			PersistentSelection.SelectedCornerIDs.Remove(BorderVertex);
-		}
-	}
-
-	if (Properties->bSelectEdges || Properties->bSelectFaces)
-	{
-		// TODO add support for shrinking edge/face selections if your tool requires it.
-		// shrinking edge/face selection not yet supported
-		checkNoEntry();
-	}
-
-	SelectionTimestamp++;
-	OnSelectionChanged.Broadcast();
-	EndChangeAndEmitIfModified();
-	ParentTool->GetToolManager()->EndUndoTransaction();
-}
-
-void UMeshTopologySelectionMechanic::FloodSelection()
-{
-	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("FloodSelectionChange", "Flood Selection"));
-	BeginChange();
-
-	if (Properties->bSelectVertices)
-	{
-		TSet<int32>& SelectedVertices = PersistentSelection.SelectedCornerIDs;
-		TSet<int32> VerticesAddedPrevIteration = PersistentSelection.SelectedCornerIDs;
-		while(!VerticesAddedPrevIteration.IsEmpty())
-		{
-			TSet<int32> VerticesToAddThisIteration;
-			for (const int32 VertexAdded : VerticesAddedPrevIteration)
-			{
-				for (const int32 NeighborIndex : Mesh->VtxVerticesItr(VertexAdded))
-				{
-					if (!SelectedVertices.Contains(NeighborIndex))
-					{
-						VerticesToAddThisIteration.Add(NeighborIndex);
-					}
-				}
-			}
-			
-			SelectedVertices.Append(VerticesToAddThisIteration);
-			VerticesAddedPrevIteration = VerticesToAddThisIteration;
-		}
-	}
-
-	if (Properties->bSelectEdges || Properties->bSelectFaces)
-	{
-		// TODO add support for flooding edge/face selections if your tool requires it.
-		// flooding edge/face selection not yet supported
-		checkNoEntry();
-	}
-
-	SelectionTimestamp++;
-	OnSelectionChanged.Broadcast();
-	EndChangeAndEmitIfModified();
-	ParentTool->GetToolManager()->EndUndoTransaction();
-}
-
 FInputRayHit UMeshTopologySelectionMechanic::IsHitByClick(const FInputDeviceRay& ClickPos)
 {
 	if (!bIsEnabled)
@@ -644,6 +553,11 @@ FInputRayHit UMeshTopologySelectionMechanic::IsHitByClick(const FInputDeviceRay&
 
 void UMeshTopologySelectionMechanic::OnClicked(const FInputDeviceRay& ClickPos)
 {
+	if (!ensure(bIsEnabled))
+	{
+		return;
+	}
+
 	// update selection
 	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("SelectionChange", "Selection"));
 	BeginChange();
@@ -671,6 +585,11 @@ void UMeshTopologySelectionMechanic::OnBeginHover(const FInputDeviceRay& DeviceP
 
 bool UMeshTopologySelectionMechanic::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {
+	if (!bIsEnabled)
+	{
+		return false;
+	}
+
 	UpdateHighlight(DevicePos.WorldRay);
 	return true;
 }

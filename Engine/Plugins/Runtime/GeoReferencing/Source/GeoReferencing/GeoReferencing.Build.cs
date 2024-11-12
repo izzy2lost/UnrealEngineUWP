@@ -30,8 +30,8 @@ public class GeoReferencing : ModuleRules
 				"Projects",
 				"Slate",
 				"SlateCore",
-				"SQLiteCore"
-
+				"SQLiteCore", 
+				"RHI"
 			}
 		);
 

@@ -4,16 +4,15 @@
 
 #include "IPropertyTypeCustomization.h"
 #include "PropertyEditorModule.h"
-#include "PropertyHandle.h"
+
 #include "Templates/SharedPointer.h"
 
 class FDMMaterialInterfaceTypeIdentifier : public IPropertyTypeIdentifier
 {
 public:
-	virtual bool IsPropertyTypeCustomized(const IPropertyHandle& InPropertyHandle) const override
-	{
-		return InPropertyHandle.GetNumOuterObjects() > 0;
-	}
+	//~ Begin IPropertyTypeIdentifier
+	virtual bool IsPropertyTypeCustomized(const IPropertyHandle& InPropertyHandle) const override;
+	//~ End IPropertyTypeIdentifier
 };
 
 class FDMMaterialInterfaceTypeCustomizer : public IPropertyTypeCustomization

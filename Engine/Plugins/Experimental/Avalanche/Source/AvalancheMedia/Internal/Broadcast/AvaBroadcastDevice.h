@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "AvaBroadcastDevice.h"
 #include "Containers/UnrealString.h"
 #include "MediaIOCoreDefinitions.h"
 #include "Internationalization/Text.h"

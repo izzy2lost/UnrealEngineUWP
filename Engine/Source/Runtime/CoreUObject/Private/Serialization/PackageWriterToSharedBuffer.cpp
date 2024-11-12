@@ -142,8 +142,6 @@ void FPackageWriterRecords::ValidateCommit(FPackage& Record, const IPackageWrite
 		uint8 HasBulkDataType[IPackageWriter::FBulkDataInfo::NumTypes]{};
 		for (FBulkData& BulkRecord : Record.BulkDatas)
 		{
-			checkf((HasBulkDataType[(int32)BulkRecord.Info.BulkDataType] & (1 << BulkRecord.Info.MultiOutputIndex)) == 0,
-				TEXT("IPackageWriter->WriteBulkData must not be called with more than one BulkData of the same type."));
 			HasBulkDataType[(int32)BulkRecord.Info.BulkDataType] |= 1 << BulkRecord.Info.MultiOutputIndex;
 		}
 	}

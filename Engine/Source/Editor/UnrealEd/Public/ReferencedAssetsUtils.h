@@ -157,9 +157,16 @@ public:
 	UNREALED_API static bool ShouldSearchForAssets( const UObject* Object, const TArray<UClass*>& ClassesToIgnore, const TArray<UPackage*>& PackagesToIgnore, bool bIncludeDefaults=false );
 
 	/**
-	 * Returns a list of all assets referenced by the specified UObject.
+	 * Returns a list of assets referenced by the specified UObject.
+	 * @param Object the object used to build the references
+	 * @param IgnoreClasses the list of classes to skip
+	 * @param IgnorePackages the list of packages to skip
+	 * @param bIncludeDefaultRefs specify true to include content referenced through defaults
+	 * @param bOnlyDirectReferences specify true to only include direct references
+	 * 
+	 * @return list of assets referenced by the specified UObject.
 	 */
-	UNREALED_API static void BuildAssetList(UObject *Object, const TArray<UClass*>& IgnoreClasses, const TArray<UPackage*>& IgnorePackages, TSet<UObject*>& ReferencedAssets, bool bIncludeDefaultRefs=false);
+	UNREALED_API static void BuildAssetList(UObject *Object, const TArray<UClass*>& IgnoreClasses, const TArray<UPackage*>& IgnorePackages, TSet<UObject*>& ReferencedAssets, bool bIncludeDefaultRefs=false, bool bOnlyDirectReferences=false);
 
 protected:
 	/**

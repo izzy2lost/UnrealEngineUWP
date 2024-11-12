@@ -18,6 +18,10 @@
 
 #endif // WITH_NNE_RUNTIME_IREE
 
+#include "NNERuntimeIREELog.h"
+
+DEFINE_LOG_CATEGORY(LogNNERuntimeIREE);
+
 void FNNERuntimeIREEModule::StartupModule()
 {
 #ifdef WITH_NNE_RUNTIME_IREE
@@ -27,38 +31,6 @@ void FNNERuntimeIREEModule::StartupModule()
 		NNERuntimeIREECpu->AddToRoot();
 		UE::NNE::RegisterRuntime(NNERuntimeIREECpu.Get());
 	}
-
-#if WITH_EDITOR
-	ITargetPlatformManagerModule* TargetPlatformManagerModule = GetTargetPlatformManager();
-	if (TargetPlatformManagerModule)
-	{
-		TSet<FString> ProcessedPlatforms;
-		TArray<ITargetPlatform*> TargetPlatforms = TargetPlatformManagerModule->GetTargetPlatforms();
-		for (int32 i = 0; i < TargetPlatforms.Num(); i++)
-		{
-			FString IniPlatformName = TargetPlatforms[i]->IniPlatformName();
-			if (!ProcessedPlatforms.Contains(IniPlatformName))
-			{
-				ProcessedPlatforms.Add(IniPlatformName);
-				FString TargetPlatformDisplayName = IniPlatformName;
-				FConfigFile ConfigFile;
-				FString ConfigFilePath;
-				NNERuntimeIREECpu->GetUpdatedPlatformConfig(IniPlatformName, ConfigFile, ConfigFilePath);
-				if (ConfigFile.Dirty)
-				{
-					{
-						TUniquePtr<FArchive> Ar = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*ConfigFilePath, EFileWrite::FILEWRITE_Append));
-						if (!Ar)
-						{
-							continue;
-						}
-					}
-					ConfigFile.Write(ConfigFilePath);
-				}
-			}
-		}
-	}
-#endif // WITH_EDITOR
 
 	NNERuntimeIREECuda = NewObject<UNNERuntimeIREECuda>();
 	if (NNERuntimeIREECuda.IsValid())

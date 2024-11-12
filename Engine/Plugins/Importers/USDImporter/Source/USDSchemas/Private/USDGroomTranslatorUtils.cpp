@@ -5,10 +5,12 @@
 #if USE_USD_SDK && WITH_EDITOR
 
 #include "UnrealUSDWrapper.h"
-#include "USDAssetCache2.h"
+#include "USDAssetCache3.h"
 #include "USDClassesModule.h"
 #include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
+#include "USDMemory.h"
+#include "USDPrimLinkCache.h"
 #include "USDTypesConversion.h"
 #include "UsdWrappers/SdfPath.h"
 
@@ -91,47 +93,6 @@ namespace UE::UsdGroomTranslatorUtils::Private
 		return SHAHash;
 	}
 
-	UGroomBindingAsset* CreateGroomBindingAsset(FString GroomBindingPath, const FGroomBindingBuildSettings& Settings, EObjectFlags ObjectFlags)
-	{
-		// Need at least the groom and the target mesh to build a GroomBindingAsset; the source mesh is optional
-		if (GroomBindingPath.IsEmpty() || !Settings.Groom || !Settings.TargetMesh)
-		{
-			return nullptr;
-		}
-
-		const FName BindingAssetName = MakeUniqueObjectName(
-			GetTransientPackage(),
-			UGroomBindingAsset::StaticClass(),
-			*IUsdClassesModule::SanitizeObjectName(FPaths::GetBaseFilename(GroomBindingPath))
-		);
-		UGroomBindingAsset* GroomBinding = NewObject<UGroomBindingAsset>(
-			GetTransientPackage(),
-			BindingAssetName,
-			ObjectFlags | RF_Public | RF_Transient
-		);
-		if (GroomBinding)
-		{
-			GroomBinding->SetGroomBindingType(Settings.GroomBindingType);
-			GroomBinding->SetGroom(Settings.Groom);
-			if (GroomBinding->GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh)
-			{
-				GroomBinding->SetSourceSkeletalMesh(Cast<USkeletalMesh>(Settings.SourceMesh));
-				GroomBinding->SetTargetSkeletalMesh(Cast<USkeletalMesh>(Settings.TargetMesh));
-			}
-			else
-			{
-				GroomBinding->SetSourceGeometryCache(Cast<UGeometryCache>(Settings.SourceMesh));
-				GroomBinding->SetTargetGeometryCache(Cast<UGeometryCache>(Settings.TargetMesh));
-			}
-			GroomBinding->GetHairGroupsPlatformData().Reserve(Settings.Groom->GetHairGroupsPlatformData().Num());
-			GroomBinding->SetNumInterpolationPoints(Settings.NumInterpolationPoints);
-			GroomBinding->SetMatchingSection(Settings.MatchingSection);
-
-			GroomBinding->Build();
-		}
-		return GroomBinding;
-	}
-
 	FString GetGroomPrimPath(const pxr::UsdPrim& Prim)
 	{
 		FScopedUsdAllocs Allocs;
@@ -156,7 +117,7 @@ namespace UE::UsdGroomTranslatorUtils::Private
 		return {};
 	}
 
-	UObject* GetGroomBindingSourceMesh(const pxr::UsdPrim& Prim, const FUsdInfoCache& InfoCache, EGroomBindingMeshType BindingType)
+	UObject* GetGroomBindingSourceMesh(const pxr::UsdPrim& Prim, const FUsdPrimLinkCache& PrimLinkCache, EGroomBindingMeshType BindingType)
 	{
 		FScopedUsdAllocs Allocs;
 
@@ -174,11 +135,11 @@ namespace UE::UsdGroomTranslatorUtils::Private
 				pxr::UsdPrim TargetPrim = Prim.GetPrimAtPath(TargetPrimPath);
 				if (BindingType == EGroomBindingMeshType::SkeletalMesh && (pxr::UsdSkelRoot(TargetPrim) || pxr::UsdSkelSkeleton(TargetPrim)))
 				{
-					return InfoCache.GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{TargetPrimPath});
+					return PrimLinkCache.GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{TargetPrimPath});
 				}
 				else if (BindingType == EGroomBindingMeshType::GeometryCache && pxr::UsdGeomMesh(TargetPrim))
 				{
-					return InfoCache.GetSingleAssetForPrim<UGeometryCache>(UE::FSdfPath{TargetPrimPath});
+					return PrimLinkCache.GetSingleAssetForPrim<UGeometryCache>(UE::FSdfPath{TargetPrimPath});
 				}
 			}
 		}
@@ -192,10 +153,10 @@ namespace UsdGroomTranslatorUtils
 
 	void CreateGroomBindingAsset(
 		const pxr::UsdPrim& Prim,
-		UUsdAssetCache2& AssetCache,
-		FUsdInfoCache& InfoCache,
+		UUsdAssetCache3& AssetCache,
+		FUsdPrimLinkCache& PrimLinkCache,
 		EObjectFlags ObjectFlags,
-		bool bReuseIdenticalAssets
+		bool bShareAssetsForIdenticalPrims
 	)
 	{
 		// At this point, the prim (SkelRoot/Skeleton or GeomMesh) has already been checked to have the GroomBindingAPI,
@@ -209,7 +170,7 @@ namespace UsdGroomTranslatorUtils
 		}
 
 		// The GroomAsset should already be processed and cached by the USDGroomTranslator
-		UGroomAsset* GroomAsset = InfoCache.GetSingleAssetForPrim<UGroomAsset>(UE::FSdfPath{*GroomPrimPath});
+		UGroomAsset* GroomAsset = PrimLinkCache.GetSingleAssetForPrim<UGroomAsset>(UE::FSdfPath{*GroomPrimPath});
 		if (!GroomAsset)
 		{
 			return;
@@ -218,10 +179,10 @@ namespace UsdGroomTranslatorUtils
 		// Determine the type of binding needed based on the prim mesh type
 		const FString PrimPath(UsdToUnreal::ConvertPath(Prim.GetPath()));
 		EGroomBindingMeshType GroomBindingType = EGroomBindingMeshType::SkeletalMesh;
-		UObject* TargetMesh = InfoCache.GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{*PrimPath});
+		UObject* TargetMesh = PrimLinkCache.GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{*PrimPath});
 		if (!TargetMesh)
 		{
-			TargetMesh = InfoCache.GetSingleAssetForPrim<UGeometryCache>(UE::FSdfPath{*PrimPath});
+			TargetMesh = PrimLinkCache.GetSingleAssetForPrim<UGeometryCache>(UE::FSdfPath{*PrimPath});
 			if (!TargetMesh)
 			{
 				return;
@@ -233,31 +194,58 @@ namespace UsdGroomTranslatorUtils
 		Settings.GroomBindingType = GroomBindingType;
 		Settings.Groom = GroomAsset;
 		Settings.TargetMesh = TargetMesh;
-		Settings.SourceMesh = GetGroomBindingSourceMesh(Prim, InfoCache, GroomBindingType);
+		Settings.SourceMesh = GetGroomBindingSourceMesh(Prim, PrimLinkCache, GroomBindingType);
 
-		const FString PrefixedBindingHash = UsdUtils::GetAssetHashPrefix(Prim, bReuseIdenticalAssets) + ComputeGroomBindingHash(Settings).ToString();
-
-		// Try to get the GroomBindingAsset from the cache
-		UGroomBindingAsset* GroomBinding = Cast<UGroomBindingAsset>(AssetCache.GetCachedAsset(PrefixedBindingHash));
+		const FString PrefixedBindingHash = UsdUtils::GetAssetHashPrefix(Prim, bShareAssetsForIdenticalPrims)
+											+ ComputeGroomBindingHash(Settings).ToString();
 
 		const FString GroomBindingPath = FString::Printf(TEXT("%s_groombinding"), *PrimPath);
-		if (!GroomBinding)
+
+		bool bIsNew = false;
+		UGroomBindingAsset* GroomBinding = nullptr;
+
+		const FString DesiredName = FPaths::GetBaseFilename(GroomBindingPath);
+
+		// Prevent the creation of the GroomBinding or it's internal UObjects (if any) from being added to the transaction.
+		// This is important because we call CreateGroomBindingAsset from CreateComponents(), which is outside of the normal
+		// transaction suppression around the CreateAssets() calls that the AUsdStageActor will already do in AUsdStageActor::LoadAssets
+		// and AUsdStageActor::LoadAsset
+		TGuardValue<ITransaction*> SuppressTransaction{GUndo, nullptr};
+
+		// Need at least the groom and the target mesh to build a GroomBindingAsset; the source mesh is optional
+		if (!GroomBindingPath.IsEmpty() && GroomAsset && TargetMesh)
 		{
-			// Create and cache it, if it didn't exist already
-			GroomBinding = CreateGroomBindingAsset(GroomBindingPath, Settings, ObjectFlags);
-			if (GroomBinding)
-			{
-				AssetCache.CacheAsset(PrefixedBindingHash, GroomBinding);
-			}
+			GroomBinding = AssetCache.GetOrCreateCachedAsset<UGroomBindingAsset>(PrefixedBindingHash, DesiredName, ObjectFlags, &bIsNew);
 		}
 
 		if (GroomBinding)
 		{
-			InfoCache.LinkAssetToPrim(UE::FSdfPath{*GroomBindingPath}, GroomBinding);
+			if (bIsNew)
+			{
+				GroomBinding->SetGroomBindingType(Settings.GroomBindingType);
+				GroomBinding->SetGroom(Settings.Groom);
+				if (GroomBinding->GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh)
+				{
+					GroomBinding->SetSourceSkeletalMesh(Cast<USkeletalMesh>(Settings.SourceMesh));
+					GroomBinding->SetTargetSkeletalMesh(Cast<USkeletalMesh>(Settings.TargetMesh));
+				}
+				else
+				{
+					GroomBinding->SetSourceGeometryCache(Cast<UGeometryCache>(Settings.SourceMesh));
+					GroomBinding->SetTargetGeometryCache(Cast<UGeometryCache>(Settings.TargetMesh));
+				}
+				GroomBinding->GetHairGroupsPlatformData().Reserve(Settings.Groom->GetHairGroupsPlatformData().Num());
+				GroomBinding->SetNumInterpolationPoints(Settings.NumInterpolationPoints);
+				GroomBinding->SetMatchingSection(Settings.MatchingSection);
+
+				GroomBinding->Build();
+			}
+
+			PrimLinkCache.LinkAssetToPrim(UE::FSdfPath{*GroomBindingPath}, GroomBinding);
 		}
 	}
 
-	void SetGroomFromPrim(const pxr::UsdPrim& Prim, const FUsdInfoCache& InfoCache, USceneComponent* SceneComponent)
+	void SetGroomFromPrim(const pxr::UsdPrim& Prim, const FUsdPrimLinkCache& PrimLinkCache, USceneComponent* SceneComponent)
 	{
 		if (!SceneComponent)
 		{
@@ -272,7 +260,7 @@ namespace UsdGroomTranslatorUtils
 			return;
 		}
 
-		UGroomAsset* GroomAsset = InfoCache.GetSingleAssetForPrim<UGroomAsset>(UE::FSdfPath{*GroomPrimPath});
+		UGroomAsset* GroomAsset = PrimLinkCache.GetSingleAssetForPrim<UGroomAsset>(UE::FSdfPath{*GroomPrimPath});
 		if (!GroomAsset)
 		{
 			return;
@@ -280,7 +268,7 @@ namespace UsdGroomTranslatorUtils
 
 		const FString PrimPath(UsdToUnreal::ConvertPath(Prim.GetPath()));
 		const FString GroomBindingPath = FString::Printf(TEXT("%s_groombinding"), *PrimPath);
-		UGroomBindingAsset* GroomBinding = InfoCache.GetSingleAssetForPrim<UGroomBindingAsset>(UE::FSdfPath{*GroomBindingPath});
+		UGroomBindingAsset* GroomBinding = PrimLinkCache.GetSingleAssetForPrim<UGroomBindingAsset>(UE::FSdfPath{*GroomBindingPath});
 
 		// Set the GroomAsset and GroomBindingAsset on the child GroomComponent of SceneComponent that was set up in the translator
 		TArray<USceneComponent*> Children;

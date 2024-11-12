@@ -14,6 +14,11 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+void UNiagaraDataChannelReader::Cleanup()
+{
+	Data = nullptr;
+}
+
 bool UNiagaraDataChannelReader::InitAccess(FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrameData)
 {
 	Data = nullptr;
@@ -130,16 +135,9 @@ FNiagaraSpawnInfo UNiagaraDataChannelReader::ReadSpawnInfo(FName VarName, int32 
 
 //////////////////////////////////////////////////////////////////////////
 
-template<typename T>
-void UNiagaraDataChannelWriter::WriteData(const FNiagaraVariableBase& Var, int32 Index, const T& InData)
+void UNiagaraDataChannelWriter::Cleanup()
 {
-	if (ensure(Data.IsValid()))
-	{
-		if (FNiagaraDataChannelVariableBuffer* VarBuffer = Data->FindVariableBuffer(Var))
-		{
-			VarBuffer->Write<T>(Index, InData);
-		}
-	}
+	Data = nullptr;
 }
 
 bool UNiagaraDataChannelWriter::InitWrite(FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU, const FString& DebugSource)
@@ -241,72 +239,3 @@ void UNiagaraDataChannelWriter::WriteID(FName VarName, int32 Index, FNiagaraID I
 {
 	WriteData(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIDDef(), VarName), Index, InData);
 }
-
-
-//////////////////////////////////////////////////////////////////////////
-
-void FNiagaraDataChannelGameDataWriterBase::BeginWrite()
-{
-	if(Data)
-	{
-		Data->BeginFrame();
-	}
-}
-
-void FNiagaraDataChannelGameDataWriterBase::Publish(FNiagaraDataChannelDataPtr& Destination)
-{
-	if (Data && Data->Num() > 0)
-	{
-		FNiagaraDataChannelPublishRequest PublishRequest;
-		PublishRequest.bVisibleToCPUSims = true;
-		PublishRequest.bVisibleToGPUSims = true;
-		PublishRequest.GameData = Data;
-		Destination->Publish(PublishRequest);
-	}
-}
-
-void FNiagaraDataChannelGameDataWriterBase::SetNum(int32 Num)
-{
-	if (Data)
-	{
-		Data->SetNum(Num);
-	}
-}
-
-void FNiagaraDataChannelGameDataWriterBase::Reserve(int32 Num)
-{
-	if (Data)
-	{
-		Data->Reserve(Num);
-	}
-}
-
-int32 FNiagaraDataChannelGameDataWriterBase::Add(int32 Count)
-{
-	if (Data)
-	{
-		return Data->Add(Count);
-	}
-	return INDEX_NONE;
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-FNiagaraDataChannelDataPtr FNiagaraDataChannelGameDataGroupedWriterBase::FindDataChannelData(UWorld* World, const UNiagaraDataChannel* NDC, const FNiagaraDataChannelSearchParameters& ItemSearchParams)
-{
-	if(World == nullptr || NDC == nullptr)
-	{
-		return nullptr;
-	}
-
-	if (FNiagaraWorldManager* WorldMan = FNiagaraWorldManager::Get(World))
-	{
-		if (UNiagaraDataChannelHandler* NDCHandler = WorldMan->FindDataChannelHandler(NDC))
-		{
-			return NDCHandler->FindData(ItemSearchParams, ENiagaraResourceAccess::WriteOnly);
-		}
-	}
-	return nullptr;
-}
-
-//////////////////////////////////////////////////////////////////////////

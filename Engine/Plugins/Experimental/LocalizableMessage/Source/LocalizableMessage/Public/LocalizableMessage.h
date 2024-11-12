@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Templates/UniquePtr.h"
 
 #include "LocalizableMessage.generated.h"

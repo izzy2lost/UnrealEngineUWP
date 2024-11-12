@@ -24,7 +24,17 @@ void USoundHandleSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-void USoundHandleSubsystem::OnNotifyPendingDelete(const FActiveSound& ActiveSound)
+void USoundHandleSubsystem::NotifyActiveSoundDeleting(const FActiveSound& ActiveSound)
+{
+	NotifySoundDeleting(ActiveSound);
+}
+
+void USoundHandleSubsystem::NotifyVirtualizedSoundDeleting(const FActiveSound& ActiveSound)
+{
+	NotifySoundDeleting(ActiveSound);
+}
+
+void USoundHandleSubsystem::NotifySoundDeleting(const FActiveSound& ActiveSound)
 {
 	check(IsInAudioThread());
 	if (ActiveHandles.Num() > 0)

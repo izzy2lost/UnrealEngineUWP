@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ZoneShapeUtilities.h"
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 #include "Algo/Reverse.h"
 #include "HAL/IConsoleManager.h"
 #include "ZoneGraphSettings.h"

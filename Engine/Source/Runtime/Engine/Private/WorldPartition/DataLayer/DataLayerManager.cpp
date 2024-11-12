@@ -200,12 +200,7 @@ void UDataLayerManager::Initialize()
 	// Make sure WorldDataLayers is part of the Actors list so that it gets cooked properly as part of the Persistent Level
 	// This auto-corrects itself when resaving the level.
 	ULevel* WorldDataLayerLevel = WorldDataLayers->GetLevel();
-	int32 ActorIndex;
-	if (!WorldDataLayerLevel->Actors.Find(WorldDataLayers, ActorIndex))
-	{
-		WorldDataLayerLevel->Actors.Add(WorldDataLayers);
-		WorldDataLayerLevel->ActorsForGC.Add(WorldDataLayers);
-	}
+	WorldDataLayerLevel->TryAddActorToList(WorldDataLayers, /*bAddUnique*/true);
 
 	DataLayerLoadingPolicy = NewObject<UDataLayerLoadingPolicy>(this, GetDataLayerLoadingPolicyClass());
 
@@ -242,11 +237,6 @@ void UDataLayerManager::Initialize()
 
 void UDataLayerManager::DeInitialize()
 {
-	if (AWorldDataLayers* WorldDataLayers = GetWorldDataLayers())
-	{
-		WorldDataLayers->OnDataLayerManagerDeinitialized();
-	}
-
 #if WITH_EDITOR
 	UActorDescContainerInstance::OnActorDescContainerInstanceInitialized.RemoveAll(this);
 
@@ -290,18 +280,17 @@ const UDataLayerInstance* UDataLayerManager::GetDataLayerInstanceFromName(const 
 	return GetDataLayerInstance(InDataLayerInstanceName);
 }
 
-const UDataLayerInstance* UDataLayerManager::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const
+const UDataLayerInstance* UDataLayerManager::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const
 {
 	AWorldDataLayers* WorldDataLayers = GetWorldDataLayers();
-	return WorldDataLayers ? WorldDataLayers->GetDataLayerInstanceFromAssetName(InDataLayerAssetFullName) : nullptr;
+	return WorldDataLayers ? WorldDataLayers->GetDataLayerInstanceFromAssetName(InDataLayerAssetPathName) : nullptr;
 }
 
 bool UDataLayerManager::SetDataLayerInstanceRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive)
 {
 	if (InDataLayerInstance)
 	{
-		InDataLayerInstance->GetOuterWorldDataLayers()->SetDataLayerRuntimeState(InDataLayerInstance, InState, bInIsRecursive);
-		return true;
+		return InDataLayerInstance->GetOuterWorldDataLayers()->SetDataLayerRuntimeState(InDataLayerInstance, InState, bInIsRecursive);
 	}
 	UE_LOG(LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
 	return false;
@@ -365,12 +354,18 @@ const TSet<FName>& UDataLayerManager::GetEffectiveLoadedDataLayerNames() const
 
 bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const
 {
+	static FWorldDataLayersEffectiveStates EmptyStates;
+	AWorldDataLayers* WorldDataLayers = GetWorldDataLayers();
+	return UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(InDataLayerNames, InState, WorldDataLayers ? FWorldDataLayersEffectiveStatesAccessor::Get(WorldDataLayers) : EmptyStates);
+}
+
+bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates)
+{
 	if (InState == EDataLayerRuntimeState::Activated)
 	{
-		const TSet<FName>& Activated = GetEffectiveActiveDataLayerNames();
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (Activated.Contains(DataLayerName))
+			if (InEffectiveStates.GetAllEffectiveActiveDataLayerNames().Contains(DataLayerName))
 			{
 				return true;
 			}
@@ -378,10 +373,9 @@ bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const F
 	}
 	else if (InState == EDataLayerRuntimeState::Loaded)
 	{
-		const TSet<FName>& Loaded = GetEffectiveLoadedDataLayerNames();
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (Loaded.Contains(DataLayerName))
+			if (InEffectiveStates.GetAllEffectiveLoadedDataLayerNames().Contains(DataLayerName))
 			{
 				return true;
 			}
@@ -392,13 +386,18 @@ bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const F
 
 bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const
 {
-	const TSet<FName>& Activated = GetEffectiveActiveDataLayerNames();
+	static FWorldDataLayersEffectiveStates EmptyStates;
+	AWorldDataLayers* WorldDataLayers = GetWorldDataLayers();
+	return UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(InDataLayerNames, InState, WorldDataLayers ? FWorldDataLayersEffectiveStatesAccessor::Get(WorldDataLayers) : EmptyStates);
+}
 
+bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState, const FWorldDataLayersEffectiveStates& InEffectiveStates)
+{
 	if (InState == EDataLayerRuntimeState::Activated)
 	{
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (!Activated.Contains(DataLayerName))
+			if (!InEffectiveStates.GetAllEffectiveActiveDataLayerNames().Contains(DataLayerName))
 			{
 				return false;
 			}
@@ -406,10 +405,9 @@ bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const F
 	}
 	else if (InState == EDataLayerRuntimeState::Loaded)
 	{
-		const TSet<FName>& Loaded = GetEffectiveLoadedDataLayerNames();
 		for (const FName& DataLayerName : InDataLayerNames)
 		{
-			if (!Loaded.Contains(DataLayerName) && !Activated.Contains(DataLayerName))
+			if (!InEffectiveStates.GetAllEffectiveLoadedDataLayerNames().Contains(DataLayerName) && !InEffectiveStates.GetAllEffectiveActiveDataLayerNames().Contains(DataLayerName))
 			{
 				return false;
 			}

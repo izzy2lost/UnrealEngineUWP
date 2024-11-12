@@ -38,7 +38,7 @@ namespace CrossCompiler
 				}
 
 				auto* Page = FreePages.Last();
-				FreePages.RemoveAt(FreePages.Num() - 1, 1, EAllowShrinking::No);
+				FreePages.RemoveAt(FreePages.Num() - 1, EAllowShrinking::No);
 				UsedPages.Add(Page);
 				return Page;
 			}
@@ -49,7 +49,7 @@ namespace CrossCompiler
 
 				int32 Index = UsedPages.Find(Page);
 				check(Index >= 0);
-				UsedPages.RemoveAt(Index, 1, EAllowShrinking::No);
+				UsedPages.RemoveAt(Index, EAllowShrinking::No);
 				FreePages.Add(Page);
 			}
 
@@ -1290,7 +1290,8 @@ struct FRemoveUnusedInputs : FRemoveAlgorithm
 								NewDeclaratorList->Declarations.Add(MemberDeclaration);
 								DestStruct->Members.Add(NewDeclaratorList);
 
-								CopyMember(MemberDeclaration, DestPrefix, SourcePrefix, BodyContext.PreInstructions);
+								// Source and Dest are swapped as we are copying from the optimized (dest) structure into the original (source) structure
+								CopyMember(MemberDeclaration, SourcePrefix, DestPrefix, BodyContext.PreInstructions);
 							}
 
 							for (uint32 Index = 0; Index < ArrayLength; ++Index)
@@ -1330,6 +1331,7 @@ struct FRemoveUnusedInputs : FRemoveAlgorithm
 							NewDeclaratorList->Declarations.Add(MemberDeclaration);
 							DestStruct->Members.Add(NewDeclaratorList);
 
+							// Source and Dest are swapped as we are copying from the optimized (dest) structure into the original (source) structure
 							CopyMember(MemberDeclaration, SourcePrefix, DestPrefix, BodyContext.PreInstructions);
 						}
 						else

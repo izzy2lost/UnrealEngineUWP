@@ -38,7 +38,7 @@ enum class ELightFunctionAtlasSystem
 {
 	VolumetricFog,
 	DeferredLighting,
-	ManyLights,
+	MegaLights,
 	Lumen,
 };
 
@@ -123,6 +123,12 @@ struct FAtlasLightInfoData
 	FMatrix44f Transform;
 };
 
+struct FLightFunctionAtlasSetup
+{
+	uint32 EdgeSize = 2;
+	uint32 SlotResolution = 32;
+};
+
 
 
 // This class holds all data and resources related light function for a single scene, including multiple views.
@@ -151,6 +157,9 @@ struct FLightFunctionAtlas
 	
 	static FLightFunctionAtlasGlobalParameters*					GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder);
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder);
+
+	bool IsOutOfSlots();
+	FString GetOutOfSlotWarningMessage();
 
 private:
 
@@ -187,13 +196,25 @@ private:
 		FLightSceneInfo*	LightSceneInfo = nullptr;
 		uint8				LightFunctionAtlasSlotIndex = 0;
 	};
-	TArray<EffectiveLocalLightSlot> EffectiveLocalLightSlotArray;
+	TArray<EffectiveLocalLightSlot>										EffectiveLocalLightSlotArray;
 
 	FLightFunctionAtlasGlobalParameters*								DefaultLightFunctionAtlasGlobalParameters = nullptr;
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>			DefaultLightFunctionAtlasGlobalParametersUB;
 
 	TArray<FLightFunctionAtlasGlobalParameters*>						ViewLightFunctionAtlasGlobalParametersArray;
 	TArray<TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>>	ViewLightFunctionAtlasGlobalParametersUBArray;
+
+#if WITH_EDITOR
+	uint32																LightCountWithLFMaterialsNotSamplingAtlas = 0;
+	TMap<uint32, const UMaterialInterface*>								NonCompatibleLightFunctionMaterials;
+#endif
+
+#if !UE_BUILD_SHIPPING
+	uint32																LightCountSkippedDueToMissingAtlasSlot = 0;
+	TSet<FLightFunctionSlotKey>											SkippedLightFunctionsSet;
+#endif
+
+	FLightFunctionAtlasSetup AtlasSetup;
 };
 
 

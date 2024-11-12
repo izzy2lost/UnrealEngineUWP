@@ -23,6 +23,7 @@ namespace LyraTest
 	[Help("p4opened", "Check currently opened files instead of using CL ranged")]
 	[Help("MaxPackagesToLoad=<value>", "Maximum number of recent changes to check")]
 	[Help("LastGoodContentCLPath=<value>", "A directory location to store the 'last good' CL so we can determine CLs between runs.")]
+	[Help("SkipPrevCLFileExport", "Skip exporting the 'last good' CL.")]
 	public class LyraContentValidation : BuildCommand
 	{
 		public override void ExecuteBuild()
@@ -34,6 +35,7 @@ namespace LyraTest
 			string CommandletArgs = "";
 			bool RunCommandlet = false;
 			string PrevCLFilePath = "";
+			bool SkipPrevCLFileExport = ParseParam("SkipPrevCLFileExport");
 
 			//@TODO: Should derive these, otherwise it will break as soon as someone clones the projects
 			string GameProjectDirectory = "Samples/Games/Lyra";
@@ -155,22 +157,44 @@ namespace LyraTest
 			}
 
 			// Read the previous CL file one more time before writing to it, in case it changed while we were running
-			if (ThisCLInt > 0)
+			if (SkipPrevCLFileExport)
 			{
-				if (PrevCL < ThisCLInt)
+				Logger.LogInformation("Not writing PrevCLFile as -SkipPrevCLFileExport was specified");
+			}
+			else
+			{
+				ExportPrevCL(PrevCL, ThisCLInt, PrevCLFilePath);
+			}
+		}
+
+		/// <summary>
+		/// Exports 'last good' CL information by reading the previous CL file before writing the current CL to it, in case it changed while we were running
+		/// </summary>
+		/// <param name="PrevCL"></param>
+		/// <param name="ThisCL"></param>
+		/// <param name="PrevCLFilePath"></param>
+		private void ExportPrevCL(int PrevCL, int ThisCL, string PrevCLFilePath)
+		{
+			if (ThisCL > 0)
+			{
+				if (PrevCL < ThisCL)
 				{
 					PrevCL = ReadPrevCLFile(PrevCLFilePath);
 				}
 
-				if (PrevCL < ThisCLInt)
+				if (PrevCL < ThisCL)
 				{
 					Logger.LogInformation("Writing PrevCLFile {PrevCLFilePath}...", PrevCLFilePath);
-					WritePrevCLFile(PrevCLFilePath, ThisCLInt.ToString());
+					WritePrevCLFile(PrevCLFilePath, ThisCL.ToString());
 				}
 				else
 				{
 					Logger.LogInformation("Not writing PrevCLFile {PrevCLFilePath}. The current CL was not newer", PrevCLFilePath);
 				}
+			}
+			else
+			{
+				Logger.LogInformation("Not writing PrevCLFile {PrevCLFilePath} as the current CL {ThisCL} was invalid", PrevCLFilePath, ThisCL);
 			}
 		}
 
@@ -308,7 +332,6 @@ namespace LyraTest
 		/// <summary>
 		/// Returns true if files with extensions in the provided list are  open locally
 		/// </summary>
-		/// <param name="ShelvedChangelist"></param>
 		/// <param name="ExtensionTypeList"></param>
 		/// <returns></returns>
 		private bool AreFileTypesModifiedInOpenChangelists(List<string> ExtensionTypeList)

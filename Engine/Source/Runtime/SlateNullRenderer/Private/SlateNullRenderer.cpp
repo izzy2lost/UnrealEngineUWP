@@ -131,6 +131,11 @@ int32 FSlateNullRenderer::GetCurrentSceneIndex() const
 	return -1;
 }
 
+void FSlateNullRenderer::SetCurrentSceneIndex(int32 InIndex)
+{
+	// This is a no-op
+}
+
 void FSlateNullRenderer::ClearScenes() 
 {
 	// This is a no-op
@@ -139,9 +144,6 @@ void FSlateNullRenderer::ClearScenes()
 void FSlateNullRenderer::Sync() const
 {
 #if UE_SLATE_NULL_RENDERER_WITH_ENGINE
-	// Sync game and render thread. Either total sync or allowing one frame lag.
-	static FFrameEndSync FrameEndSync;
-	static auto CVarAllowOneFrameThreadLag = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.OneFrameThreadLag"));
-	FrameEndSync.Sync(CVarAllowOneFrameThreadLag->GetValueOnAnyThread() != 0);
+	FFrameEndSync::Sync();
 #endif
 }

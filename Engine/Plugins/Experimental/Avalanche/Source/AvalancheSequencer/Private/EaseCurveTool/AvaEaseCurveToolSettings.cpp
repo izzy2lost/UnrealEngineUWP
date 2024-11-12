@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEaseCurveToolSettings.h"
-#include "Misc/Paths.h"
 
 UAvaEaseCurveToolSettings::UAvaEaseCurveToolSettings()
 {

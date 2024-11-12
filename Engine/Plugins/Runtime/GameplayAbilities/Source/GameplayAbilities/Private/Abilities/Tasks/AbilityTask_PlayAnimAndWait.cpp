@@ -232,6 +232,7 @@ bool UAbilityTask_PlayAnimAndWait::StopPlayingMontage()
 			if (MontageInstance)
 			{
 				MontageInstance->OnMontageBlendingOutStarted.Unbind();
+				MontageInstance->OnMontageBlendedInEnded.Unbind();
 				MontageInstance->OnMontageEnded.Unbind();
 			}
 

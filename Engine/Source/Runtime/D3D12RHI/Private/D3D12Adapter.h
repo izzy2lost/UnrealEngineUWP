@@ -3,7 +3,7 @@
 /*=============================================================================
 	D3D12Adapter.h: D3D12 Adapter Interfaces
 
-	The D3D12 RHI is layed out in the following stucture. 
+	The D3D12 RHI is laid out in the following structure. 
 
 		[Engine]--
 				|
@@ -33,7 +33,13 @@
 
 #pragma once
 
-#include "D3D12RHIPrivate.h"
+#include "D3D12ThirdParty.h"
+#include "D3D12CommandContext.h"
+#include "D3D12RootSignature.h"
+#include "D3D12BindlessDescriptors.h"
+
+class FD3D12TransientHeapCache;
+class IRHITransientMemoryCache;
 
 struct FD3D12DeviceBasicInfo
 {
@@ -121,17 +127,6 @@ private:
 	FD3D12Adapter* Adapter = nullptr;
 };
 
-enum class ED3D12GPUCrashDebuggingModes
-{
-	None				= 0x0,
-	BreadCrumbs			= 0x1,
-	NvAftermath			= 0x2,
-	DRED				= 0x4,
-
-	All					= BreadCrumbs | NvAftermath | DRED,
-};
-ENUM_CLASS_FLAGS(ED3D12GPUCrashDebuggingModes)
-
 // Represents a set of linked D3D12 device nodes (LDA i.e 1 or more identical GPUs). In most cases there will be only 1 node, however if the system supports
 // SLI/Crossfire and the app enables it an Adapter will have 2 or more nodes. This class will own anything that can be shared
 // across LDA including: System Pool Memory,.Pipeline State Objects, Root Signatures etc.
@@ -210,7 +205,6 @@ public:
 
 	FORCEINLINE const bool IsDebugDevice() const { return bDebugDevice; }
 
-	FORCEINLINE const ED3D12GPUCrashDebuggingModes GetGPUCrashDebuggingModes() const { return GPUCrashDebuggingModes; }
 	FORCEINLINE const D3D12_RESOURCE_HEAP_TIER     GetResourceHeapTier      () const { return Desc.ResourceHeapTier; }
 	FORCEINLINE const D3D12_RESOURCE_BINDING_TIER  GetResourceBindingTier   () const { return Desc.ResourceBindingTier; }
 	FORCEINLINE const D3D_ROOT_SIGNATURE_VERSION   GetRootSignatureVersion  () const { return RootSignatureVersion; }
@@ -227,7 +221,7 @@ public:
 
 	FORCEINLINE TArray<FD3D12Viewport*>& GetViewports() { return Viewports; }
 	FORCEINLINE FD3D12Viewport* GetDrawingViewport() { return DrawingViewport; }
-	FORCEINLINE void SetDrawingViewport(FD3D12Viewport* InViewport) { DrawingViewport = InViewport; }
+	void SetDrawingViewport(FD3D12Viewport* InViewport);
 
 	FORCEINLINE int32 GetMaxDescriptorsForHeapType(ERHIDescriptorHeapType InHeapType) { return InHeapType == ERHIDescriptorHeapType::Sampler ? MaxSamplerDescriptors : MaxNonSamplerDescriptors; }
 
@@ -243,9 +237,23 @@ public:
 	FORCEINLINE FD3D12PipelineStateCache& GetPSOCache() { return PipelineStateCache; }
 
 	const FD3D12RootSignature* GetRootSignature(const FBoundShaderStateInput& BoundShaderState);
-	const FD3D12RootSignature* GetRootSignature(const class FD3D12RayTracingShader* Shader);
 	const FD3D12RootSignature* GetRootSignature(const class FD3D12ComputeShader* Shader);
-	const FD3D12RootSignature* GetGlobalRayTracingRootSignature();
+	const FD3D12RootSignature* GetRootSignature(const class FD3D12WorkGraphShader* Shader);
+
+	const FD3D12RootSignature* GetLocalRootSignature(const class FD3D12RayTracingShader* Shader);
+	const FD3D12RootSignature* GetGlobalRayTracingRootSignature(const FRHIShaderBindingLayout& ShaderBindingLayout);
+
+#if USE_STATIC_ROOT_SIGNATURE
+	FORCEINLINE const FD3D12RootSignature* GetStaticGraphicsWithConstantsRootSignature() const
+	{
+		return &StaticGraphicsWithConstantsRootSignature;
+	}
+
+	FORCEINLINE const FD3D12RootSignature* GetStaticComputeWithConstantsRootSignature() const
+	{
+		return &StaticComputeWithConstantsRootSignature;
+	}
+#endif
 
 	FORCEINLINE FD3D12RootSignatureManager* GetRootSignatureManager()
 	{
@@ -402,10 +410,9 @@ public:
 
 	void BlockUntilIdle();
 
-	void UpdateMemoryInfo();
-	FORCEINLINE const FD3D12MemoryInfo& GetMemoryInfo() const { return MemoryInfo; }
-
-	FORCEINLINE uint32 GetFrameCount() const { return FrameCounter; }
+	const FD3DMemoryStats& CollectMemoryStats();
+	FORCEINLINE const FD3DMemoryStats& GetMemoryStats() const { return MemoryStats; }
+	FORCEINLINE uint64 GetMemoryStatsUpdateFrame() const { return MemoryStatsUpdateFrame; }
 
 	bool IsTrackingAllAllocations() const { return bTrackAllAllocation; }
 	void TrackAllocationData(FD3D12ResourceLocation* InAllocation, uint64 InAllocationSize, bool bCollectCallstack);
@@ -442,6 +449,10 @@ public:
 	HMODULE GetDxgiDllHandle() const { return DxgiDllHandle; };
 #endif
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12BindlessDescriptorAllocator& GetBindlessDescriptorAllocator() { return BindlessDescriptorAllocator; }
+#endif
+
 protected:
 
 	virtual void CreateRootDevice(bool bWithDebug);
@@ -460,8 +471,6 @@ protected:
 
 	// Creates default root and execute indirect signatures
 	virtual void CreateCommandSignatures();
-
-	void SetupGPUCrashDebuggingModesCommon();
 
 	// LDA setups have one ID3D12Device
 	TRefCountPtr<ID3D12Device> RootDevice;
@@ -542,15 +551,7 @@ protected:
 	/** Running with debug device */
 	bool bDebugDevice = false;
 
-	/** GPU Crash debugging modes */
-	ED3D12GPUCrashDebuggingModes GPUCrashDebuggingModes = ED3D12GPUCrashDebuggingModes::None;
-
 	FD3D12AdapterDesc Desc;
-
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	bool bBindlessResourcesAllowed = false;
-	bool bBindlessSamplersAllowed = false;
-#endif
 
 	TRefCountPtr<IDXGIAdapter> DxgiAdapter;
 
@@ -580,8 +581,6 @@ protected:
 
 	FD3D12CommandContextRedirector DefaultContextRedirector;
 
-	uint32 FrameCounter = 0;
-
 	bool bTrackAllAllocation = false;
 
 	/** Information about an allocated resource. */
@@ -601,7 +600,8 @@ protected:
 	TArray<FReleasedAllocationData> ReleasedAllocationData;
 	FCriticalSection TrackedAllocationDataCS;
 
-	FD3D12MemoryInfo MemoryInfo;
+	FD3DMemoryStats MemoryStats;
+	uint64 MemoryStatsUpdateFrame;
 
 	TArray<FTransientUniformBufferAllocator*> TransientUniformBufferAllocators;
 	FCriticalSection TransientUniformBufferAllocatorsCS;
@@ -620,6 +620,10 @@ protected:
 	FD3D12RootSignature StaticComputeWithConstantsRootSignature;
 	FD3D12RootSignature StaticRayTracingGlobalRootSignature;
 	FD3D12RootSignature StaticRayTracingLocalRootSignature;
+#endif
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12BindlessDescriptorAllocator BindlessDescriptorAllocator;
 #endif
 
 private:

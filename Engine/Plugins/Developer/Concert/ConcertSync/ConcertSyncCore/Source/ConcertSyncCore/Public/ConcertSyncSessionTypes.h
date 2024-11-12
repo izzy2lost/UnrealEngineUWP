@@ -32,6 +32,10 @@ enum class EConcertSyncActivityEventType : uint8
 	Lock,
 	Transaction,
 	Package,
+	Replication,
+
+	// ADD NEW ENTRIES ABOVE 
+	Count
 };
 
 /** Type of transaction summaries */
@@ -160,7 +164,7 @@ struct FConcertSyncPackageEventData
 	FConcertPackageDataStream PackageDataStream;
 };
 
-UENUM()
+UENUM(Flags)
 enum class EConcertSyncActivityFlags : uint8
 {
 	None = 0,

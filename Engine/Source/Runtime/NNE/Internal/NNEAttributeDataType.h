@@ -20,5 +20,7 @@ enum class ENNEAttributeDataType : uint8
 	Int32,								//!< 32-bit signed integer
 	Int32Array,							//!< TArray of 32-bit signed integers
 	String,								//!< built-in FString
-	StringArray							//!< TArray of built-in FString
+	StringArray,						//!< TArray of built-in FString
+	Tensor,								//!< FAttributeTensor
+	TensorArray							//!< TArray of FAttributeTensor
 };

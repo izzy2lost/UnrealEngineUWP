@@ -52,6 +52,11 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "PackageTools.h"
 #include "SPrimaryButton.h"
+#include "UnrealEdGlobals.h"
+#include "Editor/UnrealEdEngine.h"
+#include "PropertyCustomizationHelpers.h"
+
+#include "Dataflow/DataflowObject.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FractureToolGenerators)
 
@@ -73,7 +78,7 @@ namespace
 //////////////////////////////////////////////////////////////////////////
 // SCreateGeometryCollectionFromObject is adapted from SCreateAssetFromActor 
 
-DECLARE_DELEGATE_ThreeParams(FOnPathChosen, const FString&, bool, bool);
+DECLARE_DELEGATE_FourParams(FOnPathChosen, const FString&, bool, bool, UDataflow*);
 
 class SCreateGeometryCollectionFromObject : public SCompoundWidget
 {
@@ -83,6 +88,9 @@ public:
 		, _AssetFilenamePrefix()
 		, _HeadingText()
 		, _CreateButtonText()
+		, _bSplitIslands(false)
+		, _bReimportToMeshOutput(false)
+		, _DataflowAsset(nullptr)
 	{}
 
 	/** The default suffix to use for the asset filename */
@@ -104,6 +112,7 @@ public:
 
 	SLATE_ARGUMENT(bool, bSplitIslands)
 	SLATE_ARGUMENT(bool, bReimportToMeshOutput)
+	SLATE_ARGUMENT(UDataflow*, DataflowAsset)
 
 	/** Action to perform when create clicked */
 	SLATE_EVENT(FOnPathChosen, OnCreateAssetAction)
@@ -120,6 +129,22 @@ private:
 
 	/** Callback when the selected asset path has changed. */
 	void OnSelectAssetPath(const FString& Path);
+
+	FString GetDataflowAssetPath() const
+	{
+		if (DataflowAsset)
+		{
+			return DataflowAsset->GetPathName();
+		}
+		return FString();
+	}
+	void OnDataflowAssetChanged(const FAssetData& InAssetData)
+	{
+		if (UDataflow* NewDataflow = Cast<UDataflow>(InAssetData.GetAsset()))
+		{
+			DataflowAsset = NewDataflow;
+		}
+	}
 
 	/** Destroys the window when the operation is cancelled. */
 	FReply OnCancelCreateAssetFromActor();
@@ -158,11 +183,14 @@ private:
 	/** The label to be displayed on the create button */
 	FText CreateButtonText;
 
-	/** Whether to split out each connected components into separate geometry */
+	/** Whether to split out topologically-disconnected components into separate bones in the Geometry Collection */
 	bool bSplitIslands = false;
 
-	/** Whether static mesh inputs were created by the 'ToMesh' tool in Fracture Mode */
+	/** Designate input faces with odd-numbered material indices as 'internal' materials. Only use this option to preserve internal faces on meshes created with the Fracture Mode 'ToMesh' tool. */
 	bool bFromToMeshTool = false;
+
+	/** Dataflow asset to assign */
+	TObjectPtr<UDataflow> DataflowAsset = nullptr;
 
 	/** Filename textbox widget */
 	TSharedPtr<SEditableTextBox> FileNameWidget;
@@ -186,6 +214,10 @@ void SCreateGeometryCollectionFromObject::Construct(const FArguments& InArgs, TS
 	HeadingText = InArgs._HeadingText;
 	CreateButtonText = InArgs._CreateButtonText;
 	OnCreateAssetAction = InArgs._OnCreateAssetAction;
+	bSplitIslands = InArgs._bSplitIslands;
+	bFromToMeshTool = InArgs._bReimportToMeshOutput;
+	DataflowAsset = InArgs._DataflowAsset;
+
 
 	if (InArgs._AssetPath.IsEmpty())
 	{
@@ -199,6 +231,7 @@ void SCreateGeometryCollectionFromObject::Construct(const FArguments& InArgs, TS
 	bIsReportingError = false;
 
 	FPathPickerConfig PathPickerConfig;
+	PathPickerConfig.bShowViewOptions = true;
 	PathPickerConfig.DefaultPath = AssetPath;
 	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateRaw(this, &SCreateGeometryCollectionFromObject::OnSelectAssetPath);
 
@@ -337,7 +370,7 @@ void SCreateGeometryCollectionFromObject::Construct(const FArguments& InArgs, TS
 						.ToolTipText(LOCTEXT("SplitComponentsToolTip", "If checked, triangles that are not topologically connected will be assigned separate bones on import. Does not apply if creating from a Geometry Collection source."))
 					]
 
-				+ SHorizontalBox::Slot()
+					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
 					[
 						SNew(SCheckBox)
@@ -354,6 +387,33 @@ void SCreateGeometryCollectionFromObject::Construct(const FArguments& InArgs, TS
 							bSplitIslands = NewState == ECheckBoxState::Checked;
 						})
 						.ToolTipText(LOCTEXT("SplitComponentsToolTip", "If checked, triangles that are not topologically connected will be assigned separate bones on import. Does not apply if creating from a Geometry Collection source."))
+					]
+				]
+				+ SVerticalBox::Slot()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.Padding(0.0f, 0.0f, 8.0f, 0.0f)
+					.FillWidth(0.5f)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("DataflowAssetLabel", "Dataflow"))
+						.ToolTipText(LOCTEXT("DataflowAssetToolTip", "Optionally assign a Dataflow to the new Geometry Collection, to procedurally define its fracture and clustering."))
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					[
+						SNew(SObjectPropertyEntryBox)
+							.ObjectPath(this, &SCreateGeometryCollectionFromObject::GetDataflowAssetPath)
+							.OnObjectChanged(this, &SCreateGeometryCollectionFromObject::OnDataflowAssetChanged)
+							.AllowedClass(UDataflow::StaticClass())
+							.DisplayUseSelected(true)
+							.DisplayBrowse(true)
+							.DisplayThumbnail(true)
+							.AllowCreate(true)
+							.AllowClear(true)
 					]
 				]
 			]
@@ -402,7 +462,7 @@ void SCreateGeometryCollectionFromObject::RequestDestroyParentWindow()
 FReply SCreateGeometryCollectionFromObject::OnCreateAssetFromActorClicked()
 {
 	RequestDestroyParentWindow();
-	OnCreateAssetAction.ExecuteIfBound(AssetPath / FileNameWidget->GetText().ToString(), bFromToMeshTool, bSplitIslands);
+	OnCreateAssetAction.ExecuteIfBound(AssetPath / FileNameWidget->GetText().ToString(), bFromToMeshTool, bSplitIslands, DataflowAsset);
 	return FReply::Handled();
 }
 
@@ -595,6 +655,9 @@ void UFractureToolGenerateAsset::OpenGenerateAssetDialog(TArray<AActor*>& Actors
 		.HeadingText(LOCTEXT("CreateGeometryCollection_Heading", "Geometry Collection Name"))
 		.CreateButtonText(LOCTEXT("CreateGeometryCollection_ButtonLabel", "Create Geometry Collection"))
 		.AssetPath(AssetPath)
+		.DataflowAsset(LastDataflowAsset)
+		.bReimportToMeshOutput(bLastFromToMesh)
+		.bSplitIslands(bLastSplitComponents)
 		.OnCreateAssetAction(FOnPathChosen::CreateUObject(this, &UFractureToolGenerateAsset::OnGenerateAssetPathChosen, Actors))
 	);
 
@@ -610,14 +673,17 @@ void UFractureToolGenerateAsset::OpenGenerateAssetDialog(TArray<AActor*>& Actors
 
 }
 
-void UFractureToolGenerateAsset::OnGenerateAssetPathChosen(const FString& InAssetPath, bool bFromToMeshTool, bool bSplitComponents, TArray<AActor*> Actors)
+void UFractureToolGenerateAsset::OnGenerateAssetPathChosen(const FString& InAssetPath, bool bFromToMeshTool, bool bSplitComponents, UDataflow* Dataflow, TArray<AActor*> Actors)
 {	
-	//Record the path
+	//Record the path and other settings
 	int32 LastSlash = INDEX_NONE;
 	if (InAssetPath.FindLastChar('/', LastSlash))
 	{
 		AssetPath = InAssetPath.Left(LastSlash);
 	}
+	bLastFromToMesh = bFromToMeshTool;
+	bLastSplitComponents = bSplitComponents;
+	LastDataflowAsset = Dataflow;
 
 	UGeometryCollectionComponent* GeometryCollectionComponent = nullptr;
 
@@ -627,7 +693,7 @@ void UFractureToolGenerateAsset::OnGenerateAssetPathChosen(const FString& InAsse
 
 		AGeometryCollectionActor* GeometryCollectionActor = nullptr;
 		
-		GeometryCollectionActor = ConvertActorsToGeometryCollection(InAssetPath, false/*bAddInternalMaterials*/, bSplitComponents, Actors, bFromToMeshTool);
+		GeometryCollectionActor = ConvertActorsToGeometryCollection(InAssetPath, false/*bAddInternalMaterials*/, bSplitComponents, Dataflow, Actors, bFromToMeshTool);
 		if (!GeometryCollectionActor)
 		{
 			return;
@@ -669,15 +735,30 @@ void UFractureToolGenerateAsset::OnGenerateAssetPathChosen(const FString& InAsse
 
 		FScopedTransaction Transaction(LOCTEXT("RemoveSourceActors", "Remove Source Actors"));
 
+		auto DestroyActor = [](AActor* Actor)
+		{
+			if (UWorld* ActorWorld = Actor->GetWorld())
+			{
+				if (GIsEditor && GUnrealEd)
+				{
+					GUnrealEd->DeleteActors(TArray{ Actor }, ActorWorld, GUnrealEd->GetSelectedActors()->GetElementSelectionSet());
+				}
+				else
+				{
+					ActorWorld->DestroyActor(Actor);
+				}
+			}
+		};
+
 		for (AActor* Actor : Actors)
 		{
 			Actor->Modify();
-			Actor->Destroy();
+			DestroyActor(Actor);
 		}
 	}
 }
 
-AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCollection(const FString& InAssetPath, bool bAddInternalMaterials, bool bSplitComponents, TArray<AActor*>& Actors, bool bFromToMeshTool)
+AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCollection(const FString& InAssetPath, bool bAddInternalMaterials, bool bSplitComponents, UDataflow* Dataflow, TArray<AActor*>& Actors, bool bFromToMeshTool)
 {
 	ensure(!bAddInternalMaterials); // we should not use the 'add internal materials' path anymore, as we move away from the odd-numbered-internal-material convention
 	ensure(Actors.Num() > 0);
@@ -821,6 +902,11 @@ AGeometryCollectionActor* UFractureToolGenerateAsset::ConvertActorsToGeometryCol
 
 	FracturedGeometryCollection->InitializeMaterials(bAddInternalMaterials);
 
+	if (Dataflow)
+	{
+		FracturedGeometryCollection->DataflowAsset = Dataflow;
+	}
+
 	AddSingleRootNodeIfRequired(FracturedGeometryCollection);
 
 	FracturedGeometryCollection->InvalidateCollection();
@@ -845,10 +931,10 @@ class AGeometryCollectionActor* UFractureToolGenerateAsset::CreateNewGeometryAct
 
 	UPackage* Package = CreatePackage(*UniquePackageName);
 	UGeometryCollection* InGeometryCollection = static_cast<UGeometryCollection*>(NewObject<UGeometryCollection>(Package, UGeometryCollection::StaticClass(), FName(*UniqueAssetName), RF_Transactional | RF_Public | RF_Standalone));
-	if(!InGeometryCollection->SizeSpecificData.Num()) InGeometryCollection->SizeSpecificData.Add(FGeometryCollectionSizeSpecificData());
 
 	// Create the new Geometry Collection actor
-	AGeometryCollectionActor* NewActor = Cast<AGeometryCollectionActor>(AddActor(GetSelectedLevel(), AGeometryCollectionActor::StaticClass()));
+	ULevel* PlaceInLevel = GEditor->GetEditorWorldContext().World()->GetCurrentLevel();
+	AGeometryCollectionActor* NewActor = Cast<AGeometryCollectionActor>(AddActor(PlaceInLevel, AGeometryCollectionActor::StaticClass()));
 	check(NewActor->GetGeometryCollectionComponent());
 
 	// Set the Geometry Collection asset in the new actor
@@ -865,22 +951,6 @@ class AGeometryCollectionActor* UFractureToolGenerateAsset::CreateNewGeometryAct
 	Package->SetDirtyFlag(true);
 
 	return NewActor;
-}
-
-ULevel* UFractureToolGenerateAsset::GetSelectedLevel()
-{
-	USelection* SelectedActors = GEditor->GetSelectedActors();
-	TArray<ULevel*> UniqueLevels;
-	for (FSelectionIterator Iter(*SelectedActors); Iter; ++Iter)
-	{
-		AActor* Actor = Cast<AActor>(*Iter);
-		if (Actor)
-		{
-			UniqueLevels.AddUnique(Actor->GetLevel());
-		}
-	}
-	check(UniqueLevels.Num() == 1);
-	return UniqueLevels[0];
 }
 
 AActor* UFractureToolGenerateAsset::AddActor(ULevel* InLevel, UClass* Class)

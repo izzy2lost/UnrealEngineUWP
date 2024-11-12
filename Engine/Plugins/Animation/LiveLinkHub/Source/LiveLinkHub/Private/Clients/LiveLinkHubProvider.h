@@ -57,6 +57,9 @@ public:
 	/** Timecode settings that should be shared to connected editors. */
 	void SetTimecodeSettings(FLiveLinkHubTimecodeSettings InSettings);
 
+	/** Retrieve current timecode settings. */
+	const FLiveLinkHubTimecodeSettings& GetTimecodeSettings() const { return TimecodeSettings; }
+
 private:
 	/** Handle a connection message resulting from a livelink hub message bus source connecting to this provider. */
 	void HandleHubConnectMessage(const FLiveLinkHubConnectMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
@@ -103,8 +106,8 @@ protected:
 	virtual bool IsClientEnabled(FLiveLinkHubClientId Client) const override;
 	virtual bool IsClientConnected(FLiveLinkHubClientId Client) const override;
 	virtual void SetClientEnabled(FLiveLinkHubClientId Client, bool bInEnable) override;
-	virtual bool IsSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject) const override;
-	virtual void SetSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject, bool bInEnable) override;
+	virtual bool IsSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName) const override;
+	virtual void SetSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName, bool bInEnable) override;
 	//~ End ILiveLinkHubClientsModel interface
 
 private:

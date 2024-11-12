@@ -23,7 +23,6 @@ export type FailureKind =
 	'Commit failure' |
 	'Syntax error' |
 	'Disallowed files' |
-	'Too many files' |
 	'Approval required' |
 	'Conversion to edits failure' |
 	'Unit Test error'
@@ -170,6 +169,7 @@ export type ConflictStatusFields = {
 	kind: FailureKind
 	author: string
 	owner: string
+	slackLinks: string[]
 }
 
 type GraphBotError = {

@@ -14,7 +14,7 @@ namespace EpicGames.Horde.Issues
 	[TypeConverter(typeof(StringIdTypeConverter<WorkflowId, WorkflowIdConverter>))]
 	[StringIdConverter(typeof(WorkflowIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<WorkflowId, WorkflowIdConverter>))]
-	public record struct WorkflowId(StringId Id)
+	public readonly record struct WorkflowId(StringId Id)
 	{
 		/// <summary>
 		/// Empty workflow id constant

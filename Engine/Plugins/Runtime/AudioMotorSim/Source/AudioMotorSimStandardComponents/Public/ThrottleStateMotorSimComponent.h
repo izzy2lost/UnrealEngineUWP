@@ -24,7 +24,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ThrottleState")
 	FOnEngineBlowoff OnEngineBlowoff;
 
-	UPROPERTY(EditAnywhere, Category = "ThrottleState")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ThrottleState")
 	float BlowoffMinThrottleTime = 1.f;
 	
 	virtual void Update(FAudioMotorSimInputContext& Input, FAudioMotorSimRuntimeContext& RuntimeInfo) override;

@@ -676,6 +676,12 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 	
 	struct Local
 	{
+		static FText GetCornerText(TAttribute<FGraphAppearanceInfo> Appearance, FText DefaultText)
+		{
+			FText OverrideText = Appearance.Get().CornerText;
+			return !OverrideText.IsEmpty() ? OverrideText : DefaultText;
+		}
+
 		static FText GetPIENotifyText(TAttribute<FGraphAppearanceInfo> Appearance, FText DefaultText)
 		{
 			FText OverrideText = Appearance.Get().PIENotifyText;
@@ -694,6 +700,11 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 			return !OverrideText.IsEmpty() ? OverrideText : DefaultText;
 		}
 	};
+
+	FText DefaultCornerText = Appearance.Get().CornerText;
+	TAttribute<FText> CornerText = Appearance.IsBound() ?
+		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetCornerText, Appearance, DefaultCornerText)) :
+		TAttribute<FText>(DefaultCornerText);
 	
 	FText DefaultPIENotify(LOCTEXT("GraphSimulatingText", "SIMULATING"));
 	TAttribute<FText> PIENotifyText = Appearance.IsBound() ?
@@ -705,7 +716,7 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetReadOnlyText, Appearance, DefaultReadOnlyText)) :
 		TAttribute<FText>(DefaultReadOnlyText);
 
-	FText DefaultWarningText(LOCTEXT("GraphWarningText", ""));
+	FText DefaultWarningText;
 	TAttribute<FText> WarningText = Appearance.IsBound() ?
 		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetWarningText, Appearance, DefaultWarningText)) :
 		TAttribute<FText>(DefaultWarningText);
@@ -805,7 +816,7 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 			SNew(STextBlock)
 			.Visibility( EVisibility::HitTestInvisible )
 			.TextStyle( FAppStyle::Get(), "Graph.CornerText" )
-			.Text(Appearance.Get().CornerText)
+			.Text(CornerText)
 		]
 
 		// Top-right corner text indicating PIE is active
@@ -839,7 +850,7 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 		.HAlign(HAlign_Right)
 		[
 			SAssignNew(NotificationListPtr, SNotificationList)
-			.Visibility(EVisibility::HitTestInvisible)
+			.Visibility(EVisibility::Visible)
 		]
 	];
 
@@ -1452,8 +1463,23 @@ void SGraphEditorImpl::AddNotification( FNotificationInfo& Info, bool bSuccess )
 	TSharedPtr<SNotificationItem> Notification = NotificationListPtr->AddNotification(Info);
 	if ( Notification.IsValid() )
 	{
+		Notification->SetVisibility(EVisibility::HitTestInvisible);
 		Notification->SetCompletionState( bSuccess ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail );
 	}
+}
+
+TSharedPtr<SNotificationItem> SGraphEditorImpl::AddNotification(FNotificationInfo& Info)
+{
+	// set up common notification properties
+	Info.bUseLargeFont = true;
+
+	TSharedPtr<SNotificationItem> Notification = NotificationListPtr->AddNotification(Info);
+	if (Notification.IsValid())
+	{
+		Notification->SetVisibility(EVisibility::HitTestInvisible);
+		return Notification;
+	}
+	return nullptr;
 }
 
 EActiveTimerReturnType SGraphEditorImpl::HandleFocusEditorDeferred(double InCurrentTime, float InDeltaTime)

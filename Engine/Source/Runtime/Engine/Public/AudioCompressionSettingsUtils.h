@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#pragma once
-#include "AudioCompressionSettings.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "AudioStreamingCache.h"
-#endif
+#pragma once
+
+#include "AudioCompressionSettings.h"
 
 struct FCachedAudioStreamingManagerParams;
 
@@ -26,7 +24,8 @@ public:
 	// null platformname means to use current platform
 	static ENGINE_API const FPlatformAudioCookOverrides* GetCookOverrides(const TCHAR* PlatformName=nullptr, bool bForceRecache = false);
 
-	static ENGINE_API bool IsCurrentPlatformUsingStreamCaching();
+	UE_DEPRECATED(5.5, "this always returns true, no longer needed.")
+	static ENGINE_API bool IsCurrentPlatformUsingStreamCaching() { return true; };
 
 	// null platformname means to use current platform
 	static ENGINE_API const FAudioStreamCachingSettings& GetStreamCachingSettingsForCurrentPlatform();

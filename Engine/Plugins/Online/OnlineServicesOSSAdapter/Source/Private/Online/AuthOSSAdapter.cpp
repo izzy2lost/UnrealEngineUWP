@@ -10,6 +10,7 @@
 #include "Online/DelegateAdapter.h"
 
 #include "Online/OnlineUtils.h"
+#include "Online/OnlineUtilsCommon.h"
 #include "OnlineSubsystem.h"
 #include "Interfaces/OnlineIdentityInterface.h"
 
@@ -595,21 +596,8 @@ TOnlineAsyncOpHandle<FAuthHandleLoginStatusChangedImpl> FAuthOSSAdapter::HandleL
 	Op->Then([this](TOnlineAsyncOp<FAuthHandleLoginStatusChangedImpl>& InAsyncOp)
 	{
 		const FAuthHandleLoginStatusChangedImpl::Params& Params = InAsyncOp.GetParams();
+		
 		TSharedPtr<FAccountInfoOSSAdapter> AccountInfoOSSAdapter = AccountInfoRegistryOSSAdapter.Find(Params.AccountId);
-		if (!AccountInfoOSSAdapter)
-		{
-			TSharedPtr<FAccountInfoOSSAdapter> NewAccountInfoOSSAdapter = MakeShared<FAccountInfoOSSAdapter>();
-			NewAccountInfoOSSAdapter->AccountId = Params.AccountId;
-			NewAccountInfoOSSAdapter->PlatformUserId = Params.PlatformUserId;
-			NewAccountInfoOSSAdapter->LocalUserNum = GetIdentityInterface()->GetLocalUserNumFromPlatformUserId(Params.PlatformUserId);
-
-			UE_LOG(LogOnlineServices, Log, TEXT("[FAuthOSSAdapter::HandleLoginStatusChangedImplOp][%s] Attempt to register [%s] account that have been initialized before the adapter has fully initialize."),
-				*GetSubsystem().GetSubsystemName().ToString(), *ToLogString(NewAccountInfoOSSAdapter->AccountId));
-
-			// Add the user to the registry if they happen to be signed in before initilization
-			AccountInfoRegistryOSSAdapter.Register(NewAccountInfoOSSAdapter.ToSharedRef());
-			AccountInfoOSSAdapter = AccountInfoRegistryOSSAdapter.Find(Params.AccountId);
-		}
 
 		if (!AccountInfoOSSAdapter)
 		{

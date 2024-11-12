@@ -67,7 +67,7 @@ public:
 		void Initialize(const FSceneView* InSceneView, FTransform InTransform)
 		{
 			LocalToWorldTransform = InTransform;
-			PixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(InSceneView, InTransform.GetLocation());
+			PixelToWorldScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(InSceneView, InTransform.GetLocation());
 		}
 
 		// Returns the mesh material based on the current interaction state.
@@ -106,7 +106,7 @@ public:
 		{
 			check(InGizmoViewContext);
 			LocalToWorldTransform = InTransform;
-			PixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(InGizmoViewContext, InTransform.GetLocation());
+			PixelToWorldScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(InGizmoViewContext, InTransform.GetLocation());
 			bIsPerspectiveProjection = InGizmoViewContext->IsPerspectiveProjection();
 		}
 	};

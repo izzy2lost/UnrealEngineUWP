@@ -70,16 +70,12 @@ public:
 	 * An instance of this class will be spawned by each Enhanced Input subsytem as a place to store
 	 * user settings such as keymappings, accessibility settings, etc. Subclass this to add more custom
 	 * options to your game.
-	 *
-	 * Note: This is a new experimental feature!
 	 */
 	UPROPERTY(config, EditAnywhere, NoClear, Category = "Enhanced Input|User Settings", meta=(editCondition = "bEnableUserSettings"))
 	TSoftClassPtr<UEnhancedInputUserSettings> UserSettingsClass;
 
 	/**
 	 * The default class for the player mappable key profile, used to store the key mappings set by the player in the user settings.
-	 * 
-	 * Note: This is a new experimental feature!
 	 */
 	UPROPERTY(config, EditAnywhere, NoClear, Category = "Enhanced Input|User Settings", meta=(editCondition = "bEnableUserSettings"))
 	TSoftClassPtr<UEnhancedPlayerMappableKeyProfile> DefaultPlayerMappableKeyProfileClass;
@@ -99,10 +95,8 @@ public:
 
 	/**
 	 * If true, then an instance of the User Settings Class will be created on each Enhanced Input subsystem.
-	 * 
-	 * Note: This is a new experimental feature!
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Enhanced Input|User Settings", meta=(DisplayName="Enable User Settings (Experimental)", DisplayPriority = 1))
+	UPROPERTY(config, EditAnywhere, Category = "Enhanced Input|User Settings", meta=(DisplayName="Enable User Settings", DisplayPriority = 1))
 	uint8 bEnableUserSettings : 1;
 
 	/** If true, then the DefaultMappingContexts will be applied to all Enhanced Input Subsystems. */

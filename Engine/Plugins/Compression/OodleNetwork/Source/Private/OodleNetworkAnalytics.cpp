@@ -108,11 +108,15 @@ void FOodleNetAnalyticsData::SendAnalytics()
 
 		uint64 InPreLengthTotal = InCompressedLengthTotal + InNotCompressedLengthTotal;
 		uint64 InPreWithOverheadLengthTotal = InCompressedWithOverheadLengthTotal + InNotCompressedLengthTotal;
+
+		/** The total size in Bytes of In traffic received */
 		uint64 InPostLengthTotal = InDecompressedLengthTotal + InNotCompressedLengthTotal;
 
 		uint64 OutPreLengthTotal = OutBeforeCompressedLengthTotal + OutNotCompressedFailedLengthTotal + OutNotCompressedSkippedLengthTotal;
-		uint64 OutPostLengthTotal = OutCompressedLengthTotal + OutNotCompressedFailedLengthTotal + OutNotCompressedSkippedLengthTotal;
 		uint64 OutPostWithOverheadLengthTotal = OutCompressedWithOverheadLengthTotal + OutNotCompressedFailedLengthTotal + OutNotCompressedSkippedLengthTotal;
+
+		/** The total size in Bytes of Out traffic generated */
+		uint64 OutPostLengthTotal = OutCompressedLengthTotal + OutNotCompressedFailedLengthTotal + OutNotCompressedSkippedLengthTotal;
 
 		uint64 OutPreAttemptedLengthTotal = OutBeforeCompressedLengthTotal + OutNotCompressedFailedLengthTotal;
 		uint64 OutPostAttemptedWithOverheadLengthTotal = OutCompressedWithOverheadLengthTotal + OutNotCompressedFailedLengthTotal;
@@ -124,10 +128,10 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		 * Also factors in skipped/failed compression (which has increased a lot since analytics was added) - reducing the usefulness for determining algorithm compression.
 		 */
 			/** The percentage of compression savings, of all incoming packets. */
-			int8 InSavingsPercentTotal = (1.0 - ((double)InPreLengthTotal / (double)InPostLengthTotal)) * 100.0;
+			int8 InSavingsPercentTotal = (int8)((1.0 - ((double)InPreLengthTotal / (double)InPostLengthTotal)) * 100.0);
 
 			/** The percentage of compression savings, of all outgoing packets. */
-			int8 OutSavingsPercentTotal = (1.0 - ((double)OutPostLengthTotal / (double)OutPreLengthTotal)) * 100.0;
+			int8 OutSavingsPercentTotal = (int8)((1.0 - ((double)OutPostLengthTotal / (double)OutPreLengthTotal)) * 100.0);
 
 			/** The number of bytes saved due to compression, of all incoming packets. */
 			int64 InSavingsBytesTotal = InPostLengthTotal - InPreLengthTotal;
@@ -140,10 +144,10 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		 * This is the most accurate measure of compression savings (in terms of overall bandwidth).
 		 */
 			/** The percentage of compression savings, of all incoming packets. */
-			int8 InSavingsWithOverheadPercentTotal = (1.0 - ((double)InPreWithOverheadLengthTotal / (double)InPostLengthTotal)) * 100.0;
+			int8 InSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)InPreWithOverheadLengthTotal / (double)InPostLengthTotal)) * 100.0);
 
 			/** The percentage of compression savings, of all outgoing packets. */
-			int8 OutSavingsWithOverheadPercentTotal = (1.0 - ((double)OutPostWithOverheadLengthTotal / (double)OutPreLengthTotal)) * 100.0;
+			int8 OutSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)OutPostWithOverheadLengthTotal / (double)OutPreLengthTotal)) * 100.0);
 
 			/** The number of bytes saved due to compression, of all incoming packets. */
 			int64 InSavingsWithOverheadBytesTotal = InPostLengthTotal - InPreWithOverheadLengthTotal;
@@ -156,10 +160,10 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		 * This is the best measure for determining algorithm compression performance, especially when measured against the Oodle encode/decode CPU cost.
 		 */
 			/** The percentage of compression savings, of all incoming packets that were compressed (attempted but failed compress, can't be counted here) */
-			int8 InAttemptedSavingsWithOverheadPercentTotal = (1.0 - ((double)InCompressedWithOverheadLengthTotal / (double)InDecompressedLengthTotal)) * 100.0;
+			int8 InAttemptedSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)InCompressedWithOverheadLengthTotal / (double)InDecompressedLengthTotal)) * 100.0);
 
 			/** The percentage of compression savings, of all outgoing packets that attempted compression. */
-			int8 OutAttemptedSavingsWithOverheadPercentTotal = (1.0 - ((double)OutPostAttemptedWithOverheadLengthTotal / (double)OutPreAttemptedLengthTotal)) * 100.0;
+			int8 OutAttemptedSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)OutPostAttemptedWithOverheadLengthTotal / (double)OutPreAttemptedLengthTotal)) * 100.0);
 
 
 		uint32 NumOodleNetworkHandlersCompressionDisabled = NumOodleNetworkHandlers - NumOodleNetworkHandlersCompressionEnabled;
@@ -187,6 +191,8 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - OutNotCompressedFailedLengthTotal: %llu"), OutNotCompressedFailedLengthTotal);
 		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - OutNotCompressedSkippedLengthTotal: %llu"), OutNotCompressedSkippedLengthTotal);
 		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - OutNotCompressedNumTotal: %llu"), OutNotCompressedNumTotal);
+		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - OutPostLengthTotal: %llu"), OutPostLengthTotal);
+		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - InPostLengthTotal: %llu"), InPostLengthTotal);
 		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - InSavingsPercentTotal: %i"), InSavingsPercentTotal);
 		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - OutSavingsPercentTotal: %i"), OutSavingsPercentTotal);
 		UE_LOG(OodleNetworkHandlerComponentLog, Log, TEXT(" - InSavingsBytesTotal: %lli"), InSavingsBytesTotal);
@@ -223,6 +229,8 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		static const FString EZAttrib_OutNotCompressedFailedLengthTotal = TEXT("OutNotCompressedFailedLengthTotal");
 		static const FString EZAttrib_OutNotCompressedSkippedLengthTotal = TEXT("OutNotCompressedSkippedLengthTotal");
 		static const FString EZAttrib_OutNotCompressedNumTotal = TEXT("OutNotCompressedNumTotal");
+		static const FString EZAttrib_OutPostLengthTotal = TEXT("OutPostLengthTotal");
+		static const FString EZAttrib_InPostLengthTotal = TEXT("InPostLengthTotal");
 		static const FString EZAttrib_InSavingsPercentTotal = TEXT("InSavingsPercentTotal");
 		static const FString EZAttrib_OutSavingsPercentTotal = TEXT("OutSavingsPercentTotal");
 		static const FString EZAttrib_InSavingsBytesTotal = TEXT("InSavingsBytesTotal");
@@ -259,6 +267,8 @@ void FOodleNetAnalyticsData::SendAnalytics()
 			EZAttrib_OutNotCompressedFailedLengthTotal, OutNotCompressedFailedLengthTotal,
 			EZAttrib_OutNotCompressedSkippedLengthTotal, OutNotCompressedSkippedLengthTotal,
 			EZAttrib_OutNotCompressedNumTotal, OutNotCompressedNumTotal,
+			EZAttrib_OutPostLengthTotal, OutPostLengthTotal,
+			EZAttrib_InPostLengthTotal, InPostLengthTotal,
 			EZAttrib_InSavingsPercentTotal, InSavingsPercentTotal,
 			EZAttrib_OutSavingsPercentTotal, OutSavingsPercentTotal,
 			EZAttrib_InSavingsBytesTotal, InSavingsBytesTotal,

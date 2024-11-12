@@ -15,7 +15,7 @@ UAvaViewportSettings::UAvaViewportSettings()
 	ViewportCheckerboardColor1 = FLinearColor(FVector3f(0.177888f));
 	ViewportCheckerboardSize = 8.0f;
 
-	bGridEnabled = true;
+	bGridEnabled = false;
 	bGridAlwaysVisible = false;
 	GridSize = 50;
 	GridColor = FLinearColor(0.6, 0.0, 0.0, 0.4);
@@ -24,7 +24,7 @@ UAvaViewportSettings::UAvaViewportSettings()
 	bPixelGridEnabled = true;
 	PixelGridColor = FLinearColor(0.5, 0.5, 0.5, 0.4);
 
-	SnapState = static_cast<int32>(EAvaViewportSnapState::Global | EAvaViewportSnapState::Screen | EAvaViewportSnapState::Grid);
+	SnapState = static_cast<int32>(EAvaViewportSnapState::Off);
 	bSnapIndicatorsEnabled = true;
 	SnapIndicatorColor = FLinearColor::Red;
 	SnapIndicatorThickness = 2.f;
@@ -73,6 +73,11 @@ void UAvaViewportSettings::SetSnapState(EAvaViewportSnapState InSnapState)
 	SnapState = static_cast<int32>(InSnapState);
 }
 
+void UAvaViewportSettings::BroadcastSettingChanged(FName InSettingName)
+{
+	OnChange.Broadcast(this, InSettingName);
+}
+
 void UAvaViewportSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -81,6 +86,6 @@ void UAvaViewportSettings::PostEditChangeProperty(FPropertyChangedEvent& Propert
 
 	if (MemberName != NAME_None)
 	{
-		OnChange.Broadcast(this, MemberName);
+		BroadcastSettingChanged(MemberName);
 	}
 }

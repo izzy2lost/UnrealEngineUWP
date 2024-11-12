@@ -14,6 +14,7 @@ import com.tonyodev.fetch2.FetchGroup;
 public interface FetchDownloadProgressOwner
 {
 	public void OnDownloadQueued(@NonNull Download download);
+	public void OnDownloadStarted(@NonNull Download download);
 	public void OnDownloadProgress(@NonNull Download download, boolean indeterminate, long downloadedBytesPerSecond, long etaInMilliSeconds);
 	public void OnDownloadChangePauseState(@NonNull Download download, boolean bIsPaused);
 	public void OnDownloadGroupProgress(@NonNull FetchGroup Group, DownloadProgressListener ProgressListener);

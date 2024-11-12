@@ -850,7 +850,7 @@ static void ConformComponentsUtils::ConformRemovedNativeComponents(UObject* BpCd
 		// else, the component has been removed from our native super class
 
 		Component->DestroyComponent(/*bPromoteChildren =*/false);
-		if (Component->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		if (Component->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 		{
 			// Async loading components cannot be pending kill, or the async loading code will assert when trying to postload them.
 			Component->ClearGarbage();
@@ -1003,6 +1003,8 @@ void FKismetEditorUtilities::ConformBlueprintFlagsAndComponents(UBlueprint* Blue
 	if( UClass* SkelClass = BlueprintObj->SkeletonGeneratedClass )
 	{
 		SkelClass->ClassFlags |= (ParentClass->ClassFlags & CLASS_ScriptInherit);
+		SkelClass->ClassConfigName = ParentClass->ClassConfigName;
+		SkelClass->ClassWithin = ParentClass->ClassWithin;
 		UObject* SkelCDO = SkelClass->GetDefaultObject();
 		// NOTE: we don't need to call ConformRemovedNativeComponents() for skel
 		//       classes, as they're generated on load (and not saved with stale 
@@ -1013,6 +1015,8 @@ void FKismetEditorUtilities::ConformBlueprintFlagsAndComponents(UBlueprint* Blue
 	if( UClass* GenClass = BlueprintObj->GeneratedClass )
 	{
 		GenClass->ClassFlags |= (ParentClass->ClassFlags & CLASS_ScriptInherit);
+		GenClass->ClassConfigName = ParentClass->ClassConfigName;
+		GenClass->ClassWithin = ParentClass->ClassWithin;
 		if (UObject* GenCDO = GenClass->ClassDefaultObject)
 		{
 			ConformComponentsUtils::ConformRemovedNativeComponents(GenCDO);
@@ -1775,7 +1779,7 @@ void CreateBlueprintFromActors_Internal(UBlueprint* Blueprint, const TArray<AAct
 			// Remove attached actors that are also in the set of actors being converted to blueprint
 			if (Actors.Contains(AttachedActors[Index]))
 			{
-				AttachedActors.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				AttachedActors.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 
@@ -1856,7 +1860,7 @@ void CreateChildActorComponentsForActors(const FBlueprintAssemblyProps& Assembly
 	// unless we rename these temporary components out of the way
 	for (UActorComponent* CAC : ChildActorComponents)
 	{
-		CAC->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
+		CAC->Rename(nullptr, nullptr, REN_DoNotDirty | REN_DontCreateRedirectors);
 	}
 }
 
@@ -2183,7 +2187,17 @@ int32 FKismetEditorUtilities::ApplyInstanceChangesToBlueprint(AActor* Actor)
 					}
 					if (NumChangedProperties > 0)
 					{
-						Actor = nullptr; // It is unsafe to use Actor after this point as it may have been reinstanced, so set it to null to make this obvious
+						TArray<AActor*> Actors;
+						Actors.Add(Actor);
+
+						FVector Location = Actor->GetActorLocation();
+						FRotator Rotator = Actor->GetActorRotation();
+
+						AActor* NewActor = CreateBlueprintInstanceFromSelection(Blueprint, Actors, Location, Rotator, Actor->GetAttachParentActor());
+						if (NewActor)
+						{
+							NewActor->SetActorScale3D(Actor->GetActorScale3D());
+						}
 					}
 				}
 			}
@@ -2495,7 +2509,7 @@ void FKismetEditorUtilities::UpgradeCosmeticallyStaleBlueprint(UBlueprint* Bluep
 		if ((OldStateGraph != NULL) && (CollidingObject == NULL))
 		{
 			check(!OldStateGraph->HasAnyFlags(RF_Public));
-			OldStateGraph->Rename(*(UEdGraphSchema_K2::GN_EventGraph.ToString()), OldStateGraph->GetOuter(), REN_DoNotDirty | REN_ForceNoResetLoaders);
+			OldStateGraph->Rename(*(UEdGraphSchema_K2::GN_EventGraph.ToString()), OldStateGraph->GetOuter(), REN_DoNotDirty);
 			Blueprint->Status = BS_Dirty;
 		}
 	}

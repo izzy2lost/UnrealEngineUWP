@@ -174,8 +174,6 @@ public:
 
 	static void HandleShowSDKTutorial(FString PlatformName, FString NotInstalledDocLink);
 
-	static FSlateIcon GetResumePlaySessionImage();
-	static FText GetResumePlaySessionToolTip();
 	static void StopPlaySession_Clicked();
 	static void LateJoinSession_Clicked();
 	static void SingleFrameAdvance_Clicked();
@@ -349,6 +347,7 @@ void FPlayWorldCommands::RegisterCommands()
 	// PIE
 	UI_COMMAND(RepeatLastPlay, "Play", "Launches a game preview session in the same mode as the last game preview session launched from the Game Preview Modes dropdown next to the Play button on the level editor toolbar", EUserInterfaceActionType::Button, FInputChord(EKeys::P, EModifierKey::Alt))
 	UI_COMMAND(PlayInViewport, "Selected Viewport", "Play this level in the active level editor viewport", EUserInterfaceActionType::Check, FInputChord());
+	UI_COMMAND(PlaySimulate, "Start simulation", "Simulate this level in the active level editor viewport", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(PlayInEditorFloating, "New Editor Window (PIE)", "Play this level in a new window", EUserInterfaceActionType::Check, FInputChord());
 	UI_COMMAND(PlayInVR, "VR Preview", "Play this level in VR", EUserInterfaceActionType::Check, FInputChord());
 	UI_COMMAND(PlayInMobilePreview, "Standalone Game Mobile", "Play this level as a mobile device preview in Mobile mode (runs in its own process)", EUserInterfaceActionType::Check, FInputChord());
@@ -360,9 +359,9 @@ void FPlayWorldCommands::RegisterCommands()
 	UI_COMMAND(PlayInSettings, "Advanced Settings...", "Open the settings for the 'Play In' feature", EUserInterfaceActionType::Button, FInputChord());
 
 	// SIE & PIE controls
-	UI_COMMAND(StopPlaySession, "Stop", "Stop simulation", EUserInterfaceActionType::Button, FInputChord(EKeys::Escape));
-	UI_COMMAND(ResumePlaySession, "Resume", "Resume simulation", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(PausePlaySession, "Pause", "Pause simulation", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(StopPlaySession, "Stop", "Stop", EUserInterfaceActionType::Button, FInputChord(EKeys::Escape));
+	UI_COMMAND(ResumePlaySession, "Resume", "Resume", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(PausePlaySession, "Pause", "Pause", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(GetMouseControl, "Mouse Control", "Get mouse cursor while in PIE", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift, EKeys::F1));
 	UI_COMMAND(LateJoinSession, "Add Client", "Add another client", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(SingleFrameAdvance, "Skip", "Advances a single frame", EUserInterfaceActionType::Button, FInputChord());
@@ -432,10 +431,27 @@ void FPlayWorldCommands::BindGlobalPlayWorldCommands()
 		FIsActionButtonVisible::CreateStatic(&FInternalPlayWorldCommandCallbacks::CanShowNonPlayWorldOnlyActions)
 	);
 
-	ActionList.MapAction(Commands.PlayInViewport,
+	ActionList.MapAction(
+		Commands.PlayInViewport,
 		FExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::PlayInViewport_Clicked),
 		FCanExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::PlayInViewport_CanExecute),
-		FIsActionChecked::CreateStatic(&FInternalPlayWorldCommandCallbacks::PlayInModeIsChecked, PlayMode_InViewPort),
+		FIsActionChecked::CreateLambda(
+			[]() -> bool
+			{
+				// The toolbar play button launches PIE whenever we last ran SIE or PIE.
+				// This logic makes sure the checked state in the ... submenu also indicates the same.
+				return FInternalPlayWorldCommandCallbacks::PlayInModeIsChecked(PlayMode_InViewPort)
+					|| FInternalPlayWorldCommandCallbacks::PlayInModeIsChecked(PlayMode_Simulate);
+			}
+		),
+		FIsActionButtonVisible::CreateStatic(&FInternalPlayWorldCommandCallbacks::CanShowNonPlayWorldOnlyActions)
+	);
+
+	ActionList.MapAction(
+		Commands.PlaySimulate,
+		FExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::Simulate_Clicked),
+		FCanExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::Simulate_CanExecute),
+		FIsActionChecked::CreateStatic(&FInternalPlayWorldCommandCallbacks::PlayInModeIsChecked, PlayMode_Simulate),
 		FIsActionButtonVisible::CreateStatic(&FInternalPlayWorldCommandCallbacks::CanShowNonPlayWorldOnlyActions)
 	);
 
@@ -547,11 +563,12 @@ void FPlayWorldCommands::BindGlobalPlayWorldCommands()
 	);
 
 	// Toggle PIE/SIE, Eject (PIE->SIE), and Possess (SIE->PIE)
-	ActionList.MapAction(Commands.PossessEjectPlayer,
+	ActionList.MapAction(
+		Commands.PossessEjectPlayer,
 		FExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::PossessEjectPlayer_Clicked),
 		FCanExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::CanPossessEjectPlayer),
 		FIsActionChecked(),
-		FIsActionButtonVisible::CreateStatic(&DebuggerCommands::AllowPlayWorldFeature)
+		FIsActionButtonVisible::CreateStatic(&FInternalPlayWorldCommandCallbacks::CanPossessEjectPlayer)
 	);
 
 	// Breakpoint-only commands
@@ -634,25 +651,57 @@ void FPlayWorldCommands::BuildToolbar(FToolMenuSection& InSection, bool bInclude
 	// Play
 	InSection.AddEntry(PlayMenuEntry);
 
-	// Resume/pause toggle (only one will be visible, and only in PIE/SIE)
-	FToolMenuEntry ResumeEntry = FToolMenuEntry::InitToolBarButton(FPlayWorldCommands::Get().ResumePlaySession, TAttribute<FText>(),
-		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetResumePlaySessionToolTip)),
-		TAttribute<FSlateIcon>::Create(TAttribute<FSlateIcon>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetResumePlaySessionImage)),
-		FName(TEXT("ResumePlaySession")));
-	ResumeEntry.StyleNameOverride = FName("Toolbar.BackplateLeftPlay");
+	// First slot (only one is visible at a time.)
+	{
+		{
+			FToolMenuEntry ResumeEntry = FToolMenuEntry::InitToolBarButton(
+				FPlayWorldCommands::Get().ResumePlaySession,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				TAttribute<FSlateIcon>::CreateLambda(
+					[]() -> FSlateIcon
+					{
+						if (FPlayWorldCommandCallbacks::IsInPIE())
+						{
+							return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PlayInViewport");
+						}
+						else
+						{
+							return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PlaySimulate");
+						}
+					}
+				),
+				FName(TEXT("ResumePlaySession"))
+			);
+			ResumeEntry.StyleNameOverride = FName("Toolbar.BackplateLeft");
+			InSection.AddEntry(ResumeEntry);
+		}
 
-	FToolMenuEntry PauseEntry = FToolMenuEntry::InitToolBarButton(FPlayWorldCommands::Get().PausePlaySession, TAttribute<FText>(), TAttribute<FText>(), TAttribute<FSlateIcon>(), FName(TEXT("PausePlaySession")));
-	PauseEntry.StyleNameOverride = FName("Toolbar.BackplateLeft");
+		{
+			FToolMenuEntry PauseEntry = FToolMenuEntry::InitToolBarButton(
+				FPlayWorldCommands::Get().PausePlaySession,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				TAttribute<FSlateIcon>(),
+				FName(TEXT("PausePlaySession"))
+			);
+			PauseEntry.StyleNameOverride = FName("Toolbar.BackplateLeft");
+			InSection.AddEntry(PauseEntry);
+		}
+	}
 
-	InSection.AddEntry(ResumeEntry);
-	InSection.AddEntry(PauseEntry);
-	
 	FToolMenuEntry SingleFrameAdvanceEntry = FToolMenuEntry::InitToolBarButton(FPlayWorldCommands::Get().SingleFrameAdvance, TAttribute<FText>(), TAttribute<FText>(), TAttribute<FSlateIcon>(), FName(TEXT("SingleFrameAdvance")));
 	SingleFrameAdvanceEntry.StyleNameOverride = FName("Toolbar.BackplateCenter");
 	InSection.AddEntry(SingleFrameAdvanceEntry);
 
 	// Stop
-	FToolMenuEntry StopEntry = FToolMenuEntry::InitToolBarButton(FPlayWorldCommands::Get().StopPlaySession, TAttribute<FText>(), TAttribute<FText>(), TAttribute<FSlateIcon>(), FName(TEXT("StopPlaySession")));
+	FToolMenuEntry StopEntry = FToolMenuEntry::InitToolBarButton(
+		FPlayWorldCommands::Get().StopPlaySession,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		TAttribute<FSlateIcon>(),
+		FName(TEXT("StopPlaySession"))
+	);
 	StopEntry.StyleNameOverride = FName("Toolbar.BackplateCenterStop");
 
 	InSection.AddEntry(StopEntry);
@@ -662,24 +711,38 @@ void FPlayWorldCommands::BuildToolbar(FToolMenuSection& InSection, bool bInclude
 	LateJoinEntry.StyleNameOverride = FName("Toolbar.BackplateCenter");
 	InSection.AddEntry(LateJoinEntry);
 
-	// Eject/possess toggle
+	// Fourth slot (only one is visible at a time.)
+	{
+		{
+			FToolMenuEntry PlaySimulateEntry = FToolMenuEntry::InitToolBarButton(
+				FPlayWorldCommands::Get().PlaySimulate,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				TAttribute<FSlateIcon>(),
+				FName(TEXT("PlaySimulate"))
+			);
+			PlaySimulateEntry.StyleNameOverride = FName("Toolbar.BackplateCenter");
+			InSection.AddEntry(PlaySimulateEntry);
+		}
 
-	FToolMenuEntry EjectMenuEntry =
-	FToolMenuEntry::InitToolBarButton(FPlayWorldCommands::Get().PossessEjectPlayer,
-		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetPossessEjectLabel)),
-		TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetPossessEjectTooltip)),
-		TAttribute<FSlateIcon>::Create(TAttribute<FSlateIcon>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetPossessEjectImage)),
-		FName(TEXT("PossessEjectPlayer")));
-	EjectMenuEntry.StyleNameOverride = FName("Toolbar.BackplateCenter");
-
-	// Play combo box
-	/*EjectMenuEntry.AddOptionsDropdown(
-		SpecialPIEOptionsMenuAction,
-		FOnGetContent::CreateStatic(&GeneratePlayMenuContent, GlobalPlayWorldActions.ToSharedRef()),
-		LOCTEXT("PIEComboToolTip", "Change Play Mode and Play Settings")
-	);*/
-
-	InSection.AddEntry(EjectMenuEntry);
+		{
+			FToolMenuEntry PossessEjectEntry = FToolMenuEntry::InitToolBarButton(
+				FPlayWorldCommands::Get().PossessEjectPlayer,
+				TAttribute<FText>::Create(
+					TAttribute<FText>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetPossessEjectLabel)
+				),
+				TAttribute<FText>::Create(
+					TAttribute<FText>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetPossessEjectTooltip)
+				),
+				TAttribute<FSlateIcon>::Create(
+					TAttribute<FSlateIcon>::FGetter::CreateStatic(&FInternalPlayWorldCommandCallbacks::GetPossessEjectImage)
+				),
+				FName(TEXT("PossessEjectPlayer"))
+			);
+			PossessEjectEntry.StyleNameOverride = FName("Toolbar.BackplateCenter");
+			InSection.AddEntry(PossessEjectEntry);
+		}
+	}
 
 	FUIAction SpecialPIEOptionsMenuAction;
 	SpecialPIEOptionsMenuAction.CanExecuteAction = FCanExecuteAction::CreateStatic(&FInternalPlayWorldCommandCallbacks::CanShowNonPlayWorldOnlyActions);
@@ -833,10 +896,6 @@ TSharedRef< SWidget > FPlayWorldCommands::GeneratePlayMenuContent(TSharedRef<FUI
 				case PlayMode_InVR:
 					PlayModeCommand = FPlayWorldCommands::Get().PlayInVR;
 					break;
-
-				case PlayMode_Simulate:
-					PlayModeCommand = FPlayWorldCommands::Get().Simulate;
-					break;
 				}
 
 				if (PlayModeCommand.IsValid())
@@ -867,7 +926,26 @@ TSharedRef< SWidget > FPlayWorldCommands::GeneratePlayMenuContent(TSharedRef<FUI
 			FLocal::AddPlayModeMenuEntry(Section, PlayMode_InMobilePreview);
 			FLocal::AddPlayModeMenuEntry(Section, PlayMode_InVulkanPreview);
 			FLocal::AddPlayModeMenuEntry(Section, PlayMode_InNewProcess);
-			FLocal::AddPlayModeMenuEntry(Section, PlayMode_Simulate);
+
+			Section.AddSeparator("SimulateSeparator");
+
+			if (FPlayWorldCommands::Get().Simulate)
+			{
+				Section.AddMenuEntry(
+					"Simulate",
+					FPlayWorldCommands::Get().Simulate->GetLabel(),
+					FPlayWorldCommands::Get().Simulate->GetDescription(),
+					FPlayWorldCommands::Get().Simulate->GetIcon(),
+					FExecuteAction::CreateLambda(
+						[]()
+						{
+							FPlayWorldCommands::GlobalPlayWorldActions->ExecuteAction(
+								FPlayWorldCommands::Get().Simulate.ToSharedRef()
+							);
+						}
+					)
+				);
+			}
 		}
 
 #if UE_WITH_TURNKEY_SUPPORT
@@ -1088,7 +1166,6 @@ bool FPlayWorldCommandCallbacks::IsInPIE_AndRunning()
 	return IsInPIE() && ((GEditor->PlayWorld == NULL) || !(GEditor->PlayWorld->bDebugPauseExecution));
 }
 
-
 bool FPlayWorldCommandCallbacks::HasPlayWorld()
 {
 	return GEditor->PlayWorld != NULL;
@@ -1148,14 +1225,13 @@ FSlateIcon FInternalPlayWorldCommandCallbacks::GetPossessEjectImage()
 {
 	if (IsInSIE())
 	{
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PossessPlayer");
+		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PlayPossess");
 	}
 	else
 	{
 		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.EjectFromPlayer");
 	}
 }
-
 
 bool FInternalPlayWorldCommandCallbacks::CanLateJoin()
 {
@@ -1240,6 +1316,7 @@ const TSharedRef < FUICommandInfo > GetLastPlaySessionCommand()
 
 	switch (PlaySettings->LastExecutedPlayModeType)
 	{
+	case PlayMode_Simulate:
 	case PlayMode_InViewPort:
 		Command = Commands.PlayInViewport.ToSharedRef();
 		break;
@@ -1278,9 +1355,6 @@ const TSharedRef < FUICommandInfo > GetLastPlaySessionCommand()
 	case PlayMode_InVR:
 		Command = Commands.PlayInVR.ToSharedRef();
 		break;
-
-	case PlayMode_Simulate:
-		Command = Commands.Simulate.ToSharedRef();
 	}
 
 	return Command;
@@ -1791,40 +1865,6 @@ void FInternalPlayWorldCommandCallbacks::GetMouseControlExecute()
 	}
 }
 
-FSlateIcon FInternalPlayWorldCommandCallbacks::GetResumePlaySessionImage()
-{
-	if (IsInPIE())
-	{
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.ResumePlaySession");
-	}
-	else if (IsInSIE())
-	{
-		return FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.Simulate");
-	}
-	else
-	{
-		return FSlateIcon();
-	}
-}
-
-
-FText FInternalPlayWorldCommandCallbacks::GetResumePlaySessionToolTip()
-{
-	if (IsInPIE())
-	{
-		return LOCTEXT("ResumePIE", "Resume play-in-editor session");
-	}
-	else if (IsInSIE())
-	{
-		return LOCTEXT("ResumeSIE", "Resume simulation");
-	}
-	else
-	{
-		return FText();
-	}
-}
-
-
 void FInternalPlayWorldCommandCallbacks::SingleFrameAdvance_Clicked()
 {
 	if (IsStoppedAtBreakpoint_InEngineMode())
@@ -2010,7 +2050,6 @@ bool FInternalPlayWorldCommandCallbacks::IsStoppedAtBreakpoint_InEngineMode()
 	return GIntraFrameDebuggingGameThread && FKismetDebugUtilities::GetCurrentDebuggingWorld() == nullptr;
 }
 
-
 void FInternalPlayWorldCommandCallbacks::PossessEjectPlayer_Clicked()
 {
 	GEditor->RequestToggleBetweenPIEandSIE();
@@ -2028,7 +2067,6 @@ bool FInternalPlayWorldCommandCallbacks::CanPossessEjectPlayer()
 	}
 	return false;
 }
-
 
 void FInternalPlayWorldCommandCallbacks::AddMessageLog(const FText& Text, const FText& Detail, const FString& TutorialLink, const FString& DocumentationLink)
 {
@@ -2049,7 +2087,6 @@ void FInternalPlayWorldCommandCallbacks::AddMessageLog(const FText& Text, const 
 }
 
 
-
 EPlayModeLocations FInternalPlayWorldCommandCallbacks::GetPlayModeLocation()
 {
 	// We can't use PlayLocation_DefaultPlayerStart without a player start position
@@ -2058,22 +2095,4 @@ EPlayModeLocations FInternalPlayWorldCommandCallbacks::GetPlayModeLocation()
 		: PlayLocation_CurrentCameraLocation;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #undef LOCTEXT_NAMESPACE
-

@@ -22,23 +22,34 @@ class FOptimusDataTypeRegistry :
 public:
 	DECLARE_EVENT_OneParam(FOptimusDataTypeRegistry, FOnDataTypeChanged, FName /* InTypeName */);
 	
-	using PropertyCreateFuncT = TFunction<FProperty *(UStruct *InScope, FName InName)>;
+	using PropertyCreateFuncT = TFunction<FProperty *(FFieldVariant InScope, FName InName)>;
 
 	/** Defines a function that takes an array view on UE property data and converts it to
 	 *  a matching HLSL shader value data. It's expected that the input and output array views
 	 *  hold enough data to both read all property data for this type and write out shader values
 	 *  matching these data.
 	  */
-	using PropertyValueConvertFuncT = TFunction<bool(TArrayView<const uint8> InRawValue, FShaderValueType::FValueView OutShaderValue)>;
+	using PropertyValueConvertFuncT = TFunction<bool(TArrayView<const uint8> InRawValue, FShaderValueContainerView OutShaderValue)>;
 
 	struct FArrayMetadata
 	{
 		int32 ElementShaderValueSize;
 		int32 ShaderValueOffset;
 	};
+
+	static const TCHAR* Matrix34TypeName;
+
 	
 	virtual ~FOptimusDataTypeRegistry() override;
 
+	static FName GetTypeName(const FFieldClass& InFieldClass);
+	static FName GetTypeName(UScriptStruct* InStruct);
+	static FName GetTypeName(const FAssetData& InStructAsset);
+	
+	static FName GetArrayTypeName(const FFieldClass& InFieldClass);
+	static FName GetArrayTypeName(UScriptStruct* InStruct);
+	static FName GetArrayTypeName(FName InElementTypeName);
+	
 	/** Get the singleton registry object */
 	OPTIMUSCORE_API static FOptimusDataTypeRegistry &Get();
 
@@ -124,6 +135,11 @@ public:
 	OPTIMUSCORE_API bool RegisterStructType(
 		UScriptStruct *InStructType
 		);
+	
+	// Register a array type that has corresponding types on both the UE and HLSL side.
+	OPTIMUSCORE_API bool RegisterArrayTypeIfApplicable(
+		FOptimusDataTypeHandle InElementDataType
+		);
 		
 	// Refresh struct type info in case a user defined struct is changed.
 	OPTIMUSCORE_API void RefreshStructType(
@@ -141,30 +157,67 @@ public:
 	*/
 	OPTIMUSCORE_API FOptimusDataTypeHandle FindType(const FProperty &InProperty) const;
 
+	/** Find the registered array type associated with the given property's type. Returns an invalid
+	  * handle if no registered type is associated.
+	*/
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindArrayType(const FProperty &InProperty) const;
+
 	/** Find the registered type associated with the given field class. Returns an invalid
 	  * handle if no registered type is associated.
 	*/
 	OPTIMUSCORE_API FOptimusDataTypeHandle FindType(const FFieldClass& InFieldType) const;
+
+	/** Find the registered array type associated with the given field class. Returns an invalid
+	  * handle if no registered array type is associated.
+	*/
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindArrayType(const FFieldClass& InFieldType) const;
 
 	/** Find the registered type associated with the given object class. Returns an invalid
 	  * handle if no registered type is associated.
 	*/
 	OPTIMUSCORE_API FOptimusDataTypeHandle FindType(const UClass& InClassType) const;
 	
+	/** Find the registered array type associated with the given object class. Returns an invalid
+      * handle if no registered array type is associated.
+	*/
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindArrayType(const UClass& InClassType) const;
+	
 	/** Find the registered type with the given name. Returns an invalid handle if no registered 
 	  * type with that name exists.
 	*/
 	OPTIMUSCORE_API FOptimusDataTypeHandle FindType(FName InTypeName) const;
 
+	/** Find the registered array type with the given element type name. Returns an invalid handle if no registered
+	  * type with that name exists.
+	*/
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindArrayType(FName InTypeName) const;
+
+	/** Find the registered array type with the given struct. Returns an invalid handle if no registered 
+	  * type with that name exists.
+	*/
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindType(UScriptStruct* InStruct) const;
+
+	/** Find the registered arraytype with the given element type struct. Returns an invalid handle if no registered 
+	  * type with that name exists.
+	*/
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindArrayType(UScriptStruct* InStruct) const;
+
 	/** Find a registered type from a FShaderValueTypeHandle. If multiple types are using the
 	  * same shader value type, then the first one found in the registration order will be
 	  * returned.
-	  */
+	*/
 	// FIXME: We should allow for some kind of type hinting from the HLSL side (e.g. vector4 a color or a vector of four independent scalars).
 	OPTIMUSCORE_API FOptimusDataTypeHandle FindType(FShaderValueTypeHandle InValueType) const;
 
+	/** Find a registered type from a FShaderValueTypeHandle. If multiple types are using the
+	  * same shader value type, then the first one found in the registration order will be
+	  * returned.
+	*/
+	// FIXME: We should allow for some kind of type hinting from the HLSL side (e.g. vector4 a color or a vector of four independent scalars).
+	OPTIMUSCORE_API FOptimusDataTypeHandle FindArrayType(FShaderValueTypeHandle InValueType) const;
+
 	/** A helper function to return a property conversion function. The function can be unbound
-	*  and that should be checked prior to calling
+	  * and that should be checked prior to calling
 	*/
 	PropertyValueConvertFuncT FindPropertyValueConvertFunc(FName InTypeName) const;
 

@@ -135,7 +135,7 @@ FString FPCGPinDependencyExpression::ToString() const
 				// Decompose pin ID into task ID and pin index which is friendly to read.
 				const FPCGTaskId NodeId = PCGPinIdHelpers::GetNodeIdFromPinId(Expression[I]);
 				const uint64 PinIndex = PCGPinIdHelpers::GetPinIndexFromPinId(Expression[I]);
-				ExpressionString += FString::Printf(TEXT("%u_%u"), NodeId, PinIndex);
+				ExpressionString += FString::Printf(TEXT("%" UINT64_FMT "_%" UINT64_FMT), NodeId, PinIndex);
 			}
 
 			InDisjunction = true;

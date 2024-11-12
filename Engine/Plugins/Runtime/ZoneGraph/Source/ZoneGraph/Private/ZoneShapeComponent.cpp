@@ -8,7 +8,7 @@
 #include "ZoneGraphSettings.h"
 #include "ZoneGraphDelegates.h"
 #include "ZoneGraphRenderingUtilities.h"
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 #include "ZoneGraphObjectCRC32.h"
 #include "Serialization/CustomVersion.h"
 

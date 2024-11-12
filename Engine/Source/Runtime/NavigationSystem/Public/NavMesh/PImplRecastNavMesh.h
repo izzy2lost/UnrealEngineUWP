@@ -60,25 +60,40 @@ public:
 	 * @params TileIndex Used to collect geometry for a specific tile, INDEX_NONE will gather all tiles.
 	 * @return True if done collecting.
 	 */
+	UE_DEPRECATED(5.5, "Use the version of this function that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const;
+
+	/* Gather debug geometry.
+	 * @params OutGeometry Output geometry.
+	 * @params TileRef Used to collect geometry for a specific tile, an invalid FNavTileRef will gather all tiles.
+	 * @return True if done collecting.
+	 */
+	NAVIGATIONSYSTEM_API bool GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const;
 	
 	/** Returns bounding box for the whole navmesh. */
 	NAVIGATIONSYSTEM_API FBox GetNavMeshBounds() const;
 
 	/** Returns bounding box for a given navmesh tile. */
+	UE_DEPRECATED(5.5, "Use the version of this function on ARecastNavMesh that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API FBox GetNavMeshTileBounds(int32 TileIndex) const;
 
 	/** Retrieves XY and layer coordinates of tile specified by index */
+	UE_DEPRECATED(5.5, "Use the version of this function on ARecastNavMesh that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(int32 TileIndex, int32& OutX, int32& OutY, int32& OutLayer) const;
 
 	/** Retrieves XY coordinates of tile specified by position */
 	NAVIGATIONSYSTEM_API bool GetNavMeshTileXY(const FVector& Point, int32& OutX, int32& OutY) const;
 
 	/** Retrieves all tile indices at matching XY coordinates */
+	UE_DEPRECATED(5.5, "Use the version of this function on ARecastNavMesh that takes an array of FNavTileRefs instead.")
 	NAVIGATIONSYSTEM_API void GetNavMeshTilesAt(int32 TileX, int32 TileY, TArray<int32>& Indices) const;
 
 	/** Retrieves list of tiles that intersect specified bounds */
+	UE_DEPRECATED(5.5, "Use the version of the function that takes an array of FNavTileRefs instead")
 	NAVIGATIONSYSTEM_API void GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds, TArray<int32>& Indices) const;
+
+	/** Retrieves list of tiles that intersect specified bounds */
+	NAVIGATIONSYSTEM_API void GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds, TArray<FNavTileRef>& OutRefs) const;
 
 	/** Retrieves number of tiles in this navmesh */
 	FORCEINLINE int32 GetNavMeshTilesCount() const { return DetourNavMesh ? DetourNavMesh->getMaxTiles() : 0; }
@@ -86,15 +101,7 @@ public:
 	/** Supported queries */
 
 	/** Generates path from the given query. Synchronous. */
-	UE_DEPRECATED(5.2, "Please use FindPath with the added bRequireNavigableEndLocation parameter (true can be used as default).")
-	NAVIGATIONSYSTEM_API ENavigationQueryResult::Type FindPath(const FVector& StartLoc, const FVector& EndLoc, const FVector::FReal CostLimit, FNavMeshPath& Path, const FNavigationQueryFilter& Filter, const UObject* Owner) const;
-																																									  
-	/** Generates path from the given query. Synchronous. */
 	NAVIGATIONSYSTEM_API ENavigationQueryResult::Type FindPath(const FVector& StartLoc, const FVector& EndLoc, const FVector::FReal CostLimit, const bool bRequireNavigableEndLocation, FNavMeshPath& Path, const FNavigationQueryFilter& Filter, const UObject* Owner) const;
-
-	/** Check if path exists */
-	UE_DEPRECATED(5.2, "Please use TestPath with the added bRequireNavigableEndLocation parameter (true can be used as default).")
-	NAVIGATIONSYSTEM_API ENavigationQueryResult::Type TestPath(const FVector& StartLoc, const FVector& EndLoc, const FNavigationQueryFilter& Filter, const UObject* Owner, int32* NumVisitedNodes = 0) const;
 
 	/** Check if path exists */
 	NAVIGATIONSYSTEM_API ENavigationQueryResult::Type TestPath(const FVector& StartLoc, const FVector& EndLoc, const bool bRequireNavigableEndLocation, const FNavigationQueryFilter& Filter, const UObject* Owner, int32* NumVisitedNodes = 0) const;
@@ -105,10 +112,6 @@ public:
 	/** Checks if the whole segment is in navmesh */
 	NAVIGATIONSYSTEM_API void Raycast(const FVector& StartLoc, const FVector& EndLoc, const FNavigationQueryFilter& InQueryFilter, const UObject* Owner,
 		ARecastNavMesh::FRaycastResult& RaycastResult, NavNodeRef StartNode = INVALID_NAVNODEREF) const;
-
-	/** Generates path from given query and collect data for every step of A* algorithm */
-	UE_DEPRECATED(5.2, "Please use DebugPathfinding with the added bRequireNavigableEndLocation parameter (true can be used as default).")
-	NAVIGATIONSYSTEM_API int32 DebugPathfinding(const FVector& StartLoc, const FVector& EndLoc, const FVector::FReal CostLimit, const FNavigationQueryFilter& Filter, const UObject* Owner, TArray<FRecastDebugPathfindingData>& Steps);
 
 	/** Generates path from given query and collect data for every step of A* algorithm */
 	NAVIGATIONSYSTEM_API int32 DebugPathfinding(const FVector& StartLoc, const FVector& EndLoc, const FVector::FReal CostLimit, const bool bRequireNavigableEndLocation, const FNavigationQueryFilter& Filter, const UObject* Owner, TArray<FRecastDebugPathfindingData>& Steps);
@@ -156,18 +159,12 @@ public:
 	/** finds stringpulled path from given corridor */
 	NAVIGATIONSYSTEM_API bool FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<FNavLinkId>* CustomLinks = NULL) const;
 
-	/** finds stringpulled path from given corridor */
-	UE_DEPRECATED(5.3, "Please use FindStraightPath with the TArray<FNavPathPoint>* CustomLinks. This function has no effect.")
-	bool FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<uint32>* CustomLinks) const { return false; }
-
 	/** Filters nav polys in PolyRefs with Filter */
 	NAVIGATIONSYSTEM_API bool FilterPolys(TArray<NavNodeRef>& PolyRefs, const FRecastQueryFilter* Filter, const UObject* Owner) const;
 
 	/** Get all polys from tile */
+	UE_DEPRECATED(5.5, "Use the version of this function in ARecastNavMesh that takes a FNavTileRef instead.")
 	NAVIGATIONSYSTEM_API bool GetPolysInTile(int32 TileIndex, TArray<FNavPoly>& Polys) const;
-
-	UE_DEPRECATED(5.3, "Please use the version of this function that takes a FNavLinkId. This function has no effect.")
-	void UpdateNavigationLinkArea(int32 UserId, uint8 AreaType, uint16 PolyFlags) const {}
 
 	/** Updates area on polygons creating point-to-point connection with given UserId */
 	NAVIGATIONSYSTEM_API void UpdateNavigationLinkArea(FNavLinkId UserId, uint8 AreaType, uint16 PolyFlags) const;
@@ -183,6 +180,8 @@ public:
 	NAVIGATIONSYSTEM_API bool GetPolyVerts(NavNodeRef PolyID, TArray<FVector>& OutVerts) const;
 	/** Retrieves a random point inside the specified polygon. Returns false on error. */
 	NAVIGATIONSYSTEM_API bool GetRandomPointInPoly(NavNodeRef PolyID, FVector& OutPoint) const;
+	/** Retrieves the surface area of the specified polygon. Returns 0 on error. */
+	NAVIGATIONSYSTEM_API FVector::FReal GetPolySurfaceArea(NavNodeRef PolyID) const;
 	/** Retrieves the flags for the specified polygon. Returns false on error. */
 	NAVIGATIONSYSTEM_API bool GetPolyData(NavNodeRef PolyID, uint16& Flags, uint8& AreaType) const;
 	/** Retrieves area ID for the specified polygon. */
@@ -195,6 +194,8 @@ public:
 	NAVIGATIONSYSTEM_API bool GetPolyNeighbors(NavNodeRef PolyID, TArray<NavNodeRef>& Neighbors) const;
 	/** Finds all polys connected with specified one */
 	NAVIGATIONSYSTEM_API bool GetPolyEdges(NavNodeRef PolyID, TArray<FNavigationPortalEdge>& Edges) const;
+	/** Finds all wall segments for the specified polygon (walls or area borders) */
+	NAVIGATIONSYSTEM_API bool GetPolyWallSegments(NavNodeRef PolyID, const FNavigationQueryFilter& InQueryFilter, const UObject* QueryOwner, TArray<FNavigationPortalEdge>& OutNeighbors) const;
 	/** Finds closest point constrained to given poly */
 	NAVIGATIONSYSTEM_API bool GetClosestPointOnPoly(NavNodeRef PolyID, const FVector& TestPt, FVector& PointOnPoly) const;
 	/** Decode poly ID into tile index and poly index */
@@ -205,7 +206,7 @@ public:
 	UE_DEPRECATED(5.3, "Please use GetNavLinkUserId() instead. This function only returns Invalid.")
 	uint32 GetLinkUserId(NavNodeRef LinkPolyID) const
 	{
-		return FNavLinkId::Invalid.GetId();
+		return static_cast<int32>(FNavLinkId::Invalid.GetId());
 	}
 	NAVIGATIONSYSTEM_API FNavLinkId GetNavLinkUserId(NavNodeRef LinkPolyID) const;
 	/** Retrieves start and end point of offmesh link */
@@ -246,7 +247,7 @@ public:
 	 */
 	NAVIGATIONSYSTEM_API void SetRecastMesh(dtNavMesh* NavMesh);
 
-	NAVIGATIONSYSTEM_API float GetTotalDataSize() const;
+	NAVIGATIONSYSTEM_API SIZE_T GetTotalDataSize() const;
 
 	/** Gets the size of the compressed tile cache, this is slow */
 #if !UE_BUILD_SHIPPING
@@ -296,7 +297,20 @@ public:
 		FVector RecastStart, FVector RecastEnd,
 		dtQueryResult& PathResult) const;
 
+	UE_DEPRECATED(5.5, "Use GetTilePolyEdges instead.")
 	NAVIGATIONSYSTEM_API void GetDebugPolyEdges(const dtMeshTile& Tile, bool bInternalEdges, bool bNavMeshEdges, TArray<FVector>& InternalEdgeVerts, TArray<FVector>& NavMeshEdgeVerts) const;
+
+	/**
+	 * Traverses given tile's edges and detects the ones that are either internal poly (i.e. not triangle, but whole navmesh polygon)
+	 * or external navmesh edge. Returns a pair of verts for each edge found.
+	 * @param Tile The tile whose edges to traverse.
+	 * @param bGatherInteriorPolyEdges If true, populates OutPolyEdgeVerts with the tile's internal poly edges.
+	 * @param bGatherExternalNavMeshEdges If true, populates OutNavMeshEdgeVerts with the tile's external navmesh edges.
+	 * @param OutInteriorPolyEdgeVerts Output poly edge vertex array. Contains a pair of verts for each edge.
+	 * @param OutExteriorNavMeshEdgeVerts Output navmesh edge vertex array. Contains a pair of verts for each edge.
+	 * @note This is really slow.
+	 */
+	NAVIGATIONSYSTEM_API void GetTilePolyEdges(const dtMeshTile& Tile, bool bGatherInteriorPolyEdges, bool bGatherExteriorNavMeshEdges, TArray<FVector>& OutInteriorPolyEdgeVerts, TArray<FVector>& OutExteriorNavMeshEdgeVerts) const;
 
 	/** workhorse function finding portal edges between corridor polys */
 	NAVIGATIONSYSTEM_API void GetEdgesForPathCorridorImpl(const TArray<NavNodeRef>* PathCorridor, TArray<FNavigationPortalEdge>* PathCorridorEdges, const dtNavMeshQuery& NavQuery) const;

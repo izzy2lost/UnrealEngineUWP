@@ -5,6 +5,7 @@
 #include "RenderingCommon.h"
 #include "Layout/Clipping.h"
 #include "Templates/UnrealTemplate.h"
+#include <type_traits>
 
 class FSlateElementBatch;
 class FSlateDrawLayerHandle;
@@ -229,6 +230,8 @@ public:
 
 	ESlateDrawEffect DrawEffects;
 
+	ESlatePostRT CachedUsedPostBuffers;
+
 	/** Whether or not the batch can be merged with others in the same layer */
 	uint8 bIsMergable : 1;
 
@@ -237,4 +240,4 @@ public:
 };
 
 static_assert(TIsTriviallyCopyConstructible<FSlateRenderBatch>::Value == true, "FSlateRenderBatch must be mem copyable");
-static_assert(TIsTriviallyDestructible<FSlateRenderBatch>::Value == true, "FSlateRenderBatch must be trivially destructible");
+static_assert(std::is_trivially_destructible_v<FSlateRenderBatch>, "FSlateRenderBatch must be trivially destructible");

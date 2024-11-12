@@ -5,6 +5,7 @@
 // IWYU pragma: begin_keep
 #include "ControlFlow.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Containers/Ticker.h"
 #include "ControlFlowContainer.h"
 // IWYU pragma: end_keep
 
@@ -14,10 +15,10 @@ public:
 	template<typename OwningObjectT>
 	static FControlFlow& Create(OwningObjectT* OwningObject, const FString& FlowId)
 	{
-		ensureAlwaysMsgf(FlowId.Len() > 0, TEXT("All Flows need a non-empty ID!"));
+		ensureMsgf(FlowId.Len() > 0, TEXT("All Flows need a non-empty ID!"));
 
 		FControlFlow* AlreadyExistedFlow = Find(OwningObject, FlowId);
-		if (!ensureAlwaysMsgf(!AlreadyExistedFlow, TEXT("Flow already exists! All flows should have a unique ID. If there are multiple instances of the owning object, that might cause this! You can call MakeShared<FControlFlow> instead of using FControlFlowStatics!")))
+		if (!ensureMsgf(!AlreadyExistedFlow, TEXT("Flow already exists! All flows should have a unique ID. If there are multiple instances of the owning object, that might cause this! You can call MakeShared<FControlFlow> instead of using FControlFlowStatics!")))
 		{
 			AlreadyExistedFlow->Reset();
 		}
@@ -30,7 +31,7 @@ public:
 	static void StopFlow(OwningObjectT* OwningObject, const FString& FlowId)
 	{
 		FControlFlow* FlowToStop = Find(OwningObject, FlowId);
-		if (ensureAlwaysMsgf(FlowToStop && FlowToStop->IsRunning(), TEXT("Called to stop flow when it doesn't exist or not running!")))
+		if (ensureMsgf(FlowToStop && FlowToStop->IsRunning(), TEXT("Called to stop flow when it doesn't exist or not running!")))
 		{
 			FlowToStop->CancelFlow();
 
@@ -116,9 +117,9 @@ private:
 		{
 			for (TSharedRef<FControlFlowContainerBase> ControlFlowContainer : InArray)
 			{
-				if (ControlFlowContainer->OwningObjectIsValid())
+				if (UE::Private::OwningObjectIsValid(ControlFlowContainer))
 				{
-					if (ControlFlowContainer->GetOwningObject() == OwningObject && ControlFlowContainer->GetFlowName() == FlowId)
+					if (ControlFlowContainer->GetFlowName() == FlowId && ControlFlowContainer->OwningObjectEqualTo(OwningObject))
 					{
 						return ControlFlowContainer->GetControlFlow();
 					}
@@ -146,4 +147,16 @@ private:
 private:
 	static bool IterateThroughNewlyCreatedFlows(float DeltaTime);
 	static bool IterateForInvalidFlows(float DeltaTime);
+
+private:
+	static FControlFlowStatics& Get();
+
+private:
+	TArray<TSharedRef<FControlFlowContainerBase>> NewlyCreatedFlows;
+	TArray<TSharedRef<FControlFlowContainerBase>> PersistentFlows;
+	TArray<TSharedRef<FControlFlowContainerBase>> ExecutingFlows;
+	TArray<TSharedRef<FControlFlowContainerBase>> FinishedFlows;
+
+	FTSTicker::FDelegateHandle NextFrameCheckForExecution;
+	FTSTicker::FDelegateHandle NextFrameCheckForFlowCleanup;
 };

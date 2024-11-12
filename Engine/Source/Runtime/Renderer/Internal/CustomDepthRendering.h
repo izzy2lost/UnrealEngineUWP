@@ -21,8 +21,7 @@ extern ECustomDepthPassLocation GetCustomDepthPassLocation(EShaderPlatform Platf
 
 struct FCustomDepthTextures
 {
-	static FCustomDepthTextures Create(FRDGBuilder& GraphBuilder, FIntPoint CustomDepthExtent, EShaderPlatform ShaderPlatform);
-
+	static FCustomDepthTextures Create(FRDGBuilder& GraphBuilder, FIntPoint CustomDepthExtent, EShaderPlatform ShaderPlatform, bool bRequireMultiView);
 	bool IsValid() const
 	{
 		return Depth != nullptr;

@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGGemm.h"
+
 #include "NNEHlslShadersGemmCS.h"
+#include "NNEHlslShadersLog.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNEAttributeMap.h"
 #include "NNETensor.h"
@@ -65,12 +67,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			if (InputA.GetShape().Rank() != 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Gemm first input should be of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gemm: First input should be of rank 2"));
 				return false;
 			}
 			if (InputB.GetShape().Rank() != 2)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Gemm second input should be of rank 2"));
+				UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gemm: Second input should be of rank 2"));
 				return false;
 			}
 			if (InputTensorDescs.Num() == 3)
@@ -78,7 +80,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				const NNE::FTensorDesc& InputC = InputTensorDescs[2];
 				if (InputC.GetShape().Rank() > 2)
 				{
-					UE_LOG(LogNNE, Warning, TEXT("Gemm third input should be of rank 2 or less"));
+					UE_LOG(LogNNERuntimeRDGHlsl, Warning, TEXT("Gemm: Third input should be of rank 2 or less"));
 					return false;
 				}
 			}
@@ -147,7 +149,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			FIntVector ThreadGroupCount = TGemmCS::GetGroupCount(*Parameters, Algorithm, 0);
 
-			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Gemm");
+			RDG_EVENT_SCOPE_STAT(GraphBuilder, FNNEOperatorGemm, "NNE.Operator.Hlsl.Gemm");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGemm);
 
 			FComputeShaderUtils::AddPass(

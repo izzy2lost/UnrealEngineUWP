@@ -1,33 +1,31 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tiles/WorldTileModel.h"
-#include "Engine/World.h"
-#include "HAL/FileManager.h"
-#include "UObject/Package.h"
+
 #include "DragAndDrop/LevelDragDropOp.h"
-#include "Engine/LevelBounds.h"
-#include "Engine/LevelStreamingDynamic.h"
 #include "Editor.h"
 #include "Editor/Transactor.h"
-#include "ScopedTransaction.h"
 #include "EditorLevelUtils.h"
-#include "LevelCollectionModel.h"
-
-#include "Modules/ModuleManager.h"
-#include "Tiles/WorldTileDetails.h"
-#include "Tiles/WorldTileCollectionModel.h"
+#include "Engine/LevelBounds.h"
+#include "Engine/LevelStreamingDynamic.h"
+#include "Engine/World.h"
 #include "Engine/WorldComposition.h"
 #include "GameFramework/WorldSettings.h"
-#include "LandscapeInfo.h"
+#include "HAL/FileManager.h"
+#include "Landscape.h"
 #include "LandscapeEditorModule.h"
 #include "LandscapeFileFormatInterface.h"
+#include "LandscapeInfo.h"
 #include "LandscapeStreamingProxy.h"
-#include "Landscape.h"
+#include "LevelCollectionModel.h"
 #include "Modules/ModuleManager.h"
-
+#include "Modules/ModuleManager.h"
+#include "ScopedTransaction.h"
+#include "Tiles/WorldTileCollectionModel.h"
+#include "Tiles/WorldTileDetails.h"
+#include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "WorldBrowser"
-DEFINE_LOG_CATEGORY_STATIC(WorldBrowser, Log, All);
 
 FWorldTileModel::FWorldTileModel(FWorldTileCollectionModel& InWorldModel, int32 InTileIdx)
 	: FLevelModel(InWorldModel) 
@@ -260,7 +258,7 @@ bool FWorldTileModel::ShouldBeVisible(FBox EditableArea) const
 	return false;
 }
 
-void FWorldTileModel::SetVisible(bool bVisible)
+void FWorldTileModel::SetVisibleInEditor(bool bVisible)
 {
 	if (LevelCollectionModel.IsReadOnly())
 	{
@@ -275,7 +273,7 @@ void FWorldTileModel::SetVisible(bool bVisible)
 	}
 	
 	// Don't create unnecessary transactions
-	if (IsVisible() == bVisible)
+	if (IsVisibleInEditor() == bVisible)
 	{
 		return;
 	}
@@ -317,7 +315,7 @@ void FWorldTileModel::Shelve()
 	}
 	
 	//
-	SetVisible(false);
+	SetVisibleInEditor(false);
 	bWasShelved = true;
 }
 
@@ -329,7 +327,7 @@ void FWorldTileModel::Unshelve()
 	}
 
 	//
-	SetVisible(true);
+	SetVisibleInEditor(true);
 	bWasShelved = false;
 }
 
@@ -1049,11 +1047,11 @@ ALandscapeProxy* FWorldTileModel::ImportLandscapeTile(const FLandscapeImportSett
 
 	// Create landscape components
 	LandscapeProxy->Import(	Settings.LandscapeGuid, 0, 0, Settings.SizeX - 1, Settings.SizeY - 1, Settings.SectionsPerComponent, Settings.QuadsPerSection, HeightmapDataPerLayers, *Settings.HeightmapFilename,	
-							MaterialLayerDataPerLayer,	Settings.ImportLayerType);
+							MaterialLayerDataPerLayer,	Settings.ImportLayerType, TArrayView<const FLandscapeLayer>());
 
 	for (const FLandscapeImportLayerInfo& ImportLayerInfo : Settings.ImportLayers)
 	{
-		LandscapeProxy->EditorLayerSettings.Add(FLandscapeEditorLayerSettings(ImportLayerInfo.LayerInfo, ImportLayerInfo.SourceFilePath));
+		LandscapeProxy->AddTargetLayer(ImportLayerInfo.LayerInfo->LayerName, FLandscapeTargetLayerSettings(ImportLayerInfo.LayerInfo, ImportLayerInfo.SourceFilePath));
 	}
 
 	return LandscapeProxy;

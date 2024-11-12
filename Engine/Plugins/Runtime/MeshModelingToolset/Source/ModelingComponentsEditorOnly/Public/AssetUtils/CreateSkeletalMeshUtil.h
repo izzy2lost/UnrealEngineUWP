@@ -33,7 +33,7 @@ namespace UE::AssetUtils
 	 * Only one of the arrays should be initialized, and it's size should be equal to 
 	 * the number of LODs specified for the Asset.
 	 */
-	struct MODELINGCOMPONENTSEDITORONLY_API FSkeletalMeshAssetMeshes
+	struct FSkeletalMeshAssetMeshes
 	{
 		TArray<const FDynamicMesh3*> DynamicMeshes;
 		TArray<const FMeshDescription*> MeshDescriptions;
@@ -43,7 +43,7 @@ namespace UE::AssetUtils
 	/**
 	 * Options for new USkeletalMesh asset created by Create() functions below.
 	 */
-	struct MODELINGCOMPONENTSEDITORONLY_API FSkeletalMeshAssetOptions
+	struct FSkeletalMeshAssetOptions
 	{
 		// This package will be used if it is not nullptr, otherwise a new package will be created at NewAssetPath
 		UPackage* UsePackage = nullptr;
@@ -65,6 +65,9 @@ namespace UE::AssetUtils
 		// Controls whether or not the RecomputeTangents option will be enabled on the Asset
 		bool bEnableRecomputeTangents = true;
 
+		// Whether to attempt to re-create the original non-manifold mesh from the (optional) non-manifold index map on the dynamic mesh.
+		bool bConvertBackToNonManifold = false;
+
 		// List of skeletal materials. These will be used over the AssetMaterials, if provided.
 		TArray<FSkeletalMaterial> SkeletalMaterials;
 		
@@ -79,7 +82,7 @@ namespace UE::AssetUtils
 	 * Output information about a newly-created StaticMesh, returned by Create functions below.
 	 * Some fields may be null, if the relevant function did not create that type of object
 	 */
-	struct MODELINGCOMPONENTSEDITORONLY_API FSkeletalMeshResults
+	struct FSkeletalMeshResults
 	{
 		/** USkeletalMesh asset that was created */
 		USkeletalMesh* SkeletalMesh = nullptr;

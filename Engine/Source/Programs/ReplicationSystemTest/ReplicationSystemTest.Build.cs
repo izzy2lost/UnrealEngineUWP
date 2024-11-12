@@ -12,26 +12,25 @@ public class ReplicationSystemTest : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
- 				"ApplicationCore",
- 				"AutomationController",
- 				"AutomationWorker",
-                "Core",
+				"ApplicationCore",
+				"AutomationController",
+				"AutomationWorker",
+				"Core",
 				"Projects",
 				"Engine",
 				"HeadMountedDisplay",
 				"InstallBundleManager",
-                "MediaUtils",
+				"MediaUtils",
 				"MRMesh",
 				"MoviePlayer",
 				"MoviePlayerProxy",
 				"PreLoadScreen",
-				"ProfilerService",
 				"ReplicationSystemTestPlugin",
 				"SessionServices",
 				"SlateNullRenderer",
 				"SlateRHIRenderer",
 				"ProfileVisualizer",
- 			}
+			}
 		);
 	}
 }

@@ -22,6 +22,9 @@ struct FStaticMeshComponentLODInfo
 	GENERATED_USTRUCT_BODY()
 
 	/** Uniquely identifies this LOD's built map data. */
+	FGuid OriginalMapBuildDataId;
+
+	/** Uniquely identifies this LOD's built map data, a combination of OriginalMapBuildDataID and the ActorInstanceID **/
 	FGuid MapBuildDataId;
 
 	/** Used during deserialization to temporarily store legacy lightmap data. */
@@ -61,7 +64,7 @@ struct FStaticMeshComponentLODInfo
 	void CleanUp();
 
 	/** 
-	 * Ensure this LODInfo has a valid MapBuildDataId GUID.
+	 * Ensure this LODInfo has a valid OriginalMapBuildDataId GUID.
 	 * @param LodIndex Index of the LOD this LODInfo represents.
 	 * @return true if a new GUID was created, false otherwise.
 	 */
@@ -83,6 +86,10 @@ struct FStaticMeshComponentLODInfo
 
 	/** Serializer. */
 	friend FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I);
+
+#if WITH_EDITOR
+	bool bMapBuildDataChanged = false;
+#endif
 
 private:
 	/** Purposely hidden */

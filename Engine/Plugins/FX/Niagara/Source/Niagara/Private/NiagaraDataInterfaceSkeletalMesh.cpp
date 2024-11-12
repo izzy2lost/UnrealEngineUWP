@@ -314,7 +314,7 @@ void FSkeletalMeshSkinningData::RegisterUser(FSkeletalMeshSkinningDataUsage Usag
 
 	if (SkelMesh != nullptr)
 	{
-		NumLODInfo = SkelMesh->GetLODInfoArray().Num();
+		NumLODInfo = SkelMesh->GetLODNum();
 		LODIndex = Usage.GetLODIndex();
 		check(LODIndex != INDEX_NONE);
 		check(LODIndex < NumLODInfo);
@@ -1236,7 +1236,10 @@ void FSkeletalMeshGpuDynamicBufferProxy::NewFrame(const FNDISkeletalMesh_Instanc
 			}
 
 			// Fill BoneSamplingData
-			BoneSamplingData.Reserve((SamplingBoneCount + SamplingSocketCount) * 2);
+			const TArray<FTransform3f>& FilteredSocketsCurrBuffer = InstanceData->GetFilteredSocketsCurrBuffer();
+			const int32 BoneSamplingDataCount = (BoneTransforms.Num() + FilteredSocketsCurrBuffer.Num()) * 3;
+
+			BoneSamplingData.Reserve(BoneSamplingDataCount);
 			for (int i=0; i < BoneTransforms.Num(); ++i )
 			{
 				const FTransform& BoneTransform = BoneTransforms[i];
@@ -1248,7 +1251,7 @@ void FSkeletalMeshGpuDynamicBufferProxy::NewFrame(const FNDISkeletalMesh_Instanc
 			}
 
 			// Append sockets
-			for (const FTransform3f& SocketTransform : InstanceData->GetFilteredSocketsCurrBuffer())
+			for (const FTransform3f& SocketTransform : FilteredSocketsCurrBuffer)
 			{
 				const FQuat4f Rotation = SocketTransform.GetRotation();
 				const int32 ParentIndex = -1;
@@ -2374,7 +2377,8 @@ void UNiagaraDataInterfaceSkeletalMesh::GetVMExternalFunction(const FVMExternalF
 	BindTriangleSamplingFunction(BindingInfo, InstData, OutFunc);
 	if (OutFunc.IsBound())
 	{
-		if (!InstData->bAllowCPUMeshDataAccess)
+		// Only warn about failed access if we are bound to a skeletal mesh, there are cases where the user chooses to have no SKM so this warning is invalid
+		if (!InstData->bAllowCPUMeshDataAccess && InstData->SkeletalMesh.IsValid())
 		{
 			UE_LOG(LogNiagara, Log, TEXT("Skeletal Mesh Data Interface is trying to use triangle sampling function '%s', but either no CPU access is set on the mesh or the data is invalid. Interface: %s"),
 				*BindingInfo.Name.ToString(), *GetFullName());
@@ -2386,7 +2390,8 @@ void UNiagaraDataInterfaceSkeletalMesh::GetVMExternalFunction(const FVMExternalF
 	BindVertexSamplingFunction(BindingInfo, InstData, OutFunc);
 	if (OutFunc.IsBound())
 	{
-		if (!InstData->bAllowCPUMeshDataAccess)
+		// Only warn about failed access if we are bound to a skeletal mesh, there are cases where the user chooses to have no SKM so this warning is invalid
+		if (!InstData->bAllowCPUMeshDataAccess && InstData->SkeletalMesh.IsValid())
 		{
 			UE_LOG(LogNiagara, Log, TEXT("Skeletal Mesh Data Interface is trying to use vertex sampling function '%s' but either no CPU access is set on the mesh, or the data is invalid. Interface: %s"),
 				*BindingInfo.Name.ToString(), *GetFullName());
@@ -2556,9 +2561,9 @@ void UNiagaraDataInterfaceSkeletalMesh::GetFeedback(UNiagaraSystem* Asset, UNiag
 	if (SkelMesh != nullptr)
 	{
 		bool bHasCPUAccess = true;
-		for (const FSkeletalMeshLODInfo& LODInfo : SkelMesh->GetLODInfoArray())
+		for (int32 LODIndex = 0, LODNum = SkelMesh->GetLODNum(); LODIndex < LODNum; ++LODIndex)
 		{
-			if (!LODInfo.bAllowCPUAccess)
+			if (!SkelMesh->GetLODInfo(LODIndex)->bAllowCPUAccess)
 			{
 				bHasCPUAccess = false;
 				break;
@@ -2628,9 +2633,10 @@ void UNiagaraDataInterfaceSkeletalMesh::GetFeedback(UNiagaraSystem* Asset, UNiag
 			FNiagaraDataInterfaceFix::CreateLambda([=]()
 				{
 					SkelMesh->Modify();
-					for (FSkeletalMeshLODInfo& LODInfo : SkelMesh->GetLODInfoArray())
+				
+					for (int32 LODIndex = 0, LODNum = SkelMesh->GetLODNum(); LODIndex < LODNum; ++LODIndex)
 					{
-						LODInfo.bAllowCPUAccess = true;
+						SkelMesh->GetLODInfo(LODIndex)->bAllowCPUAccess = true;
 					}
 					return true;
 				}));
@@ -3479,7 +3485,7 @@ void UNiagaraDataInterfaceSkeletalMesh::SetSourceComponentFromBlueprints(USkelet
 	++ChangeId;
 	UnbindSourceDelegates();
 	SourceComponent = ComponentToUse;
-	SoftSourceActor = ComponentToUse->GetOwner();
+	SoftSourceActor = ComponentToUse ? ComponentToUse->GetOwner() : nullptr;
 	BindSourceDelegates();
 }
 

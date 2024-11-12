@@ -98,6 +98,17 @@ void APartyBeaconHost::SetTeamAssignmentMethod(FName NewAssignmentMethod)
 	}
 }
 
+bool APartyBeaconHost::IsPlayerActive(const FUniqueNetIdRepl& PlayerId) const
+{
+	IOnlineSessionPtr SessionInt = Online::GetSessionInterface(GetWorld());
+	if (SessionInt.IsValid())
+	{
+		return SessionInt->IsPlayerInSession(State->GetSessionName(), *PlayerId);
+	}
+
+	return false;
+}
+
 void APartyBeaconHost::Tick(float DeltaTime)
 {
 	if (State)
@@ -160,7 +171,7 @@ void APartyBeaconHost::Tick(float DeltaTime)
 							const bool bIsSessionOwner = Session->OwningUserId.IsValid() && (*Session->OwningUserId == *PlayerEntry.UniqueId);
 
 							// Determine if the player member is registered in the game session
-							if (SessionInt->IsPlayerInSession(SessionName, *PlayerEntry.UniqueId) ||
+							if (IsPlayerActive(PlayerEntry.UniqueId) ||
 								// Never timeout the session owner
 								bIsSessionOwner)
 							{
@@ -676,27 +687,34 @@ EPartyReservationResult::Type APartyBeaconHost::AddPartyReservation(const FParty
 						{
 							if (State->CrossPlayAllowed(ReservationRequest))
 							{
-								if (State->AddReservation(ReservationRequest))
+								if (State->ValidateNewPartyReservation(ReservationRequest))
 								{
-									// Keep track of newly added players
-									for (const FPlayerReservation& PartyMember : ReservationRequest.PartyMembers)
+									if (State->AddReservation(ReservationRequest))
 									{
-										NewPlayerAdded(PartyMember);
+										// Keep track of newly added players
+										for (const FPlayerReservation& PartyMember : ReservationRequest.PartyMembers)
+										{
+											NewPlayerAdded(PartyMember);
+										}
+
+										SendReservationUpdates();
+
+										NotifyReservationEventNextFrame(ReservationChanged);
+										if (State->IsBeaconFull())
+										{
+											NotifyReservationEventNextFrame(ReservationsFull);
+										}
+										Result = EPartyReservationResult::ReservationAccepted;
 									}
-
-									SendReservationUpdates();
-
-									NotifyReservationEventNextFrame(ReservationChanged);
-									if (State->IsBeaconFull())
+									else
 									{
-										NotifyReservationEventNextFrame(ReservationsFull);
+										// Something wrong with team assignment
+										Result = EPartyReservationResult::IncorrectPlayerCount;
 									}
-									Result = EPartyReservationResult::ReservationAccepted;
 								}
 								else
 								{
-									// Something wrong with team assignment
-									Result = EPartyReservationResult::IncorrectPlayerCount;
+									Result = EPartyReservationResult::ReservationDenied;
 								}
 							}
 							else

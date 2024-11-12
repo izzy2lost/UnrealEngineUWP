@@ -5,11 +5,13 @@
 #include "Replication/Async/ChangeClientBlueprintParams.h"
 
 #if WITH_CONCERT
-#include "UObjectAdapterReplicationDiscoverer.h"
+#include "Data/MultiUserClientDisplayInfo.h"
 #include "IMultiUserClientModule.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Data/ReplicationFrequencySettings.h"
 #include "Replication/IMultiUserReplication.h"
+#include "Replication/IOfflineReplicationClient.h"
+#include "UObjectAdapterReplicationDiscoverer.h"
 
 #include "Algo/Transform.h"
 #endif
@@ -124,6 +126,47 @@ TArray<FSoftObjectPath> UMultiUserReplicationSubsystem::GetReplicatedObjects(con
 	return {};
 }
 
+TArray<FGuid> UMultiUserReplicationSubsystem::GetOwningOfflineClients(const FSoftObjectPath& ObjectPath) const
+{
+	TArray<FGuid> Result;
+	
+#if WITH_CONCERT
+	UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
+	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
+	{
+		ReplicationInterface->ForEachOfflineClient([&ObjectPath, &Result](const UE::MultiUserClient::IOfflineReplicationClient& Client)
+		{
+			if (Client.GetPredictedStream().ReplicationMap.HasProperties(ObjectPath))
+			{
+				Result.Emplace(Client.GetLastAssociatedEndpoint());
+			}
+			return EBreakBehavior::Continue;
+		});
+	}
+#endif
+
+	return Result;
+}
+
+TArray<FGuid> UMultiUserReplicationSubsystem::GetOfflineClientIds() const
+{
+	TArray<FGuid> Clients;
+	
+#if WITH_CONCERT
+	UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
+	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
+	{
+		ReplicationInterface->ForEachOfflineClient([&Clients](const UE::MultiUserClient::IOfflineReplicationClient& Client)
+		{
+			Clients.Add(Client.GetLastAssociatedEndpoint());
+			return EBreakBehavior::Continue;
+		});
+	}
+#endif
+	
+	return Clients;
+}
+
 void UMultiUserReplicationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);  
@@ -135,8 +178,10 @@ void UMultiUserReplicationSubsystem::Initialize(FSubsystemCollectionBase& Collec
 		UObjectAdapter = MakeShared<UE::MultiUserClientLibrary::FUObjectAdapterReplicationDiscoverer>();
 		ReplicationInterface->RegisterReplicationDiscoverer(UObjectAdapter.ToSharedRef());
 
-		ReplicationInterface->OnStreamServerStateChanged().AddUObject(this, &UMultiUserReplicationSubsystem::OnClientStreamsChanged);
-		ReplicationInterface->OnAuthorityServerStateChanged().AddUObject(this, &UMultiUserReplicationSubsystem::OnClientAuthorityChanged);
+		ReplicationInterface->OnStreamServerStateChanged().AddUObject(this, &UMultiUserReplicationSubsystem::BroadcastStreamsChanged);
+		ReplicationInterface->OnAuthorityServerStateChanged().AddUObject(this, &UMultiUserReplicationSubsystem::BroadcastAuthorityChanged);
+		ReplicationInterface->OnOfflineClientsChanged().AddUObject(this, &UMultiUserReplicationSubsystem::BroadcastOfflineClientsChanged);
+		ReplicationInterface->OnOfflineClientContentChanged().AddUObject(this, &UMultiUserReplicationSubsystem::BroadcastOfflineClientContentChanged);
 	}
 #endif
 }
@@ -156,6 +201,7 @@ void UMultiUserReplicationSubsystem::Deinitialize()
 			
 			ReplicationInterface->OnStreamServerStateChanged().RemoveAll(this);
 			ReplicationInterface->OnAuthorityServerStateChanged().RemoveAll(this);
+			ReplicationInterface->OnOfflineClientsChanged().RemoveAll(this);
 		}
 	}
 #endif

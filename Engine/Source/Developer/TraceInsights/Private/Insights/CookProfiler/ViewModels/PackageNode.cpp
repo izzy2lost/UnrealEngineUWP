@@ -2,13 +2,9 @@
 
 #include "PackageNode.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FPackageNode"
-
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 INSIGHTS_IMPLEMENT_RTTI(FPackageNode)
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::CookProfiler

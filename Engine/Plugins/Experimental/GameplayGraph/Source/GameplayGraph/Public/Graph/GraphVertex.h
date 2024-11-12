@@ -6,8 +6,8 @@
 #include "GraphVertex.generated.h"
 
 /** Event for when the node has been removed from the graph. */
-DECLARE_MULTICAST_DELEGATE(FOnGraphVertexRemoved);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphVertexParentIslandSet, const FGraphIslandHandle&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphVertexRemoved, const FGraphVertexHandle&);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnGraphVertexParentIslandSet, const FGraphVertexHandle&, const FGraphIslandHandle&);
 
 UCLASS()
 class GAMEPLAYGRAPH_API UGraphVertex : public UGraphElement
@@ -36,6 +36,9 @@ public:
 	}
 	
 	const TSet<FGraphVertexHandle>& GetEdges() const { return Edges; }
+
+	/** Changes an edge vertex handle. The vertex must exist. */
+	void ChangeEdgeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle);
 
 	FOnGraphVertexRemoved OnVertexRemoved;
 	FOnGraphVertexParentIslandSet OnParentIslandSet;

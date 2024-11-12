@@ -40,9 +40,9 @@ namespace UE::Learning
 		template<uint8 DimNum, typename ElementType>
 		TSharedMemoryArrayView<DimNum, ElementType> Map(const FGuid Guid, const TLearningArrayShape<DimNum>& Shape, const bool bCreate = false)
 		{
-			const int32 TotalSize = sizeof(ElementType) * Shape.Total();
+			const SIZE_T TotalSize = sizeof(ElementType) * (SIZE_T)Shape.Total();
 
-			if (TotalSize <= 0)
+			if (TotalSize == 0)
 			{
 				return { FGuid(), TLearningArrayView<DimNum, ElementType>(nullptr, Shape), nullptr };
 			}

@@ -6,12 +6,13 @@
 #include "../BitPacking.ush"
 #include "../SceneData.ush"
 #include "../WaveOpUtil.ush"
+#include "../BoneTransform.ush"
 #include "/Engine/Shared/NaniteDefinitions.h"
 #include "/Engine/Shared/HLSLStaticAssert.h"
 #include "NanitePackedNaniteView.ush"
 
 #ifndef DEBUG_FLAGS
-    #define DEBUG_FLAGS 0
+	#define DEBUG_FLAGS 0
 #endif
 
 uint GetHWClusterCounterIndex(uint InRenderFlags)
@@ -71,6 +72,7 @@ struct FCluster
 	uint	BitsPerAttribute;
 	uint	DecodeInfoOffset;
 	bool	bHasTangents;
+	bool	bSkinning;
 	uint	NumUVs;
 	uint	ColorMode;
 	uint	UVBitOffsets;
@@ -134,6 +136,8 @@ struct FNaniteView
 	float4x4	PrevViewToClip;
 	FDFMatrix	PrevClipToWorld;
 
+	float3x3	FirstPersonTransform;
+
 	float4		TranslatedGlobalClipPlane;
 
 	int4		ViewRect;
@@ -148,7 +152,7 @@ struct FNaniteView
 	float		NearPlane;
 	float		LODScale;
 	float		LODScaleHW;
-	float		MinBoundsRadiusSq;
+	float		CullingViewMinRadiusTestFactorSq;
 	uint		StreamingPriorityCategory;
 	uint		Flags;
 	int			TargetLayerIndex;
@@ -159,6 +163,7 @@ struct FNaniteView
 	int4		HZBTestViewRect;
 	float		CullingViewScreenMultiple;
 	uint		InstanceOcclusionQueryMask;
+	bool		bUseLightingChannelMask;
 	uint		LightingChannelMask;
 };
 
@@ -177,18 +182,7 @@ struct FNaniteFullscreenVSToPS
 	nointerpolation uint TileIndex : MACRO_TILE_INDEX;
 };
 
-#if NANITE_USE_UNIFORM_BUFFER
-	#define PageConstants			Nanite.PageConstants
-	#define MaxNodes				Nanite.MaxNodes
-	#define MaxVisibleClusters		Nanite.MaxVisibleClusters
-	#define RenderFlags				Nanite.RenderFlags
-	#define RayTracingCutError		Nanite.RayTracingCutError
-	#define DebugFlags				Nanite.DebugFlags
-	#define ClusterPageData			Nanite.ClusterPageData
-	#define VisibleClustersSWHW		Nanite.VisibleClustersSWHW
-	#define HierarchyBuffer			Nanite.HierarchyBuffer
-	#define RayTracingDataBuffer	Nanite.RayTracingDataBuffer
-#elif NANITE_USE_RAYTRACING_UNIFORM_BUFFER
+#if NANITE_USE_RAYTRACING_UNIFORM_BUFFER
 	#define PageConstants			NaniteRayTracing.PageConstants
 	#define MaxNodes				NaniteRayTracing.MaxNodes
 	#define MaxVisibleClusters		NaniteRayTracing.MaxVisibleClusters
@@ -202,16 +196,41 @@ struct FNaniteFullscreenVSToPS
 	//uint							DebugFlags;
 	//ByteAddressBuffer				VisibleClustersSWHW;
 #else
+
+#if NANITE_USE_RASTER_UNIFORM_BUFFER
+	#define PageConstants			NaniteRaster.PageConstants
+	#define MaxNodes				NaniteRaster.MaxNodes
+	#define MaxVisibleClusters		NaniteRaster.MaxVisibleClusters
+	#define MaxPatchesPerGroup		NaniteRaster.MaxPatchesPerGroup
+	#define MeshPass				NaniteRaster.MeshPass
+	#define InvDiceRate				NaniteRaster.InvDiceRate
+	#define RenderFlags				NaniteRaster.RenderFlags
+	#define DebugFlags				NaniteRaster.DebugFlags
+#else
 	uint4 							PageConstants;
 	uint							MaxNodes;
 	uint							MaxVisibleClusters;
+	uint							MaxPatchesPerGroup;
+	uint							MeshPass;
+	float							InvDiceRate;
 	uint							RenderFlags;
-	float							RayTracingCutError;
 	uint							DebugFlags;
+#endif
+
+#if NANITE_USE_SHADING_UNIFORM_BUFFER
+	#define RayTracingCutError		NaniteShading.RayTracingCutError
+	#define ClusterPageData			NaniteShading.ClusterPageData
+	#define VisibleClustersSWHW		NaniteShading.VisibleClustersSWHW
+	#define HierarchyBuffer			NaniteShading.HierarchyBuffer
+	#define RayTracingDataBuffer	NaniteShading.RayTracingDataBuffer
+#else
+	float							RayTracingCutError;
 	ByteAddressBuffer 				ClusterPageData;
 	ByteAddressBuffer				VisibleClustersSWHW;
 	ByteAddressBuffer				HierarchyBuffer;
 	StructuredBuffer<uint>			RayTracingDataBuffer;
+#endif
+
 #endif
 
 #if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS	// TODO: This header can be included from SM5 from BuildInstanceDrawCommands.usf. Refactor it.
@@ -360,40 +379,6 @@ FVisibleCluster GetVisibleCluster( uint ClusterIndex )
 	return VisibleCluster;
 }
 
-FInstanceSceneData GetInstanceSceneData( inout FVisibleCluster VisibleCluster, bool bCheckValid = true )
-{
-	FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, Scene.GPUScene.InstanceDataSOAStride, bCheckValid );
-
-#if NANITE_IMPOSTERS_SUPPORTED
-	// Couldn't have been stored so signals this is an imposter
-	if( VisibleCluster.Flags == (1 << NANITE_NUM_CULLING_FLAG_BITS) )
-	{
-		const uint MaxStreamingPages = 1 << 12;
-		VisibleCluster.PageIndex = MaxStreamingPages + (InstanceData.NaniteRuntimeResourceID & NANITE_MAX_GPU_PAGES_MASK);
-	}
-#endif
-
-	return InstanceData;
-}
-
-FInstanceDynamicData CalculateInstanceDynamicData( FNaniteView NaniteView, FInstanceSceneData InstanceData )
-{
-	float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
-	float4x4 PrevLocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.PrevLocalToWorld, NaniteView.PrevPreViewTranslation);
-
-	FInstanceDynamicData DynamicData;
-	DynamicData.LocalToTranslatedWorld = LocalToTranslatedWorld;
-	DynamicData.PrevLocalToTranslatedWorld = PrevLocalToTranslatedWorld;
-	DynamicData.bHasMoved = GetGPUSceneFrameNumber() == InstanceData.LastUpdateSceneFrameNumber;
-
-	return DynamicData;
-}
-
-FInstanceSceneData GetInstanceSceneData( uint InstanceId, bool bCheckValid = true )
-{
-	return GetInstanceSceneData( InstanceId, Scene.GPUScene.InstanceDataSOAStride, bCheckValid );
-}
-
 FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 {
 	FCluster Cluster;
@@ -430,8 +415,9 @@ FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 	Cluster.BitsPerAttribute	= BitFieldExtractU32(ClusterData[5].x, 10, 22);
 	Cluster.DecodeInfoOffset	= BitFieldExtractU32(ClusterData[5].y, 22,  0);
 	Cluster.bHasTangents		= BitFieldExtractU32(ClusterData[5].y,  1, 22);
-	Cluster.NumUVs				= BitFieldExtractU32(ClusterData[5].y,  3, 23);
-	Cluster.ColorMode			= BitFieldExtractU32(ClusterData[5].y,  1, 26);
+	Cluster.bSkinning			= BitFieldExtractU32(ClusterData[5].y,  1, 23);
+	Cluster.NumUVs				= BitFieldExtractU32(ClusterData[5].y,  3, 24);
+	Cluster.ColorMode			= BitFieldExtractU32(ClusterData[5].y,  1, 27);
 	Cluster.UVBitOffsets		= ClusterData[5].z;
 	const uint MaterialEncoding = ClusterData[5].w;
 
@@ -467,7 +453,7 @@ FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 
 		Cluster.VertReuseBatchCountTableOffset = 0;
 		Cluster.VertReuseBatchCountTableSize = 0;
-		Cluster.VertReuseBatchInfo	= ClusterData[6];
+		Cluster.VertReuseBatchInfo	= ClusterData[7];
 	}
 	else
 	{
@@ -480,8 +466,8 @@ FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 		Cluster.Material0Length		= 0;
 		Cluster.Material1Length		= 0;
 
-		Cluster.VertReuseBatchCountTableOffset = ClusterData[6].x;
-		Cluster.VertReuseBatchCountTableSize = ClusterData[6].y;
+		Cluster.VertReuseBatchCountTableOffset = ClusterData[7].x;
+		Cluster.VertReuseBatchCountTableSize = ClusterData[7].y;
 		Cluster.VertReuseBatchInfo = 0;
 	}
 
@@ -549,34 +535,67 @@ FCluster GetCluster(uint PageIndex, uint ClusterIndex)
 	return Cluster;
 }
 
-FHierarchyNodeSlice GetHierarchyNodeSlice(uint NodeIndex, uint ChildIndex)
+FHierarchyNodeSlice UnpackHierarchyNodeSlice(uint4 RawData0, uint4 RawData1, uint4 RawData2, uint RawData3)
 {
-	const uint NodeSize = (4 + 4 + 4 + 1) * 4 * NANITE_MAX_BVH_NODE_FANOUT;
-
-	uint BaseAddress = NodeIndex * NodeSize;
+	const uint4 Misc0 = RawData1;
+	const uint4 Misc1 = RawData2;
+	const uint  Misc2 = RawData3;
 
 	FHierarchyNodeSlice Node;
-	Node.LODBounds = asfloat(HierarchyBuffer.Load4(BaseAddress + 16 * ChildIndex));
+	Node.LODBounds				= asfloat(RawData0);
 
-	uint4 Misc0 = HierarchyBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 16) + 16 * ChildIndex);
-	uint4 Misc1 = HierarchyBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 32) + 16 * ChildIndex);
-	uint  Misc2 = HierarchyBuffer.Load( BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 48) + 4 * ChildIndex);
-	Node.BoxBoundsCenter = asfloat(Misc0.xyz);
-	Node.BoxBoundsExtent = asfloat(Misc1.xyz);
+	Node.BoxBoundsCenter		= asfloat(Misc0.xyz);
+	Node.BoxBoundsExtent		= asfloat(Misc1.xyz);
 
-	Node.MinLODError = f16tof32(Misc0.w);
-	Node.MaxParentLODError = f16tof32(Misc0.w >> 16);
-	Node.ChildStartReference = Misc1.w;
-	Node.bLoaded = Misc1.w != 0xFFFFFFFFu;
+	Node.MinLODError			= f16tof32(Misc0.w);
+	Node.MaxParentLODError		= f16tof32(Misc0.w >> 16);
+	Node.ChildStartReference	= Misc1.w;						// When changing this, remember to also update StoreHierarchyNodeChildStartReference
+	Node.bLoaded				= (Misc1.w != 0xFFFFFFFFu);
 
-	uint ResourcePageIndex_NumPages_GroupPartSize = Misc2;
-	Node.NumChildren = BitFieldExtractU32(ResourcePageIndex_NumPages_GroupPartSize, NANITE_MAX_CLUSTERS_PER_GROUP_BITS, 0);
-	Node.NumPages = BitFieldExtractU32(ResourcePageIndex_NumPages_GroupPartSize, NANITE_MAX_GROUP_PARTS_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS);
-	Node.StartPageIndex = BitFieldExtractU32(ResourcePageIndex_NumPages_GroupPartSize, NANITE_MAX_RESOURCE_PAGES_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS + NANITE_MAX_GROUP_PARTS_BITS);
-	Node.bEnabled = ResourcePageIndex_NumPages_GroupPartSize != 0u;
-	Node.bLeaf = ResourcePageIndex_NumPages_GroupPartSize != 0xFFFFFFFFu;
+	Node.NumChildren			= BitFieldExtractU32(Misc2, NANITE_MAX_CLUSTERS_PER_GROUP_BITS, 0);
+	Node.NumPages				= BitFieldExtractU32(Misc2, NANITE_MAX_GROUP_PARTS_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS);
+	Node.StartPageIndex			= BitFieldExtractU32(Misc2, NANITE_MAX_RESOURCE_PAGES_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS + NANITE_MAX_GROUP_PARTS_BITS);
+	Node.bEnabled				= Misc2 != 0u;
+	Node.bLeaf					= Misc2 != 0xFFFFFFFFu;
 
 	return Node;
+}
+
+#define HIERARCHY_NODE_SLICE_SIZE	((4 + 4 + 4 + 1) * 4 * NANITE_MAX_BVH_NODE_FANOUT)
+
+FHierarchyNodeSlice GetHierarchyNodeSlice(ByteAddressBuffer InputBuffer, uint NodeIndex, uint ChildIndex)
+{
+	const uint BaseAddress	= NodeIndex * HIERARCHY_NODE_SLICE_SIZE;
+
+	const uint4 RawData0	= InputBuffer.Load4(BaseAddress + 16 * ChildIndex);
+	const uint4 RawData1	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 16) + 16 * ChildIndex);
+	const uint4 RawData2	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 32) + 16 * ChildIndex);
+	const uint  RawData3	= InputBuffer.Load( BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 48) +  4 * ChildIndex);
+	
+	return UnpackHierarchyNodeSlice(RawData0, RawData1, RawData2, RawData3);
+}
+
+FHierarchyNodeSlice GetHierarchyNodeSlice(RWByteAddressBuffer InputBuffer, uint NodeIndex, uint ChildIndex)
+{
+	const uint BaseAddress	= NodeIndex * HIERARCHY_NODE_SLICE_SIZE;
+
+	const uint4 RawData0	= InputBuffer.Load4(BaseAddress + 16 * ChildIndex);
+	const uint4 RawData1	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 16) + 16 * ChildIndex);
+	const uint4 RawData2	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 32) + 16 * ChildIndex);
+	const uint  RawData3	= InputBuffer.Load( BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 48) +  4 * ChildIndex);
+	
+	return UnpackHierarchyNodeSlice(RawData0, RawData1, RawData2, RawData3);
+}
+
+FHierarchyNodeSlice GetHierarchyNodeSlice(uint NodeIndex, uint ChildIndex)
+{
+	return GetHierarchyNodeSlice(HierarchyBuffer, NodeIndex, ChildIndex);
+}
+
+void StoreHierarchyNodeChildStartReference(RWByteAddressBuffer OutputBuffer, uint NodeIndex, uint ChildIndex, uint ChildStartReference)
+{
+	const uint Address = NodeIndex * HIERARCHY_NODE_SLICE_SIZE + NANITE_MAX_BVH_NODE_FANOUT * 32 + 16 * ChildIndex + 12;
+	OutputBuffer.Store(Address, ChildStartReference);
 }
 
 // Decode triangle that is represented by one base index and two 5-bit offsets.
@@ -762,7 +781,7 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 	NaniteView.NearPlane					= PackedView.NearPlane;
 	NaniteView.LODScale						= PackedView.LODScales.x;
 	NaniteView.LODScaleHW					= PackedView.LODScales.y;
-	NaniteView.MinBoundsRadiusSq			= PackedView.MinBoundsRadiusSq;
+	NaniteView.CullingViewMinRadiusTestFactorSq			= PackedView.CullingViewMinRadiusTestFactorSq;
 	NaniteView.CullingViewScreenMultiple	= PackedView.CullingViewScreenMultiple;
 	NaniteView.StreamingPriorityCategory	= PackedView.StreamingPriorityCategory_AndFlags & NANITE_STREAMING_PRIORITY_CATEGORY_MASK;
 	NaniteView.Flags						= PackedView.StreamingPriorityCategory_AndFlags >> NANITE_NUM_STREAMING_PRIORITY_CATEGORY_BITS;
@@ -775,7 +794,12 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 
 	NaniteView.HZBTestViewRect				= PackedView.HZBTestViewRect;
 	NaniteView.InstanceOcclusionQueryMask	= PackedView.InstanceOcclusionQueryMask;
-	NaniteView.LightingChannelMask	= PackedView.LightingChannelMask;
+	NaniteView.bUseLightingChannelMask		= (PackedView.LightingChannelMask & 0b1000) > 0;
+	NaniteView.LightingChannelMask			= (PackedView.LightingChannelMask & 0b0111);
+	NaniteView.FirstPersonTransform			= float3x3(
+		f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.x       ), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.x >> 16u), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.y       ),
+		f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.y >> 16u), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.z       ), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.z >> 16u),
+		f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.w       ), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.w >> 16u), f16tof32(PackedView.FirstPersonTransformRow2Z));
 
 	return NaniteView;
 }
@@ -792,34 +816,34 @@ FNaniteView GetNaniteView( uint ViewIndex )
 
 	FNaniteView NaniteView;
 
-	NaniteView.SVPositionToTranslatedWorld  = LocalView.SVPositionToTranslatedWorld;
-	NaniteView.ViewToTranslatedWorld		= LocalView.ViewToTranslatedWorld;
-	NaniteView.ViewOriginHigh				= LocalView.ViewOriginHigh;
+	NaniteView.SVPositionToTranslatedWorld		= LocalView.SVPositionToTranslatedWorld;
+	NaniteView.ViewToTranslatedWorld			= LocalView.ViewToTranslatedWorld;
+	NaniteView.ViewOriginHigh					= LocalView.ViewOriginHigh;
 
-	NaniteView.TranslatedWorldToView		= LocalView.TranslatedWorldToView;
-	NaniteView.TranslatedWorldToClip		= LocalView.TranslatedWorldToClip;
-	NaniteView.ViewToClip					= LocalView.ViewToClip;
-	NaniteView.ClipToWorld					= LocalView.ClipToWorld;
+	NaniteView.TranslatedWorldToView			= LocalView.TranslatedWorldToView;
+	NaniteView.TranslatedWorldToClip			= LocalView.TranslatedWorldToClip;
+	NaniteView.ViewToClip						= LocalView.ViewToClip;
+	NaniteView.ClipToWorld						= LocalView.ClipToWorld;
 	
-	NaniteView.PrevTranslatedWorldToView	= LocalView.PrevTranslatedWorldToView;
-	NaniteView.PrevTranslatedWorldToClip	= LocalView.PrevTranslatedWorldToClip;
-	NaniteView.PrevViewToClip				= LocalView.PrevViewToClip;
-	NaniteView.PrevClipToWorld				= LocalView.PrevClipToWorld;
+	NaniteView.PrevTranslatedWorldToView		= LocalView.PrevTranslatedWorldToView;
+	NaniteView.PrevTranslatedWorldToClip		= LocalView.PrevTranslatedWorldToClip;
+	NaniteView.PrevViewToClip					= LocalView.PrevViewToClip;
+	NaniteView.PrevClipToWorld					= LocalView.PrevClipToWorld;
 
-	NaniteView.TranslatedGlobalClipPlane	= LocalView.GlobalClippingPlane;
+	NaniteView.TranslatedGlobalClipPlane		= LocalView.GlobalClippingPlane;
 
-	NaniteView.ViewSizeAndInvSize			= LocalView.ViewSizeAndInvSize;
-	NaniteView.ViewRect						= int4(int2(LocalView.ViewRectMin.xy + 0.5f), int2(LocalView.ViewRectMin.xy + LocalView.ViewSizeAndInvSize.xy + 0.5f));
-	NaniteView.PreViewTranslation			= LocalView.PreViewTranslation;
-	NaniteView.PrevPreViewTranslation		= LocalView.PrevPreViewTranslation;
-	NaniteView.WorldCameraOrigin			= LocalView.WorldCameraOrigin;
-	NaniteView.ViewForward					= LocalView.ViewForward;
-	NaniteView.NearPlane					= LocalView.NearPlane;
-	NaniteView.LODScale						= 1.0f;
-	NaniteView.LODScaleHW					= 1.0f;
-	NaniteView.MinBoundsRadiusSq			= 0;
-	NaniteView.StreamingPriorityCategory	= 3;
-	NaniteView.Flags						= NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP;
+	NaniteView.ViewSizeAndInvSize				= LocalView.ViewSizeAndInvSize;
+	NaniteView.ViewRect							= int4(int2(LocalView.ViewRectMin.xy + 0.5f), int2(LocalView.ViewRectMin.xy + LocalView.ViewSizeAndInvSize.xy + 0.5f));
+	NaniteView.PreViewTranslation				= LocalView.PreViewTranslation;
+	NaniteView.PrevPreViewTranslation			= LocalView.PrevPreViewTranslation;
+	NaniteView.WorldCameraOrigin				= LocalView.WorldCameraOrigin;
+	NaniteView.ViewForward						= LocalView.ViewForward;
+	NaniteView.NearPlane						= LocalView.NearPlane;
+	NaniteView.LODScale							= 1.0f;
+	NaniteView.LODScaleHW						= 1.0f;
+	NaniteView.CullingViewMinRadiusTestFactorSq	= 0.0f;
+	NaniteView.StreamingPriorityCategory		= 3;
+	NaniteView.Flags							= NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP;
 	
 	NaniteView.TargetLayerIndex = -1;		// INDEX_NONE
 	NaniteView.TargetMipLevel = 0;
@@ -832,6 +856,8 @@ FNaniteView GetNaniteView( uint ViewIndex )
 	
 	//This path isn't used for the shadow passes but initializing to same value as in GetDefaultLightingChannelMask() for consistency
 	NaniteView.LightingChannelMask	= 0x1;
+
+	NaniteView.FirstPersonTransform			= (float3x3)LocalView.FirstPersonTransform;
 
 
 #else // !NANITE_USE_VIEW_UNIFORM_BUFFER
@@ -883,6 +909,12 @@ void PatchViewState(FNaniteView NaniteView, inout ViewState InOutView)
 #endif
 }
 
+float GetProjectedEdgeLengthAtDepth(float InLength, float ViewZ, FNaniteView NaniteView)
+{
+	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
+	return (InLength * NaniteView.LODScale) / (bOrtho ? 1.0f : ViewZ);
+}
+
 void WriteDispatchArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset, uint NumClustersSW, uint NumClustersHW)
 {
 	RasterizerArgsSWHW[ArgsOffset + 0] = (NumClustersSW + 63u) / 64u;			// SW: ThreadGroupCountX
@@ -928,3 +960,30 @@ void WriteRasterizerArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset,
 	RasterizerArgsSWHW[ArgsOffset + 6] = HWArgs.z;
 	RasterizerArgsSWHW[ArgsOffset + 7] = 0;				// HW: StartInstanceLocation
 }
+
+#if COMPILER_SUPPORTS_HLSL2021
+
+FNaniteSkinningHeader LoadNaniteSkinningHeader(uint InPrimitiveIndex)
+{
+	const uint Offset = InPrimitiveIndex * (uint)sizeof(FNaniteSkinningHeader);
+	return Scene.NaniteSkinning.SkinningHeaders.Load<FNaniteSkinningHeader>(Offset);
+}
+
+float4x3 LoadNaniteBoneTransform(uint TransformIndex)
+{
+	return transpose(Scene.NaniteSkinning.BoneTransforms.Load<float3x4>(TransformIndex * (uint)sizeof(float3x4)));
+}
+
+FBoneTransformWithScale LoadNaniteBoneObjectSpaceWithScale(uint BufferOffset, uint BoneIndex)
+{
+	const uint BufferOffsetBytes = BufferOffset * (uint)sizeof(float);
+	return Scene.NaniteSkinning.BoneObjectSpace.Load<FBoneTransformWithScale>(BufferOffsetBytes + BoneIndex * (uint)sizeof(FBoneTransformWithScale));
+}
+
+FBoneTransform LoadNaniteBoneObjectSpace(uint BufferOffset, uint BoneIndex)
+{
+	const uint BufferOffsetBytes = BufferOffset * (uint)sizeof(float);
+	return Scene.NaniteSkinning.BoneObjectSpace.Load<FBoneTransform>(BufferOffsetBytes + BoneIndex * (uint)sizeof(FBoneTransform));
+}
+
+#endif

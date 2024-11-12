@@ -25,4 +25,8 @@ protected:
 		// This pipeline creates UObjects and assets. Not safe to execute outside of main thread.
 		return false;
 	}
+
+private:
+	void ApplyMaterials(const UInterchangeBaseNodeContainer* NodeContainer, const UInterchangeStaticMeshFactoryNode* FactoryNode, UStaticMesh* StaticMesh) const;
+	void ApplyAdditionalData(const UInterchangeBaseNodeContainer* NodeContainer, const UInterchangeStaticMeshFactoryNode* FactoryNode, UStaticMesh* StaticMesh) const;
 };

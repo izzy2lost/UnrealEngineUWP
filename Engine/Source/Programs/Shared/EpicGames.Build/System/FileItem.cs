@@ -291,12 +291,12 @@ namespace UnrealBuildBase
 				return true;
 			}
 
-			if (ReferenceEquals(obj, null))
+			if (obj is null)
 			{
 				return false;
 			}
 
-			return Equals((FileItem?)obj);
+			return Equals(obj as FileItem);
 		}
 
 		public override int GetHashCode()
@@ -306,9 +306,9 @@ namespace UnrealBuildBase
 
 		public static bool operator ==(FileItem? left, FileItem? right)
 		{
-			if (ReferenceEquals(left, null))
+			if (left is null)
 			{
-				return ReferenceEquals(right, null);
+				return right is null;
 			}
 
 			return left.Equals(right);
@@ -321,22 +321,22 @@ namespace UnrealBuildBase
 
 		public static bool operator <(FileItem? left, FileItem? right)
 		{
-			return ReferenceEquals(left, null) ? !ReferenceEquals(right, null) : left.CompareTo(right) < 0;
+			return left is null ? right is not null : left.CompareTo(right) < 0;
 		}
 
 		public static bool operator <=(FileItem? left, FileItem? right)
 		{
-			return ReferenceEquals(left, null) || left.CompareTo(right) <= 0;
+			return left is null || left.CompareTo(right) <= 0;
 		}
 
 		public static bool operator >(FileItem? left, FileItem? right)
 		{
-			return !ReferenceEquals(left, null) && left.CompareTo(right) > 0;
+			return left is not null && left.CompareTo(right) > 0;
 		}
 
 		public static bool operator >=(FileItem? left, FileItem? right)
 		{
-			return ReferenceEquals(left, null) ? ReferenceEquals(right, null) : left.CompareTo(right) >= 0;
+			return left is null ? right is null : left.CompareTo(right) >= 0;
 		}
 		#endregion
 	}

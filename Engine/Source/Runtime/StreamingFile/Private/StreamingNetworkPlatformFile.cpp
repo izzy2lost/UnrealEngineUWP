@@ -251,6 +251,21 @@ public:
 		return Result;
 	}
 
+	virtual bool ReadAt(uint8* Destination, int64 BytesToRead, int64 Offset) override
+	{
+		if (!bReadable || BytesToRead < 0 || Offset < 0 || (BytesToRead + Offset) > Size())
+		{
+			return false;
+		}
+
+		if (BytesToRead == 0)
+		{
+			return true;
+		}
+
+		return Network.SendReadMessage(HandleId, Destination, BytesToRead, Offset);
+	}
+
 	virtual bool Write(const uint8* Source, int64 BytesToWrite) override
 	{
 		bool Result = false;
@@ -846,6 +861,34 @@ bool FStreamingNetworkPlatformFile::SendReadMessage(uint64 HandleId, uint8* Dest
 	return bSuccess;
 }
 
+
+STREAMINGFILE_API bool FStreamingNetworkPlatformFile::SendReadMessage(uint64 HandleId, uint8* Destination, int64 BytesToRead, int64 Offset)
+{
+	FStreamingNetworkFileArchive Payload(NFS_Messages::ReadAt);
+	Payload << HandleId;
+	Payload << BytesToRead;
+	Payload << Offset;
+
+	FArrayReader Response;
+
+	if (SendPayloadAndReceiveResponse(Payload, Response) == false)
+	{
+		return false;
+	}
+
+	int64 ServerBytesRead = 0;
+	Response << ServerBytesRead;
+
+	if (ServerBytesRead == BytesToRead)
+	{
+		Response.Serialize(Destination, BytesToRead);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
 
 bool FStreamingNetworkPlatformFile::SendWriteMessage(uint64 HandleId, const uint8* Source, int64 BytesToWrite)
 {

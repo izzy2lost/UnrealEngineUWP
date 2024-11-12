@@ -208,7 +208,7 @@ void UKismetRenderingLibrary::DrawMaterialToRenderTarget(UObject* WorldContextOb
 		Canvas->Init(TextureRenderTarget->SizeX, TextureRenderTarget->SizeY, nullptr, &RenderCanvas);
 
 		{
-			SCOPED_DRAW_EVENTF_GAMETHREAD(DrawMaterialToRenderTarget, *TextureRenderTarget->GetFName().ToString());
+			RHI_BREADCRUMB_EVENT_GAMETHREAD("DrawMaterialToRenderTarget: %s", TextureRenderTarget->GetFName());
 
 			ENQUEUE_RENDER_COMMAND(FlushDeferredResourceUpdateCommand)(
 				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
@@ -223,12 +223,6 @@ void UKismetRenderingLibrary::DrawMaterialToRenderTarget(UObject* WorldContextOb
 
 			//UpdateResourceImmediate must be called here to ensure mips are generated.
 			TextureRenderTarget->UpdateResourceImmediate(false);
-
-			ENQUEUE_RENDER_COMMAND(ResetSceneTextureExtentHistory)(
-				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
-				{
-					RenderTargetResource->ResetSceneTextureExtentsHistory();
-				});
 		}
 	}
 }
@@ -793,14 +787,18 @@ void UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(UObject* WorldContex
 			FCanvas::CDM_ImmediateDrawing);
 		Canvas->Init(TextureRenderTarget->SizeX, TextureRenderTarget->SizeY, nullptr, NewCanvas);
 
-#if  WANTS_DRAW_MESH_EVENTS
-		Context.DrawEvent = new FDrawEvent();
-		BEGIN_DRAW_EVENTF_GAMETHREAD(DrawCanvasToTarget, (*Context.DrawEvent), *TextureRenderTarget->GetFName().ToString())
-#endif // WANTS_DRAW_MESH_EVENTS
-
 		ENQUEUE_RENDER_COMMAND(FlushDeferredResourceUpdateCommand)(
-			[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
+			[
+				RenderTargetResource
+#if WANTS_DRAW_MESH_EVENTS
+				, Name = TextureRenderTarget->GetFName()
+				, Breadcrumb = (Context.Breadcrumb = new TOptional<FRHIBreadcrumbEventManual>)
+#endif
+				](FRHICommandListImmediate& RHICmdList)
 			{
+#if  WANTS_DRAW_MESH_EVENTS
+				Breadcrumb->Emplace(RHICmdList, FRHIBreadcrumbData(__FILE__, __LINE__, TStatId(), NAME_None), TEXT("DrawCanvasToTarget: %s"), Name);
+#endif
 				RenderTargetResource->FlushDeferredResourceUpdate(RHICmdList);
 			});
 	}
@@ -832,21 +830,25 @@ void UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(UObject* WorldContextO
 			FTextureRenderTargetResource* RenderTargetResource = Context.RenderTarget->GameThread_GetRenderTargetResource();
 
 			ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
-				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
+				[
+					RenderTargetResource
+#if WANTS_DRAW_MESH_EVENTS
+					, Breadcrumb = Context.Breadcrumb
+#endif
+				](FRHICommandListImmediate& RHICmdList)
 				{
 					// Note: If multisampled, it should have already been resolved by ~FCanvasRenderThreadScope()
 					if (!RenderTargetResource->GetRenderTargetTexture()->GetDesc().IsMultisample())
 					{
 						TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), RenderTargetResource->TextureRHI, {});
 					}
-				}
-			);
 
 #if WANTS_DRAW_MESH_EVENTS
-			STOP_DRAW_EVENT_GAMETHREAD(*Context.DrawEvent);
-			delete Context.DrawEvent;
-#endif // WANTS_DRAW_MESH_EVENTS
-
+					(*Breadcrumb)->End(RHICmdList);
+					delete Breadcrumb;
+#endif
+				}
+			);
 
 			// Remove references to the context now that we've resolved it, to avoid a crash when EndDrawCanvasToRenderTarget is called multiple times with the same context
 			// const cast required, as BP will treat Context as an output without the const
@@ -854,6 +856,10 @@ void UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(UObject* WorldContextO
 		}
 		else
 		{
+#if WANTS_DRAW_MESH_EVENTS
+			check(!Context.Breadcrumb);
+#endif
+
 			FMessageLog("Blueprint").Warning(LOCTEXT("EndDrawCanvasToRenderTarget_InvalidContext", "EndDrawCanvasToRenderTarget: Context must be valid."));
 		}
 	}

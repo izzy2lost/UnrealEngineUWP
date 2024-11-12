@@ -3,11 +3,13 @@
 
 #include "ComponentConstraintChannelInterface.h"
 
+#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "MovieSceneToolHelpers.h"
 #include "TransformableHandle.h"
 #include "TransformConstraint.h"
 #include "Constraints/MovieSceneConstraintChannelHelper.inl"
 #include "EntitySystem/MovieSceneDecompositionQuery.h"
+#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "Sections/MovieSceneConstrainedSection.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Systems/MovieScenePropertyInstantiator.h"
@@ -382,12 +384,18 @@ void FComponentConstraintChannelInterface::RecomposeTransforms(
 		Query.Object   = SceneComponent;
 		Query.bConvertFromSourceEntityIDs = false;  // We already pass the children entity IDs
 		FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
 		// add keys
 		for (int32 Index = 0; Index < InFrames.Num(); ++Index)
 		{
-			const FFrameNumber& FrameNumber = (FFrameTime(InFrames[Index]) * RootToLocalTransform.InverseNoLooping()).GetFrame();
-			const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(FFrameTime(FrameNumber), TickResolution);
+			TOptional<FFrameTime> RootTime = LocalToRootTransform.TryTransformTime(InFrames[Index]);
+			if (!RootTime)
+			{
+				continue;
+			}
+
+			const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(RootTime.GetValue(), TickResolution);
 			const FMovieSceneContext Context = FMovieSceneContext(EvaluationRange, PlaybackStatus).SetHasJumped(true);
 
 			EvaluationTemplate.EvaluateSynchronousBlocking(Context);

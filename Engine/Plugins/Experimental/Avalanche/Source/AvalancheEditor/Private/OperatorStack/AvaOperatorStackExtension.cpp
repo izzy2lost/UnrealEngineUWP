@@ -2,6 +2,7 @@
 
 #include "AvaOperatorStackExtension.h"
 #include "AvaEditorCommands.h"
+#include "AvaLevelViewportCommands.h"
 #include "AvaOperatorStackTabSpawner.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "EditorModeManager.h"
@@ -89,12 +90,12 @@ void FAvaOperatorStackExtension::BindCommands(const TSharedRef<FUICommandList>& 
 {
 	InCommandList->Append(AnimatorCommands);
 
-	const FAvaEditorCommands& EditorCommands = FAvaEditorCommands::Get();
+	const FAvaLevelViewportCommands& ViewportCommands = FAvaLevelViewportCommands::GetExternal();
 
-	AnimatorCommands->MapAction(EditorCommands.DisableAnimators
+	AnimatorCommands->MapAction(ViewportCommands.DisableAnimators
 		, FExecuteAction::CreateSP(this, &FAvaOperatorStackExtension::EnableAnimators, false));
 
-	AnimatorCommands->MapAction(EditorCommands.EnableAnimators
+	AnimatorCommands->MapAction(ViewportCommands.EnableAnimators
 		, FExecuteAction::CreateSP(this, &FAvaOperatorStackExtension::EnableAnimators, true));
 }
 

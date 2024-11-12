@@ -207,7 +207,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBooleanFunctions::ApplyMeshPlaneCut(
 
 		if (Options.bFillHoles)
 		{
-			Cut.HoleFill(ConstrainedDelaunayTriangulate<double>, Options.bFillSpans);
+			Cut.HoleFill(ConstrainedDelaunayTriangulate<double>, Options.bFillSpans, -1, Options.HoleFillMaterialID);
 		}
 
 	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
@@ -274,7 +274,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBooleanFunctions::ApplyMeshPlaneSlice(
 
 		if (Options.bFillHoles)
 		{
-			Cut.HoleFill(ConstrainedDelaunayTriangulate<double>, Options.bFillSpans);
+			Cut.HoleFill(ConstrainedDelaunayTriangulate<double>, Options.bFillSpans, -1, Options.HoleFillMaterialID);
 		}
 
 		EditMesh.Attributes()->RemoveAttribute(ObjectIndexAttribute);

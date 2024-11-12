@@ -13,6 +13,8 @@
 #include "Engine/Texture2D.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
+#include "Dataflow/DataflowSimulationManager.h"
+#include "PhysicsEngine/PhysicsSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosSolverActor)
 
@@ -176,6 +178,18 @@ private:
 static TUniquePtr<FChaosSolverActorConsoleObjects> ChaosSolverActorConsoleObjects;
 #endif  // #if CHAOS_DEBUG_SUBSTEP
 
+void FDataflowRigidSolverProxy::AdvanceSolverDatas(const float DeltaTime)
+{
+	if(Solver != nullptr)
+	{
+		for(auto* PushData : PushDatas)
+		{
+			Chaos::FSolverTasksPTOnly  SolverTask(*Solver, PushData);
+			SolverTask.AdvanceSolver();
+		}
+	}
+}
+
 AChaosSolverActor::AChaosSolverActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, TimeStepMultiplier_DEPRECATED(1.f)
@@ -192,7 +206,7 @@ AChaosSolverActor::AChaosSolverActor(const FObjectInitializer& ObjectInitializer
 	, FloorHeight(0.f)
 	, ChaosDebugSubstepControl()
 	, PhysScene(nullptr)
-	, Solver(nullptr)
+	, RigidSolverProxy()
 	, Proxy(nullptr)
 {
 	if(!HasAnyFlags(RF_ClassDefaultObject))
@@ -205,7 +219,8 @@ AChaosSolverActor::AChaosSolverActor(const FObjectInitializer& ObjectInitializer
 								  , TEXT("Solver Actor Physics")
 #endif
 		));
-		Solver = PhysScene->GetSolver();
+		RigidSolverProxy.Solver = PhysScene->GetSolver();
+		
 		// Ticking setup for collision/breaking notifies
 		PrimaryActorTick.TickGroup = TG_PostPhysics;
 		PrimaryActorTick.bCanEverTick = true;
@@ -263,23 +278,41 @@ void AChaosSolverActor::PreInitializeComponents()
 	Super::PreInitializeComponents();
 }
 
+void AChaosSolverActor::MigrateSolver() const
+{
+	if(GetSolver())
+	{
+		if(FChaosSolversModule* Module = FChaosSolversModule::GetModule())
+		{
+			if(SimulationAsset.DataflowAsset)
+			{
+				Module->MigrateSolver(GetSolver(), this);
+				GetSolver()->SetStandaloneSolver(true);
+			}
+			else
+			{
+				Module->MigrateSolver(GetSolver(), GetWorld());
+				GetSolver()->SetStandaloneSolver(false);
+			}
+		}
+	}
+	// Make sure that the owning world is correct
+	PhysScene->SetOwningWorld(GetWorld());
+}
+
 void AChaosSolverActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if(!Solver)
+	if(!RigidSolverProxy.Solver)
 	{
 		return;
 	}
 
-	// Make sure that the solver is registered in the right world
-	if(FChaosSolversModule* Module = FChaosSolversModule::GetModule())
-	{
-		Module->MigrateSolver(GetSolver(), GetWorld());
-	}
-
-	Solver->EnqueueCommandImmediate(
-		[InSolver = Solver, InProps = Properties]()
+	MigrateSolver();
+	
+	RigidSolverProxy.Solver->EnqueueCommandImmediate(
+		[InSolver = RigidSolverProxy.Solver, InProps = Properties]()
 		{
 			InSolver->ApplyConfig(InProps);
 		});
@@ -305,18 +338,20 @@ void AChaosSolverActor::BeginPlay()
 
 void AChaosSolverActor::EndPlay(const EEndPlayReason::Type ReasonEnd)
 {
-	if(!Solver)
+	Super::EndPlay(ReasonEnd);
+
+	if(!RigidSolverProxy.Solver)
 	{
 		return;
 	}
 
 	if(Proxy)
 	{
-		Solver->UnregisterObject(Proxy);
+		RigidSolverProxy.Solver->UnregisterObject(Proxy);
 		Proxy = nullptr;
 	}
 
-	Solver->EnqueueCommandImmediate([InSolver=Solver]()
+	RigidSolverProxy.Solver->EnqueueCommandImmediate([InSolver=RigidSolverProxy.Solver]()
 		{
 			// #TODO BG - We should really reset the solver here but the current reset function
 			// is really heavy handed and clears out absolutely everything. Ideally we want to keep
@@ -382,21 +417,31 @@ void AChaosSolverActor::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
 
+	MigrateSolver();
+
 	UWorld* const W = GetWorld(); 
 	if (W && !W->PhysicsScene_Chaos)
 	{
 		SetAsCurrentWorldSolver();
 	}
+
+	// Register the dataflow simulation interface
+	UE::Dataflow::RegisterSimulationInterface(this);
+}
+
+void AChaosSolverActor::PostUnregisterAllComponents()
+{
+	Super::PostUnregisterAllComponents();
+	
+	// Unregister the dataflow simulation interface
+	UE::Dataflow::UnregisterSimulationInterface(this);
 }
 
 void AChaosSolverActor::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
 	Super::PostDuplicate(DuplicateMode);
 
-	if(FChaosSolversModule* Module = FChaosSolversModule::GetModule())
-	{
-		Module->MigrateSolver(GetSolver(), GetWorld());
-	}
+	MigrateSolver();
 }
 
 void AChaosSolverActor::MakeFloor()
@@ -417,14 +462,14 @@ void AChaosSolverActor::MakeFloor()
 		FilterData.Word3 = 0xFFFF;
 		FloorParticle->SetShapeSimData(0, FilterData);
 		Proxy = Chaos::FSingleParticlePhysicsProxy::Create(MoveTemp(FloorParticle));
-		Solver->RegisterObject(Proxy);
+		RigidSolverProxy.Solver->RegisterObject(Proxy);
 	}
 }
 
 void AChaosSolverActor::SetAsCurrentWorldSolver()
 {
 	UWorld* const W = GetWorld();
-	if (W)
+	if (W && (GetSolver() && !GetSolver()->IsStandaloneSolver()))
 	{
 		W->PhysicsScene_Chaos = PhysScene;
 	}
@@ -432,9 +477,67 @@ void AChaosSolverActor::SetAsCurrentWorldSolver()
 
 void AChaosSolverActor::SetSolverActive(bool bActive)
 {
-	if(Solver && PhysScene)
+	if(RigidSolverProxy.Solver && PhysScene)
 	{
-		Solver->SetIsPaused_External(!bActive);
+		RigidSolverProxy.Solver->SetIsPaused_External(!bActive);
+	}
+}
+
+void AChaosSolverActor::BuildSimulationProxy()
+{
+	RigidSolverProxy.Solver = PhysScene->GetSolver();
+	
+	// Ticking setup for collision/breaking notifies
+	PrimaryActorTick.TickGroup = TG_PostPhysics;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+}
+
+void AChaosSolverActor::ResetSimulationProxy()
+{
+	RigidSolverProxy.Solver = nullptr;
+}
+
+void AChaosSolverActor::WriteToSimulation(const float DeltaTime, const bool bAsyncTask)
+{
+	if (RigidSolverProxy.IsValid())
+	{
+		if(!bAsyncTask)
+		{
+			if(!Proxy && bHasFloor)
+			{
+				MakeFloor();
+			} 
+		
+			// Update gravity in case it changed
+			const FVector DefaultGravity( 0.f, 0.f, GetWorld()->GetGravityZ() );
+		
+			PhysScene->SetUpForFrame(&DefaultGravity, DeltaTime, UPhysicsSettings::Get()->MinPhysicsDeltaTime, UPhysicsSettings::Get()->MaxPhysicsDeltaTime,
+				UPhysicsSettings::Get()->MaxSubstepDeltaTime, UPhysicsSettings::Get()->MaxSubsteps, UPhysicsSettings::Get()->bSubstepping);
+		
+			PhysScene->StartFrame();
+		}
+		else
+		{
+			GetSolver()->AdvanceAndDispatch_External(DeltaTime);
+		}
+
+		RigidSolverProxy.PushDatas.Reset();
+		while(Chaos::FPushPhysicsData* PushData = RigidSolverProxy.Solver->GetMarshallingManager().StepInternalTime_External())
+		{
+			RigidSolverProxy.PushDatas.Add(PushData);
+		}
+	}
+}
+
+void AChaosSolverActor::ReadFromSimulation(const float DeltaTime, const bool bAsyncTask)
+{
+	if(!bAsyncTask)
+	{
+		if (RigidSolverProxy.IsValid())
+		{
+			PhysScene->EndFrame();
+		}
 	}
 }
 
@@ -443,11 +546,11 @@ void AChaosSolverActor::PostEditChangeProperty(struct FPropertyChangedEvent& Pro
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if(Solver && PropertyChangedEvent.Property)
+	if(RigidSolverProxy.Solver && PropertyChangedEvent.Property)
 	{
 		if(PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(AChaosSolverActor, Properties))
 		{
-			Solver->EnqueueCommandImmediate([InSolver = Solver, InConfig = Properties]()
+			RigidSolverProxy.Solver->EnqueueCommandImmediate([InSolver = RigidSolverProxy.Solver, InConfig = Properties]()
 			{
 				InSolver->ApplyConfig(InConfig);
 			});
@@ -456,7 +559,7 @@ void AChaosSolverActor::PostEditChangeProperty(struct FPropertyChangedEvent& Pro
 		{
 			if(Proxy)
 			{
-				Solver->UnregisterObject(Proxy);
+				RigidSolverProxy.Solver->UnregisterObject(Proxy);
 				Proxy = nullptr;
 			}
 
@@ -469,7 +572,29 @@ void AChaosSolverActor::PostEditChangeProperty(struct FPropertyChangedEvent& Pro
 				Proxy->GetGameThreadAPI().SetX(FVector(0.0f, 0.0f, FloorHeight));
 			}
 		}
+		else if(PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(AChaosSolverActor, SimulationAsset))
+		{
+			MigrateSolver();
+		}
 	}
+}
+
+bool AChaosSolverActor::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, SimulationAsset))
+	{
+		static const auto CVarEnableSimulationDataflow = IConsoleManager::Get().FindConsoleVariable(TEXT("p.Dataflow.EnableSimulation"));
+		return CVarEnableSimulationDataflow->GetBool();
+	}
+
+	return true;
 }
 
 #if TODO_REIMPLEMENT_SERIALIZATION_FOR_PERF_TEST
@@ -492,5 +617,7 @@ FAutoConsoleCommand SerializeForPerfTestCommand(TEXT("p.SerializeForPerfTest"), 
 #endif
 
 #endif
+
+
 
 

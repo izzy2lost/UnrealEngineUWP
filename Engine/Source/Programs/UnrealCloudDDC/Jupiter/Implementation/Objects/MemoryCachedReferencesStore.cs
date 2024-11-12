@@ -3,6 +3,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Caching.Memory;
@@ -15,6 +18,7 @@ namespace Jupiter.Implementation.Objects
 	{
 		private readonly IReferencesStore _actualStore;
 		private readonly ConcurrentDictionary<NamespaceId, MemoryCache> _referenceCaches = new ConcurrentDictionary<NamespaceId, MemoryCache>();
+		private readonly ConcurrentDictionary<NamespaceId, MemoryCache> _bucketEnumerationCaches = new ConcurrentDictionary<NamespaceId, MemoryCache>();
 		private readonly IOptionsMonitor<MemoryCacheReferencesSettings> _options;
 		private readonly Tracer _tracer;
 
@@ -41,16 +45,30 @@ namespace Jupiter.Implementation.Objects
 			}
 		}
 
+		private void AddBucketCacheForNamespace(NamespaceId ns, BucketId bucket, List<RefId> bucketContents)
+		{
+			MemoryCache cache = GetBucketCacheForNamespace(ns);
+
+			using ICacheEntry entry = cache.CreateEntry(bucket);
+			entry.Value = bucketContents;
+			entry.SlidingExpiration = TimeSpan.FromMinutes(10);
+		}
+
 		private MemoryCache GetCacheForNamespace(NamespaceId ns)
 		{
 			return _referenceCaches.GetOrAdd(ns, id => new MemoryCache(_options.CurrentValue));
 		}
 
-		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
+		private MemoryCache GetBucketCacheForNamespace(NamespaceId ns)
+		{
+			return _bucketEnumerationCaches.GetOrAdd(ns, id => new MemoryCache(Options.Create(new MemoryCacheOptions())));
+		}
+
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags, CancellationToken cancellationToken)
 		{
 			if (opFlags.HasFlag(IReferencesStore.OperationFlags.BypassCache))
 			{
-				return await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All, opFlags);
+				return await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All, opFlags, cancellationToken);
 			}
 
 			using TelemetrySpan scope = _tracer.StartActiveSpan("Ref.get")
@@ -72,29 +90,29 @@ namespace Jupiter.Implementation.Objects
 			}
 
 			scope.SetAttribute("Found", false);
-			RefRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All, opFlags);
+			RefRecord objectRecord = await _actualStore.GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.All, opFlags, cancellationToken);
 			AddCacheEntry(ns, bucket, key, objectRecord);
 
 			return objectRecord;
 		}
 
-		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized, CancellationToken cancellationToken)
 		{
 			RefRecord objectRecord = new RefRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
 			AddCacheEntry(ns, bucket, key, objectRecord);
-			
-			return _actualStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized);
+
+			return _actualStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized, cancellationToken);
 		}
 
-		public Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier, CancellationToken cancellationToken)
 		{
 			FinalizeCacheEntry(ns, bucket, key);
-			return _actualStore.FinalizeAsync(ns, bucket, key, blobIdentifier);
+			return _actualStore.FinalizeAsync(ns, bucket, key, blobIdentifier, cancellationToken);
 		}
 
-		public Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			return _actualStore.GetLastAccessTimeAsync(ns, bucket, key);
+			return _actualStore.GetLastAccessTimeAsync(ns, bucket, key, cancellationToken);
 		}
 
 		private void FinalizeCacheEntry(NamespaceId ns, BucketId bucket, RefId key)
@@ -107,55 +125,78 @@ namespace Jupiter.Implementation.Objects
 			}
 		}
 
-		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
+		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime, CancellationToken cancellationToken)
 		{
-			return _actualStore.UpdateLastAccessTimeAsync(ns, bucket, key, newLastAccessTime);
+			return _actualStore.UpdateLastAccessTimeAsync(ns, bucket, key, newLastAccessTime, cancellationToken);
 		}
 
-		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync(CancellationToken cancellationToken)
 		{
-			return _actualStore.GetRecordsAsync();
+			return _actualStore.GetRecordsAsync(cancellationToken);
 		}
 
-		public IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
+		public IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync(CancellationToken cancellationToken)
 		{
-			return _actualStore.GetRecordsWithoutAccessTimeAsync();
+			return _actualStore.GetRecordsWithoutAccessTimeAsync(cancellationToken);
 		}
 
-		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		public async IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			return _actualStore.GetRecordsInBucketAsync(ns, bucket);
+			using TelemetrySpan scope = _tracer.StartActiveSpan("Ref.get_bucket")
+				.SetAttribute("operation.name", "Ref.get_bucket")
+				.SetAttribute("resource.name", $"{ns}.{bucket}");
+
+			MemoryCache cache = GetBucketCacheForNamespace(ns);
+
+			if (cache.TryGetValue(bucket, out List<RefId>? cachedResult))
+			{
+				scope.SetAttribute("Found", true);
+				foreach (RefId r in cachedResult!)
+				{
+					yield return r;
+				}
+			}
+			else
+			{
+				List<RefId> bucketContents = await _actualStore.GetRecordsInBucketAsync(ns, bucket, cancellationToken).ToListAsync(cancellationToken: cancellationToken);
+				AddBucketCacheForNamespace(ns, bucket, bucketContents);
+
+				foreach (RefId r in bucketContents)
+				{
+					yield return r;
+				}
+			}
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken)
 		{
-			return _actualStore.GetNamespacesAsync();
+			return _actualStore.GetNamespacesAsync(cancellationToken);
 		}
 
-		public IAsyncEnumerable<BucketId> GetBuckets(NamespaceId ns)
+		public IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
-			return _actualStore.GetBuckets(ns);
+			return _actualStore.GetBucketsAsync(ns, cancellationToken);
 		}
 
-		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 			cache.Remove(new CachedReferenceKey(bucket, key));
-			return _actualStore.DeleteAsync(ns, bucket, key);
+			return _actualStore.DeleteAsync(ns, bucket, key, cancellationToken);
 		}
 
-		public Task<long> DropNamespaceAsync(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
 			_referenceCaches.TryRemove(ns, out _);
-			return _actualStore.DropNamespaceAsync(ns);
+			return _actualStore.DropNamespaceAsync(ns, cancellationToken);
 		}
 
-		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 		{
 			// we do not track enough information to be able to drop a bucket, so we have to drop the entire namespace cache to remove the bucket
 			// this should be okay as deleting buckets is a extremely uncommon operation
 			_referenceCaches.TryRemove(ns, out _);
-			return _actualStore.DeleteBucketAsync(ns, bucket);
+			return _actualStore.DeleteBucketAsync(ns, bucket, cancellationToken);
 		}
 
 		public void Clear()
@@ -241,7 +282,7 @@ namespace Jupiter.Implementation.Objects
 
 		public NamespaceId Namespace { get; }
 		public BucketId Bucket { get; }
-		public RefId Name { get;}
+		public RefId Name { get; }
 		public byte[]? Blob { get; }
 		public BlobId BlobIdentifier { get; }
 		public int Size { get; }

@@ -4,7 +4,24 @@
 #include "CoreMinimal.h"
 #include "Tools/UEdMode.h"
 #include "Framework/Commands/UICommandList.h"
+#include "InputBehaviorSet.h"
+#include "BaseBehaviors/BehaviorTargetInterfaces.h"
 #include "LevelInstanceEditorMode.generated.h"
+
+UCLASS()
+class ULevelInstanceEditorBehaviorSource : public UObject, public IInputBehaviorSource
+{
+	GENERATED_BODY()
+public:
+	virtual const UInputBehaviorSet* GetInputBehaviors() const override { return InputBehaviorSet; }
+	void Initialize(UEditorInteractiveToolsContext* InteractiveToolsContext);
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UInputBehaviorSet> InputBehaviorSet;
+
+	TUniquePtr<IMouseWheelBehaviorTarget> MouseWheelBehaviorTarget;
+};
 
 UCLASS()
 class ULevelInstanceEditorMode : public UEdMode
@@ -33,6 +50,8 @@ public:
 	virtual bool IsOperationSupportedForCurrentAsset(EAssetOperation InOperation) const { return InOperation == EAssetOperation::Save; }
 	// End UEdMode
 
+	static TScriptInterface<IInputBehaviorSource> CreateDefaultModeBehaviorSource(UEditorInteractiveToolsContext* InteractiveToolContext);
+	
 private:
 	void OnPreBeginPIE(bool bSimulate);
 	void UpdateEngineShowFlags();
@@ -44,5 +63,8 @@ private:
 	bool IsContextRestrictedForWorld(UWorld* InWorld) const;
 
 	bool bContextRestriction;
+	
+	UPROPERTY(Transient)
+	TScriptInterface<IInputBehaviorSource> ModeBehaviorSource;
 };
 

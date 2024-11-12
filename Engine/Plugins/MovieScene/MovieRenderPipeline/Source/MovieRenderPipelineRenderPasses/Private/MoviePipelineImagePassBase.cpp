@@ -251,6 +251,7 @@ TSharedPtr<FSceneViewFamilyContext> UMoviePipelineImagePassBase::CalculateViewFa
 	// Override the view's FrameIndex to be based on our progress through the sequence. This greatly increases
 	// determinism with things like TAA.
 	View->OverrideFrameIndexValue = InOutSampleState.FrameIndex;
+	View->OverrideOutputFrameIndexValue = InOutSampleState.OutputState.OutputFrameNumber;
 	View->bCameraCut = InOutSampleState.bCameraCut;
 	View->bIsOfflineRender = true;
 	View->AntiAliasingMethod = IsAntiAliasingSupported() ? InOutSampleState.AntiAliasingMethod : EAntiAliasingMethod::AAM_None;
@@ -288,19 +289,6 @@ TSharedPtr<FSceneViewFamilyContext> UMoviePipelineImagePassBase::CalculateViewFa
 				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Camera Auto Exposure Method not supported by one or more render passes. Change the Auto Exposure Method to Manual!"));
 				View->FinalPostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
 			}
-		}
-	}
-
-	// Orthographic cameras don't support anti-aliasing outside the path tracer (other than FXAA)
-	const bool bIsOrthographicCamera = !View->IsPerspectiveProjection();
-	if (bIsOrthographicCamera)
-	{
-		bool bIsSupportedAAMethod = View->AntiAliasingMethod == EAntiAliasingMethod::AAM_FXAA;
-		bool bIsPathTracer = OutViewFamily->EngineShowFlags.PathTracing;
-		bool bWarnJitters = InOutSampleState.ProjectionMatrixJitterAmount.SquaredLength() > SMALL_NUMBER;
-		if ((!bIsPathTracer && !bIsSupportedAAMethod) || bWarnJitters)
-		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Orthographic Cameras are only supported with PathTracer or Deferred with FXAA Anti-Aliasing"));
 		}
 	}
 
@@ -344,8 +332,8 @@ TSharedPtr<FSceneViewFamilyContext> UMoviePipelineImagePassBase::CalculateViewFa
 	{
 		// If we're not using Temporal Anti-Aliasing or Path Tracing we will apply the View Matrix projection jitter. Normally TAA sets this
 		// inside FSceneRenderer::PreVisibilityFrameSetup. Path Tracing does its own anti-aliasing internally.
-		bool bApplyProjectionJitter = !bIsOrthographicCamera
-									&& !OutViewFamily->EngineShowFlags.PathTracing 
+		bool bApplyProjectionJitter = 
+									!OutViewFamily->EngineShowFlags.PathTracing 
 									&& !IsTemporalAccumulationBasedMethod(View->AntiAliasingMethod);
 		if (bApplyProjectionJitter)
 		{
@@ -411,41 +399,7 @@ TSharedPtr<FSceneViewFamilyContext> UMoviePipelineImagePassBase::CalculateViewFa
 
 void UMoviePipelineImagePassBase::SetupViewForViewModeOverride(FSceneView* View)
 {
-	if (View->Family->EngineShowFlags.Wireframe)
-	{
-		// Wireframe color is emissive-only, and mesh-modifying materials do not use material substitution, hence...
-		View->DiffuseOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
-		View->SpecularOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
-	}
-	else if (View->Family->EngineShowFlags.OverrideDiffuseAndSpecular)
-	{
-		View->DiffuseOverrideParameter = FVector4f(GEngine->LightingOnlyBrightness.R, GEngine->LightingOnlyBrightness.G, GEngine->LightingOnlyBrightness.B, 0.0f);
-		View->SpecularOverrideParameter = FVector4f(.1f, .1f, .1f, 0.0f);
-	}
-	else if (View->Family->EngineShowFlags.LightingOnlyOverride)
-	{
-		View->DiffuseOverrideParameter = FVector4f(GEngine->LightingOnlyBrightness.R, GEngine->LightingOnlyBrightness.G, GEngine->LightingOnlyBrightness.B, 0.0f);
-		View->SpecularOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
-	}
-	else if (View->Family->EngineShowFlags.ReflectionOverride)
-	{
-		View->DiffuseOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
-		View->SpecularOverrideParameter = FVector4f(1, 1, 1, 0.0f);
-		View->NormalOverrideParameter = FVector4f(0, 0, 1, 0.0f);
-		View->RoughnessOverrideParameter = FVector2D(0.0f, 0.0f);
-	}
-
-	if (!View->Family->EngineShowFlags.Diffuse)
-	{
-		View->DiffuseOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
-	}
-
-	if (!View->Family->EngineShowFlags.Specular)
-	{
-		View->SpecularOverrideParameter = FVector4f(0.f, 0.f, 0.f, 0.f);
-	}
-	FName BufferVisualizationMode = "WorldNormal";
-	View->CurrentBufferVisualizationMode = BufferVisualizationMode;
+	UE::MovieRenderPipeline::UpdateSceneViewForShowFlags(View);
 }
 
 void UMoviePipelineImagePassBase::GatherOutputPassesImpl(TArray<FMoviePipelinePassIdentifier>& ExpectedRenderPasses)
@@ -469,7 +423,9 @@ FSceneView* UMoviePipelineImagePassBase::GetSceneViewForSampleState(FSceneViewFa
 	FSceneViewInitOptions ViewInitOptions;
 	ViewInitOptions.ViewFamily = ViewFamily;
 	ViewInitOptions.ViewOrigin = CameraInfo.ViewInfo.Location;
-	ViewInitOptions.SetViewRectangle(FIntRect(FIntPoint(0, 0), FIntPoint(TileSizeX, TileSizeY)));
+	FIntRect ViewRect = FIntRect(FIntPoint(0, 0), FIntPoint(TileSizeX, TileSizeY));
+	ViewInitOptions.SetViewRectangle(ViewRect);
+
 	ViewInitOptions.ViewRotationMatrix = FInverseRotationMatrix(CameraInfo.ViewInfo.Rotation);
 	ViewInitOptions.ViewActor = CameraInfo.ViewActor;
 
@@ -479,135 +435,86 @@ FSceneView* UMoviePipelineImagePassBase::GetSceneViewForSampleState(FSceneViewFa
 		FPlane(1, 0, 0, 0),
 		FPlane(0, 1, 0, 0),
 		FPlane(0, 0, 0, 1));
-	float ViewFOV = CameraInfo.ViewInfo.FOV;
-
-	// Inflate our FOV to support the overscan 
-	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InOutSampleState.OverscanPercentage) * FMath::Tan(FMath::DegreesToRadians( ViewFOV * 0.5f ))));
-
-	float DofSensorScale = 1.0f;
-
-	// Calculate a Projection Matrix. This code unfortunately ends up similar to, but not quite the same as FMinimalViewInfo::CalculateProjectionMatrixGivenView
-	FMatrix BaseProjMatrix;
-
-	if (CameraInfo.bUseCustomProjectionMatrix)
+	
+	if (InOutSampleState.bOverrideCameraOverscan)
 	{
-		BaseProjMatrix = CameraInfo.CustomProjectionMatrix;
-
-		// Modify the custom matrix to do an off center projection, with overlap for high-res tiling
-		const bool bOrthographic = false;
-		ModifyProjectionMatrixForTiling(InOutSampleState, bOrthographic, /*InOut*/ BaseProjMatrix, DofSensorScale);
+		// If we are overriding the camera's overscan, clear out any overscan the camera added to the view info, and apply the overriding overscan
+		CameraInfo.ViewInfo.ClearOverscan();
+		CameraInfo.ViewInfo.ApplyOverscan(InOutSampleState.OverscanPercentage);
 	}
 	else
 	{
-		if (CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic)
+		// Check for animated overscan, and warn if animated overscan was detected
+		const float CachedOverscan = GetPipeline()->GetCachedCameraOverscan(InOutSampleState.OutputState.CameraIndex);
+		if (CameraInfo.ViewInfo.GetOverscan() != CachedOverscan)
 		{
-			const float YScale = 1.0f / CameraAspectRatio;
-			const float OverscanScale = 1.0f + InOutSampleState.OverscanPercentage;
-
-			const float HalfOrthoWidth = (CameraInfo.ViewInfo.OrthoWidth / 2.0f) * OverscanScale;
-			const float ScaledOrthoHeight = (CameraInfo.ViewInfo.OrthoWidth / 2.0f) * OverscanScale * YScale;
-
-			const float NearPlane = CameraInfo.ViewInfo.OrthoNearClipPlane;
-			const float FarPlane = CameraInfo.ViewInfo.OrthoFarClipPlane;
-
-			const float ZScale = 1.0f / (FarPlane - NearPlane);
-			const float ZOffset = -NearPlane;
-
-			BaseProjMatrix = FReversedZOrthoMatrix(
-				HalfOrthoWidth,
-				ScaledOrthoHeight,
-				ZScale,
-				ZOffset
-			);
-			
-			// Modify the projection matrix to do an off center projection, with overlap for high-res tiling
-			const bool bOrthographic = true;
-			ModifyProjectionMatrixForTiling(InOutSampleState, bOrthographic, /*InOut*/ BaseProjMatrix, DofSensorScale);
-		}
-		else
-		{
-			float XAxisMultiplier;
-			float YAxisMultiplier;
-
-			if (CameraInfo.ViewInfo.bConstrainAspectRatio)
-			{
-				// If the camera's aspect ratio has a thinner width, then stretch the horizontal fov more than usual to 
-				// account for the extra with of (before constraining - after constraining)
-				if (CameraAspectRatio < DestAspectRatio)
-				{
-					const float ConstrainedWidth = ViewInitOptions.GetViewRect().Height() * CameraAspectRatio;
-					XAxisMultiplier = ConstrainedWidth / (float)ViewInitOptions.GetViewRect().Width();
-					YAxisMultiplier = CameraAspectRatio;
-				}
-				// Simplified some math here but effectively functions similarly to the above, the unsimplified code would look like:
-				// const float ConstrainedHeight = ViewInitOptions.GetViewRect().Width() / CameraCache.AspectRatio;
-				// YAxisMultiplier = (ConstrainedHeight / ViewInitOptions.GetViewRect.Height()) * CameraCache.AspectRatio;
-				else
-				{
-					XAxisMultiplier = 1.0f;
-					YAxisMultiplier = ViewInitOptions.GetViewRect().Width() / (float)ViewInitOptions.GetViewRect().Height();
-				}
-			}
-			else
-			{
-				const int32 DestSizeX = ViewInitOptions.GetViewRect().Width();
-				const int32 DestSizeY = ViewInitOptions.GetViewRect().Height();
-				const EAspectRatioAxisConstraint AspectRatioAxisConstraint = GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint;
-				if (((DestSizeX > DestSizeY) && (AspectRatioAxisConstraint == AspectRatio_MajorAxisFOV)) || (AspectRatioAxisConstraint == AspectRatio_MaintainXFOV))
-				{
-					//if the viewport is wider than it is tall
-					XAxisMultiplier = 1.0f;
-					YAxisMultiplier = ViewInitOptions.GetViewRect().Width() / (float)ViewInitOptions.GetViewRect().Height();
-				}
-				else
-				{
-					//if the viewport is taller than it is wide
-					XAxisMultiplier = ViewInitOptions.GetViewRect().Height() / (float)ViewInitOptions.GetViewRect().Width();
-					YAxisMultiplier = 1.0f;
-				}
-			}
-
-			const float MinZ = CameraInfo.ViewInfo.GetFinalPerspectiveNearClipPlane();
-			const float MaxZ = MinZ;
-			// Avoid zero ViewFOV's which cause divide by zero's in projection matrix
-			const float MatrixFOV = FMath::Max(0.001f, ViewFOV) * (float)PI / 360.0f;
-
-
-			if ((bool)ERHIZBuffer::IsInverted)
-			{
-				BaseProjMatrix = FReversedZPerspectiveMatrix(
-					MatrixFOV,
-					MatrixFOV,
-					XAxisMultiplier,
-					YAxisMultiplier,
-					MinZ,
-					MaxZ
-				);
-			}
-			else
-			{
-				BaseProjMatrix = FPerspectiveMatrix(
-					MatrixFOV,
-					MatrixFOV,
-					XAxisMultiplier,
-					YAxisMultiplier,
-					MinZ,
-					MaxZ
-				);
-			}
-
-			// Modify the perspective matrix to do an off center projection, with overlap for high-res tiling
-			const bool bOrthographic = false;
-			ModifyProjectionMatrixForTiling(InOutSampleState, bOrthographic, /*InOut*/ BaseProjMatrix, DofSensorScale);
-			// ToDo: Does orthographic support tiling in the same way or do I need to modify the values before creating the ortho view.
+			GetPipeline()->WarnAboutAnimatedOverscan(CachedOverscan);
 		}
 	}
-		// BaseProjMatrix may be perspective or orthographic.
-		ViewInitOptions.ProjectionMatrix = BaseProjMatrix;
+	
+	ViewInitOptions.FOV = CameraInfo.ViewInfo.FOV;
+	ViewInitOptions.DesiredFOV = CameraInfo.ViewInfo.FOV;
+
+	float DofSensorScale = 1.0f;
+
+	if (CameraInfo.bUseCustomProjectionMatrix)
+	{
+		ViewInitOptions.ProjectionMatrix = CameraInfo.CustomProjectionMatrix;
+
+		// Modify the custom matrix to do an off center projection, with overlap for high-res tiling
+		const bool bOrthographic = false;
+		ModifyProjectionMatrixForTiling(InOutSampleState, bOrthographic, /*InOut*/ ViewInitOptions.ProjectionMatrix, /*Out*/ DofSensorScale);
+	}
+	else
+	{
+		// If they're using high-resolution tiling we can't support letterboxing (as the blended areas we would render with
+		// would have been cropped via letterboxing), so to handle this scenario we disable aspect ratio constraints and then
+		// manually rescale the view (if needed) to mimick the effect of letterboxing.
+		TEnumAsByte<EAspectRatioAxisConstraint> AspectRatioAxisConstraint = CameraInfo.ViewInfo.AspectRatioAxisConstraint.Get(EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV);
+		if (InOutSampleState.GetTileCount() > 1 && CameraInfo.ViewInfo.bConstrainAspectRatio)
+		{
+			if (CameraAspectRatio < DestAspectRatio)
+			{
+				AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainYFOV;
+				CameraInfo.ViewInfo.OrthoWidth *= (DestAspectRatio / CameraAspectRatio);
+
+				// Off-center camera projections are calculated based on constrained aspect ratios, but those are disabled
+				// when using high-resolution tiling. This means that we need to scale the offset projection as well.
+				// 
+				// To calculate the required size change, we can look at an Aspect Ratio of 0.5 inside a square output, 
+				// ie: the rendered area is 1000 x 2000 for an output that is 2000x2000 (this is 0.5 of 1.0). With an
+				// off-center projection, an offset of 1.0 on X originally only moved by 500 pixels (1000x0.5), but with the aspect
+				// ratio constraint disabled, it now applies to the full output image (2000x0.5) resulting in a move that is twice as big.
+				// 
+				// To resolve this, we scale the offset by the CameraAspectRatio / DestAspectRatio, which is 0.5 / 1.0 for this example,
+				// meaning we multiply the user-intended offset (1.0) by 0.5, resulting in the originally desired 500px offset.
+				const double Ratio = CameraAspectRatio / DestAspectRatio; // ex: Ratio = 0.5 / 1
+				CameraInfo.ViewInfo.OffCenterProjectionOffset.X *= Ratio;
+			}
+			else if (CameraAspectRatio > DestAspectRatio)
+			{
+				// Don't rescale the width and keep it X-constrained.
+				AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV;
+
+				// Like above, off-center projections need to be rescaled too.
+				const double Ratio = DestAspectRatio / CameraAspectRatio;
+				CameraInfo.ViewInfo.OffCenterProjectionOffset.Y *= Ratio;
+			}
+			CameraInfo.ViewInfo.bConstrainAspectRatio = false;
+		}
+
+
+		FIntRect ViewExtents = FViewport::CalculateViewExtents(CameraInfo.ViewInfo.AspectRatio, DestAspectRatio, ViewRect, InOutSampleState.BackbufferSize);
+		FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(CameraInfo.ViewInfo, AspectRatioAxisConstraint, ViewExtents, ViewInitOptions);
+
+		ModifyProjectionMatrixForTiling(InOutSampleState, CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic,  /*InOut*/ ViewInitOptions.ProjectionMatrix, /*Out*/ DofSensorScale);
+	}
+
+
+	// Scale the DoF sensor scale to counteract overscan, otherwise the size of Bokeh changes when you have Overscan enabled.
+	DofSensorScale *= 1.0 + InOutSampleState.OverscanPercentage;
 
 	ViewInitOptions.SceneViewStateInterface = GetSceneViewStateInterface(OptPayload);
-	ViewInitOptions.FOV = ViewFOV;
-	ViewInitOptions.DesiredFOV = ViewFOV;
 
 	FSceneView* View = new FSceneView(ViewInitOptions);
 	ViewFamily->Views.Add(View);
@@ -624,6 +531,7 @@ FSceneView* UMoviePipelineImagePassBase::GetSceneViewForSampleState(FSceneViewFa
 	// Scaling sensor size inversely with the the projection matrix [0][0] should physically
 	// cause the circle of confusion to be unchanged.
 	View->FinalPostProcessSettings.DepthOfFieldSensorWidth *= DofSensorScale;
+
 	// Modify the 'center' of the lens to be offset for high-res tiling, helps some effects (vignette) etc. still work.
 	View->LensPrincipalPointOffsetScale = (FVector4f)CalculatePrinciplePointOffsetForTiling(InOutSampleState); // LWC_TODO: precision loss. CalculatePrinciplePointOffsetForTiling() could return float, it's normalized?
 	View->EndFinalPostprocessSettings(ViewInitOptions);
@@ -725,12 +633,19 @@ void UMoviePipelineImagePassBase::ModifyProjectionMatrixForTiling(const FMoviePi
 
 	if (bInOrthographic)
 	{
+		// Scale the off-center projection matrix too so that it's appropriately sized down for each tile.
+		InOutProjectionMatrix.M[3][0] /= ScaleX;
+		InOutProjectionMatrix.M[3][1] /= ScaleY;
 		InOutProjectionMatrix.M[3][0] += OffsetX / PadRatioX;
 		InOutProjectionMatrix.M[3][1] += OffsetY / PadRatioY;
 	}
 	else
 	{
-	InOutProjectionMatrix.M[2][0] += OffsetX / PadRatioX;
+		// Scale the off-center projection matrix too so that it's appropriately sized down for each tile.
+		InOutProjectionMatrix.M[2][0] /= ScaleX;
+		InOutProjectionMatrix.M[2][1] /= ScaleY;
+		// Then offset it for this particular tile.
+		InOutProjectionMatrix.M[2][0] += OffsetX / PadRatioX;
 		InOutProjectionMatrix.M[2][1] += OffsetY / PadRatioY;
 	}
 }

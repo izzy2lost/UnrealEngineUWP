@@ -176,7 +176,6 @@ bool UUTBCommandFactory::ConfigureProperties()
 		+SScrollBox::Slot()
 		[
 			SNew(STreeView<TSharedPtr<TreeNode>>)
-			.ItemHeight(24)
 			.TreeItemsSource(&Tree)
 			.OnGenerateRow(STreeView<TSharedPtr<TreeNode>>::FOnGenerateRow::CreateLambda([](TSharedPtr<TreeNode> Node,const TSharedRef<STableViewBase>& OwnerTable)
 			{

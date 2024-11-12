@@ -1,7 +1,7 @@
 {
 	"ParentSDKFile": "../Apple/Apple_SDK.json",
 
-	"EditorDeploymentTarget": "13.0.0",
+	"EditorDeploymentTarget": "13.00",
 	"EditorBuildTarget": "13.00",
 
 	"DeploymentTarget": "13.00",

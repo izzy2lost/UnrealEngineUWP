@@ -151,15 +151,24 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Telemetry event for this executor
+		/// </summary>
+		protected TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent;
+
+		/// <summary>
 		/// Create an action queue
 		/// </summary>
 		/// <param name="actionsToExecute">Actions to be executed</param>
 		/// <param name="actionArtifactCache">Artifact cache</param>
+		/// <param name="maxActionArtifactCacheTasks">Max artifact tasks that can execute in parallel</param>
 		/// <param name="logger">Logging interface</param>
 		/// <returns>Action queue</returns>
-		public ImmediateActionQueue CreateActionQueue(IEnumerable<LinkedAction> actionsToExecute, IActionArtifactCache? actionArtifactCache, ILogger logger)
+		public ImmediateActionQueue CreateActionQueue(IEnumerable<LinkedAction> actionsToExecute, IActionArtifactCache? actionArtifactCache, int maxActionArtifactCacheTasks, ILogger logger)
 		{
-			return new(actionsToExecute, actionArtifactCache, NumParallelProcesses, "Compiling C++ source code...", x => WriteToolOutput(x), () => FlushToolOutput(), logger)
+			return new(actionsToExecute, actionArtifactCache, maxActionArtifactCacheTasks, "Compiling C++ source code...", x => WriteToolOutput(x), () => FlushToolOutput(), logger)
 			{
 				ShowCompilationTimes = bShowCompilationTimes,
 				ShowCPUUtilization = bShowCPUUtilization,
@@ -179,39 +188,50 @@ namespace UnrealBuildTool
 				return true;
 			}
 
+			DateTime startTimeUTC = DateTime.UtcNow;
+			bool result;
+
 			// The "useAutomaticQueue" should always be true unless manual queue is being tested
 			bool useAutomaticQueue = true;
 			if (useAutomaticQueue)
 			{
-				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, Logger);
+				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, NumParallelProcesses, Logger);
 				int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 				queue.CreateAutomaticRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 				queue.Start();
 				queue.StartManyActions();
-				return await queue.RunTillDone();
+				result = await queue.RunTillDone();
+
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, DateTime.UtcNow);
 			}
 			else
 			{
-				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, Logger);
+				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, NumParallelProcesses, Logger);
 				int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 				ImmediateActionQueueRunner runner = queue.CreateManualRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, actionLimit);
 				queue.Start();
 				using Timer timer = new((_) => queue.StartManyActions(runner), null, 0, 500);
 				queue.StartManyActions();
-				return await queue.RunTillDone();
+				result = await queue.RunTillDone();
+
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, DateTime.UtcNow);
 			}
+
+			return result;
 		}
 
 		private static Func<Task>? RunAction(ImmediateActionQueue queue, LinkedAction action)
 		{
 			return async () =>
 			{
-				ExecuteResults results = await RunAction(action, queue.ProcessGroup, queue.CancellationToken);
+				ExecuteResults results = await RunActionAsync(action, queue.ProcessGroup, queue.CancellationToken);
 				queue.OnActionCompleted(action, results.ExitCode == 0, results);
 			};
 		}
 
-		protected static async Task<ExecuteResults> RunAction(LinkedAction Action, ManagedProcessGroup ProcessGroup, CancellationToken CancellationToken, string? AdditionalDescription = null)
+		protected static async Task<ExecuteResults> RunActionAsync(LinkedAction Action, ManagedProcessGroup ProcessGroup, CancellationToken CancellationToken, string? AdditionalDescription = null)
 		{
 			CancellationToken.ThrowIfCancellationRequested();
 

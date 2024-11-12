@@ -7,12 +7,14 @@
 #include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Misc/EnumClassFlags.h"
+#include "Templates/UnrealTemplate.h"
+
+#include "VerseVM/VVMContext.h"
 
 class FString;
 
 namespace Verse
 {
-struct FAllocationContext;
 struct VCell;
 struct VEmergentType;
 struct VInt;
@@ -66,10 +68,25 @@ protected:
 };
 
 COREUOBJECT_API FString ToString(const VInt& Int);
-COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value);
-COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
-COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value);
-COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
 
+template <typename T>
+FString ToString(FAllocationContext Context, T&& Arg)
+{
+	return ToString(Context, FDefaultCellFormatter{}, ::Forward<T>(Arg));
+}
+
+COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value);
+
+COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
+
+template <typename T>
+void ToString(FStringBuilderBase& Builder, FAllocationContext Context, T&& Arg)
+{
+	ToString(Builder, Context, FDefaultCellFormatter{}, ::Forward<T>(Arg));
+}
+
+COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value);
+
+COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
 } // namespace Verse
 #endif // WITH_VERSE_VM

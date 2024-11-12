@@ -24,6 +24,7 @@ public:
 	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector);
 
 	virtual bool IsValid() const = 0;
+	virtual bool HasContent() const = 0;
 
 	ENGINE_API UWorld* GetInjectedWorld() const;
 	ENGINE_API const FString& GetDisplayName() const;
@@ -33,7 +34,6 @@ public:
 	EContentBundleStatus GetStatus() const { return Status; }
 	ENGINE_API FString GetExternalStreamingObjectPackageName() const;
 	ENGINE_API FString GetExternalStreamingObjectPackagePath() const;
-	ENGINE_API FString GetExternalStreamingObjectName() const;
 
 protected:
 	ENGINE_API void SetStatus(EContentBundleStatus NewStatus);

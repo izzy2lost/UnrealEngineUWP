@@ -89,6 +89,14 @@ enum class ECustomDetailsViewWidgetType
 	Extensions,
 };
 
+/** Expansion state allowed for an item */
+enum class ECustomDetailsViewExpansion : uint8
+{
+	Collapsed,
+	SelfExpanded,
+	SelfAndChildrenExpanded
+};
+
 struct FCustomDetailsViewArgs
 {
 	/** List of Allowed and Disallowed Categories */
@@ -104,7 +112,10 @@ struct FCustomDetailsViewArgs
 	bool bDefaultItemsExpanded = false;
 
 	/** Map of the Node Name to their Expanded State */
-	TMap<FCustomDetailsViewItemId, bool> ExpansionState;
+	TMap<FCustomDetailsViewItemId, ECustomDetailsViewExpansion> ExpansionState;
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnExpansionStateChanged, const TSharedRef<ICustomDetailsViewItem>&, bool)
+	FOnExpansionStateChanged OnExpansionStateChanged;
 
 	/** Default value column width, as a percentage, 0-1. */
 	float ValueColumnWidth = 0.6f;

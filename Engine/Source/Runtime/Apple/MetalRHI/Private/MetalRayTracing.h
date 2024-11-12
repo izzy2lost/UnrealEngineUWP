@@ -5,13 +5,10 @@
 ==============================================================================*/
 
 #pragma once
+
 #include "MetalRHIPrivate.h"
 
 #if METAL_RHI_RAYTRACING
-
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
 
 struct FMetalRayTracingGeometryParameters
 {
@@ -30,9 +27,7 @@ public:
 	void ReleaseUnderlyingResource();
 
 	/** FRHIRayTracingGeometry Interface */
-	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override { return (FRayTracingAccelerationStructureAddress)SceneIndex;
-	}
-	virtual void SetInitializer(const FRayTracingGeometryInitializer& Initializer) final override;
+	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override { return (FRayTracingAccelerationStructureAddress)SceneIndex; }
 	/** FRHIRayTracingGeometry Interface */
 
 	void Swap(FMetalRayTracingGeometry& Other);
@@ -79,7 +74,7 @@ private:
 class FMetalRayTracingScene : public FRHIRayTracingScene
 {
 public:
-	FMetalRayTracingScene(FRayTracingSceneInitializer2 InInitializer);
+	FMetalRayTracingScene(FRayTracingSceneInitializer InInitializer);
 	virtual ~FMetalRayTracingScene();
 
 	void BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffset);
@@ -90,28 +85,20 @@ public:
 
 	void BuildPerInstanceGeometryParameterBuffer();
 
-	inline const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
-	inline uint32 GetLayerBufferOffset(uint32 LayerIndex) const override final { return Layers[LayerIndex].BufferOffset; }
+	inline const FRayTracingSceneInitializer& GetInitializer() const override final { return Initializer; }
 
 	TRefCountPtr<FMetalShaderResourceView> InstanceBufferSRV;
 
-	struct FLayerData
-	{
-		TRefCountPtr<FMetalShaderResourceView> ShaderResourceView;
-		uint32 BufferOffset;
-		uint32 ScratchBufferOffset;
-		FRayTracingAccelerationStructureSize SizeInfo;
-	};
-	TArray<FLayerData> Layers;
+	TRefCountPtr<FMetalShaderResourceView> ShaderResourceView;
 
 private:
 	friend class FMetalRHICommandContext;
 
 private:
 	/** The initializer provided to build the scene. Contains all the free standing stuff that used to be owned by the RT implementation. */
-	const FRayTracingSceneInitializer2 Initializer;
+	const FRayTracingSceneInitializer Initializer;
 
-	/** Acceleration Structure for the whole scene (shared between each layer). */
+	/** Acceleration Structure for the whole scene. */
 	TRefCountPtr<FMetalRHIBuffer> AccelerationStructureBuffer;
 
 	/** Root Constants for geometry evaluation in HitGroup/Miss (emulates D3D12 RootConstants with a global scope). */

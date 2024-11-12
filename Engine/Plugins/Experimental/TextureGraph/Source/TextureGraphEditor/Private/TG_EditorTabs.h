@@ -15,11 +15,12 @@ struct FTG_EditorTabs
 	static const FName GraphEditorId;
 	static const FName PreviewSceneSettingsTabId;
 	static const FName ParameterDefaultsTabId;
-	static const FName SelectionPreviewTabId;
+	static const FName NodePreviewTabId;
 	static const FName OutputTabId;
 	static const FName PreviewSettingsTabId;
 	static const FName ErrorsTabId;
 	static const FName TextureDetailsTabId;
+	static const FName TextureExporterTabId;
 
 	// Disable default constructor
 	FTG_EditorTabs() = delete;
